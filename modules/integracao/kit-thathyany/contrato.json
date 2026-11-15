@@ -868,13 +868,26 @@
           "so_kit": true
         },
         {
+          "campo": "marca_referencia_codigo_1",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "980",
+          "observacao": "Código no ERP da marca da concorrência do código 1 (opcional, só com referencia_1).",
+          "coluna": "marca_referencia_codigo_1",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {},
+          "so_kit": true
+        },
+        {
           "campo": "marca_referencia_1",
           "obrigatorio": false,
           "tipo": "texto",
           "tamanho_max": 120,
           "formato": null,
           "exemplo": "Marca Beta",
-          "observacao": "Marca da concorrência do código 1 (opcional, só com referencia_1). Marca que não esteja cadastrada em Marcas do Catálogo: a referência entra sem marca e o lote traz o aviso marca_concorrente_desconhecida.",
+          "observacao": "Marca da concorrência do código 1 (opcional, só com referencia_1). Sem o código da marca, o nome precisa estar em Marcas do Catálogo; senão a referência entra sem marca e o lote traz o aviso marca_concorrente_desconhecida.",
           "coluna": "marca_referencia_1",
           "tipo_sql": "NVARCHAR(120) NULL",
           "regra": {},
@@ -894,13 +907,26 @@
           "so_kit": true
         },
         {
+          "campo": "marca_referencia_codigo_2",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "",
+          "observacao": "Código no ERP da marca da concorrência do código 2 (opcional, só com referencia_2).",
+          "coluna": "marca_referencia_codigo_2",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {},
+          "so_kit": true
+        },
+        {
           "campo": "marca_referencia_2",
           "obrigatorio": false,
           "tipo": "texto",
           "tamanho_max": 120,
           "formato": null,
           "exemplo": "",
-          "observacao": "Marca da concorrência do código 2 (opcional, só com referencia_2). Marca que não esteja cadastrada em Marcas do Catálogo: a referência entra sem marca e o lote traz o aviso marca_concorrente_desconhecida.",
+          "observacao": "Marca da concorrência do código 2 (opcional, só com referencia_2). Sem o código da marca, o nome precisa estar em Marcas do Catálogo; senão a referência entra sem marca e o lote traz o aviso marca_concorrente_desconhecida.",
           "coluna": "marca_referencia_2",
           "tipo_sql": "NVARCHAR(120) NULL",
           "regra": {},
@@ -920,13 +946,26 @@
           "so_kit": true
         },
         {
+          "campo": "marca_referencia_codigo_3",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "",
+          "observacao": "Código no ERP da marca da concorrência do código 3 (opcional, só com referencia_3).",
+          "coluna": "marca_referencia_codigo_3",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {},
+          "so_kit": true
+        },
+        {
           "campo": "marca_referencia_3",
           "obrigatorio": false,
           "tipo": "texto",
           "tamanho_max": 120,
           "formato": null,
           "exemplo": "",
-          "observacao": "Marca da concorrência do código 3 (opcional, só com referencia_3). Marca que não esteja cadastrada em Marcas do Catálogo: a referência entra sem marca e o lote traz o aviso marca_concorrente_desconhecida.",
+          "observacao": "Marca da concorrência do código 3 (opcional, só com referencia_3). Sem o código da marca, o nome precisa estar em Marcas do Catálogo; senão a referência entra sem marca e o lote traz o aviso marca_concorrente_desconhecida.",
           "coluna": "marca_referencia_3",
           "tipo_sql": "NVARCHAR(120) NULL",
           "regra": {},
@@ -953,6 +992,14 @@
         {
           "regra": "requer",
           "campos": [
+            "marca_referencia_codigo_1",
+            "referencia_1"
+          ],
+          "motivo": "marca_referencia_codigo_1 só vale com referencia_1 preenchida"
+        },
+        {
+          "regra": "requer",
+          "campos": [
             "marca_referencia_2",
             "referencia_2"
           ],
@@ -961,10 +1008,26 @@
         {
           "regra": "requer",
           "campos": [
+            "marca_referencia_codigo_2",
+            "referencia_2"
+          ],
+          "motivo": "marca_referencia_codigo_2 só vale com referencia_2 preenchida"
+        },
+        {
+          "regra": "requer",
+          "campos": [
             "marca_referencia_3",
             "referencia_3"
           ],
           "motivo": "marca_referencia_3 só vale com referencia_3 preenchida"
+        },
+        {
+          "regra": "requer",
+          "campos": [
+            "marca_referencia_codigo_3",
+            "referencia_3"
+          ],
+          "motivo": "marca_referencia_codigo_3 só vale com referencia_3 preenchida"
         }
       ],
       "colunas_so_conector": [
