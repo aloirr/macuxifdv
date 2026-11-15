@@ -53,8 +53,8 @@ import {
   type FiltrosDaTela,
 } from '@/lib/portal-diagnosticos';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
-import { destinoDaSessao, ehTimeMacuxi } from '@/lib/portal-sessao';
-import { LinkBotao, MolduraPortal, useSessaoPortal } from './base';
+import { ehTimeMacuxi } from '@/lib/portal-sessao';
+import { MolduraPortal, SemAcessoTimeMacuxi, useSessaoPortal } from './base';
 import { useEmpresas } from './tela-empresas';
 
 /** Só o time Macuxi: `null` = ainda lendo a sessão; `false` = admin do cliente (mostra o "sem acesso"). */
@@ -62,22 +62,6 @@ function useTimeMacuxi(): boolean | null {
   const sessao = useSessaoPortal();
   if (sessao === undefined || sessao === null) return null;
   return ehTimeMacuxi(sessao);
-}
-
-function SemAcesso() {
-  const sessao = useSessaoPortal();
-  return (
-    <Panel>
-      <div data-testid="diagnosticos.sem-acesso" className="flex flex-col items-start gap-3 py-4">
-        <span className="text-[15px] font-semibold">{T.semAcesso}</span>
-        {sessao && (
-          <LinkBotao href={destinoDaSessao(sessao)} primario>
-            Ir para a sua empresa
-          </LinkBotao>
-        )}
-      </div>
-    </Panel>
-  );
 }
 
 function OrigemBadge({ origem }: { origem: keyof typeof ROTULO_ORIGEM }) {
@@ -91,7 +75,7 @@ export function TelaDiagnosticos() {
   const pode = useTimeMacuxi();
   return (
     <MolduraPortal titulo={pode ? <PageHeader title={T.titulo} subtitle={T.subtitulo} /> : undefined}>
-      {pode === null ? <LoadingBlock label={T.carregando} /> : pode ? <ListaDiagnosticos /> : <SemAcesso />}
+      {pode === null ? <LoadingBlock label={T.carregando} /> : pode ? <ListaDiagnosticos /> : <SemAcessoTimeMacuxi testId="diagnosticos.sem-acesso" />}
     </MolduraPortal>
   );
 }
@@ -301,7 +285,7 @@ export function TelaDiagnostico({ id }: { id: string }) {
   const pode = useTimeMacuxi();
   return (
     <MolduraPortal>
-      {pode === null ? <LoadingBlock label="Abrindo o diagnóstico…" /> : pode ? <DetalheDiagnostico id={id} /> : <SemAcesso />}
+      {pode === null ? <LoadingBlock label="Abrindo o diagnóstico…" /> : pode ? <DetalheDiagnostico id={id} /> : <SemAcessoTimeMacuxi testId="diagnosticos.sem-acesso" />}
     </MolduraPortal>
   );
 }

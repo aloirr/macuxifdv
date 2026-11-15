@@ -13,8 +13,6 @@ import {
 } from '@macuxi/platform-sdk';
 import type { BadgeTone } from '@macuxi/ui/web';
 
-import { SEM_ACESSO_TIME_MACUXI } from './portal-sessao';
-
 /** Página do portal (sem o prefixo `/config`: no host `config.` o navegador vê `/frases-carga`). */
 export const CAMINHO_FRASES_CARGA = '/frases-carga';
 
@@ -23,7 +21,6 @@ export const TEXTOS_PORTAL_FRASES = {
   incluir: 'Incluir frase',
   carregando: 'Buscando as frases…',
   vazio: 'Nenhuma frase cadastrada.',
-  semAcesso: SEM_ACESSO_TIME_MACUXI,
   editar: 'Editar',
   ativar: 'Ativar',
   desativar: 'Desativar',

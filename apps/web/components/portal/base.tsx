@@ -9,7 +9,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from 'react';
-import { Button, cx, Dialog, LoadingBlock } from '@macuxi/ui/web';
+import { Button, cx, Dialog, LoadingBlock, Panel } from '@macuxi/ui/web';
 
 import { MarcaNaFaixa } from '@/components/marca-faixa';
 import { houveUsoRecente, MODO_PORTAL_FALSO, registrarUso, renovarSessaoPortal, sairDoPortal } from '@/lib/portal-api';
@@ -37,6 +37,7 @@ import {
   podeTrocarDeEmpresa,
   retirarDesvioPortal,
   retirarSaidaPedida,
+  SEM_ACESSO_TIME_MACUXI,
   versaoDaSessaoPortal,
   type DesvioPortal,
   type SessaoPortal,
@@ -61,6 +62,23 @@ export function LinkBotao({ href, children, primario, testId, className }: { hre
     >
       {children}
     </Link>
+  );
+}
+
+/** "Sem acesso" das áreas só do time Macuxi (Diagnósticos, Frases da carga): o admin do cliente volta para a empresa dele. */
+export function SemAcessoTimeMacuxi({ testId }: { testId: string }) {
+  const sessao = useSessaoPortal();
+  return (
+    <Panel>
+      <div data-testid={testId} className="flex flex-col items-start gap-3 py-4">
+        <span className="text-[15px] font-semibold">{SEM_ACESSO_TIME_MACUXI}</span>
+        {sessao && (
+          <LinkBotao href={destinoDaSessao(sessao)} primario>
+            Ir para a sua empresa
+          </LinkBotao>
+        )}
+      </div>
+    </Panel>
   );
 }
 

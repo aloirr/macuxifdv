@@ -17,10 +17,8 @@ import {
   erroDoCampo,
   erroDoFormulario,
   situacaoDaFrase,
-  TEXTOS_PORTAL_FRASES,
   tituloDoDialogoFrase,
 } from '@/lib/portal-frases-carga';
-import { TEXTOS_PORTAL_DIAGNOSTICOS } from '@/lib/portal-diagnosticos';
 import { responderFalso, zerarModoFalso } from '@/lib/portal-falso';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 
@@ -128,11 +126,6 @@ describe('tela', () => {
       expect(l).toContain('text-accent-ink');
       expect(l).not.toMatch(/\btext-ink\b/);
     }
-  });
-
-  it('admin do cliente vê o mesmo texto das outras áreas do time Macuxi', () => {
-    expect(TEXTOS_PORTAL_FRASES.semAcesso).toBe(TEXTOS_PORTAL_DIAGNOSTICOS.semAcesso);
-    expect(TEXTOS_PORTAL_FRASES.semAcesso).toBe('Esta área é só do time Macuxi.');
   });
 
   it('admin do cliente: "Esta área é só do time Macuxi.", sem a lista', () => {

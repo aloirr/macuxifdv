@@ -146,7 +146,7 @@ export function TelaEntrada({
             {barra ? (
               <View style={styles.avisoEBarra}>
                 {comAviso ? aviso : null}
-                <Barra tema={tema} barra={barra} reduzir={reduzir} comLista={mostrarEtapas} />
+                <Barra tema={tema} barra={barra} reduzir={reduzir} />
               </View>
             ) : null}
             {mostrarEtapas && etapas ? <ListaEtapas tema={tema} etapas={etapas} /> : null}
@@ -172,20 +172,10 @@ function useEsmaecer(visivel: boolean, reduzir: boolean): Animated.Value {
 }
 
 /**
- * Barra do total. Com a lista de etapas na tela, a linha mostra só o percentual e o rótulo ("Etapa n de N · nome") fica só
- * para o leitor de tela, na região viva (RD-0239); sem a lista (tela baixa), o rótulo aparece.
+ * Barra do total com a linha "Etapa n de N · nome" e o percentual em cima, sempre à vista, como na entrada aprovada (MC-0088,
+ * manual da marca §4); o rótulo é também a região viva do leitor de tela.
  */
-function Barra({
-  tema,
-  barra,
-  reduzir,
-  comLista,
-}: {
-  tema: TemaEntrada;
-  barra: BarraEntrada;
-  reduzir: boolean;
-  comLista: boolean;
-}) {
+function Barra({ tema, barra, reduzir }: { tema: TemaEntrada; barra: BarraEntrada; reduzir: boolean }) {
   const pct = barra.pct === null ? null : Math.max(0, Math.min(100, barra.pct));
   const largura = pct ?? TRECHO_SEM_MEDIDA;
   const anim = useRef(new Animated.Value(largura)).current;
@@ -204,7 +194,7 @@ function Barra({
           accessibilityLabel={barra.rotulo}
           numberOfLines={1}
         >
-          {comLista ? '' : barra.rotulo}
+          {barra.rotulo}
         </Text>
         {pct === null ? null : (
           <Text

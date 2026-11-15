@@ -27,8 +27,8 @@ import {
   tituloDoDialogoFrase,
 } from '@/lib/portal-frases-carga';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
-import { destinoDaSessao, ehTimeMacuxi } from '@/lib/portal-sessao';
-import { LinkBotao, MolduraPortal, useSessaoPortal } from './base';
+import { ehTimeMacuxi } from '@/lib/portal-sessao';
+import { MolduraPortal, SemAcessoTimeMacuxi, useSessaoPortal } from './base';
 
 const CHAVE = ['portal', 'frases-carga'] as const;
 
@@ -57,25 +57,9 @@ export function TelaFrasesCarga() {
       ) : pode ? (
         <ListaFrases dialogo={dialogo} setDialogo={setDialogo} />
       ) : (
-        <SemAcesso />
+        <SemAcessoTimeMacuxi testId="frases.sem-acesso" />
       )}
     </MolduraPortal>
-  );
-}
-
-function SemAcesso() {
-  const sessao = useSessaoPortal();
-  return (
-    <Panel>
-      <div data-testid="frases.sem-acesso" className="flex flex-col items-start gap-3 py-4">
-        <span className="text-[15px] font-semibold">{T.semAcesso}</span>
-        {sessao && (
-          <LinkBotao href={destinoDaSessao(sessao)} primario>
-            Ir para a sua empresa
-          </LinkBotao>
-        )}
-      </div>
-    </Panel>
   );
 }
 

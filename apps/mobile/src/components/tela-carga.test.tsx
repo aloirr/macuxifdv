@@ -194,8 +194,9 @@ describe('Carga na tela de entrada — navegação pelo estado (R-20261102-09133
     sim.estado = { ...sim.estado, sincronizando: false, etapa: 'Pronto', progresso: 1, sincronizado_em: '2026-11-02T13:09:00.000Z' };
     const depois = montar();
     expect(redireciona(depois)).toBe(true);
-    // com a lista na tela, "Pronto" vai só ao leitor de tela; na linha da barra fica o percentual (RD-0239)
+    // MC-0088: "Pronto" fica à vista na linha da barra (e é a região viva do leitor)
     expect(rotuloLeitor(depois)).toBe('Pronto');
+    expect(texto(depois)).toContain('Pronto 100%');
     expect(texto(depois)).toContain('100%');
     expect(depois).not.toMatch(/data-testid="entrada-etapa-\d-(atual|pendente)"/);
     expect(depois).not.toContain('entrar-no-app');
@@ -232,14 +233,14 @@ describe('Carga na tela de entrada — navegação pelo estado (R-20261102-09133
 });
 
 describe('Carga na tela de entrada — etapas sem nome técnico (R-20261102-090915, T-0172)', () => {
-  it('em nenhuma entidade do motor aparece entidade ou módulo; aparece "Olá" e o percentual; "Etapa n de N · nome" só ao leitor', () => {
+  it('em nenhuma entidade do motor aparece entidade ou módulo; aparecem "Olá", "Etapa n de N · nome" e o percentual', () => {
     expect(ENTIDADES).toEqual(expect.arrayContaining(['cliente_condicao', 'cliente_tabela_preco', 'historico_compra', 'indicador_diario', 'pedido_evento']));
     for (const entidade of ENTIDADES) {
       sim.estado = { ...ESTADO_INICIAL, sincronizando: true, etapa: entidade, progresso: 0.5, carga: { ...CARGA_VAZIA, entidade, modulo: 'core', total: 10, concluidas: 5 } };
       const html = montar();
       semNomeTecnico(html);
       expect(rotuloLeitor(html)).toMatch(/^Etapa \d de \d · [A-ZÀ-Ú]/);
-      expect(texto(html)).not.toMatch(/Etapa \d de \d/);
+      expect(texto(html)).toMatch(/Etapa \d de \d · [A-ZÀ-Ú]/);
       expect(texto(html)).toContain('Olá, Lucas');
       expect(texto(html)).toContain('50%');
     }
@@ -248,9 +249,9 @@ describe('Carga na tela de entrada — etapas sem nome técnico (R-20261102-0909
   it('Campo: etapa atual pelo módulo em curso; as anteriores feitas e as seguintes a fazer', () => {
     sim.estado = { ...ESTADO_INICIAL, sincronizando: true, progresso: 0.4, carga: { ...CARGA_VAZIA, entidade: 'produto', modulo: 'catalogo', total: 10, concluidas: 4 } };
     const html = montar();
-    // RD-0239: com a lista na tela, a etapa não se repete na linha da barra (fica só para o leitor de tela)
+    // MC-0088 (manual da marca §4): a linha da barra mostra a etapa, como na entrada aprovada
     expect(rotuloLeitor(html)).toBe('Etapa 3 de 5 · Catálogo e preços');
-    expect(texto(html)).not.toContain('Etapa 3 de 5');
+    expect(texto(html)).toContain('Etapa 3 de 5 · Catálogo e preços 40%');
     expect(html).toContain('entrada-etapa-2-feita');
     expect(html).toContain('entrada-etapa-3-atual');
     expect(html).toContain('entrada-etapa-4-pendente');
