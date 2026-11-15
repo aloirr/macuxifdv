@@ -54,7 +54,8 @@ import { estadoDasAcoes, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
 import { PERGUNTA_DA_ALCADA, perguntaDaAlcada } from '../../domain/botoes-resumo';
 import { acoesDoDetalhe, alertasDoDetalhe, clienteComCodigo, eventosDoOrcamento, eventosDoPedido, fonteDasLinhasDoDetalhe, itensVisiveis, linhaDeItemEmTabela, linhasDosTotais } from '../lib/detalhe-pedido';
 import { textoDoFrete } from '../lib/resumo-tabela';
-import { buildOrderPdfHtml, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
+import { logoParaPdf, nomeDaEmpresaParaPdf } from '../../domain/empresa-pdf';
+import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
 import { errorMessage } from '../lib/erros';
 import { TEXTOS_ENDERECO } from '../lib/endereco-pedido';
 import { textoDoEndereco } from '../lib/novo-pedido';
@@ -436,8 +437,11 @@ export default function OrderDetailScreen() {
       const referenciaNoCliente = referenciaNoOrcamento(ambiente.parametros('vendedor'));
       const refs = view === 'bko' || referenciaNoCliente ? await app.referenciasDeProdutos(lines.map((l) => l.product_id).filter((x): x is string => Boolean(x))) : new Map<string, Array<{ brand: string; code: string }>>();
       const pedidoPdf = pdfOrder(refs);
+      // T-0182: logo da empresa do aparelho; sem logo ou com erro de leitura, o PDF sai com a logo padrão
+      const logo_src = await logoParaPdf(ambiente);
       const html = buildOrderPdfHtml(pedidoPdf, view, {
-        tenant_name: nomeDaDistribuidora(me?.tenant.name, ambiente.parametros('core')),
+        ...(logo_src ? { logo_src } : {}),
+        tenant_name: nomeDaEmpresaParaPdf(ambiente.parametros('core')),
         product_name: me?.tenant.product_name ?? 'Macuxi FDV',
         tz,
         generated_at: new Date().toISOString(),
