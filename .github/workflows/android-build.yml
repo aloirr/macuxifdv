@@ -62,9 +62,6 @@ jobs:
       VERSION_CODE_INFORMADO: ${{ inputs.version_code }}
       # sufixo dos secrets e variáveis da variante (CAMPO ou GESTAO); nunca cai no conjunto da outra variante
       SUFIXO: ${{ matrix.variante == 'campo' && 'CAMPO' || 'GESTAO' }}
-      # NDK do react-native do repositório (node_modules/react-native/gradle/libs.versions.toml, ndkVersion); a
-      # limpeza do disco preserva só esta versão. O teste scripts/ci/android-build.test.mjs confere a igualdade.
-      NDK_VERSAO: '27.1.12297006'
     steps:
       # Antes de tudo (segundos): falta de secret derruba o job sem gastar o build. Nunca imprime valor.
       - name: secrets da variante
@@ -86,23 +83,6 @@ jobs:
             echo "### $VARIANTE: secrets ausentes — ${FALTAM[*]}" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
-
-      # O ubuntu-latest (2 núcleos, ~14 GB livres) ficou sem disco no assembleRelease (run 43673109770: "No space left
-      # on device"). Apaga do runner o que o build não usa; o NDK do projeto fica. docker image prune é limpeza do
-      # runner, não roda container.
-      - name: liberar disco
-        run: |
-          df -h /
-          NDK_DIR=/usr/local/lib/android/sdk/ndk
-          if [ -d "$NDK_DIR" ]; then
-            for d in "$NDK_DIR"/*; do
-              [ "$(basename "$d")" = "$NDK_VERSAO" ] || sudo rm -rf "$d"
-            done
-          fi
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
-          docker image prune -af > /dev/null 2>&1 || true
-          echo "NDK preservado: $(ls "$NDK_DIR" 2>/dev/null | tr '\n' ' ')"
-          df -h /
 
       - uses: actions/checkout@v4
         with:
@@ -135,6 +115,25 @@ jobs:
 
       - name: instalar dependências
         run: pnpm install --frozen-lockfile
+
+      # O ubuntu-latest (2 núcleos, ~14 GB livres) ficou sem disco no assembleRelease (run 43673109770: "No space left
+      # on device"). Depois do install: apaga do runner o que o build não usa e preserva só o NDK que o react-native do
+      # repositório pede (ndkVersion do libs.versions.toml). docker image prune é limpeza do runner, não roda container.
+      - name: liberar disco
+        run: |
+          df -h /
+          NDK_VERSAO=$(sed -n 's/^ndkVersion = "\(.*\)"/\1/p' node_modules/react-native/gradle/libs.versions.toml)
+          [ -n "$NDK_VERSAO" ] || { echo '::error title=NDK::ndkVersion não encontrado no react-native'; exit 1; }
+          NDK_DIR=/usr/local/lib/android/sdk/ndk
+          if [ -d "$NDK_DIR" ]; then
+            for d in "$NDK_DIR"/*; do
+              [ "$(basename "$d")" = "$NDK_VERSAO" ] || sudo rm -rf "$d"
+            done
+          fi
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
+          docker image prune -af > /dev/null 2>&1 || true
+          echo "NDK preservado: $(ls "$NDK_DIR" 2>/dev/null | tr '\n' ' ')"
+          df -h /
 
       # Metro: os.tmpdir()/metro-cache. Chave por variante (o bundle muda com APP_VARIANT) + lockfile + commit.
       - name: cache do Metro
