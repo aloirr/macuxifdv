@@ -51,7 +51,7 @@ Ordem: **boas-vindas → Recados → Meta do mês → Orçamentos e A faturar �
 | Peça | Estilo | Texto |
 |---|---|---|
 | Data | `type.sub` (13, `ink2`) | "Quarta, 4 de novembro" |
-| Saudação | `type.saudacao` (Archivo 26/800, `ink`), 1 linha | "Bom dia, Lucas" (5h–11h59) · "Boa tarde, Lucas" (12h–17h59) · "Boa noite, Lucas" (18h–4h59), fuso do tenant, só o primeiro nome |
+| Saudação | `type.saudacao` (22/700, `ink`), 1 linha | "Bom dia, Lucas" (5h–11h59) · "Boa tarde, Lucas" (12h–17h59) · "Boa noite, Lucas" (18h–4h59), fuso do tenant, só o primeiro nome |
 | Visitas | `type.sub` | "6 visitas hoje · 3 feitas" · 1: "1 visita hoje · 1 feita" · sem paradas em dia útil: "Sem rota hoje" · sem paradas e `dia_util` falso: "Sem rota hoje · não é dia útil" (RD-0006: o "não é dia útil" fica só aqui; o cartão de meta não repete) |
 - O bloco inteiro abre o Perfil (alvo ≥ 48; leitor: "Boa tarde, Lucas. Abrir perfil"). Sem sino e sem hora no topo.
 - Começa abaixo da barra de status (área segura do shell; no Android o piso é `StatusBar.currentHeight`).
@@ -76,7 +76,7 @@ Ordem: **boas-vindas → Recados → Meta do mês → Orçamentos e A faturar �
 O realizado de hoje sai do Início (está em Metas).
 - Topo: `type.rotulo` **"META DO MÊS"** · à direita `sub` o % do mês, uma vez: "40%"; abaixo de 1%, com 1 casa ("0,3%");
   sem "mês" (o título já diz).
-- Linha do valor: `title16`/Archivo 22 tabular **"R$ 553 de R$ 180.000"** (realizado do mês **de** meta do mês, numa linha só,
+- Linha do valor: `t.number` tabular **"R$ 553 de R$ 180.000"** (realizado do mês **de** meta do mês, numa linha só,
   sem "no mês").
 - Barra 6 dp (`accent` sobre `lineSoft`, limitada a 100%) — a **única** barra do cartão.
 - Última linha `sub`, uma das duas:
@@ -178,7 +178,7 @@ Saíram (RD-0002 a RD-0011): "Recados de hoje", "Meta de hoje" como título, "m�
 "Vendas até {data} às {hora}. Sincronize para atualizar.".
 
 ## 6. Cliente 360 (mesma referência, tela do Core)
-- Topo abaixo da barra de status: "‹ Rota de hoje" (de onde veio) · nome Archivo · endereço · "cliente desde 2026" · chips
+- Topo abaixo da barra de status: "‹ Rota de hoje" (de onde veio) · nome em `t.h1Small` · endereço · "cliente desde 2026" · chips
   (Curva, segmento, "Positivado em nov").
 - Ligar · WhatsApp · Mapa (3 botões de 48 na mesma linha).
 - Grade de indicadores 2 colunas, nesta ordem: Compra média/mês · Última compra · Limite disponível · Títulos vencidos ·

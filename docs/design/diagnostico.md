@@ -11,7 +11,7 @@ Mesmo componente nos dois apps (`apps/mobile/src/components/enviar-diagnostico.t
 1. Cabeçalho `DIAGNÓSTICO` com `mostrar`/`ocultar` (como hoje; o detalhe técnico continua só ali).
 2. Botão **secundário** `Enviar diagnóstico` (`Button variant="outlineDark"`, 44 dp, ícone `send`). Não é o principal do Perfil.
 3. `ÚLTIMOS ENVIOS` (some sem envio): lista de até 10 linhas, do mais novo ao mais antigo, que não abre nada.
-   - Linha: selo de situação com texto · `nº 0042` (Archivo 700, tabular) ou o motivo curto · data à direita (`Hoje, 14:32`).
+   - Linha: selo de situação com texto · `nº 0042` (600, tabular) ou o motivo curto · data à direita (`Hoje, 14:32`).
    - Selos: `Enviado` (sucesso), `Na fila` + "sem sinal" ou "servidor indisponível" (aviso, `warningInk`; o 2º quando o servidor respondeu 404/405/501, 5xx, 401 ou 408), `Não enviado` + "limite da hora" ou "recusado" (perigo). Nunca "aguardando o servidor": "Na fila" já diz que aguarda (T-0158, parecer de 11/11).
    - 2ª linha só no envio automático (v1.0.5): `Queda do app · automático` ou `Erro de tela · automático`. O envio pelo botão não tem 2ª linha.
    - TalkBack: "Enviado, número 0042, hoje às 14:32".
@@ -24,7 +24,7 @@ Mesmo componente nos dois apps (`apps/mobile/src/components/enviar-diagnostico.t
 5. Botão principal `Enviar` (52 dp, ícone `send`), sempre ligado: texto e print são opcionais. Ao tocar, carregando e sem 2º toque.
 
 **Confirmação** (a folha troca de conteúdo, sem abrir outra; anunciada ao aparecer)
-| Situação | Ícone | Título (Archivo 800, 22) | Apoio |
+| Situação | Ícone | Título (22/700) | Apoio |
 |---|---|---|---|
 | Aceito | `check` em `successBg` | `Enviado · nº 0042` | `Se falar com o suporte, diga este número.` (vibração leve) |
 | Sem sinal | `wifiOff` em `warningBg` | `Na fila` | `Sem sinal. Não precisa enviar de novo.` |

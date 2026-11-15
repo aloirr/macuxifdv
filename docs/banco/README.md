@@ -220,6 +220,24 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > tenant da linha) e `plataforma.sync_pacote_pedido` (pedido de geração idempotente por partição), fora do sync; app lê e pede,
 > worker gera; índice `catalogo.tabela_preco_item_filial_sync_ix (tenant_id, filial_id, updated_at, id)`. Detalhes no
 > [sync-pacote.md](sync-pacote.md); teste `db/testes/sync-pacote.db.test.ts`.
+>
+> **2026-11-15 (decisão do dono do produto, R-20261115-073000-alexandre, item 3):** `0075_catalogo_referencia_marca_opcional`:
+> `catalogo.produto_referencia.marca_id` aceita nulo (referência só com o código) e o único vivo passa a ser
+> `produto_referencia_produto_codigo_uk (tenant_id, produto_id, codigo_compacto)`; as vivas que repetiam o código no produto ficam
+> só na de menor ordem. Detalhes no [catalogo.md](catalogo.md); teste `db/testes/referencia-marca-opcional.db.test.ts`.
+>
+> **2026-11-15 (T-0176, R-20261115-093000 e R-20261115-094500):** `0077_core_usuario_filial` (0070–0073 no main; 0074–0076 de outros lotes):
+> `core.usuario.filial_cadastro_id` (nula = bloqueado) e `core.usuario_filial` (filiais de venda); a de cadastro está entre as
+> de venda (gatilho adiado `usuario_filial_inclui_cadastro`, 23514, hint RN-CORE-39). Backfill: na empresa com uma filial viva,
+> todo usuário vivo recebe a filial (cadastro e venda); os demais ficam bloqueados. A `provisionar_tenant` (CLI, seeds e portal)
+> cria o admin inicial com a filial padrão (cadastro e venda). Detalhes no [core.md](core.md); teste `db/testes/usuario-filial.db.test.ts`.
+>
+> **2026-11-15 (T-0174, RN-CAT-14, ADR 0058; R-20261115-074500):** `0079_catalogo_foto_lote` (número 0079, correção da sessão principal em 15/11):
+> `plataforma.arquivo` aceita PNG, WEBP (imagens até 8 MiB) e ZIP (até 500 MiB); `plataforma.trabalho` com
+> `trabalho_reservar`/`trabalho_devolver`/`trabalho_renovar` (só ao worker); `catalogo.foto_lote` (idempotência pelo SHA-256 do
+> ZIP) e `catalogo.foto_lote_item` (checkpoint por índice); `catalogo.produto_midia.hash_conteudo` (repetido) e a principal
+> sempre na ordem 1 (dados antigos sem andar o `updated_at`); `core.produto_sku_lower_ix`. Detalhes no [catalogo.md](catalogo.md)
+> e no [plataforma.md](plataforma.md); teste `db/testes/foto-lote.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
