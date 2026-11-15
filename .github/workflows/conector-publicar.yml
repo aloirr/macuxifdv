@@ -2,7 +2,7 @@ name: conector — montar, assinar e publicar o pacote
 
 # T-0098 (ADR 0037; pedido R-20261110-132536-modulo-integracao). SÓ MANUAL (workflow_dispatch): monta o
 # conector-<versão>.zip (apps/conector/scripts/pacote.mjs: conector.mjs, node.exe e WinSW com SHA-256 fixo, exemplos,
-# LEIA-ME), assina (.sig RSA-SHA256) e publica no bucket privado do ambiente escolhido pelo
+# LEIA-ME), assina (.sig RSA-SHA256) e publica no bucket privado da produção pelo
 # `pnpm --filter api publicar-pacote conector <zip> --versao <versão>` (pacote primeiro, ultimo.json depois). O portal
 # (T-0098) libera o download quando o ultimo.json aponta para o pacote novo.
 #
@@ -12,9 +12,9 @@ name: conector — montar, assinar e publicar o pacote
 # Segredos (o dono do produto cria; nenhum valor vai a log, argumento de processo ou artefato):
 #   CONECTOR_ASSINATURA_CHAVE_PEM  secret do REPOSITÓRIO: a chave privada RSA 3072 (PEM) da assinatura do pacote. Chega ao
 #                                  pacote.mjs só pela variável MACUXI_ASSINATURA_CHAVE_PEM do passo.
-#   DEMO_S3_KEY_ID / DEMO_S3_SECRET  já existem no environment DEMO_SSH_KEY (bucket macuxi-demo-arquivos).
 #   PROD_S3_KEY_ID / PROD_S3_SECRET  já existem no environment PRODUCAO (bucket macuxi-prod; aprovação do Alexandre).
-# Endpoint, região e bucket são os mesmos do compose de cada ambiente (scripts/deploy/<ambiente>/compose.yml).
+# Endpoint, região e bucket são os mesmos do scripts/deploy/producao/compose.yml. A demo (bucket macuxi-demo-arquivos)
+# foi desligada em 14/11/2026 (ADR 0051): o input `ambiente` saiu.
 
 on:
   workflow_dispatch:
@@ -23,11 +23,6 @@ on:
         description: versão do Conector (igual ao apps/conector/package.json, ex. 1.4.0)
         required: true
         default: '1.4.0'
-      ambiente:
-        description: bucket de destino
-        type: choice
-        options: [demo, producao]
-        default: demo
       simular:
         description: só montar e assinar (não grava no bucket)
         type: boolean
@@ -37,7 +32,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: conector-publicar-${{ inputs.ambiente }}
+  group: conector-publicar
   cancel-in-progress: false
 
 defaults:
@@ -46,10 +41,10 @@ defaults:
 
 jobs:
   publicar:
-    name: pacote do Conector ${{ inputs.versao }} (${{ inputs.ambiente }})
+    name: pacote do Conector ${{ inputs.versao }} (producao)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    environment: ${{ inputs.ambiente == 'producao' && 'PRODUCAO' || 'DEMO_SSH_KEY' }}
+    environment: PRODUCAO
     steps:
       - uses: actions/checkout@v4
         with:
@@ -93,18 +88,18 @@ jobs:
           if ! grep -qi "$SHA" "$D/conector-$VERSAO.zip.sha256"; then echo "::error::o .sha256 não confere com o zip"; exit 1; fi
           echo "conector-$VERSAO.zip  sha256 $SHA" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: publicar no bucket (${{ inputs.ambiente }})
+      - name: publicar no bucket (macuxi-prod)
         env:
           VERSAO: ${{ inputs.versao }}
           SIMULAR: ${{ inputs.simular }}
           MACUXI_ARQUIVOS_DRIVER: s3
           MACUXI_S3_ENDPOINT: https://br-se1.magaluobjects.com
           MACUXI_S3_REGIAO: br-se1
-          MACUXI_S3_BUCKET: ${{ inputs.ambiente == 'producao' && 'macuxi-prod' || 'macuxi-demo-arquivos' }}
+          MACUXI_S3_BUCKET: macuxi-prod
           MACUXI_S3_PREFIXO: arquivos/
           MACUXI_PACOTES_PREFIXO: pacotes/
-          MACUXI_S3_CHAVE_ID: ${{ inputs.ambiente == 'producao' && secrets.PROD_S3_KEY_ID || secrets.DEMO_S3_KEY_ID }}
-          MACUXI_S3_SEGREDO: ${{ inputs.ambiente == 'producao' && secrets.PROD_S3_SECRET || secrets.DEMO_S3_SECRET }}
+          MACUXI_S3_CHAVE_ID: ${{ secrets.PROD_S3_KEY_ID }}
+          MACUXI_S3_SEGREDO: ${{ secrets.PROD_S3_SECRET }}
         run: |
           ZIP="$GITHUB_WORKSPACE/apps/conector/dist/pacote/conector-$VERSAO.zip"
           EXTRA=()

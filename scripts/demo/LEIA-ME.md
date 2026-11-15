@@ -1,5 +1,10 @@
 # Demonstração do Macuxi FDV
 
+> **Desligada em 14/11/2026** (R-20261114-230600-alexandre, ADR 0051): a VM `macuxi-demo-se1`, o Postgres dela, o túnel
+> `macuxi-demo-nuvem` e o bucket `macuxi-demo-arquivos` saíram do ar, e os workflows "demo — publicar" e "demo — recriar
+> base demo" foram removidos. O que segue é só registro. `scripts/deploy/demo/` continua no repositório porque o stack
+> isolado do CI e a produção usam esses scripts.
+
 > **Desde 04/11/2026 (T-0074, ADR 0020) a demo fica na Magalu Cloud, sempre ligada.** O PC do dono do produto fica só
 > com desenvolvimento, e este diretório vira **plano B local, só com túnel rápido**.
 > **`configurar-dominio.ps1` está aposentado e recusa rodar**: ele reapontaria o DNS de `api-demo` e `bko-demo` para o

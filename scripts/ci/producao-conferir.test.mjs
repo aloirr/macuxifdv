@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { conferir, erroDaRef, errosDaEntrada, tagExiste } from './producao-conferir.mjs';
+import { conferir, conferirCommit, digestNoGhcr, erroDaRef, errosDaEntrada, tagExiste } from './producao-conferir.mjs';
 
 const SHA = '839a082'.padEnd(40, '0');
 const ler = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8');
@@ -46,6 +46,9 @@ function execFalso({ main = true, ancestral = true, ci = '1', digest = `sha256:$
   return { exec, chamadas };
 }
 
+/** Erro do execFileSync quando o docker diz que a tag não existe (a saída do comando vem no stdout do ghcr-tentar). */
+const ausente = () => Object.assign(new Error('Command failed'), { stdout: 'ERROR: ghcr.io/aloirr/macuxi-api:x: not found\n' });
+
 const ALVO = { sha: SHA, versao: 'v1.0.7', dono: 'AloirR', repositorio: 'aloirr/macuxifdv' };
 
 test('conferir: no main, CI verde e imagem → api por digest e dono minúsculo', () => {
@@ -64,9 +67,29 @@ test('conferir: cada falha vira erro e para antes do passo seguinte', () => {
   assert.match(conferir(ALVO, execFalso({ ancestral: false }).exec).erro, /não está no main/);
   assert.match(conferir(ALVO, execFalso({ ci: '0' }).exec).erro, /CI verde/);
   assert.match(conferir(ALVO, execFalso({ ci: new Error('rede') }).exec).erro, /CI verde/);
-  assert.match(conferir(ALVO, execFalso({ digest: '' }).exec).erro, /não está no GHCR/);
-  assert.match(conferir(ALVO, execFalso({ digest: new Error('404') }).exec).erro, /não está no GHCR/);
+  assert.match(conferir(ALVO, execFalso({ digest: '' }).exec).erro, /digest inválido/);
+  assert.match(conferir(ALVO, execFalso({ digest: ausente() }).exec).erro, /não está no GHCR.*liberar versão/);
+  assert.match(conferir(ALVO, execFalso({ digest: new Error('rede') }).exec).erro, /não consegui consultar/);
   assert.match(conferir({ ...ALVO, sha: 'abc' }, execFalso().exec).erro, /SHA inválido/);
+});
+
+test('commit: no main e CI verde, sem consultar o GHCR (o liberar confere antes de montar a imagem)', () => {
+  const { exec, chamadas } = execFalso({ digest: new Error('não deveria consultar') });
+  assert.deepEqual(conferirCommit(ALVO, exec), { ci: 1 });
+  assert.ok(!chamadas.some((c) => c[0] === 'bash'));
+  assert.match(conferirCommit(ALVO, execFalso({ ancestral: false }).exec).erro, /não está no main/);
+  assert.match(conferirCommit(ALVO, execFalso({ ci: '0' }).exec).erro, /CI verde/);
+  assert.match(conferirCommit({ ...ALVO, sha: 'abc' }, execFalso().exec).erro, /SHA inválido/);
+});
+
+test('imagem no GHCR: só "não existe" do registro libera o build; falha de consulta nunca remonta a tag', () => {
+  const img = `ghcr.io/aloirr/macuxi-api:${SHA}`;
+  assert.deepEqual(digestNoGhcr(img, execFalso().exec), { digest: `sha256:${'a'.repeat(64)}` });
+  assert.deepEqual(digestNoGhcr(img, execFalso({ digest: ausente() }).exec), { ausente: true });
+  for (const stdout of ['manifest unknown', 'MANIFEST_UNKNOWN: manifest unknown'])
+    assert.deepEqual(digestNoGhcr(img, execFalso({ digest: Object.assign(new Error('x'), { stdout }) }).exec), { ausente: true });
+  assert.match(digestNoGhcr(img, execFalso({ digest: Object.assign(new Error('x'), { stdout: '403 Forbidden' }) }).exec).erro, /não consegui/);
+  assert.match(digestNoGhcr(img, execFalso({ digest: 'lixo' }).exec).erro, /digest inválido/);
 });
 
 test('workflows: liberar, aprovar e publicar usam a mesma conferência; só o aprovar cria a tag e dispara o publicar', () => {
@@ -85,4 +108,27 @@ test('workflows: liberar, aprovar e publicar usam a mesma conferência; só o ap
   for (const wf of [pub, lib, apr]) assert.doesNotMatch(wf, /actions\/workflows\/ci\.yml\/runs/, 'conferência duplicada fora do script');
   assert.match(apr, /gh workflow run producao-publicar\.yml -R "\$GITHUB_REPOSITORY" --ref "\$VERSAO"/);
   assert.doesNotMatch(lib, /gh workflow run|git\/refs|contents: write|actions: write/, 'o liberar para na issue: sem tag e sem disparo');
+});
+
+test('liberar monta a imagem da API (ADR 0051): CI verde antes do build, só se a tag não existe, do código do commit', () => {
+  const lib = ler('.github/workflows/producao-liberar.yml');
+  const iCommit = lib.indexOf('producao-conferir.mjs commit');
+  const iImagem = lib.indexOf('producao-conferir.mjs imagem');
+  const iBuild = lib.indexOf('docker/build-push-action');
+  assert.ok(iCommit > 0 && iCommit < iImagem && iImagem < iBuild, 'commit → imagem existe? → build');
+  assert.ok(iBuild < lib.lastIndexOf('producao-conferir.mjs conferir'), 'o digest é fixado depois do envio');
+  // todo passo de build/envio depende de a tag não existir
+  const passos = lib.slice(iImagem).split(/\n {6}- /).slice(1);
+  for (const p of passos.filter((x) => /setup-buildx|build-push|docker push|ref: \$\{\{ inputs\.sha \}\}/.test(x)))
+    assert.match(p, /if: steps\.existe\.outputs\.existe == '0'/, p.split('\n')[0]);
+  assert.match(lib, /context: alvo\n\s+file: alvo\/apps\/api\/Dockerfile/);
+  assert.doesNotMatch(lib, /macuxi-api:main|--force|push: true/);
+  assert.match(lib, /needs: imagem/);
+});
+
+test('demo desligada: nenhum workflow publica nem entra na VM da demo', () => {
+  for (const wf of ['demo-publicar', 'demo-recriar-base', 'dbaas-teste'])
+    assert.throws(() => ler(`.github/workflows/${wf}.yml`), /ENOENT/, wf);
+  for (const wf of ['producao-liberar', 'producao-aprovar', 'producao-publicar', 'conector-publicar'])
+    assert.doesNotMatch(ler(`.github/workflows/${wf}.yml`), /DEMO_|scope=macuxi-bko\b(?!-)|macuxi-demo-arquivos'/, wf);
 });
