@@ -17,7 +17,7 @@ import { folgaDeToque } from './componentes';
 import { Icon, type IconName } from './icon';
 import { duracaoMovimento, tempoDoAviso } from './movimento';
 import { curvaPadrao, Pressionavel, useLeitorDeTela, useReduzirMovimento } from './movimento-rn';
-import { ALTURA, colors, estiloDoNivel, fonts, layout, radius, shadow, space, TONS_ESTADO, type NivelBotao, type TomEstado } from './theme';
+import { ALTURA, colors, estiloDoNivel, fonte, layout, radius, shadow, space, TONS_ESTADO, type NivelBotao, type TomEstado } from './theme';
 
 // ---------- Botao ----------
 export function Botao({
@@ -178,7 +178,7 @@ export function ChipEstado({
       accessibilityLabel={rotuloAcessivel ?? texto}
       style={[s.chip, { height: altura, paddingHorizontal: pequeno ? 10 : 12, backgroundColor: c.bg }, style]}>
       {icone ? <Icon name={icone} size={pequeno ? 12 : 14} color={c.fg} strokeWidth={2.4} /> : null}
-      <Text style={[s.chipTexto, { color: c.fg, fontSize: pequeno ? 12 : 13 }]} numberOfLines={1}>
+      <Text style={[s.chipTexto, { color: c.fg, fontSize: pequeno ? 12 : 14 }]} numberOfLines={1}>
         {texto}
       </Text>
     </View>
@@ -401,24 +401,24 @@ export function EstadoVazio({
 
 const s = StyleSheet.create({
   botao: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm, paddingHorizontal: space.lg },
-  botaoTexto: { fontFamily: fonts.semibold },
+  botaoTexto: { ...fonte.semibold },
   botaoTextoQuebra: { flexShrink: 1, textAlign: 'center', lineHeight: 18 },
   chip: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space.xs, borderRadius: radius.pilula },
-  chipTexto: { fontFamily: fonts.semibold },
+  chipTexto: { ...fonte.semibold },
   avisoCamada: { position: 'absolute', left: space.lg, right: space.lg },
   aviso: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: ALTURA.aviso, backgroundColor: colors.ink, borderRadius: radius.cartao, paddingVertical: space.sm, paddingHorizontal: 14, ...shadow.aviso },
-  avisoTexto: { flex: 1, fontFamily: fonts.body, fontSize: 14, color: colors.surface },
+  avisoTexto: { flex: 1, ...fonte.body, fontSize: 14, color: colors.surface },
   avisoAcao: { height: 36, paddingHorizontal: space.md, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  avisoAcaoTexto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.accentLight },
+  avisoAcaoTexto: { ...fonte.semibold, fontSize: 14, color: colors.accentLight },
   barra: { flexDirection: 'row', backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
   aba: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, minHeight: ALTURA.toque },
-  abaTexto: { fontFamily: fonts.semibold, fontSize: 11, color: colors.ink2 },
-  abaTextoAtiva: { fontFamily: fonts.bold, color: colors.accentInk },
+  abaTexto: { ...fonte.semibold, fontSize: 12, color: colors.ink2 },
+  abaTextoAtiva: { ...fonte.semibold, color: colors.accentInk },
   contador: { position: 'absolute', top: -4, right: -10, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4, borderWidth: 1, borderColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  contadorTexto: { fontFamily: fonts.bold, fontSize: 10 },
+  contadorTexto: { ...fonte.semibold, fontSize: 12 },
   vazio: { alignItems: 'center', gap: space.sm, paddingVertical: space.xxl, paddingHorizontal: space.lg },
   vazioIcone: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.lineSoft, alignItems: 'center', justifyContent: 'center' },
-  vazioTitulo: { fontFamily: fonts.displayBold, fontSize: 17, color: colors.ink, textAlign: 'center' },
-  vazioTexto: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.ink2, textAlign: 'center' },
+  vazioTitulo: { ...fonte.bold, fontSize: 18, color: colors.ink, textAlign: 'center' },
+  vazioTexto: { ...fonte.body, fontSize: 14, lineHeight: 20, color: colors.ink2, textAlign: 'center' },
   vazioBotao: { alignSelf: 'stretch', marginTop: space.sm },
 });

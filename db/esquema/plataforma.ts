@@ -6,8 +6,9 @@
  * 0041_plataforma_perfis_de_acesso.up.sql (perfis de acesso, ADR 0033; cargo e um perfil por usuário desde a
  * 0069_core_cargo_hierarquia.up.sql), 0070_plataforma_plano_assinatura.up.sql (planos e assinatura, ADR 0047),
  * 0072_plataforma_empresa_acoes.up.sql (inativar, backup e excluir a empresa, ADR 0052; só por função),
- * 0073_plataforma_dados_legais.up.sql (dados legais do rodapé, só por função) e 0074_plataforma_sync_pacote.up.sql (pacote da
- * primeira carga, ADR 0054), para consultas da API.
+ * 0073_plataforma_dados_legais.up.sql (dados legais do rodapé, só por função), 0074_plataforma_sync_pacote.up.sql (pacote da
+ * primeira carga, ADR 0054) e 0079_catalogo_foto_lote.up.sql (tipos de arquivo e trabalho sob demanda, ADR 0058),
+ * para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -182,6 +183,9 @@ export const auditoria = plataforma.table('auditoria', {
   ocorrido_em: timestamp('ocorrido_em', { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** Tipos aceitos em plataforma.arquivo (CHECK arquivo_tipo_valido, 0079); o TIPOS_ARQUIVO do platform-sdk fica contido aqui. */
+export const TIPOS_ARQUIVO_BANCO = ['image/jpeg', 'image/png', 'image/webp', 'application/zip'] as const;
+
 /**
  * Metadados de arquivo enviado pelo aparelho (0005, ADR 0010). id = UUID do aparelho. O módulo cria a linha
  * 'aguardando' na transação do comando que referencia o arquivo; a rota PUT /v1/arquivos/:id completa
@@ -195,7 +199,8 @@ export const arquivo = plataforma.table('arquivo', {
   entidade_id: uuid('entidade_id').notNull(),
   cliente_id: uuid('cliente_id'),
   enviado_por: uuid('enviado_por').notNull(),
-  tipo: text('tipo', { enum: ['image/jpeg'] }).notNull().default('image/jpeg'),
+  /** 0079 (T-0174, ADR 0058): imagens até 8 MiB e o ZIP do lote de fotos até 500 MiB (CHECK arquivo_tamanho_faixa, por tipo). */
+  tipo: text('tipo', { enum: TIPOS_ARQUIVO_BANCO }).notNull().default('image/jpeg'),
   tamanho_bytes: integer('tamanho_bytes'),
   sha256: text('sha256'),
   largura_px: integer('largura_px'),
@@ -583,4 +588,33 @@ export const syncPacotePedido = plataforma.table('sync_pacote_pedido', {
   /** Só código curto (sem dado pessoal). */
   ultimo_erro: text('ultimo_erro'),
   atendido_em: timestamp('atendido_em', { withTimezone: true }),
+});
+
+/** Situações de plataforma.trabalho (CHECK trabalho_situacao_valida, 0079). */
+export const SITUACOES_TRABALHO_BANCO = ['pendente', 'em_execucao', 'concluido', 'falhou'] as const;
+
+/**
+ * Trabalho sob demanda de um módulo (0079, T-0174, ADR 0058): disparado por evento da outbox, executado em fatias pelo worker.
+ * Um vivo por (tenant, modulo, nome, alvo_id) (trabalho_alvo_uk: o consumidor grava com insert ... on conflict do nothing).
+ * O macuxi_app só lê e insere no próprio tenant; a situação, a trava e os contadores mudam só pelas funções do worker
+ * plataforma.trabalho_reservar / trabalho_devolver / trabalho_renovar (SECURITY DEFINER, só tenants ativos). Fora do sync.
+ */
+export const trabalho = plataforma.table('trabalho', {
+  ...comuns(),
+  modulo: text('modulo').notNull(),
+  nome: text('nome').notNull(),
+  /** Entidade do módulo que o trabalho processa (ex.: catalogo.foto_lote.id); sem FK. */
+  alvo_id: uuid('alvo_id').notNull(),
+  /** Evento da outbox que disparou o trabalho; sem FK (a outbox tem retenção). */
+  evento_id: uuid('evento_id'),
+  situacao: text('situacao', { enum: SITUACOES_TRABALHO_BANCO }).notNull().default('pendente'),
+  tentativas: integer('tentativas').notNull().default(0),
+  fatias: integer('fatias').notNull().default(0),
+  proxima_em: timestamp('proxima_em', { withTimezone: true }).notNull().defaultNow(),
+  travado_ate: timestamp('travado_ate', { withTimezone: true }),
+  travado_por: text('travado_por'),
+  /** Só código (^[A-Za-z0-9_.:-]{1,100}$): nunca mensagem nem dado pessoal. */
+  ultimo_erro: text('ultimo_erro'),
+  /** Fim em 'concluido' ou 'falhou' (CHECK trabalho_concluido_coerente). */
+  concluido_em: timestamp('concluido_em', { withTimezone: true }),
 });

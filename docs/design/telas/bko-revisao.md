@@ -88,9 +88,9 @@ O brief cita "Azul noite", mas o menu lateral do BKO é Grafite no manual da mar
 
 | Elemento | Cor | Contraste | Tipo |
 |---|---|---|---|
-| Título do grupo | **Sol claro `#F59A52`** (`--color-nav-grupo`) | 7,56:1 no Grafite (5,56:1 no `#2B3743` do hover; 5,85:1 no Azul noite) | IBM Plex Sans 600, 11,5 px, caixa alta, espaço 0,07em |
-| Item | `#C9CED5` (`nav-text`) | 10,42:1 | IBM Plex Sans 400, 14 px |
-| Item da tela atual | branco no `#2B3743` + barra Sol claro | 12,14:1 | IBM Plex Sans 600, 14 px |
+| Título do grupo | **Sol claro `#F59A52`** (`--color-nav-grupo`) | 7,56:1 no Grafite (5,56:1 no `#2B3743` do hover; 5,85:1 no Azul noite) | 600, 12 px, caixa alta, espaço 0,07em |
+| Item | `#C9CED5` (`nav-text`) | 10,42:1 | 400, 15 px |
+| Item da tela atual | branco no `#2B3743` + barra Sol claro | 12,14:1 | 600, 15 px |
 | Seta do grupo | igual ao título | — | 14 px |
 
 - Medidas: menu com **240 px** de largura (hoje 220; "Formas de pagamento e prazos" cabe sem cortar), título do grupo 30 px de altura, item 32 px, recuo do item 20 px.
@@ -99,7 +99,7 @@ O brief cita "Azul noite", mas o menu lateral do BKO é Grafite no manual da mar
 - Sem token em `packages/ui`: lá não há conjunto de tokens web de navegação (os `nav-*` só existem em `apps/web/app/globals.css`, e `packages/ui/src/web/cores.ts` só traz as classes de destaque, gráfico e faixa); o shell usa a classe `text-nav-grupo` gerada pelo token dele.
 - **Logo:** o do manual da marca §2.1 (MC-0056).
 
-### M5. Simulações (1366×768, escala 2, Archivo/IBM Plex de `apps/web/app/fonts/`)
+### M5. Simulações (1366×768, escala 2; capturadas com a fonte anterior, histórico: hoje vale a fonte do sistema)
 | Arquivo | O que mostra |
 |---|---|
 | `bko-revisao/menu-completo-1366x768.png` | Administrador com os 8 módulos, sanfona, grupo Operação aberto, Pedidos destacado, sem barra de rolagem |
@@ -162,7 +162,7 @@ Vale para toda página do BKO (`modules/*/web` e `apps/web`). Regras transversai
 As ações também se espalham: Pedidos tem dois links (Atualizar, Exportar CSV, `orders-page.tsx:68-74`); o Farol tem três botões iguais (Parâmetros do farol, Atualizar, Exportar CSV, `farol-page.tsx:128-157`), sem um principal.
 
 **Regra.**
-1. Título à esquerda (Archivo 800, 24 px) e ações à direita, **na mesma linha**. Nada embaixo do título: `subtitle` sai (está `@deprecated` no kit).
+1. Título à esquerda (700, 24 px) e ações à direita, **na mesma linha**. Nada embaixo do título: `subtitle` sai (está `@deprecated` no kit).
 2. No máximo **um botão principal** (o que cria: "Novo usuário", "Nova transportadora") e **um secundário** visíveis. O resto (Exportar CSV, Atualizar, Parâmetros, Importar) vai no **"⋯" da página** (`MenuAcoes` com `rotulo="Mais ações"`), à direita do principal.
 3. **Atualizar** vai para o "⋯": a lista já se atualiza ao abrir, ao voltar à janela e depois de cada ação (RN-CORE-23); o botão fica para quem quer forçar. "atualizando…" não aparece em texto: o "⋯" mostra "Atualizando…" no próprio item enquanto carrega.
 4. O `badge` do cabeçalho (ex.: situação da trilha) continua aceito; o `eyebrow` só para o caminho de volta ("‹ Trilhas").
@@ -242,7 +242,7 @@ Clientes (RD-0365): o Cliente 360 é o detalhe do cliente, então abre pelo cliq
 1. A **contagem** da lista principal da página fica num lugar só: o **título da página** (`h1`), com `rotuloComContagem` ("Pedidos · 137", "Transportadoras e frete · 5"). O quadro da lista principal fica **sem título** (RD-0364): o `h1` já diz o que a lista é.
 2. **Com zero**, o `h1` fica só com o rótulo ("Pedidos") e a página mostra só o `EstadoVazio`, **uma vez**, sem quadro em volta.
 3. **Contagem e total são do filtro inteiro**, não das linhas carregadas (pergunta do testes). A API devolve a quantidade e a soma do filtro junto com a primeira página; as páginas seguintes só trazem linhas. Assim o rótulo e o número falam do mesmo conjunto: "Pedidos · 137" e "R$ 61.284,90" são os 137 pedidos do filtro, mesmo com 50 linhas na tela. O "+" do `rotuloComContagem` ("50+") fica só para lista sem contagem exata do servidor, e essa lista não mostra total.
-4. O **total em dinheiro** vai ao lado do `h1` (o `badge` do `PageHeader`), em Archivo 700, 18 px, `text-ink-2`; com zero, não aparece.
+4. O **total em dinheiro** vai ao lado do `h1` (o `badge` do `PageHeader`), em 600, 17 px, `text-ink-2`; com zero, não aparece.
 5. Quadro de pendências (Aguardando aprovação, Coordenadas sugeridas, Digitadas pelos vendedores) **só aparece com pelo menos um item** e tem título com a contagem ("Aguardando aprovação · 3"): é o único quadro da página com título, porque divide a página com a lista. Sem pendência, o quadro some.
 6. **O item pendente aparece num lugar só (RD-0363).** Com o quadro de pendências, a lista, a contagem e o total não trazem os pendentes, e o select "Situação" não oferece "Aguardando aprovação" (decisão h da §P13, opção a recomendada).
 7. KPI não repete número que já está no título da página ou de uma aba da mesma tela.
@@ -331,7 +331,7 @@ Cada dono aplica nas próprias páginas, **um PR por dono**, com print 1366×768
 | testes | e2e do BKO (`tests/e2e/bko/`) | trocar as asserções de texto que saem (subtítulos, "Nada pendente.", "Pedidos · 0", rótulos acima da busca) pelos novos; os `data-testid` das telas ficam |
 | design-de-marca | — | validar os ícones dos módulos (§P10) e as simulações da §P12 antes do lote |
 
-### §P12. Simulações (1366×768, escala 2, Archivo e IBM Plex de `apps/web/app/fonts/`)
+### §P12. Simulações (1366×768, escala 2; capturadas com a fonte anterior, histórico: hoje vale a fonte do sistema)
 Mesmo shell das simulações da §M (menu de 240 px, grupo da tela aberto). Dados fictícios. Os `.html` ao lado dos PNG "depois" são a fonte da simulação (Chrome sem janela, 1366×768, escala 2); os "antes" ficam como registro.
 
 | Arquivo (`docs/design/telas/bko-revisao/`) | O que mostra |

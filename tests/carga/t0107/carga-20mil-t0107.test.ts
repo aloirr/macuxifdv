@@ -66,6 +66,7 @@ import { createApp } from '../../../apps/api/src/app';
 import { criarBancoApp } from '../../../apps/api/src/banco';
 import { criarDespachante } from '../../../apps/api/src/despachante';
 import { A, licenca, poolComEncerramento, SENHA, subirApi, type ApiDeTeste } from '../../integracao/apoio/api';
+import { garantirFilialDosUsuarios } from '../../integracao/apoio/filial-usuario';
 import { gerarBaseCarga, gravarBaseCarga, impressaoDigital, ORDEM_TABELAS_CARGA, type BaseCarga, type ResumoBase } from './gerador';
 
 /**
@@ -248,6 +249,8 @@ describe.skipIf(semBanco())('T-0107 — carga de 20 mil produtos: sync inicial, 
     });
     // `on conflict do nothing` esconderia colisão com a fixture: tudo que foi gerado tem de ter entrado
     for (const tabela of ORDEM_TABELAS_CARGA) expect(gravadas[tabela], `linhas gravadas em ${tabela}`).toBe(base[tabela].length);
+    // RN-CORE-39 (#361): os vendedores da carga entram sem filial; sem ela o pull dá 403 USUARIO_SEM_FILIAL e o horizonte nunca vem
+    await garantirFilialDosUsuarios(api.admin, resumo.vendedores.map((v) => v.id));
 
     for (const v of resumo.vendedores) tokens.push((await api.sessao(v.email, A)).access_token);
     const [depois] = await linhas<{ agora: Date }>('select clock_timestamp() as agora');
