@@ -213,6 +213,10 @@ const G = {
   sync_pacote_pedido: 0x69,
   // 0077 (T-0176, RN-CORE-39): filiais do usuário
   usuario_filial: 0x6a,
+  // 0079 (T-0174, ADR 0054): trabalho sob demanda e o lote de fotos por ZIP
+  trabalho: 0x6b,
+  foto_lote: 0x6c,
+  foto_lote_item: 0x6d,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -436,6 +440,17 @@ export const T0170_FIXTURE = {
     meta: b('meta_produtividade', 1),
     deslocamento: b('deslocamento_dia', 1),
   },
+} as const;
+
+/**
+ * 0079 (T-0174, ADR 0054): um lote de fotos JÁ CONCLUÍDO por tenant (o ZIP já foi descartado: arquivo_id sem linha em
+ * plataforma.arquivo, como depois do fim do lote), um item e o trabalho concluído. A: item 'sem_produto' (FOTO-X.jpg);
+ * B: item 'recusado' por 'tipo_nao_aceito' (PNG renomeado). arquivo_id e midia_id dos itens são só reservados (nada gravado).
+ * Um worker de teste não acha trabalho pendente; os testes que precisam de pendente gravam o seu em transação desfeita.
+ */
+export const FOTO_LOTE_FIXTURE = {
+  A: { lote: a('foto_lote', 1), zip: a('foto_lote', 101), item: a('foto_lote_item', 1), trabalho: a('trabalho', 1) },
+  B: { lote: b('foto_lote', 1), zip: b('foto_lote', 101), item: b('foto_lote_item', 1), trabalho: b('trabalho', 1) },
 } as const;
 
 /**
@@ -737,6 +752,10 @@ export const ORDEM_TABELAS = [
   'core.deslocamento_dia',
   // 0077 (T-0176): filiais de venda do usuário (FKs -> core.usuario, core.filial)
   'core.usuario_filial',
+  // 0079 (T-0174): lote de fotos (FK do item -> lote) e o trabalho sob demanda que o processou
+  'catalogo.foto_lote',
+  'catalogo.foto_lote_item',
+  'plataforma.trabalho',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
   ...ORDEM_GESTOR,
   // 0015 (T-0056): schema promotor — linhas de A e B em ./promotor.ts
@@ -1175,6 +1194,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     'core.plano_rv': dadosPlanoRv(hojeA, hojeB),
     ...dadosT0170(hojeA, hojeB),
     'core.usuario_filial': dadosUsuarioFilial(),
+    ...dadosFotoLote(),
     ...dadosGestor({ tenant: tA, vendedor: A.usuarios.vendedor1, cliente: A.clientes.c1 }, { tenant: tB, vendedor: B.usuarios.vendedor, cliente: B.clientes.c1 }),
     ...dadosPromotorFixture(
       {
@@ -1258,6 +1278,40 @@ function dadosUsuarioFilial(): Linha[] {
     vinculo(UA.promotorPadrao, A.tenantId, A.usuarios.promotor, FILIAIS_FIXTURE.A.padrao),
     vinculo(USUARIO_FILIAL_FIXTURE.B.adminPadrao, B.tenantId, B.usuarios.admin, FILIAIS_FIXTURE.B.padrao),
   ];
+}
+
+/** 0079 (T-0174): lote concluído, um item e o trabalho concluído em A e em B (FOTO_LOTE_FIXTURE). */
+function dadosFotoLote(): Pick<DadosFixture, 'catalogo.foto_lote' | 'catalogo.foto_lote_item' | 'plataforma.trabalho'> {
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const comuns = { deleted_at: null, external_id: null };
+  const sha = (x: string) => createHash('sha256').update(`fixture-foto-lote-${x}`).digest('hex');
+  const lote = (id: string, tenant_id: string, enviado_por: string, arquivo_id: string, nome_arquivo: string): Linha => ({
+    id, tenant_id, enviado_por, arquivo_id, nome_arquivo, tamanho_bytes: 1_048_576, sha256: sha(id), situacao: 'concluido', motivo: null,
+    duplicado_de: null, total: 1, iniciado_em: DATA_FIXA_ACESSO, concluido_em: DATA_FIXA_ACESSO, ...comuns,
+  });
+  const item = (id: string, tenant_id: string, lote_id: string, caminho: string, extra: Partial<Linha>): Linha => ({
+    id, tenant_id, lote_id, indice: 0, caminho, situacao: 'sem_produto', motivo: null, tipo_detectado: null, codigo: null, ordem: null,
+    produto_id: null, produto_codigo: null, codigos_candidatos: null, arquivo_id: idFixo(id.slice(0, 8), G.foto_lote_item, 101),
+    midia_id: idFixo(id.slice(0, 8), G.foto_lote_item, 201), sha256: null, processado_em: DATA_FIXA_ACESSO, ...comuns, ...extra,
+  });
+  const trabalho = (id: string, tenant_id: string, alvo_id: string): Linha => ({
+    id, tenant_id, modulo: 'catalogo', nome: 'processar_foto_lote', alvo_id, evento_id: null, situacao: 'concluido', tentativas: 0, fatias: 2,
+    proxima_em: DATA_FIXA_ACESSO, travado_ate: null, travado_por: null, ultimo_erro: null, concluido_em: DATA_FIXA_ACESSO, ...comuns,
+  });
+  const FA = FOTO_LOTE_FIXTURE.A;
+  const FB = FOTO_LOTE_FIXTURE.B;
+  return {
+    'catalogo.foto_lote': [
+      lote(FA.lote, A.tenantId, A.usuarios.analista, FA.zip, 'fotos-alfa.zip'),
+      lote(FB.lote, B.tenantId, B.usuarios.admin, FB.zip, 'fotos-beta.zip'),
+    ],
+    'catalogo.foto_lote_item': [
+      item(FA.item, A.tenantId, FA.lote, 'FOTO-X.jpg', { codigo: 'FOTO-X', ordem: 1 }),
+      item(FB.item, B.tenantId, FB.lote, 'BETA-001.jpg', { situacao: 'recusado', motivo: 'tipo_nao_aceito', tipo_detectado: 'image/png', codigo: 'BETA-001', ordem: 1 }),
+    ],
+    'plataforma.trabalho': [trabalho(FA.trabalho, A.tenantId, FA.lote), trabalho(FB.trabalho, B.tenantId, FB.lote)],
+  };
 }
 
 type TabelaSprint1 = (typeof ORDEM_SPRINT1)[number];

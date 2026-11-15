@@ -197,6 +197,14 @@ Instantes derivados do "hoje" de cada tenant, na janela da visita do Core da fix
   admins de A e de B (mesmo id do gatilho); sem multiperfil.
 - Constantes em `DOIS_TENANTS.X.{perfis, sobreposicoes}`.
 
+### T-0174 (migração 0079; fotos em lote por ZIP, ADR 0054)
+- **`catalogo.foto_lote`** (grupo **0x6c**): um lote **concluído** por tenant (A `fotos-alfa.zip` do analista; B `fotos-beta.zip`
+  do admin); o ZIP já foi descartado (o `arquivo_id`, seq 101, não tem linha em `plataforma.arquivo`).
+- **`catalogo.foto_lote_item`** (grupo **0x6d**): A `FOTO-X.jpg` `sem_produto`; B `BETA-001.jpg` `recusado` `tipo_nao_aceito`
+  (PNG renomeado). `arquivo_id`/`midia_id` só reservados (seq 101/201), sem linha.
+- **`plataforma.trabalho`** (grupo **0x6b**): `processar_foto_lote` **concluído** de cada lote (o worker de teste não acha pendente).
+- Ids em `FOTO_LOTE_FIXTURE`.
+
 ## Seed Fase M (demonstração)
 Tenant `7d0c2f4e-1a2b-4c3d-8e9f-000000000001` "Distribuidora Exemplo", código `exemplo`, America/Manaus
 (mesmo id da Fase M). IDs determinísticos (UUID v5 de `fase-m:<tipo>:<chave>`).
@@ -247,6 +255,7 @@ padrão do Core vêm do gatilho do tenant.
   do CHECK (`sync-pacotes/<tenant>/<modulo>/<particao>/<id>.sqlite.gz`), `geracao_base` fixa (não é a do tenant), md5 de exemplo.
 - **Pedidos** (grupo `0x69`, `plataforma.sync_pacote_pedido`): A atendido (`lote`), B atendido (`manifesto`); nenhum pendente
   (o teste grava o seu em transação desfeita). Dicionário: [sync-pacote.md](sync-pacote.md).
+
 ## 0080 — Código FDV (T-0175, RN-CORE-59)
 - A fixture não grava `codigo_fdv`: o gatilho `usuario_codigo_fdv_emitir` emite na carga, na ordem da lista de `core.usuario`. Esperado em `CODIGOS_FDV_FIXTURE`: A = admin `00001` … promotor `00008`; B = admin `00001`, vendedor `00002`.
 - `core.usuario_codigo_fdv_contador` ganha uma linha em A e uma em B pelo próprio gatilho (vazamento de leitura coberto). Recarregar a fixture não muda os códigos (o upsert por id não toca a coluna); o contador pode pular números.
