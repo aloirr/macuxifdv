@@ -3,7 +3,14 @@
  * entrada e na saída, 422 da regra do texto, auditoria da requisição) e a rota do app (sessão do app, sem licença de módulo,
  * só as ativas, na ordem do banco). As funções de verdade da 0081 são testadas no CI pelo banco-dados. Frases fictícias.
  */
-import { FRASES_CARGA_INICIAIS, ordenarFrasesDoPortal, type AcessoPortalAutenticado, type FraseCarga } from '@macuxi/platform-sdk';
+import {
+  FRASES_CARGA_INICIAIS,
+  ordenarFrasesDoPortal,
+  ROTA_PORTAL_FRASES_CARGA as URL_PORTAL,
+  ROTA_SYNC_FRASES_CARGA as URL_APP,
+  type AcessoPortalAutenticado,
+  type FraseCarga,
+} from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
 import type { FonteFrasesCarga } from '../src/frases-carga';
@@ -16,8 +23,6 @@ const CLI: AcessoPortalAutenticado = {
   sessao_id: '5e000000-0000-4000-8000-000000000002',
   empresa: { tenant_id: '0a000000-0000-4000-8000-000000000001', usuario_id: '0b000000-0000-4000-8000-000000000001' },
 };
-const URL_PORTAL = '/v1/plataforma/frases-carga';
-const URL_APP = '/v1/sync/frases-carga';
 const sa = { 'x-quem': 'sa' };
 const NOVA = '0f7a0000-0000-4000-8000-000000000001';
 

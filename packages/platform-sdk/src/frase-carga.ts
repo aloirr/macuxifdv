@@ -8,11 +8,9 @@
  *   GET   /v1/sync/frases-carga              o app: só as ativas e vivas `{ id, texto, ordem }`, pela ordem
  * A fonte de cada frase (spec §6) NÃO faz parte do contrato: nunca vai ao app nem à tela.
  *
- * IDS DAS 30 INICIAIS (fonte única para o bundle do app e para o seed do banco-dados, migração 0081):
- *   id do Nº n = plataforma.uuid_de_chave('plataforma:frase_carga:' || lpad(n::text, 2, '0'))
- *   (função da migração 0005: md5('macuxi:' || chave) com versão 5 e variante RFC 4122). Ex.: Nº 1 → chave
- *   'plataforma:frase_carga:01' → 30db8593-800a-56dc-98dc-b8976806ace5. O teste `frase-carga.test.ts` recalcula os 30 ids
- *   pela mesma fórmula; a lista literal Nº → id está em `INICIAIS` abaixo (o seed pode copiar dela).
+ * IDS DAS 30 INICIAIS (fonte da fórmula; o desenho e o docs/banco apontam para cá):
+ *   id do Nº n = plataforma.uuid_de_chave('plataforma:frase_carga:' || lpad(n::text, 2, '0')) (função da migração 0005).
+ *   O teste `frase-carga.test.ts` recalcula os 30 ids de `INICIAIS` pela mesma fórmula.
  */
 import { z } from 'zod';
 
@@ -88,9 +86,9 @@ export type FrasesCargaAppResposta = z.infer<typeof FrasesCargaAppRespostaSchema
 export type ResultadoTextoFrase = { ok: true; texto: string } | { ok: false; codigo: CodigoFraseCarga; mensagem: string };
 
 /**
- * Regra do texto (spec §3): trim; vazio → "Escreva a frase."; acima de 90 → erro; igual a outra frase da lista sem diferenciar
- * maiúsculas (na edição, a própria não conta) → "Essa frase já está na lista.". O portal usa no formulário; a API revalida;
- * na duplicidade a palavra final é do índice único do banco.
+ * Regra do texto (spec §3), mensagens de `MENSAGENS_FRASE_CARGA`: trim; vazio; acima de `FRASE_CARGA_MAX`; igual a outra frase
+ * da lista sem diferenciar maiúsculas (na edição, a própria não conta). O portal usa no formulário; a API revalida; na
+ * duplicidade a palavra final é do índice único do banco.
  */
 export function validarTextoFrase(
   texto: string,

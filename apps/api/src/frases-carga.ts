@@ -1,16 +1,6 @@
 /**
- * T-0181 (desenho docs/desenho/T-0181.md; spec docs/design/carga-aviso-frases/ §2 e §3): frases da tela de carga.
- * Cadastro da plataforma (sem tenant), só pelas funções `SECURITY DEFINER` da migração 0081 (banco-dados):
- *   GET   /v1/plataforma/frases-carga       `sa_listar_frases_carga(sid)`                  só super-admin (cliente = 403)
- *   POST  /v1/plataforma/frases-carga       `sa_incluir_frase_carga(sid, id, texto)`       201; idempotente pelo `id`
- *   PATCH /v1/plataforma/frases-carga/:id   `sa_editar_frase_carga(sid, id, texto, ativa)` nulo = não muda
- *   Na conexão do portal (`macuxi_portal`); as `sa_*` conferem a sessão e auditam a mudança; a API audita a requisição
- *   (`marcarPortal`). Sem DELETE (desativar basta). Texto: trim, vazio, > 90 = 422 pela regra do SDK (`validarTextoFrase`);
- *   repetida = 422 `FRASE_DUPLICADA` pelo índice único do banco (23505).
- *   GET   /v1/sync/frases-carga             `frases_carga_ativas()` na conexão do `macuxi_app`: sessão do app, qualquer
- *   perfil, sem licença de módulo (é da plataforma); só as ativas e vivas, pela ordem.
- * Sem flag: antes da migração (função ausente, 42883) as rotas respondem 503 `FRASES_CARGA_INDISPONIVEIS` e o app segue com a
- * lista que já tem (ou com as 30 do bundle). Log sem o texto das frases.
+ * T-0181: rotas das frases da tela de carga (portal só super-admin; app sem licença de módulo). Rotas, funções da 0081 e
+ * respostas: docs/desenho/T-0181.md §2. Log sem o texto das frases.
  */
 import { randomUUID } from 'node:crypto';
 import {
@@ -30,7 +20,7 @@ import {
   type FraseCargaEntrada,
   type FrasesCargaAppResposta,
 } from '@macuxi/platform-sdk';
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ErroHttp } from './erros';
 import { conferirRetorno, exigirSuperAdmin as exigirSuperAdminDoPortal, traduzirErroSa, type AutenticarPortal } from './portal-comum';
@@ -75,13 +65,17 @@ const indisponivel = () => new ErroHttp(503, 'FRASES_CARGA_INDISPONIVEIS', 'Fras
 const negocio = (codigo: keyof typeof MENSAGENS_FRASE_CARGA) => new ErroHttp(422, codigo, MENSAGENS_FRASE_CARGA[codigo]);
 
 /** SQLSTATE das `sa_*` da 0081 → HTTP: 23505 = repetida (422), P0002 = 404, função/tabela ausente = 503, 23514 = 400; + os comuns. */
+/** Função ou tabela da 0081 ausente no banco (antes da migração): 503. */
+const ausente = (c: unknown): boolean => c === '42883' || c === '42P01';
+const semCache = (reply: FastifyReply): FastifyReply => reply.header('cache-control', 'private, no-store');
+
 const traduzir = (e: unknown): never =>
   traduzirErroSa(e, (c) => {
     if (c === '42501') throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', SO_A_MACUXI);
     if (c === '23505') throw negocio('FRASE_DUPLICADA');
     if (c === 'P0002') throw new ErroHttp(404, 'FRASE_NAO_ENCONTRADA', 'Frase não encontrada.');
     if (c === '23514') throw new ErroHttp(400, 'VALIDACAO', 'Frase inválida.');
-    if (c === '42883' || c === '42P01') throw indisponivel();
+    if (ausente(c)) throw indisponivel();
   });
 
 /** Texto pela regra do SDK (trim, vazio, > 90); duplicidade fica com o índice único do banco. */
@@ -112,14 +106,14 @@ export function registrarRotasFrasesCarga(app: FastifyInstance, p: Plataforma, d
       bruto = await ctx.comTenant((db) => fonte.ativas(db));
     } catch (e) {
       const c = (e as { code?: unknown } | null)?.code;
-      if (c === '42883' || c === '42P01') {
+      if (ausente(c)) {
         req.log.warn({ codigo: 'FRASES_CARGA_INDISPONIVEIS', sqlstate: c }, 'frases da carga: função ausente no banco');
         throw indisponivel();
       }
       throw e;
     }
     const r = conferirRetorno(FrasesCargaAppRespostaSchema, bruto, 'frases_carga_ativas');
-    reply.header('cache-control', 'private, no-store');
+    semCache(reply);
     return { frases: r.frases };
   });
 
@@ -127,7 +121,7 @@ export function registrarRotasFrasesCarga(app: FastifyInstance, p: Plataforma, d
   app.get(ROTA_PORTAL_FRASES_CARGA, async (req, reply) => {
     const quem = await exigirSuperAdmin(req);
     const lista = conferirRetorno(FrasesCargaListaSchema, await chamar(() => fonte.listar(quem.sessao_id, dep.acessoPortal)), 'sa_listar_frases_carga');
-    return reply.header('cache-control', 'private, no-store').send({ itens: lista.itens });
+    return semCache(reply).send({ itens: lista.itens });
   });
 
   app.post(ROTA_PORTAL_FRASES_CARGA, async (req, reply) => {
@@ -136,7 +130,7 @@ export function registrarRotasFrasesCarga(app: FastifyInstance, p: Plataforma, d
     const texto = textoValido(corpo.texto);
     const id = (corpo.id ?? randomUUID()).toLowerCase();
     const frase = conferirFrase(await chamar(() => fonte.incluir(quem.sessao_id, id, texto, dep.acessoPortal)), 'sa_incluir_frase_carga');
-    return reply.code(201).header('cache-control', 'private, no-store').send(frase);
+    return semCache(reply.code(201)).send(frase);
   });
 
   app.patch(`${ROTA_PORTAL_FRASES_CARGA}/:id`, async (req, reply) => {
@@ -148,6 +142,6 @@ export function registrarRotasFrasesCarga(app: FastifyInstance, p: Plataforma, d
       await chamar(() => fonte.editar(quem.sessao_id, id.toLowerCase(), texto, alt.ativa ?? null, dep.acessoPortal)),
       'sa_editar_frase_carga',
     );
-    return reply.header('cache-control', 'private, no-store').send(frase);
+    return semCache(reply).send(frase);
   });
 }
