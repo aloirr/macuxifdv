@@ -653,3 +653,262 @@ Lidos `apps/conector/src/atualizacao/chaves.ts`, `scripts/pacote.mjs` e `test/at
 - Lote 15: o branch está sem prints (§P11).
 
 Os recados não saíram (caixa 403). Ficam pendentes para quando a caixa voltar.
+
+---
+# Lote da noite, parte 3: reteste dos RD corrigidos (15/11/2026)
+
+Antes desta parte, o `origin/main` (03926f1c, #295) foi mesclado no branch do corretor, sem rebase. Para cada lote foram
+lidos dois diffs: `git diff origin/main...origin/<branch>`, o lote inteiro, e `git diff <SHA da parte 1>..<head>`, a
+correção. Nenhum head passou do SHA pedido. O `nuvem/acesso-bko-modulo-core` (PR #250) continua em `1ecb5fce`: a correção
+do timer no lint ainda não chegou ao remoto. A numeração continua no RD-0425. O `coord.mjs` continua com 403, então o pedido
+vale por este relatório e pelo catálogo.
+
+Também foi conferido se as correções de branches diferentes conversam entre si. O `git merge-tree` entre os lotes 9 e 10
+dá conflito *add/add* em `apps/api/src/portal-comum.ts` e em `apps/api/test/portal-comum.test.ts`, e conflito de conteúdo
+em `app.ts` (RD-0428). Entre os dois branches de empresa-acoes há uma terceira tabela de frases (RD-0429).
+
+## Resumo da parte 3
+
+| # | Branch | SHA lido (parte 1 → agora) | Parecer | RD retestados | RD novos (gravidade, dono) |
+|---|---|---|---|---|---|
+| 1 | `nuvem/inicio-cabecalho-modulo-core` | `6f04e77e` → `e0ac4444` | **sem achado que segure** | RD-0399 **corrigido** no Core (itens 1 e 2; item 3 do lado do Core). A parte do shell fica com o engenheiro-apps depois do merge | RD-0425 baixa, só comentário, não segura (modulo-core) |
+| 2 | `nuvem/kit-thathyany-modulo-integracao` | `1783f3a1` → `65154ee8` | **segura** | RD-0400, RD-0401 e RD-0402 **corrigidos** | RD-0426 baixa, texto do kit (modulo-integracao) |
+| 3 | `nuvem/bko-revisao-modulo-vendedor` | `1a151258` → `540196f5` | **sem achado em aberto** | RD-0408 **corrigido** | — |
+| 4 | `nuvem/bko-revisao-modulo-integracao` | `d42516c9` → `49558a3f` | **sem achado em aberto** | RD-0409 e RD-0410 **corrigidos** | — |
+| 5 | `nuvem/bko-revisao-modulo-pesquisa` | `bf81b42b` → `f7a0b2fe` | **sem achado em aberto** | RD-0411 **corrigido** | — |
+| 6 | `nuvem/bko-revisao-modulo-promotor` | `e4d71be3` → `e7e84ffa` | **sem achado em aberto** | RD-0412 **corrigido** | — |
+| 7 | `nuvem/bko-revisao-modulo-treinamento` | `0d9178c2` → `d5b5f523` | **segura** | RD-0413 **corrigido** | RD-0427 baixa, código de produção (modulo-treinamento) |
+| 8 | `nuvem/email-senha-engenheiro-software` | `d679a1a7` → `da106be2` | **sem achado em aberto** | RD-0403 **corrigido** | — |
+| 9 | `nuvem/rodape-legal-engenheiro-software` | `a9965d78` → `788cc483` | **segura** | RD-0404 **corrigido**; RD-0405 **corrigido** (itens 1 a 4) | RD-0428 média (engenheiro-software) |
+| 10 | `nuvem/empresa-acoes-engenheiro-software` | `71ea347f` → `b9e9c577` | **segura** | RD-0405 **corrigido** (itens 1 a 5); RD-0406 **em correção** (SDK e API feitos, falta o Core); RD-0407 **corrigido** (API e SDK) | RD-0428 média (engenheiro-software) |
+| 11 | `nuvem/empresa-acoes-engenheiro-apps` | `3dec04a5` → `d807bcf0` | **segura** | RD-0407 **corrigido** no `erroDoExcluir` | RD-0429 média (engenheiro-apps) |
+| 13 | `nuvem/acesso-bko-modulo-core` (PR #250) | `1ecb5fce` (sem SHA novo) | **segura** (como na parte 2) | RD-0414 e RD-0415 continuam **abertos** | — |
+
+---
+
+## Lote 1: `nuvem/inicio-cabecalho-modulo-core` @ `e0ac4444` (lido na parte 1 em `6f04e77e`)
+
+A correção está no commit `e0ac4444`. O `cfe3efbf` só mescla o `main` (#293, CI).
+
+### Reteste do RD-0399: **corrigido no Core**
+1. `painelAltura` saiu da interface, do `Omit` de `tamanhosParaFator` e do retorno de `escalaInicio`. O teste da variação C
+   chama `alturaDoPainel(tamanhosParaFator(e.fator, 1, KIT), …)` direto (`escala-inicio.test.ts:58`).
+2. `telas/inicio/index.ts:4` ficou só com `definirResolvedorFotoPerfil` e `ResolvedorFotoPerfil`.
+3. Lado do Core: `modules/core/app/index.ts:27` exporta `ENTIDADE_USUARIO_AVATAR`. O shell ainda tem
+   `ENTIDADE_AVATAR = 'usuario_avatar'` (`apps/mobile/src/lib/sync-t0170.ts:25`, também no `main`). O shell só consegue
+   importar a constante do Core depois do merge deste lote, então essa parte **não segura o lote do Core**. Fica em aberto
+   com o engenheiro-apps para o lote seguinte: `import { ENTIDADE_USUARIO_AVATAR } from '@macuxi/core/app'` no lugar de
+   `ENTIDADE_AVATAR` (l.25, 32 e 58).
+
+### Achado novo
+
+| Campo | RD-0425 |
+|---|---|
+| Onde | `modules/core/app/telas/inicio/escala-inicio.ts:51` |
+| Tipo | código (comentário) |
+| O que se repete | O campo saiu, mas o JSDoc dele ficou: "/** Altura do painel sem a área segura: respiro de cima + max(foto, textos) + respiro de baixo, em dp. */". Agora ele está em cima de `fonte:` e descreve o campo errado |
+| Impacto | manutenção: o comentário diz que `fonte` é uma altura |
+| Severidade | baixa. Está **só em comentário**, então **não segura** (R-20261111-190159) e entra no lote seguinte |
+| Proposta | Apagar a l.51. A descrição já está no JSDoc de `alturaDoPainel` |
+| Dono | modulo-core |
+
+**Parecer do lote 1: sem achado que segure (RD-0425 só em comentário; o item 3 do RD-0399 fica com o engenheiro-apps).**
+
+---
+
+## Lote 2: `nuvem/kit-thathyany-modulo-integracao` @ `65154ee8` (lido na parte 1 em `1783f3a1`)
+
+### Retestes
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0400 | Saíram as l.14-15 de "O que ter em mãos". "(ela aparece uma vez só)" foi para o passo 1 da Fase 1 (l.21). O teste já não espera chave nem "Baixar o Conector" nessa seção | **corrigido** |
+| RD-0401 | l.35: "… Corrija o CSV e rode de novo." l.58: "Quando pedir, cole a chave nova." l.59 terminou em "… aparece no Backoffice." `carga_csv.py:447`: "Recusadas (corrija o CSV e rode de novo):". O espaço duplo do `roteiro-ensaio-conector-1.4.0.md:36` saiu | **corrigido** |
+| RD-0402 | O caso "chave gerada no portal, nunca 'no BKO'" já não confere `/demo/i`. O teste da l.68 continua cobrindo | **corrigido** |
+
+### Achado novo
+O lote também mudou a Fase 2, passo 1 (l.51), e o "Para voltar à fase 1" (l.65), porque o portal não tem o botão de
+desativar o Conector.
+
+| Campo | RD-0426 |
+|---|---|
+| Onde | `modules/integracao/kit-thathyany/ROTEIRO.md:51` e `:65`; `kit-thathyany.test.ts:160` |
+| Tipo | texto |
+| O que se repete | Explicação e funcionamento por trás (R-20261110-192153). Quem segue o roteiro só faz uma coisa: pedir ao gerente-projetos. l.51: "**o portal e o BKO não têm esse botão.** Peça ao gerente-projetos, **que desativa pela rota `PATCH /integracao/conectores/<id>` com `{"ativo": false}`**." l.65: "… desativar o `thathyany-api` **(a mesma rota)** …". A rota é para o gerente fazer, não para quem lê |
+| Impacto | leitura: duas frases e um trecho técnico num passo que é só um pedido |
+| Severidade | baixa. É texto do kit, então **segura** |
+| Proposta | l.51: "1. **Desative o `thathyany-conector`:** peça ao gerente-projetos." l.65: "Para voltar à fase 1: peça ao gerente-projetos para reativar o `thathyany-conector` e desativar o `thathyany-api`, e rode `.\Instalar-Thathyany.ps1 -Fase Conector`." Teste da l.160: `` expect(ROTEIRO.slice(f2)).toMatch(/Desative o `thathyany-conector`:\*\* peça ao gerente-projetos/) ``. A rota fica no material do gerente, onde ela é usada |
+| Dono | modulo-integracao |
+
+Observação para o testes (funcional, não é RD): a Fase 2 depende de o gerente desativar o Conector por chamada à API. O
+portal e o BKO não oferecem essa ação, e o ensaio da thathyany precisa desse passo.
+
+**Parecer do lote 2: segura (RD-0426, baixa, texto do kit).**
+
+---
+
+## Lote 3: `nuvem/bko-revisao-modulo-vendedor` @ `540196f5` (lido na parte 1 em `1a151258`)
+
+Reteste do RD-0408: **corrigido**.
+1. `totalDoPeriodo` saiu de `domain/totais.ts` e o caso dela saiu de `totais.test.ts`. `STATUS_FORA_DO_TOTAL` continua,
+   e `api/pedidos.ts:30` usa a constante.
+2. `exportar-pdf.ts:6` tem `ERRO_IMPRESSAO(detalhe)`, e os dois lugares usam a função: o toast em `orders-page.tsx:70` e o
+   `Notice` em `order-drawer.tsx:85`.
+
+Nota sem RD (já estava no `main`, fora do que mudou): `quantidadeNaoCancelada` (`totais.ts:14`) também só tem uso no
+teste. Vai para o próximo lote do modulo-vendedor, junto com a limpeza de `totais.ts`.
+
+**Parecer do lote 3: sem achado em aberto.**
+
+---
+
+## Lote 4: `nuvem/bko-revisao-modulo-integracao` @ `49558a3f` (lido na parte 1 em `d42516c9`)
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0409 | O `onSuccess` com o toast saiu (`carga-arquivo-page.tsx:78`). Ficou a caixa: "**Recebido:** N linhas; M com erro de leitura. Resultado e erros em Integração ERP." Saíram "em X partes" e "(aparecem com a linha do arquivo)" | **corrigido** |
+| RD-0410 | Ficaram os KPIs "Conectores no ar" (X de Y) e "Lotes com erro", os dois sem sub. Saiu o KPI "Pedidos presos ou retidos", e saiu o `badge` de críticos do `PageHeader` | **corrigido** |
+
+**Parecer do lote 4: sem achado em aberto.**
+
+---
+
+## Lote 5: `nuvem/bko-revisao-modulo-pesquisa` @ `f7a0b2fe` (lido na parte 1 em `bf81b42b`)
+
+Reteste do RD-0411: **corrigido**.
+1. O diálogo de arquivar diz só "Some do app." (`construtor-page.tsx:165`).
+2. "Respondentes" e "Taxa de resposta" só aparecem com `dados.tipo === 'versao'`. No consolidado ficam "Respostas" e
+   "Suspeitas", e não há mais "—" nem "Escolha uma versão".
+
+A observação da parte 1 para o testes ("Galeria de fotos · N" conta todas as fotos e desenha 60) continua valendo.
+
+**Parecer do lote 5: sem achado em aberto.**
+
+---
+
+## Lote 6: `nuvem/bko-revisao-modulo-promotor` @ `e7e84ffa` (lido na parte 1 em `e4d71be3`)
+
+Reteste do RD-0412: **corrigido**.
+1. O KPI "Share médio" ficou sem o sub (`trade-page.tsx:116`).
+2. A legenda ficou "Etapas" (`cadastros-page.tsx:485`).
+
+**Parecer do lote 6: sem achado em aberto.**
+
+---
+
+## Lote 7: `nuvem/bko-revisao-modulo-treinamento` @ `d5b5f523` (lido na parte 1 em `0d9178c2`)
+
+Reteste do RD-0413: **corrigido**.
+1. O `Notice` diz "Só leitura. Para mudar o conteúdo, arquive e crie uma nova trilha." ou "Só leitura." O selo do
+   cabeçalho fica com o status.
+2. O sub do KPI ficou "concluíram ao menos uma lição", e o rótulo ficou "Ativos".
+
+O mesmo commit traz o MC-0065: o "Nova trilha" passou de `bg-ink` para `bg-accent`. Por ser mudança de cor, precisa da
+validação do design-de-marca (definição de pronto). Fica anotado para o gerente.
+
+### Achado novo
+
+| Campo | RD-0427 |
+|---|---|
+| Onde | `modules/treinamento/web/pages/trilhas-page.tsx:91` × `:357`; `packages/ui/src/web/ui.tsx:264-275` (`Button`) |
+| Tipo | código |
+| O que se repete | O link "Nova trilha" está escrito **2×** com a mesma `className` longa (`inline-flex h-[42px] items-center gap-1.5 rounded-xl bg-accent px-4 text-[14px] font-semibold text-white no-underline hover:bg-accent/90`), e essa classe copia à mão o `Button` `primary` `md` do kit. O próprio MC-0065 mostra o custo: uma troca de cor precisou ser feita nas duas cópias |
+| Impacto | manutenção: a próxima mudança do botão principal do kit não chega a esses dois links |
+| Severidade | baixa. É código de produção, então **segura** |
+| Proposta | No módulo: `function LinkNovaTrilha({ testId }: { testId?: string }) { return <Link href={hrefEditarTrilha()} data-testid={testId} className={CLASSE_LINK_PRINCIPAL}><IconPlus size={15} /> Nova trilha</Link>; }`, usado na l.91 (`testId="treinamento.nova-trilha"`) e na l.357. `CLASSE_LINK_PRINCIPAL` deve vir do kit: pedir ao designer-ux que exporte de `ui.tsx` a classe do `Button` (`classeDoBotao('primary', 'md')`), que serve também ao link de `construtor-page.tsx:134` da Pesquisa. Até o kit ter essa classe, uma constante local no módulo já tira a cópia |
+| Dono | modulo-treinamento (classe do kit: designer-ux) |
+
+**Parecer do lote 7: segura (RD-0427, baixa, código de produção).**
+
+---
+
+## Lote 8: `nuvem/email-senha-engenheiro-software` @ `da106be2` (lido na parte 1 em `d679a1a7`)
+
+Reteste do RD-0403: **corrigido**. As Consequências do adendo da ADR 0032 terminam em "… e os dois PNG precisam estar
+publicados." A frase "Sem isso, nada quebra…" saiu, e a falta da variável fica dita uma vez, na Decisão.
+
+O 429 deste lote (`app.ts:789-796`) manda `retry-after` e `detalhes.retry_after_s`, no mesmo formato do
+`recusarPorLimite` do lote 9. Os dois mexem nas mesmas linhas do `montarRotaPublica`. Quem fizer o merge do segundo fica
+com `recusarPorLimite(reply, limitador.esperaSegundos(chave))`.
+
+**Parecer do lote 8: sem achado em aberto.**
+
+---
+
+## Lote 9: `nuvem/rodape-legal-engenheiro-software` @ `788cc483` (lido na parte 1 em `a9965d78`)
+
+### Retestes
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0404 | `limitador.ts:79-83` traz `recusarPorLimite(reply, esperaS)`, com o cabeçalho `retry-after` e `ErroHttp(429, 'MUITAS_TENTATIVAS', …, { retry_after_s })`. É o mesmo formato do lote 8 e do 429 do Core (`autenticacao.ts:161`). Usam a função `app.ts:806` (`montarRotaPublica`) e `dados-legais.ts:118`. O teste fica em `portal-comum.test.ts:73-80` | **corrigido** |
+| RD-0405 | Este branch criou `apps/api/src/portal-comum.ts` com `exigirSuperAdmin`, `traduzirErroSa` e `conferirRetorno`, e `dados-legais.ts` passou a usar os três. Em `app.ts`, `autenticarDoPortal` é passado nas 5 rotas (itens 1 a 4). O item 5 (`config.ts`) é do lote 10. Os 4 arquivos antigos ficam para o lote seguinte, como a proposta previa | **corrigido** |
+
+### Achado novo: RD-0428 (comum aos lotes 9 e 10)
+
+| Campo | RD-0428 |
+|---|---|
+| Onde | `apps/api/src/portal-comum.ts` e `apps/api/test/portal-comum.test.ts` em `nuvem/rodape-legal-engenheiro-software` (788cc483) × os mesmos dois arquivos em `nuvem/empresa-acoes-engenheiro-software` (b9e9c577) |
+| Tipo | código |
+| O que se repete | Cada branch criou a **sua** versão do mesmo arquivo comum, que nasceu do RD-0405. As assinaturas não batem. (1) `exigirSuperAdmin(dep: AutenticacaoDoPortal, …)`, que recebe um objeto com `autenticar`, × `exigirSuperAdmin(autenticar: AutenticarPortal, …)`, que recebe a função, mais o `exigirPortal` só no lote 10. (2) `traduzirErroSa(e, extras?: (code: string \| null, hint: string \| null) => never \| void)`, com 22023 → 400 "Dados inválidos." comum, × `(code: string, hint: string) => void`, sem o 22023. (3) `conferirRetorno` devolve `z.infer` num e `z.output` no outro. Os testes são dois, com casos diferentes. `git merge-tree` dá conflito *add/add* nos dois arquivos e conflito em `app.ts` |
+| Impacto | manutenção: depois do segundo merge sobra uma versão, e uma das rotas (`dados-legais.ts` ou `empresa-acoes-portal.ts`) quebra no typecheck ou muda de comportamento sem aviso |
+| Severidade | média. Segura os lotes 9 e 10 |
+| Proposta | Uma versão só, feita no branch que entra primeiro. O segundo **mescla esse branch** (merge, sem rebase) e adapta a sua rota. Versão sugerida: `export type AutenticarPortal = (req) => Promise<AcessoPortalAutenticado \| null>`; `exigirPortal(autenticar, req, tenantId)`, que o `consulta-cnpj` vai usar no lote dos antigos; `exigirSuperAdmin(autenticar, req, tenantId, mensagem403)`; `traduzirErroSa(e, extras?: (code: string, hint: string) => void)`, com 28000, 42501 e 22023 → 400 `VALIDACAO` "Dados inválidos." comuns (as duas rotas trocam o 22023 pelo `extras`); `conferirRetorno(...): z.output<S>`. Em `dados-legais.ts:131`: `exigirSuperAdminDoPortal(dep.autenticar, req, null, SO_A_MACUXI)`. Um teste só, com a união dos casos (o 401 sem marca do lote 9, o `exigirPortal` do lote 10 e o `recusarPorLimite`) |
+| Dono | engenheiro-software |
+
+**Parecer do lote 9: segura (RD-0428, média).**
+
+---
+
+## Lote 10: `nuvem/empresa-acoes-engenheiro-software` @ `b9e9c577` (lido na parte 1 em `71ea347f`)
+
+### Retestes
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0405 | `empresa-acoes-portal.ts` usa `exigirSuperAdmin`, `traduzirErroSa` (só os casos próprios no `extras`: P0002, 55000, 22023 com hint, 23505) e `conferirRetorno`. `app.ts` usa `autenticarDoPortal` 5×. `config.ts` tem `ligado(env, nome)` nas 4 flags (item 5) | **corrigido** (a versão do comum diverge da do lote 9: RD-0428) |
+| RD-0406 | A função foi para `packages/platform-sdk/src/tentativas-portal.ts`, pelo subcaminho `@macuxi/platform-sdk/tentativas-portal` (sem `node:crypto` no index). A API importa dali, e o teste do valor fixo está no SDK. Falta a outra metade: o Core ainda tem a sua `chaveDeTentativa` (`modules/core/api/seguranca-plataforma.ts:29-30`), usada em `super-admin.ts:109`. A conta continua em dois lugares, SDK e Core. O Core só consegue importar depois do merge deste lote, então a parte dele **não segura o lote 10** | **em correção**: falta o modulo-core trocar `chaveDeTentativa` pelo `chaveDeTentativaDoPortal` do SDK (a normalização fica no SDK, e `super-admin.ts:109` passa o e-mail como vem) |
+| RD-0407 | `MENSAGENS_ACOES_EMPRESA` no SDK (`empresa-acoes.ts:67-82`), com o texto da §15.2. A API usa `erroDaAcao(status, codigo)` em todas as recusas, e a tabela `MENSAGENS` saiu. O teste do SDK confere que cada código tem uma frase | **corrigido** (lado da API e do SDK) |
+
+O RD-0428 vale para este branch também.
+**Parecer do lote 10: segura (RD-0428, média).**
+
+---
+
+## Lote 11: `nuvem/empresa-acoes-engenheiro-apps` @ `d807bcf0` (lido na parte 1 em `3dec04a5`)
+
+O branch mesclou o `71ea347f` do engenheiro-software, mas não o `b9e9c577`, que traz a tabela do SDK.
+
+Reteste do RD-0407 na tela: **corrigido**. `erroDoExcluir` (`portal-empresa-acoes.ts:116-133`) não tem mais frases: mostra
+`mensagemDoErro(e)` (a frase da API) e decide só entre linha e bloco e se marca o campo senha (`RECUSAS_EM_LINHA`). O
+`MOTIVO_DO_BLOQUEIO` da coluna fica, como a proposta previa.
+
+### Achado novo
+
+| Campo | RD-0429 |
+|---|---|
+| Onde | `apps/web/lib/portal-falso.ts:196-210` (`MENSAGENS_DA_API`, `fraseDaApi`) × `packages/platform-sdk/src/empresa-acoes.ts:67-82` (`MENSAGENS_ACOES_EMPRESA`, lote 10) |
+| Tipo | texto · código |
+| O que se repete | Para o modo falso, o lote criou **uma terceira tabela** das frases de recusa, copiada da `MENSAGENS` antiga da API, que o lote 10 apagou. As frases já não batem com a tabela do SDK: "Faça o backup da empresa antes de excluir." × "Faça o backup antes de excluir."; "O código digitado não é o da empresa." × "Código não confere."; "A senha não confere." × "Senha incorreta."; "A exclusão desta empresa já está em andamento." igual. O comentário já diz: "Sai quando o SDK tiver `MENSAGENS_ACOES_EMPRESA` (RD-0407)". O SDK já tem, no branch irmão. O teste `empresas-acoes.test.tsx:131-135` fixa "A senha não confere." |
+| Impacto | manutenção e leitura: o modo falso e a API real mostram frases diferentes para a mesma recusa, e a tabela volta a ficar em dois lugares |
+| Severidade | média. Segura o lote 11 |
+| Proposta | Mesclar `nuvem/empresa-acoes-engenheiro-software` (merge, sem rebase). Apagar `MENSAGENS_DA_API` e trocar `fraseDaApi(c)` por `MENSAGENS_ACOES_EMPRESA[c]`, importado de `@macuxi/platform-sdk`. Os códigos já são `CodigoAcaoEmpresa`, então o `?? 'Ação recusada.'` sai. No teste do diálogo: `texto: MENSAGENS_ACOES_EMPRESA[C.reautenticacaoFalhou]` |
+| Dono | engenheiro-apps |
+
+**Parecer do lote 11: segura (RD-0429, média).**
+
+---
+
+## PR #250: `nuvem/acesso-bko-modulo-core`
+O head no remoto continua `1ecb5fce`, o mesmo lido na parte 2. A correção do timer no lint ainda não foi enviada.
+**RD-0414 e RD-0415 continuam abertos**, e o PR continua segurado. O reteste fica para quando chegar o SHA novo.
+
+---
+
+## Para o testes (sem RD)
+- Lote 2 (kit): a Fase 2 depende de o gerente desativar o `thathyany-conector` com `PATCH /integracao/conectores/<id>`.
+  O portal e o BKO não têm essa ação.
+- Lote 1 (Início): continua sem chamador o `definirResolvedorFotoPerfil` (anotado na parte 1).
+- Lote 5 (Pesquisa): "Galeria de fotos · N" conta todas as fotos e desenha 60 (anotado na parte 1).
+
+## Para o gerente
+- Lote 7: o MC-0065 muda a cor do "Nova trilha" e precisa da validação do design-de-marca antes do lote.
+- Merge dos lotes 8, 9 e 10: os três mexem no `montarRotaPublica` e no bloco do portal em `app.ts`. A ordem que menos
+  conflita é 9 → 10 (resolvendo o RD-0428) → 8 (o 8 fica com `recusarPorLimite`).
