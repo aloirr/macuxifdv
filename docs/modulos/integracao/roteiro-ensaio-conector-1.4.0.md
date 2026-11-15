@@ -27,7 +27,7 @@
 | 2.1 | `carga-completa filial` (a view traz `cnpj`, `logradouro`, `numero`, `complemento`, `bairro`, `cep`, `telefone`) | lote aceito; BKO mostra a(s) filial(is) com `codigo`, nome, cidade, UF, CNPJ e endereço |
 | 2.2 | Incluir no ERP uma filial com UF `R1` e rodar a passada | linha **rejeitada** no BKO (erro legível "UF deve ter 2 letras"); as demais entram (RN-INT-03) |
 | 2.2b | Incluir no ERP uma filial sem CNPJ (ou com CNPJ de dígito errado) e outra sem logradouro, número, bairro ou CEP; rodar a passada | as duas linhas **rejeitadas** no BKO, cada uma com o campo e o motivo ("CNPJ da filial é obrigatório", "CEP da filial é obrigatório"...), sem gravar no Core (RN-CORE-39); a filial completa entra com CNPJ, endereço e telefone, e o Core os mostra |
-| 2.3 | `carga-completa todas` | ordem: `filial` logo depois de `vendedor` e antes de cliente, preço, estoque e tabela escalonada; sem bloqueio |
+| 2.3 | `carga-completa todas` | ordem: `ORDEM_CARGA_ENTIDADES` (`filial` primeiro, antes de vendedor, cliente, preço, estoque e tabela escalonada); sem bloqueio |
 | 2.4 | Conferir no BKO: cliente na filial B, preço específico da filial B, estoque do depósito da filial B | cada um aparece vinculado à filial; `filial_external_id` NULL em cliente = não altera, em preço = padrão |
 | 2.5 | Alterar 1 cliente no ERP (delta) | chega na passada seguinte; contagem do lote = 1 |
 | 2.6 | Parar o serviço no meio de uma carga e iniciar de novo | retoma do cursor confirmado, sem duplicar (`status`) |

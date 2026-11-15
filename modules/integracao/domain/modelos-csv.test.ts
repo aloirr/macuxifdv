@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { ENTIDADES, SCHEMA_REGISTRO, Texto, VendedorPayload, type Entidade } from '../contracts';
+import { ENTIDADES, ORDEM_CARGA_ENTIDADES, SCHEMA_REGISTRO, Texto, VendedorPayload, type Entidade } from '../contracts';
 import { converterCsvParaLote, lerCsv } from './carga-arquivo';
 import { validarEnvelope } from './envelope';
 import { ordemDeCargaDoPortal } from './portal-carga';
 import { dicionarioDaEntidade, ENTIDADES_ORDEM_CARGA, gerarModeloCsv, RESUMO_MODELOS } from './modelos-csv';
-import { DEPENDENCIAS } from './ordem';
 
 const AGORA = '2026-11-06T12:00:00.000Z';
 
@@ -100,15 +99,9 @@ describe('RF-INT-03: modelos CSV gerados do contrato', () => {
     expect(lido.linhas[0]?.celulas[i]).toBe('Zé; "o" Rápido');
   });
 
-  it('RN-INT-04: a ordem de carga é a do portal (filial primeiro, todas as ENTIDADES, dependências antes, mesmos opcional/depende_de)', () => {
+  it('RN-INT-04: a ordem de carga é a lista única ORDEM_CARGA_ENTIDADES, com os mesmos opcional/depende_de do portal', () => {
     const portal = ordemDeCargaDoPortal();
-    expect(ENTIDADES_ORDEM_CARGA.slice(0, 2)).toEqual(['filial', 'vendedor']);
-    expect([...ENTIDADES_ORDEM_CARGA]).toEqual(portal.map((i) => i.entidade));
-    expect([...ENTIDADES_ORDEM_CARGA].sort()).toEqual([...ENTIDADES].sort());
-    expect(ENTIDADES_ORDEM_CARGA).toHaveLength(ENTIDADES.length);
-    ENTIDADES_ORDEM_CARGA.forEach((e, i) => {
-      for (const dep of DEPENDENCIAS[e]) expect(ENTIDADES_ORDEM_CARGA.indexOf(dep)).toBeLessThan(i);
-    });
+    expect([...ENTIDADES_ORDEM_CARGA]).toEqual([...ORDEM_CARGA_ENTIDADES]);
     expect(RESUMO_MODELOS.map((r) => ({ entidade: r.entidade, ordem: r.ordem, depende_de: r.depende_de, opcional: r.opcional }))).toEqual(
       portal.map((i) => ({ entidade: i.entidade, ordem: i.posicao, depende_de: i.depende_de, opcional: i.opcional })),
     );
