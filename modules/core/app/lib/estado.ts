@@ -154,9 +154,18 @@ export class ArmazemCore {
     return run;
   }
 
-  private async uma(): Promise<void> {
-    const d = this.disco;
-    const [me, metas, pedidos, quando] = await Promise.all([d.ler<Me>(CHAVES.me), d.ler<SellerGoals>(CHAVES.metas), d.ler<OrderLike[]>(CHAVES.pedidos), d.ler<string>(CHAVES.carregadoEm)]);
+  /**
+   * Rota de outro dia (filtro padrão da Rota, R-20261115-074500): a rota inteira daquele dia, montada das linhas do aparelho
+   * como a de hoje. Sem rota daquele dia no aparelho, null.
+   */
+  async rotaDoDia(data: string): Promise<RouteDay | null> {
+    const me = this.atual.me;
+    const { linhas } = await this.lerLinhas();
+    return montarEstadoLocal(linhas, this.motor.sobreposicao(), { usuarioId: this.usuarioId(me), hoje: data, fuso: this.fuso(me), agora: new Date() }).rota;
+  }
+
+  /** As linhas do aparelho que montam carteira, rota e visitas (e os parâmetros do tenant). */
+  private async lerLinhas() {
     const m = this.motor;
     const [clientes, financeiros, titulos, historico, contatos, rotas, paradas, visitas, motivos, parametros] = await Promise.all([
       m.linhas<ClienteSync & LinhaSync>('cliente'),
@@ -170,9 +179,17 @@ export class ArmazemCore {
       m.linhas<MotivoSync & LinhaSync>('motivo'),
       m.linhas<ParametroSync & LinhaSync>('parametro'),
     ]);
+    return { linhas: { clientes, financeiros, titulos, historico, contatos, rotas, paradas, visitas, motivos }, parametros };
+  }
+
+  private async uma(): Promise<void> {
+    const d = this.disco;
+    const [me, metas, pedidos, quando] = await Promise.all([d.ler<Me>(CHAVES.me), d.ler<SellerGoals>(CHAVES.metas), d.ler<OrderLike[]>(CHAVES.pedidos), d.ler<string>(CHAVES.carregadoEm)]);
+    const m = this.motor;
+    const { linhas, parametros } = await this.lerLinhas();
     const agora = new Date();
     const fuso = this.fuso(me);
-    const local = montarEstadoLocal({ clientes, financeiros, titulos, historico, contatos, rotas, paradas, visitas, motivos }, m.sobreposicao(), {
+    const local = montarEstadoLocal(linhas, m.sobreposicao(), {
       usuarioId: this.usuarioId(me),
       hoje: dataLocal(agora, fuso),
       fuso,
@@ -184,7 +201,7 @@ export class ArmazemCore {
       clientes: local.clientes,
       rota: local.rota,
       visitas: local.visitas,
-      motivos: motivos.filter((x) => x.ativo),
+      motivos: linhas.motivos.filter((x) => x.ativo),
       raioCheckinM: raioDosParametros(parametros),
       metas: metas ?? null,
       pedidos: pedidos ?? [],
