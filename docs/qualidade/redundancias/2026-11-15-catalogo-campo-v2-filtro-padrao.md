@@ -168,3 +168,21 @@ Na implementação, confiro no print do aparelho. Se a filial do vendedor não v
 - **Proposta:**
   - **Spec §3**, antes: "… e busca; sem saldo ou sem informação = `Estoque: 0`, vermelho (R-20261115-082500). …". Depois: "… e busca; o zero fica vermelho (R-20261115-082500). …". O título continua igual.
   - **`catalogo-grade.md` §4**, antes: "Sem saldo recebido conta como 0; acaba o `Estoque sem informação` (R-20261115-082500).". Depois: "Acaba o `Estoque sem informação` (R-20261115-082500).".
+
+## 8. Reteste do RD-0561 (15/11/2026 ~08h30 de Manaus, commit f78ea0af do designer-ux)
+**Veredito: COM ACHADO.** O RD-0561 está corrigido. O RD-0562 é novo, de gravidade baixa, em doc, e segura o lote até sair 1 linha.
+
+| RD | Situação | Evidência |
+|---|---|---|
+| RD-0561 | **corrigido** | A spec §3 ficou com "…e busca; o zero fica vermelho (R-20261115-082500)". No §4 saiu "Sem saldo recebido conta como 0". O "sem saldo = 0" aparece uma vez em cada doc: no título da spec e na linha da tabela do §4. |
+
+### RD-0562 · baixa · doc · designer-ux
+- **Onde:** `docs/design/catalogo-grade.md` §4, linha 76, logo abaixo da tabela, e `docs/design/catalogo-campo-v2/spec.md` §3.
+- **O que se repete:** a frase "Acaba o `Estoque sem informação`" está nos dois docs. Na spec, ela vem com os lugares do código. No §4, vem só o fato.
+- **Decisão: o §4 perde a frase, e a spec fica com ela.**
+  - "Acaba o X" descreve uma mudança, e não o estado da tela. A mudança é da spec, e é lá que o modulo-catalogo encontra o que mudar (`grade.ts:47`, `apresentacao.ts`).
+  - O §4 é o doc permanente e já diz a regra na própria tabela ("0, ou nenhum saldo recebido | `Estoque: 0`"). Citar um rótulo que deixou de existir é só histórico.
+- **Texto exato:**
+  - No `catalogo-grade.md` §4, apagar a linha `Acaba o \`Estoque sem informação\` (R-20261115-082500).` e a linha em branco que vem depois dela. A tabela fica seguida direto do item "- Tenant que não mostra a quantidade …".
+  - A spec §3 fica como está.
+- **Fechamento:** o achado fecha quando eu conferir esse diff, sem mais nada a pedir.
