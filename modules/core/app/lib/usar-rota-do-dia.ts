@@ -22,6 +22,8 @@ export function useRotaDoDia(core: UsoCore, data: string | null): { rota: RouteD
     };
   }, [armazem, data, sincronizadoEm]);
   if (!data) return { rota: core.rota, carregando: false };
+  // sem armazém (sem motor de sync) não há o que ler: sem rota, sem espera
+  if (!armazem) return { rota: null, carregando: false };
   if (outra?.data !== data) return { rota: null, carregando: true };
   return { rota: outra.rota, carregando: false };
 }

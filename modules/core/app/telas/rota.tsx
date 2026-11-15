@@ -26,7 +26,7 @@ import {
   type as t,
   type TextosFolhaPeriodo,
 } from '@macuxi/ui/mobile';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, G, Path, Polyline, Text as SvgText } from 'react-native-svg';
 
@@ -88,7 +88,14 @@ export function TelaRota() {
   const { tz, atendimentoAberto: openVisit } = core;
   const sheets = useVisitSheets();
   const [mapW, setMapW] = useState(350);
-  const hoje = dataLocal(new Date(), tz);
+  // a data de hoje acompanha a virada do dia mesmo com a tela parada (filtro de amanhã vira a rota de hoje)
+  const [hoje, setHoje] = useState(() => dataLocal(new Date(), tz));
+  useEffect(() => {
+    setHoje(dataLocal(new Date(), tz));
+    // timer-permitido: relógio da tela (virada do dia), sem rede
+    const h = setInterval(() => setHoje(dataLocal(new Date(), tz)), 60_000);
+    return () => clearInterval(h);
+  }, [tz]);
   // filtro padrão (R-20261115-072200): o aplicado e o rascunho da folha, que só vale no "Ver N visitas"
   const [filtroSalvo, setFiltro] = useState<FiltroRota>(FILTRO_ROTA_PADRAO);
   const [rascunhoSalvo, setRascunho] = useState<FiltroRota>(FILTRO_ROTA_PADRAO);
@@ -106,6 +113,10 @@ export function TelaRota() {
   const paradasDoRascunho = rotaDoRascunho?.stops ?? [];
   // trocar a data tira a cidade e o bairro que o novo dia não tem
   const rascunho = carregandoRascunho ? rascunhoNoDia : ajustarAoDia(rascunhoNoDia, paradasDoRascunho);
+  // o ajuste ao novo dia fica guardado: voltar à data anterior não traz de volta a cidade ou o bairro que saíram
+  useEffect(() => {
+    if (rascunho.cidade !== rascunhoSalvo.cidade || rascunho.bairro !== rascunhoSalvo.bairro) setRascunho(rascunho);
+  }, [rascunho, rascunhoSalvo]);
   const ehHoje = filtro.data === null;
   const titulo = tituloDaRota(filtro);
   const contagem = contarFiltrosRota(filtro);
