@@ -52,7 +52,7 @@
 
 ## 6. Lista
 - Coluna **`Código FDV`** (aprovada, R-20261115-110000), depois de `Filial`, para todos os perfis (`05`).
-- Usuário nunca é excluído, só inativado (R-20261115-110000): o menu ⋯ da linha tem `Inativar`, e não `Excluir`.
+- Usuário nunca é excluído, só desativado (R-20261115-110000): o menu ⋯ da linha tem `Desativar`, e não `Excluir`.
 - E-mail do provisório: `—` no lugar do `erp-…@sem-email.invalid` (a exibição é do modulo-core).
 - O provisório leva o selo `Provisório` (`Badge tone="neutral"`) ao lado do nome, como os outros selos da linha.
 - O rótulo da busca passa a ser só `Buscar`: ela casa nome, e-mail, Código FDV e código no ERP, e a lista de dois códigos não cabia no rótulo. O filtro `Provisórios`
