@@ -78,7 +78,7 @@ export function indiceDaTecla(tecla: string, atual: number, desligadas: Readonly
 }
 
 const ABA_BASE =
-  'relative -mb-px inline-flex min-h-[44px] shrink-0 items-center justify-center border-b-2 bg-transparent px-4 text-[14px] font-semibold whitespace-nowrap transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:border-transparent disabled:text-disabled';
+  'relative -mb-px inline-flex min-h-[44px] shrink-0 items-center justify-center border-b-2 bg-transparent px-4 text-[15px] font-semibold whitespace-nowrap transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:border-transparent disabled:text-disabled';
 const ABA_ATIVA = 'border-accent text-accent-ink';
 const ABA_INATIVA = 'border-transparent text-ink-2 hover:border-field hover:text-ink';
 

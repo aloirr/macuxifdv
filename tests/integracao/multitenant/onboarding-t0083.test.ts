@@ -25,6 +25,7 @@ import { MODULOS_API } from '../../../apps/api/src/modulos';
 import { comToken, novoIp, SENHA } from '../apoio/api';
 import { tabelasDoCatalogo, tentar, type Tabela } from '../apoio/banco';
 import { SENHA_DEMO, subirApiDemo, type ApiDemo } from '../apoio/demo';
+import { destravarPelaRotaPropria } from '../apoio/filial-usuario';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
@@ -187,6 +188,9 @@ describe.skipIf(semBanco())('T-0083 — tenant novo do onboarding isolado de A, 
     const troca = await api.app.inject({ method: 'POST', url: '/v1/auth/senha/trocar', remoteAddress: novoIp(), payload: { codigo_empresa: codigoN, email: EMAIL_N, senha_atual: SENHA_N, senha_nova: SENHA_N_CRIADA, app: 'web' } });
     if (troca.statusCode !== 200) throw new Error(`troca da senha do admin de N: ${troca.statusCode} ${troca.body}`);
     tokenN = (await sessao(codigoN, EMAIL_N, SENHA_N_CRIADA)).access_token;
+    // T-0176 (RN-CORE-39): o admin do `tenant:criar` nasce sem filial (a provisionar_tenant não a dá); o BKO abre só a tela que a
+    // pede (`eu/filial-cadastro`). Destravado aqui, depois do retrato da 1ª execução: só grava linhas de N.
+    await destravarPelaRotaPropria(api, tokenN);
     tokenA = (await sessao(A.codigo, 'admin@exemplo.com.br', SENHA)).access_token;
     tokenDemo = (await sessao(CODIGO_DEMO, 'admin@exemplo.com.br', SENHA_DEMO)).access_token;
     // tudo o que O-05/O-06 puxam (demo, A, B e N) já foi gravado: o pull só enxerga depois que o horizonte passa daqui

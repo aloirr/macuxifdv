@@ -38,3 +38,5 @@
 2026-11-13 — T-0168/T-0171 — pedido em nome usa o limite do gestor (casos 19/20, limiteDoPedidoEmNome); Equipe com uma tag e um fato (RD-0208); Aprovações sem crédito/90d; Alertas sem 'responsável · desde'; recado ao Core sobre a lista de Clientes (RN-CORE-41)
 2026-11-13 — RD-0210 — removida a tag fixa 'Atenção' das pendências em alertas-screen.tsx
 2026-11-14 — oficial — cabeçalho Azul noite nas 5 telas do Gestão
+2026-11-15 — fonte do sistema v1.0.13 — card-aprovacoes usa fonte.*; web sem text-[Npx]
+2026-11-15 — fonte do sistema r3 — RD-0945: campo de Regras em text-base (15), meta do ranking em 13/500

@@ -2,15 +2,14 @@
 /**
  * Plano do build Android no GitHub Actions (.github/workflows/android-build.yml; R-20261114-224500-alexandre). Sem
  * dependência: node:fs e as regras de nome de apps/mobile/src/lib/nome-build.ts (importadas com remoção de tipos do
- * Node, como apps/mobile/scripts/eas/comum.mjs), para o nome do APK nunca divergir do build do EAS.
+ * Node, como apps/mobile/scripts/eas/comum.mjs), para o nome do APK seguir a mesma regra dos builds anteriores.
  *
  * Reproduz o perfil do eas.json (`<variante>-<perfil>`): o `env` do perfil (APP_VARIANT, EXPO_PUBLIC_*), o Node do
  * perfil e o tipo do build (só APK). Versão do input (X.Y.Z) e versionCode:
  *   - informado: inteiro de 1 a 2100000000 (limite do Google Play);
  *   - vazio: derivado da versão, MAIOR*1000000 + MENOR*1000 + CORRECAO (1.0.8 → 1000008). Cresce com a versão, não
- *     depende do run e fica muito acima do contador remoto do EAS (appVersionSource remote), então o APK do Actions
- *     instala por cima do APK do EAS. O contrário (EAS por cima do Actions) exige subir o contador do EAS antes
- *     (`eas build:version:set`).
+ *     depende do run e fica muito acima do versionCode dos APKs antigos feitos no EAS (conta da Expo desligada), então
+ *     o APK do Actions instala por cima deles.
  *
  * Uso no workflow:  VARIANTE=campo VERSAO=1.0.8 PERFIL=producao VERSION_CODE_INFORMADO= node scripts/ci/android-build.mjs
  * Escreve em $GITHUB_ENV (env do perfil, NOME_BUILD, VERSION_CODE) e em $GITHUB_OUTPUT (node, nome, version_code).

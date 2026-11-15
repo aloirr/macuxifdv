@@ -1,5 +1,9 @@
 # Novo pedido v4: Resumo e detalhe em tabela, Alertas no topo, aba Itens com popup, Início e Pedidos sem repetição (T-0150, T-0148, T-0153)
 
+> **Tipografia (15/11/2026):** fonte do sistema (R-20261115-110600, [manual da marca §5](../marca/manual.md#5-tipografia)), sem fonte
+> carregada e nada em 800. Os tamanhos antigos fora da escala do app (12 · 14 · 16 · 18 · 22 · 28) valem pelo vizinho
+> da escala: 10,5, 11 e 12,5 → 12 · 13 → 14 · 15 → 16 · 20 e 24 → 22. No código, os estilos `type` do kit (`componentes.md` §1).
+
 > 2026-11-10 · designer-ux. Pedidos do dono do produto: R-20261110-062237 (Resumo), R-20261110-062240 (detalhe e revisão das
 > telas), R-20261110-062235 (aba Itens), R-20261110-062238 (alçada só ao salvar, máximo bloqueia o envio), R-20261110-062239 e
 > R-20261110-062506 (sem repetição e sem excesso de texto). Auditoria: `docs/qualidade/redundancias/2026-11-10-fluxo-de-venda.md`.
@@ -24,7 +28,7 @@
 3. **Nenhum aviso solto.** Todo problema que pede atenção ou correção vai para a área **Alertas** (§0.1). Fora dela não há linha
    de motivo acima dos botões, texto embaixo do botão, faixa colorida, bolinha na aba nem número em vermelho na tabela.
    Única marca fora dos Alertas: a **falta no campo** (borda `danger` e texto curto embaixo, §6.1), só depois da tentativa.
-4. Números de tabela em **IBM Plex Sans** tabular (o 6 do Archivo negrito abaixo de 15 px parece 8); Archivo só de 15 px para cima.
+4. Números de tabela em peso 400 ou 600, sempre tabulares; negrito (700) só nos títulos.
 5. Mensagem de tela termina com ponto; selo, etapa do Histórico e linha de alerta, sem ponto.
 
 ### 0.1 Área Alertas (RN-VEN-42)
@@ -68,12 +72,12 @@ Ordem: **Alertas (§0.1, só se houver) · Cliente · Venda · Itens · Entrega 
   - Cliente: **Razão social** e **CNPJ** (o nome fantasia e o código já estão no cabeçalho).
   - Venda: **Pagamento** e **Prazo**. Entrega: **Frete** e **Endereço**. Observações: uma célula só; vazia "—".
 - **Tabela de itens**: colunas **Produto · Qtd · Preço unit. · Desc./Acrésc. · Total**, larguras fixas 40/48/58/56 dp e o Produto com
-  o resto. Cabeçalho 11/600 `ink2` (pode quebrar em 2 linhas). Produto: descrição 12,5/600 (até 2 linhas) e o código em mono 10,5
+  o resto. Cabeçalho 11/600 `ink2` (pode quebrar em 2 linhas). Produto: descrição 12,5/600 (até 2 linhas) e o código em mono 12
   `ink2`. Qtd "4 UN" (a embalagem vendida, nunca UN no lugar de FD). Preço unit. = preço de tabela da embalagem. Desc./Acrésc.
   "−5,0%" / "+10,0%" / "—". Total do item 13/700. Números sem "R$" (o R$ está nos Totais), alinhados à direita.
   O % do item fica sempre em `ink`, também acima do máximo: o problema está nos Alertas.
 - **Desconto do pedido**: rótulo 14 `ink2` à esquerda, `DescontoCompacto` (156 dp) à direita.
-- **Totais** (cartão): **Tabela** ··· R$ · **linha líquida** ··· ± R$ · **Total** (15/600 · Archivo 20/800, traço `line` acima).
+- **Totais** (cartão): **Tabela** ··· R$ · **linha líquida** ··· ± R$ · **Total** (15/600 · 22/700 tabular, traço `line` acima).
   Linha líquida = resultado de itens e pedido sobre a tabela: "Acréscimo 5,8%" ··· "+ R$ 6,94" ou "Desconto 8,8%" ··· "− R$ 10,53"
   (U+2212). Sem ajuste, a linha não aparece. **Sem caixa verde.**
 - Botões sem alerta: **Salvar e enviar pedido** (principal 52) · **Apenas salvar** e **Salvar como orçamento** (secundários 52,
@@ -92,7 +96,7 @@ Ordem: **Alertas (§0.1, só se houver) · Cliente · Venda · Itens · Entrega 
 ## 2. Detalhe do pedido e do orçamento (Campo; Gestão e BKO com o mesmo desenho)
 Ordem: **‹ Pedidos e ⋮ · título · cliente · Alertas (só se houver) · tabela Pagamento/Entrega · ITENS (n) · Totais · Histórico ·
 rodapé de ações**.
-- Título Archivo 24/800 "Pedido 000013" / "Orçamento 000012". Cliente 15 `ink` "Nome · cód. C5007".
+- Título 22/700 "Pedido 000013" / "Orçamento 000012". Cliente 15 `ink` "Nome · cód. C5007".
 - **Sem selo no topo.** A situação aparece só no Histórico (RN-VEN-42). Sai também o selo roxo "Preço de 09/11" do orçamento: a
   etapa "Salvo · 09/11" do Histórico já é a data do preço congelado (RN-VEN-18).
 - **Alertas** (§0.1): a recusa (motivo numa linha) e, no orçamento, os problemas que impedem o Transformar (acima do máximo, sem
@@ -124,7 +128,7 @@ Ordem: **Alertas (§0.1, só se houver) · No pedido (compacto) · busca · resu
   descrição 2 resumida (reticências). Estoque zero no mesmo formato, **"Estoque 0 PCT"**, sem vermelho (é dado, não alerta). À
   direita: ícone `camera` 22 (alvo 44) só se o produto tiver foto e o botão **Adicionar** (secundário 44). Sem campo de
   quantidade na linha.
-- **Popup** (`Folha`): descrição (Archivo 18/800), "código · Estoque n EMB" (estoque zero: só o código); **Alertas do item**
+- **Popup** (`Folha`): descrição (18/700), "código · Estoque n EMB" (estoque zero: só o código); **Alertas do item**
   (§0.1: `Sem estoque` ou `Acima do estoque`; o máximo fica no campo, §6.2);
   **Embalagem** (Segmentado 48 com as do cadastro do produto: "UN", "PCT c/ 6", "CX c/ 48"); **Quantidade** (passo 48) e
   **Desc./Acrésc.** (`DescontoCompacto` 48) lado a lado; Totais do item (Tabela "3 × R$ 14,94" · linha líquida · **Total do
@@ -136,7 +140,7 @@ Ordem: **Alertas (§0.1, só se houver) · No pedido (compacto) · busca · resu
 
 ## 4. Início e Pedidos (T-0153)
 - Início: só a retomada do pedido (RN-VEN-38); os cartões Orçamentos e A faturar saíram (RD-0248). Pedidos: Rascunhos (n) sem
-  frase; a contagem é **"Total R$ 8.420"**. Cada pedido tem 2 linhas: cliente ··· total (Archivo 15/700) e **"hoje 05:55"** ···
+  frase; a contagem é **"Total R$ 8.420"**. Cada pedido tem 2 linhas: cliente ··· total (15/600 tabular) e **"hoje 05:55"** ···
   selo. Na busca pelo número, o `Nº 000013` destacado entra no lugar da hora. No Gestão, o vendedor entra no lugar da hora. O
   motivo da recusa fica no detalhe, na área Alertas (RN-VEN-42). O selo por linha **continua**.
 
@@ -185,7 +189,7 @@ tabular; em atenção o texto é semibold.
 > pelo dono do produto; `docs/qualidade/redundancias/2026-11-12-T-0165-novo-pedido.md`) já aplicados aqui e nas imagens.
 
 ### 5.1 Totais: uma regra para a folha do item, o Resumo, o detalhe e o PDF
-- **Sem desconto nem acréscimo:** uma linha só, **Valor final** (15/600 `ink` · Archivo 20/800; na folha do item, 18).
+- **Sem desconto nem acréscimo:** uma linha só, **Valor final** (15/600 `ink` · 22/700 tabular; na folha do item, 18).
 - **Com ajuste nos itens** (R-20261112-032141): **Valor de tabela** ··· R$ · **Desconto (%)** ··· "6,1%" · **Desconto (R$)** ···
   "− R$ 13,62" (U+2212) · **Valor final**. Com acréscimo: **Acréscimo (%)** e **Acréscimo (R$)** ("+ R$"). O % sai do rótulo.
   O % e o R$ são a soma dos ajustes dos itens sobre o valor de tabela (`linhasDosTotais`).
@@ -201,8 +205,8 @@ tabular; em atenção o texto é semibold.
 - **PDF** (`pdf-pedido.md` §4): a caixa do Total do escritório segue a mesma regra (R-20261112-031456 regra 10 e 032141).
 
 ### 5.2 Folha do item (R-20261112-031456, regras 1 e 7)
-- **Cabeçalho:** "nome - marca" na linha do ✕ (`titulo` da `Folha`: nome Archivo 18/800, " - Marca" IBM Plex Sans 18/400, até 2
-  linhas). Sem marca no cadastro: só o nome. Abaixo, **só o código** (IBM Plex Mono 13 `ink2`).
+- **Cabeçalho:** "nome - marca" na linha do ✕ (`titulo` da `Folha`: nome 18/700, " - Marca" 18/400, até 2
+  linhas). Sem marca no cadastro: só o nome. Abaixo, **só o código** (mono 14 `ink2`).
 - **Linha Embalagem · Estoque:** à esquerda, **EMBALAGEM** (`Segmentado` 48, as embalagens do cadastro, base primeiro, "FD c/ 6"
   numa linha) com a **mesma largura da Quantidade** (metade da linha menos 6 dp). À direita, **ESTOQUE**: rótulo 12/600 `ink2`
   alinhado à direita, em cima, e embaixo uma caixa de 84 × 48 dp (borda 1,5 `lineStrong`, raio 12, cabe "99.999") com **só o
@@ -232,7 +236,7 @@ tabular; em atenção o texto é semibold.
   2 aparece só no balão do nome (regra 5); sai a terceira linha do resultado (RD-0143).
   - linha 1: **nome** 15/600 + " - Marca" 15/400 (R-20261112-031456 regra 1; sem marca, só o nome). O nome tem sublinhado
     pontilhado (`ink2`, 1,5 px) e é tocável **quando o produto tem descrição 2**; sem descrição 2, sem sublinhado e sem toque;
-  - linha 2, 13 `ink2`, 12 dp entre os pares: código (IBM Plex Mono 12,5) · **"Emb. FD c/ 6"** (sempre a embalagem principal do
+  - linha 2, 13 `ink2`, 12 dp entre os pares: código (mono 12) · **"Emb. FD c/ 6"** (sempre a embalagem principal do
     cadastro) · **"Est. 63"** (estoque nessa embalagem, inteiro para baixo) no fim. Estoque zero: "Est. 0", sem vermelho;
   - à direita, **"+"** 44 × 44 (borda 1,5 e ícone `mais` 22 em `accent`, raio 12): abre a folha do item; TalkBack "Adicionar
     <nome>". **Produto já no pedido:** no lugar do "+", o **lápis** (`BotaoEditar` `linha`, §5.8), que abre a folha reaberta
@@ -255,7 +259,7 @@ tabular; em atenção o texto é semibold.
 - **CONDIÇÃO DE PAGAMENTO** no lugar de "VENDA"; linhas **Forma** e **Prazo**.
 - **Tabela de itens:** **Código · Emb. · Qtd · Valor tabela · Desc./Acrésc. · Total**, larguras 46/28/52/52/52 dp, 5 dp entre as
   colunas, Código com o resto; linha com 13 dp em cima e embaixo (≥ 44 dp). Sai a descrição.
-  - **Código:** IBM Plex Mono 12,5 `accentInk` (7,9:1), sublinhado. O toque na célula do código abre o **balão** com
+  - **Código:** mono 12 `accentInk` (7,9:1), sublinhado. O toque na célula do código abre o **balão** com
     **"nome - marca"** (14/400 branca numa linha, quebra se não couber), logo abaixo do código, com a seta para ele. Fecha com
     outro toque. TalkBack: "LPO-400, Leite em pó integral 400 g - Vale Verde".
   - **Emb.:** à esquerda, numa linha ("FD c/ 6", "UN"). **Qtd:** só o número.
@@ -283,7 +287,7 @@ tabular; em atenção o texto é semibold.
   seletor; o endereço sobe logo abaixo dele. A folha de editar o endereço mantém o título dela.
 - **TRANSPORTADORA** (RD-0146): título no mesmo estilo de FRETE. Saem os chips. Campo de escolha 48 dp (borda `lineStrong`,
   raio 12) com o nome 15 `ink` e a seta 18; vazio, **"Escolher"** em `ink3`. O toque abre a **folha "Transportadora"** (`Folha`,
-  título Archivo 18/800):
+  título 18/700):
   - `CampoBusca` "Buscar" (procura no nome, sem acento e sem caixa);
   - as transportadoras **ativas do cadastro do BKO** (`vendedor.transportadora`, baixadas no aparelho; funciona sem sinal), em
     ordem alfabética, linhas de 52 dp 15 `ink`; a escolhida com ✓ `accent` sobre `accentSoft`;
