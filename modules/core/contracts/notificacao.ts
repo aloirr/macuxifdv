@@ -78,3 +78,7 @@ export const REGEX_TOKEN_EXPO = /^Expo(nent)?PushToken\[.+\]$/;
 export function tipoDoToken(token: string): 'expo' | 'fcm' {
   return REGEX_TOKEN_EXPO.test(token) ? 'expo' : 'fcm';
 }
+
+/** Token FCM válido para registrar (RD-0442): texto de 1 a 300 caracteres que não é formato Expo. O app importa esta regra. */
+export const tokenPushFcmValido = (t: unknown): t is string =>
+  typeof t === 'string' && PushTokenSchema.shape.token.safeParse(t).success && tipoDoToken(t) === 'fcm';

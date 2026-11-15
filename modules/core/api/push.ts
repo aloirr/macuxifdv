@@ -32,16 +32,21 @@ export const URL_EXPO_PUSH = 'https://exp.host/--/api/v2/push/send';
 
 export const pushAtivo = (env: Readonly<Record<string, string | undefined>> = process.env): boolean => env.MACUXI_PUSH_ATIVO === '1';
 
+/** Regra da bandeja (RN-CORE-23), comum ao Expo e ao FCM. */
+const silencioso = (d: DestinoPush): boolean => d.titulo.trim() === '' && d.corpo.trim() === '';
+const tituloDaBandeja = (d: DestinoPush): string => d.titulo.slice(0, 120);
+const corpoDaBandeja = (d: DestinoPush): string => (d.corpo.length > 178 ? `${d.corpo.slice(0, 177)}…` : d.corpo);
+
 /** Só tokens do Expo (`ExponentPushToken[...]`); corpo cortado em 178 caracteres para caber na bandeja. */
 export function montarMensagemExpo(d: DestinoPush): MensagemExpo | null {
   if (!REGEX_TOKEN_EXPO.test(d.token)) return null;
   const data = d.entidades && d.entidades.length > 0 ? { link: d.link, entidades: [...d.entidades] } : { link: d.link };
   // Silencioso (RN-CORE-23): sem título e sem corpo, prioridade alta para chegar com o app em segundo plano.
-  if (d.titulo.trim() === '' && d.corpo.trim() === '') return { to: d.token, priority: 'high', data };
+  if (silencioso(d)) return { to: d.token, priority: 'high', data };
   return {
     to: d.token,
-    title: d.titulo.slice(0, 120),
-    body: d.corpo.length > 178 ? `${d.corpo.slice(0, 177)}…` : d.corpo,
+    title: tituloDaBandeja(d),
+    body: corpoDaBandeja(d),
     priority: d.prioridade === 'alta' ? 'high' : 'default',
     data,
   };
@@ -140,11 +145,11 @@ export function montarMensagemFcm(d: DestinoPush): MensagemFcm {
   const data: Record<string, string> = {};
   if (d.link) data.link = d.link;
   if (d.entidades && d.entidades.length > 0) data.entidades = JSON.stringify([...d.entidades]);
-  if (d.titulo.trim() === '' && d.corpo.trim() === '') return { message: { token: d.token, android: { priority: 'HIGH' }, data } };
+  if (silencioso(d)) return { message: { token: d.token, android: { priority: 'HIGH' }, data } };
   return {
     message: {
       token: d.token,
-      notification: { title: d.titulo.slice(0, 120), body: d.corpo.length > 178 ? `${d.corpo.slice(0, 177)}…` : d.corpo },
+      notification: { title: tituloDaBandeja(d), body: corpoDaBandeja(d) },
       android: { priority: 'HIGH', notification: { channel_id: 'avisos' } },
       data,
     },
