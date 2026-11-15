@@ -27,7 +27,7 @@ export function FolhaFiltrar({
   /** "Limpar": volta ao padrão; a folha fica aberta. */
   limpar: { rotulo: string; onPress: () => void; desligado?: boolean };
   /** "Ver 4 visitas": aplica e fecha. */
-  ver: { rotulo: string; onPress: () => void };
+  ver: { rotulo: string; onPress: () => void; /** A contagem ainda está sendo lida: botão ocupado. */ ocupado?: boolean };
   children: ReactNode;
   testID: string;
 }) {
@@ -36,7 +36,7 @@ export function FolhaFiltrar({
       <View style={s.grupos}>{children}</View>
       <View style={s.rodape}>
         <Botao nivel="neutro" alto rotulo={limpar.rotulo} onPress={limpar.onPress} desligado={limpar.desligado} style={s.limpar} testID={`${testID}-limpar`} />
-        <Botao nivel="principal" rotulo={ver.rotulo} onPress={ver.onPress} style={s.ver} testID={`${testID}-ver`} />
+        <Botao nivel="principal" rotulo={ver.rotulo} onPress={ver.onPress} ocupado={ver.ocupado} style={s.ver} testID={`${testID}-ver`} />
       </View>
     </Folha>
   );

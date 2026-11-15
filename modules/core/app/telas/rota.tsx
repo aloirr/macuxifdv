@@ -20,6 +20,7 @@ import {
   fonts,
   formatHHMM,
   Icon,
+  Loading,
   radius,
   Screen,
   type as t,
@@ -31,6 +32,7 @@ import Svg, { Circle, G, Path, Polyline, Text as SvgText } from 'react-native-sv
 
 import type { RouteStop } from '../../contracts';
 import {
+  ajustarAoDia,
   bairrosDaRota,
   cidadesDaRota,
   comCidade,
@@ -41,6 +43,9 @@ import {
   etiquetasDaRota,
   FILTRO_ROTA_PADRAO,
   filtrarParadas,
+  filtraParadas,
+  filtroNoDia,
+  paradasParaVer,
   semFiltroRota,
   subtituloDaRota,
   textoDaDataDaRota,
@@ -85,15 +90,22 @@ export function TelaRota() {
   const [mapW, setMapW] = useState(350);
   const hoje = dataLocal(new Date(), tz);
   // filtro padrão (R-20261115-072200): o aplicado e o rascunho da folha, que só vale no "Ver N visitas"
-  const [filtro, setFiltro] = useState<FiltroRota>(FILTRO_ROTA_PADRAO);
-  const [rascunho, setRascunho] = useState<FiltroRota>(FILTRO_ROTA_PADRAO);
+  const [filtroSalvo, setFiltro] = useState<FiltroRota>(FILTRO_ROTA_PADRAO);
+  const [rascunhoSalvo, setRascunho] = useState<FiltroRota>(FILTRO_ROTA_PADRAO);
   const [folhaAberta, setFolhaAberta] = useState(false);
   const [dataAberta, setDataAberta] = useState(false);
-  const { rota: route } = useRotaDoDia(core, filtro.data);
+  // na virada do dia, a data escolhida que virou hoje volta ao padrão (check-in de novo)
+  const filtro = filtroNoDia(filtroSalvo, hoje);
+  const { rota: route, carregando } = useRotaDoDia(core, filtro.data);
   // RD-0508: a rota do rascunho só é lida de novo quando a folha está aberta com outra data; senão é a mesma `route`
-  const outraDataNoRascunho = folhaAberta && rascunho.data !== filtro.data;
-  const { rota: rotaDaOutraData } = useRotaDoDia(core, outraDataNoRascunho ? rascunho.data : null);
-  const rotaDoRascunho = outraDataNoRascunho ? rotaDaOutraData : route;
+  const rascunhoNoDia = filtroNoDia(rascunhoSalvo, hoje);
+  const outraDataNoRascunho = folhaAberta && rascunhoNoDia.data !== filtro.data;
+  const daOutraData = useRotaDoDia(core, outraDataNoRascunho ? rascunhoNoDia.data : null);
+  const rotaDoRascunho = outraDataNoRascunho ? daOutraData.rota : route;
+  const carregandoRascunho = outraDataNoRascunho ? daOutraData.carregando : carregando;
+  const paradasDoRascunho = rotaDoRascunho?.stops ?? [];
+  // trocar a data tira a cidade e o bairro que o novo dia não tem
+  const rascunho = carregandoRascunho ? rascunhoNoDia : ajustarAoDia(rascunhoNoDia, paradasDoRascunho);
   const ehHoje = filtro.data === null;
   const titulo = tituloDaRota(filtro);
   const contagem = contarFiltrosRota(filtro);
@@ -102,7 +114,6 @@ export function TelaRota() {
     setRascunho(filtro);
     setFolhaAberta(true);
   };
-  const paradasDoRascunho = rotaDoRascunho?.stops ?? [];
   const contagemDoRascunho = filtrarParadas(paradasDoRascunho, rascunho).length;
 
   const linhaDeCima = (paradas: readonly RouteStop[] | null) => (
@@ -114,7 +125,7 @@ export function TelaRota() {
       {contagem > 0 ? (
         <View style={styles.etiquetas} testID="rota-etiquetas">
           {etiquetasDaRota(filtro).map((e) => (
-            <EtiquetaFiltro key={e.campo} testID={`rota-etiqueta-${e.campo}`} texto={e.texto} rotuloRemover={`Remover filtro ${e.texto}`} onRemover={() => setFiltro((f) => semFiltroRota(f, e.campo))} />
+            <EtiquetaFiltro key={e.campo} testID={`rota-etiqueta-${e.campo}`} texto={e.texto} rotuloRemover={`Remover filtro ${e.texto}`} onRemover={() => setFiltro(semFiltroRota(filtro, e.campo))} />
           ))}
         </View>
       ) : null}
@@ -132,6 +143,7 @@ export function TelaRota() {
         limpar={{ rotulo: 'Limpar', onPress: () => setRascunho(FILTRO_ROTA_PADRAO), desligado: contarFiltrosRota(rascunho) === 0 }}
         ver={{
           rotulo: textoVerVisitas(contagemDoRascunho),
+          ocupado: carregandoRascunho,
           onPress: () => {
             setFiltro(rascunho);
             setFolhaAberta(false);
@@ -153,7 +165,7 @@ export function TelaRota() {
             titulo="Cidade"
             opcoes={cidadesDaRota(paradasDoRascunho).map((c) => ({ id: c, rotulo: c }))}
             valor={rascunho.cidade}
-            onEscolher={(o) => setRascunho((r) => comCidade(r, o.id, paradasDoRascunho))}
+            onEscolher={(o) => setRascunho(comCidade(rascunho, o.id, paradasDoRascunho))}
             placeholder="Todas"
             placeholderBusca="Buscar"
             rotuloFechar="Fechar"
@@ -188,7 +200,7 @@ export function TelaRota() {
         onFechar={() => setDataAberta(false)}
         textos={TEXTOS_DATA}
         atalhos={ATALHOS_DATA}
-        atalhoAtivo={null}
+        atalhoAtivo={rascunho.data === null ? 'hoje' : null}
         onAtalho={() => setRascunho((r) => ({ ...r, data: null }))}
         escolha={{ tipo: 'dia', valor: dataDaRota(rascunho, hoje) }}
         onEscolher={(e) => setRascunho((r) => (e.tipo === 'dia' ? comData(r, e.valor, hoje) : r))}
@@ -204,14 +216,19 @@ export function TelaRota() {
       <Screen refreshing={core.sincronizando} onRefresh={core.sincronizar} cabecalho={{ titulo }}>
         {linhaDeCima(null)}
         {/* RD-0506: um título só; a ação de puxar só vale para hoje (o dia vem no título da tela e na etiqueta) */}
-        <EstadoVazio testID="rota-vazia" icone="map" titulo="Nenhuma rota neste dia." texto={ehHoje ? 'Puxe a tela para atualizar quando tiver sinal.' : undefined} />
+        {carregando ? (
+          <Loading embutido testID="rota-carregando" />
+        ) : (
+          <EstadoVazio testID="rota-vazia" icone="map" titulo="Nenhuma rota neste dia." texto={ehHoje ? 'Puxe a tela para atualizar quando tiver sinal.' : undefined} />
+        )}
         {folhas}
       </Screen>
     );
   }
 
   // mapa e lista só com as paradas filtradas; a numeração continua a da rota
-  const stops = filtrarParadas(route.stops, filtro);
+  // outro dia é só para ver: sem "próxima" parada
+  const stops = paradasParaVer(filtrarParadas(route.stops, filtro), ehHoje);
   const next = ehHoje ? (stops.find((s) => s.status === 'next') ?? null) : null;
   const points = projectPoints(
     stops.map((s) => ({ lat: s.customer.lat, lng: s.customer.lng })),
@@ -241,7 +258,7 @@ export function TelaRota() {
       refreshing={core.sincronizando}
       onRefresh={core.sincronizar}
       testID="route"
-      cabecalho={{ titulo, subtitulo: subtituloDaRota({ filtradas: stops.length, total: route.stops.length, totalKm: route.total_km, regiao: route.region, comFiltro: contagem > 0 }) }}>
+      cabecalho={{ titulo, subtitulo: subtituloDaRota({ filtradas: stops.length, total: route.stops.length, totalKm: route.total_km, regiao: route.region, comFiltro: filtraParadas(filtro) }) }}>
       {linhaDeCima(stops)}
 
       <OpenVisitBar from={titulo} />

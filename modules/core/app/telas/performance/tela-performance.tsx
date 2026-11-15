@@ -25,6 +25,7 @@ import {
   mensagemDoServidor,
   rotuloDoPeriodo,
   SELECAO_PADRAO,
+  selecaoDaEscolha,
   type SelecaoPeriodo,
 } from './periodo-performance';
 import { usePerformance } from './usar-performance';
@@ -142,7 +143,7 @@ export function TelaPerformance() {
         atalhoAtivo={atalhoEmVigor(selecao)}
         onAtalho={(id) => setSelecao({ tipo: 'atalho', id: ehAtalhoPerformance(id) ? id : ATALHO_PADRAO })}
         escolha={escolhaEmVigor(selecao)}
-        onEscolher={(escolha) => setSelecao({ tipo: 'escolha', escolha })}
+        onEscolher={(escolha) => setSelecao(selecaoDaEscolha(escolha, hoje))}
         onLimpar={() => setSelecao(SELECAO_PADRAO)}
         limparDesligado={contarFiltros(selecao) === 0}
         hoje={hoje}

@@ -145,3 +145,21 @@ export function subtituloDaCarteira(filtrados: number, total: number): string | 
 export function situacaoNaLinha(situacao: SituacaoDoCliente, garantidas: readonly SituacaoDoCliente[]): SituacaoDoCliente | null {
   return garantidas.includes(situacao) ? null : situacao;
 }
+
+/** Na virada do dia, a data escolhida que virou hoje volta ao padrão (a rota de hoje tem check-in de novo). */
+export const filtroNoDia = (f: FiltroRota, hoje: string): FiltroRota => (f.data === hoje ? { ...f, data: null } : f);
+
+/** Filtro que tira paradas da lista (cliente, cidade ou bairro); só a data não filtra paradas. */
+export const filtraParadas = (f: FiltroRota): boolean => f.cliente.trim() !== '' || f.cidade !== null || f.bairro !== null;
+
+/** Trocar a data: a cidade e o bairro que não existem nas paradas do novo dia saem. */
+export function ajustarAoDia(f: FiltroRota, paradas: readonly ParadaFiltravel[]): FiltroRota {
+  const cidade = f.cidade && cidadesDaRota(paradas).includes(f.cidade) ? f.cidade : null;
+  const bairro = f.bairro && bairrosDaRota(paradas, cidade).includes(f.bairro) ? f.bairro : null;
+  return cidade === f.cidade && bairro === f.bairro ? f : { ...f, cidade, bairro };
+}
+
+/** Rota de outro dia é só para ver: não há "próxima" parada (ela é desenhada como pendente). */
+export function paradasParaVer<T extends ParadaFiltravel>(paradas: readonly T[], ehHoje: boolean): T[] {
+  return ehHoje ? [...paradas] : paradas.map((p) => (p.status === 'next' ? { ...p, status: 'pending' } : p));
+}

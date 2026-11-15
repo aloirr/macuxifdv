@@ -81,6 +81,10 @@ export const atalhoEmVigor = (sel: SelecaoPeriodo): AtalhoPerformance | null => 
 /** Escolha em vigor (a folha abre direto na aba dela). */
 export const escolhaEmVigor = (sel: SelecaoPeriodo): EscolhaPeriodo | null => (sel.tipo === 'escolha' ? sel.escolha : null);
 
+/** Escolher no calendário o mês de hoje é o padrão (Este mês), como a data = hoje na Rota. */
+export const selecaoDaEscolha = (escolha: EscolhaPeriodo, hoje: string): SelecaoPeriodo =>
+  escolha.tipo === 'mes' && escolha.valor === hoje.slice(0, 7) ? SELECAO_PADRAO : { tipo: 'escolha', escolha };
+
 /** Selo do botão: 0 no padrão (Este mês), 1 com outro período. */
 export const contarFiltros = (sel: SelecaoPeriodo): number => (sel.tipo === 'atalho' && sel.id === ATALHO_PADRAO ? 0 : 1);
 

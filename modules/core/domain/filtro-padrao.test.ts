@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ajustarAoDia,
   bairrosDaRota,
   cidadesDaRota,
   comCidade,
@@ -10,6 +11,9 @@ import {
   etiquetasDaRota,
   FILTRO_ROTA_PADRAO,
   filtrarParadas,
+  filtraParadas,
+  filtroNoDia,
+  paradasParaVer,
   semFiltroRota,
   situacaoNaLinha,
   subtituloDaCarteira,
@@ -102,6 +106,29 @@ describe('Filtro padrão da Rota (R-20261115-072200; spec filtro-padrao-campo §
     expect(textoDasFeitas(PARADAS.slice(0, 1))).toBe('1 feita');
     expect(textoVerVisitas(4)).toBe('Ver 4 visitas');
     expect(textoVerVisitas(1)).toBe('Ver 1 visita');
+  });
+});
+
+describe('Filtro padrão da Rota: virada do dia, troca de data e rota só para ver', () => {
+  it('a data que virou hoje volta ao padrão', () => {
+    expect(filtroNoDia(f({ data: HOJE, cidade: 'Boa Vista' }), HOJE)).toEqual(f({ cidade: 'Boa Vista' }));
+    expect(filtroNoDia(f({ data: '2026-11-17' }), HOJE).data).toBe('2026-11-17');
+  });
+
+  it('só cliente, cidade e bairro filtram paradas (a data sozinha não)', () => {
+    expect(filtraParadas(f({ data: '2026-11-17' }))).toBe(false);
+    expect(filtraParadas(f({ bairro: 'Centro' }))).toBe(true);
+  });
+
+  it('trocar a data tira a cidade e o bairro que não existem no novo dia', () => {
+    const outroDia = [parada(1, 'Posto Mucajaí', 'Mucajaí', 'Centro')];
+    expect(ajustarAoDia(f({ cidade: 'Boa Vista', bairro: 'Pricumã' }), outroDia)).toEqual(f({}));
+    expect(ajustarAoDia(f({ bairro: 'Centro' }), outroDia)).toEqual(f({ bairro: 'Centro' }));
+  });
+
+  it('em outro dia não há "próxima": ela vira pendente', () => {
+    expect(paradasParaVer(PARADAS, false).map((p) => p.status)).not.toContain('next');
+    expect(paradasParaVer(PARADAS, true).map((p) => p.status)).toContain('next');
   });
 });
 

@@ -9,6 +9,7 @@ import {
   intervaloDaSelecao,
   mensagemDoServidor,
   rotuloDoPeriodo,
+  selecaoDaEscolha,
   SELECAO_PADRAO,
   type SelecaoPeriodo,
 } from './periodo-performance';
@@ -78,5 +79,12 @@ describe('T-0170 §7.2: janela do aparelho e o período que precisa de internet'
     expect(chaveDaCopia(intervaloDaSelecao(atalho('mes_passado'), HOJE), HOJE)).toBe('mes_passado');
     expect(chaveDaCopia(intervaloDaSelecao(atalho('hoje'), HOJE), HOJE)).toBeNull();
     expect(chaveDaCopia(intervaloDaSelecao({ tipo: 'escolha', escolha: { tipo: 'mes', valor: '2026-11' } }, HOJE), HOJE)).toBe('este_mes');
+  });
+});
+
+describe('filtro padrão do Campo: o mês de hoje escolhido no calendário é o padrão', () => {
+  it('não conta e não vira etiqueta; outro mês continua escolha', () => {
+    expect(selecaoDaEscolha({ tipo: 'mes', valor: HOJE.slice(0, 7) }, HOJE)).toEqual(SELECAO_PADRAO);
+    expect(contarFiltros(selecaoDaEscolha({ tipo: 'mes', valor: '2025-09' }, HOJE))).toBe(1);
   });
 });
