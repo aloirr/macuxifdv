@@ -22,11 +22,13 @@
 - **Código FDV (proposta, à espera do ok):** o código do Macuxi para controle interno, pedido em R-20261115-074500 (item 8).
   - Gerado pelo sistema ao criar o vendedor ou o promotor, sequencial por empresa (`FDV-0001`, `FDV-0002`…), único por empresa
     e sem reuso. Vale também para o provisório que a carga do ERP cria.
+  - Fonte: IBM Plex Mono (`font-mono` no BKO, `fonts.mono` no app), 500 no campo e 400 na lista (MC-0300). O BKO hoje carrega
+    só o 500 (`apps/web/app/fonts.ts`): o 400 da lista pede o arquivo novo, do engenheiro-apps.
   - Na gaveta, logo acima do `Código no ERP`: só leitura (campo `lineSoft`, sem borda de edição), com o copiar à direita (alvo de 36 px,
     leitor de tela `Copiar código FDV`; aviso `Código copiado`). Em Novo usuário, o campo não aparece até salvar.
   - O vínculo não mexe nele: cada usuário fica com o seu, e o do provisório sai com ele.
   - Outros perfis: `—` na lista e o campo não aparece na gaveta.
-  - Também na ficha do vendedor no Gestão, abaixo do nome, com o copiar (a tela é do modulo-gestor).
+  - Também na ficha do vendedor no Gestão, abaixo do nome, em `fonts.mono`, com o copiar (a tela é do modulo-gestor).
 
 ## 2. Botão `Vincular vendedor do ERP` (`01`)
 - Secundário (`Button`, borda `lineStrong`, 44 px), com o ícone `users`, logo abaixo do `Código no ERP`.
@@ -36,12 +38,12 @@
 ## 3. Escolher o provisório (`02`)
 - `Dialog` do kit web (`overlay.tsx`), título `Vincular vendedor do ERP` e a linha `Escolha o vendedor provisório que é a <nome>.`
 - Uma opção por provisório do mesmo perfil (escolha única, linhas de 56 px): o nome que veio do ERP e, embaixo,
-  `Código no ERP <código> · <N> clientes`. Com mais de 6, entra a busca por nome ou código no topo.
+  `<código no ERP> · <N> clientes`. Com mais de 6, entra a busca por nome ou código no topo.
 - Rodapé: `Cancelar` e `Continuar` (principal, desabilitado até escolher).
 
 ## 4. Confirmação (`03`)
-- O mesmo `Dialog`, com o título `Vincular <provisório> (<código>) a <usuário>?` e o texto
-  `<usuário> recebe o Código no ERP <código> e os <N> clientes da carteira. O provisório sai da lista.`
+- O mesmo `Dialog`, com o título `Vincular o provisório <código no ERP> a <usuário>?` e o texto
+  `Ela recebe os <N> clientes da carteira e o provisório sai da lista.` (`Ele` para usuário masculino).
 - Rodapé: `Voltar` (à escolha) e `Vincular` (principal). Durante a chamada, `Vinculando…`, sem segundo clique.
 - Recusa da API (422 `VINCULO_*`): a mensagem do core num `Notice tone="danger"` dentro do `Dialog`, e o `Vincular` continua.
 
@@ -51,6 +53,7 @@
 
 ## 6. Lista
 - Coluna **`Código FDV`** (proposta), depois de `Filial`, em números tabulares (`05`).
+- E-mail do provisório: `—` no lugar do `erp-…@sem-email.invalid` (a exibição é do modulo-core).
 - O provisório leva o selo `Provisório` (`Badge tone="neutral"`) ao lado do nome, como os outros selos da linha.
-- A busca passa a ser `Buscar por nome, e-mail ou código`, porque a API já casa o código no ERP. O filtro `Provisórios`
+- O rótulo da busca passa a ser só `Buscar`: ela casa nome, e-mail, Código FDV e código no ERP, e a lista de dois códigos não cabia no rótulo. O filtro `Provisórios`
   (`provisorio=true`) fica para o modulo-core decidir onde entra; a simulação não o mostra.

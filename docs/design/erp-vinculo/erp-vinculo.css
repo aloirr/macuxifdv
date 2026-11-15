@@ -19,4 +19,7 @@
   /* Código FDV (proposta): só leitura, com o copiar (BotaoCopiarCodigo da web) */
   .inp.ro { background: var(--lineSoft); justify-content: space-between; padding-right: 4px; font-variant-numeric: tabular-nums; }
   .inp.ro .cop { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--lineStrong); background: #fff; display: flex; align-items: center; justify-content: center; }
-  table.d td.cod { font-variant-numeric: tabular-nums; }
+  /* MC-0300: Código FDV em IBM Plex Mono (o BKO carrega só o 500, apps/web/app/fonts.ts) */
+  @font-face { font-family: 'IBM Plex Mono'; font-weight: 500; src: url('../../../apps/web/app/fonts/IBMPlexMono_500Medium.ttf'); }
+  .mono { font-family: 'IBM Plex Mono', monospace; font-weight: 500; }
+  table.d td.cod { font-family: 'IBM Plex Mono', monospace; font-weight: 400; }
