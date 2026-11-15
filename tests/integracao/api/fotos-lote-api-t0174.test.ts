@@ -18,7 +18,6 @@ import type { BancoApp } from '../../../apps/api/src/banco';
 import { LICENCAS_PADRAO, opcoesDeTeste, TENANT, usuarios, type Licencas } from '../../../apps/api/test/apoio';
 
 const LOTE = '0ca00000-0000-4000-8000-000000000174';
-const FOTO_LOTE_ZIP_MAX_BYTES = LIMITES_ZIP_TETO.bytesZipMax; // teto da plataforma (RN-CAT-14)
 const ARQ = '0ca00000-0000-4000-8000-0000000001a4';
 const MIB = 1024 * 1024;
 const BASE = '/v1/catalogo/';
@@ -240,18 +239,18 @@ descrever('T-0174 critério 9 — permissão e licença na fronteira HTTP (creat
 descrever('T-0174 critério 6 — teto do ZIP antes de processar (RN-CAT-14)', () => {
   it('FL-API-06: 500 MiB + 1 byte → 422 RN-CAT-14 (zip_grande) com mensagem, sem nenhuma transação nem lote; 500 MiB exatos → 201', async () => {
     const m = montar();
-    const acima = await m.app.inject({ method: 'POST', url: url(ROTAS_CATALOGO.fotosLote), headers: cab('analista'), payload: corpo(FOTO_LOTE_ZIP_MAX_BYTES + 1) });
+    const acima = await m.app.inject({ method: 'POST', url: url(ROTAS_CATALOGO.fotosLote), headers: cab('analista'), payload: corpo(LIMITES_ZIP_TETO.bytesZipMax + 1) });
     expect(acima.statusCode).toBe(422);
     const erro = ErroApiSchema.parse(acima.json());
     expect(erro).toMatchObject({ codigo: 'RN-CAT-14', detalhes: { motivo: 'zip_grande' } });
     expect(erro.mensagem).toContain('500 MB');
     expect(m.tenants).toEqual([]);
     expect(m.lotes.size).toBe(0);
-    const no = await m.app.inject({ method: 'POST', url: url(ROTAS_CATALOGO.fotosLote), headers: cab('analista'), payload: corpo(FOTO_LOTE_ZIP_MAX_BYTES) });
+    const no = await m.app.inject({ method: 'POST', url: url(ROTAS_CATALOGO.fotosLote), headers: cab('analista'), payload: corpo(LIMITES_ZIP_TETO.bytesZipMax) });
     expect(no.statusCode).toBe(201);
     const r = FotoLoteCriadoSchema!.parse(no.json());
     // 500 MiB em partes de 8 MiB = 63 partes (62,5 arredondado para cima)
-    expect(r.envio).toEqual({ arquivo_id: ARQ, parte_bytes: PARTE_ENVIO_BYTES, partes: Math.ceil(FOTO_LOTE_ZIP_MAX_BYTES / PARTE_ENVIO_BYTES) });
+    expect(r.envio).toEqual({ arquivo_id: ARQ, parte_bytes: PARTE_ENVIO_BYTES, partes: Math.ceil(LIMITES_ZIP_TETO.bytesZipMax / PARTE_ENVIO_BYTES) });
   });
 
   it('FL-API-07: o parâmetro do tenant só BAIXA o teto: 100 MB vale (100 MB + 1 → 422 com "100 MB" na mensagem); 900 MB é ignorado (500 MB + 1 → 422)', async () => {
@@ -262,7 +261,7 @@ descrever('T-0174 critério 6 — teto do ZIP antes de processar (RN-CAT-14)', (
     await baixo.app.close();
     app = null;
     const alto = montar({ parametrosCatalogo: { foto_lote_zip_max: 900 * MIB } });
-    const r2 = await alto.app.inject({ method: 'POST', url: url(ROTAS_CATALOGO.fotosLote), headers: cab('analista'), payload: corpo(FOTO_LOTE_ZIP_MAX_BYTES + 1) });
+    const r2 = await alto.app.inject({ method: 'POST', url: url(ROTAS_CATALOGO.fotosLote), headers: cab('analista'), payload: corpo(LIMITES_ZIP_TETO.bytesZipMax + 1) });
     expect(r2.statusCode).toBe(422);
     expect(r2.json().mensagem).toContain('500 MB');
   });
