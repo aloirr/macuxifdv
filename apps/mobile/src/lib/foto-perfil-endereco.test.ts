@@ -1,7 +1,7 @@
 /**
  * Foto do perfil no Início do Campo (RN-CORE-42): o shell resolve o `arquivo_id` da escolha viva num `file://` do cache,
- * baixando `/v1/arquivos/:id` com a sessão, como a miniatura do Catálogo (T-0097 (a)). Sem sinal ou em falha = `null`
- * (a tela mostra as iniciais).
+ * baixando `/v1/arquivos/:id` com a sessão, como a miniatura do Catálogo (T-0097 (a)). Sem sinal, acima do teto e falha
+ * são do resolvedor da miniatura (`miniatura-endereco.test.ts`); aqui fica só o que o invólucro acrescenta.
  */
 import { AVATAR_FOTO_MAX_BYTES } from '@macuxi/core/contracts';
 import { describe, expect, it, vi } from 'vitest';
@@ -38,22 +38,6 @@ describe('RN-CORE-42: foto do perfil resolvida pelo shell', () => {
     d.online = () => false;
     expect(await r(ID)).toBe(uri);
     expect(d.baixar).toHaveBeenCalledTimes(1);
-  });
-
-  it('sem sinal e sem cache devolve null (iniciais)', async () => {
-    const d = deps({ online: () => false });
-    expect(await criarResolvedorFotoPerfil(d)(ID)).toBeNull();
-    expect(d.baixar).not.toHaveBeenCalled();
-  });
-
-  it('falha no download ou foto acima do teto devolve null, sem lançar', async () => {
-    const falha = deps({
-      baixar: async () => {
-        throw new Error('rede');
-      },
-    });
-    expect(await criarResolvedorFotoPerfil(falha)(ID)).toBeNull();
-    expect(await criarResolvedorFotoPerfil(deps({ baixar: async () => null }))(ID)).toBeNull();
   });
 
   it('id que não é UUID não vira download', async () => {
