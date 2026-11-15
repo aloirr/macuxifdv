@@ -459,8 +459,8 @@ export const FOTO_LOTE_FIXTURE = {
  * em 8 e o de B em 2 (recarregar a fixture não muda os códigos, só pode deixar buraco no contador).
  */
 export const CODIGOS_FDV_FIXTURE = {
-  A: { admin: 'FDV-0001', analista: 'FDV-0002', assistente: 'FDV-0003', gerente: 'FDV-0004', supervisor: 'FDV-0005', vendedor1: 'FDV-0006', vendedor2: 'FDV-0007', promotor: 'FDV-0008' },
-  B: { admin: 'FDV-0001', vendedor: 'FDV-0002' },
+  A: { admin: '00001', analista: '00002', assistente: '00003', gerente: '00004', supervisor: '00005', vendedor1: '00006', vendedor2: '00007', promotor: '00008' },
+  B: { admin: '00001', vendedor: '00002' },
 } as const;
 
 /** 0057 (ADR 0041): quem abre documento sensível do PDV = PERFIS_DOC_SENSIVEL do Core (fonte única; o gerente entrou em R-20261110-084206). */
@@ -1081,7 +1081,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       usuario(B.usuarios.admin, tB, 'Admin Beta', 'admin.b@exemplo.com.br', 'admin', null, senhaHash, FILIAIS_FIXTURE.B.padrao),
       usuario(B.usuarios.vendedor, tB, 'Vendedor Beta', DOIS_TENANTS.emailRepetido, 'vendedor', B.equipes.equipe, senhaHash, FILIAIS_FIXTURE.B.padrao),
     ],
-    // 0080 (T-0175): mesmo id e mesmo número que o gatilho grava (CODIGOS_FDV_FIXTURE: A até FDV-0008, B até FDV-0002)
+    // 0080 (T-0175): mesmo id e mesmo número que o gatilho grava (CODIGOS_FDV_FIXTURE: A até 00008, B até 00002)
     'core.usuario_codigo_fdv_contador': [
       { id: idDeChave(`${tA}:core.usuario_codigo_fdv_contador`), tenant_id: tA, ultimo_sequencial: 8, external_id: null },
       { id: idDeChave(`${tB}:core.usuario_codigo_fdv_contador`), tenant_id: tB, ultimo_sequencial: 2, external_id: null },

@@ -85,7 +85,7 @@ export const usuario = core.table('usuario', {
    */
   filial_cadastro_id: uuid('filial_cadastro_id'),
   /**
-   * Código FDV (0080, T-0175, RN-CORE-59): FDV-0001… por tenant, gerado pelo banco (gatilho usuario_codigo_fdv_emitir) e só de
+   * Código FDV (0080, T-0175, RN-CORE-59): 00001… por tenant (só número, 5 dígitos ou mais), gerado pelo banco (gatilho usuario_codigo_fdv_emitir) e só de
    * leitura (usuario_codigo_fdv_somente_leitura, 23514). Somente leitura — nunca grave. Nulo só no apagado antes da 0080.
    */
   codigo_fdv: text('codigo_fdv'),
