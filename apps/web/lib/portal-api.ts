@@ -80,7 +80,7 @@ export function houveUsoRecente(agora = Date.now()): boolean {
 
 // ---------------------------------------------------------------------------------------------------------------- transporte
 
-type Metodo = 'GET' | 'POST' | 'PATCH';
+type Metodo = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
 async function transportar(metodo: Metodo, caminho: string, corpo: unknown, cabecalhos: Record<string, string>): Promise<Response> {
   if (MODO_PORTAL_FALSO) {
@@ -90,7 +90,8 @@ async function transportar(metodo: Metodo, caminho: string, corpo: unknown, cabe
   return fetch(`/api-proxy${caminho}`, {
     method: metodo,
     headers: cabecalhos,
-    body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
+    // bytes crus (a logo, T-0182) vão como estão; o resto, em JSON
+    body: corpo === undefined ? undefined : corpo instanceof Blob ? corpo : JSON.stringify(corpo),
     cache: 'no-store',
     credentials: 'omit',
   });
@@ -175,7 +176,7 @@ export interface OpcoesChamada<T> {
 async function enviar(caminho: string, o: { metodo: Metodo; corpo?: unknown; tenant?: string; query?: OpcoesChamada<unknown>['query'] }): Promise<Response> {
   const publica = ROTAS_PUBLICAS_PORTAL.includes(caminho);
   const cabecalhos: Record<string, string> = {};
-  if (o.corpo !== undefined) cabecalhos['Content-Type'] = 'application/json';
+  if (o.corpo !== undefined) cabecalhos['Content-Type'] = o.corpo instanceof Blob ? o.corpo.type || 'application/octet-stream' : 'application/json';
   if (!publica) cabecalhos.Authorization = `Bearer ${await tokenDaSessao()}`;
   if (o.tenant) cabecalhos[CABECALHO_TENANT_PLATAFORMA] = o.tenant;
   registrarUso();
@@ -229,18 +230,23 @@ function desviarPeloErro(e: ErroPortal, soSessao: boolean, tenant: string | unde
   pedirDesvioPortal(d);
 }
 
-/** Chamada JSON do portal. 204 = `undefined`. */
+/** Chamada JSON do portal. 204 = `undefined`. Corpo `Blob` (a logo, T-0182) vai em bytes crus, com o tipo do arquivo. */
 export async function chamarPortal<T = unknown>(caminho: string, o: OpcoesChamada<T> = {}): Promise<T> {
   const res = await enviar(caminho, { metodo: o.metodo ?? 'GET', corpo: o.corpo, tenant: o.tenant, query: o.query });
   if (res.status === 204) return undefined as T;
+  return lerResposta(res, o.schema);
+}
+
+/** Corpo JSON da resposta, conferido pelo schema quando houver. */
+async function lerResposta<T>(res: Response, schema: OpcoesChamada<T>['schema']): Promise<T> {
   let json: unknown;
   try {
     json = await res.json();
   } catch {
     throw new ErroPortal(0, 'formato_inesperado', MENSAGEM_FORMATO);
   }
-  if (!o.schema) return json as T;
-  const p = o.schema.safeParse(json);
+  if (!schema) return json as T;
+  const p = schema.safeParse(json);
   if (!p.success) throw new ErroPortal(0, 'formato_inesperado', MENSAGEM_FORMATO);
   return p.data;
 }

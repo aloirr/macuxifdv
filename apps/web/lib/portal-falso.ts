@@ -15,13 +15,18 @@
  * inicial com a troca pendente. Só na memória da aba (nada de e-mail no `sessionStorage`).
  */
 import {
+  conferirLogo,
   CriarEmpresaSchema,
   EscolherEmpresaPortalSchema,
+  GravarNomeFantasiaSchema,
+  MENSAGENS_LOGO,
   LoginPortalSchema,
   RedefinirSenhaAdminSchema,
   SessaoPortalSchema,
   linhasDosParametrosIniciais,
   type AdminDaEmpresa,
+  type EmpresaLogo,
+  type MarcaEmpresa,
   type RedefinirSenhaAdminResposta,
 } from '@macuxi/platform-sdk';
 import {
@@ -123,6 +128,42 @@ function adminsIniciais(): Map<string, AdminDaEmpresa[]> {
 const falhas = new Map<string, number>();
 
 const ADMINS_M = /^\/plataforma\/empresas\/([^/]+)\/admins(?:\/([^/]+)\/redefinir-senha)?$/;
+
+const MARCA_M = /^\/plataforma\/empresas\/([^/]+)\/(marca|logo)$/;
+/** T-0182: nome fantasia e logo por empresa, só na memória da aba (o `sessionStorage` não guarda bytes). */
+const marcasFalsas = new Map<string, { nome_fantasia: string | null; logo: { bytes: Blob; resumo: EmpresaLogo } | null }>();
+
+/** `GET|PUT .../marca` e `GET|PUT|DELETE .../logo` como a API (T-0182): ler = time da Macuxi ou o admin da empresa; gravar = só o time. */
+async function responderMarca(metodo: string, tenant: string, alvo: 'marca' | 'logo', sessao: SessaoFalsa, e: Estado, corpo: unknown): Promise<Response> {
+  const empresa = e.empresas.find((x) => x.id === tenant);
+  if (!empresa) return erro(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada.');
+  if (sessao.tipo === 'admin_cliente' && sessao.empresa !== tenant) return erro(403, 'PERFIL_SEM_ACESSO', 'Você só vê a logo da sua empresa.');
+  if (metodo !== 'GET' && sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi altera a logo e o nome fantasia.');
+  const atual = marcasFalsas.get(tenant) ?? { nome_fantasia: null, logo: null };
+  const responder = (m: typeof atual) => {
+    marcasFalsas.set(tenant, m);
+    const r: MarcaEmpresa = { tenant_id: tenant, razao_social: empresa.razao_social, nome_fantasia: m.nome_fantasia, logo: m.logo?.resumo ?? null };
+    return json(200, r);
+  };
+  if (alvo === 'marca') {
+    if (metodo === 'GET') return responder(atual);
+    const c = lerCorpo(GravarNomeFantasiaSchema, corpo);
+    if (c instanceof Response) return c;
+    return responder({ ...atual, nome_fantasia: c.nome_fantasia });
+  }
+  if (metodo === 'GET') {
+    if (!atual.logo) return erro(404, 'LOGO_NAO_ENCONTRADA', MENSAGENS_LOGO.LOGO_NAO_ENCONTRADA);
+    return new Response(atual.logo.bytes, { status: 200, headers: { 'content-type': atual.logo.resumo.tipo } });
+  }
+  if (metodo === 'DELETE') return responder({ ...atual, logo: null });
+  const arquivo = corpo instanceof Blob ? corpo : new Blob([]);
+  const bytes = new Uint8Array(await arquivo.arrayBuffer());
+  const c = conferirLogo(bytes, arquivo.type);
+  if (!c.ok) return erro(c.status, c.codigo, MENSAGENS_LOGO[c.codigo]);
+  const sha256 = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const resumo: EmpresaLogo = { sha256, tipo: c.tipo, tamanho_bytes: bytes.length, largura_px: c.largura_px, altura_px: c.altura_px, atualizada_em: agoraIso() };
+  return responder({ ...atual, logo: { bytes: new Blob([bytes], { type: c.tipo }), resumo } });
+}
 
 /** `GET/POST /plataforma/empresas/:id/admins[/:usuario/redefinir-senha]` como a API (fatia S da T-0094). */
 function responderAdmins(metodo: string, tenant: string, usuario: string | undefined, sessao: SessaoFalsa, e: Estado, corpo: unknown): Response {
@@ -348,6 +389,8 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
 
   const adminsM = ADMINS_M.exec(caminho);
   if (adminsM) return responderAdmins(metodo, decodeURIComponent(adminsM[1] ?? ''), adminsM[2] ? decodeURIComponent(adminsM[2]) : undefined, sessao, e, corpo);
+  const marcaM = MARCA_M.exec(caminho);
+  if (marcaM) return responderMarca(metodo, decodeURIComponent(marcaM[1] ?? ''), marcaM[2] === 'logo' ? 'logo' : 'marca', sessao, e, corpo);
 
   // ---------- rotas de módulo (com tenant): o admin do cliente só na empresa escolhida (desenho T-0093 §4)
   if (sessao.tipo === 'admin_cliente') {

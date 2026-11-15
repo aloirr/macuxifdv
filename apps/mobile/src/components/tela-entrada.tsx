@@ -5,9 +5,13 @@
  * - antes do login: "Atualizando o app" (passagem dos dados do aparelho) e "Conferindo o servidor";
  * - depois do login, na rota `/sync` (`components/tela-carga.tsx`): "Olá", a barra do total, as etapas e o erro.
  * Cores do kit (`temaDaEntrada`, designer-ux); posição do logo e textos em `lib/entrada.ts`.
+ * T-0182 (variação A, spec docs/design/telas/logo-cliente.md §3): na carga, com a logo da empresa guardada, o logo Macuxi reduz
+ * e vai para a esquerda e a placa da logo entra ao lado, depois de um filete (240 ms; com "reduzir movimento", direto). Login,
+ * telas de senha e abertura não recebem a logo.
+ * MC-0088 (manual da marca §4): a linha "Etapa n de N · nome" e o percentual ficam sempre à vista sobre a barra.
  */
 import type { EtapaEntrada } from '@macuxi/core/contracts';
-import { Botao, fonts, Icon, temaDaEntrada, useReduzirMovimento, type TemaEntrada } from '@macuxi/ui/mobile';
+import { Botao, fonts, Icon, PlacaLogoCliente, temaDaEntrada, useReduzirMovimento, type TemaEntrada } from '@macuxi/ui/mobile';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -17,12 +21,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCorDaFaixa, useFaixaSuperior } from '@/components/area-segura';
 import {
   cabeLista,
+  ESPACO_FILETE,
+  FILETE_ENTRADA,
+  LARGURA_LOGO_COM_CLIENTE,
   LARGURA_LOGO_ENTRADA,
+  linhaComLogoDoCliente,
   MARGEM_ENTRADA,
   posicaoDoLogo,
   ROTULO_BARRA_ENTRADA,
 } from '@/lib/entrada';
-import { LOGO_EMPILHADO_NEGATIVO, LOGO_EMPILHADO_POSITIVO } from '@/lib/logo-marca';
+import { LOGO_EMPILHADO_NEGATIVO, LOGO_EMPILHADO_POSITIVO, PROPORCAO_LOGO_EMPILHADO } from '@/lib/logo-marca';
 import type { Variante } from '@/lib/variante-tipo';
 
 export interface BarraEntrada {
@@ -49,6 +57,15 @@ interface Props {
   aoDesenhar?: () => void;
   /** Nome do app no rodapé, só com a área de baixo vazia (abertura). */
   nomeDoApp?: string;
+  /** T-0182: logo da empresa guardada no aparelho (só a carga depois do login a passa). */
+  logoCliente?: LogoClienteEntrada | null;
+}
+
+/** Cópia da logo da empresa no aparelho: `file://`, largura ÷ altura guardadas e o nome para o leitor de tela. */
+export interface LogoClienteEntrada {
+  uri: string;
+  proporcao: number;
+  nome: string | null;
 }
 
 /** Duração do esmaecer da área de baixo e da largura da barra (spec §6). */
@@ -64,6 +81,7 @@ export function TelaEntrada({
   children,
   aoDesenhar,
   nomeDoApp,
+  logoCliente,
 }: Props) {
   const tema = temaDaEntrada(variante);
   const insets = useSafeAreaInsets();
@@ -98,13 +116,7 @@ export function TelaEntrada({
       <StatusBar style={tema.barraDeStatus} />
       {/* invisível até medir a tela: o logo só aparece no lugar da splash */}
       <View style={[styles.logo, { top: logo.topo - faixa, opacity: desenhou ? 1 : 0 }]}>
-        <View accessible accessibilityRole="image" accessibilityLabel="Macuxi Força de Vendas">
-          <SvgXml
-            xml={tema.logo === 'negativo' ? LOGO_EMPILHADO_NEGATIVO : LOGO_EMPILHADO_POSITIVO}
-            width={LARGURA_LOGO_ENTRADA}
-            height={logo.altura}
-          />
-        </View>
+        <LogosDaEntrada tema={tema} alturaSplash={logo.altura} cliente={logoCliente ?? null} reduzir={reduzir} />
         {saudacao ? (
           <Text testID="entrada-saudacao" style={[styles.saudacao, { color: tema.textoClaro }]}>
             {saudacao}
@@ -120,7 +132,7 @@ export function TelaEntrada({
           ) : null
         ) : (
           <Animated.View style={{ gap: 18, opacity: opacidade }}>
-            {barra ? <Barra tema={tema} barra={barra} reduzir={reduzir} comLista={mostrarEtapas} /> : null}
+            {barra ? <Barra tema={tema} barra={barra} reduzir={reduzir} /> : null}
             {mostrarEtapas && etapas ? <ListaEtapas tema={tema} etapas={etapas} /> : null}
             {typeof children === 'function' ? children(mostrarEtapas) : children}
           </Animated.View>
@@ -128,6 +140,77 @@ export function TelaEntrada({
       </View>
     </View>
   );
+}
+
+function LogoMacuxi({ tema, largura, altura }: { tema: TemaEntrada; largura: number; altura: number }) {
+  return (
+    <View accessible accessibilityRole="image" accessibilityLabel="Macuxi Força de Vendas">
+      <SvgXml xml={tema.logo === 'negativo' ? LOGO_EMPILHADO_NEGATIVO : LOGO_EMPILHADO_POSITIVO} width={largura} height={altura} />
+    </View>
+  );
+}
+
+/**
+ * O logo Macuxi no lugar da splash; com a logo da empresa (T-0182, variação A), a linha Macuxi · filete · placa, na mesma altura
+ * do logo da splash (o centro do Macuxi não sobe nem desce na passagem).
+ */
+function LogosDaEntrada({
+  tema,
+  alturaSplash,
+  cliente,
+  reduzir,
+}: {
+  tema: TemaEntrada;
+  alturaSplash: number;
+  cliente: LogoClienteEntrada | null;
+  reduzir: boolean;
+}) {
+  const entrada = useEntradaDoCliente(cliente !== null, reduzir);
+  if (!cliente) return <LogoMacuxi tema={tema} largura={LARGURA_LOGO_ENTRADA} altura={alturaSplash} />;
+  const linha = linhaComLogoDoCliente(cliente.proporcao);
+  return (
+    <View testID="entrada-com-logo-cliente" style={[styles.linhaLogos, { height: alturaSplash }]}>
+      <Animated.View
+        style={{
+          transform: [
+            { translateX: entrada.interpolate({ inputRange: [0, 1], outputRange: [linha.deslocamentoInicial, 0] }) },
+            { scale: entrada.interpolate({ inputRange: [0, 1], outputRange: [linha.escalaInicial, 1] }) },
+          ],
+        }}
+      >
+        <LogoMacuxi
+          tema={tema}
+          largura={LARGURA_LOGO_COM_CLIENTE}
+          altura={Math.round(LARGURA_LOGO_COM_CLIENTE / PROPORCAO_LOGO_EMPILHADO)}
+        />
+      </Animated.View>
+      <Animated.View style={[styles.linhaLogos, { opacity: entrada }]}>
+        <View style={[styles.filete, { backgroundColor: tema.trilho }]} />
+        <PlacaLogoCliente
+          testID="entrada-logo-cliente"
+          fonte={cliente.uri}
+          tamanho="carga"
+          // a placa branca ganha borda só sobre o Pérola (Gestão); no Azul noite (Campo), sem borda
+          borda={tema.logo !== 'negativo'}
+          nomeFantasia={cliente.nome}
+          proporcao={cliente.proporcao}
+        />
+      </Animated.View>
+    </View>
+  );
+}
+
+/** Passagem da splash para a linha com a logo da empresa: 0 → 1 em 240 ms; com "reduzir movimento", direto. */
+function useEntradaDoCliente(comLogo: boolean, reduzir: boolean): Animated.Value {
+  const valor = useRef(new Animated.Value(comLogo && reduzir ? 1 : 0)).current;
+  useEffect(() => {
+    if (!comLogo || reduzir) {
+      valor.setValue(comLogo ? 1 : 0);
+      return;
+    }
+    Animated.timing(valor, { toValue: 1, duration: DURACAO_MS, useNativeDriver: true }).start();
+  }, [comLogo, reduzir, valor]);
+  return valor;
 }
 
 /** A área de baixo aparece com esmaecer de 240 ms; com "reduzir movimento", na hora. */
@@ -144,20 +227,10 @@ function useEsmaecer(visivel: boolean, reduzir: boolean): Animated.Value {
 }
 
 /**
- * Barra do total. Com a lista de etapas na tela, a linha mostra só o percentual e o rótulo ("Etapa n de N · nome") fica só
- * para o leitor de tela, na região viva (RD-0239); sem a lista (tela baixa), o rótulo aparece.
+ * Barra do total com a linha "Etapa n de N · nome" e o percentual em cima, sempre à vista, como na entrada aprovada (MC-0088,
+ * manual da marca §4); o rótulo é também a região viva do leitor de tela.
  */
-function Barra({
-  tema,
-  barra,
-  reduzir,
-  comLista,
-}: {
-  tema: TemaEntrada;
-  barra: BarraEntrada;
-  reduzir: boolean;
-  comLista: boolean;
-}) {
+function Barra({ tema, barra, reduzir }: { tema: TemaEntrada; barra: BarraEntrada; reduzir: boolean }) {
   const pct = barra.pct === null ? null : Math.max(0, Math.min(100, barra.pct));
   const largura = pct ?? TRECHO_SEM_MEDIDA;
   const anim = useRef(new Animated.Value(largura)).current;
@@ -176,7 +249,7 @@ function Barra({
           accessibilityLabel={barra.rotulo}
           numberOfLines={1}
         >
-          {comLista ? '' : barra.rotulo}
+          {barra.rotulo}
         </Text>
         {pct === null ? null : (
           <Text
@@ -325,6 +398,8 @@ export function AcaoEntrada({
 const styles = StyleSheet.create({
   raiz: { flex: 1 },
   logo: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+  linhaLogos: { flexDirection: 'row', alignItems: 'center' },
+  filete: { width: FILETE_ENTRADA.largura, height: FILETE_ENTRADA.altura, marginHorizontal: ESPACO_FILETE },
   saudacao: { fontFamily: fonts.body, fontSize: 15, marginTop: 28, textAlign: 'center' },
   baixo: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: MARGEM_ENTRADA },
   nomeDoApp: { fontFamily: fonts.body, fontSize: 13, textAlign: 'center' },

@@ -10,6 +10,7 @@
  * - R-20261102-090919 item 2: montar a tela (ou remontar) não reinicia a carga em andamento (`sincronizarSeNecessario`).
  * - ADR 0017: a barra é o percentual do total já gravado (`percentualDaCarga`), também na retomada.
  * As frases que se alternavam saíram (T-0172): fica só o nome da etapa e o percentual.
+ * T-0182: com a logo da empresa guardada no aparelho (só a do tenant da sessão), a variação A (logo ao lado do Macuxi).
  */
 import { progressoDaEntrada } from '@macuxi/core/app';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
@@ -40,6 +41,7 @@ export function TelaCarga() {
     modulosAtivos,
     variante,
     perfil,
+    empresa,
   } = usePlataforma();
   const { estado } = useMotorSync();
   // RN-CORE-48: a etapa mostrada nunca volta (1, 2, 3... de N); tela montada de novo = carga nova, do zero
@@ -92,6 +94,7 @@ export function TelaCarga() {
         variante={variante}
         testID="tela-carga"
         saudacao={`Olá, ${firstName(sessao.user.name)}`}
+        logoCliente={empresa.logo ? { ...empresa.logo, nome: empresa.nome } : null}
         barra={parou ? null : { rotulo: rotuloDaBarra(progresso), pct: progresso.percentual }}
         etapas={progresso.etapas}
       >

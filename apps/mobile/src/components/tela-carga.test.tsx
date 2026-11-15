@@ -3,9 +3,10 @@
  * `react-dom/server` e com `react-native`, o roteador e o estado da plataforma simulados.
  * - R-20261102-091336: o motor termina com sucesso → a tela navega para `/` pelo ESTADO (também com a tela remontada e
  *   depois de sair e voltar ao app). T-0172: abre o Início sozinho, sem botão.
- * - R-20261102-090915 e T-0172: nenhum nome técnico; só o percentual e as etapas (com a lista na tela, "Etapa n de N · nome"
- *   vai só ao leitor de tela, RD-0239); nenhuma frase sobre o que o app faz por trás; erro com "Tentar de novo" e
- *   "Trocar usuário". As etapas vêm do domain do Core (`progressoDaEntrada`, RN-CORE-48; RD-0240).
+ * - R-20261102-090915 e T-0172: nenhum nome técnico; a linha "Etapa n de N · nome", o percentual e as etapas (MC-0088: a
+ *   linha fica à vista, como na entrada aprovada, manual da marca §4); nenhuma frase sobre o que o app faz por trás; erro com
+ *   "Tentar de novo" e "Trocar usuário". As etapas vêm do domain do Core (`progressoDaEntrada`, RN-CORE-48; RD-0240).
+ * - T-0182: com a logo da empresa guardada, a variação A (logo Macuxi, filete e a placa com "Logo da <nome>"); sem ela, igual.
  * - R-20261102-090919 item 2: voltar do segundo plano no meio da carga não a reinicia.
  */
 import { CARGA_VAZIA, type EstadoMotorSync, type ModuloId, type Perfil } from '@macuxi/platform-sdk';
@@ -61,11 +62,14 @@ vi.mock('@macuxi/ui/mobile', () => {
   return new Proxy(
     {
       fonts: new Proxy({}, { get: () => 'fonte' }),
-      temaDaEntrada: () => new Proxy({}, { get: () => '#000' }),
+      // Campo no Azul noite (logo negativo), Gestão no Pérola (positivo); as cores não importam aqui
+      temaDaEntrada: (v: string) => new Proxy({}, { get: (_alvo, chave) => (chave === 'logo' ? (v === 'campo' ? 'negativo' : 'positivo') : '#000') }),
       firstName: (n: string) => n.split(' ')[0],
       Icon: () => createElement('i'),
       useReduzirMovimento: () => true,
       Botao: ({ rotulo, testID }: { rotulo: string; testID?: string }) => createElement('button', { 'data-testid': testID }, rotulo),
+      PlacaLogoCliente: ({ testID, fonte, nomeFantasia, borda }: { testID?: string; fonte: string; nomeFantasia?: string | null; borda?: boolean }) =>
+        createElement('img', { 'data-testid': testID, src: fonte, 'aria-label': `Logo da ${nomeFantasia}`, 'data-borda': String(borda) }),
     } as Record<string | symbol, unknown>,
     { get: (simulado, chave) => (chave in simulado ? simulado[chave] : chave === 'then' ? undefined : vazio), has: () => true },
   );
@@ -95,6 +99,7 @@ const sim = vi.hoisted(() => ({
   offline: false,
   sincronizacoes: 0,
   ultimoInicio: null as number | null,
+  empresa: { nome: null, logo: null } as { nome: string | null; logo: { uri: string; proporcao: number } | null },
 }));
 
 /** Mesma regra do shell (`state/plataforma.tsx`): decide pelo estado do motor com `deveSincronizar`. */
@@ -119,6 +124,7 @@ vi.mock('@/state/plataforma', () => ({
     sincronizarSeNecessario,
     setOffline: () => Promise.resolve(),
     logout: () => Promise.resolve(),
+    empresa: sim.empresa,
   }),
 }));
 
@@ -127,7 +133,7 @@ const { TelaCarga } = await import('./tela-carga');
 // ---------- utilitários ----------
 const montar = () => renderToStaticMarkup(createElement(TelaCarga));
 const texto = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-/** Rótulo da barra para o leitor de tela (região viva). */
+/** Rótulo da barra para o leitor de tela (região viva; o mesmo texto da linha à vista). */
 const rotuloLeitor = (html: string) => /data-testid="entrada-etapa" aria-label="([^"]*)"/.exec(html)?.[1] ?? null;
 const redireciona = (html: string) => /data-redirect="\/"/.test(html);
 
@@ -154,6 +160,7 @@ beforeEach(() => {
   sim.offline = false;
   sim.sincronizacoes = 0;
   sim.ultimoInicio = null;
+  sim.empresa = { nome: null, logo: null };
 });
 
 describe('Carga na tela de entrada — navegação pelo estado (R-20261102-091336, T-0172)', () => {
@@ -165,8 +172,9 @@ describe('Carga na tela de entrada — navegação pelo estado (R-20261102-09133
     sim.estado = { ...sim.estado, sincronizando: false, etapa: 'Pronto', progresso: 1, sincronizado_em: '2026-11-02T13:09:00.000Z' };
     const depois = montar();
     expect(redireciona(depois)).toBe(true);
-    // com a lista na tela, "Pronto" vai só ao leitor de tela; na linha da barra fica o percentual (RD-0239)
+    // MC-0088: "Pronto" fica à vista na linha da barra (e é a região viva do leitor)
     expect(rotuloLeitor(depois)).toBe('Pronto');
+    expect(texto(depois)).toContain('Pronto 100%');
     expect(texto(depois)).toContain('100%');
     expect(depois).not.toMatch(/data-testid="entrada-etapa-\d-(atual|pendente)"/);
     expect(depois).not.toContain('entrar-no-app');
@@ -203,14 +211,14 @@ describe('Carga na tela de entrada — navegação pelo estado (R-20261102-09133
 });
 
 describe('Carga na tela de entrada — etapas sem nome técnico (R-20261102-090915, T-0172)', () => {
-  it('em nenhuma entidade do motor aparece entidade ou módulo; aparece "Olá" e o percentual; "Etapa n de N · nome" só ao leitor', () => {
+  it('em nenhuma entidade do motor aparece entidade ou módulo; aparecem "Olá", "Etapa n de N · nome" e o percentual', () => {
     expect(ENTIDADES).toEqual(expect.arrayContaining(['cliente_condicao', 'cliente_tabela_preco', 'historico_compra', 'indicador_diario', 'pedido_evento']));
     for (const entidade of ENTIDADES) {
       sim.estado = { ...ESTADO_INICIAL, sincronizando: true, etapa: entidade, progresso: 0.5, carga: { ...CARGA_VAZIA, entidade, modulo: 'core', total: 10, concluidas: 5 } };
       const html = montar();
       semNomeTecnico(html);
       expect(rotuloLeitor(html)).toMatch(/^Etapa \d de \d · [A-ZÀ-Ú]/);
-      expect(texto(html)).not.toMatch(/Etapa \d de \d/);
+      expect(texto(html)).toMatch(/Etapa \d de \d · [A-ZÀ-Ú]/);
       expect(texto(html)).toContain('Olá, Lucas');
       expect(texto(html)).toContain('50%');
     }
@@ -219,9 +227,9 @@ describe('Carga na tela de entrada — etapas sem nome técnico (R-20261102-0909
   it('Campo: etapa atual pelo módulo em curso; as anteriores feitas e as seguintes a fazer', () => {
     sim.estado = { ...ESTADO_INICIAL, sincronizando: true, progresso: 0.4, carga: { ...CARGA_VAZIA, entidade: 'produto', modulo: 'catalogo', total: 10, concluidas: 4 } };
     const html = montar();
-    // RD-0239: com a lista na tela, a etapa não se repete na linha da barra (fica só para o leitor de tela)
+    // MC-0088 (manual da marca §4): a linha da barra mostra a etapa, como na entrada aprovada
     expect(rotuloLeitor(html)).toBe('Etapa 3 de 5 · Catálogo e preços');
-    expect(texto(html)).not.toContain('Etapa 3 de 5');
+    expect(texto(html)).toContain('Etapa 3 de 5 · Catálogo e preços 40%');
     expect(html).toContain('entrada-etapa-2-feita');
     expect(html).toContain('entrada-etapa-3-atual');
     expect(html).toContain('entrada-etapa-4-pendente');
@@ -288,5 +296,37 @@ describe('Carga na tela de entrada — parou (T-0172)', () => {
     const modo = montar();
     expect(modo).toContain('data-testid="desligar-sem-sinal"');
     expect(modo).toContain('data-testid="tentar-de-novo"');
+  });
+});
+
+describe('Carga na tela de entrada — logo da empresa (T-0182, variação A)', () => {
+  beforeEach(() => {
+    sim.estado = { ...ESTADO_INICIAL, sincronizando: true, progresso: 0.2 };
+  });
+
+  it('sem logo guardada: igual a hoje (só o logo Macuxi, sem filete nem placa)', () => {
+    sim.empresa = { nome: 'Exemplo Norte', logo: null };
+    const html = montar();
+    expect(html).not.toContain('entrada-com-logo-cliente');
+    expect(html).not.toContain('entrada-logo-cliente');
+  });
+
+  it('Campo com logo: a linha Macuxi · filete · placa sem borda (Azul noite), lida como "Logo da <nome fantasia>"', () => {
+    sim.empresa = { nome: 'Exemplo Norte', logo: { uri: 'file:///docs/empresa/t1/logo-abc.png', proporcao: 2.5 } };
+    const html = montar();
+    expect(html).toContain('data-testid="entrada-com-logo-cliente"');
+    expect(html).toMatch(/data-testid="entrada-logo-cliente"[^>]*src="file:\/\/\/docs\/empresa\/t1\/logo-abc.png"/);
+    expect(html).toContain('aria-label="Logo da Exemplo Norte"');
+    expect(html).toContain('data-borda="false"');
+    // o resto da tela não muda
+    expect(texto(html)).toContain('Olá, Lucas');
+    expect(html).toContain('entrada-etapa-1-atual');
+  });
+
+  it('Gestão com logo: a placa ganha a borda (Pérola)', () => {
+    sim.variante = 'gestao';
+    sim.perfil = 'supervisor';
+    sim.empresa = { nome: 'Exemplo Norte', logo: { uri: 'file:///x.png', proporcao: 1 } };
+    expect(montar()).toContain('data-borda="true"');
   });
 });

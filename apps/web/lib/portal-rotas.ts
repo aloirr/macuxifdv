@@ -4,6 +4,10 @@
  * caminho mudar, muda aqui.
  */
 import type { Entidade } from '@macuxi/integracao/contracts';
+import { rotaLogoEmpresa, rotaMarcaEmpresa } from '@macuxi/platform-sdk';
+
+/** Caminho do SDK (`/v1/...`) relativo ao `/v1`, como o portal e o `api()` do BKO chamam. */
+export const semV1 = (caminho: string) => caminho.replace(/^\/v1(?=\/)/, '');
 
 export const ROTAS_PORTAL = {
   // Core: acesso ao portal só com e-mail e senha (T-0093; ADR 0031). `login` é pública; `empresa`, `renovar` e `sair` levam o token.
@@ -24,6 +28,12 @@ export const ROTAS_PORTAL = {
   diagnostico: (id: string) => `/plataforma/diagnosticos/${encodeURIComponent(id)}`,
   /** Bytes do print (JPEG), `private, no-store`; o portal abre como `Blob`. */
   printDoDiagnostico: (id: string) => `/plataforma/diagnosticos/${encodeURIComponent(id)}/print`,
+  /**
+   * T-0182: nome fantasia e resumo da logo (`MarcaEmpresaSchema`; `PUT` com `GravarNomeFantasiaSchema`). Logo: `GET` (bytes),
+   * `PUT` (bytes crus PNG/JPEG) e `DELETE`. Ler: time da Macuxi e admin do cliente (a própria); gravar: só o time da Macuxi.
+   */
+  marcaDaEmpresa: (tenantId: string) => semV1(rotaMarcaEmpresa(encodeURIComponent(tenantId))),
+  logoDaEmpresa: (tenantId: string) => semV1(rotaLogoEmpresa(encodeURIComponent(tenantId))),
   // Integração (com `x-macuxi-tenant`)
   ordemCarga: '/integracao/ordem-carga',
   cargaArquivo: '/integracao/cargas-arquivo',
