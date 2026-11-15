@@ -439,5 +439,7 @@ export const MonitorResumo = z.object({
     presos: z.number().int().nonnegative(),
     retidos: z.number().int().nonnegative(),
   }),
+  /** Os 5 números dos cards de BKO > Pedidos, já calculados pela API (T-0173); o Vendedor só exibe. Aditivo. */
+  resumo_pedidos: ResumoPedidosErp,
 });
 export type MonitorResumo = z.infer<typeof MonitorResumo>;

@@ -5,7 +5,7 @@
  */
 import type { ContextoRota, RotaModulo } from '@macuxi/platform-sdk';
 import { ESTADOS_PEDIDO_ERP, type Entidade, type LoteListagemItem, type MonitorResumo, type PendenciaInativacao } from '../contracts';
-import { ehRetencaoPorCadastro, montarAlertasMonitor, pedidosAguardandoConector, resumirCargaPorEntidade, type EstadoCargaEntidade } from '../domain';
+import { ehRetencaoPorCadastro, montarAlertasMonitor, pedidosAguardandoConector, resumoPedidosErp, resumirCargaPorEntidade, type EstadoCargaEntidade } from '../domain';
 import { COLUNAS_CONECTOR, iso, lerChaves, lerPolitica, montarResumo, type LinhaConector } from './bko-comum';
 import { lerParametrosHub } from './parametros';
 
@@ -156,6 +156,7 @@ export const rotaMonitor: RotaModulo = {
       const contagem = Object.fromEntries(ESTADOS_PEDIDO_ERP.map((e) => [e, 0])) as Record<(typeof ESTADOS_PEDIDO_ERP)[number], number>;
       for (const r of porEstado) if (r.estado in contagem) contagem[r.estado as keyof typeof contagem] = r.n;
 
+      const pedidosResumo = { por_estado: contagem, presos: presos.length, retidos: retidos.length };
       return {
         gerado_em: agoraIso,
         conectores: resumos,
@@ -164,7 +165,8 @@ export const rotaMonitor: RotaModulo = {
         cargas: cargas.map((c) => ({ entidade: c.entidade, estado: c.estado as EstadoCargaEntidade, lotes: c.lotes, com_erro: c.com_erro, aguardando: c.aguardando })),
         pendencias_inativacao: pendencias,
         reconciliacoes: reconc.map((r) => ({ entidade: r.entidade, data_referencia: r.data_referencia, divergente: r.divergente, motivos: r.motivos, contagem_erp: Number(r.contagem_erp), contagem_macuxi: Number(r.contagem_macuxi) })),
-        pedidos: { por_estado: contagem, presos: presos.length, retidos: retidos.length },
+        pedidos: pedidosResumo,
+        resumo_pedidos: resumoPedidosErp(pedidosResumo),
       } as MonitorResumo;
     });
   },
