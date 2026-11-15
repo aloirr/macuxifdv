@@ -200,6 +200,44 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > `core.v_usuario_hierarquia`; código ERP = `core.usuario.external_id` (já único por tenant). Detalhes no
 > [plataforma.md](plataforma.md) e no [core.md](core.md); teste `db/testes/cargo-hierarquia.db.test.ts`; diagnóstico
 > `db/scripts/diagnostico-0069.sql`.
+>
+> **2026-11-14 (ADR 0047, planos e licenças; portal config. enxuto, R-20261114-170600 e R-20261114-181000):**
+> `0070_plataforma_plano_assinatura` (em cima da 0069; aditiva): `plataforma.plano` (catálogo da plataforma, sem `tenant_id`, só
+> por função) e `plataforma.assinatura` (uma viva por tenant, RLS por tenant, o app só lê), e a
+> `plataforma.sa_gravar_assinatura(p_sid uuid, p_tenant uuid, p jsonb)` (só super-admin; o portal passa a 17 `sa_*`).
+> `0071_plataforma_listar_tenants_plano`: a `sa_listar_tenants` ganha `plano`, `teste_ate` e `paga` em cada empresa. Detalhes no
+> [plataforma.md](plataforma.md); teste `db/testes/plano-assinatura.db.test.ts`.
+>
+> **2026-11-15 (ADR 0052, inativar, backup e excluir a empresa no portal):**
+> `0072_plataforma_empresa_acoes` (em cima da 0071): `plataforma.tenant` ganha `inativada_em` e `motivo_inativacao` (inativa =
+> `suspenso`); `backup_empresa`, `backup_empresa_parte`, `exclusao_empresa` e `empresa_excluida` (sem `tenant_id`, sobrevivem à
+> exclusão, só por função); 8 `sa_*` do portal (25 no total) e as funções do worker (backup por keyset, exclusão em 2 etapas,
+> retenção); código da licença nunca reaproveitado (gatilho e sorteio); despachante e e-mail pulam a empresa inativa (políticas
+> do worker). Detalhes no [plataforma.md](plataforma.md); teste `db/testes/empresa-acoes.db.test.ts`.
+>
+> **2026-11-15 (ADR 0054, pacote pronto da primeira carga):** `0074_plataforma_sync_pacote` (em cima da 0073; aditiva):
+> `plataforma.sync_pacote` (um `.sqlite.gz` por tenant, módulo e partição; um só pronto vivo por partição; chave do arquivo com o
+> tenant da linha) e `plataforma.sync_pacote_pedido` (pedido de geração idempotente por partição), fora do sync; app lê e pede,
+> worker gera; índice `catalogo.tabela_preco_item_filial_sync_ix (tenant_id, filial_id, updated_at, id)`. Detalhes no
+> [sync-pacote.md](sync-pacote.md); teste `db/testes/sync-pacote.db.test.ts`.
+>
+> **2026-11-15 (decisão do dono do produto, R-20261115-073000-alexandre, item 3):** `0075_catalogo_referencia_marca_opcional`:
+> `catalogo.produto_referencia.marca_id` aceita nulo (referência só com o código) e o único vivo passa a ser
+> `produto_referencia_produto_codigo_uk (tenant_id, produto_id, codigo_compacto)`; as vivas que repetiam o código no produto ficam
+> só na de menor ordem. Detalhes no [catalogo.md](catalogo.md); teste `db/testes/referencia-marca-opcional.db.test.ts`.
+>
+> **2026-11-15 (T-0176, R-20261115-093000 e R-20261115-094500):** `0077_core_usuario_filial` (0070–0073 no main; 0074–0076 de outros lotes):
+> `core.usuario.filial_cadastro_id` (nula = bloqueado) e `core.usuario_filial` (filiais de venda); a de cadastro está entre as
+> de venda (gatilho adiado `usuario_filial_inclui_cadastro`, 23514, hint RN-CORE-39). Backfill: na empresa com uma filial viva,
+> todo usuário vivo recebe a filial (cadastro e venda); os demais ficam bloqueados. A `provisionar_tenant` (CLI, seeds e portal)
+> cria o admin inicial com a filial padrão (cadastro e venda). Detalhes no [core.md](core.md); teste `db/testes/usuario-filial.db.test.ts`.
+>
+> **2026-11-15 (T-0174, RN-CAT-14, ADR 0054; R-20261115-074500):** `0079_catalogo_foto_lote` (número 0079, correção da sessão principal em 15/11):
+> `plataforma.arquivo` aceita PNG, WEBP (imagens até 8 MiB) e ZIP (até 500 MiB); `plataforma.trabalho` com
+> `trabalho_reservar`/`trabalho_devolver`/`trabalho_renovar` (só ao worker); `catalogo.foto_lote` (idempotência pelo SHA-256 do
+> ZIP) e `catalogo.foto_lote_item` (checkpoint por índice); `catalogo.produto_midia.hash_conteudo` (repetido) e a principal
+> sempre na ordem 1 (dados antigos sem andar o `updated_at`); `core.produto_sku_lower_ix`. Detalhes no [catalogo.md](catalogo.md)
+> e no [plataforma.md](plataforma.md); teste `db/testes/foto-lote.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

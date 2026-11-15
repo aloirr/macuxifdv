@@ -18,6 +18,7 @@ import { caminhoCatalogo, type ItemVitrine, type RespostaBusca } from '../../con
 import { montarArvore, type Arvore, type VinculoProdutoNo } from '../../domain/arvore';
 import { idsAtivos } from '../../domain/hierarquia';
 import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, avisoDaBusca, iconeDoAviso } from '../../domain/ia';
+import { textoPareceCodigo } from '../../domain/codigo-busca';
 import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, SEM_FILTRO, subtituloDaGrade, type FiltroDaGrade } from '../lib/grade';
 import { vazioDaBusca } from '../lib/vazio-busca';
 import { arvoreLocal, buscarLocal, nomeDoClienteLocal, produtosDaNavegacao, produtosLocais, vitrineLocal } from '../lib/local';
@@ -125,7 +126,7 @@ export default function TelaCatalogo() {
       setLista((l) => ({ ...l, carregando: true }));
       let r: Omit<EstadoLista, 'carregando'>;
       if (!consulta) r = await local(null);
-      else if (!ambiente.online() || filtroLigado(filtro)) r = await local(ambiente.online() ? null : AVISO_BUSCA_OFFLINE);
+      else if (!ambiente.online() || filtroLigado(filtro) || textoPareceCodigo(consulta)) r = await local(ambiente.online() ? null : AVISO_BUSCA_OFFLINE);
       else {
         try {
           const api = await ambiente.http.get<RespostaBusca>(caminhoCatalogo('busca'), { q: consulta, customer_id: clienteId, limit: limite });

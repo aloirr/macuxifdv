@@ -39,7 +39,7 @@ import { dadosFaseM, TENANT_FASE_M } from '../seeds/fase-m/fase-m';
 import { dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS, PEPPER_HUB_FIXTURE } from '../seeds/fixtures/dois-tenants';
 import { carregarFixtureDosTestes, dadosTreinamento, ORDEM_TREINAMENTO } from './fixture-treinamento';
 import { COLUNAS_SEM_ESPELHO_DRIZZLE, TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
-import { FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_0042, FUNCOES_SA_0058 } from './funcoes-sa';
+import { DADOS_LEGAIS_PUBLICOS, FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_0042, FUNCOES_SA_0058, FUNCOES_SA_0070, FUNCOES_SA_0072, FUNCOES_SA_0073, FUNCOES_WORKER_0072 } from './funcoes-sa';
 import { idDeChave, idDeterministico, idFixo, idMedida, idUsuarioPerfil } from '../src/ids';
 import { lerMigracoes } from '../src/migrador';
 import { PASTA_DB } from '../src/config';
@@ -114,6 +114,20 @@ const TABELAS_0058 = ['plataforma.diagnostico'] as const;
 const TABELAS_0064_0066 = [
   'core.tarefa', 'core.tarefa_destinatario', 'core.frase_dia', 'core.usuario_avatar', 'core.meta_produtividade', 'core.deslocamento_dia',
 ] as const;
+/** Tabelas novas da 0070 (ADR 0047: catálogo de planos, só por função, e a assinatura do tenant; fora do sync; plano-assinatura.db.test.ts). */
+const TABELAS_0070 = ['plataforma.plano', 'plataforma.assinatura'] as const;
+/** Tabelas novas da 0072 (ADR 0052: backup, exclusão e empresa excluída; sem tenant_id, só por função; empresa-acoes.db.test.ts). */
+const TABELAS_0072 = ['plataforma.backup_empresa', 'plataforma.backup_empresa_parte', 'plataforma.exclusao_empresa', 'plataforma.empresa_excluida'] as const;
+/** Tabela nova da 0073 (rodapé legal: dados legais da Macuxi; sem tenant_id, só por função; dados-legais.db.test.ts). */
+const TABELAS_0073 = ['plataforma.dados_legais'] as const;
+/** Tabelas novas da 0074 (ADR 0054: pacote da primeira carga e pedido de geração; fora do sync; sync-pacote.db.test.ts). */
+const TABELAS_0074 = ['plataforma.sync_pacote', 'plataforma.sync_pacote_pedido'] as const;
+/** Tabela nova da 0077 (T-0176, RN-CORE-39: filiais de venda do usuário; usuario-filial.db.test.ts). */
+const TABELAS_0077 = ['core.usuario_filial'] as const;
+/** Tabelas novas da 0079 (T-0174, ADR 0054: fotos em lote por ZIP e trabalho sob demanda; fora do sync; foto-lote.db.test.ts). */
+const TABELAS_0079 = ['plataforma.trabalho', 'catalogo.foto_lote', 'catalogo.foto_lote_item'] as const;
+/** Tabela nova da 0080 (T-0175, RN-CORE-59: contador do Código FDV por tenant; fora do sync; usuario-codigo-fdv.db.test.ts). */
+const TABELAS_0080 = ['core.usuario_codigo_fdv_contador'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -194,6 +208,10 @@ describe('migrações (estático)', () => {
     expect(nomes[66]).toBe('0067_core_cliente_visita_resumo'); // Oficial (14/11): view core.v_cliente_visita_resumo (security_invoker, só select ao app) e 2 índices em core.visita (cliente-visita-resumo.db.test.ts)
     expect(nomes[67]).toBe('0068_plataforma_tenant_numero_licenca'); // R-20261114-130500/131200/131500: código da licença UF + 4 dígitos aleatórios (CHECK aceita os legados ou ^UF[0-9]{4}$), provisionar_tenant sem codigo sorteia pela uf e é idempotente pelo id do chamador, atribuir_codigo_licenca (tenant-numero-licenca.db.test.ts)
     expect(nomes[68]).toBe('0069_core_cargo_hierarquia'); // decisão do dono (14/11): plataforma.perfil.cargo (5 da plataforma, com promotor), gerente obrigatório do promotor (gatilhos adiados), um perfil vivo por usuário (exclusão adiada) e view core.v_usuario_hierarquia (cargo-hierarquia.db.test.ts)
+    expect(nomes[73]).toBe('0074_plataforma_sync_pacote'); // ADR 0054 (pacote da primeira carga): plataforma.sync_pacote e sync_pacote_pedido (app lê e pede, worker gera), fora do sync, e índice por filial em catalogo.tabela_preco_item (sync-pacote.db.test.ts)
+    expect(nomes[74]).toBe('0075_catalogo_referencia_marca_opcional'); // R-20261115-073000 (item 3, RN-CAT-09): catalogo.produto_referencia.marca_id nula e único vivo por (tenant, produto, codigo_compacto); repetidas no produto ficam na menor ordem (referencia-marca-opcional.db.test.ts)
+    expect(nomes[76]).toBe('0077_core_usuario_filial'); // T-0176 (RN-CORE-39, R-20261115-094500): core.usuario.filial_cadastro_id e core.usuario_filial (filiais de venda), cadastro entre as de venda (gatilho adiado usuario_filial_inclui_cadastro), backfill da empresa com uma filial (usuario-filial.db.test.ts)
+    expect(nomes[78]).toBe('0079_catalogo_foto_lote'); // T-0174 (RN-CAT-14, ADR 0054): plataforma.trabalho e as 3 funções do worker, catalogo.foto_lote e foto_lote_item, produto_midia.hash_conteudo e ordem da principal = 1, arquivo com PNG/WEBP/ZIP (foto-lote.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
@@ -248,6 +266,13 @@ describe('migrações (estático)', () => {
         ...TABELAS_0057,
         ...TABELAS_0058,
         ...TABELAS_0064_0066,
+        ...TABELAS_0070,
+        ...TABELAS_0072,
+        ...TABELAS_0073,
+        ...TABELAS_0074,
+        ...TABELAS_0077,
+        ...TABELAS_0079,
+        ...TABELAS_0080,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,
@@ -323,6 +348,21 @@ describe('0003 macuxi_worker (estático, ADR 0007)', () => {
       'select (id, tenant_id, protocolo, usuario_id, perfil, origem, app, versao_app, build, aparelho_fabricante, aparelho_modelo, android, android_api, tela, motivo, print_id, ocorrido_em, recebido_em, alerta_situacao, alerta_tentativas, alerta_proxima_em, alerta_recado_id, alerta_em) on plataforma.diagnostico',
       'update (alerta_situacao, alerta_tentativas, alerta_proxima_em, alerta_recado_id, alerta_em) on plataforma.diagnostico',
       'execute on function plataforma.expurgar_diagnosticos(timestamptz, integer)',
+      // 0072 (ADR 0052): política do despachante e do e-mail (tenant ativo) e o job de backup e de exclusão da empresa
+      ...FUNCOES_WORKER_0072.map((f) => `execute on function ${f}`),
+      // 0074 (ADR 0054): gerador de pacotes da primeira carga
+      'select on plataforma.sync_pacote',
+      'insert (id, tenant_id, modulo, particao, filial_id, formato, horizonte, geracao_base, chave_armazenamento, bytes, md5, entidades) on plataforma.sync_pacote',
+      'update (situacao, substituido_em, arquivo_apagado_em, deleted_at) on plataforma.sync_pacote',
+      'delete on plataforma.sync_pacote',
+      'select on plataforma.sync_pacote_pedido',
+      'insert (id, tenant_id, modulo, particao, filial_id, origem, gerar_apos) on plataforma.sync_pacote_pedido',
+      'update (situacao, gerar_apos, tentativas, ultimo_erro, atendido_em, deleted_at) on plataforma.sync_pacote_pedido',
+      'delete on plataforma.sync_pacote_pedido',
+      // 0079 (T-0174, ADR 0054): o laço de trabalhos sob demanda (só as funções; nenhuma tabela)
+      'execute on function plataforma.trabalho_reservar(text, integer)',
+      'execute on function plataforma.trabalho_devolver(uuid, text, text, text, integer)',
+      'execute on function plataforma.trabalho_renovar(uuid, text, integer)',
     ]);
   });
 
@@ -786,8 +826,15 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     // 0052 (T-0122 N5): tenant_por_codigo recriada (drop + create, o retorno fica só id e status; tenant-por-codigo-minimo.test.ts)
     // 0058 (T-0158, ADR 0043): as 2 sa_* do diagnóstico (portal) e o expurgo de 90 dias (worker) (diagnostico.test.ts)
     // 0069 (ADR 0049): a função de gatilho do promotor, conferida no COMMIT do portal (cargo-hierarquia.db.test.ts)
+    // 0070 (ADR 0047): a sa_* que grava a assinatura da empresa (plano-assinatura.db.test.ts); a 0071 reescreve a
+    // sa_listar_tenants com create or replace
+    // 0072 (ADR 0052): as 8 sa_* das ações da empresa e as 11 do worker (empresa-acoes.db.test.ts)
+    // 0073 (rodapé legal): a leitura pública (app) e as 2 sa_* dos dados legais (portal) (dados-legais.db.test.ts)
+    // 0077 (T-0176): a função de gatilho da filial de cadastro, pelo mesmo motivo (usuario-filial.db.test.ts)
+    // 0079 (T-0174, ADR 0054): as 3 funções do laço de trabalhos, só ao worker (foto-lote.db.test.ts)
+    // 0080 (T-0175, RN-CORE-59): a função dos gatilhos do Código FDV, que grava o contador (usuario-codigo-fdv.db.test.ts)
     expect(novas.map((x) => x[1]).sort()).toEqual(
-      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir'].sort(),
+      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', ...FUNCOES_SA_0070.map(nome), ...FUNCOES_SA_0072.map(nome), ...FUNCOES_WORKER_0072.map(nome), nome(DADOS_LEGAIS_PUBLICOS), ...FUNCOES_SA_0073.map(nome), 'core.filial_cadastro_conferir', 'plataforma.trabalho_reservar', 'plataforma.trabalho_devolver', 'plataforma.trabalho_renovar', 'core.usuario_codigo_fdv'].sort(),
     );
     for (const x of novas) expect(x[2], `${x[1]}: pg_temp por último`).toMatch(/, pg_temp$/);
     expect(depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)]).length).toBe(novas.length);
@@ -1008,6 +1055,11 @@ describe('fixture dois-tenants (estático)', () => {
         // plataforma.usuario_perfil (0069): o vínculo principal com o id do gatilho usuario_perfil_principal (a carga e o gatilho gravam a MESMA linha)
         if (t === 'plataforma.usuario_perfil') {
           expect(l.id).toBe(idUsuarioPerfil(String(l.tenant_id), String(l.usuario_id), String(l.perfil_id)));
+          continue;
+        }
+        // core.usuario_codigo_fdv_contador (0080): id determinístico do gatilho usuario_codigo_fdv_emitir (a carga e o gatilho gravam a MESMA linha)
+        if (t === 'core.usuario_codigo_fdv_contador') {
+          expect(l.id).toBe(idDeChave(`${String(l.tenant_id)}:core.usuario_codigo_fdv_contador`));
           continue;
         }
         expect(String(l.id).slice(0, 8)).toBe(dono === A ? 'aaaaaaaa' : 'bbbbbbbb');

@@ -213,8 +213,8 @@ jobs:
         if: ${{ always() }}
         run: rm -f "$RUNNER_TEMP/keystore.jks" "$RUNNER_TEMP/google-services.json"
 
-      # Só o SHA-256 do certificado (público) vai ao log e ao resumo. Certificado de debug ou SHA-256 diferente do
-      # esperado (variável ANDROID_CERT_SHA256_<VARIANTE>, se existir) = vermelho.
+      # Só o DN e o SHA-256 (públicos) vão ao log, e o SHA-256 vai ao resumo. A conferência (formatos do apksigner e
+      # motivos de vermelho) é do scripts/ci/android-build.mjs certificado.
       - name: conferir assinatura
         id: apk
         env:
@@ -225,19 +225,19 @@ jobs:
           APK="$RUNNER_TEMP/$NOME_BUILD.apk"
           mv "$ORIGEM" "$APK"
           FERRAMENTAS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
-          CERTS="$("$FERRAMENTAS/apksigner" verify --print-certs "$APK")"
-          if printf '%s\n' "$CERTS" | grep -q 'CN=Android Debug'; then
-            echo '::error title=assinatura::o APK saiu com o certificado de debug'; exit 1
+          echo "apksigner do build-tools $(basename "$FERRAMENTAS")"
+          if ! CERTS="$("$FERRAMENTAS/apksigner" verify --print-certs "$APK")"; then
+            printf '%s\n' "$CERTS"; echo '::error title=assinatura::apksigner verify falhou (saída acima)'; exit 1
           fi
-          SHA="$(printf '%s\n' "$CERTS" | sed -nE 's/^Signer #1 certificate SHA-256 digest: ([0-9a-f]+)$/\1/p' | head -n 1)"
-          [ -n "$SHA" ] || { echo '::error title=assinatura::apksigner não mostrou o SHA-256 do certificado'; exit 1; }
-          NORMAL_ESPERADO="$(printf '%s' "$ESPERADO" | tr -d ': ' | tr '[:upper:]' '[:lower:]')"
-          if [ -n "$NORMAL_ESPERADO" ] && [ "$NORMAL_ESPERADO" != "$SHA" ]; then
-            echo "::error title=assinatura::SHA-256 $SHA diferente do esperado na variável ANDROID_CERT_SHA256 da variante"; exit 1
-          fi
-          CONFERIDO="$([ -n "$NORMAL_ESPERADO" ] && echo 'igual ao esperado' || echo 'sem valor esperado: confira com o do expo.dev')"
-          echo "SHA-256 do certificado: $SHA ($CONFERIDO)"
+          printf '%s\n' "$CERTS" | node scripts/ci/android-build.mjs certificado
           echo "caminho=$APK" >> "$GITHUB_OUTPUT"
+
+      - name: resumo do APK
+        env:
+          APK: ${{ steps.apk.outputs.caminho }}
+          SHA: ${{ steps.apk.outputs.sha }}
+          CONFERIDO: ${{ steps.apk.outputs.conferido }}
+        run: |
           {
             echo "### $NOME_BUILD.apk"
             echo
