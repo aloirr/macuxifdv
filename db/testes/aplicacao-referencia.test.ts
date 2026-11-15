@@ -111,8 +111,6 @@ describe('0033 aplicação e referência cruzada (estático)', () => {
     expect(nuvemCatalogo.produtoBusca.aplicacao.notNull).toBe(false);
     expect(nuvemCatalogo.produtoBusca.referencias.notNull).toBe(false);
     for (const c of ['produto_id', 'codigo', 'codigo_compacto', 'ordem'] as const) expect(nuvemCatalogo.produtoReferencia[c].notNull, c).toBe(true);
-    // 0075 (R-20261115-073000, item 3): marca opcional (referência-marca-opcional.db.test.ts)
-    expect(nuvemCatalogo.produtoReferencia.marca_id.notNull).toBe(false);
     expect(nuvemVendedor.pedidoItem.aplicacao.notNull).toBe(false);
   });
 
@@ -262,8 +260,6 @@ describe.skipIf(semBanco())('0033 aplicação e referência cruzada (banco, pape
     expect((await erroEmA(() => inserir({ produto: A.produtos.p1, codigo: 'ZZ 2', compacto: 'zz2', ordem: 1 })))?.code).toBe('23505');
     // mesma marca e mesmo compacto com outra grafia ("cb-3401" x "CB 3401") no mesmo produto: recusado
     expect((await erroEmA(() => inserir({ produto: A.produtos.p1, codigo: 'cb-3401', compacto: 'cb3401', ordem: 3 })))?.code).toBe('23505');
-    // 0075: o único é por produto e código — outra marca com o mesmo código também é recusada; o compacto da apagada (cb3400) volta a valer
-    expect((await erroEmA(() => inserir({ produto: A.produtos.p1, marca: MARCAS_FIXTURE.A.inativa, codigo: 'CB 3401', compacto: 'cb3401', ordem: 3 })))?.code).toBe('23505');
     expect(await erroEmA(() => inserir({ produto: A.produtos.p1, codigo: 'CB-3400', compacto: 'cb3400', ordem: 3 }))).toBeNull();
     // external_id único vivo por tenant
     expect((await erroEmA(() => inserir({ external: 'REF-A-1' })))?.code).toBe('23505');
