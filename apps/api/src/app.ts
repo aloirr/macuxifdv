@@ -108,6 +108,7 @@ import { registrarAuditoria } from './auditoria';
 import { registrarDiagnosticos } from './diagnosticos';
 import { registrarRotasDiagnosticosPortal, type FonteDiagnosticosPortal } from './diagnosticos-portal';
 import { registrarRotasDadosLegais, type FonteDadosLegais } from './dados-legais';
+import { registrarRotasFrasesCarga, type FonteFrasesCarga } from './frases-carga';
 import { consultaCnpjPadrao, registrarRotaConsultaCnpj, type ConsultaCnpj } from './consulta-cnpj';
 import { registrarRotasPlanosPortal, type FontePlanosPortal } from './planos-portal';
 import { registrarSync } from './sync';
@@ -208,6 +209,8 @@ export interface OpcoesApp {
   fontePlanos?: FontePlanosPortal;
   /** Rodapé legal (docs/design/telas/rodape-legal.md §3.4): fonte das funções dos dados legais (padrão: `fonteDadosLegaisNoBanco`). Testes injetam a sua. */
   fonteDadosLegais?: FonteDadosLegais;
+  /** T-0181: fonte das funções das frases da carga (0081; padrão: `fonteFrasesCargaNoBanco`). Testes injetam a sua. */
+  fonteFrasesCarga?: FonteFrasesCarga;
 }
 
 /** Cache da sonda de dependências do `/v1/saude` (a rota é pública: não vira amplificador de consultas no banco). */
@@ -621,6 +624,15 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     autenticar: autenticarDoPortal,
     validar,
     relogio,
+  });
+
+  // T-0181: frases da tela de carga; o app lê as ativas no macuxi_app (sem licença de módulo), o portal só super-admin.
+  // Sem flag: antes da 0081 respondem 503 e o app segue com a lista que tem (ou as 30 do bundle).
+  registrarRotasFrasesCarga(app, plataforma, {
+    acessoPortal,
+    ...(op.fonteFrasesCarga ? { fonte: op.fonteFrasesCarga } : {}),
+    autenticar: autenticarDoPortal,
+    validar,
   });
 
   // ADR 0048: consulta de CNPJ na base pública da Receita (passo Empresa do portal), super-admin ou admin do cliente
