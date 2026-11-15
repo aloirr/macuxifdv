@@ -12,7 +12,7 @@ import { avisoDaCopia, avisoDoLote, mesAnterior, CABECALHO_METAS, celulasDaLinha
 import { useHojeDoTenant } from '../../lib/queries';
 import { InicioParametrosPanel } from './inicio-parametros-panel';
 
-const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
+const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal text-ink';
 const BOTAO_LINHA = 'h-[44px] min-w-[88px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled';
 
 type Indicador = LinhaMetaBko['indicador'];

@@ -81,7 +81,7 @@ export function FiliaisPage() {
   });
 
   const itens = lista.data ?? [];
-  const campo = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal';
+  const campo = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal';
   return (
     <div className="flex w-full max-w-[1040px] flex-col gap-5" data-testid="filiais.tela">
       <PageHeader
@@ -125,7 +125,7 @@ export function FiliaisPage() {
                       {f.external_id ? <span className="block text-[12px] text-ink-2">do ERP</span> : null}
                     </td>
                     <td className={td}>{f.cidade ? `${f.cidade}/${f.uf ?? ''}` : '—'}</td>
-                    <td className={`${td} font-mono`}>{f.cnpj ? formatarDocumento(f.cnpj) : '—'}</td>
+                    <td className={`${td} tabular-nums`}>{f.cnpj ? formatarDocumento(f.cnpj) : '—'}</td>
                     <td className={tdNum}>{f.clientes_ativos}</td>
                     <td className={td}>
                       <div className="flex flex-wrap gap-1">

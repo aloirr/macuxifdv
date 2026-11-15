@@ -10,7 +10,7 @@ import { useHojeDoTenant } from '../../lib/queries';
 import { CHAVE_CALENDARIO, criarApiCalendario, type ApiCalendario, type ParametrosCalendario } from './api';
 import { FERIADO_NOME_MAX, feriadosDoAno, incluirFeriado, lerAlmoco, type ErroFeriado, type ErrosAlmoco, type LinhaFeriado } from './calendario';
 
-const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
+const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal text-ink';
 
 /** Campo do 422 da API → campo da tela. */
 const CAMPO_DA_API: Readonly<Record<string, keyof ErrosAlmoco>> = { almoco_corte: 'corte', almoco_janela: 'janela' };

@@ -25,7 +25,7 @@ import {
   type TextosMetas,
 } from './formato';
 
-const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
+const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal text-ink';
 const ESCOPOS = [
   ['tenant', 'Empresa'],
   ['equipe', 'Equipe'],
@@ -128,7 +128,7 @@ export function MetasProdutividadePanel({ cliente, hoje }: { cliente?: ApiMetasP
             <legend className="mb-1 font-semibold text-ink">Valem para</legend>
             <div className="flex flex-wrap items-center gap-4">
               {ESCOPOS.filter(([e]) => (e === 'equipe' ? equipes.data : e === 'usuario' ? consultores.data : true)).map(([e, rotulo]) => (
-                <label key={e} className="flex min-h-[44px] items-center gap-2 text-[14px]">
+                <label key={e} className="flex min-h-[44px] items-center gap-2 text-[15px]">
                   <input type="radio" name="metas-prod.escopo" checked={alvo.escopo === e} onChange={() => trocarAlvo({ escopo: e, equipe_id: null, usuario_id: null })} className="h-5 w-5" data-testid={`metas-prod.escopo.${e}`} />
                   {rotulo}
                 </label>

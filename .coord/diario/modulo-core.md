@@ -173,3 +173,7 @@
 2026-11-15 — PR #250 — RD-0414/0415: prints do Acesso só em docs/modulos/core/telas/acesso; hora no fuso pelo formatTime/formatDateTime do kit; gaveta Novo/Editar usuário com rodapé -bottom-4 -mb-4 (nada rola por baixo do Cancelar/Salvar) e os 11 prints refeitos
 2026-11-15 — v1.0.9 (PR próprio, sem apps/web) — código da empresa UF+4 (CODIGO_EMPRESA_TAMANHO/REGEX, MENSAGEM_CODIGO_EMPRESA, validarCodigoEmpresaNovo e validarLoginNovo no app; validarLogin do BKO inalterado), senha sem espaço nas pontas (RD-0431, PE-02), servidor aceita código antigo e novo, D-01 (usuarioPorEmail travar no esqueci); RD-0430 do core
 2026-11-15 — expo-limpeza — push só pelo FCM HTTP v1 no servidor (ADR 0053): envio FCM trazido do branch push-fcm-v2, caminho Expo/exp.host removido (token Expo ignorado, sem limpeza), limparToken no consumidor, testes puros
+2026-11-15 — fonte do sistema v1.0.13 — fonts.x → ...fonte.x no app do core, escala 12/14/16/18/22/28, web sem texto < 12px, títulos de teste sem Archivo/Plex
+2026-11-15 — fonte-sistema r3 — web na escala 12/13/15/17/20, selo CD em bold, login e esqueci-senha com CampoTexto do kit (MC-0058/0059, RD-0946/0951)
+2026-11-15 — fonte do sistema v1.0.13 — CNPJ (filiais) e coordenadas (lat/lng) saem do mono para tabular-nums; mono fica só em código/sigla/SKU/senha
+2026-11-15 — fonte do sistema v1.0.13 — rodada 5 — RD-0956 removido font-display (3 arquivos web); RD-0957 Início do Campo já em 22/700 = type.saudacao

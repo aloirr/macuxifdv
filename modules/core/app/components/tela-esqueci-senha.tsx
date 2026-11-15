@@ -5,8 +5,8 @@
  * esqueci.erro, esqueci.confirmacao, esqueci.voltar.
  */
 import { estilosDeAcesso } from './estilos-de-acesso';
-import { Banner, Button, colors, fonts, radius, Screen, toneColors, type as t, Icon } from '@macuxi/ui/mobile';
-import { useRef, useState, type ComponentProps, type RefObject } from 'react';
+import { Banner, Button, CampoTexto, fonte, radius, Screen, toneColors, type as t, Icon } from '@macuxi/ui/mobile';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { erroDoEsqueci, TEXTO_ESQUECI_CONFIRMACAO, TEXTO_ESQUECI_INSTRUCAO, TEXTO_ESQUECI_NAO_CHEGOU, TEXTO_SEM_INTERNET_ESQUECI, validarEsqueci, type CamposEsqueci, type ErrosEsqueci } from '../lib/senha';
@@ -83,23 +83,23 @@ export function TelaEsqueciSenha({ inicial, semInternet = false, onPedir, onVolt
         </Banner>
       ) : null}
 
-      <Campo
+      <CampoTexto
         rotulo="Código da empresa"
         valor={campos.codigo_empresa}
         erro={erros.codigo_empresa}
         testID="esqueci.codigo-empresa"
-        onChangeText={(v) => setCampos((c) => ({ ...c, codigo_empresa: v }))}
+        aoMudar={(v) => setCampos((c) => ({ ...c, codigo_empresa: v }))}
         {...propsDoCampoCodigoEmpresa}
         autoFocus={!campos.codigo_empresa}
         returnKeyType="next"
         onSubmitEditing={() => email.current?.focus()}
       />
-      <Campo
+      <CampoTexto
         rotulo="E-mail"
         valor={campos.email}
         erro={erros.email}
         testID="esqueci.email"
-        onChangeText={(v) => setCampos((c) => ({ ...c, email: v }))}
+        aoMudar={(v) => setCampos((c) => ({ ...c, email: v }))}
         autoCapitalize="none"
         autoFocus={!!campos.codigo_empresa && !campos.email}
         keyboardType="email-address"
@@ -117,32 +117,8 @@ export function TelaEsqueciSenha({ inicial, semInternet = false, onPedir, onVolt
   );
 }
 
-function Campo({
-  rotulo,
-  valor,
-  erro,
-  inputRef,
-  ...resto
-}: { rotulo: string; valor: string; erro?: string | undefined; inputRef?: RefObject<TextInput | null> } & Omit<ComponentProps<typeof TextInput>, 'value' | 'style'>) {
-  return (
-    <View style={{ gap: 4 }}>
-      <Text style={styles.rotulo}>{rotulo}</Text>
-      <TextInput
-        ref={inputRef}
-        value={valor}
-        accessibilityLabel={rotulo}
-        autoCorrect={false}
-        style={[styles.entrada, erro ? { borderColor: colors.danger } : null]}
-        placeholderTextColor={colors.ink3}
-        {...resto}
-      />
-      {erro ? <Text style={[t.small, { color: colors.danger }]}>{erro}</Text> : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   ...estilosDeAcesso,
   aviso: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: radius.md },
-  avisoTexto: { flex: 1, fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
+  avisoTexto: { flex: 1, ...fonte.body, fontSize: 14, lineHeight: 20 },
 });

@@ -74,7 +74,7 @@ function IndicadoresConteudo() {
       <FilterBar>
         <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
           Mês
-          <input type="month" value={periodo} onChange={(e) => e.target.value && set({ periodo: e.target.value })} data-testid="indicadores.filtro-periodo" className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px]" />
+          <input type="month" value={periodo} onChange={(e) => e.target.value && set({ periodo: e.target.value })} data-testid="indicadores.filtro-periodo" className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px]" />
         </label>
         <SelectField label="Vendedor ou promotor" value={usuario} onChange={(e) => set({ usuario: e.target.value })} data-testid="indicadores.filtro-usuario">
           <option value="">Toda a equipe</option>
@@ -139,7 +139,7 @@ function IndicadoresConteudo() {
             </SelectField>
             <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
               Meta de venda (R$)
-              <input inputMode="decimal" value={editar.valor} onChange={(e) => setEditar({ ...editar, valor: e.target.value })} placeholder="25.000,00" data-testid="indicadores.meta-valor" className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px]" />
+              <input inputMode="decimal" value={editar.valor} onChange={(e) => setEditar({ ...editar, valor: e.target.value })} placeholder="25.000,00" data-testid="indicadores.meta-valor" className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px]" />
             </label>
             <Button onClick={() => salvar.mutate()} disabled={salvar.isPending} data-testid="indicadores.meta-salvar">
               Salvar meta

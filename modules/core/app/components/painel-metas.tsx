@@ -2,7 +2,7 @@
  * Painel "Indicadores do mês" (RF-CORE-08; RN-CORE-20..22): visitados, cobertura, positivação, meta × realizado e
  * necessidade diária, lidos do aparelho (funciona sem rede). Mesmos números do BKO: a conta é a do domínio.
  */
-import { Cartao, colors, EstadoVazio, fonts, ProgressBar, type as t } from '@macuxi/ui/mobile';
+import { Cartao, colors, EstadoVazio, fonte, ProgressBar, type as t } from '@macuxi/ui/mobile';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { textoDaLinha, textoNecessidadeDiaria } from '../lib/metas-formato';
@@ -54,6 +54,6 @@ export function PainelMetas() {
 const styles = StyleSheet.create({
   linha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, padding: 14 },
   meta: { gap: 6, paddingHorizontal: 14, paddingVertical: 10 },
-  nome: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink, flex: 1 },
-  valor: { fontFamily: fonts.display, fontSize: 18, color: colors.ink },
+  nome: { ...fonte.semibold, fontSize: 16, color: colors.ink, flex: 1 },
+  valor: { ...fonte.bold, fontSize: 18, color: colors.ink },
 });

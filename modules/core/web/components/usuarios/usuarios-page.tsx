@@ -37,7 +37,7 @@ import { modulosExibiveis, removidosDoFormulario } from '../../lib/acesso';
 import { efetivosDoUsuario } from '../../lib/licencas';
 import { useMe } from '../../lib/queries';
 
-const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
+const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal text-ink';
 const BOTAO_LINHA = 'h-[44px] min-w-[88px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled';
 
 type Modal = { tipo: 'form'; usuario: UsuarioItem | null } | { tipo: 'ativo'; usuario: UsuarioItem } | { tipo: 'senha'; usuario: UsuarioItem } | null;
@@ -532,7 +532,7 @@ export function UsuariosConteudo() {
                 const noPerfil = doPerfil.includes(m.id);
                 const marcado = efetivosDoForm.includes(m.id);
                 return (
-                  <label key={m.id} className={`flex min-h-[48px] items-center gap-3 rounded-xl border border-line bg-surface px-3 text-[14px] font-semibold ${noPerfil ? 'text-ink' : 'text-disabled'}`}>
+                  <label key={m.id} className={`flex min-h-[48px] items-center gap-3 rounded-xl border border-line bg-surface px-3 text-[15px] font-semibold ${noPerfil ? 'text-ink' : 'text-disabled'}`}>
                     <input
                       type="checkbox"
                       className="h-5 w-5 accent-accent"
