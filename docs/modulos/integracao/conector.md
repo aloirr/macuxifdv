@@ -435,8 +435,8 @@ O Hub ganhou, aditivas na v1, as entidades `forma_pagamento`, `prazo_pagamento` 
 - **Versão:** pedido de filial **não padrão** só é entregue ao Conector **1.4.0** ou mais novo (o 1.3.x gravaria na filial padrão do ERP sem avisar). Espera na fila até o Conector ser atualizado (atualização automática ou manual).
 
 ## Regras de carga (15/11/2026)
-Texto completo em `hub-api.md` §21. O que muda no Conector:
-- **Ordem única** (RN-INT-04): o Conector envia as entidades na `ORDEM_CARGA_ENTIDADES` (`filial` primeiro, `nota` por último), a mesma do portal e do kit.
+Texto completo na [§21 do `hub-api.md`](hub-api.md#21-regras-de-carga-15112026). O que muda no Conector:
+- **Ordem única** (RN-INT-04): o Conector envia as entidades na `ORDEM_CARGA_ENTIDADES`: filial primeiro; ordem completa na [§21](hub-api.md#21-regras-de-carga-15112026).
 - **Filial inexistente:** a linha do vendedor, do cliente, do preço ou do estoque que cita uma filial ainda não carregada fica `referencia_ausente` e é reprocessada no Monitor; não é erro da view.
 - **Usuário nunca é excluído, só desativado:** vendedor que sai da view fica inativo no Hub (única exceção: exclusão da empresa inteira, RN-PLA-09/10).
 - **Estoque:** `vw_macuxi_estoque` leva uma linha por depósito, com a filial dele; a soma das filiais de venda é feita no app.
