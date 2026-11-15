@@ -43,11 +43,40 @@ async function avisarDesligadoNoBko(ctx: ContextoConsumo, externalId: string, ve
   }
 }
 
-    if (criado) {
-      await completarNotasDoVendedor(ctx, criado.id, r.external_id);
-      await aplicarFilialDoErp(ctx, criado.id, r.external_id, filialDaCarga(r));
-    }
-    if (AVISO_PROVISORIO_ATIVO && criado && ehUsuarioProvisorio(emailFinal)) await avisarProvisorioCriado(ctx, r.external_id);
+/** RN-CORE-58: o nome do vendedor do ERP não pôde ser vinculado sozinho; o admin decide (só o código do ERP e a contagem, sem nome nem e-mail). */
+async function avisarVinculoPorNomeRecusado(ctx: ContextoConsumo, externalId: string, motivo: 'homonimo' | 'outro_codigo' | 'inativo', candidatos: number): Promise<void> {
+  ctx.log.warn({ external_id: externalId, motivo, candidatos }, 'vínculo automático por nome não feito');
+  const texto = { homonimo: `há ${candidatos} usuários com o mesmo nome`, outro_codigo: 'o usuário com este nome já tem outro código do ERP', inativo: 'o usuário com este nome está desativado' }[motivo];
+  const admins = await ctx.db.query<{ id: string }>("select id from core.usuario where perfil = 'admin' and ativo and deleted_at is null");
+  for (const a of admins.rows) {
+    await notificarSistema(ctx, a.id, {
+      titulo: 'Vendedor do ERP sem vínculo automático',
+      corpo: `O vendedor ${externalId} não foi vinculado pelo nome: ${texto}. Em Usuários, use Vincular vendedor do ERP.`,
+      link: null,
+      prioridade: 'normal',
+    }, `vendedor-nome|${externalId}|${motivo}`);
+  }
+}
+
+/** Aviso de provisório ao admin: texto sob simulação do designer-ux (R-20261115-075000); desligado até o dono aprovar. */
+export const AVISO_PROVISORIO_ATIVO = false;
+
+/** RN-CORE-58: a carga criou um usuário provisório; o admin vincula ao usuário real. Só o código do ERP vai no aviso (sem nome nem e-mail). */
+async function avisarProvisorioCriado(ctx: ContextoConsumo, externalId: string): Promise<void> {
+  ctx.log.warn({ external_id: externalId }, 'vendedor do ERP entrou como usuário provisório (sem e-mail)');
+  const admins = await ctx.db.query<{ id: string }>("select id from core.usuario where perfil = 'admin' and ativo and deleted_at is null");
+  for (const a of admins.rows) {
+    await notificarSistema(ctx, a.id, {
+      titulo: 'Vendedor do ERP sem usuário',
+      corpo: `A carga criou o vendedor ${externalId} como usuário provisório. Em Usuários, filtre por Provisórios e use Vincular vendedor do ERP.`,
+      link: null,
+      prioridade: 'normal',
+    }, `vendedor-provisorio|${externalId}`);
+  }
+}
+
+/** T-0176 / RN-CORE-39: `filial_external_id` é opcional no payload do Hub (lido de forma tolerante); ausente = não altera. */
+const filialDaCarga = (r: object): string | null | undefined => (r as { filial_external_id?: string | null }).filial_external_id;
 
 export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
   evento: EventoIntegracaoVendedorAtualizado,

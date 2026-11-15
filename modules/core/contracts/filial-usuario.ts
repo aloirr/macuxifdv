@@ -6,7 +6,11 @@
  * - Só admin e analista informam ou trocam a filial dos usuários (`PERFIS_QUE_EDITAM_FILIAL`). Admin/analista sem filial se destrava
  *   pela rota mínima `PUT /v1/core/eu/filial-cadastro`, a única (com o `GET` irmão) liberada para bloqueado.
  */
+import { CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL } from '@macuxi/platform-sdk';
 import { z } from 'zod';
+
+/** RD-0881/0882: código e texto vêm só do SDK (mesmos nomes de antes para o Core). */
+export { MENSAGEM_USUARIO_SEM_FILIAL };
 
 /** Textos provisórios; a simulação aprovada do designer-ux os substitui. */
 export const MENSAGEM_FILIAL_CADASTRO_OBRIGATORIA = 'Escolha a filial de cadastro.';
@@ -14,7 +18,6 @@ export const MENSAGEM_FILIAL_VENDA_VAZIA = 'Escolha ao menos uma filial de venda
 export const MENSAGEM_FILIAL_VENDA_SEM_CADASTRO = 'A filial de cadastro precisa estar entre as filiais de venda.';
 export const MENSAGEM_FILIAL_INVALIDA = 'Escolha uma filial da lista.';
 export const MENSAGEM_SEM_PERMISSAO_FILIAL = 'Só o administrador ou o analista definem a filial do usuário.';
-export const MENSAGEM_USUARIO_SEM_FILIAL = 'Seu usuário está sem filial. Peça ao administrador para informar a filial.';
 export const MENSAGEM_FILIAL_JA_INFORMADA = 'Sua filial de cadastro já está definida. Peça a troca ao administrador.';
 
 export const CODIGOS_FILIAL_USUARIO = {
@@ -29,7 +32,7 @@ export const CODIGOS_FILIAL_USUARIO = {
   /** 403 — quem não é admin nem analista tentou informar filial. */
   semPermissao: 'USUARIO_FILIAL_SEM_PERMISSAO',
   /** 403 — usuário sem filial de cadastro (qualquer perfil) em rota de dados. */
-  semFilial: 'USUARIO_SEM_FILIAL',
+  semFilial: CODIGO_USUARIO_SEM_FILIAL,
   /** 409 — `PUT eu/filial-cadastro` só serve a quem está bloqueado. */
   jaInformada: 'USUARIO_FILIAL_JA_INFORMADA',
   /** Carga do ERP: filial_external_id sem filial no tenant (erro registrado, sem dado pessoal). */
