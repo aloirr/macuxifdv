@@ -12,8 +12,7 @@
  *  H-1  (T-0084 c2, RN-CAT-11): aplicação de 2.500 caracteres vinda do ERP chega ao Catálogo com 2.000 e o aviso
  *       `aplicacao_cortada` no resultado do lote (Conector) e no monitor do BKO; > 20.000 = linha inválida.
  *  H-2  (T-0085 c1/K11): referências, oferece junto e etiquetas atravessam o Hub até o Catálogo; 4 referências = 3 + aviso
- *       `referencias_cortadas`; marca desconhecida não leva a marca (descartada até a marca opcional, R-20261115-073000; depois
- *       entra só com o código e marca_id nulo): as duas formas passam.
+ *       `referencias_cortadas`; marca desconhecida entra só com o código (marca_id e marca_nome nulos).
  *  H-3  (doc 06): `aplicacao` ausente não altera; `null` limpa.
  *  B-1  (T-0084 c3, RN-CAT-12) online: "pastilha uno 2012" acha com "Serve em" (inclui 2012); "2015" não; "filtro gol 2014".
  *  B-2  (T-0084 c8) multi-tenant: a aplicação de A não aparece para B (busca e ficha) e vice-versa.
@@ -229,12 +228,10 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
       expect(resultado.contagens.com_erro).toBe(1);
     });
 
-    it('H-2 (T-0085 K11, RN-CAT-09): referências, oferece junto e etiquetas atravessam o Hub; marca desconhecida não vira marca (descartada ou só com o código); 4 referências = 3 + aviso', async () => {
-      // marca desconhecida (RN-CAT-09): antes da marca opcional a referência era descartada; com ela (R-20261115-073000) entra só
-      // com o código. Nos dois casos a marca desconhecida nunca vira marca_id nem marca_nome.
+    it('H-2 (T-0085 K11, RN-CAT-09): referências, oferece junto e etiquetas atravessam o Hub; marca desconhecida entra só com o código; 4 referências = 3 + aviso', async () => {
       const refs1 = await referenciasNoBanco(id1);
       expect(refs1.filter((r) => r.marca_id !== null)).toEqual([{ marca_id: concorrenteA, codigo: 'XY 1001', ordem: 1, marca_nome: 'Freios Rivais' }]);
-      expect(refs1.filter((r) => r.marca_id === null).map((r) => [r.codigo, r.marca_nome])).toEqual(refs1.length === 1 ? [] : [['ZZ 0001', null]]);
+      expect(refs1.filter((r) => r.marca_id === null).map((r) => [r.codigo, r.marca_nome])).toEqual([['ZZ 0001', null]]);
       expect((await aplicacaoNoBanco(id1))?.etiquetas).toEqual(['Dianteira', 'Novo']);
       const rel = await q<{ produto_id: string; relacionado_id: string }>("select produto_id, relacionado_id from catalogo.produto_relacao where produto_id = any($1::uuid[]) and tipo = 'complementar' and deleted_at is null order by produto_id, ordem", [[id1, id2]]);
       expect(rel.filter((x) => x.produto_id === id1).map((x) => x.relacionado_id)).toEqual([alfa1]);
@@ -247,7 +244,7 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
       expect(f.catalogo).toMatchObject({ oferece_junto: [{ produto_id: alfa1, erp_code: 'ALFA-001' }], etiquetas: ['Dianteira', 'Novo'] });
       const refsFicha = f.catalogo?.referencias ?? [];
       expect(refsFicha.filter((r) => r.marca_id !== null)).toEqual([{ marca_id: concorrenteA, marca_nome: 'Freios Rivais', codigo: 'XY 1001' }]);
-      expect(refsFicha.filter((r) => r.marca_id === null)).toEqual(refs1.length === 1 ? [] : [{ marca_id: null, marca_nome: null, codigo: 'ZZ 0001' }]);
+      expect(refsFicha.filter((r) => r.marca_id === null)).toEqual([{ marca_id: null, marca_nome: null, codigo: 'ZZ 0001' }]);
     });
 
     it('H-3 (doc 06): aplicacao ausente não altera; null limpa', async () => {
