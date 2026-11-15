@@ -27,6 +27,7 @@ export * from './motor-sync';
 export * from './geracao-base';
 export * from './shell';
 export * from './api';
+export * from './parametros';
 export * from './sem-filial';
 export * from './cookie-sessao';
 export * from './conector';
