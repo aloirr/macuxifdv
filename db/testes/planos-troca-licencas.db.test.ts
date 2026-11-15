@@ -185,6 +185,15 @@ describe('0084 planos, troca e licenças (estático)', () => {
     expect(forUpdate).toBeGreaterThan(fila);
     expect(repetido).toBeGreaterThan(forUpdate);
     expect(catalogo).toBeGreaterThan(repetido);
+    // RN-PLA-05: o uso igual ao contratado cabe (só o uso maior recusa)
+    expect(t).toContain('where c.contratadas is not null and u.em_uso > c.contratadas;');
+    expect(t).not.toMatch(/u\.em_uso >= c\.contratadas/);
+    // a recusa (raise, que desfaz a transação) vem antes de gravar o histórico: o pedido recusado não fica como existente
+    const abaixo = t.indexOf("hint = 'PLANO_ABAIXO_DO_USO'");
+    expect(abaixo).toBeGreaterThan(catalogo);
+    expect(t.indexOf('insert into plataforma.assinatura_historico')).toBeGreaterThan(abaixo);
+    // o pedido_id é chave por tenant: o mesmo uuid em outra empresa é outro pedido
+    expect(up).toContain('create unique index assinatura_historico_pedido_uk on plataforma.assinatura_historico (tenant_id, pedido_id);');
     // nunca desliga módulo: só insere ou religa
     expect(t).not.toMatch(/set ativo = false|desativado_em = now\(\)/);
     expect(t).toContain('on conflict (tenant_id, modulo) where deleted_at is null do nothing;');
@@ -511,6 +520,53 @@ describe.skipIf(semBanco())('0084 planos, troca e licenças (banco, fixture dois
       });
       // a ficha mostra o plano novo
       expect(FichaCrua.parse(await ficha(sid, A))).toMatchObject({ plano: { codigo: livre.codigo }, ciclo: 'mensal', adicionais: [] });
+    });
+  });
+
+  it('sa_trocar_plano: uso igual ao contratado cabe; o reenvio do pedido recusado troca (não fica existente); o mesmo pedido_id em outra empresa é outro pedido', async () => {
+    await emTransacao(admin, null, async () => {
+      const sid = await sessaoSuperAdmin();
+      const n = (await linhasDaTrava(A)).find((l) => l.item === 'vendedor')!.em_uso;
+      expect(n).toBeGreaterThanOrEqual(2);
+      await planoDeTeste('teste_justo_84', { vendedor: n });
+      await planoDeTeste('teste_curto_84', { vendedor: n - 1 });
+      await planoDeTeste('teste_livre_b_84');
+      const justo = await planoDoCatalogo(sid, 'teste_justo_84');
+      const curto = await planoDoCatalogo(sid, 'teste_curto_84');
+      const livre = await planoDoCatalogo(sid, 'teste_livre_b_84');
+      const pedido = '00840000-0000-4000-8000-0000000000c1';
+      const entrada = (p: Plano) => ({ plano: p.codigo, ciclo: 'mensal', adicionais: [], pedido_id: pedido, modulos: modulosDaAssinatura(p, []) });
+      const assinatura = (tenant: string) =>
+        q('select plano_id, ciclo, adicionais, updated_at from plataforma.assinatura where tenant_id = $1 and deleted_at is null', [tenant]);
+      const doPedido = async (tenant: string) =>
+        (await q<{ plano_id: string }>('select plano_id from plataforma.assinatura_historico where tenant_id = $1 and pedido_id = $2', [tenant, pedido])).map((h) => h.plano_id);
+
+      // 3. recusa abaixo do uso (n - 1 < n): nada gravado; o reenvio do mesmo pedido_id não fica "travado" como existente
+      const antesA = await assinatura(A);
+      expect(await falha(trocar(sid, A, entrada(curto)))).toEqual({ code: '22023', hint: 'PLANO_ABAIXO_DO_USO' });
+      expect(await doPedido(A)).toEqual([]);
+      expect(await assinatura(A)).toEqual(antesA);
+      // 1. no limite exato (n em uso, n contratadas) a troca é aceita, com o mesmo pedido_id da recusa
+      expect(await trocar(sid, A, entrada(justo))).toEqual({ resultado: 'trocada', modulos_ligados: [] });
+      expect(await doPedido(A)).toEqual([justo.id]);
+      expect((await linhasDaTrava(A)).find((l) => l.item === 'vendedor')).toMatchObject({ contratadas: n, em_uso: n });
+      // agora sim o pedido existe: repetir não muda nada
+      const depoisA = await assinatura(A);
+      expect(await trocar(sid, A, entrada(justo))).toEqual({ resultado: 'existente', modulos_ligados: [] });
+      expect(await assinatura(A)).toEqual(depoisA);
+
+      // 2. pedido_id é chave por empresa (PUT /empresas/:tenant_id/assinatura): o mesmo uuid em B é outro pedido, troca B e não toca A
+      expect(await doPedido(B)).toEqual([]);
+      expect(await trocar(sid, B, entrada(livre))).toEqual({ resultado: 'trocada', modulos_ligados: expect.any(Array) });
+      expect(await doPedido(B)).toEqual([livre.id]);
+      expect((await assinatura(B))[0]).toMatchObject({ plano_id: livre.id, ciclo: 'mensal', adicionais: [] });
+      expect(await assinatura(A)).toEqual(depoisA);
+      expect(await doPedido(A)).toEqual([justo.id]);
+      // e cada empresa vê só o próprio pedido (RLS)
+      expect((await como<{ plano_id: string }>('macuxi_app', 'select plano_id from plataforma.assinatura_historico where pedido_id = $1', [pedido], A)).rows).toEqual([{ plano_id: justo.id }]);
+      expect((await como<{ plano_id: string }>('macuxi_app', 'select plano_id from plataforma.assinatura_historico where pedido_id = $1', [pedido], B)).rows).toEqual([{ plano_id: livre.id }]);
+      // o reenvio em B também é existente
+      expect(await trocar(sid, B, entrada(livre))).toEqual({ resultado: 'existente', modulos_ligados: [] });
     });
   });
 
