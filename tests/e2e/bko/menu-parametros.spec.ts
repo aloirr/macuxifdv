@@ -40,6 +40,12 @@ const DADOS: Readonly<Record<string, unknown>> = {
   '/core/perfis': { itens: [] },
   '/core/usuarios': { itens: [] },
   '/core/parametros/promotor-ve-pedidos': { ligado: true },
+  '/core/parametros/inicio': { dias_uteis_semana: [1, 2, 3, 4, 5], parado_min: 60 },
+  '/core/parametros/checkout-pendencia': { checkout_pendencia_alerta_h: 24 },
+  '/core/parametros/calendario': { feriados: [], almoco_corte: 720, almoco_janela: [660, 900] },
+  '/core/produtos': { padrao_desconto_pct: 10, itens: [] },
+  '/core/motivos': { itens: [] },
+  '/core/fotos-tipos': { itens: [] },
   '/vendedor/alcadas': {
     seller_pct: 5,
     supervisor_pct: 10,
@@ -334,5 +340,47 @@ test.describe('ADR 0058 — menu do BKO (API simulada)', () => {
     await page.getByTestId('menu-bko').getByTestId('nav-plataforma-parametros').click();
     await expect(page.getByTestId('pagina-parametros')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId('parametros-secao-clientes')).toHaveCount(0);
+  });
+
+  test('transição sem duplicar: Perfis, Módulos, Motivos e Fotos do PDV aparecem uma vez, como painel do core', async ({
+    page,
+  }) => {
+    await entrarSimulado(page);
+    for (const [secao, paineis] of [
+      ['acesso', ['core-perfis', 'core-usuarios-e-modulos']],
+      ['visitas', ['core-motivos', 'core-fotos-pdv']],
+    ] as const) {
+      await page.goto(`/parametros/${secao}`);
+      for (const p of paineis) {
+        await expect(page.getByTestId(`parametros-${p}`), p).toHaveCount(1, { timeout: 30_000 });
+        await expect(page.locator(`[id="${p}"]`), `âncora ${p}`).toHaveCount(1);
+      }
+    }
+    await page.goto('/parametros/acesso');
+    await expect(
+      page
+        .getByTestId('parametros-core-usuarios-e-modulos')
+        .getByRole('heading', { name: 'Módulos', exact: true }),
+    ).toHaveCount(1);
+  });
+
+  test('Salvar só com alteração e com o nome do que salva (farol, curvas, dias úteis, desconto, etapa pendente, almoço)', async ({
+    page,
+  }) => {
+    await entrarSimulado(page);
+    for (const [secao, botao, rotulo] of [
+      ['clientes', 'farol-params.salvar', 'Salvar farol'],
+      ['clientes', 'curvas-abc-params.salvar', 'Salvar curvas'],
+      ['inicio', 'inicio-params.salvar', 'Salvar dias úteis'],
+      ['produtos', 'produtos.parametro-salvar', 'Salvar desconto'],
+      ['visitas', 'checkout-pendencia.salvar', 'Salvar prazo'],
+      ['calendario', 'calendario.almoco.salvar', /^Salvar \S+/],
+    ] as const) {
+      await page.goto(`/parametros/${secao}`);
+      const b = page.getByTestId(botao);
+      await expect(b, botao).toBeVisible({ timeout: 30_000 });
+      await expect.soft(b, `${botao} sem alteração`).toBeDisabled();
+      await expect.soft(b, botao).toHaveText(rotulo);
+    }
   });
 });
