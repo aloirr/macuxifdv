@@ -9,7 +9,7 @@ import { definirIndiceBusca, type LinhaSync } from '@macuxi/platform-sdk';
 import type { ProdutoSync } from '@macuxi/core/contracts';
 import type { ProdutoAtributoSync, ProdutoConteudoSync, ProdutoReferenciaSync } from '../contracts';
 import { expandirAplicacao, FAIXA_MAXIMA_ANOS } from '../domain/aplicacao';
-import { codigoCompacto } from '../domain/ranking';
+import { codigosCompactosDoProduto, marcasDasReferencias, textoDescricaoParaBusca } from '../domain/ranking';
 import { COLUNAS_BUSCA_CATALOGO, TABELAS_BUSCA_CATALOGO } from '../db/aparelho';
 import { ID_INDICE_BUSCA } from './lib/local';
 
@@ -56,10 +56,10 @@ const JANELA = FAIXA_MAXIMA_ANOS + 1;
 const PRIMEIRO_ANO = 1899;
 
 /**
- * Formato do documento (T-0096: `v4` = faixa aberta até o teto). Sem o ano: a virada do ano não reindexa nada; a troca
- * de `v3:<ano>` para `v4` reindexa uma vez no app atualizado (os documentos `v3` param no ano atual + 1).
+ * Formato do documento (`v5` = marca das referências na coluna `marca` e descrição longa em `atributos`, RN-CAT-08/09; `v4` = faixa
+ * aberta até o teto, T-0096). Sem o ano: a virada do ano não reindexa nada; a troca de versão reindexa uma vez no app atualizado.
  */
-export const versaoDocumentosCatalogo = () => 'v4';
+export const versaoDocumentosCatalogo = () => 'v5';
 
 export const INDICE_BUSCA_CATALOGO = definirIndiceBusca<Coluna>({
   id: ID_INDICE_BUSCA,
@@ -79,17 +79,18 @@ export const INDICE_BUSCA_CATALOGO = definirIndiceBusca<Coluna>({
     const attrs = (await ler.porCampo<ProdutoAtributoSync & LinhaSync>('produto_atributo', 'produto_id', id)).filter((a) => !a.deleted_at);
     const [conteudo] = (await ler.porCampo<ProdutoConteudoSync & LinhaSync>('produto_conteudo', 'produto_id', id)).filter((c) => !c.deleted_at);
     const refs = (await ler.porCampo<ProdutoReferenciaSync & LinhaSync>('produto_referencia', 'produto_id', id)).filter((x) => !x.deleted_at).sort((a, b) => a.ordem - b.ordem);
-    const codigos = [...new Set([codigoCompacto(p.sku), codigoCompacto(p.external_id), ...refs.map((x) => codigoCompacto(x.codigo))].filter(Boolean))].join(' ');
+    const codigos = codigosCompactosDoProduto(p.sku, p.external_id, refs.map((x) => x.codigo)).join(' ');
     return {
       sku: p.sku,
       ean: p.ean,
       codigos,
       nome: p.nome,
-      marca: p.marca,
+      marca: `${p.marca} ${marcasDasReferencias(refs)}`.trim(),
       categoria: p.categoria,
       atributos: attrs
         .map((a) => `${a.nome} ${a.valor}`)
         .sort()
+        .concat(textoDescricaoParaBusca(conteudo?.descricao) || [])
         .join(' '),
       aplicacao: textoIndiceAplicacao(conteudo?.aplicacao),
       referencias: refs.map((x) => x.codigo).join(' '),
