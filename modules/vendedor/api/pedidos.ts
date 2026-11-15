@@ -175,6 +175,7 @@ export const rotaListarPedidos: RotaModulo = {
     return ctx.comTenant(async (db) => {
       const fuso = ctx.fuso(); // fuso do tenant vem do SDK (sem ler plataforma.*)
       const busca = q.q?.trim() ? `%${escaparLike(q.q.trim())}%` : null;
+      const valores = [e.vendedores, e.clientes, status.length > 0 ? status : null, q.seller_id ?? null, q.customer_id ?? null, q.from ?? null, q.to ?? null, busca, limite + 1, fuso, cursor?.createdAt ?? null, cursor?.id ?? null, tipo === 'todos' ? null : tipo, tipo === 'orcamento' ? (q.situacao ?? null) : null, q.por_status === '1', q.branch_id ?? null, q.sem_pendentes === '1'];
       const filtro = `where p.deleted_at is null
             and ($1::uuid[] is null or p.vendedor_id = any($1::uuid[]))
             and ($2::uuid[] is null or p.cliente_id = any($2::uuid[]))
@@ -199,7 +200,7 @@ export const rotaListarPedidos: RotaModulo = {
             and ($11::timestamptz is null or (p.created_at, p.id) < ($11::timestamptz, $12::uuid))
           order by p.created_at desc, p.id desc
           limit $9`,
-        [e.vendedores, e.clientes, status.length > 0 ? status : null, q.seller_id ?? null, q.customer_id ?? null, q.from ?? null, q.to ?? null, busca, limite + 1, fuso, cursor?.createdAt ?? null, cursor?.id ?? null, tipo === 'todos' ? null : tipo, tipo === 'orcamento' ? (q.situacao ?? null) : null, q.por_status === '1', q.branch_id ?? null, q.sem_pendentes === '1'],
+        valores,
       );
       // §P6 (regra 3): quantidade e soma do filtro inteiro, só na primeira página e só a pedido (`totais=1`); mesmo filtro e mesmo escopo da lista.
       let total_filtro: { quantidade: number; soma_cents: number } | undefined;
@@ -211,7 +212,7 @@ export const rotaListarPedidos: RotaModulo = {
                from vendedor.pedido p
                ${filtro}
                 and ($9::int is not null and ($11::timestamptz is null or $12::uuid is not null))`,
-            [e.vendedores, e.clientes, status.length > 0 ? status : null, q.seller_id ?? null, q.customer_id ?? null, q.from ?? null, q.to ?? null, busca, limite + 1, fuso, null, null, tipo === 'todos' ? null : tipo, tipo === 'orcamento' ? (q.situacao ?? null) : null, q.por_status === '1', q.branch_id ?? null, q.sem_pendentes === '1', [...STATUS_FORA_DO_TOTAL]],
+            [...valores, [...STATUS_FORA_DO_TOTAL]],
           )
         ).rows[0];
         total_filtro = { quantidade: Number(t?.quantidade ?? 0), soma_cents: Math.round(Number(t?.soma_cents ?? 0)) };
