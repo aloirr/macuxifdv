@@ -357,9 +357,10 @@ coluna `canal` (até 60; NULL/branco = limpa). Testes: `db/testes/mapeamento-can
 Criado na T-0089 (fatia B2), com as entidades do Hub e, desde a T-0162, as 2 views do retorno do pedido (citado em docs/produto/06-integracao-erp.md e em
 docs/modulos/integracao/conector.md §3). É um **modelo**: as tabelas de origem (`erp_*`) são fictícias e o técnico do cliente
 troca pelas do ERP dele. Formato:
-- **Uma view `vw_macuxi_<entidade>` por entidade**, na ordem de carga do Conector (`ORDEM_CARGA` em
-  `apps/conector/src/config/entidades.ts`): vendedor, catalogo_no, transportadora, forma_pagamento, prazo_pagamento, produto,
-  produto_unidade, cliente, cliente_endereco, preco, tabela_escalonada, estoque, rota, titulo, nota.
+- **Uma view `vw_macuxi_<entidade>` por entidade**, na ordem de carga do Hub (RN-INT-04; `ORDEM_CARGA_ENTIDADES` em
+  `modules/integracao/contracts/entidades.ts`, a mesma lista do Conector e do portal): filial, vendedor, catalogo_no,
+  forma_pagamento, prazo_pagamento, produto, produto_unidade, preco, tabela_escalonada, estoque, cliente, cliente_endereco,
+  transportadora, rota, titulo, nota.
 - **Coluna = nome do campo do contrato** (`SCHEMA_REGISTRO`), todas as obrigatórias e as opcionais; objeto aninhado vira
   `<objeto>_<campo>` (`endereco_cidade` → `"endereco.cidade"` no `conector.json`); lista vira uma coluna JSON com o nome do
   campo. A consulta do Conector fica `SELECT * FROM vw_macuxi_<entidade> WHERE ... ORDER BY alterado_em, external_id`.
