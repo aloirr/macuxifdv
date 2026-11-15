@@ -1038,6 +1038,7 @@ do worker. Um vivo por `(tenant_id, modulo, nome, alvo_id)` (`trabalho_alvo_uk`)
 | concluido_em | timestamptz | só e sempre no `concluido` e no `falhou` |
 
 Índice `trabalho_fila_ix (situacao, proxima_em)`. **macuxi_app**: select e insert no próprio tenant (RLS), sem UPDATE/DELETE.
+**macuxi_leitura** (0078): select e a política `leitura`.
 **macuxi_worker**: nenhum privilégio de tabela; só EXECUTE nas funções (SECURITY DEFINER, `search_path = pg_catalog, plataforma,
 pg_temp`, só tenants `ativo` e vivos):
 
