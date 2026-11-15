@@ -30,11 +30,17 @@
  * `puxar`, regra do promotor). Cursor ausente/ilegível, módulos efetivos (ou parâmetros) mudados ou carteira/equipe
  * mudada = todas as elegíveis; senão, cada provedor responde com `limite: 1` se tem linha visível com
  * `(updated_at, id) > (horizonte do cursor, NIL)` abaixo do horizonte atual. Sem mudança, o aparelho faz só esta requisição.
+ *
+ * T-0176 (RN-CORE-39; ADR 0056): usuário sem filial de cadastro. Novidades e pull só das entidades do Core `liberadoSemFilial`
+ * (a linha do próprio `usuario`, com `sem_filial`), com carteira vazia e equipe = só ele; as demais entidades e o push: 403
+ * `USUARIO_SEM_FILIAL`. O marcador `sem_filial` entra no escopo do cursor: ao destravar, as novidades devolvem todas as elegíveis.
  */
 import { createHash } from 'node:crypto';
 import {
   ACAO_VER_PEDIDO,
   codificarCursor,
+  CODIGO_USUARIO_SEM_FILIAL,
+  MENSAGEM_USUARIO_SEM_FILIAL,
   codificarCursorNovidades,
   compararCursor,
   criarRegistroSync,
@@ -116,7 +122,9 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
     if (!q.success) throw new ErroHttp(400, 'VALIDACAO', 'Informe a entidade do pull.');
     const prov = provedores.get(q.data.entidade);
     const dono = registro.dono(q.data.entidade) ?? null;
-    const { ctx } = await p.preparar(req, dono);
+    // T-0176 (RN-CORE-39; ADR 0056): sem filial de cadastro, só as entidades do Core liberadas (a linha do próprio usuário)
+    const { ctx, restritoSemFilial } = await p.preparar(req, dono, { semFilial: 'aceita' });
+    if (restritoSemFilial && !prov?.liberadoSemFilial) throw new ErroHttp(403, CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL);
     if (!dono)
       throw new ErroHttp(404, 'ENTIDADE_DESCONHECIDA', `Entidade ${q.data.entidade} não é sincronizada.`);
     if (!ctx.usuario.modulos.includes(dono)) {
@@ -171,7 +179,8 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
   app.get('/v1/sync/novidades', async (req): Promise<NovidadesResposta> => {
     const q = NovidadesQuerySchema.safeParse(req.query);
     if (!q.success) throw new ErroHttp(400, 'VALIDACAO', 'Cursor de novidades inválido.');
-    const { ctx, licencas, doModulo } = await p.preparar(req, null);
+    // T-0176 (ADR 0056): o usuário sem filial vê só as entidades liberadas; ao destravar, o cursor muda e o aparelho puxa tudo
+    const { ctx, licencas, doModulo, restritoSemFilial } = await p.preparar(req, null, { semFilial: 'aceita' });
     if (!p.banco) semBanco();
     const u = ctx.usuario;
     const verPedido = p.permissoes.pode(ACAO_VER_PEDIDO, { perfil: u.perfil, modulosAtivos: u.modulos });
@@ -179,11 +188,13 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
     const elegiveis = [...provedores.values()]
       .filter((prov) => prov.puxar && u.modulos.includes(prov.entidade.modulo))
       .filter((prov) => !(u.perfil === 'promotor' && ehEntidadeDePedido(prov.entidade.nome) && !verPedido))
+      .filter((prov) => !restritoSemFilial || prov.liberadoSemFilial === true)
       .sort((a, b) => a.entidade.nome.localeCompare(b.entidade.nome));
     const ate = (await p.banco.horizonteSync()).toISOString();
     const modulos = respostaMeusModulos(p.manifestos, u.modulos, licencas.parametros, p.relogio());
     // T-0121 N3: as variações de escopo das elegíveis (no contexto do módulo dono) entram no cursor: mudou = todas
     const variacoes: string[] = [];
+    if (restritoSemFilial) variacoes.push('sem_filial');
     for (const prov of elegiveis)
       if (prov.variacaoEscopo) variacoes.push(`${prov.entidade.nome}=${await prov.variacaoEscopo(doModulo(prov.entidade.modulo))}`);
     const escopo =
@@ -221,7 +232,8 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
   });
 
   app.post('/v1/sync/push', async (req): Promise<{ resultados: ResultadoItemPush[] }> => {
-    // sessão ANTES do schema: sem login, o lote nem é validado (GHSA-mrhx-c7xc-m3w5; o teto de elementos é do createApp)
+    // sessão ANTES do schema: sem login, o lote nem é validado (GHSA-mrhx-c7xc-m3w5; o teto de elementos é do createApp).
+    // Sem filial de cadastro (RN-CORE-39): 403 no lote inteiro; nada é gravado e a fila do aparelho fica pendente
     const { ctx, doModulo } = await p.preparar(req, null);
     const corpo = PushRequestSchema.safeParse(req.body);
     if (!corpo.success)
