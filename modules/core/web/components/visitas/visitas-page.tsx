@@ -4,13 +4,13 @@ import { Suspense, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, EstadoVazio, FilterBar, intervaloSyncAutoMs, LoadingBlock, MenuAcoes, PageHeader, rotuloComContagem, SelectField, SeloSituacao, SYNC_AUTO_PADRAO_MIN, TabelaDados, TextField, type ColunaDaTabela } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, ErrorBlock, EstadoVazio, FilterBar, formatDateTime, intervaloSyncAutoMs, LoadingBlock, MenuAcoes, PageHeader, rotuloComContagem, SelectField, SeloSituacao, SYNC_AUTO_PADRAO_MIN, TabelaDados, TextField, type ColunaDaTabela } from '@macuxi/ui/web';
 import type { VisitaBko } from '../../../contracts';
 import { filtrarPorEtapas, filtroEtapasDaUrl, rotuloAcessivelSelo, rotuloSeloEtapas, VisitasComEtapasListaSchema, type VisitaComEtapas } from '../../lib/etapas-visita';
 import { EtapasDialog } from './etapas-dialog';
 import { useHojeDoTenant, useSellersDeCampo } from '../../lib/queries';
 import { LimparFiltros, QuadroDaLista } from '../../lib/lista-bko';
-import { csvDeVisitas, permanenciaMin, quando, rotuloResultado, sinais } from '../../lib/visitas';
+import { csvDeVisitas, permanenciaMin, rotuloResultado, sinais } from '../../lib/visitas';
 
 const FUSO_PADRAO = 'America/Manaus';
 const somar = (iso: string, n: number) => new Date(Date.parse(`${iso}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
@@ -82,7 +82,7 @@ function VisitasConteudo() {
 
   const colunas: ReadonlyArray<ColunaDaTabela<VisitaComEtapas>> = [
     { id: 'cliente', titulo: 'Cliente', largura: '26%', texto: (v) => v.cliente_nome, celula: (v) => v.cliente_nome },
-    { id: 'checkin', titulo: 'Check-in', largura: '120px', celula: (v) => quando(v.checkin_em, FUSO_PADRAO), texto: (v) => quando(v.checkin_em, FUSO_PADRAO) },
+    { id: 'checkin', titulo: 'Check-in', largura: '120px', celula: (v) => formatDateTime(v.checkin_em, FUSO_PADRAO), texto: (v) => formatDateTime(v.checkin_em, FUSO_PADRAO) },
     { id: 'vendedor', titulo: 'Vendedor', prioridade: 2, largura: '17%', texto: (v) => v.usuario_nome, celula: (v) => v.usuario_nome },
     {
       id: 'tempo',
@@ -179,7 +179,7 @@ function VisitasConteudo() {
           <option value="true">Com etapa pendente</option>
           <option value="false">Sem pendência</option>
         </SelectField>
-        <LimparFiltros ligado={filtroLigado} onLimpar={() => set({ de: null, ate: null, usuario: null, fora: null, pendente: null })} />
+        <LimparFiltros ligado={filtroLigado} onLimpar={() => set({ de: null, ate: null, usuario: null, fora: null, pendente: null })} testId="visitas.limpar-filtros" />
       </FilterBar>
 
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}

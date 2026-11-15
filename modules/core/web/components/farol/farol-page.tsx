@@ -1,6 +1,7 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
+import { LimparFiltros, useBuscaComEspera } from '../../lib/lista-bko';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
@@ -128,7 +129,6 @@ function FarolConteudo() {
   const filtros = filtrosDaUrl(params);
   const mes = filtros.mes || hoje().slice(0, 7);
   const aba: AbaDoFarol = params.get('aba') === 'vendedores' ? 'vendedores' : 'clientes';
-  const [buscaDigitada, setBuscaDigitada] = useState<string | null>(null);
   const [parametrosAbertos, setParametrosAbertos] = useState(false);
 
   const set = (patch: Record<string, string | null>) => {
@@ -142,11 +142,7 @@ function FarolConteudo() {
   };
 
   // busca ao digitar, com espera de 300 ms (§P4)
-  useEffect(() => {
-    if (buscaDigitada === null || buscaDigitada.trim() === filtros.busca) return;
-    const t = setTimeout(() => set({ q: buscaDigitada.trim() || null }), 300);
-    return () => clearTimeout(t);
-  }, [buscaDigitada]);
+  const campoBusca = useBuscaComEspera(filtros.busca, (v) => set({ q: v.trim() || null }));
 
   const lista = useInfiniteQuery({
     queryKey: ['core', 'farol', { ...filtros, mes }],
@@ -180,10 +176,8 @@ function FarolConteudo() {
   }, [vendedores.data, primeira?.vendedores]);
   const nomeDe = (id: string) => nomes.get(id) ?? '—';
   const temFiltro = Boolean(filtros.cor || filtros.busca || filtros.vendedor || filtros.equipe);
-  const busca = buscaDigitada ?? filtros.busca;
 
   const limpar = () => {
-    setBuscaDigitada(null);
     set({ cor: null, q: null, vendedor: null, equipe: null });
   };
 
@@ -247,9 +241,7 @@ function FarolConteudo() {
         <CampoBusca
           rotulo="Buscar cliente ou CNPJ"
           maxLength={60}
-          value={busca}
-          onChange={(e) => setBuscaDigitada(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && set({ q: busca.trim() || null })}
+          {...campoBusca}
           data-testid="farol.filtro-busca"
         />
         <TextField
@@ -279,9 +271,7 @@ function FarolConteudo() {
           ))}
         </SelectField>
         {temFiltro && (
-          <Button size="sm" onClick={limpar} data-testid="farol.limpar-filtros">
-            Limpar filtros
-          </Button>
+          <LimparFiltros ligado onLimpar={limpar} testId="farol.limpar-filtros" />
         )}
       </FilterBar>
 

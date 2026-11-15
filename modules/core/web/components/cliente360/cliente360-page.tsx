@@ -96,7 +96,7 @@ function Cliente360Conteudo() {
         </p>
       ) : (
       <KpiGrid>
-        <KpiCard label="Última compra" value={compras.ultima_compra_em ?? 'Nunca'} sub={compras.dias_sem_compra === null ? undefined : `há ${compras.dias_sem_compra} dias`} />
+        <KpiCard label="Última compra" value={compras.ultima_compra_em ? compras.ultima_compra_em.split('-').reverse().join('/') : 'Nunca'} sub={compras.dias_sem_compra === null ? undefined : `há ${compras.dias_sem_compra} dias`} />
         <KpiCard label="Ticket médio" value={formatBRL(compras.ticket_medio_cents)} sub={compras.frequencia_media_dias ? `compra a cada ~${Math.round(compras.frequencia_media_dias)} dias` : undefined} />
         <KpiCard label="Compras em 12 meses" value={formatBRL(compras.total_12m_cents)} />
       </KpiGrid>

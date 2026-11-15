@@ -3,7 +3,7 @@ import type { IndicadoresLista } from '../../contracts';
 import { painelDoUsuario } from '../../domain';
 import { painelLocal } from '../../app/lib/metas-local';
 import { textoDaLinha } from '../../app/lib/metas-formato';
-import { celulasDoUsuario, centavosDoTexto, csvDeIndicadores } from './indicadores';
+import { celulaPorDiaUtil, celulasDoUsuario, csvDeIndicadores, tituloPorDiaUtil } from './indicadores';
 
 const U = '00000000-0000-4000-8000-000000000001';
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -36,8 +36,15 @@ describe('critério 2 da T-0020: app e BKO mostram os mesmos números a partir d
     expect(csvDeIndicadores(lista)).toContain('"Vera";"1 de 2";"50,00%"');
   });
 
-  it('RN-CORE-20: a meta em reais digitada vira centavos inteiros', () => {
-    expect(centavosDoTexto('12.345,67')).toBe(1_234_567);
-    expect(centavosDoTexto('abc')).toBeNull();
+  it('RD-0419: a tabela mostra só o valor por dia útil e os dias restantes vão no título; o CSV mantém a frase', () => {
+    const item = { usuario_id: U, usuario_nome: 'Vera', indicadores: { ...app.indicadores, meta_cents: 1_000_00, realizado_cents: 400_00, necessidade_diaria_cents: 312_500, dias_uteis_restantes: 20 }, metas: app.metas } as unknown as IndicadoresLista['itens'][number];
+    expect(tituloPorDiaUtil([item])).toBe('Por dia útil (20 restantes)');
+    expect(tituloPorDiaUtil([])).toBe('Por dia útil');
+    expect(celulaPorDiaUtil(item).replace(/\u00a0/g, ' ')).toBe('R$ 3.125');
+    const batida = { ...item, indicadores: { ...item.indicadores, necessidade_diaria_cents: 0 } };
+    expect(celulaPorDiaUtil(batida)).toBe('Batida');
+    const semMeta = { ...item, indicadores: { ...item.indicadores, meta_cents: null } };
+    expect(celulaPorDiaUtil(semMeta)).toBe('—');
+    expect(celulasDoUsuario(batida)[7]).toBe('Meta de venda batida.');
   });
 });

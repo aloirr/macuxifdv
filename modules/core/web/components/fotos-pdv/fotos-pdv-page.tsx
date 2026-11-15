@@ -80,7 +80,7 @@ export function FotosPdvPage() {
         </span>
       ),
     },
-    { id: 'situacao', titulo: 'Situação', largura: '110px', celula: (t) => <Badge tone={t.ativo ? 'success' : 'warning'}>{t.ativo ? 'Ativo' : 'Inativo'}</Badge> },
+    { id: 'situacao', titulo: 'Situação', largura: '110px', celula: (t) => <Badge tone={t.ativo ? 'success' : 'neutral'}>{t.ativo ? 'Ativo' : 'Inativo'}</Badge> },
   ];
   const criar = pode ? (
     <Button variant="primary" onClick={() => abrir(vazio())} data-testid="fotos-pdv.novo">

@@ -8,7 +8,7 @@ import { Badge, Button, CampoBusca, CampoFormulario, CLASSE_CAMPO, Drawer, Error
 import { MedidasListaSchema, type Medida } from '../../../contracts';
 import { DESCRICAO_MEDIDA_MAX, normalizarSigla } from '../../../domain';
 import { erroDoFormularioDeMedida } from '../../lib/medidas';
-import { fraseDoVazio, LimparFiltros, QuadroDaLista, type useBuscaComEspera } from '../../lib/lista-bko';
+import { fraseDoVazio, LimparFiltros, QuadroDaLista, useBuscaComEspera } from '../../lib/lista-bko';
 import { novoId } from '../../lib/visitas';
 
 interface Rascunho {
@@ -38,7 +38,8 @@ export const filtrarMedidas = (medidas: readonly Medida[], termo: string): Medid
  * só apaga medida sem uso (em uso, a ação "Apagar" não aparece: inative em vez de apagar). Analista e admin editam
  * (ação `medida.gerenciar`); gerente consulta. A API revalida tudo e audita. A busca vem da página (a contagem fica na aba).
  */
-export function MedidasPanel({ busca }: { busca: ReturnType<typeof useBuscaComEspera> }) {
+export function MedidasPanel({ termo, setTermo }: { termo: string; setTermo: (v: string) => void }) {
+  const campoBusca = useBuscaComEspera(termo, setTermo);
   const qc = useQueryClient();
   const toast = useToast();
   const pode = usePode('medida.gerenciar');
@@ -76,7 +77,7 @@ export function MedidasPanel({ busca }: { busca: ReturnType<typeof useBuscaComEs
     onError: (e) => toast('danger', errorMessage(e)),
   });
 
-  const itens = filtrarMedidas(lista.data ?? [], busca.termo);
+  const itens = filtrarMedidas(lista.data ?? [], termo);
   const erroForm = rascunho ? erroDoFormularioDeMedida(rascunho.sigla, rascunho.descricao) : null;
   const abrirNova = () => {
     setErroApi(null);
@@ -90,7 +91,7 @@ export function MedidasPanel({ busca }: { busca: ReturnType<typeof useBuscaComEs
   const colunas: ReadonlyArray<ColunaDaTabela<Medida>> = [
     { id: 'sigla', titulo: 'Sigla', largura: '110px', texto: (m) => m.sigla, celula: (m) => <span className="font-mono">{m.sigla}</span> },
     { id: 'descricao', titulo: 'Descrição', texto: (m) => m.descricao, celula: (m) => m.descricao },
-    { id: 'situacao', titulo: 'Situação', largura: '120px', celula: (m) => <Badge tone={m.ativo ? 'success' : 'warning'}>{m.ativo ? 'Ativa' : 'Inativa'}</Badge> },
+    { id: 'situacao', titulo: 'Situação', largura: '120px', celula: (m) => <Badge tone={m.ativo ? 'success' : 'neutral'}>{m.ativo ? 'Ativa' : 'Inativa'}</Badge> },
     { id: 'produtos', titulo: 'Produtos', numero: true, prioridade: 2, largura: '110px', celula: (m) => (m.em_uso === 0 ? '—' : `${m.em_uso} em uso`), texto: (m) => (m.em_uso === 0 ? 'Sem uso' : `${m.em_uso} em uso`) },
   ];
 
@@ -99,12 +100,10 @@ export function MedidasPanel({ busca }: { busca: ReturnType<typeof useBuscaComEs
       <FilterBar>
         <CampoBusca
           rotulo="Buscar sigla ou descrição"
-          value={busca.texto}
-          onChange={(e) => busca.setTexto(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && busca.aplicar()}
+          {...campoBusca}
           data-testid="medidas.busca"
         />
-        <LimparFiltros ligado={busca.texto !== ''} onLimpar={busca.limpar} />
+        <LimparFiltros ligado={termo !== ''} onLimpar={() => setTermo('')} testId="medidas.limpar-filtros" />
         {pode && (
           <Button variant="primary" className="ml-auto" onClick={abrirNova} data-testid="medidas.nova">
             Nova medida
@@ -118,9 +117,9 @@ export function MedidasPanel({ busca }: { busca: ReturnType<typeof useBuscaComEs
           vazia={itens.length === 0}
           vazio={
             <EstadoVazio
-              titulo={fraseDoVazio('medida', true, busca.termo !== '')}
+              titulo={fraseDoVazio('medida', true, termo !== '')}
               acao={
-                busca.termo === '' && pode ? (
+                termo === '' && pode ? (
                   <Button variant="primary" onClick={abrirNova}>
                     Nova medida
                   </Button>

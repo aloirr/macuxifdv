@@ -52,8 +52,9 @@ export function ProdutosPage() {
   const [aba, setAba] = useState<'produtos' | 'medidas' | 'parametros'>('produtos');
   const [medidasDe, setMedidasDe] = useState<ProdutoPreco | null>(null);
   const medidas = useMedidas();
-  const buscaMedidas = useBuscaComEspera();
-  const { texto, termo: busca, setTexto, aplicar, limpar } = useBuscaComEspera();
+  const [termoMedidas, setTermoMedidas] = useState('');
+  const [busca, setBusca] = useState('');
+  const campoBusca = useBuscaComEspera(busca, (v) => setBusca(v.trim()));
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
   const [erroApi, setErroApi] = useState<string | null>(null);
   const [padraoTexto, setPadraoTexto] = useState<string | null>(null);
@@ -173,7 +174,7 @@ export function ProdutosPage() {
           {rotuloComContagem('Produtos', lista.data ? produtos.length : 0)}
         </Button>
         <Button variant={aba === 'medidas' ? 'primary' : undefined} onClick={() => setAba('medidas')} data-testid="produtos.aba-medidas">
-          {rotuloComContagem('Medidas', medidas.data ? filtrarMedidas(medidas.data, buscaMedidas.termo).length : 0)}
+          {rotuloComContagem('Medidas', medidas.data ? filtrarMedidas(medidas.data, termoMedidas).length : 0)}
         </Button>
         {podeParametros && (
           <Button variant={aba === 'parametros' ? 'primary' : undefined} onClick={() => setAba('parametros')} data-testid="produtos.aba-parametros">
@@ -182,7 +183,7 @@ export function ProdutosPage() {
         )}
       </div>
 
-      {aba === 'medidas' && <MedidasPanel busca={buscaMedidas} />}
+      {aba === 'medidas' && <MedidasPanel termo={termoMedidas} setTermo={setTermoMedidas} />}
 
       {aba === 'parametros' && podeParametros && (
         <Panel title="Desconto máximo padrão">
@@ -204,12 +205,10 @@ export function ProdutosPage() {
           <FilterBar>
             <CampoBusca
               rotulo="Buscar código ou nome do produto"
-              value={texto}
-              onChange={(e) => setTexto(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && aplicar()}
+              {...campoBusca}
               data-testid="produtos.busca"
             />
-            <LimparFiltros ligado={texto !== ''} onLimpar={limpar} />
+            <LimparFiltros ligado={busca !== ''} onLimpar={() => setBusca('')} testId="produtos.limpar-filtros" />
           </FilterBar>
           {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
           {lista.isPending && <LoadingBlock label="Carregando os produtos…" />}

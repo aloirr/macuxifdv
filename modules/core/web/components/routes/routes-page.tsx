@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RouteDay, Seller } from '../../../contracts';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { formatInt, IconChevronRight, IconPlus, Badge, Button, cx, ErrorBlock, EstadoVazio, FilterBar, KpiCard, KpiGrid, LoadingBlock, MenuAcoes, PageHeader, rotuloComContagem, SelectField, SkeletonCards } from '@macuxi/ui/web';
+import { LimparFiltros } from '../../lib/lista-bko';
 import { useMe, useRoutes, useSellersDeCampo, useTeamsDeCampo } from '../../lib/queries';
 import {
   buildMapRoutes,
@@ -300,11 +301,7 @@ export function RoutesPage() {
             </option>
           ))}
         </SelectField>
-        {(teamId || sellerId) && (
-          <Button size="sm" onClick={() => set({ team: null, seller: null })}>
-            Limpar filtros
-          </Button>
-        )}
+        <LimparFiltros ligado={!!(teamId || sellerId)} onLimpar={() => set({ team: null, seller: null })} testId="rotas.limpar-filtros" />
       </FilterBar>
 
       {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
@@ -313,11 +310,9 @@ export function RoutesPage() {
         q.isPending ? <SkeletonCards n={6} /> : null
       ) : (
         <KpiGrid min={150}>
-          <KpiCard label="Visitas planejadas" value={formatInt(kpis.planned)} sub={`média de ${kpis.avgPerRoute.toLocaleString('pt-BR')} por rota`} />
-          <KpiCard label="Km total" value={formatInt(kpis.km)} sub="saída do CD, sem volta" />
-          <KpiCard label="Visitadas" value={formatInt(kpis.done)} valueClass="text-success" sub={kpis.planned ? `${Math.round((kpis.done / kpis.planned) * 100)}% do planejado` : '—'} />
+          <KpiCard label="Visitadas" value={`${formatInt(kpis.done)} de ${formatInt(kpis.planned)}`} valueClass="text-success" sub={kpis.planned ? `${Math.round((kpis.done / kpis.planned) * 100)}%` : '—'} />
           <KpiCard label="Em atendimento" value={formatInt(kpis.inProgress)} valueClass={kpis.inProgress ? 'text-accent-ink' : undefined} />
-          <KpiCard label="Pendentes" value={formatInt(kpis.pending)} />
+          <KpiCard label="Km total" value={formatInt(kpis.km)} sub="saída do CD, sem volta" />
         </KpiGrid>
       )}
 

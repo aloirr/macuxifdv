@@ -9,6 +9,7 @@ import { Badge, Button, CampoFormulario, CLASSE_CAMPO, Drawer, ErrorBlock, Estad
 import { CopiarMetasRespostaSchema, EquipeListaRespostaSchema, MetaEquipeRespostaSchema, PainelMetasBkoSchema, type LinhaMetaBko } from '../../../contracts';
 import { INDICADORES_META, ROTULO_INDICADOR_META } from '../../../contracts';
 import { avisoDaCopia, avisoDoLote, mesAnterior, CABECALHO_METAS, celulasDaLinha, corpoDaMeta, csvDeMetas, filtrarPorIndicador, ROTULO_TIPO, textoDeEdicao, totalEditavel, UNIDADE_DO_CAMPO } from '../../lib/metas';
+import { LimparFiltros } from '../../lib/lista-bko';
 import { useHojeDoTenant } from '../../lib/queries';
 import { InicioParametrosPanel } from './inicio-parametros-panel';
 
@@ -165,11 +166,7 @@ function MetasConteudo() {
             </option>
           ))}
         </SelectField>
-        {(equipe || indicador) && (
-          <Button size="sm" onClick={() => set({ equipe: null, indicador: null })} data-testid="metas.limpar-filtros">
-            Limpar filtros
-          </Button>
-        )}
+        <LimparFiltros ligado={Boolean(equipe || indicador)} onLimpar={() => set({ equipe: null, indicador: null })} testId="metas.limpar-filtros" />
       </FilterBar>
 
       {aviso && <Notice tone="success">{aviso}</Notice>}

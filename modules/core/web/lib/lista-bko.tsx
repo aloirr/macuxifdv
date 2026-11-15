@@ -5,36 +5,57 @@
  * busca ao digitar com espera de 300 ms, "Limpar filtros" só com filtro ligado e o quadro da lista sem título,
  * que some quando não há linha (fica só o `EstadoVazio`, uma vez).
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Button, Panel } from '@macuxi/ui/web';
 
 export const ESPERA_BUSCA_MS = 300;
 
-/** Texto do campo (imediato) e termo aplicado à consulta (300 ms depois de parar de digitar, ou já com Enter). */
-export function useBuscaComEspera(ms = ESPERA_BUSCA_MS) {
-  const [texto, setTexto] = useState('');
-  const [termo, setTermo] = useState('');
+/**
+ * Busca da lista com espera: o texto digitado fica no campo na hora; o termo aplicado (estado ou URL) só muda 300 ms
+ * depois da última tecla ou ao apertar Enter. Acompanha o valor externo (Limpar filtros, voltar do navegador).
+ */
+export function useBuscaComEspera(valor: string, aoMudar: (v: string) => void, espera: number = ESPERA_BUSCA_MS) {
+  const [texto, setTexto] = useState(valor);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const aoMudarRef = useRef(aoMudar);
+  aoMudarRef.current = aoMudar;
+
   useEffect(() => {
-    const t = setTimeout(() => setTermo(texto.trim()), ms);
-    return () => clearTimeout(t);
-  }, [texto, ms]);
-  return {
-    texto,
-    termo,
-    setTexto,
-    aplicar: () => setTermo(texto.trim()),
-    limpar: () => {
-      setTexto('');
-      setTermo('');
-    },
+    setTexto(valor);
+  }, [valor]);
+
+  const cancelar = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
   };
+  useEffect(() => cancelar, []);
+
+  const onChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const novo = e.target.value;
+      setTexto(novo);
+      cancelar();
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        aoMudarRef.current(novo);
+      }, espera);
+    },
+    [espera],
+  );
+  const onKeyDown = useCallback((e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return;
+    cancelar();
+    aoMudarRef.current(e.currentTarget.value);
+  }, []);
+
+  return { value: texto, onChange, onKeyDown };
 }
 
 /** Botão do fim da barra de filtros: só existe com algum filtro ligado. */
-export function LimparFiltros({ ligado, onLimpar }: { ligado: boolean; onLimpar: () => void }) {
+export function LimparFiltros({ ligado, onLimpar, testId = 'lista.limpar-filtros' }: { ligado: boolean; onLimpar: () => void; testId?: string }) {
   if (!ligado) return null;
   return (
-    <Button size="sm" onClick={onLimpar} data-testid="lista.limpar-filtros">
+    <Button size="sm" onClick={onLimpar} data-testid={testId}>
       Limpar filtros
     </Button>
   );

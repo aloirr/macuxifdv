@@ -3,6 +3,7 @@
  * `app/lib/metas-formato`, os mesmos do app, então o número que o supervisor vê é o que o vendedor vê no aparelho.
  */
 import { BOM_CSV } from '@macuxi/comum/csv';
+import { formatBRL0 } from '@macuxi/comum';
 import type { IndicadoresLista } from '../../contracts';
 import { formatarIndicador, textoDaLinha, textoNecessidadeDiaria } from '../../app/lib/metas-formato';
 
@@ -26,6 +27,20 @@ export function celulasDoUsuario(u: LinhaDaTabela): string[] {
   ];
 }
 
+/** Título da coluna "por dia útil" da tela: os dias restantes (do primeiro item) vão no título, não em cada célula (RD-0419). */
+export function tituloPorDiaUtil(itens: LinhaDaTabela[]): string {
+  const dias = itens[0]?.indicadores.dias_uteis_restantes;
+  return dias === undefined ? 'Por dia útil' : `Por dia útil (${dias} restantes)`;
+}
+
+/** Célula da coluna "por dia útil" da tela: só o valor, "Batida" com a meta atingida ou "—" sem meta (RD-0419). O CSV mantém a frase longa. */
+export function celulaPorDiaUtil(u: LinhaDaTabela): string {
+  const i = u.indicadores;
+  if (i.meta_cents == null || i.realizado_cents == null || i.dias_uteis_restantes <= 0) return '—';
+  const n = i.necessidade_diaria_cents ?? 0;
+  return n === 0 ? 'Batida' : formatBRL0(n);
+}
+
 export const CABECALHO = ['Vendedor ou promotor', 'Visitados', 'Cobertura', 'Positivados', 'Realizado', 'Meta de venda', 'Atingimento', 'Necessidade diária'];
 
 export function csvDeIndicadores(l: IndicadoresLista): string {
@@ -33,7 +48,7 @@ export function csvDeIndicadores(l: IndicadoresLista): string {
   return BOM_CSV + `${[CABECALHO.map(aspas).join(';'), ...linhas].join('\r\n')}\r\n`;
 }
 
-/** Valor mensal em reais digitado → centavos inteiros (vírgula ou ponto); inválido → null. */
+/** Valor mensal em reais digitado → centavos inteiros (vírgula ou ponto); inválido → null. Usado pela tela Metas e RV. */
 export function centavosDoTexto(texto: string): number | null {
   const limpo = texto.trim().replace(/\./g, '').replace(',', '.');
   if (!/^\d+(\.\d{1,2})?$/.test(limpo)) return null;

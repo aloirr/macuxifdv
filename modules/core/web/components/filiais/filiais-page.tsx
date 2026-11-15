@@ -116,7 +116,7 @@ export function FiliaisPage() {
         <SeloSituacao
           selos={[
             f.incompleta ? { tom: 'warning', texto: 'Incompleta' } : null,
-            f.ativo ? null : { tom: 'warning', texto: 'Inativa' },
+            f.ativo ? null : { tom: 'neutral', texto: 'Inativa' },
             f.padrao ? { tom: 'success', texto: 'Padrão' } : null,
             { tom: 'neutral', texto: 'Ativa' },
           ]}

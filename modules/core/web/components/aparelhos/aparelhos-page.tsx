@@ -1,6 +1,7 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useState } from 'react';
+import { LimparFiltros, useBuscaComEspera } from '../../lib/lista-bko';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
@@ -23,7 +24,6 @@ function AparelhosConteudo() {
   const qc = useQueryClient();
   const pode = usePode('dispositivo.bloquear');
   const toast = useToast();
-  const [buscaDigitada, setBuscaDigitada] = useState<string | null>(null);
   const [pendente, setPendente] = useState<DispositivoItem | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
@@ -67,11 +67,7 @@ function AparelhosConteudo() {
   };
 
   // busca ao digitar, com espera de 300 ms (§P4)
-  useEffect(() => {
-    if (buscaDigitada === null || buscaDigitada.trim() === q) return;
-    const t = setTimeout(() => set({ q: buscaDigitada.trim() || null }), 300);
-    return () => clearTimeout(t);
-  }, [buscaDigitada]);
+  const campoBusca = useBuscaComEspera(q, (v) => set({ q: v.trim() || null }));
 
   const itens = lista.data ?? [];
   const temFiltro = Boolean(situacao || q);
@@ -123,9 +119,7 @@ function AparelhosConteudo() {
       <FilterBar>
         <CampoBusca
           rotulo="Buscar usuário ou aparelho"
-          value={buscaDigitada ?? q}
-          onChange={(e) => setBuscaDigitada(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && set({ q: e.currentTarget.value.trim() || null })}
+          {...campoBusca}
           data-testid="aparelhos.busca"
         />
         <SelectField label="Situação" value={situacao} onChange={(e) => set({ situacao: e.target.value })} data-testid="aparelhos.filtro-situacao">
@@ -133,18 +127,7 @@ function AparelhosConteudo() {
           <option value="bloqueado">Bloqueados</option>
           <option value="liberado">Liberados</option>
         </SelectField>
-        {temFiltro && (
-          <Button
-            size="sm"
-            onClick={() => {
-              setBuscaDigitada(null);
-              set({ situacao: null, q: null });
-            }}
-            data-testid="aparelhos.limpar-filtros"
-          >
-            Limpar filtros
-          </Button>
-        )}
+        <LimparFiltros ligado={temFiltro} onLimpar={() => set({ situacao: null, q: null })} testId="aparelhos.limpar-filtros" />
       </FilterBar>
 
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}

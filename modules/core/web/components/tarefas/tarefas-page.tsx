@@ -145,7 +145,7 @@ export function FiltrosDasTarefas({
       )}
       <TextField label="Prazo de" type="date" value={filtros.de ?? ''} onChange={(e) => set({ de: vazio(e.target.value) })} data-testid="tarefas.filtro.de" />
       <TextField label="Prazo até" type="date" value={filtros.ate ?? ''} min={filtros.de} onChange={(e) => set({ ate: vazio(e.target.value) })} data-testid="tarefas.filtro.ate" />
-      {onLimpar && <LimparFiltros ligado={ligado} onLimpar={onLimpar} />}
+      {onLimpar && <LimparFiltros ligado={ligado} onLimpar={onLimpar} testId="tarefas.limpar-filtros" />}
     </FilterBar>
   );
 }

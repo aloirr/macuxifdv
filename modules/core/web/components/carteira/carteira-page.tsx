@@ -7,6 +7,7 @@ import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, CampoBusca, CLASSE_CAMPO_BASE, Drawer, ErrorBlock, EstadoVazio, EtiquetaCadastroIncompleto, FilterBar, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, rotuloComContagem, SelectField, SeloSituacao, TabelaDados, nomeLegivel, useToast, cx, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
 import { ClienteListaRespostaSchema, type CarteiraItemPut } from '../../../contracts';
+import { LimparFiltros } from '../../lib/lista-bko';
 import { csvDaCarteira, DIAS_DA_SEMANA, rotuloFrequencia } from '../../lib/carteira';
 import { usePapeisDeCampo, useSellersDeCampo } from '../../lib/queries';
 import type { ClienteDaCarteira } from '../../lib/rotas-api';
@@ -90,7 +91,7 @@ function CarteiraConteudo() {
     {
       id: 'frequencia',
       titulo: 'Frequência',
-      largura: '170px',
+      largura: '210px',
       celula: (c) => (
         <select
           value={c.frequencia_semanas ?? ''}
@@ -199,11 +200,7 @@ function CarteiraConteudo() {
             </option>
           ))}
         </SelectField>
-        {filtroLocal && (
-          <Button size="sm" onClick={() => setFiltroLocal('')} data-testid="carteira.limpar-filtros">
-            Limpar filtros
-          </Button>
-        )}
+        <LimparFiltros ligado={Boolean(filtroLocal)} onLimpar={() => setFiltroLocal('')} testId="carteira.limpar-filtros" />
       </FilterBar>
 
       {!usuario && <EstadoVazio titulo="Escolha um vendedor ou promotor." />}

@@ -5,9 +5,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { useRouter } from 'next/navigation';
-import { ErrorBlock, EstadoVazio, LoadingBlock, Notice, nomeLegivel, PageHeader, Panel, rotuloComContagem, TabelaDados, useToast, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
+import { ErrorBlock, EstadoVazio, formatDateTime, LoadingBlock, Notice, nomeLegivel, PageHeader, Panel, rotuloComContagem, TabelaDados, useToast, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
 import { CoordenadasSugeridasSchema } from '../../../contracts';
-import { linkDoMapa, quando } from '../../lib/visitas';
+import { linkDoMapa } from '../../lib/visitas';
 
 const FUSO_PADRAO = 'America/Manaus';
 
@@ -53,7 +53,14 @@ export function CoordenadasPage() {
   const colunas: ColunaDaTabela<LinhaSugestao>[] = [
     { id: 'cliente', titulo: 'Cliente', largura: '30%', celula: (l) => nomeLegivel(l.cliente), texto: (l) => nomeLegivel(l.cliente) },
     { id: 'cidade', titulo: 'Cidade', prioridade: 2, celula: (l) => l.cidade, texto: (l) => l.cidade },
-    { id: 'visita', titulo: 'Check-in', prioridade: 2, celula: (l) => `${quando(l.checkin_em, FUSO_PADRAO)} · ${l.usuario_nome}`, texto: (l) => `${quando(l.checkin_em, FUSO_PADRAO)} · ${l.usuario_nome}` },
+    { id: 'visita', titulo: 'Check-in', prioridade: 2, celula: (l) => (
+        <span className="flex flex-col">
+          <span>{formatDateTime(l.checkin_em, FUSO_PADRAO)}</span>
+          <span className="text-ink-3">{l.usuario_nome}</span>
+        </span>
+      ),
+      texto: (l) => `${formatDateTime(l.checkin_em, FUSO_PADRAO)} · ${l.usuario_nome}`,
+    },
     { id: 'posicao', titulo: 'Posição', largura: '190px', celula: (l) => <span className="font-mono">{l.lat.toFixed(6)}, {l.lng.toFixed(6)}</span> },
     { id: 'precisao', titulo: 'Precisão', numero: true, prioridade: 3, largura: '90px', celula: (l) => (l.precisao_m === null ? '—' : `${l.precisao_m} m`) },
   ];

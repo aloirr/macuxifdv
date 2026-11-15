@@ -94,7 +94,7 @@ export function MotivosPage() {
       id: 'situacao',
       titulo: 'Situação',
       largura: '130px',
-      celula: (m) => <Badge tone={m.sistema ? 'neutral' : m.ativo ? 'success' : 'warning'}>{m.sistema ? 'Sistema' : m.ativo ? 'Ativo' : 'Desativado'}</Badge>,
+      celula: (m) => <Badge tone={m.sistema ? 'neutral' : m.ativo ? 'success' : 'neutral'}>{m.sistema ? 'Sistema' : m.ativo ? 'Ativo' : 'Desativado'}</Badge>,
     },
   ];
   const criar = pode ? (
