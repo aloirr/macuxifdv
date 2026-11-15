@@ -37,7 +37,7 @@ export function PageHeader({
       <div className="flex min-w-0 flex-col gap-0.5">
         {eyebrow && <span className="text-[13px] text-ink-2">{eyebrow}</span>}
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="m-0 font-display text-[24px] leading-tight font-extrabold">{title}</h1>
+          <h1 className="m-0 font-display text-[24px] leading-tight font-bold">{title}</h1>
           {badge}
         </div>
         {subtitle && <span className="text-[13px] text-ink-2">{subtitle}</span>}
@@ -56,7 +56,7 @@ export function FilterBar({ children }: { children: ReactNode }) {
  * a largura e o respiro.
  */
 export const CLASSE_CAMPO_BASE = cx(
-  'rounded-[10px] border border-field bg-surface text-[14px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2 disabled:opacity-60',
+  'rounded-[10px] border border-field bg-surface text-[15px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2 disabled:opacity-60',
   CLASSES_DESTAQUE.foco,
 );
 
@@ -129,6 +129,14 @@ export function CampoFormulario({ rotulo, opcional, erro, children, className }:
   );
 }
 
+/**
+ * Caixa do campo das telas de acesso (login do BKO, portal de implantação, "Crie sua senha"): 44 px, texto 15. Serve a
+ * qualquer campo dessas telas, de senha ou não; o `CampoSenha` usa esta classe (RD-0478). Os `campoCss` locais do apps/web
+ * passam a importar esta.
+ */
+export const CLASSE_CAMPO_ACESSO =
+  'h-11 w-full rounded-xl border border-field bg-surface px-3 text-[15px] text-ink outline-none focus-visible:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-[invalid=true]:border-danger disabled:bg-ground disabled:text-ink-2';
+
 /** Classe do controle dentro do `CampoFormulario`: 42 px, a mesma altura do botão `md`. */
 export const CLASSE_CAMPO = cx(CLASSE_CAMPO_BASE, 'h-[42px] w-full px-3 aria-[invalid=true]:border-danger');
 
@@ -147,7 +155,7 @@ export function KpiCard({ label, value, sub, valueClass, dark, extra }: { label:
   return (
     <div className={cx('flex flex-col gap-1 rounded-[14px] px-4 py-3.5', dark ? 'bg-ink text-white' : 'border border-line bg-surface')}>
       <span className={cx('text-[13px]', dark ? 'text-nav-text' : 'text-ink-2')}>{label}</span>
-      <span className={cx('font-display text-[26px] leading-tight font-extrabold tabular-nums', valueClass)}>
+      <span className={cx('font-display text-[24px] leading-tight font-bold tabular-nums', valueClass)}>
         {value}
         {extra}
       </span>
@@ -169,7 +177,7 @@ export function Panel({ title, aside, children, className, label }: { title?: Re
     <section aria-label={label} className={cx('flex min-w-0 flex-col gap-3 rounded-2xl border border-line bg-surface p-4', className)}>
       {(title || aside) && (
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          {title && <h2 className="m-0 font-display text-[18px] font-bold">{title}</h2>}
+          {title && <h2 className="m-0 font-display text-[17px] font-bold">{title}</h2>}
           {aside}
         </div>
       )}
@@ -215,7 +223,7 @@ const BADGE: Record<BadgeTone, string> = {
 };
 
 export function Badge({ tone, children, className }: { tone: BadgeTone; children: ReactNode; className?: string }) {
-  return <span className={cx('inline-block rounded-lg px-2 py-[3px] text-[11px] font-bold whitespace-nowrap', BADGE[tone], className)}>{children}</span>;
+  return <span className={cx('inline-block rounded-lg px-2 py-[3px] text-[12px] font-bold whitespace-nowrap', BADGE[tone], className)}>{children}</span>;
 }
 
 /** Um selo da Situação. A tela monta a lista do mais importante para o menos. */
@@ -242,7 +250,7 @@ export function SeloSituacao({ selos }: { selos: ReadonlyArray<Selo | null | und
 export function EstadoVazio({ titulo, acao, testId }: { titulo: string; acao?: ReactNode; testId?: string }) {
   return (
     <div data-testid={testId} className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-field px-6 py-10 text-center">
-      <span className="text-[14px] font-semibold text-ink-2">{titulo}</span>
+      <span className="text-[15px] font-semibold text-ink-2">{titulo}</span>
       {acao}
     </div>
   );
@@ -263,7 +271,7 @@ type Variant = 'primary' | 'secondary' | 'link' | 'danger';
 
 export function Button({ variant = 'secondary', className, size = 'md', ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' }) {
   const base = 'inline-flex items-center justify-center gap-1.5 font-semibold transition-colors disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
-  const sizes = size === 'sm' ? 'h-[38px] rounded-[10px] px-3 text-[13px]' : 'h-[42px] rounded-xl px-4 text-[14px]';
+  const sizes = size === 'sm' ? 'h-[38px] rounded-[10px] px-3 text-[13px]' : 'h-[42px] rounded-xl px-4 text-[15px]';
   const variants: Record<Variant, string> = {
     // T-0172 (marca v1): o principal é Azul noite (accent), texto branco 12,77:1
     primary: 'bg-accent text-white hover:bg-accent/90 disabled:bg-disabled',

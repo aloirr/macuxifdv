@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filialDaTelaDePreco, filialDoClienteLocal, filialDoPreco, tabelaDaFilialSemCliente } from './preco-filial';
+import { filialDaTelaDePreco, filialNaCarteira, filialDoClienteLocal, filialDoPreco, precosDaFilialSemCliente, precosDaTabelaSemCliente, tabelaDaFilialSemCliente } from './preco-filial';
 import { faixasDoProduto, type LinhaEscalonada } from './escalonada';
 import { precosDoCliente } from './precos-cliente';
 import { MENSAGEM_SEM_PRECO_CLIENTE } from './preco';
@@ -113,5 +113,36 @@ describe('RN-VEN-01: Catálogo sem cliente usa a tabela da filial padrão (T-017
   it('RN-VEN-01: tabela inativa ou sem item na filial padrão não vale; sem nenhuma, "Sem preço"', () => {
     expect(tabelaDaFilialSemCliente([t('A', '01', false)], [{ tabela_preco_id: 'A' }])).toBeNull();
     expect(tabelaDaFilialSemCliente([t('A', '01')], [])).toBeNull();
+  });
+});
+
+describe('RN-VEN-01: busca sem cliente usa a filial padrão ou a escolhida (mesma regra do app)', () => {
+  const t = (id: string, codigo: string, ativo = true) => ({ id, codigo, ativo });
+  const item = (tabela: string, produto: string, preco: number) => ({ tabela_preco_id: tabela, produto_id: produto, preco_cents: preco, vigencia_inicio: null, vigencia_fim: null });
+  it('RN-VEN-01: sem filial escolhida vale a padrão do tenant', () => {
+    expect(filialDaTelaDePreco(undefined, MAO, [MAO, BVB])).toEqual({ ok: true, filialId: MAO });
+  });
+  it('RN-CORE-04: filial fora das filiais da carteira do usuário é recusada; carteira nula vale todas', () => {
+    expect(filialNaCarteira(BVB, [MAO])).toBe(false);
+    expect(filialNaCarteira(BVB, [MAO, BVB])).toBe(true);
+    expect(filialNaCarteira(BVB, null)).toBe(true);
+  });
+  it('RN-VEN-01: o preço sem cliente é o da tabela de mais itens na filial, sem tabela no item (vale a "padrão" do domain)', () => {
+    const r = precosDaFilialSemCliente([t('A', '01'), t('B', '02')], [item('A', P1, 100), item('B', P1, 200), item('B', P2, 300)]);
+    expect(r).toEqual([
+      { price_table_id: null, product_id: P1, price_cents: 200, valid_from: null, valid_to: null },
+      { price_table_id: null, product_id: P2, price_cents: 300, valid_from: null, valid_to: null },
+    ]);
+  });
+  it('RN-VEN-01: sem tabela ativa com item na filial, nenhum preço', () => {
+    expect(precosDaFilialSemCliente([t('A', '01', false)], [item('A', P1, 100)])).toEqual([]);
+  });
+});
+
+describe('RN-VEN-01: preços da tabela já escolhida', () => {
+  it('RN-VEN-01: tabela nula não dá preço; tabela escolhida filtra e converte', () => {
+    const itens = [{ tabela_preco_id: 'A', produto_id: P1, preco_cents: 5, vigencia_inicio: null, vigencia_fim: null }, { tabela_preco_id: 'B', produto_id: P2, preco_cents: 6, vigencia_inicio: null, vigencia_fim: null }];
+    expect(precosDaTabelaSemCliente(null, itens)).toEqual([]);
+    expect(precosDaTabelaSemCliente('B', itens)).toEqual([{ price_table_id: null, product_id: P2, price_cents: 6, valid_from: null, valid_to: null }]);
   });
 });

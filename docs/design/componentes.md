@@ -19,12 +19,26 @@
 | `colors.surface` | `#FFFFFF` | cartões, folha, barra de abas |
 | `colors.ink2` / `ink3` | `#4A5562` / `#5B6673` | texto secundário / terciário (≥ 4,5:1 no branco e no Pérola) |
 
-Fontes (já carregadas no shell por `@expo-google-fonts/*`; nenhuma dependência nova): **Archivo** nos títulos e números
-(`fonts.display` 800, `displayBold` 700), **IBM Plex Sans** no texto (`body` 400, `medium` 500, `semibold` 600, `bold` 700).
-Uma família por peso: não use `fontWeight`.
+**Fonte do sistema** (R-20261115-110600, 15/11/2026, v1.0.13; saem Archivo, IBM Plex Sans e IBM Plex Mono, em todas as
+superfícies). O logo não muda.
 
-Tipografia (`type`): `saudacao` 26/800 · `titulo` 19/800 (folha, diálogo) · `secao` 17/700 · `numeroGrande` 19/700 tabular ·
-`body` 14 · `sub` 13 · `small` 12 · `rotulo` 12/600 maiúsculas. Os nomes antigos (`h1`, `h2`, `number`…) continuam.
+- **App (Campo e Gestão):** sem `fontFamily` — vale a fonte padrão do aparelho (Roboto na maioria dos Android). A hierarquia
+  vem só do peso: `fonte.body` 400 · `medium` 500 · `semibold` 600 · `bold`/`display`/`displayBold` 700. Uso:
+  `{ ...fonte.semibold, fontSize: 14 }`. Códigos (pedido, EAN, SKU): `fonte.mono` = `monospace` + `tabular-nums`.
+  O `fonts.x` antigo (nomes de família) ficou só para a transição das telas dos módulos; troque `fontFamily: fonts.x` por
+  `...fonte.x`.
+- **Escala do app** (`ESCALA_FONTE`): **12 · 14 · 16 (base) · 18 · 22 · 28**; nada abaixo de 12. Estilos (`type`):
+  `saudacao`/`h1` 28/700 · `h1Small` e cabeçalho da faixa 22/28 · `titulo` 18/700 (folha, diálogo) · `secao` 18/700 ·
+  `numeroGrande` 18/700 tabular · `body` 16 · `sub` 14 · `small` 12 · `rotulo` 12/600 maiúsculas · `mono` 12. Botão de 52:
+  16; de 44: 14. Os nomes antigos (`h1`, `h2`, `number`…) continuam.
+- **Web (BKO e portal `config.`):** texto e títulos em `system-ui, "Segoe UI", Roboto, -apple-system, sans-serif`
+  (`font-sans` e `font-display` apontam para a mesma pilha; as variáveis ficam no `apps/web`); códigos em
+  `ui-monospace, "Cascadia Mono", "Roboto Mono", monospace` com `tabular-nums`. Pesos 400 · 500 · 600 · 700 (sem
+  `font-extrabold`). **Escala web: 12 (mínimo) · 13 · 15 (base) · 17 · 20 · 24**, pensada para 1366×768: título da página
+  24/700, KPI 24/700, título de cartão e de diálogo 17/700, botão e campo 15, tabela 13, rótulo, ajuda e selo 12.
+- O teste `packages/ui/src/mobile/fonte-sistema.test.ts` segura a regra no kit (sem Archivo/Plex, só tamanhos da escala).
+- Specs e pranchas de tela anteriores a 15/11/2026 que citam Archivo ou Plex (e os tamanhos 11, 13, 15, 17, 19, 24 e 26 do
+  app): vale esta seção.
 
 ### 1.1 Contraste da marca (vale para o app e para o BKO/portal)
 Código: `packages/ui/src/comum/contraste.ts` (`MARCA`, `DESTAQUE`, `GRAFICO`, `FAIXA`, `FUNDOS`, `PARES_DA_MARCA`,
@@ -128,7 +142,7 @@ de cor (altura, raio, fonte e regras iguais). O Azul noite some no grafite (1,29
 - `ChipEstado`: **sempre com texto** (o componente não desenha nada sem texto). 28 dp; `pequeno` 24 dp dentro de cartão de lista.
   Tons e textos do pedido: `sucesso` Aprovado · `aviso` Aguardando aprovação (curto: "Aguardando") · `erro` Rejeitado ·
   `neutro` Na fila · `destaque` Orçamento (o tom `roxo` saiu do kit, RD-0235). `Badge` antigo virou pílula de 24 dp.
-- Linha de lista: título 15/600, linha de apoio 13 `ink2`, valor em Archivo 16 tabular à direita, chip no alto à direita.
+- Linha de lista: título 16/600, linha de apoio 14 `ink2`, valor 16/700 tabular à direita, chip no alto à direita.
 - `LinhaAtalho` (T-0085): linha tocável que leva a **outra vista da mesma aba** ("Rascunhos (2)" em Pedidos, T-0141). Fundo
   `accentSoft` sem borda, raio 12, ícone e seta `accentInk`, rótulo 15/600 (até 24 caracteres), apoio 13 `ink2` (até 36);
   48 dp, 56 com apoio. Não é botão (não conta como principal) nem chip (não filtra). Uso e regra em `docs/design/pedido-v3.md`
@@ -166,9 +180,8 @@ de cor (altura, raio, fonte e regras iguais). O Azul noite some no grafite (1,29
   especial, ao vivo pelas `faltas` do Core (`faltasNaSenha`); ✓ verde cumprida, círculo vazio neutro faltando, ✕ vermelho com
   `destacar` (depois de tentar salvar). Leitor de tela: "ok"/"falta" por regra (web) e resumo em região viva ("Falta um número.").
   Nunca no login; o kit não recebe a senha. Textos e frases em `comum/senha.ts`.
-- Olho do campo de senha (web): `IconEye` no botão "Mostrar senha" (senha escondida) e `IconEyeOff` no "Esconder senha"
-  (`MOSTRAR_SENHA`/`ESCONDER_SENHA`), 18 px, `text-ink-2`, botão de 44 × 44 dentro do campo, à direita. Vale no login (o olho
-  ajuda a conferir o que digitou; a lista de regras é que não entra no login).
+- `CampoSenha` (web `@macuxi/ui/web` e mobile `@macuxi/ui/mobile`): o campo de senha único, com o olho só em ícone. Medidas,
+  textos e comportamento: `campo-senha/spec.md`. Vale também no login; a lista de regras não entra no login.
 
 ### 4.4 Permissões e perfis (BKO; T-0111; spec `docs/design/perfis-de-acesso.md` §12)
 - `LinhaDePermissao`: rótulo, ajuda, "Padrão: X" e o controle à direita; com `trava`, o `Cadeado` logo depois do rótulo.
@@ -203,14 +216,14 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
 - `Faixa` ganhou `apoio` (2ª linha); alertas da aba Venda com `alertaInadimplencia` e `TEXTO_CLIENTE_LIBERADO`.
 
 ### 4.7 Novo pedido v3: crédito em tabela, Rascunhos, "preço de" (T-0141; spec `docs/design/pedido-v3.md`)
-- `TabelaValores`: valor de consulta em tabela (rótulo 14 `ink2` ··· valor Archivo 700 17 tabular, linhas de 48 dp com traço);
+- `TabelaValores`: valor de consulta em tabela (rótulo 14 `ink2` ··· valor 18/700 tabular, linhas de 48 dp com traço);
   sem dado = `VALOR_SEM_DADO` ("—", em `ink3`); `carregando` desenha barras cinza; `rodape` com a atualização. Nunca frase
   corrida para Limite, Disponível ou Prazo médio.
 - Entrada **Rascunhos (n)** em Pedidos com o `LinhaAtalho`; selo "Some em 2 h" (aviso) nas últimas 3 h; selo do orçamento
   "Orçamento · preço de 09/11" (`destaque`, não vence).
 
 ### 4.8 Catálogo pela hierarquia (T-0142; spec `docs/design/catalogo-por-linha.md`)
-- `ListaNiveis`: cabeçalho "Sistemas · Produtos", um cartão com linhas de 56 dp, contagem em Archivo negrito à direita
+- `ListaNiveis`: cabeçalho "Sistemas · Produtos", um cartão com linhas de 56 dp, contagem em negrito (700) à direita
   (`textoDaContagem`, "1.240"), seta; TalkBack `leituraDoNivel` ("Alimentos, 16 produtos").
 - `Trilha`: item com `desligado` = nível pulado (um item só), em `ink2` e sem toque.
 - Último nível: o `CartaoProduto` do módulo (o mesmo da busca), com "Serve em:" em até 2 linhas, "Equivale a:" e etiquetas em
@@ -304,7 +317,7 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
 ### 5.2 Cabeçalho na faixa Azul noite (`CabecalhoTela`, `<Screen cabecalho>`; T-0172, manual da marca §4)
 - **Faixa:** Azul noite, começa na barra de status (soma a área segura) e fica parada em cima; o corpo rola embaixo, no Pérola,
   com os cartões brancos. Sem logo.
-- **Textos:** título branco, Archivo 24/28; subtítulo de uma linha em `#C9CED5`, Plex Sans 13. O subtítulo fica abaixo do título ou
+- **Textos:** título branco, 22/28 em 700; subtítulo de uma linha em `#C9CED5`, 14. O subtítulo fica abaixo do título ou
   acima dele (`posicaoSubtitulo="acima"`, como a data acima de "Bom dia, Lucas" no Início).
 - **Voltar:** dentro da faixa ("‹ Pedidos"), em `#C9CED5`, com as regras do `BackLink` (§6.1).
 - **Direita:** uma ação curta de 48 dp (ícone, `SeloAtualizacao`). O botão principal fica no corpo, nunca na faixa. Nada
@@ -327,7 +340,7 @@ Spec das telas: `docs/design/telas/portal-config-enxuto.md` §0. Simulação: `t
 - **Marca:** variante da `MarcaNaFaixa` **sem** fundo e sem arredondado próprios (`<MarcaNaFaixa solta={false}>` ou
   `MarcaNaBarra`; o nome fica com o engenheiro-apps). Logo negativo a **104 px** de largura (22 px de altura, acima do mínimo
   de 20 px) e **14 px de folga** em volta (`gap-3.5 p-3.5`; área de proteção = altura do "M", manual §2.3). Ao lado, o filete
-  (`bg-faixa-texto/40`) e o nome da área em `text-faixa-texto` (`#C9CED5`, 8,07:1), Archivo 14/700.
+  (`bg-faixa-texto/40`) e o nome da área em `text-faixa-texto` (`#C9CED5`, 8,07:1), 15/700 na fonte do sistema.
 - **Marca solta** (Entrar, Escolha a empresa, login do BKO, sem barra): a mesma peça dentro de uma faixa arredondada
   (`rounded-xl bg-faixa p-3.5`), com o logo a 104 px.
 - **Abas do menu:** ativa `text-white border-b-2 border-white`; inativa `text-faixa-texto border-transparent hover:text-white`.

@@ -1,0 +1,254 @@
+name: android build
+
+# Build do APK no próprio GitHub Actions, sem a fila do EAS (R-20261114-224500-alexandre). Só manual:
+# Actions → "android build" → Run workflow. Passo a passo do dono do produto: docs/producao/build-actions.md.
+# Reproduz o perfil do eas.json (<variante>-<perfil>): env do perfil (APP_VARIANT, EXPO_PUBLIC_API_URL,
+# EXPO_PUBLIC_PERFIL_BUILD), Node do perfil, pnpm do packageManager e APK. O plano sai de scripts/ci/android-build.mjs
+# (nome do build pelas regras de apps/mobile/src/lib/nome-build.ts: Campo-Oficial-v1.0.8).
+# Versão: a do input vale para o build (o versao.json do runner é sobrescrito; o repositório não muda). versionCode: o
+# do input ou MAIOR*1000000 + MENOR*1000 + CORRECAO (1.0.8 → 1000008), acima do contador remoto do EAS.
+# Assinatura: a keystore do EAS de cada variante, por secrets (sem mudar apps/mobile), injetada no gradle pelas
+# propriedades android.injected.signing.*; a keystore é apagada no fim. Secrets por variante (sufixo _CAMPO/_GESTAO):
+#   ANDROID_KEYSTORE_BASE64_*  ANDROID_KEYSTORE_PASSWORD_*  ANDROID_KEY_ALIAS_*  ANDROID_KEY_PASSWORD_*
+# e GOOGLE_SERVICES_JSON_BASE64 (push pelo FCM, o mesmo arquivo da variável GOOGLE_SERVICES_JSON do EAS).
+# Variáveis de repositório (Settings → Secrets and variables → Actions → Variables), opcionais:
+#   ANDROID_RUNNER              label do runner (padrão ubuntu-latest, 2 núcleos em repositório privado de conta pessoal;
+#                               ubuntu-latest-4-cores só com larger runner, que exige organização Team/Enterprise)
+#   ANDROID_CERT_SHA256_CAMPO / ANDROID_CERT_SHA256_GESTAO   SHA-256 esperado do certificado (o do expo.dev); se
+#                               existir e não bater, o build fica vermelho.
+
+on:
+  workflow_dispatch:
+    inputs:
+      variante:
+        description: 'campo, gestao ou ambas'
+        type: choice
+        options: [ambas, campo, gestao]
+        default: ambas
+      versao:
+        description: 'versão do app (X.Y.Z, por exemplo 1.0.8)'
+        type: string
+        required: true
+      perfil:
+        description: 'perfil do eas.json (<variante>-producao = canal Oficial)'
+        type: choice
+        options: [producao]
+        default: producao
+      version_code:
+        description: 'versionCode do Android (vazio = derivado da versão: 1.0.8 → 1000008)'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.variante }} v${{ inputs.versao }} (${{ inputs.perfil }})
+    runs-on: ${{ vars.ANDROID_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 90
+    concurrency:
+      group: android-build-${{ matrix.variante }}-${{ inputs.versao }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix:
+        variante: ${{ fromJSON(inputs.variante == 'ambas' && '["campo","gestao"]' || format('["{0}"]', inputs.variante)) }}
+    env:
+      VARIANTE: ${{ matrix.variante }}
+      VERSAO: ${{ inputs.versao }}
+      PERFIL: ${{ inputs.perfil }}
+      VERSION_CODE_INFORMADO: ${{ inputs.version_code }}
+      # sufixo dos secrets e variáveis da variante (CAMPO ou GESTAO); nunca cai no conjunto da outra variante
+      SUFIXO: ${{ matrix.variante == 'campo' && 'CAMPO' || 'GESTAO' }}
+    steps:
+      # Antes de tudo (segundos): falta de secret derruba o job sem gastar o build. Nunca imprime valor.
+      - name: secrets da variante
+        env:
+          KS_BASE64: ${{ secrets[format('ANDROID_KEYSTORE_BASE64_{0}', env.SUFIXO)] }}
+          KS_PASSWORD: ${{ secrets[format('ANDROID_KEYSTORE_PASSWORD_{0}', env.SUFIXO)] }}
+          KEY_ALIAS: ${{ secrets[format('ANDROID_KEY_ALIAS_{0}', env.SUFIXO)] }}
+          KEY_PASSWORD: ${{ secrets[format('ANDROID_KEY_PASSWORD_{0}', env.SUFIXO)] }}
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          FALTAM=()
+          [ -n "$KS_BASE64" ] || FALTAM+=("ANDROID_KEYSTORE_BASE64_$SUFIXO")
+          [ -n "$KS_PASSWORD" ] || FALTAM+=("ANDROID_KEYSTORE_PASSWORD_$SUFIXO")
+          [ -n "$KEY_ALIAS" ] || FALTAM+=("ANDROID_KEY_ALIAS_$SUFIXO")
+          [ -n "$KEY_PASSWORD" ] || FALTAM+=("ANDROID_KEY_PASSWORD_$SUFIXO")
+          [ -n "$GOOGLE_SERVICES" ] || FALTAM+=("GOOGLE_SERVICES_JSON_BASE64")
+          if [ "${#FALTAM[@]}" -gt 0 ]; then
+            echo "::error title=secrets ausentes::Crie em Settings → Secrets and variables → Actions: ${FALTAM[*]}"
+            echo "### $VARIANTE: secrets ausentes — ${FALTAM[*]}" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Node do .nvmrc só para o plano (o script importa .ts com remoção de tipos); o do perfil vem depois.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: plano (perfil do eas.json, versão, versionCode, nome)
+        id: plano
+        run: node scripts/ci/android-build.mjs
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.plano.outputs.node }}
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Cache do ~/.gradle (dependências, wrapper e build cache); grava só no branch padrão.
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: instalar dependências
+        run: pnpm install --frozen-lockfile
+
+      # O ubuntu-latest (2 núcleos, ~14 GB livres) ficou sem disco no assembleRelease (run 43673109770: "No space left
+      # on device"). Depois do install: apaga do runner o que o build não usa e preserva só o NDK que o react-native do
+      # repositório pede (ndkVersion do libs.versions.toml). docker image prune é limpeza do runner, não roda container.
+      - name: liberar disco
+        run: |
+          df -h /
+          NDK_VERSAO=$(sed -n 's/^ndkVersion = "\(.*\)"/\1/p' node_modules/react-native/gradle/libs.versions.toml)
+          [ -n "$NDK_VERSAO" ] || { echo '::error title=NDK::ndkVersion não encontrado no react-native'; exit 1; }
+          NDK_DIR=/usr/local/lib/android/sdk/ndk
+          if [ -d "$NDK_DIR" ]; then
+            for d in "$NDK_DIR"/*; do
+              [ "$(basename "$d")" = "$NDK_VERSAO" ] || sudo rm -rf "$d"
+            done
+          fi
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
+          docker image prune -af > /dev/null 2>&1 || true
+          echo "NDK preservado: $(ls "$NDK_DIR" 2>/dev/null | tr '\n' ' ')"
+          df -h /
+
+      # Metro: os.tmpdir()/metro-cache. Chave por variante (o bundle muda com APP_VARIANT) + lockfile + commit.
+      - name: cache do Metro
+        uses: actions/cache@v4
+        with:
+          path: /tmp/metro-cache
+          key: metro-v1-${{ matrix.variante }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            metro-v1-${{ matrix.variante }}-${{ hashFiles('pnpm-lock.yaml') }}-
+            metro-v1-${{ matrix.variante }}-
+
+      # A versão do input entra no app.config.ts pelo versao.json (só no runner) e o google-services.json pelo caminho
+      # da variável GOOGLE_SERVICES_JSON, como no EAS.
+      - name: versão e google-services.json
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          printf '{\n  "versao": "%s"\n}\n' "$VERSAO" > apps/mobile/scripts/eas/versao.json
+          ARQUIVO="$RUNNER_TEMP/google-services.json"
+          printf '%s' "$GOOGLE_SERVICES" | base64 --decode > "$ARQUIVO"
+          node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$ARQUIVO" \
+            || { echo '::error title=google-services.json::GOOGLE_SERVICES_JSON_BASE64 não é um JSON em base64'; exit 1; }
+          echo "GOOGLE_SERVICES_JSON=$ARQUIVO" >> "$GITHUB_ENV"
+
+      - name: expo prebuild
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform android --clean --no-install
+
+      # O app.config.ts não tem versionCode (é do EAS): o prebuild escreve 1; aqui vale o do plano.
+      - name: versionCode e versionName
+        working-directory: apps/mobile/android/app
+        run: |
+          sed -i -E "s/^([[:space:]]*versionCode)[[:space:]]+[0-9]+/\1 $VERSION_CODE/; s/^([[:space:]]*versionName)[[:space:]]+\"[^\"]*\"/\1 \"$VERSAO\"/" build.gradle
+          if ! grep -qE "^[[:space:]]*versionCode $VERSION_CODE\$" build.gradle || ! grep -qE "^[[:space:]]*versionName \"$VERSAO\"\$" build.gradle; then
+            echo '::error title=versionCode::não achei versionCode/versionName no android/app/build.gradle do prebuild'; exit 1
+          fi
+
+      # Só arm64-v8a e armeabi-v7a (aparelhos; x86/x86_64 são de emulador): metade do código nativo, menos disco e
+      # tempo. Memória para o runner de 7 GB; o gradlew roda com --no-daemon. Idempotente: troca a linha ou acrescenta.
+      - name: gradle.properties (ABIs e memória)
+        working-directory: apps/mobile/android
+        run: |
+          definir() {
+            if grep -qE "^$1=" gradle.properties; then
+              sed -i -E "s|^$1=.*|$1=$2|" gradle.properties
+            else
+              printf '\n%s=%s\n' "$1" "$2" >> gradle.properties
+            fi
+          }
+          definir reactNativeArchitectures 'arm64-v8a,armeabi-v7a'
+          definir org.gradle.jvmargs '-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8'
+          definir org.gradle.parallel false
+          grep -E '^(reactNativeArchitectures|org\.gradle\.jvmargs|org\.gradle\.parallel)=' gradle.properties
+
+      - name: keystore
+        env:
+          KS_BASE64: ${{ secrets[format('ANDROID_KEYSTORE_BASE64_{0}', env.SUFIXO)] }}
+        run: |
+          umask 077
+          printf '%s' "$KS_BASE64" | base64 --decode > "$RUNNER_TEMP/keystore.jks"
+          [ -s "$RUNNER_TEMP/keystore.jks" ] || { echo '::error title=keystore::o base64 da keystore decodificou vazio'; exit 1; }
+
+      - name: gradlew assembleRelease
+        working-directory: apps/mobile/android
+        env:
+          KS_PASSWORD: ${{ secrets[format('ANDROID_KEYSTORE_PASSWORD_{0}', env.SUFIXO)] }}
+          KEY_ALIAS: ${{ secrets[format('ANDROID_KEY_ALIAS_{0}', env.SUFIXO)] }}
+          KEY_PASSWORD: ${{ secrets[format('ANDROID_KEY_PASSWORD_{0}', env.SUFIXO)] }}
+        run: |
+          ./gradlew assembleRelease --build-cache --no-daemon \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/keystore.jks" \
+            -Pandroid.injected.signing.store.password="$KS_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+
+      - name: apagar keystore
+        if: ${{ always() }}
+        run: rm -f "$RUNNER_TEMP/keystore.jks" "$RUNNER_TEMP/google-services.json"
+
+      # Só o DN e o SHA-256 (públicos) vão ao log, e o SHA-256 vai ao resumo. A conferência (formatos do apksigner e
+      # motivos de vermelho) é do scripts/ci/android-build.mjs certificado.
+      - name: conferir assinatura
+        id: apk
+        env:
+          ESPERADO: ${{ vars[format('ANDROID_CERT_SHA256_{0}', env.SUFIXO)] }}
+        run: |
+          ORIGEM=apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          [ -f "$ORIGEM" ] || { echo "::error title=apk::não achei $ORIGEM"; exit 1; }
+          APK="$RUNNER_TEMP/$NOME_BUILD.apk"
+          mv "$ORIGEM" "$APK"
+          FERRAMENTAS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          echo "apksigner do build-tools $(basename "$FERRAMENTAS")"
+          if ! CERTS="$("$FERRAMENTAS/apksigner" verify --print-certs "$APK")"; then
+            printf '%s\n' "$CERTS"; echo '::error title=assinatura::apksigner verify falhou (saída acima)'; exit 1
+          fi
+          printf '%s\n' "$CERTS" | node scripts/ci/android-build.mjs certificado
+          echo "caminho=$APK" >> "$GITHUB_OUTPUT"
+
+      - name: resumo do APK
+        env:
+          APK: ${{ steps.apk.outputs.caminho }}
+          SHA: ${{ steps.apk.outputs.sha }}
+          CONFERIDO: ${{ steps.apk.outputs.conferido }}
+        run: |
+          {
+            echo "### $NOME_BUILD.apk"
+            echo
+            echo "- versionName $VERSAO, versionCode $VERSION_CODE, perfil $VARIANTE-$PERFIL"
+            echo "- tamanho: $(du -h "$APK" | cut -f1)"
+            echo "- SHA-256 do certificado: \`$SHA\` ($CONFERIDO)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.plano.outputs.nome }}
+          path: ${{ steps.apk.outputs.caminho }}
+          if-no-files-found: error
+          retention-days: 30

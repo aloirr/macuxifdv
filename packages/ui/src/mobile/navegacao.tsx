@@ -14,7 +14,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { leituraDoAtalho, leituraDoNivel, textoDaContagem } from './componentes';
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
-import { colors, fonts, radius } from './theme';
+import { colors, fonte, radius } from './theme';
 
 /** Alvo de toque mínimo destas peças (48 dp, Material). */
 const ALVO = 48;
@@ -150,7 +150,7 @@ export interface NivelDaLista {
 /**
  * Lista de níveis do catálogo (T-0142; spec docs/design/catalogo-por-linha.md §2): cabeçalho com o nome do nível no plural à
  * esquerda ("Sistemas") e o da contagem à direita ("Produtos"); um cartão branco com traço entre as linhas; linha de 56 dp com o
- * nome (15/600, até 2 linhas), a contagem em Archivo negrito tabular e a seta. A linha inteira é o toque (afunda 0,97). Quem
+ * nome (16/600, até 2 linhas), a contagem em negrito (700) tabular e a seta. A linha inteira é o toque (afunda 0,97). Quem
  * decide quais níveis entram, quais pular e a contagem é a função do domain do Catálogo.
  */
 export function ListaNiveis({
@@ -206,28 +206,28 @@ const s = StyleSheet.create({
   item: { flexDirection: 'row', alignItems: 'center' },
   passo: { minHeight: ALVO, justifyContent: 'center', paddingHorizontal: 6 },
   // accentInk (Azul noite): 11,82:1 no fundo Pérola (T-0172)
-  link: { fontFamily: fonts.medium, fontSize: 14, color: colors.accentInk },
-  atual: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
+  link: { ...fonte.medium, fontSize: 14, color: colors.accentInk },
+  atual: { ...fonte.bold, fontSize: 14, color: colors.ink },
   // nível pulado (T-0142): ink2 7,6:1 no branco, 6,9:1 no fundo; sem toque
-  pulado: { fontFamily: fonts.medium, fontSize: 14, color: colors.ink2 },
+  pulado: { ...fonte.medium, fontSize: 14, color: colors.ink2 },
   // .crumb / .crumb b da referência do Novo pedido
   passoCompacto: { paddingHorizontal: 4 },
-  linkCompacto: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
-  atualCompacto: { fontFamily: fonts.semibold, fontSize: 13, color: colors.accentInk },
+  linkCompacto: { ...fonte.body, fontSize: 14, color: colors.ink2 },
+  atualCompacto: { ...fonte.semibold, fontSize: 14, color: colors.accentInk },
   // LinhaAtalho: Azul suave com ink 12,68:1, ink2 5,84:1 e accentInk 9,83:1 (todos ≥ 4,5:1)
   atalho: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: ALVO, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: colors.accentSoft, borderRadius: radius.md },
   atalhoComApoio: { minHeight: 56 },
   atalhoTexto: { flex: 1, gap: 2 },
-  atalhoRotulo: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
-  atalhoApoio: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
+  atalhoRotulo: { ...fonte.semibold, fontSize: 16, color: colors.ink },
+  atalhoApoio: { ...fonte.body, fontSize: 14, color: colors.ink2 },
   // ListaNiveis (T-0142): ink 16,5:1, ink2 7,6:1 e ink3 5,8:1 no branco
   niveis: { gap: 8 },
   niveisCabecalho: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 2 },
-  niveisRotulo: { fontFamily: fonts.semibold, fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.ink2 },
+  niveisRotulo: { ...fonte.semibold, fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.ink2 },
   niveisCartao: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, overflow: 'hidden' },
   nivel: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingHorizontal: 14, paddingVertical: 8 },
   nivelTraco: { borderTopWidth: 1, borderTopColor: colors.lineSoft },
-  nivelNome: { flex: 1, minWidth: 0, fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
+  nivelNome: { flex: 1, minWidth: 0, ...fonte.semibold, fontSize: 16, color: colors.ink },
   nivelNomeSecundario: { color: colors.ink2 },
-  nivelContagem: { fontFamily: fonts.displayBold, fontSize: 15, color: colors.ink, fontVariant: ['tabular-nums'] },
+  nivelContagem: { ...fonte.displayBold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
 });

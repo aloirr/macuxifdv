@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buscaDosFiltrosMarcas, lerFiltrosMarcas, marcasParaCsv } from './marcas';
+import { buscaDosFiltrosMarcas, FILTROS_MARCAS_PADRAO, filtrosMarcasLigados, lerFiltrosMarcas, marcasParaCsv } from './marcas';
 
 describe('BKO Marcas concorrentes (RN-CAT-13)', () => {
   it('RN-CAT-13: os filtros vão e voltam pela URL; o padrão (ativas, sem busca) não suja o endereço', () => {
@@ -17,5 +17,12 @@ describe('BKO Marcas concorrentes (RN-CAT-13)', () => {
     expect(csv.startsWith('﻿Marca;Situação;Referências;Código no ERP\r\n')).toBe(true);
     expect(csv).toContain("'=Freio;Inativa;3;");
     expect(csv).toContain('"Pneu; Max";Ativa;0;X1');
+  });
+  it('RN-CAT-13: "Limpar filtros" só aparece com situação diferente de ativas ou busca com texto', () => {
+    expect(filtrosMarcasLigados(FILTROS_MARCAS_PADRAO)).toBe(false);
+    expect(filtrosMarcasLigados({ situacao: 'ativas', q: '   ' })).toBe(false);
+    expect(filtrosMarcasLigados({ situacao: 'ativas', q: 'freio' })).toBe(true);
+    expect(filtrosMarcasLigados({ situacao: 'todas', q: '' })).toBe(true);
+    expect(filtrosMarcasLigados({ situacao: 'inativas', q: '' })).toBe(true);
   });
 });

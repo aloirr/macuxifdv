@@ -16,7 +16,7 @@ import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
 import { formatHHMM } from './time';
 import { useSaidaDaTela, useSinoCabecalho, useVoltarDaTela } from './voltar';
-import { BOTAO_DESABILITADO, colors, CORES_CHIP, fonts, radius, toneColors, TOUCH, type as t, type Tone } from './theme';
+import { BOTAO_DESABILITADO, colors, CORES_CHIP, fonte, radius, toneColors, TOUCH, type as t, type Tone } from './theme';
 
 export interface PropsCabecalhoTela {
   titulo: string;
@@ -33,7 +33,7 @@ export interface PropsCabecalhoTela {
 
 /**
  * Cabeçalho da tela na faixa Azul noite (marca v1, T-0172; docs/design/componentes.md §5.2): começa na barra de status, título
- * branco (Archivo 24) e subtítulo `#C9CED5`. Fica parado em cima; o corpo rola embaixo, no Pérola. Use pelo `Screen`
+ * branco (sistema 700, 22) e subtítulo `#C9CED5`. Fica parado em cima; o corpo rola embaixo, no Pérola. Use pelo `Screen`
  * (`cabecalho={{ titulo, subtitulo }}`) ou sozinho, acima de uma lista própria.
  */
 export function CabecalhoTela({ titulo, subtitulo, posicaoSubtitulo = 'abaixo', voltar, direita, testID = 'cabecalho-tela' }: PropsCabecalhoTela) {
@@ -269,7 +269,7 @@ export function Banner({ children, icon = 'wifiOff', tone = 'warning', testID, a
 }
 
 export function Strong({ children }: { children: ReactNode }) {
-  return <Text style={{ fontFamily: fonts.bold }}>{children}</Text>;
+  return <Text style={{ ...fonte.bold }}>{children}</Text>;
 }
 
 /**
@@ -396,26 +396,26 @@ export const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
   disabled: { opacity: 0.45 },
   back: { alignSelf: 'flex-start', height: TOUCH, flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%' },
-  backText: { fontFamily: fonts.medium, fontSize: 14, color: colors.ink2 },
+  backText: { ...fonte.medium, fontSize: 14, color: colors.ink2 },
   cabecalhoLinha: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cabecalhoTitulo: { fontFamily: fonts.display, fontSize: CABECALHO.tamanhoTitulo, lineHeight: CABECALHO.alturaLinhaTitulo, letterSpacing: -0.2, color: CABECALHO.cores.titulo },
-  cabecalhoSub: { fontFamily: fonts.body, fontSize: CABECALHO.tamanhoSubtitulo, color: CABECALHO.cores.subtitulo },
+  cabecalhoTitulo: { ...fonte.display, fontSize: CABECALHO.tamanhoTitulo, lineHeight: CABECALHO.alturaLinhaTitulo, letterSpacing: -0.2, color: CABECALHO.cores.titulo },
+  cabecalhoSub: { ...fonte.body, fontSize: CABECALHO.tamanhoSubtitulo, color: CABECALHO.cores.subtitulo },
   button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16 },
-  buttonText: { fontFamily: fonts.semibold, fontSize: 14 },
+  buttonText: { ...fonte.semibold, fontSize: 14 },
   /** chip de estado pequeno do guia (24 dp, pílula); a cor sempre vem com o texto */
   badge: { borderRadius: radius.pilula, paddingHorizontal: 10, minHeight: 24, justifyContent: 'center', alignSelf: 'flex-start' },
-  badgeText: { fontFamily: fonts.semibold, fontSize: 12 },
+  badgeText: { ...fonte.semibold, fontSize: 12 },
   chip: { height: 36, paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chipOn: { backgroundColor: CORES_CHIP.ativo.fundo, borderColor: CORES_CHIP.ativo.borda },
   chipOff: { backgroundColor: CORES_CHIP.inativo.fundo, borderColor: CORES_CHIP.inativo.borda },
-  chipText: { fontFamily: fonts.semibold, fontSize: 13 },
+  chipText: { ...fonte.semibold, fontSize: 14 },
   banner: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', borderRadius: radius.cartao, paddingVertical: 12, paddingHorizontal: 14 },
-  bannerText: { flex: 1, fontFamily: fonts.body, fontSize: 13, lineHeight: 17.5 },
+  bannerText: { flex: 1, ...fonte.body, fontSize: 14, lineHeight: 17.5 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  sectionLink: { fontFamily: fonts.semibold, fontSize: 13, color: colors.accentInk },
+  sectionLink: { ...fonte.semibold, fontSize: 14, color: colors.accentInk },
   linkTexto: { minHeight: TOUCH, alignSelf: 'flex-start', justifyContent: 'center' },
-  linkTextoRotulo: { fontFamily: fonts.semibold, fontSize: 14 },
+  linkTextoRotulo: { ...fonte.semibold, fontSize: 14 },
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.cartao },
   stamp: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  stampText: { fontFamily: fonts.body, fontSize: 12 },
+  stampText: { ...fonte.body, fontSize: 12 },
 });

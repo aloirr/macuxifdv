@@ -11,7 +11,7 @@ import type { AgendadorSync, EstadoAgendadorSync } from './atualizacao';
 import { desenhoBotaoSincronizar, desenhoSeloAtualizacao } from './atualizacao';
 import { Icon } from './icon';
 import { Pressionavel } from './movimento-rn';
-import { ALTURA, colors, fonts, type as t } from './theme';
+import { ALTURA, colors, fonte, type as t } from './theme';
 import { Button } from './ui';
 
 export interface ValorSincronizacao {
@@ -87,7 +87,7 @@ export function BotaoSincronizar({
       {d.tom === 'atencao' ? (
         <View style={styles.linhaAviso} testID={`${testID}-situacao`} accessible accessibilityLabel={d.situacao} accessibilityLiveRegion="polite">
           <Icon name="sync" size={14} color={colors.warningInk} />
-          <Text style={[t.small, { color: colors.warningInk, fontFamily: fonts.semibold, flexShrink: 1, textAlign: 'center' }]} testID={`${testID}-aviso-dados`}>
+          <Text style={[t.small, { color: colors.warningInk, ...fonte.semibold, flexShrink: 1, textAlign: 'center' }]} testID={`${testID}-aviso-dados`}>
             {d.situacao}
           </Text>
         </View>
@@ -167,7 +167,7 @@ export function SeloAtualizacao({
       onPress={() => (acao === 'perfil' ? onAbrirPerfil?.() : onSincronizar())}
       style={[styles.selo, sobreFaixa && styles.seloFaixa, atencao && styles.seloAtencao]}>
       <Icon name={d.icone} size={14} color={cor} />
-      <Text style={[t.small, styles.seloTexto, { color: cor }, atencao && { fontFamily: fonts.semibold }]} numberOfLines={1} testID={`${testID}-texto`}>
+      <Text style={[t.small, styles.seloTexto, { color: cor }, atencao && { ...fonte.semibold }]} numberOfLines={1} testID={`${testID}-texto`}>
         {d.texto}
       </Text>
     </Pressionavel>

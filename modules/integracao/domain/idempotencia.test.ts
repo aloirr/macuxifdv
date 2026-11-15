@@ -114,7 +114,7 @@ describe('RN-INT-02/03: validar linhas do lote', () => {
     expect(r.validas[1]?.registro).toMatchObject({ nome: 'Outro', ativo: true });
     expect(r.validas[0]?.hash).toMatch(/^[0-9a-f]{64}$/);
     expect(r.erros.map((e) => [e.indice, e.external_id, e.codigo])).toContainEqual([1, 'V2', 'campo_obrigatorio']);
-    expect(r.avisos.map((a) => a.indice)).toEqual([0]);
+    expect(r.avisos.filter((a) => a.codigo === 'duplicado_no_lote').map((a) => a.indice)).toEqual([0]);
   });
 
   it('RN-INT-02: ativo omitido e ativo=true geram o mesmo hash; alterado_em diferente também', () => {

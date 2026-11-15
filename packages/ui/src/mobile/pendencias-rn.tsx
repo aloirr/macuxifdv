@@ -12,7 +12,7 @@ import { StyleSheet, Text } from 'react-native';
 
 import { Dialogo, Folha, OpcaoFolha } from './folha';
 import { eventoDaSaida, type AcaoDaSaida, type EventoDaSaida, type PassoDaSaida } from './pendencias';
-import { colors, fonts } from './theme';
+import { colors, fonte } from './theme';
 
 // ---------- Folha de saída e retomada ----------
 export interface OpcaoDaSaida {
@@ -171,5 +171,5 @@ export function FolhaRetomarRascunho({
 }
 
 const s = StyleSheet.create({
-  aviso: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: colors.ink2 },
+  aviso: { ...fonte.body, fontSize: 14, lineHeight: 18, color: colors.ink2 },
 });

@@ -33,7 +33,7 @@ import { alturaMaximaDaFolha, ALVO_TOQUE, coberturaDoTeclado, rolagemAteCampo } 
 import { Icon, type IconName } from './icon';
 import { deslocamentoDaFolha, duracaoMovimento } from './movimento';
 import { curvaPadrao, Pressionavel, useReduzirMovimento } from './movimento-rn';
-import { colors, fonts, radius, shadow } from './theme';
+import { colors, fonte, radius, shadow } from './theme';
 
 /** Mantém montado durante a saída e devolve o progresso 0 → 1 da entrada (0 = fechado). */
 function useEntradaSaida(visivel: boolean, duracao: number) {
@@ -345,7 +345,7 @@ const s = StyleSheet.create({
   folha: { position: 'absolute', left: 0, right: 0, bottom: 0, alignSelf: 'center', width: '100%', maxWidth: 560, backgroundColor: colors.surface, borderTopLeftRadius: radius.folha, borderTopRightRadius: radius.folha, paddingTop: 8, paddingHorizontal: 16, gap: 9, ...shadow.folha },
   /** alça visual no topo (indica que a folha desce) */
   alca: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.lineStrong, marginBottom: 6 },
-  titulo: { fontFamily: fonts.display, fontSize: 19, color: colors.ink, marginBottom: 0 },
+  titulo: { ...fonte.display, fontSize: 18, color: colors.ink, marginBottom: 0 },
   /** título + ✕ (T-0141): o ✕ ocupa o alvo inteiro de 48 dp, com o ícone de 20 alinhado à direita do conteúdo */
   cabecalho: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: ALVO_TOQUE },
   tituloComFechar: { flex: 1, minWidth: 0 },
@@ -354,21 +354,21 @@ const s = StyleSheet.create({
   rolagem: { flexGrow: 0, flexShrink: 1 },
   rolagemConteudo: { gap: 9 },
   rodape: { minHeight: ALVO_TOQUE, alignItems: 'center', justifyContent: 'center', marginTop: 5 },
-  rodapeTexto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink2 },
+  rodapeTexto: { ...fonte.semibold, fontSize: 14, color: colors.ink2 },
   // .opt / .ic
   opcao: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, minHeight: 56, paddingVertical: 11, paddingHorizontal: 12, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   icone: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   opcaoTextos: { flex: 1, minWidth: 0, gap: 2 },
-  opcaoTitulo: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
-  opcaoSub: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink2 },
+  opcaoTitulo: { ...fonte.bold, fontSize: 14, color: colors.ink },
+  opcaoSub: { ...fonte.body, fontSize: 12, color: colors.ink2 },
   // diálogo central
   dialogoFundo: { flex: 1, backgroundColor: FUNDO, alignItems: 'center', justifyContent: 'center', padding: 24 },
   dialogo: { width: '100%', maxWidth: 420, backgroundColor: colors.surface, borderRadius: radius.xxl, padding: 18, gap: 8 },
-  dialogoTitulo: { fontFamily: fonts.display, fontSize: 18, color: colors.ink },
-  dialogoMsg: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.ink2 },
+  dialogoTitulo: { ...fonte.display, fontSize: 18, color: colors.ink },
+  dialogoMsg: { ...fonte.body, fontSize: 14, lineHeight: 20, color: colors.ink2 },
   dialogoBotoes: { flexDirection: 'row', gap: 9, marginTop: 8 },
   dialogoBotao: { flex: 1, minHeight: ALVO_TOQUE, borderRadius: radius.botaoMedio, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   /** nível neutro do guia (Cancelar) */
   dialogoBotaoFora: { backgroundColor: colors.lineSoft },
-  dialogoBotaoTexto: { fontFamily: fonts.semibold, fontSize: 14 },
+  dialogoBotaoTexto: { ...fonte.semibold, fontSize: 14 },
 });

@@ -5,8 +5,7 @@
  * Senha e token nunca vão para log, nem para o armazenamento do módulo (o shell guarda o token em área segura).
  */
 import { ehSemConexao, type AppComLogin } from '@macuxi/platform-sdk';
-import { AVISO_APARELHO_LIMPO, CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, validarLogin, type CamposLogin, type ErrosLogin, MENSAGEM_SENHA_A_TROCAR, MENSAGEM_SENHA_VENCIDA, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
-import { ESCONDER_SENHA, MOSTRAR_SENHA } from '@macuxi/ui/mobile/puro';
+import { AVISO_APARELHO_LIMPO, CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, validarLoginNovo as validarLogin, type CamposLogin, type ErrosLogin, CODIGO_EMPRESA_TAMANHO, normalizarCodigoEmpresa, MENSAGEM_SENHA_A_TROCAR, MENSAGEM_SENHA_VENCIDA, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
 import { tolerante } from './leitor-tolerante';
 
 export { validarLogin, type CamposLogin, type ErrosLogin };
@@ -57,10 +56,8 @@ export function mensagemDeErroDeLogin(e: unknown): string {
   }
 }
 
-/** Rótulo acessível do botão de olho da senha. */
-export function rotuloOlhoSenha(visivel: boolean): string {
-  return visivel ? ESCONDER_SENHA : MOSTRAR_SENHA;
-}
+/** Propriedades do campo Código da empresa (login e "Esqueci a senha"): cabe só o código da licença, UF + 4 dígitos (ex.: AM4821). */
+export const propsDoCampoCodigoEmpresa = { maxLength: CODIGO_EMPRESA_TAMANHO, autoCapitalize: 'characters', autoCorrect: false, spellCheck: false } as const;
 
 /** Transporte sem token (o shell entrega): POST do corpo no caminho `/auth/login` da API v1. */
 export type PostSemSessao = (caminho: string, corpo: unknown) => Promise<unknown>;
@@ -72,7 +69,7 @@ export type PostSemSessao = (caminho: string, corpo: unknown) => Promise<unknown
  */
 export async function entrarComSenha(post: PostSemSessao, campos: CamposLogin, aparelho: { id?: string; nome?: string } = {}, app?: AppComLogin): Promise<SessaoResposta> {
   const corpo: LoginSenhaRequest = LoginSenhaRequestSchema.parse({
-    codigo_empresa: campos.codigo_empresa.trim(),
+    codigo_empresa: normalizarCodigoEmpresa(campos.codigo_empresa),
     email: campos.email.trim(),
     senha: campos.senha,
     ...(aparelho.id ? { dispositivo_id: aparelho.id } : {}),
