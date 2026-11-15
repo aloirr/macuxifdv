@@ -44,8 +44,15 @@
 
 ## 2. Portal `config.`: cadastro da logo
 
-Fica **só no portal `config.`**: na página da empresa, aba **Empresa**, um cartão **"Logo"**, o primeiro da aba. Quem
-vê e muda é quem já entra nessa aba: o time da Macuxi e o administrador do cliente. O BKO não tem esse cadastro.
+Fica **só no portal `config.`**: na página da empresa, aba **Empresa**, um cartão **"Logo"**, o primeiro da aba. O BKO
+não tem esse cadastro.
+
+**Quem grava e quem vê** (RN-CORE-33; decisão do gerente-projetos, T-0182, sobre o pedido "cadastrado só no portal
+config. (super-admin)"):
+- **Super-admin (time da Macuxi):** grava a logo e o nome fantasia; vê o cartão com todos os estados da tabela abaixo.
+- **Administrador do cliente:** vê a aba Empresa **só para leitura**: a caixa com a logo salva (ou a caixa vazia do
+  estado 1) e o nome fantasia como texto, **sem nenhum botão** (Enviar logo, Salvar, Cancelar, Trocar, Remover) e **sem a
+  linha dos limites**. Não há aviso de "só leitura" nem de "fale com a Macuxi" (R-20261110-192153).
 
 | Simulação | Arquivo |
 |---|---|
@@ -77,11 +84,13 @@ vê e muda é quem já entra nessa aba: o time da Macuxi e o administrador do cl
     script e o app precisaria do `SvgXml` para cada logo.
   - **1 MB:** a logo vai para cada aparelho na carga.
   - **200 px de altura:** a altura mínima para a logo sair nítida no PDF (16 mm ≈ 190 px a 300 dpi).
-- **Erros** (uma frase com a ação, `#A8261B` 13 px semibold, com o ícone de alerta; erro do arquivo, nunca do servidor
+- **Erros** (só para o super-admin; uma frase com a ação, `#A8261B` 13 px semibold, com o ícone de alerta; erro do arquivo, nunca do servidor
   em inglês):
   - formato: **"Use um arquivo PNG ou JPG."**;
   - tamanho: **"O arquivo passa de 1 MB. Envie um menor."**;
   - altura: **"A imagem tem menos de 200 px de altura. Envie uma maior."**;
+  - lado máximo (4096 px de largura ou de altura, `LOGO_LADO_MAXIMO`): **"A imagem passa de 4096 px de largura ou
+    altura. Envie uma menor."**;
   - falha ao salvar: **"Não foi possível salvar. Tente de novo."**;
   - rota ausente no servidor: **"Ainda não disponível neste servidor."** (a constante única do portal, RD-0288).
 - **Teclado e leitor:** os botões são `button` com foco visível (`outline` Azul noite); o erro é região viva
