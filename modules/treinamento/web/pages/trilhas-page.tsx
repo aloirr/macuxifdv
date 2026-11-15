@@ -31,7 +31,6 @@ import {
   useToast,
   type BadgeTone,
 } from '@macuxi/ui/web';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { AdesaoResposta, BkoTrilhaResumo, PessoasResposta } from '../../contracts';
@@ -54,6 +53,7 @@ const baixarCsv = (conteudo: string, arquivo: string) => downloadBlob(new Blob([
  * contagem nas abas, tabelas sem rolagem lateral (§P1 a §P7).
  */
 export function TrilhasPage() {
+  const router = useRouter();
   const [f, mudar] = useFiltrosNaUrl();
   const podeTrilhas = usePode('trilha.editar');
   const permitidas: Record<Aba, boolean> = { adesao: usePode('adesao.ver'), pessoas: usePode('notas.ver'), trilhas: podeTrilhas };
@@ -88,9 +88,9 @@ export function TrilhasPage() {
           aba === null ? null : (
             <div className="flex items-center gap-2">
               {podeTrilhas && (
-                <Link href={hrefEditarTrilha()} data-testid="treinamento.nova-trilha" className="inline-flex h-[42px] items-center gap-1.5 rounded-xl bg-accent px-4 text-[14px] font-semibold text-white no-underline hover:bg-accent/90">
+                <Button variant="primary" onClick={() => router.push(hrefEditarTrilha())} data-testid="treinamento.nova-trilha">
                   <IconPlus size={15} /> Nova trilha
-                </Link>
+                </Button>
               )}
               <MenuAcoes acoes={acoes} rotulo="Mais ações" />
             </div>
@@ -354,9 +354,9 @@ function AbaTrilhas({ q, f }: { q: Consulta<BkoTrilhaResumo[]>; f: FiltrosTrilha
               <EstadoVazio
                 titulo="Nenhuma trilha cadastrada."
                 acao={
-                  <Link href={hrefEditarTrilha()} className="inline-flex h-[42px] items-center gap-1.5 rounded-xl bg-accent px-4 text-[14px] font-semibold text-white no-underline hover:bg-accent/90">
+                  <Button variant="primary" onClick={() => router.push(hrefEditarTrilha())}>
                     <IconPlus size={15} /> Nova trilha
-                  </Link>
+                  </Button>
                 }
               />
             )
