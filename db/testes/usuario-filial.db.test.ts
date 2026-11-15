@@ -8,7 +8,7 @@ import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-tes
 import { idFilialPadrao } from '../src/ids';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
-import { comCliente, emTransacao, HASH_TESTE, retratoDoCatalogo } from './util';
+import { comCliente, comoPapel, emTransacao, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
@@ -279,12 +279,12 @@ describe.skipIf(semBanco())('0077 filial de cadastro e de venda (banco, fixture 
       const sa = (await admin.query<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [
         JSON.stringify({ acao: 'criar', email: 'operador.t176@exemplo.com.br', nome: 'Operador T-0176', senha_hash: HASH_TESTE }),
       ])).rows[0]!.r.super_admin_id;
+      // a sessão nasce pela sa_abrir_sessao_portal (como o portal faz): a empresa atual do admin_cliente precisa estar entre
+      // as conferidas no login (portal_sessao_empresa_atual_fk, 0039), o que um insert direto em portal_sessao não cumpre
       const sessao = async (tipo: 'super_admin' | 'admin_cliente') =>
-        (await admin.query<{ id: string }>(
-          `insert into plataforma.portal_sessao (tipo, super_admin_id, tenant_atual_id, usuario_atual_id, expira_em)
-           values ($1, $2, $3, $4, now() + interval '1 hour') returning id`,
-          tipo === 'super_admin' ? [tipo, sa, null, null] : [tipo, null, A.tenantId, A.usuarios.admin],
-        )).rows[0]!.id;
+        (await comoPapel<{ sessao_id: string }>(admin, 'macuxi_portal', 'select * from plataforma.sa_abrir_sessao_portal($1::jsonb)', [
+          JSON.stringify(tipo === 'super_admin' ? { tipo, super_admin_id: sa } : { tipo, empresas: [{ tenant_id: A.tenantId, usuario_id: A.usuarios.admin }] }),
+        ])).rows[0]!.sessao_id;
       const valida = async (sid: string) =>
         (await admin.query<{ tipo: string; sem_filial: boolean }>('select tipo, sem_filial from plataforma.sa_sessao_valida($1)', [sid])).rows;
       const sSa = await sessao('super_admin');
