@@ -48,7 +48,7 @@ export interface RepositorioCatalogo {
    * Filiais cujo saldo o usuário vê (RN-CORE-39, RN-CAT-07). Com cliente no contexto: só a filial efetiva dele (sem saldo = 0);
    * sem cliente: as da carteira (vendedor, supervisor) ou `null` = todas (analista, assistente, admin).
    */
-  filiaisDoUsuario(clienteId?: string | null, filialEscolhida?: string | null): Promise<string[] | null>;
+  filiaisDoUsuario(clienteId?: string | null): Promise<string[] | null>;
   conteudo(produtoId: string): Promise<{ conteudo: ConteudoGuardado | null; midias: MidiaProduto[] }>;
   /** RN-CAT-03: uso de IA do usuário no dia do tenant; `'indisponivel'` = sem onde guardar a cota (IA não é chamada). */
   usoIa(dia: string): Promise<UsoIa | null | 'indisponivel'>;
@@ -223,8 +223,7 @@ export function criarRepositorioMemoria(porTenant: Record<string, DadosTenantMem
         const ids = new Set(produtoIds);
         return new Map([...(d.saldos ?? new Map<string, StockByBranch[]>()).entries()].filter(([k]) => ids.has(k)).map(([k, v]) => [k, copia(v)]));
       },
-      async filiaisDoUsuario(_clienteId, filialEscolhida) {
-        if (!_clienteId && filialEscolhida) return [filialEscolhida];
+      async filiaisDoUsuario() {
         return d.filiaisDoUsuario?.[usuario] ? [...d.filiaisDoUsuario[usuario]] : null;
       },
       async conteudo(produtoId) {

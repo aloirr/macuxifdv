@@ -14,7 +14,7 @@ import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
 import { anoCivilNoFuso } from '../domain/ano-civil';
 import { filiaisDoEstoque } from '../domain/estoque';
 import { cederLaco, prepararIndice } from '../domain/indice-busca';
-import { precosDaFilialSemCliente, tabelaPorContagem } from '../domain/preco-filial';
+import { precosDaTabelaSemCliente, tabelaPorContagem } from '../domain/preco-filial';
 import { filialDaTabela, filialDoClienteNoCore, filiaisDaCarteiraNoCore, nomeDaFilial } from './filiais-core';
 import type { ItemTabelaPreco, MidiaProduto, Referencia, SalvarFaixa, Sinonimo, StockByBranch } from '../contracts';
 import type { NoCatalogo, VinculoProdutoNo } from '../domain/arvore';
@@ -486,8 +486,8 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
             where tabela_preco_id = $1::uuid and filial_id = $3::uuid and produto_id = any($2::uuid[]) and deleted_at is null`,
           [tabelaId, [...produtoIds], filialId],
         );
-        const itens = precosDaFilialSemCliente(
-          [{ id: tabelaId, codigo: '', ativo: true }],
+        const itens = precosDaTabelaSemCliente(
+          tabelaId,
           linhas.rows.map((x) => ({ tabela_preco_id: tabelaId, produto_id: x.produto_id, preco_cents: x.preco_cents, vigencia_inicio: x.vigencia_inicio, vigencia_fim: x.vigencia_fim })),
         );
         return { tabelaClienteId: null, itens };
@@ -539,9 +539,7 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       }
       return saida;
     },
-    async filiaisDoUsuario(clienteId, filialEscolhida) {
-      // sem cliente e com filial escolhida (a rota já validou): o estoque é o dessa filial
-      if (!clienteId && filialEscolhida) return [filialEscolhida];
+    async filiaisDoUsuario(clienteId) {
       const carteira = await ctx.carteira();
       const cliente = clienteId ? (await filialDoClienteNoCore(tx.consultar, clienteId)).filialCliente : null;
       const da = cliente === null && carteira !== 'tenant' ? (await filiaisDaCarteiraNoCore(tx.consultar)).daCarteira : null;

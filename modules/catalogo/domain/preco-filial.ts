@@ -113,21 +113,18 @@ export interface ItemDaFilialSemCliente {
  * `tabelaDaFilialSemCliente`, sem tabela no item (o domain de preço trata "sem tabela" como a padrão). O app e a API chamam esta função.
  */
 export function precosDaFilialSemCliente(tabelas: readonly TabelaSemCliente[], itensDaFilial: readonly ItemDaFilialSemCliente[]): ItemTabelaPreco[] {
-  const tabelaId = tabelaDaFilialSemCliente(tabelas, itensDaFilial);
+  return precosDaTabelaSemCliente(tabelaDaFilialSemCliente(tabelas, itensDaFilial), itensDaFilial);
+}
+
+/** Só filtra e converte: os itens da tabela já escolhida (nula = nenhum), sem tabela no item. */
+export function precosDaTabelaSemCliente(tabelaId: string | null, itensDaFilial: readonly ItemDaFilialSemCliente[]): ItemTabelaPreco[] {
+  if (tabelaId === null) return [];
   return itensDaFilial
     .filter((i) => i.tabela_preco_id === tabelaId)
     .map((i) => ({ price_table_id: null, product_id: i.produto_id, price_cents: i.preco_cents, valid_from: i.vigencia_inicio, valid_to: i.vigencia_fim }));
 }
 
-export type FilialDaBusca = { ok: true; filialId: string } | { ok: false; motivo: 'inexistente' | 'fora_da_carteira' };
-
-/**
- * RN-VEN-01 + RN-CORE-39 + RN-CORE-04: filial da busca sem cliente. Sem filial escolhida vale a padrão do tenant; a escolhida precisa ser
- * do tenant e estar entre as filiais da carteira do usuário (`daCarteira` nulo = todas).
- */
-export function filialDaBuscaSemCliente(e: { escolhida: string | null | undefined; padrao: string; existentes: readonly string[]; daCarteira: readonly string[] | null }): FilialDaBusca {
-  if (!e.escolhida) return { ok: true, filialId: e.padrao };
-  if (!e.existentes.includes(e.escolhida)) return { ok: false, motivo: 'inexistente' };
-  if (e.daCarteira !== null && !e.daCarteira.includes(e.escolhida)) return { ok: false, motivo: 'fora_da_carteira' };
-  return { ok: true, filialId: e.escolhida };
+/** RN-CORE-04: a filial escolhida está entre as filiais da carteira do usuário? (`daCarteira` nulo = todas). */
+export function filialNaCarteira(filialId: string, daCarteira: readonly string[] | null): boolean {
+  return daCarteira === null || daCarteira.includes(filialId);
 }
