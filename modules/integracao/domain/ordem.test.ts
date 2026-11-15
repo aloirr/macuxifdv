@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ENTIDADES, type Entidade } from '../contracts';
+import { ENTIDADES, ORDEM_CARGA_ENTIDADES, type Entidade } from '../contracts';
 import { DEPENDENCIAS, ordenarCarga, referenciasDoRegistro, verificarReferencias } from './ordem';
 
 describe('RN-INT-04: ordem topológica de carga', () => {
@@ -37,6 +37,16 @@ describe('RN-INT-04: ordem topológica de carga', () => {
 
   it('RN-INT-04: o mapa de dependências padrão não tem ciclo', () => {
     expect(ordenarCarga(ENTIDADES, DEPENDENCIAS).ok).toBe(true);
+  });
+});
+
+describe('RN-INT-04: lista única da ordem de carga (ORDEM_CARGA_ENTIDADES)', () => {
+  it('RN-INT-04: cobre as 16 entidades uma vez e cada uma vem depois de tudo de que depende (DEPENDENCIAS)', () => {
+    expect([...ORDEM_CARGA_ENTIDADES].sort()).toEqual([...ENTIDADES].sort());
+    ORDEM_CARGA_ENTIDADES.forEach((e, i) => {
+      for (const d of DEPENDENCIAS[e]) expect(ORDEM_CARGA_ENTIDADES.indexOf(d), `${e} depende de ${d}`).toBeLessThan(i);
+    });
+    expect(ORDEM_CARGA_ENTIDADES.slice(0, 2)).toEqual(['filial', 'vendedor']);
   });
 });
 

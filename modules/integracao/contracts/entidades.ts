@@ -25,6 +25,11 @@ import {
  * (forma de pagamento, prazo e tabela escalonada; desenho T-0089 §4.2) e `filial` na T-0149 (RN-CORE-39, ADR 0040). No Hub o nome fica no singular, como nas demais.
  */
 export const ENTIDADES = ['vendedor', 'cliente', 'produto', 'preco', 'estoque', 'titulo', 'nota', 'rota', 'catalogo_no', 'produto_unidade', 'cliente_endereco', 'transportadora', 'forma_pagamento', 'prazo_pagamento', 'tabela_escalonada', 'filial'] as const;
+/**
+ * Ordem de carga das 16 entidades (RN-INT-04), a ÚNICA lista: o portal e o Conector a usam. Cada entidade vem depois de tudo de que depende
+ * (`DEPENDENCIAS`, domain/ordem.ts; o teste em domain/ordem.test.ts confere). Filial antes de vendedor (RN-CORE-39).
+ */
+export const ORDEM_CARGA_ENTIDADES: readonly (typeof ENTIDADES)[number][] = ['filial', 'vendedor', 'catalogo_no', 'forma_pagamento', 'prazo_pagamento', 'produto', 'produto_unidade', 'preco', 'tabela_escalonada', 'estoque', 'cliente', 'cliente_endereco', 'transportadora', 'rota', 'titulo', 'nota'];
 export const Entidade = z.enum(ENTIDADES, { errorMap: () => ({ message: 'entidade desconhecida' }) });
 export type Entidade = z.infer<typeof Entidade>;
 
@@ -33,6 +38,11 @@ export const VendedorPayload = RegistroBase.extend({
   nome: Texto(120),
   email: TextoOpcional(160),
   telefone: TextoOpcional(30),
+  /**
+   * Filial do vendedor, pela chave `external_id` da entidade `filial` (RN-CORE-39): o vendedor tem exatamente UMA, obrigatória.
+   * Aditivo e opcional no v1 (ausente = não altera). Vendedor sem filial entra, com o aviso `vendedor_sem_filial`; o bloqueio é do Core.
+   */
+  filial_external_id: ExternalId.nullish(),
 });
 export type VendedorPayload = z.infer<typeof VendedorPayload>;
 
@@ -111,7 +121,7 @@ export const APLICACAO_PROTECAO_MAX = 20_000;
 /** Tetos de negócio do Catálogo (RN-CAT-09/11): acima disso o Hub corta e avisa. */
 export const LIMITES_CATALOGO_PRODUTO = { aplicacao: 2000, referencias: 3, ofereceJunto: 5, etiquetas: 4 } as const;
 
-/** Referência cruzada do ERP: a marca vem pelo `external_id` ou pelo nome (o ERP não conhece os ids do Macuxi). */
+/** Referência cruzada do ERP: só o código é obrigatório (RN-CAT-09, decisão de 15/11/2026); a marca, quando vem, é pelo `external_id` ou pelo nome (o ERP não conhece os ids do Macuxi). */
 export const ReferenciaCruzada = z.object({
   marca_external_id: z.string().nullish(),
   marca_nome: z.string().nullish(),
@@ -130,6 +140,8 @@ const ProdutoBase = RegistroBase.extend({
     .nullish(),
   nome: Texto(200),
   marca: TextoOpcional(80),
+  /** Código da marca no ERP (ex.: 980), aditivo e opcional no v1; o Catálogo mostra no card e na ficha. Ausente = não altera. */
+  marca_codigo: TextoOpcional(30),
   categoria: TextoOpcional(80),
   /** Sigla da medida cadastrada no tenant (RN-CORE-19); o A7 confere com `core.medidas@1` (ausente/inativa = `referencia_ausente`). */
   unidade: Texto(10),
