@@ -71,16 +71,6 @@ export function duracaoLoteSegundos(inicio: string | null | undefined, conclusao
   return Number.isFinite(seg) ? Math.max(0, seg) : null;
 }
 
-/** RN-INT-15: `45 s`, `2 min 10 s`, `3 min` (segundos zerados somem), `1 h 05 min`; nulo = texto vazio (a tabela não usa travessão). */
-export function formatarDuracaoLote(segundos: number | null): string {
-  if (segundos === null) return '';
-  const s = Math.max(0, Math.floor(segundos));
-  if (s < 60) return `${s} s`;
-  const min = Math.floor(s / 60);
-  if (s < 3600) return s % 60 === 0 ? `${min} min` : `${min} min ${s % 60} s`;
-  return `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} min`;
-}
-
 export interface LinhasIntegradas {
   integradas: number;
   total: number;

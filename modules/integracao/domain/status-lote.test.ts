@@ -5,7 +5,6 @@ import {
   autorizacaoReprocessar,
   duracaoLoteSegundos,
   estadosDoStatus,
-  formatarDuracaoLote,
   limiteTentativasAutorizacao,
   linhasIntegradas,
   podeCancelarLote,
@@ -74,16 +73,6 @@ describe('RN-INT-15: duração e linhas integradas', () => {
     expect(duracaoLoteSegundos(t0, '2026-11-15T14:33:10.000Z', new Date('2026-11-15T20:00:00Z'))).toBe(130);
     expect(duracaoLoteSegundos(t0, null, new Date('2026-11-15T14:31:45.000Z'))).toBe(45);
     expect(duracaoLoteSegundos(null, null, new Date('2026-11-15T20:00:00Z'))).toBeNull();
-  });
-
-  it('RN-INT-15: formato 45 s, 2 min 10 s, 3 min e 1 h 05 min', () => {
-    expect(formatarDuracaoLote(45)).toBe('45 s');
-    expect(formatarDuracaoLote(130)).toBe('2 min 10 s');
-    expect(formatarDuracaoLote(180)).toBe('3 min');
-    expect(formatarDuracaoLote(3900)).toBe('1 h 05 min');
-    expect(formatarDuracaoLote(3600)).toBe('1 h 00 min');
-    expect(formatarDuracaoLote(null)).toBe('');
-    expect(formatarDuracaoLote(-5)).toBe('0 s');
   });
 
   it('RN-INT-15: linhas integradas = recebidas - erros; com erro mostra "x de y"', () => {

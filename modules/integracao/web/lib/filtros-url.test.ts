@@ -28,21 +28,19 @@ function lote(p: Partial<LoteListagemItem>): LoteListagemItem {
 
 describe('filtros do monitor na URL (link compartilhável)', () => {
   it('lê o que é válido e ignora o que não faz sentido', () => {
-    expect(lerFiltros('?conector=erp-matriz&entidade=cliente&status=com_falha&com_erro=1&lote=' + LOTE)).toEqual({
-      conector: 'erp-matriz',
+    expect(lerFiltros('?entidade=cliente&status=com_falha&lote=' + LOTE)).toEqual({
       entidade: 'cliente',
       status: 'com_falha',
-      com_erro: '1',
       lote: LOTE,
     });
-    expect(lerFiltros('?conector=a b&entidade=nada&status=xyz&com_erro=sim&lote=123')).toEqual(FILTROS_VAZIOS);
+    expect(lerFiltros('?entidade=nada&status=xyz&lote=123')).toEqual(FILTROS_VAZIOS);
     expect(lerFiltros('')).toEqual(FILTROS_VAZIOS);
   });
 
   it('grava só o que está preenchido e faz ida e volta', () => {
     expect(paraBusca(FILTROS_VAZIOS)).toBe('');
-    const f = { ...FILTROS_VAZIOS, entidade: 'produto', com_erro: '1' };
-    expect(paraBusca(f)).toBe('?entidade=produto&com_erro=1');
+    const f = { ...FILTROS_VAZIOS, entidade: 'produto', status: 'com_falha' };
+    expect(paraBusca(f)).toBe('?entidade=produto&status=com_falha');
     expect(lerFiltros(paraBusca(f))).toEqual(f);
   });
 
@@ -57,23 +55,18 @@ describe('filtros do monitor na URL (link compartilhável)', () => {
   });
 
   it('query de LoteListagemQuery (GET /v1/integracao/lotes) usa os nomes do contrato', () => {
-    expect(paraQueryLotes({ conector: 'erp-matriz', entidade: 'cliente', status: '', com_erro: '1', lote: LOTE })).toEqual({
-      conector_id: 'erp-matriz',
-      entidade: 'cliente',
-      com_erro: 'true',
-    });
+    expect(paraQueryLotes({ entidade: 'cliente', status: '', lote: LOTE })).toEqual({ entidade: 'cliente' });
   });
 
-  it('filtra os lotes recentes por Conector, entidade, status e só com erro', () => {
+  it('filtra os lotes recentes por entidade e status', () => {
     const lotes = [
       lote({ conector_id: 'erp-matriz', entidade: 'cliente' }),
       lote({ conector_id: 'erp-filial', entidade: 'produto', status: 'concluido_com_erros', com_erro: 3 }),
       lote({ conector_id: 'erp-matriz', entidade: 'produto', status: 'falhou' }),
     ];
     expect(filtrarLotes(lotes, FILTROS_VAZIOS)).toHaveLength(3);
-    expect(filtrarLotes(lotes, { ...FILTROS_VAZIOS, conector: 'erp-matriz' })).toHaveLength(2);
+    expect(filtrarLotes(lotes, { ...FILTROS_VAZIOS, entidade: 'produto' })).toHaveLength(2);
     expect(filtrarLotes(lotes, { ...FILTROS_VAZIOS, entidade: 'produto', status: 'com_falha' })).toHaveLength(1);
     expect(filtrarLotes([...lotes, lote({ status: 'recebido' }), lote({ status: 'processando' })], { ...FILTROS_VAZIOS, status: 'em_andamento' })).toHaveLength(2);
-    expect(filtrarLotes(lotes, { ...FILTROS_VAZIOS, com_erro: '1' }).map((l) => l.conector_id)).toEqual(['erp-filial']);
   });
 });

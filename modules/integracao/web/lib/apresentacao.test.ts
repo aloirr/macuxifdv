@@ -6,8 +6,8 @@ import {
   ROTULO_ESTADO_PEDIDO,
   ROTULO_SAUDE,
   ROTULO_SITUACAO_VERSAO,
-  ROTULO_STATUS_LOTE,
   decisaoDaPendencia,
+  rotuloDoLote,
   perfilDaSessao,
   podeExecutar,
   tempoDesde,
@@ -40,7 +40,7 @@ describe('rótulos do monitor (todo valor do contrato tem texto em português)',
   it('cobre saúde, versão, status do lote, entidade e estado do pedido no ERP', () => {
     for (const s of SAUDES_CONECTOR) expect(ROTULO_SAUDE[s], s).toBeTruthy();
     for (const s of SITUACOES_VERSAO_CONECTOR) expect(ROTULO_SITUACAO_VERSAO[s], s).toBeTruthy();
-    for (const s of ESTADOS_LOTE_BKO) expect(ROTULO_STATUS_LOTE[s], s).toBeTruthy();
+    for (const s of ESTADOS_LOTE_BKO) expect(rotuloDoLote(s), s).toBeTruthy();
     for (const e of ENTIDADES) expect(ROTULO_ENTIDADE[e], e).toBeTruthy();
     for (const e of ESTADOS_PEDIDO_ERP) expect(ROTULO_ESTADO_PEDIDO[e], e).toBeTruthy();
   });

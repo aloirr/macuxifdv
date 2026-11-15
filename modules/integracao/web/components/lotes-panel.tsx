@@ -3,10 +3,10 @@
 import { useState } from 'react';
 import type { Perfil } from '@macuxi/platform-sdk';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, EstadoVazio, FilterBar, SelectField, TabelaDados, useToast, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, EstadoVazio, FilterBar, SelectField, TabelaDados, formatDataHoraCurta, formatDuracao, useToast, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
 import { ENTIDADES, type LoteListagemItem } from '../../contracts';
-import { STATUS_LOTE, acoesDoLote, duracaoLoteSegundos, formatarDuracaoLote, linhasIntegradas, statusDoLote } from '../../domain';
-import { ROTULO_ENTIDADE, ROTULO_STATUS, TOM_STATUS, dataHoraCurta, podeExecutar } from '../lib/apresentacao';
+import { STATUS_LOTE, acoesDoLote, duracaoLoteSegundos, linhasIntegradas, statusDoLote } from '../../domain';
+import { ROTULO_ENTIDADE, ROTULO_STATUS, TOM_STATUS, podeExecutar } from '../lib/apresentacao';
 import { FILTROS_VAZIOS, type FiltrosMonitor, temFiltro } from '../lib/filtros-url';
 import { precisaAutorizador, useCancelarLote, useReprocessarLote } from '../lib/queries';
 import { AutorizarReprocessamento } from './autorizar-reprocessamento';
@@ -29,15 +29,15 @@ function colunas(tz: string, agora: Date): ReadonlyArray<ColunaDaTabela<LoteList
       ),
       texto: (l) => l.lote_id.slice(0, 8),
     },
-    { id: 'inicio', titulo: 'Início', largura: '12%', celula: (l) => dataHoraCurta(l.recebido_em, tz), texto: (l) => dataHoraCurta(l.recebido_em, tz) },
+    { id: 'inicio', titulo: 'Início', largura: '12%', celula: (l) => formatDataHoraCurta(l.recebido_em, tz), texto: (l) => formatDataHoraCurta(l.recebido_em, tz) },
     {
       id: 'duracao',
       titulo: 'Duração',
       prioridade: 2,
       largura: '11%',
-      celula: (l) => formatarDuracaoLote(duracaoLoteSegundos(l.recebido_em, l.concluido_em, agora)),
+      celula: (l) => formatDuracao(duracaoLoteSegundos(l.recebido_em, l.concluido_em, agora)),
     },
-    { id: 'conclusao', titulo: 'Conclusão', prioridade: 3, largura: '12%', celula: (l) => dataHoraCurta(l.concluido_em, tz) },
+    { id: 'conclusao', titulo: 'Conclusão', prioridade: 3, largura: '12%', celula: (l) => formatDataHoraCurta(l.concluido_em, tz) },
     {
       id: 'status',
       titulo: 'Status',
