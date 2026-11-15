@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { ESCALA_FONTE, familiasFonte, PILHA_MONO, PILHA_SISTEMA, TAMANHOS_FONTE } from './tokens';
+import { ESCALA_FONTE, TAMANHOS_FONTE } from './tokens';
 
 /** Fonte do sistema e escala (R-20261115-110600, v1.0.13): nenhuma fonte carregada; nada abaixo de 12. */
 const pasta = (rel: string) => new URL(rel, import.meta.url);
@@ -47,33 +47,30 @@ describe('fonte do sistema (R-20261115-110600)', () => {
     }
   });
 
-  it('fonts (transição): Android com os nomes do sistema; web e demais na pilha sem serifa', () => {
-    const android = familiasFonte('android');
-    expect(android.body).toBe('sans-serif');
-    expect(android.semibold).toBe('sans-serif-medium');
-    expect(android.display).toBe('sans-serif-medium');
-    for (const [nome, familia] of Object.entries(android)) expect(familia, `android.${nome}`).not.toMatch(/black/);
-    expect(android.mono).toBe('monospace');
-    expect(PILHA_SISTEMA).toBe('system-ui, "Segoe UI", Roboto, -apple-system, sans-serif');
-    expect(PILHA_MONO).toBe('ui-monospace, "Cascadia Mono", "Roboto Mono", monospace');
-    for (const os of ['web', 'ios', 'default']) {
-      const f = familiasFonte(os);
-      for (const [nome, familia] of Object.entries(f)) {
-        expect(familia, `${os}.${nome}`).toBe(nome === 'mono' ? PILHA_MONO : PILHA_SISTEMA);
-        expect(familia, `${os}.${nome}`).not.toMatch(/sans-serif-(medium|black)/);
-      }
-    }
-  });
-
-  it('theme.ts escolhe `fonts` e o mono de `fonte` por Platform (não fixa nomes do Android)', () => {
+  it('app: `fonte` só dá o peso (400 · 500 · 600 · 700); o mono é `monospace`, sem pilha nem família por nome', () => {
     const tema = readFileSync(pasta('./theme.ts'), 'utf8');
-    expect(tema).toMatch(/export const fonts = Platform\.select\(\{ android: familiasFonte\('android'\), web: familiasFonte\('web'\)/);
-    expect(tema).toMatch(/fontFamily: familiasFonte\(Platform\.OS\)\.mono/);
-    expect(tema).not.toMatch(/'sans-serif-(medium|black)'/);
-    expect(tema).toMatch(/@deprecated Use `\.\.\.fonte\.x`/);
+    expect(tema).toMatch(/mono: \{ fontFamily: 'monospace', fontWeight: '400', fontVariant: \['tabular-nums'\] \}/);
+    expect(tema).not.toMatch(/familiasFonte|displaySemi/);
+    for (const { arq, src } of [...app, ...web]) expect(src, arq).not.toMatch(/PILHA_SISTEMA|PILHA_MONO|FAMILIAS_ANDROID/);
   });
 
-  it('a Roboto Black não aparece no kit (nem `sans-serif-black`, nem peso 800/900)', () => {
+  it('transição: `fonts` (@deprecated) só usa `sans-serif` e `sans-serif-medium` no Android e a pilha do sistema no resto', () => {
+    const tema = readFileSync(pasta('./theme.ts'), 'utf8');
+    const familias = [...tema.matchAll(/'(sans-serif[a-z-]*)'/g)].map((m) => m[1]);
+    expect(familias.length).toBeGreaterThan(0);
+    for (const f of familias) expect(['sans-serif', 'sans-serif-medium']).toContain(f);
+    expect(tema).not.toMatch(/(?<![-\w])serif\b/);
+  });
+
+  it('rótulo de campo único: `CampoSenha` usa o `RotuloCampo` e a entrada do `CampoTexto` (RD-0951)', () => {
+    const senha = readFileSync(pasta('./campo-senha-rn.tsx'), 'utf8');
+    expect(senha).toContain('<RotuloCampo>{rotulo}</RotuloCampo>');
+    expect(senha).toContain('ESTILO_CAMPO.entrada');
+    expect(senha).not.toMatch(/rotulo: \{/);
+  });
+
+  it('nada em 800/900 no kit (nem `sans-serif-black`); web sem `font-display`, só a `--font-sans`', () => {
     for (const { arq, src } of app) expect(src, arq).not.toMatch(/sans-serif-black|fontWeight: '(800|900)'/);
+    for (const { arq, src } of web) expect(src, arq).not.toMatch(/font-display|fontWeight: ?'?(800|900)/);
   });
 });

@@ -106,8 +106,8 @@ export function DescontoCompacto({
 const s = StyleSheet.create({
   // uma linha de 44 dp (a do Passo compacto); com fonte grande, o rótulo quebra em 2 linhas e a linha cresce
   linha: { flexDirection: 'row', alignItems: 'center', gap: DESCONTO_COMPACTO.vao, minHeight: DESCONTO_COMPACTO.altura },
-  rotulo: { flex: 1, minWidth: 0, ...fonte.bold, fontSize: 12, lineHeight: 16, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.ink2 },
+  rotulo: { flex: 1, minWidth: 0, ...fonte.semibold, fontSize: 12, lineHeight: 16, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.ink2 },
   campoFixo: { width: DESCONTO_COMPACTO.larguraCampo },
   campoLivre: { flexGrow: 1, flexShrink: 1, minWidth: DESCONTO_COMPACTO.larguraCampo },
-  equivalente: { flexShrink: 0, textAlign: 'right', ...fonte.bold, fontSize: 14, fontVariant: ['tabular-nums'] },
+  equivalente: { flexShrink: 0, textAlign: 'right', ...fonte.semibold, fontSize: 14, fontVariant: ['tabular-nums'] },
 });
