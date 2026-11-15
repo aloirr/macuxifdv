@@ -11,6 +11,7 @@ import type { ItemTabelaPreco, MidiaProduto, OfereceJunto, Promocao, SalvarCadas
 import type { NoCatalogo, VinculoProdutoNo } from '../domain/arvore';
 import { agruparTermosSemResultado, type ConteudoGuardado, type RegistroBusca } from '../domain/conteudo';
 import type { LinhaEscalonada } from '../domain/escalonada';
+import type { FiliaisDeVendaDoUsuario } from './filiais-core';
 import { precosDaFilialSemCliente } from '../domain/preco-filial';
 import type { UsoIa } from '../domain/limite-ia';
 import type { ProdutoCatalogo } from '../domain/vitrine';
@@ -49,6 +50,8 @@ export interface RepositorioCatalogo {
    * sem cliente: as da carteira (vendedor, supervisor) ou `null` = todas (analista, assistente, admin).
    */
   filiaisDoUsuario(clienteId?: string | null): Promise<string[] | null>;
+  /** Filiais de VENDA do PRÓPRIO usuário (`core.filiais_do_usuario@1`, T-0176, RN-CORE-39): base de preço, estoque, filtro e folha de todo perfil. */
+  filiaisDeVenda(): Promise<FiliaisDeVendaDoUsuario>;
   conteudo(produtoId: string): Promise<{ conteudo: ConteudoGuardado | null; midias: MidiaProduto[] }>;
   /** RN-CAT-03: uso de IA do usuário no dia do tenant; `'indisponivel'` = sem onde guardar a cota (IA não é chamada). */
   usoIa(dia: string): Promise<UsoIa | null | 'indisponivel'>;
@@ -162,6 +165,8 @@ export interface DadosTenantMemoria {
   saldos?: Map<string, StockByBranch[]>;
   /** usuario_id → filiais (ausente = todas). */
   filiaisDoUsuario?: Record<string, string[]>;
+  /** usuario_id → filiais de venda do próprio usuário (`core.filiais_do_usuario@1`); ausente = a filial padrão (como o banco de teste); lista vazia = sem filial (bloqueado). */
+  filiaisDeVenda?: Record<string, string[]>;
   conteudos?: Map<string, ConteudoGuardado>;
   midias?: Map<string, MidiaProduto[]>;
   /** Sem onde guardar a cota (simula banco sem a 0013). */
@@ -225,6 +230,10 @@ export function criarRepositorioMemoria(porTenant: Record<string, DadosTenantMem
       },
       async filiaisDoUsuario() {
         return d.filiaisDoUsuario?.[usuario] ? [...d.filiaisDoUsuario[usuario]] : null;
+      },
+      async filiaisDeVenda() {
+        const ids = [...(d.filiaisDeVenda?.[usuario] ?? [d.filiaisDaTela?.padraoId ?? FILIAL_PADRAO_MEMORIA])];
+        return { filiaisVenda: ids, semFilial: ids.length === 0 };
       },
       async conteudo(produtoId) {
         return { conteudo: copia(d.conteudos?.get(produtoId) ?? null), midias: copia(d.midias?.get(produtoId) ?? []) };

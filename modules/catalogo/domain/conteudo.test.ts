@@ -82,10 +82,11 @@ describe('montarFicha — ficha rica (RF-CAT-03)', () => {
     expect(f.content_updated_at).toBeNull();
   });
 
-  it('RN-CAT-05: a ficha do promotor tem conteúdo e fotos, sem preço e sem estoque', () => {
+  it('RN-CAT-05: a ficha do promotor tem conteúdo, fotos e estoque, sem preço', () => {
     const conteudo = { description: 'Torra média, moagem fina.', selling_points: ['Mais vendido da região'], faq: [], updated_at: relogio.iso() };
     const f = montarFicha(produto, itemDaVitrine(produto, ctx), conteudo, []);
-    expect(f.product).toMatchObject({ price: null, availability: null, price_stock_visible: false });
+    expect(f.product).toMatchObject({ price: null, price_stock_visible: false });
+    expect(f.product.availability).not.toBeNull();
     expect(f.content.description).toBe('Torra média, moagem fina.');
     expect(f.content_updated_at).toBe(conteudo.updated_at);
   });
