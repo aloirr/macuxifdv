@@ -114,6 +114,7 @@ export interface OrderPdfOrder {
 }
 
 export interface OrderPdfContext {
+  /** Nome da distribuidora (`nomeDaEmpresaParaPdf`); vazio = o cabeçalho sai sem o nome (MC-0404). */
   tenant_name: string;
   product_name: string;
   tz: string;
@@ -121,7 +122,7 @@ export interface OrderPdfContext {
   generated_at: string;
   /** `referencia_no_orcamento` do tenant (RN-CAT-10, padrão não): a referência cruzada também sai no PDF do cliente */
   reference_on_customer_pdf?: boolean;
-  /** T-0159: logo cadastrada do tenant (URL ou data URI); ausente = logo padrão do app. Hoje o tenant não tem o campo: vale sempre a padrão. */
+  /** T-0182: logo cadastrada da empresa (data URI vindo de `AmbienteAparelho.logoDaEmpresa?()`); vazio ou ausente = logo padrão do app (manual §7). */
   logo_src?: string | null;
 }
 
@@ -152,14 +153,6 @@ export function pdfDateTime(at: string, tz: string): string {
 /** Preço unitário final (líquido) = total do item ÷ quantidade, arredondado ao centavo. */
 export function netUnitCents(item: Pick<OrderPdfItem, 'quantity' | 'total_cents'>): number {
   return item.quantity > 0 ? Math.round(item.total_cents / item.quantity) : 0;
-}
-
-/** Nome da distribuidora no cabeçalho: o do login; senão `parametros.core.tenant_nome` (T-0061 §7); senão "Macuxi". */
-export function nomeDaDistribuidora(nomeLogin: string | null | undefined, parametrosCore: Readonly<Record<string, unknown>> | null | undefined): string {
-  const doParametro = parametrosCore?.tenant_nome;
-  if (nomeLogin && nomeLogin.trim()) return nomeLogin.trim();
-  if (typeof doParametro === 'string' && doParametro.trim()) return doParametro.trim();
-  return 'Macuxi';
 }
 
 /** Rótulo e valor do documento do cliente: 11 dígitos = CPF, 14 = CNPJ; outro tamanho mantém "CNPJ" com o texto original. */
@@ -197,7 +190,7 @@ html, body { margin: 0; background: #FFFFFF; }
 body { font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #16202A; font-size: 15px; line-height: 1.35; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .cab { display: flex; justify-content: space-between; align-items: center; gap: 8mm; padding-bottom: 3mm; }
 .marca { display: flex; align-items: center; gap: 4mm; }
-.logo { width: 16mm; height: 16mm; object-fit: contain; border-radius: 2mm; }
+.logo { width: auto; max-width: 48mm; height: 16mm; object-fit: contain; object-position: left center; border-radius: 0; }
 .empresa { font-weight: 800; font-size: 20px; line-height: 1.15; }
 .emit { font-size: 12px; color: #4A5562; }
 .doc { text-align: right; }
@@ -331,7 +324,7 @@ function header(order: OrderPdfOrder, view: OrderPdfView, ctx: OrderPdfContext):
   <div class="marca">
     <img class="logo" src="${escapeHtml(ctx.logo_src?.trim() || LOGO_PADRAO_DATA_URI)}" alt="">
     <div>
-      <div class="empresa">${escapeHtml(ctx.tenant_name)}</div>
+      ${ctx.tenant_name.trim() ? `<div class="empresa">${escapeHtml(ctx.tenant_name.trim())}</div>` : ''}
       ${emit.map((l) => `<div class="emit">${escapeHtml(l)}</div>`).join('')}
     </div>
   </div>
