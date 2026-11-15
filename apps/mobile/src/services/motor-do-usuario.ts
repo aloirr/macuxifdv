@@ -12,7 +12,6 @@ import {
   type AmbienteAparelho,
   type ArmazenamentoSync,
   type EtapaSync,
-  type ItemDaCarga,
   type ModuloId,
   type MotorSync,
   type OpcoesMotorSync,
@@ -23,7 +22,6 @@ import {
 import { efetivosSemServidor } from '@/lib/efetivos-locais';
 import type { ModoApi } from '@/lib/modo-api';
 import type { shellDaVariante } from '@/lib/modulos';
-import type { EstadoComCarga } from '@/lib/carga-fundo';
 import { essenciaisDoUsuario, ordemDaCargaDoUsuario } from '@/lib/ordem-da-carga';
 
 import { ApiClient, errorMessage, HttpError } from './api';
@@ -92,25 +90,16 @@ export interface OpcoesMotorDoUsuario {
  */
 export function portaCargaOnline(motor: Pick<MotorSync, 'estado'>, ambiente: Pick<AmbienteAparelho, 'http' | 'online'>): PortaCargaOnline {
   return {
-    pendentes: () => {
-      const e: EstadoComCarga = motor.estado();
-      return e.pendentes;
-    },
+    pendentes: () => motor.estado().pendentes,
     online: () => ambiente.online(),
     get: (caminho, query) => ambiente.http.get(caminho, query),
   };
 }
 
-/**
- * Opções do motor com os `essenciais` da entrada enquanto carrega (ADR 0054), por tipo estrutural: o SDK ainda não os
- * declara; o motor sem a peça os ignora e só a carga completa libera a entrada (comportamento de antes).
- */
-export type OpcoesComEssenciais = OpcoesMotorSync & { essenciais?: (item: ItemDaCarga) => boolean };
-
 /** Motor de sync do usuário (armazenamento isolado por usuário e tenant, já aberto), sem `carregar()`. */
 export function criarMotorDoUsuario(o: OpcoesMotorDoUsuario): MotorSync {
   const ref: { m: MotorSync | null } = { m: null };
-  const opcoes: OpcoesComEssenciais = {
+  const opcoes: OpcoesMotorSync = {
     registro: o.shell.registroSync,
     armazenamento: o.armazenamento,
     transporte: modoSync(o.modo) === 'v1' ? transporteV1(o.api) : transporteFaseM(o.api),

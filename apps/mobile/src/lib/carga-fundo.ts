@@ -15,21 +15,20 @@ import type { EstadoMotorSync } from '@macuxi/platform-sdk';
 import { percentualDaCarga } from './carga';
 import { erroDeSinal } from './entrada';
 
-/**
- * Estado do motor com os campos da entrada enquanto carrega (ADR 0054), lidos por tipo estrutural: o SDK ainda não os
- * declara; sem eles (motor sem a peça) vêm ausentes e vale o comportamento de antes (só a carga completa libera).
- */
-export type EstadoComCarga = EstadoMotorSync & { liberado_em?: string | null; pendentes?: readonly string[] };
+type EstadoEntrada = Pick<EstadoMotorSync, 'sincronizado_em' | 'liberado_em'>;
 
-type EstadoEntrada = Pick<EstadoComCarga, 'sincronizado_em' | 'liberado_em'>;
+/** Os essenciais da carga inicial terminaram (`liberado_em`; ausente no motor sem a peça = não). */
+export function liberadoPeloMotor(estado: Pick<EstadoMotorSync, 'liberado_em'>): boolean {
+  return Boolean(estado.liberado_em);
+}
 
 /** O usuário entra nas abas: carga completa gravada ou os essenciais da carga inicial feitos (ADR 0054). */
 export function entradaLiberadaPeloMotor(estado: EstadoEntrada): boolean {
-  return Boolean(estado.sincronizado_em || estado.liberado_em);
+  return Boolean(estado.sincronizado_em) || liberadoPeloMotor(estado);
 }
 
 /** Ainda há carga inicial a terminar com o usuário dentro do app (`pendentes` do motor; ausente = motor sem a peça). */
-export function cargaEmFundo(estado: Pick<EstadoComCarga, 'pendentes'>): boolean {
+export function cargaEmFundo(estado: Pick<EstadoMotorSync, 'pendentes'>): boolean {
   return (estado.pendentes?.length ?? 0) > 0;
 }
 
@@ -37,8 +36,8 @@ export function cargaEmFundo(estado: Pick<EstadoComCarga, 'pendentes'>): boolean
  * App reaberto no meio da carga inicial: liberado, sem carga completa e nada rodando. O agendador do shell só sincroniza
  * depois de `sincronizado_em` e a tela de carga não abre mais, então as abas pedem a retomada (o motor pula o que já gravou).
  */
-export function deveRetomarCarga(estado: Pick<EstadoComCarga, 'sincronizado_em' | 'liberado_em' | 'sincronizando'>): boolean {
-  return Boolean(estado.liberado_em) && !estado.sincronizado_em && !estado.sincronizando;
+export function deveRetomarCarga(estado: Pick<EstadoMotorSync, 'sincronizado_em' | 'liberado_em' | 'sincronizando'>): boolean {
+  return liberadoPeloMotor(estado) && !estado.sincronizado_em && !estado.sincronizando;
 }
 
 /** Nome curto na linha do indicador (spec: "Catálogo 63%"); as demais etapas já têm nome curto. */
@@ -56,7 +55,7 @@ export interface IndicadorDaCarga {
  * (RN-CORE-48 revista: Catálogo no Campo, Aprovações na Gestão).
  */
 export function indicadorDaCargaFundo(
-  estado: Pick<EstadoComCarga, 'pendentes' | 'sincronizando' | 'erro' | 'sincronizado_em' | 'progresso' | 'carga'>,
+  estado: Pick<EstadoMotorSync, 'pendentes' | 'sincronizando' | 'erro' | 'sincronizado_em' | 'progresso' | 'carga'>,
   progresso: Pick<ProgressoEntrada, 'atual' | 'etapas'>,
   perfil: string | null | undefined,
   offline: boolean,

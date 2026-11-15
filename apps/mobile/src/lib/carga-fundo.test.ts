@@ -4,10 +4,10 @@
  * (docs/design/carga-em-segundo-plano.md).
  */
 import type { EtapaEntrada, ProgressoEntrada } from '@macuxi/core/contracts';
-import { CARGA_VAZIA, criarArmazenamentoEmMemoria, criarMotorSync, criarRegistroSync, type TransporteSync } from '@macuxi/platform-sdk';
+import { CARGA_VAZIA, criarArmazenamentoEmMemoria, criarMotorSync, criarRegistroSync, type EstadoMotorSync, type TransporteSync } from '@macuxi/platform-sdk';
 import { describe, expect, it, vi } from 'vitest';
 
-import { cargaEmFundo, deveRetomarCarga, entradaLiberadaPeloMotor, indicadorDaCargaFundo, type EstadoComCarga } from './carga-fundo';
+import { cargaEmFundo, deveRetomarCarga, entradaLiberadaPeloMotor, indicadorDaCargaFundo } from './carga-fundo';
 
 // o índice de `@macuxi/core/app` (API pública do Core) puxa telas: os módulos nativos viram vazios e a regra pura é a real
 vi.mock('react-native', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
@@ -16,7 +16,7 @@ vi.mock('react-native-svg', () => import('@/teste/nativo-vazio').then((m) => m.m
 vi.mock('expo-router', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
 vi.mock('@macuxi/ui/mobile', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
 
-type Estado = Pick<EstadoComCarga, 'pendentes' | 'sincronizando' | 'erro' | 'sincronizado_em' | 'progresso' | 'carga' | 'liberado_em'>;
+type Estado = Pick<EstadoMotorSync, 'pendentes' | 'sincronizando' | 'erro' | 'sincronizado_em' | 'progresso' | 'carga' | 'liberado_em'>;
 const LIBERADO = '2026-11-15T11:00:00.000Z';
 const BASE: Estado = { sincronizando: true, erro: null, sincronizado_em: null, progresso: 0.6, carga: CARGA_VAZIA, liberado_em: LIBERADO, pendentes: ['produto', 'tabela_preco'] };
 
@@ -98,7 +98,7 @@ describe('fallback: motor do SDK sem a peça da entrada enquanto carrega (ADR 00
       transporte: {} as TransporteSync,
       online: () => false,
     });
-    const estado: EstadoComCarga = motor.estado();
+    const estado: EstadoMotorSync = motor.estado();
     expect(entradaLiberadaPeloMotor(estado)).toBe(Boolean(estado.sincronizado_em));
     expect(cargaEmFundo(estado)).toBe(false);
     expect(deveRetomarCarga(estado)).toBe(false);

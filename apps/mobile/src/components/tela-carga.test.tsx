@@ -14,7 +14,6 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { deveSincronizar, type MotivoSync } from '@/lib/carga';
-import type { EstadoComCarga } from '@/lib/carga-fundo';
 import { MANIFESTOS_INSTALADOS } from '@/lib/instalados';
 
 /** Uma linha do tempo só: o instante "agora" do teste (a carga termina 1 s antes). */
@@ -90,7 +89,7 @@ const ESTADO_INICIAL: EstadoMotorSync = {
 };
 
 const sim = vi.hoisted(() => ({
-  estado: null as unknown as EstadoComCarga,
+  estado: null as unknown as EstadoMotorSync,
   perfil: 'vendedor' as Perfil,
   variante: 'campo' as 'campo' | 'gestao',
   modulos: [] as ModuloId[],
