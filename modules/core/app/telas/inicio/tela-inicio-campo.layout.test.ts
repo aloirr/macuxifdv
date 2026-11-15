@@ -43,4 +43,37 @@ describe('R-20261114-145000: Início do Campo enquadrado', () => {
   it('o avatar do painel usa o tamanho da escala', () => {
     expect(fonte).toMatch(/avatar: \{ width: e\.painel\.avatar, height: e\.painel\.avatar/);
   });
+
+  it('variação C: foto à esquerda e os textos à direita dela (saudação com o sino na linha, data e frase embaixo)', () => {
+    const iAvatar = painel.indexOf('inicio.avatar');
+    const iSaud = painel.indexOf('inicio.saudacao');
+    const iSino = painel.indexOf('{sinoDoPainel}');
+    const iData = painel.indexOf('inicio.data');
+    const iFrase = painel.indexOf('inicio.frase');
+    expect(iAvatar).toBeGreaterThan(-1);
+    expect(iAvatar).toBeLessThan(iSaud);
+    expect(iSaud).toBeLessThan(iSino);
+    expect(iSino).toBeLessThan(iData);
+    expect(iData).toBeLessThan(iFrase);
+  });
+
+  it('variação C: o sino mantém o alvo de 48 dp, sobe 10 e avança 12 no respiro (margem negativa)', () => {
+    expect(fonte).toMatch(/linhaSaudacao: \{[^}]*marginRight: -space\.md/);
+    expect(fonte).toMatch(/sinoBox: \{[^}]*marginVertical: -10/);
+    expect(painel).toContain('s.sinoBox');
+  });
+
+  it('variação C: saudação encolhe até 0,75 e depois reticências; frase em até 2 linhas; foto com resizeMode cover', () => {
+    expect(painel).toMatch(/minimumFontScale=\{0\.75\}/);
+    expect(painel).toContain('ellipsizeMode="tail"');
+    expect(painel).toMatch(/inicio\.frase"[^>]*numberOfLines=\{2\}/);
+    expect(painel).toContain('resizeMode="cover"');
+    expect(painel).toContain('accessibilityLabel={`Foto de ${v.nome}`}');
+  });
+
+  it('variação C: um só alvo lido abre o Perfil e os textos ficam fora da leitura repetida', () => {
+    expect(painel.match(/accessibilityLabel=\{`\$\{v\.saudacao\}\. Abrir perfil`\}/g)).toHaveLength(1);
+    expect(painel.match(/onPress=\{onPerfil\}/g)?.length).toBeGreaterThanOrEqual(1);
+    expect(painel).toContain('importantForAccessibility="no-hide-descendants"');
+  });
 });
