@@ -168,17 +168,45 @@ function Detectar-Instancia {
 # ---------------------------------------------------------------------------------------------------------------------
 # 1. Programas
 # ---------------------------------------------------------------------------------------------------------------------
-function Passo-Programas {
-    Titulo '1. Programas (winget; o SQL Server Express nao entra)'
-    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { Falha 'O winget nao esta instalado. Atualize o "Instalador de Aplicativo" na Microsoft Store e rode de novo.' }
-    Winget-Instalar @('Microsoft.SQLServerManagementStudio.22', 'Microsoft.SQLServerManagementStudio.21', 'Microsoft.SQLServerManagementStudio') 'SQL Server Management Studio (SSMS)'
-    Winget-Instalar @('Microsoft.msodbcsql.18') 'ODBC Driver 18 for SQL Server'
-    Winget-Instalar @('Python.Python.3.12', 'Python.Python.3.13') 'Python 3'
-    if ($Fase -eq 'API') { Winget-Instalar @('OpenJS.NodeJS.LTS') 'Node.js LTS' }
+# Programa ja instalado (achado no computador, nao pelo winget: instalacao manual nao aparece no "winget list") nao e reinstalado.
+function Programa-Instalado([string]$nomeExibicao) {
+    $chaves = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+    [bool](Get-ItemProperty -Path $chaves -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like $nomeExibicao } | Select-Object -First 1)
+}
+
+function Achar-Ssms { (Get-Command ssms.exe -ErrorAction SilentlyContinue) -or (Programa-Instalado 'SQL Server Management Studio*') -or (Programa-Instalado 'Microsoft SQL Server Management Studio*') }
+function Achar-Odbc { [bool](Get-ChildItem 'HKLM:\SOFTWARE\ODBC\ODBCINST.INI' -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -in 'ODBC Driver 18 for SQL Server', 'ODBC Driver 17 for SQL Server' }) }
+function Achar-Node { (Test-Path (Join-Path $env:ProgramFiles 'nodejs\npm.cmd')) -or [bool](Get-Command npm.cmd -ErrorAction SilentlyContinue) }
+
+# Python 3.10 ou mais novo: o py.exe (launcher) ou o python.exe do PATH. Devolve @(comando, argumentos) ou $null.
+function Achar-Python {
+    foreach ($tentativa in @(@('py.exe', @('-3')), @('python.exe', @()))) {
+        $cmd = Get-Command $tentativa[0] -ErrorAction SilentlyContinue
+        if (-not $cmd) { continue }
+        $args0 = $tentativa[1]
+        $versao = & $cmd.Source @args0 -c 'import sys; print(sys.version_info >= (3, 10))' 2>$null
+        if ($LASTEXITCODE -eq 0 -and "$versao".Trim() -eq 'True') { return , @($cmd.Source, $args0) }
+    }
+    $null
+}
+
+function Garantir-Programa([string]$nome, [scriptblock]$achar, [string[]]$ids) {
+    if (& $achar) { Ok "$nome ja instalado"; return }
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { Falha "Falta $nome e o winget nao esta instalado. Instale $nome a mao (ou atualize o 'Instalador de Aplicativo' na Microsoft Store) e rode de novo." }
+    Winget-Instalar $ids $nome
     Atualizar-Path
-    $py = Get-Command py.exe -ErrorAction SilentlyContinue
-    if (-not $py) { Falha 'Nao achei o Python (py.exe). Feche e abra o PowerShell como administrador e rode de novo.' }
-    & py -3 -m pip install --quiet --disable-pip-version-check pyodbc
+}
+
+function Passo-Programas {
+    Titulo '1. Programas'
+    Garantir-Programa 'SQL Server Management Studio (SSMS)' { Achar-Ssms } @('Microsoft.SQLServerManagementStudio.22', 'Microsoft.SQLServerManagementStudio.21', 'Microsoft.SQLServerManagementStudio')
+    Garantir-Programa 'ODBC Driver 18 for SQL Server' { Achar-Odbc } @('Microsoft.msodbcsql.18')
+    Garantir-Programa 'Python 3' { [bool](Achar-Python) } @('Python.Python.3.12', 'Python.Python.3.13')
+    if ($Fase -eq 'API') { Garantir-Programa 'Node.js LTS' { Achar-Node } @('OpenJS.NodeJS.LTS') }
+    $py = Achar-Python
+    if (-not $py) { Falha 'Nao achei o Python 3.10 ou mais novo (py.exe ou python.exe). Feche e abra o PowerShell como administrador e rode de novo.' }
+    $pyArgs = $py[1]
+    & $py[0] @pyArgs -m pip install --quiet --disable-pip-version-check pyodbc
     if ($LASTEXITCODE -ne 0) { Falha 'O pip nao conseguiu instalar o pyodbc. Confira a internet e rode de novo.' }
     Ok 'pyodbc pronto para o carga_csv.py'
 }
@@ -345,7 +373,8 @@ function Passo-Api {
     New-Item -ItemType Directory -Force -Path $PASTA_API | Out-Null
     Copy-Item -Path (Join-Path $kit 'erp-via-api\*') -Destination $PASTA_API -Recurse -Force
     $npm = Join-Path $env:ProgramFiles 'nodejs\npm.cmd'
-    if (-not (Test-Path $npm)) { Falha 'Nao achei o Node.js em Program Files. Feche e abra o PowerShell como administrador e rode de novo.' }
+    if (-not (Test-Path $npm)) { $npm = (Get-Command npm.cmd -ErrorAction SilentlyContinue).Source }
+    if (-not $npm) { Falha 'Nao achei o Node.js (npm.cmd). Feche e abra o PowerShell como administrador e rode de novo.' }
     Push-Location $PASTA_API
     try {
         & $npm install --omit=dev --no-audit --no-fund --loglevel=error

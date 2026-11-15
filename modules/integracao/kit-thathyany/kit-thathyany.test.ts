@@ -142,6 +142,11 @@ describe('Instalar-Thathyany.ps1 (conferência estática)', () => {
     const semComentarios = INSTALADOR.split('\n').filter((l) => !l.trimStart().startsWith('#') && !/^\s+\(ex\.:/.test(l));
     expect(semComentarios.join('\n')).not.toContain('.\\SQLEXPRESS');
     expect(INSTALADOR).toContain('Microsoft.msodbcsql.18');
+    // programa achado no computador (registro ou Get-Command) não passa pelo winget: instalação manual não aparece no "winget list"
+    expect(INSTALADOR).toMatch(/function Garantir-Programa[\s\S]*?if \(& \$achar\) \{ Ok "\$nome ja instalado"; return \}[\s\S]*?Winget-Instalar/);
+    for (const achar of ['Achar-Ssms', 'Achar-Odbc', 'Achar-Python', 'Achar-Node']) expect(INSTALADOR).toContain(`{ ${achar} }`.replace('{ Achar-Python }', '{ [bool](Achar-Python) }'));
+    expect(INSTALADOR).toContain('ODBCINST.INI');
+    expect(INSTALADOR.match(/^\s*Winget-Instalar /gm) ?? []).toHaveLength(1);
     expect(INSTALADOR).toMatch(/pip install[^\n]*pyodbc/);
     for (const m of INSTALADOR.matchAll(/'sql\\([\w-]+\.sql)'|Trocar-Senha-Login '([\w-]+\.sql)'/g)) {
       const arq = m[1] ?? m[2]!;
