@@ -60,6 +60,8 @@ function cenario() {
   const repo = criarRepositorioEmMemoria();
   const api = criarApiGestor(repo);
   const auditoria: RegistroAuditoria[] = [];
+  /** Parâmetros do módulo como o SDK guarda por tenant; `gravarParametros` grava e audita como o SDK. */
+  const guardados: Record<string, unknown> = {};
   const rota = (metodo: string, caminho: string): RotaModulo => {
     const r = api.rotas!.find((x) => x.metodo === metodo && x.caminho === caminho);
     if (!r) throw new Error(`rota ${metodo} ${caminho} não existe`);
@@ -93,7 +95,12 @@ function cenario() {
       comTenant: async <T,>(fn: (db: never, tx: never) => Promise<T>) => fn({ query: async () => ({ rows: [], rowCount: 0 }) } as never, tx as never),
       carteira: async () => 'tenant' as const,
       usuariosVisiveis: async () => VISIVEIS[quem] ?? new Set([quem]),
-      parametros: () => ({}),
+      parametros: () => ({ ...guardados }),
+      gravarParametros: async (v: Record<string, unknown>, op?: { acao?: string }) => {
+        const mudou = Object.entries(v).some(([k, x]) => guardados[k] !== x);
+        Object.assign(guardados, v);
+        if (mudou) auditoria.push({ acao: op?.acao ?? 'parametro.gravar', entidade: 'parametro', entidade_id: null, antes: null, depois: v } as RegistroAuditoria);
+      },
       fuso: () => 'America/Manaus',
       log: { info: () => {}, warn: () => {}, error: () => {} },
       query: r.query ? r.query.parse(o.query ?? {}) : undefined,

@@ -1,7 +1,7 @@
 /**
  * Valores dos parâmetros do tenant que ficam DENTRO das regras de alerta da equipe (Parâmetros › Alertas, T-0180):
  * tolerância, sem frequência e carência do cliente (RN-GES-01/02) e prazo da aprovação (RN-GES-03). A permanência mínima
- * (RN-PRO-07) é do Promotor e não passa por aqui. Um valor, um lugar: são as mesmas chaves do tenant (`plataforma.parametro`, módulo `gestor`) que o avaliador
+ * (RN-PRO-07) é do Promotor e não passa por aqui. Um valor, um lugar: são as mesmas chaves do tenant (parâmetros do módulo `gestor`) que o avaliador
  * e a fila de aprovação já leem. `GET|PUT /v1/gestor/parametros/alertas` (ação `alerta_regra.gerenciar`).
  */
 import { z } from 'zod';
