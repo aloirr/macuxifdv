@@ -39,7 +39,7 @@ Quadro tracejado do tamanho da largura útil, 200 px de altura mínima (mesmas c
 
 | Ordem | Elemento | Texto exato | Componente / estilo |
 |---|---|---|---|
-| 1 | Linha principal | `Arraste o ZIP aqui ou` | IBM Plex 600, 14 px, `text-ink-2` |
+| 1 | Linha principal | `Arraste o ZIP aqui ou` | 15/600, `text-ink-2` |
 | 2 | Botão principal (o único da página) | `Escolher ZIP` | `Button variant="primary"` (42 px), sem ícone; abre `<input type="file" accept=".zip,application/zip">` escondido |
 | 3 | Como nomear | `Nome da foto = código ou EAN do produto. A1.jpg é a 1ª foto; A1_2.jpg, a 2ª.` | 13 px, `text-ink-2` |
 | 4 | Limites | `JPEG, PNG ou WEBP · até 8 MB por foto · até 10.000 fotos · ZIP até 500 MB` | 12 px, `text-ink-2`, algarismos `tabular-nums` |
