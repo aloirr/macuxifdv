@@ -47,7 +47,7 @@ embaixo, alinhados. O cartão inteiro é o alvo e abre a ficha.
 | 5 | estoque | `ChipEstado pequeno` (24 dp), §4 |
 
 - Uma informação por linha (RD-0207): sem código, sem hora do estoque e sem etiquetas no cartão. Código e etiquetas ficam na
-  ficha; o estoque por filial, na folha `Estoque por filial` (§4).
+  ficha; o estoque por filial, na folha `Estoque por filial` (`catalogo-campo-v2/spec.md` §2.1).
 - Promoção: o preço de tabela riscado ao lado do preço, 12/400 `ink2` (`R$ 8,99 R$ 9,90`). É o mesmo fato (preço).
 - Busca que achou pelo código do concorrente (RN-CAT-09): a linha da marca vira `Equivale a Freiomax CB 3401`, com o trecho
   destacado.
@@ -55,7 +55,8 @@ embaixo, alinhados. O cartão inteiro é o alvo e abre a ficha.
   ao pedido`. Fora do pedido não aparece.
 - TalkBack do cartão: `"<nome>, <marca>, <preço>, <estoque>"` (ex.: "Açúcar cristal 1 kg, Doce Vale, R$ 4,95, 6 em
   estoque").
-- Promotor (RN-CAT-05, `promotor_ve_preco_estoque` = não): sem preço e sem tag; o cartão fica com foto, nome e marca.
+- Promotor (RN-CAT-05, `promotor_ve_preco_estoque` = não): sem preço. A tag e o botão de estoque aparecem, das filiais dele
+  (R-20261115-090000, `catalogo-campo-v2/spec.md` §3).
 
 ## 3. Preço (RN-VEN-01)
 | Como abriu | Preço do cartão |
@@ -75,10 +76,7 @@ Desde R-20261115-083600, só duas cores, no cartão, na busca e na ficha (o lara
 | 0, negativo ou nenhum saldo recebido | `Estoque: 0` | `erro` (`danger` sobre `dangerBg`, 6,0:1) |
 
 - Tenant que não mostra a quantidade (`estoque_mostrar_quantidade` = não): `Em estoque` ou `Sem estoque`.
-- O número é inteiro, na unidade base. Valor de N (filial do vendedor, soma das filiais do multi-filial, filial do filtro),
-  o botão `Estoque por filial` à direita e o `999+`: `catalogo-campo-v2/spec.md` §3. Com cliente, a filial dele (RN-CORE-39).
-  Sem hora no cartão.
-- Na ficha, o estoque de cada filial fica na folha `Estoque por filial`: `catalogo-campo-v2/spec.md` §2.1.
+- O número é inteiro, na unidade base. Valor de N, o botão `Estoque por filial` e o `999+`: `catalogo-campo-v2/spec.md` §3. Sem hora no cartão.
 
 ## 5. Estados
 - Carregando a 1ª vez: `Loading` no lugar da grade; a faixa e a busca já aparecem.
