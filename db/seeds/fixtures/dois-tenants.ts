@@ -78,6 +78,9 @@
  *   (A: equipe-2 visitas_dia 12 desde 2026-01; B: tenant km_dia 150 km desde 2026-01); resumo de km de ontem (A: promotor;
  *   B: vendedor-B). Fora dos usuários e das vigências que os testes t0170-*.db.test.ts usam (analista, assistente,
  *   vendedor-1 nas metas e no km, 2030-01, 2031-12, 2032-01).
+ * - 0074 (ADR 0054; SYNC_PACOTE_FIXTURE, grupos 0x68 e 0x69): pacotes da primeira carga — A com o 'catalogo' · 'tenant'
+ *   pronto, o 'catalogo' · 'filial:<padrão>' pronto e um 'catalogo' · 'tenant' substituído; B com o 'core' · 'tenant' pronto.
+ *   Pedidos de geração já atendidos (A: lote; B: manifesto): nenhum pendente (o teste grava o seu em transação desfeita).
  */
 import { createHash, createHmac } from 'node:crypto';
 import type { ClientBase } from 'pg';
@@ -201,6 +204,9 @@ const G = {
   deslocamento_dia: 0x66,
   // 0070 (ADR 0047): assinatura do tenant (o catálogo de planos, fora dos tenants, usa o prefixo 9a9a9a9a)
   assinatura: 0x67,
+  // 0074 (ADR 0054): pacote da primeira carga e pedido de geração
+  sync_pacote: 0x68,
+  sync_pacote_pedido: 0x69,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -386,6 +392,15 @@ export function planosDaFixture(): Linha[] {
     plano(PLANOS_FIXTURE.antigo, { ordem: 9, ativo: false }),
   ];
 }
+
+/**
+ * 0074 (ADR 0054): pacotes da primeira carga e pedidos de geração (ver o cabeçalho). geracao_base fixa (a do tenant é aleatória
+ * na fixture; o gerador grava a do tenant). Nenhum pedido pendente.
+ */
+export const SYNC_PACOTE_FIXTURE = {
+  A: { catalogo: a('sync_pacote', 1), filialPadrao: a('sync_pacote', 2), substituido: a('sync_pacote', 3), pedido: a('sync_pacote_pedido', 1) },
+  B: { core: b('sync_pacote', 1), pedido: b('sync_pacote_pedido', 1) },
+} as const;
 
 /** 0064–0066 (T-0170): uma linha de cada tabela nova em A e em B (ver o cabeçalho). */
 export const T0170_FIXTURE = {
@@ -650,6 +665,9 @@ export const ORDEM_TABELAS = [
   'plataforma.email_saida',
   // 0058 (T-0158): diagnóstico do aparelho (FK composta -> core.usuario); alerta já resolvido, sem print
   'plataforma.diagnostico',
+  // 0074 (ADR 0054): pacote da primeira carga e pedido de geração (sem FK além do tenant)
+  'plataforma.sync_pacote',
+  'plataforma.sync_pacote_pedido',
   'plataforma.evento',
   'plataforma.evento_consumo',
   'plataforma.parametro',
@@ -1071,6 +1089,16 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
         motivo: 'tela', alerta_situacao: 'enviado', alerta_recado_id: 'R-20261031-120001-diagnostico', alerta_em: DATA_FIXA_ACESSO,
         detalhe: { erro: { mensagem: 'TypeError: x is undefined', pilha: null, origem: 'tela' } },
       }),
+    ],
+    'plataforma.sync_pacote': [
+      syncPacote(SYNC_PACOTE_FIXTURE.A.catalogo, tA, 'catalogo', null, {}),
+      syncPacote(SYNC_PACOTE_FIXTURE.A.filialPadrao, tA, 'catalogo', FILIAIS_FIXTURE.A.padrao, {}),
+      syncPacote(SYNC_PACOTE_FIXTURE.A.substituido, tA, 'catalogo', null, { situacao: 'substituido', substituido_em: DATA_FIXA_ACESSO }),
+      syncPacote(SYNC_PACOTE_FIXTURE.B.core, tB, 'core', null, { entidades: { produto: 2, produto_unidade: 2, medida: 3 } }),
+    ],
+    'plataforma.sync_pacote_pedido': [
+      syncPacotePedido(SYNC_PACOTE_FIXTURE.A.pedido, tA, 'catalogo', null, 'lote'),
+      syncPacotePedido(SYNC_PACOTE_FIXTURE.B.pedido, tB, 'core', null, 'manifesto'),
     ],
     'plataforma.evento': [
       evento(a('evento', 1), tA, A.usuarios.vendedor2),
@@ -1763,6 +1791,26 @@ function diagnostico(id: string, tenant_id: string, usuario_id: string, perfil: 
     aparelho_modelo: 'SM-A155M', android: '14', android_api: 34, tela: '/m/novo-pedido', motivo: null, descricao: null,
     detalhe: {}, print_id: null, ocorrido_em: DATA_FIXA_ACESSO, recebido_em: DATA_FIXA_ACESSO, alerta_situacao: 'enviado',
     alerta_tentativas: 0, alerta_proxima_em: null, alerta_recado_id: null, alerta_em: null, external_id: null, ...extra,
+  };
+}
+
+/** 0074 (ADR 0054): pacote com a chave do armazenamento no formato do CHECK sync_pacote_chave_do_tenant. */
+function syncPacote(id: string, tenant_id: string, modulo: string, filial_id: string | null, extra: Partial<Linha>): Linha {
+  const particao = filial_id ? `filial:${filial_id}` : 'tenant';
+  return {
+    id, tenant_id, modulo, particao, filial_id, formato: 1, situacao: 'pronto', horizonte: DATA_FIXA_ACESSO,
+    geracao_base: '00000000-0000-4000-8000-000000000070',
+    chave_armazenamento: `sync-pacotes/${tenant_id}/${modulo}/${particao}/${id}.sqlite.gz`,
+    bytes: 4096, md5: 'd41d8cd98f00b204e9800998ecf8427e', entidades: filial_id ? { tabela_preco_item: 4, deposito: 1 } : { catalogo_no: 2, sinonimo: 1 },
+    substituido_em: null, arquivo_apagado_em: null, external_id: null, ...extra,
+  };
+}
+
+/** 0074 (ADR 0054): pedido de geração já atendido (nenhum pendente na fixture). */
+function syncPacotePedido(id: string, tenant_id: string, modulo: string, filial_id: string | null, origem: 'lote' | 'manifesto' | 'agendado'): Linha {
+  return {
+    id, tenant_id, modulo, particao: filial_id ? `filial:${filial_id}` : 'tenant', filial_id, origem, situacao: 'atendido',
+    gerar_apos: DATA_FIXA_ACESSO, tentativas: 1, ultimo_erro: null, atendido_em: DATA_FIXA_ACESSO, external_id: null,
   };
 }
 
