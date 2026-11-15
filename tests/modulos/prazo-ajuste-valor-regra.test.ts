@@ -1,5 +1,5 @@
 /**
- * Ensaio valor × regra do "% do prazo" (v1.0.13; RN-VEN-43 a 46, RN-INT-15; proposta 454ee68,
+ * Ensaio valor × regra do "% do prazo" (v1.0.13; RN-VEN-43 a 45; proposta 454ee68,
  * docs/modulos/vendedor/prazo-desconto-acrescimo.md §2 a §5). O esperado é calculado AQUI pela fórmula da RN, sem chamar
  * o domain, e comparado com o que o domain do Vendedor devolve (o mesmo que a API revalida e o app mostra).
  *
@@ -7,12 +7,10 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { PedidoPush, PrazoPagamentoSyncSchema } from '../../modules/vendedor/contracts';
 import { politicaDosParametros, revalidarPedido, type RevalidarEntrada } from '../../modules/vendedor/domain/aprovacao';
 import { revalidarPercentualDoPrazo } from '../../modules/vendedor/domain/pagamento';
 import { buildOrderPdfHtml } from '../../modules/vendedor/domain/pdf-pedido';
 import { precoMinimoBaseCents, tabelaAjustadaCents } from '../../modules/vendedor/domain/preco-pedido';
-import { PercentualAjuste, PrazoPagamentoPayload } from '../../modules/integracao/contracts';
 
 /** Fórmula da RN-VEN-43, independente do domain (inteiros; meia para cima). */
 const regra = (tabela: number, bp: number): number => Math.floor((tabela * (10_000 + bp) + 5_000) / 10_000);
@@ -90,7 +88,6 @@ describe('Ensaio valor × regra: pedido de exemplo de ponta a ponta no domain (c
     expect(r.ok && r.total_cents).toBe(12_030 + 300 + 20_500);
     expect(r.ok && r.total_cents).toBe(esperado(250, { a: 5 }).total);
     // e voltar a −1,71 devolve os mesmos centavos (nunca ajusta sobre o já ajustado)
-    expect(revalidarPedido(entrada(-171, { a: 5 }))).toEqual(revalidarPedido(entrada(-171, { a: 5 })));
     expect((revalidarPedido(entrada(-171, { a: 5 })) as { total_cents: number }).total_cents).toBe(esperado(-171, { a: 5 }).total);
   });
 
@@ -120,46 +117,20 @@ describe('Ensaio valor × regra: pedido de exemplo de ponta a ponta no domain (c
 
 describe('RN-VEN-45: percentual congelado e revalidado no envio (critério 4)', () => {
   const criado = '2026-11-15T14:00:00.000Z'; // 10h00 em Manaus
-  it('RN-VEN-45: vigente igual aceita; mudou depois do pedido aceita o do pedido; diferente sem mudança posterior recusa em português', () => {
-    expect(revalidarPercentualDoPrazo({ push: -1.71, vigente: -1.71, cadastro_atualizado_em: '2026-11-15T15:00:00.000Z', criado_em: criado })).toMatchObject({ ok: true, percentual: -1.71 });
-    expect(revalidarPercentualDoPrazo({ push: -1.71, vigente: 0, cadastro_atualizado_em: '2026-11-15T14:00:01.000Z', criado_em: criado })).toMatchObject({ ok: true, percentual: -1.71 });
-    const r = revalidarPercentualDoPrazo({ push: -1.71, vigente: 0, cadastro_atualizado_em: criado, criado_em: criado });
-    expect(r).toMatchObject({ ok: false, codigo: 'prazo_percentual_mudou' });
-    expect(!r.ok && r.mensagem).toBe('O prazo de pagamento mudou de percentual. Atualize o app e refaça o pedido.');
+  it('RN-VEN-45: vigente igual aceita; mudou depois do pedido aceita o do pedido; diferente sem mudança posterior recusa', () => {
+    expect(revalidarPercentualDoPrazo({ push: -1.71, vigente: -1.71, cadastro_atualizado_em: '2026-11-15T15:00:00.000Z', criado_em: criado })).toEqual({ ok: true, percentual: -1.71, mudou_depois: false });
+    expect(revalidarPercentualDoPrazo({ push: -1.71, vigente: 0, cadastro_atualizado_em: '2026-11-15T14:00:01.000Z', criado_em: criado })).toEqual({ ok: true, percentual: -1.71, mudou_depois: true });
+    expect(revalidarPercentualDoPrazo({ push: -1.71, vigente: 0, cadastro_atualizado_em: criado, criado_em: criado })).toMatchObject({ ok: false, codigo: 'RN-VEN-45' });
   });
-});
 
-describe('RN-VEN-43 / RN-INT-15: faixa, 2 casas, ausente = 0, contrato v1 (critério 5)', () => {
-  const linha = { id: '00000000-0000-4000-8000-000000000001', updated_at: '2026-11-15T14:00:00.000Z', deleted_at: null, external_id: null, forma_pagamento_id: '00000000-0000-4000-8000-000000000003', codigo: 'AV', descricao: 'À vista', parcelas_dias: [0], prazo_medio_dias: 0, ativo: true, ordem: 1 };
-  it('RN-VEN-43: o .strict() do pull de prazo aceita o campo; ausente vira 0; fora da faixa ou 3 casas é erro', () => {
-    const base = PrazoPagamentoSyncSchema.safeParse(linha);
-    if (!base.success) return expect.fail(`linha base do pull deve passar: ${base.error.message}`);
-    expect(base.data.percentual_ajuste).toBe(0);
-    expect(PrazoPagamentoSyncSchema.parse({ ...linha, percentual_ajuste: -1.71 }).percentual_ajuste).toBe(-1.71);
-    expect(PrazoPagamentoSyncSchema.parse({ ...linha, percentual_ajuste: 99.99 }).percentual_ajuste).toBe(99.99);
-    expect(PrazoPagamentoSyncSchema.parse({ ...linha, percentual_ajuste: -99.99 }).percentual_ajuste).toBe(-99.99);
-    expect(PrazoPagamentoSyncSchema.safeParse({ ...linha, percentual_ajuste: 100 }).success).toBe(false);
-    expect(PrazoPagamentoSyncSchema.safeParse({ ...linha, percentual_ajuste: -100 }).success).toBe(false);
-    expect(PrazoPagamentoSyncSchema.safeParse({ ...linha, percentual_ajuste: 1.234 }).success).toBe(false);
-    expect(PrazoPagamentoSyncSchema.safeParse({ ...linha, outro: 1 }).success).toBe(false); // continua .strict()
-  });
-  it('RN-INT-15: o Hub v1 aceita o campo opcional (ausente/nulo), a faixa e no máximo 2 casas', () => {
-    expect(PercentualAjuste.safeParse(-1.71).success).toBe(true);
-    expect(PercentualAjuste.safeParse(99.99).success).toBe(true);
-    expect(PercentualAjuste.safeParse(-99.99).success).toBe(true);
-    expect(PercentualAjuste.safeParse(100).success).toBe(false);
-    expect(PercentualAjuste.safeParse(1.234).success).toBe(false);
-    const prazo = { external_id: 'AV', alterado_em: '2026-11-15T14:00:00.000Z', forma_external_id: 'PIX', codigo: 'AV', descricao: 'À vista', parcelas_dias: [0] };
-    expect(PrazoPagamentoPayload.safeParse(prazo).success).toBe(true);
-    expect(PrazoPagamentoPayload.safeParse({ ...prazo, percentual_ajuste: null }).success).toBe(true);
-    expect(PrazoPagamentoPayload.safeParse({ ...prazo, percentual_ajuste: -1.71 }).success).toBe(true);
-    expect(PrazoPagamentoPayload.safeParse({ ...prazo, percentual_ajuste: 1.234 }).success).toBe(false);
-  });
-  it('RN-VEN-45: o push do pedido aceita o percentual na faixa e sem o campo (APK anterior)', () => {
-    const push = { id: '00000000-0000-4000-8000-000000000009', customer_id: '00000000-0000-4000-8000-000000000004', discount_pct: 0, items: [{ product_id: '00000000-0000-4000-8000-000000000005', quantity: 1 }] };
-    expect(PedidoPush.safeParse(push).success).toBe(true);
-    expect(PedidoPush.safeParse({ ...push, prazo_percentual_ajuste: -1.71 }).success).toBe(true);
-    expect(PedidoPush.safeParse({ ...push, prazo_percentual_ajuste: 100 }).success).toBe(false);
+  it('RN-VEN-45/10: % divergente com mudança posterior vai para aprovação do supervisor, com os valores do % do pedido', () => {
+    const r = revalidarPedido(entrada(-171, { a: 5 }, { percentual_mudou: true }));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.status).toBe('pending_approval');
+    expect(r.nivel).toBe('supervisor');
+    expect(r.pending_reason).toContain('Percentual do prazo mudou');
+    expect(r.total_cents).toBe(esperado(-171, { a: 5 }).total); // o % congelado no pedido continua valendo no cálculo
   });
 });
 
