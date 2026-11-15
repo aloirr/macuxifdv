@@ -240,7 +240,7 @@ function Passo-Conector {
     Push-Location $PASTA_CONECTOR
     try {
         $versao = (& $node 'conector.mjs' 'versao' | Select-Object -First 1)
-        if ($versao -notmatch '^1\.(4|[5-9])\.') { Aviso "Conector $versao: este kit pede o 1.4.0 ou mais novo. Baixe de novo no portal." }
+        if ($versao -notmatch '^1\.(4|[5-9])\.') { Aviso "Conector ${versao}: este kit pede o 1.4.0 ou mais novo. Baixe de novo no portal." }
         $senha | & $node 'conector.mjs' 'segredo' 'definir' 'erp_senha' '--config' $conf | Out-Null
         if ($LASTEXITCODE -ne 0) { Falha 'O Conector nao guardou a senha do banco no Gerenciador de Credenciais.' }
         $senha = $null

@@ -14,7 +14,7 @@ Cada fase vai do pedido no app até o número do ERP voltar ao app.
 - Um vendedor da thathyany com o app Macuxi Campo instalado.
 
 ## Preparar (uma vez)
-1. Baixe `macuxi-kit-thathyany-1.0.0.zip`, clique com o botão direito e escolha **Extrair tudo** (por exemplo, para `C:\MacuxiKit`).
+1. Baixe `macuxi-kit-thathyany-1.0.1.zip`, clique com o botão direito e escolha **Extrair tudo** (por exemplo, para `C:\MacuxiKit`).
 2. Abra o **Windows PowerShell** (o azul) **como administrador**.
 
 ## Fase 1 — Conector 1.4.0

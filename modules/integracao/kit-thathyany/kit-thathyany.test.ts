@@ -107,6 +107,23 @@ describe('zip do kit', () => {
 });
 
 describe('Instalar-Thathyany.ps1 (conferência estática)', () => {
+  it('nenhum .ps1 do zip tem $var: em string (PowerShell 5.1 lê como variável de unidade)', () => {
+    const ok = new Set(['env', 'script', 'global', 'local', 'using', 'private', 'function', 'variable']);
+    const ruins: string[] = [];
+    for (const { nome, dados } of ENTRADAS.filter((e) => e.nome.toLowerCase().endsWith('.ps1'))) {
+      dados
+        .toString('utf8')
+        .split('\n')
+        .forEach((linha, i) => {
+          if (linha.trim().startsWith('#')) return;
+          for (const m of linha.matchAll(/\$([A-Za-z_][A-Za-z0-9_]*):/g)) {
+            if (!ok.has(m[1]!.toLowerCase())) ruins.push(`${nome}:${i + 1}: $${m[1]}:`);
+          }
+        });
+    }
+    expect(ruins).toEqual([]);
+  });
+
   it('exige administrador e Windows PowerShell 5.1, com -Fase Conector|API obrigatório', () => {
     expect(INSTALADOR.charCodeAt(0)).toBe(0xfeff);
     expect(INSTALADOR).toContain('#requires -RunAsAdministrator');
