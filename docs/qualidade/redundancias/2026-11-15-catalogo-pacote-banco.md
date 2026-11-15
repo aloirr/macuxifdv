@@ -42,3 +42,25 @@ Nenhum defeito funcional foi encontrado, então não há encaminhamento ao `test
 ## Recados
 
 Este parecer foi pedido pelo gerente-projetos, que repassa os achados ao dono, como fez com os RD-0507 a 0515. Por isso não abri recado próprio ao `banco-dados`.
+
+---
+
+## Reteste (15/11, 38de0194)
+
+Pedido do gerente-projetos. Li `git diff a260d823 38de0194`, que é a correção do banco-dados. Também conferi o merge do `main` (`a260d823`) no `git diff 5d744724d 38de0194`.
+
+**Veredito: LIMPO.** Os 5 achados estão corrigidos e o merge não trouxe repetição nova. Não há achado novo, então a faixa RD-0585 a 0589 não foi usada.
+
+| RD | Status | Evidência |
+|---|---|---|
+| RD-0580 | corrigido | `docs/banco/sync-pacote.md` § RLS e grants: o parágrafo "Políticas do worker" ficou só com os nomes das políticas, "as condições estão na tabela acima" e a frase da `origem`. A frase "O app não escolhe…" saiu. |
+| RD-0581 | corrigido | `0074_plataforma_sync_pacote.up.sql:25`: os blocos Acesso, Índices e Caminho de volta viraram 1 linha de remissão ao dicionário e à `down.sql`. |
+| RD-0582 | corrigido | `sync-pacote.md` § Fixture dois-tenants: ficou só a remissão a `fixture-dois-tenants.md` § 0074. |
+| RD-0583 | corrigido | `sync_pacote_filial_ix` e `sync_pacote_pedido_filial_ix` saíram da up, dos 2 testes (lista estática e `pg_indexes`) e do dicionário. O `git grep` no 38de0194 não acha nenhuma das duas. |
+| RD-0584 | corrigido | `sync-pacote.db.test.ts`: o caso "nome e posição" saiu, e os grants ficaram filtrados para o `macuxi_app`, com o comentário que remete à lista exaustiva do worker no `estatico.test.ts`. |
+
+**Merge do main:**
+- **Fixture:** a 0070 do `main` ocupou o grupo `0x67` (`assinatura`), e a 0074 passou para `0x68` (`sync_pacote`) e `0x69` (`sync_pacote_pedido`). No mapa `G` não há grupo repetido. O cabeçalho de `dois-tenants.ts:81` e `fixture-dois-tenants.md:245,248` estão iguais ao mapa, e não sobrou `0x67` ligado ao pacote.
+- **`docs/banco/plataforma.md`:** a 0074 tem uma entrada só, que remete ao `sync-pacote.md`, sem repetir o dicionário.
+- **`docs/banco/README.md`:** a 0074 tem uma entrada só, no padrão das outras migrações, com o resumo e a remissão.
+- **Espelho Drizzle:** a 0074 entrou uma vez na lista do cabeçalho de `db/esquema/plataforma.ts`, depois da 0073 do `main`.
