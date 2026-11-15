@@ -682,8 +682,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     relogio,
   });
 
-  // T-0181: frases da tela de carga; o app lê as ativas no macuxi_app (sem licença de módulo), o portal só super-admin.
-  // Sem flag: antes da 0081 respondem 503 e o app segue com a lista que tem (ou as 30 do bundle).
+  // T-0181: frases da tela de carga (docs/desenho/T-0181.md §2)
   registrarRotasFrasesCarga(app, plataforma, {
     acessoPortal,
     ...(op.fonteFrasesCarga ? { fonte: op.fonteFrasesCarga } : {}),

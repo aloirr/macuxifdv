@@ -1,17 +1,16 @@
 # T-0181 — revisão final do engenheiro-software (frases da carga)
 
-> 2026-11-15 (manhã de Manaus) · engenheiro-software · sobre o merge local, em `origin/main` (4e404f33), de
-> `nuvem/carga-frases-banco-dados` (4d7ed6c9), `nuvem/carga-frases-engenheiro-software-2` (daf7cfe3),
-> `nuvem/carga-frases-testes` (be8fc1d0), `nuvem/carga-frases-designer-ux-kit2` (aa4192d2) e
-> `nuvem/carga-frases-engenheiro-apps` (3f1acce6). Spec: `74f6160:docs/design/carga-aviso-frases/spec.md` (§1 e §1.1 do ajuste
-> R-20261115-080500). Os 5 merges entram sem conflito.
+> 2026-11-15 · engenheiro-software. Revisão feita de manhã sobre o merge local, no `origin/main`, dos branches da carga
+> (banco-dados, engenheiro-software, testes, designer-ux e engenheiro-apps; os 5 sem conflito). Conferida de novo à tarde
+> nos heads que vão ao PR conjunto #428: `nuvem/carga-frases-banco-dados-v6`, `nuvem/carga-frases-engenheiro-software-v7` e
+> `nuvem/carga-frases-testes-v5`. Spec: `docs/design/carga-aviso-frases/spec.md` (§1 e §1.1 do ajuste R-20261115-080500).
 
 ## Resultado na sessão (Node 22, sem Docker)
 - `lint` e `typecheck` (turbo) de `@macuxi/db`, `api`, `mobile`, `web`, `@macuxi/platform-sdk` e `@macuxi/ui`: 12/12 verdes.
 - `lint:tests`: 0 erros (6 avisos antigos, em `notificacoes.test.ts` e `visitas-campo.test.ts`); `typecheck:tests`: verde;
   `fronteiras`: 0 erros (11 avisos de ciclo antigos, nenhum nos arquivos da T-0181).
 - Testes: platform-sdk 884, ui 424, mobile 564 (+1 todo), web 224, todos verdes. db 1065 e api 548 verdes, com 1 falha cada,
-  ambas do `crypto.argon2Sync` (Node 22; conhecida). Integração (`tests/integracao/api/frases-carga-t0174.test.ts`, 28 casos,
+  ambas do `crypto.argon2Sync` (Node 22; conhecida). Integração (`tests/integracao/api/frases-carga-t0181.test.ts`, 28 casos,
   e `conformidade.test.ts`): pulados sem banco; o resultado vale no CI. Migrações 0070–0074 vazias e provisórias só na
   sessão (sem commit), para o migrador não recusar o buraco.
 - `node scripts/coord.mjs verificar --por-commit origin/main..HEAD`: 5 commits, nenhuma violação.
@@ -51,15 +50,15 @@
   tocado; `fronteiras` sem erro.
 - **Zod como fonte:** `FraseCargaSchema`, `FraseCargaEntradaSchema` (strict, `id` opcional), `FraseCargaAlteracaoSchema`
   (strict, pelo menos um campo), `FrasesCargaAppRespostaSchema`; API confere o retorno das funções (`conferirRetorno`); app e
-  portal validam a resposta pelo mesmo schema; `FRASES_CARGA_INICIAIS` é a fonte única do bundle e do seed (ids
-  `uuid_de_chave`).
+  portal validam a resposta pelo mesmo schema; `FRASES_CARGA_INICIAIS` é a lista do bundle (ids `uuid_de_chave`); o seed
+  da 0081 tem o VALUES próprio (SQL), e o teste do banco o confere contra o SDK.
 - **0081 — tabela global sem `tenant_id`:** precedente aceitável (mesmo padrão de `super_admin`, `portal_sessao` e
   `auditoria_plataforma`): exceção declarada em `db/src/excecoes.ts` (`TABELAS_SEM_TENANT_ID` e `TABELAS_SO_POR_FUNCAO`) e
   em `db/scripts/conferir-rls.sql`; RLS ligado e forçado, só a política `manutencao`; nenhum grant de tabela a
   `macuxi_app`/`macuxi_worker`/`macuxi_portal`; sem dado de tenant nem pessoal. Demais colunas-padrão presentes.
 - **SECURITY DEFINER:** as 4 funções com `set search_path = pg_catalog, plataforma, pg_temp`; EXECUTE das 3 `sa_*` só ao
   `macuxi_portal`, `frases_carga_ativas()` só ao `macuxi_app` (revoke de PUBLIC); conferência pelo catálogo no fim da migração;
-  `funcoes-sa.ts` e `banco-dbaas.sh` com as 19. Sessão e super-admin conferidos dentro das funções (28000/42501).
+  `funcoes-sa.ts` e `banco-dbaas.sh` com as 30. Sessão e super-admin conferidos dentro das funções (28000/42501).
 - **Auditoria sem texto:** `sa.frase_carga.listar` (contagem), `.incluir` (id e Nº), `.editar` (id, Nº, `texto_mudou`,
   `ativa`). Log da API só com código e SQLSTATE.
 - **Rota do app:** `p.preparar(req, null)` (sessão exigida, sem licença de módulo, como `/v1/sync` e diagnósticos);
