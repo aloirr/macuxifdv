@@ -426,6 +426,7 @@ itens e trabalhos; tira `hash_conteudo`; as fotos ligadas ficam). Drizzle: `foto
 
 Índices: `foto_lote_recentes_ix (tenant_id, created_at desc)` (lista dos 20 mais recentes) e `foto_lote_ativos_ix (tenant_id,
 situacao)` parcial nos `enfileirado|conferindo|processando` (`FOTO_LOTE_ATIVOS_MAX`). macuxi_app: select, insert, update (sem DELETE).
+macuxi_leitura (0078): select e a política `leitura`.
 
 ### foto_lote_item — uma entrada considerada do ZIP. Fora do sync
 | Coluna | Tipo | Regra |
@@ -446,11 +447,12 @@ situacao)` parcial nos `enfileirado|conferindo|processando` (`FOTO_LOTE_ATIVOS_M
 
 `foto_lote_item_ordem_uk (tenant_id, lote_id, produto_id, ordem)` parcial nos `ligado`: a 2ª foto da mesma ordem do mesmo produto
 no lote viola (23505) → o item vira `recusado` com `ordem_repetida_no_lote`. macuxi_app: select, insert, update (sem DELETE).
+macuxi_leitura (0078): select e a política `leitura`.
 
 ### produto_midia (0079)
 | Coluna | Regra |
 |---|---|
-| hash_conteudo | text, SHA-256 hex da imagem (`produto_midia_hash_hex`); nulo na foto da ficha. **Repetido**: `produto_midia_hash_uk (tenant_id, produto_id, hash_conteudo)` entre as vivas (23505 = `repetido`) |
+| hash_conteudo | text, SHA-256 hex da imagem (`produto_midia_hash_hex`); nulo na foto da ficha. **Repetido**: `produto_midia_hash_uk (tenant_id, produto_id, hash_conteudo)` entre as vivas (23505 = `repetido`). O nome casa com a regra da coluna sensível (0078): o `macuxi_leitura` passa a SELECT por coluna em `produto_midia`, sem ela |
 | ordem | padrão passa de 0 a **1**; a principal tem sempre ordem 1 (`produto_midia_principal_ordem`); a ordem da foto viva >= 1 é única por produto (`produto_midia_ordem_foto_uk`, `tipo = 'foto' and ordem >= 1`); vídeo, PDF e foto com ordem 0 ficam fora |
 
 Dados: as principais antigas (ordem 0, vivas e removidas) foram para ordem 1 com o gatilho `produto_midia_updated_at` **desligado

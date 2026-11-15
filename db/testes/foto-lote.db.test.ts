@@ -138,6 +138,18 @@ describe('0079 fotos em lote e trabalho sob demanda (estático)', () => {
     expect(up).toContain('grant select, insert, update on catalogo.foto_lote_item to macuxi_app;');
   });
 
+  it('macuxi_leitura (0078): SELECT e a política leitura nas 3 tabelas; produto_midia por coluna sem hash_conteudo (o down volta)', () => {
+    for (const t of TABELAS) {
+      expect(up).toContain(`grant select on ${t} to macuxi_leitura;`);
+      expect(up).toContain(`create policy leitura on ${t} for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual());`);
+    }
+    expect(up).toContain("execute 'revoke select on catalogo.produto_midia from macuxi_leitura';");
+    expect(up).toContain("execute format('grant select (%s) on catalogo.produto_midia to macuxi_leitura', v_colunas);");
+    expect(up.indexOf("execute 'revoke select on catalogo.produto_midia")).toBeGreaterThan(up.indexOf('add column hash_conteudo'));
+    expect(down).toContain('revoke select on catalogo.produto_midia from macuxi_leitura;\ngrant select on catalogo.produto_midia to macuxi_leitura;');
+    expect(down.indexOf('grant select on catalogo.produto_midia')).toBeGreaterThan(down.indexOf('drop column if exists hash_conteudo'));
+  });
+
   it('fronteira: sem FK para core.* nem plataforma.arquivo (só tenant e dentro do schema)', () => {
     expect(up).not.toMatch(/references core\./);
     expect(up).not.toMatch(/references plataforma\.arquivo/);
