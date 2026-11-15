@@ -11,8 +11,8 @@
 import { BYTES_MAX_MINIATURA_ARQUIVO, LADO_MINIATURA_ARQUIVO_PX } from '@macuxi/platform-sdk';
 import { decode, encode } from 'jpeg-js';
 
-/** Resolução máxima decodificada (o app manda 1600 px; câmera crua de 48 MP é recusada). */
-const MAX_MEGAPIXELS = 30;
+/** Resolução máxima decodificada (o app manda 1600 px; câmera crua de 48 MP é recusada). Vale para JPEG, PNG e WEBP. */
+export const MAX_MEGAPIXELS = 30;
 const MAX_MEMORIA_MB = 256;
 const QUALIDADES = [80, 70, 60, 50, 40, 30] as const;
 const LADO_MINIMO = 64;
@@ -24,10 +24,11 @@ export class ErroMiniatura extends Error {
   }
 }
 
-/** Chave da miniatura no armazenamento: `<...>/<id>.jpg` → `<...>/<id>.m320.jpg`. */
+/** Chave da miniatura no armazenamento: `<...>/<id>.jpg|.png|.webp` → `<...>/<id>.m320.jpg` (a miniatura é sempre JPEG). */
 export function chaveDaMiniatura(chaveOriginal: string): string {
-  if (!chaveOriginal.endsWith('.jpg') || chaveOriginal.endsWith('.m320.jpg')) throw new Error('chave de arquivo inválida');
-  return `${chaveOriginal.slice(0, -4)}.m320.jpg`;
+  const m = /^(.*\/[0-9a-f-]{36})\.(jpg|png|webp)$/.exec(chaveOriginal);
+  if (!m) throw new Error('chave de arquivo inválida');
+  return `${m[1]}.m320.jpg`;
 }
 
 /** Orientação EXIF (1 a 8) do JPEG; 1 quando não há EXIF ou a tag é ilegível. */
@@ -61,7 +62,7 @@ export function orientacaoExif(bytes: Uint8Array): number {
   return 1;
 }
 
-interface Rgba {
+export interface Rgba {
   largura: number;
   altura: number;
   dados: Uint8Array;
@@ -138,24 +139,31 @@ export interface ResultadoMiniatura {
   qualidade: number;
 }
 
+/** Pixels RGBA do JPEG, com os tetos de resolução e memória. Lança `ErroMiniatura` se não decodificar. */
+export function decodificarJpeg(original: Uint8Array): Rgba {
+  try {
+    const d = decode(original, { useTArray: true, formatAsRGBA: true, maxResolutionInMP: MAX_MEGAPIXELS, maxMemoryUsageInMB: MAX_MEMORIA_MB });
+    return { largura: d.width, altura: d.height, dados: d.data };
+  } catch (e) {
+    throw new ErroMiniatura(`foto ilegível para a miniatura: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
 /**
- * Gera a miniatura (JPEG) da foto. Lança `ErroMiniatura` se o original não for um JPEG decodificável dentro dos limites
- * ou se nem com o lado mínimo couber no teto (não acontece com foto real).
+ * Gera a miniatura (JPEG) da foto JPEG. Lança `ErroMiniatura` se o original não for um JPEG decodificável dentro dos
+ * limites ou se nem com o lado mínimo couber no teto (não acontece com foto real). PNG e WEBP: `miniaturaDeImagem`.
  */
 export function gerarMiniatura(
   original: Uint8Array,
   op: { lado?: number; bytesMax?: number } = {},
 ): ResultadoMiniatura {
+  return miniaturaDeRgba(decodificarJpeg(original), orientacaoExif(original), op);
+}
+
+/** Reduz, aplica a orientação EXIF (1 = nenhuma) e codifica em JPEG até caber no teto de bytes. */
+export function miniaturaDeRgba(img: Rgba, orientacao: number, op: { lado?: number; bytesMax?: number } = {}): ResultadoMiniatura {
   const ladoMax = op.lado ?? LADO_MINIATURA_ARQUIVO_PX;
   const bytesMax = op.bytesMax ?? BYTES_MAX_MINIATURA_ARQUIVO;
-  let img: Rgba;
-  try {
-    const d = decode(original, { useTArray: true, formatAsRGBA: true, maxResolutionInMP: MAX_MEGAPIXELS, maxMemoryUsageInMB: MAX_MEMORIA_MB });
-    img = { largura: d.width, altura: d.height, dados: d.data };
-  } catch (e) {
-    throw new ErroMiniatura(`foto ilegível para a miniatura: ${e instanceof Error ? e.message : String(e)}`);
-  }
-  const orientacao = orientacaoExif(original);
   // a orientação troca largura e altura (5 a 8): o lado máximo vale para a foto já girada, que tem o mesmo maior lado
   for (let lado = ladoMax; lado >= LADO_MINIMO; lado = Math.floor(lado * 0.8)) {
     const t = tamanhoReduzido(img.largura, img.altura, lado);

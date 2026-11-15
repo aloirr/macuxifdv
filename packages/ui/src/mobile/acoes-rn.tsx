@@ -18,7 +18,7 @@ import { ALVO_TOQUE } from './componentes';
 import { Dialogo, Folha, OpcaoFolha } from './folha';
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
-import { colors, fonts } from './theme';
+import { colors, fonte } from './theme';
 
 export interface AcaoCompacta {
   id: string;
@@ -204,10 +204,10 @@ const s = StyleSheet.create({
   rodapeFixo: { paddingTop: 10, paddingHorizontal: 14, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
   principal: { gap: 4 },
   // 12/16 ink2 (7,6:1 no branco), centralizado abaixo do principal
-  apoio: { fontFamily: fonts.body, fontSize: 12, lineHeight: 16, color: colors.ink2, textAlign: 'center' },
+  apoio: { ...fonte.body, fontSize: 12, lineHeight: 16, color: colors.ink2, textAlign: 'center' },
   linha: { flexDirection: 'row', alignItems: 'stretch' },
   // cada ação divide a largura; alvo de 48 dp de altura, ícone + rótulo numa linha
   acao: { flex: 1, minWidth: ALVO_TOQUE, minHeight: ALVO_TOQUE, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 4 },
-  acaoTexto: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 13 },
+  acaoTexto: { flexShrink: 1, ...fonte.semibold, fontSize: 14 },
   mais: { width: ALVO_TOQUE, height: ALVO_TOQUE, alignItems: 'center', justifyContent: 'center' },
 });

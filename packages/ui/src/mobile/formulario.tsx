@@ -30,7 +30,7 @@ import { ALVO_TOQUE, folgaDeToque, lerQuantidade, limitarPasso, RESPIRO_ABA_ROLA
 import { Icon, type IconName } from './icon';
 import { useReduzirMovimento } from './movimento-rn';
 import { PASSO_COMPACTO, passoComTexto, SEGMENTADO_COMPACTO } from './selecao';
-import { colors, fonts, radius } from './theme';
+import { colors, fonte, radius, type as t } from './theme';
 
 function folga(visual: number) {
   const f = folgaDeToque(visual);
@@ -545,8 +545,8 @@ const s = StyleSheet.create({
   // modo rolável: largura do rótulo + respiro, sem flex
   abaRolavel: { minHeight: ALVO_TOQUE, minWidth: ALVO_TOQUE, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: RESPIRO_ABA_ROLAVEL, borderBottomWidth: 3, borderBottomColor: 'transparent' },
   abaOn: { borderBottomColor: colors.accent },
-  abaTexto: { fontFamily: fonts.medium, fontSize: 13, color: colors.ink2 },
-  abaTextoOn: { fontFamily: fonts.bold, color: colors.ink },
+  abaTexto: { ...fonte.medium, fontSize: 14, color: colors.ink2 },
+  abaTextoOn: { ...fonte.semibold, color: colors.ink },
   ponto: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
   // .seg / .seg span / .seg.sm span
   seg: { flexDirection: 'row', gap: SEGMENTADO_COMPACTO.vao },
@@ -555,13 +555,13 @@ const s = StyleSheet.create({
   // flex: 0 anula o flex: 1 do segItem: dentro do alvo (coluna) ele virava flexBasis 0 + grow e o visual esticava até 44 dp
   segItemCompacto: { flex: 0, minWidth: 0, height: ALTURA_SEG_COMPACTO, borderRadius: 7, paddingHorizontal: 6 },
   segOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  segTexto: { fontFamily: fonts.semibold, fontSize: 13, color: colors.ink },
+  segTexto: { ...fonte.semibold, fontSize: 14, color: colors.ink },
   segTextoCompacto: { fontSize: 12 },
   segTextoOn: { color: colors.surface },
   // .qty / .qty i
   passo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   passoBotao: { width: LADO_PASSO, height: LADO_PASSO, borderRadius: 8, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  passoValor: { minWidth: 32, textAlign: 'center', fontFamily: fonts.bold, fontSize: 15, color: colors.ink, fontVariant: ['tabular-nums'] },
+  passoValor: { minWidth: 32, textAlign: 'center', ...fonte.semibold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
   passoInput: { height: LADO_PASSO, minWidth: 44, padding: 0, borderBottomWidth: 1, borderBottomColor: colors.lineStrong },
   // caixa "− n +" (T-0089, .qty da referência das 7h03): contêiner de 44 dp de altura com os alvos dentro; moldura de 30 dp atrás
   passoCompacto: { flexDirection: 'row', alignItems: 'center', height: PASSO_COMPACTO.alvo, width: PASSO_COMPACTO.largura },
@@ -586,20 +586,20 @@ const s = StyleSheet.create({
   passoBotaoEsquerda: { borderTopLeftRadius: radius.sm - 1, borderBottomLeftRadius: radius.sm - 1 },
   passoBotaoDireita: { borderTopRightRadius: radius.sm - 1, borderBottomRightRadius: radius.sm - 1 },
   passoBotaoCompactoPressionado: { backgroundColor: colors.lineSoft },
-  passoValorCompacto: { width: PASSO_COMPACTO.valor, minWidth: PASSO_COMPACTO.valor, height: PASSO_COMPACTO.alvo, padding: 0, fontSize: 15, textAlignVertical: 'center' },
+  passoValorCompacto: { width: PASSO_COMPACTO.valor, minWidth: PASSO_COMPACTO.valor, height: PASSO_COMPACTO.alvo, padding: 0, fontSize: 16, textAlignVertical: 'center' },
   // .search
   busca: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: ALVO_TOQUE, paddingLeft: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
-  buscaInput: { flex: 1, minWidth: 0, height: ALVO_TOQUE - 2, padding: 0, fontFamily: fonts.body, fontSize: 14, color: colors.ink },
+  buscaInput: { flex: 1, minWidth: 0, height: ALVO_TOQUE - 2, padding: 0, ...fonte.body, fontSize: 14, color: colors.ink },
   buscaLimpar: { width: ALVO_TOQUE, height: ALVO_TOQUE - 2, alignItems: 'center', justifyContent: 'center' },
   // .lbl (+ link "Trocar")
   rotuloLinha: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 20 },
-  rotulo: { flexShrink: 1, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.ink2 },
+  rotulo: { ...t.rotulo, flexShrink: 1 },
   rotuloAcao: { minHeight: 24, justifyContent: 'center' },
-  rotuloAcaoTexto: { fontFamily: fonts.bold, fontSize: 13, color: colors.accentInk },
+  rotuloAcaoTexto: { ...fonte.semibold, fontSize: 14, color: colors.accentInk },
   // .chip (medida)
   medida: { alignSelf: 'flex-start', minHeight: ALTURA_MEDIDA, justifyContent: 'center', paddingHorizontal: 8, borderRadius: 6, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   medidaTocavel: { borderColor: colors.lineStrong },
-  medidaTexto: { fontFamily: fonts.bold, fontSize: 12, color: colors.ink },
+  medidaTexto: { ...fonte.semibold, fontSize: 12, color: colors.ink },
   // .plus
   botaoIcone: { borderRadius: radius.sm, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
 });

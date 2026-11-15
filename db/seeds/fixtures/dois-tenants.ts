@@ -213,7 +213,7 @@ const G = {
   sync_pacote_pedido: 0x69,
   // 0077 (T-0176, RN-CORE-39): filiais do usuário
   usuario_filial: 0x6a,
-  // 0079 (T-0174, ADR 0054): trabalho sob demanda e o lote de fotos por ZIP
+  // 0079 (T-0174, ADR 0058): trabalho sob demanda e o lote de fotos por ZIP
   trabalho: 0x6b,
   foto_lote: 0x6c,
   foto_lote_item: 0x6d,
@@ -443,7 +443,7 @@ export const T0170_FIXTURE = {
 } as const;
 
 /**
- * 0079 (T-0174, ADR 0054): um lote de fotos JÁ CONCLUÍDO por tenant (o ZIP já foi descartado: arquivo_id sem linha em
+ * 0079 (T-0174, ADR 0058): um lote de fotos JÁ CONCLUÍDO por tenant (o ZIP já foi descartado: arquivo_id sem linha em
  * plataforma.arquivo, como depois do fim do lote), um item e o trabalho concluído. A: item 'sem_produto' (FOTO-X.jpg);
  * B: item 'recusado' por 'tipo_nao_aceito' (PNG renomeado). arquivo_id e midia_id dos itens são só reservados (nada gravado).
  * Um worker de teste não acha trabalho pendente; os testes que precisam de pendente gravam o seu em transação desfeita.
