@@ -6,7 +6,7 @@ import { empresaDosParametros, type AmbienteAparelho } from '@macuxi/platform-sd
  */
 export async function logoParaPdf(ambiente: Pick<AmbienteAparelho, 'logoDaEmpresa'>): Promise<string | null> {
   try {
-    return (await ambiente.logoDaEmpresa?.().catch(() => null)) ?? null;
+    return (await ambiente.logoDaEmpresa?.()) ?? null;
   } catch {
     return null;
   }
