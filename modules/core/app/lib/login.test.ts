@@ -1,6 +1,7 @@
 import { ErroSemConexao } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { camposIniciaisDoLogin, entrarComSenha, ehServidorInvalido, mensagemDeErroDeLogin, rotuloOlhoSenha, validarLogin } from './login';
+import { camposIniciaisDoLogin, entrarComSenha, ehServidorInvalido, mensagemDeErroDeLogin, propsDoCampoCodigoEmpresa, rotuloOlhoSenha, validarLogin } from './login';
+import { MENSAGEM_SENHA_ESPACO_NAS_PONTAS } from '../../contracts';
 
 const U = '0b000000-0000-4000-8000-000000000001';
 const resposta = {
@@ -9,7 +10,7 @@ const resposta = {
   expires_in: 900,
   refresh_token: `${U}.segredo-segredo-segredo`,
   usuario: { id: U, nome: 'Vera', nome_curto: null, email: 'v@x.com', perfil: 'vendedor' },
-  tenant: { id: U, codigo: 'alfa', nome: 'Alfa', fuso: 'America/Manaus' },
+  tenant: { id: U, codigo: 'AM4821', nome: 'Alfa', fuso: 'America/Manaus' },
 };
 
 describe('RF-CORE-01: login do app', () => {
@@ -19,9 +20,20 @@ describe('RF-CORE-01: login do app', () => {
       email: expect.any(String),
       senha: expect.any(String),
     });
-    expect(validarLogin({ codigo_empresa: 'alfa', email: 'sem-arroba', senha: 'x' }).email).toContain('e-mail');
-    expect(validarLogin({ codigo_empresa: 'a b', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('letras, números e hífen');
-    expect(validarLogin({ codigo_empresa: ' Alfa ', email: ' v@x.com ', senha: 'x' })).toEqual({});
+    expect(validarLogin({ codigo_empresa: 'AM4821', email: 'sem-arroba', senha: 'x' }).email).toContain('e-mail');
+    expect(validarLogin({ codigo_empresa: 'AM 821', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('duas letras da UF e quatro números');
+    expect(validarLogin({ codigo_empresa: 'AM48211', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('no máximo 6 caracteres');
+    expect(validarLogin({ codigo_empresa: 'AM48', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('6 caracteres');
+    expect(validarLogin({ codigo_empresa: 'XX4821', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('duas letras da UF e quatro números');
+    expect(validarLogin({ codigo_empresa: 'alfa12', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('duas letras da UF e quatro números');
+    expect(validarLogin({ codigo_empresa: 'alfa', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('6 caracteres');
+    expect(validarLogin({ codigo_empresa: 'AM4821', email: 'v@x.com', senha: 'x' })).toEqual({});
+    expect(validarLogin({ codigo_empresa: ' Am4821 ', email: ' v@x.com ', senha: 'x' })).toEqual({});
+  });
+  it('RN-CORE-32: senha com espaço no começo ou no fim é avisada no login', () => {
+    expect(validarLogin({ codigo_empresa: 'AM4821', email: 'v@x.com', senha: ' Ab1#cDef' }).senha).toBe(MENSAGEM_SENHA_ESPACO_NAS_PONTAS);
+    expect(validarLogin({ codigo_empresa: 'AM4821', email: 'v@x.com', senha: 'Ab1#cDef ' }).senha).toBe(MENSAGEM_SENHA_ESPACO_NAS_PONTAS);
+    expect(validarLogin({ codigo_empresa: 'AM4821', email: 'v@x.com', senha: 'Ab1# cDef' }).senha).toBeUndefined();
   });
 
   it('RF-CORE-01: mensagens por código de erro — credencial, bloqueio, limite, sem conexão', () => {
@@ -40,12 +52,12 @@ describe('RF-CORE-01: login do app', () => {
         enviado = corpo;
         return resposta;
       },
-      { codigo_empresa: ' alfa ', email: 'v@x.com', senha: 'segredo' },
+      { codigo_empresa: ' am4821 ', email: 'v@x.com', senha: 'segredo' },
       { id: U, nome: 'Moto G' },
     );
-    expect(enviado).toEqual({ codigo_empresa: 'alfa', email: 'v@x.com', senha: 'segredo', dispositivo_id: U, dispositivo_nome: 'Moto G' });
+    expect(enviado).toEqual({ codigo_empresa: 'am4821', email: 'v@x.com', senha: 'segredo', dispositivo_id: U, dispositivo_nome: 'Moto G' });
     expect(r.tenant.fuso).toBe('America/Manaus');
-    await expect(entrarComSenha(async () => ({ ...resposta, token_type: 'Basic' }), { codigo_empresa: 'alfa', email: 'v@x.com', senha: 'x' })).rejects.toThrow();
+    await expect(entrarComSenha(async () => ({ ...resposta, token_type: 'Basic' }), { codigo_empresa: 'AM4821', email: 'v@x.com', senha: 'x' })).rejects.toThrow();
   });
 
   it('RF-CORE-01: três casos separados — sem conexão, servidor inválido, credencial incorreta', () => {
@@ -70,9 +82,15 @@ describe('RF-CORE-01: login do app', () => {
 
 describe('RF-CORE-01: TelaLogin reabre com o e-mail (T-0094)', () => {
   it('RF-CORE-01: o e-mail devolvido pelo shell vem preenchido, junto do código; a senha começa vazia', () => {
-    expect(camposIniciaisDoLogin('alfa', 'v@x.com')).toEqual({ codigo_empresa: 'alfa', email: 'v@x.com', senha: '' });
+    expect(camposIniciaisDoLogin('AM4821', 'v@x.com')).toEqual({ codigo_empresa: 'AM4821', email: 'v@x.com', senha: '' });
   });
   it('RF-CORE-01: sem emailInicial nem código salvo, os campos abrem vazios', () => {
     expect(camposIniciaisDoLogin(null, undefined)).toEqual({ codigo_empresa: '', email: '', senha: '' });
+  });
+});
+
+describe('RF-CORE-01: campo Código da empresa do login', () => {
+  it('RF-CORE-01: o campo aceita no máximo 6 caracteres (UF + 4 dígitos), igual ao contrato', () => {
+    expect(propsDoCampoCodigoEmpresa).toMatchObject({ maxLength: 6, autoCapitalize: 'characters', autoCorrect: false, spellCheck: false });
   });
 });

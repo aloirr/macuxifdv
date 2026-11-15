@@ -23,7 +23,7 @@ const sessao = {
   expires_in: 900,
   refresh_token: 'r'.repeat(20),
   usuario: { id: '0b000000-0000-4000-8000-000000000001', nome: 'Vera', nome_curto: null, email: 'v@x.com', perfil: 'vendedor' },
-  tenant: { id: '0a000000-0000-4000-8000-0000000000aa', codigo: 'alfa', nome: 'Alfa', fuso: 'America/Manaus' },
+  tenant: { id: '0a000000-0000-4000-8000-0000000000aa', codigo: 'AM4821', nome: 'Alfa', fuso: 'America/Manaus' },
 };
 
 describe('RN-CORE-34: Crie sua senha no app', () => {
@@ -68,11 +68,11 @@ describe('RN-CORE-34: Crie sua senha no app', () => {
       chamadas.push({ caminho, corpo: corpo as Record<string, unknown> });
       return sessao;
     };
-    const r = await trocarSenhaPeloApp(post, { codigo_empresa: ' alfa ', email: 'v@x.com', senha_atual: 'Temp#1234', senha_nova: 'Boa#Senha1' }, 'campo', { id: '5d000000-0000-4000-8000-000000000001', nome: 'Pixel' });
+    const r = await trocarSenhaPeloApp(post, { codigo_empresa: ' am4821 ', email: 'v@x.com', senha_atual: 'Temp#1234', senha_nova: 'Boa#Senha1' }, 'campo', { id: '5d000000-0000-4000-8000-000000000001', nome: 'Pixel' });
     expect(r.usuario.perfil).toBe('vendedor');
     expect(chamadas[0]!.caminho).toBe('/auth/senha/trocar');
-    expect(chamadas[0]!.corpo).toMatchObject({ codigo_empresa: 'alfa', app: 'campo', senha_atual: 'Temp#1234', senha_nova: 'Boa#Senha1', dispositivo_nome: 'Pixel' });
-    await expect(trocarSenhaPeloApp(async () => ({ lixo: true }), { codigo_empresa: 'alfa', email: 'v@x.com', senha_atual: 'x', senha_nova: 'Boa#Senha1' }, 'gestao')).rejects.toBeTruthy();
+    expect(chamadas[0]!.corpo).toMatchObject({ codigo_empresa: 'am4821', app: 'campo', senha_atual: 'Temp#1234', senha_nova: 'Boa#Senha1', dispositivo_nome: 'Pixel' });
+    await expect(trocarSenhaPeloApp(async () => ({ lixo: true }), { codigo_empresa: 'AM4821', email: 'v@x.com', senha_atual: 'x', senha_nova: 'Boa#Senha1' }, 'gestao')).rejects.toBeTruthy();
   });
 
   it('RN-CORE-34: o login mostra o texto certo para a senha vencida e, como rede de segurança, para a troca pendente', () => {
@@ -84,8 +84,8 @@ describe('RN-CORE-34: Crie sua senha no app', () => {
 describe('RN-CORE-34: Esqueci a senha no app', () => {
   it('RN-CORE-34: valida campo vazio e e-mail sem formato', () => {
     expect(validarEsqueci({ codigo_empresa: '', email: '' })).toEqual({ codigo_empresa: 'Informe o código da empresa e o e-mail.', email: 'Informe o código da empresa e o e-mail.' });
-    expect(validarEsqueci({ codigo_empresa: 'alfa', email: 'sem-arroba' })).toEqual({ email: 'Informe um e-mail válido, como nome@empresa.com.br.' });
-    expect(validarEsqueci({ codigo_empresa: 'alfa', email: 'a@b.com' })).toEqual({});
+    expect(validarEsqueci({ codigo_empresa: 'AM4821', email: 'sem-arroba' })).toEqual({ email: 'Informe um e-mail válido, como nome@empresa.com.br.' });
+    expect(validarEsqueci({ codigo_empresa: 'AM4821', email: 'a@b.com' })).toEqual({});
   });
 
   it('RN-CORE-34: 429 diz em quantos minutos (mínimo 1); sem internet e erro geral têm frase própria', () => {
@@ -98,7 +98,7 @@ describe('RN-CORE-34: Esqueci a senha no app', () => {
 
   it('RN-CORE-34: o pedido vai ao endpoint público só com código e e-mail', async () => {
     const chamadas: Array<{ caminho: string; corpo: unknown }> = [];
-    await pedirSenhaTemporaria(async (caminho, corpo) => void chamadas.push({ caminho, corpo }), { codigo_empresa: ' alfa ', email: ' v@x.com ' });
-    expect(chamadas).toEqual([{ caminho: '/auth/senha/esqueci', corpo: { codigo_empresa: 'alfa', email: 'v@x.com' } }]);
+    await pedirSenhaTemporaria(async (caminho, corpo) => void chamadas.push({ caminho, corpo }), { codigo_empresa: ' am4821 ', email: ' v@x.com ' });
+    expect(chamadas).toEqual([{ caminho: '/auth/senha/esqueci', corpo: { codigo_empresa: 'am4821', email: 'v@x.com' } }]);
   });
 });
