@@ -1,6 +1,6 @@
 # ADR 0050 — Grupos do menu do BKO: 9 grupos em ordem alfabética, com transição compatível
 
-- **Status**: proposta em 2026-11-14.
+- **Status**: proposta em 2026-11-14; revista pela [ADR 0058](0058-menu-do-bko-vitrine-item-direto-e-parametros.md) (grupos, ordem, Parâmetros e vitrine sem licença).
 - **Data**: 2026-11-14
 - **Tarefa**: revisão do BKO, menu ([spec](../design/telas/bko-revisao.md), §M2 e §M6)
 - **Autor**: engenheiro-software
