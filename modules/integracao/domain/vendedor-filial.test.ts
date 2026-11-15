@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ordenarCarga, referenciasDoRegistro } from './ordem';
 import { avisoVendedorSemFilial } from './vendedor-filial';
-import { validarLinhas } from './idempotencia';
+import { contarDuplicadasNoLote, validarLinhas } from './idempotencia';
 import { VendedorPayload } from '../contracts';
 
 const base = { external_id: 'V1', alterado_em: '2026-11-01T12:00:00Z', nome: 'Maria' };
@@ -18,6 +18,11 @@ describe('vendedor com uma filial obrigatória (RN-CORE-39)', () => {
     expect(r.avisos.map((a) => [a.external_id, a.codigo])).toEqual([['V1', 'vendedor_sem_filial'], ['V2', 'vendedor_sem_filial']]);
     expect(avisoVendedorSemFilial({ external_id: 'V4', filial_external_id: '  ' })?.codigo).toBe('vendedor_sem_filial');
     expect(avisoVendedorSemFilial({ external_id: 'V4', filial_external_id: 'FIL-1' })).toBeNull();
+  });
+  it('RN-INT-03: o aviso vendedor_sem_filial não conta como linha duplicada (senão o lote viraria "falhou")', () => {
+    const r = validarLinhas('vendedor', [base, { ...base, nome: 'Outra Maria' }]);
+    expect(r.avisos.map((a) => a.codigo).sort()).toEqual(['duplicado_no_lote', 'vendedor_sem_filial']);
+    expect(contarDuplicadasNoLote(r.avisos)).toBe(1);
   });
   it('RN-INT-04: a filial vai antes do vendedor e o vendedor referencia a filial', () => {
     const o = ordenarCarga(['vendedor', 'cliente', 'filial'] as const);
