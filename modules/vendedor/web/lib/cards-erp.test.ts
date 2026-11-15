@@ -16,6 +16,12 @@ describe('cards "Pedidos no ERP" no início de Pedidos (T-0173; RN-INT-08, RN-VE
     ]);
   });
 
+  it('RN-INT-08: o texto do número usa separador de milhar pt-BR (1234 vira "1.234", 0 vira "0")', () => {
+    const c = cardsPedidosErp(pedidos({ por_estado: { enviado: 1234 } }));
+    expect(c.find((x) => x.id === 'entregue')?.texto).toBe('1.234');
+    expect(c.find((x) => x.id === 'na_fila')?.texto).toBe('0');
+  });
+
   it('RN-INT-08: estado sem pedido conta zero', () => {
     expect(cardsPedidosErp(pedidos()).map((x) => x.valor)).toEqual([0, 0, 0, 0, 0]);
   });

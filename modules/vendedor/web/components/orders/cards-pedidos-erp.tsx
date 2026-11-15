@@ -17,7 +17,7 @@ export function CardsPedidosErp() {
       <KpiGrid min={150}>
         {cardsPedidosErp(data).map((c) => (
           <div key={c.id} data-testid={`pedidos.card-erp.${c.id}`}>
-            <KpiCard label={c.rotulo} value={c.valor} valueClass={c.tom === 'danger' ? 'text-danger' : c.tom === 'warning' ? 'text-warning' : undefined} />
+            <KpiCard label={c.rotulo} value={c.texto} valueClass={c.tom === 'danger' ? 'text-danger' : c.tom === 'warning' ? 'text-warning' : undefined} />
           </div>
         ))}
       </KpiGrid>
