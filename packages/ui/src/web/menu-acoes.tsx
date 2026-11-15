@@ -129,7 +129,7 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', testId }: { acoes: r
                 a.aoEscolher();
               }}
               className={cx(
-                'flex h-10 items-center px-3.5 text-left text-[14px] font-medium whitespace-nowrap hover:bg-ground focus-visible:bg-accent-soft focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:text-disabled disabled:hover:bg-transparent',
+                'flex h-10 items-center px-3.5 text-left text-[15px] font-medium whitespace-nowrap hover:bg-ground focus-visible:bg-accent-soft focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:text-disabled disabled:hover:bg-transparent',
                 a.perigo ? 'text-danger' : 'text-ink',
                 a.perigo && i > 0 && !itens[i - 1]?.perigo && 'mt-1 border-t border-line-2',
               )}

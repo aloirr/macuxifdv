@@ -24,9 +24,9 @@ export function alturaDoBotaoFolha(tom: TomBotaoFolha, altura?: number): number 
   return altura ?? (tom === 'perigo' ? BOTAO_FOLHA.altura.confirmar : BOTAO_FOLHA.altura.voltar);
 }
 
-/** Fonte 15 nos botões de 50 dp ou mais; 14 nos menores. */
+/** Fonte 16 nos botões de 50 dp ou mais; 14 nos menores (escala do app). */
 export function fonteDoBotaoFolha(altura: number): number {
-  return altura >= 50 ? 15 : 14;
+  return altura >= 50 ? 16 : 14;
 }
 
 /** Linha de opção da folha (ex.: "PDF para o cliente"): ícone num quadrado, título, texto e seta. */
@@ -39,5 +39,5 @@ export const LINHA_OPCAO_FOLHA = {
   opacidadeDesligada: 0.6,
   icone: { lado: 38, tamanho: 18, fundo: colors.accentSoft, cor: colors.accentInk },
   seta: { tamanho: 16, cor: colors.ink3 },
-  tamanhoTitulo: 15,
+  tamanhoTitulo: 16,
 } as const;

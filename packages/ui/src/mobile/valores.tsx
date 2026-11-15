@@ -14,7 +14,7 @@ import { ActivityIndicator, StyleSheet, Text, View, type StyleProp, type ViewSty
 import { ehSemDado, leituraDaLinhaDeValor, VALOR_SEM_DADO } from './componentes';
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
-import { ALTURA, BOTAO_DESABILITADO, colors, fonts, radius, TONS_ESTADO, type TomEstado } from './theme';
+import { ALTURA, BOTAO_DESABILITADO, colors, fonte, radius, TONS_ESTADO, type TomEstado } from './theme';
 
 // ---------- RodapeTotal ----------
 export function RodapeTotal({
@@ -114,7 +114,7 @@ export interface LinhaDaTabela {
 
 /**
  * Tabela rótulo ··· valor para consulta (T-0141; spec docs/design/pedido-v3.md §A): cartão branco, linhas de 48 dp com traço
- * entre elas, rótulo 14 `ink2` à esquerda e valor em Archivo negrito 17, tabular, à direita. Uso: crédito do cliente na aba
+ * entre elas, rótulo 14 `ink2` à esquerda e valor em negrito (700) 18, tabular, à direita. Uso: crédito do cliente na aba
  * Venda (Limite, Disponível, Prazo médio) e os totais da folha "Preços de hoje". `carregando` troca os valores por barras
  * cinza (nada de "R$ 0,00" falso); `rodape` é a linha de atualização abaixo do cartão. Sem texto fixo e sem cálculo.
  */
@@ -334,50 +334,50 @@ const s = StyleSheet.create({
   // .foot
   rodape: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingTop: 10, paddingHorizontal: 14, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
   rodapeValor: { flexShrink: 1, minWidth: 0 },
-  rodapeRotulo: { fontFamily: fonts.body, fontSize: 12, color: colors.ink2 },
-  rodapeNumero: { fontFamily: fonts.display, fontSize: 18, color: colors.ink, fontVariant: ['tabular-nums'] },
+  rodapeRotulo: { ...fonte.body, fontSize: 12, color: colors.ink2 },
+  rodapeNumero: { ...fonte.semibold, fontSize: 18, color: colors.ink, fontVariant: ['tabular-nums'] },
   /** botão principal do guia (52 dp, raio 14, 16 semibold) */
   rodapeBotao: { minHeight: ALTURA.principal, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 22, borderRadius: radius.botao, backgroundColor: colors.accent },
   rodapeBotaoDesligado: { backgroundColor: BOTAO_DESABILITADO.fundo },
-  rodapeBotaoTexto: { fontFamily: fonts.semibold, fontSize: 16, color: colors.onAccent },
+  rodapeBotaoTexto: { ...fonte.semibold, fontSize: 16, color: colors.onAccent },
   // .line
   linha: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, paddingVertical: 3 },
   linhaDivisor: { borderTopWidth: 1, borderTopColor: colors.line, marginTop: 4, paddingTop: 7 },
-  linhaRotulo: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 13, color: colors.ink },
-  linhaRotuloDestaque: { fontFamily: fonts.bold, fontSize: 15 },
-  linhaValor: { fontFamily: fonts.body, fontSize: 13, fontVariant: ['tabular-nums'] },
-  linhaValorForte: { fontFamily: fonts.bold },
-  linhaValorDestaque: { fontFamily: fonts.display, fontSize: 19 },
+  linhaRotulo: { flex: 1, minWidth: 0, ...fonte.body, fontSize: 14, color: colors.ink },
+  linhaRotuloDestaque: { ...fonte.semibold, fontSize: 16 },
+  linhaValor: { ...fonte.body, fontSize: 14, fontVariant: ['tabular-nums'] },
+  linhaValorForte: { ...fonte.semibold },
+  linhaValorDestaque: { ...fonte.semibold, fontSize: 18 },
   // TabelaValores (T-0141): ink2 7,6:1 e ink 16,5:1 no branco; danger 7,1:1; success 6,4:1; ink3 5,8:1
   tabelaBloco: { gap: 8 },
   tabela: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, overflow: 'hidden' },
   tabelaLinha: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 48, paddingHorizontal: 14, paddingVertical: 8 },
   tabelaLinhaTraco: { borderTopWidth: 1, borderTopColor: colors.lineSoft },
-  tabelaRotulo: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 14, color: colors.ink2 },
-  tabelaValor: { flexShrink: 0, maxWidth: '70%', textAlign: 'right', fontFamily: fonts.displayBold, fontSize: 17, fontVariant: ['tabular-nums'] },
+  tabelaRotulo: { flex: 1, minWidth: 0, ...fonte.body, fontSize: 14, color: colors.ink2 },
+  tabelaValor: { flexShrink: 0, maxWidth: '70%', textAlign: 'right', ...fonte.semibold, fontSize: 18, fontVariant: ['tabular-nums'] },
   tabelaEsqueleto: { width: 72, height: 12, borderRadius: 6, backgroundColor: colors.lineSoft },
   tabelaRodape: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  tabelaRodapeTexto: { fontFamily: fonts.body, fontSize: 12, color: colors.ink2 },
+  tabelaRodapeTexto: { ...fonte.body, fontSize: 12, color: colors.ink2 },
   // linha do Resumo: coluna do rótulo de 64 dp (cabe "ENTREGA" em 11/bold)
   resumo: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
-  resumoRotulo: { width: 64, paddingTop: 2, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.ink2 },
+  resumoRotulo: { width: 64, paddingTop: 2, ...fonte.semibold, fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.ink2 },
   resumoConteudo: { flex: 1, minWidth: 0, gap: 2 },
-  resumoMarca: { fontFamily: fonts.semibold, fontSize: 12, color: colors.accentInk },
-  resumoTexto: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.ink },
+  resumoMarca: { ...fonte.semibold, fontSize: 12, color: colors.accentInk },
+  resumoTexto: { ...fonte.body, fontSize: 14, lineHeight: 20, color: colors.ink },
   resumoAlerta: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, paddingTop: 1 },
-  resumoAlertaTexto: { flex: 1, fontFamily: fonts.semibold, fontSize: 13, lineHeight: 18 },
+  resumoAlertaTexto: { flex: 1, ...fonte.semibold, fontSize: 14, lineHeight: 18 },
   // card dos totais
   bloco: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, paddingVertical: 11, paddingHorizontal: 12 },
   blocoExtra: { marginTop: 7 },
   // .okbox
   faixa: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 9, paddingVertical: 7, paddingHorizontal: 9 },
-  faixaTexto: { flex: 1, fontFamily: fonts.semibold, fontSize: 12.5 },
+  faixaTexto: { flex: 1, ...fonte.semibold, fontSize: 12 },
   faixaTextos: { flex: 1, gap: 1 },
-  faixaApoio: { fontFamily: fonts.body, fontSize: 12.5 },
+  faixaApoio: { ...fonte.body, fontSize: 12 },
   // .tag / .pill
   selo: { alignSelf: 'flex-start', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   seloM: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   seloPilula: { borderRadius: 999 },
-  seloTexto: { fontFamily: fonts.bold, fontSize: 11 },
+  seloTexto: { ...fonte.semibold, fontSize: 12 },
   seloTextoM: { fontSize: 12 },
 });
