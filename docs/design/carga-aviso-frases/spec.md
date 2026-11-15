@@ -47,19 +47,17 @@ Sem cor nova e sem movimento novo (a área de baixo já esmaece em 240 ms; com "
 - **Título:** `PageHeader` "Frases da carga", sem subtítulo; ação principal (única da tela) **"Incluir frase"** (`Button primary`).
 - **`Panel`** com a tabela (`th`/`td` do kit): **Nº** · **Frase** · **Situação** (`Badge` success "Ativa" / neutral "Inativa") · links "Editar" e "Desativar" / "Ativar". As ativas vêm primeiro,
   pelo Nº; as inativas no fim. Ativar e desativar são imediatos e reversíveis, sem confirmação; a situação muda só por esse link.
+- **Frase inativa** (estado que o PNG não mostra, porque as 30 iniciais entram ativas): selo neutral "Inativa", link "Ativar"
+  no lugar de "Desativar", texto da frase na mesma cor das ativas, linha no fim da lista. Não entra no sorteio do app.
 - **Incluir / Editar** (`Dialog` do kit): título "Incluir frase" ou "Editar frase {nº}"; campo **Frase** (área de texto que
   para em 90 caracteres, contador "n de 90"); "Cancelar" e **"Salvar"**. A frase incluída nasce ativa.
   Erros na linha do campo: "Escreva a frase." · "Essa frase já está na lista."
 - Sem excluir (desativar basta); não foi pedido.
 
-## 4. Para o dono do produto decidir
+## 4. Tema e premissas
 - **Tema (R-20261115-071500-alexandre):** as 30 frases são sobre a história e a tradição de Roraima: 8 sobre o povo Macuxi,
   8 sobre o Monte Roraima, 8 sobre Makunaimã e 6 sobre outros aspectos do estado (80% nos três temas principais).
-- **Validação indígena (recomendação do parecer da marca de 15/11):** as frases de paisagem, natureza e história documentada
-  entram ativas. As que falam do povo e das narrativas entram inativas (coluna Situação inicial do `frases.md`) e só são
-  ativadas depois da validação de pessoa ou organização indígena que o dono do produto escolher (por exemplo, uma organização
-  que reúna os povos Macuxi, Ingarikó, Taurepang e Wapichana). As frases 7 (Carmézia Emiliano) e 8 (Jaider Esbell) pedem também
-  a concordância da artista ou de quem responde pela obra; sem ela, são trocadas.
+- **Situação inicial:** decisão do dono do produto em R-20261115-075500-alexandre (coluna Situação inicial do `frases.md`).
 - As frases valem para todas as empresas (cadastro do super-admin); frase por empresa não foi pedida.
 
 ## 5. Na aprovação
