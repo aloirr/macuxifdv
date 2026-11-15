@@ -141,9 +141,14 @@ export function criarRotasFotosLote(): RotaModulo[] {
       const tamanho = conferirTamanhoZip(c.tamanho_bytes, limitesFotoLote(ctx.parametros()));
       if (!tamanho.ok) throw new ErroRegraNegocio('RN-CAT-14', tamanho.mensagem, { motivo: tamanho.motivo });
       return ctx.comTenant(async (db, tx) => {
+        // trava do tenant até o fim da transação: a contagem dos lotes em andamento e o insert não passam em paralelo
+        await db.query(`select pg_advisory_xact_lock(hashtextextended('catalogo.foto_lote:' || $1::text, 0))`, [ctx.usuario.tenant_id]);
         // POST repetido com o mesmo id (reenvio do BKO) devolve o lote que já existe
         const existente = await lerLote(db, c.id);
         if (existente) {
+          if (existente.arquivo_id !== c.arquivo_id || Number(existente.tamanho_bytes) !== c.tamanho_bytes) {
+            throw new ErroHttpModulo(409, 'LOTE_DIVERGENTE', 'Esse envio já existe com outro arquivo. Recarregue a página e escolha o ZIP de novo.');
+          }
           const lote = loteDaLinha(existente, (await totaisDosLotes(db, [c.id])).get(c.id));
           return { lote, envio: existente.situacao === 'aguardando_envio' ? envioDoLote(existente) : null };
         }

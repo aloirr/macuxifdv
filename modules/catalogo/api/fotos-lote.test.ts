@@ -34,6 +34,7 @@ function contexto(e: Estado, o: { corpo?: unknown; params?: unknown; query?: unk
     query: vi.fn(async (sql: string, v: unknown[] = []) => {
       const s = sql.replace(/\s+/g, ' ').trim();
       sqls.push(s);
+      if (s.startsWith('select pg_advisory_xact_lock(')) return { rows: [{}], rowCount: 1 };
       if (s.startsWith('select id, enviado_por') && s.includes('from catalogo.foto_lote where id')) return { rows: e.lote ? [e.lote] : [], rowCount: e.lote ? 1 : 0 };
       if (s.startsWith('select id, enviado_por')) return { rows: e.lote ? [e.lote] : [], rowCount: 1 };
       if (s.startsWith('select count(*)::int as n from catalogo.foto_lote where situacao')) return { rows: [{ n: e.ativos ?? 0 }], rowCount: 1 };
@@ -121,6 +122,23 @@ describe('RN-CAT-14: criar o lote', () => {
     expect(r.envio).toBeNull();
     expect(c3.registrados).toEqual([]);
     expect(c3.sqls.some((s) => s.startsWith('insert into catalogo.foto_lote'))).toBe(false);
+  });
+  it('RN-CAT-14: a trava do tenant (pg_advisory_xact_lock) é pedida antes de ler o lote e de contar os em andamento', async () => {
+    const c = contexto({ lote: null }, { corpo: corpoCriar });
+    await exec(rota('POST', 'fotos-lote'), c.ctx);
+    const trava = c.sqls.findIndex((s) => s.startsWith('select pg_advisory_xact_lock('));
+    const leitura = c.sqls.findIndex((s) => s.includes('from catalogo.foto_lote where id'));
+    const contagem = c.sqls.findIndex((s) => s.startsWith('select count(*)::int as n from catalogo.foto_lote where situacao'));
+    expect(trava).toBe(0);
+    expect(trava).toBeLessThan(leitura);
+    expect(leitura).toBeLessThan(contagem);
+    expect(c.db.query.mock.calls[trava]![1]).toEqual([TENANT]);
+  });
+  it('RN-CAT-14: o mesmo id com outro arquivo ou outro tamanho é 409 LOTE_DIVERGENTE, sem devolver o lote', async () => {
+    const outroArquivo = contexto({ lote: loteExistente('aguardando_envio') }, { corpo: { ...corpoCriar, arquivo_id: LOTE } });
+    await expect(exec(rota('POST', 'fotos-lote'), outroArquivo.ctx)).rejects.toMatchObject({ status: 409, codigo: 'LOTE_DIVERGENTE' });
+    const outroTamanho = contexto({ lote: loteExistente('aguardando_envio') }, { corpo: { ...corpoCriar, tamanho_bytes: corpoCriar.tamanho_bytes + 1 } });
+    await expect(exec(rota('POST', 'fotos-lote'), outroTamanho.ctx)).rejects.toMatchObject({ status: 409, codigo: 'LOTE_DIVERGENTE' });
   });
   it('RN-CAT-14: com 2 lotes em andamento o terceiro é 409 LOTE_EM_ANDAMENTO', async () => {
     const c = contexto({ lote: null, ativos: 2 }, { corpo: corpoCriar });

@@ -252,6 +252,72 @@ describe.skipIf(semBanco())('Catálogo T-0174 × Postgres: fotos em lote por ZIP
     });
   });
 
+  it('RN-CAT-14: dois POST simultâneos do mesmo tenant com uma vaga livre: um 201 e um 409 LOTE_EM_ANDAMENTO (trava por tenant)', async () => {
+    const EXTRA = id(31);
+    const EXTRA_ZIP = id(32);
+    const preparo = await pool.connect();
+    try {
+      await preparo.query('begin');
+      await definirTenant(preparo, A.tenantId);
+      await preparo.query(
+        `insert into catalogo.foto_lote (id, tenant_id, enviado_por, arquivo_id, nome_arquivo, tamanho_bytes, situacao) values ($1::uuid, plataforma.tenant_atual(), $2::uuid, $3::uuid, 'ativo.zip', 1000, 'enfileirado')`,
+        [EXTRA, A.usuarios.analista, EXTRA_ZIP],
+      );
+      await preparo.query('commit');
+    } finally {
+      preparo.release();
+    }
+    const ids = [id(33), id(35)];
+    const tentar = async (lote: string, arquivo: string) => {
+      const c = await pool.connect();
+      try {
+        await c.query('begin');
+        await definirTenant(c, A.tenantId);
+        const rota = criarRotasFotosLote().find((r) => r.metodo === 'POST' && r.caminho === 'fotos-lote') as RotaModulo;
+        const tx = { publicar: vi.fn(), auditar: vi.fn(async () => undefined), registrarArquivo: vi.fn(async () => ({ criado: true })) };
+        const ctx = {
+          usuario: { id: A.usuarios.analista, tenant_id: A.tenantId, perfil: 'analista', modulos: ['core', 'catalogo'] },
+          agora: () => AGORA,
+          parametros: () => ({}),
+          comTenant: async (fn: (db: unknown, tx2: unknown) => Promise<unknown>) => fn(c, tx),
+          corpo: { id: lote, arquivo_id: arquivo, nome_arquivo: 'fotos.zip', tamanho_bytes: 1000 },
+        } as unknown as ContextoRota;
+        const r = await rota.executar(ctx as never);
+        await c.query('commit');
+        return r;
+      } catch (e) {
+        await c.query('rollback').catch(() => undefined);
+        throw e;
+      } finally {
+        c.release();
+      }
+    };
+    try {
+      const r = await Promise.allSettled([tentar(ids[0]!, id(34)), tentar(ids[1]!, id(36))]);
+      expect(r.filter((x) => x.status === 'fulfilled')).toHaveLength(1);
+      const rec = r.filter((x): x is PromiseRejectedResult => x.status === 'rejected');
+      expect(rec).toHaveLength(1);
+      expect(rec[0]!.reason).toMatchObject({ status: 409, codigo: 'LOTE_EM_ANDAMENTO' });
+    } finally {
+      const limpeza = await pool.connect();
+      try {
+        await limpeza.query('begin');
+        await definirTenant(limpeza, A.tenantId);
+        await limpeza.query(`update catalogo.foto_lote set deleted_at = now() where id = any($1::uuid[])`, [[EXTRA, ...ids]]);
+        await limpeza.query('commit');
+      } finally {
+        limpeza.release();
+      }
+    }
+  });
+
+  it('RN-CAT-14: o mesmo id com outro arquivo ou tamanho é 409 LOTE_DIVERGENTE', async () => {
+    await emTransacao(A.tenantId, async (t) => {
+      await criarLote(t, LOTE1, ZIP1);
+      await expect(criarLote(t, LOTE1, ZIP2)).rejects.toMatchObject({ status: 409, codigo: 'LOTE_DIVERGENTE' });
+    });
+  });
+
   it('RN-CAT-14: RLS: o tenant B não vê, não lê, não baixa nem enfileira o lote do tenant A, e a lista de cada um traz só os seus', async () => {
     await emTransacao(A.tenantId, async (t) => {
       await enviar(t, LOTE1, ZIP1);
