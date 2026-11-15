@@ -84,6 +84,23 @@ export function formatDateTimeFull(iso: string | null | undefined, tz = DEFAULT_
   return `${p.dd}/${p.mo}/${p.date.slice(0, 4)} ${p.hh}:${p.mm}`;
 }
 
+/** '2026-11-15T18:31:00Z' → '15/11 14:31' (24 h, sem ano, fuso do tenant); sem data → texto vazio. */
+export function formatDataHoraCurta(iso: string | null | undefined, tz = DEFAULT_TZ): string {
+  if (!iso) return '';
+  const p = parts(iso, tz);
+  return `${p.dd}/${p.mo} ${p.hh}:${p.mm}`;
+}
+
+/** Segundos → '45 s' · '2 min 10 s' · '3 min' (segundos zerados somem) · '1 h 05 min'; nulo → texto vazio. */
+export function formatDuracao(segundos: number | null): string {
+  if (segundos === null) return '';
+  const s = Math.max(0, Math.floor(segundos));
+  if (s < 60) return `${s} s`;
+  const min = Math.floor(s / 60);
+  if (s < 3600) return s % 60 === 0 ? `${min} min` : `${min} min ${s % 60} s`;
+  return `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} min`;
+}
+
 /** Coluna "Recebido": hora se for hoje, "ontem" ou dd/mm. */
 export function formatReceived(iso: string, today: string, tz = DEFAULT_TZ): string {
   const p = parts(iso, tz);
