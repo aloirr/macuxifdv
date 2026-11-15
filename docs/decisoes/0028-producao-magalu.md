@@ -1,6 +1,7 @@
 # ADR 0028 — Produção na Magalu Cloud: VM com Compose, banco no DBaaS por TLS, publicação só por tag com aprovação
 
-- **Status**: proposta (vira aceita com o primeiro deploy verde de produção e a revisão do dono do produto)
+- **Status**: proposta (vira aceita com o primeiro deploy verde de produção e a revisão do dono do produto) · §4 alterado pela
+  ADR 0051 (14/11/2026): com a demo desligada, a `macuxi-api:<sha>` é montada pelo "producao — liberar versão", depois do CI verde
 - **Data**: 2026-11-05
 - **Tarefa**: T-0086 (desenho e roteiro: [docs/desenho/T-0086.md](../desenho/T-0086.md))
 - **Autor**: engenheiro-software
