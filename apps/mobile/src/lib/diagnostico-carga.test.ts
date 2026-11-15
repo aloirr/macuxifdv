@@ -77,7 +77,7 @@ const CTX = {
   fuso: 'America/Manaus',
   app: 'Macuxi Campo',
   versao: '1.0.0',
-  perfil: 'preview' as const,
+  perfil: 'producao' as const,
   aparelho: 'samsung SM-A105M',
   sistema: 'Android 10 (API 29)',
   memoriaBytes: 3 * 1024 ** 3,
@@ -90,9 +90,8 @@ let arquivos = 0;
 const arquivoTemporario = () => join(pasta, `banco-${++arquivos}.db`);
 
 describe('diagnóstico de carga: quem abre', () => {
-  it('só nos builds de desenvolvimento e preview; nunca em produção', () => {
+  it('só no bundle de desenvolvimento; nunca em produção', () => {
     expect(diagnosticoDisponivel('desenvolvimento')).toBe(true);
-    expect(diagnosticoDisponivel('preview')).toBe(true);
     expect(diagnosticoDisponivel('producao')).toBe(false);
   });
 

@@ -1,5 +1,5 @@
 /**
- * T-0038 — domínio fixo da demo: endereço do build, login sem o campo Servidor fora do desenvolvimento, endereço salvo
+ * T-0038 — endereço fixo do build, login sem o campo Servidor fora do desenvolvimento, endereço salvo
  * por versão antiga ignorado e "Servidor indisponível — tente mais tarde" quando o `/v1/saude` falha.
  */
 import { readFileSync } from 'node:fs';
@@ -23,13 +23,12 @@ import {
 } from './endereco-do-build';
 import { CODIGO_SERVIDOR_INVALIDO, erroDoTesteServidor } from './servidor';
 
-const DEMO = 'https://api-demo.macuxifdv.com.br/v1';
 const PRODUCAO = 'https://api.macuxifdv.com.br/v1';
 const ANTIGO = 'https://andrew-directions-multimedia-interests.trycloudflare.com/v1';
 
 describe('perfil do build (EXPO_PUBLIC_PERFIL_BUILD)', () => {
   it('lê a flag do build; sem ela, o bundle de desenvolvimento edita e o de release fica fixo', () => {
-    expect(lerPerfilBuild({ EXPO_PUBLIC_PERFIL_BUILD: 'preview' }, true)).toBe('preview');
+    expect(lerPerfilBuild({ EXPO_PUBLIC_PERFIL_BUILD: 'preview' }, true)).toBe('desenvolvimento');
     expect(lerPerfilBuild({ EXPO_PUBLIC_PERFIL_BUILD: ' Producao ' }, true)).toBe('producao');
     expect(lerPerfilBuild({ EXPO_PUBLIC_PERFIL_BUILD: 'desenvolvimento' }, false)).toBe('desenvolvimento');
     expect(lerPerfilBuild({}, true)).toBe('desenvolvimento');
@@ -39,10 +38,8 @@ describe('perfil do build (EXPO_PUBLIC_PERFIL_BUILD)', () => {
 });
 
 describe('login: campo Servidor', () => {
-  it('preview e producao: sem campo Servidor (nem em "Avançado")', () => {
-    expect(cartaoServidorNoLogin('preview')).toBe('oculto');
+  it('producao: sem campo Servidor (nem em "Avançado")', () => {
     expect(cartaoServidorNoLogin('producao')).toBe('oculto');
-    expect(servidorEditavel('preview')).toBe(false);
     expect(servidorEditavel('producao')).toBe(false);
   });
   it('desenvolvimento: o campo continua, em "Avançado", para a rede local', () => {
@@ -52,30 +49,29 @@ describe('login: campo Servidor', () => {
 });
 
 describe('endereço salvo por versão antiga do app', () => {
-  it('preview e producao: ignorado; vale sempre o endereço do build', () => {
-    expect(enderecoSalvoValido('preview', ANTIGO)).toBeNull();
-    expect(enderecoEmUso('preview', ANTIGO, DEMO)).toBe(DEMO);
+  it('producao: ignorado; vale sempre o endereço do build', () => {
+    expect(enderecoSalvoValido('producao', ANTIGO)).toBeNull();
     expect(enderecoEmUso('producao', ANTIGO, PRODUCAO)).toBe(PRODUCAO);
   });
   it('desenvolvimento: o endereço salvo vale (vazio volta ao do build)', () => {
-    expect(enderecoEmUso('desenvolvimento', 'http://192.168.0.10:8100/v1', DEMO)).toBe('http://192.168.0.10:8100/v1');
-    expect(enderecoEmUso('desenvolvimento', '  ', DEMO)).toBe(DEMO);
-    expect(enderecoEmUso('desenvolvimento', null, DEMO)).toBe(DEMO);
+    expect(enderecoEmUso('desenvolvimento', 'http://192.168.0.10:8100/v1', PRODUCAO)).toBe('http://192.168.0.10:8100/v1');
+    expect(enderecoEmUso('desenvolvimento', '  ', PRODUCAO)).toBe(PRODUCAO);
+    expect(enderecoEmUso('desenvolvimento', null, PRODUCAO)).toBe(PRODUCAO);
   });
 });
 
 describe('servidor fora do ar: "Servidor indisponível — tente mais tarde"', () => {
-  const semResposta = erroDoTesteServidor({ ok: false, testado: `${DEMO}/saude`, motivo: 'sem_resposta', mensagem: `Sem resposta de ${DEMO}/saude. Confira o endereço; ele termina em /v1.` });
-  const naoMacuxi = erroDoTesteServidor({ ok: false, testado: `${DEMO}/saude`, motivo: 'erro_do_servidor', status: 502, mensagem: 'Este endereço não é um servidor Macuxi' });
+  const semResposta = erroDoTesteServidor({ ok: false, testado: `${PRODUCAO}/saude`, motivo: 'sem_resposta', mensagem: `Sem resposta de ${PRODUCAO}/saude. Confira o endereço; ele termina em /v1.` });
+  const naoMacuxi = erroDoTesteServidor({ ok: false, testado: `${PRODUCAO}/saude`, motivo: 'erro_do_servidor', status: 502, mensagem: 'Este endereço não é um servidor Macuxi' });
 
   it('build de endereço fixo: qualquer falha da verificação vira SERVIDOR_INDISPONIVEL, sem endereço nem dica de /v1', () => {
     for (const original of [semResposta, naoMacuxi]) {
-      const e = erroDaVerificacao('preview', original);
+      const e = erroDaVerificacao('producao', original);
       expect(e).toBeInstanceOf(ErroHttp);
       expect((e as ErroHttp).codigo).toBe(CODIGO_SERVIDOR_INDISPONIVEL);
       expect((e as ErroHttp).message).toBe(MENSAGEM_SERVIDOR_INDISPONIVEL);
       expect((e as ErroHttp).message).not.toMatch(/endereço|\/v1|https?:/i);
-      expect(avisoDeServidorNoLogin('preview', e)).toBe('Servidor indisponível — tente mais tarde');
+      expect(avisoDeServidorNoLogin('producao', e)).toBe('Servidor indisponível — tente mais tarde');
     }
     expect(mensagemServidorFalhou('producao')).toBe(MENSAGEM_SERVIDOR_INDISPONIVEL);
     // sem conexão no meio do login (depois da verificação) também não pede endereço
@@ -83,7 +79,7 @@ describe('servidor fora do ar: "Servidor indisponível — tente mais tarde"', (
   });
 
   it('erro de credencial continua com a tela do Core', () => {
-    expect(avisoDeServidorNoLogin('preview', new ErroHttp(401, 'CREDENCIAIS_INVALIDAS', 'x'))).toBeNull();
+    expect(avisoDeServidorNoLogin('producao', new ErroHttp(401, 'CREDENCIAIS_INVALIDAS', 'x'))).toBeNull();
   });
 
   it('desenvolvimento: mantém a mensagem detalhada (ajuda a acertar o endereço da rede local)', () => {
@@ -99,10 +95,6 @@ describe('perfis EAS (apps/mobile/eas.json)', () => {
     build: Record<string, { env?: Record<string, string>; developmentClient?: boolean }>;
   };
   const esperado: Record<string, [string, string, string]> = {
-    campo: ['campo', DEMO, 'desenvolvimento'],
-    gestao: ['gestao', DEMO, 'desenvolvimento'],
-    'campo-preview': ['campo', DEMO, 'preview'],
-    'gestao-preview': ['gestao', DEMO, 'preview'],
     'campo-producao': ['campo', PRODUCAO, 'producao'],
     'gestao-producao': ['gestao', PRODUCAO, 'producao'],
   };
@@ -114,7 +106,7 @@ describe('perfis EAS (apps/mobile/eas.json)', () => {
     // o endereço do build já vem completo (o app não precisa completar nada)
     expect(completarApiUrl(url)).toBe(url);
     expect(defaultApiUrl({ envUrl: url, platform: 'android' })).toBe(url);
-    // só os perfis de desenvolvimento têm expo-dev-client (e o campo Servidor em "Avançado")
-    expect(Boolean(eas.build[perfil]?.developmentClient)).toBe(flag === 'desenvolvimento');
+    // nenhum perfil com expo-dev-client: os de desenvolvimento e preview saíram do eas.json
+    expect(eas.build[perfil]?.developmentClient).toBeUndefined();
   });
 });
