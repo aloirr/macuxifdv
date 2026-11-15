@@ -1,0 +1,78 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Parâmetros — Alertas (produtividade)</title><style>
+@font-face{font-family:Archivo;font-weight:700;src:url(../../../apps/web/app/fonts/Archivo_700Bold.ttf)}
+@font-face{font-family:Archivo;font-weight:800;src:url(../../../apps/web/app/fonts/Archivo_800ExtraBold.ttf)}
+@font-face{font-family:Plex;font-weight:400;src:url(../../../apps/web/app/fonts/IBMPlexSans_400Regular.ttf)}
+@font-face{font-family:Plex;font-weight:500;src:url(../../../apps/web/app/fonts/IBMPlexSans_500Medium.ttf)}
+@font-face{font-family:Plex;font-weight:600;src:url(../../../apps/web/app/fonts/IBMPlexSans_600SemiBold.ttf)}
+@font-face{font-family:Plex;font-weight:700;src:url(../../../apps/web/app/fonts/IBMPlexSans_700Bold.ttf)}
+*{box-sizing:border-box;margin:0}
+body{font-family:Plex;background:#F8F6F1;color:#16202A;width:1440px;height:900px;display:flex;overflow:hidden;position:relative}
+.menu{width:240px;height:900px;background:#16202A;color:#fff;display:flex;flex-direction:column;padding:20px 12px 16px;flex-shrink:0}
+.brand{display:flex;flex-direction:column;align-items:flex-start;padding:0 8px 16px}
+.brand img{display:block;height:28px;width:auto}
+.brand span{font-size:12px;line-height:16px;color:#C9CED5;margin-top:18px}
+.lista{display:flex;flex-direction:column;gap:2px}
+.titulo{display:flex;justify-content:space-between;align-items:center;height:30px;padding:0 10px;border-radius:8px;color:#F59A52;font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase}
+.item{display:flex;align-items:center;height:32px;padding:0 10px 0 20px;border-radius:8px;font-size:14px;color:#C9CED5;white-space:nowrap;position:relative}
+.item.ativo{background:#2B3743;color:#fff;font-weight:600}
+.item.ativo:before{content:'';position:absolute;left:8px;top:8px;bottom:8px;width:3px;border-radius:2px;background:#F59A52}
+.rodape{margin-top:auto;border-top:1px solid #2B3743;padding:12px 8px 0;display:flex;flex-direction:column}
+.rodape b{font-size:14px}.rodape span{font-size:12px;color:#C9CED5}.sair{font-size:13px;font-weight:600;color:#C9CED5;margin-top:8px}
+main{flex:1;min-width:0;padding:28px 32px;display:flex;flex-direction:column;gap:20px;max-width:1212px}
+.cab{display:flex;flex-direction:column;gap:2px;min-height:42px;justify-content:center}
+.cab.linha{flex-direction:row;align-items:center;justify-content:space-between}
+.eyebrow{font-size:13px;color:#4A5562}
+h1{font-family:Archivo;font-weight:800;font-size:24px;line-height:1.2}
+h2{font-family:Archivo;font-weight:700;font-size:18px}
+.quadro{background:#fff;border:1px solid #DFE2E6;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.quadro .topo{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
+.btn{height:44px;border-radius:10px;padding:0 18px;font-size:14px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.btn.p{background:#1E3350;color:#fff}
+.btn.s{border:1px solid #C9CED5;background:#fff;color:#16202A}
+.btn.d{background:#8B96A3;color:#fff}
+.selo{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.ok{color:#1D6B4F;background:#E2F1EA}.ne{color:#34404D;background:#ECEEF1}.av{color:#7A4F00;background:#FFF1D6}.cr{color:#A8261B;background:#FDE8E6}
+/* regra: uma linha por regra */
+.regras{display:flex;flex-direction:column;gap:8px}
+.regra{display:grid;gap:14px;align-items:end;padding:10px 14px;border:1px solid #ECEEF1;border-radius:12px}
+.equipe .regra{grid-template-columns:112px 214px minmax(0,1fr) 128px 84px}
+.prod .regra{grid-template-columns:112px 214px minmax(0,1fr) 84px}
+.regra.off{background:#F8F6F1}
+.regra.alterada{border-color:#1E3350}
+.chave,.nome{align-self:center}
+.nome{display:flex;flex-direction:column;gap:2px;min-width:0}
+.nome b{font-size:15px;font-weight:600;line-height:20px}
+.nome small{font-size:13px;line-height:17px;color:#4A5562}
+.campos{display:flex;gap:12px;align-items:flex-end;min-width:0}
+.sep{width:1px;align-self:stretch;background:#ECEEF1;margin:0 2px}
+.f{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;white-space:nowrap;color:#16202A}
+.input{height:44px;min-width:104px;border:1px solid #C9CED5;border-radius:10px;background:#fff;font-size:14px;font-weight:500;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.input.editado{border:2px solid #1E3350}
+.input.leitura{background:#F8F6F1;border-color:#DFE2E6}
+.input i{font-style:normal;font-size:13px;font-weight:400;color:#4A5562}
+.input.sel{color:#16202A}
+.salvar{align-self:end}
+.salvar .btn{width:84px;padding:0}
+/* interruptor do kit (packages/ui/src/web/permissoes.tsx): trilho 40x24, ligado bg-ink, desligado bg-disabled */
+.sw{display:inline-flex;align-items:center;gap:8px;height:44px;font-size:13px;font-weight:600;white-space:nowrap}
+.trilho{position:relative;width:40px;height:24px;border-radius:999px;background:#8B96A3;flex-shrink:0}
+.trilho:after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(22,32,42,.3)}
+.sw.on .trilho{background:#16202A}.sw.on .trilho:after{left:19px}
+.sw.trava .trilho{opacity:.5}
+.nota{position:absolute;right:20px;bottom:16px;max-width:620px;font-size:12px;line-height:1.5;color:#34404D;background:#fff;border:1px solid #DFE2E6;border-left:4px solid #1D6B4F;border-radius:8px;padding:8px 12px;box-shadow:0 4px 12px rgba(22,32,42,.08);z-index:9}
+table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:14px}
+th{text-align:left;font-size:13px;font-weight:600;color:#4A5562;padding:8px 10px;border-bottom:1px solid #DFE2E6;white-space:nowrap}
+td{padding:0 10px;height:48px;border-bottom:1px solid #ECEEF1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+tr:last-child td{border-bottom:0}
+.ac{width:52px;text-align:center;padding:0}
+.dots{display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;border-radius:10px;color:#4A5562}
+</style><body><nav class="menu"><div class="brand"><img src="../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-grafite.svg" height="28" alt="Macuxi Força de Vendas"><span>Distribuidora Exemplo</span></div><div class="lista"><div class="grupo"><div class="titulo"><span>Acesso</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Análise</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Cadastros</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Comercial</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Comunicação</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Conteúdo de campo</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Operação</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo aberto"><span>Parâmetros</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(90deg)"><path d="M9 6l6 6-6 6"/></svg></div><a class="item">Acesso</a><a class="item ativo">Alertas</a><a class="item">Calendário</a><a class="item">Clientes</a><a class="item">Início</a><a class="item">Metas e RV</a><a class="item">Pedidos</a><a class="item">Produtos</a><a class="item">Trade</a><a class="item">Visitas</a></div><div class="grupo"><div class="titulo"><span>Produtos</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Sistema</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div></div><div class="rodape"><b>Ana Souza</b><span>Administrador</span><div class="sair">↪ Trocar perfil</div></div></nav><main><div class="cab"><span class="eyebrow">Parâmetros</span><h1>Alertas</h1></div>
+  <section class="quadro prod"><div class="topo"><h2>Produtividade do dia</h2>
+  <div class="campos" style="align-items:center;gap:10px"><span class="f" style="flex-direction:row;align-items:center;gap:10px">Lembretes por pessoa<span class="input">4<i>por dia, no máximo</i></span></span><div class="salvar"><span class="btn d">Salvar</span></div></div></div>
+  <div class="regras"><div class="regra"><div class="chave"><span class="sw on" role="switch" aria-checked="true"><span class="trilho"></span></span></div><div class="nome"><b>Fim do almoço</b><small>Lembra a volta do almoço.</small></div>
+  <div class="campos"><div style="width:184px;flex-shrink:0"></div><span class="sep" style="visibility:hidden"></span><div class="f">Antes do fim<span class="input ">10<i>min</i></span></div></div><div class="salvar"><span class="btn d">Salvar</span></div></div><div class="regra off"><div class="chave"><span class="sw" role="switch" aria-checked="false"><span class="trilho"></span><span class="selo ne">Desligada</span></span></div><div class="nome"><b>Parado entre visitas</b><small>Avisa quando passa do tempo sem check-in.</small></div>
+  <div class="campos"><div class="campos" style="width:184px;flex-shrink:0"><div class="f">Vendedor<span class="sw on trava" role="switch" aria-checked="true"><span class="trilho"></span>Sim</span></div><div class="f">Gestor<span class="sw on trava" role="switch" aria-checked="true"><span class="trilho"></span>Sim</span></div></div><span class="sep"></span><div class="f">Depois de<span class="input ">60<i>min</i></span></div><div class="f">Alerta ao gestor<span class="input leitura">30<i>min depois</i></span></div><div class="f">Também sem rota<span class="sw on trava" role="switch" aria-checked="true"><span class="trilho"></span>Sim</span></div></div><div class="salvar"><span class="btn d">Salvar</span></div></div><div class="regra"><div class="chave"><span class="sw on" role="switch" aria-checked="true"><span class="trilho"></span></span></div><div class="nome"><b>Sem check-in no início do dia</b><small>Avisa quando o dia começa sem visita.</small></div>
+  <div class="campos"><div class="campos" style="width:184px;flex-shrink:0"><div class="f">Vendedor<span class="sw on" role="switch" aria-checked="true"><span class="trilho"></span>Sim</span></div><div class="f">Gestor<span class="sw on" role="switch" aria-checked="true"><span class="trilho"></span>Sim</span></div></div><span class="sep"></span><div class="f">Até as<span class="input ">10:00</span></div></div><div class="salvar"><span class="btn d">Salvar</span></div></div><div class="regra"><div class="chave"><span class="sw on" role="switch" aria-checked="true"><span class="trilho"></span></span></div><div class="nome"><b>Rota do dia incompleta</b><small>Lembra os clientes da rota que faltam.</small></div>
+  <div class="campos"><div style="width:184px;flex-shrink:0"></div><span class="sep" style="visibility:hidden"></span><div class="f">Lembrete às<span class="input ">16:00</span></div></div><div class="salvar"><span class="btn d">Salvar</span></div></div><div class="regra"><div class="chave"><span class="sw on" role="switch" aria-checked="true"><span class="trilho"></span></span></div><div class="nome"><b>Visita aberta</b><small>Lembra o checkout da visita que ficou aberta.</small></div>
+  <div class="campos"><div style="width:184px;flex-shrink:0"></div><span class="sep" style="visibility:hidden"></span><div class="f">Depois de<span class="input ">120<i>min</i></span></div></div><div class="salvar"><span class="btn d">Salvar</span></div></div><div class="regra off"><div class="chave"><span class="sw" role="switch" aria-checked="false"><span class="trilho"></span><span class="selo ne">Desligada</span></span></div><div class="nome"><b>Envio pendente</b><small>Lembra os registros sem enviar.</small></div>
+  <div class="campos"><div style="width:184px;flex-shrink:0"></div><span class="sep" style="visibility:hidden"></span><div class="f">Depois de<span class="input leitura">4<i>h</i></span></div></div><div class="salvar"><span class="btn d">Salvar</span></div></div></div></section></main><div class="nota"><b>Simulação aprovada (T-0180).</b> Seção abaixo de Alertas da equipe, na mesma página. Destinos só nas regras com dois; as outras lembram só o vendedor (vale também para o promotor). Parado entre visitas aparece desligada com o "Depois de" editável (D1); Envio pendente, desligada em só leitura.</div></body></html>
