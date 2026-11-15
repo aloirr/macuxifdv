@@ -21,7 +21,7 @@ export const emailDisponivel = (ctx: unknown): boolean => emailDoContexto(ctx)?.
 /** Apps em que o perfil entra (textos do e-mail). */
 export const appsDoPerfil = (perfil: Perfil): AppComLogin[] => APPS_COM_LOGIN.filter((a) => podeUsarApp(perfisDeFabrica(perfil), a));
 
-/** Apps em que o usuário entra com TODOS os perfis dele (multiperfil, RN-CORE-33: um perfil que não usa o app fecha o app). */
+/** Apps em que o usuário entra com o perfil dele (RN-CORE-33: perfil que não usa o app fecha o app). */
 export const appsDosPerfis = (perfis: readonly PerfilDaRequisicao[]): AppComLogin[] => APPS_COM_LOGIN.filter((a) => podeUsarApp(perfis, a));
 
 /** Enfileira e devolve o resultado; sem serviço = `indisponivel`. Nunca lança por falta de e-mail. */

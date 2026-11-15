@@ -53,11 +53,11 @@ const SESSAO_WEB = {
   token_type: 'Bearer',
   expires_in: 900,
   usuario: { id: '0b8f3c1e-6a1d-4f3a-9a52-1f0f3d6b2c11', nome: 'Ana Souza', nome_curto: 'Ana', email: 'ana@empresa.com.br', perfil: 'gerente' },
-  tenant: { id: '7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f', codigo: 'AUT', nome: 'Distribuidora Teste', fuso: 'America/Manaus' },
+  tenant: { id: '7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f', codigo: 'AM4821', nome: 'Distribuidora Teste', fuso: 'America/Manaus' },
 } as const;
 
-const LOGIN: LoginSenhaRequest = { codigo_empresa: 'AUT', email: 'ana@empresa.com.br', senha: 'Senha-de-teste-1', app: 'web' };
-const TROCA = { codigo_empresa: 'AUT', email: 'ana@empresa.com.br', senha_atual: 'Temporaria-1', senha_nova: 'Senha-nova-123', app: 'web' } as TrocarSenhaRequest;
+const LOGIN: LoginSenhaRequest = { codigo_empresa: 'AM4821', email: 'ana@empresa.com.br', senha: 'Senha-de-teste-1', app: 'web' };
+const TROCA = { codigo_empresa: 'AM4821', email: 'ana@empresa.com.br', senha_atual: 'Temporaria-1', senha_nova: 'Senha-nova-123', app: 'web' } as TrocarSenhaRequest;
 
 function cabecalhos(init: RequestInit): Record<string, string> {
   return Object.fromEntries(Object.entries((init.headers ?? {}) as Record<string, string>).map(([k, v]) => [k.toLowerCase(), v]));

@@ -11,6 +11,7 @@
  */
 import { useEffect, useRef, useState, type FormEvent, type InputHTMLAttributes, type Ref } from 'react';
 import {
+  CODIGO_EMPRESA_TAMANHO,
   faltasNaSenha,
   mensagemDaSenha,
   repeticaoDaSenha,
@@ -244,7 +245,7 @@ export function EsqueciSenha({ codigoEmpresa, email: emailInicial, onPedir, onVo
       </div>
       <label className="flex flex-col gap-1">
         <span className="text-[13px] font-semibold text-ink">Código da empresa</span>
-        <input ref={codigoRef} data-testid="esqueci.codigo-empresa" type="text" autoComplete="organization" value={codigo} onChange={(e) => setCodigo(e.target.value)} className={campoCss} />
+        <input ref={codigoRef} data-testid="esqueci.codigo-empresa" type="text" autoComplete="organization" maxLength={CODIGO_EMPRESA_TAMANHO} value={codigo} onChange={(e) => setCodigo(e.target.value)} className={campoCss} />
       </label>
       <label className="flex flex-col gap-1">
         <span className="text-[13px] font-semibold text-ink">E-mail</span>
