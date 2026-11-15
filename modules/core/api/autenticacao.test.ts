@@ -103,7 +103,13 @@ describe('RF-CORE-01: bloqueio por tentativas', () => {
     expect(e.usuarios.get('u-vend')!.tentativas_falhas).toBe(5);
     const bloqueado = await falha(login());
     expect(bloqueado.status).toBe(423);
-    expect(bloqueado.codigo).toBe(CODIGOS_AUTH.bloqueado);
+    // RN-CORE-01: código próprio, tempo restante e nada de "fale com o administrador"
+    expect(bloqueado.codigo).toBe(CODIGOS_AUTH.bloqueadoTentativas);
+    expect(bloqueado.message).toBe('Muitas tentativas. Tente de novo em 15 minutos.');
+    expect(bloqueado.detalhes).toEqual({ minutos_restantes: 15 });
+    avancar(4);
+    expect((await falha(login())).message).toBe('Muitas tentativas. Tente de novo em 11 minutos.');
+    avancar(-4);
     // bloqueado + senha errada: continua parecendo credencial errada (não revela o estado) e não estende o bloqueio
     const ate = e.usuarios.get('u-vend')!.bloqueio_ate;
     expect((await falha(login({ senha: 'errada' }))).codigo).toBe(CODIGOS_AUTH.credenciais);
@@ -121,7 +127,10 @@ describe('RF-CORE-01: bloqueio por tentativas', () => {
 
   it('RF-CORE-01: bloqueio remoto do admin e usuário inativo: 423 só com a senha certa', async () => {
     e.usuarios.get('u-vend')!.bloqueado_em = t0;
-    expect((await falha(login())).status).toBe(423);
+    const adm = await falha(login());
+    expect(adm.status).toBe(423);
+    expect(adm.codigo).toBe(CODIGOS_AUTH.bloqueado);
+    expect(adm.message).toContain('Fale com o administrador da sua empresa');
     expect((await falha(login({ senha: 'errada' }))).status).toBe(401);
     e.usuarios.get('u-vend')!.bloqueado_em = null;
     e.usuarios.get('u-vend')!.ativo = false;
@@ -300,6 +309,7 @@ describe('RF-CORE-01 (T-0026): limite de falhas de login por IP real', () => {
     const bloqueado = await falha(de('203.0.113.2'));
     expect(bloqueado.status).toBe(429);
     expect(bloqueado.codigo).toBe(CODIGOS_AUTH.muitasTentativas);
+    expect(bloqueado.message).toBe('Muitas tentativas. Tente de novo em 5 minutos.');
     avancar(5);
     expect((await falha(de('203.0.113.2'))).status).toBe(401);
   });

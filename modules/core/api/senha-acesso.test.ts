@@ -421,7 +421,16 @@ describe('RN-CORE-34: a troca só vale se o login der certo, e a falha de login 
     vend().bloqueado_em = t0;
     expect((await falha(login())).status).toBe(423);
     expect((await falha(login({ senha: 'Errada#9999' }))).status).toBe(401);
-    expect(auditoria().match(/bloqueio/g)).toHaveLength(2);
+    expect(auditoria().match(/bloqueio_admin/g)).toHaveLength(2);
+  });
+
+  it('RN-CORE-01: bloqueio por tentativas audita bloqueio_tentativas (distinto do bloqueio_admin)', async () => {
+    vend().bloqueio_ate = new Date(t0.getTime() + 10 * 60_000);
+    const x = await falha(login());
+    expect(x.status).toBe(423);
+    expect(x.message).toBe('Muitas tentativas. Tente de novo em 10 minutos.');
+    expect(auditoria()).toContain('bloqueio_tentativas');
+    expect(auditoria()).not.toContain('bloqueio_admin');
   });
 
   it('RN-CORE-34: empresa não encontrada ou inativa fica só no log (sem tenant não há auditoria), sem e-mail nem senha', async () => {

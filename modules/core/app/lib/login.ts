@@ -5,7 +5,7 @@
  * Senha e token nunca vão para log, nem para o armazenamento do módulo (o shell guarda o token em área segura).
  */
 import { ehSemConexao, type AppComLogin } from '@macuxi/platform-sdk';
-import { AVISO_APARELHO_LIMPO, CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, validarLogin, type CamposLogin, type ErrosLogin, MENSAGEM_SENHA_A_TROCAR, MENSAGEM_SENHA_VENCIDA, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
+import { AVISO_APARELHO_LIMPO, MENSAGEM_BLOQUEADO_ADMIN, mensagemBloqueioPorTentativas, mensagemMuitasTentativas, CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, validarLogin, type CamposLogin, type ErrosLogin, MENSAGEM_SENHA_A_TROCAR, MENSAGEM_SENHA_VENCIDA, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
 import { ESCONDER_SENHA, MOSTRAR_SENHA } from '@macuxi/ui/mobile/puro';
 import { tolerante } from './leitor-tolerante';
 
@@ -31,16 +31,19 @@ export function ehServidorInvalido(e: unknown): boolean {
 export function mensagemDeErroDeLogin(e: unknown): string {
   if (ehSemConexao(e)) return 'Sem conexão ou o servidor não respondeu. Confira a internet e o endereço do servidor e tente de novo.';
   if (ehServidorInvalido(e)) return 'Este endereço não é um servidor Macuxi. Confira o endereço em Servidor, teste de novo e só então entre.';
-  const x = e as { codigo?: unknown; message?: unknown } | null;
+  const x = e as { codigo?: unknown; message?: unknown; detalhes?: Record<string, unknown> } | null;
+  const detalhes = x?.detalhes;
   switch (x?.codigo) {
     case CODIGOS_AUTH.credenciais:
       return 'Código da empresa, e-mail ou senha incorretos. Confira os dados e tente de novo.';
     case CODIGOS_AUTH.bloqueado:
-      return 'Seu acesso está bloqueado. Fale com o administrador da sua empresa ou tente de novo mais tarde.';
+      return MENSAGEM_BLOQUEADO_ADMIN;
+    case CODIGOS_AUTH.bloqueadoTentativas:
+      return mensagemBloqueioPorTentativas(detalhes?.minutos_restantes);
     case CODIGO_DISPOSITIVO_BLOQUEADO:
       return AVISO_APARELHO_LIMPO;
     case CODIGOS_AUTH.muitasTentativas:
-      return 'Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.';
+      return mensagemMuitasTentativas(detalhes?.retry_after_s);
     case CODIGOS_AUTH.sessao:
       return 'Sua sessão expirou. Entre de novo com o código da empresa, o e-mail e a senha.';
     case CODIGOS_AUTH.senhaVencida:

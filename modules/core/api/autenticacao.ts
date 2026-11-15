@@ -25,7 +25,10 @@ import {
   CODIGO_DISPOSITIVO_BLOQUEADO,
   CODIGOS_AUTH,
   MENSAGEM_APARELHO_BLOQUEADO,
+  MENSAGEM_BLOQUEADO_ADMIN,
   MENSAGEM_CREDENCIAIS,
+  mensagemBloqueioPorTentativas,
+  mensagemMuitasTentativas,
   MENSAGEM_SENHA_A_TROCAR,
   MENSAGEM_SENHA_VENCIDA,
   type EsqueciSenhaRequest,
@@ -45,6 +48,7 @@ import {
   expiracaoDoAcesso,
   expiracaoDoRefresh,
   gerarSenhaTemporaria,
+  minutosRestantesDoBloqueio,
   registrarFalhaDeLogin,
   validadeDaSenhaTemporaria,
   validarSenhaNova,
@@ -84,9 +88,7 @@ export interface DepsAutenticacao {
   aleatorio?: (n: number) => Uint8Array;
 }
 
-const MENSAGEM_BLOQUEADO = 'Seu acesso está bloqueado. Fale com o administrador da sua empresa ou tente de novo mais tarde.';
 const MENSAGEM_SESSAO = 'Sua sessão expirou. Entre de novo com o código da empresa, o e-mail e a senha.';
-const MENSAGEM_MUITAS = 'Muitas tentativas de entrada. Aguarde alguns minutos e tente de novo.';
 const MENSAGEM_MUITOS_PEDIDOS = 'Muitos pedidos de senha. Aguarde alguns minutos e tente de novo.';
 /** Entre dois "Esqueci a senha" do mesmo usuário (no banco): não gera outra senha nem manda outro e-mail. */
 const INTERVALO_ESQUECI_MS = 15 * 60_000;
@@ -95,12 +97,13 @@ type Sessao = Omit<SessaoResposta, 'tenant'>;
 type SenhaLiberada = { tipo: 'ok' } | { tipo: 'trocar'; usada: 'atual' | 'temporaria'; motivo: MotivoDaTroca; expiraEm: Date | null };
 
 /** Motivos internos da falha de login (só na auditoria e no log; a resposta ao app é sempre genérica). */
-type MotivoFalhaLogin = 'email_nao_encontrado' | 'senha_nao_confere' | 'bloqueio' | 'aparelho_bloqueado' | 'perfil_fora_do_app' | 'senha_vencida' | 'empresa_sem_dados';
+type MotivoFalhaLogin = 'email_nao_encontrado' | 'senha_nao_confere' | 'bloqueio_tentativas' | 'bloqueio_admin' | 'aparelho_bloqueado' | 'perfil_fora_do_app' | 'senha_vencida' | 'empresa_sem_dados';
 
 type ResultadoLogin =
   | { tipo: 'ok'; sessao: Sessao; tenantId: string }
   | { tipo: 'credenciais' }
-  | { tipo: 'bloqueado' }
+  /** RN-CORE-01: `minutos` presente = bloqueio por tentativas; ausente = administrador/inativo. */
+  | { tipo: 'bloqueado'; minutos?: number }
   /** RN-CORE-15: aparelho bloqueado (vale para o tenant inteiro); só chega aqui quem acertou a senha. */
   | { tipo: 'aparelho' }
   /** RN-CORE-33: perfil não usa este app. */
@@ -164,6 +167,8 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
     });
   }
 
+  const motivoDoBloqueio = (estado: string): MotivoFalhaLogin => (estado === 'bloqueado_tentativas' ? 'bloqueio_tentativas' : 'bloqueio_admin');
+
   async function entrar(
     ctx: ContextoPublico<unknown>,
     e: EntradaDeSenha,
@@ -177,7 +182,7 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
     const espera = limiteLogin.bloqueadoPor(chave, agora());
     if (espera > 0) {
       ctx.log.warn({ motivo: 'bloqueio_por_tentativas' }, 'login recusado');
-      throw erroHttp(429, CODIGOS_AUTH.muitasTentativas, MENSAGEM_MUITAS, { retry_after_s: espera });
+      throw erroHttp(429, CODIGOS_AUTH.muitasTentativas, mensagemMuitasTentativas(espera), { retry_after_s: espera });
     }
     const publico = repos.publico(banco);
     const tenant = await publico.tenantPorCodigo(codigo);
@@ -217,13 +222,13 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
           const c = registrarFalhaDeLogin({ falhas: u.tentativas_falhas, bloqueioAte: u.bloqueio_ate }, agoraData);
           await r.gravarTentativas(u.id, c.falhas, c.bloqueioAte);
         }
-        await auditarFalha(db, ctx, u.id, estado === 'ok' ? 'senha_nao_confere' : 'bloqueio');
+        await auditarFalha(db, ctx, u.id, estado === 'ok' ? 'senha_nao_confere' : motivoDoBloqueio(estado));
         return { tipo: 'credenciais' };
       }
       // daqui em diante só quem acertou uma das senhas
       if (estado !== 'ok') {
-        await auditarFalha(db, ctx, u.id, 'bloqueio');
-        return { tipo: 'bloqueado' };
+        await auditarFalha(db, ctx, u.id, motivoDoBloqueio(estado));
+        return estado === 'bloqueado_tentativas' && u.bloqueio_ate ? { tipo: 'bloqueado', minutos: minutosRestantesDoBloqueio(u.bloqueio_ate, agoraData) } : { tipo: 'bloqueado' };
       }
       if (e.dispositivo_id && (await r.dispositivoBloqueado(e.dispositivo_id))) {
         await auditarFalha(db, ctx, u.id, 'aparelho_bloqueado');
@@ -258,8 +263,11 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
         return { sessao: resultado.sessao, tenantId: resultado.tenantId };
       case 'credenciais':
         throw erroHttp(401, CODIGOS_AUTH.credenciais, MENSAGEM_CREDENCIAIS);
-      case 'bloqueado':
-        throw erroHttp(423, CODIGOS_AUTH.bloqueado, MENSAGEM_BLOQUEADO);
+      case 'bloqueado': {
+        const { minutos } = resultado;
+        if (minutos === undefined) throw erroHttp(423, CODIGOS_AUTH.bloqueado, MENSAGEM_BLOQUEADO_ADMIN);
+        throw erroHttp(423, CODIGOS_AUTH.bloqueadoTentativas, mensagemBloqueioPorTentativas(minutos), { minutos_restantes: minutos });
+      }
       case 'aparelho':
         throw erroHttp(423, CODIGO_DISPOSITIVO_BLOQUEADO, MENSAGEM_APARELHO_BLOQUEADO);
       case 'fora_do_app':
