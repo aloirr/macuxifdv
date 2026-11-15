@@ -1,5 +1,5 @@
 /**
- * T-0174 (RN-CAT-14, ADR 0054 §3): e2e de segurança do ZIP contra o leitor REAL da plataforma (`apps/api/src/leitor-zip.ts`),
+ * T-0174 (RN-CAT-14, ADR 0058 §3): e2e de segurança do ZIP contra o leitor REAL da plataforma (`apps/api/src/leitor-zip.ts`),
  * com ZIPs montados byte a byte no teste, e a passagem plataforma → módulo (`itensDaConferencia` e `resolverItem` do
  * Catálogo) sem banco. Complementa apps/api/test/leitor-zip.test.ts (do engenheiro-software) com os vetores que ele não
  * cobre: variações de path traversal (barra invertida, absoluto, letra de unidade, meio do caminho, controle), pasta

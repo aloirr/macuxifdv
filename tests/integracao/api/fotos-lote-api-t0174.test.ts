@@ -1,5 +1,5 @@
 /**
- * T-0174 (RN-CAT-14, ADR 0054): as 6 rotas do lote de fotos pelo `createApp` REAL (apps/api), com o módulo Catálogo real
+ * T-0174 (RN-CAT-14, ADR 0058): as 6 rotas do lote de fotos pelo `createApp` REAL (apps/api), com o módulo Catálogo real
  * de `MODULOS_API`, sem Postgres: o banco é um falso em memória que guarda `catalogo.foto_lote`, `catalogo.foto_lote_item`,
  * `plataforma.arquivo` e a outbox (`plataforma.evento`). Prova, na fronteira HTTP, o que o teste do dono prova com um
  * contexto montado à mão: licença (403 MODULO_INATIVO), ação `produto.enriquecer` (403 para quem não é analista/admin),
@@ -147,7 +147,7 @@ function montar(o: { licencas?: Licencas; parametrosCatalogo?: Record<string, un
 
 const corpo = (tamanho = 50 * MIB) => ({ id: LOTE, arquivo_id: ARQ, nome_arquivo: 'fotos.zip', tamanho_bytes: tamanho });
 const url = (r: string) => BASE + r.replace(':id', LOTE);
-/** As 6 rotas do lote (ADR 0054 §9). */
+/** As 6 rotas do lote (ADR 0058 §9). */
 const ROTAS: { metodo: 'GET' | 'POST'; caminho: string }[] = [
   { metodo: 'POST', caminho: ROTAS_CATALOGO.fotosLote },
   { metodo: 'GET', caminho: ROTAS_CATALOGO.fotosLote },

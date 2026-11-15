@@ -152,7 +152,7 @@ const DEFINER_REVISADAS_WORKER: Record<string, string> = {
     'etapa banco: reconfere a exclusao_bloqueada (RN-PLA-09), excluir_tenant, empresa_excluida (código nunca reaproveitado, RN-PLA-10), backup guardado 90 dias; idempotente',
   'plataforma.fechar_exclusao(p_exclusao uuid, p_resultado jsonb)':
     'concluida só na etapa arquivos (backup guardado 90 dias a contar daqui); falhou só na etapa banco (empresa intacta); idempotente',
-  // 0079 (T-0174, ADR 0054; fotos em lote): laço de trabalhos sob demanda; NÃO entram em DEFINER_REVISADAS (o app só lê e insere)
+  // 0079 (T-0174, ADR 0058; fotos em lote): laço de trabalhos sob demanda; NÃO entram em DEFINER_REVISADAS (o app só lê e insere)
   'plataforma.trabalho_reservar(p_processo text, p_trava_s integer)':
     'reserva o próximo trabalho pendente de tenant ativo (skip locked) com trava de p_trava_s; devolve só id, tenant, módulo, nome, alvo, tentativas e fatias',
   'plataforma.trabalho_devolver(p_id uuid, p_processo text, p_resultado text, p_erro text, p_espera_s integer)':
