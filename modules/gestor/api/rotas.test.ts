@@ -128,7 +128,7 @@ const aprovacaoSolicitada = (r: ReturnType<typeof criarRelogio>, o: { pedido: st
 const DIAS_UTEIS_DO_CORE = [1, 2, 3, 4, 5, 6];
 
 describe('API do Gestor: declaração, licença e perfis (regra 6)', () => {
-  it('a API é válida no SDK: 9 rotas, um consumidor por evento de `consome`, escrita sempre com ação do manifesto', () => {
+  it('a API é válida no SDK: 11 rotas, um consumidor por evento de `consome`, escrita sempre com ação do manifesto', () => {
     expect(apiGestor.rotas!.map((r) => `${r.metodo} ${r.caminho}`)).toEqual([
       'GET equipe',
       'GET equipe/:usuario_id',
@@ -138,6 +138,8 @@ describe('API do Gestor: declaração, licença e perfis (regra 6)', () => {
       'POST alertas/:id/dispensar',
       'GET alertas/regras',
       'PUT alertas/regras/:tipo',
+      'GET parametros/alertas',
+      'PUT parametros/alertas',
       'GET pedido-em-nome/disponibilidade',
     ]);
     expect(apiGestor.consumidores!.map((c) => c.evento.nome)).toEqual(manifest.consome);
@@ -163,11 +165,13 @@ describe('API do Gestor: declaração, licença e perfis (regra 6)', () => {
     for (const perfil of ['supervisor', 'gerente'] as const) {
       expect(pode(perfil, rotas['POST alertas/:id/dispensar']!)).toBe(true);
       expect(pode(perfil, rotas['PUT alertas/regras/:tipo']!)).toBe(false);
+      expect(pode(perfil, rotas['PUT parametros/alertas']!)).toBe(false);
     }
     for (const perfil of ['analista', 'admin'] as const) {
       expect(pode(perfil, rotas['GET equipe']!)).toBe(true);
       expect(pode(perfil, rotas['POST alertas/:id/dispensar']!)).toBe(false); // RN-GES-07: só leitura
       expect(pode(perfil, rotas['PUT alertas/regras/:tipo']!)).toBe(true);
+      expect(pode(perfil, rotas['PUT parametros/alertas']!)).toBe(true);
     }
     expect(promotorBarradoNaRota(rotas['GET pedido-em-nome/disponibilidade']!)).toBe(true);
   });
@@ -274,6 +278,15 @@ describe('API do Gestor: fluxo de ponta a ponta com eventos (RF-GES-01..07)', ()
     expect(regras.regras.find((x) => x.tipo === 'ruptura_recorrente')?.limiar).toBe(4);
     expect(c.auditoria.map((a) => a.acao)).toEqual(['alerta_regra.gerenciar']);
     await expect(c.chamar('PUT', 'alertas/regras/:tipo', ANALISTA, { params: { tipo: 'cliente_sem_visita' }, corpo: { limiar: 5 } })).rejects.toMatchObject({ status: 422, codigo: 'REGRA_ALERTA_INVALIDA' });
+  });
+
+  it('RN-GES-01/03, RN-PRO-07: Parâmetros › Alertas devolve os padrões, grava só o que mudou, audita e recusa valor fora da faixa', async () => {
+    const c = cenario();
+    const padrao = { pct_tolerancia_frequencia: 50, dias_sem_visita_padrao: 30, dias_carencia_cliente_novo: 15, prazo_aprovacao_dias_uteis: 1, permanencia_min_min: 10 };
+    expect(await c.chamar('GET', 'parametros/alertas', ANALISTA)).toEqual(padrao);
+    expect(await c.chamar('PUT', 'parametros/alertas', ANALISTA, { corpo: { ...padrao, pct_tolerancia_frequencia: 60 } })).toMatchObject({ pct_tolerancia_frequencia: 60 });
+    expect(c.auditoria.map((a) => a.acao)).toEqual(['alerta_regra.gerenciar']);
+    await expect(c.chamar('PUT', 'parametros/alertas', ANALISTA, { corpo: { ...padrao, dias_sem_visita_padrao: 0 } })).rejects.toThrow();
   });
 
   it('RF-GES-05 / RN-VEN-35: disponibilidade do pedido em nome segue o escopo e some sem o Vendedor', async () => {

@@ -2,6 +2,7 @@ import { defineModule } from '@macuxi/platform-sdk';
 
 /** Quem vê e age sobre a EQUIPE (RN-CORE-04): supervisor e gerente; decidem aprovações e dispensam alertas (doc 03 §2). */
 const PERFIS_GESTAO = ['supervisor', 'gerente'] as const;
+/** T-0180: as regras de alerta ficam em Parâmetros › Alertas (`/parametros/alertas`): regras da equipe e Produtividade do dia. */
 /** RN-GES-07: analista e admin veem os painéis do TENANT em modo leitura (BKO) e configuram as regras de alerta. */
 const PERFIS_TENANT = ['analista', 'admin'] as const;
 

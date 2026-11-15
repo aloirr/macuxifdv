@@ -38,3 +38,4 @@
 2026-11-13 — T-0168/T-0171 — pedido em nome usa o limite do gestor (casos 19/20, limiteDoPedidoEmNome); Equipe com uma tag e um fato (RD-0208); Aprovações sem crédito/90d; Alertas sem 'responsável · desde'; recado ao Core sobre a lista de Clientes (RN-CORE-41)
 2026-11-13 — RD-0210 — removida a tag fixa 'Atenção' das pendências em alertas-screen.tsx
 2026-11-14 — oficial — cabeçalho Azul noite nas 5 telas do Gestão
+2026-11-15 — T-0180 — Parâmetros › Alertas (/parametros/alertas: regras da equipe com campos próprios + Produtividade do dia, D1/D6), GET|PUT /v1/gestor/parametros/alertas, tipos de alerta parado_entre_visitas e sem_checkin_inicio (D4, um por pessoa, sem push) no avaliador; doc aprovado. Pendências: API do avaliador ainda sem o parâmetro do core (tipos novos inativos até lá); adaptador local do contrato do core; menu/redirect/ADR/Interruptor sem texto (outros donos)

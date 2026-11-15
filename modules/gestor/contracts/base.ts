@@ -56,7 +56,12 @@ export const TIPOS_ALERTA = [
   'ruptura_recorrente',
   'visita_curta',
   'fotos_sem_gps',
+  // T-0180 / D4: produtividade do dia, um alerta aberto por pessoa; ligam e desligam em Parâmetros › Alertas › Produtividade do dia
+  'parado_entre_visitas',
+  'sem_checkin_inicio',
 ] as const;
+/** T-0180 / D4: tipos de produtividade (sem regra própria em `alerta_regra`; o liga/desliga vem do parâmetro do core). */
+export const TIPOS_ALERTA_PRODUTIVIDADE = ['parado_entre_visitas', 'sem_checkin_inicio'] as const;
 export const TipoAlerta = z.enum(TIPOS_ALERTA);
 export type TipoAlerta = z.infer<typeof TipoAlerta>;
 

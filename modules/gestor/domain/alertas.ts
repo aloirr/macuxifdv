@@ -8,13 +8,15 @@
  * O "dia" é a data civil no fuso do tenant. Funções puras e idempotentes.
  */
 import { diffDays } from '@macuxi/comum';
-import { RegraAlerta, TIPOS_ALERTA, type CondicaoAlerta, type FrequenciaVisita, type MembroEquipe, type MotivoEncerramento, type Severidade, type StatusAlerta, type TipoAlerta } from '../contracts';
+import { RegraAlerta, TIPOS_ALERTA, TIPOS_ALERTA_PRODUTIVIDADE, type CondicaoAlerta, type FrequenciaVisita, type MembroEquipe, type MotivoEncerramento, type Severidade, type StatusAlerta, type TipoAlerta } from '../contracts';
 import { nivelDaFilaDoGestor, pedidoPendenteDeAprovacao, situacaoDoPrazo } from './aprovacoes';
-import { horasUteisEntre } from './horario-comercial';
+import { situacaoDaRota } from './agora';
+import { ehDiaUtil, horasUteisEntre, instanteDoHorarioLocal } from './horario-comercial';
 import { somarDiasCivis } from '@macuxi/comum/relogio';
-import { arredondar, percentual } from './numeros';
-import { atendida, diaLocal, diasUteisDoMes, painelDoMes } from './painel';
+import { arredondar, instanteMs, percentual } from './numeros';
+import { atendida, diaLocal, diasUteisDoMes, painelDoMes, statusDoDia } from './painel';
 import { resolverParametros, type ParametrosGestor } from './parametros';
+import type { ParametrosAlertasProdutividade } from './produtividade-do-dia';
 import { carteiraPendente, entradaNaCarteira, type EstadoProjecao } from './projecao';
 
 /** Regra padrão de cada tipo (valores entre colchetes do doc 02/03 e premissas da T-0014, em regras.md). */
@@ -32,6 +34,9 @@ export const REGRAS_PADRAO: Readonly<Record<TipoAlerta, RegraAlerta>> = Object.f
   visita_curta: { tipo: 'visita_curta', ativa: true, limiar: null, janela_dias: 3, amostra_min: null, severidade: 'info' },
   // limiar = % máximo de fotos sem GPS; amostra_min = nº mínimo de fotos
   fotos_sem_gps: { tipo: 'fotos_sem_gps', ativa: true, limiar: 20, janela_dias: 7, amostra_min: 10, severidade: 'atencao' },
+  // T-0180 / D4: sem campos próprios; o liga/desliga e o destino Gestor vêm do parâmetro de produtividade do core (`tiposAtivos`)
+  parado_entre_visitas: { tipo: 'parado_entre_visitas', ativa: true, limiar: null, janela_dias: null, amostra_min: null, severidade: 'atencao' },
+  sem_checkin_inicio: { tipo: 'sem_checkin_inicio', ativa: true, limiar: null, janela_dias: null, amostra_min: null, severidade: 'atencao' },
 });
 
 export type RegrasAlerta = Record<TipoAlerta, RegraAlerta>;
@@ -44,6 +49,8 @@ export const MODULO_DO_ALERTA: Readonly<Record<TipoAlerta, 'core' | 'vendedor' |
   ruptura_recorrente: 'promotor',
   visita_curta: 'promotor',
   fotos_sem_gps: 'promotor',
+  parado_entre_visitas: 'core',
+  sem_checkin_inicio: 'core',
 };
 
 /** Mistura os ajustes do tenant (parciais por tipo) com os padrões e valida cada regra. */
@@ -82,9 +89,22 @@ export function limiteDiasSemVisita(frequencia: FrequenciaVisita | null | undefi
   return Math.floor(arredondar(FREQUENCIA_EM_DIAS[frequencia] * (1 + params.pct_tolerancia_frequencia / 100), 6));
 }
 
-/** Tipos que valem agora: regra ligada E módulo de origem ativo (RN-CORE-03). */
-export function tiposAtivos(regras: RegrasAlerta, modulos: ReadonlySet<string>): Set<TipoAlerta> {
-  return new Set(TIPOS_ALERTA.filter((t) => regras[t].ativa && (MODULO_DO_ALERTA[t] === 'core' || modulos.has(MODULO_DO_ALERTA[t]))));
+/** T-0180 / D4: tipo de produtividade (liga/desliga e destino Gestor vêm do parâmetro do core, não de `alerta_regra`). */
+export const ehTipoProdutividade = (t: TipoAlerta): t is (typeof TIPOS_ALERTA_PRODUTIVIDADE)[number] => (TIPOS_ALERTA_PRODUTIVIDADE as readonly string[]).includes(t);
+
+/**
+ * Tipos que valem agora: regra ligada E módulo de origem ativo (RN-CORE-03). Os de produtividade (D4) valem com a regra E o
+ * destino Gestor ligados no parâmetro do core; sem o parâmetro (`produtividade` ausente) não valem.
+ */
+export function tiposAtivos(regras: RegrasAlerta, modulos: ReadonlySet<string>, produtividade?: ParametrosAlertasProdutividade): Set<TipoAlerta> {
+  return new Set(
+    TIPOS_ALERTA.filter((t) => {
+      if (!(MODULO_DO_ALERTA[t] === 'core' || modulos.has(MODULO_DO_ALERTA[t]))) return false;
+      if (!ehTipoProdutividade(t)) return regras[t].ativa;
+      const r = produtividade?.regras[t === 'parado_entre_visitas' ? 'parado_entre_visitas' : 'sem_checkin_inicio'];
+      return r !== undefined && r.ativa && r.gestor;
+    }),
+  );
 }
 
 export interface EntradaAvaliacao {
@@ -96,6 +116,8 @@ export interface EntradaAvaliacao {
   modulos: ReadonlySet<string>;
   regras: RegrasAlerta;
   params?: Partial<ParametrosGestor>;
+  /** T-0180 / D4: parâmetro de produtividade do core; sem ele os alertas de produtividade não são avaliados. */
+  produtividade?: ParametrosAlertasProdutividade;
 }
 
 const chaveDe = (tipo: TipoAlerta, alvo: string) => `${tipo}:${alvo}`;
@@ -104,7 +126,7 @@ const naJanela = (dia: string, hoje: string, janela: number) => dia >= somarDias
 /** Condições de alerta que valem em `agora`, ordenadas por chave (resultado estável). */
 export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
   const params = resolverParametros(e.params);
-  const ativos = tiposAtivos(e.regras, e.modulos);
+  const ativos = tiposAtivos(e.regras, e.modulos, e.produtividade);
   const hoje = diaLocal(e.agora, params.fuso);
   const out: CondicaoAlerta[] = [];
   const ativoNoCadastro = (id: string | null): boolean => {
@@ -286,6 +308,50 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
         severidade: r.severidade,
         mensagem: `${pct}% das fotos dos últimos ${janela} dias sem GPS (limite ${r.limiar}%).`,
       });
+    }
+  }
+
+  // --- T-0180 / D4: produtividade do dia, no escopo do gestor, um alerta aberto por pessoa, sem push (D3) ---
+  const horaLocal = (instante: string) => new Intl.DateTimeFormat('pt-BR', { timeZone: params.fuso, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(instante));
+  const agoraMs = instanteMs(e.agora);
+  const expediente = ehDiaUtil(hoje, params) && agoraMs >= instanteDoHorarioLocal(hoje, params.horario_comercial.inicio, params.fuso) && agoraMs < instanteDoHorarioLocal(hoje, params.horario_comercial.fim, params.fuso);
+  if (e.produtividade && expediente && (ativos.has('parado_entre_visitas') || ativos.has('sem_checkin_inicio'))) {
+    const prod = e.produtividade.regras;
+    for (const m of e.membros) {
+      if ((m.perfil !== 'vendedor' && m.perfil !== 'promotor') || !m.ativo) continue;
+      const dia = statusDoDia(e.estado, m.id, hoje, params);
+      // RN-CORE-26: parado = sem check-in aberto, paradas pendentes e `parado_min` desde o último checkout; o gestor só vê `gestor_depois_min` depois
+      if (ativos.has('parado_entre_visitas') && dia === 'em_rota') {
+        const rota = situacaoDaRota(e.estado, m.id, hoje, params.fuso);
+        const parado = rota.ultimo_checkout_em ? Math.floor((agoraMs - instanteMs(rota.ultimo_checkout_em)) / 60_000) : null;
+        if (rota.paradas_pendentes > 0 && rota.ultimo_checkout_em && parado !== null && parado >= params.parado_min + prod.parado_entre_visitas.gestor_depois_min) {
+          out.push({
+            chave: chaveDe('parado_entre_visitas', m.id),
+            tipo: 'parado_entre_visitas',
+            alvo_tipo: 'usuario',
+            alvo_id: m.id,
+            responsavel_id: m.id,
+            valor: parado,
+            limiar: params.parado_min + prod.parado_entre_visitas.gestor_depois_min,
+            severidade: e.regras.parado_entre_visitas.severidade,
+            mensagem: `${m.nome}: último checkout às ${horaLocal(rota.ultimo_checkout_em)}.`,
+          });
+          continue; // um alerta de produtividade por pessoa
+        }
+      }
+      if (ativos.has('sem_checkin_inicio') && dia === 'sem_checkin' && agoraMs >= instanteDoHorarioLocal(hoje, prod.sem_checkin_inicio.ate, params.fuso)) {
+        out.push({
+          chave: chaveDe('sem_checkin_inicio', m.id),
+          tipo: 'sem_checkin_inicio',
+          alvo_tipo: 'usuario',
+          alvo_id: m.id,
+          responsavel_id: m.id,
+          valor: null,
+          limiar: null,
+          severidade: e.regras.sem_checkin_inicio.severidade,
+          mensagem: m.nome,
+        });
+      }
     }
   }
 

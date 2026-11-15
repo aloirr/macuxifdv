@@ -22,6 +22,7 @@ export const ROTAS_GESTOR = {
   dispensarAlerta: (alertaId: string) => `/gestor/alertas/${alertaId}/dispensar`,
   regras: '/gestor/alertas/regras',
   regra: (tipo: string) => `/gestor/alertas/regras/${tipo}`,
+  parametrosAlertas: '/gestor/parametros/alertas',
   pedidoEmNome: '/gestor/pedido-em-nome/disponibilidade',
 } as const;
 

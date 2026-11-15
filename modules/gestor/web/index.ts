@@ -5,7 +5,7 @@ import { AlertasPage } from './pages/alertas-page';
 import { AprovacoesPage } from './pages/aprovacoes-page';
 import { PainelEquipePage } from './pages/painel-page';
 import { RankingPage } from './pages/ranking-page';
-import { RegrasAlertaPage } from './pages/regras-page';
+import { ParametrosAlertasPage } from './pages/parametros-alertas-page';
 
 /** Leitura no BKO: a equipe (`painel_equipe.ver`) e o tenant em modo leitura (`painel_tenant.ver`, RN-GES-07). */
 const PERFIS_LEITURA: readonly Perfil[] = [...new Set([...manifest.acoes['painel_equipe.ver']!.perfis, ...manifest.acoes['painel_tenant.ver']!.perfis])];
@@ -21,6 +21,6 @@ export const moduloWeb = definirModuloShell<ComponentType>({
     { id: 'ranking', caminho: 'ranking', titulo: 'Ranking', navegacao: 'Ranking', grupo: 'analise', ordem: 20, perfis: PERFIS_LEITURA, componente: RankingPage },
     { id: 'aprovacoes', caminho: 'aprovacoes', titulo: 'Aprovações da equipe', navegacao: 'Aprovações', grupo: 'operacao', ordem: 30, perfis: PERFIS_LEITURA, componente: AprovacoesPage },
     { id: 'alertas', caminho: 'alertas', titulo: 'Alertas da equipe', navegacao: 'Alertas', grupo: 'operacao', ordem: 40, perfis: PERFIS_LEITURA, componente: AlertasPage },
-    { id: 'regras-alerta', caminho: 'regras-alerta', titulo: 'Regras de alerta', navegacao: 'Regras de alerta', grupo: 'administracao', acao: 'alerta_regra.gerenciar', componente: RegrasAlertaPage },
+    { id: 'regras-alerta', caminho: 'parametros/alertas', titulo: 'Parâmetros › Alertas', navegacao: 'Regras de alerta', grupo: 'administracao', acao: 'alerta_regra.gerenciar', componente: ParametrosAlertasPage },
   ],
 });

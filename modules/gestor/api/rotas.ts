@@ -19,7 +19,6 @@ import {
   ParamsTipoAlerta,
   ParamsUsuario,
   RankingQuery,
-  TIPOS_ALERTA,
   type FichaMembro,
   type FilaAprovacao,
   type ListaAlertas,
@@ -44,12 +43,14 @@ import {
   reconciliarParaViewer,
   resolverRegras,
   resumirFila,
+  TIPOS_REGRA_EQUIPE,
   usuariosDaProjecao,
   visaoDaEquipe,
   type EscopoGestor,
   type EstadoProjecao,
   type ParametrosGestor,
 } from '../domain';
+import { rotasDeParametrosAlertas } from './parametros-alertas';
 import type { AcessoTenant, RepositorioGestor } from './repositorio';
 
 /** Quem LÊ os painéis: a equipe (painel_equipe.ver) e o tenant em leitura (painel_tenant.ver, RN-GES-07). */
@@ -248,7 +249,7 @@ export function criarRotasGestor(repo: RepositorioGestor): RotaModulo[] {
     executar: (ctx) =>
       ctx.comTenant(async (db): Promise<RegrasAlertaResposta> => {
         const r = resolverRegras(await repo.ajustesRegras({ db, tenant_id: ctx.usuario.tenant_id }));
-        return { regras: TIPOS_ALERTA.map((t) => r[t]) };
+        return { regras: TIPOS_REGRA_EQUIPE.map((t) => r[t]) };
       }),
   };
 
@@ -289,5 +290,5 @@ export function criarRotasGestor(repo: RepositorioGestor): RotaModulo[] {
       ),
   };
 
-  return [equipe, ficha, ranking, aprovacoes, alertas, dispensar, regras, ajustarRegra, emNome];
+  return [equipe, ficha, ranking, aprovacoes, alertas, dispensar, regras, ajustarRegra, ...rotasDeParametrosAlertas, emNome];
 }
