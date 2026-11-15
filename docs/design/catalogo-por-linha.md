@@ -1,5 +1,8 @@
 # Catálogo pela hierarquia, do maior agrupamento para o menor (T-0142; app e BKO)
 
+> **Tipografia substituída** pela fonte do sistema (R-20261115-110600, 15/11/2026): ver o [manual da marca §5](../marca/manual.md#5-tipografia).
+> Famílias, pesos acima de 700 e tamanhos fora da escala citados abaixo ficam só como histórico.
+
 > 2026-11-09 · designer-ux · pedidos do dono do produto R-20261109-065241-alexandre e R-20261109-065415-alexandre (4 decisões
 > confirmadas), teste do Campo-Demo-v1.0.1 (Mais › Catálogo, 09/11 06h49). Regra: **RF-CAT-09** (e RF-CAT-04, árvore do ERP).
 > **Substitui** a versão da T-0085 fatia D (lista "Por linha" à parte e o atalho **"Ver por linha"**, `LinhaAtalho` na aba

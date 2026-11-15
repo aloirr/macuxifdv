@@ -61,6 +61,27 @@ describe('fonte do sistema (R-20261115-110600)', () => {
     expect(senha).not.toMatch(/rotulo: \{/);
   });
 
+  it('rótulo de campo único: `ListaSuspensa` e `Desconto` usam o `RotuloCampo`, sem estilo de rótulo próprio (RD-0953)', () => {
+    for (const arq of ['./suspensa.tsx', './desconto-rn.tsx']) {
+      const src = readFileSync(pasta(arq), 'utf8');
+      expect(src, arq).toContain('<RotuloCampo numberOfLines={2}>{rotulo}</RotuloCampo>');
+      expect(src, arq).not.toMatch(/<Text style=\{s\.rotulo\}/);
+    }
+  });
+
+  it('rótulo em maiúsculas só no `type.rotulo` (RD-0954): nenhuma cópia de `textTransform: uppercase` no kit', () => {
+    for (const { arq, src } of app) {
+      if (arq.endsWith('theme.ts')) continue;
+      expect(src, arq).not.toMatch(/textTransform: 'uppercase'/);
+    }
+  });
+
+  it('saudação: um token só, `type.saudacao` 22/700, o mesmo de `h1Small` (RD-0957)', () => {
+    const tema = readFileSync(pasta('./theme.ts'), 'utf8');
+    expect(tema).toContain('saudacao: estilosDeTexto.h1Small,');
+    expect(tema).toMatch(/h1Small: \{ \.\.\.fonte\.bold, fontSize: 22,/);
+  });
+
   it('nada em 800/900 no kit (nem `sans-serif-black`); web sem `font-display`, só a `--font-sans`', () => {
     for (const { arq, src } of app) expect(src, arq).not.toMatch(/sans-serif-black|fontWeight: '(800|900)'/);
     for (const { arq, src } of web) expect(src, arq).not.toMatch(/font-display|fontWeight: ?'?(800|900)/);
