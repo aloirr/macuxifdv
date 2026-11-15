@@ -1,0 +1,18 @@
+  /* Simulação do vínculo do vendedor do ERP (RN-CORE-58). Moldura do BKO e gaveta: ../filial-cadastro-venda/filial.css. */
+  .bd.neutral { background: var(--neutralBg); color: var(--ink3); margin-left: 6px; }
+  .bt.vinc { gap: 8px; align-self: flex-start; }
+  /* Dialog do kit web (packages/ui/src/web/overlay.tsx): 460 px, raio 16, título 18/700, rodapé à direita */
+  .vela2 { position: absolute; inset: 0; background: rgba(22, 32, 42, .45); }
+  .dlg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 460px; background: #fff; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 40px rgba(15, 20, 25, .3); }
+  .dlg h2 { margin: 0; font-family: Archivo; font-weight: 700; font-size: 18px; line-height: 24px; }
+  .dlg .dm { margin: 0; font-size: 14px; line-height: 20px; color: var(--ink); }
+  .rodape-d { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+  .rds { display: flex; flex-direction: column; gap: 6px; }
+  .rd { min-height: 56px; display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; }
+  .rd.on { border: 2px solid var(--accent); padding: 7px 11px; }
+  .rd .bola { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--ink3); flex: none; }
+  .rd.on .bola { border: 6px solid var(--accent); }
+  .rd .tx { display: flex; flex-direction: column; }
+  .rd .tx b { font-size: 14px; }
+  .rd .tx span { font-size: 12px; color: var(--ink2); }
+  .toast { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #fff; border-radius: 12px; padding: 12px 16px; display: flex; gap: 10px; align-items: center; font-size: 14px; font-weight: 600; box-shadow: 0 8px 20px rgba(15, 20, 25, .3); }
