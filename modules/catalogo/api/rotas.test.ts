@@ -214,6 +214,82 @@ describe('GET /v1/catalogo/busca — preço, estoque e perfil', () => {
   });
 });
 
+describe('GET /v1/catalogo/busca — sem cliente: preço e estoque da filial (RN-VEN-01, RN-CORE-39)', () => {
+  const FILIAL_BVB = idDemo('filial:BVB');
+  const FILIAL_FORA = idDemo('filial:fora');
+  const cafe = (c: { items: RespostaBusca['items'] }) => c.items.find((i) => PRODUTOS_DEMO.find((p) => p.id === i.id)?.sku === 'CAF-500') ?? c.items[0]!;
+  function comFiliais(extra: Partial<DadosTenantMemoria> = {}) {
+    const base = dadosA();
+    const cafeId = base.produtos[0]!.id;
+    memoria = criarRepositorioMemoria({
+      [TENANT_A]: {
+        ...base,
+        filiaisDaTela: { padraoId: FILIAL_PADRAO_MEMORIA, filiais: [{ id: FILIAL_PADRAO_MEMORIA, nome: 'Manaus', padrao: true }, { id: FILIAL_BVB, nome: 'Boa Vista', padrao: false }, { id: FILIAL_DEMO, nome: 'CD Manaus', padrao: false }] },
+        tabelas: [{ id: TABELA_VAREJO_DEMO, codigo: '01', nome: 'Varejo', ativo: true }, { id: TABELA_ATACADO_DEMO, codigo: '02', nome: 'Atacado', ativo: false }],
+        itensPreco: [...ITENS_PRECO_DEMO.filter((i) => i.product_id !== cafeId), { price_table_id: TABELA_VAREJO_DEMO, product_id: cafeId, price_cents: 1000, valid_from: null, valid_to: null }, { price_table_id: TABELA_VAREJO_DEMO, product_id: cafeId, price_cents: 1234, valid_from: null, valid_to: null, filial_id: FILIAL_BVB }],
+        ...extra,
+      },
+    });
+    return cafeId;
+  }
+
+  it('RN-VEN-01: sem customer_id e sem filial, o preço é o da tabela da filial padrão (antes vinha sem preço)', async () => {
+    comFiliais();
+    const { rota } = montar();
+    const r = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'café' } });
+    expect(cafe(r.corpo).price).toMatchObject({ price_cents: 1000, sellable: true });
+  });
+
+  it('RN-VEN-01: tabela inativa na filial não vale; sem tabela, o produto fica sem preço (nunca o de outra tabela)', async () => {
+    comFiliais({ tabelas: [{ id: TABELA_VAREJO_DEMO, codigo: '01', nome: 'Varejo', ativo: false }] });
+    const { rota } = montar();
+    const r = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'café' } });
+    expect(cafe(r.corpo).price).toMatchObject({ price_cents: null, sellable: false });
+  });
+
+  it('RN-CORE-39: com `filial`, preço e estoque são os da filial escolhida', async () => {
+    const em = relogio.relativo({ horas: -1 }).toISOString();
+    const cafeId = dadosA().produtos[0]!.id;
+    comFiliais({
+      saldos: new Map([[cafeId, [{ branch_id: FILIAL_BVB, branch_name: 'Boa Vista', quantity: 7, updated_at: em }, { branch_id: FILIAL_DEMO, branch_name: 'CD Manaus', quantity: 80, updated_at: em }]]]),
+    });
+    const { rota } = montar();
+    const r = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'café', filial: FILIAL_BVB } }, { carteira: 'tenant' });
+    const item = cafe(r.corpo);
+    expect(item.price).toMatchObject({ price_cents: 1234, sellable: true });
+    expect(item.availability!.by_branch.map((b) => b.branch_id)).toEqual([FILIAL_BVB]);
+  });
+
+  it('RN-CORE-39: filial que não é do tenant dá 422; a API revalida mesmo com a tela certa', async () => {
+    comFiliais();
+    const { rota } = montar();
+    const r = await chamar(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'café', filial: FILIAL_FORA } });
+    expect(r).toMatchObject({ status: 422, codigo: 'FILIAL_INEXISTENTE' });
+  });
+
+  it('RN-CORE-04: filial fora das filiais da carteira do usuário dá 403', async () => {
+    comFiliais({ filiaisDoUsuario: { [usuario('vendedor').id]: [FILIAL_PADRAO_MEMORIA] } });
+    const { rota } = montar();
+    const r = await chamar(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'café', filial: FILIAL_BVB } });
+    expect(r).toMatchObject({ status: 403, codigo: 'FILIAL_FORA_DA_CARTEIRA' });
+  });
+
+  it('RN-CAT-05: o promotor continua sem preço nem estoque, mesmo com `filial`', async () => {
+    comFiliais();
+    const { rota } = montar();
+    const r = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('promotor'), { query: { q: 'café', filial: FILIAL_BVB } });
+    expect(r.status).toBe(200);
+    expect(cafe(r.corpo)).toMatchObject({ price: null, availability: null });
+  });
+
+  it('RN-CAT-06: com customer_id a filial pedida é ignorada (vale a tabela e a filial do cliente)', async () => {
+    comFiliais();
+    const { rota } = montar();
+    const r = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'café', customer_id: CLIENTE_VAREJO, filial: FILIAL_FORA } });
+    expect(r.status).toBe(200);
+  });
+});
+
 describe('GET /v1/catalogo/busca — IA, contingência e cota (RN-CAT-03)', () => {
   const filtrosLlm = { text: 'refrigerante', brand: null, line: 'Bebidas', min_price_cents: null, max_price_cents: null, stock: null, code: null, measures: [], sort: null };
 
@@ -225,6 +301,16 @@ describe('GET /v1/catalogo/busca — IA, contingência e cota (RN-CAT-03)', () =
     expect(skus(r.corpo.items).slice(0, 2).sort()).toEqual(['REF-2L', 'REF-350']);
     expect(porta.chamadas).toBe(1);
     expect([...memoria.estado(TENANT_A).usoIa.values()]).toEqual([1]);
+  });
+
+  it('RN-CAT-03: texto que parece código não chama a IA, não gasta cota e não mostra o aviso de indisponível', async () => {
+    const porta = portaFalsa(new Error('fora do ar'));
+    const { rota } = montar({ portaIa: () => porta });
+    const r = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'CAF-500' } });
+    expect(r.corpo).toMatchObject({ interpreted_by: 'nenhum', degraded: false, notice: null, remaining_ai_queries: null });
+    expect(skus(r.corpo.items)).toEqual(['CAF-500']);
+    expect(porta.chamadas).toBe(0);
+    expect([...memoria.estado(TENANT_A).usoIa.values()]).toEqual([]);
   });
 
   it('RN-CAT-03: provedor falhou ou estourou o tempo → busca textual com aviso discreto e NÃO consome', async () => {

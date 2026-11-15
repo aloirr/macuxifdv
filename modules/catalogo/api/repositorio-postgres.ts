@@ -14,6 +14,7 @@ import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
 import { anoCivilNoFuso } from '../domain/ano-civil';
 import { filiaisDoEstoque } from '../domain/estoque';
 import { cederLaco, prepararIndice } from '../domain/indice-busca';
+import { precosDaFilialSemCliente, tabelaPorContagem } from '../domain/preco-filial';
 import { filialDaTabela, filialDoClienteNoCore, filiaisDaCarteiraNoCore, nomeDaFilial } from './filiais-core';
 import type { ItemTabelaPreco, MidiaProduto, Referencia, SalvarFaixa, Sinonimo, StockByBranch } from '../contracts';
 import type { NoCatalogo, VinculoProdutoNo } from '../domain/arvore';
@@ -459,9 +460,39 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       );
       return r.rows.map((x): Sinonimo => ({ id: x.id, term: x.termo, synonyms: x.sinonimos, active: x.ativo, external_id: x.external_id }));
     },
-    async precos(clienteId, produtoIds) {
-      // RN-CAT-06: só a tabela viva e ativa do cliente; sem cliente não há tabela padrão no schema (nada vendável)
-      if (clienteId === null || produtoIds.length === 0) return { tabelaClienteId: null, itens: [] };
+    async precos(clienteId, produtoIds, filialId) {
+      if (produtoIds.length === 0) return { tabelaClienteId: null, itens: [] };
+      if (clienteId === null) {
+        // RN-VEN-01: sem cliente, a tabela ativa de mais itens vivos na filial (a padrão do tenant ou a escolhida), a mesma regra do app
+        if (!filialId) return { tabelaClienteId: null, itens: [] };
+        const contagem = await db.query<{ tabela_preco_id: string; codigo: string; ativo: boolean; itens: string }>(
+          `select t.id as tabela_preco_id, t.codigo, t.ativo, count(*) as itens
+             from catalogo.tabela_preco_item i
+             join catalogo.tabela_preco t on t.tenant_id = i.tenant_id and t.id = i.tabela_preco_id and t.ativo and t.deleted_at is null
+            where i.filial_id = $1::uuid and i.deleted_at is null
+            group by t.id, t.codigo, t.ativo`,
+          [filialId],
+        );
+        const tabelaId = tabelaPorContagem(
+          contagem.rows.map((x) => ({ id: x.tabela_preco_id, codigo: x.codigo, ativo: x.ativo })),
+          new Map(contagem.rows.map((x) => [x.tabela_preco_id, Number(x.itens)])),
+        );
+        if (!tabelaId) return { tabelaClienteId: null, itens: [] };
+        const linhas = await db.query<{ produto_id: string; preco_cents: number; vigencia_inicio: string | null; vigencia_fim: string | null }>(
+          `select produto_id, preco_cents::float8 as preco_cents,
+                  to_char(vigencia_inicio at time zone 'UTC', ${UTC}) as vigencia_inicio,
+                  to_char(vigencia_fim at time zone 'UTC', ${UTC}) as vigencia_fim
+             from catalogo.tabela_preco_item
+            where tabela_preco_id = $1::uuid and filial_id = $3::uuid and produto_id = any($2::uuid[]) and deleted_at is null`,
+          [tabelaId, [...produtoIds], filialId],
+        );
+        const itens = precosDaFilialSemCliente(
+          [{ id: tabelaId, codigo: '', ativo: true }],
+          linhas.rows.map((x) => ({ tabela_preco_id: tabelaId, produto_id: x.produto_id, preco_cents: x.preco_cents, vigencia_inicio: x.vigencia_inicio, vigencia_fim: x.vigencia_fim })),
+        );
+        return { tabelaClienteId: null, itens };
+      }
+      // RN-CAT-06: só a tabela viva e ativa do cliente
       const t = await db.query<{ tabela_preco_id: string }>(
         `select ct.tabela_preco_id
            from catalogo.cliente_tabela_preco ct
@@ -508,7 +539,9 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       }
       return saida;
     },
-    async filiaisDoUsuario(clienteId) {
+    async filiaisDoUsuario(clienteId, filialEscolhida) {
+      // sem cliente e com filial escolhida (a rota já validou): o estoque é o dessa filial
+      if (!clienteId && filialEscolhida) return [filialEscolhida];
       const carteira = await ctx.carteira();
       const cliente = clienteId ? (await filialDoClienteNoCore(tx.consultar, clienteId)).filialCliente : null;
       const da = cliente === null && carteira !== 'tenant' ? (await filiaisDaCarteiraNoCore(tx.consultar)).daCarteira : null;
