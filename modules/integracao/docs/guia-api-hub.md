@@ -64,7 +64,7 @@ Um registro que aponta para outro (por exemplo, um cliente que cita o vendedor) 
 | Entidade | Depende de |
 |---|---|
 | `catalogo_no`, `transportadora`, `forma_pagamento`, `filial` | nada |
-| `vendedor` | `filial` (o vendedor tem exatamente uma filial, obrigatória: `filial_external_id` ausente ou `null` carrega o vendedor com o aviso `vendedor_sem_filial`, e ele fica bloqueado até a filial ser informada) |
+| `vendedor` | `filial` (`filial_external_id` ausente ou `null` carrega o vendedor com o aviso `vendedor_sem_filial`, e ele fica bloqueado até a filial ser informada) |
 | `produto` | `catalogo_no` (referência **fraca**: nó ausente só gera aviso `referencia_fraca_ausente` e o produto entra sem o vínculo) |
 | `prazo_pagamento` | `forma_pagamento` (pelo `forma_external_id`) |
 | `cliente` | `vendedor`, `forma_pagamento` e `filial` (as `formas_pagamento` do cliente vão pelo **código** da forma; forma ainda não carregada não recusa a linha, mas carregue as formas antes; `filial_external_id` ausente ou `null` = filial padrão da empresa) |
@@ -76,7 +76,15 @@ Um registro que aponta para outro (por exemplo, um cliente que cita o vendedor) 
 | `preco`, `estoque` | `produto` e `filial` (`filial_external_id` ausente ou `null` = filial padrão; no estoque, é a filial do depósito) |
 | `tabela_escalonada` | `produto`, `preco` e `filial` (`filial_external_id` ausente = vale para todas as filiais) |
 
-Sequência segura para a primeira carga: **filial, vendedor, catalogo_no, transportadora, forma_pagamento → cliente, produto, prazo_pagamento → rota, titulo, nota, cliente_endereco, produto_unidade → preco, estoque → tabela_escalonada.** (RN-INT-04: vendedor → cliente → rota/título/nota; produto → preço/estoque.)
+Sequência da primeira carga (ordem única, `ORDEM_CARGA_ENTIDADES`; RN-INT-04): **filial, vendedor, catalogo_no, forma_pagamento, prazo_pagamento, produto, produto_unidade, preco, tabela_escalonada, estoque, cliente, cliente_endereco, transportadora, rota, titulo, nota.**
+
+### Regras de carga (15/11/2026)
+- **Filial do usuário** (RN-CORE-39): o vendedor vem com `filial_external_id`. Filial que ainda não foi carregada vira a linha `referencia_ausente`, que você reprocessa no Monitor depois de carregar a filial. A filial de cadastro é obrigatória e as filiais de venda são pelo menos uma (a de cadastro sempre entra); hoje a carga só leva a filial de cadastro, e as de venda a mais ficam no BKO.
+- **Referência cruzada** (RN-CAT-09): só o código é obrigatório. A marca é opcional, pelo `marca_external_id` ou pelo nome; marca inativa ou ausente fica oculta.
+- **Código FDV:** o sistema gera (5 dígitos, `00001`, por empresa) e ele é só leitura; não envie.
+- **Usuário nunca é excluído:** o vendedor que sai do ERP fica inativo, também pela carga.
+- **Estoque por filial:** envie o saldo de cada depósito com a filial dele; o app soma só as filiais de venda do usuário.
+- **Vínculo do ERP** (a confirmar): manual no BKO, ou automático quando o nome completo é igual; a normalização do nome e os homônimos estão em definição.
 
 O Hub também ajuda: um lote espera por lotes ainda em aberto das entidades de que depende (até 30 minutos); passado esse tempo ele é aplicado e as linhas sem alvo viram `referencia_ausente`. Quando o lote da dependência termina, o Hub reprocessa essas linhas sozinho.
 

@@ -32,7 +32,7 @@ Fora desta entrega (backlog): Excel nativo (`.xlsx`), SFTP, arquivo com mais de 
 | `tabela_escalonada` | external_id, produto_external_id, quantidade_minima, preco_unidade_cents, vigencia_inicio | medida (ausente = unidade base), vigencia_fim, tabela_external_id (ausente = todas as tabelas), filial_external_id (ausente = todas as filiais) |
 | `filial` (T-0149) | external_id, codigo, nome | cidade, uf |
 
-A entidade `filial` é a primeira da carga (`ORDEM_CARGA_ENTIDADES`). `cliente`, `preco` e `estoque` também aceitam a coluna opcional `filial_external_id` (vazia: `cliente` não altera; `preco` e `estoque` usam a filial padrão).
+Ordem única da carga (`ORDEM_CARGA_ENTIDADES`, RN-INT-04; regras de 15/11/2026 em `hub-api.md` §21): filial, vendedor, catalogo_no, forma_pagamento, prazo_pagamento, produto, produto_unidade, preco, tabela_escalonada, estoque, cliente, cliente_endereco, transportadora, rota, titulo, nota. A entidade `filial` é a primeira. `cliente`, `preco` e `estoque` também aceitam a coluna opcional `filial_external_id` (vazia: `cliente` não altera; `preco` e `estoque` usam a filial padrão).
 
 Exemplo (`transportadora`):
 ```
