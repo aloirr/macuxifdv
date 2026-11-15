@@ -11,7 +11,7 @@ import * as apiCore from '@macuxi/core/api';
 import { manifest as core } from '@macuxi/core/manifest';
 import * as apiGestor from '@macuxi/gestor/api';
 import { manifest as gestor } from '@macuxi/gestor/manifest';
-import * as apiIntegracao from '@macuxi/integracao/api';
+import { criarModuloApiIntegracao } from '@macuxi/integracao/api';
 import { manifest as integracao } from '@macuxi/integracao/manifest';
 import * as apiPesquisa from '@macuxi/pesquisa/api';
 import { manifest as pesquisa } from '@macuxi/pesquisa/manifest';
@@ -22,6 +22,7 @@ import * as apiTreinamento from '@macuxi/treinamento/api';
 import { manifest as treinamento } from '@macuxi/treinamento/manifest';
 import * as apiVendedor from '@macuxi/vendedor/api';
 import { manifest as vendedor } from '@macuxi/vendedor/manifest';
+import { verificarSenhaAutorizador } from './senha-autorizador';
 
 /** `moduloApi` (ou o `default`) exportado pelo módulo ou, sem ele, só o manifesto. */
 export function registroApi(manifesto: Manifesto, exportado: unknown): ModuloApi {
@@ -39,5 +40,8 @@ export const MODULOS_API: readonly ModuloApi[] = [
   registroApi(gestor, apiGestor),
   registroApi(pesquisa, apiPesquisa),
   registroApi(treinamento, apiTreinamento),
-  registroApi(integracao, apiIntegracao),
+  // T-0173: a autorização por senha do reprocessamento (RN-INT-16) confere a senha no Core (core.credencial_conferir@1)
+  registroApi(integracao, {
+    moduloApi: criarModuloApiIntegracao({ pepper: () => process.env.MACUXI_HUB_CHAVE_PEPPER, verificarSenha: verificarSenhaAutorizador }),
+  }),
 ];
