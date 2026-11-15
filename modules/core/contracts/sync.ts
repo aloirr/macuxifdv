@@ -70,6 +70,9 @@ export const UsuarioSyncSchema = z
     filial_cadastro_id: z.string().uuid().nullable().optional(),
     filial_venda_ids: z.array(z.string().uuid()).optional(),
     sem_filial: z.boolean().optional(),
+    /** T-0180 (D5): horário de almoço próprio, em minutos do dia; nulo = padrão da empresa (`jornada.almoco_padrao`). */
+    almoco_inicio_min: z.number().int().min(0).max(1439).nullable().default(null),
+    almoco_fim_min: z.number().int().min(0).max(1439).nullable().default(null),
   })
   .strict();
 export type UsuarioSync = z.infer<typeof UsuarioSyncSchema>;

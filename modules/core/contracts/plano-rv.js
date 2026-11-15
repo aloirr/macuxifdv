@@ -1,0 +1,80 @@
+/**
+ * Plano de RV (RN-CORE-29/30, T-0082). Contratos aditivos de /v1/core/plano-rv e /v1/core/rv.
+ * Dinheiro em centavos; atingimento em pontos-base (10000 = 100%).
+ */
+import { z } from 'zod';
+/** Indicadores que o Plano de RV aceita: os da meta mensal sem `itens_por_pedido` (T-0170 não leva itens ao RV). */
+export const INDICADORES_RV = ['venda_cents', 'positivacao', 'cobertura_pct', 'visitas'];
+const AnoMes = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
+const Uuid = z.string().uuid();
+const PctInt = z.number().int().min(0).max(300);
+export const PERFIS_PLANO_RV = ['vendedor', 'promotor'];
+export const FaixaRvSchema = z.object({
+    de_pct: PctInt,
+    modo: z.enum(['zero', 'proporcional', 'fixo']),
+    pagamento_pct: PctInt,
+});
+export const RegraRvSchema = z.object({
+    indicador: z.enum(INDICADORES_RV),
+    peso_pct: z.number().int().min(0).max(100),
+    gatilho: z.boolean(),
+    faixas: z.array(FaixaRvSchema).max(10),
+});
+export const PlanoRvParamsSchema = z.object({ id: Uuid });
+export const PlanoRvPutSchema = z
+    .object({
+    nome: z.string().min(1).max(80),
+    vigencia_inicio: AnoMes,
+    perfis: z.array(z.enum(PERFIS_PLANO_RV)).min(1),
+    valor_maximo_cents: z.number().int().positive(),
+    regras: z.array(RegraRvSchema).min(1).max(4),
+})
+    .strict();
+export const PlanoRvSchema = PlanoRvPutSchema.extend({
+    id: Uuid,
+    updated_at: z.string(),
+    atualizado_por_nome: z.string().nullable(),
+    /** false quando o plano já valeu para um mês fechado (RN-CORE-30) */
+    editavel: z.boolean(),
+});
+export const PlanosRvSchema = z.object({
+    vigente: PlanoRvSchema.nullable(),
+    planos: z.array(PlanoRvSchema),
+});
+export const RvQuerySchema = z
+    .object({ periodo: AnoMes.optional(), equipe_id: Uuid.optional(), usuario_id: Uuid.optional() })
+    .strict();
+export const RvIndicadorSchema = z.object({
+    indicador: z.enum(INDICADORES_RV),
+    meta: z.number().nullable(),
+    realizado: z.number(),
+    atingimento_pbp: z.number().int(),
+    projetado_pbp: z.number().int(),
+    pagamento_pct: z.number(),
+    valor_cents: z.number().int(),
+    gatilho: z.boolean(),
+    gatilho_ok: z.boolean().nullable(),
+    sem_meta: z.boolean(),
+});
+export const RvPainelSchema = z.object({
+    periodo: AnoMes,
+    situacao: z.enum(['parcial', 'fechado']),
+    fechamento_em: z.string(),
+    plano_id: Uuid.nullable(),
+    pessoas: z.array(z.object({
+        usuario_id: Uuid,
+        nome: z.string(),
+        equipe_id: Uuid.nullable(),
+        /** Plano que valeu para esta pessoa no mês (vendedor e promotor podem ter planos diferentes). Aditivo: ausente em respostas antigas. */
+        plano_id: Uuid.optional(),
+        rv_cents: z.number().int(),
+        rv_bruta_cents: z.number().int(),
+        bloqueada_por: z.array(z.enum(INDICADORES_RV)),
+        indicadores: z.array(RvIndicadorSchema),
+    })),
+});
+/**
+ * Cópia da própria RV no aparelho (T-0082, app Campo): o que a etapa `core-rv` guarda de `GET /v1/core/rv` para a tela mostrar
+ * offline. `recebido_em` é o instante (UTC) em que o servidor respondeu; `painel` já vem recortado para o próprio usuário.
+ */
+export const RvLocalSchema = z.object({ recebido_em: z.string(), painel: RvPainelSchema });
