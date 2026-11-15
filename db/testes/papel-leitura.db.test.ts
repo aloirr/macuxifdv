@@ -330,8 +330,8 @@ describe.skipIf(semBanco())('0078 papel de leitura (banco, fixture dois-tenants)
   it('INSERT, UPDATE, DELETE e TRUNCATE recusados (42501); as só por função e as sa_* também', async () => {
     await emTransacao(admin, A, async () => {
       for (const sql of [
-        `insert into core.cliente (tenant_id, nome) values ('${A}', 'x')`,
-        "update core.cliente set nome = nome",
+        `insert into core.cliente (tenant_id, razao_social) values ('${A}', 'x')`,
+        "update core.cliente set razao_social = razao_social",
         'delete from core.cliente',
         'truncate core.cliente',
         "update plataforma.tenant set nome = nome",
@@ -351,10 +351,10 @@ describe.skipIf(semBanco())('0078 papel de leitura (banco, fixture dois-tenants)
         "select current_user as u, current_setting('default_transaction_read_only') as ro, current_setting('statement_timeout') as st, current_setting('idle_in_transaction_session_timeout') as idle",
       );
       expect(s.rows).toEqual([{ u: 'macuxi_leitura', ro: 'on', st: '15s', idle: '1min' }]);
-      expect((await erroDe(c.query('update core.cliente set nome = nome')))?.code).toBe('25006');
+      expect((await erroDe(c.query('update core.cliente set razao_social = razao_social')))?.code).toBe('25006');
       await c.query('begin read write');
       try {
-        expect((await erroDe(c.query('update core.cliente set nome = nome')))?.code).toBe('42501');
+        expect((await erroDe(c.query('update core.cliente set razao_social = razao_social')))?.code).toBe('42501');
       } finally {
         await c.query('rollback');
       }

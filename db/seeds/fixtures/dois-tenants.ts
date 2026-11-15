@@ -1963,6 +1963,17 @@ export async function carregarDoisTenants(admin: ClientBase, opcoes: { senha?: s
     for (const tabela of ORDEM_TABELAS) {
       const linhas = tabela === 'core.equipe' ? dados[tabela].map((e) => ({ ...e, responsavel_id: null })) : dados[tabela];
       const preservar = tabela === 'core.usuario' ? ['senha_hash'] : tabela === 'vendedor.numeracao_pedido' ? ['ultimo'] : tabela === 'core.usuario_codigo_fdv_contador' ? ['ultimo_sequencial'] : [];
+      // 0077: o backfill (empresa com uma filial) pode já ter dado a filial a usuários da fixture com outro id (banco que desceu e
+      // subiu com os dados); sai o vínculo de id diferente para o da fixture entrar sem 23505 (usuario_filial_uk). A conferência
+      // adiada usuario_filial_inclui_cadastro roda no COMMIT, com o vínculo da fixture já gravado.
+      if (tabela === 'core.usuario_filial') {
+        await admin.query(
+          `delete from core.usuario_filial u
+             using jsonb_to_recordset($1::jsonb) as f(id uuid, tenant_id uuid, usuario_id uuid, filial_id uuid)
+            where u.tenant_id = f.tenant_id and u.usuario_id = f.usuario_id and u.filial_id = f.filial_id and u.id <> f.id`,
+          [JSON.stringify(linhas)],
+        );
+      }
       await gravarLinhas(admin, tabela, linhas, { preservar });
       if (tabela === 'core.usuario') await gravarLinhas(admin, 'core.equipe', dados['core.equipe']);
     }
