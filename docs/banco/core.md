@@ -1017,24 +1017,33 @@ Volta: `0069_core_cargo_hierarquia.down.sql` (saem os 4 gatilhos do promotor, as
 ## 0080 — Código FDV do usuário (`0080_core_usuario_codigo_fdv`; T-0175, RN-CORE-59)
 Especificação: [docs/modulos/core/usuarios.md](../modulos/core/usuarios.md) ("Código FDV") e `modules/core/domain/codigo-fdv.ts`.
 Dois códigos por usuário: o Código ERP (`external_id`) e o **Código FDV**, gerado pelo banco em sequência por empresa
-(`FDV-0001`, `FDV-0002`…; mínimo de 4 dígitos, `FDV-9999` -> `FDV-10000`), único por empresa, só de leitura e nunca reaproveitado.
+(só número, 5 dígitos, sem prefixo: `00001`, `00002`…; `99999` -> `100000`; R-20261115-110000), para todos os perfis, único por
+empresa, só de leitura e nunca reaproveitado.
 
 | Objeto | O que é |
 |---|---|
-| `core.usuario.codigo_fdv text` | o código; nulo só no usuário apagado antes da 0080. CHECK `usuario_codigo_fdv_formato` (formato canônico do domain: `FDV-` + 4 dígitos ou mais, sem zero a mais à esquerda, >= 1) |
+| `core.usuario.codigo_fdv text` | o código; nulo só no usuário apagado antes da 0080. CHECK `usuario_codigo_fdv_formato` (`^\d{5,}$`: só dígitos, 5 ou mais) |
 | `usuario_codigo_fdv_uk` | único `(tenant_id, codigo_fdv) where deleted_at is null and codigo_fdv is not null`; cobre a busca pelo código |
 | `core.usuario_codigo_fdv_contador` | uma linha por tenant (`usuario_codigo_fdv_contador_tenant_uk`; id = `uuid_de_chave('<tenant>:core.usuario_codigo_fdv_contador')`), `ultimo_sequencial bigint >= 0` = maior número emitido. Colunas-padrão, RLS forçado, `isolamento_tenant` + `manutencao`; `macuxi_app` só **select**. Fora do sync |
 | `usuario_codigo_fdv_contador_nao_diminui` | gatilho BEFORE UPDATE do contador: diminuir ou trocar de tenant = 23514, constraint de mesmo nome |
+| `usuario_codigo_fdv_contador_piso` | gatilho BEFORE INSERT do contador (função `core.usuario_codigo_fdv_contador_piso()`, invoker, sem EXECUTE a ninguém): a linha nova nasce no mínimo no maior código já gravado no tenant (vivo ou apagado, máximo numérico) |
 | `core.usuario_codigo_fdv()` | função dos 2 gatilhos abaixo, SECURITY DEFINER, `search_path = pg_catalog, core, plataforma, pg_temp`, sem EXECUTE a ninguém |
-| `usuario_codigo_fdv_emitir` | BEFORE INSERT em `core.usuario`: código nulo -> upsert atômico no contador (`on conflict (tenant_id) do update set ultimo_sequencial = ultimo_sequencial + 1 returning`; cria a linha quando falta; a linha fica travada até o fim da transação, então inserts concorrentes do mesmo tenant numeram em fila, sem repetir) e grava `FDV-` + `lpad(n, greatest(4, dígitos), '0')`. Código informado (restauração de backup, carga técnica) fica, e o contador sobe para `greatest(atual, n)` |
+| `usuario_codigo_fdv_emitir` | BEFORE INSERT em `core.usuario`: código nulo -> `update ... set ultimo_sequencial = ultimo_sequencial + 1 returning` no contador; sem a linha, insert no piso (`on conflict (tenant_id) do nothing`) e o mesmo update (a linha fica travada até o fim da transação, então inserts concorrentes do mesmo tenant numeram em fila, sem repetir) e grava `lpad(n, greatest(5, dígitos), '0')`. Código informado (restauração de backup, carga técnica) fica, e o contador que existe sobe para `greatest(atual, n)`; sem a linha, nada (o piso cuida quando ela nascer) |
 | `usuario_codigo_fdv_somente_leitura` | BEFORE UPDATE em `core.usuario`: mudar `codigo_fdv` = **SQLSTATE 23514**, **constraint `usuario_codigo_fdv_somente_leitura`**, coluna `codigo_fdv`, hint `RN-CORE-59` -> o Core mapeia para 422 `CODIGO_FDV_SOMENTE_LEITURA`. O apagado sem código que volta a vivo ganha o próximo número |
 
-**Backfill**: os vivos (`deleted_at` nulo) de cada tenant, por `created_at, id`, recebem `FDV-0001`…; o contador termina no maior
+**Backfill**: os vivos (`deleted_at` nulo) de cada tenant, por `created_at, id`, recebem `00001`…; o contador termina no maior
 emitido (tenant sem vivo fica sem linha até o 1º insert). O `updated_at` dos vivos anda: o aparelho puxa o usuário com o código.
 
 **Nunca reaproveitado**: o contador só sobe. Apagado (inclusive o provisório desativado no vínculo do ERP, que mantém o próprio
-código) fica fora da unicidade dos vivos, mas o número dele já foi contado. Número consumido sem uso (rollback, insert que caiu no
-`ON CONFLICT` de um upsert) não volta: buraco aceito.
+código) fica fora da unicidade dos vivos, mas o número dele já foi contado. Número consumido sem uso (insert de usuário que caiu no
+`ON CONFLICT` dele) não volta: buraco aceito.
+
+**Backup e restauração da empresa** (0072, `ordem_do_backup`): o contador só tem FK para `plataforma.tenant` e sai na 1ª leva,
+antes de `core.usuario` (que espera `core.equipe`, ciclo quebrado). A restauração dá certo em qualquer ordem, com os gatilhos
+ligados: contador antes -> cada usuário com código sobe o contador para `greatest(atual, n)`; usuários antes -> o usuário com
+código não cria a linha, e o contador do backup entra por insert (o "nunca diminui" é de update e não entra) e passa pelo piso.
+Contador do backup atrás dos códigos (cópia inconsistente) também sobe até o maior. Não desligue os gatilhos do contador na
+restauração (sem o piso, um contador atrasado repetiria número).
 
 Caminho de volta: `0080_core_usuario_codigo_fdv.down.sql` apaga gatilhos, funções, contador, índice, CHECK e coluna; **perde os
 códigos** (reaplicar renumera os vivos). Volte antes o Core (`COLUNA_CODIGO_FDV_PRONTA = false`). Teste:

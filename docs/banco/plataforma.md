@@ -986,7 +986,8 @@ A senha do super-admin é conferida pela API **antes** da `sa_pedir_exclusao`, q
 Pendente (fora da 0072): a restauração (`db/backup/restaurar-empresa.mjs`, com o leitor do manifesto, e o ensaio backup →
 exclusão → restauração no CI). Os gatilhos de semeadura (`tenant_semear_*` na inserção do tenant, `usuario_perfil_principal`,
 `resposta_normalizar`) gravam linhas que o backup também traz: a restauração precisa desligá-los (`alter table ... disable
-trigger user` pelo dono, numa janela) ou apagar o semeado antes de cada tabela. O teste desta migração prova a outra metade: o
+trigger user` pelo dono, numa janela) ou apagar o semeado antes de cada tabela. Exceção: `core.usuario_codigo_fdv_contador` e os
+gatilhos de Código FDV de `core.usuario` ficam ligados (0080; restauração em qualquer ordem, ver core.md). O teste desta migração prova a outra metade: o
 que a exclusão apaga é, tabela a tabela, o que o backup exportou.
 
 Consultas da API e do worker (referência):
