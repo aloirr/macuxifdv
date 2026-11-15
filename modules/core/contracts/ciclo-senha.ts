@@ -5,7 +5,7 @@
  */
 import { ehEmail } from '@macuxi/comum/email';
 import { ehSemConexao, VALIDADE_SENHA_PROVISORIA_HORAS } from '@macuxi/platform-sdk';
-import { CODIGO_EMPRESA_TAMANHO, CodigoEmpresaSchema, DetalhesSenhaATrocarSchema, textoEmMinutos, type DetalhesSenhaATrocar } from './auth';
+import { CODIGO_EMPRESA_TAMANHO, CodigoEmpresaFormatoSchema, DetalhesSenhaATrocarSchema, textoEmMinutos, type DetalhesSenhaATrocar } from './auth';
 import { faltasNaSenha, mensagemDaSenha, MENSAGEM_SENHA_ESPACO_NAS_PONTAS, type FaltaNaSenha } from './senha';
 
 /** Formato do e-mail: `ehEmail` de `@macuxi/comum` (RD-0020), já sem os espaços das pontas. */
@@ -142,7 +142,7 @@ export function validarEsqueci(c: CamposEsqueci): ErrosEsqueci {
 /** RF-CORE-01: mensagem do código da empresa inválido, com o motivo real (curto, longo ou caractere); `null` se vale. O tamanho vem antes do caractere. */
 export function erroDoCodigoEmpresa(valor: string): string | null {
   const v = valor.trim();
-  if (CodigoEmpresaSchema.safeParse(v).success) return null;
+  if (CodigoEmpresaFormatoSchema.safeParse(v).success) return null;
   if (v.length < CODIGO_EMPRESA_TAMANHO) return `O código da empresa tem ${CODIGO_EMPRESA_TAMANHO} caracteres. Confira no e-mail e digite de novo.`;
   if (v.length > CODIGO_EMPRESA_TAMANHO) return `O código da empresa tem no máximo ${CODIGO_EMPRESA_TAMANHO} caracteres. Confira no e-mail e digite de novo.`;
   return 'O código da empresa tem duas letras da UF e quatro números, como AM4821. Confira no e-mail e digite de novo.';
