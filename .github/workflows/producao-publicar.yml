@@ -4,13 +4,13 @@ name: producao — publicar
 # macuxi-prod-db. Caminho de governança autorizado pelo dono do produto (mensagem de 05/11, 21h50: "workflow producao —
 # publicar (só por tag + aprovação)"). Roteiro de ligar e de voltar atrás: docs/desenho/T-0086.md (→ docs/status/producao.md).
 #   1. conferir (sem segredo): a tag v* aponta para um commit do main com o CI VERDE (push no main) e a imagem
-#      ghcr.io/<dono>/macuxi-api:<sha> existe (publicada pelo "demo — publicar" depois daquele CI). Fixa o DIGEST: a
-#      produção roda exatamente a imagem que passou no CI e já roda na demo;
+#      ghcr.io/<dono>/macuxi-api:<sha> existe (montada pelo "producao — liberar versão" depois daquele CI; ADR 0051). Fixa
+#      o DIGEST: a produção roda exatamente a imagem do commit que passou no CI, a mesma conferida no liberar e no aprovar;
 #   2. bko (sem segredo): monta o BKO DE PRODUÇÃO do mesmo commit (a origem https://bko.macuxifdv.com.br fica gravada no
-#      next build, por isso não dá para reaproveitar a imagem da demo) → ghcr.io/<dono>/macuxi-bko-prod:<sha>, por digest;
+#      next build) → ghcr.io/<dono>/macuxi-bko-prod:<sha>, por digest;
 #   3. deploy (environment PRODUCAO: espera a APROVAÇÃO do Alexandre): SSH da VM pelos secrets do environment, copia
-#      scripts/deploy/producao (+ o alerta-saude.sh da demo), roda o preparar-vm.sh (idempotente; timers do backup e do
-#      alerta), grava os segredos em /opt/macuxi (modo 600, pelo stdin do ssh), faz login no GHCR NA VM com o token deste
+#      scripts/deploy/producao (+ o alerta-saude.sh e o ghcr-tentar.sh de scripts/deploy/demo, que ficam lá: o stack
+#      isolado também os usa), roda o preparar-vm.sh (idempotente; timers do backup e do alerta), grava os segredos em /opt/macuxi (modo 600, pelo stdin do ssh), faz login no GHCR NA VM com o token deste
 #      run, roda o implantar.sh (pull, banco-dbaas.sh: papéis B0, vector, migrações com o admin herdando o
 #      macuxi_manutencao da 0031; up; /v1/saude com banco ok e a versão da tag; VOLTA ATRÁS sozinho se falhar), sai do
 #      GHCR e confere pelo domínio.
@@ -87,7 +87,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Mesma conferência do producao-liberar.yml (scripts/ci/producao-conferir.mjs): commit no main, CI verde de push no
-      # main e digest da imagem da API do commit (fixa o DIGEST: a produção roda a imagem que passou no CI e roda na demo).
+      # main e digest da imagem da API do commit (fixa o DIGEST: a produção roda a imagem do commit que passou no CI).
       - name: commit no main, CI verde e digest da imagem da API
         id: alvo
         env:
@@ -139,10 +139,8 @@ jobs:
           tags: |
             ghcr.io/${{ needs.conferir.outputs.dono }}/macuxi-bko-prod:${{ needs.conferir.outputs.sha }}
             ghcr.io/${{ needs.conferir.outputs.dono }}/macuxi-bko-prod:${{ needs.conferir.outputs.versao }}
-          # camadas do install vêm do cache do BKO da demo (mesmo lock); o next build é o do argumento de produção
-          cache-from: |
-            type=gha,scope=macuxi-bko
-            type=gha,scope=macuxi-bko-prod
+          # demo desligada (ADR 0051): sem o cache do BKO da demo; só o cache próprio da produção
+          cache-from: type=gha,scope=macuxi-bko-prod
           cache-to: type=gha,scope=macuxi-bko-prod,mode=max
 
       - name: imagem macuxi-bko-prod (envio ao GHCR, com novas tentativas)

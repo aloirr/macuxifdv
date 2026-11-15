@@ -5,8 +5,7 @@
  *   acesso (Campo, Gestão, BKO, portal do admin do cliente, sync, arquivos, Conector, jobs e e-mails). Reativar volta.
  * - Backup (RN-PLA-08): job assíncrono por tenant (`em_andamento` → `pronto` | `falhou`), exportação por tabela em NDJSON
  *   cifrado + cópia dos arquivos, no prefixo `backups-empresas/` do bucket. Consistente só com a empresa inativa.
- * - Excluir (RN-PLA-09/10): só empresa inativa, com backup pronto, consistente, iniciado depois da inativação e concluído há
- *   no máximo `PRAZO_BACKUP_PARA_EXCLUIR_DIAS`; confirmação com o código da empresa e a senha do super-admin.
+ * - Excluir (RN-PLA-09/10): ver `conferirExclusao`.
  * Regras puras aqui (o portal mostra o botão com elas; a API revalida com as mesmas). Nada aqui vai a log: só ids e códigos.
  */
 import { z } from 'zod';
@@ -15,6 +14,10 @@ import { definirEvento } from './eventos';
 const Uuid = z.string().uuid();
 const Instante = z.string().datetime({ offset: true });
 const DIA_MS = 86_400_000;
+/** Código técnico de falha (ex.: `S3_FALHOU`); nunca mensagem com dado. */
+const ErroCodigo = z.string().regex(/^[A-Z][A-Z0-9_]{1,59}$/);
+/** Tabela qualificada `<esquema>.<tabela>`. */
+const RE_TABELA = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/;
 
 // ---------- situação da empresa ----------
 /** Valores do check `tenant_status_valido` (0001). `suspenso` é a empresa INATIVA; `encerrado` só existe dentro da exclusão. */
@@ -39,8 +42,8 @@ export const MENSAGEM_EMPRESA_INATIVA =
 
 /** Códigos de erro das rotas de ações da empresa no portal (status HTTP no comentário). */
 export const CODIGOS_ACOES_EMPRESA = {
-  /** 404 — empresa inexistente ou já excluída. */
-  naoEncontrada: 'EMPRESA_NAO_ENCONTRADA',
+  /** 404 — empresa inexistente ou já excluída (o mesmo código das outras rotas do portal). */
+  naoEncontrada: 'TENANT_NAO_ENCONTRADO',
   /** 409 — há exclusão em andamento: nenhuma outra ação vale. */
   exclusaoEmAndamento: 'EXCLUSAO_EM_ANDAMENTO',
   /** 409 — já há um backup em andamento desta empresa (um por vez). */
@@ -61,6 +64,10 @@ export const CODIGOS_ACOES_EMPRESA = {
   backupIndisponivel: 'BACKUP_INDISPONIVEL',
 } as const;
 export type CodigoAcaoEmpresa = (typeof CODIGOS_ACOES_EMPRESA)[keyof typeof CODIGOS_ACOES_EMPRESA];
+const VALORES_CODIGOS_ACOES = Object.values(CODIGOS_ACOES_EMPRESA) as [
+  CodigoAcaoEmpresa,
+  ...CodigoAcaoEmpresa[],
+];
 
 /** Rotas do portal (super-admin; admin do cliente = 403 `PERFIL_SEM_ACESSO`). Ligadas por `MACUXI_EMPRESA_ACOES=1`. */
 export const ROTAS_ACOES_EMPRESA = Object.freeze({
@@ -92,8 +99,7 @@ export function prefixoDoBackupEmpresa(tenantId: string, backupId: string): stri
 
 /** Parte da tabela no backup: `dados/<esquema>.<tabela>.ndjson.gz.cifrado`. */
 export function parteDaTabela(tabela: string): string {
-  if (!/^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/.test(tabela))
-    throw new Error('parte do backup: tabela inválida');
+  if (!RE_TABELA.test(tabela)) throw new Error('parte do backup: tabela inválida');
   return `dados/${tabela}.ndjson.gz.cifrado`;
 }
 
@@ -178,10 +184,7 @@ export const BackupEmpresaSchema = z
     linhas: Contagem.nullable(),
     arquivos: Contagem.nullable(),
     /** Código técnico da falha (ex.: `S3_FALHOU`, `TABELA_FALHOU`); nunca mensagem com dado. */
-    erro_codigo: z
-      .string()
-      .regex(/^[A-Z][A-Z0-9_]{1,59}$/)
-      .nullable(),
+    erro_codigo: ErroCodigo.nullable(),
   })
   .strict()
   .superRefine((b, ctx) => {
@@ -224,7 +227,7 @@ export const ManifestoBackupEmpresaSchema = z
       .array(
         z
           .object({
-            tabela: z.string().regex(/^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/),
+            tabela: z.string().regex(RE_TABELA),
             linhas: Contagem,
             parte: z.string(),
             bytes: Contagem,
@@ -288,10 +291,7 @@ export const ExclusaoEmpresaSchema = z
     concluida_em: Instante.nullable(),
     linhas_apagadas: Contagem.nullable(),
     arquivos_apagados: Contagem.nullable(),
-    erro_codigo: z
-      .string()
-      .regex(/^[A-Z][A-Z0-9_]{1,59}$/)
-      .nullable(),
+    erro_codigo: ErroCodigo.nullable(),
   })
   .strict()
   .superRefine((x, ctx) => {
@@ -364,7 +364,7 @@ export const AcoesDaEmpresaSchema = z
     motivo_inativacao: z.enum(MOTIVOS_INATIVACAO).nullable(),
     ultimo_backup: BackupEmpresaSchema.nullable(),
     exclusao: ExclusaoEmpresaSchema.nullable(),
-    exclusao_bloqueada: z.string().nullable(),
+    exclusao_bloqueada: z.enum(VALORES_CODIGOS_ACOES).nullable(),
   })
   .strict();
 export type AcoesDaEmpresa = z.infer<typeof AcoesDaEmpresaSchema>;
@@ -402,7 +402,7 @@ export const EVENTO_TENANT_BACKUP_FALHOU = definirEvento(
     .object({
       tenant_id: Uuid,
       backup_id: Uuid,
-      erro_codigo: z.string().regex(/^[A-Z][A-Z0-9_]{1,59}$/),
+      erro_codigo: ErroCodigo,
       falhou_em: Instante,
     })
     .strict(),

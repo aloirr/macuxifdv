@@ -272,6 +272,10 @@ describe('contratos da lista e eventos', () => {
       exclusao_bloqueada: null,
     };
     expect(AcoesDaEmpresaSchema.safeParse(acoes).success).toBe(true);
+    expect(
+      AcoesDaEmpresaSchema.safeParse({ ...acoes, exclusao_bloqueada: C.exclusaoBackupVencido }).success,
+    ).toBe(true);
+    expect(AcoesDaEmpresaSchema.safeParse({ ...acoes, exclusao_bloqueada: 'QUALQUER' }).success).toBe(false);
     expect(EmpresaResumoSchema.safeParse({ ...item, acoes }).success).toBe(true);
   });
   it('eventos plataforma.tenant.*@1 com nome válido e payload estrito, sem dado pessoal', () => {
