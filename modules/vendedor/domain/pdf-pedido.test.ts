@@ -401,12 +401,12 @@ describe('T-0159: PDF final (proposta 2) com filial de faturamento, Marca, Emb. 
 
   describe('T-0159: PDF horizontal (R-20261111-084832)', () => {
     const dois = detalhe({ history: [{ at: '2026-11-01T14:00:05.000Z', status: 'received', by: 'Renata Fictícia', note: '' }, { at: '2026-11-01T15:00:05.000Z', status: 'approved', by: 'Renata Fictícia', note: '' }] });
-    it('página A4 paisagem, itens 15 px, rótulos 10,5 px, total 26 px, ficha #F1F2F0 e cabeçalho da tabela verde com texto branco', () => {
+    it('página A4 paisagem, itens 15 px, rótulos 12 px, total 26 px, ficha #F1F2F0 e cabeçalho da tabela verde com texto branco', () => {
       for (const v of ['customer', 'bko'] as const) {
         const html = buildOrderPdfHtml(pdfDoPedido(detalhe()), v, ctx);
         expect(html).toContain('size: A4 landscape');
         expect(html).toContain('font-size: 15px');
-        expect(html).toContain('font-size: 10.5px');
+        expect(html).toContain('font-size: 12px');
         expect(html).toContain('font-size: 26px');
         expect(html).toContain('background: #F1F2F0');
         expect(html).toContain(`color: #fff; background: ${COR_CABECALHO_TABELA}`);
@@ -501,7 +501,7 @@ describe('T-0159: PDF final (proposta 2) com filial de faturamento, Marca, Emb. 
       const html = buildOrderPdfHtml(pdfDoPedido(detalhe({ observacao: 'Deixar na doca' })), 'customer', ctx);
       expect(html).toContain('<div class="obs"><div class="r">Observação do pedido</div><b>Deixar na doca</b></div>');
       expect(html).toMatch(/\.obs \.r \{ display: block;/);
-      expect(html).toMatch(/\.r \{[^}]*font-size: 10\.5px[^}]*text-transform: uppercase[^}]*color: #5B6673/);
+      expect(html).toMatch(/\.r \{[^}]*font-size: 12px[^}]*text-transform: uppercase[^}]*color: #5B6673/);
       expect(html).toMatch(/\.obs b \{ display: block;[^}]*font-weight: 600/);
     });
     it('T-0159: o Desconto da caixa do Total sai na cor do texto, sem laranja', () => {
@@ -520,7 +520,7 @@ describe('T-0159: PDF final (proposta 2) com filial de faturamento, Marca, Emb. 
     });
     it('T-0159: caixa do Total com o valor em 800 (vence o peso do .v) e traço sob a última linha da tabela', () => {
       const html = buildOrderPdfHtml(pdfDoPedido(detalhe()), 'customer', ctx);
-      expect(html).toMatch(/\.totalbox \.lin \.vt \{ font-weight: 800; font-size: 26px/);
+      expect(html).toMatch(/\.totalbox \.lin \.vt \{ font-weight: 600; font-size: 26px/);
       expect(html).toMatch(/tbody tr:last-child td \{ border-bottom: 1\.5px solid #16202A/);
     });
   });

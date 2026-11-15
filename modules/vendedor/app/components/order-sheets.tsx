@@ -4,7 +4,7 @@
  * - Exportar PDF: para o cliente (sem desconto) ou para o escritório (tabela, desconto, alçada, histórico).
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { BotaoFolha, Icon, LinhaOpcaoFolha, colors, fonts, radius, type as t } from '@macuxi/ui/mobile';
+import { BotaoFolha, Icon, LinhaOpcaoFolha, colors, fonte, radius, type as t } from '@macuxi/ui/mobile';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -170,10 +170,10 @@ const styles = StyleSheet.create({
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(22,32,42,0.45)' },
   sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 18, paddingTop: 20, gap: 12, maxWidth: 560, alignSelf: 'center', width: '100%' },
   tile: { width: 44, height: 44, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
-  title: { fontFamily: fonts.display, fontSize: 20, color: colors.ink },
-  overline: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.7, color: colors.ink2 },
-  para: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.ink2 },
-  input: { height: 46, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, fontFamily: fonts.body, fontSize: 15, color: colors.ink, backgroundColor: colors.surface },
+  title: { ...fonte.bold, fontSize: 22, color: colors.ink },
+  overline: { ...fonte.bold, fontSize: 12, letterSpacing: 0.7, color: colors.ink2 },
+  para: { ...fonte.body, fontSize: 14, lineHeight: 20, color: colors.ink2 },
+  input: { height: 46, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, ...fonte.body, fontSize: 16, color: colors.ink, backgroundColor: colors.surface },
   textBtn: { height: 44, alignItems: 'center', justifyContent: 'center' },
-  textBtnLabel: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink2 },
+  textBtnLabel: { ...fonte.semibold, fontSize: 14, color: colors.ink2 },
 });
