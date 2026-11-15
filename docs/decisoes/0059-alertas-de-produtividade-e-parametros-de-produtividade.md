@@ -1,14 +1,16 @@
 # ADR 0059 — Alertas de produtividade no Gestor e parâmetro `alertas.produtividade` do Core
 
-- **Status**: proposta em 2026-11-15 (branch `nuvem/T-0180-alertas-engenheiro-software`).
+- **Status**: proposta em 2026-11-15 (branch `nuvem/T-0180-alertas-engenheiro-software`); revista no mesmo dia (rodada 2) com as
+  decisões do gerente-projetos tomadas depois da rodada 1: ação `parametro.alertas_produtividade`, rota própria do `parado_min`,
+  permanência mínima fora do Gestor na v1.0.13, tabela `core.usuario_contato` na 0085 e almoço descontado do "parado".
 - **Data**: 2026-11-15 (Manaus)
 - **Autor**: engenheiro-software
 - **Origem**: T-0180 (v1.0.13), decisões D1 a D6 (R-20261115-123000 item 1 e R-20261115-120632, tomadas pelo gerente-projetos
   por delegação escrita do dono do produto). Desenho: `docs/desenho/T-0180.md`; proposta funcional do Gestor:
   `docs/modulos/gestor/alertas-produtividade.md` (branch `nuvem/T-0180-alertas-modulo-gestor`).
 - **Quem implementa**: modulo-core (parâmetro, consulta, contato do aparelho), modulo-gestor (avaliação e chave), banco-dados
-  (0085 e a tabela do contato), modulo-promotor (permanência mínima, §6), engenheiro-software (gancho do contato no SDK e na API,
-  esta ADR).
+  (0085, com `core.usuario_contato`), engenheiro-software (gancho do contato no SDK e na API, esta ADR). A consulta da permanência
+  no Promotor e a migração da cópia ficam para uma tarefa seguinte da esteira (§6).
 
 ## Contexto
 - O Gestor passa a abrir dois alertas de produtividade da equipe (D4): `parado_entre_visitas` e `sem_checkin_inicio`. Os outros
@@ -36,16 +38,17 @@
    - Guardado em `plataforma.parametro` (módulo `core`, chave `alertas.produtividade`), JSON validado pelo Zod
      `parametrosAlertasProdutividadeSchema` de `@macuxi/core/contracts`, com `PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO` (D6). Chave
      ausente ou inválida = padrão (nunca 500).
-   - Escrita só pela rota do Core `PUT /v1/core/parametros/alertas-produtividade`, com ação própria do Core (`parametro.alertas`,
-     analista e admin), idempotente (grava e audita só o que mudou, RN-AUD-01). O BKO do Gestor (Parâmetros › Alertas) chama essa
-     rota; o Gestor não grava parâmetro do Core.
+   - Leitura e escrita pelas rotas do Core `GET|PUT /v1/core/parametros/alertas-produtividade`, com ação própria do Core
+     `parametro.alertas_produtividade` (analista e admin). O nome não é `parametro.alertas`: o SDK não deixa a mesma ação em dois
+     módulos. A escrita é idempotente (grava e audita só o que mudou, RN-AUD-01). O BKO do Gestor (Parâmetros › Alertas) chama
+     essas rotas; o Gestor não grava parâmetro do Core.
    - O Campo lê pelo pull `parametro` do Core (a chave entra na lista do `onde` de `modules/core/api/sync.ts`).
    - O Gestor lê pela consulta `core.produtividade_equipe@1` (§4). O tipo espelhado em
      `modules/gestor/domain/produtividade-do-dia.ts` (adaptador temporário) sai e o Gestor importa o contrato do Core.
 3. **D1: `inicio.parado_min` é o valor único do "parado".** Mesma chave e mesmo dono (Core); nenhuma migração. Sai do formulário
-   de Parâmetros › Início e passa a ser editado em Parâmetros › Alertas. Para uma tela, uma rota e uma auditoria, o corpo do
-   `PUT /v1/core/parametros/alertas-produtividade` leva também `parado_min` e o Core o grava em `inicio.parado_min` (não no JSON
-   de `alertas.produtividade`). O campo continua editável com a regra desligada. O Gestor recebe o valor pela consulta (§4) e
+   de Parâmetros › Início e passa a ser editado em Parâmetros › Alertas. É gravado **só** pela rota própria
+   `PUT /v1/core/parametros/parado-min` (mesma ação `parametro.alertas_produtividade`, idempotente e auditada), nunca dentro do JSON
+   de `alertas.produtividade`; o PUT de Parâmetros › Início deixa de gravá-lo. O campo continua editável com a regra desligada. O Gestor recebe o valor pela consulta (§4) e
    deixa de procurar `inicio.parado_min` nos próprios parâmetros (`modules/gestor/domain/parametros.ts`), onde ele nunca chega.
 4. **Consulta `core.produtividade_equipe@1` (ADR 0012), dono Core, consumidor Gestor (`usaConsultas`).**
    - Entrada: `{ usuario_ids: uuid[] }` (1 a 500), estrita.
@@ -57,22 +60,26 @@
    - Plataforma (feito nesta ADR): `ModuloApi.contatoDoAparelho?(ctx)`, só core (`definirModuloApi` recusa nos outros); a API
      chama depois do novidades e do push, com o contexto do core do usuário, em melhor esforço (erro vira `warn` sem dado
      pessoal; a sincronização responde normalmente). O pull não conta (cada página seria uma escrita).
-   - Core: grava numa tabela própria, `core.usuario_contato (tenant_id, usuario_id, contato_em, …)` com RLS e as colunas
-     obrigatórias, um registro por usuário, `insert … on conflict do update … where contato_em < excluded.contato_em - 1 min`
+   - Core: grava na tabela própria `core.usuario_contato (tenant_id, usuario_id, contato_em, …)`, criada pela migração 0085 do
+     banco-dados (b7af968) com RLS e as colunas obrigatórias, um registro por usuário (`usuario_contato_usuario_uk`), `insert … on conflict do update … where contato_em < excluded.contato_em - 1 min`
      (trava de frequência no SQL; idempotente). **Não** em `core.usuario`: o `updated_at` andaria a cada sincronização e todo
      aparelho puxaria o usuário de novo.
    - Gestor: só abre `parado_entre_visitas` com `ultimo_contato_em` posterior ao último checkout, e `sem_checkin_inicio` com
      `ultimo_contato_em` posterior ao horário `ate` do dia (não acusa quem trabalhou sem sinal e ainda não sincronizou).
+   - Gestor: o tempo "parado" desconta o almoço cadastrado do usuário (`almoco_inicio_min`/`almoco_fim_min` da consulta), como o
+     lembrete do Campo faz; a parte do intervalo entre o último checkout e agora que cai no almoço não conta para `parado_min`.
+     Mesma regra nos dois lados: a conta fica numa função pura (RN-CORE-26) e o teste cobre intervalo antes, durante e depois do
+     almoço.
 6. **Permanência mínima (RN-PRO-07): um valor, um lugar, no Promotor.** A regra é do Promotor e ele já a lê de
    `plataforma.parametro` (módulo `promotor`, `permanencia_min_min`, indicadores e relatórios). O Gestor tem uma cópia
    (`gestor`/`permanencia_min_min`) para a "Visita curta"; gravá-la em Parâmetros › Alertas criaria dois valores que divergem.
-   - O Promotor oferece `promotor.parametros_trade@1` (`configuracaoDoTenant: true`, saída com `permanencia_min_min`) e a rota de
-     escrita da permanência com ação própria (analista e admin), idempotente e auditada.
-   - O Gestor lê pela consulta (`usaConsultasOpcionais`: sem Promotor não há "Visita curta"), tira `permanencia_min_min` de
-     `ParametrosAlertasEquipe` e de `ParametrosGestor`, e a tela chama a rota do Promotor.
-   - banco-dados: migração de dados que copia `gestor`/`permanencia_min_min` para `promotor` onde o Promotor não tem valor e
-     apaga (soft delete) a linha do Gestor.
-   - Até isso entrar, o `PUT /v1/gestor/parametros/alertas` **não** grava a permanência (o campo sai do contrato e da tela).
+   - **Na v1.0.13** a permanência sai do Gestor: o `PUT /v1/gestor/parametros/alertas` não a grava (o campo sai do contrato e da
+     tela Parâmetros › Alertas). A linha `gestor`/`permanencia_min_min` existente fica como está até a tarefa seguinte.
+   - **Tarefa seguinte da esteira** (fora da T-0180): o Promotor oferece `promotor.parametros_trade@1` (`configuracaoDoTenant: true`,
+     saída com `permanencia_min_min`) e a rota de escrita com ação própria (analista e admin), idempotente e auditada; o Gestor a
+     lê em `usaConsultasOpcionais` (sem Promotor não há "Visita curta") e tira `permanencia_min_min` de `ParametrosAlertasEquipe`
+     e de `ParametrosGestor`; o banco-dados migra a cópia (`gestor` → `promotor` onde o Promotor não tem valor, soft delete da
+     linha do Gestor).
 7. **Um alerta de produtividade aberto por pessoa (D4).** Os dois tipos usam a MESMA chave: `produtividade:<usuario_id>`. Assim o
    `alerta_vivo_uk` garante no banco um vivo por pessoa, também com avaliações concorrentes. Em `reconciliarAlertas`, condição com a
    mesma chave e **tipo diferente** do vivo encerra o vivo (`condicao_normalizada`, motivo já existente; nenhum valor novo em
@@ -95,4 +102,6 @@
 - O Gestor depende de `core.produtividade_equipe@1`; sem o PR do Core, os alertas de produtividade não são avaliados (o
   `produtividade` ausente desliga os dois tipos, como já está no domain).
 - Uma escrita a mais por usuário e por minuto, no máximo, na sincronização (a trava fica no SQL do Core).
-- Os alertas novos precisam da 0085 no banco antes do código do Gestor que os grava (ordem de merge: banco-dados, Core, Gestor).
+- Os alertas novos precisam da 0085 no banco (tipos novos e `core.usuario_contato`) antes do código do Core e do Gestor que os
+  grava (ordem de merge: banco-dados, Core, Gestor).
+- Até a tarefa seguinte da §6, a "Visita curta" do Gestor segue com a cópia `gestor`/`permanencia_min_min`, sem tela para editá-la.
