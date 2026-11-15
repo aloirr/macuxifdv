@@ -1022,7 +1022,7 @@ empresa, só de leitura e nunca reaproveitado.
 
 | Objeto | O que é |
 |---|---|
-| `core.usuario.codigo_fdv text` | o código; nulo só no usuário apagado antes da 0080. CHECK `usuario_codigo_fdv_formato` (`^\d{5,}$`: só dígitos, 5 ou mais) |
+| `core.usuario.codigo_fdv text` | o código; nulo só no usuário apagado antes da 0080. CHECK `usuario_codigo_fdv_formato` (`^(0000[1-9]|000[1-9][0-9]|00[1-9][0-9]{2}|0[1-9][0-9]{3}|[1-9][0-9]{4,})$`: só o que o gatilho gera, 5 dígitos de `00001` a `99999` ou 6 ou mais sem zero à esquerda; `00000`, `000001` e `0100000` são recusados) |
 | `usuario_codigo_fdv_uk` | único `(tenant_id, codigo_fdv) where deleted_at is null and codigo_fdv is not null`; cobre a busca pelo código |
 | `core.usuario_codigo_fdv_contador` | uma linha por tenant (`usuario_codigo_fdv_contador_tenant_uk`; id = `uuid_de_chave('<tenant>:core.usuario_codigo_fdv_contador')`), `ultimo_sequencial bigint >= 0` = maior número emitido. Colunas-padrão, RLS forçado, `isolamento_tenant` + `manutencao`; `macuxi_app` só **select**. Fora do sync |
 | `usuario_codigo_fdv_contador_nao_diminui` | gatilho BEFORE UPDATE do contador: diminuir ou trocar de tenant = 23514, constraint de mesmo nome |

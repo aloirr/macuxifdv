@@ -51,11 +51,18 @@ describe('0080 Código FDV (estático)', () => {
   it('coluna text, CHECK do formato canônico e único entre os vivos', () => {
     expect(up).toContain('alter table core.usuario add column codigo_fdv text;');
     expect(umaLinha(up)).toContain(
-      "add constraint usuario_codigo_fdv_formato check (codigo_fdv is null or codigo_fdv ~ '^\\d{5,}$');",
+      "add constraint usuario_codigo_fdv_formato check (codigo_fdv is null or codigo_fdv ~ '^(0000[1-9]|000[1-9][0-9]|00[1-9][0-9]{2}|0[1-9][0-9]{3}|[1-9][0-9]{4,})$');",
     );
     expect(umaLinha(up)).toContain(
       'create unique index usuario_codigo_fdv_uk on core.usuario (tenant_id, codigo_fdv) where deleted_at is null and codigo_fdv is not null;',
     );
+  });
+
+  it('CHECK do formato = só o que o gatilho gera: 00001..99999 e, acima, sem zero à esquerda', () => {
+    const re = new RegExp(/codigo_fdv ~ '([^']+)'\);/.exec(up)![1]!);
+    for (const ok of ['00001', '00010', '09999', '99999', '100000', '100001', '1234567']) expect(re.test(ok), ok).toBe(true);
+    for (const nao of ['00000', '000001', '0100000', '0001', '1234', 'FDV-0001', '1234a', '']) expect(re.test(nao), nao).toBe(false);
+    for (let n = 1; n <= 120000; n += 997) expect(re.test(fdv(n)), fdv(n)).toBe(true);
   });
 
   it('contador: colunas-padrão, único por tenant, RLS forçado com as 2 políticas, app só lê, fora do sync', () => {
@@ -209,11 +216,27 @@ describe.skipIf(semBanco())('0080 Código FDV (banco, papel de aplicação sobre
       expect((await q('select codigo_fdv from core.usuario where id = $1', [u.id])).rows).toEqual([{ codigo_fdv: u.codigo_fdv }]);
       const outro = await novo(A.tenantId, 'fdv4@exemplo.com.br');
       expect(numero(outro.codigo_fdv)).toBe(numero(u.codigo_fdv) + 1);
-      for (const [codigo, sqlstate] of [[CODIGOS_FDV_FIXTURE.A.admin, '23505'], ['0001', '23514'], ['FDV-00012', '23514'], ['1234a', '23514']] as const) {
+      for (const [codigo, sqlstate] of [
+        [CODIGOS_FDV_FIXTURE.A.admin, '23505'],
+        ['00000', '23514'],
+        ['000001', '23514'],
+        ['0100000', '23514'],
+        ['0001', '23514'],
+        ['FDV-00012', '23514'],
+        ['1234a', '23514'],
+      ] as const) {
         await q('savepoint s');
         const e = await erroDe(q("insert into core.usuario (tenant_id, nome, email, perfil, codigo_fdv) values ($1, 'X', 'fdvx@exemplo.com.br', 'vendedor', $2)", [A.tenantId, codigo]));
         expect(e?.code, codigo).toBe(sqlstate);
         await q('rollback to savepoint s');
+      }
+      // o CHECK aceita o que o gatilho gera (apagados: fora da unicidade dos vivos)
+      for (const codigo of ['00001', '99999', '100000']) {
+        const r = await q(
+          "insert into core.usuario (tenant_id, nome, email, perfil, codigo_fdv, deleted_at) values ($1, 'Ok', $2, 'vendedor', $3, now()) returning codigo_fdv", // hora-fixa-ok: só apaga
+          [A.tenantId, `fdvok${codigo}@exemplo.com.br`, codigo],
+        );
+        expect(r.rows, codigo).toEqual([{ codigo_fdv: codigo }]);
       }
     });
   });

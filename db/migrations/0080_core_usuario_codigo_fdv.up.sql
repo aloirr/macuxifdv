@@ -8,7 +8,8 @@
 -- para 100000; R-20261115-110000). Para todos os perfis, gerado ao criar o usuário, só de leitura e nunca reaproveitado.
 --
 -- 1. core.usuario.codigo_fdv text (nulo só no usuário apagado antes desta migração). CHECK usuario_codigo_fdv_formato: só
---    dígitos, 5 ou mais (^\d{5,}$). Único vivo por tenant:
+--    o que o gatilho gera: 5 dígitos de 00001 a 99999, ou 6 ou mais sem zero à esquerda (100000…); recusa 00000, 000001 e
+--    0100000 (regex sem lookahead, a mesma do validarCodigoFdv do Core). Único vivo por tenant:
 --    usuario_codigo_fdv_uk (tenant_id, codigo_fdv) where deleted_at is null and codigo_fdv is not null. O apagado (inclusive o
 --    provisório desativado no vínculo do ERP) mantém o código, fica fora da unicidade dos vivos e o número dele continua contado.
 -- 2. core.usuario_codigo_fdv_contador (dono: Core; fora do sync, só o banco usa): uma linha por tenant (id = uuid_de_chave
@@ -51,7 +52,7 @@
 -- 1. Coluna, formato e unicidade -----------------------------------------------------------------------------------------------
 alter table core.usuario add column codigo_fdv text;
 alter table core.usuario add constraint usuario_codigo_fdv_formato
-  check (codigo_fdv is null or codigo_fdv ~ '^\d{5,}$');
+  check (codigo_fdv is null or codigo_fdv ~ '^(0000[1-9]|000[1-9][0-9]|00[1-9][0-9]{2}|0[1-9][0-9]{3}|[1-9][0-9]{4,})$');
 create unique index usuario_codigo_fdv_uk on core.usuario (tenant_id, codigo_fdv)
   where deleted_at is null and codigo_fdv is not null;
 
