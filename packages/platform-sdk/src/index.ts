@@ -40,3 +40,4 @@ export * from './pacotes';
 export * from './diagnostico';
 export * from './cnpj';
 export * from './planos';
+export * from './empresa-acoes';
