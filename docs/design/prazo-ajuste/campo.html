@@ -2,18 +2,18 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<title>Ajuste do prazo · app Campo (simulação)</title>
+<title>Ajuste do prazo no preço de tabela · app Campo (simulação)</title>
 <link rel="stylesheet" href="../telas/telas.css">
 <link rel="stylesheet" href="../telas/marca-v1-novo-pedido.css">
 <link rel="stylesheet" href="campo.css">
 </head>
 <body>
-<h1 class="prancha">Desc./Acrésc. do prazo · app Campo</h1>
-<p class="prancha">R-20261115-111000, alvo v1.0.13 · simulação para aprovação, sem código. O contorno laranja tracejado só marca o que é novo; não sai no app.</p>
+<h1 class="prancha">Desc./Acrésc. do prazo no valor de tabela · app Campo</h1>
+<p class="prancha">R-20261115-111000 e R-20261115-121000 · simulação para aprovação, sem código. O % do prazo muda o valor de tabela de cada produto e não aparece em lugar nenhum. O contorno laranja tracejado só marca o que muda; não sai no app.</p>
 <div class="board">
 
   <div class="tela" id="t1">
-    <div class="legenda"><b>1</b>Venda · lista de Prazo aberta<span>O % aparece à direita do prazo, só quando é diferente de zero.</span></div>
+    <div class="legenda"><b>1</b>Venda · lista do Prazo aberta<span>Igual a hoje: só o prazo, sem percentual.</span></div>
     <div class="phone" style="position:relative">
       <div class="status"><span>10:42</span><span>4G ▮▮▮ 71%</span></div>
       <div class="cab">
@@ -38,31 +38,35 @@
         </div>
       </div>
       <div class="barra-abas" data-ativa="clientes"></div>
-      <div class="menu-lista" id="menu-prazo" style="width:224px"><div class="op marcada"><span class="txt"><span class="rot">À vista</span></span><span class="pct novo">−1,71%</span><span class="ic"><i data-i="check" data-t="16" data-c="#1E3350" data-w="2.6"></i></span></div><div class="op"><span class="txt"><span class="rot">28 dias</span></span><span class="ic"></span></div><div class="op"><span class="txt"><span class="rot">28/56 dias</span></span><span class="ic"></span></div><div class="op"><span class="txt"><span class="rot">60 dias</span></span><span class="pct novo">+2,50%</span><span class="ic"></span></div><div class="op off"><span class="txt"><span class="rot">30/60/90 dias</span><span class="mot">Acima do prazo médio do cliente</span></span><span class="pct novo">+3,90%</span><span class="ic"><i data-i="cadeado" data-t="14" data-c="#8A949C"></i></span></div></div>
+      <div class="menu-lista" id="menu-prazo"><div class="op marcada"><span class="txt"><span class="rot">À vista</span></span><span class="ic"><i data-i="check" data-t="16" data-c="#1E3350" data-w="2.6"></i></span></div><div class="op"><span class="txt"><span class="rot">28 dias</span></span><span class="ic"></span></div><div class="op"><span class="txt"><span class="rot">28/56 dias</span></span><span class="ic"></span></div><div class="op"><span class="txt"><span class="rot">60 dias</span></span><span class="ic"></span></div><div class="op off"><span class="txt"><span class="rot">30/60/90 dias</span><span class="mot">Acima do prazo médio do cliente</span></span><span class="ic"><i data-i="cadeado" data-t="14" data-c="#8A949C"></i></span></div></div>
     </div>
   </div>
 
   <div class="tela" id="t2">
-    <div class="legenda"><b>2</b>Resumo · à vista com desconto do prazo<span>Boleto à vista (−1,71%), sem desconto nos itens. Rolado até os Totais.</span></div>
-    <div class="phone">
+    <div class="legenda"><b>2</b>Resumo · Boleto à vista (−1,71%)<span>Valor de tabela já com o prazo: o filtro de R$ 100,00 sai a 98,29. Totais sem linha de prazo.</span></div>
+    <div class="phone longo">
       <div class="status"><span>10:42</span><span>4G ▮▮▮ 71%</span></div>
       <div class="cab">
         <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
         <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (4)</div><div class="aba">Entrega</div><div class="aba ativa">Resumo</div></div>
       </div>
-      <div class="conteudo rolado" style="padding:0">
-        <div class="trilho" style="top:-420px">
+      <div class="conteudo">
+        <div class="secao-t">Cliente</div>
+        <div class="kv">
+          <div class="l"><span class="r">Razão social</span><span class="t">Padaria Trigo Fino Ltda</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">23.456.789/0001-07</span></div>
+        </div>
         <div class="secao-t">Condição de pagamento</div>
         <div class="kv">
           <div class="l"><span class="r">Forma</span><span class="t">Boleto</span></div>
           <div class="l"><span class="r">Prazo</span><span class="t">À vista</span></div>
         </div>
         <div class="secao-t">Itens</div>
-        <div class="ti-box b8">
+        <div class="ti-box b8" style="position:relative">
           <table class="ti ti7 ti8">
             <colgroup><col><col style="width:47px"><col style="width:27px"><col style="width:49px"><col style="width:47px"><col style="width:53px"><col style="width:35px"></colgroup>
-            <thead><tr><th>Código</th><th class="a-esq">Emb.</th><th>Qtd</th><th>Valor<br>tabela</th><th>Desc./<br>Acrésc.</th><th>Total</th><th></th></tr></thead>
-            <tbody><tr><td><span class="cod">AGU-1500</span></td><td class="a-esq"><span class="e1">FD c/ 6</span></td><td>10</td><td>199,20</td><td><span class="zero">0,0%</span></td><td class="tot">199,20</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">LPO-400</span></td><td class="a-esq"><span class="e1">UN</span></td><td>20</td><td>355,00</td><td><span class="zero">0,0%</span></td><td class="tot">355,00</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">CAF-500</span></td><td class="a-esq"><span class="e1">UN</span></td><td>30</td><td>402,00</td><td><span class="zero">0,0%</span></td><td class="tot">402,00</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">DET-500</span></td><td class="a-esq"><span class="e1">UN</span></td><td>12</td><td>43,80</td><td><span class="zero">0,0%</span></td><td class="tot">43,80</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr></tbody>
+            <thead><tr><th>Código</th><th class="a-esq">Emb.</th><th>Qtd</th><th class="vt">Valor<br>tabela</th><th>Desc./<br>Acrésc.</th><th>Total</th><th></th></tr></thead>
+            <tbody><tr><td><span class="cod">FIL-5548</span></td><td class="a-esq"><span class="e1">UN</span></td><td>1</td><td class="vt">98,29</td><td><span class="zero">0,0%</span></td><td class="tot">98,29</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">LPO-400</span></td><td class="a-esq"><span class="e1">UN</span></td><td>20</td><td class="vt">349,00</td><td>−5,0%</td><td class="tot">331,55</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">CAF-500</span></td><td class="a-esq"><span class="e1">UN</span></td><td>30</td><td class="vt">395,10</td><td><span class="zero">0,0%</span></td><td class="tot">395,10</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">DET-500</span></td><td class="a-esq"><span class="e1">UN</span></td><td>10</td><td class="vt">42,30</td><td><span class="zero">0,0%</span></td><td class="tot">42,30</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr></tbody>
           </table>
         </div>
         <div class="secao-t">Entrega</div>
@@ -73,39 +77,42 @@
         <div class="secao-t">Observação do pedido</div>
         <div class="texto-area" style="min-height:64px;color:var(--ink)">Entregar até sexta-feira.</div>
         <div class="secao-t">Totais</div>
-        <div class="tt"><div class="l"><span class="r">Valor de tabela</span><span class="v">R$ 1.000,00</span></div><div class="l"><span class="r">Desconto (%)</span><span class="v">0,0%</span></div><div class="l"><span class="r">Desconto (R$)</span><span class="v">R$ 0,00</span></div><div class="l novo"><span class="r">Desconto do prazo (1,71%)</span><span class="v">− R$ 17,10</span></div><div class="l total"><span class="r">Valor final</span><span class="v">R$ 982,90</span></div>
+        <div class="tt"><div class="l"><span class="r">Valor de tabela</span><span class="v">R$ 884,69</span></div><div class="l"><span class="r">Desconto (%)</span><span class="v">2,0%</span></div><div class="l"><span class="r">Desconto (R$)</span><span class="v">− R$ 17,45</span></div><div class="l total"><span class="r">Valor final</span><span class="v">R$ 867,24</span></div>
         </div>
         <div style="height:6px"></div>
         <div class="btn principal">Salvar e enviar pedido</div>
         <div class="duas-btn"><div class="btn secundario">Apenas salvar</div><div class="btn secundario">Salvar como orçamento</div></div>
         <div class="btn-texto" style="margin-top:-2px">Cancelar</div>
-        </div>
       </div>
       <div class="barra-abas" data-ativa="clientes"></div>
     </div>
   </div>
 
   <div class="tela" id="t3">
-    <div class="legenda"><b>3</b>Resumo · 60 dias com acréscimo do prazo<span>Boleto 60 dias (+2,50%), com desconto em 2 itens. Rolado até os Totais.</span></div>
-    <div class="phone">
+    <div class="legenda"><b>3</b>O mesmo pedido trocado para 60 dias (+2,50%)<span>Os valores de tabela são refeitos: o filtro vai a 102,50; o −5% do leite vale sobre a tabela nova.</span></div>
+    <div class="phone longo">
       <div class="status"><span>10:42</span><span>4G ▮▮▮ 71%</span></div>
       <div class="cab">
         <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
         <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (4)</div><div class="aba">Entrega</div><div class="aba ativa">Resumo</div></div>
       </div>
-      <div class="conteudo rolado" style="padding:0">
-        <div class="trilho" style="top:-420px">
+      <div class="conteudo">
+        <div class="secao-t">Cliente</div>
+        <div class="kv">
+          <div class="l"><span class="r">Razão social</span><span class="t">Padaria Trigo Fino Ltda</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">23.456.789/0001-07</span></div>
+        </div>
         <div class="secao-t">Condição de pagamento</div>
         <div class="kv">
           <div class="l"><span class="r">Forma</span><span class="t">Boleto</span></div>
           <div class="l"><span class="r">Prazo</span><span class="t">60 dias</span></div>
         </div>
         <div class="secao-t">Itens</div>
-        <div class="ti-box b8">
+        <div class="ti-box b8" style="position:relative">
           <table class="ti ti7 ti8">
             <colgroup><col><col style="width:47px"><col style="width:27px"><col style="width:49px"><col style="width:47px"><col style="width:53px"><col style="width:35px"></colgroup>
-            <thead><tr><th>Código</th><th class="a-esq">Emb.</th><th>Qtd</th><th>Valor<br>tabela</th><th>Desc./<br>Acrésc.</th><th>Total</th><th></th></tr></thead>
-            <tbody><tr><td><span class="cod">AGU-1500</span></td><td class="a-esq"><span class="e1">FD c/ 6</span></td><td>10</td><td>199,20</td><td>−5,0%</td><td class="tot">189,24</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">LPO-400</span></td><td class="a-esq"><span class="e1">UN</span></td><td>20</td><td>355,00</td><td>−10,0%</td><td class="tot">319,50</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">CAF-500</span></td><td class="a-esq"><span class="e1">UN</span></td><td>30</td><td>402,00</td><td><span class="zero">0,0%</span></td><td class="tot">402,00</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">DET-500</span></td><td class="a-esq"><span class="e1">UN</span></td><td>12</td><td>43,80</td><td><span class="zero">0,0%</span></td><td class="tot">43,80</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr></tbody>
+            <thead><tr><th>Código</th><th class="a-esq">Emb.</th><th>Qtd</th><th class="vt">Valor<br>tabela</th><th>Desc./<br>Acrésc.</th><th>Total</th><th></th></tr></thead>
+            <tbody><tr><td><span class="cod">FIL-5548</span></td><td class="a-esq"><span class="e1">UN</span></td><td>1</td><td class="vt">102,50</td><td><span class="zero">0,0%</span></td><td class="tot">102,50</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">LPO-400</span></td><td class="a-esq"><span class="e1">UN</span></td><td>20</td><td class="vt">363,80</td><td>−5,0%</td><td class="tot">345,61</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">CAF-500</span></td><td class="a-esq"><span class="e1">UN</span></td><td>30</td><td class="vt">412,20</td><td><span class="zero">0,0%</span></td><td class="tot">412,20</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">DET-500</span></td><td class="a-esq"><span class="e1">UN</span></td><td>10</td><td class="vt">44,10</td><td><span class="zero">0,0%</span></td><td class="tot">44,10</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr></tbody>
           </table>
         </div>
         <div class="secao-t">Entrega</div>
@@ -116,13 +123,26 @@
         <div class="secao-t">Observação do pedido</div>
         <div class="texto-area" style="min-height:64px;color:var(--ink)">Entregar até sexta-feira.</div>
         <div class="secao-t">Totais</div>
-        <div class="tt"><div class="l"><span class="r">Valor de tabela</span><span class="v">R$ 1.000,00</span></div><div class="l"><span class="r">Desconto (%)</span><span class="v">4,5%</span></div><div class="l"><span class="r">Desconto (R$)</span><span class="v">− R$ 45,46</span></div><div class="l novo"><span class="r">Acréscimo do prazo (2,50%)</span><span class="v">+ R$ 23,86</span></div><div class="l total"><span class="r">Valor final</span><span class="v">R$ 978,40</span></div>
+        <div class="tt"><div class="l"><span class="r">Valor de tabela</span><span class="v">R$ 922,60</span></div><div class="l"><span class="r">Desconto (%)</span><span class="v">2,0%</span></div><div class="l"><span class="r">Desconto (R$)</span><span class="v">− R$ 18,19</span></div><div class="l total"><span class="r">Valor final</span><span class="v">R$ 904,41</span></div>
         </div>
         <div style="height:6px"></div>
         <div class="btn principal">Salvar e enviar pedido</div>
         <div class="duas-btn"><div class="btn secundario">Apenas salvar</div><div class="btn secundario">Salvar como orçamento</div></div>
         <div class="btn-texto" style="margin-top:-2px">Cancelar</div>
-        </div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <div class="tela" id="t4">
+    <div class="legenda"><b>4</b>Catálogo pela ficha do cliente<span>Preço no prazo padrão do cliente (Boleto 60 dias, +2,50%). Pelo menu, sem cliente, a tabela pura.</span></div>
+    <div class="phone">
+      <div class="status claro"><span>09:12</span><span>4G ▮▮▮ 82%</span></div>
+      <div class="fx"><span class="vl"><i data-i="voltar" data-t="18"></i>Padaria Trigo Fino</span><div class="lin"><div><span class="t">Catálogo</span><span class="s">40 produtos</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>09:05</span></div></div>
+      <div class="corpo">
+        <div class="busca-g"><i data-i="search" data-t="18" data-c="#4A5562"></i>Produto, código ou aplicação</div>
+        <div class="fil"><div class="chip on">Todos</div><div class="chip">Alimentos</div><div class="chip">Bebidas</div><div class="chip">Automotivo</div></div>
+        <div class="grade"><div class="card"><div class="foto"></div><span class="n">Filtro de óleo PH 5548</span><span class="m">Freiomax</span><span class="p novo">R$ 102,50</span><span class="tg"><span class="ce av">2 em estoque</span></span></div><div class="card"><div class="foto img"><svg width="76" height="96" viewBox="0 0 76 96"><rect x="14" y="20" width="48" height="70" rx="8" fill="#6B4A2E"/><rect x="14" y="40" width="48" height="30" fill="#E9D8B4"/><text x="38" y="60" text-anchor="middle" font-family="Archivo" font-weight="800" font-size="11" fill="#6B4A2E">CAFÉ</text><rect x="20" y="10" width="36" height="12" rx="3" fill="#4E3521"/></svg></div><span class="n">Café torrado 500 g</span><span class="m">Serra Alta</span><span class="p novo">R$ 13,74</span><span class="tg"><span class="ce suc">84 em estoque</span></span></div><div class="card"><div class="foto"></div><span class="n">Leite em pó integral 400 g</span><span class="m">Vale Verde</span><span class="p novo">R$ 18,19</span><span class="tg"><span class="ce suc">57 em estoque</span></span></div><div class="card"><div class="foto img"><svg width="60" height="100" viewBox="0 0 60 100"><rect x="22" y="2" width="16" height="10" rx="2" fill="#2F6FA8"/><path d="M20 12h20l6 14v66a6 6 0 0 1-6 6H20a6 6 0 0 1-6-6V26z" fill="#CFE6F5" stroke="#8DB9D9" stroke-width="2"/><rect x="14" y="44" width="32" height="22" fill="#2F6FA8"/><text x="30" y="59" text-anchor="middle" font-family="Archivo" font-weight="800" font-size="8" fill="#fff">ÁGUA</text></svg></div><span class="n">Água mineral 1,5 L</span><span class="m">Fonte Clara</span><span class="p novo">R$ 3,27</span><span class="tg"><span class="ce suc">383 em estoque</span></span></div></div>
       </div>
       <div class="barra-abas" data-ativa="clientes"></div>
     </div>
@@ -130,11 +150,21 @@
 </div>
 <script src="../telas/icones.js"></script>
 <script>
-  // menu ancorado logo abaixo do campo Prazo, alinhado à direita dele (posicaoDoMenu: largura mínima 224 dp, folga 4 dp)
+  // menu do Prazo ancorado logo abaixo do campo, com a largura dele (posicaoDoMenu, sem largura mínima; folga 4 dp)
   const c = document.getElementById('campo-prazo'), m = document.getElementById('menu-prazo'), p = c.closest('.phone');
   const rc = c.getBoundingClientRect(), rp = p.getBoundingClientRect();
   m.style.top = (rc.bottom - rp.top + 4) + 'px';
-  m.style.left = (rc.right - rp.left - 224) + 'px';
+  m.style.left = (rc.left - rp.left) + 'px';
+  m.style.width = rc.width + 'px';
+  // contorno da coluna "Valor tabela" (o que muda com o prazo)
+  document.querySelectorAll('.ti-box').forEach((box) => {
+    const cel = box.querySelectorAll('th.vt, td.vt'), rb = box.getBoundingClientRect();
+    const a = cel[0].getBoundingClientRect(), z = cel[cel.length - 1].getBoundingClientRect();
+    const d = document.createElement('div');
+    d.className = 'col-novo';
+    Object.assign(d.style, { left: (a.left - rb.left + 3) + 'px', top: (a.top - rb.top + 2) + 'px', width: (a.width - 1) + 'px', height: (z.bottom - a.top - 4) + 'px' });
+    box.appendChild(d);
+  });
 </script>
 </body>
 </html>

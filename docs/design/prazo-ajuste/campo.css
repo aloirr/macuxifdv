@@ -19,12 +19,11 @@ body { width: 1200px; }
 .ti-box.b8 { padding: 0 2px 0 6px; }
 .edt { display: inline-flex; width: 30px; height: 30px; border-radius: 8px; background: var(--accentSoft); align-items: center; justify-content: center; }
 
-/* rolagem simulada: o conteúdo começa acima do topo visível */
-.rolado { position: relative; }
-.rolado > .trilho { position: absolute; left: 0; right: 0; display: flex; flex-direction: column; gap: 10px; padding: 0 16px 16px; }
-.rolado > .trilho > * { flex: none; }
+/* Resumo com a rolagem aberta: a tela inteira, de cima até os botões */
+.phone.longo { height: auto; }
+.phone.longo .conteudo { overflow: visible; padding: 14px 16px 16px; gap: 10px; }
 
-/* ListaSuspensa aberta (packages/ui/src/mobile/suspensa.tsx, MenuAncorado): fundo do toque fora transparente, menu branco com sombra "aviso" */
+/* ListaSuspensa aberta (packages/ui/src/mobile/suspensa.tsx, MenuAncorado): menu branco com sombra "aviso", largura do campo */
 .suspensa.aberta { border-color: var(--accent); border-width: 2px; padding: 0 11px; }
 .menu-lista { position: absolute; z-index: 20; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; box-shadow: 0 4px 10px rgba(15, 20, 25, .2); }
 .menu-lista .op { min-height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 15px; line-height: 20px; }
@@ -34,10 +33,36 @@ body { width: 1200px; }
 .menu-lista .op.off { background: var(--ground); padding-top: 8px; padding-bottom: 8px; }
 .menu-lista .op.off .rot { color: #8A949C; }
 .menu-lista .op.marcada .rot { font-weight: 700; }
-/* NOVO: o % do prazo à direita do rótulo, só quando ≠ 0 */
-.menu-lista .op .pct { flex: none; font-size: 14px; font-weight: 500; color: var(--ink2); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.menu-lista .op.off .pct { color: #8A949C; }
 .menu-lista .op .ic { flex: none; width: 16px; display: flex; justify-content: center; }
+
+/* Catálogo em grade (T-0173, docs/design/catalogo-grade.md) no aparelho de 360 dp */
+.status.claro { background: var(--faixa); color: #fff; }
+.fx { background: var(--faixa); padding: 4px 16px 16px; flex: none; display: flex; flex-direction: column; }
+.fx .vl { display: flex; align-items: center; gap: 4px; height: 40px; color: var(--faixaSub); font-size: 14px; font-weight: 500; }
+.fx .lin { display: flex; align-items: center; gap: 8px; }
+.fx .lin > div { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.fx .s { font-size: 13px; color: var(--faixaSub); }
+.fx .t { font-family: Archivo, sans-serif; font-weight: 800; font-size: 24px; line-height: 28px; color: #fff; letter-spacing: -.2px; }
+.selo-fx { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid #3A4D68; color: var(--faixaSub); font-size: 13px; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; flex: none; }
+.corpo { flex: 1; overflow: hidden; padding: 16px 16px 0; display: flex; flex-direction: column; gap: 12px; }
+.busca-g { flex: none; height: 48px; border: 1px solid var(--lineStrong); border-radius: 12px; background: #fff; display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 15px; color: var(--ink3); }
+.fil { display: flex; gap: 8px; overflow: hidden; margin-right: -16px; flex: none; }
+.grade { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 10px 10px 12px; display: flex; flex-direction: column; min-width: 0; }
+.foto { height: 112px; border-radius: 12px; background: var(--neutralBg); display: flex; align-items: center; justify-content: center; margin-bottom: 10px; overflow: hidden; }
+.foto.img { background: #F1F2EE; }
+.card .n { font-weight: 600; font-size: 15px; line-height: 20px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card .m { font-size: 13px; line-height: 18px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.card .p { align-self: flex-start; font-family: Archivo, sans-serif; font-weight: 700; font-size: 18px; line-height: 24px; font-variant-numeric: tabular-nums; margin-top: auto; padding-top: 6px; }
+.card .p.novo { padding: 0 2px; margin-top: 8px; }
+.card .tg { margin-top: 8px; }
+.ce { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.ce.suc { background: var(--successBg); color: var(--success); }
+.ce.av { background: var(--warningBg); color: var(--warning); }
+.ce.erro { background: var(--dangerBg); color: var(--danger); }
+
+/* contorno de uma coluna inteira (posto por script sobre a tabela) */
+.col-novo { position: absolute; pointer-events: none; outline: 2px dashed var(--grafico); border-radius: 6px; }
 
 /* marcador da novidade (só na prancha, não sai no app) */
 .novo { outline: 2px dashed var(--grafico); outline-offset: 2px; border-radius: 4px; }
