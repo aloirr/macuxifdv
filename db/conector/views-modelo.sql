@@ -230,7 +230,8 @@ SELECT
     CAST(ROUND(p.preco_venda * 100, 0) AS DECIMAL(19,0))     AS preco_venda_cents,
     p.desconto_maximo                                        AS desconto_maximo_pct, -- 0 a 100
     p.aplicacao                                              AS aplicacao,       -- texto livre (o Hub corta em 2.000)
-    -- referências cruzadas: lista JSON [{"marca_external_id","marca_nome","codigo"}], até 10. O ERP controla a lista: sem
+    -- referências cruzadas: lista JSON [{"marca_external_id","marca_nome","codigo"}], até 10; a marca é opcional (NULL nos dois
+    -- campos da marca = só o código; o mesmo código uma vez por produto). O ERP controla a lista: sem
     -- linha = '[]' = limpa (NULL seria "não altera" e a última referência apagada no ERP nunca sairia do Macuxi).
     -- [Oracle]     COALESCE((SELECT JSON_ARRAYAGG(JSON_OBJECT('marca_external_id' VALUE TO_CHAR(r.id_marca), 'marca_nome' VALUE r.marca, 'codigo' VALUE r.codigo) RETURNING CLOB) FROM erp_produto_referencia r WHERE r.id_produto = p.id_produto), TO_CLOB('[]')) AS referencias,
     -- [SQL Server]

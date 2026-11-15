@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FiltrosInterpretados } from '../contracts';
 import { PARAMETROS_PADRAO } from './parametros';
-import { codigoCompacto, combinarNotas, dentroDaDistancia, distanciaEdicao, notaFinal, pontuacaoTextual, rankear as rankearBase, type DocBusca, type EntradaRanking } from './ranking';
+import { codigoCompacto, codigosCompactosDoProduto, combinarNotas, LIMITE_DESCRICAO_BUSCA, marcasDasReferencias, textoDescricaoParaBusca, dentroDaDistancia, distanciaEdicao, notaFinal, pontuacaoTextual, rankear as rankearBase, type DocBusca, type EntradaRanking } from './ranking';
 import { expandirSinonimos } from './texto';
 
 const rankear = (docs: readonly DocBusca[], e: Omit<EntradaRanking, 'anoAtual'>) => rankearBase(docs, { anoAtual: 2026, ...e });
@@ -369,5 +369,39 @@ describe('RN-CAT-12: o ano da consulta cai no MESMO trecho da aplicação que o 
 
   it('RN-CAT-12: sem ano na consulta, veículos de trechos diferentes continuam achando', () => {
     expect(acha('pastilha uno palio').casados).toBe(3);
+  });
+});
+
+describe('RN-CAT-08 / RN-CAT-09: a busca acha por marca da referência, código ERP e descrição longa', () => {
+  const refs = [{ marca_id: '00000000-0000-4000-8000-0000000000a1', marca_nome: 'Freiomax', codigo: 'CB 3401' }];
+  it('RN-CAT-09: a marca do concorrente da referência acha o produto', () => {
+    const com = pontuacaoTextual(grupos('freiomax'), doc({ id: 'a', referencias: refs }));
+    const sem = pontuacaoTextual(grupos('freiomax'), doc({ id: 'b' }));
+    expect(com.pontos).toBeGreaterThan(0);
+    expect(sem.pontos).toBe(0);
+  });
+  it('RN-CAT-08: o código do produto no ERP (external_id) acha o produto, como o SKU', () => {
+    const d = doc({ id: 'a', sku: 'DET-5L', external_id: 'ERP-77' });
+    expect(pontuacaoTextual(grupos('erp-77'), d).pontos).toBeGreaterThan(0);
+    expect(pontuacaoTextual(grupos('erp-77'), doc({ id: 'b', sku: 'DET-5L' })).pontos).toBe(0);
+  });
+  it('RN-CAT-08: a descrição longa acha o produto, com peso menor que o do nome', () => {
+    const g = grupos('pisos');
+    const descricao = pontuacaoTextual(g, doc({ id: 'a', descricao: 'Limpa pisos pesados' })).pontos;
+    const nome = pontuacaoTextual(g, doc({ id: 'b', nome: 'Pisos' })).pontos;
+    expect(descricao).toBeGreaterThan(0);
+    expect(descricao).toBeLessThan(nome);
+  });
+  it('RN-CAT-08: a descrição que entra na busca tem no máximo 400 caracteres', () => {
+    expect(textoDescricaoParaBusca('  ' + 'a'.repeat(900))).toHaveLength(LIMITE_DESCRICAO_BUSCA);
+    expect(textoDescricaoParaBusca(null)).toBe('');
+  });
+  it('RN-CAT-09: as marcas das referências entram sem repetir; sem marca, nada', () => {
+    expect(marcasDasReferencias([{ marca_nome: 'Freiomax' }, { marca_nome: ' Freiomax ' }, { marca_nome: null }, { marca_nome: 'Rodaforte' }])).toBe('Freiomax Rodaforte');
+    expect(marcasDasReferencias([])).toBe('');
+  });
+  it('RN-CAT-08/09: códigos compactos do índice juntam SKU, código ERP e referências, sem repetir', () => {
+    expect(codigosCompactosDoProduto('DET-5L', 'ERP-77', ['CB 3401', 'cb3401', 'FB-0207'])).toEqual(['det5l', 'erp77', 'cb3401', 'fb0207']);
+    expect(codigosCompactosDoProduto('DET-5L', null, [])).toEqual(['det5l']);
   });
 });
