@@ -159,8 +159,8 @@ const html01 = pagina(
 // D1: o "Depois de" do Parado entre visitas fica editável mesmo com a regra desligada (a Equipe agora usa o mesmo número).
 const PROD = [
   ['Fim do almoço', 'Lembra a volta do almoço.', null, [['Antes do fim', '10', 'min']], true],
-  ['Parado entre visitas', 'Avisa quando passa do tempo sem check-in.', [['Vendedor', true], ['Gestor', true]], [['Depois de', '60', 'min', true], ['Alerta ao gestor', '30', 'min depois'], ['sw', 'Também sem rota', true]], false],
-  ['Sem check-in no início do dia', 'Avisa quando o dia começa sem visita.', [['Vendedor', true], ['Gestor', true]], [['Até as', '10:00', '']], true],
+  ['Parado entre visitas', 'Avisa quando passa do tempo sem check-in.', [['Vendedor', true], ['Gestor', true]], [['Depois de', '60', 'min', true], ['Alerta ao gestor', '30', 'min depois']], false],
+  ['Sem check-in no início do dia', 'Avisa quem não fez check-in até o horário.', [['Vendedor', true], ['Gestor', true]], [['Até as', '10:00', '']], true],
   ['Rota do dia incompleta', 'Lembra os clientes da rota que faltam.', null, [['Lembrete às', '16:00', '']], true],
   ['Visita aberta', 'Lembra o checkout da visita que ficou aberta.', null, [['Depois de', '120', 'min']], true],
   ['Envio pendente', 'Lembra os registros sem enviar.', null, [['Depois de', '4', 'h']], false],
@@ -170,7 +170,7 @@ const linhaProd = ([nome, frase, destinos, campos, ligada]) => {
   const dest = destinos
     ? `<div class="campos" style="width:184px;flex-shrink:0">${destinos.map(([r, l]) => chaveCampo(r, l, !ligada)).join('')}</div><span class="sep"></span>`
     : '<div style="width:184px;flex-shrink:0"></div><span class="sep" style="visibility:hidden"></span>';
-  const cs = campos.map((c) => (c[0] === 'sw' ? chaveCampo(c[1], c[2], !ligada) : campo(c[0], c[1], c[2], c[3] ? '' : est))).join('');
+  const cs = campos.map(([r, v, u, sempre]) => campo(r, v, u, sempre ? '' : est)).join('');
   return `<div class="regra${ligada ? '' : ' off'}">${chaveGeral(ligada)}<div class="nome"><b>${nome}</b><small>${frase}</small></div>
   <div class="campos">${dest}${cs}</div>${salvar(false)}</div>`;
 };
@@ -244,7 +244,7 @@ const campoTela = `<div class="fone" style="background:#16202A">
   <div style="display:flex;gap:18px;padding:4px 24px 20px">${bloco('#C9CED5')}${bloco('#2B3743')}${bloco('#C9CED5')}${bloco('#2B3743')}${bloco('#2B3743')}</div>
   <div style="margin:0 12px;background:#fff;border-radius:22px;overflow:hidden">
     <div style="padding:12px 16px 4px;font-size:13px;font-weight:600;color:#34404D">Notificações</div>
-    ${notif('16:00', 'Faltam 3 clientes da rota hoje', 'Próxima visita: Mercado Bom Preço.')}
+    ${notif('16:00', 'Faltam 3 clientes da rota', 'Próxima visita: Mercado Bom Preço.')}
     ${notif('14:15', 'Há 1 h sem visita', 'Próxima visita: Mercado Bom Preço.')}
     ${notif('12:50', 'Seu almoço termina às 13:00', 'Próxima visita: Mercado Bom Preço.')}
   </div></div>`;

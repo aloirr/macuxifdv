@@ -12,13 +12,15 @@ Duas seções, uma embaixo da outra: **Alertas da equipe** e **Produtividade do 
 Da esquerda para a direita:
 1. **Interruptor geral**: `Interruptor` do kit (`packages/ui/src/web/permissoes.tsx`) com `estadoEscrito="so-desligada"`; trilho 40×24, alvo 44, `rotulo` = nome da regra. Ligada: só o trilho, **sem texto**. Desligada: o selo neutro **"Desligada"** ao lado (cor nunca sozinha). O estado vai no `aria-checked`.
 2. **Nome** (15 px, semibold) e **frase curta** (13 px, `ink-2`) logo abaixo. A frase diz o problema; o valor fica só no campo (uma informação, um lugar: nem o nome nem a frase repetem número).
-3. **Campos da regra**: só os que a regra usa, cada um com rótulo do que faz, padrão preenchido e unidade escrita dentro do campo (`% da frequência`, `dias`, `min`, `h`, `fotos`). Altura 44.
-4. **Severidade** (só em Alertas da equipe): Informativo, Atenção, Crítico (rótulos de `modules/gestor/web/pages/regras-page.tsx`).
+3. **Campos da regra**: só os que a regra usa, cada um com rótulo do que faz (em cima) e padrão preenchido. Altura 44.
+   - **Unidade dentro do campo** (observação de UX da marca): a unidade (`% da frequência`, `dias`, `min`, `h`, `fotos`) fica escrita **dentro da caixa**, à direita do número, em 13 px `ink-2`, e não ao lado de fora. A caixa inteira é o campo: o número à esquerda, a unidade à direita, sem rolar o olho para fora da borda. Campo de hora ("Até as", "Lembrete às") não leva unidade.
+4. **Severidade** (só em Alertas da equipe): Informativo, Atenção, Crítico (rótulos de `SEV` em `modules/gestor/web/pages/parametros-alertas-page.tsx`).
 5. **Salvar** da regra: principal (Azul noite) só na regra alterada; nas outras, desabilitado. Um só principal por tela.
 
 Estados:
 - **Alterada:** campo mexido com borda de 2 px em Azul noite; borda da linha em Azul noite; Salvar ativo.
-- **Desligada:** fundo Pérola na linha; campos, severidade e destinos mostram o valor guardado em só leitura (fundo Pérola, borda `line`, texto em grafite, legível). O selo "Desligada" explica o estado. Ao religar, os valores voltam como estavam.
+- **Desligada:** fundo Pérola na linha; campos, severidade e destinos mostram o valor guardado em só leitura. O selo "Desligada" explica o estado. Ao religar, os valores voltam como estavam.
+- **Campo só leitura com fundo Pérola** (observação de UX da marca): o campo em só leitura não fica igual ao editável. Ele tem fundo Pérola (`bg-ground`), borda `line` e texto em grafite (`ink`, legível, nada de cinza apagado); o `readOnly` sozinho não basta, porque a caixa branca parece editável. O interruptor de destino travado fica com o trilho a 50 %.
 - **Exceção D1:** no **Parado entre visitas**, o campo "Depois de" continua **editável com a regra desligada** (a Equipe agora usa o mesmo número, `inicio.parado_min`, RN-CORE-26). Os outros campos dessa regra seguem a regra geral.
 - **Sem licença do Promotor:** Ruptura recorrente, Visita curta e Fotos sem GPS não aparecem (RN-CORE-03).
 - **Sem `alerta_regra.gerenciar`:** a página não aparece no menu.
@@ -37,17 +39,18 @@ Na simulação: Ritmo abaixo da meta alterada (80 → 85 %, Salvar ativo) e Visi
 
 ### 1.3 Produtividade do dia (tela 02)
 Mesma linha, sem severidade. No topo da seção, o teto: "Lembretes por pessoa: 4 por dia, no máximo", com o próprio Salvar.
-**Destinos só nas regras com dois** (Parado entre visitas e Sem check-in no início do dia): bloco "Vendedor" e "Gestor" entre a frase e os campos, cada um com o `Interruptor` no padrão (Sim/Não). Nas outras regras não há bloco de destinos (são só do vendedor); fica o espaço vazio para os campos alinharem na mesma coluna.
+**Destinos só nas regras com dois** (Parado entre visitas e Sem check-in no início do dia), **em colunas** (observação de UX da marca): entre a frase e os campos, duas colunas lado a lado, "Vendedor" e "Gestor", cada uma com o rótulo em cima (como os campos) e o `Interruptor` no padrão (Sim/Não) embaixo. Sem o rótulo "Destinos" e sem os dois em linha corrida: o rótulo de cada coluna já diz quem recebe. Nas outras regras não há destinos (são só do vendedor); fica o espaço vazio da largura das duas colunas, para os campos alinharem na mesma coluna em todas as linhas.
 
 | Regra | Frase | Destinos | Campos (padrão) |
 |---|---|---|---|
 | Fim do almoço | Lembra a volta do almoço. | — (só vendedor) | Antes do fim 10 min |
-| Parado entre visitas | Avisa quando passa do tempo sem check-in. | Vendedor, Gestor | Depois de 60 min (editável mesmo desligada, D1) · Alerta ao gestor 30 min depois · Também sem rota: Sim |
-| Sem check-in no início do dia | Avisa quando o dia começa sem visita. | Vendedor, Gestor | Até as 10:00 |
+| Parado entre visitas | Avisa quando passa do tempo sem check-in. | Vendedor, Gestor | Depois de 60 min (editável mesmo desligada, D1) · Alerta ao gestor 30 min depois |
+| Sem check-in no início do dia | Avisa quem não fez check-in até o horário. | Vendedor, Gestor | Até as 10:00 |
 | Rota do dia incompleta | Lembra os clientes da rota que faltam. | — (só vendedor) | Lembrete às 16:00 (sem alerta ao gestor) |
 | Visita aberta | Lembra o checkout da visita que ficou aberta. | — (só vendedor) | Depois de 120 min |
 | Envio pendente | Lembra os registros sem enviar. | — (só vendedor) | Depois de 4 h |
 
+O Parado vale com ou sem rota (decisão do gerente).
 Destino desligado deixa só leitura os campos que só ele usa (ex.: "Alerta ao gestor" com Gestor em Não). Na simulação: Parado entre visitas desligada (com o "Depois de" editável) e Envio pendente desligada (só leitura).
 
 ## 2. Ficha do usuário: Jornada (tela 03)
@@ -56,20 +59,25 @@ Acesso › Usuários › gaveta "Editar usuário" (`Drawer` do kit, 560 px). Se�
 - Desmarcada: aparecem **Início** e **Fim** já preenchidos com o padrão, para ajustar. Erro só ao salvar fora da regra (fim maior que início; 15 min a 3 h), no texto de erro do campo.
 - Salvar e Cancelar continuam no rodapé da gaveta (sem Salvar próprio na seção).
 
+## 2.1 Parâmetros › Calendário: Almoço
+Um só painel de almoço, **"Almoço"**, com o padrão da empresa (`jornada.almoco_padrao`): **Início** e **Fim** (padrão 12:00 e 13:00), campos de hora de 44 px, e um Salvar (principal) com o aviso no rodapé "Almoço salvo.". Erro só ao salvar fora da regra (fim maior que início; 15 min a 3 h), no texto de erro do campo.
+- **Saem da tela** o corte (`produtividade.almoco_corte`) e a janela de detecção (`produtividade.almoco_janela`), com o painel antigo "Almoço" e o "Horário de almoço padrão": com a D5, o almoço é sempre o horário da pessoa (ou o padrão), e esses campos não mudam mais nenhum número (decisão do gerente, RD-0333).
+- É esse horário que aparece entre parênteses na ficha do usuário (seção 2).
+
 ## 3. No aparelho (tela 04)
 ### 3.1 Campo (vendedor e promotor): lembretes
 - Notificação local do Android, **só na bandeja**: nada no Início nem na central do app (uma informação, um lugar). Sem som nem aviso flutuante.
 - **Ícone pequeno monocromático em Azul noite**: o ativo da marca `docs/marca/ativos/2026-11-12-v1/icone-notificacao-96.png` (96×96, branco no transparente, o formato que o Android pede para o ícone pequeno), pintado pelo sistema com a cor `#1E3350` (token `accent` de `packages/ui/src/mobile/tokens.ts`). Não há cópia em `docs/design/` para não duplicar o ativo (uma fonte só, a da marca).
-- Textos (título · corpo). O corpo **"Próxima visita: <cliente>."** é igual em todos os lembretes que apontam a próxima visita; sem próxima visita, vai só o título.
+- Textos (título · corpo), iguais aos de `modules/core/domain/lembretes-produtividade.ts`. O corpo **"Próxima visita: <cliente>."** é igual em todos os lembretes; sem cliente da rota pendente, vai só o título. Na Visita aberta, a próxima visita é a de outro cliente (não a da visita aberta).
 
 | Lembrete | Título | Corpo |
 |---|---|---|
 | Fim do almoço | Seu almoço termina às 13:00 | Próxima visita: Mercado Bom Preço. |
 | Parado entre visitas | Há 1 h sem visita | Próxima visita: Mercado Bom Preço. |
 | Sem check-in no início do dia | Nenhuma visita hoje | Próxima visita: Mercado Bom Preço. |
-| Rota do dia incompleta (16:00) | Faltam 3 clientes da rota hoje | Próxima visita: Mercado Bom Preço. |
-| Visita aberta | Visita aberta há 2 h no Mercado Bom Preço | — |
-| Envio pendente | Registros sem enviar há 4 h | — |
+| Rota do dia incompleta (16:00) | Faltam 3 clientes da rota (com 1: Falta 1 cliente da rota) | Próxima visita: Mercado Bom Preço. |
+| Visita aberta | Visita aberta há 2 h | Próxima visita: Padaria Central. |
+| Envio pendente | 3 registros sem enviar (com 1: 1 registro sem enviar) | Próxima visita: Mercado Bom Preço. |
 
 - Toque abre a rota do dia (Envio pendente: a tela de envio).
 
