@@ -1,5 +1,6 @@
 /**
  * RN-CORE-60 (T-0175): usuário nunca é excluído, só inativado (`ativo = false`); nada no módulo grava `deleted_at` em `core.usuario`.
+ * Única exceção: a exclusão da empresa inteira (RN-PLA-09/10, `plataforma.excluir_tenant`), depois da inativação e do backup.
  * O vínculo do ERP (RN-CORE-58) inativa o provisório e limpa o `external_id`, então o código fica só no real. Funções puras.
  */
 

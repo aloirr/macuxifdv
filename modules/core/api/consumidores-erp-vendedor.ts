@@ -128,7 +128,15 @@ export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
       "select id, nome, perfil, ativo, external_id, email from core.usuario where deleted_at is null and perfil in ('vendedor', 'promotor')")).rows;
     const decisao = decidirVinculoPorNome(nome, porNome);
     if (decisao.acao === 'vincular') {
-      await ctx.db.query('update core.usuario set external_id = $2, erp_alterado_em = $3::timestamptz where id = $1 and external_id is null', [decisao.usuario_id, r.external_id, r.alterado_em]);
+      const vinculou = await ctx.db.query('update core.usuario set external_id = $2, erp_alterado_em = $3::timestamptz where id = $1 and external_id is null', [decisao.usuario_id, r.external_id, r.alterado_em]);
+      // auditoria com ator sistema/Hub (usuario_id nulo): só ids e a regra, sem o nome (RN-AUD-01)
+      if (vinculou.rowCount) {
+        await ctx.db.query(
+          `insert into plataforma.auditoria (tenant_id, usuario_id, modulo, acao, entidade, entidade_id, antes, depois, request_id)
+           values (plataforma.tenant_atual(), null, 'core', 'usuario.vincular_erp_por_nome', 'usuario', $1, null, $2::jsonb, $3)`,
+          [decisao.usuario_id, JSON.stringify({ usuario_id: decisao.usuario_id, external_id: r.external_id, regra: 'RN-CORE-58', ator: 'hub' }), ctx.envelope.evento_id],
+        );
+      }
       await completarNotasDoVendedor(ctx, decisao.usuario_id, r.external_id);
       return;
     }
