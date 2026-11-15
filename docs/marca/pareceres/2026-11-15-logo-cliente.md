@@ -128,3 +128,43 @@ desta sessão.
 ## Reteste
 - **MC-0134:** no HTML do PDF exportado pelo BKO, com a logo cadastrada no modo falso ou no stack isolado.
 - **Carga e Mais:** no print do aparelho (Campo e Gestão), com e sem logo, quando houver build.
+
+---
+
+# Parte 3 · Reteste (T-0182, número provisório)
+
+> 2026-11-15 (Manaus) · design-de-marca. Reteste das partes 1 e 2 sobre: `nuvem/logo-cliente-modulo-vendedor` (d5506130:
+> MC-0134), `nuvem/logo-cliente-engenheiro-apps` (f37a62d2: `logoDaEmpresa` no ambiente web; 9cffd4dd: cartão "Nome
+> fantasia" só leitura) e `nuvem/logo-cliente-designer-ux` (3510bd4e: MC-0088; c49b7221: spec §2 e erro do lado máximo).
+
+## Veredito
+**Liberado.** A MC-0134 e a MC-0088 fecham. Nenhum achado da marca aberto neste lote. A MC-0068 (neutros do PDF, baixa,
+modulo-vendedor) segue aberta, fora deste lote, como já estava.
+
+## Achado a achado
+
+| ID | Gravidade | Dono | Situação | Como conferi |
+|---|---|---|---|---|
+| MC-0134 | alta | modulo-vendedor | **fechada** | `order-drawer.tsx:48` e `orders-page.tsx:71` passam `logo_src: await logoParaPdf(ambiente)` (`modules/vendedor/web/lib/logo-pdf.ts`): com erro, sem a função ou sem logo, devolve `null` e entra a padrão. O ambiente web (`apps/web/lib/ambiente.ts:35/63`) busca a logo pelo `sha256` do cache `qk.modulos` e a entrega como data URI. Gerei o HTML do PDF com o `buildOrderPdfHtml` do branch, com uma logo fictícia "Exemplo Norte", nos dois PDFs (cliente e uso interno): a `<img class="logo">` leva a logo da distribuidora, numa caixa de 181 × 60 px (48 × 16 mm) em `contain`, à esquerda, e a palavra "Macuxi" não aparece no PDF. Sem logo, entra a padrão, com 60 × 60 px (16 × 16 mm). É o mesmo cabeçalho do PDF do app (manual §7, spec §6) |
+| MC-0088 | baixa | designer-ux | **fechada** | `carga.html`: `<span>Etapa 2 de 5 · ${T.etapas[1]}</span>`. Nos PNG novos, a linha aparece nas quatro telas: no Campo, em branco sobre o Azul noite; no Gestão, em Azul noite sobre o Pérola, com o percentual em negrito. A referência agora bate com o produto e com o manual §4 |
+
+## Itens novos
+
+| Item | O que vi | Resultado |
+|---|---|---|
+| **Cartão "Nome fantasia", só leitura** (`cartao-logo.tsx`, 9cffd4dd) | O admin do cliente vê só o nome fantasia em 14 px. Sem nome fantasia, vê o campo vazio (`CLASSE_CAMPO`, token `field`, até 360 px), sem texto. Não aparece mais a razão social sob o rótulo "Nome fantasia". Não há hex solto | **conforme**. Quem fala pela marca do cliente é o nome fantasia, e o cartão não troca isso pela razão social |
+| **Spec §2** (c49b7221) | Só o super-admin grava a logo e o nome fantasia. O admin do cliente vê a aba só para leitura, sem botões e sem a linha dos limites. A frase nova: "A imagem passa de 4096 px de largura ou altura. Envie uma menor.", que é uma frase com a ação, no mesmo padrão das outras (`#A8261B` 13 px semibold, com o ícone) | **conforme**. É texto de interface: o conteúdo fica com o designer-ux e o corretor. Na marca, cor e padrão estão certos |
+
+## Fora do escopo da marca (só encaminho)
+- `modules/vendedor/web/components/orders/exportar-pdf.ts:9`: o comentário do `logo_src` ainda diz "BKO ainda sem fonte
+  da logo", que deixou de ser verdade com a d5506130. Fica para o corretor-redundancias e o modulo-vendedor. Não é achado
+  da marca.
+- **Ordem do merge:** o PR do modulo-vendedor depende do `logoDaEmpresa` do ambiente web (engenheiro-apps). Se entrar
+  antes, o BKO continua a sair com a logo padrão, sem erro. O gerente-projetos deve fazer o merge dos dois no mesmo lote.
+
+## Reteste que falta
+- **Carga e Mais:** no print do aparelho (Campo e Gestão), com e sem logo, quando houver build.
+- **PDF do BKO:** no navegador, com a logo cadastrada no stack isolado, quando os dois PRs estiverem juntos.
+
+## Recados
+O `coord.mjs` segue com HTTP 403 nesta sessão. A coordenação fica no relatório da sessão ao gerente-projetos.
