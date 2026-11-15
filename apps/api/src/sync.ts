@@ -31,7 +31,7 @@
  * mudada = todas as elegíveis; senão, cada provedor responde com `limite: 1` se tem linha visível com
  * `(updated_at, id) > (horizonte do cursor, NIL)` abaixo do horizonte atual. Sem mudança, o aparelho faz só esta requisição.
  *
- * T-0176 (RN-CORE-39; ADR 0056): usuário sem filial de cadastro. Novidades e pull só das entidades do Core `liberadoSemFilial`
+ * T-0176 (RN-CORE-39; ADR 0056): usuário sem a filial de cadastro. Novidades e pull só das entidades do Core `liberadoSemFilial`
  * (a linha do próprio `usuario`, com `sem_filial`), com carteira vazia e equipe = só ele; as demais entidades e o push: 403
  * `USUARIO_SEM_FILIAL`. O marcador `sem_filial` entra no escopo do cursor: ao destravar, as novidades devolvem todas as elegíveis.
  */
@@ -122,7 +122,7 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
     if (!q.success) throw new ErroHttp(400, 'VALIDACAO', 'Informe a entidade do pull.');
     const prov = provedores.get(q.data.entidade);
     const dono = registro.dono(q.data.entidade) ?? null;
-    // T-0176 (RN-CORE-39; ADR 0056): sem filial de cadastro, só as entidades do Core liberadas (a linha do próprio usuário)
+    // T-0176 (RN-CORE-39; ADR 0056): sem a filial de cadastro, só as entidades do Core liberadas (a linha do próprio usuário)
     const { ctx, restritoSemFilial } = await p.preparar(req, dono, { semFilial: 'aceita' });
     if (restritoSemFilial && !prov?.liberadoSemFilial) throw new ErroHttp(403, CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL);
     if (!dono)

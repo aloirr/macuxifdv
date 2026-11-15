@@ -13,8 +13,26 @@
  */
 
 export const CODIGO_USUARIO_SEM_FILIAL = 'USUARIO_SEM_FILIAL';
-/** Texto provisório (o mesmo do Core); a simulação aprovada do designer-ux o substitui. */
-export const MENSAGEM_USUARIO_SEM_FILIAL = 'Seu usuário está sem filial. Peça ao administrador para informar a filial.';
+/** Texto aprovado; fonte única (API, Core, shells). */
+export const MENSAGEM_USUARIO_SEM_FILIAL =
+  'Sua conta está sem filial de cadastro. Peça ao administrador da empresa para informar a filial.';
+
+/** Status e código de um erro de API (`codigo` na v1, `code` na Fase M); campos ausentes ficam `undefined`. */
+export function codigoDoErroHttp(erro: unknown): { status: number | undefined; codigo: string | undefined } {
+  if (typeof erro !== 'object' || erro === null) return { status: undefined, codigo: undefined };
+  const e = erro as { status?: unknown; code?: unknown; codigo?: unknown };
+  const codigo = e.code ?? e.codigo;
+  return {
+    status: typeof e.status === 'number' ? e.status : undefined,
+    codigo: typeof codigo === 'string' ? codigo : undefined,
+  };
+}
+
+/** Erro de API 403 `USUARIO_SEM_FILIAL` (como o `ErroHttp` do cliente). */
+export function ehUsuarioSemFilial(erro: unknown): boolean {
+  const { status, codigo } = codigoDoErroHttp(erro);
+  return status === 403 && codigo === CODIGO_USUARIO_SEM_FILIAL;
+}
 
 /**
  * - `livre`: tem filial (ou o emissor não informa o estado: `sem_filial` ausente);

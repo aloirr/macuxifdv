@@ -1,5 +1,5 @@
 /**
- * T-0176 (RN-CORE-39; ADR 0056): guarda GLOBAL do usuário sem filial de cadastro, sem banco.
+ * T-0176 (RN-CORE-39; ADR 0056): guarda GLOBAL do usuário sem a filial de cadastro, sem banco.
  * - bloqueado: 403 `USUARIO_SEM_FILIAL` em toda rota autenticada (módulos, me/modulos, push, pull de entidade comum);
  * - exceções: rotas públicas (login, refresh, logout, saúde), rota do Core `liberadaSemFilial` e o sync restrito (novidades e
  *   pull só da entidade liberada, com carteira vazia e equipe = só o próprio);
@@ -76,7 +76,7 @@ function montar() {
 
 const PEDIDO = { entidade: 'pedido', id: '0d000000-0000-4000-8000-0000000000a1', operacao: 'upsert', payload: { cliente_id: '0c000000-0000-4000-8000-000000000001', total_centavos: 100 } };
 
-describe('RN-CORE-39: usuário sem filial de cadastro (bloqueado)', () => {
+describe('RN-CORE-39: usuário sem a filial de cadastro (bloqueado)', () => {
   it('rota comum de qualquer módulo, do core e me/modulos: 403 USUARIO_SEM_FILIAL', async () => {
     const { app, tenants } = montar();
     for (const url of ['/v1/vendedor/pedidos', '/v1/core/teste-comum', '/v1/me/modulos']) {

@@ -5,7 +5,7 @@
  * `/v1/<modulo>/<caminho>`; as rotas públicas do Core sob `/v1/<caminho>`; e as rotas da plataforma:
  * `GET /v1/saude`, `GET /v1/me/modulos`, `GET /v1/sync/novidades` (RN-CORE-23), `GET /v1/sync/pull`, `POST /v1/sync/push`, `PUT|GET /v1/arquivos/:id` (ADR 0010) e `GET /v1/auditoria` (RN-AUD-01).
  *
- * Toda rota autenticada passa por `prepararRequisicao` (401 → sem filial de cadastro 403 USUARIO_SEM_FILIAL, RN-CORE-39 e ADR 0056,
+ * Toda rota autenticada passa por `prepararRequisicao` (401 → sem a filial de cadastro 403 USUARIO_SEM_FILIAL, RN-CORE-39 e ADR 0056,
  * salvo rota do Core `liberadaSemFilial` e o sync restrito → licença 403 MODULO_INATIVO → perfil/ação
  * 403 PERFIL_SEM_ACESSO → Zod 400 → carteira 403 FORA_DA_CARTEIRA). Os módulos efetivos são calculados
  * por requisição (RN-CORE-01/03, `modulosEfetivos` do SDK) a partir da fonte de licenças. Banco só por
@@ -456,7 +456,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Faça login para continuar.');
     }
     if (!UUID.test(token.tenant_id)) throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Sessão inválida. Faça login de novo.');
-    // T-0176 (RN-CORE-39; ADR 0056): usuário sem filial de cadastro = 403 fora das exceções (antes das licenças: nenhuma leitura a mais)
+    // T-0176 (RN-CORE-39; ADR 0056): usuário sem a filial de cadastro = 403 fora das exceções (antes das licenças: nenhuma leitura a mais)
     const filial = acessoSemFilial(token, opcoes.semFilial === 'aceita');
     if (filial === 'bloqueado') throw new ErroHttp(403, CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL);
     const restritoSemFilial = filial === 'restrito';
