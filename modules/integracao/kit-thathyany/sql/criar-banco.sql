@@ -117,10 +117,13 @@ CREATE TABLE dbo.tha_produto (
     desconto_maximo_pct DECIMAL(18, 6) NULL,
     aplicacao NVARCHAR(MAX) NULL,
     referencia_1 NVARCHAR(30) NULL,
+    marca_referencia_codigo_1 NVARCHAR(30) NULL,
     marca_referencia_1 NVARCHAR(120) NULL,
     referencia_2 NVARCHAR(30) NULL,
+    marca_referencia_codigo_2 NVARCHAR(30) NULL,
     marca_referencia_2 NVARCHAR(120) NULL,
     referencia_3 NVARCHAR(30) NULL,
+    marca_referencia_codigo_3 NVARCHAR(30) NULL,
     marca_referencia_3 NVARCHAR(120) NULL,
     oferece_junto NVARCHAR(MAX) NULL,
     etiquetas NVARCHAR(MAX) NULL,
@@ -131,13 +134,19 @@ IF COL_LENGTH('dbo.tha_produto', 'marca_codigo') IS NULL ALTER TABLE dbo.tha_pro
 GO
 IF COL_LENGTH('dbo.tha_produto', 'referencia_1') IS NULL ALTER TABLE dbo.tha_produto ADD referencia_1 NVARCHAR(30) NULL;
 GO
+IF COL_LENGTH('dbo.tha_produto', 'marca_referencia_codigo_1') IS NULL ALTER TABLE dbo.tha_produto ADD marca_referencia_codigo_1 NVARCHAR(30) NULL;
+GO
 IF COL_LENGTH('dbo.tha_produto', 'marca_referencia_1') IS NULL ALTER TABLE dbo.tha_produto ADD marca_referencia_1 NVARCHAR(120) NULL;
 GO
 IF COL_LENGTH('dbo.tha_produto', 'referencia_2') IS NULL ALTER TABLE dbo.tha_produto ADD referencia_2 NVARCHAR(30) NULL;
 GO
+IF COL_LENGTH('dbo.tha_produto', 'marca_referencia_codigo_2') IS NULL ALTER TABLE dbo.tha_produto ADD marca_referencia_codigo_2 NVARCHAR(30) NULL;
+GO
 IF COL_LENGTH('dbo.tha_produto', 'marca_referencia_2') IS NULL ALTER TABLE dbo.tha_produto ADD marca_referencia_2 NVARCHAR(120) NULL;
 GO
 IF COL_LENGTH('dbo.tha_produto', 'referencia_3') IS NULL ALTER TABLE dbo.tha_produto ADD referencia_3 NVARCHAR(30) NULL;
+GO
+IF COL_LENGTH('dbo.tha_produto', 'marca_referencia_codigo_3') IS NULL ALTER TABLE dbo.tha_produto ADD marca_referencia_codigo_3 NVARCHAR(30) NULL;
 GO
 IF COL_LENGTH('dbo.tha_produto', 'marca_referencia_3') IS NULL ALTER TABLE dbo.tha_produto ADD marca_referencia_3 NVARCHAR(120) NULL;
 GO
@@ -367,7 +376,7 @@ SELECT external_id, alterado_em, ativo, forma_external_id, codigo, descricao, pa
 FROM dbo.tha_prazo_pagamento;
 GO
 CREATE OR ALTER VIEW dbo.vw_macuxi_produto AS
-SELECT external_id, alterado_em, ativo, sku, ean, nome, marca, marca_codigo, categoria, unidade, embalagem_medida, embalagem_quantidade, catalogo_no_external_id, custo_cents, preco_venda_cents, desconto_maximo_pct, aplicacao, CASE WHEN referencia_1 IS NULL AND referencia_2 IS NULL AND referencia_3 IS NULL THEN NULL ELSE (SELECT r.marca_nome, r.codigo FROM (VALUES (marca_referencia_1, referencia_1), (marca_referencia_2, referencia_2), (marca_referencia_3, referencia_3)) AS r(marca_nome, codigo) WHERE r.codigo IS NOT NULL FOR JSON PATH) END AS referencias, oferece_junto, etiquetas
+SELECT external_id, alterado_em, ativo, sku, ean, nome, marca, marca_codigo, categoria, unidade, embalagem_medida, embalagem_quantidade, catalogo_no_external_id, custo_cents, preco_venda_cents, desconto_maximo_pct, aplicacao, CASE WHEN referencia_1 IS NULL AND referencia_2 IS NULL AND referencia_3 IS NULL THEN NULL ELSE (SELECT r.marca_codigo, r.marca_nome, r.codigo FROM (VALUES (marca_referencia_codigo_1, marca_referencia_1, referencia_1), (marca_referencia_codigo_2, marca_referencia_2, referencia_2), (marca_referencia_codigo_3, marca_referencia_3, referencia_3)) AS r(marca_codigo, marca_nome, codigo) WHERE r.codigo IS NOT NULL FOR JSON PATH) END AS referencias, oferece_junto, etiquetas
 FROM dbo.tha_produto;
 GO
 CREATE OR ALTER VIEW dbo.vw_macuxi_produto_unidade AS

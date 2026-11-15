@@ -13,11 +13,11 @@ export function cortarPorCodePoint(texto: string, max: number): string {
   return pontos.length <= max ? texto : pontos.slice(0, max).join('').trimEnd();
 }
 
-function referenciaValida(x: { marca_external_id?: string | null; marca_nome?: string | null; codigo: string }): boolean {
+function referenciaValida(x: { marca_external_id?: string | null; marca_nome?: string | null; marca_codigo?: string | null; codigo: string }): boolean {
   const cod = x.codigo.trim();
   const ext = x.marca_external_id?.trim() ?? '';
   const nome = x.marca_nome?.trim() ?? '';
-  return cod.length >= 1 && cod.length <= LIMITES_REFERENCIA.codigo && ext.length <= EXTERNAL_ID_MAX && nome.length <= LIMITES_REFERENCIA.marcaNome;
+  return cod.length >= 1 && cod.length <= LIMITES_REFERENCIA.codigo && ext.length <= EXTERNAL_ID_MAX && nome.length <= LIMITES_REFERENCIA.marcaNome && (x.marca_codigo?.trim().length ?? 0) <= LIMITES_REFERENCIA.marcaCodigo;
 }
 
 export function limitarCatalogoDoProduto(registro: ProdutoPayload): { registro: ProdutoPayload; avisos: AvisoCorte[] } {

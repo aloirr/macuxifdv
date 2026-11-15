@@ -16,3 +16,16 @@ describe('marca_codigo do produto (código da marca no ERP, aditivo no v1)', () 
     expect(ProdutoPayload.safeParse({ ...base, marca_codigo: 'x'.repeat(31) }).success).toBe(false);
   });
 });
+
+describe('marca_codigo da referência cruzada (código da marca da concorrência no ERP, aditivo no v1)', () => {
+  const ref = (r: Record<string, unknown>) => ProdutoPayload.safeParse({ ...base, referencias: [r] });
+  it('RN-CAT-09: a referência aceita marca_codigo ao lado de marca_nome e continua válida sem ele', () => {
+    const r = ref({ marca_codigo: ' 980 ', marca_nome: 'Cobreq', codigo: 'N-1' });
+    expect(r.success && r.data.referencias?.[0]).toMatchObject({ marca_codigo: '980', marca_nome: 'Cobreq', codigo: 'N-1' });
+    expect(ref({ marca_nome: 'Cobreq', codigo: 'N-1' }).success).toBe(true);
+    expect(ref({ codigo: 'N-1' }).success).toBe(true);
+  });
+  it('RN-CAT-09: marca_codigo da referência com mais de 30 caracteres é recusado', () => {
+    expect(ref({ marca_codigo: 'x'.repeat(31), codigo: 'N-1' }).success).toBe(false);
+  });
+});
