@@ -18,7 +18,6 @@
  * A migração é achada pelo NOME (o número é provisório até o merge).
  */
 import { randomBytes } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -232,17 +231,21 @@ describe('0081 planos, troca e licenças (estático)', () => {
     const adicionais = JSON.parse(/'(\[[^']+\])'::jsonb/.exec(seed)![1]!);
     expect(adicionais).toEqual(ADICIONAIS_DO_PLANO);
 
-    // a tabela do §11.3 da spec: nome, código, mensal, anual e licenças
-    const spec = readFileSync(new URL('../../docs/design/telas/portal-config-enxuto.md', import.meta.url), 'utf8');
-    const reais = (s: string) => Math.round(Number(s.replace(/\./g, '').replace(',', '.')) * 100);
-    const daSpec = [...spec.matchAll(/^ {3}\| \*\*([A-Za-z]+)\*\* \(`([a-z]+)`\) \| \*\*R\$ ([\d.,]+)\/mês\*\* \| \*\*R\$ ([\d.,]+)\/ano\*\* \| \*\*(\d+) vendedores · (\d+) gestore?s? · (\d+) BKO\*\* \|$/gm)];
-    expect(daSpec.map((x) => x[2])).toEqual(PLANOS_DE_VENDA.map((p) => p.codigo));
-    for (const [i, x] of daSpec.entries()) {
+    // a tabela do §11.3 da spec (docs/design/telas/portal-config-enxuto.md), copiada aqui: o teste de banco não lê docs
+    // (regra R4 do grafo do turbo). Spec mudou? Atualize esta tabela e a semente juntas.
+    const DA_SPEC = [
+      { nome: 'Light', codigo: 'light', mensal: 61000, anual: 610000, licencas: [10, 1, 1] },
+      { nome: 'PME', codigo: 'pme', mensal: 119700, anual: 1197000, licencas: [20, 2, 3] },
+      { nome: 'Enterprise', codigo: 'enterprise', mensal: 171900, anual: 1719000, licencas: [30, 3, 5] },
+      { nome: 'Corporate', codigo: 'corporate', mensal: 259250, anual: 2592500, licencas: [50, 5, 5] },
+    ] as const;
+    expect(DA_SPEC.map((x) => x.codigo)).toEqual(PLANOS_DE_VENDA.map((p) => p.codigo));
+    for (const [i, x] of DA_SPEC.entries()) {
       const p = PLANOS_DE_VENDA[i]!;
-      expect(x[1], p.codigo).toBe(p.nome);
-      expect(reais(x[3]!), p.codigo).toBe(p.preco_mensal_centavos);
-      expect(reais(x[4]!), p.codigo).toBe(valorDaAssinatura(p, [], 'anual').por_ciclo_centavos);
-      expect([Number(x[5]), Number(x[6]), Number(x[7])], p.codigo).toEqual([p.licencas.vendedor, p.licencas.gestor, p.licencas.bko]);
+      expect(x.nome, p.codigo).toBe(p.nome);
+      expect(x.mensal, p.codigo).toBe(p.preco_mensal_centavos);
+      expect(x.anual, p.codigo).toBe(valorDaAssinatura(p, [], 'anual').por_ciclo_centavos);
+      expect([...x.licencas], p.codigo).toEqual([p.licencas.vendedor, p.licencas.gestor, p.licencas.bko]);
     }
     // §11.9: preço por licença (vendedor R$ 50, gestor R$ 70, BKO R$ 40) com o desconto de cada plano
     for (const [i, desconto] of [0, 5, 10, 15].entries()) {
@@ -250,10 +253,9 @@ describe('0081 planos, troca e licenças (estático)', () => {
       const cheio = p.licencas.vendedor! * 5000 + p.licencas.gestor! * 7000 + p.licencas.bko! * 4000;
       expect((cheio * (100 - desconto)) / 100, p.codigo).toBe(p.preco_mensal_centavos);
     }
-    // §11.3, 2 e 4: adicionais e o exemplo da simulação (PME + 3 promotores + 10 Pesquisa = R$ 1.537,00/mês)
-    expect(spec).toContain('**"Promotor · R$ 80,00 por licença avulsa/mês"**');
-    expect(spec).toContain('**"Pesquisa · R$ 10,00 por usuário/mês"**');
-    expect(spec).toContain('**"Treinamento · R$ 10,00 por usuário/mês"**');
+    // §11.3, 2 e 4: adicionais (Promotor R$ 80,00 por licença; Pesquisa e Treinamento R$ 10,00 por usuário, por mês) e o
+    // exemplo da simulação (PME + 3 promotores + 10 Pesquisa = R$ 1.537,00/mês)
+    expect(Object.fromEntries(ADICIONAIS_DO_PLANO.map((x) => [x.adicional, x.preco_unitario_centavos]))).toEqual({ promotor: 8000, pesquisa: 1000, treinamento: 1000 });
     const pme = PLANOS_DE_VENDA[1]!;
     expect(valorDaAssinatura(pme, [{ adicional: 'promotor', quantidade: 3 }, { adicional: 'pesquisa', quantidade: 10 }], 'mensal').mensal_centavos).toBe(153700);
     // e a fixture continua com os planos só de teste (códigos fixture_*), sem colidir com os de venda
