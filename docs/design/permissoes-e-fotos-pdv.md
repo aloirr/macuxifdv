@@ -5,8 +5,8 @@
 > Tela de permissões: engenheiro-apps (shell, variantes campo e gestão). Ficha: modulo-core; galeria e compressão: engenheiro-apps.
 
 ## 1. Permissões (antes do login e da sincronização; conferidas a cada abertura)
-- Fundo `ground`, sem barra de abas. Marca 14/800 `accentInk` ("Macuxi Campo" / "Macuxi Gestão"), título **"Permissões"**
-  (Archivo 26/800), subtítulo 15 `ink2` **"Sem elas o app não funciona."** (Gestão: "Sem ela o app não funciona.").
+- Fundo `ground`, sem barra de abas. Marca 14/700 `accentInk` ("Macuxi Campo" / "Macuxi Gestão"), título **"Permissões"**
+  (22/700), subtítulo 16 `ink2` **"Sem elas o app não funciona."** (Gestão: "Sem ela o app não funciona.").
 - Lista (cartão branco, linhas de 68 dp): ícone 20 num círculo `neutralBg` de 40 · nome 15/600 · motivo 13 `ink2` · situação à
   direita 13/600: **Permitida** (✓, `success`), **Falta** (`ink2`), **Negada** (`danger`).
 

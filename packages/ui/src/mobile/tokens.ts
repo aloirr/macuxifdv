@@ -78,7 +78,7 @@ export const colors = {
 
 /**
  * Escala de fonte do app por papel (R-20261115-110600; manual da marca §5.3): 12 legenda e rótulo pequeno · 14 secundário ·
- * 16 texto, campo e botão · 18 título de seção e valor · 22 título de tela, folha e diálogo · 28 número grande e saudação.
+ * 16 texto, campo e botão · 18 título de seção e valor · 22 título de tela, folha, diálogo e saudação · 28 número grande.
  * Nada abaixo de 12. Os estilos de texto (`type` em theme.ts) e os componentes usam só estes tamanhos.
  */
 export const ESCALA_FONTE = { minimo: 12, apoio: 14, base: 16, secao: 18, titulo: 22, destaque: 28 } as const;

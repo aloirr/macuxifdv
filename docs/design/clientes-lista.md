@@ -1,5 +1,8 @@
 # Lista de Clientes · uma tag de situação e só a última visita (Campo e Gestão)
 
+> **Tipografia substituída** pela fonte do sistema (R-20261115-110600, 15/11/2026): ver o [manual da marca §5](../marca/manual.md#5-tipografia).
+> Famílias, pesos acima de 700 e tamanhos fora da escala citados abaixo ficam só como histórico.
+
 > 2026-11-12 · designer-ux · T-0171 · Origem: R-20261112-180115-alexandre. **Aprovado** em R-20261112-204602 e -204639
 > ("Vencido" vira "Devendo", tag "Pré-Cadastro", filtro "Devendo"); regra RN-CORE-41. Imagens:
 > `docs/design/telas/T-0171-clientes-antes.png`, `T-0171-clientes-depois.png` (Campo) e `T-0171-clientes-gestao.png` (Gestão,

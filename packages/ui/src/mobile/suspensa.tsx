@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
 
+import { RotuloCampo } from './campo-texto-rn';
 import { ALVO_TOQUE } from './componentes';
 import { bordaDaFalta, TextoDaFalta } from './falta-rn';
 import { Icon } from './icon';
@@ -165,7 +166,7 @@ export function ListaSuspensa<T extends string>({
   style,
   testID = 'lista',
 }: {
-  /** Rótulo em cima, em maiúsculas ("Forma de pagamento", "Prazo"); opcional. */
+  /** Rótulo de campo em cima (`RotuloCampo`: "Forma de pagamento", "Prazo"); opcional. */
   rotulo?: string;
   /** Nome do campo para o leitor de tela; sem ele, usa o rótulo. */
   rotuloAcessivel?: string;
@@ -192,9 +193,7 @@ export function ListaSuspensa<T extends string>({
   return (
     <View style={[s.campoBloco, style]}>
       {rotulo ? (
-        <Text style={s.rotulo} numberOfLines={2}>
-          {rotulo}
-        </Text>
+        <RotuloCampo numberOfLines={2}>{rotulo}</RotuloCampo>
       ) : null}
       <View>
         <View ref={ancora} collapsable={false}>
@@ -330,7 +329,6 @@ export function CampoAjuste<T extends string>({
 const s = StyleSheet.create({
   // rótulo + campo (.lbl / .sel)
   campoBloco: { gap: 4, minWidth: 0 },
-  rotulo: { ...fonte.semibold, fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.ink2 },
   campo: { minHeight: ALVO_TOQUE, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface },
   campoAberto: { borderColor: colors.ink, borderWidth: 1.5 },
   campoErro: { borderColor: colors.danger, borderWidth: 1.5 },

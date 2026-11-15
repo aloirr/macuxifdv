@@ -23,13 +23,13 @@
 que é a fonte da verdade (aqui não se repete a tabela). Este guia só diz qual token do kit cumpre cada papel.
 
 - **App (`packages/ui/src/mobile`):** `fonte` dá só o peso, sem `fontFamily`: `body` (texto) · `medium` (rótulo, meta) ·
-  `semibold` (ênfase, rótulo de campo, botão, valor, aba ativa) · `bold` (título) · `mono` (código). `display`/`displayBold`
-  são apelidos de `bold` e saem na v1.0.14. Estilos de texto `type`, por papel: `h1` número grande e saudação (`saudacao` é o
-  mesmo) · `h1Small` título de tela, folha e diálogo · `h2` título de seção · `number` valor em destaque · `body` texto ·
-  `bodyStrong` ênfase e título de linha (`title16` é o mesmo) · `sub` secundário · `small` legenda · `label` rótulo pequeno
-  (`smallStrong` é o mesmo) · `rotulo` rótulo em maiúsculas. Tamanhos: `ESCALA_FONTE`.
-- **Rótulo de campo do app:** `RotuloCampo`, e o campo inteiro (rótulo, entrada de 52 dp, erro) `CampoTexto`; o `CampoSenha`
-  usa os mesmos (`ESTILO_CAMPO`). Nenhuma tela monta rótulo de campo próprio.
+  `semibold` (ênfase, rótulo de campo, botão, valor, aba ativa) · `bold` (título) · `mono` (código). Estilos de texto `type`,
+  por papel: `h1` número grande · `h1Small` título de tela, folha e diálogo · `saudacao` "Bom dia, Lucas" no Início do Campo
+  e do Gestão (22/700, o mesmo de `h1Small`) · `h2` título de seção · `number` valor em destaque · `body` texto ·
+  `bodyStrong` ênfase e título de linha · `sub` secundário · `small` legenda · `label` rótulo pequeno · `rotulo` rótulo em
+  maiúsculas (quem precisa de largura ou linha própria usa `{ ...t.rotulo, <só o que muda> }`). Tamanhos: `ESCALA_FONTE`.
+- **Rótulo de campo do app:** `RotuloCampo` (14/600 `ink`), e o campo inteiro (rótulo, entrada de 52 dp, erro) `CampoTexto`;
+  o `CampoSenha`, a `ListaSuspensa` e o `Desconto` usam o mesmo `RotuloCampo`. Nenhuma tela monta rótulo de campo próprio.
 - **Web (`packages/ui/src/web`):** `PageHeader` título de página · `Dialog`/`Drawer` título de diálogo · `Panel` título de
   seção · `KpiCard` valor · `CLASSE_CAMPO`/`CLASSE_CAMPO_BASE` campo · `Button` botão · `td`/`tdNum` célula ·
   `th`/`thNum` cabeçalho de tabela · `Badge` chip · `CampoFormulario` rótulo de campo. As pilhas ficam em `--font-sans` e
