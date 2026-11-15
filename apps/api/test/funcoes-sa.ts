@@ -42,6 +42,10 @@ export const SA_PORTAL: readonly string[] = [
   // 0073: os dados legais do rodapé (razão social, CNPJ e site), lidos e gravados só pelo super-admin
   'plataforma.sa_dados_legais(uuid)',
   'plataforma.sa_gravar_dados_legais(uuid, jsonb)',
+  // 0084 (ADR 0047): planos e licenças no portal (telas 2 a 6): catálogo, ficha da empresa e troca de plano
+  'plataforma.sa_listar_planos(uuid)',
+  'plataforma.sa_assinatura_da_empresa(uuid, uuid)',
+  'plataforma.sa_trocar_plano(uuid, uuid, jsonb)',
 ];
 
 export const SA_INTERNAS: readonly string[] = ['plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)'];

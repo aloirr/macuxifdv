@@ -113,7 +113,8 @@ SA_PORTAL="'plataforma.sa_tentativa_estado(text)', 'plataforma.sa_tentativa_falh
   'plataforma.sa_pedir_backup(uuid, uuid, uuid)', 'plataforma.sa_listar_backups(uuid, uuid, uuid)',
   'plataforma.sa_pedir_exclusao(uuid, uuid, uuid, uuid, text)', 'plataforma.sa_ler_exclusao(uuid, uuid)',
   'plataforma.sa_reautenticar(uuid)', 'plataforma.sa_acoes_das_empresas(uuid)',
-  'plataforma.sa_dados_legais(uuid)', 'plataforma.sa_gravar_dados_legais(uuid, jsonb)'"
+  'plataforma.sa_dados_legais(uuid)', 'plataforma.sa_gravar_dados_legais(uuid, jsonb)',
+  'plataforma.sa_listar_planos(uuid)', 'plataforma.sa_assinatura_da_empresa(uuid, uuid)', 'plataforma.sa_trocar_plano(uuid, uuid, jsonb)'"
 SA_INTERNAS="'plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)'"
 sa_fora="$(psqlc -d "$BANCO" -c "with sa as (
     select n.nspname || '.' || p.proname || '(' || oidvectortypes(p.proargtypes) || ')' as f,
