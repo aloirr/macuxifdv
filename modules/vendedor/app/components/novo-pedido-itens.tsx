@@ -75,7 +75,7 @@ const s = StyleSheet.create({
   divisor: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   medida: { gap: 4 },
   titulo: { ...fonte.body, fontSize: 14, color: colors.ink },
-  nome: { ...fonte.bold, fontSize: 14, color: colors.ink },
+  nome: { ...fonte.semibold, fontSize: 14, color: colors.ink },
   separador: { ...fonte.body, fontSize: 12, color: colors.ink3 },
   embalagem: { ...fonte.body, fontSize: 12, color: colors.ink2 },
   aplicacao: { ...fonte.body, fontSize: 14, color: colors.ink2 },
