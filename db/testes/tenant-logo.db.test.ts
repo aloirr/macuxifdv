@@ -269,10 +269,13 @@ describe.skipIf(semBanco())('0081 logo do cliente (banco, fixture dois-tenants)'
       const r3 = await gravar(sid, A, l2);
       expect(r3.chave_anterior).toBe(l1.chave);
       expect(r3.logo).toMatchObject({ tipo: 'image/jpeg', chave: l2.chave, sha256: l2.sha256 });
-      expect(await auditorias(sid, 'sa.empresa.logo.gravar')).toEqual([
+      // as 2 na mesma transação têm o mesmo ocorrido_em (now()); a ordem entre elas não é garantida, então compara sem ordem
+      const gravacoes = await auditorias(sid, 'sa.empresa.logo.gravar');
+      expect(gravacoes).toHaveLength(2);
+      expect(gravacoes).toEqual(expect.arrayContaining([
         { super_admin_id: sa, tenant_alvo_id: A, detalhes: { sha256_antes: null, sha256_depois: l1.sha256, origem: 'banco' } },
         { super_admin_id: sa, tenant_alvo_id: A, detalhes: { sha256_antes: l1.sha256, sha256_depois: l2.sha256, origem: 'banco' } },
-      ]);
+      ]));
 
       // remover: chave_anterior; de novo = nada muda nem audita
       const r4 = await remover(sid, A);
@@ -291,7 +294,7 @@ describe.skipIf(semBanco())('0081 logo do cliente (banco, fixture dois-tenants)'
       const l = logo(A, 3);
       const { chave: _c, ...semChave } = l;
       for (const ruim of [
-        null, [], 'x', {}, semChave, { ...l, extra: 1 }, { ...l, id: 'nao-uuid' }, { ...l, id: l.id.toUpperCase() }, { ...l, tipo: null },
+        null, [], 'x', {}, semChave, { ...l, extra: 1 }, { ...l, id: 'nao-uuid' }, { ...l, id: 'abcdef00-0000-4000-8000-000000008103'.toUpperCase() } /* com letras: o id da logo(A, 3) só tem dígitos */, { ...l, tipo: null },
         { ...l, sha256: 1 }, { ...l, chave: null }, { ...l, tamanho_bytes: '50000' }, { ...l, largura_px: 600.5 }, { ...l, altura_px: 1e10 },
       ]) expect((await erroDe(gravar(sid, A, ruim)))?.code, JSON.stringify(ruim)).toBe('22023');
       for (const ruim of [
