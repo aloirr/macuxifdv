@@ -6,12 +6,12 @@
  * Acessível: cada regra diz "ok" ou "falta" em texto (não só a cor: o sinal muda de forma, ✓ ou círculo vazio) e uma região viva
  * educada lê o resumo quando ele muda ("Falta um número."). Ligue o campo com `aria-describedby={id}`.
  * T-0094: com `repeticao` (tela "Crie sua senha"), o item "As duas senhas iguais" fica fora da lista, com a mesma marca e o mesmo
- * "ok"/"falta" falado das regras (R-20261115-080000-alexandre)
- * (id `<id>-repeticao`, para o `aria-describedby` do campo "Repita a senha"), e a região viva lê as duas coisas.
+ * "ok"/"falta" falado das regras (`estadoFalado`; R-20261115-080000-alexandre). O item tem o id `<id>-repeticao`, para o
+ * `aria-describedby` do campo "Repita a senha", e a região viva lê as duas coisas.
  * Sem hooks (o teste chama o componente como função).
  */
 import {
-  ESTADO_FALADO_REGRA,
+  estadoFalado,
   itemDaRepeticao,
   itensDasRegras,
   resumoComRepeticao,
@@ -107,7 +107,7 @@ export function RegrasDaSenha({
             <span>
               {i.rotulo}
               {i.exemplo && <span aria-hidden="true" className="text-ink-2">{` (${i.exemplo})`}</span>}
-              <span className="sr-only">{`: ${i.estado === 'ok' ? ESTADO_FALADO_REGRA.ok : ESTADO_FALADO_REGRA.falta}`}</span>
+              <span className="sr-only">{`: ${estadoFalado(i.estado)}`}</span>
             </span>
           </li>
         ))}
@@ -122,7 +122,7 @@ export function RegrasDaSenha({
           {marca(conferencia.estado)}
           <span>
             {conferencia.texto}
-            <span className="sr-only">{`: ${conferencia.estado === 'ok' ? ESTADO_FALADO_REGRA.ok : ESTADO_FALADO_REGRA.falta}`}</span>
+            <span className="sr-only">{`: ${estadoFalado(conferencia.estado)}`}</span>
           </span>
         </p>
       )}

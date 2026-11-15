@@ -74,6 +74,11 @@ export function resumoDaTela(resumo: string | null | undefined): string {
 /** `ok` = cumprida; `falta` = ainda não (neutra, enquanto digita); `erro` = falta depois de tentar salvar (`destacar`). */
 export type EstadoRegraSenha = 'ok' | 'falta' | 'erro';
 
+/** "ok" ou "falta" falado de um estado (o `erro` também é falta). Única conta estado → fala (RD-0507). */
+export function estadoFalado(estado: EstadoRegraSenha): string {
+  return estado === 'ok' ? ESTADO_FALADO_REGRA.ok : ESTADO_FALADO_REGRA.falta;
+}
+
 export interface ItemRegraSenha {
   regra: RegraSenha;
   rotulo: string;
@@ -90,7 +95,7 @@ export function itensDasRegras(faltas: readonly string[], minimo: number, destac
     const cumprida = !f.has(regra);
     const estado: EstadoRegraSenha = cumprida ? 'ok' : destacar ? 'erro' : 'falta';
     const rotulo = rotuloDaRegraSenha(regra, minimo);
-    return { regra, rotulo, exemplo: EXEMPLO_REGRA_SENHA[regra] ?? null, estado, rotuloAcessivel: `${rotulo}: ${cumprida ? ESTADO_FALADO_REGRA.ok : ESTADO_FALADO_REGRA.falta}` };
+    return { regra, rotulo, exemplo: EXEMPLO_REGRA_SENHA[regra] ?? null, estado, rotuloAcessivel: `${rotulo}: ${estadoFalado(estado)}` };
   });
 }
 
@@ -129,7 +134,7 @@ export function itemDaRepeticao(repeticao: RepeticaoSenha | undefined, destacar 
   return {
     estado,
     texto: TEXTO_REPETICAO_SENHA,
-    rotuloAcessivel: `${TEXTO_REPETICAO_SENHA}: ${confere ? ESTADO_FALADO_REGRA.ok : ESTADO_FALADO_REGRA.falta}`,
+    rotuloAcessivel: `${TEXTO_REPETICAO_SENHA}: ${estadoFalado(estado)}`,
   };
 }
 
