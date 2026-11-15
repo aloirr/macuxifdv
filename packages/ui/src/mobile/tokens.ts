@@ -96,7 +96,7 @@ export const layout = {
 
 /**
  * Raios. `sm`…`xxl` são os antigos (continuam valendo); os nomes em português dizem onde usar.
- * Botão 52 → 14; botão 44 → 12; cartão 14; seção 18; folha 22; pílula (chip de estado) 999.
+ * Botão 52 → 14; botão 44 → 12; cartão 14; seção 18; diálogo 20; folha 22; pílula (chip de estado) 999.
  */
 export const radius = {
   sm: 8,
@@ -109,6 +109,8 @@ export const radius = {
   cartao: 14,
   secao: 18,
   folha: 22,
+  /** diálogo central (`Dialogo`, folha.tsx) */
+  dialogo: 20,
   pilula: 999,
 } as const;
 

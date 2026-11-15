@@ -198,7 +198,7 @@ export function Button({
   onPressIn?: () => void;
   onPressOut?: () => void;
   /** Troca o ícone por um desenho na cor do texto do botão (ex.: o anel do segurar). Ganha do `icon`. */
-  desenharIcone?: (cor: string, tamanho: number) => ReactNode;
+  desenharIcone?: (cor: string) => ReactNode;
   /** Ações do leitor de tela (ex.: "Sincronização completa"). */
   accessibilityActions?: readonly AccessibilityActionInfo[];
   onAccessibilityAction?: (e: AccessibilityActionEvent) => void;
@@ -206,6 +206,7 @@ export function Button({
   const off = Boolean(disabled || loading);
   const v = disabled ? { ...BUTTON[variant], bg: BOTAO_DESABILITADO.fundo, fg: BOTAO_DESABILITADO.texto, border: 'transparent', borderWidth: 0 } : BUTTON[variant];
   const grande = height >= 52;
+  const tamIcone = grande ? 18 : 16;
   return (
     <Pressionavel
       testID={testID}
@@ -214,8 +215,8 @@ export function Button({
       accessibilityState={{ disabled: off, busy: Boolean(loading) }}
       disabled={off}
       onPress={onPress}
-      onPressIn={onPressIn ? () => onPressIn() : undefined}
-      onPressOut={onPressOut ? () => onPressOut() : undefined}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
       accessibilityActions={accessibilityActions}
       onAccessibilityAction={onAccessibilityAction}
       vibrar={variant === 'accent'}
@@ -224,7 +225,7 @@ export function Button({
         { height, backgroundColor: v.bg, borderColor: v.border, borderWidth: v.borderWidth, borderRadius: grande ? radius.botao : radius.botaoMedio },
         style,
       ]}>
-      {loading ? <ActivityIndicator color={v.fg} size="small" /> : desenharIcone ? desenharIcone(v.fg, grande ? 18 : 16) : icon ? <Icon name={icon} size={grande ? 18 : 16} color={v.fg} /> : null}
+      {loading ? <ActivityIndicator color={v.fg} size="small" /> : desenharIcone ? desenharIcone(v.fg) : icon ? <Icon name={icon} size={tamIcone} color={v.fg} /> : null}
       <Text style={[styles.buttonText, { color: v.fg, fontSize: grande ? 16 : 14 }, textStyle]} numberOfLines={1}>
         {label}
       </Text>

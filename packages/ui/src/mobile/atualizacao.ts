@@ -12,7 +12,8 @@
  * 2. ao voltar ao primeiro plano, se a última sincronização tem 30 min ou mais (leve);
  * 3. a cada `sync_auto_min` (padrão 30, mínimo 15) com o app em uso e com sinal (leve);
  * 4. aviso do servidor (push, com ou sem a lista de entidades): leve, só das entidades indicadas;
- * 5. puxar para baixo e botão "Sincronizar": envio da fila + pull na hora (completa), com proteção de 30 s.
+ * 5. toque no botão "Sincronizar", puxar para baixo ou selo: rápida (envio da fila + pedidos e clientes), com proteção
+ *    de 30 s; a completa é o segurar 10 s no botão (sincronizacao-completa.ts; R-20261115-100000).
  * Nada roda com o app em segundo plano (a tarefa do ADR 0017 é outra, de 15 min). Uma sincronização que falha espera o
  * intervalo inteiro antes da próxima automática (nada de repetir em laço sem sinal).
  */
@@ -21,7 +22,7 @@ import { formatHHMM } from './time';
 
 export * from '../comum/sincronizacao';
 
-/** Por que o app sincroniza (RN-CORE-23). `manual` = puxar para baixo ou botão Sincronizar. */
+/** Por que o app sincroniza (RN-CORE-23). `manual` = toque no botão Sincronizar, puxar para baixo ou selo (rápida). */
 export type MotivoSync = 'abertura' | 'volta' | 'periodico' | 'aviso' | 'manual';
 
 /** `recente` = caiu na proteção de 30 s (nada foi feito); `falhou` = a sincronização terminou com erro. */
@@ -33,7 +34,7 @@ export interface OpcoesAgendadorSync {
   /** Intervalo da automática (ms), lido a cada agendamento: o parâmetro do tenant pode mudar numa sincronização. */
   intervaloMs: () => number;
   /**
-   * Dispara o motor. `manual` = completa (fila + pull); os outros = leve (novidades; `entidades` no aviso do servidor).
+   * Dispara o motor. `manual` = rápida (fila + pedidos e clientes); os outros = leve (novidades; `entidades` no aviso do servidor).
    * Devolve `false` quando falhou (o motor guarda o erro no estado).
    */
   sincronizar: (motivo: MotivoSync, entidades?: readonly string[]) => Promise<unknown>;

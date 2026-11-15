@@ -49,9 +49,9 @@ export function modoDoSegurar(s: { temCompleta: boolean; semSinal: boolean; ocup
   return s.temCompleta ? 'segurar' : 'toque';
 }
 
-/** Dica abaixo da situação; `null` = não aparece (sem a completa ou sem sinal). */
-export function dicaDoSegurar(s: { temCompleta: boolean; semSinal: boolean; segurando: boolean }): string | null {
-  if (!s.temCompleta || s.semSinal) return null;
+/** Dica abaixo da situação; só no modo `segurar` (`null` = sem a completa, sem sinal ou ocupado). */
+export function dicaDoSegurar(s: { modo: ModoSegurar; segurando: boolean }): string | null {
+  if (s.modo !== 'segurar') return null;
   return s.segurando ? DICAS_SEGURAR.segurando : DICAS_SEGURAR.repouso;
 }
 
@@ -126,6 +126,7 @@ export interface ControleSegurar {
 
 export function criarControleSegurar(o: OpcoesControleSegurar): ControleSegurar {
   const agora = o.agora ?? (() => Date.now());
+  // timer-permitido: contagem visual do segurar 10 s, só com o dedo no botão; não consulta o servidor.
   const definir = o.definirIntervalo ?? ((fn: () => void, ms: number) => setInterval(fn, ms));
   const limpar = o.limparIntervalo ?? ((id: unknown) => clearInterval(id as ReturnType<typeof setInterval>));
   let inicio: number | null = null;

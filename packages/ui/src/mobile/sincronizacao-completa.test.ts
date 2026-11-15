@@ -66,11 +66,16 @@ describe('modo, dica e vibração', () => {
     expect(modoDoSegurar({ temCompleta: true, semSinal: true, ocupado: false })).toBe('nenhum');
     expect(modoDoSegurar({ temCompleta: true, semSinal: false, ocupado: true })).toBe('nenhum');
   });
-  it('dica só quando a completa é oferecida e há sinal', () => {
-    expect(dicaDoSegurar({ temCompleta: true, semSinal: false, segurando: false })).toBe(DICAS_SEGURAR.repouso);
-    expect(dicaDoSegurar({ temCompleta: true, semSinal: false, segurando: true })).toBe(DICAS_SEGURAR.segurando);
-    expect(dicaDoSegurar({ temCompleta: false, semSinal: false, segurando: false })).toBeNull();
-    expect(dicaDoSegurar({ temCompleta: true, semSinal: true, segurando: false })).toBeNull();
+  it('dica só no modo segurar (a completa é oferecida e há sinal)', () => {
+    const modo = (temCompleta: boolean, semSinal: boolean) => modoDoSegurar({ temCompleta, semSinal, ocupado: false });
+    expect(dicaDoSegurar({ modo: modo(true, false), segurando: false })).toBe(DICAS_SEGURAR.repouso);
+    expect(dicaDoSegurar({ modo: modo(true, false), segurando: true })).toBe(DICAS_SEGURAR.segurando);
+    expect(dicaDoSegurar({ modo: modo(false, false), segurando: false })).toBeNull();
+    expect(dicaDoSegurar({ modo: modo(true, true), segurando: false })).toBeNull();
+  });
+  it('ocupado (sincronizando ou popup aberto) → sem dica', () => {
+    const modo = modoDoSegurar({ temCompleta: true, semSinal: false, ocupado: true });
+    expect(dicaDoSegurar({ modo, segurando: false })).toBeNull();
   });
   it('leve ao surgir o anel, média aos 10 s, nada no resto', () => {
     expect(vibracaoDoSegurar(450, 500)).toBe('leve');
