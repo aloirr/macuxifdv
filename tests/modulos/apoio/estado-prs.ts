@@ -22,3 +22,9 @@ export const CHECKIN_NA_FICHA = existe('modules/core/domain/checkin-rota.ts');
 
 /** 0069 (banco-dados, R-20261114-153500): um perfil por usuário (exclusão adiada `usuario_perfil_um_vivo`). */
 export const UM_PERFIL = existe('db/migrations/0069_core_cargo_hierarquia.up.sql');
+
+/** T-0180 (modulo-core): parâmetros `alertas.produtividade`, `jornada.almoco_padrao` e `PUT /core/parametros/parado-min`. */
+export const ALERTAS_CORE_T0180 = existe('modules/core/contracts/alertas-produtividade.ts');
+
+/** T-0180 (modulo-gestor): Parâmetros › Alertas (`/parametros/alertas`) e os tipos `parado_entre_visitas` e `sem_checkin_inicio`. */
+export const ALERTAS_GESTOR_T0180 = existe('modules/gestor/domain/produtividade-do-dia.ts');
