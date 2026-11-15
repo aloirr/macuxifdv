@@ -7,7 +7,7 @@ import { CODIGOS_ACOES_EMPRESA as C, MENSAGENS_ACOES_EMPRESA, type AcoesDaEmpres
 import { describe, expect, it } from 'vitest';
 
 import { ErroPortal, MENSAGEM_PADRAO } from './portal-api';
-import { celulaDoBackup, erroDoExcluir, estadoDasAcoes, rotaDaAcao, rotuloDoStatus, tomDoStatus } from './portal-empresa-acoes';
+import { celulaDoBackup, erroDoExcluir, estadoDasAcoes, rotaDaAcao, rotuloDoExcluir, rotuloDoStatus, tomDoStatus } from './portal-empresa-acoes';
 
 const T = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
 const backup = (x: Partial<BackupEmpresa> = {}): BackupEmpresa => ({
@@ -31,18 +31,19 @@ const andamento = backup({ situacao: 'em_andamento', concluido_em: null, progres
 const acoes = (x: Partial<AcoesDaEmpresa> = {}): AcoesDaEmpresa => ({ inativada_em: null, motivo_inativacao: null, ultimo_backup: null, exclusao: null, exclusao_bloqueada: null, ...x });
 const FUSO = 'America/Manaus';
 
-describe('coluna Backup (§15.1): data, "Em andamento" ou "Nenhum", e o motivo do Excluir desabilitado', () => {
+describe('coluna Backup (§15.1): data, "Em andamento" ou "Nenhum"; o motivo do Excluir desabilitado só no item do menu (RD-1205)', () => {
   it.each([
-    ['ativa, com backup', acoes({ ultimo_backup: backup(), exclusao_bloqueada: C.exclusaoEmpresaAtiva }), '14/11/2026 19:40', false, 'Inative para excluir'],
-    ['ativa, sem backup', acoes({ exclusao_bloqueada: C.exclusaoEmpresaAtiva }), 'Nenhum', false, 'Inative para excluir'],
-    ['ativa, backup em andamento', acoes({ ultimo_backup: andamento, exclusao_bloqueada: C.exclusaoEmpresaAtiva }), 'Em andamento', true, 'Inative para excluir'],
-    ['inativa, backup em andamento', acoes({ ultimo_backup: andamento, exclusao_bloqueada: C.exclusaoSemBackup }), 'Em andamento', true, null],
-    ['inativa, sem backup', acoes({ exclusao_bloqueada: C.exclusaoSemBackup }), 'Nenhum', false, null],
-    ['inativa, anterior à inativação', acoes({ ultimo_backup: backup(), exclusao_bloqueada: C.exclusaoBackupAntesDaInativacao }), '14/11/2026 19:40', false, 'Anterior à inativação'],
-    ['inativa, vencido', acoes({ ultimo_backup: backup(), exclusao_bloqueada: C.exclusaoBackupVencido }), '14/11/2026 19:40', false, 'Vencido (mais de 7 dias)'],
-    ['inativa, válido', acoes({ ultimo_backup: backup() }), '14/11/2026 19:40', false, null],
-  ])('%s', (_n, a, texto, giro, motivo) => {
-    expect(celulaDoBackup(a, FUSO)).toEqual({ texto, andamento: giro, motivo });
+    ['ativa, com backup', acoes({ ultimo_backup: backup(), exclusao_bloqueada: C.exclusaoEmpresaAtiva }), '14/11/2026 19:40', false, 'Excluir (inative antes)'],
+    ['ativa, sem backup', acoes({ exclusao_bloqueada: C.exclusaoEmpresaAtiva }), 'Nenhum', false, 'Excluir (inative antes)'],
+    ['ativa, backup em andamento', acoes({ ultimo_backup: andamento, exclusao_bloqueada: C.exclusaoEmpresaAtiva }), 'Em andamento', true, 'Excluir (inative antes)'],
+    ['inativa, backup em andamento', acoes({ ultimo_backup: andamento, exclusao_bloqueada: C.exclusaoSemBackup }), 'Em andamento', true, 'Excluir'],
+    ['inativa, sem backup', acoes({ exclusao_bloqueada: C.exclusaoSemBackup }), 'Nenhum', false, 'Excluir'],
+    ['inativa, anterior à inativação', acoes({ ultimo_backup: backup(), exclusao_bloqueada: C.exclusaoBackupAntesDaInativacao }), '14/11/2026 19:40', false, 'Excluir (backup anterior à inativação)'],
+    ['inativa, vencido', acoes({ ultimo_backup: backup(), exclusao_bloqueada: C.exclusaoBackupVencido }), '14/11/2026 19:40', false, 'Excluir (backup vencido)'],
+    ['inativa, válido', acoes({ ultimo_backup: backup() }), '14/11/2026 19:40', false, 'Excluir'],
+  ])('%s', (_n, a, texto, giro, rotulo) => {
+    expect(celulaDoBackup(a, FUSO)).toEqual({ texto, andamento: giro });
+    expect(rotuloDoExcluir(a)).toBe(rotulo);
   });
   it('o clique em Backup põe a linha em "Em andamento" antes da resposta', () => {
     expect(celulaDoBackup(acoes({ ultimo_backup: backup() }), FUSO, true).texto).toBe('Em andamento');

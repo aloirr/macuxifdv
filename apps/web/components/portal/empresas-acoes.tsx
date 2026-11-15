@@ -20,10 +20,10 @@ import {
   type AcoesDaEmpresa,
   type ExclusaoEmpresa,
 } from '@macuxi/platform-sdk';
-import { Button, CLASSE_CAMPO, Dialog, ErrorBlock, MenuAcoes, Notice, cx, formatDateTimeFull, type AcaoDoMenu } from '@macuxi/ui/web';
+import { Button, CampoSenha, CLASSE_CAMPO, Dialog, ErrorBlock, MenuAcoes, Notice, cx, formatDateTimeFull, type AcaoDoMenu } from '@macuxi/ui/web';
 
 import { chamarPortal, ErroPortal, mensagemDoErro } from '@/lib/portal-api';
-import { ACOMPANHAR_ACAO_MS, celulaDoBackup, type EmpresaResumo, erroDoExcluir, estadoDasAcoes, rotaDaAcao, TEXTOS_EMPRESA_ACOES as T, type ErroDoExcluir } from '@/lib/portal-empresa-acoes';
+import { ACOMPANHAR_ACAO_MS, celulaDoBackup, type EmpresaResumo, rotuloDoExcluir, erroDoExcluir, estadoDasAcoes, rotaDaAcao, TEXTOS_EMPRESA_ACOES as T, type ErroDoExcluir } from '@/lib/portal-empresa-acoes';
 
 type Empresa = EmpresaResumo & { acoes: AcoesDaEmpresa };
 type Aviso = { tom: 'success' | 'danger'; texto: string };
@@ -117,7 +117,7 @@ export function useAcoesDasEmpresas(chave: readonly unknown[]) {
         aoEscolher: () => void reativar(e),
         testId: `empresas.reativar-${e.codigo}`,
       });
-    itens.push({ id: 'excluir', rotulo: T.excluir, perigo: true, desligada: !est.excluirLigado, aoEscolher: () => setDialogo({ tipo: 'excluir', empresa: e }), testId: `empresas.excluir-${e.codigo}` });
+    itens.push({ id: 'excluir', rotulo: rotuloDoExcluir(e.acoes), perigo: true, desligada: !est.excluirLigado, aoEscolher: () => setDialogo({ tipo: 'excluir', empresa: e }), testId: `empresas.excluir-${e.codigo}` });
     return itens;
   }
 
@@ -177,7 +177,7 @@ function AcompanharBackup({ tenant, id, aoTerminar }: { tenant: string; id: stri
   const q = useQuery({
     queryKey: ['portal', 'empresa-backup', id],
     queryFn: () => chamarPortal(rotaDaAcao('backup', tenant, id), { schema: BackupEmpresaSchema }),
-    // timer-permitido: acompanha backup/exclusão em andamento; para quando termina
+    // timer-permitido: ver ACOMPANHAR_ACAO_MS
     refetchInterval: ACOMPANHAR_ACAO_MS,
     retry: false,
   });
@@ -194,7 +194,7 @@ function AcompanharExclusao({ tenant, aoTerminar }: { tenant: string; aoTerminar
   const q = useQuery({
     queryKey: ['portal', 'empresa-exclusao', tenant],
     queryFn: () => chamarPortal(rotaDaAcao('exclusao', tenant), { schema: ExclusaoEmpresaSchema }),
-    // timer-permitido: acompanha backup/exclusão em andamento; para quando termina
+    // timer-permitido: ver ACOMPANHAR_ACAO_MS
     refetchInterval: ACOMPANHAR_ACAO_MS,
     retry: false,
   });
@@ -205,21 +205,14 @@ function AcompanharExclusao({ tenant, aoTerminar }: { tenant: string; aoTerminar
   return null;
 }
 
-/** Coluna Backup (§15.1): data (ou "Em andamento"/"Nenhum") e, embaixo, o motivo do Excluir desabilitado. */
+/** Coluna Backup (§15.1): data, "Em andamento" ou "Nenhum". O motivo do Excluir desabilitado fica só no item do menu (RD-1205). */
 export function CelulaBackup({ empresa, pedindo }: { empresa: Empresa; pedindo: boolean }) {
   const c = celulaDoBackup(empresa.acoes, empresa.fuso, pedindo);
   return (
-    <div className="flex flex-col gap-0.5">
-      <span data-testid={`empresas.backup-data-${empresa.codigo}`} className="inline-flex items-center gap-1.5 whitespace-nowrap tabular-nums">
-        {c.andamento && <span aria-hidden className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-line border-t-accent" />}
-        {c.texto}
-      </span>
-      {c.motivo && (
-        <span id={`empresas.backup-motivo-${empresa.codigo}`} data-testid={`empresas.backup-motivo-${empresa.codigo}`} className="text-[12px] whitespace-nowrap text-ink-2">
-          {c.motivo}
-        </span>
-      )}
-    </div>
+    <span data-testid={`empresas.backup-data-${empresa.codigo}`} className="inline-flex items-center gap-1.5 whitespace-nowrap tabular-nums">
+      {c.andamento && <span aria-hidden className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-line border-t-accent" />}
+      {c.texto}
+    </span>
   );
 }
 
@@ -279,8 +272,8 @@ export function DialogoInativar({
 
 /**
  * Excluir (§15.2): backup usado, "Não dá para desfazer.", o código da empresa digitado e a senha de quem pede. "Excluir empresa"
- * só com o código conferindo (`codigoDeConfirmacaoConfere` do SDK) e a senha preenchida. Recusa da API: uma linha curta; senha
- * errada esvazia o campo, marca a borda e devolve o foco.
+ * só com o código conferindo (`codigoDeConfirmacaoConfere` do SDK) e a senha preenchida. Senha errada: a frase da API no erro do
+ * `CampoSenha`, o campo esvazia e volta o foco. Outra recusa: o `ErrorBlock` com a frase da API.
  */
 export function DialogoExcluir({
   empresa,
@@ -295,10 +288,11 @@ export function DialogoExcluir({
   inicial?: { codigo?: string; senha?: string; erro?: ErroDoExcluir; mensagem?: string };
 }) {
   const id = useId();
+  const idSenha = `${id}-senha`;
   const pedido = useRef(crypto.randomUUID());
-  const senhaRef = useRef<HTMLInputElement>(null);
   const [codigo, setCodigo] = useState(inicial?.codigo ?? '');
   const [senha, setSenha] = useState(inicial?.senha ?? '');
+  const [senhaVisivel, setSenhaVisivel] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<ErroDoExcluir | null>(inicial?.erro ?? null);
   const [mensagem, setMensagem] = useState(inicial?.mensagem ?? '');
@@ -325,13 +319,14 @@ export function DialogoExcluir({
       setEnviando(false);
       if (e.tipo === 'linha' && e.senha) {
         setSenha('');
-        queueMicrotask(() => senhaRef.current?.focus());
+        queueMicrotask(() => document.getElementById(idSenha)?.focus());
       }
     }
   };
   const fechar = () => {
     if (enviando) return;
     setSenha('');
+    setSenhaVisivel(false);
     aoFechar();
   };
 
@@ -373,33 +368,21 @@ export function DialogoExcluir({
             className={cx(CLASSE_CAMPO, 'font-mono tracking-[1px]')}
           />
         </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${id}-senha`} className="text-[13px] font-semibold text-ink">
-            {T.senha}
-          </label>
-          <input
-            id={`${id}-senha`}
-            ref={senhaRef}
-            type="password"
-            value={senha}
-            onChange={(ev) => {
-              setSenha(ev.target.value);
-              if (senhaErrada) setErro(null);
-            }}
-            autoComplete="current-password"
-            disabled={enviando}
-            aria-invalid={senhaErrada || undefined}
-            aria-describedby={erro?.tipo === 'linha' ? `${id}-erro` : undefined}
-            data-testid="empresa-excluir.senha"
-            className={CLASSE_CAMPO}
-          />
-        </div>
-        {erro?.tipo === 'linha' && (
-          <p id={`${id}-erro`} role="alert" data-testid="empresa-acao.erro" className="m-0 text-[13px] text-danger">
-            {erro.texto}
-          </p>
-        )}
-        {erro?.tipo === 'bloco' && (
+        <CampoSenha
+          id={idSenha}
+          rotulo={T.senha}
+          testId="empresa-excluir.senha"
+          visivel={senhaVisivel}
+          onAlternar={() => setSenhaVisivel((v) => !v)}
+          value={senha}
+          onChange={(ev) => {
+            setSenha(ev.target.value);
+            if (senhaErrada) setErro(null);
+          }}
+          disabled={enviando}
+          erro={senhaErrada ? erro.texto : null}
+        />
+        {erro && !senhaErrada && (
           <div data-testid="empresa-acao.erro">
             <ErrorBlock message={mensagem} />
           </div>

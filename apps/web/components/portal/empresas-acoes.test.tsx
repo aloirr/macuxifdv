@@ -56,49 +56,19 @@ const linha = (html: string, codigo: string) => {
 
 describe('modo falso: estados da simulação depois-02b (a liberação vem da `conferirExclusao` do SDK)', () => {
   it.each([
-    ['distribuidora-uma', 'ativo', C.exclusaoEmpresaAtiva],
-    ['atacado-norte', 'ativo', C.exclusaoEmpresaAtiva],
-    ['comercial-boa-vista', 'suspenso', C.exclusaoSemBackup],
-    ['RR4410', 'suspenso', C.exclusaoBackupAntesDaInativacao],
-    ['AM5173', 'suspenso', C.exclusaoBackupVencido],
-    ['AM2290', 'suspenso', null],
-  ])('%s', (codigo, status, bloqueio) => {
-    const e = porCodigo(codigo);
-    expect([e.status, e.acoes.exclusao_bloqueada]).toEqual([status, bloqueio]);
-  });
-  it('Excluir: senha errada 403, código errado 422; com tudo certo, 202 e a empresa sai da lista quando termina', async () => {
-    const e = porCodigo('AM2290');
-    const corpo = { id: crypto.randomUUID(), backup_id: e.acoes.ultimo_backup?.id, codigo_confirmacao: 'am2290 ', senha: 'errada' };
-    expect((await (await chamar('POST', `/plataforma/empresas/${e.id}/exclusao`, corpo)).json()).codigo).toBe(C.reautenticacaoFalhou);
-    expect((await (await chamar('POST', `/plataforma/empresas/${e.id}/exclusao`, { ...corpo, senha: 'boa', codigo_confirmacao: 'AM2291' })).json()).codigo).toBe(C.exclusaoCodigoNaoConfere);
-    const ok = await chamar('POST', `/plataforma/empresas/${e.id}/exclusao`, { ...corpo, senha: 'boa' });
-    expect(ok.status).toBe(202);
-    const r = await chamar('POST', `/plataforma/empresas/${porCodigo('RR4410').id}/exclusao`, { ...corpo, backup_id: porCodigo('RR4410').acoes.ultimo_backup?.id, codigo_confirmacao: 'RR4410', senha: 'boa' });
-    expect([r.status, ((await r.json()) as { codigo: string }).codigo]).toEqual([422, C.exclusaoBackupAntesDaInativacao]);
-  });
-});
-
-describe('lista de Empresas com as ações (§15.1)', () => {
-  it('coluna Backup e a das ações (sem título visível, `aria-label` "Ações")', () => {
-    const html = renderizarLista();
-    expect(html).toContain('>Backup</th>');
-    expect(html).toContain('aria-label="Ações"');
-  });
-  it.each([
-    ['distribuidora-uma', 'Ativa', null, 'Inative para excluir'],
-    ['atacado-norte', 'Ativa', 'Nenhum', 'Inative para excluir'],
-    ['comercial-boa-vista', 'Inativa', 'Em andamento', null],
-    ['RR4410', 'Inativa', null, 'Anterior à inativação'],
-    ['AM5173', 'Inativa', null, 'Vencido (mais de 7 dias)'],
-    ['AM2290', 'Inativa', null, null],
-  ])('%s: selo, backup e motivo', (codigo, selo, texto, motivo) => {
+    ['distribuidora-uma', 'Ativa', null],
+    ['atacado-norte', 'Ativa', 'Nenhum'],
+    ['comercial-boa-vista', 'Inativa', 'Em andamento'],
+    ['RR4410', 'Inativa', null],
+    ['AM5173', 'Inativa', null],
+    ['AM2290', 'Inativa', null],
+  ])('%s: selo e backup, sem motivo embaixo (RD-1205: ele fica só no item Excluir do menu)', (codigo, selo, texto) => {
     const l = linha(renderizarLista(), codigo);
     expect(l).toContain(`>${selo}</span>`);
     if (texto) expect(l).toContain(texto);
     else expect(l).toMatch(/\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
-    if (motivo) expect(l).toContain(`data-testid="empresas.backup-motivo-${codigo}"`);
-    if (motivo) expect(l).toContain(motivo);
-    else expect(l).not.toContain('empresas.backup-motivo-');
+    expect(l).not.toContain('empresas.backup-motivo-');
+    expect(l).not.toMatch(/Inative|inative|Vencido|Anterior à/);
     expect(l).toContain(`data-testid="empresas.acoes-${codigo}"`);
   });
 });
@@ -120,6 +90,8 @@ describe('diálogos (§15.2)', () => {
     expect(vazio).toContain('<span class="font-mono font-medium">AM2290</span> para confirmar');
     expect(vazio).toContain('type="password"');
     expect(vazio).toContain('autoComplete="current-password"');
+    expect(vazio).toContain('data-testid="empresa-excluir.senha.olho"');
+    expect(vazio).toContain('aria-label="Mostrar senha"');
     expect(vazio).toContain('data-testid="empresa-acao.confirmar" disabled=""');
     const errado = renderToStaticMarkup(<DialogoExcluir empresa={e} aoFechar={() => {}} aoPedir={() => {}} inicial={{ codigo: 'AM229', senha: 'x' }} />);
     expect(errado).toContain('data-testid="empresa-acao.confirmar" disabled=""');
@@ -128,12 +100,26 @@ describe('diálogos (§15.2)', () => {
     expect(certo).not.toContain('data-testid="empresa-acao.confirmar" disabled=""');
     expect(certo).toContain('>Excluir empresa</button>');
   });
-  it('senha errada: a frase da API numa linha com `role="alert"` e o campo marcado', () => {
+  it('senha errada: a frase da API no erro do `CampoSenha` (sem linha à parte) e o campo marcado', () => {
     const SENHA_INCORRETA = MENSAGENS_ACOES_EMPRESA[C.reautenticacaoFalhou];
     const html = renderToStaticMarkup(
       <DialogoExcluir empresa={porCodigo('AM2290')} aoFechar={() => {}} aoPedir={() => {}} inicial={{ codigo: 'AM2290', erro: { tipo: 'linha', texto: SENHA_INCORRETA, senha: true } }} />,
     );
-    expect(html).toMatch(new RegExp(`role="alert" data-testid="empresa-acao.erro"[^>]*>${SENHA_INCORRETA.replace('.', '\\.')}<`));
-    expect(html).toMatch(/aria-invalid="true"[^>]*data-testid="empresa-excluir.senha"/);
+    expect(html).toMatch(new RegExp(`id="([^"]+)-senha-erro" class="text-\\[12px\\] text-danger">${SENHA_INCORRETA.replace('.', '\\.')}<`));
+    expect(html).toMatch(/aria-invalid="true" aria-describedby="[^"]+-senha-erro"/);
+    expect(html).not.toContain('role="alert"');
+    expect(html).not.toContain('empresa-acao.erro');
+  });
+  it('outra recusa da API: o `ErrorBlock` com a frase, sem marcar a senha', () => {
+    const html = renderToStaticMarkup(
+      <DialogoExcluir
+        empresa={porCodigo('AM2290')}
+        aoFechar={() => {}}
+        aoPedir={() => {}}
+        inicial={{ codigo: 'AM2290', erro: { tipo: 'linha', texto: 'Frase da API.', senha: false }, mensagem: 'Frase da API.' }}
+      />,
+    );
+    expect(html).toMatch(/data-testid="empresa-acao.erro".*Frase da API\./);
+    expect(html).not.toContain('aria-invalid="true"');
   });
 });

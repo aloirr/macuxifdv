@@ -14,7 +14,11 @@ const C = CODIGOS_ACOES_EMPRESA;
 /** Item da lista de empresas (`EmpresaResumoSchema`; o SDK não exporta o tipo). */
 export type EmpresaResumo = ReturnType<typeof EmpresaResumoSchema.parse>;
 
-/** Intervalo da consulta enquanto um backup ou uma exclusão está em andamento (ADR 0052); para quando termina. */
+/**
+ * Intervalo da consulta enquanto um backup ou uma exclusão está em andamento (ADR 0052); para quando termina. Exceção ao mínimo
+ * de 15 min do RN-CORE-23: só roda com um pedido no worker feito nesta tela. Cada uso leva `timer-permitido: ver
+ * ACOMPANHAR_ACAO_MS` porque a varredura (`scripts/ci/timers-sync.mjs`) exige a marca até 3 linhas acima de cada timer.
+ */
 export const ACOMPANHAR_ACAO_MS = 5_000;
 
 export const TEXTOS_EMPRESA_ACOES = Object.freeze({
@@ -43,12 +47,18 @@ export const TEXTOS_EMPRESA_ACOES = Object.freeze({
   exclusaoNaoTerminou: (empresa: string) => `A exclusão da ${empresa} não terminou. Tente de novo.`,
 });
 
-/** Motivo do Excluir desabilitado, embaixo da data na coluna Backup (§15.1). `null` = sem linha de motivo. */
+/** Motivo do Excluir desabilitado, só no próprio item do menu "⋯" (RD-1205). Sem backup: a coluna já diz "Nenhum". */
 const MOTIVO_DO_BLOQUEIO: Partial<Record<string, string>> = {
-  [C.exclusaoEmpresaAtiva]: 'Inative para excluir',
-  [C.exclusaoBackupAntesDaInativacao]: 'Anterior à inativação',
-  [C.exclusaoBackupVencido]: 'Vencido (mais de 7 dias)',
+  [C.exclusaoEmpresaAtiva]: 'inative antes',
+  [C.exclusaoBackupAntesDaInativacao]: 'backup anterior à inativação',
+  [C.exclusaoBackupVencido]: 'backup vencido',
 };
+
+/** Rótulo do item Excluir: "Excluir" ou, bloqueado pela regra, "Excluir (motivo)". */
+export function rotuloDoExcluir(acoes: AcoesDaEmpresa): string {
+  const motivo = acoes.exclusao_bloqueada ? MOTIVO_DO_BLOQUEIO[acoes.exclusao_bloqueada] : undefined;
+  return motivo ? `${TEXTOS_EMPRESA_ACOES.excluir} (${motivo})` : TEXTOS_EMPRESA_ACOES.excluir;
+}
 
 /** Situação da empresa em rótulo do SDK (`ROTULO_STATUS_EMPRESA`); valor fora da lista: 1ª letra maiúscula. */
 export function rotuloDoStatus(status: string): string {
@@ -65,8 +75,6 @@ export interface CelulaBackup {
   /** Data e hora do último backup pronto, no fuso da empresa; "Em andamento" (com giro) ou "Nenhum". */
   texto: string;
   andamento: boolean;
-  /** Por que o Excluir está desabilitado, quando a linha de cima não diz. */
-  motivo: string | null;
 }
 
 /**
@@ -77,8 +85,7 @@ export function celulaDoBackup(acoes: AcoesDaEmpresa, fuso: string, pedindo = fa
   const b = acoes.ultimo_backup;
   const andamento = pedindo || b?.situacao === 'em_andamento';
   const texto = andamento ? TEXTOS_EMPRESA_ACOES.emAndamento : b?.situacao === 'pronto' && b.concluido_em ? formatDateTimeFull(b.concluido_em, fuso) : TEXTOS_EMPRESA_ACOES.nenhum;
-  const motivo = acoes.exclusao_bloqueada ? (MOTIVO_DO_BLOQUEIO[acoes.exclusao_bloqueada] ?? null) : null;
-  return { texto, andamento, motivo };
+  return { texto, andamento };
 }
 
 export interface EstadoDasAcoes {

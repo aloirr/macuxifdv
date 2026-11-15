@@ -31,7 +31,7 @@ export function useEmpresas() {
   return useQuery({
     queryKey: CHAVE_EMPRESAS,
     queryFn: () => chamarPortal(ROTAS_PORTAL.empresas, { schema: ListaEmpresasSchema }).then((r) => r.itens),
-    // timer-permitido: acompanha backup/exclusão em andamento; para quando termina
+    // timer-permitido: ver ACOMPANHAR_ACAO_MS
     refetchInterval: (q) => (q.state.data?.some(rodando) ? ACOMPANHAR_ACAO_MS : false),
   });
 }
