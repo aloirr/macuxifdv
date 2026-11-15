@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, CampoBusca, CampoFormulario, CLASSE_CAMPO, type ColunaDaTabela, Drawer, ErrorBlock, EstadoVazio, FilterBar, LoadingBlock, type AcaoDoMenu, MenuAcoes, Notice, PageHeader, rotuloComContagem, SelectField, SeloSituacao, TabelaDados, useToast } from '@macuxi/ui/web';
+import { Abas, PainelAba, Button, CampoBusca, CampoFormulario, CLASSE_CAMPO, type ColunaDaTabela, Drawer, ErrorBlock, EstadoVazio, FilterBar, LoadingBlock, type AcaoDoMenu, MenuAcoes, Notice, PageHeader, SelectField, SeloSituacao, TabelaDados, useToast } from '@macuxi/ui/web';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { localIsoDate } from '@macuxi/comum/fuso';
 import type { FormaPagamento, PrazoPagamento } from '../../contracts';
@@ -11,30 +11,35 @@ import {
   buscaDosFiltrosFormas,
   corpoDaForma,
   corpoDoPrazo,
-  filtrarFormas,
   FILTROS_FORMAS_VAZIOS,
   FORM_FORMA_VAZIO,
   FORM_PRAZO_VAZIO,
   formasToCsv,
   formDaForma,
   formDoPrazo,
+  formatarPercentualPrazo,
   lerFiltrosFormas,
+  linhasDeFormas,
+  linhasDePrazos,
+  percentualDoPrazo,
+  prazoEfetivamenteAtivo,
+  prazosToCsv,
   previaDoPrazo,
   registroDoErp,
   TEXTO_VEM_DO_ERP,
   validarForma,
   validarPrazo,
+  type AbaFormas,
   type FiltrosFormas,
+  type LinhaPrazo,
   type FormForma,
   type FormPrazo,
 } from '../lib/formas-pagamento';
 import { useFormasEPrazos, useSessaoDoBko } from '../lib/queries';
 
-type Linha = { tipo: 'forma'; forma: FormaPagamento } | { tipo: 'prazo'; prazo: PrazoPagamento };
-
 /**
- * Parâmetros → Formas de pagamento e prazos (RN-VEN-24, T-0089): cada forma (Pix, Dinheiro, Cartão, Boleto) com os prazos
- * permitidos e o prazo médio de cada um (calculado, arredondado para cima: 28/56 = 42). Busca e situação na URL, exportar CSV,
+ * Cadastros → Formas de pagamento e prazos (RN-VEN-24, T-0089): tabela única de prazos (a forma é uma coluna) na aba "Prazos" e
+ * as formas na aba "Formas"; prazo médio calculado, arredondado para cima (28/56 = 42). Aba, busca e situação na URL, exportar CSV,
  * criar, editar e inativar (admin, analista, gerente). Registro vindo do ERP tem código e parcelas fixos. Os botões refletem a
  * permissão; a proteção real é na API. Promotor nunca chega aqui (regra 7).
  */
@@ -66,7 +71,10 @@ export function FormasPagamentoPage() {
 
   const formas = useMemo(() => dados.data?.formas ?? [], [dados.data]);
   const prazos = useMemo(() => dados.data?.prazos ?? [], [dados.data]);
-  const linhas = useMemo(() => filtrarFormas(formas, prazos, filtros), [formas, prazos, filtros]);
+  const linhasPrazo = useMemo(() => linhasDePrazos(formas, prazos, filtros), [formas, prazos, filtros]);
+  const linhasForma = useMemo(() => linhasDeFormas(formas, filtros), [formas, filtros]);
+  const naAbaPrazos = filtros.aba === 'prazos';
+  const total = naAbaPrazos ? linhasPrazo.length : linhasForma.length;
 
   const atualizar = () => qc.invalidateQueries({ queryKey: ['vendedor', 'formas-pagamento'] });
   const fechar = () => {
@@ -111,8 +119,9 @@ export function FormasPagamentoPage() {
   });
 
   const exportar = () => {
-    downloadBlob(new Blob([formasToCsv(linhas)], { type: 'text/csv;charset=utf-8' }), `formas_pagamento_${localIsoDate(new Date(), sessao.fuso)}.csv`);
-    toast('success', `CSV com ${linhas.length} formas exportado.`);
+    const csv = naAbaPrazos ? prazosToCsv(linhasPrazo) : formasToCsv(linhasForma);
+    downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `${naAbaPrazos ? 'prazos_pagamento' : 'formas_pagamento'}_${localIsoDate(new Date(), sessao.fuso)}.csv`);
+    toast('success', `CSV com ${total} ${naAbaPrazos ? (total === 1 ? 'prazo' : 'prazos') : total === 1 ? 'forma' : 'formas'} exportado.`);
   };
   const novaForma = () => {
     fechar();
@@ -130,83 +139,78 @@ export function FormasPagamentoPage() {
   // T-0089: registro do ERP tem código e parcelas fixos (a próxima carga do ERP desfaria a mudança)
   const formaDoErp = Boolean(formaEmEdicao && !formaEmEdicao.novo && registroDoErp(formas.find((f) => f.id === formaEmEdicao.id)));
   const prazoDoErp = Boolean(prazoEmEdicao && !prazoEmEdicao.novo && registroDoErp(prazos.find((p) => p.id === prazoEmEdicao.id)));
-  const nomeDaForma = (id: string) => formas.find((f) => f.id === id)?.nome ?? '—';
 
-  const temFiltro = Boolean(filtros.q || filtros.ativas);
-  const linhasPlanas = useMemo<Linha[]>(() => linhas.flatMap(({ forma, prazos: ps }) => [{ tipo: 'forma' as const, forma }, ...ps.map((prazo) => ({ tipo: 'prazo' as const, prazo }))]), [linhas]);
-  const editar = (l: Linha) => {
+  const temBusca = Boolean(filtros.q || filtros.ativas);
+  const editarForma = (f: FormaPagamento) => {
     fechar();
-    if (l.tipo === 'forma') setFormaEmEdicao({ id: l.forma.id, novo: false, form: formDaForma(l.forma) });
-    else setPrazoEmEdicao({ id: l.prazo.id, novo: false, form: formDoPrazo(l.prazo) });
+    setFormaEmEdicao({ id: f.id, novo: false, form: formDaForma(f) });
   };
-  const acoesDaPagina: AcaoDoMenu[] = [{ id: 'csv', rotulo: 'Exportar CSV', aoEscolher: exportar, desligada: linhas.length === 0, testId: 'formas-pagamento.exportar-csv' }];
-  const colunas: ColunaDaTabela<Linha>[] = [
-    {
-      id: 'nome',
-      titulo: 'Forma e prazo',
-      celula: (l) =>
-        l.tipo === 'forma' ? (
-          <span data-testid={`formas-pagamento.forma-${l.forma.codigo}`}>
-            {l.forma.nome} <span className="font-mono text-[12px] font-normal text-ink-2">{l.forma.codigo}</span>
-          </span>
-        ) : (
-          <span className="pl-5 font-normal" data-testid={`formas-pagamento.prazo-${l.prazo.codigo}`}>
-            {l.prazo.descricao} <span className="font-mono text-[12px] text-ink-2">{l.prazo.codigo}</span>
-          </span>
-        ),
-      texto: (l) => (l.tipo === 'forma' ? l.forma.nome : `${nomeDaForma(l.prazo.forma_pagamento_id)} · ${l.prazo.descricao}`),
-      largura: '46%',
-    },
-    { id: 'medio', titulo: 'Prazo médio', numero: true, celula: (l) => (l.tipo === 'prazo' ? `${l.prazo.prazo_medio_dias} ${l.prazo.prazo_medio_dias === 1 ? 'dia' : 'dias'}` : ''), prioridade: 2, largura: '120px' },
-    {
-      id: 'situacao',
-      titulo: 'Situação',
-      celula: (l) => {
-        const ativo = l.tipo === 'forma' ? l.forma.ativo : l.prazo.ativo;
-        return <SeloSituacao selos={[ativo ? { tom: 'success', texto: l.tipo === 'forma' ? 'Ativa' : 'Ativo' } : { tom: 'neutral', texto: l.tipo === 'forma' ? 'Inativa' : 'Inativo' }]} />;
-      },
-      largura: '110px',
-    },
-    { id: 'origem', titulo: 'Origem', celula: (l) => ((l.tipo === 'forma' ? l.forma.external_id : l.prazo.external_id) ? 'ERP' : 'BKO'), prioridade: 3, largura: '80px' },
+  const editarPrazo = (p: PrazoPagamento) => {
+    fechar();
+    setPrazoEmEdicao({ id: p.id, novo: false, form: formDoPrazo(p) });
+  };
+  const acoesDaPagina: AcaoDoMenu[] = [{ id: 'csv', rotulo: 'Exportar CSV', aoEscolher: exportar, desligada: total === 0, testId: 'formas-pagamento.exportar-csv' }];
+  const colunasPrazo: ColunaDaTabela<LinhaPrazo>[] = [
+    { id: 'forma', titulo: 'Forma', celula: (l) => l.formaNome, largura: '16%' },
+    { id: 'codigo', titulo: 'Código', celula: (l) => <span className="font-mono text-[12px]" data-testid={`formas-pagamento.prazo-${l.prazo.codigo}`}>{l.prazo.codigo}</span>, texto: (l) => l.prazo.codigo, largura: '14%' },
+    { id: 'prazo', titulo: 'Prazo', celula: (l) => l.prazo.descricao },
+    { id: 'medio', titulo: 'Prazo médio', numero: true, celula: (l) => `${l.prazo.prazo_medio_dias} ${l.prazo.prazo_medio_dias === 1 ? 'dia' : 'dias'}`, prioridade: 2, largura: '110px' },
+    // TODO(sessão nuvem/prazo-ajuste-modulo-vendedor): o % vem do ERP (`percentual_ajuste`) e é só leitura; mostra "—" até o contrato trazer o campo.
+    { id: 'ajuste', titulo: `Desc./Acrésc. (%) · ${TEXTO_VEM_DO_ERP}`, numero: true, celula: (l) => <span data-testid={`formas-pagamento.ajuste-${l.prazo.codigo}`}>{formatarPercentualPrazo(percentualDoPrazo(l.prazo))}</span>, texto: (l) => formatarPercentualPrazo(percentualDoPrazo(l.prazo)), prioridade: 2, largura: '230px' },
+    { id: 'situacao', titulo: 'Situação', celula: (l) => <SeloSituacao selos={[prazoEfetivamenteAtivo(l) ? { tom: 'success', texto: 'Ativo' } : { tom: 'neutral', texto: 'Inativo' }]} />, largura: '100px' },
+    { id: 'origem', titulo: 'Origem', celula: (l) => (l.prazo.external_id ? 'ERP' : 'BKO'), prioridade: 3, largura: '70px' },
   ];
-  const acoesDaLinha = (l: Linha): AcaoDoMenu[] => {
-    if (l.tipo === 'forma') {
-      const f = l.forma;
-      return [
-        { id: 'editar', rotulo: 'Editar', aoEscolher: () => editar(l), testId: `formas-pagamento.editar-forma-${f.codigo}` },
-        { id: 'prazo', rotulo: 'Novo prazo', aoEscolher: () => novoPrazo(f.id), testId: `formas-pagamento.novo-prazo-${f.codigo}` },
-        { id: 'alternar', rotulo: f.ativo ? 'Inativar' : 'Reativar', perigo: f.ativo, desligada: alternarForma.isPending, aoEscolher: () => alternarForma.mutate(f), testId: `formas-pagamento.alternar-forma-${f.codigo}` },
-      ];
-    }
+  const colunasForma: ColunaDaTabela<FormaPagamento>[] = [
+    { id: 'codigo', titulo: 'Código', celula: (f) => <span className="font-mono text-[12px]" data-testid={`formas-pagamento.forma-${f.codigo}`}>{f.codigo}</span>, texto: (f) => f.codigo, largura: '20%' },
+    { id: 'nome', titulo: 'Forma', celula: (f) => f.nome },
+    { id: 'ordem', titulo: 'Ordem', numero: true, celula: (f) => f.ordem, prioridade: 2, largura: '90px' },
+    { id: 'situacao', titulo: 'Situação', celula: (f) => <SeloSituacao selos={[f.ativo ? { tom: 'success', texto: 'Ativa' } : { tom: 'neutral', texto: 'Inativa' }]} />, largura: '100px' },
+    { id: 'origem', titulo: 'Origem', celula: (f) => (f.external_id ? 'ERP' : 'BKO'), prioridade: 3, largura: '70px' },
+  ];
+  const acoesDoPrazo = (l: LinhaPrazo): AcaoDoMenu[] => {
     const p = l.prazo;
     return [
-      { id: 'editar', rotulo: 'Editar', aoEscolher: () => editar(l), testId: `formas-pagamento.editar-prazo-${p.codigo}` },
+      { id: 'editar', rotulo: 'Editar', aoEscolher: () => editarPrazo(p), testId: `formas-pagamento.editar-prazo-${p.codigo}` },
       { id: 'alternar', rotulo: p.ativo ? 'Inativar' : 'Reativar', perigo: p.ativo, desligada: alternarPrazo.isPending, aoEscolher: () => alternarPrazo.mutate(p), testId: `formas-pagamento.alternar-prazo-${p.codigo}` },
     ];
   };
-  const vazio = (
+  const acoesDaForma = (f: FormaPagamento): AcaoDoMenu[] => [
+    { id: 'editar', rotulo: 'Editar', aoEscolher: () => editarForma(f), testId: `formas-pagamento.editar-forma-${f.codigo}` },
+    { id: 'prazo', rotulo: 'Novo prazo', aoEscolher: () => novoPrazo(f.id), testId: `formas-pagamento.novo-prazo-${f.codigo}` },
+    { id: 'alternar', rotulo: f.ativo ? 'Inativar' : 'Reativar', perigo: f.ativo, desligada: alternarForma.isPending, aoEscolher: () => alternarForma.mutate(f), testId: `formas-pagamento.alternar-forma-${f.codigo}` },
+  ];
+  const vazioPrazos = (
     <EstadoVazio
-      testId="formas-pagamento.vazio"
-      titulo={temFiltro ? 'Nenhuma forma com esses filtros.' : 'Nenhuma forma cadastrada.'}
-      acao={!temFiltro && podeGerenciar ? <Button variant="primary" onClick={novaForma}>Nova forma</Button> : undefined}
+      testId="formas-pagamento.vazio-prazos"
+      titulo={temBusca ? 'Nenhum prazo com essa busca.' : 'Nenhum prazo cadastrado.'}
     />
   );
+  const vazioFormas = (
+    <EstadoVazio
+      testId="formas-pagamento.vazio-formas"
+      titulo={temBusca ? 'Nenhuma forma com essa busca.' : 'Nenhuma forma cadastrada.'}
+    />
+  );
+  const abas = [
+    { id: 'prazos' as const, rotulo: 'Prazos', contador: dados.data ? linhasPrazo.length : null },
+    { id: 'formas' as const, rotulo: 'Formas', contador: dados.data ? linhasForma.length : null },
+  ];
 
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="formas-pagamento.tela">
       <PageHeader
-        title={dados.data ? rotuloComContagem('Formas de pagamento e prazos', linhas.length) : 'Formas de pagamento e prazos'}
+        title="Formas de pagamento e prazos"
         actions={
           <>
-            {podeGerenciar && (
-              <>
-                <Button onClick={() => novoPrazo()} disabled={formas.length === 0} data-testid="formas-pagamento.novo-prazo">
-                  Novo prazo
-                </Button>
-                <Button variant="primary" onClick={novaForma} data-testid="formas-pagamento.nova">
-                  Nova forma
-                </Button>
-              </>
+            {podeGerenciar && naAbaPrazos && (
+              <Button variant="primary" onClick={() => novoPrazo()} disabled={formas.length === 0} data-testid="formas-pagamento.novo-prazo">
+                Novo prazo
+              </Button>
+            )}
+            {podeGerenciar && !naAbaPrazos && (
+              <Button variant="primary" onClick={novaForma} data-testid="formas-pagamento.nova">
+                Nova forma
+              </Button>
             )}
             <MenuAcoes acoes={acoesDaPagina} />
           </>
@@ -214,12 +218,12 @@ export function FormasPagamentoPage() {
       />
 
       <FilterBar>
-        <CampoBusca rotulo="Buscar forma ou prazo" value={busca} maxLength={60} onChange={(e) => setBusca(e.target.value)} data-testid="formas-pagamento.filtro-busca" />
+        <CampoBusca rotulo={naAbaPrazos ? 'Buscar prazo ou forma' : 'Buscar forma'} value={busca} maxLength={60} onChange={(e) => setBusca(e.target.value)} data-testid="formas-pagamento.filtro-busca" />
         <SelectField label="Situação" value={filtros.ativas} onChange={(e) => mudar({ ativas: e.target.value === '1' ? '1' : '' })} data-testid="formas-pagamento.filtro-situacao">
           <option value="">Todas</option>
           <option value="1">Só ativas</option>
         </SelectField>
-        {temFiltro && (
+        {temBusca && (
           <Button
             size="sm"
             onClick={() => {
@@ -331,18 +335,38 @@ export function FormasPagamentoPage() {
       {dados.isError && <ErrorBlock message={errorMessage(dados.error)} onRetry={() => void dados.refetch()} />}
       {dados.isPending && <LoadingBlock label="Carregando as formas de pagamento…" />}
       {dados.data && (
-        <section aria-label="Formas de pagamento" className={linhas.length === 0 ? '' : 'rounded-2xl border border-line bg-surface p-4'}>
-          <TabelaDados
-            rotulo="Formas de pagamento e prazos"
-            colunas={colunas}
-            linhas={linhasPlanas}
-            chave={(l) => (l.tipo === 'forma' ? `f-${l.forma.id}` : `p-${l.prazo.id}`)}
-            testId="formas-pagamento.tabela"
-            vazio={vazio}
-            esmaecida={(l) => !(l.tipo === 'forma' ? l.forma.ativo : l.prazo.ativo)}
-            aoAbrir={podeGerenciar ? editar : undefined}
-            acoes={podeGerenciar ? acoesDaLinha : undefined}
-          />
+        <section aria-label="Formas de pagamento e prazos" className="flex flex-col gap-4">
+          <Abas<AbaFormas> idBase="formas-pagamento" rotulo="Formas de pagamento e prazos" abas={abas} valor={filtros.aba} onChange={(aba) => mudar({ aba })} testid="formas-pagamento.abas" />
+          <PainelAba idBase="formas-pagamento" id="prazos" ativo={naAbaPrazos}>
+            <div className={linhasPrazo.length === 0 ? '' : 'rounded-2xl border border-line bg-surface p-4'}>
+              <TabelaDados
+                rotulo="Prazos de pagamento"
+                colunas={colunasPrazo}
+                linhas={linhasPrazo}
+                chave={(l) => l.prazo.id}
+                testId="formas-pagamento.tabela"
+                vazio={vazioPrazos}
+                esmaecida={(l) => !prazoEfetivamenteAtivo(l)}
+                aoAbrir={podeGerenciar ? (l) => editarPrazo(l.prazo) : undefined}
+                acoes={podeGerenciar ? acoesDoPrazo : undefined}
+              />
+            </div>
+          </PainelAba>
+          <PainelAba idBase="formas-pagamento" id="formas" ativo={!naAbaPrazos}>
+            <div className={linhasForma.length === 0 ? '' : 'rounded-2xl border border-line bg-surface p-4'}>
+              <TabelaDados
+                rotulo="Formas de pagamento"
+                colunas={colunasForma}
+                linhas={linhasForma}
+                chave={(f) => f.id}
+                testId="formas-pagamento.tabela-formas"
+                vazio={vazioFormas}
+                esmaecida={(f) => !f.ativo}
+                aoAbrir={podeGerenciar ? editarForma : undefined}
+                acoes={podeGerenciar ? acoesDaForma : undefined}
+              />
+            </div>
+          </PainelAba>
         </section>
       )}
     </div>
