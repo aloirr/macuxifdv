@@ -32,12 +32,16 @@ export function conferirSegredoJwt(env: NodeJS.ProcessEnv, hostBanco: string): S
   return { ok: false, fatal: true, mensagem: `${problema} fora do ambiente local: a API não sobe (falha fechada). Defina a variável no .env do servidor.` };
 }
 
+/** Flag ligada: só `1`/`true`/`sim` (sem diferença de maiúsculas e espaços); ausente ou outro valor = DESLIGADO. */
+const ligado = (env: NodeJS.ProcessEnv, nome: string): boolean =>
+  ['1', 'true', 'sim'].includes(String(env[nome] ?? '').trim().toLowerCase());
+
 /**
  * T-0158 (ADR 0043): `MACUXI_DIAGNOSTICOS` liga o diagnóstico na nuvem do lado do servidor (Portal › Diagnósticos na API;
  * alerta e expurgo no worker). Só `1`/`true`/`sim` liga; ausente ou outro valor = DESLIGADO (padrão até a v1.0.4).
  */
 export function diagnosticosLigados(env: NodeJS.ProcessEnv): boolean {
-  return ['1', 'true', 'sim'].includes(String(env.MACUXI_DIAGNOSTICOS ?? '').trim().toLowerCase());
+  return ligado(env, 'MACUXI_DIAGNOSTICOS');
 }
 
 /**
@@ -45,7 +49,34 @@ export function diagnosticosLigados(env: NodeJS.ProcessEnv): boolean {
  * DESLIGADO (padrão até a migração de `plataforma.plano`/`plataforma.assinatura` do banco-dados).
  */
 export function planosLigados(env: NodeJS.ProcessEnv): boolean {
-  return ['1', 'true', 'sim'].includes(String(env.MACUXI_PLANOS ?? '').trim().toLowerCase());
+  return ligado(env, 'MACUXI_PLANOS');
+}
+
+/**
+ * ADR 0052: `MACUXI_EMPRESA_ACOES` liga as ações da empresa no portal (Inativar/Reativar, Backup, Excluir e o bloco `acoes` da
+ * lista). Só `1`/`true`/`sim` liga; ausente ou outro valor = DESLIGADO (padrão até a migração 0072 do banco-dados).
+ */
+export function empresaAcoesLigadas(env: NodeJS.ProcessEnv): boolean {
+  return ligado(env, 'MACUXI_EMPRESA_ACOES');
+}
+
+/** Chave AES-256 do backup de empresa: 32 bytes em base64 ou em 64 caracteres hex. `null` = ausente ou inválida. Nunca vai a log. */
+export function chaveBackupEmpresa(env: NodeJS.ProcessEnv): Buffer | null {
+  const v = String(env.MACUXI_BACKUP_EMPRESA_CHAVE ?? '').trim();
+  if (!v) return null;
+  if (/^[0-9a-fA-F]{64}$/.test(v)) return Buffer.from(v, 'hex');
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(v)) return null;
+  const b = Buffer.from(v, 'base64');
+  return b.length === 32 ? b : null;
+}
+
+/**
+ * ADR 0052 §2.3: o backup de empresa só existe com o bucket (`MACUXI_ARQUIVOS_DRIVER=s3`) e a chave de cifra
+ * (`MACUXI_BACKUP_EMPRESA_CHAVE`, 32 bytes). Falso = o pedido de backup responde 503 `BACKUP_INDISPONIVEL` (falha fechada).
+ */
+export function backupEmpresaDisponivel(env: NodeJS.ProcessEnv): boolean {
+  const driver = String(env.MACUXI_ARQUIVOS_DRIVER ?? '').trim().toLowerCase();
+  return driver === 's3' && chaveBackupEmpresa(env) !== null;
 }
 
 /**
@@ -55,7 +86,7 @@ export function planosLigados(env: NodeJS.ProcessEnv): boolean {
  * ligado (o portal precisa existir para ler o que chega). Mesmos valores: `1`/`true`/`sim`; o resto = DESLIGADO.
  */
 export function diagnosticosAppLigados(env: NodeJS.ProcessEnv): boolean {
-  return diagnosticosLigados(env) && ['1', 'true', 'sim'].includes(String(env.MACUXI_DIAGNOSTICOS_APP ?? '').trim().toLowerCase());
+  return diagnosticosLigados(env) && ligado(env, 'MACUXI_DIAGNOSTICOS_APP');
 }
 
 /**

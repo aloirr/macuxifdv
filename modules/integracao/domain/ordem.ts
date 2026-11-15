@@ -7,7 +7,8 @@ import { erroReferenciaAusente } from './erros';
 
 /** Dependências diretas: a entidade da chave só carrega depois das listadas. */
 export const DEPENDENCIAS: Readonly<Record<Entidade, readonly Entidade[]>> = {
-  vendedor: [],
+  // RN-CORE-39: a filial vai antes do vendedor (o vendedor tem uma filial obrigatória, referência por chave)
+  vendedor: ['filial'],
   catalogo_no: [],
   transportadora: [],
   // produto -> nó do catálogo é referência FRACA (aviso), mas o nó vai antes para o produto já entrar ligado
@@ -79,6 +80,8 @@ function ref(entidade: Entidade, campo: string, registro: Record<string, unknown
 export function referenciasDoRegistro(entidade: Entidade, registro: unknown): ReferenciaRegistro[] {
   const r = (registro && typeof registro === 'object' ? registro : {}) as Record<string, unknown>;
   switch (entidade) {
+    case 'vendedor':
+      return ref('filial', 'filial_external_id', r);
     case 'cliente':
       return [...ref('vendedor', 'vendedor_external_id', r), ...ref('filial', 'filial_external_id', r)];
     case 'titulo':
@@ -160,7 +163,7 @@ export function verificarReferencias<L extends LinhaComReferencias>(
   for (const l of linhas) {
     const ausentes = referenciasDoRegistro(entidade, l.registro).filter((r) => !existentes[r.entidade]?.has(r.external_id));
     if (ausentes.length === 0) aceitas.push(l);
-    else for (const a of ausentes) erros.push(erroReferenciaAusente(l.indice, l.external_id, a.campo, a.entidade));
+    else for (const a of ausentes) erros.push(erroReferenciaAusente(l.indice, l.external_id, a.campo, a.entidade, a.external_id));
   }
   return { aceitas, erros };
 }

@@ -78,6 +78,9 @@
  *   (A: equipe-2 visitas_dia 12 desde 2026-01; B: tenant km_dia 150 km desde 2026-01); resumo de km de ontem (A: promotor;
  *   B: vendedor-B). Fora dos usuários e das vigências que os testes t0170-*.db.test.ts usam (analista, assistente,
  *   vendedor-1 nas metas e no km, 2030-01, 2031-12, 2032-01).
+ * - 0074 (ADR 0054; SYNC_PACOTE_FIXTURE, grupos 0x68 e 0x69): pacotes da primeira carga — A com o 'catalogo' · 'tenant'
+ *   pronto, o 'catalogo' · 'filial:<padrão>' pronto e um 'catalogo' · 'tenant' substituído; B com o 'core' · 'tenant' pronto.
+ *   Pedidos de geração já atendidos (A: lote; B: manifesto): nenhum pendente (o teste grava o seu em transação desfeita).
  */
 import { createHash, createHmac } from 'node:crypto';
 import type { ClientBase } from 'pg';
@@ -199,6 +202,11 @@ const G = {
   usuario_avatar: 0x64,
   meta_produtividade: 0x65,
   deslocamento_dia: 0x66,
+  // 0070 (ADR 0047): assinatura do tenant (o catálogo de planos, fora dos tenants, usa o prefixo 9a9a9a9a)
+  assinatura: 0x67,
+  // 0074 (ADR 0054): pacote da primeira carga e pedido de geração
+  sync_pacote: 0x68,
+  sync_pacote_pedido: 0x69,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -347,6 +355,51 @@ export const FOTOS_PDV_FIXTURE = {
 export const DIAGNOSTICOS_FIXTURE = {
   A: { botao: a('diagnostico', 1), queda: a('diagnostico', 2) },
   B: { erroTela: b('diagnostico', 1) },
+} as const;
+
+/**
+ * 0070 (ADR 0047): catálogo de planos DA FIXTURE (fora dos tenants; gravado antes de ORDEM_TABELAS por carregarDoisTenants) e a
+ * assinatura viva de A e de B. Números só de teste: os planos de verdade vêm do seed com os números do dono do produto.
+ * - fixture_pme: ativo, R$ 300,00/mês, 3 vendedores, 2 gestores, BKO sem limite, 0 promotor; vende Promotor (R$ 50,00) e
+ *   Pesquisa (R$ 10,00, 2 incluídos); 2 meses grátis no anual; 14 dias de teste;
+ * - fixture_antigo: inativo (fora de venda), para o PLANO_INATIVO da sa_gravar_assinatura.
+ * A: fixture_pme, mensal, 2 licenças de promotor, em teste até 2026-11-27, não paga. B: fixture_pme, anual, paga, sem teste.
+ */
+export const PLANOS_FIXTURE = {
+  pme: { id: idFixo('9a9a9a9a', G.assinatura, 1), codigo: 'fixture_pme', nome: 'PME (fixture)' },
+  antigo: { id: idFixo('9a9a9a9a', G.assinatura, 2), codigo: 'fixture_antigo', nome: 'Antigo (fixture)' },
+} as const;
+export const ASSINATURAS_FIXTURE = {
+  A: { id: a('assinatura', 1), pedido_id: idFixo('9a9a9a9a', G.assinatura, 11), teste_ate: '2026-11-27' },
+  B: { id: b('assinatura', 1), pedido_id: idFixo('9a9a9a9a', G.assinatura, 12) },
+} as const;
+
+/** Linhas de plataforma.plano da fixture (sem tenant_id: fora de ORDEM_TABELAS). */
+export function planosDaFixture(): Linha[] {
+  const plano = (p: { id: string; codigo: string; nome: string }, extra: Partial<Linha>): Linha => ({
+    id: p.id, codigo: p.codigo, nome: p.nome, ordem: 0, preco_mensal_centavos: 30000, licenca_vendedor: 3, licenca_gestor: 2,
+    licenca_bko: null, licenca_promotor: 0, modulos: arrayDeTexto(['core', 'catalogo', 'vendedor', 'gestor', 'integracao']),
+    adicionais: [], meses_gratis_anual: 2, dias_teste: 14, ativo: true, deleted_at: null, external_id: null, ...extra,
+  });
+  return [
+    plano(PLANOS_FIXTURE.pme, {
+      ordem: 1,
+      adicionais: [
+        { adicional: 'promotor', preco_unitario_centavos: 5000, incluidos: 0 },
+        { adicional: 'pesquisa', preco_unitario_centavos: 1000, incluidos: 2 },
+      ],
+    }),
+    plano(PLANOS_FIXTURE.antigo, { ordem: 9, ativo: false }),
+  ];
+}
+
+/**
+ * 0074 (ADR 0054): pacotes da primeira carga e pedidos de geração (ver o cabeçalho). geracao_base fixa (a do tenant é aleatória
+ * na fixture; o gerador grava a do tenant). Nenhum pedido pendente.
+ */
+export const SYNC_PACOTE_FIXTURE = {
+  A: { catalogo: a('sync_pacote', 1), filialPadrao: a('sync_pacote', 2), substituido: a('sync_pacote', 3), pedido: a('sync_pacote_pedido', 1) },
+  B: { core: b('sync_pacote', 1), pedido: b('sync_pacote_pedido', 1) },
 } as const;
 
 /** 0064–0066 (T-0170): uma linha de cada tabela nova em A e em B (ver o cabeçalho). */
@@ -586,6 +639,8 @@ const DO_PEDIDO = ['vendedor.pedido', 'vendedor.pedido_item'] as const;
 export const ORDEM_TABELAS = [
   'plataforma.tenant',
   'plataforma.tenant_modulo',
+  // 0070 (ADR 0047): assinatura (FK -> plataforma.plano, gravado antes por carregarDoisTenants: planosDaFixture)
+  'plataforma.assinatura',
   // 0041 (T-0111): perfis personalizados e sobreposições (os 7 de fábrica vêm do gatilho do tenant), antes da FK de perfil_modulo
   'plataforma.perfil',
   'plataforma.perfil_permissao',
@@ -610,6 +665,9 @@ export const ORDEM_TABELAS = [
   'plataforma.email_saida',
   // 0058 (T-0158): diagnóstico do aparelho (FK composta -> core.usuario); alerta já resolvido, sem print
   'plataforma.diagnostico',
+  // 0074 (ADR 0054): pacote da primeira carga e pedido de geração (sem FK além do tenant)
+  'plataforma.sync_pacote',
+  'plataforma.sync_pacote_pedido',
   'plataforma.evento',
   'plataforma.evento_consumo',
   'plataforma.parametro',
@@ -919,6 +977,10 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       ...A.modulos.map((modulo, i) => ({ id: a('tenant_modulo', i + 1), tenant_id: tA, modulo, ativo: true, plano: 'piloto', licencas: null, parametros: {}, external_id: null })),
       ...B.modulos.map((modulo, i) => ({ id: b('tenant_modulo', i + 1), tenant_id: tB, modulo, ativo: true, plano: 'piloto', licencas: null, parametros: {}, external_id: null })),
     ],
+    'plataforma.assinatura': [
+      { id: ASSINATURAS_FIXTURE.A.id, tenant_id: tA, plano_id: PLANOS_FIXTURE.pme.id, ciclo: 'mensal', adicionais: [{ adicional: 'promotor', quantidade: 2 }], teste_ate: ASSINATURAS_FIXTURE.A.teste_ate, paga: false, pedido_id: ASSINATURAS_FIXTURE.A.pedido_id, external_id: null },
+      { id: ASSINATURAS_FIXTURE.B.id, tenant_id: tB, plano_id: PLANOS_FIXTURE.pme.id, ciclo: 'anual', adicionais: [], teste_ate: null, paga: true, pedido_id: ASSINATURAS_FIXTURE.B.pedido_id, external_id: null },
+    ],
     // 0041 (ADR 0033): personalizados (os de fábrica são do gatilho tenant_semear_perfis); sobreposições só nos personalizados
     'plataforma.perfil': [
       { id: A.perfis.vendedorExterno, tenant_id: tA, codigo: 'vendedor_externo', nome: 'Vendedor externo', descricao: 'fixture: personalizado sem usuário (A)', base: 'vendedor', cargo: 'vendedor', fabrica: false, ativo: true, external_id: null },
@@ -1027,6 +1089,16 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
         motivo: 'tela', alerta_situacao: 'enviado', alerta_recado_id: 'R-20261031-120001-diagnostico', alerta_em: DATA_FIXA_ACESSO,
         detalhe: { erro: { mensagem: 'TypeError: x is undefined', pilha: null, origem: 'tela' } },
       }),
+    ],
+    'plataforma.sync_pacote': [
+      syncPacote(SYNC_PACOTE_FIXTURE.A.catalogo, tA, 'catalogo', null, {}),
+      syncPacote(SYNC_PACOTE_FIXTURE.A.filialPadrao, tA, 'catalogo', FILIAIS_FIXTURE.A.padrao, {}),
+      syncPacote(SYNC_PACOTE_FIXTURE.A.substituido, tA, 'catalogo', null, { situacao: 'substituido', substituido_em: DATA_FIXA_ACESSO }),
+      syncPacote(SYNC_PACOTE_FIXTURE.B.core, tB, 'core', null, { entidades: { produto: 2, produto_unidade: 2, medida: 3 } }),
+    ],
+    'plataforma.sync_pacote_pedido': [
+      syncPacotePedido(SYNC_PACOTE_FIXTURE.A.pedido, tA, 'catalogo', null, 'lote'),
+      syncPacotePedido(SYNC_PACOTE_FIXTURE.B.pedido, tB, 'core', null, 'manifesto'),
     ],
     'plataforma.evento': [
       evento(a('evento', 1), tA, A.usuarios.vendedor2),
@@ -1722,6 +1794,26 @@ function diagnostico(id: string, tenant_id: string, usuario_id: string, perfil: 
   };
 }
 
+/** 0074 (ADR 0054): pacote com a chave do armazenamento no formato do CHECK sync_pacote_chave_do_tenant. */
+function syncPacote(id: string, tenant_id: string, modulo: string, filial_id: string | null, extra: Partial<Linha>): Linha {
+  const particao = filial_id ? `filial:${filial_id}` : 'tenant';
+  return {
+    id, tenant_id, modulo, particao, filial_id, formato: 1, situacao: 'pronto', horizonte: DATA_FIXA_ACESSO,
+    geracao_base: '00000000-0000-4000-8000-000000000070',
+    chave_armazenamento: `sync-pacotes/${tenant_id}/${modulo}/${particao}/${id}.sqlite.gz`,
+    bytes: 4096, md5: 'd41d8cd98f00b204e9800998ecf8427e', entidades: filial_id ? { tabela_preco_item: 4, deposito: 1 } : { catalogo_no: 2, sinonimo: 1 },
+    substituido_em: null, arquivo_apagado_em: null, external_id: null, ...extra,
+  };
+}
+
+/** 0074 (ADR 0054): pedido de geração já atendido (nenhum pendente na fixture). */
+function syncPacotePedido(id: string, tenant_id: string, modulo: string, filial_id: string | null, origem: 'lote' | 'manifesto' | 'agendado'): Linha {
+  return {
+    id, tenant_id, modulo, particao: filial_id ? `filial:${filial_id}` : 'tenant', filial_id, origem, situacao: 'atendido',
+    gerar_apos: DATA_FIXA_ACESSO, tentativas: 1, ultimo_erro: null, atendido_em: DATA_FIXA_ACESSO, external_id: null,
+  };
+}
+
 function evento(id: string, tenant_id: string, usuarioId: string): Linha {
   return {
     id, tenant_id, nome: 'core.usuario.modulos_alterados@1', modulo: 'core', agregado_id: usuarioId,
@@ -1746,6 +1838,8 @@ export async function carregarDoisTenants(admin: ClientBase, opcoes: { senha?: s
   const dados = dadosDoisTenants(hashSenha(senha), { hoje: opcoes.hoje, agora: opcoes.agora });
   await admin.query('begin');
   try {
+    // 0070 (ADR 0047): o catálogo de planos (fora dos tenants) antes da assinatura
+    await gravarLinhas(admin, 'plataforma.plano', planosDaFixture());
     for (const tabela of ORDEM_TABELAS) {
       const linhas = tabela === 'core.equipe' ? dados[tabela].map((e) => ({ ...e, responsavel_id: null })) : dados[tabela];
       const preservar = tabela === 'core.usuario' ? ['senha_hash'] : tabela === 'vendedor.numeracao_pedido' ? ['ultimo'] : [];

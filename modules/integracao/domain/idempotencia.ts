@@ -6,6 +6,7 @@
 import { SCHEMA_REGISTRO, type AvisoLinha, type Entidade, type LinhaErro } from '../contracts';
 import { classificarErroZod } from './erros';
 import { limitarCatalogoDoProduto } from './catalogo-produto';
+import { avisoVendedorSemFilial } from './vendedor-filial';
 import { avisoPrazoMedioDivergente } from './pagamento';
 import { sha256Hex } from './sha256';
 
@@ -88,6 +89,11 @@ export interface LinhaValida<R = unknown> {
   hash: string;
 }
 
+/** RN-INT-03: só o aviso `duplicado_no_lote` conta como linha repetida; os outros avisos (corte, vendedor sem filial...) não são duplicata e não mudam o status do lote. */
+export function contarDuplicadasNoLote(avisos: readonly { codigo: string }[]): number {
+  return avisos.filter((a) => a.codigo === 'duplicado_no_lote').length;
+}
+
 /** Deduplica, valida cada linha com o schema da entidade e calcula o hash. Erro de linha não trava o lote (RN-INT-03). */
 export function validarLinhas(entidade: Entidade, registros: readonly unknown[]): { validas: LinhaValida[]; erros: LinhaErro[]; avisos: AvisoLinha[] } {
   const { linhas, avisos } = deduplicarNoLote(registros);
@@ -103,6 +109,11 @@ export function validarLinhas(entidade: Entidade, registros: readonly unknown[])
         const corte = limitarCatalogoDoProduto(r.data as Parameters<typeof limitarCatalogoDoProduto>[0]);
         dados = corte.registro;
         avisos.push(...corte.avisos.map((a) => ({ ...a, indice: l.indice })));
+      }
+      if (entidade === 'vendedor') {
+        // RN-CORE-39: sem filial o vendedor entra, mas fica bloqueado no Core até a carga ou o BKO informarem a filial
+        const aviso = avisoVendedorSemFilial(r.data as { external_id: string; filial_external_id?: string | null });
+        if (aviso) avisos.push({ ...aviso, indice: l.indice });
       }
       if (entidade === 'prazo_pagamento') {
         // T-0089: prazo médio informado diferente do calculado = aviso (RN-VEN-24); a linha segue

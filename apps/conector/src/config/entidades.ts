@@ -1,12 +1,12 @@
 /** Entidades do contrato do Hub na ordem de carga (RN-INT-04) e utilidades sobre o schema. */
-import { ENTIDADES, SCHEMA_REGISTRO, type Entidade } from '@macuxi/integracao/contracts';
+import { ENTIDADES, ORDEM_CARGA_ENTIDADES, SCHEMA_REGISTRO, type Entidade } from '@macuxi/integracao/contracts';
 import { z } from 'zod';
 
 export { ENTIDADES };
 export type { Entidade };
 
-/** vendedor → cliente → (rota, título, nota); produto → (preço, estoque). Ordem estável usada pelo laço de execução. */
-export const ORDEM_CARGA: readonly Entidade[] = ['vendedor', 'filial', 'catalogo_no', 'transportadora', 'forma_pagamento', 'prazo_pagamento', 'produto', 'produto_unidade', 'cliente', 'cliente_endereco', 'preco', 'tabela_escalonada', 'estoque', 'rota', 'titulo', 'nota'];
+/** Ordem de carga do Hub (RN-INT-04), a mesma lista do portal. */
+export const ORDEM_CARGA: readonly Entidade[] = ORDEM_CARGA_ENTIDADES;
 
 /** Frequência sugerida pelo doc 06 (segundos). */
 export const PERIODICIDADE_PADRAO: Record<Entidade, number> = {

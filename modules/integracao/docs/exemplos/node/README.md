@@ -6,7 +6,7 @@ Arquivo único, [`cliente-hub.mjs`](./cliente-hub.mjs): `fetch` nativo, **sem de
 
 | Variável | Padrão | Observação |
 |---|---|---|
-| `MACUXI_HUB_URL` | `https://api-demo.macuxifdv.com.br/integracao/v1` | HTTPS obrigatório (só `localhost`/`127.0.0.1` aceitam `http`) |
+| `MACUXI_HUB_URL` | `https://api.macuxifdv.com.br/integracao/v1` | HTTPS obrigatório (só `localhost`/`127.0.0.1` aceitam `http`) |
 | `MACUXI_CHAVE` | (obrigatória) | formato `mxc_` + 43 caracteres; **nunca é impressa** |
 | `MACUXI_CONECTOR` | `erp-matriz` | identificador do Conector cadastrado no BKO |
 | `MACUXI_CONECTOR_VERSAO` | (vazio) | opcional; sem ele o cabeçalho `X-Macuxi-Conector-Versao` não é enviado |
@@ -27,7 +27,7 @@ $env:MACUXI_INTERVALO_MS = "200"                                 export MACUXI_I
 node cliente-hub.mjs
 ```
 
-Contra a demonstração: defina só `MACUXI_CHAVE` (e `MACUXI_CONECTOR`, se o seu não for `erp-matriz`) e rode `node cliente-hub.mjs`. A demonstração envia dados de exemplo ao seu Conector; use um Conector de testes.
+Contra a API: defina só `MACUXI_CHAVE` (e `MACUXI_CONECTOR`, se o seu não for `erp-matriz`) e rode `node cliente-hub.mjs`. A demonstração envia dados de exemplo ao seu Conector; use um Conector de testes.
 
 ## O que demonstra
 

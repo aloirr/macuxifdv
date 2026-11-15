@@ -36,7 +36,8 @@ export const manifest = defineModule({
   ],
   // RN-INT-14: o Hub pergunta ao Core se o cadastro do cliente do lote está completo (aviso `cadastro_incompleto`, nunca erro de linha);
   // RN-CORE-19: core.medidas@1 diz quais siglas de medida do lote existem/estão ativas (sigla desconhecida = referencia_ausente)
-  usaConsultas: ['core.cadastro_cliente@1', 'core.medidas@1'],
+  // RN-CORE-39: core.filiais@1 confere o filial_external_id do vendedor (inexistente = referencia_ausente reprocessável)
+  usaConsultas: ['core.cadastro_cliente@1', 'core.medidas@1', 'core.filiais@1'],
   // T-0114: o Vendedor pergunta se o ERP aceita o cancelamento de pedido já enviado (saída { aceita })
   ofereceConsultas: ['integracao.cancelamento_erp@1'],
   // vendedor.pedido.aprovado@1 traz o pedido pronto para a fila do ERP; status_alterado@1 retira da fila (cancelado/devolvido antes da 1ª entrega)
