@@ -294,6 +294,13 @@ describe('Referência cruzada do produto (até 3 códigos da concorrência)', ()
     expect(ler('conector', 'conector.json')).toContain('"marca_codigo": "marca_codigo"');
   });
 
+  it('RN-CORE-39: o vendedor leva filial_external_id, referenciada à filial, com a coluna criada no banco antigo', () => {
+    const contratoKit = JSON.parse(ler('contrato.json')) as { entidades: { entidade: string; campos: { campo: string; referencia?: string }[] }[] };
+    const vend = contratoKit.entidades.find((e) => e.entidade === 'vendedor');
+    expect(vend?.campos.find((c) => c.campo === 'filial_external_id')?.referencia).toBe('filial');
+    expect(sql).toContain("IF COL_LENGTH('dbo.tha_vendedor', 'filial_external_id') IS NULL ALTER TABLE dbo.tha_vendedor ADD filial_external_id");
+  });
+
   it('banco criado pela versão anterior do kit ganha as colunas (ALTER TABLE idempotente)', () => {
     for (const col of ['referencia_1', 'marca_referencia_3']) expect(sql).toContain(`IF COL_LENGTH('dbo.tha_produto', '${col}') IS NULL ALTER TABLE dbo.tha_produto ADD ${col}`);
   });

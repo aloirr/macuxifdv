@@ -264,6 +264,16 @@ class TestRegrasDoHub(unittest.TestCase):
         self.assertEqual(res.recusadas, [])
         self.assertNotIn("referencia_1", res.validas[0][1])
 
+    def test_vendedor_cita_filial_que_nao_existe_e_recusado(self):
+        # RN-CORE-39: o vendedor tem uma filial; a referência é conferida como a do cliente
+        cab, dados = cc.ler_csv((MODELOS / "vendedor.csv").read_text(encoding="utf-8-sig"))
+        res = cc.validar_linhas(ENTS["vendedor"], cab, [(2, dados[0][1])])
+        self.assertEqual(res.recusadas, [])
+        res = cc.checar_referencias(ENTS["vendedor"], res, {"filial": {"FIL-999"}})
+        self.assertEqual([r.campo for r in res.recusadas], ["filial_external_id"])
+        res = cc.validar_linhas(ENTS["vendedor"], cab, [(2, dados[0][1])])
+        self.assertEqual(cc.checar_referencias(ENTS["vendedor"], res, {"filial": {"FIL-001"}}).recusadas, [])
+
     def test_fim_da_vigencia_nao_anterior_ao_inicio(self):
         self.assertEqual([r.campo for r in self.validar("preco", {"vigencia_fim": "2026-10-01"}).recusadas], ["vigencia_fim"])
         self.assertEqual(self.validar("preco", {"vigencia_fim": "2026-11-01"}).recusadas, [])
@@ -355,6 +365,7 @@ class TestRelatorio(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.pasta, True)
 
     def test_relatorio_por_tabela_sem_dado_digitado(self):
+        shutil.copy(MODELOS / "filial.csv", self.pasta / "filial.csv")
         shutil.copy(MODELOS / "vendedor.csv", self.pasta / "vendedor.csv")
         cab, dados = cc.ler_csv((MODELOS / "cliente.csv").read_text(encoding="utf-8-sig"))
         celulas = list(dados[0][1])
@@ -367,7 +378,8 @@ class TestRelatorio(unittest.TestCase):
             self.assertIn(coluna, texto)
         self.assertRegex(texto, r"vendedor\s+1\s+1\s+0\s+0\s+0")
         self.assertRegex(texto, r"cliente\s+1\s+0\s+0\s+0\s+1")
-        self.assertRegex(texto, r"filial\s+sem arquivo")
+        self.assertRegex(texto, r"filial\s+1\s+1\s+0\s+0\s+0")
+        self.assertRegex(texto, r"catalogo_no\s+sem arquivo")
         self.assertIn("[cliente] linha 2, limite_credito_cents: deve ser em centavos", texto)
         self.assertNotIn("9876", texto, "o relatório não repete o valor digitado")
         self.assertTrue(cc.houve_problema(rel))
@@ -381,7 +393,7 @@ class TestRelatorio(unittest.TestCase):
     def test_arquivo_fora_do_utf8(self):
         (self.pasta / "vendedor.csv").write_bytes("external_id;nome\nV1;Jo\xe3o\n".encode("latin-1"))
         rel = cc.processar(CONTRATO, self.pasta, None, so_validar=True)
-        self.assertIn("UTF-8", rel[0].erro_arquivo or "")
+        self.assertIn("UTF-8", next(l for l in rel if l.entidade == "vendedor").erro_arquivo or "")
 
 
 class TestLinhaDeComando(unittest.TestCase):

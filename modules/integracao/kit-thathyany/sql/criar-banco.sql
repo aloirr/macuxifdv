@@ -11,20 +11,6 @@ IF DB_ID(N'ERP_THATHYANY') IS NULL CREATE DATABASE ERP_THATHYANY;
 GO
 USE ERP_THATHYANY;
 GO
-IF OBJECT_ID('dbo.tha_vendedor', 'U') IS NULL
-CREATE TABLE dbo.tha_vendedor (
-    external_id VARCHAR(200) NOT NULL,
-    nome NVARCHAR(120) NOT NULL,
-    alterado_em DATETIME2(3) NOT NULL,
-    ativo TINYINT NOT NULL CONSTRAINT df_tha_vendedor_ativo DEFAULT 1,
-    email NVARCHAR(160) NULL,
-    telefone NVARCHAR(30) NULL,
-    linha_hash CHAR(64) NULL,
-    CONSTRAINT pk_tha_vendedor PRIMARY KEY (external_id));
-GO
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_tha_vendedor_alterado' AND object_id = OBJECT_ID('dbo.tha_vendedor'))
-CREATE INDEX ix_tha_vendedor_alterado ON dbo.tha_vendedor (alterado_em, external_id);
-GO
 IF OBJECT_ID('dbo.tha_filial', 'U') IS NULL
 CREATE TABLE dbo.tha_filial (
     external_id VARCHAR(200) NOT NULL,
@@ -46,6 +32,23 @@ CREATE TABLE dbo.tha_filial (
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_tha_filial_alterado' AND object_id = OBJECT_ID('dbo.tha_filial'))
 CREATE INDEX ix_tha_filial_alterado ON dbo.tha_filial (alterado_em, external_id);
+GO
+IF OBJECT_ID('dbo.tha_vendedor', 'U') IS NULL
+CREATE TABLE dbo.tha_vendedor (
+    external_id VARCHAR(200) NOT NULL,
+    nome NVARCHAR(120) NOT NULL,
+    alterado_em DATETIME2(3) NOT NULL,
+    ativo TINYINT NOT NULL CONSTRAINT df_tha_vendedor_ativo DEFAULT 1,
+    email NVARCHAR(160) NULL,
+    telefone NVARCHAR(30) NULL,
+    filial_external_id NVARCHAR(200) NULL,
+    linha_hash CHAR(64) NULL,
+    CONSTRAINT pk_tha_vendedor PRIMARY KEY (external_id));
+GO
+IF COL_LENGTH('dbo.tha_vendedor', 'filial_external_id') IS NULL ALTER TABLE dbo.tha_vendedor ADD filial_external_id NVARCHAR(200) NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_tha_vendedor_alterado' AND object_id = OBJECT_ID('dbo.tha_vendedor'))
+CREATE INDEX ix_tha_vendedor_alterado ON dbo.tha_vendedor (alterado_em, external_id);
 GO
 IF OBJECT_ID('dbo.tha_catalogo_no', 'U') IS NULL
 CREATE TABLE dbo.tha_catalogo_no (
@@ -343,13 +346,13 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_tha_nota_alterado' AND
 CREATE INDEX ix_tha_nota_alterado ON dbo.tha_nota (alterado_em, external_id);
 GO
 -- ----- views que o Conector lê (uma por entidade, na ordem de carga) -----
-CREATE OR ALTER VIEW dbo.vw_macuxi_vendedor AS
-SELECT external_id, alterado_em, ativo, nome, email, telefone
-FROM dbo.tha_vendedor;
-GO
 CREATE OR ALTER VIEW dbo.vw_macuxi_filial AS
 SELECT external_id, alterado_em, ativo, codigo, nome, cidade, uf, cnpj, logradouro, numero, complemento, bairro, cep, telefone
 FROM dbo.tha_filial;
+GO
+CREATE OR ALTER VIEW dbo.vw_macuxi_vendedor AS
+SELECT external_id, alterado_em, ativo, nome, email, telefone, filial_external_id
+FROM dbo.tha_vendedor;
 GO
 CREATE OR ALTER VIEW dbo.vw_macuxi_catalogo_no AS
 SELECT external_id, alterado_em, ativo, codigo, nome, pai_external_id, nivel, ordem
