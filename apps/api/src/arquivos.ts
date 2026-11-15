@@ -157,7 +157,8 @@ export const TETO_POR_CATEGORIA: ReadonlyMap<string, { bytes: number; codigo: st
   ['core/avatar', { bytes: 300 * 1024, codigo: 'RN-CORE-42', mensagem: 'A foto do perfil passa de 300 KB. Tire ou escolha a foto de novo.' }],
 ]);
 
-const indisponivel = () =>
+/** 503 quando o armazenamento de arquivos não está configurado (rotas de arquivos e da logo do cliente, RD-0702). */
+export const erroArmazenamentoIndisponivel = (): ErroHttp =>
   new ErroHttp(503, 'ARMAZENAMENTO_INDISPONIVEL', 'Armazenamento de arquivos indisponível. Tente de novo em instantes.');
 
 function idDaRota(req: FastifyRequest): string {
@@ -204,7 +205,7 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
           throw new ErroHttp(415, 'TIPO_NAO_ACEITO', 'Envie a foto como image/jpeg.');
         const bytes = corpo ? new Uint8Array(corpo) : new Uint8Array();
         if (bytes.length === 0 || !ehJpeg(bytes)) throw new ErroHttp(400, CODIGOS_ARQUIVO.invalido, 'O arquivo enviado não é uma foto JPEG.');
-        if (!armazenamento) throw indisponivel();
+        if (!armazenamento) throw erroArmazenamentoIndisponivel();
         const sha256 = createHash('sha256').update(bytes).digest('hex');
         const u = ctx.usuario;
         const r = await ctx.comTenant(async (db) => {
@@ -288,7 +289,7 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
         const visiveis = await ctx.usuariosVisiveis();
         if (visiveis !== 'tenant' && !visiveis.has(linha.enviado_por)) throw naoEncontrado();
       }
-      if (!armazenamento) throw indisponivel();
+      if (!armazenamento) throw erroArmazenamentoIndisponivel();
       // restrito: o navegador e proxies não guardam cópia (a imagem fica só na memória de quem abriu)
       const cache = restrito ? 'private, no-store' : 'private, max-age=86400';
       return { id, ctx, linha, chave: linha.chave_armazenamento, naoEncontrado, armazenamento, cache };

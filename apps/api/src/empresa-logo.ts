@@ -23,6 +23,7 @@ import {
   MarcaEmpresaSchema,
   MENSAGENS_LOGO,
   ROTA_ME_EMPRESA_LOGO,
+  Sha256LogoSchema,
   type AcessoBanco,
   type AcessoPortalAutenticado,
   type ClienteBanco,
@@ -32,7 +33,7 @@ import {
 } from '@macuxi/platform-sdk';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { chaveDoArquivo, type ArmazenamentoArquivos } from './arquivos';
+import { chaveDoArquivo, erroArmazenamentoIndisponivel, type ArmazenamentoArquivos } from './arquivos';
 import { ErroHttp } from './erros';
 import { conferirRetorno, exigirPortal, exigirSuperAdmin, traduzirErroSa, type AutenticarPortal } from './portal-comum';
 import type { Plataforma } from './tipos';
@@ -98,12 +99,12 @@ function resposta(m: MarcaBruta): MarcaEmpresa {
 }
 
 const ParamsEmpresa = z.object({ tenant_id: z.string().uuid() }).strict();
-const ParamsLogoAparelho = z.object({ sha256: z.string().regex(/^[0-9a-f]{64}$/) }).strict();
+const ParamsLogoAparelho = z.object({ sha256: Sha256LogoSchema }).strict();
 
 const SO_A_MACUXI = 'Só o time da Macuxi altera a logo e o nome fantasia.';
 
-const indisponivel = () =>
-  new ErroHttp(503, 'ARMAZENAMENTO_INDISPONIVEL', 'Armazenamento de arquivos indisponível. Tente de novo em instantes.');
+/** A chave do objeto é do próprio tenant (`<tenant>/plataforma/...`; o banco tem o CHECK, aqui ela vira caminho). */
+const chaveDoTenant = (chave: string, tenantId: string): boolean => chave.startsWith(`${tenantId.toLowerCase()}/plataforma/`);
 const semLogo = () => new ErroHttp(404, CODIGOS_LOGO.naoEncontrada, MENSAGENS_LOGO[CODIGOS_LOGO.naoEncontrada]);
 
 /** SQLSTATE das `sa_*` → HTTP: os comuns (`traduzirErroSa`) + os desta rota. */
@@ -150,9 +151,8 @@ export function registrarRotasMarcaEmpresa(app: FastifyInstance, dep: DepsMarcaE
       traduzir(e);
     }
     const m = conferirRetorno(MarcaBrutaSchema, bruto, funcao);
-    // defesa: a chave guardada é sempre do próprio tenant (o banco tem o CHECK; aqui ela vira caminho no armazenamento)
     for (const c of [m.logo?.chave, m.chave_anterior])
-      if (c && !c.startsWith(`${m.tenant_id.toLowerCase()}/plataforma/`)) throw new Error(`${funcao} devolveu chave de outro tenant`);
+      if (c && !chaveDoTenant(c, m.tenant_id)) throw new Error(`${funcao} devolveu chave de outro tenant`);
     return m;
   };
 
@@ -182,7 +182,7 @@ export function registrarRotasMarcaEmpresa(app: FastifyInstance, dep: DepsMarcaE
     const quem = await exigirLeitura(req, tenantId);
     const m = await chamar(() => fonte.marca(quem.sessao_id, tenantId, dep.acessoPortal), 'sa_marca_da_empresa');
     if (!m.logo) throw semLogo();
-    if (!dep.armazenamento) throw indisponivel();
+    if (!dep.armazenamento) throw erroArmazenamentoIndisponivel();
     const bytes = await dep.armazenamento.ler(m.logo.chave);
     if (!bytes) {
       req.log.warn({ tenant_id: tenantId }, 'logo: bytes ausentes no armazenamento');
@@ -239,7 +239,7 @@ export function registrarRotasMarcaEmpresa(app: FastifyInstance, dep: DepsMarcaE
         const bytes = corpo ? new Uint8Array(corpo) : new Uint8Array();
         const c = conferirLogo(bytes, req.headers['content-type']);
         if (!c.ok) throw new ErroHttp(c.status, c.codigo, MENSAGENS_LOGO[c.codigo]);
-        if (!dep.armazenamento) throw indisponivel();
+        if (!dep.armazenamento) throw erroArmazenamentoIndisponivel();
         const armazenamento = dep.armazenamento;
         const sha256 = createHash('sha256').update(bytes).digest('hex');
 
@@ -285,8 +285,8 @@ export function registrarRotasMarcaEmpresa(app: FastifyInstance, dep: DepsMarcaE
     const { sha256 } = dep.validar(ParamsLogoAparelho, req.params, 'params') as z.output<typeof ParamsLogoAparelho>;
     const logo = await ctx.comTenant((db) => fonte.logoDoTenant(db));
     if (!logo || logo.sha256 !== sha256) throw semLogo();
-    if (!logo.chave.startsWith(`${ctx.usuario.tenant_id.toLowerCase()}/plataforma/`)) throw semLogo();
-    if (!dep.armazenamento) throw indisponivel();
+    if (!chaveDoTenant(logo.chave, ctx.usuario.tenant_id)) throw semLogo();
+    if (!dep.armazenamento) throw erroArmazenamentoIndisponivel();
     const bytes = await dep.armazenamento.ler(logo.chave);
     if (!bytes) {
       ctx.log.warn({ logo_sha256: sha256 }, 'logo: bytes ausentes no armazenamento');

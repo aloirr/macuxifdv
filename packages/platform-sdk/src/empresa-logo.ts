@@ -6,6 +6,7 @@
  * O aparelho recebe pelos parâmetros do Core (`empresa_nome`, `empresa_logo`; `empresaDosParametros`) e baixa os bytes por
  * `GET /v1/me/empresa/logo/:sha256`. Puro TypeScript: a mesma conferência (`conferirLogo`) vale na API e no portal.
  */
+import { rotuloDaLogo } from '@macuxi/comum/marca';
 import { z } from 'zod';
 import { detectarTipoImagem, dimensoesImagem } from './imagens';
 
@@ -15,6 +16,11 @@ export type TipoLogo = (typeof TIPOS_LOGO)[number];
 /** Limites da logo (spec §2; o lado máximo protege o aparelho e o PDF de imagem gigante, desenho §2.2). */
 export const LIMITES_LOGO = { bytes: 1_048_576, alturaMinPx: 200, ladoMaxPx: 4096, tipos: TIPOS_LOGO } as const;
 export const MAX_NOME_FANTASIA = 80;
+
+/** Os limites como a pessoa lê (RD-0703): MB inteiro (1 MiB = 1 MB na tela) e px. */
+const MB_LOGO = LIMITES_LOGO.bytes / 1_048_576;
+/** Linha dos limites no cartão da logo do portal (spec §2). */
+export const TEXTO_LIMITES_LOGO = `PNG ou JPG · até ${MB_LOGO} MB · pelo menos ${LIMITES_LOGO.alturaMinPx} px de altura`;
 
 export const CODIGOS_LOGO = {
   /** 415 (Content-Type) ou 422 (assinatura ou cabeçalho). */
@@ -33,9 +39,9 @@ export type CodigoLogo = (typeof CODIGOS_LOGO)[keyof typeof CODIGOS_LOGO];
 /** Frases do portal (spec §2); `LOGO_LADO_MAXIMO` é proposta do desenho, a confirmar pelo designer-ux. */
 export const MENSAGENS_LOGO: Readonly<Record<CodigoLogo, string>> = {
   LOGO_FORMATO: 'Use um arquivo PNG ou JPG.',
-  LOGO_GRANDE_DEMAIS: 'O arquivo passa de 1 MB. Envie um menor.',
-  LOGO_ALTURA_MINIMA: 'A imagem tem menos de 200 px de altura. Envie uma maior.',
-  LOGO_LADO_MAXIMO: 'A imagem passa de 4096 px. Envie uma menor.',
+  LOGO_GRANDE_DEMAIS: `O arquivo passa de ${MB_LOGO} MB. Envie um menor.`,
+  LOGO_ALTURA_MINIMA: `A imagem tem menos de ${LIMITES_LOGO.alturaMinPx} px de altura. Envie uma maior.`,
+  LOGO_LADO_MAXIMO: `A imagem passa de ${LIMITES_LOGO.ladoMaxPx} px. Envie uma menor.`,
   LOGO_NAO_ENCONTRADA: 'Esta empresa ainda não tem logo.',
 };
 
@@ -71,12 +77,13 @@ export const ROTA_ME_EMPRESA_LOGO = '/v1/me/empresa/logo';
 export const rotaLogoDoAparelho = (sha256: string): string => `${ROTA_ME_EMPRESA_LOGO}/${sha256}`;
 
 // ---------- contratos ----------
-const Sha256 = z.string().regex(/^[0-9a-f]{64}$/);
+/** sha256 em hex minúsculo: endereço da logo (`rotaLogoDoAparelho`) e parâmetro da rota na API. */
+export const Sha256LogoSchema = z.string().regex(/^[0-9a-f]{64}$/);
 const Px = z.number().int().min(1).max(LIMITES_LOGO.ladoMaxPx);
 
 export const EmpresaLogoSchema = z
   .object({
-    sha256: Sha256,
+    sha256: Sha256LogoSchema,
     tipo: z.enum(TIPOS_LOGO),
     tamanho_bytes: z.number().int().min(1).max(LIMITES_LOGO.bytes),
     largura_px: Px,
@@ -116,6 +123,9 @@ export function nomeDaEmpresa(nomeFantasia: string | null | undefined, razaoSoci
   return f ? f : razaoSocial;
 }
 
+/** "Logo da <nome>" (spec §1): `alt` da logo no portal; a placa do kit usa a mesma função de `@macuxi/comum/marca`. */
+export { rotuloDaLogo };
+
 // ---------- no aparelho (parâmetros do Core, desenho §3.1) ----------
 /** Chaves reservadas nos parâmetros do Core: a API sempre sobrescreve (uma linha de `plataforma.parametro` com o mesmo nome não vale). */
 export const PARAMETRO_EMPRESA_NOME = 'empresa_nome';
@@ -123,7 +133,7 @@ export const PARAMETRO_EMPRESA_LOGO = 'empresa_logo';
 
 /** `empresa_logo`: o suficiente para baixar (`rotaLogoDoAparelho(sha256)`), guardar com a extensão e desenhar a placa. */
 export const LogoDoAparelhoSchema = z
-  .object({ sha256: Sha256, tipo: z.enum(TIPOS_LOGO), largura_px: Px, altura_px: Px })
+  .object({ sha256: Sha256LogoSchema, tipo: z.enum(TIPOS_LOGO), largura_px: Px, altura_px: Px })
   .strict();
 export type LogoDoAparelho = z.output<typeof LogoDoAparelhoSchema>;
 

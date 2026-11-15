@@ -11,6 +11,9 @@ import {
   nomeDaEmpresa,
   parametrosDaEmpresa,
   rotaLogoDoAparelho,
+  rotuloDaLogo,
+  Sha256LogoSchema,
+  TEXTO_LIMITES_LOGO,
 } from './empresa-logo';
 
 /** PNG mínimo: assinatura + IHDR com largura e altura dadas (só o cabeçalho é lido). */
@@ -62,9 +65,22 @@ describe('conferirLogo (desenho §2.2; spec §2)', () => {
   it('toda recusa tem frase para o portal', () => {
     for (const c of Object.values(CODIGOS_LOGO)) expect(MENSAGENS_LOGO[c]).toMatch(/\S/);
   });
+
+  it('frases e linha dos limites montadas de LIMITES_LOGO, com o texto exato da spec §2 (RD-0703)', () => {
+    expect(TEXTO_LIMITES_LOGO).toBe('PNG ou JPG · até 1 MB · pelo menos 200 px de altura');
+    expect(MENSAGENS_LOGO.LOGO_GRANDE_DEMAIS).toBe('O arquivo passa de 1 MB. Envie um menor.');
+    expect(MENSAGENS_LOGO.LOGO_ALTURA_MINIMA).toBe('A imagem tem menos de 200 px de altura. Envie uma maior.');
+    expect(MENSAGENS_LOGO.LOGO_LADO_MAXIMO).toBe('A imagem passa de 4096 px. Envie uma menor.');
+  });
 });
 
 describe('contratos do portal', () => {
+  it('rótulo da logo (spec §1) e sha256 em hex minúsculo (RD-0704, RD-0702)', () => {
+    expect(rotuloDaLogo('Mercado Bom')).toBe('Logo da Mercado Bom');
+    expect(Sha256LogoSchema.safeParse('a'.repeat(64)).success).toBe(true);
+    expect(Sha256LogoSchema.safeParse('A'.repeat(64)).success).toBe(false);
+  });
+
   it('nome fantasia: apara; vazio ou só espaços = null; até 80 caracteres', () => {
     expect(GravarNomeFantasiaSchema.parse({ nome_fantasia: '  Mercado Bom  ' })).toEqual({ nome_fantasia: 'Mercado Bom' });
     expect(GravarNomeFantasiaSchema.parse({ nome_fantasia: '   ' })).toEqual({ nome_fantasia: null });
