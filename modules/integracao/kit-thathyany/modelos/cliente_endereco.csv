@@ -1,0 +1,2 @@
+﻿external_id;cliente_external_id;logradouro;cidade;uf;alterado_em;ativo;tipo;descricao;numero;complemento;bairro;cep;latitude;longitude;principal
+END-001;CLI-001;Rua das Palmeiras;Boa Vista;RR;2026-11-01T12:00:00Z;sim;principal;Matriz;100;Sala 2;Centro;69301-000;2,8235;-60,6753;sim

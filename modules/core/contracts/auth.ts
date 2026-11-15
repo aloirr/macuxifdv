@@ -27,6 +27,10 @@ export const CODIGO_EMPRESA_TAMANHO = 6;
 export const CODIGO_EMPRESA_REGEX = new RegExp(`^(${UFS_BRASIL.join('|')})[0-9]{4}$`, 'i');
 /** Única frase do código da empresa inválido (tamanho, UF ou caractere): o erro e a ação são os mesmos. */
 export const MENSAGEM_CODIGO_EMPRESA = 'O código da empresa tem duas letras da UF e quatro números, como AM4821. Confira no e-mail e digite de novo.';
+/** RF-CORE-01: forma única do código da empresa (sem espaço nas pontas, em maiúsculas, ex.: " aM2808 " vira "AM2808"). App e API usam esta. */
+export function normalizarCodigoEmpresa(codigo: string): string {
+  return codigo.trim().toUpperCase();
+}
 /** Campo do app e do BKO: só UF + 4 dígitos (R-20261114-222000). Regra única do formato novo. */
 export const CodigoEmpresaFormatoSchema = z.string().trim().regex(CODIGO_EMPRESA_REGEX, MENSAGEM_CODIGO_EMPRESA);
 
@@ -39,7 +43,8 @@ export const CodigoEmpresaSchema = z
   .trim()
   .min(2)
   .max(40)
-  .regex(/^[A-Za-z0-9][A-Za-z0-9-]*$/, 'Use só letras, números e hífen.');
+  .regex(/^[A-Za-z0-9][A-Za-z0-9-]*$/, 'Use só letras, números e hífen.')
+  .transform(normalizarCodigoEmpresa);
 
 export const LoginSenhaRequestSchema = z
   .object({

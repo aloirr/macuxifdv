@@ -29,7 +29,7 @@ import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-tes
 import { TABELAS_FORA_DO_SYNC } from '../src/excecoes';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
-import { FUNCOES_SA_0058, FUNCOES_SA_ATUAIS } from './funcoes-sa';
+import { FUNCOES_SA_0058, FUNCOES_SA_ATE_0069 } from './funcoes-sa';
 import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
@@ -138,7 +138,7 @@ describe('0058 diagnóstico do aparelho (estático)', () => {
       expect(b, f).toContain('plataforma.sa_registrar_auditoria(');
       expect(b.split('\n').filter((l) => l.includes('sa_registrar_auditoria')).join('\n'), f).not.toMatch(/descricao|detalhe/);
     }
-    expect(FUNCOES_SA_ATUAIS).toHaveLength(16);
+    expect(FUNCOES_SA_ATE_0069).toHaveLength(16); // 16 da 0058 à 0069; a 0070 (ADR 0047) acrescenta 1, a 0072 (ADR 0052) 8 e a 0073 (rodapé legal) 2
     expect(up).toContain('if v_n <> 16 then');
     const listar = bloco(up, 'create function plataforma.sa_listar_diagnosticos(');
     expect(listar).toContain("('versao', 'modelo', 'tenant_id', 'motivo', 'origem', 'de', 'ate', 'cursor')");
