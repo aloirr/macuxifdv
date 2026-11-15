@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>BKO › Acesso › Usuários: usuário bloqueado e Desbloquear (simulação)</title>
+<!--
+  Simulação da spec docs/design/telas/usuario-bloqueio.md, sobre a tela Usuários do PR #250 (modulo-core,
+  modules/core/web/components/usuarios/usuarios-page.tsx). Três estados pela URL:
+  ?estado=lista (padrão) · ?estado=menu · ?estado=gaveta. Dados fictícios. Fuso do tenant: America/Manaus.
+-->
+<style>
+@font-face{font-family:Archivo;font-weight:700;src:url(../../../../apps/web/app/fonts/Archivo_700Bold.ttf)}
+@font-face{font-family:Archivo;font-weight:800;src:url(../../../../apps/web/app/fonts/Archivo_800ExtraBold.ttf)}
+@font-face{font-family:Plex;font-weight:400;src:url(../../../../apps/web/app/fonts/IBMPlexSans_400Regular.ttf)}
+@font-face{font-family:Plex;font-weight:500;src:url(../../../../apps/web/app/fonts/IBMPlexSans_500Medium.ttf)}
+@font-face{font-family:Plex;font-weight:600;src:url(../../../../apps/web/app/fonts/IBMPlexSans_600SemiBold.ttf)}
+@font-face{font-family:Plex;font-weight:700;src:url(../../../../apps/web/app/fonts/IBMPlexSans_700Bold.ttf)}
+:root{--ground:#F8F6F1;--surface:#fff;--ink:#16202A;--ink2:#4A5562;--ink3:#34404D;--line:#DFE2E6;--line2:#ECEEF1;--field:#C9CED5;--accent:#1E3350;
+  --warning:#7A4F00;--warningSoft:#FFF1D6;--danger:#A8261B;--dangerSoft:#FDE8E6;--neutralSoft:#ECEEF1}
+*{box-sizing:border-box;margin:0}
+body{font-family:Plex;background:var(--ground);color:var(--ink);width:1366px;height:768px;display:flex;overflow:hidden;position:relative}
+/* menu lateral (apps/web, 9 grupos; Acesso aberto) */
+.menu{width:240px;height:768px;background:#16202A;color:#fff;display:flex;flex-direction:column;padding:16px 12px 16px;flex:none}
+.brand{display:flex;flex-direction:column;align-items:flex-start;padding:0 8px 14px}
+.brand img{display:block;height:28px;width:auto}
+.brand span{font-size:12px;line-height:16px;color:#C9CED5;margin-top:16px}
+.titulo{display:flex;justify-content:space-between;align-items:center;height:32px;padding:0 10px;color:#F59A52;font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
+.item{display:flex;align-items:center;height:32px;padding:0 10px 0 20px;border-radius:8px;font-size:14px;color:#C9CED5;position:relative}
+.item.ativo{background:#2B3743;color:#fff;font-weight:600}
+.item.ativo:before{content:'';position:absolute;left:8px;top:8px;bottom:8px;width:3px;border-radius:2px;background:#F59A52}
+.rodape{margin-top:auto;border-top:1px solid #2B3743;padding:12px 8px 0;display:flex;flex-direction:column}
+.rodape b{font-size:14px}.rodape span{font-size:12px;color:#C9CED5}.sair{font-size:13px;font-weight:600;color:#C9CED5;margin-top:10px}
+/* página */
+main{flex:1;padding:28px 32px;display:flex;flex-direction:column;gap:20px;min-width:0}
+.cab{display:flex;justify-content:space-between;align-items:center}
+h1{font-family:Archivo;font-weight:800;font-size:28px}
+.btn{height:42px;padding:0 16px;border-radius:12px;font:600 14px Plex;display:inline-flex;align-items:center;border:1px solid var(--field);background:#fff;color:var(--ink)}
+.btn.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.sm{height:38px;border-radius:10px;padding:0 12px;font-size:13px}
+.filtros{display:flex;gap:10px;align-items:flex-end}
+.filtros label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600}
+.campo{height:44px;border:1px solid var(--field);background:#fff;border-radius:12px;padding:0 12px;display:flex;align-items:center;font-size:14px;font-weight:400}
+.sel{justify-content:space-between}
+.sel:after{content:'';width:8px;height:8px;border-right:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg) translate(-2px,-2px)}
+.painel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:8px 16px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:12px;font-weight:600;color:var(--ink2);padding:12px 10px;border-bottom:1px solid var(--line)}
+td{padding:0 10px;height:60px;border-bottom:1px solid var(--line2);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.nome{display:flex;align-items:center;gap:8px}
+.selo{display:inline-block;border-radius:8px;padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap}
+.selo.aviso{color:var(--warning);background:var(--warningSoft)}
+.selo.perigo{color:var(--danger);background:var(--dangerSoft)}
+.selo.neutro{color:var(--ink3);background:var(--neutralSoft)}
+.mods{display:flex;gap:4px}
+.ic{width:32px;height:32px;border-radius:8px;background:var(--ground);display:inline-flex;align-items:center;justify-content:center}
+.mais{width:44px;height:44px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;border:1px solid transparent}
+.mais.on{border-color:var(--field);background:var(--ground)}
+.acoes{width:56px;text-align:right;position:relative}
+/* menu ⋯ (modules/core/web/components/acesso/menu-linha.tsx) */
+.pop{position:absolute;right:10px;top:52px;z-index:5;min-width:196px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:4px;box-shadow:0 10px 24px rgba(22,32,42,.16);display:flex;flex-direction:column;text-align:left}
+.pop div{min-height:44px;display:flex;align-items:center;padding:0 12px;border-radius:8px;font-size:14px;font-weight:600}
+.pop div.foco{background:var(--ground)}
+.pop div.perigo{color:var(--danger)}
+.pop hr{border:0;border-top:1px solid var(--line);margin:4px 0}
+/* gaveta (packages/ui/src/web/overlay.tsx · Drawer) */
+.vela{position:absolute;inset:0;background:rgba(22,32,42,.35);z-index:8}
+.gav{position:absolute;right:0;top:0;bottom:0;width:560px;background:var(--ground);z-index:9;display:flex;flex-direction:column;box-shadow:-10px 0 40px rgba(22,32,42,.25)}
+.gav .topo{display:flex;justify-content:space-between;align-items:flex-start;padding:16px 20px;background:#fff;border-bottom:1px solid var(--line)}
+.gav h2{font-family:Archivo;font-weight:800;font-size:20px;line-height:28px}
+.fechar{width:40px;height:40px;border:1px solid var(--field);border-radius:10px;display:flex;align-items:center;justify-content:center;background:#fff}
+.corpo{flex:1;padding:16px 20px;display:flex;flex-direction:column;gap:16px;overflow:hidden}
+.faixa{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 8px 8px 14px;min-height:56px}
+.corpo label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600}
+.corpo .campo{height:44px}
+.modl{display:flex;align-items:center;gap:12px;min-height:48px;border:1px solid var(--line);border-radius:12px;background:#fff;padding:0 12px;font-size:14px;font-weight:600}
+.chk{width:20px;height:20px;border-radius:4px;background:var(--accent);display:flex;align-items:center;justify-content:center}
+.pe{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:var(--ground)}
+body:not(.estado-menu) .pop{display:none}
+body:not(.estado-gaveta) .vela,body:not(.estado-gaveta) .gav{display:none}
+</style>
+</head>
+<body>
+<nav class="menu">
+  <div class="brand"><img src="../../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-grafite.svg" alt="Macuxi Força de Vendas"><span>Demo Distribuidora</span></div>
+  <div class="titulo"><span>Acesso</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="transform:rotate(90deg)"><path d="M9 6l6 6-6 6"/></svg></div>
+  <a class="item">Aparelhos</a><a class="item">Perfis de acesso</a><a class="item ativo">Usuários</a>
+  <div class="titulo"><span>Análise</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>
+  <div class="titulo"><span>Cadastros</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>
+  <div class="titulo"><span>Comercial</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>
+  <div class="titulo"><span>Comunicação</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>
+  <div class="titulo"><span>Conteúdo de campo</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>
+  <div class="titulo"><span>Operação</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>
+  <div class="titulo"><span>Produtos</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>
+  <div class="titulo"><span>Sistema</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>
+  <div class="rodape"><b>Admin Geral</b><span>Admin</span><div class="sair">↪ Trocar perfil</div></div>
+</nav>
+
+<main>
+  <div class="cab"><h1>Usuários</h1><span class="btn pri">Novo usuário</span></div>
+  <div class="filtros">
+    <label>Buscar por nome ou e-mail<span class="campo" style="width:206px"></span></label>
+    <label>Perfil<span class="campo sel" style="width:178px">Todos</span></label>
+    <label>Situação<span class="campo sel" style="width:120px">Todos</span></label>
+  </div>
+  <div class="painel">
+    <table>
+      <thead><tr><th style="width:30%">Nome</th><th>E-mail</th><th style="width:13%">Perfil</th><th style="width:13%">Módulos</th><th class="acoes"><span style="display:none">Ações</span></th></tr></thead>
+      <tbody id="linhas"></tbody>
+    </table>
+  </div>
+</main>
+
+<div class="vela"></div>
+<aside class="gav" role="dialog" aria-label="Editar usuário">
+  <div class="topo"><h2>Editar usuário</h2><span class="fechar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></span></div>
+  <div class="corpo">
+    <div class="faixa" data-testid="usuarios.gaveta-bloqueio"><span class="selo aviso">Bloqueado até 20h55</span><span class="btn sm" data-testid="usuarios.gaveta-desbloquear">Desbloquear</span></div>
+    <label>Nome<span class="campo">Carla Vendedora</span></label>
+    <label>E-mail<span class="campo">carla.vendedora@exemplo.com.br</span></label>
+    <label>Perfil<span class="campo sel">Vendedor</span></label>
+    <label>Supervisor<span class="campo sel">Paulo Supervisor</span></label>
+    <label>Código no ERP<span class="campo">V-012</span></label>
+    <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:600">Módulos</span>
+      <div class="modl"><span class="chk"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="m5 12 5 5 9-10"/></svg></span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.5 12h11L21 7H6"/></svg>Vendedor</div>
+    </div>
+  </div>
+  <div class="pe"><span class="btn">Cancelar</span><span class="btn pri">Salvar</span></div>
+</aside>
+
+<script>
+  const estado = new URLSearchParams(location.search).get('estado') || 'lista';
+  document.body.classList.add('estado-' + estado);
+  const G = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>';
+  const V = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.5 12h11L21 7H6"/></svg>';
+  // um selo só por linha (bko-revisao §P5): Inativo > Bloqueado (admin) > Bloqueado até HHhMM (tentativas)
+  const usuarios = [
+    ['Admin Geral', 'admin.geral', 'Admin', null, [G, V]],
+    ['Marina Gerente', 'marina.gerente', 'Gerente', null, [G, V]],
+    ['Paulo Supervisor', 'paulo.supervisor', 'Supervisor', null, [G, V]],
+    ['Carla Vendedora', 'carla.vendedora', 'Vendedor', ['aviso', 'Bloqueado até 20h55'], [V]],
+    ['Diego Vendedor', 'diego.vendedor', 'Vendedor', ['perigo', 'Bloqueado'], [V]],
+    ['Renata Promotora', 'renata.promotora', 'Promotor', ['neutro', 'Inativo'], [G]],
+    ['Bia Analista', 'bia.analista', 'Analista', null, [G, V]],
+  ];
+  const menuCarla = '<div class="pop" role="menu" aria-label="Ações de Carla Vendedora">' +
+    '<div class="foco" role="menuitem">Desbloquear</div><div role="menuitem">Editar</div><div role="menuitem">Redefinir senha</div>' +
+    '<hr><div class="perigo" role="menuitem">Desativar</div></div>';
+  document.getElementById('linhas').innerHTML = usuarios.map(([n, e, p, s, m]) =>
+    '<tr><td><span class="nome">' + n + (s ? ' <span class="selo ' + s[0] + '">' + s[1] + '</span>' : '') + '</span></td>' +
+    '<td>' + e + '@exemplo.com.br</td><td>' + p + '</td><td><span class="mods">' + m.map((i) => '<span class="ic">' + i + '</span>').join('') + '</span></td>' +
+    '<td class="acoes"><span class="mais' + (n === 'Carla Vendedora' && estado === 'menu' ? ' on' : '') + '" aria-label="Ações de ' + n + '">⋯</span>' +
+    (n === 'Carla Vendedora' ? menuCarla : '') + '</td></tr>').join('');
+</script>
+</body>
+</html>
