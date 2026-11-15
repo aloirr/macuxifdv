@@ -1,6 +1,6 @@
 import { useParametros } from '@macuxi/platform-sdk/react';
 import type { ReactElement } from 'react';
-import { valorDoParametro, type ValorParametro } from '../lib/parametros-valor';
+import { numeroPtBr, valorDoParametro, type ValorParametro } from '../lib/parametros-valor';
 
 interface Linha {
   rotulo: string;
@@ -9,13 +9,13 @@ interface Linha {
 
 function Lista({ id, linhas }: { id: string; linhas: readonly Linha[] }): ReactElement {
   return (
-    <dl data-testid={`parametros-pesquisa-${id}-valores`} className="m-0 grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-[14px]">
+    <dl data-testid={`parametros-pesquisa-${id}-valores`} className="m-0 grid grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-2 text-[14px]">
       {linhas.map((l) => (
         <div key={l.rotulo} className="contents">
           <dt className="text-ink-2">{l.rotulo}</dt>
-          <dd className="m-0 font-semibold">
+          <dd className="m-0 text-right font-semibold">
             {l.valor.texto}
-            {l.valor.padrao !== null ? <span className="ml-2 text-[12px] font-normal text-ink-3">Padrão: {l.valor.padrao}</span> : null}
+            {l.valor.padrao !== null ? <span className="block text-[12px] font-normal text-ink-3">Padrão: {l.valor.padrao}</span> : null}
           </dd>
         </div>
       ))}
@@ -23,7 +23,7 @@ function Lista({ id, linhas }: { id: string; linhas: readonly Linha[] }): ReactE
   );
 }
 
-const unidade = (u: string) => (v: number) => `${v} ${u}`;
+const unidade = (u: string) => (v: number) => `${numeroPtBr(v)} ${u}`;
 
 /** Parâmetros › Pesquisa › Vigência (RN-PES-04). Só leitura; valor do tenant com fallback ao padrão. */
 export function ParametrosVigencia(): ReactElement {

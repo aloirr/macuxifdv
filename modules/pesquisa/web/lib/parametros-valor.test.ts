@@ -15,3 +15,9 @@ describe('Parâmetros › Pesquisa: valor em uso (RN-PES-04)', () => {
     expect(parametrosEmUso({ tolerancia_vigencia_h: -1 }).tolerancia_vigencia_h).toBe(24);
   });
 });
+
+describe('formato pt-BR dos números', () => {
+  it('RN-PES-07: milhar com ponto ("2.000")', () => {
+    expect(valorDoParametro({}, 'texto_max_caracteres').texto).toBe('2.000');
+  });
+});
