@@ -81,7 +81,7 @@ export function FiliaisPage() {
   });
 
   const itens = lista.data ?? [];
-  const campo = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal';
+  const campo = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal';
   return (
     <div className="flex w-full max-w-[1040px] flex-col gap-5" data-testid="filiais.tela">
       <PageHeader

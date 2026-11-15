@@ -144,7 +144,7 @@ export function MotivosPage() {
                 maxLength={120}
                 onChange={(e) => setRascunho({ ...rascunho, descricao: e.target.value, codigo: rascunho.existente ? rascunho.codigo : slug(e.target.value) })}
                 data-testid="motivos.descricao"
-                className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal"
+                className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal"
               />
             </label>
             {rascunho.existente ? (

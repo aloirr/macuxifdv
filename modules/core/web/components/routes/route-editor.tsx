@@ -155,7 +155,7 @@ export function RouteEditor({ sellerId, sellerName, date, route, start, canEdit,
             <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: color }} aria-hidden="true" />
             {sellerName}
           </span>
-          <h2 className="m-0 font-display text-[19px] font-bold">{dayLabel(date)}</h2>
+          <h2 className="m-0 font-display text-[20px] font-bold">{dayLabel(date)}</h2>
           <span className="text-[13px] text-ink-2 tabular-nums">
             {draft.length} {draft.length === 1 ? 'visita' : 'visitas'} · {formatKm(km)}
             {dirty && baseline.length > 0 && km !== baseKm && <span className={cx('ml-1 font-semibold', km < baseKm ? 'text-success' : 'text-accent-ink')}>(antes {formatKm(baseKm)})</span>}
@@ -236,7 +236,7 @@ export function RouteEditor({ sellerId, sellerName, date, route, start, canEdit,
                 <div className="flex items-center gap-2">
                   <StopBubble n={i + 1} status={s.status} color={color} />
                   <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-[14px] font-semibold" title={c.trade_name}>
+                    <span className="truncate text-[15px] font-semibold" title={c.trade_name}>
                       {c.trade_name}
                     </span>
                     <span className="truncate text-[12px] text-ink-2">{c.district}</span>
@@ -339,7 +339,7 @@ function AddCustomer({ sellerId, exclude, onAdd }: { sellerId: string; exclude: 
           onChange={(e) => setQ(e.target.value)}
           placeholder="Nome, bairro ou código"
           autoFocus
-          className="h-10 rounded-[10px] border border-field bg-surface px-2.5 text-[14px] font-medium text-ink"
+          className="h-10 rounded-[10px] border border-field bg-surface px-2.5 text-[15px] font-medium text-ink"
         />
       </label>
       {wallet.isPending && <LoadingBlock label="Carregando carteira…" />}

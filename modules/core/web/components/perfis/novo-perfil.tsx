@@ -23,7 +23,7 @@ import { CARGOS, type Cargo } from '@macuxi/platform-sdk';
 import { MENSAGEM_CARGO_OBRIGATORIO, ROTULO_CARGO } from '../../../contracts/cargos';
 import { corpoDoPerfil, edicaoInicial, frasesDaRecusa } from '../../lib/perfis';
 
-const CAMPO = 'h-[44px] w-full max-w-[420px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
+const CAMPO = 'h-[44px] w-full max-w-[420px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal text-ink';
 
 /**
  * Caixa "marcar todos" do cabeçalho em Azul noite (MC-0026): caixa própria (`appearance-none`) com fundo branco, o ✓ e o traço do
@@ -68,7 +68,7 @@ function LinhaDaCaixa({ linha, marcadas, onChange }: { linha: LinhaDeAcesso; mar
  */
 function TabelaDoModulo({ id, nome, linhas, marcadas, onChange, agrupada = false }: { id: IdDoModulo; nome: string; linhas: readonly LinhaDeAcesso[]; marcadas: ReadonlySet<string>; onChange: (m: Set<string>) => void; agrupada?: boolean }) {
   return (
-    <table className="w-full border-collapse overflow-hidden rounded-2xl border border-line bg-surface text-[14px]" data-testid={`perfil.modulo.${id}`}>
+    <table className="w-full border-collapse overflow-hidden rounded-2xl border border-line bg-surface text-[15px]" data-testid={`perfil.modulo.${id}`}>
       <thead>
         <tr className="bg-accent text-white">
           <th scope="col" className="px-4 py-3 text-left font-display text-[15px] font-bold">

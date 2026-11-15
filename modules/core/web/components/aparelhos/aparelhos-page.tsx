@@ -95,7 +95,7 @@ function AparelhosConteudo() {
             onKeyDown={(e) => e.key === 'Enter' && set({ q: e.currentTarget.value })}
             onBlur={(e) => set({ q: e.currentTarget.value })}
             data-testid="aparelhos.busca"
-            className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px]"
+            className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px]"
           />
         </label>
       </FilterBar>

@@ -20,7 +20,7 @@ import { prazoAceito } from '../../../domain/tarefas/situacao';
 import type { TarefaResumoBko } from './api';
 
 /** Campo de formulário do BKO (mesma medida das outras páginas do Core: 44 px de altura). */
-export const CAMPO_TAREFA = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
+export const CAMPO_TAREFA = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal text-ink';
 
 export const ROTULO_TIPO: Record<TipoTarefa, string> = { simples: 'Simples', foto: 'Com foto', pesquisa: 'Pesquisa' };
 

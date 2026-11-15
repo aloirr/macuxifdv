@@ -146,7 +146,7 @@ export function FormNovaTarefa({
           maxLength={TAREFA_DESCRICAO_MAX}
           rows={3}
           onChange={(e) => onChange({ descricao: e.target.value })}
-          className="rounded-xl border border-field bg-surface p-3 text-[14px] font-normal text-ink"
+          className="rounded-xl border border-field bg-surface p-3 text-[15px] font-normal text-ink"
           data-testid="nova-tarefa.descricao"
           {...descrito('descricao', erros)}
         />

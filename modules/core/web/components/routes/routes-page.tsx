@@ -62,7 +62,7 @@ function Segmented({ value, onChange }: { value: PeriodMode; onChange: (m: Perio
             aria-pressed={value === m}
             onClick={() => onChange(m)}
             className={cx(
-              'rounded-[7px] px-3.5 text-[14px] font-semibold transition-colors',
+              'rounded-[7px] px-3.5 text-[15px] font-semibold transition-colors',
               value === m ? 'bg-ink text-white' : 'text-ink hover:bg-ground',
             )}
           >
@@ -81,7 +81,7 @@ function PeriodNav({ label, onPrev, onNext, onToday, isToday }: { label: string;
       <button type="button" className={btn} onClick={onPrev} aria-label="Período anterior">
         <IconChevronRight size={16} className="rotate-180" />
       </button>
-      <span className="flex h-[38px] min-w-[150px] items-center justify-center px-1 font-display text-[16px] font-bold whitespace-nowrap" aria-live="polite" data-testid="period-label">
+      <span className="flex h-[38px] min-w-[150px] items-center justify-center px-1 font-display text-[17px] font-bold whitespace-nowrap" aria-live="polite" data-testid="period-label">
         {label}
       </span>
       <button type="button" className={btn} onClick={onNext} aria-label="Próximo período">
@@ -107,7 +107,7 @@ function StatusLegend() {
         <span className="inline-block h-3 w-3 rounded-full border-2 border-ink-2 bg-white" /> Pendente
       </span>
       <span className="flex items-center gap-1.5">
-        <span className="inline-flex h-3.5 w-5 items-center justify-center rounded-[3px] bg-ink text-xs font-extrabold text-white">CD</span> Saída
+        <span className="inline-flex h-3.5 w-5 items-center justify-center rounded-[3px] bg-ink text-xs font-bold text-white">CD</span> Saída
       </span>
     </div>
   );
@@ -454,7 +454,7 @@ function RouteList({
   return (
     <>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="m-0 font-display text-[18px] font-bold">Rotas do período</h2>
+        <h2 className="m-0 font-display text-[17px] font-bold">Rotas do período</h2>
         <span className="text-[12px] text-ink-2">{withRoute} com visitas</span>
       </div>
       {loading && <LoadingBlock />}
@@ -477,7 +477,7 @@ function RouteList({
                   <span className="flex min-w-0 items-center gap-2.5">
                     <span className="inline-block h-6 w-1.5 shrink-0 rounded bg-line" />
                     <span className="flex min-w-0 flex-col">
-                      <span className="truncate text-[14px] font-semibold text-ink-2">{title}</span>
+                      <span className="truncate text-[15px] font-semibold text-ink-2">{title}</span>
                       <span className="text-[12px] text-ink-2">Sem rota</span>
                     </span>
                   </span>
@@ -501,7 +501,7 @@ function RouteList({
                 >
                   <span className="inline-block h-8 w-1.5 shrink-0 rounded" style={{ background: colorOf(r) }} aria-hidden="true" />
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-[14px] font-semibold">
+                    <span className="truncate text-[15px] font-semibold">
                       {title}
                       {!single && mode === 'day' && <span className="font-normal text-ink-2"> · {r.route?.region}</span>}
                     </span>

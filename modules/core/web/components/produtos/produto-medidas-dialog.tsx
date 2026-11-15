@@ -7,7 +7,7 @@ import { Button, Dialog } from '@macuxi/ui/web';
 import type { Medida, ProdutoPreco } from '../../../contracts';
 import { corpoDasMedidasDoProduto, opcoesDeMedida } from '../../lib/medidas';
 
-const campo = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal';
+const campo = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal';
 
 /**
  * Medida da unidade (obrigatória, só medida ativa) e embalagem opcional (medida + quantidade de unidades) do produto

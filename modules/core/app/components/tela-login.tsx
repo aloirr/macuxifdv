@@ -7,8 +7,8 @@
  * `aviso` mostra, no lugar do erro, o texto de uma volta (ex.: "Esta senha não vale mais. Entre de novo.").
  */
 import { estilosDeAcesso } from './estilos-de-acesso';
-import { Banner, Button, CampoSenha, colors, Screen, type as t } from '@macuxi/ui/mobile';
-import { useRef, useState, type ComponentProps, type RefObject } from 'react';
+import { Banner, Button, CampoSenha, CampoTexto, colors, Screen, type as t } from '@macuxi/ui/mobile';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { camposIniciaisDoLogin, mensagemDeErroDeLogin, propsDoCampoCodigoEmpresa, validarLogin, type CamposLogin, type ErrosLogin } from '../lib/login';
@@ -66,22 +66,22 @@ export function TelaLogin({ codigoSalvo, emailInicial, onEntrar, rodape, onEsque
         </Banner>
       ) : null}
 
-      <Campo
+      <CampoTexto
         rotulo="Código da empresa"
         valor={campos.codigo_empresa}
         erro={erros.codigo_empresa}
         testID="login.codigo-empresa"
-        onChangeText={(v) => mudar('codigo_empresa')(v.toUpperCase())}
+        aoMudar={(v) => mudar('codigo_empresa')(v.toUpperCase())}
         {...propsDoCampoCodigoEmpresa}
         returnKeyType="next"
         onSubmitEditing={() => email.current?.focus()}
       />
-      <Campo
+      <CampoTexto
         rotulo="E-mail"
         valor={campos.email}
         erro={erros.email}
         testID="login.email"
-        onChangeText={mudar('email')}
+        aoMudar={mudar('email')}
         autoCapitalize="none"
         keyboardType="email-address"
         textContentType="username"
@@ -120,33 +120,6 @@ export function TelaLogin({ codigoSalvo, emailInicial, onEntrar, rodape, onEsque
       ) : null}
       {rodape ? <Text style={t.small}>{rodape}</Text> : null}
     </Screen>
-  );
-}
-
-interface PropsCampo extends Omit<ComponentProps<typeof TextInput>, 'value' | 'style'> {
-  rotulo: string;
-  valor: string;
-  erro?: string | undefined;
-  inputRef?: RefObject<TextInput | null>;
-}
-
-function Campo({ rotulo, valor, erro, inputRef, ...resto }: PropsCampo) {
-  return (
-    <View style={{ gap: 4 }}>
-      <Text style={styles.rotulo}>{rotulo}</Text>
-      <View>
-        <TextInput
-          ref={inputRef}
-          value={valor}
-          accessibilityLabel={rotulo}
-          autoCorrect={false}
-          style={[styles.entrada, erro ? { borderColor: colors.danger } : null]}
-          placeholderTextColor={colors.ink3}
-          {...resto}
-        />
-      </View>
-      {erro ? <Text style={[t.small, { color: colors.danger }]}>{erro}</Text> : null}
-    </View>
   );
 }
 
