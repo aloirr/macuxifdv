@@ -78,3 +78,26 @@ test('workflow: só manual, permissões mínimas, secrets por variante sem eco e
   assert.match(wf, /name: \$\{\{ steps\.plano\.outputs\.nome \}\}/);
   assert.doesNotMatch(wf, /persist-credentials: true/);
 });
+
+test('workflow: libera disco depois do install, preserva o NDK do react-native, só ABIs de aparelho e gradle sem daemon', () => {
+  const wf = ler('.github/workflows/android-build.yml');
+  const limpeza = wf.indexOf('- name: liberar disco');
+  const install = wf.indexOf('- name: instalar dependências');
+  assert.ok(install > 0 && limpeza > install, 'limpeza depois do install');
+  assert.ok(limpeza < wf.indexOf('- name: expo prebuild'), 'limpeza antes do build');
+  for (const d of ['/usr/share/dotnet', '/opt/ghc', '/usr/local/.ghcup', '/opt/hostedtoolcache/CodeQL']) assert.ok(wf.includes(d), d);
+  assert.match(wf, /docker image prune -af/);
+  // a versão do NDK vem do react-native instalado, sem cópia no workflow; sem ela, vermelho
+  assert.doesNotMatch(wf, /NDK_VERSAO: /);
+  assert.ok(
+    wf.includes(`NDK_VERSAO=$(sed -n 's/^ndkVersion = "\\(.*\\)"/\\1/p' node_modules/react-native/gradle/libs.versions.toml)`),
+    'NDK_VERSAO lido do libs.versions.toml',
+  );
+  assert.match(wf, /\[ -n "\$NDK_VERSAO" \] \|\| \{ echo '::error title=NDK::[^']*'; exit 1; \}/);
+  assert.match(wf, /\[ "\$\(basename "\$d"\)" = "\$NDK_VERSAO" \] \|\| sudo rm -rf "\$d"/);
+  const props = wf.indexOf('- name: gradle.properties (ABIs e memória)');
+  assert.ok(props > wf.indexOf('- name: expo prebuild') && props < wf.indexOf('- name: gradlew assembleRelease'));
+  assert.match(wf, /definir reactNativeArchitectures 'arm64-v8a,armeabi-v7a'/);
+  assert.match(wf, /definir org\.gradle\.jvmargs '-Xmx4g -XX:MaxMetaspaceSize=1g/);
+  assert.match(wf, /\.\/gradlew assembleRelease --build-cache --no-daemon/);
+});
