@@ -48,3 +48,14 @@ Nenhum defeito funcional achado.
 
 ## 4. Recado
 Os 2 achados vão num recado `pedido` ao modulo-core, com cópia ao gerente-projetos.
+
+## 5. Reteste (15/11/2026, ~08h Manaus)
+**Veredito: LIMPO (liberado).** RD-0508 e RD-0509 estão corrigidos e não há achado novo.
+
+Conferi o commit **46988ad3** de `origin/nuvem/login-teclado-modulo-core`, que tem 3 arquivos, 4 linhas a mais e 15 a menos.
+
+| Achado | Resultado |
+|---|---|
+| RD-0508 | **Corrigido.** `tela-login.tsx` passa `campos` direto a `validarLogin` e a `onEntrar`, e o import de `normalizarCodigoEmpresa` saiu. `validarCodigoEmpresaNovo` (`ciclo-senha.ts:147`) chama `CodigoEmpresaFormatoSchema.safeParse(valor)`. Sobram 2 pontos: o app, em `entrarComSenha` (`login.ts:72`), e a API, no `CodigoEmpresaSchema` (`auth.ts:47`, a revalidação). O único `onEntrar` (`apps/mobile/src/app/login.tsx:215`) chega a `entrarComSenha` por `loginComSenha` (`plataforma.tsx:684`), então nenhum caminho fica sem normalizar. |
+| RD-0509 | **Corrigido.** O describe "teclado não muda a senha nem o código da empresa (v1.0.10)" saiu. A cobertura continua em `login.test.ts` (`' am4821 '` → `'AM4821'`) e em `contracts/codigo-empresa.test.ts:50-56`. Os imports `entrarComSenha` e `validarLogin` seguem em uso no arquivo. |
+| Redundância nova | **Nenhuma.** A correção só tirou código. |
