@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Filtro padrão no Campo · Rota, Clientes e Performance (R-20261115-072200)</title>
+<link rel="stylesheet" href="../catalogo-campo-v2/simulacao.css">
+<style>
+  /* só o que é desta prancha; o resto vem da simulação do Catálogo (mesmos tokens do kit) */
+  .lfil { display: flex; align-items: center; gap: 8px; flex: none; }
+  .lfil .esp { flex: 1; }
+  .mapa { height: 200px; border-radius: 16px; background: #E6E9E1; border: 1px solid #D3D8CC; flex: none; position: relative; overflow: hidden; }
+  .lista { background: #fff; border: 1px solid var(--line); border-radius: 16px; flex: none; }
+  .li { display: flex; align-items: center; gap: 10px; min-height: 60px; padding: 8px 12px 8px 14px; border-top: 1px solid var(--lineSoft); }
+  .li:first-child { border-top: 0; }
+  .li .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .li .nm { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .li .sb { font-size: 13px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .num { width: 28px; height: 28px; border-radius: 14px; border: 2px solid var(--ink); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex: none; }
+  .num.prox { background: var(--ink); color: #fff; }
+  .acao { height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--accent); color: var(--accentInk); font-weight: 700; font-size: 14px; display: flex; align-items: center; }
+  .ce.neu { background: var(--neutralBg); color: var(--neutralInk); }
+  .seg { flex: 1; height: 48px; border-radius: 12px; background: var(--neutralBg); padding: 4px; display: flex; }
+  .seg div { flex: 1; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; color: var(--ink2); }
+  .seg div.on { background: #fff; color: var(--ink); font-weight: 700; box-shadow: 0 1px 2px rgba(22, 32, 42, .12); }
+  .per { display: flex; justify-content: space-between; font-size: 14px; color: var(--ink2); flex: none; }
+  .kpi { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 6px; flex: none; }
+  .kpi .tt { font-family: Archivo; font-weight: 700; font-size: 16px; }
+  .kpi .vl { font-family: Archivo; font-weight: 800; font-size: 24px; font-variant-numeric: tabular-nums; }
+  .kpi .mt { font-size: 13px; color: var(--ink2); }
+  .barra { height: 8px; border-radius: 4px; background: var(--neutralBg); overflow: hidden; }
+  .barra i { display: block; height: 100%; background: var(--grafico); }
+  .campo { height: 48px; border: 1px solid var(--lineStrong); border-radius: 12px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 15px; }
+  .campo .vazio { color: var(--ink3); }
+  .folha .grp { margin-top: 6px; }
+  .folha .busca { flex: none; }
+  .rodape { display: flex; gap: 10px; margin-top: 10px; }
+  .rodape .neutro { flex: 1; margin-top: 0; height: 52px; }
+  .rodape .btn { flex: 1.6; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+</style>
+</head>
+<body>
+<div class="board">
+
+<!-- R1 · Rota com filtro -->
+<div class="tela" data-v="rota">
+  <div class="legenda">R1 · Rota com filtro<span>Filtrar ao lado do "3 feitas"; cidade e bairro ativos viram chips removíveis.</span></div>
+  <div class="phone">
+    <div class="status"><span>07:40</span><span>4G 90%</span></div>
+    <div class="fx"><div class="lin"><div><span class="t">Rota de hoje</span><span class="s">4 de 12 visitas · 38 km · Boa Vista</span></div></div></div>
+    <div class="corpo">
+      <div class="lfil"><span class="ce suc m">3 feitas</span><span class="esp"></span><div class="fbtn ativo"><i data-i="filtro" data-t="20"></i><span class="selo">2</span></div></div>
+      <div class="etqs"><span class="etq">Boa Vista<i data-i="fechar" data-t="14" data-w="2.6"></i></span><span class="etq">Centro<i data-i="fechar" data-t="14" data-w="2.6"></i></span></div>
+      <div class="mapa"><svg width="328" height="200" viewBox="0 0 328 200"><path d="M-10 60C80 40 140 90 220 70S330 30 370 50" stroke="#fff" stroke-width="10" fill="none"/><path d="M40 -10C60 70 30 140 70 230" stroke="#fff" stroke-width="8" fill="none"/><path d="M-10 160C90 140 180 180 260 150S340 130 370 140" stroke="#fff" stroke-width="8" fill="none"/><polyline points="70,150 130,110 200,90" stroke="#16202A" stroke-width="3" fill="none"/><polyline points="200,90 260,60" stroke="#1E3350" stroke-width="3" stroke-dasharray="6 6" fill="none"/><circle cx="70" cy="150" r="12" fill="#1D6B4F"/><text x="70" y="154" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">2</text><circle cx="130" cy="110" r="12" fill="#1D6B4F"/><text x="130" y="114" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">5</text><circle cx="200" cy="90" r="16" fill="#16202A" stroke="#fff" stroke-width="3"/><text x="200" y="95" text-anchor="middle" font-size="14" font-weight="800" fill="#fff">7</text><circle cx="260" cy="60" r="11" fill="#fff" stroke="#16202A" stroke-width="2"/><text x="260" y="64" text-anchor="middle" font-size="12" font-weight="700">9</text></svg></div>
+      <div class="lista">
+        <div class="li"><span class="num" style="border-color:var(--success);background:var(--success);color:#fff">2</span><div class="tx"><span class="nm" style="color:var(--ink2)">Mercadinho São Jorge</span><span class="sb">Feita · 08:10</span></div></div>
+        <div class="li"><span class="num" style="border-color:var(--success);background:var(--success);color:#fff">5</span><div class="tx"><span class="nm" style="color:var(--ink2)">Auto Peças Centro</span><span class="sb">Feita · 09:05</span></div></div>
+        <div class="li"><span class="num prox">7</span><div class="tx"><span class="nm">Oficina do Raimundo</span><span class="sb">Próxima · Av. Jaime Brasil</span></div><span class="acao">Check-in</span></div>
+        <div class="li"><span class="num">9</span><div class="tx"><span class="nm">Casa das Baterias</span><span class="sb">Rua Araújo Filho</span></div><span class="acao">Check-in</span></div>
+      </div>
+    </div>
+    <div class="barra-abas" data-ativa="rota"></div>
+  </div>
+</div>
+
+<!-- R2 · folha de filtro da Rota -->
+<div class="tela" data-v="rota-folha">
+  <div class="legenda">R2 · Folha de filtro da Rota<span>A mesma folha "Filtrar" do Catálogo, com 4 grupos: cliente, cidade, bairro e data.</span></div>
+  <div class="phone">
+    <div class="status"><span>07:40</span><span>4G 90%</span></div>
+    <div class="fx"><div class="lin"><div><span class="t">Rota de hoje</span><span class="s">4 de 12 visitas · 38 km · Boa Vista</span></div></div></div>
+    <div class="corpo">
+      <div class="lfil"><span class="ce suc m">3 feitas</span><span class="esp"></span><div class="fbtn ativo"><i data-i="filtro" data-t="20"></i><span class="selo">2</span></div></div>
+      <div class="mapa"></div>
+    </div>
+    <div class="barra-abas" data-ativa="rota"></div>
+    <div class="scrim"></div>
+    <div class="folha">
+      <div class="pega"></div>
+      <div class="tit">Filtrar<i data-i="fechar" data-t="22"></i></div>
+      <div class="grp">Cliente</div>
+      <div class="busca"><i data-i="search" data-t="18" data-c="#4A5562"></i>Nome ou código do cliente</div>
+      <div class="grp">Cidade</div>
+      <div class="campo"><span>Boa Vista</span><i data-i="chevron" data-t="18" data-c="#4A5562"></i></div>
+      <div class="grp">Bairro</div>
+      <div class="campo"><span>Centro</span><i data-i="chevron" data-t="18" data-c="#4A5562"></i></div>
+      <div class="grp">Data</div>
+      <div class="campo"><span>Hoje</span><i data-i="chevron" data-t="18" data-c="#4A5562"></i></div>
+      <div class="rodape"><div class="neutro">Limpar</div><div class="btn">Ver 4 visitas</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- C1 · Clientes com filtro -->
+<div class="tela" data-v="clientes">
+  <div class="legenda">C1 · Clientes com filtro<span>Os chips Curva A, Sem compra 45+, Devendo e Não positivados vão para a folha; o ativo vira chip removível.</span></div>
+  <div class="phone">
+    <div class="status"><span>07:42</span><span>4G 90%</span></div>
+    <div class="fx"><div class="lin"><div><span class="t">Clientes</span><span class="s">5 de 86 na carteira</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>07:28</span></div></div>
+    <div class="corpo">
+      <div class="lbusca"><div class="busca"><i data-i="search" data-t="18" data-c="#4A5562"></i>Nome, código, bairro ou CNPJ</div><div class="fbtn ativo"><i data-i="filtro" data-t="20"></i><span class="selo">1</span></div></div>
+      <div class="etqs"><span class="etq">Devendo<i data-i="fechar" data-t="14" data-w="2.6"></i></span></div>
+      <div class="lista">
+        <div class="li"><div class="tx"><span class="nm">Auto Peças Centro</span><span class="sb">Visitado há 3 dias</span></div><span class="ce erro">Devendo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="li"><div class="tx"><span class="nm">Oficina do Raimundo</span><span class="sb">Visitado ontem</span></div><span class="ce erro">Devendo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="li"><div class="tx"><span class="nm">Casa das Baterias</span><span class="sb">Visitado há 12 dias</span></div><span class="ce erro">Devendo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="li"><div class="tx"><span class="nm">Moto Peças Caçari</span><span class="sb">Visitado há 20 dias</span></div><span class="ce erro">Devendo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="li"><div class="tx"><span class="nm">Lubrificantes Pricumã</span><span class="sb">Visitado há 31 dias</span></div><span class="ce erro">Devendo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+      </div>
+    </div>
+    <div class="barra-abas" data-ativa="clientes"></div>
+  </div>
+</div>
+
+<!-- C2 · folha de filtro de Clientes -->
+<div class="tela" data-v="clientes-folha">
+  <div class="legenda">C2 · Folha de filtro de Clientes<span>Mesma folha; situação em chips de marcar (mais de um vale ao mesmo tempo).</span></div>
+  <div class="phone">
+    <div class="status"><span>07:42</span><span>4G 90%</span></div>
+    <div class="fx"><div class="lin"><div><span class="t">Clientes</span><span class="s">5 de 86 na carteira</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>07:28</span></div></div>
+    <div class="corpo">
+      <div class="lbusca"><div class="busca"><i data-i="search" data-t="18" data-c="#4A5562"></i>Nome, código, bairro ou CNPJ</div><div class="fbtn ativo"><i data-i="filtro" data-t="20"></i><span class="selo">1</span></div></div>
+    </div>
+    <div class="barra-abas" data-ativa="clientes"></div>
+    <div class="scrim"></div>
+    <div class="folha">
+      <div class="pega"></div>
+      <div class="tit">Filtrar<i data-i="fechar" data-t="22"></i></div>
+      <div class="grp">Situação</div>
+      <div class="chips"><div class="chip">Curva A</div><div class="chip">Sem compra 45+</div><div class="chip on"><i data-i="check" data-t="16" data-c="#1E3350"></i>&nbsp;Devendo</div><div class="chip">Não positivados</div></div>
+      <div class="rodape"><div class="neutro">Limpar</div><div class="btn">Ver 5 clientes</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- P1 · Performance -->
+<div class="tela" data-v="performance">
+  <div class="legenda">P1 · Performance<span>O filtro na mesma linha de Resultados e Produtividade; a linha própria acima sai.</span></div>
+  <div class="phone">
+    <div class="status"><span>07:45</span><span>4G 90%</span></div>
+    <div class="fx"><div class="lin"><div><span class="t">Performance</span></div></div></div>
+    <div class="corpo">
+      <div class="lfil"><div class="seg"><div class="on">Resultados</div><div>Produtividade</div></div><div class="fbtn"><i data-i="filtro" data-t="20"></i></div></div>
+      <div class="per"><span>Novembro de 2026</span><span>DU 11 de 23 · 12 restantes</span></div>
+      <div class="kpi"><span class="tt">Vendas</span><span class="vl">R$ 48.320</span><div class="barra"><i style="width:54%"></i></div><span class="mt">54% da meta de R$ 90.000</span></div>
+      <div class="kpi"><span class="tt">Positivação</span><span class="vl">38 clientes</span><div class="barra"><i style="width:54%"></i></div><span class="mt">54% da meta de 70</span></div>
+      <div class="kpi"><span class="tt">Ticket médio</span><span class="vl">R$ 1.272</span><span class="mt">Meta R$ 1.300</span></div>
+    </div>
+    <div class="barra-abas" data-ativa="mais"></div>
+  </div>
+</div>
+
+</div>
+<script>
+  const v = new URLSearchParams(location.search).get('v');
+  if (v) {
+    document.body.classList.add('so');
+    document.querySelectorAll('.tela').forEach((el) => { if (el.dataset.v === v) el.classList.add('mostrar'); });
+  }
+</script>
+<script src="../telas/icones.js"></script>
+</body>
+</html>
