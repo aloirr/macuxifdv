@@ -898,7 +898,7 @@ centavos por mês, todos com `incluidos` 0 (o adicional liga o módulo); `meses_
 ### assinatura_historico — uma linha por troca de plano (RN-PLA-05)
 | Coluna | Tipo | Regra |
 |---|---|---|
-| assinatura_id | uuid not null | FK → `plataforma.assinatura` |
+| assinatura_id | uuid not null | FK composta `assinatura_historico_assinatura_fk` (tenant_id, assinatura_id) → `plataforma.assinatura` (tenant_id, id); a 0081 cria o alvo `assinatura_tenant_id_uk` unique (tenant_id, id) na assinatura (o down o apaga) |
 | pedido_id | uuid not null | UUID do portal (`TrocarPlanoSchema.pedido_id`); único por tenant (`assinatura_historico_pedido_uk (tenant_id, pedido_id)`): é a chave de idempotência da troca |
 | plano_anterior_id, plano_id | uuid not null | FK → `plataforma.plano` (a linha de antes e a de depois) |
 | ciclo_anterior, ciclo | text not null | `mensal` \| `anual` |

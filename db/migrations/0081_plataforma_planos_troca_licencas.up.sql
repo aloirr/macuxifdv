@@ -75,10 +75,12 @@ select set_config('macuxi.sa_portal_antes_0081', (
 ), true);
 
 -- 1. plataforma.assinatura_historico -----------------------------------------------------------------------------------------
+-- alvo da FK composta (tenant_id, assinatura_id): a linha do histórico nunca aponta para a assinatura de outro tenant
+alter table plataforma.assinatura add constraint assinatura_tenant_id_uk unique (tenant_id, id);
 create table plataforma.assinatura_historico (
   id                     uuid primary key default gen_random_uuid(),
   tenant_id              uuid not null references plataforma.tenant (id),
-  assinatura_id          uuid not null references plataforma.assinatura (id),
+  assinatura_id          uuid not null,
   pedido_id              uuid not null,
   plano_anterior_id      uuid not null references plataforma.plano (id),
   plano_id               uuid not null references plataforma.plano (id),
@@ -92,6 +94,7 @@ create table plataforma.assinatura_historico (
   updated_at             timestamptz not null default now(),
   deleted_at             timestamptz,
   external_id            text,
+  constraint assinatura_historico_assinatura_fk foreign key (tenant_id, assinatura_id) references plataforma.assinatura (tenant_id, id),
   constraint assinatura_historico_ciclos_validos check (ciclo_anterior in ('mensal', 'anual') and ciclo in ('mensal', 'anual')),
   constraint assinatura_historico_adicionais_lista check (
     jsonb_typeof(adicionais_anteriores) = 'array' and jsonb_array_length(adicionais_anteriores) <= 3

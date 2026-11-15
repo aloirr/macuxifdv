@@ -25,6 +25,7 @@ revoke select on plataforma.plano from macuxi_app;
 
 -- a tabela leva junto índices, gatilho, políticas e grants (antes dos planos: FK para eles)
 drop table if exists plataforma.assinatura_historico;
+alter table plataforma.assinatura drop constraint if exists assinatura_tenant_id_uk;
 
 delete from plataforma.plano pl
  where pl.id in ('00830000-0000-4000-8000-000000000001', '00830000-0000-4000-8000-000000000002',
