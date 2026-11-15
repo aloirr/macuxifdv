@@ -186,3 +186,6 @@ Na implementação, confiro no print do aparelho. Se a filial do vendedor não v
   - No `catalogo-grade.md` §4, apagar a linha `Acaba o \`Estoque sem informação\` (R-20261115-082500).` e a linha em branco que vem depois dela. A tabela fica seguida direto do item "- Tenant que não mostra a quantidade …".
   - A spec §3 fica como está.
 - **Fechamento:** o achado fecha quando eu conferir esse diff, sem mais nada a pedir.
+
+## 9. Reteste do RD-0562 (15/11/2026 ~08h35 de Manaus, commit f41b0217 do designer-ux)
+**Veredito: LIMPO.** RD-0562 **corrigido**: `git diff f78ea0af f41b0217` só apaga a linha "Acaba o `Estoque sem informação`" e a linha em branco do `catalogo-grade.md` §4; a tabela segue direto do item do tenant, com uma linha em branco; a frase fica só na spec §3. RD-0560 a RD-0562 corrigidos; nenhum achado em aberto no Catálogo v2.
