@@ -41,7 +41,8 @@ sem_tenant_id (nome) as (
          ('plataforma.auditoria_plataforma'),
          ('plataforma.portal_tentativa'),
          ('plataforma.portal_sessao'),
-         ('plataforma.portal_sessao_empresa')
+         ('plataforma.portal_sessao_empresa'),
+         ('plataforma.frase_carga')
 ),
 so_por_funcao (nome) as (
   values ('plataforma.super_admin'),
@@ -50,7 +51,8 @@ so_por_funcao (nome) as (
          ('plataforma.auditoria_plataforma'),
          ('plataforma.portal_tentativa'),
          ('plataforma.portal_sessao'),
-         ('plataforma.portal_sessao_empresa')
+         ('plataforma.portal_sessao_empresa'),
+         ('plataforma.frase_carga')
 ),
 problemas as (
   select t.nome, 'RLS desligado' as problema from tabelas t where not t.rls
