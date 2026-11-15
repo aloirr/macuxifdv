@@ -127,12 +127,12 @@ Decisão do Alexandre de 15/11/2026 (R-20261115-110600, meta v1.0.13): a marca u
 | Uso | Pilha |
 |---|---|
 | Texto e títulos | `system-ui, "Segoe UI", Roboto, -apple-system, sans-serif` (Segoe UI no Windows, Roboto no Android, SF no Apple pelo `-apple-system`) |
-| Códigos (SKU, código do cliente, número do pedido) | `ui-monospace, "Cascadia Mono", "Roboto Mono", monospace`, sempre com `font-variant-numeric: tabular-nums` |
+| Códigos (SKU, código do produto, do cliente e da empresa) | `ui-monospace, "Cascadia Mono", "Roboto Mono", monospace`, sempre com `font-variant-numeric: tabular-nums` |
 
 - Nenhuma outra família e nenhuma fonte baixada ou embutida (`@font-face`, `next/font`, `expo-font`).
 - **E-mail:** os leitores de e-mail nem sempre conhecem `system-ui`, por isso só no HTML do e-mail a pilha termina em `Arial, Helvetica, sans-serif` (texto) e em `Consolas, "Courier New", monospace` (códigos). Fallback não é fonte nova: em nenhuma outra superfície.
-- **O que é código (mono):** só o identificador que a pessoa copia, dita ou confere caractere a caractere: SKU e código do produto, código do cliente e da empresa, número do pedido e da nota, chave e id do Conector, senha temporária, endereço do servidor e hash. A palavra em volta fica na fonte de texto ("Pedido" em texto, "1234" em mono).
-- **Não é código:** CNPJ e CPF, datas, valores, quantidades e percentuais usam a fonte de texto com `tabular-nums`, para os algarismos alinharem.
+- **O que é código (mono):** só o identificador que a pessoa copia, dita ou confere caractere a caractere: SKU e código do produto, código do cliente e da empresa, chave e id do Conector, senha temporária, endereço do servidor e hash. A palavra em volta fica na fonte de texto.
+- **Não é código:** CNPJ e CPF, número do pedido e da nota ("Pedido 1234" inteiro), datas, valores, quantidades e percentuais usam a fonte de texto com `tabular-nums`, para os algarismos alinharem. Vale igual no app, no BKO, no PDF e no e-mail.
 
 ### 5.2 Pesos
 Não há fonte de display: o título se distingue do texto pelo peso e pelo tamanho, nunca por outra família.
@@ -151,19 +151,30 @@ Só esses quatro pesos, inclusive nos PDFs e nos e-mails. Telas equivalentes usa
 - Valor em destaque (total do pedido, número de card) é ênfase: 600. O 700 fica para título. No e-mail, o valor em destaque usa `font-weight:600`, não o `<strong>` padrão (700).
 
 ### 5.3 Escala de tamanhos
-| Papel | Web (px) | App |
-|---|---|---|
-| mínimo: legenda, chip, rótulo de tabela | 12 | 12 |
-| secundário | 13 | 14 |
-| **base** (texto corrido) | **15** | **16** |
-| subtítulo, título de cartão | 17 | 18 |
-| título de seção | 20 | 22 |
-| título de página | 24 | 28 |
+O tamanho segue o **papel** do texto, não o tamanho antigo: o mesmo papel tem o mesmo tamanho em todas as telas.
+
+| Web (px) | Papel na web |
+|---|---|
+| 12 | mínimo: rótulo pequeno, chip, legenda, cabeçalho de tabela |
+| 13 | secundário: meta, ajuda, texto de apoio |
+| **15** | **base:** texto, célula de tabela, campo, botão, item de menu |
+| 17 | subtítulo e título de seção |
+| 20 | título de cartão e de diálogo |
+| 24 | título de página (inclusive login, portal `config.` e troca de senha), em 700 |
+
+| App (dp) | Papel no app |
+|---|---|
+| 12 | mínimo: rótulo, chip, legenda |
+| 14 | secundário |
+| **16** | **base:** texto, campo, botão |
+| 18 | título de seção (e número de card, em 600) |
+| 22 | título de tela |
+| 28 | número grande e título das telas de entrada (login, preparo do aparelho), em 700 |
 
 - **Nada abaixo de 12** em nenhuma superfície.
 - A web é pensada para **1366×768**.
 - Os tokens ficam em `packages/ui` e em `apps/web/app/globals.css` (designer-ux), com esta mesma escala. Fora dela, nenhum tamanho solto.
-- **Arredondamento na troca:** no app, o tamanho que cai entre dois degraus sobe (15 → 16); na web, desce (14 → 13, 16 → 15, 18 → 17, 22 → 20), e acima de 24 vira 24. O logo não entra na escala.
+- Um tamanho antigo que caia entre dois degraus vai para o degrau do seu papel (o 14 antigo da web vira 15 se for texto, campo, botão ou célula, e 13 se for secundário). O logo não entra na escala.
 - **PDF e e-mail:** fonte do sistema, os quatro pesos do §5.2 e nada abaixo de 12 px. A escala da web serve de referência; o total do pedido no PDF pode passar de 24 px, por ser o número que o cliente procura primeiro.
 
 ## 6. Ícones do app

@@ -50,3 +50,46 @@
 - modulo-promotor: MC-0058 (2; sem branch neste lote).
 - engenheiro-software: MC-0061.
 - gerente-projetos: levar ao Alexandre os 4 ajustes de aplicação do §5 para confirmar.
+
+---
+
+# Segunda passada (final) · v1.0.13
+
+> 2026-11-15 · design-de-marca · reteste no combinado local descartável (sem push) de `origin/main` `007289e` + os 14 branches `nuvem/fonte-sistema-*`: design-de-marca `02b6804`, designer-ux `e3d72e1`, designer-ux-limpeza `3d8912b`, engenheiro-software `0a09a54`, engenheiro-apps `153ff74`, modulo-core `f10b769`, modulo-vendedor `29d7ec1`, modulo-catalogo `5d3c2ec`, modulo-gestor `121efa9`, modulo-pesquisa `4cc0ad1`, modulo-treinamento `46f4ad7`, modulo-integracao `67e67bb`, modulo-promotor `ea7893e`, testes `bc60389` (diários com `-X ours`).
+> **Prints da rodada 3:** BKO 1366×768 (login, portal `config.`, auditoria) e login do app Campo.
+
+## Parecer final: **liberado com ajustes**
+As cinco médias fecharam. Ficam três baixas, com a correção de uma linha cada, que podem ir no mesmo lote ou no seguinte; nenhuma mexe no que o cliente reconhece como marca (logo, cor, família).
+
+| ID | Situação no combinado |
+|---|---|
+| MC-0057 | **fechado.** Títulos de login, senha, link antigo e portal em `text-[24px] font-bold` (24/700); `.fv-start` em 700 (`globals.css:139`). Os prints do login do BKO e do portal conferem. |
+| MC-0058 | **fechado.** Nenhum `text-[Npx]` fora de 12·13·15·17·20·24 em `apps/web`, `modules/*/web` e `packages`; tokens `--text-xs..2xl` = 12·13·15·17·20·24. |
+| MC-0059 | **aberto em parte (baixa).** Selo "CD" em 700: fechado. O total do pedido saiu de 800, mas foi para 700 (`modules/vendedor/web/components/orders/order-drawer.tsx:124`, `text-[20px] font-bold`), e o §5.2 pede 600 no valor em destaque. Correção: `font-bold` → `font-semibold` (o PDF do pedido já usa 600 no `.vt`). Dono: modulo-vendedor. |
+| MC-0060 | **fechado.** PDF do pedido: `.empresa` e `.doc .t` em 700, `.vt` em 600; nada em 800/900; mínimo 12. |
+| MC-0061 | **fechado.** E-mail: valor em `font-weight:600`, texto em `#16202A`, pilha do e-mail vinda de `@macuxi/comum/fonte`. |
+| MC-0062 | **fechado.** PDF do catálogo: `th` em 600, cinzas da paleta (`#16202A`, `#C9CED5`, `#ECEEF1`). |
+| MC-0063 | **fechado.** "Pedido 1234" e o CNPJ das transportadoras em texto com `tabular-nums`. |
+| MC-0064 | **fechado no print.** Login do Campo: "Código da empresa", "E-mail", "Senha", "Esqueci a senha" e "Avançado" no mesmo peso (600). |
+
+## Achados novos (baixa)
+| ID | Gravidade | Onde | Fere | Correção | Dono |
+|---|---|---|---|---|---|
+| MC-0065 | baixa | BKO, Filiais: CNPJ em mono (`modules/core/web/components/filiais/filiais-page.tsx:128`) | §5.1 (CNPJ não é código) | `font-mono` → `tabular-nums` (o código da filial, na linha 122, continua em mono) | modulo-core |
+| MC-0066 | baixa | app: número do pedido em mono na lista de pedidos (`modules/vendedor/app/screens/orders-screen.tsx:465`, prop `mono`) e na ficha do cliente (`modules/vendedor/app/components/ficha-cliente.tsx:108`), enquanto o BKO e o PDF já mostram o número em texto | §5.1 (número do pedido em texto com `tabular-nums`, igual em todas as superfícies) | tirar `mono` / `...fonte.mono` e usar `fontVariant: ['tabular-nums']` | modulo-vendedor |
+
+## Conferido sem achado
+- Nada em 800/900 em `apps`, `modules` e `packages` (web, app, PDFs e e-mail); nenhuma Archivo, IBM Plex, `@font-face`, `next/font`, `useFonts`, `sans-serif-black` nem `fontFamily: fonts.x`; nenhum apelido `fonte.display`, `displayBold`, `title16` ou `smallStrong`. O `expo-font` fica no `package.json` só como dependência do Expo, sem carregar fonte.
+- App: tamanhos só em 12·14·16·18·22·28; mono só em código, endereço do servidor e diagnóstico (fora a MC-0066).
+- Web: `--font-display` aponta para `var(--font-sans)`; pilha única em `globals.css` e em `@macuxi/comum/fonte` para PDF e e-mail.
+- Prints: menu do BKO com título de grupo em Sol claro e tela atual em `#2B3743`; títulos de página em 24/700; código da empresa em mono e CNPJ em texto no portal.
+- Fora deste lote (já catalogado e aberto): MC-0021, botão principal do portal em grafite ("Nova empresa", `apps/web/components/portal/base.tsx:58`), visível no print do portal. Não segura a fonte.
+
+## Manual §5 alinhado às decisões do gerente (rodada 3); quem confirma é o dono do produto
+1. §5.3 passa a ser **escala por papel**: web 12 rótulo/chip/legenda/cabeçalho de tabela · 13 secundário · 15 texto/célula/campo/botão/menu · 17 subtítulo e título de seção · 20 título de cartão e diálogo · 24 título de página; app 12 · 14 · 16 · 18 título de seção · 22 título de tela · 28 número grande e telas de entrada. Sai a regra de arredondamento. Concordo com o designer-ux: no app, título de seção 18 e de tela 22 (antes o §5 dizia 22 e 28), porque segue o que o app já mostra e deixa o 28 para o número que a pessoa procura.
+2. §5.1: **número do pedido e da nota** saem da lista de códigos e vão para o texto com `tabular-nums` ("Pedido 1234" inteiro), como já estão o BKO e o PDF.
+
+## Encaminhamentos (pelo gerente-projetos)
+- modulo-vendedor: MC-0059 (total em 600) e MC-0066.
+- modulo-core: MC-0065.
+- gerente-projetos: levar ao dono do produto os dois alinhamentos do §5 acima, junto com os quatro da primeira passada.
