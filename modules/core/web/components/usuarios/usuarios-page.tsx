@@ -7,7 +7,7 @@ import { ROTULO_PERFIL, type ModuloId } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, CampoSenha, IconeModulo, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, useToast, rotuloDoPerfil, type AcaoDoMenu, type IdDoModulo } from '@macuxi/ui/web';
-import { CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type LicencasEstado, type UsuarioItem } from '../../../contracts';
+import { FiliaisListaSchema, CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type LicencasEstado, type UsuarioItem } from '../../../contracts';
 import { efetivosPelasDependencias } from '../../../domain/licencas';
 import {
   acaoDeSenha,
@@ -32,6 +32,7 @@ import {
   seloDoUsuario,
   type SeloDoUsuario,
 } from '../../lib/usuarios';
+import { alternarVenda, avisoSemFilial, descricaoParaLeitor, erroDaFilialCadastro, escolherCadastro, estaSemFilial, filiaisEmOrdem, filtrarPorFilial, FILTRO_FILIAL_SEM, mostraColunaFilial, nomeDaFilialDe, ROTULO_FILIAL_DE_CADASTRO, SELO_SEM_FILIAL, vendaTravada } from '../../lib/filial-usuario';
 import { regrasDoCargo } from '../../../domain/cargos';
 import { modulosExibiveis, removidosDoFormulario } from '../../lib/acesso';
 import { efetivosDoUsuario } from '../../lib/licencas';
@@ -79,6 +80,7 @@ export function UsuariosConteudo() {
   const podeDesativar = usePode('usuario.desativar');
   const podeSenha = usePode('senha.redefinir');
   const podeDesbloquear = usePode('usuario.desbloquear');
+  const podeFilial = usePode('usuario.filial_editar');
   const fuso = useMe().data.tenant.timezone;
   const [agora, setAgora] = useState(() => new Date());
   const [anuncio, setAnuncio] = useState('');
@@ -107,6 +109,7 @@ export function UsuariosConteudo() {
   const q = params.get('q') ?? '';
   const perfil = params.get('perfil') ?? '';
   const situacao = params.get('situacao') ?? '';
+  const filialFiltro = params.get('filial') ?? '';
 
   const lista = useQuery({
     queryKey: ['core', 'usuarios', q, perfil, situacao],
@@ -141,6 +144,11 @@ export function UsuariosConteudo() {
   // RN-CORE-55 (0069): supervisores e gerentes para a hierarquia da gaveta, de todos os ativos (a lista da tela pode estar filtrada)
   const ativosQ = useQuery({ queryKey: ['core', 'usuarios', 'ativos'], queryFn: async () => UsuarioListaRespostaSchema.parse(await api('/core/usuarios?ativo=true')).itens });
   const ativos = ativosQ.data ?? [];
+  // filiais para a coluna, o filtro e a gaveta (RN-CORE-39); quem não consegue lê-las vê a lista sem a coluna
+  const filiaisQ = useQuery({ queryKey: ['core', 'filiais', 'opcoes'], queryFn: async () => FiliaisListaSchema.parse(await api('/core/filiais')).itens.filter((f) => f.ativo), retry: false });
+  const filiais = filiaisEmOrdem(filiaisQ.data ?? []);
+  const semFilialNoApp = ativos.filter(estaSemFilial).length;
+  const aviso0 = avisoSemFilial(semFilialNoApp, filialFiltro);
 
   const fechar = () => {
     setModal(null);
@@ -198,11 +206,11 @@ export function UsuariosConteudo() {
   const salvar = useMutation({
     mutationFn: async ({ editando, corpo }: { editando: UsuarioItem | null; corpo: FormularioUsuario }) => {
       if (editando) {
-        await api(`/core/usuarios/${editando.id}`, { method: 'PUT', body: corpoDeEdicao(corpo, cargo) });
+        await api(`/core/usuarios/${editando.id}`, { method: 'PUT', body: corpoDeEdicao(corpo, cargo, podeFilial) });
         await gravarModulos(editando.id, licencas?.usuarios.find((x) => x.id === editando.id)?.removidos ?? []);
         return null;
       }
-      const criado = CriarUsuarioRespostaSchema.parse(await api('/core/usuarios', { method: 'POST', body: corpoDeCriacao(corpo, cargo) }));
+      const criado = CriarUsuarioRespostaSchema.parse(await api('/core/usuarios', { method: 'POST', body: corpoDeCriacao(corpo, cargo, podeFilial) }));
       await gravarModulos(criado.id, []);
       return criado;
     },
@@ -278,7 +286,9 @@ export function UsuariosConteudo() {
   const ocupado = salvar.isPending || alternar.isPending || redefinir.isPending;
   const upd = (patch: Partial<FormularioUsuario>) => setForm((f) => ({ ...f, ...patch }));
 
-  const itens = lista.data ?? [];
+  const itens = filtrarPorFilial(lista.data ?? [], filialFiltro);
+  const comColunaFilial = mostraColunaFilial(filialFiltro);
+  const colunas = comColunaFilial ? 6 : 5;
   // um perfil por usuário (0069, R-20261114-153500)
   const rotuloDoPerfilDe = (u: UsuarioItem) => (u.perfis[0] ? rotuloDoPerfil(u.perfis[0].codigo, { nome: u.perfis[0].nome }) : ROTULO_PERFIL[u.perfil]);
   const supervisores = opcoesDeChefia(ativos, 'supervisor', cargo === 'promotor' ? form.gerente_id : '').filter((u) => u.id !== editando?.id);
@@ -359,6 +369,16 @@ export function UsuariosConteudo() {
       <span className="sr-only" aria-live="polite" data-testid="usuarios.anuncio">
         {anuncio}
       </span>
+      {aviso0 && (
+        <Notice tone="warning">
+          <span className="flex flex-wrap items-center gap-3" data-testid="usuarios.aviso-sem-filial">
+            {aviso0.texto}
+            <button type="button" className={BOTAO_LINHA} onClick={() => set({ filial: FILTRO_FILIAL_SEM, q: null, perfil: null, situacao: 'ativo' })} data-testid="usuarios.ver-sem-filial">
+              {aviso0.botao}
+            </button>
+          </span>
+        </Notice>
+      )}
       <FilterBar>
         <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
           Buscar por nome ou e-mail
@@ -383,6 +403,17 @@ export function UsuariosConteudo() {
           <option value="ativo">Ativos</option>
           <option value="inativo">Inativos</option>
         </SelectField>
+        {filiaisQ.data && (
+          <SelectField label="Filial de cadastro" value={filialFiltro} onChange={(e) => set({ filial: e.target.value })} data-testid="usuarios.filtro-filial">
+            <option value="">Todas</option>
+            <option value={FILTRO_FILIAL_SEM}>{SELO_SEM_FILIAL}</option>
+            {filiais.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.nome}
+              </option>
+            ))}
+          </SelectField>
+        )}
       </FilterBar>
 
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
@@ -396,6 +427,7 @@ export function UsuariosConteudo() {
                 <th className={th}>Nome</th>
                 <th className={th}>E-mail</th>
                 <th className={th}>Perfil</th>
+                {comColunaFilial && <th className={th}>Filial</th>}
                 <th className={th}>Módulos</th>
                 <th className={th}>
                   <span className="sr-only">Ações</span>
@@ -405,7 +437,7 @@ export function UsuariosConteudo() {
             <tbody>
               {itens.length === 0 && (
                 <tr>
-                  <td className={td} colSpan={5}>
+                  <td className={td} colSpan={colunas}>
                     Nenhum usuário com esses filtros. Limpe a busca ou os filtros para ver todos.
                   </td>
                 </tr>
@@ -427,6 +459,11 @@ export function UsuariosConteudo() {
                     </td>
                     <td className={`${td} whitespace-nowrap`}>{u.email}</td>
                     <td className={td}>{rotuloDoPerfilDe(u)}</td>
+                    {comColunaFilial && (
+                      <td className={td} data-testid={`usuarios.filial.${u.id}`}>
+                        {estaSemFilial(u) ? <Badge tone="danger">{SELO_SEM_FILIAL}</Badge> : (nomeDaFilialDe(u, filiais) ?? '—')}
+                      </td>
+                    )}
                     <td className={td}>
                       {modulos === null ? (
                         '—'
@@ -456,7 +493,7 @@ export function UsuariosConteudo() {
             setTentou(true);
             setErroApi(null);
             const corpo = comSenha(form);
-            if (erros.length === 0 && !ocupado) salvar.mutate({ editando, corpo });
+            if (erros.length === 0 && !erroDaFilialCadastro(form, podeFilial) && !ocupado) salvar.mutate({ editando, corpo });
           }}
         >
           {editando && seloDaGaveta?.bloqueado && (
@@ -521,6 +558,45 @@ export function UsuariosConteudo() {
             <Campo rotulo="Nome da equipe" erro={erroDe('equipe_nome')}>
               <input value={form.equipe_nome} maxLength={80} onChange={(e) => upd({ equipe_nome: e.target.value })} className={CAMPO} data-testid="usuarios.campo-equipe-nome" />
             </Campo>
+          )}
+          {podeFilial && (
+            <>
+              <Campo rotulo="Filial de cadastro" erro={erroDaFilialCadastro(form, tentou)}>
+                <select value={form.filial_cadastro_id} onChange={(e) => upd(escolherCadastro(form, e.target.value))} className={CAMPO} data-testid="usuarios.campo-filial-cadastro">
+                  <option value="">Escolha…</option>
+                  {filiais.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.nome}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+              <fieldset className="m-0 flex flex-col gap-2 border-0 p-0" data-testid="usuarios.filiais-venda">
+                <legend className="mb-1 p-0 text-[13px] font-semibold text-ink">Filiais de venda</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {filiais.map((f) => {
+                    const travada = vendaTravada(form, f.id);
+                    return (
+                      <label key={f.id} className={`flex min-h-[48px] items-center gap-3 rounded-xl border border-line px-3 text-[14px] font-semibold text-ink ${travada ? 'bg-ground' : 'bg-surface'}`}>
+                        <input
+                          type="checkbox"
+                          className="h-5 w-5 accent-accent"
+                          checked={form.filial_venda_ids.includes(f.id)}
+                          disabled={travada}
+                          aria-label={descricaoParaLeitor(f.nome, form, f.id)}
+                          onChange={() => upd(alternarVenda(form, f.id))}
+                          data-testid={`usuarios.filial-venda.${f.id}`}
+                        />
+                        <span className="flex flex-wrap items-baseline gap-x-2">
+                          {f.nome}
+                          {travada && <span className="text-[12px] font-normal text-ink-2">{ROTULO_FILIAL_DE_CADASTRO}</span>}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            </>
           )}
           <Campo rotulo="Código no ERP" erro={erroDe('external_id')}>
             <input value={form.external_id} maxLength={100} onChange={(e) => upd({ external_id: e.target.value })} className={CAMPO} data-testid="usuarios.campo-external-id" />

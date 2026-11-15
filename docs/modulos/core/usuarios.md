@@ -12,7 +12,7 @@ O admin gerencia os usuários do tenant sem SQL. Página "Usuários" no grupo Ad
 | `PUT /usuarios/:id/ativo` | `usuario.desativar` (nunca o próprio) | Ativa/desativa. Desativar revoga `core.sessao` (refresh) e limpa o push do aparelho. Idempotente. |
 | `PUT /usuarios/:id/senha` | `senha.redefinir` | Redefine a senha (zera falhas e bloqueio temporário; revoga sessões). |
 
-Não existe DELETE: usuário nunca é apagado nem recebe `deleted_at`. Perfis aceitos = enum dos contracts (`vendedor, promotor, supervisor, gerente, analista, assistente, admin`, o mesmo do banco).
+Não existe DELETE: usuário nunca é apagado nem recebe `deleted_at` (RN-CORE-60). Perfis aceitos = enum dos contracts (`vendedor, promotor, supervisor, gerente, analista, assistente, admin`, o mesmo do banco).
 
 ## Regras
 - **Permissão**: quem escreve é decidido pelo motor de permissões (ADR 0033; RN-CORE-35): `usuario.criar|editar|desativar` e `senha.redefinir`, que na fábrica são só do admin; 403 para os demais, checado pelo SDK antes do `executar`; último admin, autogestão e usuário sem perfil saem de `validarAcessoDoTenant` (422 com `ULTIMO_ADMIN`/`USUARIO_AUTORREBAIXA`, e a RN no detalhe `regra`). Leitura: `usuario.ver`. A UI esconde as ações, a API é a proteção real.
@@ -76,3 +76,22 @@ Desenho: `docs/desenho/T-0094.md`; textos e telas: `docs/design/ciclo-de-senha.m
 ## Lista de Clientes (T-0171, RN-CORE-41)
 - Uma tag (Bloqueado > Devendo > Pré-Cadastro > Em dia) e só a última visita ("Visitado hoje/ontem/há N dias", "Nunca visitado"). Pré-Cadastro = cliente sem código do ERP (`external_id` vazio).
 - Última visita: `ultima_visita_em` do `cliente_visita_resumo@1` (id = cliente; último check-in concluído de qualquer vendedor, data no fuso do tenant; ver `performance-cliente.md`) somada aos check-ins feitos no aparelho. Funções puras em `domain/lista-clientes.ts`.
+
+## Vendedor do ERP ligado ao usuário do BKO (T-0175, RN-CORE-58)
+- **Código no ERP** (`external_id`) é o vínculo: editável em Novo e Editar (vendedor e promotor). Código repetido responde 409; se o dono do código é um provisório (`@sem-email.invalid`), a mensagem manda usar "Vincular vendedor do ERP".
+- A carga do ERP que cria um provisório avisa os admins (notificação de sistema, só o código do ERP). A lista de Usuários busca também pelo código e filtra "Provisórios" (`provisorio=true`).
+- `POST /v1/core/usuarios/:id/vincular-erp` (`usuario.editar`, corpo `{ usuario_id }`): uma transação; o real recebe o código, a carteira (sem duplicar), `nota_erp`, rotas, metas e indicadores; o provisório fica inativo, com `external_id` nulo, sem `deleted_at` (RN-CORE-60; a repetição é reconhecida pela auditoria); auditoria `usuario.vincular_erp`; um `core.cliente.atualizado@1` por cliente movido. Plano puro em `domain/vinculo-erp.ts` (`planejarVinculoErp`); recusas 422 `VINCULO_*`.
+- A carga seguinte casa pelo `external_id`: não recria o provisório, só troca e-mail provisório por e-mail real livre (nunca o e-mail real do vínculo) e não mexe na carteira.
+
+## Código FDV (T-0175, RN-CORE-59; aguarda a migração e a simulação das telas)
+- **RN-CORE-59 — Código FDV.** Todo usuário, de qualquer perfil, tem dois códigos: o Código ERP (`external_id`) e o Código FDV, próprio do Macuxi. É gerado pelo banco ao criar o usuário, só dígitos e sem prefixo, em sequência por empresa (`00001`, `00002`…, mínimo de 5 dígitos, cresce para `100000` além de 99999; substitui o antigo `00001`), único por empresa, só de leitura e nunca reaproveitado. Criar ou editar com `codigo_fdv` no corpo responde 422 `CODIGO_FDV_SOMENTE_LEITURA`. No vínculo do ERP o real mantém o seu e o provisório inativado mantém o dele.
+- **RN-CORE-60 — Usuário nunca é excluído, só desativado.** Não existe DELETE de usuário e nenhum caminho do módulo grava `deleted_at` em `core.usuario`; sair de cena é `ativo=false` (na tela, "Desativar"). O vínculo do ERP deixa o provisório inativo e com `external_id` nulo (o código fica só no real; assim o índice parcial `usuario_external_uk` não prende o código). Quem vier a criar um DELETE responde 422 `USUARIO_NAO_EXCLUI`. A carga do ERP só inativa (`ativo=false`). **Única exceção:** a exclusão da empresa inteira (RN-PLA-09/10, `plataforma.excluir_tenant`), feita depois da inativação e do backup.
+- Domain: `formatarCodigoFdv`, `validarCodigoFdv`, `proximoSequencialFdv`, `recusarCodigoFdvNoCorpo` (`domain/codigo-fdv.ts`).
+- Contrato aditivo: `codigo_fdv` (texto ou nulo) em `UsuarioItem` (lista, detalhe, criar) e em `UsuarioSync`. A busca `q` da lista inclui o código.
+- API tolerante: `COLUNA_CODIGO_FDV_PRONTA = false` em `api/codigo-fdv.ts` devolve `null` e ignora o código na busca; vira `true` no PR da migração.
+- Migração (banco-dados): coluna `core.usuario.codigo_fdv text`; índice único `(tenant_id, codigo_fdv)` entre os vivos (`deleted_at is null`, `codigo_fdv is not null`); contador por tenant em tabela própria (`tenant_id`, `ultimo_sequencial`, com a regra de colunas padrão) e gatilho `before insert` que incrementa com `update ... returning` (atômico, linha travada) e grava o sequencial com `lpad` de 5 (CHECK `^\d{5,}$`); gatilho `before update` que recusa mudar o `codigo_fdv` gravado; backfill dos usuários vivos por `created_at, id`, e o contador termina no maior emitido; apagado não devolve número (o contador nunca decresce); no vínculo do ERP nada muda no código: o real mantém o dele e o provisório (inativo) mantém o seu, fora da unicidade dos vivos mas dentro do contador.
+
+## Filial do usuário (T-0176, RN-CORE-39 revista; detalhe em `filial-cadastro-venda.md`)
+- Todo usuário tem UMA filial de cadastro (`filial_cadastro_id`) e UMA OU MAIS filiais de venda que a incluem, sem limite por cargo. Só admin e analista informam (403 `USUARIO_FILIAL_SEM_PERMISSAO`); sem cadastro ao criar dá 422.
+- Sem filial de cadastro o usuário, de qualquer perfil, fica bloqueado: `sem_filial` na sessão e no sync `usuario`, 403 `USUARIO_SEM_FILIAL` nas rotas do Core. Admin e analista se destravam com `PUT /v1/core/eu/filial-cadastro`.
+- Carga do ERP: `filial_external_id` grava a de cadastro e a inclui na de venda; ausente não altera; inexistente deixa o vendedor sem filial e registra `FILIAL_INEXISTENTE`.

@@ -4,15 +4,15 @@
  *
  * `createApp` + os 8 módulos + Postgres efêmero do arquivo (dois-tenants + 0077) pelo `macuxi_app` (RLS). O `subirApi` dá a filial
  * padrão a todo usuário da fixture (tests/integracao/apoio/filial-usuario.ts); cada caso trava quem precisa (`deixarSemFilial`) e
- * destrava no fim. Roda só com banco (CI) e só com o contrato novo do Core (`API_TEM_FILIAL_DE_USUARIO`); no `main` antes do
- * merge dos branches `nuvem/filial-usuario-banco-dados` e `nuvem/filial-usuario-modulo-core`, pula.
+ * destrava no fim. Roda só com banco (CI); o contrato do Core (`API_TEM_FILIAL_DE_USUARIO`) já está no branch desde o merge de
+ * `nuvem/v1012-modulo-core`, e os campos (`filial_cadastro_id`, `filial_venda_ids`, `sem_filial`) vêm tipados de `@macuxi/core/contracts`.
  *
  * Convenção: `it` = vale hoje; `it.fails` = defeito aberto (o caso diz o que falta; quando corrigir, fica vermelho e vira `it`).
  * v1.0.12: D-T0176-2 (ação `usuario.filial_editar` de admin/analista no Core) e D-T0176-3 (guarda global da plataforma, ADR 0056,
  * #339) corrigidos; os casos viraram `it`. O 403 traz `CODIGO_USUARIO_SEM_FILIAL` e `MENSAGEM_USUARIO_SEM_FILIAL` do SDK, vale em
  * toda rota autenticada (Catálogo, Vendedor…) e o sync do bloqueado só entrega a entidade `usuario` (push = 403 no lote inteiro).
  */
-import { CriarUsuarioRespostaSchema, SessaoRespostaSchema } from '@macuxi/core/contracts';
+import { CriarUsuarioRespostaSchema, SessaoRespostaSchema, type UsuarioSync } from '@macuxi/core/contracts';
 import { definirTenant } from '@macuxi/db/teste';
 import { semBanco } from '@macuxi/db/teste/estado';
 import { CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL, type ContextoConsumo } from '@macuxi/platform-sdk';
@@ -26,13 +26,6 @@ const EVENTO_VENDEDOR = 'integracao.vendedor.atualizado@1';
 /** Senha inicial dos usuários criados aqui (RN-CORE-32). */
 const SENHA_NOVA = 'Filial#T0176-ok';
 const EM = (x: string) => `${x}.t0176@exemplo.com.br`;
-/** Campos aditivos da T-0176 (sessão, item do BKO, sync); locais para o typecheck passar também no `main` sem o contrato novo. */
-interface ComFilial {
-  filial_cadastro_id?: string | null;
-  filial_venda_ids?: string[];
-  sem_filial?: boolean;
-}
-
 type App = 'campo' | 'gestao' | 'web';
 /** Usuários da fixture de A em cada perfil, com o app em que entram. */
 const PERFIS_A: readonly [perfil: string, email: string, id: string, app: App][] = [
@@ -58,8 +51,7 @@ describe.skipIf(semBanco() || !API_TEM_FILIAL_DE_USUARIO)('T-0176 filial de cada
   const sessao = async (email: string, app?: App, tenant: Tenant = A) => {
     const r = await api.entrar(email, { tenant, ...(app ? { app } : {}) });
     expect(r.statusCode, `${email}: ${r.body}`).toBe(200);
-    const sessaoLida = SessaoRespostaSchema.parse(r.json());
-    return { ...sessaoLida, usuario: sessaoLida.usuario as typeof sessaoLida.usuario & ComFilial };
+    return SessaoRespostaSchema.parse(r.json());
   };
   const status = async (token: string, method: 'GET' | 'POST' | 'PUT', url: string, payload?: object) => {
     const r = await api.chamar(token, { method, url, ...(payload ? { payload } : {}) });
@@ -197,7 +189,7 @@ describe.skipIf(semBanco() || !API_TEM_FILIAL_DE_USUARIO)('T-0176 filial de cada
         payload: { nome: 'Supervisora Filiais', email: EM('sup.varias'), perfil: 'supervisor', senha: SENHA_NOVA, filial_cadastro_id: padraoA, filial_venda_ids: [boaVistaA.id] },
       });
       expect(r.statusCode, r.body).toBe(201);
-      const u = CriarUsuarioRespostaSchema.parse(r.json()) as ReturnType<typeof CriarUsuarioRespostaSchema.parse> & ComFilial;
+      const u = CriarUsuarioRespostaSchema.parse(r.json());
       expect(u.filial_cadastro_id).toBe(padraoA);
       expect([...(u.filial_venda_ids ?? [])].sort()).toEqual([padraoA, boaVistaA.id].sort());
       expect(u.sem_filial).toBe(false);
@@ -230,7 +222,7 @@ describe.skipIf(semBanco() || !API_TEM_FILIAL_DE_USUARIO)('T-0176 filial de cada
       const v = await sessao('vendedor@exemplo.com.br', 'campo');
       const pull = await api.chamar(v.access_token, { method: 'GET', url: '/v1/sync/pull?entidade=usuario' });
       expect(pull.statusCode, pull.body).toBe(200);
-      const minha = (pull.json() as { itens: ({ id: string } & ComFilial)[] }).itens.find((l) => l.id === A.usuarios.vendedor1);
+      const minha = (pull.json() as { itens: UsuarioSync[] }).itens.find((l) => l.id === A.usuarios.vendedor1);
       expect(minha).toMatchObject({ filial_cadastro_id: padraoA, sem_filial: false });
       expect(minha!.filial_venda_ids).toContain(padraoA);
     });
@@ -400,7 +392,7 @@ describe.skipIf(semBanco() || !API_TEM_FILIAL_DE_USUARIO)('T-0176 filial de cada
 
         const pull = await api.chamar(t, { method: 'GET', url: '/v1/sync/pull?entidade=usuario' });
         expect(pull.statusCode, pull.body).toBe(200);
-        const itens = (pull.json() as { itens: ({ id: string } & ComFilial)[] }).itens;
+        const itens = (pull.json() as { itens: UsuarioSync[] }).itens;
         expect(itens.map((l) => l.id)).toEqual([id]);
         expect(itens[0]).toMatchObject({ sem_filial: true, filial_cadastro_id: null });
 
