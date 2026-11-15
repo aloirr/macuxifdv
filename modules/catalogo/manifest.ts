@@ -24,7 +24,7 @@ export const manifest = defineModule({
   versao: '0.1.0',
   depende: ['core'],
   perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'],
-  apps: { campo: { abas: ['Catálogo'] }, gestao: { abas: ['Catálogo'] }, web: { menus: ['Catálogo', 'Tabelas de preço', 'Marcas concorrentes'] } },
+  apps: { campo: { abas: ['Catálogo'] }, gestao: { abas: ['Catálogo'] }, web: { menus: ['Catálogo', 'Tabelas de preço', 'Marcas concorrentes', 'Fotos em lote'] } },
   sync: [
     // preço
     'tabela_preco',
@@ -53,9 +53,11 @@ export const manifest = defineModule({
     // relação entre produtos: complementar, superior, substituto (RF-CAT-03; T-0071)
     'produto_relacao',
   ],
-  publica: ['catalogo.produto.visualizado@1', 'catalogo.busca.realizada@1', 'catalogo.referencia.marca_desconhecida@1', 'catalogo.marca_concorrente.alterada@1'],
+  publica: ['catalogo.produto.visualizado@1', 'catalogo.busca.realizada@1', 'catalogo.referencia.marca_desconhecida@1', 'catalogo.marca_concorrente.alterada@1',
+    // T-0174 (RN-CAT-14, ADR 0054): fotos em lote por ZIP; o do lote enfileirado também é consumido (dispara o trabalho processar_foto_lote)
+    'catalogo.foto_lote.enfileirado@1', 'catalogo.foto_lote.concluido@1', 'catalogo.foto.definida@1', 'catalogo.foto.removida@1'],
   // produto: só o catalogo_no_external_id, para gravar produto_no; o cadastro do produto é do Core
-  consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'integracao.catalogo_no.atualizado@1', 'integracao.produto.atualizado@1', 'integracao.tabela_escalonada.atualizado@1', 'integracao.cliente.atualizado@1', 'catalogo.busca.realizada@1'],
+  consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'integracao.catalogo_no.atualizado@1', 'integracao.produto.atualizado@1', 'integracao.tabela_escalonada.atualizado@1', 'integracao.cliente.atualizado@1', 'catalogo.busca.realizada@1', 'catalogo.foto_lote.enfileirado@1'],
   ofereceExtensoes: ['produto.acoes'],
   // T-0076: não contribui mais com 'cliente.acoes' (o "Ver catálogo" saiu do Cliente 360)
   usaExtensoes: [],
@@ -65,7 +67,8 @@ export const manifest = defineModule({
   ofereceConsultas: ['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1', 'catalogo.textos_produto@1', 'catalogo.busca_produtos@1', 'catalogo.marcas@1', 'catalogo.foto_produto@1', 'catalogo.estoque_filial@1'],
   // T-0052 (ADR 0012): cadastro base do produto (sku, nome, unidade, ativo) para a busca na API, sem ler `core.produto`
   // T-0149 (RN-CORE-39): filial do cliente, filial padrão e filiais da carteira (preço e estoque por filial, pull do aparelho, consumidores do ERP)
-  usaConsultas: ['core.cadastro_resumo@1', 'core.filiais@1'],
+  // T-0174 (RN-CAT-14): core.produtos_por_sku@1 casa o nome da foto com o código (sku ou EAN) do produto, sem ler `core.produto`
+  usaConsultas: ['core.cadastro_resumo@1', 'core.filiais@1', 'core.produtos_por_sku@1'],
   acoes: {
     // --- consulta (app Macuxi Campo e Gestão; BKO) ---
     'produto.consultar': { perfis: [...PERFIS_CONSULTA], descricao: 'Buscar, navegar, ver a ficha, favoritar e comparar produtos (RF-CAT-01..04, RF-CAT-06)' },
