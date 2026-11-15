@@ -4,8 +4,9 @@
  * e 0035_plataforma_super_admin.up.sql (super-admin, só por função), 0039_plataforma_portal_email_senha.up.sql (portal por
  * e-mail e senha, só por função), 0040_core_senha_email_saida.up.sql (outbox de e-mail),
  * 0041_plataforma_perfis_de_acesso.up.sql (perfis de acesso, ADR 0033; cargo e um perfil por usuário desde a
- * 0069_core_cargo_hierarquia.up.sql) e 0073_plataforma_dados_legais.up.sql (dados legais do rodapé, só por função), para
- * consultas da API.
+ * 0069_core_cargo_hierarquia.up.sql), 0070_plataforma_plano_assinatura.up.sql (planos e assinatura, ADR 0047) e
+ * 0072_plataforma_empresa_acoes.up.sql (inativar, backup e excluir a empresa, ADR 0052; só por função) e
+ * 0073_plataforma_dados_legais.up.sql (dados legais do rodapé, só por função), para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -13,8 +14,8 @@
  * do SQL é comparado com eles em db/testes/estatico.test.ts e db/testes/cargo-hierarquia.db.test.ts.
  */
 import { sql } from 'drizzle-orm';
-import { bigint, boolean, customType, integer, jsonb, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { CARGOS, NIVEIS_ALCADA, NIVEIS_ESCOPO, PERFIS } from '@macuxi/platform-sdk';
+import { bigint, boolean, customType, date, integer, jsonb, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { CARGOS, ETAPAS_EXCLUSAO, MOTIVOS_INATIVACAO, NIVEIS_ALCADA, NIVEIS_ESCOPO, PERFIS, SITUACOES_BACKUP, SITUACOES_EXCLUSAO } from '@macuxi/platform-sdk';
 
 export const plataforma = pgSchema('plataforma');
 
@@ -46,6 +47,10 @@ export const tenant = plataforma.table('tenant', {
    * e na restauração de backup; nunca no uso normal. O aparelho compara com o guardado e, se mudou, limpa a cópia local.
    */
   geracao_base: uuid('geracao_base').notNull().defaultRandom(),
+  /** 0072 (ADR 0052, RN-PLA-07): quando ficou inativa (status suspenso); null = ativa. CHECK: ativa <=> sem data e sem motivo. */
+  inativada_em: timestamp('inativada_em', { withTimezone: true }),
+  /** 0072: motivo da inativação, opcional e nulo (ADR 0052 §1.1); quando vem, MOTIVOS_INATIVACAO do SDK; sem texto livre. */
+  motivo_inativacao: text('motivo_inativacao', { enum: MOTIVOS_INATIVACAO }),
   ...auditaveis(),
 });
 
@@ -383,6 +388,135 @@ export const diagnostico = plataforma.table('diagnostico', {
   alerta_proxima_em: timestamp('alerta_proxima_em', { withTimezone: true }),
   alerta_recado_id: text('alerta_recado_id'),
   alerta_em: timestamp('alerta_em', { withTimezone: true }),
+});
+
+/** Adicional vendido pelo plano (RN-PLA-01): preço por licença ou por usuário, por mês; `incluidos` null = ilimitado incluso. */
+export interface AdicionalDoPlanoLinha {
+  adicional: 'promotor' | 'pesquisa' | 'treinamento';
+  preco_unitario_centavos: number;
+  incluidos: number | null;
+}
+
+/**
+ * Catálogo de planos (0070, ADR 0047 §1): DADO da plataforma, fora dos tenants (exceção à regra 5, como a super_admin). Só pelas
+ * funções plataforma.sa_* (sem grant de tabela). Versão nova do plano = linha nova; a antiga ganha deleted_at e as assinaturas
+ * continuam apontando para ela. Código único entre os vivos. Licenças por tipo: null = sem limite.
+ */
+export const plano = plataforma.table('plano', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  /** `^[a-z][a-z0-9_]{1,29}$` (CodigoPlano do SDK). */
+  codigo: text('codigo').notNull(),
+  nome: text('nome').notNull(),
+  ordem: integer('ordem').notNull().default(0),
+  preco_mensal_centavos: bigint('preco_mensal_centavos', { mode: 'number' }).notNull(),
+  licenca_vendedor: integer('licenca_vendedor'),
+  licenca_gestor: integer('licenca_gestor'),
+  licenca_bko: integer('licenca_bko'),
+  licenca_promotor: integer('licenca_promotor'),
+  /** Só os 8 módulos do contrato (CHECK). */
+  modulos: text('modulos').array().notNull().default(sql`'{}'::text[]`),
+  adicionais: jsonb('adicionais').$type<AdicionalDoPlanoLinha[]>().notNull().default([]),
+  meses_gratis_anual: integer('meses_gratis_anual').notNull().default(0),
+  dias_teste: integer('dias_teste').notNull().default(0),
+  ativo: boolean('ativo').notNull().default(true),
+  ...auditaveis(),
+});
+
+/**
+ * Assinatura do tenant (0070, ADR 0047 §2): uma VIVA por tenant (assinatura_tenant_uk). Gravada só pela
+ * plataforma.sa_gravar_assinatura (portal, super-admin); o macuxi_app lê só a do próprio tenant. teste_ate = último dia do
+ * teste, inclusive, no fuso do tenant (null = sem teste); CHECK paga ou com teste. Fora do sync.
+ */
+export const assinatura = plataforma.table('assinatura', {
+  ...comuns(),
+  plano_id: uuid('plano_id').notNull(),
+  ciclo: text('ciclo', { enum: ['mensal', 'anual'] }).notNull().default('mensal'),
+  adicionais: jsonb('adicionais').$type<{ adicional: 'promotor' | 'pesquisa' | 'treinamento'; quantidade: number }[]>().notNull().default([]),
+  teste_ate: date('teste_ate', { mode: 'string' }),
+  paga: boolean('paga').notNull().default(false),
+  /** UUID do portal que gravou (chave de idempotência da criação). */
+  pedido_id: uuid('pedido_id').notNull(),
+});
+
+/**
+ * Backup da empresa (0072, ADR 0052 §2, RN-PLA-08): um job por linha (id do portal), em_andamento -> pronto | falhou (-> apagado
+ * na retenção, RN-PLA-11). empresa_id SEM FK e sem tenant_id: sobrevive à exclusão (exceção à regra 5). Só por função (sa_* do
+ * portal e funções do worker); nenhum grant de tabela.
+ */
+export const backupEmpresa = plataforma.table('backup_empresa', {
+  id: uuid('id').primaryKey(),
+  empresa_id: uuid('empresa_id').notNull(),
+  /** Código da empresa na hora do pedido (vai ao manifesto). */
+  codigo: text('codigo').notNull(),
+  situacao: text('situacao', { enum: SITUACOES_BACKUP }).notNull().default('em_andamento'),
+  consistente: boolean('consistente').notNull().default(false),
+  pedido_em: timestamp('pedido_em', { withTimezone: true }).notNull().defaultNow(),
+  iniciado_em: timestamp('iniciado_em', { withTimezone: true }),
+  concluido_em: timestamp('concluido_em', { withTimezone: true }),
+  expira_em: timestamp('expira_em', { withTimezone: true }),
+  progresso_pct: integer('progresso_pct').notNull().default(0),
+  tamanho_bytes: bigint('tamanho_bytes', { mode: 'number' }),
+  tabelas: integer('tabelas'),
+  linhas: bigint('linhas', { mode: 'number' }),
+  arquivos: integer('arquivos'),
+  erro_codigo: text('erro_codigo'),
+  /** Concessão do worker (10 min, renovada a cada página e parte). */
+  bloqueado_ate: timestamp('bloqueado_ate', { withTimezone: true }),
+  super_admin_id: uuid('super_admin_id'),
+  sessao_id: uuid('sessao_id'),
+  ...auditaveis(),
+});
+
+/** Parte confirmada do backup (0072): uma por (backup, tabela), com linhas, bytes e sha256. Só por função. */
+export const backupEmpresaParte = plataforma.table('backup_empresa_parte', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  backup_id: uuid('backup_id').notNull(),
+  tabela: text('tabela').notNull(),
+  ordem: integer('ordem').notNull(),
+  linhas: bigint('linhas', { mode: 'number' }).notNull(),
+  bytes: bigint('bytes', { mode: 'number' }).notNull(),
+  sha256: text('sha256').notNull(),
+  ...auditaveis(),
+});
+
+/**
+ * Exclusão da empresa (0072, ADR 0052 §3, RN-PLA-09): job (id do portal), etapa banco -> arquivos -> fim. empresa_id SEM FK:
+ * sobrevive à exclusão. contagem = linhas apagadas por tabela. Só por função.
+ */
+export const exclusaoEmpresa = plataforma.table('exclusao_empresa', {
+  id: uuid('id').primaryKey(),
+  empresa_id: uuid('empresa_id').notNull(),
+  codigo: text('codigo').notNull(),
+  backup_id: uuid('backup_id').notNull(),
+  situacao: text('situacao', { enum: SITUACOES_EXCLUSAO }).notNull().default('em_andamento'),
+  etapa: text('etapa', { enum: ETAPAS_EXCLUSAO }).notNull().default('banco'),
+  pedida_em: timestamp('pedida_em', { withTimezone: true }).notNull().defaultNow(),
+  concluida_em: timestamp('concluida_em', { withTimezone: true }),
+  linhas_apagadas: bigint('linhas_apagadas', { mode: 'number' }),
+  arquivos_apagados: bigint('arquivos_apagados', { mode: 'number' }),
+  contagem: jsonb('contagem').$type<Record<string, number>>(),
+  erro_codigo: text('erro_codigo'),
+  bloqueado_ate: timestamp('bloqueado_ate', { withTimezone: true }),
+  super_admin_id: uuid('super_admin_id'),
+  sessao_id: uuid('sessao_id'),
+  ...auditaveis(),
+});
+
+/**
+ * Empresa excluída (0072, ADR 0052 §3.4, RN-PLA-10): id = o do tenant apagado. O código nunca é reaproveitado (gatilho
+ * tenant_codigo_nao_reaproveitado e sortear_codigo_licenca). Só por função.
+ */
+export const empresaExcluida = plataforma.table('empresa_excluida', {
+  id: uuid('id').primaryKey(),
+  codigo: text('codigo').notNull(),
+  /** CNPJ da empresa (dado da empresa, não pessoal). */
+  documento: text('documento'),
+  razao_social: text('razao_social').notNull(),
+  excluida_em: timestamp('excluida_em', { withTimezone: true }).notNull().defaultNow(),
+  backup_id: uuid('backup_id').notNull(),
+  exclusao_id: uuid('exclusao_id').notNull(),
+  super_admin_id: uuid('super_admin_id'),
+  ...auditaveis(),
 });
 
 /**

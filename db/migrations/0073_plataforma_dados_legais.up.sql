@@ -62,8 +62,8 @@ create policy manutencao on plataforma.dados_legais for all to macuxi_manutencao
 revoke all on plataforma.dados_legais from public, macuxi_app, macuxi_worker;
 revoke all on plataforma.dados_legais from macuxi_portal;
 
--- a linha única, com razão social e CNPJ vazios e o site padrão (spec §3.2)
-insert into plataforma.dados_legais (razao_social, cnpj, site) values (null, null, 'macuxifdv.com.br');
+-- a linha única, com razão social e CNPJ vazios e o site padrão (spec §3.2; o default da coluna)
+insert into plataforma.dados_legais default values;
 
 -- =============================================================================================
 -- 2. Leitura pública (rota sem login): só razao_social, cnpj e site
@@ -147,19 +147,17 @@ begin
   v_cnpj := p ->> 'cnpj';
   v_site := p ->> 'site';
 
-  -- a linha única, travada (dois PUTs simultâneos em fila); sem ela (apagada à mão), nasce de novo
+  -- a linha única, travada (dois PUTs simultâneos em fila); sem ela (apagada à mão), nasce de novo. O "antes" da auditoria é
+  -- o que a leitura pública mostrava (sem a linha ou com ela apagada, o padrão de lá): um lugar só para o "sem dados".
   select d.id, d.razao_social, d.cnpj, d.site, d.deleted_at into v_atual from plataforma.dados_legais d limit 1 for update;
+  v_antes := plataforma.dados_legais_publicos();
   if not found then
     insert into plataforma.dados_legais (razao_social, cnpj, site, atualizado_por) values (v_razao, v_cnpj, v_site, v_sa);
-    v_antes := jsonb_build_object('razao_social', null, 'cnpj', null, 'site', 'macuxifdv.com.br');
   elsif v_atual.deleted_at is null and v_atual.razao_social is not distinct from v_razao and v_atual.cnpj is not distinct from v_cnpj
         and v_atual.site = v_site then
     -- idempotente: o mesmo conteúdo não muda a linha nem audita
     return plataforma.dados_legais_publicos();
   else
-    v_antes := case when v_atual.deleted_at is null
-                    then jsonb_build_object('razao_social', v_atual.razao_social, 'cnpj', v_atual.cnpj, 'site', v_atual.site)
-                    else jsonb_build_object('razao_social', null, 'cnpj', null, 'site', 'macuxifdv.com.br') end;
     update plataforma.dados_legais
        set razao_social = v_razao, cnpj = v_cnpj, site = v_site, atualizado_por = v_sa, deleted_at = null
      where id = v_atual.id;
