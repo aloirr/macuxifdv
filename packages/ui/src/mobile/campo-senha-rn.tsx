@@ -10,13 +10,14 @@
  * `visible-password` no Android quando visível) e a tela não as sobrescreve.
  */
 import type { Ref } from 'react';
-import { Platform, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { Platform, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 
 import { CAMPO_SENHA, iconeDoOlhoDaSenha, propsDeTecladoDaSenha } from './campo-senha';
 import { rotuloDoOlhoDaSenha, type FinalidadeSenha } from '../comum/senha';
+import { ESTILO_CAMPO, RotuloCampo } from './campo-texto-rn';
 import { Icon } from './icon';
 import { Pressionavel } from './movimento-rn';
-import { colors, fonte, radius } from './theme';
+import { colors } from './theme';
 
 type PropsDeTeclado = 'secureTextEntry' | 'autoCorrect' | 'autoCapitalize' | 'spellCheck' | 'autoComplete' | 'textContentType' | 'keyboardType';
 
@@ -54,8 +55,8 @@ export function CampoSenha({
 }: CampoSenhaProps) {
   const teclado = propsDeTecladoDaSenha(visivel, finalidade, Platform.OS);
   return (
-    <View style={s.caixa}>
-      <Text style={s.rotulo}>{rotulo}</Text>
+    <View style={ESTILO_CAMPO.caixa}>
+      <RotuloCampo>{rotulo}</RotuloCampo>
       <View>
         <TextInput
           {...resto}
@@ -66,7 +67,7 @@ export function CampoSenha({
           onChangeText={aoMudar}
           accessibilityLabel={rotulo}
           placeholderTextColor={colors.ink3}
-          style={[s.entrada, aoAlternar ? { paddingRight: CAMPO_SENHA.recuoDoTexto } : null, erro ? { borderColor: colors.danger } : null]}
+          style={[ESTILO_CAMPO.entrada, aoAlternar ? { paddingRight: CAMPO_SENHA.recuoDoTexto } : null, erro ? ESTILO_CAMPO.entradaComErro : null]}
         />
         {aoAlternar ? (
           <Pressionavel
@@ -84,19 +85,6 @@ export function CampoSenha({
 }
 
 const s = StyleSheet.create({
-  caixa: { gap: 4 },
-  rotulo: { ...fonte.semibold, fontSize: 14, color: colors.ink },
-  entrada: {
-    minHeight: CAMPO_SENHA.altura,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    ...fonte.body,
-    fontSize: 16,
-    color: colors.ink,
-    backgroundColor: colors.surface,
-  },
   olho: {
     position: 'absolute',
     right: 2,

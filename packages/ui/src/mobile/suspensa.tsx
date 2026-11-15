@@ -330,7 +330,7 @@ export function CampoAjuste<T extends string>({
 const s = StyleSheet.create({
   // rótulo + campo (.lbl / .sel)
   campoBloco: { gap: 4, minWidth: 0 },
-  rotulo: { ...fonte.bold, fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.ink2 },
+  rotulo: { ...fonte.semibold, fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.ink2 },
   campo: { minHeight: ALVO_TOQUE, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface },
   campoAberto: { borderColor: colors.ink, borderWidth: 1.5 },
   campoErro: { borderColor: colors.danger, borderWidth: 1.5 },
@@ -347,7 +347,7 @@ const s = StyleSheet.create({
   opcaoDesligada: { backgroundColor: MOTIVO_OPCAO.fundo },
   opcaoTextos: { flexShrink: 1, gap: 2 },
   opcaoTexto: { ...fonte.body, fontSize: 16, lineHeight: 20, color: colors.ink },
-  opcaoTextoMarcada: { ...fonte.bold },
+  opcaoTextoMarcada: { ...fonte.semibold },
   opcaoTextoDesligada: { color: colors.inkDisabled },
   opcaoMotivo: { ...fonte.body, fontSize: MOTIVO_OPCAO.tamanhoFonte, lineHeight: MOTIVO_OPCAO.alturaLinha, color: MOTIVO_OPCAO.cor },
   // .desc (ajuste com o tipo ao lado): contêiner de 44 dp com os alvos dentro; moldura de 30 dp atrás
@@ -356,6 +356,6 @@ const s = StyleSheet.create({
   ajusteTipoAlvo: { height: ALVO_AJUSTE, justifyContent: 'center', paddingLeft: 1 },
   ajusteTipo: { flexDirection: 'row', alignItems: 'center', gap: 3, height: ALTURA_AJUSTE - 2, paddingHorizontal: 8, borderRightWidth: 1, borderRightColor: colors.line, backgroundColor: colors.ground, borderTopLeftRadius: radius.sm - 1, borderBottomLeftRadius: radius.sm - 1 },
   ajusteTipoAberto: { backgroundColor: colors.lineSoft },
-  ajusteTipoTexto: { ...fonte.bold, fontSize: 12, color: colors.ink2 },
-  ajusteValor: { flex: 1, minWidth: 44, height: ALVO_AJUSTE, paddingVertical: 0, paddingHorizontal: 8, textAlign: 'right', textAlignVertical: 'center', ...fonte.bold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
+  ajusteTipoTexto: { ...fonte.semibold, fontSize: 12, color: colors.ink2 },
+  ajusteValor: { flex: 1, minWidth: 44, height: ALVO_AJUSTE, paddingVertical: 0, paddingHorizontal: 8, textAlign: 'right', textAlignVertical: 'center', ...fonte.semibold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
 });

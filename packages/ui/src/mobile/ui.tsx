@@ -269,7 +269,7 @@ export function Banner({ children, icon = 'wifiOff', tone = 'warning', testID, a
 }
 
 export function Strong({ children }: { children: ReactNode }) {
-  return <Text style={{ ...fonte.bold }}>{children}</Text>;
+  return <Text style={{ ...fonte.semibold }}>{children}</Text>;
 }
 
 /**
@@ -398,7 +398,7 @@ export const styles = StyleSheet.create({
   back: { alignSelf: 'flex-start', height: TOUCH, flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%' },
   backText: { ...fonte.medium, fontSize: 14, color: colors.ink2 },
   cabecalhoLinha: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cabecalhoTitulo: { ...fonte.display, fontSize: CABECALHO.tamanhoTitulo, lineHeight: CABECALHO.alturaLinhaTitulo, letterSpacing: -0.2, color: CABECALHO.cores.titulo },
+  cabecalhoTitulo: { ...fonte.bold, fontSize: CABECALHO.tamanhoTitulo, lineHeight: CABECALHO.alturaLinhaTitulo, letterSpacing: -0.2, color: CABECALHO.cores.titulo },
   cabecalhoSub: { ...fonte.body, fontSize: CABECALHO.tamanhoSubtitulo, color: CABECALHO.cores.subtitulo },
   button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16 },
   buttonText: { ...fonte.semibold, fontSize: 14 },
