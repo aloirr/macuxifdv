@@ -321,7 +321,7 @@ export const MOTIVOS_FOTO_LOTE_ITEM_BANCO = [
 export const TIPOS_IMAGEM_FOTO_LOTE_BANCO = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
 /**
- * Lote de fotos por ZIP (0079, T-0174, RN-CAT-14, ADR 0054). Fora do sync. enviado_por (core.usuario) e arquivo_id
+ * Lote de fotos por ZIP (0079, T-0174, RN-CAT-14, ADR 0058). Fora do sync. enviado_por (core.usuario) e arquivo_id
  * (plataforma.arquivo, o ZIP) sem FK. Mesmo ZIP no tenant: foto_lote_sha256_uk entre os vivos que não são 'falhou' nem
  * 'duplicado' (o reenvio vira 'duplicado' com duplicado_de). motivo só e sempre no 'recusado'; concluido_em só e sempre nos finais.
  */

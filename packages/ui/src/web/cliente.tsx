@@ -29,12 +29,12 @@ export function ObservacoesCliente({ automatica, texto, titulo = TITULO_OBSERVAC
     <Panel title={titulo} className={className} label={titulo}>
       <div className="flex flex-col gap-2.5" data-testid="observacoes-cliente">
         {b.automatica && (
-          <div role="note" className="flex items-start gap-2 rounded-[10px] bg-warning-soft px-3 py-2.5 text-[13px] font-medium text-warning" data-testid="observacoes-cliente-automatica">
+          <div role="note" className="flex items-start gap-2 rounded-[10px] bg-warning-soft px-3 py-2.5 text-[15px] font-medium text-warning" data-testid="observacoes-cliente-automatica">
             <IconAlert size={15} className="mt-[2px] shrink-0" />
             <span className="min-w-0 flex-1">{b.automatica}</span>
           </div>
         )}
-        {b.texto && <p className="text-[13px] whitespace-pre-line text-ink">{b.texto}</p>}
+        {b.texto && <p className="text-[15px] whitespace-pre-line text-ink">{b.texto}</p>}
         {b.vazio && <p className="text-[13px] text-ink-3">{OBSERVACOES_VAZIAS}</p>}
       </div>
     </Panel>

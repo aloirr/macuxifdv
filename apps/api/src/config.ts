@@ -9,6 +9,9 @@
 
 import { serializarErro, type ErroDeLog } from './log-seguro';
 
+/** Chave liga/desliga do ambiente: só `1`/`true`/`sim` liga; ausente ou outro valor = desligado. */
+const ligado = (v: string | undefined): boolean => ['1', 'true', 'sim'].includes(String(v ?? '').trim().toLowerCase());
+
 /** Mesmo mínimo do Core (`modules/core/api/seguranca.ts`). */
 export const SEGREDO_JWT_MIN = 32;
 
@@ -32,16 +35,12 @@ export function conferirSegredoJwt(env: NodeJS.ProcessEnv, hostBanco: string): S
   return { ok: false, fatal: true, mensagem: `${problema} fora do ambiente local: a API não sobe (falha fechada). Defina a variável no .env do servidor.` };
 }
 
-/** Flag ligada: só `1`/`true`/`sim` (sem diferença de maiúsculas e espaços); ausente ou outro valor = DESLIGADO. */
-const ligado = (env: NodeJS.ProcessEnv, nome: string): boolean =>
-  ['1', 'true', 'sim'].includes(String(env[nome] ?? '').trim().toLowerCase());
-
 /**
  * T-0158 (ADR 0043): `MACUXI_DIAGNOSTICOS` liga o diagnóstico na nuvem do lado do servidor (Portal › Diagnósticos na API;
  * alerta e expurgo no worker). Só `1`/`true`/`sim` liga; ausente ou outro valor = DESLIGADO (padrão até a v1.0.4).
  */
 export function diagnosticosLigados(env: NodeJS.ProcessEnv): boolean {
-  return ligado(env, 'MACUXI_DIAGNOSTICOS');
+  return ligado(env.MACUXI_DIAGNOSTICOS);
 }
 
 /**
@@ -49,7 +48,47 @@ export function diagnosticosLigados(env: NodeJS.ProcessEnv): boolean {
  * DESLIGADO (padrão até a migração de `plataforma.plano`/`plataforma.assinatura` do banco-dados).
  */
 export function planosLigados(env: NodeJS.ProcessEnv): boolean {
-  return ligado(env, 'MACUXI_PLANOS');
+  return ligado(env.MACUXI_PLANOS);
+}
+
+/**
+ * ADR 0054 (desenho `docs/desenho/T-catalogo-pacote.md` §1.4 e §1.6): `MACUXI_SYNC_PACOTES` liga o pacote pronto da primeira
+ * carga (manifesto `GET /v1/sync/pacotes` com pacotes e o gerador no worker). Só `1`/`true`/`sim` liga; ausente ou outro valor =
+ * DESLIGADO (padrão): o manifesto responde `{ pacotes: [] }`, o gerador não roda e o aparelho segue no pull paginado.
+ * Exige a migração 0074 (`plataforma.sync_pacote` e `plataforma.sync_pacote_pedido`).
+ */
+export function syncPacotesLigados(env: NodeJS.ProcessEnv): boolean {
+  return ligado(env.MACUXI_SYNC_PACOTES);
+}
+
+/** Validade do link do pacote (s): padrão 900 (15 min, ADR 0054 §4), de 60 a 3600. */
+export const VALIDADE_LINK_SYNC_PACOTE_S = { min: 60, max: 3600, padrao: 900 } as const;
+/** Intervalo do laço do gerador (ms): padrão 60 s, mínimo 1 s. */
+export const INTERVALO_SYNC_PACOTES_PADRAO_MS = 60_000;
+
+export interface ConfigSyncPacotes {
+  /** `MACUXI_SYNC_PACOTES_VALIDADE_S`. */
+  validadeS: number;
+  /** `MACUXI_SYNC_PACOTES_INTERVALO_MS` (worker). */
+  intervaloMs: number;
+  /** `MACUXI_SYNC_PACOTES_DIR_TEMP`: onde o worker monta o .sqlite antes do gzip; ausente = pasta temporária do sistema. */
+  dirTemp: string | null;
+}
+
+/** Lê as variáveis do pacote pronto. Valor inválido = erro com o NOME da variável (falha fechada na subida). */
+export function lerConfigSyncPacotes(env: NodeJS.ProcessEnv): ConfigSyncPacotes {
+  const inteiro = (nome: string, padrao: number): number => {
+    const v = env[nome]?.trim();
+    if (!v) return padrao;
+    if (!/^\d+$/.test(v)) throw new Error(`${nome} inválido: use um número inteiro`);
+    return Number(v);
+  };
+  const { min, max, padrao } = VALIDADE_LINK_SYNC_PACOTE_S;
+  const validadeS = inteiro('MACUXI_SYNC_PACOTES_VALIDADE_S', padrao);
+  if (validadeS < min || validadeS > max) throw new Error(`MACUXI_SYNC_PACOTES_VALIDADE_S fora de ${min} a ${max} segundos`);
+  const intervaloMs = inteiro('MACUXI_SYNC_PACOTES_INTERVALO_MS', INTERVALO_SYNC_PACOTES_PADRAO_MS);
+  if (intervaloMs < 1000) throw new Error('MACUXI_SYNC_PACOTES_INTERVALO_MS abaixo de 1000 ms');
+  return { validadeS, intervaloMs, dirTemp: env.MACUXI_SYNC_PACOTES_DIR_TEMP?.trim() || null };
 }
 
 /**
@@ -57,7 +96,7 @@ export function planosLigados(env: NodeJS.ProcessEnv): boolean {
  * lista). Só `1`/`true`/`sim` liga; ausente ou outro valor = DESLIGADO (padrão até a migração 0072 do banco-dados).
  */
 export function empresaAcoesLigadas(env: NodeJS.ProcessEnv): boolean {
-  return ligado(env, 'MACUXI_EMPRESA_ACOES');
+  return ligado(env.MACUXI_EMPRESA_ACOES);
 }
 
 /** Chave AES-256 do backup de empresa: 32 bytes em base64 ou em 64 caracteres hex. `null` = ausente ou inválida. Nunca vai a log. */
@@ -86,7 +125,7 @@ export function backupEmpresaDisponivel(env: NodeJS.ProcessEnv): boolean {
  * ligado (o portal precisa existir para ler o que chega). Mesmos valores: `1`/`true`/`sim`; o resto = DESLIGADO.
  */
 export function diagnosticosAppLigados(env: NodeJS.ProcessEnv): boolean {
-  return diagnosticosLigados(env) && ligado(env, 'MACUXI_DIAGNOSTICOS_APP');
+  return diagnosticosLigados(env) && ligado(env.MACUXI_DIAGNOSTICOS_APP);
 }
 
 /**
@@ -96,7 +135,7 @@ export function diagnosticosAppLigados(env: NodeJS.ProcessEnv): boolean {
  */
 export function lerSessaoWeb(env: NodeJS.ProcessEnv, hostBanco: string): { seguro: boolean } {
   const v = (env.MACUXI_SESSAO_COOKIE_SEGURO ?? '').trim().toLowerCase();
-  if (['1', 'true', 'sim'].includes(v)) return { seguro: true };
+  if (ligado(v)) return { seguro: true };
   if (['0', 'false', 'nao', 'não'].includes(v)) return { seguro: false };
   return { seguro: !ehAmbienteLocal(env, hostBanco) };
 }

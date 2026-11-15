@@ -280,7 +280,7 @@ describe.skipIf(semBanco())('Sprint 1: regras garantidas pelo banco (papel de ap
       });
     });
 
-    // Faixas e tipos da 0079 (ADR 0054, R-20261115-074500): imagem (JPEG, PNG, WEBP) até 8 MiB, ZIP até 500 MiB; o teto de 2 MB da
+    // Faixas e tipos da 0079 (ADR 0058, R-20261115-074500): imagem (JPEG, PNG, WEBP) até 8 MiB, ZIP até 500 MiB; o teto de 2 MB da
     // rota antiga de foto ficou na API.
     it('arquivo "recebido" exige sha256, tamanho, chave e recebido_em (23514); imagem até 8 MiB, tipo fora da lista recusado', async () => {
       for (const sql of [

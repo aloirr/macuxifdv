@@ -28,7 +28,7 @@ const doRegistro = (r: RegraAlerta): Rascunho => ({
   amostra: r.amostra_min === null ? '' : String(r.amostra_min),
   severidade: r.severidade,
 });
-const CAMPO = cx(CLASSE_CAMPO_BASE, 'h-[34px] w-full px-2 text-[13px] disabled:bg-ground');
+const CAMPO = cx(CLASSE_CAMPO_BASE, 'h-[34px] w-full px-2 text-[15px] disabled:bg-ground');
 
 export function RegrasAlertaPage() {
   const q = useRegras(true);
