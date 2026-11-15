@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  AVISO_INTERVALO_MS,
+  criarAvisoIntervalo,
   criarControleSegurar,
   desenhoSegurar,
   dicaDoSegurar,
@@ -25,7 +27,9 @@ describe('tempos e textos', () => {
     expect(ESPERA_ANEL_MS).toBe(500);
   });
   it('textos do R-20261115-100000', () => {
-    expect(TEXTOS_SYNC_COMPLETA).toEqual({ titulo: 'Realizando a sincronização completa', texto: 'Aguarde e não saia desta tela.', acao: 'Sincronização completa' });
+    expect(TEXTOS_SYNC_COMPLETA).toEqual({ titulo: 'Realizando a sincronização completa', texto: 'Aguarde e não saia desta tela.', acao: 'Sincronização completa',
+      bloqueada: 'Dados atualizados agora há pouco. Aguarde alguns segundos e tente novamente.',
+    });
     expect(DICAS_SEGURAR.repouso).toBe('Segure 10 s para a sincronização completa');
     expect(DICAS_SEGURAR.segurando).toBe('Solte antes para atualizar só pedidos e clientes');
     expect(ROTULO_ACESSIVEL_SYNC).toBe('Sincronizar. Toque para pedidos e clientes; ação: sincronização completa');
@@ -92,15 +96,17 @@ describe('criarControleSegurar', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  function montar(modoInicial: ModoSegurar = 'segurar') {
+  function montar(modoInicial: ModoSegurar = 'segurar', liberar?: () => boolean) {
     const ctl = { modo: modoInicial };
-    const chamadas = { parcial: 0, completa: 0, vibrou: [] as ForcaVibracao[], ms: [] as (number | null)[] };
+    const chamadas = { parcial: 0, completa: 0, bloqueada: 0, vibrou: [] as ForcaVibracao[], ms: [] as (number | null)[] };
     const c = criarControleSegurar({
       modo: () => ctl.modo,
       parcial: () => void chamadas.parcial++,
       completa: () => void chamadas.completa++,
       vibrar: (f) => void chamadas.vibrou.push(f),
       aoMudar: (ms) => void chamadas.ms.push(ms),
+      bloqueada: () => void chamadas.bloqueada++,
+      ...(liberar ? { liberar } : {}),
     });
     return { c, ctl, chamadas };
   }
@@ -187,6 +193,73 @@ describe('criarControleSegurar', () => {
     b.c.acaoDoLeitor();
     expect(b.chamadas.completa).toBe(0);
   });
+
+  it('R-20261115-130000: segurar dentro do intervalo mínimo = sem completa e sem a vibração final, com o aviso', () => {
+    let livre = false;
+    let pedidos = 0;
+    const { c, chamadas } = montar('segurar', () => (pedidos++, livre));
+    c.pressionar();
+    vi.advanceTimersByTime(10_000);
+    expect(chamadas).toMatchObject({ completa: 0, bloqueada: 1, vibrou: ['leve'] });
+    expect(pedidos).toBe(1);
+    expect(chamadas.ms.at(-1)).toBeNull();
+    // soltar depois não vira parcial
+    c.soltar();
+    c.tocar();
+    expect(chamadas.parcial).toBe(0);
+    // leitor de tela também respeita o intervalo
+    c.acaoDoLeitor();
+    expect(chamadas).toMatchObject({ completa: 0, bloqueada: 2 });
+    // livre: vibra média e chama a completa
+    livre = true;
+    c.pressionar();
+    vi.advanceTimersByTime(10_000);
+    expect(chamadas).toMatchObject({ completa: 1, bloqueada: 2, vibrou: ['leve', 'leve', 'media'] });
+    c.acaoDoLeitor();
+    expect(chamadas).toMatchObject({ completa: 2, bloqueada: 2 });
+  });
+
+  it('R-20261115-130000: toque normal dentro do intervalo = parcial (o agendador ignora), sem aviso', () => {
+    const { c, chamadas } = montar('segurar', () => false);
+    c.pressionar();
+    vi.advanceTimersByTime(200);
+    c.soltar();
+    c.tocar();
+    expect(chamadas).toMatchObject({ parcial: 1, completa: 0, bloqueada: 0 });
+  });
+});
+
+describe('criarAvisoIntervalo (R-20261115-130000)', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('5 s na tela', () => {
+    expect(AVISO_INTERVALO_MS).toBe(5000);
+  });
+
+  it('bloqueada: aparece e some sozinho; novo bloqueio recomeça a contagem', () => {
+    const vis: boolean[] = [];
+    const a = criarAvisoIntervalo({ aoMudar: (v) => void vis.push(v) });
+    a.mostrar();
+    expect(vis.at(-1)).toBe(true);
+    vi.advanceTimersByTime(AVISO_INTERVALO_MS - 1000);
+    a.mostrar();
+    vi.advanceTimersByTime(AVISO_INTERVALO_MS - 1);
+    expect(vis.at(-1)).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(vis).toEqual([true, true, false]);
+  });
+
+  it('livre: sem aviso; desligar esconde e cancela', () => {
+    const vis: boolean[] = [];
+    const a = criarAvisoIntervalo({ aoMudar: (v) => void vis.push(v) });
+    a.desligar();
+    expect(vis).toEqual([]);
+    a.mostrar();
+    a.desligar();
+    vi.advanceTimersByTime(AVISO_INTERVALO_MS);
+    expect(vis).toEqual([true, false]);
+  });
 });
 
 describe('BotaoSincronizar, Dialogo e BarraProgresso (fonte)', () => {
@@ -194,7 +267,12 @@ describe('BotaoSincronizar, Dialogo e BarraProgresso (fonte)', () => {
   const folha = readFileSync(new URL('./folha.tsx', import.meta.url), 'utf8');
   const barra = readFileSync(new URL('./barra-progresso-rn.tsx', import.meta.url), 'utf8');
   it('mantém os testIDs e ganha a dica', () => {
-    for (const id of ['`${testID}-bloco`', '`${testID}-situacao`', '`${testID}-sem-sinal`', '`${testID}-aviso-dados`', '`${testID}-dica`']) expect(botao).toContain(id);
+    for (const id of ['`${testID}-bloco`', '`${testID}-situacao`', '`${testID}-sem-sinal`', '`${testID}-aviso-dados`', '`${testID}-dica`', '`${testID}-aviso-intervalo`']) expect(botao).toContain(id);
+  });
+  it('aviso da completa bloqueada: liga o controle, texto do kit e leitor de tela', () => {
+    expect(botao).toContain('bloqueada: () => aviso.mostrar(),');
+    expect(botao).toContain('{TEXTOS_SYNC_COMPLETA.bloqueada}');
+    expect(botao).toContain('testID={`${testID}-aviso-intervalo`} accessibilityLiveRegion="polite"');
   });
   it('contrato do provider (aditivo)', () => {
     expect(botao).toMatch(/sincronizarCompleta\?: \(\) => void;/);

@@ -15,6 +15,7 @@ import { Pressionavel, useReduzirMovimento } from './movimento-rn';
 import {
   ACAO_LEITOR_SYNC_COMPLETA,
   ANEL_SEGURAR,
+  criarAvisoIntervalo,
   criarControleSegurar,
   desenhoSegurar,
   dicaDoSegurar,
@@ -29,7 +30,7 @@ import { Button } from './ui';
 
 export interface ValorSincronizacao {
   agendador: AgendadorSync;
-  /** Estado do agendador (puxando, "Atualizado há instantes"). */
+  /** Estado do agendador (puxando). */
   estado: EstadoAgendadorSync;
   /** `sincronizado_em` do motor (ISO) ou null. */
   sincronizadoEm: string | null;
@@ -61,7 +62,7 @@ export function useSincronizacao(): ValorSincronizacao | null {
 }
 
 /**
- * Botão "Sincronizar" + "Última sincronização hh:mm · N na fila" (envio da fila + pull na hora, proteção de 30 s).
+ * Botão "Sincronizar" + "Última sincronização hh:mm · N na fila" (envio da fila + pull na hora, no máximo 1 vez a cada 30 s).
  * T-0076 (referência do Início aprovada no R-20261104-164000): botão de 52 dp na largura toda (é o único botão do Início)
  * e a linha de situação CENTRALIZADA logo abaixo. Sem sinal, o botão fica "Sem sinal" desabilitado e o motivo vai numa
  * linha própria, acima da situação. Vale para o Início e para o Perfil (mesmo componente, mesmo desenho).
@@ -76,6 +77,11 @@ export function useSincronizacao(): ValorSincronizacao | null {
  * rótulo conta "Continue segurando · N s"; vibra leve no início do anel e média aos 10 s, quando a completa dispara na hora
  * (mesmo com o dedo no botão). Soltar antes = toque normal. A linha `{testID}-dica` (abaixo da situação) diz que dá para
  * segurar. Leitor de tela: ação "Sincronização completa". Sem sinal ou ocupado: desabilitado, segurar nada faz.
+ *
+ * R-20261115-130000: a completa dentro do intervalo mínimo (`agendador.liberarManual()` = false) não abre o popup nem vibra
+ * média; mostra a linha `{testID}-aviso-intervalo` ("Dados atualizados agora há pouco…"), no mesmo padrão da linha
+ * `{testID}-sem-sinal` (13, `warningInk`, centralizada, logo abaixo do botão), anunciada pelo leitor de tela e que some
+ * sozinha em `AVISO_INTERVALO_MS` (5 s). O toque normal bloqueado segue em silêncio.
  */
 export function BotaoSincronizar({
   testID = 'sincronizar',
@@ -90,6 +96,9 @@ export function BotaoSincronizar({
   const s = useSincronizacao();
   const reduzir = useReduzirMovimento();
   const [segurandoMs, setSegurandoMs] = useState<number | null>(null);
+  const [avisoIntervalo, setAvisoIntervalo] = useState(false);
+  const aviso = useMemo(() => criarAvisoIntervalo({ aoMudar: setAvisoIntervalo }), []);
+  useEffect(() => () => aviso.desligar(), [aviso]);
   const ocupado = Boolean(s && (s.estado.puxando || s.sincronizando || s.completaEmCurso));
   const modo: ModoSegurar = s ? modoDoSegurar({ temCompleta: Boolean(s.sincronizarCompleta), semSinal: s.semSinal, ocupado }) : 'nenhum';
   // o controle lê sempre o valor mais novo (o provider muda a cada passo do motor)
@@ -101,11 +110,13 @@ export function BotaoSincronizar({
         modo: () => atual.current.modo,
         parcial: () => void atual.current.s?.agendador.puxar(),
         completa: () => atual.current.s?.sincronizarCompleta?.(),
+        liberar: () => atual.current.s?.agendador.liberarManual() ?? false,
+        bloqueada: () => aviso.mostrar(),
         vibrar: (forca) => atual.current.s?.vibrar?.(forca),
         aoMudar: setSegurandoMs,
         passoMs: reduzir ? 250 : 50,
       }),
-    [reduzir],
+    [reduzir, aviso],
   );
   useEffect(() => () => controle.desligar(), [controle]);
   useEffect(() => {
@@ -113,7 +124,7 @@ export function BotaoSincronizar({
   }, [modo, controle]);
 
   if (!s) return null;
-  const d = desenhoBotaoSincronizar({ semSinal: s.semSinal, recente: s.estado.recente, sincronizadoEm: s.sincronizadoEm, naFila: s.naFila, tz: s.tz, avisoDados });
+  const d = desenhoBotaoSincronizar({ semSinal: s.semSinal, sincronizadoEm: s.sincronizadoEm, naFila: s.naFila, tz: s.tz, avisoDados });
   const g = desenhoSegurar(modo === 'segurar' ? segurandoMs : null, { reduzirMovimento: reduzir });
   const dica = dicaDoSegurar({ modo, segurando: g.anel });
   const oferece = modo === 'segurar';
@@ -139,6 +150,11 @@ export function BotaoSincronizar({
       {d.aviso ? (
         <Text style={[t.small, { color: colors.warningInk, textAlign: 'center' }]} testID={`${testID}-sem-sinal`}>
           {d.aviso}
+        </Text>
+      ) : null}
+      {avisoIntervalo ? (
+        <Text style={[t.small, { color: colors.warningInk, textAlign: 'center' }]} testID={`${testID}-aviso-intervalo`} accessibilityLiveRegion="polite" accessibilityRole="alert">
+          {TEXTOS_SYNC_COMPLETA.bloqueada}
         </Text>
       ) : null}
       {d.tom === 'atencao' ? (
