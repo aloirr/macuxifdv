@@ -15,7 +15,7 @@
  * e não mexe na carteira (ela é do cliente do ERP, que também casa pelo código). Criar um provisório avisa os admins, uma vez por código.
  */
 import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
-import { decidirOrdemErp, decidirReativacaoDoErp, ehVersaoNovaDoErp, ehUsuarioProvisorio, emailDoVendedorErp, emailQueACargaPodeGravar } from '../domain';
+import { decidirOrdemErp, decidirReativacaoDoErp, ehVersaoNovaDoErp, ehUsuarioProvisorio, emailDoVendedorErp, emailQueACargaPodeGravar, decidirVinculoPorNome } from '../domain';
 
 import { EVENTO_ERP_VENDEDOR_ATUALIZADO } from '../../integracao/contracts';
 import { notificarSistema } from './consumidores-sistema';
@@ -38,6 +38,21 @@ async function avisarDesligadoNoBko(ctx: ContextoConsumo, externalId: string, ve
       link: null, // o CHECK notificacao_link_formato só aceita rota do app (/m/...); o admin age no BKO
       prioridade: 'normal',
     }, `vendedor-desligado|${externalId}|${versao ?? ''}`); // um aviso por versão do registro (não só por evento)
+  }
+}
+
+/** RN-CORE-58: o nome do vendedor do ERP não pôde ser vinculado sozinho; o admin decide (só o código do ERP e a contagem, sem nome nem e-mail). */
+async function avisarVinculoPorNomeRecusado(ctx: ContextoConsumo, externalId: string, motivo: 'homonimo' | 'outro_codigo' | 'inativo', candidatos: number): Promise<void> {
+  ctx.log.warn({ external_id: externalId, motivo, candidatos }, 'vínculo automático por nome não feito');
+  const texto = { homonimo: `há ${candidatos} usuários com o mesmo nome`, outro_codigo: 'o usuário com este nome já tem outro código do ERP', inativo: 'o usuário com este nome está desativado' }[motivo];
+  const admins = await ctx.db.query<{ id: string }>("select id from core.usuario where perfil = 'admin' and ativo and deleted_at is null");
+  for (const a of admins.rows) {
+    await notificarSistema(ctx, a.id, {
+      titulo: 'Vendedor do ERP sem vínculo automático',
+      corpo: `O vendedor ${externalId} não foi vinculado pelo nome: ${texto}. Em Usuários, use Vincular vendedor do ERP.`,
+      link: null,
+      prioridade: 'normal',
+    }, `vendedor-nome|${externalId}|${motivo}`);
   }
 }
 
@@ -108,6 +123,16 @@ export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
       await completarNotasDoVendedor(ctx, igual.id, r.external_id);
       return;
     }
+    // RN-CORE-58: sem código nem e-mail igual, o nome completo igual a UM usuário elegível vincula; homônimo e afins só avisam
+    const porNome = (await ctx.db.query<{ id: string; nome: string; perfil: string; ativo: boolean; external_id: string | null; email: string }>(
+      "select id, nome, perfil, ativo, external_id, email from core.usuario where deleted_at is null and perfil in ('vendedor', 'promotor')")).rows;
+    const decisao = decidirVinculoPorNome(nome, porNome);
+    if (decisao.acao === 'vincular') {
+      await ctx.db.query('update core.usuario set external_id = $2, erp_alterado_em = $3::timestamptz where id = $1 and external_id is null', [decisao.usuario_id, r.external_id, r.alterado_em]);
+      await completarNotasDoVendedor(ctx, decisao.usuario_id, r.external_id);
+      return;
+    }
+    if (decisao.acao === 'avisar') await avisarVinculoPorNomeRecusado(ctx, r.external_id, decisao.motivo, decisao.candidatos);
     const emailFinal = igual ? emailDoVendedorErp(null, r.external_id).email : email;
     await ctx.db.query(
       `insert into core.usuario (tenant_id, external_id, nome, email, perfil, ativo, erp_alterado_em) values (plataforma.tenant_atual(), $1, $2, $3, 'vendedor', true, $4::timestamptz)

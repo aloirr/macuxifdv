@@ -97,7 +97,7 @@ describe.skipIf(semBanco())('Core T-0175 × Postgres: vincular vendedor do ERP',
       expect((await t.q<{ external_id: string }>('select external_id from core.usuario where id = $1', [t.real]))[0]?.external_id).toBe(CODIGO);
       const prov = (await t.q<{ ativo: boolean; deleted_at: string | null }>('select ativo, deleted_at::text from core.usuario where id = $1', [t.prov]))[0]!;
       expect(prov.ativo).toBe(false);
-      expect(prov.deleted_at).not.toBeNull();
+      expect(prov.deleted_at).toBeNull(); // RN-CORE-60: inativo, nunca excluído
       const c = await t.q<{ cliente_id: string; usuario_id: string }>('select cliente_id, usuario_id from core.carteira where usuario_id in ($1, $2) and deleted_at is null order by cliente_id', [t.prov, t.real]);
       expect(c).toEqual([{ cliente_id: A.clientes.c1, usuario_id: t.real }, { cliente_id: A.clientes.c2, usuario_id: t.real }].sort((a, b) => a.cliente_id.localeCompare(b.cliente_id)));
       expect((await t.q('select 1 from core.nota_erp where usuario_id = $1', [t.prov])).length).toBe(0);
@@ -132,7 +132,7 @@ describe.skipIf(semBanco())('Core T-0175 × Postgres: vincular vendedor do ERP',
 
       const prov = (await t.q<{ external_id: string | null; ativo: boolean; deleted_at: string | null }>('select external_id, ativo, deleted_at::text from core.usuario where id = $1', [t.prov]))[0]!;
       expect(prov).toMatchObject({ external_id: null, ativo: false });
-      expect(prov.deleted_at).not.toBeNull();
+      expect(prov.deleted_at).toBeNull(); // RN-CORE-60: inativo, nunca excluído
       const vivas = (tabela: string, u: string) => t.q(`select 1 from ${tabela} where usuario_id = $1 and deleted_at is null`, [u]);
       expect((await vivas('core.meta_produtividade', t.prov)).length).toBe(0);
       expect((await t.q<{ valor: number }>("select valor from core.meta_produtividade where usuario_id = $1 and indicador = 'tma' and deleted_at is null", [t.real])).map((x) => x.valor)).toEqual([2]);
@@ -201,7 +201,7 @@ describe.skipIf(semBanco())('Core T-0175 × Postgres: vincular vendedor do ERP',
 
   it('RN-CORE-58: a carga que cria o provisório (aviso ao admin desligado até a simulação) e a lista filtra Provisórios e busca pelo código do ERP', async () => {
     await emTransacao(async (t) => {
-      await t.q('update core.usuario set deleted_at = now(), external_id = null where id = $1', [t.prov]); // libera o código para a carga criar
+      await t.q('update core.usuario set ativo = false, external_id = null, email = $2 where id = $1', [t.prov, 'liberado-' + t.prov + '@sem-email.invalid']); // libera o código para a carga criar
       await t.carga(null);
       const aviso = await t.q<{ corpo: string }>("select corpo from core.notificacao where tipo = 'sistema' and titulo = 'Vendedor do ERP sem usuário'");
       expect(aviso.length).toBe(0); // AVISO_PROVISORIO_ATIVO = false

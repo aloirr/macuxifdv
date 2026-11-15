@@ -1,35 +1,34 @@
 /**
- * RN-CORE-59 (T-0175): Código FDV. O vendedor e o promotor têm dois códigos: o "Código ERP" (`external_id`, RN-CORE-57/58) e o
- * "Código FDV", o código próprio do Macuxi para controle. É gerado pelo banco, em sequência por empresa (`FDV-0001`, `FDV-0002`…,
- * no mínimo 4 dígitos, crescendo além de 9999), único por empresa, só de leitura (criar e editar com `codigo_fdv` no corpo = 422)
- * e nunca reaproveitado (usuário apagado ou provisório desativado no vínculo do ERP não libera o número; o real mantém o seu).
+ * RN-CORE-59 (T-0175): Código FDV. Todo usuário, de qualquer perfil, tem o "Código FDV", o código próprio do Macuxi, além do "Código ERP"
+ * (`external_id`, RN-CORE-57/58). É gerado pelo banco ao criar o usuário, em sequência por empresa, só dígitos e sem prefixo (`00001`,
+ * `00002`…, no mínimo 5 dígitos, crescendo para `100000` além de 99999), único por empresa, só de leitura (criar e editar com
+ * `codigo_fdv` no corpo = 422) e nunca reaproveitado (o provisório inativado no vínculo do ERP mantém o seu; o real mantém o seu).
  * Funções puras, sem banco.
  */
 
-export const PREFIXO_CODIGO_FDV = 'FDV-';
-export const DIGITOS_MINIMOS_CODIGO_FDV = 4;
+export const DIGITOS_MINIMOS_CODIGO_FDV = 5;
 
 export const CODIGOS_CODIGO_FDV = { somenteLeitura: 'CODIGO_FDV_SOMENTE_LEITURA' } as const;
 
-/** Número da sequência da empresa (inteiro seguro a partir de 1) -> `FDV-0001`. */
+/** Número da sequência da empresa (inteiro seguro a partir de 1) -> `00001`. */
 export function formatarCodigoFdv(sequencial: number): string {
   if (!Number.isSafeInteger(sequencial) || sequencial < 1) throw new RangeError('O sequencial do Código FDV é um inteiro a partir de 1.');
-  return `${PREFIXO_CODIGO_FDV}${String(sequencial).padStart(DIGITOS_MINIMOS_CODIGO_FDV, '0')}`;
+  return String(sequencial).padStart(DIGITOS_MINIMOS_CODIGO_FDV, '0');
 }
 
 export type ResultadoCodigoFdv = { ok: true; sequencial: number; codigo: string } | { ok: false; mensagem: string };
 
-/** Só o formato canônico vale: `FDV-` + 4 dígitos ou mais, sem zeros a mais à esquerda, sequencial ≥ 1. */
+/** Só o formato do CHECK da 0080 vale: 00001 a 99999 e, acima, sem zero à esquerda (100000...). */
 export function validarCodigoFdv(texto: string): ResultadoCodigoFdv {
-  const m = /^FDV-(\d{4,})$/.exec(texto);
+  const m = /^(0000[1-9]|000[1-9][0-9]|00[1-9][0-9]{2}|0[1-9][0-9]{3}|[1-9][0-9]{4,})$/.exec(texto);
   const sequencial = m ? Number(m[1]) : 0;
   if (!m || !Number.isSafeInteger(sequencial) || sequencial < 1 || formatarCodigoFdv(sequencial) !== texto) {
-    return { ok: false, mensagem: 'Código FDV inválido. O formato é FDV-0001.' };
+    return { ok: false, mensagem: 'Código FDV inválido. O formato é 00001 (5 dígitos ou mais).' };
   }
   return { ok: true, sequencial, codigo: texto };
 }
 
-/** Próximo número da empresa: o maior já emitido (vivos e apagados) + 1; nunca reaproveita. Espelha o contador do banco. */
+/** Próximo número da empresa: o maior já emitido (inclusive inativos) + 1; nunca reaproveita. Espelha o contador do banco. */
 export function proximoSequencialFdv(maiorEmitido: number | null): number {
   return (maiorEmitido && maiorEmitido > 0 ? maiorEmitido : 0) + 1;
 }

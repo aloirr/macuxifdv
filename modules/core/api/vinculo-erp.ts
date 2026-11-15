@@ -3,13 +3,13 @@
  * (`:id`, e-mail `@sem-email.invalid`) a um usuário real (`usuario_id`). O plano é do domínio (`planejarVinculoErp`); aqui só
  * se executa, numa transação única e com as duas linhas travadas: o real ganha o `external_id`, recebe a carteira (sem duplicar),
  * as notas, rotas, metas, tarefas, visitas, deslocamentos, indicadores e a chefia de equipe do provisório; o provisório é liberado primeiro
- * (external_id nulo, inativo, `deleted_at`) e a repetição é reconhecida pela auditoria e pelo código já no real. Auditoria na mesma transação (só ids e contagens) e um `core.cliente.atualizado@1` por cliente
+ * (external_id nulo e inativo; nunca `deleted_at`, RN-CORE-60) e a repetição é reconhecida pela auditoria e pelo código já no real. Auditoria na mesma transação (só ids e contagens) e um `core.cliente.atualizado@1` por cliente
  * movido. Só o admin (`usuario.editar`); a licença do core e o tenant vêm da rota/RLS.
  */
 import { ErroNaoEncontrado, ErroRegraNegocio, type ClienteBanco, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import { EVENTO_CLIENTE_ATUALIZADO, VincularErpRequestSchema, VincularErpRespostaSchema, type VincularErpResposta } from '../contracts';
-import { planejarVinculoErp, type CarteiraDoVinculo, type UsuarioDoVinculo } from '../domain';
+import { planejarVinculoErp, provisorioJaVinculado, type CarteiraDoVinculo, type UsuarioDoVinculo } from '../domain';
 import { auditar } from './auditoria';
 import { carteiraDoEvento } from './rotas';
 
@@ -17,11 +17,12 @@ const IdParam = z.object({ id: z.string().uuid() });
 
 interface LinhaUsuario extends UsuarioDoVinculo {
   deleted_at: string | null;
+  ativo: boolean;
 }
 
 async function travar(db: ClienteBanco, ids: readonly string[]): Promise<Map<string, LinhaUsuario>> {
   // os dois ids em ordem fixa (sem deadlock entre dois vínculos cruzados); inclui o provisório já desativado (repetição)
-  const r = await db.query<LinhaUsuario>('select id, tenant_id, perfil, email, external_id, deleted_at::text from core.usuario where id = any($1::uuid[]) order by id for update', [[...ids]]);
+  const r = await db.query<LinhaUsuario>('select id, tenant_id, perfil, email, external_id, ativo, deleted_at::text from core.usuario where id = any($1::uuid[]) order by id for update', [[...ids]]);
   return new Map(r.rows.map((l) => [l.id, l]));
 }
 
@@ -44,8 +45,8 @@ export const rotasDeVinculoErp: readonly RotaModulo[] = [
         const p = linhas.get(provId);
         const r = linhas.get(realId);
         if (!p || !r || r.deleted_at !== null) throw naoEncontrado();
-        // repetição: o provisório já saiu (deleted_at, external_id nulo) e a auditoria mostra este vínculo; apagado por outro motivo = 404
-        const jaFeito = p.deleted_at !== null;
+        // repetição: o provisório já foi inativado (external_id nulo) e a auditoria mostra este vínculo; usuário nunca é excluído (RN-CORE-60)
+        const jaFeito = provisorioJaVinculado(p);
         if (jaFeito) {
           const feito = r.external_id !== null && (await db.query("select 1 from plataforma.auditoria where acao = 'usuario.vincular_erp' and entidade_id = $1 and depois->>'provisorio_id' = $2 limit 1", [realId, provId])).rows.length > 0;
           if (!feito) throw naoEncontrado();
@@ -64,7 +65,7 @@ export const rotasDeVinculoErp: readonly RotaModulo[] = [
         if (plano.ja_vinculado) return VincularErpRespostaSchema.parse({ provisorio_id: provId, usuario_id: realId, external_id: plano.external_id, clientes_movidos: 0, ja_vinculado: true });
 
         // 1) libera o código do provisório (índice único parcial por tenant, não adiável); 2) só então o real o recebe
-        await db.query('update core.usuario set external_id = null, ativo = false, deleted_at = now(), desligado_no_bko_em = coalesce(desligado_no_bko_em, now()), sessao_versao = sessao_versao + 1 where id = $1', [provId]);
+        await db.query('update core.usuario set external_id = null, ativo = false, desligado_no_bko_em = coalesce(desligado_no_bko_em, now()), sessao_versao = sessao_versao + 1 where id = $1', [provId]);
         await db.query('update core.usuario set external_id = $2 where id = $1', [realId, plano.external_id]);
         await db.query('update core.carteira set usuario_id = $2 where id = any($1::uuid[])', [plano.carteira_mover, realId]);
         await db.query('update core.carteira set deleted_at = now() where id = any($1::uuid[])', [plano.carteira_descartar]);

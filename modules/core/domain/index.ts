@@ -56,3 +56,5 @@ export * from './entrada-sync';
 export * from './curvas-abc';
 export * from './performance-cliente';
 export * from './codigo-fdv';
+export * from './usuario-sem-exclusao';
+export * from './vinculo-por-nome';

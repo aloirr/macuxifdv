@@ -2,8 +2,8 @@
  * RN-CORE-58 (T-0175): vínculo do vendedor do ERP ao usuário do BKO pelo código do ERP (`external_id`).
  * Regra: o vendedor que a carga do ERP criou como usuário PROVISÓRIO (e-mail `@sem-email.invalid`, carteira própria) é ligado
  * pelo admin a um usuário real do mesmo tenant e do mesmo perfil (vendedor com vendedor, promotor com promotor). O provisório
- * é liberado primeiro (external_id nulo, inativo, apagado) e só então o real ganha o `external_id`, recebe a carteira (sem duplicar cliente e papel que já tenha) e as demais referências
- * a `core.usuario`; o provisório é desativado e sai da lista, e cada cliente movido publica `core.cliente.atualizado@1`.
+ * é liberado primeiro (external_id nulo, inativo; nunca excluído, RN-CORE-60) e só então o real ganha o `external_id`, recebe a carteira (sem duplicar cliente e papel que já tenha) e as demais referências
+ * a `core.usuario`; o provisório fica inativo (RN-CORE-60), e cada cliente movido publica `core.cliente.atualizado@1`.
  * Recusa (422): quem não é provisório, provisório sem código, real com outro código, perfis incompatíveis, mesmo usuário,
  * tenants diferentes ou real que também é provisório. Repetir é idempotente. A carga seguinte nunca desfaz o vínculo
  * (casa pelo `external_id`, que agora é do real). Função pura, sem banco.
@@ -20,7 +20,7 @@ export interface UsuarioDoVinculo {
   perfil: string;
   email: string;
   external_id: string | null;
-  /** O provisório já foi vinculado antes (desativado, ainda com o código): repetir não faz nada. */
+  /** O provisório já foi vinculado antes (inativado, sem o código; nunca excluído): repetir não faz nada. */
   vinculado?: boolean;
 }
 

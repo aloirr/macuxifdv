@@ -1,6 +1,6 @@
 # Vínculo automático do vendedor do ERP por nome (proposta, T-0175)
 
-Status: PROPOSTA, sem código. Complementa o vínculo manual (RN-CORE-58). Se aprovada, vira RN-CORE-61.
+Status: IMPLEMENTADO na v1.0.12 como extensão da RN-CORE-58 (`domain/vinculo-por-nome.ts`, consumidor `consumidores-erp-vendedor.ts`). Complementa o vínculo manual. Desvio: o aviso das recusas sai como notificação aos admins (`notificarSistema`), pois o core não emite no Monitor do Hub; o `referencia_ausente` no Monitor e o "Desvincular ERP" ficam para o integracao e para uma tarefa seguinte.
 
 ## Regra
 Na carga de vendedores do ERP, quando o usuário do Macuxi ainda não tem Código ERP e o NOME COMPLETO do vendedor do ERP é igual ao dele, o sistema grava o `external_id` nesse usuário, sem criar o provisório. O vínculo manual continua valendo para o que o automático não resolve.

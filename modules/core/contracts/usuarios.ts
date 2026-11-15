@@ -66,7 +66,7 @@ export const UsuarioItemSchema = z
     superior_nome: z.string().nullable(),
     ativo: z.boolean(),
     external_id: z.string().nullable(),
-    /** RN-CORE-59: Código FDV (`FDV-0001`), gerado pelo sistema e só de leitura; `null` ou ausente até a migração entrar. */
+    /** RN-CORE-59: Código FDV (`00001`), gerado pelo sistema e só de leitura; `null` ou ausente até a migração entrar. */
     codigo_fdv: z.string().nullable().optional(),
     /** RN-CORE-58: criado pela carga do ERP sem e-mail (`@sem-email.invalid`); candidato a "Vincular vendedor do ERP". */
     provisorio: z.boolean().optional(),
