@@ -18,7 +18,11 @@ export function perfilEmEdicao(params: Leitor): string | null {
   return null;
 }
 
-/** Perfil filtrado no painel Módulos (só `?modulos_perfil=`). */
+/** Perfil filtrado no painel Módulos: `?modulos_perfil=` ou, no link antigo, `?nivel=…&perfil=X` sem `editar_perfil`. */
 export function perfilDosModulos(params: Leitor): string | null {
-  return params.get(PARAM_MODULOS_PERFIL);
+  const novo = params.get(PARAM_MODULOS_PERFIL);
+  if (novo) return novo;
+  const antigo = params.get('perfil');
+  if (antigo && params.get('nivel') && !params.get(PARAM_EDITAR_PERFIL)) return antigo;
+  return null;
 }

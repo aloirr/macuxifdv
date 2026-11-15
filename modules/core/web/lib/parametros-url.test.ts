@@ -22,4 +22,9 @@ describe('parâmetros de URL dos painéis Perfis e Módulos (/parametros/acesso)
   it('link antigo de Módulos com nivel e perfil não abre a edição em Perfis', () => {
     expect(perfilEmEdicao(q('nivel=perfil&perfil=promotor'))).toBeNull();
   });
+  it('link antigo /usuarios-e-modulos?nivel=perfil&perfil=X filtra Módulos pelo perfil', () => {
+    expect(perfilDosModulos(q('nivel=perfil&perfil=promotor'))).toBe('promotor');
+    expect(perfilDosModulos(q('nivel=perfil&perfil=promotor&editar_perfil=gerente'))).toBeNull();
+    expect(perfilDosModulos(q('perfil=supervisor'))).toBeNull();
+  });
 });
