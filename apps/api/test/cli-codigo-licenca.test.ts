@@ -95,7 +95,7 @@ async function rodar(args: string[], tenants: TenantDoBanco[], consulta: Consult
 }
 
 describe('código da licença (partes puras)', () => {
-  it('ehCodigoLicenca: só UF válida em maiúsculas + 4 dígitos (o CHECK da 0068)', () => {
+  it('ehCodigoLicenca: só UF válida em maiúsculas + 4 dígitos (CODIGO_EMPRESA_REGEX do core, sem a flag i; o CHECK da 0068)', () => {
     expect(ehCodigoLicenca('AM4821')).toBe(true);
     expect(ehCodigoLicenca('RS0000')).toBe(true);
     expect(ehCodigoLicenca('am4821')).toBe(false);
@@ -103,6 +103,7 @@ describe('código da licença (partes puras)', () => {
     expect(ehCodigoLicenca('AM482')).toBe(false);
     expect(ehCodigoLicenca('AM48210')).toBe(false);
     expect(ehCodigoLicenca('thathyany')).toBe(false);
+    expect(ehCodigoLicenca('demo')).toBe(false);
   });
 
   it('filtrarLegados: só tenant vivo (nem encerrado nem excluído) com código fora do formato UF+4', () => {

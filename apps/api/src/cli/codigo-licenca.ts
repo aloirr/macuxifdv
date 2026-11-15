@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { mascararDadoPessoal } from '@macuxi/comum/dado-pessoal';
 import { cnpjValido, somenteDigitos } from '@macuxi/comum/documento';
-import { UFS_BRASIL } from '@macuxi/comum/endereco';
+import { CODIGO_EMPRESA_REGEX } from '@macuxi/core/contracts';
 import { lerConfig, urlAdmin } from '@macuxi/db';
 import pg from 'pg';
 import { z } from 'zod';
@@ -75,7 +75,8 @@ export interface LinhaCodigoLicenca {
   simulado?: true;
 }
 
-const CODIGO_LICENCA = new RegExp(`^(${UFS_BRASIL.join('|')})[0-9]{4}$`);
+/** A regra do login (`CODIGO_EMPRESA_REGEX`, core/contracts/auth) sem a flag `i`: aqui só maiúsculas, como no banco. */
+const CODIGO_LICENCA = new RegExp(CODIGO_EMPRESA_REGEX.source);
 
 /** Código da licença: UF (uma das 27, maiúsculas) + 4 dígitos — o mesmo CHECK `tenant_codigo_formato` da 0068. */
 export function ehCodigoLicenca(codigo: string): boolean {
