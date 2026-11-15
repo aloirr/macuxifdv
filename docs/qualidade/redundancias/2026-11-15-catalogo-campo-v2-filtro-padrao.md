@@ -107,3 +107,16 @@ Conferi as specs (`catalogo-campo-v2/spec.md`, `filtro-padrao-campo/spec.md`) e 
 - **Onde:** `06-clientes-carteira-vazia.png` (e a spec §3, carteira vazia): com a carteira vazia, a tela ainda mostra o `CampoBusca` "Nome, código, bairro ou CNPJ" e o `BotaoFiltro`.
 - **O que sobra:** numa carteira vazia não há o que buscar nem filtrar. Os 2 controles não levam a nenhuma ação, e quem tocar só vai cair num 2º vazio ("Nenhum cliente com esses filtros").
 - **Proposta:** com a carteira vazia, a tela fica só com a faixa ("Clientes" e a sincronização) e o `EstadoVazio` "Sua carteira está vazia.". A busca e o filtro aparecem quando houver ao menos um cliente. Na spec §3, acrescentar: "sem clientes na carteira, a linha da busca e do filtro não aparece".
+
+## 5. Reteste final (15/11/2026, commit f7f3f4c do designer-ux)
+**Veredito: LIMPO para a simulação inteira** (Catálogo v2 e filtro padrão).
+
+| RD | Situação | Evidência |
+|---|---|---|
+| RD-0504 | **corrigido** | No `06-clientes-carteira-vazia.png` regerado, a tela tem só a faixa "Clientes", com a sincronização, e o `EstadoVazio` "Sua carteira está vazia.", sem busca e sem filtro. A spec §3 diz: "a linha de busca e o filtro também saem (RD-0504): não há o que buscar nem filtrar". O commit só mexe nesse PNG, no `.html` e nessa linha da spec, e não há achado novo. |
+
+Situação final dos achados desta simulação:
+- RD-0496, RD-0497 e RD-0499 a RD-0504: corrigidos;
+- RD-0498: encerrado por decisão do dono do produto.
+
+Nenhum achado em aberto. Os RD-0501 e RD-0502 são do modulo-core; na implementação, o reteste é no print do aparelho.
