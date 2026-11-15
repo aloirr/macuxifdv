@@ -118,14 +118,17 @@ export function UsuariosConteudo() {
       return UsuarioListaRespostaSchema.parse(await api(`/core/usuarios${qs.size ? `?${qs.toString()}` : ''}`)).itens;
     },
   });
-  // §2: o selo "Bloqueado até" some sozinho; relógio de 1 min só enquanto houver um na lista
-  const temBloqueioComHora = (lista.data ?? []).some((u) => u.bloqueio === 'tentativas');
+  // §2: o selo "Bloqueado até" some sozinho, na hora em que o bloqueio vence (um único aviso do relógio, sem rede)
+  const proximoFim = (lista.data ?? [])
+    .map((u) => (u.bloqueio === 'tentativas' && u.bloqueio_ate ? new Date(u.bloqueio_ate).getTime() : NaN))
+    .filter((t) => t > agora.getTime())
+    .reduce((min, t) => Math.min(min, t), Infinity);
   useEffect(() => setAgora(new Date()), [lista.dataUpdatedAt]);
   useEffect(() => {
-    if (!temBloqueioComHora) return;
-    const t = setInterval(() => setAgora(new Date()), 60_000);
-    return () => clearInterval(t);
-  }, [temBloqueioComHora]);
+    if (!Number.isFinite(proximoFim)) return;
+    const t = setTimeout(() => setAgora(new Date()), proximoFim - Date.now() + 500);
+    return () => clearTimeout(t);
+  }, [proximoFim]);
   const perfisQ = useQuery({ queryKey: ['core', 'perfis', 'opcoes'], queryFn: async () => PerfilOpcoesRespostaSchema.parse(await api('/core/perfis/opcoes')).itens });
   const opcoesDePerfil = perfisQ.data ?? [];
   // só o admin lê as licenças (`modulo.gerir_licencas`); sem elas a coluna e a lista de módulos não aparecem
