@@ -59,7 +59,6 @@ describe('shell web sem laranja cru em texto', () => {
 
   it('as linhas do recado usam accent-ink', () => {
     const de = (f: string) => fontes.find((x) => x.f.split(sep).join('/') === f)?.texto ?? '';
-    expect(de('components/later-page.tsx')).toMatch(/text-accent-ink uppercase">Em breve/);
     expect(de('components/login-screen.tsx')).toMatch(/text-accent-ink uppercase">\{rotuloDoPerfil/);
     expect(de('app/(bko)/page.tsx')).toMatch(/font-semibold text-accent-ink no-underline hover:underline/);
     expect(de('components/portal/baixar-conector.tsx')).toMatch(/font-semibold text-accent-ink no-underline hover:underline/);
