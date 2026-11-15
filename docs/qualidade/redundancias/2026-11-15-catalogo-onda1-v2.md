@@ -10,10 +10,10 @@
 
 | # | Branch | Head | Dono | Resultado |
 |---|---|---|---|---|
-| 1 | `nuvem/catalogo-onda1-modulo-core-v2` | b207cb1c | modulo-core | **COM ACHADO**: RD-0672 aberto |
-| 2 | `nuvem/catalogo-onda1-modulo-catalogo-v3` | 88122be7 | modulo-catalogo | **COM ACHADO**: RD-0670, RD-0675 e RD-0676 abertos |
-| 3 | `nuvem/catalogo-onda1-designer-ux` | b63e1e3b | designer-ux | **COM ACHADO**: RD-0671 aberto |
-| 4 | `nuvem/catalogo-onda1-engenheiro-apps` | e4636797 | engenheiro-apps | **COM ACHADO**: RD-0673, RD-0674 e RD-0677 abertos |
+| 1 | `nuvem/catalogo-onda1-modulo-core-v2` | b207cb1c → **155544cc** | modulo-core | **LIMPO** no re-parecer (RD-0672 e RD-0676 lado Core fechados) |
+| 2 | `nuvem/catalogo-onda1-modulo-catalogo-v3` | 88122be7 → **6b1f4815** | modulo-catalogo | **COM ACHADO** no re-parecer: RD-0675 reaberto (resto). RD-0670 e RD-0676 fechados |
+| 3 | `nuvem/catalogo-onda1-designer-ux` | b63e1e3b → **87943b16** | designer-ux | **COM ACHADO** no re-parecer: RD-0671 fechado; novo RD-0696 |
+| 4 | `nuvem/catalogo-onda1-engenheiro-apps` | e4636797 → **541522ce** | engenheiro-apps | **LIMPO** no re-parecer (RD-0673, RD-0674 e RD-0677 fechados) |
 | 5 | `nuvem/catalogo-campo-modulo-catalogo-v8` | d2d4660f | modulo-catalogo | **COM ACHADO**: RD-0685 a RD-0693 abertos, mais os novos RD-0694 e RD-0695 |
 
 ## 1. Reteste
@@ -86,3 +86,58 @@ comentário ou em título de teste. **Veredito da Meta v1.0.13 para estes 5 bran
 - A porta `definirCargaOnline` é uma só por app. A tarefa em segundo plano não a troca.
 - No v8, o cartão tem uma representação do estoque ("Estoque: N" + `pacote`). A ficha não repete a tabela, e o "Filtrar" só tem
   "Limpar" com dois grupos.
+
+## Re-parecer onda 1 (2026-11-15, ~16h Manaus)
+
+> Pedido do gerente-projetos depois das correções. Li `git diff origin/main...origin/<branch>` e o commit de correção de cada
+> branch, e considerei os quatro juntos (o que um exporta e o outro usa). O Catálogo v2 (v8, branch 5) **não** foi reavaliado:
+> recebe uma correção funcional e vem em seguida. A §2 acima continua valendo para ele.
+
+| Branch | Head | Resultado |
+|---|---|---|
+| 1 `nuvem/catalogo-onda1-modulo-core-v2` | 155544cc | **Limpo** |
+| 2 `nuvem/catalogo-onda1-modulo-catalogo-v3` | 6b1f4815 | **Com achado**: RD-0675 (resto) |
+| 3 `nuvem/catalogo-onda1-designer-ux` | 87943b16 | **Com achado**: RD-0696 (novo) |
+| 4 `nuvem/catalogo-onda1-engenheiro-apps` | 541522ce | **Limpo** |
+
+### Fechados (7)
+- **RD-0670** (modulo-catalogo): a constante provisória saiu de `carga-online.ts`. O `consultaIndisponivel` (`:21`) e a tela usam
+  o `TEXTO_CATALOGO_CARREGANDO` do kit. A aba monta `<CatalogoCarregando />` (`telas/catalogo.tsx:221`), e o `Banner` não mostra
+  mais esse texto (`:222-223`). A ficha usa `<CatalogoCarregando comTitulo />` (`telas/produto.tsx:75`). Um texto, uma constante.
+- **RD-0671** (designer-ux): `desenhoCatalogoCarregando` (`packages/ui/src/mobile/carga-fundo.ts`) devolve só o texto por padrão.
+  O `wifiOff` e o título ficam com `comTitulo`. O print `simulacoes/2026-11-15-catalogo-carregando-3.png` mostra, na aba, o selo
+  "Sem sinal", "Busque quando tiver sinal." e o indicador "Catálogo 63% · parado", sem o segundo `wifiOff` nem o título. O §2 da
+  spec diz onde vai cada forma.
+- **RD-0672** (modulo-core): `entradaLiberada` saiu. O Core exporta `etapaQueLibera(perfil)` (`domain/entrada-sync.ts:189`), e
+  `essencialDaEntrada` usa essa função. Os dois estão em `app/index.ts:29`.
+- **RD-0673** (engenheiro-apps): `ETAPAS_DA_LIBERACAO` saiu. `indicadorDaCargaFundo` usa o `etapaQueLibera` do Core
+  (`apps/mobile/src/lib/carga-fundo.ts:11,67`).
+- **RD-0674** (engenheiro-apps): o memo ficou em um só auxiliar, `porPerfilEModulos(fabrica, …)` (`lib/ordem-da-carga.ts:15-28`).
+  `ordemDaCargaDoUsuario` e `essenciaisDoUsuario` chamam esse auxiliar.
+- **RD-0676** (modulo-catalogo · modulo-core): o Core exporta `ENTIDADES_CORE_CATALOGO_PRECOS` em
+  `modules/core/contracts/entrada-sync.ts:61` e monta o `ENTIDADE_CAMPO` a partir dela (`domain/entrada-sync.ts:45`). O Catálogo
+  usa a mesma lista em `CHAVES_DO_CATALOGO` (`carga-online.ts:16`).
+- **RD-0677** (engenheiro-apps): a regra dos essenciais é testada só no Core (`entrada-sync.test.ts`, "essenciais do Campo" e
+  "da Gestão"). `ordem-da-carga.test.ts` testa só o repasse do perfil e dos módulos, e `motor-do-usuario.test.ts` usa um dublê
+  (`sim.essenciais`) e confere só a ligação.
+
+### Em aberto (seguram a Meta)
+
+| RD | Branch | Onde | Gravidade | Dono | Correção |
+|---|---|---|---|---|---|
+| RD-0675 (reaberto, resto) | 2 | `modules/catalogo/app/telas/catalogo.tsx:65,139-140`; `telas/produto.tsx:38,47-55,61` | baixa | modulo-catalogo | A parte (c) está fechada: um auxiliar, `consultaIndisponivel` (`carga-online.ts:21`). Seguem abertas: **(a)** as duas telas ainda calculam o modo por conta própria, com `catalogoPendente(...)` mais `ambiente.online()`, fora de `usarApiNaCarga`. O cast `(sync as { pendentes?: readonly string[] }).pendentes` aparece 3 vezes (`catalogo.tsx:65`, `produto.tsx:38` e `:61`). **(b)** Na ficha, a chamada agora está em uma função só (`daApi`). Mas, na carga, com sinal e com a 1ª chamada falhando, sem a ficha no aparelho, o mesmo `GET produtos/:id` sai de novo (`:47-48` e depois `:55`). **Depois:** `carga-online.ts` exporta `modoDaCarga(sync, online): 'local' \| 'api' \| 'sem_sinal'`, que lê `pendentes` uma vez e reaproveita `usarApiNaCarga`. As telas usam o `modo`. Na ficha: `if (modo === 'api' && id) { const r = await daApi(); if (r) return r; }` … `if (modo === 'sem_sinal') return { fase: 'catalogo_carregando' }; if (modo === 'api' \|\| !ambiente.online() \|\| !id) return { fase: 'nao_encontrado' }; return (await daApi()) ?? { fase: 'nao_encontrado' };` |
+| **RD-0696** (novo) | 3 × 4 | `packages/ui/src/mobile/carga-fundo.ts:45-49` × `apps/mobile/src/lib/carga.ts:41-49` | baixa | designer-ux | Achado ao olhar os quatro juntos. Ele já estava no head anterior e passou no 1º parecer, e não veio das correções. A regra "carregando, no máximo 99" está escrita duas vezes e com o mesmo nome exportado. No shell, `percentualDaCarga(estado, situacao)` já entrega 0..99 ao indicador (`lib/carga-fundo.ts:71`). No kit, `percentualDaCarga(percentual)` corta 0..99 de novo e é exportada por `@macuxi/ui/mobile` e `/puro`. O app passa a ter duas `percentualDaCarga` com assinaturas diferentes. **Depois:** a do kit deixa de ser exportada e vira um auxiliar interno de `desenhoCargaFundo`, com outro nome (ex.: `barraDoIndicador`). O teste passa a conferir o corte por `desenhoCargaFundo({ percentual: 100 }).percentual === 99`. Assim, o app tem uma `percentualDaCarga` só |
+
+### Conferido sem achado
+- O Core exporta `etapaQueLibera`, `essencialDaEntrada` e `ENTIDADES_CORE_CATALOGO_PRECOS`, e os três são usados pelo shell e
+  pelo Catálogo. Nenhum fica sem uso.
+- A etapa "Catálogo e preços" e a etapa "Aprovações" foram para o fim da lista. Os testes mudaram só os números esperados. Nenhum
+  caso novo repete outro.
+- `tela-carga.tsx` (`liberada`) e `entradaLiberadaPeloMotor` (`_layout.tsx`) não são a mesma regra. A tela de carga ignora
+  `liberado_em` no detalhe (`?detalhe=1`) e tem a regra própria da carga completa (`pronta`).
+- Na aba Catálogo sem sinal, o selo "Sem sinal" e o "· parado" do indicador são redundância útil (indicador de offline e de
+  fila). Não há outro texto que repita os dois.
+
+**Veredito do re-parecer da onda 1: NÃO LIBERADO.** Seguem abertos 2 achados baixos, RD-0675 (resto) e RD-0696, ambos em
+código de produção, fora da exceção R-20261111-190159. Os branches 1 e 4 estão limpos. Caixa e recados: HTTP 403, e o gerente
+repassa esta tabela aos donos.
