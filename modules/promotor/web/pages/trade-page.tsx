@@ -113,7 +113,7 @@ export function TradePage() {
         {share.situacao === 'ok' && (
           <>
             <KpiGrid>
-              <KpiCard label="Share médio" value={pct(share.dados.resumo.share_medio_pct)} sub={`${share.dados.resumo.categorias_medidas} categoria(s) medida(s)`} />
+              <KpiCard label="Share médio" value={pct(share.dados.resumo.share_medio_pct)} />
               <KpiCard label="Meta média" value={pct(share.dados.resumo.meta_media_pct)} />
               <KpiCard label="Atingimento" value={pct(share.dados.resumo.atingimento_pct)} dark />
             </KpiGrid>

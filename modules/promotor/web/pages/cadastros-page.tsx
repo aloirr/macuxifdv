@@ -482,7 +482,7 @@ function FormularioGaveta({ cadastro, estado, categorias, concorrentes, aoFechar
         )}
         {cadastro === 'checklist_loja' && (
           <fieldset className="flex flex-col gap-2 border-0 p-0">
-            <legend className="mb-1 text-[13px] font-semibold text-ink">Etapas (a primeira é a primeira que a promotora vê)</legend>
+            <legend className="mb-1 text-[13px] font-semibold text-ink">Etapas</legend>
             {f.etapas.map((e, i) => (
               <div key={e.id} className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-3" data-testid="cadastros-trade.etapa">
                 <CampoFormulario rotulo={`Etapa ${i + 1}`}>
