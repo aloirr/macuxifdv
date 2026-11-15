@@ -125,3 +125,4 @@
 2026-11-15 — T-0174 — KpiCard com onClick/selecionado (MC-0090), Progresso mostrarRotulo='valor', spec Fotos em lote sem repetição (RD-0615, RD-0616, RD-0622)
 2026-11-15 — T-0174 (#366) — RD-1222: a spec Fotos em lote (§1 e §6.1) cita a frase de acesso da página
 2026-11-15 — T-0174 (#366) — RD-1273: a §1 da spec remete ao aviso de acesso da §6.1 (frase uma vez só)
+2026-11-15 — RD-1283 — spec do filtro padrão do Campo no main (título 'Rota' com outra data, a data só na etiqueta, RD-1235; nota da fonte do sistema; sem o html, que dependia do CSS do catálogo v2 fora do main)
