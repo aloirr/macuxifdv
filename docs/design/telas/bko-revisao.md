@@ -346,11 +346,12 @@ Mesmo shell das simulações da §M (menu de 240 px, grupo da tela aberto). Dado
 | `transportadora-form-depois-1366x768.png` | Depois: gaveta da direita com rodapé fixo (Cancelar, Salvar), erro de CNPJ embaixo do campo, "Transportadoras e frete · 5" no `h1` com o selo `neutral` "Frete padrão: CIF", lista sem título |
 
 ### §P13. Decisões em aberto (Alexandre)
+Decidida: e. Nome do adicional (R-20261114-205500-alexandre): §P10, texto final.
+
 a. **Atualizar e Exportar CSV no "⋯" da página** (§P1): a página fica só com o botão de criar à vista.
 b. **Pendências só com item** (§P6): "Aguardando aprovação" some quando não há pedido pendente.
 c. **Farol** (§P2, §P4, §P6, §P9): abas Clientes e Vendedores no lugar de dois quadros; os KPIs filtram e o select "Farol" sai; "Positivação 62%" na cor da faixa, sem selo; colunas Cliente · Vendedor · Dias sem compra · Farol (saem Última compra, Positivado e Documento); legenda das faixas e parâmetros na gaveta "Parâmetros do farol"; sai o KPI "Clientes na carteira" (o número está na aba).
 d. **Formulário na gaveta** (§P8) em vez do quadro no meio da página.
-e. **Nome do adicional: decidida** (R-20261114-205500-alexandre). "Promotor" em todo lugar; "avulso" só na linha do preço ("Promotor · R$ 80,00 por licença avulsa/mês"). O kit já segue (`adicionais.tsx` lê de `modulos.tsx`).
 f. **"Período" num campo só** (§P4) no lugar de "De" e "Até": pede um seletor de intervalo de datas no kit (`packages/ui`), feito depois da aprovação.
 g. **"Desc." sai da lista de Pedidos** (§P2): o desconto fica no detalhe do pedido e no cartão da aprovação.
 h. **Pedido pendente num lugar só** (§P6, RD-0363). Hoje ele aparece no quadro de pendências e na lista.
