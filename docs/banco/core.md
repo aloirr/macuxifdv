@@ -34,6 +34,9 @@ Escopo: supervisor vê a carteira da equipe de que é responsável; gerente vê 
 | sessao_versao | integer not null default 0 | (0040) sobe a cada troca, redefinição e desativação; o token (claim `sv`) e a sessão do portal só valem com a versão atual. `>= 0` |
 
 Login: código da empresa → `plataforma.tenant_por_codigo` → transação com o tenant → `where lower(email) = lower($1)`.
+Código no ERP: `external_id` único vivo por tenant (`usuario_external_uk`, 0002), que também atende a busca por código. O
+vínculo "provisório → usuário real" (T-0175, RN-CORE-58) e as colunas que ele move estão em
+[vinculo-usuario-erp.md](vinculo-usuario-erp.md).
 
 ## produto — cadastro base (ADR-0005)
 | Coluna | Tipo | Regra |
