@@ -9,9 +9,9 @@ import type { PerfilDoUsuario } from '../contracts';
 import { avaliarEstadoDePerfis } from '../domain';
 import { carregar, motorDe } from './perfis';
 
-export const MENSAGEM_PERFIL_INDISPONIVEL = 'Um dos perfis escolhidos foi desativado. Feche e abra o formulário de novo.';
+export const MENSAGEM_PERFIL_INDISPONIVEL = 'O perfil escolhido foi desativado. Feche e abra o formulário de novo.';
 
-/** Os perfis ativos escolhidos, na ordem pedida (o primeiro é o principal). Código inexistente ou inativo = 422. */
+/** O perfil ativo escolhido (RN-CORE-54: um só). Código inexistente ou inativo = 422. */
 export async function perfisEscolhidos(db: ClienteBanco, codigos: readonly string[]): Promise<PerfilDoUsuario[]> {
   const unicos = [...new Set(codigos)];
   const r = await db.query<PerfilDoUsuario>('select codigo, nome, base from plataforma.perfil where deleted_at is null and ativo and codigo = any($1::text[])', [unicos]);
