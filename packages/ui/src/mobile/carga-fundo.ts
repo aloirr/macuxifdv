@@ -42,8 +42,8 @@ export function desenhoCatalogoCarregando({ comTitulo = false }: { comTitulo?: b
     : { texto: TEXTO_CATALOGO_CARREGANDO };
 }
 
-/** Percentual inteiro de 0 a 99: enquanto o indicador está montado, a etapa não terminou (100% = o shell desmonta). */
-export function percentualDaCarga(percentual: number): number {
+/** Auxiliar interno de `desenhoCargaFundo`: inteiro de 0 a 99 para a linha (100% = o shell desmonta o indicador). */
+function inteiroDaLinha(percentual: number): number {
   if (!Number.isFinite(percentual)) return 0;
   return Math.min(99, Math.max(0, Math.floor(percentual)));
 }
@@ -63,7 +63,7 @@ export interface DesenhoCargaFundo {
 
 export function desenhoCargaFundo({ etapa, percentual, semSinal = false }: { etapa: string; percentual: number; semSinal?: boolean }): DesenhoCargaFundo {
   const nome = etapa.trim();
-  const p = percentualDaCarga(percentual);
+  const p = inteiroDaLinha(percentual);
   const base = `${nome} ${p}%`;
   return {
     texto: semSinal ? `${base} · ${SUFIXO_SEM_SINAL_CARGA}` : base,

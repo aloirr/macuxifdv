@@ -6,7 +6,6 @@ import {
   desenhoCargaFundo,
   desenhoCatalogoCarregando,
   FOLGA_TOQUE_CARGA,
-  percentualDaCarga,
   TEXTO_CATALOGO_CARREGANDO,
   TITULO_CATALOGO_CARREGANDO,
 } from './carga-fundo';
@@ -28,11 +27,12 @@ describe('IndicadorCargaFundo (onda 1 do catálogo, solução 5)', () => {
   });
 
   it('percentual inteiro de 0 a 99 (100% = o shell desmonta); valor inválido vira 0', () => {
-    expect(percentualDaCarga(-5)).toBe(0);
-    expect(percentualDaCarga(Number.NaN)).toBe(0);
-    expect(percentualDaCarga(99.9)).toBe(99);
-    expect(percentualDaCarga(100)).toBe(99);
-    expect(percentualDaCarga(42)).toBe(42);
+    const p = (percentual: number) => desenhoCargaFundo({ etapa: 'Catálogo', percentual }).percentual;
+    expect(p(-5)).toBe(0);
+    expect(p(Number.NaN)).toBe(0);
+    expect(p(99.9)).toBe(99);
+    expect(p(100)).toBe(99);
+    expect(p(42)).toBe(42);
   });
 
   it('linha fina de 32 dp com alvo de toque de 48 (hitSlop em cima e embaixo)', () => {
