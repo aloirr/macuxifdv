@@ -33,6 +33,8 @@
 --        entrega_principal 1 = é o endereço principal do cliente.
 --      - pagamento_forma_* / pagamento_prazo_*: código no Macuxi e chave no ERP (use o external_id quando houver);
 --        pagamento_parcelas_dias = dias das parcelas separados por vírgula ('30,60,90'); pagamento_prazo_medio_dias inteiro.
+--      - pagamento_percentual_ajuste (v1.0.13, Conector 1.5.0; RN-INT-15): % do prazo no pedido, SÓ INFORMATIVO. Preço e
+--        total dos itens e do pedido JÁ VÊM AJUSTADOS: a importação NÃO reaplica o "% Acres.Fin." (dupla aplicação).
 -- =====================================================================================================================
 
 
@@ -76,6 +78,7 @@ CREATE TABLE dbo.macuxi_pedido_entrada (
     pagamento_prazo_external_id       VARCHAR(200) NULL,
     pagamento_parcelas_dias           VARCHAR(120) NULL,     -- '30,60,90'
     pagamento_prazo_medio_dias        INT NULL,              -- [Oracle] NUMBER(5) NULL
+    pagamento_percentual_ajuste       DECIMAL(5, 2) NULL,    -- [Oracle] NUMBER(5,2) NULL; informativo, não reaplicar
     situacao              CHAR(1) NOT NULL DEFAULT 'I',      -- I integrado, R rejeitado, P faturado parcial, F faturado, C cancelado
     motivo                VARCHAR(300) NULL,                 -- motivo da rejeição/cancelamento (vai ao Macuxi)
     recebido_em           DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME() -- [Oracle] TIMESTAMP(3) DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP)
@@ -100,7 +103,7 @@ GO
 -- Procedures chamadas pelo conector.exemplo.json ("pedidos.gravacao.cabecalho" e "itens"). Idempotentes.
 -- [Oracle] CREATE OR REPLACE PROCEDURE sp_macuxi_pedido_inserir(p_pedido_uuid IN VARCHAR2, ..., p_filial_codigo IN VARCHAR2,
 --          p_filial_external_id IN VARCHAR2, p_frete_modalidade IN VARCHAR2 DEFAULT NULL, ..., p_pagamento_prazo_medio_dias IN
---          NUMBER DEFAULT NULL) IS BEGIN INSERT INTO macuxi_pedido_entrada (...) SELECT ... FROM dual WHERE NOT
+--          NUMBER DEFAULT NULL, p_pagamento_percentual_ajuste IN NUMBER DEFAULT NULL) IS BEGIN INSERT INTO macuxi_pedido_entrada (...) SELECT ... FROM dual WHERE NOT
 --          EXISTS (SELECT 1 FROM macuxi_pedido_entrada WHERE pedido_uuid = p_pedido_uuid); END; — e no conector.oracle.json
 --          "BEGIN sp_macuxi_pedido_inserir(:pedido_uuid, ..., :filial_codigo, :filial_external_id, :frete_modalidade, ...); END;"
 --          (ou o INSERT ... SELECT direto na tabela, como faz o conector.oracle.exemplo.json).
@@ -119,7 +122,8 @@ CREATE PROCEDURE dbo.sp_macuxi_pedido_inserir
     @entrega_cidade VARCHAR(80) = NULL, @entrega_uf VARCHAR(2) = NULL, @entrega_cep VARCHAR(9) = NULL, @entrega_principal BIT = NULL,
     @pagamento_forma_codigo VARCHAR(20) = NULL, @pagamento_forma_external_id VARCHAR(200) = NULL,
     @pagamento_prazo_codigo VARCHAR(20) = NULL, @pagamento_prazo_external_id VARCHAR(200) = NULL,
-    @pagamento_parcelas_dias VARCHAR(120) = NULL, @pagamento_prazo_medio_dias INT = NULL
+    @pagamento_parcelas_dias VARCHAR(120) = NULL, @pagamento_prazo_medio_dias INT = NULL,
+    @pagamento_percentual_ajuste DECIMAL(5, 2) = NULL  -- v1.0.13 (Conector 1.5.0); informativo
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -132,7 +136,7 @@ BEGIN
              entrega_origem, entrega_external_id, entrega_logradouro, entrega_numero, entrega_complemento, entrega_bairro,
              entrega_cidade, entrega_uf, entrega_cep, entrega_principal,
              pagamento_forma_codigo, pagamento_forma_external_id, pagamento_prazo_codigo, pagamento_prazo_external_id,
-             pagamento_parcelas_dias, pagamento_prazo_medio_dias)
+             pagamento_parcelas_dias, pagamento_prazo_medio_dias, pagamento_percentual_ajuste)
         VALUES
             (@pedido_uuid, @cliente, @vendedor, @condicao, @criado_em, @aprovado_em, @observacao, @desconto_total_cents, @total_cents,
              @filial_codigo, @filial_external_id,
@@ -141,7 +145,7 @@ BEGIN
              @entrega_origem, @entrega_external_id, @entrega_logradouro, @entrega_numero, @entrega_complemento, @entrega_bairro,
              @entrega_cidade, @entrega_uf, @entrega_cep, @entrega_principal,
              @pagamento_forma_codigo, @pagamento_forma_external_id, @pagamento_prazo_codigo, @pagamento_prazo_external_id,
-             @pagamento_parcelas_dias, @pagamento_prazo_medio_dias);
+             @pagamento_parcelas_dias, @pagamento_prazo_medio_dias, @pagamento_percentual_ajuste);
 END;
 GO
 

@@ -388,3 +388,17 @@ rejeitados. Para somar por filial numa tabela só, a filial do pedido passa a ex
 - RLS, políticas e grants sem mudança. Aparelho: sem DDL (`ent_pedido_item` é JSON; a coluna não entra no contrato de sync).
 - Volta (`0061_vendedor_reserva_filial.down.sql`): apaga índice, gatilhos, funções e a coluna; nada se perde (a filial continua
   em `pedido.filial_id`). Testes: `db/testes/reserva-filial.test.ts`.
+
+## 0081 — % do prazo de pagamento (`0081_vendedor_prazo_percentual_ajuste`; v1.0.13, RN-VEN-43 a 46, RN-INT-15)
+Proposta aprovada `docs/modulos/vendedor/prazo-desconto-acrescimo.md` §5, §6 e §9 (R-20261115-123000). **Aditiva**, sem backfill
+(o default preenche sem andar o `updated_at`); RLS, grants e índices inalterados.
+
+| Tabela.coluna | Tipo | Regra |
+|---|---|---|
+| prazo_pagamento.percentual_ajuste | numeric(5,2) not null default 0 | "% Acres.Fin." do ERP; −99,99..+99,99 (`prazo_pagamento_percentual_ajuste_faixa`); negativo = desconto; ajusta a tabela de cada produto (RN-VEN-43). Somente leitura no BKO/CSV; criado no BKO = 0 (RN-VEN-46). Drizzle: `prazoPagamento.percentual_ajuste` |
+| pedido.prazo_percentual_ajuste | numeric(5,2) null | **retrato** do % no pedido (RN-VEN-45); mesma faixa (`pedido_prazo_percentual_ajuste_faixa`); só com prazo (`pedido_prazo_percentual_com_prazo`); nulo no pedido antigo e no APK anterior à v1.0.13 (= sem ajuste); fora do `pedido_pagamento_completo`. Drizzle: `pedido.prazo_percentual_ajuste` |
+
+Conector: `pagamento_percentual_ajuste` DECIMAL(5,2) NULL na entrada de pedidos (`db/conector/entrada-pedido-modelo.sql`),
+**informativo** (preços já ajustados; o ERP não reaplica, RN-INT-15). Na `vw_macuxi_prazo_pagamento` a coluna `percentual_ajuste`
+fica comentada até o `PrazoPagamentoPayload` ter o campo. Aparelho: o prazo é linha JSON do sync (`ent_*`), sem DDL nova.
+**Volta** (`.down.sql`): apaga os 3 CHECKs e as 2 colunas (percentuais e retratos se perdem). Volte antes Vendedor e Integração.
