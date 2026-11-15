@@ -4,7 +4,8 @@
  * e 0035_plataforma_super_admin.up.sql (super-admin, só por função), 0039_plataforma_portal_email_senha.up.sql (portal por
  * e-mail e senha, só por função), 0040_core_senha_email_saida.up.sql (outbox de e-mail) e
  * 0041_plataforma_perfis_de_acesso.up.sql (perfis de acesso, ADR 0033; cargo e um perfil por usuário desde a
- * 0069_core_cargo_hierarquia.up.sql), para consultas da API.
+ * 0069_core_cargo_hierarquia.up.sql) e 0070_plataforma_plano_assinatura.up.sql (planos e assinatura, ADR 0047), para consultas
+ * da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -12,7 +13,7 @@
  * do SQL é comparado com eles em db/testes/estatico.test.ts e db/testes/cargo-hierarquia.db.test.ts.
  */
 import { sql } from 'drizzle-orm';
-import { bigint, boolean, customType, integer, jsonb, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, customType, date, integer, jsonb, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { CARGOS, NIVEIS_ALCADA, NIVEIS_ESCOPO, PERFIS } from '@macuxi/platform-sdk';
 
 export const plataforma = pgSchema('plataforma');
@@ -382,4 +383,52 @@ export const diagnostico = plataforma.table('diagnostico', {
   alerta_proxima_em: timestamp('alerta_proxima_em', { withTimezone: true }),
   alerta_recado_id: text('alerta_recado_id'),
   alerta_em: timestamp('alerta_em', { withTimezone: true }),
+});
+
+/** Adicional vendido pelo plano (RN-PLA-01): preço por licença ou por usuário, por mês; `incluidos` null = ilimitado incluso. */
+export interface AdicionalDoPlanoLinha {
+  adicional: 'promotor' | 'pesquisa' | 'treinamento';
+  preco_unitario_centavos: number;
+  incluidos: number | null;
+}
+
+/**
+ * Catálogo de planos (0070, ADR 0047 §1): DADO da plataforma, fora dos tenants (exceção à regra 5, como a super_admin). Só pelas
+ * funções plataforma.sa_* (sem grant de tabela). Versão nova do plano = linha nova; a antiga ganha deleted_at e as assinaturas
+ * continuam apontando para ela. Código único entre os vivos. Licenças por tipo: null = sem limite.
+ */
+export const plano = plataforma.table('plano', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  /** `^[a-z][a-z0-9_]{1,29}$` (CodigoPlano do SDK). */
+  codigo: text('codigo').notNull(),
+  nome: text('nome').notNull(),
+  ordem: integer('ordem').notNull().default(0),
+  preco_mensal_centavos: bigint('preco_mensal_centavos', { mode: 'number' }).notNull(),
+  licenca_vendedor: integer('licenca_vendedor'),
+  licenca_gestor: integer('licenca_gestor'),
+  licenca_bko: integer('licenca_bko'),
+  licenca_promotor: integer('licenca_promotor'),
+  /** Só os 8 módulos do contrato (CHECK). */
+  modulos: text('modulos').array().notNull().default(sql`'{}'::text[]`),
+  adicionais: jsonb('adicionais').$type<AdicionalDoPlanoLinha[]>().notNull().default([]),
+  meses_gratis_anual: integer('meses_gratis_anual').notNull().default(0),
+  dias_teste: integer('dias_teste').notNull().default(0),
+  ativo: boolean('ativo').notNull().default(true),
+  ...auditaveis(),
+});
+
+/**
+ * Assinatura do tenant (0070, ADR 0047 §2): uma VIVA por tenant (assinatura_tenant_uk). Gravada só pela
+ * plataforma.sa_gravar_assinatura (portal, super-admin); o macuxi_app lê só a do próprio tenant. teste_ate = último dia do
+ * teste, inclusive, no fuso do tenant (null = sem teste); CHECK paga ou com teste. Fora do sync.
+ */
+export const assinatura = plataforma.table('assinatura', {
+  ...comuns(),
+  plano_id: uuid('plano_id').notNull(),
+  ciclo: text('ciclo', { enum: ['mensal', 'anual'] }).notNull().default('mensal'),
+  adicionais: jsonb('adicionais').$type<{ adicional: 'promotor' | 'pesquisa' | 'treinamento'; quantidade: number }[]>().notNull().default([]),
+  teste_ate: date('teste_ate', { mode: 'string' }),
+  paga: boolean('paga').notNull().default(false),
+  /** UUID do portal que gravou (chave de idempotência da criação). */
+  pedido_id: uuid('pedido_id').notNull(),
 });

@@ -199,6 +199,8 @@ const G = {
   usuario_avatar: 0x64,
   meta_produtividade: 0x65,
   deslocamento_dia: 0x66,
+  // 0070 (ADR 0047): assinatura do tenant (o catálogo de planos, fora dos tenants, usa o prefixo 9a9a9a9a)
+  assinatura: 0x67,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -348,6 +350,42 @@ export const DIAGNOSTICOS_FIXTURE = {
   A: { botao: a('diagnostico', 1), queda: a('diagnostico', 2) },
   B: { erroTela: b('diagnostico', 1) },
 } as const;
+
+/**
+ * 0070 (ADR 0047): catálogo de planos DA FIXTURE (fora dos tenants; gravado antes de ORDEM_TABELAS por carregarDoisTenants) e a
+ * assinatura viva de A e de B. Números só de teste: os planos de verdade vêm do seed com os números do dono do produto.
+ * - fixture_pme: ativo, R$ 300,00/mês, 3 vendedores, 2 gestores, BKO sem limite, 0 promotor; vende Promotor (R$ 50,00) e
+ *   Pesquisa (R$ 10,00, 2 incluídos); 2 meses grátis no anual; 14 dias de teste;
+ * - fixture_antigo: inativo (fora de venda), para o PLANO_INATIVO da sa_gravar_assinatura.
+ * A: fixture_pme, mensal, 2 licenças de promotor, em teste até 2026-11-27, não paga. B: fixture_pme, anual, paga, sem teste.
+ */
+export const PLANOS_FIXTURE = {
+  pme: { id: idFixo('9a9a9a9a', G.assinatura, 1), codigo: 'fixture_pme', nome: 'PME (fixture)' },
+  antigo: { id: idFixo('9a9a9a9a', G.assinatura, 2), codigo: 'fixture_antigo', nome: 'Antigo (fixture)' },
+} as const;
+export const ASSINATURAS_FIXTURE = {
+  A: { id: a('assinatura', 1), pedido_id: idFixo('9a9a9a9a', G.assinatura, 11), teste_ate: '2026-11-27' },
+  B: { id: b('assinatura', 1), pedido_id: idFixo('9a9a9a9a', G.assinatura, 12) },
+} as const;
+
+/** Linhas de plataforma.plano da fixture (sem tenant_id: fora de ORDEM_TABELAS). */
+export function planosDaFixture(): Linha[] {
+  const plano = (p: { id: string; codigo: string; nome: string }, extra: Partial<Linha>): Linha => ({
+    id: p.id, codigo: p.codigo, nome: p.nome, ordem: 0, preco_mensal_centavos: 30000, licenca_vendedor: 3, licenca_gestor: 2,
+    licenca_bko: null, licenca_promotor: 0, modulos: arrayDeTexto(['core', 'catalogo', 'vendedor', 'gestor', 'integracao']),
+    adicionais: [], meses_gratis_anual: 2, dias_teste: 14, ativo: true, deleted_at: null, external_id: null, ...extra,
+  });
+  return [
+    plano(PLANOS_FIXTURE.pme, {
+      ordem: 1,
+      adicionais: [
+        { adicional: 'promotor', preco_unitario_centavos: 5000, incluidos: 0 },
+        { adicional: 'pesquisa', preco_unitario_centavos: 1000, incluidos: 2 },
+      ],
+    }),
+    plano(PLANOS_FIXTURE.antigo, { ordem: 9, ativo: false }),
+  ];
+}
 
 /** 0064–0066 (T-0170): uma linha de cada tabela nova em A e em B (ver o cabeçalho). */
 export const T0170_FIXTURE = {
@@ -586,6 +624,8 @@ const DO_PEDIDO = ['vendedor.pedido', 'vendedor.pedido_item'] as const;
 export const ORDEM_TABELAS = [
   'plataforma.tenant',
   'plataforma.tenant_modulo',
+  // 0070 (ADR 0047): assinatura (FK -> plataforma.plano, gravado antes por carregarDoisTenants: planosDaFixture)
+  'plataforma.assinatura',
   // 0041 (T-0111): perfis personalizados e sobreposições (os 7 de fábrica vêm do gatilho do tenant), antes da FK de perfil_modulo
   'plataforma.perfil',
   'plataforma.perfil_permissao',
@@ -918,6 +958,10 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     'plataforma.tenant_modulo': [
       ...A.modulos.map((modulo, i) => ({ id: a('tenant_modulo', i + 1), tenant_id: tA, modulo, ativo: true, plano: 'piloto', licencas: null, parametros: {}, external_id: null })),
       ...B.modulos.map((modulo, i) => ({ id: b('tenant_modulo', i + 1), tenant_id: tB, modulo, ativo: true, plano: 'piloto', licencas: null, parametros: {}, external_id: null })),
+    ],
+    'plataforma.assinatura': [
+      { id: ASSINATURAS_FIXTURE.A.id, tenant_id: tA, plano_id: PLANOS_FIXTURE.pme.id, ciclo: 'mensal', adicionais: [{ adicional: 'promotor', quantidade: 2 }], teste_ate: ASSINATURAS_FIXTURE.A.teste_ate, paga: false, pedido_id: ASSINATURAS_FIXTURE.A.pedido_id, external_id: null },
+      { id: ASSINATURAS_FIXTURE.B.id, tenant_id: tB, plano_id: PLANOS_FIXTURE.pme.id, ciclo: 'anual', adicionais: [], teste_ate: null, paga: true, pedido_id: ASSINATURAS_FIXTURE.B.pedido_id, external_id: null },
     ],
     // 0041 (ADR 0033): personalizados (os de fábrica são do gatilho tenant_semear_perfis); sobreposições só nos personalizados
     'plataforma.perfil': [
@@ -1746,6 +1790,8 @@ export async function carregarDoisTenants(admin: ClientBase, opcoes: { senha?: s
   const dados = dadosDoisTenants(hashSenha(senha), { hoje: opcoes.hoje, agora: opcoes.agora });
   await admin.query('begin');
   try {
+    // 0070 (ADR 0047): o catálogo de planos (fora dos tenants) antes da assinatura
+    await gravarLinhas(admin, 'plataforma.plano', planosDaFixture());
     for (const tabela of ORDEM_TABELAS) {
       const linhas = tabela === 'core.equipe' ? dados[tabela].map((e) => ({ ...e, responsavel_id: null })) : dados[tabela];
       const preservar = tabela === 'core.usuario' ? ['senha_hash'] : tabela === 'vendedor.numeracao_pedido' ? ['ultimo'] : [];
