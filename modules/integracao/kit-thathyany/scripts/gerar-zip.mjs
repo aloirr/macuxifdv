@@ -61,7 +61,7 @@ export function montarEntradas({ versao = VERSAO_KIT } = {}) {
     ...listar('modelos', (f) => f.endsWith('.csv')).map((f) => ({ nome: `modelos/${f}`, dados: doKit('modelos', f) })),
     ...listar('sql', (f) => f.endsWith('.sql')).map((f) => ({ nome: `sql/${f}`, dados: doKit('sql', f) })),
     { nome: 'conector/conector.json', dados: doKit('conector', 'conector.json') },
-    { nome: 'erp-via-api/cliente-hub.mjs', dados: readFileSync(join(raizRepo, 'modules', 'integracao', 'docs', 'exemplos', 'node', 'cliente-hub.mjs')) },
+    { nome: 'erp-via-api/cliente-hub.mjs', dados: readFileSync(join(raizRepo, 'modules/integracao/docs/exemplos/node/cliente-hub.mjs')) },
     ...ARQUIVOS_ERP_VIA_API.map((f) => texto(`erp-via-api/${f}`, adaptarErpViaApi(f, readFileSync(join(pilotoApi, f), 'utf8')))),
     texto('VERSAO.txt', `Kit da thathyany Macuxi FDV ${versao}\n`),
   ];

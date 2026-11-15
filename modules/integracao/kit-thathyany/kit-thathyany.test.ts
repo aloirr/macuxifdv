@@ -79,7 +79,7 @@ describe('zip do kit', () => {
   });
 
   it('critério 5: nem os exemplos e a documentação da API apontam para a demo', () => {
-    const pastas = [aqui('..', 'docs'), aqui('..', 'api', 'openapi')];
+    const pastas = [aqui('../docs'), aqui('../api/openapi')];
     for (const pasta of pastas) {
       for (const rel of readdirSync(pasta, { recursive: true }) as string[]) {
         const caminho = join(pasta, rel);
