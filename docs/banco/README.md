@@ -204,7 +204,8 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > **2026-11-15 (T-0176, R-20261115-093000 e R-20261115-094500):** `0077_core_usuario_filial` (0070–0076 são de outros lotes):
 > `core.usuario.filial_cadastro_id` (nula = bloqueado) e `core.usuario_filial` (filiais de venda); a de cadastro está entre as
 > de venda (gatilho adiado `usuario_filial_inclui_cadastro`, 23514, hint RN-CORE-39). Backfill: na empresa com uma filial viva,
-> todo usuário vivo recebe a filial (cadastro e venda); os demais ficam bloqueados. Detalhes no [core.md](core.md); teste `db/testes/usuario-filial.db.test.ts`.
+> todo usuário vivo recebe a filial (cadastro e venda); os demais ficam bloqueados. A `provisionar_tenant` (CLI, seeds e portal)
+> cria o admin inicial com a filial padrão (cadastro e venda). Detalhes no [core.md](core.md); teste `db/testes/usuario-filial.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
