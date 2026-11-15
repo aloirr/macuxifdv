@@ -132,7 +132,7 @@ export function TrilhaEditarPage() {
         actions={acoesDaPagina.length > 0 ? <MenuAcoes acoes={acoesDaPagina} rotulo="Mais ações" /> : null}
       />
       {erro && <Notice tone="danger">{errorMessage(erro)}</Notice>}
-      {somenteLeitura && <Notice tone="info">{base?.status === 'publicada' ? 'Trilha publicada: só leitura. Para mudar o conteúdo, arquive e crie uma nova trilha.' : 'Trilha arquivada: só leitura.'}</Notice>}
+      {somenteLeitura && <Notice tone="info">{base?.status === 'publicada' ? 'Só leitura. Para mudar o conteúdo, arquive e crie uma nova trilha.' : 'Só leitura.'}</Notice>}
       {erros.outros.length > 0 && (
         <Notice tone="warning">
           Corrija antes de salvar:

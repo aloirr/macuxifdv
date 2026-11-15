@@ -88,7 +88,7 @@ export function TrilhasPage() {
           aba === null ? null : (
             <div className="flex items-center gap-2">
               {podeTrilhas && (
-                <Link href={hrefEditarTrilha()} data-testid="treinamento.nova-trilha" className="inline-flex h-[42px] items-center gap-1.5 rounded-xl bg-ink px-4 text-[14px] font-semibold text-white no-underline hover:bg-[#0b1218]">
+                <Link href={hrefEditarTrilha()} data-testid="treinamento.nova-trilha" className="inline-flex h-[42px] items-center gap-1.5 rounded-xl bg-accent px-4 text-[14px] font-semibold text-white no-underline hover:bg-accent/90">
                   <IconPlus size={15} /> Nova trilha
                 </Link>
               )}
@@ -210,9 +210,9 @@ function AbaAdesao({ q }: { q: Consulta<AdesaoResposta> }) {
             </p>
           )}
           <KpiGrid>
-            <KpiCard label={`Adesão em ${monthLabel(d.mes)}`} value={pctOuTraco(d.adesao.adesao_pct)} sub="concluíram ao menos uma lição no mês" />
+            <KpiCard label={`Adesão em ${monthLabel(d.mes)}`} value={pctOuTraco(d.adesao.adesao_pct)} sub="concluíram ao menos uma lição" />
             <KpiCard label="Público" value={d.adesao.publico} />
-            <KpiCard label="Ativos no mês" value={d.adesao.ativos_no_mes} />
+            <KpiCard label="Ativos" value={d.adesao.ativos_no_mes} />
           </KpiGrid>
           <TabelaDados
             rotulo="Conclusão por trilha"
@@ -354,7 +354,7 @@ function AbaTrilhas({ q, f }: { q: Consulta<BkoTrilhaResumo[]>; f: FiltrosTrilha
               <EstadoVazio
                 titulo="Nenhuma trilha cadastrada."
                 acao={
-                  <Link href={hrefEditarTrilha()} className="inline-flex h-[42px] items-center gap-1.5 rounded-xl bg-ink px-4 text-[14px] font-semibold text-white no-underline hover:bg-[#0b1218]">
+                  <Link href={hrefEditarTrilha()} className="inline-flex h-[42px] items-center gap-1.5 rounded-xl bg-accent px-4 text-[14px] font-semibold text-white no-underline hover:bg-accent/90">
                     <IconPlus size={15} /> Nova trilha
                   </Link>
                 }
