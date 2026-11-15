@@ -36,7 +36,7 @@
    - Daqui em diante, enum em resposta lida pelo app instalado é contrato: valor novo exige filtro por opção do cliente, como acima.
 2. **`alertas.produtividade` do Core é a fonte única** dos lembretes do Campo e da avaliação do Gestor.
    - Guardado em `plataforma.parametro` (módulo `core`, chave `alertas.produtividade`), JSON validado pelo Zod
-     `parametrosAlertasProdutividadeSchema` de `@macuxi/core/contracts`, com `PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO` (D6). Chave
+     `ParametrosAlertasProdutividadeSchema` de `@macuxi/core/contracts`, com `PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO` (D6). Chave
      ausente ou inválida = padrão (nunca 500).
    - Leitura e escrita pelas rotas do Core `GET|PUT /v1/core/parametros/alertas-produtividade`, com ação própria do Core
      `parametro.alertas_produtividade` (analista e admin). O nome não é `parametro.alertas`: o SDK não deixa a mesma ação em dois
@@ -48,7 +48,8 @@
 3. **D1: `inicio.parado_min` é o valor único do "parado".** Mesma chave e mesmo dono (Core); nenhuma migração. Sai do formulário
    de Parâmetros › Início e passa a ser editado em Parâmetros › Alertas. É gravado **só** pela rota própria
    `PUT /v1/core/parametros/parado-min` (mesma ação `parametro.alertas_produtividade`, idempotente e auditada), nunca dentro do JSON
-   de `alertas.produtividade`; o PUT de Parâmetros › Início deixa de gravá-lo. O campo continua editável com a regra desligada. O Gestor recebe o valor pela consulta (§4) e
+   de `alertas.produtividade`; o PUT de Parâmetros › Início deixa de gravá-lo. A tela Parâmetros › Alertas lê o valor por
+   `GET /v1/core/parametros/parado-min` (mesma ação; `{ parado_min }`, padrão 60). O campo continua editável com a regra desligada. O Gestor recebe o valor pela consulta (§4) e
    deixa de procurar `inicio.parado_min` nos próprios parâmetros (`modules/gestor/domain/parametros.ts`), onde ele nunca chega.
 4. **Consulta `core.produtividade_equipe@1` (ADR 0012), dono Core, consumidor Gestor (`usaConsultas`).**
    - Entrada: `{ usuario_ids: uuid[] }` (1 a 500), estrita.
