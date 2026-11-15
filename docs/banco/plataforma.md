@@ -1061,7 +1061,7 @@ Sem dado de tenant e sem dado pessoal.
 
 | Coluna | Tipo | Regra |
 |---|---|---|
-| id | uuid pk | as 30 iniciais: `plataforma.uuid_de_chave('plataforma:frase_carga:NN')`, NN = `01`..`30` (mesma regra do `FRASES_CARGA_INICIAIS` do SDK; gêmea TS `idDeChave`); as incluídas: `gen_random_uuid()` |
+| id | uuid pk | as 30 iniciais: `uuid_de_chave` pela fórmula do cabeçalho de `packages/platform-sdk/src/frase-carga.ts`; as incluídas: `gen_random_uuid()` |
 | numero | integer not null | o "Nº" do portal; >= 1; único (`frase_carga_numero_uk`); na inclusão = `max(numero) + 1`; nunca reusado (não há exclusão) |
 | texto | text not null | 1..90 caracteres depois do `btrim` (`FRASE_CARGA_MAX`), gravado sem espaços nas pontas; único entre as vivas sem diferenciar maiúsculas nem espaços nas pontas (`frase_carga_texto_uk`, `lower(btrim(texto)) where deleted_at is null`) |
 | ativa | boolean not null default true | inativa sai do sorteio do app no próximo sync e continua no portal |
@@ -1073,9 +1073,7 @@ deleted_at is null` (leitura do app). Volume: dezenas de linhas.
 
 **Carga inicial** (na própria migração): as 30 do `frases.md`, texto literal, Nº e ordem 1..30, todas ativas;
 `on conflict do nothing` **sem alvo** (idempotente: id, Nº ou texto vivo já existentes ficam como estão). O teste do banco
-(`t0181-frase-carga.db.test.ts`) confere o seed contra a lista `FRASES_ESPERADAS` (cópia literal do `frases.md`, commit
-`3cdb384`) e, quando `docs/design/carga-aviso-frases/frases.md` está no repositório, contra o próprio arquivo; não lê o SDK.
-Quem confronta o seed com o `FRASES_CARGA_INICIAIS` do SDK é o FC-01 da integração (testes).
+(`t0181-frase-carga.db.test.ts`) confere o seed (texto, Nº e id) contra o `FRASES_CARGA_INICIAIS` do SDK.
 
 **Funções** (SECURITY DEFINER, `search_path = pg_catalog, plataforma, pg_temp`, padrão da 0058; assinaturas alinhadas com a
 API na tabela da seção 3, "Banco — funções que a API chama", de `docs/desenho/T-0181.md`):

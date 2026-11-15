@@ -5,13 +5,13 @@
  *   tabela para app, worker ou portal; sem DELETE (não há exclusão);
  * - texto 1..90 depois do trim, sem frase repetida entre as vivas (sem diferenciar maiúsculas nem espaços nas pontas), Nº único,
  *   decididos pela tabela (CHECK e índice único; as sa_* propagam 23514 e 23505, RD-0523);
- * - as 30 iniciais com o texto literal do frases.md, Nº e ordem 1..30, todas ativas, id = uuid_de_chave
- *   ('plataforma:frase_carga:NN'), carga idempotente;
+ * - as 30 iniciais do SDK (FRASES_CARGA_INICIAIS: id, texto, Nº e ordem 1..30, todas ativas), carga idempotente;
  * - portal: sa_listar/sa_incluir/sa_editar_frase_carga só do super-admin (28000 sem sessão, 42501 admin do cliente), auditadas;
  *   a incluída nasce ativa com Nº e ordem = max + 1 e o reenvio com o mesmo id é idempotente; app: frases_carga_ativas() só
  *   com as ativas e vivas. Assinaturas alinhadas com a API (seção 3 de docs/desenho/T-0181.md).
  * Estático na sessão; banco (fixture, ROLLBACK) e up/down num banco efêmero no CI.
  */
+import { FRASE_CARGA_MAX, FRASES_CARGA_INICIAIS } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -19,49 +19,15 @@ import * as esquemaPlataforma from '../esquema/plataforma';
 import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
-import { idDeChave } from '../src/ids';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
 import { FUNCOES_SA_0081, FUNCOES_SA_ATUAIS } from './funcoes-sa';
 import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 
-/** As 30 frases iniciais, texto literal do frases.md aprovado (commit 3cdb384), na ordem do Nº. */
-const FRASES_ESPERADAS = [
-  'Os Macuxi se autodenominam Pemon e falam uma língua da família Karib.',
-  'O território Macuxi vai do lavrado, ao sul, às serras com floresta, ao norte.',
-  'Em 2020, o povo Macuxi somava 37.250 pessoas em Roraima.',
-  'Os Macuxi chamam de tuma a damurida, caldo de pimenta com peixe ou carne.',
-  'A Raposa Serra do Sol, terra dos Macuxi e vizinhos, foi homologada em 2005.',
-  'Em Bonfim, a Lei 211/2014 tornou cooficiais as línguas Macuxi e Wapichana.',
-  'A pintora Macuxi Carmézia Emiliano nasceu na Maloca do Japó.',
-  'O artista Macuxi Jaider Esbell ilustrou Do Roraima ao Orinoco em português.',
-  'Com 2.734,9 m, o Monte Roraima é o 7º ponto mais alto do Brasil.',
-  'O Monte Roraima fica na fronteira do Brasil com a Venezuela e a Guiana.',
-  'O Parque Nacional do Monte Roraima foi criado em 28 de junho de 1989.',
-  'As rochas que formam o Monte Roraima têm até 1,95 bilhão de anos.',
-  'Um mapa de 1654 chama o Monte Roraima de "montanha de cristais".',
-  'Um relato de 1885 sobre o Monte Roraima influenciou O Mundo Perdido.',
-  'Em 2019, ICMBio e Ingarikó catalogaram novas espécies no parque do monte.',
-  'Ingarikó e Pemon formam um só mundo cultural em torno do Monte Roraima.',
-  'Makunaimã, das narrativas Macuxi e Pemon, inspirou Mário de Andrade.',
-  'Segundo a tradição Macuxi, Makunaimã e Enxikirang são irmãos, filhos do Sol.',
-  'Segundo a tradição Macuxi, o Monte Roraima é o tronco da árvore Wazacá.',
-  'Segundo a tradição Taurepang, Makunaimã fez gente e bichos de barro.',
-  'Segundo a tradição Ingarikó, o povo descende de Siikë, irmão de Makunaimã.',
-  'Segundo a tradição Ingarikó, as plantas cultivadas vêm das sementes da Wayaka.',
-  'Entre 1911 e 1913, Koch-Grünberg registrou narrativas de Makunaimã.',
-  'A peça Makunaimã (2019) reúne autores Macuxi, Taurepang e Wapichana.',
-  'O Forte São Joaquim, de 1775, é o único bem tombado pelo Iphan em Roraima.',
-  'Na Pedra Pintada, em Pacaraima, há marcas humanas de cerca de 4.000 anos.',
-  'Roraima nasceu em 1943 como Território do Rio Branco; o nome veio em 1962.',
-  'O lavrado, a savana de Roraima, cobre cerca de 17% do estado.',
-  'O ponto mais ao norte do Brasil é a nascente do rio Ailã, em Uiramutã.',
-  'Uiramutã tem a maior proporção de indígenas do Brasil: 96,6% em 2022.',
-] as const;
-/** FRASE_CARGA_MAX do SDK (spec §3: o campo para em 90). */
-const MAX = 90;
-/** Id determinístico da frase inicial Nº n (a mesma regra do FRASES_CARGA_INICIAIS do SDK). */
-const idInicial = (n: number) => idDeChave(`plataforma:frase_carga:${String(n).padStart(2, '0')}`);
+/** As 30 iniciais do SDK (bundle do app): o VALUES da 0081 tem de bater com elas, texto, Nº e id. */
+const FRASES_ESPERADAS = FRASES_CARGA_INICIAIS.map((f) => f.texto);
+const MAX = FRASE_CARGA_MAX;
+const idInicial = (n: number) => FRASES_CARGA_INICIAIS[n - 1]!.id;
 
 const migracoes = lerMigracoes();
 const m81 = migracoes.find((m) => m.versao === '0081')!;
@@ -92,7 +58,7 @@ describe('0081 frases da carga (estático)', () => {
     expect(m81.down.length).toBeGreaterThan(0);
   });
 
-  it('as 30 frases da carga são as do frases.md (texto literal), Nº 1..30, cada uma em 1..90 e sem repetição', () => {
+  it('as 30 frases da carga são as do SDK (FRASES_CARGA_INICIAIS), Nº 1..30, cada uma em 1..90 e sem repetição', () => {
     const daMigracao = frasesDaMigracao();
     expect(daMigracao).toEqual(FRASES_ESPERADAS.map((texto, i) => ({ numero: i + 1, texto })));
     expect(daMigracao).toHaveLength(30);
@@ -234,7 +200,7 @@ describe.skipIf(semBanco())('0081 frases da carga (banco, fixture dois-tenants)'
     (await como<{ r: { frases: Array<{ id: string; texto: string; ordem: number }> } }>('macuxi_app', `select ${LEITURA_APP} as r`, [], tenant)).rows[0]!.r.frases;
   const iniciais = () => FRASES_ESPERADAS.map((texto, i) => ({ id: idInicial(i + 1), numero: i + 1, texto, ativa: true, ordem: i + 1 }));
 
-  it('as 30 iniciais no banco: ids do uuid_de_chave (= idDeChave do TS), Nº e ordem 1..30, ativas; carga de novo não muda nada', async () => {
+  it('as 30 iniciais no banco: ids do uuid_de_chave (= os do SDK), Nº e ordem 1..30, ativas; carga de novo não muda nada', async () => {
     await emTransacao(admin, null, async () => {
       expect(await q('select id, numero, texto, ativa, ordem from plataforma.frase_carga order by numero')).toEqual(iniciais());
       expect((await admin.query(CARGA)).rowCount).toBe(0);
@@ -279,7 +245,7 @@ describe.skipIf(semBanco())('0081 frases da carga (banco, fixture dois-tenants)'
       expect((await erroDe(incluir(sid, 'x'.repeat(MAX + 1))))?.code).toBe('23514');
       expect(await incluir(sid, 'y'.repeat(MAX))).toMatchObject({ numero: 32, ordem: 32, ativa: true });
       expect(await erroDe(incluir(sid, ' o rio branco CORTA boa vista. '))).toMatchObject({ code: '23505', message: expect.stringContaining('frase_carga_texto_uk') });
-      expect(await erroDe(incluir(sid, FRASES_ESPERADAS[0]))).toMatchObject({ code: '23505' });
+      expect(await erroDe(incluir(sid, FRASES_ESPERADAS[0]!))).toMatchObject({ code: '23505' });
       const acoes = await q<{ acao: string; detalhes: Record<string, unknown> }>(
         "select acao, detalhes from plataforma.auditoria_plataforma where acao like 'sa.frase_carga.%' order by created_at, acao");
       // mesma transação = mesmo created_at: confere o conjunto (o reenvio idempotente não audita de novo)
@@ -303,8 +269,8 @@ describe.skipIf(semBanco())('0081 frases da carga (banco, fixture dois-tenants)'
       const editada = await editar(sid, idInicial(3), '  Em 2020, os Macuxi eram 37.250 em Roraima. ', null);
       expect(editada).toEqual({ ...iniciais()[2], texto: 'Em 2020, os Macuxi eram 37.250 em Roraima.' });
       expect(await editar(sid, idInicial(3), null, null)).toEqual(editada);
-      expect(await erroDe(editar(sid, idInicial(4), FRASES_ESPERADAS[0].toUpperCase(), null))).toMatchObject({ code: '23505' });
-      expect(await editar(sid, idInicial(1), FRASES_ESPERADAS[0].toUpperCase(), null)).toMatchObject({ numero: 1, texto: FRASES_ESPERADAS[0].toUpperCase() });
+      expect(await erroDe(editar(sid, idInicial(4), FRASES_ESPERADAS[0]!.toUpperCase(), null))).toMatchObject({ code: '23505' });
+      expect(await editar(sid, idInicial(1), FRASES_ESPERADAS[0]!.toUpperCase(), null)).toMatchObject({ numero: 1, texto: FRASES_ESPERADAS[0]!.toUpperCase() });
       expect((await erroDe(editar(sid, idInicial(4), ' ', null)))?.code).toBe('23514');
       expect((await erroDe(editar(sid, idInicial(4), 'z'.repeat(MAX + 1), null)))?.code).toBe('23514');
       expect((await erroDe(editar(sid, '00000000-0000-4000-8000-000000000000', null, false)))?.code).toBe('P0002');
