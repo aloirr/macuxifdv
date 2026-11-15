@@ -197,7 +197,7 @@ function PaginaDeEnvio() {
         onDragLeave={() => setArrastando(false)}
         onDrop={soltar}
         className={`flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-2xl px-6 py-8 text-center ${arrastando ? 'border-2 border-accent bg-accent-soft' : 'border border-dashed border-field bg-surface'}`}>
-        <span className="text-[14px] font-semibold text-ink-2">{cheio ? TEXTO_LOTES_ATIVOS : arrastando ? 'Solte o ZIP aqui' : 'Arraste o ZIP aqui ou'}</span>
+        <span className="text-[15px] font-semibold text-ink-2">{cheio ? TEXTO_LOTES_ATIVOS : arrastando ? 'Solte o ZIP aqui' : 'Arraste o ZIP aqui ou'}</span>
         <input ref={seletor} type="file" accept=".zip,application/zip" className="hidden" tabIndex={-1} data-testid="fotos-lote.arquivo" onChange={(e) => { escolher(e.target.files?.[0]); e.target.value = ''; }} />
         <Button variant="primary" disabled={cheio || criar.isPending} aria-describedby={limites ? 'fotos-lote.como fotos-lote.limites' : 'fotos-lote.como'} onClick={() => seletor.current?.click()} data-testid="fotos-lote.escolher">
           {criar.isPending ? 'Enviando…' : 'Escolher ZIP'}

@@ -85,3 +85,4 @@
 2026-11-15 — T-0174 — fotos dos produtos em lote por ZIP: domain, contratos (situação em lista, rótulos da spec), API, trabalho, teste de banco e tela do BKO (/catalogo/fotos-lote, lote em ?lote=); pendência: rota /:id exige rota dinâmica no shell (engenheiro-apps)
 2026-11-15 — T-0174 — correções da marca e do corretor (MC-0089..0091, RD-0615..0618, RD-0620, RD-0621) e limites efetivos do tenant na tela de Fotos em lote (GET fotos-lote/limites)
 2026-11-15 — T-0174 — TEXTO_LOTE_DIVERGENTE em contracts (texto da spec §6.1), usado pela API; a tela já mostra a mensagem da API
+2026-11-15 — T-0174 — fotos-lote-page: linha principal da área de envio em 15/600 (MC-1201)
