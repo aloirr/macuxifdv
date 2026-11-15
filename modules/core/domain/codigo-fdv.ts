@@ -28,11 +28,6 @@ export function validarCodigoFdv(texto: string): ResultadoCodigoFdv {
   return { ok: true, sequencial, codigo: texto };
 }
 
-/** Próximo número da empresa: o maior já emitido (inclusive inativos) + 1; nunca reaproveita. Espelha o contador do banco. */
-export function proximoSequencialFdv(maiorEmitido: number | null): number {
-  return (maiorEmitido && maiorEmitido > 0 ? maiorEmitido : 0) + 1;
-}
-
 /** `codigo_fdv` no corpo de criar/editar é recusado (422), mesmo igual ao gravado: o campo é só de leitura. */
 export function recusarCodigoFdvNoCorpo(corpo: Record<string, unknown>): { codigo: typeof CODIGOS_CODIGO_FDV.somenteLeitura; campo: 'codigo_fdv'; mensagem: string } | null {
   if (corpo.codigo_fdv === undefined) return null;

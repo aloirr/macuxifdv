@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CODIGOS_CODIGO_FDV, formatarCodigoFdv, proximoSequencialFdv, recusarCodigoFdvNoCorpo, validarCodigoFdv } from './codigo-fdv';
+import { CODIGOS_CODIGO_FDV, formatarCodigoFdv, recusarCodigoFdvNoCorpo, validarCodigoFdv } from './codigo-fdv';
 
 describe('RN-CORE-59: Código FDV (código próprio do Macuxi, gerado, só de leitura)', () => {
   it('RN-CORE-59: formata em 5 dígitos, sem prefixo, e cresce passando de 99999', () => {
@@ -28,12 +28,6 @@ describe('RN-CORE-59: Código FDV (código próprio do Macuxi, gerado, só de le
       const v = validarCodigoFdv(formatarCodigoFdv(n));
       expect(v.ok && v.sequencial).toBe(n);
     }
-  });
-
-  it('RN-CORE-59: o próximo sequencial nunca reaproveita (maior já usado + 1, inclusive de apagados)', () => {
-    expect(proximoSequencialFdv(null)).toBe(1);
-    expect(proximoSequencialFdv(0)).toBe(1);
-    expect(proximoSequencialFdv(99999)).toBe(100000);
   });
 
   it('RN-CORE-59: criar ou editar com codigo_fdv no corpo é recusado (422), mesmo igual ao atual', () => {

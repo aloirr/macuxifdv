@@ -220,7 +220,7 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
     if (!viva || !claimsBatemComSessao(claims, viva)) return null;
     if (viva.tipo === 'super_admin') return { tipo: 'super_admin', id: claims.sub, sessao_id: claims.sid };
     if (viva.tenant_id === null || !viva.usuario_id) return { tipo: 'admin_cliente', sessao_id: claims.sid, empresa: null };
-    return { tipo: 'admin_cliente', sessao_id: claims.sid, empresa: { tenant_id: viva.tenant_id, usuario_id: viva.usuario_id } };
+    return { tipo: 'admin_cliente', sessao_id: claims.sid, empresa: { tenant_id: viva.tenant_id, usuario_id: viva.usuario_id, ...(viva.sem_filial === true ? { sem_filial: true } : {}) } };
   }
 
   return { login, escolherEmpresa, renovar, sair, autenticarPortal };
