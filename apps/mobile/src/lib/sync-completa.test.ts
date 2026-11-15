@@ -7,14 +7,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { EtapaEntrada } from '@macuxi/core/contracts';
 
-import { MANIFESTOS_INSTALADOS } from './instalados';
 import {
   completaVisivel,
   criarPopupCompleta,
   decidirPedidoSync,
   desenhoPopupCompleta,
   entradaDoProgressoCompleta,
-  ENTIDADES_SYNC_PARCIAL,
   pedidoDoAgendador,
   rodarSync,
   telaAcesaNaCompleta,
@@ -30,8 +28,8 @@ function motorFalso(ok = true) {
       chamadas.push(`enviar${o?.incluirFalhos ? '+falhos' : ''}`);
       return [];
     }),
-    sincronizar: vi.fn(async () => {
-      chamadas.push('sincronizar');
+    sincronizar: vi.fn(async (o?: { modo?: 'parcial' | 'completa' }) => {
+      chamadas.push(o?.modo ? `sincronizar:${o.modo}` : 'sincronizar');
       return ok;
     }),
     sincronizarNovidades: vi.fn(async (o?: { entidades?: readonly string[] }) => {
@@ -45,38 +43,24 @@ function motorFalso(ok = true) {
 const modulosOk = () => Promise.resolve();
 
 describe('parcial e completa no motor (R-20261115-100000)', () => {
-  it('as entidades da parcial são só de pedidos (vendedor) e clientes (core), e existem nos manifestos', () => {
-    const core = MANIFESTOS_INSTALADOS.find((x) => x.id === 'core')!;
-    const vendedor = MANIFESTOS_INSTALADOS.find((x) => x.id === 'vendedor')!;
-    const declaradas = new Set([...(core.sync ?? []), ...(vendedor.sync ?? [])]);
-    for (const e of ENTIDADES_SYNC_PARCIAL) {
-      expect(declaradas.has(e)).toBe(true);
-      expect(/^(pedido|cliente|carteira)/.test(e)).toBe(true);
-    }
-    // sem estoque, preço, catálogo ou produto: isso é da completa
-    expect(ENTIDADES_SYNC_PARCIAL.some((e) => /estoque|preco|produto|catalogo/.test(e))).toBe(false);
-    // clientes antes dos pedidos
-    expect(ENTIDADES_SYNC_PARCIAL.indexOf('cliente')).toBeLessThan(ENTIDADES_SYNC_PARCIAL.indexOf('pedido'));
-  });
-
   it('o `manual` do agendador (botão, puxar para baixo, selo) vira a parcial; os outros, a leve', () => {
     expect(pedidoDoAgendador('manual')).toEqual({ tipo: 'parcial' });
     expect(pedidoDoAgendador('periodico')).toEqual({ tipo: 'leve' });
     expect(pedidoDoAgendador('aviso', ['pedido'])).toEqual({ tipo: 'leve', entidades: ['pedido'] });
   });
 
-  it('parcial (v1): envia a fila com os que falharam e puxa só pedidos e clientes, sem módulos nem a completa', async () => {
+  it('parcial (v1): envia a fila com os que falharam e chama o motor no modo parcial, sem módulos', async () => {
     const { m, chamadas } = motorFalso();
     const atualizarModulos = vi.fn(modulosOk);
     expect(await rodarSync({ tipo: 'parcial' }, m, { modo: 'v1', offline: false, atualizarModulos })).toBe(
       true,
     );
-    expect(chamadas).toEqual(['enviar+falhos', `novidades:${ENTIDADES_SYNC_PARCIAL.join(',')}`]);
+    expect(chamadas).toEqual(['enviar+falhos', 'sincronizar:parcial']);
     expect(atualizarModulos).not.toHaveBeenCalled();
-    expect(m.sincronizar).not.toHaveBeenCalled();
+    expect(m.sincronizarNovidades).not.toHaveBeenCalled();
   });
 
-  it('completa: envio com os falhos, módulos efetivos e sincronizar (tudo, inclusive estoque)', async () => {
+  it('completa: envio com os falhos, módulos efetivos e o motor no modo completa (tudo do zero)', async () => {
     const { m, chamadas } = motorFalso();
     const atualizarModulos = vi.fn(async () => {
       chamadas.push('modulos');
@@ -84,7 +68,7 @@ describe('parcial e completa no motor (R-20261115-100000)', () => {
     expect(await rodarSync({ tipo: 'completa' }, m, { modo: 'v1', offline: false, atualizarModulos })).toBe(
       true,
     );
-    expect(chamadas).toEqual(['enviar+falhos', 'modulos', 'sincronizar']);
+    expect(chamadas).toEqual(['enviar+falhos', 'modulos', 'sincronizar:completa']);
   });
 
   it('completa sem rede nos módulos: segue para o sincronizar (o motor registra o erro)', async () => {
@@ -93,7 +77,7 @@ describe('parcial e completa no motor (R-20261115-100000)', () => {
     expect(await rodarSync({ tipo: 'completa' }, m, { modo: 'v1', offline: false, atualizarModulos })).toBe(
       false,
     );
-    expect(chamadas).toEqual(['enviar+falhos', 'sincronizar']);
+    expect(chamadas).toEqual(['enviar+falhos', 'sincronizar:completa']);
   });
 
   it('leve (automática e aviso): novidades, como antes', async () => {
@@ -126,9 +110,9 @@ describe('uma sincronização por vez', () => {
     expect(decidirPedidoSync('parcial', null)).toBe('rodar');
     expect(decidirPedidoSync('completa', null)).toBe('rodar');
   });
-  it('completa durante a parcial ou a leve: espera a atual e roda a completa depois', () => {
-    expect(decidirPedidoSync('completa', 'parcial')).toBe('esperar');
-    expect(decidirPedidoSync('completa', 'leve')).toBe('esperar');
+  it('completa durante a parcial ou a leve: roda (não vira a parcial; a espera fica no motor)', () => {
+    expect(decidirPedidoSync('completa', 'parcial')).toBe('rodar');
+    expect(decidirPedidoSync('completa', 'leve')).toBe('rodar');
   });
   it('o resto junta-se à que está rodando (mesma promessa)', () => {
     expect(decidirPedidoSync('completa', 'completa')).toBe('juntar');

@@ -227,7 +227,7 @@ function usePlataformaValor() {
   const aparelhoBloqueadoRef = useRef<((erro: unknown) => Promise<boolean>) | null>(null);
   /** T-0059: sincronização do shell em curso (inclui a consulta dos módulos antes do motor) e quando começou. */
   const syncEmCursoRef = useRef<Promise<boolean> | null>(null);
-  /** Tipo da sincronização em curso (R-20261115-100000: a completa pedida durante a parcial espera e roda depois). */
+  /** Tipo da sincronização em curso (R-20261115-100000: a completa pedida durante a parcial não se junta a ela). */
   const tipoEmCursoRef = useRef<TipoSync | null>(null);
   const ultimoInicioRef = useRef<number | null>(null);
   /** Abriu o app com sessão e carga gravada: vai direto ao Início e sincroniza em segundo plano (R-20261102-091336). */
@@ -514,21 +514,17 @@ function usePlataformaValor() {
    * Sincronização do app (R-20261115-100000, `lib/sync-completa.ts`): parcial (botão, puxar para baixo e selo: fila + pedidos e
    * clientes), completa (segurar 10 s, tela de carga: fila + módulos + tudo) ou leve (automática e aviso: novidades). Uma por
    * vez (T-0059): quem chama durante uma em curso recebe a mesma promessa, sem consultar os módulos de novo nem reiniciar a
-   * carga; só a completa pedida durante uma parcial ou leve espera ela terminar e roda depois. Telas navegam pelo ESTADO do
-   * motor, não por esta promessa.
+   * carga; só a completa pedida durante uma parcial ou leve roda (o motor espera a em curso terminar, ADR 0057). Telas
+   * navegam pelo ESTADO do motor, não por esta promessa.
    */
   const executarSync = useCallback(
-    function executar(pedido: PedidoSync): Promise<boolean> {
+    (pedido: PedidoSync): Promise<boolean> => {
       const m = motorRef.current;
       // T-0145: sem as permissões obrigatórias nada sincroniza (nem a carga, nem o agendador, nem o botão)
       if (!m || !permissoesOkRef.current) return Promise.resolve(false);
       const emCurso = syncEmCursoRef.current;
       const decisao = decidirPedidoSync(pedido.tipo, emCurso ? tipoEmCursoRef.current : null);
       if (emCurso && decisao === 'juntar') return emCurso;
-      if (emCurso && decisao === 'esperar') {
-        const depois = (): Promise<boolean> => (motorRef.current === m ? executar(pedido) : Promise.resolve(false));
-        return emCurso.then(depois, depois);
-      }
       ultimoInicioRef.current = Date.now();
       // T-0140: a sincronização do app (inclui a carga inicial) segura a trava única: a tarefa sem tela não começa junto
       travaSync.entrar('sincronizacao');
@@ -541,7 +537,6 @@ function usePlataformaValor() {
           if (motorRef.current !== m) return false;
           await m.carregar();
         }
-        // spec rota-catalogo-perfil §4: a parcial e a completa reenviam também os itens que falharam (o "Enviar agora" saiu)
         return rodarSync(pedido, m, { modo, offline: offlineRef.current, atualizarModulos });
       })().finally(() => {
         travaSync.sair('sincronizacao');
