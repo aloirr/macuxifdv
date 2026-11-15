@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { formatBRL } from '@macuxi/comum';
-import { Badge, formatAge, type NoticeTone, Panel } from '@macuxi/ui/web';
+import { Badge, formatAge, type NoticeTone, nomeLegivel, Panel, rotuloComContagem } from '@macuxi/ui/web';
 import type { Order } from '../../../contracts';
 import { AvisoDeDecisao, BotoesDeDecisao } from './decisao';
 
@@ -21,22 +21,20 @@ export function motivoDoCartao(a: Pick<Order, 'effective_discount_pct' | 'nivel_
 export function ApprovalsPanel({ approvals, nowMs, onOpen }: { approvals: Order[]; nowMs: number; onOpen: (o: Order) => void }) {
   const [aviso, setAviso] = useState<{ tom: NoticeTone; texto: string } | null>(null);
 
+  // §P6 regra 5: o quadro só existe com pelo menos um pedido pendente
+  if (approvals.length === 0) return null;
+
   return (
-    <Panel
-      label="Aguardando aprovação"
-      title={`Aguardando aprovação · ${approvals.length}`}
-      className="flex-[1_1_340px] self-start xl:flex-[0_0_340px]"
-    >
+    <Panel label="Aguardando aprovação" title={rotuloComContagem('Aguardando aprovação', approvals.length)} className="w-full">
       <AvisoDeDecisao aviso={aviso} onClose={() => setAviso(null)} />
-      {approvals.length === 0 && <span className="text-[13px] text-ink-2">Nada pendente.</span>}
-      <div className="flex max-h-[640px] flex-col gap-3 overflow-y-auto" data-testid="pedidos.pendentes">
+      <div className="grid max-h-[320px] grid-cols-1 gap-3 overflow-y-auto md:grid-cols-2 xl:grid-cols-3" data-testid="pedidos.pendentes">
         {approvals.map((a) => {
           const idade = Math.max(0, Math.round((nowMs - Date.parse(a.received_at)) / 60000));
           return (
             <div key={a.id} className="flex flex-col gap-2 rounded-xl border border-line p-3">
               <div className="flex justify-between gap-2">
                 <button type="button" onClick={() => onOpen(a)} className="flex min-w-0 flex-col gap-px text-left hover:underline" aria-label={`Abrir pedido ${a.number}`}>
-                  <span className="text-[14px] font-semibold">{a.customer_name}</span>
+                  <span className="text-[14px] font-semibold">{nomeLegivel(a.customer_name)}</span>
                 </button>
                 <span className="text-[14px] font-semibold whitespace-nowrap tabular-nums">{formatBRL(a.total_cents)}</span>
               </div>

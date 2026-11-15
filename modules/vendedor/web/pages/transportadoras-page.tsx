@@ -1,10 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { formatarDocumento } from '@macuxi/comum';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, ErrorBlock, FilterBar, IconDownload, LoadingBlock, Notice, PageHeader, Panel, SelectField, TableScroll, td, th, useToast } from '@macuxi/ui/web';
+import { Badge, Button, CampoBusca, CampoFormulario, CLASSE_CAMPO, type ColunaDaTabela, Drawer, ErrorBlock, EstadoVazio, FilterBar, LoadingBlock, type AcaoDoMenu, MenuAcoes, nomeLegivel, Notice, PageHeader, Panel, rotuloComContagem, SelectField, SeloSituacao, TabelaDados, useToast } from '@macuxi/ui/web';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { localIsoDate } from '@macuxi/comum/fuso';
 import type { Transportadora } from '../../contracts';
@@ -22,12 +22,10 @@ import {
   type FormTransportadora,
 } from '../lib/transportadoras';
 
-const campo = 'h-10 box-border w-full rounded-[10px] border border-field bg-surface px-3 text-[14px] text-ink';
-
 /**
  * Transportadoras e frete (RN-VEN-16, T-0061): lista do FOB com busca na URL e CSV, cadastro/edição/inativação (admin, analista,
  * gerente), transportadoras digitadas pelos vendedores para cadastrar e o padrão do frete do tenant (CIF, só leitura: a escrita de
- * parâmetros é do Core).
+ * parâmetros é do Core). Revisão do BKO: contagem e frete padrão no título, formulário na gaveta, "⋯" na linha.
  * Botões refletem a permissão; a proteção real é na API.
  */
 export function TransportadorasPage() {
@@ -42,6 +40,13 @@ export function TransportadorasPage() {
   const [edicao, setEdicao] = useState<{ id: string | null; form: FormTransportadora } | null>(null);
   const [tentou, setTentou] = useState(false);
   const [erroForm, setErroForm] = useState<string | null>(null);
+  const [busca, setBusca] = useState(filtros.q);
+  // busca ao digitar, com espera de 300 ms (§P4)
+  useEffect(() => {
+    if (busca === filtros.q) return;
+    const t = setTimeout(() => mudar({ q: busca }), 300);
+    return () => clearTimeout(t);
+  }, [busca]);
 
   const mudar = (patch: Partial<FiltrosTransportadoras>) =>
     setFiltros((atual) => {
@@ -67,7 +72,7 @@ export function TransportadorasPage() {
     mutationFn: async (t: Transportadora) => api<Transportadora>(`/vendedor/transportadoras/${t.id}`, { method: 'PUT', body: { ativo: !t.ativo } }),
     onSuccess: async (t) => {
       await atualizarTudo();
-      toast('success', t.ativo ? 'Transportadora reativada.' : 'Transportadora inativada: não aparece mais para o vendedor escolher.');
+      toast('success', t.ativo ? 'Transportadora reativada.' : 'Transportadora inativada.');
     },
     onError: (e) => toast('danger', errorMessage(e)),
   });
@@ -89,182 +94,145 @@ export function TransportadorasPage() {
   };
   const set = (k: keyof FormTransportadora, v: string) => setEdicao((e) => (e ? { ...e, form: { ...e.form, [k]: v } } : e));
 
+  const temFiltro = Boolean(filtros.q || filtros.ativas);
+  const abrirEdicao = (t: Transportadora) => {
+    setErroForm(null);
+    setTentou(false);
+    setEdicao({ id: t.id, form: formDaTransportadora(t) });
+  };
+  const acoesDaPagina: AcaoDoMenu[] = [{ id: 'csv', rotulo: 'Exportar CSV', aoEscolher: exportar, desligada: itens.length === 0, testId: 'transportadoras.exportar-csv' }];
+  const colunas: ColunaDaTabela<Transportadora>[] = [
+    { id: 'nome', titulo: 'Nome', celula: (t) => nomeLegivel(t.nome), texto: (t) => t.nome, largura: '38%' },
+    { id: 'cnpj', titulo: 'CNPJ', celula: (t) => <span className="font-mono">{t.documento ? formatarDocumento(t.documento) : '—'}</span>, texto: (t) => (t.documento ? formatarDocumento(t.documento) : ''), prioridade: 2 },
+    { id: 'telefone', titulo: 'Telefone', celula: (t) => t.telefone ?? '—', texto: (t) => t.telefone ?? '', prioridade: 3 },
+    { id: 'situacao', titulo: 'Situação', celula: (t) => <SeloSituacao selos={[t.ativo ? { tom: 'success', texto: 'Ativa' } : { tom: 'neutral', texto: 'Inativa' }]} />, largura: '110px' },
+    { id: 'origem', titulo: 'Origem', celula: (t) => (t.external_id ? 'ERP' : 'BKO'), prioridade: 3, largura: '80px' },
+  ];
+  const vazio = (
+    <EstadoVazio
+      testId="transportadoras.vazio"
+      titulo={temFiltro ? 'Nenhuma transportadora com esses filtros.' : 'Nenhuma transportadora cadastrada.'}
+      acao={!temFiltro && podeGerenciar ? <Button variant="primary" onClick={() => abrirNova()}>Nova transportadora</Button> : undefined}
+    />
+  );
+  const colunasDigitadas: ColunaDaTabela<Digitada>[] = [
+    { id: 'nome', titulo: 'Nome', celula: (d) => nomeLegivel(d.nome), texto: (d) => d.nome, largura: '40%' },
+    { id: 'cnpj', titulo: 'CNPJ', celula: (d) => <span className="font-mono">{formatarDocumento(d.documento)}</span>, texto: (d) => formatarDocumento(d.documento), prioridade: 2 },
+    { id: 'telefone', titulo: 'Telefone', celula: (d) => d.telefone ?? '—', texto: (d) => d.telefone ?? '', prioridade: 3 },
+    { id: 'pedidos', titulo: 'Pedidos', celula: (d) => d.pedidos, numero: true, largura: '90px' },
+  ];
+
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="transportadoras.tela">
       <PageHeader
-        title="Transportadoras e frete"
-        subtitle="Lista do frete FOB, em que o cliente paga a transportadora direto."
+        title={lista.data ? rotuloComContagem('Transportadoras e frete', itens.length) : 'Transportadoras e frete'}
+        badge={frete.data ? <Badge tone="neutral" className="text-[12px]"><span data-testid="frete.padrao">Frete padrão: {frete.data.modalidade_padrao}</span></Badge> : undefined}
         actions={
           <>
-            <Button variant="link" onClick={exportar} disabled={itens.length === 0} className="font-semibold" data-testid="transportadoras.exportar-csv">
-              <IconDownload size={15} />
-              Exportar CSV
-            </Button>
             {podeGerenciar && (
               <Button variant="primary" onClick={() => abrirNova()} data-testid="transportadoras.nova">
                 Nova transportadora
               </Button>
             )}
+            <MenuAcoes acoes={acoesDaPagina} />
           </>
         }
       />
-
-      <Panel label="Frete" title="Padrão do frete da empresa">
-        <div className="flex flex-col gap-2 text-[14px]">
-          <span className="text-ink-2">
-            CIF: a empresa paga e o frete está no preço (sem transportadora). FOB: o cliente paga e o vendedor informa a transportadora. O pedido nunca tem valor de frete.
-          </span>
-          {frete.isError && <ErrorBlock message={errorMessage(frete.error)} onRetry={() => void frete.refetch()} />}
-          {frete.data && (
-            <div className="flex flex-wrap items-center gap-2" data-testid="frete.padrao">
-              <span className="font-semibold">Padrão atual:</span>
-              <Badge tone={frete.data.modalidade_padrao === 'CIF' ? 'success' : 'warning'}>{frete.data.modalidade_padrao}</Badge>
-              <span className="text-[12px] text-ink-2">Para mudar o padrão, fale com o suporte: a edição de parâmetros pelo BKO chega em uma próxima atualização.</span>
-            </div>
-          )}
-        </div>
-      </Panel>
+      {frete.isError && <ErrorBlock message={errorMessage(frete.error)} onRetry={() => void frete.refetch()} />}
 
       <FilterBar>
-        <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-[12px] font-semibold text-ink-2">
-          Nome ou CNPJ
-          <input type="search" className={campo} value={filtros.q} maxLength={100} placeholder="Ex.: Rápido ou 11.222" onChange={(e) => mudar({ q: e.target.value })} data-testid="transportadoras.filtro-busca" />
-        </label>
+        <CampoBusca rotulo="Buscar nome ou CNPJ" value={busca} maxLength={100} onChange={(e) => setBusca(e.target.value)} data-testid="transportadoras.filtro-busca" />
         <SelectField label="Situação" value={filtros.ativas} onChange={(e) => mudar({ ativas: e.target.value === '1' ? '1' : '' })} data-testid="transportadoras.filtro-situacao">
           <option value="">Todas</option>
           <option value="1">Só ativas</option>
         </SelectField>
-        {(filtros.q || filtros.ativas) && (
-          <Button size="sm" onClick={() => mudar(FILTROS_TRANSP_VAZIOS)} data-testid="transportadoras.limpar-filtros">
+        {temFiltro && (
+          <Button
+            size="sm"
+            onClick={() => {
+              setBusca('');
+              mudar(FILTROS_TRANSP_VAZIOS);
+            }}
+            data-testid="transportadoras.limpar-filtros"
+          >
             Limpar filtros
           </Button>
         )}
       </FilterBar>
 
-      {edicao && podeGerenciar && (
-        <Panel label="Cadastro" title={edicao.id ? 'Editar transportadora' : 'Nova transportadora'}>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2" data-testid="transportadoras.form">
-            <Campo rotulo="Nome" erro={tentou ? erros.nome : undefined}>
-              <input className={campo} value={edicao.form.nome} maxLength={120} onChange={(e) => set('nome', e.target.value)} data-testid="transportadoras.nome" />
-            </Campo>
-            <Campo rotulo="CNPJ" erro={tentou ? erros.documento : undefined}>
-              <input className={campo} value={edicao.form.documento} inputMode="numeric" maxLength={18} onChange={(e) => set('documento', e.target.value)} data-testid="transportadoras.cnpj" />
-            </Campo>
-            <Campo rotulo="Inscrição estadual (opcional)" erro={tentou ? erros.inscricao_estadual : undefined}>
-              <input className={campo} value={edicao.form.inscricao_estadual} maxLength={20} onChange={(e) => set('inscricao_estadual', e.target.value)} data-testid="transportadoras.ie" />
-            </Campo>
-            <Campo rotulo="Telefone (opcional)" erro={tentou ? erros.telefone : undefined}>
-              <input className={campo} value={edicao.form.telefone} maxLength={30} onChange={(e) => set('telefone', e.target.value)} data-testid="transportadoras.telefone" />
-            </Campo>
-          </div>
-          {erroForm && <Notice tone="danger">{erroForm}</Notice>}
-          <div className="flex gap-2">
+      <Drawer
+        open={!!edicao && podeGerenciar}
+        onClose={() => !salvar.isPending && setEdicao(null)}
+        title={edicao?.id ? 'Editar transportadora' : 'Nova transportadora'}
+        rodape={
+          <>
+            <Button onClick={() => setEdicao(null)} disabled={salvar.isPending} data-testid="transportadoras.cancelar">
+              Cancelar
+            </Button>
             <Button variant="primary" onClick={confirmar} disabled={salvar.isPending} data-testid="transportadoras.salvar">
               {salvar.isPending ? 'Salvando…' : 'Salvar'}
             </Button>
-            <Button onClick={() => setEdicao(null)} data-testid="transportadoras.cancelar">
-              Cancelar
-            </Button>
+          </>
+        }
+      >
+        {edicao && (
+          <div className="flex flex-col gap-4" data-testid="transportadoras.form">
+            {erroForm && <Notice tone="danger">{erroForm}</Notice>}
+            <CampoFormulario rotulo="Nome" erro={tentou ? erros.nome : undefined}>
+              <input className={CLASSE_CAMPO} value={edicao.form.nome} maxLength={120} aria-invalid={tentou && !!erros.nome} onChange={(e) => set('nome', e.target.value)} data-testid="transportadoras.nome" />
+            </CampoFormulario>
+            <CampoFormulario rotulo="CNPJ" erro={tentou ? erros.documento : undefined}>
+              <input className={CLASSE_CAMPO} value={edicao.form.documento} inputMode="numeric" maxLength={18} aria-invalid={tentou && !!erros.documento} onChange={(e) => set('documento', e.target.value)} data-testid="transportadoras.cnpj" />
+            </CampoFormulario>
+            <div className="grid grid-cols-2 gap-4">
+              <CampoFormulario rotulo="Inscrição estadual" opcional erro={tentou ? erros.inscricao_estadual : undefined}>
+                <input className={CLASSE_CAMPO} value={edicao.form.inscricao_estadual} maxLength={20} aria-invalid={tentou && !!erros.inscricao_estadual} onChange={(e) => set('inscricao_estadual', e.target.value)} data-testid="transportadoras.ie" />
+              </CampoFormulario>
+              <CampoFormulario rotulo="Telefone" opcional erro={tentou ? erros.telefone : undefined}>
+                <input className={CLASSE_CAMPO} value={edicao.form.telefone} maxLength={30} aria-invalid={tentou && !!erros.telefone} onChange={(e) => set('telefone', e.target.value)} data-testid="transportadoras.telefone" />
+              </CampoFormulario>
+            </div>
           </div>
-        </Panel>
-      )}
+        )}
+      </Drawer>
 
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando as transportadoras…" />}
       {lista.data && (
-        <Panel label="Lista" title={<>Transportadoras <span className="font-sans text-[13px] font-normal text-ink-2">· {itens.length}</span></>}>
-          {itens.length === 0 ? (
-            <span className="text-[13px] text-ink-2" data-testid="transportadoras.vazio">
-              {filtros.q || filtros.ativas ? 'Nenhuma transportadora com esses filtros.' : 'Nenhuma transportadora cadastrada. Cadastre a primeira para o vendedor escolher no frete FOB.'}
-            </span>
-          ) : (
-            <TableScroll minWidth={760}>
-              <table className="w-full border-collapse text-[13px]" data-testid="transportadoras.tabela">
-                <thead>
-                  <tr>
-                    <th scope="col" className={th}>Nome</th>
-                    <th scope="col" className={th}>CNPJ</th>
-                    <th scope="col" className={th}>Telefone</th>
-                    <th scope="col" className={th}>Situação</th>
-                    <th scope="col" className={th}>Origem</th>
-                    {podeGerenciar && <th scope="col" className={th}>Ações</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {itens.map((t) => (
-                    <tr key={t.id}>
-                      <td className={`${td} font-semibold`}>{t.nome}</td>
-                      <td className={`${td} font-mono whitespace-nowrap`}>{t.documento ? formatarDocumento(t.documento) : '—'}</td>
-                      <td className={`${td} whitespace-nowrap`}>{t.telefone ?? '—'}</td>
-                      <td className={td}>
-                        <Badge tone={t.ativo ? 'success' : 'neutral'}>{t.ativo ? 'Ativa' : 'Inativa'}</Badge>
-                      </td>
-                      <td className={td}>{t.external_id ? 'ERP' : 'BKO'}</td>
-                      {podeGerenciar && (
-                        <td className={`${td} whitespace-nowrap`}>
-                          <div className="flex gap-2">
-                            <Button size="sm" onClick={() => { setErroForm(null); setTentou(false); setEdicao({ id: t.id, form: formDaTransportadora(t) }); }} data-testid={`transportadoras.editar-${t.id}`}>
-                              Editar
-                            </Button>
-                            <Button size="sm" disabled={alternar.isPending} onClick={() => alternar.mutate(t)} data-testid={`transportadoras.alternar-${t.id}`}>
-                              {t.ativo ? 'Inativar' : 'Reativar'}
-                            </Button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </TableScroll>
-          )}
-        </Panel>
+        <section aria-label="Transportadoras" className={itens.length === 0 ? '' : 'rounded-2xl border border-line bg-surface p-4'}>
+          <TabelaDados
+            rotulo="Transportadoras"
+            colunas={colunas}
+            linhas={itens}
+            chave={(t) => t.id}
+            testId="transportadoras.tabela"
+            vazio={vazio}
+            esmaecida={(t) => !t.ativo}
+            aoAbrir={podeGerenciar ? abrirEdicao : undefined}
+            acoes={
+              podeGerenciar
+                ? (t) => [
+                    { id: 'editar', rotulo: 'Editar', aoEscolher: () => abrirEdicao(t), testId: `transportadoras.editar-${t.id}` },
+                    { id: 'alternar', rotulo: t.ativo ? 'Inativar' : 'Reativar', perigo: t.ativo, desligada: alternar.isPending, aoEscolher: () => alternar.mutate(t), testId: `transportadoras.alternar-${t.id}` },
+                  ]
+                : undefined
+            }
+          />
+        </section>
       )}
 
       {(digitadas.data?.length ?? 0) > 0 && (
-        <Panel label="Digitadas" title="Digitadas pelos vendedores (ainda fora do cadastro)">
-          <TableScroll minWidth={640}>
-            <table className="w-full border-collapse text-[13px]" data-testid="transportadoras.digitadas">
-              <thead>
-                <tr>
-                  <th scope="col" className={th}>Nome</th>
-                  <th scope="col" className={th}>CNPJ</th>
-                  <th scope="col" className={th}>Telefone</th>
-                  <th scope="col" className={th}>Pedidos</th>
-                  {podeGerenciar && <th scope="col" className={th}>Ação</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {digitadas.data!.map((d) => (
-                  <tr key={d.documento}>
-                    <td className={td}>{d.nome}</td>
-                    <td className={`${td} font-mono whitespace-nowrap`}>{formatarDocumento(d.documento)}</td>
-                    <td className={td}>{d.telefone ?? '—'}</td>
-                    <td className={td}>{d.pedidos}</td>
-                    {podeGerenciar && (
-                      <td className={td}>
-                        <Button size="sm" onClick={() => abrirNova(d)} data-testid={`transportadoras.cadastrar-${d.documento}`}>
-                          Cadastrar
-                        </Button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
+        <Panel label="Digitadas" title={rotuloComContagem('Digitadas pelos vendedores', digitadas.data!.length)}>
+          <TabelaDados
+            rotulo="Digitadas pelos vendedores"
+            colunas={colunasDigitadas}
+            linhas={digitadas.data!}
+            chave={(d) => d.documento}
+            testId="transportadoras.digitadas"
+            acoes={podeGerenciar ? (d) => [{ id: 'cadastrar', rotulo: 'Cadastrar', aoEscolher: () => abrirNova(d), testId: `transportadoras.cadastrar-${d.documento}` }] : undefined}
+          />
         </Panel>
       )}
     </div>
-  );
-}
-
-function Campo({ rotulo, erro, children }: { rotulo: string; erro?: string; children: React.ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-      {rotulo}
-      {children}
-      {erro && <span className="text-[12px] font-normal text-danger">{erro}</span>}
-    </label>
   );
 }

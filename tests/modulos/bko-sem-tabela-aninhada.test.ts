@@ -259,11 +259,28 @@ describe('BKO sem tabela dentro de tabela (T-0081; R-20261105-072330)', () => {
   });
 
   describe('varredura de todas as páginas do BKO', () => {
-    it('acha as páginas e os usos do TableScroll (a varredura não passa no vazio)', () => {
-      const usos = FONTES.reduce((n, f) => n + verificarFonte(f.arquivo, f.texto, COMPONENTES_TABELA).usos, 0);
+    // A guarda confere a regra, não um número: a revisão do BKO (T-0173) troca `TableScroll` + `<table>` à mão pela
+    // `TabelaDados` do kit, e os usos do `TableScroll` caem de propósito a cada módulo revisado (32 → 28 no #298).
+    // "Não passar no vazio" = a varredura lê todas as raízes do BKO, enxerga as tabelas das telas e conta cada
+    // `<TableScroll>` que o fonte tem (a AST não deixa escapar nenhum).
+    it('acha as páginas e as tabelas do BKO, e conta todo TableScroll do fonte (a varredura não passa no vazio)', () => {
       expect(FONTES.length).toBeGreaterThan(50);
-      expect(usos).toBeGreaterThanOrEqual(30);
-      expect(new Set(FONTES.map((f) => f.arquivo.split('/').slice(0, 2).join('/')))).toContain('modules/core');
+      for (const raiz of ['modules/core/web/', 'apps/web/', 'packages/ui/src/web/'])
+        expect(FONTES.some((f) => f.arquivo.startsWith(raiz)), raiz).toBe(true);
+      // o próprio kit está na varredura (é onde o `<table>` do TableScroll e o da TabelaDados nascem)
+      expect(FONTES.map((f) => f.arquivo)).toContain('packages/ui/src/web/ui.tsx');
+
+      // piso baixo e estável: telas com tabela (TableScroll, TabelaDados ou <table>), qualquer que seja o jeito
+      const TAGS_DE_TABELA = new Set(['table', 'TableScroll', 'TabelaDados']);
+      const paginasComTabela = FONTES.filter((f) =>
+        elementosJsx(ts.createSourceFile(f.arquivo, f.texto, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)).some((x) => TAGS_DE_TABELA.has(nomeDaTag(x))),
+      );
+      expect(paginasComTabela.length).toBeGreaterThanOrEqual(20);
+
+      // a AST conta todo `<TableScroll>` com filhos que o texto do fonte tem (nenhum uso escapa da conferência)
+      const usosNaAst = FONTES.reduce((n, f) => n + verificarFonte(f.arquivo, f.texto, COMPONENTES_TABELA).usos, 0);
+      const usosNoTexto = FONTES.reduce((n, f) => n + (f.texto.match(/<TableScroll\b[^>]*[^/]>/g)?.length ?? 0), 0);
+      expect(usosNaAst).toBe(usosNoTexto);
     });
 
     it('nenhuma página do BKO monta tabela dentro de tabela (TableScroll, componente de tabela ou <table> aninhado)', () => {
