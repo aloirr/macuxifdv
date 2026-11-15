@@ -99,10 +99,14 @@ Pedido do `testes` (R-20261030-235542-testes). **Contrato estável**: o nome só
 ## BKO — tela Usuários (`/usuarios`, T-0067)
 | data-testid | Elemento |
 |---|---|
-| `usuarios.tela` · `usuarios.novo` · `usuarios.exportar-csv` | página; botão "Novo usuário" (só admin, ausente para os demais); CSV |
+| `usuarios.tela` · `usuarios.novo` | página; botão "Novo usuário" (só admin, ausente para os demais) |
 | `usuarios.busca` · `usuarios.filtro-perfil` · `usuarios.filtro-equipe` · `usuarios.filtro-situacao` | filtros (ficam na URL: `q`, `perfil`, `equipe`, `situacao`) |
 | `usuarios.linha.<id>` | linha do usuário |
 | `usuarios.editar.<id>` · `usuarios.alternar.<id>` · `usuarios.senha.<id>` | Editar, Desativar/Reativar e "Redefinir senha"/"Enviar acesso" (só admin; a senha não aparece para admin nem inativo) |
+| `usuarios.menu.<id>` · `usuarios.desbloquear.<id>` | menu "⋯" da linha (`MenuAcoes` do kit) e "Desbloquear" (primeiro item, só com selo de bloqueio e `usuario.desbloquear`) |
+| `usuarios.selo.<id>` | selo único da linha: "Inativo", "Bloqueado" ou "Bloqueado até HHhMM" (docs/design/telas/usuario-bloqueio.md §2) |
+| `usuarios.gaveta-bloqueio` · `usuarios.gaveta-desbloquear` | faixa do bloqueio na gaveta "Editar usuário" e o botão "Desbloquear" (age na hora, fora do Salvar) |
+| `usuarios.anuncio` · `usuarios.erro-lista` | anúncio "Desbloqueado." só para leitor de tela; erro do Desbloquear fora da gaveta |
 | `usuarios.etiqueta-senha.<id>` | etiqueta "Troca de senha pendente · vence em …", "Senha temporária vencida" ou "Sem senha" |
 | `usuarios.gerar-senha` · `usuarios.mostrar-senha` · `usuarios.aviso-email` | formulário: "Gerar senha", olho e ajuda do e-mail |
 | `usuarios.aviso-sem-email` · `usuarios.copiar-senha` | aviso quando o e-mail não saiu (mostra a senha uma vez) e "Copiar senha" |
@@ -144,3 +148,5 @@ Lista em `/core/perfis`; edição em `/core/perfis?perfil=<codigo>` (o shell nã
 | `perfil.contagem` · `perfil.descartar` · `perfil.salvar` · `perfil.restaurar` · `perfil.historico` · `perfil.outras` | moldura, rodapé fixo e ações |
 | `perfil.resumo` · `.erro` · `.salvar` · `.voltar` | diálogo "Confira antes de salvar" |
 | `usuarios.campo-perfis` · `usuarios.previa` · `usuarios.previa.onde-entra` | campo "Perfis" e prévia no formulário de Usuários |
+| `usuarios.campo-gerente` · `usuarios.campo-supervisor` · `usuarios.campo-equipe-nome` · `usuarios.campo-external-id` | gaveta Novo usuário: Gerente, Supervisor e Nome da equipe conforme o cargo do perfil (RN-CORE-55/56) e Código no ERP (RN-CORE-57) |
+| `perfil.novo.nome` · `perfil.novo.cargo` · `perfil.novo.salvar` · `perfil.novo.cancelar` · `perfil.novo.grade` · `perfil.modulo.<id>` · `perfil.grupo.<subtítulo>` | Novo perfil: nome, cargo (RN-CORE-53), grade por módulo e subtítulos de Geral |

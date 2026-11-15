@@ -1,6 +1,6 @@
 /**
  * Perfis de acesso de um usuário no login (RN-CORE-01/35; ADR 0033): lê `plataforma.perfis_do_usuario` (0041) na transação do tenant e
- * resolve com o motor do SDK. Multiperfil: basta um perfil de base vendedor/promotor/supervisor para fechar o BKO (regra mais restritiva).
+ * resolve com o motor do SDK. Um perfil por usuário (RN-CORE-54): perfil de base vendedor/promotor/supervisor fecha o BKO.
  * Sem nenhuma linha (usuário antigo, banco sem a 0041 semeada) cai no perfil de fábrica do principal: falha fechada para o que a fábrica fecha.
  * As chaves `acesso.*` são só da plataforma, então a matriz sem manifestos basta numa rota pública.
  */
