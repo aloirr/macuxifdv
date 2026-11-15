@@ -50,3 +50,34 @@ O pedido é do dono do produto (R-20261115-071000): "Padrão da senha é o olho 
 - **"Repita a senha":** é um `CampoSenha` sem olho, que segue o olho do "Senha nova". O olho aparece uma vez só, e um toque mostra os 2 campos.
 - **Testes:** o teste mobile confere a função pura e a fonte do componente; o teste web confere a árvore do componente. Não há caso repetido com outro nome.
 - **`inventario.md`:** cada lugar aparece uma vez só, com o dono de cada um.
+
+## 4. Reteste (15/11/2026, commit 1826f04 do designer-ux)
+**Veredito:**
+- **3 corrigidos:** RD-0477, RD-0478 e RD-0480.
+- **1 continua aberto:** RD-0479, que o designer-ux adiou para o lote da migração (v1.0.10).
+- **1 achado novo, só em comentário:** RD-0481, de gravidade baixa. Pela R-20261111-190159, ele não segura.
+
+| RD | Situação | Evidência |
+|---|---|---|
+| RD-0477 | **corrigido** | `FinalidadeSenha` está declarada uma vez só, em `comum/senha.ts:52-53`, e é reexportada pelos 2 `senha.tsx`. `git grep FinalidadeSenhaWeb` não acha nada. |
+| RD-0478 | **corrigido** | `CAMPO_SENHA_CSS` saiu. A classe agora é a `CLASSE_CAMPO_ACESSO`, em `web/ui.tsx:137`, que o `CampoSenha` usa. O `inventario.md` manda os 2 `campoCss` do `apps/web` importarem essa classe na migração; o engenheiro-apps faz isso. |
+| RD-0479 | **aberto** (adiado) | `ESCONDER_SENHA` continua em `comum/senha.ts:50` e nos 2 reexports, agora com "Sai no lote da v1.0.10, com a migração das telas". Nenhuma tela usa o `CampoSenha` ainda, então o produto ainda não mostra as 2 palavras ao mesmo tempo. O achado fecha quando as 7 telas do inventário migrarem e o `git grep ESCONDER_SENHA` não achar nada. **Segura o lote da v1.0.10**, que é onde ele tem de fechar. |
+| RD-0480 | **corrigido** | No `componentes.md`, o item `CampoSenha` agora só remete a `campo-senha/spec.md`, sem medidas. A divergência 44 × 48 sumiu. |
+
+### `CLASSE_CAMPO_ACESSO` × `CLASSE_CAMPO` / `CLASSE_CAMPO_BASE` (pedido do coordenador)
+**Não é duplicação.** A `CLASSE_CAMPO_BASE` (`ui.tsx:58`) e a `CLASSE_CAMPO_ACESSO` (`ui.tsx:137`) só têm em comum `border border-field bg-surface text-ink`. Nas outras propriedades, elas são 2 variantes visuais diferentes:
+
+| Propriedade | `CLASSE_CAMPO_BASE` | `CLASSE_CAMPO_ACESSO` |
+|---|---|---|
+| Raio | 10 px | `rounded-xl` |
+| Texto | 14, medium | 15, regular |
+| Foco | `CLASSES_DESTAQUE.foco` (offset 2) | borda `ink` + offset 1 |
+| Desabilitado | `opacity-60` | `bg-ground` / `text-ink-2` |
+| Altura | 42 px (na `CLASSE_CAMPO`) | 44 px |
+
+O `cx` só junta as classes e não resolve conflito. Por isso, montar a de acesso a partir da base deixaria 2 raios e 2 tamanhos de texto na mesma classe. Juntar as duas mudaria o visual das telas de acesso, e essa decisão é do design-de-marca, não minha. Fica uma classe por variante, e as 3 cópias viram 1 depois da migração.
+
+### RD-0481 · baixa · comentário · designer-ux · **não segura** (só comentário)
+- **Onde:** `packages/ui/src/web/ui.tsx:55`, no comentário da `CLASSE_CAMPO_BASE`: "Traço, cor, texto e foco de **todo campo do kit**".
+- **O que se repete:** o comentário diz que essa é a base de todos os campos. Com a `CLASSE_CAMPO_ACESSO`, há outra base no mesmo arquivo, e quem ler o comentário pode montar uma 3ª.
+- **Proposta:** "Traço, cor, texto e foco dos campos do kit (filtros, busca e formulário; RD-0368). Telas de acesso: `CLASSE_CAMPO_ACESSO`. Cada campo só acrescenta a altura, a largura e o respiro."
