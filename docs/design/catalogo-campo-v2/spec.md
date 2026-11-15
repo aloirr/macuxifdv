@@ -5,7 +5,7 @@
 > `catalogo-campo-v2.html` (`?v=grade|filtrada|ficha|busca|dica|folha`) e `simulacao.css`. PNGs 360 × 800 (escala 2).
 > Barra de baixo: a real do Campo, `Início · Rota · Clientes · Pedidos · Performance · Mais` (`apps/mobile/src/lib/abas.ts`, 6 posições;
 > a Performance fica na barra, R-20261115-084500). O Catálogo está no `Mais`, que fica aceso.
-> Pareceres: corretor (RD-0496 e RD-0497) e marca (MC-0086) atendidos; o RD-0498 deixou de valer (§4). Altera `catalogo-grade.md` §1, §2 e §4 (o §4 já está com o rótulo novo).
+> Pareceres: corretor (RD-0496 e RD-0497) e marca (MC-0086) atendidos; o RD-0498 deixou de valer (§4). Altera `catalogo-grade.md` §1, §2 e §4.
 > Tela: `modules/catalogo/app/telas/catalogo.tsx`, `comum.tsx` e `produto.tsx` (modulo-catalogo). Dados de exemplo fictícios.
 
 | PNG | O que mostra |
@@ -42,16 +42,9 @@ no copiar só copia (`Código copiado`).
   opcional (R-20261115-073000): sem ela, a linha mostra só o código. Sem referência, a seção não aparece.
 
 ## 3. Estoque: sem saldo ou sem informação = 0
-Rótulo `Estoque: N` em todo o Catálogo: cartão da grade, ficha (filial do vendedor) e busca (R-20261115-082500).
-
-| Caso | Tag |
-|---|---|
-| 10 ou mais | `Estoque: 84` (sucesso) |
-| 1 a 9 | `Estoque: 6` (aviso) |
-| 0, ou nenhum saldo recebido | **`Estoque: 0`** (erro, o vermelho de hoje) |
-
-Acaba o `Estoque sem informação` (`modules/catalogo/app/lib/grade.ts:47` e `apresentacao.ts`, `rotuloEstoque`). Tenant que esconde a
-quantidade: `Sem estoque` (premissa; o número não aparece para ninguém nesse tenant).
+Rótulo `Estoque: N` em todo o Catálogo: cartão, ficha (filial do vendedor) e busca; sem saldo ou sem informação = `Estoque: 0`,
+vermelho (R-20261115-082500). Faixas e tenant que esconde a quantidade: `../catalogo-grade.md` §4. Acaba o `Estoque sem
+informação` (`modules/catalogo/app/lib/grade.ts:47` e `apresentacao.ts`, `rotuloEstoque`).
 
 ## 4. Filtro no topo (padrão de Pedidos)
 - Linha de busca de Pedidos: `CampoBusca` + `BotaoFiltro` (48 dp, selo com a contagem) e `EtiquetaFiltro` embaixo
