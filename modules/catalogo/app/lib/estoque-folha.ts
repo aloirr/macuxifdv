@@ -3,12 +3,11 @@
  * em Node; as regras (quem vê quais filiais, texto e cor) são do domain (`estoque-campo.ts`, `estoque.ts`).
  */
 import type { ItemVitrine } from '../../contracts';
-import { linhasDaFolhaEstoque, rotuloCargaEstoque, type LinhaFolhaEstoque } from '../../domain/estoque-campo';
+import { linhasDaFolhaEstoque, ordemPorNome, rotuloCargaEstoque, type LinhaFolhaEstoque } from '../../domain/estoque-campo';
 
 export const TITULO_FOLHA_ESTOQUE = 'Estoque por filial';
 
 export interface DadosDaFolha {
-  titulo: string;
   /** "PAF.1434 · Atualizado às 06:12": hora da carga do estoque no aparelho (decisão 5 do R-20261115-100000). */
   apoio: string;
   linhas: LinhaFolhaEstoque[];
@@ -22,7 +21,6 @@ export function dadosDaFolha(e: { codigo: string; availability: NonNullable<Item
   const mostrar = a.quantity !== null || a.by_branch.some((b) => b.quantity !== null);
   const linhas = linhasDaFolhaEstoque(a.by_branch, { proprias: e.filialCadastro === null ? [] : [e.filialCadastro], mostrarQuantidade: mostrar, marcarPropria: true });
   return {
-    titulo: TITULO_FOLHA_ESTOQUE,
     apoio: `${e.codigo} · ${hora}`,
     linhas,
     leitura: linhas.map((l) => ({ id: l.id, texto: `${l.nome}${l.propria ? ', sua filial' : ''}, ${mostrar ? `estoque ${l.valor.replace('−', 'menos ')}` : l.valor.toLowerCase()}` })),
@@ -41,8 +39,7 @@ export interface OpcaoFiltroFilial {
  * com uma só, o grupo não aparece. `proprias` = filiais de venda (RN-CORE-39).
  */
 export function opcoesDoFiltroFilial(e: { proprias: readonly string[]; filiais: readonly { id: string; nome: string }[] }): OpcaoFiltroFilial[] {
-  const ordem = (a: { nome: string }, b: { nome: string }) => a.nome.localeCompare(b.nome, 'pt-BR');
-  const minhas = e.filiais.filter((f) => e.proprias.includes(f.id)).sort(ordem);
+  const minhas = e.filiais.filter((f) => e.proprias.includes(f.id)).sort(ordemPorNome);
   if (minhas.length <= 1) return [];
   return [{ valor: 'todas', rotulo: `Suas filiais (${minhas.length})`, apoio: null }, ...minhas.map((f) => ({ valor: f.id, rotulo: f.nome, apoio: null }))];
 }

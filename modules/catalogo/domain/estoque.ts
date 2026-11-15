@@ -7,8 +7,6 @@
 import type { EstoqueVisivel, FaixaEstoque, StockByBranch } from '../contracts';
 import type { ParametrosCatalogo } from './parametros';
 
-/** RN-CAT-07: aviso discreto quando `stale` é true. */
-export const AVISO_ESTOQUE_DESATUALIZADO = 'Estoque desatualizado';
 export const ROTULO_SEM_HORA = 'Sem hora de atualização';
 
 export interface OpcoesEstoque {

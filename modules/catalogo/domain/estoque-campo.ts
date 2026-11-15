@@ -112,12 +112,14 @@ export interface LinhaFolhaEstoque {
   tom: 'sucesso' | 'erro';
 }
 
+/** Ordem alfabética (pt-BR) por nome, a única das listas de filial. */
+export const ordemPorNome = (a: { nome: string }, b: { nome: string }): number => a.nome.localeCompare(b.nome, 'pt-BR');
+
 /** spec §2.1: uma linha por filial; as do usuário primeiro, cada grupo em ordem alfabética; negativo com o sinal de menos. */
 export function linhasDaFolhaEstoque(
   porFilial: readonly { branch_id: string; branch_name: string; quantity: number | null; band?: FaixaEstoque }[],
   o: { proprias: readonly string[]; mostrarQuantidade: boolean; marcarPropria: boolean },
 ): LinhaFolhaEstoque[] {
-  const ordem = (a: { nome: string }, b: { nome: string }) => a.nome.localeCompare(b.nome, 'pt-BR');
   const linhas = porFilial.map((b) => {
     const q = b.quantity ?? (b.band && b.band !== 'sem_estoque' ? 1 : 0);
     return {
@@ -128,8 +130,8 @@ export function linhasDaFolhaEstoque(
       tom: corDoEstoque(q),
     };
   });
-  const minhas = linhas.filter((l) => l.propria).sort(ordem);
-  const outras = linhas.filter((l) => !l.propria).sort(ordem);
+  const minhas = linhas.filter((l) => l.propria).sort(ordemPorNome);
+  const outras = linhas.filter((l) => !l.propria).sort(ordemPorNome);
   return [...minhas, ...outras].map((l) => ({ ...l, propria: o.marcarPropria && l.propria }));
 }
 

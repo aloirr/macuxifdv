@@ -26,7 +26,7 @@ const COR_DA_LINHA = { sucesso: colors.success, erro: colors.danger } as const;
 /** Folha "Estoque por filial": a mesma `Folha` do "Filtrar", só leitura, rolável (spec §2.1). */
 export function FolhaEstoquePorFilial({ visivel, onFechar, dados }: { visivel: boolean; onFechar: () => void; dados: DadosDaFolha | null }) {
   return (
-    <Folha visivel={visivel} onFechar={onFechar} titulo={dados?.titulo ?? TITULO_FOLHA_ESTOQUE} fechar={{ rotulo: 'Fechar', testID: 'estoque-folha-fechar' }} rotuloFechar="Fechar estoque por filial" rolavel testID="estoque-folha">
+    <Folha visivel={visivel} onFechar={onFechar} titulo={TITULO_FOLHA_ESTOQUE} fechar={{ rotulo: 'Fechar', testID: 'estoque-folha-fechar' }} rotuloFechar="Fechar estoque por filial" rolavel testID="estoque-folha">
       {dados ? (
         <View>
           <Text style={e.apoio} testID="estoque-folha-apoio">

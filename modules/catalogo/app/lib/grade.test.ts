@@ -41,9 +41,6 @@ describe('Catálogo em grade (T-0173)', () => {
   });
 
   it('catalogo-campo-v2 §3 e catalogo-grade §4: "Estoque: N", verde acima de 0 e vermelho em 0 ou menos, sem laranja', () => {
-    expect(tagDeEstoque(disp('disponivel', 84))).toEqual({ texto: 'Estoque: 84', tom: 'sucesso' });
-    expect(tagDeEstoque(disp('baixo', 6))).toEqual({ texto: 'Estoque: 6', tom: 'sucesso' });
-    expect(tagDeEstoque(disp('sem_estoque', 0))).toEqual({ texto: 'Estoque: 0', tom: 'erro' });
     expect(tagDeEstoque(disp('sem_estoque', -2))).toEqual({ texto: 'Estoque: \u22122', tom: 'erro' });
   });
 

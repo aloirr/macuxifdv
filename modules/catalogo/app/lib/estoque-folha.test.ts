@@ -24,7 +24,6 @@ describe('folha "Estoque por filial" (catalogo-campo-v2 §2.1)', () => {
       agora: AGORA,
       fuso: 'America/Manaus',
     });
-    expect(d.titulo).toBe('Estoque por filial');
     expect(d.apoio).toBe('PAF.1434 · Atualizado às 06:12');
     expect(d.linhas.map((l) => [l.nome, l.valor, l.propria])).toEqual([['Boa Vista', '0', true], ['Belém', '−2', false], ['Manaus', '12', false]]);
     expect(d.leitura.map((l) => l.texto)).toEqual(['Boa Vista, sua filial, estoque 0', 'Belém, estoque menos 2', 'Manaus, estoque 12']);

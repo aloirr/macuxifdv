@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EstoqueVisivel } from '../contracts';
-import { AVISO_ESTOQUE_DESATUALIZADO, faixaDeEstoque, estoqueVisivel } from './estoque';
+import { faixaDeEstoque, estoqueVisivel } from './estoque';
 import { PARAMETROS_PADRAO, resolverParametros } from './parametros';
 
 const AGORA = '2026-10-31T15:00:00Z';
@@ -138,7 +138,6 @@ describe('RN-CAT-07: estoque baixo, zerado e desatualizado (padrões parametriz�
   it('RN-CAT-07: depois de 24 h sem atualizar é "desatualizado" e continua trazendo o instante da atualização', () => {
     const r = ver([saldo('f1', 30, '2026-10-30T14:00:00Z')], null);
     expect(r).toMatchObject({ band: 'disponivel', quantity: 30, stale: true, updated_at: '2026-10-30T14:00:00.000Z' });
-    expect(AVISO_ESTOQUE_DESATUALIZADO).toBe('Estoque desatualizado');
   });
 
   it('RN-CAT-07: o resultado sempre traz o instante da atualização quando há saldo com hora (fresco, baixo, zerado ou desatualizado)', () => {
