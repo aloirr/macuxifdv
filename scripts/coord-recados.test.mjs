@@ -1,5 +1,6 @@
 // Testes dos recados direto no GitHub (T-0143, ADR 0039): node --test scripts/coord-recados.test.mjs
-// Sem rede: um GitHub de mentira (GraphQL + REST compare, com expectedHeadOid de verdade) em memória, usado direto
+// Sem rede: um GitHub de mentira só REST (a GraphQL responde 403, como no proxy da nuvem; o avanço do branch recusa o
+// que não é fast-forward, como o GitHub) em memória, usado direto
 // pelas funções da coord-lib ou por um servidor HTTP local, para rodar o coord.mjs e o subir-pendentes.mjs de verdade
 // em processos separados (concorrência real entre agentes).
 import { test, after } from 'node:test';
@@ -11,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { gzipSync } from 'node:zlib';
 import {
   modoDosRecados, podeAlterar, regraDoRecadoNovo, globParaRegex, shaDoBlob, aplicarMudancas, tokenDoAmbiente, ghAuthToken,
   criarClienteDeRecados, atualizarIndiceDeRecados, enviarRecadoNoGitHub, marcarLidosNoGitHub, recadosDaPastaNoGitHub,
@@ -22,7 +24,6 @@ import { lerRecadosDoGerente, autorizacoesDoAlexandre } from '../.claude/hooks/g
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const TOKEN = 'token-de-teste-que-nao-pode-vazar';
 const MARCA = '/.coord/recados\n/.coord/lidos\n';
-const PERDIDA = Symbol('resposta perdida');
 
 const temporarios = [];
 after(() => { for (const d of temporarios) rmSync(d, { recursive: true, force: true }); });
@@ -37,17 +38,27 @@ class GitHubFalso {
   constructor(arquivos = {}) {
     this.commits = new Map();
     this.blobs = new Map();
+    this.arvores = new Map();
     this.n = 0;
     this.offline = false;
     this.chamadas = [];
     this.antesDoCommit = null;
     this.perderResposta = false;
+    this.semPacote = false;
     this.head = this.novoCommit(null, arquivos, 'inicial');
+  }
+  /** Árvore com hash pelo conteúdo: guarda os arquivos abaixo de `prefixo` (caminhos relativos a ele). */
+  arvoreDe(arquivos, prefixo = '') {
+    const rel = {};
+    for (const [c, t] of Object.entries(arquivos)) if (c.startsWith(prefixo)) rel[c.slice(prefixo.length)] = t;
+    const sha = createHash('sha1').update(`tree ${JSON.stringify(Object.entries(rel).sort().map(([c, t]) => [c, shaDoBlob(t)]))}`).digest('hex');
+    this.arvores.set(sha, rel);
+    return sha;
   }
   novoCommit(pai, arquivos, msg) {
     for (const t of Object.values(arquivos)) this.blobs.set(shaDoBlob(t), t);
     const oid = createHash('sha1').update(`commit ${++this.n} ${msg}`).digest('hex');
-    this.commits.set(oid, { pai, arquivos: { ...arquivos }, msg });
+    this.commits.set(oid, { pai, arquivos: { ...arquivos }, msg, arvore: this.arvoreDe(arquivos) });
     return oid;
   }
   get arquivos() { return this.commits.get(this.head).arquivos; }
@@ -57,79 +68,87 @@ class GitHubFalso {
   ops(nome) { return this.chamadas.filter((c) => c.op === nome).length; }
 
   responder({ url, metodo = 'GET', corpo, token }) {
-    this.chamadas.push({ url, op: corpo?.query?.match(/^\s*(?:query|mutation) (\w+)/)?.[1] || (url.includes('/compare/') ? 'compare' : '?') });
+    const u = new URL(url, 'http://falso');
+    const m = u.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/(.*)$/);
+    const resto = m ? decodeURIComponent(m[2]) : '';
+    const op = u.pathname.endsWith('/graphql') ? 'graphql'
+      : resto.startsWith('compare/') ? 'compare' : resto.startsWith('git/ref/') ? 'ref' : resto.startsWith('git/refs/') ? 'atualizarRef'
+        : resto.startsWith('git/commits') ? (metodo === 'POST' ? 'criarCommit' : 'commit') : resto.startsWith('git/trees') ? (metodo === 'POST' ? 'criarArvore' : 'arvore')
+          : resto.startsWith('git/blobs') ? (metodo === 'POST' ? 'criarBlob' : 'blob') : resto.startsWith('contents/') ? 'conteudo' : resto.startsWith('tarball/') ? 'tarball' : '?';
+    this.chamadas.push({ url, op });
     if (this.offline) return { rede: 'TypeError: fetch failed: ECONNREFUSED' };
     if (token !== TOKEN) return { status: 401, texto: '{"message":"Bad credentials"}' };
-    const m = url.match(/\/repos\/[^/]+\/[^/]+\/compare\/([0-9a-f]+)\.\.\.main$/);
-    if (m) return this.comparar(m[1]);
-    if (url.endsWith('/graphql') && metodo === 'POST') {
-      const r = this.graphql(corpo);
-      return r === PERDIDA ? { rede: 'resposta perdida' } : { status: 200, texto: JSON.stringify(r) };
-    }
-    return { status: 404, texto: '{"message":"Not Found"}' };
-  }
-
-  arvore(pasta, doisNiveis) {
-    const pref = `${pasta}/`;
-    const nomes = new Map();
-    for (const [c, t] of Object.entries(this.arquivos)) {
-      if (!c.startsWith(pref)) continue;
-      const partes = c.slice(pref.length).split('/');
-      if (partes.length === 1) { nomes.set(partes[0], { name: partes[0], type: 'blob', oid: shaDoBlob(t) }); continue; }
-      const d = nomes.get(partes[0]) || { name: partes[0], type: 'tree', oid: `arvore-${partes[0]}`, filhos: [] };
-      d.filhos.push({ name: partes[1], type: partes.length === 2 ? 'blob' : 'tree', oid: shaDoBlob(t) });
-      nomes.set(partes[0], d);
-    }
-    return [...nomes.values()].map(({ filhos, ...e }) => ({ ...e, object: e.type === 'tree' && doisNiveis ? { entries: filhos } : {} }));
-  }
-
-  graphql({ query, variables: v }) {
-    const op = query.match(/^\s*(?:query|mutation) (\w+)/)[1];
-    if (op === 'CriarCommit') return this.criarCommit(v.input);
-    if (v.dono !== 'aloirr' || v.nome !== 'macuxifdv-recados') {
-      return { data: { repository: null }, errors: [{ type: 'NOT_FOUND', path: ['repository'], message: `Could not resolve to a Repository with the name '${v.dono}/${v.nome}'.` }] };
-    }
-    if (op === 'Blobs') {
-      const repo = {};
-      for (const [k, oid] of Object.entries(v)) {
-        const mm = k.match(/^o(\d+)$/);
-        if (mm) repo[`b${mm[1]}`] = this.blobs.has(oid) ? { text: this.blobs.get(oid), isBinary: false } : null;
+    const ok = (j) => ({ status: 200, texto: JSON.stringify(j) });
+    const nao = { status: 404, texto: '{"message":"Not Found"}' };
+    if (op === 'graphql') return { status: 403, texto: '{"message":"GraphQL bloqueado pelo proxy"}' };
+    if (!m || m[1] !== 'aloirr/macuxifdv-recados') return nao;
+    const id = resto.split('/').pop();
+    switch (op) {
+      case 'compare': return this.comparar(resto.match(/^compare\/([0-9a-f]+)\.\.\.main$/)?.[1]);
+      case 'ref': return resto === 'git/ref/heads/main' ? ok({ ref: 'refs/heads/main', object: { sha: this.head, type: 'commit' } }) : nao;
+      case 'commit': return this.commits.has(id) ? ok({ sha: id, tree: { sha: this.commits.get(id).arvore } }) : nao;
+      case 'arvore': return this.arvores.has(id) ? ok(this.entradas(id, u.searchParams.get('recursive') === '1')) : nao;
+      case 'blob': return this.blobs.has(id) ? ok({ sha: id, encoding: 'base64', content: Buffer.from(this.blobs.get(id)).toString('base64') }) : nao;
+      case 'conteudo': {
+        const c = this.commits.get(u.searchParams.get('ref'));
+        const t = c?.arquivos[resto.slice('contents/'.length)];
+        return t === undefined ? nao : ok({ type: 'file', sha: shaDoBlob(t), size: Buffer.byteLength(t), encoding: 'base64', content: Buffer.from(t).toString('base64') });
       }
-      return { data: { repository: repo } };
+      case 'tarball': {
+        const c = this.commits.get(id);
+        if (!c || this.semPacote) return nao;
+        return { status: 200, base64: tarDe(c.arquivos).toString('base64') };
+      }
+      case 'criarBlob': {
+        const b = Buffer.from(corpo.content, 'base64');
+        this.blobs.set(shaDoBlob(b), b.toString('utf8'));
+        return { status: 201, texto: JSON.stringify({ sha: shaDoBlob(b) }) };
+      }
+      case 'criarArvore': {
+        const base = this.arvores.get(corpo.base_tree);
+        if (!base) return { status: 422, texto: '{"message":"base_tree inválida"}' };
+        const novos = { ...base };
+        for (const e of corpo.tree) novos[e.path] = this.blobs.get(e.sha);
+        return { status: 201, texto: JSON.stringify({ sha: this.arvoreDe(novos) }) };
+      }
+      case 'criarCommit': {
+        const oid = createHash('sha1').update(`commit ${++this.n} ${corpo.message}`).digest('hex');
+        this.commits.set(oid, { pai: corpo.parents[0], arquivos: { ...this.arvores.get(corpo.tree) }, msg: corpo.message.split('\n')[0], arvore: corpo.tree });
+        return { status: 201, texto: JSON.stringify({ sha: oid, html_url: `https://github.com/aloirr/macuxifdv-recados/commit/${oid}` }) };
+      }
+      case 'atualizarRef': {
+        if (this.antesDoCommit) { const f = this.antesDoCommit; this.antesDoCommit = null; f(this); }
+        if (corpo.force !== false || this.commits.get(corpo.sha)?.pai !== this.head) return { status: 422, texto: '{"message":"Update is not a fast forward"}' };
+        this.head = corpo.sha;
+        if (this.perderResposta) { this.perderResposta = false; return { rede: 'resposta perdida' }; }
+        return ok({ ref: 'refs/heads/main', object: { sha: this.head, type: 'commit' } });
+      }
+      default: return nao;
     }
-    const alvo = { oid: this.head };
-    const errors = [];
-    if (op === 'Listagem') {
-      alvo.recados = { object: { entries: this.arvore('recados', true) } };
-      alvo.lidos = { object: { entries: this.arvore('lidos', false) } };
-    } else if (op === 'Arquivo') {
-      const t = this.arquivos[v.caminho];
-      alvo.arquivo = t === undefined ? null : { oid: shaDoBlob(t), object: { text: t } };
-      if (t === undefined) errors.push({ type: 'NOT_FOUND', path: ['repository', 'ref', 'target', 'arquivo'], message: `Could not resolve file for path '${v.caminho}'.` });
-    } else if (op === 'Pasta') {
-      const e = this.arvore(v.caminho, false);
-      alvo.pasta = e.length ? { object: { entries: e } } : null;
-    }
-    return { data: { repository: { ref: { target: alvo } } }, ...(errors.length ? { errors } : {}) };
   }
 
-  criarCommit(input) {
-    if (this.antesDoCommit) { const f = this.antesDoCommit; this.antesDoCommit = null; f(this); }
-    if (input.expectedHeadOid !== this.head) {
-      return { data: { createCommitOnBranch: null }, errors: [{ type: 'STALE_DATA', message: `Expected branch to point to "${input.expectedHeadOid}" but it did not. Pull and try again.` }] };
+  /** Resposta do GET git/trees: entradas diretas ou, com `recursivo`, todas (pastas e arquivos, caminho relativo). */
+  entradas(sha, recursivo) {
+    const rel = this.arvores.get(sha);
+    const mapa = new Map();
+    for (const [c, t] of Object.entries(rel)) {
+      const partes = c.split('/');
+      const ate = recursivo ? partes.length : 1;
+      for (let i = 1; i <= ate; i++) {
+        const p = partes.slice(0, i).join('/');
+        if (mapa.has(p)) continue;
+        const arquivo = i === partes.length;
+        mapa.set(p, { path: p, mode: arquivo ? '100644' : '040000', type: arquivo ? 'blob' : 'tree', sha: arquivo ? shaDoBlob(t) : this.arvoreDe(rel, `${p}/`) });
+      }
     }
-    const novos = { ...this.arquivos };
-    for (const a of input.fileChanges.additions) novos[a.path] = Buffer.from(a.contents, 'base64').toString('utf8');
-    this.head = this.novoCommit(this.head, novos, input.message.headline);
-    if (this.perderResposta) { this.perderResposta = false; return PERDIDA; }
-    return { data: { createCommitOnBranch: { commit: { oid: this.head, url: `https://github.com/aloirr/macuxifdv-recados/commit/${this.head}` } } } };
+    return { sha, tree: [...mapa.values()], truncated: false };
   }
 
   comparar(base) {
     const cadeia = [];
     let o = this.head;
     while (o && o !== base) { cadeia.push(o); o = this.commits.get(o).pai; }
-    if (o !== base) return { status: 404, texto: '{"message":"Not Found"}' };
+    if (!base || o !== base) return { status: 404, texto: '{"message":"Not Found"}' };
     const ok = (j) => ({ status: 200, texto: JSON.stringify(j) });
     if (!cadeia.length) return ok({ status: 'identical', ahead_by: 0, commits: [], files: [] });
     const antes = this.commits.get(base).arquivos;
@@ -142,6 +161,30 @@ class GitHubFalso {
     for (const c of Object.keys(antes)) if (depois[c] === undefined) files.push({ filename: c, status: 'removed', sha: shaDoBlob(antes[c]) });
     return ok({ status: 'ahead', ahead_by: cadeia.length, commits: cadeia.reverse().map((sha) => ({ sha })), files });
   }
+}
+
+/** .tar.gz como o do GitHub (cabeçalho pax global, pasta-raiz <repo>-<sha>/, arquivos), para o caminho do tarball. */
+function tarDe(arquivos) {
+  const cab = (nome, tamanho, tipo) => {
+    const h = Buffer.alloc(512);
+    h.write(nome.slice(0, 100), 0, 'utf8');
+    h.write('0000644\0', 100); h.write('0000000\0', 108); h.write('0000000\0', 116);
+    h.write(`${tamanho.toString(8).padStart(11, '0')}\0`, 124); h.write('00000000000\0', 136);
+    h.write('        ', 148); h.write(tipo, 156); h.write('ustar\0' + '00', 257);
+    let soma = 0; for (const b of h) soma += b;
+    h.write(`${soma.toString(8).padStart(6, '0')}\0 `, 148);
+    return h;
+  };
+  const pad = (b) => Buffer.concat([b, Buffer.alloc((512 - (b.length % 512)) % 512)]);
+  const partes = [];
+  const pax = Buffer.from('52 comment=0123456789012345678901234567890123456789\n');
+  partes.push(cab('pax_global_header', pax.length, 'g'), pad(pax), cab('aloirr-macuxifdv-recados-abc/', 0, '5'));
+  for (const [c, t] of Object.entries(arquivos)) {
+    const b = Buffer.from(t);
+    partes.push(cab(`aloirr-macuxifdv-recados-abc/${c}`, b.length, '0'), pad(b));
+  }
+  partes.push(Buffer.alloc(1024));
+  return gzipSync(Buffer.concat(partes));
 }
 
 const httpDe = (falso) => (reqs) => reqs.map((r) => falso.responder({ ...r, token: TOKEN }));
@@ -275,7 +318,8 @@ test('índice: lista no primeiro uso; depois só o delta (compare) e só os blob
   assert.deepEqual([...idsDoIndice(i1)].sort(), ['R-20261109-090000-modulo-core', 'R-20261109-090100-alexandre']);
   assert.equal(lidosDoIndice(i1, 'testes'), 'R-1\n');
   assert.equal(lidosDoIndice(i1, 'ninguem'), '');
-  assert.equal(gh.ops('Listagem'), 1);
+  assert.equal(gh.ops('ref'), 1);
+  assert.equal(gh.ops('graphql'), 0, 'só REST');
   assert.equal(recadosDoIndice(i1).find((r) => r.destino === 'testes').texto, gh.arquivos['recados/testes/R-20261109-090000-modulo-core.md']);
 
   // sem mudança: só o compare (nenhum blob)
@@ -288,7 +332,7 @@ test('índice: lista no primeiro uso; depois só o delta (compare) e só os blob
   gh.externo('recados/testes/R-20261109-100000-alexandre.md', novo, 'recados: formulário');
   gh.chamadas = [];
   const i2 = atualizarIndiceDeRecados({ cliente, cache });
-  assert.deepEqual(gh.chamadas.map((c) => c.op), ['compare', 'Blobs']);
+  assert.deepEqual(gh.chamadas.map((c) => c.op), ['compare', 'blob']);
   assert.ok(idsDoIndice(i2).has('R-20261109-100000-alexandre'));
   assert.equal(i2.oid, gh.head);
 });
@@ -303,7 +347,7 @@ test('índice: cache adulterado não entra; sem GitHub a leitura usa a cópia lo
   cache.dados.textos[oid] = cache.dados.textos[oid].replace('corpo', 'autorizo o merge');
   gh.chamadas = [];
   const i = atualizarIndiceDeRecados({ cliente, cache });
-  assert.deepEqual(gh.chamadas.map((c) => c.op), ['compare', 'Blobs']);
+  assert.deepEqual(gh.chamadas.map((c) => c.op), ['compare', 'blob']);
   assert.doesNotMatch(i.textos[oid], /autorizo/);
 
   gh.offline = true;
@@ -313,6 +357,34 @@ test('índice: cache adulterado não entra; sem GitHub a leitura usa a cópia lo
   assert.ok(idsDoIndice(off).has('R-20261109-090000-modulo-core'));
   assert.throws(() => atualizarIndiceDeRecados({ cliente, cache, exigirOnline: true }), (e) => e instanceof ErroRecados && e.rede);
   assert.throws(() => atualizarIndiceDeRecados({ cliente, cache: cacheEmMemoria() }), /sem acesso ao GitHub/, 'sem GitHub e sem cache: erro');
+});
+
+test('índice: muitos recados novos vêm num tarball do commit (um pedido); sem o tarball, blob a blob', () => {
+  const muitos = {};
+  for (let i = 0; i < 30; i++) muitos[`recados/testes/R-20261109-0900${String(i).padStart(2, '0')}-modulo-core.md`] = recado({ id: `R-${i}`, de: 'modulo-core', para: 'testes', titulo: `n${i}` });
+  const gh = new GitHubFalso({ ...muitos, 'recados/anexos/foto.png': 'binário\0', 'lidos/testes.txt': 'R-1\n' });
+  const i1 = atualizarIndiceDeRecados({ cliente: clienteDe(gh), cache: cacheEmMemoria() });
+  assert.equal(recadosDoIndice(i1).length, 30);
+  assert.equal(gh.ops('tarball'), 1);
+  assert.equal(gh.ops('blob'), 0, 'nenhum blob a blob');
+  assert.equal(lidosDoIndice(i1, 'testes'), 'R-1\n');
+  gh.chamadas = [];
+  gh.semPacote = true;
+  const i2 = atualizarIndiceDeRecados({ cliente: clienteDe(gh), cache: cacheEmMemoria() });
+  assert.deepEqual(i2.textos, i1.textos, 'mesmo resultado pelos dois caminhos');
+  assert.equal(gh.ops('blob'), 31);
+});
+
+test('cliente REST: repositório que o token não enxerga dá erro claro; a GraphQL nunca é chamada', () => {
+  const gh = base();
+  const outro = criarClienteDeRecados({ http: httpDe(gh), repo: 'aloirr/outro' });
+  assert.throws(() => outro.listar(), (e) => e instanceof ErroRecados && /branch main do aloirr\/outro não foi encontrado/.test(e.message));
+  const cliente = clienteDe(gh);
+  assert.equal(cliente.cabeca(), gh.head);
+  assert.deepEqual(cliente.arquivo('lidos/nao-existe.txt'), { oid: gh.head, existe: false, blob: null, texto: null });
+  assert.deepEqual(cliente.pasta('recados/ninguem').entradas, []);
+  assert.deepEqual(cliente.pasta('recados/testes').entradas.map((e) => e.name), ['R-20261109-090000-modulo-core.md']);
+  assert.equal(gh.ops('graphql'), 0);
 });
 
 // ───────────────────────── escrita ─────────────────────────
@@ -334,6 +406,10 @@ test('enviar: um commit atômico com um arquivo por destino; id já usado ganha 
   assert.equal(gh.arquivos['recados/testes/R-20261109-090000-2-modulo-core.md'], gh.arquivos['recados/gerente-projetos/R-20261109-090000-2-modulo-core.md']);
   assert.equal(gh.arquivos['recados/testes/R-20261109-090000-modulo-core.md'], antes, 'o recado antigo continua igual');
   assert.match(gh.historico().at(-1).msg, /^recados: R-20261109-090000-2-modulo-core$/);
+  // só REST: blobs, árvore e commit soltos; o avanço do branch (sem force) publica
+  const escrita = gh.chamadas.map((c) => c.op).filter((o) => o.startsWith('criar') || o === 'atualizarRef');
+  assert.deepEqual(escrita, ['criarBlob', 'criarArvore', 'criarCommit', 'atualizarRef'], 'o mesmo conteúdo para dois destinos: um blob só');
+  assert.equal(gh.ops('graphql'), 0);
   assert.throws(() => enviarTeste(gh, cacheEmMemoria(), { respondeA: 'R-nao-existe' }), /--responde-a: recado R-nao-existe não encontrado/);
 });
 
@@ -456,8 +532,8 @@ async function servir(gh) {
       const token = String(req.headers.authorization || '').replace(/^bearer /i, '');
       const r = gh.responder({ url: req.url, metodo: req.method, corpo: b ? JSON.parse(b) : undefined, token });
       if (r.rede) { req.socket.destroy(); return; }
-      res.writeHead(r.status, { 'content-type': 'application/json' });
-      res.end(r.texto);
+      res.writeHead(r.status, { 'content-type': r.base64 ? 'application/gzip' : 'application/json' });
+      res.end(r.base64 ? Buffer.from(r.base64, 'base64') : r.texto);
     });
   });
   await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
