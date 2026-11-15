@@ -58,7 +58,7 @@ function etapas() {
 }
 function carga(comLogo) {
   // As duas telas no mesmo momento (depois do login): a única diferença é a logo do cliente.
-  const baixo = `<div class="linha" style="color:${T.texto}"><span>Etapa 2 de 5 · ${T.etapas[1]}</span><b>38%</b></div>
+  const baixo = `<div class="linha" style="color:${T.texto}"><span aria-label="Etapa 2 de 5 · ${T.etapas[1]}"></span><b>38%</b></div>
        <div class="trilho" style="background:${T.trilho}"><i style="width:38%;background:${T.preench}"></i></div>${etapas()}`;
   return `<div class="phone ${T.classe}" style="background:${T.fundo}">${st}
     <div class="entrada"><div class="meio">${marca(comLogo)}<div class="ola" style="color:${T.claro}">Olá, Lucas</div></div>
