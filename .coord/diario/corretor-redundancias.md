@@ -71,3 +71,4 @@
 - 2026-11-15 (tarde) · reteste marca_codigo e filial (integracao 46876619 e 759a0799; banco 00e050dc) · RD-0531 a RD-0535 **corrigidos**; **COM ACHADO**: RD-0536 (alta, conector.md:432 contradiz a ordem nova), RD-0537 (baixa, testes integracao) e RD-0538 (baixa, teste banco), todos seguram. PR do banco depende do de integracao (ORDEM_CARGA_ENTIDADES). Relatório §6.
 - 2026-11-15 · reteste final marca_codigo e filial (integracao 8da18d5d e 6eca6cb0; banco 23df9568) · RD-0536 a RD-0538 **corrigidos**; **COM ACHADO**: RD-0539 (baixa, doc: "filial é a primeira" + lista de dependentes em 3 docs), segura. Relatório §7.
 - 2026-11-15 · reteste RD-0539 (integracao 04833e6c6; kit 03df38dab) · **corrigido**; lote marca_codigo e filial **LIMPO** (RD-0531 a RD-0539 fechados). Relatório §8.
+- 2026-11-15 · #330 contarDuplicadasNoLote (73480aa4..414499ab, referencia-cruzada) · **LIMPO**. Relatório §9.

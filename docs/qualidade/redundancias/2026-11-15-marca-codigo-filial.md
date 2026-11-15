@@ -119,3 +119,12 @@ Heads: `nuvem/marca-codigo-modulo-integracao` 04833e6c6 e `nuvem/referencia-cruz
 | RD-0539 | `carga-arquivo.md:35`: "A entidade `filial` é a primeira da carga (`ORDEM_CARGA_ENTIDADES`)." `hub-api.md:514`: "`filial` é a primeira da lista única `ORDEM_CARGA_ENTIDADES`, usada pelo portal e pelo Conector." `roteiro-ensaio-conector-1.4.0.md:30`: "ordem: `ORDEM_CARGA_ENTIDADES` (`filial` primeiro); sem bloqueio". O kit traz os mesmos 3 arquivos pelo merge. | **corrigido** |
 
 Não houve redundância nova: o diff só tem as 3 linhas.
+
+## 9. Diff do #330: contagem de duplicadas (15/11/2026)
+
+Diff `73480aa4..414499ab` em `nuvem/referencia-cruzada-modulo-integracao`, com 3 arquivos e 13 linhas.
+
+**Resultado: LIMPO.** Nenhum achado novo.
+
+- `contarDuplicadasNoLote` (`domain/idempotencia.ts:93`) é uma regra pura no `domain`, com um só uso, em `api/aplicar-lote.ts:290`. Não há outra contagem de duplicadas no código de produção: `git grep` por `duplicadas_no_lote` e `=== 'duplicado_no_lote'` em `modules` e `apps` só encontra a gravação e a leitura da coluna, os falsos de teste e o simulador de exemplo, que é independente.
+- O teste novo (`domain/vendedor-filial.test.ts:22-26`) cobre o caso que motivou a correção, um aviso de outro código ao lado de uma duplicata. Nenhum teste existente cobre esse caso. O filtro em linha de `idempotencia.test.ts:117` confere os índices dos avisos, não a contagem, então não repete o teste novo.
