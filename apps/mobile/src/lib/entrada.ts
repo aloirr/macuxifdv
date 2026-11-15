@@ -57,7 +57,7 @@ function alturaDaSaudacao(escala: number): number {
 }
 
 /**
- * Linhas do aviso da carga (T-0181): o aviso nunca é cortado. Na escala 1,0 cabe em 1 linha (medido: 264 dp em Plex 13
+ * Linhas do aviso da carga (T-0181): o aviso nunca é cortado. Na escala 1,0 cabe em 1 linha (~284 dp em 14 dp, de 264 medidos em 13,
  * numa linha de 296 dp, 360 − 2 × 32); com fonte grande quebra (a partir de ~1,12) e cabe em 2 até a escala 2,0, a maior
  * do Android. Acima de 1,0 conta 2 de propósito: a conta nunca fica abaixo do que a tela desenha.
  */
@@ -75,14 +75,14 @@ export type LinhasFrase = 0 | 1 | (typeof MEDIDAS_FRASE_CARGA)['frase']['linhasM
 /** Linhas com que a frase entra na tela (o bloco está na tela). */
 export type LinhasNaTela = Exclude<LinhasFrase, 0>;
 
-/** Altura do bloco "Você sabia?" (título e frase): na escala 1,0, 84 dp com 2 linhas, 64 com 1, 0 sem o bloco. */
+/** Altura do bloco "Você sabia?" (título e frase): na escala 1,0, 86 dp com 2 linhas, 66 com 1, 0 sem o bloco. */
 export function alturaDoBlocoFrase(linhas: LinhasFrase, escala = 1): number {
   if (linhas === 0) return 0;
   return TITULO.abaixoDoOla + linhaNaEscala(TITULO.linha, escala) + TITULO.ateFrase + linhas * linhaNaEscala(FRASE.linha, escala);
 }
 
 /**
- * Caracteres que cabem com folga numa linha de 280 dp em IBM Plex Sans 14 na escala de fonte 1,0 (largura média ~7,7 dp;
+ * Caracteres que cabem com folga numa linha de 280 dp em fonte do sistema 14 na escala de fonte 1,0 (largura média ~7,7 dp;
  * folga para as maiúsculas); com fonte grande, cabem menos na mesma proporção. Conta de propósito por baixo: a frase em
  * 1 linha nunca pode ser cortada (sem reticências, spec §1.1). A tela ainda confere o que desenhou (`fraseInteira`).
  */

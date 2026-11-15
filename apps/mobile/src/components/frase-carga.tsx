@@ -1,9 +1,9 @@
 /**
  * T-0181 (spec docs/design/carga-aviso-frases/spec.md §1 itens 3 e 4, §1.1 e §2; ajuste R-20261115-080500): o bloco
  * "Você sabia?" da tela de carga, abaixo do "Olá" (o lugar e as linhas são da `TelaEntrada`, por `cabeFrase`).
- * - Título: lâmpada de 16 dp do kit em `preenchimento` (gráfico) e, 6 dp depois, "Você sabia?" em Plex SemiBold 13/18 em
+ * - Título: lâmpada de 16 dp do kit em `preenchimento` (gráfico) e, 6 dp depois, "Você sabia?" na fonte do sistema, peso 600, 14/20 em
  *   `texto`; 20 dp abaixo do "Olá".
- * - Frase: 6 dp abaixo, Plex 14/20 em `textoClaro`, centralizada, até 280 dp, 2 linhas (ou 1, quando a tela é baixa e a frase
+ * - Frase: 6 dp abaixo, fonte do sistema 14/20 em `textoClaro`, centralizada, até 280 dp, 2 linhas (ou 1, quando a tela é baixa e a frase
  *   cabe inteira). Sem aspas, sem itálico. A fonte da frase NUNCA aparece (nem chega ao app).
  * - Nunca com reticências (spec §1.1): a frase é desenhada sem corte e invisível; se as linhas medidas (`onTextLayout`)
  *   passarem das linhas dadas (fonte grande, frase de 90 caracteres), o bloco inteiro sai (`fraseInteira`).

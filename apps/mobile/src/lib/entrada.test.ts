@@ -4,6 +4,7 @@
  */
 import { readFileSync } from 'node:fs';
 
+import { MEDIDAS_FRASE_CARGA } from '@macuxi/ui/mobile/puro';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -30,6 +31,13 @@ vi.mock('react-native-svg', () => import('@/teste/nativo-vazio').then((m) => m.m
 vi.mock('expo-router', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
 vi.mock('@macuxi/ui/mobile', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
 const { progressoDaEntrada } = await import('@macuxi/core/app');
+
+// medidas do kit (MC-1203: fonte do sistema, título, frase e aviso em 14/20): os valores esperados saem delas
+const { titulo: TITULO, frase: FRASE, aviso: AVISO } = MEDIDAS_FRASE_CARGA;
+const BLOCO_1_LINHA = TITULO.abaixoDoOla + TITULO.linha + TITULO.ateFrase + FRASE.linha;
+const BLOCO_2_LINHAS = BLOCO_1_LINHA + FRASE.linha;
+/** Linha de texto na escala de fonte dada (arredonda para cima, como a tela). */
+const naEscala = (linha: number, escala: number) => Math.ceil(linha * escala);
 
 /** Largura e altura de um PNG (cabeçalho IHDR). */
 function tamanhoPng(caminho: URL): { largura: number; altura: number } {
@@ -69,9 +77,10 @@ describe('carga: bloco "Você sabia?" e aviso (T-0181, spec carga-aviso-frases �
   const LONGA = 'Os Macuxi se autodenominam Pemon e falam uma língua da família Karib.';
   const CURTA = 'O lavrado é a savana de Roraima.';
 
-  it('bloco: 84 dp com a frase em 2 linhas, 64 com 1; a frase curta cabe em 1 linha, a longa não', () => {
-    expect(alturaDoBlocoFrase(2)).toBe(84);
-    expect(alturaDoBlocoFrase(1)).toBe(64);
+  it('bloco: 86 dp com a frase em 2 linhas, 66 com 1; a frase curta cabe em 1 linha, a longa não', () => {
+    expect([BLOCO_2_LINHAS, BLOCO_1_LINHA]).toEqual([86, 66]);
+    expect(alturaDoBlocoFrase(2)).toBe(BLOCO_2_LINHAS);
+    expect(alturaDoBlocoFrase(1)).toBe(BLOCO_1_LINHA);
     expect(alturaDoBlocoFrase(0)).toBe(0);
     expect(fraseEmUmaLinha(CURTA)).toBe(true);
     expect(fraseEmUmaLinha(LONGA)).toBe(false);
@@ -120,14 +129,17 @@ describe('carga: escala de fonte e frase sem reticências (T-0181, revisão 🟡
     expect(linhasDoAviso(1)).toBe(1);
     expect(linhasDoAviso(1.15)).toBe(2);
     expect(linhasDoAviso(1.3)).toBe(2);
-    expect(alturaDoAviso()).toBe(28);
-    expect(alturaDoAviso(1.3)).toBe(2 * 24 + 10);
+    expect(alturaDoAviso()).toBe(AVISO.linha + AVISO.acimaDaBarra);
+    expect(alturaDoAviso()).toBe(30);
+    expect(alturaDoAviso(1.3)).toBe(2 * naEscala(AVISO.linha, 1.3) + AVISO.acimaDaBarra);
   });
 
-  it('o bloco cresce com a fonte: 84 dp na escala 1,0, 108 na 1,3 (texto escala, espaços não)', () => {
-    expect(alturaDoBlocoFrase(2, 1)).toBe(84);
-    expect(alturaDoBlocoFrase(2, 1.3)).toBe(20 + 24 + 6 + 2 * 26);
-    expect(alturaDoBlocoFrase(1, 1.3)).toBe(20 + 24 + 6 + 26);
+  it('o bloco cresce com a fonte: 86 dp na escala 1,0, 104 na 1,3 (texto escala, espaços não)', () => {
+    const tituloEFrase = TITULO.abaixoDoOla + naEscala(TITULO.linha, 1.3) + TITULO.ateFrase;
+    expect(alturaDoBlocoFrase(2, 1)).toBe(BLOCO_2_LINHAS);
+    expect(alturaDoBlocoFrase(2, 1.3)).toBe(tituloEFrase + 2 * naEscala(FRASE.linha, 1.3));
+    expect(alturaDoBlocoFrase(2, 1.3)).toBe(104);
+    expect(alturaDoBlocoFrase(1, 1.3)).toBe(tituloEFrase + naEscala(FRASE.linha, 1.3));
   });
 
   it('com fonte grande, cabe menos numa linha: a frase curta que cabia em 1 linha deixa de caber', () => {

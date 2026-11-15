@@ -1,6 +1,6 @@
 /**
  * T-0181 (spec docs/design/carga-aviso-frases/spec.md §1 item 5; ajuste R-20261115-080500, item 3) — estilo do aviso da
- * tela de carga: sem destaque. Plex Regular (`body`) 13/18 em `textoClaro`, à esquerda; sem negrito, sem caixa, sem borda,
+ * tela de carga: sem destaque. Fonte do sistema, regular (`body`), 14/20 em `textoClaro` (MC-1203), à esquerda; sem negrito, sem caixa, sem borda,
  * sem fundo, sem ícone e sem corte. Renderizado com `react-dom/server`; o estilo de cada elemento vai para o HTML.
  */
 import { MEDIDAS_FRASE_CARGA } from '@macuxi/ui/mobile/puro';
@@ -48,15 +48,16 @@ describe('Aviso da carga — estilo sem destaque (T-0181, ajuste R-20261115-0805
     }
   });
 
-  it('Plex Regular 13/18 em textoClaro, à esquerda; nenhuma outra chave (negrito, borda, fundo, respiro de caixa)', () => {
-    expect(MEDIDAS_FRASE_CARGA.aviso).toMatchObject({ fonte: 'body', tamanho: 13, linha: 18 });
+  it('fonte do sistema regular 14/20 em textoClaro, à esquerda; nenhuma outra chave (negrito, borda, fundo, respiro de caixa)', () => {
+    const { aviso } = MEDIDAS_FRASE_CARGA;
+    expect(aviso).toMatchObject({ fonte: 'body', tamanho: 14, linha: 20 });
     for (const variante of ['campo', 'gestao'] as const) {
       const { estilo } = avisoDa(variante);
       // igualdade exata: fontWeight, border*, backgroundColor e padding ficariam como chaves a mais
       expect(estilo).toEqual({
         fontFamily: 'fonte:body',
-        fontSize: 13,
-        lineHeight: 18,
+        fontSize: aviso.tamanho,
+        lineHeight: aviso.linha,
         textAlign: 'left',
         color: 'tema:textoClaro',
       });
