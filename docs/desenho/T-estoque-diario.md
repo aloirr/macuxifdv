@@ -152,6 +152,15 @@ Contrato do SDK que as partes B–G usam (feito na parte A, `@macuxi/platform-sd
   tentar de novo (texto final do designer-ux). O toque curto não abre popup.
 - **Puxar para baixo** continua a sincronização padrão (RN-CORE-23 item 5), sem modo.
 - O shell atual faz `enviar({ incluirFalhos: true })` e `atualizarModulos()` antes de `sincronizar()`; vale para os dois modos.
+- **Limite por usuário no servidor, silencioso** (R-20261115-125500-alexandre; ADR 0057 "Limite por usuário"): o motor passa o
+  modo a `transporte.pull(entidade, cursor, { modo })` e o transporte HTTP do shell manda o cabeçalho `x-macuxi-sync-modo:
+  parcial|completa` (`CABECALHO_MODO_SYNC`); sem cabeçalho = automática, sem limite. A API (`apps/api/src/sync.ts`) guarda em
+  memória, por tenant, usuário e entidade, o início de cada modo: `LIMITES_SYNC = { parcial: 30_000, completa: 300_000 }`
+  (`packages/platform-sdk/src/sync.ts`, a constante única). Dentro da janela: 200 `{ itens: [], proximo_cursor: null,
+  limitado: true }`, sem ir ao banco, e log `sync_limite` (modo e entidade, sem dado pessoal). Só o início conta: na completa, o
+  cursor nulo; na parcial, o cursor que não é o `proximo_cursor` recém-dado (as páginas da mesma passada passam). O push nunca é
+  limitado. Página `limitado` no motor: nada muda (cursor, cobertura), sem erro; a completa segurada desfaz a ressincronização
+  que acabou de marcar (nada é apagado). O limite de 1 toque a cada 30 s no app é do engenheiro-apps.
 
 ## 10. Roteiro do testes (G)
 Abre às 05:50 (estoque de ontem, "Atualizado ontem às…"), às 06:10 (carga), 2ª sincronização sem estoque, sem sinal na manhã,

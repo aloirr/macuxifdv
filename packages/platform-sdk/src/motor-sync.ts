@@ -175,7 +175,11 @@ let relogioVersoes = 0;
 /** Transporte com o servidor. Lançar exceção = falha de transporte (o motor tenta de novo depois). */
 export interface TransporteSync {
   push(itens: ItemPush[]): Promise<ResultadoItemPush[]>;
-  pull(entidade: string, cursor: string | null): Promise<PaginaSync<LinhaSync>>;
+  /**
+   * `opcoes.modo` (R-20261115-125500-alexandre): sincronização pedida pelo usuário; o transporte HTTP manda no cabeçalho
+   * `x-macuxi-sync-modo` (`CABECALHO_MODO_SYNC`). Sem ele = automática. Página `limitado` = nada muda no aparelho.
+   */
+  pull(entidade: string, cursor: string | null, opcoes?: { modo: ModoSincronizacao }): Promise<PaginaSync<LinhaSync>>;
   /**
    * Upload de um arquivo (`PUT /v1/arquivos/:id`, ADR 0010). Exceção = falha de transporte (o motor tenta depois);
    * 4xx vira `rejeitado` com o código da API. Sem ele (ex.: servidor da Fase M), os arquivos ficam na fila.
@@ -1322,6 +1326,8 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     aoGravarPagina?: () => void,
     /** ADR 0057: `completa` = tudo do zero (ressincronização forçada; no fim apaga o que não veio). */
     refazer = false,
+    /** ADR 0057: pull da sincronização `parcial` (o modo vai ao servidor, para o limite silencioso). */
+    parcial = false,
   ): Promise<'ok' | 'indisponivel'> => {
     const a = op.armazenamento;
     // T-0084: o fuso do tenant vale para os documentos de busca montados nesta página (e a versão é conferida)
@@ -1340,6 +1346,8 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     /** `vistos` nulo = carga inicial (nada a apagar no fim). */
     type Ressinc = { versao: string | null; vistos: Set<string> | null; refazer?: true };
     let ressinc: Ressinc | null = null;
+    /** Modo informado ao servidor (limite silencioso por usuário); `undefined` = automática, a chamada de sempre. */
+    let modo: ModoSincronizacao | undefined = parcial ? 'parcial' : undefined;
     const gravarRessinc = (r: Ressinc, desde: string | null = null) =>
       a.gravar(CHAVE.ressinc(entidade), {
         versao: r.versao,
@@ -1354,6 +1362,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       // ADR 0057: tudo do zero; as linhas locais ficam até o fim e só sai o que não veio
       ressinc = { versao: versaoGuardada, vistos: new Set(), refazer: true };
       cursor = null;
+      modo = 'completa';
       await gravarRessinc(ressinc);
     }
     /** Páginas recebidas nesta chamada (501 na primeira = entidade sem provedor, também no `refazer`). */
@@ -1361,7 +1370,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     for (;;) {
       let pagina: PaginaSync<LinhaSync>;
       try {
-        pagina = await op.transporte.pull(entidade, cursor);
+        pagina = modo ? await op.transporte.pull(entidade, cursor, { modo }) : await op.transporte.pull(entidade, cursor);
       } catch (e) {
         if (ehSyncNaoImplementado(e) && (!ressinc || (ressinc.refazer && recebidas === 0))) {
           // `refazer` sem provedor: nada foi pedido de novo; o registro sai (nada local é apagado)
@@ -1372,6 +1381,14 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         throw e;
       }
       recebidas++;
+      if (pagina.limitado) {
+        // limite silencioso do servidor: nada muda no aparelho; a `completa` segurada não deixa ressincronização pendente
+        if (modo === 'completa' && recebidas === 1) {
+          if (ressincGuardada) await a.gravar(CHAVE.ressinc(entidade), ressincGuardada);
+          else await a.remover(CHAVE.ressinc(entidade));
+        }
+        return 'ok';
+      }
       // ADR 0021: outra geração = a base foi recriada; nada desta página é aplicado sobre a cópia antiga
       await conferirGeracao(pagina.geracao_base);
       if (!pagina.horizonte) semHorizonte = true;
@@ -1950,6 +1967,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
   const passadaLeve = async (
     etapa: string,
     escolher: () => Promise<{ alvo: string[]; cursorNovo: string | null; comDiarias: boolean }>,
+    parcial = false,
   ): Promise<boolean> => {
     if (!online()) {
       mudar({ erro: 'Sem sinal: a sincronização fica para quando a conexão voltar.' });
@@ -1963,7 +1981,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       const avisos: AvisoSync[] = [];
       for (const [i, e] of alvo.entries()) {
         mudar({ etapa: e, progresso: (i + 1) / (alvo.length + 1) });
-        if ((await puxarEntidade(e, coberturas)) === 'indisponivel')
+        if ((await puxarEntidade(e, coberturas, undefined, false, parcial)) === 'indisponivel')
           avisos.push({ entidade: e, codigo: SYNC_NAO_IMPLEMENTADO, mensagem: MENSAGEM_PULL_INDISPONIVEL });
       }
       if (alvo.length > 0) {
@@ -2225,7 +2243,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       if (syncEmCurso) return syncEmCurso;
       if (opcoes.modo === 'parcial' && estado.sincronizado_em !== null && entidadesParciais().length > 0)
         return emCurso(() =>
-          passadaLeve('Enviando a fila', async () => ({ alvo: entidadesParciais(), cursorNovo: null, comDiarias: false })),
+          passadaLeve('Enviando a fila', async () => ({ alvo: entidadesParciais(), cursorNovo: null, comDiarias: false }), true),
         );
       return emCurso(() => passadaCompleta(true));
     },

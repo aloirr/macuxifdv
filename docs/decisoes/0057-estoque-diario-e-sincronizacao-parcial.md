@@ -57,6 +57,15 @@
    Catálogo usa a hora do ERP como hoje); sem entidade `parcial`, o toque faz o de hoje; servidor sem mudança. Nenhum evento novo,
    nenhuma versão nova de contrato existente, nenhuma dependência nova.
 
+### Limite por usuário (R-20261115-125500-alexandre)
+O servidor limita, em silêncio, a sincronização pedida pelo usuário: parcial a 1 início a cada 30 s e completa a 1 a cada 5 min,
+por tenant, usuário e entidade (`LIMITES_SYNC` em `packages/platform-sdk/src/sync.ts`, constante única). O modo chega no
+cabeçalho `x-macuxi-sync-modo` do pull (aditivo: sem ele = automática, sem limite; app antigo segue igual). Dentro da janela, o
+pull responde 200 "nada novo" (`limitado: true`), sem erro visível; páginas seguintes da mesma passada passam; o push nunca é
+limitado. Em memória do processo, como o limitador do login: com mais de uma instância, cada uma conta a sua (aceito; o limite é
+proteção de carga, não regra de negócio). O servidor não conhece o aparelho (o token não o traz): dois aparelhos do mesmo usuário
+dividem a janela, o que só segura um pedido repetido.
+
 ## Alternativas consideradas
 - **Timer no aparelho às 06:00**: rejeitado (RN-CORE-23 proíbe timer abaixo de 15 min e o app pode estar fechado; a primeira
   sincronização do dia já acontece ao abrir).

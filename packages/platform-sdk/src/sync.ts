@@ -15,6 +15,24 @@ import { ehEntidadeDePedido, type ModuloId, type Perfil } from './nomes';
 import { ENTIDADE_SYNC_RE } from './nomes';
 
 export const TAMANHO_PAGINA_SYNC = 1000;
+
+/**
+ * Limite silencioso do pull (R-20261115-125500-alexandre; ADR 0057 "Limite por usuário"): o motor manda o modo da
+ * sincronização pedida pelo usuário neste cabeçalho (`parcial` | `completa`). Ausente, `auto` ou outro valor = automática, sem limite.
+ */
+export const CABECALHO_MODO_SYNC = 'x-macuxi-sync-modo';
+
+/**
+ * Intervalo mínimo (ms), por tenant, usuário, entidade e modo, entre dois INÍCIOS de pull (a constante única do limite).
+ * Dentro dele, o servidor responde 200 "nada novo" (`PaginaSync.limitado`). Continuação de uma passada não conta.
+ */
+export const LIMITES_SYNC = { parcial: 30_000, completa: 300_000 } as const;
+export type ModoSyncLimitado = keyof typeof LIMITES_SYNC;
+
+/** Modo do cabeçalho `x-macuxi-sync-modo`; `null` = automática (sem cabeçalho, `auto` ou valor desconhecido). */
+export function modoSyncDoCabecalho(valor: unknown): ModoSyncLimitado | null {
+  return valor === 'parcial' || valor === 'completa' ? valor : null;
+}
 export const MAX_ITENS_PUSH = 500;
 
 /**
@@ -216,6 +234,11 @@ export interface PaginaSync<L> {
    * manda; o motor compara com a guardada (`decidirGeracao`) e, se mudou, reenvia a fila, apaga a cópia local e puxa tudo.
    */
   geracao_base?: string;
+  /**
+   * R-20261115-125500-alexandre: `true` = o mesmo modo foi pedido há pouco (`LIMITES_SYNC`); a página vem vazia e o motor não
+   * muda nada no aparelho (nem cursor, nem cobertura, nem ressincronização) e não mostra erro. Só vem a quem mandou o modo.
+   */
+  limitado?: true;
 }
 
 /** Página após o cursor (inclui removidos). Usado no motor em memória e como referência do SQL. */
