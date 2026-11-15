@@ -109,6 +109,7 @@ import { registrarDiagnosticos } from './diagnosticos';
 import { registrarRotasDiagnosticosPortal, type FonteDiagnosticosPortal } from './diagnosticos-portal';
 import { consultaCnpjPadrao, registrarRotaConsultaCnpj, type ConsultaCnpj } from './consulta-cnpj';
 import { registrarRotasPlanosPortal, type FontePlanosPortal } from './planos-portal';
+import { acoesDasEmpresas, registrarRotasAcoesEmpresa, type FonteAcoesEmpresa } from './empresa-acoes-portal';
 import { registrarSync } from './sync';
 import { MAX_TENTATIVAS_PADRAO, nomesConsumidos } from './despachante';
 import { avaliarAlertas, comPrazo, criarMetricasApi, type EstadoBanco, type MetricasApi, type ResumoOutbox } from './observabilidade';
@@ -205,6 +206,15 @@ export interface OpcoesApp {
   planosPortal?: boolean;
   /** ADR 0047: fonte das funções `sa_*` dos planos (padrão: `fontePlanosNoBanco`). Testes injetam a sua. */
   fontePlanos?: FontePlanosPortal;
+  /**
+   * ADR 0052: Inativar/Reativar, Backup e Excluir empresa no portal (`/v1/plataforma/empresas/:tenant_id/...`, só super-admin)
+   * e o bloco `acoes` da lista de empresas. Padrão: DESLIGADO; o `servidor.ts` liga com `MACUXI_EMPRESA_ACOES=1` (migração 0072).
+   */
+  empresaAcoesPortal?: boolean;
+  /** ADR 0052: fonte das funções `sa_*` da 0072 (padrão: `fonteAcoesEmpresaNoBanco`). Testes injetam a sua. */
+  fonteAcoesEmpresa?: FonteAcoesEmpresa;
+  /** ADR 0052: bucket S3 e `MACUXI_BACKUP_EMPRESA_CHAVE` configurados (falso = 503 `BACKUP_INDISPONIVEL`). Padrão: falso. */
+  backupEmpresaDisponivel?: boolean;
 }
 
 /** Cache da sonda de dependências do `/v1/saude` (a rota é pública: não vira amplificador de consultas no banco). */
@@ -595,7 +605,24 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       cifrar: (carga, aad) => (email as unknown as EmailDoPortal).cifrar(carga, aad),
     },
     consultaCnpj,
+    // ADR 0052: bloco `acoes` na lista de empresas (só super-admin), só com as ações ligadas
+    ...(op.empresaAcoesPortal
+      ? { acoesDasEmpresas: (quem: AcessoPortalAutenticado) => acoesDasEmpresas(quem, acessoPortal, op.fonteAcoesEmpresa) }
+      : {}),
   });
+
+  // ADR 0052: Inativar/Reativar, Backup e Excluir empresa no portal (só super-admin); desligado por padrão
+  if (op.empresaAcoesPortal) {
+    registrarRotasAcoesEmpresa(app, {
+      acesso: acessoPortal,
+      ...(op.fonteAcoesEmpresa ? { fonte: op.fonteAcoesEmpresa } : {}),
+      autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+      validar,
+      backupDisponivel: op.backupEmpresaDisponivel ?? false,
+      segredoPlataforma: () => process.env.MACUXI_JWT_SEGREDO_PLATAFORMA,
+      relogio,
+    });
+  }
 
   // T-0158 (ADR 0043): Portal › Diagnósticos, só super-admin, no banco do portal; desligado por padrão
   if (op.diagnosticosPortal) {
