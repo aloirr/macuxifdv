@@ -3,7 +3,7 @@
 @font-face{font-family:A7;src:url(../../../../apps/web/app/fonts/Archivo_700Bold.ttf)}
 @font-face{font-family:P4;src:url(../../../../apps/web/app/fonts/IBMPlexSans_400Regular.ttf)}
 @font-face{font-family:P6;src:url(../../../../apps/web/app/fonts/IBMPlexSans_600SemiBold.ttf)}
-:root{--faixa:#1E3350;--faixaTitulo:#FFFFFF;--faixaSub:#C9CED5;--neutralBg:#ECEEF1;--accentInk:#1E3350;--ground:#F8F6F1;--surface:#FFFFFF;--ink:#16202A;--ink2:#4A5562;--line:#DFE2E6;--grafico:#C2540A;--accent:#1E3350}
+:root{--faixa:#1E3350;--faixaTitulo:#FFFFFF;--faixaSub:#C9CED5;--neutralBg:#ECEEF1;--accentInk:#1E3350;--ground:#F8F6F1;--surface:#FFFFFF;--ink:#16202A;--ink2:#4A5562;--line:#DFE2E6;--grafico:#C2540A;--graficoEscuro:#F59A52;--faixaTrilho:#3A4D68;--accent:#1E3350}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#d9dce1;font-family:P4;color:var(--ink);padding:28px;width:max-content}
 h1{font-family:A8;font-size:26px;margin-bottom:6px} .nota{font-size:15px;color:var(--ink2);margin-bottom:22px;max-width:1220px}
@@ -15,8 +15,8 @@ h1{font-family:A8;font-size:26px;margin-bottom:6px} .nota{font-size:15px;color:v
 .tel.so{height:auto;border-radius:20px}
 .status{height:24px;display:flex;justify-content:space-between;align-items:center;padding:0 20px;color:#fff;font-family:P6;font-size:12px}
 .painel{background:var(--faixa)}
-.sino{width:48px;height:48px;display:flex;align-items:center;justify-content:center;position:relative;flex:none}
-.balao{position:absolute;top:8px;right:8px;min-width:18px;height:18px;border-radius:9px;background:var(--grafico);color:#fff;font-family:P6;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--faixa)}
+.sino{width:48px;height:48px;border:1px solid var(--faixaTrilho);border-radius:12px;display:flex;align-items:center;justify-content:center;position:relative;flex:none}
+.bolinha{position:absolute;top:10px;right:10px;width:12px;height:12px;border-radius:6px;background:var(--graficoEscuro);border:2px solid var(--faixa)}
 .alvo{outline:1.5px dashed rgba(245,154,82,.95);outline-offset:-1px}
 .av{background:var(--neutralBg);color:var(--accentInk);font-family:A8;display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden}
 .meio{padding:10px 20px;display:flex;flex-direction:column;gap:8px;flex:1}
@@ -38,7 +38,7 @@ h1{font-family:A8;font-size:26px;margin-bottom:6px} .nota{font-size:15px;color:v
     <div style="flex:1;display:flex;align-items:center;gap:12px;min-height:48px">
       <div class="av" style="width:40px;height:40px;border-radius:12px;font-size:16px">LA</div>
       <div style="flex:1;font-size:14px;color:var(--faixaSub)">Sábado, 14 de novembro <span style="white-space:nowrap">· DU 11 de 23</span></div>
-    </div><div class="sino "><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="balao">3</span></div>
+    </div><div class="sino "><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="bolinha"></span></div>
   </div>
   <div style="margin-top:4px;display:flex;flex-direction:column;gap:2px">
     <div class="caber" data-min="0.6" style="font-family:A8;font-size:24px;line-height:31px;color:var(--faixaTitulo);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Boa noite, Lucas</div>
@@ -53,7 +53,7 @@ h1{font-family:A8;font-size:26px;margin-bottom:6px} .nota{font-size:15px;color:v
     <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
       <div style="display:flex;align-items:center;gap:4px;margin-right:-12px">
         <div class="caber" data-min="0.75" style="flex:1;min-width:0;font-family:A8;font-size:22px;line-height:28px;color:var(--faixaTitulo);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Boa noite, Lucas</div>
-        <div style="margin:-10px 0"><div class="sino "><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="balao">3</span></div></div>
+        <div style="margin:-10px 0"><div class="sino "><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="bolinha"></span></div></div>
       </div>
       <div style="font-size:13px;line-height:18px;color:var(--faixaSub)">Sábado, 14 de novembro <span style="white-space:nowrap">· DU 11 de 23</span></div>
       <div style="font-size:13px;line-height:18px;font-style:italic;color:var(--faixaSub);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">“Planejar a rota é ganhar tempo na rua.”</div>
@@ -68,7 +68,7 @@ h1{font-family:A8;font-size:26px;margin-bottom:6px} .nota{font-size:15px;color:v
     <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
       <div style="display:flex;align-items:center;gap:4px;margin-right:-12px">
         <div class="caber" data-min="0.75" style="flex:1;min-width:0;font-family:A8;font-size:22px;line-height:28px;color:var(--faixaTitulo);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Boa noite, Maximiliano</div>
-        <div style="margin:-10px 0"><div class="sino "><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="balao">3</span></div></div>
+        <div style="margin:-10px 0"><div class="sino "><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="bolinha"></span></div></div>
       </div>
       <div style="font-size:13px;line-height:18px;color:var(--faixaSub)">Sábado, 14 de novembro <span style="white-space:nowrap">· DU 11 de 23</span></div>
       <div style="font-size:13px;line-height:18px;font-style:italic;color:var(--faixaSub);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">“Planejar a rota é ganhar tempo na rua.”</div>
