@@ -103,7 +103,7 @@ quatro superfícies. Não ficam constantes no código.
 |---|---|---|
 | Razão social (largura toda) | opcional; sem espaços nas pontas; até 120 caracteres; vazio = sem valor | "Use até 120 caracteres." |
 | CNPJ | opcional; máscara `00.000.000/0000-00` enquanto digita (a `mascararCnpj` do passo Empresa); confere os dígitos verificadores (`cnpjComDigitosValidos`); sem consulta à Receita; vazio = sem valor | "CNPJ inválido. Confira os 14 dígitos." (o texto do passo Empresa) |
-| Site | já vem com `macuxifdv.com.br`; ao sair do campo tira `https://`, `http://`, `www.` e a barra final; só o domínio; vazio ao salvar volta para `macuxifdv.com.br`. Ajuda: "Sem https:// e sem www." | "Use só o endereço, ex.: macuxifdv.com.br." |
+| Site | já vem com `macuxifdv.com.br`; ao sair do campo tira `https://`, `http://`, `www.` e a barra final; só o domínio; vazio ao salvar volta para `macuxifdv.com.br`. | "Use só o endereço, ex.: macuxifdv.com.br." |
 
 - **Botão:** um só, "Salvar" (principal), desabilitado enquanto nada mudou; no envio, "Salvando…". Deu certo: aviso no
   rodapé "Dados salvos.". Erro de rede ou do servidor: `ErrorBlock` do kit com "Tentar de novo", e os campos guardam o
@@ -146,7 +146,7 @@ quatro superfícies. Não ficam constantes no código.
 ### 3.4 Rotas (engenheiro-software, `apps/api/src/dados-legais.ts`, registrada no `app.ts` como a `/v1/saude`)
 
 - `GET /v1/publico/dados-legais`: **sem login e sem tenant**, porque a tela Entrar vem antes do login. Responde
-  `DadosLegaisSchema` com `Cache-Control: public, max-age=300, stale-while-revalidate=86400` e `ETag` (304); cache em
+  `DadosLegaisSchema` com `Cache-Control: public, max-age=300, stale-while-revalidate=86400`; cache em
   memória de 60 s na API; limite por IP como as outras rotas sem login. Banco fora: 503, e o cliente usa o próprio
   cache.
 - `GET` e `PUT /v1/plataforma/dados-legais`: token do portal, só super-admin (403 para o admin do cliente). O `PUT`
