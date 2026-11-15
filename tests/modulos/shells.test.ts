@@ -2,7 +2,7 @@
  * T-0004 — shells montando módulos pelo manifesto (cenários S0-080, S0-082, S0-083, S0-085 e S0-087 do plano).
  *
  * C4.1 (configuração; o BUILD no EAS é manual e depende do login do Alexandre na Expo — roteiro M-02):
- *   `app.config.ts` avaliado nas duas variantes e `eas.json` com os perfis de desenvolvimento `campo`/`gestao` (APK).
+ *   `app.config.ts` avaliado nas duas variantes e `eas.json` com os perfis oficiais `campo-producao`/`gestao-producao` (APK).
  * C4.2: extensão só com o módulo ativo — o exemplo REAL (o "Novo pedido" do Vendedor no slot `cliente.acoes` do Core,
  *   lido do fonte de modules/vendedor/app/index.ts) e um card de exemplo no `inicio.cards`, no `criarShell` do SDK.
  * C4.3: os 8 módulos nos shells (web real importado; mobile pela lista pura `instalados.ts`) e o createApp com os 8.
@@ -43,15 +43,21 @@ describe('C4.1 — duas variantes do mesmo código (configuração do EAS)', () 
     expect(() => avaliar('outra')).toThrow(/APP_VARIANT/);
   });
 
-  it('S0-080: eas.json tem os perfis de desenvolvimento campo e gestao (APK, dev client, distribuição interna, APP_VARIANT certo)', () => {
-    const eas = JSON.parse(ler('apps/mobile/eas.json')) as { build: Record<string, { extends?: string; developmentClient?: boolean; distribution?: string; env?: Record<string, string>; android?: { buildType?: string } }> };
+  it('S0-080: eas.json tem os perfis oficiais campo-producao e gestao-producao (APK, APP_VARIANT certo, API de produção)', () => {
+    type Perfil = { extends?: string; distribution?: string; env?: Record<string, string>; android?: { buildType?: string } };
+    const eas = JSON.parse(ler('apps/mobile/eas.json')) as { build: Record<string, Perfil> };
+    // resolve a herança `extends` (o filho sobrepõe o pai; env e android são mesclados)
+    const resolver = (nome: string): Perfil => {
+      const p = eas.build[nome];
+      expect(p, nome).toBeDefined();
+      if (!p!.extends) return p!;
+      const pai = resolver(p!.extends);
+      return { ...pai, ...p, env: { ...pai.env, ...p!.env }, android: { ...pai.android, ...p!.android } };
+    };
     for (const v of ['campo', 'gestao']) {
-      const p = eas.build[v]!;
-      expect(p, v).toMatchObject({ developmentClient: true, distribution: 'internal', env: { APP_VARIANT: v }, android: { buildType: 'apk' } });
-      expect(eas.build[`${v}-preview`]?.env?.APP_VARIANT, `${v}-preview`).toBe(v);
+      const p = resolver(`${v}-producao`);
+      expect(p, `${v}-producao`).toMatchObject({ env: { APP_VARIANT: v, EXPO_PUBLIC_API_URL: 'https://api.macuxifdv.com.br/v1' }, android: { buildType: 'apk' } });
     }
-    const pkg = JSON.parse(ler('apps/mobile/package.json')) as { dependencies: Record<string, string> };
-    expect(pkg.dependencies['expo-dev-client']).toBeDefined();
   });
 
   it('cada variante tem o próprio ícone (o da Gestão deixou de ser o do Campo) e os arquivos existem', () => {
