@@ -127,12 +127,25 @@ export const FUNCOES_SA_0073 = ['plataforma.sa_dados_legais(uuid)', 'plataforma.
 /** A leitura pública dos dados legais (0073): SECURITY DEFINER, sem sessão; EXECUTE só ao macuxi_app. */
 export const DADOS_LEGAIS_PUBLICOS = 'plataforma.dados_legais_publicos()';
 
+/** As 27 sa_* públicas do banco parado na 0073 (até a 0082): as 25 até a 0072 (FUNCOES_SA_ATE_0072) + as 2 da 0073. */
+export const FUNCOES_SA_ATE_0082 = [...FUNCOES_SA_ATE_0072, ...FUNCOES_SA_0073] as const;
+
 /**
- * As sa_* públicas do banco migrado até a ÚLTIMA (0073): as 25 até a 0072 (FUNCOES_SA_ATE_0072) + as 2 da 0073 = 27. Use esta
- * lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040
- * ou 0041.
+ * As 3 sa_* da 0083 (ADR 0047; planos e licenças no portal, apps/api/src/planos-portal.ts): o catálogo (super-admin e admin do
+ * cliente), a ficha da empresa (admin do cliente só a da sessão) e a troca de plano (só super-admin). EXECUTE só ao macuxi_portal.
  */
-export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0072, ...FUNCOES_SA_0073] as const;
+export const FUNCOES_SA_0083 = [
+  'plataforma.sa_listar_planos(uuid)',
+  'plataforma.sa_assinatura_da_empresa(uuid, uuid)',
+  'plataforma.sa_trocar_plano(uuid, uuid, jsonb)',
+] as const;
+
+/**
+ * As sa_* públicas do banco migrado até a ÚLTIMA (0083): as 27 até a 0082 (FUNCOES_SA_ATE_0082) + as 3 da 0083 = 30. Use esta
+ * lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040
+ * ou 0041. Lote que acrescentar sa_* entre a 0075 e a 0082 entra em FUNCOES_SA_ATE_0082.
+ */
+export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0082, ...FUNCOES_SA_0083] as const;
 
 /**
  * Funções do worker da 0072 (ADR 0052): SECURITY DEFINER, EXECUTE só ao macuxi_worker (o tenant sai da linha do job).

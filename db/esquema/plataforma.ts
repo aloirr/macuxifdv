@@ -7,8 +7,8 @@
  * 0069_core_cargo_hierarquia.up.sql), 0070_plataforma_plano_assinatura.up.sql (planos e assinatura, ADR 0047),
  * 0072_plataforma_empresa_acoes.up.sql (inativar, backup e excluir a empresa, ADR 0052; só por função),
  * 0073_plataforma_dados_legais.up.sql (dados legais do rodapé, só por função), 0074_plataforma_sync_pacote.up.sql (pacote da
- * primeira carga, ADR 0054) e 0079_catalogo_foto_lote.up.sql (tipos de arquivo e trabalho sob demanda, ADR 0054),
- * para consultas da API.
+ * primeira carga, ADR 0054), 0079_catalogo_foto_lote.up.sql (tipos de arquivo e trabalho sob demanda, ADR 0054) e
+ * 0083_plataforma_planos_troca_licencas.up.sql (histórico das trocas de plano, ADR 0047), para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -404,9 +404,10 @@ export interface AdicionalDoPlanoLinha {
 }
 
 /**
- * Catálogo de planos (0070, ADR 0047 §1): DADO da plataforma, fora dos tenants (exceção à regra 5, como a super_admin). Só pelas
- * funções plataforma.sa_* (sem grant de tabela). Versão nova do plano = linha nova; a antiga ganha deleted_at e as assinaturas
- * continuam apontando para ela. Código único entre os vivos. Licenças por tipo: null = sem limite.
+ * Catálogo de planos (0070, ADR 0047 §1): DADO da plataforma, fora dos tenants (exceção à regra 5, como a super_admin). Gravado só
+ * pelas funções do dono; desde a 0083 o macuxi_app lê só o plano da assinatura viva do próprio tenant. Versão nova do plano =
+ * linha nova; a antiga ganha deleted_at e as assinaturas continuam apontando para ela. Código único entre os vivos. Licenças
+ * por tipo: null = sem limite. Os 4 planos de venda (light, pme, enterprise, corporate) vêm da 0083.
  */
 export const plano = plataforma.table('plano', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -442,6 +443,27 @@ export const assinatura = plataforma.table('assinatura', {
   paga: boolean('paga').notNull().default(false),
   /** UUID do portal que gravou (chave de idempotência da criação). */
   pedido_id: uuid('pedido_id').notNull(),
+});
+
+/**
+ * Histórico das trocas de plano (0083, ADR 0047 §6, RN-PLA-05): uma linha por troca, gravada só pela plataforma.sa_trocar_plano
+ * (portal, super-admin); o macuxi_app lê só as do próprio tenant. pedido_id = chave de idempotência do portal, única por tenant.
+ * Fora do sync.
+ */
+export const assinaturaHistorico = plataforma.table('assinatura_historico', {
+  ...comuns(),
+  assinatura_id: uuid('assinatura_id').notNull(),
+  pedido_id: uuid('pedido_id').notNull(),
+  plano_anterior_id: uuid('plano_anterior_id').notNull(),
+  plano_id: uuid('plano_id').notNull(),
+  ciclo_anterior: text('ciclo_anterior', { enum: ['mensal', 'anual'] }).notNull(),
+  ciclo: text('ciclo', { enum: ['mensal', 'anual'] }).notNull(),
+  adicionais_anteriores: jsonb('adicionais_anteriores').$type<{ adicional: 'promotor' | 'pesquisa' | 'treinamento'; quantidade: number }[]>().notNull().default([]),
+  adicionais: jsonb('adicionais').$type<{ adicional: 'promotor' | 'pesquisa' | 'treinamento'; quantidade: number }[]>().notNull().default([]),
+  /** Módulos que a troca ligou (inseridos ou religados) no tenant_modulo. */
+  modulos_ligados: text('modulos_ligados').array().notNull().default(sql`'{}'::text[]`),
+  /** Super-admin que trocou (sem FK; a auditoria_plataforma guarda a sessão). */
+  super_admin_id: uuid('super_admin_id'),
 });
 
 /**
