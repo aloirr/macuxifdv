@@ -37,6 +37,30 @@ export function buscaDosFiltrosTabelas(f: FiltrosTabelas): string {
   return s ? `?${s}` : '';
 }
 
+/** "Limpar filtros" só aparece com filtro ligado; na aba Preço da UN a tabela e a filial são escolha, não filtro (RN-VEN-23). */
+export function filtrosTabelasLigados(f: FiltrosTabelas): boolean {
+  if (f.q.trim() !== '') return true;
+  return f.aba === 'escalonada' && (f.tabela !== '' || f.vigente);
+}
+
+const dataBr = (v: string) => `${v.slice(8, 10)}/${v.slice(5, 7)}/${v.slice(0, 4)}`;
+
+/** Vigência em uma célula: "dd/mm a dd/mm/aaaa" (ano do início omitido quando igual ao do fim) ou "dd/mm/aaaa a dd/mm/aaaa", "Desde dd/mm/aaaa" sem fim e "—" sem início. Aceita data ou instante ISO. */
+export function textoVigencia(inicio: string | null, fim: string | null): string {
+  if (!inicio) return fim ? `Até ${dataBr(fim)}` : '—';
+  if (!fim) return `Desde ${dataBr(inicio)}`;
+  const mesmoAno = inicio.slice(0, 4) === fim.slice(0, 4);
+  return `${mesmoAno ? dataBr(inicio).slice(0, 5) : dataBr(inicio)} a ${dataBr(fim)}`;
+}
+
+/** Selo único da Situação da faixa (RN-VEN-23, §P5): acima da tabela > inativa > fora da vigência > vigente. */
+export function seloDaFaixa(f: Pick<FaixaCadastrada, 'mais_cara_que_a_tabela' | 'ativo' | 'vigente'>): { tom: 'warning' | 'neutral' | 'success'; texto: string } {
+  if (f.mais_cara_que_a_tabela) return { tom: 'warning', texto: 'Acima da tabela' };
+  if (!f.ativo) return { tom: 'neutral', texto: 'Inativa' };
+  if (!f.vigente) return { tom: 'neutral', texto: 'Fora da vigência' };
+  return { tom: 'success', texto: 'Vigente' };
+}
+
 /** Reais digitados ("15,90", "1.234,5") para centavos inteiros, sem ponto flutuante; nulo se inválido ou com mais de 2 casas. */
 export function centavosDoTexto(texto: string): number | null {
   const t = texto.trim().replace(/\s/g, '').replace(/\./g, '');

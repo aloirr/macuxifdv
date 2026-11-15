@@ -12,6 +12,14 @@ export interface FiltrosMarcas {
 }
 const SITUACOES: readonly SituacaoMarcas[] = ['ativas', 'inativas', 'todas'];
 
+/** Filtros sem nada ligado (revisão do BKO §P4): a lista abre só com as marcas ativas. */
+export const FILTROS_MARCAS_PADRAO: FiltrosMarcas = { situacao: 'ativas', q: '' };
+
+/** "Limpar filtros" só aparece com filtro ligado: situação diferente de ativas ou busca com texto. */
+export function filtrosMarcasLigados(f: FiltrosMarcas): boolean {
+  return f.situacao !== FILTROS_MARCAS_PADRAO.situacao || f.q.trim() !== '';
+}
+
 export function lerFiltrosMarcas(busca: string): FiltrosMarcas {
   const p = new URLSearchParams(busca);
   const s = p.get('situacao') as SituacaoMarcas | null;
