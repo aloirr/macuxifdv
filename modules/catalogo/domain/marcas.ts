@@ -3,6 +3,7 @@
  * ADR 0034); aqui só as regras puras: validar o `marca_id` do PUT, casar a marca que vem do ERP (doc 06) e resolver os códigos
  * de "Oferece junto" digitados no BKO (RN-CAT-09, T-0085).
  */
+import type { Referencia } from '../contracts';
 import { LIMITES_CADASTRO_CATALOGO, type ErroCadastro } from './cadastro-catalogo';
 import { chaveDoNomeMarca, nomeMarcaIgual } from './marcas-cadastro';
 import { codigoCompacto } from './ranking';
@@ -44,7 +45,7 @@ export type MotivoDescarte = 'codigo_invalido' | 'repetida' | 'excede_limite';
 export type MotivoSemMarca = 'marca_desconhecida' | 'marca_inativa';
 
 export interface ResolucaoReferenciasErp {
-  referencias: { marca_id: string | null; marca_nome: string | null; codigo: string }[];
+  referencias: Referencia[];
   descartadas: { codigo: string; motivo: MotivoDescarte }[];
   /** Referências que entraram sem marca por a marca informada ser desconhecida ou inativa (aviso `marca_desconhecida`). */
   semMarca: { codigo: string; motivo: MotivoSemMarca }[];
@@ -134,7 +135,7 @@ export function marcasDesconhecidasDaLinha(
 export function referenciaVisivel(
   r: { marca_id: string | null; marca_nome?: string | null | undefined; codigo: string },
   marcas: MapaMarcas,
-): { marca_id: string | null; marca_nome: string | null; codigo: string } | null {
+): Referencia | null {
   const nome = nomeMarcaDaReferencia(r.marca_id, r.marca_nome, marcas);
   return nome === null && r.marca_id !== null ? null : { marca_id: r.marca_id, marca_nome: nome, codigo: r.codigo };
 }
