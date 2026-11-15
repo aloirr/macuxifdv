@@ -3,7 +3,7 @@
 > Pedido do Alexandre, R-20261114-200500-alexandre (chat de 14/11/2026, ~20h05, Manaus): "Avalie e ajuste o layout do email de
 > reset de senha. Quero ele no padrao da marca sem redundancia e passado pelo ux design".
 > Designer-ux, 14/11/2026. Base: `docs/marca/manual.md` §2, §3, §5 e §7; R-20261110-192153 (só o que o usuário usa para agir);
-> R-20261110-093124 (uma informação, um lugar). Substitui o texto e o HTML de `docs/design/ciclo-de-senha.md` §8 (8.1 e 8.2).
+> R-20261110-093124 (uma informação, um lugar). Substitui o texto e o HTML de `docs/design/ciclo-de-senha.md` §8.
 > Simulações: [`redefinir-senha/`](redefinir-senha/). Dados fictícios.
 
 ![Antes × depois](redefinir-senha/comparativo-antes-depois.png)
@@ -58,7 +58,7 @@ Fundo externo Pérola, folha branca de até 600 px com raio 12 e recuo de 32 × 
 | `nova_senha` · `redefinida` (BKO) | "O administrador da {empresa_nome} redefiniu a sua senha." |
 | `nova_senha` · `redefinida` · `redefinida_por = 'macuxi'` (portal) | "O suporte da Macuxi redefiniu a sua senha na {empresa_nome}." |
 | `nova_senha` · `esqueci` | "Foi pedida uma senha nova para o seu acesso na {empresa_nome}. Se não foi você, ignore este e-mail." |
-| `acesso_inicial` (convite) | "Seu acesso na {empresa_nome} está pronto." + só com `campo` ou `gestao` no destino: " Ainda não tem o app? Peça ao administrador da sua empresa." |
+| `acesso_inicial` (convite) | "A {empresa_nome} criou o seu acesso." + só com `campo` ou `gestao` no destino: " Ainda não tem o app? Peça ao administrador da sua empresa." |
 
 **Bloco:** "Código da empresa", "E-mail", "Senha temporária" e "Vale por {validade_horas} horas.".
 **Botão:** "Abrir o backoffice".

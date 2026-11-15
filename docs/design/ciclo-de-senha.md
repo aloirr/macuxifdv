@@ -204,67 +204,7 @@ const repeticao = repetida === '' ? 'vazia' : repetida === senhaNova ? 'igual' :
   `tela-crie-sua-senha.tsx`) e o `login.tsx` do shell ainda escrevem `colors.accent` em texto: lista entregue ao gerente-projetos para despacho aos donos.
 
 ## 8. E-mails (modelos da N5, `packages/platform-sdk/src/email/**`)
-> **Revisto em 14/11/2026:** textos e layout dos e-mails passam a valer pelo `docs/design/emails/redefinir-senha.md` (layout-base de marca para `acesso_inicial` e `nova_senha`). Onde conflitar, vale aquele.
-
-Texto puro obrigatório; HTML opcional com **o mesmo texto**, uma coluna de até 560 px, fundo branco, Archivo no título e
-IBM Plex Sans (com Arial de reserva) no corpo, a senha em monoespaçada 18 px num quadro `#F3F4F1` (fácil de copiar, sem espaço
-antes ou depois). Sem imagem obrigatória, sem botão que dependa de imagem. Remetente: **"Macuxi FDV"**.
-
-**"Onde entrar"**, montado de `dados.apps` na ordem campo, gestão, web, unido com " ou ":
-- `campo` → "no app Macuxi Campo"; `gestao` → "no app Macuxi Gestão"; `web` → "no backoffice do Macuxi, pelo navegador".
-- Se a N5 souber o endereço do backoffice (variável de ambiente), o `web` vira "no backoffice do Macuxi: <endereço>". Opcional.
-- Com `campo` ou `gestao` na lista, acrescenta a linha: "Ainda não tem o app? Peça ao administrador da sua empresa."
-
-### 8.1 "Seu acesso ao Macuxi" (`acesso_inicial`)
-Assunto: **Seu acesso ao Macuxi**
-```
-Olá, {nome}.
-
-Seu acesso ao Macuxi na {empresa_nome} está pronto.
-
-Código da empresa: {codigo_empresa}
-E-mail: {login}
-Senha temporária: {senha}
-
-Entre {onde_entrar}.
-[Ainda não tem o app? Peça ao administrador da sua empresa.]
-
-No primeiro acesso, você cria a sua senha. A senha temporária vale por {validade_horas} horas.
-Se ela vencer, use "Esqueci a senha" na tela de entrada.
-
-Macuxi FDV · e-mail automático, não responda.
-```
-`validade_horas = null` (não vence): sai a frase da validade e a do "Se ela vencer"; fica "No primeiro acesso, você cria a sua
-senha."
-
-### 8.2 "Sua nova senha" (`nova_senha`)
-Assunto: **Sua nova senha do Macuxi**
-```
-Olá, {nome}.
-
-{abertura}
-
-Código da empresa: {codigo_empresa}
-E-mail: {login}
-Senha temporária: {senha}
-
-Entre {onde_entrar} e crie a sua senha. A senha temporária vale por {validade_horas} horas.
-
-{fecho}
-
-Macuxi FDV · e-mail automático, não responda.
-```
-| `motivo` | `{abertura}` | `{fecho}` |
-|---|---|---|
-| `esqueci` | "Recebemos um pedido de senha nova para o seu acesso na {empresa_nome}." | "Se não foi você, ignore este e-mail: a sua senha atual continua valendo." |
-| `redefinida` | "O administrador da {empresa_nome} definiu uma senha nova para você." | "A senha anterior não vale mais." |
-| `redefinida`, pelo portal (`redefinida_por = 'macuxi'`) | "O suporte da Macuxi definiu uma senha nova para o seu acesso na {empresa_nome}." | "A senha anterior não vale mais." |
-
-Variante do portal aprovada em 08/11 (R-20261108-071559, `packages/platform-sdk/src/email/modelos.ts`). Admin que entra só pelo
-app (RN-CORE-35, `entra_no_portal = false`): `dados.apps` sem `web`, e `{onde_entrar}` sai só com o app ("no app Macuxi Campo").
-
-Regras dos dois: nunca o hash, o id nem o link com a senha; a senha aparece **uma vez**, só no corpo. Nada de "Clique aqui".
-Sem `nome` (vazio): "Olá." Valores de `dados` escapados no HTML.
+Textos, layout e regras dos e-mails `acesso_inicial` e `nova_senha`: `docs/design/emails/redefinir-senha.md` (fonte única).
 
 ## 9. Checklist da revisão (fatias W e C)
 - "Crie sua senha": nada abre antes; um só principal ("Salvar e entrar"); olho mostra os dois campos; `RegrasDaSenha` com
