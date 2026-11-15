@@ -98,7 +98,7 @@ export function OrdersPage() {
     <>
       <PageHeader
         title={titulo}
-        badge={soma !== null && quantidade > 0 ? <span className="font-display text-[18px] font-bold text-ink-2" data-testid="pedidos.total">{formatBRL(soma)}</span> : undefined}
+        badge={soma !== null && quantidade > 0 ? <span className="text-[18px] font-bold text-ink-2" data-testid="pedidos.total">{formatBRL(soma)}</span> : undefined}
         actions={<MenuAcoes acoes={acoesDaPagina} rotulo="Mais ações" testId="pedidos.mais-acoes" />}
       />
 

@@ -12,6 +12,7 @@ import {
   colors,
   fonts,
   VALOR_SEM_DADO,
+  CampoTexto,
   Icon,
   ListaSuspensa,
   RotuloSecao,
@@ -219,18 +220,14 @@ export function CartaoFrete({
           />
           {digitando && frete.transportadora_digitada ? (
             <View style={{ gap: 8 }} testID="transp-digitada">
-              <CampoTexto rotulo="Nome" valor={frete.transportadora_digitada.nome} testID="transp-nome" onChange={(v) => setFrete({ ...frete, transportadora_digitada: { ...frete.transportadora_digitada!, nome: v } })} />
-              <CampoTexto rotulo="CNPJ" valor={frete.transportadora_digitada.cnpj} testID="transp-cnpj" teclado="number-pad" onChange={(v) => setFrete({ ...frete, transportadora_digitada: { ...frete.transportadora_digitada!, cnpj: v.replace(/\D/g, '').slice(0, 14) } })} />
+              <CampoTexto rotulo="Nome" valor={frete.transportadora_digitada.nome} testID="transp-nome" aoMudar={(v) => setFrete({ ...frete, transportadora_digitada: { ...frete.transportadora_digitada!, nome: v } })} />
+              <CampoTexto rotulo="CNPJ" valor={frete.transportadora_digitada.cnpj} testID="transp-cnpj" keyboardType="number-pad" aoMudar={(v) => setFrete({ ...frete, transportadora_digitada: { ...frete.transportadora_digitada!, cnpj: v.replace(/\D/g, '').slice(0, 14) } })} />
             </View>
           ) : null}
         </View>
       ) : null}
     </View>
   );
-}
-
-function CampoTexto({ rotulo, valor, onChange, testID, teclado }: { rotulo: string; valor: string; onChange: (v: string) => void; testID: string; teclado?: 'number-pad' | 'phone-pad' }) {
-  return <TextInput testID={testID} value={valor} onChangeText={onChange} keyboardType={teclado} placeholder={rotulo} placeholderTextColor={colors.ink3} accessibilityLabel={rotulo} style={s.texto} autoCorrect={false} />;
 }
 
 // ---------- aba 3 · Entrega ----------
