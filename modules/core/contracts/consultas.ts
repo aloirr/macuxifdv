@@ -6,6 +6,7 @@
 import { definirConsulta } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import { LimiteDescontoSchema } from './usuarios';
+import { ParametrosAlertasProdutividadeSchema } from './alertas-produtividade';
 
 const Ids = z.array(z.string().uuid()).max(500).default([]);
 
@@ -195,3 +196,31 @@ export const FinanceiroClienteSaidaSchema = z.object({
 });
 export type FinanceiroClienteSaida = z.infer<typeof FinanceiroClienteSaidaSchema>;
 export const CONSULTA_FINANCEIRO_CLIENTE = definirConsulta({ nome: 'core.financeiro_cliente@1', entrada: FinanceiroClienteEntradaSchema, saida: FinanceiroClienteSaidaSchema });
+
+/**
+ * `core.produtividade_equipe@1` (T-0180, ADR 0059 §4; RN-CORE-26, RN-CORE-44): o que o Gestor precisa para abrir os alertas de
+ * produtividade, no escopo dos `usuario_ids` pedidos (1 a 500): `inicio.parado_min`, o parâmetro `alertas.produtividade` e, por
+ * usuário, o último contato do aparelho e o almoço já resolvido (o próprio ou `jornada.almoco_padrao`). Id inexistente, removido
+ * ou de outro tenant some (não é erro). Só leitura, na transação de quem consulta.
+ */
+export const ProdutividadeEquipeEntradaSchema = z.object({ usuario_ids: z.array(z.string().uuid()).min(1).max(500) }).strict();
+export type ProdutividadeEquipeEntrada = z.infer<typeof ProdutividadeEquipeEntradaSchema>;
+export const ProdutividadeEquipeSaidaSchema = z
+  .object({
+    parado_min: z.number().int(),
+    alertas: ParametrosAlertasProdutividadeSchema,
+    usuarios: z.array(
+      z
+        .object({
+          id: z.string().uuid(),
+          /** Último `GET /sync/novidades` ou `POST /sync/push` do usuário (UTC, ISO); nulo = nunca sincronizou. */
+          ultimo_contato_em: z.string().datetime().nullable(),
+          almoco_inicio_min: z.number().int().min(0).max(1439),
+          almoco_fim_min: z.number().int().min(0).max(1439),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+export type ProdutividadeEquipeSaida = z.infer<typeof ProdutividadeEquipeSaidaSchema>;
+export const CONSULTA_PRODUTIVIDADE_EQUIPE = definirConsulta({ nome: 'core.produtividade_equipe@1', entrada: ProdutividadeEquipeEntradaSchema, saida: ProdutividadeEquipeSaidaSchema });

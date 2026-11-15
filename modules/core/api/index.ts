@@ -20,6 +20,7 @@ import { rotasDeClientes } from './clientes';
 import { rotasDeDispositivos } from './dispositivos';
 import { provedoresDeNotificacao, rotasDeNotificacoes } from './notificacoes';
 import { consultaCadastroCliente, consultaCadastroResumo, consultaCalendarioMetas, consultaFinanceiroCliente, consultaPromotorVePedidos, consultaUsuariosResumo } from './consultas';
+import { consultaProdutividadeEquipe, registrarContatoDoAparelho } from './produtividade-equipe';
 import { consumidorPushNotificacao } from './consumidores';
 import { consumidoresDoErp } from './consumidores-erp';
 import { consumidoresDePedido } from './consumidores-pedido';
@@ -69,7 +70,11 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
     consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorBaixaPorResposta, consumidorMetaDefinida, ...consumidoresDoErp],
     // ADR 0022: varredura do alerta de pendência de etapa do checkout (RN-CORE-12); período múltiplo de 15 min (RN-CORE-23).
     tarefas: [definirTarefa({ nome: 'alerta_pendencia_checkout', cadaMin: 60, executar: (ctx) => alertarPendenciasVencidas(ctx) })],
-    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaFinanceiroCliente, consultaMedidas, consultaFiliais, consultaPromotorVePedidos, consultaUsuariosResumo, consultaCalendarioMetas],
+    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaFinanceiroCliente, consultaMedidas, consultaFiliais, consultaPromotorVePedidos, consultaUsuariosResumo, consultaCalendarioMetas, consultaProdutividadeEquipe],
+    // T-0180 (ADR 0059 §5): último contato do aparelho, chamado pela API depois do novidades e do push (melhor esforço)
+    // PENDÊNCIA T-0180: o tipo `ModuloApi.contatoDoAparelho` vem do branch do engenheiro-software (ainda fora do main); o spread isola
+    // a propriedade para este branch compilar sozinho. Com o SDK no main, trocar por `contatoDoAparelho: registrarContatoDoAparelho,`.
+    ...({ contatoDoAparelho: registrarContatoDoAparelho } satisfies Record<string, unknown>),
     rotasPublicas: [
       {
         metodo: 'POST',

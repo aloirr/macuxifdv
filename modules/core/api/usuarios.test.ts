@@ -1,6 +1,6 @@
 import { criarPermissoes, verificarAcao, PERFIS, type ClienteBanco, type ContextoBase, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { CriarUsuarioRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioItemSchema } from '../contracts';
+import { CriarUsuarioRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioItemSchema, UsuarioListaRespostaSchema } from '../contracts';
 import type { MensagemEmail, ServicoEmail } from './email';
 import { manifest } from '../manifest';
 import { perfisDeFabrica } from '../domain';
@@ -582,5 +582,18 @@ describe('usuario-bloqueio §6: bloqueio do login na lista e Desbloquear (BKO)',
   it('§6.2: usuário de outro tenant ou apagado: 404', async () => {
     const { db } = fakeDb([]);
     await expect(executar(rota('DELETE', 'usuarios/:id/bloqueio'), contexto(db), { params: { id: ALVO } })).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe('RN-CORE-44 (D5): a lista leva o padrão de almoço da empresa para quem edita usuário', () => {
+  it('RN-CORE-44: sem parâmetro salvo, a resposta traz 12:00 às 13:00; com parâmetro, o da empresa (quem tem só usuario.editar não precisa de parametro.inicio)', async () => {
+    const base: Resposta[] = [[/from core.usuario u left join/, [linhaItem()]]];
+    const semParam = fakeDb(base);
+    const r1 = (await executar(rota('GET', 'usuarios'), contexto(semParam.db), { query: {} })) as { almoco_padrao: unknown };
+    expect(r1.almoco_padrao).toEqual({ inicio_min: 720, fim_min: 780 });
+    const comParam = fakeDb([[/jornada\.almoco_padrao|from plataforma\.parametro/, (v) => (v[0] === 'jornada.almoco_padrao' ? [{ modulo: 'core', chave: 'jornada.almoco_padrao', valor: { inicio_min: 690, fim_min: 750 } }] : [])], ...base]);
+    const r2 = (await executar(rota('GET', 'usuarios'), contexto(comParam.db), { query: {} })) as { almoco_padrao: unknown };
+    expect(r2.almoco_padrao).toEqual({ inicio_min: 690, fim_min: 750 });
+    expect(UsuarioListaRespostaSchema.safeParse(r2).success).toBe(true);
   });
 });

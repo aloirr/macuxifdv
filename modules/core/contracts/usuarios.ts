@@ -15,6 +15,7 @@
  */
 import { z } from 'zod';
 import { PerfilSchema } from './auth';
+import { HorarioAlmocoSchema } from './jornada';
 import { CargoSchema } from '@macuxi/platform-sdk';
 
 const Uuid = z.string().uuid();
@@ -108,7 +109,8 @@ export type UsuarioListaQuery = z.infer<typeof UsuarioListaQuerySchema>;
 export const EmailAcessoSchema = z.enum(['enfileirado', 'indisponivel']);
 export type EmailAcesso = z.infer<typeof EmailAcessoSchema>;
 
-export const UsuarioListaRespostaSchema = z.object({ itens: z.array(UsuarioItemSchema) }).strict();
+/** `almoco_padrao` (T-0180, D5; RN-CORE-44): padrão real da empresa, para o rótulo da gaveta de quem edita usuário sem `parametro.inicio`. Ausente = servidor antigo. */
+export const UsuarioListaRespostaSchema = z.object({ itens: z.array(UsuarioItemSchema), almoco_padrao: HorarioAlmocoSchema.optional() }).strict();
 export type UsuarioListaResposta = z.infer<typeof UsuarioListaRespostaSchema>;
 
 export const EquipeOpcaoSchema = z

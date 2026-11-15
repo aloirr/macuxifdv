@@ -7,7 +7,7 @@ import { ROTULO_PERFIL, type ModuloId } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, CampoSenha, IconeModulo, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, useToast, rotuloDoPerfil, type AcaoDoMenu, type IdDoModulo } from '@macuxi/ui/web';
-import { CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type LicencasEstado, type UsuarioItem } from '../../../contracts';
+import { CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type HorarioAlmoco, type LicencasEstado, type UsuarioItem } from '../../../contracts';
 import { efetivosPelasDependencias } from '../../../domain/licencas';
 import {
   acaoDeSenha,
@@ -38,7 +38,6 @@ import { regrasDoCargo } from '../../../domain/cargos';
 import { modulosExibiveis, removidosDoFormulario } from '../../lib/acesso';
 import { efetivosDoUsuario } from '../../lib/licencas';
 import { useMe } from '../../lib/queries';
-import { CHAVE_JORNADA, criarApiJornada } from '../calendario/almoco-padrao';
 import { rotuloDoAlmoco } from '../../../domain/jornada';
 
 const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
@@ -91,9 +90,9 @@ export function UsuariosConteudo() {
   const [modal, setModal] = useState<Modal>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [form, setForm] = useState<FormularioUsuario>(FORMULARIO_VAZIO);
-  // T-0180 (D5): padrão da empresa para o rótulo e para preencher a jornada; sem permissão de ler o parâmetro, vale 12:00 às 13:00
-  const jornada = useQuery({ queryKey: CHAVE_JORNADA, queryFn: criarApiJornada().ler, enabled: podeEditar, retry: false });
-  const padraoAlmoco = almocoPadraoDoTenant(jornada.data);
+  // T-0180 (D5; RN-CORE-44): o padrão da empresa vem na própria lista de usuários (quem edita usuário não precisa de `parametro.inicio`)
+  const [padraoDaLista, setPadraoDaLista] = useState<HorarioAlmoco | undefined>(undefined);
+  const padraoAlmoco = almocoPadraoDoTenant(padraoDaLista ? { almoco_padrao: padraoDaLista } : undefined);
   const [desmarcados, setDesmarcados] = useState<ReadonlySet<string>>(new Set());
   const [tentou, setTentou] = useState(false);
   const [erroApi, setErroApi] = useState<string | null>(null);
@@ -122,7 +121,9 @@ export function UsuariosConteudo() {
       if (q) qs.set('q', q);
       if (perfil) qs.set('perfil', perfil);
       if (situacao) qs.set('ativo', situacao === 'ativo' ? 'true' : 'false');
-      return UsuarioListaRespostaSchema.parse(await api(`/core/usuarios${qs.size ? `?${qs.toString()}` : ''}`)).itens;
+      const resposta = UsuarioListaRespostaSchema.parse(await api(`/core/usuarios${qs.size ? `?${qs.toString()}` : ''}`));
+      if (resposta.almoco_padrao) setPadraoDaLista(resposta.almoco_padrao);
+      return resposta.itens;
     },
   });
   // §2: o selo "Bloqueado até" some sozinho, na hora em que o bloqueio vence (um único aviso do relógio, sem rede)

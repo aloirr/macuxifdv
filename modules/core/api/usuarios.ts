@@ -52,6 +52,7 @@ import {
   type UsuarioAuditavel,
   ERRO_SEM_PERFIL,
 } from '../domain';
+import { lerParametrosJornada } from './parametros-jornada';
 import { auditar } from './auditoria';
 import { codigosDoUsuario, conferirPerfisDoUsuario, gravarPerfisDoUsuario, perfisEscolhidos, principalDe, refsDoUsuario } from './usuario-perfis';
 import { carregar } from './perfis';
@@ -259,7 +260,8 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
       return ctx.comTenant(async (db) => {
         const r = await db.query<LinhaUsuario>(`${SELECT_USUARIO} where ${onde.join(' and ')} order by u.nome, u.id limit ${LIMITE}`, valores);
         // o filtro SQL já recortou; `recortarUsuarios` é a mesma regra do domínio, aplicada de novo como cinto de segurança
-        return { itens: await montarItens(db, recortarUsuarios(r.rows, visiveis), visiveis, ctx.agora()) };
+        const itens = await montarItens(db, recortarUsuarios(r.rows, visiveis), visiveis, ctx.agora());
+        return { itens, almoco_padrao: (await lerParametrosJornada(db)).almoco_padrao };
       });
     },
   },
