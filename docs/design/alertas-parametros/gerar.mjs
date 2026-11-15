@@ -137,7 +137,7 @@ const EQUIPE = [
   ['Ritmo abaixo da meta', 'Avisa quando o vendedor está abaixo do ritmo da meta.', [['Ritmo mínimo', '85', '% da meta', true], ['A partir do', '3º', 'dia útil']], 'Atenção', true, true],
   ['Pedido parado na aprovação', 'Avisa quando o pedido passa do prazo de aprovação.', [['Prazo', '1', 'dia útil']], 'Crítico', true],
   ['Ruptura recorrente', 'Avisa quando a loja repete ruptura em várias visitas.', [['Ruptura em', '3', 'visitas'], ['No período de', '14', 'dias']], 'Atenção', true],
-  ['Visita curta', 'Avisa quando o promotor fica menos que o mínimo na loja.', [['Permanência mínima', '10', 'min'], ['Nos últimos', '3', 'dias']], 'Informativo', false],
+  ['Visita curta', 'Avisa quando o promotor fica menos que o mínimo na loja.', [['Nos últimos', '3', 'dias']], 'Informativo', false],
   ['Fotos sem GPS', 'Avisa quando muitas fotos chegam sem localização.', [['Máximo sem GPS', '20', '%'], ['No período de', '7', 'dias'], ['A partir de', '10', 'fotos']], 'Atenção', true],
 ];
 const linhaEquipe = ([nome, frase, campos, sev, ligada, alterada]) => {

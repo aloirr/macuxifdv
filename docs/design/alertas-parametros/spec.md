@@ -32,9 +32,10 @@ Estados:
 | Ritmo abaixo da meta | Avisa quando o vendedor está abaixo do ritmo da meta. | Ritmo mínimo 80 % da meta · A partir do 3º dia útil | Atenção |
 | Pedido parado na aprovação | Avisa quando o pedido passa do prazo de aprovação. | Prazo 1 dia útil | Crítico |
 | Ruptura recorrente | Avisa quando a loja repete ruptura em várias visitas. | Ruptura em 3 visitas · No período de 14 dias | Atenção |
-| Visita curta | Avisa quando o promotor fica menos que o mínimo na loja. | Permanência mínima 10 min · Nos últimos 3 dias | Informativo |
+| Visita curta | Avisa quando o promotor fica menos que o mínimo na loja. | Nos últimos 3 dias | Informativo |
 | Fotos sem GPS | Avisa quando muitas fotos chegam sem localização. | Máximo sem GPS 20 % · No período de 7 dias · A partir de 10 fotos | Atenção |
 
+A permanência mínima da Visita curta sai do Gestor na v1.0.13 (decisão do gerente, RD-0344); a regra fica só com "Nos últimos".
 Na simulação: Ritmo abaixo da meta alterada (80 → 85 %, Salvar ativo) e Visita curta desligada.
 
 ### 1.3 Produtividade do dia (tela 02)
@@ -50,7 +51,7 @@ Mesma linha, sem severidade. No topo da seção, o teto: "Lembretes por pessoa: 
 | Visita aberta | Lembra o checkout da visita que ficou aberta. | — (só vendedor) | Depois de 120 min |
 | Envio pendente | Lembra os registros sem enviar. | — (só vendedor) | Depois de 4 h |
 
-O Parado vale com ou sem rota (decisão do gerente).
+O "Parado entre visitas" vale com ou sem rota, no lembrete do vendedor e no alerta do gestor (decisão do gerente).
 Destino desligado deixa só leitura os campos que só ele usa (ex.: "Alerta ao gestor" com Gestor em Não). Na simulação: Parado entre visitas desligada (com o "Depois de" editável) e Envio pendente desligada (só leitura).
 
 ## 2. Ficha do usuário: Jornada (tela 03)
