@@ -1020,8 +1020,6 @@ Aditiva: `core.produto.marca_codigo varchar(30)` nula, sem padrão (não reescre
 nunca filtro). Vem do ERP pelo Hub (`marca_codigo` do produto no contrato v1, opcional; view `vw_macuxi_produto` em
 `db/conector/views-modelo.sql`, ao lado de `marca`) e o Catálogo mostra no card. Texto vazio do ERP: o consumidor do Core grava
 nulo (o banco não recusa, para o produto não cair por isso). RLS, grants e índices de `core.produto` ficam como estão.
-Numeração: 0070 a 0075 estão reservadas por branches abertos; a 0076 entra no `main` depois delas (o migrador exige
-numeração contínua).
 
 Volta: `0076_core_produto_marca_codigo.down.sql` apaga a coluna (os códigos voltam na próxima carga do ERP). Volte antes o Core
 que lê/grava a coluna (senão 42703). Teste: `db/testes/produto-marca-codigo.db.test.ts`.
