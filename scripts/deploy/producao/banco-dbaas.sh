@@ -103,7 +103,7 @@ log "papéis: macuxi_app e macuxi_worker com LOGIN, sem SUPERUSER/BYPASSRLS, for
 # T-0091 (condição da ADR 0029): a sessão do super-admin só abre pelo macuxi_portal, e ele não lê tabela nenhuma
 # As sa_* por classe (espelho de apps/api/test/funcoes-sa.ts; o funcoes-sa.test.ts confere que as listas batem):
 # SA_PORTAL = as 12 do login só com e-mail e senha (0039, T-0093/ADR 0031) e as 2 do super-admin que redefine a senha do admin
-# (0042, T-0094), as 2 dos diagnósticos (0058, T-0158) e as 3 das frases da carga (0081, T-0181) = 19, só o macuxi_portal executa; SA_INTERNAS = sem
+# (0042, T-0094), as 2 dos diagnósticos (0058, T-0158) e as 3 das frases da carga (0082, T-0181) = 19, só o macuxi_portal executa; SA_INTERNAS = sem
 # EXECUTE para ninguém além do dono. Nenhuma executa como macuxi_app, macuxi_worker ou PUBLIC; sa_* do catálogo fora das duas
 # listas = erro.
 SA_PORTAL="'plataforma.sa_tentativa_estado(text)', 'plataforma.sa_tentativa_falha(text)', 'plataforma.sa_tentativa_sucesso(text)',

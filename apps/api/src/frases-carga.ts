@@ -1,6 +1,6 @@
 /**
  * T-0181 (desenho docs/desenho/T-0181.md; spec docs/design/carga-aviso-frases/ §2 e §3): frases da tela de carga.
- * Cadastro da plataforma (sem tenant), só pelas funções `SECURITY DEFINER` da migração 0081 (banco-dados):
+ * Cadastro da plataforma (sem tenant), só pelas funções `SECURITY DEFINER` da migração 0082 (banco-dados):
  *   GET   /v1/plataforma/frases-carga       `sa_listar_frases_carga(sid)`                  só super-admin (cliente = 403)
  *   POST  /v1/plataforma/frases-carga       `sa_incluir_frase_carga(sid, id, texto)`       201; idempotente pelo `id`
  *   PATCH /v1/plataforma/frases-carga/:id   `sa_editar_frase_carga(sid, id, texto, ativa)` nulo = não muda
@@ -36,7 +36,7 @@ import { ErroHttp } from './erros';
 import { conferirRetorno, exigirSuperAdmin as exigirSuperAdminDoPortal, traduzirErroSa, type AutenticarPortal } from './portal-comum';
 import type { Plataforma } from './tipos';
 
-/** Acesso às funções da 0081 (testes injetam a sua). Devolvem o jsonb cru; a rota confere pelo contrato do SDK. */
+/** Acesso às funções da 0082 (testes injetam a sua). Devolvem o jsonb cru; a rota confere pelo contrato do SDK. */
 export interface FonteFrasesCarga {
   /** `{ frases: [{ id, texto, ordem }] }` — no `macuxi_app`, dentro da transação da requisição. */
   ativas(db: ClienteBanco): Promise<unknown>;
@@ -74,7 +74,7 @@ const Params = z.object({ id: z.string().uuid() }).strict();
 const indisponivel = () => new ErroHttp(503, 'FRASES_CARGA_INDISPONIVEIS', 'Frases da carga indisponíveis no momento. Tente de novo em instantes.');
 const negocio = (codigo: keyof typeof MENSAGENS_FRASE_CARGA) => new ErroHttp(422, codigo, MENSAGENS_FRASE_CARGA[codigo]);
 
-/** SQLSTATE das `sa_*` da 0081 → HTTP: 23505 = repetida (422), P0002 = 404, função/tabela ausente = 503, 23514 = 400; + os comuns. */
+/** SQLSTATE das `sa_*` da 0082 → HTTP: 23505 = repetida (422), P0002 = 404, função/tabela ausente = 503, 23514 = 400; + os comuns. */
 const traduzir = (e: unknown): never =>
   traduzirErroSa(e, (c) => {
     if (c === '42501') throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', SO_A_MACUXI);

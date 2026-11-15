@@ -37,7 +37,7 @@ describe('FRASES_CARGA_INICIAIS (as 30 do frases.md)', () => {
     }
   });
 
-  it('ids únicos e iguais a plataforma.uuid_de_chave(\'plataforma:frase_carga:NN\') (o seed da 0081 repete)', () => {
+  it('ids únicos e iguais a plataforma.uuid_de_chave(\'plataforma:frase_carga:NN\') (o seed da 0082 repete)', () => {
     expect(new Set(FRASES_CARGA_INICIAIS.map((f) => f.id)).size).toBe(30);
     for (const f of FRASES_CARGA_INICIAIS) expect(f.id).toBe(uuidDeChave(`plataforma:frase_carga:${String(f.numero).padStart(2, '0')}`));
     expect(FRASES_CARGA_INICIAIS[0]!.id).toBe('30db8593-800a-56dc-98dc-b8976806ace5');

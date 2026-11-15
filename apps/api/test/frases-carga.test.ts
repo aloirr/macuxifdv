@@ -1,7 +1,7 @@
 /**
  * T-0181 (desenho docs/desenho/T-0181.md): frases da tela de carga sem banco real. Portal (só super-admin, contrato do SDK na
  * entrada e na saída, 422 da regra do texto, auditoria da requisição) e a rota do app (sessão do app, sem licença de módulo,
- * só as ativas, na ordem do banco). As funções de verdade da 0081 são testadas no CI pelo banco-dados. Frases fictícias.
+ * só as ativas, na ordem do banco). As funções de verdade da 0082 são testadas no CI pelo banco-dados. Frases fictícias.
  */
 import { FRASES_CARGA_INICIAIS, ordenarFrasesDoPortal, type AcessoPortalAutenticado, type FraseCarga } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
@@ -21,7 +21,7 @@ const URL_APP = '/v1/sync/frases-carga';
 const sa = { 'x-quem': 'sa' };
 const NOVA = '0f7a0000-0000-4000-8000-000000000001';
 
-/** Imita as funções da 0081 sobre uma lista em memória, já na ordem do banco (duplicidade = 23505, sem achar = P0002). */
+/** Imita as funções da 0082 sobre uma lista em memória, já na ordem do banco (duplicidade = 23505, sem achar = P0002). */
 function montar(op: { erro?: string; erroApp?: string; licencasSoCore?: boolean } = {}) {
   const frases: FraseCarga[] = FRASES_CARGA_INICIAIS.slice(0, 3).map((f) => ({ ...f }));
   const chamadas = { incluir: [] as unknown[][], editar: [] as unknown[][] };
@@ -160,7 +160,7 @@ describe('Portal › Frases da carga (só super-admin)', () => {
     expect((await app.inject({ method: 'DELETE', url: `${URL_PORTAL}/${id}`, headers: sa })).statusCode).toBe(404);
   });
 
-  it('sessão vencida no meio = 401; antes da 0081 (função ausente) = 503', async () => {
+  it('sessão vencida no meio = 401; antes da 0082 (função ausente) = 503', async () => {
     expect((await montar({ erro: '28000' }).app.inject({ method: 'GET', url: URL_PORTAL, headers: sa })).statusCode).toBe(401);
     const r = await montar({ erro: '42883' }).app.inject({ method: 'GET', url: URL_PORTAL, headers: sa });
     expect(r.statusCode).toBe(503);
@@ -186,7 +186,7 @@ describe('GET /v1/sync/frases-carga (app)', () => {
     }
   });
 
-  it('antes da 0081 = 503 (o app segue com a lista que tem)', async () => {
+  it('antes da 0082 = 503 (o app segue com a lista que tem)', async () => {
     const r = await montar({ erroApp: '42883' }).app.inject({ method: 'GET', url: URL_APP, headers: cab('vendedor') });
     expect(r.statusCode).toBe(503);
     expect(r.json()).toMatchObject({ codigo: 'FRASES_CARGA_INDISPONIVEIS' });

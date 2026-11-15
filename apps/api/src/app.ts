@@ -209,7 +209,7 @@ export interface OpcoesApp {
   fontePlanos?: FontePlanosPortal;
   /** Rodapé legal (docs/design/telas/rodape-legal.md §3.4): fonte das funções dos dados legais (padrão: `fonteDadosLegaisNoBanco`). Testes injetam a sua. */
   fonteDadosLegais?: FonteDadosLegais;
-  /** T-0181: fonte das funções das frases da carga (0081; padrão: `fonteFrasesCargaNoBanco`). Testes injetam a sua. */
+  /** T-0181: fonte das funções das frases da carga (0082; padrão: `fonteFrasesCargaNoBanco`). Testes injetam a sua. */
   fonteFrasesCarga?: FonteFrasesCarga;
 }
 
@@ -627,7 +627,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   });
 
   // T-0181: frases da tela de carga; o app lê as ativas no macuxi_app (sem licença de módulo), o portal só super-admin.
-  // Sem flag: antes da 0081 respondem 503 e o app segue com a lista que tem (ou as 30 do bundle).
+  // Sem flag: antes da 0082 respondem 503 e o app segue com a lista que tem (ou as 30 do bundle).
   registrarRotasFrasesCarga(app, plataforma, {
     acessoPortal,
     ...(op.fonteFrasesCarga ? { fonte: op.fonteFrasesCarga } : {}),

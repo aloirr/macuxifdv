@@ -40,7 +40,7 @@
    típicos medem ~184 dp de 280); só 32 maiúsculas largas passariam (364 dp), caso irreal. Como nenhuma das 30 iniciais tem
    menos de 56 caracteres, o caso "1 linha" quase nunca acontece: em tela baixa o bloco sai. Aceito; se o item 1 passar a
    medir, o teto pode virar medida.
-2. **Mensagem do id reusado** — `db/migrations/0081_plataforma_frase_carga.up.sql:187` (banco-dados) e
+2. **Mensagem do id reusado** — `db/migrations/0082_plataforma_frase_carga.up.sql:187` (banco-dados) e
    `apps/api/src/frases-carga.ts:82` (engenheiro-software): o mesmo `id` com outro texto sai como 23505 e vira "Essa frase já
    está na lista.". Só acontece com cliente fora do padrão (o portal gera um UUID por diálogo); aceitável.
 3. **`Barra` repetida** — `apps/mobile/src/components/tela-entrada.tsx:143-150` (engenheiro-apps): as duas ramas desenham a
@@ -53,7 +53,7 @@
   (strict, pelo menos um campo), `FrasesCargaAppRespostaSchema`; API confere o retorno das funções (`conferirRetorno`); app e
   portal validam a resposta pelo mesmo schema; `FRASES_CARGA_INICIAIS` é a fonte única do bundle e do seed (ids
   `uuid_de_chave`).
-- **0081 — tabela global sem `tenant_id`:** precedente aceitável (mesmo padrão de `super_admin`, `portal_sessao` e
+- **0082 — tabela global sem `tenant_id`:** precedente aceitável (mesmo padrão de `super_admin`, `portal_sessao` e
   `auditoria_plataforma`): exceção declarada em `db/src/excecoes.ts` (`TABELAS_SEM_TENANT_ID` e `TABELAS_SO_POR_FUNCAO`) e
   em `db/scripts/conferir-rls.sql`; RLS ligado e forçado, só a política `manutencao`; nenhum grant de tabela a
   `macuxi_app`/`macuxi_worker`/`macuxi_portal`; sem dado de tenant nem pessoal. Demais colunas-padrão presentes.
