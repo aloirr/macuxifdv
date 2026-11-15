@@ -24,9 +24,7 @@ Padaria Trigo Fino, Boleto. Preço de tabela do cliente (sem prazo): filtro FIL-
 | À vista, −1,71% | 98,29 | 349,00 (17,45 un.) | 395,10 (13,17) | 42,30 (4,23) | R$ 884,69 | − R$ 17,40 | **R$ 867,29** |
 | 60 dias, +2,50% | 102,50 | 363,80 (18,19 un.) | 412,20 (13,74) | 44,10 (4,41) | R$ 922,60 | − R$ 18,20 | **R$ 904,40** |
 
-Premissa da conta (a confirmar com o `modulo-vendedor`, que está fechando a regra na proposta): o % do prazo é aplicado ao **preço unitário** e arredondado ao centavo; o desconto do vendedor também gera um **unitário líquido arredondado** ao centavo; o total da linha é **unitário líquido × quantidade**. No leite em 60 dias: 18,19 × 0,95 = 17,28 e 17,28 × 20 = **345,60** (e não 345,61); o Desconto (R$) é a diferença para o valor de tabela (363,80 − 345,60 = 18,20). À vista: 17,45 × 0,95 = 16,58 e 16,58 × 20 = 331,60.
-
-**Pendente:** o PDF já segue essa conta. As imagens do Campo (`campo-2` e `campo-3`) ainda aplicam o desconto ao total da linha: leite 331,55 e 345,61, Desconto R$ 17,45 e 18,19, Valor final R$ 867,24 e R$ 904,41. Elas serão refeitas com os números da tabela acima quando o `modulo-vendedor` confirmar a regra.
+Regra da conta, **confirmada (dd023d2)** pelo `modulo-vendedor` (RN-VEN-02 v2, `precoUnitarioFinal` e `precoDoItem` em `modules/vendedor/domain/preco-pedido.ts`): o % do prazo é aplicado ao **preço unitário** e arredondado ao centavo; o desconto em % do vendedor incide sobre esse unitário, arredondado meia para cima ao centavo; o total da linha é **unitário × quantidade**. No leite em 60 dias: 18,19 × 0,95 = 17,28 e 17,28 × 20 = **345,60**; o Desconto (R$) é a diferença para o valor de tabela (363,80 − 345,60 = 18,20). À vista: 17,45 × 0,95 = 16,58 e 16,58 × 20 = 331,60 (349,00 − 331,60 = 17,40). Campo, PDF e esta tabela usam a mesma conta.
 
 ## 1. App Campo
 Imagens de 360 dp de largura (PNG em 2×), feitas a partir de `campo.html` e `campo.css`:
@@ -40,7 +38,7 @@ Imagens de 360 dp de largura (PNG em 2×), feitas a partir de `campo.html` e `ca
 
 ### 1.2 Pedido: Itens, Resumo e Totais (`CartaoDeTotais`, `linhasDosTotais`)
 - Ao escolher ou trocar o prazo, o **Valor tabela de cada item é refeito** com o % do prazo; o Total do item, os Totais e a folha do item seguem daí, sem nenhuma marca do prazo. É a única coluna com contorno nas telas 2 e 3.
-- O desconto do vendedor (−5% no leite) vale sobre a tabela ajustada: R$ 17,45 à vista e R$ 18,19 em 60 dias.
+- O desconto do vendedor (−5% no leite) vale sobre o unitário da tabela ajustada: leite a 331,60 e Desconto R$ 17,40 à vista; 345,60 e R$ 18,20 em 60 dias.
 - **Totais iguais aos de hoje**: Valor de tabela, Desconto (%), Desconto (R$) e Valor final. Sem linha de prazo.
 - "Condição de pagamento" continua "Forma: Boleto" e "Prazo: À vista" (ou "60 dias"), sem %.
 - Nada novo em Alertas. Trocar o prazo não mostra aviso: os números novos já estão na tela (RN-VEN-42, regras de excesso).
