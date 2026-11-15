@@ -7,6 +7,7 @@
  * - Baixa só quando o sha256 muda (`GET /v1/me/empresa/logo/:sha256`), confere os bytes (`conferirLogo`, a mesma da API) e grava em
  *   `<documentos>/empresa/<tenant>/logo-<sha256>.<png|jpg>`; a anterior sai. Logo removida no portal = a cópia sai.
  * - Falha no download (sem sinal, 404, bytes inválidos): mantém o que tinha e tenta na próxima sincronização.
+ * - Registro sem o arquivo (a pasta saiu por fora): vale como sem cópia e a logo é baixada de novo.
  * - A logo de um tenant nunca aparece em outro: a tela só usa a cópia do tenant da sessão (`logoDoTenant`); entrar em outra
  *   empresa apaga a pasta da anterior.
  */
@@ -66,6 +67,8 @@ export interface PortaLogoEmpresa {
   /** Apaga a pasta das logos inteira (troca de empresa, logo removida). */
   apagarTudo(): Promise<void>;
   apagarArquivo(caminho: string): Promise<void>;
+  /** O arquivo da cópia ainda está no disco? (a pasta pode ter saído por fora: aparelho bloqueado, RN-CORE-15). */
+  existeArquivo(caminho: string): Promise<boolean>;
 }
 
 /**
@@ -79,6 +82,11 @@ export async function atualizarLogoDaEmpresa(
   let guardada: LogoGuardada | null = null;
   try {
     guardada = await porta.lerRegistro();
+    // registro sem o arquivo (a pasta saiu por fora, ex.: aparelho bloqueado): vale como sem cópia e a logo volta a ser baixada
+    if (guardada && !(await porta.existeArquivo(guardada.caminho))) {
+      await porta.gravarRegistro(null);
+      guardada = null;
+    }
     const acao = acaoDaLogo(guardada, p.tenantId, p.empresa);
     if (acao.tipo === 'manter') return logoDoTenant(guardada, p.tenantId);
     if (acao.tipo === 'apagar') {

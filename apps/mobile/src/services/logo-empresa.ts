@@ -28,18 +28,25 @@ export function portaLogoEmpresa(api: () => ApiClient): PortaLogoEmpresa {
       f.create({ intermediates: true, overwrite: true });
       f.write(bytes);
     },
-    async apagarTudo() {
-      apagarPastaDaEmpresa();
-    },
+    apagarTudo: () => apagarPastaDaEmpresa(),
     async apagarArquivo(caminho) {
       const f = arquivo(caminho);
       if (f.exists) f.delete();
     },
+    async existeArquivo(caminho) {
+      if (Platform.OS === 'web') return false;
+      try {
+        return arquivo(caminho).exists;
+      } catch {
+        return false;
+      }
+    },
   };
 }
 
-/** RN-CORE-15 (aparelho bloqueado) e troca de empresa: a pasta das logos inteira sai. */
-export function apagarPastaDaEmpresa(): void {
+/** RN-CORE-15 (aparelho bloqueado) e troca de empresa: a pasta das logos inteira sai, e o registro dela junto. */
+export async function apagarPastaDaEmpresa(): Promise<void> {
+  await writeJson(CHAVE_LOGO_EMPRESA, null);
   if (Platform.OS === 'web') return;
   const pasta = new Directory(Paths.document, PASTA_EMPRESA);
   if (pasta.exists) pasta.delete();

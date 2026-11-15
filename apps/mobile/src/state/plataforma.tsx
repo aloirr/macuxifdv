@@ -827,10 +827,10 @@ function usePlataformaValor() {
       removerChaves: async (chaves) => {
         await Promise.all(chaves.map((k) => writeJson(k, null)));
       },
-      // T-0182: a cópia da logo da empresa sai junto (o registro dela sai com as chaves locais)
+      // T-0182: a cópia da logo da empresa sai junto, com o registro dela (`fv:empresa:logo`)
       apagarFotos: async () => {
         await apagarFotosLocais();
-        apagarPastaDaEmpresa();
+        await apagarPastaDaEmpresa();
       },
       apagarTokens: () => gravarTokens(null),
       fecharSessao: () => fecharSessaoLocal(),

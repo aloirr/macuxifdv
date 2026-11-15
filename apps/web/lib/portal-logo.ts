@@ -5,7 +5,7 @@
  * - Só o time da Macuxi grava (RN-CORE-33); o admin do cliente vê a logo e o nome fantasia, sem botões.
  * - A conferência do arquivo antes de enviar é a mesma da API (`conferirLogo` do SDK: tipo, tamanho, altura e lado máximo, pelo
  *   cabeçalho); o servidor revalida sempre.
- * - Erros: a frase exata da spec por código (`MENSAGENS_LOGO`); rota ausente = "Ainda não disponível neste servidor."; o resto
+ * - Erros: a frase exata da spec por código (`MENSAGENS_LOGO`); rota ausente = `TEXTO_INDISPONIVEL`; o resto
  *   (rede, 5xx, 503) = "Não foi possível salvar. Tente de novo." Nunca o texto do servidor em inglês.
  */
 import {
@@ -19,7 +19,7 @@ import {
   type MarcaEmpresa,
 } from '@macuxi/platform-sdk';
 
-import { ehRotaAusente, ErroPortal } from './portal-api';
+import { ehRotaAusente, ErroPortal, TEXTO_INDISPONIVEL } from './portal-api';
 
 export const TEXTOS_LOGO = {
   titulo: 'Logo',
@@ -34,7 +34,7 @@ export const TEXTOS_LOGO = {
   carregando: 'Buscando a logo…',
   falhaSalvar: 'Não foi possível salvar. Tente de novo.',
   /** A constante única do portal para rota ausente (RD-0288). */
-  rotaAusente: 'Ainda não disponível neste servidor.',
+  rotaAusente: TEXTO_INDISPONIVEL,
   nomeFantasia: 'Nome fantasia',
 } as const;
 

@@ -288,8 +288,11 @@ export async function baixarDocumentoPublico(viaProxy: string, nomePadrao: strin
   downloadBlob(await res.blob(), filenameFromDisposition(res.headers.get('content-disposition'), nomePadrao));
 }
 
+/** O que a tela mostra, ao lado do controle, quando a rota ainda não existe neste servidor (RD-0288: um texto só). */
+export const TEXTO_INDISPONIVEL = 'Ainda não disponível neste servidor.';
+
 /**
- * 404 de rota que ainda não existe neste servidor (N1/N2 da nuvem antes do merge): a tela mostra "em breve". A API responde
+ * 404 de rota que ainda não existe neste servidor (N1/N2 da nuvem antes do merge): a tela mostra `TEXTO_INDISPONIVEL`. A API responde
  * `NAO_ENCONTRADO` para rota desconhecida (apps/api/src/app.ts); 404 de recurso tem código próprio (`LOTE_NAO_ENCONTRADO`...).
  */
 export function ehRotaAusente(e: unknown): boolean {

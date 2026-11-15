@@ -67,6 +67,7 @@ function portaFalsa(inicial: LogoGuardada | null, resposta: Uint8Array | null | 
     apagarArquivo: async (c) => {
       estado.arquivos.delete(c);
     },
+    existeArquivo: async (c) => estado.arquivos.has(c),
   };
   return { porta, estado };
 }
@@ -159,6 +160,23 @@ describe('atualizarLogoDaEmpresa', () => {
       expect(estado.registro).toBeNull();
       expect(estado.apagouTudo).toBe(1);
     }
+  });
+
+  it('pasta apagada por fora (aparelho bloqueado) e o registro ficou: a mesma logo volta no próximo login', async () => {
+    const { porta, estado } = portaFalsa(guardada(TENANT_A, SHA_1));
+    estado.arquivos.clear();
+    const l = await atualizarLogoDaEmpresa(porta, { tenantId: TENANT_A, empresa: empresa(SHA_1), online: true });
+    expect(estado.baixadas).toEqual([`/v1/me/empresa/logo/${SHA_1}`]);
+    expect(l).toEqual(guardada(TENANT_A, SHA_1));
+    expect([...estado.arquivos]).toEqual([`empresa/${TENANT_A}/logo-${SHA_1}.png`]);
+  });
+
+  it('pasta apagada por fora e sem sinal: sem logo (nunca aponta para arquivo que não existe), registro limpo', async () => {
+    const { porta, estado } = portaFalsa(guardada(TENANT_A, SHA_1));
+    estado.arquivos.clear();
+    expect(await atualizarLogoDaEmpresa(porta, { tenantId: TENANT_A, empresa: empresa(SHA_1), online: false })).toBeNull();
+    expect(estado.registro).toBeNull();
+    expect(estado.baixadas).toEqual([]);
   });
 
   it('multi-tenant: B com logo própria baixa a dela, na pasta dela', async () => {
