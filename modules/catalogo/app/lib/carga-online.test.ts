@@ -6,7 +6,6 @@ import {
   fichasDaApi,
   paginasDaApi,
   soVendaveisNaCarga,
-  TEXTO_CATALOGO_CARREGANDO,
   usarApiNaCarga,
   type PortaCargaOnline,
 } from './carga-online';
@@ -32,9 +31,6 @@ describe('fonte da busca durante a carga', () => {
     expect(usarApiNaCarga(porta({ online: () => false }))).toBe('sem_sinal');
     expect(usarApiNaCarga(porta({ pendentes: () => [] }))).toBe('local');
     expect(usarApiNaCarga(null)).toBe('local');
-  });
-  it('RF-CAT-01: texto provisório curto, problema e ação', () => {
-    expect(TEXTO_CATALOGO_CARREGANDO).toBe('O catálogo ainda está carregando. Conecte-se à internet para buscar.');
   });
   it('RN-CAT-06: na carga, dentro do pedido, só entra produto vendável (perfil sem preço não é filtrado: RN-CAT-05)', () => {
     const itens = [

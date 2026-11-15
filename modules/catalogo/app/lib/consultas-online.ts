@@ -2,20 +2,18 @@
  * As três consultas do Catálogo respondidas pela API enquanto o catálogo carrega (ADR 0054, solução 5). A API traz o preço do
  * cliente e revalida perfil e RN-CAT-05 (perfil sem preço recebe `price` nulo); aqui só se converte para o contrato da consulta.
  */
-import { ConsultaIndisponivel } from '@macuxi/platform-sdk';
 import { caminhoCatalogo, type BuscaProdutosEntrada, type BuscaProdutosSaida, type ItemVitrine, type PrecosClienteEntrada, type PrecosClienteSaida, type TextosProdutoEntrada, type TextosProdutoSaida } from '../../contracts';
 import { TETO_RANKING_BUSCA } from '../../domain/busca-consulta';
-import { fichasDaApi, paginasDaApi, soVendaveisNaCarga, TEXTO_CATALOGO_CARREGANDO, usarApiNaCarga, type PortaCargaOnline } from './carga-online';
+import { consultaIndisponivel, fichasDaApi, paginasDaApi, soVendaveisNaCarga, usarApiNaCarga, type PortaCargaOnline } from './carga-online';
 
 /** `null` = responder no aparelho (como hoje); `sem_sinal` já vira `ConsultaIndisponivel` com o texto de carregando. */
 export function portaDaCarga(consulta: string, p: PortaCargaOnline | null): PortaCargaOnline | null {
   const modo = usarApiNaCarga(p);
   if (modo === 'local') return null;
-  if (modo === 'sem_sinal') throw new ConsultaIndisponivel(consulta, 'catalogo', TEXTO_CATALOGO_CARREGANDO);
+  if (modo === 'sem_sinal') throw consultaIndisponivel(consulta);
   return p;
 }
 
-const indisponivel = (consulta: string) => new ConsultaIndisponivel(consulta, 'catalogo', TEXTO_CATALOGO_CARREGANDO);
 
 export async function buscaProdutosOnline(p: PortaCargaOnline, e: BuscaProdutosEntrada): Promise<BuscaProdutosSaida> {
   const limite = e.lista_completa ? TETO_RANKING_BUSCA : e.limite;
@@ -28,7 +26,7 @@ export async function buscaProdutosOnline(p: PortaCargaOnline, e: BuscaProdutosE
     items = r.items;
     total = r.total;
   } catch {
-    throw indisponivel('catalogo.busca_produtos@1');
+    throw consultaIndisponivel('catalogo.busca_produtos@1');
   }
   let filtrou = false;
   if (e.cliente_id && !e.produto_ids) {

@@ -6,12 +6,12 @@
  */
 import { relogioReal } from '@macuxi/comum/relogio';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
-import { Badge, Card, colors, DEFAULT_TZ, Empty, fonts, Icon, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
+import { Badge, CatalogoCarregando, Card, colors, DEFAULT_TZ, Empty, fonts, Icon, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { caminhoCatalogo, type FichaProduto } from '../../contracts';
-import { catalogoPendente, TEXTO_CATALOGO_CARREGANDO } from '../lib/carga-online';
+import { catalogoPendente } from '../lib/carga-online';
 import { aplicacaoPrecisaRecolher, estadoOfereceJunto, LINHAS_APLICACAO_RECOLHIDA, rotuloEstoque, rotuloEstoqueFilial, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
 import { fichaLocal } from '../lib/local';
 import { hrefCatalogo, irParaProduto } from '../rotas';
@@ -36,24 +36,23 @@ export default function TelaProduto() {
     const carregar = async (): Promise<Estado> => {
       // ADR 0054: catálogo ainda carregando = ficha e preço do cliente pela API; sem sinal, só o que já chegou ao aparelho
       const naCarga = catalogoPendente((sync as { pendentes?: readonly string[] }).pendentes);
-      if (naCarga && id && ambiente.online()) {
+      const daApi = async (): Promise<Estado | null> => {
         try {
           const ficha = await ambiente.http.get<FichaProduto>(caminhoCatalogo('produto', { id }), { customer_id: clienteId });
           return { fase: 'pronta', ficha, noAparelho: false };
         } catch {
-          /* cai para o aparelho abaixo */
+          return null;
         }
+      };
+      if (naCarga && id && ambiente.online()) {
+        const r = await daApi();
+        if (r) return r;
       }
       const local = motor ? await fichaLocal(motor, { perfil: usuario?.perfil ?? null, parametros, agora: relogioReal().agora().toISOString(), clienteId, produtoId: id }) : null;
       if (local) return { fase: 'pronta', ficha: local, noAparelho: true };
       if (naCarga && !ambiente.online()) return { fase: 'catalogo_carregando' };
       if (!ambiente.online() || !id) return { fase: 'nao_encontrado' };
-      try {
-        const ficha = await ambiente.http.get<FichaProduto>(caminhoCatalogo('produto', { id }), { customer_id: clienteId });
-        return { fase: 'pronta', ficha, noAparelho: false };
-      } catch {
-        return { fase: 'nao_encontrado' };
-      }
+      return (await daApi()) ?? { fase: 'nao_encontrado' };
     };
     void carregar().then((e) => vivo && setEstado(e));
     return () => {
@@ -73,7 +72,7 @@ export default function TelaProduto() {
   if (estado.fase === 'catalogo_carregando') {
     return (
       <Screen testID="pagina-catalogo-produto" cabecalho={{ titulo: 'Produto', voltar }}>
-        <Empty text={TEXTO_CATALOGO_CARREGANDO} />
+        <CatalogoCarregando comTitulo />
       </Screen>
     );
   }

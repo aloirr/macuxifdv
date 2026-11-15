@@ -5,20 +5,20 @@
  * cliente e revalida perfil e RN-CAT-05. Depois da carga, tudo volta ao aparelho. As consultas não têm HTTP no contexto:
  * o shell injeta a porta com `definirCargaOnline` (sem ela, nada muda: tudo local).
  */
+import { ENTIDADES_CORE_CATALOGO_PRECOS } from '@macuxi/core/contracts';
 import { ConsultaIndisponivel } from '@macuxi/platform-sdk';
+import { TEXTO_CATALOGO_CARREGANDO } from '@macuxi/ui/mobile/puro';
 import { caminhoCatalogo, ENTIDADES_ARVORE, ENTIDADES_CONTEUDO, ENTIDADES_PRECO, entidadeProdutoRelacao, type FichaProduto } from '../../contracts';
 
 /** Etapa "Catálogo e preços" e as entidades dela: as do Catálogo e as do Core que a vitrine lê. */
 const CHAVES_DO_CATALOGO: ReadonlySet<string> = new Set([
   'catalogo_precos',
-  'produto',
-  'produto_unidade',
-  'medida',
+  ...ENTIDADES_CORE_CATALOGO_PRECOS,
   ...[...ENTIDADES_PRECO, ...ENTIDADES_CONTEUDO, ...ENTIDADES_ARVORE, entidadeProdutoRelacao].map((e) => e.nome),
 ]);
 
-/** Provisório (designer-ux fecha): só o problema e a ação. */
-export const TEXTO_CATALOGO_CARREGANDO = 'O catálogo ainda está carregando. Conecte-se à internet para buscar.';
+/** A consulta que não pode responder enquanto o catálogo carrega e não há sinal. */
+export const consultaIndisponivel = (consulta: string) => new ConsultaIndisponivel(consulta, 'catalogo', TEXTO_CATALOGO_CARREGANDO);
 
 export function catalogoPendente(pendentes: readonly string[] | undefined): boolean {
   return (pendentes ?? []).some((k) => CHAVES_DO_CATALOGO.has(k));
@@ -84,7 +84,7 @@ export async function fichasDaApi(get: HttpOnline, ids: readonly string[], clien
   try {
     await Promise.all(Array.from({ length: Math.min(SIMULTANEAS, ids.length) }, trabalhador));
   } catch {
-    throw new ConsultaIndisponivel('catalogo.fichas', 'catalogo', TEXTO_CATALOGO_CARREGANDO);
+    throw consultaIndisponivel('catalogo.fichas');
   }
   return saida;
 }
