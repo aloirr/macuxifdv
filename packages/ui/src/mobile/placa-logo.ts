@@ -49,25 +49,23 @@ export interface CaixaPlacaLogo {
 }
 
 /**
- * Largura da placa e da logo pela proporção da imagem (largura ÷ altura). A logo fica com a altura do tamanho e a largura
- * da proporção, limitada à máxima (logo larga: o `contain` reduz a altura, sem esticar). A placa nunca fica mais estreita
- * que alta. Sem proporção conhecida (imagem ainda carregando), a caixa usa a largura máxima, e o `contain` mantém a logo
- * inteira.
+ * Largura da placa e da logo pela proporção da imagem (largura ÷ altura), vinda de `proporcaoDaLogo(logo)` do SDK
+ * (RD-0921: uma fonte só). A logo fica com a altura do tamanho e a largura da proporção, limitada à máxima (logo larga: o
+ * `contain` reduz a altura, sem esticar). A placa nunca fica mais estreita que alta.
  */
-export function caixaDaPlacaLogo(tamanho: TamanhoPlacaLogo, proporcao?: number | null): CaixaPlacaLogo {
+export function caixaDaPlacaLogo(tamanho: TamanhoPlacaLogo, proporcao: number): CaixaPlacaLogo {
   const m = PLACA_LOGO[tamanho];
-  const valida = typeof proporcao === 'number' && Number.isFinite(proporcao) && proporcao > 0;
-  const larguraLogo = valida ? Math.min(m.larguraMaximaLogo, Math.round(m.alturaLogo * proporcao)) : m.larguraMaximaLogo;
+  const larguraLogo = Math.min(m.larguraMaximaLogo, Math.round(m.alturaLogo * proporcao));
   const larguraPlaca = Math.max(m.altura, Math.min(m.larguraMaxima, larguraLogo + 2 * m.folgaLateral));
   return { larguraPlaca, larguraLogo, alturaLogo: m.alturaLogo };
 }
 
 /**
- * Leitura do TalkBack: "Logo da <nome fantasia>", pelo `rotuloDaLogo` de `@macuxi/comum/marca` (o mesmo `alt` do portal).
+ * Leitura do TalkBack: "Logo da <nome da empresa>" (nome fantasia ou razão social), pelo `rotuloDaLogo` de `@macuxi/comum/marca` (o mesmo `alt` do portal).
  * Sem nome (logo decorativa, como no fim do Mais, onde a frase acima já diz o nome), devolve `null` e a placa fica fora
  * da leitura.
  */
-export function rotuloDaPlacaLogo(nomeFantasia?: string | null): string | null {
-  const nome = nomeFantasia?.trim();
+export function rotuloDaPlacaLogo(nomeEmpresa?: string | null): string | null {
+  const nome = nomeEmpresa?.trim();
   return nome ? rotuloDaLogo(nome) : null;
 }

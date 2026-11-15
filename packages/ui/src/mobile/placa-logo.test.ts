@@ -38,13 +38,7 @@ describe('PlacaLogoCliente (T-0182; docs/design/telas/logo-cliente.md §1, §3 e
     expect(caixaDaPlacaLogo('mais', 0.5).larguraPlaca).toBe(52);
   });
 
-  it('proporção desconhecida ou inválida: caixa máxima (a logo continua inteira no contain)', () => {
-    for (const p of [undefined, null, 0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
-      expect(caixaDaPlacaLogo('carga', p)).toEqual({ larguraPlaca: 112, larguraLogo: 96, alturaLogo: 48 });
-    }
-  });
-
-  it('leitura: "Logo da <nome fantasia>"; sem nome, decorativa (null)', () => {
+  it('leitura: "Logo da <nome da empresa>" (fantasia ou razão social); sem nome, decorativa (null)', () => {
     expect(rotuloDaPlacaLogo('Exemplo Norte')).toBe('Logo da Exemplo Norte');
     expect(rotuloDaPlacaLogo('  Exemplo Norte ')).toBe('Logo da Exemplo Norte');
     for (const v of [undefined, null, '', '   ']) expect(rotuloDaPlacaLogo(v)).toBeNull();
@@ -58,6 +52,14 @@ describe('PlacaLogoCliente (T-0182; docs/design/telas/logo-cliente.md §1, §3 e
     expect(fonteRn).toContain('accessibilityElementsHidden={rotulo === null}');
     expect(fonteRn).toContain('accessibilityLabel={rotulo ?? undefined}');
     expect(fonteRn).toContain('source={{ uri: fonte }}');
+  });
+
+  it('RD-0921: proporção obrigatória vinda do SDK (sem medir no onLoad) e prop nomeEmpresa', () => {
+    expect(fonteRn).toMatch(/\bproporcao: number;/);
+    expect(fonteRn).not.toMatch(/onLoad|useState|proporcao\?:/);
+    expect(fonteRn).toMatch(/\bnomeEmpresa\?: string \| null;/);
+    expect(fonteRn).not.toContain('nomeFantasia');
+    expect(fonteRn).toContain('caixaDaPlacaLogo(tamanho, proporcao)');
   });
 
   it('exportado pelo índice (componente) e pelo puro (medidas e leitura)', () => {
