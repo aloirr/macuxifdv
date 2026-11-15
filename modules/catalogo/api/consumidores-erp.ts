@@ -67,7 +67,7 @@ const CadastroCatalogoErp = z
     oferece_junto: z.array(z.string()).nullish(),
     etiquetas: z.array(z.string()).nullish(),
     /** Doc 06: marca pelo `external_id` ou pelo nome da marca cadastrada em Marcas concorrentes (RN-CAT-09). */
-    referencias: z.array(z.object({ marca_codigo: z.string().nullish(), marca_external_id: z.string().nullish(), marca_nome: z.string().nullish(), codigo: z.string() }).passthrough()).nullish(),
+    referencias: z.array(z.object({ marca_external_id: z.string().nullish(), marca_nome: z.string().nullish(), codigo: z.string() }).passthrough()).nullish(),
   })
   .passthrough();
 
@@ -248,7 +248,7 @@ export function criarConsumidorCatalogoNoDoErp(): ConsumidorEvento {
 
 /** RN-CAT-09: referências cruzadas do ERP (substituem o conjunto atual; ordem 1..3). `marca_nome` é o retrato do nome da marca do cadastro do Catálogo (0034). */
 async function aplicarReferenciasDoErp(ctx: ContextoConsumo, produto: string, externalId: string, entrada: NonNullable<z.infer<typeof CadastroCatalogoErp>['referencias']>, origem: { lote_id: string | undefined; sku: string | null }): Promise<void> {
-  const linhas = entrada.map((x) => ({ marca_codigo: x.marca_codigo, marca_external_id: x.marca_external_id, marca_nome: x.marca_nome, codigo: x.codigo }));
+  const linhas = entrada.map((x) => ({ marca_external_id: x.marca_external_id, marca_nome: x.marca_nome, codigo: x.codigo }));
   const lerMarcas = async (): Promise<MarcaDoCadastro[]> => (await ctx.db.query<MarcaDoCadastro>(`select id, nome, ativo, external_id from catalogo.marca_concorrente where deleted_at is null`)).rows;
   let marcas = entrada.length > 0 ? await lerMarcas() : [];
   // RN-CAT-13: código e nome da marca vindos do ERP fazem o upsert da marca pelo código (external_id do tenant)

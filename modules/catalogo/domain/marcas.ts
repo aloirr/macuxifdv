@@ -36,8 +36,7 @@ export interface MarcaDoCadastro {
 }
 
 export interface ReferenciaDoErp {
-  /** Código da marca no ERP (o Hub manda `marca_codigo`); vale como `external_id` da marca (RN-CAT-13). */
-  marca_codigo?: string | null | undefined;
+  /** Código da marca no ERP: é o `external_id` da marca (RN-CAT-13). */
   marca_external_id?: string | null | undefined;
   marca_nome?: string | null | undefined;
   codigo: string;
@@ -64,7 +63,7 @@ export function resolverReferenciasDoErp(entrada: readonly ReferenciaDoErp[], ma
   const vistas = new Set<string>();
   for (const e of entrada) {
     const codigo = e.codigo.trim();
-    const ext = e.marca_external_id?.trim() || e.marca_codigo?.trim();
+    const ext = e.marca_external_id?.trim();
     const nome = e.marca_nome?.trim() ?? '';
     const informada = nome !== '' || !!ext;
     const achada = (ext ? marcas.find((m) => m.external_id === ext) : undefined) ?? (nome ? marcas.find((m) => nomeMarcaIgual(m.nome, nome)) : undefined);
@@ -100,7 +99,7 @@ export function planejarMarcasDoErp(entrada: readonly ReferenciaDoErp[], marcas:
   const codigos = new Set(marcas.map((m) => m.external_id).filter((x): x is string => !!x));
   const nomes = new Set(marcas.map((m) => chaveDoNomeMarca(m.nome)));
   for (const e of entrada) {
-    const codigo = (e.marca_codigo?.trim() || e.marca_external_id?.trim()) ?? '';
+    const codigo = e.marca_external_id?.trim() ?? '';
     const nome = (e.marca_nome?.trim() ?? '').slice(0, 120);
     if (codigo === '' || nome === '' || codigos.has(codigo)) continue;
     const mesmoNome = marcas.find((m) => nomeMarcaIgual(m.nome, nome));
@@ -158,11 +157,11 @@ export function marcasDesconhecidasDaLinha(
   for (const d of semMarca) {
     if (d.motivo !== 'marca_desconhecida') continue;
     const e = entrada.find((x) => x.codigo.trim() === d.codigo);
-    const bruta = (e?.marca_nome?.trim() || e?.marca_external_id?.trim() || e?.marca_codigo?.trim() || '').slice(0, 120);
+    const bruta = (e?.marca_nome?.trim() || e?.marca_external_id?.trim() || '').slice(0, 120);
     if (bruta === '' || vistas.has(chaveDoNomeMarca(bruta)) || marcas.length >= 3) continue;
     vistas.add(chaveDoNomeMarca(bruta));
     marcas.push(bruta);
-    externalId ??= e?.marca_external_id?.trim() || e?.marca_codigo?.trim() || undefined;
+    externalId ??= e?.marca_external_id?.trim() || undefined;
   }
   return marcas.length === 0 ? null : externalId ? { marcas, marca_external_id: externalId } : { marcas };
 }

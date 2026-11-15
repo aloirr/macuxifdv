@@ -159,36 +159,36 @@ describe('referenciaVisivel e textoDaReferencia', () => {
   });
 });
 
-describe('planejarMarcasDoErp e marca_codigo (marca da referência pelo código do ERP)', () => {
+describe('planejarMarcasDoErp e marca_external_id (marca da referência pelo código do ERP)', () => {
   const lista = [
     { id: M1, nome: 'Freiomax', ativo: true, external_id: 'FM' },
     { id: M2, nome: 'Manual', ativo: true, external_id: null },
   ];
   it('RN-CAT-13: código e nome novos criam a marca pelo código; a referência liga a ela', () => {
-    const plano = planejarMarcasDoErp([{ marca_codigo: 'NV', marca_nome: 'Nova Marca', codigo: 'A1' }], lista);
+    const plano = planejarMarcasDoErp([{ marca_external_id: 'NV', marca_nome: 'Nova Marca', codigo: 'A1' }], lista);
     expect(plano).toEqual({ criar: [{ external_id: 'NV', nome: 'Nova Marca' }], adotar: [] });
     const criada = [...lista, { id: M3, nome: 'Nova Marca', ativo: true, external_id: 'NV' }];
-    expect(resolverReferenciasDoErp([{ marca_codigo: 'NV', marca_nome: 'Nova Marca', codigo: 'A1' }], criada).referencias).toEqual([{ marca_id: M3, marca_nome: 'Nova Marca', codigo: 'A1' }]);
+    expect(resolverReferenciasDoErp([{ marca_external_id: 'NV', marca_nome: 'Nova Marca', codigo: 'A1' }], criada).referencias).toEqual([{ marca_id: M3, marca_nome: 'Nova Marca', codigo: 'A1' }]);
   });
   it('RN-CAT-13: código já cadastrado não cria nem renomeia a marca', () => {
-    expect(planejarMarcasDoErp([{ marca_codigo: 'FM', marca_nome: 'Outro nome', codigo: 'A1' }], lista)).toEqual({ criar: [], adotar: [] });
+    expect(planejarMarcasDoErp([{ marca_external_id: 'FM', marca_nome: 'Outro nome', codigo: 'A1' }], lista)).toEqual({ criar: [], adotar: [] });
   });
   it('RN-CAT-13: nome igual ao de marca cadastrada sem código adota o código (sem criar duplicada)', () => {
-    expect(planejarMarcasDoErp([{ marca_codigo: 'MN', marca_nome: 'manual', codigo: 'A1' }], lista)).toEqual({ criar: [], adotar: [{ id: M2, external_id: 'MN' }] });
+    expect(planejarMarcasDoErp([{ marca_external_id: 'MN', marca_nome: 'manual', codigo: 'A1' }], lista)).toEqual({ criar: [], adotar: [{ id: M2, external_id: 'MN' }] });
   });
   it('RN-CAT-13: nome de marca que já tem outro código não cria nem adota', () => {
-    expect(planejarMarcasDoErp([{ marca_codigo: 'ZZ', marca_nome: 'Freiomax', codigo: 'A1' }], lista)).toEqual({ criar: [], adotar: [] });
+    expect(planejarMarcasDoErp([{ marca_external_id: 'ZZ', marca_nome: 'Freiomax', codigo: 'A1' }], lista)).toEqual({ criar: [], adotar: [] });
   });
   it('RN-CAT-09: sem código (ou sem nome) nada é criado e a referência entra só com o código', () => {
-    expect(planejarMarcasDoErp([{ marca_nome: 'Nova', codigo: 'A1' }, { marca_codigo: 'NV', codigo: 'A2' }], lista)).toEqual({ criar: [], adotar: [] });
+    expect(planejarMarcasDoErp([{ marca_nome: 'Nova', codigo: 'A1' }, { marca_external_id: 'NV', codigo: 'A2' }], lista)).toEqual({ criar: [], adotar: [] });
     expect(resolverReferenciasDoErp([{ codigo: 'A1' }], lista).referencias).toEqual([{ marca_id: null, marca_nome: null, codigo: 'A1' }]);
   });
   it('RN-CAT-13: o mesmo código ou o mesmo nome repetido na linha cria uma marca só', () => {
-    const e = [{ marca_codigo: 'NV', marca_nome: 'Nova', codigo: 'A1' }, { marca_codigo: 'NV', marca_nome: 'Nova', codigo: 'A2' }, { marca_codigo: 'N2', marca_nome: 'NOVA', codigo: 'A3' }];
+    const e = [{ marca_external_id: 'NV', marca_nome: 'Nova', codigo: 'A1' }, { marca_external_id: 'NV', marca_nome: 'Nova', codigo: 'A2' }, { marca_external_id: 'N2', marca_nome: 'NOVA', codigo: 'A3' }];
     expect(planejarMarcasDoErp(e, lista).criar).toEqual([{ external_id: 'NV', nome: 'Nova' }]);
   });
-  it('RN-CAT-09: marca_codigo de marca inativa deixa a referência só com o código', () => {
-    const r = resolverReferenciasDoErp([{ marca_codigo: 'FM', marca_nome: 'Freiomax', codigo: 'A1' }], [{ ...lista[0]!, ativo: false }]);
+  it('RN-CAT-09: marca_external_id de marca inativa deixa a referência só com o código', () => {
+    const r = resolverReferenciasDoErp([{ marca_external_id: 'FM', marca_nome: 'Freiomax', codigo: 'A1' }], [{ ...lista[0]!, ativo: false }]);
     expect(r.referencias[0]!.marca_id).toBeNull();
     expect(r.semMarca).toEqual([{ codigo: 'A1', motivo: 'marca_inativa' }]);
   });

@@ -301,11 +301,11 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
     );
   });
 
-  it('RN-CAT-13: referência do ERP com marca_codigo e marca_nome cria a marca pelo código e liga a ela; reaplicar não duplica', async () => {
+  it('RN-CAT-13: referência do ERP com marca_external_id e marca_nome cria a marca pelo código e liga a ela; reaplicar não duplica', async () => {
     await emTransacao(
       A.tenantId,
       async (t) => {
-        const ev = evRefs([{ marca_codigo: 'MC-NOVA', marca_nome: 'Marca Nova', codigo: 'NV 1' }, { codigo: 'SEM 2' }]);
+        const ev = evRefs([{ marca_external_id: 'MC-NOVA', marca_nome: 'Marca Nova', codigo: 'NV 1' }, { codigo: 'SEM 2' }]);
         await t.entregar(produtoNo, ev);
         await t.entregar(produtoNo, ev);
         const m = await t.q<{ id: string; nome: string; external_id: string }>("select id, nome, external_id from catalogo.marca_concorrente where external_id = 'MC-NOVA' and deleted_at is null");
