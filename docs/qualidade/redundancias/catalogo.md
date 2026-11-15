@@ -319,6 +319,7 @@ Severidade: **alta** (confunde ou contradiz) · **média** (polui) · **baixa** 
 | RD-0320 | v1.0.8 · comentários do Catálogo ainda falam em "Adicionar ao pedido": `modules/catalogo/manifest.ts:20` e `modules/catalogo/contracts/extensoes.ts:4-5` | comentário | baixa | modulo-catalogo | **aberto** 14/11; não segura (só comentário; cabe no #252) | [2026-11-14-v1.0.8](2026-11-14-v1.0.8.md) §2 | relatório v1.0.8 |
 | RD-0321 | v1.0.8 · comentário e título de teste citam o provisório "RD-0263", que no catálogo é outro achado: `cards-pedidos.ts:20`, `orders-screen.tsx:184`, `cards-pedidos.test.ts:33` | comentário · título de teste | baixa | modulo-vendedor | **aberto** 14/11; não segura (lote seguinte): trocar por RD-0307 | [2026-11-14-v1.0.8](2026-11-14-v1.0.8.md) §2 | relatório v1.0.8 |
 | RD-0322 | v1.0.8 · `modules/core/domain/performance-cliente.ts:55`: "nulo quando a data mais recente vem só do sync por cliente" não vale mais; o resumo do servidor traz o usuário | comentário | baixa | modulo-core | **aberto** 14/11; não segura (lote seguinte) | [2026-11-14-v1.0.8](2026-11-14-v1.0.8.md) §2 | relatório v1.0.8 |
+| RD-0959 | PR #359 coluna Plano · `apps/web/lib/portal-falso.ts:72`, `:117-119`, `:141`: `teste_ate` gravado em 4 empresas falsas e nunca lido no `apps/web`; o fato "em teste" em 2 campos (`teste_ate` × `em_teste`) | código | baixa | engenheiro-apps | **aberto** 15/11; segura o lote (código de produção) | [2026-11-15-planos-coluna](2026-11-15-planos-coluna.md) §2 | — |
 
 ## Regras do checklist acrescentadas
 | Data | Regra | Origem |
@@ -345,6 +346,7 @@ Severidade: **alta** (confunde ou contradiz) · **média** (polui) · **baixa** 
 | 2026-11-12 | T-0170 · Início v1.0.4: recado de ontem com a hora "22:49" às 12:29 (`inicio.md` §1.2 pede "ontem") | R-20261112-165838 |
 | 2026-11-12 | T-0162 · kit do piloto: comando do Estado quebrado (`ROTEIRO.md:39-40`), "seção Problemas" inexistente (`Instalar-Piloto.ps1:558`), "senhas novas" sem troca (`:215`), transportadora digitada com id (`erp-via-api.mjs:118-119` × Conector), caminho do cliente-hub no doc (`kit-piloto.md:81`), `-Limpar` sem Bypass (`:625`), passos 1-3,5-7 | R-20261112-222454 |
 | 2026-11-12 | T-0166 · salvar pela folha "Sair do pedido?" com falta leva ao Resumo sem ligar o "tentou" (`new-order-screen.tsx:719-727`) × §2.2 "faz a tentativa"; `faltaDoCampo` sempre "Obrigatório" (`:403`) × `pedido-v4.md` §6.1 (Saiu da lista, Não vale para esta forma…); prancha `T-0166-falta-no-campo.png` print 3 com Prazo ligado e "Obrigatório" sem forma × código (Prazo desligado, "Escolha a forma") | recado ao testes de 12/11 ~22h30 |
+| 2026-11-15 | PR #359 · `EmpresaResumoSchema` (`platform-sdk/src/plataforma.ts:144-155`) sem `plano`/`em_teste`; `tela-empresas.tsx:42` usa `Pick<EmpresaResumo, 'plano' \| 'em_teste'>` (typecheck; com a API real a coluna ficaria "—") | via gerente-projetos (CLI de recados com HTTP 403 nesta sessão) |
 
 ## Observações sem RD (`manter?`)
 | Data | Onde | Para decidir |
