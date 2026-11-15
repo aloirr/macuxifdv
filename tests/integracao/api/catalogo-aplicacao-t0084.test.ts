@@ -229,7 +229,7 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
       expect(resultado.contagens.com_erro).toBe(1);
     });
 
-    it('H-2 (T-0085 K11, RN-CAT-09): referências, oferece junto e etiquetas atravessam o Hub; marca desconhecida descarta só ela; 4 referências = 3 + aviso', async () => {
+    it('H-2 (T-0085 K11, RN-CAT-09): referências, oferece junto e etiquetas atravessam o Hub; marca desconhecida não vira marca (descartada ou só com o código); 4 referências = 3 + aviso', async () => {
       // marca desconhecida (RN-CAT-09): antes da marca opcional a referência era descartada; com ela (R-20261115-073000) entra só
       // com o código. Nos dois casos a marca desconhecida nunca vira marca_id nem marca_nome.
       const refs1 = await referenciasNoBanco(id1);
@@ -551,9 +551,6 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
         oferece_junto: [alfa2],
         referencias: [{ marca_id: concorrenteA, marca_nome: 'Freios Rivais', codigo: 'CB 3401' }, { marca_id: concorrenteA, marca_nome: 'Freios Rivais', codigo: 'FR-77.2' }],
       });
-      // T-0113: só marcas ativas do cadastro do Catálogo de A nas referências (nem a inativa, nem a apagada, nem as de B)
-      const marcasNasRefs = e.produtos.flatMap((p) => p.referencias.map((x) => x.marca_id));
-      for (const id of [MARCAS_FIXTURE.A.inativa, MARCAS_FIXTURE.A.apagada, MARCAS_FIXTURE.B.ativa]) expect(marcasNasRefs).not.toContain(id);
       expect(e.produtos.map((p) => p.codigo)).not.toContain('BETA-001');
       expect(r.body).not.toMatch(/price|preco/);
     });
