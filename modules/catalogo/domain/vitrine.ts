@@ -20,6 +20,8 @@ export interface ProdutoCatalogo {
   id: string;
   sku: string;
   ean: string | null;
+  /** Código do produto no ERP (a busca acha por ele, RN-CAT-08). */
+  external_id?: string | null;
   nome: string;
   marca: string;
   categoria: string;
@@ -29,6 +31,8 @@ export interface ProdutoCatalogo {
   atributos: readonly AtributoProduto[];
   /** RN-CAT-11: Aplicação (descrição 2); ausente = sem aplicação. */
   aplicacao?: string | null;
+  /** Descrição longa do conteúdo; entra na busca com o peso dos atributos (RN-CAT-08). */
+  descricao?: string | null;
   /** RN-CAT-09: referências cruzadas ativas (marca inativa já fora); ausente = nenhuma. */
   referencias?: readonly Referencia[];
   thumbnail_url: string | null;
@@ -102,6 +106,8 @@ export function docDeBusca(p: ProdutoCatalogo, item: ItemVitrine | null): DocBus
     id: p.id,
     sku: p.sku,
     ean: p.ean,
+    external_id: p.external_id ?? null,
+    descricao: p.descricao ?? null,
     nome: p.nome,
     marca: p.marca,
     categoria: p.categoria,
