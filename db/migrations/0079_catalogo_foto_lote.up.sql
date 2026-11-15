@@ -43,6 +43,8 @@
 --
 -- RLS: as 3 tabelas novas com enable + force + isolamento_tenant (macuxi_app) + manutencao (0031). macuxi_app sem DELETE
 -- (remover = deleted_at); plataforma.trabalho só select e insert (quem muda a situação são as funções do worker).
+-- Consulta só leitura (0078, ADR 0055): as 3 tabelas novas com grant select e a política leitura ao macuxi_leitura (nenhuma
+-- tem coluna sensível); catalogo.produto_midia passa a SELECT por coluna sem hash_conteudo (casa com a regra da sensível).
 -- Fora do sync (db/src/excecoes.ts): plataforma.trabalho, catalogo.foto_lote e catalogo.foto_lote_item nunca vão ao aparelho.
 --
 -- Caminho de volta: 0079_catalogo_foto_lote.down.sql (APAGA lotes, itens e trabalhos; tira hash_conteudo e os índices novos;
@@ -114,6 +116,8 @@ create policy isolamento_tenant on plataforma.trabalho for all to macuxi_app
   with check (tenant_id = plataforma.tenant_atual());
 create policy manutencao on plataforma.trabalho for all to macuxi_manutencao using (true) with check (true);
 grant select, insert on plataforma.trabalho to macuxi_app;
+grant select on plataforma.trabalho to macuxi_leitura;
+create policy leitura on plataforma.trabalho for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual());
 
 -- trabalho_reservar: um trabalho vencido por chamada, de tenant ativo; duas chamadas concorrentes nunca pegam o mesmo (skip locked).
 create function plataforma.trabalho_reservar(p_processo text, p_trava_s integer)
@@ -258,6 +262,8 @@ create policy isolamento_tenant on catalogo.foto_lote for all to macuxi_app
   with check (tenant_id = plataforma.tenant_atual());
 create policy manutencao on catalogo.foto_lote for all to macuxi_manutencao using (true) with check (true);
 grant select, insert, update on catalogo.foto_lote to macuxi_app;
+grant select on catalogo.foto_lote to macuxi_leitura;
+create policy leitura on catalogo.foto_lote for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual());
 
 -- =============================================================================================
 -- 4. catalogo.foto_lote_item — uma entrada considerada do ZIP (checkpoint pela situação)
@@ -315,6 +321,8 @@ create policy isolamento_tenant on catalogo.foto_lote_item for all to macuxi_app
   with check (tenant_id = plataforma.tenant_atual());
 create policy manutencao on catalogo.foto_lote_item for all to macuxi_manutencao using (true) with check (true);
 grant select, insert, update on catalogo.foto_lote_item to macuxi_app;
+grant select on catalogo.foto_lote_item to macuxi_leitura;
+create policy leitura on catalogo.foto_lote_item for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual());
 
 -- =============================================================================================
 -- 5. catalogo.produto_midia — hash da imagem e ordem das fotos
@@ -323,6 +331,20 @@ alter table catalogo.produto_midia add column hash_conteudo text;
 alter table catalogo.produto_midia add constraint produto_midia_hash_hex check (hash_conteudo is null or hash_conteudo ~ '^[0-9a-f]{64}$');
 create unique index produto_midia_hash_uk on catalogo.produto_midia (tenant_id, produto_id, hash_conteudo)
   where hash_conteudo is not null and deleted_at is null;
+-- consulta só leitura (0078): hash_conteudo casa com a regra da coluna sensível (db/src/papeis.ts COLUNA_SENSIVEL_LEITURA); o
+-- SELECT de tabela que a 0078 deu ao macuxi_leitura vira SELECT por coluna, sem ela (a política leitura da 0078 fica).
+do $$
+declare
+  v_colunas text;
+begin
+  select string_agg(quote_ident(a.attname), ', ' order by a.attnum) into v_colunas
+    from pg_attribute a
+   where a.attrelid = 'catalogo.produto_midia'::regclass and a.attnum > 0 and not a.attisdropped
+     and not (a.attname ~ '(hash|token|senha|segredo|chave|carga|cifrad)' and a.atttypid <> 'boolean'::regtype);
+  execute 'revoke select on catalogo.produto_midia from macuxi_leitura';
+  execute format('grant select (%s) on catalogo.produto_midia to macuxi_leitura', v_colunas);
+end
+$$;
 
 do $$
 declare
