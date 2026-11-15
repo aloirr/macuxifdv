@@ -95,9 +95,6 @@ describe('build.mjs: mensagem do build', () => {
     expect(() => planoDeBuild(['campo'], '1.0.0')).toThrow(/uso:/);
     expect(() => planoDeBuild(['campo', 'oficial', '--no-wait'], '1.0.0')).toThrow(/opção desconhecida/);
     expect(() => planoDeBuild(['campo', 'oficial'], '1.0')).toThrow(/versão inválida/);
-    // demo e dev não existem mais (sem perfis de desenvolvimento e preview)
-    expect(() => planoDeBuild(['campo', 'demo'], '1.0.0')).toThrow(/<campo\|gestao> oficial/);
-    expect(() => planoDeBuild(['ambos', 'dev'], '1.0.0')).toThrow(/alvo inválido/);
   });
 });
 
@@ -232,19 +229,12 @@ describe('eas-build.yml: workflow do EAS sem o PC (Oficial v1.0.7)', () => {
     expect(yml).toContain('--non-interactive --no-wait');
   });
 
-  it('cada perfil do formulário vira o canal do build.mjs e perfis existentes do eas.json', () => {
-    const opcoes = /perfil:[\s\S]*?options: \[([^\]]+)\]/.exec(yml)?.[1]?.split(',').map((s) => s.trim());
-    expect(opcoes).toEqual(['producao']);
-    const esperado: Record<string, [string, string[]]> = {
-      producao: ['oficial', ['campo-producao', 'gestao-producao']],
-    };
-    for (const opcao of opcoes ?? []) {
-      const [canal, perfis] = esperado[opcao] ?? ['', []];
-      expect(yml).toContain(`${opcao}) CANAL=${canal} ;;`);
-      const builds = planoDeBuild(['ambos', canal, '--', '--non-interactive', '--no-wait'], versaoAtual()).builds;
-      expect(builds.map((b) => b.perfilEas)).toEqual(perfis);
-      for (const b of builds) expect(eas.build[b.perfilEas], b.perfilEas).toBeDefined();
-    }
+  it('o build sai sempre no canal oficial, com os perfis de produção do eas.json', () => {
+    expect(yml).not.toMatch(/^ {6}(perfil|canal):/m);
+    expect(yml).toContain('CANAL: oficial');
+    const builds = planoDeBuild(['ambos', 'oficial', '--', '--non-interactive', '--no-wait'], versaoAtual()).builds;
+    expect(builds.map((b) => b.perfilEas)).toEqual(['campo-producao', 'gestao-producao']);
+    for (const b of builds) expect(eas.build[b.perfilEas], b.perfilEas).toBeDefined();
     expect(yml).toContain('ambas) VARIANTE=ambos ;;');
   });
 });

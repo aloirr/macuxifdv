@@ -28,7 +28,7 @@ const ANTIGO = 'https://andrew-directions-multimedia-interests.trycloudflare.com
 
 describe('perfil do build (EXPO_PUBLIC_PERFIL_BUILD)', () => {
   it('lê a flag do build; sem ela, o bundle de desenvolvimento edita e o de release fica fixo', () => {
-    expect(lerPerfilBuild({ EXPO_PUBLIC_PERFIL_BUILD: 'preview' }, true)).toBe('preview');
+    expect(lerPerfilBuild({ EXPO_PUBLIC_PERFIL_BUILD: 'preview' }, true)).toBe('desenvolvimento');
     expect(lerPerfilBuild({ EXPO_PUBLIC_PERFIL_BUILD: ' Producao ' }, true)).toBe('producao');
     expect(lerPerfilBuild({ EXPO_PUBLIC_PERFIL_BUILD: 'desenvolvimento' }, false)).toBe('desenvolvimento');
     expect(lerPerfilBuild({}, true)).toBe('desenvolvimento');
@@ -38,10 +38,8 @@ describe('perfil do build (EXPO_PUBLIC_PERFIL_BUILD)', () => {
 });
 
 describe('login: campo Servidor', () => {
-  it('preview e producao: sem campo Servidor (nem em "Avançado")', () => {
-    expect(cartaoServidorNoLogin('preview')).toBe('oculto');
+  it('producao: sem campo Servidor (nem em "Avançado")', () => {
     expect(cartaoServidorNoLogin('producao')).toBe('oculto');
-    expect(servidorEditavel('preview')).toBe(false);
     expect(servidorEditavel('producao')).toBe(false);
   });
   it('desenvolvimento: o campo continua, em "Avançado", para a rede local', () => {
@@ -51,9 +49,8 @@ describe('login: campo Servidor', () => {
 });
 
 describe('endereço salvo por versão antiga do app', () => {
-  it('preview e producao: ignorado; vale sempre o endereço do build', () => {
-    expect(enderecoSalvoValido('preview', ANTIGO)).toBeNull();
-    expect(enderecoEmUso('preview', ANTIGO, PRODUCAO)).toBe(PRODUCAO);
+  it('producao: ignorado; vale sempre o endereço do build', () => {
+    expect(enderecoSalvoValido('producao', ANTIGO)).toBeNull();
     expect(enderecoEmUso('producao', ANTIGO, PRODUCAO)).toBe(PRODUCAO);
   });
   it('desenvolvimento: o endereço salvo vale (vazio volta ao do build)', () => {
@@ -69,12 +66,12 @@ describe('servidor fora do ar: "Servidor indisponível — tente mais tarde"', (
 
   it('build de endereço fixo: qualquer falha da verificação vira SERVIDOR_INDISPONIVEL, sem endereço nem dica de /v1', () => {
     for (const original of [semResposta, naoMacuxi]) {
-      const e = erroDaVerificacao('preview', original);
+      const e = erroDaVerificacao('producao', original);
       expect(e).toBeInstanceOf(ErroHttp);
       expect((e as ErroHttp).codigo).toBe(CODIGO_SERVIDOR_INDISPONIVEL);
       expect((e as ErroHttp).message).toBe(MENSAGEM_SERVIDOR_INDISPONIVEL);
       expect((e as ErroHttp).message).not.toMatch(/endereço|\/v1|https?:/i);
-      expect(avisoDeServidorNoLogin('preview', e)).toBe('Servidor indisponível — tente mais tarde');
+      expect(avisoDeServidorNoLogin('producao', e)).toBe('Servidor indisponível — tente mais tarde');
     }
     expect(mensagemServidorFalhou('producao')).toBe(MENSAGEM_SERVIDOR_INDISPONIVEL);
     // sem conexão no meio do login (depois da verificação) também não pede endereço
@@ -82,7 +79,7 @@ describe('servidor fora do ar: "Servidor indisponível — tente mais tarde"', (
   });
 
   it('erro de credencial continua com a tela do Core', () => {
-    expect(avisoDeServidorNoLogin('preview', new ErroHttp(401, 'CREDENCIAIS_INVALIDAS', 'x'))).toBeNull();
+    expect(avisoDeServidorNoLogin('producao', new ErroHttp(401, 'CREDENCIAIS_INVALIDAS', 'x'))).toBeNull();
   });
 
   it('desenvolvimento: mantém a mensagem detalhada (ajuda a acertar o endereço da rede local)', () => {

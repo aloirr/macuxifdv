@@ -1,12 +1,10 @@
-/** T-0109: nome e versão dos builds (Campo-Demo-v1.0.0 / Gestao-Oficial-v1.0.0). */
+/** T-0109: nome e versão dos builds (Campo-Oficial-v1.0.0 / Gestao-Oficial-v1.0.0). */
 import { describe, expect, it } from 'vitest';
 
 import { lerAlvo, lerPerfilEas, lerVersao, nomeDoApk, nomeDoBuild, perfilEas, textoDaVersao, versaoValida } from './nome-build';
 
 describe('nome do build', () => {
-  it('preview = Demo e produção = Oficial, nas duas variantes', () => {
-    expect(nomeDoBuild('campo', 'preview', '1.0.0')).toBe('Campo-Demo-v1.0.0');
-    expect(nomeDoBuild('gestao', 'preview', '1.0.0')).toBe('Gestao-Demo-v1.0.0');
+  it('produção = Oficial, nas duas variantes', () => {
     expect(nomeDoBuild('campo', 'producao', '1.0.0')).toBe('Campo-Oficial-v1.0.0');
     expect(nomeDoBuild('gestao', 'producao', '1.2.10')).toBe('Gestao-Oficial-v1.2.10');
   });
@@ -16,13 +14,13 @@ describe('nome do build', () => {
   });
 
   it('APK publicado leva o mesmo nome', () => {
-    expect(nomeDoApk('campo', 'preview', '1.0.0')).toBe('Campo-Demo-v1.0.0.apk');
+    expect(nomeDoApk('campo', 'producao', '1.0.0')).toBe('Campo-Oficial-v1.0.0.apk');
   });
 
   it('versão fora de X.Y.Z não gera nome', () => {
     for (const v of ['1.0', 'v1.0.0', '01.0.0', '1.0.0-beta', '', ' 1.0.0']) {
       expect(versaoValida(v)).toBe(false);
-      expect(() => nomeDoBuild('campo', 'preview', v)).toThrow(/versão inválida/);
+      expect(() => nomeDoBuild('campo', 'producao', v)).toThrow(/versão inválida/);
     }
     expect(versaoValida('10.20.30')).toBe(true);
     expect(versaoValida(undefined)).toBe(false);
@@ -31,12 +29,12 @@ describe('nome do build', () => {
 
 describe('linha da versão no Perfil', () => {
   it('é o nome do build', () => {
-    expect(textoDaVersao('campo', 'preview', '1.0.0')).toBe('Campo-Demo-v1.0.0');
+    expect(textoDaVersao('campo', 'producao', '1.0.0')).toBe('Campo-Oficial-v1.0.0');
     expect(textoDaVersao('gestao', 'producao', '1.0.0')).toBe('Gestao-Oficial-v1.0.0');
   });
 
   it('sem versão legível não quebra a tela', () => {
-    expect(textoDaVersao('campo', 'preview', undefined)).toBe('Campo-Demo-v?');
+    expect(textoDaVersao('campo', 'producao', undefined)).toBe('Campo-Oficial-v?');
     expect(textoDaVersao('gestao', 'producao', 'abc')).toBe('Gestao-Oficial-v?');
   });
 });

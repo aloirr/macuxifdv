@@ -6,8 +6,7 @@
  * Nome do build = `<Variante>-<Canal>-v<versão>`:
  *  - variante: `Campo` (Macuxi Campo) ou `Gestao` (Macuxi Gestão, sem acento para servir de nome de arquivo);
  *  - canal: `Oficial` (perfis `*-producao`, os únicos do eas.json desde R-20261114-200000-alexandre, sem os perfis
- *    de desenvolvimento e preview). `Dev` e `Demo` só aparecem na linha da versão de um bundle local (`expo start`)
- *    ou de um APK antigo;
+ *    de desenvolvimento e preview). `Dev` só aparece na linha da versão de um bundle local (`expo start`);
  *  - versão: a de `scripts/eas/versao.json` (fonte única do `version` do app.config), no formato X.Y.Z.
  * O mesmo nome vai na mensagem do build no EAS (`eas build --message`), na linha da versão do Perfil e no arquivo do
  * APK publicado (`Campo-Oficial-v1.0.0.apk`). O `versionCode` do Android não entra no nome: é do EAS (remoto, sempre
@@ -18,7 +17,7 @@ import type { Variante } from './variante-tipo';
 
 export const ROTULO_VARIANTE: Readonly<Record<Variante, string>> = { campo: 'Campo', gestao: 'Gestao' };
 
-export const ROTULO_CANAL: Readonly<Record<PerfilBuild, string>> = { desenvolvimento: 'Dev', preview: 'Demo', producao: 'Oficial' };
+export const ROTULO_CANAL: Readonly<Record<PerfilBuild, string>> = { desenvolvimento: 'Dev', producao: 'Oficial' };
 
 /** Versão do app: X.Y.Z, números sem zero à esquerda (o que o Android mostra como versionName). */
 const VERSAO = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;

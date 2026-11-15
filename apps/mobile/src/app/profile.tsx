@@ -86,7 +86,7 @@ export default function ProfileScreen() {
       vivo = false;
     };
   }, [diagnosticoAberto]);
-  // T-0008 P7: 7 toques seguidos na versão abrem o diagnóstico de carga (só nos builds de desenvolvimento e preview)
+  // T-0008 P7: 7 toques seguidos na versão abrem o diagnóstico de carga (só no bundle de desenvolvimento)
   const toques = useRef(criarContadorToques());
   const comDiagnostico = diagnosticoDisponivel(perfilBuildAtual());
   // T-0109: a linha da versão é o nome do build (Campo-Oficial-v1.0.0), o mesmo da mensagem do build no EAS e do APK
