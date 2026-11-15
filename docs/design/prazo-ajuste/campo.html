@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Ajuste do prazo · app Campo (simulação)</title>
+<link rel="stylesheet" href="../telas/telas.css">
+<link rel="stylesheet" href="../telas/marca-v1-novo-pedido.css">
+<link rel="stylesheet" href="campo.css">
+</head>
+<body>
+<h1 class="prancha">Desc./Acrésc. do prazo · app Campo</h1>
+<p class="prancha">R-20261115-111000, alvo v1.0.13 · simulação para aprovação, sem código. O contorno laranja tracejado só marca o que é novo; não sai no app.</p>
+<div class="board">
+
+  <div class="tela" id="t1">
+    <div class="legenda"><b>1</b>Venda · lista de Prazo aberta<span>O % aparece à direita do prazo, só quando é diferente de zero.</span></div>
+    <div class="phone" style="position:relative">
+      <div class="status"><span>10:42</span><span>4G ▮▮▮ 71%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba ativa">Venda</div><div class="aba">Itens (4)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:12px">
+        <div class="secao-t">Cliente</div>
+        <div class="kv">
+          <div class="l"><span class="r">Endereço</span><span class="t">Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">23.456.789/0001-07</span></div>
+        </div>
+        <div class="duas" style="margin-top:2px">
+          <div><div class="campo-r">Forma de pagamento</div><div class="suspensa"><span>Boleto</span><i data-i="seta" data-t="16" data-c="#4A5562"></i></div></div>
+          <div><div class="campo-r">Prazo</div><div class="suspensa aberta" id="campo-prazo"><span>À vista</span><i data-i="seta" data-t="16" data-c="#1E3350"></i></div></div>
+        </div>
+        <div class="secao-t" style="margin-top:2px">Crédito do cliente</div>
+        <div class="tabela">
+          <div class="lin"><span class="r">Limite</span><span class="v">R$ 8.000,00</span></div>
+          <div class="lin"><span class="r">Disponível</span><span class="v">R$ 6.420,00</span></div>
+          <div class="lin"><span class="r">Prazo médio</span><span class="v">35 dias</span></div>
+        </div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+      <div class="menu-lista" id="menu-prazo" style="width:224px"><div class="op marcada"><span class="txt"><span class="rot">À vista</span></span><span class="pct novo">−1,71%</span><span class="ic"><i data-i="check" data-t="16" data-c="#1E3350" data-w="2.6"></i></span></div><div class="op"><span class="txt"><span class="rot">28 dias</span></span><span class="ic"></span></div><div class="op"><span class="txt"><span class="rot">28/56 dias</span></span><span class="ic"></span></div><div class="op"><span class="txt"><span class="rot">60 dias</span></span><span class="pct novo">+2,50%</span><span class="ic"></span></div><div class="op off"><span class="txt"><span class="rot">30/60/90 dias</span><span class="mot">Acima do prazo médio do cliente</span></span><span class="pct novo">+3,90%</span><span class="ic"><i data-i="cadeado" data-t="14" data-c="#8A949C"></i></span></div></div>
+    </div>
+  </div>
+
+  <div class="tela" id="t2">
+    <div class="legenda"><b>2</b>Resumo · à vista com desconto do prazo<span>Boleto à vista (−1,71%), sem desconto nos itens. Rolado até os Totais.</span></div>
+    <div class="phone">
+      <div class="status"><span>10:42</span><span>4G ▮▮▮ 71%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (4)</div><div class="aba">Entrega</div><div class="aba ativa">Resumo</div></div>
+      </div>
+      <div class="conteudo rolado" style="padding:0">
+        <div class="trilho" style="top:-420px">
+        <div class="secao-t">Condição de pagamento</div>
+        <div class="kv">
+          <div class="l"><span class="r">Forma</span><span class="t">Boleto</span></div>
+          <div class="l"><span class="r">Prazo</span><span class="t">À vista</span></div>
+        </div>
+        <div class="secao-t">Itens</div>
+        <div class="ti-box b8">
+          <table class="ti ti7 ti8">
+            <colgroup><col><col style="width:47px"><col style="width:27px"><col style="width:49px"><col style="width:47px"><col style="width:53px"><col style="width:35px"></colgroup>
+            <thead><tr><th>Código</th><th class="a-esq">Emb.</th><th>Qtd</th><th>Valor<br>tabela</th><th>Desc./<br>Acrésc.</th><th>Total</th><th></th></tr></thead>
+            <tbody><tr><td><span class="cod">AGU-1500</span></td><td class="a-esq"><span class="e1">FD c/ 6</span></td><td>10</td><td>199,20</td><td><span class="zero">0,0%</span></td><td class="tot">199,20</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">LPO-400</span></td><td class="a-esq"><span class="e1">UN</span></td><td>20</td><td>355,00</td><td><span class="zero">0,0%</span></td><td class="tot">355,00</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">CAF-500</span></td><td class="a-esq"><span class="e1">UN</span></td><td>30</td><td>402,00</td><td><span class="zero">0,0%</span></td><td class="tot">402,00</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">DET-500</span></td><td class="a-esq"><span class="e1">UN</span></td><td>12</td><td>43,80</td><td><span class="zero">0,0%</span></td><td class="tot">43,80</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr></tbody>
+          </table>
+        </div>
+        <div class="secao-t">Entrega</div>
+        <div class="kv">
+          <div class="l"><span class="r">Frete</span><span class="t">CIF</span></div>
+          <div class="l"><span class="r">Endereço</span><span class="t">Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+        </div>
+        <div class="secao-t">Observação do pedido</div>
+        <div class="texto-area" style="min-height:64px;color:var(--ink)">Entregar até sexta-feira.</div>
+        <div class="secao-t">Totais</div>
+        <div class="tt"><div class="l"><span class="r">Valor de tabela</span><span class="v">R$ 1.000,00</span></div><div class="l"><span class="r">Desconto (%)</span><span class="v">0,0%</span></div><div class="l"><span class="r">Desconto (R$)</span><span class="v">R$ 0,00</span></div><div class="l novo"><span class="r">Desconto do prazo (1,71%)</span><span class="v">− R$ 17,10</span></div><div class="l total"><span class="r">Valor final</span><span class="v">R$ 982,90</span></div>
+        </div>
+        <div style="height:6px"></div>
+        <div class="btn principal">Salvar e enviar pedido</div>
+        <div class="duas-btn"><div class="btn secundario">Apenas salvar</div><div class="btn secundario">Salvar como orçamento</div></div>
+        <div class="btn-texto" style="margin-top:-2px">Cancelar</div>
+        </div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <div class="tela" id="t3">
+    <div class="legenda"><b>3</b>Resumo · 60 dias com acréscimo do prazo<span>Boleto 60 dias (+2,50%), com desconto em 2 itens. Rolado até os Totais.</span></div>
+    <div class="phone">
+      <div class="status"><span>10:42</span><span>4G ▮▮▮ 71%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (4)</div><div class="aba">Entrega</div><div class="aba ativa">Resumo</div></div>
+      </div>
+      <div class="conteudo rolado" style="padding:0">
+        <div class="trilho" style="top:-420px">
+        <div class="secao-t">Condição de pagamento</div>
+        <div class="kv">
+          <div class="l"><span class="r">Forma</span><span class="t">Boleto</span></div>
+          <div class="l"><span class="r">Prazo</span><span class="t">60 dias</span></div>
+        </div>
+        <div class="secao-t">Itens</div>
+        <div class="ti-box b8">
+          <table class="ti ti7 ti8">
+            <colgroup><col><col style="width:47px"><col style="width:27px"><col style="width:49px"><col style="width:47px"><col style="width:53px"><col style="width:35px"></colgroup>
+            <thead><tr><th>Código</th><th class="a-esq">Emb.</th><th>Qtd</th><th>Valor<br>tabela</th><th>Desc./<br>Acrésc.</th><th>Total</th><th></th></tr></thead>
+            <tbody><tr><td><span class="cod">AGU-1500</span></td><td class="a-esq"><span class="e1">FD c/ 6</span></td><td>10</td><td>199,20</td><td>−5,0%</td><td class="tot">189,24</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">LPO-400</span></td><td class="a-esq"><span class="e1">UN</span></td><td>20</td><td>355,00</td><td>−10,0%</td><td class="tot">319,50</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">CAF-500</span></td><td class="a-esq"><span class="e1">UN</span></td><td>30</td><td>402,00</td><td><span class="zero">0,0%</span></td><td class="tot">402,00</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr><tr><td><span class="cod">DET-500</span></td><td class="a-esq"><span class="e1">UN</span></td><td>12</td><td>43,80</td><td><span class="zero">0,0%</span></td><td class="tot">43,80</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#1E3350" data-w="2.2"></i></span></td></tr></tbody>
+          </table>
+        </div>
+        <div class="secao-t">Entrega</div>
+        <div class="kv">
+          <div class="l"><span class="r">Frete</span><span class="t">CIF</span></div>
+          <div class="l"><span class="r">Endereço</span><span class="t">Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+        </div>
+        <div class="secao-t">Observação do pedido</div>
+        <div class="texto-area" style="min-height:64px;color:var(--ink)">Entregar até sexta-feira.</div>
+        <div class="secao-t">Totais</div>
+        <div class="tt"><div class="l"><span class="r">Valor de tabela</span><span class="v">R$ 1.000,00</span></div><div class="l"><span class="r">Desconto (%)</span><span class="v">4,5%</span></div><div class="l"><span class="r">Desconto (R$)</span><span class="v">− R$ 45,46</span></div><div class="l novo"><span class="r">Acréscimo do prazo (2,50%)</span><span class="v">+ R$ 23,86</span></div><div class="l total"><span class="r">Valor final</span><span class="v">R$ 978,40</span></div>
+        </div>
+        <div style="height:6px"></div>
+        <div class="btn principal">Salvar e enviar pedido</div>
+        <div class="duas-btn"><div class="btn secundario">Apenas salvar</div><div class="btn secundario">Salvar como orçamento</div></div>
+        <div class="btn-texto" style="margin-top:-2px">Cancelar</div>
+        </div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+</div>
+<script src="../telas/icones.js"></script>
+<script>
+  // menu ancorado logo abaixo do campo Prazo, alinhado à direita dele (posicaoDoMenu: largura mínima 224 dp, folga 4 dp)
+  const c = document.getElementById('campo-prazo'), m = document.getElementById('menu-prazo'), p = c.closest('.phone');
+  const rc = c.getBoundingClientRect(), rp = p.getBoundingClientRect();
+  m.style.top = (rc.bottom - rp.top + 4) + 'px';
+  m.style.left = (rc.right - rp.left - 224) + 'px';
+</script>
+</body>
+</html>

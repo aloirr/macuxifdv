@@ -1,0 +1,43 @@
+/* Simulação do ajuste do prazo (R-20261115-111000). Fontes locais (as mesmas do app) para o PNG não depender de rede. */
+@font-face { font-family: Archivo; font-weight: 600; src: url(../../../apps/web/app/fonts/Archivo_600SemiBold.ttf); }
+@font-face { font-family: Archivo; font-weight: 700; src: url(../../../apps/web/app/fonts/Archivo_700Bold.ttf); }
+@font-face { font-family: Archivo; font-weight: 800; src: url(../../../apps/web/app/fonts/Archivo_800ExtraBold.ttf); }
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 400; src: url(../../../apps/web/app/fonts/IBMPlexSans_400Regular.ttf); }
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 500; src: url(../../../apps/web/app/fonts/IBMPlexSans_500Medium.ttf); }
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 600; src: url(../../../apps/web/app/fonts/IBMPlexSans_600SemiBold.ttf); }
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 700; src: url(../../../apps/web/app/fonts/IBMPlexSans_700Bold.ttf); }
+@font-face { font-family: 'IBM Plex Mono'; font-weight: 500; src: url(../../../apps/web/app/fonts/IBMPlexMono_500Medium.ttf); }
+
+body { width: 1200px; }
+.phone { height: 740px; }
+.conteudo > * { flex: none; }
+.duas-btn { display: flex; gap: 8px; }
+.duas-btn .btn { flex: 1; height: 52px; font-size: 14px; padding: 0 10px; text-align: center; line-height: 17px; }
+.ti.ti8 th, .ti.ti8 td { padding-left: 3px; }
+.ti.ti8 th:first-child, .ti.ti8 td:first-child { padding-left: 0; }
+.ti.ti8 td.ed { padding-top: 6px; padding-bottom: 0; text-align: center; vertical-align: middle; }
+.ti-box.b8 { padding: 0 2px 0 6px; }
+.edt { display: inline-flex; width: 30px; height: 30px; border-radius: 8px; background: var(--accentSoft); align-items: center; justify-content: center; }
+
+/* rolagem simulada: o conteúdo começa acima do topo visível */
+.rolado { position: relative; }
+.rolado > .trilho { position: absolute; left: 0; right: 0; display: flex; flex-direction: column; gap: 10px; padding: 0 16px 16px; }
+.rolado > .trilho > * { flex: none; }
+
+/* ListaSuspensa aberta (packages/ui/src/mobile/suspensa.tsx, MenuAncorado): fundo do toque fora transparente, menu branco com sombra "aviso" */
+.suspensa.aberta { border-color: var(--accent); border-width: 2px; padding: 0 11px; }
+.menu-lista { position: absolute; z-index: 20; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; box-shadow: 0 4px 10px rgba(15, 20, 25, .2); }
+.menu-lista .op { min-height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 15px; line-height: 20px; }
+.menu-lista .op + .op { border-top: 1px solid var(--line); }
+.menu-lista .op .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.menu-lista .op .mot { font-size: 12px; line-height: 16px; color: var(--ink2); }
+.menu-lista .op.off { background: var(--ground); padding-top: 8px; padding-bottom: 8px; }
+.menu-lista .op.off .rot { color: #8A949C; }
+.menu-lista .op.marcada .rot { font-weight: 700; }
+/* NOVO: o % do prazo à direita do rótulo, só quando ≠ 0 */
+.menu-lista .op .pct { flex: none; font-size: 14px; font-weight: 500; color: var(--ink2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.menu-lista .op.off .pct { color: #8A949C; }
+.menu-lista .op .ic { flex: none; width: 16px; display: flex; justify-content: center; }
+
+/* marcador da novidade (só na prancha, não sai no app) */
+.novo { outline: 2px dashed var(--grafico); outline-offset: 2px; border-radius: 4px; }
