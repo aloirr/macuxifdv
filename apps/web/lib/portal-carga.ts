@@ -242,7 +242,7 @@ export async function importarArquivo(
     }
     if (!terminou) await porta.esperar(ESPERA_MS);
   }
-  // sem terminar no prazo: a tela diz que o Hub continua gravando e o status do lote segue consultável
+  // sem terminar no prazo: a tela pede para voltar daqui a pouco e o status do lote segue consultável
   if (terminou) avisar('pronto', total, total);
   return { lotes, sessaoId, progressoSessao, status, repetido, terminou };
 }

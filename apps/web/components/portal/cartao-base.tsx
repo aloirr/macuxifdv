@@ -32,6 +32,18 @@ export function resumoDoArquivo(nome: string | null, totalLinhas: number, partes
   return nome ? `${nome}, ${linhas}` : linhas;
 }
 
+/** Aviso do lote sem terminar: o selo e a barra já dizem "em andamento"; fica só a ação (T-0173, RD-0968). */
+export const TEXTO_LOTE_EM_ANDAMENTO = 'Volte daqui a pouco para ver o resultado.';
+
+/**
+ * Linha sob a barra: a parte em envio ou "Gravando: x de y partes aplicadas."; numa parte só, gravando, nada (o selo e a barra
+ * bastam; T-0173, RD-0968).
+ */
+export function textoDoProgresso(p: ProgressoCarga): string | null {
+  if (p.fase === 'enviando') return p.totalPartes > 1 ? `Enviando a parte ${Math.min(p.enviadas + 1, p.totalPartes)} de ${p.totalPartes}…` : 'Enviando o arquivo…';
+  return p.totalPartes > 1 ? `Gravando: ${p.aplicadas} de ${p.totalPartes} partes aplicadas.` : null;
+}
+
 /** "Baixar modelo" e "Dicionário": rota da N1 (nuvem); 404 = ainda não chegou ao servidor. */
 function LinksDoModelo({ entidade, tenant }: { entidade: Entidade; tenant: string }) {
   const toast = useToast();
@@ -292,21 +304,13 @@ export function CartaoBase({ item, tenant, rotuloDepende }: { item: ItemOrdemCar
             <Bar pct={progresso.percentual} colorClass="bg-accent" />
             <span className="w-10 text-right text-[13px] font-semibold tabular-nums">{progresso.percentual}%</span>
           </div>
-          <span className="text-[12px] text-ink-2">
-            {progresso.fase === 'enviando'
-              ? progresso.totalPartes > 1
-                ? `Enviando a parte ${Math.min(progresso.enviadas + 1, progresso.totalPartes)} de ${progresso.totalPartes}…`
-                : 'Enviando o arquivo…'
-              : progresso.totalPartes > 1
-                ? `Gravando: ${progresso.aplicadas} de ${progresso.totalPartes} partes aplicadas.`
-                : 'Gravando no Hub…'}
-          </span>
+          {textoDoProgresso(progresso) && <span className="text-[12px] text-ink-2">{textoDoProgresso(progresso)}</span>}
         </div>
       )}
 
       {resultado && (
         <div data-testid={`base-${entidade}.resultado`} className="flex flex-col gap-2">
-          {!resultado.terminou && <Notice tone="info">O Hub continua gravando este arquivo. Volte a esta página daqui a pouco para ver o resultado.</Notice>}
+          {!resultado.terminou && <Notice tone="info">{TEXTO_LOTE_EM_ANDAMENTO}</Notice>}
           {resultado.repetido && <Notice tone="info">Este arquivo já tinha sido enviado com a mesma chave: nada foi gravado de novo.</Notice>}
           {resultado.progressoSessao?.inativacao?.situacao === 'aguardando_confirmacao' && (
             <Notice tone="warning">A carga completa inativaria muitos registros e ficou aguardando confirmação no monitor da Integração (BKO).</Notice>

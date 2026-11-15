@@ -4,7 +4,7 @@ import { ENTIDADES } from '@macuxi/integracao/contracts';
 import { CriarEmpresaSchema } from '@macuxi/platform-sdk';
 
 import { entidadesLivres } from '@/components/portal/aba-integracao';
-import { resumoDoArquivo, TEXTO_COMPLETO_COM_ERROS } from '@/components/portal/cartao-base';
+import { resumoDoArquivo, TEXTO_COMPLETO_COM_ERROS, TEXTO_LOTE_EM_ANDAMENTO, textoDoProgresso } from '@/components/portal/cartao-base';
 import {
   corpoDaEmpresa,
   erroDoAdminNaApi,
@@ -149,6 +149,24 @@ describe('textos do portal (revisão de UX R-20261106-023316)', () => {
     expect(resumoDoArquivo('rotas.csv', 1, 1)).toBe('rotas.csv, 1 linha');
     expect(resumoDoArquivo(null, 30, 1)).toBe('30 linhas');
     expect(TEXTO_COMPLETO_COM_ERROS).toMatch(/nada é inativado/);
+  });
+});
+
+describe('cartão da base com o lote em andamento (T-0173, RD-0968: uma informação, um lugar)', () => {
+  const p = (fase: 'enviando' | 'gravando' | 'pronto', totalPartes: number, enviadas = 0, aplicadas = 0) => ({ fase, totalPartes, enviadas, aplicadas, percentual: 50 });
+  it('gravando numa parte só: o selo e a barra bastam, sem "Gravando no Hub…"', () => {
+    expect(textoDoProgresso(p('gravando', 1, 1, 0))).toBeNull();
+    expect(textoDoProgresso(p('pronto', 1, 1, 1))).toBeNull();
+  });
+  it('gravando em partes: continua "Gravando: x de y partes aplicadas."', () => {
+    expect(textoDoProgresso(p('gravando', 4, 4, 2))).toBe('Gravando: 2 de 4 partes aplicadas.');
+  });
+  it('enviando: diz a parte ou o arquivo', () => {
+    expect(textoDoProgresso(p('enviando', 3, 1, 0))).toBe('Enviando a parte 2 de 3…');
+    expect(textoDoProgresso(p('enviando', 1))).toBe('Enviando o arquivo…');
+  });
+  it('aviso do lote sem terminar: só a ação', () => {
+    expect(TEXTO_LOTE_EM_ANDAMENTO).toBe('Volte daqui a pouco para ver o resultado.');
   });
 });
 
