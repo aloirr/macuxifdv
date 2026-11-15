@@ -36,6 +36,8 @@ export interface MarcaDoCadastro {
 }
 
 export interface ReferenciaDoErp {
+  /** Código da marca no ERP (o Hub manda `marca_codigo`); vale como `external_id` da marca (RN-CAT-13). */
+  marca_codigo?: string | null | undefined;
   marca_external_id?: string | null | undefined;
   marca_nome?: string | null | undefined;
   codigo: string;
@@ -62,7 +64,7 @@ export function resolverReferenciasDoErp(entrada: readonly ReferenciaDoErp[], ma
   const vistas = new Set<string>();
   for (const e of entrada) {
     const codigo = e.codigo.trim();
-    const ext = e.marca_external_id?.trim();
+    const ext = e.marca_external_id?.trim() || e.marca_codigo?.trim();
     const nome = e.marca_nome?.trim() ?? '';
     const informada = nome !== '' || !!ext;
     const achada = (ext ? marcas.find((m) => m.external_id === ext) : undefined) ?? (nome ? marcas.find((m) => nomeMarcaIgual(m.nome, nome)) : undefined);
@@ -79,6 +81,40 @@ export function resolverReferenciasDoErp(entrada: readonly ReferenciaDoErp[], ma
     }
   }
   return saida;
+}
+
+export interface PlanoMarcasDoErp {
+  /** Marcas novas: `external_id` = código da marca no ERP. */
+  criar: { external_id: string; nome: string }[];
+  /** Marca já cadastrada à mão (mesmo nome, sem código): recebe o código do ERP. */
+  adotar: { id: string; external_id: string }[];
+}
+
+/**
+ * RN-CAT-09 / RN-CAT-13: a referência do ERP que traz **código e nome** da marca faz o upsert da marca pelo código (`external_id`, por tenant):
+ * código já cadastrado = usa a marca como está (não renomeia nem reativa); nome igual ao de uma marca sem código = ela adota o código;
+ * senão cria a marca ativa. Sem código ou sem nome não cria nada (a referência segue a regra de `resolverReferenciasDoErp`).
+ */
+export function planejarMarcasDoErp(entrada: readonly ReferenciaDoErp[], marcas: readonly MarcaDoCadastro[]): PlanoMarcasDoErp {
+  const plano: PlanoMarcasDoErp = { criar: [], adotar: [] };
+  const codigos = new Set(marcas.map((m) => m.external_id).filter((x): x is string => !!x));
+  const nomes = new Set(marcas.map((m) => chaveDoNomeMarca(m.nome)));
+  for (const e of entrada) {
+    const codigo = (e.marca_codigo?.trim() || e.marca_external_id?.trim()) ?? '';
+    const nome = (e.marca_nome?.trim() ?? '').slice(0, 120);
+    if (codigo === '' || nome === '' || codigos.has(codigo)) continue;
+    const mesmoNome = marcas.find((m) => nomeMarcaIgual(m.nome, nome));
+    if (mesmoNome) {
+      if (mesmoNome.external_id) continue;
+      plano.adotar.push({ id: mesmoNome.id, external_id: codigo });
+      codigos.add(codigo);
+    } else if (!nomes.has(chaveDoNomeMarca(nome))) {
+      plano.criar.push({ external_id: codigo, nome });
+      codigos.add(codigo);
+      nomes.add(chaveDoNomeMarca(nome));
+    }
+  }
+  return plano;
 }
 
 /** "Oferece junto" digitado por código: acha o produto ativo pelo código ERP sem diferenciar maiúsculas (RN-CAT-09). */
@@ -122,11 +158,11 @@ export function marcasDesconhecidasDaLinha(
   for (const d of semMarca) {
     if (d.motivo !== 'marca_desconhecida') continue;
     const e = entrada.find((x) => x.codigo.trim() === d.codigo);
-    const bruta = (e?.marca_nome?.trim() || e?.marca_external_id?.trim() || '').slice(0, 120);
+    const bruta = (e?.marca_nome?.trim() || e?.marca_external_id?.trim() || e?.marca_codigo?.trim() || '').slice(0, 120);
     if (bruta === '' || vistas.has(chaveDoNomeMarca(bruta)) || marcas.length >= 3) continue;
     vistas.add(chaveDoNomeMarca(bruta));
     marcas.push(bruta);
-    externalId ??= e?.marca_external_id?.trim() || undefined;
+    externalId ??= e?.marca_external_id?.trim() || e?.marca_codigo?.trim() || undefined;
   }
   return marcas.length === 0 ? null : externalId ? { marcas, marca_external_id: externalId } : { marcas };
 }

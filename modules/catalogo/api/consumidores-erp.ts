@@ -13,7 +13,7 @@ import { definirConsumidor, eventoTolerante, type ClienteBanco, type ConsumidorE
 import { z } from 'zod';
 import { EVENTO_REFERENCIA_MARCA_DESCONHECIDA } from '../contracts';
 import { CatalogoNoPayload, ClientePayload, EVENTO_ERP_CLIENTE_ATUALIZADO, EstoquePayload, EVENTO_ERP_CATALOGO_NO_ATUALIZADO, EVENTO_ERP_ESTOQUE_ATUALIZADO, EVENTO_ERP_PRECO_ATUALIZADO, EVENTO_ERP_PRODUTO_ATUALIZADO, EVENTO_ERP_TABELA_ESCALONADA_ATUALIZADO, PrecoPayload, ProdutoPayload, TabelaEscalonadaPayload } from '../../integracao/contracts';
-import { codigoCompacto, decidirColisaoEscalonada, parametrosDoTenant, planejarCadastroCatalogoDoErp, marcasDesconhecidasDaLinha, resolverReferenciasDoErp, planejarEscalonadaDoErp, planejarEstoqueDoErp, planejarNoDoErp, planejarPrecoDoErp, planejarProdutoNoDoErp, planejarVinculoTabelaDoErp, precoDoErpEhDaBase, type EventoErpBase, type MarcaDoCadastro } from '../domain';
+import { codigoCompacto, decidirColisaoEscalonada, parametrosDoTenant, planejarCadastroCatalogoDoErp, marcasDesconhecidasDaLinha, planejarMarcasDoErp, resolverReferenciasDoErp, planejarEscalonadaDoErp, planejarEstoqueDoErp, planejarNoDoErp, planejarPrecoDoErp, planejarProdutoNoDoErp, planejarVinculoTabelaDoErp, precoDoErpEhDaBase, type EventoErpBase, type MarcaDoCadastro } from '../domain';
 
 export class ReferenciaAusenteErp extends Error {
   constructor(
@@ -67,7 +67,7 @@ const CadastroCatalogoErp = z
     oferece_junto: z.array(z.string()).nullish(),
     etiquetas: z.array(z.string()).nullish(),
     /** Doc 06: marca pelo `external_id` ou pelo nome da marca cadastrada em Marcas concorrentes (RN-CAT-09). */
-    referencias: z.array(z.object({ marca_external_id: z.string().nullish(), marca_nome: z.string().nullish(), codigo: z.string() }).passthrough()).nullish(),
+    referencias: z.array(z.object({ marca_codigo: z.string().nullish(), marca_external_id: z.string().nullish(), marca_nome: z.string().nullish(), codigo: z.string() }).passthrough()).nullish(),
   })
   .passthrough();
 
@@ -248,12 +248,21 @@ export function criarConsumidorCatalogoNoDoErp(): ConsumidorEvento {
 
 /** RN-CAT-09: referências cruzadas do ERP (substituem o conjunto atual; ordem 1..3). `marca_nome` é o retrato do nome da marca do cadastro do Catálogo (0034). */
 async function aplicarReferenciasDoErp(ctx: ContextoConsumo, produto: string, externalId: string, entrada: NonNullable<z.infer<typeof CadastroCatalogoErp>['referencias']>, origem: { lote_id: string | undefined; sku: string | null }): Promise<void> {
-  const marcas = entrada.length > 0 ? (await ctx.db.query<MarcaDoCadastro>(`select id, nome, ativo, external_id from catalogo.marca_concorrente where deleted_at is null`)).rows : [];
-  const r = resolverReferenciasDoErp(entrada.map((x) => ({ marca_external_id: x.marca_external_id, marca_nome: x.marca_nome, codigo: x.codigo })), marcas);
+  const linhas = entrada.map((x) => ({ marca_codigo: x.marca_codigo, marca_external_id: x.marca_external_id, marca_nome: x.marca_nome, codigo: x.codigo }));
+  const lerMarcas = async (): Promise<MarcaDoCadastro[]> => (await ctx.db.query<MarcaDoCadastro>(`select id, nome, ativo, external_id from catalogo.marca_concorrente where deleted_at is null`)).rows;
+  let marcas = entrada.length > 0 ? await lerMarcas() : [];
+  // RN-CAT-13: código e nome da marca vindos do ERP fazem o upsert da marca pelo código (external_id do tenant)
+  const plano = planejarMarcasDoErp(linhas, marcas);
+  if (plano.criar.length > 0 || plano.adotar.length > 0) {
+    for (const a of plano.adotar) await ctx.db.query('update catalogo.marca_concorrente set external_id = $2 where id = $1::uuid and external_id is null', [a.id, a.external_id]);
+    for (const c of plano.criar) await ctx.db.query('insert into catalogo.marca_concorrente (tenant_id, nome, ativo, external_id) values (plataforma.tenant_atual(), $1, true, $2) on conflict do nothing', [c.nome, c.external_id]);
+    marcas = await lerMarcas();
+  }
+  const r = resolverReferenciasDoErp(linhas, marcas);
   if (r.descartadas.length > 0) ctx.log.warn({ external_id: externalId, descartadas: r.descartadas.map((d) => d.motivo) }, 'referências do produto do ERP descartadas (código inválido, repetida ou acima de 3)');
   if (r.semMarca.length > 0) ctx.log.warn({ external_id: externalId, sem_marca: r.semMarca.map((d) => d.motivo) }, 'referências do produto do ERP gravadas só com o código (marca informada desconhecida ou inativa)');
   // T-0103: um aviso por (lote, produto) para o monitor do Hub; sem lote no evento não há a quem avisar
-  const desconhecidas = marcasDesconhecidasDaLinha(entrada.map((x) => ({ marca_external_id: x.marca_external_id, marca_nome: x.marca_nome, codigo: x.codigo })), r.semMarca);
+  const desconhecidas = marcasDesconhecidasDaLinha(linhas, r.semMarca);
   if (desconhecidas && origem.lote_id) {
     await ctx.publicar(
       EVENTO_REFERENCIA_MARCA_DESCONHECIDA,
