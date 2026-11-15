@@ -78,6 +78,8 @@ Nada na tela explica de qual tabela é o preço: com cliente, o voltar na faixa 
   RN-CORE-39). Sem hora no cartão.
 - **A conferir pelo modulo-catalogo:** o parâmetro `estoque_baixo_ate` tem padrão 10 (doc 03, tabela de parâmetros); a regra
   pedida é de 1 a 9, a mesma do "Risco de ruptura" da folha do item (`pedido-v4.md` §5.2).
+- A tag vale para o cartão e a busca. Na ficha, o estoque de cada filial fica na folha `Estoque por filial`, com só duas cores
+  (acima de 0 verde, 0 ou negativo vermelho): `catalogo-campo-v2/spec.md` §2.1 (R-20261115-083000).
 
 ## 5. Estados
 - Carregando a 1ª vez: `Loading` no lugar da grade; a faixa e a busca já aparecem.

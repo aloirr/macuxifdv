@@ -73,7 +73,6 @@
   .ce.suc { background: var(--successBg); color: var(--success); }
   .ce.av { background: var(--warningBg); color: var(--warning); }
   .ce.erro { background: var(--dangerBg); color: var(--danger); }
-  .ce.m { height: 28px; font-size: 13px; padding: 0 12px; }
 
   /* ficha */
   .fx .cods { margin-top: 6px; font-size: 14px; color: var(--faixaSub); }
@@ -84,9 +83,6 @@
   .cx h4 { margin: 0; font-family: Archivo; font-weight: 700; font-size: 16px; }
   .rot { font-size: 13px; font-weight: 600; color: var(--ink2); }
   .preco { font-family: Archivo; font-weight: 800; font-size: 24px; font-variant-numeric: tabular-nums; }
-  .pf { font-size: 13px; color: var(--ink2); }
-  .linha-f { display: flex; justify-content: space-between; font-size: 14px; padding: 2px 0; }
-  .linha-f b { font-variant-numeric: tabular-nums; }
   .ref { display: flex; justify-content: space-between; align-items: center; min-height: 40px; border-top: 1px solid var(--lineSoft); font-size: 15px; }
   .ref:first-of-type { border-top: 0; }
   .ref .mc { color: var(--ink2); }
@@ -120,3 +116,15 @@
   body.so .tela { display: none; }
   body.so .tela.mostrar { display: flex; }
   body.so .phone { border: 0; }
+
+  /* ficha: botão secundário "Estoque por filial" (Button variant="outline", 48 dp) e a folha com a tabela (R-20261115-083000) */
+  .sec { height: 48px; border-radius: 12px; border: 1px solid var(--lineStrong); background: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; font-size: 15px; color: var(--ink); flex: none; }
+  .folha .sub { font-size: 13px; color: var(--ink2); margin-top: -6px; }
+  .tab-est { display: flex; flex-direction: column; margin-top: 8px; }
+  .tab-est .cab { display: flex; justify-content: space-between; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; background: var(--neutralBg); font-size: 13px; font-weight: 600; color: var(--ink2); }
+  .tab-est .lin { display: flex; justify-content: space-between; align-items: center; min-height: 48px; padding: 0 12px; font-size: 15px; border-top: 1px solid var(--lineSoft); }
+  .tab-est .cab + .lin { border-top: 0; }
+  .tab-est .lin small { font-weight: 400; color: var(--ink2); font-size: 13px; margin-left: 6px; }
+  .tab-est .lin b { font-family: Archivo; font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; }
+  .tab-est .pos { color: var(--success); }
+  .tab-est .neg { color: var(--danger); }

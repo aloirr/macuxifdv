@@ -1,8 +1,8 @@
 # Catálogo do Campo v2: cartão, ficha, estoque zero, filtro de filial e busca (simulação)
 
 > 2026-11-15 · designer-ux · origem: R-20261115-071600-alexandre (teste de campo, 15/11 ~7h de Manaus) e as decisões de
-> R-20261115-073000-alexandre, R-20261115-074500-alexandre e R-20261115-084500-alexandre. **Aprovada** pelo dono do produto, com os códigos em duas linhas e o rótulo `Estoque: 28` (R-20261115-082500-alexandre). Fonte:
-> `catalogo-campo-v2.html` (`?v=grade|filtrada|ficha|busca|dica|folha`) e `simulacao.css`. PNGs 360 × 800 (escala 2).
+> R-20261115-073000-alexandre, R-20261115-074500-alexandre, R-20261115-084500-alexandre e R-20261115-083000-alexandre (estoque por filial). **Aprovada** pelo dono do produto, com os códigos em duas linhas e o rótulo `Estoque: 28` (R-20261115-082500-alexandre). Fonte:
+> `catalogo-campo-v2.html` (`?v=grade|filtrada|ficha|busca|dica|folha|filiais`) e `simulacao.css`. PNGs 360 × 800 (escala 2).
 > Barra de baixo: a real do Campo, `Início · Rota · Clientes · Pedidos · Performance · Mais` (`apps/mobile/src/lib/abas.ts`, 6 posições;
 > a Performance fica na barra, R-20261115-084500). O Catálogo está no `Mais`, que fica aceso.
 > Pareceres: corretor (RD-0496 e RD-0497) e marca (MC-0086) atendidos; o RD-0498 deixou de valer (§4). Altera `catalogo-grade.md` §1, §2 e §4.
@@ -12,10 +12,11 @@
 |---|---|
 | `01-grade.png` | grade depois do ✕ na filial: sem selo, estoque somado das filiais |
 | `02-grade-filtrada-filial.png` | **como abre**: selo 1 e o chip `Filial Boa Vista ✕` |
-| `03-ficha-referencia-cruzada.png` | ficha: copiar ao lado do código do produto; uma linha por filial; "Referência cruzada" |
+| `03-ficha-referencia-cruzada.png` | ficha: copiar ao lado do código do produto; botão `Estoque por filial`; "Referência cruzada" |
 | `04-busca-referencia-cruzada.png` | "cb3401" acha a pastilha pelo código do concorrente |
 | `05-busca-dica.png` | a dica da busca, com o campo em foco e vazio |
 | `06-folha-filtro.png` | a folha "Filtrar": filial e itens sem estoque (a mesma das outras telas, `../filtro-padrao-campo/spec.md`) |
+| `07-estoque-por-filial.png` | a folha "Estoque por filial": tabela Filial \| Estoque, sua filial primeiro, uma filial em 0 e uma negativa |
 
 ## 1. Cartão da grade (de cima para baixo)
 A ordem continua a de hoje, foto e depois nome (R-20261115-074500).
@@ -36,14 +37,39 @@ no copiar só copia (`Código copiado`).
 - Faixa: `‹ Catálogo`, o nome (título) e a linha `980 · Travex · PAF.1434 [copiar]`; embaixo, `PC · EAN 7891234500980`.
 - **Sai** o botão `Copiar código` na caixa própria (`BotaoCopiarCodigo variante="ficha"`): fica só a variante ícone, ao lado do código do produto.
 - O copiar da ficha também **copia só o código do produto** (`PAF.1434`), igual ao do cartão (R-20261115-084500).
-- Preço e, embaixo, **uma linha por filial** (RD-0497): a filial do vendedor primeiro, com a tag colorida (`Boa Vista [Estoque: 0]`), e as outras com o número (`Manaus 12`); por fim `Atualizado às 07:28`. Sai o rótulo "Estoque na filial…".
+- Cartão de preço: `Preço` e o valor; embaixo, o botão **`Estoque por filial`** (R-20261115-083000). **Saem** do cartão as
+  linhas por filial (`Boa Vista [Estoque: 0]`, `Manaus 12`) e o `Atualizado às`, que passam para a folha (§2.1).
+  - `Button variant="outline"` (secundário claro, borda `lineStrong`), `height={48}`, largura cheia, ícone `home`, texto
+    `Estoque por filial`. O principal da tela continua só o `Adicionar ao orçamento`.
+  - Leitor de tela: `Estoque por filial, botão`. O botão aparece com qualquer número de filiais (com uma só, a tabela tem uma linha).
 - `Adicionar ao orçamento` (extensão `produto.acoes`, sem mudança).
 - **Referência cruzada** (era "Equivale a"): até 3 linhas `marca` (`ink2`) e `código` (700), na ordem do cadastro. A marca é
   opcional (R-20261115-073000): sem ela, a linha mostra só o código. Sem referência, a seção não aparece.
 
+### 2.1 Folha "Estoque por filial" (`07-estoque-por-filial.png`)
+O toque no botão abre a **`Folha`** do kit (`packages/ui/src/mobile/folha.tsx`), a mesma do `Filtrar` desta tela, e não o
+`Dialogo`: o `Dialogo` é de confirmação (dois botões obrigatórios, papel `alert`), e a tabela é só leitura. Nenhum componente novo.
+- Props: `titulo="Estoque por filial"`, `fechar={{ rotulo: 'Fechar' }}` (✕ de 48 dp), `rotuloFechar="Fechar estoque por filial"`
+  (toque fora), `rolavel` (muitas filiais rolam dentro da folha). O Voltar do Android fecha (`onRequestClose`), e o foco volta
+  ao botão `Estoque por filial`. Movimento: folha de 280 ms de baixo; com "reduzir movimento", só aparece.
+- Abaixo do título, 13 `ink2`: `PAF.1434 · Atualizado às 07:28` (hora da última carga de estoque no fuso do tenant; de outro
+  dia, `Atualizado em 14/11 às 18:10`). Sem sinal, a folha mostra o que está no aparelho, com essa mesma linha.
+- **Tabela** de duas colunas:
+  - cabeçalho `Filial` (à esquerda) e `Estoque` (à direita), 13/600 `ink2` sobre `neutralBg`, 36 dp;
+  - uma linha por filial, 48 dp, divisória `lineSoft`: nome 15 `ink`; quantidade Archivo 700 16, alinhada à direita, números tabulares;
+  - **ordem**: a filial do vendedor primeiro, com a marca `sua filial` (13 `ink2`, como no `Filtrar`); as outras em ordem alfabética;
+  - **cor da quantidade** (R-20261115-083000): **acima de 0** em `success` #1D6B4F (6,4:1 sobre branco); **0 ou negativo** em
+    `danger` #A8261B (7,1:1). O número sempre aparece, a cor nunca está sozinha. Negativo com o sinal de menos (`−2`).
+  - Só verde e vermelho: aqui não há o laranja de 1 a 9 da tag do cartão (`../catalogo-grade.md` §4).
+- Tenant que não mostra a quantidade (`estoque_mostrar_quantidade` = não): a coluna `Estoque` mostra `Em estoque` (verde) ou
+  `Sem estoque` (vermelho).
+- **Leitor de tela**, na ordem: título (cabeçalho), ✕ `Fechar`, a linha `PAF.1434, atualizado às 07:28`, e cada filial como um
+  item só: `Boa Vista, sua filial, estoque 0` · `Belém, estoque menos 2` · `Manaus, estoque 12`. O cabeçalho da tabela não é lido
+  (cada linha já diz "estoque").
+
 ## 3. Estoque: sem saldo ou sem informação = 0
-Rótulo `Estoque: N` em todo o Catálogo: cartão, ficha (filial do vendedor) e busca; o zero fica vermelho
-(R-20261115-082500). Faixas e tenant que esconde a quantidade: `../catalogo-grade.md` §4. Acaba o `Estoque sem
+Rótulo `Estoque: N` no cartão da grade e na busca (filial do vendedor); o zero fica vermelho (R-20261115-082500). Na ficha, o
+estoque fica na folha `Estoque por filial` (§2.1, R-20261115-083000). Faixas e tenant que esconde a quantidade: `../catalogo-grade.md` §4. Acaba o `Estoque sem
 informação` (`modules/catalogo/app/lib/grade.ts:47` e `apresentacao.ts`, `rotuloEstoque`).
 
 ## 4. Filtro no topo (padrão de Pedidos)
