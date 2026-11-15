@@ -108,7 +108,6 @@ export class ConstrutorIndice {
     const tk = tokensDoDoc({ sku: p.sku, ean: p.ean, external_id: p.external_id, descricao: p.descricao, nome: p.nome, marca: p.marca, categoria: p.categoria, atributos, referencias: p.referencias ?? [] }, true);
     TOKENS_DO_PRODUTO.set(p, tk);
     for (const campo of [tk.nome, tk.codigo, tk.marca, tk.categoria, tk.atributos]) for (const x of campo) acrescentar(this.porTermo, x, i);
-    for (const r of p.referencias ?? []) acrescentar(this.porCodigo, codigoCompacto(r.codigo), i);
     const apl = p.aplicacao ?? '';
     if (apl !== '') {
       for (const x of tokensDeBuscaSemMemo(apl)) acrescentar(this.porTermoApl, x, i);
@@ -116,7 +115,7 @@ export class ConstrutorIndice {
       for (const x of tokensDeBuscaSemMemo(e.textoIndice)) acrescentar(this.porTermoApl, x, i);
       if (e.anos.length > 0) this.anos[i] = e.anos;
     }
-    for (const c of codigosCompactosDoProduto(p.sku, p.external_id, [])) acrescentar(this.porCodigo, c, i);
+    for (const c of codigosCompactosDoProduto(p.sku, p.external_id, (p.referencias ?? []).map((r) => r.codigo))) acrescentar(this.porCodigo, c, i);
     if (p.ean) acrescentar(this.porCodigo, p.ean, i);
     this.marcaChave[i] = chaveDeTermo(p.marca);
     this.categoriaChave[i] = chaveDeTermo(p.categoria);

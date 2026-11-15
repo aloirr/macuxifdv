@@ -55,11 +55,11 @@ export interface TokensDoDoc {
 export function tokensDoDoc(d: Pick<DocBusca, 'sku' | 'ean' | 'nome' | 'marca' | 'categoria' | 'atributos' | 'referencias'> & Partial<Pick<DocBusca, 'external_id' | 'descricao'>>, semMemo = false): TokensDoDoc {
   const tk = semMemo ? tokensDeBuscaSemMemo : tokensDeBusca;
   const referencias = d.referencias ?? [];
-  const codigosRef = referencias.flatMap((r) => [...tk(r.codigo), codigoCompacto(r.codigo)]).filter(Boolean);
+  const termosRef = referencias.flatMap((r) => tk(r.codigo));
   const codigoErp = d.external_id?.trim() ?? '';
   return {
     nome: tk(d.nome),
-    codigo: tk(`${d.sku} ${d.ean ?? ''} ${codigoErp}`.trim()).concat([d.sku, d.ean ?? '', codigoErp].map((c) => chaveDeTermo(c)).filter(Boolean), codigoCompacto(d.sku) || [], codigoErp ? codigoCompacto(codigoErp) || [] : [], codigosRef),
+    codigo: tk(`${d.sku} ${d.ean ?? ''} ${codigoErp}`.trim()).concat([d.sku, d.ean ?? '', codigoErp].map((c) => chaveDeTermo(c)).filter(Boolean), codigosCompactosDoProduto(d.sku, codigoErp, referencias.map((r) => r.codigo)), termosRef),
     marca: tk(`${d.marca} ${marcasDasReferencias(referencias)}`.trim()),
     categoria: tk(d.categoria),
     atributos: tk(`${d.atributos} ${textoDescricaoParaBusca(d.descricao)}`.trim()),

@@ -30,7 +30,6 @@ import { interpretarConsulta } from '../../domain/consulta';
 import { AVISO_BUSCA_OFFLINE } from '../../domain/ia';
 import { nomeMarcaDaReferencia } from '../../domain/marcas';
 import { parametrosDoTenant } from '../../domain/parametros';
-import { textoDescricaoParaBusca } from '../../domain/ranking';
 import { filialDoClienteLocal, filialDoPreco, precosDaFilialSemCliente, type FilialLocalDoCliente } from '../../domain/preco-filial';
 import { expandirSinonimos, type SinonimoDoTenant } from '../../domain/texto';
 import { podeVerPrecoEstoque } from '../../domain/visibilidade';
@@ -198,7 +197,7 @@ async function montarProdutosLocais(leitor: LeitorLocal, lerConcorrente: boolean
     if (nome === null) continue;
     referencias.set(x.produto_id, [...(referencias.get(x.produto_id) ?? []), { marca_id: x.marca_id, marca_nome: nome, codigo: x.codigo }]);
   }
-  const descricoes = new Map(conteudos.filter((c) => c.descricao).map((c) => [c.produto_id, textoDescricaoParaBusca(c.descricao)]));
+  const descricoes = new Map(conteudos.filter((c) => c.descricao).map((c) => [c.produto_id, c.descricao!]));
   const montados = produtos.map((p) => ({
     id: p.id,
     sku: p.sku,
