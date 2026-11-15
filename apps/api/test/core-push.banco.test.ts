@@ -3,7 +3,8 @@
  * ADR 0007; ADR 0053). Usa o `moduloApi` do Core como o worker o monta (`MODULOS_API`), mas só ele no despachante: os
  * outros consumidores instalados reagiriam a eventos que os outros arquivos de teste gravam na mesma outbox.
  * Tolerante aos dois envios do `push.ts` do Core (transição Expo → FCM HTTP v1, ADR 0053): o caminho é detectado pelo
- * que o módulo exporta (`montarMensagemFcm` = FCM; senão, Expo) e as garantias são as mesmas nos dois:
+ * comportamento, numa sondagem no `beforeAll` (só um aparelho com token Expo, push ligado com a configuração do FCM e
+ * `fetch` falso): se o envio vai ao exp.host com esse token, é o Expo; senão, o FCM. As garantias são as mesmas nos dois:
  *  - `MACUXI_PUSH_ATIVO` ausente: o evento é consumido uma vez (registro em `evento_consumo`, `publicado_em`), nada
  *    sai para a rede e `push_enviado_em` fica nulo; reabrir o evento não roda o handler de novo;
  *  - ligado (no FCM, `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_JSON` de teste, chave RSA gerada aqui), com `fetch` falso:
@@ -23,14 +24,13 @@ import { DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import pg from 'pg';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import * as push from '../../../modules/core/api/push';
 import { criarBancoApp, type BancoApp } from '../src/banco';
 import { criarDespachante } from '../src/despachante';
 import { MODULOS_API } from '../src/modulos';
 import { publicadorTenant } from '../src/outbox';
 
-/** Envio pelo FCM HTTP v1 (ADR 0053) ou pelo Expo (antes): sem referência estática a export de um só dos dois. */
-const temFcm = 'montarMensagemFcm' in push;
+/** Envio pelo FCM HTTP v1 (ADR 0053) ou pelo Expo (antes): definido pela sondagem do `beforeAll`. */
+let temFcm = false;
 
 const A = DOIS_TENANTS.A.tenantId;
 const USUARIO = DOIS_TENANTS.A.usuarios.supervisor;
@@ -38,7 +38,7 @@ const DISPOSITIVO = randomUUID();
 const DISPOSITIVO_EXPO = randomUUID();
 const TOKEN_EXPO = `ExponentPushToken[t0022-${DISPOSITIVO_EXPO}]`;
 /** No FCM o token é opaco e o formato Expo é ignorado pelo envio; no Expo só o formato Expo é enviado. */
-const TOKEN = temFcm ? `fcm-t0022-${DISPOSITIVO}` : `ExponentPushToken[t0022-${DISPOSITIVO}]`;
+let TOKEN = '';
 const TITULO = `Aviso T-0022 ${DISPOSITIVO}`;
 const NOME = EVENTO_NOTIFICACAO_CRIADA.nome;
 const NOME_APP = `core-push-t0121-${DISPOSITIVO.slice(0, 8)}`;
@@ -48,15 +48,13 @@ const PROJETO = 'macuxi-teste';
 const URL_FCM = `https://fcm.googleapis.com/v1/projects/${PROJETO}/messages:send`;
 const URL_OAUTH = 'https://oauth2.googleapis.com/token';
 /** Conta de serviço de teste com chave RSA real (o JWT é assinado de verdade; o fetch falso não o confere). */
-const CONTA_SERVICO = temFcm
-  ? Buffer.from(
-      JSON.stringify({
-        client_email: 'push@macuxi-teste.iam.gserviceaccount.com',
-        private_key: generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' }),
-      }),
-    ).toString('base64')
-  : '';
-const ERRO_RECUSA = temFcm ? 'FCM recusou (HTTP 503)' : 'Push Expo recusado (HTTP 503)';
+const CONTA_SERVICO = Buffer.from(
+  JSON.stringify({
+    client_email: 'push@macuxi-teste.iam.gserviceaccount.com',
+    private_key: generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' }),
+  }),
+).toString('base64');
+const erroRecusa = () => (temFcm ? 'FCM recusou (HTTP 503)' : 'Push Expo recusado (HTTP 503)');
 
 interface MensagemFcm {
   message: { token: string; notification?: { title: string; body: string }; android: unknown; data: Record<string, string> };
@@ -67,20 +65,23 @@ interface MensagemExpo {
 }
 const mensagemFcm = (init?: RequestInit): MensagemFcm => JSON.parse(String(init?.body ?? '{"message":{}}')) as MensagemFcm;
 const mensagensExpo = (init?: RequestInit): MensagemExpo[] => JSON.parse(String(init?.body ?? '[]')) as MensagemExpo[];
-/** Envio da notificação deste arquivo para `token` (outros arquivos podem ter eventos pendentes do mesmo nome). */
+/** Envio da notificação deste arquivo para `token` pelo Expo (outros arquivos podem ter eventos pendentes do mesmo nome). */
+const ehEnvioExpo = (url: string | URL | Request, init: RequestInit | undefined, token: string): boolean =>
+  String(url) === URL_EXPO && mensagensExpo(init).some((m) => m.to === token && m.title === TITULO);
+/** Envio da notificação deste arquivo para `token`, pelo caminho detectado. */
 const ehEnvio = (url: string | URL | Request, init: RequestInit | undefined, token: string): boolean =>
   temFcm
     ? String(url) === URL_FCM && mensagemFcm(init).message.token === token && mensagemFcm(init).message.notification?.title === TITULO
-    : String(url) === URL_EXPO && mensagensExpo(init).some((m) => m.to === token && m.title === TITULO);
+    : ehEnvioExpo(url, init, token);
 /** Fetch falso: o OAuth devolve o token de acesso; o envio aceita, ou responde `status`. */
 const responder = (url: string | URL | Request, status = 200): Response => {
   if (String(url) === URL_OAUTH) return new Response(JSON.stringify({ access_token: 'acesso-teste', expires_in: 3600 }), { status: 200 });
   if (status !== 200) return new Response('{}', { status });
   return new Response(temFcm ? `{"name":"projects/${PROJETO}/messages/1"}` : '{"data":[]}', { status: 200 });
 };
+/** Liga o push com a configuração do FCM (o envio do Expo a ignora). */
 const ligarPush = () => {
   vi.stubEnv('MACUXI_PUSH_ATIVO', '1');
-  if (!temFcm) return;
   vi.stubEnv('FCM_PROJECT_ID', PROJETO);
   vi.stubEnv('FCM_SERVICE_ACCOUNT_JSON', CONTA_SERVICO);
 };
@@ -144,19 +145,32 @@ describe.skipIf(semBanco())('despachante real × push de core.notificacao.criada
     await app.comTenant(A, (db) =>
       db.query(
         `insert into core.dispositivo (id, tenant_id, usuario_id, nome, plataforma, push_token, push_plataforma)
+         values ($1, plataforma.tenant_atual(), $2, 'aparelho T-0022 Expo', 'android', $3, 'android')`,
+        [DISPOSITIVO_EXPO, USUARIO, TOKEN_EXPO],
+      ),
+    );
+    // sondagem: só o aparelho com token Expo; o Expo o envia ao exp.host, o FCM o ignora
+    ligarPush();
+    vi.stubGlobal('fetch', fetchFalso);
+    try {
+      await notificar();
+      await ate(despachante());
+      temFcm = !fetchFalso.mock.calls.some(([url, init]) => ehEnvioExpo(url, init, TOKEN_EXPO));
+    } finally {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+      fetchFalso.mockClear();
+    }
+    TOKEN = temFcm ? `fcm-t0022-${DISPOSITIVO}` : `ExponentPushToken[t0022-${DISPOSITIVO}]`;
+    // no Expo o aparelho com token Expo entraria no mesmo lote do aparelho do teste: sai do envio
+    if (!temFcm) await admin.query('update core.dispositivo set push_token = null where id = $1', [DISPOSITIVO_EXPO]);
+    await app.comTenant(A, (db) =>
+      db.query(
+        `insert into core.dispositivo (id, tenant_id, usuario_id, nome, plataforma, push_token, push_plataforma)
          values ($1, plataforma.tenant_atual(), $2, 'aparelho T-0022', 'android', $3, 'android')`,
         [DISPOSITIVO, USUARIO, TOKEN],
       ),
     );
-    // só no FCM: o aparelho ainda com token Expo (no envio do Expo ele entraria no mesmo lote)
-    if (temFcm)
-      await app.comTenant(A, (db) =>
-        db.query(
-          `insert into core.dispositivo (id, tenant_id, usuario_id, nome, plataforma, push_token, push_plataforma)
-           values ($1, plataforma.tenant_atual(), $2, 'aparelho T-0022 Expo', 'android', $3, 'android')`,
-          [DISPOSITIVO_EXPO, USUARIO, TOKEN_EXPO],
-        ),
-      );
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -228,7 +242,8 @@ describe.skipIf(semBanco())('despachante real × push de core.notificacao.criada
     expect(envios()).toHaveLength(1);
   });
 
-  it.skipIf(!temFcm)('FCM: token no formato Expo não é enviado; só com ele, consome uma vez, nada sai para a rede e push_enviado_em fica nulo', async () => {
+  it('FCM: token no formato Expo não é enviado; só com ele, consome uma vez, nada sai para a rede e push_enviado_em fica nulo', async (ctx) => {
+    if (!temFcm) ctx.skip();
     ligarPush();
     vi.stubGlobal('fetch', fetchFalso);
     // só o aparelho com token Expo fica com push_token; o token FCM volta no fim
@@ -270,7 +285,7 @@ describe.skipIf(semBanco())('despachante real × push de core.notificacao.criada
     await despachante().ciclo();
     expect(abertasDuranteEnvio).toEqual([0]);
     expect(await consumos(eventoId)).toEqual([]);
-    expect(await evento(eventoId)).toMatchObject({ publicado_em: null, tentativas: 1, ultimo_erro: expect.stringContaining(ERRO_RECUSA) });
+    expect(await evento(eventoId)).toMatchObject({ publicado_em: null, tentativas: 1, ultimo_erro: expect.stringContaining(erroRecusa()) });
     expect(await enviadoEm(id)).toBeNull();
 
     // 2ª entrega (despachante novo, sem a espera em memória): envia uma vez, marca e publica
