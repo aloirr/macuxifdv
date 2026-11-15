@@ -33,6 +33,19 @@ export const TEXTOS_CRIE_SENHA = Object.freeze({
   criada: 'Senha criada.',
 });
 
+/** "Trocar senha" no Perfil (docs/design/trocar-senha/spec.md §8). Os outros textos vêm do kit e de `TEXTOS_CRIE_SENHA`/`TEXTOS_ESQUECI`. */
+export const TEXTOS_TROCAR_SENHA = Object.freeze({
+  titulo: 'Trocar senha',
+  senhaAtual: 'Senha atual',
+  salvar: 'Salvar senha',
+  salvando: 'Salvando…',
+  atualErrada: 'A senha atual está errada. Digite de novo.',
+  igualAAtual: 'A senha nova precisa ser diferente da atual.',
+  semInternet: 'Conecte-se à internet para trocar a senha.',
+  outro: 'Não foi possível trocar agora. Tente de novo em alguns minutos.',
+  trocada: 'Senha trocada.',
+});
+
 /** "Esqueci a senha" (spec §3). A confirmação é sempre a mesma, exista ou não o cadastro; a validade vem do SDK. */
 export const TEXTOS_ESQUECI = Object.freeze({
   titulo: 'Esqueci a senha',
@@ -41,6 +54,7 @@ export const TEXTOS_ESQUECI = Object.freeze({
   enviando: 'Enviando…',
   voltar: 'Voltar ao login',
   confirmacao: `Se o e-mail estiver cadastrado nesta empresa, você vai receber uma senha temporária em alguns minutos. Ela vale por ${VALIDADE_SENHA_PROVISORIA_HORAS} horas.`,
+  confirmacaoNoApp: `Você vai receber uma senha temporária em alguns minutos. Ela vale por ${VALIDADE_SENHA_PROVISORIA_HORAS} horas.`,
   naoChegou: 'Não chegou? Confira o spam ou fale com o administrador da sua empresa.',
   vazio: 'Informe o código da empresa e o e-mail.',
   emailInvalido: 'Informe um e-mail válido, como nome@empresa.com.br.',
