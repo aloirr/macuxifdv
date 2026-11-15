@@ -1,5 +1,8 @@
 # Novo pedido v3: crédito em tabela, Entrega enxuta, endereço do pedido, Itens sem Catálogo, Rascunhos e "preço de" (T-0141)
 
+> **Tipografia substituída** pela fonte do sistema (R-20261115-110600, 15/11/2026): ver o [manual da marca §5](../marca/manual.md#5-tipografia).
+> Famílias, pesos acima de 700 e tamanhos fora da escala citados abaixo ficam só como histórico.
+
 > 2026-11-09 · designer-ux · tarefa T-0141. Pedidos do dono do produto: R-20261109-054659-alexandre (abas Venda e Entrega) e
 > R-20261109-064818-alexandre (Novo pedido e orçamento), teste do Campo-Demo-v1.0.1 com o Atacadinho Cachoeirinha (C5007).
 > Regras: **RF-VEN-11** · **RN-VEN-17** (endereço editável só no pedido) · **RN-VEN-18/32** (orçamento não expira; preço congelado

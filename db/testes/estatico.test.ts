@@ -122,6 +122,12 @@ const TABELAS_0072 = ['plataforma.backup_empresa', 'plataforma.backup_empresa_pa
 const TABELAS_0073 = ['plataforma.dados_legais'] as const;
 /** Tabelas novas da 0074 (ADR 0054: pacote da primeira carga e pedido de geração; fora do sync; sync-pacote.db.test.ts). */
 const TABELAS_0074 = ['plataforma.sync_pacote', 'plataforma.sync_pacote_pedido'] as const;
+/** Tabela nova da 0077 (T-0176, RN-CORE-39: filiais de venda do usuário; usuario-filial.db.test.ts). */
+const TABELAS_0077 = ['core.usuario_filial'] as const;
+/** Tabelas novas da 0079 (T-0174, ADR 0054: fotos em lote por ZIP e trabalho sob demanda; fora do sync; foto-lote.db.test.ts). */
+const TABELAS_0079 = ['plataforma.trabalho', 'catalogo.foto_lote', 'catalogo.foto_lote_item'] as const;
+/** Tabela nova da 0080 (T-0175, RN-CORE-59: contador do Código FDV por tenant; fora do sync; usuario-codigo-fdv.db.test.ts). */
+const TABELAS_0080 = ['core.usuario_codigo_fdv_contador'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -203,6 +209,10 @@ describe('migrações (estático)', () => {
     expect(nomes[67]).toBe('0068_plataforma_tenant_numero_licenca'); // R-20261114-130500/131200/131500: código da licença UF + 4 dígitos aleatórios (CHECK aceita os legados ou ^UF[0-9]{4}$), provisionar_tenant sem codigo sorteia pela uf e é idempotente pelo id do chamador, atribuir_codigo_licenca (tenant-numero-licenca.db.test.ts)
     expect(nomes[68]).toBe('0069_core_cargo_hierarquia'); // decisão do dono (14/11): plataforma.perfil.cargo (5 da plataforma, com promotor), gerente obrigatório do promotor (gatilhos adiados), um perfil vivo por usuário (exclusão adiada) e view core.v_usuario_hierarquia (cargo-hierarquia.db.test.ts)
     expect(nomes[73]).toBe('0074_plataforma_sync_pacote'); // ADR 0054 (pacote da primeira carga): plataforma.sync_pacote e sync_pacote_pedido (app lê e pede, worker gera), fora do sync, e índice por filial em catalogo.tabela_preco_item (sync-pacote.db.test.ts)
+    expect(nomes[74]).toBe('0075_catalogo_referencia_marca_opcional'); // R-20261115-073000 (item 3, RN-CAT-09): catalogo.produto_referencia.marca_id nula e único vivo por (tenant, produto, codigo_compacto); repetidas no produto ficam na menor ordem (referencia-marca-opcional.db.test.ts)
+    expect(nomes[76]).toBe('0077_core_usuario_filial'); // T-0176 (RN-CORE-39, R-20261115-094500): core.usuario.filial_cadastro_id e core.usuario_filial (filiais de venda), cadastro entre as de venda (gatilho adiado usuario_filial_inclui_cadastro), backfill da empresa com uma filial (usuario-filial.db.test.ts)
+    expect(nomes[80]).toBe('0081_integracao_lote_cancelado'); // T-0173 (RN-INT-15): CHECK lote_status_valido com 'cancelado' e integracao.expurgar_retencao com o lote cancelado na retenção do lote final (lote-cancelado.db.test.ts)
+    expect(nomes[78]).toBe('0079_catalogo_foto_lote'); // T-0174 (RN-CAT-14, ADR 0054): plataforma.trabalho e as 3 funções do worker, catalogo.foto_lote e foto_lote_item, produto_midia.hash_conteudo e ordem da principal = 1, arquivo com PNG/WEBP/ZIP (foto-lote.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
@@ -261,6 +271,9 @@ describe('migrações (estático)', () => {
         ...TABELAS_0072,
         ...TABELAS_0073,
         ...TABELAS_0074,
+        ...TABELAS_0077,
+        ...TABELAS_0079,
+        ...TABELAS_0080,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,
@@ -347,6 +360,10 @@ describe('0003 macuxi_worker (estático, ADR 0007)', () => {
       'insert (id, tenant_id, modulo, particao, filial_id, origem, gerar_apos) on plataforma.sync_pacote_pedido',
       'update (situacao, gerar_apos, tentativas, ultimo_erro, atendido_em, deleted_at) on plataforma.sync_pacote_pedido',
       'delete on plataforma.sync_pacote_pedido',
+      // 0079 (T-0174, ADR 0054): o laço de trabalhos sob demanda (só as funções; nenhuma tabela)
+      'execute on function plataforma.trabalho_reservar(text, integer)',
+      'execute on function plataforma.trabalho_devolver(uuid, text, text, text, integer)',
+      'execute on function plataforma.trabalho_renovar(uuid, text, integer)',
     ]);
   });
 
@@ -677,7 +694,7 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     expect(criadas.get('integracao.conector')).toContain(`default array[${nuvemIntegracao.ENTIDADES_ORIGINAIS.map((e) => `'${e}'`).join(', ')}]::text[]`);
     expect(valoresDoCheck('integracao.conector', 'tipo')).toEqual([...TIPOS_CONECTOR]);
     expect(valoresDoCheck('integracao.lote', 'modo')).toEqual([...ModoCarga.options]);
-    // corpo da 0010 = os 5 originais; a 0075 recria o CHECK com 'cancelado' (= ESTADOS_LOTE_BANCO; lote-cancelado.db.test.ts)
+    // corpo da 0010 = os 5 originais; a 0081 recria o CHECK com 'cancelado' (= ESTADOS_LOTE_BANCO; lote-cancelado.db.test.ts)
     expect(valoresDoCheck('integracao.lote', 'status')).toEqual([...nuvemIntegracao.ESTADOS_LOTE_ORIGINAIS]);
     expect(valoresDoCheck('integracao.lote_linha_erro', 'codigo')).toEqual([...CODIGOS_ERRO_LINHA]);
     expect(valoresDoCheck('integracao.pendencia_inativacao', 'estado')).toEqual([...ESTADOS_PENDENCIA_INATIVACAO]);
@@ -815,8 +832,12 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     // sa_listar_tenants com create or replace
     // 0072 (ADR 0052): as 8 sa_* das ações da empresa e as 11 do worker (empresa-acoes.db.test.ts)
     // 0073 (rodapé legal): a leitura pública (app) e as 2 sa_* dos dados legais (portal) (dados-legais.db.test.ts)
+    // 0077 (T-0176): a função de gatilho da filial de cadastro, pelo mesmo motivo (usuario-filial.db.test.ts)
+    // 0077 (RN-CORE-39 no portal): a sa_sessao_valida recriada (drop + create, o retorno ganha sem_filial; usuario-filial.db.test.ts)
+    // 0079 (T-0174, ADR 0054): as 3 funções do laço de trabalhos, só ao worker (foto-lote.db.test.ts)
+    // 0080 (T-0175, RN-CORE-59): a função dos gatilhos do Código FDV, que grava o contador (usuario-codigo-fdv.db.test.ts)
     expect(novas.map((x) => x[1]).sort()).toEqual(
-      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', ...FUNCOES_SA_0070.map(nome), ...FUNCOES_SA_0072.map(nome), ...FUNCOES_WORKER_0072.map(nome), nome(DADOS_LEGAIS_PUBLICOS), ...FUNCOES_SA_0073.map(nome)].sort(),
+      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', ...FUNCOES_SA_0070.map(nome), ...FUNCOES_SA_0072.map(nome), ...FUNCOES_WORKER_0072.map(nome), nome(DADOS_LEGAIS_PUBLICOS), ...FUNCOES_SA_0073.map(nome), 'core.filial_cadastro_conferir', 'plataforma.sa_sessao_valida', 'plataforma.trabalho_reservar', 'plataforma.trabalho_devolver', 'plataforma.trabalho_renovar', 'core.usuario_codigo_fdv'].sort(),
     );
     for (const x of novas) expect(x[2], `${x[1]}: pg_temp por último`).toMatch(/, pg_temp$/);
     expect(depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)]).length).toBe(novas.length);
@@ -1037,6 +1058,11 @@ describe('fixture dois-tenants (estático)', () => {
         // plataforma.usuario_perfil (0069): o vínculo principal com o id do gatilho usuario_perfil_principal (a carga e o gatilho gravam a MESMA linha)
         if (t === 'plataforma.usuario_perfil') {
           expect(l.id).toBe(idUsuarioPerfil(String(l.tenant_id), String(l.usuario_id), String(l.perfil_id)));
+          continue;
+        }
+        // core.usuario_codigo_fdv_contador (0080): id determinístico do gatilho usuario_codigo_fdv_emitir (a carga e o gatilho gravam a MESMA linha)
+        if (t === 'core.usuario_codigo_fdv_contador') {
+          expect(l.id).toBe(idDeChave(`${String(l.tenant_id)}:core.usuario_codigo_fdv_contador`));
           continue;
         }
         expect(String(l.id).slice(0, 8)).toBe(dono === A ? 'aaaaaaaa' : 'bbbbbbbb');

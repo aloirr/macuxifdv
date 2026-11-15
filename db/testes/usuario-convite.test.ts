@@ -258,17 +258,24 @@ describe.skipIf(semBanco())('0036 up/down com dados (banco efêmero)', () => {
       const antes = await retratoDoCatalogo(c);
       await c.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 'antigo36', 'Antigo')", [T]);
       await c.query("insert into core.usuario (id, tenant_id, nome, email, perfil) values ($1, $2, 'Pessoa', 'pessoa@exemplo.com.br', 'vendedor')", [U, T]);
+      // A 0036 sozinha não toca no usuário: compara com o updated_at. As migrações seguintes com backfill de core.usuario
+      // (0077 filial de cadastro, 0080 Código FDV) mudam o updated_at de propósito (o gatilho usuario_updated_at faz o
+      // aparelho puxar o campo novo no sync); daí em diante "intacto" vale para os dados do usuário, sem o updated_at.
       const linha = () => c.query('select id, nome, email, perfil, updated_at from core.usuario where id = $1', [U]).then((r) => r.rows[0]);
+      const dados = () => linha().then(({ updated_at: _, ...resto }) => resto);
       const linhaAntes = await linha();
-      expect((await migrarUp(c)).aplicadas).toEqual(desde0036);
+      const dadosAntes = await dados();
+      const ate0036 = await migrarUp(c, { ate: '0036' });
+      expect(await linha()).toEqual(linhaAntes);
+      expect([...ate0036.aplicadas, ...(await migrarUp(c)).aplicadas]).toEqual(desde0036);
       const depois = await retratoDoCatalogo(c);
       expect(depois).toContain('col core.usuario.telefone text nn=false');
       expect((await c.query('select telefone from core.usuario where id = $1', [U])).rows).toEqual([{ telefone: null }]);
-      expect(await linha()).toEqual(linhaAntes);
+      expect(await dados()).toEqual(dadosAntes);
       await c.query("insert into core.usuario_convite (tenant_id, usuario_id, token_hash, expira_em) values ($1, $2, $3, now() + interval '7 days')", [T, U, sha('up-down')]);
       expect((await migrarDown(c, { passos: desde0036.length })).aplicadas).toEqual([...desde0036].reverse());
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      expect(await linha()).toEqual(linhaAntes);
+      expect(await dados()).toEqual(dadosAntes);
       await c.query(m36.down);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
       await migrarUp(c);

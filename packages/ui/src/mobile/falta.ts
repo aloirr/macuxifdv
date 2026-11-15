@@ -52,7 +52,7 @@ export function leituraDoCampoComFalta(rotulo: string, valor: string | null | un
 export const MARCA_DA_FALTA = {
   cor: colors.danger,
   larguraBorda: 2,
-  tamanhoFonte: 12.5,
+  tamanhoFonte: 12,
   alturaLinha: 16,
   icone: 14,
   respiro: 4,

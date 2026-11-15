@@ -6,6 +6,7 @@
  * - O "Esqueci a senha" grava uma temporária PARALELA (P6): a senha atual continua valendo.
  */
 import { pode, type Perfil, type PerfilDaRequisicao } from '@macuxi/platform-sdk';
+import { TEXTOS_TROCAR_SENHA } from '../contracts/ciclo-senha';
 import { SENHA_TEMPORARIA_HORAS } from '../contracts/senha';
 import { faltasNaSenha, type FaltaNaSenha } from './senha';
 import { validarSenhaInicial } from './usuarios';
@@ -59,7 +60,7 @@ export type RecusaSenhaNova = { codigo: 'RN-CORE-32'; mensagem: string; faltas: 
 export function validarSenhaNova(nova: string, email: string, igualAUsada: boolean): RecusaSenhaNova | null {
   const fraca = validarSenhaInicial(nova, email);
   if (fraca) return { codigo: 'RN-CORE-32', mensagem: fraca, faltas: faltasNaSenha(nova) };
-  if (igualAUsada) return { codigo: 'RN-CORE-34', mensagem: 'A senha nova não pode ser igual à senha temporária.' };
+  if (igualAUsada) return { codigo: 'RN-CORE-34', mensagem: TEXTOS_TROCAR_SENHA.igualAAtual };
   return null;
 }
 

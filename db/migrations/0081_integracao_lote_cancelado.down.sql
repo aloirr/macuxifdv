@@ -1,4 +1,4 @@
--- 0075_integracao_lote_cancelado (down) — desfaz a 0075 e volta ao catálogo anterior: o CHECK lote_status_valido volta aos
+-- 0081_integracao_lote_cancelado (down) — desfaz a 0081 e volta ao catálogo anterior: o CHECK lote_status_valido volta aos
 -- 5 estados da 0010 e integracao.expurgar_retencao volta ao corpo da 0010 (com o search_path da 0012).
 -- PRÉ-CONDIÇÃO: nenhum lote `cancelado`. O down NÃO altera dado: se houver algum, ele para com erro (P0001) sem mudar nada.
 -- Antes do down, tire a ação "Cancelar lote" da API e do BKO e decida o destino dos cancelados, por exemplo
@@ -8,7 +8,7 @@
 do $$
 begin
   if exists (select 1 from integracao.lote where status = 'cancelado') then
-    raise exception '0075 down: há lote com status cancelado; mude o status deles antes (ver o cabeçalho do down)';
+    raise exception '0081 down: há lote com status cancelado; mude o status deles antes (ver o cabeçalho do down)';
   end if;
 end
 $$;

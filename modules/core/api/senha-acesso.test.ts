@@ -159,6 +159,41 @@ describe('RN-CORE-33: perfil fora do app (PERFIL_FORA_DO_APP)', () => {
   });
 });
 
+describe('RF-CORE-01 / RN-CORE-34: troca voluntária (Perfil, senha/trocar com a senha atual)', () => {
+  it('RN-CORE-34: com a senha atual certa troca, sobe a sessao_versao (revoga os outros aparelhos) e audita motivo voluntaria sem senha', async () => {
+    const r = await trocar();
+    expect(r.usuario.email).toBe('vendedor@exemplo.com.br');
+    expect(vend().sessao_versao).toBe(1);
+    expect(verificarJwtAcesso(r.access_token, t0, SEGREDO)?.sv).toBe(1);
+    const aud = consultas.filter((c) => /plataforma.auditoria/.test(c.sql)).map((c) => JSON.stringify(c.valores)).join('|');
+    expect(aud).toContain('voluntaria');
+    expect(aud).not.toContain(SENHA);
+    expect(aud).not.toContain(NOVA);
+    await expect(login({ senha: NOVA })).resolves.toBeTruthy();
+  });
+
+  it('RN-CORE-34: senha nova igual à atual é 422 RN-CORE-34 com o texto "diferente da atual"', async () => {
+    const erro = await falha(trocar({ senha_nova: SENHA }));
+    expect(erro.status).toBe(422);
+    expect(erro.codigo).toBe('RN-CORE-34');
+    expect(erro.message).toBe('A senha nova precisa ser diferente da atual.');
+    expect(vend().sessao_versao).toBe(0);
+  });
+
+  it('RN-CORE-32: senha nova fraca é 422 RN-CORE-32 e a senha atual errada é 401, sem trocar nada', async () => {
+    expect((await falha(trocar({ senha_nova: 'curta' }))).codigo).toBe('RN-CORE-32');
+    expect((await falha(trocar({ senha_atual: 'errada' }))).status).toBe(401);
+    expect(vend().sessao_versao).toBe(0);
+  });
+
+  it('RN-CORE-34: senha atual errada conta no limite do login (5 falhas bloqueiam o usuário)', async () => {
+    for (let i = 0; i < 5; i++) expect((await falha(trocar({ senha_atual: 'errada' }))).status).toBe(401);
+    const bloqueado = await falha(trocar());
+    expect([423, 429]).toContain(bloqueado.status);
+    expect(vend().sessao_versao).toBe(0);
+  });
+});
+
 describe('RN-CORE-34: Crie sua senha (senha/trocar)', () => {
   it('RN-CORE-34: com a temporária e uma senha nova boa devolve a sessão, sobe a sessao_versao e grava só o hash', async () => {
     await comTemporaria(10);
@@ -200,7 +235,7 @@ describe('RN-CORE-34: Crie sua senha (senha/trocar)', () => {
     const erro = await falha(trocar({ senha_nova: SENHA }));
     expect(erro.status).toBe(422);
     expect(erro.codigo).toBe('RN-CORE-34');
-    expect(erro.message).toBe('A senha nova não pode ser igual à senha temporária.');
+    expect(erro.message).toBe('A senha nova precisa ser diferente da atual.');
   });
 
   it('RN-CORE-34: a troca com senha vencida é 410 e a de perfil fora do app é 403', async () => {
