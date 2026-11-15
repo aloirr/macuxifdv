@@ -267,6 +267,9 @@ describe('"Equivale a" no PDF (T-0138, RN-CAT-09/10, desenho T-0085 §5)', () =>
     const muitas = Array.from({ length: 5 }, (_, i) => ({ brand: `M${i}`, code: `C${i}` }));
     expect(equivaleAHtml({ references: muitas }, 'bko', {}).match(/<strong>/g)).toHaveLength(3);
     expect(equivaleAHtml({ references: [{ brand: '<b>', code: 'x' }] }, 'bko', {})).toContain('&lt;b&gt;');
+  });
+  it('RN-CAT-09: referência sem marca mostra só o código', () => {
+    expect(equivaleAHtml({ references: [{ brand: null, code: 'N-1' }, { brand: ' ', code: 'N-2' }] }, 'bko', {})).toContain('Equivale a: <strong>N-1</strong> · <strong>N-2</strong>');
     expect(equivaleAHtml({}, 'bko', {})).toBe('');
     expect(equivaleAHtml({ references: [] }, 'bko', {})).toBe('');
   });

@@ -372,7 +372,7 @@ export default function OrderDetailScreen() {
   };
 
   /** `refs`: referências cruzadas por produto (RN-CAT-09/10), lidas na hora de gerar o PDF; não são retrato do pedido */
-  const pdfOrder = (refs: ReadonlyMap<string, Array<{ brand: string; code: string }>> = new Map()): OrderPdfOrder => {
+  const pdfOrder = (refs: ReadonlyMap<string, Array<{ brand: string | null; code: string }>> = new Map()): OrderPdfOrder => {
     const idPorCodigo = new Map(lines.map((l) => [l.erp_code, l.product_id]));
     const comReferencias = (o: OrderPdfOrder): OrderPdfOrder => ({ ...o, items: o.items.map((it) => { const r = refs.get(idPorCodigo.get(it.erp_code) ?? ''); return r && r.length > 0 ? { ...it, references: r } : it; }) });
     return comReferencias(pdfBase());
@@ -434,7 +434,7 @@ export default function OrderDetailScreen() {
       const me = dados.me;
       // T-0138 (RN-CAT-09/10, desenho T-0085 §5): "Equivale a" no PDF interno; no do cliente só com `referencia_no_orcamento`
       const referenciaNoCliente = referenciaNoOrcamento(ambiente.parametros('vendedor'));
-      const refs = view === 'bko' || referenciaNoCliente ? await app.referenciasDeProdutos(lines.map((l) => l.product_id).filter((x): x is string => Boolean(x))) : new Map<string, Array<{ brand: string; code: string }>>();
+      const refs = view === 'bko' || referenciaNoCliente ? await app.referenciasDeProdutos(lines.map((l) => l.product_id).filter((x): x is string => Boolean(x))) : new Map<string, Array<{ brand: string | null; code: string }>>();
       const pedidoPdf = pdfOrder(refs);
       const html = buildOrderPdfHtml(pedidoPdf, view, {
         tenant_name: nomeDaDistribuidora(me?.tenant.name, ambiente.parametros('core')),

@@ -51,7 +51,7 @@ export interface OrderPdfItem {
    * gerar o PDF. NÃO são retrato do pedido. Saem como "Equivale a: <marca> <código>" no PDF interno (sempre) e no PDF do cliente só com
    * `referencia_no_orcamento` ligado.
    */
-  references?: ReadonlyArray<{ brand: string; code: string }>;
+  references?: ReadonlyArray<{ brand?: string | null; code: string }>;
   /** T-0159: marca do produto (retrato no pedido, como a aplicação); coluna Marca nos dois PDFs, vazia se ausente */
   brand?: string | null;
 }
@@ -359,9 +359,9 @@ export const MAX_REFERENCIAS_NO_PDF = 3;
  */
 export function equivaleAHtml(it: Pick<OrderPdfItem, 'references'>, view: OrderPdfView, ctx: Pick<OrderPdfContext, 'reference_on_customer_pdf'>): string {
   if (view === 'customer' && ctx.reference_on_customer_pdf !== true) return '';
-  const refs = (it.references ?? []).filter((r) => r.brand.trim() && r.code.trim()).slice(0, MAX_REFERENCIAS_NO_PDF);
+  const refs = (it.references ?? []).filter((r) => r.code.trim()).slice(0, MAX_REFERENCIAS_NO_PDF);
   if (refs.length === 0) return '';
-  return `<span class="apl eqv">Equivale a: ${refs.map((r) => `${escapeHtml(r.brand.trim())} <strong>${escapeHtml(r.code.trim())}</strong>`).join(' · ')}</span>`;
+  return `<span class="apl eqv">Equivale a: ${refs.map((r) => `${r.brand?.trim() ? `${escapeHtml(r.brand.trim())} ` : ''}<strong>${escapeHtml(r.code.trim())}</strong>`).join(' · ')}</span>`;
 }
 
 /** RN-CORE-19: quantidade somada por embalagem ("2 FD + 4 CX + 10 UN"); a medida "CX c/ 12" conta como CX. */
