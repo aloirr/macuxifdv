@@ -60,3 +60,6 @@ export * from './botao-folha-rn';
 // R-20261115-071000: CampoSenha, o campo de senha único (olho em ícone, props de teclado de senha)
 export * from './campo-senha';
 export * from './campo-senha-rn';
+// T-0182: PlacaLogoCliente, a logo da empresa numa placa branca (carga 64/48 e fim do Mais 52/36)
+export * from './placa-logo';
+export * from './placa-logo-rn';

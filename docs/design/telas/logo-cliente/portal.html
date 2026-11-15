@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Portal config. › Empresa › Logo</title>
+<link rel="stylesheet" href="../portal-config-enxuto/portal.css">
+<!--
+  Simulação da spec docs/design/telas/logo-cliente.md §2. Uso: portal.html?v=tela | ?v=estados.
+  1366 px de largura, Playwright, deviceScaleFactor 2: portal-tela.png e portal-estados.png.
+  Empresa e logo FICTÍCIAS: "Distribuidora Exemplo Norte Ltda" (Exemplo Norte), AM4821, 11.222.333/0001-81, logo-ficticia-exemplo-norte.svg.
+-->
+<style>
+  body{min-height:0}
+  .logo-card{max-width:720px}
+  .lg{display:flex;align-items:center;gap:20px}
+  .prev{width:240px;height:96px;border:1px solid var(--line);border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;padding:12px;flex:none}
+  .prev img{max-width:100%;max-height:100%;object-fit:contain}
+  .prev.vazia{border:1px dashed var(--lineStrong);background:var(--ground)}
+  .acoes-lg{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+  .acoes-lg .lin{display:flex;gap:10px;align-items:center}
+  .lim{font-size:13px;color:var(--ink2);margin-top:12px}
+  .err{font-size:13px;font-weight:600;color:#A8261B;margin-top:12px;display:flex;gap:6px;align-items:center}
+  .btn.perigo{color:#A8261B;border-color:#C9CED5}
+  .btn.danger{background:#A8261B;border-color:#A8261B;color:#fff}
+  .grade{display:grid;grid-template-columns:repeat(2,640px);gap:22px 28px;padding:28px 32px}
+  .grade .rot{font:700 15px Archivo,sans-serif;margin-bottom:8px}
+  .mini-dlg{background:#fff;border-radius:16px;padding:22px 24px;box-shadow:0 12px 40px rgba(22,32,42,.25);width:420px}
+  .mini-dlg h2{font-size:20px;font-weight:800;margin:0 0 18px}
+  .mini-dlg .rodape-dlg{justify-content:flex-end;margin-top:0}
+  .veu-local{background:rgba(22,32,42,.5);border-radius:14px;padding:40px 0;display:flex;justify-content:center}
+</style>
+</head>
+<body>
+<div id="raiz"></div>
+<script>
+const v = new URLSearchParams(location.search).get('v') || 'tela';
+const LOGO = 'logo-ficticia-exemplo-norte.svg';
+const LIM = '<div class="lim">PNG ou JPG · até 1 MB · pelo menos 200 px de altura</div>';
+const cartao = {
+  vazio: `<div class="cartao logo-card"><h2>Logo</h2><div class="lg"><div class="prev vazia"></div>
+      <div class="acoes-lg"><span class="btn">Enviar logo</span></div></div>${LIM}</div>`,
+  previa: `<div class="cartao logo-card"><h2>Logo</h2><div class="lg"><div class="prev"><img src="${LOGO}" alt="Logo da Exemplo Norte"></div>
+      <div class="acoes-lg"><div class="lin"><span class="btn p">Salvar</span><span class="btn">Cancelar</span></div></div></div>${LIM}</div>`,
+  salvando: `<div class="cartao logo-card"><h2>Logo</h2><div class="lg"><div class="prev"><img src="${LOGO}" alt="Logo da Exemplo Norte"></div>
+      <div class="acoes-lg"><div class="lin"><span class="btn off">Salvando…</span><span class="btn off">Cancelar</span></div></div></div>${LIM}</div>`,
+  salva: `<div class="cartao logo-card"><h2>Logo</h2><div class="lg"><div class="prev"><img src="${LOGO}" alt="Logo da Exemplo Norte"></div>
+      <div class="acoes-lg"><div class="lin"><span class="btn">Trocar</span><span class="btn perigo">Remover</span></div></div></div>${LIM}</div>`,
+  erro: `<div class="cartao logo-card"><h2>Logo</h2><div class="lg"><div class="prev vazia"></div>
+      <div class="acoes-lg"><span class="btn">Enviar logo</span></div></div>
+      <div class="err">⚠ O arquivo passa de 1 MB. Envie um menor.</div></div>`,
+};
+const topo = `<div class="topo"><div class="in"><div class="marca"><img src="../../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-azul-noite.svg" alt="Macuxi Força de Vendas" width="104"><small>Portal de implantação</small></div><span class="sessao">Sessão até 18:40</span><span class="btn s" style="margin-left:0">Trocar de empresa</span><span class="btn s">Sair</span></div></div>`;
+if (v === 'tela') {
+  document.body.style.width = '1366px';
+  document.getElementById('raiz').innerHTML = `${topo}<main>
+    <div style="display:flex;gap:12px;align-items:center"><h1>Distribuidora Exemplo Norte Ltda</h1><span class="selo">Ativa</span></div>
+    <div class="sub">Código <span class="cod">AM4821</span> · CNPJ 11.222.333/0001-81 · Manaus (UTC−4)</div>
+    <div class="abas"><span>Integração</span><span class="ativa">Empresa</span></div>
+    ${cartao.salva}
+  </main>`;
+} else {
+  document.body.style.width = '1400px';
+  document.body.style.background = '#E4E6E9';
+  const caixa = (r, h) => `<div><div class="rot">${r}</div>${h}</div>`;
+  document.getElementById('raiz').innerHTML = `<div class="grade">
+    ${caixa('1 · Sem logo', cartao.vazio)}
+    ${caixa('2 · Arquivo escolhido: pré-visualização', cartao.previa)}
+    ${caixa('3 · Salvando', cartao.salvando)}
+    ${caixa('4 · Logo salva: Trocar e Remover', cartao.salva)}
+    ${caixa('5 · Arquivo recusado', cartao.erro)}
+    ${caixa('6 · Remover', `<div class="veu-local"><div class="mini-dlg"><h2>Remover a logo?</h2><div class="rodape-dlg"><span class="btn">Cancelar</span><span class="btn danger">Remover</span></div></div></div>`)}
+  </div>`;
+}
+</script>
+</body>
+</html>
