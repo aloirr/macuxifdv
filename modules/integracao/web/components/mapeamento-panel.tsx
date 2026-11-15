@@ -17,7 +17,7 @@ const COLUNAS: ReadonlyArray<ColunaDaTabela<MapeamentoItem>> = [
   { id: 'situacao', titulo: 'Situação', largura: '120px', celula: (m) => (m.ativo ? <Badge tone="success">Ativo</Badge> : <Badge tone="neutral">Inativo</Badge>) },
 ];
 
-const campo = 'h-12 min-w-[140px] rounded-[10px] border border-field bg-surface px-2 text-[14px] text-ink';
+const campo = 'h-12 min-w-[140px] rounded-[10px] border border-field bg-surface px-2 text-[13px] text-ink';
 
 /**
  * De-para de códigos ERP ↔ Macuxi (T-0120, RN-INT-08): a condição de pagamento do Macuxi tem UM correspondente ativo no ERP; sem

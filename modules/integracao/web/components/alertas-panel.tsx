@@ -16,7 +16,7 @@ export function AlertasPanel({ alertas }: { alertas: readonly AlertaMonitor[] })
       ) : (
         <ul className="m-0 flex list-none flex-col gap-2 p-0" data-testid="integracao.alertas">
           {alertas.map((a, i) => (
-            <li key={`${a.codigo}-${a.conector_id ?? ''}-${a.entidade ?? ''}-${i}`} className="flex items-start gap-2 text-[14px]" data-testid={`integracao.alerta.${a.codigo}`}>
+            <li key={`${a.codigo}-${a.conector_id ?? ''}-${a.entidade ?? ''}-${i}`} className="flex items-start gap-2 text-[13px]" data-testid={`integracao.alerta.${a.codigo}`}>
               <Badge tone={TOM_SEVERIDADE[a.severidade]}>{ROTULO_SEVERIDADE[a.severidade]}</Badge>
               <span>
                 {a.codigo === 'cancelamento_recusado' ? 'Cancelamento recusado: veja os pedidos em Pedidos no ERP.' : a.mensagem}

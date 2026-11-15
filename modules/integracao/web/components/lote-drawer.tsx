@@ -23,7 +23,7 @@ const COLUNAS_ERRO: ReadonlyArray<ColunaDaTabela<ErroLinhaLote>> = [
     celula: (e) => (
       <div className="whitespace-normal">
         {e.mensagem}
-        <div className="font-mono text-[11px] text-ink-2">{[e.external_id, e.campo, e.codigo].filter(Boolean).join(' · ')}{e.origem === 'conector' ? ' · informado pelo Conector' : ''}</div>
+        <div className="font-mono text-[12px] text-ink-2">{[e.external_id, e.campo, e.codigo].filter(Boolean).join(' · ')}{e.origem === 'conector' ? ' · informado pelo Conector' : ''}</div>
       </div>
     ),
   },
@@ -84,7 +84,7 @@ function DetalheLote({ lote, tz }: { lote: LoteListagemItem; tz: string }) {
         {contagens.map(([rotulo, n]) => (
           <div key={rotulo} className="rounded-xl border border-line-2 p-2">
             <dt className="text-[12px] text-ink-2">{rotulo}</dt>
-            <dd className="m-0 text-[18px] font-bold tabular-nums">{n}</dd>
+            <dd className="m-0 text-[17px] font-bold tabular-nums">{n}</dd>
           </div>
         ))}
       </dl>

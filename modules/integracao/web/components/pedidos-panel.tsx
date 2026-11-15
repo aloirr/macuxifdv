@@ -25,20 +25,20 @@ export function PedidosPanel({ pedidos, alertas }: { pedidos: MonitorResumo['ped
         {ESTADOS_PEDIDO_ERP.map((e) => (
           <div key={e} className="rounded-xl border border-line-2 p-2">
             <dt className="text-[12px] text-ink-2">{ROTULO_ESTADO_PEDIDO[e]}</dt>
-            <dd className="m-0 text-[18px] font-bold tabular-nums">{pedidos.por_estado[e] ?? 0}</dd>
+            <dd className="m-0 text-[17px] font-bold tabular-nums">{pedidos.por_estado[e] ?? 0}</dd>
           </div>
         ))}
         <div className="rounded-xl border border-line-2 p-2">
           <dt className="text-[12px] text-ink-2">Presos sem retorno</dt>
-          <dd className={`m-0 text-[18px] font-bold tabular-nums ${pedidos.presos > 0 ? 'text-danger' : ''}`}>{pedidos.presos}</dd>
+          <dd className={`m-0 text-[17px] font-bold tabular-nums ${pedidos.presos > 0 ? 'text-danger' : ''}`}>{pedidos.presos}</dd>
         </div>
         <div className="rounded-xl border border-line-2 p-2">
           <dt className="text-[12px] text-ink-2">Retidos sem mapeamento</dt>
-          <dd className={`m-0 text-[18px] font-bold tabular-nums ${pedidos.retidos > 0 ? 'text-warning' : ''}`}>{pedidos.retidos}</dd>
+          <dd className={`m-0 text-[17px] font-bold tabular-nums ${pedidos.retidos > 0 ? 'text-warning' : ''}`}>{pedidos.retidos}</dd>
         </div>
       </dl>
 
-      <h3 className="m-0 mt-2 text-[14px] font-semibold">Erros de retorno</h3>
+      <h3 className="m-0 mt-2 text-[13px] font-semibold">Erros de retorno</h3>
       {deRetorno.length === 0 ? (
         <span className="text-[13px] text-ink-2" data-testid="integracao.retornos.vazio">
           Nenhum erro de retorno do ERP nem cancelamento recusado.
@@ -46,7 +46,7 @@ export function PedidosPanel({ pedidos, alertas }: { pedidos: MonitorResumo['ped
       ) : (
         <ul className="m-0 flex list-none flex-col gap-2 p-0" data-testid="integracao.retornos">
           {deRetorno.map((a, i) => (
-            <li key={`${a.codigo}-${i}`} className="flex items-start gap-2 text-[14px]" data-testid={`integracao.retorno.${a.codigo}`}>
+            <li key={`${a.codigo}-${i}`} className="flex items-start gap-2 text-[13px]" data-testid={`integracao.retorno.${a.codigo}`}>
               <Badge tone={a.severidade === 'critico' ? 'danger' : 'warning'}>{ROTULO_ALERTA_PEDIDO[a.codigo] ?? 'Retido'}</Badge>
               <span>{a.mensagem}</span>
             </li>
