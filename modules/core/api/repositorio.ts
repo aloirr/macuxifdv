@@ -83,7 +83,8 @@ export interface TenantExibicao {
 
 /** Operações dentro da transação do tenant. */
 export interface RepositorioTenant {
-  usuarioPorEmail(email: string): Promise<UsuarioLogin | null>;
+  /** `travar`: `select ... for update` — a linha do usuário fica bloqueada até o fim da transação (decisões que leem e gravam, como o "Esqueci a senha"). */
+  usuarioPorEmail(email: string, opcoes?: { travar?: boolean }): Promise<UsuarioLogin | null>;
   usuarioAtual(id: string): Promise<UsuarioAtual | null>;
   gravarTentativas(usuarioId: string, falhas: number, bloqueioAte: Date | null): Promise<void>;
   registrarLoginOk(usuarioId: string, agora: Date): Promise<void>;
@@ -113,12 +114,12 @@ const data = (v: unknown): Date | null => (v === null || v === undefined ? null 
 
 export function repositorioTenantSql(db: ClienteBanco): RepositorioTenant {
   return {
-    async usuarioPorEmail(email) {
+    async usuarioPorEmail(email, opcoes) {
       const r = await db.query<Record<string, unknown>>(
         `select id, nome, nome_curto, email, perfil, senha_hash, ativo, bloqueado_em, bloqueio_ate, tentativas_falhas, ultimo_login_em,
                 trocar_senha, senha_expira_em, senha_temporaria_hash, senha_temporaria_expira_em, senha_temporaria_criada_em, sessao_versao
            from core.usuario
-          where lower(email) = lower($1) and deleted_at is null`,
+          where lower(email) = lower($1) and deleted_at is null${opcoes?.travar ? '\n            for update' : ''}`,
         [email],
       );
       const l = r.rows[0];
