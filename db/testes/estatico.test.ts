@@ -831,10 +831,11 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     // 0072 (ADR 0052): as 8 sa_* das ações da empresa e as 11 do worker (empresa-acoes.db.test.ts)
     // 0073 (rodapé legal): a leitura pública (app) e as 2 sa_* dos dados legais (portal) (dados-legais.db.test.ts)
     // 0077 (T-0176): a função de gatilho da filial de cadastro, pelo mesmo motivo (usuario-filial.db.test.ts)
+    // 0077 (RN-CORE-39 no portal): a sa_sessao_valida recriada (drop + create, o retorno ganha sem_filial; usuario-filial.db.test.ts)
     // 0079 (T-0174, ADR 0054): as 3 funções do laço de trabalhos, só ao worker (foto-lote.db.test.ts)
     // 0080 (T-0175, RN-CORE-59): a função dos gatilhos do Código FDV, que grava o contador (usuario-codigo-fdv.db.test.ts)
     expect(novas.map((x) => x[1]).sort()).toEqual(
-      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', ...FUNCOES_SA_0070.map(nome), ...FUNCOES_SA_0072.map(nome), ...FUNCOES_WORKER_0072.map(nome), nome(DADOS_LEGAIS_PUBLICOS), ...FUNCOES_SA_0073.map(nome), 'core.filial_cadastro_conferir', 'plataforma.trabalho_reservar', 'plataforma.trabalho_devolver', 'plataforma.trabalho_renovar', 'core.usuario_codigo_fdv'].sort(),
+      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', ...FUNCOES_SA_0070.map(nome), ...FUNCOES_SA_0072.map(nome), ...FUNCOES_WORKER_0072.map(nome), nome(DADOS_LEGAIS_PUBLICOS), ...FUNCOES_SA_0073.map(nome), 'core.filial_cadastro_conferir', 'plataforma.sa_sessao_valida', 'plataforma.trabalho_reservar', 'plataforma.trabalho_devolver', 'plataforma.trabalho_renovar', 'core.usuario_codigo_fdv'].sort(),
     );
     for (const x of novas) expect(x[2], `${x[1]}: pg_temp por último`).toMatch(/, pg_temp$/);
     expect(depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)]).length).toBe(novas.length);

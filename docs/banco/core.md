@@ -1075,6 +1075,12 @@ regra: vale para o CLI (`pnpm tenant:criar`), as seeds e o portal — a `sa_prov
 continua com o texto da 0068. A conferência adiada `usuario_filial_inclui_cadastro` passa também no COMMIT do `macuxi_portal`.
 Assinatura, SECURITY INVOKER, `search_path` e ACL não mudam; o down volta ao texto da 0068.
 
+### Portal: `sem_filial` na `plataforma.sa_sessao_valida`
+A 0077 recria a `sa_sessao_valida` (drop + create, texto da 0046) com a coluna nova `sem_filial boolean`: `true` quando o admin do
+cliente da sessão está sem filial de cadastro (`core.usuario.filial_cadastro_id` nula, RN-CORE-39); `false` para o super-admin e
+para a sessão que ainda não escolheu empresa. O `macuxi_portal` não lê `core.usuario`: a informação vem da SECURITY DEFINER.
+Grants iguais aos da 0046 (só o `macuxi_portal` executa); o down volta ao texto da 0046.
+
 Volume: 1 a poucas linhas por usuário. Fixture: `USUARIO_FILIAL_FIXTURE` (grupo 0x6a): todo usuário com cadastro e venda na
 padrão; o supervisor de A vende também na Boa Vista e o vendedor de B também na Campinas (o usuário bloqueado é montado pelo
 teste). Seeds: demo (`db/seeds/demo/filial.ts`, `dadosDemoUsuarioFilial`) com os 7 logins na Manaus (cadastro e venda) e os 2

@@ -28,6 +28,17 @@ const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
 const up = semComentarios(m77.up);
 const down = semComentarios(m77.down);
 const umaLinha = (s: string) => s.replace(/\s+/g, ' ');
+/** O up sem o bloco da sa_sessao_valida (fim do arquivo: o único grant de função da 0077, ao macuxi_portal, como na 0046). */
+const upSemSessao = up.slice(0, up.indexOf('drop function if exists plataforma.sa_sessao_valida(uuid);'));
+const m46 = migracoes.find((m) => m.versao === '0046')!;
+/** Texto da sa_sessao_valida num SQL (de "function plataforma.sa_sessao_valida(" ao grant do macuxi_portal), sem o "create [or replace]". */
+const funcaoSessao = (sql: string) => {
+  const m = /create (?:or replace )?(function plataforma\.sa_sessao_valida\()/.exec(sql);
+  if (!m) return null;
+  const i = m.index + m[0].length - m[1]!.length;
+  const fim = 'grant execute on function plataforma.sa_sessao_valida(uuid) to macuxi_portal;';
+  return sql.slice(i, sql.indexOf(fim, i) + fim.length);
+};
 const TABELA = 'core.usuario_filial';
 const ERRO = { code: '23514', constraint: 'usuario_filial_inclui_cadastro' };
 
@@ -52,7 +63,7 @@ describe('0077 filial de cadastro e filiais de venda (estático)', () => {
     expect(u).toContain(`create index usuario_filial_sync_ix on ${TABELA} (tenant_id, updated_at, id);`);
     expect(u).toContain(`create policy manutencao on ${TABELA} for all to macuxi_manutencao using (true) with check (true);`);
     expect(up).toContain(`grant select, insert, update on ${TABELA} to macuxi_app;`);
-    expect(up).not.toMatch(/to macuxi_(worker|portal)/);
+    expect(upSemSessao).not.toMatch(/to macuxi_(worker|portal)/);
   });
 
   it('invariante: usuario_filial_inclui_cadastro ADIADO nas 2 tabelas, função DEFINER sem EXECUTE, 23514 com hint RN-CORE-39; sem o "máximo 1 do vendedor"', () => {
@@ -64,7 +75,7 @@ describe('0077 filial de cadastro e filiais de venda (estático)', () => {
     expect(u).toContain("hint = 'RN-CORE-39'");
     expect(u).toContain('for no key update');
     expect(up).toContain('revoke all on function core.filial_cadastro_conferir() from public;');
-    expect(up).not.toMatch(/grant execute/);
+    expect(upSemSessao).not.toMatch(/grant execute/);
     for (const velho of ['usuario_filial_vendedor_uma', 'usuario_filial_conferir_vendedor', 'usuario_conferir_filial_vendedor', 'usuario_perfil_conferir_filial_vendedor', 'perfil_conferir_filial_vendedor', 'conferir_filial_vendedor', 'filial_vendedor_conferir', 'usuario_filial_travar', 'pg_advisory_xact_lock']) {
       // a trava consultiva da provisionar_tenant (texto da 0068, redefinida no fim) não conta
       expect(up.slice(0, up.indexOf('create or replace function plataforma.provisionar_tenant(')), velho).not.toContain(velho);
@@ -113,6 +124,30 @@ describe('0077 filial de cadastro e filiais de venda (estático)', () => {
     expect(funcao(m77.up, 'sa_provisionar_tenant')).toBeNull();
     expect(funcao(m77.down, 'sa_provisionar_tenant')).toBeNull();
     expect(funcao(m68.up, 'sa_provisionar_tenant')).toContain('v_r := plataforma.provisionar_tenant(v_entrada);');
+  });
+
+  it('sa_sessao_valida (RN-CORE-39 no portal): up = texto da 0046 + sem_filial (drop + create, grants da 0046); down = texto da 0046, antes da coluna', () => {
+    const f46 = funcaoSessao(m46.up)!;
+    const f77 = funcaoSessao(m77.up)!;
+    expect(f46).toBeTruthy();
+    expect(f77).toBeTruthy();
+    expect(m77.up).toContain('drop function if exists plataforma.sa_sessao_valida(uuid);\ncreate function plataforma.sa_sessao_valida(p_sid uuid)');
+    expect(f77).toContain('returns table (tipo text, super_admin_id uuid, tenant_id uuid, usuario_id uuid, expira_em timestamptz, sem_filial boolean)');
+    expect(umaLinha(f77)).toContain(
+      "case when x.tipo = 'admin_cliente' and x.usuario_atual_id is not null then coalesce((select u.filial_cadastro_id is null from core.usuario u where u.tenant_id = x.tenant_atual_id and u.id = x.usuario_atual_id), false) else false end",
+    );
+    expect(f77).toMatch(/language sql volatile security definer\s+set search_path = pg_catalog, plataforma, pg_temp/);
+    // fora a coluna nova, é o texto da 0046 (validade da sessão, revogação, versão da senha, grants)
+    const ini = f77.indexOf(',\n      -- 0077 (RN-CORE-39)');
+    const fim = f77.indexOf('else false end\n', ini) + 'else false end'.length;
+    expect(ini).toBeGreaterThan(0);
+    const semColuna = (f77.slice(0, ini) + f77.slice(fim)).replace(', expira_em timestamptz, sem_filial boolean)', ', expira_em timestamptz)');
+    expect(semColuna).toBe(f46);
+    expect(f77).toContain('revoke all on function plataforma.sa_sessao_valida(uuid) from public, macuxi_app, macuxi_worker;');
+    // down: drop + create com o texto da 0046, antes de sair a coluna filial_cadastro_id
+    expect(funcaoSessao(m77.down)).toBe(f46);
+    expect(m77.down).toContain('drop function if exists plataforma.sa_sessao_valida(uuid);\ncreate function plataforma.sa_sessao_valida(p_sid uuid)');
+    expect(m77.down.indexOf('create function plataforma.sa_sessao_valida(')).toBeLessThan(m77.down.indexOf('alter table core.usuario drop column if exists filial_cadastro_id;'));
   });
 
   it('down: gatilho de core.usuario, tabela, função, índice, FK e coluna; idempotente (if exists)', () => {
@@ -236,6 +271,30 @@ describe.skipIf(semBanco())('0077 filial de cadastro e de venda (banco, fixture 
       const apagado: Array<[string, unknown[]?]> = [['update core.usuario set deleted_at = now() where id = $1', [V1]], desvincular(V1, PA)];
       expect(await noCommit(apagado)).toBeNull();
       expect(curto(await noCommit([...apagado, ['set constraints all immediate'], ['update core.usuario set deleted_at = null where id = $1', [V1]]]))).toEqual(ERRO);
+    });
+  });
+
+  it('portal (RN-CORE-39): sa_sessao_valida devolve sem_filial = true para o admin sem filial de cadastro e false para o super-admin e o admin com filial', async () => {
+    await emTransacao(admin, null, async () => {
+      const sa = (await admin.query<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [
+        JSON.stringify({ acao: 'criar', email: 'operador.t176@exemplo.com.br', nome: 'Operador T-0176', senha_hash: HASH_TESTE }),
+      ])).rows[0]!.r.super_admin_id;
+      const sessao = async (tipo: 'super_admin' | 'admin_cliente') =>
+        (await admin.query<{ id: string }>(
+          `insert into plataforma.portal_sessao (tipo, super_admin_id, tenant_atual_id, usuario_atual_id, expira_em)
+           values ($1, $2, $3, $4, now() + interval '1 hour') returning id`,
+          tipo === 'super_admin' ? [tipo, sa, null, null] : [tipo, null, A.tenantId, A.usuarios.admin],
+        )).rows[0]!.id;
+      const valida = async (sid: string) =>
+        (await admin.query<{ tipo: string; sem_filial: boolean }>('select tipo, sem_filial from plataforma.sa_sessao_valida($1)', [sid])).rows;
+      const sSa = await sessao('super_admin');
+      const sCli = await sessao('admin_cliente');
+      expect(await valida(sSa)).toEqual([{ tipo: 'super_admin', sem_filial: false }]);
+      expect(await valida(sCli)).toEqual([{ tipo: 'admin_cliente', sem_filial: false }]);
+      // sem filial de cadastro (bloqueado pelo Core): a sessão segue válida e avisa sem_filial = true
+      await admin.query('update core.usuario set filial_cadastro_id = null where id = $1', [A.usuarios.admin]);
+      expect(await valida(sCli)).toEqual([{ tipo: 'admin_cliente', sem_filial: true }]);
+      expect(await valida(sSa)).toEqual([{ tipo: 'super_admin', sem_filial: false }]);
     });
   });
 

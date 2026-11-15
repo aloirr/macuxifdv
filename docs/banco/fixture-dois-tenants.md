@@ -257,5 +257,5 @@ padrão do Core vêm do gatilho do tenant.
   (o teste grava o seu em transação desfeita). Dicionário: [sync-pacote.md](sync-pacote.md).
 
 ## 0080 — Código FDV (T-0175, RN-CORE-59)
-- A fixture não grava `codigo_fdv`: o gatilho `usuario_codigo_fdv_emitir` emite na carga, na ordem da lista de `core.usuario`. Esperado em `CODIGOS_FDV_FIXTURE`: A = admin `00001` … promotor `00008`; B = admin `00001`, vendedor `00002`.
-- `core.usuario_codigo_fdv_contador` ganha uma linha em A e uma em B pelo próprio gatilho (vazamento de leitura coberto). Recarregar a fixture não muda os códigos (o upsert por id não toca a coluna); o contador pode pular números.
+- O `carregarDoisTenants` grava o `codigo_fdv` de `CODIGOS_FDV_FIXTURE` (A = admin `00001` … promotor `00008`; B = admin `00001`, vendedor `00002`); o gatilho `usuario_codigo_fdv_emitir` aceita o informado e não emite.
+- `core.usuario_codigo_fdv_contador`: A em 8 e B em 2 (linha da fixture, no piso). Recarregar não muda códigos nem contador (o código que está no banco fica).

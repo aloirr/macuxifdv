@@ -357,6 +357,40 @@ begin
 end
 $$;
 
+-- sa_sessao_valida volta ao retorno da 0046 (sem sem_filial): drop + create, grants da 0046; antes de sair a coluna
+drop function if exists plataforma.sa_sessao_valida(uuid);
+create function plataforma.sa_sessao_valida(p_sid uuid)
+  returns table (tipo text, super_admin_id uuid, tenant_id uuid, usuario_id uuid, expira_em timestamptz)
+  language sql volatile security definer
+  set search_path = pg_catalog, plataforma, pg_temp
+  as $$
+    update plataforma.portal_sessao x
+       set ultimo_uso_em = now()
+     where x.id = p_sid and x.revogada_em is null and x.deleted_at is null and x.expira_em > now()
+       and (
+         (x.tipo = 'super_admin'
+          and exists (select 1 from plataforma.super_admin s where s.id = x.super_admin_id and s.deleted_at is null and s.ativo))
+         or (x.tipo = 'admin_cliente' and x.tenant_atual_id is null)
+         or (x.tipo = 'admin_cliente'
+             and exists (select 1 from core.usuario u join plataforma.tenant t on t.id = u.tenant_id
+                          where u.tenant_id = x.tenant_atual_id and u.id = x.usuario_atual_id and u.perfil = 'admin' and u.ativo
+                            and u.bloqueado_em is null and u.senha_hash is not null and u.deleted_at is null
+                            and t.status = 'ativo' and t.deleted_at is null
+                            -- 0046: cai na hora se a conta da empresa atual deixou de ser só admin com acesso.portal
+                            and plataforma.usuario_entra_no_portal(u.tenant_id, u.id)))
+       )
+       -- 0040: admin do cliente cai na hora se a senha de QUALQUER conta conferida no login mudou (sessao_versao) ou ficou
+       -- a trocar (RN-CORE-34): a sessão inteira nasceu do conhecimento daquela senha
+       and (x.tipo <> 'admin_cliente'
+            or not exists (select 1 from plataforma.portal_sessao_empresa e
+                             join core.usuario u on u.tenant_id = e.tenant_alvo_id and u.id = e.usuario_id
+                            where e.sessao_id = x.id and e.deleted_at is null
+                              and (u.sessao_versao <> e.sessao_versao or u.trocar_senha)))
+    returning x.tipo, x.super_admin_id, x.tenant_atual_id, x.usuario_atual_id, x.expira_em
+  $$;
+revoke all on function plataforma.sa_sessao_valida(uuid) from public, macuxi_app, macuxi_worker;
+grant execute on function plataforma.sa_sessao_valida(uuid) to macuxi_portal;
+
 drop trigger if exists usuario_filial_inclui_cadastro on core.usuario;
 drop table if exists core.usuario_filial;
 drop function if exists core.filial_cadastro_conferir();

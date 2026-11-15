@@ -454,9 +454,9 @@ export const FOTO_LOTE_FIXTURE = {
 } as const;
 
 /**
- * 0080 (T-0175, RN-CORE-59): Código FDV que o gatilho usuario_codigo_fdv_emitir dá aos usuários da fixture, na ordem da lista
- * de core.usuario (um INSERT por tenant, linhas em ordem). Nada gravado pela fixture: o banco emite; o contador de A termina
- * em 8 e o de B em 2 (recarregar a fixture não muda os códigos, só pode deixar buraco no contador).
+ * 0080 (T-0175, RN-CORE-59): Código FDV dos usuários da fixture, na ordem da lista de core.usuario. O carregarDoisTenants
+ * grava esses códigos informados (o gatilho usuario_codigo_fdv_emitir aceita o informado e não emite): o contador de A fica
+ * em 8 e o de B em 2, e recarregar não muda nem os códigos nem o contador.
  */
 export const CODIGOS_FDV_FIXTURE = {
   A: { admin: '00001', analista: '00002', assistente: '00003', gerente: '00004', supervisor: '00005', vendedor1: '00006', vendedor2: '00007', promotor: '00008' },
@@ -1953,6 +1953,24 @@ function auditoria(id: string, tenant_id: string, autor: string, alvo: string): 
  * Carrega a fixture com um cliente ADMIN (o papel de aplicação não pode criar tenant). Idempotente.
  * Roda numa transação: ou entra tudo, ou nada.
  */
+/** 0080: a coluna core.usuario.codigo_fdv existe no banco (a fixture também carrega bancos antes da 0080)? */
+async function temCodigoFdv(admin: ClientBase): Promise<boolean> {
+  const r = await admin.query(
+    "select 1 from information_schema.columns where table_schema = 'core' and table_name = 'usuario' and column_name = 'codigo_fdv'",
+  );
+  return (r.rowCount ?? 0) > 0;
+}
+
+/** 0080: Código FDV de um usuário da fixture (CODIGOS_FDV_FIXTURE, pelo id de DOIS_TENANTS). */
+function codigoFdvDaFixture(id: string): string {
+  for (const t of ['A', 'B'] as const) {
+    const usuarios = DOIS_TENANTS[t].usuarios as Record<string, string>;
+    const codigos = CODIGOS_FDV_FIXTURE[t] as Record<string, string>;
+    for (const [papel, uid] of Object.entries(usuarios)) if (uid === id && codigos[papel]) return codigos[papel];
+  }
+  throw new Error(`fixture: usuário ${id} sem Código FDV em CODIGOS_FDV_FIXTURE`);
+}
+
 export async function carregarDoisTenants(admin: ClientBase, opcoes: { senha?: string } & OpcoesDadosFixture = {}): Promise<DadosFixture> {
   const senha = opcoes.senha ?? process.env.MACUXI_SENHA_TESTE ?? 'Teste@1234';
   const dados = dadosDoisTenants(hashSenha(senha), { hoje: opcoes.hoje, agora: opcoes.agora });
@@ -1961,8 +1979,16 @@ export async function carregarDoisTenants(admin: ClientBase, opcoes: { senha?: s
     // 0070 (ADR 0047): o catálogo de planos (fora dos tenants) antes da assinatura
     await gravarLinhas(admin, 'plataforma.plano', planosDaFixture());
     for (const tabela of ORDEM_TABELAS) {
-      const linhas = tabela === 'core.equipe' ? dados[tabela].map((e) => ({ ...e, responsavel_id: null })) : dados[tabela];
-      const preservar = tabela === 'core.usuario' ? ['senha_hash'] : tabela === 'vendedor.numeracao_pedido' ? ['ultimo'] : tabela === 'core.usuario_codigo_fdv_contador' ? ['ultimo_sequencial'] : [];
+      let linhas: Linha[] = tabela === 'core.equipe' ? dados[tabela].map((e) => ({ ...e, responsavel_id: null })) : dados[tabela];
+      // 0080: o Código FDV vai informado (CODIGOS_FDV_FIXTURE). Sem ele, o gatilho usuario_codigo_fdv_emitir (BEFORE INSERT)
+      // emitiria um número a cada recarga, mesmo com a linha caindo no on conflict, e o contador andaria; o código que já está
+      // no banco fica (preservar), e o somente_leitura não dispara
+      const comCodigoFdv = tabela === 'core.usuario' && (await temCodigoFdv(admin));
+      if (comCodigoFdv) linhas = linhas.map((u) => ({ ...u, codigo_fdv: codigoFdvDaFixture(String(u.id)) }));
+      const preservar =
+        tabela === 'core.usuario'
+          ? comCodigoFdv ? ['senha_hash', 'codigo_fdv'] : ['senha_hash']
+          : tabela === 'vendedor.numeracao_pedido' ? ['ultimo'] : tabela === 'core.usuario_codigo_fdv_contador' ? ['ultimo_sequencial'] : [];
       // 0077: o backfill (empresa com uma filial) pode já ter dado a filial a usuários da fixture com outro id (banco que desceu e
       // subiu com os dados); sai o vínculo de id diferente para o da fixture entrar sem 23505 (usuario_filial_uk). A conferência
       // adiada usuario_filial_inclui_cadastro roda no COMMIT, com o vínculo da fixture já gravado.

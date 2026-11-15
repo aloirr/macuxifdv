@@ -37,9 +37,12 @@
 -- ADMIN INICIAL (R-20261115-094500): plataforma.provisionar_tenant (create or replace, a partir do texto da 0068) dá ao admin
 --   que ela CRIA a filial padrão do tenant como cadastro e como venda; sem isso ele nasceria bloqueado. Admin existente não muda.
 --   Vale para o CLI (tenant:criar), as seeds e o portal (a sa_provisionar_tenant chama a provisionar_tenant e fica como na 0068).
+-- PORTAL (RN-CORE-39): plataforma.sa_sessao_valida devolve também sem_filial (admin do cliente sem filial de cadastro; false
+--   para o super-admin). Retorno novo = drop + create, com os grants da 0046 (só o macuxi_portal executa).
 -- RLS: core.usuario_filial com enable + force + isolamento_tenant (macuxi_app) + manutencao (0031). macuxi_app: select, insert,
 -- update. macuxi_worker e macuxi_portal: nada.
--- Caminho de volta: 0077_core_usuario_filial.down.sql — volta a provisionar_tenant ao texto da 0068, apaga os 2 gatilhos,
+-- Caminho de volta: 0077_core_usuario_filial.down.sql — volta a sa_sessao_valida ao texto da 0046 e a provisionar_tenant ao
+-- texto da 0068, apaga os 2 gatilhos,
 -- a função, a tabela, o índice, a FK e a coluna (as filiais de cadastro e de venda se perdem; reaplicar a 0077 refaz o
 -- backfill). Volte antes o código do Core que lê/grava.
 
@@ -519,3 +522,48 @@ begin
   );
 end
 $$;
+
+-- =============================================================================================
+-- plataforma.sa_sessao_valida — sem_filial (RN-CORE-39 no portal)
+-- =============================================================================================
+-- O retorno ganha sem_filial = (core.usuario.filial_cadastro_id is null) do usuário da sessão do admin do cliente; false para o
+-- super-admin e para a sessão que ainda não escolheu empresa. O macuxi_portal não lê core.usuario: vem da SECURITY DEFINER.
+-- Retorno novo = drop + create (texto da 0046 + a coluna); grants iguais aos da 0046. As sa_* que chamam esta leem colunas
+-- pelo nome (select v.tipo ...), nada muda nelas.
+drop function if exists plataforma.sa_sessao_valida(uuid);
+create function plataforma.sa_sessao_valida(p_sid uuid)
+  returns table (tipo text, super_admin_id uuid, tenant_id uuid, usuario_id uuid, expira_em timestamptz, sem_filial boolean)
+  language sql volatile security definer
+  set search_path = pg_catalog, plataforma, pg_temp
+  as $$
+    update plataforma.portal_sessao x
+       set ultimo_uso_em = now()
+     where x.id = p_sid and x.revogada_em is null and x.deleted_at is null and x.expira_em > now()
+       and (
+         (x.tipo = 'super_admin'
+          and exists (select 1 from plataforma.super_admin s where s.id = x.super_admin_id and s.deleted_at is null and s.ativo))
+         or (x.tipo = 'admin_cliente' and x.tenant_atual_id is null)
+         or (x.tipo = 'admin_cliente'
+             and exists (select 1 from core.usuario u join plataforma.tenant t on t.id = u.tenant_id
+                          where u.tenant_id = x.tenant_atual_id and u.id = x.usuario_atual_id and u.perfil = 'admin' and u.ativo
+                            and u.bloqueado_em is null and u.senha_hash is not null and u.deleted_at is null
+                            and t.status = 'ativo' and t.deleted_at is null
+                            -- 0046: cai na hora se a conta da empresa atual deixou de ser só admin com acesso.portal
+                            and plataforma.usuario_entra_no_portal(u.tenant_id, u.id)))
+       )
+       -- 0040: admin do cliente cai na hora se a senha de QUALQUER conta conferida no login mudou (sessao_versao) ou ficou
+       -- a trocar (RN-CORE-34): a sessão inteira nasceu do conhecimento daquela senha
+       and (x.tipo <> 'admin_cliente'
+            or not exists (select 1 from plataforma.portal_sessao_empresa e
+                             join core.usuario u on u.tenant_id = e.tenant_alvo_id and u.id = e.usuario_id
+                            where e.sessao_id = x.id and e.deleted_at is null
+                              and (u.sessao_versao <> e.sessao_versao or u.trocar_senha)))
+    returning x.tipo, x.super_admin_id, x.tenant_atual_id, x.usuario_atual_id, x.expira_em,
+      -- 0077 (RN-CORE-39): admin do cliente sem filial de cadastro; super-admin e sessão sem empresa escolhida = false
+      case when x.tipo = 'admin_cliente' and x.usuario_atual_id is not null
+           then coalesce((select u.filial_cadastro_id is null from core.usuario u
+                           where u.tenant_id = x.tenant_atual_id and u.id = x.usuario_atual_id), false)
+           else false end
+  $$;
+revoke all on function plataforma.sa_sessao_valida(uuid) from public, macuxi_app, macuxi_worker;
+grant execute on function plataforma.sa_sessao_valida(uuid) to macuxi_portal;
