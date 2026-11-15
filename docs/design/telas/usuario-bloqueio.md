@@ -38,6 +38,7 @@ Print: `usuario-bloqueio/2-menu-desbloquear-1366x768.png`.
 - Aparece só quando a linha tem o selo **Bloqueado** ou **Bloqueado até…**, e só para quem tem `usuario.desbloquear` (§5). A ação que o perfil não pode fazer não aparece (§P3.3).
 - **Primeiro item do menu.** É a ação que o selo pede. Ordem: **Desbloquear · Editar · Redefinir senha · ── · Desativar** (perigo por último, depois do traço, §P3.2).
 - testID: `usuarios.desbloquear.<id>`.
+- Componente: o menu é o `MenuAcoes` de `@macuxi/ui/web` (revisão do BKO §P3), sem estilo próprio na tela. O item "Desbloquear" é uma `AcaoDoMenu` a mais. No print, "Desbloquear" aparece com o foco do teclado que o `MenuAcoes` põe no primeiro item ao abrir (fundo `accent-soft` #DFE2E6 e contorno Azul noite #1E3350); o fundo Pérola fica só para o hover.
 
 ## 4. "Desbloquear" na gaveta do usuário
 
@@ -54,7 +55,7 @@ Print: `usuario-bloqueio/3-gaveta-bloqueado-1366x768.png`.
 **Sem confirmação.** Um clique desbloqueia.
 - Desbloquear devolve à pessoa o acesso que ela já tinha, com a mesma senha, e não apaga nada. O bloqueio por tentativas acaba sozinho em até 15 minutos de qualquer jeito.
 - Um diálogo "Desbloquear Carla Vendedora?" repetiria o nome e o verbo que o admin acabou de clicar. É o tipo de excesso que o corretor-redundancias aponta (texto além do problema e da ação).
-- O desbloqueio fica na auditoria (§6) e o bloqueio pode ser refeito: por tentativas, se as senhas erradas continuarem; pelo admin, com "Desativar".
+- O desbloqueio fica na auditoria (§6). Se as senhas erradas continuarem, o login bloqueia de novo sozinho, por tentativas. "Desativar" não é bloqueio: é a ação do admin para tirar o acesso de alguém, e quem a desfaz é o "Reativar" (§1).
 - Contraste com o "Reativar", que confirma: reativar devolve o acesso a quem foi tirado de propósito. Desbloquear é a ação corriqueira de quando o vendedor liga dizendo "errei a senha".
 
 **Sem aviso de sucesso em texto na tela.** O resultado aparece no lugar do problema: **o selo some** da linha (e a faixa some da gaveta) e "Desbloquear" sai do menu. Nada de toast, `Notice` ou "Usuário desbloqueado." no topo, que seria uma segunda informação em outro lugar (RN-VEN-42, R-20261110-093124) e um texto que o admin não usa para agir (R-20261110-192153).
