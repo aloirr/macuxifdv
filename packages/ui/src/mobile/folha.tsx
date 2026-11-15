@@ -316,7 +316,7 @@ export function Dialogo({
             {titulo}
           </Text>
           {mensagem ? <Text style={s.dialogoMsg}>{mensagem}</Text> : null}
-          {children}
+          {children ? <View style={s.dialogoConteudo}>{children}</View> : null}
           {cancelar || confirmar ? (
             <View style={s.dialogoBotoes}>
               {cancelar ? (
@@ -379,10 +379,10 @@ const s = StyleSheet.create({
   opcaoSub: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink2 },
   // diálogo central
   dialogoFundo: { flex: 1, backgroundColor: FUNDO, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  // padrão único de diálogo (simulação aprovada da sync completa, docs/design/sync-completa/sync.css): raio 20, 22/20/24, gap 10;
-  // título = `type.titulo` (Archivo 800 19, ink); mensagem 15/22 ink2
+  // padrão único de diálogo (simulação aprovada: docs/design/sync-completa/sync.css)
   dialogo: { width: '100%', maxWidth: 420, backgroundColor: colors.surface, borderRadius: radius.dialogo, padding: 20, paddingTop: 22, paddingBottom: 24, gap: 10 },
   dialogoMsg: { fontFamily: fonts.body, fontSize: 15, lineHeight: 22, color: colors.ink2 },
+  dialogoConteudo: { marginTop: 10 },
   dialogoBotoes: { flexDirection: 'row', gap: 9, marginTop: 8 },
   dialogoBotao: { flex: 1, minHeight: ALVO_TOQUE, borderRadius: radius.botaoMedio, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   /** nível neutro do guia (Cancelar) */
