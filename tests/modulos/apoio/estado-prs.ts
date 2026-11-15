@@ -22,3 +22,19 @@ export const CHECKIN_NA_FICHA = existe('modules/core/domain/checkin-rota.ts');
 
 /** 0069 (banco-dados, R-20261114-153500): um perfil por usuário (exclusão adiada `usuario_perfil_um_vivo`). */
 export const UM_PERFIL = existe('db/migrations/0069_core_cargo_hierarquia.up.sql');
+
+/**
+ * T-0176 (RN-CORE-39 revista, R-20261115-073000 e R-20261115-080000): filial do usuário. Três PRs de donos diferentes:
+ *  - `FILIAL_USUARIO_CORE`: modulo-core (`nuvem/filial-usuario-modulo-core`): domain, `filial_ids` em criar/editar/ler, `sem_filial` no
+ *    login e no sync `usuario`, carga do ERP. Com ele no main, `POST /v1/core/usuarios` de vendedor, promotor, supervisor e gerente
+ *    EXIGE `filial_ids` (422 sem ela);
+ *  - `FILIAL_USUARIO_BANCO`: banco-dados (`nuvem/filial-usuario-banco-dados`): migração 0077 `core.usuario_filial` e a fixture
+ *    (vendedor-1 e supervisor de A com filial; vendedor-2 sem; vendedor-B na Campinas). Só entra depois da 0070–0076 no main;
+ *  - `VENDEDOR_FILIAL_HUB`: modulo-integracao (`nuvem/marca-codigo-modulo-integracao`): `filial_external_id` do vendedor no Hub, aviso
+ *    `vendedor_sem_filial` e a filial antes do vendedor na ordem de carga.
+ */
+export const FILIAL_USUARIO_CORE = existe('modules/core/domain/filial-usuario.ts');
+export const FILIAL_USUARIO_BANCO = existe('db/migrations/0077_core_usuario_filial.up.sql');
+/** A API do Core da T-0176 lê e grava `core.usuario_filial`: os testes de API precisam dos dois PRs. */
+export const FILIAL_USUARIO = FILIAL_USUARIO_CORE && FILIAL_USUARIO_BANCO;
+export const VENDEDOR_FILIAL_HUB = existe('modules/integracao/domain/vendedor-filial.ts');
