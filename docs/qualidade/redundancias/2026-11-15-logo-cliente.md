@@ -38,6 +38,8 @@ Sem defeito funcional para o testes.
 # Implementação: T-0182 (provisório) · logo do cliente · parecer do corretor-redundancias
 
 > **Reteste em 15/11, 10h34: ver §6.** RD-0700, RD-0702, RD-0703 e RD-0704 corrigidos; RD-0701 aberto; novos RD-0705 a RD-0707.
+>
+> **Conferência final em 15/11, 10h57: ver §7.** Não liberado: RD-0701, RD-0705 e RD-0707 corrigidos; RD-0706 parcial (só teste, não segura); novos RD-0708 e RD-0709 (código de produção, seguram).
 
 **Veredito: COM ACHADO (não liberado).** São 5 achados novos, de **RD-0700 a RD-0704**: 1 de gravidade média e 4 de
 gravidade baixa. Todos estão em código de produção, então **todos seguram o lote**, pela R-20261110-062506. Os prints do
@@ -355,3 +357,137 @@ Os recados continuam com erro 403, e o gerente-projetos repassa aos donos:
 | modulo-vendedor | RD-0705 |
 | testes | RD-0706, e conferir a frase do lado máximo (6.4) |
 | engenheiro-software | a parte do teste do SDK no RD-0707, e a frase do lado máximo (6.4) |
+
+## 7. Conferência final (15/11/2026, 10h57 em Manaus)
+
+**Veredito: NÃO LIBERADO.**
+- **Corrigidos:** RD-0701, RD-0705 e RD-0707.
+- **Parcial:** RD-0706. É só teste e tem gravidade baixa, então **não segura** o lote (R-20261111-190159).
+- **Novos:** **RD-0708** (engenheiro-apps) e **RD-0709** (modulo-vendedor). Os dois têm gravidade baixa, mas estão em código
+  de produção e **seguram** o lote (R-20261110-062506). Cada correção é de poucas linhas.
+
+Heads lidos (diff contra os heads do §6 e, para o escopo da T-0182, contra o `origin/main` 19d2371a):
+
+| Branch | Head | Commits novos |
+|---|---|---|
+| `nuvem/logo-cliente-engenheiro-software` | 9b2bab50 | fb918024, 9b2bab50 |
+| `nuvem/logo-cliente-designer-ux-ui` | 2d5526e3 | 2d5526e3 |
+| `nuvem/logo-cliente-engenheiro-apps` | 606c61fb | 61654ab5, 606c61fb |
+| `nuvem/logo-cliente-modulo-vendedor` | 26f3ca5d | 26f3ca5d |
+| `nuvem/logo-cliente-testes` | 25eabf81 | 25eabf81 |
+| `nuvem/logo-cliente-banco-dados` | 670d6d57 | merges da cadeia 0074–0080 (T-0174, T-0175 e T-0176, fora do escopo; têm parecer próprio) e o comentário de `FUNCOES_SA_ATUAIS` |
+| `nuvem/logo-cliente-designer-ux` | c49b7221 | nenhum |
+
+### 7.1 Fechamento
+
+| RD | Evidência | Status |
+|---|---|---|
+| RD-0701 | `apps/web/lib/portal-api.ts:292` traz `export const TEXTO_INDISPONIVEL = 'Ainda não disponível neste servidor.';`, com o mesmo nome, o mesmo texto e o mesmo export do `nuvem/config-enxuto-v2-engenheiro-apps` (`portal-api.ts:279`). `apps/web/lib/portal-logo.ts:37` usa `rotaAusente: TEXTO_INDISPONIVEL`. A frase aparece uma vez só em `apps`, `modules` e `packages`. Condição de merge (§6.2, saída 2): no merge do config-enxuto-v2, a resolução mantém **uma** declaração. Os comentários das duas versões diferem, então a linha vai conflitar | **corrigido** (61654ab5) |
+| RD-0705 | A `logoParaPdf` agora é uma só, em `modules/vendedor/domain/empresa-pdf.ts`. O app (`order-detail-screen.tsx:441`) e o BKO (`order-drawer.tsx:47`, `orders-page.tsx:71`) usam essa função. Saíram o `web/lib/logo-pdf.ts` e o teste dele; o teste foi para `domain/empresa-pdf.test.ts`. O comentário de `exportar-pdf.ts:9` passou a ser "data URI da logo da empresa; vazio = logo padrão". Saiu também o `nomeDaDistribuidora`, que tinha 3 fontes e o "Macuxi" no fim. No lugar, o `nomeDaEmpresaParaPdf` lê o `empresa_nome` do SDK, e o nome da empresa passa a ter uma fonte só, no app e no BKO | **corrigido** (26f3ca5d); fica o RD-0709 (7.2) |
+| RD-0706 | O LC-02 ficou com um caso por código: SVG 415, 1 MiB + 1 byte 413, 199 px 422 e 4097 px 422. Webp, assinatura trocada, JSON e corpo vazio ficam no unitário. É a decisão do gerente, e cada linha prova um código diferente pela pilha real: **aceito**. **Ainda sobram 2 pontos:** o `FRASES` (`logo-cliente-t0182.test.ts:50-55`), que é a 3ª cópia literal das frases (a troca da frase do lado máximo obrigou a mexer nele e no teste do SDK, como o §6.3 previa), e o "81 caracteres = 400" (`:234`), que repete o unitário. O "limite exato de 1 MiB" (`:113` e `:156-158`) fica, porque é a logo que o LC-03 usa | **parcial**; só teste, baixa, **não segura** |
+| RD-0707 | `apps/web/lib/portal-logo.test.ts` compara com `MENSAGENS_LOGO[...]`, `TEXTO_LIMITES_LOGO` e `TEXTO_INDISPONIVEL`, sem texto literal. O teste do SDK não testa mais o `rotuloDaLogo`, que ficou só no `comum/marca.test.ts`. Agora o teste do SDK é o único com o texto literal da spec | **corrigido** (fb918024, 606c61fb) |
+
+### 7.2 Achados novos
+
+#### RD-0708 · baixa · código · rotina · engenheiro-apps · **segura**
+- **Onde** (61654ab5):
+  - `apps/mobile/src/lib/logo-empresa.ts:88-89` e `:94-95`;
+  - `apps/mobile/src/services/logo-empresa.ts:31`, `:36-43`, `:48-49`, `:56-63` e `:67-74`.
+- **O que se repete:**
+  - o registro da logo é zerado **2 vezes seguidas**. A `lib` faz `gravarRegistro(null)` e logo depois `apagarTudo()`, e o
+    `apagarTudo` do aparelho (`apagarPastaDaEmpresa`) agora também faz `writeJson(CHAVE_LOGO_EMPRESA, null)`. São 2
+    gravações iguais no AsyncStorage, nos 2 caminhos: logo removida e troca de empresa;
+  - a conferência "o arquivo da cópia está lá?" está escrita 3 vezes no mesmo arquivo, sempre com o mesmo molde
+    (`Platform.OS === 'web'` → nada; `try { arquivo(caminho).exists } catch`). Ela aparece no `existeArquivo`, no
+    `uriDaLogo` e no `dataUriDaLogoGuardada`, e as 3 versões não concordam: só a `uriDaLogo` exige `size > 0` (ver 7.4).
+- **Impacto:**
+  - manutenção: a mesma regra do disco está em 3 lugares, e as versões já divergem;
+  - uma gravação a mais no disco.
+- **Proposta:**
+  - o contrato `PortaLogoEmpresa.apagarTudo` passa a dizer que apaga a pasta **e o registro**, que é o que o aparelho já faz.
+    A `lib` tira o `gravarRegistro(null)` das linhas 88 e 94, e a `portaFalsa` do teste passa a zerar o registro no
+    `apagarTudo`;
+  - uma função só no `services/logo-empresa.ts`: `function copiaGuardada(caminho: string): File | null`. No navegador,
+    devolve `null`. No aparelho, devolve `f.exists && f.size > 0 ? f : null`, dentro de um `try` cujo `catch` devolve `null`.
+    As 3 funções passam a usá-la:
+    - `existeArquivo: async (c) => copiaGuardada(c) !== null`;
+    - `uriDaLogo = (l) => copiaGuardada(l.caminho)?.uri ?? null`;
+    - `dataUriDaLogoGuardada` chama `copiaGuardada(l.caminho)` antes do `base64()`.
+
+#### RD-0709 · baixa · código · modulo-vendedor · **segura**
+- **Onde:** `modules/vendedor/domain/empresa-pdf.ts:8-12` (26f3ca5d).
+- **O que se repete:** a falha assíncrona da `logoDaEmpresa` é tratada **2 vezes**: pelo `.catch(() => null)` e pelo
+  `try/catch` em volta do `await`, que já pega a promessa rejeitada. O `try` também pega o erro síncrono, então o
+  `.catch` não acrescenta nada.
+- **Proposta:** o corpo volta a ser o da `logoParaPdf` antiga, e os 4 casos de `empresa-pdf.test.ts` continuam passando:
+  ```ts
+  try {
+    return (await ambiente.logoDaEmpresa?.()) ?? null;
+  } catch {
+    return null;
+  }
+  ```
+
+### 7.3 Conferido e sem achado
+- **Revisão do gerente** (feita pelo engenheiro-software em fb918024 e 9b2bab50):
+  - **RD-0910:**
+    - `db/testes/funcoes-sa.ts` (`FUNCOES_SA_ATUAIS` e `SA_INTERNA`) é a lista única;
+    - o `apps/api/test/funcoes-sa.ts` só reexporta essa lista, com o tipo;
+    - o `banco-dbaas.sh` (passo 6) lê a lista na imagem (`LISTAS_SA_JS`), sem cópia;
+    - o `funcoes-sa.test.ts` roda o mesmo comando e confere que o script não tem assinatura escrita à mão
+      (`not.toMatch(/'plataforma\.sa_\w+\(/)`);
+    - os nomes `SA_PORTAL` e `SA_INTERNAS` da API são apelidos de teste e ficam (`manter`): trocar o nome mexeria em todos os
+      testes da API, sem ganho;
+  - **RD-0912:** o `enviarBytesDaLogo` (`apps/api/src/empresa-logo.ts:166-181`) atende os 2 GETs de bytes. Ele faz a
+    conferência da chave do tenant, o 503, o 404 com aviso e os cabeçalhos. Só o `cache-control` muda entre os dois, e ele
+    vem por parâmetro;
+  - **RD-0914:** o `CHAVE_ARQUIVO_RE` (`arquivos.ts:57`) é idêntico ao do `nuvem/T-0174-engenheiro-software`
+    (`arquivos.ts:82`). A condição de merge do §1 continua valendo: uma linha `./imagens` só no `index.ts` do SDK;
+  - **RD-0915, RD-0795 e RD-0798 (desenho):** o `docs/desenho/T-0182-logo-cliente.md` tem uma tabela por assunto. As frases
+    ficam na tabela do §2.3 como referência do contrato, e a fonte delas é o SDK;
+  - **`MENSAGENS_ACESSO_LOGO`** (`platform-sdk/src/empresa-logo.ts`):
+    - as 2 frases do 403 ficam num lugar só;
+    - quem usa são a barreira da API (`exigirLeitura` e `exigirEscrita`) e o 42501 da `sa_*` (`traduzir(e, acesso)`);
+    - o `SO_A_MACUXI` local saiu;
+  - **RD-0921:**
+    - o `proporcaoDaLogo` do SDK é a fonte única;
+    - o app tirou a cópia de `lib/logo-empresa.ts` e usa a do SDK (`state/plataforma.tsx:1067`);
+    - a placa (2d5526e3) recebe `proporcao: number` obrigatória, sem `onLoad` nem `useState`;
+    - o `caixaDaPlacaLogo` não trata mais proporção desconhecida, e o teste desse caso saiu junto;
+  - **frase do lado máximo:** "A imagem passa de 4096 px de largura ou altura. Envie uma menor." está num lugar só do código
+    (`MENSAGENS_LOGO`, montada de `LIMITES_LOGO`) e é igual à da spec (c49b7221). O comentário "a confirmar pelo
+    designer-ux" saiu. A pendência do §6.4 está **resolvida**.
+- **Placa (`nomeEmpresa`):**
+  - o rótulo continua vindo do `rotuloDaLogo`;
+  - os dois chamadores do app passam a prop nova: `tela-entrada.tsx:195` e `mais.tsx:49`;
+  - no Mais, a placa continua sem nome, decorativa.
+- **PDF sem nome (MC-0404):** quando o nome é vazio, o cabeçalho omite a `div.empresa`, sem texto no lugar.
+- **Testes novos:** cada um prova um caso que nenhum outro teste prova.
+  - API: 403 da leitura × 403 da escrita;
+  - integração: 42501 direto na `sa_marca_da_empresa`;
+  - app: pasta apagada por fora;
+  - vendedor: `nomeDaEmpresaParaPdf`.
+- **`docs/testes/T-0182.md`:** a linha do LC-02 cita o que fica no unitário, sem repetir os casos.
+
+### 7.4 Encaminhado (defeito funcional ou de doc, sem RD)
+- **Arquivo de 0 byte no aparelho** (ao testes; dono: engenheiro-apps):
+  - o `existeArquivo` (`apps/mobile/src/services/logo-empresa.ts:36-43`) aceita um arquivo vazio, e o `uriDaLogo`
+    (`:56-63`) não aceita;
+  - com a cópia vazia, a `lib` decide `manter`, porque o sha256 não mudou. A tela fica sem a logo, e o aparelho só baixa de
+    novo quando a logo mudar no portal;
+  - a função única do RD-0708, com `size > 0`, resolve os dois.
+- **Referência errada no desenho** (dono: engenheiro-software): o §4 de `docs/desenho/T-0182-logo-cliente.md` cita
+  "`PlacaLogoCliente` (§3.2)", mas o contrato da placa está no §3.4. É referência errada, não repetição.
+
+### 7.5 Recados
+Os recados continuam com erro 403. O gerente-projetos repassa aos donos:
+
+| Dono | O que fazer |
+|---|---|
+| engenheiro-apps | RD-0708 (segura) e o arquivo de 0 byte (7.4); no merge do config-enxuto-v2, deixar uma declaração só de `TEXTO_INDISPONIVEL` |
+| modulo-vendedor | RD-0709 (segura) |
+| testes | o restante do RD-0706 (não segura): o `FRASES` passa a ser `MENSAGENS_LOGO[cod]` e o "81 = 400" sai. Conferir também o 7.4 |
+| engenheiro-software | a referência do §4 do desenho (7.4); a condição de merge com a T-0174 (§1) continua |
+
+Corrigidos o RD-0708 e o RD-0709, o reteste olha só esses dois arquivos. Com os dois fechados, o parecer fica **liberado**,
+e o RD-0706 fica aberto para o lote seguinte.
