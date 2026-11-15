@@ -11,7 +11,7 @@ export interface RequisicaoPreparada {
   /** Mesmo usuário e requisição, com outro módulo de origem (logs e eventos publicados). */
   doModulo(modulo: ModuloId): ContextoBase;
   /**
-   * T-0176 (RN-CORE-39; ADR 0056): usuário sem filial de cadastro numa entrada que o aceita (`semFilial: 'aceita'`). A carteira
+   * T-0176 (RN-CORE-39; ADR 0056): usuário sem a filial de cadastro numa entrada que o aceita (`semFilial: 'aceita'`). A carteira
    * vem vazia e a equipe é só ele; quem chamou serve só o estado de bloqueio.
    */
   restritoSemFilial: boolean;

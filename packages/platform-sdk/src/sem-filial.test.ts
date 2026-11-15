@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { definirModuloApi, type ProvedorSync, type RotaModulo } from './api';
 import { defineModule } from './manifesto';
-import { acessoSemFilial, problemasLiberadoSemFilial } from './sem-filial';
+import { ErroHttp } from './ambiente';
+import { acessoSemFilial, codigoDoErroHttp, ehUsuarioSemFilial, MENSAGEM_USUARIO_SEM_FILIAL, problemasLiberadoSemFilial } from './sem-filial';
 import { definirEntidadeSync } from './sync';
 
 const core = defineModule({ id: 'core', versao: '1.0.0', perfis: ['admin', 'vendedor'], sync: ['usuario'] });
@@ -54,5 +55,22 @@ describe('RN-CORE-39: só o core declara exceção', () => {
       liberadoSemFilial: true,
     };
     expect(() => definirModuloApi({ manifesto: core, sync: [soPush] })).toThrow(/só vale para provedor com puxar/);
+  });
+});
+
+describe('RN-CORE-39: ehUsuarioSemFilial e a mensagem aprovada', () => {
+  it('reconhece só o 403 USUARIO_SEM_FILIAL', () => {
+    expect(ehUsuarioSemFilial({ status: 403, codigo: 'USUARIO_SEM_FILIAL' })).toBe(true);
+    expect(ehUsuarioSemFilial({ status: 422, codigo: 'USUARIO_SEM_FILIAL' })).toBe(false);
+    expect(ehUsuarioSemFilial({ status: 403, codigo: 'MODULO_INATIVO' })).toBe(false);
+    expect(ehUsuarioSemFilial(new ErroHttp(403, 'USUARIO_SEM_FILIAL', 'x'))).toBe(true);
+    expect(ehUsuarioSemFilial({ status: 403, code: 'USUARIO_SEM_FILIAL' })).toBe(true);
+    expect(ehUsuarioSemFilial(null)).toBe(false);
+    expect(codigoDoErroHttp({ status: 403, code: 'A', codigo: 'B' })).toEqual({ status: 403, codigo: 'A' });
+    expect(codigoDoErroHttp(undefined)).toEqual({ status: undefined, codigo: undefined });
+    expect(ehUsuarioSemFilial('USUARIO_SEM_FILIAL')).toBe(false);
+  });
+  it('mensagem aprovada', () => {
+    expect(MENSAGEM_USUARIO_SEM_FILIAL).toBe('Sua conta está sem filial de cadastro. Peça ao administrador da empresa para informar a filial.');
   });
 });
