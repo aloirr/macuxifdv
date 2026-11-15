@@ -17,7 +17,6 @@ import {
   ROTA_DADOS_LEGAIS_PUBLICOS,
   ROTA_PORTAL_DADOS_LEGAIS,
   type AcessoBanco,
-  type AcessoPortalAutenticado,
   type DadosLegais,
   type GravarDadosLegais,
 } from '@macuxi/platform-sdk';
@@ -25,7 +24,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { z } from 'zod';
 import { ErroHttp } from './erros';
 import { criarLimitador, recusarPorLimite } from './limitador';
-import { conferirRetorno, exigirSuperAdmin as exigirSuperAdminDoPortal, traduzirErroSa } from './portal-comum';
+import { conferirRetorno, exigirSuperAdmin as exigirSuperAdminDoPortal, traduzirErroSa, type AutenticarPortal } from './portal-comum';
 
 /** Acesso às funções do banco (testes injetam a sua). Devolvem o jsonb cru `{ razao_social, cnpj, site }`; a rota confere pelo contrato. */
 export interface FonteDadosLegais {
@@ -56,7 +55,7 @@ export interface DepsDadosLegais {
   acessoPortal: AcessoBanco;
   fonte?: FonteDadosLegais;
   /** Quem entrou pelo portal; `null` = 401 (sem o banco do portal, lança 503 `PORTAL_INDISPONIVEL`). */
-  autenticar(req: FastifyRequest): Promise<AcessoPortalAutenticado | null>;
+  autenticar: AutenticarPortal;
   validar(schema: z.ZodTypeAny, valor: unknown, onde: string): unknown;
   relogio: () => Date;
 }
@@ -128,7 +127,7 @@ export function registrarRotasDadosLegais(app: FastifyInstance, dep: DepsDadosLe
     }
   });
 
-  const exigirSuperAdmin = (req: FastifyRequest) => exigirSuperAdminDoPortal(dep, req, null, SO_A_MACUXI);
+  const exigirSuperAdmin = (req: FastifyRequest) => exigirSuperAdminDoPortal(dep.autenticar, req, null, SO_A_MACUXI);
 
   app.get(ROTA_PORTAL_DADOS_LEGAIS, async (req, reply) => {
     const quem = await exigirSuperAdmin(req);

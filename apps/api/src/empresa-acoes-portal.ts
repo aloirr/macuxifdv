@@ -23,6 +23,7 @@ import {
   ExclusaoEmpresaSchema,
   InativarEmpresaSchema,
   ListaBackupsEmpresaSchema,
+  MENSAGEM_SO_SUPER_ADMIN_ACOES,
   MENSAGENS_ACOES_EMPRESA,
   PedirBackupEmpresaSchema,
   ReativarEmpresaSchema,
@@ -40,7 +41,7 @@ import { chaveDeTentativaDoPortal } from '@macuxi/platform-sdk/tentativas-portal
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ErroHttp } from './erros';
-import { conferirRetorno as conferir, exigirSuperAdmin, traduzirErroSa, type AutenticacaoDoPortal } from './portal-comum';
+import { conferirRetorno as conferir, exigirSuperAdmin, traduzirErroSa, type AutenticarPortal } from './portal-comum';
 
 const C = CODIGOS_ACOES_EMPRESA;
 const M = MENSAGENS_ACOES_EMPRESA;
@@ -102,7 +103,8 @@ export const fonteAcoesEmpresaNoBanco: FonteAcoesEmpresa = {
   acoesDasEmpresas: (sid, banco) => umValor(banco, 'select plataforma.sa_acoes_das_empresas($1) as r', [sid]),
 };
 
-export interface DepsAcoesEmpresa extends AutenticacaoDoPortal {
+export interface DepsAcoesEmpresa {
+  autenticar: AutenticarPortal;
   acesso: AcessoBanco;
   fonte?: FonteAcoesEmpresa;
   validar(schema: z.ZodTypeAny, valor: unknown, onde: string): unknown;
@@ -169,7 +171,7 @@ export function registrarRotasAcoesEmpresa(app: FastifyInstance, dep: DepsAcoesE
   const relogio = dep.relogio ?? (() => new Date());
 
   /** Só super-admin (RN-PLA-07); o admin do cliente recebe 403 `PERFIL_SEM_ACESSO`. */
-  const exigir = (req: FastifyRequest, tenantId: string) => exigirSuperAdmin(dep, req, tenantId, 'Só o time da Macuxi faz esta ação.');
+  const exigir = (req: FastifyRequest, tenantId: string) => exigirSuperAdmin(dep.autenticar, req, tenantId, MENSAGEM_SO_SUPER_ADMIN_ACOES);
   const empresa = (req: FastifyRequest) => (dep.validar(ParamsEmpresa, req.params, 'params') as z.output<typeof ParamsEmpresa>).tenant_id;
 
   /**
