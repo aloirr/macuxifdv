@@ -64,6 +64,22 @@ export const CODIGOS_ACOES_EMPRESA = {
   backupIndisponivel: 'BACKUP_INDISPONIVEL',
 } as const;
 export type CodigoAcaoEmpresa = (typeof CODIGOS_ACOES_EMPRESA)[keyof typeof CODIGOS_ACOES_EMPRESA];
+/**
+ * Frase de cada recusa (spec portal-config-enxuto §15.2; RD-0407): a API a põe no `mensagem` do erro e a tela mostra a mesma.
+ * Uma tabela só: corrigir o texto aqui corrige a API e o BKO.
+ */
+export const MENSAGENS_ACOES_EMPRESA: Readonly<Record<CodigoAcaoEmpresa, string>> = Object.freeze({
+  [CODIGOS_ACOES_EMPRESA.naoEncontrada]: 'Empresa não encontrada.',
+  [CODIGOS_ACOES_EMPRESA.exclusaoEmAndamento]: 'A exclusão desta empresa já está em andamento.',
+  [CODIGOS_ACOES_EMPRESA.backupEmAndamento]: 'Já há um backup desta empresa em andamento.',
+  [CODIGOS_ACOES_EMPRESA.exclusaoEmpresaAtiva]: 'Inative a empresa antes de excluir.',
+  [CODIGOS_ACOES_EMPRESA.exclusaoSemBackup]: 'Faça o backup antes de excluir.',
+  [CODIGOS_ACOES_EMPRESA.exclusaoBackupAntesDaInativacao]: 'Faça o backup antes de excluir.',
+  [CODIGOS_ACOES_EMPRESA.exclusaoBackupVencido]: 'Faça o backup antes de excluir.',
+  [CODIGOS_ACOES_EMPRESA.exclusaoCodigoNaoConfere]: 'Código não confere.',
+  [CODIGOS_ACOES_EMPRESA.reautenticacaoFalhou]: 'Senha incorreta.',
+  [CODIGOS_ACOES_EMPRESA.backupIndisponivel]: 'O backup está indisponível neste servidor. Avise o suporte da Macuxi.',
+});
 const VALORES_CODIGOS_ACOES = Object.values(CODIGOS_ACOES_EMPRESA) as [
   CodigoAcaoEmpresa,
   ...CodigoAcaoEmpresa[],

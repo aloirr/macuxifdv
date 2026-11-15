@@ -13,7 +13,6 @@
  * no `onResponse` (`marcarPortal`). Ligado só com `empresaAcoesPortal` (`MACUXI_EMPRESA_ACOES=1` no `servidor.ts`).
  * Sem dado pessoal no log: só ids e códigos. A senha da confirmação nunca volta, nunca vai a log nem ao banco.
  */
-import { createHmac } from 'node:crypto';
 import { CODIGOS_PORTAL } from '@macuxi/core/contracts';
 import { verificarSenha } from '@macuxi/db';
 import {
@@ -24,6 +23,7 @@ import {
   ExclusaoEmpresaSchema,
   InativarEmpresaSchema,
   ListaBackupsEmpresaSchema,
+  MENSAGENS_ACOES_EMPRESA,
   PedirBackupEmpresaSchema,
   ReativarEmpresaSchema,
   ROTAS_ACOES_EMPRESA,
@@ -31,16 +31,19 @@ import {
   type AcessoBanco,
   type AcessoPortalAutenticado,
   type AcoesDaEmpresa,
+  type CodigoAcaoEmpresa,
   type ExcluirEmpresa,
   type InativarEmpresa,
   type PedirBackupEmpresa,
 } from '@macuxi/platform-sdk';
+import { chaveDeTentativaDoPortal } from '@macuxi/platform-sdk/tentativas-portal';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ErroHttp } from './erros';
-import { marcarPortal } from './plataforma';
+import { conferirRetorno as conferir, exigirSuperAdmin, traduzirErroSa, type AutenticarPortal } from './portal-comum';
 
 const C = CODIGOS_ACOES_EMPRESA;
+const M = MENSAGENS_ACOES_EMPRESA;
 
 /** Linha da `sa_reautenticar` (0 linhas = conta inativa). O hash nunca sai daqui. */
 export interface ContaParaReautenticar {
@@ -99,19 +102,11 @@ export const fonteAcoesEmpresaNoBanco: FonteAcoesEmpresa = {
   acoesDasEmpresas: (sid, banco) => umValor(banco, 'select plataforma.sa_acoes_das_empresas($1) as r', [sid]),
 };
 
-/**
- * Chave das tentativas de senha do e-mail: a MESMA do login do portal (`chaveDeTentativa` do Core,
- * `modules/core/api/seguranca-plataforma.ts`), para a senha errada na confirmação contar no mesmo limite (ADR 0052 §3.2).
- * O Core não exporta a função; mudou lá, muda aqui (o teste fixa o valor).
- */
-export const chaveDeTentativaDoPortal = (segredo: string, email: string): string =>
-  createHmac('sha256', segredo).update(`portal.login:${email.trim().toLowerCase()}`).digest('hex');
-
 export interface DepsAcoesEmpresa {
   acesso: AcessoBanco;
   fonte?: FonteAcoesEmpresa;
   /** Quem entrou pelo portal; `null` = 401. */
-  autenticar(req: FastifyRequest): Promise<AcessoPortalAutenticado | null>;
+  autenticar: AutenticarPortal;
   validar(schema: z.ZodTypeAny, valor: unknown, onde: string): unknown;
   /** Bucket S3 e `MACUXI_BACKUP_EMPRESA_CHAVE` configurados (falso = 503 `BACKUP_INDISPONIVEL` no pedido de backup). */
   backupDisponivel: boolean;
@@ -134,32 +129,19 @@ const CODIGOS_422 = new Set<string>([
   C.exclusaoBackupVencido,
   C.exclusaoCodigoNaoConfere,
 ]);
-/** Texto provisório (o final é do designer-ux, portal-config-enxuto §15); a tela decide pelo código. */
-const MENSAGENS: Readonly<Record<string, string>> = {
-  [C.exclusaoEmAndamento]: 'A exclusão desta empresa já está em andamento.',
-  [C.backupEmAndamento]: 'Já há um backup desta empresa em andamento.',
-  [C.exclusaoEmpresaAtiva]: 'Inative a empresa antes de excluir.',
-  [C.exclusaoSemBackup]: 'Faça o backup da empresa antes de excluir.',
-  [C.exclusaoBackupAntesDaInativacao]: 'Faça um backup novo, com a empresa inativa.',
-  [C.exclusaoBackupVencido]: 'O backup passou do prazo. Faça um backup novo.',
-  [C.exclusaoCodigoNaoConfere]: 'O código digitado não é o da empresa.',
-};
+/** A frase de cada recusa vem do SDK (`MENSAGENS_ACOES_EMPRESA`, spec §15.2): a mesma da tela. */
+const erroDaAcao = (status: number, codigo: CodigoAcaoEmpresa) => new ErroHttp(status, codigo, M[codigo]);
 
-const naoEncontrada = () => new ErroHttp(404, C.naoEncontrada, 'Empresa não encontrada.');
-
-/** SQLSTATE das `sa_*` da 0072 → HTTP, com o código do contrato no `hint`. */
+/** SQLSTATE próprios das `sa_*` da 0072 → HTTP, com o código do contrato no `hint` (os comuns ficam no `traduzirErroSa`). */
 function traduzir(e: unknown): never {
-  const x = e as { code?: unknown; hint?: unknown } | null;
-  const hint = typeof x?.hint === 'string' ? x.hint : '';
-  if (x?.code === '28000') throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Sua sessão do portal expirou. Entre de novo.');
-  if (x?.code === '42501') throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi faz esta ação.');
-  if (x?.code === 'P0002') throw naoEncontrada();
-  if (x?.code === '55000' && CODIGOS_409.has(hint)) throw new ErroHttp(409, hint, MENSAGENS[hint] ?? 'Ação indisponível agora.');
-  if (x?.code === '22023' && CODIGOS_422.has(hint)) throw new ErroHttp(422, hint, MENSAGENS[hint] ?? 'Ação recusada.');
-  if (x?.code === '22023') throw new ErroHttp(400, 'VALIDACAO', 'Pedido inválido.');
-  // o mesmo id já usado em backup ou exclusão de OUTRA empresa
-  if (x?.code === '23505') throw new ErroHttp(409, 'ID_EM_USO', 'Identificador já usado. Tente de novo.');
-  throw e;
+  return traduzirErroSa(e, (code, hint) => {
+    if (code === 'P0002') throw erroDaAcao(404, C.naoEncontrada);
+    if (code === '55000' && CODIGOS_409.has(hint)) throw erroDaAcao(409, hint as CodigoAcaoEmpresa);
+    if (code === '22023' && CODIGOS_422.has(hint)) throw erroDaAcao(422, hint as CodigoAcaoEmpresa);
+    if (code === '22023') throw new ErroHttp(400, 'VALIDACAO', 'Pedido inválido.');
+    // o mesmo id já usado em backup ou exclusão de OUTRA empresa
+    if (code === '23505') throw new ErroHttp(409, 'ID_EM_USO', 'Identificador já usado. Tente de novo.');
+  });
 }
 
 async function chamar<T>(f: () => Promise<T>): Promise<T> {
@@ -168,12 +150,6 @@ async function chamar<T>(f: () => Promise<T>): Promise<T> {
   } catch (e) {
     return traduzir(e);
   }
-}
-
-function conferir<S extends z.ZodTypeAny>(schema: S, bruto: unknown, funcao: string): z.output<S> {
-  const r = schema.safeParse(bruto);
-  if (!r.success) throw new Error(`${funcao} devolveu formato diferente do combinado (ADR 0052; packages/platform-sdk/src/empresa-acoes.ts)`);
-  return r.data;
 }
 
 /**
@@ -196,13 +172,7 @@ export function registrarRotasAcoesEmpresa(app: FastifyInstance, dep: DepsAcoesE
   const relogio = dep.relogio ?? (() => new Date());
 
   /** Só super-admin (RN-PLA-07); o admin do cliente recebe 403 `PERFIL_SEM_ACESSO`. */
-  const exigir = async (req: FastifyRequest, tenantId: string): Promise<AcessoPortalAutenticado> => {
-    const quem = await dep.autenticar(req);
-    if (!quem) throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Entre no portal para continuar.');
-    marcarPortal(req, { quem, tenantId });
-    if (quem.tipo !== 'super_admin') throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi faz esta ação.');
-    return quem;
-  };
+  const exigir = (req: FastifyRequest, tenantId: string) => exigirSuperAdmin(dep.autenticar, req, tenantId, 'Só o time da Macuxi faz esta ação.');
   const empresa = (req: FastifyRequest) => (dep.validar(ParamsEmpresa, req.params, 'params') as z.output<typeof ParamsEmpresa>).tenant_id;
 
   /**
@@ -214,14 +184,14 @@ export function registrarRotasAcoesEmpresa(app: FastifyInstance, dep: DepsAcoesE
     if (!segredo || segredo.length < 32)
       throw new ErroHttp(503, CODIGOS_PORTAL.indisponivel, 'O acesso ao portal está indisponível no momento. Avise o suporte da Macuxi.');
     const conta = await chamar(() => fonte.reautenticar(quem.sessao_id, dep.acesso));
-    if (!conta) throw new ErroHttp(403, C.reautenticacaoFalhou, 'A senha não confere.');
+    if (!conta) throw erroDaAcao(403, C.reautenticacaoFalhou);
     const chave = chaveDeTentativaDoPortal(segredo, conta.email);
     const bloqueada = (e: EstadoTentativaPortal) => e.bloqueado_ate !== null && e.bloqueado_ate.getTime() > relogio().getTime();
     const bloqueio = () => new ErroHttp(423, CODIGOS_PORTAL.bloqueado, 'Acesso bloqueado por tentativas erradas. Tente de novo em 15 minutos.');
     if (bloqueada(await fonte.tentativaEstado(chave, dep.acesso))) throw bloqueio();
     if (!(await conferirSenha(senha, conta.senha_hash))) {
       if (bloqueada(await fonte.tentativaFalha(chave, dep.acesso))) throw bloqueio();
-      throw new ErroHttp(403, C.reautenticacaoFalhou, 'A senha não confere.');
+      throw erroDaAcao(403, C.reautenticacaoFalhou);
     }
     await fonte.tentativaSucesso(chave, dep.acesso);
   };
@@ -248,7 +218,7 @@ export function registrarRotasAcoesEmpresa(app: FastifyInstance, dep: DepsAcoesE
     const corpo = dep.validar(PedirBackupEmpresaSchema, req.body, 'corpo') as PedirBackupEmpresa;
     // falha fechada (ADR 0052 §2.3): sem bucket ou sem chave, nada é gravado
     if (!dep.backupDisponivel)
-      throw new ErroHttp(503, C.backupIndisponivel, 'O backup está indisponível neste servidor. Avise o suporte da Macuxi.');
+      throw erroDaAcao(503, C.backupIndisponivel);
     const r = await chamar(() => fonte.pedirBackup(quem.sessao_id, tenantId, corpo.id, dep.acesso));
     return reply.code(202).send(conferir(BackupEmpresaSchema, r, 'sa_pedir_backup'));
   });

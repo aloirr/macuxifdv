@@ -592,11 +592,12 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   // T-0091: tudo do portal na conexão do macuxi_portal; sem ela, 503 antes de olhar o token
   // ADR 0048: uma consulta de CNPJ só (mesmo cache) para a rota de consulta e para a criação da empresa
   const consultaCnpj = op.consultaCnpj ?? consultaCnpjPadrao();
+  const autenticarDoPortal = async (req: FastifyRequest) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal());
   registrarRotasPlataforma(app, {
     manifestos,
     acesso: acessoPortal,
     fonte: fontePlataforma,
-    autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+    autenticar: autenticarDoPortal,
     validar,
     ...(op.senhaPortal ? { senha: op.senhaPortal } : {}),
     // T-0094: o redefinir senha do admin cifra a carga do e-mail com a mesma chave da porta (só a porta da API sabe cifrar)
@@ -616,7 +617,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     registrarRotasAcoesEmpresa(app, {
       acesso: acessoPortal,
       ...(op.fonteAcoesEmpresa ? { fonte: op.fonteAcoesEmpresa } : {}),
-      autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+      autenticar: autenticarDoPortal,
       validar,
       backupDisponivel: op.backupEmpresaDisponivel ?? false,
       segredoPlataforma: () => process.env.MACUXI_JWT_SEGREDO_PLATAFORMA,
@@ -629,7 +630,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     registrarRotasDiagnosticosPortal(app, {
       acesso: acessoPortal,
       ...(op.fonteDiagnosticos ? { fonte: op.fonteDiagnosticos } : {}),
-      autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+      autenticar: autenticarDoPortal,
       validar,
       armazenamento: op.arquivos ?? null,
     });
@@ -637,7 +638,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
 
   // ADR 0048: consulta de CNPJ na base pública da Receita (passo Empresa do portal), super-admin ou admin do cliente
   registrarRotaConsultaCnpj(app, {
-    autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+    autenticar: autenticarDoPortal,
     validar,
     consulta: consultaCnpj,
   });
@@ -649,7 +650,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       fonte: fontePlataforma,
       ...(op.senhaPortal ? { senha: op.senhaPortal } : {}),
       ...(op.fontePlanos ? { fontePlanos: op.fontePlanos } : {}),
-      autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+      autenticar: autenticarDoPortal,
       validar,
       relogio,
     });
