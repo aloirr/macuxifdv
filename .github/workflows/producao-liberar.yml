@@ -2,16 +2,19 @@ name: producao — liberar versão
 
 # Trava do deploy por issue (ADR 0046; R-20261114-121700-alexandre). O repositório privado não tem "Required reviewers":
 # o environment PRODUCAO não para (a v1.0.7 subiu sem aprovação). Este workflow confere e PARA na issue de aprovação:
-#   1. conferir (sem segredo, só leitura): versão vX.Y.Z nova (a tag ainda não existe), SHA completo, disparo pelo main e
-#      a MESMA conferência do producao-publicar.yml (scripts/ci/producao-conferir.mjs): o commit está no main, tem CI
-#      verde de push no main e a imagem ghcr.io/<dono>/macuxi-api:<sha> existe no GHCR;
-#   2. abrir (issues: write): abre a issue "Aprovar deploy vX.Y.Z" com o rótulo trava-deploy, o SHA, o link deste run e
+#   1. conferir (sem segredo, só leitura): versão vX.Y.Z nova (a tag ainda não existe), SHA completo, disparo pelo main,
+#      o commit está no main e tem CI verde de push no main (scripts/ci/producao-conferir.mjs entrada e commit);
+#   2. imagem (packages: write; ADR 0051, demo desligada em 14/11/2026): se ghcr.io/<dono>/macuxi-api:<sha> ainda não
+#      existe no GHCR, monta o apps/api/Dockerfile DESSE commit (só depois do CI verde do passo 1) e envia só a tag <sha>.
+#      Tag que já existe nunca é montada de novo (o digest não muda entre liberar, aprovar e publicar); GHCR sem resposta
+#      = falha, sem build. Em seguida, a MESMA conferência do producao-publicar.yml (producao-conferir.mjs conferir:
+#      commit no main, CI verde e digest da imagem);
+#   3. abrir (issues: write): abre a issue "Aprovar deploy vX.Y.Z" com o rótulo trava-deploy, o SHA, o link deste run e
 #      os commits e PRs desde a última tag v* (scripts/ci/producao-trava.mjs abrir). NÃO cria tag nem dispara deploy.
 # A aprovação é o comentário "aprovado vX.Y.Z" do Alexandre (conta aloirr, pelo chat e pela ponte) na issue: o
 # producao-aprovar.yml confere tudo de novo, cria a tag com o GITHUB_TOKEN, fecha a issue como aprovada e dispara o
 # producao-publicar.yml na tag. Para recusar: fechar a issue sem comentar.
-# Commit só de .github/docs não monta imagem na demo (scripts/ci/demo-mudou.mjs): antes de liberar um commit desses, rode o
-# "demo — publicar" manual no main. Nenhum segredo: só o GITHUB_TOKEN; entradas só por variável de ambiente.
+# Nenhum segredo: só o GITHUB_TOKEN; entradas só por variável de ambiente.
 
 on:
   workflow_dispatch:
@@ -37,16 +40,12 @@ defaults:
 
 jobs:
   conferir:
-    name: versão nova, commit no main, CI verde e imagem da API
+    name: versão nova, commit no main e CI verde
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
       actions: read
-      packages: read
-    outputs:
-      sha: ${{ steps.alvo.outputs.sha }}
-      versao: ${{ steps.alvo.outputs.versao }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -64,11 +63,87 @@ jobs:
           SHA: ${{ inputs.sha }}
         run: node scripts/ci/producao-conferir.mjs entrada
 
+      - name: commit no main e CI verde (antes de montar qualquer imagem)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSAO: ${{ inputs.versao }}
+          SHA: ${{ inputs.sha }}
+        run: node scripts/ci/producao-conferir.mjs commit
+
+  imagem:
+    name: imagem da API do commit (monta só se não existe) e digest
+    needs: conferir
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    outputs:
+      sha: ${{ steps.alvo.outputs.sha }}
+      versao: ${{ steps.alvo.outputs.versao }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: a imagem da API do commit já existe no GHCR?
+        id: existe
+        env:
+          SHA: ${{ inputs.sha }}
+          DONO: ${{ github.repository_owner }}
+        run: node scripts/ci/producao-conferir.mjs imagem
+
+      - name: dono do registro (minúsculo)
+        id: dono
+        if: steps.existe.outputs.existe == '0'
+        env:
+          DONO: ${{ github.repository_owner }}
+        run: echo "dono=${DONO,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.existe.outputs.existe == '0'
+
+      # o build usa o código DO COMMIT liberado (pasta alvo/); os scripts de conferência continuam os do main
+      - uses: actions/checkout@v4
+        if: steps.existe.outputs.existe == '0'
+        with:
+          ref: ${{ inputs.sha }}
+          path: alvo
+          persist-credentials: false
+
+      - name: imagem da API e do worker (build do commit)
+        if: steps.existe.outputs.existe == '0'
+        uses: docker/build-push-action@v6
+        with:
+          context: alvo
+          file: alvo/apps/api/Dockerfile
+          push: false
+          load: true
+          provenance: false
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          tags: ghcr.io/${{ steps.dono.outputs.dono }}/macuxi-api:${{ inputs.sha }}
+          cache-from: type=gha,scope=macuxi-api
+          cache-to: type=gha,scope=macuxi-api,mode=max
+
+      # T-0154: envio ao GHCR com novas tentativas no 403/429/5xx; só a tag <sha> (a produção usa o digest)
+      - name: imagem da API e do worker (envio ao GHCR, com novas tentativas)
+        if: steps.existe.outputs.existe == '0'
+        env:
+          IMG: ghcr.io/${{ steps.dono.outputs.dono }}/macuxi-api
+          SHA: ${{ inputs.sha }}
+        run: bash scripts/deploy/demo/ghcr-tentar.sh "envio da API ($SHA)" -- docker push "$IMG:$SHA"
 
       - name: commit no main, CI verde e digest da imagem da API
         id: alvo
@@ -81,7 +156,7 @@ jobs:
 
   abrir:
     name: abre a issue "Aprovar deploy" (não cria tag nem dispara deploy)
-    needs: conferir
+    needs: imagem
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -100,6 +175,6 @@ jobs:
       - name: issue de aprovação com os commits e PRs desde a última tag v*
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSAO: ${{ needs.conferir.outputs.versao }}
-          SHA: ${{ needs.conferir.outputs.sha }}
+          VERSAO: ${{ needs.imagem.outputs.versao }}
+          SHA: ${{ needs.imagem.outputs.sha }}
         run: node scripts/ci/producao-trava.mjs abrir
