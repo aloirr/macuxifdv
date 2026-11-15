@@ -2,10 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, LoadingBlock, PageHeader, Panel, SelectField, TabelaDados, TextField, useToast, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, Drawer, ErrorBlock, EstadoVazio, FilterBar, LoadingBlock, PageHeader, Panel, SelectField, TabelaDados, TextField, useToast, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
 import { TIPOS_MAPEAMENTO, type Mapeamento, type MapeamentoItem, type TipoMapeamento } from '../../contracts';
 import { ROTULO_TIPO_MAPEAMENTO, mostrarFiltrosDePara, podeExecutar } from '../lib/apresentacao';
-import { VazioSimples } from './vazio-simples';
 import { useApagarMapeamento, useCodigosMacuxi, useGravarMapeamento, useMapeamentos, useSessaoDoBko } from '../lib/queries';
 
 const VAZIO: Mapeamento = { tipo: 'condicao_pagamento', codigo_erp: '', codigo_macuxi: '', descricao: '', ativo: true };
@@ -154,7 +153,7 @@ export function DeParaPage() {
             esmaecida={(m) => !m.ativo}
             acoes={pode ? acoes : undefined}
             vazio={
-              <VazioSimples titulo={todos.length === 0 ? 'Nenhum de-para ainda.' : 'Nenhum de-para com esses filtros.'} testId="integracao.mapeamento.vazio" />
+              <EstadoVazio semBorda titulo={todos.length === 0 ? 'Nenhum de-para ainda.' : 'Nenhum de-para com esses filtros.'} testId="integracao.mapeamento.vazio" />
             }
           />
           </Panel>

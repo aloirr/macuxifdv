@@ -3,14 +3,13 @@
 import { useState } from 'react';
 import type { Perfil } from '@macuxi/platform-sdk';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, FilterBar, Panel, SelectField, TabelaDados, formatDataHoraCurta, formatDuracao, formatInt, useToast, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, EstadoVazio, FilterBar, Panel, SelectField, TabelaDados, formatDataHoraCurta, formatDuracao, formatInt, useToast, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
 import { ENTIDADES, type LoteListagemItem } from '../../contracts';
 import { STATUS_LOTE, acoesDoLote, duracaoLoteSegundos, linhasIntegradas } from '../../domain';
 import { ROTULO_ENTIDADE, ROTULO_STATUS, podeExecutar, rotuloDoLote, tomDoLote } from '../lib/apresentacao';
 import { FILTROS_VAZIOS, type FiltrosMonitor, temFiltro } from '../lib/filtros-url';
 import { precisaAutorizador, useCancelarLote, useReprocessarLote } from '../lib/queries';
 import { AutorizarReprocessamento } from './autorizar-reprocessamento';
-import { VazioSimples } from './vazio-simples';
 
 const numero = formatInt;
 
@@ -139,7 +138,7 @@ export function LotesPanel({
         testId="integracao.lotes"
         linhaTestId={(l) => `integracao.lote.${l.lote_id}`}
         vazio={
-          <VazioSimples
+          <EstadoVazio semBorda
             titulo={filtrado ? 'Nenhum lote com esses filtros.' : 'Nenhum lote recebido ainda.'}
             testId="integracao.lotes.vazio"
             acao={filtrado ? <Button onClick={() => mudar({ ...FILTROS_VAZIOS, lote: filtros.lote })}>Limpar filtros</Button> : undefined}

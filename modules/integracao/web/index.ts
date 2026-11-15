@@ -21,7 +21,7 @@ export const moduloWeb = definirModuloShell<ComponentType>({
 });
 
 /** T-0087: o portal `config.` divide o CSV grande em partes da mesma sessão no navegador com a MESMA regra da API (RN-INT-06). */
-export { dividirCsvEmPartes, BYTES_MAX_PARTE_ARQUIVO, PARTES_MAX_SESSAO, type ParteDoArquivo, type ResultadoDivisao } from '../domain/carga-arquivo-partes';
+export { dividirCsvEmPartes, type ParteDoArquivo } from '../domain/carga-arquivo-partes';
 
 /** RD-0961: rótulos e tons dos 5 status do lote (RN-INT-15) e a função estado → status, para o portal e o BKO usarem um só texto. */
 export { rotuloDoLote, tomDoLote } from './lib/apresentacao';
