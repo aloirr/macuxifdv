@@ -34,10 +34,13 @@ export const ESTILO_CAMPO = StyleSheet.create({
   erro: { ...fonte.body, fontSize: 12, color: colors.danger },
 });
 
-/** Rótulo de campo (acima da entrada). Use quando o controle não é um `CampoTexto` (ex.: escolha, data). */
-export function RotuloCampo({ children, nativeID }: { children: string; nativeID?: string }) {
+/**
+ * Rótulo de campo (acima ou ao lado da entrada), o único do kit (RD-0953). Use quando o controle não é um `CampoTexto`
+ * (ex.: `ListaSuspensa`, `Desconto`, data). `numberOfLines`: com fonte grande, quebra em até N linhas.
+ */
+export function RotuloCampo({ children, nativeID, numberOfLines }: { children: string; nativeID?: string; numberOfLines?: number }) {
   return (
-    <Text style={ESTILO_CAMPO.rotulo} nativeID={nativeID}>
+    <Text style={ESTILO_CAMPO.rotulo} nativeID={nativeID} numberOfLines={numberOfLines}>
       {children}
     </Text>
   );

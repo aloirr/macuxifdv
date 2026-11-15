@@ -14,7 +14,7 @@ import { ActivityIndicator, StyleSheet, Text, View, type StyleProp, type ViewSty
 import { ehSemDado, leituraDaLinhaDeValor, VALOR_SEM_DADO } from './componentes';
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
-import { ALTURA, BOTAO_DESABILITADO, colors, fonte, radius, TONS_ESTADO, type TomEstado } from './theme';
+import { ALTURA, BOTAO_DESABILITADO, colors, fonte, radius, TONS_ESTADO, type as t, type TomEstado } from './theme';
 
 // ---------- RodapeTotal ----------
 export function RodapeTotal({
@@ -358,9 +358,9 @@ const s = StyleSheet.create({
   tabelaEsqueleto: { width: 72, height: 12, borderRadius: 6, backgroundColor: colors.lineSoft },
   tabelaRodape: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   tabelaRodapeTexto: { ...fonte.body, fontSize: 12, color: colors.ink2 },
-  // linha do Resumo: coluna do rótulo de 64 dp (cabe "ENTREGA" em 11/bold)
+  // linha do Resumo: coluna do rótulo de 64 dp (cabe "ENTREGA" no `type.rotulo`)
   resumo: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
-  resumoRotulo: { width: 64, paddingTop: 2, ...fonte.semibold, fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.ink2 },
+  resumoRotulo: { ...t.rotulo, width: 64, paddingTop: 2 },
   resumoConteudo: { flex: 1, minWidth: 0, gap: 2 },
   resumoMarca: { ...fonte.semibold, fontSize: 12, color: colors.accentInk },
   resumoTexto: { ...fonte.body, fontSize: 14, lineHeight: 20, color: colors.ink },
