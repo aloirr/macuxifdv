@@ -28,4 +28,10 @@ describe('GET /integracao/monitor: resumo_pedidos (T-0173)', () => {
     expect(ResumoPedidosErp.safeParse(r.resumo_pedidos).success).toBe(true);
     expect(MonitorResumo.safeParse(r).success).toBe(true);
   });
+
+  it('RD-0963: os 5 números só existem em resumo_pedidos (sem o bloco repetido `pedidos`)', async () => {
+    const r = (await rotaMonitor.executar(montarCtx() as never)) as unknown as Record<string, unknown>;
+    expect(r).not.toHaveProperty('pedidos');
+    expect(Object.keys(MonitorResumo.shape)).not.toContain('pedidos');
+  });
 });

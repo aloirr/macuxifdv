@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, Drawer, ErrorBlock, EstadoVazio, FilterBar, LoadingBlock, PageHeader, Panel, SelectField, TabelaDados, TextField, useToast, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, LoadingBlock, PageHeader, Panel, SelectField, TabelaDados, TextField, useToast, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
 import { TIPOS_MAPEAMENTO, type Mapeamento, type MapeamentoItem, type TipoMapeamento } from '../../contracts';
-import { ROTULO_TIPO_MAPEAMENTO, podeExecutar } from '../lib/apresentacao';
+import { ROTULO_TIPO_MAPEAMENTO, mostrarFiltrosDePara, podeExecutar } from '../lib/apresentacao';
+import { VazioSimples } from './vazio-simples';
 import { useApagarMapeamento, useCodigosMacuxi, useGravarMapeamento, useMapeamentos, useSessaoDoBko } from '../lib/queries';
 
 const VAZIO: Mapeamento = { tipo: 'condicao_pagamento', codigo_erp: '', codigo_macuxi: '', descricao: '', ativo: true };
@@ -128,6 +129,7 @@ export function DeParaPage() {
             </Panel>
           )}
 
+          {mostrarFiltrosDePara(todos.length) && (
           <FilterBar>
             <SelectField label="Entidade" value={entidade} onChange={(e) => setEntidade(e.target.value)} data-testid="integracao.mapeamento.filtro-entidade">
               <option value="">Todas</option>
@@ -139,7 +141,9 @@ export function DeParaPage() {
             </SelectField>
             <TextField label="Buscar" placeholder="Código ou nome" value={busca} onChange={(e) => setBusca(e.target.value)} data-testid="integracao.mapeamento.busca" />
           </FilterBar>
+          )}
 
+          <Panel label="De-para de códigos">
           <TabelaDados
             colunas={colunas}
             linhas={itens}
@@ -150,13 +154,10 @@ export function DeParaPage() {
             esmaecida={(m) => !m.ativo}
             acoes={pode ? acoes : undefined}
             vazio={
-              <EstadoVazio
-                titulo={todos.length === 0 ? 'Nenhum de-para ainda.' : 'Nenhum de-para com esses filtros.'}
-                testId="integracao.mapeamento.vazio"
-                acao={pode && todos.length === 0 ? <Button variant="primary" onClick={() => abrirNovo()}>Novo de-para</Button> : undefined}
-              />
+              <VazioSimples titulo={todos.length === 0 ? 'Nenhum de-para ainda.' : 'Nenhum de-para com esses filtros.'} testId="integracao.mapeamento.vazio" />
             }
           />
+          </Panel>
         </div>
       )}
 
@@ -277,8 +278,11 @@ function FormularioDePara({ editando, inicial, retidos, existentes, salvando, on
                   return (
                     <li key={i.codigo}>
                       <button type="button" role="option" aria-selected={false} disabled={!!outro} onClick={() => setV({ ...v, codigo_macuxi: i.codigo })} className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg px-3 text-left text-[14px] hover:bg-ground disabled:text-disabled disabled:hover:bg-transparent">
-                        <span>{rotuloMacuxi(i.codigo, i.nome)}</span>
-                        <span className="text-[12px]">{outro ? `já tem: ERP ${outro.codigo_erp}` : n ? `${n} retidos` : ''}</span>
+                        <span>
+                          <span className="font-mono text-[12px]">{i.codigo}</span>
+                          {i.nome ? ` · ${i.nome}` : ''}
+                        </span>
+                        {outro ? <span className="text-[12px]">{`já tem: ERP ${outro.codigo_erp}`}</span> : n ? <Badge tone="warning">{`${n} retidos`}</Badge> : null}
                       </button>
                     </li>
                   );

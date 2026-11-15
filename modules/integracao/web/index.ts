@@ -24,5 +24,4 @@ export const moduloWeb = definirModuloShell<ComponentType>({
 export { dividirCsvEmPartes, BYTES_MAX_PARTE_ARQUIVO, PARTES_MAX_SESSAO, type ParteDoArquivo, type ResultadoDivisao } from '../domain/carga-arquivo-partes';
 
 /** RD-0961: rótulos e tons dos 5 status do lote (RN-INT-15) e a função estado → status, para o portal e o BKO usarem um só texto. */
-export { ROTULO_STATUS, TOM_STATUS, rotuloDoLote, tomDoLote } from './lib/apresentacao';
-export { statusDoLote, STATUS_LOTE, type StatusLote } from '../domain/status-lote';
+export { rotuloDoLote, tomDoLote } from './lib/apresentacao';

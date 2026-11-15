@@ -3,20 +3,21 @@
 import { useState } from 'react';
 import type { Perfil } from '@macuxi/platform-sdk';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, EstadoVazio, FilterBar, SelectField, TabelaDados, formatDataHoraCurta, formatDuracao, useToast, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, FilterBar, Panel, SelectField, TabelaDados, formatDataHoraCurta, formatDuracao, formatInt, useToast, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
 import { ENTIDADES, type LoteListagemItem } from '../../contracts';
-import { STATUS_LOTE, acoesDoLote, duracaoLoteSegundos, linhasIntegradas, statusDoLote } from '../../domain';
-import { ROTULO_ENTIDADE, ROTULO_STATUS, TOM_STATUS, podeExecutar } from '../lib/apresentacao';
+import { STATUS_LOTE, acoesDoLote, duracaoLoteSegundos, linhasIntegradas } from '../../domain';
+import { ROTULO_ENTIDADE, ROTULO_STATUS, podeExecutar, rotuloDoLote, tomDoLote } from '../lib/apresentacao';
 import { FILTROS_VAZIOS, type FiltrosMonitor, temFiltro } from '../lib/filtros-url';
 import { precisaAutorizador, useCancelarLote, useReprocessarLote } from '../lib/queries';
 import { AutorizarReprocessamento } from './autorizar-reprocessamento';
+import { VazioSimples } from './vazio-simples';
 
-const numero = (n: number) => n.toLocaleString('pt-BR');
+const numero = formatInt;
 
 /** Colunas da spec docs/design/integracao-simples §3: sem travessão, Conclusão vazia em andamento, número à direita. */
 function colunas(tz: string, agora: Date): ReadonlyArray<ColunaDaTabela<LoteListagemItem>> {
   return [
-    { id: 'entidade', titulo: 'Entidade', largura: '19%', celula: (l) => ROTULO_ENTIDADE[l.entidade], texto: (l) => ROTULO_ENTIDADE[l.entidade] },
+    { id: 'entidade', titulo: 'Entidade', largura: '19%', celula: (l) => <span className="font-normal">{ROTULO_ENTIDADE[l.entidade]}</span>, texto: (l) => ROTULO_ENTIDADE[l.entidade] },
     {
       id: 'lote',
       titulo: 'Lote',
@@ -42,7 +43,7 @@ function colunas(tz: string, agora: Date): ReadonlyArray<ColunaDaTabela<LoteList
       id: 'status',
       titulo: 'Status',
       largura: '15%',
-      celula: (l) => <Badge tone={TOM_STATUS[statusDoLote(l.status)]}>{ROTULO_STATUS[statusDoLote(l.status)]}</Badge>,
+      celula: (l) => <Badge tone={tomDoLote(l.status)}>{rotuloDoLote(l.status)}</Badge>,
     },
     {
       id: 'linhas',
@@ -127,6 +128,7 @@ export function LotesPanel({
         )}
       </FilterBar>
 
+      <Panel label="Lotes">
       <TabelaDados
         colunas={colunas(tz, agora)}
         linhas={lotes}
@@ -137,13 +139,14 @@ export function LotesPanel({
         testId="integracao.lotes"
         linhaTestId={(l) => `integracao.lote.${l.lote_id}`}
         vazio={
-          <EstadoVazio
+          <VazioSimples
             titulo={filtrado ? 'Nenhum lote com esses filtros.' : 'Nenhum lote recebido ainda.'}
             testId="integracao.lotes.vazio"
             acao={filtrado ? <Button onClick={() => mudar({ ...FILTROS_VAZIOS, lote: filtros.lote })}>Limpar filtros</Button> : undefined}
           />
         }
       />
+      </Panel>
 
       <Dialog
         open={cancelando !== null}

@@ -165,7 +165,6 @@ export const rotaMonitor: RotaModulo = {
         cargas: cargas.map((c) => ({ entidade: c.entidade, estado: c.estado as EstadoCargaEntidade, lotes: c.lotes, com_erro: c.com_erro, aguardando: c.aguardando })),
         pendencias_inativacao: pendencias,
         reconciliacoes: reconc.map((r) => ({ entidade: r.entidade, data_referencia: r.data_referencia, divergente: r.divergente, motivos: r.motivos, contagem_erp: Number(r.contagem_erp), contagem_macuxi: Number(r.contagem_macuxi) })),
-        pedidos: pedidosResumo,
         resumo_pedidos: resumoPedidosErp(pedidosResumo),
       } as MonitorResumo;
     });

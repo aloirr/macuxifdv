@@ -198,3 +198,6 @@ export function resumoAtualizacao(a: AtualizacaoConector | null | undefined): { 
   const versoes = a.resultado === 'atualizado' && a.versao_de && a.versao_para ? ` ${a.versao_de} → ${a.versao_para}.` : '';
   return { rotulo: ROTULO_ATUALIZACAO[a.resultado], tom: TOM_ATUALIZACAO[a.resultado], detalhe: `${a.mensagem}${versoes}` };
 }
+
+/** RD-0967: sem nenhum de-para cadastrado, filtros e busca não aparecem (o vazio só convida a cadastrar pelo cabeçalho). */
+export const mostrarFiltrosDePara = (totalCadastrado: number): boolean => totalCadastrado > 0;

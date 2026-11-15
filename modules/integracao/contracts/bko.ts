@@ -348,9 +348,7 @@ export type CodigosMacuxiResposta = z.infer<typeof CodigosMacuxiResposta>;
 
 /**
  * Os 5 números dos cards no início de BKO > Pedidos (T-0173, decisão R-20261115-110600 item 3), consumidos pelo Vendedor. Já vêm
- * em `MonitorResumo.pedidos` (`GET /v1/integracao/monitor`, ação `monitor.ver`): `por_estado.pendente` = Na fila,
- * `por_estado.enviado` = Entregue ao Conector, `por_estado.rejeitado_erp` = Rejeitado pelo ERP, `presos` e `retidos`. O domain
- * (`resumoPedidosErp`) monta este formato.
+ * em `MonitorResumo.resumo_pedidos` (`GET /v1/integracao/monitor`, ação `monitor.ver`), montado pelo domain (`resumoPedidosErp`).
  */
 export const ResumoPedidosErp = z.object({
   na_fila: z.number().int().nonnegative(),
@@ -360,7 +358,7 @@ export const ResumoPedidosErp = z.object({
   retidos_sem_mapeamento: z.number().int().nonnegative(),
 });
 export type ResumoPedidosErp = z.infer<typeof ResumoPedidosErp>;
-/** Rota (relativa a `/v1`) que traz os 5 números dentro de `MonitorResumo.pedidos`. */
+/** Rota (relativa a `/v1`) que traz os 5 números dentro de `MonitorResumo.resumo_pedidos`. */
 export const ROTA_RESUMO_PEDIDOS_ERP = '/integracao/monitor';
 
 /** Pedido na fila do ERP, para o monitor (sem itens nem dado do cliente). */
@@ -434,11 +432,6 @@ export const MonitorResumo = z.object({
       contagem_macuxi: z.number(),
     }),
   ),
-  pedidos: z.object({
-    por_estado: z.record(EstadoPedidoErp, z.number().int().nonnegative()),
-    presos: z.number().int().nonnegative(),
-    retidos: z.number().int().nonnegative(),
-  }),
   /** Os 5 números dos cards de BKO > Pedidos, já calculados pela API (T-0173); o Vendedor só exibe. Aditivo. */
   resumo_pedidos: ResumoPedidosErp,
 });
