@@ -17,7 +17,7 @@ function referenciaValida(x: { marca_external_id?: string | null; marca_nome?: s
   const cod = x.codigo.trim();
   const ext = x.marca_external_id?.trim() ?? '';
   const nome = x.marca_nome?.trim() ?? '';
-  return cod.length >= 1 && cod.length <= LIMITES_REFERENCIA.codigo && ext.length <= EXTERNAL_ID_MAX && nome.length <= LIMITES_REFERENCIA.marcaNome && (ext !== '' || nome !== '');
+  return cod.length >= 1 && cod.length <= LIMITES_REFERENCIA.codigo && ext.length <= EXTERNAL_ID_MAX && nome.length <= LIMITES_REFERENCIA.marcaNome;
 }
 
 export function limitarCatalogoDoProduto(registro: ProdutoPayload): { registro: ProdutoPayload; avisos: AvisoCorte[] } {
@@ -38,7 +38,7 @@ export function limitarCatalogoDoProduto(registro: ProdutoPayload): { registro: 
     const fora = r.referencias.length - validas.length;
     if (fora > 0) {
       r.referencias = validas;
-      avisos.push({ external_id: id, codigo: 'referencia_descartada', mensagem: `${fora} referência(s) sem marca ou com código vazio/maior que ${LIMITES_REFERENCIA.codigo} foram descartadas; o produto foi carregado (RN-CAT-09).` });
+      avisos.push({ external_id: id, codigo: 'referencia_descartada', mensagem: `${fora} referência(s) com código vazio/maior que ${LIMITES_REFERENCIA.codigo} foram descartadas; o produto foi carregado (RN-CAT-09).` });
     }
   }
   if (r.referencias && r.referencias.length > L.referencias) {
