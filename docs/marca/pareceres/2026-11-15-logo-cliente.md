@@ -57,3 +57,74 @@ Quando a implementação for aprovada, proponho a **§2.5 "Logo do cliente"** no
 
 ## Reteste
 No print do aparelho (Campo e Gestão), do portal a 1366 px e do PDF real, quando a implementação vier, depois da v1.0.9.
+
+---
+
+# Parte 2 · Implementação (T-0182, número provisório)
+
+> 2026-11-15 (Manaus) · design-de-marca. Conferido contra a parte 1 (simulação liberada com o ajuste MC-0088) e o manual.
+> Branches: `nuvem/logo-cliente-engenheiro-apps` (32849304: portal, carga e Mais), `nuvem/logo-cliente-designer-ux-ui`
+> (10d973e3: placa), `nuvem/logo-cliente-modulo-vendedor` (e98fec5e: PDF). Tarefa: `.coord/tarefas/T-0182.md`
+> (`nuvem/logo-cliente-gerente-projetos`). **Numeração:** MC-0134 (o maior número em uso nos branches `origin/nuvem/*` era
+> MC-0133; há ainda uma "MC-0300" citada só num comentário do `designer-ux` em `docs/design/erp-vinculo/`, sem parecer da
+> marca, que não usei como base).
+
+## Veredito
+**Segura só o PDF exportado pelo BKO** (MC-0134, alta, modulo-vendedor): com a logo cadastrada, o PDF que sai do BKO continua
+com a logo padrão, e o mesmo pedido sai do app com a logo da distribuidora (manual §7). **Liberados:** portal `config.`, placa,
+carga, Mais e o PDF gerado no app. A MC-0088 fecha no produto; segue aberta só na simulação (baixa, designer-ux).
+
+## Como conferi
+- **Portal:** 12 prints de 1366 px (modo falso), com as cores medidas em pixel (PIL), e o código do `cartao-logo.tsx`.
+- **Placa:** o código (`placa-logo.ts` e `placa-logo-rn.tsx`) e os tokens do kit.
+- **Carga e Mais:** o código, porque não havia print do aparelho. Não gerei HTML de conferência: o código reproduz as
+  medidas da simulação, que eu já tinha medido.
+- **PDF:** o CSS da `.logo` do branch (só ele mudou em `pdf-pedido.ts`) aplicado aos HTML da simulação. Renderizei com o
+  Playwright a 1× e a 2× e comparei pixel a pixel com a simulação.
+
+## Conferência por superfície
+
+| Superfície | O que vi ou medi | Resultado |
+|---|---|---|
+| **Portal, cartão "Logo"** (prints 0 a 5b) | É o primeiro cartão da aba Empresa. A caixa tem 240 × 96, `bg-surface` e borda `line` (#DFE2E6), com raio 12 e folga 12, e a logo em `contain`. Vazia, fica tracejada em `field` (#C9CED5, medido) sobre o `ground` (#F8F6F1, medido). "Salvar" é o principal Azul noite. "Remover" é secundário com o texto #A8261B medido (o `text-danger!` vence o `text-ink`). O erro vem em #A8261B, semibold, com ícone. Os limites vêm em `ink-2` (#4A5562). As frases são as da spec. Não há hex solto: tudo sai pelo token | **conforme** |
+| **Portal, diálogo** (print 6, anterior à correção do "Remover") | "Remover a logo?" sem corpo, "Cancelar" e "Remover" no botão de perigo #A8261B com texto branco | **conforme** |
+| **Portal, admin do cliente** (print 8) | Vê a logo e o nome fantasia, sem botões. O logo negativo Macuxi fica na barra Azul noite, e a logo do cliente é o conteúdo do cartão | **conforme** |
+| **Placa** (`PlacaLogoCliente`) | Tamanhos `carga` (64/48, até 112 × 96, folga 8) e `mais` (52/36, até 176 × 152, folgas 8/12). Fundo `colors.surface`, borda `colors.line` com 1 dp e raio `radius.md` (12). Imagem em `contain`, sem tint, sombra ou filtro. Rótulo "Logo da <nome>"; sem nome, fica decorativa | **conforme** (§1 da spec) |
+| **Carga com logo** (`tela-entrada.tsx`, `entrada.ts`) | Macuxi empilhado a 124 dp, filete de 1 × 64 dp com 24 dp de cada lado e cor `tema.trilho` (#3A4D68 no Campo e #DFE2E6 no Gestão), e a placa `carga` sem borda no Campo e com borda no Gestão. A largura vai até 285 dp. A passagem leva 240 ms, e com "reduzir movimento" é direta. A logo entra só na carga (`tela-carga.tsx`), e só a do tenant da sessão | **conforme** (variação A, como medida na parte 1) |
+| **Carga, linha "Etapa n de N · nome"** (MC-0088) | O `Barra` mostra o rótulo e o percentual sempre, em `tema.texto` (branco no Campo e Azul noite no Gestão), como no manual §4 | **conforme**: a MC-0088 fecha no produto |
+| **Login e telas de senha** | Nenhum outro uso de `PlacaLogoCliente` ou `logoCliente` no `apps/mobile` | **conforme** |
+| **Mais** (`mais.tsx`) | A frase "Licenciado para <nome>" usa `t.sub` (13, `ink2` #4A5562) com 18 de entrelinha, centralizada. A placa `mais` vem 10 dp abaixo, com borda. O `marginTop: 'auto'` leva o bloco ao pé. O mínimo acima é 24 dp (o `gap` de 14 do `Screen` mais o `paddingTop` de 10). Sem logo, fica só a frase | **conforme** |
+| **PDF no app** (`order-detail-screen.tsx`) | `logo_src` vem da cópia guardada. Com erro ou sem logo, entra a padrão | **conforme** |
+| **PDF, caixa da `.logo`** (`pdf-pedido.ts:200`) | É a regra da spec §6, letra por letra. Pedido e orçamento com logo: 181 × 60 px (48 × 16 mm), à esquerda, com raio 0, **idênticos** à simulação (diferença de pixel nula). Sem logo: a padrão em 16 × 16 mm. O raio passou de 2 mm para 0, mas não muda nada na tela, porque o PNG padrão já tem os cantos arredondados | **conforme** |
+| **PDF exportado pelo BKO** | `exportar-pdf.ts` aceita `logo_src`, mas os dois pontos que chamam não o passam | **MC-0134** |
+
+Os neutros do PDF (`#F1F2F0`, `#F3F4F1` e `#ECEEEA`) continuam como a **MC-0068** (baixa, modulo-vendedor), que segue aberta e fora deste lote.
+
+## MC-0134 (alta): o PDF exportado pelo BKO sai sem a logo da distribuidora
+
+| Campo | Conteúdo |
+|---|---|
+| ID | MC-0134 |
+| Onde | `modules/vendedor/web/components/orders/order-drawer.tsx:46` e `orders-page.tsx:68` (branch `nuvem/logo-cliente-modulo-vendedor`, e98fec5e): `exportarPdfDoPedido(dados, view, { empresa: sessao.empresa, tz })` |
+| Tipo | aplicação |
+| Fere | manual §7 ("o cabeçalho leva o logo da distribuidora; sem o logo dela, entra `logo-padrao-pdf-256.png`") e spec §6 ("os dois PDFs (cliente e escritório) e os dois tipos usam o mesmo cabeçalho") |
+| Gravidade | alta: a empresa que tem a logo cadastrada recebe, pelo BKO, o PDF com a logo padrão, e o mesmo pedido sai do app com a logo dela |
+| Correção | Nos dois pontos que chamam, passe a logo do ambiente web, que já existe: `logoDaEmpresa: logoDaEmpresaWeb` em `apps/web/lib/ambiente.ts:35/64` (branch do engenheiro-apps). Antes: `{ empresa: sessao.empresa, tz }`. Depois: `{ empresa: sessao.empresa, tz, logo_src: await ambiente.logoDaEmpresa?.().catch(() => null) }`. Assim, com erro ou sem logo, continua a padrão. Inclua um teste que confira a logo cadastrada no HTML do BKO |
+| Dono | modulo-vendedor (`modules/vendedor/**`) |
+
+## MC-0088 (baixa): fecha no produto e segue aberta na simulação
+
+- **No produto:** fechada. A linha está à vista em `tela-entrada.tsx` (`Barra`).
+- **Na simulação:** `docs/design/telas/logo-cliente/carga.html:61` ainda tem `<span aria-label="Etapa 2 de 5 · …"></span>`, e
+  `carga-campo.png` e `carga-gestao.png` saem sem a linha. A correção é a mesma da parte 1: passar para
+  `<span>Etapa 2 de 5 · ${T.etapas[1]}</span>` e gerar os dois PNG de novo, para a referência bater com o produto.
+- **Dono:** designer-ux. Não segura o lote.
+
+## Recados
+O `coord.mjs` deu HTTP 403 nesta sessão (sem acesso ao `macuxifdv-recados`), então os recados para o modulo-vendedor
+(MC-0134) e para o designer-ux (MC-0088), com cópia ao gerente-projetos, não foram gravados. A coordenação fica no relatório
+desta sessão.
+
+## Reteste
+- **MC-0134:** no HTML do PDF exportado pelo BKO, com a logo cadastrada no modo falso ou no stack isolado.
+- **Carga e Mais:** no print do aparelho (Campo e Gestão), com e sem logo, quando houver build.
