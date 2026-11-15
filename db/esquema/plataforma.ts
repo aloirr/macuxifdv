@@ -7,8 +7,8 @@
  * 0069_core_cargo_hierarquia.up.sql), 0070_plataforma_plano_assinatura.up.sql (planos e assinatura, ADR 0047),
  * 0072_plataforma_empresa_acoes.up.sql (inativar, backup e excluir a empresa, ADR 0052; só por função),
  * 0073_plataforma_dados_legais.up.sql (dados legais do rodapé, só por função), 0074_plataforma_sync_pacote.up.sql (pacote da
- * primeira carga, ADR 0054) e 0079_catalogo_foto_lote.up.sql (tipos de arquivo e trabalho sob demanda, ADR 0054),
- * para consultas da API.
+ * primeira carga, ADR 0054), 0079_catalogo_foto_lote.up.sql (tipos de arquivo e trabalho sob demanda, ADR 0054) e
+ * 0081_plataforma_frase_carga.up.sql (frases da tela de carga, globais, só por função), para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -617,4 +617,20 @@ export const trabalho = plataforma.table('trabalho', {
   ultimo_erro: text('ultimo_erro'),
   /** Fim em 'concluido' ou 'falhou' (CHECK trabalho_concluido_coerente). */
   concluido_em: timestamp('concluido_em', { withTimezone: true }),
+});
+
+/**
+ * Frases da tela de carga (0081, T-0181): cadastro GLOBAL do super-admin (sem tenant_id), vale para todas as empresas. Só por
+ * função: o portal usa sa_listar_frases_carga / sa_incluir_frase_carga / sa_editar_frase_carga e o app a
+ * frases_carga_ativas(); nenhum papel da aplicação lê a tabela direto. numero = Nº do portal (único, max + 1 na inclusão);
+ * texto 1..90 depois do trim, único entre as vivas sem diferenciar maiúsculas; as 30 iniciais com id
+ * uuid_de_chave('plataforma:frase_carga:NN'). Fora do sync por linha.
+ */
+export const fraseCarga = plataforma.table('frase_carga', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  numero: integer('numero').notNull(),
+  texto: text('texto').notNull(),
+  ativa: boolean('ativa').notNull().default(true),
+  ordem: integer('ordem').notNull(),
+  ...auditaveis(),
 });
