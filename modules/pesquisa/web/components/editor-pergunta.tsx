@@ -8,7 +8,7 @@ import { Button, cx } from '@macuxi/ui/web';
 import { TIPOS_PERGUNTA, type Operador, type Pergunta, type RegraCondicional, type TipoPergunta } from '../../contracts';
 import { adicionarOpcao, ajustarRegra, alterarOpcao, mudarTipo, novaRegra, operadoresPara, removerOpcao, ROTULO_OPERADOR, ROTULO_TIPO } from '../lib/construtor';
 
-const campo = 'h-[38px] rounded-[10px] border border-field px-3 text-[14px] text-ink disabled:bg-ground';
+const campo = 'h-[38px] rounded-[10px] border border-field px-3 text-[15px] text-ink disabled:bg-ground';
 const rotulo = 'flex flex-col gap-1 text-[12px] font-semibold text-ink-2';
 
 const numOuNada = (s: string): number | undefined => {

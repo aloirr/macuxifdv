@@ -46,6 +46,7 @@ import { ErroPapelBanco } from './banco';
 import { licencasDoTenantNoBanco, type LicencasTenant } from './licencas';
 import { mensagemSegura } from './log-seguro';
 import { publicadorTenant, registroDeConsultas, transacaoTenant } from './outbox';
+import { consumidoresDoModulo } from './trabalhos';
 
 export interface OpcoesDespachante {
   /** Pool com o papel `macuxi_worker` (lê e marca a outbox de todos os tenants; não enxerga mais nada). */
@@ -147,7 +148,7 @@ export async function verificarPapelWorker(pool: Pick<pg.Pool, 'query'>): Promis
 
 /** Eventos com consumidor instalado (o despachante só olha estes; os outros ficam na outbox). Também no resumo de `/v1/saude`. */
 export function nomesConsumidos(modulos: readonly ModuloApi[]): string[] {
-  return [...new Set(modulos.flatMap((m) => (m.consumidores ?? []).map((c) => c.evento.nome)))];
+  return [...new Set(modulos.flatMap((m) => consumidoresDoModulo(m).map((c) => c.evento.nome)))];
 }
 
 export function criarDespachante(op: OpcoesDespachante) {
@@ -161,7 +162,8 @@ export function criarDespachante(op: OpcoesDespachante) {
 
   const porEvento = new Map<string, Assinatura[]>();
   for (const m of op.modulos) {
-    for (const c of m.consumidores ?? []) {
+    // ADR 0058: os trabalhos sob demanda entram como consumidores do módulo (gravam o pedido em plataforma.trabalho)
+    for (const c of consumidoresDoModulo(m)) {
       const lista = porEvento.get(c.evento.nome) ?? [];
       lista.push({ modulo: m.manifesto.id, consumidor: c });
       porEvento.set(c.evento.nome, lista);

@@ -88,7 +88,7 @@ export const TABELAS_FORA_DO_SYNC = [
   /** Pacote da primeira carga (0074, ADR 0054): o aparelho baixa o arquivo pelo manifesto GET /v1/sync/pacotes; as linhas nunca são puxadas. */
   'plataforma.sync_pacote',
   'plataforma.sync_pacote_pedido',
-  /** Trabalho sob demanda (0079, T-0174, ADR 0054): só a API e o worker usam. */
+  /** Trabalho sob demanda (0079, T-0174, ADR 0058): só a API e o worker usam. */
   'plataforma.trabalho',
   /** Lote de fotos por ZIP e o relatório por arquivo (0079, T-0174, RN-CAT-14): só o BKO lê; a foto ligada vai ao aparelho pela produto_midia. */
   'catalogo.foto_lote',

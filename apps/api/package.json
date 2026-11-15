@@ -31,6 +31,7 @@
     "@macuxi/treinamento": "workspace:*",
     "@macuxi/vendedor": "workspace:*",
     "fastify": "^5.6.0",
+    "image-in-browser": "3.7.0",
     "jpeg-js": "0.4.4",
     "pg": "8.23.1",
     "pino": "^10.4.0",
