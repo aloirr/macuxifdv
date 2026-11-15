@@ -21,7 +21,7 @@ import {
 } from '../../domain/orcamento';
 import { ehUf } from '@macuxi/comum/endereco';
 import type { EnderecoEditadoValido } from '../../domain/endereco-pedido';
-import { tabelaAjustadaCents, type AjusteItem } from '../../domain/preco-pedido';
+import { precoTabelaDaUnidade, type AjusteItem } from '../../domain/preco-pedido';
 import { chaveDaLinha, minimoDoProdutoNoPrazo, unidadesDoProduto, type Ajuste, type ProdutoComMinimo, type FreteDoRascunho, type TransportadoraDaTela, type UnidadeDaTela } from './novo-pedido';
 import { prefillLines, prefillNotice } from './order-prefill';
 import type { Rascunho } from './pedidos';
@@ -262,7 +262,7 @@ export function dadosAtuaisDoAparelho(e: {
   cliente: SituacaoCliente;
   policy: DadosAtuais['policy'];
   estoque_bloqueia: boolean;
-  /** RN-VEN-43/46: % do prazo do documento em bp; a tabela de hoje é ajustada por ele (o orçamento guarda a tabela já ajustada), senão a diferença de preço seria falsa */
+  /** RN-VEN-43/46: % do prazo do documento em bp; a faixa escalonada vale primeiro e o % entra depois, como na API (o orçamento guarda a tabela já ajustada), senão a diferença de preço seria falsa */
   percentual_ajuste_bp?: number;
 }): DadosAtuais {
   const bp = e.percentual_ajuste_bp ?? 0;
@@ -276,7 +276,7 @@ export function dadosAtuaisDoAparelho(e: {
     const medida = sigla ? medidas.find((m) => m.unidade === sigla) : medidas[0];
     const fator = medida?.fator ?? it.factor ?? 1;
     itens[p.id] = {
-      tabela_cents: p.price_cents === null ? null : precoBaseDoItem({ preco_tabela_unidade_cents: tabelaAjustadaCents(p.price_cents, bp), faixas: e.faixas?.[p.id], medida: medidaDaFaixa(medida?.unidade ?? '', fator), fator, quantidade: it.quantity }).base_medida_cents,
+      tabela_cents: p.price_cents === null ? null : precoTabelaDaUnidade({ preco_tabela_unidade_cents: precoBaseDoItem({ preco_tabela_unidade_cents: p.price_cents, faixas: e.faixas?.[p.id], medida: medidaDaFaixa(medida?.unidade ?? '', fator), fator, quantidade: it.quantity }).base_unidade_cents, fator, percentual_ajuste_bp: bp }),
       medida_ativa: Boolean(medida),
       estoque_base: Number.isFinite(p.stock_total) ? p.stock_total : null,
       fator,

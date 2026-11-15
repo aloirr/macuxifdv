@@ -202,6 +202,19 @@ describe('RN-VEN-18 (T-0071): Transformar reconfere o que mudou, offline', () =>
     expect(com.diferenca_total_cents).toBe(0);
     expect(sem.diferenca_total_cents).not.toBe(0);
   });
+  it('RN-VEN-43: com tabela escalonada, a faixa vale antes do % do prazo (igual à API), sem diferença falsa de preço', () => {
+    // café 12 UN: tabela 1890, faixa de 10 UN a 1500 na unidade base; prazo -1,71% aplicado DEPOIS da faixa
+    const faixas = { [CAFE]: [{ medida: null, quantidade_minima: 10, preco_unidade_cents: 1500 }] };
+    const esperado = tabelaAjustadaCents(1500, -171);
+    const e = entrada([P(AGUA, 149), P(CAFE, 1890), P(GAS, 11780)]);
+    const d = detalhe();
+    const cafe = d.items.find((i) => i.product_id === CAFE)!;
+    const salvo = { ...d, items: d.items.map((i) => (i.product_id === CAFE ? { ...i, unit_price_cents: esperado } : i)) };
+    const r = reconferirDocumento({ ...e, detalhe: salvo, faixas, preco_vale: false, percentual_ajuste_bp: -171 });
+    expect(cafe.quantity).toBeGreaterThanOrEqual(10);
+    expect(r.rascunho.itens.find((i) => i.product_id === CAFE)!.tabela_cents).toBe(esperado);
+    expect(r.mudancas.some((m) => m.tipo === 'preco' && m.produto_id === CAFE)).toBe(false);
+  });
   it('RN-VEN-18: preço alterado (café 18,90 → 19,50) aparece em português e mantém o desconto em R$', () => {
     const r = reconferirDocumento(entrada([P(AGUA, 149), P(CAFE, 1950), P(GAS, 11780)]));
     expect(r.mudancas.some((m) => m.tipo === 'preco')).toBe(false);
