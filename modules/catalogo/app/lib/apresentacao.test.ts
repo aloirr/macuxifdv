@@ -2,7 +2,7 @@ import { criarRelogio } from '@macuxi/comum/relogio';
 import { describe, expect, it } from 'vitest';
 import type { ItemVitrine } from '../../contracts';
 import { formatBRL } from '@macuxi/comum';
-import { aplicacaoPrecisaRecolher, estadoOfereceJunto, rotuloEstoque, rotuloEstoqueFilial, rotuloFaixa, rotuloPreco, subtituloProduto, textoEquivaleA } from './apresentacao';
+import { aplicacaoPrecisaRecolher, estadoOfereceJunto, rotuloEstoque, estoqueDaFilial, textoDeEstoque, rotuloPreco, subtituloProduto, textoEquivaleA } from './apresentacao';
 
 // Relógio fixo (meio-dia em Manaus): a hora da atualização (-5 min) nunca cruza a meia-noite local. Ver o teste da virada do dia.
 const relogio = criarRelogio({ agora: '2026-11-03T16:00:00Z' });
@@ -38,19 +38,19 @@ describe('textos do cartão do catálogo', () => {
     expect(rotuloEstoque(promotor, AGORA, 'America/Manaus')).toBeNull();
   });
 
-  it('RN-CAT-07: faixa com quantidade e hora da atualização; desatualizado avisa; sem saldo = sem informação', () => {
+  it('RN-CAT-07: faixa com quantidade e hora da atualização; desatualizado avisa; sem saldo = Estoque: 0', () => {
     const r = rotuloEstoque(item(), AGORA, 'America/Manaus')!;
-    expect(r).toMatchObject({ texto: 'Disponível · 80 un', tom: 'success', desatualizado: false });
+    expect(r).toMatchObject({ texto: 'Estoque: 80', tom: 'success', desatualizado: false });
     expect(r.detalhe).toMatch(/^Atualizado às \d{2}:\d{2}$/);
     const velho = item({ availability: { ...item().availability!, stale: true } });
     expect(rotuloEstoque(velho, AGORA, 'America/Manaus')!.detalhe).toMatch(/^Estoque desatualizado · /);
     const vazio = item({ availability: { ...item().availability!, band: 'sem_estoque', quantity: 0, by_branch: [], updated_at: null, stale: true } });
-    expect(rotuloEstoque(vazio, AGORA, 'America/Manaus')).toMatchObject({ texto: 'Estoque sem informação', tom: 'neutral' });
+    expect(rotuloEstoque(vazio, AGORA, 'America/Manaus')).toMatchObject({ texto: 'Estoque: 0', tom: 'danger' });
   });
 
-  it('RN-CORE-39: com cliente no contexto, sem registro na filial dele o estoque é 0 (Sem estoque), não "sem informação"', () => {
+  it('RN-CORE-39: com cliente no contexto, sem registro na filial dele o estoque é 0 (Estoque: 0)', () => {
     const vazio = item({ availability: { ...item().availability!, band: 'sem_estoque', quantity: 0, by_branch: [], updated_at: null, stale: false } });
-    expect(rotuloEstoque(vazio, AGORA, 'America/Manaus', { filialDoCliente: true })).toMatchObject({ texto: 'Sem estoque', desatualizado: false, detalhe: '' });
+    expect(rotuloEstoque(vazio, AGORA, 'America/Manaus')).toMatchObject({ texto: 'Estoque: 0', tom: 'danger', desatualizado: false, detalhe: '' });
   });
 
   it('RN-CAT-07: na virada do dia (23:59, 00:00, 00:03, 00:06 em Manaus) o rótulo troca para "em dd/mm" só quando a atualização foi no dia anterior', () => {
@@ -67,13 +67,11 @@ describe('textos do cartão do catálogo', () => {
     }
   });
 
-  it('RF-CAT-03: faixa por filial mostra rótulo legível (nunca o código cru) e número em pt-BR', () => {
-    expect(rotuloFaixa('disponivel')).toBe('Disponível');
-    expect(rotuloFaixa('baixo')).toBe('Estoque baixo');
-    expect(rotuloFaixa('sem_estoque')).toBe('Sem estoque');
-    expect(rotuloEstoqueFilial({ branch_name: 'Matriz', band: 'disponivel', quantity: 1200 })).toBe('Matriz: Disponível · 1.200');
-    expect(rotuloEstoqueFilial({ branch_name: 'Filial 2', band: 'baixo', quantity: null })).toBe('Filial 2: Estoque baixo');
-    expect(rotuloEstoqueFilial({ branch_name: 'Filial 3', band: 'sem_estoque', quantity: 0 })).toBe('Filial 3: Sem estoque');
+  it('RN-CAT-07: ficha com uma linha por filial, cada uma com a tag única (Estoque: N; 0 em vermelho; sem quantidade, só a faixa)', () => {
+    expect(estoqueDaFilial({ branch_name: 'Matriz', band: 'disponivel', quantity: 1200 })).toEqual({ filial: 'Matriz', texto: 'Estoque: 1.200', tom: 'success' });
+    expect(estoqueDaFilial({ branch_name: 'Filial 2', band: 'baixo', quantity: 7 })).toEqual({ filial: 'Filial 2', texto: 'Estoque: 7', tom: 'warning' });
+    expect(estoqueDaFilial({ branch_name: 'Filial 3', band: 'sem_estoque', quantity: 0 })).toEqual({ filial: 'Filial 3', texto: 'Estoque: 0', tom: 'danger' });
+    expect(textoDeEstoque('baixo', null)).toEqual({ texto: 'Pouco estoque', tom: 'warning' });
   });
 
   it('subtítulo: marca e código', () => {

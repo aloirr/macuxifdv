@@ -11,7 +11,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { caminhoCatalogo, type FichaProduto } from '../../contracts';
-import { aplicacaoPrecisaRecolher, estadoOfereceJunto, LINHAS_APLICACAO_RECOLHIDA, rotuloEstoque, rotuloEstoqueFilial, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
+import { aplicacaoPrecisaRecolher, estadoOfereceJunto, LINHAS_APLICACAO_RECOLHIDA, estoqueDaFilial, rotuloEstoque, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
 import { fichaLocal } from '../lib/local';
 import { hrefCatalogo, irParaProduto } from '../rotas';
 import { BotaoCopiarCodigo, BotoesAcao } from './comum';
@@ -70,7 +70,7 @@ export default function TelaProduto() {
   const aplicacao = catalogo?.aplicacao ?? null;
   const recolher = !!aplicacao && !aplicacaoAberta && aplicacaoPrecisaRecolher(aplicacao);
   const preco = rotuloPreco(item);
-  const estoque = rotuloEstoque(item, relogioReal().agora().toISOString(), fuso, { filialDoCliente: clienteId !== null });
+  const estoque = rotuloEstoque(item, relogioReal().agora().toISOString(), fuso);
   return (
     <Screen testID="pagina-catalogo-produto" cabecalho={{ titulo: item.description, subtitulo: `${subtituloProduto(item)} · ${item.unit}${item.ean ? ` · EAN ${item.ean}` : ''}`, voltar }}>
       {item.is_campaign || (catalogo && catalogo.etiquetas.length > 0) ? (
@@ -106,9 +106,10 @@ export default function TelaProduto() {
               {estoque.detalhe ? <Text style={[t.small, estoque.desatualizado && { color: colors.warning }]}>{estoque.detalhe}</Text> : null}
               {item.availability && item.availability.by_branch.length > 1
                 ? item.availability.by_branch.map((b) => (
-                    <Text key={b.branch_id} style={t.small}>
-                      {rotuloEstoqueFilial(b)}
-                    </Text>
+                    <View key={b.branch_id} style={s.linha}>
+                      <Text style={t.small}>{estoqueDaFilial(b).filial}</Text>
+                      <Badge label={estoqueDaFilial(b).texto} tone={estoqueDaFilial(b).tom} />
+                    </View>
                   ))
                 : null}
             </View>

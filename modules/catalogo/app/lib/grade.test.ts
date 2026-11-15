@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { montarArvore, type NoCatalogo, type VinculoProdutoNo } from '../../domain/arvore';
-import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, linhaDaMarca, precoDoCartao, rotuloAcessivelDoCartao, subtituloDaGrade, tagDeEstoque } from './grade';
+import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, codigosDoCartao, linhaDaMarca, precoDoCartao, rotuloAcessivelDoCartao, subtituloDaGrade, tagDeEstoque } from './grade';
 import { MENSAGEM_SEM_PRECO_CATALOGO } from '../../domain/vitrine';
 
 const no = (id: string, pai: string | null, nivel: number, nome: string): NoCatalogo => ({ id, pai_id: pai, nivel, codigo: id, nome, ordem: 0, ativo: true });
@@ -40,20 +40,24 @@ describe('Catálogo em grade (T-0173)', () => {
     expect(filtroDoNo(arvore, 'x')).toEqual({ sistemaId: null, categoriaId: null });
   });
 
-  it('RN-CAT-07: tag única, verde com 10 ou mais, laranja de 1 a 9, vermelha em 0, cinza sem saldo recebido', () => {
-    expect(tagDeEstoque(disp('disponivel', 84))).toEqual({ texto: '84 em estoque', tom: 'sucesso' });
-    expect(tagDeEstoque(disp('baixo', 6))).toEqual({ texto: '6 em estoque', tom: 'aviso' });
-    expect(tagDeEstoque(disp('sem_estoque', 0))).toEqual({ texto: 'Sem estoque', tom: 'erro' });
-    expect(tagDeEstoque(disp('disponivel', 5, 0))).toEqual({ texto: 'Estoque sem informação', tom: 'neutro' });
+  it('RN-CAT-07 / catalogo-grade §4: tag única "Estoque: N", sucesso com 10 ou mais, aviso de 1 a 9, erro em 0 e sem saldo recebido', () => {
+    expect(tagDeEstoque(disp('disponivel', 84))).toEqual({ texto: 'Estoque: 84', tom: 'sucesso' });
+    expect(tagDeEstoque(disp('baixo', 10))).toEqual({ texto: 'Estoque: 10', tom: 'sucesso' });
+    expect(tagDeEstoque(disp('baixo', 9))).toEqual({ texto: 'Estoque: 9', tom: 'aviso' });
+    expect(tagDeEstoque(disp('baixo', 6))).toEqual({ texto: 'Estoque: 6', tom: 'aviso' });
+    expect(tagDeEstoque(disp('sem_estoque', 0))).toEqual({ texto: 'Estoque: 0', tom: 'erro' });
+    expect(tagDeEstoque(disp('disponivel', 5, 0))).toEqual({ texto: 'Estoque: 0', tom: 'erro' });
   });
 
-  it('RN-CAT-07: tenant que não mostra a quantidade vê Em estoque e Pouco estoque', () => {
-    expect(tagDeEstoque(disp('disponivel', null))?.texto).toBe('Em estoque');
+  it('RN-CAT-07: tenant que não mostra a quantidade vê Em estoque, Pouco estoque e Sem estoque', () => {
+    expect(tagDeEstoque(disp('disponivel', null))).toEqual({ texto: 'Em estoque', tom: 'sucesso' });
     expect(tagDeEstoque(disp('baixo', null))).toEqual({ texto: 'Pouco estoque', tom: 'aviso' });
+    expect(tagDeEstoque(disp('sem_estoque', null))).toEqual({ texto: 'Sem estoque', tom: 'erro' });
+    expect(tagDeEstoque(disp('disponivel', null, 0))).toEqual({ texto: 'Sem estoque', tom: 'erro' });
   });
 
-  it('RN-CORE-39: com cliente e sem saldo na filial dele é Sem estoque, não "sem informação"', () => {
-    expect(tagDeEstoque(disp('sem_estoque', 0, 0), { filialDoCliente: true })).toEqual({ texto: 'Sem estoque', tom: 'erro' });
+  it('RN-CORE-39: com cliente e sem saldo na filial dele é Estoque: 0 (vermelho), nunca "sem informação"', () => {
+    expect(tagDeEstoque(disp('sem_estoque', 0, 0))).toEqual({ texto: 'Estoque: 0', tom: 'erro' });
   });
 
   it('RN-CAT-05: o perfil que não vê estoque não recebe tag', () => {
@@ -76,5 +80,11 @@ describe('Catálogo em grade (T-0173)', () => {
     expect(precoDoCartao(null)).toBeNull();
     expect(precoDoCartao({ texto: 'R$ 4,95', riscado: null, vendavel: true })).toBe('R$ 4,95');
     expect(precoDoCartao({ texto: 'Fora da tabela do cliente', riscado: null, vendavel: false })).toBe(MENSAGEM_SEM_PRECO_CATALOGO);
+  });
+
+  it('catalogo-campo-v2 §1: códigos em duas linhas e o copiar leva só o código do produto', () => {
+    expect(codigosDoCartao({ brand: 'Travex', equivale_a: null, erp_code: 'PAF.1434' })).toEqual({ marca: 'Travex', produto: 'PAF.1434', copiar: 'PAF.1434' });
+    expect(codigosDoCartao({ brand: 'Travex', equivale_a: { marca_nome: 'Freiomax', codigo: 'CB 3401', marcas: [], marca_id: 'm1' }, erp_code: 'PAF.1434' }).marca).toBe('Equivale a Freiomax CB 3401');
+    expect(codigosDoCartao({ brand: '', equivale_a: null, erp_code: 'PAF.1434' }).marca).toBe('');
   });
 });
