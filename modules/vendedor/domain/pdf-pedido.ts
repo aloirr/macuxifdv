@@ -194,7 +194,7 @@ const CSS = `
 @page { size: A4 landscape; margin: 10mm 10mm 12mm 10mm; }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: #FFFFFF; }
-body { font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #16202A; font-size: 15px; line-height: 1.35; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { font-family: system-ui, "Segoe UI", Roboto, -apple-system, sans-serif; color: #16202A; font-size: 15px; line-height: 1.35; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .cab { display: flex; justify-content: space-between; align-items: center; gap: 8mm; padding-bottom: 3mm; }
 .marca { display: flex; align-items: center; gap: 4mm; }
 .logo { width: 16mm; height: 16mm; object-fit: contain; border-radius: 2mm; }
@@ -211,7 +211,7 @@ body { font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe U
 .ficha.esc { grid-template-columns: 42fr 29fr 29fr; }
 .s2 { grid-column: span 2; }
 .duo { display: flex; gap: 8mm; }
-.r { font-weight: 700; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #5B6673; margin-bottom: .6mm; }
+.r { font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #5B6673; margin-bottom: .6mm; }
 .forte { font-weight: 600; }
 .sec { color: #4A5562; }
 .faixa { display: grid; grid-template-columns: 26mm 1fr; border: 1px solid #C9CED5; border-radius: 1.5mm; break-inside: avoid; page-break-inside: avoid; }
@@ -223,13 +223,13 @@ body { font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe U
 .etapas .ultima { font-weight: 600; }
 table { width: 277mm; border-collapse: collapse; table-layout: fixed; margin-top: 28px; }
 thead { display: table-header-group; }
-th { font-weight: 700; font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: #fff; background: ${COR_CABECALHO_TABELA}; text-align: left; padding: 1.8mm 2mm; }
+th { font-weight: 700; font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: #fff; background: ${COR_CABECALHO_TABELA}; text-align: left; padding: 1.8mm 2mm; }
 td { padding: 1.6mm 2mm; vertical-align: baseline; font-size: 15px; }
 tbody tr:last-child td { border-bottom: 1.5px solid #16202A; }
 tbody tr:nth-child(even) td { background: #F3F4F1; }
 tr { break-inside: avoid; page-break-inside: avoid; }
 .v { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-td.cod { font-family: "IBM Plex Mono", Consolas, monospace; font-size: 14px; color: #4A5562; }
+td.cod { font-family: ui-monospace, "Cascadia Mono", "Roboto Mono", monospace; font-variant-numeric: tabular-nums; font-size: 14px; color: #4A5562; }
 td.emb { white-space: nowrap; }
 th.n, td.n { padding-right: 3.2mm; }
 td.tot { font-weight: 600; }

@@ -5,7 +5,7 @@
  * T-0171 (RD-0214): duas linhas, cliente + total e um único fato + o selo "Some em".
  */
 import { formatBRL } from '@macuxi/comum';
-import { colors, EstadoVazio, fonts, Icon, Pressionavel, radius, Screen, Selo } from '@macuxi/ui/mobile';
+import { colors, EstadoVazio, fonte, Icon, Pressionavel, radius, Screen, Selo } from '@macuxi/ui/mobile';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -128,10 +128,10 @@ const s = StyleSheet.create({
   linha: { minHeight: 72, paddingVertical: 12, paddingHorizontal: 14, gap: 3 },
   traco: { borderTopWidth: 1, borderTopColor: colors.lineSoft },
   l1: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
-  cliente: { flex: 1, minWidth: 0, fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
-  total: { fontFamily: fonts.displayBold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
+  cliente: { flex: 1, minWidth: 0, ...fonte.semibold, fontSize: 16, color: colors.ink },
+  total: { ...fonte.displayBold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
   l2: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  fato: { flexShrink: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
+  fato: { flexShrink: 1, minWidth: 0, ...fonte.body, fontSize: 14, color: colors.ink2 },
   seta: { marginLeft: 'auto' },
   apagado: { color: colors.ink3 },
   esqueleto: { borderRadius: 6, backgroundColor: colors.lineSoft },

@@ -16,7 +16,7 @@ import {
   dateTimeLabel,
   Dialogo,
   EstadoVazio,
-  fonts,
+  fonte,
   Folha,
   HistoricoEmTags,
   LinhaValor,
@@ -748,8 +748,8 @@ export default function OrderDetailScreen() {
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-      <Text style={[t.sub, strong && { color: colors.ink, fontFamily: fonts.semibold }]}>{label}</Text>
-      <Text style={[strong ? { fontFamily: fonts.display, fontSize: 18, color: colors.ink } : t.body, { fontVariant: ['tabular-nums'] }]}>{value}</Text>
+      <Text style={[t.sub, strong && { color: colors.ink, ...fonte.semibold }]}>{label}</Text>
+      <Text style={[strong ? { ...fonte.display, fontSize: 18, color: colors.ink } : t.body, { fontVariant: ['tabular-nums'] }]}>{value}</Text>
     </View>
   );
 }
