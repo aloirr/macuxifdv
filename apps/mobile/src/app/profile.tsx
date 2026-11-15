@@ -5,7 +5,7 @@
  * módulo só são apagados depois que o usuário confirma (RN-CORE-02, Q4).
  * T-0059 (R-20261102-090915): o cartão de sincronização não mostra nome de entidade nem etapa; o detalhe técnico da
  * última falha (etapa e mensagem) e as entidades ainda sem provedor ficam na área "Diagnóstico", fechada por padrão.
- * RN-CORE-23 (T-0065): botão Sincronizar do kit (última sincronização · N na fila, proteção de 30 s) e puxar para baixo.
+ * RN-CORE-23 (T-0065): botão Sincronizar do kit (última sincronização · N na fila, no máximo 1 vez a cada 30 s — R-20261115-125500) e puxar para baixo.
  * ADR 0017: o Diagnóstico mostra também a "Última sincronização em segundo plano" (resultado, duração e mensagem).
  * T-0088: e o armazenamento ativo (SQLite do usuário e tenant com o marcador da passagem, ou AsyncStorage de reserva).
  */

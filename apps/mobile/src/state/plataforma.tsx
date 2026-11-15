@@ -237,10 +237,7 @@ function usePlataformaValor() {
   const [segundoPlano, setSegundoPlano] = useState<ResultadoSegundoPlano | null>(null);
   /** RN-CORE-23: agendador único do app (abrir, voltar depois de 30 min, `sync_auto_min`, push, puxar/botão). */
   const [agendador, setAgendador] = useState<AgendadorSync | null>(null);
-  const [estadoAgendador, setEstadoAgendador] = useState<EstadoAgendadorSync>({
-    puxando: false,
-    recente: false,
-  });
+  const [estadoAgendador, setEstadoAgendador] = useState<EstadoAgendadorSync>({ puxando: false });
   /**
    * T-0088: armazenamento aberto da sessão (SQLite do usuário e tenant ou o AsyncStorage de reserva). O motor e a
    * tarefa em segundo plano usam a MESMA instância; o logout fecha sem apagar.
