@@ -201,7 +201,8 @@ export const SalvarCadastroCatalogo = z.object({
   /** Códigos ERP de "Oferece junto" que o BKO não tem na página carregada: o servidor resolve (sem diferenciar maiúsculas) e soma aos ids (RN-CAT-09). */
   oferece_junto_codigos: z.array(z.string()).max(50).optional(),
   /** Ausente = não mexe nas referências (o BKO omite quando não carregou as marcas); lista vazia explícita = apaga todas. */
-  referencias: z.array(z.object({ marca_id: Id, codigo: z.string() })).max(20).optional(),
+  /** `marca_id` é opcional (RN-CAT-09): basta o código do concorrente. */
+  referencias: z.array(z.object({ marca_id: Id.nullish(), codigo: z.string() })).max(20).optional(),
   etiquetas: z.array(z.string()).max(20),
 });
 export type SalvarCadastroCatalogo = z.infer<typeof SalvarCadastroCatalogo>;
@@ -241,7 +242,7 @@ export const ProdutoExportacao = z.object({
   aplicacao: z.string().nullable(),
   hierarquia: z.object({ sistema: z.string().nullable(), grupo: z.string().nullable(), linha: z.string().nullable() }),
   /** `marca_nome` é aditivo (RN-CAT-09): nulo quando não há cadastro de marcas do Catálogo nem retrato gravado. */
-  referencias: z.array(z.object({ marca_id: Id, marca_nome: z.string().nullable(), codigo: z.string().min(1).max(30) })).max(3),
+  referencias: z.array(z.object({ marca_id: Id.nullable(), marca_nome: z.string().nullable(), codigo: z.string().min(1).max(30) })).max(3),
   oferece_junto: z.array(Id).max(5),
 });
 export type ProdutoExportacao = z.infer<typeof ProdutoExportacao>;

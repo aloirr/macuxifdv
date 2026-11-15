@@ -43,9 +43,9 @@ async function referenciasDosProdutos(db: { query: (sql: string, valores?: unkno
   const m = await db.query('select id, nome, ativo from catalogo.marca_concorrente where deleted_at is null');
   const marcas = new Map((m.rows as Array<{ id: string; nome: string; ativo: boolean }>).map((x) => [x.id, { nome: x.nome, ativo: x.ativo }]));
   const saida = new Map<string, Referencia[]>();
-  for (const x of r.rows as Array<{ produto_id: string; marca_id: string; codigo: string; marca_nome: string | null }>) {
+  for (const x of r.rows as Array<{ produto_id: string; marca_id: string | null; codigo: string; marca_nome: string | null }>) {
     const nome = nomeMarcaDaReferencia(x.marca_id, x.marca_nome, marcas);
-    if (nome === null) continue;
+    if (nome === null && x.marca_id !== null) continue;
     saida.set(x.produto_id, [...(saida.get(x.produto_id) ?? []), { marca_id: x.marca_id, marca_nome: nome, codigo: x.codigo }]);
   }
   return saida;

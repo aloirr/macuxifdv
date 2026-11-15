@@ -13,12 +13,14 @@ const MSG_SEM_MARCAS =
   'Não há marcas concorrentes ativas. Cadastre a marca em Catálogo → Marcas concorrentes ou salve o produto sem referência cruzada.';
 
 /** Cada referência precisa apontar para uma marca ativa de Marcas concorrentes. Mapa vazio = consulta indisponível ou sem marcas. */
-export function validarMarcasDaReferencia(referencias: readonly { marca_id: string }[], marcas: MapaMarcas): ErroCadastro[] {
-  if (referencias.length === 0) return [];
+export function validarMarcasDaReferencia(referencias: readonly { marca_id?: string | null | undefined }[], marcas: MapaMarcas): ErroCadastro[] {
+  // marca é opcional (R-20261115-073000, RN-CAT-09): só a que foi informada precisa existir e estar ativa
+  const comMarca = referencias.filter((r) => !!r.marca_id);
+  if (comMarca.length === 0) return [];
   if (marcas.size === 0) return [{ regra: 'RN-CAT-09', campo: 'referencias', mensagem: MSG_SEM_MARCAS }];
   const erros: ErroCadastro[] = [];
-  for (const r of referencias) {
-    const m = marcas.get(r.marca_id);
+  for (const r of comMarca) {
+    const m = marcas.get(r.marca_id!);
     if (!m) erros.push({ regra: 'RN-CAT-09', campo: 'referencias', mensagem: 'Uma marca da referência não existe mais em Marcas concorrentes. Escolha outra marca da lista e salve de novo.' });
     else if (!m.ativo) erros.push({ regra: 'RN-CAT-09', campo: 'referencias', mensagem: `A marca ${m.nome} está inativa em Marcas concorrentes. Ative a marca ou escolha outra e salve de novo.` });
   }
@@ -41,32 +43,37 @@ export interface ReferenciaDoErp {
 export type MotivoDescarte = 'marca_desconhecida' | 'marca_inativa' | 'codigo_invalido' | 'repetida' | 'excede_limite';
 
 export interface ResolucaoReferenciasErp {
-  referencias: { marca_id: string; marca_nome: string; codigo: string }[];
+  referencias: { marca_id: string | null; marca_nome: string | null; codigo: string }[];
   descartadas: { codigo: string; motivo: MotivoDescarte }[];
+  /** Referências que entraram sem marca por a marca informada ser desconhecida ou inativa (aviso `marca_desconhecida`). */
+  semMarca: { codigo: string; motivo: MotivoDescarte }[];
 }
 
 /**
- * Doc 06: a marca vem do ERP pelo `external_id` ou pelo nome da marca cadastrada em Marcas concorrentes. Marca desconhecida
- * (ou inativa) descarta a referência, que o consumidor avisa no log; até 3 por produto, código de 1 a 30, sem repetir.
+ * Doc 06: a marca é opcional (R-20261115-073000); basta o código. Vem do ERP pelo `external_id` ou pelo nome da marca cadastrada em
+ * Marcas concorrentes. Sem marca informada, a referência entra sem marca. Marca informada mas desconhecida (ou inativa) entra sem marca
+ * e o consumidor mantém o aviso `marca_desconhecida`; até 3 por produto, código de 1 a 30, sem repetir o código no produto.
  */
 export function resolverReferenciasDoErp(entrada: readonly ReferenciaDoErp[], marcas: readonly MarcaDoCadastro[]): ResolucaoReferenciasErp {
   const L = LIMITES_CADASTRO_CATALOGO;
-  const saida: ResolucaoReferenciasErp = { referencias: [], descartadas: [] };
+  const saida: ResolucaoReferenciasErp = { referencias: [], descartadas: [], semMarca: [] };
   const vistas = new Set<string>();
   for (const e of entrada) {
     const codigo = e.codigo.trim();
     const ext = e.marca_external_id?.trim();
     const nome = e.marca_nome?.trim() ?? '';
-    const marca = (ext ? marcas.find((m) => m.external_id === ext) : undefined) ?? (nome ? marcas.find((m) => nomeMarcaIgual(m.nome, nome)) : undefined);
+    const informada = nome !== '' || !!ext;
+    const achada = (ext ? marcas.find((m) => m.external_id === ext) : undefined) ?? (nome ? marcas.find((m) => nomeMarcaIgual(m.nome, nome)) : undefined);
+    const marca = achada?.ativo ? achada : undefined;
     const compacto = codigoCompacto(codigo);
     if (codigo === '' || codigo.length > L.codigo || compacto === '') saida.descartadas.push({ codigo, motivo: 'codigo_invalido' });
-    else if (!marca) saida.descartadas.push({ codigo, motivo: 'marca_desconhecida' });
-    else if (!marca.ativo) saida.descartadas.push({ codigo, motivo: 'marca_inativa' });
-    else if (vistas.has(`${marca.id}:${compacto}`)) saida.descartadas.push({ codigo, motivo: 'repetida' });
+    else if (vistas.has(compacto)) saida.descartadas.push({ codigo, motivo: 'repetida' });
     else if (saida.referencias.length >= L.referencias) saida.descartadas.push({ codigo, motivo: 'excede_limite' });
     else {
-      vistas.add(`${marca.id}:${compacto}`);
-      saida.referencias.push({ marca_id: marca.id, marca_nome: marca.nome, codigo });
+      vistas.add(compacto);
+      // marca informada que não vale (desconhecida ou inativa): a referência fica só com o código e o consumidor avisa
+      if (informada && !marca) saida.semMarca.push({ codigo, motivo: achada ? 'marca_inativa' : 'marca_desconhecida' });
+      saida.referencias.push({ marca_id: marca?.id ?? null, marca_nome: marca?.nome ?? null, codigo });
     }
   }
   return saida;
@@ -89,7 +96,8 @@ export function resolverCodigosOfereceJunto(codigos: readonly string[], produtos
  * Nome da marca de uma referência cruzada (RN-CAT-09). Com o cadastro de marcas disponível (mapa não vazio) ele manda:
  * marca inativa ou ausente esconde a referência (nulo). Sem o cadastro (ex.: aparelho que ainda não baixou as marcas) usa o retrato `marca_nome` gravado na referência; sem retrato (linha anterior à 0034), nulo — não mostra a marca.
  */
-export function nomeMarcaDaReferencia(marcaId: string, retrato: string | null | undefined, marcas: MapaMarcas): string | null {
+export function nomeMarcaDaReferencia(marcaId: string | null, retrato: string | null | undefined, marcas: MapaMarcas): string | null {
+  if (marcaId === null) return null;
   if (marcas.size > 0) {
     const m = marcas.get(marcaId);
     return m && m.ativo ? m.nome : null;
@@ -99,7 +107,7 @@ export function nomeMarcaDaReferencia(marcaId: string, retrato: string | null | 
 }
 
 /**
- * T-0103 / RN-CAT-09: marcas citadas pela linha do ERP que Marcas concorrentes não conhece (descarte `marca_desconhecida`), como vieram
+ * T-0103 / RN-CAT-09: marcas citadas pela linha do ERP que Marcas concorrentes não conhece (referência que entrou sem marca, `marca_desconhecida`), como vieram
  * (nome, ou o external_id se não houve nome), sem repetir (sem caixa/acento) e até 3. Nenhuma = `null` (não há aviso).
  */
 export function marcasDesconhecidasDaLinha(

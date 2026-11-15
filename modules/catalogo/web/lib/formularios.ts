@@ -98,7 +98,7 @@ export interface FormCadastroCatalogo {
 /** As 3 linhas de referência sempre aparecem; as sem marca e sem código ficam de fora ao salvar. */
 export function formCadastroDaFicha(f: Pick<FichaProduto, 'catalogo'>): FormCadastroCatalogo {
   const c = f.catalogo;
-  const refs = (c?.referencias ?? []).map((r) => ({ marca_id: r.marca_id, codigo: r.codigo }));
+  const refs = (c?.referencias ?? []).map((r) => ({ marca_id: r.marca_id ?? '', codigo: r.codigo }));
   while (refs.length < LIMITES_CADASTRO_CATALOGO.referencias) refs.push({ marca_id: '', codigo: '' });
   return { aplicacao: c?.aplicacao ?? '', ofereceJunto: (c?.oferece_junto ?? []).map((o) => o.erp_code).join('\n'), referencias: refs, etiquetas: (c?.etiquetas ?? []).join(', ') };
 }
@@ -125,14 +125,14 @@ export function cadastroCatalogoDoForm(
   // sem marcas carregadas o servidor não conhece as referências: não manda a lista (ausente = não mexe)
   const referencias = opcoes.semReferencias ? [] : f.referencias.filter((r) => r.marca_id !== '' || r.codigo.trim() !== '');
   for (const r of referencias) {
-    if (r.marca_id === '') return { ok: false, erro: `Referência "${r.codigo.trim()}": escolha a marca concorrente da lista.` };
+    // a marca é opcional (RN-CAT-09): só o código é obrigatório
     if (r.codigo.trim() === '') return { ok: false, erro: 'Há uma marca sem código. Informe o código do concorrente ou tire a marca.' };
   }
   const corpo = SalvarCadastroCatalogo.safeParse({
     aplicacao: f.aplicacao.trim() === '' ? null : f.aplicacao.trim(),
     oferece_junto: oferece,
     ...(codigosNoServidor.length > 0 ? { oferece_junto_codigos: codigosNoServidor } : {}),
-    referencias: opcoes.semReferencias ? undefined : referencias.map((r) => ({ marca_id: r.marca_id, codigo: r.codigo.trim() })),
+    referencias: opcoes.semReferencias ? undefined : referencias.map((r) => ({ marca_id: r.marca_id === '' ? null : r.marca_id, codigo: r.codigo.trim() })),
     etiquetas: f.etiquetas.split(',').map((e) => e.trim()).filter(Boolean),
   });
   if (!corpo.success) return { ok: false, erro: mensagemDoCadastro(corpo.error.issues[0]!) };

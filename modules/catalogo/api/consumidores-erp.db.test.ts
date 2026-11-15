@@ -284,15 +284,17 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
   const refsVivas = (t: Teste) =>
     t.q<{ marca_id: string; marca_nome: string | null; codigo: string; ordem: number }>('select marca_id, marca_nome, codigo, ordem from catalogo.produto_referencia where produto_id = $1 and deleted_at is null order by ordem', [PROD]);
 
-  it('RN-CAT-09: referência do ERP com marca conhecida grava o retrato marca_nome; marca desconhecida ou inativa é descartada com aviso', async () => {
+  it('RN-CAT-09: referência do ERP com marca conhecida grava o retrato marca_nome; referência sem marca, marca desconhecida ou inativa entra só com o código (marca nula)', async () => {
     await emTransacao(
       A.tenantId,
       async (t) => {
-        await t.entregar(produtoNo, evRefs([{ marca_external_id: 'MC-A', codigo: 'CB 3401' }, { marca_external_id: 'MC-NAO-EXISTE', codigo: 'ZZ 1' }, { marca_external_id: 'MC-VELHA', codigo: 'OLD 1' }, { marca_nome: 'freiomax', codigo: 'FR-77.2' }]));
+        await t.entregar(produtoNo, evRefs([{ marca_external_id: 'MC-A', codigo: 'CB 3401' }, { marca_external_id: 'MC-NAO-EXISTE', codigo: 'ZZ 1' }, { marca_external_id: 'MC-VELHA', codigo: 'OLD 1' }, { codigo: 'SEM 9' }]));
         const r = await refsVivas(t);
         expect(r.map((x) => [x.marca_id, x.marca_nome, x.codigo, Number(x.ordem)])).toEqual([
           [MARCA_A, 'Freiomax', 'CB 3401', 1],
-          [MARCA_A, 'Freiomax', 'FR-77.2', 2],
+          [null, null, 'ZZ 1', 2],
+          [null, null, 'OLD 1', 3],
+          // o 4º (SEM 9) passa de 3 e é descartado
         ]);
       },
       concA,
@@ -312,12 +314,12 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
     );
   });
 
-  it('RN-CAT-09: tenant isolado, a marca do B não resolve no A (descartada) e o retrato gravado no A não aparece no B', async () => {
+  it('RN-CAT-09: tenant isolado, a marca do B não resolve no A (entra sem marca) e o retrato gravado no A não aparece no B', async () => {
     await emTransacao(
       A.tenantId,
       async (t) => {
         await t.entregar(produtoNo, evRefs([{ marca_external_id: 'MC-B', codigo: 'LB 0099' }]));
-        expect((await refsVivas(t)).length).toBe(0);
+        expect((await refsVivas(t)).map((x) => x.marca_id)).toEqual([null]);
         await t.entregar(produtoNo, evRefs([{ marca_external_id: 'MC-A', codigo: 'CB 3401' }]));
         expect((await refsVivas(t)).length).toBe(1);
         expect((await t.q("select 1 from catalogo.produto_referencia where marca_id = $1", [MARCA_B])).length).toBe(0);

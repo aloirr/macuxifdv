@@ -224,7 +224,7 @@ export function buscarProdutos(e: EntradaBuscaProdutos): PaginaProdutos {
 /** RN-CAT-09: 'Equivale a: <marca> <código>' com o código marcado. */
 export function equivaleA(ref: Referencia | undefined): EquivaleA | null {
   if (!ref) return null;
-  const ini = ref.marca_nome.length + 1;
+  const ini = ref.marca_nome ? ref.marca_nome.length + 1 : 0;
   return { ...ref, marcas: [[ini, ini + ref.codigo.length]] };
 }
 

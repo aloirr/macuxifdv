@@ -177,7 +177,7 @@ export default function TelaProduto() {
           <SectionHeader title="Equivale a" />
           {catalogo.referencias.map((r) => (
             <Text key={`${r.marca_id}:${r.codigo}`} style={t.body}>
-              {r.marca_nome} <Text style={t.bodyStrong}>{r.codigo}</Text>
+              {r.marca_nome ? `${r.marca_nome} ` : ''}<Text style={t.bodyStrong}>{r.codigo}</Text>
             </Text>
           ))}
         </Card>

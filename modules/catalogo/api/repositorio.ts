@@ -7,7 +7,7 @@
  * transação da requisição.
  */
 import type { ClienteBanco, ContextoBase, TransacaoTenant } from '@macuxi/platform-sdk';
-import type { ItemTabelaPreco, MidiaProduto, OfereceJunto, Promocao, SalvarCadastroCatalogo, SalvarConteudo, SalvarFaixa, SalvarSinonimo, Sinonimo, StockByBranch, TermoSemResultado } from '../contracts';
+import type { ItemTabelaPreco, MidiaProduto, OfereceJunto, Promocao, Referencia, SalvarCadastroCatalogo, SalvarConteudo, SalvarFaixa, SalvarSinonimo, Sinonimo, StockByBranch, TermoSemResultado } from '../contracts';
 import type { NoCatalogo, VinculoProdutoNo } from '../domain/arvore';
 import { agruparTermosSemResultado, type ConteudoGuardado, type RegistroBusca } from '../domain/conteudo';
 import type { LinhaEscalonada } from '../domain/escalonada';
@@ -326,7 +326,8 @@ export function criarRepositorioMemoria(porTenant: Record<string, DadosTenantMem
         if (p) {
           p.aplicacao = c.aplicacao?.trim() ?? '';
           if (c.referencias !== undefined) {
-            p.referencias = c.referencias.flatMap((r) => {
+            p.referencias = c.referencias.flatMap((r): Referencia[] => {
+              if (!r.marca_id) return [{ marca_id: null, marca_nome: null, codigo: r.codigo.trim() }];
               const m = marcas.get(r.marca_id);
               return m ? [{ marca_id: r.marca_id, marca_nome: m.nome, codigo: r.codigo.trim() }] : [];
             });

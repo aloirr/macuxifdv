@@ -19,7 +19,7 @@ export interface ProdutoDaExportacao {
   descricao: string;
   aplicacao: string | null;
   hierarquia: { sistema: string | null; grupo: string | null; linha: string | null };
-  referencias: { marca_id: string; marca_nome: string | null; codigo: string }[];
+  referencias: { marca_id: string | null; marca_nome: string | null; codigo: string }[];
   oferece_junto: string[];
 }
 

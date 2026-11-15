@@ -70,7 +70,7 @@ export function subtituloProduto(item: Pick<ItemVitrine, 'brand' | 'erp_code'>):
 // ---------- aplicação e referência cruzada (RN-CAT-12, RN-CAT-09; T-0084/T-0085) ----------
 /** "Freiomax CB 3401": marca + código. */
 export function textoEquivaleA(item: Pick<ItemVitrine, 'equivale_a'>): string | null {
-  return item.equivale_a ? `${item.equivale_a.marca_nome} ${item.equivale_a.codigo}` : null;
+  return item.equivale_a ? `${item.equivale_a.marca_nome ? `${item.equivale_a.marca_nome} ` : ''}${item.equivale_a.codigo}` : null;
 }
 
 /** Ficha: acima de 6 linhas a aplicação vem recolhida com "ver mais" (estimativa por quebra de linha e ~46 caracteres por linha). */

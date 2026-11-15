@@ -35,8 +35,8 @@ export function validarCadastroCatalogo(produtoId: string, c: SalvarCadastroCata
       erro('RN-CAT-09', 'referencias', 'Informe o código do concorrente com letras ou números.');
       continue;
     }
-    const chave = `${r.marca_id}:${compacto}`;
-    if (vistas.has(chave)) erro('RN-CAT-09', 'referencias', `A referência "${codigo}" está repetida para a mesma marca. Deixe só uma.`);
+    const chave = compacto;
+    if (vistas.has(chave)) erro('RN-CAT-09', 'referencias', `A referência "${codigo}" está repetida neste produto. Deixe só uma.`);
     vistas.add(chave);
   }
 

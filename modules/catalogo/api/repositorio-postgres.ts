@@ -73,7 +73,7 @@ async function enriquecer(db: ClienteBanco, produtos: ProdutoCatalogo[], marcas:
     `select produto_id, (campanha or destaque) as campanha, aplicacoes as aplicacao from catalogo.produto_conteudo where produto_id = any($1::uuid[]) and deleted_at is null`,
     [ids],
   );
-  const rf = await db.query<{ produto_id: string; marca_id: string; codigo: string; marca_nome: string | null }>(
+  const rf = await db.query<{ produto_id: string; marca_id: string | null; codigo: string; marca_nome: string | null }>(
     `select produto_id, marca_id, codigo, marca_nome from catalogo.produto_referencia where produto_id = any($1::uuid[]) and deleted_at is null order by ordem`,
     [ids],
   );
@@ -93,7 +93,7 @@ async function enriquecer(db: ClienteBanco, produtos: ProdutoCatalogo[], marcas:
   for (const r of rf.rows) {
     // cadastro de marcas disponível: manda (marca inativa/ausente esconde); vazio: retrato marca_nome (RN-CAT-09)
     const nome = nomeMarcaDaReferencia(r.marca_id, r.marca_nome, marcas);
-    if (nome === null) continue;
+    if (nome === null && r.marca_id !== null) continue;
     referencias.set(r.produto_id, [...(referencias.get(r.produto_id) ?? []), { marca_id: r.marca_id, marca_nome: nome, codigo: r.codigo }]);
   }
   const thumb = new Map(mi.rows.map((r) => [r.produto_id, montarUrlMiniatura(r.arquivo_id, r.url)]));
@@ -434,7 +434,7 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
         await db.query(
           `insert into catalogo.produto_referencia (tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem, marca_nome)
            values (plataforma.tenant_atual(), $1::uuid, $2::uuid, $3, $4, $5::int, $6)`,
-          [produtoId, ref.marca_id, ref.codigo.trim(), codigoCompacto(ref.codigo), ordem++, marcasDoCadastro.get(ref.marca_id)?.nome.trim().slice(0, 120) || null],
+          [produtoId, ref.marca_id ?? null, ref.codigo.trim(), codigoCompacto(ref.codigo), ordem++, (ref.marca_id ? marcasDoCadastro.get(ref.marca_id) : undefined)?.nome.trim().slice(0, 120) || null],
         );
       }
       // oferece junto: relação complementar, até 5, na ordem recebida

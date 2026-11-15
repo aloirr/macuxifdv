@@ -85,6 +85,7 @@ describe('textos do cartão do catálogo', () => {
 describe('RN-CAT-12 / RN-CAT-09: aplicação e equivalência na tela', () => {
   it('RN-CAT-09: "Equivale a" mostra marca e código', () => {
     expect(textoEquivaleA({ equivale_a: { marca_id: 'm', marca_nome: 'Freiomax', codigo: 'CB 3401', marcas: [[9, 16]] } })).toBe('Freiomax CB 3401');
+    expect(textoEquivaleA({ equivale_a: { marca_id: null, marca_nome: null, codigo: 'CB 3401', marcas: [[0, 7]] } })).toBe('CB 3401'); // RN-CAT-09: sem marca, só o código
     expect(textoEquivaleA({})).toBeNull();
   });
 

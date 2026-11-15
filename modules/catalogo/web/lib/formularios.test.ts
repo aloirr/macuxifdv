@@ -61,11 +61,11 @@ describe('seção Catálogo do cadastro do produto (T-0085 K9; RN-CAT-09, RN-CAT
     expect(r.ok && 'referencias' in r.valor && r.valor.referencias !== undefined).toBe(false);
   });
 
-  it('RN-CAT-09: linhas vazias ficam de fora; marca sem código, código sem marca dão erro com a ação seguinte', () => {
+  it('RN-CAT-09: linhas vazias ficam de fora; marca sem código dá erro com a ação seguinte; código sem marca é aceito, com marca_id nulo', () => {
     const op = { idsPorCodigo: ids, aplicacaoMax: 2000 };
     expect(cadastroCatalogoDoForm(P, vazio, op)).toEqual({ ok: true, valor: { aplicacao: null, oferece_junto: [], referencias: [], etiquetas: [] } });
     expect(cadastroCatalogoDoForm(P, { ...vazio, referencias: [{ marca_id: MARCA, codigo: '' }, ...vazio.referencias.slice(1)] }, op)).toMatchObject({ ok: false, erro: expect.stringMatching(/Informe o código/) });
-    expect(cadastroCatalogoDoForm(P, { ...vazio, referencias: [{ marca_id: '', codigo: 'CB 3401' }, ...vazio.referencias.slice(1)] }, op)).toMatchObject({ ok: false, erro: expect.stringMatching(/escolha a marca/) });
+    expect(cadastroCatalogoDoForm(P, { ...vazio, referencias: [{ marca_id: '', codigo: 'CB 3401' }, ...vazio.referencias.slice(1)] }, op)).toMatchObject({ ok: true, valor: { referencias: [{ marca_id: null, codigo: 'CB 3401' }] } });
   });
 
   it('RN-CAT-09: código fora da página carregada vai ao servidor em oferece_junto_codigos; o que está na lista casa sem diferenciar maiúsculas', () => {

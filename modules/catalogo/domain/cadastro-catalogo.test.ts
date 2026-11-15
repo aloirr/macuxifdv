@@ -18,7 +18,7 @@ describe('validarCadastroCatalogo', () => {
         referencias: [
           { marca_id: M1, codigo: 'A'.repeat(30) },
           { marca_id: M1, codigo: 'B1' },
-          { marca_id: M2, codigo: 'B1' },
+          { marca_id: M2, codigo: 'B2' },
         ],
         oferece_junto: [11, 12, 13, 14, 15].map(idp),
         etiquetas: ['a'.repeat(20), 'b', 'c', 'd'],
@@ -41,14 +41,16 @@ describe('validarCadastroCatalogo', () => {
     expect(regras({ referencias: [{ marca_id: M1, codigo: '--' }] })).toEqual(['RN-CAT-09']);
   });
 
-  it('RN-CAT-09: mesma marca com "CB 3401" e "cb-3401" é repetição', () => {
+  it('RN-CAT-09: código "CB 3401" e "cb-3401" é repetição', () => {
     const e = validar({ referencias: [{ marca_id: M1, codigo: 'CB 3401' }, { marca_id: M1, codigo: 'cb-3401' }] });
     expect(e).toHaveLength(1);
     expect(e[0]!.campo).toBe('referencias');
   });
 
-  it('RN-CAT-09: marcas diferentes podem ter o mesmo código', () => {
-    expect(validar({ referencias: [{ marca_id: M1, codigo: 'CB 3401' }, { marca_id: M2, codigo: 'cb-3401' }] })).toEqual([]);
+  it('RN-CAT-09: o código é único no produto, mesmo com marcas diferentes ou sem marca', () => {
+    expect(validar({ referencias: [{ marca_id: M1, codigo: 'CB 3401' }, { marca_id: M2, codigo: 'cb-3401' }] })).toHaveLength(1);
+    expect(validar({ referencias: [{ marca_id: null, codigo: 'CB 3401' }, { codigo: 'cb 3401' }] })).toHaveLength(1);
+    expect(validar({ referencias: [{ marca_id: null, codigo: 'CB 3401' }, { marca_id: M1, codigo: 'AB 1' }] })).toEqual([]);
   });
 
   it('RN-CAT-09: 6 em oferece junto é erro', () => {

@@ -192,7 +192,7 @@ async function montarProdutosLocais(leitor: LeitorLocal, lerConcorrente: boolean
   for (const x of vivas(await leitor.linhas<ProdutoReferenciaSync & LinhaSync>('produto_referencia')).sort((a, b) => a.ordem - b.ordem)) {
     // concorrente legível: manda (inativa/ausente esconde); vendedor sem o Promotor: retrato marca_nome; sem retrato, sem marca (RN-CAT-09)
     const nome = nomeMarcaDaReferencia(x.marca_id, x.marca_nome, marcas);
-    if (nome === null) continue;
+    if (nome === null && x.marca_id !== null) continue;
     referencias.set(x.produto_id, [...(referencias.get(x.produto_id) ?? []), { marca_id: x.marca_id, marca_nome: nome, codigo: x.codigo }]);
   }
   const montados = produtos.map((p) => ({

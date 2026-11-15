@@ -250,9 +250,10 @@ export function criarConsumidorCatalogoNoDoErp(): ConsumidorEvento {
 async function aplicarReferenciasDoErp(ctx: ContextoConsumo, produto: string, externalId: string, entrada: NonNullable<z.infer<typeof CadastroCatalogoErp>['referencias']>, origem: { lote_id: string | undefined; sku: string | null }): Promise<void> {
   const marcas = entrada.length > 0 ? (await ctx.db.query<MarcaDoCadastro>(`select id, nome, ativo, external_id from catalogo.marca_concorrente where deleted_at is null`)).rows : [];
   const r = resolverReferenciasDoErp(entrada.map((x) => ({ marca_external_id: x.marca_external_id, marca_nome: x.marca_nome, codigo: x.codigo })), marcas);
-  if (r.descartadas.length > 0) ctx.log.warn({ external_id: externalId, descartadas: r.descartadas.map((d) => d.motivo) }, 'referências do produto do ERP descartadas (marca desconhecida ou inativa, código inválido, repetida ou acima de 3)');
+  if (r.descartadas.length > 0) ctx.log.warn({ external_id: externalId, descartadas: r.descartadas.map((d) => d.motivo) }, 'referências do produto do ERP descartadas (código inválido, repetida ou acima de 3)');
+  if (r.semMarca.length > 0) ctx.log.warn({ external_id: externalId, sem_marca: r.semMarca.map((d) => d.motivo) }, 'referências do produto do ERP gravadas só com o código (marca informada desconhecida ou inativa)');
   // T-0103: um aviso por (lote, produto) para o monitor do Hub; sem lote no evento não há a quem avisar
-  const desconhecidas = marcasDesconhecidasDaLinha(entrada.map((x) => ({ marca_external_id: x.marca_external_id, marca_nome: x.marca_nome, codigo: x.codigo })), r.descartadas);
+  const desconhecidas = marcasDesconhecidasDaLinha(entrada.map((x) => ({ marca_external_id: x.marca_external_id, marca_nome: x.marca_nome, codigo: x.codigo })), r.semMarca);
   if (desconhecidas && origem.lote_id) {
     await ctx.publicar(
       EVENTO_REFERENCIA_MARCA_DESCONHECIDA,
@@ -266,7 +267,7 @@ async function aplicarReferenciasDoErp(ctx: ContextoConsumo, produto: string, ex
     await ctx.db.query(
       `insert into catalogo.produto_referencia (tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem, marca_nome)
        values (plataforma.tenant_atual(), $1::uuid, $2::uuid, $3, $4, $5::int, $6)`,
-      [produto, ref.marca_id, ref.codigo, codigoCompacto(ref.codigo), ordem++, ref.marca_nome.trim().slice(0, 120) || null],
+      [produto, ref.marca_id, ref.codigo, codigoCompacto(ref.codigo), ordem++, ref.marca_nome?.trim().slice(0, 120) || null],
     );
   }
 }
@@ -275,7 +276,7 @@ async function aplicarReferenciasDoErp(ctx: ContextoConsumo, produto: string, ex
  * RN-CAT-11 / RN-CAT-09: aplicação, etiquetas e "oferece junto" do produto do ERP (upsert idempotente em `produto_conteudo` e
  * `produto_relacao` 'complementar'). Produto de "oferece junto" que ainda não chegou lança `ReferenciaAusenteErp` (a outbox
  * repete). Referências cruzadas: a marca é resolvida pelo cadastro de marcas do Catálogo (doc 06, RN-CAT-13); marca desconhecida ou inativa
- * descarta a referência, com aviso no log.
+ * grava a referência só com o código, com aviso no log e no Hub.
  */
 async function aplicarCadastroCatalogoDoErp(p: { external_id: string; acao: 'criado' | 'atualizado' | 'inativado'; registro?: unknown; lote_id?: string }, ctx: ContextoConsumo, resolver: ResolverProdutos): Promise<void> {
   const lido = p.registro === undefined ? undefined : CadastroCatalogoErp.safeParse(p.registro);

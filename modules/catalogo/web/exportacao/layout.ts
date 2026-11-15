@@ -78,7 +78,7 @@ export function montarCatalogo(dados: DadosExportacao, opcoes: EscopoExportacao 
         .slice(0, MAX_OFERECE_JUNTO),
       equivale_a: p.referencias.slice(0, MAX_REFERENCIAS).map((r) => {
         // marca ativa do cadastro de marcas do Catálogo; senão o retrato gravado na referência; senão só o código (RN-CAT-09)
-        const m = marcas.get(r.marca_id) ?? r.marca_nome?.trim();
+        const m = (r.marca_id ? marcas.get(r.marca_id) : undefined) ?? r.marca_nome?.trim();
         return m ? `${m} ${r.codigo}` : r.codigo;
       }),
     });

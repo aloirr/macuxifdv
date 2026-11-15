@@ -125,7 +125,7 @@ export const TrechoBusca = z
 export type TrechoBusca = z.infer<typeof TrechoBusca>;
 
 /** Referência cruzada do produto: marca concorrente (id do cadastro de marcas do Catálogo, `catalogo.marca_concorrente`, sem FK) + código (até 30). */
-export const Referencia = z.object({ marca_id: Id, marca_nome: z.string().min(1), codigo: z.string().min(1).max(30) }).strict();
+export const Referencia = z.object({ marca_id: Id.nullable(), marca_nome: z.string().min(1).nullable(), codigo: z.string().min(1).max(30) }).strict();
 export type Referencia = z.infer<typeof Referencia>;
 
 /** "Equivale a: <marca> <código>"; `marcas` em posições de `<marca_nome> <codigo>`. */

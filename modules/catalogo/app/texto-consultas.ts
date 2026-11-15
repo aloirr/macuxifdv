@@ -64,7 +64,7 @@ export async function referenciasDoRetrato(ctx: ContextoConsultaAparelho, ids?: 
   for (const x of linhas.sort((a, b) => a.ordem - b.ordem)) {
     if (ids && !ids.has(x.produto_id)) continue;
     const nome = nomeMarcaDaReferencia(x.marca_id, x.marca_nome, new Map());
-    if (nome === null) continue;
+    if (nome === null && x.marca_id !== null) continue;
     saida.set(x.produto_id, [...(saida.get(x.produto_id) ?? []), { marca_id: x.marca_id, marca_nome: nome, codigo: x.codigo }]);
   }
   return saida;

@@ -27,6 +27,9 @@ describe('validarMarcasDaReferencia', () => {
     expect(e).toHaveLength(1);
     expect(e[0]!.mensagem).toMatch(/Marcas concorrentes/);
   });
+  it('RN-CAT-09: referência sem marca é válida, mesmo sem marcas cadastradas', () => {
+    expect(validarMarcasDaReferencia([{ marca_id: null }, {}], new Map())).toEqual([]);
+  });
   it('RN-CAT-09: sem referências nada é exigido, mesmo sem marcas', () => {
     expect(validarMarcasDaReferencia([], new Map())).toEqual([]);
   });
@@ -45,10 +48,17 @@ describe('resolverReferenciasDoErp', () => {
     ]);
     expect(r.descartadas).toEqual([]);
   });
-  it('RN-CAT-09: marca desconhecida ou inativa é descartada com o motivo', () => {
+  it('RN-CAT-09: referência sem marca entra só com o código, sem descarte nem aviso', () => {
+    const r = resolverReferenciasDoErp([{ codigo: 'W 712' }], lista);
+    expect(r.referencias).toEqual([{ marca_id: null, marca_nome: null, codigo: 'W 712' }]);
+    expect(r.descartadas).toEqual([]);
+    expect(r.semMarca).toEqual([]);
+  });
+  it('RN-CAT-09: marca informada desconhecida ou inativa entra sem marca e fica marcada para o aviso', () => {
     const r = resolverReferenciasDoErp([{ marca_nome: 'Nenhuma', codigo: 'A1' }, { marca_external_id: 'VE', codigo: 'A2' }], lista);
-    expect(r.referencias).toEqual([]);
-    expect(r.descartadas.map((d) => d.motivo)).toEqual(['marca_desconhecida', 'marca_inativa']);
+    expect(r.referencias).toEqual([{ marca_id: null, marca_nome: null, codigo: 'A1' }, { marca_id: null, marca_nome: null, codigo: 'A2' }]);
+    expect(r.descartadas).toEqual([]);
+    expect(r.semMarca.map((d) => d.motivo)).toEqual(['marca_desconhecida', 'marca_inativa']);
   });
   it('RN-CAT-09: código vazio ou acima de 30, repetido e o excedente de 3 são descartados', () => {
     const r = resolverReferenciasDoErp(
@@ -66,8 +76,10 @@ describe('resolverReferenciasDoErp', () => {
     expect(r.referencias.map((x) => x.codigo)).toEqual(['A-1', 'B', 'C']);
     expect(r.descartadas.map((d) => d.motivo)).toEqual(['codigo_invalido', 'codigo_invalido', 'repetida', 'excede_limite']);
   });
-  it('RN-CAT-09: consulta indisponível (lista vazia) descarta tudo como marca desconhecida', () => {
-    expect(resolverReferenciasDoErp([{ marca_nome: 'Freiomax', codigo: 'A' }], []).descartadas).toHaveLength(1);
+  it('RN-CAT-09: consulta indisponível (lista vazia) grava só o código e avisa marca desconhecida', () => {
+    const r = resolverReferenciasDoErp([{ marca_nome: 'Freiomax', codigo: 'A' }], []);
+    expect(r.referencias).toEqual([{ marca_id: null, marca_nome: null, codigo: 'A' }]);
+    expect(r.semMarca).toHaveLength(1);
   });
 });
 
