@@ -24,7 +24,10 @@ import {
   type ContextoConsulta,
   type DefinicaoConsulta,
   type EnvelopeEvento,
+  type ImagemGuardada,
   type ImplementacaoConsulta,
+  type InfoArquivo,
+  type NovoArquivo,
   type LogRota,
   type Manifesto,
   type ModuloId,
@@ -34,6 +37,7 @@ import {
   type UsuarioDaRequisicao,
 } from '@macuxi/platform-sdk';
 import type { z } from 'zod';
+import { CHAVE_ARQUIVO_RE } from './arquivos';
 
 export async function gravarEvento(db: ClienteBanco, envelope: EnvelopeEvento, agregadoId: string | null): Promise<void> {
   await db.query(
@@ -256,40 +260,11 @@ export function transacaoTenant(db: ClienteBanco, o: OrigemTransacao): Transacao
     async registrarArquivo(a) {
       if (!o.modulo) throw new Error('Rota da plataforma não registra arquivo de módulo');
       if (o.usuarioId === null) throw new Error('registrarArquivo: rota sem usuário (Conector) não registra arquivo (ADR 0010/0013)');
-      const problemas = validarNovoArquivo(a);
-      if (problemas.length > 0) throw new Error(`registrarArquivo: ${problemas.join('; ')}`);
-      const id = a.id.toLowerCase();
-      const entidadeId = a.entidade_id.toLowerCase();
-      // id = UUID do aparelho: repetir o comando (lote reenviado) não cria outra linha
-      // perfis_leitura (ADR 0041): só na criação; mudança depois é pelo restringirArquivos
-      const r = await db.query(
-        `insert into plataforma.arquivo (id, tenant_id, modulo, finalidade, entidade, entidade_id, cliente_id, enviado_por, tipo, perfis_leitura)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-         on conflict (id) do nothing`,
-        [
-          id,
-          o.tenantId,
-          o.modulo,
-          a.finalidade,
-          a.entidade,
-          entidadeId,
-          a.cliente_id?.toLowerCase() ?? null,
-          o.usuarioId,
-          a.tipo ?? 'image/jpeg',
-          a.perfis_leitura ? [...a.perfis_leitura] : null,
-        ],
-      );
-      if (r.rowCount) return { criado: true };
-      // já existe: mesma referência = idempotente; outra (ou de outro tenant, invisível pelo RLS) = conflito
-      const atual = (
-        await db.query<{ modulo: string; entidade: string; entidade_id: string; enviado_por: string }>(
-          'select modulo, entidade, entidade_id, enviado_por from plataforma.arquivo where id = $1',
-          [id],
-        )
-      ).rows[0];
-      if (atual && atual.modulo === o.modulo && atual.entidade === a.entidade && atual.entidade_id === entidadeId && atual.enviado_por === o.usuarioId)
-        return { criado: false };
-      throw new ErroHttpModulo(409, CODIGOS_ARQUIVO.jaReferenciado, 'Esta foto já está ligada a outro registro. Tire a foto de novo.');
+      return registrarArquivoNoBanco(db, { tenantId: o.tenantId, modulo: o.modulo, enviadoPor: o.usuarioId }, a);
+    },
+    async infoArquivo(id) {
+      if (!o.modulo) throw new Error('Rota da plataforma não consulta arquivo de módulo');
+      return infoArquivoNoBanco(db, o.modulo, id);
     },
     async restringirArquivos(alvo) {
       if (!o.modulo) throw new Error('Rota da plataforma não restringe arquivo de módulo');
@@ -308,4 +283,83 @@ export function transacaoTenant(db: ClienteBanco, o: OrigemTransacao): Transacao
       return { alterados: r.rowCount ?? 0 };
     },
   };
+}
+
+/**
+ * ADR 0010 + ADR 0054: cria a linha de `plataforma.arquivo` do módulo (idempotente pelo `id`). Sem `recebido`, nasce
+ * `aguardando` (o upload completa); com `recebido` (foto gravada pelo trabalho), nasce `recebido` com sha256, tamanho,
+ * dimensões e a chave, que tem de ser do tenant, do módulo e do próprio `id`. Mesmo `id` em outra entidade, outro módulo
+ * ou de outro autor → 409 `ARQUIVO_JA_REFERENCIADO`.
+ */
+export async function registrarArquivoNoBanco(
+  db: ClienteBanco,
+  o: { tenantId: string; modulo: ModuloId; enviadoPor: string },
+  a: NovoArquivo & { recebido?: ImagemGuardada },
+): Promise<{ criado: boolean }> {
+  const problemas = validarNovoArquivo(a);
+  if (!UUID_RE.test(o.enviadoPor)) problemas.push('enviado_por precisa ser UUID');
+  const id = a.id.toLowerCase();
+  const r0 = a.recebido;
+  if (r0) {
+    const chaveOk =
+      CHAVE_ARQUIVO_RE.test(r0.chave) &&
+      r0.chave.startsWith(`${o.tenantId.toLowerCase()}/${o.modulo}/`) &&
+      new RegExp(`/${id}\\.(jpg|png|webp)$`).test(r0.chave);
+    if (!chaveOk) problemas.push('recebido.chave não é do arquivo');
+    if (!/^[0-9a-f]{64}$/.test(r0.sha256)) problemas.push('recebido.sha256 inválido');
+    if (a.tipo !== undefined && a.tipo !== r0.tipo) problemas.push('tipo diferente do recebido');
+  }
+  if (problemas.length > 0) throw new Error(`registrarArquivo: ${problemas.join('; ')}`);
+  const entidadeId = a.entidade_id.toLowerCase();
+  const enviadoPor = o.enviadoPor.toLowerCase();
+  // id = UUID do aparelho: repetir o comando (lote reenviado) não cria outra linha
+  // perfis_leitura (ADR 0041): só na criação; mudança depois é pelo restringirArquivos
+  const r = await db.query(
+    `insert into plataforma.arquivo (id, tenant_id, modulo, finalidade, entidade, entidade_id, cliente_id, enviado_por, tipo, perfis_leitura,
+                                     situacao, sha256, tamanho_bytes, largura_px, altura_px, recebido_em, chave_armazenamento)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, case when $11 = 'recebido' then now() end, $16)
+     on conflict (id) do nothing`,
+    [
+      id,
+      o.tenantId,
+      o.modulo,
+      a.finalidade,
+      a.entidade,
+      entidadeId,
+      a.cliente_id?.toLowerCase() ?? null,
+      enviadoPor,
+      r0?.tipo ?? a.tipo ?? 'image/jpeg',
+      a.perfis_leitura ? [...a.perfis_leitura] : null,
+      r0 ? 'recebido' : 'aguardando',
+      r0?.sha256 ?? null,
+      r0?.tamanho_bytes ?? null,
+      r0?.largura_px ?? null,
+      r0?.altura_px ?? null,
+      r0?.chave ?? null,
+    ],
+  );
+  if (r.rowCount) return { criado: true };
+  // já existe: mesma referência = idempotente; outra (ou de outro tenant, invisível pelo RLS) = conflito
+  const atual = (
+    await db.query<{ modulo: string; entidade: string; entidade_id: string; enviado_por: string }>(
+      'select modulo, entidade, entidade_id, enviado_por from plataforma.arquivo where id = $1',
+      [id],
+    )
+  ).rows[0];
+  if (atual && atual.modulo === o.modulo && atual.entidade === a.entidade && atual.entidade_id === entidadeId && atual.enviado_por === enviadoPor)
+    return { criado: false };
+  throw new ErroHttpModulo(409, CODIGOS_ARQUIVO.jaReferenciado, 'Esta foto já está ligada a outro registro. Tire a foto de novo.');
+}
+
+/** ADR 0054: situação de um arquivo DO MÓDULO (RLS do tenant); `null` = não existe, removido ou de outro módulo. */
+export async function infoArquivoNoBanco(db: ClienteBanco, modulo: ModuloId, id: string): Promise<InfoArquivo | null> {
+  if (!UUID_RE.test(id)) return null;
+  const l = (
+    await db.query<InfoArquivo>(
+      `select id, tipo, situacao, tamanho_bytes, entidade, entidade_id, enviado_por
+         from plataforma.arquivo where id = $1 and modulo = $2 and deleted_at is null`,
+      [id.toLowerCase(), modulo],
+    )
+  ).rows[0];
+  return l ? { ...l, tamanho_bytes: l.tamanho_bytes === null ? null : Number(l.tamanho_bytes) } : null;
 }

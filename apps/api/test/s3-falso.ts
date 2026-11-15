@@ -6,13 +6,15 @@
  *  - x-amz-content-sha256 bate com o corpo (senão 400 XAmzContentSHA256Mismatch);
  *  - bucket existente (senão 404 NoSuchBucket); objeto ausente = 404 NoSuchKey;
  *  - GET pré-assinado (T-0098, ADR 0037: `X-Amz-Algorithm` na query): assinatura da query recalculada com `preAssinarGetS3`
- *    (errada = 403 SignatureDoesNotMatch) e validade pelo relógio do falso (`agora`; vencido = 403 AccessDenied).
+ *    (errada = 403 SignatureDoesNotMatch) e validade pelo relógio do falso (`agora`; vencido = 403 AccessDenied);
+ *  - PUT pré-assinado (ADR 0054, partes do ZIP): mesma conferência, com o método do pedido na assinatura;
+ *  - HEAD (ADR 0054, tamanho da parte): `content-length` do objeto, sem corpo.
  * Guarda os objetos em memória por caminho (`/<bucket>/<chave>`), para o teste conferir onde cada tenant gravou.
  */
 import { createHash } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { assinarSigV4, preAssinarGetS3 } from '../src/armazenamento-s3';
+import { assinarSigV4, preAssinarS3 } from '../src/armazenamento-s3';
 
 export const CRED_TESTE = { chaveId: 'chave-de-teste', segredo: 'segredo-de-teste-nao-e-real', regiao: 'br-se1' } as const;
 
@@ -62,12 +64,16 @@ export async function subirS3Falso(bucket = 'macuxi-teste'): Promise<S3Falso> {
       if (q.has('X-Amz-Algorithm')) {
         const quandoQ = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(q.get('X-Amz-Date') ?? '');
         const expira = Number(q.get('X-Amz-Expires'));
-        if (req.method !== 'GET' || !quandoQ || !Number.isInteger(expira)) return responder(403, 'AccessDenied');
+        if ((req.method !== 'GET' && req.method !== 'PUT') || !quandoQ || !Number.isInteger(expira)) return responder(403, 'AccessDenied');
         const instanteQ = new Date(`${quandoQ[1]}-${quandoQ[2]}-${quandoQ[3]}T${quandoQ[4]}:${quandoQ[5]}:${quandoQ[6]}Z`);
         const extras = Object.fromEntries([...q.entries()].filter(([n]) => !n.startsWith('X-Amz-')));
-        const esperada = new URL(preAssinarGetS3({ protocolo: 'http:', host: String(req.headers.host), caminho, consulta: extras }, CRED_TESTE, instanteQ, expira));
+        const esperada = new URL(preAssinarS3(req.method, { protocolo: 'http:', host: String(req.headers.host), caminho, consulta: extras }, CRED_TESTE, instanteQ, expira));
         if (q.get('X-Amz-Signature') !== esperada.searchParams.get('X-Amz-Signature')) return responder(403, 'SignatureDoesNotMatch');
         if (estado.agora().getTime() > instanteQ.getTime() + expira * 1000) return responder(403, 'AccessDenied');
+        if (req.method === 'PUT') {
+          objetos.set(decodeURIComponent(caminho), bytes);
+          return responder(200);
+        }
         const o = objetos.get(decodeURIComponent(caminho));
         if (o && extras['response-content-disposition']) res.setHeader('content-disposition', extras['response-content-disposition']);
         return o ? responder(200, undefined, o) : responder(404, 'NoSuchKey');
@@ -94,6 +100,12 @@ export async function subirS3Falso(bucket = 'macuxi-teste'): Promise<S3Falso> {
       if (req.method === 'GET') {
         const o = objetos.get(chave);
         return o ? responder(200, undefined, o) : responder(404, 'NoSuchKey');
+      }
+      if (req.method === 'HEAD') {
+        const o = objetos.get(chave);
+        res.statusCode = o ? 200 : 404;
+        if (o) res.setHeader('content-length', String(o.length));
+        return res.end();
       }
       if (req.method === 'DELETE') {
         objetos.delete(chave);

@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { caminhoFoto, dimensoesJpeg, ehJpeg, perfilLeArquivo, problemasPerfisLeitura, validarNovoArquivo } from './arquivos';
+import {
+  CODIGOS_ARQUIVO,
+  caminhoFoto,
+  ConcluirEnvioSchema,
+  conferirPartes,
+  dimensoesJpeg,
+  ehJpeg,
+  PARTE_ENVIO_BYTES,
+  PARTES_ENVIO_MAX,
+  partesDoEnvio,
+  perfilLeArquivo,
+  problemasPerfisLeitura,
+  TIPOS_ARQUIVO,
+  TIPOS_ENVIO_APARELHO,
+  UrlEnvioSchema,
+  validarNovoArquivo,
+} from './arquivos';
 
 const ID = '0f000000-0000-4000-8000-0000000000aa';
 
@@ -30,7 +46,7 @@ describe('ADR 0010: regras puras dos arquivos', () => {
 
   it('validarNovoArquivo: UUIDs, snake_case e tipo aceito', () => {
     expect(validarNovoArquivo({ id: ID, finalidade: 'fachada', entidade: 'visita', entidade_id: ID, cliente_id: null })).toEqual([]);
-    const p = validarNovoArquivo({ id: 'x', finalidade: 'Fachada', entidade: 'visita-x', entidade_id: ID, cliente_id: 'y', tipo: 'image/png' as never });
+    const p = validarNovoArquivo({ id: 'x', finalidade: 'Fachada', entidade: 'visita-x', entidade_id: ID, cliente_id: 'y', tipo: 'image/gif' as never });
     expect(p).toHaveLength(5);
   });
 });
@@ -65,5 +81,49 @@ describe('ADR 0041 (T-0147, RN-CORE-38): perfis de leitura do arquivo', () => {
     expect(perfilLeArquivo(SENSIVEL, { perfil: 'vendedor', perfis: [{ base: 'vendedor' }, { base: 'supervisor' }] })).toBe(true);
     expect(perfilLeArquivo(SENSIVEL, { perfil: 'supervisor', perfis: [{ base: 'vendedor' }] })).toBe(false);
     expect(perfilLeArquivo(SENSIVEL, { perfil: 'gerente', perfis: [] })).toBe(true);
+  });
+});
+
+describe('ADR 0054 §1: envio em partes de 8 MiB e tipos do lote de fotos', () => {
+  it('tipos aceitos em plataforma.arquivo: JPEG, PNG, WEBP e o ZIP; o aparelho só envia JPEG', () => {
+    expect([...TIPOS_ARQUIVO]).toEqual(['image/jpeg', 'image/png', 'image/webp', 'application/zip']);
+    expect([...TIPOS_ENVIO_APARELHO]).toEqual(['image/jpeg']);
+    expect(validarNovoArquivo({ id: ID, finalidade: 'foto_lote', entidade: 'foto_lote', entidade_id: ID, tipo: 'application/zip' })).toEqual([]);
+    expect(validarNovoArquivo({ id: ID, finalidade: 'x', entidade: 'x', entidade_id: ID, tipo: 'image/gif' as never })).toEqual(['tipo image/gif não aceito']);
+  });
+
+  it('63 partes de 8 MiB cobrem os 500 MB da RN-CAT-14', () => {
+    expect(PARTE_ENVIO_BYTES).toBe(8 * 1024 * 1024);
+    expect(PARTES_ENVIO_MAX * PARTE_ENVIO_BYTES).toBeGreaterThanOrEqual(500 * 1024 * 1024);
+    expect(partesDoEnvio(1)).toBe(1);
+    expect(partesDoEnvio(PARTE_ENVIO_BYTES)).toBe(1);
+    expect(partesDoEnvio(PARTE_ENVIO_BYTES + 1)).toBe(2);
+    expect(partesDoEnvio(500 * 1024 * 1024)).toBe(63);
+  });
+
+  it('concluir: partes de 1 a 63 e tamanho positivo, sem campo extra', () => {
+    expect(ConcluirEnvioSchema.safeParse({ partes: 2, tamanho_bytes: 9_000_000 }).success).toBe(true);
+    expect(ConcluirEnvioSchema.safeParse({ partes: 0, tamanho_bytes: 1 }).success).toBe(false);
+    expect(ConcluirEnvioSchema.safeParse({ partes: 64, tamanho_bytes: 1 }).success).toBe(false);
+    expect(ConcluirEnvioSchema.safeParse({ partes: 1, tamanho_bytes: 1, sha256: 'x' }).success).toBe(false);
+  });
+
+  it('conferirPartes: 1 a n−1 com 8 MiB, a última de 1 a 8 MiB e a soma igual ao total; senão lista as faltantes', () => {
+    const P = PARTE_ENVIO_BYTES;
+    expect(conferirPartes([P, P, 10], 2 * P + 10)).toEqual({ ok: true });
+    expect(conferirPartes([P], P)).toEqual({ ok: true });
+    expect(conferirPartes([P, null, 10], 2 * P + 10)).toEqual({ ok: false, partes_faltando: [2] });
+    expect(conferirPartes([P, P - 1, 10], 2 * P + 9)).toEqual({ ok: false, partes_faltando: [2] });
+    expect(conferirPartes([P, 0], P)).toEqual({ ok: false, partes_faltando: [2] });
+    expect(conferirPartes([P, 10], P + 11)).toEqual({ ok: false, partes_faltando: [] });
+  });
+
+  it('URL de envio: PUT, URL válida e expiração em ISO', () => {
+    expect(UrlEnvioSchema.safeParse({ url: 'https://s3.exemplo/x?X-Amz-Signature=1', metodo: 'PUT', expira_em: '2026-11-15T12:00:00.000Z' }).success).toBe(true);
+    expect(UrlEnvioSchema.safeParse({ url: 'https://s3.exemplo/x', metodo: 'GET', expira_em: '2026-11-15T12:00:00.000Z' }).success).toBe(false);
+  });
+
+  it('códigos novos do envio em partes', () => {
+    expect(CODIGOS_ARQUIVO).toMatchObject({ parteInvalida: 'PARTE_INVALIDA', envioIncompleto: 'ENVIO_INCOMPLETO', urlAssinadaDesligada: 'URL_ASSINADA_DESLIGADA' });
   });
 });
