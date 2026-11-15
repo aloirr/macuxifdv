@@ -40,8 +40,15 @@ De cima para baixo, alinhada à margem lateral de 32 dp:
 
    **Tela baixa:** se a lista não cabe entre o logo e a borda de baixo, ela sai e ficam só a linha da barra e a barra.
 
+**Frase e aviso (T-0174; detalhes em `docs/design/carga-aviso-frases/spec.md` §1 e §1.1):**
+- **frase sorteada, uma por carga, parada:** abaixo do "Olá", entre as ativas, sem repetir a última; cai para 1 linha ou sai
+  quando falta respiro (sem reticências);
+- **aviso** acima da linha da barra, só nos estados 4 e 5: "Baixando os dados do servidor. Isso pode demorar alguns minutos.
+  **Não saia desta tela!**" (caixa `avisoBorda`/`avisoFundo`; sem respiro, só o texto).
+- Prioridade no respiro: logo, "Olá", aviso e barra; depois a frase; por último a lista de etapas.
+
 **Fora da tela:**
-- frase que se alterna, dica, texto sobre o que o app faz por trás, nome de tabela, de entidade ou de módulo;
+- frase que se alterna, texto sobre o que o app faz por trás, nome de tabela, de entidade ou de módulo;
 - percentual por etapa e contagem de registros.
 
 ## 3. Parou (estado 6)
@@ -71,6 +78,7 @@ Cada app usa o fundo da própria splash nativa (manual §6), para a passagem da 
 | `erro` | `#F7A59C` (6,58:1) | `#A8261B` (6,57:1) |
 | `botaoFundo` / `botaoTexto` | `#FFFFFF` / `#1E3350` | `#1E3350` / `#FFFFFF` |
 | `contorno` / `contornoTexto` | `#C9CED5` / `#FFFFFF` | `#16202A` / `#16202A` |
+| `avisoBorda` / `avisoFundo` (aviso da carga, texto em `texto`) | `#C9CED5` / sem fundo (`transparent`) | `#C9CED5` / `#FFFFFF` (texto 12,77:1) |
 
 Use os tokens de `@macuxi/ui/mobile`, sem hex na tela.
 

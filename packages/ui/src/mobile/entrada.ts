@@ -31,6 +31,10 @@ export interface TemaEntrada {
   /** "Continuar sem sincronizar" (secundário, só contorno): borda e texto. */
   contorno: string;
   contornoTexto: string;
+  /** Borda (1 dp) da caixa do aviso da carga (docs/design/carga-aviso-frases/spec.md §1, MC-0078). Enfeite: o texto leva a informação. */
+  avisoBorda: string;
+  /** Fundo da caixa do aviso: Campo sem fundo (`transparent`), Gestão no branco. O texto do aviso é `texto`. */
+  avisoFundo: string;
 }
 
 export const TEMAS_ENTRADA: Record<'faixa' | 'perola', TemaEntrada> = {
@@ -48,6 +52,8 @@ export const TEMAS_ENTRADA: Record<'faixa' | 'perola', TemaEntrada> = {
     botaoTexto: MARCA.azulNoite,
     contorno: FAIXA.subtitulo,
     contornoTexto: MARCA.branco,
+    avisoBorda: MARCA.claroNaFaixa,
+    avisoFundo: 'transparent',
   },
   perola: {
     fundo: MARCA.perola,
@@ -63,8 +69,31 @@ export const TEMAS_ENTRADA: Record<'faixa' | 'perola', TemaEntrada> = {
     botaoTexto: MARCA.branco,
     contorno: MARCA.grafite,
     contornoTexto: MARCA.grafite,
+    avisoBorda: MARCA.claroNaFaixa,
+    avisoFundo: MARCA.branco,
   },
 };
+
+/**
+ * Medidas (dp) do aviso e da frase sorteada da tela de carga (docs/design/carga-aviso-frases/spec.md §1 e §1.1), para o
+ * `cabeFrase`/`cabeLista` do shell e para os componentes da tela. Aviso e frase em IBM Plex Sans 14/20.
+ * - `livreOlaAviso`: sem esses dp livres abaixo do "Olá", o aviso perde a caixa (fica só o texto);
+ * - `livreFraseAviso`: sem esses dp entre o pé da frase e o topo do aviso, a frase cai para 1 linha; se ainda não couber, sai.
+ */
+export const MEDIDAS_AVISO_FRASE = {
+  avisoRaio: 12,
+  avisoBorda: 1,
+  avisoRespiroVertical: 12,
+  avisoRespiroHorizontal: 14,
+  avisoAcimaDaBarra: 18,
+  livreOlaAviso: 16,
+  fraseAbaixoDoOla: 12,
+  fraseLarguraMaxima: 280,
+  fraseMaxLinhas: 2,
+  livreFraseAviso: 24,
+  fonte: 14,
+  alturaDaLinha: 20,
+} as const;
 
 /** Tema pela variante do app: o Gestão no Pérola (splash dele), o Campo na faixa Azul noite. */
 export function temaDaEntrada(variante: 'campo' | 'gestao'): TemaEntrada {
@@ -84,5 +113,11 @@ export function paresDaEntrada(t: TemaEntrada): ParContraste[] {
     { uso: 'Tentar de novo (forma) no fundo', fg: t.botaoFundo, bg: t.fundo, tipo: 'grafico' },
     { uso: 'Continuar sem sincronizar (contorno)', fg: t.contorno, bg: t.fundo, tipo: 'grafico' },
     { uso: 'Continuar sem sincronizar (texto)', fg: t.contornoTexto, bg: t.fundo, tipo: 'texto' },
+    {
+      uso: 'aviso da carga (texto) no fundo da caixa',
+      fg: t.texto,
+      bg: t.avisoFundo === 'transparent' ? t.fundo : t.avisoFundo,
+      tipo: 'texto',
+    },
   ];
 }
