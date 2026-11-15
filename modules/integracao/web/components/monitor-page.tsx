@@ -3,8 +3,9 @@
 import { useMemo } from 'react';
 import { localIsoDate } from '@macuxi/comum/fuso';
 import { downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, ErrorBlock, IconDownload, KpiCard, KpiGrid, LoadingBlock, PageHeader, Panel, TableScroll, td, tdNum, th, thNum, useToast } from '@macuxi/ui/web';
-import { ROTULO_ENTIDADE, ROTULO_ESTADO_CARGA, TOM_ESTADO_CARGA, podeExecutar, tempoDesde } from '../lib/apresentacao';
+import { Badge, ErrorBlock, KpiCard, KpiGrid, LoadingBlock, MenuAcoes, PageHeader, Panel, TabelaDados, useToast, type ColunaDaTabela } from '@macuxi/ui/web';
+import type { MonitorResumo } from '../../contracts';
+import { ROTULO_ENTIDADE, ROTULO_ESTADO_CARGA, TOM_ESTADO_CARGA, podeExecutar } from '../lib/apresentacao';
 import { lotesParaCsv } from '../lib/csv';
 import { filtrarLotes } from '../lib/filtros-url';
 import { useAgora, useMonitor, useSessaoDoBko } from '../lib/queries';
@@ -17,10 +18,28 @@ import { LotesPanel } from './lotes-panel';
 import { MapeamentoPanel } from './mapeamento-panel';
 import { PedidosPanel } from './pedidos-panel';
 
+type Carga = MonitorResumo['cargas'][number];
+
+/** Carga por entidade (revisão do BKO §P2): sem rolagem lateral; o estado é o selo único da linha (§P5). */
+const COLUNAS_CARGA: ReadonlyArray<ColunaDaTabela<Carga>> = [
+  { id: 'entidade', titulo: 'Entidade', celula: (c) => <span className="font-semibold">{ROTULO_ENTIDADE[c.entidade]}</span>, texto: (c) => ROTULO_ENTIDADE[c.entidade] },
+  { id: 'estado', titulo: 'Situação', largura: '180px', celula: (c) => <Badge tone={TOM_ESTADO_CARGA[c.estado]}>{ROTULO_ESTADO_CARGA[c.estado]}</Badge> },
+  { id: 'lotes', titulo: 'Lotes', numero: true, prioridade: 2, largura: '96px', celula: (c) => c.lotes },
+  { id: 'com-erro', titulo: 'Com erro', numero: true, largura: '104px', celula: (c) => c.com_erro },
+  {
+    id: 'aguardando',
+    titulo: 'Aguardando',
+    prioridade: 3,
+    celula: (c) => c.aguardando.map((e) => ROTULO_ENTIDADE[e]).join(', ') || '—',
+    texto: (c) => c.aguardando.map((e) => ROTULO_ENTIDADE[e]).join(', '),
+  },
+];
+
 /**
  * Monitor do Hub no BKO (T-0051; RF-INT-04, RF-INT-06; hub-api.md §13): Conectores com sinal de vida e versão, alertas, carga por
  * entidade, lotes (recebido, aplicado, com erros) com os erros por linha em CSV, inativação em massa aguardando confirmação
- * (admin ou analista, P-3) e a fila de pedidos do ERP com os erros de retorno. Atualiza pelo sync_auto_min do tenant (RN-CORE-23) e pelo botão "Atualizar".
+ * (admin ou analista, P-3) e a fila de pedidos do ERP com os erros de retorno. Atualiza pelo sync_auto_min do tenant (RN-CORE-23);
+ * "Atualizar" e "Exportar lotes (CSV)" ficam no "⋯" da página (revisão do BKO §P1).
  * O shell só monta a página com o módulo efetivo (licença) e a ação `monitor.ver`; a API revalida licença, perfil e tenant.
  */
 export function MonitorPage() {
@@ -58,18 +77,15 @@ export function MonitorPage() {
     <>
       <PageHeader
         title="Integração ERP"
-        subtitle={m ? `Atualizado ${tempoDesde(m.gerado_em, agora)}${monitor.isFetching ? ' · atualizando…' : ''}` : ' '}
         badge={criticos > 0 ? <Badge tone="danger">{criticos} crítico{criticos > 1 ? 's' : ''}</Badge> : undefined}
         actions={
-          <>
-          <Button variant="link" onClick={() => void monitor.refetch()} disabled={monitor.isFetching} className="font-semibold" data-testid="integracao.monitor.atualizar">
-            Atualizar
-          </Button>
-          <Button variant="link" onClick={exportarLotes} disabled={lotes.length === 0} className="font-semibold" data-testid="integracao.lotes.exportar-csv">
-            <IconDownload size={15} />
-            Exportar lotes (CSV)
-          </Button>
-          </>
+          <MenuAcoes
+            testId="integracao.monitor.mais-acoes"
+            acoes={[
+              { id: 'exportar', rotulo: 'Exportar lotes (CSV)', aoEscolher: exportarLotes, desligada: lotes.length === 0, testId: 'integracao.lotes.exportar-csv' },
+              { id: 'atualizar', rotulo: monitor.isFetching ? 'Atualizando…' : 'Atualizar', aoEscolher: () => void monitor.refetch(), desligada: monitor.isFetching, testId: 'integracao.monitor.atualizar' },
+            ]}
+          />
         }
       />
 
@@ -82,7 +98,6 @@ export function MonitorPage() {
           <KpiGrid>
             <KpiCard label="Conectores no ar" value={`${noAr} de ${ativos}`} sub="sinal há menos de 3 min" />
             <KpiCard label="Lotes com erro" value={lotesComErro} sub={`dos ${m.lotes_recentes.length} mais recentes`} />
-            <KpiCard label="Inativações aguardando" value={m.pendencias_inativacao.length} sub="carga completa acima do limite" />
             <KpiCard label="Pedidos presos ou retidos" value={m.pedidos.presos + m.pedidos.retidos} sub="fila do ERP" />
           </KpiGrid>
 
@@ -91,33 +106,10 @@ export function MonitorPage() {
           <InativacoesPanel pendencias={m.pendencias_inativacao} perfil={sessao.perfil} agora={agora} tz={tz} />
 
           <Panel label="Carga por entidade" title="Carga por entidade">
-            <TableScroll minWidth={560}>
-              <thead>
-                <tr>
-                  <th scope="col" className={th}>Entidade</th>
-                  <th scope="col" className={th}>Estado</th>
-                  <th scope="col" className={thNum}>Lotes</th>
-                  <th scope="col" className={thNum}>Com erro</th>
-                  <th scope="col" className={th}>Aguardando</th>
-                </tr>
-              </thead>
-              <tbody data-testid="integracao.cargas">
-                {m.cargas.map((c) => (
-                  <tr key={c.entidade}>
-                    <td className={`${td} font-semibold`}>{ROTULO_ENTIDADE[c.entidade]}</td>
-                    <td className={td}>
-                      <Badge tone={TOM_ESTADO_CARGA[c.estado]}>{ROTULO_ESTADO_CARGA[c.estado]}</Badge>
-                    </td>
-                    <td className={tdNum}>{c.lotes}</td>
-                    <td className={tdNum}>{c.com_erro}</td>
-                    <td className={`${td} text-[12px] text-ink-2`}>{c.aguardando.map((e) => ROTULO_ENTIDADE[e]).join(', ') || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </TableScroll>
+            <TabelaDados colunas={COLUNAS_CARGA} linhas={m.cargas} chave={(c) => c.entidade} rotulo="Carga por entidade" testId="integracao.cargas" />
           </Panel>
 
-          <LotesPanel lotes={lotes} total={m.lotes_recentes.length} conectores={m.conectores} filtros={filtros} mudar={mudar} tz={tz} />
+          <LotesPanel lotes={lotes} conectores={m.conectores} filtros={filtros} mudar={mudar} tz={tz} />
           <PedidosPanel pedidos={m.pedidos} alertas={m.alertas} />
           <MapeamentoPanel perfil={sessao.perfil} />
         </div>

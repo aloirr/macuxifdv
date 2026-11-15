@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, ErrorBlock, IconDownload, PageHeader, Panel, SelectField, TableScroll, td, th, useToast } from '@macuxi/ui/web';
+import { Button, ErrorBlock, IconDownload, PageHeader, Panel, SelectField, TabelaDados, useToast, type ColunaDaTabela } from '@macuxi/ui/web';
 import { ENTIDADES, type Entidade, type ModoCarga } from '../../contracts';
 import { RESUMO_MODELOS } from '../../domain';
 import { ROTULO_ENTIDADE, podeExecutar } from '../lib/apresentacao';
@@ -81,49 +81,56 @@ export function CargaArquivoPage() {
     );
   };
 
+  /** Modelos (revisão do BKO §P2): sem rolagem lateral. Modelo e Dicionário ficam à vista: baixar é o que a linha oferece. */
+  const colunasModelos: ReadonlyArray<ColunaDaTabela<(typeof RESUMO_MODELOS)[number]>> = [
+    { id: 'ordem', titulo: 'Ordem', numero: true, largura: '72px', celula: (m) => m.ordem },
+    {
+      id: 'base',
+      titulo: 'Base',
+      texto: (m) => ROTULO_ENTIDADE[m.entidade],
+      celula: (m) => (
+        <span className="font-semibold">
+          {ROTULO_ENTIDADE[m.entidade]}
+          {m.opcional ? <span className="font-normal text-ink-2"> · opcional</span> : null}
+        </span>
+      ),
+    },
+    {
+      id: 'depende',
+      titulo: 'Carregar depois de',
+      prioridade: 2,
+      celula: (m) => m.depende_de.map((e) => ROTULO_ENTIDADE[e]).join(', ') || '—',
+      texto: (m) => m.depende_de.map((e) => ROTULO_ENTIDADE[e]).join(', '),
+    },
+    {
+      id: 'arquivos',
+      titulo: 'Arquivos',
+      largura: '240px',
+      celula: (m) => (
+        <div className="flex gap-2">
+          <Button variant="link" disabled={baixando !== null} onClick={() => void baixar(`m-${m.entidade}`, () => baixarModelo(m.entidade))} data-testid={`integracao.carga.modelo.${m.entidade}`}>
+            <IconDownload size={15} />
+            Modelo
+          </Button>
+          <Button variant="link" disabled={baixando !== null} onClick={() => void baixar(`d-${m.entidade}`, () => baixarDicionario(m.entidade))} data-testid={`integracao.carga.dicionario.${m.entidade}`}>
+            <IconDownload size={15} />
+            Dicionário
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
   const r = enviar.data;
   const lotes = r?.aceitas ?? [];
   const invalidasLeitura = lotes.reduce((a, l) => a + l.linhas_invalidas_leitura, 0);
 
   return (
     <>
-      <PageHeader title="Carga por arquivo" subtitle="Baixe o modelo, preencha no Excel e envie. Os erros aparecem linha a linha em Integração ERP." />
+      <PageHeader title="Carga por arquivo" />
       <div className="flex flex-col gap-4" data-testid="pagina-integracao-carga-conteudo">
         <Panel label="Modelos" title="Modelos de arquivo (CSV)">
-          <TableScroll minWidth={560}>
-            <thead>
-              <tr>
-                <th scope="col" className={th}>Ordem</th>
-                <th scope="col" className={th}>Base</th>
-                <th scope="col" className={th}>Carregar depois de</th>
-                <th scope="col" className={th}>Arquivos</th>
-              </tr>
-            </thead>
-            <tbody data-testid="integracao.carga.modelos">
-              {RESUMO_MODELOS.map((m) => (
-                <tr key={m.entidade}>
-                  <td className={td}>{m.ordem}</td>
-                  <td className={`${td} font-semibold`}>
-                    {ROTULO_ENTIDADE[m.entidade]}
-                    {m.opcional ? <span className="font-normal text-ink-2"> · opcional</span> : null}
-                  </td>
-                  <td className={`${td} text-[12px] text-ink-2`}>{m.depende_de.map((e) => ROTULO_ENTIDADE[e]).join(', ') || '—'}</td>
-                  <td className={td}>
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="link" disabled={baixando !== null} onClick={() => void baixar(`m-${m.entidade}`, () => baixarModelo(m.entidade))} data-testid={`integracao.carga.modelo.${m.entidade}`}>
-                        <IconDownload size={15} />
-                        Modelo
-                      </Button>
-                      <Button variant="link" disabled={baixando !== null} onClick={() => void baixar(`d-${m.entidade}`, () => baixarDicionario(m.entidade))} data-testid={`integracao.carga.dicionario.${m.entidade}`}>
-                        <IconDownload size={15} />
-                        Dicionário
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </TableScroll>
+          <TabelaDados colunas={colunasModelos} linhas={RESUMO_MODELOS} chave={(m) => m.entidade} rotulo="Modelos de arquivo" testId="integracao.carga.modelos" />
         </Panel>
 
         <Panel label="Enviar arquivo" title="Enviar arquivo preenchido">
