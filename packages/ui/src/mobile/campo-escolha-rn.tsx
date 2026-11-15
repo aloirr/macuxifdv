@@ -6,6 +6,7 @@
  *   ⚠ Obrigatório                              só com `falta` (borda danger 2)
  * Folha: título (sistema 18/700) com ✕, `CampoBusca`, linhas de 52 dp (a escolhida com ✓ `accentInk` sobre `accentSoft`) e a
  * opção final por último (15/600 `accentInk`), também quando a busca não acha nada. Tocar numa linha escolhe e fecha.
+ * O gatilho de 48 dp é o `CampoAbrir`, exportado também sozinho para o campo que abre outra folha (RD-0509).
  * Nenhum texto fixo: tudo por props. Sem regra de negócio: o módulo diz as opções, a escolhida e a falta (já resolvida com
  * `faltaVisivel`). Alvos ≥ 48 dp.
  */
@@ -77,24 +78,16 @@ export function CampoEscolha<T extends OpcaoEscolha>({
   return (
     <View style={s.bloco} testID={testID}>
       {rotulo ? <RotuloSecao texto={rotulo} /> : null}
-      <Pressionavel
+      <CampoAbrir
         testID={`${testID}-campo`}
-        accessibilityRole="button"
-        accessibilityLabel={leituraDoCampoComFalta(nome, campo.texto, falta)}
-        accessibilityState={{ disabled: Boolean(desligado), expanded: aberta }}
-        disabled={desligado}
+        texto={campo.texto}
+        vazio={campo.vazio}
+        leitura={leituraDoCampoComFalta(nome, campo.texto, falta)}
         onPress={() => setAberta(true)}
-        escala={false}
-        style={[s.campo, bordaDaFalta(falta), desligado && s.campoDesligado]}>
-        <Text style={[s.campoTexto, (campo.vazio || desligado) && s.campoVazio]} numberOfLines={1}>
-          {campo.texto}
-        </Text>
-        {desligado ? null : (
-          <View style={s.seta}>
-            <Icon name="chevron" size={CAMPO_ESCOLHA.seta} color={colors.ink2} />
-          </View>
-        )}
-      </Pressionavel>
+        aberto={aberta}
+        falta={falta}
+        desligado={desligado}
+      />
       <TextoDaFalta texto={falta} testID={`${testID}-falta`} />
       <Folha visivel={aberta} onFechar={fechar} rotuloFechar={rotuloFechar} titulo={titulo} fechar={{ rotulo: rotuloFechar, testID: `${testID}-fechar` }} evitarTeclado={comBusca} rolavel testID={`${testID}-folha`}>
         <View style={s.folha}>
@@ -138,6 +131,55 @@ export function CampoEscolha<T extends OpcaoEscolha>({
         </View>
       </Folha>
     </View>
+  );
+}
+
+/**
+ * Gatilho de 48 dp do `CampoEscolha`, exportado sozinho (filtro padrão do Campo, RD-0509): o campo que abre outra folha (a Data
+ * da Rota abre a `FolhaPeriodo`). Texto à esquerda, seta à direita; vazio em `ink3`; desligado sem seta. Sem texto fixo.
+ */
+export function CampoAbrir({
+  texto,
+  vazio,
+  leitura,
+  onPress,
+  aberto,
+  falta,
+  desligado,
+  testID = 'campo-abrir',
+}: {
+  texto: string;
+  /** Texto de campo vazio ("Escolher"), em `ink3`. */
+  vazio?: boolean;
+  /** Leitura do TalkBack ("Data, Hoje"). */
+  leitura: string;
+  onPress: () => void;
+  /** A folha que ele abre está aberta (TalkBack: expandido). */
+  aberto?: boolean;
+  /** Texto curto da falta já visível: borda `danger` (o texto embaixo é de quem usa o campo). */
+  falta?: string | null;
+  desligado?: boolean;
+  testID?: string;
+}) {
+  return (
+    <Pressionavel
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={leitura}
+      accessibilityState={{ disabled: Boolean(desligado), expanded: Boolean(aberto) }}
+      disabled={desligado}
+      onPress={onPress}
+      escala={false}
+      style={[s.campo, bordaDaFalta(falta), desligado && s.campoDesligado]}>
+      <Text style={[s.campoTexto, (vazio || desligado) && s.campoVazio]} numberOfLines={1}>
+        {texto}
+      </Text>
+      {desligado ? null : (
+        <View style={s.seta}>
+          <Icon name="chevron" size={CAMPO_ESCOLHA.seta} color={colors.ink2} />
+        </View>
+      )}
+    </Pressionavel>
   );
 }
 
