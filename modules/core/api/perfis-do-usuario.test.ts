@@ -6,13 +6,7 @@ import { perfisDoUsuarioNoLogin } from './perfis-do-usuario';
 const dbCom = (rows: unknown[]): ClienteBanco => ({ query: async () => ({ rows: rows as never[], rowCount: rows.length }) });
 const linha = (codigo: string, base: string, sobreposicoes: unknown = []) => ({ codigo, base, fabrica: codigo === base, sobreposicoes });
 
-describe('RN-CORE-35: o login lê os perfis do usuário (multiperfil) e não só o principal', () => {
-  it('vendedor + admin: a regra mais restritiva fecha o BKO e o app web, mas o Campo continua aberto', async () => {
-    const perfis = await perfisDoUsuarioNoLogin(dbCom([linha('vendedor', 'vendedor'), linha('admin', 'admin')]), 'u1', 'admin');
-    expect(podeAcessarBko(perfis)).toBe(false);
-    expect(podeUsarApp(perfis, 'web')).toBe(false);
-    expect(podeUsarApp(perfis, 'campo')).toBe(true);
-  });
+describe('RN-CORE-35: o login lê o perfil real do usuário (personalizado, com sobreposições) e não só a base', () => {
 
   it('RN-CORE-33: perfil personalizado de base supervisor com BKO "concedido" no banco continua sem BKO', async () => {
     const sobre = [{ chave: 'acesso.bko', concedida: true, nivel: null, alvos: null }];

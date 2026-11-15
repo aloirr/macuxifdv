@@ -103,26 +103,9 @@ describe('RN-CORE-34/35: podeRedefinirSenha (chave senha.redefinir do motor)', (
   });
 });
 
-describe('RN-CORE-34/35 (T-0111): podeRedefinirSenha olha TODOS os perfis do alvo', () => {
-  const ator = { id: 'a1', perfis: perfisDeFabrica('admin') };
-  const ref = (p: Perfil) => ({ codigo: p, base: p });
+describe('RN-CORE-34/35 (T-0111): podeRedefinirSenha com lista de alvos', () => {
   const coord = (alvos: string[]) =>
     resolverPerfil({ ...perfilDeFabrica('gerente'), codigo: 'coord', fabrica: false, sobreposicoes: [{ chave: 'senha.redefinir', concedida: true, alvos }] }, matrizDeFabrica([]));
-  it('RN-CORE-34: alvo [analista, admin] é recusado como admin, mesmo com o principal analista e com a lista "todos"', () => {
-    expect(podeRedefinirSenha(ator, { id: 'x', perfis: [ref('analista'), ref('admin')], ativo: true })).toMatchObject({ ok: false, codigo: 'SENHA_DE_ADMIN' });
-    expect(podeRedefinirSenha(ator, { id: 'x', perfis: [ref('admin'), ref('analista')], ativo: true })).toMatchObject({ ok: false, codigo: 'SENHA_DE_ADMIN' });
-    expect(podeRedefinirSenha({ id: 'g1', perfis: [coord(['analista'])] }, { id: 'x', perfis: [ref('analista'), ref('admin')], ativo: true })).toMatchObject({ ok: false, codigo: 'SENHA_DE_ADMIN' });
-  });
-  it('RN-CORE-35: alvo [vendedor, supervisor] só passa se a lista cobre os dois perfis', () => {
-    const alvo = { id: 'x', perfis: [ref('vendedor'), ref('supervisor')], ativo: true };
-    expect(podeRedefinirSenha(ator, alvo)).toEqual({ ok: true });
-    expect(podeRedefinirSenha({ id: 'g1', perfis: [coord(['vendedor'])] }, alvo)).toMatchObject({ ok: false, codigo: 'USUARIO_SEM_PERMISSAO' });
-    expect(podeRedefinirSenha({ id: 'g1', perfis: [coord(['supervisor'])] }, alvo)).toMatchObject({ ok: false, codigo: 'USUARIO_SEM_PERMISSAO' });
-    expect(podeRedefinirSenha({ id: 'g1', perfis: [coord(['vendedor', 'supervisor'])] }, alvo)).toEqual({ ok: true });
-  });
-  it('RN-CORE-34: a própria senha é sempre recusada, também com vários perfis', () => {
-    expect(podeRedefinirSenha(ator, { id: 'a1', perfis: [ref('vendedor'), ref('supervisor')], ativo: true })).toMatchObject({ ok: false, codigo: 'SENHA_PROPRIA' });
-  });
   it('RN-CORE-35: alvo sem nenhum perfil conhecido é recusado (falha fechada) para quem tem lista restrita', () => {
     expect(podeRedefinirSenha({ id: 'g1', perfis: [coord(['vendedor'])] }, { id: 'x', perfis: [], ativo: true })).toMatchObject({ ok: false, codigo: 'USUARIO_SEM_PERMISSAO' });
   });

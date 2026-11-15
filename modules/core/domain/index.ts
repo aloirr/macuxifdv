@@ -32,6 +32,7 @@ export * from './promotor-pedidos';
 export * from './produto-unidade';
 export * from './cliente-endereco';
 export * from './usuarios';
+export * from './cargos';
 export * from './senha';
 export * from './acesso-senha';
 export * from './perfis';

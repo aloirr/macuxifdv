@@ -8,12 +8,13 @@
 --   ignoraria a RLS; aparece como tabela "(papel) <nome>".
 -- Portal do super-admin (0038, T-0091, ADR 0029): o macuxi_portal só executa as plataforma.sa_*; política ou qualquer grant de
 --   tabela para ele (em qualquer tabela, direto ou via PUBLIC) aparece como problema.
--- Despachantes (0003, ADR 0007; 0040, ADR 0032; 0058, ADR 0043): política para o macuxi_worker (que lê todos os tenants) só em
---   plataforma.evento, plataforma.email_saida e plataforma.diagnostico (alerta do diagnóstico); em qualquer outra tabela aparece
---   como problema.
+-- Despachantes (0003, ADR 0007; 0040, ADR 0032; 0058, ADR 0043; 0074, ADR 0054): política para o macuxi_worker (que lê todos
+--   os tenants) só em plataforma.evento, plataforma.email_saida, plataforma.diagnostico (alerta do diagnóstico),
+--   plataforma.sync_pacote e plataforma.sync_pacote_pedido (gerador do pacote da primeira carga); em qualquer outra tabela
+--   aparece como problema.
 -- Resultado esperado: ZERO linhas. Exceções (iguais a db/src/excecoes.ts, TABELAS_SEM_TENANT_ID): plataforma.tenant não tem
 -- tenant_id (o id é o tenant; RLS por id) e public.macuxi_migracao fica fora (schema public, sem acesso do macuxi_app).
--- Super-admin e portal (0035, ADR 0029; 0039, ADR 0031; TABELAS_SO_POR_FUNCAO): sem tenant_id e SEM política para o macuxi_app (só por função
+-- Super-admin, portal, catálogo de planos, ações da empresa e dados legais (0035, ADR 0029; 0039, ADR 0031; 0070, ADR 0047; 0072, ADR 0052; 0073, rodapé legal; TABELAS_SO_POR_FUNCAO): sem tenant_id e SEM política para o macuxi_app (só por função
 -- SECURITY DEFINER); para elas o problema é o contrário: política ou qualquer grant de tabela para o macuxi_app/macuxi_worker.
 -- Prova: db/testes/conformidade.test.ts ("B1 conferência de RLS") roda este arquivo no Postgres de testes do CI.
 -- À mão (só leitura): psql "$URL_ADMIN" -v ON_ERROR_STOP=1 -f db/scripts/conferir-rls.sql
@@ -41,7 +42,13 @@ sem_tenant_id (nome) as (
          ('plataforma.auditoria_plataforma'),
          ('plataforma.portal_tentativa'),
          ('plataforma.portal_sessao'),
-         ('plataforma.portal_sessao_empresa')
+         ('plataforma.portal_sessao_empresa'),
+         ('plataforma.plano'),
+         ('plataforma.backup_empresa'),
+         ('plataforma.backup_empresa_parte'),
+         ('plataforma.exclusao_empresa'),
+         ('plataforma.empresa_excluida'),
+         ('plataforma.dados_legais')
 ),
 so_por_funcao (nome) as (
   values ('plataforma.super_admin'),
@@ -50,7 +57,13 @@ so_por_funcao (nome) as (
          ('plataforma.auditoria_plataforma'),
          ('plataforma.portal_tentativa'),
          ('plataforma.portal_sessao'),
-         ('plataforma.portal_sessao_empresa')
+         ('plataforma.portal_sessao_empresa'),
+         ('plataforma.plano'),
+         ('plataforma.backup_empresa'),
+         ('plataforma.backup_empresa_parte'),
+         ('plataforma.exclusao_empresa'),
+         ('plataforma.empresa_excluida'),
+         ('plataforma.dados_legais')
 ),
 problemas as (
   select t.nome, 'RLS desligado' as problema from tabelas t where not t.rls
@@ -85,8 +98,8 @@ problemas as (
       or exists (select 1 from pg_roles r where r.rolname = 'macuxi_portal'
                   and has_table_privilege(r.oid, t.oid, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'))
   union all
-  select t.nome, 'política para o macuxi_worker fora das outboxes (plataforma.evento, plataforma.email_saida, plataforma.diagnostico)' from tabelas t
-   where t.nome not in ('plataforma.evento', 'plataforma.email_saida', 'plataforma.diagnostico')
+  select t.nome, 'política para o macuxi_worker fora das outboxes (plataforma.evento, plataforma.email_saida, plataforma.diagnostico) e do gerador de pacotes (plataforma.sync_pacote, plataforma.sync_pacote_pedido)' from tabelas t
+   where t.nome not in ('plataforma.evento', 'plataforma.email_saida', 'plataforma.diagnostico', 'plataforma.sync_pacote', 'plataforma.sync_pacote_pedido')
      and exists (select 1 from pg_policy p join pg_roles r on r.oid = any (p.polroles)
                   where p.polrelid = t.oid and r.rolname = 'macuxi_worker')  union all
   select '(papel) ' || a.rolname, 'membro de macuxi_manutencao (ignoraria a RLS)'

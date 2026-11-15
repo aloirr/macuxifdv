@@ -289,3 +289,26 @@ export async function lerArquivosEmail(pasta: string): Promise<ArquivoEmail[]> {
   }
   return saida;
 }
+
+const PALAVRA_CODIFICADA = /=\?([^?]+)\?([BbQq])\?([^?]*)\?=/g;
+
+/**
+ * O `Subject` de um `.eml`, desdobrado (RFC 5322 §2.2.3) e com as encoded-words decodificadas (RFC 2047, `B` e `Q`): o mesmo
+ * texto vale para o assunto em texto puro e em encoded-word. Espaço entre duas encoded-words seguidas some (RFC 2047 §6.2).
+ * Sem `Subject` no cabeçalho: `undefined`.
+ */
+export function assuntoDoEml(bruto: string): string | undefined {
+  const cabecalho = bruto.split(/\r?\n\r?\n/, 1)[0] ?? '';
+  const achado = /^Subject:[ \t]*(.*(?:\r?\n[ \t].*)*)/im.exec(cabecalho);
+  if (!achado) return undefined;
+  const desdobrado = (achado[1] ?? '').replace(/\r?\n(?=[ \t])/g, '');
+  return desdobrado
+    .replace(/(\?=)[ \t]+(?==\?[^?]+\?[BbQq]\?)/g, '$1')
+    .replace(PALAVRA_CODIFICADA, (_p, charset: string, modo: string, texto: string) => {
+      const bytes =
+        modo.toUpperCase() === 'B'
+          ? Buffer.from(texto, 'base64')
+          : Buffer.from(texto.replace(/_/g, ' ').replace(/=([0-9A-Fa-f]{2})/g, (_h, hex: string) => String.fromCharCode(parseInt(hex, 16))), 'latin1');
+      return new TextDecoder(charset).decode(bytes);
+    });
+}

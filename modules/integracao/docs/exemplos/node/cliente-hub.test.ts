@@ -277,7 +277,7 @@ describe('cliente-hub.mjs: repetição, recusa e configuração', () => {
     expect(mensagem).toMatch(/MACUXI_CHAVE/);
     expect(mensagem).not.toContain('SEGREDO');
     const padrao = lerConfig({ MACUXI_CHAVE: chaveOk });
-    expect(padrao).toMatchObject({ url: 'https://api-demo.macuxifdv.com.br/integracao/v1', conectorId: 'erp-matriz', intervaloMs: 5000, conectorVersao: undefined });
+    expect(padrao).toMatchObject({ url: 'https://api.macuxifdv.com.br/integracao/v1', conectorId: 'erp-matriz', intervaloMs: 5000, conectorVersao: undefined });
   });
 
   it('X-Macuxi-Conector-Versao só é enviado quando informado', async () => {

@@ -21,7 +21,7 @@ Os três clientes fazem a mesma coisa: consultam o cursor; sem cursor, carga com
 
 1. Leia as seções 2 a 9 do [guia](../guia-api-hub.md).
 2. Suba o simulador (`node simulador/hub-simulado.mjs`) e rode um dos clientes contra ele (veja o README de cada pasta). Com o simulador, os erros aparecem sem risco.
-3. Importe a coleção no Postman ou no Insomnia e teste as rotas à mão contra a demonstração (`api-demo.macuxifdv.com.br`) com a chave que o administrador gerou no BKO.
+3. Importe a coleção no Postman ou no Insomnia e teste as rotas à mão contra a API (`api.macuxifdv.com.br`) com a chave que o administrador gerou no portal.
 4. Troque o "ERP fictício" do exemplo pelas consultas do seu ERP (a leitura precisa ser **ordenada** por `alterado_em`, `external_id` e filtrar pelo cursor).
 
 ## Regras que os exemplos seguem

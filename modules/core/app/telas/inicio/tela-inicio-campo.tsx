@@ -1,15 +1,14 @@
 /**
  * Início do Campo (T-0170; R-20261114-145000). Coluna de altura cheia, sem rolagem no uso normal e responsiva (`escala-inicio.ts`: letra, espaços e alturas escalam pela janela e pela fonte do sistema): (a) painel do topo FIXO, Azul
- * noite de ponta a ponta (avatar pequeno, data · DU e o sino à direita, como o `CabecalhoTela`; saudação na largura inteira,
- * que encolhe para caber, e a frase), (b) o meio rolável só se preciso (Metas do mês e Produtividade, compactas, com o puxar
+ * noite de ponta a ponta (variação C, R-20261114-212000: foto de 72 dp à esquerda, ou as iniciais no mesmo tamanho; à direita a saudação, que encolhe até 0,75, com o sino na mesma linha, a data · DU e a frase), (b) o meio rolável só se preciso (Metas do mês e Produtividade, compactas, com o puxar
  * para atualizar) e (c) o Sincronizar FIXO no rodapé, fora da rolagem, com "Últ. sincronização" e a hora em 2 linhas. Só desenho: textos e tons
  * saem de `inicio-campo.ts` (puro, testado). O sino (com o balão), a barra de abas e as rotas são do shell: o sino vem do
  * `ProvedorSinoCabecalho` (o mesmo das outras telas); a prop `sino` só vale sem provedor. Alvos de toque >= 48 dp (`ALVO_TOQUE`).
  */
-import { ALVO_TOQUE, Button, Cartao, colors, fonts, Icon, initials, layout, layoutCabecalho, Pressionavel, ProgressBar, Screen, space, type as t, useAtualizacaoAutomatica, useSinoCabecalho } from '@macuxi/ui/mobile';
+import { ALVO_TOQUE, Button, Cartao, colors, fonts, Icon, initials, layout, layoutCabecalho, Pressionavel, ProgressBar, radius, Screen, space, type as t, useAtualizacaoAutomatica, useSinoCabecalho } from '@macuxi/ui/mobile';
 import type { ReactNode } from 'react';
 import { useMemo } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Image, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCore } from '../../lib/usar-core';
@@ -50,24 +49,30 @@ export function TelaInicioCampo({ sino, onAbrirPerformance, onPerfil, avisos }: 
         <View style={s.linhaTopo}>
           <Pressionavel testID="abrir-perfil" accessibilityRole="button" accessibilityLabel={`${v.saudacao}. Abrir perfil`} onPress={onPerfil} style={s.perfil}>
             <View style={s.avatar} testID="inicio.avatar" accessibilityLabel={`Foto de ${v.nome}`}>
-              <Text style={s.iniciais}>{initials(v.nome)}</Text>
+              {v.foto ? <Image source={{ uri: v.foto }} resizeMode="cover" style={s.foto} testID="inicio.foto" /> : <Text style={s.iniciais}>{initials(v.nome)}</Text>}
             </View>
-            <Text style={s.data} testID="inicio.data" numberOfLines={2}>
-              {v.data}
-            </Text>
           </Pressionavel>
-          {sinoDoPainel}
+          <View style={s.textos}>
+            <View style={s.linhaSaudacao}>
+              <Pressionavel accessible={false} importantForAccessibility="no-hide-descendants" onPress={onPerfil} style={s.saudacaoBox}>
+                <Text style={s.saudacao} testID="inicio.saudacao" numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.75}>
+                  {v.saudacao}
+                </Text>
+              </Pressionavel>
+              <View style={s.sinoBox}>{sinoDoPainel}</View>
+            </View>
+            <Pressionavel accessible={false} importantForAccessibility="no-hide-descendants" onPress={onPerfil} style={s.dataEFrase}>
+              <Text style={s.data} testID="inicio.data" numberOfLines={2}>
+                {v.data}
+              </Text>
+              {v.frase ? (
+                <Text style={s.frase} testID="inicio.frase" numberOfLines={2}>
+                  “{v.frase}”
+                </Text>
+              ) : null}
+            </Pressionavel>
+          </View>
         </View>
-        <Pressionavel accessible={false} importantForAccessibility="no-hide-descendants" onPress={onPerfil} style={s.textos}>
-          <Text style={s.saudacao} testID="inicio.saudacao" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-            {v.saudacao}
-          </Text>
-          {v.frase ? (
-            <Text style={s.frase} testID="inicio.frase" numberOfLines={2}>
-              “{v.frase}”
-            </Text>
-          ) : null}
-        </Pressionavel>
       </View>
 
       <Screen testID="inicio" top={0} gap={esc.meio.gap} refreshing={auto.puxando} onRefresh={auto.puxar} contentStyle={s.meio}>
@@ -175,13 +180,20 @@ function estilos(e: EscalaInicio) {
     // Painel fixo, de ponta a ponta (quadro 8 de docs/marca/propostas/2026-11-12-entrada-sync): a faixa Azul noite do `CabecalhoTela`;
     // a área segura e o respiro de cima vêm só do `layoutCabecalho`
     painel: { paddingBottom: e.painel.paddingBottom, gap: e.painel.gap },
+    // Variação C (docs/design/telas/inicio-cabecalho.md): foto à esquerda, textos à direita; o sino fica na linha da saudação
     linhaTopo: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-    perfil: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: ALVO_TOQUE },
-    textos: { gap: space.xxs },
-    data: { flex: 1, fontFamily: fonts.body, fontSize: f.data, color: colors.faixaSub },
+    perfil: { minHeight: e.painel.avatar, minWidth: ALVO_TOQUE, justifyContent: 'center' },
+    textos: { flex: 1, minWidth: 0, gap: e.painel.gap },
+    // O sino (alvo de 48) sobe 10 e avança 12 no respiro do painel: só a saudação divide a linha com ele
+    linhaSaudacao: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginRight: -space.md },
+    saudacaoBox: { flex: 1, minWidth: 0 },
+    sinoBox: { marginVertical: -10 },
+    dataEFrase: { gap: e.painel.gap },
+    data: { fontFamily: fonts.body, fontSize: f.data, color: colors.faixaSub },
     saudacao: { fontFamily: fonts.display, fontSize: f.saudacao, color: colors.faixaTitulo },
     frase: { fontFamily: fonts.body, fontSize: f.frase, fontStyle: 'italic', color: colors.faixaSub },
-    avatar: { width: e.painel.avatar, height: e.painel.avatar, borderRadius: 12, backgroundColor: colors.neutralBg, alignItems: 'center', justifyContent: 'center' },
+    avatar: { width: e.painel.avatar, height: e.painel.avatar, borderRadius: radius.xl, overflow: 'hidden', backgroundColor: colors.neutralBg, alignItems: 'center', justifyContent: 'center' },
+    foto: { width: e.painel.avatar, height: e.painel.avatar },
     iniciais: { fontFamily: fonts.display, fontSize: f.iniciais, color: colors.accentInk },
     meio: { paddingTop: e.meio.paddingTop, paddingBottom: e.meio.paddingBottom, flexGrow: 1 },
     h2: { ...t.h2, fontSize: f.h2 },
