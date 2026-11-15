@@ -13,7 +13,7 @@ Referências: doc 03 RN-VEN-02, 03, 10, 11, 12, 18, 24, 40, 42; RN-INT-09; `pedi
 1. Ao escolher o prazo, o **valor de tabela de cada produto muda** pelo % do prazo: nos itens do pedido e no preço exibido do Catálogo.
 2. O % **não aparece em lugar nenhum**: sem linha nos totais, sem % na lista de prazos do app, nada no PDF.
 3. Desconto, alçada, preço mínimo e crédito são calculados **sobre a tabela já ajustada**. Nenhuma regra nova de alçada: o ajuste é parte da tabela.
-4. O % vem do ERP (entidade prazo de pagamento, coluna "% Acres.Fin." (RN-VEN-46; `SalvarPrazoRequest` não leva o percentual).
+4. O % vem do ERP (entidade prazo de pagamento, coluna "% Acres.Fin."; RN-VEN-46; `SalvarPrazoRequest` não leva o percentual).
 5. Ficam como estavam: pedido offline com percentual congelado e revalidado (seção 5) e Conector 1.5.0 (seção 6).
 
 ## 2. Cálculo e arredondamento
