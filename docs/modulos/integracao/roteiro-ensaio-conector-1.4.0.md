@@ -33,7 +33,7 @@
 | 2.6 | Parar o serviço no meio de uma carga e iniciar de novo | retoma do cursor confirmado, sem duplicar (`status`) |
 
 ## 3. Pedido até o SQL do ERP-modelo
-Preparar no app  dois pedidos aprovados:
+Preparar no app dois pedidos aprovados:
 - **A**: cliente da filial **não padrão**, frete **FOB** com transportadora cadastrada, endereço de entrega **do cadastro** (com `external_id`), pagamento a prazo 30/60/90.
 - **B**: cliente da filial **padrão**, frete **CIF**, endereço **editado** no pedido (RN-VEN-17), pagamento à vista.
 

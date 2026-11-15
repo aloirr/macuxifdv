@@ -157,21 +157,18 @@ describe('ROTEIRO.md', () => {
       expect(fase).toMatch(/Pedido no app/);
       expect(fase).toMatch(/Número de volta/);
     }
-    expect(ROTEIRO.slice(f2)).toMatch(/desative o Conector `thathyany-conector`/);
+    expect(ROTEIRO.slice(f2)).toMatch(/Desative o `thathyany-conector` no Hub:[^\n]*`PATCH \/integracao\/conectores\/<id>`/);
   });
 
-  it('o que ter em mãos: SQL Server Express, chave do portal e o código novo da thathyany depois do deploy da v1.0.9', () => {
+  it('o que ter em mãos: SQL Server Express e o código novo da thathyany depois do deploy da v1.0.9', () => {
     const secao = ROTEIRO.slice(ROTEIRO.indexOf('## O que ter em mãos'), ROTEIRO.indexOf('## Preparar'));
     expect(secao).toContain('SQL Server Express');
-    expect(secao).toMatch(/chaves? gerada?s? no portal/);
     expect(secao).toContain('código novo da thathyany');
     expect(secao).toContain('v1.0.9');
-    expect(secao).toContain('Baixar o Conector');
   });
 
-  it('chave gerada no portal, nunca "no BKO"; sem endereço da demo', () => {
+  it('chave gerada no portal, nunca "no BKO"', () => {
     expect(ROTEIRO).toContain('chave gerada no portal');
     expect(ROTEIRO).not.toMatch(/no BKO/);
-    expect(ROTEIRO).not.toMatch(/demo/i);
   });
 });

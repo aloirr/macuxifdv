@@ -11,8 +11,6 @@ Cada fase vai do pedido no app até o número do ERP voltar ao app.
 - **SQL Server Express:** o instalador baixa o SQL Server 2022 Express se ele ainda não estiver no notebook. O banco é o `ERP_THATHYANY`.
 - **Os dados da thathyany em CSV:** um arquivo por cadastro, no formato da pasta `modelos` (os nomes das colunas não mudam).
 - **O código novo da thathyany:** sai depois do deploy da v1.0.9. Você usa no portal e no login do app.
-- **Duas chaves geradas no portal:** uma para a fase 1 (`thathyany-conector`) e outra para a fase 2 (`thathyany-api`). Cada chave aparece uma vez só e começa com `mxc_`.
-- **O Conector 1.4.0:** baixe pelo **Baixar o Conector** do portal, na aba Integração. O arquivo `conector-1.4.0.zip` pode ficar na pasta Downloads.
 - Um vendedor da thathyany com o app Macuxi Campo instalado.
 
 ## Preparar (uma vez)
@@ -20,7 +18,7 @@ Cada fase vai do pedido no app até o número do ERP voltar ao app.
 2. Abra o **Windows PowerShell** (o azul) **como administrador**.
 
 ## Fase 1 — Conector 1.4.0
-1. **Portal, aba Integração:** em **Gerar credencial**, use o identificador `thathyany-conector`, o nome "Conector thathyany", marque **Recebe pedidos** e gere. Copie a chave.
+1. **Portal, aba Integração:** em **Gerar credencial**, use o identificador `thathyany-conector`, o nome "Conector thathyany", marque **Recebe pedidos** e gere. Copie a chave (ela aparece uma vez só).
 2. **Portal, aba Integração:** clique em **Baixar o Conector** e salve o `conector-1.4.0.zip`.
 3. **Instale:**
    ```
@@ -34,7 +32,7 @@ Cada fase vai do pedido no app até o número do ERP voltar ao app.
    py carga_csv.py --pasta csv --validar
    py carga_csv.py --pasta csv
    ```
-   O relatório mostra, por tabela, as linhas lidas, inseridas, atualizadas, sem mudança e recusadas, com a linha e o motivo da recusa. Corrija o CSV e rode de novo: o que já entrou não duplica.
+   O relatório mostra, por tabela, as linhas lidas, inseridas, atualizadas, sem mudança e recusadas, com a linha e o motivo da recusa. Corrija o CSV e rode de novo.
 5. **Confira a carga:** em 2 a 5 minutos, os vendedores, clientes e produtos aparecem no Backoffice. O Monitor da integração mostra o Conector `thathyany-conector` em dia, versão 1.4.0.
 6. **Pedido no app:** o vendedor sincroniza, faz um pedido para um cliente da carga e o envia.
 7. **Pedido no ERP:** em 1 a 2 minutos, o pedido entra no `ERP_THATHYANY`. No SSMS (servidor `localhost\SQLEXPRESS`, autenticação do Windows), rode:
@@ -50,21 +48,21 @@ Cada fase vai do pedido no app até o número do ERP voltar ao app.
    Para rejeitar: `situacao = 'R', motivo = 'Sem estoque'`.
 
 ## Fase 2 — API com outra credencial
-1. **Portal, aba Integração:** desative o Conector `thathyany-conector`.
+1. **Desative o `thathyany-conector` no Hub:** o portal e o BKO não têm esse botão. Peça ao gerente-projetos, que desativa pela rota `PATCH /integracao/conectores/<id>` com `{"ativo": false}`.
 2. **Portal, aba Integração:** em **Gerar credencial**, use o identificador `thathyany-api`, o nome "API thathyany", marque **Recebe pedidos** e gere. Copie a chave nova.
 3. **Instale:**
    ```
    cd C:\MacuxiKit
    powershell -ExecutionPolicy Bypass -File .\Instalar-Thathyany.ps1 -Fase API
    ```
-   Quando pedir, cole a chave nova. O instalador para e desativa o serviço do Conector e liga a tarefa **Macuxi ERP via API** (a cada minuto).
-4. **Carga pela API:** mude um preço ou um cliente no CSV e rode `py carga_csv.py --pasta csv`. Em 2 a 6 minutos a mudança aparece no Backoffice. Pela API vão vendedores, filiais, formas e prazos de pagamento, produtos, clientes, preços, estoque e títulos.
+   Quando pedir, cole a chave nova.
+4. **Carga pela API:** mude um preço ou um cliente no CSV e rode `py carga_csv.py --pasta csv`. Em 2 a 6 minutos a mudança aparece no Backoffice.
 5. **Pedido no app:** o vendedor faz e envia um pedido novo.
 6. **Pedido no ERP:** em 1 a 2 minutos, a consulta do passo 7 da fase 1 mostra o pedido com a origem **Thathyany API**.
 7. **Número de volta:** em 1 a 2 minutos, o app mostra o pedido como integrado, com o número do ERP.
 8. **Faturamento (opcional):** o mesmo `UPDATE` do passo 9 da fase 1.
 
-Para voltar à fase 1: reative o `thathyany-conector` no portal, desative o `thathyany-api` e rode `.\Instalar-Thathyany.ps1 -Fase Conector`.
+Para voltar à fase 1: peça ao gerente-projetos para reativar o `thathyany-conector` e desativar o `thathyany-api` (a mesma rota) e rode `.\Instalar-Thathyany.ps1 -Fase Conector`.
 
 ## Se der errado
 - **O serviço do Conector não inicia** (ou você trocou a senha do Windows): rode a fase 1 de novo e digite a senha atual.

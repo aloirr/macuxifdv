@@ -444,7 +444,7 @@ def formatar_relatorio(linhas: list[Linha], so_validar: bool) -> str:
         for r in l.recusas:
             detalhes.append(f"[{l.entidade}] linha {r.linha}, {r.campo}: {r.motivo}")
     if detalhes:
-        out += ["", "Recusadas (corrija o CSV e rode de novo; o que já entrou não duplica):", *detalhes]
+        out += ["", "Recusadas (corrija o CSV e rode de novo):", *detalhes]
     return "\n".join(out)
 
 
