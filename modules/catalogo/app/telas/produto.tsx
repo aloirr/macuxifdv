@@ -90,7 +90,7 @@ export default function TelaProduto() {
   const estoque = tagDeEstoque(item, { noCartao: false });
   const folha = item.availability && usuario?.perfil ? dadosDaFolha({ codigo: item.erp_code, availability: item.availability, cargaEm: sync.sincronizado_em, proprias, agora: relogioReal().agora().toISOString(), fuso }) : null;
   return (
-    <Screen testID="pagina-catalogo-produto" cabecalho={{ titulo: item.description, subtitulo: `${subtituloProduto(item)} · ${item.unit}${item.ean ? ` · EAN ${item.ean}` : ''}`, voltar }}>
+    <Screen testID="pagina-catalogo-produto" cabecalho={{ titulo: item.description, subtitulo: `${subtituloProduto(item)} · ${item.unit}${item.ean ? ` · EAN ${item.ean}` : ''}`, voltar, direita: <BotaoCopiarCodigo codigo={item.erp_code} variante="faixa" /> }}>
       {item.is_campaign || (catalogo && catalogo.etiquetas.length > 0) ? (
         <View style={{ gap: 4 }}>
           {item.is_campaign ? <Badge label="Destaque" tone="accent" style={{ alignSelf: 'flex-start' }} /> : null}
@@ -127,7 +127,6 @@ export default function TelaProduto() {
       ) : null}
 
       <FolhaEstoquePorFilial visivel={folhaAberta} onFechar={() => setFolhaAberta(false)} dados={folha} />
-      <BotaoCopiarCodigo codigo={item.erp_code} />
       <BotoesAcao item={item} clienteId={clienteId} />
 
       {content.description || content.selling_points.length > 0 ? (
@@ -223,7 +222,7 @@ export default function TelaProduto() {
 
 const s = StyleSheet.create({
   card: { padding: 14, gap: 10 },
-  estoqueLinha: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  estoqueLinha: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.lineSoft },
   linha: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
   preco: { fontFamily: fonts.display, fontSize: 24, color: colors.ink },
   semPreco: { fontFamily: fonts.medium, fontSize: 14, color: colors.ink2 },
