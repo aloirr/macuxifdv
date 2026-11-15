@@ -101,12 +101,7 @@ esperado=$'macuxi_app|t|f|f|f\nmacuxi_portal|t|f|f|f\nmacuxi_worker|t|f|f|f'
 # (o começo da linha é o que o stack-isolado.yml procura: não mudar)
 log "papéis: macuxi_app e macuxi_worker com LOGIN, sem SUPERUSER/BYPASSRLS, fora do macuxi_manutencao; macuxi_portal também (T-0091)"
 # T-0091 (condição da ADR 0029): a sessão do super-admin só abre pelo macuxi_portal, e ele não lê tabela nenhuma
-# As sa_* por classe (espelho de apps/api/test/funcoes-sa.ts; o funcoes-sa.test.ts confere que as listas batem):
-# SA_PORTAL = as 12 do login só com e-mail e senha (0039, T-0093/ADR 0031) e as 2 do super-admin que redefine a senha do admin
-# (0042, T-0094), as 2 dos diagnósticos (0058, T-0158), a da assinatura (0070, ADR 0047) e as 8 das ações da empresa
-# (0072, ADR 0052) e as 2 dos dados legais do rodapé (0073) = 27, só o macuxi_portal executa; SA_INTERNAS = sem
-# EXECUTE para ninguém além do dono. Nenhuma executa como macuxi_app, macuxi_worker ou PUBLIC; sa_* do catálogo fora das duas
-# listas = erro.
+# As sa_* por classe (espelho de apps/api/test/funcoes-sa.ts; o funcoes-sa.test.ts confere que as listas batem): SA_PORTAL só o macuxi_portal executa; SA_INTERNAS sem EXECUTE para ninguém além do dono.
 SA_PORTAL="'plataforma.sa_tentativa_estado(text)', 'plataforma.sa_tentativa_falha(text)', 'plataforma.sa_tentativa_sucesso(text)',
   'plataforma.sa_contas_para_login(text)', 'plataforma.sa_abrir_sessao_portal(jsonb)', 'plataforma.sa_escolher_empresa(uuid, uuid)',
   'plataforma.sa_sessao_valida(uuid)', 'plataforma.sa_revogar(uuid)', 'plataforma.sa_auditar(jsonb)',

@@ -1,11 +1,7 @@
 /**
  * T-0091 (condição da ADR 0029): as `plataforma.sa_*` por classe, na assinatura `schema.nome(tipos)` de
  * `oidvectortypes` (independe do search_path). Toda sa_* do catálogo está em UMA das duas listas:
- *  - SA_PORTAL: as com grant ao `macuxi_portal` (0038; desde a 0039/T-0093, ADR 0031, as 12 do login só com e-mail e senha;
- *    desde a 0042/T-0094, mais 2: o super-admin lista os admins e redefine a senha de um deles = 14; desde a 0058/T-0158, mais 2:
- *    a lista e o detalhe dos diagnósticos = 16; desde a 0070/ADR 0047, mais 1: a assinatura da empresa = 17; desde a 0072/ADR 0052,
- *    mais 8: inativar, reativar, backup, exclusão, reautenticação e o bloco `acoes` da lista = 25; desde a 0073, mais 2: ler e
- *    gravar os dados legais do rodapé = 27);
+ *  - SA_PORTAL: as com grant só ao `macuxi_portal`;
  *  - SA_INTERNAS: SECURITY INVOKER, sem EXECUTE para ninguém além do dono (chamadas de dentro das sa_* DEFINER).
  * Nenhuma das duas executa como macuxi_app, macuxi_worker ou PUBLIC. A `plataforma.criar_super_admin` (0039, deploy) não tem o
  * prefixo `sa_`: sem EXECUTE para ninguém além do dono (conexão de administração).
