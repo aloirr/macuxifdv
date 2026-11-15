@@ -39,3 +39,4 @@
 2026-11-13 — RD-0210 — removida a tag fixa 'Atenção' das pendências em alertas-screen.tsx
 2026-11-14 — oficial — cabeçalho Azul noite nas 5 telas do Gestão
 2026-11-15 — fonte do sistema v1.0.13 — card-aprovacoes usa fonte.*; web sem text-[Npx]
+2026-11-15 — fonte do sistema r3 — RD-0945: campo de Regras em text-base (15), meta do ranking em 13/500
