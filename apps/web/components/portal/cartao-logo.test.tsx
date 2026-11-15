@@ -89,7 +89,11 @@ describe('cartões Logo e Nome fantasia', () => {
     expect(html).not.toContain('empresa-logo.limites');
     expect(html).toMatch(/data-testid="empresa-nome-fantasia.valor"[^>]*>Exemplo Norte</);
   });
-  it('sem nome fantasia, o admin do cliente vê a razão social', () => {
-    expect(renderizarMarca(false, { ...MARCA, nome_fantasia: null })).toMatch(/empresa-nome-fantasia.valor"[^>]*>Distribuidora Exemplo Norte Ltda</);
+  it.each([null, '', '   '])('sem nome fantasia (%j), o admin do cliente vê o campo vazio, sem a razão social nem texto', (nome) => {
+    const html = renderizarMarca(false, { ...MARCA, nome_fantasia: nome });
+    expect(html).not.toContain('Distribuidora Exemplo Norte Ltda');
+    expect(html).not.toContain('empresa-nome-fantasia.valor');
+    expect(html).toMatch(/<div data-testid="empresa-nome-fantasia.vazio"[^>]*><\/div>/);
+    expect(html).not.toContain('<input');
   });
 });

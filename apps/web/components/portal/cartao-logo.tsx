@@ -12,7 +12,7 @@
  */
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { MarcaEmpresaSchema, MAX_NOME_FANTASIA, nomeDaEmpresa, type MarcaEmpresa } from '@macuxi/platform-sdk';
+import { MarcaEmpresaSchema, MAX_NOME_FANTASIA, type MarcaEmpresa } from '@macuxi/platform-sdk';
 import { Button, CLASSE_CAMPO, cx, Dialog, ErrorBlock, IconAlert, LoadingBlock, Panel } from '@macuxi/ui/web';
 
 import { blobDoPortal, chamarPortal, ehRotaAusente, mensagemDoErro } from '@/lib/portal-api';
@@ -272,14 +272,22 @@ function CartaoNomeFantasia({ tenant, marca, podeGravar }: { tenant: string; mar
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  if (!podeGravar)
+  // Admin do cliente: só o nome fantasia (nunca a razão social sob este rótulo). Vazio = o campo vazio que o time da Macuxi vê,
+  // sem texto (achado do testes, T-0182).
+  if (!podeGravar) {
+    const valor = marca.nome_fantasia?.trim() ?? '';
     return (
       <Panel title={TEXTOS_LOGO.nomeFantasia} label={TEXTOS_LOGO.nomeFantasia}>
-        <span data-testid="empresa-nome-fantasia.valor" className="text-[14px]">
-          {nomeDaEmpresa(marca.nome_fantasia, marca.razao_social)}
-        </span>
+        {valor ? (
+          <span data-testid="empresa-nome-fantasia.valor" className="text-[14px]">
+            {valor}
+          </span>
+        ) : (
+          <div data-testid="empresa-nome-fantasia.vazio" aria-label={TEXTOS_LOGO.nomeFantasia} className={cx(CLASSE_CAMPO, 'max-w-[360px]')} />
+        )}
       </Panel>
     );
+  }
 
   const salvar = async () => {
     if (salvando) return;
