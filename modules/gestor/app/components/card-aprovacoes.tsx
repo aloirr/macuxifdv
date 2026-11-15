@@ -31,7 +31,7 @@ export function CardAprovacoes() {
       preenchimento={14}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64 }}>
       <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ ...fonte.display, fontSize: 18, color: colors.surface }}>{r.total}</Text>
+        <Text style={{ ...fonte.bold, fontSize: 18, color: colors.surface }}>{r.total}</Text>
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={[t.bodyStrong, { fontSize: 16 }]}>{r.titulo}</Text>
