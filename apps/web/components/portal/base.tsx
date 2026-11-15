@@ -120,7 +120,6 @@ function useDesvioPortal(): DesvioPortal | null {
   return useSyncExternalStore(assinarSessaoPortal, lerDesvioPortal, () => null);
 }
 
-/** O que aparece uma vez e ainda não foi baixado (links dos convites): `lib/portal-saida`. */
 /** Só o time Macuxi: `null` = ainda lendo a sessão; `false` = admin do cliente (mostra o "sem acesso"). */
 export function useTimeMacuxi(): boolean | null {
   const sessao = useSessaoPortal();
@@ -128,6 +127,7 @@ export function useTimeMacuxi(): boolean | null {
   return ehTimeMacuxi(sessao);
 }
 
+/** O que aparece uma vez e ainda não foi baixado (links dos convites): `lib/portal-saida`. */
 export function useSaidaSegurada(): SaidaPendente[] {
   const versao = useSyncExternalStore(assinarSaida, versaoDaSaida, () => -1);
   return useMemo(() => (versao < 0 ? [] : pendenciasDeSaida()), [versao]);

@@ -37,7 +37,7 @@ const ALTURA_BARRA = 34;
 const ALTURA_ERRO = 24 + 18 + 52 + 18 + 48;
 const ALTURA_ETAPA = 32;
 const ESPACO_AREA = 18;
-/** "Olá": o espaço acima e a linha do texto (fonte do sistema 16, ~19 dp desenhados na escala de fonte 1,0; conta 20). */
+/** "Olá": o espaço acima e a linha do texto (fonte do sistema 16, ~19 dp desenhados na escala de fonte 1,0). */
 const ACIMA_DA_SAUDACAO = 28;
 const LINHA_SAUDACAO = 20;
 
