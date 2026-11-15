@@ -99,9 +99,8 @@ Rótulo `Estoque: N` no cartão da grade, na busca e na ficha, sem toque nenhum.
     fora delas não há nada para abrir;
   - escolhida uma (R-20261115-084600): chip `Filial Manaus ✕`; o ✕ volta para `Suas filiais (3)`;
   - com uma só: o chip `Filial Boa Vista` sem ✕, e o grupo Filial não aparece na folha "Filtrar".
-- **Vendedor (em aberto, R-20261115-090000): decisão do designer, continua vendo todas as filiais** (filtro e folha "Estoque por filial"), como nas telas
-  aprovadas A e D (R-20261115-090000 restringe só promotor e supervisor; ver o estoque das outras filiais é o que o vendedor usa
-  para vender). Se o dono do produto quiser o vendedor também restrito, ele segue a regra do item acima, com uma filial.
+- **Vendedor vê todas as filiais da empresa** na folha "Estoque por filial"; o N do cartão e da ficha continua o da filial dele
+  (§3). Decisão do dono do produto, R-20261115-092000.
 - A folha "Filtrar" tem dois grupos (R-20261115-074500):
   - **Filial**: para o vendedor, a dele (`sua filial`), as outras e `Todas as filiais`; para os outros, `Suas filiais (3)` (padrão) e cada uma delas;
   - **Itens sem estoque**: `Mostrar` (padrão) ou `Ocultar`. Com `Ocultar`, o selo soma 1 e entra o chip `Só com estoque ✕`.
