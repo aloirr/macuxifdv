@@ -5,16 +5,20 @@
  * `GET|PUT /v1/core/eu/filial-cadastro` (contrato `MinhaFilialCadastroSchema` e `InformarFilialCadastroRequestSchema` do Core). Quem
  * não tem a ação `usuario.filial_editar` (`pode_informar=false`) vê só o aviso aprovado e o "Sair".
  *
- * Leitura tolerante do GET até o contrato do Core chegar ao `main`: campo ausente ou de tipo errado vira o valor neutro (sem filial, sem
- * permissão, lista vazia). Aqui só a apresentação: a regra (quem pode, qual filial vale) é da API.
+ * O GET e o PUT passam pelos schemas do Core (`safeParse`); corpo fora do contrato vira erro de carga (16d/"Tentar de novo").
+ * Aqui só a apresentação: a regra (quem pode, qual filial vale) é da API.
  */
+import {
+  CODIGOS_FILIAL_USUARIO,
+  InformarFilialCadastroRequestSchema,
+  MinhaFilialCadastroSchema,
+  type InformarFilialCadastroRequest,
+  type MinhaFilialCadastro,
+} from '@macuxi/core/contracts';
 import { codigoDoErroHttp } from '@macuxi/platform-sdk';
 
 /** Caminho no SDK web (`api()` acrescenta o `/v1` pelo proxy). */
 export const ROTA_MINHA_FILIAL = '/core/eu/filial-cadastro';
-
-/** 409 do PUT: a filial de cadastro já está definida (outro admin informou antes). */
-export const CODIGO_FILIAL_JA_INFORMADA = 'USUARIO_FILIAL_JA_INFORMADA';
 
 /** Textos da spec §5 (exatamente como aprovados). */
 export const TEXTOS_ESCOLHER_FILIAL = {
@@ -31,39 +35,20 @@ export const TEXTOS_ESCOLHER_FILIAL = {
   erroCarga: 'Não deu para carregar as filiais.',
 } as const;
 
-export interface FilialParaEscolher {
-  id: string;
-  nome: string;
-}
-
-export interface MinhaFilial {
-  semFilial: boolean;
-  podeInformar: boolean;
-  filiais: FilialParaEscolher[];
-}
-
-const texto = (v: unknown): string => (typeof v === 'string' ? v : '');
+type FilialDaLista = MinhaFilialCadastro['filiais'][number];
 
 /** Ordem alfabética do nome (spec §5), no português do Brasil. */
-export function ordenarFiliais(fs: readonly FilialParaEscolher[]): FilialParaEscolher[] {
+export function ordenarFiliais(fs: readonly FilialDaLista[]): FilialDaLista[] {
   return [...fs].sort(
     (a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }) || a.id.localeCompare(b.id),
   );
 }
 
-/** Corpo do `GET eu/filial-cadastro`, tolerante (ver o cabeçalho). Sem `sem_filial` explícito = segue bloqueado (a guarda decide). */
-export function lerMinhaFilial(corpo: unknown): MinhaFilial {
-  const c = corpo && typeof corpo === 'object' ? (corpo as Record<string, unknown>) : {};
-  const lista = Array.isArray(c.filiais) ? c.filiais : [];
-  const filiais = lista
-    .map((f) => (f && typeof f === 'object' ? (f as Record<string, unknown>) : {}))
-    .map((f) => ({ id: texto(f.id), nome: texto(f.nome) || texto(f.codigo) }))
-    .filter((f) => f.id !== '' && f.nome !== '');
-  return {
-    semFilial: c.sem_filial !== false,
-    podeInformar: c.pode_informar === true,
-    filiais: ordenarFiliais(filiais),
-  };
+/** `GET eu/filial-cadastro` validado pelo `MinhaFilialCadastroSchema` do Core; fora do contrato = erro (a tela mostra o "Tentar de novo"). */
+export async function buscarMinhaFilial(get: (rota: string) => Promise<unknown>): Promise<MinhaFilialCadastro> {
+  const r = MinhaFilialCadastroSchema.safeParse(await get(ROTA_MINHA_FILIAL));
+  if (!r.success) throw r.error;
+  return { ...r.data, filiais: ordenarFiliais(r.data.filiais) };
 }
 
 export type EstadoEscolherFilial =
@@ -73,11 +58,11 @@ export type EstadoEscolherFilial =
 export function estadoDaEscolha(q: {
   carregando: boolean;
   erro: boolean;
-  dados: MinhaFilial | undefined;
+  dados: MinhaFilialCadastro | undefined;
 }): EstadoEscolherFilial {
   if (q.dados) {
-    if (!q.dados.semFilial) return 'ja_tem_filial';
-    if (!q.dados.podeInformar) return 'sem_permissao';
+    if (!q.dados.sem_filial) return 'ja_tem_filial';
+    if (!q.dados.pode_informar) return 'sem_permissao';
     return q.dados.filiais.length === 0 ? 'sem_filiais' : 'escolher';
   }
   if (q.erro) return 'erro_carga';
@@ -92,14 +77,16 @@ export type ResultadoSalvar = 'salvo' | 'ja_informada' | 'erro';
  */
 export async function salvarMinhaFilial(
   filialId: string,
-  put: (corpo: { filial_cadastro_id: string }) => Promise<unknown>,
+  put: (corpo: InformarFilialCadastroRequest) => Promise<unknown>,
 ): Promise<ResultadoSalvar> {
+  const corpo = InformarFilialCadastroRequestSchema.safeParse({ filial_cadastro_id: filialId });
+  if (!corpo.success) return 'erro';
   try {
-    await put({ filial_cadastro_id: filialId });
+    await put(corpo.data);
     return 'salvo';
   } catch (e) {
     const { status, codigo } = codigoDoErroHttp(e);
-    if (status === 409 && codigo === CODIGO_FILIAL_JA_INFORMADA) return 'ja_informada';
+    if (status === 409 && codigo === CODIGOS_FILIAL_USUARIO.jaInformada) return 'ja_informada';
     return 'erro';
   }
 }

@@ -668,8 +668,8 @@ function usePlataformaValor() {
       }
       // T-0176 (RN-CORE-39): a senha está certa, mas a conta não tem filial de cadastro. O app não entra: encerra a sessão
       // recém-criada e o login mostra o aviso da tela 13; depois que o admin informa a filial, o mesmo "Entrar" funciona
-      // `sem_filial` da sessão (contrato do Core, T-0176); ausente = emissor antigo = livre
-      if ('sem_filial' in r.usuario && r.usuario.sem_filial === true) {
+      // `sem_filial` do `UsuarioSessao` do Core (T-0176); ausente = emissor antigo = livre
+      if (r.usuario.sem_filial === true) {
         await post('/auth/logout', { refresh_token: r.refresh_token }).catch(() => undefined);
         setSemFilial({ email: r.usuario.email });
         throw new ErroHttp(403, CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL);

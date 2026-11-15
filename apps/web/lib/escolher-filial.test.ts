@@ -1,14 +1,14 @@
 /**
  * T-0176 (RN-CORE-39; spec docs/design/filial-cadastro-venda §5): "Escolha a sua filial" no BKO, a parte pura.
- * Leitura tolerante do `GET /v1/core/eu/filial-cadastro`, a ordem das filiais, os estados 16a a 16e e o resultado do PUT.
+ * `GET /v1/core/eu/filial-cadastro` pelo contrato do Core (`safeParse`), a ordem das filiais, os estados 16a a 16e e o resultado do PUT.
  */
 import { ApiRequestError } from '@macuxi/platform-sdk/web';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
   depoisDeSalvar,
+  buscarMinhaFilial,
   estadoDaEscolha,
-  lerMinhaFilial,
   ROTA_MINHA_FILIAL,
   salvarMinhaFilial,
 } from './escolher-filial';
@@ -17,39 +17,36 @@ const BV = { id: '7d1c2a4e-2f0b-4c55-9a1e-0b6d1f2e3a01', codigo: '01', nome: 'Bo
 const MAO = { id: '7d1c2a4e-2f0b-4c55-9a1e-0b6d1f2e3a02', codigo: '02', nome: 'Manaus' };
 const ARA = { id: '7d1c2a4e-2f0b-4c55-9a1e-0b6d1f2e3a03', codigo: '03', nome: 'Araguaína' };
 
-describe('GET eu/filial-cadastro (leitura tolerante)', () => {
-  it('rota do Core pelo SDK web', () => {
+describe('GET eu/filial-cadastro (contrato do Core)', () => {
+  const corpo = { filial_cadastro_id: null, filial_venda_ids: [], sem_filial: true, pode_informar: true, filiais: [MAO, BV, ARA] };
+
+  it('rota do Core pelo SDK web', async () => {
+    const get = vi.fn(() => Promise.resolve(corpo));
+    await buscarMinhaFilial(get);
+    expect(get).toHaveBeenCalledWith('/core/eu/filial-cadastro');
     expect(ROTA_MINHA_FILIAL).toBe('/core/eu/filial-cadastro');
   });
 
-  it('filiais em ordem alfabética do nome (a API manda por código)', () => {
-    const m = lerMinhaFilial({
-      filial_cadastro_id: null,
-      filial_venda_ids: [],
-      sem_filial: true,
-      pode_informar: true,
-      filiais: [MAO, BV, ARA],
-    });
+  it('filiais em ordem alfabética do nome (a API manda por código)', async () => {
+    const m = await buscarMinhaFilial(() => Promise.resolve(corpo));
     expect(m.filiais.map((f) => f.nome)).toEqual(['Araguaína', 'Boa Vista', 'Manaus']);
-    expect(m).toMatchObject({ semFilial: true, podeInformar: true });
+    expect(m).toMatchObject({ sem_filial: true, pode_informar: true });
   });
 
-  it('corpo antigo ou torto: sem permissão, sem lista e segue bloqueado', () => {
-    expect(lerMinhaFilial(undefined)).toEqual({ semFilial: true, podeInformar: false, filiais: [] });
-    expect(
-      lerMinhaFilial({ pode_informar: 'sim', filiais: [{ id: 1 }, null, { id: BV.id, codigo: '01' }] }),
-    ).toEqual({
-      semFilial: true,
-      podeInformar: false,
-      filiais: [{ id: BV.id, nome: '01' }],
-    });
+  it('corpo fora do contrato: erro de carga (a tela mostra o "Tentar de novo")', async () => {
+    await expect(buscarMinhaFilial(() => Promise.resolve(undefined))).rejects.toThrow();
+    await expect(
+      buscarMinhaFilial(() => Promise.resolve({ ...corpo, pode_informar: 'sim', filiais: [{ id: 1 }] })),
+    ).rejects.toThrow();
   });
 });
 
 describe('estados da tela (16a a 16e)', () => {
   const dados = (o: Partial<{ semFilial: boolean; podeInformar: boolean; n: number }>) => ({
-    semFilial: o.semFilial ?? true,
-    podeInformar: o.podeInformar ?? true,
+    filial_cadastro_id: null,
+    filial_venda_ids: [],
+    sem_filial: o.semFilial ?? true,
+    pode_informar: o.podeInformar ?? true,
     filiais: [BV, MAO].slice(0, o.n ?? 2),
   });
 
@@ -91,6 +88,12 @@ describe('PUT eu/filial-cadastro', () => {
     );
     expect(r).toBe('ja_informada');
     expect(depoisDeSalvar(r)).toEqual({ entrar: false, erro: true, reler: true });
+  });
+
+  it('id fora do contrato (não uuid): erro sem chamar o PUT', async () => {
+    const put = vi.fn(() => Promise.resolve({}));
+    expect(await salvarMinhaFilial('', put)).toBe('erro');
+    expect(put).not.toHaveBeenCalled();
   });
 
   it('422, 500 ou sem rede: erro (16d), a escolha continua e não relê', async () => {

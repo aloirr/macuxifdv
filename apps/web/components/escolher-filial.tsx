@@ -15,26 +15,26 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import type { MinhaFilialCadastro } from '@macuxi/core/contracts';
 import { MENSAGEM_USUARIO_SEM_FILIAL } from '@macuxi/platform-sdk';
 import { api } from '@macuxi/platform-sdk/web';
 import { Button, CLASSE_CAMPO_ACESSO, ErrorBlock, Notice } from '@macuxi/ui/web';
 import { Moldura } from '@/components/login-screen';
 import {
   depoisDeSalvar,
+  buscarMinhaFilial,
   estadoDaEscolha,
-  lerMinhaFilial,
   ROTA_MINHA_FILIAL,
   salvarMinhaFilial,
   TEXTOS_ESCOLHER_FILIAL as T,
   type EstadoEscolherFilial,
-  type FilialParaEscolher,
 } from '@/lib/escolher-filial';
 
 const ID_CAMPO = 'filial-cadastro';
 
 export interface PropsTelaEscolherFilial {
   estado: EstadoEscolherFilial;
-  filiais: readonly FilialParaEscolher[];
+  filiais: readonly Pick<MinhaFilialCadastro['filiais'][number], 'id' | 'nome'>[];
   escolhida: string;
   salvando: boolean;
   erroSalvar: boolean;
@@ -157,7 +157,7 @@ export const CHAVE_MINHA_FILIAL = ['core', 'eu', 'filial-cadastro'] as const;
 export function EscolherFilial({ onSalvo, onSair }: { onSalvo: () => void; onSair: () => void }) {
   const consulta = useQuery({
     queryKey: CHAVE_MINHA_FILIAL,
-    queryFn: async () => lerMinhaFilial(await api<unknown>(ROTA_MINHA_FILIAL)),
+    queryFn: () => buscarMinhaFilial((rota) => api<unknown>(rota)),
     staleTime: 0,
     retry: false,
   });
