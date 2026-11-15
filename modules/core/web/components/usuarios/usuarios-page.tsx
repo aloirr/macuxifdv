@@ -560,7 +560,7 @@ export function UsuariosConteudo() {
               <span data-testid="usuarios.erro">{erroApi}</span>
             </Notice>
           )}
-          <div className="sticky bottom-0 -mx-5 mt-auto flex justify-end gap-2 border-t border-line bg-ground px-5 py-3">
+          <div className="sticky -bottom-4 -mx-5 -mb-4 mt-auto flex justify-end gap-2 border-t border-line bg-ground px-5 py-3">
             <Button onClick={fechar} data-testid="usuarios.cancelar">
               Cancelar
             </Button>

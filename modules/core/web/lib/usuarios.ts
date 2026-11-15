@@ -2,6 +2,7 @@
  * Visão da tela "Usuários" do BKO (RF-CORE-02; T-0067): funções puras sobre `GET /v1/core/usuarios`. Sem React e sem rede.
  * A validação reaproveita as regras do domínio (a API revalida tudo).
  */
+import { formatDateTime, formatTime } from '@macuxi/ui/web';
 import { temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
 import { DESCONTO_PEDIDO_PERMIL_MAX, type CriarUsuarioRequest, type EditarUsuarioRequest, type EmailAcesso, type EquipeOpcao, type UsuarioItem } from '../../contracts';
 import { erroDoCodigoErp, errosDaHierarquia, hierarquiaDoCargo, type PessoaDaHierarquia } from '../../domain/cargos';
@@ -142,22 +143,13 @@ export interface EtiquetaDeSenha {
   tom: 'warning' | 'danger' | 'neutral';
 }
 
-function diaEHora(iso: string, fuso: string): string {
-  const p = Object.fromEntries(
-    new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
-      .formatToParts(new Date(iso))
-      .map((x) => [x.type, x.value]),
-  );
-  return `${p.day}/${p.month} às ${p.hour}:${p.minute}`;
-}
-
 /** Etiqueta da coluna de situação, depois de Ativo/Inativo. Nenhuma para senha definitiva. */
 export function etiquetaDeSenha(u: Pick<UsuarioItem, 'sem_senha' | 'trocar_senha' | 'senha_expira_em'>, fuso: string, agora: Date = new Date()): EtiquetaDeSenha | null {
   if (u.sem_senha) return { texto: 'Sem senha', tom: 'neutral' };
   if (!u.trocar_senha) return null;
   if (!u.senha_expira_em) return { texto: 'Troca de senha pendente', tom: 'warning' };
   if (new Date(u.senha_expira_em).getTime() <= agora.getTime()) return { texto: 'Senha temporária vencida', tom: 'danger' };
-  return { texto: `Troca de senha pendente · vence em ${diaEHora(u.senha_expira_em, fuso)}`, tom: 'warning' };
+  return { texto: `Troca de senha pendente · vence em ${formatDateTime(u.senha_expira_em, fuso)}`, tom: 'warning' };
 }
 
 export type RotuloAcaoDeSenha = 'Redefinir senha' | 'Enviar acesso';
@@ -202,15 +194,6 @@ export interface SeloDoUsuario {
   bloqueado: boolean;
 }
 
-function horaNoFuso(iso: string, fuso: string): string {
-  const p = Object.fromEntries(
-    new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
-      .formatToParts(new Date(iso))
-      .map((x) => [x.type, x.value]),
-  );
-  return `${p.hour}h${p.minute}`;
-}
-
 /**
  * O selo único da linha (§2): Inativo > Bloqueado > Bloqueado até HHhMM (hora no fuso do tenant). O bloqueio por tentativas
  * vencido não tem selo: a tela compara com a hora atual, e o login (`estadoDoLogin`) já deixa entrar.
@@ -218,7 +201,7 @@ function horaNoFuso(iso: string, fuso: string): string {
 export function seloDoUsuario(u: Pick<UsuarioItem, 'ativo' | 'bloqueio' | 'bloqueio_ate'>, agora: Date, fuso: string): SeloDoUsuario | null {
   if (!u.ativo) return { tom: 'neutral', texto: 'Inativo', bloqueado: false };
   if (u.bloqueio === 'admin') return { tom: 'danger', texto: 'Bloqueado', bloqueado: true };
-  if (u.bloqueio === 'tentativas' && u.bloqueio_ate && new Date(u.bloqueio_ate).getTime() > agora.getTime()) return { tom: 'warning', texto: `Bloqueado até ${horaNoFuso(u.bloqueio_ate, fuso)}`, bloqueado: true };
+  if (u.bloqueio === 'tentativas' && u.bloqueio_ate && new Date(u.bloqueio_ate).getTime() > agora.getTime()) return { tom: 'warning', texto: `Bloqueado até ${formatTime(u.bloqueio_ate, fuso).replace(':', 'h')}`, bloqueado: true };
   return null;
 }
 
