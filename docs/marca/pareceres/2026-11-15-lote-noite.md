@@ -544,3 +544,53 @@ O designer-ux vai **refazer os prints da carga**. **Pendência (não é achado n
 ## Pendências da parte 5 para o gerente-projetos
 - Mandar ao designer-ux: lote 24 liberado pela marca; a decisão está em `docs/marca/decisoes.md` e no manual §2.5. Os prints novos da carga (depois da RD-0450 e da RD-0451) voltam ao design-de-marca antes do lote.
 - **Na implementação** (engenheiro-apps, modulo-core, modulo-vendedor, designer-ux, conforme a spec §7): os prints do aparelho (carga no Campo e no Gestão, login sem a logo do cliente, Mais) e do PDF passam pelo design-de-marca antes do lote e do build.
+
+---
+
+# Parte 6 — retestes da noite (logo do cliente, Core e engenheiro-apps)
+
+> 2026-11-15 · design-de-marca · pedido do gerente-projetos. SHAs conferidos com `git rev-parse`: `nuvem/logo-cliente-designer-ux` `d832bc4a` (antes `c6d5a4b4`), `nuvem/bko-revisao-modulo-core` `a238186d` (antes `da495ed0`), `nuvem/empresa-acoes-engenheiro-apps` `e60fba63` (antes `8705f496`) e `nuvem/inicio-cabecalho-engenheiro-apps` `8446145d` (antes `b227367e`). Lido com `git diff` e `git show`; os PNG foram abertos e comparados no pixel com os da versão anterior.
+> **Achado novo:** nenhum. **Fechado:** MC-0075. A numeração segue na MC-0076.
+
+## Lote 29 · Logo do cliente, prints novos da carga (designer-ux, `d832bc4a`, anterior `c6d5a4b4`)
+Era a pendência da parte 5 (prints refeitos depois da RD-0450 e da RD-0451 do corretor).
+
+- **O que mudou:** `carga.html:61` (a linha "Etapa 2 de 5 · Clientes e rota" sai da tela e fica só como `aria-label`; o "38%" continua), a nota de abertura da spec `logo-cliente.md` (as decisões num parágrafo só) e os dois PNG.
+- **Comparação no pixel** (`carga-campo.png` e `carga-gestao.png`, 1640 × 1692, escala 2): a diferença com o `c6d5a4b4` fica só na faixa y = 1074 a 1100 px, de x = 132 a 1241 (Campo) e a 1153 (Gestão), que é a linha da etapa. **O topo não mudou nem 1 pixel:** logo empilhado Macuxi (~127 × 115 dp), filete de 1 × 64 dp (`#3A4D68` no Campo e `#DFE2E6` no Gestão, conferidos no pixel), área de proteção de ~24 dp de cada lado e placa branca 64/48. A tabela da parte 5 vale inteira.
+- **Variação A e login sem logo:** a spec segue com a carga ao lado (§3) e com o login e as telas de senha sem a logo do cliente (§4), como o Alexandre decidiu (R-20261114-234500).
+- **Observação (não é achado de marca):** a linha "Etapa n de N · nome" é texto de interface, decisão do corretor e do designer-ux. A barra sol claro, o trilho, o percentual em branco e a lista com ✓ e o ponto da etapa atual seguem iguais à entrada aprovada (manual §4). Quando a implementação tirar essa linha da entrada real, o designer-ux avisa e eu ajusto a descrição da entrada no manual, sem mudar a identidade.
+- **Registro:** em `decisoes.md`, na linha da MC-0066, a referência dos prints passa para o `d832bc4a`. O texto literal da decisão não mudou.
+- **Parecer:** **liberado.** Não há achado de marca aberto neste lote.
+
+## Lote 30 · Core, reteste da MC-0075 (modulo-core, `a238186d`, anterior `da495ed0`)
+O commit próprio do lote é o `a238186` (o resto do diff é o merge do `main`, `0bfeabb`, já visto nos lotes de origem).
+
+| Linha (`a238186d`) | Antes | Agora | Parecer |
+|---|---|---|---|
+| `routes/routes-page.tsx:67` (alternador Dia/Semana/Mês) | `bg-ink` | `bg-accent` | conforme. No print `modules/core/web/docs/prints/bko-revisao/depois/rotas-1366x768.png`, o "Dia" ativo passou de `#16202A` para `#1E3350` |
+| `routes/routes-page.tsx:352` ("Todos os dias") | `border-ink bg-ink` | `border-accent bg-accent` | conforme no código. O chip fica abaixo da dobra do print de 1366 × 768 |
+| `routes/routes-page.tsx:364` (chip do dia) | `border-ink bg-ink` | `border-accent bg-accent` | conforme no código (mesmo caso) |
+| `metas/inicio-parametros-panel.tsx:206` (dias marcados) | `border-ink bg-ink` | `border-accent bg-accent` | conforme no código. A tela não tem print novo |
+
+- **Branco sobre o Azul noite:** 12,77:1 (manual §3), acima de 4,5:1.
+- **`routes-page.tsx:111`, marcador "CD" da legenda em `bg-ink` (grafite `#16202A`): conforme.** Não é estado de seleção. É a legenda do ponto de saída do mapa, e repete o marcador `.fv-start` (`apps/web/app/globals.css:117`, `background: var(--color-ink)`). No print os dois aparecem em `#16202A`, então legenda e mapa batem. Se a legenda fosse para o Azul noite, ela deixaria de bater com o mapa. A linha 108 ("Pendente", `border-ink-2 bg-white`) também é legenda e está conforme. No `modules/core/web` do `a238186d` não sobra nenhum outro `bg-ink`.
+- **MC-0075 retestada e fechada:** as quatro linhas estão no token, e o alternador foi conferido no pixel. Os chips e os dias marcados usam a mesma classe, então dispensam outro print. Se a tela de Parâmetros do Início ganhar print, ele vem junto no próximo lote, sem segurar este.
+- **Parecer:** **liberado.**
+
+## Lote 31 · Ações de empresa no portal (engenheiro-apps, `e60fba63`, anterior `8705f496`)
+Só muda `apps/web/lib/portal-falso.ts:205`, a frase do erro 403 do portal falso de teste ("…usa estas ações." → "…faz esta ação."). Não muda cor, tipografia, logo nem layout. Também não é voz da marca: é texto de interface, do corretor. **Liberado.** A MC-0021 segue aberta, fora deste lote.
+
+## Lote 32 · Início do Campo, foto do perfil pelo shell (engenheiro-apps, `8446145d`, anterior `b227367e`)
+Só mudam `apps/mobile/src/state/plataforma.tsx` (a regra "pode baixar agora" vira a função `podeBaixar`, RD-0445) e `apps/mobile/src/lib/foto-perfil-endereco.test.ts`. É lógica de download, sem efeito na tela. **Liberado.**
+
+## Achados da parte 6
+| ID | Situação |
+|---|---|
+| MC-0075 | retestado e fechado (`a238186`) |
+
+Continuam abertos, fora destes lotes: MC-0021, MC-0051, MC-0052, MC-0068 e MC-0070 (além dos antigos).
+
+## Pendências da parte 6 para o gerente-projetos
+- **Lotes 29 a 32:** liberados pela marca.
+- **Na implementação da logo do cliente** (depois da v1.0.9): os prints do aparelho (carga no Campo e no Gestão, login sem a logo do cliente, Mais) e do PDF passam pelo design-de-marca antes do lote e do build. Se a entrada real perder a linha "Etapa n de N", o designer-ux avisa para eu ajustar a descrição da entrada no manual §4.
+- **Prints para reteste, que continuam pendentes da parte 4:** uma caixa de seleção marcada no BKO (MC-0074) e o Entrar do BKO e do portal com o rodapé, no navegador (1366 × 768); e, no aparelho (v1.0.10), o Início com a foto real e o ícone da notificação no primeiro push.
