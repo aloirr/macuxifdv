@@ -3,10 +3,14 @@
  * do carga_csv.py (unittest, banco de mentira), confere o zip, o instalador (.ps1, conferência estática) e o roteiro.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { ENTIDADES_ORDEM_CARGA } from '../domain/modelos-csv';
+import { converterCsvParaLote } from '../domain/carga-arquivo';
+import { SCHEMA_REGISTRO } from '../contracts';
 import { artefatos, HUB_URL } from './scripts/gerar';
 // @ts-expect-error módulo .mjs sem tipos (kit em Node puro)
 import { ARQUIVOS_ERP_VIA_API, adaptarErpViaApi, montarEntradas } from './scripts/gerar-zip.mjs';
@@ -213,5 +217,81 @@ describe('ROTEIRO.md', () => {
   it('chave gerada no portal, nunca "no BKO"', () => {
     expect(ROTEIRO).toContain('chave gerada no portal');
     expect(ROTEIRO).not.toMatch(/no BKO/);
+  });
+});
+
+describe('T-0174 defeito 4: o kit e o Zod REAL do Hub não divergem', () => {
+  type CampoK = { campo: string; obrigatorio: boolean; regra: Record<string, unknown> };
+  type EntK = { entidade: string; campos: CampoK[]; regras_entidade: { campos: string[] }[] };
+  const contrato = JSON.parse(ler('contrato.json')) as { entidades: EntK[] };
+  const AGORA = '2026-11-15T12:00:00Z';
+  const registroDoModelo = (e: string, texto = ler('modelos', `${e}.csv`)): Record<string, unknown> => {
+    const r = converterCsvParaLote({ entidade: e as never, modo: 'delta', texto, agora: AGORA });
+    if (!r.ok) throw new Error(`${e}: ${r.mensagem}`);
+    expect(r.linhasInvalidas, e).toEqual([]);
+    return r.registros[0] as Record<string, unknown>;
+  };
+  const tirar = (reg: Record<string, unknown>, caminho: string): Record<string, unknown> => {
+    const copia = structuredClone(reg);
+    const partes = caminho.split('.');
+    let alvo = copia;
+    for (const p of partes.slice(0, -1)) alvo = alvo[p] as Record<string, unknown>;
+    delete alvo[partes[partes.length - 1] as string];
+    return copia;
+  };
+
+  it('todo modelo de CSV, convertido como o Hub converte (converterCsvParaLote), passa no Zod real da entidade', () => {
+    for (const e of ENTIDADES_ORDEM_CARGA) {
+      const r = SCHEMA_REGISTRO[e].safeParse(registroDoModelo(e));
+      expect(r.success, `${e}: ${r.success ? '' : JSON.stringify(r.error.issues)}`).toBe(true);
+    }
+  });
+
+  it('sonda: tirar um campo do modelo recusa no Hub se e só se o contrato do kit o marca obrigatório ou o cita em regras_entidade', () => {
+    for (const ent of contrato.entidades) {
+      const base = registroDoModelo(ent.entidade);
+      const entre = new Set(ent.regras_entidade.flatMap((r) => r.campos));
+      for (const c of ent.campos) {
+        // só as colunas que o CSV traz (os modelos trazem todas as de campo simples)
+        const caminho = c.campo;
+        const presente = caminho.split('.').reduce<unknown>((o, p) => (o as Record<string, unknown> | undefined)?.[p], base) !== undefined;
+        if (!presente || caminho === 'alterado_em') continue; // alterado_em: o Hub (e o carga_csv.py) preenchem com a hora do envio quando a coluna não vem
+        const hubRecusa = !SCHEMA_REGISTRO[ent.entidade as keyof typeof SCHEMA_REGISTRO].safeParse(tirar(base, caminho)).success;
+        expect(hubRecusa, `${ent.entidade}.${caminho}`).toBe(c.obrigatorio || entre.has(caminho));
+      }
+    }
+  });
+
+  it('filial: o contrato do kit exige CNPJ (DV), logradouro, número, bairro, CEP, cidade e UF, como o Hub', () => {
+    const filial = contrato.entidades.find((e) => e.entidade === 'filial') as EntK;
+    const exigidos = filial.campos.filter((c) => c.obrigatorio).map((c) => c.campo);
+    expect(exigidos).toEqual(expect.arrayContaining(['cnpj', 'logradouro', 'numero', 'bairro', 'cep', 'cidade', 'uf']));
+    expect(filial.campos.find((c) => c.campo === 'cnpj')?.regra).toMatchObject({ cnpj: true });
+  });
+
+  it('negativo: filial sem logradouro ou com CNPJ de DV errado é recusada pelo Zod do Hub E pelo carga_csv.py', () => {
+    const modelo = ler('modelos', 'filial.csv').replaceAll('\r\n', '\n').split('\n');
+    const cab = (modelo[0] as string).replace('\uFEFF', '').split(';');
+    const dados = (modelo[1] as string).split(';');
+    const variar = (campo: string, valor: string): string => {
+      const novo = [...dados];
+      novo[cab.indexOf(campo)] = valor;
+      return `${cab.join(';')}\n${novo.join(';')}\n`;
+    };
+    const pasta = mkdtempSync(join(tmpdir(), 'kit-filial-'));
+    try {
+      for (const [campo, valor] of [['logradouro', ''], ['cnpj', '11222333000180']] as const) {
+        const texto = variar(campo, valor);
+        const hub = SCHEMA_REGISTRO.filial.safeParse(registroDoModelo('filial', texto));
+        expect(hub.success, `Hub aceitou filial com ${campo} ruim`).toBe(false);
+        writeFileSync(join(pasta, 'filial.csv'), texto);
+        const py = spawnSync('python3', [aqui('carga_csv.py'), '--pasta', pasta, '--validar', '--entidade', 'filial'], { encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } });
+        expect(py.status, `carga_csv.py aceitou filial com ${campo} ruim`).toBe(1);
+        expect(py.stdout).toContain(`linha 2, ${campo}`);
+        expect(py.stdout).not.toContain(valor === '' ? 'zzz' : valor);
+      }
+    } finally {
+      rmSync(pasta, { recursive: true, force: true });
+    }
   });
 });

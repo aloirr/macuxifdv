@@ -196,6 +196,69 @@ class TestValidacaoArquivo(unittest.TestCase):
                 self.assertEqual(l.contagem.lidas, 1)
 
 
+class TestRegrasDoHub(unittest.TestCase):
+    """T-0174, defeito 4: o kit recusa o que o Hub recusa (filial sem endereço, CNPJ com DV errado, regras entre campos)."""
+
+    def validar(self, entidade: str, troca: dict[str, str]):
+        cab, dados = cc.ler_csv((MODELOS / f"{entidade}.csv").read_text(encoding="utf-8-sig"))
+        linha = [troca.get(n, v) for n, v in zip(cab, dados[0][1])]
+        return cc.validar_linhas(ENTS[entidade], cab, [(2, linha)])
+
+    def test_cnpj_valido_e_invalido(self):
+        for ok in ("11222333000181", "11.222.333/0001-81", "12345678000195", "11444777000161"):
+            self.assertTrue(cc.cnpj_valido(ok), ok)
+        for ruim in ("11222333000180", "00000000000000", "1122233300018", "abc"):
+            self.assertFalse(cc.cnpj_valido(ruim), ruim)
+
+    def test_cpf_valido_e_invalido(self):
+        for ok in ("52998224725", "529.982.247-25"):
+            self.assertTrue(cc.cpf_valido(ok), ok)
+        for ruim in ("52998224724", "11111111111", "5299822472"):
+            self.assertFalse(cc.cpf_valido(ruim), ruim)
+
+    def test_regras_cpf_e_cpf_cnpj_na_celula(self):
+        cpf = {"campo": "d", "tipo": "texto", "regra": {"cpf": True}, "obrigatorio": False}
+        misto = {"campo": "d", "tipo": "texto", "regra": {"cpf_cnpj": True}, "obrigatorio": False}
+        self.assertEqual(cc.converter_celula("52998224725", cpf), "52998224725")
+        with self.assertRaises(ValueError):
+            cc.converter_celula("52998224724", cpf)
+        self.assertEqual(cc.converter_celula("11222333000181", misto), "11222333000181")
+        with self.assertRaises(ValueError):
+            cc.converter_celula("11222333000180", misto)
+
+    def test_filial_do_modelo_passa(self):
+        res = self.validar("filial", {})
+        self.assertEqual(res.recusadas, [])
+        self.assertEqual(len(res.validas), 1)
+
+    def test_filial_sem_logradouro_ou_com_cnpj_de_dv_errado_e_recusada_sem_citar_o_valor(self):
+        res = self.validar("filial", {"logradouro": ""})
+        self.assertEqual([(r.campo, r.motivo) for r in res.recusadas], [("logradouro", "é obrigatório e está vazio")])
+        res = self.validar("filial", {"cnpj": "11222333000180"})
+        self.assertEqual([r.campo for r in res.recusadas], ["cnpj"])
+        self.assertNotIn("11222333000180", res.recusadas[0].motivo)
+
+    def test_filial_exige_cnpj_numero_bairro_cep_cidade_e_uf(self):
+        for campo_obrigatorio in ("cnpj", "numero", "bairro", "cep", "cidade", "uf"):
+            with self.subTest(campo=campo_obrigatorio):
+                res = self.validar("filial", {campo_obrigatorio: ""})
+                self.assertEqual([r.campo for r in res.recusadas], [campo_obrigatorio])
+
+    def test_embalagem_medida_e_quantidade_andam_juntas(self):
+        res = self.validar("produto", {"embalagem_quantidade": ""})
+        self.assertEqual([r.campo for r in res.recusadas], ["embalagem_quantidade"])
+        res = self.validar("produto", {"embalagem_medida": "", "embalagem_quantidade": ""})
+        self.assertEqual(res.recusadas, [])
+
+    def test_fim_da_vigencia_nao_anterior_ao_inicio(self):
+        self.assertEqual([r.campo for r in self.validar("preco", {"vigencia_fim": "2026-10-01"}).recusadas], ["vigencia_fim"])
+        self.assertEqual(self.validar("preco", {"vigencia_fim": "2026-11-01"}).recusadas, [])
+        self.assertEqual([r.campo for r in self.validar("tabela_escalonada", {"vigencia_fim": "2026-10-01"}).recusadas], ["vigencia_fim"])
+
+    def test_preco_da_faixa_escalonada_maior_que_zero(self):
+        self.assertEqual([r.campo for r in self.validar("tabela_escalonada", {"preco_unidade_cents": "0"}).recusadas], ["preco_unidade_cents"])
+
+
 class TestMerge(unittest.TestCase):
     def test_merge_por_external_id_com_holdlock_e_hash(self):
         for ent in CONTRATO["entidades"]:

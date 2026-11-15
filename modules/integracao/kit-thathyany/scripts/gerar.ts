@@ -10,6 +10,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { CAMPOS_OBRIGATORIOS_FILIAL } from '@macuxi/core/contracts';
 import { ENTIDADES_ORDEM_CARGA, dicionarioDaEntidade, gerarModeloCsv } from '../../domain/modelos-csv';
 import type { CampoDicionario } from '../../contracts/modelos';
 
@@ -50,7 +51,39 @@ const EXEMPLOS = {
   'cliente.longitude': ['', ''],
 } as const;
 
+/**
+ * Regras do Zod real do Hub (contracts/entidades.ts) que o dicionário do BKO NÃO descreve (T-0174, defeito 4, kit 1.0.3).
+ * Tabela explícita, uma linha por regra, com o lugar dela no Hub; o kit-thathyany.test.ts confere com sondas no Zod REAL que kit e Hub não divergem.
+ * Não entra aqui o que o Hub não valida (ex.: dígito do documento do cliente, que o Hub trata como "ausente" - RN-INT-14 - e formato do CEP).
+ */
+/** Campos obrigatórios que o Zod exige em `superRefine` e o dicionário marca como opcionais. Filial: entidades.ts `FilialPayload.superRefine` (CAMPOS_OBRIGATORIOS_FILIAL, core/contracts/filial.ts). */
+export const OBRIGATORIOS_EXTRA: Record<string, readonly string[]> = { filial: CAMPOS_OBRIGATORIOS_FILIAL };
+
+/** Ajustes de regra por campo. `filial.cnpj`: DV válido (cnpjValido, FilialPayload.superRefine). `tabela_escalonada.preco_unidade_cents`: `.refine(v > 0)` (entidades.ts, TabelaEscalonadaPayload). */
+export const REGRA_EXTRA_DO_CAMPO: Record<string, Partial<Regra>> = {
+  'filial.cnpj': { cnpj: true },
+  'tabela_escalonada.preco_unidade_cents': { min: 1 },
+};
+
+/** Regras entre campos da mesma linha (todas em superRefine do Zod). */
+export interface RegraEntidade {
+  /** `juntos`: ou todos os campos vêm preenchidos ou nenhum. `data_nao_anterior`: `campo` não pode ser anterior a `referencia`. */
+  regra: 'juntos' | 'data_nao_anterior';
+  campos: string[];
+  motivo: string;
+}
+export const REGRAS_ENTIDADE: Record<string, RegraEntidade[]> = {
+  // entidades.ts `ProdutoPayload.superRefine`
+  produto: [{ regra: 'juntos', campos: ['embalagem_medida', 'embalagem_quantidade'], motivo: 'embalagem_medida e embalagem_quantidade devem ser informadas juntas' }],
+  // entidades.ts `PrecoPayload.superRefine`
+  preco: [{ regra: 'data_nao_anterior', campos: ['vigencia_fim', 'vigencia_inicio'], motivo: 'fim da vigência anterior ao início' }],
+  // entidades.ts `TabelaEscalonadaPayload.superRefine`
+  tabela_escalonada: [{ regra: 'data_nao_anterior', campos: ['vigencia_fim', 'vigencia_inicio'], motivo: 'fim da vigência anterior ao início' }],
+};
+
 export interface Regra {
+  /** CNPJ com dígito verificador válido (aceita máscara) */
+  cnpj?: boolean;
   /** número inteiro? (só para tipo número) */
   inteiro?: boolean;
   min?: number;
@@ -158,6 +191,7 @@ export interface EntidadeContrato {
   opcional: boolean;
   tabela: string;
   campos: CampoContrato[];
+  regras_entidade: RegraEntidade[];
   colunas_so_conector: string[];
 }
 
@@ -166,14 +200,15 @@ export function contratoDoKit(): { versao: number; banco: string; entidades: Ent
   const entidades = ENTIDADES_ORDEM_CARGA.map((e): EntidadeContrato => {
     const d = dicionario(e);
     const campos = d.campos.map((c): CampoContrato => {
-      const regra = regraDoCampo(c);
+      const regra = { ...regraDoCampo(c), ...REGRA_EXTRA_DO_CAMPO[`${e}.${c.campo}`] };
       const ref = REFERENCIAS[c.campo];
-      return { ...c, coluna: colunaDe(c.campo), tipo_sql: tipoSql(c, regra), regra, ...(ref ? { referencia: ref } : {}) };
+      const obrigatorio = c.obrigatorio || (OBRIGATORIOS_EXTRA[e] ?? []).includes(c.campo);
+      return { ...c, obrigatorio, coluna: colunaDe(c.campo), tipo_sql: tipoSql({ ...c, obrigatorio }, regra), regra, ...(ref ? { referencia: ref } : {}) };
     });
     const extras = colunasDoConector(exemplo, e).filter((col) => COLUNAS_SO_CONECTOR.includes(col));
     const faltando = colunasDoConector(exemplo, e).filter((col) => !campos.some((c) => c.coluna === col) && !extras.includes(col));
     if (faltando.length > 0) throw new Error(`conector.exemplo.json pede colunas fora do contrato em ${e}: ${faltando.join(', ')}.`);
-    return { entidade: e, ordem: d.ordem, depende_de: d.depende_de, opcional: d.opcional, tabela: tabelaDe(e), campos, colunas_so_conector: extras };
+    return { entidade: e, ordem: d.ordem, depende_de: d.depende_de, opcional: d.opcional, tabela: tabelaDe(e), campos, regras_entidade: REGRAS_ENTIDADE[e] ?? [], colunas_so_conector: extras };
   });
   return { versao: 1, banco: BANCO, entidades };
 }

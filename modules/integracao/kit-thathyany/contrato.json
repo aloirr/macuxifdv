@@ -82,6 +82,7 @@
           "regra": {}
         }
       ],
+      "regras_entidade": [],
       "colunas_so_conector": []
     },
     {
@@ -153,64 +154,66 @@
         },
         {
           "campo": "cidade",
-          "obrigatorio": false,
+          "obrigatorio": true,
           "tipo": "texto",
           "tamanho_max": 80,
           "formato": null,
           "exemplo": "Manaus",
           "observacao": null,
           "coluna": "cidade",
-          "tipo_sql": "NVARCHAR(80) NULL",
+          "tipo_sql": "NVARCHAR(80) NOT NULL",
           "regra": {}
         },
         {
           "campo": "uf",
-          "obrigatorio": false,
+          "obrigatorio": true,
           "tipo": "texto",
           "tamanho_max": null,
           "formato": "padrão ^[A-Z]{2}$",
           "exemplo": "AM",
           "observacao": null,
           "coluna": "uf",
-          "tipo_sql": "NVARCHAR(2) NULL",
+          "tipo_sql": "NVARCHAR(2) NOT NULL",
           "regra": {
             "uf": true
           }
         },
         {
           "campo": "cnpj",
-          "obrigatorio": false,
+          "obrigatorio": true,
           "tipo": "texto",
           "tamanho_max": 18,
           "formato": null,
           "exemplo": "11222333000181",
           "observacao": null,
           "coluna": "cnpj",
-          "tipo_sql": "NVARCHAR(18) NULL",
-          "regra": {}
+          "tipo_sql": "NVARCHAR(18) NOT NULL",
+          "regra": {
+            "cnpj": true
+          }
         },
         {
           "campo": "logradouro",
-          "obrigatorio": false,
+          "obrigatorio": true,
           "tipo": "texto",
           "tamanho_max": 160,
           "formato": null,
           "exemplo": "Avenida Djalma Batista",
           "observacao": null,
           "coluna": "logradouro",
-          "tipo_sql": "NVARCHAR(160) NULL",
+          "tipo_sql": "NVARCHAR(160) NOT NULL",
           "regra": {}
         },
         {
           "campo": "numero",
-          "obrigatorio": false,
+          "obrigatorio": true,
           "tipo": "texto",
           "tamanho_max": 20,
           "formato": null,
           "exemplo": "1000",
           "observacao": null,
           "coluna": "numero",
-          "tipo_sql": "NVARCHAR(20) NULL",
+          "tipo_sql": "NVARCHAR(20) NOT NULL",
           "regra": {}
         },
         {
@@ -227,26 +230,26 @@
         },
         {
           "campo": "bairro",
-          "obrigatorio": false,
+          "obrigatorio": true,
           "tipo": "texto",
           "tamanho_max": 80,
           "formato": null,
           "exemplo": "Chapada",
           "observacao": null,
           "coluna": "bairro",
-          "tipo_sql": "NVARCHAR(80) NULL",
+          "tipo_sql": "NVARCHAR(80) NOT NULL",
           "regra": {}
         },
         {
           "campo": "cep",
-          "obrigatorio": false,
+          "obrigatorio": true,
           "tipo": "texto",
           "tamanho_max": 9,
           "formato": null,
           "exemplo": "69050010",
           "observacao": null,
           "coluna": "cep",
-          "tipo_sql": "NVARCHAR(9) NULL",
+          "tipo_sql": "NVARCHAR(9) NOT NULL",
           "regra": {}
         },
         {
@@ -262,6 +265,7 @@
           "regra": {}
         }
       ],
+      "regras_entidade": [],
       "colunas_so_conector": []
     },
     {
@@ -375,6 +379,7 @@
           }
         }
       ],
+      "regras_entidade": [],
       "colunas_so_conector": []
     },
     {
@@ -459,6 +464,7 @@
           }
         }
       ],
+      "regras_entidade": [],
       "colunas_so_conector": []
     },
     {
@@ -595,6 +601,7 @@
           }
         }
       ],
+      "regras_entidade": [],
       "colunas_so_conector": []
     },
     {
@@ -821,6 +828,16 @@
           "regra": {}
         }
       ],
+      "regras_entidade": [
+        {
+          "regra": "juntos",
+          "campos": [
+            "embalagem_medida",
+            "embalagem_quantidade"
+          ],
+          "motivo": "embalagem_medida e embalagem_quantidade devem ser informadas juntas"
+        }
+      ],
       "colunas_so_conector": [
         "referencias",
         "oferece_junto",
@@ -950,6 +967,7 @@
           "regra": {}
         }
       ],
+      "regras_entidade": [],
       "colunas_so_conector": []
     },
     {
@@ -1100,6 +1118,16 @@
           "referencia": "filial"
         }
       ],
+      "regras_entidade": [
+        {
+          "regra": "data_nao_anterior",
+          "campos": [
+            "vigencia_fim",
+            "vigencia_inicio"
+          ],
+          "motivo": "fim da vigência anterior ao início"
+        }
+      ],
       "colunas_so_conector": []
     },
     {
@@ -1165,7 +1193,7 @@
           "tipo_sql": "DECIMAL(19, 0) NOT NULL",
           "regra": {
             "inteiro": true,
-            "min": 0
+            "min": 1
           }
         },
         {
@@ -1257,6 +1285,16 @@
           "tipo_sql": "NVARCHAR(200) NULL",
           "regra": {},
           "referencia": "filial"
+        }
+      ],
+      "regras_entidade": [
+        {
+          "regra": "data_nao_anterior",
+          "campos": [
+            "vigencia_fim",
+            "vigencia_inicio"
+          ],
+          "motivo": "fim da vigência anterior ao início"
         }
       ],
       "colunas_so_conector": []
@@ -1372,6 +1410,7 @@
           "referencia": "filial"
         }
       ],
+      "regras_entidade": [],
       "colunas_so_conector": []
     },
     {
@@ -1736,6 +1775,7 @@
           "referencia": "filial"
         }
       ],
+      "regras_entidade": [],
       "colunas_so_conector": [
         "contatos"
       ]
@@ -1959,6 +1999,7 @@
           "regra": {}
         }
       ],
+      "regras_entidade": [],
       "colunas_so_conector": []
     },
     {
@@ -2057,6 +2098,7 @@
           "regra": {}
         }
       ],
+      "regras_entidade": [],
       "colunas_so_conector": []
     },
     {
@@ -2147,6 +2189,7 @@
           }
         }
       ],
+      "regras_entidade": [],
       "colunas_so_conector": [
         "paradas"
       ]
@@ -2321,6 +2364,7 @@
           "regra": {}
         }
       ],
+      "regras_entidade": [],
       "colunas_so_conector": []
     },
     {
@@ -2505,6 +2549,7 @@
           "regra": {}
         }
       ],
+      "regras_entidade": [],
       "colunas_so_conector": []
     }
   ]

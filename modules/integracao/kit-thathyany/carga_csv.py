@@ -2,7 +2,7 @@
 """Carga dos CSVs no banco local ERP_THATHYANY (kit da thathyany, T-0174).
 
 Um CSV por entidade, todas de uma vez, na ordem de carga, com as colunas do contrato canônico (contrato.json, gerado do mesmo
-dicionário que o Backoffice mostra). Valida antes de gravar (obrigatórios, tipos, dinheiro em centavos, datas UTC), grava por
+dicionário que o Backoffice mostra). Valida antes de gravar (obrigatórios, tipos, CNPJ com dígito verificador, regras entre campos, dinheiro em centavos, datas UTC), grava por
 MERGE em external_id (rodar duas vezes não duplica nem muda a hora de alteração do que não mudou) e fecha com um relatório por tabela.
 
 Requisitos: Python 3.10 ou mais novo e `pip install pyodbc` (e o "ODBC Driver 18 for SQL Server"). Só validar não precisa de banco.
@@ -66,6 +66,44 @@ def carregar_contrato(caminho: Path | None = None) -> dict[str, Any]:
 
 def entidades_por_nome(contrato: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {e["entidade"]: e for e in contrato["entidades"]}
+
+
+# ---------------------------------------------------------------------------------------------------------------- documentos
+
+
+def _so_digitos(texto: str) -> str:
+    return re.sub(r"\D", "", texto)
+
+
+def _dv_cnpj(base: str) -> str:
+    def calc(s: str) -> int:
+        pesos = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] if len(s) == 12 else [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+        r = sum(p * int(c) for p, c in zip(pesos, s)) % 11
+        return 0 if r < 2 else 11 - r
+
+    d1 = calc(base)
+    return f"{d1}{calc(base + str(d1))}"
+
+
+def _dv_cpf(base: str) -> str:
+    def calc(s: str) -> int:
+        r = (sum(int(c) * (len(s) + 1 - i) for i, c in enumerate(s)) * 10) % 11
+        return 0 if r == 10 else r
+
+    d1 = calc(base)
+    return f"{d1}{calc(base + str(d1))}"
+
+
+def cnpj_valido(texto: str) -> bool:
+    """CNPJ de 14 dígitos (com ou sem máscara), não repetido, com os dois dígitos verificadores (módulo 11): a mesma regra do Hub."""
+    d = _so_digitos(texto)
+    return len(d) == 14 and len(set(d)) > 1 and _dv_cnpj(d[:12]) == d[12:]
+
+
+def cpf_valido(texto: str) -> bool:
+    """CPF de 11 dígitos (com ou sem máscara), não repetido, com os dois dígitos verificadores (módulo 11)."""
+    d = _so_digitos(texto)
+    return len(d) == 11 and len(set(d)) > 1 and _dv_cpf(d[:9]) == d[9:]
 
 
 # ---------------------------------------------------------------------------------------------------------------- leitura
@@ -199,6 +237,12 @@ def converter_celula(texto: str, campo: dict[str, Any]) -> Any:
         if not so_digitos.isdigit() or len(so_digitos) not in regra["digitos"]:
             raise ValueError("deve ter " + " ou ".join(str(d) for d in regra["digitos"]) + " dígitos")
         return so_digitos
+    if regra.get("cnpj") and not cnpj_valido(texto):
+        raise ValueError("CNPJ inválido (dígito verificador); confira os 14 dígitos")
+    if regra.get("cpf") and not cpf_valido(texto):
+        raise ValueError("CPF inválido (dígito verificador); confira os 11 dígitos")
+    if regra.get("cpf_cnpj") and not (cpf_valido(texto) or cnpj_valido(texto)):
+        raise ValueError("documento inválido (dígito verificador do CPF ou do CNPJ)")
     if regra.get("uuid") and not RE_UUID.match(texto):
         raise ValueError("deve ser um UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)")
     return texto
@@ -234,6 +278,23 @@ def validar_cabecalho(ent: dict[str, Any], cabecalho: list[str]) -> None:
         raise ErroArquivo("Falta coluna obrigatória no cabeçalho: " + ", ".join(ausentes) + ".")
 
 
+def checar_regras_da_entidade(ent: dict[str, Any], numero: int, valores: dict[str, Any]) -> list[Recusa]:
+    """Regras entre campos da mesma linha (`regras_entidade` do contrato, as do superRefine do Hub). Só olha campos já válidos."""
+    erros: list[Recusa] = []
+    for r in ent.get("regras_entidade", []):
+        cols = [c.replace(".", "_") for c in r["campos"]]
+        if r["regra"] == "juntos":
+            tem = [valores.get(c) is not None for c in cols]
+            if any(tem) and not all(tem):
+                faltou = next(c for c, t in zip(r["campos"], tem) if not t)
+                erros.append(Recusa(numero, faltou, r["motivo"]))
+        elif r["regra"] == "data_nao_anterior":
+            alvo, ref = (valores.get(c) for c in cols)
+            if alvo is not None and ref is not None and alvo < ref:
+                erros.append(Recusa(numero, r["campos"][0], r["motivo"]))
+    return erros
+
+
 def validar_linhas(ent: dict[str, Any], cabecalho: list[str], linhas: list[tuple[int, list[str]]]) -> ResultadoValidacao:
     """Valida cada linha: obrigatórios, tipos, centavos, datas UTC e external_id repetido no arquivo. Uma linha ruim não impede as outras."""
     validar_cabecalho(ent, cabecalho)
@@ -257,6 +318,8 @@ def validar_linhas(ent: dict[str, Any], cabecalho: list[str], linhas: list[tuple
                 valores[campo["coluna"]] = converter_celula(texto, campo)
             except ValueError as e:
                 erros.append(Recusa(numero, nome, str(e)))
+        if not erros:
+            erros.extend(checar_regras_da_entidade(ent, numero, valores))
         if not erros:
             ident = valores["external_id"]
             if ident in vistos:
