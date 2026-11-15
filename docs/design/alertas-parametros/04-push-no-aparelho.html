@@ -1,0 +1,114 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Lembretes e alertas no aparelho</title><style>
+*{box-sizing:border-box;margin:0}
+body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background:#F8F6F1;color:#16202A;width:1366px;min-height:768px;display:flex;position:relative}
+.menu{width:240px;min-height:768px;background:#16202A;color:#fff;display:flex;flex-direction:column;padding:20px 12px 16px;flex-shrink:0}
+.brand{display:flex;flex-direction:column;align-items:flex-start;padding:0 8px 16px}
+.brand img{display:block;height:28px;width:auto}
+.brand span{font-size:12px;line-height:16px;color:#C9CED5;margin-top:18px}
+.lista{display:flex;flex-direction:column;gap:2px}
+.titulo{display:flex;justify-content:space-between;align-items:center;height:30px;padding:0 10px;border-radius:8px;color:#F59A52;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase}
+.item{display:flex;align-items:center;height:32px;padding:0 10px 0 20px;border-radius:8px;font-size:15px;color:#C9CED5;white-space:nowrap;position:relative}
+.item.ativo{background:#2B3743;color:#fff;font-weight:600}
+.item.ativo:before{content:'';position:absolute;left:8px;top:8px;bottom:8px;width:3px;border-radius:2px;background:#F59A52}
+.rodape{margin-top:auto;border-top:1px solid #2B3743;padding:12px 8px 0;display:flex;flex-direction:column}
+.rodape b{font-size:15px}.rodape span{font-size:12px;color:#C9CED5}.sair{font-size:13px;font-weight:600;color:#C9CED5;margin-top:8px}
+main{flex:1;min-width:0;padding:28px 32px 120px;display:flex;flex-direction:column;gap:20px}
+.titulo.direto{text-decoration:none}
+.titulo.direto.ativo{background:#2B3743}
+.par{display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;align-items:start}
+.secoes{display:flex;flex-direction:column;gap:2px;position:sticky;top:0}
+.sec{display:flex;align-items:center;height:36px;padding:0 12px;border-radius:8px;font-size:15px;color:#34404D;position:relative}
+.sec.ativo{background:#fff;color:#16202A;font-weight:600;box-shadow:inset 0 0 0 1px #DFE2E6}
+.sec.ativo:before{content:'';position:absolute;left:4px;top:8px;bottom:8px;width:3px;border-radius:2px;background:#F59A52}
+.conteudo{display:flex;flex-direction:column;gap:20px;min-width:0}
+.cab{display:flex;flex-direction:column;gap:2px;min-height:42px;justify-content:center}
+.cab.linha{flex-direction:row;align-items:center;justify-content:space-between}
+.eyebrow{font-size:13px;color:#4A5562}
+h1{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;font-weight:700;font-size:24px;line-height:1.2}
+h2{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;font-weight:700;font-size:17px}
+.quadro{background:#fff;border:1px solid #DFE2E6;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.quadro .topo{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
+.btn{height:44px;border-radius:10px;padding:0 18px;font-size:15px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.btn.p{background:#1E3350;color:#fff}
+.btn.s{border:1px solid #C9CED5;background:#fff;color:#16202A}
+.btn.d{background:#8B96A3;color:#fff}
+.selo{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.ok{color:#1D6B4F;background:#E2F1EA}.ne{color:#34404D;background:#ECEEF1}.av{color:#7A4F00;background:#FFF1D6}.cr{color:#A8261B;background:#FDE8E6}
+/* regra: uma linha por regra */
+.regras{display:flex;flex-direction:column;gap:8px}
+.regra{display:grid;gap:14px;align-items:end;padding:10px 14px;border:1px solid #ECEEF1;border-radius:12px}
+.equipe .regra{grid-template-columns:minmax(0,1fr) 128px 84px;grid-template-areas:'cab cab cab' 'campos sev salvar'}
+.prod .regra{grid-template-columns:minmax(0,1fr) 84px;grid-template-areas:'cab cab' 'campos salvar'}
+.regra.off{background:#F8F6F1}
+.regra.alterada{border-color:#1E3350}
+.cabr{grid-area:cab;display:flex;align-items:center;gap:12px}
+.regra>.campos{grid-area:campos;flex-wrap:wrap;row-gap:10px}
+.regra>.f{grid-area:sev}
+.regra>.salvar{grid-area:salvar}
+.chave,.nome{align-self:center}
+.nome{display:flex;flex-direction:column;gap:2px;min-width:0}
+.nome b{font-size:15px;font-weight:600;line-height:20px}
+.nome small{font-size:13px;line-height:17px;color:#4A5562}
+.campos{display:flex;gap:12px;align-items:flex-end;min-width:0}
+.sep{width:1px;align-self:stretch;background:#ECEEF1;margin:0 2px}
+.f{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;white-space:nowrap;color:#16202A}
+.input{height:44px;min-width:104px;border:1px solid #C9CED5;border-radius:10px;background:#fff;font-size:15px;font-weight:500;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.input.editado{border:2px solid #1E3350}
+.input.leitura{background:#F8F6F1;border-color:#DFE2E6}
+.input i{font-style:normal;font-size:13px;font-weight:400;color:#4A5562}
+.input.sel{color:#16202A}
+.salvar{align-self:end}
+.salvar .btn{width:84px;padding:0}
+/* interruptor do kit (packages/ui/src/web/permissoes.tsx): trilho 40x24, ligado bg-ink, desligado bg-disabled */
+.sw{display:inline-flex;align-items:center;gap:8px;height:44px;font-size:13px;font-weight:600;white-space:nowrap}
+.trilho{position:relative;width:40px;height:24px;border-radius:999px;background:#8B96A3;flex-shrink:0}
+.trilho:after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(22,32,42,.3)}
+.sw.on .trilho{background:#16202A}.sw.on .trilho:after{left:19px}
+.sw.trava .trilho{opacity:.5}
+.nota{position:absolute;right:20px;bottom:16px;max-width:620px;font-size:12px;line-height:1.5;color:#34404D;background:#fff;border:1px solid #DFE2E6;border-left:4px solid #1D6B4F;border-radius:8px;padding:8px 12px;box-shadow:0 4px 12px rgba(22,32,42,.08);z-index:9}
+table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:15px}
+th{text-align:left;font-size:13px;font-weight:600;color:#4A5562;padding:8px 10px;border-bottom:1px solid #DFE2E6;white-space:nowrap}
+td{padding:0 10px;height:48px;border-bottom:1px solid #ECEEF1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+tr:last-child td{border-bottom:0}
+.ac{width:52px;text-align:center;padding:0}
+.dots{display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;border-radius:10px;color:#4A5562}
+
+body{width:1000px;height:1060px;display:block;padding:24px 44px}
+.par{display:flex;gap:88px;justify-content:center;margin-top:16px}
+.lado{display:flex;flex-direction:column;gap:10px;align-items:center}
+.lado h2{font-size:15px}
+.fone{position:relative;width:412px;height:915px;border-radius:28px;overflow:hidden;border:1px solid #C9CED5;box-shadow:0 10px 30px rgba(22,32,42,.15)}
+.nota{position:static;max-width:none}
+</style><body>
+<div class="nota"><b>Simulação aprovada (T-0180).</b> À esquerda, os lembretes do vendedor no Campo: notificação local, só na bandeja, ícone monocromático em Azul noite. À direita, a área Alertas do Gestão com os alertas do gestor (sem push, D3). Dados fictícios.</div>
+<div class="par"><div class="lado"><h2>Campo · bandeja de notificações</h2><div class="fone" style="background:#16202A">
+  <div style="height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:13px;font-weight:600;color:#fff"><span>16:02</span><span style="display:flex;gap:6px;align-items:center"><span style="width:16px;height:10px;border:1.5px solid currentColor;border-radius:2px"></span><span style="width:22px;height:11px;border:1.5px solid currentColor;border-radius:3px;position:relative"><span style="position:absolute;inset:1.5px;right:5px;background:currentColor;border-radius:1px"></span></span></span></div>
+  <div style="padding:12px 24px 16px;color:#fff"><div style="font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;font-weight:700;font-size:40px;line-height:1">16:02</div><div style="font-size:15px;color:#C9CED5;margin-top:6px">seg., 16 de nov.</div></div>
+  <div style="display:flex;gap:18px;padding:4px 24px 20px"><span style="width:52px;height:52px;border-radius:50%;background:#C9CED5"></span><span style="width:52px;height:52px;border-radius:50%;background:#2B3743"></span><span style="width:52px;height:52px;border-radius:50%;background:#C9CED5"></span><span style="width:52px;height:52px;border-radius:50%;background:#2B3743"></span><span style="width:52px;height:52px;border-radius:50%;background:#2B3743"></span></div>
+  <div style="margin:0 12px;background:#fff;border-radius:22px;overflow:hidden">
+    <div style="padding:12px 16px 4px;font-size:13px;font-weight:600;color:#34404D">Notificações</div>
+    <div style="display:flex;gap:12px;padding:14px 16px;border-top:1px solid #ECEEF1">
+    <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#4A5562"><span style="width:18px;height:18px;flex-shrink:0;background:#1E3350;-webkit-mask:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAADi0lEQVR4nOycTYiNURjH/zP5yIh8pUSzQTZmykehfESzsfIxFBsWY6GmxMoCCwsLS2VnwVLyGaUsJKFJScpOKXaGJAsRdf1Pd66NuOe99zzvM+fM/1dPZxbvTJ3n957zP/e9904vhCu9EK5IgDMS4IwEOCMBzkiAMxLgjAQ4IwHOSIAzEuCMBDgjAc5IgDMS4IwEOCMBzkxDoTQajc0ctrH6WYtZs1njrA+s16y7PT09n+BMDwqCTV/C4QzrAGt+xK88ZZ2jiPtwoggBbPw8DqdYo6xZqM4Y6wRFjKFmshfA5i/kcI21A93xlXWIEu6gRrIOYTZ/FYcX6L75gbmsW/ybp1m13ZjZrgA2Kdw891g7kZafrCGuhMeogZxXwEmkb35gOusqBc9BDWS5AticlWgeJWfAjgtcBcdhTK4CrnA4DFvCVrSUEj7CkOy2IDa/j8N+2BO2ohEYk2MGbGX1oR52w5gcBWxEfQxMnLbMyPFZULj7H6E+lrHew4iingXliB5HOyMBztSSAQyyYQ5DrBVoHu8mM+H8/4b1gK8BbsMY8wxg869zGEae3KCEfTDEVACbv53DQ+TNFkp4AiOsM2AX8mcPDLHOgA3In00wxGwLmnhT4wcmf+i2I4TyTG5DDRhguQUNIv/mB8IcVsMISwHrUQ5mc5GAOMzmYhnC61AOZnMxCWEGcBD7DWVkQMAsiK22oFICuEWYyyAMsBJQ0v7fwmROEhCPyZysQrhEASZBnDyEJwI4vAIu7b2GEMR9DOJfSIhFk9agzDd6QhAPIDEWjSpx+2mRfG4SUI3kc7MI4ZIFJA/ipCFccAC3SB7EqRs1inKbHwhBfBQJSbYCePcf4XAJ5ROeB41wFVxGApIImELNb5FMQtcCpmDzWySR0JWAKdz8Fl1L6FiAmv+HriR0JEDN/4uOJVQWoOb/k44kVBKg5relsoRoAWp+NJUkRD0LYvMXoflVnbMQMfSzZwso4XO7C/UVJWf0DRlnJMAZCXBGApyRAGei35LksWovmv+XbS3E/3jOOs8j6M2Yi6OOoWx++FzkK4gqLKeEt+0uit2CdNdXJ+rDvLFb0BcIE2JXwEvWd4hYQq+exVwYtQK4l71jDhzkj8egk1M7wkdWLrJn4zEX61mQM7qbnZEAZyTAGQlwRgKckQBnJMAZCXBGApyRAGckwBkJcEYCnJEAZyTAGQlwRgKc+Q0AAP//tEc+MgAAAAZJREFUAwDtIcmpHsqpFwAAAABJRU5ErkJggg==) center/contain no-repeat;mask:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAADi0lEQVR4nOycTYiNURjH/zP5yIh8pUSzQTZmykehfESzsfIxFBsWY6GmxMoCCwsLS2VnwVLyGaUsJKFJScpOKXaGJAsRdf1Pd66NuOe99zzvM+fM/1dPZxbvTJ3n957zP/e9904vhCu9EK5IgDMS4IwEOCMBzkiAMxLgjAQ4IwHOSIAzEuCMBDgjAc5IgDMS4IwEOCMBzkxDoTQajc0ctrH6WYtZs1njrA+s16y7PT09n+BMDwqCTV/C4QzrAGt+xK88ZZ2jiPtwoggBbPw8DqdYo6xZqM4Y6wRFjKFmshfA5i/kcI21A93xlXWIEu6gRrIOYTZ/FYcX6L75gbmsW/ybp1m13ZjZrgA2Kdw891g7kZafrCGuhMeogZxXwEmkb35gOusqBc9BDWS5AticlWgeJWfAjgtcBcdhTK4CrnA4DFvCVrSUEj7CkOy2IDa/j8N+2BO2ohEYk2MGbGX1oR52w5gcBWxEfQxMnLbMyPFZULj7H6E+lrHew4iingXliB5HOyMBztSSAQyyYQ5DrBVoHu8mM+H8/4b1gK8BbsMY8wxg869zGEae3KCEfTDEVACbv53DQ+TNFkp4AiOsM2AX8mcPDLHOgA3In00wxGwLmnhT4wcmf+i2I4TyTG5DDRhguQUNIv/mB8IcVsMISwHrUQ5mc5GAOMzmYhnC61AOZnMxCWEGcBD7DWVkQMAsiK22oFICuEWYyyAMsBJQ0v7fwmROEhCPyZysQrhEASZBnDyEJwI4vAIu7b2GEMR9DOJfSIhFk9agzDd6QhAPIDEWjSpx+2mRfG4SUI3kc7MI4ZIFJA/ipCFccAC3SB7EqRs1inKbHwhBfBQJSbYCePcf4XAJ5ROeB41wFVxGApIImELNb5FMQtcCpmDzWySR0JWAKdz8Fl1L6FiAmv+HriR0JEDN/4uOJVQWoOb/k44kVBKg5relsoRoAWp+NJUkRD0LYvMXoflVnbMQMfSzZwso4XO7C/UVJWf0DRlnJMAZCXBGApyRAGei35LksWovmv+XbS3E/3jOOs8j6M2Yi6OOoWx++FzkK4gqLKeEt+0uit2CdNdXJ+rDvLFb0BcIE2JXwEvWd4hYQq+exVwYtQK4l71jDhzkj8egk1M7wkdWLrJn4zEX61mQM7qbnZEAZyTAGQlwRgKckQBnJMAZCXBGApyRAGckwBkJcEYCnJEAZyTAGQlwRgKc+Q0AAP//tEc+MgAAAAZJREFUAwDtIcmpHsqpFwAAAABJRU5ErkJggg==) center/contain no-repeat"></span>Macuxi Campo · 16:00</span><b style="font-size:15px;font-weight:600;line-height:20px">Faltam 3 clientes da rota</b><span style="font-size:15px;line-height:19px;color:#34404D">Próxima visita: Mercado Bom Preço.</span></div></div>
+    <div style="display:flex;gap:12px;padding:14px 16px;border-top:1px solid #ECEEF1">
+    <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#4A5562"><span style="width:18px;height:18px;flex-shrink:0;background:#1E3350;-webkit-mask:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAADi0lEQVR4nOycTYiNURjH/zP5yIh8pUSzQTZmykehfESzsfIxFBsWY6GmxMoCCwsLS2VnwVLyGaUsJKFJScpOKXaGJAsRdf1Pd66NuOe99zzvM+fM/1dPZxbvTJ3n957zP/e9904vhCu9EK5IgDMS4IwEOCMBzkiAMxLgjAQ4IwHOSIAzEuCMBDgjAc5IgDMS4IwEOCMBzkxDoTQajc0ctrH6WYtZs1njrA+s16y7PT09n+BMDwqCTV/C4QzrAGt+xK88ZZ2jiPtwoggBbPw8DqdYo6xZqM4Y6wRFjKFmshfA5i/kcI21A93xlXWIEu6gRrIOYTZ/FYcX6L75gbmsW/ybp1m13ZjZrgA2Kdw891g7kZafrCGuhMeogZxXwEmkb35gOusqBc9BDWS5AticlWgeJWfAjgtcBcdhTK4CrnA4DFvCVrSUEj7CkOy2IDa/j8N+2BO2ohEYk2MGbGX1oR52w5gcBWxEfQxMnLbMyPFZULj7H6E+lrHew4iingXliB5HOyMBztSSAQyyYQ5DrBVoHu8mM+H8/4b1gK8BbsMY8wxg869zGEae3KCEfTDEVACbv53DQ+TNFkp4AiOsM2AX8mcPDLHOgA3In00wxGwLmnhT4wcmf+i2I4TyTG5DDRhguQUNIv/mB8IcVsMISwHrUQ5mc5GAOMzmYhnC61AOZnMxCWEGcBD7DWVkQMAsiK22oFICuEWYyyAMsBJQ0v7fwmROEhCPyZysQrhEASZBnDyEJwI4vAIu7b2GEMR9DOJfSIhFk9agzDd6QhAPIDEWjSpx+2mRfG4SUI3kc7MI4ZIFJA/ipCFccAC3SB7EqRs1inKbHwhBfBQJSbYCePcf4XAJ5ROeB41wFVxGApIImELNb5FMQtcCpmDzWySR0JWAKdz8Fl1L6FiAmv+HriR0JEDN/4uOJVQWoOb/k44kVBKg5relsoRoAWp+NJUkRD0LYvMXoflVnbMQMfSzZwso4XO7C/UVJWf0DRlnJMAZCXBGApyRAGei35LksWovmv+XbS3E/3jOOs8j6M2Yi6OOoWx++FzkK4gqLKeEt+0uit2CdNdXJ+rDvLFb0BcIE2JXwEvWd4hYQq+exVwYtQK4l71jDhzkj8egk1M7wkdWLrJn4zEX61mQM7qbnZEAZyTAGQlwRgKckQBnJMAZCXBGApyRAGckwBkJcEYCnJEAZyTAGQlwRgKc+Q0AAP//tEc+MgAAAAZJREFUAwDtIcmpHsqpFwAAAABJRU5ErkJggg==) center/contain no-repeat;mask:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAADi0lEQVR4nOycTYiNURjH/zP5yIh8pUSzQTZmykehfESzsfIxFBsWY6GmxMoCCwsLS2VnwVLyGaUsJKFJScpOKXaGJAsRdf1Pd66NuOe99zzvM+fM/1dPZxbvTJ3n957zP/e9904vhCu9EK5IgDMS4IwEOCMBzkiAMxLgjAQ4IwHOSIAzEuCMBDgjAc5IgDMS4IwEOCMBzkxDoTQajc0ctrH6WYtZs1njrA+s16y7PT09n+BMDwqCTV/C4QzrAGt+xK88ZZ2jiPtwoggBbPw8DqdYo6xZqM4Y6wRFjKFmshfA5i/kcI21A93xlXWIEu6gRrIOYTZ/FYcX6L75gbmsW/ybp1m13ZjZrgA2Kdw891g7kZafrCGuhMeogZxXwEmkb35gOusqBc9BDWS5AticlWgeJWfAjgtcBcdhTK4CrnA4DFvCVrSUEj7CkOy2IDa/j8N+2BO2ohEYk2MGbGX1oR52w5gcBWxEfQxMnLbMyPFZULj7H6E+lrHew4iingXliB5HOyMBztSSAQyyYQ5DrBVoHu8mM+H8/4b1gK8BbsMY8wxg869zGEae3KCEfTDEVACbv53DQ+TNFkp4AiOsM2AX8mcPDLHOgA3In00wxGwLmnhT4wcmf+i2I4TyTG5DDRhguQUNIv/mB8IcVsMISwHrUQ5mc5GAOMzmYhnC61AOZnMxCWEGcBD7DWVkQMAsiK22oFICuEWYyyAMsBJQ0v7fwmROEhCPyZysQrhEASZBnDyEJwI4vAIu7b2GEMR9DOJfSIhFk9agzDd6QhAPIDEWjSpx+2mRfG4SUI3kc7MI4ZIFJA/ipCFccAC3SB7EqRs1inKbHwhBfBQJSbYCePcf4XAJ5ROeB41wFVxGApIImELNb5FMQtcCpmDzWySR0JWAKdz8Fl1L6FiAmv+HriR0JEDN/4uOJVQWoOb/k44kVBKg5relsoRoAWp+NJUkRD0LYvMXoflVnbMQMfSzZwso4XO7C/UVJWf0DRlnJMAZCXBGApyRAGei35LksWovmv+XbS3E/3jOOs8j6M2Yi6OOoWx++FzkK4gqLKeEt+0uit2CdNdXJ+rDvLFb0BcIE2JXwEvWd4hYQq+exVwYtQK4l71jDhzkj8egk1M7wkdWLrJn4zEX61mQM7qbnZEAZyTAGQlwRgKckQBnJMAZCXBGApyRAGckwBkJcEYCnJEAZyTAGQlwRgKc+Q0AAP//tEc+MgAAAAZJREFUAwDtIcmpHsqpFwAAAABJRU5ErkJggg==) center/contain no-repeat"></span>Macuxi Campo · 14:15</span><b style="font-size:15px;font-weight:600;line-height:20px">Há 1 h sem visita</b><span style="font-size:15px;line-height:19px;color:#34404D">Próxima visita: Mercado Bom Preço.</span></div></div>
+    <div style="display:flex;gap:12px;padding:14px 16px;border-top:1px solid #ECEEF1">
+    <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#4A5562"><span style="width:18px;height:18px;flex-shrink:0;background:#1E3350;-webkit-mask:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAADi0lEQVR4nOycTYiNURjH/zP5yIh8pUSzQTZmykehfESzsfIxFBsWY6GmxMoCCwsLS2VnwVLyGaUsJKFJScpOKXaGJAsRdf1Pd66NuOe99zzvM+fM/1dPZxbvTJ3n957zP/e9904vhCu9EK5IgDMS4IwEOCMBzkiAMxLgjAQ4IwHOSIAzEuCMBDgjAc5IgDMS4IwEOCMBzkxDoTQajc0ctrH6WYtZs1njrA+s16y7PT09n+BMDwqCTV/C4QzrAGt+xK88ZZ2jiPtwoggBbPw8DqdYo6xZqM4Y6wRFjKFmshfA5i/kcI21A93xlXWIEu6gRrIOYTZ/FYcX6L75gbmsW/ybp1m13ZjZrgA2Kdw891g7kZafrCGuhMeogZxXwEmkb35gOusqBc9BDWS5AticlWgeJWfAjgtcBcdhTK4CrnA4DFvCVrSUEj7CkOy2IDa/j8N+2BO2ohEYk2MGbGX1oR52w5gcBWxEfQxMnLbMyPFZULj7H6E+lrHew4iingXliB5HOyMBztSSAQyyYQ5DrBVoHu8mM+H8/4b1gK8BbsMY8wxg869zGEae3KCEfTDEVACbv53DQ+TNFkp4AiOsM2AX8mcPDLHOgA3In00wxGwLmnhT4wcmf+i2I4TyTG5DDRhguQUNIv/mB8IcVsMISwHrUQ5mc5GAOMzmYhnC61AOZnMxCWEGcBD7DWVkQMAsiK22oFICuEWYyyAMsBJQ0v7fwmROEhCPyZysQrhEASZBnDyEJwI4vAIu7b2GEMR9DOJfSIhFk9agzDd6QhAPIDEWjSpx+2mRfG4SUI3kc7MI4ZIFJA/ipCFccAC3SB7EqRs1inKbHwhBfBQJSbYCePcf4XAJ5ROeB41wFVxGApIImELNb5FMQtcCpmDzWySR0JWAKdz8Fl1L6FiAmv+HriR0JEDN/4uOJVQWoOb/k44kVBKg5relsoRoAWp+NJUkRD0LYvMXoflVnbMQMfSzZwso4XO7C/UVJWf0DRlnJMAZCXBGApyRAGei35LksWovmv+XbS3E/3jOOs8j6M2Yi6OOoWx++FzkK4gqLKeEt+0uit2CdNdXJ+rDvLFb0BcIE2JXwEvWd4hYQq+exVwYtQK4l71jDhzkj8egk1M7wkdWLrJn4zEX61mQM7qbnZEAZyTAGQlwRgKckQBnJMAZCXBGApyRAGckwBkJcEYCnJEAZyTAGQlwRgKc+Q0AAP//tEc+MgAAAAZJREFUAwDtIcmpHsqpFwAAAABJRU5ErkJggg==) center/contain no-repeat;mask:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAADi0lEQVR4nOycTYiNURjH/zP5yIh8pUSzQTZmykehfESzsfIxFBsWY6GmxMoCCwsLS2VnwVLyGaUsJKFJScpOKXaGJAsRdf1Pd66NuOe99zzvM+fM/1dPZxbvTJ3n957zP/e9904vhCu9EK5IgDMS4IwEOCMBzkiAMxLgjAQ4IwHOSIAzEuCMBDgjAc5IgDMS4IwEOCMBzkxDoTQajc0ctrH6WYtZs1njrA+s16y7PT09n+BMDwqCTV/C4QzrAGt+xK88ZZ2jiPtwoggBbPw8DqdYo6xZqM4Y6wRFjKFmshfA5i/kcI21A93xlXWIEu6gRrIOYTZ/FYcX6L75gbmsW/ybp1m13ZjZrgA2Kdw891g7kZafrCGuhMeogZxXwEmkb35gOusqBc9BDWS5AticlWgeJWfAjgtcBcdhTK4CrnA4DFvCVrSUEj7CkOy2IDa/j8N+2BO2ohEYk2MGbGX1oR52w5gcBWxEfQxMnLbMyPFZULj7H6E+lrHew4iingXliB5HOyMBztSSAQyyYQ5DrBVoHu8mM+H8/4b1gK8BbsMY8wxg869zGEae3KCEfTDEVACbv53DQ+TNFkp4AiOsM2AX8mcPDLHOgA3In00wxGwLmnhT4wcmf+i2I4TyTG5DDRhguQUNIv/mB8IcVsMISwHrUQ5mc5GAOMzmYhnC61AOZnMxCWEGcBD7DWVkQMAsiK22oFICuEWYyyAMsBJQ0v7fwmROEhCPyZysQrhEASZBnDyEJwI4vAIu7b2GEMR9DOJfSIhFk9agzDd6QhAPIDEWjSpx+2mRfG4SUI3kc7MI4ZIFJA/ipCFccAC3SB7EqRs1inKbHwhBfBQJSbYCePcf4XAJ5ROeB41wFVxGApIImELNb5FMQtcCpmDzWySR0JWAKdz8Fl1L6FiAmv+HriR0JEDN/4uOJVQWoOb/k44kVBKg5relsoRoAWp+NJUkRD0LYvMXoflVnbMQMfSzZwso4XO7C/UVJWf0DRlnJMAZCXBGApyRAGei35LksWovmv+XbS3E/3jOOs8j6M2Yi6OOoWx++FzkK4gqLKeEt+0uit2CdNdXJ+rDvLFb0BcIE2JXwEvWd4hYQq+exVwYtQK4l71jDhzkj8egk1M7wkdWLrJn4zEX61mQM7qbnZEAZyTAGQlwRgKckQBnJMAZCXBGApyRAGckwBkJcEYCnJEAZyTAGQlwRgKc+Q0AAP//tEc+MgAAAAZJREFUAwDtIcmpHsqpFwAAAABJRU5ErkJggg==) center/contain no-repeat"></span>Macuxi Campo · 12:50</span><b style="font-size:15px;font-weight:600;line-height:20px">Seu almoço termina às 13:00</b><span style="font-size:15px;line-height:19px;color:#34404D">Próxima visita: Mercado Bom Preço.</span></div></div>
+  </div></div></div><div class="lado"><h2>Gestão · Alertas</h2><div class="fone" style="background:#F8F6F1">
+  <div style="background:#1E3350"><div style="height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:13px;font-weight:600;color:#fff"><span>11:42</span><span style="display:flex;gap:6px;align-items:center"><span style="width:16px;height:10px;border:1.5px solid currentColor;border-radius:2px"></span><span style="width:22px;height:11px;border:1.5px solid currentColor;border-radius:3px;position:relative"><span style="position:absolute;inset:1.5px;right:5px;background:currentColor;border-radius:1px"></span></span></span></div><div style="padding:10px 20px 18px;font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;font-weight:700;font-size:24px;color:#fff">Alertas</div></div>
+  <div style="padding:16px"><div style="background:#fff;border:1px solid #DFE2E6;border-radius:16px;overflow:hidden">
+    <div style="display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-bottom:1px solid #ECEEF1">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:15px;font-weight:600">Parado</b><span class="selo av">Atenção</span></div>
+    <span style="font-size:15px;line-height:21px">João Silva: último checkout às 10:12.</span><span style="font-size:13px;color:#4A5562">desde 11:42</span>
+    <span class="btn s" style="align-self:flex-start;height:44px;margin-top:4px">Dispensar</span></div>
+    <div style="display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-bottom:1px solid #ECEEF1">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:15px;font-weight:600">Sem check-in</b><span class="selo av">Atenção</span></div>
+    <span style="font-size:15px;line-height:21px">Carla Mendes</span><span style="font-size:13px;color:#4A5562">desde 10:00</span>
+    <span class="btn s" style="align-self:flex-start;height:44px;margin-top:4px">Dispensar</span></div>
+  </div></div>
+  <div style="position:absolute;left:0;right:0;bottom:0;height:72px;background:#fff;border-top:1px solid #DFE2E6;display:flex">
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding-top:8px;border-top:3px solid transparent;color:#4A5562;font-size:12px;font-weight:500"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Início</div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding-top:8px;border-top:3px solid transparent;color:#4A5562;font-size:12px;font-weight:500"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c1.8.7 3 2.4 3.5 5.2"/></svg>Equipe</div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding-top:8px;border-top:3px solid transparent;color:#4A5562;font-size:12px;font-weight:500"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Aprovações</div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding-top:8px;border-top:3px solid #1E3350;color:#1E3350;font-size:12px;font-weight:600"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5L2.5 20h19z"/><path d="M12 10v4.5M12 17.2v.3"/></svg>Alertas</div>
+  </div></div></div></div>
+</body></html>
