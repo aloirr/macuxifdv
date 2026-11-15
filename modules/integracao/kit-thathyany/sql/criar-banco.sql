@@ -373,7 +373,7 @@ SELECT external_id, alterado_em, ativo, codigo, nome, ordem
 FROM dbo.tha_forma_pagamento;
 GO
 CREATE OR ALTER VIEW dbo.vw_macuxi_prazo_pagamento AS
-SELECT external_id, alterado_em, ativo, forma_external_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ordem
+SELECT external_id, forma_external_id, codigo, parcelas_dias, alterado_em, ativo, descricao, prazo_medio_dias, percentual_ajuste, ordem
 FROM dbo.tha_prazo_pagamento;
 GO
 CREATE OR ALTER VIEW dbo.vw_macuxi_produto AS

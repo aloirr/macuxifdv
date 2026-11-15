@@ -171,7 +171,8 @@ function colunasDoConector(exemplo: ConectorExemplo, entidade: string): string[]
   const consulta = exemplo.entidades[entidade]?.consulta ?? '';
   const m = /^SELECT TOP \(:limite\) (.*?) FROM dbo\.vw_macuxi_\w+ WHERE/.exec(consulta);
   if (!m) throw new Error(`conector.exemplo.json: consulta da entidade ${entidade} fora do formato esperado.`);
-  return (m[1] as string).split(',').map((s) => s.trim());
+  // SELECT * (RN-INT-15, prazo_pagamento): colunas opcionais lidas só se existirem; nada a derivar da consulta
+  return (m[1] as string).split(',').map((s) => s.trim()).filter((s) => s !== '*');
 }
 
 interface ConectorExemplo {
@@ -279,6 +280,12 @@ function sqlTabela(ent: EntidadeContrato): string {
   return `IF OBJECT_ID('dbo.${t}', 'U') IS NULL\nCREATE TABLE dbo.${t} (\n${linhas.join(',\n')});\nGO${alter ? `\n${alter}` : ''}\nIF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_${t}_alterado' AND object_id = OBJECT_ID('dbo.${t}'))\nCREATE INDEX ix_${t}_alterado ON dbo.${t} (alterado_em, external_id);\nGO`;
 }
 
+/** Colunas da view: as do SELECT do exemplo; com SELECT * (prazo_pagamento, RN-INT-15) a view devolve todas as colunas do contrato (menos as só do kit). */
+function colunasDaView(exemplo: ConectorExemplo, ent: EntidadeContrato): string[] {
+  const lista = colunasDoConector(exemplo, ent.entidade);
+  return lista.length > 0 ? lista : ent.campos.filter((c) => !c.so_kit).map((c) => c.coluna);
+}
+
 /** View vw_macuxi_<entidade>: as colunas do SELECT do conector.exemplo.json (nomes do contrato; data civil como texto AAAA-MM-DD; horário já em UTC). */
 function sqlView(ent: EntidadeContrato, colunas: string[]): string {
   const itens = colunas.map((col) => {
@@ -339,7 +346,7 @@ GO`,
   ];
   for (const ent of contrato.entidades) partes.push(sqlTabela(ent));
   partes.push('-- ----- views que o Conector lê (uma por entidade, na ordem de carga) -----');
-  for (const ent of contrato.entidades) partes.push(sqlView(ent, colunasDoConector(exemplo, ent.entidade)));
+  for (const ent of contrato.entidades) partes.push(sqlView(ent, colunasDaView(exemplo, ent)));
   partes.push('-- ----- entrada de pedidos (Macuxi -> ERP): db/conector/entrada-pedido-modelo.sql -----');
   partes.push(tornarIdempotente(lerRepo('db', 'conector', 'entrada-pedido-modelo.sql')));
   partes.push('-- ----- retorno do pedido (ERP -> Macuxi): situação, nota e itens faturados -----');
