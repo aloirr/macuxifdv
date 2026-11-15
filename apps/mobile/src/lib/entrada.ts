@@ -37,7 +37,7 @@ const ALTURA_BARRA = 34;
 const ALTURA_ERRO = 24 + 18 + 52 + 18 + 48;
 const ALTURA_ETAPA = 32;
 const ESPACO_AREA = 18;
-/** "Olá": 28 dp acima e a linha do texto (Plex 15, ~20 dp na escala de fonte 1,0). */
+/** "Olá": o espaço acima e a linha do texto (fonte do sistema 16, ~19 dp desenhados na escala de fonte 1,0; conta 20). */
 const ACIMA_DA_SAUDACAO = 28;
 const LINHA_SAUDACAO = 20;
 
@@ -57,9 +57,9 @@ function alturaDaSaudacao(escala: number): number {
 }
 
 /**
- * Linhas do aviso da carga (T-0181): o aviso nunca é cortado. Na escala 1,0 cabe em 1 linha (~284 dp em 14 dp, de 264 medidos em 13,
- * numa linha de 296 dp, 360 − 2 × 32); com fonte grande quebra (a partir de ~1,12) e cabe em 2 até a escala 2,0, a maior
- * do Android. Acima de 1,0 conta 2 de propósito: a conta nunca fica abaixo do que a tela desenha.
+ * Linhas do aviso da carga (T-0181): o aviso nunca é cortado. Na escala 1,0 cabe nas linhas de `MEDIDAS_FRASE_CARGA.aviso`;
+ * com fonte grande quebra e cabe em 2 até a escala 2,0, a maior do Android. Acima de 1,0 conta 2 de propósito: a conta nunca
+ * fica abaixo do que a tela desenha.
  */
 export function linhasDoAviso(escala = 1): number {
   return escala > 1 ? 2 : AVISO.linhas;
@@ -75,7 +75,7 @@ export type LinhasFrase = 0 | 1 | (typeof MEDIDAS_FRASE_CARGA)['frase']['linhasM
 /** Linhas com que a frase entra na tela (o bloco está na tela). */
 export type LinhasNaTela = Exclude<LinhasFrase, 0>;
 
-/** Altura do bloco "Você sabia?" (título e frase): na escala 1,0, 86 dp com 2 linhas, 66 com 1, 0 sem o bloco. */
+/** Altura do bloco "Você sabia?" (título e frase), pelas medidas de `MEDIDAS_FRASE_CARGA`; 0 sem o bloco. */
 export function alturaDoBlocoFrase(linhas: LinhasFrase, escala = 1): number {
   if (linhas === 0) return 0;
   return TITULO.abaixoDoOla + linhaNaEscala(TITULO.linha, escala) + TITULO.ateFrase + linhas * linhaNaEscala(FRASE.linha, escala);
@@ -110,8 +110,8 @@ function livreAbaixoDoOla(janela: number, insetInferior: number, escala: number)
 }
 
 /**
- * Bloco "Você sabia?" na carga (spec carga-aviso-frases §1.1, MC-0077): precisa de 24 dp livres entre o pé da frase e o
- * topo do aviso. Sem isso, a frase cai para 1 linha (só se couber inteira em 1 linha); se ainda não couber, o bloco inteiro
+ * Bloco "Você sabia?" na carga (spec carga-aviso-frases §1.1, MC-0077): precisa do espaço livre `frase.livreAteAviso` entre o
+ * pé da frase e o topo do aviso. Sem isso, a frase cai para 1 linha (só se couber inteira em 1 linha); se ainda não couber, o bloco inteiro
  * sai (o título nunca aparece sozinho). Logo, "Olá", aviso e barra vêm antes; a lista de etapas sai antes do bloco
  * (`cabeLista` recebe o resultado daqui). A escala de fonte do aparelho entra nas alturas e no que cabe em 1 linha.
  */
@@ -134,7 +134,7 @@ export interface ExtrasDaCarga {
 /**
  * A lista de etapas cabe entre o logo (parado no centro) e a borda de baixo? Na tela baixa ela sai e ficam a barra com
  * "Etapa n de N · nome" e o percentual (ou, parada, a linha do erro e as ações), sem cobrir o logo. Na carga, conta o aviso
- * e o bloco "Você sabia?" (com o respiro de 24 dp): a lista sai antes do bloco (spec carga-aviso-frases §1.1).
+ * e o bloco "Você sabia?" (com o respiro até o aviso): a lista sai antes do bloco (spec carga-aviso-frases §1.1).
  */
 export function cabeLista(
   alturaTela: number,

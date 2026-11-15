@@ -53,16 +53,8 @@ import {
   type FiltrosDaTela,
 } from '@/lib/portal-diagnosticos';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
-import { ehTimeMacuxi } from '@/lib/portal-sessao';
-import { MolduraPortal, SemAcessoTimeMacuxi, useSessaoPortal } from './base';
+import { MolduraPortal, SemAcessoTimeMacuxi, useTimeMacuxi } from './base';
 import { useEmpresas } from './tela-empresas';
-
-/** Só o time Macuxi: `null` = ainda lendo a sessão; `false` = admin do cliente (mostra o "sem acesso"). */
-function useTimeMacuxi(): boolean | null {
-  const sessao = useSessaoPortal();
-  if (sessao === undefined || sessao === null) return null;
-  return ehTimeMacuxi(sessao);
-}
 
 function OrigemBadge({ origem }: { origem: keyof typeof ROTULO_ORIGEM }) {
   const o = ROTULO_ORIGEM[origem];

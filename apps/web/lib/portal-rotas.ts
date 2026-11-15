@@ -4,6 +4,10 @@
  * caminho mudar, muda aqui.
  */
 import type { Entidade } from '@macuxi/integracao/contracts';
+import { ROTA_PORTAL_FRASES_CARGA } from '@macuxi/platform-sdk';
+
+/** T-0181: a rota das frases vem do SDK (com o `/v1`); aqui, relativa ao `/v1` como as outras. */
+const FRASES_CARGA = ROTA_PORTAL_FRASES_CARGA.replace(/^\/v1/, '');
 
 export const ROTAS_PORTAL = {
   // Core: acesso ao portal só com e-mail e senha (T-0093; ADR 0031). `login` é pública; `empresa`, `renovar` e `sair` levam o token.
@@ -25,8 +29,8 @@ export const ROTAS_PORTAL = {
   /** Bytes do print (JPEG), `private, no-store`; o portal abre como `Blob`. */
   printDoDiagnostico: (id: string) => `/plataforma/diagnosticos/${encodeURIComponent(id)}/print`,
   /** T-0181: frases da tela de carga do app, só o time da Macuxi (o admin do cliente recebe 403). Sem DELETE. */
-  frasesCarga: '/plataforma/frases-carga',
-  fraseCarga: (id: string) => `/plataforma/frases-carga/${encodeURIComponent(id)}`,
+  frasesCarga: FRASES_CARGA,
+  fraseCarga: (id: string) => `${FRASES_CARGA}/${encodeURIComponent(id)}`,
   // Integração (com `x-macuxi-tenant`)
   ordemCarga: '/integracao/ordem-carga',
   cargaArquivo: '/integracao/cargas-arquivo',

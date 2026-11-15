@@ -58,7 +58,7 @@ interface Props {
    * (`cabeFrase`); a lista de etapas sai antes dele.
    */
   frase?: { texto: string; desenhar: (linhas: LinhasNaTela) => ReactNode } | null;
-  /** Carga (T-0181): o aviso, 10 dp acima da linha da barra (só com a barra na tela). */
+  /** Carga (T-0181): o aviso, acima da linha da barra (só com a barra na tela). */
   aviso?: ReactNode;
 }
 
@@ -343,7 +343,7 @@ export function AcaoEntrada({
 const styles = StyleSheet.create({
   raiz: { flex: 1 },
   logo: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  saudacao: { fontFamily: fonts.body, fontSize: 15, marginTop: 28, textAlign: 'center' },
+  saudacao: { fontFamily: fonts.body, fontSize: 16, marginTop: 28, textAlign: 'center' },
   avisoEBarra: { gap: MEDIDAS_FRASE_CARGA.aviso.acimaDaBarra },
   baixo: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: MARGEM_ENTRADA },
   nomeDoApp: { fontFamily: fonts.body, fontSize: 13, textAlign: 'center' },

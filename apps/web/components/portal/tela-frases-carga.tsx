@@ -27,14 +27,12 @@ import {
   tituloDoDialogoFrase,
 } from '@/lib/portal-frases-carga';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
-import { ehTimeMacuxi } from '@/lib/portal-sessao';
-import { MolduraPortal, SemAcessoTimeMacuxi, useSessaoPortal } from './base';
+import { MolduraPortal, SemAcessoTimeMacuxi, useTimeMacuxi } from './base';
 
 const CHAVE = ['portal', 'frases-carga'] as const;
 
 export function TelaFrasesCarga() {
-  const sessao = useSessaoPortal();
-  const pode = sessao === undefined || sessao === null ? null : ehTimeMacuxi(sessao);
+  const pode = useTimeMacuxi();
   // o diálogo: `null` fechado; `{ frase: null }` incluir; `{ frase }` editar
   const [dialogo, setDialogo] = useState<{ frase: FraseCarga | null } | null>(null);
   return (
@@ -118,7 +116,7 @@ function ListaFrases({
       ) : (
         <Panel>
           <TableScroll minWidth={720}>
-            <table data-testid="frases.lista" className="w-full border-collapse text-[14px]">
+            <table data-testid="frases.lista" className="w-full border-collapse text-[15px]">
               <thead>
                 <tr>
                   <th className={cx(th, 'w-12')}>Nº</th>

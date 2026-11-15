@@ -28,7 +28,7 @@ vi.mock('@/components/portal/base', async (original) => {
   const real = await original<typeof import('@/components/portal/base')>();
   return {
     ...real,
-    useSessaoPortal: () => ({ tipo: sessaoSim.tipo, empresa: null, empresas: [] }),
+    useTimeMacuxi: () => sessaoSim.tipo === 'super_admin',
     MolduraPortal: ({ children, titulo }: { children: React.ReactNode; titulo?: React.ReactNode }) => (
       <div>
         {titulo}
