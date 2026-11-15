@@ -5,7 +5,6 @@
  * catálogo do Postgres no CI).
  * T-0093 (0039): as migrações são aplicadas EM ORDEM, com os `drop function` e os `revoke ... from macuxi_portal`: a 0039 apaga
  * 14 sa_* da 0035 e troca a assinatura da interna sa_registrar_auditoria.
- * ADR 0047 (0070), ADR 0052 (0072) e dados legais do rodapé (0073): mais 1, mais 8 e mais 2 com grant ao portal = 27.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
