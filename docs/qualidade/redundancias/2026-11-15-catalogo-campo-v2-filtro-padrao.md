@@ -260,3 +260,43 @@ Decisões do dono do produto: R-20261115-083000, R-20261115-083600 e R-20261115-
 ```
 
 Os RD-0576 a RD-0579 não foram usados.
+
+## 11. Reteste dos RD-0571 a RD-0575 e parecer das filiais por perfil (15/11/2026 ~08h50 de Manaus, `git diff d4d41718 ad6e5537`, designer-ux)
+**Veredito: COM ACHADO.** Dos 5 achados do §10, 4 estão corrigidos e o RD-0574 foi encerrado por decisão do dono do produto. Há 2 achados novos, RD-0576 (média) e RD-0577 (baixa), os dois em doc e do designer-ux, e os dois seguram o lote.
+
+Abri como imagem o `08-grade-multi-filial.png` regerado. O chip `Suas filiais (3)` está sem ✕, e o `Estoque: 17` e o botão continuam. **A tela não tem achado.**
+
+| RD | Situação | Evidência |
+|---|---|---|
+| RD-0571 | **corrigido** | A lista "Valor de N" da spec §3 ganhou "com cliente: a filial do cliente (RN-CORE-39)". A spec §4 diz "(N no §3)". O §4 do grade só remete à spec ("Valor de N, o botão … e o `999+`: … §3"). |
+| RD-0572 | **corrigido** | A spec §3 diz "**Cor:** a do `../catalogo-grade.md` §4", e a §2.1 diz "a do §3, só no texto, sobre branco (…)". A frase do laranja saiu. |
+| RD-0573 | **corrigido** | O último item do grade §4 saiu. O §2 remete à spec §2.1. |
+| RD-0574 | **encerrado** por decisão do dono do produto | O cabeçalho `Filial \| Estoque` foi pedido em R-20261115-083000 ("tabelado: Coluna Filial… Coluna Estoque"), e a spec §2.1 registra isso. |
+| RD-0575 | **corrigido** | `icon.test.ts`: `'pacote'` entrou nas listas de `:22` e `:26`, e o teste novo ficou só com a comparação mobile × web, com o texto proposto. |
+
+### RD-0576 · média · doc · designer-ux: "só as filiais deles" está em 5 lugares
+A pergunta foi se a regra de R-20261115-090000 está num lugar só: promotor, supervisor e gerente veem só as filiais deles, e o chip fica sem ✕. **Não está.** O lugar certo é a spec §4, o filtro, que diz quais filiais cada perfil vê. Ali a regra está completa: "Promotor, supervisor e gerente veem só as filiais deles", com os três casos do chip e a exceção do vendedor. Ela também aparece em:
+1. a spec §2.1, na ordem da folha: "promotor, supervisor e gerente veem **só as filiais deles**, sem marca (todas seriam "sua")";
+2. a spec §3, no "Valor de N": "Eles veem só as filiais deles (R-20261115-090000)";
+3. a spec §3, no mesmo item: "`Todas as filiais`, que só o vendedor tem";
+4. a spec §3, no item Promotor: "vê `Estoque: N`, o botão e a folha, **das filiais dele**";
+5. o `catalogo-grade.md` §2, no item Promotor: "A tag e o botão de estoque aparecem, **das filiais dele**".
+
+- **Impacto:** manutenção e decisão. A §4 diz que a restrição do vendedor ainda está em aberto ("Se o dono do produto quiser o vendedor também restrito…"). Se ela mudar, são 6 lugares para acertar.
+- **Proposta, texto exato:** a spec §4 fica como está, e os outros lugares passam a remeter a ela.
+  - **Spec §2.1, item da ordem.** Depois: "- **ordem** (R-20261115-083600): as filiais que o usuário vê (§4), as dele primeiro; o vendedor vê a dele com a marca `sua filial` (13 `ink2`, como no `Filtrar`); quem vê só as dele fica sem marca. Cada grupo em ordem alfabética;"
+  - **Spec §3, "Valor de N".** Depois: "  - promotor, supervisor e gerente: a **soma** das filiais ligadas a ele (com uma só, a dela; o `modulo-core` expõe a lista);" e "  - filial escolhida no filtro (§4): só a daquela filial (R-20261115-084600); `Todas as filiais` (§4): a soma de todas."
+  - **Spec §3, item Promotor.** Depois: "- **Promotor** (R-20261115-090000): vê `Estoque: N`, o botão e a folha. O preço segue a RN-CAT-05 de hoje (`promotor_ve_preco_estoque`); o modulo-catalogo ajusta a regra só para o estoque."
+  - **Grade §2, item Promotor.** Depois: "- Promotor (RN-CAT-05, `promotor_ve_preco_estoque` = não): sem preço; a tag e o botão de estoque aparecem (`catalogo-campo-v2/spec.md` §3)."
+
+### RD-0577 · baixa · doc · designer-ux: o TalkBack do cartão está em 2 docs, com textos diferentes
+- **Onde:** `catalogo-grade.md` §2, que diz `"<nome>, <marca>, <preço>, <estoque>"` (ex.: "…, R$ 4,95, 6 em estoque", com o rótulo antigo), e a spec §3, que diz "TalkBack do cartão: `…, R$ 86,40, estoque 0`; depois, o botão". A linha da spec entrou no d4d41718, e eu não a vi no §10.
+- **O que se repete:** a mesma regra, a leitura do cartão, em 2 lugares, e os exemplos já não batem ("6 em estoque" × "estoque 0").
+- **Proposta, texto exato:** o grade §2 é a fonte (é onde o cartão é descrito).
+  - **Grade §2.** Depois: "- TalkBack do cartão: `"<nome>, <marca>, <preço>, estoque <N>"` (ex.: "Açúcar cristal 1 kg, Doce Vale, R$ 4,95, estoque 6"); depois, o botão `Estoque por filial`."
+  - **Spec §3, item "Botão no cartão":** apagar "TalkBack do cartão: `…, R$ 86,40, estoque 0`; depois, o botão." O resto fica.
+
+### Observação sem RD
+- **A restrição do vendedor ainda está em aberto.** Na spec §4, o vendedor continua vendo todas as filiais por decisão do designer, e R-20261115-090000 só cita promotor e supervisor. Isso é uma decisão de produto, não uma redundância. Deixo com o gerente, que deve confirmar com o dono do produto.
+
+Os RD-0578 e RD-0579 não foram usados.
