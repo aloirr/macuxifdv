@@ -22,7 +22,6 @@ import {
   Icon,
   initials,
   ProgressBar,
-  radius,
   rotuloDoPerfil,
   Screen,
   SectionHeader,
@@ -36,6 +35,7 @@ import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-nati
 
 import { EnviarDiagnostico } from '@/components/enviar-diagnostico';
 import { ItensDoMenu } from '@/components/extensoes-shell';
+import { ENDERECO_SERVIDOR, ENTRADA_SERVIDOR } from '@/components/servidor';
 import { normalizeApiUrl } from '@/lib/api-url';
 import { linhasDoArmazenamento } from '@/lib/armazenamento-aparelho';
 import { criarContadorToques, diagnosticoDisponivel } from '@/lib/diagnostico-carga';
@@ -258,14 +258,14 @@ export default function ProfileScreen() {
         <SectionHeader title="Servidor" />
         {!app.servidorEditavel ? (
           <Card style={{ padding: 14, gap: 6 }}>
-            <Text testID="profile-server-fixo" selectable style={[t.body, { ...fonte.mono, fontSize: 14 }]}>
+            <Text testID="profile-server-fixo" selectable style={ENDERECO_SERVIDOR}>
               {apiUrl}
             </Text>
             <Text style={t.small}>Endereço definido nesta versão do aplicativo.</Text>
           </Card>
         ) : (
           <Card style={{ padding: 14, gap: 10 }}>
-            <TextInput testID="profile-server" value={url} onChangeText={setUrl} autoCapitalize="none" autoCorrect={false} keyboardType="url" style={styles.input} />
+            <TextInput testID="profile-server" value={url} onChangeText={setUrl} autoCapitalize="none" autoCorrect={false} keyboardType="url" style={ENTRADA_SERVIDOR} />
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <Button label="Testar e salvar" variant="dark" style={{ flex: 1 }} onPress={() => void saveUrl()} />
               <Button
@@ -371,5 +371,4 @@ const styles = StyleSheet.create({
   discard: { height: 44, justifyContent: 'center' },
   versao: { alignSelf: 'center', paddingVertical: 8 },
   mono: { ...fonte.mono, fontSize: 12, color: colors.ink2 },
-  input: { height: 46, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, ...fonte.mono, fontSize: 14, color: colors.ink, backgroundColor: colors.surface },
 });

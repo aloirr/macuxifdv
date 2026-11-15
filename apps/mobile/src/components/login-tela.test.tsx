@@ -69,6 +69,7 @@ vi.mock('@macuxi/core/app', () => ({
 }));
 vi.mock('@/components/area-segura', () => ({ useFaixaSuperior: () => 0 }));
 vi.mock('@/components/faixa-login', () => ({ FaixaDoLogin: () => createElement('header', { 'data-testid': 'login.faixa' }) }));
+vi.mock('@/components/servidor', () => ({ ENTRADA_SERVIDOR: {}, ENDERECO_SERVIDOR: {} }));
 // a etapa em que o login abre (`null` = a de verdade, Entrar): o teste da faixa abre direto em Esqueci e em Crie sua senha
 vi.mock('@/lib/etapa-login', async (original) => {
   const real = await original<typeof import('@/lib/etapa-login')>();
