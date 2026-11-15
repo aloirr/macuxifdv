@@ -11,10 +11,11 @@
  */
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { RotuloCampo } from './campo-texto-rn';
 import { DESCONTO_COMPACTO, equivalenteDoAjuste, type TomEquivalente, type ValorEquivalente } from './desconto';
 import { CampoAjuste } from './suspensa';
 import { TIPOS_AJUSTE, type OpcaoLista, type TipoAjuste } from './selecao';
-import { colors, fonts } from './theme';
+import { colors, fonte } from './theme';
 
 const COR_EQUIVALENTE: Record<TomEquivalente, string> = { sucesso: colors.success, neutro: colors.ink2, erro: colors.danger };
 
@@ -37,7 +38,7 @@ export function DescontoCompacto({
   style,
   testID = 'desconto',
 }: {
-  /** À esquerda, em maiúsculas (pedido: "Desconto do pedido"). No item, sem rótulo: a linha já é do item. */
+  /** À esquerda, no `RotuloCampo` (pedido: "Desconto do pedido"). No item, sem rótulo: a linha já é do item. */
   rotulo?: string;
   /** Padrão: `TIPOS_AJUSTE` (Desc %, Desc R$, Acrésc %, Acrésc R$). Tipo desabilitado aparece com cadeado e motivo. */
   tipos?: ReadonlyArray<OpcaoLista<TipoAjuste>>;
@@ -69,9 +70,9 @@ export function DescontoCompacto({
   return (
     <View style={[s.linha, style]} testID={testID}>
       {rotulo ? (
-        <Text style={s.rotulo} numberOfLines={2} accessibilityRole="header">
-          {rotulo}
-        </Text>
+        <View style={s.rotulo}>
+          <RotuloCampo numberOfLines={2}>{rotulo}</RotuloCampo>
+        </View>
       ) : null}
       <CampoAjuste
         testID={`${testID}-campo`}
@@ -106,8 +107,8 @@ export function DescontoCompacto({
 const s = StyleSheet.create({
   // uma linha de 44 dp (a do Passo compacto); com fonte grande, o rótulo quebra em 2 linhas e a linha cresce
   linha: { flexDirection: 'row', alignItems: 'center', gap: DESCONTO_COMPACTO.vao, minHeight: DESCONTO_COMPACTO.altura },
-  rotulo: { flex: 1, minWidth: 0, fontFamily: fonts.bold, fontSize: 11, lineHeight: 14, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.ink2 },
+  rotulo: { flex: 1, minWidth: 0 },
   campoFixo: { width: DESCONTO_COMPACTO.larguraCampo },
   campoLivre: { flexGrow: 1, flexShrink: 1, minWidth: DESCONTO_COMPACTO.larguraCampo },
-  equivalente: { flexShrink: 0, textAlign: 'right', fontFamily: fonts.bold, fontSize: 13, fontVariant: ['tabular-nums'] },
+  equivalente: { flexShrink: 0, textAlign: 'right', ...fonte.semibold, fontSize: 14, fontVariant: ['tabular-nums'] },
 });

@@ -197,10 +197,12 @@ async function montarProdutosLocais(leitor: LeitorLocal, lerConcorrente: boolean
     if (nome === null) continue;
     referencias.set(x.produto_id, [...(referencias.get(x.produto_id) ?? []), { marca_id: x.marca_id, marca_nome: nome, codigo: x.codigo }]);
   }
+  const descricoes = new Map(conteudos.filter((c) => c.descricao).map((c) => [c.produto_id, c.descricao!]));
   const montados = produtos.map((p) => ({
     id: p.id,
     sku: p.sku,
     ean: p.ean,
+    external_id: p.external_id,
     nome: p.nome,
     marca: p.marca ?? '',
     categoria: p.categoria ?? '',
@@ -208,6 +210,7 @@ async function montarProdutosLocais(leitor: LeitorLocal, lerConcorrente: boolean
     ativo: p.ativo,
     atributos: (porProduto.get(p.id) ?? []).sort((a, b) => a.ordem - b.ordem).map((a) => ({ name: a.nome, value: a.valor })),
     aplicacao: aplicacoes.get(p.id) ?? '',
+    descricao: descricoes.get(p.id) ?? '',
     referencias: referencias.get(p.id) ?? [],
     thumbnail_url: null,
     campanha: campanha.has(p.id),

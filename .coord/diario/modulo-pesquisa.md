@@ -20,3 +20,4 @@
 2026-11-09 — T-0117/T-0140 — PAYLOAD_INVALIDO da Pesquisa em português via auxiliares do SDK + teste
 2026-11-12 — T-0166 — RD-0184: saem chips de progresso/salvo, faixa repetida e subtítulo da folha Enviar na resposta da pesquisa
 2026-11-14 — RD-0051 — exportacao.ts usa BOM_CSV do comum (celulaCsv segue local, comentado); teste fixa a saída byte a byte, idêntica antes e depois.
+2026-11-15 — fonte do sistema v1.0.13 — fonts.body→fonte.body; fontes 15→16 (app), 11→12 e 14→15 (web)
