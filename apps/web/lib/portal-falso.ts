@@ -19,6 +19,7 @@ import {
   CriarEmpresaSchema,
   EscolherEmpresaPortalSchema,
   GravarNomeFantasiaSchema,
+  MENSAGENS_ACESSO_LOGO,
   MENSAGENS_LOGO,
   LoginPortalSchema,
   RedefinirSenhaAdminSchema,
@@ -137,8 +138,8 @@ const marcasFalsas = new Map<string, { nome_fantasia: string | null; logo: { byt
 async function responderMarca(metodo: string, tenant: string, alvo: 'marca' | 'logo', sessao: SessaoFalsa, e: Estado, corpo: unknown): Promise<Response> {
   const empresa = e.empresas.find((x) => x.id === tenant);
   if (!empresa) return erro(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada.');
-  if (sessao.tipo === 'admin_cliente' && sessao.empresa !== tenant) return erro(403, 'PERFIL_SEM_ACESSO', 'Você só vê a logo da sua empresa.');
-  if (metodo !== 'GET' && sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi altera a logo e o nome fantasia.');
+  if (sessao.tipo === 'admin_cliente' && sessao.empresa !== tenant) return erro(403, 'PERFIL_SEM_ACESSO', MENSAGENS_ACESSO_LOGO.leitura);
+  if (metodo !== 'GET' && sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', MENSAGENS_ACESSO_LOGO.escrita);
   const atual = marcasFalsas.get(tenant) ?? { nome_fantasia: null, logo: null };
   const responder = (m: typeof atual) => {
     marcasFalsas.set(tenant, m);
