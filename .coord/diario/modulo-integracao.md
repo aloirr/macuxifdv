@@ -75,3 +75,4 @@
 2026-11-13 — T-0162 — RD-0226/0233/0237 aplicados, zip remontado (SHA-256 496471ba…ede8), reteste pedido ao corretor
 2026-11-13 — T-0162 — D-T0162-7: passos do instalador numerados 1 a 6; zip do kit remontado com --conector (SHA-256 5a406faec8418f0aa6fd55be4c0dd4ac4a0fa1201cbf1347e86ae96a3763dcb7)
 2026-11-15 — fonte do sistema v1.0.13 — web: tamanhos fora da escala ajustados (11→12, 14→13, 18→17); sem fonts./Archivo/Plex no módulo
+2026-11-15 — RD-0945 — painéis web de Integração na escala por papel: campo/alerta 15, subtítulo 17, número de cartão 17/600

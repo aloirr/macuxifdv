@@ -84,7 +84,7 @@ function DetalheLote({ lote, tz }: { lote: LoteListagemItem; tz: string }) {
         {contagens.map(([rotulo, n]) => (
           <div key={rotulo} className="rounded-xl border border-line-2 p-2">
             <dt className="text-[12px] text-ink-2">{rotulo}</dt>
-            <dd className="m-0 text-[17px] font-bold tabular-nums">{n}</dd>
+            <dd className="m-0 text-[17px] font-semibold tabular-nums">{n}</dd>
           </div>
         ))}
       </dl>

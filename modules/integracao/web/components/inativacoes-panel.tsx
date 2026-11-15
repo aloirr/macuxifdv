@@ -124,7 +124,7 @@ export function InativacoesPanel({ pendencias, perfil, agora, tz }: { pendencias
             <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
               Motivo (opcional, fica na auditoria)
               <textarea
-                className="min-h-[72px] rounded-[10px] border border-field bg-surface p-2 text-[13px] text-ink"
+                className="min-h-[72px] rounded-[10px] border border-field bg-surface p-2 text-[15px] text-ink"
                 maxLength={300}
                 value={motivo}
                 onChange={(e) => setMotivo(e.target.value)}
