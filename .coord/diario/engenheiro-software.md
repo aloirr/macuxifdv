@@ -230,3 +230,4 @@
 2026-11-15 — ações da empresa (R-20261114-195600) — ADR 0052 (inativar/reativar, backup por tenant, excluir com backup; RN-PLA-07..11), desenho docs/desenho/empresa-acoes.md e contrato empresa-acoes.ts no platform-sdk (rotas do portal, eventos plataforma.tenant.*@1, conferirExclusao), sem API nem banco
 2026-11-15 — empresa-acoes (PR #283) — achados RD-0345..0353 e do testes: desenho §1/§5 enxutos, ADR 0052 sem Pendências e sem passo a passo repetido, TENANT_NAO_ENCONTRADO no lugar de EMPRESA_NAO_ENCONTRADA, ErroCodigo/RE_TABELA, exclusao_bloqueada como enum, 11 itens no roteiro; merge do main (README das ADRs).
 2026-11-15 — empresa-acoes — RD-0380 (desenho §1 e §5) e motivo da inativação opcional e nulo (ADR 0052, desenho, InativarEmpresaSchema, resposta e evento inativado@1), com testes.
+2026-11-15 — e-mail de senha — merge do main, 3 linhas do ciclo-senha-t0094 no texto novo (d679a1a7); RD-0403: sem a frase repetida nas Consequências do adendo da ADR 0032

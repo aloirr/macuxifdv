@@ -89,4 +89,4 @@ e a recusa de perfil no BKO é só do shell (a API aceita o supervisor em vária
   spam. Recusada. Logo em `data:` URI: o Gmail e o Outlook bloqueiam. Recusada.
 - **Consequências:** **para o e-mail ter logo em produção (e na demo), `MACUXI_EMAIL_URL_ATIVOS` precisa estar configurada** no
   ambiente da API e do worker (hoje o `email.env` do `producao-publicar.yml` só leva as `MACUXI_SMTP_*`), e os dois PNG precisam
-  estar publicados. Sem isso, nada quebra: o e-mail sai completo, sem a imagem.
+  estar publicados.
