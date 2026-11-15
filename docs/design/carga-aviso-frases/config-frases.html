@@ -15,12 +15,12 @@ header { background: var(--surface); border-bottom: 1px solid var(--line); }
 .marca { display: flex; align-items: center; gap: 12px; background: var(--faixa); border-radius: 12px; padding: 10px 14px; }
 .marca img { width: 130px; display: block; }
 .marca .sep { width: 1px; height: 24px; background: rgba(201,206,213,.4); }
-.marca span { font-weight: 600; font-size: 14px; color: var(--faixaTexto); }
+.marca span { font-weight: 600; font-size: 15px; color: var(--faixaTexto); }
 nav { display: flex; gap: 4px; align-self: stretch; }
 nav a { display: flex; align-items: center; min-height: 44px; padding: 0 12px; margin-bottom: -12px; padding-bottom: 0; border-bottom: 2px solid transparent; font-weight: 600; color: var(--ink2); text-decoration: none; }
 nav a.ativo { border-color: var(--accent); color: var(--ink); }
 .dir { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--ink2); }
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: 600 15px system-ui, "Segoe UI", Roboto, -apple-system, sans-serif; height: 42px; border-radius: 12px; padding: 0 16px; border: 1px solid var(--field); background: var(--surface); color: var(--ink); white-space: nowrap; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; font-weight: 600; font-size: 15px; height: 42px; border-radius: 12px; padding: 0 16px; border: 1px solid var(--field); background: var(--surface); color: var(--ink); white-space: nowrap; }
 .btn.sm { height: 38px; border-radius: 10px; padding: 0 12px; font-size: 13px; }
 .btn.prim { background: var(--accent); color: #fff; border-color: var(--accent); }
 .btn.link { border: 0; background: none; height: auto; padding: 0 4px; min-height: 44px; font-size: 13px; color: var(--accent); }
@@ -46,7 +46,7 @@ td.acoes { text-align: right; white-space: nowrap; width: 1%; }
 .dcorpo { padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; }
 .dpe { padding: 12px 20px 18px; display: flex; justify-content: flex-end; gap: 8px; }
 label.rot { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; }
-textarea, select { font: 400 15px/21px system-ui, "Segoe UI", Roboto, -apple-system, sans-serif; color: var(--ink); border: 1px solid var(--field); border-radius: 12px; padding: 10px 12px; background: var(--surface); }
+textarea, select { font: inherit; font-size: 15px; line-height: 21px; color: var(--ink); border: 1px solid var(--field); border-radius: 12px; padding: 10px 12px; background: var(--surface); }
 textarea { height: 68px; resize: none; border: 2px solid var(--accent); padding: 9px 11px; }
 select { height: 44px; padding: 0 12px; }
 .ajuda { display: flex; justify-content: flex-end; font-size: 12px; font-weight: 400; color: var(--ink2); font-variant-numeric: tabular-nums; }
