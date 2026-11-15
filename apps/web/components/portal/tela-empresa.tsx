@@ -18,6 +18,7 @@ import { Badge, cx, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel } from '
 import { chamarPortal, ehRotaAusente, ErroPortal, mensagemDoErro } from '@/lib/portal-api';
 import { CARTAO_DA_ENTIDADE } from '@/lib/portal-carga';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
+import { rotuloDoStatus, tomDoStatus } from '@/lib/portal-empresa-acoes';
 import { AbaIntegracao } from './aba-integracao';
 import { CartaoAdmins } from './cartao-admins';
 import { desvioDaPaginaDaEmpresa, ehTimeMacuxi } from '@/lib/portal-sessao';
@@ -25,7 +26,7 @@ import { MolduraPortal, useSessaoPortal } from './base';
 import { CartaoBase } from './cartao-base';
 import { CartaoEquipe } from './cartao-equipe';
 import { mascararCnpj, PassoEmpresa, ROTULO_MODULO, rotuloDoFuso } from './passo-empresa';
-import { CHAVE_EMPRESAS, rotuloDoStatus, useEmpresas } from './tela-empresas';
+import { CHAVE_EMPRESAS, useEmpresas } from './tela-empresas';
 
 const ABAS = [
   { id: 'bases', rotulo: 'Bases' },
@@ -116,7 +117,7 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
                 <span className="font-mono">{empresa.codigo}</span> · CNPJ {empresa.cnpj ? mascararCnpj(empresa.cnpj) : '—'} · fuso {rotuloDoFuso(empresa.fuso)}
               </span>
             }
-            badge={<Badge tone={empresa.status === 'ativo' ? 'success' : empresa.status === 'suspenso' ? 'warning' : 'neutral'}>{rotuloDoStatus(empresa.status)}</Badge>}
+            badge={<Badge tone={tomDoStatus(empresa.status)}>{rotuloDoStatus(empresa.status)}</Badge>}
           />
         ) : undefined
       }
