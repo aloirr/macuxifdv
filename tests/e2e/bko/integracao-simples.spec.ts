@@ -149,7 +149,24 @@ const PEDIDOS_ERP = {
   presos: 2,
   retidos: 5,
 };
-/** [testId, rótulo, valor exibido, classe de cor] — números de MonitorResumo.pedidos (contrato do Hub). */
+/**
+ * RN-INT-08: os 5 números vêm PRONTOS em `MonitorResumo.resumo_pedidos` (a Integração calcula; a tela de Pedidos só formata).
+ * De propósito, diferentes do que daria recalcular `pedidos.por_estado`: se a tela recalcular, o teste fica vermelho.
+ */
+const RESUMO_PEDIDOS = {
+  na_fila: 7,
+  entregue_ao_conector: 1234,
+  rejeitado_pelo_erp: 3,
+  presos_sem_retorno: 2,
+  retidos_sem_mapeamento: 5,
+};
+const PEDIDOS_ERP_DIVERGENTE = {
+  ...PEDIDOS_ERP,
+  por_estado: { ...PEDIDOS_ERP.por_estado, pendente: 70, enviado: 99, rejeitado_erp: 30 },
+  presos: 20,
+  retidos: 50,
+};
+/** [testId, rótulo, valor exibido, classe de cor] — números de MonitorResumo.resumo_pedidos (contrato do Hub). */
 const CARDS: Array<[string, string, string, string | null]> = [
   ['na_fila', 'Na fila', '7', null],
   ['entregue', 'Entregue ao Conector', '1.234', null],
@@ -184,8 +201,8 @@ const MAPEAMENTOS = {
 };
 const AUTORIZADORES = {
   itens: [
-    { id: uuid(201), nome: 'Ana Ribeiro', perfil: 'admin' },
-    { id: uuid(202), nome: 'Bruno Lima', perfil: 'analista' },
+    { id: uuid(201), nome: 'Ana Ribeiro' },
+    { id: uuid(202), nome: 'Bruno Lima' },
   ],
 };
 const pedido = (n: number, cliente: string, status: string, total: number) => ({
@@ -270,7 +287,8 @@ async function preparar(page: Page, c: Cenario = {}): Promise<string[]> {
         cargas: [],
         pendencias_inativacao: [],
         reconciliacoes: [],
-        pedidos: PEDIDOS_ERP,
+        pedidos: PEDIDOS_ERP_DIVERGENTE,
+        resumo_pedidos: RESUMO_PEDIDOS,
       });
     }
     if (p === '/integracao/mapeamentos' && req.method() === 'GET')
@@ -427,7 +445,7 @@ test.describe('T-0173 — Integração ERP simples (API simulada)', () => {
     await expect(page.getByText('Nenhum de-para ainda.')).toBeVisible({ timeout: 120_000 });
   });
 
-  test('RN-INT-08: os 5 cards de Pedidos mostram os números de MonitorResumo.pedidos, só informativos', async ({
+  test('RN-INT-08: os 5 cards de Pedidos mostram os números prontos de MonitorResumo.resumo_pedidos, só informativos', async ({
     page,
   }) => {
     await preparar(page);
@@ -458,4 +476,139 @@ test.describe('T-0173 — Integração ERP simples (API simulada)', () => {
       expect(erros).toEqual([]);
     });
   }
+});
+
+/**
+ * Portal `config.` (RN-INT-15): o selo do cartão da base usa os MESMOS 5 status da tela do BKO (`rotuloDoLote` da Integração),
+ * inclusive `cancelado` (lote cancelado no BKO) e "Em andamento" (o Hub segue gravando depois do prazo de espera da tela).
+ * Host `config.localhost` (o Chromium resolve `*.localhost` para o próprio aparelho); sessão fictícia do time da Macuxi.
+ */
+const TENANT_PORTAL = '0f000000-0000-4000-8000-0000000000aa';
+const BASES_PORTAL: Array<[string, string, string]> = [
+  ['filial', 'concluido', 'Concluído'],
+  ['vendedor', 'concluido_com_erros', 'Concluído com avisos'],
+  ['cliente', 'falhou', 'Com falha'],
+  ['produto', 'cancelado', 'Cancelado'],
+  ['preco', 'processando', 'Em andamento'],
+];
+const lotePortal = (i: number) => `0c000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`;
+
+test('RN-INT-15: portal config. — o selo da carga mostra os 5 status, sem os rótulos antigos', async ({
+  page,
+  baseURL,
+}) => {
+  const portal = (baseURL ?? 'http://localhost:3000').replace('//localhost', '//config.localhost');
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.clock.install({ time: new Date(AGORA) });
+  const agoraMs = Date.parse(AGORA);
+  await page.addInitScript((s) => sessionStorage.setItem('macuxi.portal.sessao', JSON.stringify(s)), {
+    token: 'token-ficticio-do-portal-0123456789',
+    expira_em: new Date(agoraMs + 4 * 3600_000).toISOString(),
+    sessao_expira_em: new Date(agoraMs + 8 * 3600_000).toISOString(),
+    tipo: 'super_admin',
+    empresa: null,
+    empresas: [],
+  });
+  const erros: string[] = [];
+  page.on('pageerror', (e) => erros.push(String(e)));
+  await page.route('**/api-proxy/**', async (route) => {
+    const req = route.request();
+    const p = new URL(req.url()).pathname.replace(/^\/api-proxy(\/v1)?/, '');
+    const json = (status: number, body: unknown) =>
+      route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    if (p === '/plataforma/empresas')
+      return json(200, {
+        itens: [
+          {
+            id: TENANT_PORTAL,
+            codigo: 'DIST01',
+            razao_social: 'Distribuidora Fictícia Ltda',
+            cnpj: '11222333000181',
+            fuso: FUSO,
+            status: 'ativo',
+            criada_em: '2026-11-01T12:00:00.000Z',
+            modulos: [
+              { modulo: 'core', licencas: 10 },
+              { modulo: 'integracao', licencas: null },
+            ],
+          },
+        ],
+      });
+    if (p === '/integracao/ordem-carga')
+      return json(200, {
+        itens: BASES_PORTAL.map(([entidade], i) => ({
+          entidade,
+          posicao: i + 1,
+          opcional: false,
+          depende_de: [],
+        })),
+      });
+    if (p === '/integracao/cargas-arquivo' && req.method() === 'POST') {
+      const corpo = req.postDataJSON() as { entidade: string; modo?: string };
+      const id = lotePortal(BASES_PORTAL.findIndex(([e]) => e === corpo.entidade));
+      return json(202, {
+        lote_id: id,
+        status: 'recebido',
+        entidade: corpo.entidade,
+        modo: corpo.modo ?? 'delta',
+        recebidos: 2,
+        repetido: false,
+        consulta: `/integracao/v1/lotes/${id}`,
+        conector_id: 'portal-arquivo',
+        linhas_lidas: 2,
+        linhas_invalidas_leitura: 0,
+      });
+    }
+    if (/^\/integracao\/lotes\/[^/]+\/erros$/.test(p)) return json(200, { itens: [], total: 0 });
+    const m = p.match(/^\/integracao\/lotes\/([^/]+)$/);
+    if (m) {
+      const i = BASES_PORTAL.findIndex((_b, j) => lotePortal(j) === m[1]);
+      const [entidade, status] = BASES_PORTAL[i]!;
+      return json(200, {
+        lote_id: m[1],
+        entidade,
+        modo: 'delta',
+        status,
+        contagens: {
+          recebidas: 2,
+          duplicadas_no_lote: 0,
+          com_erro: 0,
+          novas: 2,
+          atualizadas: 0,
+          inalteradas: 0,
+          obsoletas: 0,
+        },
+        erros: [],
+        avisos: [],
+        cursor: null,
+        inativadas: 0,
+        recebido_em: AGORA,
+        concluido_em: status === 'processando' ? null : AGORA,
+      });
+    }
+    return json(404, { codigo: 'nao_encontrado', mensagem: 'Rota não simulada.' });
+  });
+
+  await page.goto(`${portal}/empresas/${TENANT_PORTAL}`);
+  await expect(page.getByTestId('base-preco')).toBeVisible({ timeout: 120_000 });
+  for (const [entidade] of BASES_PORTAL) {
+    await page.getByTestId(`base-${entidade}.arquivo`).setInputFiles({
+      name: `${entidade}.csv`,
+      mimeType: 'text/csv',
+      buffer: Buffer.from('external_id,nome\nX-001,Linha um\nX-002,Linha dois\n'),
+    });
+    await expect(page.getByTestId(`base-${entidade}.importar`)).toBeEnabled();
+    await page.getByTestId(`base-${entidade}.importar`).click();
+    // "Em andamento": o Hub segue gravando além dos 15 min de espera da tela
+    if (entidade === 'preco') await page.clock.fastForward('16:00');
+    await expect(page.getByTestId(`base-${entidade}.resultado`)).toBeAttached({ timeout: 60_000 });
+  }
+  for (const [entidade, , rotulo] of BASES_PORTAL) {
+    const linhas = (await page.getByTestId(`base-${entidade}`).innerText()).split('\n').map((l) => l.trim());
+    expect(linhas, `base ${entidade}`).toContain(rotulo);
+  }
+  const todas = (await page.getByTestId('empresa-pagina.bases').innerText()).split('\n').map((l) => l.trim());
+  for (const velho of ['Na fila', 'Gravando', 'Concluído com erros', 'Falhou'])
+    expect(todas, velho).not.toContain(velho);
+  expect(erros).toEqual([]);
 });
