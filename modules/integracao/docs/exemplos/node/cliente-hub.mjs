@@ -11,7 +11,7 @@
  *   - devolução de pedidos: busca até a lista vir vazia, grava no ERP de forma idempotente e devolve o retorno.
  *
  * Variáveis de ambiente:
- *   MACUXI_HUB_URL            base da API (padrão https://api-demo.macuxifdv.com.br/integracao/v1; HTTPS obrigatório, exceto localhost)
+ *   MACUXI_HUB_URL            base da API (padrão https://api.macuxifdv.com.br/integracao/v1; HTTPS obrigatório, exceto localhost)
  *   MACUXI_CHAVE              chave de API do Conector (mxc_ + 43 caracteres). Nunca é impressa.
  *   MACUXI_CONECTOR           identificador do Conector cadastrado no BKO (padrão erp-matriz)
  *   MACUXI_CONECTOR_VERSAO    opcional; sem ele o cabeçalho X-Macuxi-Conector-Versao não é enviado
@@ -22,7 +22,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
-export const URL_PADRAO = 'https://api-demo.macuxifdv.com.br/integracao/v1';
+export const URL_PADRAO = 'https://api.macuxifdv.com.br/integracao/v1';
 const RE_CHAVE = /^mxc_[A-Za-z0-9_-]{43}$/;
 const STATUS_FINAIS = ['concluido', 'concluido_com_erros', 'falhou'];
 const STATUS_RECUSA_LOTE = [400, 409, 413, 422, 426];

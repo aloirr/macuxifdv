@@ -90,19 +90,6 @@ export const ROTULO_ENTIDADE: Record<Entidade, string> = {
   filial: 'Filiais',
 };
 
-export const ROTULO_AVISO_LINHA: Record<string, string> = {
-  duplicado_no_lote: 'Repetido no lote',
-  cadastro_incompleto: 'Cadastro incompleto',
-  referencia_fraca_ausente: 'Produto sem nó do catálogo',
-  aplicacao_cortada: 'Aplicação cortada em 2.000 caracteres',
-  referencias_cortadas: 'Referências cortadas em 3',
-  referencia_descartada: 'Referência sem marca ou com código inválido descartada',
-  oferece_junto_cortado: 'Oferece junto cortado em 5',
-  prazo_medio_divergente: 'Prazo médio diferente do calculado',
-  marca_concorrente_desconhecida: 'Marca concorrente não cadastrada',
-  avisos_omitidos: 'Outros avisos não mostrados',
-};
-
 export const ROTULO_TIPO_MAPEAMENTO: Record<'condicao_pagamento' | 'deposito' | 'status' | 'canal', string> = {
   condicao_pagamento: 'Condição de pagamento',
   deposito: 'Depósito',

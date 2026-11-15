@@ -16,7 +16,7 @@ import { CARTAO_DA_ENTIDADE } from '@/lib/portal-carga';
 import { CONECTOR_ARQUIVO_PORTAL, OPENAPI_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
 
 import { BaixarConector } from './baixar-conector';
-import { Campo } from './base';
+import { Campo } from '@/components/campo-acesso';
 
 type Criado = ReturnType<typeof ConectorCriado.parse>;
 const ListaConectores = { safeParse: (x: unknown) => ConectorResumo.array().safeParse((x as { itens?: unknown })?.itens) };
