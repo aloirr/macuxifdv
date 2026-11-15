@@ -7,7 +7,7 @@
  * 0069_core_cargo_hierarquia.up.sql), 0070_plataforma_plano_assinatura.up.sql (planos e assinatura, ADR 0047),
  * 0072_plataforma_empresa_acoes.up.sql (inativar, backup e excluir a empresa, ADR 0052; só por função),
  * 0073_plataforma_dados_legais.up.sql (dados legais do rodapé, só por função), 0074_plataforma_sync_pacote.up.sql (pacote da
- * primeira carga, ADR 0054) e 0079_catalogo_foto_lote.up.sql (tipos de arquivo e trabalho sob demanda, ADR 0054),
+ * primeira carga, ADR 0058) e 0079_catalogo_foto_lote.up.sql (tipos de arquivo e trabalho sob demanda, ADR 0058),
  * para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
@@ -199,7 +199,7 @@ export const arquivo = plataforma.table('arquivo', {
   entidade_id: uuid('entidade_id').notNull(),
   cliente_id: uuid('cliente_id'),
   enviado_por: uuid('enviado_por').notNull(),
-  /** 0079 (T-0174, ADR 0054): imagens até 8 MiB e o ZIP do lote de fotos até 500 MiB (CHECK arquivo_tamanho_faixa, por tipo). */
+  /** 0079 (T-0174, ADR 0058): imagens até 8 MiB e o ZIP do lote de fotos até 500 MiB (CHECK arquivo_tamanho_faixa, por tipo). */
   tipo: text('tipo', { enum: TIPOS_ARQUIVO_BANCO }).notNull().default('image/jpeg'),
   tamanho_bytes: integer('tamanho_bytes'),
   sha256: text('sha256'),
@@ -594,7 +594,7 @@ export const syncPacotePedido = plataforma.table('sync_pacote_pedido', {
 export const SITUACOES_TRABALHO_BANCO = ['pendente', 'em_execucao', 'concluido', 'falhou'] as const;
 
 /**
- * Trabalho sob demanda de um módulo (0079, T-0174, ADR 0054): disparado por evento da outbox, executado em fatias pelo worker.
+ * Trabalho sob demanda de um módulo (0079, T-0174, ADR 0058): disparado por evento da outbox, executado em fatias pelo worker.
  * Um vivo por (tenant, modulo, nome, alvo_id) (trabalho_alvo_uk: o consumidor grava com insert ... on conflict do nothing).
  * O macuxi_app só lê e insere no próprio tenant; a situação, a trava e os contadores mudam só pelas funções do worker
  * plataforma.trabalho_reservar / trabalho_devolver / trabalho_renovar (SECURITY DEFINER, só tenants ativos). Fora do sync.
