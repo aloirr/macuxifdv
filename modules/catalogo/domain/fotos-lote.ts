@@ -32,9 +32,20 @@ export function limitesFotoLote(parametros: Readonly<Record<string, unknown>>): 
   };
 }
 
-function textoMb(bytes: number): string {
-  const mb = bytes / (1024 * 1024);
+const MIB = 1024 * 1024;
+
+/** Bytes em MB (1 MB = 1 MiB, como o envio em partes). */
+export const megabytes = (bytes: number): number => bytes / MIB;
+
+/** `500 MB`, `1,5 MB`: o único formato de tamanho dos textos do lote. */
+export function textoMb(bytes: number): string {
+  const mb = megabytes(bytes);
   return `${Number.isInteger(mb) ? mb : mb.toFixed(1).replace('.', ',')} MB`;
+}
+
+/** Linha de limites da área de envio (spec `fotos-em-lote.md` §2.1), com os limites efetivos do tenant. */
+export function textoLimitesLote(limites: Pick<LimitesZip, 'bytesZipMax' | 'arquivosMax' | 'bytesEntradaMax'>): string {
+  return `JPEG, PNG ou WEBP · até ${textoMb(limites.bytesEntradaMax)} por foto · até ${limites.arquivosMax.toLocaleString('pt-BR')} fotos · ZIP até ${textoMb(limites.bytesZipMax)}`;
 }
 
 /** RN-CAT-14: o ZIP acima do teto é recusado antes de qualquer byte (o BKO confere no navegador; a API revalida). */
@@ -171,12 +182,11 @@ const CABECALHO_RELATORIO = ['Arquivo', 'Situação', 'Motivo', 'Código no nome
  */
 export function csvRelatorioFotos(
   itens: readonly ItemRelatorioFoto[],
-  rotulos: { situacao: Readonly<Record<SituacaoItem, string>>; motivo: Readonly<Record<MotivoItem, string>> } = { situacao: ROTULO_SITUACAO_ITEM, motivo: ROTULO_MOTIVO_ITEM },
 ): string {
   const linhas = [CABECALHO_RELATORIO.map(celulaCsv).join(';')];
   for (const i of itens) {
     linhas.push(
-      [i.arquivo, rotulos.situacao[i.situacao], i.motivo ? rotulos.motivo[i.motivo] : textoMotivoItem(i), i.codigo ?? '', i.produto_codigo ?? '', i.ordem === null ? '' : String(i.ordem)].map(celulaCsv).join(';'),
+      [i.arquivo, ROTULO_SITUACAO_ITEM[i.situacao], textoMotivoItem(i), i.codigo ?? '', i.produto_codigo ?? '', i.ordem === null ? '' : String(i.ordem)].map(celulaCsv).join(';'),
     );
   }
   return `${BOM_CSV}${linhas.join('\r\n')}\r\n`;

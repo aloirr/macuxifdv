@@ -83,3 +83,4 @@
 2026-11-12 — T-0167 — RD-0194: contagem do Catálogo num lugar só (topo só quando tudo está à vista; com mais de 20, só 'Mostrando N de M' no fim); T-0166 sem RD do Catálogo
 2026-11-13 — T-0173 — Catálogo em grade no app (cartões 2 colunas, chips sistema/categoria, preço da filial padrão sem cliente, tag de estoque 1-9 laranja)
 2026-11-15 — T-0174 — fotos dos produtos em lote por ZIP: domain, contratos (situação em lista, rótulos da spec), API, trabalho, teste de banco e tela do BKO (/catalogo/fotos-lote, lote em ?lote=); pendência: rota /:id exige rota dinâmica no shell (engenheiro-apps)
+2026-11-15 — T-0174 — correções da marca e do corretor (MC-0089..0091, RD-0615..0618, RD-0620, RD-0621) e limites efetivos do tenant na tela de Fotos em lote (GET fotos-lote/limites)

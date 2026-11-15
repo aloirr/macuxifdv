@@ -301,6 +301,7 @@ export const ROTAS_CATALOGO = {
   escalonada: 'escalonada',
   faixa: 'escalonada/:id',
   fotosLote: 'fotos-lote',
+  fotoLoteLimites: 'fotos-lote/limites',
   fotoLote: 'fotos-lote/:id',
   fotoLoteEnfileirar: 'fotos-lote/:id/enfileirar',
   fotoLoteItens: 'fotos-lote/:id/itens',

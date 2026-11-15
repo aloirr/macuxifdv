@@ -201,7 +201,6 @@ export interface FotoPrincipal {
 
 /** A foto da ficha é a de ordem 1: troca a principal (a anterior é aposentada) e toca o conteúdo, pela função única. */
 export async function definirFotoPrincipal(t: TransacaoFotos, tenantId: string, produtoId: string, foto: FotoPrincipal, agora?: Date): Promise<void> {
-  if (!foto.arquivoId && !foto.url) throw new Error('Informe o arquivo ou o endereço da foto principal.');
   await definirFotosProduto(t, tenantId, produtoId, [{ id: foto.id, ordem: 1, arquivoId: foto.arquivoId ?? null, url: foto.url ?? null, titulo: foto.titulo ?? null }], { tipo: 'ficha' }, agora);
 }
 

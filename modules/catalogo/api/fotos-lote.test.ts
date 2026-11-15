@@ -3,9 +3,9 @@
  * entre tenants são do `createApp` e do Postgres (CI: `fotos-lote.db.test.ts`); aqui: a ação de cada rota no manifesto,
  * os tetos, a idempotência e o formato das respostas.
  */
-import { ErroHttpModulo, type RotaModulo } from '@macuxi/platform-sdk';
+import { ErroHttpModulo, LIMITES_ZIP_TETO, type RotaModulo } from '@macuxi/platform-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { FOTO_LOTE_ZIP_MAX_BYTES, FotoLoteCriadoSchema, FotoLoteItensSaida, FotoLoteSchema, ROTAS_CATALOGO } from '../contracts';
+import { FotoLoteCriadoSchema, FotoLoteLimitesSchema, FotoLoteItensSaida, FotoLoteSchema, ROTAS_CATALOGO } from '../contracts';
 import { manifest } from '../manifest';
 import { MOTIVOS_FOTO_LOTE_BANCO, MOTIVOS_FOTO_LOTE_ITEM_BANCO, SITUACOES_FOTO_LOTE_BANCO, SITUACOES_FOTO_LOTE_ITEM_BANCO } from '../db/nuvem';
 import { MotivoItem, MotivoLote, SituacaoItem, SituacaoLote } from '../contracts';
@@ -75,8 +75,8 @@ const corpoCriar = { id: LOTE, arquivo_id: ARQ, nome_arquivo: 'fotos.zip', taman
 const exec = (r: RotaModulo, ctx: unknown) => r.executar(ctx as never);
 
 describe('RN-CAT-14: permissão das rotas do lote', () => {
-  it('RN-CAT-14: as 6 rotas exigem produto.enriquecer, que é só do analista e do admin', () => {
-    expect(rotas).toHaveLength(6);
+  it('RN-CAT-14: as 7 rotas exigem produto.enriquecer, que é só do analista e do admin', () => {
+    expect(rotas).toHaveLength(7);
     for (const r of rotas) expect(r.acao, `${r.metodo} ${r.caminho}`).toBe('produto.enriquecer');
     expect([...manifest.acoes['produto.enriquecer']!.perfis].sort()).toEqual(['admin', 'analista']);
   });
@@ -89,16 +89,27 @@ describe('RN-CAT-14: permissão das rotas do lote', () => {
   });
 });
 
+describe('RN-CAT-14: limites efetivos do tenant para a tela', () => {
+  it('RN-CAT-14: sem parâmetro a rota devolve os tetos da plataforma; com parâmetro menor, o do tenant', async () => {
+    const c = contexto({ lote: null });
+    const teto = FotoLoteLimitesSchema.parse(await exec(rota('GET', ROTAS_CATALOGO.fotoLoteLimites), c.ctx));
+    expect(teto).toEqual({ bytes_zip_max: LIMITES_ZIP_TETO.bytesZipMax, arquivos_max: LIMITES_ZIP_TETO.arquivosMax, bytes_foto_max: LIMITES_ZIP_TETO.bytesEntradaMax });
+    const menor = { ...c.ctx, parametros: () => ({ foto_lote_zip_max: 200 * 1024 * 1024, foto_lote_arquivos_max: 5000, foto_lote_foto_max: 10 ** 9 }) };
+    expect(await exec(rota('GET', 'fotos-lote/limites'), menor)).toEqual({ bytes_zip_max: 200 * 1024 * 1024, arquivos_max: 5000, bytes_foto_max: LIMITES_ZIP_TETO.bytesEntradaMax });
+    expect(c.db.query).not.toHaveBeenCalled();
+  });
+});
+
 describe('RN-CAT-14: criar o lote', () => {
   it('RN-CAT-14: ZIP acima de 500 MB é 422 RN-CAT-14 (zip_grande) antes de qualquer gravação', async () => {
-    const c = contexto({ lote: null }, { corpo: { ...corpoCriar, tamanho_bytes: FOTO_LOTE_ZIP_MAX_BYTES + 1 } });
+    const c = contexto({ lote: null }, { corpo: { ...corpoCriar, tamanho_bytes: LIMITES_ZIP_TETO.bytesZipMax + 1 } });
     await expect(exec(rota('POST', 'fotos-lote'), c.ctx)).rejects.toMatchObject({ status: 422, codigo: 'RN-CAT-14', detalhes: { motivo: 'zip_grande' } });
     expect(c.db.query).not.toHaveBeenCalled();
   });
   it('RN-CAT-14: ZIP de exatamente 500 MB cria o lote, registra o arquivo application/zip e devolve o plano de envio em partes de 8 MiB', async () => {
-    const c = contexto({ lote: null }, { corpo: { ...corpoCriar, tamanho_bytes: FOTO_LOTE_ZIP_MAX_BYTES } });
+    const c = contexto({ lote: null }, { corpo: { ...corpoCriar, tamanho_bytes: LIMITES_ZIP_TETO.bytesZipMax } });
     const r = FotoLoteCriadoSchema.parse(await exec(rota('POST', 'fotos-lote'), c.ctx));
-    expect(r.lote).toMatchObject({ id: LOTE, situacao: 'aguardando_envio', tamanho_bytes: FOTO_LOTE_ZIP_MAX_BYTES });
+    expect(r.lote).toMatchObject({ id: LOTE, situacao: 'aguardando_envio', tamanho_bytes: LIMITES_ZIP_TETO.bytesZipMax });
     expect(r.envio).toEqual({ arquivo_id: ARQ, parte_bytes: 8 * 1024 * 1024, partes: 63 });
     expect(c.registrados).toEqual([{ id: ARQ, finalidade: 'foto_lote', entidade: 'foto_lote', entidade_id: LOTE, tipo: 'application/zip', cliente_id: null }]);
     expect(c.auditorias).toHaveLength(1);

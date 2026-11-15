@@ -9,8 +9,8 @@ import {
   dataHoraCurta,
   enviarPartes,
   faseDoLote,
-  fatiasDoEnvio,
   lerTelaFotosLote,
+  limitesDaTela,
   limiteDeLotesAtivo,
   mensagemErroDoEnvio,
   progressoDoEnvio,
@@ -112,8 +112,14 @@ describe('RN-CAT-14: conferência do arquivo no navegador (spec §6.1)', () => {
     expect(validarArquivoZip('fotos.zip', 0, limites)).toEqual({ ok: false, mensagem: 'Escolha um arquivo .zip.' });
     expect(validarArquivoZip('fotos.ZIP', 500 * MIB, limites)).toEqual({ ok: true });
   });
+  it('RN-CAT-14: o ZIP é conferido com o limite do tenant, não com o teto da plataforma', () => {
+    const tenant = limitesDaTela({ bytes_zip_max: 200 * MIB, arquivos_max: 5000, bytes_foto_max: 8 * MIB });
+    expect(validarArquivoZip('fotos.zip', 201 * MIB, tenant)).toEqual({ ok: false, mensagem: 'O ZIP passa de 200 MB. Divida as fotos em mais de um ZIP.' });
+    expect(validarArquivoZip('fotos.zip', 200 * MIB, tenant)).toEqual({ ok: true });
+  });
   it('RN-CAT-14: erros do envio viram a frase da spec', () => {
-    expect(mensagemErroDoEnvio({ status: 409, code: 'LOTE_EM_ANDAMENTO', message: 'x' })).toBe('Espere um dos lotes em processamento terminar para enviar outro.');
+    // RD-0617: 409 LOTE_EM_ANDAMENTO não gera aviso (só atualiza a lista; a área de envio já mostra a frase)
+    expect(mensagemErroDoEnvio({ status: 409, code: 'LOTE_EM_ANDAMENTO', message: 'x' })).toBeNull();
     expect(mensagemErroDoEnvio({ status: 409, code: 'ENVIO_INCOMPLETO', message: 'x' })).toBe('O envio parou. Confira a internet e tente de novo.');
     expect(mensagemErroDoEnvio({ status: 0, code: 'network', message: 'x' })).toBe('O envio parou. Confira a internet e tente de novo.');
     expect(mensagemErroDoEnvio({ status: 422, code: 'RN-CAT-14', message: 'O ZIP passa de 500 MB. Divida as fotos em mais de um ZIP.' })).toBe('O ZIP passa de 500 MB. Divida as fotos em mais de um ZIP.');
@@ -121,10 +127,27 @@ describe('RN-CAT-14: conferência do arquivo no navegador (spec §6.1)', () => {
 });
 
 describe('RN-CAT-14: envio do ZIP em partes de 8 MiB', () => {
-  it('RN-CAT-14: o ZIP é fatiado em partes de 8 MiB com a última menor, numeradas de 1', () => {
-    expect(fatiasDoEnvio(1)).toEqual([{ n: 1, inicio: 0, fim: 1 }]);
-    expect(fatiasDoEnvio(PARTE_ENVIO_BYTES)).toEqual([{ n: 1, inicio: 0, fim: PARTE_ENVIO_BYTES }]);
-    expect(fatiasDoEnvio(PARTE_ENVIO_BYTES + 5)).toEqual([
+  it('RN-CAT-14: o ZIP é fatiado em partes de 8 MiB com a última menor, numeradas de 1 e enviadas uma por vez', async () => {
+    const fatias = async (tamanho: number) => {
+      const f: { n: number; inicio: number; fim: number }[] = [];
+      let emVoo = 0;
+      let maxVoo = 0;
+      await enviarPartes({
+        tamanho,
+        enviarParte: async (x) => {
+          maxVoo = Math.max(maxVoo, ++emVoo);
+          await Promise.resolve();
+          f.push(x);
+          emVoo--;
+        },
+        aoProgredir: () => undefined,
+      });
+      expect(maxVoo).toBeLessThanOrEqual(1);
+      return f;
+    };
+    expect(await fatias(1)).toEqual([{ n: 1, inicio: 0, fim: 1 }]);
+    expect(await fatias(PARTE_ENVIO_BYTES)).toEqual([{ n: 1, inicio: 0, fim: PARTE_ENVIO_BYTES }]);
+    expect(await fatias(PARTE_ENVIO_BYTES + 5)).toEqual([
       { n: 1, inicio: 0, fim: PARTE_ENVIO_BYTES },
       { n: 2, inicio: PARTE_ENVIO_BYTES, fim: PARTE_ENVIO_BYTES + 5 },
     ]);

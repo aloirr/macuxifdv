@@ -11,6 +11,7 @@ import {
   FOTO_LOTE_ATIVOS_MAX,
   FotoLoteCriarSchema,
   FotoLoteItensQuery,
+  type FotoLoteLimites,
   ParamsFotoLote,
   ROTAS_CATALOGO,
   SITUACOES_LOTE_EM_ANDAMENTO,
@@ -213,6 +214,18 @@ export function criarRotasFotosLote(): RotaModulo[] {
     },
   };
 
+  const limites: RotaModulo = {
+    metodo: 'GET',
+    caminho: ROTAS_CATALOGO.fotoLoteLimites,
+    acao: 'produto.enriquecer',
+    carteira: 'nao_se_aplica',
+    // os limites efetivos do tenant (teto da plataforma, só baixado por parâmetro): o BKO confere o ZIP e monta o texto com eles
+    async executar(ctx: Ctx): Promise<FotoLoteLimites> {
+      const l = limitesFotoLote(ctx.parametros());
+      return { bytes_zip_max: l.bytesZipMax, arquivos_max: l.arquivosMax, bytes_foto_max: l.bytesEntradaMax };
+    },
+  };
+
   const obter: RotaModulo = {
     metodo: 'GET',
     caminho: ROTAS_CATALOGO.fotoLote,
@@ -265,5 +278,5 @@ export function criarRotasFotosLote(): RotaModulo[] {
     },
   };
 
-  return [criar, enfileirar, listar, obter, itens, relatorio];
+  return [criar, enfileirar, listar, limites, obter, itens, relatorio];
 }

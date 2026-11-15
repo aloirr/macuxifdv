@@ -12,9 +12,9 @@ import { Button, DEFAULT_TZ, Dialog, ErrorBlock, EstadoVazio, IconDownload, KpiC
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { PARTE_ENVIO_BYTES } from '@macuxi/platform-sdk';
-import { FotoLoteItensSaida, FotoLoteListaSchema, FotoLoteSchema, FOTO_LOTE_ARQUIVOS_MAX, FOTO_LOTE_ZIP_MAX_BYTES, ROTULO_MOTIVO_LOTE, type FotoLote, type FotoLoteItem } from '../../contracts';
-import { mensagemMotivoLote, textoMotivoItem } from '../../domain';
+import { LIMITES_ZIP_TETO, partesDoEnvio } from '@macuxi/platform-sdk';
+import { FotoLoteItensSaida, FotoLoteLimitesSchema, FotoLoteListaSchema, FotoLoteSchema, ROTULO_MOTIVO_LOTE, type FotoLote, type FotoLoteItem } from '../../contracts';
+import { mensagemMotivoLote, textoLimitesLote, textoMotivoItem } from '../../domain';
 import {
   acoesDoCabecalho,
   avisoLoteRepetido,
@@ -28,6 +28,7 @@ import {
   INTERVALO_CONSULTA_MS,
   lerTelaFotosLote,
   limiteDeLotesAtivo,
+  limitesDaTela,
   mensagemErroDoEnvio,
   mostraRelatorio,
   progressoDoEnvio,
@@ -37,7 +38,6 @@ import {
   seloDoLote,
   situacoesDoCartao,
   TEXTO_ENVIO_PAROU,
-  TEXTO_LOTE_FALHOU,
   TEXTO_LOTES_ATIVOS,
   validarArquivoZip,
   valorDoCartao,
@@ -84,6 +84,25 @@ async function baixarRelatorio(id: string): Promise<void> {
   downloadBlob(await res.blob(), decodeURIComponent(nome));
 }
 
+/** Limites efetivos do tenant (RN-CAT-14): vêm da API; até chegarem, vale o teto da plataforma na conferência. */
+function useLimites() {
+  const q = useQuery({
+    queryKey: ['catalogo', 'fotos-lote', 'limites'],
+    queryFn: async () => limitesDaTela(FotoLoteLimitesSchema.parse(await api<unknown>(`${BASE}/limites`))),
+    staleTime: 5 * 60_000,
+  });
+  return { limites: q.data ?? null, conferencia: q.data ?? LIMITES_ZIP_TETO };
+}
+
+/** Uma página de itens do lote, já sem as fotos ainda na fila (`pendente`), com o filtro do cartão marcado. */
+async function buscarItens(loteId: string, cartao: CartaoFoto | null, apos?: number): Promise<FotoLoteItensSaida> {
+  const p = new URLSearchParams({ limite: String(POR_PAGINA) });
+  if (cartao) p.set('situacao', situacoesDoCartao(cartao));
+  if (apos !== undefined) p.set('apos', String(apos));
+  const r = FotoLoteItensSaida.parse(await api<unknown>(`${BASE}/${loteId}/itens?${p.toString()}`));
+  return { ...r, itens: r.itens.filter((i) => i.situacao !== 'pendente') };
+}
+
 function BotaoBaixarCsv({ id }: { id: string }) {
   const baixar = useMutation({ mutationFn: () => baixarRelatorio(id) });
   return (
@@ -99,7 +118,7 @@ function BotaoBaixarCsv({ id }: { id: string }) {
 export function FotosLotePage() {
   const [tela] = useTela();
   const pode = usePode('produto.enriquecer');
-  if (!pode) return <ErrorBlock message="Você não tem acesso a Fotos em lote. Peça ao administrador do seu tenant." />;
+  if (!pode) return <ErrorBlock message="Você não tem acesso a Fotos em lote. Peça ao administrador da sua empresa." />;
   return tela.lote ? <PaginaDoLote id={tela.lote} /> : <PaginaDeEnvio />;
 }
 
@@ -115,6 +134,8 @@ function PaginaDeEnvio() {
     queryFn: async () => FotoLoteListaSchema.parse(await api<unknown>(BASE)).lotes,
     refetchInterval: (q) => (q.state.data?.some((l) => consultaViva(faseDoLote(l, false))) ? INTERVALO_CONSULTA_MS : false),
   });
+  const { limites, conferencia } = useLimites();
+  const qc = useQueryClient();
   const lotes = lista.data ?? [];
   const cheio = limiteDeLotesAtivo(lotes);
 
@@ -129,12 +150,17 @@ function PaginaDeEnvio() {
       envioDaAba = { loteId: e.id, arquivoId: e.arquivoId, arquivo: e.arquivo };
       ir({ lote: e.id, cartao: null, repetido: false });
     },
-    onError: (e) => setAviso(e instanceof ApiRequestError ? mensagemErroDoEnvio(e) : errorMessage(e)),
+    onError: (e) => {
+      const aviso = e instanceof ApiRequestError ? mensagemErroDoEnvio(e) : errorMessage(e);
+      // 409 LOTE_EM_ANDAMENTO: sem aviso; a lista atualizada desliga o botão e a área de envio diz o motivo (RD-0617)
+      if (aviso === null) void qc.invalidateQueries({ queryKey: ['catalogo', 'fotos-lote'] });
+      else setAviso(aviso);
+    },
   });
 
   const escolher = (arquivo: File | undefined) => {
     if (!arquivo || cheio) return;
-    const v = validarArquivoZip(arquivo.name, arquivo.size, { bytesZipMax: FOTO_LOTE_ZIP_MAX_BYTES });
+    const v = validarArquivoZip(arquivo.name, arquivo.size, conferencia);
     if (!v.ok) {
       setAviso(v.mensagem);
       return;
@@ -173,13 +199,15 @@ function PaginaDeEnvio() {
         className={`flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-2xl px-6 py-8 text-center ${arrastando ? 'border-2 border-accent bg-accent-soft' : 'border border-dashed border-field bg-surface'}`}>
         <span className="text-[14px] font-semibold text-ink-2">{cheio ? TEXTO_LOTES_ATIVOS : arrastando ? 'Solte o ZIP aqui' : 'Arraste o ZIP aqui ou'}</span>
         <input ref={seletor} type="file" accept=".zip,application/zip" className="hidden" tabIndex={-1} data-testid="fotos-lote.arquivo" onChange={(e) => { escolher(e.target.files?.[0]); e.target.value = ''; }} />
-        <Button variant="primary" disabled={cheio || criar.isPending} aria-describedby="fotos-lote.como fotos-lote.limites" onClick={() => seletor.current?.click()} data-testid="fotos-lote.escolher">
+        <Button variant="primary" disabled={cheio || criar.isPending} aria-describedby={limites ? 'fotos-lote.como fotos-lote.limites' : 'fotos-lote.como'} onClick={() => seletor.current?.click()} data-testid="fotos-lote.escolher">
           {criar.isPending ? 'Enviando…' : 'Escolher ZIP'}
         </Button>
         <span id="fotos-lote.como" className="text-[13px] text-ink-2">Nome da foto = código ou EAN do produto. A1.jpg é a 1ª foto; A1_2.jpg, a 2ª.</span>
-        <span id="fotos-lote.limites" className="text-[12px] text-ink-2 tabular-nums">
-          JPEG, PNG ou WEBP · até 8 MB por foto · até {FOTO_LOTE_ARQUIVOS_MAX.toLocaleString('pt-BR')} fotos · ZIP até 500 MB
-        </span>
+        {limites && (
+          <span id="fotos-lote.limites" className="text-[12px] text-ink-2 tabular-nums" data-testid="fotos-lote.limites">
+            {textoLimitesLote(limites)}
+          </span>
+        )}
       </div>
 
       {lista.isPending && <LoadingBlock label="Carregando os lotes…" />}
@@ -226,6 +254,7 @@ function PaginaDoLote({ id }: { id: string }) {
   const daAba = envioDaAba?.loteId === id ? envioDaAba : null;
   const enviando = envio.tipo === 'enviando';
 
+  const { limites } = useLimites();
   const consulta = useQuery({
     queryKey: ['catalogo', 'fotos-lote', id],
     queryFn: async () => FotoLoteSchema.parse(await api<unknown>(`${BASE}/${id}`)),
@@ -253,7 +282,7 @@ function PaginaDoLote({ id }: { id: string }) {
         return;
       }
       try {
-        await api(`/arquivos/${daAba.arquivoId}/concluir`, { method: 'POST', body: { partes: Math.max(1, Math.ceil(total / PARTE_ENVIO_BYTES)), tamanho_bytes: total } });
+        await api(`/arquivos/${daAba.arquivoId}/concluir`, { method: 'POST', body: { partes: partesDoEnvio(total), tamanho_bytes: total } });
         await api(`${BASE}/${id}/enfileirar`, { method: 'POST' });
         envioDaAba = null;
         setEnvio({ tipo: 'parado' });
@@ -288,7 +317,7 @@ function PaginaDoLote({ id }: { id: string }) {
 
   const tentarDeNovo = () => {
     if (envio.tipo !== 'erro') return;
-    void rodarEnvio(envio.partes ?? (envio.recomecarEm ? Array.from({ length: Math.ceil((daAba?.arquivo.size ?? 0) / PARTE_ENVIO_BYTES) - envio.recomecarEm + 1 }, (_v, i) => envio.recomecarEm! + i) : null));
+    void rodarEnvio(envio.partes ?? (envio.recomecarEm ? Array.from({ length: partesDoEnvio(daAba?.arquivo.size ?? 0) - envio.recomecarEm + 1 }, (_v, i) => envio.recomecarEm! + i) : null));
   };
   const cancelar = () => {
     controle.current?.abort();
@@ -307,9 +336,7 @@ function PaginaDoLote({ id }: { id: string }) {
     envio.tipo === 'erro' ? (
       <ErrorBlock message={TEXTO_ENVIO_PAROU} onRetry={tentarDeNovo} />
     ) : fase === 'recusado' ? (
-      <Notice tone="danger">{lote.motivo ? mensagemMotivoLote(lote.motivo) : ROTULO_MOTIVO_LOTE.zip_invalido}</Notice>
-    ) : fase === 'falhou' ? (
-      <Notice tone="danger">{TEXTO_LOTE_FALHOU}</Notice>
+      <Notice tone="danger">{lote.motivo ? mensagemMotivoLote(lote.motivo, limites ?? {}) : ROTULO_MOTIVO_LOTE.zip_invalido}</Notice>
     ) : tela.repetido ? (
       <Notice tone="info">{avisoLoteRepetido(lote.criado_em, fuso)}</Notice>
     ) : null;
@@ -318,7 +345,7 @@ function PaginaDoLote({ id }: { id: string }) {
     <div className="flex w-full max-w-[1062px] flex-col gap-5" data-testid="fotos-lote.lote">
       <PageHeader
         eyebrow={
-          <button type="button" className="hover:underline" onClick={() => ir({ lote: null, cartao: null, repetido: false })} data-testid="fotos-lote.voltar">
+          <button type="button" className="rounded-sm font-semibold text-accent-ink hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" onClick={() => ir({ lote: null, cartao: null, repetido: false })} data-testid="fotos-lote.voltar">
             ‹ Fotos em lote
           </button>
         }
@@ -368,18 +395,16 @@ function Andamento({ lote, fase, envio, tamanho }: { lote: FotoLote; fase: FaseL
     const p = progressoDoEnvio(envio.bytes, tamanho);
     return (
       <Panel>
-        <Progresso rotulo="Enviando" valor={p.valor} maximo={p.maximo} textoValor={p.texto} testid="fotos-lote.progresso-envio" />
+        <Progresso rotulo="Enviando" valor={p.valor} maximo={p.maximo} textoValor={p.texto} mostrarRotulo="valor" testid="fotos-lote.progresso-envio" />
         <span className="text-[13px] text-ink-2">Mantenha esta aba aberta até o envio terminar.</span>
       </Panel>
     );
   }
-  if (fase === 'fila') return <Panel><LoadingBlock label="Na fila…" /></Panel>;
-  if (fase === 'conferindo') return <Panel><LoadingBlock label="Conferindo o ZIP…" /></Panel>;
   if (fase === 'processando') {
     const p = progressoDoProcessamento(lote);
     return (
       <Panel>
-        <Progresso rotulo="Processando" valor={p.valor} maximo={p.maximo} textoValor={p.texto} testid="fotos-lote.progresso" />
+        <Progresso rotulo="Processando" valor={p.valor} maximo={p.maximo} textoValor={p.texto} mostrarRotulo="valor" testid="fotos-lote.progresso" />
       </Panel>
     );
   }
@@ -397,15 +422,11 @@ function Relatorio({ lote }: { lote: FotoLote }) {
 
   const itens = useQuery({
     queryKey: ['catalogo', 'fotos-lote', lote.id, 'itens', cartao, processando ? ordem : lote.situacao],
-    queryFn: async () => {
-      const p = new URLSearchParams({ limite: String(POR_PAGINA) });
-      if (cartao) p.set('situacao', situacoesDoCartao(cartao));
-      return FotoLoteItensSaida.parse(await api<unknown>(`${BASE}/${lote.id}/itens?${p.toString()}`));
-    },
+    queryFn: () => buscarItens(lote.id, cartao),
   });
   useEffect(() => {
     if (itens.data) {
-      setPaginas(itens.data.itens.filter((i) => i.situacao !== 'pendente'));
+      setPaginas(itens.data.itens);
       setProximo(itens.data.proximo);
     }
   }, [itens.data]);
@@ -414,10 +435,8 @@ function Relatorio({ lote }: { lote: FotoLote }) {
     if (proximo === null) return;
     setCarregandoMais(true);
     try {
-      const p = new URLSearchParams({ limite: String(POR_PAGINA), apos: String(proximo) });
-      if (cartao) p.set('situacao', situacoesDoCartao(cartao));
-      const r = FotoLoteItensSaida.parse(await api<unknown>(`${BASE}/${lote.id}/itens?${p.toString()}`));
-      setPaginas((atual) => [...atual, ...r.itens.filter((i) => i.situacao !== 'pendente')]);
+      const r = await buscarItens(lote.id, cartao, proximo);
+      setPaginas((atual) => [...atual, ...r.itens]);
       setProximo(r.proximo);
     } finally {
       setCarregandoMais(false);
@@ -440,15 +459,15 @@ function Relatorio({ lote }: { lote: FotoLote }) {
           const valor = valorDoCartao(c, lote.totais);
           const marcado = cartao === c;
           return (
-            <button
+            <KpiCard
               key={c}
-              type="button"
-              aria-pressed={marcado}
+              label={ROTULO_CARTAO[c]}
+              value={valor.toLocaleString('pt-BR')}
+              valueClass={corDoCartao(c, valor)}
+              selecionado={marcado}
               onClick={() => marcar(marcado ? null : c)}
-              data-testid={`fotos-lote.cartao.${c}`}
-              className={`min-h-11 rounded-[14px] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${marcado ? 'border-2 border-accent bg-accent-soft' : 'border-2 border-transparent'}`}>
-              <KpiCard label={ROTULO_CARTAO[c]} value={valor.toLocaleString('pt-BR')} valueClass={corDoCartao(c, valor)} />
-            </button>
+              testid={`fotos-lote.cartao.${c}`}
+            />
           );
         })}
       </KpiGrid>

@@ -1,10 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { LIMITES_ZIP_TETO } from '@macuxi/platform-sdk';
 import { BOM_CSV } from '@macuxi/comum/csv';
-import { FOTO_LOTE_ZIP_MAX_BYTES } from '../contracts';
-import { casarCodigo, codigosParaConsulta, conferirTamanhoZip, csvRelatorioFotos, interpretarNome, limitesFotoLote, listaComE, mensagemMotivoLote, resolverItem, textoMotivoItem, type ItemRelatorioFoto, type ProdutoParaCasar } from './fotos-lote';
+import { casarCodigo, codigosParaConsulta, conferirTamanhoZip, csvRelatorioFotos, interpretarNome, limitesFotoLote, listaComE, mensagemMotivoLote, resolverItem, textoLimitesLote, textoMb, textoMotivoItem, type ItemRelatorioFoto, type ProdutoParaCasar } from './fotos-lote';
 
 const P = (sku: string, ean: string | null = null, ativo = true): ProdutoParaCasar => ({ id: `id-${sku}`, sku, ean, ativo });
+
+describe('RN-CAT-14: textos de tamanho e de limites', () => {
+  it('RN-CAT-14: textoMb mostra MB inteiro ou com uma casa e vírgula', () => {
+    expect(textoMb(500 * 1024 * 1024)).toBe('500 MB');
+    expect(textoMb(1.5 * 1024 * 1024)).toBe('1,5 MB');
+  });
+  it('RN-CAT-14: a linha de limites usa os limites do tenant, não números fixos', () => {
+    expect(textoLimitesLote(LIMITES_ZIP_TETO)).toBe('JPEG, PNG ou WEBP · até 8 MB por foto · até 10.000 fotos · ZIP até 500 MB');
+    expect(textoLimitesLote({ ...LIMITES_ZIP_TETO, bytesZipMax: 200 * 1024 * 1024, arquivosMax: 5000, bytesEntradaMax: 4 * 1024 * 1024 })).toBe('JPEG, PNG ou WEBP · até 4 MB por foto · até 5.000 fotos · ZIP até 200 MB');
+  });
+});
 
 describe('RN-CAT-14: nome do arquivo → código e ordem', () => {
   it('RN-CAT-14: "SKU.jpg" é o código SKU na ordem 1 e "SKU_2.jpg" é a 2ª foto de SKU (ou o código literal SKU_2)', () => {
@@ -110,8 +120,8 @@ describe('RN-CAT-14: limites do lote (o tenant só baixa o teto)', () => {
     expect(limitesFotoLote({ foto_lote_arquivos_max: -3 })).toEqual(LIMITES_ZIP_TETO);
   });
   it('RN-CAT-14: ZIP acima do teto é recusado antes de qualquer byte, com mensagem; no teto passa', () => {
-    expect(conferirTamanhoZip(FOTO_LOTE_ZIP_MAX_BYTES, LIMITES_ZIP_TETO)).toEqual({ ok: true });
-    const r = conferirTamanhoZip(FOTO_LOTE_ZIP_MAX_BYTES + 1, LIMITES_ZIP_TETO);
+    expect(conferirTamanhoZip(LIMITES_ZIP_TETO.bytesZipMax, LIMITES_ZIP_TETO)).toEqual({ ok: true });
+    const r = conferirTamanhoZip(LIMITES_ZIP_TETO.bytesZipMax + 1, LIMITES_ZIP_TETO);
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.motivo).toBe('zip_grande');

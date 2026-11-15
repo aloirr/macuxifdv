@@ -3,12 +3,10 @@
  * Cartões-filtro, fases do lote, selos, textos, conferência do arquivo e o envio do ZIP em partes de 8 MiB (com `fetch`
  * injetado pela página). A regra do tamanho e dos textos de motivo é do domain; a API revalida.
  */
-import { PARTE_ENVIO_BYTES } from '@macuxi/platform-sdk';
+import { partesDoEnvio, PARTE_ENVIO_BYTES, type LimitesZip } from '@macuxi/platform-sdk';
 import { DEFAULT_TZ, formatDateTime, formatInt, type Selo } from '@macuxi/ui/web';
-import { FOTO_LOTE_ATIVOS_MAX, ROTULO_SITUACAO_ITEM, SITUACOES_LOTE_EM_ANDAMENTO, type FotoLote, type SituacaoItem, type TotaisLote } from '../../contracts';
-import { conferirTamanhoZip } from '../../domain';
-
-const MIB = 1024 * 1024;
+import { FOTO_LOTE_ATIVOS_MAX, ROTULO_SITUACAO_ITEM, SITUACOES_LOTE_EM_ANDAMENTO, type FotoLote, type FotoLoteLimites, type SituacaoItem, type TotaisLote } from '../../contracts';
+import { conferirTamanhoZip, megabytes } from '../../domain';
 
 // ---------- cartões do relatório ----------
 export type CartaoFoto = 'ligadas' | 'pendencias' | 'recusadas' | 'repetidas';
@@ -111,7 +109,7 @@ export function limiteDeLotesAtivo(lotes: readonly Pick<FotoLote, 'situacao'>[])
 
 // ---------- textos ----------
 export function progressoDoEnvio(enviados: number, total: number): { valor: number; maximo: number; texto: string } {
-  return { valor: enviados, maximo: total, texto: `${formatInt(Math.floor(enviados / MIB))} de ${formatInt(Math.floor(total / MIB))} MB` };
+  return { valor: enviados, maximo: total, texto: `${formatInt(Math.floor(megabytes(enviados)))} de ${formatInt(Math.floor(megabytes(total)))} MB` };
 }
 export function progressoDoProcessamento(l: Pick<FotoLote, 'total' | 'totais'>): { valor: number; maximo: number; texto: string } {
   const maximo = l.total ?? 0;
@@ -125,18 +123,21 @@ export function dataHoraCurta(iso: string, tz: string = DEFAULT_TZ): string {
 export function avisoLoteRepetido(criadoEm: string, tz: string = DEFAULT_TZ): string {
   return `Este ZIP já foi enviado em ${formatDateTime(criadoEm, tz)}. O resultado está abaixo.`;
 }
-export const TEXTO_LOTE_FALHOU = 'Não foi possível processar o ZIP. Envie de novo.';
 export const TEXTO_ENVIO_PAROU = 'O envio parou. Confira a internet e tente de novo.';
 export const TEXTO_LOTES_ATIVOS = 'Espere um dos lotes em processamento terminar para enviar outro.';
 
 // ---------- conferência do arquivo ----------
+/** Limites efetivos do tenant (`GET fotos-lote/limites`) no formato do domain. */
+export const limitesDaTela = (l: FotoLoteLimites): Pick<LimitesZip, 'bytesZipMax' | 'arquivosMax' | 'bytesEntradaMax'> => ({ bytesZipMax: l.bytes_zip_max, arquivosMax: l.arquivos_max, bytesEntradaMax: l.bytes_foto_max });
+
 export function validarArquivoZip(nome: string, tamanhoBytes: number, limites: { bytesZipMax: number }): { ok: true } | { ok: false; mensagem: string } {
   if (!/\.zip$/i.test(nome) || tamanhoBytes <= 0) return { ok: false, mensagem: 'Escolha um arquivo .zip.' };
   const t = conferirTamanhoZip(tamanhoBytes, limites);
   return t.ok ? { ok: true } : { ok: false, mensagem: t.mensagem };
 }
-export function mensagemErroDoEnvio(e: { status: number; code: string; message: string }): string {
-  if (e.status === 409 && e.code === 'LOTE_EM_ANDAMENTO') return TEXTO_LOTES_ATIVOS;
+/** Só atualizar a lista, sem aviso: o 409 `LOTE_EM_ANDAMENTO` já aparece na área de envio (botão desligado e `TEXTO_LOTES_ATIVOS`, RD-0617). */
+export function mensagemErroDoEnvio(e: { status: number; code: string; message: string }): string | null {
+  if (e.status === 409 && e.code === 'LOTE_EM_ANDAMENTO') return null;
   if (e.status === 409 && e.code === 'ENVIO_INCOMPLETO') return TEXTO_ENVIO_PAROU;
   if (e.status === 0 || e.code === 'network') return TEXTO_ENVIO_PAROU;
   return e.message;
@@ -148,10 +149,8 @@ export interface FatiaDoEnvio {
   inicio: number;
   fim: number;
 }
-export function fatiasDoEnvio(tamanho: number): FatiaDoEnvio[] {
-  const total = Math.max(1, Math.ceil(tamanho / PARTE_ENVIO_BYTES));
-  return Array.from({ length: total }, (_v, i) => ({ n: i + 1, inicio: i * PARTE_ENVIO_BYTES, fim: Math.min(tamanho, (i + 1) * PARTE_ENVIO_BYTES) }));
-}
+const fatiasDoEnvio = (tamanho: number): FatiaDoEnvio[] =>
+  Array.from({ length: partesDoEnvio(tamanho) }, (_v, i) => ({ n: i + 1, inicio: i * PARTE_ENVIO_BYTES, fim: Math.min(tamanho, (i + 1) * PARTE_ENVIO_BYTES) }));
 export const TENTATIVAS_POR_PARTE = 3;
 
 export type ResultadoEnvio = { ok: true } | { ok: false; recomecarEm: number } | { ok: false; cancelado: true };

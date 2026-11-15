@@ -10,12 +10,8 @@ import { definirEvento, MOTIVOS_RECUSA_ENTRADA, MOTIVOS_RECUSA_ZIP, PARTE_ENVIO_
 const Uuid = z.string().uuid();
 const InstanteUtc = z.string().datetime();
 const Int = z.number().int().nonnegative();
-const MIB = 1024 * 1024;
 
-// ---------- limites (RN-CAT-14; os parâmetros do tenant só baixam o teto) ----------
-export const FOTO_LOTE_ZIP_MAX_BYTES = 500 * MIB;
-export const FOTO_LOTE_FOTO_MAX_BYTES = 8 * MIB;
-export const FOTO_LOTE_ARQUIVOS_MAX = 10_000;
+// ---------- limites (RN-CAT-14; os tetos são os do SDK, `LIMITES_ZIP_TETO`; os parâmetros do tenant só os baixam) ----------
 /** Formatos aceitos, conferidos pela assinatura do arquivo (RN-CAT-14). */
 export const TIPOS_FOTO_LOTE = TIPOS_IMAGEM;
 /** Chaves de `plataforma.parametro` que baixam os tetos. */
@@ -107,6 +103,9 @@ export type EnvioLote = z.infer<typeof EnvioLoteSchema>;
 /** `envio` nulo = o lote já foi enfileirado (nada mais a enviar). */
 export const FotoLoteCriadoSchema = z.object({ lote: FotoLoteSchema, envio: EnvioLoteSchema.nullable() }).strict();
 export type FotoLoteCriado = z.infer<typeof FotoLoteCriadoSchema>;
+/** Limites efetivos do tenant (`limitesFotoLote` do domain): o BKO confere o ZIP e monta o texto da tela com eles. */
+export const FotoLoteLimitesSchema = z.object({ bytes_zip_max: z.number().int().positive(), arquivos_max: z.number().int().positive(), bytes_foto_max: z.number().int().positive() }).strict();
+export type FotoLoteLimites = z.infer<typeof FotoLoteLimitesSchema>;
 export const FotoLoteListaSchema = z.object({ lotes: z.array(FotoLoteSchema) }).strict();
 export type FotoLoteLista = z.infer<typeof FotoLoteListaSchema>;
 
