@@ -200,6 +200,13 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > `core.v_usuario_hierarquia`; código ERP = `core.usuario.external_id` (já único por tenant). Detalhes no
 > [plataforma.md](plataforma.md) e no [core.md](core.md); teste `db/testes/cargo-hierarquia.db.test.ts`; diagnóstico
 > `db/scripts/diagnostico-0069.sql`.
+>
+> **2026-11-14 (ADR 0047, planos e licenças; portal config. enxuto, R-20261114-170600 e R-20261114-181000):**
+> `0070_plataforma_plano_assinatura` (em cima da 0069; aditiva): `plataforma.plano` (catálogo da plataforma, sem `tenant_id`, só
+> por função) e `plataforma.assinatura` (uma viva por tenant, RLS por tenant, o app só lê), e a
+> `plataforma.sa_gravar_assinatura(p_sid uuid, p_tenant uuid, p jsonb)` (só super-admin; o portal passa a 17 `sa_*`).
+> `0071_plataforma_listar_tenants_plano`: a `sa_listar_tenants` ganha `plano`, `teste_ate` e `paga` em cada empresa. Detalhes no
+> [plataforma.md](plataforma.md); teste `db/testes/plano-assinatura.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

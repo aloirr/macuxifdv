@@ -88,12 +88,21 @@ export const FUNCOES_SA_0058 = ['plataforma.sa_listar_diagnosticos(uuid, jsonb)'
  */
 export const FUNCOES_SA_ATE_0057 = [...FUNCOES_SA, ...FUNCOES_SA_0042] as const;
 
+/** As 16 sa_* públicas do banco parado entre a 0058 e a 0069: as 14 até a 0057 (FUNCOES_SA_ATE_0057) + as 2 da 0058. */
+export const FUNCOES_SA_ATE_0069 = [...FUNCOES_SA_ATE_0057, ...FUNCOES_SA_0058] as const;
+
 /**
- * As sa_* públicas do banco migrado até a ÚLTIMA (0058): as 14 até a 0057 (FUNCOES_SA_ATE_0057) + as 2 da 0058 = 16. Use esta
- * lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040
- * ou 0041.
+ * A sa_* da 0070 (ADR 0047; planos e licenças): o super-admin grava a assinatura da empresa criada pelo passo "Empresa com
+ * plano" (apps/api/src/planos-portal.ts). EXECUTE só ao macuxi_portal; admin do cliente = 42501.
  */
-export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0057, ...FUNCOES_SA_0058] as const;
+export const FUNCOES_SA_0070 = ['plataforma.sa_gravar_assinatura(uuid, uuid, jsonb)'] as const;
+
+/**
+ * As sa_* públicas do banco migrado até a ÚLTIMA (0071): as 16 até a 0069 (FUNCOES_SA_ATE_0069) + a da 0070 = 17 (a 0071 só
+ * reescreve a sa_listar_tenants). Use esta lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA
+ * continua sendo a do banco parado na 0039, 0040 ou 0041.
+ */
+export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0069, ...FUNCOES_SA_0070] as const;
 
 /** Interna (SECURITY INVOKER, sem EXECUTE para ninguém além do dono), chamada de dentro das sa_*: assinatura da 0039. */
 export const SA_INTERNA = 'plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)';

@@ -789,3 +789,79 @@ select id, tenant_id, protocolo, origem, app, versao_app, aparelho_modelo, andro
  where alerta_situacao = 'pendente' and (alerta_proxima_em is null or alerta_proxima_em <= now())
  order by recebido_em limit 10 for update skip locked;
 ```
+
+## Planos e assinatura (0070, ADR 0047) — `plano` e `assinatura`. Fora do sync
+Migração `0070_plataforma_plano_assinatura` (volta: `.down.sql`, APAGA o catálogo e as assinaturas; desfaça antes a 0071 e
+desligue `MACUXI_PLANOS` na API). Desenho `docs/desenho/planos-e-licencas.md`; contrato `packages/platform-sdk/src/planos.ts` e
+`apps/api/src/planos-portal.ts` (`fontePlanosNoBanco`). Drizzle: `plano` e `assinatura` em `db/esquema/plataforma.ts`. O
+catálogo é **dado** (RN-PLA-01): preços, licenças e dias de teste vêm do seed com os números do dono do produto, nunca de código.
+
+### plano — catálogo de planos da plataforma (exceção: sem `tenant_id`; só por função)
+| Coluna | Tipo | Regra |
+|---|---|---|
+| id | uuid | `PlanoSchema.id`; a assinatura aponta para ele |
+| codigo | text not null | `^[a-z][a-z0-9_]{1,29}$` (`CodigoPlano` do SDK); único entre os vivos (`plano_codigo_uk`, parcial `deleted_at is null`) |
+| nome | text not null | 1..60 (o que a coluna Plano do portal mostra) |
+| ordem | integer not null default 0 | ≥ 0; ordem de exibição e de "subir de plano" |
+| preco_mensal_centavos | bigint not null | ≥ 0, centavos |
+| licenca_vendedor, licenca_gestor, licenca_bko, licenca_promotor | integer | licenças incluídas por tipo (RN-PLA-02); **null = sem limite**; ≥ 0 |
+| modulos | text[] not null default `{}` | módulos incluídos; só os 8 `MODULOS` do SDK (CHECK `plano_modulos_validos`); core e integracao entram sempre pela API |
+| adicionais | jsonb not null default `[]` | `[{ adicional: promotor \| pesquisa \| treinamento, preco_unitario_centavos, incluidos (null = ilimitado) }]`; lista de até 3 (CHECK) |
+| meses_gratis_anual | integer not null default 0 | 0..11 (RN-PLA-06: no anual paga-se 12 − isto) |
+| dias_teste | integer not null default 0 | 0..90 (0 = sem teste) |
+| ativo | boolean not null default true | fora de venda = false (a `sa_gravar_assinatura` recusa com `PLANO_INATIVO`) |
+| comuns | | `created_at`, `updated_at` (gatilho), `deleted_at`, `external_id` (sem `tenant_id`: `TABELAS_SEM_TENANT_ID`) |
+
+Versão nova do plano (preço ou licenças) = **linha nova** com o mesmo código e a antiga com `deleted_at`: as assinaturas antigas
+continuam na linha que contrataram. RLS ligado e forçado, só a política `manutencao`; nenhum grant de tabela para `macuxi_app`,
+`macuxi_worker` ou `macuxi_portal` (`TABELAS_SO_POR_FUNCAO`). Volume: poucas linhas.
+
+### assinatura — o plano de cada tenant
+| Coluna | Tipo | Regra |
+|---|---|---|
+| plano_id | uuid not null | FK → `plataforma.plano` (a linha contratada; índice `assinatura_plano_ix`) |
+| ciclo | text not null default `mensal` | `mensal` \| `anual` |
+| adicionais | jsonb not null default `[]` | `[{ adicional, quantidade 1..100000 }]`, até 3, sem repetir (a `sa_*` confere; o CHECK garante a lista) |
+| teste_ate | date | último dia do teste grátis, **inclusive**, no fuso do tenant (RN-PLA-06); null = sem teste |
+| paga | boolean not null default false | o teste terminou com contratação, ou começou sem teste. CHECK `assinatura_paga_ou_teste`: `paga or teste_ate is not null` |
+| pedido_id | uuid not null | UUID do portal que gravou (chave de idempotência do passo "Empresa com plano") |
+| comuns | | `tenant_id` (FK `plataforma.tenant`), `created_at`, `updated_at` (gatilho), `deleted_at`, `external_id` |
+
+Uma **viva** por tenant: `assinatura_tenant_uk (tenant_id) where deleted_at is null`. Empresa sem assinatura = legado anterior
+aos planos (sem trava, RN-PLA-04). RLS ligado e forçado: `isolamento_tenant` (o `macuxi_app` só **lê** a do próprio tenant) e
+`manutencao`; worker e portal sem grant. Escrita só pela `sa_gravar_assinatura`. Fora do sync (`TABELAS_FORA_DO_SYNC`). Volume:
+uma linha por tenant. A trava do cadastro de usuários (`plataforma.licencas_do_tenant()`, RN-PLA-04) e a troca de plano
+(`sa_trocar_plano`, `assinatura_historico`) entram em migração própria.
+
+### Funções
+- `plataforma.sa_gravar_assinatura(p_sid uuid, p_tenant uuid, p jsonb) returns jsonb` — a chamada da API
+  (`select plataforma.sa_gravar_assinatura($1, $2, $3::jsonb)`). SECURITY DEFINER, `search_path = pg_catalog, plataforma,
+  pg_temp`, EXECUTE só ao `macuxi_portal`. Só super-admin: sessão inválida ou vencida = 28000; admin do cliente = 42501.
+  `p` = `EntradaAssinatura` da API: `{ plano (código), ciclo, adicionais, teste_ate ('AAAA-MM-DD' | null), paga, pedido_id }`;
+  chave fora dessas, valor fora do formato ou `paga = false` sem `teste_ate` = 22023. Plano que não existe (vivo) = 22023 com
+  `hint = 'PLANO_DESCONHECIDO'`; plano inativo = `PLANO_INATIVO`; adicional que o plano não vende = `ADICIONAL_FORA_DO_PLANO` (a
+  API devolve 422 com o hint). Tenant que não existe ou excluído = P0002. **Idempotente**: uma por tenant (trava consultiva por
+  tenant); se já houver assinatura viva, nada muda e devolve `existente` com o `teste_ate` gravado. Retorno
+  `{ resultado: 'criada' | 'existente', teste_ate: 'AAAA-MM-DD' | null }`. Audita `sa.assinatura.gravar` com `plano`, `ciclo`,
+  `com_teste` e `resultado` (sem dado pessoal). O portal passa a executar **17** `sa_*` (`db/testes/funcoes-sa.ts`
+  `FUNCOES_SA_0070`; as listas de `apps/api/test/funcoes-sa.ts`, `scripts/deploy/producao/banco-dbaas.sh` e
+  `tests/integracao/banco/conformidade.test.ts` ganham a função pelos donos).
+- `plataforma.sa_listar_tenants(p_sid uuid)` (0071, `0071_plataforma_listar_tenants_plano`; volta: `.down.sql` com o texto da
+  0039): tudo o que a 0039 fazia (sessão, super-admin todas as vivas, admin do cliente só as do login, módulos do contrato) e
+  cada item ganha, por `left join` na assinatura viva e no plano dela: `plano` (`plano.nome` ou null; o nome fica mesmo com a
+  linha do plano trocada por versão nova), `teste_ate` (`to_char(teste_ate, 'YYYY-MM-DD')` ou null) e `paga`
+  (`coalesce(paga, false)`). A API tira o `paga` e calcula o `em_teste` no fuso de cada empresa (`EmpresaResumoSchema`).
+
+Prova: `db/testes/plano-assinatura.db.test.ts` (estático sempre; banco no CI: acesso direto por papel, CHECKs, a
+`sa_gravar_assinatura` com sessão, perfis, erros, hints, idempotência e auditoria, a lista com e sem assinatura, up/down da 0070
+e da 0071). Fixture: `PLANOS_FIXTURE` (fixture_pme ativo, fixture_antigo inativo; fora de `ORDEM_TABELAS`, gravados antes) e
+`ASSINATURAS_FIXTURE` (A em teste até 2026-11-27; B paga, anual) em `db/seeds/fixtures/dois-tenants.ts`.
+
+Consultas da API (referência):
+```sql
+-- POST /v1/plataforma/empresas-com-plano, depois da empresa criada (macuxi_portal)
+select plataforma.sa_gravar_assinatura($1, $2, $3::jsonb) as r;   -- { resultado, teste_ate }
+-- GET /v1/plataforma/empresas (lista com a coluna Plano)
+select plataforma.sa_listar_tenants($1) as r;                      -- itens[].plano, teste_ate, paga
+```
+
