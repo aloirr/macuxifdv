@@ -108,7 +108,13 @@ O pedido é a R-20261115-070000-alexandre. Para comparar, li a `docs/design/entr
 - O "Incluir frase" é a única ação primária da tela. "Editar" e "Ativar"/"Desativar" ficam na linha, sem repetir nada.
 
 ## 4. Reteste (15/11/2026, commit ed7b6bc do designer-ux)
-**Veredito: LIMPO.** Os 9 RD (RD-0468 a RD-0476) estão fechados como `corrigido`, e não há achado novo. Conferi o branch `nuvem/carga-frases-designer-ux`, commit **ed7b6bc**: o `spec.md`, o `frases.md`, os `.html`, o `app.css` e os 5 PNGs, abertos como imagem. Entre eles está o novo `carga-campo-640.png`.
+**Veredito: LIMPO no layout** (aviso, respiro, tela 640 e portal). Não há achado novo. Ficam `corrigido` os 6 RD de layout e de doc: RD-0468 a RD-0472 e RD-0476.
+
+**Mudança de escopo (coordenador, 15/11):** o Alexandre mudou o tema das 30 frases, que agora são sobre a história e o folclore de Roraima:
+- pelo menos 24 sobre o povo Macuxi, o Monte Roraima e Makunaimã;
+- 6 sobre outros aspectos de Roraima.
+
+A lista de vendas vai ser refeita. Por isso, os RD das frases (RD-0473, RD-0474 e RD-0475) ficam **encerrados por substituição** e não passam por reteste. A lista nova terá parecer próprio, com a checagem de sentido repetido e de tamanho. As linhas das frases na tabela abaixo e as observações sobre as frases 20 e 25, sobre "Confira" e sobre a anotação "(A/B a decidir)" ficam só como registro e não valem como parecer. Conferi o branch `nuvem/carga-frases-designer-ux`, commit **ed7b6bc**: o `spec.md`, o `frases.md`, os `.html`, o `app.css` e os 5 PNGs, abertos como imagem. Entre eles está o novo `carga-campo-640.png`.
 
 | RD | Evidência do fechamento |
 |---|---|
