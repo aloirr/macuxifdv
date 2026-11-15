@@ -114,6 +114,7 @@ export interface OrderPdfOrder {
 }
 
 export interface OrderPdfContext {
+  /** Nome da distribuidora (`nomeDaEmpresaParaPdf`); vazio = o cabeçalho sai sem o nome (MC-0404). */
   tenant_name: string;
   product_name: string;
   tz: string;
@@ -152,14 +153,6 @@ export function pdfDateTime(at: string, tz: string): string {
 /** Preço unitário final (líquido) = total do item ÷ quantidade, arredondado ao centavo. */
 export function netUnitCents(item: Pick<OrderPdfItem, 'quantity' | 'total_cents'>): number {
   return item.quantity > 0 ? Math.round(item.total_cents / item.quantity) : 0;
-}
-
-/** Nome da distribuidora no cabeçalho: o do login; senão `parametros.core.tenant_nome` (T-0061 §7); senão "Macuxi". */
-export function nomeDaDistribuidora(nomeLogin: string | null | undefined, parametrosCore: Readonly<Record<string, unknown>> | null | undefined): string {
-  const doParametro = parametrosCore?.tenant_nome;
-  if (nomeLogin && nomeLogin.trim()) return nomeLogin.trim();
-  if (typeof doParametro === 'string' && doParametro.trim()) return doParametro.trim();
-  return 'Macuxi';
 }
 
 /** Rótulo e valor do documento do cliente: 11 dígitos = CPF, 14 = CNPJ; outro tamanho mantém "CNPJ" com o texto original. */
@@ -331,7 +324,7 @@ function header(order: OrderPdfOrder, view: OrderPdfView, ctx: OrderPdfContext):
   <div class="marca">
     <img class="logo" src="${escapeHtml(ctx.logo_src?.trim() || LOGO_PADRAO_DATA_URI)}" alt="">
     <div>
-      <div class="empresa">${escapeHtml(ctx.tenant_name)}</div>
+      ${ctx.tenant_name.trim() ? `<div class="empresa">${escapeHtml(ctx.tenant_name.trim())}</div>` : ''}
       ${emit.map((l) => `<div class="emit">${escapeHtml(l)}</div>`).join('')}
     </div>
   </div>
