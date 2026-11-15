@@ -158,3 +158,4 @@
 2026-11-14 — v1.0.6 — desvios de spec D-V106-1..4 em teste e roteiro do aparelho
 2026-11-13 — v1.0.6 — main vermelho (run 43545686800, 1bdf5d16): tests/modulos/desvios-spec-v106.test.ts D-V106-3 atualizado ao #151 (Equivale a em linhaDaMarca/grade.ts; D-V106-3a TalkBack corrigido, it.fails → it); 7/7 verdes contra o main
 2026-11-15 — T-0181 — RD-1261: docs/testes/T-0181.md aponta o PR conjunto #428 (`c4cc20d9`) no lugar da lista de branches e SHAs do merge local; não havia outra lista da mesma classe no arquivo.
+2026-11-15 — T-0181 — CI do #428 (cba6b82c): FC-03 e FC-05 de tests/integracao/api/frases-carga-t0181.test.ts esperam origem: 'banco' em detalhes (sa_registrar_auditoria da 0039 sempre acrescenta); toEqual mantido para barrar campo a mais (texto).
