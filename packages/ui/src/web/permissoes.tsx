@@ -196,7 +196,7 @@ export function SeletorDeNivel({
               />
               <span
                 className={cx(
-                  'inline-flex min-h-[40px] items-center gap-1 rounded-[10px] px-3 text-[13px] font-semibold whitespace-nowrap text-ink-3',
+                  'inline-flex min-h-[40px] items-center gap-1 rounded-[10px] px-3 text-[15px] font-semibold whitespace-nowrap text-ink-3',
                   'peer-checked:bg-ink peer-checked:text-white peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-accent',
                   o.desabilitada && 'text-disabled',
                   !off && 'hover:bg-ground peer-checked:hover:bg-ink',
@@ -344,7 +344,7 @@ export function SeletorDePerfis({
         <span className="flex min-w-0 flex-1 flex-col">
           <span className={cx('flex flex-wrap items-center gap-1.5 text-[15px]', off ? 'text-ink-2' : 'text-ink')}>
             {rotulo}
-            {extra?.selo && <span className="rounded-lg bg-neutral-soft px-2 py-[2px] text-[12px] font-bold text-ink-3">{extra.selo}</span>}
+            {extra?.selo && <span className="rounded-lg bg-neutral-soft px-2 py-[2px] text-[12px] font-medium text-ink-3">{extra.selo}</span>}
           </span>
           {extra?.detalhe && <span className="text-[12px] text-ink-2">{extra.detalhe}</span>}
           {extra?.motivo && (
@@ -406,12 +406,12 @@ export function ResumoDasMudancas({
       </p>
       {grupos.map((g) => (
         <section key={g.secao} aria-labelledby={`${testId}-${g.secao}`} className="flex flex-col gap-1" data-testid={`${testId}.${g.secao}`}>
-          <h3 id={`${testId}-${g.secao}`} className="m-0 text-[12px] font-bold tracking-wide text-ink-2 uppercase">
+          <h3 id={`${testId}-${g.secao}`} className="m-0 text-[12px] font-semibold tracking-wide text-ink-2 uppercase">
             {g.titulo}
           </h3>
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
             {g.itens.map((m, i) => (
-              <li key={`${m.rotulo}-${i}`} className="text-[13px] text-ink">
+              <li key={`${m.rotulo}-${i}`} className="text-[15px] text-ink">
                 <span aria-hidden="true">
                   {m.rotulo}: <span className="text-ink-2">{m.antes}</span> → <span className="font-semibold">{m.depois}</span>
                 </span>
