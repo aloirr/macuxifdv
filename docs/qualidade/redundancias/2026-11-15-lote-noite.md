@@ -2467,3 +2467,35 @@ Fechar o antigo, para não haver duas entregas da mesma tarefa.
   Parâmetros do Início (cor).
 - **Lote 10 (logo do cliente):** os novos `docs/design/telas/logo-cliente/carga-campo.png` e `carga-gestao.png` (`d832bc4a`)
   substituem os da parte 6 e precisam da validação de layout.
+
+## Lote da noite, parte 8 — reteste curto (6h40)
+
+Pedido do gerente às 6h40 de Manaus (15/11). Base: `main` em `7d785e6e` (com #311, #318 e #319), mesclado neste branch sem
+rebase. Só os RD que seguravam os lotes 1, 7, 8 e 12b da parte 7. Nenhum RD novo (o próximo livre segue RD-0467).
+
+| Item | Branch | SHA lido (parte 7 → 8) | Resultado |
+|---|---|---|---|
+| 1 | `nuvem/push-fcm-v2-modulo-core` (#312) | `c7e8f2e6` → `3848b727` | **limpo** (RD-0460 corrigido) |
+| 12b | `nuvem/sa-listas-engenheiro-software` | `d3310610` → `337b2e52` | **limpo** (RD-0462 e RD-0464 corrigidos) |
+| 7 | `nuvem/empresa-acoes-engenheiro-software` | `9bede2ef` → `d0495c3f` | **limpo** (RD-0462 corrigido) |
+| 8 | `nuvem/empresa-acoes-engenheiro-apps` | `e60fba63` → `eb3f7d76` | **limpo** (RD-0454 corrigido) |
+
+**Evidência**
+- **1, RD-0460:** `git diff c7e8f2e6 3848b727` tira só a função de `notificacao.ts`, o caso "RD-0442" de `push.test.ts` e o
+  import (1+, 12−); `git grep tokenPushFcmValido` no branch volta vazio. A mescla com o `main` (`git merge-tree`) não tem
+  conflito e muda só os 4 arquivos do módulo (`consumidores.ts`, `push.ts`, `push.test.ts`, `notificacao.ts`): o
+  `46b8c6b3` do branch é o mesmo conteúdo do #311 (`adf94bb4`), sem ADR 0053, linha do README, workflow ou `env.modelo` 2×.
+  O "CI verde" do #312 é conferido pelo gerente (não dá para ver daqui).
+- **12b e 7, RD-0462:** o `d0495c3f` é a mescla do `337b2e52`; `funcoes-sa.ts`, `funcoes-sa.test.ts` e `banco-dbaas.sh`
+  estão idênticos nos dois branches, e `git merge-tree` entre eles é limpo. A lista das `sa_*` entra só pelo 12b.
+- **12b, RD-0464:** `git diff d3310610 337b2e52` apaga a conta por migração do comentário do `banco-dbaas.sh:104-109`, de
+  `funcoes-sa.ts:4-8` e de `funcoes-sa.test.ts:8`; o 27 fica só em `expect(SA_PORTAL).toHaveLength(27)` (`funcoes-sa.test.ts:43`).
+- **8, RD-0454:** `portal-falso.ts:206` usa `MENSAGEM_SO_SUPER_ADMIN_ACOES` (import na l.24); "Só o time da Macuxi faz esta
+  ação." só aparece na constante (`packages/platform-sdk/src/empresa-acoes.ts:44`) e no teste dela.
+
+**Para o gerente (ordem de merge, sem RD):**
+- O 7 (`d0495c3f`) e o 8 (`eb3f7d76`) ainda não mesclaram o `main`: conflito de texto em `apps/api/src/app.ts` (campos das
+  ações da empresa ao lado do `fonteDadosLegais` do #316) e em `.coord/diario/engenheiro-software.md`. Resolver mantendo os
+  dois lados no `app.ts` e o diário do `main`.
+- O 8 mesclou o `9bede2ef`, não o `d0495c3f`: traz as listas `sa_*` antigas (comentário "= 25"). Com o 7 no `main` antes, a
+  mescla do 8 é limpa e fica com a versão do 7 (o 8 não muda esses arquivos); a ordem 6 → 12b → 7 → 8 da parte 7 continua.
