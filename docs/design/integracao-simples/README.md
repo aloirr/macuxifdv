@@ -10,7 +10,8 @@ Saem o de-para (mapeamento), os cards "Pedidos no ERP", conectores, alertas, car
 ## 2. Ordem na tela
 1. `PageHeader` com o título **Integração ERP**, sem subtítulo; à direita, a ação `Button variant="link"` **Atualizar**.
 2. `FilterBar` com dois `SelectField`: **Entidade** (Todas) e **Status** (Todos). "Limpar filtros" só aparece com filtro ativo.
-3. `TabelaDados` (rótulo "Lotes"), sem `TableScroll`. Clicar na linha = **Ver o log** (abre o `LoteDrawer` que já existe). O mais recente fica no topo.
+3. `TabelaDados` (rótulo "Lotes"), sem `TableScroll`. Clicar na linha abre o log (o `LoteDrawer` que já existe); a linha indica que é clicável só com o cursor de mão e o fundo `--ground` (#F8F6F1) sob o mouse, sem chevron. O mais recente fica no topo.
+   Cabeçalho da tabela sem fundo (`--surface`, peso 600).
 
 ## 3. Colunas (rótulos exatos)
 | Coluna | Conteúdo | Largura | Prioridade |
@@ -22,7 +23,7 @@ Saem o de-para (mapeamento), os cards "Pedidos no ERP", conectores, alertas, car
 | Conclusão | `15/11 14:33`; **célula vazia** em andamento | 12% | 3 |
 | Status | um `Badge` (seção 4) | 15% | 1 |
 | Linhas integradas | número (`numero: true`): `1.240`; se houve erro, `1.180 de 1.240` | 14% | 1 |
-| (ações) | `MenuAcoes` "⋯" | 52 px | 1 |
+| (ações) | `MenuAcoes` "⋯", só nas linhas com ação (seção 5); nas outras a célula fica vazia | 52 px | 1 |
 
 As colunas cabem no quadro de 1366 px com o menu lateral aberto; nada corta o selo nem o número.
 **Data+hora**: `dd/mm hh:mm`, 24 h, no fuso do tenant (`sessao.fuso`), sem "às" e sem ano.
@@ -41,16 +42,15 @@ Os dois formatadores entram em `packages/ui/src/web/format.ts` (`formatDataHoraC
 
 A cor vem sempre com o texto. O filtro Status usa estes 5 rótulos.
 
-## 5. Menu "⋯" por status (`MenuAcoes`, nesta ordem)
+## 5. Menu "⋯" por status (`MenuAcoes`)
 | Status | Ações |
 |---|---|
-| Em andamento | Ver o log · **Cancelar** (perigo, por último) |
-| Concluído | Ver o log |
-| Concluído com avisos | Ver o log · Reprocessar |
-| Com falha | Ver o log · Reprocessar |
-| Cancelado | Ver o log |
+| Em andamento | **Cancelar** (perigo) |
+| Concluído com avisos | Reprocessar |
+| Com falha | Reprocessar |
+| Concluído, Cancelado | sem "⋯" |
 
-Ação que não vale para o status some do menu (não aparece desligada).
+O log não entra no menu: abre com o clique na linha (seção 2). Ação que não vale para o status some (não aparece desligada).
 
 **Reprocessar** com a permissão `lote.reprocessar`: dispara direto, sem diálogo; aviso (`useToast`, success) **Reprocessamento iniciado.**
 O status da mesma linha volta a Em andamento.
@@ -85,22 +85,24 @@ A lista "Erros de retorno" não vai para os cards: os avisos ficam só na área 
 ## 9. De-para em Parâmetros → Integração (confirmado)
 Página **De-para de códigos** (rota em Parâmetros → Integração), campos reais do `Mapeamento` (`tipo`, `codigo_macuxi`, `codigo_erp`, `descricao`, `ativo`).
 1. `PageHeader` com **Novo de-para** (o único botão principal) à direita.
-2. Pedidos retidos (`condicoes_sem_correspondente`): uma faixa com **{n} pedidos retidos sem o código do ERP para a condição {código}.**
-   e o botão **Cadastrar {código}**, que abre a folha já com a entidade e o código do Macuxi. Some quando não há retido.
+2. Área **Alertas** (`Panel` label "Alertas", como no monitor), só quando há pedido retido (`condicoes_sem_correspondente`), uma linha por
+   condição: **{n} pedidos retidos: condição {código} sem código do ERP** + botão secundário **Cadastrar**, que abre a folha já com a entidade
+   e o código do Macuxi (RN-VEN-42: nenhum aviso fora de Alertas).
 3. `FilterBar`: **Entidade** (Todas + os 4 rótulos de `ROTULO_TIPO_MAPEAMENTO`) e **Buscar** (código ou nome, Macuxi ou ERP).
 4. Tabela: **Entidade** · **No Macuxi** (`código · nome`) · **No ERP** (mono) · **Situação** (`Badge` Ativo `success` / Inativo `neutral`) · ⋯.
    Menu ⋯: **Editar** · **Ativar** ou **Inativar** (só a que vale) · **Apagar** (perigo, por último, com `Dialog` de confirmação).
    Sem `mapeamento.editar`: sem botão Novo, sem ⋯ e sem "Cadastrar" (nada de texto "só administrador…").
 5. Folha (`Drawer`, 480 px) **Novo de-para** / **Editar de-para**: **Entidade** (select) · **No Macuxi** (combobox com busca na lista
    da entidade; mostra `código · nome`; marca **{n} retidos** e deixa desligado o que já tem de-para, com "já tem: ERP {código}") ·
-   **No ERP** (texto, até 60) · **Descrição (opcional)**. Rodapé: **Cancelar** e **Salvar de-para**. Novo nasce ativo (o "Ativo" sai do formulário).
+   **No ERP** (texto, até 60) · **Descrição (opcional)**. Na lista, o único aviso é o selo **{n} retidos**. Rodapé: **Cancelar** e **Salvar de-para**. Novo nasce ativo (o "Ativo" sai do formulário).
    Aviso ao salvar: **De-para salvo.** ou **De-para salvo. {n} pedidos seguiram para o ERP.**
-6. Vazio: uma frase **Nenhum de-para ainda: ligue cada condição de pagamento, depósito, status e canal do Macuxi ao código do ERP para os pedidos seguirem.** + **Novo de-para**.
+6. Vazio (`EstadoVazio`): **Nenhum de-para ainda.** + **Novo de-para**.
 Premissa: a lista de códigos do Macuxi por entidade vem de uma consulta do modulo-integracao (a pedir).
 
 ## 10. Simulações (1366×768, PNG 2x)
-`simulacoes/`: `lotes.png` (menu ⋯ aberto num lote em andamento), `lotes-popup.png`, `de-para.png` (menu ⋯ de um inativo),
-`de-para-folha.png` (busca do código do Macuxi aberta), `de-para-vazio.png`. HTML e `base.css` ao lado, com os tokens do BKO; dados fictícios.
-Decisões (R-20261115-111800): ação que não vale some do menu; um só ⋯ por linha (Ver o log também é o clique na linha); Conclusão
+`simulacoes/`: `lotes.png` (menu ⋯ aberto num lote em andamento: só Cancelar), `lotes-popup.png`, `de-para.png` (menu ⋯ de um inativo),
+`de-para-folha.png` (busca do código do Macuxi aberta), `de-para-vazio.png`. HTML e `base.css` ao lado, com os tokens do BKO, o logo A negativo para o grafite (28 px, MC-0057) e as fontes de `apps/web/app/fonts`
+ligadas por `@font-face` (MC-0058; captura só depois de `document.fonts.ready`); dados fictícios.
+Decisões (R-20261115-111800): ação que não vale some do menu; ⋯ só em linha com ação e log no clique da linha (RD-0324); Conclusão
 vazia em andamento (o selo já diz "Em andamento" e a Duração conta ao vivo, então qualquer texto ali repetiria); popup com 1 campo;
 seletor de quem autoriza em vez de e-mail (a senha sozinha não diz quem autorizou, e a auditoria precisa do autor).

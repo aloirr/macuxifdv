@@ -2,10 +2,18 @@
 :root{--ground:#f8f6f1;--surface:#fff;--ink:#16202a;--ink2:#4a5562;--line:#dfe2e6;--line2:#eceef1;--field:#c9ced5;--accent:#1e3350;
 --success:#1d6b4f;--successSoft:#e2f1ea;--warning:#7a4f00;--warningSoft:#fff1d6;--danger:#a8261b;--dangerSoft:#fde8e6;--neutralSoft:#eceef1;
 --pending:#1e3350;--pendingSoft:#dfe2e6;--navActive:#2b3743;--navText:#c9ced5;--navGrupo:#f59a52}
+/* MC-0058: as mesmas fontes do BKO (apps/web/app/fonts). */
+@font-face{font-family:'Archivo';src:url('../../../../apps/web/app/fonts/Archivo_700Bold.ttf') format('truetype');font-weight:700;font-style:normal}
+@font-face{font-family:'Archivo';src:url('../../../../apps/web/app/fonts/Archivo_800ExtraBold.ttf') format('truetype');font-weight:800;font-style:normal}
+@font-face{font-family:'IBM Plex Sans';src:url('../../../../apps/web/app/fonts/IBMPlexSans_400Regular.ttf') format('truetype');font-weight:400;font-style:normal}
+@font-face{font-family:'IBM Plex Sans';src:url('../../../../apps/web/app/fonts/IBMPlexSans_600SemiBold.ttf') format('truetype');font-weight:600;font-style:normal}
+@font-face{font-family:'IBM Plex Sans';src:url('../../../../apps/web/app/fonts/IBMPlexSans_700Bold.ttf') format('truetype');font-weight:700;font-style:normal}
+@font-face{font-family:'IBM Plex Mono';src:url('../../../../apps/web/app/fonts/IBMPlexMono_500Medium.ttf') format('truetype');font-weight:500;font-style:normal}
 *{box-sizing:border-box}
 body{margin:0;width:1366px;height:768px;overflow:hidden;background:var(--ground);color:var(--ink);font:14px/1.4 'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;display:flex}
 nav{width:240px;flex:none;background:var(--ink);color:#fff;padding:14px 12px;display:flex;flex-direction:column;gap:2px}
-nav .marca{font:800 16px Archivo,system-ui,sans-serif;padding:4px 10px 10px}
+nav .marca{padding:6px 10px 14px}
+nav .marca img{display:block;height:28px;width:auto}
 nav .g{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--navGrupo);padding:14px 10px 6px}
 nav .i{color:var(--navText);font-size:14px;padding:9px 10px;border-radius:8px}
 nav .i.on{background:var(--navActive);color:#fff;font-weight:600;box-shadow:inset 3px 0 0 var(--navGrupo)}
@@ -22,12 +30,13 @@ main{flex:1;padding:22px 28px;display:flex;flex-direction:column;gap:16px;min-wi
 .ctl.busca{min-width:320px;justify-content:flex-start;color:var(--ink2)}
 .ctl.foco{border-color:var(--accent);box-shadow:0 0 0 2px rgba(30,51,80,.25)}
 table{width:100%;border-collapse:separate;border-spacing:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;table-layout:fixed}
-th{text-align:left;font-size:12px;font-weight:700;color:var(--ink2);padding:10px 12px;border-bottom:1px solid var(--line);background:#fbfaf7}
+th{text-align:left;font-size:12px;font-weight:600;color:var(--ink2);padding:10px 12px;border-bottom:1px solid var(--line);background:var(--surface)}
 td{padding:0 12px;height:48px;border-bottom:1px solid var(--line2);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 tr:last-child td{border-bottom:0}
-tr.hov td{background:#fbfaf7}
+table[aria-label="Lotes"] tbody tr{cursor:pointer}
+tr.hov td{background:var(--ground)}
 .num{text-align:right;font-variant-numeric:tabular-nums}
-.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:13px}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:500;font-size:13px}
 .mut{color:var(--ink2)}
 .bd{display:inline-block;border-radius:8px;padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap}
 .bd.success{background:var(--successSoft);color:var(--success)}.bd.warning{background:var(--warningSoft);color:var(--warning)}
@@ -56,7 +65,11 @@ td.ac{padding:0 6px;overflow:visible}
 .lista .op.h{background:var(--ground)}
 .lista .op .mono{color:var(--ink2)}
 .lista .op.dis{color:var(--ink2)}
-.aviso{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--warning);border-radius:10px;padding:6px 8px 6px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px}
+.lnk{color:var(--accent);font:600 13px 'IBM Plex Sans',system-ui,sans-serif;cursor:pointer}
+/* Área "Alertas" (Panel do kit, como em modules/integracao/web/components/alertas-panel.tsx) */
+.alertas{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px 16px;display:flex;flex-direction:column;gap:6px}
+.alertas h2{margin:0;font:700 18px Archivo,system-ui,sans-serif}
+.alertas .al{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px}
 .vazio{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:56px 24px;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center}
 .vazio .t{font:700 18px Archivo,system-ui,sans-serif}
 .vazio .s{color:var(--ink2);max-width:520px}
