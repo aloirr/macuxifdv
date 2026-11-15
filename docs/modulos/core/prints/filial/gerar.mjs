@@ -52,9 +52,12 @@ writeFileSync(join(saida, 'index.html'), `<!doctype html><meta charset="utf-8"><
 
 // [arquivo, query da tela, passo, textos que precisam aparecer, textos que não podem aparecer]
 const PRINTS = [
-  ['usuarios-lista.png', '', null, ['Filial', 'Sem filial', 'Boa Vista', '2 usuários sem filial de cadastro não entram no app.', 'Ver os 2'], []],
+  ['usuarios-lista.png', '', null, ['Filial', 'Código FDV', '00001', 'Provisório', 'Sem filial', 'Boa Vista', '2 usuários sem filial de cadastro não entram no app.', 'Ver os 2'], []],
   ['usuarios-sem-filial.png', '?filial=sem', null, ['Filial de cadastro', 'Diego Matos', 'Paulo Brito'], ['Ver os 2', 'Carla Souza', 'Rita Alves']],
   ['usuario-editar-filiais.png', '', 'gaveta', ['Editar usuário', 'Filial de cadastro', 'Filiais de venda', 'filial de cadastro', 'Belém', 'Santarém'], []],
+  ['usuario-editar-codigo-fdv.png', '', 'gaveta-fim', ['Código FDV', '00001', 'Código no ERP', 'Vincular vendedor do ERP'], ['Desvincular']],
+  ['vincular-escolher.png', '', 'vincular', ['Escolha o vendedor provisório que é Carla Souza.', 'V-0142', 'V-0177', 'Continuar'], []],
+  ['vincular-confirmar.png', '', 'vincular-confirmar', ['Vincular o provisório V-0142 a Carla Souza?', 'Voltar'], []],
 ];
 const navegador = await chromium.launch(process.env.MACUXI_CHROMIUM ? { executablePath: process.env.MACUXI_CHROMIUM } : undefined);
 let falhas = 0;
@@ -65,11 +68,19 @@ for (const [arq, query, passo, deve, nao] of PRINTS) {
   await pagina.goto(`file://${join(saida, 'index.html')}${query}`);
   await pagina.evaluate(() => document.fonts.ready);
   await pagina.getByText('Rita Alves').first().waitFor({ timeout: 10000 }).catch(() => undefined);
-  if (passo === 'gaveta') {
+  if (passo?.startsWith('gaveta') || passo?.startsWith('vincular')) {
     await pagina.locator('[data-testid="usuarios.menu.a0000000-0000-4000-8000-000000000001"]').click();
     await pagina.getByText('Editar', { exact: true }).click();
     // a filial de cadastro da Carla (Boa Vista) já vem escolhida; Manaus e Porto Velho marcadas
     await pagina.waitForTimeout(600);
+    if (passo !== 'gaveta') {
+      await pagina.locator('[data-testid="usuarios.vincular"]').scrollIntoViewIfNeeded();
+      if (passo.startsWith('vincular')) {
+        await pagina.locator('[data-testid="usuarios.vincular"]').click();
+        await pagina.locator('input[name="provisorio"]').first().check();
+        if (passo === 'vincular-confirmar') await pagina.locator('[data-testid="usuarios.vincular-continuar"]').click();
+      }
+    }
   }
   await pagina.waitForTimeout(500);
   const texto = await pagina.evaluate(() => document.body.innerText);

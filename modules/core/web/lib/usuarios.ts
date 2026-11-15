@@ -4,7 +4,7 @@
  */
 import { formatDateTime, formatTime } from '@macuxi/ui/web';
 import { temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
-import { DESCONTO_PEDIDO_PERMIL_MAX, type CriarUsuarioRequest, type EditarUsuarioRequest, type EmailAcesso, type EquipeOpcao, type UsuarioItem } from '../../contracts';
+import { DESCONTO_PEDIDO_PERMIL_MAX, type CriarUsuarioRequest, type EditarUsuarioRequest, type EmailAcesso, type EquipeOpcao, type UsuarioItem, type VincularErpRequest } from '../../contracts';
 import { filiaisDoUsuario, corpoDaFilial } from './filial-usuario';
 import { erroDoCodigoErp, errosDaHierarquia, hierarquiaDoCargo, type PessoaDaHierarquia } from '../../domain/cargos';
 import type { Cargo } from '@macuxi/platform-sdk';
@@ -60,6 +60,32 @@ const ouNulo = (v: string): string | null => (v.trim() === '' ? null : v.trim())
 
 /** Cargo, gerente e situação de cada usuário da lista: quem pode ser escolhido como supervisor ou gerente. */
 export const pessoasDaLista = (itens: readonly UsuarioItem[]): PessoaDaHierarquia[] => itens.map((u) => ({ id: u.id, cargo: u.cargo ?? null, gerente_id: u.gerente_id ?? null, ativo: u.ativo }));
+
+/** RN-CORE-58: provisórios que a gaveta de `real` pode escolher: ativos, com Código no ERP e do mesmo perfil, por nome. */
+export function provisoriosParaVincular(itens: readonly UsuarioItem[], real: UsuarioItem): UsuarioItem[] {
+  return itens.filter((x) => x.provisorio === true && x.ativo && x.id !== real.id && x.perfil === real.perfil && (x.external_id ?? '').trim() !== '').sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+/** RN-CORE-58 (spec erp-vinculo §2): o botão só aparece para vendedor ou promotor real, sem Código no ERP e com provisório do mesmo perfil. */
+export function podeVincularErp(itens: readonly UsuarioItem[], real: UsuarioItem): boolean {
+  return (real.perfil === 'vendedor' || real.perfil === 'promotor') && real.provisorio !== true && (real.external_id ?? '').trim() === '' && provisoriosParaVincular(itens, real).length > 0;
+}
+
+/** `POST /core/usuarios/:provisorio/vincular-erp`: o corpo leva o usuário real que recebe o código e a carteira. */
+export const corpoDeVinculoErp = (usuarioRealId: string): VincularErpRequest => ({ usuario_id: usuarioRealId });
+
+/** Aviso depois de vincular (spec erp-vinculo §5). */
+export const textoDoVinculoErp = (r: { clientes_movidos: number; ja_vinculado: boolean }, nome: string): string =>
+  r.ja_vinculado ? `${nome} já estava vinculado.` : `Vínculo feito: ${r.clientes_movidos === 1 ? '1 cliente passou' : `${r.clientes_movidos} clientes passaram`} para ${nome}.`;
+
+/** Título da confirmação (spec §4). */
+export const tituloDaConfirmacaoDoVinculo = (provisorio: UsuarioItem, real: UsuarioItem): string => `Vincular o provisório ${provisorio.external_id ?? ''} a ${real.nome}?`;
+
+/** E-mail na lista: o do provisório (`@sem-email.invalid`) aparece como "—" (spec §6). */
+export const emailParaLista = (u: Pick<UsuarioItem, 'email'>): string => (u.email.endsWith('@sem-email.invalid') ? '—' : u.email);
+
+/** Código FDV na lista e na gaveta: sem o código (ainda não gerado) aparece "—". */
+export const codigoFdvParaLista = (u: Pick<UsuarioItem, 'codigo_fdv'>): string => u.codigo_fdv ?? '—';
 
 /** Opções do select de Supervisor ou Gerente: ativos do cargo, por nome; o supervisor do promotor só entre os do gerente escolhido. */
 export function opcoesDeChefia(itens: readonly UsuarioItem[], cargo: 'supervisor' | 'gerente', doGerente = ''): UsuarioItem[] {

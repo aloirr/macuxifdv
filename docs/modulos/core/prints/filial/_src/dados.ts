@@ -13,7 +13,7 @@ const usuario = (n: number, nome: string, perfil: P, cad: string | null, venda: 
   id: id(n), nome, nome_curto: null, email: `${nome.split(' ')[0]!.toLowerCase()}@distnorte.com.br`, perfil, perfis: [{ codigo: perfil, nome: PERFIL[perfil].nome, base: perfil }], equipe_id: null, equipe_nome: null,
   superior_id: null, superior_nome: null, ativo: true, external_id: null, ultimo_login_em: null, trocar_senha: false, senha_expira_em: null, sem_senha: false,
   desconto_limita_item: true, desconto_limita_pedido: false, desconto_maximo_pedido_permil: null, cargo: perfil, supervisor_id: id(4), gerente_id: null,
-  filial_cadastro_id: cad, filial_venda_ids: venda, sem_filial: cad === null, ...extra,
+  codigo_fdv: String(n).padStart(5, '0'), filial_cadastro_id: cad, filial_venda_ids: venda, sem_filial: cad === null, ...extra,
 });
 const USUARIOS = [
   usuario(1, 'Carla Souza', 'vendedor', F.boaVista, [F.boaVista, F.manaus, F.portoVelho]),
@@ -22,6 +22,8 @@ const USUARIOS = [
   usuario(4, 'Marta Reis', 'supervisor', F.boaVista, [F.boaVista]),
   usuario(5, 'Paulo Brito', 'promotor', null, []),
   usuario(6, 'Rita Alves', 'vendedor', F.macapa, [F.macapa, F.belem]),
+  usuario(12, 'CARLA SOUZA', 'vendedor', F.boaVista, [F.boaVista], { email: 'erp-v0142@sem-email.invalid', provisorio: true, external_id: 'V-0142' }),
+  usuario(13, 'JOSE RIBAMAR', 'vendedor', F.manaus, [F.manaus], { email: 'erp-v0177@sem-email.invalid', provisorio: true, external_id: 'V-0177' }),
 ];
 const MODULOS = ['core', 'catalogo', 'vendedor', 'promotor', 'pesquisa'];
 const LICENCAS = {
@@ -37,7 +39,8 @@ export function responder(caminho: string): unknown {
   if (rota === '/core/licencas') return LICENCAS;
   if (rota === '/core/usuarios') {
     const ativos = q.get('ativo');
-    return { itens: USUARIOS.filter((u) => ativos === null || String(u.ativo) === ativos) };
+    const prov = q.get('provisorio');
+    return { itens: USUARIOS.filter((u) => (ativos === null || String(u.ativo) === ativos) && (prov === null || u.provisorio === true)) };
   }
   throw new Error(`rota sem dublê: ${caminho}`);
 }
