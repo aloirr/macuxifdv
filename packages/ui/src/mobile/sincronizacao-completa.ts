@@ -1,5 +1,5 @@
 /**
- * R-20261115-100000 (docs/design/sync-completa/spec.md): o botão Sincronizar faz a sincronização RÁPIDA no toque (fila +
+ * R-20261115-100000 (docs/design/sync-completa/spec.md): o botão Sincronizar faz a sincronização PARCIAL no toque (fila +
  * pedidos e clientes, o `agendador.puxar()` de sempre) e a COMPLETA quando o dedo fica 10 s no botão. Parte PURA: tempos,
  * textos, o desenho de cada instante do segurar e o controle do gesto (relógio e intervalo injetáveis). Sem react-native:
  * roda em Node (Vitest) e é reexportada por `@macuxi/ui/mobile/puro`. O `BotaoSincronizar` (sincronizacao.tsx) só liga isto
@@ -38,7 +38,7 @@ export type ForcaVibracao = 'leve' | 'media';
 
 /**
  * O que o botão oferece:
- * - `segurar`: toque = rápida; segurar 10 s = completa (com dica e ação do leitor);
+ * - `segurar`: toque = parcial; segurar 10 s = completa (com dica e ação do leitor);
  * - `toque`: só o toque (o shell não passou `sincronizarCompleta`): sem dica, sem ação do leitor, segurar = toque;
  * - `nenhum`: sem sinal ou ocupado; o botão está desabilitado e segurar nada faz.
  */
@@ -97,8 +97,8 @@ export function vibracaoDoSegurar(antes: number, agora: number): ForcaVibracao |
 export interface OpcoesControleSegurar {
   /** Modo atual (lido a cada evento: o shell pode perder o sinal no meio). */
   modo: () => ModoSegurar;
-  /** Toque normal: a rápida (`agendador.puxar()`). */
-  rapida: () => void;
+  /** Toque normal: a parcial (`agendador.puxar()`). */
+  parcial: () => void;
   /** Aos 10 s segurando. */
   completa: () => void;
   vibrar?: (forca: ForcaVibracao) => void;
@@ -116,7 +116,7 @@ export interface ControleSegurar {
   pressionar(): void;
   /** `onPressOut` (vem antes do `onPress` no Pressable; também no cancelamento): para de contar. */
   soltar(): void;
-  /** `onPress`: a rápida, a não ser que a completa já tenha disparado neste gesto. */
+  /** `onPress`: a parcial, a não ser que a completa já tenha disparado neste gesto. */
   tocar(): void;
   /** Ação do leitor de tela: a completa direto. */
   acaoDoLeitor(): void;
@@ -180,7 +180,7 @@ export function criarControleSegurar(o: OpcoesControleSegurar): ControleSegurar 
         return;
       }
       if (o.modo() === 'nenhum') return;
-      o.rapida();
+      o.parcial();
     },
     acaoDoLeitor() {
       if (o.modo() !== 'segurar') return;

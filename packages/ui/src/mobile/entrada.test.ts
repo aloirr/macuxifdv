@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { atingeContraste, contraste, MINIMO_CONTRASTE } from '../comum/contraste';
-import { paresDaEntrada, TEMAS_ENTRADA, temaDaEntrada } from './entrada';
+import { CORES_BARRA_DIALOGO, paresDaEntrada, TEMAS_ENTRADA, temaDaEntrada } from './entrada';
 
 describe('tela de entrada (T-0172, docs/design/entrada-sync.md §4)', () => {
   it('Campo na faixa Azul noite com as cores da proposta entrada-sync §2', () => {
@@ -21,6 +21,11 @@ describe('tela de entrada (T-0172, docs/design/entrada-sync.md §4)', () => {
       contornoTexto: '#FFFFFF',
     });
     expect(temaDaEntrada('campo')).toBe(TEMAS_ENTRADA.faixa);
+  });
+
+  it('barra do diálogo da sincronização completa: sempre o Pérola (MC-0320)', () => {
+    const { texto, trilho, preenchimento } = TEMAS_ENTRADA.perola;
+    expect(CORES_BARRA_DIALOGO).toEqual({ texto, trilho, preenchimento });
   });
 
   it('Gestão no Pérola da splash dele, só com cores da paleta (laranja só na barra)', () => {

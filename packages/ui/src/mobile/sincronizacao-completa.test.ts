@@ -1,5 +1,5 @@
 /**
- * R-20261115-100000 (docs/design/sync-completa/spec.md): toque no Sincronizar = rápida; segurar 10 s = completa. Relógio simulado.
+ * R-20261115-100000 (docs/design/sync-completa/spec.md): toque no Sincronizar = parcial; segurar 10 s = completa. Relógio simulado.
  */
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -94,10 +94,10 @@ describe('criarControleSegurar', () => {
 
   function montar(modoInicial: ModoSegurar = 'segurar') {
     const ctl = { modo: modoInicial };
-    const chamadas = { rapida: 0, completa: 0, vibrou: [] as ForcaVibracao[], ms: [] as (number | null)[] };
+    const chamadas = { parcial: 0, completa: 0, vibrou: [] as ForcaVibracao[], ms: [] as (number | null)[] };
     const c = criarControleSegurar({
       modo: () => ctl.modo,
-      rapida: () => void chamadas.rapida++,
+      parcial: () => void chamadas.parcial++,
       completa: () => void chamadas.completa++,
       vibrar: (f) => void chamadas.vibrou.push(f),
       aoMudar: (ms) => void chamadas.ms.push(ms),
@@ -105,49 +105,49 @@ describe('criarControleSegurar', () => {
     return { c, ctl, chamadas };
   }
 
-  it('toque curto = rápida', () => {
+  it('toque curto = parcial', () => {
     const { c, chamadas } = montar();
     c.pressionar();
     vi.advanceTimersByTime(200);
     c.soltar();
     c.tocar();
-    expect(chamadas).toMatchObject({ rapida: 1, completa: 0, vibrou: [] });
+    expect(chamadas).toMatchObject({ parcial: 1, completa: 0, vibrou: [] });
   });
 
-  it('soltar antes dos 10 s = rápida (com a vibração leve do anel)', () => {
+  it('soltar antes dos 10 s = parcial (com a vibração leve do anel)', () => {
     const { c, chamadas } = montar();
     c.pressionar();
     vi.advanceTimersByTime(6000);
     c.soltar();
     c.tocar();
-    expect(chamadas).toMatchObject({ rapida: 1, completa: 0, vibrou: ['leve'] });
+    expect(chamadas).toMatchObject({ parcial: 1, completa: 0, vibrou: ['leve'] });
     expect(chamadas.ms.at(-1)).toBeNull();
   });
 
-  it('aos 10 s chama a completa com o dedo ainda no botão; soltar depois não faz a rápida', () => {
+  it('aos 10 s chama a completa com o dedo ainda no botão; soltar depois não faz a parcial', () => {
     const { c, chamadas } = montar();
     c.pressionar();
     vi.advanceTimersByTime(10_000);
-    expect(chamadas).toMatchObject({ rapida: 0, completa: 1, vibrou: ['leve', 'media'] });
+    expect(chamadas).toMatchObject({ parcial: 0, completa: 1, vibrou: ['leve', 'media'] });
     vi.advanceTimersByTime(3000);
     expect(chamadas.completa).toBe(1);
     c.soltar();
     c.tocar();
-    expect(chamadas.rapida).toBe(0);
+    expect(chamadas.parcial).toBe(0);
     // o gesto seguinte volta ao normal
     c.pressionar();
     c.soltar();
     c.tocar();
-    expect(chamadas.rapida).toBe(1);
+    expect(chamadas.parcial).toBe(1);
   });
 
-  it('sem sincronizarCompleta: segurar não conta, o toque faz a rápida', () => {
+  it('sem sincronizarCompleta: segurar não conta, o toque faz a parcial', () => {
     const { c, chamadas } = montar('toque');
     c.pressionar();
     vi.advanceTimersByTime(12_000);
     c.soltar();
     c.tocar();
-    expect(chamadas).toMatchObject({ rapida: 1, completa: 0, vibrou: [], ms: [] });
+    expect(chamadas).toMatchObject({ parcial: 1, completa: 0, vibrou: [], ms: [] });
   });
 
   it('sem sinal: segurar e tocar nada fazem', () => {
@@ -157,7 +157,7 @@ describe('criarControleSegurar', () => {
     c.soltar();
     c.tocar();
     c.acaoDoLeitor();
-    expect(chamadas).toMatchObject({ rapida: 0, completa: 0, vibrou: [], ms: [] });
+    expect(chamadas).toMatchObject({ parcial: 0, completa: 0, vibrou: [], ms: [] });
   });
 
   it('perdeu o sinal no meio do segurar: para sem disparar', () => {
@@ -176,7 +176,7 @@ describe('criarControleSegurar', () => {
     vi.advanceTimersByTime(3000);
     c.soltar();
     vi.advanceTimersByTime(10_000);
-    expect(chamadas).toMatchObject({ rapida: 0, completa: 0 });
+    expect(chamadas).toMatchObject({ parcial: 0, completa: 0 });
   });
 
   it('ação do leitor de tela = completa direto (só com a completa oferecida)', () => {
