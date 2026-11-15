@@ -19,13 +19,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  CODIGO_EMPRESA_TAMANHO,
   detalhesDaTroca,
   EsqueciSenhaRequestSchema,
   LoginSenhaRequestSchema,
   TEXTOS_CRIE_SENHA,
   TEXTOS_LOGIN_SENHA,
   TrocarSenhaRequestSchema,
-  validarLogin,
+  validarLoginNovo,
   type CamposLogin,
   type DetalhesSenhaATrocar,
   type FakeUser,
@@ -119,7 +120,7 @@ function LoginReal() {
   const entrar = async (ev: FormEvent) => {
     ev.preventDefault();
     if (entrando) return;
-    const e = validarLogin(campos);
+    const e = validarLoginNovo(campos);
     setErros(e);
     setErro(null);
     setAviso(null);
@@ -177,7 +178,7 @@ function LoginReal() {
     await apiFetch(CAMINHO_ESQUECI_SENHA, { method: 'POST', body: corpo.data });
   };
 
-  const campo = (nome: keyof CamposLogin, rotulo: string, props: { type: string; autoComplete: string }) => (
+  const campo = (nome: keyof CamposLogin, rotulo: string, props: { type: string; autoComplete: string; maxLength?: number }) => (
     <label className="flex flex-col gap-1">
       <span className="text-[13px] font-semibold text-ink">{rotulo}</span>
       <input
@@ -243,7 +244,7 @@ function LoginReal() {
             <Notice tone="danger">{erro}</Notice>
           </div>
         )}
-        {campo('codigo_empresa', 'Código da empresa', { type: 'text', autoComplete: 'organization' })}
+        {campo('codigo_empresa', 'Código da empresa', { type: 'text', autoComplete: 'organization', maxLength: CODIGO_EMPRESA_TAMANHO })}
         {campo('email', 'E-mail', { type: 'email', autoComplete: 'username' })}
         {campo('senha', 'Senha', { type: 'password', autoComplete: 'current-password' })}
         <div className="flex flex-col gap-1">

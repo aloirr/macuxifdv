@@ -13,6 +13,7 @@
  * PERFIL_DADOS_INVALIDOS, e `detalhes.regra` com a RN.
  */
 import { z } from 'zod';
+import { CargoSchema } from '@macuxi/platform-sdk';
 import { PerfilSchema } from './auth';
 
 /** RD-0017: código e textos únicos da recusa de nome repetido e de nome vazio (a tela decide pelo código, nunca pelo texto). */
@@ -34,6 +35,8 @@ export const PerfilResumoSchema = z
     ativo: z.boolean(),
     usuarios: z.number().int().nonnegative(),
     onde_entra: z.array(LugarDeAcessoSchema),
+    /** Cargo do perfil (0069; um só, lista fixa `CARGOS`). */
+    cargo: CargoSchema,
   })
   .strict();
 export type PerfilResumo = z.infer<typeof PerfilResumoSchema>;
@@ -42,7 +45,7 @@ export const PerfilListaRespostaSchema = z.object({ itens: z.array(PerfilResumoS
 export type PerfilListaResposta = z.infer<typeof PerfilListaRespostaSchema>;
 
 export const PerfilOpcaoSchema = z
-  .object({ codigo: z.string(), nome: z.string(), base: PerfilSchema, fabrica: z.boolean(), onde_entra: z.array(LugarDeAcessoSchema).default([]) })
+  .object({ codigo: z.string(), nome: z.string(), base: PerfilSchema, fabrica: z.boolean(), onde_entra: z.array(LugarDeAcessoSchema).default([]), cargo: CargoSchema })
   .strict();
 export type PerfilOpcao = z.infer<typeof PerfilOpcaoSchema>;
 export const PerfilOpcoesRespostaSchema = z.object({ itens: z.array(PerfilOpcaoSchema) }).strict();
@@ -85,6 +88,8 @@ export const CriarPerfilRequestSchema = z
     nome: Texto(40).min(1),
     descricao: Texto(200).nullable().optional(),
     base: PerfilSchema,
+    /** Cargo do perfil novo (0069): quem cria informa; sem padrão. */
+    cargo: CargoSchema,
     /** Copia as permissões deste perfil ("Novo a partir deste"); a base tem de ser a dele. */
     copiar_de: z.string().optional(),
   })
