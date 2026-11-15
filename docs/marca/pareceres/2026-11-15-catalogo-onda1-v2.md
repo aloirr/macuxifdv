@@ -96,3 +96,27 @@ A faixa segue com `marca · código · un · EAN` numa linha só e o copiar na l
 ### Recados (texto pronto; CLI com HTTP 403)
 - **design-de-marca → modulo-catalogo** (cc gerente-projetos): "Catálogo Campo v8 (`e390219f`) liberado. MC-0130 a MC-0133 fechadas no código; a conferência final é no print. A 2ª linha da faixa (`PC · EAN`) fica para o lote seguinte, depois do ajuste no kit."
 - **design-de-marca → designer-ux** (cc gerente-projetos): "Lote seguinte: `CabecalhoTela` com uma 2ª linha de subtítulo, ou um espaço para ação ao lado do subtítulo, para a ficha do produto (spec catalogo-campo-v2 §2, prancha 03: `980 · Travex · PAF.1434 [copiar]` / `PC · EAN …`). Resíduo da MC-0133, baixa."
+
+## Delta final v8 (`1e0a2de01`, antes `e390219f`)
+> **Pedido:** gerente-projetos, 15/11/2026, meta v1.0.13. Leitura de `git diff e390219fd..1e0a2de01 -- 'modules/catalogo/app/**'` (commits `57d651efd`, `49ed62502` e `1e0a2de01`) e do `domain` que alimenta a folha (`estoque.ts`, `estoque-campo.ts`), contra a spec `catalogo-campo-v2` §2.1 (aprovada, `origin/nuvem/catalogo-campo-designer-ux`) e os tokens do próprio v8 (`packages/ui/src/mobile/tokens.ts`). Sem PNG: o fecho é no print do aparelho.
+
+| Ponto | Conferido em `1e0a2de01` | Situação |
+|---|---|---|
+| Marca "sua filial" | `estoque-filial.tsx` `e.sua`: `fonts.body` 13, `colors.ink2` (`#4A5562`, cerca de 7,5:1 sobre branco), em linha própria abaixo do nome (15 `ink`), sem chip, sem cor de destaque. É o mesmo estilo do apoio do "Filtrar". Só a filial de cadastro recebe a marca (`propria = branch_id === filialCadastro`) | conforme a spec §2.1 |
+| Ordem | cadastro primeiro e as outras por `ordemPorNome` (`localeCompare` pt-BR), no `estoqueVisivel`. A folha não reordena | conforme |
+| Linha "0" da filial de venda sem saldo | quantidade 0, `corDoEstoque(0)` = `erro` → `colors.danger` `#A8261B` (7,1:1), Archivo 700 16, tabular, à direita, igual às outras linhas. O número sempre aparece e a cor nunca fica sozinha | conforme a spec §2.1 e §3 |
+| Tabela | cabeçalho 13/600 `ink2` sobre `neutralBg`, 36 dp; linha 48 dp com divisória `lineSoft`. Sem mudança | conforme |
+| Título da folha | passa a vir direto de `TITULO_FOLHA_ESTOQUE` ("Estoque por filial"). Mesmo texto, nada muda na tela | sem efeito de marca |
+| Faixa do Catálogo | `subtituloDaGrade(total, cadastro?.nome)`: mesmo texto, mudou só a origem do dado | sem efeito de marca |
+| Testes e comentários | `copiar-codigo.test.ts`, `grade.test.ts`, `estoque-folha.test.ts` | fora da marca |
+
+Nenhum hex solto, nenhuma cor ou peso novo, nenhum componente fora do kit. Nenhum achado MC novo.
+
+### Fora da marca (encaminhar, não catalogado)
+- `domain/estoque.ts`: quando a filial de venda sem saldo não tem nome no aparelho, a linha usa o texto reserva `Filial <8 primeiros caracteres do id>`. Isso mostra um pedaço do UUID ao vendedor. É texto de interface: dono `modulo-catalogo`, com cópia ao `designer-ux` e ao `corretor-redundancias`.
+
+### Veredito
+**Catálogo Campo v8 (`1e0a2de01`): liberado.** A marca "sua filial" e a linha "Estoque: 0" seguem a spec §2.1 e os tokens aprovados. As outras mudanças são refatoração, sem mudança visual. A conferência final é no print do aparelho, a 360 dp, na folha "Estoque por filial", com a filial de cadastro e uma filial de venda sem saldo. O resíduo da MC-0133 e a dependência do ícone `pacote` continuam como estavam. Só o Alexandre aprova a marca.
+
+### Recado (texto pronto; CLI com HTTP 403)
+- **design-de-marca → modulo-catalogo** (cc designer-ux, corretor-redundancias, gerente-projetos): "Catálogo Campo v8 (`1e0a2de01`) liberado pela marca: 'sua filial' em 13 `ink2` e a linha 0 em `danger` conferem com a spec §2.1. Fora da marca: o texto reserva `Filial <id>` (`domain/estoque.ts`) mostra um pedaço do UUID ao vendedor quando falta o nome da filial."
