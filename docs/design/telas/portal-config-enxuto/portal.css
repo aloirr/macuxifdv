@@ -1,77 +1,70 @@
 /* Simulações do portal config. enxuto (designer-ux, 2026-11-14). Tokens de ../telas.css. Fontes do BKO (MC-0035): os mesmos arquivos de apps/web/app/fonts. */
-@font-face { font-family: Archivo; font-weight: 700; src: url('../../../../apps/web/app/fonts/Archivo_700Bold.ttf') format('truetype'); }
-@font-face { font-family: Archivo; font-weight: 800; src: url('../../../../apps/web/app/fonts/Archivo_800ExtraBold.ttf') format('truetype'); }
-@font-face { font-family: 'IBM Plex Sans'; font-weight: 400; src: url('../../../../apps/web/app/fonts/IBMPlexSans_400Regular.ttf') format('truetype'); }
-@font-face { font-family: 'IBM Plex Sans'; font-weight: 500; src: url('../../../../apps/web/app/fonts/IBMPlexSans_500Medium.ttf') format('truetype'); }
-@font-face { font-family: 'IBM Plex Sans'; font-weight: 600; src: url('../../../../apps/web/app/fonts/IBMPlexSans_600SemiBold.ttf') format('truetype'); }
-@font-face { font-family: 'IBM Plex Sans'; font-weight: 700; src: url('../../../../apps/web/app/fonts/IBMPlexSans_700Bold.ttf') format('truetype'); }
-@font-face { font-family: 'IBM Plex Mono'; font-weight: 500; src: url('../../../../apps/web/app/fonts/IBMPlexMono_500Medium.ttf') format('truetype'); }
 :root {
   --ground: #F8F6F1; --surface: #FFFFFF; --ink: #16202A; --ink2: #4A5562; --line: #DFE2E6; --lineStrong: #C9CED5;
   --accent: #1E3350; --accentSoft: #DFE2E6; --nevoa: #ECEEF1; --ink3: #34404D; --placeholder: #5B6673; --faixa: #1E3350; --faixaSub: #C9CED5;
   --success: #1D6B4F; --successBg: #E2F1EA; --warning: #7A4F00; --warningBg: #FFF1D6; --danger: #A8261B; --dangerBg: #FDE8E6;
 }
 * { box-sizing: border-box; }
-body { margin: 0; width: 1280px; min-height: 900px; background: var(--ground); color: var(--ink); font: 14px/1.45 'IBM Plex Sans', system-ui, sans-serif; }
-h1, h2, h3, .marca, .num { font-family: Archivo, 'IBM Plex Sans', system-ui, sans-serif; }
+body { margin: 0; width: 1280px; min-height: 900px; background: var(--ground); color: var(--ink); font: 15px/1.45 system-ui,"Segoe UI",Roboto,-apple-system,sans-serif; }
+h1, h2, h3, .marca, .num { font-family:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif; }
 /* MC-0023: o cabeçalho inteiro é a faixa Azul noite; MC-0022: logo a 104 px com 14 px de folga */
 .topo { background: var(--faixa); height: 72px; }
 .topo .in { width: 1088px; margin: 0 auto; height: 72px; display: flex; align-items: center; gap: 24px; }
 .marca { color: #fff; padding: 14px 0; display: flex; align-items: center; gap: 14px; }
 .marca img { display: block; width: 104px; height: auto; }
 .marca.solta { background: var(--faixa); border-radius: 12px; padding: 14px; display: inline-flex; }
-.marca small { font-family: Archivo, 'IBM Plex Sans', system-ui, sans-serif; font-weight: 700; font-size: 14px; color: var(--faixaSub); border-left: 1px solid rgba(201,206,213,.4); padding-left: 14px; line-height: 24px; }
+.marca small { font-family:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif; font-weight: 700; font-size:15px; color: var(--faixaSub); border-left: 1px solid rgba(201,206,213,.4); padding-left: 14px; line-height: 24px; }
 .menu { display: flex; height: 72px; }
 .menu a { display: flex; align-items: center; padding: 0 12px; font-weight: 600; color: var(--faixaSub); text-decoration: none; border-bottom: 2px solid transparent; }
 .menu a.ativo { color: #fff; border-bottom-color: #fff; }
-.sessao { margin-left: auto; color: var(--faixaSub); font-size: 13px; }
+.sessao { margin-left: auto; color: var(--faixaSub); font-size:13px; }
 .topo .btn { background: transparent; border-color: var(--faixaSub); color: #fff; }
-.btn { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 16px; border-radius: 10px; font-weight: 600; font-size: 14px; border: 1px solid var(--lineStrong); background: var(--surface); color: var(--ink); white-space: nowrap; }
+.btn { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 16px; border-radius: 10px; font-weight: 600; font-size:15px; border: 1px solid var(--lineStrong); background: var(--surface); color: var(--ink); white-space: nowrap; }
 .btn.p { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.off { background: var(--nevoa); border-color: var(--nevoa); color: var(--placeholder); } /* MC-0041 */
-.btn.s { height: 36px; padding: 0 12px; font-size: 13px; }
-.link { color: var(--accent); font-weight: 600; font-size: 13px; text-decoration: none; white-space: nowrap; }
+.btn.s { height: 36px; padding: 0 12px; font-size:13px; }
+.link { color: var(--accent); font-weight: 600; font-size:13px; text-decoration: none; white-space: nowrap; }
 main { width: 1088px; margin: 0 auto; padding: 28px 0 48px; }
-h1 { font-size: 30px; margin: 0; font-weight: 800; }
+h1 { font-size: 24px; margin: 0; font-weight:700; }
 .cabeca { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-.sub { color: var(--ink2); font-size: 13px; margin-top: 4px; }
+.sub { color: var(--ink2); font-size:13px; margin-top: 4px; }
 .cartao { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin-bottom: 14px; }
-.cartao h2 { font-size: 18px; margin: 0 0 12px; font-weight: 700; }
+.cartao h2 { font-size:17px; margin: 0 0 12px; font-weight: 700; }
 table { width: 100%; border-collapse: collapse; }
-th { text-align: left; font-size: 13px; color: var(--ink2); font-weight: 600; padding: 10px; border-bottom: 1px solid var(--line); }
-td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; }
-.cod { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: .5px; }
-.selo { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: var(--successBg); color: var(--success); }
+th { text-align: left; font-size:13px; color: var(--ink2); font-weight: 600; padding: 10px; border-bottom: 1px solid var(--line); }
+td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size:15px; }
+.cod { font-family:ui-monospace,"Cascadia Mono","Roboto Mono",monospace; font-weight: 500; letter-spacing: .5px; }
+.selo { display: inline-block; font-size:12px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: var(--successBg); color: var(--success); }
 .selo.n { background: var(--nevoa); color: var(--ink3); }
 .selo.w { background: var(--warningBg); color: var(--warning); }
 .campos { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
-.campo label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.campo label { display: block; font-size:13px; font-weight: 600; margin-bottom: 6px; }
 .inp { height: 44px; border: 1px solid var(--lineStrong); border-radius: 10px; background: #fff; display: flex; align-items: center; padding: 0 12px; color: var(--ink); }
 .inp.vazio { color: var(--placeholder); } /* MC-0040 */
-.ajuda { font-size: 12px; color: var(--ink2); margin-top: 6px; }
+.ajuda { font-size:12px; color: var(--ink2); margin-top: 6px; }
 .voltar { display: inline-block; margin-bottom: 14px; }
 .abas { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 18px 0 18px; }
 .abas span { padding: 10px 12px; font-weight: 600; color: var(--ink2); border-bottom: 2px solid transparent; }
 .abas span.ativa { color: var(--ink); border-bottom-color: var(--accent); }
-.aviso { border-radius: 10px; padding: 10px 12px; font-weight: 600; font-size: 13px; display: flex; gap: 16px; align-items: center; }
+.aviso { border-radius: 10px; padding: 10px 12px; font-weight: 600; font-size:13px; display: flex; gap: 16px; align-items: center; }
 .aviso.w { background: var(--warningBg); color: var(--warning); }
 .aviso.ok { background: var(--successBg); color: var(--success); justify-content: space-between; }
-.legenda-sim { font-size: 11px; color: var(--ink2); text-align: center; padding: 8px; }
+.legenda-sim { font-size:12px; color: var(--ink2); text-align: center; padding: 8px; }
 /* §10: aba Integração em dois lados (Conector | API); abaixo de 768 px, empilhados, Conector primeiro */
 .lados { display: grid; grid-template-columns: 1fr 1fr; gap: 0; align-items: stretch; }
-.lado > h2.lado-tit { font-size: 20px; margin: 0 0 12px; font-weight: 800; }
+.lado > h2.lado-tit { font-size:20px; margin: 0 0 12px; font-weight:700; }
 .passo h2 { display: flex; gap: 10px; align-items: center; }
-.passo h2 .num { width: 26px; height: 26px; border-radius: 13px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.passo h2 .num { width: 26px; height: 26px; border-radius: 13px; background: var(--accent); color: #fff; font-size:12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .passos { margin: 0; padding-left: 20px; }
 .passos li { margin: 2px 0; }
-.dado { font-size: 13px; color: var(--ink2); margin-top: 8px; }
+.dado { font-size:13px; color: var(--ink2); margin-top: 8px; }
 @media (max-width: 767px) {
   body { width: auto; min-height: 0; }
   .topo, .topo .in { height: auto; }
   .topo .in { width: auto; padding: 12px 16px; flex-wrap: wrap; gap: 8px 16px; }
   .menu { height: 44px; }
   main { width: auto; padding: 20px 16px 32px; }
-  h1 { font-size: 24px; }
+  h1 { font-size:24px; }
   .lados { grid-template-columns: 1fr; }
   .campos { grid-template-columns: 1fr; }
   .aviso { flex-wrap: wrap; }
@@ -82,25 +75,25 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .inp.ler { background: #ECEEF1; border-color: #ECEEF1; color: var(--ink); }
 .inp.erro { border-color: var(--danger); }
 .inp.alerta { border-color: var(--warning); }
-.inp .dir { margin-left: auto; font-size: 13px; color: var(--ink2); display: flex; gap: 8px; align-items: center; }
+.inp .dir { margin-left: auto; font-size:13px; color: var(--ink2); display: flex; gap: 8px; align-items: center; }
 .giro { width: 16px; height: 16px; border-radius: 8px; border: 2px solid var(--line); border-top-color: var(--accent); display: inline-block; }
-.estado-cnpj { font-size: 13px; font-weight: 600; margin-top: 6px; }
+.estado-cnpj { font-size:13px; font-weight: 600; margin-top: 6px; }
 .estado-cnpj.busca { color: var(--ink2); font-weight: 500; }
 .estado-cnpj.erro { color: var(--danger); }
 .estado-cnpj.alerta { color: var(--warning); }
 .planos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .plano { border: 1px solid var(--lineStrong); border-radius: 12px; padding: 14px; min-height: 112px; display: flex; flex-direction: column; gap: 6px; position: relative; background: #fff; }
 .plano.on { border: 2px solid var(--accent); padding: 13px; background: var(--accentSoft); } /* MC-0037 */
-.plano .pnome { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 800; font-size: 17px; display: flex; gap: 8px; align-items: center; }
-.plano .preco { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 20px; }
-.plano .preco small { font-size: 13px; font-weight: 600; color: var(--ink2); }
-.plano .lic { font-size: 13px; color: var(--ink2); }
+.plano .pnome { font-family:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif; font-weight:700; font-size: 17px; display: flex; gap: 8px; align-items: center; }
+.plano .preco { font-family:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif; font-weight: 700; font-size:20px; }
+.plano .preco small { font-size:13px; font-weight: 600; color: var(--ink2); }
+.plano .lic { font-size:13px; color: var(--ink2); }
 .plano .rad { position: absolute; top: 14px; right: 14px; width: 18px; height: 18px; border-radius: 9px; border: 2px solid var(--ink2); }
 .plano.on .rad { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 3px #fff; }
 .adicionais { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.adic label.q { margin-left: auto; font-size: 12px; color: var(--ink2); font-weight: 600; }
+.adic label.q { margin-left: auto; font-size:12px; color: var(--ink2); font-weight: 600; }
 .adic { display: flex; align-items: center; gap: 10px; border: 1px solid var(--lineStrong); border-radius: 10px; padding: 0 14px; min-height: 52px; background: #fff; }
-.adic span.p { color: var(--ink2); font-size: 13px; white-space: nowrap; }
+.adic span.p { color: var(--ink2); font-size:13px; white-space: nowrap; }
 .adic .qtd { width: 72px; height: 36px; }
 .ciclo { display: inline-flex; border: 1px solid var(--lineStrong); border-radius: 10px; overflow: hidden; }
 .ciclo > span { height: 44px; padding: 0 18px; display: flex; align-items: center; gap: 8px; font-weight: 600; background: #fff; }
@@ -109,20 +102,20 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .ciclo span.on .selo { background: #fff; color: var(--accent); }
 .linha-ciclo { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
 .caixa { display: flex; align-items: center; gap: 10px; font-weight: 600; min-height: 44px; }
-.uso td.n, .uso th.n { text-align: right; font-family: Archivo, 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums; width: 140px; }
+.uso td.n, .uso th.n { text-align: right; font-family:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif; font-variant-numeric: tabular-nums; width: 140px; }
 .estados-cnpj { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; }
-.estados-cnpj .rot { font-size: 11px; font-weight: 700; color: var(--ink2); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
+.estados-cnpj .rot { font-size:12px; font-weight: 700; color: var(--ink2); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
 @media (max-width: 767px) { .adicionais { grid-template-columns: 1fr; } .planos { grid-template-columns: 1fr 1fr; } .linha3 { grid-template-columns: 1fr; } .campos .largo, .linha3 { grid-column: auto; } }
 /* total do pedido */
-.total { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; }
+.total { font-family:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif; font-weight: 700; font-size:17px; font-variant-numeric: tabular-nums; }
 /* caixa de marcar: uma regra base para todos os contextos (.adic, .caixa, .adics, Integração); marcada (como MC-0028) branca, borda e ✓ em Azul noite */
 .chk { position: relative; display: inline-block; width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--ink2); background: #fff; flex: none; }
 .chk.on { border-color: var(--accent); }
 .chk.on::after { content: ''; position: absolute; left: 4px; top: 0px; width: 5px; height: 10px; border: solid var(--accent); border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
 /* MC-0042: ícone e nome dos adicionais (mapa único em packages/ui/src/web/adicionais.tsx) */
 .ico { width: 22px; height: 22px; flex: none; color: var(--accent); display: inline-block; vertical-align: middle; }
-.adic b { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; color: var(--accent); white-space: nowrap; }
-.modnome { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; color: var(--accent); display: inline-flex; gap: 8px; align-items: center; }
+.adic b { font-family:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.modnome { font-family:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif; font-weight: 700; color: var(--accent); display: inline-flex; gap: 8px; align-items: center; }
 .modnome .ico { margin-block: -3px; }
 .uso td { vertical-align: middle; }
 .uso .modnome { display: flex; }
@@ -146,17 +139,17 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .empresa-cols { display: grid; grid-template-columns: 1.25fr 1fr; gap: 16px; align-items: start; }
 .empresa-cols.uma { grid-template-columns: 1fr; }
 .plano-cab { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.plano-cab h2 { margin: 0; font-size: 22px; font-weight: 800; }
-.plano-cab .total { font-size: 16px; }
+.plano-cab h2 { margin: 0; font-size:24px; font-weight:700; }
+.plano-cab .total { font-size:15px; }
 .plano-cab .dir { margin-left: auto; }
 .plano-linha2 { display: flex; align-items: center; gap: 10px; margin: 6px 0 14px; }
 .lics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .uma .lics { grid-template-columns: repeat(5, 1fr); }
 .licb { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 74px; }
-.licb .rot { font-weight: 600; color: var(--ink2); font-size: 13px; height: 22px; display: flex; align-items: center; }
-.licb .rot.modnome { font-size: 14px; color: var(--accent); }
-.licb .val { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 22px; font-variant-numeric: tabular-nums; margin-top: 4px; display: flex; align-items: baseline; gap: 6px; }
-.licb .val small { font-size: 14px; font-weight: 600; color: var(--ink2); }
+.licb .rot { font-weight: 600; color: var(--ink2); font-size:13px; height: 22px; display: flex; align-items: center; }
+.licb .rot.modnome { font-size:15px; color: var(--accent); }
+.licb .val { font-family:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif; font-weight: 700; font-size:24px; font-variant-numeric: tabular-nums; margin-top: 4px; display: flex; align-items: baseline; gap: 6px; }
+.licb .val small { font-size:15px; font-weight: 600; color: var(--ink2); }
 .licb .selo { align-self: center; }
 .adm { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .adm:last-child { border-bottom: 0; padding-bottom: 0; }
@@ -166,22 +159,22 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .adm .btn { margin-left: auto; }
 .veu { position: fixed; inset: 0; background: rgba(22,32,42,.5); display: flex; align-items: center; justify-content: center; }
 .dialogo { width: 880px; background: var(--surface); border-radius: 16px; padding: 22px 24px; box-shadow: 0 12px 40px rgba(22,32,42,.25); }
-.dialogo h2 { font-size: 22px; font-weight: 800; margin: 0 0 16px; }
+.dialogo h2 { font-size:24px; font-weight:700; margin: 0 0 16px; }
 .adics { margin-top: 16px; border: 1px solid var(--lineStrong); border-radius: 10px; }
 .adics .cab, .adics .lin { display: grid; grid-template-columns: 24px 22px 160px 1fr 88px; gap: 10px; align-items: center; padding: 0 14px; }
-.adics .cab { height: 34px; font-size: 12px; font-weight: 600; color: var(--ink2); border-bottom: 1px solid var(--line); }
+.adics .cab { height: 34px; font-size:12px; font-weight: 600; color: var(--ink2); border-bottom: 1px solid var(--line); }
 .adics .lin { min-height: 52px; border-bottom: 1px solid var(--line); }
 .adics .lin:last-child { border-bottom: 0; }
-.adics b { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; color: var(--accent); }
-.adics .p { color: var(--ink2); font-size: 13px; }
+.adics b { font-family:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif; font-weight: 700; color: var(--accent); }
+.adics .p { color: var(--ink2); font-size:13px; }
 .adics .qtd { width: 88px; height: 36px; }
 .rodape-dlg { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
 .dlg-ciclo { margin-top: 16px; }
 .rodape-dlg .total { margin-right: auto; }
 /* lista "A senha precisa ter" como o kit (packages/ui/src/web/senha.tsx): título 12 px, itens 13 px, ✓ num círculo de 18 px em #E2F1EA */
 .regras-senha { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
-.regras-senha .tit { font-size: 12px; font-weight: 600; color: var(--ink2); }
+.regras-senha .tit { font-size:12px; font-weight: 600; color: var(--ink2); }
 .regras-senha ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
-.regras-senha li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); }
+.regras-senha li { display: flex; align-items: center; gap: 8px; font-size:13px; color: var(--ink); }
 .regras-senha .ok { width: 18px; height: 18px; border-radius: 9px; background: var(--successBg); color: var(--success); display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .regras-senha .ex { color: var(--ink2); }
