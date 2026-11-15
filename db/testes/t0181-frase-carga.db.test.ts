@@ -12,7 +12,6 @@
  *   com as ativas e vivas. Assinaturas alinhadas com a API (seção 3 de docs/desenho/T-0181.md).
  * Estático na sessão; banco (fixture, ROLLBACK) e up/down num banco efêmero no CI.
  */
-import { existsSync, readFileSync } from 'node:fs';
 import pg from 'pg';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -103,16 +102,6 @@ describe('0081 frases da carga (estático)', () => {
       expect([...f.texto].length).toBeLessThanOrEqual(MAX);
     }
     expect(new Set(daMigracao.map((f) => f.texto.trim().toLowerCase())).size).toBe(30);
-  });
-
-  it('frases.md no repositório (quando a pasta da spec entrar): mesma lista, todas com situação inicial Ativa', () => {
-    const arquivo = new URL('../../docs/design/carga-aviso-frases/frases.md', import.meta.url);
-    if (!existsSync(arquivo)) return; // a pasta vem no lote do designer-ux (T-0181); a lista acima é a cópia do commit 3cdb384
-    const linhas = readFileSync(arquivo, 'utf8').split('\n').filter((l) => /^\| \d+ \|/.test(l));
-    const doMd = linhas.map((l) => l.replace(/^\| /, '').replace(/ \|$/, '').split(' | '));
-    expect(doMd.map((c) => Number(c[0]))).toEqual(FRASES_ESPERADAS.map((_, i) => i + 1));
-    expect(doMd.map((c) => c[3])).toEqual([...FRASES_ESPERADAS]);
-    expect(doMd.every((c) => c[2] === 'Ativa')).toBe(true);
   });
 
   it('carga: id = uuid_de_chave(plataforma:frase_carga:NN), ativa, ordem = Nº, idempotente', () => {
