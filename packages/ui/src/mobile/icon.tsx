@@ -49,7 +49,8 @@ export type IconName =
   | 'mais'
   | 'galeria'
   | 'config'
-  | 'nuvem';
+  | 'nuvem'
+  | 'pacote';
 
 interface Props {
   name: IconName;
@@ -243,6 +244,16 @@ function render(name: IconName, c: Common) {
         <>
           <Path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" {...c} />
           <Circle cx={12} cy={13.5} r={3.5} {...c} />
+        </>
+      );
+    case 'pacote':
+      // caixa de papelão com a fita: estoque ("Estoque por filial" no Catálogo, R-20261115-084600)
+      return (
+        <>
+          <Path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z" {...c} />
+          <Path d="M4 7.5 12 12l8-4.5" {...c} />
+          <Path d="M12 12v9" {...c} />
+          <Path d="M8 5.25l8 4.5" {...c} />
         </>
       );
     case 'inbox':
