@@ -10,7 +10,7 @@ import {
   type CargaArquivoEntrada,
   type ConferenciaArquivo,
   type Entidade,
-  type EstadoLote,
+  type EstadoLoteBko,
   type LinhaErro,
   type ModoCarga,
   type ProgressoSessaoArquivo,
@@ -39,15 +39,6 @@ export const CARTAO_DA_ENTIDADE: Record<Entidade, { titulo: string; descricao: s
   nota: { titulo: 'Notas e histórico', descricao: 'Notas fiscais emitidas, para o histórico de compras do cliente.' },
 };
 
-export const ROTULO_STATUS_LOTE: Record<EstadoLote, string> = {
-  recebido: 'Na fila',
-  processando: 'Gravando',
-  concluido: 'Concluído',
-  concluido_com_erros: 'Concluído com erros',
-  falhou: 'Falhou',
-  cancelado: 'Cancelado',
-};
-
 export const ROTULO_MODO: Record<ModoCarga, { titulo: string; ajuda: string }> = {
   delta: { titulo: 'Delta', ajuda: 'Grava só as linhas do arquivo; o que não veio continua como está.' },
   completo: { titulo: 'Completo', ajuda: 'O arquivo é a lista inteira: o que não vier é inativado no fim da última parte. O registro de uma linha com erro continua como está, sem ser inativado.' },
@@ -55,7 +46,8 @@ export const ROTULO_MODO: Record<ModoCarga, { titulo: string; ajuda: string }> =
 
 export const ENTIDADES_DO_HUB: readonly Entidade[] = ENTIDADES;
 
-export function loteTerminou(status: EstadoLote): boolean {
+/** Estado do lote como a API do portal devolve (`LoteResultadoBko`, com `cancelado`); rótulo e tom na tela: `rotuloDoLote`/`tomDoLote` da Integração (RN-INT-15). */
+export function loteTerminou(status: EstadoLoteBko): boolean {
   return status === 'concluido' || status === 'concluido_com_erros' || status === 'falhou' || status === 'cancelado';
 }
 
@@ -142,7 +134,7 @@ export interface PortaCarga {
   enviarParte(corpo: CargaArquivoEntrada): Promise<CargaArquivoAceita>;
   /** Cria o Conector tipo arquivo do portal quando o tenant ainda não tem (404 CONECTOR_NAO_ENCONTRADO na 1ª parte). */
   garantirConectorArquivo(entidade: Entidade): Promise<void>;
-  lerLote(id: string): Promise<{ status: EstadoLote }>;
+  lerLote(id: string): Promise<{ status: EstadoLoteBko }>;
   lerSessao(id: string): Promise<ProgressoSessaoArquivo>;
   esperar(ms: number): Promise<void>;
   agora(): number;
@@ -162,10 +154,20 @@ export interface ResultadoCarga {
   lotes: string[];
   sessaoId: string | null;
   progressoSessao: ProgressoSessaoArquivo | null;
-  status: EstadoLote | null;
+  status: EstadoLoteBko | null;
   repetido: boolean;
   /** `false` = passou do tempo de espera da tela com o Hub ainda gravando. */
   terminou: boolean;
+}
+
+/** Estado do selo do cartão: o do lote único, ou o resumo da sessão de partes (falha > erros > completa > em andamento). */
+export function estadoDoResultado(r: ResultadoCarga | null): EstadoLoteBko | null {
+  const s = r?.progressoSessao;
+  if (!s) return r?.status ?? null;
+  if (s.partes_com_falha > 0) return 'falhou';
+  if (s.erros_total > 0) return 'concluido_com_erros';
+  if (s.situacao === 'completa' || s.partes_aplicadas === s.total_partes) return 'concluido';
+  return 'processando';
 }
 
 export async function conferirArquivo(porta: PortaCarga, e: { entidade: Entidade; modo: ModoCarga; plano: Extract<PlanoDeEnvio, { ok: true }> }): Promise<ConferenciaArquivo> {
@@ -220,7 +222,7 @@ export async function importarArquivo(
 
   // acompanha a gravação (o Hub aplica em segundo plano)
   const inicio = porta.agora();
-  let status: EstadoLote | null = null;
+  let status: EstadoLoteBko | null = null;
   let progressoSessao: ProgressoSessaoArquivo | null = null;
   let terminou = false;
   while (!terminou && porta.agora() - inicio < ESPERA_MAXIMA_MS) {

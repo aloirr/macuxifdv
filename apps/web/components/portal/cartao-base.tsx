@@ -10,9 +10,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ErrosLoteResposta, type ConferenciaArquivo, type Entidade, type ItemOrdemCarga, type LinhaErro, type ModoCarga } from '@macuxi/integracao/contracts';
 import { Badge, Bar, Button, Dialog, ErrorBlock, IconDownload, Notice, useToast } from '@macuxi/ui/web';
+import { rotuloDoLote, tomDoLote } from '@macuxi/integracao/web';
 
 import { baixarDoPortal, chamarPortal, ehRotaAusente, mensagemDoErro } from '@/lib/portal-api';
-import { baixarTexto, CARTAO_DA_ENTIDADE, conferirArquivo, errosDaConferenciaCsv, formatarLinhas, importarArquivo, novaChaveDeCarga, planejarEnvio, ROTULO_MODO, ROTULO_STATUS_LOTE, type PlanoDeEnvio, type ProgressoCarga, type ResultadoCarga } from '@/lib/portal-carga';
+import { baixarTexto, CARTAO_DA_ENTIDADE, conferirArquivo, errosDaConferenciaCsv, estadoDoResultado, formatarLinhas, importarArquivo, novaChaveDeCarga, planejarEnvio, ROTULO_MODO, type PlanoDeEnvio, type ProgressoCarga, type ResultadoCarga } from '@/lib/portal-carga';
 import { criarPortaCarga } from '@/lib/portal-carga-rede';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 
@@ -195,15 +196,7 @@ export function CartaoBase({ item, tenant, rotuloDepende }: { item: ItemOrdemCar
     }
   };
 
-  const statusFinal = resultado?.progressoSessao
-    ? resultado.progressoSessao.partes_com_falha > 0
-      ? 'falhou'
-      : resultado.progressoSessao.erros_total > 0
-        ? 'concluido_com_erros'
-        : resultado.progressoSessao.situacao === 'completa' || resultado.progressoSessao.partes_aplicadas === resultado.progressoSessao.total_partes
-          ? 'concluido'
-          : 'processando'
-    : (resultado?.status ?? null);
+  const statusFinal = estadoDoResultado(resultado);
 
   return (
     <section data-testid={`base-${entidade}`} className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
@@ -213,7 +206,7 @@ export function CartaoBase({ item, tenant, rotuloDepende }: { item: ItemOrdemCar
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-[12px] font-bold text-white tabular-nums">{item.posicao}</span>
             <h3 className="m-0 font-display text-[17px] font-bold">{cartao.titulo}</h3>
             {item.opcional && <Badge tone="neutral">opcional</Badge>}
-            {statusFinal && <Badge tone={statusFinal === 'concluido' ? 'success' : statusFinal === 'falhou' ? 'danger' : statusFinal === 'concluido_com_erros' ? 'warning' : 'pending'}>{ROTULO_STATUS_LOTE[statusFinal]}</Badge>}
+            {statusFinal && <Badge tone={tomDoLote(statusFinal)}>{rotuloDoLote(statusFinal)}</Badge>}
           </div>
           <span className="text-[13px] text-ink-2">{cartao.descricao}</span>
           {rotuloDepende && <span className="text-[12px] text-ink-2">Carregue depois de: {rotuloDepende}.</span>}

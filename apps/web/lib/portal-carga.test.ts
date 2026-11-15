@@ -1,8 +1,13 @@
 /** T-0087: cartões das bases do portal (lib/portal-carga.ts): divisão, corpo das partes, soma da conferência e a execução. */
-import { describe, expect, it } from 'vitest';
-import type { CargaArquivoAceita, CargaArquivoEntrada, ConferenciaArquivo, ProgressoSessaoArquivo } from '@macuxi/integracao/contracts';
+import { describe, expect, it, vi } from 'vitest';
+import { LoteResultadoBko, type CargaArquivoAceita, CargaArquivoEntrada, ConferenciaArquivo, ProgressoSessaoArquivo } from '@macuxi/integracao/contracts';
+import { rotuloDoLote, tomDoLote } from '@macuxi/integracao/web';
 
-import { conferirArquivo, corpoDaParte, errosDaConferenciaCsv, importarArquivo, loteTerminou, novaChaveDeCarga, percentualDaCarga, planejarEnvio, ROTULO_STATUS_LOTE, somarConferencias, type PortaCarga, type ProgressoCarga } from './portal-carga';
+import { chamarPortal } from './portal-api';
+import { conferirArquivo, corpoDaParte, errosDaConferenciaCsv, estadoDoResultado, importarArquivo, loteTerminou, novaChaveDeCarga, percentualDaCarga, planejarEnvio, somarConferencias, type PortaCarga, type ProgressoCarga } from './portal-carga';
+import { criarPortaCarga } from './portal-carga-rede';
+
+vi.mock('./portal-api', async (orig) => ({ ...(await orig<typeof import('./portal-api')>()), chamarPortal: vi.fn(async () => ({ status: 'cancelado' })) }));
 
 const csv = (n: number) => ['external_id;nome', ...Array.from({ length: n }, (_, i) => `V${i + 1};Vendedor ${i + 1}`)].join('\n') + '\n';
 const UUID = '0b0f2f8e-7b1c-4f7e-9a51-3f1c2d4e5a6b';
@@ -161,9 +166,43 @@ describe('importarArquivo', () => {
 });
 
 describe('estado cancelado do lote (RN-INT-15)', () => {
-  it('RN-INT-15: o lote cancelado aparece como "Cancelado" e encerra o acompanhamento', () => {
-    expect(ROTULO_STATUS_LOTE.cancelado).toBe('Cancelado');
+  it('RN-INT-15: o portal usa o rótulo e o tom da Integração (5 status), sem lista própria', () => {
+    expect(rotuloDoLote('recebido')).toBe('Em andamento');
+    expect(rotuloDoLote('concluido_com_erros')).toBe('Concluído com avisos');
+    expect(rotuloDoLote('cancelado')).toBe('Cancelado');
+    expect(tomDoLote('falhou')).toBe('danger');
+  });
+  it('RN-INT-15: o lote cancelado encerra o acompanhamento', () => {
     expect(loteTerminou('cancelado')).toBe(true);
     expect(loteTerminou('processando')).toBe(false);
+  });
+  it('RN-INT-15: a leitura do lote no portal aceita `cancelado` (LoteResultadoBko, a resposta de GET /integracao/lotes/:id)', async () => {
+    const r = await criarPortaCarga('t1').lerLote(UUID);
+    expect(r.status).toBe('cancelado');
+    expect(vi.mocked(chamarPortal).mock.calls.at(-1)?.[1]).toMatchObject({ schema: LoteResultadoBko });
+  });
+  it('importação de uma parte encerra quando o lote é cancelado no BKO', async () => {
+    const plano = planoOk(csv(5));
+    const { porta } = portaFalsa();
+    porta.lerLote = async () => ({ status: 'cancelado' });
+    const r = await importarArquivo(porta, { entidade: 'vendedor', modo: 'delta', plano, chave: 'k'.repeat(20), sessaoId: null, aoProgredir: () => undefined });
+    expect(r).toMatchObject({ status: 'cancelado', terminou: true });
+  });
+});
+
+describe('estadoDoResultado (selo do cartão)', () => {
+  const sessao = (o: Partial<ProgressoSessaoArquivo>) => ({ lotes: [], sessaoId: UUID, repetido: false, terminou: true, status: null, progressoSessao: { situacao: 'aberta', total_partes: 3, partes_aplicadas: 1, partes_com_falha: 0, erros_total: 0, ...o } as ProgressoSessaoArquivo });
+  it('sem resultado: sem selo', () => {
+    expect(estadoDoResultado(null)).toBeNull();
+  });
+  it('lote único: o estado devolvido pela API', () => {
+    expect(estadoDoResultado({ lotes: [UUID], sessaoId: null, progressoSessao: null, status: 'cancelado', repetido: false, terminou: true })).toBe('cancelado');
+  });
+  it('sessão: falha > erros > completa > em andamento', () => {
+    expect(estadoDoResultado(sessao({ partes_com_falha: 1, erros_total: 2 }))).toBe('falhou');
+    expect(estadoDoResultado(sessao({ erros_total: 2 }))).toBe('concluido_com_erros');
+    expect(estadoDoResultado(sessao({ situacao: 'completa' }))).toBe('concluido');
+    expect(estadoDoResultado(sessao({ partes_aplicadas: 3 }))).toBe('concluido');
+    expect(estadoDoResultado(sessao({}))).toBe('processando');
   });
 });
