@@ -4,7 +4,8 @@
  * depósitos e nos itens de preço (sem FK, fronteira de schema).
  */
 import type { ClienteBanco, ContextoConsulta, TransacaoTenant } from '@macuxi/platform-sdk';
-import { CONSULTA_FILIAIS, type Filial } from '@macuxi/core/contracts';
+import { CONSULTA_FILIAIS, CONSULTA_FILIAIS_DO_USUARIO, type Filial } from '@macuxi/core/contracts';
+import { lerFiliaisDoUsuario, type FiliaisDoUsuario } from '../domain/estoque-campo';
 import { filialDoPreco, type FilialDoPreco } from '../domain/preco-filial';
 
 type Consultar = TransacaoTenant['consultar'];
@@ -46,6 +47,11 @@ export interface FiliaisDaCarteira {
 export async function filiaisDaCarteiraNoCore(consultar: Consultar): Promise<FiliaisDaCarteira> {
   const r = await consultar(CONSULTA_FILIAIS, { cliente_ids: [], external_ids: [], escopo: 'carteira' });
   return { filialPadrao: r.padrao_id, daCarteira: r.da_carteira === null ? null : [...r.da_carteira].sort(), filiais: new Map(r.filiais.map((f) => [f.id, f])) };
+}
+
+/** Filiais do próprio usuário (`core.filiais_do_usuario@1`, T-0176, RN-CORE-39); saída fora do contrato = sem filial (nunca devolve filial que o contrato não deu). */
+export async function filiaisDeVendaDoProprioUsuario(consultar: Consultar, usuarioId: string): Promise<FiliaisDoUsuario> {
+  return lerFiliaisDoUsuario(await consultar(CONSULTA_FILIAIS_DO_USUARIO, { usuario_id: usuarioId })) ?? { filiaisVenda: [], filialCadastro: null, semFilial: true };
 }
 
 /** Nome da filial no estoque (`branch_name`): "Boa Vista"; filial desconhecida cai no código curto do id. */
