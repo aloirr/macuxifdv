@@ -35,26 +35,10 @@ Só os perfis de produção ficam no `eas.json`: os de desenvolvimento e preview
 4. O script chama `eas build --platform android --profile <perfil> --message <Nome>`. No painel da Expo, a lista de
    builds mostra a mensagem `Campo-Oficial-v1.0.0`; o versionCode aparece no detalhe do build.
 
-## Baixar o APK com o nome certo e publicar com link temporário
-5. Baixar o último build terminado do perfil: `pnpm eas:apk campo oficial`
-   → salva em `apps/mobile/dist/apk/Campo-Oficial-v1.0.0.apk` (pasta fora do git). Um build específico:
-   `pnpm eas:apk --build <id do build>` (o nome vem do perfil e da versão gravados no build).
-6. Publicar no bucket privado e gerar o link (vale 72 h; até 168 h com `--validade-horas`):
-   `node --env-file=..\..\.env scripts\eas\baixar-apk.mjs campo oficial --publicar`
-   → envia para `apk/build-<versionCode>/Campo-Oficial-v1.0.0.apk` e imprime o link temporário (o download já sai com o
-   nome `Campo-Oficial-v1.0.0.apk`). Mande esse link para quem vai instalar; depois do prazo ele para de funcionar.
-
-### Bucket (uma vez)
-- Crie um bucket **privado** no Object Storage da Magalu Cloud (ou outro compatível com S3) e uma chave de acesso só
-  para ele (ler e gravar objetos). Sem acesso público: quem baixa usa o link assinado.
-- No `.env` da raiz (nunca no repositório): `MACUXI_APK_S3_ENDPOINT` (ex.: `https://br-se1.magaluobjects.com`),
-  `MACUXI_APK_S3_REGIAO` (ex.: `br-se1`), `MACUXI_APK_S3_BUCKET`, `MACUXI_APK_S3_CHAVE`, `MACUXI_APK_S3_SEGREDO`
-  e, opcional, `MACUXI_APK_S3_PREFIXO` (padrão `apk`). O script nunca imprime esses valores.
-- Publicar pelo GitHub em vez do PC (opcional): `scripts/eas/T-0109-workflow.diff` traz o workflow manual
-  `apk — publicar`. Ele mexe em `.github/`, então é governança: só entra com a autorização do Alexandre, que também
-  cadastra os segredos no environment `APK_BUCKET` (os cinco acima + `EXPO_TOKEN`).
+## Baixar o APK
+5. O APK fica no expo.dev, no link do build, quando o build terminar.
 
 ## Nova versão do app
-7. Troque a versão em `apps/mobile/scripts/eas/versao.json` (ex.: `1.1.0`) por um PR do engenheiro-apps. O formato é
+6. Troque a versão em `apps/mobile/scripts/eas/versao.json` (ex.: `1.1.0`) por um PR do engenheiro-apps. O formato é
    sempre X.Y.Z; fora disso, o `app.config.ts` e os scripts param com erro em vez de gerar nome torto.
-8. Gere os builds normalmente (passo 3): os nomes passam a `Campo-Oficial-v1.1.0` etc., e o versionCode continua subindo.
+7. Gere os builds normalmente (passo 3): os nomes passam a `Campo-Oficial-v1.1.0` etc., e o versionCode continua subindo.

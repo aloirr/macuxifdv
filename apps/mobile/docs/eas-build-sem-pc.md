@@ -12,14 +12,7 @@ Os passos (a), (b) e (c) são feitos uma vez só.
 2. Nome: `EXPO_TOKEN`. Valor: o token do passo (a). **Add secret**.
 
 ## (c) Arquivo do workflow
-1. No repositório do GitHub (web): **Add file** → **Create new file**.
-2. Nome do arquivo: `.github/workflows/eas-build.yml`.
-3. Cole o conteúdo de `apps/mobile/scripts/eas/eas-build.yml`, inteiro.
-4. **Commit changes** → **Commit directly to the main branch**. Na descrição estendida, deixe como último bloco só a linha:
-   ```
-   Agente: alexandre
-   ```
-   Sem essa linha o CI de governança recusa o commit.
+Já instalado em `.github/workflows/eas-build.yml`; nada a fazer.
 
 ## (d) Disparar o build
 **Actions** → **eas build** → **Run workflow**:
