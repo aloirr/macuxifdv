@@ -9,6 +9,8 @@
  * - `carga`: placa de 64 dp de altura e até 112 de largura; logo de 48 × até 96 (folga de 8 em volta).
  * - `mais`: placa de 52 dp de altura e até 176 de largura; logo de 36 × até 152 (folga de 8 em cima e embaixo, 12 dos lados).
  */
+import { rotuloDaLogo } from '@macuxi/comum/marca';
+
 import { colors, radius } from './tokens';
 
 export type TamanhoPlacaLogo = 'carga' | 'mais';
@@ -61,10 +63,11 @@ export function caixaDaPlacaLogo(tamanho: TamanhoPlacaLogo, proporcao?: number |
 }
 
 /**
- * Leitura do TalkBack: "Logo da <nome fantasia>". Sem nome (logo decorativa, como no fim do Mais, onde a frase acima já diz
- * o nome), devolve `null` e a placa fica fora da leitura.
+ * Leitura do TalkBack: "Logo da <nome fantasia>", pelo `rotuloDaLogo` de `@macuxi/comum/marca` (o mesmo `alt` do portal).
+ * Sem nome (logo decorativa, como no fim do Mais, onde a frase acima já diz o nome), devolve `null` e a placa fica fora
+ * da leitura.
  */
 export function rotuloDaPlacaLogo(nomeFantasia?: string | null): string | null {
   const nome = nomeFantasia?.trim();
-  return nome ? `Logo da ${nome}` : null;
+  return nome ? rotuloDaLogo(nome) : null;
 }
