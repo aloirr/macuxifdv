@@ -33,7 +33,7 @@ interface PrazoLinha {
 
 /** RN-VEN-43: leitura do percentual do prazo (2 casas); a mesma nos SELECTs de prazo. */
 export const COLUNA_PERCENTUAL_AJUSTE = 'round(percentual_ajuste, 2)::float8 as percentual_ajuste';
-export const SELECT_PRAZO =
+const SELECT_PRAZO =
   `select id, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ativo, ordem, ${COLUNA_PERCENTUAL_AJUSTE},
           to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as atualizado_em
      from vendedor.prazo_pagamento where id = $1 and deleted_at is null`;
