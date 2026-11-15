@@ -18,21 +18,19 @@ export function origemDaApi(apiUrl: string): string {
 export const PROXY_OPENAPI_HUB = '/api-proxy/_publico/integracao/v1/openapi.json';
 
 /**
- * Hosts em que o BKO roda atrás de proxy/túnel (T-0038; doc 04, "Domínio e endereços"). O BKO da demo fica em
- * `bko-demo.macuxifdv.com.br` (túnel nomeado `macuxi-demo` → `next start` na 127.0.0.1:3100, scripts/demo).
- * `MACUXI_BKO_ORIGEM` (definida pelo scripts/demo no build e no start) acrescenta a origem em uso, ex.: o
- * `https://<nome>.trycloudflare.com` do modo de reserva. Vale para o `next dev` (allowedDevOrigins) e para a checagem
- * de origem das Server Actions (hoje o BKO não tem nenhuma; fica pronto). Endereço da API: o rewrite `/api-proxy`
- * abaixo (no v1 o navegador só fala com a própria origem; a API não precisa de CORS para o BKO).
+ * Hosts em que o BKO roda atrás de proxy/túnel (T-0038; doc 04, "Domínio e endereços"). `MACUXI_BKO_ORIGEM` (variável
+ * do build e do start) acrescenta a origem em uso, ex.: um `https://<nome>.trycloudflare.com` de reserva. Vale para o
+ * `next dev` (allowedDevOrigins) e para a checagem de origem das Server Actions (hoje o BKO não tem nenhuma; fica
+ * pronto). Endereço da API: o rewrite `/api-proxy` abaixo (no v1 o navegador só fala com a própria origem; a API não
+ * precisa de CORS para o BKO).
  * Produção (T-0086, ADR 0028): `bko.macuxifdv.com.br` e `config.macuxifdv.com.br` (portal da T-0087, mesmo serviço
  * `bko:3100` atrás do túnel `macuxi-prod`) entram fixos, então a imagem de produção aceita os dois hosts qualquer que
  * seja o `MACUXI_BKO_ORIGEM` do build. O roteamento do `config.` para o portal fica no `proxy.ts`.
- * Demo (T-0091 §9): o portal da demo fica em `config-demo.macuxifdv.com.br` (mesmo serviço `bko:3100`, túnel `macuxi-demo-nuvem`).
- * Só hosts explícitos, sem curinga.
+ * Só hosts explícitos, sem curinga (sem os hosts da demo, desligada pelo ADR 0051).
  */
-export const HOSTS_DO_BKO_PADRAO = ['bko-demo.macuxifdv.com.br', 'bko.macuxifdv.com.br', 'config.macuxifdv.com.br', 'config-demo.macuxifdv.com.br'] as const;
+export const HOSTS_DO_BKO_PADRAO = ['bko.macuxifdv.com.br', 'config.macuxifdv.com.br'] as const;
 
-/** Host (sem esquema, caminho nem porta padrão) de uma origem como `https://bko-demo.macuxifdv.com.br/`; vazio/inválido = null. */
+/** Host (sem esquema, caminho nem porta padrão) de uma origem como `https://bko.macuxifdv.com.br/`; vazio/inválido = null. */
 export function hostDaOrigem(origem: string | undefined | null): string | null {
   const o = origem?.trim();
   if (!o) return null;
@@ -43,7 +41,7 @@ export function hostDaOrigem(origem: string | undefined | null): string | null {
 }
 
 /**
- * Hosts permitidos: os fixos (demo e produção) + os de `MACUXI_BKO_ORIGEM`, sem repetir. A variável aceita uma origem
+ * Hosts permitidos: os fixos (produção) + os de `MACUXI_BKO_ORIGEM`, sem repetir. A variável aceita uma origem
  * ou uma lista separada por vírgula (T-0086); item inválido da lista é ignorado.
  */
 export function hostsDoBko(origem: string | undefined | null): string[] {
@@ -55,8 +53,8 @@ const HOSTS = hostsDoBko(process.env.MACUXI_BKO_ORIGEM);
 
 /**
  * Imagem Docker do BKO (T-0074, apps/web/Dockerfile): `MACUXI_NEXT_STANDALONE=1` no build gera `.next/standalone`
- * (server.js + só os node_modules rastreados), com a raiz do monorepo como raiz do rastreio. No PC (pnpm dev e o
- * `next start` do scripts/demo) a variável não existe e nada muda.
+ * (server.js + só os node_modules rastreados), com a raiz do monorepo como raiz do rastreio. No PC (pnpm dev e
+ * `next start`) a variável não existe e nada muda.
  */
 export function opcoesStandalone(valor: string | undefined, raizDoWeb: string = process.cwd()): Partial<NextConfig> {
   return valor?.trim() === '1' ? { output: 'standalone', outputFileTracingRoot: path.resolve(raizDoWeb, '..', '..') } : {};

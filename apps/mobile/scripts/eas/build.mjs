@@ -2,12 +2,12 @@
 /**
  * Build no EAS com o nome certo (T-0109). Na pasta apps/mobile:
  *
- *   node scripts/eas/build.mjs <campo|gestao|ambos> <demo|oficial|dev> [--simular] [-- <opções extras do eas build>]
+ *   node scripts/eas/build.mjs <campo|gestao|ambos> oficial [--simular] [-- <opções extras do eas build>]
  *
- *   campo demo     → eas build --platform android --profile campo-preview  --message Campo-Demo-v1.0.0
+ *   campo oficial  → eas build --platform android --profile campo-producao  --message Campo-Oficial-v1.0.0
  *   gestao oficial → eas build --platform android --profile gestao-producao --message Gestao-Oficial-v1.0.0
- *   campo dev      → eas build --platform android --profile campo          --message Campo-Dev-v1.0.0
- *   ambos demo     → os dois, um depois do outro (para no primeiro que falhar)
+ *   ambos oficial  → os dois, um depois do outro (para no primeiro que falhar)
+ * Só o canal oficial: os perfis de desenvolvimento e preview saíram do eas.json.
  *
  * A versão vem de scripts/eas/versao.json; o versionCode é do EAS (remoto, +1 a cada build; ver eas.json).
  * `--simular` só mostra os comandos. Tudo depois de `--` vai para o eas build (ex.: `-- --no-wait`).
@@ -17,7 +17,7 @@
  */
 import { ambienteDoEas, ehPrincipal, nomes, rodarEas, versaoAtual } from './comum.mjs';
 
-const USO = 'uso: node scripts/eas/build.mjs <campo|gestao|ambos> <demo|oficial|dev> [--simular] [-- <opções do eas build>]';
+const USO = 'uso: node scripts/eas/build.mjs <campo|gestao|ambos> oficial [--simular] [-- <opções do eas build>]';
 
 /**
  * Plano do build a partir dos argumentos e da versão (puro, para teste).
