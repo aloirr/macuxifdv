@@ -16,3 +16,11 @@ describe('marca_codigo do produto (código da marca no ERP, aditivo no v1)', () 
     expect(ProdutoPayload.safeParse({ ...base, marca_codigo: 'x'.repeat(31) }).success).toBe(false);
   });
 });
+
+describe('código da marca da referência cruzada = marca_external_id (um campo só)', () => {
+  const ref = (r: Record<string, unknown>) => ProdutoPayload.safeParse({ ...base, referencias: [r] });
+  it('RN-CAT-09: o contrato não tem um segundo campo marca_codigo na referência', () => {
+    const r = ref({ marca_codigo: '980', codigo: 'N-1' });
+    expect(r.success && r.data.referencias?.[0]).not.toHaveProperty('marca_codigo');
+  });
+});

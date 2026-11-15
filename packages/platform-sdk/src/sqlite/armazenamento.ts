@@ -19,6 +19,9 @@
  *   `_busca:<i>:reindexar` = `'versao'`; a busca dispara a reindexação EM SEGUNDO PLANO e responde com os documentos
  *   antigos; o `finalizar` espera. A marca do L-1 (`true`, índice vazio) bloqueia a busca até reindexar, salvo com
  *   `buscaSemEsperarIndexacao` (T-0088): a busca dispara a reindexação em segundo plano e responde `indexando`.
+ * - ADR 0054 (`linhas.importarPacote`): `ATTACH` do arquivo do pacote, `quick_check`, `_pacote` conferido, um
+ *   `INSERT ... SELECT` por entidade (só substitui com `updated_at` maior), contagem, cursor e `versao_escopo` numa transação
+ *   exclusiva; índices de busca das entidades marcados para reindexar (o `finalizar` reconstrói uma vez); `DETACH` depois.
  * - Busca (FTS5, content externo): manutenção na mesma transação do lote — incremental (`'delete'` com os valores
  *   antigos + insert) ou, na carga em massa (índice vazio ou > 2.000 chaves numa página), só a tabela de documentos e
  *   `'rebuild'` no fim do sync (`busca.finalizar`) ou na primeira consulta.
@@ -34,7 +37,15 @@ import {
   type LeitorLinhas,
   type ResultadoBusca,
 } from '../busca';
-import { validarCampoLinha, valoresDeCampo, type ArmazenamentoSync, type LinhasSync, type ValorCampoLinha } from '../motor-sync';
+import {
+  validarCampoLinha,
+  valoresDeCampo,
+  type ArmazenamentoSync,
+  type ConferenciaPacote,
+  type LinhasSync,
+  type ValorCampoLinha,
+} from '../motor-sync';
+import { ErroPacoteSync, MetaPacoteSchema, type EntidadePacoteSync } from '../pacotes-sync';
 import { FUSO_PADRAO_TENANT, fusoDoTenantOuPadrao } from '../fuso';
 import { MODULOS, type ModuloId } from '../nomes';
 import type { LinhaSync } from '../sync';
@@ -66,6 +77,10 @@ const CHAVE_FILA = 'sync:fila';
 const CHAVES_DURAVEIS: ReadonlySet<string> = new Set([CHAVE_FILA, '_migracao:asyncstorage']);
 const PREFIXO_ENT = 'ent:';
 const cursorDe = (e: string) => `sync:cursor:${e}`;
+/** Mesma chave do motor (`CHAVE.escopo`): a importação do pacote grava a `versao_escopo` na transação das linhas. */
+const escopoDe = (e: string) => `sync:escopo:${e}`;
+/** Apelido do arquivo do pacote no `ATTACH` (ADR 0054): lista fixa, nunca texto livre. */
+const APELIDO_PACOTE = 'pacote';
 /** Índice marcado para `rebuild` (sobrevive a reinício: a carga pode cair no meio). */
 const chaveSujo = (indice: string) => `_busca:${indice}:sujo`;
 /**
@@ -430,6 +445,88 @@ export function criarArmazenamentoSqlite(driver: DriverSqlite, opcoes: OpcoesArm
     return p;
   };
 
+  // ---------- pacote da primeira carga (ADR 0054) ----------
+  /** Recusa do arquivo: o motor cai no pull paginado. */
+  const recusar = (codigo: ConstructorParameters<typeof ErroPacoteSync>[0]): never => {
+    throw new ErroPacoteSync(codigo);
+  };
+
+  /** Dentro da transação, com o arquivo anexado: confere o arquivo e copia as entidades. */
+  const copiarDoPacote = async (tx: DriverSqlite, entidades: readonly EntidadePacoteSync[], conferir: ConferenciaPacote) => {
+    let saude: Array<{ quick_check: string }>;
+    let meta: Array<{ chave: string; valor: string }>;
+    try {
+      saude = await tx.todas<{ quick_check: string }>(`PRAGMA ${APELIDO_PACOTE}.quick_check`);
+    } catch {
+      return recusar('quick_check');
+    }
+    if (saude.length !== 1 || saude[0]!.quick_check !== 'ok') recusar('quick_check');
+    try {
+      meta = await tx.todas<{ chave: string; valor: string }>(`SELECT chave, valor FROM ${APELIDO_PACOTE}._pacote`);
+    } catch {
+      return recusar('formato');
+    }
+    const m = MetaPacoteSchema.safeParse(Object.fromEntries(meta.map((r) => [r.chave, String(r.valor)])));
+    if (!m.success) return recusar('formato');
+    if ((conferir.modulo && m.data.modulo !== conferir.modulo) || (conferir.particao && m.data.particao !== conferir.particao))
+      recusar('formato');
+    if (conferir.geracao_base && m.data.geracao_base !== conferir.geracao_base) recusar('geracao');
+    for (const e of entidades) {
+      const t = tabelaDaEntidade(e.nome);
+      if (m.data.entidades[e.nome] !== e.linhas) recusar('contagem');
+      let n: number;
+      try {
+        n = (await tx.primeira<{ n: number }>(`SELECT count(*) AS n FROM ${APELIDO_PACOTE}.${t}`))!.n;
+      } catch {
+        return recusar('contagem');
+      }
+      if (n !== e.linhas) recusar('contagem');
+      await garantirEntidade(tx, e.nome);
+      // `WHERE true`: desfaz a ambiguidade do `ON CONFLICT` depois de `SELECT` (gramática do SQLite)
+      await tx.rodar(
+        `INSERT INTO ${t} (id, updated_at, deleted_at, dados) SELECT id, updated_at, NULL, dados FROM ${APELIDO_PACOTE}.${t} WHERE true ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at, deleted_at = NULL, dados = excluded.dados WHERE excluded.updated_at > ${t}.updated_at`,
+      );
+      await gravarKv(tx, cursorDe(e.nome), e.cursor);
+      if (e.versao_escopo !== undefined) await gravarKv(tx, escopoDe(e.nome), e.versao_escopo);
+    }
+    // carga em massa da busca: documentos refeitos das linhas locais e `rebuild` uma vez (no `finalizar` ou na consulta)
+    const nomes = new Set(entidades.map((e) => e.nome));
+    for (const i of indices)
+      if (!indisponiveis.has(i.modulo) && i.fontes.some((f) => nomes.has(f))) {
+        await gravarKv(tx, chaveReindexar(i.id), true satisfies MarcaReindexar);
+        await gravarKv(tx, chaveSujo(i.id), true);
+      }
+  };
+
+  const importarPacote = async (
+    caminho: string,
+    entidades: readonly EntidadePacoteSync[],
+    conferir: ConferenciaPacote = {},
+  ): Promise<void> => {
+    for (const e of entidades) tabelaDaEntidade(e.nome);
+    await aberto();
+    await serializar(async () => {
+      /** Conexão em que o arquivo foi anexado (no expo-sqlite, a da transação): o `DETACH` vai nela, depois do COMMIT. */
+      let anexadoEm: DriverSqlite | null = null;
+      try {
+        await transacao(async (tx) => {
+          if (!tx.anexar) return recusar('indisponivel');
+          try {
+            await tx.anexar(caminho, APELIDO_PACOTE);
+          } catch {
+            return recusar('quick_check');
+          }
+          anexadoEm = tx;
+          await copiarDoPacote(tx, entidades, conferir);
+        });
+      } finally {
+        const d = anexadoEm as DriverSqlite | null;
+        if (d?.desanexar)
+          await d.desanexar(APELIDO_PACOTE).catch((e: unknown) => registrarErro(`pacote: DETACH falhou: ${(e as Error).message}`));
+      }
+    });
+  };
+
   // ---------- operações sobre um driver (o de fora, com fila; ou o da transação, direto) ----------
   const operacoes = (d: DriverSqlite, naTransacao: boolean): ArmazenamentoSync & { linhas: LinhasSync } => {
     /** Escrita: fora da transação, entra na fila e roda numa transação exclusiva; dentro, roda direto. */
@@ -502,6 +599,8 @@ export function criarArmazenamentoSqlite(driver: DriverSqlite, opcoes: OpcoesArm
     };
 
     const linhas: LinhasSync = {
+      // ADR 0054: só com `anexar`/`desanexar` no driver (sem eles, o motor nem baixa o pacote)
+      ...(!naTransacao && driver.anexar && driver.desanexar ? { importarPacote } : {}),
       aplicar,
       listar: (e) => ler(() => listarLinhas(d, e)),
       porIds: (e, ids) => ler(() => linhasPorIds(d, e, ids)),

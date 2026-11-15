@@ -30,11 +30,18 @@
  * `puxar`, regra do promotor). Cursor ausente/ilegível, módulos efetivos (ou parâmetros) mudados ou carteira/equipe
  * mudada = todas as elegíveis; senão, cada provedor responde com `limite: 1` se tem linha visível com
  * `(updated_at, id) > (horizonte do cursor, NIL)` abaixo do horizonte atual. Sem mudança, o aparelho faz só esta requisição.
+ *
+ * T-0176 (RN-CORE-39; ADR 0056): usuário sem a filial de cadastro. Novidades e pull só das entidades do Core `liberadoSemFilial`
+ * (a linha do próprio `usuario`, com `sem_filial`), com carteira vazia e equipe = só ele; as demais entidades e o push: 403
+ * `USUARIO_SEM_FILIAL`. O marcador `sem_filial` entra no escopo do cursor: ao destravar, as novidades devolvem todas as elegíveis.
  */
 import { createHash } from 'node:crypto';
 import {
   ACAO_VER_PEDIDO,
+  CABECALHO_MODO_SYNC,
   codificarCursor,
+  CODIGO_USUARIO_SEM_FILIAL,
+  MENSAGEM_USUARIO_SEM_FILIAL,
   codificarCursorNovidades,
   compararCursor,
   criarRegistroSync,
@@ -42,7 +49,9 @@ import {
   decodificarCursorNovidades,
   ehEntidadeDePedido,
   ErroHttpModulo,
+  LIMITES_SYNC,
   MENSAGEM_ENVIO_INDISPONIVEL,
+  modoSyncDoCabecalho,
   NovidadesQuerySchema,
   PushRequestSchema,
   rejeitarItensInvalidos,
@@ -50,8 +59,10 @@ import {
   TAMANHO_PAGINA_SYNC,
   UUID_NIL,
   type ContextoBase,
+  type CursorSync,
   type ItemPush,
   type LinhaSync,
+  type ModoSincronizacao,
   type NovidadesResposta,
   type PaginaSync,
   type ProvedorSync,
@@ -64,6 +75,39 @@ import { respostaMeusModulos } from './me-modulos';
 import type { Plataforma } from './tipos';
 
 const PullQuerySchema = z.object({ entidade: z.string().min(1), cursor: z.string().optional() });
+
+/**
+ * Limite silencioso do pull (R-20261115-125500-alexandre; ADR 0057 "Limite por usuário"), em memória do processo (como o
+ * `limitador`). Chave = tenant, usuário e entidade; um relógio por modo (`LIMITES_SYNC`). Conta só o INÍCIO de uma passada:
+ * na `completa`, o cursor nulo; na `parcial`, o cursor que não é o `proximo_cursor` que o servidor acabou de dar a essa chave.
+ */
+export interface LimiteSync {
+  /** `false` = início dentro da janela do modo (responder "nada novo"). */
+  passar(chave: string, modo: ModoSincronizacao, cursor: string | null): boolean;
+  /** Guarda o `proximo_cursor` dado à chave (a próxima página da mesma passada passa). */
+  emitiu(chave: string, modo: ModoSincronizacao, proximo: string | null): void;
+}
+
+export function criarLimiteSync(agora: () => number): LimiteSync {
+  const janelas = new Map<string, { inicio: number; proximo: string | null }>();
+  const maior = Math.max(...Object.values(LIMITES_SYNC));
+  return {
+    passar(chave, modo, cursor) {
+      const k = `${modo}|${chave}`;
+      const j = janelas.get(k);
+      if (cursor !== null && (modo === 'completa' || j?.proximo === cursor)) return true;
+      const t = agora();
+      if (j && t - j.inicio < LIMITES_SYNC[modo]) return false;
+      if (janelas.size >= 10_000) for (const [x, v] of janelas) if (t - v.inicio >= maior) janelas.delete(x);
+      janelas.set(k, { inicio: t, proximo: null });
+      return true;
+    },
+    emitiu(chave, modo, proximo) {
+      const j = janelas.get(`${modo}|${chave}`);
+      if (j) j.proximo = proximo;
+    },
+  };
+}
 
 /** Hash curto (16 hex) do conjunto visível: muda quando entra ou sai um id; `'tenant'` tem versão própria. */
 export function versaoDoConjunto(visiveis: ReadonlySet<string> | 'tenant'): string {
@@ -78,7 +122,7 @@ const escoposDe = (prov: ProvedorSync) =>
  * `versao_escopo` da página (ADR 0009 §4): só nos escopos que mudam no aparelho (`carteira`, `usuarios`) e na
  * `variacaoEscopo` do provedor (T-0121 N3: regra que muda o que o usuário vê, ex.: RN-CAT-05).
  */
-async function versaoEscopo(prov: ProvedorSync, ctx: ContextoBase): Promise<string | undefined> {
+export async function versaoEscopo(prov: ProvedorSync, ctx: ContextoBase): Promise<string | undefined> {
   const variacao = prov.variacaoEscopo ? await prov.variacaoEscopo(ctx) : undefined;
   return versaoDosEscopos(new Set(escoposDe(prov)), ctx, variacao);
 }
@@ -101,9 +145,14 @@ async function versaoDosEscopos(escopos: ReadonlySet<string>, ctx: ContextoBase,
   return createHash('sha256').update(partes.join('|')).digest('hex').slice(0, 16);
 }
 
+/** Defesa do pull e do pacote: só abaixo do horizonte (`limite`, ms) e depois do cursor, mesmo que o módulo erre o SQL. */
+export const dentroDaJanela = (l: LinhaSync, desde: CursorSync | null, limite: number): boolean =>
+  Date.parse(l.updated_at) < limite && (!desde || compararCursor(l, desde) > 0);
+
 export function registrarSync(app: FastifyInstance, p: Plataforma): void {
   const provedores = new Map<string, ProvedorSync>();
   const registro = criarRegistroSync(p.manifestos);
+  const limite = criarLimiteSync(() => p.relogio().getTime());
   for (const m of p.modulos) {
     for (const prov of m.sync ?? []) {
       registro.registrar(prov.entidade);
@@ -116,7 +165,9 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
     if (!q.success) throw new ErroHttp(400, 'VALIDACAO', 'Informe a entidade do pull.');
     const prov = provedores.get(q.data.entidade);
     const dono = registro.dono(q.data.entidade) ?? null;
-    const { ctx } = await p.preparar(req, dono);
+    // T-0176 (RN-CORE-39; ADR 0056): sem a filial de cadastro, só as entidades do Core liberadas (a linha do próprio usuário)
+    const { ctx, restritoSemFilial } = await p.preparar(req, dono, { semFilial: 'aceita' });
+    if (restritoSemFilial && !prov?.liberadoSemFilial) throw new ErroHttp(403, CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL);
     if (!dono)
       throw new ErroHttp(404, 'ENTIDADE_DESCONHECIDA', `Entidade ${q.data.entidade} não é sincronizada.`);
     if (!ctx.usuario.modulos.includes(dono)) {
@@ -145,6 +196,13 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
     const desde = q.data.cursor ? decodificarCursor(q.data.cursor) : null;
     if (q.data.cursor && !desde)
       throw new ErroHttp(400, 'CURSOR_INVALIDO', 'Cursor de sincronização inválido.');
+    // R-20261115-125500-alexandre: sincronização pedida de novo dentro da janela = "nada novo" (200, sem ir ao banco)
+    const modo = modoSyncDoCabecalho(req.headers[CABECALHO_MODO_SYNC]);
+    const chaveLimite = `${u.tenant_id}|${u.id}|${q.data.entidade}`;
+    if (modo && !limite.passar(chaveLimite, modo, q.data.cursor ?? null)) {
+      ctx.log.info({ operacao: 'sync_limite', modo, entidade: q.data.entidade }, 'pull dentro do limite: nada novo');
+      return { itens: [], proximo_cursor: null, limitado: true };
+    }
     if (!p.banco) semBanco();
     const horizonte = await p.banco.horizonteSync();
     const ate = horizonte.toISOString();
@@ -152,16 +210,16 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
     const versao = await versaoEscopo(prov, ctx);
     const linhas = await prov.puxar(ctx, { desde, ate, limite: TAMANHO_PAGINA_SYNC + 1 });
     // defesa: mesmo que o módulo erre o SQL, nada acima do horizonte nem atrás do cursor sai daqui
-    const limite = Date.parse(ate);
-    const validas = linhas
-      .filter((l) => Date.parse(l.updated_at) < limite && (!desde || compararCursor(l, desde) > 0))
-      .sort(compararCursor);
+    const teto = Date.parse(ate);
+    const validas = linhas.filter((l) => dentroDaJanela(l, desde, teto)).sort(compararCursor);
     const itens = validas.slice(0, TAMANHO_PAGINA_SYNC);
     const ultimo = itens[itens.length - 1];
     const geracao = await p.banco.geracaoBase?.(ctx.usuario.tenant_id);
+    const proximo = validas.length > TAMANHO_PAGINA_SYNC && ultimo ? codificarCursor(ultimo) : null;
+    if (modo) limite.emitiu(chaveLimite, modo, proximo);
     return {
       itens,
-      proximo_cursor: validas.length > TAMANHO_PAGINA_SYNC && ultimo ? codificarCursor(ultimo) : null,
+      proximo_cursor: proximo,
       ...(versao !== undefined ? { versao_escopo: versao } : {}),
       horizonte: ate,
       ...(geracao ? { geracao_base: geracao } : {}),
@@ -171,7 +229,8 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
   app.get('/v1/sync/novidades', async (req): Promise<NovidadesResposta> => {
     const q = NovidadesQuerySchema.safeParse(req.query);
     if (!q.success) throw new ErroHttp(400, 'VALIDACAO', 'Cursor de novidades inválido.');
-    const { ctx, licencas, doModulo } = await p.preparar(req, null);
+    // T-0176 (ADR 0056): o usuário sem filial vê só as entidades liberadas; ao destravar, o cursor muda e o aparelho puxa tudo
+    const { ctx, licencas, doModulo, restritoSemFilial } = await p.preparar(req, null, { semFilial: 'aceita' });
     if (!p.banco) semBanco();
     const u = ctx.usuario;
     const verPedido = p.permissoes.pode(ACAO_VER_PEDIDO, { perfil: u.perfil, modulosAtivos: u.modulos });
@@ -179,11 +238,13 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
     const elegiveis = [...provedores.values()]
       .filter((prov) => prov.puxar && u.modulos.includes(prov.entidade.modulo))
       .filter((prov) => !(u.perfil === 'promotor' && ehEntidadeDePedido(prov.entidade.nome) && !verPedido))
+      .filter((prov) => !restritoSemFilial || prov.liberadoSemFilial === true)
       .sort((a, b) => a.entidade.nome.localeCompare(b.entidade.nome));
     const ate = (await p.banco.horizonteSync()).toISOString();
     const modulos = respostaMeusModulos(p.manifestos, u.modulos, licencas.parametros, p.relogio());
     // T-0121 N3: as variações de escopo das elegíveis (no contexto do módulo dono) entram no cursor: mudou = todas
     const variacoes: string[] = [];
+    if (restritoSemFilial) variacoes.push('sem_filial');
     for (const prov of elegiveis)
       if (prov.variacaoEscopo) variacoes.push(`${prov.entidade.nome}=${await prov.variacaoEscopo(doModulo(prov.entidade.modulo))}`);
     const escopo =
@@ -221,7 +282,8 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
   });
 
   app.post('/v1/sync/push', async (req): Promise<{ resultados: ResultadoItemPush[] }> => {
-    // sessão ANTES do schema: sem login, o lote nem é validado (GHSA-mrhx-c7xc-m3w5; o teto de elementos é do createApp)
+    // sessão ANTES do schema: sem login, o lote nem é validado (GHSA-mrhx-c7xc-m3w5; o teto de elementos é do createApp).
+    // Sem filial de cadastro (RN-CORE-39): 403 no lote inteiro; nada é gravado e a fila do aparelho fica pendente
     const { ctx, doModulo } = await p.preparar(req, null);
     const corpo = PushRequestSchema.safeParse(req.body);
     if (!corpo.success)

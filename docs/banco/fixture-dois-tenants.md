@@ -240,3 +240,10 @@ padrão do Core vêm do gatilho do tenant.
   14 (API 34), versão `1.0.4`, tela `/m/novo-pedido`. Sem print. O **protocolo** vem da sequência global
   `plataforma.diagnostico_protocolo_seq` (a fixture não grava a coluna; o número muda entre bancos). Testes que precisam de
   pendente, de print ou de diagnóstico velho (expurgo) gravam o seu em transação desfeita.
+
+## 0074 — pacote da primeira carga (ADR 0054)
+- **Pacotes** (`SYNC_PACOTE_FIXTURE`, grupo `0x68`, `plataforma.sync_pacote`): A com `catalogo`·`tenant` pronto,
+  `catalogo`·`filial:<padrão de A>` pronto e um `catalogo`·`tenant` substituído; B com `core`·`tenant` pronto. Chave no formato
+  do CHECK (`sync-pacotes/<tenant>/<modulo>/<particao>/<id>.sqlite.gz`), `geracao_base` fixa (não é a do tenant), md5 de exemplo.
+- **Pedidos** (grupo `0x69`, `plataforma.sync_pacote_pedido`): A atendido (`lote`), B atendido (`manifesto`); nenhum pendente
+  (o teste grava o seu em transação desfeita). Dicionário: [sync-pacote.md](sync-pacote.md).

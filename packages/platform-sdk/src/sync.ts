@@ -15,6 +15,28 @@ import { ehEntidadeDePedido, type ModuloId, type Perfil } from './nomes';
 import { ENTIDADE_SYNC_RE } from './nomes';
 
 export const TAMANHO_PAGINA_SYNC = 1000;
+
+/**
+ * Limite silencioso do pull (R-20261115-125500-alexandre; ADR 0057 "Limite por usuário"): o motor manda o modo da
+ * sincronização pedida pelo usuário neste cabeçalho (`parcial` | `completa`). Ausente, `auto` ou outro valor = automática, sem limite.
+ */
+export const CABECALHO_MODO_SYNC = 'x-macuxi-sync-modo';
+
+/**
+ * Intervalo mínimo (ms), por tenant, usuário, entidade e modo, entre dois INÍCIOS de pull (a constante única do limite).
+ * Dentro dele, o servidor responde 200 "nada novo" (`PaginaSync.limitado`). Continuação de uma passada não conta.
+ */
+export const LIMITES_SYNC = { parcial: 30_000, completa: 300_000 } as const;
+/**
+ * ADR 0057: modo de `motor.sincronizar` e do cabeçalho `x-macuxi-sync-modo`. `parcial` = toque no "Sincronizar" (envio +
+ * entidades `parcial`); `completa` = segurar 10 s (tudo do zero, diárias inclusive). Sem modo = a sincronização de sempre.
+ */
+export type ModoSincronizacao = keyof typeof LIMITES_SYNC;
+
+/** Modo do cabeçalho `x-macuxi-sync-modo`; `null` = automática (sem cabeçalho, `auto` ou valor desconhecido). */
+export function modoSyncDoCabecalho(valor: unknown): ModoSincronizacao | null {
+  return valor === 'parcial' || valor === 'completa' ? valor : null;
+}
 export const MAX_ITENS_PUSH = 500;
 
 /**
@@ -47,7 +69,22 @@ export interface DefinicaoEntidadeSync<S extends z.ZodTypeAny = z.ZodTypeAny> {
    * desconhecido), devolva `true` — a linha fica. Lançar também mantém a linha.
    */
   naJanela?(linha: Readonly<Record<string, unknown>>, hoje: string): boolean;
+  /**
+   * ADR 0057 (RN-CORE-61): `diaria` = a entidade vem ao aparelho uma vez por dia (estoque: `deposito`, `estoque_saldo`), na
+   * carga diária (`OpcoesMotorSync.cargaDiariaDevida`) e na sincronização `completa`; novidades, push silencioso, a
+   * sincronização padrão e a parcial a pulam. Ausente = `continua` (como sempre). Sem `cargaDiariaDevida` no motor, a
+   * marca não muda nada.
+   */
+  cadencia?: CadenciaSync;
+  /**
+   * ADR 0057 (RN-CORE-23 item 1): a entidade entra na sincronização `parcial` (toque no botão "Sincronizar": pedidos e
+   * clientes). Ausente = só nas outras sincronizações.
+   */
+  parcial?: boolean;
 }
+
+/** ADR 0057: de quanto em quanto tempo a entidade vem ao aparelho (`DefinicaoEntidadeSync.cadencia`). */
+export type CadenciaSync = 'continua' | 'diaria';
 
 const DATA_ISO_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -201,6 +238,11 @@ export interface PaginaSync<L> {
    * manda; o motor compara com a guardada (`decidirGeracao`) e, se mudou, reenvia a fila, apaga a cópia local e puxa tudo.
    */
   geracao_base?: string;
+  /**
+   * R-20261115-125500-alexandre: `true` = o mesmo modo foi pedido há pouco (`LIMITES_SYNC`); a página vem vazia e o motor não
+   * muda nada no aparelho (nem cursor, nem cobertura, nem ressincronização) e não mostra erro. Só vem a quem mandou o modo.
+   */
+  limitado?: true;
 }
 
 /** Página após o cursor (inclui removidos). Usado no motor em memória e como referência do SQL. */
