@@ -213,10 +213,8 @@ jobs:
         if: ${{ always() }}
         run: rm -f "$RUNNER_TEMP/keystore.jks" "$RUNNER_TEMP/google-services.json"
 
-      # Só as linhas de certificado (DN e SHA-256, públicos) vão ao log e o SHA-256 ao resumo. A leitura da saída do
-      # apksigner fica em scripts/ci/android-build.mjs (certificado), que aceita o formato do build-tools até o 36
-      # ("Signer #1 certificate ...") e o do 37 ("V2 Signer: certificate ..."). Certificado de debug, assinantes com
-      # certificados diferentes ou SHA-256 diferente do esperado (variável ANDROID_CERT_SHA256_<VARIANTE>) = vermelho.
+      # Só o DN e o SHA-256 (públicos) vão ao log, e o SHA-256 vai ao resumo. A conferência (formatos do apksigner e
+      # motivos de vermelho) é do scripts/ci/android-build.mjs certificado.
       - name: conferir assinatura
         id: apk
         env:

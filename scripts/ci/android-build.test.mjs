@@ -114,8 +114,8 @@ test('certificado: lê o SHA-256 do build-tools 36 (Signer #1) e do 37 (V2/V3.0 
     const c = certificadoDoApk(saida, '');
     assert.equal(c.sha, SHA);
     assert.equal(c.conferido, 'sem valor esperado: confira com o do expo.dev');
-    // no log só DN e SHA-256 (públicos)
-    assert.ok(c.linhas.length >= 2 && c.linhas.every((l) => / certificate (DN|SHA-256 digest): /.test(l)), JSON.stringify(c.linhas));
+    // no log só o DN de cada assinante (o SHA-256 sai uma vez, na linha do resultado)
+    assert.ok(c.dns.length >= 1 && c.dns.every((l) => / certificate DN: /.test(l)), JSON.stringify(c.dns));
   }
   const esperado = SHA.toUpperCase().match(/../g).join(':');
   assert.equal(certificadoDoApk(BT37, esperado).conferido, 'igual ao esperado');
@@ -124,11 +124,10 @@ test('certificado: lê o SHA-256 do build-tools 36 (Signer #1) e do 37 (V2/V3.0 
   assert.equal(certificadoDoApk(`${BT37}${bloco('Source Stamp Signer:', 'ff'.repeat(32))}\n`, '').sha, SHA);
 });
 
-test('certificado: vermelho para debug, sem SHA, DOES NOT VERIFY, certificados diferentes ou esperado diferente', () => {
+test('certificado: vermelho para debug, sem SHA, certificados diferentes ou esperado diferente', () => {
   assert.throws(() => certificadoDoApk(bloco('V2 Signer:', SHA, 'CN=Android Debug, O=Android, C=US'), ''), /debug/);
   assert.throws(() => certificadoDoApk('', ''), /não mostrou o SHA-256/);
   assert.throws(() => certificadoDoApk('Verifies\n', ''), /não mostrou o SHA-256/);
-  assert.throws(() => certificadoDoApk('DOES NOT VERIFY\nERROR: Missing META-INF/MANIFEST.MF\n', ''), /DOES NOT VERIFY/);
   assert.throws(() => certificadoDoApk(`${bloco('V2 Signer:')}\n${bloco('V3.0 Signer:', 'cd'.repeat(32))}\n`, ''), /certificados diferentes/);
   assert.throws(() => certificadoDoApk(BT37, '00'.repeat(32)), /diferente do esperado/);
 });

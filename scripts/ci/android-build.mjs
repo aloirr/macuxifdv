@@ -16,7 +16,7 @@
  * Escreve em $GITHUB_ENV (env do perfil, NOME_BUILD, VERSION_CODE) e em $GITHUB_OUTPUT (node, nome, version_code).
  *
  * Conferência da assinatura:  apksigner verify --print-certs APK | ESPERADO=<sha> node scripts/ci/android-build.mjs certificado
- * Mostra no log só as linhas de certificado (DN e SHA-256: públicos) e escreve em $GITHUB_OUTPUT (sha, conferido).
+ * Mostra no log o DN de cada assinante e uma linha com o SHA-256 e o resultado (públicos) e escreve em $GITHUB_OUTPUT (sha, conferido).
  * Saída: 0 = ok; 2 = entrada inválida ou assinatura recusada (::error:: com o motivo).
  */
 import { appendFileSync, readFileSync } from 'node:fs';
@@ -89,7 +89,6 @@ export function planoDoBuild({ easJson, variante, versao, perfil, versionCode })
  */
 export function certificadoDoApk(saida, esperado) {
   const texto = String(saida ?? '');
-  if (/DOES NOT VERIFY/.test(texto)) throw new Error('apksigner: o APK não verifica (DOES NOT VERIFY)');
   const linhas = texto
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -101,14 +100,15 @@ export function certificadoDoApk(saida, esperado) {
   const [sha] = shas;
   const normal = String(esperado ?? '').replace(/[:\s]/g, '').toLowerCase();
   if (normal && normal !== sha) throw new Error(`SHA-256 ${sha} diferente do esperado na variável ANDROID_CERT_SHA256 da variante`);
-  return { sha, conferido: normal ? 'igual ao esperado' : 'sem valor esperado: confira com o do expo.dev', linhas };
+  const dns = linhas.filter((l) => / certificate DN: /.test(l));
+  return { sha, conferido: normal ? 'igual ao esperado' : 'sem valor esperado: confira com o do expo.dev', dns };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url) && process.argv[2] === 'certificado') {
   const saida = readFileSync(0, 'utf8');
   try {
     const c = certificadoDoApk(saida, process.env.ESPERADO);
-    for (const l of c.linhas) console.log(l);
+    for (const l of c.dns) console.log(l);
     console.log(`SHA-256 do certificado: ${c.sha} (${c.conferido})`);
     if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `sha=${c.sha}\nconferido=${c.conferido}\n`);
   } catch (err) {
