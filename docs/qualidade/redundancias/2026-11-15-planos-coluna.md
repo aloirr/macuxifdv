@@ -32,5 +32,12 @@ No head `490b568`, `EmpresaResumoSchema` (`packages/platform-sdk/src/plataforma.
 ## 4. Recados
 A CLI de recados recusou o envio nesta sessão (HTTP 403 no `aloirr/macuxifdv-recados`). O pedido do RD-0959 ao engenheiro-apps e o aviso do §3 ao testes seguem pelo gerente-projetos, que recebe este parecer.
 
+## 5. Reteste (15/11, head `f4b3fc6`)
+| Item | Evidência | Resultado |
+|---|---|---|
+| RD-0959 | `git diff 490b568 f4b3fc6`: `teste_ate` sai da interface `EmpresaFalsa` (`portal-falso.ts:70-72`), das 3 empresas do cliente (`:116-118`) e de `empresaDoTime` (`:139-140`); `git grep teste_ate f4b3fc6 -- apps/web` só acha o teste novo. `portal-escolha.test.ts:242-243` confere que toda empresa da lista falsa traz `em_teste` e não traz `teste_ate`. O fato "em teste" fica num campo só. | **corrigido** |
+| Algo novo redundante? | O diff só remove linhas e soma 1 asserção, que não repete outro caso (o teste da tela do §1 confere a célula; este, o dado do modo falso). O comentário da interface encolhe junto ("nome do plano e `em_teste`"). | sem achado |
+| §3 (contrato) | Resolvido pela ordem de merge: primeiro o `nuvem/planos-contrato-engenheiro-software` (`dcb6a72`), que traz `plano`, `teste_ate` e `em_teste` no `EmpresaResumoSchema` (`packages/platform-sdk/src/plataforma.ts:160-162`, todos opcionais), depois o PR #359. Com `teste_ate` opcional, o modo falso sem ele segue válido no schema. | fora (não é RD) |
+
 ## Parecer
-**1 achado em aberto (RD-0959, baixa, código de produção): o PR #359 não fecha até a correção ou o `manter`.**
+**Nenhum achado em aberto: RD-0959 corrigido no `f4b3fc6`. O PR #359 está liberado pelo corretor, com o merge depois do `dcb6a72` (contrato).**
