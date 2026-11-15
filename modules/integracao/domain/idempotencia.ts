@@ -89,6 +89,11 @@ export interface LinhaValida<R = unknown> {
   hash: string;
 }
 
+/** RN-INT-03: só o aviso `duplicado_no_lote` conta como linha repetida; os outros avisos (corte, vendedor sem filial...) não são duplicata e não mudam o status do lote. */
+export function contarDuplicadasNoLote(avisos: readonly { codigo: string }[]): number {
+  return avisos.filter((a) => a.codigo === 'duplicado_no_lote').length;
+}
+
 /** Deduplica, valida cada linha com o schema da entidade e calcula o hash. Erro de linha não trava o lote (RN-INT-03). */
 export function validarLinhas(entidade: Entidade, registros: readonly unknown[]): { validas: LinhaValida[]; erros: LinhaErro[]; avisos: AvisoLinha[] } {
   const { linhas, avisos } = deduplicarNoLote(registros);
