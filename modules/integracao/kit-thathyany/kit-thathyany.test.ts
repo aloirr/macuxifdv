@@ -288,21 +288,17 @@ describe('Referência cruzada do produto (até 3 códigos da concorrência)', ()
     expect(view).toMatch(/referencia_1 IS NULL AND referencia_2 IS NULL AND referencia_3 IS NULL THEN NULL/);
   });
 
-  it('marca_codigo: coluna no modelo, na view e no conector.json, e o banco antigo ganha a coluna', () => {
-    expect((modelo[0] as string).split(';')).toContain('marca_codigo');
-    expect(sql).toContain("IF COL_LENGTH('dbo.tha_produto', 'marca_codigo') IS NULL ALTER TABLE dbo.tha_produto ADD marca_codigo");
-    expect(ler('conector', 'conector.json')).toContain('"marca_codigo": "marca_codigo"');
+  it('banco criado pela versão anterior do kit ganha as colunas novas (ALTER TABLE idempotente): referências, marca_codigo e filial do vendedor', () => {
+    const colunas: [string, string][] = [['tha_produto', 'referencia_1'], ['tha_produto', 'marca_referencia_3'], ['tha_produto', 'marca_codigo'], ['tha_vendedor', 'filial_external_id']];
+    for (const [tabela, col] of colunas) expect(sql).toContain(`IF COL_LENGTH('dbo.${tabela}', '${col}') IS NULL ALTER TABLE dbo.${tabela} ADD ${col}`);
   });
 
-  it('RN-CORE-39: o vendedor leva filial_external_id, referenciada à filial, com a coluna criada no banco antigo', () => {
+  it('marca_codigo no modelo e no conector.json; vendedor.filial_external_id referenciada à filial (RN-CORE-39)', () => {
+    expect((modelo[0] as string).split(';')).toContain('marca_codigo');
+    expect(ler('conector', 'conector.json')).toContain('"marca_codigo": "marca_codigo"');
     const contratoKit = JSON.parse(ler('contrato.json')) as { entidades: { entidade: string; campos: { campo: string; referencia?: string }[] }[] };
     const vend = contratoKit.entidades.find((e) => e.entidade === 'vendedor');
     expect(vend?.campos.find((c) => c.campo === 'filial_external_id')?.referencia).toBe('filial');
-    expect(sql).toContain("IF COL_LENGTH('dbo.tha_vendedor', 'filial_external_id') IS NULL ALTER TABLE dbo.tha_vendedor ADD filial_external_id");
-  });
-
-  it('banco criado pela versão anterior do kit ganha as colunas (ALTER TABLE idempotente)', () => {
-    for (const col of ['referencia_1', 'marca_referencia_3']) expect(sql).toContain(`IF COL_LENGTH('dbo.tha_produto', '${col}') IS NULL ALTER TABLE dbo.tha_produto ADD ${col}`);
   });
 
   it('RN-CAT-09: o que o kit gera cabe no contrato do Hub (código até 30, marca até 120, marca opcional)', () => {
