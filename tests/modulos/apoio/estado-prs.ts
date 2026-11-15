@@ -22,3 +22,26 @@ export const CHECKIN_NA_FICHA = existe('modules/core/domain/checkin-rota.ts');
 
 /** 0069 (banco-dados, R-20261114-153500): um perfil por usuário (exclusão adiada `usuario_perfil_um_vivo`). */
 export const UM_PERFIL = existe('db/migrations/0069_core_cargo_hierarquia.up.sql');
+
+/**
+ * Catálogo v2 do Campo (spec aprovada `docs/design/catalogo-campo-v2/spec.md`, branch `nuvem/catalogo-campo-designer-ux`,
+ * R-20261115-082500-alexandre). Um detector por critério, pelo texto que a spec manda tirar ou pôr, porque o modulo-catalogo
+ * pode entregar em PRs separados. O detector dos códigos do cartão é pelo cartão renderizado (no teste que o usa).
+ */
+const fonteCatalogo = (rel: string): string =>
+  existe(rel) ? readFileSync(join(RAIZ, rel), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '') : '';
+
+/** §3: acaba o `Estoque sem informação` (grade.ts e apresentacao.ts); sem saldo = `Estoque: 0`. */
+export const CATALOGO_V2_ESTOQUE = !['modules/catalogo/app/lib/grade.ts', 'modules/catalogo/app/lib/apresentacao.ts'].some((r) =>
+  fonteCatalogo(r).includes('Estoque sem informação'),
+);
+
+/** §2: na ficha sai o rótulo "Estoque na filial…" (uma linha por filial). */
+export const CATALOGO_V2_FICHA = !fonteCatalogo('modules/catalogo/app/telas/produto.tsx').includes('Estoque na filial');
+
+/** §4: o filtro de filial, com a opção "Todas as filiais", em alguma fonte do Catálogo no aparelho. */
+export const CATALOGO_V2_FILTRO = [
+  'modules/catalogo/app/telas/catalogo.tsx',
+  'modules/catalogo/app/telas/comum.tsx',
+  'modules/catalogo/app/lib/grade.ts',
+].some((r) => fonteCatalogo(r).includes('Todas as filiais'));
