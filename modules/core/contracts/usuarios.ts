@@ -71,6 +71,8 @@ export const UsuarioItemSchema = z
     codigo_fdv: z.string().nullable().optional(),
     /** RN-CORE-58: criado pela carga do ERP sem e-mail (`@sem-email.invalid`); candidato a "Vincular vendedor do ERP". */
     provisorio: z.boolean().optional(),
+    /** Clientes distintos na carteira do usuário; só vem para provisórios (escolha do "Vincular vendedor do ERP"). */
+    clientes_carteira: z.number().int().nonnegative().optional(),
     ultimo_login_em: z.string().datetime().nullable(),
     /** T-0094: a senha atual é temporária; a pessoa troca no próximo acesso (etiqueta "Troca de senha pendente"). */
     trocar_senha: z.boolean(),

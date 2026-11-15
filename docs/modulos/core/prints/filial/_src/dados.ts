@@ -22,8 +22,8 @@ const USUARIOS = [
   usuario(4, 'Marta Reis', 'supervisor', F.boaVista, [F.boaVista]),
   usuario(5, 'Paulo Brito', 'promotor', null, []),
   usuario(6, 'Rita Alves', 'vendedor', F.macapa, [F.macapa, F.belem]),
-  usuario(12, 'CARLA SOUZA', 'vendedor', F.boaVista, [F.boaVista], { email: 'erp-v0142@sem-email.invalid', provisorio: true, external_id: 'V-0142' }),
-  usuario(13, 'JOSE RIBAMAR', 'vendedor', F.manaus, [F.manaus], { email: 'erp-v0177@sem-email.invalid', provisorio: true, external_id: 'V-0177' }),
+  usuario(12, 'CARLA SOUZA', 'vendedor', F.boaVista, [F.boaVista], { email: 'erp-v0142@sem-email.invalid', provisorio: true, external_id: 'V-0142', clientes_carteira: 38 }),
+  usuario(13, 'JOSE RIBAMAR', 'vendedor', F.manaus, [F.manaus], { email: 'erp-v0177@sem-email.invalid', provisorio: true, external_id: 'V-0177', clientes_carteira: 12 }),
 ];
 const MODULOS = ['core', 'catalogo', 'vendedor', 'promotor', 'pesquisa'];
 const LICENCAS = {

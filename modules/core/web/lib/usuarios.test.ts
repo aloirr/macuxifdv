@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EquipeOpcao, UsuarioItem } from '../../contracts';
-import { permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, opcoesDeChefia, pessoasDaLista, resultadoDeCriar, resultadoDeRedefinir, seloDoUsuario, textoAcessoEnviado, textoDoSuperiorDaEquipe, provisoriosParaVincular, podeVincularErp, corpoDeVinculoErp, textoDoVinculoErp, tituloDaConfirmacaoDoVinculo, emailParaLista, codigoFdvParaLista } from './usuarios';
+import { permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, opcoesDeChefia, pessoasDaLista, resultadoDeCriar, resultadoDeRedefinir, seloDoUsuario, textoAcessoEnviado, textoDoSuperiorDaEquipe, provisoriosParaVincular, podeVincularErp, corpoDeVinculoErp, textoDoVinculoErp, tituloDaConfirmacaoDoVinculo, textoDaOpcaoDoProvisorio, textoDaConfirmacaoDoVinculo, emailParaLista, codigoFdvParaLista } from './usuarios';
 import { senhaServe } from '../../domain';
 
 const u = (extra: Partial<UsuarioItem> = {}): UsuarioItem => ({
@@ -204,6 +204,11 @@ describe('RN-CORE-58/59: Vincular vendedor do ERP e Código FDV no BKO (spec erp
     expect(textoDoVinculoErp({ clientes_movidos: 38, ja_vinculado: false }, 'Carla Souza')).toBe('Vínculo feito: 38 clientes passaram para Carla Souza.');
     expect(textoDoVinculoErp({ clientes_movidos: 1, ja_vinculado: false }, 'Carla Souza')).toBe('Vínculo feito: 1 cliente passou para Carla Souza.');
     expect(textoDoVinculoErp({ clientes_movidos: 0, ja_vinculado: true }, 'Carla Souza')).toBe('Carla Souza já estava vinculado.');
+  });
+  it('RN-CORE-58: a opção mostra o código e a contagem de clientes; a confirmação não repete o nome', () => {
+    expect(textoDaOpcaoDoProvisorio({ external_id: 'V-01', clientes_carteira: 38 })).toBe('V-01 · 38 clientes');
+    expect(textoDaOpcaoDoProvisorio({ external_id: 'V-01', clientes_carteira: 1 })).toBe('V-01 · 1 cliente');
+    expect(textoDaConfirmacaoDoVinculo({ clientes_carteira: 38 })).toBe('Recebe os 38 clientes da carteira e o provisório sai da lista.');
   });
   it('RN-CORE-59: a lista mostra o Código FDV e "—" no e-mail do provisório', () => {
     expect(emailParaLista(prov('1'))).toBe('—');

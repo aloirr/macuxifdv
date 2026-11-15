@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ROTULO_PERFIL, type ModuloId } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, CampoSenha, IconeModulo, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, useToast, rotuloDoPerfil, type AcaoDoMenu, type IdDoModulo } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, CampoSenha, IconeModulo, IconUser, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, useToast, rotuloDoPerfil, type AcaoDoMenu, type IdDoModulo } from '@macuxi/ui/web';
 import { FiliaisListaSchema, CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, VincularErpRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type LicencasEstado, type UsuarioItem } from '../../../contracts';
 import { efetivosPelasDependencias } from '../../../domain/licencas';
 import {
@@ -16,6 +16,8 @@ import {
   emailParaLista,
   podeVincularErp,
   provisoriosParaVincular,
+  textoDaOpcaoDoProvisorio,
+  textoDaConfirmacaoDoVinculo,
   textoDoVinculoErp,
   tituloDaConfirmacaoDoVinculo,
   corpoDeRedefinicao,
@@ -435,7 +437,7 @@ export function UsuariosConteudo() {
         </SelectField>
         <SelectField label="Provisórios" value={provisorios ? '1' : ''} onChange={(e) => set({ provisorios: e.target.value })} data-testid="usuarios.filtro-provisorios">
           <option value="">Todos os usuários</option>
-          <option value="1">Só provisórios da carga do ERP</option>
+          <option value="1">Só provisórios</option>
         </SelectField>
         {filiaisQ.data && (
           <SelectField label="Filial de cadastro" value={filialFiltro} onChange={(e) => set({ filial: e.target.value })} data-testid="usuarios.filtro-filial">
@@ -664,7 +666,7 @@ export function UsuariosConteudo() {
           {editando && podeEditar && podeVincularErp(ativos, editando) && form.external_id.trim() === '' && (
             <div>
               <Button onClick={() => setVinculo({ real: editando, escolhido: '', etapa: 'escolher', erro: null })} data-testid="usuarios.vincular">
-                Vincular vendedor do ERP
+                <IconUser size={18} /> Vincular vendedor do ERP
               </Button>
             </div>
           )}
@@ -748,7 +750,7 @@ export function UsuariosConteudo() {
             >
               <div className="flex flex-col gap-3">
                 {confirmando ? (
-                  <p className="m-0">Carteira e código passam para {vinculo.real.nome}, e o provisório sai da lista.</p>
+                  <p className="m-0">{textoDaConfirmacaoDoVinculo(escolhido)}</p>
                 ) : (
                   <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
                     <legend className="mb-2 p-0 text-[14px] font-normal text-ink">Escolha o vendedor provisório que é {vinculo.real.nome}.</legend>
@@ -757,7 +759,7 @@ export function UsuariosConteudo() {
                         <input type="radio" name="provisorio" className="h-5 w-5 accent-accent" checked={vinculo.escolhido === x.id} onChange={() => setVinculo({ ...vinculo, escolhido: x.id })} data-testid={`usuarios.vincular-opcao.${x.id}`} />
                         <span className="flex flex-col">
                           <span className="font-semibold text-ink">{x.nome}</span>
-                          <span className="text-[13px] text-ink-2">{x.external_id}</span>
+                          <span className="text-[13px] text-ink-2">{textoDaOpcaoDoProvisorio(x)}</span>
                         </span>
                       </label>
                     ))}

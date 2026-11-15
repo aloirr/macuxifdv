@@ -22,6 +22,8 @@ const FONTES = [
   ['IBM Plex Sans', 500, ttf('ibm-plex-sans', '500Medium', 'IBMPlexSans_500Medium.ttf')],
   ['IBM Plex Sans', 600, ttf('ibm-plex-sans', '600SemiBold', 'IBMPlexSans_600SemiBold.ttf')],
   ['IBM Plex Sans', 700, ttf('ibm-plex-sans', '700Bold', 'IBMPlexSans_700Bold.ttf')],
+  ['IBM Plex Mono', 400, ttf('ibm-plex-mono', '400Regular', 'IBMPlexMono_400Regular.ttf')],
+  ['IBM Plex Mono', 500, ttf('ibm-plex-mono', '500Medium', 'IBMPlexMono_500Medium.ttf')],
 ];
 const fontes = FONTES.map(([f, p, a]) => `@font-face{font-family:'${f}';font-weight:${p};src:url(file://${a})}`).join('\n');
 
@@ -48,7 +50,7 @@ const globais = readFileSync(join(RAIZ, 'apps/web/app/globals.css'), 'utf8')
   .replace(/@source '\.\.\/\.\.\/\.\.\/packages[^\n]*\n/, `@source '${join(RAIZ, 'packages/ui/src/web')}/**/*.tsx';\n`)
   .replace(/@source '\.\.\/\.\.\/\.\.\/modules[^\n]*\n/, `@source '${join(RAIZ, 'modules/core/web/components/usuarios')}/*.tsx';\n`);
 const css = (await postcss([tailwind({ base: RAIZ })]).process(globais, { from: join(RAIZ, 'apps/web/app/globals.css') })).css;
-writeFileSync(join(saida, 'index.html'), `<!doctype html><meta charset="utf-8"><style>${fontes}\n${css}\n:root{--font-plex-sans:'IBM Plex Sans';--font-archivo:'Archivo'}</style><div id="raiz"></div><script src="app.js"></script>`);
+writeFileSync(join(saida, 'index.html'), `<!doctype html><meta charset="utf-8"><style>${fontes}\n${css}\n:root{--font-plex-sans:'IBM Plex Sans';--font-archivo:'Archivo';--font-plex-mono:'IBM Plex Mono'}</style><div id="raiz"></div><script src="app.js"></script>`);
 
 // [arquivo, query da tela, passo, textos que precisam aparecer, textos que não podem aparecer]
 const PRINTS = [

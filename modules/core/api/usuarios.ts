@@ -179,10 +179,16 @@ async function montarItens(db: ClienteBanco, linhas: readonly LinhaUsuario[], vi
   const nomes = await nomesDe(db, [...superiorDe.values()].filter((x): x is string => x !== null));
   const perfisDe = await perfisDosUsuarios(db, linhas.map((l) => l.id));
   const filiaisDe = await filiaisDosUsuarios(db, linhas.map((l) => l.id)); // T-0176 / RN-CORE-39
+  const idsProvisorios = linhas.filter((l) => l.provisorio === true).map((l) => l.id);
+  const carteiraDe = new Map<string, number>(); // RN-CORE-58: clientes da carteira de cada provisório
+  if (idsProvisorios.length > 0) {
+    const c = await db.query<{ usuario_id: string; n: string }>('select usuario_id, count(distinct cliente_id) as n from core.carteira where usuario_id = any($1::uuid[]) and deleted_at is null group by usuario_id', [idsProvisorios]);
+    for (const l of c.rows) carteiraDe.set(l.usuario_id, Number(l.n));
+  }
   return linhas.map(({ bloqueado_admin, bloqueio_ate_login, ...l }) => {
     const sup = superiorDe.get(l.id) ?? null;
     const filiais = filiaisDe.get(l.id);
-    return UsuarioItemSchema.parse({ ...l, filial_cadastro_id: filiais?.filial_cadastro_id ?? null, filial_venda_ids: filiais?.filial_venda_ids ?? [], sem_filial: filiais?.sem_filial ?? true, ...bloqueioDaLinha({ bloqueado_admin, bloqueio_ate_login }, agora), perfis: perfisDe.get(l.id) ?? [], superior_id: sup, superior_nome: sup ? (nomes.get(sup) ?? null) : null });
+    return UsuarioItemSchema.parse({ ...l, ...(l.provisorio === true ? { clientes_carteira: carteiraDe.get(l.id) ?? 0 } : {}), filial_cadastro_id: filiais?.filial_cadastro_id ?? null, filial_venda_ids: filiais?.filial_venda_ids ?? [], sem_filial: filiais?.sem_filial ?? true, ...bloqueioDaLinha({ bloqueado_admin, bloqueio_ate_login }, agora), perfis: perfisDe.get(l.id) ?? [], superior_id: sup, superior_nome: sup ? (nomes.get(sup) ?? null) : null });
   });
 }
 

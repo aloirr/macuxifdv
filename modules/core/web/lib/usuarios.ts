@@ -81,6 +81,16 @@ export const textoDoVinculoErp = (r: { clientes_movidos: number; ja_vinculado: b
 /** Título da confirmação (spec §4). */
 export const tituloDaConfirmacaoDoVinculo = (provisorio: UsuarioItem, real: UsuarioItem): string => `Vincular o provisório ${provisorio.external_id ?? ''} a ${real.nome}?`;
 
+/** Opção da escolha do provisório (spec §3): `<código no ERP> · <N> clientes`. */
+export const textoDaOpcaoDoProvisorio = (u: Pick<UsuarioItem, 'external_id' | 'clientes_carteira'>): string =>
+  `${u.external_id ?? ''} · ${u.clientes_carteira ?? 0} ${(u.clientes_carteira ?? 0) === 1 ? 'cliente' : 'clientes'}`;
+
+/** Texto da confirmação (spec §4, aprovado): o nome já está no título. */
+export const textoDaConfirmacaoDoVinculo = (provisorio: Pick<UsuarioItem, 'clientes_carteira'>): string => {
+  const n = provisorio.clientes_carteira ?? 0;
+  return `${n === 1 ? 'Recebe o 1 cliente' : `Recebe os ${n} clientes`} da carteira e o provisório sai da lista.`;
+};
+
 /** E-mail na lista: o do provisório (`@sem-email.invalid`) aparece como "—" (spec §6). */
 export const emailParaLista = (u: Pick<UsuarioItem, 'email'>): string => (u.email.endsWith('@sem-email.invalid') ? '—' : u.email);
 

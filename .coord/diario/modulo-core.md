@@ -187,3 +187,4 @@
 2026-11-15 — T-0176 — tela 13: Banner de erro/aviso do login movido para entre a senha e o botão Entrar (spec §4)
 2026-11-15 — T-0176 — v1012: merges (FDV+vínculo, filial 0077, telas 13-15, SDK, main), guarda global ADR 0056 (sem_filial no autenticar, liberadaSemFilial/liberadoSemFilial, sem comGuardaDeFilial), reexport do SDK, coluna Usuários alinhada
 2026-11-15 — v1012 rev2 — RN-CORE-39 no autenticarPortal (sem_filial), RD-1003, MC-1002 (caixa travada azul), Código FDV e Vincular vendedor do ERP no BKO com prints
+2026-11-15 — v1012 rev3 — MC-1003 (clientes_carteira nos provisórios + contagem na escolha), RD-1006 (texto aprovado da confirmação), MC-1004 (ícone no botão), RD-1007 (Só provisórios), MC-1005 (Plex Mono nos prints regenerados)
