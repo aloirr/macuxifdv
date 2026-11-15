@@ -1,7 +1,7 @@
 /**
  * Consumidores de evento do Core (ADR 0007; T-0022). Hoje: push da central de notificações (RF-CORE-09).
  * O despachante da outbox roda o handler como `macuxi_app` em `comTenant(tenant do evento)`; `ctx.db` é a MESMA transação
- * do registro em `plataforma.evento_consumo`. O envio ao Expo sai por `ctx.aposConfirmar` (T-0121 N2), depois do commit e
+ * do registro em `plataforma.evento_consumo`. O envio ao FCM sai por `ctx.aposConfirmar` (T-0121 N2), depois do commit e
  * sem transação aberta; se falhar, o consumo é desfeito e o evento volta. É "no mínimo uma vez": `push_enviado_em` evita repetir. Sem `MACUXI_PUSH_ATIVO=1` o evento é consumido sem rede
  * (a caixa segue pelo sync). O evento não leva título/corpo: o texto é lido do banco e nunca é logado.
  */
@@ -47,7 +47,14 @@ export function criarConsumidorPushNotificacao(opcoes: OpcoesPush = {}): Consumi
       const destinos = tokens.map((t) => ({ token: t.push_token, titulo: n.titulo, corpo: n.corpo, link: n.link, prioridade: n.prioridade, entidades: entidadesDoPush(p.tipo, n.link) }));
       // T-0121 N2: a rede sai DEPOIS do commit (não segura o horizonte do pull); falha desfaz o consumo e o evento volta.
       ctx.aposConfirmar(async (c) => {
-        const r = await enviarPush(destinos, { env: opcoes.env, fetcher: opcoes.fetcher });
+        const r = await enviarPush(destinos, {
+          env: opcoes.env,
+          fetcher: opcoes.fetcher,
+          limparToken: (token) =>
+            c.comTenant(async (db) => {
+              await db.query('update core.dispositivo set push_token = null, push_plataforma = null where push_token = $1', [token]);
+            }),
+        });
         if (r.enviadas > 0)
           await c.comTenant((db) => db.query('update core.notificacao set push_enviado_em = $2 where id = $1 and push_enviado_em is null', [p.notificacao_id, c.agora()]));
       });

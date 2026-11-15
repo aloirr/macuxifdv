@@ -1,7 +1,7 @@
 /**
  * Banco de teste efêmero (dono: banco-dados). Cria `macuxi_teste_<sufixo>` no Postgres DOS TESTES (lerConfigTestes:
  * container macuxi-postgres-testes, 5434, ou MACUXI_PG_TESTES_URL; no CI, o service do workflow) — nunca no da demo,
- * garante os papéis macuxi_app, macuxi_worker e macuxi_portal (0038), aplica as migrações e (opcional) carrega uma fixture. `apagar()` remove.
+ * garante os papéis macuxi_app, macuxi_worker, macuxi_portal (0038) e macuxi_leitura (0078), aplica as migrações e (opcional) carrega uma fixture. `apagar()` remove.
  * Migrado = cópia do banco modelo (db/src/banco-modelo.ts, T-0033) quando ligado; MACUXI_PG_MODELO=0 volta a migrar do zero.
  * Usado pelos testes de db/ e pelo agente `testes` (via `@macuxi/db/teste`).
  */
@@ -9,9 +9,9 @@ import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { apagarBancoForcado } from './apagar-banco';
 import { criarDoModelo, modeloDoProcesso, usarModelo } from './banco-modelo';
-import { lerConfigTestes, PAPEL_PORTAL, urlAdmin, urlApp, urlPortal, urlWorker, validarNomeBanco, type ConfigBanco } from './config';
+import { lerConfigTestes, PAPEL_PORTAL, urlAdmin, urlApp, urlLeitura, urlPortal, urlWorker, validarNomeBanco, type ConfigBanco } from './config';
 import { migrarUp } from './migrador';
-import { garantirPapelApp, garantirPapelManutencao, garantirPapelPortal, garantirPapelSemLogin, garantirPapelWorker } from './papeis';
+import { garantirLeitura, garantirPapelApp, garantirPapelManutencao, garantirPapelPortal, garantirPapelSemLogin, garantirPapelWorker } from './papeis';
 
 export interface BancoDeTeste {
   nome: string;
@@ -26,6 +26,8 @@ export interface BancoDeTeste {
    * o único com EXECUTE nas plataforma.sa_*. null se MACUXI_PG_PORTAL_SENHA não existir (fora do local).
    */
   urlPortal: string | null;
+  /** Conexão do papel macuxi_leitura (0078, ADR 0055): consulta só leitura. null se MACUXI_PG_LEITURA_SENHA não existir. */
+  urlLeitura: string | null;
   apagar(): Promise<void>;
 }
 
@@ -75,6 +77,8 @@ async function garantirPapeis(c: pg.Client, cfg: ConfigBanco): Promise<void> {
   // sem a senha, só o papel NOLOGIN, com o mesmo lock (a 0038 o encontra pronto e não grava em pg_authid).
   if (cfg.portalSenha) await garantirPapelPortal(c, cfg.portalSenha);
   else await garantirPapelSemLogin(c, PAPEL_PORTAL);
+  // Idem para a 0078 (ADR 0055): macuxi_leitura (com a senha, LOGIN; sem, NOLOGIN) e os ajustes de sessão, com o lock dos papéis.
+  await garantirLeitura(c, cfg.leituraSenha);
   // Idem para a 0031 (B1, T-0075): papel macuxi_manutencao e a filiação do admin prontos antes das migrações paralelas.
   await garantirPapelManutencao(c);
 }
@@ -139,6 +143,7 @@ export async function criarBancoDeTeste(opcoes: OpcoesBancoDeTeste = {}): Promis
     urlApp: urlApp(cfg, nome),
     urlWorker: cfg.workerSenha ? urlWorker(cfg, nome) : null,
     urlPortal: cfg.portalSenha ? urlPortal(cfg, nome) : null,
+    urlLeitura: cfg.leituraSenha ? urlLeitura(cfg, nome) : null,
     apagar: () => apagarBanco(nome, cfg),
   };
 }

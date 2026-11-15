@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador; 0076: marca_codigo do produto; 0077: usuario.filial_cadastro_id e usuario_filial; 0080: usuario.codigo_fdv e usuario_codigo_fdv_contador), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -10,7 +10,7 @@
  * comparado com eles em db/testes/estatico.test.ts.
  * db/testes/drizzle-x-banco.test.ts confere colunas x banco migrado.
  */
-import { bigint, boolean, date, integer, jsonb, numeric, pgSchema, smallint, text, time, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, date, integer, jsonb, numeric, pgSchema, smallint, text, time, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 import { PERFIS } from '@macuxi/platform-sdk';
 
 export const core = pgSchema('core');
@@ -78,6 +78,23 @@ export const usuario = core.table('usuario', {
   desconto_limita_pedido: boolean('desconto_limita_pedido').notNull().default(false),
   /** Desconto máximo do pedido em décimos de % (‰): 8,0% = 80; 0..1000. Desligar "por pedido" mantém o número. */
   desconto_maximo_pedido_permil: integer('desconto_maximo_pedido_permil'),
+  /**
+   * Filial de CADASTRO (0077, T-0176, RN-CORE-39): nula = usuário bloqueado (domain/API do Core). FK composta
+   * usuario_filial_cadastro_fk -> core.filial. Preenchida exige linha viva em usuario_filial com a mesma filial (gatilho adiado
+   * usuario_filial_inclui_cadastro, 23514 no COMMIT, hint RN-CORE-39).
+   */
+  filial_cadastro_id: uuid('filial_cadastro_id'),
+  /**
+   * Código FDV (0080, T-0175, RN-CORE-59): 00001… por tenant (só número, 5 dígitos ou mais), gerado pelo banco (gatilho usuario_codigo_fdv_emitir) e só de
+   * leitura (usuario_codigo_fdv_somente_leitura, 23514). Somente leitura — nunca grave. Nulo só no apagado antes da 0080.
+   */
+  codigo_fdv: text('codigo_fdv'),
+});
+
+/** Contador do Código FDV (0080, RN-CORE-59): uma linha por tenant, o maior número emitido; só o gatilho grava. Fora do sync. */
+export const usuarioCodigoFdvContador = core.table('usuario_codigo_fdv_contador', {
+  ...comuns(),
+  ultimo_sequencial: bigint('ultimo_sequencial', { mode: 'number' }).notNull().default(0),
 });
 
 /**
@@ -100,6 +117,8 @@ export const produto = core.table('produto', {
   ean: text('ean'),
   nome: text('nome').notNull(),
   marca: text('marca'),
+  /** 0076 (R-20261115-080000-alexandre): código da marca no ERP (ex.: 980), até 30; nulo = sem código. Só exibição (card do Catálogo). */
+  marca_codigo: varchar('marca_codigo', { length: 30 }),
   categoria: text('categoria'),
   unidade: text('unidade').notNull().default('UN'),
   ativo: boolean('ativo').notNull().default(true),
@@ -762,4 +781,15 @@ export const deslocamentoDia = core.table('deslocamento_dia', {
   primeiro_ponto_em: timestamp('primeiro_ponto_em', { withTimezone: true }),
   ultimo_ponto_em: timestamp('ultimo_ponto_em', { withTimezone: true }),
   origem: text('origem', { enum: ['rastreamento'] }).notNull().default('rastreamento'),
+});
+
+/**
+ * Filiais de VENDA do usuário (0077, T-0176, RN-CORE-39; R-20261115-093000/094500): uma linha viva por (usuário, filial) —
+ * único parcial usuario_filial_uk. Inclui a de cadastro (usuario.filial_cadastro_id; gatilho adiado
+ * usuario_filial_inclui_cadastro). O mínimo de 1 é do domain/API. Remover = soft delete.
+ */
+export const usuarioFilial = core.table('usuario_filial', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  filial_id: uuid('filial_id').notNull(),
 });

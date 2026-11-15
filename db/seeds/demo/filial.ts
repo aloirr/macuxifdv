@@ -26,6 +26,9 @@
  *   Manaus/AM, FIL-MAO) e o retrato dela nos pedidos; TODOS os clientes ficam na padrão e a Boa Vista de uma carga anterior é desfeita (clientes de volta à
  *   padrão; itens, depósito, saldos e a filial 0002 apagados logicamente). `dadosDemoFilial` monta sempre as linhas (o teste
  *   confere a forma).
+ * - Filial do usuário (0077, T-0176, RN-CORE-39; R-20261115-094500: sem filial de cadastro o usuário fica bloqueado): os 7
+ *   logins com cadastro e venda na Manaus; os 2 vendedores (Lucas e Camila, com clientes na Boa Vista) vendem também na Boa
+ *   Vista (desfeita pela chave desligada). `dadosDemoUsuarioFilial` monta as linhas. Banco sem a 0077 = nada.
  * Idempotente (upsert por id determinístico; cliente e pedido por UPDATE). Banco sem a 0056 = nada a fazer. Só tenant demo;
  * só Postgres local ou servidor da demo (exigirBancoDemo).
  * CICLO DE IMPORT: o demo.ts importa este arquivo; daqui só o TIPO do demo.ts é importado.
@@ -119,12 +122,30 @@ export function dadosDemoFilial(p: {
 }
 
 /**
+ * 0077 (T-0176, RN-CORE-39): filiais de VENDA dos usuários da demo (função pura). Todo usuário vende na Manaus (a padrão, que
+ * também é a filial de cadastro); os vendedores também na Boa Vista. Ids determinísticos por (usuário, filial).
+ */
+export function dadosDemoUsuarioFilial(p: { tenantId: string; usuarios: readonly Linha[] }): {
+  manaus: Linha[];
+  boaVista: Linha[];
+} {
+  const T = p.tenantId;
+  const vinculo = (usuario: unknown, filial: string, chave: string): Linha => ({
+    id: id(`usuario_filial:${String(usuario)}:${chave}`), tenant_id: T, usuario_id: usuario, filial_id: filial, ...comuns, external_id: null,
+  });
+  return {
+    manaus: p.usuarios.map((u) => vinculo(u.id, idFilialPadrao(T), '0001')),
+    boaVista: p.usuarios.filter((u) => u.perfil === 'vendedor').map((u) => vinculo(u.id, idFilialBoaVistaDemo(), '0002')),
+  };
+}
+
+/**
  * Grava as filiais da demo (dentro da transação do carregarDemo). Devolve quantas linhas gravou/atualizou (0 = banco sem a
  * 0056).
  */
 export async function gravarDemoFilial(
   admin: ClientBase,
-  p: { tenantId: string; dados: Pick<DadosDemo, 'core.cliente' | 'core.produto' | 'catalogo.tabela_preco_item' | 'catalogo.estoque_saldo' | 'catalogo.deposito' | 'vendedor.pedido'> },
+  p: { tenantId: string; dados: Pick<DadosDemo, 'core.usuario' | 'core.cliente' | 'core.produto' | 'catalogo.tabela_preco_item' | 'catalogo.estoque_saldo' | 'catalogo.deposito' | 'vendedor.pedido'> },
   opcoes: { boaVista?: boolean } = {},
 ): Promise<number> {
   exigirBancoDemo(hostDoCliente(admin), 'Seed das filiais da demo');
@@ -166,6 +187,23 @@ export async function gravarDemoFilial(
     n += (await admin.query(`update catalogo.deposito set deleted_at = now() where ${vivo}`, [T, [d.deposito.id]])).rowCount ?? 0;
     n += (await admin.query(`update catalogo.tabela_preco_item set deleted_at = now() where ${vivo}`, [T, d.itensBoaVista.map((x) => x.id)])).rowCount ?? 0;
     n += (await admin.query(`update core.filial set deleted_at = now() where ${vivo} and not padrao`, [T, [idFilialBoaVistaDemo()]])).rowCount ?? 0;
+  }
+  // 0077 (T-0176): filial de cadastro (a Manaus) e de venda dos usuários; o gatilho adiado usuario_filial_inclui_cadastro
+  // confere no COMMIT do carregarDemo. Banco sem a 0077 = nada.
+  const comFilialDoUsuario = await admin.query<{ ok: boolean }>("select to_regclass('core.usuario_filial') is not null as ok");
+  if (comFilialDoUsuario.rows[0]?.ok) {
+    const uf = dadosDemoUsuarioFilial({ tenantId: T, usuarios: p.dados['core.usuario'] });
+    n += await gravarLinhas(admin, 'core.usuario_filial', boaVista ? [...uf.manaus, ...uf.boaVista] : uf.manaus);
+    if (!boaVista) {
+      n += (await admin.query('update core.usuario_filial set deleted_at = now() where tenant_id = $1 and id = any($2::uuid[]) and deleted_at is null', [T, uf.boaVista.map((x) => x.id)])).rowCount ?? 0;
+    }
+    n += (
+      await admin.query('update core.usuario set filial_cadastro_id = $3 where tenant_id = $1 and id = any($2::uuid[]) and filial_cadastro_id is distinct from $3', [
+        T,
+        p.dados['core.usuario'].map((u) => u.id),
+        idFilialPadrao(T),
+      ])
+    ).rowCount ?? 0;
   }
   // pedidos do seed: retrato da filial do cliente no recebimento (todos os clientes com pedido estão na Manaus)
   const comPedidoNaBoaVista = p.dados['vendedor.pedido'].filter((x) => d.clientesBoaVista.includes(String(x.cliente_id)));
