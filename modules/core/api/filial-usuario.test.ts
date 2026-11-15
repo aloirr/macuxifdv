@@ -2,10 +2,12 @@
 import type { ClienteBanco } from '@macuxi/platform-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { CONSULTA_FILIAIS_DO_USUARIO, CriarUsuarioRequestSchema, EditarUsuarioRequestSchema, SessaoRespostaSchema, UsuarioSyncSchema } from '../contracts';
-import { aplicarFilialDoErp, comGuardaDeFilial, conferirFiliaisDoUsuario, exigirQuemEditaFilial, filiaisDoUsuario, gravarFiliaisDoUsuario, usuarioSemFilial } from './filiais-usuario';
+import { aplicarFilialDoErp, conferirFiliaisDoUsuario, exigirQuemEditaFilial, filiaisDoUsuario, gravarFiliaisDoUsuario, usuarioSemFilial } from './filiais-usuario';
 import { matrizDeFabrica, perfilDeFabrica, resolverPerfil, type Perfil } from '@macuxi/platform-sdk';
 import { manifest } from '../manifest';
 import { rotasDeFilialDoProprioUsuario } from './filiais-usuario-rotas';
+import { entidadeUsuario, provedoresSyncCore } from './sync';
+import { repositorioTenantSql } from './repositorio';
 
 /** Perfil de fábrica com as ações do manifesto do Core (a matriz do domain não leva as ações dos módulos). */
 const perfisDoTeste = (perfil: string) => [resolverPerfil(perfilDeFabrica(perfil as Perfil), matrizDeFabrica([manifest]))];
@@ -83,26 +85,26 @@ describe('RN-CORE-39: API revalida a filial do usuário', () => {
   });
 });
 
-type CtxFalso = Parameters<ReturnType<typeof comGuardaDeFilial>[number]['executar']>[0];
+type CtxFalso = Parameters<(typeof rotasDeFilialDoProprioUsuario)[number]['executar']>[0];
 const ctxDeRota = (db: ClienteBanco, perfil: string, corpo?: unknown) =>
   ({ usuario: { id: U, perfil, perfis: perfisDoTeste(perfil), tenant_id: 't' }, requestId: 'r', corpo, comTenant: async (fn: (d: ClienteBanco) => unknown) => fn(db) }) as unknown as CtxFalso;
 
 describe('RN-CORE-39: bloqueio USUARIO_SEM_FILIAL e destravamento do admin', () => {
-  const rota = (metodo: 'GET' | 'PUT', caminho: string) => ({ metodo, caminho, carteira: 'nao_se_aplica' as const, executar: vi.fn(async () => 'ok') });
-  it.each(['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'admin'])('RN-CORE-39: %s sem filial recebe 403 USUARIO_SEM_FILIAL numa rota de dados', async (perfil) => {
-    const r = rota('GET', 'clientes');
-    const [g] = comGuardaDeFilial([r as never]);
-    await expect(g!.executar(ctxDeRota(fakeDb([[SEL_USUARIO, [{ filial_cadastro_id: null }]]]).db, perfil))).rejects.toMatchObject({ status: 403, codigo: 'USUARIO_SEM_FILIAL' });
-    expect(r.executar).not.toHaveBeenCalled();
+  it('RN-CORE-39 (ADR 0056): as rotas GET e PUT eu/filial-cadastro são liberadas ao usuário sem filial; as demais rotas do Core não', () => {
+    expect(rotasDeFilialDoProprioUsuario.length).toBe(2);
+    for (const r of rotasDeFilialDoProprioUsuario) expect(r.liberadaSemFilial).toBe(true);
   });
-  it('RN-CORE-39: com filial de cadastro a rota segue', async () => {
-    const r = rota('GET', 'clientes');
-    const [g] = comGuardaDeFilial([r as never]);
-    await expect(g!.executar(ctxDeRota(fakeDb([[SEL_USUARIO, [{ filial_cadastro_id: F1 }]]]).db, 'vendedor'))).resolves.toBe('ok');
+  it('RN-CORE-39 (ADR 0056): a leitura do usuário na autenticação traz sem_filial na mesma consulta (filial_cadastro_id nula = bloqueado)', async () => {
+    const linha = { id: U, perfil: 'vendedor', ativo: true, bloqueado_em: null, sessao_versao: 0 };
+    const sem = fakeDb([[/from core\.usuario where id/, [{ ...linha, sem_filial: true }]]]);
+    expect((await repositorioTenantSql(sem.db).usuarioAtual(U))?.sem_filial).toBe(true);
+    expect(sem.chamadas[0]!.sql).toMatch(/filial_cadastro_id is null\) as sem_filial/);
+    expect((await repositorioTenantSql(fakeDb([[/from core\.usuario where id/, [{ ...linha, sem_filial: false }]]]).db).usuarioAtual(U))?.sem_filial).toBe(false);
   });
-  it('RN-CORE-39: eu/filial-cadastro é a única rota que não passa pela guarda', () => {
-    const r = rota('PUT', 'eu/filial-cadastro');
-    expect(comGuardaDeFilial([r as never])[0]).toBe(r);
+  it('RN-CORE-39 (ADR 0056): o provedor de sync usuario é liberado ao usuário sem filial e os outros não', () => {
+    const provedor = provedoresSyncCore.find((p) => p.entidade === entidadeUsuario);
+    expect(provedor?.liberadoSemFilial).toBe(true);
+    expect(provedoresSyncCore.filter((p) => p.liberadoSemFilial).length).toBe(1);
   });
   const put = rotasDeFilialDoProprioUsuario.find((r) => r.metodo === 'PUT')!;
   const sem = (): Resp[] => [[SEL_USUARIO, [{ id: U, filial_cadastro_id: null }]], [/from core\.filial where id/, [{ id: F1 }]]];

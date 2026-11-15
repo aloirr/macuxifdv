@@ -3,16 +3,15 @@
  * por SQL direto (o espelho Drizzle é do banco-dados). `core.usuario.filial_cadastro_id` (nulo = bloqueado) e `core.usuario_filial`
  * (filiais de VENDA; remover o vínculo é soft delete). Invariante do banco: a de cadastro está sempre entre as de venda (gatilho
  * adiável `usuario_filial_inclui_cadastro`, 23514, checado no COMMIT; aqui antecipado com `set constraints ... immediate`).
- * O bloqueio `USUARIO_SEM_FILIAL` vale para qualquer perfil (`comGuardaDeFilial`). Sem dado pessoal em log.
+ * O bloqueio `USUARIO_SEM_FILIAL` vale para qualquer perfil (guarda global da plataforma, ADR 0056). Sem dado pessoal em log.
  */
-import { ErroHttpModulo, ErroRegraNegocio, pode, type ClienteBanco, type PerfilDaRequisicao, type RotaModulo } from '@macuxi/platform-sdk';
+import { ErroHttpModulo, ErroRegraNegocio, pode, type ClienteBanco, type PerfilDaRequisicao } from '@macuxi/platform-sdk';
 import {
   ACAO_FILIAL_USUARIO_EDITAR,
   CODIGOS_FILIAL_USUARIO,
   MENSAGEM_FILIAL_INVALIDA,
   MENSAGEM_FILIAL_VENDA_SEM_CADASTRO,
   MENSAGEM_SEM_PERMISSAO_FILIAL,
-  MENSAGEM_USUARIO_SEM_FILIAL,
   type FilialDoUsuario,
 } from '../contracts';
 import { filiaisDeVendaComCadastro, filiaisInexistentes, usuarioBloqueadoPorFilial, validarFiliaisDoUsuario } from '../domain';
@@ -89,27 +88,6 @@ export async function gravarFiliaisDoUsuario(db: ClienteBanco, usuarioId: string
     throw e;
   }
   return true;
-}
-
-/** Rotas liberadas ao usuário sem filial: só o `eu/filial-cadastro` (GET e PUT). Tudo o mais responde 403 `USUARIO_SEM_FILIAL`. */
-export const CAMINHOS_LIBERADOS_SEM_FILIAL: readonly string[] = ['eu/filial-cadastro'];
-
-/**
- * RN-CORE-39: envolve as rotas do Core com o bloqueio. Qualquer perfil sem filial de cadastro recebe 403 `USUARIO_SEM_FILIAL`, menos nas rotas
- * de `CAMINHOS_LIBERADOS_SEM_FILIAL`. Super-admin do portal (sem linha de usuário) passa. Uma consulta por requisição.
- * Fora do Core (sync, catálogo, vendedor...) o bloqueio depende de um gancho da plataforma (recado ao engenheiro-software).
- */
-export function comGuardaDeFilial(rotas: readonly RotaModulo[]): RotaModulo[] {
-  return rotas.map((r) => {
-    if (CAMINHOS_LIBERADOS_SEM_FILIAL.includes(r.caminho)) return r;
-    return {
-      ...r,
-      executar: async (ctx: Parameters<RotaModulo['executar']>[0]) => {
-        if (!ctx.superAdmin && (await ctx.comTenant((db) => usuarioSemFilial(db, ctx.usuario.id)))) throw new ErroHttpModulo(403, CODIGOS_FILIAL_USUARIO.semFilial, MENSAGEM_USUARIO_SEM_FILIAL);
-        return r.executar(ctx);
-      },
-    } as RotaModulo;
-  });
 }
 
 /**

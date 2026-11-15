@@ -6,11 +6,11 @@
  */
 import { definirTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
-import type { ContextoConsumo, RotaModulo } from '@macuxi/platform-sdk';
+import type { ContextoConsumo } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { consumidorVendedorDoErp } from './consumidores-erp-vendedor';
-import { comGuardaDeFilial, conferirFiliaisDoUsuario, filiaisDoUsuario, gravarFiliaisDoUsuario, usuarioSemFilial } from './filiais-usuario';
+import { conferirFiliaisDoUsuario, filiaisDoUsuario, gravarFiliaisDoUsuario, usuarioSemFilial } from './filiais-usuario';
 import { rotasDeFilialDoProprioUsuario } from './filiais-usuario-rotas';
 import { TABELAS_SYNC } from './sync';
 
@@ -77,8 +77,6 @@ describe.skipIf(semBanco())('Core T-0176 × Postgres: filial do usuário', () =>
       expect(await usuarioSemFilial(c, u.id)).toBe(true);
       const sync = `select filial_cadastro_id, filial_venda_ids, sem_filial from ${TABELAS_SYNC.usuario.tabela} where id = $1`;
       expect((await q(sync, [u.id]))[0]).toEqual({ filial_cadastro_id: null, filial_venda_ids: [], sem_filial: true });
-      const [guardada] = comGuardaDeFilial([{ metodo: 'GET', caminho: 'clientes', carteira: 'nao_se_aplica', executar: async () => 'ok' } as RotaModulo]);
-      await expect(guardada!.executar(ctxRota(c, { id: u.id, perfil: 'vendedor' }))).rejects.toMatchObject({ status: 403, codigo: 'USUARIO_SEM_FILIAL' });
       await gravarFiliaisDoUsuario(c, u.id, segunda, []);
       expect(await usuarioSemFilial(c, u.id)).toBe(false);
       expect((await q(sync, [u.id]))[0]).toEqual({ filial_cadastro_id: segunda, filial_venda_ids: [segunda], sem_filial: false });
@@ -91,12 +89,9 @@ describe.skipIf(semBanco())('Core T-0176 × Postgres: filial do usuário', () =>
       await q('update core.usuario set filial_cadastro_id = null where id = $1', [admin.id]);
       await q('update core.usuario_filial set deleted_at = now() where usuario_id = $1 and deleted_at is null', [admin.id]);
       expect(await usuarioSemFilial(c, admin.id)).toBe(true);
-      const [dados] = comGuardaDeFilial([{ metodo: 'GET', caminho: 'usuarios', carteira: 'nao_se_aplica', executar: async () => 'ok' } as RotaModulo]);
-      await expect(dados!.executar(ctxRota(c, admin))).rejects.toMatchObject({ codigo: 'USUARIO_SEM_FILIAL' });
       const put = rotasDeFilialDoProprioUsuario.find((r) => r.metodo === 'PUT')!;
       await put.executar(ctxRota(c, admin, { filial_cadastro_id: padrao }));
       expect(await filiaisDoUsuario(c, admin.id)).toEqual({ filial_cadastro_id: padrao, filial_venda_ids: [padrao], sem_filial: false });
-      expect(await dados!.executar(ctxRota(c, admin))).toBe('ok');
       await expect(put.executar(ctxRota(c, admin, { filial_cadastro_id: padrao }))).rejects.toMatchObject({ status: 409 });
     });
   });

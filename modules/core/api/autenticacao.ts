@@ -417,7 +417,7 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
     // T-0094: troca/redefinição/desativação sobe a sessao_versao — o token com versão antiga cai na próxima requisição (token antigo, sem `sv`, vale 0)
     if ((claims.sv ?? 0) !== u.sessao_versao) return null;
     if (aparelhoBloqueado) throw erroHttp(423, CODIGO_DISPOSITIVO_BLOQUEADO, MENSAGEM_APARELHO_BLOQUEADO);
-    return { id: u.id, tenant_id: claims.tid, perfil: u.perfil };
+    return { id: u.id, tenant_id: claims.tid, perfil: u.perfil, ...(u.sem_filial ? { sem_filial: true } : {}) };
   }
 
   return { login, trocarSenha, esqueciSenha, refresh, logout, autenticar };

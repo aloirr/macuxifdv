@@ -313,7 +313,7 @@ export const provedoresSyncCore: readonly ProvedorSync[] = [
   { entidade: entidadeProduto, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.produto) },
   { entidade: entidadeMedida, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.medida) },
   { entidade: entidadeFilial, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.filial) },
-  { entidade: entidadeUsuario, escopo: 'usuarios', puxar: puxarDe(TABELAS_SYNC.usuario) },
+  { entidade: entidadeUsuario, escopo: 'usuarios', puxar: puxarDe(TABELAS_SYNC.usuario), liberadoSemFilial: true },
   { entidade: entidadeClienteVisitaResumo, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_visita_resumo) },
   { entidade: entidadeFotoTipo, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.foto_tipo) },
   { entidade: entidadeClienteFoto, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_foto), receber: receberFotosPdv },

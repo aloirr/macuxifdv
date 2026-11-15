@@ -1,7 +1,7 @@
 /**
  * `GET|PUT /v1/core/eu/filial-cadastro` (T-0176, RN-CORE-39, R-20261115-094500): destravamento mínimo. Admin ou analista SEM filial de
  * cadastro (por exemplo, o primeiro admin do tenant) informa a PRÓPRIA filial e segue; os demais perfis esperam o admin. São as únicas
- * rotas do Core liberadas a quem está sem filial (`CAMINHOS_LIBERADOS_SEM_FILIAL`); as outras respondem 403 `USUARIO_SEM_FILIAL`.
+ * rotas do Core liberadas a quem está sem filial (`liberadaSemFilial`, guarda global da ADR 0056); as outras respondem 403 `USUARIO_SEM_FILIAL`.
  * O PUT só serve a quem está bloqueado (409 se já tem filial: a troca é do cadastro de usuários). A de cadastro entra na lista de venda
  * e as outras de venda ficam. Auditado.
  */
@@ -21,6 +21,7 @@ export const rotasDeFilialDoProprioUsuario: RotaModulo[] = [
   {
     metodo: 'GET',
     caminho: 'eu/filial-cadastro',
+    liberadaSemFilial: true,
     perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'],
     carteira: 'nao_se_aplica',
     executar: (ctx) =>
@@ -34,6 +35,7 @@ export const rotasDeFilialDoProprioUsuario: RotaModulo[] = [
   {
     metodo: 'PUT',
     caminho: 'eu/filial-cadastro',
+    liberadaSemFilial: true,
     superficie: 'bko',
     acao: ACAO_FILIAL_USUARIO_EDITAR,
     carteira: 'nao_se_aplica',
