@@ -119,7 +119,7 @@ function LicencasConteudo() {
             aria-selected={n === nivel}
             data-testid={`licencas.nivel.${n}`}
             onClick={() => set({ nivel: n === 'tenant' ? null : n })}
-            className={`h-[42px] rounded-xl border px-4 text-[14px] font-semibold ${n === nivel ? 'border-ink bg-ink text-white' : 'border-field bg-surface text-ink hover:bg-ground'}`}
+            className={`h-[42px] rounded-xl border px-4 text-[14px] font-semibold ${n === nivel ? 'border-accent bg-accent text-white' : 'border-field bg-surface text-ink hover:bg-ground'}`}
           >
             {ROTULO_NIVEL[n]}
           </button>
