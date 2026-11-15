@@ -111,7 +111,11 @@ export function Dialog({ open, title, children, footer, onClose }: { open: boole
   );
 }
 
-export function Drawer({ open, title, subtitle, children, onClose }: { open: boolean; title: ReactNode; subtitle?: ReactNode; children: ReactNode; onClose: () => void }) {
+/**
+ * Gaveta da direita. `rodape` (revisão do BKO §P8): a barra de botões do formulário (Salvar à direita, Cancelar ao lado),
+ * fixa embaixo, sempre à vista; o corpo rola sozinho.
+ */
+export function Drawer({ open, title, subtitle, children, onClose, rodape }: { open: boolean; title: ReactNode; subtitle?: ReactNode; children: ReactNode; onClose: () => void; rodape?: ReactNode }) {
   const id = useId();
   const ref = useRef<HTMLElement>(null);
   useEscape(open, onClose, ref);
@@ -138,6 +142,7 @@ export function Drawer({ open, title, subtitle, children, onClose }: { open: boo
           </button>
         </div>
         <div data-corpo className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{children}</div>
+        {rodape && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-line bg-surface px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{rodape}</div>}
       </aside>
     </div>
   );

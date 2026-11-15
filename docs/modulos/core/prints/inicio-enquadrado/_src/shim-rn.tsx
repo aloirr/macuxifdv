@@ -16,14 +16,19 @@ export const Text = (props: any) => {
   useLayoutEffect(() => {
     const el = ref.current as HTMLElement | null;
     if (!adjustsFontSizeToFit || !el) return;
-    let e = 1;
-    el.style.zoom = '1';
-    while (el.scrollWidth > el.clientWidth + 0.5 && e > minimumFontScale) {
-      e = Math.max(minimumFontScale, e - 0.02);
-      el.style.zoom = String(e);
-    }
-    el.dataset.escala = String(Math.round(e * 100) / 100);
-    setEsc(e);
+    // Refaz a conta quando as fontes terminam de carregar (antes delas a medida é a da fonte reserva)
+    const ajusta = () => {
+      let e = 1;
+      el.style.zoom = '1';
+      while (el.scrollWidth > el.clientWidth + 0.5 && e > minimumFontScale) {
+        e = Math.max(minimumFontScale, e - 0.02);
+        el.style.zoom = String(e);
+      }
+      el.dataset.escala = String(Math.round(e * 100) / 100);
+      setEsc(e);
+    };
+    ajusta();
+    void document.fonts.ready.then(ajusta);
   }, [adjustsFontSizeToFit, minimumFontScale, fs, props.children]);
   const novo = { ...st, fontSize: fs, ...(st.lineHeight ? { lineHeight: st.lineHeight * F } : {}) };
   return createElement(Base, { ...resto, ref, style: novo });

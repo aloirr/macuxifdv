@@ -3,18 +3,27 @@
 import { useState } from 'react';
 import type { Perfil } from '@macuxi/platform-sdk';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, Panel, TableScroll, td, th, useToast } from '@macuxi/ui/web';
-import type { Mapeamento } from '../../contracts';
+import { Badge, Button, EstadoVazio, Panel, rotuloComContagem, TabelaDados, useToast, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
+import type { Mapeamento, MapeamentoItem } from '../../contracts';
 import { ROTULO_TIPO_MAPEAMENTO, podeExecutar } from '../lib/apresentacao';
 import { useApagarMapeamento, useGravarMapeamento, useMapeamentos } from '../lib/queries';
 
 const VAZIO: Mapeamento = { tipo: 'condicao_pagamento', codigo_erp: '', codigo_macuxi: '', descricao: '', ativo: true };
+const COLUNAS: ReadonlyArray<ColunaDaTabela<MapeamentoItem>> = [
+  { id: 'macuxi', titulo: 'Código no Macuxi', celula: (m) => <span className="font-mono text-[12px]">{m.codigo_macuxi}</span>, texto: (m) => m.codigo_macuxi },
+  { id: 'erp', titulo: 'Código no ERP', celula: (m) => <span className="font-mono text-[12px]">{m.codigo_erp}</span>, texto: (m) => m.codigo_erp },
+  { id: 'tipo', titulo: 'Tipo', prioridade: 2, celula: (m) => ROTULO_TIPO_MAPEAMENTO[m.tipo], texto: (m) => ROTULO_TIPO_MAPEAMENTO[m.tipo] },
+  { id: 'descricao', titulo: 'Descrição', prioridade: 3, celula: (m) => m.descricao ?? '—', texto: (m) => m.descricao ?? '' },
+  { id: 'situacao', titulo: 'Situação', largura: '120px', celula: (m) => (m.ativo ? <Badge tone="success">Ativo</Badge> : <Badge tone="neutral">Inativo</Badge>) },
+];
+
 const campo = 'h-12 min-w-[140px] rounded-[10px] border border-field bg-surface px-2 text-[14px] text-ink';
 
 /**
  * De-para de códigos ERP ↔ Macuxi (T-0120, RN-INT-08): a condição de pagamento do Macuxi tem UM correspondente ativo no ERP; sem
  * ele, os pedidos ficam retidos e o painel diz qual condição cadastrar. Gravar libera os pedidos retidos sozinho. Editar é de
- * admin ou analista (`mapeamento.editar`); a API revalida.
+ * admin ou analista (`mapeamento.editar`); a API revalida. Lista sem rolagem lateral, com Editar, Inativar/Ativar e Apagar no
+ * "⋯" da linha (revisão do BKO §P2/§P3); quem não edita não vê o "⋯".
  */
 export function MapeamentoPanel({ perfil }: { perfil: Perfil | null }) {
   const toast = useToast();
@@ -35,8 +44,30 @@ export function MapeamentoPanel({ perfil }: { perfil: Perfil | null }) {
       onError: (e) => toast('danger', errorMessage(e)),
     });
 
+  const acoes = (m: MapeamentoItem): AcaoDoMenu[] => [
+    {
+      id: 'editar',
+      rotulo: 'Editar',
+      aoEscolher: () => setForm({ tipo: m.tipo, codigo_erp: m.codigo_erp, codigo_macuxi: m.codigo_macuxi, descricao: m.descricao ?? '', ativo: m.ativo }),
+    },
+    {
+      id: 'situacao',
+      rotulo: m.ativo ? 'Inativar' : 'Ativar',
+      desligada: gravar.isPending,
+      aoEscolher: () => salvar({ tipo: m.tipo, codigo_erp: m.codigo_erp, codigo_macuxi: m.codigo_macuxi, descricao: m.descricao, ativo: !m.ativo }),
+    },
+    {
+      id: 'apagar',
+      rotulo: 'Apagar',
+      perigo: true,
+      desligada: apagar.isPending,
+      testId: `integracao.mapeamento.apagar.${m.id}`,
+      aoEscolher: () => apagar.mutate(m.id, { onSuccess: () => toast('success', 'De-para apagado.'), onError: (e) => toast('danger', errorMessage(e)) }),
+    },
+  ];
+
   return (
-    <Panel label="De-para de códigos" title={<>De-para de códigos <span className="font-sans text-[13px] font-normal text-ink-2">· {itens.length} cadastrados</span></>}>
+    <Panel label="De-para de códigos" title={rotuloComContagem('De-para de códigos', itens.length)}>
       {faltando.length > 0 && (
         <div className="mb-3 rounded-[10px] border border-warn bg-surface p-3 text-[13px]" role="status" data-testid="integracao.mapeamento.faltando">
           <strong>Pedidos retidos por falta de de-para.</strong> Cadastre o código do ERP para: {faltando.map((f) => `${f.codigo_macuxi} (${f.pedidos} pedido${f.pedidos === 1 ? '' : 's'})`).join(', ')}.
@@ -55,57 +86,18 @@ export function MapeamentoPanel({ perfil }: { perfil: Perfil | null }) {
 
       {q.isError ? (
         <span className="text-[13px] text-danger">{errorMessage(q.error)}</span>
-      ) : itens.length === 0 ? (
-        <span className="text-[13px] text-ink-2" data-testid="integracao.mapeamento.vazio">
-          Nenhum de-para cadastrado. {pode ? 'Use o formulário abaixo.' : 'Peça a um administrador ou analista.'}
-        </span>
-      ) : (
-        <TableScroll minWidth={760}>
-          <thead>
-            <tr>
-              <th scope="col" className={th}>Tipo</th>
-              <th scope="col" className={th}>Código no ERP</th>
-              <th scope="col" className={th}>Código no Macuxi</th>
-              <th scope="col" className={th}>Descrição</th>
-              <th scope="col" className={th}>Situação</th>
-              <th scope="col" className={th}>Ações</th>
-            </tr>
-          </thead>
-          <tbody data-testid="integracao.mapeamentos">
-            {itens.map((m) => (
-              <tr key={m.id} data-testid={`integracao.mapeamento.${m.id}`}>
-                <td className={td}>{ROTULO_TIPO_MAPEAMENTO[m.tipo]}</td>
-                <td className={`${td} font-mono text-[12px]`}>{m.codigo_erp}</td>
-                <td className={`${td} font-mono text-[12px]`}>{m.codigo_macuxi}</td>
-                <td className={td}>{m.descricao ?? '—'}</td>
-                <td className={td}>{m.ativo ? 'Ativo' : 'Inativo'}</td>
-                <td className={td}>
-                  {pode ? (
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" onClick={() => setForm({ tipo: m.tipo, codigo_erp: m.codigo_erp, codigo_macuxi: m.codigo_macuxi, descricao: m.descricao ?? '', ativo: m.ativo })}>
-                        Editar
-                      </Button>
-                      <Button size="sm" onClick={() => salvar({ tipo: m.tipo, codigo_erp: m.codigo_erp, codigo_macuxi: m.codigo_macuxi, descricao: m.descricao, ativo: !m.ativo })} disabled={gravar.isPending}>
-                        {m.ativo ? 'Inativar' : 'Ativar'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        disabled={apagar.isPending}
-                        onClick={() => apagar.mutate(m.id, { onSuccess: () => toast('success', 'De-para apagado.'), onError: (e) => toast('danger', errorMessage(e)) })}
-                        data-testid={`integracao.mapeamento.apagar.${m.id}`}
-                      >
-                        Apagar
-                      </Button>
-                    </div>
-                  ) : (
-                    <span className="text-[12px] text-ink-2">Só administrador ou analista edita.</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </TableScroll>
+      ) : q.isPending ? null : (
+        <TabelaDados
+          colunas={COLUNAS}
+          linhas={itens}
+          chave={(m) => m.id}
+          rotulo="De-para de códigos"
+          testId="integracao.mapeamentos"
+          linhaTestId={(m) => `integracao.mapeamento.${m.id}`}
+          esmaecida={(m) => !m.ativo}
+          acoes={pode ? acoes : undefined}
+          vazio={<EstadoVazio titulo="Nenhum de-para cadastrado." testId="integracao.mapeamento.vazio" />}
+        />
       )}
 
       {pode && (

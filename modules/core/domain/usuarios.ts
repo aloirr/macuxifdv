@@ -80,7 +80,7 @@ export interface UsuarioDoEstado {
 export interface EntradaAlteracaoUsuario {
   /** Quem altera: o id e os perfis resolvidos da requisição (`ctx.usuario.perfis`). */
   ator: { id: string; perfis: readonly PerfilDaRequisicao[] };
-  /** `perfis` = os perfis reais do alvo (multiperfil, T-0111); sem eles vale só o principal, no padrão de fábrica. */
+  /** `perfis` = o perfil real do alvo; sem ele vale só o principal, no padrão de fábrica. */
   alvo: UsuarioDoEstado & { perfis?: readonly { codigo: string; base: Perfil }[] };
   /** `perfis` = códigos dos perfis depois da alteração (omitido = os de hoje; ou só o principal novo, se ele mudou). */
   depois: { perfil: Perfil; ativo: boolean; perfis?: readonly string[] };

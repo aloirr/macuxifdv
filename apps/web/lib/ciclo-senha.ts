@@ -2,7 +2,7 @@
  * Ciclo de senha no login do BKO (T-0094; RN-CORE-32/33/34; ADR 0032; spec docs/design/ciclo-de-senha.md §1 a §3; desenho
  * docs/desenho/T-0094.md §3 a §5 e §8). Puro, para teste.
  * RD-0019/RD-0020: textos, `detalhesDaTroca`, `subtituloDaTroca`, `repeticaoDaSenha`, `trocaProntaParaEnviar`, `validarEsqueci`,
- * `validarLogin` e o texto de espera vêm da fonte única do Core (`@macuxi/core/contracts`, ciclo-senha.ts). Aqui fica só o que é
+ * `validarLoginNovo` e o texto de espera vêm da fonte única do Core (`@macuxi/core/contracts`, ciclo-senha.ts). Aqui fica só o que é
  * do BKO: as rotas, o texto de cada erro da troca (a ação vem de `acaoDoErroDaTroca`, do Core), a memória da aba e o ouvinte
  * do `PERFIL_SEM_BKO`.
  * - 403 `SENHA_A_TROCAR` no login → "Crie sua senha" (sem texto). A senha usada no login fica só na memória da tela de login (estado

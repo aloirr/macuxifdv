@@ -61,11 +61,11 @@ Desenho: `docs/desenho/T-0094.md`; textos e telas: `docs/design/ciclo-de-senha.m
 - **Rotas do BKO** (`superficie: 'bko'`): usuários, equipes, Equipe por CSV, licenças e parâmetros do Início. `usuario.ver` é do gerente e do admin (o supervisor não usa o BKO).
 - Testes: `domain/acesso-senha.test.ts`, `api/senha-acesso.test.ts`, `api/autenticacao.test.ts`, `api/usuarios.test.ts`, `web/lib/usuarios.test.ts`, `app/lib/senha.test.ts`.
 
-## Perfis de acesso e multiperfil (T-0111/T-0112; ADR 0033)
+## Perfis de acesso, cargo e hierarquia (T-0111/T-0112; ADR 0033, ADR 0049)
 
 - Rotas `/v1/core/perfis` (lista, opções do cadastro, criar, detalhe, editar, histórico), todas por `perfil.gerir` (opções: `usuario.ver`). Contrato: `modules/core/contracts/perfis.ts`; regras: `modules/core/domain/perfis.ts` (código do nome, diferença da fábrica, limites por `validarAcessoDoTenant`, diff de auditoria); rotas: `modules/core/api/perfis.ts`.
 - O PUT recebe o conjunto de permissões concedidas e grava só a diferença da fábrica em `plataforma.perfil_permissao`; as chaves fora da tela (`notificacao.ler`, `dispositivo.registrar_push`, `parametro.promotor_ve_pedidos`) nunca viram revogação.
-- Usuário: `perfis` (códigos; o primeiro é o principal, a base dele vai em `core.usuario.perfil`) em criar/editar; vínculos em `plataforma.usuario_perfil`; a lista devolve `perfis` e filtra por código. Login e `/me/modulos` leem `plataforma.perfis_do_usuario` (regra mais restritiva no BKO e no portal, RN-CORE-35).
+- Usuário: um perfil só (RN-CORE-54, ADR 0049). `perfis` em criar/editar é a lista de um item (mais de um: 422); a base dele vai em `core.usuario.perfil` e o vínculo em `plataforma.usuario_perfil`. O cargo vem do perfil (RN-CORE-53) e define o que o cadastro pede: supervisor, gerente e nome da equipe (RN-CORE-55/56); código no ERP obrigatório (RN-CORE-57). Login e `/me/modulos` leem `plataforma.perfis_do_usuario`.
 - Pendências conhecidas: ligar/desligar módulo por perfil personalizado (hoje só o padrão copiado da base; use Usuários e módulos), prévia de módulos efetivos no formulário, níveis em `pedido.*`/`meta.editar` (aguardam as chaves, spec §13) e `promotor_ve_pedidos` → `pedido.ver`.
 
 ## Parâmetros de desconto (T-0168, RN-VEN-11a)

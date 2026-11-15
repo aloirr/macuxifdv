@@ -1,5 +1,8 @@
 # Roteiro de teste — Campo-Demo-v1.0.4 e Gestao-Demo-v1.0.4
 
+> **Histórico.** A demo foi desligada (ADR 0051) e os perfis de preview saíram do `eas.json`: este roteiro não se aplica
+> mais a builds novos. Os endereços `*-demo.macuxifdv.com.br` citados aqui não existem mais.
+
 > Para o Alexandre. Cobre só o que mudou desde o **Campo-Demo-v1.0.3 / Gestao-Demo-v1.0.3** (commit do lote: 92de23ca).
 > Dono: engenheiro-apps. Os links dos APKs vêm no recado "BUILD PRONTO Campo-Demo-v1.0.4 / Gestao-Demo-v1.0.4".
 > O roteiro do v1.0.3 continua valendo para o que não mudou (dados da demo, usuários e clientes estão lá).

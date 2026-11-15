@@ -17,7 +17,8 @@ packages/{platform-sdk,ui,config} · db/ (migrações, RLS, seeds, views do Cone
 ## Comandos
 `pnpm install` · `pnpm dev` · `pnpm lint` · `pnpm typecheck` · `pnpm test` · `pnpm --filter <pacote> test`
 Repositório: `aloirr/macuxifdv` no GitHub. **Time 100% na nuvem** (dono do produto, chat de 14/11/2026, depois do build Oficial v1.0.7; ADR do time na nuvem, proposto): todo o time roda em sessões do claude.ai/code (Linux, bash), com PR e CI no GitHub; o PC (VS Code) não roda mais o time. A Fase M (mockup com Excel) fica no PC do dono do produto (`C:\Users\domon\dev\forca-vendas`) — só consulta e cópia, nunca alterar; o que for preciso dela o dono do produto anexa à tarefa.
-**Sem Docker** (R-20261105-053835; vale também na nuvem): nenhum agente roda `docker` nem depende de Postgres local (5432/5434). Testes de banco (`*.db.test.ts`, integração) e o stack isolado rodam no CI do GitHub (CI do PR, workflow `stack-isolado.yml`); o resultado do CI é o critério. A demo roda na Magalu (ADR 0020); o plano B é recriar a base na VM pelo workflow `demo-recriar-base`.
+**Sem Docker** (R-20261105-053835; vale também na nuvem): nenhum agente roda `docker` nem depende de Postgres local (5432/5434). Testes de banco (`*.db.test.ts`, integração) e o stack isolado rodam no CI do GitHub (CI do PR, workflow `stack-isolado.yml`); o resultado do CI é o critério. A demo foi desligada em 14/11/2026 (ADR 0051).
+**Horário de Manaus** (R-20261114-195100-alexandre): horários em texto para pessoas (recados, docs, relatórios) no fuso de Manaus (UTC−4); carimbos técnicos e banco em UTC.
 Coordenação: `node scripts/coord.mjs` (caixa, enviar, pendencias, dono, verificar).
 
 ## Regras inegociáveis
