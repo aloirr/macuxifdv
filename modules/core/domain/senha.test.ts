@@ -27,9 +27,9 @@ describe('RN-CORE-32: senha com 8+ caracteres, letra, número e caractere especi
     expect(faltasNaSenha('abc 1234')).toEqual(['especial']);
     expect(faltasNaSenha('abc 123!')).toEqual([]);
   });
-  it('RN-CORE-32: não há trim (espaços nas pontas contam no tamanho)', () => {
-    expect(faltasNaSenha('  a1!   ')).toEqual([]);
-    expect(faltasNaSenha('a1!     ')).toEqual([]);
+  it('RN-CORE-32: não há trim (espaços do meio contam no tamanho; nas pontas invalidam)', () => {
+    expect(faltasNaSenha('a  1!   b')).toEqual([]);
+    expect(faltasNaSenha('  a1!   ')).toEqual(['espaco']);
   });
   it('RN-CORE-32: emoji conta como um caractere (ponto de código) e como especial', () => {
     expect(faltasNaSenha('abc123😀')).toEqual(['caracteres']);
@@ -58,5 +58,28 @@ describe('RN-CORE-32: senha com 8+ caracteres, letra, número e caractere especi
     expect(mensagemDaSenha(['caracteres'])).toBe('A senha precisa ter pelo menos 8 caracteres.');
     expect(mensagemDaSenha(['caracteres', 'numero'])).toBe('A senha precisa ter pelo menos 8 caracteres. Falta um número.');
     expect(mensagemDaSenha(['caracteres'], 'a'.repeat(201))).toBe('A senha pode ter até 200 caracteres.');
+  });
+});
+
+describe('RN-CORE-32: espaço no começo ou no fim invalida a senha (criação e troca)', () => {
+  it('RN-CORE-32: só espaços ou vazia caem nas faltas de antes, sem a falta espaco', () => {
+    expect(faltasNaSenha('        ')).toEqual(['letra', 'numero', 'especial']);
+    expect(faltasNaSenha('')).toEqual(['caracteres', 'letra', 'numero', 'especial']);
+    expect(mensagemDaSenha(faltasNaSenha('        '))).toBe('Faltam uma letra, um número e um caractere especial.');
+  });
+  it('RN-CORE-32: espaço na ponta só vale com algum caractere que não é espaço', () => {
+    expect(faltasNaSenha(' Abc123!x')).toEqual(['espaco']);
+    expect(faltasNaSenha('Abc123!x ')).toEqual(['espaco']);
+    expect(faltasNaSenha('Abc 123!x')).toEqual([]);
+  });
+  it('RN-CORE-32: espaço na ponta é uma falta e a mensagem é a constante única', () => {
+    expect(faltasNaSenha(' Abcdef1!')).toEqual(['espaco']);
+    expect(faltasNaSenha('Abcdef1! ')).toEqual(['espaco']);
+    expect(senhaServe(' Abcdef1!')).toBe(false);
+    expect(mensagemDaSenha(['espaco'])).toBe('A senha não pode começar nem terminar com espaço.');
+    expect(mensagemDaSenha(faltasNaSenha(' ab'))).toBe('A senha não pode começar nem terminar com espaço.');
+  });
+  it('RN-CORE-32: espaço no meio continua valendo', () => {
+    expect(faltasNaSenha('Abc def1!')).toEqual([]);
   });
 });
