@@ -89,6 +89,40 @@ describe('página Parâmetros (ADR 0058)', () => {
     expect(visao.destinoParametros('clientes')).toBeNull();
   });
 
+  it('página que foi para Parâmetros não abre pelo endereço; o redirecionamento é o `destinoParametros`', () => {
+    for (const c of ['perfis', '/perfis', 'motivos', 'plano-rv']) expect(visao.pagina(c), c).toBeNull();
+    expect(visao.pagina('clientes')).toMatchObject({ modulo: 'core', id: 'clientes' });
+  });
+
+  it('painel que substitui a página e está oculto pela ação: sem destino (nada aponta para painel invisível)', () => {
+    const m = definirModuloShell({
+      ...core,
+      paineisParametros: [{ id: 'perfis', secao: 'acesso', titulo: 'Perfis de acesso', acao: 'acesso.gerir_perfis', componente: 'PainelPerfis' }],
+    });
+    const s = criarShell('web', [m]);
+    expect(s.montar({ perfil: 'admin', modulosAtivos: ['core'] }).destinoParametros('perfis')).toBe('/parametros/acesso#core-perfis');
+    const sup = s.montar({ perfil: 'supervisor', modulosAtivos: ['core'] });
+    expect(sup.destinoParametros('perfis')).toBeNull();
+    expect(sup.pagina('perfis')).toBeNull();
+  });
+
+  it('página tirada de `paginas` e painel com `caminhosAntigos` (fim da transição): mesmo destino, página null', () => {
+    const m = definirModuloShell({
+      ...core,
+      paginas: core.paginas?.filter((p) => p.id !== 'perfis' && p.id !== 'motivos'),
+      paineisParametros: [
+        { id: 'perfis', secao: 'acesso', titulo: 'Perfis de acesso', ordem: 10, acao: 'acesso.gerir_perfis', caminhosAntigos: ['perfis'], componente: 'PainelPerfis' },
+        { id: 'motivos', secao: 'visitas', titulo: 'Motivos de não venda', ordem: 10, caminhosAntigos: ['motivos'], componente: 'PainelMotivos' },
+      ],
+    });
+    const v = criarShell('web', [m]).montar({ perfil: 'admin', modulosAtivos: ['core'] });
+    expect(v.destinoParametros('/perfis')).toBe('/parametros/acesso#core-perfis');
+    expect(v.destinoParametros('motivos')).toBe('/parametros/visitas#core-motivos');
+    expect(v.pagina('perfis')).toBeNull();
+    expect(v.pagina('motivos')).toBeNull();
+    expect(v.parametros.find((x) => x.secao === 'acesso')?.paineis).toEqual([expect.objectContaining({ id: 'perfis', origem: 'painel' })]);
+  });
+
   it('painel e página respeitam a ação do perfil; seção sem painel visível some', () => {
     const sup = shell.montar({ perfil: 'supervisor', modulosAtivos: ['core'], modulosContratados: ['core'] });
     expect(sup.parametros.find((s) => s.secao === 'clientes')?.paineis.map((p) => p.titulo)).toEqual(['Curvas ABC']);
@@ -157,5 +191,20 @@ describe('validação dos painéis (ADR 0058)', () => {
       ],
     });
     expect(() => criarShell('web', [ruim])).toThrow(/painel de parâmetros core\/x repetido.*ação nao\.existe.*caminho antigo sem barra inicial/);
+  });
+
+  it('endereço antigo ambíguo estoura na montagem: dois painéis, painel × página em transição, painel × página viva', () => {
+    const outro = definirModuloShell({
+      manifesto: defineModule({ id: 'catalogo', versao: '1.0.0', depende: ['core'], perfis: ['admin'], apps: { web: { menus: [] } } }),
+      paineisParametros: [{ id: 'y', secao: 'produtos', titulo: 'Y', caminhosAntigos: ['motivos-antigo', 'perfis', 'clientes'], componente: 'Y' }],
+    });
+    expect(() => criarShell('web', [core, outro])).toThrow(/caminho antigo motivos-antigo leva a core\/motivos e a catalogo\/y/);
+    expect(() => criarShell('web', [core, outro])).toThrow(/caminho antigo perfis leva a core\/perfis e a catalogo\/y/);
+    expect(() => criarShell('web', [core, outro])).toThrow(/caminho antigo clientes \(catalogo\/y\) é a página core\/clientes/);
+  });
+
+  it('página em transição e o painel que a substitui com o mesmo endereço antigo: um só destino, sem erro', () => {
+    const m = definirModuloShell({ ...core, paineisParametros: [{ id: 'perfis', secao: 'acesso', titulo: 'Perfis', caminhosAntigos: ['perfis'], componente: 'P' }] });
+    expect(() => criarShell('web', [m])).not.toThrow();
   });
 });

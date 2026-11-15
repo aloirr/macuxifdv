@@ -430,6 +430,32 @@ export function criarShell<C>(app: AppShell, modulos: readonly ModuloShell<C>[])
       }
     }
   }
+  // endereços antigos (ADR 0058): cada um leva a um só painel e nunca coincide com uma página que continua página
+  if (app === 'web') {
+    const destinoAntigo = new Map<string, string>();
+    const paginaViva = new Map<string, string>();
+    const marcar = (caminho: string, destino: string) => {
+      const c = caminho.replace(/^\/+/, '');
+      const outro = destinoAntigo.get(c);
+      if (outro && outro !== destino) problemas.push(`caminho antigo ${c} leva a ${outro} e a ${destino}`);
+      destinoAntigo.set(c, destino);
+    };
+    for (const m of modulos) {
+      const id = m.manifesto.id;
+      for (const p of m.paginas ?? []) {
+        if (p.apps && !p.apps.includes(app)) continue;
+        if (transicaoDa(id, p.id, p.grupo ?? 'operacao')?.secao) marcar(p.caminho, `${id}/${p.id}`);
+        else paginaViva.set(p.caminho, `${id}/${p.id}`);
+      }
+      for (const pp of m.paineisParametros ?? []) {
+        for (const c of pp.caminhosAntigos ?? []) marcar(c, `${id}/${pp.id}`);
+      }
+    }
+    for (const [c, destino] of destinoAntigo) {
+      const pagina = paginaViva.get(c);
+      if (pagina) problemas.push(`caminho antigo ${c} (${destino}) é a página ${pagina}`);
+    }
+  }
   // extensões de UI: slots declarados pelos donos (`ofereceExtensoes`); item de slot sem dono instalado some sem erro (RN-CORE-03)
   const extensoes = criarRegistroExtensoes();
   for (const m of manifestos) for (const slot of m.ofereceExtensoes) extensoes.declararSlot(slot, m.id);
@@ -523,7 +549,7 @@ export interface VisaoShell<C> {
    * Vale para os `caminhosAntigos` dos painéis e para as páginas que a transição levou para Parâmetros.
    */
   destinoParametros(caminho: string): string | null;
-  /** Página do caminho (sem barra inicial) ou null se não existe, não é permitida ou está bloqueada. */
+  /** Página do caminho (sem barra inicial) ou null se não existe, não é permitida, está bloqueada ou foi para Parâmetros (`destinoParametros`). */
   pagina(caminho: string): (PaginaShell<C> & { modulo: ModuloId }) | null;
   /** Permissão por ação já ligada ao usuário. */
   pode(acao: string): boolean;
@@ -590,28 +616,34 @@ function montarVisao<C>(
     // o perfil já entrou no cálculo dos efetivos (RN-CORE-01); `manifesto.perfis` é só o padrão do perfil
     if (app !== 'web' && !m.manifesto.apps[app]) continue;
     const declarados = new Set(app === 'web' ? (m.paineisParametros ?? []).map((pp) => pp.id) : []);
+    // endereço da página em transição cujo painel declarado (mesmo id) a substitui: vira caminho antigo do painel
+    const antigosDaPagina = new Map<string, string>();
     for (const p of m.paginas ?? []) {
       if (p.apps && !p.apps.includes(app)) continue;
-      if (p.perfis && !p.perfis.includes(ctx.perfil)) continue;
-      if (p.acao && !pode(p.acao)) continue;
-      visiveis.set(p.caminho, { ...p, modulo: id });
       const grupo = p.grupo ?? 'operacao';
       // a tabela de transição é do menu do BKO: no app os ids coincidem (core/clientes, gestor/alertas…) e a ordem das abas não muda
       const t = app === 'web' ? transicaoDa(id, p.id, grupo) : null;
-      if (t?.secao) {
-        // transição (ADR 0058): a página vai para Parâmetros e sai do menu; o painel declarado com o mesmo id a substitui
-        const ancora = `${id}-${p.id}`;
-        if (declarados.has(p.id)) destinos.set(p.caminho, `/parametros/${t.secao}#${ancora}`);
-        else incluirPainel(t.secao, t.ordem ?? 100, { modulo: id, id: p.id, titulo: p.titulo, ancora, testID: `parametros-${ancora}`, origem: 'pagina', componente: p.componente }, [p.caminho]);
+      // transição (ADR 0058): a página vai para Parâmetros, sai do menu e não abre mais pelo endereço (só `destinoParametros`)
+      if (t?.secao && declarados.has(p.id)) {
+        antigosDaPagina.set(p.id, p.caminho);
         continue;
       }
+      if (p.perfis && !p.perfis.includes(ctx.perfil)) continue;
+      if (p.acao && !pode(p.acao)) continue;
+      if (t?.secao) {
+        const ancora = `${id}-${p.id}`;
+        incluirPainel(t.secao, t.ordem ?? 100, { modulo: id, id: p.id, titulo: p.titulo, ancora, testID: `parametros-${ancora}`, origem: 'pagina', componente: p.componente }, [p.caminho]);
+        continue;
+      }
+      visiveis.set(p.caminho, { ...p, modulo: id });
       if (p.navegacao) navegacao.push(itemNavegacao(id, p, app === 'web' ? grupoResolvido(id, p.id, grupo) : semTransicao(grupo), t?.rotulo ?? p.navegacao, false));
     }
     for (const pp of app === 'web' ? (m.paineisParametros ?? []) : []) {
       if (pp.perfis && !pp.perfis.includes(ctx.perfil)) continue;
       if (pp.acao && !pode(pp.acao)) continue;
       const ancora = `${id}-${pp.id}`;
-      incluirPainel(pp.secao, pp.ordem ?? 100, { modulo: id, id: pp.id, titulo: pp.titulo, ancora, testID: `parametros-${ancora}`, origem: 'painel', componente: pp.componente }, pp.caminhosAntigos ?? []);
+      const antigos = [...(pp.caminhosAntigos ?? []), ...(antigosDaPagina.has(pp.id) ? [antigosDaPagina.get(pp.id) as string] : [])];
+      incluirPainel(pp.secao, pp.ordem ?? 100, { modulo: id, id: pp.id, titulo: pp.titulo, ancora, testID: `parametros-${ancora}`, origem: 'painel', componente: pp.componente }, antigos);
     }
   }
   navegacao.sort(
