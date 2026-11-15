@@ -300,3 +300,16 @@ A pergunta foi se a regra de R-20261115-090000 está num lugar só: promotor, su
 - **A restrição do vendedor ainda está em aberto.** Na spec §4, o vendedor continua vendo todas as filiais por decisão do designer, e R-20261115-090000 só cita promotor e supervisor. Isso é uma decisão de produto, não uma redundância. Deixo com o gerente, que deve confirmar com o dono do produto.
 
 Os RD-0578 e RD-0579 não foram usados.
+
+## 12. Reteste dos RD-0576 e RD-0577 (15/11/2026 ~08h55 de Manaus, `git diff ad6e5537 689b91b9`, designer-ux)
+**Veredito: LIMPO.** Os dois achados estão corrigidos, e não há achado novo. O RD-0578 não foi usado.
+
+| RD | Situação | Evidência |
+|---|---|---|
+| RD-0576 | **corrigido** | A regra "só as filiais deles" ficou só na spec §4. A §2.1 diz "as filiais que o usuário vê (§4)". O "Valor de N" da §3 perdeu "Eles veem só as filiais deles" e "que só o vendedor tem", e passou a remeter à §4. O item Promotor da §3 e o do grade §2 perderam "das filiais dele". Procurei "só as", "filiais d" e "que só o vendedor" na spec, no grade e no `.html`. Só sobram a lista das decisões no cabeçalho da spec e a legenda do PNG 08, que descrevem a origem e a imagem, e não a regra. |
+| RD-0577 | **corrigido** | O TalkBack do cartão está só no grade §2: `"<nome>, <marca>, <preço>, estoque <N>"` (ex.: "…, R$ 4,95, estoque 6"), depois o botão `Estoque por filial`. Na spec §3 a frase saiu. |
+
+- **Vendedor "em aberto"** (spec §4, R-20261115-090000): a decisão é do dono do produto. Não conta como achado.
+- **R-20261115-090000 citado 2 vezes no item do vendedor** (no "em aberto" e na justificativa): na justificativa, a citação diz o que a decisão restringe. É origem, não informação repetida. Não conta como achado.
+
+Situação do estoque do Catálogo v2: RD-0571, RD-0572, RD-0573, RD-0575, RD-0576 e RD-0577 corrigidos; RD-0574 encerrado por decisão do dono do produto. **Nenhum achado em aberto.**
