@@ -19,26 +19,23 @@
 | `colors.surface` | `#FFFFFF` | cartões, folha, barra de abas |
 | `colors.ink2` / `ink3` | `#4A5562` / `#5B6673` | texto secundário / terciário (≥ 4,5:1 no branco e no Pérola) |
 
-**Fonte do sistema** (R-20261115-110600, 15/11/2026, v1.0.13; saem Archivo, IBM Plex Sans e IBM Plex Mono, em todas as
-superfícies). O logo não muda.
+**Fonte do sistema** (R-20261115-110600, v1.0.13): famílias, pesos e escala estão no **[manual da marca §5](../marca/manual.md#5-tipografia)**,
+que é a fonte da verdade (aqui não se repete a tabela). Este guia só diz qual token do kit cumpre cada papel.
 
-- **App (Campo e Gestão):** sem `fontFamily` — vale a fonte padrão do aparelho (Roboto na maioria dos Android). A hierarquia
-  vem só do peso: `fonte.body` 400 · `medium` 500 · `semibold` 600 · `bold`/`display`/`displayBold` 700. Uso:
-  `{ ...fonte.semibold, fontSize: 14 }`. Códigos (pedido, EAN, SKU): `fonte.mono` = `monospace` + `tabular-nums`.
-  O `fonts.x` antigo (nomes de família) ficou só para a transição das telas dos módulos; troque `fontFamily: fonts.x` por
-  `...fonte.x`.
-- **Escala do app** (`ESCALA_FONTE`): **12 · 14 · 16 (base) · 18 · 22 · 28**; nada abaixo de 12. Estilos (`type`):
-  `saudacao`/`h1` 28/700 · `h1Small` e cabeçalho da faixa 22/28 · `titulo` 18/700 (folha, diálogo) · `secao` 18/700 ·
-  `numeroGrande` 18/700 tabular · `body` 16 · `sub` 14 · `small` 12 · `rotulo` 12/600 maiúsculas · `mono` 12. Botão de 52:
-  16; de 44: 14. Os nomes antigos (`h1`, `h2`, `number`…) continuam.
-- **Web (BKO e portal `config.`):** texto e títulos em `system-ui, "Segoe UI", Roboto, -apple-system, sans-serif`
-  (`font-sans` e `font-display` apontam para a mesma pilha; as variáveis ficam no `apps/web`); códigos em
-  `ui-monospace, "Cascadia Mono", "Roboto Mono", monospace` com `tabular-nums`. Pesos 400 · 500 · 600 · 700 (sem
-  `font-extrabold`). **Escala web: 12 (mínimo) · 13 · 15 (base) · 17 · 20 · 24**, pensada para 1366×768: título da página
-  24/700, KPI 24/700, título de cartão e de diálogo 17/700, botão e campo 15, tabela 13, rótulo, ajuda e selo 12.
-- O teste `packages/ui/src/mobile/fonte-sistema.test.ts` segura a regra no kit (sem Archivo/Plex, só tamanhos da escala).
-- Specs e pranchas de tela anteriores a 15/11/2026 que citam Archivo ou Plex (e os tamanhos 11, 13, 15, 17, 19, 24 e 26 do
-  app): vale esta seção.
+- **App (`packages/ui/src/mobile`):** `fonte` dá só o peso, sem `fontFamily`: `body` (texto) · `medium` (rótulo, meta) ·
+  `semibold` (ênfase, rótulo de campo, botão, valor, aba ativa) · `bold` (título) · `mono` (código). `display`/`displayBold`
+  são apelidos de `bold` e saem na v1.0.14. Estilos de texto `type`, por papel: `h1` número grande e saudação (`saudacao` é o
+  mesmo) · `h1Small` título de tela, folha e diálogo · `h2` título de seção · `number` valor em destaque · `body` texto ·
+  `bodyStrong` ênfase e título de linha (`title16` é o mesmo) · `sub` secundário · `small` legenda · `label` rótulo pequeno
+  (`smallStrong` é o mesmo) · `rotulo` rótulo em maiúsculas. Tamanhos: `ESCALA_FONTE`.
+- **Rótulo de campo do app:** `RotuloCampo`, e o campo inteiro (rótulo, entrada de 52 dp, erro) `CampoTexto`; o `CampoSenha`
+  usa os mesmos (`ESTILO_CAMPO`). Nenhuma tela monta rótulo de campo próprio.
+- **Web (`packages/ui/src/web`):** `PageHeader` título de página · `Dialog`/`Drawer` título de diálogo · `Panel` título de
+  seção · `KpiCard` valor · `CLASSE_CAMPO`/`CLASSE_CAMPO_BASE` campo · `Button` botão · `td`/`tdNum` célula ·
+  `th`/`thNum` cabeçalho de tabela · `Badge` chip · `CampoFormulario` rótulo de campo. As pilhas ficam em `--font-sans` e
+  `--font-mono` do `apps/web/app/globals.css` (o kit não usa `font-display`).
+- O teste `packages/ui/src/mobile/fonte-sistema.test.ts` segura a regra no kit (só tamanhos da escala, nada em 800/900, sem
+  família de fonte).
 
 ### 1.1 Contraste da marca (vale para o app e para o BKO/portal)
 Código: `packages/ui/src/comum/contraste.ts` (`MARCA`, `DESTAQUE`, `GRAFICO`, `FAIXA`, `FUNDOS`, `PARES_DA_MARCA`,
