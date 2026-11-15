@@ -166,7 +166,7 @@ export function TrilhaEditarPage() {
             <CampoFormulario rotulo="Prazo para concluir" opcional erro={erros.campos['prazo']}>
               <input type="date" className={CLASSE_CAMPO} aria-invalid={!!erros.campos['prazo']} value={estado.prazo} onChange={(e) => mudar((x) => ({ ...x, prazo: e.target.value }))} />
             </CampoFormulario>
-            <div className="flex flex-col justify-end gap-2 text-[14px]">
+            <div className="flex flex-col justify-end gap-2 text-[15px]">
               <label className="flex min-h-[44px] items-center gap-2">
                 <input type="checkbox" className="h-5 w-5" checked={estado.obrigatoria} onChange={(e) => mudar((x) => ({ ...x, obrigatoria: e.target.checked }))} />
                 Obrigatória
@@ -181,7 +181,7 @@ export function TrilhaEditarPage() {
 
         <Panel label="Público-alvo" title="Público-alvo">
           <span className="text-[13px] text-ink-2">Sem perfil marcado, a trilha vale para toda a empresa.</span>
-          <div className="mt-2 flex flex-wrap gap-4 text-[14px]">
+          <div className="mt-2 flex flex-wrap gap-4 text-[15px]">
             {PERFIS_DO_PUBLICO.map((p) => (
               <label key={p.id} className="flex min-h-[44px] items-center gap-2">
                 <input
@@ -306,7 +306,7 @@ function EditorLicao({
   return (
     <div className="rounded-xl border border-line p-3" data-testid={prefixo}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[13px] font-bold text-ink-2">Lição {li + 1}</span>
+        <span className="text-[13px] font-semibold text-ink-2">Lição {li + 1}</span>
         {!somenteLeitura && (
           <div className="flex gap-1">
             <Button size="sm" onClick={() => mudar((e) => alterarModulo(e, mi, (m) => ({ ...m, licoes: mover(m.licoes, li, -1) })))} disabled={li === 0} aria-label={`Subir lição ${li + 1}`}>
@@ -346,7 +346,7 @@ function EditorLicao({
       <CampoFormulario rotulo={l.tipo === 'texto' ? 'Texto da lição' : 'Resumo'} opcional={l.tipo !== 'texto'} erro={erros[`${caminho}.texto`]} className="mt-3">
         <textarea className={AREA_TEXTO} aria-invalid={!!erros[`${caminho}.texto`]} rows={l.tipo === 'texto' ? 5 : 2} value={l.texto} onChange={(e) => alterar((x) => ({ ...x, texto: e.target.value }))} data-testid={`${prefixo}-texto`} />
       </CampoFormulario>
-      <label className="mt-2 flex min-h-[44px] items-center gap-2 text-[14px]">
+      <label className="mt-2 flex min-h-[44px] items-center gap-2 text-[15px]">
         <input type="checkbox" className="h-5 w-5" checked={l.quiz !== null} onChange={() => mudar((e) => alternarQuiz(e, mi, li, gerarId))} data-testid={`${prefixo}-quiz`} />
         Quiz no fim da lição
       </label>
