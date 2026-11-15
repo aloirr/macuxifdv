@@ -181,3 +181,29 @@ repassa esta tabela aos donos.
 **Veredito do parecer final da onda 1: NÃO LIBERADO.** Branches 1, 3 e 4 limpos. O branch 2 segura por 1 achado baixo, o
 RD-0697, em código de produção, fora da exceção R-20261111-190159. Caixa e recados: HTTP 403, e o gerente repassa esta tabela
 ao modulo-catalogo.
+
+### Reteste do RD-0697 (2026-11-15, Manaus) · branch 2 em 346fabe3 → **7fe32349**
+
+Li só `git diff 346fabe3e..7fe323497` (1 commit, 2 arquivos: `carga-online.ts` e `carga-online.test.ts`).
+
+- **RD-0697 fechado.** A regra "catálogo pendente → com sinal `api`, sem sinal `sem_sinal`, senão `local`" ficou só em
+  `modoDaCarga` (`modules/catalogo/app/lib/carga-online.ts:42-46`). `usarApiNaCarga` (`:49-51`) só repassa:
+  `p ? modoDaCarga({ pendentes: p.pendentes() }, p.online()) : 'local'`. O comentário do modo também ficou num lugar só.
+- **Teste:** os 3 modos ficam só no bloco "modo da carga a partir do estado do sync" (`carga-online.test.ts:77-86`). O de
+  `usarApiNaCarga` (`:30-33`) confere só o repasse (porta com pendência e sinal = `api`) e a porta `null` = `local`.
+- **Conferido sem achado:** o tipo `'local' | 'api' | 'sem_sinal'` segue escrito nas 2 assinaturas, a 7 linhas uma da outra.
+  Não segura: `usarApiNaCarga` devolve o valor de `modoDaCarga`, e o typecheck quebra se as duas divergirem para o lado
+  perigoso (valor novo no modo). O `export type ModoDaCarga` fica como melhoria opcional. `catalogoPendente` segue exportada,
+  agora usada só por `modoDaCarga` e pelo próprio teste dela, que é seu, sem repetir outro teste (opcional tirar o export).
+- **Nada novo:** os chamadores não mudaram (`consultas-online.ts:11` com `usarApiNaCarga`; `telas/catalogo.tsx:65` e
+  `telas/produto.tsx:31` com `modoDaCarga`). Não há texto de tela, layout nem regra nova.
+
+| Branch | Head | Resultado |
+|---|---|---|
+| 1 `nuvem/catalogo-onda1-modulo-core-v2` | 155544cc | **Limpo** |
+| 2 `nuvem/catalogo-onda1-modulo-catalogo-v3` | **7fe32349** | **Limpo** (RD-0697 fechado) |
+| 3 `nuvem/catalogo-onda1-designer-ux` | 674f8630 | **Limpo** |
+| 4 `nuvem/catalogo-onda1-engenheiro-apps` | 541522ce | **Limpo** |
+
+**Veredito do parecer final da onda 1 (depois do reteste): ONDA 1 LIBERADA.** Nenhum achado em aberto, de qualquer gravidade,
+nos 4 branches da onda 1 nos heads acima. Vale para esses heads: commit novo em qualquer um deles volta ao corretor.
