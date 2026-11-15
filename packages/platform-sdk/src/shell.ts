@@ -49,7 +49,7 @@ export function linkInternoNavegavel(link: string | null | undefined, telaExiste
  * Grupos do menu do BKO (ADR 0050; spec docs/design/telas/bko-revisao.md §M2). O menu mostra os grupos e os itens
  * em ordem alfabética pelo rótulo (pt-BR, sem diferenciar acento e caixa).
  */
-export const GRUPOS_MENU = ['acesso', 'analise', 'cadastros', 'comercial', 'comunicacao', 'conteudo_campo', 'operacao', 'produtos', 'sistema'] as const;
+export const GRUPOS_MENU = ['acesso', 'analise', 'cadastros', 'comercial', 'comunicacao', 'conteudo_campo', 'operacao', 'parametros', 'produtos', 'sistema'] as const;
 export type GrupoMenu = (typeof GRUPOS_MENU)[number];
 
 export const ROTULO_GRUPO_MENU: Record<GrupoMenu, string> = {
@@ -60,6 +60,7 @@ export const ROTULO_GRUPO_MENU: Record<GrupoMenu, string> = {
   comunicacao: 'Comunicação',
   conteudo_campo: 'Conteúdo de campo',
   operacao: 'Operação',
+  parametros: 'Parâmetros',
   produtos: 'Produtos',
   sistema: 'Sistema',
 };

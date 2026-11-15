@@ -1,14 +1,32 @@
 /**
  * Grupos do menu do BKO (ADR 0050; spec docs/design/telas/bko-revisao.md §M2/§M6; R-20261114-192700):
- * 9 grupos em ordem alfabética, itens em ordem alfabética, transição dos grupos antigos pela tabela do SDK.
+ * 10 grupos em ordem alfabética, itens em ordem alfabética, transição dos grupos antigos pela tabela do SDK.
  */
 import { describe, expect, it } from 'vitest';
 import { defineModule } from './manifesto';
-import { compararRotuloMenu, criarShell, definirModuloShell, grupoDoMenu, GRUPOS_MENU, ROTULO_GRUPO_MENU } from './shell';
+import {
+  compararRotuloMenu,
+  criarShell,
+  definirModuloShell,
+  grupoDoMenu,
+  GRUPOS_MENU,
+  ROTULO_GRUPO_MENU,
+} from './shell';
 
 describe('GRUPOS_MENU e rótulos (ADR 0050)', () => {
-  it('9 grupos, cada um com o rótulo do M2', () => {
-    expect(GRUPOS_MENU).toEqual(['acesso', 'analise', 'cadastros', 'comercial', 'comunicacao', 'conteudo_campo', 'operacao', 'produtos', 'sistema']);
+  it('10 grupos, cada um com o rótulo do M2 (Parâmetros: R-20261115-121000)', () => {
+    expect(GRUPOS_MENU).toEqual([
+      'acesso',
+      'analise',
+      'cadastros',
+      'comercial',
+      'comunicacao',
+      'conteudo_campo',
+      'operacao',
+      'parametros',
+      'produtos',
+      'sistema',
+    ]);
     expect(GRUPOS_MENU.map((g) => ROTULO_GRUPO_MENU[g])).toEqual([
       'Acesso',
       'Análise',
@@ -17,6 +35,7 @@ describe('GRUPOS_MENU e rótulos (ADR 0050)', () => {
       'Comunicação',
       'Conteúdo de campo',
       'Operação',
+      'Parâmetros',
       'Produtos',
       'Sistema',
     ]);
@@ -58,16 +77,69 @@ const core = definirModuloShell({
     id: 'core',
     versao: '1.0.0',
     perfis: ['vendedor', 'analista'],
-    apps: { campo: { abas: ['Rotas', 'Ácido', 'Início'] }, web: { menus: ['Rotas', 'Ácido', 'Indicadores', 'metas', 'Usuários'] } },
+    apps: {
+      campo: { abas: ['Rotas', 'Ácido', 'Início'] },
+      web: { menus: ['Rotas', 'Ácido', 'Indicadores', 'metas', 'Usuários'] },
+    },
   }),
   paginas: [
     { id: 'rotas', caminho: 'rotas', titulo: 'Rotas', navegacao: 'Rotas', ordem: 1, componente: 'X' },
-    { id: 'acido', caminho: 'acido', titulo: 'Ácido', navegacao: 'Ácido', ordem: 99, apps: ['web'], componente: 'X' },
-    { id: 'metas', caminho: 'metas', titulo: 'Metas', navegacao: 'metas', grupo: 'analise', ordem: 1, apps: ['web'], componente: 'X' },
-    { id: 'indicadores', caminho: 'indicadores', titulo: 'Indicadores', navegacao: 'Indicadores', grupo: 'analise', ordem: 50, apps: ['web'], componente: 'X' },
-    { id: 'usuarios', caminho: 'usuarios', titulo: 'Usuários', navegacao: 'Usuários', grupo: 'administracao', apps: ['web'], componente: 'X' },
-    { id: 'campo-acido', caminho: 'campo-acido', titulo: 'Ácido', navegacao: 'Ácido', ordem: 30, apps: ['campo'], componente: 'X' },
-    { id: 'inicio', caminho: 'inicio', titulo: 'Início', navegacao: 'Início', ordem: 5, apps: ['campo'], componente: 'X' },
+    {
+      id: 'acido',
+      caminho: 'acido',
+      titulo: 'Ácido',
+      navegacao: 'Ácido',
+      ordem: 99,
+      apps: ['web'],
+      componente: 'X',
+    },
+    {
+      id: 'metas',
+      caminho: 'metas',
+      titulo: 'Metas',
+      navegacao: 'metas',
+      grupo: 'analise',
+      ordem: 1,
+      apps: ['web'],
+      componente: 'X',
+    },
+    {
+      id: 'indicadores',
+      caminho: 'indicadores',
+      titulo: 'Indicadores',
+      navegacao: 'Indicadores',
+      grupo: 'analise',
+      ordem: 50,
+      apps: ['web'],
+      componente: 'X',
+    },
+    {
+      id: 'usuarios',
+      caminho: 'usuarios',
+      titulo: 'Usuários',
+      navegacao: 'Usuários',
+      grupo: 'administracao',
+      apps: ['web'],
+      componente: 'X',
+    },
+    {
+      id: 'campo-acido',
+      caminho: 'campo-acido',
+      titulo: 'Ácido',
+      navegacao: 'Ácido',
+      ordem: 30,
+      apps: ['campo'],
+      componente: 'X',
+    },
+    {
+      id: 'inicio',
+      caminho: 'inicio',
+      titulo: 'Início',
+      navegacao: 'Início',
+      ordem: 5,
+      apps: ['campo'],
+      componente: 'X',
+    },
   ],
 });
 
@@ -92,11 +164,66 @@ describe('navegação do BKO em ordem alfabética (ADR 0050)', () => {
   it('o item mantém o grupo declarado (transição) e traz grupoMenu/rotuloGrupo', () => {
     const usuarios = web.navegacao.find((n) => n.id === 'usuarios');
     expect(usuarios).toMatchObject({ grupo: 'administracao', grupoMenu: 'acesso', rotuloGrupo: 'Acesso' });
-    expect(web.navegacao.find((n) => n.id === 'rotas')).toMatchObject({ grupo: 'operacao', grupoMenu: 'operacao', rotuloGrupo: 'Operação' });
+    expect(web.navegacao.find((n) => n.id === 'rotas')).toMatchObject({
+      grupo: 'operacao',
+      grupoMenu: 'operacao',
+      rotuloGrupo: 'Operação',
+    });
   });
 
   it('app Campo continua pela `ordem` (nenhuma página do app declara grupo)', () => {
     const campo = criarShell('campo', [core]).montar({ perfil: 'vendedor', modulosAtivos: ['core'] });
     expect(campo.navegacao.map((n) => n.rotulo)).toEqual(['Rotas', 'Início', 'Ácido']);
+  });
+});
+
+describe('grupo Parâmetros (R-20261115-121000; docs/design/menu-parametros/spec.md)', () => {
+  it('página que declara parametros fica em Parâmetros, entre Operação e Produtos', () => {
+    expect(grupoDoMenu('integracao', { id: 'de-para', grupo: 'parametros' })).toBe('parametros');
+    const integracao = definirModuloShell({
+      manifesto: defineModule({
+        id: 'integracao',
+        versao: '1.0.0',
+        depende: ['core'],
+        perfis: ['analista'],
+        apps: { web: { menus: ['Integração', 'Pedidos', 'Tabelas de preço'] } },
+      }),
+      paginas: [
+        {
+          id: 'tabelas',
+          caminho: 'tabelas',
+          titulo: 'Tabelas de preço',
+          navegacao: 'Tabelas de preço',
+          grupo: 'produtos',
+          apps: ['web'],
+          componente: 'X',
+        },
+        {
+          id: 'de-para',
+          caminho: 'de-para',
+          titulo: 'Integração',
+          navegacao: 'Integração',
+          grupo: 'parametros',
+          apps: ['web'],
+          componente: 'X',
+        },
+        {
+          id: 'pedidos',
+          caminho: 'pedidos',
+          titulo: 'Pedidos',
+          navegacao: 'Pedidos',
+          grupo: 'operacao',
+          apps: ['web'],
+          componente: 'X',
+        },
+      ],
+    });
+    const web = criarShell('web', [core, integracao]).montar({
+      perfil: 'analista',
+      modulosAtivos: ['core', 'integracao'],
+    });
+    expect(
+      web.navegacao.filter((n) => n.modulo === 'integracao').map((n) => `${n.rotuloGrupo}:${n.rotulo}`),
+    ).toEqual(['Operação:Pedidos', 'Parâmetros:Integração', 'Produtos:Tabelas de preço']);
   });
 });

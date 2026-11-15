@@ -57,3 +57,8 @@ Ficam como estão: core `carteira`, `coordenadas-sugeridas`, `motivos`, `filiais
 - Nenhum módulo quebra: o BKO já mostra os grupos novos (pela tabela) assim que o `app-shell` usar `grupoMenu`/`rotuloGrupo`. Enquanto ele agrupar por `grupo`, os títulos são os antigos e os itens já saem em ordem alfabética do grupo novo.
 - Cada módulo troca o próprio `grupo` no seu PR, sem prazo comum; a linha da tabela deixa de valer sozinha.
 - Grupo novo no futuro: entra em `GRUPOS_MENU` e `ROTULO_GRUPO_MENU`, com ADR.
+
+## Adendo de 2026-11-15: grupo Parâmetros (T-0173)
+- **Origem**: R-20261115-121000 (o dono do produto aprovou levar o De-para da Integração para Parâmetros → Integração) e a spec `docs/design/menu-parametros/spec.md`.
+- **Decisão**: `parametros` entra em `GRUPOS_MENU` entre `operacao` e `produtos`, com o rótulo 'Parâmetros' em `ROTULO_GRUPO_MENU`. No BKO os grupos continuam em ordem alfabética pelo rótulo; nos apps a posição em `GRUPOS_MENU` dá a mesma ordem.
+- **Por que adendo e não ADR nova**: a mudança é aditiva e compatível. Nenhuma página muda de grupo sozinha e a tabela de transição não muda; cada módulo passa a declarar `grupo: 'parametros'` no próprio PR.
