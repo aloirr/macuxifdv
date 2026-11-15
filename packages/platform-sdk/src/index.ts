@@ -13,6 +13,8 @@ export * from './tolerante';
 export * from './sync';
 export * from './novidades';
 export * from './arquivos';
+export * from './imagens';
+export * from './zip';
 export * from './auditoria';
 export * from './acesso';
 export * from './permissoes';

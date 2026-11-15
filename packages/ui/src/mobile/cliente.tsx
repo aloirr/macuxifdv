@@ -7,7 +7,7 @@ import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-na
 
 import { blocosDeObservacao, DESCRICAO_CADASTRO_INCOMPLETO, OBSERVACOES_VAZIAS, ROTULO_CADASTRO_INCOMPLETO, TITULO_OBSERVACOES } from '../comum/cadastro';
 import { Icon } from './icon';
-import { colors, fonts, radius, type as t } from './theme';
+import { colors, fonte, radius, type as t } from './theme';
 import { Badge, Card, SectionHeader } from './ui';
 
 export { blocosDeObservacao, DESCRICAO_CADASTRO_INCOMPLETO, OBSERVACOES_VAZIAS, ROTULO_CADASTRO_INCOMPLETO, TITULO_OBSERVACOES };
@@ -65,5 +65,5 @@ export function ObservacoesCliente({
 const styles = StyleSheet.create({
   card: { padding: 14, gap: 10 },
   automatica: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', backgroundColor: colors.warningBg, borderRadius: radius.md, paddingVertical: 9, paddingHorizontal: 10 },
-  automaticaTexto: { flex: 1, fontFamily: fonts.medium, fontSize: 13, lineHeight: 18, color: colors.warningInk },
+  automaticaTexto: { flex: 1, ...fonte.medium, fontSize: 14, lineHeight: 18, color: colors.warningInk },
 });

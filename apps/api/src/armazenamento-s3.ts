@@ -9,6 +9,8 @@
  * rota (`arquivos.ts`: linha de `plataforma.arquivo` com RLS + licença, perfil e carteira); o bucket é privado e só a
  * API tem a chave. As fotos nunca saem por URL pré-assinada; só os pacotes publicados (instalador do Conector, ADR 0037,
  * `pacotes.ts`) saem por link GET assinado de validade curta (`preAssinarGetS3`), gerado pela rota que decide o acesso.
+ * ADR 0058: a única escrita por URL assinada é a PARTE do ZIP do lote (`urlEnvio`, PUT de uma chave `.pNNN.zip` fixa, 15 min),
+ * ligável e desligada por padrão. `tamanho` usa HEAD (o `concluir` confere as partes sem baixá-las).
  * Log: nunca a chave de acesso, o segredo nem a assinatura; erros levam só o status HTTP e o código S3.
  */
 import { createHash, createHmac } from 'node:crypto';
@@ -107,6 +109,19 @@ export function preAssinarGetS3(
   quando: Date,
   validadeS: number,
 ): string {
+  return preAssinarS3('GET', p, cred, quando, validadeS);
+}
+
+/** Como `preAssinarGetS3`, para `GET` ou `PUT` (ADR 0058: a parte do ZIP). O método entra na assinatura. */
+export function preAssinarS3(
+  metodo: string | undefined,
+  p: { protocolo: string; host: string; caminho: string; consulta?: Record<string, string> },
+  cred: { chaveId: string; segredo: string; regiao: string },
+  quando: Date,
+  validadeS: number,
+): string {
+  const verbo = (metodo ?? 'GET').toUpperCase();
+  if (verbo !== 'GET' && verbo !== 'PUT') throw new Error('URL pré-assinada só para GET ou PUT');
   if (!(Number.isInteger(validadeS) && validadeS >= 1 && validadeS <= 604_800)) throw new Error('validade da URL pré-assinada fora de 1 s a 7 dias');
   const amzData = dataAmz(quando);
   const consulta: Record<string, string> = {
@@ -118,7 +133,7 @@ export function preAssinarGetS3(
     'X-Amz-SignedHeaders': 'host',
   };
   const qs = canonicaConsultaS3(consulta);
-  const pedidoCanonico = ['GET', p.caminho, qs, `host:${p.host}\n`, 'host', 'UNSIGNED-PAYLOAD'].join('\n');
+  const pedidoCanonico = [verbo, p.caminho, qs, `host:${p.host}\n`, 'host', 'UNSIGNED-PAYLOAD'].join('\n');
   const { assinatura } = assinarCanonico(pedidoCanonico, cred, amzData);
   return `${p.protocolo}//${p.host}${p.caminho}?${qs}&X-Amz-Signature=${assinatura}`;
 }
@@ -126,7 +141,7 @@ export function preAssinarGetS3(
 /** Erro do armazenamento sem dado sensível (só operação, status e código S3). */
 export class ErroArmazenamentoS3 extends Error {
   constructor(
-    readonly operacao: 'gravar' | 'ler' | 'remover' | 'pacote',
+    readonly operacao: 'gravar' | 'ler' | 'remover' | 'tamanho' | 'pacote',
     readonly status: number,
     readonly codigoS3: string | null,
   ) {
@@ -146,9 +161,9 @@ export async function codigoDoErro(r: Response): Promise<string | null> {
 /** Cliente S3 mínimo sobre a chave COMPLETA do objeto (já com o prefixo); quem chama valida a chave. */
 export interface ClienteS3 {
   /** Pedido assinado por cabeçalho. `tipo` = `content-type` do PUT (padrão `application/octet-stream`). */
-  chamar(metodo: 'PUT' | 'GET' | 'DELETE', chaveCompleta: string, corpo?: Uint8Array, tipo?: string): Promise<Response>;
-  /** GET pré-assinado por `validadeS` segundos a partir de agora (relógio do cliente). */
-  urlPreAssinada(chaveCompleta: string, validadeS: number, consulta?: Record<string, string>): { url: string; expiraEm: Date };
+  chamar(metodo: 'PUT' | 'GET' | 'HEAD' | 'DELETE', chaveCompleta: string, corpo?: Uint8Array, tipo?: string): Promise<Response>;
+  /** GET (padrão) ou PUT pré-assinado por `validadeS` segundos a partir de agora (relógio do cliente). */
+  urlPreAssinada(chaveCompleta: string, validadeS: number, consulta?: Record<string, string>, metodo?: 'GET' | 'PUT'): { url: string; expiraEm: Date };
 }
 
 export function criarClienteS3(cfg: Omit<ConfigS3, 'prefixo'>): ClienteS3 {
@@ -184,9 +199,9 @@ export function criarClienteS3(cfg: Omit<ConfigS3, 'prefixo'>): ClienteS3 {
         signal: AbortSignal.timeout(timeoutMs),
       });
     },
-    urlPreAssinada(chaveCompleta, validadeS, consulta) {
+    urlPreAssinada(chaveCompleta, validadeS, consulta, metodo = 'GET') {
       const quando = agora();
-      const url = preAssinarGetS3({ protocolo: base.protocol, host, caminho: caminhoDe(chaveCompleta), consulta }, cfg, quando, validadeS);
+      const url = preAssinarS3(metodo, { protocolo: base.protocol, host, caminho: caminhoDe(chaveCompleta), consulta }, cfg, quando, validadeS);
       return { url, expiraEm: new Date(quando.getTime() + validadeS * 1000) };
     },
   };
@@ -197,9 +212,9 @@ export function criarArmazenamentoS3(cfg: ConfigS3): ArmazenamentoArquivos {
   if (prefixo && !PREFIXO_S3_RE.test(prefixo)) throw new Error('MACUXI_S3_PREFIXO inválido (ex.: arquivos/)');
   const cliente = criarClienteS3(cfg);
 
-  const chamar = async (metodo: 'PUT' | 'GET' | 'DELETE', chave: string, corpo?: Uint8Array): Promise<Response> => {
+  const chamar = async (metodo: 'PUT' | 'GET' | 'HEAD' | 'DELETE', chave: string, corpo?: Uint8Array): Promise<Response> => {
     if (!CHAVE_ARQUIVO_RE.test(chave)) throw new Error('chave de arquivo inválida');
-    return cliente.chamar(metodo, prefixo + chave, corpo, corpo ? 'image/jpeg' : undefined);
+    return cliente.chamar(metodo, prefixo + chave, corpo, corpo ? tipoDoObjeto(chave) : undefined);
   };
 
   return {
@@ -222,7 +237,28 @@ export function criarArmazenamentoS3(cfg: ConfigS3): ArmazenamentoArquivos {
       if (!r.ok && r.status !== 404) throw new ErroArmazenamentoS3('remover', r.status, await codigoDoErro(r));
       await r.body?.cancel();
     },
+    async tamanho(chave) {
+      const r = await chamar('HEAD', chave);
+      await r.body?.cancel();
+      if (r.status === 404) return null;
+      if (!r.ok) throw new ErroArmazenamentoS3('tamanho', r.status, null);
+      const n = Number(r.headers.get('content-length'));
+      return Number.isInteger(n) && n >= 0 ? n : null;
+    },
+    urlEnvio(chave, validadeS) {
+      // só a parte do ZIP (ADR 0058): foto e miniatura nunca são escritas por URL assinada
+      if (!CHAVE_ARQUIVO_RE.test(chave) || !/\.p\d{3}\.zip$/.test(chave)) throw new Error('chave de arquivo inválida');
+      return cliente.urlPreAssinada(prefixo + chave, validadeS, undefined, 'PUT');
+    },
   };
+}
+
+/** `content-type` do objeto pela extensão da chave (a parte do ZIP é um pedaço binário, não um ZIP inteiro). */
+function tipoDoObjeto(chave: string): string {
+  if (chave.endsWith('.zip')) return 'application/octet-stream';
+  if (chave.endsWith('.png')) return 'image/png';
+  if (chave.endsWith('.webp')) return 'image/webp';
+  return 'image/jpeg';
 }
 
 /**

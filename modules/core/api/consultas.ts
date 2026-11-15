@@ -9,6 +9,8 @@ import {
   CONSULTA_CALENDARIO_METAS,
   PARAMETRO_DIAS_UTEIS,
   CONSULTA_USUARIOS_RESUMO,
+  CONSULTA_PRODUTOS_POR_SKU,
+  type ProdutosPorSkuSaida,
   type UsuariosResumoSaida,
   PARAMETRO_CAMPOS_OBRIGATORIOS,
   type CadastroClienteSaida,
@@ -158,4 +160,16 @@ export const consultaCalendarioMetas = implementarConsulta(CONSULTA_CALENDARIO_M
   const valor = ctx.parametros()[PARAMETRO_DIAS_UTEIS];
   const cal = calendarioDoTenant([{ modulo: 'core', chave: PARAMETRO_DIAS_UTEIS, valor }]);
   return { dias_uteis_semana: [...cal.dias_uteis_semana], feriados: [...(cal.feriados ?? [])] };
+});
+
+/** T-0174: produtos do tenant (RLS, não removidos, ativos ou não) por SKU exato, SKU sem maiúsculas ou EAN. O desempate é do Catálogo. */
+export const consultaProdutosPorSku = implementarConsulta(CONSULTA_PRODUTOS_POR_SKU, async (entrada, ctx): Promise<ProdutosPorSkuSaida> => {
+  const codigos = [...new Set(entrada.codigos)];
+  const r = await ctx.db.query(
+    `select id, sku, ean, ativo from core.produto
+      where deleted_at is null and (sku = any($1::text[]) or lower(sku) = any($2::text[]) or ean = any($1::text[]))
+      order by sku, id`,
+    [codigos, codigos.map((c) => c.toLowerCase())],
+  );
+  return { produtos: r.rows as ProdutosPorSkuSaida['produtos'] };
 });

@@ -31,11 +31,11 @@ import type { FakeUser } from '@macuxi/core/contracts';
 import { entraEm, ErroHttp, PERFIS, type Perfil } from '@macuxi/platform-sdk';
 import { Banner, Button, Card, colors, fonts, Icon, initials, radius, rotuloDoPerfil, Screen, type as t } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, BackHandler, Keyboard, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, BackHandler, Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useFaixaSuperior } from '@/components/area-segura';
+import { AcimaDoTeclado } from '@/components/acima-do-teclado';
 import { FaixaDoLogin } from '@/components/faixa-login';
 import { TelaEntrada } from '@/components/tela-entrada';
 import { ondeOPerfilEntra } from '@/lib/acesso';
@@ -61,17 +61,6 @@ function useTecladoAberto() {
     };
   }, []);
   return aberto;
-}
-
-/** Sobe o conteúdo acima do teclado. `padding` mede o quanto o teclado cobre: se a janela já encolheu, não soma nada. */
-function AcimaDoTeclado({ children }: { children: ReactNode }) {
-  // o KeyboardAvoidingView mede a posição relativa ao pai: soma a faixa da barra de status reservada pelo shell
-  const faixaSuperior = useFaixaSuperior();
-  return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.ground }} behavior="padding" keyboardVerticalOffset={faixaSuperior}>
-      {children}
-    </KeyboardAvoidingView>
-  );
 }
 
 /**

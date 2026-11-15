@@ -143,6 +143,8 @@ export interface OpcoesApp {
   usuariosVisiveis?: ServicosCore['usuariosVisiveis'];
   /** Bytes dos arquivos (ADR 0010). `null`/ausente = upload/download respondem 503. */
   arquivos?: ArmazenamentoArquivos | null;
+  /** ADR 0058: URL assinada de envio das partes (`MACUXI_ENVIO_URL_ASSINADA=1`; só vale com o driver S3). Padrão: desligada. */
+  envioUrlAssinada?: boolean;
   relogio?: () => Date;
   logger?: FastifyServerOptions['logger'];
   /**
@@ -614,7 +616,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   const syncPacotes = op.syncPacotes !== undefined ? op.syncPacotes : syncPacotesDoAmbiente(process.env);
   registrarSyncPacotes(app, plataforma, syncPacotes);
   if (syncPacotes) app.log.info({ sync_pacotes: syncPacotes.armazenamento.driver }, 'pacote da primeira carga ligado (ADR 0054)');
-  registrarArquivos(app, plataforma, op.arquivos ?? null);
+  registrarArquivos(app, plataforma, op.arquivos ?? null, { envioUrlAssinada: op.envioUrlAssinada ?? false });
   registrarAuditoria(app, plataforma);
   // T-0158 (ADR 0043): diagnóstico do aparelho (sessão do app, sem licença de módulo)
   registrarDiagnosticos(app, plataforma);

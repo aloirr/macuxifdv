@@ -44,7 +44,7 @@ describe('TableScroll: árvore final (sem react-dom; o componente chamado como f
   it('com o miolo: o <table> do kit embrulha o <thead>/<tbody>, com as classes do kit', () => {
     const t = filhoDaCaixa([createElement('thead', { key: 'h' }), createElement('tbody', { key: 'b' })], 640);
     expect(t.type).toBe('table');
-    expect(t.props.className).toBe('w-full border-collapse text-[13px]');
+    expect(t.props.className).toBe('w-full border-collapse text-[15px]');
     expect(t.props.style).toEqual({ minWidth: 640 });
     const miolo = t.props.children as No[];
     expect(miolo.map((m) => m.type)).toEqual(['thead', 'tbody']);
