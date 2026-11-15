@@ -201,10 +201,10 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > [plataforma.md](plataforma.md) e no [core.md](core.md); teste `db/testes/cargo-hierarquia.db.test.ts`; diagnóstico
 > `db/scripts/diagnostico-0069.sql`.
 >
-> **2026-11-15 (T-0176, R-20261115-073000 item 1 e R-20261115-080000):** `0077_core_usuario_filial` (depende da 0069; 0070–0076 são de outros lotes):
-> `core.usuario_filial` (filiais do usuário, único vivo por usuário e filial); **vendedor com no máximo 1 filial viva**
-> (gatilhos adiados, erro `usuario_filial_vendedor_uma`, hint RN-CORE-39; o mínimo é do domain/API do Core). **Sem backfill**:
-> o vendedor sem filial continua no banco e fica bloqueado no app até a carga do ERP ou o BKO informar a filial. Detalhes no [core.md](core.md); teste `db/testes/usuario-filial.db.test.ts`.
+> **2026-11-15 (T-0176, R-20261115-093000 e R-20261115-094500):** `0077_core_usuario_filial` (0070–0076 são de outros lotes):
+> `core.usuario.filial_cadastro_id` (nula = bloqueado) e `core.usuario_filial` (filiais de venda); a de cadastro está entre as
+> de venda (gatilho adiado `usuario_filial_inclui_cadastro`, 23514, hint RN-CORE-39). Backfill: na empresa com uma filial viva,
+> todo usuário vivo recebe a filial (cadastro e venda); os demais ficam bloqueados. Detalhes no [core.md](core.md); teste `db/testes/usuario-filial.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

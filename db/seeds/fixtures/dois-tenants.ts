@@ -65,8 +65,10 @@
  *   cliente (todo cliente da fixture fica na padrão: estoque e preço de hoje não mudam). Depósitos, itens de preço e faixas da
  *   fixture não informam a filial: o gatilho grava a padrão (a regra "ausente = padrão" do Hub). Os testes que precisam de
  *   cliente, depósito ou preço na 0002 gravam em transação desfeita.
- * - T-0176 (0077, RN-CORE-39; USUARIO_FILIAL_FIXTURE, grupo 0x67): filiais do usuário — A: vendedor-1 na padrão e o supervisor
- *   na padrão e na Boa Vista (várias); o vendedor-2 fica SEM filial (bloqueado no app e aviso ao admin, R-20261115-080000); B: vendedor-B na Campinas.
+ * - T-0176 (0077, RN-CORE-39; USUARIO_FILIAL_FIXTURE, grupo 0x67): filial de cadastro (core.usuario.filial_cadastro_id) e
+ *   filiais de venda (core.usuario_filial) — A: vendedor-1 cadastro e venda na padrão; supervisor cadastro na padrão, venda
+ *   na padrão e na Boa Vista; os demais de A (vendedor-2, admin...) SEM filial (bloqueados, R-20261115-094500); B: vendedor-B
+ *   cadastro na padrão, venda na padrão e na Campinas; o admin-B sem.
  * - T-0147 (0057, RN-CORE-38; FOTOS_PDV_FIXTURE): o gatilho tenant_semear_foto_tipo cria a "Fachada" (obrigatória) em A e em B
  *   (fora das listas, id idFotoTipoFachada); nas listas (grupo 0x0b) A tem "CNH do sócio" (sensível, obrigatória) e B
  *   "Contrato social" (sensível). Fotos (grupo 0x0c): A com a fachada e a CNH de c1 (arquivo da CNH com perfis_leitura
@@ -324,10 +326,10 @@ export const FILIAIS_FIXTURE = {
   B: { padrao: idFilialPadrao(b('tenant', 1)), campinas: b('filial', 1) },
 } as const;
 
-/** 0077 (T-0176, RN-CORE-39): filiais do usuário (ver o cabeçalho). */
+/** 0077 (T-0176, RN-CORE-39): filiais de venda do usuário (ver o cabeçalho). */
 export const USUARIO_FILIAL_FIXTURE = {
   A: { vendedor1Padrao: a('usuario_filial', 1), supervisorPadrao: a('usuario_filial', 2), supervisorBoaVista: a('usuario_filial', 3) },
-  B: { vendedorCampinas: b('usuario_filial', 1) },
+  B: { vendedorPadrao: b('usuario_filial', 2), vendedorCampinas: b('usuario_filial', 1) },
 } as const;
 
 /**
@@ -658,7 +660,7 @@ export const ORDEM_TABELAS = [
   // 0066 (T-0170): meta de produtividade (FKs -> core.equipe, core.usuario) e resumo do km (FK -> core.usuario)
   'core.meta_produtividade',
   'core.deslocamento_dia',
-  // 0077 (T-0176): filiais do usuário (FKs -> core.usuario, core.filial)
+  // 0077 (T-0176): filiais de venda do usuário (FKs -> core.usuario, core.filial)
   'core.usuario_filial',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
   ...ORDEM_GESTOR,
@@ -670,7 +672,10 @@ export const ORDEM_TABELAS = [
 
 export type DadosFixture = Record<(typeof ORDEM_TABELAS)[number], Linha[]>;
 
-const usuario = (id: string, tenant_id: string, nome: string, email: string, perfil: string, equipe_id: string | null, senha_hash: string): Linha => ({
+const usuario = (
+  id: string, tenant_id: string, nome: string, email: string, perfil: string, equipe_id: string | null, senha_hash: string,
+  filial_cadastro_id: string | null = null,
+): Linha => ({
   id,
   tenant_id,
   nome,
@@ -688,6 +693,8 @@ const usuario = (id: string, tenant_id: string, nome: string, email: string, per
   senha_temporaria_hash: null,
   senha_temporaria_expira_em: null,
   senha_temporaria_criada_em: null,
+  // 0077 (T-0176): só a padrão (já existe ao gravar o usuário: gatilho tenant_semear_filial); nula = bloqueado
+  filial_cadastro_id,
   external_id: null,
 });
 
@@ -969,12 +976,12 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       usuario(A.usuarios.analista, tA, 'Analista Alfa', 'analista@exemplo.com.br', 'analista', null, senhaHash),
       usuario(A.usuarios.assistente, tA, 'Assistente Alfa', 'assistente@exemplo.com.br', 'assistente', null, senhaHash),
       usuario(A.usuarios.gerente, tA, 'Gerente Alfa', 'gerente@exemplo.com.br', 'gerente', A.equipes.regional, senhaHash),
-      usuario(A.usuarios.supervisor, tA, 'Supervisor Alfa', 'supervisor@exemplo.com.br', 'supervisor', A.equipes.equipe1, senhaHash),
-      usuario(A.usuarios.vendedor1, tA, 'Vendedor Um', DOIS_TENANTS.emailRepetido, 'vendedor', A.equipes.equipe1, senhaHash),
+      usuario(A.usuarios.supervisor, tA, 'Supervisor Alfa', 'supervisor@exemplo.com.br', 'supervisor', A.equipes.equipe1, senhaHash, FILIAIS_FIXTURE.A.padrao),
+      usuario(A.usuarios.vendedor1, tA, 'Vendedor Um', DOIS_TENANTS.emailRepetido, 'vendedor', A.equipes.equipe1, senhaHash, FILIAIS_FIXTURE.A.padrao),
       usuario(A.usuarios.vendedor2, tA, 'Vendedor Dois', 'vendedor2@exemplo.com.br', 'vendedor', A.equipes.equipe2, senhaHash),
       usuario(A.usuarios.promotor, tA, 'Promotor Alfa', 'promotor@exemplo.com.br', 'promotor', A.equipes.equipe1, senhaHash),
       usuario(B.usuarios.admin, tB, 'Admin Beta', 'admin.b@exemplo.com.br', 'admin', null, senhaHash),
-      usuario(B.usuarios.vendedor, tB, 'Vendedor Beta', DOIS_TENANTS.emailRepetido, 'vendedor', B.equipes.equipe, senhaHash),
+      usuario(B.usuarios.vendedor, tB, 'Vendedor Beta', DOIS_TENANTS.emailRepetido, 'vendedor', B.equipes.equipe, senhaHash, FILIAIS_FIXTURE.B.padrao),
     ],
     'plataforma.usuario_modulo': [
       { id: a('usuario_modulo', 1), tenant_id: tA, usuario_id: A.usuarios.vendedor2, modulo: 'teste', efeito: 'remover', motivo: 'fixture: exceção que remove teste (S0-042)', external_id: null },
@@ -1135,7 +1142,7 @@ function dadosT0170(
   };
 }
 
-/** 0077 (T-0176): filiais do usuário (USUARIO_FILIAL_FIXTURE). */
+/** 0077 (T-0176): filiais de venda do usuário (USUARIO_FILIAL_FIXTURE); a de cadastro de cada um está entre elas. */
 function dadosUsuarioFilial(): Linha[] {
   const A = DOIS_TENANTS.A;
   const B = DOIS_TENANTS.B;
@@ -1147,6 +1154,7 @@ function dadosUsuarioFilial(): Linha[] {
     vinculo(UA.vendedor1Padrao, A.tenantId, A.usuarios.vendedor1, FILIAIS_FIXTURE.A.padrao),
     vinculo(UA.supervisorPadrao, A.tenantId, A.usuarios.supervisor, FILIAIS_FIXTURE.A.padrao),
     vinculo(UA.supervisorBoaVista, A.tenantId, A.usuarios.supervisor, FILIAIS_FIXTURE.A.boaVista),
+    vinculo(USUARIO_FILIAL_FIXTURE.B.vendedorPadrao, B.tenantId, B.usuarios.vendedor, FILIAIS_FIXTURE.B.padrao),
     vinculo(USUARIO_FILIAL_FIXTURE.B.vendedorCampinas, B.tenantId, B.usuarios.vendedor, FILIAIS_FIXTURE.B.campinas),
   ];
 }

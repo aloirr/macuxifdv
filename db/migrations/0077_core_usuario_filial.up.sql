@@ -1,47 +1,54 @@
--- 0077_core_usuario_filial (up) — T-0176: filial do usuário (vendedor com UMA filial; supervisor, promotor e gerente com
--- várias). Decisão do dono do produto R-20261115-073000, item 1 (muda a RN-CORE-39, que dizia que o vendedor não tem filial
--- própria), e R-20261115-080000 (o vendedor sem filial fica BLOQUEADO no app; a migração não dá filial provisória nem a
--- padrão). Depende da 0069 (core_cargo_hierarquia); número 0077 porque a 0070–0076 são de outros lotes.
--- Dicionário: docs/banco/core.md ("0077"). Teste:
--- db/testes/usuario-filial.db.test.ts (estático sempre; banco e up/down no CI).
--- Migração ADITIVA: 1 tabela nova (vazia), 3 funções e 6 gatilhos; SEM backfill. Nenhuma coluna nova em tabela existente; nenhum
--- contrato muda de versão (o filial_ids do usuário é do modulo-core, aditivo).
+-- 0077_core_usuario_filial (up) — T-0176 (RN-CORE-39): filial de CADASTRO e filiais de VENDA do usuário. Decisões do dono do
+-- produto R-20261115-093000 (substitui "vendedor = 1 filial") e R-20261115-094500 (todo usuário tem filial de cadastro,
+-- inclusive admin e analista; sem ela fica bloqueado; a de cadastro faz parte das de venda; backfill abaixo). Proposta do
+-- modulo-core: docs/modulos/core/filial-cadastro-venda.md. Depende da 0056 (core.filial); número 0077 porque a 0070–0076 são
+-- de outros lotes. Dicionário: docs/banco/core.md ("0077"). Teste: db/testes/usuario-filial.db.test.ts (estático sempre;
+-- banco e up/down no CI).
 --
--- core.usuario_filial (dono: Core): uma linha viva por (usuário, filial) — único parcial usuario_filial_uk (tenant_id,
---   usuario_id, filial_id) vivo, que também atende "filiais do usuário". FKs compostas para core.usuario e core.filial (filial
---   de outro tenant = 23503). Índice usuario_filial_filial_ix (tenant_id, filial_id) vivo: "usuários da filial" (BKO e a trava
---   de inativar filial com usuário). Índice de sync (tenant_id, updated_at, id): a linha pode ir ao aparelho (o pull é decisão
---   do modulo-core). Remover o vínculo = soft delete (deleted_at); o macuxi_app não tem DELETE.
---   Volume: 1 linha por vendedor; poucas por supervisor, promotor e gerente; centenas por tenant.
--- MÁXIMO DE 1 FILIAL VIVA PARA O VENDEDOR (cargo vendedor do perfil único, core.v_usuario_hierarquia da 0069 — a mesma régua
---   do promotor; perfil personalizado de cargo vendedor conta, o de cargo promotor com base vendedor não): gatilhos de
---   restrição ADIADOS (no COMMIT; a ordem das gravações na transação não importa — trocar a filial = apagar a antiga e inserir
---   a nova em qualquer ordem), função core.conferir_filial_vendedor. Erro:
---     usuario_filial_vendedor_uma (23514)  vendedor vivo com 2+ vínculos vivos em core.usuario_filial; detail
---                                          'usuario_id=<uuid>', hint 'RN-CORE-39'. A API do Core mapeia para 422.
---   Valem para GRAVAÇÕES novas ou alteradas: core.usuario_filial (insert; update de usuario_id, filial_id, deleted_at),
---   core.usuario (update de deleted_at: usuário restaurado), plataforma.usuario_perfil (insert; update de perfil_id,
---   deleted_at: o usuário vira vendedor) e plataforma.perfil (update de cargo: os usuários do perfil). Para o erro sair no
---   comando e não no COMMIT, a API pode rodar `set constraints usuario_filial_conferir_vendedor immediate` antes de terminar.
---   Concorrência: o gatilho usuario_filial_travar (BEFORE, imediato) e a conferência pegam pg_advisory_xact_lock por (tenant,
---   usuário); duas transações que dão filial ao mesmo vendedor ficam em fila e a segunda vê a primeira no COMMIT.
---   O MÍNIMO (exatamente 1 para o vendedor; 1+ para supervisor, promotor e gerente) NÃO é do banco: é do domain/API do Core
---   (validarFiliaisDoUsuario, RN-CORE-39, 422). Vendedor sem filial PASSA no banco (carga do ERP, cadastro antigo): nenhum
---   gatilho recusa o zero; ele fica BLOQUEADO no app até a carga do ERP ou o BKO informar a filial, e vira aviso ao admin
---   (consulta: vendedor vivo e ativo sem linha viva aqui).
---   core.filial_vendedor_conferir() é SECURITY DEFINER (como a core.promotor_conferir da 0069): gatilho adiado dispara no
---   COMMIT com o papel da sessão, e o COMMIT de uma sa_* do macuxi_portal não tem acesso a core. Roda como o dono, só LÊ, só o
---   tenant da linha; nenhum EXECUTE a ninguém.
--- SEM BACKFILL (R-20261115-080000): a tabela nasce vazia; todo vendedor existente fica sem filial (bloqueado no app) até a
---   carga do ERP ou o BKO gravar a filial dele.
+-- core.usuario.filial_cadastro_id uuid NULO (nulo = usuário bloqueado; o bloqueio é do domain/API do Core, não do banco):
+--   FK composta usuario_filial_cadastro_fk (tenant_id, filial_cadastro_id) -> core.filial (filial de outro tenant = 23503).
+--   Índice usuario_filial_cadastro_ix (tenant_id, filial_cadastro_id) vivo: "usuários da filial" e a trava de inativar filial.
+--   RLS e grants de core.usuario não mudam (a coluna herda os da tabela).
+-- core.usuario_filial (dono: Core): FILIAIS DE VENDA do usuário, uma linha viva por (usuário, filial) — único parcial
+--   usuario_filial_uk (tenant_id, usuario_id, filial_id) vivo, que também atende "filiais de venda do usuário". FKs compostas
+--   para core.usuario e core.filial. Índice usuario_filial_filial_ix (tenant_id, filial_id) vivo: "usuários que vendem pela
+--   filial". Índice de sync (tenant_id, updated_at, id). Remover = soft delete (deleted_at); o macuxi_app não tem DELETE.
+--   Quantas filiais de venda cada usuário tem (mínimo 1) é do domain/API do Core (422), não do banco.
+--   Volume: 1 a poucas linhas por usuário; centenas por tenant.
+-- INVARIANTE "a filial de cadastro está entre as de venda" (R-20261115-094500, item 2): filial_cadastro_id preenchida num
+--   usuário vivo exige linha viva em core.usuario_filial com essa filial. Gatilhos de restrição ADIADOS usuario_filial_inclui_cadastro
+--   (no COMMIT; a ordem das gravações na transação não importa), um em cada tabela:
+--     core.usuario         insert ou update de filial_cadastro_id, deleted_at (trocar o cadastro; restaurar o usuário);
+--     core.usuario_filial  update de usuario_id, filial_id, deleted_at ou delete de linha viva (tirar a venda do cadastro).
+--   Erro: 23514, constraint usuario_filial_inclui_cadastro, detail 'usuario_id=<uuid>', hint 'RN-CORE-39' (a API mapeia
+--   para 422). Para o erro sair no comando e não no COMMIT: `set constraints core.usuario_filial_inclui_cadastro immediate`.
+--   Concorrência: a conferência trava a linha do usuário (for no key update); quem troca o cadastro e quem apaga a venda do
+--   mesmo usuário ficam em fila, e o segundo confere vendo o primeiro.
+--   core.filial_cadastro_conferir() é SECURITY DEFINER (como a core.promotor_conferir da 0069): gatilho adiado dispara no
+--   COMMIT com o papel da sessão, e o COMMIT de uma sa_* do macuxi_portal não tem acesso a core. Roda como o dono, só o
+--   tenant e o usuário da linha; nenhum EXECUTE a ninguém.
+-- BACKFILL (R-20261115-094500, item 5), nesta ordem:
+--   1. "quem já tem filial vinculada": NÃO SE APLICA — antes da 0077 não há vínculo usuário–filial em tabela nenhuma
+--      (core.usuario, core.equipe e plataforma.* não têm filial; core.usuario_filial nasce aqui, vazia).
+--   2. empresa com UMA filial viva: todo usuário vivo (ativo ou não) recebe essa filial como cadastro e como venda.
+--   3. quem sobra (empresa com 2+ filiais vivas) fica com filial_cadastro_id nulo, sem venda: bloqueado até o BKO ou a carga.
+--   O updated_at dos usuários do passo 2 sobe (gatilho usuario_updated_at): o sync puxa a filial nova.
 --
 -- RLS: core.usuario_filial com enable + force + isolamento_tenant (macuxi_app) + manutencao (0031). macuxi_app: select, insert,
 -- update. macuxi_worker e macuxi_portal: nada.
--- Caminho de volta: 0077_core_usuario_filial.down.sql — apaga os 6 gatilhos, as 3 funções e a tabela (os vínculos de filial dos
--- usuários se perdem; reaplicar a 0077 recria a tabela vazia). Volte antes o código do Core que lê/grava a tabela.
+-- Caminho de volta: 0077_core_usuario_filial.down.sql — apaga os 2 gatilhos, a função, a tabela, o índice, a FK e a coluna
+-- (as filiais de cadastro e de venda se perdem; reaplicar a 0077 refaz o backfill). Volte antes o código do Core que lê/grava.
 
 -- =============================================================================================
--- core.usuario_filial — filiais do usuário (RN-CORE-39)
+-- core.usuario.filial_cadastro_id — filial de cadastro (RN-CORE-39)
+-- =============================================================================================
+alter table core.usuario add column filial_cadastro_id uuid;
+alter table core.usuario add constraint usuario_filial_cadastro_fk
+  foreign key (tenant_id, filial_cadastro_id) references core.filial (tenant_id, id);
+create index usuario_filial_cadastro_ix on core.usuario (tenant_id, filial_cadastro_id) where deleted_at is null;
+
+-- =============================================================================================
+-- core.usuario_filial — filiais de venda do usuário (RN-CORE-39)
 -- =============================================================================================
 create table core.usuario_filial (
   id           uuid primary key default gen_random_uuid(),
@@ -70,97 +77,72 @@ create policy manutencao on core.usuario_filial for all to macuxi_manutencao usi
 grant select, insert, update on core.usuario_filial to macuxi_app;
 
 -- =============================================================================================
--- Vendedor: no máximo 1 filial viva (R-20261115-073000, RN-CORE-39)
+-- Invariante: a filial de cadastro está entre as de venda (R-20261115-094500 item 2, RN-CORE-39)
 -- =============================================================================================
--- Trava por (tenant, usuário) até o fim da transação: a 2ª gravação concorrente espera e a conferência dela, no COMMIT, vê a 1ª.
-create function core.usuario_filial_travar() returns trigger
-  language plpgsql
+-- Uma função de gatilho para as 2 tabelas, conferida no COMMIT. SECURITY DEFINER (ver o cabeçalho). Usuário apagado, sem
+-- cadastro ou inexistente (exclusão do tenant em curso) = nada a conferir.
+create function core.filial_cadastro_conferir() returns trigger
+  language plpgsql security definer
   set search_path = pg_catalog, core, pg_temp
   as $$
-begin
-  if new.deleted_at is null then
-    perform pg_advisory_xact_lock(hashtextextended('core.usuario_filial:' || new.tenant_id::text || ':' || new.usuario_id::text, 0));
-  end if;
-  return new;
-end
-$$;
-revoke all on function core.usuario_filial_travar() from public;
-
--- Confere os usuários dados: vendedor vivo (cargo pela view da 0069) com 2+ filiais vivas = erro. Sem tenant (exclusão do tenant
--- em curso) = nada a conferir. count(distinct): no meio da troca de perfil a view pode trazer 2 linhas do mesmo usuário (a
--- exclusão usuario_perfil_um_vivo é conferida no mesmo COMMIT).
-create function core.conferir_filial_vendedor(p_tenant uuid, p_usuarios uuid[]) returns void
-  language plpgsql volatile
-  set search_path = pg_catalog, core, plataforma, pg_temp
-  as $$
 declare
+  v_tenant uuid;
   v_usuario uuid;
-  v record;
+  v_cadastro uuid;
 begin
-  if p_tenant is null or not exists (select 1 from plataforma.tenant t where t.id = p_tenant) then
-    return;
+  if tg_table_name = 'usuario' then
+    v_tenant := new.tenant_id;
+    v_usuario := new.id;
+  else
+    v_tenant := old.tenant_id;
+    v_usuario := old.usuario_id;
   end if;
-  for v_usuario in select distinct x from unnest(coalesce(p_usuarios, '{}')) as x where x is not null order by x loop
-    perform pg_advisory_xact_lock(hashtextextended('core.usuario_filial:' || p_tenant::text || ':' || v_usuario::text, 0));
-  end loop;
-  for v in
-    select h.usuario_id, count(distinct uf.id) as filiais
-      from core.v_usuario_hierarquia h
-      join core.usuario_filial uf on uf.tenant_id = h.tenant_id and uf.usuario_id = h.usuario_id and uf.deleted_at is null
-     where h.tenant_id = p_tenant and h.cargo = 'vendedor' and h.usuario_id = any(coalesce(p_usuarios, '{}'))
-     group by h.usuario_id
-    having count(distinct uf.id) > 1
-  loop
-    raise exception 'vendedor com mais de uma filial: o vendedor tem uma filial só'
-      using errcode = '23514', constraint = 'usuario_filial_vendedor_uma', detail = 'usuario_id=' || v.usuario_id::text,
+  select u.filial_cadastro_id into v_cadastro
+    from core.usuario u
+   where u.tenant_id = v_tenant and u.id = v_usuario and u.deleted_at is null
+     for no key update;
+  if v_cadastro is null then
+    return null;
+  end if;
+  if not exists (select 1 from core.usuario_filial uf
+                  where uf.tenant_id = v_tenant and uf.usuario_id = v_usuario and uf.filial_id = v_cadastro
+                    and uf.deleted_at is null) then
+    raise exception 'filial de cadastro fora das filiais de venda: a filial de cadastro também é de venda'
+      using errcode = '23514', constraint = 'usuario_filial_inclui_cadastro', detail = 'usuario_id=' || v_usuario::text,
             hint = 'RN-CORE-39';
-  end loop;
-end
-$$;
-revoke all on function core.conferir_filial_vendedor(uuid, uuid[]) from public;
-
--- Uma função de gatilho para as 4 tabelas, conferida no COMMIT. SECURITY DEFINER (ver o cabeçalho).
-create function core.filial_vendedor_conferir() returns trigger
-  language plpgsql security definer
-  set search_path = pg_catalog, core, plataforma, pg_temp
-  as $$
-begin
-  case tg_table_schema || '.' || tg_table_name
-    when 'core.usuario_filial' then
-      if new.deleted_at is null then
-        perform core.conferir_filial_vendedor(new.tenant_id, array[new.usuario_id]);
-      end if;
-    when 'core.usuario' then
-      if new.deleted_at is null then
-        perform core.conferir_filial_vendedor(new.tenant_id, array[new.id]);
-      end if;
-    when 'plataforma.usuario_perfil' then
-      if new.deleted_at is null then
-        perform core.conferir_filial_vendedor(new.tenant_id, array[new.usuario_id]);
-      end if;
-    when 'plataforma.perfil' then
-      if new.cargo = 'vendedor' then
-        perform core.conferir_filial_vendedor(new.tenant_id,
-          array(select up.usuario_id from plataforma.usuario_perfil up
-                 where up.tenant_id = new.tenant_id and up.perfil_id = new.id and up.deleted_at is null));
-      end if;
-  end case;
+  end if;
   return null;
 end
 $$;
-revoke all on function core.filial_vendedor_conferir() from public;
+revoke all on function core.filial_cadastro_conferir() from public;
 
-create trigger usuario_filial_travar before insert or update of usuario_id, deleted_at on core.usuario_filial
-  for each row execute function core.usuario_filial_travar();
-create constraint trigger usuario_filial_conferir_vendedor after insert or update of usuario_id, filial_id, deleted_at on core.usuario_filial
+create constraint trigger usuario_filial_inclui_cadastro after insert or update of filial_cadastro_id, deleted_at on core.usuario
   deferrable initially deferred
-  for each row execute function core.filial_vendedor_conferir();
-create constraint trigger usuario_conferir_filial_vendedor after update of deleted_at on core.usuario
+  for each row when (new.filial_cadastro_id is not null and new.deleted_at is null)
+  execute function core.filial_cadastro_conferir();
+create constraint trigger usuario_filial_inclui_cadastro after update of usuario_id, filial_id, deleted_at or delete on core.usuario_filial
   deferrable initially deferred
-  for each row execute function core.filial_vendedor_conferir();
-create constraint trigger usuario_perfil_conferir_filial_vendedor after insert or update of perfil_id, deleted_at on plataforma.usuario_perfil
-  deferrable initially deferred
-  for each row execute function core.filial_vendedor_conferir();
-create constraint trigger perfil_conferir_filial_vendedor after update of cargo on plataforma.perfil
-  deferrable initially deferred
-  for each row execute function core.filial_vendedor_conferir();
+  for each row when (old.deleted_at is null)
+  execute function core.filial_cadastro_conferir();
+
+-- =============================================================================================
+-- Backfill (R-20261115-094500, item 5; passo 1 não se aplica, ver o cabeçalho)
+-- =============================================================================================
+-- Passo 2: empresa com UMA filial viva — todo usuário vivo recebe a filial como venda e como cadastro.
+with filial_unica as (
+  select f.tenant_id, min(f.id::text)::uuid as filial_id
+    from core.filial f
+   where f.deleted_at is null
+   group by f.tenant_id
+  having count(*) = 1
+)
+insert into core.usuario_filial (tenant_id, usuario_id, filial_id)
+select u.tenant_id, u.id, fu.filial_id
+  from core.usuario u
+  join filial_unica fu on fu.tenant_id = u.tenant_id
+ where u.deleted_at is null;
+
+update core.usuario u
+   set filial_cadastro_id = uf.filial_id
+  from core.usuario_filial uf
+ where uf.tenant_id = u.tenant_id and uf.usuario_id = u.id and uf.deleted_at is null and u.deleted_at is null;
