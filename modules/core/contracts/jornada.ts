@@ -26,3 +26,15 @@ export type ParametrosJornada = z.infer<typeof ParametrosJornadaSchema>;
 export const CAMPOS_PARAMETROS_JORNADA = ['almoco_inicio', 'almoco_fim'] as const;
 export const ErroParametroJornadaSchema = z.object({ campo: z.enum(CAMPOS_PARAMETROS_JORNADA), mensagem: z.string().min(1) }).strict();
 export type ErroParametroJornada = z.infer<typeof ErroParametroJornadaSchema>;
+
+/** Conversão hora↔minuto (função pura, compartilhada com o gestor). "12:00" a partir de minutos do dia. */
+export const textoDoMinuto = (min: number): string => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
+/** "12:00" ou "7:5" → minutos do dia; inválido = null. */
+export function minutoDoTextoHora(t: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(t.trim());
+  if (!m) return null;
+  const min = Number(m[1]) * 60 + Number(m[2]);
+  return Number(m[1]) < 24 && Number(m[2]) < 60 ? min : null;
+}
+

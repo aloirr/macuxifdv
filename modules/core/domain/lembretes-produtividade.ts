@@ -9,12 +9,13 @@
  * - ordem de prioridade: sem check-in, fim do almoço, parado, rota incompleta, visita aberta, envio pendente;
  * - teto por pessoa por dia (`teto_lembretes_dia`, padrão 4): o que já saiu hoje conta; passou do teto, não agenda mais;
  * - rota incompleta não sai se o "parado" disparou na última hora;
- * - o que já passou da hora não sai atrasado (aparelho desligado na hora perde o lembrete).
+ * - o que já passou da hora não sai atrasado (aparelho desligado na hora perde o lembrete), exceto o envio pendente: com o limite
+ *   (`apos_h`, padrão 4 h) já vencido ao abrir o app, inclusive item de ontem, sai 1 min depois de agora (ou na abertura, se ainda não abriu), dentro do teto e da prioridade.
  * Textos: título curto e o corpo "Próxima visita: <cliente>." igual em todos (sem próxima visita, só o título). Vai só para a bandeja do aparelho.
  */
 import { HORARIO_COMERCIAL_PADRAO, type ParametrosAlertasProdutividade } from '../contracts/alertas-produtividade';
 import type { HorarioAlmoco } from '../contracts/jornada';
-import { textoDoMinuto } from './jornada';
+import { textoDoMinuto } from '../contracts/jornada';
 
 export type TipoLembrete = 'sem_checkin_inicio' | 'fim_almoco' | 'parado_entre_visitas' | 'rota_incompleta' | 'visita_aberta' | 'envio_pendente';
 
@@ -148,7 +149,9 @@ export function agendaDeLembretes(e: EntradaLembretes): LembreteDoDia[] {
   if (p.envio_pendente.ativa && p.envio_pendente.vendedor && e.fila.length > 0) {
     const maisAntigo = Math.min(...e.fila.map((x) => ms(x.criado_em)));
     const n = e.fila.length;
-    add('envio_pendente', `envio_pendente:${e.inicio_do_dia_em}`, maisAntigo + p.envio_pendente.apos_h * 60 * MIN, n === 1 ? '1 registro sem enviar' : `${n} registros sem enviar`, corpoDe());
+    // limite já vencido (item de ontem ou de antes, ou app aberto depois): sai no próximo momento válido do dia, 1 min depois de agora
+    const limite = maisAntigo + p.envio_pendente.apos_h * 60 * MIN;
+    add('envio_pendente', `envio_pendente:${e.inicio_do_dia_em}`, limite > agora ? limite : agora + MIN, n === 1 ? '1 registro sem enviar' : `${n} registros sem enviar`, corpoDe());
   }
 
   // horário comercial, hora que já passou e teto do dia

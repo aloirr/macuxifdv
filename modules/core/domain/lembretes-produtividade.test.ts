@@ -9,6 +9,7 @@ const hora = (iso: string) => {
   const m = (Date.parse(iso) - Date.parse(DIA)) / 60_000;
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 };
+const MINUTO = 60_000;
 const ALMOCO = { inicio_min: 720, fim_min: 780 };
 const paradas = [
   { cliente_id: 'c1', cliente_nome: 'Mercado Bom Preço', sequencia: 1 },
@@ -117,6 +118,20 @@ describe('RN-CORE-26 (D4/D6): lembretes locais de produtividade no Campo', () =>
     const p = so({ sem_checkin_inicio: PADRAO.sem_checkin_inicio });
     expect(agendaDeLembretes(entrada({ parametros: p }, '08:30'))).toEqual([expect.objectContaining({ tipo: 'sem_checkin_inicio', em: em('10:00'), titulo: 'Nenhuma visita hoje', corpo: 'Próxima visita: Mercado Bom Preço.' })]);
     expect(agendaDeLembretes(entrada({ parametros: p, visitas: [v('c1', '09:00', '09:30')] }, '09:40'))).toEqual([]);
+  });
+  it('RN-CORE-26 (D4/D6, 4 h): item da fila de ontem, com o limite já vencido ao abrir o app, dispara o envio pendente 1 min depois de agora', () => {
+    const ontem = new Date(Date.parse(em('08:00')) - 24 * 60 * MINUTO).toISOString();
+    const r = agendaDeLembretes(entrada({ parametros: so({ envio_pendente: PADRAO.envio_pendente }), fila: [{ criado_em: ontem }] }, '09:40'));
+    expect(r).toMatchObject([{ tipo: 'envio_pendente', em: em('09:41'), titulo: '1 registro sem enviar' }]);
+  });
+  it('RN-CORE-26 (D4/D6): envio vencido antes da abertura sai na abertura; depois do fechamento não sai; o que já saiu não repete', () => {
+    const fila = [{ criado_em: new Date(Date.parse(em('08:00')) - 48 * 60 * MINUTO).toISOString() }];
+    const p = so({ envio_pendente: PADRAO.envio_pendente });
+    const abertura = agendaDeLembretes(entrada({ parametros: p, fila }, '05:00'));
+    expect(abertura).toHaveLength(1);
+    expect(abertura[0]!.em >= em('05:01')).toBe(true);
+    expect(agendaDeLembretes(entrada({ parametros: p, fila }, '23:00'))).toEqual([]);
+    expect(agendaDeLembretes(entrada({ parametros: p, fila, enviados: [{ id: `envio_pendente:${DIA}`, em: em('09:00') }] }, '09:40'))).toEqual([]);
   });
   it('RN-CORE-26: regra desligada ou sem o destino vendedor não gera lembrete', () => {
     const visitas = [v('c1', '08:00', '09:00')];

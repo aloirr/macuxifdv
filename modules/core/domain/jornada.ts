@@ -7,24 +7,15 @@ import {
   ALMOCO_DURACAO_MIN,
   ALMOCO_PADRAO_EMPRESA,
   PARAMETRO_ALMOCO_PADRAO,
+  minutoDoTextoHora,
+  textoDoMinuto,
   type ErroParametroJornada,
   type HorarioAlmoco,
 } from '../contracts/jornada';
 
-export { ALMOCO_DURACAO_MAX, ALMOCO_DURACAO_MIN, ALMOCO_PADRAO_EMPRESA };
+export { ALMOCO_DURACAO_MAX, ALMOCO_DURACAO_MIN, ALMOCO_PADRAO_EMPRESA, minutoDoTextoHora, textoDoMinuto };
 
 const minutoValido = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n < 1440;
-
-/** "12:00" a partir de minutos do dia. */
-export const textoDoMinuto = (min: number): string => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
-
-/** "12:00" ou "7:5" → minutos do dia; inválido = null. */
-export function minutoDoTextoHora(t: string): number | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(t.trim());
-  if (!m) return null;
-  const min = Number(m[1]) * 60 + Number(m[2]);
-  return Number(m[1]) < 24 && Number(m[2]) < 60 ? min : null;
-}
 
 /** Rótulo "12:00 às 13:00". */
 export const rotuloDoAlmoco = (h: HorarioAlmoco): string => `${textoDoMinuto(h.inicio_min)} às ${textoDoMinuto(h.fim_min)}`;
