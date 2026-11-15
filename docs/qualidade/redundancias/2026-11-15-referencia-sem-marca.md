@@ -137,3 +137,42 @@ Os recados não foram gravados: a CLI recebeu 403 na escrita, como na rodada ant
 - modulo-catalogo: RD-0540 e RD-0541;
 - modulo-vendedor: RD-0514, reaberto;
 - banco-dados: a sugestão do comentário do CB-3400, sem RD e sem segurar o lote.
+
+## 6. Segundo reteste (15/11/2026, ~08h Manaus)
+**Veredito: COM ACHADO (não liberado).** RD-0514, RD-0540 e RD-0541 estão corrigidos, e o comentário do CB-3400 voltou. Ainda no domain da exportação, há 2 achados novos de gravidade baixa, o RD-0542 e o RD-0543. Os 2 estão em código de produção e seguram o lote. Há também 1 encaminhamento ao testes, sem RD.
+
+Conferi os commits:
+- **178d0486** em `origin/nuvem/referencia-sem-marca-modulo-vendedor`;
+- **ba67ddf2** em `origin/nuvem/referencia-sem-marca-modulo-catalogo`;
+- **01c437d9** em `origin/nuvem/referencia-sem-marca-banco-dados`.
+
+| Ponto | Resultado |
+|---|---|
+| RD-0514 | **Corrigido.** `OrderPdfItem.references` agora é `ReadonlyArray<ReferenciaPdf>`. O formato aparece uma vez só no módulo (`pdf-pedido.ts:35`), e os testes do PDF já mandam o `brand` em toda referência. |
+| RD-0540 | **Corrigido.** A `regras.md:170` diz "casa a marca (desconhecida ou inativa: ver acima)". A regra fica só na `:160`. |
+| RD-0541 | **Corrigido.** `ResolucaoReferenciasErp.referencias` e o retorno de `referenciaVisivel` usam o `Referencia` do contrato. |
+| CB-3400 (`aplicacao-referencia.test.ts:263`) | **Claro.** O comentário "a apagada (cb3400) não conta: o mesmo código volta a valer" explica a linha. |
+| Redundância nova nos 3 commits | **Nenhuma.** As correções não criaram redundância. Ao procurar se o formato do `Referencia` ainda estava escrito à mão em outro lugar do módulo, achei o RD-0542 e o RD-0543, abaixo. |
+
+### RD-0542 · baixa · código · modulo-catalogo
+- **Onde:** `modules/catalogo/domain/exportacao.ts:22` (`referencias: { marca_id: string | null; marca_nome: string | null; codigo: string }[]`).
+- **O que se repete:** é a 3ª cópia à mão do `Referencia` do contrato no domain, a mesma do RD-0541. Este lote mexeu nessa linha (o `marca_id` passou a aceitar nulo), e o arquivo já importa `Referencia` (`:6`).
+- **Proposta:** antes → `referencias: { marca_id: string | null; marca_nome: string | null; codigo: string }[];`; depois → `referencias: Referencia[];`.
+
+### RD-0543 · baixa · código · modulo-catalogo
+- **Onde:** `modules/catalogo/web/exportacao/layout.ts:60` e `:81-83`.
+- **O que se repete:** o nome da marca é decidido 2 vezes no caminho da exportação.
+  - O domain já decide (`domain/exportacao.ts:59`, `nomeMarcaDaReferencia` com o cadastro de marcas que a rota passa, `rotas.ts:584-585`).
+  - O BKO decide de novo, com o `dados.marcas` do mesmo payload: `(r.marca_id ? marcas.get(r.marca_id) : undefined) ?? r.marca_nome?.trim()`.
+  - O resultado é o mesmo, então são 2 lugares para manter a mesma regra. Este lote mexeu nessas linhas (`:82-83`).
+- **Proposta:** antes → `const m = (r.marca_id ? marcas.get(r.marca_id) : undefined) ?? r.marca_nome?.trim(); return textoDaReferencia(m, r.codigo);`; depois → `equivale_a: p.referencias.slice(0, MAX_REFERENCIAS).map((r) => textoDaReferencia(r.marca_nome, r.codigo))`.
+  - Saem a linha `:60` (`const marcas = new Map(...)`) e o comentário `:81`.
+  - Se o `dados.marcas` não tiver outro uso no BKO, cabe a uma tarefa à parte tirá-lo do contrato da exportação (`formato.ts`). Isso não segura o lote.
+
+### Encaminhamento ao testes (sem RD)
+`domain/exportacao.ts:59` não esconde a referência quando a marca informada está inativa ou não existe. Ela sai na exportação só com o código, enquanto a ficha, o cartão e a busca a escondem (`referenciaVisivel`). O cabeçalho do arquivo (`:3`) diz "marca ativa". É comportamento que diverge da RN-CAT-09, não redundância. Fica para o testes conferir. Se o testes confirmar, a correção natural é usar `referenciaVisivel` aqui também.
+
+### Recados
+A CLI segue com 403 na escrita, então os recados não foram gravados. A lista foi entregue ao gerente-projetos:
+- modulo-catalogo: RD-0542 e RD-0543;
+- testes: o encaminhamento acima.
