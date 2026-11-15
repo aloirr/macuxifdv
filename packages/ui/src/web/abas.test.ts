@@ -138,7 +138,7 @@ describe('Abas: árvore', () => {
     const inativa = botoes[1]?.props.className ?? '';
     for (const c of [ativa, inativa]) {
       expect(c).toContain('min-h-[44px]');
-      expect(c).toContain('px-4 text-[14px] font-semibold');
+      expect(c).toContain('px-4 text-[15px] font-semibold');
       expect(c).toContain('-mb-px');
       expect(c).toContain('border-b-2');
       expect(c).toContain('focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent');

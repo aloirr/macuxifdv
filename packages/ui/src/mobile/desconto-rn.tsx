@@ -14,7 +14,7 @@ import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-na
 import { DESCONTO_COMPACTO, equivalenteDoAjuste, type TomEquivalente, type ValorEquivalente } from './desconto';
 import { CampoAjuste } from './suspensa';
 import { TIPOS_AJUSTE, type OpcaoLista, type TipoAjuste } from './selecao';
-import { colors, fonts } from './theme';
+import { colors, fonte } from './theme';
 
 const COR_EQUIVALENTE: Record<TomEquivalente, string> = { sucesso: colors.success, neutro: colors.ink2, erro: colors.danger };
 
@@ -106,8 +106,8 @@ export function DescontoCompacto({
 const s = StyleSheet.create({
   // uma linha de 44 dp (a do Passo compacto); com fonte grande, o rótulo quebra em 2 linhas e a linha cresce
   linha: { flexDirection: 'row', alignItems: 'center', gap: DESCONTO_COMPACTO.vao, minHeight: DESCONTO_COMPACTO.altura },
-  rotulo: { flex: 1, minWidth: 0, fontFamily: fonts.bold, fontSize: 11, lineHeight: 14, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.ink2 },
+  rotulo: { flex: 1, minWidth: 0, ...fonte.semibold, fontSize: 12, lineHeight: 16, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.ink2 },
   campoFixo: { width: DESCONTO_COMPACTO.larguraCampo },
   campoLivre: { flexGrow: 1, flexShrink: 1, minWidth: DESCONTO_COMPACTO.larguraCampo },
-  equivalente: { flexShrink: 0, textAlign: 'right', fontFamily: fonts.bold, fontSize: 13, fontVariant: ['tabular-nums'] },
+  equivalente: { flexShrink: 0, textAlign: 'right', ...fonte.semibold, fontSize: 14, fontVariant: ['tabular-nums'] },
 });

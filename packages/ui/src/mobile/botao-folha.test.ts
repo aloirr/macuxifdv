@@ -21,9 +21,9 @@ describe('RD-0039: BotaoFolha', () => {
     expect(alturaDoBotaoFolha('contorno', 52)).toBe(52);
   });
 
-  it('fonte 15 a partir de 50 dp, 14 abaixo', () => {
-    expect(fonteDoBotaoFolha(50)).toBe(15);
-    expect(fonteDoBotaoFolha(52)).toBe(15);
+  it('fonte 16 a partir de 50 dp, 14 abaixo (escala do app)', () => {
+    expect(fonteDoBotaoFolha(50)).toBe(16);
+    expect(fonteDoBotaoFolha(52)).toBe(16);
     expect(fonteDoBotaoFolha(46)).toBe(14);
   });
 
@@ -51,7 +51,7 @@ describe('RD-0039: LinhaOpcaoFolha', () => {
     expect(LINHA_OPCAO_FOLHA.opacidadeDesligada).toBe(0.6);
     expect(LINHA_OPCAO_FOLHA.icone).toEqual({ lado: 38, tamanho: 18, fundo: colors.accentSoft, cor: colors.accentInk });
     expect(LINHA_OPCAO_FOLHA.seta).toEqual({ tamanho: 16, cor: colors.ink3 });
-    expect(LINHA_OPCAO_FOLHA.tamanhoTitulo).toBe(15);
+    expect(LINHA_OPCAO_FOLHA.tamanhoTitulo).toBe(16);
   });
 
   it('ícone accentInk legível sobre accentSoft; seta chevron', () => {
