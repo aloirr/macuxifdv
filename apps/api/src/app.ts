@@ -107,6 +107,7 @@ import { registrarArquivos, type ArmazenamentoArquivos } from './arquivos';
 import { registrarAuditoria } from './auditoria';
 import { registrarDiagnosticos } from './diagnosticos';
 import { registrarRotasDiagnosticosPortal, type FonteDiagnosticosPortal } from './diagnosticos-portal';
+import { registrarRotasDadosLegais, type FonteDadosLegais } from './dados-legais';
 import { consultaCnpjPadrao, registrarRotaConsultaCnpj, type ConsultaCnpj } from './consulta-cnpj';
 import { registrarRotasPlanosPortal, type FontePlanosPortal } from './planos-portal';
 import { registrarSync } from './sync';
@@ -205,6 +206,8 @@ export interface OpcoesApp {
   planosPortal?: boolean;
   /** ADR 0047: fonte das funções `sa_*` dos planos (padrão: `fontePlanosNoBanco`). Testes injetam a sua. */
   fontePlanos?: FontePlanosPortal;
+  /** Rodapé legal (docs/design/telas/rodape-legal.md §3.4): fonte das funções dos dados legais (padrão: `fonteDadosLegaisNoBanco`). Testes injetam a sua. */
+  fonteDadosLegais?: FonteDadosLegais;
 }
 
 /** Cache da sonda de dependências do `/v1/saude` (a rota é pública: não vira amplificador de consultas no banco). */
@@ -607,6 +610,17 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       armazenamento: op.arquivos ?? null,
     });
   }
+
+  // Rodapé legal (rodape-legal.md §3.4): sempre ligado; a pública no macuxi_app (sem login), as do portal só super-admin.
+  // Antes da migração do banco-dados, respondem 503 e o cliente usa o próprio cache.
+  registrarRotasDadosLegais(app, {
+    banco,
+    acessoPortal,
+    ...(op.fonteDadosLegais ? { fonte: op.fonteDadosLegais } : {}),
+    autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+    validar,
+    relogio,
+  });
 
   // ADR 0048: consulta de CNPJ na base pública da Receita (passo Empresa do portal), super-admin ou admin do cliente
   registrarRotaConsultaCnpj(app, {
