@@ -60,3 +60,6 @@ export * from './botao-folha-rn';
 // R-20261115-071000: CampoSenha, o campo de senha único (olho em ícone, props de teclado de senha)
 export * from './campo-senha';
 export * from './campo-senha-rn';
+// Onda 1 do catálogo (solução 5): IndicadorCargaFundo ("Catálogo 63%") e CatalogoCarregando, o catálogo sem sinal na carga
+export * from './carga-fundo';
+export * from './carga-fundo-rn';

@@ -376,8 +376,8 @@ export function EstadoVazio({
   acao,
   testID = 'estado-vazio',
 }: {
-  /** Ex.: "Nenhum pedido hoje". */
-  titulo: string;
+  /** Ex.: "Nenhum pedido hoje". Sem título, o vazio fica só com o texto (quando a tela já diz o estado em outro lugar). */
+  titulo?: string;
   /** O que fazer a seguir ("Os pedidos enviados aparecem aqui."). */
   texto?: string;
   icone?: IconName;
@@ -392,7 +392,7 @@ export function EstadoVazio({
           <Icon name={icone} size={22} color={colors.ink2} />
         </View>
       ) : null}
-      <Text style={s.vazioTitulo}>{titulo}</Text>
+      {titulo ? <Text style={s.vazioTitulo}>{titulo}</Text> : null}
       {texto ? <Text style={s.vazioTexto}>{texto}</Text> : null}
       {acao ? <Botao rotulo={acao.rotulo} onPress={acao.onPress} testID={acao.testID ?? `${testID}-acao`} style={s.vazioBotao} /> : null}
     </View>

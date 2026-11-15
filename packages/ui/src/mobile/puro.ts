@@ -32,3 +32,5 @@ export * from './busca';
 export * from './botao-editar';
 // R-20261115-071000: CampoSenha (medidas, ícone do olho e props de teclado)
 export * from './campo-senha';
+// Onda 1 do catálogo (solução 5): textos e medidas do indicador de carga em segundo plano
+export * from './carga-fundo';
