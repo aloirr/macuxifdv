@@ -71,6 +71,29 @@
 | [T-0005](tarefas/T-0005.md) | CI e verificação de donos | engenheiro-software | local | concluida (verificar --base e casos A–B · CI do main verde · run 41207939579 foi cancelamento por concorrência) |
 | [T-0006](tarefas/T-0006.md) | Plano de testes da fundação | testes | local | concluida (relatório final da Sprint 0 · 230 casos em tests/ com banco real) |
 
+## Conta nova — todo o lote (gerente session_019xHEXs75xqGq9m52u565UD; R-20261115-161800-alexandre e R-20261115-163500-gerente-projetos)
+> A conta antiga parou por falta de créditos (16h18) e não toca nada até o dono do produto mandar. A conta nova toca a v1.0.12, a v1.0.13 e a v1.0.14, nessa ordem; onde um arquivo colidir, a v1.0.12/v1.0.13 passa na frente e o PR `nuvem/v1014-*` faz `git merge origin/main` depois.
+> **v1.0.12/v1.0.13 (sessões L):** os branches e PRs deixados pela conta antiga (#361, #366, #367, #369, #373, #375, #382–#388, carga T-0181, fotos T-0174, fonte, filtro, catálogo onda 1, Expo, Sincronizar), conferido o último commit de cada um.
+> **v1.0.14 (sessões N):** prazo Desc./Acrésc. · logo do cliente (T-0182) · Planos · alertas (T-0180) · Integração ERP simplificada (T-0173) · menu Parâmetros · catálogo v2 (só depois do #361, #382, #386 e #387). Branches novos `nuvem/v1014-<item>-<dono>`, um commit por dono, a partir do main; os branches antigos desses itens ficam congelados (só base).
+
+| Sessão (conta nova) | Dono(s) | Caminhos | Branches | Onde | Desde |
+|---|---|---|---|---|---|
+| L1 | modulo-core | #361, #386, #385, #375 (arquivos desses PRs) | `nuvem/v1012b-modulo-core`, `catalogo-v1013-modulo-core`, `filtro-padrao-modulo-core-3`, `fonte-sistema-modulo-core-pr` | conta nova, session_019xHEXs6pbzHcfXgipiZQ9J | 2026-11-15 16h29 |
+| L2 | testes | `tests/**` dos testes da filial, da fonte, do T-0174 e da carga | `nuvem/v1012b-testes-tol`, `fonte-sistema-testes-*`, `T-0174-testes`, `carga-frases-testes-v5`, `nuvem/v1013-*-testes` | conta nova, session_019xHEXrN9KF9DeuxuBf3yPZ | 2026-11-15 16h29 |
+| L3 | engenheiro-apps | `apps/**` dos apps da filial, Expo, fonte, carga, catálogo onda 1, Sincronizar, fotos | `nuvem/v1012b-engenheiro-apps`, `expo-limpeza-v2-engenheiro-apps`, `fonte-sistema-engenheiro-apps-pr`, `carga-frases-engenheiro-apps-v4`, `catalogo-v1013-engenheiro-apps`, `nuvem/v1013-*-engenheiro-apps` | conta nova, session_019xHEXrJAhWZJgUVp4v1w8p | 2026-11-15 16h30 |
+| L4 | designer-ux, modulo-catalogo | kit e catálogo de #366, #367, #382, #387, onda 1, Sincronizar, fonte e busca do catálogo | `nuvem/T-0174-designer-ux`, `carga-frases-designer-ux-v4`, `catalogo-v1013-designer-ux-b`, `sync-completa-designer-ux`, `T-0174-modulo-catalogo`, `catalogo-v1013-modulo-catalogo-onda1`, `fonte-sistema-modulo-catalogo-pr`, `busca-marca-ref-modulo-catalogo` | conta nova, session_019xHEXpfo9hF3FwkT9jFWRk | 2026-11-15 16h30 |
+| L5 | banco-dados, engenheiro-software, modulo-vendedor, modulo-integracao | carga 0081 e SDK das frases, T-0174 banco/plataforma, docs de 15/11, fonte do vendedor | `nuvem/carga-frases-banco-dados-v6`, `carga-frases-engenheiro-software-v7`, `T-0174-banco-adr0058`, `T-0174-engenheiro-software`, `docs-regras-1511-*`, `fonte-sistema-modulo-vendedor-pr` | conta nova, session_019xHEXsTZHFASgGQtM4kfkU | 2026-11-15 16h30 |
+| L6 | corretor-redundancias, design-de-marca | `docs/qualidade/redundancias/**`, `docs/marca/**` (pareceres v1.0.12/v1.0.13 e regras da fonte no manual) | `nuvem/v1013-pareceres-corretor-redundancias`, `nuvem/v1013-pareceres-design-de-marca` | conta nova, session_019xHEXoKagvotNxpZHQSNwQ | 2026-11-15 16h31 |
+| N1 | banco-dados | `db/**`, `docs/banco/**`, `modules/*/db/**` | `nuvem/v1014-*-banco-dados` | conta nova, session_019xHEXs1QQawy5WjArBfqTZ | 2026-11-15 16h30 |
+| N2 | engenheiro-software | `packages/platform-sdk/**`, `packages/comum/**`, `apps/api/**`, `docs/decisoes/**`, `docs/desenho/**`, `.coord/contratos/**`, `scripts/deploy/**` | `nuvem/v1014-*-engenheiro-software` | conta nova, session_019xHEXsTypiamCHw7nkkHyF | 2026-11-15 16h30 |
+| N3 | modulo-vendedor, modulo-integracao | `modules/vendedor/**`, `modules/integracao/**`, `apps/conector/**` (menos `modules/*/db/**`) | `nuvem/v1014-*-modulo-vendedor`, `nuvem/v1014-*-modulo-integracao` | conta nova, session_019xHEXt2Ab1EsAyLPofMWSi | 2026-11-15 16h30 |
+| N4 | modulo-core, modulo-gestor | `modules/core/**`, `modules/gestor/**` (menos `modules/*/db/**` e os arquivos da L1) | `nuvem/v1014-*-modulo-core`, `nuvem/v1014-*-modulo-gestor` | conta nova, session_019xHEXpQMD1MLrvrR4e1FqU | 2026-11-15 16h30 |
+| N5 | engenheiro-apps, designer-ux | `apps/web/**`, `apps/mobile/**`, `packages/ui/**`, `docs/design/**` (menos os arquivos da L3 e da L4) | `nuvem/v1014-*-engenheiro-apps`, `nuvem/v1014-*-designer-ux` | conta nova, session_019xHEXonoo8ujZvMy8Bk69C | 2026-11-15 16h30 |
+| N6 | modulo-catalogo, modulo-pesquisa, modulo-promotor, modulo-treinamento | `modules/{catalogo,pesquisa,promotor,treinamento}/**` (menos `modules/*/db/**` e os arquivos da L4) | `nuvem/v1014-*-modulo-<m>` | conta nova, session_019xHEXs2YNCFCb29RoFrasE | 2026-11-15 16h30 |
+| N7 | testes | `tests/**`, `docs/testes/**` | `nuvem/v1014-*-testes` | conta nova, a abrir quando os PRs de código existirem | — |
+| N8 | corretor-redundancias, design-de-marca | `docs/qualidade/redundancias/**`, `docs/marca/**` | `nuvem/v1014-*-corretor-redundancias`, `nuvem/v1014-*-design-de-marca` | conta nova, a abrir quando os PRs de código existirem | — |
+| gerente | gerente-projetos | `.coord/quadro.md`, `.coord/tarefas/**`, `docs/produto/**` | `nuvem/v1014-*-gerente-projetos` | conta nova, session_019xHEXs75xqGq9m52u565UD | 2026-11-15 16h15 |
+
 ## Travado pela nuvem
 | Caminho | Tarefa | Branch | Desde |
 |---|---|---|---|
