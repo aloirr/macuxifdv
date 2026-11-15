@@ -54,7 +54,7 @@ export interface OrderPdfItem {
    * gerar o PDF. NÃO são retrato do pedido. Saem como "Equivale a: <marca> <código>" no PDF interno (sempre) e no PDF do cliente só com
    * `referencia_no_orcamento` ligado.
    */
-  references?: ReadonlyArray<{ brand?: string | null; code: string }>;
+  references?: ReadonlyArray<ReferenciaPdf>;
   /** T-0159: marca do produto (retrato no pedido, como a aplicação); coluna Marca nos dois PDFs, vazia se ausente */
   brand?: string | null;
 }
