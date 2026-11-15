@@ -29,7 +29,7 @@ import {
 } from '@macuxi/core/app';
 import type { FakeUser } from '@macuxi/core/contracts';
 import { entraEm, ErroHttp, PERFIS, type Perfil } from '@macuxi/platform-sdk';
-import { Banner, Button, Card, colors, fonts, Icon, initials, radius, rotuloDoPerfil, Screen, type as t } from '@macuxi/ui/mobile';
+import { Banner, Button, Card, colors, fonte, Icon, initials, radius, rotuloDoPerfil, Screen, type as t } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, BackHandler, Keyboard, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -346,7 +346,7 @@ function CartaoServidor() {
           </View>
         </>
       ) : (
-        <Text testID="server-url" style={[t.body, { fontFamily: fonts.mono, fontSize: 13 }]} selectable>
+        <Text testID="server-url" style={[t.body, { ...fonte.mono, fontSize: 14 }]} selectable>
           {apiUrl}
           {apiOverride ? '' : '  (padrão)'}
         </Text>
@@ -479,16 +479,16 @@ function LoginDemo() {
 
 const styles = StyleSheet.create({
   // texto laranja sobre claro: accentInk (contraste >= 4,5:1; docs/design/componentes.md §1.1)
-  brand: { fontFamily: fonts.displayBold, fontSize: 12, letterSpacing: 1.2, color: colors.accentInk },
-  group: { fontFamily: fonts.semibold, fontSize: 12, color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.6 },
+  brand: { ...fonte.displayBold, fontSize: 12, letterSpacing: 1.2, color: colors.accentInk },
+  group: { ...fonte.semibold, fontSize: 12, color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.6 },
   userRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 11, minHeight: 60 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   muted: { opacity: 0.75 },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontFamily: fonts.displayBold, fontSize: 14, color: '#FFFFFF' },
-  link: { fontFamily: fonts.semibold, fontSize: 13, color: colors.accentInk },
+  avatarText: { ...fonte.displayBold, fontSize: 14, color: '#FFFFFF' },
+  link: { ...fonte.semibold, fontSize: 14, color: colors.accentInk },
   // alvo de toque >= 48 dp
   avancado: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 48 },
   rodape: { gap: 10, paddingHorizontal: 16, paddingBottom: 16 },
-  input: { minHeight: 46, paddingVertical: 10, textAlignVertical: 'center', borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, fontFamily: fonts.mono, fontSize: 13, color: colors.ink, backgroundColor: colors.surface },
+  input: { minHeight: 46, paddingVertical: 10, textAlignVertical: 'center', borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, ...fonte.mono, fontSize: 14, color: colors.ink, backgroundColor: colors.surface },
 });
