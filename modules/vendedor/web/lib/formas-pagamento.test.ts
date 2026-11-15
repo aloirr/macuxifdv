@@ -3,9 +3,15 @@ import type { FormaPagamento, PrazoPagamento } from '../../contracts';
 import {
   buscaDosFiltrosFormas,
   corpoDoPrazo,
-  filtrarFormas,
+  formatarPercentualPrazo,
   formasToCsv,
   lerFiltrosFormas,
+  linhasDeFormas,
+  linhasDePrazos,
+  normalizarBusca,
+  percentualDoPrazo,
+  prazoEfetivamenteAtivo,
+  prazosToCsv,
   parcelasDoTexto,
   previaDoPrazo,
   registroDoErp,
@@ -83,24 +89,64 @@ describe('RN-VEN-24: formulário de forma e de prazo', () => {
   });
 });
 
-describe('RN-VEN-24: filtros na URL e CSV', () => {
-  const formas = [forma(1, 'PIX', 'Pix'), forma(2, 'BOLETO', 'Boleto', { ativo: false })];
+describe('RN-VEN-24: tabela única de prazos, abas, busca e CSV', () => {
+  const formas = [forma(1, 'PIX', 'Pix'), forma(2, 'BOLETO', 'Boleto', { ativo: false }), forma(3, 'CARTAO', 'Cartão de crédito')];
   const prazos = [prazo(10, U(1), 'PIX-AV', [0], 0), prazo(11, U(2), 'BOL-28', [28], 28), prazo(12, U(2), 'BOL-30', [30], 30, { ativo: false })];
-  it('RN-VEN-24: os filtros vão e voltam pela URL', () => {
-    const f = lerFiltrosFormas('?q=bol&ativas=1');
-    expect(f).toEqual({ q: 'bol', ativas: '1' });
-    expect(buscaDosFiltrosFormas(f)).toBe('?q=bol&ativas=1');
-    expect(buscaDosFiltrosFormas({ q: '', ativas: '' })).toBe('');
+  const vazios = { aba: 'prazos', q: '', ativas: '' } as const;
+
+  it('RN-VEN-24: os filtros (aba, busca, situação) vão e voltam pela URL; Prazos é a aba padrão', () => {
+    expect(lerFiltrosFormas('')).toEqual({ aba: 'prazos', q: '', ativas: '' });
+    const f = lerFiltrosFormas('?aba=formas&q=bol&ativas=1');
+    expect(f).toEqual({ aba: 'formas', q: 'bol', ativas: '1' });
+    expect(buscaDosFiltrosFormas(f)).toBe('?aba=formas&q=bol&ativas=1');
+    expect(buscaDosFiltrosFormas({ aba: 'prazos', q: '', ativas: '' })).toBe('');
+    expect(lerFiltrosFormas('?aba=xyz').aba).toBe('prazos');
   });
-  it('RN-VEN-24: "só ativas" tira forma e prazo inativos; a busca olha o código do prazo', () => {
-    expect(filtrarFormas(formas, prazos, { q: '', ativas: '1' }).map((x) => x.forma.codigo)).toEqual(['PIX']);
-    expect(filtrarFormas(formas, prazos, { q: 'BOL-30', ativas: '' }).map((x) => x.forma.codigo)).toEqual(['BOLETO']);
+  it('RN-VEN-24: a busca ignora maiúsculas e acentos', () => {
+    expect(normalizarBusca('  CARTÃO ')).toBe('cartao');
+    expect(linhasDeFormas(formas, { ...vazios, q: 'cartao' }).map((f) => f.codigo)).toEqual(['CARTAO']);
+    expect(linhasDeFormas(formas, { ...vazios, q: 'CARTÃO' }).map((f) => f.codigo)).toEqual(['CARTAO']);
   });
-  it('RN-VEN-24: o CSV tem uma linha por prazo, com o prazo médio, em padrão brasileiro', () => {
-    const csv = formasToCsv(filtrarFormas(formas, prazos, { q: '', ativas: '' }));
+  it('RN-VEN-24: a tabela única tem uma linha por prazo, com o nome da forma como coluna', () => {
+    const l = linhasDePrazos(formas, prazos, vazios);
+    expect(l.map((x) => [x.formaNome, x.prazo.codigo])).toEqual([['Pix', 'PIX-AV'], ['Boleto', 'BOL-28'], ['Boleto', 'BOL-30']]);
+  });
+  it('RN-VEN-24: na aba Prazos a busca olha código, descrição e nome da forma', () => {
+    expect(linhasDePrazos(formas, prazos, { ...vazios, q: 'BOL-30' }).map((x) => x.prazo.codigo)).toEqual(['BOL-30']);
+    expect(linhasDePrazos(formas, prazos, { ...vazios, q: 'boleto' })).toHaveLength(2);
+    expect(linhasDePrazos(formas, prazos, { ...vazios, q: '28 dias' }).map((x) => x.prazo.codigo)).toEqual(['BOL-28']);
+    expect(linhasDePrazos(formas, prazos, { ...vazios, q: 'nada' })).toEqual([]);
+  });
+  it('RN-VEN-24: "só ativas" tira prazo inativo e prazo de forma inativa', () => {
+    expect(linhasDePrazos(formas, prazos, { ...vazios, ativas: '1' }).map((x) => x.prazo.codigo)).toEqual(['PIX-AV']);
+    expect(linhasDeFormas(formas, { ...vazios, aba: 'formas', ativas: '1' }).map((f) => f.codigo)).toEqual(['PIX', 'CARTAO']);
+  });
+  it('RN-VEN-24: o CSV da aba Prazos tem uma linha por prazo, com forma e prazo médio, em padrão brasileiro', () => {
+    const csv = prazosToCsv(linhasDePrazos(formas, prazos, vazios));
     expect(csv).toContain('"Prazo médio (dias)"');
     expect(csv).toContain('"Boleto";"BOLETO";"28 dias";"BOL-28";"28";"Inativo";"BKO"');
     expect(csv.split('\r\n').filter(Boolean)).toHaveLength(1 + 3);
+  });
+  it('RN-VEN-24: o CSV da aba Formas tem uma linha por forma', () => {
+    const csv = formasToCsv(linhasDeFormas(formas, vazios));
+    expect(csv.split('\r\n').filter(Boolean)).toHaveLength(1 + 3);
+    expect(csv).toContain('"BOLETO";"Boleto"');
+  });
+});
+
+describe('RN-VEN-24: Desc./Acrésc. (%) do prazo (vem do ERP, só leitura)', () => {
+  it('RN-VEN-24: formata com sinal, vírgula e 2 casas; ausente vira traço', () => {
+    expect(formatarPercentualPrazo(-1.71)).toBe('\u22121,71%');
+    expect(formatarPercentualPrazo(2.5)).toBe('+2,50%');
+    expect(formatarPercentualPrazo(0)).toBe('0,00%');
+    expect(formatarPercentualPrazo(null)).toBe('\u2014');
+    expect(formatarPercentualPrazo(undefined)).toBe('\u2014');
+    expect(formatarPercentualPrazo(Number.NaN)).toBe('\u2014');
+  });
+  it('RN-VEN-24: enquanto o contrato não traz percentual_ajuste, a leitura devolve null; quando vier, devolve o número', () => {
+    expect(percentualDoPrazo(prazo(1, U(1), 'X', [0], 0))).toBeNull();
+    expect(percentualDoPrazo({ ...prazo(1, U(1), 'X', [0], 0), percentual_ajuste: -1.71 } as PrazoPagamento)).toBe(-1.71);
+    expect(percentualDoPrazo({ ...prazo(1, U(1), 'X', [0], 0), percentual_ajuste: 'x' } as PrazoPagamento)).toBeNull();
   });
 });
 
@@ -110,5 +156,14 @@ describe('T-0089: registro do ERP', () => {
     expect(registroDoErp({ external_id: null })).toBe(false);
     expect(registroDoErp({})).toBe(false);
     expect(registroDoErp(undefined)).toBe(false);
+  });
+});
+
+describe('prazoEfetivamenteAtivo', () => {
+  it('prazo ativo só conta como ativo quando a forma também está ativa', () => {
+    const prazo = { ativo: true } as PrazoPagamento;
+    expect(prazoEfetivamenteAtivo({ prazo, formaAtiva: true })).toBe(true);
+    expect(prazoEfetivamenteAtivo({ prazo, formaAtiva: false })).toBe(false);
+    expect(prazoEfetivamenteAtivo({ prazo: { ...prazo, ativo: false }, formaAtiva: true })).toBe(false);
   });
 });
