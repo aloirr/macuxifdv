@@ -34,6 +34,12 @@
  *   (`transporte.novidades`) e pull só das entidades que mudaram (ou só das que o push silencioso indicou). Sem mudança
  *   = 1 requisição. O cursor de novidades (`sync:novidades`) só anda depois de todas as entidades puxadas; a sincronização
  *   completa grava um cursor-base no fim. As etapas extras (REST da Fase M) só rodam na completa.
+ * - ADR 0054: na CARGA INICIAL, com as peças opcionais (`transporte.pacotes`, `arquivos.baixarPacote/lerBloco/gravarBloco`,
+ *   `linhas.importarPacote`), cada pacote do manifesto vira um item da sequência ANTES das entidades que cobre: download com
+ *   retomada (`.part`), bytes e md5 conferidos, `descompactarGzip` (fflate) e importação numa transação, que grava o cursor
+ *   `(horizonte, UUID nulo)` e a `versao_escopo`; o pull de cada entidade continua dali. Qualquer falha que não seja de rede
+ *   cai no pull paginado com o aviso `pacote_falhou` (Diagnóstico). `essenciais` (solução 5): `liberado_em` quando os itens
+ *   essenciais da carga inicial terminam; `pendentes` = o que ainda falta dela.
  * - ADR 0021 (T-0079): `geracao_base` da página do pull e das novidades diferente da guardada = a base do tenant foi recriada
  *   ou restaurada. Troca de geração: aceitos sobrepostos voltam para a fila, a fila é enviada, linhas/cursores/escopos são
  *   apagados (a fila de itens e a de arquivos ficam), cada etapa limpa o próprio cache (`aoTrocarGeracao`) e o pull completo
@@ -55,11 +61,19 @@ import {
 import type { BuscaTextoSync, ConsultaTexto, DesfechoBusca, ResultadoBusca } from './busca-tipos';
 import { MODULOS, type ModuloId } from './nomes';
 import type { NovidadesResposta } from './novidades';
-import type { EntidadePacoteSync, PacotesSyncResposta } from './pacotes-sync';
+import { Gunzip } from 'fflate';
+import {
+  ErroPacoteSync,
+  type CodigoFalhaPacote,
+  type EntidadePacoteSync,
+  type PacoteSync,
+  type PacotesSyncResposta,
+} from './pacotes-sync';
 import type { ItemPush, LinhaSync, PaginaSync, RegistroSync, ResultadoItemPush } from './sync';
 import {
   codificarCursor,
   CODIGOS_RETENTAVEIS,
+  decodificarCursor,
   ehSyncNaoImplementado,
   hojeParaPoda,
   MAX_ITENS_PUSH,
@@ -112,9 +126,17 @@ export interface LinhasSync {
    * app). Numa transação exclusiva (tudo ou nada): `ATTACH`, upsert de cada `ent_<nome>` (só substitui com `updated_at`
    * maior), contagem conferida com `linhas` e com `_pacote.entidades`, grava `cursor` e `versao_escopo` de cada entidade,
    * `DETACH`; marca o FTS das entidades para reconstruir no `busca.finalizar`. Arquivo recusado = `ErroPacoteSync`.
-   * Sem ela, o motor não usa pacote (pull paginado).
+   * Sem ela, o motor não usa pacote (pull paginado). `conferir`: o que o `_pacote` do arquivo tem de dizer (outra geração =
+   * `ErroPacoteSync('geracao')`; outro módulo ou partição = `'formato'`).
    */
-  importarPacote?(caminho: string, entidades: readonly EntidadePacoteSync[]): Promise<void>;
+  importarPacote?(caminho: string, entidades: readonly EntidadePacoteSync[], conferir?: ConferenciaPacote): Promise<void>;
+}
+
+/** ADR 0054: o que a importação confere no `_pacote` do arquivo (ausente = não confere). */
+export interface ConferenciaPacote {
+  geracao_base?: string | null;
+  modulo?: ModuloId;
+  particao?: string;
 }
 
 /** Valor aceito em `linhasPorCampo` (ids, códigos, números). `null`, booleano e objeto ficam de fora. */
@@ -175,7 +197,8 @@ export interface ArquivosLocais {
   remover?(caminho: string): Promise<void>;
   /**
    * ADR 0054: baixa `url` (GET, aceita `Range`) para `destino`, continuando do byte `deBytes` (`.part` já no disco; 0 =
-   * do início). `md5` do arquivo inteiro quando o shell sabe calcular (`null` = o motor confere só bytes e `quick_check`).
+   * do início): grava a partir de `deBytes` (descarta o que houver depois dele) e `aoProgredir` recebe o tamanho do arquivo
+   * até ali (`deBytes` + recebidos). `md5` do arquivo inteiro quando o shell sabe calcular (`null` = o motor confere só bytes e `quick_check`).
    * Exceção = falha de rede (a passada para e a próxima retoma). Sem ela, não há pacote.
    */
   baixarPacote?(
@@ -189,6 +212,72 @@ export interface ArquivosLocais {
   gravarBloco?(caminho: string, bytes: Uint8Array, opcoes: { acrescentar: boolean }): Promise<void>;
   /** ADR 0054: bytes livres no disco do app; `null` = desconhecido. Sem espaço para ~3× o pacote, pull paginado. */
   espacoLivre?(): Promise<number | null>;
+}
+
+// ---------- pacote da primeira carga (ADR 0054) ----------
+
+/** Pasta dos temporários do pacote (relativa aos documentos do app): `<id>.sqlite.gz.part` e `<id>.sqlite`. */
+export const PASTA_PACOTES = 'pacotes';
+/**
+ * Espaço livre exigido antes do download, em múltiplos do `.gz`: o `.gz`, o `.sqlite` temporário e as linhas copiadas
+ * (o SQLite é ~4× o gzip; pico ≈ 3× o descompactado).
+ */
+export const FATOR_ESPACO_PACOTE = 10;
+/** Falhas de download do mesmo pacote com sinal: depois disto, as entidades dele seguem no pull paginado. */
+export const MAX_TENTATIVAS_PACOTE = 3;
+/** Bloco lido do `.gz` por vez na descompactação. */
+export const TAMANHO_BLOCO_GZIP = 1024 * 1024;
+/** Código do aviso (Diagnóstico) de pacote não usado; a `mensagem` traz o `CodigoFalhaPacote`. */
+export const AVISO_PACOTE_FALHOU = 'pacote_falhou';
+
+/**
+ * ADR 0054: descompacta o gzip `origem` em `destino` em blocos (`lerBloco`/`gravarBloco` do shell), sem carregar o arquivo
+ * inteiro na memória. `fflate` (JS puro): roda no Hermes e no Node. Arquivo que não é gzip = `ErroPacoteSync('formato')`;
+ * erro de disco sobe como veio. Devolve os bytes gravados.
+ */
+export async function descompactarGzip(
+  arquivos: Pick<ArquivosLocais, 'lerBloco' | 'gravarBloco'>,
+  origem: string,
+  destino: string,
+  tamanhoBloco = TAMANHO_BLOCO_GZIP,
+): Promise<number> {
+  const { lerBloco, gravarBloco } = arquivos;
+  if (!lerBloco || !gravarBloco) throw new ErroPacoteSync('indisponivel');
+  let saida: Uint8Array[] = [];
+  let terminou = false;
+  const g = new Gunzip();
+  g.ondata = (parte, final) => {
+    saida.push(parte);
+    if (final) terminou = true;
+  };
+  let gravados = 0;
+  let primeiro = true;
+  const despejar = async () => {
+    const partes = saida;
+    saida = [];
+    for (const parte of partes) {
+      if (parte.length === 0) continue;
+      await gravarBloco(destino, parte, { acrescentar: !primeiro });
+      primeiro = false;
+      gravados += parte.length;
+    }
+  };
+  for (let inicio = 0; ; ) {
+    const bloco = await lerBloco(origem, inicio, tamanhoBloco);
+    const fim = bloco.length === 0;
+    try {
+      g.push(bloco, fim);
+    } catch {
+      throw new ErroPacoteSync('formato');
+    }
+    await despejar();
+    if (fim) break;
+    inicio += bloco.length;
+  }
+  // gzip truncado: o fflate não reclama; o `quick_check` e a contagem pegam, mas aqui já se sabe
+  if (!terminou) throw new ErroPacoteSync('formato');
+  if (primeiro) await gravarBloco(destino, new Uint8Array(0), { acrescentar: false });
+  return gravados;
 }
 
 /** Armazenamento em memória (testes e navegador sem storage). */
@@ -467,6 +556,23 @@ interface RegistroCarga {
   concluidas: string[];
   /** Cobertura de cada entidade concluída (D-3): a retomada solta os aceitos que as entidades já puxadas cobrem. */
   coberturas?: Record<string, { horizonte: string | null; inicio: string } | 'indisponivel'>;
+  /** ADR 0054: pacotes da carga inicial. Passa de uma passada para a outra mesmo depois de `VALIDADE_RETOMADA_MS`. */
+  pacotes?: RegistroPacotes;
+}
+
+/**
+ * ADR 0054: o cursor que a importação grava vale para a entidade só quando TODAS as partições que a cobrem (ex.: uma por
+ * filial) estão importadas; até lá, `particoes` lembra quais eram esperadas (o app pode cair entre dois pacotes).
+ */
+interface RegistroPacotes {
+  /** Pacote importado → partição (`<modulo>/<particao>`) e cursor de cada entidade gravada. */
+  importados: Record<string, { particao: string; cursores: Record<string, string> }>;
+  /** Entidade → partições esperadas (do manifesto em que ela entrou no pacote). */
+  particoes: Record<string, string[]>;
+  /** Entidades que caíram no pull paginado (não voltam a pacote nesta carga). */
+  semPacote: string[];
+  /** Download em andamento: bytes já no `.part` (última notícia) e tentativas com sinal. */
+  baixando: Record<string, { baixados: number; tentativas: number }>;
 }
 
 /** Passada interrompida há mais que isto não é retomada: tudo é conferido de novo (cada entidade continua do seu cursor). */
@@ -554,6 +660,8 @@ const CHAVE = {
   parametros: 'sync:parametros',
   limpeza: 'sync:limpeza_pendente',
   sincronizadoEm: 'sync:sincronizado_em',
+  /** ADR 0054 (solução 5): quando os itens essenciais da carga inicial terminaram (entrada liberada). */
+  liberadoEm: 'sync:liberado_em',
   cursor: (e: string) => `sync:cursor:${e}`,
   /** Última `versao_escopo` recebida da entidade (ADR 0009 §4). */
   escopo: (e: string) => `sync:escopo:${e}`,
@@ -659,6 +767,8 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     avisos: [],
     arquivos: [],
     carga: CARGA_VAZIA,
+    liberado_em: null,
+    pendentes: [],
   };
   let envioEmCurso: Promise<ResultadoItemPush[]> | null = null;
   /** Passada pedida com um envio em curso: roda depois dele (uma só para todos os pedidos que chegaram no meio). */
@@ -1292,6 +1402,231 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     }
   };
 
+  // ---------- pacote da primeira carga (ADR 0054) ----------
+  /** Só com todas as peças opcionais; sem elas, a carga inicial é a de sempre (pull paginado). */
+  const podeUsarPacote = (): boolean =>
+    !!(
+      op.transporte.pacotes &&
+      op.armazenamento.linhas?.importarPacote &&
+      op.arquivos?.baixarPacote &&
+      op.arquivos.lerBloco &&
+      op.arquivos.gravarBloco
+    );
+  const chaveParticao = (p: Pick<PacoteSync, 'modulo' | 'particao'>) => `${p.modulo}/${p.particao}`;
+  const temporariosDoPacote = (id: string) => ({
+    gz: `${PASTA_PACOTES}/${id}.sqlite.gz.part`,
+    db: `${PASTA_PACOTES}/${id}.sqlite`,
+  });
+  /** Aviso do Diagnóstico: módulo e código, sem url, partição nem dado pessoal. */
+  const avisoPacote = (modulo: string, codigo: CodigoFalhaPacote): AvisoSync => ({
+    entidade: `pacote:${modulo}`,
+    codigo: AVISO_PACOTE_FALHOU,
+    mensagem: `Pacote da primeira carga não usado (${codigo}); os dados vêm pelo pull paginado.`,
+  });
+  /** O menor dos dois cursores pela data (os do pacote usam o UUID nulo): a entidade continua do menor horizonte. */
+  const menorCursor = (a: string, b: string): string => {
+    const x = decodificarCursor(a);
+    const y = decodificarCursor(b);
+    return x && y && Date.parse(y.updated_at) < Date.parse(x.updated_at) ? b : a;
+  };
+  /** Partições já importadas que cobrem a entidade. */
+  const particoesImportadas = (rp: RegistroPacotes, e: string) =>
+    new Set(Object.values(rp.importados).filter((i) => e in i.cursores).map((i) => i.particao));
+
+  /**
+   * A entidade sai do pacote nesta carga: o que um pacote anterior gravou dela (cobertura incompleta, com o cursor desse
+   * pacote) é apagado, e o pull recomeça do zero. Nunca fica linha de filial sem o resto, nem cursor à frente do que veio.
+   */
+  const entidadeSemPacote = async (rp: RegistroPacotes, e: string) => {
+    if (!rp.semPacote.includes(e)) rp.semPacote.push(e);
+    if (particoesImportadas(rp, e).size > 0) {
+      try {
+        await op.armazenamento.linhas!.limpar(e);
+        await op.armazenamento.remover(CHAVE.escopo(e));
+      } finally {
+        linhasMudaram(e);
+      }
+      for (const i of Object.values(rp.importados)) delete i.cursores[e];
+    }
+    delete rp.particoes[e];
+  };
+
+  interface ItemPacote {
+    pacote: PacoteSync;
+    /** Entidades que este pacote grava nesta passada. */
+    entidades: string[];
+  }
+
+  /**
+   * Manifesto → pacotes a importar nesta passada. Entra no pacote a entidade pendente que nunca foi puxada (sem cursor e
+   * sem versão) ou que já tem partições importadas de uma passada anterior; a que perdeu uma partição esperada (manifesto
+   * novo sem ela) cai no pull. Manifesto que falha = pull paginado (aviso). Outra geração = `GeracaoTrocada` (recomeça).
+   */
+  const planejarPacotes = async (
+    pendentes: readonly string[],
+    rp: RegistroPacotes,
+    avisos: AvisoSync[],
+  ): Promise<{ itens: ItemPacote[]; geracao: string | null }> => {
+    let resp: PacotesSyncResposta;
+    try {
+      resp = await op.transporte.pacotes!();
+    } catch {
+      avisos.push(avisoPacote('plataforma', 'indisponivel'));
+      for (const e of Object.keys(rp.particoes)) if (pendentes.includes(e)) await entidadeSemPacote(rp, e);
+      return { itens: [], geracao: null };
+    }
+    // pacote substituído (o id saiu do manifesto): o `.part` dele não serve mais
+    for (const id of Object.keys(rp.baixando))
+      if (!resp.pacotes.some((p) => p.id === id)) {
+        delete rp.baixando[id];
+        await removerLocal(temporariosDoPacote(id).gz);
+      }
+    if (resp.pacotes.length > 0) await conferirGeracao(resp.geracao_base);
+    const pend = new Set(pendentes);
+    const porParticao = new Map<string, PacoteSync>();
+    for (const p of resp.pacotes) if (!porParticao.has(chaveParticao(p))) porParticao.set(chaveParticao(p), p);
+    const cobre = (k: string, e: string) => porParticao.get(k)?.entidades.some((x) => x.nome === e) === true;
+    const plano = new Map<string, Set<string>>();
+    const planejar = (k: string, e: string) => {
+      const id = porParticao.get(k)!.id;
+      if (!plano.has(id)) plano.set(id, new Set());
+      plano.get(id)!.add(e);
+    };
+    // entidades com pacote começado numa passada anterior
+    for (const [e, esperadas] of Object.entries(rp.particoes)) {
+      if (!pend.has(e)) continue;
+      const feitas = particoesImportadas(rp, e);
+      const faltam = esperadas.filter((k) => !feitas.has(k));
+      if (faltam.some((k) => !cobre(k, e))) {
+        await entidadeSemPacote(rp, e);
+        avisos.push(avisoPacote(op.registro.entidade(e)?.modulo ?? 'plataforma', 'indisponivel'));
+        continue;
+      }
+      for (const k of faltam) planejar(k, e);
+    }
+    // entidades que entram agora: nunca puxadas (sem cursor e sem versão)
+    const cobertura = new Map<string, string[]>();
+    for (const p of porParticao.values())
+      for (const { nome } of p.entidades)
+        if (pend.has(nome)) cobertura.set(nome, [...(cobertura.get(nome) ?? []), chaveParticao(p)]);
+    for (const [e, ks] of cobertura) {
+      if (rp.particoes[e] || rp.semPacote.includes(e)) continue;
+      if ((await op.armazenamento.ler(CHAVE.cursor(e))) !== null || (await op.armazenamento.ler(CHAVE.escopo(e))) !== null)
+        continue;
+      rp.particoes[e] = ks;
+      for (const k of ks) planejar(k, e);
+    }
+    return {
+      itens: resp.pacotes.filter((p) => plano.has(p.id)).map((p) => ({ pacote: p, entidades: [...plano.get(p.id)!] })),
+      geracao: resp.geracao_base ?? null,
+    };
+  };
+
+  /**
+   * Um pacote: espaço, download com retomada, bytes e md5, descompactação, importação. Erro de rede (do download) sobe e
+   * a passada para (a próxima retoma do `.part`); depois de `MAX_TENTATIVAS_PACOTE` falhas com sinal, ou em qualquer outra
+   * falha, as entidades dele caem no pull paginado com aviso. `gravarRegistro` persiste o registro da carga.
+   */
+  const rodarPacote = async (
+    item: ItemPacote,
+    rp: RegistroPacotes,
+    geracao: string | null,
+    avisos: AvisoSync[],
+    gravarRegistro: () => Promise<void>,
+  ): Promise<void> => {
+    const p = item.pacote;
+    const entidades = item.entidades.filter((e) => !rp.semPacote.includes(e));
+    if (entidades.length === 0) return;
+    const arq = op.arquivos!;
+    const { gz, db } = temporariosDoPacote(p.id);
+    const bytes = (feitos: number) => mudar({ carga: { ...estado.carga, bytes: { feitos, total: p.bytes } } });
+    mudar({
+      etapa: entidades[0]!,
+      carga: { ...estado.carga, entidade: entidades[0]!, modulo: p.modulo, paginas: 0, bytes: { feitos: 0, total: p.bytes } },
+    });
+    const dl = (rp.baixando[p.id] ??= { baixados: 0, tentativas: 0 });
+    /** O download falhou por rede (e ainda há tentativas): o `.part` fica e a passada para. */
+    let deRede = false as boolean;
+    let falha: CodigoFalhaPacote | null = null;
+    try {
+      const livre = arq.espacoLivre ? await arq.espacoLivre().catch(() => null) : null;
+      if (livre !== null && livre < FATOR_ESPACO_PACOTE * p.bytes) throw new ErroPacoteSync('sem_espaco');
+      // retomada: só se o `.part` ainda tem ao menos os bytes anotados
+      let de = dl.baixados;
+      if (de > 0 && (await arq.lerBloco!(gz, de - 1, 1).catch(() => new Uint8Array(0))).length !== 1) de = 0;
+      let ultimo = de;
+      let r: { bytes: number; md5: string | null };
+      try {
+        r = await arq.baixarPacote!(p.url, gz, {
+          deBytes: de,
+          aoProgredir: (f) => {
+            ultimo = f;
+            bytes(f);
+          },
+        });
+      } catch (e) {
+        dl.baixados = ultimo;
+        if (online()) dl.tentativas++;
+        if (dl.tentativas >= MAX_TENTATIVAS_PACOTE) throw new ErroPacoteSync('indisponivel');
+        deRede = true;
+        throw e;
+      }
+      bytes(r.bytes);
+      if (r.bytes !== p.bytes) throw new ErroPacoteSync('tamanho');
+      if (r.md5 !== null && r.md5.toLowerCase() !== p.md5.toLowerCase()) throw new ErroPacoteSync('md5');
+      await descompactarGzip(arq, gz, db);
+      const alvo = p.entidades
+        .filter((e) => entidades.includes(e.nome))
+        .map((e) => ({
+          ...e,
+          // várias partições (filiais): a entidade continua do MENOR horizonte entre elas (§1.5)
+          cursor: Object.values(rp.importados).reduce((c, i) => (i.cursores[e.nome] ? menorCursor(c, i.cursores[e.nome]!) : c), e.cursor),
+        }));
+      try {
+        await op.armazenamento.linhas!.importarPacote!(db, alvo, { geracao_base: geracao, modulo: p.modulo, particao: p.particao });
+      } finally {
+        for (const e of alvo) linhasMudaram(e.nome);
+      }
+      rp.importados[p.id] = {
+        particao: chaveParticao(p),
+        cursores: Object.fromEntries(p.entidades.filter((e) => entidades.includes(e.nome)).map((e) => [e.nome, e.cursor])),
+      };
+    } catch (e) {
+      if (deRede) {
+        await gravarRegistro();
+        throw e;
+      }
+      falha = e instanceof ErroPacoteSync ? e.codigo : 'indisponivel';
+    } finally {
+      await removerLocal(db);
+      if (!deRede) {
+        delete rp.baixando[p.id];
+        await removerLocal(gz);
+      }
+      mudar({ carga: { ...estado.carga, bytes: undefined } });
+    }
+    if (falha) {
+      for (const e of entidades) await entidadeSemPacote(rp, e);
+      avisos.push(avisoPacote(p.modulo, falha));
+      mudar({ avisos: [...avisos] });
+    }
+    await gravarRegistro();
+  };
+
+  /** Módulo de uma chave de `pendentes` (entidade do registro ou id de etapa). */
+  const moduloDaChave = (k: string): ModuloId | undefined =>
+    op.registro.entidade(k)?.modulo ?? (op.etapas ?? []).find((e) => e.id === k)?.modulo;
+
+  /** Chaves da carga inicial ainda não concluídas (abertura do app): entidades e etapas ativas menos as do registro. */
+  const pendentesDaCarga = (modulos: readonly ModuloId[], concluidas: readonly string[]): string[] => {
+    const feitas = new Set(concluidas);
+    const ativosM = new Set(modulos);
+    return [
+      ...op.registro.entidadesAtivas(modulos, 'pull').map((e) => e.nome).filter((e) => !feitas.has(e)),
+      ...(op.etapas ?? []).filter((e) => ativosM.has(e.modulo) && !feitas.has(`etapa:${e.id}`)).map((e) => e.id),
+    ];
+  };
+
   /**
    * Sincronização completa (corpo de `motor.sincronizar`, sem o controle de uma-por-vez). `podeTrocar` = pode fazer a troca de
    * geração e recomeçar (ADR 0021); na passada que já recomeçou, outra troca termina com erro.
@@ -1315,6 +1650,8 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     const registro: RegistroCarga = retomar
       ? { iniciada_em: anterior.iniciada_em, concluidas: [...anterior.concluidas], coberturas: { ...(anterior.coberturas ?? {}) } }
       : { iniciada_em: agora().toISOString(), concluidas: [], coberturas: {} };
+    // ADR 0054: o que os pacotes gravaram vale mesmo sem retomada (o cursor de uma filial só vale com todas importadas)
+    if (anterior?.pacotes) registro.pacotes = anterior.pacotes;
     const jaFeitas = new Set(registro.concluidas);
     const chaveEtapa = (id: string) => `etapa:${id}`;
     const puladas =
@@ -1346,14 +1683,69 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         op.transporte.novidades && puladas === 0 ? await op.transporte.novidades(null).catch(() => null) : null;
       let feito = 1 + puladas;
       const avisos: AvisoSync[] = [];
-      const sequencia = ordenarCarga<{ item: ItemDaCarga; etapa?: EtapaSync }>(
+      const ordenada = ordenarCarga<{ item: ItemDaCarga; etapa?: EtapaSync; pacote?: ItemPacote }>(
         [
           ...entidades.map((e) => ({ item: { chave: e, modulo: moduloDe.get(e) ?? null, tipo: 'entidade' as const } })),
           ...etapas.map((e) => ({ item: { chave: e.id, modulo: e.modulo, tipo: 'etapa' as const }, etapa: e })),
         ],
         (x) => x.item,
       );
-      for (const { item, etapa: et } of sequencia) {
+      const feitoNaCarga = (i: ItemDaCarga) => jaFeitas.has(i.tipo === 'etapa' ? chaveEtapa(i.chave) : i.chave);
+      // ADR 0054 (solução 5): o que falta da carga inicial e quando os essenciais liberam a entrada
+      const feitos = new Set(ordenada.filter((x) => feitoNaCarga(x.item)).map((x) => x.item.chave));
+      const essencial = (i: ItemDaCarga) => {
+        try {
+          return op.essenciais?.(i) === true;
+        } catch {
+          return false;
+        }
+      };
+      const essenciais = cargaInicial && op.essenciais ? ordenada.map((x) => x.item).filter(essencial) : [];
+      const liberar = async () => {
+        if (estado.liberado_em || essenciais.length === 0 || !essenciais.every((i) => feitos.has(i.chave))) return;
+        const quando = agora().toISOString();
+        await op.armazenamento.gravar(CHAVE.liberadoEm, quando);
+        mudar({ liberado_em: quando });
+      };
+      const marcarFeito = async (i: ItemDaCarga) => {
+        feitos.add(i.chave);
+        if (!cargaInicial) return;
+        mudar({ pendentes: (estado.pendentes ?? []).filter((k) => k !== i.chave) });
+        await liberar();
+      };
+      if (cargaInicial) {
+        mudar({ pendentes: ordenada.filter((x) => !feitos.has(x.item.chave)).map((x) => x.item.chave) });
+        await liberar();
+      }
+      // ADR 0054: pacotes da carga inicial, cada um logo antes da primeira entidade que cobre
+      let sequencia = ordenada;
+      let geracaoPacotes: string | null = null;
+      if (cargaInicial && podeUsarPacote()) {
+        const rp = (registro.pacotes ??= { importados: {}, particoes: {}, semPacote: [], baixando: {} });
+        const plano = await planejarPacotes(entidades.filter((e) => !jaFeitas.has(e)), rp, avisos);
+        geracaoPacotes = plano.geracao;
+        await op.armazenamento.gravar(CHAVE.carga, registro);
+        if (avisos.length > 0) mudar({ avisos: [...avisos] });
+        sequencia = [];
+        const colocados = new Set<ItemPacote>();
+        for (const x of ordenada) {
+          if (x.item.tipo === 'entidade')
+            for (const ip of plano.itens)
+              if (!colocados.has(ip) && ip.entidades.includes(x.item.chave)) {
+                colocados.add(ip);
+                sequencia.push({ item: x.item, pacote: ip });
+              }
+          sequencia.push(x);
+        }
+      }
+      for (const { item, etapa: et, pacote } of sequencia) {
+        if (pacote) {
+          if (feitoNaCarga(item)) continue;
+          await rodarPacote(pacote, registro.pacotes!, geracaoPacotes, avisos, () =>
+            op.armazenamento.gravar(CHAVE.carga, registro),
+          );
+          continue;
+        }
         if (et === undefined) {
           const e = item.chave;
           if (jaFeitas.has(e)) continue;
@@ -1370,6 +1762,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
           feito++;
           await concluir(e);
           mudar({ carga: carga({ concluidas: feito - 1 }) });
+          await marcarFeito(item);
         } else {
           if (jaFeitas.has(chaveEtapa(et.id))) continue;
           mudar({ etapa: et.rotulo, progresso: feito / total, carga: carga({ entidade: et.id, modulo: et.modulo, paginas: 0 }) });
@@ -1377,6 +1770,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
           feito++;
           await concluir(chaveEtapa(et.id));
           mudar({ carga: carga({ concluidas: feito - 1 }) });
+          await marcarFeito(item);
         }
       }
       // carga em massa da busca: `rebuild` uma vez no fim (desenho T-0008 §2.3); antes, a versão dos índices (T-0084)
@@ -1388,11 +1782,17 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       if (base) await op.armazenamento.gravar(CHAVE.novidades, base.cursor);
       else await op.armazenamento.remover(CHAVE.novidades);
       if (cargaInicial) await op.armazenamento.remover(CHAVE.carga);
+      // sem item essencial na sequência, a entrada fica liberada no fim da carga
+      if (cargaInicial && op.essenciais && !estado.liberado_em) {
+        await op.armazenamento.gravar(CHAVE.liberadoEm, quando);
+        mudar({ liberado_em: quando });
+      }
       mudar({
         sincronizando: false,
         etapa: 'Pronto',
         progresso: 1,
         sincronizado_em: quando,
+        pendentes: [],
         carga: carga({ entidade: null, modulo: null, concluidas: total, paginas: 0 }),
       });
       return true;
@@ -1430,7 +1830,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     async carregar(): Promise<void> {
       // na vez das gravações: nunca lê o disco antes de uma gravação em curso e sobrescreve a memória depois dela
       await emSerie(async () => {
-        const [fila, modulos, limpeza, sincronizadoEm, arquivos, aceitos, params, geracao] = await Promise.all([
+        const [fila, modulos, limpeza, sincronizadoEm, arquivos, aceitos, params, geracao, liberadoEm, cargaGuardada] = await Promise.all([
           op.armazenamento.ler<ItemOutbox[]>(CHAVE.fila),
           op.armazenamento.ler<ModuloId[]>(CHAVE.modulos),
           op.armazenamento.ler<ModuloId[]>(CHAVE.limpeza),
@@ -1439,6 +1839,8 @@ export function criarMotorSync(op: OpcoesMotorSync) {
           op.armazenamento.ler<ItemAceito[]>(CHAVE.aceitos),
           op.armazenamento.ler<ParametrosModulos>(CHAVE.parametros),
           op.armazenamento.ler<string>(CHAVE.geracao),
+          op.armazenamento.ler<string>(CHAVE.liberadoEm),
+          op.armazenamento.ler<RegistroCarga>(CHAVE.carga),
         ]);
         geracaoGuardada = geracao;
         parametros = filtrarParametros(params ?? {}, modulos ?? []);
@@ -1449,6 +1851,9 @@ export function criarMotorSync(op: OpcoesMotorSync) {
           modulosAtivos: modulos ?? [],
           limpezaPendente: limpeza ?? [],
           sincronizado_em: sincronizadoEm,
+          // ADR 0054: app reaberto no meio da carga inicial entra direto (liberado) e sabe o que ainda falta
+          liberado_em: liberadoEm,
+          pendentes: sincronizadoEm === null ? pendentesDaCarga(modulos ?? [], cargaGuardada?.concluidas ?? []) : [],
           erro: null,
         });
       });
@@ -1456,6 +1861,14 @@ export function criarMotorSync(op: OpcoesMotorSync) {
 
     estado(): EstadoMotorSync {
       return estado;
+    },
+
+    /**
+     * ADR 0054 (solução 5): a carga inicial ainda não trouxe tudo do módulo (`estado.pendentes`). Com o Catálogo pendente,
+     * busca, ficha e preço vão à API.
+     */
+    cargaPendente(modulo: ModuloId): boolean {
+      return (estado.pendentes ?? []).some((k) => moduloDaChave(k) === modulo);
     },
 
     assinar(fn: (e: EstadoMotorSync) => void): () => void {
@@ -1783,7 +2196,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         );
         parametros = {};
         geracaoGuardada = null;
-        mudar({ fila: [], aceitos: [], arquivos: [], limpezaPendente: [], modulosAtivos: [], sincronizado_em: null, avisos: [], erro: null, carga: CARGA_VAZIA });
+        mudar({ fila: [], aceitos: [], arquivos: [], limpezaPendente: [], modulosAtivos: [], sincronizado_em: null, liberado_em: null, pendentes: [], avisos: [], erro: null, carga: CARGA_VAZIA });
         return conhecidos;
       });
       for (const x of arquivos) await removerLocal(x.caminho);

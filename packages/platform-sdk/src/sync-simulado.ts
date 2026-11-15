@@ -5,12 +5,16 @@
  * ADR 0009: `versoesEscopo` (versão do conjunto visível por entidade), `semProvedor` (pull 501) e `semReceptor`
  * (push `rejeitado/SYNC_NAO_IMPLEMENTADO`), como a API real. D-3: com `relogio`, o aceito leva `em` e a página leva
  * `horizonte` (`relogio() - margemHorizonteMs`), como a API real. ADR 0021: `geracao_base` vai em toda página e nas novidades.
+ * ADR 0054: com `comPacotes`, serve o manifesto `GET /v1/sync/pacotes` (`manifestoPacotes`); `conteudoDoPacoteSimulado`
+ * monta as linhas e as entidades de um pacote como o gerador da API (só vivas abaixo do horizonte, cursor com o UUID nulo).
  */
 import type { ModuloId } from './nomes';
 import { codificarCursorNovidades, decodificarCursorNovidades, type NovidadesResposta } from './novidades';
+import type { EntidadePacoteSync, PacotesSyncResposta } from './pacotes-sync';
 import type { TransporteSync } from './motor-sync';
 import type { ItemPush, LinhaSync, RegistroSync, ResultadoItemPush } from './sync';
 import {
+  codificarCursor,
   MENSAGEM_ENVIO_INDISPONIVEL,
   paginar,
   PushRequestSchema,
@@ -47,7 +51,7 @@ export interface ServidorSyncSimulado extends TransporteSync {
   /** Rejeição forçada por id (ex.: regra de negócio RN-VEN-...). */
   rejeitar: Map<string, { codigo: string; mensagem: string }>;
   /** `novidades` só existe com `comNovidades` (os testes antigos comparam `{ push, pull }`). */
-  chamadas: { push: number; pull: number; novidades?: number };
+  chamadas: { push: number; pull: number; novidades?: number; pacotes?: number };
   tamanhoPagina: number;
   /** `versao_escopo` devolvida em toda página da entidade (ausente = escopo sem versão). */
   versoesEscopo: Record<string, string>;
@@ -63,6 +67,37 @@ export interface ServidorSyncSimulado extends TransporteSync {
   parametros: Partial<Record<ModuloId, Record<string, unknown>>>;
   /** Geração da base (ADR 0021) em toda página do pull e nas novidades; `null` = servidor sem o campo. */
   geracao_base: string | null;
+  /** ADR 0054 (`comPacotes`): manifesto devolvido por `pacotes()`; sem `geracao_base`, vai a do servidor. */
+  manifestoPacotes: PacotesSyncResposta;
+  /** ADR 0054: `pacotes()` lança este erro (ex.: 500 do servidor); `null` = responde o manifesto. */
+  falhaPacotes: Error | null;
+}
+
+/** UUID nulo do cursor do pacote (`(horizonte, UUID nulo)`, ADR 0054 §1.5). */
+export const UUID_NULO = '00000000-0000-0000-0000-000000000000';
+
+/**
+ * ADR 0054: o que o gerador da API poria no pacote das `entidades` com o `horizonte`: só linhas vivas com `updated_at`
+ * abaixo dele, `linhas` contadas, cursor `(horizonte, UUID nulo)` e a `versao_escopo` do servidor.
+ */
+export function conteudoDoPacoteSimulado(
+  s: Pick<ServidorSyncSimulado, 'linhas' | 'versoesEscopo'>,
+  entidades: readonly string[],
+  horizonte: string,
+): { entidades: EntidadePacoteSync[]; linhas: Record<string, LinhaSync[]> } {
+  const limite = Date.parse(horizonte);
+  const linhas: Record<string, LinhaSync[]> = {};
+  for (const e of entidades)
+    linhas[e] = (s.linhas[e] ?? []).filter((l) => !l.deleted_at && Date.parse(l.updated_at) < limite);
+  return {
+    linhas,
+    entidades: entidades.map((nome) => ({
+      nome,
+      linhas: linhas[nome]!.length,
+      cursor: codificarCursor({ updated_at: horizonte, id: UUID_NULO }),
+      ...(s.versoesEscopo[nome] === undefined ? {} : { versao_escopo: s.versoesEscopo[nome] }),
+    })),
+  };
 }
 
 /** Hash curto (djb2, hex) só para o cursor simulado: o SDK roda no aparelho, sem `node:crypto`. */
@@ -77,6 +112,8 @@ export function criarServidorSyncSimulado(
   inicial: Partial<Pick<ServidorSyncSimulado, 'modulosAtivos' | 'linhas' | 'tamanhoPagina'>> & {
     /** RN-CORE-23 (ADR 0018): serve `novidades` como `GET /v1/sync/novidades` (exige `relogio` para o horizonte). */
     comNovidades?: boolean;
+    /** ADR 0054: serve `pacotes` (`GET /v1/sync/pacotes`) com `manifestoPacotes`. */
+    comPacotes?: boolean;
   } = {},
 ): ServidorSyncSimulado {
   const s: ServidorSyncSimulado = {
@@ -85,7 +122,12 @@ export function criarServidorSyncSimulado(
     linhas: inicial.linhas ?? {},
     recebidos: new Map(),
     rejeitar: new Map(),
-    chamadas: inicial.comNovidades ? { push: 0, pull: 0, novidades: 0 } : { push: 0, pull: 0 },
+    chamadas: {
+      push: 0,
+      pull: 0,
+      ...(inicial.comNovidades ? { novidades: 0 } : {}),
+      ...(inicial.comPacotes ? { pacotes: 0 } : {}),
+    },
     tamanhoPagina: inicial.tamanhoPagina ?? 1000,
     versoesEscopo: {},
     semProvedor: new Set(),
@@ -94,6 +136,8 @@ export function criarServidorSyncSimulado(
     margemHorizonteMs: 2_000,
     parametros: {},
     geracao_base: null,
+    manifestoPacotes: { pacotes: [] },
+    falhaPacotes: null,
     async push(itens) {
       s.chamadas.push++;
       if (!s.online) throw new ErroRedeSimulada();
@@ -134,6 +178,17 @@ export function criarServidorSyncSimulado(
       };
     },
   };
+  if (inicial.comPacotes) {
+    s.pacotes = async (): Promise<PacotesSyncResposta> => {
+      s.chamadas.pacotes = (s.chamadas.pacotes ?? 0) + 1;
+      if (!s.online) throw new ErroRedeSimulada();
+      if (s.falhaPacotes) throw s.falhaPacotes;
+      return {
+        ...(s.geracao_base ? { geracao_base: s.geracao_base } : {}),
+        ...s.manifestoPacotes,
+      };
+    };
+  }
   if (inicial.comNovidades) {
     s.novidades = async (desde): Promise<NovidadesResposta> => {
       s.chamadas.novidades = (s.chamadas.novidades ?? 0) + 1;
