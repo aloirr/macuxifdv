@@ -27,10 +27,14 @@ export const CABECALHO_MODO_SYNC = 'x-macuxi-sync-modo';
  * Dentro dele, o servidor responde 200 "nada novo" (`PaginaSync.limitado`). Continuação de uma passada não conta.
  */
 export const LIMITES_SYNC = { parcial: 30_000, completa: 300_000 } as const;
-export type ModoSyncLimitado = keyof typeof LIMITES_SYNC;
+/**
+ * ADR 0057: modo de `motor.sincronizar` e do cabeçalho `x-macuxi-sync-modo`. `parcial` = toque no "Sincronizar" (envio +
+ * entidades `parcial`); `completa` = segurar 10 s (tudo do zero, diárias inclusive). Sem modo = a sincronização de sempre.
+ */
+export type ModoSincronizacao = keyof typeof LIMITES_SYNC;
 
 /** Modo do cabeçalho `x-macuxi-sync-modo`; `null` = automática (sem cabeçalho, `auto` ou valor desconhecido). */
-export function modoSyncDoCabecalho(valor: unknown): ModoSyncLimitado | null {
+export function modoSyncDoCabecalho(valor: unknown): ModoSincronizacao | null {
   return valor === 'parcial' || valor === 'completa' ? valor : null;
 }
 export const MAX_ITENS_PUSH = 500;

@@ -73,7 +73,7 @@ import {
   type PacoteSync,
   type PacotesSyncResposta,
 } from './pacotes-sync';
-import type { ItemPush, LinhaSync, PaginaSync, RegistroSync, ResultadoItemPush } from './sync';
+import type { ItemPush, LinhaSync, ModoSincronizacao, PaginaSync, RegistroSync, ResultadoItemPush } from './sync';
 import {
   codificarCursor,
   CODIGOS_RETENTAVEIS,
@@ -548,11 +548,7 @@ export interface EstadoMotorSync {
   carga_diaria_em?: string | null;
 }
 
-/**
- * ADR 0057: modo de `motor.sincronizar`. `parcial` = toque no "Sincronizar" (envio + entidades `parcial`); `completa` =
- * segurar 10 s (tudo do zero, diárias inclusive). Sem modo = a sincronização de sempre (diárias só com a carga devida).
- */
-export type ModoSincronizacao = 'parcial' | 'completa';
+export type { ModoSincronizacao } from './sync';
 
 export interface ProgressoCarga {
   entidade: string | null;

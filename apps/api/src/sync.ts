@@ -62,7 +62,7 @@ import {
   type CursorSync,
   type ItemPush,
   type LinhaSync,
-  type ModoSyncLimitado,
+  type ModoSincronizacao,
   type NovidadesResposta,
   type PaginaSync,
   type ProvedorSync,
@@ -83,9 +83,9 @@ const PullQuerySchema = z.object({ entidade: z.string().min(1), cursor: z.string
  */
 export interface LimiteSync {
   /** `false` = início dentro da janela do modo (responder "nada novo"). */
-  passar(chave: string, modo: ModoSyncLimitado, cursor: string | null): boolean;
+  passar(chave: string, modo: ModoSincronizacao, cursor: string | null): boolean;
   /** Guarda o `proximo_cursor` dado à chave (a próxima página da mesma passada passa). */
-  emitiu(chave: string, modo: ModoSyncLimitado, proximo: string | null): void;
+  emitiu(chave: string, modo: ModoSincronizacao, proximo: string | null): void;
 }
 
 export function criarLimiteSync(agora: () => number): LimiteSync {

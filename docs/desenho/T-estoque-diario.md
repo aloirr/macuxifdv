@@ -155,11 +155,11 @@ Contrato do SDK que as partes B–G usam (feito na parte A, `@macuxi/platform-sd
 - **Limite por usuário no servidor, silencioso** (R-20261115-125500-alexandre; ADR 0057 "Limite por usuário"): o motor passa o
   modo a `transporte.pull(entidade, cursor, { modo })` e o transporte HTTP do shell manda o cabeçalho `x-macuxi-sync-modo:
   parcial|completa` (`CABECALHO_MODO_SYNC`); sem cabeçalho = automática, sem limite. A API (`apps/api/src/sync.ts`) guarda em
-  memória, por tenant, usuário e entidade, o início de cada modo: `LIMITES_SYNC = { parcial: 30_000, completa: 300_000 }`
-  (`packages/platform-sdk/src/sync.ts`, a constante única). Dentro da janela: 200 `{ itens: [], proximo_cursor: null,
+  memória, por tenant, usuário e entidade, o início de cada modo, com as janelas de `LIMITES_SYNC`
+  (`packages/platform-sdk/src/sync.ts`, a constante única; valores na ADR 0057). Dentro da janela: 200 `{ itens: [], proximo_cursor: null,
   limitado: true }`, sem ir ao banco, e log `sync_limite` (modo e entidade, sem dado pessoal). Só o início conta: na completa, o
-  cursor nulo; na parcial, o cursor que não é o `proximo_cursor` recém-dado (as páginas da mesma passada passam). O push nunca é
-  limitado. Página `limitado` no motor: nada muda (cursor, cobertura), sem erro; a completa segurada desfaz a ressincronização
+  cursor nulo; na parcial, o cursor que não é o `proximo_cursor` recém-dado (as páginas da mesma passada passam).
+  Página `limitado` no motor: nada muda (cursor, cobertura), sem erro; a completa segurada desfaz a ressincronização
   que acabou de marcar (nada é apagado). O limite de 1 toque a cada 30 s no app é do engenheiro-apps.
 
 ## 10. Roteiro do testes (G)
