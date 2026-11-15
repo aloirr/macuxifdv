@@ -21,7 +21,7 @@ import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-tes
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { tenant } from '../esquema/plataforma';
 import { banco, semBanco } from './estado';
-import { FUNCOES_SA_0081, FUNCOES_SA_ATUAIS, MARCA_INTERNA_0081 } from './funcoes-sa';
+import { FUNCOES_SA_LOGO, FUNCOES_SA_ATUAIS, MARCA_INTERNA_LOGO } from './funcoes-sa';
 import { comoPapel, emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
@@ -102,16 +102,16 @@ describe('0081 logo do cliente (estático)', () => {
       expect(bloco(up, inicio), inicio).not.toContain('admin_cliente');
     }
     expect(bloco(up, LER)).toContain("if not ((v_tipo = 'super_admin' and v_sa is not null) or (v_tipo = 'admin_cliente' and v_tenant_sessao = p_tenant)) then");
-    for (const f of FUNCOES_SA_0081) {
+    for (const f of FUNCOES_SA_LOGO) {
       expect(up).toContain(`revoke all on function ${f} from public, macuxi_app, macuxi_worker;`);
       expect(up).toContain(`grant execute on function ${f} to macuxi_portal;`);
     }
-    expect(up.match(/\bgrant execute\b/g)).toHaveLength(FUNCOES_SA_0081.length);
-    expect(up.match(/\bgrant\b/g)).toHaveLength(FUNCOES_SA_0081.length + 1); // + o SELECT por coluna do macuxi_leitura
-    expect(FUNCOES_SA_ATUAIS).toEqual(expect.arrayContaining([...FUNCOES_SA_0081]));
+    expect(up.match(/\bgrant execute\b/g)).toHaveLength(FUNCOES_SA_LOGO.length);
+    expect(up.match(/\bgrant\b/g)).toHaveLength(FUNCOES_SA_LOGO.length + 1); // + o SELECT por coluna do macuxi_leitura
+    expect(FUNCOES_SA_ATUAIS).toEqual(expect.arrayContaining([...FUNCOES_SA_LOGO]));
     // a interna: invoker, sem EXECUTE para ninguém além do dono; a forma do jsonb num lugar só
     expect(bloco(up, INTERNA)).toMatch(/language sql stable security invoker\s+set search_path = pg_catalog, plataforma, pg_temp\s/);
-    expect(up).toContain(`revoke all on function ${MARCA_INTERNA_0081} from public;`);
+    expect(up).toContain(`revoke all on function ${MARCA_INTERNA_LOGO} from public;`);
     expect(up.match(/jsonb_build_object\(\s*'tenant_id'/g)).toHaveLength(1);
   });
 
@@ -136,7 +136,7 @@ describe('0081 logo do cliente (estático)', () => {
   });
 
   it('down: apaga as 5 funções e as 9 colunas e devolve o SELECT de tabela ao macuxi_leitura', () => {
-    for (const f of [...FUNCOES_SA_0081, MARCA_INTERNA_0081]) expect(down).toContain(`drop function if exists ${f};`);
+    for (const f of [...FUNCOES_SA_LOGO, MARCA_INTERNA_LOGO]) expect(down).toContain(`drop function if exists ${f};`);
     for (const c of COLUNAS) expect(down).toContain(`alter table plataforma.tenant drop column if exists ${c};`);
     expect(down).not.toMatch(/create /);
     expect(down.match(/\bgrant\b/g)).toEqual(['grant']);
