@@ -178,3 +178,8 @@
 2026-11-15 — T-0175 — Código FDV 5 dígitos (RN-CORE-59), usuário nunca excluído (RN-CORE-60) e vínculo automático por nome (RN-CORE-58)
 2026-11-15 — T-0175 — auditoria usuario.vincular_erp_por_nome, vinculo-por-nome.db.test.ts, proposta aprovada sem Desvincular, exceção da RN-CORE-60 (exclusão da empresa)
 2026-11-15 — T-0175 — merge da cadeia 0074–0080 do banco-dados; COLUNA_CODIGO_FDV_PRONTA=true; teste de sync ajustado
+2026-11-15 — T-0176 — filial do usuário (RN-CORE-39 revista): domain validarFiliaisDoUsuario/vendedorBloqueadoPorFilial, filial_ids em criar/editar/leitura, filial_id e sem_filial no sync usuario e sem_filial na sessão, 422/403 na API, consumidor do vendedor grava a filial pelo filial_external_id; sem telas (aguardam a simulação)
+2026-11-15 — T-0176 — proposta de filial de cadastro e filiais de venda (R-20261115-093000) em docs/modulos/core/filial-cadastro-venda.md; sem código
+2026-11-15 — T-0176 — filial de cadastro + filiais de venda (RN-CORE-39 revista): domain, contratos, API (guarda USUARIO_SEM_FILIAL, PUT eu/filial-cadastro, sync, carga do ERP) e testes; telas aguardam a simulação
+2026-11-15 — T-0176 — correções do testes: set constraints com schema (D1), ação usuario.filial_editar via pode() para admin e analista no GET e PUT (D2), coluna filial no CSV da equipe (D5); D6 depende do modulo-integracao conferir filial_external_id do vendedor com core.filiais@1
+2026-11-15 — T-0176 — merge da 0077 (banco-dados) em nuvem/filial-usuario-modulo-core sem conflitos; nomes conferidos (filial_cadastro_id, usuario_filial, set constraints immediate, Drizzle snake_case); lint/typechecks ok; vitest só com falhas de argon2

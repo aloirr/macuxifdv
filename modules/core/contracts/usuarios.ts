@@ -15,6 +15,7 @@
  */
 import { z } from 'zod';
 import { PerfilSchema } from './auth';
+import { FilialVendaIdsSchema } from './filial-usuario';
 import { CargoSchema } from '@macuxi/platform-sdk';
 
 const Uuid = z.string().uuid();
@@ -85,6 +86,10 @@ export const UsuarioItemSchema = z
     bloqueio: BloqueioDoUsuarioSchema.nullable().optional(),
     /** Fim do bloqueio por tentativas (UTC, ISO); nulo fora dele. A tela mostra no fuso do tenant. */
     bloqueio_ate: z.string().datetime().nullable().optional(),
+    /** T-0176 / RN-CORE-39 (aditivo): filial de cadastro (nula = bloqueado), filiais de venda (inclui a de cadastro) e `sem_filial`. Ausente = emissor antigo. */
+    filial_cadastro_id: z.string().uuid().nullable().optional(),
+    filial_venda_ids: FilialVendaIdsSchema.optional(),
+    sem_filial: z.boolean().optional(),
   })
   .strict();
 export type UsuarioItem = z.infer<typeof UsuarioItemSchema>;
@@ -164,6 +169,9 @@ export const CriarUsuarioRequestSchema = z
     desconto_maximo_pedido_permil: LimiteDescontoSchema.shape.desconto_maximo_pedido_permil.default(null),
     /** Senha inicial definida pelo admin (nunca registrada em log nem na auditoria). */
     senha: z.string().min(1).max(200),
+    /** T-0176 / RN-CORE-39: só admin e analista informam (403 aos demais). Cadastro obrigatória em qualquer perfil (422); a API inclui a de cadastro na lista de venda. */
+    filial_cadastro_id: z.string().uuid().optional(),
+    filial_venda_ids: FilialVendaIdsSchema.optional(),
   })
   .strict();
 /** "Por pedido" ligada sem o número é recusada pela API (422 `USUARIO_DADOS_INVALIDOS`, `limiteDescontoCompleto`), não pelo schema. */
@@ -191,6 +199,9 @@ export const EditarUsuarioRequestSchema = z
     desconto_limita_item: z.boolean().optional(),
     desconto_limita_pedido: z.boolean().optional(),
     desconto_maximo_pedido_permil: LimiteDescontoSchema.shape.desconto_maximo_pedido_permil.optional(),
+    /** T-0176 / RN-CORE-39: ausente = mantém; presente troca (só admin e analista). `filial_venda_ids` presente troca a lista inteira; a de cadastro sempre fica nela. */
+    filial_cadastro_id: z.string().uuid().optional(),
+    filial_venda_ids: FilialVendaIdsSchema.optional(),
   })
   .strict();
 export type EditarUsuarioRequest = z.infer<typeof EditarUsuarioRequestSchema>;

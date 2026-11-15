@@ -5,6 +5,7 @@
  * recebe e-mail provisório estável (`emailDoVendedorErp`). Usuário já existente com o mesmo e-mail e sem `external_id`
  * (vendedor/promotor cadastrado antes) é ADOTADO: ganha o `external_id`, mantém perfil, equipe e senha. Perfil e equipe
  * nunca são alterados pelo ERP depois de criado. Nada de dado pessoal no log.
+ * T-0176 (RN-CORE-39): `filial_external_id` opcional grava a filial de CADASTRO do vendedor e a inclui nas de venda (`aplicarFilialDoErp`); ausente não altera; inexistente deixa o vendedor sem filial (bloqueado) e registra FILIAL_INEXISTENTE.
  * T-0095: versão com `alterado_em` menor que `core.usuario.erp_alterado_em` (reentrega fora de ordem) é ignorada; vendedor
  * desligado pelo admin no BKO (`desligado_no_bko_em`) não é reativado pela carga: segue inativo e o admin recebe aviso UMA vez por
  * versão do registro (só quando o `alterado_em` avança; a carga completa repetida não reavisa). A adoção por e-mail e o upsert
@@ -19,6 +20,7 @@ import { decidirOrdemErp, decidirReativacaoDoErp, ehVersaoNovaDoErp, ehUsuarioPr
 
 import { EVENTO_ERP_VENDEDOR_ATUALIZADO } from '../../integracao/contracts';
 import { notificarSistema } from './consumidores-sistema';
+import { aplicarFilialDoErp } from './filiais-usuario';
 
 export const EventoIntegracaoVendedorAtualizado = eventoTolerante(EVENTO_ERP_VENDEDOR_ATUALIZADO);
 
@@ -41,37 +43,11 @@ async function avisarDesligadoNoBko(ctx: ContextoConsumo, externalId: string, ve
   }
 }
 
-/** RN-CORE-58: o nome do vendedor do ERP não pôde ser vinculado sozinho; o admin decide (só o código do ERP e a contagem, sem nome nem e-mail). */
-async function avisarVinculoPorNomeRecusado(ctx: ContextoConsumo, externalId: string, motivo: 'homonimo' | 'outro_codigo' | 'inativo', candidatos: number): Promise<void> {
-  ctx.log.warn({ external_id: externalId, motivo, candidatos }, 'vínculo automático por nome não feito');
-  const texto = { homonimo: `há ${candidatos} usuários com o mesmo nome`, outro_codigo: 'o usuário com este nome já tem outro código do ERP', inativo: 'o usuário com este nome está desativado' }[motivo];
-  const admins = await ctx.db.query<{ id: string }>("select id from core.usuario where perfil = 'admin' and ativo and deleted_at is null");
-  for (const a of admins.rows) {
-    await notificarSistema(ctx, a.id, {
-      titulo: 'Vendedor do ERP sem vínculo automático',
-      corpo: `O vendedor ${externalId} não foi vinculado pelo nome: ${texto}. Em Usuários, use Vincular vendedor do ERP.`,
-      link: null,
-      prioridade: 'normal',
-    }, `vendedor-nome|${externalId}|${motivo}`);
-  }
-}
-
-/** Aviso de provisório ao admin: texto sob simulação do designer-ux (R-20261115-075000); desligado até o dono aprovar. */
-export const AVISO_PROVISORIO_ATIVO = false;
-
-/** RN-CORE-58: a carga criou um usuário provisório; o admin vincula ao usuário real. Só o código do ERP vai no aviso (sem nome nem e-mail). */
-async function avisarProvisorioCriado(ctx: ContextoConsumo, externalId: string): Promise<void> {
-  ctx.log.warn({ external_id: externalId }, 'vendedor do ERP entrou como usuário provisório (sem e-mail)');
-  const admins = await ctx.db.query<{ id: string }>("select id from core.usuario where perfil = 'admin' and ativo and deleted_at is null");
-  for (const a of admins.rows) {
-    await notificarSistema(ctx, a.id, {
-      titulo: 'Vendedor do ERP sem usuário',
-      corpo: `A carga criou o vendedor ${externalId} como usuário provisório. Em Usuários, filtre por Provisórios e use Vincular vendedor do ERP.`,
-      link: null,
-      prioridade: 'normal',
-    }, `vendedor-provisorio|${externalId}`);
-  }
-}
+    if (criado) {
+      await completarNotasDoVendedor(ctx, criado.id, r.external_id);
+      await aplicarFilialDoErp(ctx, criado.id, r.external_id, filialDaCarga(r));
+    }
+    if (AVISO_PROVISORIO_ATIVO && criado && ehUsuarioProvisorio(emailFinal)) await avisarProvisorioCriado(ctx, r.external_id);
 
 export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
   evento: EventoIntegracaoVendedorAtualizado,
@@ -111,6 +87,7 @@ export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
       const novoEmail = emailQueACargaPodeGravar({ emailAtual: atual.email, emailDoErp: email, erpProvisorio: provisorio, emailLivre: livre });
       await ctx.db.query('update core.usuario set nome = $2, ativo = $3::boolean, erp_alterado_em = $4::timestamptz, email = coalesce($5::text, email) where id = $1', [atual.id, nome, reativacao.ativo, r.alterado_em, novoEmail]);
       await completarNotasDoVendedor(ctx, atual.id, r.external_id);
+      await aplicarFilialDoErp(ctx, atual.id, r.external_id, filialDaCarga(r));
       return;
     }
 
@@ -121,6 +98,7 @@ export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
       if (adocao.avisar) await avisarDesligadoNoBko(ctx, r.external_id, r.alterado_em);
       await ctx.db.query('update core.usuario set external_id = $2, ativo = case when $4::boolean then ativo else $5::boolean end, erp_alterado_em = $3::timestamptz where id = $1', [igual.id, r.external_id, r.alterado_em, igual.desligado_no_bko_em !== null, adocao.ativo]);
       await completarNotasDoVendedor(ctx, igual.id, r.external_id);
+      await aplicarFilialDoErp(ctx, igual.id, r.external_id, filialDaCarga(r));
       return;
     }
     // RN-CORE-58: sem código nem e-mail igual, o nome completo igual a UM usuário elegível vincula; homônimo e afins só avisam
@@ -148,7 +126,10 @@ export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
       [r.external_id, nome, emailFinal, r.alterado_em],
     );
     const criado = (await ctx.db.query<{ id: string }>('select id from core.usuario where external_id = $1 and deleted_at is null', [r.external_id])).rows[0];
-    if (criado) await completarNotasDoVendedor(ctx, criado.id, r.external_id);
+    if (criado) {
+      await completarNotasDoVendedor(ctx, criado.id, r.external_id);
+      await aplicarFilialDoErp(ctx, criado.id, r.external_id, filialDaCarga(r));
+    }
     if (AVISO_PROVISORIO_ATIVO && criado && ehUsuarioProvisorio(emailFinal)) await avisarProvisorioCriado(ctx, r.external_id);
   },
 });
