@@ -56,6 +56,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .aviso { border-radius: 10px; padding: 10px 12px; font-weight: 600; font-size: 13px; display: flex; gap: 16px; align-items: center; }
 .aviso.w { background: var(--warningBg); color: var(--warning); }
 .aviso.ok { background: var(--successBg); color: var(--success); justify-content: space-between; }
+.aviso.erro { background: var(--dangerBg); color: var(--danger); justify-content: space-between; }
 .legenda-sim { font-size: 11px; color: var(--ink2); text-align: center; padding: 8px; }
 /* §10: aba Integração em dois lados (Conector | API); abaixo de 768 px, empilhados, Conector primeiro */
 .lados { display: grid; grid-template-columns: 1fr 1fr; gap: 0; align-items: stretch; }
@@ -111,7 +112,8 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .caixa { display: flex; align-items: center; gap: 10px; font-weight: 600; min-height: 44px; }
 .uso td.n, .uso th.n { text-align: right; font-family: Archivo, 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums; width: 140px; }
 .estados-cnpj { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; }
-.estados-cnpj .rot { font-size: 11px; font-weight: 700; color: var(--ink2); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
+/* rótulo das pranchas (estados do CNPJ, diálogos) */
+.estados-cnpj .rot, .prancha-dlg .rot { font-size: 11px; font-weight: 700; color: var(--ink2); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
 @media (max-width: 767px) { .adicionais { grid-template-columns: 1fr; } .planos { grid-template-columns: 1fr 1fr; } .linha3 { grid-template-columns: 1fr; } .campos .largo, .linha3 { grid-column: auto; } }
 /* total do pedido */
 .total { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; }
@@ -165,7 +167,8 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .adm .quem .sub { margin-top: 2px; }
 .adm .btn { margin-left: auto; }
 .veu { position: fixed; inset: 0; background: rgba(22,32,42,.5); display: flex; align-items: center; justify-content: center; }
-.dialogo { width: 880px; background: var(--surface); border-radius: 16px; padding: 22px 24px; box-shadow: 0 12px 40px rgba(22,32,42,.25); }
+.dialogo, .dlg-p { background: var(--surface); border-radius: 16px; box-shadow: 0 12px 40px rgba(22,32,42,.25); }
+.dialogo { width: 880px; padding: 22px 24px; }
 .dialogo h2 { font-size: 22px; font-weight: 800; margin: 0 0 16px; }
 .adics { margin-top: 16px; border: 1px solid var(--lineStrong); border-radius: 10px; }
 .adics .cab, .adics .lin { display: grid; grid-template-columns: 24px 22px 160px 1fr 88px; gap: 10px; align-items: center; padding: 0 14px; }
@@ -187,22 +190,19 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .regras-senha .ex { color: var(--ink2); }
 /* R-20261114-195600: ações por empresa na lista (Backup · Inativar/Reativar · Excluir), estados da linha e diálogos de confirmação */
 .lista-acoes th, .lista-acoes td { padding: 10px 6px; white-space: nowrap; }
-.lista-acoes td { vertical-align: middle; }
-.lista-acoes .cnpj { font-variant-numeric: tabular-nums; }
 .lista-acoes .acoes { display: flex; gap: 6px; justify-content: flex-end; }
-.lista-acoes tr.inativa td:not(.col-acoes) { color: var(--ink2); }
-.bkp { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.lista-acoes .cnpj, .bkp, .dlg-p b { font-variant-numeric: tabular-nums; }
+.bkp { display: inline-flex; align-items: center; gap: 6px; }
 .bkp.nenhum, .bkp.andamento { color: var(--ink2); }
 .bkp.andamento .giro { width: 14px; height: 14px; }
 .btn.perigo { color: var(--danger); border-color: var(--danger); } /* secundário de perigo (falta no kit, §15.4) */
 .btn.perigo-cheio { background: var(--danger); border-color: var(--danger); color: #fff; }
 .prancha-dlg { background: rgba(22,32,42,.5); padding: 28px; min-height: 696px; display: grid; grid-template-columns: repeat(2, 460px); gap: 24px 28px; justify-content: center; align-content: center; }
-.prancha-dlg .rot { font-size: 11px; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 8px; }
-.dlg-p { width: 460px; background: var(--surface); border-radius: 16px; box-shadow: 0 12px 40px rgba(22,32,42,.25); }
+.prancha-dlg .rot { color: #fff; margin-bottom: 8px; }
+.dlg-p { width: 460px; }
 .dlg-p h2 { margin: 0; padding: 20px 20px 12px; font-size: 18px; font-weight: 700; }
 .dlg-p .corpo { padding: 2px 20px; display: flex; flex-direction: column; gap: 12px; }
 .dlg-p .corpo p { margin: 0; }
 .dlg-p .pe { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 20px 20px; }
-.dlg-p b { font-variant-numeric: tabular-nums; }
 .dlg-p .inp.cod { letter-spacing: 1px; }
 .dlg-p .inp.foco { border: 2px solid var(--accent); padding: 0 11px; }
