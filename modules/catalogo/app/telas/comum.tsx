@@ -158,7 +158,7 @@ const g = StyleSheet.create({
   nome: { ...fonte.semibold, fontSize: 16, color: colors.ink },
   marca: { ...fonte.body, fontSize: 14, color: colors.ink2, minHeight: 18 },
   precoLinha: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  preco: { ...fonte.displayBold, fontSize: 18, color: colors.ink, fontVariant: ['tabular-nums'] },
+  preco: { ...fonte.bold, fontSize: 18, color: colors.ink, fontVariant: ['tabular-nums'] },
   semPreco: { ...fonte.semibold, fontSize: 16, color: colors.ink3 },
   riscado: { ...fonte.body, fontSize: 12, color: colors.ink2, textDecorationLine: 'line-through' },
   acoes: { flexDirection: 'row', gap: 6, marginLeft: 'auto' },

@@ -213,7 +213,7 @@ export default function TelaProduto() {
 const s = StyleSheet.create({
   card: { padding: 14, gap: 10 },
   linha: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  preco: { ...fonte.display, fontSize: 22, color: colors.ink },
+  preco: { ...fonte.bold, fontSize: 22, color: colors.ink },
   semPreco: { ...fonte.medium, fontSize: 14, color: colors.ink2 },
   riscado: { ...fonte.body, fontSize: 14, color: colors.ink3, textDecorationLine: 'line-through' },
   verMais: { minHeight: 48, justifyContent: 'center' },
