@@ -12,7 +12,7 @@ import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { deflateRawSync } from 'node:zlib';
-import { classificarEntradaZip, ENTRADAS_BRUTAS_MAX, LIMITES_ZIP_TETO, type EntradaZip, type LimitesZip, type TipoImagem } from '@macuxi/platform-sdk';
+import { classificarEntradaZip, ENTRADAS_BRUTAS_MAX, FOLGA_COMPACTADO_BYTES, LIMITES_ZIP_TETO, type EntradaZip, type LimitesZip, type TipoImagem } from '@macuxi/platform-sdk';
 import { resolverItem, interpretarNome, type ProdutoParaCasar } from '../../../modules/catalogo/domain/fotos-lote';
 import { encode } from 'jpeg-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -169,11 +169,19 @@ describe('T-0174 critério 4 — zip bomb e limites por entrada', () => {
     expect(r).toEqual({ ok: false, motivo: 'descompactado_grande' });
   });
 
-  it.fails('ZS-10 (achado A-T0174-1): entrada com compactado declarado muito acima de 8 MiB (stored, descompactado pequeno) deveria ser recusada na classificação, antes de alocar o compactado inteiro', () => {
-    // Hoje: razão = 1000/400MiB ≈ 0 passa; o leitor faz Buffer.alloc(compactado) (até o tamanho do ZIP, 500 MiB) antes de
-    // conferir o tamanho real. Uma foto legítima nunca tem compactado > teto por foto + folga do deflate.
-    const c = classificarEntradaZip(entrada('A1.jpg', { metodo: 0, compactado: 400 * MIB, descompactado: 1000 }), LIMITES_ZIP_TETO);
-    expect(c.acao).toBe('recusar');
+  it('ZS-10 (A-T0174-1, corrigido): compactado declarado acima de 8 MiB + folga (stored, descompactado pequeno) → foto_grande na classificação e no leitor, sem alocar o compactado', async () => {
+    // Uma foto legítima nunca tem compactado > teto por foto + folga do deflate; o leitor não pode fazer Buffer.alloc(compactado).
+    const teto = LIMITES_ZIP_TETO.bytesEntradaMax + FOLGA_COMPACTADO_BYTES;
+    const classificar = (compactado: number) => classificarEntradaZip(entrada('A1.jpg', { metodo: 0, compactado, descompactado: 1000 }), LIMITES_ZIP_TETO);
+    expect(classificar(400 * MIB)).toEqual({ acao: 'recusar', motivo: 'foto_grande' });
+    expect(classificar(teto + 1)).toEqual({ acao: 'recusar', motivo: 'foto_grande' });
+    expect(classificar(teto).acao).toBe('aceitar');
+    // e2e no leitor real: o diretório central declara 400 MiB compactados; a leitura recusa antes de alocar
+    const zip = await aberto([{ nome: 'A1.jpg', dados: JPEG, metodo: 0, compactado: 400 * MIB, descompactado: JPEG.length }]);
+    const antes = process.memoryUsage().arrayBuffers;
+    expect(await zip.ler(0, { tipos: TODOS })).toEqual({ ok: false, motivo: 'foto_grande', tipo_detectado: null });
+    expect(process.memoryUsage().arrayBuffers - antes).toBeLessThan(teto);
+    await zip.fechar();
   });
 });
 
