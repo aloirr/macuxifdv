@@ -12,7 +12,7 @@ function Lista({ id, linhas }: { id: string; linhas: readonly Linha[] }): ReactE
     <dl data-testid={`parametros-pesquisa-${id}-valores`} className="m-0 grid grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-2 text-[14px]">
       {linhas.map((l) => (
         <div key={l.rotulo} className="contents">
-          <dt className="text-ink-2">{l.rotulo}</dt>
+          <dt>{l.rotulo}</dt>
           <dd className="m-0 text-right font-semibold">
             {l.valor.texto}
             {l.valor.padrao !== null ? <span className="block text-[12px] font-normal text-ink-3">Padrão: {l.valor.padrao}</span> : null}
@@ -28,7 +28,7 @@ const unidade = (u: string) => (v: number) => `${numeroPtBr(v)} ${u}`;
 /** Parâmetros › Pesquisa › Vigência (RN-PES-04). Só leitura; valor do tenant com fallback ao padrão. */
 export function ParametrosVigencia(): ReactElement {
   const p = useParametros('pesquisa');
-  return <Lista id="vigencia" linhas={[{ rotulo: 'Tolerância da vigência', valor: valorDoParametro(p, 'tolerancia_vigencia_h', unidade('h')) }]} />;
+  return <Lista id="vigencia" linhas={[{ rotulo: 'Tolerância', valor: valorDoParametro(p, 'tolerancia_vigencia_h', unidade('h')) }]} />;
 }
 
 /** Parâmetros › Pesquisa › Construtor (RN-PES-07; escala: premissa T-0012). Só leitura. */
