@@ -200,6 +200,11 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > `core.v_usuario_hierarquia`; código ERP = `core.usuario.external_id` (já único por tenant). Detalhes no
 > [plataforma.md](plataforma.md) e no [core.md](core.md); teste `db/testes/cargo-hierarquia.db.test.ts`; diagnóstico
 > `db/scripts/diagnostico-0069.sql`.
+>
+> **2026-11-15 (decisão do dono do produto, R-20261115-073000-alexandre, item 3):** `0075_catalogo_referencia_marca_opcional`:
+> `catalogo.produto_referencia.marca_id` aceita nulo (referência só com o código) e o único vivo passa a ser
+> `produto_referencia_produto_codigo_uk (tenant_id, produto_id, codigo_compacto)`; as vivas que repetiam o código no produto ficam
+> só na de menor ordem. Detalhes no [catalogo.md](catalogo.md); teste `db/testes/referencia-marca-opcional.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
