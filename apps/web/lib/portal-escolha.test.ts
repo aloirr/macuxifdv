@@ -4,12 +4,13 @@
  * `SessaoPortalSchema` do SDK.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SessaoPortalSchema } from '@macuxi/platform-sdk';
+import { CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL, SessaoPortalSchema } from '@macuxi/platform-sdk';
 import { ImportarEquipeRespostaSchema } from '@macuxi/core/contracts';
 
 import { CONTA_SENHA_A_TROCAR, CONTAS_FALSAS, responderFalso, zerarModoFalso } from './portal-falso';
 import { ROTAS_PORTAL, ROTAS_PUBLICAS_PORTAL } from './portal-rotas';
 import {
+  avisoDaEmpresaIndisponivel,
   CAMINHO_ESCOLHER_EMPRESA,
   CHAVE_AVISO_PORTAL,
   CHAVE_EMPRESA_INDISPONIVEL,
@@ -182,6 +183,28 @@ describe('403/409 de empresa (desenho T-0093 §4; spec §4)', () => {
     expect(consumirEmpresaIndisponivel(st)).toBeNull();
     st.setItem(CHAVE_EMPRESA_INDISPONIVEL, JSON.stringify({ id: 1, nome: '' }));
     expect(consumirEmpresaIndisponivel(st)).toBeNull();
+  });
+  it('T-0176 (RN-CORE-39; ADR 0056): 403 USUARIO_SEM_FILIAL (empresa.sem_filial) → a empresa sai como no 403 de empresa, com o texto aprovado', () => {
+    expect(CODIGO_USUARIO_SEM_FILIAL).toBe('USUARIO_SEM_FILIAL');
+    // 1 empresa: a sessão acaba e a entrada mostra o aviso da conta sem filial (o portal não destrava; a filial se informa no BKO)
+    expect(desvioDoErro(umaEmpresa, 403, CODIGO_USUARIO_SEM_FILIAL)).toEqual({ para: 'entrar', aviso: MENSAGEM_USUARIO_SEM_FILIAL });
+    // 2+: a empresa da chamada (ou a atual) sai da lista da Escolha, com o mesmo texto aprovado, não o de empresa indisponível
+    const d = desvioDoErro(duasEmB, 403, CODIGO_USUARIO_SEM_FILIAL);
+    expect(d).toEqual({ para: 'escolher', aviso: MENSAGEM_USUARIO_SEM_FILIAL, empresa: { id: B.id, nome: B.nome, semFilial: true } });
+    expect(desvioDoErro(tresEmB, 403, CODIGO_USUARIO_SEM_FILIAL, A.id)).toMatchObject({ empresa: { id: A.id, semFilial: true } });
+    expect(desvioDoErro(tresEmB, 403, CODIGO_USUARIO_SEM_FILIAL, 'outra')).toEqual({ para: 'escolher', aviso: MENSAGEM_USUARIO_SEM_FILIAL });
+    // o time da Macuxi nunca vem com sem_filial: nada a desviar
+    expect(desvioDoErro(timeMacuxi, 403, CODIGO_USUARIO_SEM_FILIAL)).toBeNull();
+    // a marca vai à Escolha uma vez e escolhe o aviso
+    const st = new Memoria();
+    guardarEmpresaIndisponivel({ id: B.id, nome: B.nome, semFilial: true }, st);
+    const e = consumirEmpresaIndisponivel(st);
+    expect(e).toEqual({ id: B.id, nome: B.nome, semFilial: true });
+    expect(e && avisoDaEmpresaIndisponivel(e)).toBe(MENSAGEM_USUARIO_SEM_FILIAL);
+    expect(avisoDaEmpresaIndisponivel({ id: B.id, nome: B.nome })).toBe(mensagemDaEmpresaIndisponivel(B.nome));
+    // a entrada aceita o aviso da conta sem filial (texto fixo)
+    guardarAvisoPortal(MENSAGEM_USUARIO_SEM_FILIAL, st);
+    expect(consumirAvisoPortal(st)).toBe(MENSAGEM_USUARIO_SEM_FILIAL);
   });
   it('outros erros e o time da Macuxi não desviam', () => {
     expect(desvioDoErro(timeMacuxi, 403, 'EMPRESA_NAO_PERMITIDA')).toBeNull();
