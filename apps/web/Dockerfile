@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1.7
-# Imagem do BKO (shell Next.js) para o ambiente demo (T-0074, ADR 0020). Contexto = RAIZ do monorepo (.dockerignore da raiz):
+# Imagem do BKO (shell Next.js) para a produção (T-0074, T-0086, ADR 0028). Contexto = RAIZ do monorepo (.dockerignore da raiz):
 #   docker build -f apps/web/Dockerfile -t macuxi-bko .
 #   docker run -p 3100:3100 macuxi-bko        → http://localhost:3100/login
-# No compose da VM (scripts/deploy/demo/compose.yml) o serviço se chama `bko` (rota do túnel: http://bko:3100) e fala
+# No compose da VM (scripts/deploy/producao/compose.yml) o serviço se chama `bko` (rota do túnel: http://bko:3100) e fala
 # com a API pela rede interna (`api:8100`).
 #
 # O endereço da API é GRAVADO NO BUILD: o rewrite same-origin `/api-proxy/*` → NEXT_PUBLIC_API_URL (next.config.ts) e
@@ -27,7 +27,7 @@ WORKDIR /app
 
 # Instalação em camada própria (T-0074, 🟢 1 da revisão): o `pnpm install` só depende dos MANIFESTOS (todos os
 # package.json do workspace, pnpm-lock.yaml, pnpm-workspace.yaml, .pnpmfile.cjs, .npmrc e patches/). Mudou só código?
-# A camada do install vem do cache de camadas (no CI, `cache-from/cache-to: type=gha,mode=max` do demo-publicar) e o
+# A camada do install vem do cache de camadas (no CI, `cache-from/cache-to: type=gha,mode=max` do workflow de publicação) e o
 # build pula direto para o `next build`. Por que não `pnpm fetch`: ele não aceita --filter e guardaria a store do monorepo
 # inteiro (Expo/React Native) no cache do GitHub; e o `--mount=type=cache` da store não sobrevive entre runners do CI
 # (só ajuda em builds repetidos na mesma máquina). Por que não `turbo prune --docker`: lockfile podado regenerado pelo
@@ -51,7 +51,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 # Agora o código (o .dockerignore deixa os node_modules de fora: os instalados acima ficam intactos).
 COPY . .
 ARG NEXT_PUBLIC_API_URL=http://api:8100/v1
-ARG MACUXI_BKO_ORIGEM=https://bko-demo.macuxifdv.com.br
+ARG MACUXI_BKO_ORIGEM=https://bko.macuxifdv.com.br
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     MACUXI_BKO_ORIGEM=$MACUXI_BKO_ORIGEM \
     MACUXI_NEXT_STANDALONE=1 \

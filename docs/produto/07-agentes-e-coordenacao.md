@@ -115,6 +115,7 @@ criado_em: 2026-10-31T14:05:12-04:00
 - **Todo o time roda em sessões do claude.ai/code** sobre o GitHub `aloirr/macuxifdv` (Linux, bash). O PC do Alexandre (VS Code, Windows, `C:\macuxifdv`) não roda mais agentes, commits nem pushes.
 - Cada sessão trabalha num branch `nuvem/*`, `alexandre/*` ou `agente/*` e entrega **por PR**; o merge acontece depois do CI do PR verde (regra de "Quem faz o merge", abaixo).
 - **Sem Docker** (decisão do Alexandre, R-20261105-053835; vale também na nuvem): nenhum agente roda `docker` nem depende de Postgres local; testes de banco e o stack isolado rodam no CI do GitHub (CI do PR e `stack-isolado.yml`), e o CI verde é o critério.
+- **Horário de Manaus** (R-20261114-195100-alexandre): horários em texto para pessoas (recados, docs, relatórios) no fuso de Manaus (UTC−4); carimbos técnicos e banco em UTC.
 - **Fase M** (`C:\Users\domon\dev\forca-vendas`, no PC do Alexandre): continua **só para consulta e cópia**, nunca alterada. Como a nuvem não alcança o PC, o que for preciso dela o Alexandre anexa à tarefa ou ao recado.
 - **Aparelho Android**: o build sai pelo `eas-build.yml` (seção 5); o teste no aparelho continua com o Alexandre.
 
@@ -237,7 +238,7 @@ Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-
 - **Arquivo legível**: além do link do expo.dev, o APK sai como `Campo-Demo-vX.Y.Z.apk`, com link temporário de um bucket privado.
 - **Assunto do recado**: `BUILD PRONTO Campo-Demo-vX.Y.Z / Gestao-Demo-vX.Y.Z (<sha curto>)`.
 - **Onde sai o build** (time 100% na nuvem, 14/11/2026): pelo workflow `eas-build.yml` ("eas build", `workflow_dispatch`, inputs `variante`, `perfil` e `so_conferir`), disparado a partir do `main` depois do merge do lote. Antes do primeiro build de cada ciclo, um run com **`so_conferir=true`** testa o `EXPO_TOKEN` (`eas whoami`) sem gastar build do EAS. O `EXPO_TOKEN` fica só nos segredos do Actions.
-- **Deploy**: só pelos workflows de produção (`producao-publicar.yml` "producao — publicar" e, quando preciso, `producao-tenant.yml`, `producao-super-admin.yml` e `producao-ensaio-restauracao.yml`), com a tag `v*` e o recado "aprovo deploy vX.Y.Z" do Alexandre citado na mensagem da tag. A demo segue pelo `demo-publicar.yml` e, no plano B, pelo `demo-recriar-base.yml`.
+- **Deploy**: só pelos workflows de produção (`producao-publicar.yml` "producao — publicar" e, quando preciso, `producao-tenant.yml`, `producao-super-admin.yml` e `producao-ensaio-restauracao.yml`), com a tag `v*` e o recado "aprovo deploy vX.Y.Z" do Alexandre citado na mensagem da tag. A demo foi desligada em 14/11/2026 (ADR 0051).
 
 ## Contratos entre módulos
 `.coord/contratos/` (dono: engenheiro-software) registra eventos, extensões e dependências. O módulo publicador é dono do schema do evento em `modules/<m>/contracts`; mudança incompatível = nova versão + recado a todos os consumidores.

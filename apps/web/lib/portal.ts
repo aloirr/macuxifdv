@@ -6,10 +6,7 @@
  * `/config` do apps/web. O endereço no navegador não muda (`config.macuxifdv.com.br/` mostra `/config`).
  * Ficam de fora: os arquivos do Next (`/_next/*`), o proxy da API (`/api-proxy/*`), o favicon e o próprio `/config`.
  *
- * T-0091 §9: na demo o portal fica em `config-demo.macuxifdv.com.br` (mesmo serviço `bko:3100`, túnel `macuxi-demo-nuvem`) e
- * vale tudo o que vale para o `config.` (`PREFIXOS_DO_PORTAL`).
- *
- * T-0087 (ADR 0029 §7): o portal só existe no host `config.`. Nos outros hosts (bko., bko-demo., localhost, a sonda
+ * T-0087 (ADR 0029 §7): o portal só existe no host `config.`. Nos outros hosts (bko., localhost, a sonda
  * `127.0.0.1:3100/login`) `/config` e `/config/*` respondem 404 (`bloqueadoForaDoPortal`). No host `config.` o `/login` do BKO
  * não serve: vai para a entrada do portal (`/config/entrar`). No PC, abra `http://config.localhost:3000/`.
  */
@@ -18,13 +15,12 @@ export const ROTA_DO_PORTAL = '/config';
 
 /**
  * Primeiro rótulo do host que identifica o portal, com o do BKO correspondente (o link do convite troca um pelo outro). Lista
- * explícita, sem curinga: `config.macuxifdv.com.br` (produção) e `config-demo.macuxifdv.com.br` (demo, T-0091 §9: um nível de
- * subdomínio, como `bko-demo.`, porque o certificado universal da Cloudflare não cobre `config.demo.`); no PC,
- * `config.localhost:3000` e `config-demo.localhost:3000`. `configx.`, `meuconfig.` e `bko-demo.` não são portal.
+ * explícita, sem curinga: `config.macuxifdv.com.br` (produção); no PC, `config.localhost:3000`. `configx.`, `meuconfig.` e
+ * `config-demo.` (a demo foi desligada, ADR 0051) não são portal.
  */
-export const PREFIXOS_DO_PORTAL = { 'config.': 'bko.', 'config-demo.': 'bko-demo.' } as const;
+export const PREFIXOS_DO_PORTAL = { 'config.': 'bko.' } as const;
 
-/** Prefixo do portal que o host usa (`config.` ou `config-demo.`), ou `null`. O host vem em minúsculas (`hostDaRequisicao`). */
+/** Prefixo do portal que o host usa (`config.`), ou `null`. O host vem em minúsculas (`hostDaRequisicao`). */
 export function prefixoDoPortal(host: string | null | undefined): keyof typeof PREFIXOS_DO_PORTAL | null {
   if (!host) return null;
   for (const p of Object.keys(PREFIXOS_DO_PORTAL) as (keyof typeof PREFIXOS_DO_PORTAL)[]) {
@@ -64,7 +60,7 @@ export function destinoNoPortal(host: string | null | undefined, caminho: string
   return caminho === '/' || caminho === '' ? ROTA_DO_PORTAL : `${ROTA_DO_PORTAL}${caminho}`;
 }
 
-/** `/config` e `/config/*` fora do host do portal: 404 (o portal nunca abre no bko., no bko-demo. nem no localhost). */
+/** `/config` e `/config/*` fora do host do portal: 404 (o portal nunca abre no bko. nem no localhost). */
 export function bloqueadoForaDoPortal(host: string | null | undefined, caminho: string): boolean {
   if (ehHostDoPortal(host)) return false;
   const c = caminho.toLowerCase();
