@@ -40,7 +40,7 @@ Sem cor nova e sem movimento novo (a área de baixo já esmaece em 240 ms; com "
 - Uma frase por carga, sorteada quando a tela monta, entre as **ativas**. Não troca durante a carga.
 - Não repete a última mostrada no aparelho (guarda só o id dela).
 - A lista vem no sync e fica no aparelho. Na primeira carga, antes de qualquer sync, o app usa as ativas das 30 iniciais que
-  vão no bundle (`frases.md`; hoje 18). Sem nenhuma ativa, a frase não aparece.
+  vão no bundle (`frases.md`, coluna Situação inicial). Sem nenhuma ativa, a frase não aparece.
 
 ## 3. Portal `config.` · Frases da carga (só o time Macuxi, super-admin)
 - **Menu:** novo item "Frases da carga" depois de "Diagnósticos" (`MENU_TIME_MACUXI`), na `MolduraPortal`.
@@ -55,12 +55,11 @@ Sem cor nova e sem movimento novo (a área de baixo já esmaece em 240 ms; com "
 ## 4. Para o dono do produto decidir
 - **Tema (R-20261115-071500-alexandre):** as 30 frases são sobre a história e a tradição de Roraima: 8 sobre o povo Macuxi,
   8 sobre o Monte Roraima, 8 sobre Makunaimã e 6 sobre outros aspectos do estado (80% nos três temas principais).
-- **Validação indígena (recomendação do parecer da marca de 15/11):** 18 frases entram **ativas** (paisagem, natureza e
-  história documentada: 3, 5, 6, 9 a 15 e 23 a 30). As 12 que falam do povo e das narrativas (1, 2, 4, 7, 8 e 16 a 22) entram
-  **inativas** no cadastro inicial e só são ativadas depois da validação de pessoa ou organização indígena que o dono do produto
-  escolher (por exemplo, uma organização que reúna os povos Macuxi, Ingarikó, Taurepang e Wapichana). As frases 7 (Carmézia
-  Emiliano) e 8 (Jaider Esbell) pedem também a concordância da artista ou de quem responde pela obra; sem ela, são trocadas.
-  O app sorteia entre as 18 ativas.
+- **Validação indígena (recomendação do parecer da marca de 15/11):** as frases de paisagem, natureza e história documentada
+  entram ativas. As que falam do povo e das narrativas entram inativas (coluna Situação inicial do `frases.md`) e só são
+  ativadas depois da validação de pessoa ou organização indígena que o dono do produto escolher (por exemplo, uma organização
+  que reúna os povos Macuxi, Ingarikó, Taurepang e Wapichana). As frases 7 (Carmézia Emiliano) e 8 (Jaider Esbell) pedem também
+  a concordância da artista ou de quem responde pela obra; sem ela, são trocadas.
 - As frases valem para todas as empresas (cadastro do super-admin); frase por empresa não foi pedida.
 
 ## 5. Na aprovação

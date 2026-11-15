@@ -2,14 +2,14 @@
 
 > 2026-11-15 · designer-ux · tema pedido pelo dono do produto em R-20261115-071500-alexandre; pareceres do corretor (RD-0482 a
 > RD-0484) e da marca (MC-0081 a MC-0084) aplicados. Fonte de cada frase: `spec.md` §6. Todas cabem em 2 linhas de 280 dp
-> (IBM Plex Sans 14), com folga. As 12 inativas esperam a validação de pessoa ou organização indígena (spec §4).
+> (IBM Plex Sans 14), com folga. As inativas esperam a validação de pessoa ou organização indígena (spec §4).
 
 | Nº | Tema | Situação inicial | Frase |
 |---|---|---|---|
 | 1 | Macuxi | Inativa | Os Macuxi se autodenominam Pemon e falam uma língua da família Karib. |
 | 2 | Macuxi | Inativa | O território Macuxi vai do lavrado, ao sul, às serras com floresta, ao norte. |
 | 3 | Macuxi | Ativa | Em 2020, o povo Macuxi somava 37.250 pessoas em Roraima. |
-| 4 | Macuxi | Inativa | A damurida, caldo de pimenta com peixe ou carne, os Macuxi chamam de tuma. |
+| 4 | Macuxi | Inativa | Os Macuxi chamam de tuma a damurida, caldo de pimenta com peixe ou carne. |
 | 5 | Macuxi | Ativa | A Raposa Serra do Sol, terra dos Macuxi e vizinhos, foi homologada em 2005. |
 | 6 | Macuxi | Ativa | Em Bonfim, a Lei 211/2014 tornou cooficiais as línguas Macuxi e Wapichana. |
 | 7 | Macuxi | Inativa | A pintora Macuxi Carmézia Emiliano nasceu na Maloca do Japó. |
