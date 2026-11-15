@@ -20,6 +20,7 @@
  */
 import {
   CODIGOS_ACOES_EMPRESA,
+  MENSAGENS_ACOES_EMPRESA,
   CriarEmpresaSchema,
   ExcluirEmpresaSchema,
   PedirBackupEmpresaSchema,
@@ -27,6 +28,7 @@ import {
   conferirExclusao,
   type AcoesDaEmpresa,
   type BackupEmpresa,
+  type CodigoAcaoEmpresa,
   type ExclusaoEmpresa,
   type StatusEmpresa,
   EscolherEmpresaPortalSchema,
@@ -193,21 +195,8 @@ function resumoDaEmpresa(x: EmpresaFalsa) {
   return { ...resto, acoes };
 }
 
-/**
- * Frases que a API devolve hoje nas recusas das ações da empresa (apps/api/src/empresa-acoes-portal.ts, `MENSAGENS` e
- * `REAUTENTICACAO_FALHOU`), para o modo falso mostrar o mesmo texto. Sai quando o SDK tiver `MENSAGENS_ACOES_EMPRESA` (RD-0407).
- */
-const MENSAGENS_DA_API: Readonly<Record<string, string>> = {
-  [CODIGOS_ACOES_EMPRESA.exclusaoEmAndamento]: 'A exclusão desta empresa já está em andamento.',
-  [CODIGOS_ACOES_EMPRESA.backupEmAndamento]: 'Já há um backup desta empresa em andamento.',
-  [CODIGOS_ACOES_EMPRESA.exclusaoEmpresaAtiva]: 'Inative a empresa antes de excluir.',
-  [CODIGOS_ACOES_EMPRESA.exclusaoSemBackup]: 'Faça o backup da empresa antes de excluir.',
-  [CODIGOS_ACOES_EMPRESA.exclusaoBackupAntesDaInativacao]: 'Faça um backup novo, com a empresa inativa.',
-  [CODIGOS_ACOES_EMPRESA.exclusaoBackupVencido]: 'O backup passou do prazo. Faça um backup novo.',
-  [CODIGOS_ACOES_EMPRESA.exclusaoCodigoNaoConfere]: 'O código digitado não é o da empresa.',
-  [CODIGOS_ACOES_EMPRESA.reautenticacaoFalhou]: 'A senha não confere.',
-};
-const fraseDaApi = (codigo: string): string => MENSAGENS_DA_API[codigo] ?? 'Ação recusada.';
+/** Frase de cada recusa: a mesma tabela do SDK que a API usa (`MENSAGENS_ACOES_EMPRESA`; RD-0407, RD-0429). */
+const fraseDaApi = (codigo: CodigoAcaoEmpresa): string => MENSAGENS_ACOES_EMPRESA[codigo];
 
 const ACOES_M = /^\/plataforma\/empresas\/([^/]+)\/(inativar|reativar|backups|exclusao)(?:\/([^/]+))?$/;
 
@@ -216,7 +205,7 @@ function responderAcoes(metodo: string, tenant: string, acao: string, sub: strin
   if (sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi usa estas ações.');
   // a exclusão concluída continua legível (GET …/exclusao), como o registro da API
   const x = e.empresas.find((y) => y.id === tenant && (!excluida(y) || (acao === 'exclusao' && metodo === 'GET')));
-  if (!x) return erro(404, CODIGOS_ACOES_EMPRESA.naoEncontrada, 'Empresa não encontrada.');
+  if (!x) return erro(404, CODIGOS_ACOES_EMPRESA.naoEncontrada, fraseDaApi(CODIGOS_ACOES_EMPRESA.naoEncontrada));
   const trocar = (f: (y: EmpresaFalsa) => EmpresaFalsa) => gravar({ ...e, empresas: e.empresas.map((y) => (y.id === tenant ? f(y) : y)) });
   const emExclusao = x.status === 'encerrado';
   if ((acao === 'inativar' || acao === 'reativar') && metodo === 'POST') {

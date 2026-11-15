@@ -3,7 +3,7 @@
  * Excluir, renderizados com `react-dom/server` (lista já no cache do React Query). As listas e o corpo dos diálogos vêm do modo
  * falso (`responderFalso`), nos estados da simulação `depois-02b`, para o teste e a tela lerem os mesmos dados.
  */
-import { CODIGOS_ACOES_EMPRESA as C, ListaEmpresasSchema, type AcoesDaEmpresa } from '@macuxi/platform-sdk';
+import { CODIGOS_ACOES_EMPRESA as C, ListaEmpresasSchema, MENSAGENS_ACOES_EMPRESA, type AcoesDaEmpresa } from '@macuxi/platform-sdk';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -129,10 +129,11 @@ describe('diálogos (§15.2)', () => {
     expect(certo).toContain('>Excluir empresa</button>');
   });
   it('senha errada: a frase da API numa linha com `role="alert"` e o campo marcado', () => {
+    const SENHA_INCORRETA = MENSAGENS_ACOES_EMPRESA[C.reautenticacaoFalhou];
     const html = renderToStaticMarkup(
-      <DialogoExcluir empresa={porCodigo('AM2290')} aoFechar={() => {}} aoPedir={() => {}} inicial={{ codigo: 'AM2290', erro: { tipo: 'linha', texto: 'A senha não confere.', senha: true } }} />,
+      <DialogoExcluir empresa={porCodigo('AM2290')} aoFechar={() => {}} aoPedir={() => {}} inicial={{ codigo: 'AM2290', erro: { tipo: 'linha', texto: SENHA_INCORRETA, senha: true } }} />,
     );
-    expect(html).toMatch(/role="alert" data-testid="empresa-acao.erro"[^>]*>A senha não confere\.</);
+    expect(html).toMatch(new RegExp(`role="alert" data-testid="empresa-acao.erro"[^>]*>${SENHA_INCORRETA.replace('.', '\\.')}<`));
     expect(html).toMatch(/aria-invalid="true"[^>]*data-testid="empresa-excluir.senha"/);
   });
 });

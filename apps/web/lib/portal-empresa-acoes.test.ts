@@ -3,7 +3,7 @@
  * coluna Backup mostra em cada estado da simulação `depois-02b`, quais itens do menu ficam ligados, a frase de cada recusa do
  * Excluir e o caminho das rotas do SDK.
  */
-import { CODIGOS_ACOES_EMPRESA as C, type AcoesDaEmpresa, type BackupEmpresa } from '@macuxi/platform-sdk';
+import { CODIGOS_ACOES_EMPRESA as C, MENSAGENS_ACOES_EMPRESA, type AcoesDaEmpresa, type BackupEmpresa } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 
 import { ErroPortal, MENSAGEM_PADRAO } from './portal-api';
@@ -80,7 +80,8 @@ describe('recusas do Excluir (§15.2, RD-0407)', () => {
       expect(e(422, c)).toEqual({ tipo: 'linha', texto: 'Frase da API.', senha: false });
   });
   it('senha errada: a frase da API e o campo senha marcado', () => {
-    expect(e(403, C.reautenticacaoFalhou, 'A senha não confere.')).toEqual({ tipo: 'linha', texto: 'A senha não confere.', senha: true });
+    const senha = MENSAGENS_ACOES_EMPRESA[C.reautenticacaoFalhou];
+    expect(e(403, C.reautenticacaoFalhou, senha)).toEqual({ tipo: 'linha', texto: senha, senha: true });
   });
   it('texto técnico da API vira a mensagem padrão', () => {
     expect(e(422, C.exclusaoCodigoNaoConfere, '{"x":1}')).toEqual({ tipo: 'linha', texto: MENSAGEM_PADRAO, senha: false });
