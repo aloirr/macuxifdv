@@ -64,3 +64,5 @@ Pedido do gerente-projetos. Li `git diff a260d823 38de0194`, que é a correção
 - **`docs/banco/plataforma.md`:** a 0074 tem uma entrada só, que remete ao `sync-pacote.md`, sem repetir o dicionário.
 - **`docs/banco/README.md`:** a 0074 tem uma entrada só, no padrão das outras migrações, com o resumo e a remissão.
 - **Espelho Drizzle:** a 0074 entrou uma vez na lista do cabeçalho de `db/esquema/plataforma.ts`, depois da 0073 do `main`.
+
+**Conferência do 21d619dd (15/11, `git diff 38de0194 21d619dd`): LIMPO, sem RD novo.** A lista das 5 tabelas com política do worker aparece em 2 camadas, e cada uma tem um papel diferente. A primeira é o `db/scripts/conferir-rls.sql`, que roda no stack isolado e no ensaio de restauração; o `where` dele é o filtro, a mensagem é o que o operador lê na saída, e o cabeçalho segue o padrão das outras regras do script. A segunda é o `senha-email-saida.test.ts`, que é o teste de banco do CI. As 2 camadas já existiam antes, com 3 tabelas, e o diff só acrescenta as 2 da 0074. Fica `manter`.
