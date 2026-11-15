@@ -215,7 +215,7 @@ export function CampoPergunta({ pergunta: p, item, ordem, erro, agora, onRespond
 
   return (
     <Cartao testID={`pesquisa.pergunta-${ordem}`} gap={10} style={erro ? { borderColor: colors.danger } : undefined}>
-      <Text style={t.title16}>
+      <Text style={t.bodyStrong}>
         {ordem}. {p.enunciado}
       </Text>
       {p.obrigatoria ? <ChipEstado pequeno tom="neutro" texto="Obrigatória" /> : null}

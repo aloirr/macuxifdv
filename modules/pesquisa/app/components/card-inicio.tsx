@@ -15,7 +15,7 @@ export function CardPesquisas() {
   if (!carregado || (n === 0 && pendentesNaFila === 0)) return null;
   return (
     <Cartao testID="inicio.card-pesquisas" gap={8}>
-      <Text style={t.title16}>{n === 1 ? '1 pesquisa para responder' : `${n} pesquisas para responder`}</Text>
+      <Text style={t.bodyStrong}>{n === 1 ? '1 pesquisa para responder' : `${n} pesquisas para responder`}</Text>
       {pendentesNaFila > 0 ? (
         <ChipEstado tom={offline ? 'aviso' : 'neutro'} icone={offline ? 'wifiOff' : 'sync'} texto={`${pendentesNaFila} na fila`} rotuloAcessivel={`${pendentesNaFila === 1 ? '1 resposta' : `${pendentesNaFila} respostas`} na fila${offline ? ', sem sinal' : ', enviando'}`} />
       ) : null}
