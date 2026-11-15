@@ -1,21 +1,24 @@
--- 0083_integracao_lote_cancelado (down) — desfaz a 0083 e volta ao catálogo anterior: o CHECK lote_status_valido volta aos
--- 5 estados da 0010 e integracao.expurgar_retencao volta ao corpo da 0010 (com o search_path da 0012).
--- PRÉ-CONDIÇÃO: nenhum lote `cancelado`. O down NÃO altera dado: se houver algum, ele para com erro (P0001) sem mudar nada.
--- Antes do down, tire a ação "Cancelar lote" da API e do BKO e decida o destino dos cancelados, por exemplo
---   update integracao.lote set status = 'falhou', concluido_em = coalesce(concluido_em, now()) where status = 'cancelado';
--- (falhou é final, com retenção de 12 meses; o corpo do staging passa a sair em 30 dias). Idempotente.
-
-do $$
-begin
-  if exists (select 1 from integracao.lote where status = 'cancelado') then
-    raise exception '0083 down: há lote com status cancelado; mude o status deles antes (ver o cabeçalho do down)';
-  end if;
-end
-$$;
+-- 0075_integracao_lote_cancelado (up) — T-0173 (RN-INT-15): o lote ganha o estado final `cancelado` (ação "Cancelar lote"
+-- do monitor; só `recebido` e `processando` podem ser cancelados: regra no domain do modulo-integracao, TRANSICOES_LOTE).
+-- Migração em cima da 0074 (próximo número depois do main). Dicionário: docs/banco/integracao.md ("0075"). Teste: db/testes/lote-cancelado.db.test.ts.
+--
+-- O que muda (só catálogo; NENHUM dado é tocado):
+--   integracao.lote.lote_status_valido  recriado com os 6 estados (= ESTADOS_LOTE_BANCO em modules/integracao/db/nuvem.ts).
+--                                        Tudo o que era aceito continua aceito: a validação do ADD não recusa linha.
+--   integracao.expurgar_retencao        create or replace (assinatura, SECURITY DEFINER, search_path com pg_temp da 0012 e
+--                                        grants iguais): o lote `cancelado` segue a retenção do lote final, apagado 12 meses
+--                                        depois de recebido (cascata em lote_staging e lote_linha_erro), e o corpo do
+--                                        staging é anulado 7 dias depois (coalesce(concluido_em, recebido_em)). Sem isso o
+--                                        lote cancelado e o corpo do staging (dados do ERP) nunca sairiam.
+-- Conferido sem mudança: os índices parciais lote_processando_uk (status = 'processando') e lote_fila_ix (status in
+-- ('recebido', 'processando')); o cancelado sai da fila e libera o "um processando por Conector+entidade", como esperado.
+-- Nenhuma view (nem as views-modelo do Conector, que leem o ERP) usa integracao.lote.status.
+-- Idempotente (drop if exists + add; create or replace). Lock: ACCESS EXCLUSIVE curto em integracao.lote (varredura do CHECK).
+-- Caminho de volta: 0075_integracao_lote_cancelado.down.sql (exige nenhum lote `cancelado`; ver a pré-condição lá).
 
 alter table integracao.lote drop constraint if exists lote_status_valido;
 alter table integracao.lote add constraint lote_status_valido
-  check (status in ('recebido', 'processando', 'concluido', 'concluido_com_erros', 'falhou'));
+  check (status in ('recebido', 'processando', 'concluido', 'concluido_com_erros', 'falhou', 'cancelado'));
 
 create or replace function integracao.expurgar_retencao(p_agora timestamptz default now(), p_limite integer default 5000)
   returns table (item text, quantidade bigint)
@@ -32,7 +35,7 @@ begin
 
   delete from integracao.lote l
    where l.id in (select x.id from integracao.lote x
-                   where x.status in ('concluido', 'concluido_com_erros', 'falhou') and x.recebido_em < p_agora - interval '12 months'
+                   where x.status in ('concluido', 'concluido_com_erros', 'falhou', 'cancelado') and x.recebido_em < p_agora - interval '12 months'
                    order by x.recebido_em limit p_limite);
   get diagnostics n = row_count;
   item := 'lote'; quantidade := n; return next;
@@ -55,7 +58,7 @@ begin
    where s.id in (select x.id from integracao.lote_staging x
                     join integracao.lote l on l.tenant_id = x.tenant_id and l.id = x.lote_id
                    where x.corpo is not null
-                     and ((l.status in ('concluido', 'concluido_com_erros') and coalesce(l.concluido_em, l.recebido_em) < p_agora - interval '7 days')
+                     and ((l.status in ('concluido', 'concluido_com_erros', 'cancelado') and coalesce(l.concluido_em, l.recebido_em) < p_agora - interval '7 days')
                        or (l.status = 'falhou' and coalesce(l.concluido_em, l.recebido_em) < p_agora - interval '30 days'))
                    limit p_limite);
   get diagnostics n = row_count;

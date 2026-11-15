@@ -677,7 +677,7 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     expect(criadas.get('integracao.conector')).toContain(`default array[${nuvemIntegracao.ENTIDADES_ORIGINAIS.map((e) => `'${e}'`).join(', ')}]::text[]`);
     expect(valoresDoCheck('integracao.conector', 'tipo')).toEqual([...TIPOS_CONECTOR]);
     expect(valoresDoCheck('integracao.lote', 'modo')).toEqual([...ModoCarga.options]);
-    // corpo da 0010 = os 5 originais; a 0083 recria o CHECK com 'cancelado' (= ESTADOS_LOTE_BANCO; lote-cancelado.db.test.ts)
+    // corpo da 0010 = os 5 originais; a 0075 recria o CHECK com 'cancelado' (= ESTADOS_LOTE_BANCO; lote-cancelado.db.test.ts)
     expect(valoresDoCheck('integracao.lote', 'status')).toEqual([...nuvemIntegracao.ESTADOS_LOTE_ORIGINAIS]);
     expect(valoresDoCheck('integracao.lote_linha_erro', 'codigo')).toEqual([...CODIGOS_ERRO_LINHA]);
     expect(valoresDoCheck('integracao.pendencia_inativacao', 'estado')).toEqual([...ESTADOS_PENDENCIA_INATIVACAO]);
