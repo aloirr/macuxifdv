@@ -389,7 +389,7 @@ rejeitados. Para somar por filial numa tabela só, a filial do pedido passa a ex
 - Volta (`0061_vendedor_reserva_filial.down.sql`): apaga índice, gatilhos, funções e a coluna; nada se perde (a filial continua
   em `pedido.filial_id`). Testes: `db/testes/reserva-filial.test.ts`.
 
-## 0075 — % do prazo de pagamento (`0075_vendedor_prazo_percentual_ajuste`; v1.0.13, RN-VEN-43 a 46, RN-INT-15)
+## 0086 — % do prazo de pagamento (`0086_vendedor_prazo_percentual_ajuste`; v1.0.13, RN-VEN-43 a 46, RN-INT-15)
 Proposta aprovada `docs/modulos/vendedor/prazo-desconto-acrescimo.md` §5, §6 e §9 (R-20261115-123000). **Aditiva**, sem backfill
 (o default preenche sem andar o `updated_at`); RLS, grants e índices inalterados.
 

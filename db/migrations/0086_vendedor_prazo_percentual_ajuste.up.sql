@@ -1,11 +1,11 @@
--- 0075_vendedor_prazo_percentual_ajuste (up) — v1.0.13: "% Acres.Fin." do prazo de pagamento ajusta a tabela de cada produto
+-- 0086_vendedor_prazo_percentual_ajuste (up) — v1.0.13: "% Acres.Fin." do prazo de pagamento ajusta a tabela de cada produto
 -- (RN-VEN-43 a 46, RN-INT-15). Proposta aprovada: docs/modulos/vendedor/prazo-desconto-acrescimo.md §5, §6 e §9 (SHA 454ee68,
--- R-20261115-123000). Dicionário: docs/banco/vendedor.md ("0075").
+-- R-20261115-123000). Dicionário: docs/banco/vendedor.md ("0086").
 --
 -- Migração ADITIVA: 2 colunas e 3 CHECKs. Nenhum contrato muda de versão (campo opcional no v1, RN-INT-09); RLS, políticas,
 -- grants e índices de vendedor.prazo_pagamento e vendedor.pedido não mudam (as colunas herdam os da tabela). Sem backfill:
 -- `add column ... not null default 0` preenche os prazos existentes sem reescrever a tabela (PG >= 11) e SEM andar o
--- updated_at (nenhum aparelho puxa de novo por causa da 0075; ausente = 0 no app).
+-- updated_at (nenhum aparelho puxa de novo por causa da 0086; ausente = 0 no app).
 --
 -- vendedor.prazo_pagamento.percentual_ajuste  numeric(5,2) not null default 0
 --   % do prazo vindo do ERP ("% Acres.Fin."), −99,99 a +99,99 (prazo_pagamento_percentual_ajuste_faixa); negativo = desconto.
@@ -17,7 +17,7 @@
 --   A API recalcula e revalida (faixa, 2 casas, vigente ou cadastro mudado depois do criado_em; RN-VEN-40/45).
 -- Volume: o de hoje (dezenas de prazos; pedidos por tenant). Consultas: as de hoje; nenhum índice novo.
 --
--- Caminho de volta: 0075_vendedor_prazo_percentual_ajuste.down.sql (apaga os 3 CHECKs e as 2 colunas; os percentuais vindos
+-- Caminho de volta: 0086_vendedor_prazo_percentual_ajuste.down.sql (apaga os 3 CHECKs e as 2 colunas; os percentuais vindos
 -- do ERP e os retratos dos pedidos se perdem — a próxima carga do ERP repõe os do prazo). Volte antes o código do Vendedor e da
 -- Integração que lê ou grava as colunas (senão 42703).
 

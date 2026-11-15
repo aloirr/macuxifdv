@@ -1,7 +1,7 @@
--- 0075_vendedor_prazo_percentual_ajuste (down) — desfaz a 0075 (v1.0.13, RN-VEN-43 a 46, RN-INT-15) e volta à 0074.
+-- 0086_vendedor_prazo_percentual_ajuste (down) — desfaz a 0086 (v1.0.13, RN-VEN-43 a 46, RN-INT-15) e volta à 0085.
 -- APAGA os CHECKs prazo_pagamento_percentual_ajuste_faixa, pedido_prazo_percentual_ajuste_faixa e
 -- pedido_prazo_percentual_com_prazo e as colunas vendedor.prazo_pagamento.percentual_ajuste e
--- vendedor.pedido.prazo_percentual_ajuste (os percentuais do ERP e os retratos dos pedidos se perdem; reaplicar a 0075 volta
+-- vendedor.pedido.prazo_percentual_ajuste (os percentuais do ERP e os retratos dos pedidos se perdem; reaplicar a 0086 volta
 -- os prazos a 0 até a próxima carga do ERP). Volte antes o Vendedor (API, pull, BKO) e a Integração (consumidor do Hub,
 -- envio ao ERP) que leem/gravam as colunas (senão 42703). Idempotente (if exists em tudo). Pré-condição: 0076+ desfeitas.
 
