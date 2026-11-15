@@ -70,7 +70,7 @@ export interface DefinicaoEntidadeSync<S extends z.ZodTypeAny = z.ZodTypeAny> {
    */
   naJanela?(linha: Readonly<Record<string, unknown>>, hoje: string): boolean;
   /**
-   * ADR 0057 (RN-CORE-61): `diaria` = a entidade vem ao aparelho uma vez por dia (estoque: `deposito`, `estoque_saldo`), na
+   * ADR 0057 (RN-CORE-63): `diaria` = a entidade vem ao aparelho uma vez por dia (estoque: `deposito`, `estoque_saldo`), na
    * carga diária (`OpcoesMotorSync.cargaDiariaDevida`) e na sincronização `completa`; novidades, push silencioso, a
    * sincronização padrão e a parcial a pulam. Ausente = `continua` (como sempre). Sem `cargaDiariaDevida` no motor, a
    * marca não muda nada.

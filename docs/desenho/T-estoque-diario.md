@@ -91,7 +91,7 @@ Base lida: branch `nuvem/catalogo-pacote-engenheiro-software` (4e6fc2d), com o p
 - **RN-CORE-23 (revista)**, item 1: toque no "Sincronizar" = sincronização **parcial** (envio da fila + pedidos e clientes);
   segurar 10 s = **completa** (tudo de novo, estoque inclusive, popup com progresso). Itens 3 e 4: push silencioso e novidades
   não trazem as entidades de carga diária. Item 5 (puxar para baixo) continua a sincronização padrão.
-- **RN-CORE-61 (nova) Carga diária do estoque:** uma carga por dia, na primeira sincronização com sinal a partir de
+- **RN-CORE-63 (nova) Carga diária do estoque:** uma carga por dia, na primeira sincronização com sinal a partir de
   [`estoque_carga_hora` = 06:00] no fuso do tenant; antes da hora vale a de ontem; sem sinal fica a de ontem; queda no meio não
   conta; a completa do botão é a única segunda carga no mesmo dia. (Última em uso: RN-CORE-58, em branch; o gerente confirma.)
 - **RN-CAT-07 (revista):** no app, "Atualizado às hh:mm" = hora da carga diária (`carga_diaria_em`, fuso do tenant; com o dia
@@ -114,7 +114,7 @@ Contrato do SDK que as partes B–G usam (feito na parte A, `@macuxi/platform-sd
 | # | Dono | O que faz | Caminhos | Depende |
 |---|---|---|---|---|
 | A | engenheiro-software | **Feito.** Cadência, parcial, carga diária injetada, `carga_diaria_em`, modos `parcial`/`completa` (ressincronização forçada e retomável), troca de geração; ADR 0057; contrato em `.coord/contratos/modulos.md` | `packages/platform-sdk/src/{sync,motor-sync}.ts`, `motor-sync.diaria.test.ts`, `docs/decisoes/0057-*`, `.coord/contratos/modulos.md` | — |
-| B | modulo-core | `cargaDiariaDevida({ ultima, agora, fuso, hora })` e `cargaDeHoje(...)` puras (RN-CORE-61); `parcial: true` nas entidades de clientes | `modules/core/domain/carga-diaria.ts` (+ teste), `modules/core/contracts/` (export), `modules/core/app/lib/entidades-cliente.ts` (+ teste) | A |
+| B | modulo-core | `cargaDiariaDevida({ ultima, agora, fuso, hora })` e `cargaDeHoje(...)` puras (RN-CORE-63); `parcial: true` nas entidades de clientes | `modules/core/domain/carga-diaria.ts` (+ teste), `modules/core/contracts/` (export), `modules/core/app/lib/entidades-cliente.ts` (+ teste) | A |
 | C | modulo-catalogo | `cadencia: 'diaria'` em `deposito`/`estoque_saldo`; parâmetro `estoque_carga_hora`; "Atualizado às" e "desatualizado" pela `carga_diaria_em`; busca online com o estoque local (RN-CAT-07) | `modules/catalogo/contracts/**` (`entidades.ts`; `busca.ts` = `ParametrosCatalogo`), `modules/catalogo/domain/estoque.ts` (+ teste), `modules/catalogo/app/**` | A, B |
 | D | modulo-vendedor | Opção (b) da reserva (RN-VEN-20); `parcial: true` nas entidades de pedidos | `modules/vendedor/domain/reserva-filial.ts` (+ teste), `modules/vendedor/app/state/use-vendedor.ts`, `modules/vendedor/contracts/entidades.ts` (+ teste) | A |
 | E | engenheiro-apps | Injeta `cargaDiariaDevida` no motor; expõe `carga_diaria_em`; botão com toque = `parcial` e segurar 10 s = `completa`; popup com barra | `apps/mobile/src/services/motor-do-usuario.ts`, `apps/mobile/src/state/plataforma.tsx`, componente do botão e do popup no shell (+ testes) | A, B, F |

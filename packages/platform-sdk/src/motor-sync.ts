@@ -667,7 +667,7 @@ export interface OpcoesMotorSync {
    */
   essenciais?: (item: ItemDaCarga) => boolean;
   /**
-   * ADR 0057 (RN-CORE-61): a carga diária está devida? Recebe a última (`carga_diaria_em`, ISO ou `null`) e o `agora`; o
+   * ADR 0057 (RN-CORE-63): a carga diária está devida? Recebe a última (`carga_diaria_em`, ISO ou `null`) e o `agora`; o
    * shell injeta a função pura do Core com o fuso do tenant e `estoque_carga_hora`. Sem ela, as entidades `diaria` são
    * contínuas e `carga_diaria_em` não é gravado (o de sempre). Se lançar, vale "devida" (na dúvida, carrega).
    */
