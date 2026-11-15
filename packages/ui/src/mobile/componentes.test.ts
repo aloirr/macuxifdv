@@ -146,8 +146,8 @@ describe('LinhaAtalho (atalho para outra vista da mesma aba: Rascunhos em Pedido
     expect(bloco).not.toMatch(/>\s*[A-Za-zÀ-ú][^<>{}\n]*\s*<\//);
     expect(nav).toMatch(/atalho: \{[^}]*minHeight: ALVO[^}]*backgroundColor: colors\.accentSoft/);
     expect(nav).toMatch(/atalhoComApoio: \{ minHeight: 56 \}/);
-    expect(nav).toMatch(/atalhoRotulo: \{[^}]*fontSize: 15, color: colors\.ink \}/);
-    expect(nav).toMatch(/atalhoApoio: \{[^}]*fontSize: 13, color: colors\.ink2 \}/);
+    expect(nav).toMatch(/atalhoRotulo: \{[^}]*fontSize: 16, color: colors\.ink \}/);
+    expect(nav).toMatch(/atalhoApoio: \{[^}]*fontSize: 14, color: colors\.ink2 \}/);
   });
 
   it('o ícone "arvore" saiu com o atalho "Ver por linha" (T-0142: Catálogo pela hierarquia, sem tela "Por linha")', () => {
@@ -169,6 +169,6 @@ describe('Novo pedido v3 (T-0141): ✕ da Folha e marca da LinhaResumo', () => {
   it('LinhaResumo aceita a marca de 12/600 em accentInk ("Editado neste pedido"), sem texto fixo', () => {
     const v = ler('./valores.tsx');
     expect(v).toContain('marca?: string | null;');
-    expect(v).toMatch(/resumoMarca: \{ fontFamily: fonts\.semibold, fontSize: 12, color: colors\.accentInk \}/);
+    expect(v).toMatch(/resumoMarca: \{ \.\.\.fonte\.semibold, fontSize: 12, color: colors\.accentInk \}/);
   });
 });

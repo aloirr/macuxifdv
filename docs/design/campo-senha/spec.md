@@ -6,7 +6,7 @@ padronize". Um componente só, `CampoSenha`, no app (Campo e Gestão) e na web (
 ## 1. O que aparece
 
 ```
-Senha                                   ← rótulo (13, semibold, ink)
+Senha                                   ← rótulo (14, semibold, ink; fonte do sistema)
 [ ••••••••                      (olho) ] ← campo; olho só em ícone, dentro do campo, à direita
 ```
 

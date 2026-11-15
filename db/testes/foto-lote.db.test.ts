@@ -1,5 +1,5 @@
 /**
- * 0079 — fotos dos produtos em lote por ZIP e trabalho sob demanda (T-0174, RN-CAT-14, ADR 0054; desenho docs/desenho/T-0174.md
+ * 0079 — fotos dos produtos em lote por ZIP e trabalho sob demanda (T-0174, RN-CAT-14, ADR 0058; desenho docs/desenho/T-0174.md
  * §2). Dicionário: docs/banco/catalogo.md e docs/banco/plataforma.md, "0079". O que o BANCO garante:
  * - plataforma.arquivo aceita JPEG, PNG e WEBP até 8 MiB e o ZIP até 500 MiB (R-20261115-074500); nada além;
  * - catalogo.foto_lote: o mesmo ZIP (SHA-256) vivo uma vez por tenant (fora 'falhou' e 'duplicado'); coerências de situação;

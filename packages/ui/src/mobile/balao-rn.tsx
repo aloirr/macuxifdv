@@ -13,13 +13,13 @@ import { Modal, Pressable, StyleSheet, Text, View, type LayoutChangeEvent, type 
 
 import { BALAO, larguraMaximaDoBalao, posicaoDoBalao, type PosicaoBalao } from './balao';
 import type { Retangulo } from './selecao';
-import { colors, fonts } from './theme';
+import { colors, fonte } from './theme';
 
 export function Balao({
   texto,
   children,
   rotuloAcessivel,
-  tamanhoFonte = 13.5,
+  tamanhoFonte = 14,
   style,
   testID = 'balao',
 }: {
@@ -109,7 +109,7 @@ const s = StyleSheet.create({
   balao: { position: 'absolute', backgroundColor: colors.ink, borderRadius: BALAO.raio, paddingVertical: 10, paddingHorizontal: 12, elevation: 6 },
   // primeira passada: desenha fora da vista só para medir a largura e a altura
   medindo: { left: 0, top: -1000, opacity: 0 },
-  texto: { fontFamily: fonts.body, color: colors.surface },
+  texto: { ...fonte.body, color: colors.surface },
   // triângulo de bordas: a base fica colada no balão
   seta: { position: 'absolute', width: 0, height: 0, borderLeftWidth: BALAO.seta, borderRightWidth: BALAO.seta, borderLeftColor: 'transparent', borderRightColor: 'transparent' },
   setaEmCima: { top: -BALAO.seta, borderBottomWidth: BALAO.seta, borderBottomColor: colors.ink },
