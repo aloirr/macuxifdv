@@ -31,7 +31,7 @@ export function nomeArquivoCatalogo(opc: { escopo?: string; tz: string; gerado_e
   return `catalogo-${s}-${partesData(opc.gerado_em, opc.tz).dia}`;
 }
 
-const CSS = `@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#111}h1{font-size:18px;margin:0}h2{font-size:13px;margin:14px 0 4px}table{width:100%;border-collapse:collapse;margin-bottom:8px}th,td{border:1px solid #bbb;padding:4px 6px;text-align:left;vertical-align:top}th{background:#eee}.apl{white-space:pre-wrap}section{break-inside:auto}tr{break-inside:avoid}.sec{break-before:auto}`;
+const CSS = `@page{size:A4;margin:14mm}body{font-family:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif;font-size:12px;color:#111}h1{font-size:18px;margin:0}h2{font-size:14px;margin:14px 0 4px}table{width:100%;border-collapse:collapse;margin-bottom:8px}th,td{border:1px solid #bbb;padding:4px 6px;text-align:left;vertical-align:top}th{background:#eee}.apl{white-space:pre-wrap}section{break-inside:auto}tr{break-inside:avoid}.sec{break-before:auto}`;
 
 export function htmlDoCatalogo(catalogo: Catalogo, opc: OpcoesPdf): string {
   const e = escapeHtml;
