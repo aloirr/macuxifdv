@@ -15,6 +15,7 @@ import { createApp } from '../../../apps/api/src/app';
 import { criarBancoApp } from '../../../apps/api/src/banco';
 import { MODULOS_API } from '../../../apps/api/src/modulos';
 import { comToken, criarReceitaFalsa, novoIp, SENHA, SEGREDO_JWT, type ApiDeTeste, type ConsultaCnpjDeTeste, type Tenant } from './api';
+import { garantirFilialDosUsuarios } from './filial-usuario';
 
 /** Senha da base de demo nos testes (fixa: não depende de `MACUXI_SENHA_DEMO` do .env). */
 export const SENHA_DEMO = 'demo-macuxi';
@@ -71,6 +72,8 @@ export async function subirApiDemo(op: OpcoesApiDemo = {}): Promise<ApiDemo> {
     preparar: async (c) => {
       hoje = (await carregarDemo(c, { senha: SENHA_DEMO })).hoje;
       if (op.comDoisTenants) await carregarDoisTenants(c, { senha: SENHA });
+      // T-0176 (RN-CORE-39): a seed da demo não dá filial a ninguém; aqui todos recebem a padrão do tenant (cadastro e venda)
+      await garantirFilialDosUsuarios(c);
     },
   });
   const pool = blindarPool(new pg.Pool({ connectionString: banco.urlApp, max: 6 }));
