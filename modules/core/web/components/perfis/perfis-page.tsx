@@ -69,6 +69,7 @@ import {
 } from '../../lib/perfis';
 import { contagemPorPerfil } from '../../lib/acesso';
 import { NovoPerfil } from './novo-perfil';
+import { PARAM_EDITAR_PERFIL, perfilEmEdicao } from '../../lib/parametros-url';
 
 const CAMPO = 'h-[44px] w-full rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink disabled:bg-ground disabled:text-ink-2';
 const SEM_PERMISSAO = 'O seu perfil não gerencia perfis de acesso. Fale com o admin da sua empresa.';
@@ -95,7 +96,7 @@ function ListaDePerfis({ emPainel }: { emPainel?: boolean }) {
   const contagem = usuariosQ.data ? contagemPorPerfil(usuariosQ.data) : null;
   const usuariosDe = (p: PerfilResumo): number => (contagem ? (contagem[p.codigo] ?? 0) : p.usuarios);
 
-  const abrir = (codigo: string) => router.push(`${pathname}?perfil=${encodeURIComponent(codigo)}`);
+  const abrir = (codigo: string) => router.push(`${pathname}?${PARAM_EDITAR_PERFIL}=${encodeURIComponent(codigo)}`);
 
   const mudarSituacao = useMutation({
     mutationFn: async ({ perfil, ativo }: { perfil: PerfilResumo; ativo: boolean }) => {
@@ -697,7 +698,7 @@ function HistoricoDoPerfil({ codigo, nome, detalhe, onClose }: { codigo: string;
 function PerfisConteudo({ emPainel }: { emPainel?: boolean }) {
   const params = useSearchParams();
   const podeGerir = usePode('perfil.gerir');
-  const codigo = params.get('perfil');
+  const codigo = perfilEmEdicao(params);
   if (!podeGerir) return <Notice tone="info">{SEM_PERMISSAO}</Notice>;
   if (params.get('novo')) return <NovoPerfil />;
   return codigo ? <EdicaoDoPerfil key={codigo} codigo={codigo} /> : <ListaDePerfis emPainel={emPainel} />;

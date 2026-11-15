@@ -11,6 +11,7 @@ import { LicencasEstadoSchema, NIVEIS_LICENCA, type LicencasEstado, type NivelLi
 import { rotuloDoModulo } from '../../lib/perfis';
 import { Moldura } from '../moldura';
 import { csvDeLicencas, efetivosDoUsuario, linhasDoNivel, modulosQueTambemDesligam, ROTULO_NIVEL } from '../../lib/licencas';
+import { PARAM_MODULOS_PERFIL, perfilDosModulos } from '../../lib/parametros-url';
 
 const CHAVE = ['core', 'licencas'] as const;
 
@@ -43,7 +44,7 @@ function LicencasConteudo({ emPainel }: { emPainel?: boolean }) {
 
   const nivelParam = params.get('nivel');
   const nivel: NivelLicenca = (NIVEIS_LICENCA as readonly string[]).includes(nivelParam ?? '') ? (nivelParam as NivelLicenca) : 'tenant';
-  const perfilParam = params.get('perfil');
+  const perfilParam = perfilDosModulos(params);
   const perfil: Perfil = (PERFIS as readonly string[]).includes(perfilParam ?? '') ? (perfilParam as Perfil) : 'vendedor';
   const usuarioParam = params.get('usuario');
 
@@ -136,7 +137,7 @@ function LicencasConteudo({ emPainel }: { emPainel?: boolean }) {
 
       <FilterBar>
         {nivel === 'perfil' && (
-          <SelectField label="Perfil" value={perfil} onChange={(e) => set({ perfil: e.target.value })} data-testid="licencas.seletor-perfil">
+          <SelectField label="Perfil" value={perfil} onChange={(e) => set({ [PARAM_MODULOS_PERFIL]: e.target.value })} data-testid="licencas.seletor-perfil">
             {PERFIS.map((p) => (
               <option key={p} value={p}>
                 {ROTULO_PERFIL[p]}
