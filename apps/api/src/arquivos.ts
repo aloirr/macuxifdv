@@ -26,12 +26,14 @@ import {
   CODIGOS_ARQUIVO,
   dimensoesJpeg,
   ehJpeg,
+  EXTENSAO_POR_TIPO,
   LIMITE_ARQUIVO_BYTES,
   perfilLeArquivo,
   ROTA_ARQUIVOS,
   verificarAcao,
   verificarAcesso,
   verificarCarteira,
+  type TipoImagem,
 } from '@macuxi/platform-sdk';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ehPrintDeDiagnostico } from './diagnosticos';
@@ -41,7 +43,7 @@ import type { Plataforma, RequisicaoPreparada } from './tipos';
 
 // ---------- porta e adaptador de disco ----------
 
-/** Porta dos bytes (ADR 0010 §3). A chave é `<tenant_id>/<modulo>/<aaaa-mm>/<id>.jpg`. */
+/** Porta dos bytes (ADR 0010 §3). A chave é `<tenant_id>/<modulo>/<aaaa-mm>/<id>.jpg` (`.png` só a logo do cliente, T-0182). */
 export interface ArmazenamentoArquivos {
   gravar(chave: string, bytes: Uint8Array): Promise<void>;
   /** `null` = não existe. */
@@ -52,12 +54,13 @@ export interface ArmazenamentoArquivos {
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const UUID_RE = new RegExp(`^${UUID}$`, 'i');
 /** Formato fechado da chave: nada de `..`, barra invertida ou caminho absoluto chega ao disco. */
-export const CHAVE_ARQUIVO_RE = new RegExp(`^${UUID}/[a-z][a-z0-9-]*/\\d{4}-\\d{2}/${UUID}(\\.m320)?\\.jpg$`);
+export const CHAVE_ARQUIVO_RE = new RegExp(`^${UUID}/[a-z][a-z0-9-]*/\\d{4}-\\d{2}/${UUID}(\\.m320\\.jpg|\\.jpg|\\.png|\\.webp|\\.p\\d{3}\\.zip)$`);
 const CHAVE_RE = CHAVE_ARQUIVO_RE;
 
-export function chaveDoArquivo(a: { tenant_id: string; modulo: string; id: string }, quando: Date): string {
+/** Chave do original (`.jpg` por padrão; a logo do cliente em PNG guarda `.png`, T-0182). */
+export function chaveDoArquivo(a: { tenant_id: string; modulo: string; id: string }, quando: Date, tipo: TipoImagem = 'image/jpeg'): string {
   const mes = quando.toISOString().slice(0, 7);
-  const chave = `${a.tenant_id.toLowerCase()}/${a.modulo}/${mes}/${a.id.toLowerCase()}.jpg`;
+  const chave = `${a.tenant_id.toLowerCase()}/${a.modulo}/${mes}/${a.id.toLowerCase()}.${EXTENSAO_POR_TIPO[tipo]}`;
   if (!CHAVE_RE.test(chave)) throw new Error('chave de arquivo inválida');
   return chave;
 }
@@ -154,7 +157,8 @@ export const TETO_POR_CATEGORIA: ReadonlyMap<string, { bytes: number; codigo: st
   ['core/avatar', { bytes: 300 * 1024, codigo: 'RN-CORE-42', mensagem: 'A foto do perfil passa de 300 KB. Tire ou escolha a foto de novo.' }],
 ]);
 
-const indisponivel = () =>
+/** 503 quando o armazenamento de arquivos não está configurado (rotas de arquivos e da logo do cliente, RD-0702). */
+export const erroArmazenamentoIndisponivel = (): ErroHttp =>
   new ErroHttp(503, 'ARMAZENAMENTO_INDISPONIVEL', 'Armazenamento de arquivos indisponível. Tente de novo em instantes.');
 
 function idDaRota(req: FastifyRequest): string {
@@ -201,7 +205,7 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
           throw new ErroHttp(415, 'TIPO_NAO_ACEITO', 'Envie a foto como image/jpeg.');
         const bytes = corpo ? new Uint8Array(corpo) : new Uint8Array();
         if (bytes.length === 0 || !ehJpeg(bytes)) throw new ErroHttp(400, CODIGOS_ARQUIVO.invalido, 'O arquivo enviado não é uma foto JPEG.');
-        if (!armazenamento) throw indisponivel();
+        if (!armazenamento) throw erroArmazenamentoIndisponivel();
         const sha256 = createHash('sha256').update(bytes).digest('hex');
         const u = ctx.usuario;
         const r = await ctx.comTenant(async (db) => {
@@ -285,7 +289,7 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
         const visiveis = await ctx.usuariosVisiveis();
         if (visiveis !== 'tenant' && !visiveis.has(linha.enviado_por)) throw naoEncontrado();
       }
-      if (!armazenamento) throw indisponivel();
+      if (!armazenamento) throw erroArmazenamentoIndisponivel();
       // restrito: o navegador e proxies não guardam cópia (a imagem fica só na memória de quem abriu)
       const cache = restrito ? 'private, no-store' : 'private, max-age=86400';
       return { id, ctx, linha, chave: linha.chave_armazenamento, naoEncontrado, armazenamento, cache };
