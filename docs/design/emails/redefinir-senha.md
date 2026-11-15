@@ -159,7 +159,6 @@ As fontes da marca foram carregadas só no momento da captura. No Gmail e no Out
 | modulo-core | `modules/core/api/email.ts`, `usuarios.ts`, `autenticacao.ts`, `equipe-csv.ts` | — | nada muda: `dados.apps` já sai dos perfis |
 
 `apps/api/src/email/mime.ts` não muda: o logo é servido por HTTPS e não vai como anexo (CID).
-`docs/design/ciclo-de-senha.md` §8 passa a apontar para este documento.
 
 ## 8. Pendências antes do lote
 - **design-de-marca:** validar cores e layout (fundo Pérola externo, folha branca, modo escuro em Azul noite com bloco `#3A4D68`, logo no cabeçalho). Pergunta para o Alexandre: a assinatura do manual repete "Macuxi FDV", que o logo já mostra. Proposta: "Boa Vista, RR · macuxifdv.com.br". Fica a do manual até ele decidir.
