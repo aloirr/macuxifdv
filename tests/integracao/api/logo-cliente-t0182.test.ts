@@ -4,8 +4,10 @@
  * API real (`createApp` + Core + 8 módulos), banco efêmero do arquivo (dois-tenants + 0081), pool do `macuxi_app` e do
  * `macuxi_portal`, armazenamento de arquivos em memória (a mesma porta `ArmazenamentoArquivos` da API). Nada das `sa_*` é simulado.
  *  - LC-01  RN-CORE-33: o admin do cliente lê a marca da própria empresa e NÃO grava (PUT/DELETE da logo e PUT da marca = 403,
- *           nada muda no banco nem no armazenamento); outra empresa = 403 também na leitura;
- *  - LC-02  validações no servidor com o banco real: 415, 413 e 422 (formato, altura, lado) com a frase da spec; nada gravado;
+ *           nada muda no banco nem no armazenamento); outra empresa = 403 também na leitura, com frase de acesso (nunca de
+ *           alteração), e a `sa_marca_da_empresa` recusa com 42501 mesmo chamada direto pelo `macuxi_portal`;
+ *  - LC-02  um caso de cada código pela pilha real (`createApp` + banco): SVG (415), 1 MiB + 1 byte (413), altura e lado
+ *           (422) com a frase da spec; nada gravado. As variações de cada código são do unitário (`apps/api/test/empresa-logo.test.ts`);
  *  - LC-03  multi-tenant (critério 5): a logo de A nunca chega a B (`/v1/me/modulos` de B sem `empresa_logo` de A;
  *           `/v1/me/empresa/logo/:sha` de A pela sessão de B = 404, e o de B pela sessão de A = 404); a chave do objeto fica
  *           sob o prefixo do próprio tenant;
@@ -22,7 +24,7 @@ import type { LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { criarArmazenamentoEmMemoria } from '../../../apps/api/src/arquivos';
 import { A, B, comToken, subirApi, type ApiDeTeste } from '../apoio/api';
-import { auditoriaDoPortal, criarSuperAdmin, criarUsuarioNoTenant, sessaoDoPortal } from '../apoio/portal';
+import { auditoriaDoPortal, claimsDe, criarSuperAdmin, criarUsuarioNoTenant, sessaoDoPortal } from '../apoio/portal';
 
 const SEGREDO_PLATAFORMA = 'segredo-de-plataforma-do-agente-testes-t0182-com-folga';
 const ESTADO = estadoBanco();
@@ -49,7 +51,7 @@ const FRASES = {
   LOGO_FORMATO: 'Use um arquivo PNG ou JPG.',
   LOGO_GRANDE_DEMAIS: 'O arquivo passa de 1 MB. Envie um menor.',
   LOGO_ALTURA_MINIMA: 'A imagem tem menos de 200 px de altura. Envie uma maior.',
-  LOGO_LADO_MAXIMO: 'A imagem passa de 4096 px. Envie uma menor.',
+  LOGO_LADO_MAXIMO: 'A imagem passa de 4096 px de largura ou altura. Envie uma menor.',
 } as const;
 type CodigoFrase = keyof typeof FRASES;
 /** Spec §5: "Licenciado para <nome fantasia>"; vazio = razão social. */
@@ -113,11 +115,19 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0182 logo do cliente e nome fanta
       await portal(tokenAdminA, 'PUT', `/v1/plataforma/empresas/${A.tenantId}/marca`, { json: { nome_fantasia: 'Fantasia Indevida' } }),
     ];
     expect(tentativas.map((r) => [r.statusCode, codigo(r)])).toEqual(Array(4).fill([403, 'PERFIL_SEM_ACESSO']));
-    for (const metodo of ['GET', 'PUT'] as const) {
-      const r = await portal(tokenAdminA, metodo, `/v1/plataforma/empresas/${B.tenantId}/marca`, metodo === 'PUT' ? { json: { nome_fantasia: 'X' } } : undefined);
-      expect(r.statusCode, `${metodo} marca de B`).toBe(403);
+    expect((await portal(tokenAdminA, 'PUT', `/v1/plataforma/empresas/${B.tenantId}/marca`, { json: { nome_fantasia: 'X' } })).statusCode).toBe(403);
+    // LER a marca de outra empresa: 403 com frase de ACESSO (é leitura: nunca "altera"; revisão do gerente-projetos)
+    for (const rota of ['marca', 'logo']) {
+      const r = await portal(tokenAdminA, 'GET', `/v1/plataforma/empresas/${B.tenantId}/${rota}`);
+      expect(r.statusCode, `GET ${rota} de B`).toBe(403);
+      const { codigo: c, mensagem } = r.json() as { codigo?: string; mensagem?: string };
+      expect(c).toBe('PERFIL_SEM_ACESSO');
+      expect(mensagem, `GET ${rota} de B`).toMatch(/^Você só vê .+ da sua empresa\.$/);
+      expect(mensagem).not.toMatch(/alter/i);
     }
-    expect((await portal(tokenAdminA, 'GET', `/v1/plataforma/empresas/${B.tenantId}/logo`)).statusCode).toBe(403);
+    // a função do banco também recusa (defesa em profundidade): admin do cliente lendo B direto pelo macuxi_portal = 42501
+    const sid = String(claimsDe(tokenAdminA).sid);
+    await expect(api.poolPortal!.query('select plataforma.sa_marca_da_empresa($1, $2)', [sid, B.tenantId])).rejects.toMatchObject({ code: '42501' });
     const a = await linhaTenant(A.tenantId);
     expect([a.nome_fantasia, a.logo_sha256]).toEqual([null, null]);
     expect(arquivos.chaves()).toEqual([]);
@@ -127,9 +137,8 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0182 logo do cliente e nome fanta
   });
 
   it.each([
-    ['Content-Type fora de PNG/JPEG (webp)', png(600, 200), 'image/webp', 415, 'LOGO_FORMATO'],
+    // RD-0706: um caso de cada código; webp, JSON, assinatura trocada e corpo vazio ficam no unitário
     ['SVG', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'), 'image/svg+xml', 415, 'LOGO_FORMATO'],
-    ['assinatura PNG declarada como JPEG', png(600, 200), 'image/jpeg', 422, 'LOGO_FORMATO'],
     ['acima de 1 MiB (1 byte a mais)', png(600, 200, LIMITE_BYTES - 32), 'image/png', 413, 'LOGO_GRANDE_DEMAIS'],
     ['199 px de altura', png(800, 199), 'image/png', 422, 'LOGO_ALTURA_MINIMA'],
     ['4097 px de largura', png(4097, 300), 'image/png', 422, 'LOGO_LADO_MAXIMO'],
