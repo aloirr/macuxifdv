@@ -118,3 +118,4 @@
 2026-11-14 — R-20261114-141500 — Dialog e Drawer do kit: Tab preso dentro do popup, foco inicial no Drawer; prints em 4 larguras em docs/design/prints-popups-2026-11-14
 2026-11-15 — R-20261114-223000 — simulação da logo do cliente (portal, carga, login, PDF, Mais)
 2026-11-15 — R-20261114-223000 — logo do cliente: placa única 52/36 no login e no Mais (MC-0067); carga com logo em variações A (ao lado, placa 64/48, filete a 24 dp) e B (abaixo), Campo e Gestão (MC-0066), para a decisão do dono do produto; carga-login.html dividido em carga.html e login.html
+2026-11-15 — RD-0440 — logo do cliente: decisão A/B da carga só no §3; §8.1 reduzido à escolha e à regra da placa única (sem a história da primeira versão)

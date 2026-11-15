@@ -99,7 +99,7 @@ código. Cada imagem mostra a tela sem logo (igual nas duas variações) e a tel
 | **Gestão** | ![Gestão A](logo-cliente/carga-gestao-a.png) `carga-gestao-a.png` | ![Gestão B](logo-cliente/carga-gestao-b.png) `carga-gestao-b.png` |
 | Logo Macuxi (empilhado) | 124 dp de largura (~115 dp de altura) | 170 dp, o mesmo da tela sem logo |
 | Placa da carga | 64 dp de altura, até 112 dp de largura; logo de 48 × até 96 dp | a mesma placa |
-| Posição | na mesma linha, centralizada, depois de um filete de 1 × 64 dp com 24 dp de cada lado (a altura do "M"): `#3A4D68` no Campo e `#DFE2E6` no Gestão. Largura total: 124 + 24 + 1 + 24 + 112 = 285 dp, dentro dos 312 úteis | no centro, 36 dp abaixo do logo Macuxi (o "M" mede ~33 dp a 170), entre o logo e o "Olá" |
+| Posição | na mesma linha, centralizada, depois de um filete de 1 × 64 dp com 24 dp de cada lado (a altura do "M", fora da área de proteção): `#3A4D68` no Campo e `#DFE2E6` no Gestão. Largura total: 124 + 24 + 1 + 24 + 112 = 285 dp, dentro dos 312 úteis | no centro, 36 dp abaixo do logo Macuxi (o "M" mede ~33 dp a 170), entre o logo e o "Olá" |
 | Leitura | atende ao "ao lado" do pedido; a Macuxi segue maior (115 contra 64 dp de altura) | hierarquia mais clara, mas foge do "ao lado" |
 | Passagem da splash | o logo Macuxi reduz de 170 para 124 dp e desliza para a esquerda; o filete e a placa entram com esmaecer; 240 ms | o logo Macuxi fica parado; a placa entra com esmaecer, 240 ms |
 
@@ -193,12 +193,7 @@ Simulações geradas do próprio `buildOrderPdfHtml` (versão do cliente):
 
 ## 8. Premissas e pontos para o dono do produto e o design-de-marca
 
-1. **Decisão pendente do dono do produto: A ou B** na carga com logo (§3, MC-0066). O manual (§2.4) proíbe o logo
-   Macuxi no mesmo nível do logo da distribuidora, e a primeira versão (placa de 84 dp e filete a 22 dp) foi segurada pelo
-   design-de-marca. A variação A mantém o "ao lado" pedido, com a placa de 64 dp e o filete a 24 dp (fora da área de
-   proteção); a B põe a mesma placa abaixo do logo Macuxi. O design-de-marca recomenda a A. A regra nova (placa branca
-   única de 52/36, sempre menor que o logo Macuxi da tela e fora da área de proteção) só entra no manual com o "aprovo"
-   do dono do produto.
+1. **Carga com logo: escolher A ou B** (§3, MC-0066). A regra da placa branca única (52/36, sempre menor que o logo Macuxi da tela e fora da área de proteção) só entra no manual com o "aprovo" do dono do produto.
 2. **No login**, a logo fica no formulário e não na faixa (§4). É uma leitura de "no login do app" que respeita o manual e a
    largura da tela.
 3. **Limites** (PNG/JPG, 1 MB, 200 px de altura): são uma proposta minha. O engenheiro-software pode ajustá-los no
