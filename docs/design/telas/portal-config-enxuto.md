@@ -207,11 +207,11 @@ Fica como está: selo **"sempre"** em Core e em Integração com o ERP. **Pergun
    - Licenças: de `licencas` (vendedor, gestor, bko), singular com 1 ("1 gestor"), "BKO" invariável; tipo com 0 não aparece (o `promotor` é 0 em todos os planos); `null` = "{tipo} sem limite".
    - **Decisão (selo "2 meses grátis"):** fica **só no alternador "Anual"** do cartão Ciclo, visível nos dois ciclos; no Anual, o cartão do plano mostra só **"R$ 6.100,00/ano"**. O pedido previa o selo também no cartão; com o do alternador seriam 5 selos iguais na mesma tela (uma informação, um lugar).
 2. **"Adicionais"**: três caixas, cada uma com caixa de marcar + **ícone do módulo** + **nome** (Archivo 700, Azul noite) + preço, **o mesmo em todos os planos** (ícone e nome pelo mapa único do §11.10):
-   - **"Promotor Avulso · R$ 80,00 por licença/mês"**;
+   - **"Promotor · R$ 80,00 por licença avulsa/mês"**;
    - **"Pesquisa · R$ 10,00 por usuário/mês"**;
    - **"Treinamento · R$ 10,00 por usuário/mês"**.
    - **O preço segue o ciclo** (ajustado pelo P5 do corretor): no Anual, **"R$ 800,00 por licença/ano"** e **"R$ 100,00 por usuário/ano"** (`valorDaAssinatura(plano, [{ adicional, quantidade: 1 }], ciclo)`, a parcela do adicional; nunca constante na tela).
-   - Marcada, a caixa mostra o campo **"Quantidade"** (inteiro, mínimo 1, padrão 1, máximo 100.000): no Promotor Avulso são as licenças; na Pesquisa e no Treinamento, os usuários com o módulo liberado (o contrato pede `quantidade` nos três: `AdicionalContratadoSchema`, RN-PLA-03; ver §11.9). Vazio ou 0: **"Informe a quantidade."** `aria-label` **"Quantidade de {adicional}"**.
+   - Marcada, a caixa mostra o campo **"Quantidade"** (inteiro, mínimo 1, padrão 1, máximo 100.000): no Promotor são as licenças; na Pesquisa e no Treinamento, os usuários com o módulo liberado (o contrato pede `quantidade` nos três: `AdicionalContratadoSchema`, RN-PLA-03; ver §11.9). Vazio ou 0: **"Informe a quantidade."** `aria-label` **"Quantidade de {adicional}"**.
    - Preço: `plano.adicionais[].preco_unitario_centavos`. Nenhum plano inclui adicional (`incluidos` = 0), então os três aparecem em todos; adicional que o plano não vende (fora de `plano.adicionais`) não aparece.
 3. **"Ciclo"**: alternador **Mensal / Anual** (padrão **Mensal**); no Anual, selo curto **"2 meses grátis"** (de `meses_gratis_anual`). Ao lado, a caixa **"Começar com 14 dias de teste"** (de `dias_teste`; vai em `com_teste`), **desmarcada por padrão**.
    - **Decidido em 14/11 (dono do produto):** a caixa começa **desmarcada**; quem vai começar em teste marca com um toque.
@@ -224,14 +224,14 @@ Envio: `POST ROTA_PORTAL_EMPRESA_COM_PLANO` (`CriarEmpresaComPlanoSchema`) com `
 
 Sucesso, como no §4: **"Empresa criada. Código da empresa: AM4821."** Erro geral: **"Confira os campos marcados."**
 
-| Depois — Nova empresa (CNPJ preenchido, PME, Promotor Avulso 3 e Pesquisa 10, total) | Depois — estados do campo CNPJ |
+| Depois — Nova empresa (CNPJ preenchido, PME, Promotor 3 e Pesquisa 10, total) | Depois — estados do campo CNPJ |
 |---|---|
 | ![Nova empresa com planos](portal-config-enxuto/depois-03b-nova-empresa.png) | ![Estados do CNPJ](portal-config-enxuto/depois-03c-cnpj-estados.png) |
 
 ### 11.4 Aba Empresa: cartão "Plano" e diálogo "Trocar de plano"
 Coluna esquerda da aba (§8). Dados da ficha: `GET rotaPortalAssinatura(tenantId)` (`FichaAssinaturaSchema`).
 - **Título "Plano {nome}"** (ex.: **"Plano PME"**) e, à direita, **"Trocar de plano"** (principal: a única ação principal da aba; só super-admin). Embaixo do título, uma linha: valor **"R$ 1.537,00/mês"** (ou **"R$ 15.370,00/ano"**; `valor.por_ciclo_centavos`; o "/mês" ou "/ano" já diz o ciclo, P4) + selo de alerta **"Teste até 27/11/2026"** se `teste_ate` e não `paga` (data no fuso do tenant, `fimDoTeste`).
-- **Licenças em blocos** (`licencas[]`): um bloco por item, com o nome em cima e **"{em uso} de {contratadas}"** embaixo (número em Archivo 700). **Vendedor**, **Gestor** e **BKO** sempre; **Promotor Avulso**, **Pesquisa** e **Treinamento** (ícone + nome do §11.10) só quando contratados. `contratadas` = `null`: **"{em uso} · sem limite"**. Em uso = contratadas: só o selo de alerta **"no limite"** ao lado do número; borda e número seguem iguais aos demais blocos (RD-a: uma informação, um sinal). Grade: 3 por linha na coluna do super-admin; 5 por linha (até 6) na largura toda do admin do cliente; 2 por linha abaixo de 768 px.
+- **Licenças em blocos** (`licencas[]`): um bloco por item, com o nome em cima e **"{em uso} de {contratadas}"** embaixo (número em Archivo 700). **Vendedor**, **Gestor** e **BKO** sempre; **Promotor**, **Pesquisa** e **Treinamento** (ícone + nome do §11.10) só quando contratados. `contratadas` = `null`: **"{em uso} · sem limite"**. Em uso = contratadas: só o selo de alerta **"no limite"** ao lado do número; borda e número seguem iguais aos demais blocos (RD-a: uma informação, um sinal). Grade: 3 por linha na coluna do super-admin; 5 por linha (até 6) na largura toda do admin do cliente; 2 por linha abaixo de 768 px.
 - **Admin do cliente** (decidido em 14/11): só vê; o valor e o selo do teste ficam na linha do título, sem "Trocar de plano" (o `PUT` é só do super-admin); sem o cartão Administradores. Simulação: `depois-06c-aba-empresa-cliente.png`.
 
 **Diálogo "Trocar de plano"** (`depois-06d-trocar-plano.png`; 880 px no desktop, folha de tela cheia abaixo de 768 px, planos 2 × 2):
@@ -252,12 +252,12 @@ Tabela **Empresa · Código · CNPJ · Plano · Situação · Criada em**. A col
 2. ~~**Admin do cliente:** pode trocar de plano?~~ **Decidido em 14/11:** o admin do cliente **só vê** o plano, sem "Trocar de plano" (§11.4).
 3. ~~**CNPJ não ativo:** só alerta?~~ **Decidido em 14/11:** CNPJ inválido ou não ativo **não cria empresa**; o "Criar empresa" fica bloqueado (§11.2).
 4. ~~**Integração com o ERP** (§10.3): todo plano inclui?~~ **Respondida: sim.** Todos os planos incluem Core, Catálogo, Vendedor, Gestor e Integração com o ERP (pela ponte, 14/11; no contrato, `core` e `integracao` entram sempre, `modulosDaAssinatura`).
-5. ~~**Tabela dos planos** (preço por ciclo, licenças por tipo, preço dos adicionais, se Promotor avulso é por licença): não chegou a esta sessão.~~ **Respondida:** tabela no §11.3; Promotor Avulso é por licença; tipos de licença: vendedor, gestor, BKO e Promotor Avulso.
+5. ~~**Tabela dos planos** (preço por ciclo, licenças por tipo, preço dos adicionais, se o Promotor é por licença): não chegou a esta sessão.~~ **Respondida:** tabela no §11.3; o Promotor é por licença; tipos de licença: vendedor, gestor, BKO e Promotor.
 6. ~~**Equipe por CSV** (§10.5): sai mesmo do portal?~~ **Respondida: sim** (§12).
 
 ### 11.8 Para o engenheiro-apps
-- **testIDs (alinhados ao `planos.ts`):** `empresa.cnpj` (com `data-estado` = `vazio|buscando|encontrado|invalido|nao-encontrado|receita-fora|nao-ativa`), `empresa.cnpj-tentar`, `empresa.nome-fantasia`, `empresa.endereco`, `empresa.municipio`, `empresa.telefone`, `empresa.email`, `empresa.cnae`, `empresa.plano-<codigo>` (`light|pme|enterprise|corporate`, o `codigo` do catálogo), `empresa.adicional-<adicional>` (`promotor|pesquisa|treinamento`, os valores de `ADICIONAIS`; antes `promotor-avulso`), `empresa.adicional-<adicional>-qtd` (antes só `empresa.adicional-promotor-avulso-qtd`), `empresa.ciclo-<mensal|anual>` (`CICLOS`), `empresa.teste` (`com_teste`), `empresa.total`; na aba Empresa `empresa-plano.cartao`, `empresa-plano.nome`, `empresa-plano.teste-ate`, `empresa-plano.valor`, `empresa-plano.uso-<item>` (`vendedor|gestor|bko|promotor|pesquisa|treinamento`, os valores de `ITENS_CONTADOS`), `empresa-plano.trocar`, `empresa-plano.dialogo`, `empresa-plano.confirmar`, `empresa-plano.cancelar`, `empresa-plano.erro`, `empresa-plano.total`.
-- **Rótulos na tela por item:** `vendedor` = "Vendedor", `gestor` = "Gestor", `bko` = "BKO", `promotor` = "Promotor Avulso", `pesquisa` = "Pesquisa", `treinamento` = "Treinamento" — os três adicionais pelo mapa `ADICIONAIS_DO_PLANO` de `@macuxi/ui/web` (§11.10), nunca rótulo solto na tela.
+- **testIDs (alinhados ao `planos.ts`):** `empresa.cnpj` (com `data-estado` = `vazio|buscando|encontrado|invalido|nao-encontrado|receita-fora|nao-ativa`), `empresa.cnpj-tentar`, `empresa.nome-fantasia`, `empresa.endereco`, `empresa.municipio`, `empresa.telefone`, `empresa.email`, `empresa.cnae`, `empresa.plano-<codigo>` (`light|pme|enterprise|corporate`, o `codigo` do catálogo), `empresa.adicional-<adicional>` (`promotor|pesquisa|treinamento`, os valores de `ADICIONAIS`), `empresa.adicional-<adicional>-qtd`, `empresa.ciclo-<mensal|anual>` (`CICLOS`), `empresa.teste` (`com_teste`), `empresa.total`; na aba Empresa `empresa-plano.cartao`, `empresa-plano.nome`, `empresa-plano.teste-ate`, `empresa-plano.valor`, `empresa-plano.uso-<item>` (`vendedor|gestor|bko|promotor|pesquisa|treinamento`, os valores de `ITENS_CONTADOS`), `empresa-plano.trocar`, `empresa-plano.dialogo`, `empresa-plano.confirmar`, `empresa-plano.cancelar`, `empresa-plano.erro`, `empresa-plano.total`.
+- **Rótulos na tela por item:** `vendedor` = "Vendedor", `gestor` = "Gestor", `bko` = "BKO", `promotor`, `pesquisa` e `treinamento`: nome e ícone do mapa único (§11.10); nunca rótulo solto na tela.
 - **Saem:** `empresa.situacao` (o campo Situação) e `empresa-plano.ciclo` (o selo Mensal/Anual).
 - **Saem:** os testIDs e o código do cartão "Módulos e licenças" no Criar empresa e na aba Empresa (`empresa.modulo-*`, `empresa.licencas-*`, `empresa.acrescentar-modulos` ou equivalentes) e `ROTULO_MODULO` no portal, se não for usado em outro lugar (confirmar com o corretor-redundancias).
 - O seletor de planos é **um componente só**, usado no Criar empresa e no "Trocar de plano" (prop `atual`).
@@ -268,19 +268,19 @@ Os números batem: Light 10 × 50 + 1 × 70 + 1 × 40 = R$ 610,00; PME (1.000 + 
 
 | Ponto | Tabela da ponte | Contrato | A spec segue |
 |---|---|---|---|
-| Quantidade dos adicionais | só o Promotor avulso tem "Quantidade" | `AdicionalContratadoSchema.quantidade` (≥ 1) nos três; Pesquisa e Treinamento contam usuários liberados (RN-PLA-03) e a trava usa esse número | campo **Quantidade** nos três (§11.3, 2) |
+| Quantidade dos adicionais | só o Promotor tem "Quantidade" | `AdicionalContratadoSchema.quantidade` (≥ 1) nos três; Pesquisa e Treinamento contam usuários liberados (RN-PLA-03) e a trava usa esse número | campo **Quantidade** nos três (§11.3, 2) |
 | Desconto por licença (−5%, −10%, −15%) | coluna própria | não existe campo: só `preco_mensal_centavos`, já com o desconto | a tela não mostra o desconto |
 | Preço anual | coluna própria | calculado: mensal × (12 − `meses_gratis_anual`), `valorDaAssinatura` | a tela calcula; não há campo |
-| Código do adicional | "Promotor avulso" | `promotor` | rótulo "Promotor Avulso", id `promotor` |
+| Código do adicional | só o nome | id `promotor` | nome e ícone pelo mapa único (§11.10) |
 | Código dos planos | só o nome | `codigo` do catálogo (seed do banco-dados) | `light`, `pme`, `enterprise`, `corporate` (premissa; confirmar no seed) |
-| Ficha | vendedor, gestor, BKO, promotor avulso | 6 itens (`ITENS_CONTADOS`), com Pesquisa e Treinamento | 3 linhas sempre + as dos adicionais contratados (§11.4) |
+| Ficha | vendedor, gestor, BKO, promotor | 6 itens (`ITENS_CONTADOS`), com Pesquisa e Treinamento | 3 linhas sempre + as dos adicionais contratados (§11.4) |
 | Teste | — | `dias_teste` (14) e `com_teste`; fim = hoje + 14 − 1 | "Teste até 27/11/2026" (antes 28/11 na simulação) |
 | Licença de promotor no plano / adicional incluso | "nenhum plano inclui" | `licencas.promotor` e `adicionais[].incluidos` existem | seed com 0 nos dois (banco-dados) |
 
 ### 11.10 Nome e ícone dos módulos adicionais (MC-0042)
 Pedido do dono do produto (14/11): "Deixe mais bonito os nomes do módulo com a letra maiúscula, talvez um ícone, tanto no config quanto no BKO. VALORIZE-OS."
-- **Mapa único** em `packages/ui/src/web/adicionais.tsx` (exportado por `@macuxi/ui/web`): `ADICIONAIS_DO_PLANO` (id do contrato → nome → ícone), `nomeDoAdicional(id)` e `iconeDoAdicional(id)`. Ids = `ADICIONAIS` de `planos.ts`: `promotor` → **"Promotor Avulso"** (`IconPromotor`, gôndola com produtos), `pesquisa` → **"Pesquisa"** (`IconPesquisa`, prancheta com respostas), `treinamento` → **"Treinamento"** (`IconTreinamento`, capelo).
-- Ícones em `icons.tsx`: traço único de 2 px, grade 24 × 24, sem preenchimento, cor herdada (Azul noite `#1E3350`); sem laranja, sem cor de situação, sem grafismo. Tamanho na tela: **22 px** (legível de 20 a 24 px).
+- **Mapa único:** nome e ícone vêm de `modulos.tsx` (bko-revisao §P10, decisão e da §P13), pelos ids de `ADICIONAIS` (`planos.ts`).
+- Ícones em `icons.tsx`: traço único de 1,9, grade 24 × 24, sem preenchimento, cor herdada (Azul noite `#1E3350`); sem laranja, sem cor de situação, sem grafismo. Tamanho na tela: **22 px** (legível de 20 a 24 px).
 - **Onde aparecem:** na caixa do adicional (Criar empresa) e na linha do adicional (diálogo "Trocar de plano"), entre a caixa de marcar e o nome; no bloco de licenças da aba Empresa, antes do nome. O nome vai em Archivo 700, Azul noite. No BKO, onde o módulo adicional aparecer pelo nome (licenças, perfis, menus), usar o mesmo mapa.
 - Prancha para a marca conferir: `portal-config-enxuto/prancha-icones-adicionais.png` (48, 24 e 20 px, na caixa e na linha da tabela).
 
@@ -428,7 +428,7 @@ Conta das frases: 59 (placares anteriores, §14) + 3 frases curtas que ficavam n
 ## 14. Histórico
 - **§6 Aba Bases** (cartões de base em uma linha, Equipe = 1, estados da carga por CSV) e **§7 Aba Integração em uma coluna**: revogados pelo §10 e pelo §12 (o CSV sai do portal) e retirados da spec em 14/11; o texto está no histórico do git (commit `8fa541e`).
 - **Placares antigos** (§Placar, §10.4, §11.6): substituídos pelo §13.3, o único.
-- **§11.4, linha "Adicionais: Promotor avulso · Pesquisa"** embaixo da tabela: saiu (repetia as linhas da tabela). **Texto antigo da troca abaixo do uso** ("{Plano} tem {n} licenças de {tipo}; {m} em uso. Desative {m−n} antes de trocar."): trocado pelo do contrato.
+- **§11.4, linha "Adicionais: Promotor · Pesquisa"** embaixo da tabela: saiu (repetia as linhas da tabela). **Texto antigo da troca abaixo do uso** ("{Plano} tem {n} licenças de {tipo}; {m} em uso. Desative {m−n} antes de trocar."): trocado pelo do contrato.
 - **§11, aviso da tabela dos planos** ("A tabela dos planos (preço e licenças) não chegou a esta sessão", com os marcadores `{preço}` e `{licenças}`) e o "Fechamento (14/11)" que o respondia: saíram; a tabela chegou pelo R-20261114-132600 e a conferência com `planos.ts` e a ADR 0046 está no §11.9.
 - **Simulações de registro** `depois-03-nova-empresa`, `depois-04-bases`, `depois-05-integracao`, `depois-06-aba-empresa`: apagadas (MC-0036); no git até o commit `8fa541e`.
 - **§8 e §11.4 da manhã de 14/11** (aba Empresa com o título "Plano" + linha do nome, tabela Licenças · Em uso · Contratadas com "2 · no limite", seletor "Trocar de plano" aberto no lugar do cartão, cartões em uma coluna; antes disso, o cartão "Módulos e licenças" + "Acrescentar módulos" com os resultados "Módulos acrescentados: Catálogo."/"Nada mudou."): substituídos pela refação do R-20261114-170200 (§8, tabela antes × depois); no git até `9b4dd17`.
