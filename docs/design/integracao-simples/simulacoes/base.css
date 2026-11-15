@@ -14,6 +14,7 @@ body{margin:0;width:1366px;height:768px;overflow:hidden;background:var(--ground)
 nav{width:240px;flex:none;background:var(--ink);color:#fff;padding:14px 12px;display:flex;flex-direction:column;gap:2px}
 nav .marca{padding:6px 10px 14px}
 nav .marca img{display:block;height:28px;width:auto}
+nav .marca .empresa{display:block;margin-top:18px;font-size:12px;line-height:16px;color:#C9CED5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 nav .g{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--navGrupo);padding:14px 10px 6px}
 nav .i{color:var(--navText);font-size:14px;padding:9px 10px;border-radius:8px}
 nav .i.on{background:var(--navActive);color:#fff;font-weight:600;box-shadow:inset 3px 0 0 var(--navGrupo)}
