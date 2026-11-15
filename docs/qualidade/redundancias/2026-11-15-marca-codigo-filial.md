@@ -52,3 +52,33 @@
 ## 5. Encaminhado ao testes (fora do escopo, não catalogado)
 
 Nenhum defeito funcional encontrado. A falta de `vendedor_sem_filial` no `ROTULO_AVISO_LINHA` não tem efeito na tela, porque o mapa não é usado (RD-0532).
+
+## 6. Reteste (15/11/2026, tarde)
+
+Heads: `nuvem/marca-codigo-modulo-integracao` 46876619, `nuvem/referencia-cruzada-modulo-integracao` 759a0799 e `nuvem/marca-codigo-banco-dados` 00e050dc.
+
+**Resultado: COM ACHADO.** Os 5 achados da rodada foram corrigidos, mas a correção trouxe 3 achados novos (RD-0536 a RD-0538), e todos seguram o lote.
+
+### 6.1 Reteste
+
+| RD | Evidência | Status |
+|---|---|---|
+| RD-0531 | Existe uma lista só, `ORDEM_CARGA_ENTIDADES` (`modules/integracao/contracts/entidades.ts:32`). O `ORDEM_PORTAL` (`domain/portal-carga.ts:12`) e o `ORDEM_CARGA` do Conector (`apps/conector/src/config/entidades.ts:9`) apontam para ela. O teste `domain/ordem.test.ts:43-51` confere a lista contra `DEPENDENCIAS`. Do lado do banco, `db/testes/views-modelo-conector.test.ts:16` importa a constante, o regex saiu e as views foram renumeradas de 1 a 16 na ordem do contrato. O `ENTIDADES_PILOTO` e o erp-via-api foram reordenados do mesmo jeito. | **corrigido** |
+| RD-0532 | `ROTULO_AVISO_LINHA` foi apagado de `web/lib/apresentacao.ts`. Nenhuma referência sobrou no repositório (`git grep` = 0). | **corrigido** |
+| RD-0533 | `domain/vendedor-filial.ts:12`: "Vendedor sem filial: bloqueado até informar a filial (na carga ou no Backoffice)." | **corrigido** |
+| RD-0534 | O cabeçalho do `views-modelo.sql:9` aponta para `ORDEM_CARGA_ENTIDADES`, sem a lista em prosa. A regra "filial antes do vendedor" fica só no comentário da coluna (`:127`). | **corrigido** |
+| RD-0535 | `vendedor-filial.test.ts:2` agora tem um import só. `kit-thathyany.test.ts:291-294` tem um `it` só, com laço sobre as 4 colunas. | **corrigido** |
+
+### 6.2 Achados novos
+
+| RD | Grav. | Dono | Onde | O que se repete | Proposta (antes → depois) |
+|---|---|---|---|---|---|
+| RD-0536 | alta | modulo-integracao | `docs/modulos/integracao/conector.md:432` | O doc diz "A ordem de carga do Conector põe `filial` logo depois de `vendedor`.", o contrário da lista única nova e do `guia-api-hub.md:79` (filial, vendedor, …). A mesma regra está em dois docs com textos que se contradizem. | Antes: "A ordem de carga do Conector põe `filial` logo depois de `vendedor`." Depois: a frase sai. A ordem é a de `ORDEM_CARGA_ENTIDADES`, e o `:419` já remete a ela. |
+| RD-0537 | baixa (teste; segura, precedente RD-0233) | modulo-integracao | `apps/conector/test/ordem-carga.test.ts:5-16`; `domain/ordem.test.ts:43-51` × `domain/modelos-csv.test.ts:103-111` | Com a lista única, há 3 testes conferindo a mesma constante. O `ordem.test.ts:43-51` (conjunto, dependências antes, `slice(0, 2)`) repete o `modelos-csv.test.ts:103-111`. Os 2 `it` do Conector conferem pares soltos da mesma lista, que é `ORDEM_CARGA` por apelido. | Deixar a conferência completa só no `ordem.test.ts:43-51`, ao lado de `DEPENDENCIAS`. No `modelos-csv.test.ts:103-111`, ficar só `expect([...ENTIDADES_ORDEM_CARGA]).toEqual([...ORDEM_CARGA_ENTIDADES])` e a parte de `RESUMO_MODELOS`, opcional e `depende_de`. No Conector, trocar os 2 `it` por `expect(ORDEM_CARGA).toBe(ORDEM_CARGA_ENTIDADES)`. |
+| RD-0538 | baixa (teste; segura, precedente RD-0233) | banco-dados | `db/testes/views-modelo-conector.test.ts:178` e `:182-188` | (a) `expect([...ordem].sort()).toEqual([...ENTIDADES].sort())` (`:178`) confere a constante do contrato, o que o `ordem.test.ts` já faz, e também é implicado pelas linhas `:176` e `:179`. (b) O `it` "a ordem respeita as dependências da T-0089" (`:182-188`) confere 4 pares das views, que já são iguais à lista (`:179`) conferida contra `DEPENDENCIAS` no `ordem.test.ts:43-51`. | Ficam as linhas `:174-176` e `:179`. Saem a linha `:178` e o `it` das linhas `:182-188`. |
+
+### 6.3 Sem redundância nova
+
+- O apelido `ORDEM_PORTAL` (local, `portal-carga.ts:12`) e o apelido `ORDEM_CARGA` do Conector, que é usado em 6 arquivos, ficam: só dão nome local à lista única, sem segunda cópia (`manter`).
+- `docs/banco/integracao.md:421` ("1b, logo depois do vendedor") faz parte do registro histórico da 0056, então fica como está.
+- Ordem de merge, para o gerente: o teste do banco (`views-modelo-conector.test.ts:16`) importa `ORDEM_CARGA_ENTIDADES`, que só existe no branch do modulo-integracao. Por isso o PR do banco-dados entra depois dele.
