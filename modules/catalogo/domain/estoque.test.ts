@@ -43,9 +43,16 @@ describe('RF-CAT-03 / RN-VEN-20: estoque visível por filial/depósito do usuár
     expect(r.by_branch.map((b) => [b.branch_id, b.band])).toEqual([['f1', 'sem_estoque'], ['f2', 'baixo']]);
   });
 
-  it('RF-CAT-03: saldo negativo do ERP conta como zero na soma', () => {
-    expect(ver([saldo('f1', -3), saldo('f2', 8)], null)).toMatchObject({ quantity: 8 });
-    expect(ver([saldo('f1', -3)], null)).toMatchObject({ quantity: 0, band: 'sem_estoque' });
+  it('catalogo-campo-v2 §2.1: saldo negativo do ERP aparece com o sinal (a faixa é "sem estoque") e entra na soma', () => {
+    expect(ver([saldo('f1', -3), saldo('f2', 8)], null)).toMatchObject({ quantity: 5, band: 'baixo' });
+    expect(ver([saldo('f1', -3)], null)).toMatchObject({ quantity: -3, band: 'sem_estoque' });
+    expect(ver([saldo('f1', -3)], null).by_branch[0]).toMatchObject({ quantity: -3, band: 'sem_estoque' });
+  });
+
+  it('catalogo-campo-v2 §3 e §4: o total soma só as filiais do N; a folha lista as filiais da folha (o vendedor vê todas)', () => {
+    const r = estoqueVisivel('p1', [saldo('f1', 5), saldo('f2', 7)], { filiais: ['f1'], filiaisFolha: null, agora: '2026-11-01T12:00:00Z', parametros: resolverParametros({}) });
+    expect(r.quantity).toBe(5);
+    expect(r.by_branch.map((b) => [b.branch_id, b.quantity])).toEqual([['f1', 5], ['f2', 7]]);
   });
 
   it('RF-CAT-03: linhas repetidas da mesma filial somam', () => {

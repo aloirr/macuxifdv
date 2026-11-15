@@ -4,7 +4,7 @@
  * depósitos e nos itens de preço (sem FK, fronteira de schema).
  */
 import type { ClienteBanco, ContextoConsulta, TransacaoTenant } from '@macuxi/platform-sdk';
-import { CONSULTA_FILIAIS, type Filial } from '@macuxi/core/contracts';
+import { CONSULTA_FILIAIS, CONSULTA_FILIAIS_DO_USUARIO, type Filial } from '@macuxi/core/contracts';
 import { filialDoPreco, type FilialDoPreco } from '../domain/preco-filial';
 
 type Consultar = TransacaoTenant['consultar'];
@@ -46,6 +46,29 @@ export interface FiliaisDaCarteira {
 export async function filiaisDaCarteiraNoCore(consultar: Consultar): Promise<FiliaisDaCarteira> {
   const r = await consultar(CONSULTA_FILIAIS, { cliente_ids: [], external_ids: [], escopo: 'carteira' });
   return { filialPadrao: r.padrao_id, daCarteira: r.da_carteira === null ? null : [...r.da_carteira].sort(), filiais: new Map(r.filiais.map((f) => [f.id, f])) };
+}
+
+/** Filiais do usuário como o Catálogo as usa: SÓ as de venda e o bloqueio (RN-CORE-39); a de cadastro nunca é lida aqui. */
+export interface FiliaisDeVendaDoUsuario {
+  filiaisVenda: string[];
+  semFilial: boolean;
+}
+
+/**
+ * ADAPTADOR (único lugar da API que lê a saída de `core.filiais_do_usuario@1`): o contrato do Core está em proposta e o nome pode mudar.
+ * Hoje `{ filial_cadastro_id, filial_venda_ids, sem_filial }`; aceita também o `filial_ids` anterior (df8cf17) enquanto o Core não migra.
+ * Sem lista = sem filial (nunca devolve filial que o contrato não deu).
+ */
+export function lerFiliaisDeVenda(saida: unknown): FiliaisDeVendaDoUsuario {
+  const o = (saida ?? {}) as { filial_venda_ids?: unknown; filial_ids?: unknown; sem_filial?: unknown };
+  const lista = Array.isArray(o.filial_venda_ids) ? o.filial_venda_ids : Array.isArray(o.filial_ids) ? o.filial_ids : [];
+  const ids = [...new Set(lista.filter((x): x is string => typeof x === 'string'))].sort();
+  return { filiaisVenda: ids, semFilial: o.sem_filial === true || ids.length === 0 };
+}
+
+/** Filiais de venda vivas do próprio usuário (`core.filiais_do_usuario@1`, T-0176, RN-CORE-39). */
+export async function filiaisDeVendaDoProprioUsuario(consultar: Consultar, usuarioId: string): Promise<FiliaisDeVendaDoUsuario> {
+  return lerFiliaisDeVenda(await consultar(CONSULTA_FILIAIS_DO_USUARIO, { usuario_id: usuarioId }));
 }
 
 /** Nome da filial no estoque (`branch_name`): "Boa Vista"; filial desconhecida cai no código curto do id. */

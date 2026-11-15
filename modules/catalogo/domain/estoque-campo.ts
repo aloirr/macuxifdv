@@ -1,0 +1,121 @@
+/**
+ * Estoque do Campo v2 (docs/design/catalogo-campo-v2/spec.md §2.1, §3 e §4; RN-CAT-05 revista, RN-CORE-39). Funções puras: valor de N
+ * por perfil e filtro, quem vê quais filiais, texto e cor do "Estoque: N" e as linhas da folha "Estoque por filial".
+ * O promotor VÊ o estoque (só o preço segue `promotor_ve_preco_estoque`); todo perfil vê só as filiais de VENDA dele (`filial_venda_ids`).
+ */
+import type { Perfil } from '@macuxi/platform-sdk';
+import type { FaixaEstoque } from '../contracts';
+
+/** Filtro de filial escolhido na tela: `null` = o padrão do perfil; `'todas'` = "Todas as filiais"; senão o id da filial. */
+export type FiltroFilial = string | 'todas' | null;
+
+const SO_SUAS_FILIAIS: readonly Perfil[] = ['promotor', 'supervisor', 'gerente'];
+
+/** Perfis cujo pull de estoque já vem restrito às filiais do usuário (sync da v4, inalterado). */
+export const veSoSuasFiliais = (perfil: Perfil): boolean => SO_SUAS_FILIAIS.includes(perfil);
+
+/** Filiais do usuário como o Catálogo as lê (adaptador do contrato do Core): só as de VENDA (RN-CORE-39); a de cadastro não entra aqui. */
+export interface UsuarioFiliais {
+  perfil: Perfil;
+  /** Filiais de venda (`filial_venda_ids`): base de preço, estoque, filtro e folha, para todos os perfis. */
+  filiaisVenda: readonly string[];
+  /** Sem filial de cadastro: o usuário está bloqueado; preço e estoque saem vazios (RN-CORE-39). */
+  semFilial: boolean;
+}
+
+export interface FiltroDoEstoque {
+  /** Filial efetiva do cliente do contexto (RN-CORE-39); nulo = sem cliente. */
+  filialDoCliente: string | null;
+  filtro: FiltroFilial;
+}
+
+/**
+ * ÚNICA função que decide as filiais cuja soma é o `Estoque: N` do cartão, da busca e da ficha (spec §3; RN-CAT-05, RN-CORE-39).
+ * Com cliente vale a filial dele; sem cliente, uma filial escolhida só ela; senão (padrão ou "Suas filiais") a soma das filiais de venda.
+ * Ninguém passa das filiais de venda (interseção); `sem_filial` = nenhuma. Sempre uma lista (vazia = N 0). Trocar a regra do N
+ * (ex.: filial de cadastro no cartão e a soma só na folha) é mexer SÓ aqui.
+ */
+export function filiaisDoEstoque(usuario: UsuarioFiliais, e: FiltroDoEstoque): readonly string[] {
+  if (usuario.semFilial) return [];
+  const venda = usuario.filiaisVenda;
+  const dentro = (ids: readonly string[]): readonly string[] => ids.filter((id) => venda.includes(id));
+  if (e.filialDoCliente !== null) return dentro([e.filialDoCliente]);
+  if (e.filtro !== null && e.filtro !== 'todas') return dentro([e.filtro]);
+  return [...venda];
+}
+
+/** spec §4: filiais da folha "Estoque por filial" = as de venda do usuário (todos os perfis); `sem_filial` = nenhuma. */
+export function filiaisDaFolha(usuario: UsuarioFiliais): readonly string[] {
+  return usuario.semFilial ? [] : [...usuario.filiaisVenda];
+}
+
+const MENOS = '−';
+const LIMITE_CARTAO = 999;
+
+/**
+ * spec §3: "Estoque: N" (sem saldo = 0). No cartão acima de 999 vira "999+" (e abaixo de -999 "−999+"); a ficha e a folha trazem o
+ * exato (`noCartao = false`). Tenant que esconde a quantidade: "Em estoque" ou "Sem estoque".
+ */
+export function textoEstoqueCartao(quantidade: number | null, noCartao: boolean, mostrarQuantidade = true): string {
+  const n = quantidade ?? 0;
+  if (!mostrarQuantidade) return n > 0 ? 'Em estoque' : 'Sem estoque';
+  return `Estoque: ${numeroDoEstoque(n, noCartao)}`;
+}
+
+export function numeroDoEstoque(n: number, noCartao: boolean): string {
+  if (noCartao && n > LIMITE_CARTAO) return `${LIMITE_CARTAO}+`;
+  if (noCartao && n < -LIMITE_CARTAO) return `${MENOS}${LIMITE_CARTAO}+`;
+  return n < 0 ? `${MENOS}${Math.abs(n).toLocaleString('pt-BR')}` : n.toLocaleString('pt-BR');
+}
+
+/** catalogo-grade §4: duas cores, verde acima de 0; vermelho em 0, negativo ou sem saldo (o laranja de 1 a 9 saiu). */
+export function corDoEstoque(quantidade: number | null): 'sucesso' | 'erro' {
+  return (quantidade ?? 0) > 0 ? 'sucesso' : 'erro';
+}
+
+export interface RotuloChipFiliais {
+  texto: string;
+  /** Com ✕ (volta ao padrão do perfil). */
+  removivel: boolean;
+}
+
+/**
+ * spec §4: chip do filtro de filial, igual para todo perfil (só há filiais de venda). Várias: "Suas filiais (3)" sem ✕; uma só:
+ * "Filial Boa Vista" sem ✕; uma escolhida entre várias: "Filial X" com ✕ (o ✕ volta a "Suas filiais").
+ */
+export function rotuloChipFiliais(e: { nomesProprias: readonly string[]; escolhida: string | null }): RotuloChipFiliais {
+  if (e.escolhida !== null && e.escolhida !== 'todas') return { texto: `Filial ${e.escolhida}`, removivel: true };
+  return { texto: nomesDoGrupo(e.nomesProprias), removivel: false };
+}
+
+const nomesDoGrupo = (nomes: readonly string[]): string => (nomes.length > 1 ? `Suas filiais (${nomes.length})` : `Filial ${nomes[0] ?? ''}`.trim());
+
+export interface LinhaFolhaEstoque {
+  id: string;
+  nome: string;
+  valor: string;
+  /** Marca "sua filial" (spec §2.1); com só filiais de venda na folha o app não a usa. */
+  propria: boolean;
+  tom: 'sucesso' | 'erro';
+}
+
+/** spec §2.1: uma linha por filial; as do usuário primeiro, cada grupo em ordem alfabética; negativo com o sinal de menos. */
+export function linhasDaFolhaEstoque(
+  porFilial: readonly { branch_id: string; branch_name: string; quantity: number | null; band?: FaixaEstoque }[],
+  o: { proprias: readonly string[]; mostrarQuantidade: boolean; marcarPropria: boolean },
+): LinhaFolhaEstoque[] {
+  const ordem = (a: { nome: string }, b: { nome: string }) => a.nome.localeCompare(b.nome, 'pt-BR');
+  const linhas = porFilial.map((b) => {
+    const q = b.quantity ?? (b.band && b.band !== 'sem_estoque' ? 1 : 0);
+    return {
+      id: b.branch_id,
+      nome: b.branch_name,
+      valor: o.mostrarQuantidade ? numeroDoEstoque(b.quantity ?? 0, false) : textoEstoqueCartao(q, false, false),
+      propria: o.proprias.includes(b.branch_id),
+      tom: corDoEstoque(q),
+    };
+  });
+  const minhas = linhas.filter((l) => l.propria).sort(ordem);
+  const outras = linhas.filter((l) => !l.propria).sort(ordem);
+  return [...minhas, ...outras].map((l) => ({ ...l, propria: o.marcarPropria && l.propria }));
+}
