@@ -5,9 +5,9 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, ErrorBlock, FilterBar, intervaloSyncAutoMs, LoadingBlock, Notice, PageHeader, Panel, SelectField, SYNC_AUTO_PADRAO_MIN, td, th, TableScroll, type NoticeTone } from '@macuxi/ui/web';
-import { IndicadoresListaSchema, ROTULO_INDICADOR_META } from '../../../contracts';
-import { CABECALHO, celulasDoUsuario, centavosDoTexto, csvDeIndicadores } from '../../lib/indicadores';
+import { Badge, Button, CampoFormulario, CLASSE_CAMPO, Drawer, ErrorBlock, EstadoVazio, FilterBar, intervaloSyncAutoMs, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, rotuloComContagem, SelectField, SYNC_AUTO_PADRAO_MIN, TabelaDados, TextField, type ColunaDaTabela, type NoticeTone } from '@macuxi/ui/web';
+import { IndicadoresListaSchema } from '../../../contracts';
+import { CABECALHO, celulasDoUsuario, type LinhaDaTabela, centavosDoTexto, csvDeIndicadores } from '../../lib/indicadores';
 import { useHojeDoTenant, useSellersDeCampo } from '../../lib/queries';
 
 
@@ -23,6 +23,7 @@ function IndicadoresConteudo() {
   const usuario = params.get('usuario') ?? '';
   const [aviso, setAviso] = useState<{ tone: NoticeTone; text: string } | null>(null);
   const [editar, setEditar] = useState({ usuario: '', valor: '' });
+  const [gaveta, setGaveta] = useState(false);
 
   const lista = useQuery({
     queryKey: ['core', 'indicadores', periodo, usuario],
@@ -47,36 +48,58 @@ function IndicadoresConteudo() {
       return api(`/core/metas/${editar.usuario}/${periodo}`, { method: 'PUT', body: { indicador: 'venda_cents', valor: centavos } });
     },
     onSuccess: () => {
-      setAviso({ tone: 'success', text: 'Meta de venda salva e registrada na auditoria.' });
+      setAviso({ tone: 'success', text: 'Meta de venda salva.' });
       setEditar({ usuario: '', valor: '' });
+      setGaveta(false);
       void qc.invalidateQueries({ queryKey: ['core', 'indicadores'] });
     },
     onError: (e) => setAviso({ tone: 'danger', text: errorMessage(e) }),
   });
 
   const d = lista.data;
+  const celula = (u: LinhaDaTabela, i: number) => celulasDoUsuario(u)[i] ?? '';
+  const coluna = (i: number, extra: Partial<ColunaDaTabela<LinhaDaTabela>>): ColunaDaTabela<LinhaDaTabela> => ({
+    id: String(i),
+    titulo: CABECALHO[i] ?? '',
+    celula: (u) => celula(u, i),
+    texto: (u) => celula(u, i),
+    ...extra,
+  });
+  const colunas: Array<ColunaDaTabela<LinhaDaTabela>> = [
+    coluna(0, { titulo: 'Pessoa', largura: '26%' }),
+    coluna(4, { numero: true }),
+    coluna(5, { numero: true }),
+    coluna(6, { numero: true }),
+    coluna(2, { numero: true, prioridade: 2 }),
+    coluna(7, { numero: true, prioridade: 2 }),
+    coluna(1, { numero: true, prioridade: 3 }),
+    coluna(3, { numero: true, prioridade: 3 }),
+  ];
+  const filtroLigado = usuario !== '';
   return (
     <div className="flex w-full max-w-[1280px] flex-col gap-5" data-testid="indicadores.tela">
       <PageHeader
-        title="Indicadores"
-        subtitle="Visitados, cobertura de rota, positivação e meta × realizado por pessoa."
+        title={rotuloComContagem('Indicadores', d?.itens.length ?? 0)}
+        badge={d && d.situacao === 'parcial' && d.fechamento_em ? <Badge tone="warning">{`Parcial até ${d.fechamento_em.split('-').reverse().join('/')}`}</Badge> : undefined}
         actions={
           <>
-          <Button onClick={() => void lista.refetch()} disabled={lista.isFetching} aria-label="Atualizar os indicadores" data-testid="indicadores.atualizar">
-            {lista.isFetching ? 'Atualizando…' : 'Atualizar'}
-          </Button>
-          <Button onClick={() => d && downloadBlob(new Blob([csvDeIndicadores(d)], { type: 'text/csv;charset=utf-8' }), `indicadores_${periodo}.csv`)} disabled={!d || d.itens.length === 0} data-testid="indicadores.exportar-csv">
-            Exportar CSV
-          </Button>
+            {pode && (
+              <Button variant="primary" onClick={() => setGaveta(true)} data-testid="indicadores.definir-meta">
+                Definir meta de venda
+              </Button>
+            )}
+            <MenuAcoes
+              acoes={[
+                { id: 'csv', rotulo: 'Exportar CSV', desligada: !d || d.itens.length === 0, aoEscolher: () => d && downloadBlob(new Blob([csvDeIndicadores(d)], { type: 'text/csv;charset=utf-8' }), `indicadores_${periodo}.csv`), testId: 'indicadores.exportar-csv' },
+                { id: 'atualizar', rotulo: lista.isFetching ? 'Atualizando…' : 'Atualizar', desligada: lista.isFetching, aoEscolher: () => void lista.refetch(), testId: 'indicadores.atualizar' },
+              ]}
+            />
           </>
         }
       />
       <FilterBar>
-        <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
-          Mês
-          <input type="month" value={periodo} onChange={(e) => e.target.value && set({ periodo: e.target.value })} data-testid="indicadores.filtro-periodo" className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px]" />
-        </label>
-        <SelectField label="Vendedor ou promotor" value={usuario} onChange={(e) => set({ usuario: e.target.value })} data-testid="indicadores.filtro-usuario">
+        <TextField label="Mês" type="month" value={periodo} onChange={(e) => e.target.value && set({ periodo: e.target.value })} data-testid="indicadores.filtro-periodo" />
+        <SelectField label="Pessoa" value={usuario} onChange={(e) => set({ usuario: e.target.value })} data-testid="indicadores.filtro-usuario">
           <option value="">Toda a equipe</option>
           {(vendedores.data ?? []).map((s) => (
             <option key={s.id} value={s.id}>
@@ -84,68 +107,61 @@ function IndicadoresConteudo() {
             </option>
           ))}
         </SelectField>
+        {filtroLigado && (
+          <Button size="sm" onClick={() => set({ usuario: null })} data-testid="indicadores.limpar-filtros">
+            Limpar filtros
+          </Button>
+        )}
       </FilterBar>
 
-      {aviso && <Notice tone={aviso.tone}>{aviso.text}</Notice>}
+      {aviso && !(gaveta && aviso.tone === 'danger') && <Notice tone={aviso.tone}>{aviso.text}</Notice>}
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando os indicadores…" />}
 
       {d && (
-        <Panel title={`${d.itens.length} pessoa${d.itens.length === 1 ? '' : 's'} · base de apuração: ${d.base_apuracao}${d.situacao === 'parcial' && d.fechamento_em ? ` · parcial até o fechamento (${d.fechamento_em.split('-').reverse().join('/')})` : ''}`}>
-          <TableScroll minWidth={1040}>
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr>
-                  {CABECALHO.map((c) => (
-                    <th key={c} className={th}>
-                      {c}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {d.itens.length === 0 && (
-                  <tr>
-                    <td className={td} colSpan={CABECALHO.length}>
-                      Ninguém neste filtro. Escolha outra pessoa ou limpe os filtros.
-                    </td>
-                  </tr>
-                )}
-                {d.itens.map((u) => (
-                  <tr key={u.usuario_id} data-testid={`indicadores.linha.${u.usuario_id}`}>
-                    {celulasDoUsuario(u).map((c, i) => (
-                      <td key={CABECALHO[i]} className={td}>
-                        {c}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
+        <Panel>
+          <TabelaDados
+            colunas={colunas}
+            linhas={d.itens}
+            chave={(u) => u.usuario_id}
+            rotulo="Indicadores por pessoa"
+            linhaTestId={(u) => `indicadores.linha.${u.usuario_id}`}
+            vazio={<EstadoVazio titulo={filtroLigado ? 'Nenhuma pessoa com esses filtros.' : 'Nenhuma pessoa neste mês.'} />}
+          />
         </Panel>
       )}
 
       {pode && (
-        <Panel title={`Definir ${ROTULO_INDICADOR_META.venda_cents.toLowerCase()} do mês`}>
-          <FilterBar>
-            <SelectField label="Pessoa" value={editar.usuario} onChange={(e) => setEditar({ ...editar, usuario: e.target.value })} data-testid="indicadores.meta-usuario">
-              <option value="">Escolha…</option>
-              {(vendedores.data ?? []).map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </SelectField>
-            <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
-              Meta de venda (R$)
-              <input inputMode="decimal" value={editar.valor} onChange={(e) => setEditar({ ...editar, valor: e.target.value })} placeholder="25.000,00" data-testid="indicadores.meta-valor" className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px]" />
-            </label>
-            <Button onClick={() => salvar.mutate()} disabled={salvar.isPending} data-testid="indicadores.meta-salvar">
-              Salvar meta
-            </Button>
-          </FilterBar>
-        </Panel>
+        <Drawer
+          open={gaveta}
+          title="Definir meta de venda"
+          onClose={() => setGaveta(false)}
+          rodape={
+            <>
+              <Button onClick={() => setGaveta(false)}>Cancelar</Button>
+              <Button variant="primary" onClick={() => salvar.mutate()} disabled={salvar.isPending} data-testid="indicadores.meta-salvar">
+                {salvar.isPending ? 'Salvando…' : 'Salvar'}
+              </Button>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-3">
+            {aviso && aviso.tone === 'danger' && <Notice tone="danger">{aviso.text}</Notice>}
+            <CampoFormulario rotulo="Pessoa">
+              <select className={CLASSE_CAMPO} value={editar.usuario} onChange={(e) => setEditar({ ...editar, usuario: e.target.value })} data-testid="indicadores.meta-usuario">
+                <option value="">Escolha…</option>
+                {(vendedores.data ?? []).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </CampoFormulario>
+            <CampoFormulario rotulo="Meta de venda (R$)">
+              <input className={CLASSE_CAMPO} inputMode="decimal" value={editar.valor} onChange={(e) => setEditar({ ...editar, valor: e.target.value })} placeholder="25.000,00" data-testid="indicadores.meta-valor" />
+            </CampoFormulario>
+          </div>
+        </Drawer>
       )}
     </div>
   );

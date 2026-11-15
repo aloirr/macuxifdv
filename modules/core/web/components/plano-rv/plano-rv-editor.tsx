@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Badge, Button, Notice, Panel, td, tdNum, th, thNum, TableScroll, rotuloDoPerfil } from '@macuxi/ui/web';
+import { Badge, Button, CampoFormulario, CLASSE_CAMPO, CLASSE_CAMPO_BASE, Notice, Panel, td, tdNum, th, thNum, TableScroll, rotuloDoPerfil } from '@macuxi/ui/web';
 import { formatBRL } from '@macuxi/comum';
 import type { PlanoRvPut } from '../../../contracts';
 import { INDICADORES_RV } from '../../../contracts';
@@ -21,16 +21,13 @@ import {
   type FormRegra,
 } from '../../lib/plano-rv';
 
-const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
-const CAMPO_CURTO = `${CAMPO} w-[96px] text-right`;
+const CAMPO_CURTO = `${CLASSE_CAMPO} text-right`;
 
-function Rotulado({ rotulo, children, ajuda }: { rotulo: string; children: React.ReactNode; ajuda?: string }) {
+function Rotulado({ rotulo, children, largura }: { rotulo: string; children: React.ReactNode; largura?: string }) {
   return (
-    <label className="flex flex-col gap-1 text-[14px] font-semibold text-ink">
-      {rotulo}
-      {ajuda && <span className="text-[13px] font-normal text-ink-2">{ajuda}</span>}
+    <CampoFormulario rotulo={rotulo} className={largura}>
       {children}
-    </label>
+    </CampoFormulario>
   );
 }
 
@@ -52,7 +49,7 @@ function RegraEditor({ regra, onChange }: { regra: FormRegra; onChange: (r: Form
               É gatilho: abaixo da meta, a RV do mês zera
             </label>
             {!regra.gatilho && (
-              <Rotulado rotulo="Peso (%)">
+              <Rotulado rotulo="Peso (%)" largura="w-[110px]">
                 <input className={CAMPO_CURTO} inputMode="numeric" value={regra.peso} onChange={(e) => onChange({ ...regra, peso: e.target.value.replace(/\D/g, '') })} data-testid={`plano-rv.${id}.peso`} />
               </Rotulado>
             )}
@@ -62,11 +59,11 @@ function RegraEditor({ regra, onChange }: { regra: FormRegra; onChange: (r: Form
               <div className="flex flex-col gap-2">
                 {regra.faixas.map((f, i) => (
                   <div key={i} className="flex flex-wrap items-end gap-3" data-testid={`plano-rv.${id}.faixa.${i}`}>
-                    <Rotulado rotulo={`Faixa ${i + 1}: a partir de (%)`}>
+                    <Rotulado rotulo={`Faixa ${i + 1}: a partir de (%)`} largura="w-[150px]">
                       <input className={CAMPO_CURTO} inputMode="numeric" value={f.de} onChange={(e) => mudarFaixa(i, { de: e.target.value.replace(/\D/g, '') })} />
                     </Rotulado>
-                    <Rotulado rotulo={`Faixa ${i + 1}: paga`}>
-                      <select className={`${CAMPO} w-[240px]`} value={f.modo} onChange={(e) => mudarFaixa(i, { modo: e.target.value as FormFaixa['modo'] })}>
+                    <Rotulado rotulo={`Faixa ${i + 1}: paga`} largura="w-[240px]">
+                      <select className={CLASSE_CAMPO} value={f.modo} onChange={(e) => mudarFaixa(i, { modo: e.target.value as FormFaixa['modo'] })}>
                         {(Object.keys(ROTULO_MODO) as Array<FormFaixa['modo']>).map((m) => (
                           <option key={m} value={m}>
                             {ROTULO_MODO[m]}
@@ -75,7 +72,7 @@ function RegraEditor({ regra, onChange }: { regra: FormRegra; onChange: (r: Form
                       </select>
                     </Rotulado>
                     {f.modo === 'fixo' && (
-                      <Rotulado rotulo={`Faixa ${i + 1}: percentual do peso pago (%)`}>
+                      <Rotulado rotulo={`Faixa ${i + 1}: percentual do peso pago (%)`} largura="w-[200px]">
                         <input className={CAMPO_CURTO} inputMode="numeric" value={f.pagamento} onChange={(e) => mudarFaixa(i, { pagamento: e.target.value.replace(/\D/g, '') })} />
                       </Rotulado>
                     )}
@@ -116,7 +113,6 @@ function Simulador({ corpo, motivo, ating, setAting }: { corpo: PlanoRvPut | nul
   return (
     <Panel title="Simulador">
       <div className="flex flex-col gap-3" data-testid="plano-rv.simulador">
-        <p className="m-0 text-[13px] text-ink-2">Digite o atingimento de cada indicador, em %, para ver quanto o plano pagaria no mês fechado. Indicador em branco conta como sem meta.</p>
         <TableScroll minWidth={560}>
           <table className="w-full border-collapse text-[13px]">
             <thead>
@@ -137,7 +133,7 @@ function Simulador({ corpo, motivo, ating, setAting }: { corpo: PlanoRvPut | nul
                     </td>
                     <td className={tdNum}>
                       <input
-                        className={CAMPO_CURTO}
+                        className={`${CLASSE_CAMPO_BASE} h-[38px] w-[96px] px-2.5 text-right`}
                         inputMode="decimal"
                         value={ating[reg.indicador] ?? ''}
                         onChange={(e) => setAting({ ...ating, [reg.indicador]: e.target.value.replace(/[^\d,.]/g, '') })}
@@ -170,7 +166,6 @@ function Simulador({ corpo, motivo, ating, setAting }: { corpo: PlanoRvPut | nul
 export function PlanoRvEditor({
   inicial,
   titulo,
-  ajudaTitulo,
   aoSalvar,
   aoCancelar,
   salvando,
@@ -180,7 +175,6 @@ export function PlanoRvEditor({
 }: {
   inicial: FormPlano;
   titulo: string;
-  ajudaTitulo?: string;
   aoSalvar: (c: PlanoRvPut) => void;
   aoCancelar: () => void;
   salvando: boolean;
@@ -225,19 +219,17 @@ export function PlanoRvEditor({
     <div ref={raiz} tabIndex={-1} className="flex flex-col gap-5 outline-none" data-testid="plano-rv.editor">
       <Panel title={titulo}>
         <fieldset disabled={lock} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
-          {ajudaTitulo && <p className="m-0 text-[13px] text-ink-2">{ajudaTitulo}</p>}
-          {motivoLeitura === 'fechado' && <Notice tone="info">Este plano já valeu para um mês fechado e não pode mudar. Para alterar, crie uma versão nova com início no mês aberto.</Notice>}
-          {motivoLeitura === 'permissao' && <Notice tone="info">Você pode consultar este plano. Quem altera é o analista ou o administrador.</Notice>}
+          {motivoLeitura === 'fechado' && <Notice tone="info">Plano de mês fechado não muda. Crie uma versão nova com início no mês aberto.</Notice>}
           <h3 className="m-0 text-[15px] font-semibold text-ink">Dados do plano</h3>
           <div className="flex flex-wrap gap-6">
-            <Rotulado rotulo="Nome do plano">
-              <input ref={nome} className={`${CAMPO} w-[280px]`} maxLength={80} value={form.nome} onChange={(e) => mudar({ nome: e.target.value })} data-testid="plano-rv.nome" />
+            <Rotulado rotulo="Nome do plano" largura="w-[280px]">
+              <input ref={nome} className={CLASSE_CAMPO} maxLength={80} value={form.nome} onChange={(e) => mudar({ nome: e.target.value })} data-testid="plano-rv.nome" />
             </Rotulado>
-            <Rotulado rotulo="Vale a partir de" ajuda="Vale até o mês anterior ao início do próximo plano.">
-              <input type="month" className={`${CAMPO} w-[180px]`} value={form.vigencia_inicio} onChange={(e) => mudar({ vigencia_inicio: e.target.value })} data-testid="plano-rv.vigencia" />
+            <Rotulado rotulo="Vale a partir de" largura="w-[180px]">
+              <input type="month" className={CLASSE_CAMPO} value={form.vigencia_inicio} onChange={(e) => mudar({ vigencia_inicio: e.target.value })} data-testid="plano-rv.vigencia" />
             </Rotulado>
-            <Rotulado rotulo="Valor da RV com 100% em tudo (R$)" ajuda="Cada indicador paga a parte do seu peso. Faixas acima de 100% pagam mais que este valor.">
-              <input className={`${CAMPO} w-[180px] text-right`} inputMode="decimal" placeholder="2.000,00" value={form.valor_maximo} onChange={(e) => mudar({ valor_maximo: e.target.value.replace(/[^\d,.]/g, '') })} data-testid="plano-rv.valor" />
+            <Rotulado rotulo="Valor da RV com 100% em tudo (R$)" largura="w-[260px]">
+              <input className={CAMPO_CURTO} inputMode="decimal" placeholder="2.000,00" value={form.valor_maximo} onChange={(e) => mudar({ valor_maximo: e.target.value.replace(/[^\d,.]/g, '') })} data-testid="plano-rv.valor" />
             </Rotulado>
           </div>
           <div className="flex flex-wrap items-center gap-5">
@@ -275,15 +267,15 @@ export function PlanoRvEditor({
             </div>
           )}
         </fieldset>
-        <div className="mt-4 flex flex-wrap gap-3">
+        <div className="sticky bottom-0 z-10 -mx-4 mt-4 flex flex-wrap justify-end gap-3 border-t border-line bg-surface px-4 py-3">
+          <Button onClick={aoCancelar} style={{ minHeight: 44 }} data-testid="plano-rv.cancelar">
+            {lock ? 'Fechar' : 'Cancelar'}
+          </Button>
           {!lock && (
             <Button variant="primary" onClick={salvar} disabled={salvando} style={{ minHeight: 44 }} data-testid="plano-rv.salvar">
               {salvando ? 'Salvando…' : 'Salvar plano'}
             </Button>
           )}
-          <Button onClick={aoCancelar} style={{ minHeight: 44 }} data-testid="plano-rv.cancelar">
-            {lock ? 'Fechar' : 'Cancelar'}
-          </Button>
         </div>
       </Panel>
       <Simulador corpo={validacao.ok ? validacao.corpo : null} motivo={validacao.ok ? null : (validacao.erros[0] ?? null)} ating={ating} setAting={setAting} />

@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
+import type { z } from 'zod';
 import { formatBRL } from '@macuxi/comum';
-import { Badge, ErrorBlock, KpiCard, KpiGrid, LoadingBlock, Notice, ObservacoesCliente, PageHeader, Panel, td, th, tdNum, thNum, TableScroll } from '@macuxi/ui/web';
+import { Badge, ErrorBlock, EstadoVazio, KpiCard, KpiGrid, LoadingBlock, Notice, ObservacoesCliente, PageHeader, Panel, rotuloComContagem, SeloSituacao, TabelaDados, type ColunaDaTabela } from '@macuxi/ui/web';
 import { Cliente360Schema, FormasPagamentoDisponiveisSchema } from '../../../contracts';
 import { dataLocal, listarEnderecosDoCliente, linksDeContato, mesNaJanela12, observacaoComCadastro, resumoSemCompras, situacaoTitulo } from '../../../domain';
 import { FilialCliente } from './filial-cliente';
@@ -19,6 +20,10 @@ import { quando, rotuloResultado, sinais } from '../../lib/visitas';
  * títulos, histórico de compras dos últimos 12 meses e últimas visitas. Lê `GET /v1/core/clientes/:id`, que responde 404
  * para cliente fora do escopo (RN-CORE-04) — a tela mostra a mesma mensagem nos dois casos.
  */
+type Ficha = z.infer<typeof Cliente360Schema>;
+type Titulo = Ficha['titulos'][number];
+type Historico = Ficha['historico'][number];
+
 function Cliente360Conteudo() {
   const id = useSearchParams().get('id') ?? '';
   const fuso = useMe().data.tenant.timezone;
@@ -38,27 +43,50 @@ function Cliente360Conteudo() {
   if (!id) return <Notice tone="info">Abra um cliente pela Carteira ou pela lista de clientes.</Notice>;
   if (q.isPending) return <LoadingBlock label="Carregando o cliente…" />;
   if (q.isError) return <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />;
-  const { cliente, contatos, enderecos = [], financeiro, titulos, historico: historicoBruto, resumo_compras: compras, resumo_financeiro: fin, ultimas_visitas: visitas } = q.data;
+  const { cliente, contatos, enderecos = [], titulos, historico: historicoBruto, resumo_compras: compras, resumo_financeiro: fin, ultimas_visitas: visitas } = q.data;
   const hoje = dataLocal(new Date(), fuso);
   // RN-CORE-40: a lista usa a mesma janela de 12 meses dos cartões (o sync traz um mês a mais)
   const historico = historicoBruto.filter((h) => mesNaJanela12(h.ano_mes, hoje));
   const nome = cliente.nome_fantasia || cliente.razao_social;
   // RF-CORE-12 / RN-VEN-17: a API já manda o padrão primeiro; a mesma função pura do app marca o padrão e monta a linha
   const listaEnderecos = listarEnderecosDoCliente(enderecos, cliente.id);
+  const colunasDeTitulos: ColunaDaTabela<Titulo>[] = [
+    { id: 'documento', titulo: 'Documento', celula: (t) => `${t.documento}${t.parcela ? `/${t.parcela}` : ''}`, texto: (t) => `${t.documento}${t.parcela ? `/${t.parcela}` : ''}` },
+    { id: 'vencimento', titulo: 'Vencimento', prioridade: 2, numero: true, largura: '110px', celula: (t) => t.vencimento },
+    { id: 'valor', titulo: 'Valor', prioridade: 2, numero: true, largura: '120px', celula: (t) => formatBRL(t.valor_cents) },
+    { id: 'saldo', titulo: 'Saldo', numero: true, largura: '120px', celula: (t) => formatBRL(t.saldo_cents) },
+    {
+      id: 'situacao',
+      titulo: 'Situação',
+      largura: '170px',
+      celula: (t) => {
+        const s = situacaoTitulo(t, hoje);
+        return <SeloSituacao selos={[{ tom: s.situacao === 'vencido' ? 'danger' : s.situacao === 'a_vencer' ? 'warning' : 'neutral', texto: s.situacao === 'vencido' ? `Vencido há ${s.dias_atraso} dias` : s.situacao === 'a_vencer' ? 'A vencer' : s.situacao === 'liquidado' ? 'Liquidado' : 'Cancelado' }]} />;
+      },
+    },
+  ];
+  const colunasDoHistorico: ColunaDaTabela<Historico>[] = [
+    { id: 'mes', titulo: 'Mês', celula: (h) => h.ano_mes },
+    { id: 'valor', titulo: 'Valor', numero: true, celula: (h) => formatBRL(h.valor_cents) },
+    { id: 'pedidos', titulo: 'Pedidos', numero: true, prioridade: 2, celula: (h) => h.pedidos },
+    { id: 'itens', titulo: 'Itens', numero: true, prioridade: 2, celula: (h) => h.itens },
+  ];
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="cliente360.tela">
       <PageHeader
         title={nome}
-        subtitle={[cliente.razao_social !== nome ? cliente.razao_social : '', cliente.documento ?? '', [cliente.cidade, cliente.uf].filter(Boolean).join(' / ')].filter(Boolean).join(' · ')}
-        badge={
-          fin?.bloqueado ? (
-            <Badge tone="danger">Bloqueado</Badge>
-          ) : undefined
-        }
-        actions={
-          <Link href="/carteira" className="text-[13px] font-semibold text-accent-ink no-underline hover:underline">
-            Voltar à carteira
+        eyebrow={
+          <Link href="/carteira" className="font-semibold text-accent-ink no-underline hover:underline">
+            ‹ Carteira
           </Link>
+        }
+        badge={
+          <>
+            <span className="text-[14px] font-normal text-ink-2">
+              {[cliente.razao_social !== nome ? cliente.razao_social : '', cliente.documento ?? '', [cliente.cidade, cliente.uf].filter(Boolean).join(' / ')].filter(Boolean).join(' · ')}
+            </span>
+            {fin?.bloqueado ? <Badge tone="danger">Bloqueado</Badge> : null}
+          </>
         }
       />
       {/* RN-CORE-40: sem compra na janela de 12 meses, uma linha no lugar dos indicadores, sem zeros */}
@@ -114,7 +142,7 @@ function Cliente360Conteudo() {
         </ul>
       </Panel>
 
-      <Panel title={`Endereços de entrega (${listaEnderecos.length})`}>
+      <Panel title={rotuloComContagem('Endereços de entrega', listaEnderecos.length)}>
         {listaEnderecos.length === 0 && <p className="text-[13px] text-ink-2">Nenhum endereço no ERP.</p>}
         <ul className="flex flex-col gap-2">
           {listaEnderecos.map((e) => (
@@ -135,81 +163,24 @@ function Cliente360Conteudo() {
       {/* RN-CORE-17: linha automática no topo, texto do ERP intacto abaixo */}
       <ObservacoesCliente automatica={observacaoComCadastro(null, cliente.cadastro_campos_faltantes ?? [])} texto={cliente.observacao ?? null} />
 
-      <Panel title={`Títulos (${titulos.length})`}>
-        <TableScroll minWidth={620}>
-          <table className="w-full border-collapse text-[13px]">
-            <thead>
-              <tr>
-                <th className={th}>Documento</th>
-                <th className={th}>Vencimento</th>
-                <th className={thNum}>Valor</th>
-                <th className={thNum}>Saldo</th>
-                <th className={th}>Situação</th>
-              </tr>
-            </thead>
-            <tbody>
-              {titulos.length === 0 && (
-                <tr>
-                  <td className={td} colSpan={5}>
-                    Sem títulos na janela de 90 dias.
-                  </td>
-                </tr>
-              )}
-              {titulos.map((t) => {
-                const s = situacaoTitulo(t, hoje);
-                return (
-                  <tr key={t.id}>
-                    <td className={td}>
-                      {t.documento}
-                      {t.parcela ? `/${t.parcela}` : ''}
-                    </td>
-                    <td className={td}>{t.vencimento}</td>
-                    <td className={tdNum}>{formatBRL(t.valor_cents)}</td>
-                    <td className={tdNum}>{formatBRL(t.saldo_cents)}</td>
-                    <td className={td}>
-                      <Badge tone={s.situacao === 'vencido' ? 'danger' : s.situacao === 'a_vencer' ? 'warning' : 'neutral'}>
-                        {s.situacao === 'vencido' ? `Vencido há ${s.dias_atraso} dias` : s.situacao === 'a_vencer' ? 'A vencer' : s.situacao === 'liquidado' ? 'Liquidado' : 'Cancelado'}
-                      </Badge>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </TableScroll>
-      </Panel>
+      {titulos.length === 0 ? (
+        <EstadoVazio titulo="Nenhum título na janela de 90 dias." />
+      ) : (
+        <Panel title={rotuloComContagem('Títulos', titulos.length)}>
+          <TabelaDados
+            rotulo="Títulos"
+            colunas={colunasDeTitulos}
+            linhas={titulos}
+            chave={(t) => t.id}
+          />
+        </Panel>
+      )}
 
-      <Panel title="Histórico de compras (12 meses)">
-        <TableScroll minWidth={520}>
-          <table className="w-full border-collapse text-[13px]">
-            <thead>
-              <tr>
-                <th className={th}>Mês</th>
-                <th className={thNum}>Valor</th>
-                <th className={thNum}>Pedidos</th>
-                <th className={thNum}>Itens</th>
-              </tr>
-            </thead>
-            <tbody>
-              {historico.length === 0 && (
-                <tr>
-                  <td className={td} colSpan={4}>
-                    Sem compras no período.
-                  </td>
-                </tr>
-              )}
-              {[...historico].sort((a, b) => b.ano_mes.localeCompare(a.ano_mes)).map((h) => (
-                <tr key={h.id}>
-                  <td className={td}>{h.ano_mes}</td>
-                  <td className={tdNum}>{formatBRL(h.valor_cents)}</td>
-                  <td className={tdNum}>{h.pedidos}</td>
-                  <td className={tdNum}>{h.itens}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableScroll>
-      </Panel>
+      {historico.length > 0 && (
+        <Panel title="Histórico de compras (12 meses)">
+          <TabelaDados rotulo="Histórico de compras" colunas={colunasDoHistorico} linhas={[...historico].sort((a, b) => b.ano_mes.localeCompare(a.ano_mes))} chave={(h) => h.id} />
+        </Panel>
+      )}
 
       <Panel title="Últimas visitas">
         {visitas.length === 0 && <p className="text-[13px] text-ink-2">Nenhuma visita registrada.</p>}
@@ -222,7 +193,6 @@ function Cliente360Conteudo() {
           ))}
         </ul>
       </Panel>
-      {!financeiro && <Notice tone="info">O financeiro deste cliente ainda não veio do ERP.</Notice>}
     </div>
   );
 }

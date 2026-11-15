@@ -24,7 +24,7 @@ export function PromotorPedidosPanel() {
   const gravar = useMutation({
     mutationFn: async (ligado: boolean) => PromotorVePedidosSchema.parse(await api<unknown>(CAMINHO, { method: 'PUT', body: { ligado } })),
     onSuccess: async (r) => {
-      setAviso(r.ligado ? 'O promotor volta a ver os pedidos da carteira dele no próximo sync.' : 'O promotor deixa de ver pedidos no próximo sync. Ele continua sem poder criar ou alterar pedidos.');
+      setAviso(r.ligado ? 'Promotor vê pedidos: ligado.' : 'Promotor vê pedidos: desligado.');
       await qc.invalidateQueries({ queryKey: CHAVE });
     },
     onError: (e) => setAviso(errorMessage(e)),
@@ -46,7 +46,6 @@ export function PromotorPedidosPanel() {
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex min-w-[240px] flex-1 flex-col gap-1">
               <span className="text-[14px] font-semibold text-ink">Promotor vê pedidos</span>
-              <span className="text-[13px] text-ink-2">Mostra ao promotor, só para leitura, os pedidos dos clientes da carteira dele (Cliente 360 e lista de pedidos). Ele nunca cria nem altera pedido.</span>
             </div>
             <span data-testid="promotor-pedidos.estado" data-estado={ligado ? 'ligado' : 'desligado'}>
               <Badge tone={ligado ? 'success' : 'neutral'}>{ligado ? 'Ligado' : 'Desligado'}</Badge>

@@ -5,14 +5,13 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, FilterBar, intervaloSyncAutoMs, LoadingBlock, Notice, PageHeader, Panel, SelectField, SYNC_AUTO_PADRAO_MIN, td, th, TableScroll } from '@macuxi/ui/web';
+import { Badge, Button, CampoFormulario, CLASSE_CAMPO, Drawer, ErrorBlock, EstadoVazio, FilterBar, intervaloSyncAutoMs, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, rotuloComContagem, SelectField, SYNC_AUTO_PADRAO_MIN, td, TextField, th, TableScroll } from '@macuxi/ui/web';
 import { CopiarMetasRespostaSchema, EquipeListaRespostaSchema, MetaEquipeRespostaSchema, PainelMetasBkoSchema, type LinhaMetaBko } from '../../../contracts';
 import { INDICADORES_META, ROTULO_INDICADOR_META } from '../../../contracts';
 import { avisoDaCopia, avisoDoLote, mesAnterior, CABECALHO_METAS, celulasDaLinha, corpoDaMeta, csvDeMetas, filtrarPorIndicador, ROTULO_TIPO, textoDeEdicao, totalEditavel, UNIDADE_DO_CAMPO } from '../../lib/metas';
 import { useHojeDoTenant } from '../../lib/queries';
 import { InicioParametrosPanel } from './inicio-parametros-panel';
 
-const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
 const BOTAO_LINHA = 'h-[44px] min-w-[88px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled';
 
 type Indicador = LinhaMetaBko['indicador'];
@@ -41,6 +40,8 @@ function MetasConteudo() {
   const [tipo, setTipo] = useState<LinhaMetaBko['tipo']>('pedido');
   const [indEquipe, setIndEquipe] = useState<Indicador>('venda_cents');
   const [equipeLote, setEquipeLote] = useState('');
+  const [parametros, setParametros] = useState(false);
+  const podeParametros = usePode('parametro.inicio');
 
   const painel = useQuery({
     queryKey: ['core', 'metas-painel', mes, equipe],
@@ -122,16 +123,10 @@ function MetasConteudo() {
   return (
     <div className="flex w-full max-w-[1280px] flex-col gap-5" data-testid="metas.tela">
       <PageHeader
-        title="Metas e RV"
-        subtitle="Meta × realizado por pessoa e indicador, com a mesma apuração do aplicativo. Defina a meta de cada pessoa ou de uma equipe inteira."
+        title={rotuloComContagem('Metas e RV', linhas.length)}
+        badge={d && <Badge tone={d.situacao === 'fechado' ? 'success' : 'warning'}>{d.situacao === 'fechado' ? 'Mês fechado' : `Parcial${d.fechamento_em ? ` até ${d.fechamento_em.split('-').reverse().join('/')}` : ''}`}</Badge>}
         actions={
           <>
-            <Button onClick={() => void painel.refetch()} disabled={painel.isFetching} aria-label="Atualizar as metas" data-testid="metas.atualizar">
-              {painel.isFetching ? 'Atualizando…' : 'Atualizar'}
-            </Button>
-            <Button onClick={() => d && downloadBlob(new Blob([csvDeMetas(linhas)], { type: 'text/csv;charset=utf-8' }), `metas_${mes}.csv`)} disabled={linhas.length === 0} data-testid="metas.exportar-csv">
-              Exportar CSV
-            </Button>
             {pode && (
               <Button onClick={() => copiar.mutate()} disabled={!d || totalEditavel(d.linhas) === 0 || copiar.isPending} data-testid="metas.copiar-anterior">
                 {copiar.isPending ? 'Copiando…' : 'Copiar do mês anterior'}
@@ -142,16 +137,20 @@ function MetasConteudo() {
                 Meta da equipe
               </Button>
             )}
+            <MenuAcoes
+              acoes={[
+                { id: 'csv', rotulo: 'Exportar CSV', desligada: linhas.length === 0, aoEscolher: () => d && downloadBlob(new Blob([csvDeMetas(linhas)], { type: 'text/csv;charset=utf-8' }), `metas_${mes}.csv`), testId: 'metas.exportar-csv' },
+                { id: 'atualizar', rotulo: painel.isFetching ? 'Atualizando…' : 'Atualizar', desligada: painel.isFetching, aoEscolher: () => void painel.refetch(), testId: 'metas.atualizar' },
+                ...(podeParametros ? [{ id: 'parametros', rotulo: 'Parâmetros do Início', aoEscolher: () => setParametros(true), testId: 'metas.parametros' }] : []),
+              ]}
+            />
           </>
         }
       />
       <FilterBar>
-        <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
-          Mês
-          <input type="month" value={mes} onChange={(e) => e.target.value && set({ mes: e.target.value })} data-testid="metas.filtro-mes" className={CAMPO} />
-        </label>
+        <TextField label="Mês" type="month" value={mes} onChange={(e) => e.target.value && set({ mes: e.target.value })} data-testid="metas.filtro-mes" />
         <SelectField label="Equipe" value={equipe} onChange={(e) => set({ equipe: e.target.value })} data-testid="metas.filtro-equipe">
-          <option value="">Todas as equipes</option>
+          <option value="">Todas</option>
           {(equipes.data ?? []).map((e) => (
             <option key={e.id} value={e.id}>
               {e.nome}
@@ -166,6 +165,11 @@ function MetasConteudo() {
             </option>
           ))}
         </SelectField>
+        {(equipe || indicador) && (
+          <Button size="sm" onClick={() => set({ equipe: null, indicador: null })} data-testid="metas.limpar-filtros">
+            Limpar filtros
+          </Button>
+        )}
       </FilterBar>
 
       {aviso && <Notice tone="success">{aviso}</Notice>}
@@ -173,10 +177,10 @@ function MetasConteudo() {
       {painel.isPending && <LoadingBlock label="Carregando as metas…" />}
 
       {d && (
-        <Panel
-          title={`${linhas.length} linha${linhas.length === 1 ? '' : 's'} · base de apuração: ${d.base_apuracao}`}
-          aside={<Badge tone={d.situacao === 'fechado' ? 'success' : 'warning'}>{d.situacao === 'fechado' ? 'Mês fechado' : `Parcial${d.fechamento_em ? ` até ${d.fechamento_em.split('-').reverse().join('/')}` : ''}`}</Badge>}
-        >
+        linhas.length === 0 ? (
+          <EstadoVazio titulo="Nenhuma meta com esses filtros." testId="metas.vazio" />
+        ) : (
+        <Panel>
           <TableScroll minWidth={960}>
             <table className="w-full border-collapse text-[13px]">
               <thead>
@@ -190,13 +194,6 @@ function MetasConteudo() {
                 </tr>
               </thead>
               <tbody>
-                {linhas.length === 0 && (
-                  <tr>
-                    <td className={td} colSpan={CABECALHO_METAS.length + (pode ? 1 : 0)}>
-                      Ninguém neste filtro. Escolha outra equipe ou limpe os filtros.
-                    </td>
-                  </tr>
-                )}
                 {linhas.map((l) => (
                   <tr key={`${l.usuario_id}.${l.indicador}`} data-testid={`metas.linha.${l.usuario_id}.${l.indicador}`}>
                     {celulasDaLinha(l).map((c, i) => (
@@ -217,13 +214,14 @@ function MetasConteudo() {
             </table>
           </TableScroll>
         </Panel>
+        )
       )}
 
-      <Dialog
+      <Drawer
         open={modal !== null}
         title={modal?.tipo === 'linha' ? `Meta de ${ROTULO_INDICADOR_META[modal.linha.indicador].toLowerCase()} · ${modal.linha.usuario_nome}` : 'Meta da equipe'}
         onClose={fechar}
-        footer={
+        rodape={
           <>
             <Button onClick={fechar} data-testid="metas.cancelar">
               Cancelar
@@ -235,46 +233,51 @@ function MetasConteudo() {
         }
       >
         <div className="flex flex-col gap-3">
-          {modal?.tipo === 'equipe' && (
-            <>
-              <p className="text-[13px] text-ink">O mesmo valor vale para cada vendedor e promotor ativo da equipe, no mês {mes.split('-').reverse().join('/')}.</p>
-              <SelectField label="Equipe" value={equipeLote} onChange={(e) => setEquipeLote(e.target.value)} data-testid="metas.lote-equipe">
-                <option value="">Escolha…</option>
-                {(equipes.data ?? []).map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.nome}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField label="Indicador" value={indEquipe} onChange={(e) => setIndEquipe(e.target.value as Indicador)} data-testid="metas.lote-indicador">
-                {INDICADORES_META.map((i) => (
-                  <option key={i} value={i}>
-                    {ROTULO_INDICADOR_META[i]}
-                  </option>
-                ))}
-              </SelectField>
-            </>
-          )}
-          <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
-            Meta ({UNIDADE_DO_CAMPO[campoRotulo]})
-            <input inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder={alvoVenda ? '25.000,00' : campoRotulo === 'cobertura_pct' ? '85' : campoRotulo === 'itens_por_pedido' ? '8,5' : '40'} data-testid="metas.valor" className={CAMPO} />
-          </label>
-          {alvoVenda && (
-            <SelectField label="Apurar por" value={tipo} onChange={(e) => setTipo(e.target.value as LinhaMetaBko['tipo'])} data-testid="metas.tipo">
-              {(Object.keys(ROTULO_TIPO) as Array<LinhaMetaBko['tipo']>).map((t) => (
-                <option key={t} value={t}>
-                  {ROTULO_TIPO[t]}
-                </option>
-              ))}
-            </SelectField>
-          )}
           {erro && (
             <Notice tone="danger" data-testid="metas.erro">
               {erro}
             </Notice>
           )}
+          {modal?.tipo === 'equipe' && (
+            <>
+              <CampoFormulario rotulo="Equipe">
+                <select className={CLASSE_CAMPO} value={equipeLote} onChange={(e) => setEquipeLote(e.target.value)} data-testid="metas.lote-equipe">
+                  <option value="">Escolha…</option>
+                  {(equipes.data ?? []).map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.nome}
+                    </option>
+                  ))}
+                </select>
+              </CampoFormulario>
+              <CampoFormulario rotulo="Indicador">
+                <select className={CLASSE_CAMPO} value={indEquipe} onChange={(e) => setIndEquipe(e.target.value as Indicador)} data-testid="metas.lote-indicador">
+                  {INDICADORES_META.map((i) => (
+                    <option key={i} value={i}>
+                      {ROTULO_INDICADOR_META[i]}
+                    </option>
+                  ))}
+                </select>
+              </CampoFormulario>
+            </>
+          )}
+          <CampoFormulario rotulo={`Meta (${UNIDADE_DO_CAMPO[campoRotulo]})`}>
+            <input className={CLASSE_CAMPO} inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder={alvoVenda ? '25.000,00' : campoRotulo === 'cobertura_pct' ? '85' : campoRotulo === 'itens_por_pedido' ? '8,5' : '40'} data-testid="metas.valor" />
+          </CampoFormulario>
+          {alvoVenda && (
+            <CampoFormulario rotulo="Apurar por">
+              <select className={CLASSE_CAMPO} value={tipo} onChange={(e) => setTipo(e.target.value as LinhaMetaBko['tipo'])} data-testid="metas.tipo">
+                {(Object.keys(ROTULO_TIPO) as Array<LinhaMetaBko['tipo']>).map((t) => (
+                  <option key={t} value={t}>
+                    {ROTULO_TIPO[t]}
+                  </option>
+                ))}
+              </select>
+            </CampoFormulario>
+          )}
         </div>
-      </Dialog>
+      </Drawer>
+      <InicioParametrosPanel open={parametros} onClose={() => setParametros(false)} />
     </div>
   );
 }
@@ -283,9 +286,6 @@ export function MetasPage() {
   return (
     <Suspense fallback={<LoadingBlock label="Carregando as metas…" />}>
       <MetasConteudo />
-      <div className="mt-5 w-full max-w-[1280px]">
-        <InicioParametrosPanel />
-      </div>
     </Suspense>
   );
 }

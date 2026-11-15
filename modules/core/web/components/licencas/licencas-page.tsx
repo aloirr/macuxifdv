@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PERFIS, ROTULO_PERFIL, type ModuloId, type Perfil } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
+import { Badge, Button, CartaoDeModulo, Dialog, ErrorBlock, FilterBar, LoadingBlock, MenuAcoes, modulosContrataveis, nomeDoModulo, Notice, PageHeader, Panel, SelectField, useToast, type IdDoModulo } from '@macuxi/ui/web';
 import { LicencasEstadoSchema, NIVEIS_LICENCA, type LicencasEstado, type NivelLicenca } from '../../../contracts';
 import { PromotorPedidosPanel } from './promotor-pedidos-panel';
 import { csvDeLicencas, efetivosDoUsuario, linhasDoNivel, modulosQueTambemDesligam, ROTULO_NIVEL } from '../../lib/licencas';
@@ -39,6 +39,7 @@ function LicencasConteudo() {
   const pathname = usePathname();
   const qc = useQueryClient();
   const pode = usePode('modulo.gerir_licencas');
+  const toast = useToast();
 
   const nivelParam = params.get('nivel');
   const nivel: NivelLicenca = (NIVEIS_LICENCA as readonly string[]).includes(nivelParam ?? '') ? (nivelParam as NivelLicenca) : 'tenant';
@@ -57,7 +58,8 @@ function LicencasConteudo() {
     mutationFn: async (a: Alteracao) => api(caminhoDaAlteracao(a), { method: 'PUT', body: { ativo: a.ativo } }),
     onSuccess: async (_r, a) => {
       setPendente(null);
-      setAviso(`${a.ativo ? 'Ativado' : 'Desativado'}: ${a.modulo}. Vale para os aparelhos no próximo sync.`);
+      setAviso(null);
+      toast('success', `${nomeDoModulo(a.modulo)} ${a.ativo ? 'ativado' : 'desativado'}.`);
       await qc.invalidateQueries({ queryKey: CHAVE });
     },
     onError: (e) => {
@@ -81,12 +83,15 @@ function LicencasConteudo() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
-  const linhas = estado ? linhasDoNivel(estado, nivel, { perfil, usuarioId }) : [];
-  const efetivos = estado && nivel === 'usuario' ? efetivosDoUsuario(estado, usuarioId) : [];
+  // nativos (Core, Catálogo, Integração) entram em toda empresa e não aparecem na lista (§P10)
+  const contrataveis = new Set<string>(modulosContrataveis().map((m) => m.id));
+  const todas = estado ? linhasDoNivel(estado, nivel, { perfil, usuarioId }) : [];
+  const linhas = todas.filter((l) => contrataveis.has(l.modulo));
+  const efetivos = (estado && nivel === 'usuario' ? efetivosDoUsuario(estado, usuarioId) : []).filter((m) => contrataveis.has(m));
 
   const pedir = (modulo: ModuloId, ativo: boolean) => {
     if (!estado || !pode) return;
-    const ligados = linhas.filter((l) => l.ativo).map((l) => l.modulo);
+    const ligados = todas.filter((l) => l.ativo).map((l) => l.modulo);
     setAviso(null);
     setPendente({ nivel, modulo, ativo, perfil: nivel === 'perfil' ? perfil : null, usuarioId: nivel === 'usuario' ? usuarioId : null, tambemDesligam: ativo ? [] : modulosQueTambemDesligam(estado, modulo, ligados) });
   };
@@ -95,12 +100,7 @@ function LicencasConteudo() {
     <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="licencas.tela">
       <PageHeader
         title="Usuários e módulos"
-        subtitle="Quais módulos cada empresa, perfil e usuário usa. O usuário só enxerga o que passa pelos três níveis (empresa ∩ perfil, menos as exceções)."
-        actions={
-          <Button onClick={exportar} disabled={!estado} data-testid="licencas.exportar-csv">
-            Exportar CSV
-          </Button>
-        }
+        actions={<MenuAcoes acoes={[{ id: 'exportar', rotulo: 'Exportar CSV', desligada: !estado, testId: 'licencas.exportar-csv', aoEscolher: exportar }]} />}
       />
 
       {!pode && <Notice tone="info">Só o administrador altera licenças. Você pode consultar.</Notice>}
@@ -151,46 +151,17 @@ function LicencasConteudo() {
       {q.isPending && <LoadingBlock label="Carregando as licenças…" />}
 
       {estado && (
-        <Panel title={nivel === 'usuario' ? 'Exceções do usuário (só removem módulo)' : `Módulos — ${ROTULO_NIVEL[nivel]}`}>
-          <TableScroll minWidth={560}>
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr>
-                  <th className={th}>Módulo</th>
-                  <th className={th}>Estado</th>
-                  <th className={th}>Ação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {linhas.map((l) => (
-                  <tr key={l.modulo} data-testid={`licencas.modulo.${nivel}.${l.modulo}`}>
-                    <td className={td}>{l.modulo}</td>
-                    <td className={td}>
-                      <span data-testid={`licencas.estado.${nivel}.${l.modulo}`} data-estado={l.ativo ? 'ativo' : 'inativo'}>
-                        <Badge tone={l.ativo ? 'success' : 'neutral'}>{l.ativo ? 'Ativo' : 'Inativo'}</Badge>
-                      </span>
-                    </td>
-                    <td className={td}>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={l.ativo}
-                        aria-label={`${l.ativo ? 'Desativar' : 'Ativar'} ${l.modulo}`}
-                        aria-disabled={l.travado || !pode}
-                        disabled={l.travado || !pode}
-                        data-testid={`licencas.toggle.${nivel}.${l.modulo}`}
-                        onClick={() => pedir(l.modulo, !l.ativo)}
-                        className="h-[44px] min-w-[96px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled"
-                      >
-                        {l.travado ? 'Sempre ativo' : l.ativo ? 'Desativar' : 'Ativar'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        </Panel>
+        <div className="grid gap-3 sm:grid-cols-2" data-testid={`licencas.lista.${nivel}`}>
+          {linhas.map((l) => (
+            <CartaoDeModulo
+              key={l.modulo}
+              id={l.modulo as IdDoModulo}
+              ativo={l.ativo}
+              aoAlternar={pode ? (ativo) => pedir(l.modulo, ativo) : undefined}
+              testId={`licencas.modulo.${nivel}.${l.modulo}`}
+            />
+          ))}
+        </div>
       )}
 
       {nivel === 'perfil' && perfil === 'promotor' && <PromotorPedidosPanel />}
@@ -200,7 +171,7 @@ function LicencasConteudo() {
           <ul className="m-0 flex list-none flex-wrap gap-2 p-0" data-testid="licencas.efetivos">
             {efetivos.map((m) => (
               <li key={m} data-testid={`licencas.efetivo.${m}`}>
-                <Badge tone="success">{m}</Badge>
+                <Badge tone="success">{nomeDoModulo(m)}</Badge>
               </li>
             ))}
           </ul>
@@ -209,7 +180,7 @@ function LicencasConteudo() {
 
       <Dialog
         open={pendente !== null}
-        title={pendente?.ativo ? `Ativar ${pendente.modulo}?` : `Desativar ${pendente?.modulo ?? ''}?`}
+        title={pendente?.ativo ? `Ativar ${nomeDoModulo(pendente.modulo)}?` : `Desativar ${pendente ? nomeDoModulo(pendente.modulo) : ''}?`}
         onClose={() => setPendente(null)}
         footer={
           <>
@@ -224,14 +195,10 @@ function LicencasConteudo() {
       >
         {pendente && (
           <div className="flex flex-col gap-2">
-            <p className="m-0">
-              {pendente.ativo
-                ? 'O módulo volta a aparecer nos aparelhos no próximo sync.'
-                : 'O módulo some dos aparelhos no próximo sync. A fila de envio dele é tentada antes e o usuário confirma o que não foi enviado; os dados na nuvem ficam guardados por 90 dias.'}
-            </p>
+            {!pendente.ativo && <p className="m-0">O módulo some dos aparelhos.</p>}
             {pendente.tambemDesligam.length > 0 && (
               <Notice tone="warning">
-                <span data-testid="licencas.aviso-dependencia">Este módulo também desliga: {pendente.tambemDesligam.join(', ')}.</span>
+                <span data-testid="licencas.aviso-dependencia">Este módulo também desliga: {pendente.tambemDesligam.map(nomeDoModulo).join(', ')}.</span>
               </Notice>
             )}
           </div>

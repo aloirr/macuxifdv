@@ -14,7 +14,7 @@ const MAX_AHEAD_DAYS = 56;
 
 type Result = { date: string; ok: boolean; warn?: boolean; message?: string };
 
-export function CopyDayDialog({ sellerId, sellerName, date, stops, today, onClose }: { sellerId: string; sellerName: string; date: string; stops: DraftStop[]; today: string; onClose: () => void }) {
+export function CopyDayDialog({ sellerId, date, stops, today, onClose }: { sellerId: string; sellerName: string; date: string; stops: DraftStop[]; today: string; onClose: () => void }) {
   const qc = useQueryClient();
   const toast = useToast();
   const candidates = useMemo(() => sameWeekdayNext(date, CANDIDATE_WEEKS).filter((d) => d >= today), [date, today]);
@@ -58,7 +58,7 @@ export function CopyDayDialog({ sellerId, sellerName, date, stops, today, onClos
     setResults(out);
     void qc.invalidateQueries({ queryKey: ['routes'] });
     const ok = out.filter((r) => r.ok).length;
-    if (ok === out.length) toast('success', `Rota copiada para ${ok} ${ok === 1 ? 'dia' : 'dias'} e registrada na auditoria.`);
+    if (ok === out.length) toast('success', `Rota copiada para ${ok} ${ok === 1 ? 'dia' : 'dias'}.`);
   };
 
   const busy = running !== null;
@@ -96,9 +96,6 @@ export function CopyDayDialog({ sellerId, sellerName, date, stops, today, onClos
         </ul>
       ) : (
         <div className="flex flex-col gap-3">
-          <span className="text-[13px] text-ink-2">
-            Copia as {stops.length} paradas de {sellerName} em <strong className="text-ink">{dayLabel(date)}</strong>, na mesma ordem e com as mesmas janelas.
-          </span>
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[12px] font-semibold text-ink-2">Mesmo dia da semana nas próximas</span>
             {[1, 2, 4].map((n) => (
@@ -141,7 +138,7 @@ export function CopyDayDialog({ sellerId, sellerName, date, stops, today, onClos
           {replacing.length > 0 && (
             <Notice tone="warning">
               {replacing.length === 1 ? 'Um dia escolhido já tem rota' : `${replacing.length} dias escolhidos já têm rota`}: as paradas existentes serão
-              substituídas por estas. A troca fica registrada na auditoria.
+              substituídas por estas.
             </Notice>
           )}
         </div>

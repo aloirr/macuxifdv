@@ -100,7 +100,7 @@ export function FarolParametrosPanel({ aoSalvar }: { aoSalvar?: () => void }) {
   };
 
   return (
-    <Panel title="Parâmetros do farol">
+    <Panel title="Limites do farol">
       <div className="flex flex-col gap-4" data-testid="farol-params.painel">
         {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
         {q.isPending && <LoadingBlock label="Carregando os parâmetros…" />}
@@ -125,7 +125,7 @@ export function FarolParametrosPanel({ aoSalvar }: { aoSalvar?: () => void }) {
               </Button>
               {salvo && (
                 <Notice tone="success" onClose={() => setSalvo(false)}>
-                  Parâmetros salvos. O farol já usa os novos limites.
+                  Parâmetros salvos.
                 </Notice>
               )}
             </div>

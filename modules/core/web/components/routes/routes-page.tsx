@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RouteDay, Seller } from '../../../contracts';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { formatInt, IconChevronRight, IconPlus, Badge, Button, cx, ErrorBlock, FilterBar, KpiCard, KpiGrid, LoadingBlock, PageHeader, SelectField, SkeletonCards } from '@macuxi/ui/web';
+import { formatInt, IconChevronRight, IconPlus, Badge, Button, cx, ErrorBlock, EstadoVazio, FilterBar, KpiCard, KpiGrid, LoadingBlock, MenuAcoes, PageHeader, rotuloComContagem, SelectField, SkeletonCards } from '@macuxi/ui/web';
 import { useMe, useRoutes, useSellersDeCampo, useTeamsDeCampo } from '../../lib/queries';
 import {
   buildMapRoutes,
@@ -256,17 +256,14 @@ export function RoutesPage() {
 
   if (me.isPending || !anchor) return <LoadingBlock />;
 
-  const subtitle = `${periodLabel(mode, anchor)} · ${single ? (sellerFull[sellerId] ?? '…') : teamId ? `equipe ${teams.data?.find((t) => t.id === teamId)?.name ?? ''}` : 'todos os vendedores'}`;
-
   return (
     <>
       <PageHeader
-        title="Rotas"
-        subtitle={subtitle}
+        title={rotuloComContagem('Rotas', kpis.routes)}
         actions={
-          <Button onClick={() => void q.refetch()} disabled={q.isFetching} aria-label="Atualizar as rotas" data-testid="rotas.atualizar">
-            {q.isFetching ? 'Atualizando…' : 'Atualizar'}
-          </Button>
+          <MenuAcoes
+            acoes={[{ id: 'atualizar', rotulo: q.isFetching ? 'Atualizando…' : 'Atualizar', desligada: q.isFetching, aoEscolher: () => void q.refetch(), testId: 'rotas.atualizar' }]}
+          />
         }
       />
 
@@ -303,7 +300,11 @@ export function RoutesPage() {
             </option>
           ))}
         </SelectField>
-        {q.isFetching && q.data && <span className="pb-2.5 text-[12px] text-ink-2">atualizando…</span>}
+        {(teamId || sellerId) && (
+          <Button size="sm" onClick={() => set({ team: null, seller: null })}>
+            Limpar filtros
+          </Button>
+        )}
       </FilterBar>
 
       {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
@@ -312,8 +313,7 @@ export function RoutesPage() {
         q.isPending ? <SkeletonCards n={6} /> : null
       ) : (
         <KpiGrid min={150}>
-          <KpiCard label="Rotas no período" value={formatInt(kpis.routes)} sub={`média de ${kpis.avgPerRoute.toLocaleString('pt-BR')} visitas por rota`} />
-          <KpiCard label="Visitas planejadas" value={formatInt(kpis.planned)} />
+          <KpiCard label="Visitas planejadas" value={formatInt(kpis.planned)} sub={`média de ${kpis.avgPerRoute.toLocaleString('pt-BR')} por rota`} />
           <KpiCard label="Km total" value={formatInt(kpis.km)} sub="saída do CD, sem volta" />
           <KpiCard label="Visitadas" value={formatInt(kpis.done)} valueClass="text-success" sub={kpis.planned ? `${Math.round((kpis.done / kpis.planned) * 100)}% do planejado` : '—'} />
           <KpiCard label="Em atendimento" value={formatInt(kpis.inProgress)} valueClass={kpis.inProgress ? 'text-accent-ink' : undefined} />
@@ -379,7 +379,7 @@ export function RoutesPage() {
           {dense && (
             <label className="flex items-center gap-2 px-1 text-[12px] text-ink-2">
               <input type="checkbox" className="h-4 w-4 accent-accent" checked={showAllLines} onChange={(e) => setLinesOverride(e.target.checked)} />
-              Mostrar as linhas de todas as rotas (muitos dados: por padrão só os pontos; escolha uma rota na lista para ver o trajeto)
+              Mostrar as linhas de todas as rotas
             </label>
           )}
 
@@ -449,16 +449,11 @@ function RouteList({
   colorOf: (r: ListRow) => string;
   onOpen: (key: string) => void;
 }) {
-  const withRoute = rows.filter((r) => r.route && r.route.stops.length).length;
   const groupByDate = !single && mode !== 'day';
   return (
     <>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="m-0 font-display text-[18px] font-bold">Rotas do período</h2>
-        <span className="text-[12px] text-ink-2">{withRoute} com visitas</span>
-      </div>
       {loading && <LoadingBlock />}
-      {!loading && rows.length === 0 && <span className="text-[13px] text-ink-2">Nenhuma rota no período com esses filtros.</span>}
+      {!loading && rows.length === 0 && <EstadoVazio titulo="Nenhuma rota com esses filtros." />}
       <ul className="m-0 flex list-none flex-col p-0" aria-label="Lista de rotas">
         {rows.map((r, i) => {
           const showHeader = groupByDate && (i === 0 || rows[i - 1]!.date !== r.date);

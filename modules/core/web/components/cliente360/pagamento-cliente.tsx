@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Notice, Panel } from '@macuxi/ui/web';
+import { Badge, Button, CampoFormulario, Notice, Panel, useToast } from '@macuxi/ui/web';
 import { ClientePagamentoPutSchema } from '../../../contracts';
 import { prazoMedioDoCampo } from '../../lib/pagamento-cliente';
 
@@ -16,6 +16,7 @@ import { prazoMedioDoCampo } from '../../lib/pagamento-cliente';
 export function PagamentoCliente({ clienteId, prazoMedioMaxDias, formas, formasDisponiveis }: { clienteId: string; prazoMedioMaxDias: number | null; formas: readonly string[]; formasDisponiveis: readonly { codigo: string; nome: string }[] | null }) {
   const pode = usePode('cliente.pagamento_editar');
   const qc = useQueryClient();
+  const toast = useToast();
   const [prazo, setPrazo] = useState(prazoMedioMaxDias === null ? '' : String(prazoMedioMaxDias));
   const [escolhidas, setEscolhidas] = useState<string[]>([...formas]);
   const [aviso, setAviso] = useState<{ tom: 'info' | 'warning'; texto: string } | null>(null);
@@ -27,7 +28,8 @@ export function PagamentoCliente({ clienteId, prazoMedioMaxDias, formas, formasD
       return api(`/core/clientes/${clienteId}/pagamento`, { method: 'PUT', body: corpo });
     },
     onSuccess: async () => {
-      setAviso({ tom: 'info', texto: 'Pagamento do cliente salvo. O aparelho recebe na próxima sincronização.' });
+      setAviso(null);
+      toast('success', 'Pagamento salvo.');
       await qc.invalidateQueries({ queryKey: ['core', 'cliente360', clienteId] });
     },
     onError: (e) => setAviso({ tom: 'warning', texto: errorMessage(e) }),
@@ -36,8 +38,7 @@ export function PagamentoCliente({ clienteId, prazoMedioMaxDias, formas, formasD
   return (
     <Panel title="Pagamento permitido">
       <div className="flex flex-col gap-3 text-[13px]" data-testid="cliente360.pagamento">
-        <label className="flex max-w-[260px] flex-col gap-1 font-semibold">
-          Prazo médio máximo (dias)
+        <CampoFormulario rotulo="Prazo médio máximo (dias)" opcional className="max-w-[260px]">
           <input
             type="number"
             min={0}
@@ -48,9 +49,9 @@ export function PagamentoCliente({ clienteId, prazoMedioMaxDias, formas, formasD
             onChange={(e) => setPrazo(e.target.value)}
             placeholder="Sem teto"
             data-testid="cliente360.pagamento.prazo"
-            className="min-h-[40px] rounded border border-line px-2 font-normal"
+            className="h-[42px] w-full rounded-[10px] border border-field bg-surface px-3 text-[14px] font-medium text-ink"
           />
-        </label>
+        </CampoFormulario>
         {formasDisponiveis ? (
           <fieldset className="flex flex-wrap gap-3" data-testid="cliente360.pagamento.formas">
             <legend className="mb-1 font-semibold">Formas permitidas (nenhuma marcada = todas)</legend>

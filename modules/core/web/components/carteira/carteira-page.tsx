@@ -1,12 +1,11 @@
 'use client';
 
 import { Suspense, useState } from 'react';
-import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, ErrorBlock, EtiquetaCadastroIncompleto, FilterBar, LoadingBlock, Notice, PageHeader, Panel, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
+import { Button, CampoBusca, CLASSE_CAMPO_BASE, Drawer, ErrorBlock, EstadoVazio, EtiquetaCadastroIncompleto, FilterBar, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, rotuloComContagem, SelectField, SeloSituacao, TabelaDados, nomeLegivel, useToast, cx, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
 import { ClienteListaRespostaSchema, type CarteiraItemPut } from '../../../contracts';
 import { csvDaCarteira, DIAS_DA_SEMANA, rotuloFrequencia } from '../../lib/carteira';
 import { usePapeisDeCampo, useSellersDeCampo } from '../../lib/queries';
@@ -26,7 +25,10 @@ function CarteiraConteudo() {
   const qc = useQueryClient();
   const pode = usePode('carteira.editar');
   const [aviso, setAviso] = useState<string | null>(null);
+  const toast = useToast();
   const [busca, setBusca] = useState('');
+  const [filtroLocal, setFiltroLocal] = useState('');
+  const [vinculando, setVinculando] = useState(false);
   const equipe = useSellersDeCampo();
   const papeis = usePapeisDeCampo();
   const usuario = params.get('usuario') ?? '';
@@ -54,17 +56,18 @@ function CarteiraConteudo() {
   };
 
   const atualizar = async (msg: string) => {
-    setAviso(msg);
+    setAviso(null);
+    toast('success', msg);
     await qc.invalidateQueries({ queryKey: ['core', 'carteira-do-usuario', usuario] });
   };
   const vincular = useMutation({
     mutationFn: (c: CarteiraItemPut) => api('/core/carteira', { method: 'PUT', body: c }),
-    onSuccess: () => atualizar('Carteira atualizada e registrada na auditoria.'),
+    onSuccess: () => atualizar('Carteira atualizada.'),
     onError: (e) => setAviso(errorMessage(e)),
   });
   const desvincular = useMutation({
     mutationFn: (carteiraId: string) => api(`/core/carteira/${carteiraId}`, { method: 'DELETE' }),
-    onSuccess: () => atualizar('Cliente desvinculado e registrado na auditoria.'),
+    onSuccess: () => atualizar('Cliente desvinculado.'),
     onError: (e) => setAviso(errorMessage(e)),
   });
 
@@ -76,148 +79,182 @@ function CarteiraConteudo() {
     dia_semana: freq ? (dia ?? 1) : null,
   });
 
-  const itens = lista.data ?? [];
+  const todos = lista.data ?? [];
+  const termo = filtroLocal.trim().toLocaleLowerCase('pt-BR');
+  const itens = termo ? todos.filter((c) => `${c.nome} ${c.cidade ?? ''}`.toLocaleLowerCase('pt-BR').includes(termo)) : todos;
   const nome = equipe.data?.find((s) => s.id === usuario)?.name ?? '';
+
+  const colunas: ColunaDaTabela<ClienteDaCarteira>[] = [
+    { id: 'cliente', titulo: 'Cliente', largura: '34%', celula: (c) => nomeLegivel(c.nome), texto: (c) => nomeLegivel(c.nome) },
+    { id: 'cidade', titulo: 'Cidade', prioridade: 2, celula: (c) => c.cidade ?? '', texto: (c) => c.cidade ?? '' },
+    {
+      id: 'frequencia',
+      titulo: 'Frequência',
+      largura: '170px',
+      celula: (c) => (
+        <select
+          value={c.frequencia_semanas ?? ''}
+          disabled={!pode}
+          aria-label={`Frequência de ${c.nome}`}
+          data-testid={`carteira.frequencia.${c.id}`}
+          onChange={(e) => vincular.mutate(vinculo(c, e.target.value ? (Number(e.target.value) as Frequencia) : null, c.dia_semana))}
+          className={cx(CLASSE_CAMPO_BASE, 'h-[38px] w-full px-2 text-[13px]')}
+        >
+          <option value="">Sem frequência</option>
+          {([1, 2, 4] as const).map((f) => (
+            <option key={f} value={f}>
+              {rotuloFrequencia(f)}
+            </option>
+          ))}
+        </select>
+      ),
+    },
+    {
+      id: 'dia',
+      titulo: 'Dia da visita',
+      prioridade: 2,
+      largura: '140px',
+      celula: (c) => (
+        <select
+          value={c.dia_semana ?? ''}
+          disabled={!pode || !c.frequencia_semanas}
+          aria-label={`Dia da visita de ${c.nome}`}
+          data-testid={`carteira.dia.${c.id}`}
+          onChange={(e) => vincular.mutate(vinculo(c, (c.frequencia_semanas as Frequencia) ?? null, Number(e.target.value)))}
+          className={cx(CLASSE_CAMPO_BASE, 'h-[38px] w-full px-2 text-[13px]')}
+        >
+          <option value="">—</option>
+          {DIAS_DA_SEMANA.map((d) => (
+            <option key={d.valor} value={d.valor}>
+              {d.rotulo}
+            </option>
+          ))}
+        </select>
+      ),
+    },
+    {
+      id: 'situacao',
+      titulo: 'Situação',
+      largura: '150px',
+      celula: (c) => (
+        <span data-testid={`carteira.situacao.${c.id}`}>
+          {c.cadastro_incompleto ? <EtiquetaCadastroIncompleto /> : <SeloSituacao selos={[c.lat === null ? { tom: 'warning', texto: 'Sem coordenada' } : null]} />}
+        </span>
+      ),
+    },
+  ];
+  const acoes = (c: ClienteDaCarteira): AcaoDoMenu[] =>
+    pode && c.carteira_id
+      ? [
+          {
+            id: 'desvincular',
+            rotulo: 'Desvincular',
+            perigo: true,
+            desligada: desvincular.isPending,
+            testId: `carteira.desvincular.${c.id}`,
+            aoEscolher: () => c.carteira_id && desvincular.mutate(c.carteira_id),
+          },
+        ]
+      : [];
+  const botaoVincular = pode && usuario ? (
+    <Button variant="primary" onClick={() => setVinculando(true)} data-testid="carteira.abrir-vincular">
+      Vincular cliente
+    </Button>
+  ) : undefined;
+
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="carteira.tela">
       <PageHeader
-        title="Carteira"
-        subtitle="Clientes de cada vendedor ou promotor, com a frequência e o dia da visita. A frequência gera a rota da semana."
+        title={usuario && lista.data ? rotuloComContagem('Carteira', todos.length) : 'Carteira'}
         actions={
-          <Button onClick={() => downloadBlob(new Blob([csvDaCarteira(itens, nome)], { type: 'text/csv;charset=utf-8' }), `carteira_${nome.replace(/\s+/g, '_') || 'usuario'}.csv`)} disabled={itens.length === 0} data-testid="carteira.exportar-csv">
-            Exportar CSV
-          </Button>
+          <>
+            {botaoVincular}
+            <MenuAcoes
+              acoes={[
+                {
+                  id: 'exportar',
+                  rotulo: 'Exportar CSV',
+                  desligada: itens.length === 0,
+                  testId: 'carteira.exportar-csv',
+                  aoEscolher: () => downloadBlob(new Blob([csvDaCarteira(itens, nome)], { type: 'text/csv;charset=utf-8' }), `carteira_${nome.replace(/\s+/g, '_') || 'usuario'}.csv`),
+                },
+              ]}
+            />
+          </>
         }
       />
       {!pode && <Notice tone="info">Só analista e administrador alteram a carteira. Você pode consultar.</Notice>}
       {aviso && (
-        <Notice tone="info" onClose={() => setAviso(null)}>
+        <Notice tone="warning" onClose={() => setAviso(null)}>
           {aviso}
         </Notice>
       )}
       <FilterBar>
+        <CampoBusca rotulo="Buscar cliente ou cidade" value={filtroLocal} onChange={(e) => setFiltroLocal(e.target.value)} disabled={!usuario} data-testid="carteira.filtro-busca" />
         <SelectField label="Vendedor ou promotor" value={usuario} onChange={(e) => set({ usuario: e.target.value })} data-testid="carteira.filtro-usuario">
-          <option value="">Escolha um usuário</option>
+          <option value="">Escolha</option>
           {(equipe.data ?? []).map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
             </option>
           ))}
         </SelectField>
+        {filtroLocal && (
+          <Button size="sm" onClick={() => setFiltroLocal('')} data-testid="carteira.limpar-filtros">
+            Limpar filtros
+          </Button>
+        )}
       </FilterBar>
 
-      {!usuario && <Notice tone="info">Escolha um vendedor ou promotor para ver os clientes dele.</Notice>}
+      {!usuario && <EstadoVazio titulo="Escolha um vendedor ou promotor." />}
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && usuario && <LoadingBlock label="Carregando a carteira…" />}
 
-      {usuario && lista.data && (
-        <>
-          <Panel title="Vincular cliente">
-            <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
-              Buscar cliente por nome, CNPJ ou cidade (mínimo 3 letras)
-              <input value={busca} onChange={(e) => setBusca(e.target.value)} data-testid="carteira.busca" disabled={!pode} className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal" />
-            </label>
-            {candidatos.data && candidatos.data.length === 0 && <p className="mt-2 text-[13px] text-ink-2">Nenhum cliente encontrado.</p>}
-            <ul className="mt-2 flex flex-col gap-2">
-              {(candidatos.data ?? []).map((c) => (
-                <li key={c.id} className="flex flex-wrap items-center gap-3 text-[13px]">
-                  <span className="min-w-[240px] font-semibold">{c.nome_fantasia || c.razao_social}</span>
-                  <span className="text-ink-2">{c.cidade ?? ''}</span>
-                  <Button
-                    variant="primary"
-                    disabled={!pode || vincular.isPending || itens.some((i) => i.id === c.id)}
-                    onClick={() => {
-                      vincular.mutate({ cliente_id: c.id, usuario_id: usuario, papel });
-                      setBusca('');
-                    }}
-                    data-testid={`carteira.vincular.${c.id}`}
-                  >
-                    {itens.some((i) => i.id === c.id) ? 'Já na carteira' : 'Vincular'}
-                  </Button>
-                </li>
-              ))}
-            </ul>
+      {usuario && lista.data &&
+        (itens.length === 0 ? (
+          <EstadoVazio titulo={termo ? 'Nenhum cliente com esses filtros.' : 'Nenhum cliente na carteira.'} acao={termo ? undefined : botaoVincular} />
+        ) : (
+          <Panel>
+            <TabelaDados
+              rotulo="Clientes da carteira"
+              colunas={colunas}
+              linhas={itens}
+              chave={(c) => c.id}
+              linhaTestId={(c) => `carteira.linha.${c.id}`}
+              aoAbrir={(c) => router.push(`/cliente?id=${c.id}`)}
+              acoes={acoes}
+            />
           </Panel>
+        ))}
 
-          <Panel title={`${itens.length} cliente${itens.length === 1 ? '' : 's'} vigente${itens.length === 1 ? '' : 's'}`}>
-            <TableScroll minWidth={880}>
-              <table className="w-full border-collapse text-[13px]">
-                <thead>
-                  <tr>
-                    <th className={th}>Cliente</th>
-                    <th className={th}>Cidade</th>
-                    <th className={th}>Frequência</th>
-                    <th className={th}>Dia da visita</th>
-                    <th className={th}>Situação</th>
-                    <th className={th}>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {itens.length === 0 && (
-                    <tr>
-                      <td className={td} colSpan={6}>
-                        Esta carteira está vazia. Busque um cliente acima para vincular.
-                      </td>
-                    </tr>
-                  )}
-                  {itens.map((c) => (
-                    <tr key={c.id} data-testid={`carteira.linha.${c.id}`}>
-                      <td className={td}>
-                        <Link href={`/cliente?id=${c.id}`} className="font-semibold text-accent-ink no-underline hover:underline">
-                          {c.nome}
-                        </Link>
-                      </td>
-                      <td className={td}>{c.cidade ?? ''}</td>
-                      <td className={td}>
-                        <select
-                          value={c.frequencia_semanas ?? ''}
-                          disabled={!pode}
-                          aria-label={`Frequência de ${c.nome}`}
-                          data-testid={`carteira.frequencia.${c.id}`}
-                          onChange={(e) => vincular.mutate(vinculo(c, e.target.value ? (Number(e.target.value) as Frequencia) : null, c.dia_semana))}
-                          className="h-[44px] rounded-xl border border-field bg-surface px-2 text-[13px]"
-                        >
-                          <option value="">Sem frequência</option>
-                          {([1, 2, 4] as const).map((f) => (
-                            <option key={f} value={f}>
-                              {rotuloFrequencia(f)}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className={td}>
-                        <select
-                          value={c.dia_semana ?? ''}
-                          disabled={!pode || !c.frequencia_semanas}
-                          aria-label={`Dia da visita de ${c.nome}`}
-                          data-testid={`carteira.dia.${c.id}`}
-                          onChange={(e) => vincular.mutate(vinculo(c, (c.frequencia_semanas as Frequencia) ?? null, Number(e.target.value)))}
-                          className="h-[44px] rounded-xl border border-field bg-surface px-2 text-[13px]"
-                        >
-                          <option value="">—</option>
-                          {DIAS_DA_SEMANA.map((d) => (
-                            <option key={d.valor} value={d.valor}>
-                              {d.rotulo}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className={td} data-testid={`carteira.situacao.${c.id}`}>
-                        {c.cadastro_incompleto ? <EtiquetaCadastroIncompleto /> : c.lat === null ? <Badge tone="warning">Sem coordenada</Badge> : null}
-                      </td>
-                      <td className={td}>
-                        <Button disabled={!pode || !c.carteira_id || desvincular.isPending} onClick={() => c.carteira_id && desvincular.mutate(c.carteira_id)} data-testid={`carteira.desvincular.${c.id}`}>
-                          Desvincular
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </TableScroll>
-          </Panel>
-        </>
-      )}
+      <Drawer open={vinculando} title="Vincular cliente" onClose={() => setVinculando(false)} rodape={<Button onClick={() => setVinculando(false)}>Fechar</Button>}>
+        <div className="flex flex-col gap-3">
+          <CampoBusca rotulo="Buscar cliente, CNPJ ou cidade (3 letras)" value={busca} onChange={(e) => setBusca(e.target.value)} disabled={!pode} data-testid="carteira.busca" className="sm:w-full" />
+          {candidatos.data && candidatos.data.length === 0 && <p className="m-0 text-[13px] text-ink-2">Nenhum cliente encontrado.</p>}
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+            {(candidatos.data ?? []).map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2 text-[13px]">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-semibold">{nomeLegivel(c.nome_fantasia || c.razao_social)}</span>
+                  <span className="block truncate text-ink-2">{c.cidade ?? ''}</span>
+                </span>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={!pode || vincular.isPending || todos.some((i) => i.id === c.id)}
+                  onClick={() => {
+                    vincular.mutate({ cliente_id: c.id, usuario_id: usuario, papel });
+                    setBusca('');
+                  }}
+                  data-testid={`carteira.vincular.${c.id}`}
+                >
+                  {todos.some((i) => i.id === c.id) ? 'Já na carteira' : 'Vincular'}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </Drawer>
     </div>
   );
 }

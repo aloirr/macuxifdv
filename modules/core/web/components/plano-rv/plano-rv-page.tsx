@@ -10,6 +10,7 @@ import {
   Badge,
   Button,
   ErrorBlock,
+  EstadoVazio,
   FilterBar,
   formatDateTimeFull,
   LoadingBlock,
@@ -17,13 +18,17 @@ import {
   Notice,
   PageHeader,
   Panel,
+  rotuloComContagem,
   SelectField,
-  td,
-  tdNum,
+  TabelaDados,
+  TextField,
   th,
   thNum,
+  td,
+  tdNum,
   TableScroll,
   rotuloDoPerfil,
+  type ColunaDaTabela,
 } from '@macuxi/ui/web';
 import {
   EquipeListaRespostaSchema,
@@ -49,8 +54,6 @@ import { aoEscolherEquipe, aoEscolherVendedor } from '../../lib/farol';
 import { useHojeDoTenant, useMe, useSellersDeCampo } from '../../lib/queries';
 import { PlanoRvEditor } from './plano-rv-editor';
 
-const CAMPO =
-  'h-[38px] rounded-[10px] border border-field bg-surface px-2.5 text-[14px] font-medium text-ink';
 const CHAVE_PLANOS = ['core', 'plano-rv'] as const;
 const TEXTO_DESCARTAR = 'Há alterações não salvas neste plano. Sair e descartar?';
 
@@ -81,93 +84,49 @@ function ListaDePlanos({
   fuso: string;
   aoEscolher: (a: { acao: 'editar' | 'ver' | 'copiar' | 'excluir'; plano: PlanoRvDto }) => void;
 }) {
+  const resumo = (p: PlanoRvDto) => p.regras.map((r) => `${ROTULO_INDICADOR_RV[r.indicador]}${r.gatilho ? ' (gatilho)' : ` ${r.peso_pct}%`}`).join(' · ');
+  const colunas: Array<ColunaDaTabela<PlanoRvDto>> = [
+    { id: 'plano', titulo: 'Plano', celula: (p) => p.nome, texto: (p) => p.nome, largura: '28%' },
+    {
+      id: 'vigencia',
+      titulo: 'Vigência a partir de',
+      celula: (p) => (
+        <>
+          {textoDoMes(p.vigencia_inicio)} {p.id === vigenteId && <Badge tone="success">Vigente</Badge>}
+        </>
+      ),
+      texto: (p) => textoDoMes(p.vigencia_inicio),
+      largura: '200px',
+    },
+    { id: 'valor', titulo: 'Valor com 100%', celula: (p) => formatBRL(p.valor_maximo_cents), texto: (p) => formatBRL(p.valor_maximo_cents), numero: true, largura: '130px' },
+    { id: 'perfis', titulo: 'Vale para', celula: (p) => p.perfis.map((x) => rotuloDoPerfil(x)).join(', '), texto: (p) => p.perfis.map((x) => rotuloDoPerfil(x)).join(', '), prioridade: 2 },
+    { id: 'indicadores', titulo: 'Indicadores', celula: resumo, texto: resumo, prioridade: 3 },
+    {
+      id: 'edicao',
+      titulo: 'Última edição',
+      celula: (p) => `${p.atualizado_por_nome ?? '—'}${p.updated_at ? ` · ${formatDateTimeFull(p.updated_at, fuso)}` : ''}`,
+      texto: (p) => `${p.atualizado_por_nome ?? '—'}${p.updated_at ? ` · ${formatDateTimeFull(p.updated_at, fuso)}` : ''}`,
+      prioridade: 3,
+    },
+  ];
   return (
-    <TableScroll minWidth={820}>
-      <table className="w-full border-collapse text-[13px]" data-testid="plano-rv.lista">
-        <thead>
-          <tr>
-            <th className={th}>Vigência a partir de</th>
-            <th className={th}>Plano</th>
-            <th className={th}>Vale para</th>
-            <th className={thNum}>Valor com 100%</th>
-            <th className={th}>Indicadores</th>
-            <th className={th}>Última edição</th>
-            <th className={th}>Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          {planos.map((p) => (
-            <tr key={p.id} data-testid={`plano-rv.plano.${p.id}`}>
-              <td className={td}>
-                {textoDoMes(p.vigencia_inicio)} {p.id === vigenteId && <Badge tone="success">Vigente</Badge>}
-              </td>
-              <td className={td}>{p.nome}</td>
-              <td className={td}>{p.perfis.map((x) => rotuloDoPerfil(x)).join(', ')}</td>
-              <td className={tdNum}>{formatBRL(p.valor_maximo_cents)}</td>
-              <td className={td}>
-                {p.regras
-                  .map(
-                    (r) =>
-                      `${ROTULO_INDICADOR_RV[r.indicador]}${r.gatilho ? ' (gatilho)' : ` ${r.peso_pct}%`}`,
-                  )
-                  .join(' · ')}
-              </td>
-              <td className={td}>
-                {p.atualizado_por_nome ?? '—'}
-                {p.updated_at && (
-                  <span className="block text-[12px] text-ink-2">
-                    {formatDateTimeFull(p.updated_at, fuso)}
-                  </span>
-                )}
-              </td>
-              <td className={td}>
-                <div className="flex flex-wrap gap-2">
-                  {podeEditar && p.editavel ? (
-                    <>
-                      <Button
-                        disabled={bloqueada}
-                        onClick={() => aoEscolher({ acao: 'editar', plano: p })}
-                        style={{ minHeight: 44 }}
-                        aria-label={`Editar o plano ${p.nome} de ${textoDoMes(p.vigencia_inicio)}`}
-                      >
-                        Editar
-                      </Button>
-                      <Button
-                        disabled={bloqueada}
-                        onClick={() => aoEscolher({ acao: 'excluir', plano: p })}
-                        style={{ minHeight: 44 }}
-                        aria-label={`Excluir o plano ${p.nome} de ${textoDoMes(p.vigencia_inicio)}`}
-                      >
-                        Excluir
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      disabled={bloqueada}
-                      onClick={() => aoEscolher({ acao: 'ver', plano: p })}
-                      style={{ minHeight: 44 }}
-                      aria-label={`Ver o plano ${p.nome} de ${textoDoMes(p.vigencia_inicio)}`}
-                    >
-                      Ver
-                    </Button>
-                  )}
-                  {podeEditar && (
-                    <Button
-                      disabled={bloqueada}
-                      onClick={() => aoEscolher({ acao: 'copiar', plano: p })}
-                      style={{ minHeight: 44 }}
-                      aria-label={`Criar versão nova a partir do plano ${p.nome} de ${textoDoMes(p.vigencia_inicio)}`}
-                    >
-                      Nova versão
-                    </Button>
-                  )}
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </TableScroll>
+    <TabelaDados
+      colunas={colunas}
+      linhas={planos}
+      chave={(p) => p.id}
+      rotulo="Planos de RV"
+      testId="plano-rv.lista"
+      linhaTestId={(p) => `plano-rv.plano.${p.id}`}
+      aoAbrir={bloqueada ? undefined : (p) => aoEscolher({ acao: podeEditar && p.editavel ? 'editar' : 'ver', plano: p })}
+      acoes={(p) =>
+        bloqueada
+          ? []
+          : [
+              ...(podeEditar ? [{ id: 'copiar', rotulo: 'Nova versão', aoEscolher: () => aoEscolher({ acao: 'copiar', plano: p }) }] : []),
+              ...(podeEditar && p.editavel ? [{ id: 'excluir', rotulo: 'Excluir', perigo: true, aoEscolher: () => aoEscolher({ acao: 'excluir', plano: p }) }] : []),
+            ]
+      }
+    />
   );
 }
 
@@ -231,17 +190,14 @@ function PainelDeRv() {
     >
       <div className="flex flex-col gap-4" data-testid="plano-rv.rv">
         <FilterBar>
-          <label className="flex flex-col gap-[3px] text-[12px] font-semibold text-ink-2">
-            Mês
-            <input
-              type="month"
-              value={mes}
-              max={hoje().slice(0, 7)}
-              onChange={(e) => e.target.value && set({ mes: e.target.value })}
-              className={CAMPO}
-              data-testid="plano-rv.filtro-mes"
-            />
-          </label>
+          <TextField
+            label="Mês"
+            type="month"
+            value={mes}
+            max={hoje().slice(0, 7)}
+            onChange={(e) => e.target.value && set({ mes: e.target.value })}
+            data-testid="plano-rv.filtro-mes"
+          />
           {(equipes.data ?? []).length > 0 && (
             <SelectField
               label="Equipe"
@@ -249,7 +205,7 @@ function PainelDeRv() {
               onChange={(e) => set(aoEscolherEquipe(e.target.value))}
               data-testid="plano-rv.filtro-equipe"
             >
-              <option value="">Todas as equipes</option>
+              <option value="">Todas</option>
               {(equipes.data ?? []).map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.nome}
@@ -272,7 +228,6 @@ function PainelDeRv() {
           </SelectField>
         </FilterBar>
         {rv.isError && <ErrorBlock message={errorMessage(rv.error)} onRetry={() => void rv.refetch()} />}
-        {rv.isFetching && !rv.isPending && <p className="m-0 text-[12px] text-ink-2">Calculando a RV…</p>}
         {rv.isPending && <LoadingBlock label="Calculando a RV…" />}
         {d && (
           <>
@@ -280,11 +235,7 @@ function PainelDeRv() {
               tone={d.situacao === 'fechado' ? 'success' : 'info'}
             >{`${textoDaSituacao(d.situacao, d.fechamento_em, d.periodo)}`}</Notice>
             {d.pessoas.length === 0 ? (
-              <Notice tone="info">
-                {d.plano_id
-                  ? 'Ninguém com plano de RV neste recorte. Troque a equipe ou a pessoa nos filtros.'
-                  : 'Nenhum plano vale para este mês. Cadastre um plano com início neste mês ou antes.'}
-              </Notice>
+              <EstadoVazio titulo={d.plano_id ? 'Ninguém com plano de RV com esses filtros.' : 'Nenhum plano vale para este mês.'} />
             ) : (
               <>
                 <p className="m-0 text-[14px] font-semibold text-ink" data-testid="plano-rv.rv.total">
@@ -434,7 +385,7 @@ function PlanoRvConteudo() {
     mutationFn: ({ id, corpo }: { id: string; corpo: PlanoRvPut }) =>
       api<unknown>(`/core/plano-rv/${id}`, { method: 'PUT', body: corpo }),
     onSuccess: async () => {
-      setAviso({ tom: 'success', texto: 'Plano salvo. A RV já usa os novos parâmetros.' });
+      setAviso({ tom: 'success', texto: 'Plano salvo.' });
       await depois();
     },
     onError: (e) =>
@@ -502,8 +453,7 @@ function PlanoRvConteudo() {
   return (
     <div className="flex w-full max-w-[1280px] flex-col gap-5" data-testid="plano-rv.tela">
       <PageHeader
-        title="Plano de RV"
-        subtitle="Parâmetros da remuneração variável por indicador e faixa de atingimento, com vigência por mês. A RV é calculada na hora com a meta e o realizado de cada pessoa."
+        title={rotuloComContagem('Plano de RV', d?.planos.length ?? 0)}
         actions={
           podeEditar && !edicao ? (
             <Button
@@ -544,11 +494,6 @@ function PlanoRvConteudo() {
                 : 'Novo plano'
               : `${edicao.plano.nome} (vale a partir de ${textoDoMes(edicao.plano.vigencia_inicio)})`
           }
-          ajudaTitulo={
-            edicao.tipo === 'novo' && edicao.origem
-              ? 'Começa no mês escolhido abaixo. O plano anterior vale até o mês anterior.'
-              : undefined
-          }
           motivoLeitura={
             edicao.tipo === 'ver' ? (edicao.plano.editavel ? 'permissao' : 'fechado') : undefined
           }
@@ -571,15 +516,11 @@ function PlanoRvConteudo() {
         />
       )}
 
-      {d && (
-        <Panel title={`Planos e vigência (${d.planos.length})`}>
-          {d.planos.length === 0 ? (
-            <Notice tone="info">
-              {podeEditar
-                ? 'Nenhum plano cadastrado. Use "Novo plano" para definir o primeiro.'
-                : 'Nenhum plano cadastrado ainda. Peça ao analista para cadastrar.'}
-            </Notice>
-          ) : (
+      {d &&
+        (d.planos.length === 0 ? (
+          <EstadoVazio titulo="Nenhum plano cadastrado." testId="plano-rv.vazio" />
+        ) : (
+          <Panel>
             <ListaDePlanos
               planos={d.planos}
               vigenteId={d.vigente?.id ?? null}
@@ -588,9 +529,8 @@ function PlanoRvConteudo() {
               fuso={fuso}
               aoEscolher={escolher}
             />
-          )}
-        </Panel>
-      )}
+          </Panel>
+        ))}
 
       {podeVerRv && <PainelDeRv />}
     </div>

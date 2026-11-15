@@ -53,6 +53,16 @@ export function textoDeDias(dias: number | null): string {
   return dias === 1 ? '1 dia' : `${dias} dias`;
 }
 
+/** Dias sem compra na lista (RD-0360): só o número ("43"); nunca comprou = "—". A data da última compra vai no `title` da célula. */
+export function diasEmNumero(dias: number | null): string {
+  return dias === null ? '—' : String(dias);
+}
+
+/** Texto do `title` da célula de dias: "Última compra: 02/10/2026"; sem compra, "Sem compra registrada". */
+export function textoDaUltimaCompra(iso: string | null): string {
+  return iso ? `Última compra: ${textoDeData(iso)}` : 'Sem compra registrada';
+}
+
 /** Pontos-base (10000 = 100,00%) para texto: 3333 -> "33,3%"; 10000 -> "100%". */
 export function textoDePositivacao(pontosBase: number): string {
   const pct = pontosBase / 100;

@@ -4,13 +4,13 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, SelectField, TableScroll, formatDayMonthLong, td, th } from '@macuxi/ui/web';
+import { Badge, Button, CLASSE_CAMPO_BASE, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, SelectField, TableScroll, formatDayMonthLong, td, th } from '@macuxi/ui/web';
 import { textoDaHora } from '../metas-produtividade/formato';
 import { useHojeDoTenant } from '../../lib/queries';
 import { CHAVE_CALENDARIO, criarApiCalendario, type ApiCalendario, type ParametrosCalendario } from './api';
 import { FERIADO_NOME_MAX, feriadosDoAno, incluirFeriado, lerAlmoco, type ErroFeriado, type ErrosAlmoco, type LinhaFeriado } from './calendario';
 
-const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
+const CAMPO = `${CLASSE_CAMPO_BASE} h-[42px] px-3`;
 
 /** Campo do 422 da API → campo da tela. */
 const CAMPO_DA_API: Readonly<Record<string, keyof ErrosAlmoco>> = { almoco_corte: 'corte', almoco_janela: 'janela' };

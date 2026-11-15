@@ -29,7 +29,7 @@ import {
   windowIssues,
   type DraftStop,
 } from '../../lib/routes';
-import { IconLock, IconPlus, IconRoute, IconTrash, IconX, useToast, Badge, Button, cx, LoadingBlock, Notice } from '@macuxi/ui/web';
+import { IconLock, IconPlus, IconRoute, IconTrash, IconX, useToast, Badge, Button, CampoBusca, cx, EstadoVazio, LoadingBlock, Notice } from '@macuxi/ui/web';
 import { CopyDayDialog } from './copy-day-dialog';
 
 export interface RouteEditorProps {
@@ -207,9 +207,7 @@ export function RouteEditor({ sellerId, sellerName, date, route, start, canEdit,
       )}
 
       {draft.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-field px-3 py-5 text-center text-[13px] text-ink-2">
-          {route?.stops.length === 0 && route.id ? 'Rota sem paradas.' : 'Sem rota neste dia.'} {canEdit ? 'Use “Adicionar cliente” para montar a rota.' : ''}
-        </div>
+        <EstadoVazio titulo={route?.stops.length === 0 && route.id ? 'Rota sem paradas.' : 'Sem rota neste dia.'} />
       ) : (
         <ol className="m-0 flex list-none flex-col gap-1.5 p-0" aria-label="Paradas da rota">
           {draft.map((s, i) => {
@@ -331,20 +329,10 @@ function AddCustomer({ sellerId, exclude, onAdd }: { sellerId: string; exclude: 
   const results = useMemo(() => searchWallet(wallet.data ?? [], q, exclude, 25), [wallet.data, q, exclude]);
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-line bg-ground/60 p-2.5">
-      <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-        Buscar na carteira do vendedor
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Nome, bairro ou código"
-          autoFocus
-          className="h-10 rounded-[10px] border border-field bg-surface px-2.5 text-[14px] font-medium text-ink"
-        />
-      </label>
+      <CampoBusca rotulo="Buscar cliente por nome, bairro ou código" value={q} onChange={(e) => setQ(e.target.value)} autoFocus className="sm:w-full" />
       {wallet.isPending && <LoadingBlock label="Carregando carteira…" />}
       {wallet.isError && <Notice tone="danger">{errorMessage(wallet.error)}</Notice>}
-      {wallet.data && results.length === 0 && <span className="py-2 text-[13px] text-ink-2">Nenhum cliente encontrado (ou todos já estão na rota).</span>}
+      {wallet.data && results.length === 0 && <span className="py-2 text-[13px] text-ink-2">Nenhum cliente com esses filtros.</span>}
       <ul className="m-0 flex max-h-[280px] list-none flex-col overflow-y-auto p-0" aria-label="Clientes da carteira">
         {results.map((c) => {
           const idle = c.days_since_purchase ?? null;

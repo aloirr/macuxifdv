@@ -4,14 +4,14 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { ApiRequestError, api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, ErrorBlock, LoadingBlock, Notice, Panel } from '@macuxi/ui/web';
+import { Button, CampoFormulario, CLASSE_CAMPO, Drawer, ErrorBlock, LoadingBlock, Notice } from '@macuxi/ui/web';
 import {
   ErroParametroInicioSchema,
   ParametroCheckoutPendenciaSchema,
   ParametrosInicioSchema,
   type ErroParametroInicio,
 } from '../../../contracts';
-import { AJUDA_ALERTA_H, ALERTA_H_PADRAO, validarAlertaH } from '../../lib/etapas-visita';
+import { ALERTA_H_PADRAO, validarAlertaH } from '../../lib/etapas-visita';
 import {
   PARADO_MIN_MAX,
   PARADO_MIN_MIN,
@@ -31,7 +31,6 @@ const DIAS = [
   [5, 'Sex', 'Sexta-feira'],
   [6, 'Sáb', 'Sábado'],
 ] as const;
-const CAMPO = 'h-[44px] w-full rounded-xl border bg-surface px-3 text-[14px] font-normal text-ink';
 
 type CampoParam = 'dias' | 'parado' | 'alerta';
 type ErrosCampo = Partial<Record<CampoParam, string>>;
@@ -64,11 +63,11 @@ function MensagemErro({ id, texto }: { id: string; texto?: string }) {
 /**
  * Parâmetros do Início por empresa (RN-CORE-26; T-0073 passo 7): dias úteis da semana (base da meta do dia) e
  * minutos para a equipe aparecer como "parada". Só quem tem `parametro.inicio` (analista e admin) vê; a API revalida e
- * audita antes/depois. Vale nos aparelhos no próximo sync. Erros aparecem no campo (aria-invalid + aria-describedby); o aviso do topo
+ * audita antes/depois. Abre na gaveta "Parâmetros do Início" (menu "Mais ações" das Metas). Erros aparecem no campo (aria-invalid + aria-describedby); o aviso do topo
  * fica só para erro sem campo (rede, 403).
  * testIDs: `inicio-params.painel` · `.dia.<0-6>` · `.parado` · `.<campo>.erro` · `.salvar`.
  */
-export function InicioParametrosPanel() {
+export function InicioParametrosPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pode = usePode('parametro.inicio');
   const qc = useQueryClient();
   const [dias, setDias] = useState<number[]>([]);
@@ -160,7 +159,21 @@ export function InicioParametrosPanel() {
   };
 
   return (
-    <Panel title="Parâmetros do Início">
+    <Drawer
+      open={open}
+      title="Parâmetros do Início"
+      onClose={onClose}
+      rodape={
+        <>
+          <Button onClick={onClose} data-testid="inicio-params.cancelar">
+            Fechar
+          </Button>
+          <Button variant="primary" onClick={salvar} disabled={gravar.isPending || !q.data} data-testid="inicio-params.salvar">
+            {gravar.isPending ? 'Salvando…' : 'Salvar'}
+          </Button>
+        </>
+      }
+    >
       <div className="flex flex-col gap-4" data-testid="inicio-params.painel">
         {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
         {q.isPending && <LoadingBlock label="Carregando os parâmetros…" />}
@@ -169,14 +182,15 @@ export function InicioParametrosPanel() {
             {aviso}
           </Notice>
         )}
+        {salvo && (
+          <Notice tone="success" onClose={() => setSalvo(false)}>
+            Parâmetros salvos.
+          </Notice>
+        )}
         {q.data && (
           <>
             <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
-              <legend className="text-[14px] font-semibold text-ink">Dias úteis da semana</legend>
-              <span className="text-[13px] text-ink-2">
-                Os dias marcados contam para a meta do dia: a meta que falta no mês é dividida pelos dias
-                úteis que restam.
-              </span>
+              <legend className="mb-1 text-[13px] font-semibold text-ink">Dias úteis da semana</legend>
               <MensagemErro id="inicio-params.dias.erro" texto={erros.dias} />
               <div className="flex flex-wrap gap-2">
                 {DIAS.map(([n, rotulo, nomeCompleto]) => (
@@ -196,74 +210,41 @@ export function InicioParametrosPanel() {
                 ))}
               </div>
             </fieldset>
-            <label className="flex max-w-[260px] flex-col gap-1 text-[14px] font-semibold text-ink">
-              Minutos para considerar "parado"
-              <span className="text-[13px] font-normal text-ink-2">
-                Sem check-in após o último checkout, com paradas pendentes. De {PARADO_MIN_MIN} a{' '}
-                {PARADO_MIN_MAX} minutos.
-              </span>
+            <CampoFormulario rotulo={`Minutos para considerar "parado" (${PARADO_MIN_MIN} a ${PARADO_MIN_MAX})`}>
               <MensagemErro id="inicio-params.parado.erro" texto={erros.parado} />
-              <span className="relative block">
+              <input
+                className={CLASSE_CAMPO}
+                inputMode="numeric"
+                value={parado}
+                onChange={(e) => {
+                  setSalvo(false);
+                  setParado(e.target.value.replace(/\D/g, ''));
+                }}
+                aria-invalid={erros.parado ? true : undefined}
+                aria-describedby={erros.parado ? 'inicio-params.parado.erro' : undefined}
+                data-testid="inicio-params.parado"
+              />
+            </CampoFormulario>
+            {temAlerta && (
+              <CampoFormulario rotulo="Prazo para avisar etapa pendente (1 a 168 horas)">
+                <MensagemErro id="inicio-params.alerta.erro" texto={erros.alerta} />
                 <input
-                  className={`${CAMPO} pr-12 ${erros.parado ? 'border-danger' : 'border-field'}`}
+                  className={CLASSE_CAMPO}
                   inputMode="numeric"
-                  value={parado}
+                  value={alertaH}
                   onChange={(e) => {
                     setSalvo(false);
-                    setParado(e.target.value.replace(/\D/g, ''));
+                    setAlertaH(e.target.value.replace(/\D/g, ''));
                   }}
-                  aria-invalid={erros.parado ? true : undefined}
-                  aria-describedby={erros.parado ? 'inicio-params.parado.erro' : undefined}
-                  data-testid="inicio-params.parado"
+                  aria-invalid={erros.alerta ? true : undefined}
+                  aria-describedby={erros.alerta ? 'inicio-params.alerta.erro' : undefined}
+                  data-testid="inicio-params.alerta"
                 />
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] font-normal text-ink-2"
-                >
-                  min
-                </span>
-              </span>
-            </label>
-            {temAlerta && (
-              <label className="flex max-w-[260px] flex-col gap-1 text-[14px] font-semibold text-ink">
-                Prazo para avisar etapa pendente (horas)
-                <span className="text-[13px] font-normal text-ink-2">{AJUDA_ALERTA_H}</span>
-                <MensagemErro id="inicio-params.alerta.erro" texto={erros.alerta} />
-                <span className="relative block">
-                  <input
-                    className={`${CAMPO} pr-12 ${erros.alerta ? 'border-danger' : 'border-field'}`}
-                    inputMode="numeric"
-                    value={alertaH}
-                    onChange={(e) => {
-                      setSalvo(false);
-                      setAlertaH(e.target.value.replace(/\D/g, ''));
-                    }}
-                    aria-invalid={erros.alerta ? true : undefined}
-                    aria-describedby={erros.alerta ? 'inicio-params.alerta.erro' : undefined}
-                    data-testid="inicio-params.alerta"
-                  />
-                  <span
-                    aria-hidden
-                    className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] font-normal text-ink-2"
-                  >
-                    h
-                  </span>
-                </span>
-              </label>
+              </CampoFormulario>
             )}
-            <div className="flex flex-wrap items-center gap-3">
-              <Button onClick={salvar} disabled={gravar.isPending} data-testid="inicio-params.salvar">
-                {gravar.isPending ? 'Salvando…' : 'Salvar parâmetros'}
-              </Button>
-              {salvo && (
-                <Notice tone="success" onClose={() => setSalvo(false)}>
-                  Parâmetros salvos. Os aparelhos recebem no próximo sync.
-                </Notice>
-              )}
-            </div>
           </>
         )}
       </div>
-    </Panel>
+    </Drawer>
   );
 }

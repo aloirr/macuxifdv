@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, Notice, Panel } from '@macuxi/ui/web';
+import { Button, CLASSE_CAMPO_BASE, cx, Notice, Panel, useToast } from '@macuxi/ui/web';
 import { ClienteFilialPutSchema, FiliaisListaSchema } from '../../../contracts';
 import { filialEfetiva, podeEditarFilialDoCliente, rotuloDaFilial } from '../../../domain';
 
@@ -15,6 +15,7 @@ import { filialEfetiva, podeEditarFilialDoCliente, rotuloDaFilial } from '../../
 export function FilialCliente({ clienteId, filialId, externalId }: { clienteId: string; filialId: string | null | undefined; externalId: string | null }) {
   const pode = usePode('cliente.filial_editar');
   const qc = useQueryClient();
+  const toast = useToast();
   const [escolhida, setEscolhida] = useState<string | null>(null);
   const [aviso, setAviso] = useState<{ tom: 'info' | 'warning'; texto: string } | null>(null);
   const filiais = useQuery({
@@ -25,7 +26,8 @@ export function FilialCliente({ clienteId, filialId, externalId }: { clienteId: 
   const salvar = useMutation({
     mutationFn: (id: string) => api(`/core/clientes/${clienteId}/filial`, { method: 'PUT', body: ClienteFilialPutSchema.parse({ filial_id: id }) }),
     onSuccess: async () => {
-      setAviso({ tom: 'info', texto: 'Filial do cliente salva. O aparelho recebe na próxima sincronização.' });
+      setAviso(null);
+      toast('success', 'Filial salva.');
       await qc.invalidateQueries({ queryKey: ['core', 'cliente360', clienteId] });
     },
     onError: (e) => setAviso({ tom: 'warning', texto: errorMessage(e) }),
@@ -40,7 +42,7 @@ export function FilialCliente({ clienteId, filialId, externalId }: { clienteId: 
       <div className="flex flex-wrap items-center gap-3 text-[13px]" data-testid="cliente360.filial">
         {editavel ? (
           <>
-            <select value={valor} onChange={(e) => setEscolhida(e.target.value)} data-testid="cliente360.filial.escolha" className="min-h-[40px] rounded border border-line px-2">
+            <select value={valor} onChange={(e) => setEscolhida(e.target.value)} data-testid="cliente360.filial.escolha" className={cx(CLASSE_CAMPO_BASE, 'h-[42px] px-3')}>
               {lista
                 .filter((f) => f.ativo || f.id === atual.id)
                 .map((f) => (
