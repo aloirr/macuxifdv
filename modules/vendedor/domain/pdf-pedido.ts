@@ -10,6 +10,7 @@
  * TODO(fiscal): impostos (ST, ICMS, DIFAL) são calculados no faturamento pelo ERP; o PDF mostra valores sem impostos.
  */
 import { formatarCep, formatarDocumento, formatBRL } from '@macuxi/comum';
+import { PILHA_MONO, PILHA_SISTEMA } from '@macuxi/comum/fonte';
 import type { FilialDadosFiscais } from '@macuxi/core/contracts';
 
 import { ajusteDoItemEmPct, linhasDosTotais, ROTULO_VALOR_FINAL, semRs, siglaDaMedida } from './apresentacao-totais';
@@ -194,14 +195,14 @@ const CSS = `
 @page { size: A4 landscape; margin: 10mm 10mm 12mm 10mm; }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: #FFFFFF; }
-body { font-family: system-ui, "Segoe UI", Roboto, -apple-system, sans-serif; color: #16202A; font-size: 15px; line-height: 1.35; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { font-family: ${PILHA_SISTEMA}; color: #16202A; font-size: 15px; line-height: 1.35; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .cab { display: flex; justify-content: space-between; align-items: center; gap: 8mm; padding-bottom: 3mm; }
 .marca { display: flex; align-items: center; gap: 4mm; }
 .logo { width: 16mm; height: 16mm; object-fit: contain; border-radius: 2mm; }
-.empresa { font-weight: 800; font-size: 20px; line-height: 1.15; }
+.empresa { font-weight: 700; font-size: 20px; line-height: 1.15; }
 .emit { font-size: 12px; color: #4A5562; }
 .doc { text-align: right; }
-.doc .t { font-weight: 800; font-size: 24px; line-height: 1.1; }
+.doc .t { font-weight: 700; font-size: 24px; line-height: 1.1; }
 .doc .t small { font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #1E3350; margin-right: 2mm; vertical-align: 3px; }
 .doc .d { font-size: 13px; color: #4A5562; }
 .ficha { display: grid; grid-template-columns: 49fr 29fr 22fr; border: 1px solid #16202A; border-radius: 1.5mm; overflow: hidden; background: #F1F2F0; }
@@ -229,7 +230,7 @@ tbody tr:last-child td { border-bottom: 1.5px solid #16202A; }
 tbody tr:nth-child(even) td { background: #F3F4F1; }
 tr { break-inside: avoid; page-break-inside: avoid; }
 .v { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-td.cod { font-family: ui-monospace, "Cascadia Mono", "Roboto Mono", monospace; font-variant-numeric: tabular-nums; font-size: 14px; color: #4A5562; }
+td.cod { font-family: ${PILHA_MONO}; font-variant-numeric: tabular-nums; font-size: 13px; color: #4A5562; }
 td.emb { white-space: nowrap; }
 th.n, td.n { padding-right: 3.2mm; }
 td.tot { font-weight: 600; }
@@ -241,7 +242,7 @@ td.tot { font-weight: 600; }
 .totalbox .lin .v { font-weight: 600; }
 .totalbox .total { align-items: baseline; border-top: 1px solid #C9CED5; margin-top: 1mm; padding-top: 1.6mm; font-weight: 700; }
 .totalbox .total:first-child { border-top: 0; margin-top: 0; padding-top: .6mm; }
-.totalbox .lin .vt { font-weight: 800; font-size: 26px; }
+.totalbox .lin .vt { font-weight: 600; font-size: 26px; }
 .nota { font-size: 12px; color: #4A5562; margin-top: 1mm; }
 .obs { margin: 0 0 3.5mm; }
 .obs .r { display: block; margin: 0 0 1mm; }

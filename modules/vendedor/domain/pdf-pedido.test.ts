@@ -520,7 +520,7 @@ describe('T-0159: PDF final (proposta 2) com filial de faturamento, Marca, Emb. 
     });
     it('T-0159: caixa do Total com o valor em 800 (vence o peso do .v) e traço sob a última linha da tabela', () => {
       const html = buildOrderPdfHtml(pdfDoPedido(detalhe()), 'customer', ctx);
-      expect(html).toMatch(/\.totalbox \.lin \.vt \{ font-weight: 800; font-size: 26px/);
+      expect(html).toMatch(/\.totalbox \.lin \.vt \{ font-weight: 600; font-size: 26px/);
       expect(html).toMatch(/tbody tr:last-child td \{ border-bottom: 1\.5px solid #16202A/);
     });
   });

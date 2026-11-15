@@ -20,7 +20,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
       <span className="text-[12px] text-ink-2">{label}</span>
-      <span className="text-[14px] font-medium">{children}</span>
+      <span className="text-[15px] font-medium">{children}</span>
     </div>
   );
 }
@@ -65,7 +65,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
     <Drawer
       open={!!order}
       onClose={onClose}
-      title={o ? <span className="font-mono">{o.tipo === 'orcamento' ? 'Orçamento' : 'Pedido'} {o.number}</span> : 'Pedido'}
+      title={o ? <span className="tabular-nums">{o.tipo === 'orcamento' ? 'Orçamento' : 'Pedido'} {o.number}</span> : 'Pedido'}
       subtitle={o ? `${o.customer_name} · ${o.seller_name}` : undefined}
     >
       {o && (
@@ -89,7 +89,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
 
           {aprovacao && podeAprovar && aprovacao.pode_decidir && dados && (
             <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4">
-              <h3 className="m-0 font-display text-[16px] font-bold">Decisão</h3>
+              <h3 className="m-0 font-display text-[17px] font-bold">Decisão</h3>
               <BotoesDeDecisao pedido={dados} tamanho="md" onFeito={(tom, texto) => setAviso({ tom, texto })} />
             </section>
           )}
@@ -105,7 +105,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
             {dados?.cliente?.documento ? <Field label="Documento do cliente">{dados.cliente.documento}</Field> : null}
           </div>
 
-          <div className="flex flex-col gap-1 rounded-xl border border-line bg-surface p-4 text-[14px] tabular-nums">
+          <div className="flex flex-col gap-1 rounded-xl border border-line bg-surface p-4 text-[15px] tabular-nums">
             <div className="flex justify-between">
               <span className="text-ink-2">Subtotal</span>
               <span>{formatBRL(o.subtotal_cents)}</span>
@@ -121,7 +121,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
                 <span>− {formatBRL(o.discount_cents)}</span>
               </div>
             )}
-            <div className="flex justify-between border-t border-line-2 pt-1.5 font-display text-[18px] font-extrabold">
+            <div className="flex justify-between border-t border-line-2 pt-1.5 font-display text-[20px] font-bold">
               <span>Total</span>
               <span>{formatBRL(o.total_cents)}</span>
             </div>
@@ -129,7 +129,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
 
           {(o.freight || o.delivery_address) && (
             <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4" data-testid="pedido.entrega">
-              <h3 className="m-0 font-display text-[16px] font-bold">Frete e entrega</h3>
+              <h3 className="m-0 font-display text-[17px] font-bold">Frete e entrega</h3>
               {o.freight ? (
                 <div className="grid grid-cols-1 gap-2">
                   <Field label="Frete">{textoDaModalidade(o.freight)}</Field>
@@ -151,7 +151,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
 
           {(o.situacao_faturamento?.length || dados?.faturamento) && (
             <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4" data-testid="pedido.faturamento">
-              <h3 className="m-0 font-display text-[16px] font-bold">Faturamento e devolução</h3>
+              <h3 className="m-0 font-display text-[17px] font-bold">Faturamento e devolução</h3>
               {(o.situacao_faturamento ?? []).map((l) => (
                 <span key={l} className="text-[13px]">
                   {l}
@@ -172,7 +172,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
                     <tbody>
                       {dados.faturamento.notas.map((n, i) => (
                         <tr key={`nf-${n.numero ?? i}-${n.faturado_em}`}>
-                          <td className={`${td} font-mono whitespace-nowrap`}>{n.numero ? `${n.numero}${n.serie ? `/${n.serie}` : ''}` : '—'}</td>
+                          <td className={`${td} tabular-nums whitespace-nowrap`}>{n.numero ? `${n.numero}${n.serie ? `/${n.serie}` : ''}` : '—'}</td>
                           <td className={td}>{n.parcial ? 'Faturamento parcial' : 'Faturamento'}</td>
                           <td className={`${td} whitespace-nowrap`}>{formatDateTime(n.faturado_em, tz)}</td>
                           <td className={tdNum}>{n.unidades}</td>
@@ -181,7 +181,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
                       ))}
                       {dados.faturamento.devolucoes.map((d, i) => (
                         <tr key={`dev-${d.numero}-${i}`}>
-                          <td className={`${td} font-mono whitespace-nowrap`}>{`${d.numero}${d.serie ? `/${d.serie}` : ''}`}</td>
+                          <td className={`${td} tabular-nums whitespace-nowrap`}>{`${d.numero}${d.serie ? `/${d.serie}` : ''}`}</td>
                           <td className={td}>Devolução</td>
                           <td className={`${td} whitespace-nowrap`}>{formatDateTime(d.emitida_em, tz)}</td>
                           <td className={tdNum}>—</td>
@@ -200,7 +200,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
           {dados && (
             <>
               <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4">
-                <h3 className="m-0 font-display text-[16px] font-bold">Itens</h3>
+                <h3 className="m-0 font-display text-[17px] font-bold">Itens</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[620px] border-collapse text-[13px]" data-testid="pedido.itens">
                     <thead>
@@ -237,7 +237,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
               </section>
 
               <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4" data-testid="pedido.historico">
-                <h3 className="m-0 font-display text-[16px] font-bold">Histórico</h3>
+                <h3 className="m-0 font-display text-[17px] font-bold">Histórico</h3>
                 {/* T-0138 (RN-VEN-30): só tags de status, com data e hora curtas; motivo em 1 linha no Rejeitado e no Cancelado; autor só quando não é o vendedor */}
                 <HistoricoEmTags tags={tagsDoHistorico(eventos, { tipo: dados.tipo === 'orcamento' ? 'orcamento' : 'pedido', tz, agora: new Date() })} titulo="Histórico" testId="pedido.historico.tags" />
               </section>
