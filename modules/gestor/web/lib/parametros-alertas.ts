@@ -4,7 +4,7 @@
  * Consultas de Parâmetros › Alertas (T-0180): valores das regras da equipe (`/v1/gestor/parametros/alertas`), módulos
  * ativos (`/v1/me/modulos`, RN-CORE-03) e os parâmetros do Core da Produtividade do dia, no formato do contrato do Core:
  * `GET|PUT /core/parametros/alertas-produtividade` (`alertas.produtividade`), `inicio.parado_min` lido em
- * `GET /core/parametros/inicio` e gravado em `PUT /core/parametros/parado-min` (D1, RN-CORE-26).
+ * `GET /core/parametros/parado-min` e gravado em `PUT /core/parametros/parado-min` (D1, RN-CORE-26).
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -13,7 +13,6 @@ import {
   MeusModulosRespostaSchema,
   ParametroParadoMinSchema,
   ParametrosAlertasProdutividadeSchema,
-  ParametrosInicioSchema,
   type ParametrosAlertasProdutividade,
 } from '@macuxi/core/contracts';
 import { api, useSession } from '@macuxi/platform-sdk/web';
@@ -69,7 +68,7 @@ export function useGravarParametrosProdutividade() {
 
 /** `inicio.parado_min` (só leitura aqui; a gravação é `useGravarParadoMin`). */
 export function useParadoMin() {
-  return useQuery({ queryKey: qk.inicio, enabled: useLogado(), queryFn: async ({ signal }) => ParametrosInicioSchema.parse(await api<unknown>('/core/parametros/inicio', { signal })).parado_min });
+  return useQuery({ queryKey: qk.inicio, enabled: useLogado(), queryFn: async ({ signal }) => ParametroParadoMinSchema.parse(await api<unknown>(`/core/${CAMINHO_PARAMETRO_PARADO_MIN}`, { signal })).parado_min });
 }
 
 export function useGravarParadoMin() {

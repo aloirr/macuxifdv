@@ -63,7 +63,7 @@ describe('RN-CORE-26, RN-CORE-44: o "Parado" do gestor não conta o horário de 
 });
 
 describe('D4 / RN-CORE-26: alerta "Parado" ao gestor (parado_min + 30 min, um por pessoa, sem push)', () => {
-  it('RN-CORE-26: abre quando passam parado_min (60) + 30 min do último checkout, com paradas pendentes', () => {
+  it('RN-CORE-26: abre quando passam parado_min (60) + 30 min do último checkout', () => {
     expect(doTipo(avaliar(visita, maisMin(CO, 89)), 'parado_entre_visitas')).toEqual([]);
     const [c] = doTipo(avaliar(visita, maisMin(CO, 90)), 'parado_entre_visitas');
     expect(c).toMatchObject({ chave: `produtividade:${VENDEDOR}`, alvo_tipo: 'usuario', alvo_id: VENDEDOR, responsavel_id: VENDEDOR, mensagem: 'Vera: último checkout às 09:30.', severidade: 'atencao' });
@@ -82,11 +82,17 @@ describe('D4 / RN-CORE-26: alerta "Parado" ao gestor (parado_min + 30 min, um po
     expect(doTipo(avaliar(visita, agora, { contato: maisMin(CO, 1) }), 'parado_entre_visitas')).toHaveLength(1);
   });
 
-  it('não abre em visita aberta, sem paradas pendentes, ou depois do expediente', () => {
+  it('RN-CORE-26: vale com ou sem rota: dia sem rota planejada e rota já toda visitada também abrem', () => {
+    const semRota = [checkin({ visita: V1, cliente: CLIENTE_A, em: T0 }), checkout({ visita: V1, cliente: CLIENTE_A, em: CO })];
+    expect(doTipo(avaliar(semRota, maisMin(CO, 89)), 'parado_entre_visitas')).toEqual([]);
+    expect(doTipo(avaliar(semRota, maisMin(CO, 90)), 'parado_entre_visitas')).toHaveLength(1);
+    const concluida = [rota([CLIENTE_A]), checkin({ visita: V1, cliente: CLIENTE_A, em: T0 }), checkout({ visita: V1, cliente: CLIENTE_A, em: CO })];
+    expect(doTipo(avaliar(concluida, maisMin(CO, 90)), 'parado_entre_visitas')).toHaveLength(1);
+  });
+
+  it('não abre em visita aberta nem depois do expediente', () => {
     const aberta = [rota([CLIENTE_A, CLIENTE_B]), checkin({ visita: V1, cliente: CLIENTE_A, em: T0 })];
     expect(doTipo(avaliar(aberta, maisMin(T0, 200)), 'parado_entre_visitas')).toEqual([]);
-    const concluida = [rota([CLIENTE_A]), checkin({ visita: V1, cliente: CLIENTE_A, em: T0 }), checkout({ visita: V1, cliente: CLIENTE_A, em: CO })];
-    expect(doTipo(avaliar(concluida, maisMin(CO, 120)), 'parado_entre_visitas')).toEqual([]);
     expect(doTipo(avaliar(visita, '2026-10-30T22:30:00Z'), 'parado_entre_visitas')).toEqual([]); // 18:30 em Manaus
   });
 

@@ -19,6 +19,8 @@ export const ROTAS_GESTOR = {
   ranking: '/gestor/ranking',
   aprovacoes: '/gestor/aprovacoes',
   alertas: '/gestor/alertas',
+  /** Lista com os alertas de produtividade (T-0180, ADR 0059 §1): sem `produtividade=1` a API os omite. */
+  alertasComProdutividade: '/gestor/alertas?produtividade=1',
   dispensarAlerta: (alertaId: string) => `/gestor/alertas/${alertaId}/dispensar`,
   regras: '/gestor/alertas/regras',
   regra: (tipo: string) => `/gestor/alertas/regras/${tipo}`,

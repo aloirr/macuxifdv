@@ -16,7 +16,7 @@ import {
   type ParametrosAlertasProdutividade,
 } from '@macuxi/core/contracts';
 import { validarCampo } from './campos-regra';
-import { minutoDoTextoHora } from './numeros';
+import { minutoDoTextoHora } from '@macuxi/core/contracts';
 
 export interface CampoProdutividade {
   /** Nome do campo no contrato do Core; `parado_min` é o de `inicio.parado_min`. */

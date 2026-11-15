@@ -24,8 +24,8 @@ import {
   montarSalvamentoTeto,
   REGRAS_COM_DESTINOS,
   regrasVisiveis,
-  textoDoMinuto,
 } from '../../domain';
+import { textoDoMinuto } from '@macuxi/core/contracts';
 import { TIPO_ALERTA_ROTULO } from '../../app/lib/apresentacao';
 import { useAjustarRegra, useRegras } from '../lib/queries';
 import {

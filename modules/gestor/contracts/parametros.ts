@@ -1,5 +1,5 @@
 /** Parâmetros do tenant do Gestor (padrões = doc 03, tabela de parâmetros; ver docs/modulos/gestor/regras.md). */
-import { HORARIO_COMERCIAL_PADRAO as HORARIO_COMERCIAL_CORE } from '@macuxi/core/contracts';
+import { HORARIO_COMERCIAL_PADRAO as HORARIO_COMERCIAL_CORE, textoDoMinuto } from '@macuxi/core/contracts';
 import { z } from 'zod';
 import { IsoDate } from './base';
 
@@ -24,9 +24,6 @@ export const HoraLocal = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$|^24:00$/,
 export function minutosDaHora(h: string): number {
   return Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
 }
-
-/** Minuto do dia (0 a 1439) escrito como `HH:MM`. */
-export const textoDoMinuto = (min: number): string => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 
 /** Dia da semana ISO: 1 = segunda … 7 = domingo. */
 export const DiaSemana = z.number().int().min(1).max(7);

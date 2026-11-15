@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CHAVES_REGRA_PRODUTIVIDADE, NOME_REGRA_PRODUTIVIDADE, FAIXAS_ALERTAS_PRODUTIVIDADE, PARADO_MIN_PADRAO, PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO, ParametrosAlertasProdutividadeSchema } from '@macuxi/core/contracts';
 import { CAMPOS_PRODUTIVIDADE, FRASE_PRODUTIVIDADE, montarSalvamentoProdutividade, montarSalvamentoTeto, REGRAS_COM_DESTINOS } from './produtividade-do-dia';
-import { minutoDoTextoHora, textoDoMinuto } from './numeros';
+import { minutoDoTextoHora, textoDoMinuto } from '@macuxi/core/contracts';
 
 const atual = { parametros: PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO, paradoMin: PARADO_MIN_PADRAO };
 const campo = (k: (typeof CHAVES_REGRA_PRODUTIVIDADE)[number], id: string) => CAMPOS_PRODUTIVIDADE[k].find((c) => c.id === id)!;
