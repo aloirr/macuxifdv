@@ -5,7 +5,7 @@ Base: proposta 454ee68, desenho 7a8e57d. Branches: banco-dados 0ffa290; modulo-v
 Testes do vendedor rodados na sessão (5 arquivos, 62 testes, verdes). Não há teste de banco do INSERT com o retrato novo: o 🔴 abaixo só apareceria no CI de stack ou em produção.
 
 ## modulo-vendedor (`nuvem/prazo-ajuste-codigo-modulo-vendedor`)
-- 🔴 `modules/vendedor/api/pagamento.ts:70` e `:127`, com `receber.ts:376` e `orcamentos.ts:129`: sem forma e prazo (condição legada, RN-VEN-14), o retrato grava `prazo_percentual_ajuste = 0` com `prazo_pagamento_id` nulo. Isso viola o CHECK `pedido_prazo_percentual_com_prazo` da 0075 (23514), e o pedido ou o orçamento sem prazo deixa de entrar. **Correção:** `valorPercentualPrazo(pagamento, pct)` devolve `null` quando `pagamento` é nulo. Incluir um teste da regra e um `*.db.test.ts` do INSERT sem prazo.
+- 🔴 `modules/vendedor/api/pagamento.ts:70` e `:127`, com `receber.ts:376` e `orcamentos.ts:129`: sem forma e prazo (condição legada, RN-VEN-14), o retrato grava `prazo_percentual_ajuste = 0` com `prazo_pagamento_id` nulo. Isso viola o CHECK `pedido_prazo_percentual_com_prazo` da 0086 (23514), e o pedido ou o orçamento sem prazo deixa de entrar. **Correção:** `valorPercentualPrazo(pagamento, pct)` devolve `null` quando `pagamento` é nulo. Incluir um teste da regra e um `*.db.test.ts` do INSERT sem prazo.
 - 🟡 `pagamento.ts:97` e `domain/pagamento.ts:129`: o código do 422 é `prazo_percentual_mudou`, fora do padrão de código de RN. **Correção:** `RN-VEN-45`, mantendo a mensagem.
 - 🟡 `domain/pagamento.ts:135` e `pagamento.ts:104`: o percentual do push divergente é aceito só porque o `created_offline_at`, informado pelo aparelho, é anterior à mudança do cadastro. Assim, um push alterado pode mandar −99,99 sem alçada, e o `aviso_percentual` não chega à linha do tempo (RN-VEN-45). **Correção:** quando o push diverge do vigente e é aceito, gravar o aviso no histórico e mandar o pedido para aprovação (RN-VEN-10). No mínimo, gravar o aviso.
 - 🟡 `contracts/index.ts:291`: `PedidoPush.prazo_percentual_ajuste` não confere as 2 casas. Com −1,715 o cálculo usa −171 bp, e o banco arredonda o retrato para −1,72. **Correção:** usar o `PercentualAjusteSchema` sem o `.default`, ou seja, `.optional()`.
@@ -19,7 +19,7 @@ Testes do vendedor rodados na sessão (5 arquivos, 62 testes, verdes). Não há 
 ## banco-dados (`nuvem/prazo-ajuste-banco-dados`)
 - 🟡 `db/conector/views-modelo.sql:179`: `percentual_ajuste {decimal}` não existe no Conector. **Correção:** `{numero}` (desenho §1).
 - 🟢 `db/testes/estatico.test.ts`: `nomes[74]` ficou fora da ordem das linhas vizinhas (cosmético).
-- OK: a 0075 é aditiva, sem backfill nem reescrita, com CHECKs de faixa e uma volta idempotente. O RLS e os grants são herdados, e o Drizzle está coerente.
+- OK: a 0086 é aditiva, sem backfill nem reescrita, com CHECKs de faixa e uma volta idempotente. O RLS e os grants são herdados, e o Drizzle está coerente.
 
 ## modulo-integracao (`nuvem/prazo-ajuste-modulo-integracao`)
 - 🟢 `domain/pagamento.ts:28`: `percentualAjusteDoPrazo` só é usado no teste. Usar ou remover.
@@ -27,8 +27,8 @@ Testes do vendedor rodados na sessão (5 arquivos, 62 testes, verdes). Não há 
 - Pendente: revisar o commit do Conector 1.5.0 quando ele chegar ao branch.
 
 ## Ordem de merge e de ativação
-1. banco-dados (0075). 2. modulo-integracao (contrato). 3. modulo-vendedor, só depois do 🔴 corrigido e com o CI rodado sobre o main que já tem a 0075. 4. Conector 1.5.0. 5. `nuvem/prazo-ajuste-engenheiro-software`.
-- Se o vendedor entrar antes do banco, a API vai ao ar lendo `percentual_ajuste` sem a coluna (42703), e o pull de prazos e o push de todo pedido com prazo caem. No deploy, a 0075 precisa estar aplicada antes da API.
+1. banco-dados (0086). 2. modulo-integracao (contrato). 3. modulo-vendedor, só depois do 🔴 corrigido e com o CI rodado sobre o main que já tem a 0086. 4. Conector 1.5.0. 5. `nuvem/prazo-ajuste-engenheiro-software`.
+- Se o vendedor entrar antes do banco, a API vai ao ar lendo `percentual_ajuste` sem a coluna (42703), e o pull de prazos e o push de todo pedido com prazo caem. No deploy, a 0086 precisa estar aplicada antes da API.
 - **422 para o app antigo:** um APK anterior ao v1.0.13 não manda o percentual. Quando o ERP passar a mandar um % diferente de 0, todo pedido novo desse APK com aquele prazo é recusado com "Atualize o app e refaça o pedido." Por isso a coluna da `vw_macuxi_prazo_pagamento`, hoje comentada, só deve ser ligada no ERP depois que os vendedores estiverem com o v1.0.13.
 
 ---
@@ -59,9 +59,14 @@ Base: vendedor a581f7b, ec4d2c4 e 6588e66; banco-dados 0e40dc2; integração 8dc
 - Dependência: o arquivo importa `PercentualAjuste`/`PrazoPagamentoPayload` da integração e `PercentualAjusteBase`/`revalidarPercentualDoPrazo` do vendedor. Por isso entra depois dos dois.
 
 ## Ordem final de merge
-1. banco-dados (0e40dc2): 0075 e modelos do Conector.
-2. modulo-integracao, depois do commit com o kit regenerado sobre o banco-dados.
-3. modulo-vendedor (6588e66). O CI precisa rodar sobre o main que já tem a 0075.
-4. testes, depois do commit com as linhas 127-128 corrigidas.
-5. engenheiro-software (este parecer e o desenho do Conector 1.5.0).
-No deploy, a 0075 é aplicada antes da API. A coluna `percentual_ajuste` da view do ERP só é ligada com os vendedores na v1.0.13.
+1. banco-dados: 0086 e modelos do Conector.
+2. engenheiro-software (este parecer, o desenho do Conector 1.5.0 e o padrão 1.5.0 do `conector-publicar.yml`).
+3. modulo-vendedor (6588e66). O CI precisa rodar sobre o main que já tem a 0086.
+4. modulo-integracao, depois do commit com o kit regenerado sobre o banco-dados (Conector 1.5.0).
+5. testes, depois do commit com as linhas 127-128 corrigidas.
+No deploy, a 0086 é aplicada antes da API. A coluna `percentual_ajuste` da view do ERP só é ligada com os vendedores na v1.0.13.
+
+## Atualização (15/11/2026, ~17h em Manaus): migração 0086 e ordem nova
+- A migração do prazo passou de 0075 para 0086. As citações acima foram atualizadas, e as ordens de merge das duas revisões anteriores ficam substituídas pela ordem final acima.
+- O PR do banco-dados só fica verde quando as migrações 0075 a 0085 estiverem no main, porque o main de hoje vai até a 0074.
+- O `conector-publicar.yml` com o padrão 1.5.0 entra antes do Conector 1.5.0 (PR da integração). Não é problema: o workflow é só manual e falha fechado. Se alguém rodar com o padrão antes do merge da integração, a publicação é recusada pela diferença com o `apps/conector/package.json` (1.4.0) e nada é publicado. Para publicar um 1.4.x nesse intervalo, basta digitar a versão no input.

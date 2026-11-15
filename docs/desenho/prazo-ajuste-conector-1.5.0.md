@@ -8,7 +8,7 @@ Origem: proposta aprovada `docs/modulos/vendedor/prazo-desconto-acrescimo.md` (b
 
 ## Dependências
 - Contrato: `PercentualAjuste` em `contracts/base.ts`, `PrazoPagamentoPayload.percentual_ajuste` e `PagamentoErp.percentual_ajuste` (branch `nuvem/prazo-ajuste-modulo-integracao`). A validação do arquivo de configuração do Conector recusa campo fora do contrato (`config/esquema.ts`), e o teste 1 para 1 dos exemplos (`test/exemplos-views-modelo.test.ts`) também. Por isso o mapeamento nos exemplos **depende do merge do PR do modulo-integracao**.
-- Banco: `db/conector/entrada-pedido-modelo.sql` e `views-modelo.sql` (branch `nuvem/prazo-ajuste-banco-dados`, 0ffa290, migração 0075).
+- Banco: `db/conector/entrada-pedido-modelo.sql` e `views-modelo.sql` (branch `nuvem/prazo-ajuste-banco-dados`, 0ffa290, migração 0086).
 
 ## 1. Leitura do prazo (ERP → Hub)
 - **Não há mudança no mapeador.** `mapearLinha` já omite o campo quando a coluna não vem na linha, e também quando vem NULL (modo `omite`). O Hub trata ausente como 0 (RN-INT-15).
@@ -46,4 +46,4 @@ Decisão: **manter `.strict()`** e acrescentar o campo `percentual_ajuste` (núm
 
 ## Riscos
 - **Dupla aplicação no ERP:** a procedure grava as linhas como vêm. A conferência no ensaio é total no ERP = total no app.
-- **Ordem dos merges:** modulo-integracao (contrato) → banco-dados → Conector 1.5.0 → este PR (padrão do workflow).
+- **Ordem dos merges:** banco-dados (0086) → este PR (padrão do workflow) → modulo-vendedor → modulo-integracao (contrato e Conector 1.5.0) → testes. O padrão 1.5.0 entra antes do Conector 1.5.0, sem risco: o workflow é manual e recusa a publicação enquanto o `apps/conector/package.json` não for 1.5.0.
