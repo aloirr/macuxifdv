@@ -3,6 +3,7 @@ import { definirModuloShell } from '@macuxi/platform-sdk';
 import { manifest } from '../manifest';
 import { CatalogoPage } from './pages/catalogo-page';
 import { MarcasPage } from './pages/marcas-page';
+import { ParametrosCatalogo } from './pages/parametros-catalogo';
 import { TabelasPrecoPage } from './pages/tabelas-preco-page';
 
 /**
@@ -18,4 +19,6 @@ export const moduloWeb = definirModuloShell<ComponentType>({
     // T-0113 (RN-CAT-13, ADR 0034): lista única de marcas concorrentes; o aviso do Promotor já aponta para /catalogo/marcas
     { id: 'marcas', caminho: 'catalogo/marcas', titulo: 'Marcas concorrentes', navegacao: 'Marcas concorrentes', grupo: 'cadastros', acao: 'marca.gerenciar', componente: MarcasPage },
   ],
+  // ADR 0058 (D6, RN-CAT-11): limite da aplicação em Parâmetros › Produtos; só leitura (sem rota de gravação)
+  paineisParametros: [{ id: 'catalogo', secao: 'produtos', titulo: 'Catálogo', acao: 'produto.consultar', componente: ParametrosCatalogo }],
 });
