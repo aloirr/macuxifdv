@@ -1,43 +1,48 @@
+import { useParametros } from '@macuxi/platform-sdk/react';
 import type { ReactElement } from 'react';
-import { ParametrosPesquisaSchema } from '../../contracts';
-
-/** Valor em uso: o padrão do contrato (`ParametrosPesquisaSchema`); ainda não há rota de leitura do valor do tenant. */
-const EM_USO = ParametrosPesquisaSchema.parse({});
+import { valorDoParametro, type ValorParametro } from '../lib/parametros-valor';
 
 interface Linha {
   rotulo: string;
-  valor: string;
+  valor: ValorParametro;
 }
 
 function Lista({ id, linhas }: { id: string; linhas: readonly Linha[] }): ReactElement {
   return (
-    <dl data-testid={`parametros-pesquisa-${id}-valores`} style={{ margin: 0, display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: '8px 24px' }}>
+    <dl data-testid={`parametros-pesquisa-${id}-valores`} className="m-0 grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-[14px]">
       {linhas.map((l) => (
-        <div key={l.rotulo} style={{ display: 'contents' }}>
-          <dt>{l.rotulo}</dt>
-          <dd style={{ margin: 0, fontWeight: 600 }}>{l.valor}</dd>
+        <div key={l.rotulo} className="contents">
+          <dt className="text-ink-2">{l.rotulo}</dt>
+          <dd className="m-0 font-semibold">
+            {l.valor.texto}
+            {l.valor.padrao !== null ? <span className="ml-2 text-[12px] font-normal text-ink-3">Padrão: {l.valor.padrao}</span> : null}
+          </dd>
         </div>
       ))}
     </dl>
   );
 }
 
-/** Parâmetros › Pesquisa › Vigência (RN-PES-04). Só leitura. */
+const unidade = (u: string) => (v: number) => `${v} ${u}`;
+
+/** Parâmetros › Pesquisa › Vigência (RN-PES-04). Só leitura; valor do tenant com fallback ao padrão. */
 export function ParametrosVigencia(): ReactElement {
-  return <Lista id="vigencia" linhas={[{ rotulo: 'Tolerância da vigência', valor: `${EM_USO.tolerancia_vigencia_h} h` }]} />;
+  const p = useParametros('pesquisa');
+  return <Lista id="vigencia" linhas={[{ rotulo: 'Tolerância da vigência', valor: valorDoParametro(p, 'tolerancia_vigencia_h', unidade('h')) }]} />;
 }
 
 /** Parâmetros › Pesquisa › Construtor (RN-PES-07; escala: premissa T-0012). Só leitura. */
 export function ParametrosConstrutor(): ReactElement {
+  const p = useParametros('pesquisa');
   return (
     <Lista
       id="construtor"
       linhas={[
-        { rotulo: 'Perguntas por questionário', valor: String(EM_USO.max_perguntas) },
-        { rotulo: 'Opções por pergunta', valor: String(EM_USO.max_opcoes_por_pergunta) },
-        { rotulo: 'Fotos por pergunta', valor: String(EM_USO.max_fotos_por_pergunta) },
-        { rotulo: 'Texto', valor: `${EM_USO.texto_max_caracteres} caracteres` },
-        { rotulo: 'Amplitude da escala', valor: String(EM_USO.escala_amplitude_max) },
+        { rotulo: 'Perguntas por questionário', valor: valorDoParametro(p, 'max_perguntas') },
+        { rotulo: 'Opções por pergunta', valor: valorDoParametro(p, 'max_opcoes_por_pergunta') },
+        { rotulo: 'Fotos por pergunta', valor: valorDoParametro(p, 'max_fotos_por_pergunta') },
+        { rotulo: 'Texto', valor: valorDoParametro(p, 'texto_max_caracteres', unidade('caracteres')) },
+        { rotulo: 'Amplitude da escala', valor: valorDoParametro(p, 'escala_amplitude_max') },
       ]}
     />
   );
@@ -45,12 +50,13 @@ export function ParametrosConstrutor(): ReactElement {
 
 /** Parâmetros › Pesquisa › Fotos (RN-PES-06). Só leitura. */
 export function ParametrosFotos(): ReactElement {
+  const p = useParametros('pesquisa');
   return (
     <Lista
       id="fotos"
       linhas={[
-        { rotulo: 'Maior lado', valor: `${EM_USO.foto_max_lado_px} px` },
-        { rotulo: 'Qualidade JPEG', valor: String(EM_USO.foto_jpeg_qualidade) },
+        { rotulo: 'Maior lado', valor: valorDoParametro(p, 'foto_max_lado_px', unidade('px')) },
+        { rotulo: 'Qualidade JPEG', valor: valorDoParametro(p, 'foto_jpeg_qualidade') },
       ]}
     />
   );
