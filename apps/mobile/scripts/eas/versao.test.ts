@@ -1,6 +1,5 @@
 /**
- * T-0109: invariantes da versão. `versao.json` é a fonte única do `version` (igual nas duas variantes); o versionCode fica
- * fora do repositório (scripts/ci/android-build.mjs, `versionCodeDe`).
+ * T-0109: invariantes da versão. `versao.json` é a fonte única do `version` (igual nas duas variantes).
  */
 import { readFileSync } from 'node:fs';
 

@@ -1,15 +1,13 @@
 {
   "build": {
-    "base": { "node": "24.21.0", "pnpm": "12.11.2" },
+    "base": { "node": "24.21.0" },
     "campo-producao": {
       "extends": "base",
-      "distribution": "internal",
       "env": { "APP_VARIANT": "campo", "EXPO_PUBLIC_API_URL": "https://api.macuxifdv.com.br/v1", "EXPO_PUBLIC_PERFIL_BUILD": "producao" },
       "android": { "buildType": "apk" }
     },
     "gestao-producao": {
       "extends": "base",
-      "distribution": "internal",
       "env": { "APP_VARIANT": "gestao", "EXPO_PUBLIC_API_URL": "https://api.macuxifdv.com.br/v1", "EXPO_PUBLIC_PERFIL_BUILD": "producao" },
       "android": { "buildType": "apk" }
     }

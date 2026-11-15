@@ -9,7 +9,7 @@
  *    de desenvolvimento e preview). `Dev` só aparece na linha da versão de um bundle local (`expo start`);
  *  - versão: a de `scripts/eas/versao.json` (fonte única do `version` do app.config), no formato X.Y.Z.
  * O mesmo nome vai na linha da versão do Perfil e no artefato do APK (`Campo-Oficial-v1.0.0`). O `versionCode` do Android
- * não entra no nome e fica fora do repositório (scripts/ci/android-build.mjs, `versionCodeDe`).
+ * não entra no nome.
  */
 import type { PerfilBuild } from './endereco-do-build';
 import type { Variante } from './variante-tipo';
@@ -61,7 +61,7 @@ export function perfilEas(variante: Variante, perfil: PerfilEas): string {
   return `${variante}-${perfil}`;
 }
 
-/** Inverso de `perfilEas` (nome do perfil do build no EAS → variante e canal); `null` se não for um perfil nosso. */
+/** Inverso de `perfilEas` (nome do perfil do eas.json → variante e canal); `null` se não for um perfil nosso. */
 export function lerPerfilEas(nome: string): { variante: Variante; perfil: PerfilEas } | null {
   const m = /^(campo|gestao)-producao$/.exec(nome.trim());
   if (!m) return null;
