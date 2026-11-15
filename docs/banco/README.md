@@ -207,6 +207,13 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > `plataforma.sa_gravar_assinatura(p_sid uuid, p_tenant uuid, p jsonb)` (só super-admin; o portal passa a 17 `sa_*`).
 > `0071_plataforma_listar_tenants_plano`: a `sa_listar_tenants` ganha `plano`, `teste_ate` e `paga` em cada empresa. Detalhes no
 > [plataforma.md](plataforma.md); teste `db/testes/plano-assinatura.db.test.ts`.
+>
+> **2026-11-15 (ADR 0052, inativar, backup e excluir a empresa no portal):**
+> `0072_plataforma_empresa_acoes` (em cima da 0071): `plataforma.tenant` ganha `inativada_em` e `motivo_inativacao` (inativa =
+> `suspenso`); `backup_empresa`, `backup_empresa_parte`, `exclusao_empresa` e `empresa_excluida` (sem `tenant_id`, sobrevivem à
+> exclusão, só por função); 8 `sa_*` do portal (25 no total) e as funções do worker (backup por keyset, exclusão em 2 etapas,
+> retenção); código da licença nunca reaproveitado (gatilho e sorteio); despachante e e-mail pulam a empresa inativa (políticas
+> do worker). Detalhes no [plataforma.md](plataforma.md); teste `db/testes/empresa-acoes.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
