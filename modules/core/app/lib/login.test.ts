@@ -45,11 +45,11 @@ describe('RF-CORE-01: login do app', () => {
   });
 
   it('RN-CORE-01: bloqueio por tentativas avisa o tempo e não manda procurar o administrador; o 429 usa o retry_after_s', () => {
-    const t = mensagemDeErroDeLogin({ codigo: 'LOGIN_BLOQUEADO_TENTATIVAS', detalhes: { minutos_restantes: 12 } });
+    const t = mensagemDeErroDeLogin({ codigo: 'USUARIO_BLOQUEADO', detalhes: { minutos_restantes: 12 } });
     expect(t).toBe('Muitas tentativas. Tente de novo em 12 minutos.');
     expect(t).not.toContain('administrador');
-    expect(mensagemDeErroDeLogin({ codigo: 'LOGIN_BLOQUEADO_TENTATIVAS' })).toBe('Muitas tentativas. Tente de novo em 15 minutos.');
-    expect(mensagemDeErroDeLogin({ codigo: 'LOGIN_BLOQUEADO_TENTATIVAS', detalhes: { minutos_restantes: 1 } })).toBe('Muitas tentativas. Tente de novo em 1 minuto.');
+    expect(mensagemDeErroDeLogin({ codigo: 'USUARIO_BLOQUEADO' })).toBe('Seu acesso está bloqueado. Fale com o administrador da sua empresa.');
+    expect(mensagemDeErroDeLogin({ codigo: 'USUARIO_BLOQUEADO', detalhes: { minutos_restantes: 1 } })).toBe('Muitas tentativas. Tente de novo em 1 minuto.');
     expect(mensagemDeErroDeLogin({ codigo: 'MUITAS_TENTATIVAS', detalhes: { retry_after_s: 61 } })).toBe('Muitas tentativas. Tente de novo em 2 minutos.');
   });
 

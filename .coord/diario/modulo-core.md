@@ -170,3 +170,4 @@
 2026-11-15 — PR #285 (CI 1179cc5) — merge do main sem conflito; pnpm test geral: só apps/web/lib/login.test.ts reprova (teste usa 'alfa', fora do formato UF+4; dono engenheiro-apps); sem mudança de código do core.
 2026-11-15 — PR #285 (R-20261114-214300) — login só com UF+4: CodigoEmpresaSchema único (CodigoEmpresaFormatoSchema unido), código antigo recusado com 400 VALIDACAO no login, troca e esqueci; testes e doc atualizados; pnpm test: só apps/web reprova (fora dos meus caminhos)
 2026-11-15 — T-0094 (PR #285) — OPÇÃO A (R-20261114-222000): servidor aceita código antigo e novo (CodigoEmpresaSchema legado); campo só UF+4 (CodigoEmpresaFormatoSchema); teste e doc ajustados; apps/web lib/login.test.ts:13 segue reprovando (do engenheiro-apps)
+2026-11-15 — PR #285 — CI vermelho: 423 volta a USUARIO_BLOQUEADO (minutos_restantes em detalhes); troca de senha lê o tenant pela transação corrente (sem comTenant aninhado, causa do 500 em CS-03/onboarding-t0083)

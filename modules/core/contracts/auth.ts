@@ -98,10 +98,8 @@ export const LogoutRequestSchema = z.object({ refresh_token: z.string().min(10).
 export const CODIGOS_AUTH = {
   /** 401 — código da empresa, e-mail ou senha errados (mesma resposta para os três). */
   credenciais: 'CREDENCIAIS_INVALIDAS',
-  /** 423 — só depois de senha certa: usuário inativo ou bloqueado pelo administrador (o aparelho bloqueado tem código próprio). */
+  /** 423 — só depois de senha certa: usuário inativo, bloqueado pelo administrador ou bloqueio TEMPORÁRIO por tentativas (RN-CORE-01; este traz `detalhes.minutos_restantes` e não manda falar com o administrador; o aparelho bloqueado tem código próprio). */
   bloqueado: 'USUARIO_BLOQUEADO',
-  /** 423 — só depois de senha certa: bloqueio TEMPORÁRIO por tentativas (RN-CORE-01). `detalhes.minutos_restantes`; não manda falar com o administrador. */
-  bloqueadoTentativas: 'LOGIN_BLOQUEADO_TENTATIVAS',
   /** 401 — refresh inválido, expirado, já usado (reuso derruba a família) ou revogado: entrar de novo. */
   sessao: 'SESSAO_INVALIDA',
   /** 429 — limite de falhas: 10 em 5 min por IP + empresa + e-mail (`detalhes.retry_after_s`; também o limite do "Esqueci a senha"). */

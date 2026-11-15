@@ -266,7 +266,7 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
       case 'bloqueado': {
         const { minutos } = resultado;
         if (minutos === undefined) throw erroHttp(423, CODIGOS_AUTH.bloqueado, MENSAGEM_BLOQUEADO_ADMIN);
-        throw erroHttp(423, CODIGOS_AUTH.bloqueadoTentativas, mensagemBloqueioPorTentativas(minutos), { minutos_restantes: minutos });
+        throw erroHttp(423, CODIGOS_AUTH.bloqueado, mensagemBloqueioPorTentativas(minutos), { minutos_restantes: minutos });
       }
       case 'aparelho':
         throw erroHttp(423, CODIGO_DISPOSITIVO_BLOQUEADO, MENSAGEM_APARELHO_BLOQUEADO);
@@ -319,7 +319,8 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
         const recusa = validarSenhaNova(c.senha_nova, u.email, igual);
         if (recusa) return { tipo: 'senha_nova', recusa };
         // RN-CORE-34: a troca só é gravada se o login vai dar certo; sem os dados da empresa nada muda (mesma transação)
-        const exib = await repos.publico(ctx.banco).tenantParaExibicao(c.codigo_empresa.toLowerCase(), tid);
+        // pela transação corrente: `comTenant` aninhado pediria 2ª conexão ao pool (e trava com a linha do usuário já lida)
+        const exib = await r.tenantDaSessao(c.codigo_empresa.toLowerCase());
         if (!exib) {
           await auditarFalha(db, ctx, u.id, 'empresa_sem_dados');
           return { tipo: 'credenciais' };

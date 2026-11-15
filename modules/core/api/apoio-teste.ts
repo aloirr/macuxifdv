@@ -89,6 +89,12 @@ export function fabricaEmMemoria(e: EstadoMemoria): FabricaRepositorios {
       const sessoes = () => e.sessoes.filter((s) => s.tenant_id === tenantId);
       return {
         usuarioPorEmail: async (email) => meus().find((u) => u.email.toLowerCase() === email.toLowerCase()) ?? null,
+        tenantDaSessao: async (codigo) => {
+          e.leituraDeExibicao.push(codigo);
+          const t = e.tenants.get(codigo.toLowerCase());
+          if (e.exibicaoVazia?.has(codigo.toLowerCase())) return null;
+          return t ? { id: t.id, codigo: t.codigo, nome: t.nome, fuso: t.fuso } : null;
+        },
         usuarioAtual: async (id) => meus().find((u) => u.id === id) ?? null,
         gravarTentativas: async (id, falhas, ate) => {
           const u = meus().find((x) => x.id === id)!;

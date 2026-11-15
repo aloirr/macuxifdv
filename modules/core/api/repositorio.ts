@@ -85,6 +85,8 @@ export interface TenantExibicao {
 export interface RepositorioTenant {
   /** `travar`: `select ... for update` — a linha do usuário fica bloqueada até o fim da transação (decisões que leem e gravam, como o "Esqueci a senha"). */
   usuarioPorEmail(email: string, opcoes?: { travar?: boolean }): Promise<UsuarioLogin | null>;
+  /** Nome e fuso do tenant DA SESSÃO (RLS), lidos pela transação corrente — sem pedir 2ª conexão ao pool (usado na troca de senha, que já está numa transação). */
+  tenantDaSessao(codigo: string): Promise<TenantExibicao | null>;
   usuarioAtual(id: string): Promise<UsuarioAtual | null>;
   gravarTentativas(usuarioId: string, falhas: number, bloqueioAte: Date | null): Promise<void>;
   registrarLoginOk(usuarioId: string, agora: Date): Promise<void>;
@@ -143,6 +145,11 @@ export function repositorioTenantSql(db: ClienteBanco): RepositorioTenant {
         senha_temporaria_criada_em: data(l.senha_temporaria_criada_em),
         sessao_versao: Number(l.sessao_versao ?? 0),
       };
+    },
+    async tenantDaSessao(codigo) {
+      const r = await db.query<{ id: string; nome: string; fuso: string }>('select id, nome, fuso from plataforma.tenant_da_sessao()');
+      const l = r.rows[0];
+      return l ? { id: l.id, codigo, nome: l.nome, fuso: l.fuso } : null;
     },
     async usuarioAtual(id) {
       const r = await db.query<Record<string, unknown>>('select id, perfil, ativo, bloqueado_em, sessao_versao from core.usuario where id = $1 and deleted_at is null', [id]);

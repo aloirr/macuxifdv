@@ -104,7 +104,7 @@ describe('RF-CORE-01: bloqueio por tentativas', () => {
     const bloqueado = await falha(login());
     expect(bloqueado.status).toBe(423);
     // RN-CORE-01: código próprio, tempo restante e nada de "fale com o administrador"
-    expect(bloqueado.codigo).toBe(CODIGOS_AUTH.bloqueadoTentativas);
+    expect(bloqueado.codigo).toBe(CODIGOS_AUTH.bloqueado);
     expect(bloqueado.message).toBe('Muitas tentativas. Tente de novo em 15 minutos.');
     expect(bloqueado.detalhes).toEqual({ minutos_restantes: 15 });
     avancar(4);

@@ -37,9 +37,8 @@ export function mensagemDeErroDeLogin(e: unknown): string {
     case CODIGOS_AUTH.credenciais:
       return MENSAGEM_CREDENCIAIS;
     case CODIGOS_AUTH.bloqueado:
-      return MENSAGEM_BLOQUEADO_ADMIN;
-    case CODIGOS_AUTH.bloqueadoTentativas:
-      return mensagemBloqueioPorTentativas(detalhes?.minutos_restantes);
+      // mesmo código do main (o app em produção segue funcionando); `minutos_restantes` marca o bloqueio temporário por tentativas
+      return detalhes?.minutos_restantes === undefined ? MENSAGEM_BLOQUEADO_ADMIN : mensagemBloqueioPorTentativas(detalhes.minutos_restantes);
     case CODIGO_DISPOSITIVO_BLOQUEADO:
       return AVISO_APARELHO_LIMPO;
     case CODIGOS_AUTH.muitasTentativas:
