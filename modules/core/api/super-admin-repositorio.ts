@@ -34,6 +34,8 @@ export interface SessaoViva {
   usuario_id: string | null;
   /** Teto da sessão (8 h). */
   expira_em: Date;
+  /** RN-CORE-39 (ADR 0056): `filial_cadastro_id is null` do admin da empresa atual; lido pelo banco na própria `sa_sessao_valida`. Ausente = não informado. */
+  sem_filial?: boolean;
 }
 
 export interface EmpresaDaSessao {
@@ -134,6 +136,7 @@ export const fabricaSuperAdminSql: FabricaSuperAdmin = (banco) => {
             tenant_id: r.tenant_id ? String(r.tenant_id) : null,
             usuario_id: r.usuario_id ? String(r.usuario_id) : null,
             expira_em: new Date(r.expira_em as string),
+            sem_filial: r.sem_filial === true,
           }
         : null;
     },
