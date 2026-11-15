@@ -11,7 +11,6 @@ import {
   DICAS_SEGURAR,
   ESPERA_ANEL_MS,
   modoDoSegurar,
-  percentualDaBarra,
   ROTULO_ACESSIVEL_SYNC,
   SEGURAR_COMPLETA_MS,
   TEXTOS_SYNC_COMPLETA,
@@ -78,12 +77,6 @@ describe('modo, dica e vibração', () => {
     expect(vibracaoDoSegurar(500, 550)).toBeNull();
     expect(vibracaoDoSegurar(9950, 10_000)).toBe('media');
     expect(vibracaoDoSegurar(0, 10_000)).toBe('media');
-  });
-  it('percentual da barra inteiro entre 0 e 100', () => {
-    expect(percentualDaBarra(42.6)).toBe(43);
-    expect(percentualDaBarra(-3)).toBe(0);
-    expect(percentualDaBarra(140)).toBe(100);
-    expect(percentualDaBarra(Number.NaN)).toBe(0);
   });
 });
 
@@ -191,9 +184,10 @@ describe('criarControleSegurar', () => {
   });
 });
 
-describe('BotaoSincronizar e DialogoProgresso (fonte)', () => {
+describe('BotaoSincronizar, Dialogo e BarraProgresso (fonte)', () => {
   const botao = readFileSync(new URL('./sincronizacao.tsx', import.meta.url), 'utf8');
-  const dialogo = readFileSync(new URL('./dialogo-progresso-rn.tsx', import.meta.url), 'utf8');
+  const folha = readFileSync(new URL('./folha.tsx', import.meta.url), 'utf8');
+  const barra = readFileSync(new URL('./barra-progresso-rn.tsx', import.meta.url), 'utf8');
   it('mantém os testIDs e ganha a dica', () => {
     for (const id of ['`${testID}-bloco`', '`${testID}-situacao`', '`${testID}-sem-sinal`', '`${testID}-aviso-dados`', '`${testID}-dica`']) expect(botao).toContain(id);
   });
@@ -202,12 +196,23 @@ describe('BotaoSincronizar e DialogoProgresso (fonte)', () => {
     expect(botao).toMatch(/vibrar\?: \(forca: ForcaVibracao\) => void;/);
     expect(botao).toMatch(/completaEmCurso\?: boolean;/);
   });
-  it('popup: barra acessível, sem fechar por fora, cores do tema Pérola', () => {
-    expect(dialogo).toContain('accessibilityRole="progressbar"');
-    expect(dialogo).toContain('accessibilityLabel="Sincronização"');
-    expect(dialogo).toContain('accessibilityViewIsModal');
-    expect(dialogo).toContain('TEMAS_ENTRADA.perola');
-    expect(dialogo).toMatch(/onRequestClose=\{\(\) => \(comErro \? onFechar\?\.\(\) : undefined\)\}/);
-    expect(dialogo).not.toMatch(/#[0-9A-Fa-f]{6}/);
+  it('Dialogo: botões opcionais, conteúdo e bloqueado (Voltar sem efeito), sem quebrar os testIDs', () => {
+    expect(folha).toMatch(/cancelar\?: AcaoTexto;/);
+    expect(folha).toMatch(/confirmar\?: AcaoTexto & \{ ocupado\?: boolean \};/);
+    expect(folha).toMatch(/bloqueado\?: boolean;/);
+    expect(folha).toMatch(/children\?: ReactNode;/);
+    expect(folha).toContain('const fechar = bloqueado ? semAcao : (onFechar ?? cancelar?.onPress ?? semAcao);');
+    expect(folha).toContain('{cancelar || confirmar ? (');
+    for (const id of ['`${testID}-cancelar`', '`${testID}-confirmar`']) expect(folha).toContain(id);
+  });
+  it('BarraProgresso: igual à da entrada (testIDs, trecho sem medida, 240 ms, progressbar 0..100, sem cor fixa)', () => {
+    expect(barra).toContain("testID = 'entrada'");
+    for (const id of ['`${testID}-etapa`', '`${testID}-pct`']) expect(barra).toContain(id);
+    expect(barra).toContain('export const TRECHO_SEM_MEDIDA = 30;');
+    expect(barra).toContain("duracaoMovimento('barra', false)");
+    expect(barra).toContain('accessibilityRole="progressbar"');
+    expect(barra).toContain("rotuloAcessivel = 'Sincronização'");
+    expect(barra).toContain('{ min: 0, max: 100, now: pct }');
+    expect(barra).not.toMatch(/#[0-9A-Fa-f]{6}/);
   });
 });

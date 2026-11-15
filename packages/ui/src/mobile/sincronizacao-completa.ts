@@ -3,7 +3,7 @@
  * pedidos e clientes, o `agendador.puxar()` de sempre) e a COMPLETA quando o dedo fica 10 s no botão. Parte PURA: tempos,
  * textos, o desenho de cada instante do segurar e o controle do gesto (relógio e intervalo injetáveis). Sem react-native:
  * roda em Node (Vitest) e é reexportada por `@macuxi/ui/mobile/puro`. O `BotaoSincronizar` (sincronizacao.tsx) só liga isto
- * ao `Pressable`; o popup é o `DialogoProgresso` (dialogo-progresso-rn.tsx).
+ * ao `Pressable`; o popup é o `Dialogo` (folha.tsx) `bloqueado`, sem botões, com a `BarraProgresso` (barra-progresso-rn.tsx).
  */
 
 /** Tempo segurando que dispara a sincronização completa (na hora, mesmo com o dedo ainda no botão). */
@@ -90,12 +90,6 @@ export function vibracaoDoSegurar(antes: number, agora: number): ForcaVibracao |
   if (antes < SEGURAR_COMPLETA_MS && agora >= SEGURAR_COMPLETA_MS) return 'media';
   if (antes < ESPERA_ANEL_MS && agora >= ESPERA_ANEL_MS) return 'leve';
   return null;
-}
-
-/** Percentual da barra do popup, inteiro de 0 a 100. */
-export function percentualDaBarra(p: number): number {
-  if (!Number.isFinite(p)) return 0;
-  return Math.round(Math.min(100, Math.max(0, p)));
 }
 
 // ---------- controle do gesto ----------
