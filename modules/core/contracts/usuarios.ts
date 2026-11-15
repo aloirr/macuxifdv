@@ -66,6 +66,8 @@ export const UsuarioItemSchema = z
     superior_nome: z.string().nullable(),
     ativo: z.boolean(),
     external_id: z.string().nullable(),
+    /** RN-CORE-58: criado pela carga do ERP sem e-mail (`@sem-email.invalid`); candidato a "Vincular vendedor do ERP". */
+    provisorio: z.boolean().optional(),
     ultimo_login_em: z.string().datetime().nullable(),
     /** T-0094: a senha atual é temporária; a pessoa troca no próximo acesso (etiqueta "Troca de senha pendente"). */
     trocar_senha: z.boolean(),
@@ -96,6 +98,8 @@ export const UsuarioListaQuerySchema = z
     perfil: CodigoPerfil.optional(),
     equipe_id: Uuid.optional(),
     ativo: z.enum(['true', 'false']).optional(),
+    /** `true` = só os usuários provisórios da carga do ERP (RN-CORE-58). A busca `q` também casa o Código no ERP. */
+    provisorio: z.enum(['true']).optional(),
   })
   .strict();
 export type UsuarioListaQuery = z.infer<typeof UsuarioListaQuerySchema>;
@@ -191,6 +195,24 @@ export const RedefinirSenhaRequestSchema = z.object({ senha: z.string().min(1).m
 export type RedefinirSenhaRequest = z.infer<typeof RedefinirSenhaRequestSchema>;
 export const RedefinirSenhaRespostaSchema = z.object({ ok: z.literal(true), email_acesso: EmailAcessoSchema }).strict();
 export type RedefinirSenhaResposta = z.infer<typeof RedefinirSenhaRespostaSchema>;
+
+/**
+ * `POST /core/usuarios/:id/vincular-erp` (RN-CORE-58, T-0175; admin, `usuario.editar`): `:id` é o vendedor/promotor PROVISÓRIO da carga do ERP;
+ * `usuario_id` é o usuário real que passa a ter o Código no ERP e a carteira. Uma transação; idempotente (repetir devolve `ja_vinculado`).
+ * Erros: 404 usuário; 422 `VINCULO_*` (não provisório, sem código, real com outro código, perfis incompatíveis, mesmo usuário, outro tenant).
+ */
+export const VincularErpRequestSchema = z.object({ usuario_id: Uuid }).strict();
+export type VincularErpRequest = z.infer<typeof VincularErpRequestSchema>;
+export const VincularErpRespostaSchema = z
+  .object({
+    provisorio_id: Uuid,
+    usuario_id: Uuid,
+    external_id: z.string(),
+    clientes_movidos: z.number().int().min(0),
+    ja_vinculado: z.boolean(),
+  })
+  .strict();
+export type VincularErpResposta = z.infer<typeof VincularErpRespostaSchema>;
 
 export const CODIGOS_USUARIO = {
   emailDuplicado: 'USUARIO_EMAIL_DUPLICADO',
