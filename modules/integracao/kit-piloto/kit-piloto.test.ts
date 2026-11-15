@@ -230,6 +230,7 @@ describe('ERP via API: conversão e leitura', () => {
 
   it('RN-INT-kit: as entidades do ERP via API são as mesmas do Conector do piloto, em ordem de carga', () => {
     expect(ENTIDADES).toEqual(ENTIDADES_PILOTO);
+    expect(ENTIDADES.indexOf('filial')).toBeLessThan(ENTIDADES.indexOf('vendedor'));
     expect(ENTIDADES.indexOf('filial')).toBeLessThan(ENTIDADES.indexOf('cliente'));
     expect(ENTIDADES.indexOf('produto')).toBeLessThan(ENTIDADES.indexOf('preco'));
   });

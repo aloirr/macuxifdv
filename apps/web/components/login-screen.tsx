@@ -13,7 +13,7 @@
  * - Demonstração (`NEXT_PUBLIC_API_MODO=demo`, mock-api da Fase M): escolher um usuário fictício sem senha; o papel
  *   em inglês vira o perfil do doc 03 (`perfilDaFaseM`) e só aparecem os perfis que entram no BKO pelo motor de permissões do
  *   SDK (`entraEm`; RN-CORE-33: supervisor fora).
- * testIDs do login real: login.tela, login.codigo-empresa, login.email, login.senha, login.entrar, login.erro, login.aviso, login.esqueci.
+ * testIDs do login real: login.tela, login.codigo-empresa, login.email, login.senha, login.senha.olho, login.entrar, login.erro, login.aviso, login.esqueci.
  */
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
@@ -35,7 +35,8 @@ import {
 } from '@macuxi/core/contracts';
 import { entraEm, mensagemPerfilForaDoApp, perfisDeFabricaQueEntram, type Perfil } from '@macuxi/platform-sdk';
 import { api, apiFetch, errorMessage, MODO_API } from '@macuxi/platform-sdk/web';
-import { Button, ErrorBlock, IconChevronRight, LoadingBlock, Notice, rotuloDoPerfil, useToast } from '@macuxi/ui/web';
+import { Button, CampoSenha, ErrorBlock, IconChevronRight, LoadingBlock, Notice, rotuloDoPerfil, useToast } from '@macuxi/ui/web';
+import { Campo } from '@/components/campo-acesso';
 import { CrieSuaSenha, EsqueciSenha } from '@/components/ciclo-senha';
 import { MarcaNaFaixa } from '@/components/marca-faixa';
 import { CAMINHO_ESQUECI_SENHA, consumirAvisoDoLogin } from '@/lib/ciclo-senha';
@@ -66,7 +67,8 @@ function Marca() {
   return <MarcaNaFaixa area="Backoffice" />;
 }
 
-const campoCss = 'h-11 rounded-xl border border-field bg-surface px-3 text-[15px] text-ink outline-none focus-visible:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent';
+/** Id do campo de senha (o `CampoSenha` do kit liga o rótulo e o erro por ele). */
+const ID_SENHA = 'login-senha';
 
 /** A troca pendente: só na memória desta tela (estado do React). A senha usada no login nunca vai a storage. */
 interface TrocaPendente {
@@ -89,7 +91,8 @@ function LoginReal() {
   const [entrando, setEntrando] = useState(false);
   const [etapa, setEtapa] = useState<'entrar' | 'esqueci'>('entrar');
   const [troca, setTroca] = useState<TrocaPendente | null>(null);
-  const refs = useRef<Partial<Record<keyof CamposLogin, HTMLInputElement | null>>>({});
+  const [senhaVisivel, setSenhaVisivel] = useState(false);
+  const refs = useRef<Partial<Record<'codigo_empresa' | 'email', HTMLInputElement | null>>>({});
 
   useEffect(() => {
     try {
@@ -127,7 +130,8 @@ function LoginReal() {
     if (Object.keys(e).length > 0) {
       // foco no primeiro campo com erro (Y10)
       const primeiro = (['codigo_empresa', 'email', 'senha'] as const).find((n) => e[n]);
-      if (primeiro) refs.current[primeiro]?.focus();
+      if (primeiro === 'senha') document.getElementById(ID_SENHA)?.focus();
+      else if (primeiro) refs.current[primeiro]?.focus();
       return;
     }
     setEntrando(true);
@@ -178,28 +182,19 @@ function LoginReal() {
     await apiFetch(CAMINHO_ESQUECI_SENHA, { method: 'POST', body: corpo.data });
   };
 
-  const campo = (nome: keyof CamposLogin, rotulo: string, props: { type: string; autoComplete: string; maxLength?: number }) => (
-    <label className="flex flex-col gap-1">
-      <span className="text-[13px] font-semibold text-ink">{rotulo}</span>
-      <input
-        data-testid={`login.${nome === 'codigo_empresa' ? 'codigo-empresa' : nome}`}
-        name={nome}
-        ref={(el) => {
-          refs.current[nome] = el;
-        }}
-        value={campos[nome]}
-        onChange={mudar(nome)}
-        aria-invalid={erros[nome] ? true : undefined}
-        aria-describedby={erros[nome] ? `login-erro-${nome}` : undefined}
-        className={campoCss}
-        {...props}
-      />
-      {erros[nome] && (
-        <span id={`login-erro-${nome}`} className="text-[12px] text-danger">
-          {erros[nome]}
-        </span>
-      )}
-    </label>
+  const campo = (nome: 'codigo_empresa' | 'email', rotulo: string, props: { type: string; autoComplete: string; maxLength?: number }) => (
+    <Campo
+      rotulo={rotulo}
+      testId={`login.${nome === 'codigo_empresa' ? 'codigo-empresa' : nome}`}
+      name={nome}
+      ref={(el) => {
+        refs.current[nome] = el;
+      }}
+      value={campos[nome]}
+      onChange={mudar(nome)}
+      erro={erros[nome]}
+      {...props}
+    />
   );
 
   if (troca) {
@@ -246,7 +241,17 @@ function LoginReal() {
         )}
         {campo('codigo_empresa', 'Código da empresa', { type: 'text', autoComplete: 'organization', maxLength: CODIGO_EMPRESA_TAMANHO })}
         {campo('email', 'E-mail', { type: 'email', autoComplete: 'username' })}
-        {campo('senha', 'Senha', { type: 'password', autoComplete: 'current-password' })}
+        <CampoSenha
+          id={ID_SENHA}
+          rotulo="Senha"
+          testId="login.senha"
+          name="senha"
+          visivel={senhaVisivel}
+          onAlternar={() => setSenhaVisivel((v) => !v)}
+          value={campos.senha}
+          onChange={mudar('senha')}
+          erro={erros.senha}
+        />
         <div className="flex flex-col gap-1">
           <Button data-testid="login.entrar" type="submit" variant="primary" disabled={entrando}>
             {entrando ? 'Entrando…' : 'Entrar'}
