@@ -32,3 +32,5 @@ export * from './busca';
 export * from './botao-editar';
 // R-20261115-071000: CampoSenha (medidas, ícone do olho e props de teclado)
 export * from './campo-senha';
+// T-0182: PlacaLogoCliente (medidas, caixa pela proporção e leitura do TalkBack)
+export * from './placa-logo';
