@@ -1,5 +1,5 @@
 /** T-0004 critério 3 no BKO: os 8 módulos instalados pelo manifesto; o menu só traz módulos efetivos com páginas. */
-import { criarShell, GRUPOS_MENU, type GrupoDeclarado, type ModuloShell, type PaginaShell, type PerfilDaRequisicao } from '@macuxi/platform-sdk';
+import { criarShell, type GrupoDeclarado, type ModuloShell, type PaginaShell, type PerfilDaRequisicao } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 
 import { MANIFESTOS_INSTALADOS } from './instalados';
@@ -60,8 +60,8 @@ describe('shell web: Integração ERP em Sistema e De-para em Parâmetros (T-017
     expect(visao.pagina('integracao')?.id).toBe('monitor');
   });
 
-  // o rótulo "Parâmetros" vem do ROTULO_GRUPO_MENU do SDK; o teste liga sozinho quando o grupo entrar em GRUPOS_MENU
-  it.skipIf(!(GRUPOS_MENU as readonly string[]).includes('parametros'))('menu: Parâmetros › Integração e Sistema › Integração ERP; sem licença os dois somem', () => {
+  // o rótulo "Parâmetros" vem do ROTULO_GRUPO_MENU do SDK
+  it('menu: Parâmetros › Integração e Sistema › Integração ERP; sem licença os dois somem', () => {
     const shell = shellCom([monitor, dePara]);
     const menu = (modulosAtivos: typeof TODOS) => montarGruposMenu({ navegacao: shell.montar({ perfil: 'admin', modulosAtivos }).navegacao, plataforma: false });
     expect(menu(TODOS).map((g) => [g.titulo, g.itens.map((i) => [i.label, i.href])])).toEqual([

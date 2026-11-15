@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CargaArquivoAceita, CargaArquivoEntrada, ConferenciaArquivo, ProgressoSessaoArquivo } from '@macuxi/integracao/contracts';
 
-import { conferirArquivo, corpoDaParte, errosDaConferenciaCsv, importarArquivo, novaChaveDeCarga, percentualDaCarga, planejarEnvio, somarConferencias, type PortaCarga, type ProgressoCarga } from './portal-carga';
+import { conferirArquivo, corpoDaParte, errosDaConferenciaCsv, importarArquivo, loteTerminou, novaChaveDeCarga, percentualDaCarga, planejarEnvio, ROTULO_STATUS_LOTE, somarConferencias, type PortaCarga, type ProgressoCarga } from './portal-carga';
 
 const csv = (n: number) => ['external_id;nome', ...Array.from({ length: n }, (_, i) => `V${i + 1};Vendedor ${i + 1}`)].join('\n') + '\n';
 const UUID = '0b0f2f8e-7b1c-4f7e-9a51-3f1c2d4e5a6b';
@@ -157,5 +157,13 @@ describe('importarArquivo', () => {
     const c = await conferirArquivo(porta, { entidade: 'vendedor', modo: 'delta', plano });
     expect(c.linhas_lidas).toBe(12_000);
     expect(c.gravou).toBe(false);
+  });
+});
+
+describe('estado cancelado do lote (RN-INT-15)', () => {
+  it('RN-INT-15: o lote cancelado aparece como "Cancelado" e encerra o acompanhamento', () => {
+    expect(ROTULO_STATUS_LOTE.cancelado).toBe('Cancelado');
+    expect(loteTerminou('cancelado')).toBe(true);
+    expect(loteTerminou('processando')).toBe(false);
   });
 });

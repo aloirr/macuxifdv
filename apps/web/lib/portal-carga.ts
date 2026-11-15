@@ -45,6 +45,7 @@ export const ROTULO_STATUS_LOTE: Record<EstadoLote, string> = {
   concluido: 'Concluído',
   concluido_com_erros: 'Concluído com erros',
   falhou: 'Falhou',
+  cancelado: 'Cancelado',
 };
 
 export const ROTULO_MODO: Record<ModoCarga, { titulo: string; ajuda: string }> = {
@@ -55,7 +56,7 @@ export const ROTULO_MODO: Record<ModoCarga, { titulo: string; ajuda: string }> =
 export const ENTIDADES_DO_HUB: readonly Entidade[] = ENTIDADES;
 
 export function loteTerminou(status: EstadoLote): boolean {
-  return status === 'concluido' || status === 'concluido_com_erros' || status === 'falhou';
+  return status === 'concluido' || status === 'concluido_com_erros' || status === 'falhou' || status === 'cancelado';
 }
 
 /** Chave de idempotência da carga (RN-INT-12): a mesma em todas as partes e nas novas tentativas de uma parte. */
