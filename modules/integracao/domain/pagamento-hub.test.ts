@@ -3,12 +3,13 @@
  * máximo; ordem de carga; e o pedido novo saindo ao ERP com `pagamento`.
  */
 import { describe, expect, it } from 'vitest';
-import { CAMPO_SOMA_CONTROLE, ClientePayload, ENTIDADES, EVENTOS_ATUALIZADO, PedidoAprovadoParaFila, PedidoParaErp, VERSAO_CONTRATO } from '../contracts';
+import { CAMPO_SOMA_CONTROLE, ClientePayload, ENTIDADES, EVENTOS_ATUALIZADO, PedidoAprovadoParaFila, PagamentoErp, PedidoParaErp, VERSAO_CONTRATO } from '../contracts';
 import { colunasDaEntidade, converterCsvParaLote } from './carga-arquivo';
 import { validarLinhas } from './idempotencia';
 import { siglasDeMedidaDoRegistro, verificarMedidas } from './medidas';
 import { DEPENDENCIAS, ordenarCarga, referenciasDoRegistro, verificarReferencias } from './ordem';
-import { avisoPrazoMedioDivergente, prazoMedioCalculado } from './pagamento';
+import { gerarModeloCsv } from './modelos-csv';
+import { avisoPrazoMedioDivergente, percentualAjusteDoPrazo, prazoMedioCalculado } from './pagamento';
 import { decidirEntradaNaFila, montarPedidoParaErp, montarSnapshotParaFila, selecionarPendentes } from './pedido-fila';
 import { exigeConector } from './pedido-versao';
 import { ordemDeCargaDoPortal } from './portal-carga';
@@ -257,5 +258,45 @@ describe('RF-INT-03: carga por arquivo (CSV) das 3 entidades e do cliente amplia
   it('as demais listas (contatos, oferece_junto) continuam fora do CSV', () => {
     expect(colunasDaEntidade('cliente').listas).toContain('contatos');
     expect(colunasDaEntidade('produto').listas).toContain('oferece_junto');
+  });
+});
+
+describe('RN-INT-15: percentual de ajuste do prazo ("% Acres.Fin." do ERP), aditivo no v1', () => {
+  const prazo = { external_id: 'PRZ-1', alterado_em: T, forma_external_id: 'FPG-1', codigo: 'AVISTA', parcelas_dias: [0] };
+
+  it('RN-INT-15: ausente vale 0 e a linha continua válida (RN-INT-09)', () => {
+    const r = validarLinhas('prazo_pagamento', [prazo, { ...prazo, external_id: 'PRZ-2', percentual_ajuste: null }]);
+    expect(r.erros).toEqual([]);
+    expect(r.validas).toHaveLength(2);
+    expect(percentualAjusteDoPrazo(r.validas[0]?.registro as { percentual_ajuste?: number | null })).toBe(0);
+    expect(percentualAjusteDoPrazo({ percentual_ajuste: null })).toBe(0);
+  });
+
+  it('RN-INT-15: aceita -1,71 (à vista), 0 e os limites -99,99 e +99,99', () => {
+    const r = validarLinhas('prazo_pagamento', [-1.71, 0, -99.99, 99.99].map((p, i) => ({ ...prazo, external_id: `P${i}`, percentual_ajuste: p })));
+    expect(r.erros).toEqual([]);
+    expect(percentualAjusteDoPrazo({ percentual_ajuste: -1.71 })).toBe(-1.71);
+  });
+
+  it('RN-INT-15: fora da faixa ou com mais de 2 casas é erro de linha', () => {
+    const r = validarLinhas('prazo_pagamento', [100, -100, 1.234, 99.995].map((p, i) => ({ ...prazo, external_id: `P${i}`, percentual_ajuste: p })));
+    expect(r.validas).toEqual([]);
+    expect(r.erros).toHaveLength(4);
+  });
+
+  it('RN-INT-15: o pagamento do pedido ao ERP leva percentual_ajuste só como informação (opcional, mesma faixa)', () => {
+    const pag = { forma_codigo: 'PIX', prazo_codigo: 'AVISTA', parcelas_dias: [0], prazo_medio_dias: 0 };
+    expect(PagamentoErp.safeParse(pag).success).toBe(true);
+    expect(PagamentoErp.safeParse({ ...pag, percentual_ajuste: -1.71 }).success).toBe(true);
+    expect(PagamentoErp.safeParse({ ...pag, percentual_ajuste: 100 }).success).toBe(false);
+    expect(PagamentoErp.safeParse({ ...pag, percentual_ajuste: 1.005 }).success).toBe(false);
+  });
+
+  it('RN-INT-15: o modelo CSV do prazo traz a coluna percentual_ajuste, opcional, de -99,99 a 99,99', () => {
+    const m = gerarModeloCsv('prazo_pagamento');
+    const c = m.campos.find((x) => x.campo === 'percentual_ajuste');
+    expect(c).toMatchObject({ obrigatorio: false });
+    expect(c?.formato).toContain('-99.99');
+    expect(c?.observacao).toContain('Acres.Fin.');
   });
 });

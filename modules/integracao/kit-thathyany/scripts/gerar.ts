@@ -144,7 +144,7 @@ export function regraDoCampo(c: CampoDicionario): Regra {
   if ((m = /^inteiro de (-?\d+) a (-?\d+)$/.exec(f))) return { inteiro: true, min: Number(m[1]), max: Number(m[2]) };
   if ((m = /^inteiro maior ou igual a (\d+)$/.exec(f))) return { inteiro: true, min: Number(m[1]) };
   if (f === 'inteiro') return { inteiro: true };
-  if ((m = /^número de (-?\d+) a (-?\d+)$/.exec(f))) return { inteiro: false, min: Number(m[1]), max: Number(m[2]) };
+  if ((m = /^número de (-?\d+(?:\.\d+)?) a (-?\d+(?:\.\d+)?)$/.exec(f))) return { inteiro: false, min: Number(m[1]), max: Number(m[2]) };
   if (f.startsWith('centavos inteiros')) return { inteiro: true, min: 0 };
   if (f === '8, 12, 13 ou 14 dígitos') return { digitos: [8, 12, 13, 14] };
   if (f === '14 dígitos') return { digitos: [14] };

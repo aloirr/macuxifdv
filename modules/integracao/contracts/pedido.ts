@@ -4,7 +4,7 @@
  * Conector → Hub: `POST /integracao/v1/pedidos/{pedido_uuid}/retorno`.
  */
 import { z } from 'zod';
-import { CentavosNaoNegativos, DataHoraUtc, ExternalId, Quantidade, Texto, TextoOpcional, Uuid, VERSAO_CONTRATO } from './base';
+import { CentavosNaoNegativos, DataHoraUtc, ExternalId, PercentualAjuste, Quantidade, Texto, TextoOpcional, Uuid, VERSAO_CONTRATO } from './base';
 
 export const ESTADOS_PEDIDO_ERP = ['pendente', 'enviado', 'integrado', 'rejeitado_erp', 'faturado_parcial', 'faturado_total', 'cancelado'] as const;
 export const EstadoPedidoErp = z.enum(ESTADOS_PEDIDO_ERP);
@@ -94,6 +94,11 @@ export const PagamentoErp = z.object({
   prazo_external_id: ExternalId.nullish(),
   parcelas_dias: z.array(z.number().int().min(0).max(365)).min(1).max(24),
   prazo_medio_dias: z.number().int().min(0).max(365),
+  /**
+   * RN-INT-15 (aditivo no v1): % do prazo ("% Acres.Fin."), SÓ informação. Os preços do pedido já vão ajustados por ele; o ERP grava
+   * as linhas como vêm e NÃO reaplica o percentual (risco de dupla aplicação).
+   */
+  percentual_ajuste: PercentualAjuste.nullish(),
 });
 export type PagamentoErp = z.infer<typeof PagamentoErp>;
 

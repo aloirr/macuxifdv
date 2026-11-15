@@ -90,6 +90,7 @@ CREATE TABLE dbo.tha_prazo_pagamento (
     ativo TINYINT NOT NULL CONSTRAINT df_tha_prazo_pagamento_ativo DEFAULT 1,
     descricao NVARCHAR(60) NULL,
     prazo_medio_dias INT NULL,
+    percentual_ajuste DECIMAL(18, 6) NULL,
     ordem INT NULL,
     linha_hash CHAR(64) NULL,
     CONSTRAINT pk_tha_prazo_pagamento PRIMARY KEY (external_id));
