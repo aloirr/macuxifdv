@@ -39,3 +39,27 @@ Encaminhado ao `testes` (não catalogado): o título do X-4/X-5 diz que a inativ
 
 ## Resultado
 Item 1 e item 2 **não liberados**: RD-0551 a RD-0558 seguram; RD-0559 vai no lote seguinte.
+
+## Reteste — 15/11/2026
+
+Branches: `nuvem/rn-filial-marca-gerente-projetos` **29febf6e**, `nuvem/referencia-sem-marca-testes` **2fd46e46** e `nuvem/referencia-sem-marca-testes-depois` **25d819de** (que traz o 2fd46e46 por merge).
+
+| ID | Status | Evidência |
+|---|---|---|
+| RD-0551 | **corrigido** | A RN-CAT-09 fala da marca uma vez só ("e, se houver, a marca concorrente (RN-CAT-13)"). O R-20261115-073000 foi para a citação final |
+| RD-0552 | **corrigido** | Saiu a frase "As marcas vêm do cadastro… ADR 0027)". A origem das marcas fica só na RN-CAT-13 |
+| RD-0553 | **corrigido** | A exibição está numa frase só: "Equivale a: <marca> <código>"; sem marca, só o código; marca inativa ou que não existe não aparece |
+| RD-0554 | **corrigido** | O cabeçalho ficou "**Filial do usuário** (Alexandre, R-20261115-073000 e R-20261115-080000):" |
+| RD-0555 | **corrigido** | A RN-VEN-01 não diz mais "mais de uma filial… filial padrão" e aponta para a RN-CORE-39 |
+| RD-0556 | **corrigido** | Ficou "**quem informa:** o admin no BKO (Usuários) ou a carga do ERP" e "**vendedor sem filial fica bloqueado** no app até a filial ser informada…" |
+| RD-0557 | **corrigido** | O E-1 não tem mais o laço `marcasNasRefs` nem o comentário |
+| RD-0558 | **reaberto** (segura) | Só o título mudou. O H-2 continua com as duas expectativas: `toEqual(refs1.length === 1 ? [] : [['ZZ 0001', null]])` na linha 237 e o mesmo ternário na ficha (linha 250), nos dois branches. O comentário de histórico (linhas 233-234) e o cabeçalho "as duas formas passam" (linhas 15-16) continuam. O título novo, "marca desconhecida não vira marca (descartada ou só com o código)", deixa a forma antiga dentro do teste. A proposta continua valendo no branch `-depois`, que entra só depois do Catálogo: `toEqual([['ZZ 0001', null]])` e `toEqual([{ marca_id: null, marca_nome: null, codigo: 'ZZ 0001' }])`, título "…; marca desconhecida entra só com o código; 4 referências = 3 + aviso" e sem o histórico no comentário e no cabeçalho |
+| RD-0559 | **corrigido** | O cabeçalho ficou "Depende do Catálogo (`referenciaVisivel` na exportação) e da migração 0075 (`marca_id` nulo)." |
+
+O que tinha ido ao `testes`:
+- RN-CAT-13 × RN-CAT-09: resolvido. A RN-CAT-13 agora diz "a referência com marca inativa deixa de aparecer (RN-CAT-09)".
+- Título do X-4/X-5: resolvido. Ficou "a inativa no meio some e a ordem do cadastro se mantém", e o X-5 do cabeçalho também foi ajustado.
+
+**Nenhum achado novo** (RD-0565 a RD-0569 não foram usados).
+
+**Resultado do reteste:** o item 1 (29febf6e) está **limpo**. O item 2 **não está liberado** por causa do RD-0558, que precisa ser corrigido no `-depois`. O branch `nuvem/referencia-sem-marca-testes` (2fd46e46) pode entrar sozinho antes do Catálogo, porque o ternário serve para a transição. Mesmo assim, o RD-0558 segura o lote até o `-depois` ter a forma única.
