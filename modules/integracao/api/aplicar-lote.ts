@@ -12,7 +12,7 @@
  * esgotadas as tentativas da outbox o lote fica `recebido` com o evento parado (alerta de operação, não `falhou`); parâmetros do
  * tenant não chegam ao consumidor, valem os padrões.
  */
-import { CONSULTA_CADASTRO_CLIENTE, CONSULTA_MEDIDAS } from '@macuxi/core/contracts';
+import { CONSULTA_CADASTRO_CLIENTE, CONSULTA_FILIAIS, CONSULTA_MEDIDAS } from '@macuxi/core/contracts';
 import { definirConsumidor, ehConsultaIndisponivel, type ClienteBanco, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { CAMPO_SOMA_CONTROLE, type AvisoLinha, type Cursor, type Entidade, type EstadoLote, type LinhaErro, type LinhaInvalidaConector, type LoteRecebidoEvento } from '../contracts';
 import {
@@ -32,6 +32,7 @@ import {
   contarDuplicadasNoLote,
   siglasParaConferir,
   verificarMedidas,
+  verificarFilialDoVendedor,
   dadosParaConsultaCadastro,
   PARAMETROS_PADRAO,
   referenciasDoRegistro,
@@ -157,7 +158,10 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
   // medida (RN-CORE-19): sigla não cadastrada/inativa = referencia_ausente; sem como conferir (consulta indisponível), não recusa
   const situacaoMedidas = await situacaoDasMedidas(ctx, siglasParaConferir(lote.entidade, ref.aceitas));
   const med = verificarMedidas(lote.entidade, ref.aceitas as LinhaValida[], situacaoMedidas && situacaoMedidas.ativas, situacaoMedidas?.inativas);
-  const aceitasValidas = med.aceitas;
+  // filial do vendedor (RN-CORE-39): filial_external_id desconhecida no Core = referencia_ausente reprocessável
+  const filiaisExistentes = lote.entidade === 'vendedor' ? await filiaisConhecidas(ctx, med.aceitas as LinhaValida[]) : null;
+  const fil = verificarFilialDoVendedor(lote.entidade === 'vendedor' ? (med.aceitas as LinhaValida[]) : [], filiaisExistentes);
+  const aceitasValidas = lote.entidade === 'vendedor' ? fil.aceitas : med.aceitas;
   // referência fraca (produto -> nó do catálogo): aviso, a linha entra normalmente
   const fracas = new Set<string>();
   for (const l of aceitasValidas) for (const r of referenciasFracasDoRegistro(lote.entidade, l.registro)) fracas.add(r.external_id);
@@ -255,7 +259,7 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
   // ---- erros por linha: um por (origem, índice) — a unique do banco; o primeiro campo com problema basta
   const errosHub: LinhaErro[] = [];
   const vistos = new Set<number>();
-  for (const e of [...v.erros, ...ref.erros, ...med.erros]) {
+  for (const e of [...v.erros, ...ref.erros, ...med.erros, ...fil.erros]) {
     if (vistos.has(e.indice)) continue;
     vistos.add(e.indice);
     errosHub.push({ ...e, origem: 'hub' });
@@ -366,6 +370,22 @@ async function situacaoDasMedidas(ctx: ContextoConsumo, siglas: readonly string[
     return null;
   }
   return { ativas, inativas };
+}
+
+/** RN-CORE-39: dos `filial_external_id` citados, os que existem no tenant (`core.filiais@1`); `null` = não deu para conferir (ninguém é recusado). */
+async function filiaisConhecidas(ctx: ContextoConsumo, linhas: readonly LinhaValida[]): Promise<Set<string> | null> {
+  const ids = [...new Set(linhas.map((l) => ((l.registro as { filial_external_id?: string | null }).filial_external_id ?? '').trim()).filter((x) => x !== ''))];
+  const achadas = new Set<string>();
+  try {
+    for (const bloco of blocos(ids, 500)) {
+      const r = await ctx.consultar(CONSULTA_FILIAIS, { external_ids: bloco });
+      for (const f of r.por_external_id) achadas.add(f.external_id);
+    }
+  } catch (e) {
+    if (!ehConsultaIndisponivel(e)) ctx.log.warn({ consulta: 'core.filiais@1' }, 'não foi possível conferir as filiais; o lote segue sem a conferência');
+    return null;
+  }
+  return achadas;
 }
 
 async function avisarCadastroIncompleto(ctx: ContextoConsumo, aceitas: readonly LinhaValida[]): Promise<AvisoLinha[]> {
