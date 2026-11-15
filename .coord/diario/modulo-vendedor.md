@@ -145,3 +145,4 @@
 2026-11-15 — fonte do sistema v1.0.13 — fonts.x→...fonte.x em 16 arquivos do app, escala 12/14/16/18/22, PDF do pedido com pilha do sistema e 12px mínimo, web já ≥12
 2026-11-15 — fonte-rodada3 — MC-0058/59/60/63 e RD-0943: escala por papel no web, nada em 800, mono só em código, PDF importa PILHA_* de @macuxi/comum/fonte
 2026-11-15 — fonte do sistema v1.0.13 — MC-0059 total do pedido no BKO em font-semibold; MC-0066 número do pedido no app sem mono (tabular-nums) em orders-screen e ficha-cliente; teste T-0101 ajustado
+2026-11-15 — fonte do sistema (#404) — pareceres v1.0.13: RD-1253 (t.h1Small, t.rotulo, t.number do kit), MC-0147 (valores em destaque 600 no app e no BKO), MC-0148 (PDF: .r, th, .doc .t small e linha do Total em 600), RD-1254 (título do teste: 600).

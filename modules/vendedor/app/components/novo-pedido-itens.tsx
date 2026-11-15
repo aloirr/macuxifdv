@@ -82,5 +82,5 @@ const s = StyleSheet.create({
   controles: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 0 },
   total: { flexDirection: 'row', alignSelf: 'flex-end', alignItems: 'baseline', gap: 6, minHeight: 24 },
   totalRotulo: { ...fonte.body, fontSize: 12, color: colors.ink2 },
-  totalValor: { ...fonte.bold, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
+  totalValor: { ...fonte.semibold, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
 });

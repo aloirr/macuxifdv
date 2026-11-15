@@ -149,10 +149,10 @@ const s = StyleSheet.create({
   emb: { ...fonte.body, fontSize: 12, color: colors.ink },
   fator: { ...fonte.body, fontSize: 12, color: colors.ink2 },
   num: { ...fonte.body, fontSize: 12, color: colors.ink, fontVariant: ['tabular-nums'] },
-  total: { ...fonte.bold, fontSize: 14 },
+  total: { ...fonte.semibold, fontSize: 14 },
   linhaTot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, minHeight: 48 },
   rotuloTot: { ...fonte.body, fontSize: 14, color: colors.ink2 },
   valorTot: { ...fonte.semibold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
   rotuloTotal: { ...fonte.semibold, fontSize: 16, color: colors.ink },
-  valorTotal: { ...fonte.bold, fontSize: 22, color: colors.ink, fontVariant: ['tabular-nums'] },
+  valorTotal: { ...fonte.semibold, fontSize: 22, color: colors.ink, fontVariant: ['tabular-nums'] },
 });

@@ -3,7 +3,7 @@
  * borda line e raio 12, uma linha por alerta (alvo >= 44 dp): ícone alerta + texto + chevron quando a linha leva a algum lugar.
  * Sem alerta, não desenha nada (nem o título). Quem decide o que é alerta é o domain (`alertasDoPedido`).
  */
-import { colors, fonte, Icon, Pressionavel } from '@macuxi/ui/mobile';
+import { colors, fonte, Icon, Pressionavel, type as t } from '@macuxi/ui/mobile';
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { AlertaDoPedido } from '../../domain/alertas-pedido';
@@ -45,7 +45,7 @@ export function AreaAlertas({ alertas, aoTocar, texto, testID = 'area-alertas' }
 
 const s = StyleSheet.create({
   root: { gap: 6 },
-  titulo: { ...fonte.semibold, fontSize: 12, letterSpacing: 0.6, color: colors.danger },
+  titulo: { ...t.rotulo, color: colors.danger },
   cartao: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   linha: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 8 },
   separador: { borderTopWidth: 1, borderTopColor: colors.lineSoft },

@@ -951,5 +951,5 @@ const styles = StyleSheet.create({
   sumRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
   sumLabel: { ...fonte.body, fontSize: 14, color: colors.ink2 },
   sumValue: { ...fonte.body, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
-  total: { ...fonte.bold, fontSize: 22, color: colors.ink, fontVariant: ['tabular-nums'] },
+  total: { ...fonte.semibold, fontSize: 22, color: colors.ink, fontVariant: ['tabular-nums'] },
 });

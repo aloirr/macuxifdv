@@ -749,7 +749,7 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
       <Text style={[t.sub, strong && { color: colors.ink, ...fonte.semibold }]}>{label}</Text>
-      <Text style={[strong ? { ...fonte.bold, fontSize: 18, color: colors.ink } : t.body, { fontVariant: ['tabular-nums'] }]}>{value}</Text>
+      <Text style={[strong ? t.number : t.body, { fontVariant: ['tabular-nums'] }]}>{value}</Text>
     </View>
   );
 }

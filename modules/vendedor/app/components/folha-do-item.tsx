@@ -7,7 +7,7 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import type { Product } from '@macuxi/catalogo/contracts';
-import { Botao, colors, fonte, Folha, Icon, Passo, Segmentado } from '@macuxi/ui/mobile';
+import { Botao, colors, fonte, Folha, Icon, Passo, Segmentado, type as t } from '@macuxi/ui/mobile';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -146,10 +146,10 @@ const s = StyleSheet.create({
   colunaEstoque: { alignItems: 'flex-end', gap: 6 },
   caixaEstoque: { width: 84, height: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   caixaEstoqueRisco: { backgroundColor: colors.accentSoft, borderColor: colors.accentInk },
-  numeroEstoque: { ...fonte.bold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
+  numeroEstoque: { ...fonte.semibold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
   risco: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   riscoTexto: { ...fonte.semibold, fontSize: 12, color: colors.accentInk },
-  rotulo: { ...fonte.semibold, fontSize: 12, letterSpacing: 0.6, color: colors.ink2 },
+  rotulo: t.rotulo,
   linhaDupla: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between' },
   maximo: { ...fonte.semibold, fontSize: 12, color: colors.danger },
   bordaDeAlerta: { borderWidth: 2, borderColor: colors.danger, borderRadius: 14 },
@@ -159,5 +159,5 @@ const s = StyleSheet.create({
   totRotulo: { ...fonte.body, fontSize: 14, color: colors.ink2 },
   totRotuloForte: { ...fonte.semibold, fontSize: 14, color: colors.ink },
   totValor: { ...fonte.semibold, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
-  totTotal: { ...fonte.bold, fontSize: 18, color: colors.ink, fontVariant: ['tabular-nums'] },
+  totTotal: t.number,
 });

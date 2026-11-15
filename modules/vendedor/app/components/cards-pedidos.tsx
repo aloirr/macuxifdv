@@ -17,7 +17,7 @@ function Card({ testID, titulo, rotulo, q, onPress }: { testID: string; titulo: 
     <>
       <Text style={t.small} numberOfLines={1}>{rotulo}</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text style={{ ...fonte.bold, fontSize: 22, lineHeight: 28, fontVariant: ['tabular-nums'], color: colors.ink }}>{quantidadeDoCard(q)}</Text>
+        <Text style={{ ...fonte.semibold, fontSize: 22, lineHeight: 28, fontVariant: ['tabular-nums'], color: colors.ink }}>{quantidadeDoCard(q)}</Text>
         {onPress ? <Icon name="chevron" size={16} color={colors.ink3} strokeWidth={2.4} /> : null}
       </View>
       {valor ? <Text style={[t.small, { fontVariant: ['tabular-nums'] }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{valor}</Text> : null}

@@ -203,7 +203,7 @@ body { font-family: ${PILHA_SISTEMA}; color: #16202A; font-size: 15px; line-heig
 .emit { font-size: 12px; color: #4A5562; }
 .doc { text-align: right; }
 .doc .t { font-weight: 700; font-size: 24px; line-height: 1.1; }
-.doc .t small { font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #1E3350; margin-right: 2mm; vertical-align: 3px; }
+.doc .t small { font-weight: 600; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #1E3350; margin-right: 2mm; vertical-align: 3px; }
 .doc .d { font-size: 13px; color: #4A5562; }
 .ficha { display: grid; grid-template-columns: 49fr 29fr 22fr; border: 1px solid #16202A; border-radius: 1.5mm; overflow: hidden; background: #F1F2F0; }
 .c { padding: 1.6mm 2.6mm 1.8mm; border-right: 1px solid #C9CED5; border-bottom: 1px solid #C9CED5; }
@@ -212,7 +212,7 @@ body { font-family: ${PILHA_SISTEMA}; color: #16202A; font-size: 15px; line-heig
 .ficha.esc { grid-template-columns: 42fr 29fr 29fr; }
 .s2 { grid-column: span 2; }
 .duo { display: flex; gap: 8mm; }
-.r { font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #5B6673; margin-bottom: .6mm; }
+.r { font-weight: 600; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #5B6673; margin-bottom: .6mm; }
 .forte { font-weight: 600; }
 .sec { color: #4A5562; }
 .faixa { display: grid; grid-template-columns: 26mm 1fr; border: 1px solid #C9CED5; border-radius: 1.5mm; break-inside: avoid; page-break-inside: avoid; }
@@ -224,7 +224,7 @@ body { font-family: ${PILHA_SISTEMA}; color: #16202A; font-size: 15px; line-heig
 .etapas .ultima { font-weight: 600; }
 table { width: 277mm; border-collapse: collapse; table-layout: fixed; margin-top: 28px; }
 thead { display: table-header-group; }
-th { font-weight: 700; font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: #fff; background: ${COR_CABECALHO_TABELA}; text-align: left; padding: 1.8mm 2mm; }
+th { font-weight: 600; font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: #fff; background: ${COR_CABECALHO_TABELA}; text-align: left; padding: 1.8mm 2mm; }
 td { padding: 1.6mm 2mm; vertical-align: baseline; font-size: 15px; }
 tbody tr:last-child td { border-bottom: 1.5px solid #16202A; }
 tbody tr:nth-child(even) td { background: #F3F4F1; }
@@ -240,7 +240,7 @@ td.tot { font-weight: 600; }
 .totalbox { min-width: 78mm; border: 2px solid #16202A; border-radius: 2mm; background: #ECEEEA; padding: 2.4mm 4mm; margin-left: auto; }
 .totalbox .lin { display: flex; justify-content: space-between; gap: 6mm; padding: .6mm 0; }
 .totalbox .lin .v { font-weight: 600; }
-.totalbox .total { align-items: baseline; border-top: 1px solid #C9CED5; margin-top: 1mm; padding-top: 1.6mm; font-weight: 700; }
+.totalbox .total { align-items: baseline; border-top: 1px solid #C9CED5; margin-top: 1mm; padding-top: 1.6mm; font-weight: 600; }
 .totalbox .total:first-child { border-top: 0; margin-top: 0; padding-top: .6mm; }
 .totalbox .lin .vt { font-weight: 600; font-size: 26px; }
 .nota { font-size: 12px; color: #4A5562; margin-top: 1mm; }
