@@ -18,3 +18,5 @@ export * from './permissoes';
 export * from './historico';
 // MC-0042: módulos adicionais do plano (nome e ícone)
 export * from './adicionais';
+// Portal config §15: confirmação por digitação (ações sem volta)
+export * from './confirmar';

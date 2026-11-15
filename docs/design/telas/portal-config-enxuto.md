@@ -428,7 +428,9 @@ Conta das frases: 59 (placares anteriores, §14) + 3 frases curtas que ficavam n
 ## 15. Adendo — Backup, Inativar e Excluir na lista de Empresas
 > 2026-11-14 ~20h (Manaus) · designer-ux · pedido do dono do produto R-20261114-195600: "Nao vi a opcao de inativar a empresa no config. Ajuste para ter essa opção na lista de empresa, junto com o botao backup e excluir. A inativação desabilita todos os acessos mas nao exclui nada. O botao excluir fica do lado de inativar e so pode ser usado apos ser feito o backup da empresa." Só o time Macuxi vê a lista (§3) e as ações.
 
-Simulações (1366 × 768, escala 2, `portal.css`): `depois-02b-empresas-acoes` (lista com os estados) e `depois-02c-empresas-dialogos` (diálogos).
+**Situação:** Aprovado pelo Alexandre em 14/11/2026 (R-20261114-202000-alexandre: "1 aprovado / 2 aprovado / 3 aprovado"). Regras de negócio (quando o Excluir libera, retenção do backup, código não reaproveitado, sem download): **ADR 0052** (§2.8, §3.1, §3.2 e §3.4; RN-PLA-07 a RN-PLA-11), que esta seção não repete.
+
+Simulações (escala 2, `portal.css`): `depois-02b-empresas-acoes` (lista com os estados, 1366 × 768) e `depois-02c-empresas-dialogos` (diálogos, 1366 × 912, para caber o Excluir com a senha).
 
 | Lista com os estados | Diálogos |
 |---|---|
@@ -439,13 +441,13 @@ Tabela **Empresa · Código · CNPJ · Plano · Situação · Criada em · Backu
 
 | Estado da linha | Situação | Backup | Ações |
 |---|---|---|---|
-| Ativa, com backup | selo **"Ativa"** | **"14/11/2026 19:40"** (`formatDateTimeFull`, fuso do tenant) | Backup · Inativar · Excluir |
+| Ativa, com backup | selo **"Ativa"** | **"14/11/2026 19:40"** (`formatDateTimeFull`, fuso do tenant) | Backup · Inativar · Excluir **desabilitado** |
 | Ativa, sem backup | selo **"Ativa"** | **"Nenhum"** (`ink-2`) | Backup · Inativar · Excluir **desabilitado** |
 | Backup em andamento | igual | giro + **"Em andamento"** | Backup e Excluir **desabilitados** · Inativar |
-| Inativa | selo neutro **"Inativa"** | último backup ou "Nenhum" | Backup · **Reativar** · Excluir (se houver backup) |
+| Inativa | selo neutro **"Inativa"** | último backup ou "Nenhum" | Backup · **Reativar** · Excluir (liberado só nas condições da ADR 0052 §3.1: `acoes.exclusao_bloqueada` nulo) |
 
 - **Backup** não pede confirmação (não muda nada da empresa): o clique já põe a linha em "Em andamento"; ao terminar, a célula mostra a data e a hora. Sem aviso de sucesso: a data na célula basta (uma informação, um lugar).
-- **Excluir desabilitado** sem backup ou com backup em andamento; o motivo está na coluna Backup da mesma linha ("Nenhum"/"Em andamento"), sem dica nem texto extra. O botão leva `aria-disabled` + `aria-describedby` apontando para a célula Backup (o leitor de tela ouve o motivo).
+- **Excluir desabilitado** enquanto `acoes.exclusao_bloqueada` não for nulo (ADR 0052 §3.1). O motivo está na própria linha, sem dica nem texto extra: o selo "Ativa" (empresa ativa) ou a célula Backup ("Nenhum", "Em andamento" ou a data de um backup que não serve). O botão leva `aria-disabled` + `aria-describedby` apontando para a célula da Situação (empresa ativa) ou do Backup (inativa), para o leitor de tela ouvir o motivo.
 - **Backup que não terminou:** aviso de erro fechável no topo da lista (`Notice tone="danger"`), **"O backup da {empresa} não terminou. Tente de novo."**; a célula volta ao backup anterior (ou "Nenhum").
 - **Reativar** não pede confirmação, como o Backup: o botão mostra "Reativando…" (desabilitado) e, ao terminar, o selo vira "Ativa" e o botão volta a "Inativar". Motivo: reativar não apaga nem bloqueia nada e se desfaz com um clique em "Inativar"; o diálogo só repetiria o título e custaria um toque a mais. Se a API falhar, a linha fica como estava e aparece o `ErrorBlock` padrão no topo da lista.
 - **Inativar e reativar sem aviso de sucesso:** o selo da Situação já mostra o resultado (uma informação, um lugar).
@@ -455,28 +457,27 @@ Tabela **Empresa · Código · CNPJ · Plano · Situação · Criada em · Backu
 | Diálogo | Título | Corpo | Rodapé |
 |---|---|---|---|
 | Inativar | **"Inativar {empresa}?"** | **"Todos os acessos ficam bloqueados."** | "Cancelar" · **"Inativar"** (`variant="danger"`) |
-| Excluir | **"Excluir {empresa}?"** | **"Último backup: 14/11/2026 19:40"** · **"Não dá para desfazer."** · campo **"Digite AM4821 para confirmar"** (código em IBM Plex Mono, foco ao abrir) | "Cancelar" · **"Excluir empresa"** (`variant="danger"`), desabilitado até o código digitado bater (sem diferença de maiúsculas e de espaços nas pontas) |
+| Excluir | **"Excluir {empresa}?"** | **"Último backup: 14/11/2026 20:10"** · **"Não dá para desfazer."** · `ConfirmarDigitando` **"Digite AM2290 para confirmar"** (código em IBM Plex Mono, foco ao abrir) · campo **"Sua senha"** (`type="password"`, `autocomplete="current-password"`) | "Cancelar" · **"Excluir empresa"** (`variant="danger"`), desabilitado até o código digitado bater (sem diferença de maiúsculas e de espaços nas pontas) e a senha estar preenchida |
 
 - Confirmação pelo **código** (6 caracteres, único) e não pelo nome: mais curto de digitar e sem dúvida de acento ou "Ltda".
 - Código errado: o botão só fica desabilitado; sem mensagem de erro.
 - Esc e "Cancelar" fecham sem gravar. Enquanto grava: "Inativando…"/"Excluindo…", desabilitado.
-- Erro da API: uma linha embaixo do corpo, em `danger`: **"Faça o backup antes de excluir."** (sem backup concluído) ou o `ErrorBlock` padrão.
+- A senha vai só no corpo do pedido (ADR 0052 §3.2) e sai do campo ao fechar o diálogo.
+- Erro da API: uma linha embaixo do corpo, em `danger`: **"Senha incorreta."** (`REAUTENTICACAO_FALHOU`; o campo da senha se esvazia e recebe o foco), **"Faça um novo backup antes de excluir."** (`EXCLUSAO_SEM_BACKUP`, `EXCLUSAO_BACKUP_ANTES_DA_INATIVACAO`, `EXCLUSAO_BACKUP_VENCIDO`), **"Inative a empresa antes de excluir."** (`EXCLUSAO_EMPRESA_ATIVA`) ou o `ErrorBlock` padrão.
 
 ### 15.3 Para o engenheiro-apps
 - Tela em `apps/web/app/config/**` (lista de Empresas); modo falso (`lib/portal-falso.ts`) com os 4 estados da simulação.
-- **testIDs:** `empresas.linha-<codigo>`, `empresas.situacao-<codigo>`, `empresas.backup-data-<codigo>` (`data-estado` = `nenhum|andamento|pronto`), `empresas.backup-<codigo>`, `empresas.inativar-<codigo>`, `empresas.reativar-<codigo>`, `empresas.excluir-<codigo>`, `empresa-acao.dialogo`, `empresa-acao.cancelar`, `empresa-acao.confirmar`, `empresa-excluir.codigo`, `empresa-acao.erro`.
-- **Contratos e rotas (engenheiro-software/modulo-core):** iniciar o backup e ler o estado (`nenhum|andamento|pronto|falhou` + `concluido_em` em UTC); inativar/reativar (a inativação bloqueia todos os acessos, inclusive sessões abertas, sem apagar dado); excluir com o código no corpo e **409 `SEM_BACKUP`** sem backup concluído (a API revalida). Situação na lista: `ativa|inativa`.
+- **testIDs:** `empresas.linha-<codigo>`, `empresas.situacao-<codigo>`, `empresas.backup-data-<codigo>` (`data-estado` = `nenhum|andamento|pronto`), `empresas.backup-<codigo>`, `empresas.inativar-<codigo>`, `empresas.reativar-<codigo>`, `empresas.excluir-<codigo>`, `empresa-acao.dialogo`, `empresa-acao.cancelar`, `empresa-acao.confirmar`, `empresa-excluir.codigo`, `empresa-excluir.senha`, `empresa-acao.erro`.
+- **Contratos e rotas:** os da ADR 0052 §4 (`packages/platform-sdk/src/empresa-acoes.ts`): `acoes` no item da lista, `ExcluirEmpresaSchema` com `codigo_confirmacao` e `senha`, recusas do §3.1 e §3.2; rótulo da situação por `ROTULO_STATUS_EMPRESA`.
 
-### 15.4 Componentes que faltam em `packages/ui`
-- **`Button variant="danger-secondary"`** (borda e texto `danger` `#A8261B`, fundo `surface`; **hover** com fundo `danger-soft` `#FDE8E6`, texto e borda `#A8261B`; desabilitado como o `.btn.off`, MC-0041): o `danger` cheio em toda linha pesa demais na tabela; o cheio fica só no diálogo. Entra no kit pelo designer-ux (`packages/ui/src/web/ui.tsx`) no lote da implementação.
-- **Confirmação por digitação** (`ConfirmarDigitando`: rótulo "Digite {código} para confirmar" + campo + estado do botão): padrão para ações sem volta; entra no kit no mesmo lote.
-- **No mesmo lote** (observação da marca, 14/11): o hover do `danger` cheio em `packages/ui/src/web/ui.tsx:146` troca `hover:bg-[#8d1f16]` (cor solta, fora dos tokens) por `hover:bg-danger/90`.
-- O resto já existe: `Dialog`, `Badge` (`success` "Ativa", `neutral` "Inativa"), `Notice`, `Button` `sm`/`primary`/`danger`, `TableScroll`, `formatDateTimeFull`.
+### 15.4 Componentes de `packages/ui` (no kit desde 15/11)
+- **`Button variant="danger-secondary"`** (`ui.tsx`; borda e texto `danger` `#A8261B`, fundo `surface`; **hover** com fundo `danger-soft` `#FDE8E6`, texto e borda `#A8261B`; desabilitado como o secundário, MC-0041): o `danger` cheio em toda linha pesa demais na tabela; o cheio fica só no diálogo.
+- **`ConfirmarDigitando`** (`confirmar.tsx`; controlado: `id`, `codigo`, `valor`, `onChange`, `testID`): rótulo "Digite {código} para confirmar" + campo em IBM Plex Mono com foco ao abrir. A tela habilita o botão com `codigoConfere(valor, codigo)`. Padrão para ações sem volta. O campo "Sua senha" é um campo de senha comum ao lado dele.
+- O hover do `danger` cheio passou de `hover:bg-[#8d1f16]` (cor solta) para `hover:bg-danger/90` (observação da marca, 14/11).
+- Já existiam: `Dialog`, `Badge` (`success` "Ativa", `neutral` "Inativa"), `Notice`, `Button` `sm`/`primary`/`danger`, `TableScroll`, `formatDateTimeFull`.
 
-### 15.5 Premissas e perguntas ao dono do produto
-1. Qualquer backup concluído libera o Excluir (sem prazo). Pergunta: exigir backup feito depois da última inativação, ou das últimas 24 h?
-2. Excluir vale para empresa ativa ou inativa. Pergunta: exigir inativar antes de excluir?
-3. O backup fica guardado no servidor; a tela não oferece download. Pergunta: o time precisa baixar o arquivo?
+### 15.5 Decisões (14/11/2026)
+As três perguntas desta seção foram respondidas pela ADR 0052 e aprovadas pelo Alexandre (R-20261114-202000-alexandre). As regras ficam só na ADR: quando o Excluir libera (§3.1), a confirmação com código e senha (§3.2), a retenção do backup depois da exclusão (§2.8) e o código não reaproveitado (§3.4). Sem download do backup: a tela não tem esse botão.
 
 ### 15.6 Passada do corretor (A–F) e da marca — respostas
 > 2026-11-15 · designer-ux. Todos **aceitos**; nenhum recusado.

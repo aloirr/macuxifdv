@@ -134,7 +134,7 @@ export function Bar({ pct, colorClass, min = 80 }: { pct: number; colorClass: st
 
 /* ---------- botões ---------- */
 
-type Variant = 'primary' | 'secondary' | 'link' | 'danger';
+type Variant = 'primary' | 'secondary' | 'link' | 'danger' | 'danger-secondary';
 
 export function Button({ variant = 'secondary', className, size = 'md', ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' }) {
   const base = 'inline-flex items-center justify-center gap-1.5 font-semibold transition-colors disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
@@ -143,7 +143,10 @@ export function Button({ variant = 'secondary', className, size = 'md', ...rest 
     // T-0172 (marca v1): o principal é Azul noite (accent), texto branco 12,77:1
     primary: 'bg-accent text-white hover:bg-accent/90 disabled:bg-disabled',
     secondary: 'border border-field bg-surface text-ink hover:bg-ground disabled:text-disabled',
-    danger: 'bg-danger text-white hover:bg-[#8d1f16] disabled:bg-disabled',
+    danger: 'bg-danger text-white hover:bg-danger/90 disabled:bg-disabled',
+    // Perigo em linha de tabela (ex.: Excluir na lista de Empresas): contorno; o cheio fica no diálogo. Spec portal-config-enxuto §15.4.
+    'danger-secondary':
+      'border border-danger bg-surface text-danger hover:border-danger hover:bg-danger-soft hover:text-danger disabled:border-field disabled:text-disabled disabled:hover:bg-surface',
     // Link em accent-ink (Azul noite, 11,82:1 no Pérola). Hover: sublinhado.
     link: 'h-auto px-0 text-accent-ink underline-offset-2 hover:underline disabled:text-disabled disabled:no-underline',
   };
