@@ -1,5 +1,7 @@
 # Quadro — Sprint 0 (Fundação modular)
 
+> **15/11 manhã — A1+A2 e filial do usuário (R-20261115-070200 item 3; R-20261115-073000 itens 1 e 6):** T-0175 (vendedor do ERP ligado ao usuário do BKO sem e-mail: Código no ERP, provisórios, ação Vincular, RN-CORE-58) e T-0176 (filial do usuário: vendedor com exatamente 1, outros cargos várias; muda a RN-CORE-39; tela do BKO só depois da simulação aprovada). Em andamento: banco-dados, modulo-core (T-0175) e designer-ux (simulação). Depois: modulo-core T-0176 (regra/contrato/API), testes, corretor, engenheiro; recados ao modulo-catalogo e ao modulo-integracao (carga do vendedor com filial).
+
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
 > **Manhã de 10/11 — teste da v1.0.2 (dono do produto, 05h32–06h02; 11 recados às 06h22 + regra do corretor às 06h25; "tudo na esteira já"):**
@@ -86,6 +88,9 @@
 | N-I: caminhos do R-20261113-115509 (correções da Performance: A-3, A-4, cobertura em Hoje, testes com CAL-8 = 5) | T-0170 Performance, correções; aberta pela ponte (R-20261113-120542); PR até as 15h, entra na v1.0.6 | `nuvem/T-0170-performance-correcoes` | 2026-11-13 12h |
 | N-J: caminhos do R-20261113-115509 (RD-0212, RD-0214, RD-0216 e RD-0218) | T-0171 listas do corretor; aberta pela ponte; PR até as 15h, entra na v1.0.6 | `nuvem/T-0171-listas-livres` | 2026-11-13 12h |
 | `docs/manual/**` e `docs/producao/sabado.md` (novos) | T-0157 (N21) manuais e roteiro da produção de sábado (gerente-projetos), aberta pelo dono do produto | `nuvem/N21-manual-sabado` | 2026-11-10 09h |
+| `db/migrations/0070+` (novas), `db/testes/*usuario*` | T-0175/T-0176 migrações (vínculo ERP; `core.usuario_filial`) | `nuvem/erp-vinculo-banco-dados`, `nuvem/filial-usuario-banco-dados` | 2026-11-15 manhã |
+| `modules/core/{domain,contracts,api,web}` (vínculo ERP: `planejarVinculoErp`, `consumidores-erp-vendedor.ts`, Usuários do BKO) | T-0175 A1+A2 | `nuvem/erp-vinculo-modulo-core` | 2026-11-15 manhã |
+| `docs/design/T-0176-filial-usuario/**` (novo) | T-0176 simulação (filial do usuário + telas da T-0175) | `nuvem/filial-usuario-designer-ux` | 2026-11-15 manhã |
 
 Nenhum agente local altera caminho listado aqui. Destravar quando o merge chegar no pull do `main`.
 Destravados em 2026-11-08 13h40 (PRs da nuvem já no main; o N14 entrou pelo #111): T-0108 (N4), T-0094 (N5), T-0109 (N6), T-0096 (N7), T-0099 (N8), T-0097 (N9), T-0105 (N10), T-0101 (N11), T-0102 (N12), T-0105 (N13), T-0107 (N14).

@@ -128,7 +128,14 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
     - a filial do pedido é a do cliente **no recebimento**, e o servidor recalcula (RN-VEN-02);
     - a tabela escalonada sem filial vale para todas as filiais;
     - o cadastro de filial é feito por admin e analista;
-    - o vendedor não tem filial própria.
+    - ~~o vendedor não tem filial própria~~ (revogada em 15/11/2026; ver "Filial do usuário" abaixo).
+  - **Filial do usuário** (dono do produto, R-20261115-073000, item 1; T-0176):
+    - **vendedor:** exatamente **uma** filial, obrigatória. Ela é a referência do vendedor: preço e estoque no Catálogo e o filtro de filial, que abre já marcado;
+    - **supervisor, promotor e gerente:** uma ou mais filiais;
+    - **admin e analista:** filial opcional (premissa do gerente);
+    - **BKO:** não salva o vendedor sem filial e mostra um aviso ao admin, nos Alertas, com os vendedores sem filial;
+    - **carga do ERP:** o vendedor traz a filial. Sem filial, fica na filial padrão e entra no aviso ao admin (premissa do gerente; modulo-integracao);
+    - **pedido:** continua com a filial do cliente (premissa da T-0149) até decisão contrária do dono do produto.
   - **Técnico:** ADR 0040 e `docs/desenho/T-0149.md`. Tudo é aditivo: consulta `core.filiais@1`, evento `integracao.filial.atualizado@1` e Conector 1.4.0 para pedido de filial que não é a padrão.
 
   *(Alexandre, R-20261110-062236; T-0149.)*
