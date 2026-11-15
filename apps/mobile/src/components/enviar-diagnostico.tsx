@@ -9,7 +9,7 @@
  */
 import { caminhoFoto } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
-import { Badge, Button, Card, colors, dateTimeLabel, Folha, fonts, Icon, LinkTexto, radius, type as t, vibrarLeve } from '@macuxi/ui/mobile';
+import { Badge, Button, Card, colors, dateTimeLabel, Folha, fonte, Icon, LinkTexto, radius, type as t, vibrarLeve } from '@macuxi/ui/mobile';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Image, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
     borderColor: colors.lineStrong,
     borderRadius: radius.md,
     padding: 12,
-    fontFamily: fonts.body,
+    ...fonte.body,
     fontSize: 14,
     color: colors.ink,
     backgroundColor: colors.surface,
@@ -223,5 +223,5 @@ const styles = StyleSheet.create({
   miniatura: { width: 36, height: 64, borderRadius: 4, backgroundColor: colors.lineSoft },
   confirmacao: { alignItems: 'center', gap: 8, paddingTop: 16, paddingBottom: 16 },
   selo: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  tituloConfirmacao: { fontFamily: fonts.displayBold, fontSize: 22, color: colors.ink, textAlign: 'center' },
+  tituloConfirmacao: { ...fonte.bold, fontSize: 22, color: colors.ink, textAlign: 'center' },
 });
