@@ -14,7 +14,7 @@ repositório de recados). De cima para baixo:
 1. **Logo** empilhado, parado no centro (sem mudança).
 2. **"Olá, {primeiro nome}"** (sem mudança).
 3. **"Você sabia?" (novo):** 20 dp abaixo do "Olá", centralizado: ícone de lâmpada de 16 dp e, 6 dp depois, "Você sabia?" em
-   IBM Plex Sans SemiBold 13/18, cor `texto` (Campo branco 12,77:1; Gestão Azul noite 11,82:1). A lâmpada usa a cor
+   14/20 peso 600 (fonte do sistema), cor `texto` (Campo branco 12,77:1; Gestão Azul noite 11,82:1). A lâmpada usa a cor
    `preenchimento` da barra (Campo sol claro `#F59A52`, 5,85:1; Gestão sol laranja `#C2540A`, 4,26:1): é gráfico, não texto, e
    fica dentro da regra do manual §3. A referência do dono do produto pinta também o texto de laranja; isso pede exceção da marca
    (sol como texto) e fica para o design-de-marca decidir.
@@ -22,10 +22,10 @@ repositório de recados). De cima para baixo:
      redondas, sem preenchimento): `M9 18h6` · `M10 21h4` · `M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.6
      1.1-2.1A6 6 0 0 0 12 3z`. Entra no kit como `lampada` na implementação (designer-ux), com o teste do `icon.test.ts`.
    - Decorativa para o leitor de tela; o rótulo e a frase são lidos juntos: "Você sabia? {frase}".
-4. **Frase sorteada:** 6 dp abaixo do "Você sabia?"; IBM Plex Sans 14/20, `textoClaro` (Campo `#C9CED5` 8,07:1; Gestão `#4A5562`
+4. **Frase sorteada:** 6 dp abaixo do "Você sabia?"; 14/20 peso 400 (fonte do sistema), `textoClaro` (Campo `#C9CED5` 8,07:1; Gestão `#4A5562`
    7,03:1), centralizada, largura máxima 280 dp, até 2 linhas. Sem aspas e sem itálico.
 5. **Aviso**, na área de baixo, 10 dp acima da linha da barra: "Baixando os dados do servidor. Não desligue."
-   - Sem destaque: IBM Plex Sans Regular 13/18, `textoClaro`, alinhado à esquerda como a linha da barra. Sem caixa, sem borda,
+   - Sem destaque: 14/20 peso 400 (fonte do sistema), `textoClaro`, alinhado à esquerda como a linha da barra. Sem caixa, sem borda,
      sem negrito, sem ícone. 1 linha na escala 1,0; com fonte grande pode quebrar em 2, nunca é cortado.
    - Só durante a carga (estados 4 e 5). No erro (estado 6) sai: no lugar entram a linha do erro e as ações.
    - Leitor de tela: lido uma vez, na ordem da tela, antes da barra; não é região viva.
@@ -40,10 +40,10 @@ repositório de recados). De cima para baixo:
 - **Aviso:** 1 linha na escala 1,0; com fonte grande pode quebrar em 2, nunca é cortado. Sem caixa; não muda com a altura da tela.
 - **Lista de etapas:** sai antes do bloco (`cabeLista` passa a contar o aviso e o bloco). Uma função `cabeFrase(janela, inset)`
   ao lado do `cabeLista` decide 2 linhas, 1 linha ou nada.
-- **Conferência na simulação:** o bloco ocupa 84 dp com a frase em 2 linhas (20 + 18 + 6 + 40) e 64 dp com 1 linha.
-  - 360 × 800 sem navegação: 115 dp entre a frase e o aviso, tudo aparece (`carga-campo.png`, `carga-gestao.png`).
-  - 360 × 800 com 48 dp de navegação: 67 dp, tudo aparece.
-  - 360 × 640 com 48 dp de navegação (`carga-campo-640.png`): 71 dp livres entre o "Olá" e o aviso, menos que os 88 dp do bloco
+- **Conferência na simulação:** o bloco ocupa 86 dp com a frase em 2 linhas (20 + 20 + 6 + 40) e 66 dp com 1 linha.
+  - 360 × 800 sem navegação: 111 dp entre a frase e o aviso, tudo aparece (`carga-campo.png`, `carga-gestao.png`).
+  - 360 × 800 com 48 dp de navegação: 63 dp, tudo aparece.
+  - 360 × 640 com 48 dp de navegação (`carga-campo-640.png`): 69 dp livres entre o "Olá" e o aviso, menos que os 90 dp do bloco
     com 1 linha e o respiro; o bloco sai e ficam o logo, o "Olá", o aviso e a barra.
 
 Sem cor nova (a lâmpada usa o `preenchimento` que já existe) e sem movimento novo (a área de baixo já esmaece em 240 ms; com

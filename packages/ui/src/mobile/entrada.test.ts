@@ -49,17 +49,17 @@ describe('tela de entrada (T-0172, docs/design/entrada-sync.md §4)', () => {
 
   it('título "Você sabia?", frase e aviso da carga: medidas da spec carga-aviso-frases §1 e §1.1 (T-0181, R-20261115-080500)', () => {
     expect(MEDIDAS_FRASE_CARGA).toEqual({
-      titulo: { abaixoDoOla: 20, lampada: 16, lampadaAoTexto: 6, fonte: 'semibold', tamanho: 13, linha: 18, ateFrase: 6 },
+      titulo: { abaixoDoOla: 20, lampada: 16, lampadaAoTexto: 6, fonte: 'semibold', tamanho: 14, linha: 20, ateFrase: 6 },
       frase: { larguraMax: 280, linhasMax: 2, livreAteAviso: 24, fonte: 'body', tamanho: 14, linha: 20 },
-      aviso: { fonte: 'body', tamanho: 13, linha: 18, acimaDaBarra: 10, linhas: 1 },
+      aviso: { fonte: 'body', tamanho: 14, linha: 20, acimaDaBarra: 10, linhas: 1 },
     });
   });
 
-  it('o bloco "Você sabia?" ocupa 84 dp com a frase em 2 linhas e 64 dp com 1 linha (spec §1.1)', () => {
+  it('o bloco "Você sabia?" ocupa 86 dp com a frase em 2 linhas e 66 dp com 1 linha (spec §1.1)', () => {
     const { titulo, frase } = MEDIDAS_FRASE_CARGA;
     const bloco = (linhas: number) => titulo.abaixoDoOla + titulo.linha + titulo.ateFrase + linhas * frase.linha;
-    expect(bloco(2)).toBe(84);
-    expect(bloco(1)).toBe(64);
+    expect(bloco(2)).toBe(86);
+    expect(bloco(1)).toBe(66);
   });
 
   it('o aviso tem 1 linha na escala 1,0 e nenhum limite de corte (com fonte grande quebra no shell)', () => {

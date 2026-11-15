@@ -93,10 +93,10 @@ export function paresDaEntrada(t: TemaEntrada): ParContraste[] {
 
 /**
  * Medidas do título "Você sabia?", da frase sorteada e do aviso da tela de carga (estados 4 e 5; T-0181,
- * docs/design/carga-aviso-frases/spec.md §1 e §1.1, ajuste R-20261115-080500). Em dp; `fonte` é a chave de `fonts` (theme.ts).
+ * docs/design/carga-aviso-frases/spec.md §1 e §1.1, ajuste R-20261115-080500). Em dp; `fonte` é a chave de `fonte` (theme.ts, fonte do sistema: só o peso).
  * Cores do tema: título em `texto`; lâmpada (`<Icon name="lampada">`) em `preenchimento` (gráfico); frase e aviso em
  * `textoClaro`. O aviso não tem destaque: sem caixa, sem borda, sem fundo, sem negrito, 1 linha na escala 1,0, nunca cortado (sem tokens de aviso; MC-0078 caiu).
- * Bloco "Você sabia?": 84 dp com a frase em 2 linhas, 64 dp com 1. Em tela baixa, a frase cai para 1 linha (só se couber
+ * Bloco "Você sabia?": 86 dp com a frase em 2 linhas, 66 dp com 1. Em tela baixa, a frase cai para 1 linha (só se couber
  * inteira) ou o bloco inteiro sai; o título nunca aparece sozinho (`cabeFrase`, no shell).
  */
 export const MEDIDAS_FRASE_CARGA = {
@@ -107,8 +107,8 @@ export const MEDIDAS_FRASE_CARGA = {
     lampada: 16,
     lampadaAoTexto: 6,
     fonte: 'semibold',
-    tamanho: 13,
-    linha: 18,
+    tamanho: 14,
+    linha: 20,
     /** Do pé do título ao topo da frase. */
     ateFrase: 6,
   },
@@ -123,8 +123,8 @@ export const MEDIDAS_FRASE_CARGA = {
   },
   aviso: {
     fonte: 'body',
-    tamanho: 13,
-    linha: 18,
+    tamanho: 14,
+    linha: 20,
     /** Do pé do aviso à linha da barra. */
     acimaDaBarra: 10,
     /**
