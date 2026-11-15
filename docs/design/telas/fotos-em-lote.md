@@ -19,7 +19,7 @@
 |---|---|
 | Menu | grupo **Produtos**, item **Fotos em lote** (ordem alfabética: Catálogo, Fotos em lote, Marcas concorrentes, Preço e custo, Tabelas de preço) |
 | Rotas | `/catalogo/fotos-lote` (envio e lotes recentes) · `/catalogo/fotos-lote?lote=<id>&filtro=<cartão>` (um lote, na mesma página; `filtro` só com cartão marcado: `ligadas`, `pendencias`, `recusadas`, `repetidas`; o Voltar do navegador volta para a lista) |
-| Ação | `produto.enriquecer`; sem a ação, o item não aparece no menu e a URL mostra o erro padrão de acesso do shell |
+| Ação | `produto.enriquecer`; sem a ação, o item não aparece no menu e a URL mostra `Você não tem acesso a Fotos em lote. Peça ao administrador da sua empresa.` (6.1) |
 | Título da página (`titulo`/`navegacao`) | `Fotos em lote` |
 
 A rota própria `/catalogo/fotos-lote/:id` depende de rota dinâmica no shell (engenheiro-apps) e fica fora desta tarefa (RD-0622).
@@ -239,7 +239,8 @@ Os números (500 MB, 10.000, 8 MB) saem dos limites efetivos do tenant (`PARAMET
 | tamanho > limite (navegador ou 422 `RN-CAT-14`) | o de `zip_grande` (5.4) |
 | 409 `LOTE_EM_ANDAMENTO` | `Espere um dos lotes em processamento terminar para enviar outro.` |
 | 409 `LOTE_DIVERGENTE` (mesmo id de lote com outro arquivo ou tamanho) | `O arquivo mudou desde o início do envio. Escolha o ZIP de novo.` |
-| sem `produto.enriquecer` (403) ou outro erro | `ErrorBlock` padrão (`MENSAGEM_ERRO_PADRAO`) |
+| sem `produto.enriquecer` (403) | `Você não tem acesso a Fotos em lote. Peça ao administrador da sua empresa.` |
+| outro erro | `ErrorBlock` padrão (`MENSAGEM_ERRO_PADRAO`) |
 
 ### 6.2 Durante o envio (aviso na página do lote, `danger`, com a ação dentro)
 | Caso | Texto exato | Ação |

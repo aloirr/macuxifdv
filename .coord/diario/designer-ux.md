@@ -123,3 +123,4 @@
 2026-11-15 — fonte do sistema v1.0.13 — rodada 5: `ListaSuspensa` e `Desconto` usam o `RotuloCampo` (14/600 ink; aceita `numberOfLines`), sem rótulo próprio (RD-0953); cópias do rótulo em maiúsculas viram `t.rotulo`/`{ ...t.rotulo, só o que muda }` com espaçamento único 0.6 (RD-0954); `type.saudacao` = 22/700 (o de `h1Small`) no Campo e no Gestão (RD-0957); docs/design sem a regra antiga: pdf-pedido 12 px e ≤ 700, e-mail, pedido-v4, entrada-sync, bko-revisao, portal-config e specs pequenas na fonte do sistema; specs antigas com nota no topo (RD-0958)
 2026-11-15 — T-0174 — spec Fotos em lote (docs/design/telas/fotos-em-lote.md), repetido = 4º cartão só com >0; Progresso exportado no kit web
 2026-11-15 — T-0174 — KpiCard com onClick/selecionado (MC-0090), Progresso mostrarRotulo='valor', spec Fotos em lote sem repetição (RD-0615, RD-0616, RD-0622)
+2026-11-15 — T-0174 (#366) — RD-1222: a spec Fotos em lote (§1 e §6.1) cita a frase de acesso da página
