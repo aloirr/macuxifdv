@@ -56,14 +56,14 @@ describe('Parâmetros › Trade (ADR 0058, só leitura)', () => {
       ['visita-coleta', ['Permanência mínima', 'Variação de preço sem confirmar']],
       ['gondola', ['Peso do parcial na conformidade']],
     ]);
-    expect(paineis.flatMap((p) => p.campos).map((c) => c.valor)).toEqual(['7 dias', '30 dias', '10 min', '50%', '0']);
+    expect(paineis.flatMap((p) => p.campos).map((c) => c.valor)).toEqual(['7 dias', '30 dias', '10 min', '50%', '0%']);
     expect(paineis.flatMap((p) => p.campos).some((c) => c.padrao)).toBe(false);
   });
   it('RN-PRO-08: "Padrão: X" só no parâmetro que difere (em atenção 45 dias)', () => {
     const campos = painelDeParametrosTrade({ ...PARAMETROS_PADRAO, validade_proxima_dias: 45, peso_parcial_conformidade: 0.5 }).flatMap((p) => p.campos);
     expect(campos.filter((c) => c.padrao).map((c) => [c.chave, c.valor, c.padrao])).toEqual([
       ['validade_proxima_dias', '45 dias', 'Padrão: 30 dias'],
-      ['peso_parcial_conformidade', '0,5', 'Padrão: 0'],
+      ['peso_parcial_conformidade', '50%', 'Padrão: 0%'],
     ]);
   });
 });
