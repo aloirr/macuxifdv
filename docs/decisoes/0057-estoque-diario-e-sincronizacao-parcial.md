@@ -4,7 +4,8 @@
 - **Data**: 2026-11-15 (Manaus)
 - **Autor**: engenheiro-software
 - **Origem**: R-20261115-084000-alexandre ("Estoque é algo carregado apenas uma vez no dia. Para não pesar no FDV.") e
-  R-20261115-100000-alexandre (aprovação com as decisões 1 a 4). Desenho: `docs/desenho/T-estoque-diario.md`.
+  R-20261115-100000-alexandre (aprovação com as decisões 1 a 4); R-20261115-121000-alexandre (confirma a premissa E1: o
+  toque normal não faz a carga diária do estoque, nem depois das 06:00). Desenho: `docs/desenho/T-estoque-diario.md`.
 - **Altera**: ADR 0003 (motor de sync) e ADR 0018 (novidades): entidades de cadência diária ficam fora das novidades, do push
   silencioso e da sincronização fora da carga; o botão "Sincronizar" passa a ter dois modos. RN-CORE-23, RN-CAT-07, RN-VEN-20.
 - **Não altera**: ADR 0054 (o pacote da primeira carga continua igual; a primeira carga é a carga do dia), servidor, banco,
@@ -41,6 +42,8 @@
      clientes), do cursor de cada uma, sem etapas, sem consultar novidades e sem mexer no cursor de novidades; grava
      `sincronizado_em`. Antes da primeira sincronização completa, faz a completa (carga inicial). Sem nenhuma entidade marcada
      (módulos antigos), faz a sincronização padrão de hoje.
+     **Decisão confirmada (premissa E1, R-20261115-121000-alexandre):** o toque normal **não** faz a carga diária do estoque,
+     nem depois das 06:00 (`estoque_carga_hora`); a carga devida vai com a próxima sincronização automática.
    - **Segurar 10 s = `completa`**: única exceção ao "uma vez por dia". Refaz **tudo do zero**: envia a fila, puxa todas as
      entidades dos módulos efetivos desde o cursor nulo (ressincronização forçada: no fim apaga do aparelho o que não veio), as
      diárias inclusive, e roda as etapas; o progresso é o mesmo da carga inicial (`estado.carga` e `estado.progresso`) e, no fim,

@@ -27,7 +27,7 @@ Base lida: branch `nuvem/catalogo-pacote-engenheiro-software` (4e6fc2d), com o p
 
 ## 1. Quando acontece a carga diária
 - **Gatilho:** a **primeira sincronização do dia que tiver sinal** (abrir o app, voltar ao primeiro plano, automática ou
-  puxar para baixo; o toque no botão é a parcial e não leva estoque, §9), a partir da hora `estoque_carga_hora` [06:00] no **fuso do tenant**. Não há timer novo
+  puxar para baixo; o toque no botão é a parcial e não leva estoque, nem depois da hora: confirmado em R-20261115-121000-alexandre, §9), a partir da hora `estoque_carga_hora` [06:00] no **fuso do tenant**. Não há timer novo
   (RN-CORE-23 continua sem timer abaixo de 15 min); a carga vai junto da sincronização que já ia acontecer.
 - **Regra (função pura):** `cargaDiariaDevida({ ultima, agora, fuso, hora })` = verdadeiro quando não houve carga ou quando a última
   aconteceu antes do instante "hoje às `hora`" no fuso do tenant e `agora` já passou desse instante. Antes da hora, vale a carga de
@@ -140,7 +140,8 @@ Contrato do SDK que as partes B–G usam (feito na parte A, `@macuxi/platform-sd
 ## 9. Botão "Sincronizar": parcial e completa (decisão 4)
 - **Toque (parcial):** `motor.sincronizar({ modo: 'parcial' })` — envia a fila e puxa só as entidades `parcial` (pedidos e
   clientes), cada uma do seu cursor; sem etapas, sem novidades, sem estoque (nem quando a carga diária está devida: ela vai com a
-  próxima sincronização automática). Grava "Última sincronização". Antes da primeira sincronização, faz a carga inicial; sem
+  próxima sincronização automática; **decisão confirmada**, premissa E1, R-20261115-121000-alexandre: "o toque normal NÃO faz a
+  carga diária do estoque, nem depois das 06:00"). Grava "Última sincronização". Antes da primeira sincronização, faz a carga inicial; sem
   nenhuma entidade marcada (módulos antigos), faz a de sempre.
 - **Segurar 10 s (completa):** `motor.sincronizar({ modo: 'completa' })` — tudo de novo: envia a fila, ressincroniza cada entidade
   desde o cursor nulo (no fim, sai do aparelho o que não veio), diárias inclusive, roda as etapas e grava `carga_diaria_em`. Com
