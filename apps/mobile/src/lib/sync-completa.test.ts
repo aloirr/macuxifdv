@@ -110,7 +110,7 @@ describe('uma sincronização por vez', () => {
     expect(decidirPedidoSync('parcial', null)).toBe('rodar');
     expect(decidirPedidoSync('completa', null)).toBe('rodar');
   });
-  it('completa durante a parcial ou a leve: roda (não vira a parcial; a espera fica no motor)', () => {
+  it('completa durante a parcial ou a leve: roda (não vira a parcial; espera a em curso)', () => {
     expect(decidirPedidoSync('completa', 'parcial')).toBe('rodar');
     expect(decidirPedidoSync('completa', 'leve')).toBe('rodar');
   });
@@ -119,6 +119,30 @@ describe('uma sincronização por vez', () => {
     expect(decidirPedidoSync('parcial', 'completa')).toBe('juntar');
     expect(decidirPedidoSync('parcial', 'parcial')).toBe('juntar');
     expect(decidirPedidoSync('leve', 'parcial')).toBe('juntar');
+  });
+  it('completa durante a parcial em curso: envio e módulos só depois de a parcial terminar (mesmo com falha)', async () => {
+    const { m, chamadas } = motorFalso();
+    const atualizarModulos = vi.fn(async () => {
+      chamadas.push('modulos');
+    });
+    let terminar!: (ok: boolean) => void;
+    const parcial = new Promise<boolean>((_r, rejeitar) => {
+      terminar = () => {
+        chamadas.push('fim-parcial');
+        rejeitar(new Error('sem rede'));
+      };
+    });
+    const completa = rodarSync({ tipo: 'completa' }, m, {
+      modo: 'v1',
+      offline: false,
+      atualizarModulos,
+      emCurso: parcial,
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(chamadas).toEqual([]);
+    terminar(false);
+    expect(await completa).toBe(true);
+    expect(chamadas).toEqual(['fim-parcial', 'enviar+falhos', 'modulos', 'sincronizar:completa']);
   });
 });
 
