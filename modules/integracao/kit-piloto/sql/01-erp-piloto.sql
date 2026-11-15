@@ -78,7 +78,7 @@ GO
 -- ---------------------------------------------------------------------------------------------------------------------
 CREATE OR ALTER VIEW dbo.vw_macuxi_vendedor AS
 SELECT CAST(v.codigo AS VARCHAR(200)) AS external_id, v.alterado_em, CASE WHEN v.ativo = 'S' THEN 1 ELSE 0 END AS ativo,
-       v.nome, v.email, v.telefone
+       v.nome, v.email, v.telefone, CAST(NULL AS VARCHAR(200)) AS filial_external_id
 FROM dbo.piloto_vendedor v;
 GO
 

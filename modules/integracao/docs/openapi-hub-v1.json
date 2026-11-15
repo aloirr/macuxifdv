@@ -2512,6 +2512,7 @@
               "oferece_junto_cortado",
               "prazo_medio_divergente",
               "marca_concorrente_desconhecida",
+              "vendedor_sem_filial",
               "avisos_omitidos"
             ]
           },
@@ -6486,6 +6487,18 @@
               {
                 "type": "string",
                 "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "filial_external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
               },
               {
                 "type": "null"

@@ -100,9 +100,9 @@ describe('RF-INT-03: modelos CSV gerados do contrato', () => {
     expect(lido.linhas[0]?.celulas[i]).toBe('Zé; "o" Rápido');
   });
 
-  it('RN-INT-04: a ordem de carga é a do portal (vendedor primeiro, todas as ENTIDADES, dependências antes, mesmos opcional/depende_de)', () => {
+  it('RN-INT-04: a ordem de carga é a do portal (filial primeiro, todas as ENTIDADES, dependências antes, mesmos opcional/depende_de)', () => {
     const portal = ordemDeCargaDoPortal();
-    expect(ENTIDADES_ORDEM_CARGA[0]).toBe('vendedor');
+    expect(ENTIDADES_ORDEM_CARGA.slice(0, 2)).toEqual(['filial', 'vendedor']);
     expect([...ENTIDADES_ORDEM_CARGA]).toEqual(portal.map((i) => i.entidade));
     expect([...ENTIDADES_ORDEM_CARGA].sort()).toEqual([...ENTIDADES].sort());
     expect(ENTIDADES_ORDEM_CARGA).toHaveLength(ENTIDADES.length);
