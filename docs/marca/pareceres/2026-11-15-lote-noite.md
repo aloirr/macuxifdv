@@ -245,3 +245,141 @@ Catálogo (produtos, sinônimos e exportação), Marcas e Tabelas de preço. O l
   - mandar a MC-0069 ao `modulo-core`, junto com o pedido de refazer os 6 pares de prints iguais;
   - mandar a MC-0070 ao `designer-ux`.
 - **Lote 12:** mandar a MC-0071 e a MC-0072 ao `modulo-catalogo` e pedir os prints da §P11.
+
+---
+
+# Parte 3 · lotes 14 a 19 (15/11/2026)
+
+> 2026-11-15 · design-de-marca · continuação, pedido do gerente-projetos. Mesma base: `docs/marca/manual.md` v1, `decisoes.md`, a spec da T-0173 (`docs/design/telas/bko-revisao.md`) e a spec do rodapé legal (`docs/design/telas/rodape-legal.md`, no `main` pelo #290).
+> Cada lote foi lido com `git diff origin/main...origin/<branch>`. Nos retestes, também com o diff contra o SHA lido na parte 2. O SHA de cada branch foi conferido com `git rev-parse`. Os prints foram abertos um a um, e as cores conferidas no pixel.
+> **Achados novos:** MC-0073 e MC-0074. A numeração segue na MC-0075. **Retestadas e fechadas:** MC-0065, MC-0067, MC-0069, MC-0071 e MC-0072.
+> **Recados:** a CLI continua com HTTP 403. Os avisos aos donos vão pelo gerente-projetos.
+
+## Resumo da parte 3
+| Lote | Branch · SHA | Achados | Parecer |
+|---|---|---|---|
+| 14 | `nuvem/rodape-shell-engenheiro-apps` · `155bc0d4` | nenhum | **liberado** (build v1.0.9; reteste no print do aparelho e do navegador) |
+| 15 | `agente/engenheiro-apps-login-v109` · `0e3292de` | nenhum | **liberado** (build v1.0.9) |
+| 16 | `nuvem/bko-revisao-modulo-treinamento` · `1d1436eb` | MC-0065 fechada | **liberado** |
+| 17 | `nuvem/bko-revisao-modulo-core` · `6bf52819` | MC-0069 fechada; MC-0073 (baixa) | **liberado com ajustes** |
+| 18 | `nuvem/bko-revisao-modulo-catalogo` · `a058713b` | MC-0071 e MC-0072 fechadas; MC-0074 (média, fora do lote) | **liberado** |
+| 19 | `nuvem/logo-cliente-designer-ux` · `64a18b97` | MC-0067 fechada; MC-0066 com as variações A e B prontas | **segura só a carga com logo**, até a escolha do Alexandre; login, Mais, portal e PDF conformes |
+
+## Lote 14 · Rodapé legal e T-0173 no shell do BKO (engenheiro-apps, `155bc0d4`)
+Commits `a3b5b1c` (rodapé legal nas quatro telas Entrar) e `155bc0d` (Auditoria e Início do BKO), sobre o merge da parte da API do engenheiro-software (`a9965d7`, `1e0eaae`, `788cc48`), que não tem superfície de marca. O lote não traz print. Conferi o código contra a spec `rodape-legal.md` §2 e as simulações dela (`rodape-legal-campo-depois-preenchido.png`).
+- **Rodapé no Campo e no Gestão** (`apps/mobile/src/components/rodape-legal.tsx`):
+  - texto em `fonts.body` 12/16, `colors.ink2` (`#4A5562`, 7,03:1 no Pérola), centralizado, 2 dp entre linhas;
+  - o site é link em `fonts.semibold` 12, `colors.accentInk` (`#1E3350`, 11,82:1) e sublinhado;
+  - é o último item do bloco de baixo e some com o teclado aberto;
+  - a frase "Macuxi Campo · vendedores e promotores" saiu, como pede a spec. O logo da faixa já diz a marca.
+- **Rodapé no BKO e no portal** (`apps/web/components/rodape-legal.tsx`): `<footer>` em `text-[12px] leading-4 text-ink-2`, `max-w-[440px]`, link `font-semibold text-accent-ink underline` com o foco `outline-accent` do kit. Fica no pé da página (`mt-auto pt-8 pb-6`), no Entrar do BKO (real e demonstração) e no Entrar do portal. A "Escolha a empresa" não leva o rodapé.
+- **Voz:** "© 2026 · Todos os direitos reservados", "Versão X.Y.Z · macuxifdv.com.br" e a linha da empresa só com o que estiver no cadastro. É curto e direto, sem repetir o nome do produto, e o site sai sem `https://` e sem `www`. Conforme.
+- **T-0173 no shell:**
+  - Início do BKO: só o título "Backoffice", sem o `eyebrow`, e o vazio é o `EstadoVazio` do kit;
+  - Auditoria: título com a contagem, "Atualizar" no `MenuAcoes`, "Limpar filtros" e a `TabelaDados`, tudo do kit;
+  - o `later-page.tsx` foi apagado (não era mais usado), e com ele o "Em breve" em `text-accent-ink`.
+  Não há hex solto nem cor nova.
+- **MC-0052, MC-0054, MC-0055 e MC-0056:** o lote não mexe no menu lateral nem na barra superior. As três decisões do menu (Sol claro no título de grupo, `#2B3743` na tela atual, logo negativo grafite com o nome da distribuidora) continuam aplicadas, como se vê nos prints dos lotes 17 e 18. A **MC-0052** (barra superior Azul noite) continua aberta, fora deste lote.
+- **MC-0021** (portal, `LinkBotao` em grafite): o lote mexe no `portal/base.tsx` só na `MolduraEstreita`. A MC-0021 continua aberta, fora do lote.
+- **Liberado** para o build v1.0.9.
+- **Reteste:** no print do aparelho (Campo e Gestão, com e sem razão social e CNPJ) e no navegador (Entrar do BKO e do portal, 1366×768).
+
+## Lote 15 · Código da empresa no login do BKO e no Esqueci (engenheiro-apps, `0e3292de`)
+O lote muda só as propriedades do campo: `maxLength` de UF + 4 dígitos, no BKO (`login-screen.tsx`, `ciclo-senha.tsx`) e no app (`propsDoCampoCodigoEmpresa`, com maiúsculas e sem corretor). O rótulo, a classe do campo, a ordem e o espaçamento não mudam, e não há cor nem fonte nova.
+- **Liberado** para o build v1.0.9.
+- **Para o gerente (não é marca):** os dois lotes do v1.0.9 mexem no `tela-login.tsx` e no `login-screen.tsx`. O lote 14 tira a prop `rodape` do `login.tsx`, e o 15 mexe nas linhas vizinhas. Conferir o merge dos dois antes do build.
+
+## Lote 16 · Treinamento, reteste da MC-0065 (`1d1436eb`, anterior `0d9178c2`)
+- **MC-0065 fechada.** O "Nova trilha" do cabeçalho (`trilhas-page.tsx:91`) e o do vazio (`:357`) passaram a ser o `Button variant="primary"` do kit, em Azul noite com o hover do kit. Saíram o `bg-ink` e o `hover:bg-[#0b1218]`. O botão agora tem a mesma cor do "Novo questionário" da Pesquisa.
+- O resto do diff (`d5b5f52`) só tira texto, sem efeito na marca: o aviso de só leitura e o rótulo "Ativos".
+- **Liberado.**
+
+## Lote 17 · Core, reteste da MC-0069 e dos prints (`6bf52819`, anterior `0c276eb5`)
+- **MC-0069 fechada.** A aba ativa de Usuários e módulos (`licencas-page.tsx:122`) passou a `border-accent bg-accent text-white`. No print `depois/licencas-1366x768.png`, o pixel da aba "Empresa" é `#1E3350`.
+- **Prints:** os 6 pares que eram o mesmo arquivo foram refeitos (Filiais, Fotos do PDV, Motivos, Preço e custo, Recados e Visitas). Nenhum par de `antes/` e `depois/` é mais igual. Abri os 6 pares, e o "antes" mostra o layout do `main`, com subtítulo, quadro e botões soltos na linha. O "depois" mostra o layout da revisão.
+  - Em todos: botão principal Azul noite, abas de Preço e custo e de Recados em `Button` primário e secundário, menu "⋯" do kit e selos sempre com texto.
+  - O shell segue as decisões do menu (MC-0054 a MC-0056).
+- **Ainda no print de Licenças:** o interruptor ligado continua grafite `#16202A`. É a **MC-0070**, do kit (`designer-ux`), aberta e fora do lote.
+- **MC-0073 (baixa): "Inativo" com duas cores no mesmo BKO.** Nos prints de Filiais e Fotos do PDV, "Inativa" e "Inativo" saem no tom de aviso (âmbar `#7A4F00` no `#FFF1D6`). Em Usuários, Perfis, Catálogo, Marcas e Vendedor, a mesma situação sai em `neutral`.
+  - O amarelo do aviso pede atenção, e um cadastro inativo não pede ação: é um estado parado (§3, cor no seu papel). A mesma situação em duas cores também quebra a repetição dos mesmos sinais.
+  - As linhas foram reescritas neste lote. O defeito vem do `main`.
+  - Faixas e situações que pedem ação, como "Incompleta" na Filial, continuam no tom de aviso, e isso está certo.
+  - Correção nas linhas abaixo:
+
+| Arquivo:linha | Antes | Depois |
+|---|---|---|
+| `modules/core/web/components/filiais/filiais-page.tsx:119` | `{ tom: 'warning', texto: 'Inativa' }` | `{ tom: 'neutral', texto: 'Inativa' }` |
+| `modules/core/web/components/fotos-pdv/fotos-pdv-page.tsx:83` | `t.ativo ? 'success' : 'warning'` | `t.ativo ? 'success' : 'neutral'` |
+| `modules/core/web/components/motivos/motivos-page.tsx:97` | `… m.ativo ? 'success' : 'warning'` ("Desativado") | `… m.ativo ? 'success' : 'neutral'` |
+| `modules/core/web/components/produtos/medidas-panel.tsx:93` | `m.ativo ? 'success' : 'warning'` | `m.ativo ? 'success' : 'neutral'` |
+
+- **Liberado com ajustes:** as quatro correções são de uma linha cada e vão no mesmo PR, antes do merge.
+- **Para o corretor e o testes (não é marca):** continuam o "November 2026" e as datas ISO apontados na parte 2.
+
+## Lote 18 · Catálogo, reteste da MC-0071, da MC-0072 e dos prints (`a058713b`, anterior `5df48729`)
+- **MC-0071 fechada.** O selo "Destaque" (`catalogo-page.tsx:191`) passou a `tom: 'pending'`. No print `catalogo-produtos-depois`, o selo é o texto `#1E3350` sobre o `#DFE2E6` (9,83:1).
+- **MC-0072 fechada.** O link "Cadastrar marcas concorrentes" (`:533`) ganhou `text-accent-ink`. No print `catalogo-produto-gaveta-link-marcas-depois`, ele sai em `#1E3350`, sublinhado.
+- **Prints:** abri os 13 prints de 1366×768 em `docs/modulos/catalogo/bko-revisao/`. O lote não tem prints "antes", o que o README avisa.
+  - Abas em `Button` primário e secundário, com a contagem.
+  - "Nova marca", "Novo grupo", "Nova faixa" e "Salvar" em Azul noite.
+  - "Inativar" por último no "⋯", em vermelho.
+  - Selos sempre com texto: "Ativa" `success`, "Inativa" `neutral`, "Vigente" `success`, "Acima da tabela" `warning`, "Fora da vigência" `neutral`.
+  - Erro do campo em `#A8261B`, com ícone e texto.
+  - O vazio é o `EstadoVazio` do kit.
+  - Shell conforme.
+- **MC-0074 (média, fora do lote, `engenheiro-apps`): caixa de seleção nativa em azul do navegador.** Na gaveta "Nova faixa" (`tabelas-preco-escalonada-gaveta-depois`), a caixa "Ativa" marcada sai em **`#0075FF`**, o azul padrão do Chrome. É uma cor fora da paleta, visível ao cliente.
+  - O `globals.css` não define `accent-color`. As caixas nativas do BKO (cerca de 30 no `main`, em vários módulos, por exemplo `tabelas-preco-page.tsx:405` e `catalogo-page.tsx:686`) usam a cor de cada navegador.
+  - O defeito não é deste lote, por isso não segura.
+  - **Correção, num lugar só**, em `apps/web/app/globals.css`, dentro do `@layer base`: `input[type='checkbox'], input[type='radio'] { accent-color: var(--color-accent); }` (Azul noite, o mesmo da MC-0051).
+  - A caixa do `SeletorDePerfis` (`permissoes.tsx:341`, `accent-[var(--color-ink)]`) continua na MC-0051, do `designer-ux`.
+- **Liberado.**
+- **Para o testes e o corretor (não é marca):** os campos de data da gaveta mostram "mm/dd/yyyy", no idioma do navegador da captura.
+
+## Lote 19 · Logo do cliente, reteste da MC-0067 e variações da MC-0066 (designer-ux, `64a18b97`, anterior `184319e4`)
+Um commit (`64a18b9`): a spec `logo-cliente.md` §3, §4, §5, §7 e §8, o `carga.html` (que era o `carga-login.html`), o `login.html` novo, o `mais.html` e 7 PNG. Abri os 7 PNG e medi no pixel.
+- **MC-0067 fechada.** A placa única tem 52 dp de altura, até 176 de largura, e a logo dentro tem 36 dp, até 152:
+  - no login (`login-campo.png`, `login-gestao.png`), a placa mede ~51 dp de altura e o logo Macuxi da faixa, 44 dp. A logo do cliente agora é menor que a Macuxi e fica no formulário, fora da faixa;
+  - no Mais (`mais.png`), a placa é a mesma, abaixo de "Licenciado para Exemplo Norte" (`#4A5562`). Nas três telas, a peça é igual.
+- **MC-0066, variações prontas para o Alexandre.** Cada imagem tem, à esquerda, a carga sem logo (igual à aprovada, §4) e, à direita, a carga com logo.
+
+| | Variação A (recomendada): ao lado | Variação B: abaixo |
+|---|---|---|
+| Medida no pixel | Logo Macuxi com ~115 dp de altura e "M" de ~24,6 dp. Filete a ~24,6 dp do logo, igual à altura do "M", então no limite da área de proteção, sem invadir (§2.3). Placa de 64 dp | Logo Macuxi a 170 dp, como na tela sem logo. Placa de 64 dp a ~38 dp do logo, mais que o "M" (~33 dp) |
+| Hierarquia | A Macuxi tem quase o dobro da altura da placa: o produto é Macuxi, licenciado ao cliente | Ainda mais clara: o logo Macuxi não diminui |
+| Pedido do Alexandre | atende ao "ao lado" | foge do "ao lado" |
+| Campo e Gestão | Campo: placa branca sem borda no Azul noite, filete `#3A4D68`. Gestão: placa com borda `#DFE2E6` no Pérola, filete `#DFE2E6` | a mesma placa, sem filete |
+
+- **Cores:** só da paleta e da entrada aprovada: Sol claro `#F59A52` e trilho `#3A4D68` no Campo, Sol laranja `#C2540A` e trilho `#DFE2E6` no Gestão, e o ✓ `#7FD1A8` e `#1D6B4F`. A logo "Exemplo Norte" é fictícia, então não há marca de terceiros.
+- **Recomendação (mantida):** a **A**. Atende ao que o Alexandre pediu e mantém a Macuxi como a marca do produto na tela de entrada. A B é a saída segura, se ele achar que lado a lado ainda parece co-marca.
+- **Parecer:** a carga com logo **segura** até a escolha do Alexandre. Nada dela vai para o código antes disso, e a spec já diz isso (§3). Login, Mais, portal e PDF estão **conformes** e podem seguir para a implementação.
+- **A regra nova também depende do "aprovo" dele:** placa branca única de 52/36 no login e no Mais, 64/48 na carga, sempre menor que o logo Macuxi da tela e fora da área de proteção. Ela só entra no manual (§2.5) depois disso.
+- **MC-0068** (neutros do PDF, `modulo-vendedor`): continua aberta, fora do lote.
+
+**Para o gerente mandar ao Alexandre** (todos no branch `nuvem/logo-cliente-designer-ux` `64a18b97`, pasta `docs/design/telas/logo-cliente/`):
+1. **A escolha A ou B da carga:**
+   - `carga-campo-a.png` e `carga-campo-b.png`;
+   - `carga-gestao-a.png` e `carga-gestao-b.png`.
+2. **Para conhecimento da placa única**, que entra na mesma aprovação da regra §2.5: `login-campo.png` e `mais.png`. O `login-gestao.png` é igual ao do Campo, só muda a legenda.
+
+Pergunta sugerida: *"Carga do app com a logo da distribuidora: A (ao lado, recomendada) ou B (abaixo)? E aprova a placa única da logo do cliente no login e no Mais (52 dp, sempre menor que o logo Macuxi)?"*
+
+## Achados da parte 3
+| ID | Gravidade | Onde | Fere | Correção | Dono | Estado |
+|---|---|---|---|---|---|---|
+| MC-0065 | média | `trilhas-page.tsx:91,357` | §3, checklist A | `Button variant="primary"` | modulo-treinamento | **fechado** (`1d1436e`) |
+| MC-0066 | média | carga com logo (`logo-cliente.md` §3) | §2.4, §2.3 | variações A e B prontas (`64a18b9`) | designer-ux · dono do produto | **aberto**; aguarda a escolha do Alexandre |
+| MC-0067 | média | placa do login e do Mais | §2.4, consistência | placa única de 52/36 | designer-ux | **fechado** (`64a18b9`) |
+| MC-0069 | média | `licencas-page.tsx:122` | §3 | `border-accent bg-accent` | modulo-core | **fechado** (`6bf5281`) |
+| MC-0071 | baixa | `catalogo-page.tsx:191` | §3 | `tom: 'pending'` | modulo-catalogo | **fechado** (`a058713`) |
+| MC-0072 | baixa | `catalogo-page.tsx:533` | §3 | `text-accent-ink` | modulo-catalogo | **fechado** (`a058713`) |
+| MC-0073 | baixa | `filiais-page.tsx:119`, `fotos-pdv-page.tsx:83`, `motivos-page.tsx:97`, `medidas-panel.tsx:93` ("Inativo" em `warning`) | §3 (cor no seu papel) e consistência | `'warning'` → `'neutral'` | modulo-core | **aberto**; liberado com ajustes |
+| MC-0074 | média | caixas de seleção nativas do BKO em `#0075FF` (sem `accent-color` no `apps/web/app/globals.css`) | §3 (cor fora da paleta) | `input[type='checkbox'], input[type='radio'] { accent-color: var(--color-accent); }` | engenheiro-apps | **aberto**; fora do lote |
+
+Continuam abertos, fora destes lotes: MC-0021, MC-0052, MC-0068 e MC-0070 (além dos antigos do catálogo).
+
+## Pendências da parte 3 para o gerente-projetos
+- **Build v1.0.9:** os lotes 14 e 15 estão liberados pela marca. Pedir ao `testes` os prints do aparelho (rodapé com e sem os dados legais, Campo e Gestão) e do navegador (Entrar do BKO e do portal), para o reteste.
+- **Lote 16:** liberado, pode seguir para o merge.
+- **Lote 17:** mandar a MC-0073 ao `modulo-core`, com as quatro linhas.
+- **Lote 18:** liberado. Mandar a MC-0074 ao `engenheiro-apps` e a nota da data ao `testes` e ao corretor.
+- **Lote 19:** mandar ao Alexandre os 4 PNG da carga, mais o `login-campo.png` e o `mais.png`, com a pergunta acima. Com a resposta, o design-de-marca registra a decisão em `decisoes.md` e põe a §2.5 no manual.
