@@ -47,6 +47,9 @@ const DEFINER_REVISADAS: Record<string, string> = {
   // T-0078 (0024; R-20261105-001055-banco-dados): /v1/saude
   'plataforma.resumo_outbox(p_nomes text[], p_max_tentativas integer)':
     'saúde: só agregados da outbox de todos os tenants (pendentes, parados, segundos do mais antigo); sem id, tenant, payload ou erro',
+  // 0073 (rodapé legal; R-20261114-221000-alexandre): rota pública GET /v1/publico/dados-legais, sem sessão nem tenant
+  'plataforma.dados_legais_publicos()':
+    'rodapé da tela Entrar: só razao_social, cnpj e site da Macuxi (dado de pessoa jurídica); sem a linha = padrão; STABLE; nem worker nem portal',
 };
 
 /**
@@ -99,6 +102,14 @@ const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
     `${SA}; só super-admin; (super_admin_id, email, senha_hash) só da conta ativa DA SESSÃO, para a API conferir a senha; audita sem dado pessoal`,
   'plataforma.sa_acoes_das_empresas(p_sid uuid)':
     `${SA}; só super-admin; o bloco acoes de cada empresa viva (inativação, último backup, exclusão e exclusao_bloqueada)`,
+  // ADR 0047 (0070; planos e licenças, passo "Empresa com plano"): só super-admin (admin do cliente 42501, sessão inválida 28000)
+  'plataforma.sa_gravar_assinatura(p_sid uuid, p_tenant uuid, p jsonb)':
+    `${SA}; só super-admin; uma assinatura viva por tenant (trava consultiva; já existe = existente, nada muda); plano/adicional inválido 22023 ` +
+    'com o código no hint; tenant inexistente P0002; audita sem dado pessoal',
+  // 0073 (rodapé legal; R-20261114-221000-alexandre): "Dados da Macuxi" no portal, só super-admin (42501 / 28000)
+  'plataforma.sa_dados_legais(p_sid uuid)': `${SA}; só super-admin; o mesmo jsonb da dados_legais_publicos (razao_social, cnpj, site)`,
+  'plataforma.sa_gravar_dados_legais(p_sid uuid, p jsonb)':
+    `${SA}; só super-admin; exatamente razao_social, cnpj e site (22023), CHECKs (23514); idempotente (igual não muda nem audita); for update; audita antes e depois`,
 };
 
 /** Funções de deploy (T-0093, ADR 0031 §5): SECURITY INVOKER, chamadas pela conexão de administração; ninguém mais executa. */
