@@ -188,7 +188,7 @@ function Produtos({ filtros, mudar, podeConteudo, abas }: { filtros: FiltrosBko;
     { id: 'marca', titulo: 'Marca', prioridade: 2, celula: (i) => i.brand || '—', texto: (i) => i.brand },
     { id: 'categoria', titulo: 'Categoria', prioridade: 3, celula: (i) => i.line || '—', texto: (i) => i.line },
     ...(mostrarCaminho ? [{ id: 'caminho', titulo: 'Caminho', prioridade: 3 as const, celula: (i: ItemVitrine) => <span data-testid={`catalogo.caminho.${i.erp_code}`}>{caminhos.get(i.id) ?? '—'}</span>, texto: (i: ItemVitrine) => caminhos.get(i.id) ?? '' }] : []),
-    { id: 'destaque', titulo: 'Destaque', largura: '110px', celula: (i) => (i.is_campaign ? <SeloSituacao selos={[{ tom: 'success', texto: 'Destaque' }]} /> : '—') },
+    { id: 'destaque', titulo: 'Destaque', largura: '110px', celula: (i) => (i.is_campaign ? <SeloSituacao selos={[{ tom: 'pending', texto: 'Destaque' }]} /> : '—') },
   ];
   const acoesDaLinha = (i: ItemVitrine): AcaoDoMenu[] =>
     podeDestaque
@@ -530,7 +530,7 @@ function EditorCadastroCatalogo({ item, produtos, somenteLeitura = false, ref }:
             {!somenteLeitura && marcas.data && marcas.data.length === 0 && (
               <span className="text-[13px] text-ink-2">
                 Nenhuma marca cadastrada.{' '}
-                <a className="font-semibold underline" href="/catalogo/marcas" data-testid="catalogo.cadastrar-marca">
+                <a className="font-semibold text-accent-ink underline" href="/catalogo/marcas" data-testid="catalogo.cadastrar-marca">
                   Cadastrar marcas concorrentes
                 </a>
               </span>
