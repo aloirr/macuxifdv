@@ -1,6 +1,6 @@
 /**
  * Seed da demo — filiais (0056, T-0149, RN-CORE-39; dados fiscais 0059, T-0159) e fotos do PDV (0057, T-0147, RN-CORE-38). Sem banco: confere as linhas
- * montadas por `dadosDemoFilial` e `dadosDemoFotosPdv` (a gravação roda no CI, com o seed inteiro em seed-demo.test.ts).
+ * montadas por `dadosDemoFilial`, `dadosDemoUsuarioFilial` (0077, T-0176) e `dadosDemoFotosPdv` (a gravação roda no CI, com o seed inteiro em seed-demo.test.ts).
  * Critério da T-0149: com 2 filiais, um cliente de cada vê o estoque e o preço da sua filial (Boa Vista ≈ 5% acima, um produto
  * sem saldo lá).
  */
@@ -13,6 +13,7 @@ import {
   COLUNAS_FISCAIS_FILIAL,
   DADOS_FISCAIS_DEMO,
   dadosDemoFilial,
+  dadosDemoUsuarioFilial,
   idFilialBoaVistaDemo,
   PRODUTO_SEM_SALDO_BOA_VISTA_DEMO,
   SEED_BOA_VISTA_DEMO,
@@ -81,6 +82,21 @@ describe('seed demo — filiais (T-0149)', () => {
     expect(idFilialBoaVistaDemo()).toBe(idFilialBoaVistaDemo().toLowerCase());
     // a filial do cliente de cada pedido do seed é a Manaus (nenhum pedido em cliente da Boa Vista)
     for (const p of d['vendedor.pedido']) expect(f.clientesBoaVista).not.toContain(String(p.cliente_id));
+  });
+});
+
+describe('seed demo — filial do usuário (0077, T-0176, RN-CORE-39)', () => {
+  const uf = dadosDemoUsuarioFilial({ tenantId: TENANT_DEMO, usuarios: d['core.usuario'] });
+  it('os 7 logins vendem na Manaus (a padrão, também a filial de cadastro); os 2 vendedores também na Boa Vista; ids únicos', () => {
+    expect(uf.manaus.map((x) => [x.usuario_id, x.filial_id])).toEqual(d['core.usuario'].map((u) => [u.id, idFilialPadrao(TENANT_DEMO)]));
+    expect(uf.manaus).toHaveLength(7);
+    expect(uf.boaVista.map((x) => [x.usuario_id, x.filial_id])).toEqual([
+      [idUsuarioDemo('vendedor'), idFilialBoaVistaDemo()],
+      [idUsuarioDemo('vendedor2'), idFilialBoaVistaDemo()],
+    ]);
+    const ids = [...uf.manaus, ...uf.boaVista].map((x) => x.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const x of [...uf.manaus, ...uf.boaVista]) expect(x).toMatchObject({ tenant_id: TENANT_DEMO, deleted_at: null, external_id: null });
   });
 });
 

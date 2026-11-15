@@ -187,7 +187,7 @@ describe.skipIf(semBanco())('0039 portal só com e-mail e senha (banco, fixture 
     portal<{ tipo: string; conta_id: string; tenant_id: string | null; tenant_codigo: string | null; tenant_nome: string | null; senha_hash: string }>(
       'select * from plataforma.sa_contas_para_login($1)', [email]);
   const abrir = async (p: unknown) => (await portal<{ sessao_id: string; expira_em: Date }>('select * from plataforma.sa_abrir_sessao_portal($1::jsonb)', [JSON.stringify(p)]))[0];
-  const valida = async (sid: string) => portal<{ tipo: string; super_admin_id: string | null; tenant_id: string | null; usuario_id: string | null; expira_em: Date }>(
+  const valida = async (sid: string) => portal<{ tipo: string; super_admin_id: string | null; tenant_id: string | null; usuario_id: string | null; expira_em: Date; sem_filial: boolean }>(
     'select * from plataforma.sa_sessao_valida($1)', [sid]);
   const escolher = async (sid: string, tenant: string) => portal<{ tenant_id: string; usuario_id: string; codigo: string; nome: string }>(
     'select * from plataforma.sa_escolher_empresa($1, $2)', [sid, tenant]);
@@ -345,7 +345,7 @@ describe.skipIf(semBanco())('0039 portal só com e-mail e senha (banco, fixture 
       const sa = await criarSuperAdmin();
       const s = (await abrir({ tipo: 'super_admin', super_admin_id: sa.super_admin_id }))!;
       expect(s.expira_em.getTime() - (await agora()).getTime()).toBe(8 * 3600 * 1000);
-      expect(await valida(s.sessao_id)).toEqual([{ tipo: 'super_admin', super_admin_id: sa.super_admin_id, tenant_id: null, usuario_id: null, expira_em: s.expira_em }]);
+      expect(await valida(s.sessao_id)).toEqual([{ tipo: 'super_admin', super_admin_id: sa.super_admin_id, tenant_id: null, usuario_id: null, expira_em: s.expira_em, sem_filial: false }]);
       const lista = ListaEmpresasSchema.parse(await um('plataforma.sa_listar_tenants($1)', [s.sessao_id]));
       expect(lista.itens.map((t) => t.id)).toEqual(expect.arrayContaining([A, B]));
       expect(await um<boolean>('plataforma.sa_tenant_ativo($1, $2)', [s.sessao_id, A])).toBe(true);
@@ -364,7 +364,8 @@ describe.skipIf(semBanco())('0039 portal só com e-mail e senha (banco, fixture 
       const uA = await usuario(A, EMAIL_CLI, 'admin');
       const uB = await usuario(B, EMAIL_CLI, 'admin');
       const s = (await abrir({ tipo: 'admin_cliente', empresas: [{ tenant_id: A, usuario_id: uA }, { tenant_id: B, usuario_id: uB }] }))!;
-      expect(await valida(s.sessao_id)).toEqual([{ tipo: 'admin_cliente', super_admin_id: null, tenant_id: null, usuario_id: null, expira_em: s.expira_em }]);
+      // 0077 (RN-CORE-39): sem empresa escolhida, sem_filial = false
+      expect(await valida(s.sessao_id)).toEqual([{ tipo: 'admin_cliente', super_admin_id: null, tenant_id: null, usuario_id: null, expira_em: s.expira_em, sem_filial: false }]);
       // sem empresa: lista as duas; nenhuma ativa para requisição de tenant
       const lista = ListaEmpresasSchema.parse(await um('plataforma.sa_listar_tenants($1)', [s.sessao_id]));
       expect(lista.itens.map((t) => t.id).sort()).toEqual([A, B].sort());
@@ -377,7 +378,8 @@ describe.skipIf(semBanco())('0039 portal só com e-mail e senha (banco, fixture 
       // escolhe A, depois B: a empresa atual troca; tenant_ativo só a atual
       const nA = await nomeDe(A);
       expect(await escolher(s.sessao_id, A)).toEqual([{ tenant_id: A, usuario_id: uA, codigo: nA.codigo, nome: nA.nome }]);
-      expect(await valida(s.sessao_id)).toEqual([expect.objectContaining({ tipo: 'admin_cliente', tenant_id: A, usuario_id: uA })]);
+      // 0077 (RN-CORE-39): o admin da fixture nasce sem filial de cadastro => sem_filial = true
+      expect(await valida(s.sessao_id)).toEqual([expect.objectContaining({ tipo: 'admin_cliente', tenant_id: A, usuario_id: uA, sem_filial: true })]);
       expect(await um<boolean>('plataforma.sa_tenant_ativo($1, $2)', [s.sessao_id, A])).toBe(true);
       expect(await um<boolean>('plataforma.sa_tenant_ativo($1, $2)', [s.sessao_id, B])).toBe(false);
       expect(await escolher(s.sessao_id, B)).toEqual([expect.objectContaining({ tenant_id: B, usuario_id: uB })]);

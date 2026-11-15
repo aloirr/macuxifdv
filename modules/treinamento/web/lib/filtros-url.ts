@@ -65,3 +65,11 @@ export function abaVisivel(pedida: Aba | '', permitidas: Readonly<Record<Aba, bo
   if (pedida && permitidas[pedida]) return pedida;
   return ABAS.find((a) => permitidas[a]) ?? null;
 }
+
+/** Mês mostrado no campo "Mês" (RF-TRE-05): o da URL ou, sem ele, o mês atual no fuso do tenant (AAAA-MM). */
+export function mesDoFiltro(f: FiltrosTrilhas, fuso: string, agora: Date = new Date()): string {
+  if (MES.test(f.mes)) return f.mes;
+  const partes = new Intl.DateTimeFormat('en-CA', { timeZone: fuso, year: 'numeric', month: '2-digit' }).formatToParts(agora);
+  const get = (t: string) => partes.find((x) => x.type === t)?.value ?? '';
+  return `${get('year')}-${get('month')}`;
+}

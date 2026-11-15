@@ -183,7 +183,8 @@ describe.skipIf(semBanco())('0034 up/down com dados (banco efêmero)', () => {
       const depois = await retratoDoCatalogo(c);
       expect(depois).toContain('col catalogo.produto_referencia.marca_nome text nn=false');
       expect(depois.filter((l) => l.startsWith('idx ') && l.includes('marca_nome'))).toEqual([]);
-      expect(depois.filter((l) => l.startsWith('pol ') && l.includes('catalogo.produto_referencia'))).toEqual(
+      // a política leitura (0078, macuxi_leitura) entra depois da 0034 e fica fora da comparação
+      expect(depois.filter((l) => l.startsWith('pol ') && l.includes('catalogo.produto_referencia') && !l.startsWith('pol catalogo.produto_referencia.leitura '))).toEqual(
         antes.filter((l) => l.startsWith('pol ') && l.includes('catalogo.produto_referencia')),
       );
       expect((await c.query('select marca_nome from catalogo.produto_referencia where id = $1', [R])).rows).toEqual([{ marca_nome: 'Freiomax' }]);
