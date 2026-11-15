@@ -49,6 +49,10 @@ export const ENTIDADES_0013 = [...ENTIDADES_ORIGINAIS, 'catalogo_no', 'produto_u
 export const ENTIDADES_0037 = [...ENTIDADES_0013, 'forma_pagamento', 'prazo_pagamento', 'tabela_escalonada'] as const;
 /** 0056 (T-0149, R-20261110-074414): + `filial` (16). */
 export const ENTIDADES_BANCO = [...ENTIDADES_0037, 'filial'] as const;
+/** `lote.status`: a 0010 criou o CHECK com os 5 ORIGINAIS; a 0081 (T-0173, RN-INT-15) somou `cancelado` (ESTADOS_LOTE_BANCO,
+ * 6). ESTADOS_LOTE (contrato) ⊆ ESTADOS_LOTE_BANCO; db/testes/lote-cancelado.db.test.ts confere. */
+export const ESTADOS_LOTE_ORIGINAIS = ['recebido', 'processando', 'concluido', 'concluido_com_erros', 'falhou'] as const;
+export const ESTADOS_LOTE_BANCO = [...ESTADOS_LOTE_ORIGINAIS, 'cancelado'] as const;
 /** Retenção do pedido na fila (montarPedidoParaErp / decidirEntradaNaFila em domain/pedido-fila.ts). */
 export const RETENCOES_PEDIDO_ERP = ['mapeamento_ausente', 'mapeamento_ambiguo', 'sequencia_repetida'] as const;
 export const PERFIS_DECISAO_INATIVACAO = ['admin', 'analista'] as const;

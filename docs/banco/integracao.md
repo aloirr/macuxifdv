@@ -40,7 +40,7 @@ lista é migração nova.
 | Função | Quem chama | O que faz |
 |---|---|---|
 | `integracao.autenticar_chave(p_hash text)` | `macuxi_app` (só ele; `revoke from public`) | **Única leitura sem tenant** (ADR 0013 §3, etapa 3). `stable security definer`, `search_path = pg_catalog, integracao, pg_temp` (0012). Devolve **no máximo 1 linha**: `credencial_id, tenant_id, conector_id, prefixo, escopo, papel, versao_pepper, criada_em, expira_em, anterior_valida_ate, revogada_em, ultimo_uso_em, conector_identificador, conector_tipo, conector_ativo, ips_permitidos (inet[]), recebe_pedidos, entidades (text[])` — **nunca o hash**. Credencial ou Conector com `deleted_at` = nenhuma linha. Não decide nada (revogada, expirada, convivência, inativo e IP são do `avaliarChaveConector`). Busca pelo índice único `credencial_hash_uk` (meta p95 < 50 ms) |
-| `integracao.expurgar_retencao(p_agora timestamptz default now(), p_limite int default 5000)` | `macuxi_worker` (só ele) | Retenção do Hub em blocos de até `p_limite` por item; devolve `(item, quantidade)`: `lote` concluído/falhou recebido há > 12 meses (cascata em `lote_staging` e `lote_linha_erro`), `credencial` revogada há > 12 meses, `lote_linha_erro.payload` > 30 dias, `lote_staging.corpo` 7 dias após concluído (30 em `falhou`), `sessao_carga_recebido` de sessão fechada há > 7 dias sem pendência aguardando válida, `registro_atual.payload` 30 dias após inativado. `search_path = pg_catalog, integracao, pg_temp` (0012). Agendamento: engenheiro-software (mesmo worker da outbox) |
+| `integracao.expurgar_retencao(p_agora timestamptz default now(), p_limite int default 5000)` | `macuxi_worker` (só ele) | Retenção do Hub em blocos de até `p_limite` por item; devolve `(item, quantidade)`: `lote` concluído/falhou/cancelado (0081) recebido há > 12 meses (cascata em `lote_staging` e `lote_linha_erro`), `credencial` revogada há > 12 meses, `lote_linha_erro.payload` > 30 dias, `lote_staging.corpo` 7 dias após concluído ou cancelado (30 em `falhou`), `sessao_carga_recebido` de sessão fechada há > 7 dias sem pendência aguardando válida, `registro_atual.payload` 30 dias após inativado. `search_path = pg_catalog, integracao, pg_temp` (0012). Agendamento: engenheiro-software (mesmo worker da outbox) |
 | `integracao.sem_repeticao(text[])` | CHECK de `conector.entidades` | imutável; `true` se não há valor repetido |
 
 Premissa (como `plataforma.tenant_por_codigo`, [rls.md](rls.md)): o dono das funções é superusuário ou tem `BYPASSRLS`.
@@ -136,7 +136,7 @@ inativados (RN-INT-06, 🔴 da T-0027). Único `(tenant_id, sessao_id, external_
 | sessao_id, sessao_parte (≥ 1), sessao_ultimo | | FK → sessao_carga; **obrigatório no completo e proibido no delta** |
 | chave_idempotencia | text not null | `^[A-Za-z0-9._:-]{16,128}$`; **único por `(tenant_id, conector_id, chave_idempotencia)`** (RN-INT-12) |
 | hash_conteudo | text not null | sha256 hex do conteúdo canônico (mesma chave + outro hash = 409) |
-| status | text not null | `ESTADOS_LOTE`; padrão `recebido`; **um `processando` por Conector+entidade** (`lote_processando_uk`) |
+| status | text not null | `ESTADOS_LOTE_BANCO` (6, com `cancelado` desde a 0081) ⊇ `ESTADOS_LOTE`; padrão `recebido`; **um `processando` por Conector+entidade** (`lote_processando_uk`) |
 | recebidas | int not null | ≥ 1 |
 | duplicadas_no_lote, com_erro, novas, atualizadas, inalteradas, **obsoletas**, inativadas, invalidas_omitidas, tentativas, bytes | int not null | ≥ 0 (`obsoletas`: 🔴 V1) |
 | aplicado_ate_indice | int | checkpoint da aplicação em blocos (nulo = nada aplicado) |
@@ -445,3 +445,14 @@ Pedido R-20261110-074414-modulo-integracao (desenho docs/desenho/T-0149.md §3.5
   | Pagamento (RN-VEN-24) | `pagamento_forma_codigo` (20), `pagamento_forma_external_id` (200), `pagamento_prazo_codigo` (20), `pagamento_prazo_external_id` (200), `pagamento_parcelas_dias` VARCHAR(120) ('30,60,90'), `pagamento_prazo_medio_dias` INT | use o external_id quando houver |
   Teste estático: `db/testes/entrada-pedido-modelo.test.ts` (o EXEC do `conector.exemplo.json` só usa parâmetros da procedure e
   valores do Conector; os 23 com padrão NULL, coluna NULA e no INSERT; IF NOT EXISTS no cabeçalho e no item).
+
+## 0081 — estado `cancelado` do lote (`0081_integracao_lote_cancelado`; T-0173, RN-INT-15)
+- `lote_status_valido` recriado com 6 estados: `recebido`, `processando`, `concluido`, `concluido_com_erros`, `falhou`,
+  `cancelado` (`ESTADOS_LOTE_BANCO` em `modules/integracao/db/nuvem.ts`; `ESTADOS_LOTE_ORIGINAIS` guarda os 5 da 0010). Só
+  `recebido` e `processando` podem ser cancelados (regra no domain da Integração); `cancelado` é final.
+- `integracao.expurgar_retencao` (create or replace, mesma assinatura, grants e `search_path` da 0012): o cancelado é apagado
+  12 meses depois de recebido (cascata) e o corpo do staging sai 7 dias depois (`coalesce(concluido_em, recebido_em)`).
+- Sem mudança: `lote_processando_uk` e `lote_fila_ix` (parciais em `processando` / `recebido, processando`: o cancelado sai da
+  fila e libera o "um processando"); nenhuma view nem as views-modelo do Conector leem `lote.status`.
+- Nenhum dado muda no up; idempotente. **Volta:** o down recusa (P0001) se houver lote `cancelado`; antes, mude-os (ex.:
+  para `falhou`, ver o cabeçalho do down). Teste: `db/testes/lote-cancelado.db.test.ts`.

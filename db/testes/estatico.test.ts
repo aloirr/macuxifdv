@@ -212,6 +212,7 @@ describe('migrações (estático)', () => {
     expect(nomes[74]).toBe('0075_catalogo_referencia_marca_opcional'); // R-20261115-073000 (item 3, RN-CAT-09): catalogo.produto_referencia.marca_id nula e único vivo por (tenant, produto, codigo_compacto); repetidas no produto ficam na menor ordem (referencia-marca-opcional.db.test.ts)
     expect(nomes[76]).toBe('0077_core_usuario_filial'); // T-0176 (RN-CORE-39, R-20261115-094500): core.usuario.filial_cadastro_id e core.usuario_filial (filiais de venda), cadastro entre as de venda (gatilho adiado usuario_filial_inclui_cadastro), backfill da empresa com uma filial (usuario-filial.db.test.ts)
     expect(nomes[78]).toBe('0079_catalogo_foto_lote'); // T-0174 (RN-CAT-14, ADR 0058): plataforma.trabalho e as 3 funções do worker, catalogo.foto_lote e foto_lote_item, produto_midia.hash_conteudo e ordem da principal = 1, arquivo com PNG/WEBP/ZIP (foto-lote.db.test.ts)
+    expect(nomes[80]).toBe('0081_integracao_lote_cancelado'); // T-0173 (RN-INT-15): CHECK lote_status_valido com 'cancelado' e integracao.expurgar_retencao com o lote cancelado na retenção do lote final (lote-cancelado.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
@@ -693,7 +694,8 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     expect(criadas.get('integracao.conector')).toContain(`default array[${nuvemIntegracao.ENTIDADES_ORIGINAIS.map((e) => `'${e}'`).join(', ')}]::text[]`);
     expect(valoresDoCheck('integracao.conector', 'tipo')).toEqual([...TIPOS_CONECTOR]);
     expect(valoresDoCheck('integracao.lote', 'modo')).toEqual([...ModoCarga.options]);
-    expect(valoresDoCheck('integracao.lote', 'status')).toEqual([...ESTADOS_LOTE]);
+    // corpo da 0010 = os 5 originais; a 0081 recria o CHECK com 'cancelado' (= ESTADOS_LOTE_BANCO; lote-cancelado.db.test.ts)
+    expect(valoresDoCheck('integracao.lote', 'status')).toEqual([...nuvemIntegracao.ESTADOS_LOTE_ORIGINAIS]);
     expect(valoresDoCheck('integracao.lote_linha_erro', 'codigo')).toEqual([...CODIGOS_ERRO_LINHA]);
     expect(valoresDoCheck('integracao.pendencia_inativacao', 'estado')).toEqual([...ESTADOS_PENDENCIA_INATIVACAO]);
     expect(valoresDoCheck('integracao.pendencia_inativacao', 'decidida_por_perfil')).toEqual(['admin', 'analista']);
