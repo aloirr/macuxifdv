@@ -176,3 +176,34 @@ Conferi os commits:
 A CLI segue com 403 na escrita, então os recados não foram gravados. A lista foi entregue ao gerente-projetos:
 - modulo-catalogo: RD-0542 e RD-0543;
 - testes: o encaminhamento acima.
+
+## 7. Terceiro reteste (15/11/2026, ~08h Manaus)
+**Veredito: COM ACHADO (não liberado).** O RD-0542 e o RD-0543 estão corrigidos, e a exportação passou a seguir a ficha. A correção deixou sem leitor o campo `marcas` da resposta da exportação: é o RD-0544, de gravidade baixa, em código de produção. Ele segura o lote.
+
+Conferi o commit **71b4c16e** em `origin/nuvem/referencia-sem-marca-modulo-catalogo`, que vem sobre o ba67ddf2.
+
+| Ponto | Resultado |
+|---|---|
+| RD-0542 | **Corrigido.** `ProdutoDaExportacao.referencias` passou a ser `Referencia[]`. O formato fica só no contrato. |
+| RD-0543 | **Corrigido.** O layout faz `textoDaReferencia(r.marca_nome, r.codigo)`, e o mapa `marcas` e o comentário saíram. O nome da marca é decidido num lugar só, o domain. |
+| Exportação × ficha (encaminhamento do §6) | **Resolvido.** `montarExportacao` usa `referenciaVisivel`: a referência de marca inativa, ausente ou sem retrato fica escondida, como na ficha. O corte em 3 vem depois do filtro, então uma referência escondida não toma o lugar de uma visível. O cabeçalho do arquivo foi atualizado. A conferência do comportamento contra a RN-CAT-09 continua com o testes. |
+| Testes | **Sem achado.** O teste novo de `exportacao.test.ts` confere que `montarExportacao` liga a regra à exportação, coisa que o teste de `referenciaVisivel` não cobre. O de `rotas.test.ts` e o do layout foram ajustados ao comportamento novo, sem repetir caso. |
+| Campo `marcas` da resposta | **RD-0544.** |
+
+### RD-0544 · baixa · código · modulo-catalogo
+- **O que se repete:** com o RD-0543 corrigido, o BKO não lê mais `dados.marcas`. Só os fixtures de teste citam o campo (`web/exportacao/exportacao.test.ts:11,39`). Mesmo assim, a API ainda monta e envia a lista de marcas ativas em toda exportação, e o contrato e o doc ainda a descrevem. É dado que ninguém usa, e a mesma lista já sai pelo `GET marcas-concorrentes`.
+- **Onde:**
+  - `modules/catalogo/api/rotas.ts:586-587` (`const lista = …`, `marcas: lista`);
+  - `modules/catalogo/contracts/rotas.ts:252` (`marcas: z.array(…)` em `RespostaExportacao`);
+  - os asserts e fixtures `api/rotas.test.ts:648,661,675` e `web/exportacao/exportacao.test.ts:11,39` (e o `DADOS_EXEMPLO.marcas` de `web/exportacao/exemplo.ts`);
+  - `docs/modulos/catalogo/regras.md:165` e `:167`.
+- **Impacto:** desempenho (uma lista a mais por exportação) e manutenção (um campo de contrato sem leitor).
+- **Proposta:**
+  - contrato: tirar a linha `marcas` de `RespostaExportacao`;
+  - rota: antes → `const lista = …; return { produtos: r.produtos, marcas: lista, truncado: r.truncado };`; depois → `return { produtos: r.produtos, truncado: r.truncado };`. O `marcas` do `Promise.all` fica, porque alimenta o `montarExportacao`;
+  - testes e exemplo: tirar `marcas` dos fixtures e os 3 asserts de `corpo.marcas`. O que eles queriam garantir (sem o Promotor, sem marca) já está no `toEqual([])` das referências;
+  - doc `:165`: antes → "`{ produtos, marcas, truncado }`"; depois → "`{ produtos, truncado }`";
+  - doc `:167`: antes → "sem o Promotor para o tenant ou o usuário, `marcas` vem vazia e as referências não aparecem, como na ficha"; depois → "sem o Promotor para o tenant ou o usuário, vale o retrato `marca_nome`; referência com marca e sem retrato não aparece, como na ficha".
+
+### Recado
+A CLI segue com 403 na escrita. A lista foi entregue ao gerente-projetos para repassar ao modulo-catalogo (RD-0544) e ao testes (conferir a exportação escondendo a referência).
