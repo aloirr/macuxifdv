@@ -1011,7 +1011,7 @@ select * from plataforma.exportar_backup_pagina($1, $2, $3::jsonb, 5000);
 `plataforma.sync_pacote` e `plataforma.sync_pacote_pedido`: dicionário completo, RLS, grants, índices e ciclo de vida em
 [sync-pacote.md](sync-pacote.md).
 
-## 0079 — arquivos do lote de fotos e trabalho sob demanda (`0079_catalogo_foto_lote`; T-0174, ADR 0054)
+## 0079 — arquivos do lote de fotos e trabalho sob demanda (`0079_catalogo_foto_lote`; T-0174, ADR 0058)
 Mesma migração das tabelas do lote ([catalogo.md](catalogo.md), "0079"). Teste: `db/testes/foto-lote.db.test.ts`.
 
 **`arquivo`**: `arquivo_tipo_valido` = `image/jpeg` \| `image/png` \| `image/webp` \| `application/zip`

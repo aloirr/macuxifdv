@@ -39,7 +39,7 @@ Mesma tela nos três; no app é a `TelaCrieSuaSenha` (`modules/core/app`), no BK
 **Nada mais abre antes**: sem abas, sem menu, sem voltar por gesto para dentro do app.
 
 De cima para baixo:
-1. Título **"Crie sua senha"** (Archivo, 24/800 no app; 28/800 no BKO).
+1. Título **"Crie sua senha"** (22/700 no app; 24/700 no BKO).
 2. Subtítulo (14, `ink-2`) pelo `detalhes.motivo`:
    - `primeiro_acesso`: **"É o seu primeiro acesso. Crie uma senha só sua para continuar."**
    - `senha_temporaria`: **"Você entrou com uma senha temporária. Crie uma senha nova para continuar."**

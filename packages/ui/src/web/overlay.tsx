@@ -99,10 +99,10 @@ export function Dialog({ open, title, children, footer, onClose }: { open: boole
         aria-labelledby={id}
         className="flex max-h-full w-full flex-col overflow-hidden rounded-t-2xl bg-surface shadow-xl sm:max-w-[460px] sm:rounded-2xl"
       >
-        <h2 id={id} className={`m-0 shrink-0 px-5 pt-5 pb-3 font-display text-[18px] font-bold ${corpo.rola ? 'border-b border-line' : ''}`}>
+        <h2 id={id} className={`m-0 shrink-0 px-5 pt-5 pb-3 text-[20px] font-bold ${corpo.rola ? 'border-b border-line' : ''}`}>
           {title}
         </h2>
-        <div ref={corpo.ref} className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 text-[14px] text-ink ${corpo.rola ? 'py-3' : 'py-0.5'}`}>
+        <div ref={corpo.ref} className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 text-[15px] text-ink ${corpo.rola ? 'py-3' : 'py-0.5'}`}>
           {children}
         </div>
         <div className={`flex shrink-0 flex-wrap justify-end gap-2 px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-5 ${corpo.rola ? 'border-t border-line' : ''}`}>{footer}</div>
@@ -132,7 +132,7 @@ export function Drawer({ open, title, subtitle, children, onClose, rodape }: { o
       <aside ref={ref} role="dialog" aria-modal="true" aria-labelledby={id} className="flex h-full w-full max-w-[560px] flex-col overflow-hidden bg-ground shadow-2xl">
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line bg-surface px-5 py-4">
           <div className="flex min-w-0 flex-col gap-0.5">
-            <h2 id={id} className="m-0 font-display text-[20px] font-extrabold">
+            <h2 id={id} className="m-0 text-[20px] font-bold">
               {title}
             </h2>
             {subtitle && <div className="text-[13px] text-ink-2">{subtitle}</div>}

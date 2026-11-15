@@ -22,7 +22,7 @@ premissa do Vendedor aceita na T-0089). ~~As pendências do pedido ficam **antes
    - forma de pagamento que o cadastro do cliente não permite (RN-VEN-24, RN-VEN-13): o mesmo padrão, `desabilitada: true` com o
      `motivo` que o domain do Vendedor devolve; nada de texto solto abaixo das listas;
    - trocar a forma e o prazo atual não existir nela: o Prazo volta ao placeholder e fica com `erro` até escolher;
-   - divisor e, abaixo, **"Total do pedido · 2 itens"** à esquerda e **"R$ 99,09"** à direita (Archivo 18, tabular). O total
+   - divisor e, abaixo, **"Total do pedido · 2 itens"** à esquerda e **"R$ 99,09"** à direita (`t.number`, 18/600 tabular). O total
      não se repete no rótulo da aba Resumo.
 2. **Busca de produto** (`CampoBusca`), e os resultados com o produto em 3 linhas (abaixo).
 3. **Itens do pedido**, sob o rótulo "NO PEDIDO" (`RotuloSecao`), um por bloco, separados por divisor (sem cartão por item).
@@ -41,7 +41,7 @@ premissa do Vendedor aceita na T-0089). ~~As pendências do pedido ficam **antes
     `style={{ flexGrow: 0, width: larguraSegmentadoCompacto(n) }}` (do kit: 2 medidas → 94, 3 → 144; não repita a conta), o Passo com a largura dele (124) e o `CampoAjuste` com `style={{ flexGrow: 1, minWidth: 124 }}`.
   - Cabe numa linha com **≥ 350 dp** de conteúdo (aparelho de 393-412 dp); no de 360 dp o ajuste desce para a linha de baixo,
     ocupando a largura toda. **Não diminua os alvos para caber** (≥ 44 dp é critério da T-0089).
-- **"Valor total:"** do item **no fim, alinhado à direita**, abaixo da linha 3: rótulo 12,5 `ink2` + valor 14/800 tabular.
+- **"Valor total:"** do item **no fim, alinhado à direita**, abaixo da linha 3: rótulo 12 `ink2` + valor 14/600 tabular.
 - **O item não mostra** "preço de tabela → preço final" nem o selo da faixa (a faixa aparece só no "Leve mais" de Detalhes).
 - Remover o item: pelo Passo (− até 0, com o aviso no rodapé com Desfazer, como hoje) — sem lixeira nova na linha 3.
 
