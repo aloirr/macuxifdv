@@ -2,7 +2,7 @@
  * Tema do app (Campo e Gestão): reexporta os tokens puros (`tokens.ts`) e monta os estilos de texto do React Native.
  * Um único lugar para cor, fonte, raio, espaçamento, sombra e movimento (T-0072; guia em docs/design/componentes.md).
  */
-import { StyleSheet, type TextStyle } from 'react-native';
+import { Platform, StyleSheet, type TextStyle } from 'react-native';
 
 import { colors, radius } from './tokens';
 
@@ -31,6 +31,33 @@ export const fonte = {
   /** @deprecated Apelido de `fonte.bold` (700, título), ainda usado nos módulos e no shell; sai na v1.0.14 (RD-0942). */
   displayBold: PESO.bold,
 } as const satisfies Record<string, TextStyle>;
+
+/**
+ * @deprecated Transição da v1.0.13: os módulos e o shell trocam `fontFamily: fonts.x` por `...fonte.x`; sai na limpeza
+ * deste lote (branch `nuvem/fonte-sistema-designer-ux-limpeza`). Android: famílias do sistema por nome, só 400
+ * (`sans-serif`) e 500 (`sans-serif-medium`), nunca a família de peso 900; web e demais: a pilha do sistema, sem serifa.
+ */
+export const fonts = Platform.select({
+  android: {
+    display: 'sans-serif-medium',
+    displayBold: 'sans-serif-medium',
+    body: 'sans-serif',
+    medium: 'sans-serif-medium',
+    semibold: 'sans-serif-medium',
+    bold: 'sans-serif-medium',
+    mono: 'monospace',
+  },
+  // pilha do sistema escrita aqui de propósito: sai na limpeza deste lote
+  default: {
+    display: 'system-ui, "Segoe UI", Roboto, -apple-system, sans-serif',
+    displayBold: 'system-ui, "Segoe UI", Roboto, -apple-system, sans-serif',
+    body: 'system-ui, "Segoe UI", Roboto, -apple-system, sans-serif',
+    medium: 'system-ui, "Segoe UI", Roboto, -apple-system, sans-serif',
+    semibold: 'system-ui, "Segoe UI", Roboto, -apple-system, sans-serif',
+    bold: 'system-ui, "Segoe UI", Roboto, -apple-system, sans-serif',
+    mono: 'monospace',
+  },
+});
 
 /** Alvo de toque mínimo (48 dp, Material; era 44 até a T-0071). */
 export const TOUCH = 48;
