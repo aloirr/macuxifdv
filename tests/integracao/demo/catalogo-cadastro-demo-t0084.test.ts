@@ -133,7 +133,9 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
     const r = await api.chamar(tk.promotor, { method: 'GET', url: `/v1/catalogo/produtos/${idPorSku.get('PST-D01')}` });
     expect(r.statusCode, r.body).toBe(200);
     const f = FichaProduto.parse(r.json());
-    expect(f.product).toMatchObject({ price_stock_visible: false, price: null, availability: null });
+    expect(f.product).toMatchObject({ price_stock_visible: false, price: null });
+    // RN-CAT-05 revista (R-20261115-104500 item 4, RN-CORE-39): o promotor vê o estoque das filiais de venda dele, sem o preço
+    expect(f.product.availability, 'estoque do promotor').not.toBeNull();
     expect(f.catalogo!.aplicacao).toContain('Fiat Uno');
     expect(f.catalogo!.referencias.map((x) => `${x.marca_nome} ${x.codigo}`)).toEqual(['Freiomax CB 3401', 'Rodaforte RF-1187']);
     expect(f.catalogo!.oferece_junto.map((x) => x.erp_code)).toEqual(['DSC-D01', 'FLU-DOT4']);

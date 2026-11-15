@@ -23,7 +23,7 @@
  *  RO-2 (T-0085 c4/c8; RN-CAT-13): com o cadastro de marcas do Catálogo no aparelho (`marca_concorrente`), a marca inativa
  *       tira a referência da busca e da ficha; a ativa aparece com o nome do cadastro.
  *  FO-1 (T-0084 c8, T-0085 c8): o promotor abre a ficha offline com aplicação, referências, oferece junto e etiquetas, sem
- *       preço nem estoque.
+ *       preço e com o mesmo estoque do vendedor (RN-CAT-05 revista, R-20261115-104500).
  *  CO-1 (revisão R-20261106-042958): a C9 do aparelho (`catalogo.busca_produtos@1`, registro real de consultas) dá o mesmo 1º item,
  *       "Serve em" e "Equivale a" que a aba para "pastilha uno 2012", "filtro gol 2014" e "cb3401".
  *  CO-2: com o Promotor no aparelho a C9 não lança Error e usa o retrato `marca_nome`. CO-3 (`it.fails`): marca inativa segue no
@@ -299,11 +299,16 @@ describe('T-0084/T-0085 — busca offline com aplicação e referência cruzada 
       expect(ficha!.catalogo!.referencias).toEqual([]);
     });
 
-    it('FO-1 (T-0084 c8, T-0085 c8, RN-CAT-05): o promotor abre a ficha offline com aplicação, referência, oferece junto e etiquetas, sem preço nem estoque', async () => {
+    it('FO-1 (T-0084 c8, T-0085 c8, RN-CAT-05 revista): o promotor abre a ficha offline com aplicação, referência, oferece junto e etiquetas, sem preço e com o estoque', async () => {
       const ap = await aparelho({ promotor: true, marcas: [linha(MARCA.freiomax, { nome: 'Freiomax', ativo: true })] });
-      const ficha = await fichaLocal(ap.leitor, { perfil: 'promotor', parametros: {}, agora: relogio.iso(), clienteId: CLIENTE, produtoId: P.uno });
+      const entrada = { parametros: {}, agora: relogio.iso(), clienteId: CLIENTE, produtoId: P.uno };
+      const ficha = await fichaLocal(ap.leitor, { perfil: 'promotor', ...entrada });
       expect(ficha).not.toBeNull();
-      expect(ficha!.product).toMatchObject({ price_stock_visible: false, price: null, availability: null });
+      expect(ficha!.product).toMatchObject({ price_stock_visible: false, price: null });
+      // valor × regra (R-20261115-104500): o estoque da ficha do promotor é o mesmo que a regra dá ao vendedor no mesmo contexto
+      const doVendedor = await fichaLocal(ap.leitor, { perfil: 'vendedor', ...entrada });
+      expect(doVendedor!.product.availability).not.toBeNull();
+      expect(ficha!.product.availability).toEqual(doVendedor!.product.availability);
       expect(ficha!.catalogo).toMatchObject({
         aplicacao: APL.uno,
         referencias: [{ marca_id: MARCA.freiomax, marca_nome: 'Freiomax', codigo: 'CB 3401' }],
@@ -312,7 +317,10 @@ describe('T-0084/T-0085 — busca offline com aplicação e referência cruzada 
       });
       const r = await busca(ap, 'pastilha uno 2012', 'promotor');
       expect(skus(r)).toContain('PST-D01');
-      for (const i of r.items) expect(i).toMatchObject({ price_stock_visible: false, price: null, availability: null });
+      for (const i of r.items) {
+        expect(i).toMatchObject({ price_stock_visible: false, price: null });
+        expect(i.availability, `estoque de ${i.erp_code}`).not.toBeNull();
+      }
     });
   });
 

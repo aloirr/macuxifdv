@@ -9,7 +9,8 @@
  * - D-V106-1 subtítulo do Catálogo: vale "abaixo" (parecer de marca 2026-11-13-v1.0.6, MC-0008 corrigida); a spec
  *   docs/design/catalogo-grade.md §1.1 ainda diz "acima" e a prancha está na MC-0013 (designer-ux).
  * - D-V106-2 filtro vazio sem "Ver todos" (RD-0244): conforme.
- * - D-V106-3 "Equivale a" no cartão da grade (RN-CAT-09, catalogo-grade.md §2): a linha sai de `linhaDaMarca` (grade.ts);
+ * - D-V106-3 "Equivale a" no cartão da grade (RN-CAT-09, catalogo-grade.md §2): a linha sai de `linhaDaMarca` (grade.ts), lida
+ *   pelo cartão em `codigosDoCartao(item).marca` desde o Catálogo Campo v8;
  *   TalkBack (3a) corrigido no #151; destaque (3b) aberto (modulo-catalogo).
  * - D-V106-4 consulta de Pedidos cortada no servidor (pedido-v4.md:170): `cortada` gravado e nunca exibido (modulo-vendedor e
  *   designer-ux).
@@ -18,7 +19,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { linhaDaMarca } from '../../modules/catalogo/app/lib/grade';
+import { codigosDoCartao, linhaDaMarca } from '../../modules/catalogo/app/lib/grade';
 import type { ItemVitrine } from '../../modules/catalogo/contracts';
 
 const RAIZ = join(__dirname, '..', '..');
@@ -84,8 +85,13 @@ describe('D-V106-3 — "Equivale a" no cartão da grade (RN-CAT-09, catalogo-gra
     expect(linhaDaMarca({ brand: '' })).toBe('');
   });
 
-  it('o CartaoGrade exibe a linha que vem de linhaDaMarca(item)', () => {
-    expect(CARTAO_GRADE).toContain('const linhaMarca = linhaDaMarca(item);');
+  // Catálogo Campo v8 (catalogo-grade §2, R-20261115-084500): a linha passa por `codigosDoCartao(item).marca`, que é `linhaDaMarca(item)`
+  it('o CartaoGrade exibe a linha que vem de linhaDaMarca(item) (via codigosDoCartao)', () => {
+    for (const item of [{ brand: 'Doce Vale', equivale_a: FREIOMAX, erp_code: 'PST-D01' }, { brand: 'Doce Vale', equivale_a: null, erp_code: 'PST-D01' }]) {
+      expect(codigosDoCartao(item).marca).toBe(linhaDaMarca(item));
+    }
+    expect(CARTAO_GRADE).toContain('const codigos = codigosDoCartao(item);');
+    expect(CARTAO_GRADE).toContain('const linhaMarca = codigos.marca;');
     expect(CARTAO_GRADE).toMatch(/<Text style=\{g\.marca\}[^>]*>\s*\{linhaMarca\}\s*<\/Text>/);
   });
 
