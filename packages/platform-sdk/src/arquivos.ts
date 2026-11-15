@@ -33,7 +33,7 @@ export function caminhoMiniaturaArquivo(id: string): string {
 
 /**
  * Tipos aceitos em `plataforma.arquivo` (o CHECK `arquivo_tipo_valido` do banco acompanha). PNG e WEBP só entram pela foto
- * do lote (ADR 0054, gravada pelo trabalho); o ZIP do lote nunca é servido. O aparelho só envia `TIPOS_ENVIO_APARELHO`.
+ * do lote (ADR 0058, gravada pelo trabalho); o ZIP do lote nunca é servido. O aparelho só envia `TIPOS_ENVIO_APARELHO`.
  */
 export const TIPOS_ARQUIVO = ['image/jpeg', 'image/png', 'image/webp', 'application/zip'] as const;
 export type TipoArquivo = (typeof TIPOS_ARQUIVO)[number];
@@ -42,7 +42,7 @@ export type TipoArquivo = (typeof TIPOS_ARQUIVO)[number];
 export const TIPOS_ENVIO_APARELHO = ['image/jpeg'] as const;
 
 /**
- * ADR 0054 §1: arquivo grande (o ZIP do lote de fotos) vai em partes de 8 MiB (`PUT /v1/arquivos/:id/partes/:n`), cada uma
+ * ADR 0058 §1: arquivo grande (o ZIP do lote de fotos) vai em partes de 8 MiB (`PUT /v1/arquivos/:id/partes/:n`), cada uma
  * um objeto no armazenamento; `POST /v1/arquivos/:id/concluir` confere as partes e marca o arquivo `recebido`.
  */
 export const PARTE_ENVIO_BYTES = 8 * 1024 * 1024;
@@ -107,7 +107,7 @@ export const CODIGOS_ARQUIVO = {
   jaReferenciado: 'ARQUIVO_JA_REFERENCIADO',
   /** Só no aparelho: o arquivo local sumiu antes do envio. */
   ausenteNoAparelho: 'ARQUIVO_AUSENTE_NO_APARELHO',
-  /** 400: número da parte fora de 1..`PARTES_ENVIO_MAX` ou parte vazia (ADR 0054). */
+  /** 400: número da parte fora de 1..`PARTES_ENVIO_MAX` ou parte vazia (ADR 0058). */
   parteInvalida: 'PARTE_INVALIDA',
   /** 409: `concluir` com parte faltando ou de tamanho errado (`detalhes.partes_faltando`). */
   envioIncompleto: 'ENVIO_INCOMPLETO',

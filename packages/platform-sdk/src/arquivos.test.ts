@@ -84,7 +84,7 @@ describe('ADR 0041 (T-0147, RN-CORE-38): perfis de leitura do arquivo', () => {
   });
 });
 
-describe('ADR 0054 §1: envio em partes de 8 MiB e tipos do lote de fotos', () => {
+describe('ADR 0058 §1: envio em partes de 8 MiB e tipos do lote de fotos', () => {
   it('tipos aceitos em plataforma.arquivo: JPEG, PNG, WEBP e o ZIP; o aparelho só envia JPEG', () => {
     expect([...TIPOS_ARQUIVO]).toEqual(['image/jpeg', 'image/png', 'image/webp', 'application/zip']);
     expect([...TIPOS_ENVIO_APARELHO]).toEqual(['image/jpeg']);

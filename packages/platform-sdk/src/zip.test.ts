@@ -15,7 +15,7 @@ const entrada = (caminho: string, e: Partial<EntradaZip> = {}): EntradaZip => ({
 });
 const classificar = (caminho: string, e: Partial<EntradaZip> = {}) => classificarEntradaZip(entrada(caminho, e), LIMITES_ZIP_TETO);
 
-describe('RN-CAT-14 / ADR 0054 §3: classificação de cada entrada do ZIP', () => {
+describe('RN-CAT-14 / ADR 0058 §3: classificação de cada entrada do ZIP', () => {
   it('foto comum é aceita pelo nome-base, mesmo dentro de pastas (nada é escrito a partir do nome)', () => {
     expect(classificar('A1.jpg')).toEqual({ acao: 'aceitar', nomeBase: 'A1.jpg' });
     expect(classificar('fotos/novas/A1_2.jpg')).toEqual({ acao: 'aceitar', nomeBase: 'A1_2.jpg' });

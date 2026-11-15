@@ -1,5 +1,5 @@
 /**
- * ADR 0054 §4 (RN-CAT-14, R-20261115-074500): decodificadores por assinatura em JS puro — JPEG (`jpeg-js`), PNG e WEBP
+ * ADR 0058 §4 (RN-CAT-14, R-20261115-074500): decodificadores por assinatura em JS puro — JPEG (`jpeg-js`), PNG e WEBP
  * (`image-in-browser`) — e a miniatura JPEG de qualquer um deles. Teto de 30 MP conferido pelo cabeçalho antes de alocar.
  */
 import { BYTES_MAX_MINIATURA_ARQUIVO, detectarTipoImagem } from '@macuxi/platform-sdk';
@@ -16,7 +16,7 @@ function jpeg(largura: number, altura: number): Uint8Array {
   return new Uint8Array(encode({ width: largura, height: altura, data: dados }, 80).data);
 }
 
-describe('decodificadores registrados por assinatura (ADR 0054 §4)', () => {
+describe('decodificadores registrados por assinatura (ADR 0058 §4)', () => {
   it('JPEG, PNG e WEBP têm decodificador; nada além', () => {
     expect([...tiposDecodificaveis()].sort()).toEqual(['image/jpeg', 'image/png', 'image/webp']);
   });

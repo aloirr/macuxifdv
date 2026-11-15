@@ -78,7 +78,7 @@ const app = createApp({
   banco: criarBancoApp(pool),
   bancoPortal: poolPortal ? criarBancoPortal(poolPortal) : null,
   arquivos: arquivos.armazenamento,
-  // ADR 0054: PUT pré-assinado das partes direto no S3 (exige CORS no bucket); desligado por padrão
+  // ADR 0058: PUT pré-assinado das partes direto no S3 (exige CORS no bucket); desligado por padrão
   envioUrlAssinada: process.env.MACUXI_ENVIO_URL_ASSINADA === '1',
   email: (log) => criarServicoEmailDaConfig(configEmail, log),
   pacotes: (log) => pacotes.criar(log),

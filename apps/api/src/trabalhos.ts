@@ -1,5 +1,5 @@
 /**
- * Trabalhos sob demanda dos módulos (ADR 0054 §2; `ModuloApi.trabalhos`, `TrabalhoSobDemanda` do SDK), no processo do worker.
+ * Trabalhos sob demanda dos módulos (ADR 0058 §2; `ModuloApi.trabalhos`, `TrabalhoSobDemanda` do SDK), no processo do worker.
  *
  * 1. Disparo: o módulo publica `disparadoPor` (evento próprio) na transação que pede o trabalho. Para o despachante da outbox,
  *    cada trabalho é um consumidor do módulo (`consumidoresDosTrabalhos`) que só grava UMA linha em `plataforma.trabalho`

@@ -120,7 +120,7 @@ export interface TransacaoTenant {
    */
   restringirArquivos?(alvo: { entidade: string; entidade_ids: readonly string[]; perfis_leitura: readonly Perfil[] | null }): Promise<{ alterados: number }>;
   /**
-   * ADR 0054: situação de um arquivo DO MÓDULO DA ROTA (ex.: o ZIP do lote antes de enfileirar). `null` = não existe, foi
+   * ADR 0058: situação de um arquivo DO MÓDULO DA ROTA (ex.: o ZIP do lote antes de enfileirar). `null` = não existe, foi
    * removido ou é de outro módulo (RLS do tenant). A API sempre implementa; opcional só para os falsos dos testes.
    */
   infoArquivo?(id: string): Promise<InfoArquivo | null>;
@@ -637,7 +637,7 @@ export function definirTarefa(t: TarefaPeriodica): TarefaPeriodica {
 }
 
 /**
- * ADR 0054 §2: trabalho SOB DEMANDA, longo, em fatias com checkpoint (ex.: processar o ZIP do lote de fotos). O módulo
+ * ADR 0058 §2: trabalho SOB DEMANDA, longo, em fatias com checkpoint (ex.: processar o ZIP do lote de fotos). O módulo
  * publica um evento próprio (`disparadoPor`, em `publica` e em `consome` do manifesto) na transação que pede o trabalho;
  * a plataforma grava UMA linha em `plataforma.trabalho` por (tenant, módulo, nome, `alvo(payload)`) e o laço do worker
  * (`apps/api/src/trabalhos.ts`) chama `executarFatia` até devolver `'concluido'`. Uma fatia dura até `PRAZO_FATIA_MS`
@@ -949,7 +949,7 @@ export interface ModuloApi {
   consultas?: readonly ImplementacaoConsulta[];
   /** Tarefas periódicas por tenant, rodadas pelo agendador do worker (ADR 0022; `apps/api/src/agendador.ts`). */
   tarefas?: readonly TarefaPeriodica[];
-  /** Trabalhos sob demanda disparados por evento do próprio módulo, rodados pelo laço do worker (ADR 0054; `apps/api/src/trabalhos.ts`). */
+  /** Trabalhos sob demanda disparados por evento do próprio módulo, rodados pelo laço do worker (ADR 0058; `apps/api/src/trabalhos.ts`). */
   trabalhos?: readonly TrabalhoSobDemanda[];
   /**
    * Rotas chamadas pelo Conector (ADR 0013; `conector.ts`), montadas em `/<modulo>/v1/<caminho>` com chave de API, sem JWT.

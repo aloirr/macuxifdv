@@ -1,5 +1,5 @@
 /**
- * Tipos de imagem reconhecidos pela ASSINATURA (magic bytes), nunca pela extensão (ADR 0054 §3 e §4; RN-CAT-14).
+ * Tipos de imagem reconhecidos pela ASSINATURA (magic bytes), nunca pela extensão (ADR 0058 §3 e §4; RN-CAT-14).
  * Puro TypeScript: só reconhece o tipo e lê largura e altura do cabeçalho, sem decodificar os pixels. Quem decide o que é
  * aceito é o chamador (a lista do módulo ∩ os decodificadores registrados na API, `apps/api/src/decodificadores.ts`).
  */

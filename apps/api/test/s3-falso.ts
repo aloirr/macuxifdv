@@ -7,8 +7,8 @@
  *  - bucket existente (senão 404 NoSuchBucket); objeto ausente = 404 NoSuchKey;
  *  - GET pré-assinado (T-0098, ADR 0037: `X-Amz-Algorithm` na query): assinatura da query recalculada com `preAssinarGetS3`
  *    (errada = 403 SignatureDoesNotMatch) e validade pelo relógio do falso (`agora`; vencido = 403 AccessDenied);
- *  - PUT pré-assinado (ADR 0054, partes do ZIP): mesma conferência, com o método do pedido na assinatura;
- *  - HEAD (ADR 0054, tamanho da parte): `content-length` do objeto, sem corpo.
+ *  - PUT pré-assinado (ADR 0058, partes do ZIP): mesma conferência, com o método do pedido na assinatura;
+ *  - HEAD (ADR 0058, tamanho da parte): `content-length` do objeto, sem corpo.
  * Guarda os objetos em memória por caminho (`/<bucket>/<chave>`), para o teste conferir onde cada tenant gravou.
  */
 import { createHash } from 'node:crypto';

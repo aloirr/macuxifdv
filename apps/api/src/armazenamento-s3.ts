@@ -9,7 +9,7 @@
  * rota (`arquivos.ts`: linha de `plataforma.arquivo` com RLS + licença, perfil e carteira); o bucket é privado e só a
  * API tem a chave. As fotos nunca saem por URL pré-assinada; só os pacotes publicados (instalador do Conector, ADR 0037,
  * `pacotes.ts`) saem por link GET assinado de validade curta (`preAssinarGetS3`), gerado pela rota que decide o acesso.
- * ADR 0054: a única escrita por URL assinada é a PARTE do ZIP do lote (`urlEnvio`, PUT de uma chave `.pNNN.zip` fixa, 15 min),
+ * ADR 0058: a única escrita por URL assinada é a PARTE do ZIP do lote (`urlEnvio`, PUT de uma chave `.pNNN.zip` fixa, 15 min),
  * ligável e desligada por padrão. `tamanho` usa HEAD (o `concluir` confere as partes sem baixá-las).
  * Log: nunca a chave de acesso, o segredo nem a assinatura; erros levam só o status HTTP e o código S3.
  */
@@ -112,7 +112,7 @@ export function preAssinarGetS3(
   return preAssinarS3('GET', p, cred, quando, validadeS);
 }
 
-/** Como `preAssinarGetS3`, para `GET` ou `PUT` (ADR 0054: a parte do ZIP). O método entra na assinatura. */
+/** Como `preAssinarGetS3`, para `GET` ou `PUT` (ADR 0058: a parte do ZIP). O método entra na assinatura. */
 export function preAssinarS3(
   metodo: string | undefined,
   p: { protocolo: string; host: string; caminho: string; consulta?: Record<string, string> },
@@ -246,7 +246,7 @@ export function criarArmazenamentoS3(cfg: ConfigS3): ArmazenamentoArquivos {
       return Number.isInteger(n) && n >= 0 ? n : null;
     },
     urlEnvio(chave, validadeS) {
-      // só a parte do ZIP (ADR 0054): foto e miniatura nunca são escritas por URL assinada
+      // só a parte do ZIP (ADR 0058): foto e miniatura nunca são escritas por URL assinada
       if (!CHAVE_ARQUIVO_RE.test(chave) || !/\.p\d{3}\.zip$/.test(chave)) throw new Error('chave de arquivo inválida');
       return cliente.urlPreAssinada(prefixo + chave, validadeS, undefined, 'PUT');
     },

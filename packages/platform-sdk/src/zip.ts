@@ -1,5 +1,5 @@
 /**
- * Regras puras do ZIP enviado pelo BKO (ADR 0054 §3; RN-CAT-14). O leitor (`apps/api/src/leitor-zip.ts`) lê o diretório
+ * Regras puras do ZIP enviado pelo BKO (ADR 0058 §3; RN-CAT-14). O leitor (`apps/api/src/leitor-zip.ts`) lê o diretório
  * central e chama `classificarEntradaZip` para cada entrada; o módulo só recebe o resultado. Nada é escrito a partir do
  * nome da entrada: vale só o nome-base.
  */

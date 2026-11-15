@@ -1,5 +1,5 @@
 /**
- * Leitor de ZIP seguro (ADR 0054 §3; RN-CAT-14), só com node:zlib: diretório central, path traversal, zip bomb (razão,
+ * Leitor de ZIP seguro (ADR 0058 §3; RN-CAT-14), só com node:zlib: diretório central, path traversal, zip bomb (razão,
  * teto por entrada e soma), CRC-32 e tamanho real, ZIP64/vários discos, nomes UTF-8 e CP437, tipo pela assinatura e a
  * junção das partes de 8 MiB num temporário (com o SHA-256 do ZIP).
  */
@@ -40,7 +40,7 @@ async function aberto(entradas: readonly EntradaTeste[], limites: Partial<Limite
   return { zip: r.zip, bytes };
 }
 
-describe('abrirZipLocal: diretório central (ADR 0054 §3)', () => {
+describe('abrirZipLocal: diretório central (ADR 0058 §3)', () => {
   it('lista as entradas na ordem do diretório, com o SHA-256 e o tamanho do ZIP; nomes UTF-8 e CP437 em NFC', async () => {
     const { zip, bytes } = await aberto([
       { nome: 'A1.jpg', dados: JPEG },

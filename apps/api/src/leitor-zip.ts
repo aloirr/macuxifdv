@@ -1,5 +1,5 @@
 /**
- * Leitor de ZIP seguro do trabalho (ADR 0054 §3; RN-CAT-14), sem dependência nova: `node:fs` (acesso aleatório ao temporário)
+ * Leitor de ZIP seguro do trabalho (ADR 0058 §3; RN-CAT-14), sem dependência nova: `node:fs` (acesso aleatório ao temporário)
  * e `node:zlib` (`inflateRawSync` com `maxOutputLength` e `crc32`).
  *
  * 1. `juntarPartes`: lê as partes de 8 MiB do armazenamento, uma por vez, e grava num temporário do worker calculando o

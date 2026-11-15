@@ -19,7 +19,7 @@
  * (`armazenamento-s3.ts`, ADR 0020; `MACUXI_ARQUIVOS_DRIVER=s3`).
  * Log sem dado pessoal: só id, tamanho e tempo.
  *
- * ADR 0054 (T-0174, RN-CAT-14): arquivo grande (o ZIP do lote de fotos, `application/zip`) vai em PARTES de 8 MiB:
+ * ADR 0058 (T-0174, RN-CAT-14): arquivo grande (o ZIP do lote de fotos, `application/zip`) vai em PARTES de 8 MiB:
  *   PUT  /v1/arquivos/:id/partes/:n   corpo `application/octet-stream` (1 byte a 8 MiB) → objeto `<id>.pNNN.zip` (sobrescreve)
  *   GET  /v1/arquivos/:id/partes/:n/url-envio  PUT pré-assinado da mesma chave (só S3 + `MACUXI_ENVIO_URL_ASSINADA=1`)
  *   POST /v1/arquivos/:id/concluir    confere os tamanhos das partes e marca `recebido` (sem sha256: o trabalho calcula)
@@ -63,7 +63,7 @@ import type { Plataforma, RequisicaoPreparada } from './tipos';
 
 /**
  * Porta dos bytes (ADR 0010 §3). A chave é `<tenant_id>/<modulo>/<aaaa-mm>/<id>.<ext>`: `.jpg|.png|.webp` (original),
- * `.m320.jpg` (miniatura) ou `.pNNN.zip` (parte do ZIP, ADR 0054).
+ * `.m320.jpg` (miniatura) ou `.pNNN.zip` (parte do ZIP, ADR 0058).
  */
 export interface ArmazenamentoArquivos {
   gravar(chave: string, bytes: Uint8Array): Promise<void>;
@@ -72,7 +72,7 @@ export interface ArmazenamentoArquivos {
   remover(chave: string): Promise<void>;
   /** Bytes do objeto sem lê-lo (disco: `stat`; S3: `HEAD`). `null` = não existe. */
   tamanho(chave: string): Promise<number | null>;
-  /** Só S3: URL de PUT pré-assinado da chave por `validadeS` segundos (ADR 0054 §1). Ausente = o driver não oferece. */
+  /** Só S3: URL de PUT pré-assinado da chave por `validadeS` segundos (ADR 0058 §1). Ausente = o driver não oferece. */
   urlEnvio?(chave: string, validadeS: number): { url: string; expiraEm: Date };
 }
 
@@ -172,7 +172,7 @@ export function criarArmazenamentoEmMemoria(): ArmazenamentoArquivos & { chaves(
 
 interface LinhaArquivo {
   modulo: string;
-  /** ADR 0054: o ZIP (`application/zip`) nunca é servido; o resto responde com o tipo do original. */
+  /** ADR 0058: o ZIP (`application/zip`) nunca é servido; o resto responde com o tipo do original. */
   tipo?: string;
   finalidade: string;
   enviado_por: string;
@@ -218,7 +218,7 @@ export const TETO_ENVIO_EM_PARTES_PADRAO = LIMITES_ZIP_TETO.bytesZipMax;
 const MB_ENVIO_EM_PARTES = megabytesParaMensagem(TETO_ENVIO_EM_PARTES_PADRAO);
 
 /**
- * ADR 0054: teto do arquivo enviado em partes por `<modulo>/<finalidade>`, conferido no `concluir` (413 com o código da RN).
+ * ADR 0058: teto do arquivo enviado em partes por `<modulo>/<finalidade>`, conferido no `concluir` (413 com o código da RN).
  * `catalogo/foto_lote` = `LIMITES_ZIP_TETO.bytesZipMax` do SDK (RN-CAT-14).
  */
 export const TETO_ENVIO_EM_PARTES: ReadonlyMap<string, { bytes: number; codigo: string; mensagem: string }> = new Map([
@@ -278,7 +278,7 @@ export function registrarArquivos(
   void app.register(async (escopo) => {
     // só neste escopo: o corpo image/jpeg chega como Buffer (as rotas JSON não aceitam binário)
     escopo.addContentTypeParser('image/jpeg', { parseAs: 'buffer', bodyLimit: LIMITE_ARQUIVO_BYTES }, (_req, corpo, feito) => feito(null, corpo));
-    // ADR 0054: parte do arquivo enviado em partes (só a rota de partes aceita; o limite da rota é o que vale)
+    // ADR 0058: parte do arquivo enviado em partes (só a rota de partes aceita; o limite da rota é o que vale)
     escopo.addContentTypeParser('application/octet-stream', { parseAs: 'buffer', bodyLimit: PARTE_ENVIO_BYTES }, (_req, corpo, feito) => feito(null, corpo));
     escopo.setErrorHandler((erro, _req, reply) => {
       const e = erro as { statusCode?: number; code?: string };
@@ -307,7 +307,7 @@ export function registrarArquivos(
         const id = idDaRota(req);
         const { ctx } = preparadas.get(req) ?? (await p.preparar(req, null));
         const corpo = req.body;
-        // o octet-stream é só das partes (ADR 0054): a foto continua exigindo image/jpeg
+        // o octet-stream é só das partes (ADR 0058): a foto continua exigindo image/jpeg
         if (tipoDoPedido(req) === 'application/octet-stream') throw new ErroHttp(415, 'TIPO_NAO_ACEITO', 'Envie a foto como image/jpeg.');
         if (corpo !== undefined && corpo !== null && !Buffer.isBuffer(corpo))
           throw new ErroHttp(415, 'TIPO_NAO_ACEITO', 'Envie a foto como image/jpeg.');
@@ -354,7 +354,7 @@ export function registrarArquivos(
       },
     );
 
-    // ---------- ADR 0054: envio em partes ----------
+    // ---------- ADR 0058: envio em partes ----------
 
     /**
      * Linha `aguardando` do arquivo em partes, do usuário da sessão, com a licença do módulo dela; fixa a chave da parte 1
@@ -500,7 +500,7 @@ export function registrarArquivos(
           )
         ).rows[0],
       );
-      // ADR 0054: o ZIP do lote nunca é servido (nem a quem enviou)
+      // ADR 0058: o ZIP do lote nunca é servido (nem a quem enviou)
       if (!linha || linha.situacao !== 'recebido' || !linha.chave_armazenamento || linha.tipo === 'application/zip') throw naoEncontrado();
       // licença e perfil do módulo dono da foto (RN-CORE-01/02)
       const manifesto = porManifesto.get(linha.modulo);

@@ -1,5 +1,5 @@
 /**
- * Registro dos decodificadores de imagem por assinatura (ADR 0054 §4; R-20261115-074500): tipo → pixels RGBA. Tudo em JS
+ * Registro dos decodificadores de imagem por assinatura (ADR 0058 §4; R-20261115-074500): tipo → pixels RGBA. Tudo em JS
  * puro, sem binário nativo nem WASM (ADR 0036):
  *   - `image/jpeg`: `jpeg-js` (o mesmo da miniatura da foto do aparelho);
  *   - `image/png` e `image/webp` (com e sem perda, com transparência; animação = 1º quadro): `image-in-browser`.

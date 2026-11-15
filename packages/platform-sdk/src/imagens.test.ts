@@ -30,7 +30,7 @@ const PNG = b64(
 );
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x00, 0x1e, 0x00, 0x28, 0x03, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1, 0xff, 0xd9]);
 
-describe('ADR 0054 §4 (RN-CAT-14): tipo da imagem pela assinatura, nunca pela extensão', () => {
+describe('ADR 0058 §4 (RN-CAT-14): tipo da imagem pela assinatura, nunca pela extensão', () => {
   it('reconhece JPEG, PNG e WEBP; GIF, PDF, ZIP e vazio são null', () => {
     expect(detectarTipoImagem(JPEG)).toBe('image/jpeg');
     expect(detectarTipoImagem(PNG)).toBe('image/png');

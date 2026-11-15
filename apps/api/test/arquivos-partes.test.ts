@@ -1,5 +1,5 @@
 /**
- * ADR 0054 §1 (RN-CAT-14): envio do ZIP em partes de 8 MiB — `PUT /v1/arquivos/:id/partes/:n`, `POST /v1/arquivos/:id/concluir`
+ * ADR 0058 §1 (RN-CAT-14): envio do ZIP em partes de 8 MiB — `PUT /v1/arquivos/:id/partes/:n`, `POST /v1/arquivos/:id/concluir`
  * e a URL assinada ligável (`GET .../partes/:n/url-envio`) — e o ZIP nunca servido pelo GET. Banco falso com a linha de
  * `plataforma.arquivo` em memória.
  */
@@ -74,7 +74,7 @@ const parte = (app: ReturnType<typeof createApp>, n: number | string, corpo: Buf
 const concluir = (app: ReturnType<typeof createApp>, corpo: unknown, quem: 'analista' | 'vendedor' = 'analista') =>
   app.inject({ method: 'POST', url: `/v1/arquivos/${ID}/concluir`, headers: cab(quem), payload: corpo as object });
 
-describe('PUT /v1/arquivos/:id/partes/:n (ADR 0054 §1)', () => {
+describe('PUT /v1/arquivos/:id/partes/:n (ADR 0058 §1)', () => {
   it('401 sem sessão, antes de receber o corpo', async () => {
     const { app } = montar();
     const r = await app.inject({ method: 'PUT', url: `/v1/arquivos/${ID}/partes/1`, headers: { 'content-type': 'application/octet-stream' }, payload: Buffer.alloc(10) });
@@ -122,7 +122,7 @@ describe('PUT /v1/arquivos/:id/partes/:n (ADR 0054 §1)', () => {
   });
 });
 
-describe('POST /v1/arquivos/:id/concluir (ADR 0054 §1)', () => {
+describe('POST /v1/arquivos/:id/concluir (ADR 0058 §1)', () => {
   it('confere as partes (1..n−1 com 8 MiB, a última até 8 MiB, soma = total) e marca recebido; repetir → 200', async () => {
     const { app, linha } = montar();
     expect((await parte(app, 1, Buffer.alloc(P, 1))).statusCode).toBe(200);
@@ -192,7 +192,7 @@ describe('URL assinada de envio (ligável, desligada por padrão)', () => {
   });
 });
 
-describe('GET de ZIP (ADR 0054 §1): nunca é servido', () => {
+describe('GET de ZIP (ADR 0058 §1): nunca é servido', () => {
   it('original e miniatura → 404', async () => {
     const { app } = montar({ linha: { situacao: 'recebido', sha256: null, tamanho_bytes: 10, chave_armazenamento: `${TENANT}/catalogo/2026-11/${ID}.p001.zip` } });
     for (const url of [`/v1/arquivos/${ID}`, `/v1/arquivos/${ID}/miniatura`]) {

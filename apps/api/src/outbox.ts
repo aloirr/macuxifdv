@@ -286,7 +286,7 @@ export function transacaoTenant(db: ClienteBanco, o: OrigemTransacao): Transacao
 }
 
 /**
- * ADR 0010 + ADR 0054: cria a linha de `plataforma.arquivo` do módulo (idempotente pelo `id`). Sem `recebido`, nasce
+ * ADR 0010 + ADR 0058: cria a linha de `plataforma.arquivo` do módulo (idempotente pelo `id`). Sem `recebido`, nasce
  * `aguardando` (o upload completa); com `recebido` (foto gravada pelo trabalho), nasce `recebido` com sha256, tamanho,
  * dimensões e a chave, que tem de ser do tenant, do módulo e do próprio `id`. Mesmo `id` em outra entidade, outro módulo
  * ou de outro autor → 409 `ARQUIVO_JA_REFERENCIADO`.
@@ -351,7 +351,7 @@ export async function registrarArquivoNoBanco(
   throw new ErroHttpModulo(409, CODIGOS_ARQUIVO.jaReferenciado, 'Esta foto já está ligada a outro registro. Tire a foto de novo.');
 }
 
-/** ADR 0054: situação de um arquivo DO MÓDULO (RLS do tenant); `null` = não existe, removido ou de outro módulo. */
+/** ADR 0058: situação de um arquivo DO MÓDULO (RLS do tenant); `null` = não existe, removido ou de outro módulo. */
 export async function infoArquivoNoBanco(db: ClienteBanco, modulo: ModuloId, id: string): Promise<InfoArquivo | null> {
   if (!UUID_RE.test(id)) return null;
   const l = (

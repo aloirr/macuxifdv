@@ -142,7 +142,7 @@ export interface OpcoesApp {
   usuariosVisiveis?: ServicosCore['usuariosVisiveis'];
   /** Bytes dos arquivos (ADR 0010). `null`/ausente = upload/download respondem 503. */
   arquivos?: ArmazenamentoArquivos | null;
-  /** ADR 0054: URL assinada de envio das partes (`MACUXI_ENVIO_URL_ASSINADA=1`; só vale com o driver S3). Padrão: desligada. */
+  /** ADR 0058: URL assinada de envio das partes (`MACUXI_ENVIO_URL_ASSINADA=1`; só vale com o driver S3). Padrão: desligada. */
   envioUrlAssinada?: boolean;
   relogio?: () => Date;
   logger?: FastifyServerOptions['logger'];

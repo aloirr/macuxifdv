@@ -77,7 +77,7 @@ describe('criarArmazenamentoS3 × S3 falso', () => {
     expect(s3.pedidos).toBe(antes);
   });
 
-  it('ADR 0054: tamanho por HEAD (sem baixar); ausente = null; content-type do PUT pela extensão', async () => {
+  it('ADR 0058: tamanho por HEAD (sem baixar); ausente = null; content-type do PUT pela extensão', async () => {
     const a = adaptador();
     const tenant = randomUUID();
     const id = randomUUID();
@@ -91,7 +91,7 @@ describe('criarArmazenamentoS3 × S3 falso', () => {
     expect(await a.tamanho(chaveDaParte(parte, 2))).toBeNull();
   });
 
-  it('ADR 0054: URL de envio = PUT pré-assinado só da chave de PARTE; o S3 aceita o corpo dentro da validade', async () => {
+  it('ADR 0058: URL de envio = PUT pré-assinado só da chave de PARTE; o S3 aceita o corpo dentro da validade', async () => {
     const a = adaptador();
     const id = randomUUID();
     const parte = chaveDaParte(chaveDaParte1({ tenant_id: randomUUID(), modulo: 'catalogo', id }, QUANDO), 3);

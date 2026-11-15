@@ -1,6 +1,6 @@
 /**
  * Monta ZIPs de teste em memória (cabeçalhos locais, diretório central e fim do diretório), com como mexer no que é
- * declarado: CRC, tamanhos, método, bits de flag e ZIP64 — para os casos de ZIP malformado e zip bomb (ADR 0054 §3).
+ * declarado: CRC, tamanhos, método, bits de flag e ZIP64 — para os casos de ZIP malformado e zip bomb (ADR 0058 §3).
  */
 import { crc32, deflateRawSync } from 'node:zlib';
 

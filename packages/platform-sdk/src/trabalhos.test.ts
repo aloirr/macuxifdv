@@ -20,7 +20,7 @@ const trabalho = (t: Partial<TrabalhoSobDemanda> = {}): TrabalhoSobDemanda =>
     ...t,
   } as TrabalhoSobDemanda<typeof ENFILEIRADO.schema>);
 
-describe('ADR 0054 §2: trabalho sob demanda (ModuloApi.trabalhos)', () => {
+describe('ADR 0058 §2: trabalho sob demanda (ModuloApi.trabalhos)', () => {
   it('aceita o trabalho disparado por evento do próprio módulo, em `publica` e em `consome`', () => {
     const api = definirModuloApi({ manifesto: catalogo([ENFILEIRADO.nome], [ENFILEIRADO.nome]), trabalhos: [trabalho()] });
     expect(api.trabalhos).toHaveLength(1);

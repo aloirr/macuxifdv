@@ -1,5 +1,5 @@
 /**
- * Trabalhos sob demanda (ADR 0054 §2): disparo pelo evento da outbox (consumidor da plataforma que grava em
+ * Trabalhos sob demanda (ADR 0058 §2): disparo pelo evento da outbox (consumidor da plataforma que grava em
  * `plataforma.trabalho`), laço do worker em fatias (continua/concluido), erro com espera e `aoFalhar` na última tentativa,
  * licença do módulo no tenant (adiar sem contar tentativa), transação curta com autor de sistema e os arquivos do trabalho
  * (ZIP juntado no temporário, foto guardada com miniatura, descarte das partes). Sem banco: pools falsos.

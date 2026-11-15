@@ -162,7 +162,7 @@ export function criarDespachante(op: OpcoesDespachante) {
 
   const porEvento = new Map<string, Assinatura[]>();
   for (const m of op.modulos) {
-    // ADR 0054: os trabalhos sob demanda entram como consumidores do módulo (gravam o pedido em plataforma.trabalho)
+    // ADR 0058: os trabalhos sob demanda entram como consumidores do módulo (gravam o pedido em plataforma.trabalho)
     for (const c of consumidoresDoModulo(m)) {
       const lista = porEvento.get(c.evento.nome) ?? [];
       lista.push({ modulo: m.manifesto.id, consumidor: c });

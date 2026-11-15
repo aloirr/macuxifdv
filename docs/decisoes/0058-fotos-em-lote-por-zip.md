@@ -1,4 +1,4 @@
-# ADR 0054 — Fotos dos produtos em lote por ZIP
+# ADR 0058 — Fotos dos produtos em lote por ZIP
 
 - **Status**: proposta em 2026-11-15 (branch `nuvem/T-0174-engenheiro-software`).
 - **Data**: 2026-11-15 (Manaus)
