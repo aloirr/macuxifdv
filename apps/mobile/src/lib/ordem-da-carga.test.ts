@@ -20,7 +20,7 @@ import { z } from 'zod';
 
 import { criarMemoriaDaEntrada } from './entrada';
 import { MANIFESTOS_INSTALADOS } from './instalados';
-import { ordemDaCargaDoUsuario } from './ordem-da-carga';
+import { essenciaisDoUsuario, ordemDaCargaDoUsuario } from './ordem-da-carga';
 
 // o índice de `@macuxi/core/app` (API pública do Core) puxa telas: os módulos nativos viram vazios e a regra pura é a real
 vi.mock('react-native', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
@@ -159,18 +159,50 @@ describe('ordemDaCargaDoUsuario', () => {
       tipo: 'entidade',
     });
     expect(ordem(item('cliente', 'core'))).toBe(2);
-    expect(ordem(item('produto', 'catalogo'))).toBe(3);
-    expect(ordem(item('pedido', 'vendedor'))).toBe(4);
-    expect(ordem(item('carteira', 'vendedor'))).toBe(4);
-    expect(ordem(item('questionario', 'pesquisa'))).toBe(5);
-    // sem o Catálogo, o Campo tem 4 etapas e "Pedidos e metas" passa a ser a 3
+    expect(ordem(item('pedido', 'vendedor'))).toBe(3);
+    expect(ordem(item('carteira', 'vendedor'))).toBe(3);
+    expect(ordem(item('questionario', 'pesquisa'))).toBe(4);
+    // RN-CORE-48 revista (ADR 0054): o catálogo é a última etapa
+    expect(ordem(item('produto', 'catalogo'))).toBe(5);
+    // sem o Catálogo, o Campo tem 4 etapas e "Pedidos e metas" continua a 3
     modulos = ['core', 'vendedor', 'promotor'];
     expect(ordem(item('pedido', 'vendedor'))).toBe(3);
+    expect(ordem(item('questionario', 'pesquisa'))).toBe(4);
     perfil = 'supervisor';
     modulos = ['core', 'catalogo', 'vendedor', 'gestor'];
     expect(ordem(item('painel_vendedor_dia', 'gestor'))).toBe(2);
-    expect(ordem(item('pedido', 'vendedor'))).toBe(3);
-    expect(ordem(item('meta', 'core'))).toBe(4);
-    expect(ordem(item('alerta', 'gestor'))).toBe(5);
+    expect(ordem(item('meta', 'core'))).toBe(3);
+    expect(ordem(item('alerta', 'gestor'))).toBe(4);
+    // Aprovações (contém o catálogo) por último
+    expect(ordem(item('pedido', 'vendedor'))).toBe(5);
+  });
+});
+
+describe('essenciaisDoUsuario (ADR 0054, entrada enquanto carrega)', () => {
+  const item = (chave: string, modulo: ModuloId | null, tipo: ItemDaCarga['tipo'] = 'entidade'): ItemDaCarga => ({ chave, modulo, tipo });
+
+  it('Campo: libera com "Clientes e rota"; pedidos, fotos e catálogo seguem depois', () => {
+    const essencial = essenciaisDoUsuario(
+      () => 'vendedor',
+      () => ['core', 'catalogo', 'vendedor', 'promotor'],
+    );
+    expect(essencial(item('cliente', 'core'))).toBe(true);
+    expect(essencial(item('cliente_visita_resumo', 'core'))).toBe(true);
+    expect(essencial(item('pedido', 'vendedor'))).toBe(false);
+    expect(essencial(item('produto', 'catalogo'))).toBe(false);
+    expect(essencial(item('core-inicio', 'core', 'etapa'))).toBe(false);
+  });
+
+  it('Gestão: libera com "Equipe"; lê perfil e módulos a cada chamada', () => {
+    let perfil: string | null = 'vendedor';
+    const essencial = essenciaisDoUsuario(
+      () => perfil,
+      () => ['core', 'catalogo', 'vendedor', 'gestor'],
+    );
+    expect(essencial(item('cliente', 'core'))).toBe(true);
+    perfil = 'supervisor';
+    expect(essencial(item('painel_vendedor_dia', 'gestor'))).toBe(true);
+    expect(essencial(item('alerta', 'gestor'))).toBe(false);
+    expect(essencial(item('pedido', 'vendedor'))).toBe(false);
   });
 });
