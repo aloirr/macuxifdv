@@ -22,6 +22,7 @@ Função pura no `domain`: `tabelaAjustadaCents(tabela_cents, bp)`, com `bp` = *
 `ajustada = arredondarMeiaParaCima(tabela_cents × (10 000 + bp) ÷ 10 000)`
 
 - **Por unidade, antes da quantidade**: o preço unitário ajustado é um valor em centavos inteiro; total do item = unitário × quantidade (igual ao `precoDoItem` de hoje; o preço que o cliente vê na linha multiplica exato). Vale por unidade base (`fator` da embalagem multiplica depois).
+- **Desconto % do item incide no unitário, não na linha** (`precoUnitarioFinal`/`precoDoItem` em `modules/vendedor/domain/preco-pedido.ts`, RN-VEN-02 v2): o unitário é arredondado meia para cima ao centavo e o total da linha é unitário × quantidade. Ex.: tabela ajustada 18,19 com −5% = 17,28 por unidade (1 728,05 → 1 728); × 20 = **345,60** (e não 345,61).
 - Meia para cima (preço é sempre positivo; não há "sinal" a tratar).
 - Faixa −99,99 a +99,99, 2 casas; ausente = 0 (função devolve a tabela intacta).
 
@@ -64,6 +65,8 @@ O pedido guarda o retrato `prazo_percentual_ajuste` (junto do retrato de forma/p
 
 ## 7. BKO — Prazos
 **Tabela única** de prazos, **sem sub-tópicos por forma**, com abas **Prazos / Formas**. O percentual aparece como coluna **somente leitura** (vem do ERP) e no CSV; o BKO não edita o percentual. Visual e disposição: `designer-ux`. Permissões inalteradas (`forma_pagamento.gerenciar` para os demais campos).
+
+Menu do BKO: **Cadastros > Formas de pagamento e prazos** (não em Financeiro) e tabela única com abas Prazos/Formas aprovadas (R-20261115-122000, R-20261115-121500). "Novo prazo" criado no BKO entra com percentual 0,00 e não mostra o campo.
 
 ## 8. RN propostas (numeração a partir de RN-VEN-42 e RN-INT-14)
 Emendas: **RN-VEN-02** (trocar "± ajuste financeiro da condição" por "a tabela do item é ajustada pelo % do prazo, RN-VEN-43"); **RN-VEN-03/10/11/12** (calculados sobre a tabela ajustada); **RN-VEN-24** (o prazo tem o percentual, vindo do ERP).
