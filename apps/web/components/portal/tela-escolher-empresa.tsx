@@ -162,7 +162,7 @@ export function TelaEscolherEmpresa() {
     <MolduraEstreita testId="escolher.tela">
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="m-0 font-display text-[28px] font-extrabold">{TEXTOS_ESCOLHER.titulo}</h1>
+          <h1 className="m-0 font-display text-[24px] font-bold">{TEXTOS_ESCOLHER.titulo}</h1>
           <span className="text-[13px] text-ink-2">{TEXTOS_ESCOLHER.instrucao}</span>
         </div>
         {aviso && (

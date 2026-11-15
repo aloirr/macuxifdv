@@ -238,7 +238,7 @@ export function CartaoBase({ item, tenant, rotuloDepende }: { item: ItemOrdemCar
           <legend className="mb-1 text-[13px] font-semibold">Modo</legend>
           <div className="flex gap-3">
             {(['delta', 'completo'] as const).map((m) => (
-              <label key={m} className="flex items-center gap-1.5 text-[14px]" title={ROTULO_MODO[m].ajuda}>
+              <label key={m} className="flex items-center gap-1.5 text-[15px]" title={ROTULO_MODO[m].ajuda}>
                 <input type="radio" name={`modo-${entidade}`} data-testid={`base-${entidade}.modo-${m}`} className="accent-accent" checked={modo === m} disabled={ocupado === 'importando'} onChange={() => {
                     setModo(m);
                     setConferencia(null);

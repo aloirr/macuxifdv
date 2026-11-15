@@ -12,10 +12,10 @@ export function LaterPage({ title, icon, summary, items }: { title: string; icon
           <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft text-accent-ink">{icon}</span>
           <div className="flex flex-col">
             <span className="text-[12px] font-semibold tracking-[0.06em] text-accent-ink uppercase">Em breve</span>
-            <span className="font-display text-[18px] font-bold">{summary}</span>
+            <span className="font-display text-[17px] font-bold">{summary}</span>
           </div>
         </div>
-        <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5 text-[14px] text-ink-3">
+        <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5 text-[15px] text-ink-3">
           {items.map((i) => (
             <li key={i}>{i}</li>
           ))}
