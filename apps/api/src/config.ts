@@ -49,6 +49,46 @@ export function planosLigados(env: NodeJS.ProcessEnv): boolean {
 }
 
 /**
+ * ADR 0054 (desenho `docs/desenho/T-catalogo-pacote.md` §1.4 e §1.6): `MACUXI_SYNC_PACOTES` liga o pacote pronto da primeira
+ * carga (manifesto `GET /v1/sync/pacotes` com pacotes e o gerador no worker). Só `1`/`true`/`sim` liga; ausente ou outro valor =
+ * DESLIGADO (padrão): o manifesto responde `{ pacotes: [] }`, o gerador não roda e o aparelho segue no pull paginado.
+ * Exige a migração 0074 (`plataforma.sync_pacote` e `plataforma.sync_pacote_pedido`).
+ */
+export function syncPacotesLigados(env: NodeJS.ProcessEnv): boolean {
+  return ['1', 'true', 'sim'].includes(String(env.MACUXI_SYNC_PACOTES ?? '').trim().toLowerCase());
+}
+
+/** Validade do link do pacote (s): padrão 900 (15 min, ADR 0054 §4), de 60 a 3600. */
+export const VALIDADE_LINK_SYNC_PACOTE_S = { min: 60, max: 3600, padrao: 900 } as const;
+/** Intervalo do laço do gerador (ms): padrão 60 s, mínimo 1 s. */
+export const INTERVALO_SYNC_PACOTES_PADRAO_MS = 60_000;
+
+export interface ConfigSyncPacotes {
+  /** `MACUXI_SYNC_PACOTES_VALIDADE_S`. */
+  validadeS: number;
+  /** `MACUXI_SYNC_PACOTES_INTERVALO_MS` (worker). */
+  intervaloMs: number;
+  /** `MACUXI_SYNC_PACOTES_DIR_TEMP`: onde o worker monta o .sqlite antes do gzip; ausente = pasta temporária do sistema. */
+  dirTemp: string | null;
+}
+
+/** Lê as variáveis do pacote pronto. Valor inválido = erro com o NOME da variável (falha fechada na subida). */
+export function lerConfigSyncPacotes(env: NodeJS.ProcessEnv): ConfigSyncPacotes {
+  const inteiro = (nome: string, padrao: number): number => {
+    const v = env[nome]?.trim();
+    if (!v) return padrao;
+    if (!/^\d+$/.test(v)) throw new Error(`${nome} inválido: use um número inteiro`);
+    return Number(v);
+  };
+  const { min, max, padrao } = VALIDADE_LINK_SYNC_PACOTE_S;
+  const validadeS = inteiro('MACUXI_SYNC_PACOTES_VALIDADE_S', padrao);
+  if (validadeS < min || validadeS > max) throw new Error(`MACUXI_SYNC_PACOTES_VALIDADE_S fora de ${min} a ${max} segundos`);
+  const intervaloMs = inteiro('MACUXI_SYNC_PACOTES_INTERVALO_MS', INTERVALO_SYNC_PACOTES_PADRAO_MS);
+  if (intervaloMs < 1000) throw new Error('MACUXI_SYNC_PACOTES_INTERVALO_MS abaixo de 1000 ms');
+  return { validadeS, intervaloMs, dirTemp: env.MACUXI_SYNC_PACOTES_DIR_TEMP?.trim() || null };
+}
+
+/**
  * T-0158 (R-20261111-011107): `MACUXI_DIAGNOSTICOS_APP` é a chave remota do botão "Enviar diagnóstico" no app
  * (`recursos.diagnosticos` do `GET /v1/saude`). Flag próprio, fora dos `compose.yml`, para o `MACUXI_DIAGNOSTICOS=1` da demo
  * (portal, alerta, expurgo) não ligar o botão sem a decisão do dono do produto. Só vale com `MACUXI_DIAGNOSTICOS` também
