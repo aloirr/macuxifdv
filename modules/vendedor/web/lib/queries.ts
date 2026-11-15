@@ -10,6 +10,7 @@ import { AuditoriaRespostaSchema, ROTA_AUDITORIA } from '@macuxi/platform-sdk';
 import { api, useSession } from '@macuxi/platform-sdk/web';
 import { DEFAULT_TZ } from '@macuxi/ui/web';
 import { DiscountPolicy, FormasEPrazosResposta, FreteParametros, PedidosPage, Transportadora } from '../../contracts';
+import { MonitorResumo, ROTA_RESUMO_PEDIDOS_ERP } from '@macuxi/integracao/contracts';
 import { z } from 'zod';
 import { type FiltrosTransportadoras, queryDosFiltrosTransportadoras } from './transportadoras';
 import { type FiltrosPedidos, paraQuery } from './filtros-url';
@@ -127,4 +128,21 @@ export function useFreteParametros() {
 export function useFormasEPrazos() {
   const enabled = useAuthed();
   return useQuery({ queryKey: qk.formasEPrazos, queryFn: async ({ signal }) => FormasEPrazosResposta.parse(await api<unknown>('/vendedor/formas-pagamento', { signal })), enabled });
+}
+
+/** Só os números de pedidos do monitor da Integração (T-0173); o resto do `MonitorResumo` não interessa aqui. */
+const MonitorPedidos = z.object({ resumo_pedidos: MonitorResumo.shape.resumo_pedidos });
+
+/**
+ * Cards "Pedidos no ERP": `GET /v1/integracao/monitor`. Sem licença do módulo Integração ou sem `monitor.ver` a API recusa
+ * (403/404) e os cards simplesmente não aparecem: `data` fica vazio, sem tentar de novo e sem erro na página.
+ */
+export function usePedidosNoErp() {
+  const enabled = useAuthed();
+  return useQuery({
+    queryKey: ['vendedor', 'pedidos', 'no-erp'] as const,
+    queryFn: async ({ signal }) => MonitorPedidos.parse(await api<unknown>(ROTA_RESUMO_PEDIDOS_ERP, { signal })).resumo_pedidos,
+    enabled,
+    retry: false,
+  });
 }
