@@ -1,4 +1,4 @@
-# ADR 0054 — Consulta só leitura no banco de produção
+# ADR 0055 — Consulta só leitura no banco de produção
 
 - **Status**: proposta em 2026-11-15 (branch `nuvem/consulta-producao-engenheiro-software`). PR de governança: merge só com a
   autorização do dono do produto (número e SHA).
