@@ -1,13 +1,13 @@
 'use client';
 
-import { Suspense, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ROTULO_PERFIL, type ModuloId } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, useToast, rotuloDoPerfil } from '@macuxi/ui/web';
-import { CriarUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type LicencasEstado, type UsuarioItem } from '../../../contracts';
+import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, IconeModulo, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, useToast, rotuloDoPerfil, type AcaoDoMenu, type IdDoModulo } from '@macuxi/ui/web';
+import { CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type LicencasEstado, type UsuarioItem } from '../../../contracts';
 import { efetivosPelasDependencias } from '../../../domain/licencas';
 import {
   acaoDeSenha,
@@ -29,17 +29,27 @@ import {
   ERRO_SEM_PERFIL,
   opcoesDeChefia,
   pessoasDaLista,
+  seloDoUsuario,
+  type SeloDoUsuario,
 } from '../../lib/usuarios';
 import { regrasDoCargo } from '../../../domain/cargos';
 import { modulosExibiveis, removidosDoFormulario } from '../../lib/acesso';
 import { efetivosDoUsuario } from '../../lib/licencas';
-import { IconeComNome, IconeDoModulo } from '../acesso/icones-modulo';
-import { MenuDaLinha } from '../acesso/menu-linha';
+import { useMe } from '../../lib/queries';
 
 const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
 const BOTAO_LINHA = 'h-[44px] min-w-[88px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled';
 
 type Modal = { tipo: 'form'; usuario: UsuarioItem | null } | { tipo: 'ativo'; usuario: UsuarioItem } | { tipo: 'senha'; usuario: UsuarioItem } | null;
+
+/** Ícone do módulo na coluna "Módulos", com o nome para leitor de tela e dica (nome e ícone de `modulos.tsx`, §P10). */
+function IconeComNome({ id, nome }: { id: IdDoModulo; nome: string }) {
+  return (
+    <span role="img" aria-label={nome} title={nome} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-ground text-ink">
+      <IconeModulo id={id} size={18} />
+    </span>
+  );
+}
 
 function Campo({ rotulo, erro, children }: { rotulo: string; erro?: string; children: ReactNode }) {
   return (
@@ -53,7 +63,8 @@ function Campo({ rotulo, erro, children }: { rotulo: string; erro?: string; chil
 
 /**
  * Tela "Usuários" do BKO (RF-CORE-02; T-0067; T-0094; simplificada a pedido do dono do produto, R-20261114-144500): título, "Novo usuário"
- * e a tabela Nome · E-mail · Perfil · Módulos · ⋯ (Editar, Desativar, Redefinir senha). "Novo usuário" e "Editar" abrem numa gaveta com
+ * e a tabela Nome · E-mail · Perfil · Módulos · ⋯ (Desbloquear, Editar, Redefinir senha, Desativar). Um selo por linha: Inativo, Bloqueado ou
+ * Bloqueado até HHhMM (docs/design/telas/usuario-bloqueio.md); "Desbloquear" age na hora, sem confirmação nem aviso: o selo some. "Novo usuário" e "Editar" abrem numa gaveta com
  * Nome, E-mail, Perfil e Módulos; a senha inicial é gerada e vai por e-mail (RN-CORE-34). Os módulos vêm da licença (RN-CORE-01: a exceção
  * do usuário só remove, e só dentro do que o perfil tem); Core, Catálogo e Integração não aparecem. Escrita só para quem tem as chaves do
  * motor (`usuario.criar|editar|desativar`, `senha.redefinir`); a API revalida. testIDs: docs/modulos/core/test-ids.md.
@@ -67,6 +78,12 @@ export function UsuariosConteudo() {
   const podeEditar = usePode('usuario.editar');
   const podeDesativar = usePode('usuario.desativar');
   const podeSenha = usePode('senha.redefinir');
+  const podeDesbloquear = usePode('usuario.desbloquear');
+  const fuso = useMe().data.tenant.timezone;
+  const [agora, setAgora] = useState(() => new Date());
+  const [anuncio, setAnuncio] = useState('');
+  const [erroDaLista, setErroDaLista] = useState<string | null>(null);
+  const campoNome = useRef<HTMLInputElement>(null);
   const [modal, setModal] = useState<Modal>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [form, setForm] = useState<FormularioUsuario>(FORMULARIO_VAZIO);
@@ -101,6 +118,14 @@ export function UsuariosConteudo() {
       return UsuarioListaRespostaSchema.parse(await api(`/core/usuarios${qs.size ? `?${qs.toString()}` : ''}`)).itens;
     },
   });
+  // §2: o selo "Bloqueado até" some sozinho; relógio de 1 min só enquanto houver um na lista
+  const temBloqueioComHora = (lista.data ?? []).some((u) => u.bloqueio === 'tentativas');
+  useEffect(() => setAgora(new Date()), [lista.dataUpdatedAt]);
+  useEffect(() => {
+    if (!temBloqueioComHora) return;
+    const t = setInterval(() => setAgora(new Date()), 60_000);
+    return () => clearInterval(t);
+  }, [temBloqueioComHora]);
   const perfisQ = useQuery({ queryKey: ['core', 'perfis', 'opcoes'], queryFn: async () => PerfilOpcoesRespostaSchema.parse(await api('/core/perfis/opcoes')).itens });
   const opcoesDePerfil = perfisQ.data ?? [];
   // só o admin lê as licenças (`modulo.gerir_licencas`); sem elas a coluna e a lista de módulos não aparecem
@@ -205,6 +230,25 @@ export function UsuariosConteudo() {
     },
   });
 
+  const desbloquear = useMutation({
+    mutationFn: async ({ u }: { u: UsuarioItem; naGaveta: boolean }) => DesbloquearUsuarioRespostaSchema.parse(await api(`/core/usuarios/${u.id}/bloqueio`, { method: 'DELETE' })),
+    onMutate: () => {
+      setErroDaLista(null);
+      setAnuncio('');
+    },
+    onSuccess: async (_r, { u, naGaveta }) => {
+      // §5: sem toast nem aviso; o selo some e o leitor de tela ouve "Desbloqueado."
+      qc.setQueriesData<UsuarioItem[]>({ queryKey: ['core', 'usuarios'] }, (velha) => velha?.map((x) => (x.id === u.id ? { ...x, bloqueio: null, bloqueio_ate: null } : x)));
+      if (modal?.tipo === 'form' && modal.usuario?.id === u.id) setModal({ tipo: 'form', usuario: { ...modal.usuario, bloqueio: null, bloqueio_ate: null } });
+      setAnuncio('Desbloqueado.');
+      if (naGaveta) campoNome.current?.focus();
+      await qc.invalidateQueries({ queryKey: ['core', 'usuarios'] });
+    },
+    onError: (e, { naGaveta }) => (naGaveta ? setErroApi(errorMessage(e)) : setErroDaLista(errorMessage(e))),
+  });
+  const desbloqueando = (u: UsuarioItem) => desbloquear.isPending && desbloquear.variables?.u.id === u.id;
+  const seloDe = (u: UsuarioItem): SeloDoUsuario | null => seloDoUsuario(u, agora, fuso);
+
   const set = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(params.toString());
     for (const [k, v] of Object.entries(patch)) {
@@ -236,28 +280,19 @@ export function UsuariosConteudo() {
   const rotuloDoPerfilDe = (u: UsuarioItem) => (u.perfis[0] ? rotuloDoPerfil(u.perfis[0].codigo, { nome: u.perfis[0].nome }) : ROTULO_PERFIL[u.perfil]);
   const supervisores = opcoesDeChefia(ativos, 'supervisor', cargo === 'promotor' ? form.gerente_id : '').filter((u) => u.id !== editando?.id);
   const gerentes = opcoesDeChefia(ativos, 'gerente').filter((u) => u.id !== editando?.id);
-  const menuDe = (u: UsuarioItem) => [
-    ...(podeEditar ? [{ rotulo: 'Editar', onSelecionar: () => abrirForm(u), testId: `usuarios.editar.${u.id}` }] : []),
-    ...(podeDesativar
-      ? [
-          {
-            rotulo: u.ativo ? 'Desativar' : 'Reativar',
-            perigo: u.ativo,
-            testId: `usuarios.alternar.${u.id}`,
-            onSelecionar: () => {
-              setAviso(null);
-              setErroApi(null);
-              setModal({ tipo: 'ativo', usuario: u });
-            },
-          },
-        ]
+  // ordem do menu (§3 de usuario-bloqueio.md): Desbloquear · Editar · Redefinir senha · ── · Desativar (o MenuAcoes põe o perigo por último)
+  const menuDe = (u: UsuarioItem): AcaoDoMenu[] => [
+    ...(podeDesbloquear && seloDe(u)?.bloqueado
+      ? [{ id: 'desbloquear', rotulo: desbloqueando(u) ? 'Desbloqueando…' : 'Desbloquear', desligada: desbloqueando(u), aoEscolher: () => desbloquear.mutate({ u, naGaveta: false }), testId: `usuarios.desbloquear.${u.id}` }]
       : []),
+    ...(podeEditar ? [{ id: 'editar', rotulo: 'Editar', aoEscolher: () => abrirForm(u), testId: `usuarios.editar.${u.id}` }] : []),
     ...(podeSenha && acaoDeSenha(u)
       ? [
           {
+            id: 'senha',
             rotulo: acaoDeSenha(u)!.rotulo,
             testId: `usuarios.senha.${u.id}`,
-            onSelecionar: () => {
+            aoEscolher: () => {
               setAviso(null);
               setErroApi(null);
               setNovaSenha('');
@@ -266,7 +301,23 @@ export function UsuariosConteudo() {
           },
         ]
       : []),
+    ...(podeDesativar
+      ? [
+          {
+            id: 'alternar',
+            rotulo: u.ativo ? 'Desativar' : 'Reativar',
+            perigo: u.ativo,
+            testId: `usuarios.alternar.${u.id}`,
+            aoEscolher: () => {
+              setAviso(null);
+              setErroApi(null);
+              setModal({ tipo: 'ativo', usuario: u });
+            },
+          },
+        ]
+      : []),
   ];
+  const seloDaGaveta = editando && podeDesbloquear ? seloDe(editando) : null;
 
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="usuarios.tela">
@@ -297,6 +348,14 @@ export function UsuariosConteudo() {
           {aviso}
         </Notice>
       )}
+      {erroDaLista && (
+        <Notice tone="danger" onClose={() => setErroDaLista(null)}>
+          <span data-testid="usuarios.erro-lista">{erroDaLista}</span>
+        </Notice>
+      )}
+      <span className="sr-only" aria-live="polite" data-testid="usuarios.anuncio">
+        {anuncio}
+      </span>
       <FilterBar>
         <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
           Buscar por nome ou e-mail
@@ -350,12 +409,17 @@ export function UsuariosConteudo() {
               )}
               {itens.map((u) => {
                 const modulos = licencas ? modulosExibiveis(efetivosDoUsuario(licencas, u.id)) : null;
+                const selo = seloDe(u);
                 return (
                   <tr key={u.id} data-testid={`usuarios.linha.${u.id}`}>
                     <td className={td}>
                       <span className="flex flex-wrap items-center gap-2">
                         {u.nome}
-                        {!u.ativo && <Badge tone="neutral">Inativo</Badge>}
+                        {selo && (
+                          <span data-testid={`usuarios.selo.${u.id}`}>
+                            <Badge tone={selo.tom}>{selo.texto}</Badge>
+                          </span>
+                        )}
                       </span>
                     </td>
                     <td className={`${td} whitespace-nowrap`}>{u.email}</td>
@@ -365,12 +429,12 @@ export function UsuariosConteudo() {
                         '—'
                       ) : (
                         <span className="flex flex-wrap gap-1" data-testid={`usuarios.modulos.${u.id}`}>
-                          {modulos.length === 0 ? '—' : modulos.map((m) => <IconeComNome key={m.id} id={m.id} />)}
+                          {modulos.length === 0 ? '—' : modulos.map((m) => <IconeComNome key={m.id} id={m.id} nome={m.nome} />)}
                         </span>
                       )}
                     </td>
                     <td className={`${td} w-[56px] text-right`}>
-                      <MenuDaLinha rotulo={`Ações de ${u.nome}`} itens={menuDe(u)} testId={`usuarios.menu.${u.id}`} />
+                      <MenuAcoes rotulo={`Ações de ${u.nome}`} acoes={menuDe(u)} testId={`usuarios.menu.${u.id}`} />
                     </td>
                   </tr>
                 );
@@ -392,8 +456,16 @@ export function UsuariosConteudo() {
             if (erros.length === 0 && !ocupado) salvar.mutate({ editando, corpo });
           }}
         >
+          {editando && seloDaGaveta?.bloqueado && (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface px-3 py-[3px]" data-testid="usuarios.gaveta-bloqueio">
+              <Badge tone={seloDaGaveta.tom}>{seloDaGaveta.texto}</Badge>
+              <Button size="sm" disabled={desbloqueando(editando)} onClick={() => desbloquear.mutate({ u: editando, naGaveta: true })} data-testid="usuarios.gaveta-desbloquear">
+                {desbloqueando(editando) ? 'Desbloqueando…' : 'Desbloquear'}
+              </Button>
+            </div>
+          )}
           <Campo rotulo="Nome" erro={erroDe('nome')}>
-            <input value={form.nome} onChange={(e) => upd({ nome: e.target.value })} className={CAMPO} data-testid="usuarios.campo-nome" />
+            <input ref={campoNome} value={form.nome} onChange={(e) => upd({ nome: e.target.value })} className={CAMPO} data-testid="usuarios.campo-nome" />
           </Campo>
           <Campo rotulo="E-mail" erro={erroDe('email')}>
             <input type="email" value={form.email} onChange={(e) => upd({ email: e.target.value })} className={CAMPO} data-testid="usuarios.campo-email" />
@@ -473,7 +545,7 @@ export function UsuariosConteudo() {
                       }
                       data-testid={`usuarios.modulo.${m.id}`}
                     />
-                    <IconeDoModulo id={m.id} />
+                    <IconeModulo id={m.id} size={18} />
                     {m.nome}
                   </label>
                 );

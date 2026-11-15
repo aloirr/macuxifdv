@@ -43,8 +43,8 @@ describe('Acesso: módulos exibíveis (R-20261114-144500)', () => {
     expect(modulosExibiveis(['core', 'vendedor', 'vendedor', 'gestor']).map((m) => m.id)).toEqual(['gestor', 'vendedor']);
   });
 
-  it('a grade do novo perfil começa por Geral e segue só com os licenciados', () => {
-    expect(modulosDaGrade(['core', 'vendedor', 'pesquisa', 'catalogo']).map((m) => m.nome)).toEqual(['Geral', 'Pesquisa', 'Vendedor']);
+  it('a grade do novo perfil começa pelo Core (§P10) e segue só com os licenciados', () => {
+    expect(modulosDaGrade(['core', 'vendedor', 'pesquisa', 'catalogo']).map((m) => m.nome)).toEqual(['Core', 'Pesquisa', 'Vendedor']);
   });
 });
 

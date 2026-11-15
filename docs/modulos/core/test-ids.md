@@ -103,6 +103,10 @@ Pedido do `testes` (R-20261030-235542-testes). **Contrato estável**: o nome só
 | `usuarios.busca` · `usuarios.filtro-perfil` · `usuarios.filtro-equipe` · `usuarios.filtro-situacao` | filtros (ficam na URL: `q`, `perfil`, `equipe`, `situacao`) |
 | `usuarios.linha.<id>` | linha do usuário |
 | `usuarios.editar.<id>` · `usuarios.alternar.<id>` · `usuarios.senha.<id>` | Editar, Desativar/Reativar e "Redefinir senha"/"Enviar acesso" (só admin; a senha não aparece para admin nem inativo) |
+| `usuarios.menu.<id>` · `usuarios.desbloquear.<id>` | menu "⋯" da linha (`MenuAcoes` do kit) e "Desbloquear" (primeiro item, só com selo de bloqueio e `usuario.desbloquear`) |
+| `usuarios.selo.<id>` | selo único da linha: "Inativo", "Bloqueado" ou "Bloqueado até HHhMM" (docs/design/telas/usuario-bloqueio.md §2) |
+| `usuarios.gaveta-bloqueio` · `usuarios.gaveta-desbloquear` | faixa do bloqueio na gaveta "Editar usuário" e o botão "Desbloquear" (age na hora, fora do Salvar) |
+| `usuarios.anuncio` · `usuarios.erro-lista` | anúncio "Desbloqueado." só para leitor de tela; erro do Desbloquear fora da gaveta |
 | `usuarios.etiqueta-senha.<id>` | etiqueta "Troca de senha pendente · vence em …", "Senha temporária vencida" ou "Sem senha" |
 | `usuarios.gerar-senha` · `usuarios.mostrar-senha` · `usuarios.aviso-email` | formulário: "Gerar senha", olho e ajuda do e-mail |
 | `usuarios.aviso-sem-email` · `usuarios.copiar-senha` | aviso quando o e-mail não saiu (mostra a senha uma vez) e "Copiar senha" |

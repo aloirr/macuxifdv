@@ -22,6 +22,7 @@ import {
   LinhaDePermissao,
   LoadingBlock,
   NOTA_DO_RESUMO,
+  MenuAcoes,
   Notice,
   PageHeader,
   Panel,
@@ -66,7 +67,6 @@ import {
   type RegistroSobre,
 } from '../../lib/perfis';
 import { contagemPorPerfil } from '../../lib/acesso';
-import { MenuDaLinha } from '../acesso/menu-linha';
 import { NovoPerfil } from './novo-perfil';
 
 const CAMPO = 'h-[44px] w-full rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink disabled:bg-ground disabled:text-ink-2';
@@ -160,13 +160,13 @@ function ListaDePerfis() {
                   )}
                 </td>
                 <td className={`${td} text-right`}>
-                  <MenuDaLinha
+                  <MenuAcoes
                     rotulo={`Ações de ${p.nome}`}
                     testId={`perfis.menu.${p.codigo}`}
-                    itens={[
-                      { rotulo: 'Editar', onSelecionar: () => abrir(p.codigo), testId: `perfis.editar.${p.codigo}` },
-                      ...(!p.fabrica && p.ativo ? [{ rotulo: 'Desativar', perigo: true, onSelecionar: () => setAcao({ tipo: 'desativar', perfil: p }), testId: `perfis.desativar.${p.codigo}` }] : []),
-                      ...(!p.fabrica && !p.ativo ? [{ rotulo: 'Reativar', onSelecionar: () => setAcao({ tipo: 'reativar', perfil: p }), testId: `perfis.reativar.${p.codigo}` }] : []),
+                    acoes={[
+                      { id: 'editar', rotulo: 'Editar', aoEscolher: () => abrir(p.codigo), testId: `perfis.editar.${p.codigo}` },
+                      ...(!p.fabrica && p.ativo ? [{ id: 'desativar', rotulo: 'Desativar', perigo: true, aoEscolher: () => setAcao({ tipo: 'desativar', perfil: p }), testId: `perfis.desativar.${p.codigo}` }] : []),
+                      ...(!p.fabrica && !p.ativo ? [{ id: 'reativar', rotulo: 'Reativar', aoEscolher: () => setAcao({ tipo: 'reativar', perfil: p }), testId: `perfis.reativar.${p.codigo}` }] : []),
                     ]}
                   />
                 </td>

@@ -44,6 +44,10 @@ export function limiteDescontoCompleto(l: LimiteDesconto): boolean {
 }
 export const MENSAGEM_DESCONTO_PEDIDO_OBRIGATORIO = 'Informe o desconto máximo do pedido.';
 
+/** `admin` = `bloqueado_em` preenchido; `tentativas` = `bloqueio_ate` no futuro (5 senhas erradas, 15 min). */
+export const BloqueioDoUsuarioSchema = z.enum(['tentativas', 'admin']);
+export type BloqueioDoUsuario = z.infer<typeof BloqueioDoUsuarioSchema>;
+
 export const UsuarioItemSchema = z
   .object({
     ...LimiteDescontoSchema.shape,
@@ -53,7 +57,7 @@ export const UsuarioItemSchema = z
     email: z.string(),
     /** Perfil principal (base). */
     perfil: PerfilSchema,
-    /** T-0111: todos os perfis do usuário, o principal primeiro. */
+    /** O perfil do usuário (RN-CORE-54: lista de um item). */
     perfis: z.array(PerfilDoUsuarioSchema).default([]),
     equipe_id: Uuid.nullable(),
     equipe_nome: z.string().nullable(),
@@ -73,9 +77,17 @@ export const UsuarioItemSchema = z
     cargo: CargoSchema.nullable().optional(),
     supervisor_id: Uuid.nullable().optional(),
     gerente_id: Uuid.nullable().optional(),
+    /** Por que a pessoa não entra hoje, fora o inativo (que vem em `ativo`): `estadoDoLogin` do domain, o mesmo do login. */
+    bloqueio: BloqueioDoUsuarioSchema.nullable().optional(),
+    /** Fim do bloqueio por tentativas (UTC, ISO); nulo fora dele. A tela mostra no fuso do tenant. */
+    bloqueio_ate: z.string().datetime().nullable().optional(),
   })
   .strict();
 export type UsuarioItem = z.infer<typeof UsuarioItemSchema>;
+
+/** `DELETE /core/usuarios/:id/bloqueio`: zera tentativas, `bloqueio_ate` e `bloqueado_em`; idempotente. */
+export const DesbloquearUsuarioRespostaSchema = z.object({ id: Uuid, bloqueio: z.null() }).strict();
+export type DesbloquearUsuarioResposta = z.infer<typeof DesbloquearUsuarioRespostaSchema>;
 
 export const UsuarioListaQuerySchema = z
   .object({

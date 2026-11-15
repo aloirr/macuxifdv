@@ -24,6 +24,7 @@ import {
   MENSAGEM_DESCONTO_PEDIDO_OBRIGATORIO,
   limiteDescontoCompleto,
   type CriarUsuarioResposta,
+  type DesbloquearUsuarioResposta,
   type EquipeOpcao,
   type RedefinirSenhaResposta,
   type UsuarioItem,
@@ -42,6 +43,7 @@ import {
   gerarSenhaTemporaria,
   hierarquiaDoCargo,
   podeRedefinirSenha,
+  estadoDoLogin,
   validadeDaSenhaTemporaria,
   validarSenhaInicial,
   type EquipeLinha,
@@ -100,12 +102,16 @@ interface LinhaUsuario {
   cargo?: string | null;
   supervisor_id?: string | null;
   gerente_id?: string | null;
+  /** Colunas do bloqueio do login; viram `bloqueio`/`bloqueio_ate` em `montarItens` e não vão à resposta. */
+  bloqueado_admin?: boolean;
+  bloqueio_ate_login?: string | null;
 }
 
 const SELECT_USUARIO = `select u.id, u.nome, u.nome_curto, u.email, u.perfil, u.equipe_id, e.nome as equipe_nome, u.ativo, u.external_id,
          to_char(u.ultimo_login_em at time zone 'UTC', ${ISO}) as ultimo_login_em,
          u.trocar_senha, to_char(u.senha_expira_em at time zone 'UTC', ${ISO}) as senha_expira_em, (u.senha_hash is null) as sem_senha,
-         u.desconto_limita_item, u.desconto_limita_pedido, u.desconto_maximo_pedido_permil, h.cargo, h.supervisor_id, h.gerente_id
+         u.desconto_limita_item, u.desconto_limita_pedido, u.desconto_maximo_pedido_permil, h.cargo, h.supervisor_id, h.gerente_id,
+         (u.bloqueado_em is not null) as bloqueado_admin, to_char(u.bloqueio_ate at time zone 'UTC', ${ISO}) as bloqueio_ate_login
     from core.usuario u left join core.equipe e on e.id = u.equipe_id and e.deleted_at is null
     left join core.v_usuario_hierarquia h on h.usuario_id = u.id`;
 
@@ -138,7 +144,16 @@ async function perfisDosUsuarios(db: ClienteBanco, ids: readonly string[]): Prom
   return m;
 }
 
-async function montarItens(db: ClienteBanco, linhas: readonly LinhaUsuario[], visiveis: Visiveis): Promise<UsuarioItem[]> {
+/** O bloqueio do login pela mesma regra do login (`estadoDoLogin`), sem o inativo, que já vem em `ativo`. */
+export function bloqueioDaLinha(l: { bloqueado_admin?: boolean; bloqueio_ate_login?: string | null }, agora: Date): Pick<UsuarioItem, 'bloqueio' | 'bloqueio_ate'> {
+  const bloqueioAte = l.bloqueio_ate_login ? new Date(l.bloqueio_ate_login) : null;
+  const estado = estadoDoLogin({ ativo: true, bloqueadoEm: l.bloqueado_admin ? agora : null, bloqueioAte, agora });
+  if (estado === 'bloqueado_admin') return { bloqueio: 'admin', bloqueio_ate: null };
+  if (estado === 'bloqueado_tentativas') return { bloqueio: 'tentativas', bloqueio_ate: l.bloqueio_ate_login ?? null };
+  return { bloqueio: null, bloqueio_ate: null };
+}
+
+async function montarItens(db: ClienteBanco, linhas: readonly LinhaUsuario[], visiveis: Visiveis, agora: Date = new Date()): Promise<UsuarioItem[]> {
   const hierarquia = montarHierarquia(
     await equipesAtivas(db),
     linhas.map((l) => ({ id: l.id, nome: l.nome, perfil: l.perfil, equipe_id: l.equipe_id, ativo: l.ativo })),
@@ -146,9 +161,9 @@ async function montarItens(db: ClienteBanco, linhas: readonly LinhaUsuario[], vi
   const superiorDe = new Map(hierarquia.map((m) => [m.id, superiorVisivel(m.superior_id, visiveis)]));
   const nomes = await nomesDe(db, [...superiorDe.values()].filter((x): x is string => x !== null));
   const perfisDe = await perfisDosUsuarios(db, linhas.map((l) => l.id));
-  return linhas.map((l) => {
+  return linhas.map(({ bloqueado_admin, bloqueio_ate_login, ...l }) => {
     const sup = superiorDe.get(l.id) ?? null;
-    return UsuarioItemSchema.parse({ ...l, perfis: perfisDe.get(l.id) ?? [], superior_id: sup, superior_nome: sup ? (nomes.get(sup) ?? null) : null });
+    return UsuarioItemSchema.parse({ ...l, ...bloqueioDaLinha({ bloqueado_admin, bloqueio_ate_login }, agora), perfis: perfisDe.get(l.id) ?? [], superior_id: sup, superior_nome: sup ? (nomes.get(sup) ?? null) : null });
   });
 }
 
@@ -241,7 +256,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
       return ctx.comTenant(async (db) => {
         const r = await db.query<LinhaUsuario>(`${SELECT_USUARIO} where ${onde.join(' and ')} order by u.nome, u.id limit ${LIMITE}`, valores);
         // o filtro SQL já recortou; `recortarUsuarios` é a mesma regra do domínio, aplicada de novo como cinto de segurança
-        return { itens: await montarItens(db, recortarUsuarios(r.rows, visiveis), visiveis) };
+        return { itens: await montarItens(db, recortarUsuarios(r.rows, visiveis), visiveis, ctx.agora()) };
       });
     },
   },
@@ -460,6 +475,39 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
       }),
   },
   {
+    // Desbloquear o login (spec docs/design/telas/usuario-bloqueio.md §6.2): zera tentativas, bloqueio por tentativas e do admin.
+    // Não mexe em `ativo`, na senha nem nas sessões. Idempotente: quem já está livre volta 200 sem auditoria nova.
+    metodo: 'DELETE',
+    caminho: 'usuarios/:id/bloqueio',
+    superficie: 'bko',
+    acao: 'usuario.desbloquear',
+    carteira: 'nao_se_aplica',
+    params: IdParam,
+    executar: (ctx): Promise<DesbloquearUsuarioResposta> =>
+      ctx.comTenant(async (db) => {
+        const r = await db.query<{ id: string; bloqueado_admin: boolean; bloqueio_ate_login: string | null; tentativas_falhas: number }>(
+          `select id, (bloqueado_em is not null) as bloqueado_admin, to_char(bloqueio_ate at time zone 'UTC', ${ISO}) as bloqueio_ate_login, tentativas_falhas
+             from core.usuario where id = $1 and deleted_at is null for update`,
+          [ctx.params.id],
+        );
+        const antes = r.rows[0];
+        if (!antes) throw naoEncontrado();
+        const bloqueio = bloqueioDaLinha(antes, ctx.agora());
+        if (bloqueio.bloqueio !== null) {
+          await db.query('update core.usuario set tentativas_falhas = 0, bloqueio_ate = null, bloqueado_em = null where id = $1', [antes.id]);
+          // RN-AUD-01: só o id, sem nome nem e-mail
+          await auditar(db, ctx, {
+            acao: 'usuario.desbloquear',
+            entidade: 'usuario',
+            entidadeId: antes.id,
+            antes: { ...bloqueio, tentativas_falhas: Number(antes.tentativas_falhas) },
+            depois: { bloqueio: null, bloqueio_ate: null, tentativas_falhas: 0 },
+          });
+        }
+        return { id: antes.id, bloqueio: null };
+      }),
+  },
+  {
     metodo: 'PUT',
     caminho: 'usuarios/:id/senha',
     superficie: 'bko',
@@ -471,7 +519,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
       ctx.comTenant(async (db) => {
         const alvo = await buscarParaAlterar(db, ctx.params.id);
         // P7: nunca a própria conta nem um admin; o alvo precisa estar ativo (o super-admin do portal age como admin)
-        // T-0111: TODOS os perfis reais do alvo (um [analista, admin] é admin); a lista da chave tem de cobrir cada um
+        // T-0111: o perfil real do alvo (personalizado inclusive); a lista da chave tem de cobri-lo
         const refsDoAlvo = await refsDoUsuario(db, alvo.id, alvo.perfil as Perfil);
         const pode = podeRedefinirSenha({ id: ctx.usuario.id, perfis: ctx.usuario.perfis ?? [] }, { id: alvo.id, perfis: refsDoAlvo, ativo: alvo.ativo });
         if (!pode.ok) throw new ErroRegraNegocio(pode.codigo, pode.mensagem, { regra: 'RN-CORE-35' });

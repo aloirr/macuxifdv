@@ -4,7 +4,7 @@ import { CriarUsuarioRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioItemSc
 import type { MensagemEmail, ServicoEmail } from './email';
 import { manifest } from '../manifest';
 import { perfisDeFabrica } from '../domain';
-import { rotasDeUsuarios } from './usuarios';
+import { bloqueioDaLinha, rotasDeUsuarios } from './usuarios';
 
 const TENANT = '0a000000-0000-4000-8000-0000000000aa';
 const ADMIN = { id: '0b000000-0000-4000-8000-0000000000ad', tenant_id: TENANT, perfil: 'admin' as const, modulos: ['core' as const], perfis: perfisDeFabrica('admin') };
@@ -82,7 +82,7 @@ describe('RF-CORE-02: permissões das rotas de usuários (T-0067)', () => {
   const permissoes = criarPermissoes([manifest]);
   it('RF-CORE-02/RN-CORE-35: criar, editar, desativar e redefinir senha são chaves do motor (fábrica = só o admin; 403 para os demais)', () => {
     const chaves = { 'POST usuarios': 'usuario.criar', 'PUT usuarios/:id': 'usuario.editar', 'PUT usuarios/:id/ativo': 'usuario.desativar', 'PUT usuarios/:id/senha': 'senha.redefinir' };
-    for (const r of rotasDeUsuarios.filter((x) => x.metodo !== 'GET')) expect(r.acao, `${r.metodo} ${r.caminho}`).toBe(chaves[`${r.metodo} ${r.caminho}` as keyof typeof chaves]);
+    for (const r of rotasDeUsuarios.filter((x) => x.metodo !== 'GET' && x.metodo !== 'DELETE')) expect(r.acao, `${r.metodo} ${r.caminho}`).toBe(chaves[`${r.metodo} ${r.caminho}` as keyof typeof chaves]);
     for (const chave of Object.values(chaves)) {
       for (const perfil of PERFIS.filter((p) => p !== 'admin')) {
         expect(verificarAcao({ id: 'x', tenant_id: 'y', perfil, modulos: ['core'], perfis: perfisDeFabrica(perfil) }, permissoes, chave).ok, `${perfil} ${chave}`).toBe(false);
@@ -95,8 +95,13 @@ describe('RF-CORE-02: permissões das rotas de usuários (T-0067)', () => {
     expect(quem).toEqual(['gerente', 'admin']);
     for (const r of rotasDeUsuarios.filter((x) => x.metodo === 'GET')) expect(r.acao).toBe('usuario.ver');
   });
-  it('RF-CORE-02: não existe rota de remoção (nunca apaga usuário)', () => {
-    expect(rotasDeUsuarios.some((r) => r.metodo === 'DELETE')).toBe(false);
+  it('RF-CORE-02: não existe rota de remoção (nunca apaga usuário); o único DELETE tira o bloqueio do login', () => {
+    expect(rotasDeUsuarios.filter((r) => r.metodo === 'DELETE').map((r) => r.caminho)).toEqual(['usuarios/:id/bloqueio']);
+  });
+  it('usuario-bloqueio §6.3: desbloquear é de admin e analista (o resto recebe 403)', () => {
+    expect(rota('DELETE', 'usuarios/:id/bloqueio').acao).toBe('usuario.desbloquear');
+    const quem = PERFIS.filter((perfil) => verificarAcao({ id: 'x', tenant_id: 'y', perfil, modulos: ['core'] }, permissoes, 'usuario.desbloquear').ok);
+    expect(quem.sort()).toEqual(['admin', 'analista']);
   });
 });
 
@@ -389,28 +394,6 @@ describe('T-0111 (RN-CORE-35): PUT com o campo legado perfil', () => {
   });
 });
 
-describe('T-0111 (RN-CORE-35): editar e desativar olham todos os perfis do alvo e o estado real do tenant', () => {
-  it('RN-CORE-35: desativar o único admin que é [analista, admin] (principal analista) é recusado: ULTIMO_ADMIN', async () => {
-    const { db, chamadas } = fakeDb([
-      [/id = any\(/, [{ id: ALVO, perfil: 'analista', ativo: true }]],
-      ...carga([{ id: ALVO, perfis: ['analista', 'admin'] }]),
-      [/for update/, [bruto({ perfil: 'analista' })]],
-    ]);
-    await expect(executar(rota('PUT', 'usuarios/:id/ativo'), contexto(db), { params: { id: ALVO }, corpo: { ativo: false } })).rejects.toMatchObject({ status: 422, codigo: 'ULTIMO_ADMIN' });
-    expect(chamadas.some((c) => /update core.usuario/.test(c.sql))).toBe(false);
-  });
-  it('RN-CORE-35: com outro admin ativo, desativar o [analista, admin] passa', async () => {
-    const { db } = fakeDb([
-      [/id = any\(/, [{ id: ALVO, perfil: 'analista', ativo: true }]],
-      ...carga([{ id: ALVO, perfis: ['analista', 'admin'] }, { id: 'a2', perfis: ['admin'] }]),
-      [/for update/, [bruto({ perfil: 'analista' })]],
-      [/from core.usuario u left join/, [linhaItem({ ativo: false })]],
-    ]);
-    const r = UsuarioItemSchema.parse(await executar(rota('PUT', 'usuarios/:id/ativo'), contexto(db), { params: { id: ALVO }, corpo: { ativo: false } }));
-    expect(r.ativo).toBe(false);
-  });
-});
-
 describe('RN-CORE-34: redefinir senha (BKO)', () => {
   const ROTA = () => rota('PUT', 'usuarios/:id/senha');
   const alvo = (o: Record<string, unknown> = {}) => bruto(o);
@@ -538,5 +521,44 @@ describe('RN-CORE-04: lista recortada pelo escopo', () => {
     expect(sql.sql).not.toContain('any($1::uuid[])');
     expect(sql.valores).toContain('%ver\\_a%');
     expect(r.itens[0]).toMatchObject({ superior_id: GER, superior_nome: 'Gabi Gerente' });
+  });
+});
+
+describe('usuario-bloqueio §6: bloqueio do login na lista e Desbloquear (BKO)', () => {
+  const AGORA = new Date('2026-11-03T12:00:00Z');
+  it('§6.1: a lista traz o bloqueio pela regra do login (admin vale mais; tentativas só com bloqueio_ate no futuro)', () => {
+    expect(bloqueioDaLinha({ bloqueado_admin: true, bloqueio_ate_login: '2026-11-03T12:10:00.000Z' }, AGORA)).toEqual({ bloqueio: 'admin', bloqueio_ate: null });
+    expect(bloqueioDaLinha({ bloqueado_admin: false, bloqueio_ate_login: '2026-11-03T12:10:00.000Z' }, AGORA)).toEqual({ bloqueio: 'tentativas', bloqueio_ate: '2026-11-03T12:10:00.000Z' });
+    expect(bloqueioDaLinha({ bloqueado_admin: false, bloqueio_ate_login: '2026-11-03T11:59:00.000Z' }, AGORA)).toEqual({ bloqueio: null, bloqueio_ate: null });
+    expect(bloqueioDaLinha({}, AGORA)).toEqual({ bloqueio: null, bloqueio_ate: null });
+  });
+  it('§6.1: GET usuarios devolve bloqueio e bloqueio_ate, sem as colunas cruas', async () => {
+    const { db } = fakeDb([[/from core.usuario u left join/, [linhaItem({ bloqueado_admin: false, bloqueio_ate_login: '2026-11-03T12:10:00.000Z' })]]]);
+    const r = (await executar(rota('GET', 'usuarios'), contexto(db), {})) as { itens: Array<Record<string, unknown>> };
+    expect(r.itens[0]).toMatchObject({ bloqueio: 'tentativas', bloqueio_ate: '2026-11-03T12:10:00.000Z' });
+    expect(r.itens[0]).not.toHaveProperty('bloqueado_admin');
+  });
+  it('§6.2/RN-AUD-01: desbloquear zera tentativas, bloqueio_ate e bloqueado_em, sem mexer em ativo, senha nem sessões; audita só o id', async () => {
+    const { db, chamadas } = fakeDb([[/for update/, [{ id: ALVO, bloqueado_admin: false, bloqueio_ate_login: '2026-11-03T12:10:00.000Z', tentativas_falhas: 5 }]]]);
+    const r = await executar(rota('DELETE', 'usuarios/:id/bloqueio'), contexto(db), { params: { id: ALVO } });
+    expect(r).toEqual({ id: ALVO, bloqueio: null });
+    const update = chamadas.filter((c) => /update core.usuario/.test(c.sql));
+    expect(update).toHaveLength(1);
+    expect(update[0]!.sql).toMatch(/tentativas_falhas = 0, bloqueio_ate = null, bloqueado_em = null/);
+    expect(update[0]!.sql).not.toMatch(/ativo|senha|sessao_versao/);
+    expect(chamadas.some((c) => /core.sessao/.test(c.sql))).toBe(false);
+    const a = jsonDaAuditoria(chamadas);
+    expect(a).toContain('usuario.desbloquear');
+    expect(a).not.toContain('vera');
+  });
+  it('§6.2: idempotente: quem já está livre volta 200 sem gravação nem auditoria', async () => {
+    const { db, chamadas } = fakeDb([[/for update/, [{ id: ALVO, bloqueado_admin: false, bloqueio_ate_login: '2026-11-03T11:00:00.000Z', tentativas_falhas: 5 }]]]);
+    expect(await executar(rota('DELETE', 'usuarios/:id/bloqueio'), contexto(db), { params: { id: ALVO } })).toEqual({ id: ALVO, bloqueio: null });
+    expect(chamadas.some((c) => /update core.usuario/.test(c.sql))).toBe(false);
+    expect(aud(chamadas)).toHaveLength(0);
+  });
+  it('§6.2: usuário de outro tenant ou apagado: 404', async () => {
+    const { db } = fakeDb([]);
+    await expect(executar(rota('DELETE', 'usuarios/:id/bloqueio'), contexto(db), { params: { id: ALVO } })).rejects.toMatchObject({ status: 404 });
   });
 });

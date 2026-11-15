@@ -192,3 +192,33 @@ export function resultadoDeRedefinir(email: EmailAcesso, destino: string, senha:
 export const textoAcessoEnviado = (destino: string): string => `Acesso enviado para ${destino}.`;
 export const TEXTO_ENVIAR_ACESSO_SEM_EMAIL = 'Não conseguimos enviar o e-mail. Use "Redefinir senha" para definir uma senha e passá-la à pessoa.';
 export const TEXTO_SENHA_NAO_REDEFINIVEL = 'Esta senha não pode ser redefinida aqui. O administrador usa "Esqueci a senha".';
+
+// ---------------------------------------------------------------- bloqueio do login (docs/design/telas/usuario-bloqueio.md)
+
+export interface SeloDoUsuario {
+  tom: 'neutral' | 'danger' | 'warning';
+  texto: string;
+  /** Selo de bloqueio: a linha ganha "Desbloquear" (o inativo se resolve com "Reativar"). */
+  bloqueado: boolean;
+}
+
+function horaNoFuso(iso: string, fuso: string): string {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+      .formatToParts(new Date(iso))
+      .map((x) => [x.type, x.value]),
+  );
+  return `${p.hour}h${p.minute}`;
+}
+
+/**
+ * O selo único da linha (§2): Inativo > Bloqueado > Bloqueado até HHhMM (hora no fuso do tenant). O bloqueio por tentativas
+ * vencido não tem selo: a tela compara com a hora atual, e o login (`estadoDoLogin`) já deixa entrar.
+ */
+export function seloDoUsuario(u: Pick<UsuarioItem, 'ativo' | 'bloqueio' | 'bloqueio_ate'>, agora: Date, fuso: string): SeloDoUsuario | null {
+  if (!u.ativo) return { tom: 'neutral', texto: 'Inativo', bloqueado: false };
+  if (u.bloqueio === 'admin') return { tom: 'danger', texto: 'Bloqueado', bloqueado: true };
+  if (u.bloqueio === 'tentativas' && u.bloqueio_ate && new Date(u.bloqueio_ate).getTime() > agora.getTime()) return { tom: 'warning', texto: `Bloqueado até ${horaNoFuso(u.bloqueio_ate, fuso)}`, bloqueado: true };
+  return null;
+}
+

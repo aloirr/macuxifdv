@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EquipeOpcao, UsuarioItem } from '../../contracts';
-import { permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, opcoesDeChefia, pessoasDaLista, resultadoDeCriar, resultadoDeRedefinir, textoAcessoEnviado, textoDoSuperiorDaEquipe } from './usuarios';
+import { permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, opcoesDeChefia, pessoasDaLista, resultadoDeCriar, resultadoDeRedefinir, seloDoUsuario, textoAcessoEnviado, textoDoSuperiorDaEquipe } from './usuarios';
 import { senhaServe } from '../../domain';
 
 const u = (extra: Partial<UsuarioItem> = {}): UsuarioItem => ({
@@ -154,5 +154,31 @@ describe('RN-CORE-55/56/57 (0069): hierarquia e código no ERP na gaveta Novo us
   it('editar abre com a hierarquia gravada; o nome da equipe só para o supervisor', () => {
     expect(formularioDoUsuario(u({ cargo: 'vendedor', supervisor_id: S2, gerente_id: G1 }))).toMatchObject({ supervisor_id: S2, gerente_id: G1, equipe_nome: '' });
     expect(formularioDoUsuario(u({ cargo: 'supervisor', gerente_id: G1, equipe_nome: 'Norte' })).equipe_nome).toBe('Norte');
+  });
+});
+
+describe('usuario-bloqueio §2: seloDoUsuario (um selo por linha, hora no fuso do tenant)', () => {
+  const AGORA = new Date('2026-11-15T00:30:00Z'); // 20h30 em Manaus (UTC-4), dia 14
+  const M = 'America/Manaus';
+  it('inativo vale mais que o bloqueio (quem resolve é o Reativar)', () => {
+    expect(seloDoUsuario(u({ ativo: false, bloqueio: 'admin' }), AGORA, M)).toEqual({ tom: 'neutral', texto: 'Inativo', bloqueado: false });
+  });
+  it('bloqueio do admin: "Bloqueado", danger', () => {
+    expect(seloDoUsuario(u({ bloqueio: 'admin', bloqueio_ate: null }), AGORA, M)).toEqual({ tom: 'danger', texto: 'Bloqueado', bloqueado: true });
+  });
+  it('bloqueio por tentativas: "Bloqueado até HHhMM" no fuso do tenant, warning', () => {
+    expect(seloDoUsuario(u({ bloqueio: 'tentativas', bloqueio_ate: '2026-11-15T00:55:00.000Z' }), AGORA, M)).toEqual({ tom: 'warning', texto: 'Bloqueado até 20h55', bloqueado: true });
+    expect(seloDoUsuario(u({ bloqueio: 'tentativas', bloqueio_ate: '2026-11-15T13:05:00.000Z' }), new Date('2026-11-15T13:00:00Z'), M)?.texto).toBe('Bloqueado até 09h05');
+  });
+  it('virada da meia-noite em Manaus: 03h59 UTC vira 23h59 do dia anterior; 04h10 UTC vira 00h10', () => {
+    expect(seloDoUsuario(u({ bloqueio: 'tentativas', bloqueio_ate: '2026-11-15T03:59:00.000Z' }), new Date('2026-11-15T03:50:00Z'), M)?.texto).toBe('Bloqueado até 23h59');
+    expect(seloDoUsuario(u({ bloqueio: 'tentativas', bloqueio_ate: '2026-11-15T04:10:00.000Z' }), new Date('2026-11-15T03:58:00Z'), M)?.texto).toBe('Bloqueado até 00h10');
+  });
+  it('bloqueio por tentativas vencido: sem selo', () => {
+    expect(seloDoUsuario(u({ bloqueio: 'tentativas', bloqueio_ate: '2026-11-15T00:30:00.000Z' }), AGORA, M)).toBeNull();
+  });
+  it('sem bloqueio (0 a 4 senhas erradas não aparecem): sem selo', () => {
+    expect(seloDoUsuario(u({ bloqueio: null, bloqueio_ate: null }), AGORA, M)).toBeNull();
+    expect(seloDoUsuario(u({}), AGORA, M)).toBeNull();
   });
 });

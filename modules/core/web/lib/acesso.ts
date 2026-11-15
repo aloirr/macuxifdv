@@ -5,46 +5,27 @@
  */
 import type { ModuloId, Perfil } from '@macuxi/platform-sdk';
 import { travaDaChave } from '@macuxi/platform-sdk';
+import { modulosContrataveis, nomeDoModulo, type IdDoModulo } from '@macuxi/ui/web';
 import type { UsuarioItem } from '../../contracts';
 import type { Edicao } from './perfis';
 import { rotuloDaChave } from './perfis';
 
-/** Módulos que o admin nunca escolhe por usuário: o Core é a base, o Catálogo e a Integração são da plataforma. */
-export const MODULOS_OCULTOS: readonly ModuloId[] = ['core', 'catalogo', 'integracao'];
-
-/** Nome de cada módulo na tela, sempre com a primeira letra maiúscula. Fonte única do mapa id → nome (o ícone fica em `icones-modulo.tsx`). */
-export const NOME_DO_MODULO_ACESSO: Readonly<Record<string, string>> = {
-  core: 'Geral',
-  catalogo: 'Catálogo',
-  gestor: 'Gestor',
-  integracao: 'Integração',
-  pesquisa: 'Pesquisa',
-  promotor: 'Promotor',
-  treinamento: 'Treinamento',
-  vendedor: 'Vendedor',
-};
-
-const primeiraMaiuscula = (s: string): string => (s === '' ? s : s[0]!.toUpperCase() + s.slice(1));
-
-export const nomeDoModuloAcesso = (id: string): string => NOME_DO_MODULO_ACESSO[id] ?? primeiraMaiuscula(id);
-
 export interface ModuloExibivel {
-  id: ModuloId;
+  id: IdDoModulo;
   nome: string;
 }
 
-/** Módulos que aparecem para escolher (sem Core, Catálogo e Integração), em ordem alfabética, com a primeira letra maiúscula. */
+/**
+ * Módulos que aparecem para escolher: os contratáveis do kit (`modulosContrataveis`, bko-revisao.md §P10: sem os nativos Core,
+ * Catálogo e Integração), em ordem alfabética, sem repetir. Nome e ícone vêm de `modulos.tsx`, o mapa único.
+ */
 export function modulosExibiveis(ids: Iterable<string>): ModuloExibivel[] {
-  const vistos = new Set<string>();
-  for (const id of ids) if (!MODULOS_OCULTOS.includes(id as ModuloId)) vistos.add(id);
-  return [...vistos]
-    .map((id) => ({ id: id as ModuloId, nome: nomeDoModuloAcesso(id) }))
-    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  return modulosContrataveis([...new Set(ids)]).map(({ id, nome }) => ({ id, nome }));
 }
 
-/** Os módulos da tabela de um novo perfil: "Geral" (Core) primeiro, depois os licenciados em ordem alfabética (o Catálogo e a Integração não entram). */
-export function modulosDaGrade(licenciados: Iterable<string>): { id: ModuloId; nome: string }[] {
-  return [{ id: 'core', nome: nomeDoModuloAcesso('core') }, ...modulosExibiveis(licenciados)];
+/** Os módulos da tabela de um novo perfil: o Core primeiro, depois os licenciados em ordem alfabética (o Catálogo e a Integração não entram). */
+export function modulosDaGrade(licenciados: Iterable<string>): ModuloExibivel[] {
+  return [{ id: 'core', nome: nomeDoModulo('core') }, ...modulosExibiveis(licenciados)];
 }
 
 // ---------------------------------------------------------------- rótulos das permissões
@@ -60,6 +41,7 @@ export const ROTULO_DA_PERMISSAO: Readonly<Record<string, string>> = {
   'usuario.criar': 'Criar usuários',
   'usuario.editar': 'Editar usuários',
   'usuario.desativar': 'Desativar usuários',
+  'usuario.desbloquear': 'Desbloquear usuários',
   'perfil.gerir': 'Gerenciar perfis de acesso',
   'modulo.gerir_licencas': 'Ligar e desligar módulos',
   'meta.ver': 'Ver metas',
@@ -222,6 +204,7 @@ const GRUPO_DA_CHAVE: Readonly<Record<string, GrupoDoGeral>> = {
   'usuario.criar': 'Usuários',
   'usuario.editar': 'Usuários',
   'usuario.desativar': 'Usuários',
+  'usuario.desbloquear': 'Usuários',
   'perfil.gerir': 'Usuários',
   'modulo.gerir_licencas': 'Usuários',
   'usuario_avatar.trocar': 'Usuários',

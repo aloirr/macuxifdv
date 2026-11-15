@@ -26,6 +26,7 @@ export const manifest = defineModule({
     'usuario.ver': { perfis: ['gerente', 'admin'], descricao: 'Ver a lista de usuários no BKO, recortada pelo escopo: equipes abaixo (gerente), tenant (admin); o supervisor não usa o BKO (RF-CORE-02, RN-CORE-04, RN-CORE-33)' },
     'cliente.pagamento_editar': { perfis: ['analista', 'admin'], descricao: 'Editar no cliente o prazo médio máximo e as formas de pagamento permitidas (RN-VEN-25); auditado (BKO)' },
     'carteira.editar': { perfis: ['analista', 'admin'], descricao: 'Vincular/desvincular clientes a vendedor ou promotor, com vigência e frequência de visita (BKO)' },
+    'usuario.desbloquear': { perfis: ['admin', 'analista'], descricao: 'Desbloquear no BKO o login de um usuário bloqueado por senhas erradas ou pelo admin; vale também para admin, não mexe na senha nem no ativo; auditado' },
     'dispositivo.bloquear': { perfis: ['admin', 'analista'], descricao: 'Bloquear/desbloquear aparelho no BKO; vale para o tenant inteiro (RN-CORE-15)' },
     'motivo.editar': { perfis: ['analista', 'admin'], descricao: 'Cadastrar e ativar/desativar motivos de não venda; motivos de sistema não mudam (RN-CORE-14)' },
     'produto.editar_preco': { perfis: ['gerente', 'analista', 'admin'], descricao: 'Ver custo e editar custo, preço de venda e desconto máximo do produto no BKO; o custo nunca vai ao app (RN-CORE-18)' },

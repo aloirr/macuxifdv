@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiRequestError } from '@macuxi/platform-sdk/web';
-import { Button, ErrorBlock, LoadingBlock, Notice, PageHeader, useToast } from '@macuxi/ui/web';
+import { Button, ErrorBlock, IconeModulo, LoadingBlock, Notice, PageHeader, useToast, type IdDoModulo } from '@macuxi/ui/web';
 import { LicencasEstadoSchema, MENSAGEM_NOME_OBRIGATORIO, MENSAGEM_PERFIL_REPETIDO, CODIGO_REPETIDO, PerfilDetalheSchema, PerfilListaRespostaSchema, type PerfilDetalhe } from '../../../contracts';
 import {
   alternarLinha,
@@ -22,7 +22,6 @@ import {
 import { CARGOS, type Cargo } from '@macuxi/platform-sdk';
 import { MENSAGEM_CARGO_OBRIGATORIO, ROTULO_CARGO } from '../../../contracts/cargos';
 import { corpoDoPerfil, edicaoInicial, frasesDaRecusa } from '../../lib/perfis';
-import { IconeDoModulo } from '../acesso/icones-modulo';
 
 const CAMPO = 'h-[44px] w-full max-w-[420px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
 
@@ -67,7 +66,7 @@ function LinhaDaCaixa({ linha, marcadas, onChange }: { linha: LinhaDeAcesso; mar
  * Uma tabela de um módulo: cabeçalho em Azul noite (caixa "marcar todos", ícone e nome) e uma linha por acesso. A coluna Geral
  * (`agrupada`) vai na largura total, com as linhas sob subtítulos (RD-0266) em até 3 colunas.
  */
-function TabelaDoModulo({ id, nome, linhas, marcadas, onChange, agrupada = false }: { id: string; nome: string; linhas: readonly LinhaDeAcesso[]; marcadas: ReadonlySet<string>; onChange: (m: Set<string>) => void; agrupada?: boolean }) {
+function TabelaDoModulo({ id, nome, linhas, marcadas, onChange, agrupada = false }: { id: IdDoModulo; nome: string; linhas: readonly LinhaDeAcesso[]; marcadas: ReadonlySet<string>; onChange: (m: Set<string>) => void; agrupada?: boolean }) {
   return (
     <table className="w-full border-collapse overflow-hidden rounded-2xl border border-line bg-surface text-[14px]" data-testid={`perfil.modulo.${id}`}>
       <thead>
@@ -75,7 +74,7 @@ function TabelaDoModulo({ id, nome, linhas, marcadas, onChange, agrupada = false
           <th scope="col" className="px-4 py-3 text-left font-display text-[15px] font-bold">
             <span className="flex items-center gap-3">
               <CaixaDoCabecalho nome={nome} estado={marcacaoDoModulo(linhas, marcadas)} onChange={(marcar) => onChange(alternarModulo(linhas, marcadas, marcar))} />
-              <IconeDoModulo id={id} />
+              <IconeModulo id={id} size={18} />
               {nome}
             </span>
           </th>
