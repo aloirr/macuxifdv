@@ -25,3 +25,4 @@
 2026-11-15 — v1.0.12/v1.0.13 pareceres de marca, rodada 2 — liberados #361, #382, #422, #423; com achado #397 (MC-0145, 0146), #404 (MC-0147, 0148), #427 (MC-0149, 0150); #367 segue com MC-0136..0139. Caixa 403.
 2026-11-15 — v1.0.12/v1.0.13 pareceres de marca, rodada 4 — fechadas MC-0135..0139, 0145, 0146, 0149, 0150; nova MC-0151 (#367 39fec9ed). Caixa 403.
 2026-11-15 — v1.0.12/v1.0.13 pareceres de marca, rodada 5 — #404 f8a9dc63: fechadas MC-0147, 0148; novas MC-0152, 0153. #361 liberada. Caixa 403.
+2026-11-15 — v1.0.12/v1.0.13 pareceres de marca, rodada 6 — fechadas MC-0142, 0143, 0144, 0151; novas MC-0154 (#375 2e2c5795) e MC-0155 (#385 1cb49ea4). Caixa 403.
