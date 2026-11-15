@@ -38,7 +38,7 @@ export const manifest = defineModule({
   // RN-CORE-19: core.medidas@1 diz quais siglas de medida do lote existem/estão ativas (sigla desconhecida = referencia_ausente)
   // RN-CORE-39: core.filiais@1 confere o filial_external_id do vendedor (inexistente = referencia_ausente reprocessável)
   // T-0173 (RN-INT-16): core.usuarios_resumo@1 lista quem pode autorizar o reprocessamento (admin/analista ativos, sem e-mail)
-  usaConsultas: ['core.cadastro_cliente@1', 'core.medidas@1', 'core.filiais@1', 'core.usuarios_resumo@1'],
+  usaConsultas: ['core.cadastro_cliente@1', 'core.medidas@1', 'core.filiais@1', 'core.usuarios_resumo@1', 'core.credencial_conferir@1'],
   // T-0173: vendedor.formas_pagamento@1 traz os códigos de condição de pagamento do Macuxi para o De-para (Vendedor desligado = lista indisponível)
   usaConsultasOpcionais: ['vendedor.formas_pagamento@1'],
   // T-0114: o Vendedor pergunta se o ERP aceita o cancelamento de pedido já enviado (saída { aceita })
