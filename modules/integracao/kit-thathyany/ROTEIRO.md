@@ -48,7 +48,7 @@ Cada fase vai do pedido no app até o número do ERP voltar ao app.
    Para rejeitar: `situacao = 'R', motivo = 'Sem estoque'`.
 
 ## Fase 2 — API com outra credencial
-1. **Desative o `thathyany-conector` no Hub:** o portal e o BKO não têm esse botão. Peça ao gerente-projetos, que desativa pela rota `PATCH /integracao/conectores/<id>` com `{"ativo": false}`.
+1. **Desative o `thathyany-conector`:** peça ao gerente-projetos.
 2. **Portal, aba Integração:** em **Gerar credencial**, use o identificador `thathyany-api`, o nome "API thathyany", marque **Recebe pedidos** e gere. Copie a chave nova.
 3. **Instale:**
    ```
@@ -62,7 +62,7 @@ Cada fase vai do pedido no app até o número do ERP voltar ao app.
 7. **Número de volta:** em 1 a 2 minutos, o app mostra o pedido como integrado, com o número do ERP.
 8. **Faturamento (opcional):** o mesmo `UPDATE` do passo 9 da fase 1.
 
-Para voltar à fase 1: peça ao gerente-projetos para reativar o `thathyany-conector` e desativar o `thathyany-api` (a mesma rota) e rode `.\Instalar-Thathyany.ps1 -Fase Conector`.
+Para voltar à fase 1: peça ao gerente-projetos para reativar o `thathyany-conector` e desativar o `thathyany-api`, e rode `.\Instalar-Thathyany.ps1 -Fase Conector`.
 
 ## Se der errado
 - **O serviço do Conector não inicia** (ou você trocou a senha do Windows): rode a fase 1 de novo e digite a senha atual.

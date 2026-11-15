@@ -157,7 +157,7 @@ describe('ROTEIRO.md', () => {
       expect(fase).toMatch(/Pedido no app/);
       expect(fase).toMatch(/Número de volta/);
     }
-    expect(ROTEIRO.slice(f2)).toMatch(/Desative o `thathyany-conector` no Hub:[^\n]*`PATCH \/integracao\/conectores\/<id>`/);
+    expect(ROTEIRO.slice(f2)).toMatch(/Desative o `thathyany-conector`:\*\* peça ao gerente-projetos/);
   });
 
   it('o que ter em mãos: SQL Server Express e o código novo da thathyany depois do deploy da v1.0.9', () => {
