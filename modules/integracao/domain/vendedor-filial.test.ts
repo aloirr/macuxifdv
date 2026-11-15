@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ordenarCarga } from './ordem';
-import { referenciasDoRegistro } from './ordem';
+import { ordenarCarga, referenciasDoRegistro } from './ordem';
 import { avisoVendedorSemFilial } from './vendedor-filial';
 import { validarLinhas } from './idempotencia';
 import { VendedorPayload } from '../contracts';

@@ -25,6 +25,11 @@ import {
  * (forma de pagamento, prazo e tabela escalonada; desenho T-0089 §4.2) e `filial` na T-0149 (RN-CORE-39, ADR 0040). No Hub o nome fica no singular, como nas demais.
  */
 export const ENTIDADES = ['vendedor', 'cliente', 'produto', 'preco', 'estoque', 'titulo', 'nota', 'rota', 'catalogo_no', 'produto_unidade', 'cliente_endereco', 'transportadora', 'forma_pagamento', 'prazo_pagamento', 'tabela_escalonada', 'filial'] as const;
+/**
+ * Ordem de carga das 16 entidades (RN-INT-04), a ÚNICA lista: o portal e o Conector a usam. Cada entidade vem depois de tudo de que depende
+ * (`DEPENDENCIAS`, domain/ordem.ts; o teste em domain/ordem.test.ts confere). Filial antes de vendedor (RN-CORE-39).
+ */
+export const ORDEM_CARGA_ENTIDADES: readonly (typeof ENTIDADES)[number][] = ['filial', 'vendedor', 'catalogo_no', 'forma_pagamento', 'prazo_pagamento', 'produto', 'produto_unidade', 'preco', 'tabela_escalonada', 'estoque', 'cliente', 'cliente_endereco', 'transportadora', 'rota', 'titulo', 'nota'];
 export const Entidade = z.enum(ENTIDADES, { errorMap: () => ({ message: 'entidade desconhecida' }) });
 export type Entidade = z.infer<typeof Entidade>;
 

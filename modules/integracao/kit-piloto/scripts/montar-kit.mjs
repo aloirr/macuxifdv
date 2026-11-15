@@ -21,7 +21,7 @@ export const VERSAO_KIT = '1.0.0';
 export const HUB_URL_PILOTO = 'https://api.macuxifdv.com.br';
 export const ID_CONECTOR_PILOTO = 'piloto-conector';
 export const ID_API_PILOTO = 'piloto-api';
-export const ENTIDADES_PILOTO = ['filial', 'vendedor', 'forma_pagamento', 'prazo_pagamento', 'produto', 'cliente', 'preco', 'estoque', 'titulo'];
+export const ENTIDADES_PILOTO = ['filial', 'vendedor', 'forma_pagamento', 'prazo_pagamento', 'produto', 'preco', 'estoque', 'cliente', 'titulo'];
 
 /** conector.json do piloto: o exemplo oficial, só com as entidades do kit, apontando para o Hub e para a ERP_PILOTO. Sem segredo. */
 export function gerarConectorJson(exemplo) {
