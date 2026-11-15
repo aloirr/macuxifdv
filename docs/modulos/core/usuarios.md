@@ -76,3 +76,8 @@ Desenho: `docs/desenho/T-0094.md`; textos e telas: `docs/design/ciclo-de-senha.m
 ## Lista de Clientes (T-0171, RN-CORE-41)
 - Uma tag (Bloqueado > Devendo > Pré-Cadastro > Em dia) e só a última visita ("Visitado hoje/ontem/há N dias", "Nunca visitado"). Pré-Cadastro = cliente sem código do ERP (`external_id` vazio).
 - Última visita: `ultima_visita_em` do `cliente_visita_resumo@1` (id = cliente; último check-in concluído de qualquer vendedor, data no fuso do tenant; ver `performance-cliente.md`) somada aos check-ins feitos no aparelho. Funções puras em `domain/lista-clientes.ts`.
+
+## Filial do usuário (T-0176, RN-CORE-39 revista)
+- Vendedor (cargo): exatamente 1 filial. Supervisor, promotor e gerente: 1 ou mais. Admin e analista: 0 ou mais. Só admin e analista informam `filial_ids` (403 `USUARIO_FILIAL_SEM_PERMISSAO` para os demais); quantidade errada ou filial inexistente dá 422 (`USUARIO_FILIAL_QUANTIDADE`, `USUARIO_FILIAL_INVALIDA`).
+- Vendedor sem filial (carga ou cadastro antigo) existe e fica bloqueado no app: `sem_filial` na sessão do login e no sync `usuario` (junto com `filial_id`). Textos e telas aguardam a simulação.
+- Carga do ERP: `filial_external_id` opcional em `integracao.vendedor.atualizado@1`; ausente não altera; presente troca a filial; filial inexistente não grava e vai ao log sem dado pessoal.

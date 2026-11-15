@@ -15,6 +15,7 @@
  */
 import { z } from 'zod';
 import { PerfilSchema } from './auth';
+import { FilialIdsSchema } from './filial-usuario';
 import { CargoSchema } from '@macuxi/platform-sdk';
 
 const Uuid = z.string().uuid();
@@ -81,6 +82,10 @@ export const UsuarioItemSchema = z
     bloqueio: BloqueioDoUsuarioSchema.nullable().optional(),
     /** Fim do bloqueio por tentativas (UTC, ISO); nulo fora dele. A tela mostra no fuso do tenant. */
     bloqueio_ate: z.string().datetime().nullable().optional(),
+    /** T-0176 / RN-CORE-39 (aditivo): filiais do usuário (vendedor 1; supervisor, promotor e gerente 1 ou mais). Ausente = emissor antigo. */
+    filial_ids: FilialIdsSchema.optional(),
+    /** T-0176: vendedor sem filial (bloqueado no app até a carga do ERP ou o BKO informar). */
+    sem_filial: z.boolean().optional(),
   })
   .strict();
 export type UsuarioItem = z.infer<typeof UsuarioItemSchema>;
@@ -156,6 +161,8 @@ export const CriarUsuarioRequestSchema = z
     desconto_maximo_pedido_permil: LimiteDescontoSchema.shape.desconto_maximo_pedido_permil.default(null),
     /** Senha inicial definida pelo admin (nunca registrada em log nem na auditoria). */
     senha: z.string().min(1).max(200),
+    /** T-0176 / RN-CORE-39: só admin e analista informam. Vendedor exige 1; supervisor, promotor e gerente 1 ou mais (422). Ausente = nenhuma. */
+    filial_ids: FilialIdsSchema.optional(),
   })
   .strict();
 /** "Por pedido" ligada sem o número é recusada pela API (422 `USUARIO_DADOS_INVALIDOS`, `limiteDescontoCompleto`), não pelo schema. */
@@ -181,6 +188,8 @@ export const EditarUsuarioRequestSchema = z
     desconto_limita_item: z.boolean().optional(),
     desconto_limita_pedido: z.boolean().optional(),
     desconto_maximo_pedido_permil: LimiteDescontoSchema.shape.desconto_maximo_pedido_permil.optional(),
+    /** T-0176 / RN-CORE-39: ausente = mantém; presente troca a lista inteira (só admin e analista). */
+    filial_ids: FilialIdsSchema.optional(),
   })
   .strict();
 export type EditarUsuarioRequest = z.infer<typeof EditarUsuarioRequestSchema>;

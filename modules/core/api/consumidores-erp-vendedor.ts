@@ -5,6 +5,7 @@
  * recebe e-mail provisório estável (`emailDoVendedorErp`). Usuário já existente com o mesmo e-mail e sem `external_id`
  * (vendedor/promotor cadastrado antes) é ADOTADO: ganha o `external_id`, mantém perfil, equipe e senha. Perfil e equipe
  * nunca são alterados pelo ERP depois de criado. Nada de dado pessoal no log.
+ * T-0176 (RN-CORE-39): `filial_external_id` opcional grava a filial do vendedor (`aplicarFilialDoErp`); ausente não altera; filial inexistente não grava e registra o erro; vendedor sem filial segue bloqueado no app.
  * T-0095: versão com `alterado_em` menor que `core.usuario.erp_alterado_em` (reentrega fora de ordem) é ignorada; vendedor
  * desligado pelo admin no BKO (`desligado_no_bko_em`) não é reativado pela carga: segue inativo e o admin recebe aviso UMA vez por
  * versão do registro (só quando o `alterado_em` avança; a carga completa repetida não reavisa). A adoção por e-mail e o upsert
@@ -16,6 +17,7 @@ import { decidirOrdemErp, decidirReativacaoDoErp, ehVersaoNovaDoErp, emailDoVend
 
 import { EVENTO_ERP_VENDEDOR_ATUALIZADO } from '../../integracao/contracts';
 import { notificarSistema } from './consumidores-sistema';
+import { aplicarFilialDoErp } from './filiais-usuario';
 
 export const EventoIntegracaoVendedorAtualizado = eventoTolerante(EVENTO_ERP_VENDEDOR_ATUALIZADO);
 
@@ -37,6 +39,9 @@ async function avisarDesligadoNoBko(ctx: ContextoConsumo, externalId: string, ve
     }, `vendedor-desligado|${externalId}|${versao ?? ''}`); // um aviso por versão do registro (não só por evento)
   }
 }
+
+/** T-0176 / RN-CORE-39: `filial_external_id` é opcional no payload do Hub (lido de forma tolerante); ausente = não altera. */
+const filialDaCarga = (r: object): string | null | undefined => (r as { filial_external_id?: string | null }).filial_external_id;
 
 export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
   evento: EventoIntegracaoVendedorAtualizado,
@@ -74,6 +79,7 @@ export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
       const livre = provisorio ? false : (await ctx.db.query('select 1 from core.usuario where lower(email) = $1 and deleted_at is null and id <> $2', [email, atual.id])).rows.length === 0;
       await ctx.db.query('update core.usuario set nome = $2, ativo = $5::boolean, erp_alterado_em = $6::timestamptz, email = case when $3::boolean then $4 else email end where id = $1', [atual.id, nome, livre, email, reativacao.ativo, r.alterado_em]);
       await completarNotasDoVendedor(ctx, atual.id, r.external_id);
+      await aplicarFilialDoErp(ctx, atual.id, r.external_id, filialDaCarga(r));
       return;
     }
 
@@ -84,6 +90,7 @@ export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
       if (adocao.avisar) await avisarDesligadoNoBko(ctx, r.external_id, r.alterado_em);
       await ctx.db.query('update core.usuario set external_id = $2, ativo = case when $4::boolean then ativo else $5::boolean end, erp_alterado_em = $3::timestamptz where id = $1', [igual.id, r.external_id, r.alterado_em, igual.desligado_no_bko_em !== null, adocao.ativo]);
       await completarNotasDoVendedor(ctx, igual.id, r.external_id);
+      await aplicarFilialDoErp(ctx, igual.id, r.external_id, filialDaCarga(r));
       return;
     }
     const emailFinal = igual ? emailDoVendedorErp(null, r.external_id).email : email;
@@ -93,6 +100,9 @@ export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
       [r.external_id, nome, emailFinal, r.alterado_em],
     );
     const criado = (await ctx.db.query<{ id: string }>('select id from core.usuario where external_id = $1 and deleted_at is null', [r.external_id])).rows[0];
-    if (criado) await completarNotasDoVendedor(ctx, criado.id, r.external_id);
+    if (criado) {
+      await completarNotasDoVendedor(ctx, criado.id, r.external_id);
+      await aplicarFilialDoErp(ctx, criado.id, r.external_id, filialDaCarga(r));
+    }
   },
 });

@@ -42,6 +42,7 @@ import {
   faltasNaSenha,
   gerarSenhaTemporaria,
   hierarquiaDoCargo,
+  vendedorBloqueadoPorFilial,
   podeRedefinirSenha,
   estadoDoLogin,
   validadeDaSenhaTemporaria,
@@ -58,6 +59,7 @@ import { perfisDoUsuarioNoLogin } from './perfis-do-usuario';
 import { appsDosPerfis, emailDisponivel, empresaDoTenant, enviarEmail } from './email';
 import { hashSenha } from './seguranca';
 import { cargoDoPerfil, conferirHierarquia, erroDaHierarquiaNoBanco, hierarquiaAtual, posicionarNaEquipe } from './hierarquia-cadastro';
+import { cargoDoUsuario, conferirFiliaisDoUsuario, exigirQuemEditaFilial, filiaisDoUsuario, filiaisDosUsuarios, gravarFiliaisDoUsuario } from './filiais-usuario';
 
 type Visiveis = ReadonlySet<string> | 'tenant';
 const IdParam = z.object({ id: z.string().uuid() });
@@ -161,9 +163,11 @@ async function montarItens(db: ClienteBanco, linhas: readonly LinhaUsuario[], vi
   const superiorDe = new Map(hierarquia.map((m) => [m.id, superiorVisivel(m.superior_id, visiveis)]));
   const nomes = await nomesDe(db, [...superiorDe.values()].filter((x): x is string => x !== null));
   const perfisDe = await perfisDosUsuarios(db, linhas.map((l) => l.id));
+  const filiaisDe = await filiaisDosUsuarios(db, linhas.map((l) => l.id)); // T-0176 / RN-CORE-39
   return linhas.map(({ bloqueado_admin, bloqueio_ate_login, ...l }) => {
     const sup = superiorDe.get(l.id) ?? null;
-    return UsuarioItemSchema.parse({ ...l, ...bloqueioDaLinha({ bloqueado_admin, bloqueio_ate_login }, agora), perfis: perfisDe.get(l.id) ?? [], superior_id: sup, superior_nome: sup ? (nomes.get(sup) ?? null) : null });
+    const filiais = filiaisDe.get(l.id) ?? [];
+    return UsuarioItemSchema.parse({ ...l, filial_ids: filiais, sem_filial: vendedorBloqueadoPorFilial({ cargo: (l.cargo ?? null) as never, filiais }), ...bloqueioDaLinha({ bloqueado_admin, bloqueio_ate_login }, agora), perfis: perfisDe.get(l.id) ?? [], superior_id: sup, superior_nome: sup ? (nomes.get(sup) ?? null) : null });
   });
 }
 
@@ -331,6 +335,9 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
           await conferirPerfisDoUsuario(ctx, db, randomUUID(), escolhidos.map((x) => x.codigo), c.ativo);
           const cargo = await cargoDoPerfil(db, escolhidos[0]!.codigo);
           const hierarquia = comHierarquia ? await conferirHierarquia(db, cargo, c, externalId) : null;
+          // T-0176 / RN-CORE-39: só admin e analista informam; o vendedor sem filial dá 422
+          if (c.filial_ids !== undefined) exigirQuemEditaFilial(ctx.usuario.perfil);
+          const filiais = await conferirFiliaisDoUsuario(db, cargo, c.filial_ids ?? []);
           const r = await db.query<{ id: string }>(
             `insert into core.usuario (tenant_id, nome, nome_curto, email, perfil, equipe_id, senha_hash, trocar_senha, senha_expira_em, ativo, external_id, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil)
              values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, true, $7, $8, $9, $10, $11, $12) returning id`,
@@ -338,6 +345,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
           );
           const id = r.rows[0]!.id;
           await gravarPerfisDoUsuario(db, id, escolhidos.map((x) => x.codigo));
+          await gravarFiliaisDoUsuario(db, id, filiais);
           const equipeFinal = hierarquia ? await posicionarNaEquipe(db, id, cargo, hierarquia, c.equipe_id) : c.equipe_id;
           const empresa = await empresaDoTenant(db);
           // a senha só sai na carga cifrada do e-mail (mesma transação: criou <=> enfileirou)
@@ -348,7 +356,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
             dados: { nome, empresa_nome: empresa.nome, codigo_empresa: empresa.codigo, login: email, senha: c.senha, validade_horas: SENHA_TEMPORARIA_HORAS, apps: appsDosPerfis(await perfisDoUsuarioNoLogin(db, id, principal)) },
             chave_idempotencia: `${id}:acesso`,
           });
-          await auditar(db, ctx, { acao: 'usuario.criar', entidade: 'usuario', entidadeId: id, antes: null, depois: { perfil: principal, perfis: escolhidos.map((x) => x.codigo), cargo, equipe_id: equipeFinal, supervisor_id: hierarquia?.supervisor_id ?? null, gerente_id: hierarquia?.gerente_id ?? null, ativo: c.ativo, external_id: externalId, desconto_limita_item: c.desconto_limita_item, desconto_limita_pedido: c.desconto_limita_pedido, desconto_maximo_pedido_permil: c.desconto_maximo_pedido_permil, senha_definida: true, trocar_senha: true, email: envio } });
+          await auditar(db, ctx, { acao: 'usuario.criar', entidade: 'usuario', entidadeId: id, antes: null, depois: { perfil: principal, perfis: escolhidos.map((x) => x.codigo), cargo, equipe_id: equipeFinal, supervisor_id: hierarquia?.supervisor_id ?? null, gerente_id: hierarquia?.gerente_id ?? null, filial_ids: filiais, ativo: c.ativo, external_id: externalId, desconto_limita_item: c.desconto_limita_item, desconto_limita_pedido: c.desconto_limita_pedido, desconto_maximo_pedido_permil: c.desconto_maximo_pedido_permil, senha_definida: true, trocar_senha: true, email: envio } });
           return CriarUsuarioRespostaSchema.parse({ ...(await itemPorId(db, id)), email_acesso: envio });
         });
       } catch (e) {
@@ -404,8 +412,16 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
             : null;
           const hierarquiaAntes = atual ? hierarquiaDoCargo(cargo, atual) : null;
           const hierarquiaMudou = !!hierarquia && JSON.stringify(hierarquia) !== JSON.stringify(hierarquiaAntes);
+          // T-0176 / RN-CORE-39: troca de filiais (só admin e analista) ou de perfil revalida a regra do cargo final
+          const filiaisAntes = await filiaisDoUsuario(db, antes.id);
+          let filiaisDepois: string[] | null = null;
+          if (c.filial_ids !== undefined || perfisMudaram) {
+            if (c.filial_ids !== undefined) exigirQuemEditaFilial(ctx.usuario.perfil);
+            filiaisDepois = await conferirFiliaisDoUsuario(db, cargo ?? (escolhidos ? await cargoDoPerfil(db, escolhidos[0]!.codigo) : await cargoDoUsuario(db, antes.id)), c.filial_ids ?? filiaisAntes);
+          }
+          const filiaisMudaram = !!filiaisDepois && [...filiaisDepois].sort().join(',') !== [...filiaisAntes].sort().join(',');
           const diff = diffAuditavelDeUsuario(antes, depois);
-          if (diff.campos_alterados.length === 0 && !perfisMudaram && !hierarquiaMudou) return itemPorId(db, antes.id);
+          if (diff.campos_alterados.length === 0 && !perfisMudaram && !hierarquiaMudou && !filiaisMudaram) return itemPorId(db, antes.id);
           if (depois.equipe_id !== antes.equipe_id) await exigirEquipe(db, depois.equipe_id);
           await exigirUnicos(db, depois.email.toLowerCase(), depois.external_id, antes.id);
           await db.query('update core.usuario set nome = $2, nome_curto = $3, email = $4, perfil = $5, equipe_id = $6, external_id = $7, desconto_limita_item = $8, desconto_limita_pedido = $9, desconto_maximo_pedido_permil = $10 where id = $1', [
@@ -425,6 +441,12 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
             diff.campos_alterados.push('perfis');
             diff.antes.perfis = codigosAntes;
             diff.depois.perfis = escolhidos.map((x) => x.codigo).sort();
+          }
+          if (filiaisMudaram && filiaisDepois) {
+            await gravarFiliaisDoUsuario(db, antes.id, filiaisDepois);
+            diff.campos_alterados.push('filial_ids');
+            diff.antes.filial_ids = filiaisAntes;
+            diff.depois.filial_ids = filiaisDepois;
           }
           if (hierarquia && (hierarquiaMudou || perfisMudaram)) {
             await posicionarNaEquipe(db, antes.id, cargo, hierarquia, depois.equipe_id);

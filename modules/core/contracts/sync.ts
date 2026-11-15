@@ -64,6 +64,9 @@ export const UsuarioSyncSchema = z
     desconto_limita_item: z.boolean().default(true),
     desconto_limita_pedido: z.boolean().default(false),
     desconto_maximo_pedido_permil: z.number().int().min(0).max(1000).nullable().default(null),
+    /** T-0176 / RN-CORE-39 (aditivo): filial do vendedor (referência de catálogo e estoque) e o indicador de bloqueio por falta dela. Ausente = emissor antigo. */
+    filial_id: z.string().uuid().nullable().optional(),
+    sem_filial: z.boolean().optional(),
   })
   .strict();
 export type UsuarioSync = z.infer<typeof UsuarioSyncSchema>;

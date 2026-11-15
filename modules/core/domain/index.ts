@@ -54,3 +54,4 @@ export * from './fotos-pdv';
 export * from './entrada-sync';
 export * from './curvas-abc';
 export * from './performance-cliente';
+export * from './filial-usuario';
