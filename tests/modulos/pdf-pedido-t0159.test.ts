@@ -15,6 +15,7 @@
  * O ORÁCULO é escrito aqui pelo texto das RNs (nunca chama a função testada para obter o esperado).
  * Convenção: `it` = vale hoje; `it.fails` = defeito aberto com recado ao dono (o agente testes volta para `it` na correção).
  */
+import { PILHA_MONO, PILHA_SISTEMA } from '@macuxi/comum/fonte';
 import { describe, expect, it } from 'vitest';
 
 import { linhasDosTotais } from '../../modules/vendedor/domain/apresentacao-totais';
@@ -414,12 +415,28 @@ describe('T-0159 PDF-8 — visual horizontal e observações (R-20261111-084832 
   const OBS_PEDIDO = 'Entregar pela manhã; portão lateral';
   const comObs = (d: DetalheParaPdf, obs: string | null) => ({ ...d, observacao: obs }) as DetalheParaPdf;
 
-  it('PDF-8: A4 horizontal nas 4 versões; itens 15 px, rótulos 10,5 px, total 26 px', () => {
+  it('PDF-8: A4 horizontal nas 4 versões; itens 15 px, rótulos 12 px (mínimo, R-20261115-110600), total 26 px', () => {
     for (const h of QUATRO()) {
       expect(css(h)).toMatch(/@page\s*\{[^}]*size:\s*A4 landscape/);
       expect(css(h)).toMatch(/td\s*\{[^}]*font-size:\s*15px/);
-      expect(css(h)).toMatch(/th\s*\{[^}]*font-size:\s*10\.5px/);
+      expect(css(h)).toMatch(/th\s*\{[^}]*font-size:\s*12px/);
       expect(css(h)).toMatch(/\.vt\s*\{[^}]*font-size:\s*26px/);
+    }
+  });
+
+  it('Fonte do sistema (R-20261115-110600): pilha de @macuxi/comum/fonte, pesos até 700, mono só no código com tabular-nums e nada abaixo de 12 px, nas 4 versões', () => {
+    for (const h of QUATRO()) {
+      const c = css(h);
+      expect(c).toContain(`font-family: ${PILHA_SISTEMA};`);
+      expect(c).not.toMatch(/Plex|Archivo/);
+      expect([...c.matchAll(/font-weight:\s*(\d+)/g)].map((m) => Number(m[1])).filter((p) => p > 700)).toEqual([]);
+      expect(c.match(/\.empresa\s*\{[^}]*\}/)?.[0]).toMatch(/font-weight:\s*700/);
+      expect(c.match(/\.doc \.t\s*\{[^}]*\}/)?.[0]).toMatch(/font-weight:\s*700/);
+      expect(c.match(/\.totalbox \.lin \.vt\s*\{[^}]*\}/)?.[0]).toMatch(/font-weight:\s*600/);
+      const regrasMono = [...c.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter((m) => m[2]!.includes(PILHA_MONO)).map((m) => m[1]!.trim());
+      expect(regrasMono).toEqual(['td.cod']);
+      expect(c.match(/td\.cod\s*\{[^}]*\}/)?.[0]).toMatch(/font-variant-numeric:\s*tabular-nums/);
+      expect([...c.matchAll(/font-size:\s*([\d.]+)px/g)].map((m) => Number(m[1])).filter((t) => t < 12)).toEqual([]);
     }
   });
 
