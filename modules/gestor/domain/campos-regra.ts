@@ -3,16 +3,12 @@
  * Funções puras; a API revalida (contrato `AjusteRegraAlerta` + `ParametrosAlertasEquipe`) e a tela só desenha.
  *  - RN-GES-01/02: tolerância, sem frequência e carência do cliente novo ficam na regra "Cliente sem visita";
  *  - RN-GES-03: o prazo da aprovação fica na regra "Pedido parado na aprovação" e é o MESMO da fila (um valor, um lugar);
- *  - RN-PRO-07: a permanência mínima fica na regra "Visita curta";
+ *  - RN-PRO-07: a permanência mínima é do Promotor e não se edita aqui; "Visita curta" mostra só a janela;
  *  - RN-CORE-03: sem o módulo de origem, a regra não aparece.
  */
-import type { ChaveParametroAlerta, ParametrosAlertasEquipe, RegraAlerta, Severidade } from '../contracts';
+import { TIPOS_REGRA_EQUIPE, type ChaveParametroAlerta, type ParametrosAlertasEquipe, type RegraAlerta, type Severidade, type TipoRegraEquipe } from '../contracts';
 import { MODULO_DO_ALERTA, REGRAS_PADRAO } from './alertas';
 import { PARAMETROS_PADRAO } from './parametros';
-
-/** As 6 regras da equipe, na ordem da tela. */
-export const TIPOS_REGRA_EQUIPE = ['cliente_sem_visita', 'ritmo_abaixo_meta', 'pedido_aguardando_aprovacao', 'ruptura_recorrente', 'visita_curta', 'fotos_sem_gps'] as const;
-export type TipoRegraEquipe = (typeof TIPOS_REGRA_EQUIPE)[number];
 
 type CampoDaRegra = 'limiar' | 'janela_dias' | 'amostra_min';
 
@@ -55,7 +51,7 @@ export const CAMPOS_REGRA: Readonly<Record<TipoRegraEquipe, readonly CampoRegra[
   ritmo_abaixo_meta: [reg('ritmo_abaixo_meta', 'limiar', 'Ritmo mínimo', '% da meta', 1, 100), reg('ritmo_abaixo_meta', 'amostra_min', 'A partir do dia útil', 'nº', 0, 31)],
   pedido_aguardando_aprovacao: [par('prazo_aprovacao_dias_uteis', 'Prazo', 'dias úteis', 1, 30)],
   ruptura_recorrente: [reg('ruptura_recorrente', 'limiar', 'Ruptura em', 'visitas', 1, 30), reg('ruptura_recorrente', 'janela_dias', 'No período de', 'dias', 1, 90)],
-  visita_curta: [par('permanencia_min_min', 'Permanência mínima', 'min', 1, 180), reg('visita_curta', 'janela_dias', 'Nos últimos', 'dias', 1, 30)],
+  visita_curta: [reg('visita_curta', 'janela_dias', 'Nos últimos', 'dias', 1, 30)],
   fotos_sem_gps: [
     reg('fotos_sem_gps', 'limiar', 'Máximo sem GPS', '%', 0, 100),
     reg('fotos_sem_gps', 'janela_dias', 'No período de', 'dias', 1, 90),

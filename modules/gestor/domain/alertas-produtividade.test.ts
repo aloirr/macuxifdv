@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { TIPOS_ALERTA, TIPOS_ALERTA_PRODUTIVIDADE, type MembroEquipe } from '../contracts';
+import { PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO, type ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
+import { TIPOS_ALERTA, TIPOS_ALERTA_PRODUTIVIDADE, TIPOS_REGRA_EQUIPE, type MembroEquipe } from '../contracts';
 import { avaliarAlertas, reconciliarAlertas, REGRAS_PADRAO, resolverRegras, tiposAtivos, type AlertaExistente } from './alertas';
-import { TIPOS_REGRA_EQUIPE } from './campos-regra';
 import { CLIENTE_A, CLIENTE_B, CLIENTE_C, checkin, checkout, ev, maisMin, u, VENDEDOR } from './fixtures';
-import { PARAMETROS_PRODUTIVIDADE_PADRAO, type ParametrosAlertasProdutividade } from './produtividade-do-dia';
 import { aplicarEventos, estadoInicial, type EventoRecebido } from './projecao';
 import { ajustarRegraAlerta } from './visao';
 
@@ -14,12 +13,24 @@ const V1 = u(2101);
 const MEMBROS: MembroEquipe[] = [{ id: VENDEDOR, nome: 'Vera', perfil: 'vendedor', superior_id: null, ativo: true }];
 const rota = (clientes: string[]) => ev('core.rota.dia_planejado@1', '2026-10-30T10:00:00Z', { usuario_id: VENDEDOR, data: DIA, cliente_ids: clientes });
 const TODOS = new Set(['core', 'vendedor', 'promotor']);
-const avaliar = (eventos: EventoRecebido[], agora: string, o: { produtividade?: ParametrosAlertasProdutividade; membros?: MembroEquipe[] } = {}) =>
-  avaliarAlertas({ estado: montar(eventos), membros: o.membros ?? MEMBROS, agora, modulos: TODOS, regras: resolverRegras(), produtividade: 'produtividade' in o ? o.produtividade : PARAMETROS_PRODUTIVIDADE_PADRAO });
+const PADRAO = PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO;
+/** Por padrão o aparelho sincronizou às 23:59 UTC do dia (depois de qualquer início de parada); `contato: null` = nunca sincronizou. */
+const SINCRONIZOU = '2026-10-30T23:59:00Z';
+const avaliar = (eventos: EventoRecebido[], agora: string, o: { produtividade?: ParametrosAlertasProdutividade; membros?: MembroEquipe[]; contato?: string | null; parado_min?: number } = {}) =>
+  avaliarAlertas({
+    estado: montar(eventos),
+    membros: o.membros ?? MEMBROS,
+    agora,
+    modulos: TODOS,
+    regras: resolverRegras(),
+    params: o.parado_min === undefined ? undefined : { parado_min: o.parado_min },
+    produtividade: 'produtividade' in o ? o.produtividade : PADRAO,
+    ultimo_contato_em: { [VENDEDOR]: 'contato' in o ? (o.contato ?? null) : SINCRONIZOU },
+  });
 const doTipo = (cs: ReturnType<typeof avaliar>, tipo: string) => cs.filter((c) => c.tipo === tipo);
-const comRegra = <K extends keyof ParametrosAlertasProdutividade['regras']>(k: K, parcial: Partial<ParametrosAlertasProdutividade['regras'][K]>): ParametrosAlertasProdutividade => ({
-  ...PARAMETROS_PRODUTIVIDADE_PADRAO,
-  regras: { ...PARAMETROS_PRODUTIVIDADE_PADRAO.regras, [k]: { ...PARAMETROS_PRODUTIVIDADE_PADRAO.regras[k], ...parcial } },
+const comRegra = <K extends keyof Omit<ParametrosAlertasProdutividade, 'teto_lembretes_dia'>>(k: K, parcial: Partial<ParametrosAlertasProdutividade[K]>): ParametrosAlertasProdutividade => ({
+  ...PADRAO,
+  [k]: { ...PADRAO[k], ...parcial },
 });
 
 const visita = [rota([CLIENTE_A, CLIENTE_B, CLIENTE_C]), checkin({ visita: V1, cliente: CLIENTE_A, em: T0 }), checkout({ visita: V1, cliente: CLIENTE_A, em: maisMin(T0, 30) })];
@@ -29,13 +40,20 @@ describe('D4 / RN-CORE-26: alerta "Parado" ao gestor (parado_min + 30 min, um po
   it('RN-CORE-26: abre quando passam parado_min (60) + 30 min do último checkout, com paradas pendentes', () => {
     expect(doTipo(avaliar(visita, maisMin(CO, 89)), 'parado_entre_visitas')).toEqual([]);
     const [c] = doTipo(avaliar(visita, maisMin(CO, 90)), 'parado_entre_visitas');
-    expect(c).toMatchObject({ chave: `parado_entre_visitas:${VENDEDOR}`, alvo_tipo: 'usuario', alvo_id: VENDEDOR, responsavel_id: VENDEDOR, mensagem: 'Vera: último checkout às 09:30.', severidade: 'atencao' });
+    expect(c).toMatchObject({ chave: `produtividade:${VENDEDOR}`, alvo_tipo: 'usuario', alvo_id: VENDEDOR, responsavel_id: VENDEDOR, mensagem: 'Vera: último checkout às 09:30.', severidade: 'atencao' });
   });
 
   it('RN-CORE-26: o limite é o inicio.parado_min do tenant (um valor só), não um número à parte', () => {
-    expect(doTipo(avaliar(visita, maisMin(CO, 70), { produtividade: PARAMETROS_PRODUTIVIDADE_PADRAO }), 'parado_entre_visitas')).toEqual([]);
-    const cs = avaliarAlertas({ estado: montar(visita), membros: MEMBROS, agora: maisMin(CO, 70), modulos: TODOS, regras: resolverRegras(), produtividade: PARAMETROS_PRODUTIVIDADE_PADRAO, params: { parado_min: 30 } });
-    expect(doTipo(cs, 'parado_entre_visitas')).toHaveLength(1);
+    expect(doTipo(avaliar(visita, maisMin(CO, 70)), 'parado_entre_visitas')).toEqual([]);
+    expect(doTipo(avaliar(visita, maisMin(CO, 70), { parado_min: 30 }), 'parado_entre_visitas')).toHaveLength(1);
+  });
+
+  it('ADR 0059 §5: só abre com o último contato do aparelho POSTERIOR ao último checkout (sem sinal não acusa)', () => {
+    const agora = maisMin(CO, 120);
+    expect(doTipo(avaliar(visita, agora, { contato: null }), 'parado_entre_visitas')).toEqual([]); // nunca sincronizou
+    expect(doTipo(avaliar(visita, agora, { contato: maisMin(CO, -5) }), 'parado_entre_visitas')).toEqual([]); // último sinal antes do checkout
+    expect(doTipo(avaliar(visita, agora, { contato: CO }), 'parado_entre_visitas')).toEqual([]); // igual não é posterior
+    expect(doTipo(avaliar(visita, agora, { contato: maisMin(CO, 1) }), 'parado_entre_visitas')).toHaveLength(1);
   });
 
   it('não abre em visita aberta, sem paradas pendentes, ou depois do expediente', () => {
@@ -64,14 +82,22 @@ describe('D4: alerta "Sem check-in" no início do dia (a mensagem é só o nome)
   it('abre às 10:00 locais sem nenhum check-in no dia útil; antes disso não', () => {
     expect(doTipo(avaliar([], '2026-10-30T13:59:00Z'), 'sem_checkin_inicio')).toEqual([]); // 09:59
     const [c] = doTipo(avaliar([], '2026-10-30T14:00:00Z'), 'sem_checkin_inicio'); // 10:00
-    expect(c).toMatchObject({ chave: `sem_checkin_inicio:${VENDEDOR}`, alvo_tipo: 'usuario', responsavel_id: VENDEDOR, mensagem: 'Vera', severidade: 'atencao' });
+    expect(c).toMatchObject({ chave: `produtividade:${VENDEDOR}`, alvo_tipo: 'usuario', responsavel_id: VENDEDOR, mensagem: 'Vera', severidade: 'atencao' });
   });
 
   it('usa o horário configurado e não abre com check-in, em fim de semana ou fora do expediente', () => {
-    expect(doTipo(avaliar([], '2026-10-30T13:30:00Z', { produtividade: comRegra('sem_checkin_inicio', { ate: '09:00' }) }), 'sem_checkin_inicio')).toHaveLength(1);
+    expect(doTipo(avaliar([], '2026-10-30T13:30:00Z', { produtividade: comRegra('sem_checkin_inicio', { ate_min: 540 }) }), 'sem_checkin_inicio')).toHaveLength(1);
     expect(doTipo(avaliar([checkin({ visita: V1, cliente: CLIENTE_A, em: T0 })], '2026-10-30T14:30:00Z'), 'sem_checkin_inicio')).toEqual([]);
     expect(doTipo(avaliar([], '2026-10-31T15:00:00Z'), 'sem_checkin_inicio')).toEqual([]); // sábado
     expect(doTipo(avaliar([], '2026-10-30T22:30:00Z'), 'sem_checkin_inicio')).toEqual([]); // 18:30
+  });
+
+  it('ADR 0059 §5: só abre com o último contato POSTERIOR ao horário "até" (quem trabalhou sem sinal não é acusado)', () => {
+    const agora = '2026-10-30T15:00:00Z'; // 11:00 em Manaus; o "até" padrão é 10:00 (14:00Z)
+    expect(doTipo(avaliar([], agora, { contato: null }), 'sem_checkin_inicio')).toEqual([]);
+    expect(doTipo(avaliar([], agora, { contato: '2026-10-30T13:00:00Z' }), 'sem_checkin_inicio')).toEqual([]); // 09:00, antes do horário
+    expect(doTipo(avaliar([], agora, { contato: '2026-10-30T14:00:00Z' }), 'sem_checkin_inicio')).toEqual([]);
+    expect(doTipo(avaliar([], agora, { contato: '2026-10-30T14:01:00Z' }), 'sem_checkin_inicio')).toHaveLength(1);
   });
 
   it('RN-CORE-03/D4: com a regra ou o destino Gestor desligado, nada abre', () => {
@@ -82,19 +108,41 @@ describe('D4: alerta "Sem check-in" no início do dia (a mensagem é só o nome)
 });
 
 describe('D4: um alerta de produtividade aberto por pessoa; encerra sozinho no próximo check-in', () => {
-  const existente = (tipo: 'parado_entre_visitas' | 'sem_checkin_inicio'): AlertaExistente => ({ id: u(9000), chave: `${tipo}:${VENDEDOR}`, tipo, status: 'aberto', valor: null, mensagem: 'x', severidade: 'atencao', aberto_em: '2026-10-30T14:00:00Z' });
+  const existente = (tipo: 'parado_entre_visitas' | 'sem_checkin_inicio'): AlertaExistente => ({ id: u(9000), chave: `produtividade:${VENDEDOR}`, tipo, status: 'aberto', valor: null, mensagem: 'x', severidade: 'atencao', aberto_em: '2026-10-30T14:00:00Z' });
 
-  it('o mais novo substitui o anterior: abre o Parado e encerra o Sem check-in da mesma pessoa', () => {
+  it('RN-VEN-42: o mais novo substitui o anterior: abre o Parado e encerra o Sem check-in da mesma pessoa (mesma chave)', () => {
     const agora = maisMin(CO, 120);
-    const ops = reconciliarAlertas([existente('sem_checkin_inicio')], avaliar(visita, agora), { agora, tipos_ativos: tiposAtivos(resolverRegras(), TODOS, PARAMETROS_PRODUTIVIDADE_PADRAO) });
-    expect(ops.abrir.map((c) => c.chave)).toEqual([`parado_entre_visitas:${VENDEDOR}`]);
+    const ops = reconciliarAlertas([existente('sem_checkin_inicio')], avaliar(visita, agora), { agora, tipos_ativos: tiposAtivos(resolverRegras(), TODOS, PADRAO) });
+    expect(ops.abrir.map((c) => [c.chave, c.tipo])).toEqual([[`produtividade:${VENDEDOR}`, 'parado_entre_visitas']]);
     expect(ops.encerrar).toEqual([{ id: u(9000), motivo: 'condicao_normalizada', encerrado_em: agora }]);
+    expect(ops.atualizar).toEqual([]);
+  });
+
+  it('RN-VEN-42: o novo substitui até o alerta dispensado, e o mesmo tipo só atualiza (não abre outro)', () => {
+    const agora = maisMin(CO, 120);
+    const ativos = tiposAtivos(resolverRegras(), TODOS, PADRAO);
+    const dispensado = { ...existente('sem_checkin_inicio'), status: 'dispensado' as const };
+    const ops = reconciliarAlertas([dispensado], avaliar(visita, agora), { agora, tipos_ativos: ativos });
+    expect(ops.abrir).toHaveLength(1);
+    expect(ops.encerrar).toHaveLength(1);
+    const igual = reconciliarAlertas([{ ...existente('parado_entre_visitas'), valor: 1 }], avaliar(visita, agora), { agora, tipos_ativos: ativos });
+    expect(igual.abrir).toEqual([]);
+    expect(igual.encerrar).toEqual([]);
+    expect(igual.atualizar).toHaveLength(1);
+  });
+
+  it('RN-VEN-42: com o tipo vivo desligado, encerra por regra inativa e abre o outro tipo que vale', () => {
+    const agora = maisMin(CO, 120);
+    const ativos = tiposAtivos(resolverRegras(), TODOS, comRegra('sem_checkin_inicio', { ativa: false }));
+    const ops = reconciliarAlertas([existente('sem_checkin_inicio')], avaliar(visita, agora), { agora, tipos_ativos: ativos });
+    expect(ops.encerrar).toEqual([{ id: u(9000), motivo: 'regra_inativa', encerrado_em: agora }]);
+    expect(ops.abrir.map((c) => c.tipo)).toEqual(['parado_entre_visitas']);
   });
 
   it('encerra sozinho no próximo check-in e some quando a regra é desligada', () => {
     const agora = '2026-10-30T15:00:00Z';
     const comCheckin = [checkin({ visita: V1, cliente: CLIENTE_A, em: '2026-10-30T14:40:00Z' })];
-    const ativos = tiposAtivos(resolverRegras(), TODOS, PARAMETROS_PRODUTIVIDADE_PADRAO);
+    const ativos = tiposAtivos(resolverRegras(), TODOS, PADRAO);
     expect(reconciliarAlertas([existente('sem_checkin_inicio')], avaliar(comCheckin, agora), { agora, tipos_ativos: ativos }).encerrar).toEqual([{ id: u(9000), motivo: 'condicao_normalizada', encerrado_em: agora }]);
     const desligados = tiposAtivos(resolverRegras(), TODOS, comRegra('sem_checkin_inicio', { ativa: false }));
     expect(reconciliarAlertas([existente('sem_checkin_inicio')], [], { agora, tipos_ativos: desligados }).encerrar[0]).toMatchObject({ motivo: 'regra_inativa' });
@@ -113,5 +161,6 @@ describe('D4 / RN-VEN-42: os tipos de produtividade não têm regra própria na 
     expect(REGRAS_PADRAO.parado_entre_visitas.tipo).toBe('parado_entre_visitas');
     const r = ajustarRegraAlerta({}, 'parado_entre_visitas', { ativa: false });
     expect(r).toEqual({ ok: false, erros: ['Este alerta liga e desliga em Parâmetros › Alertas › Produtividade do dia.'] });
+    expect(ajustarRegraAlerta({}, 'sem_checkin_inicio', { ativa: false }).ok).toBe(false);
   });
 });

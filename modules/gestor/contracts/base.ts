@@ -62,6 +62,9 @@ export const TIPOS_ALERTA = [
 ] as const;
 /** T-0180 / D4: tipos de produtividade (sem regra própria em `alerta_regra`; o liga/desliga vem do parâmetro do core). */
 export const TIPOS_ALERTA_PRODUTIVIDADE = ['parado_entre_visitas', 'sem_checkin_inicio'] as const;
+/** As 6 regras da equipe, na ordem da tela (`alerta_regra`); só elas têm ajuste em `alertas/regras` (ADR 0059 §1). */
+export const TIPOS_REGRA_EQUIPE = ['cliente_sem_visita', 'ritmo_abaixo_meta', 'pedido_aguardando_aprovacao', 'ruptura_recorrente', 'visita_curta', 'fotos_sem_gps'] as const;
+export type TipoRegraEquipe = (typeof TIPOS_REGRA_EQUIPE)[number];
 export const TipoAlerta = z.enum(TIPOS_ALERTA);
 export type TipoAlerta = z.infer<typeof TipoAlerta>;
 

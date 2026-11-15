@@ -3,9 +3,9 @@
  * (RN-CORE-04), visão da equipe (RF-GES-01), ficha (RF-GES-02/05/10), alertas no escopo e dispensa (RF-GES-07) e
  * ajuste de regra de alerta (BKO). Funções puras: rodam na API, no app (offline, sobre o cache) e no BKO.
  */
+import type { ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
 import { PERFIS } from '@macuxi/platform-sdk';
 import { AjusteRegraAlerta, type AjustesRegras, type Alerta, type FichaMembro, type MembroComPainel, type MembroEquipe, type StatusAlerta, type TipoAlerta, type VisaoEquipe } from '../contracts';
-import type { ParametrosAlertasProdutividade } from './produtividade-do-dia';
 import { avaliarAlertas, ehTipoProdutividade, MODULO_DO_ALERTA, reconciliarAlertas, resolverRegras, tiposAtivos, type OperacoesAlerta } from './alertas';
 import { equipesAbaixo, podeVer, resumirEquipe, type EscopoGestor } from './equipe';
 import { diaLocal, montarPainelDia } from './painel';
@@ -164,10 +164,10 @@ function doModulo(tipo: TipoAlerta, modulos: ReadonlySet<string>): boolean {
  */
 export function reconciliarParaViewer(
   existentes: readonly Alerta[],
-  e: { estado: EstadoProjecao; membros: readonly MembroEquipe[]; agora: string; modulos: ReadonlySet<string>; ajustes: AjustesRegras; params?: Partial<ParametrosGestor>; produtividade?: ParametrosAlertasProdutividade },
+  e: { estado: EstadoProjecao; membros: readonly MembroEquipe[]; agora: string; modulos: ReadonlySet<string>; ajustes: AjustesRegras; params?: Partial<ParametrosGestor>; produtividade?: ParametrosAlertasProdutividade; ultimo_contato_em?: Readonly<Record<string, string | null>> },
 ): OperacoesAlerta {
   const regras = resolverRegras(e.ajustes);
-  const condicoes = avaliarAlertas({ estado: e.estado, membros: e.membros, agora: e.agora, modulos: e.modulos, regras, params: e.params, produtividade: e.produtividade });
+  const condicoes = avaliarAlertas({ estado: e.estado, membros: e.membros, agora: e.agora, modulos: e.modulos, regras, params: e.params, produtividade: e.produtividade, ultimo_contato_em: e.ultimo_contato_em });
   return reconciliarAlertas(
     existentes.filter((a) => doModulo(a.tipo, e.modulos)),
     condicoes,

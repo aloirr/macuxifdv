@@ -2,7 +2,6 @@ import { defineModule } from '@macuxi/platform-sdk';
 
 /** Quem vê e age sobre a EQUIPE (RN-CORE-04): supervisor e gerente; decidem aprovações e dispensam alertas (doc 03 §2). */
 const PERFIS_GESTAO = ['supervisor', 'gerente'] as const;
-/** T-0180: as regras de alerta ficam em Parâmetros › Alertas (`/parametros/alertas`): regras da equipe e Produtividade do dia. */
 /** RN-GES-07: analista e admin veem os painéis do TENANT em modo leitura (BKO) e configuram as regras de alerta. */
 const PERFIS_TENANT = ['analista', 'admin'] as const;
 
@@ -72,7 +71,7 @@ export const manifest = defineModule({
     'alerta_regra.gerenciar': { perfis: [...PERFIS_TENANT], descricao: 'Ligar, desligar e ajustar as regras de alerta do tenant (BKO)' },
   },
   // T-0055: nomes e perfis da equipe pelo cadastro do Core (ADR 0012), na mesma transação da rota.
-  usaConsultas: ['core.cadastro_resumo@1', 'core.calendario_metas@1'],
+  usaConsultas: ['core.cadastro_resumo@1', 'core.calendario_metas@1', 'core.produtividade_equipe@1'],
   // Pedido em nome: extensão opcional do Vendedor; some sem erro se o Vendedor estiver inativo.
   usaExtensoes: ['pedido.criar_em_nome', 'cliente.abas', 'cliente.avisos', 'inicio.cards'],
 });

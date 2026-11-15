@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import { Alerta, RegraAlerta, StatusAlerta } from './alerta';
 import { ItemFilaAprovacao, ResumoFila } from './aprovacao';
-import { InstanteUtc, IsoDate, PeriodoRanking, TipoAlerta, Uuid } from './base';
+import { InstanteUtc, IsoDate, PeriodoRanking, TIPOS_REGRA_EQUIPE, TipoAlerta, Uuid } from './base';
 import { MembroEquipe } from './equipe';
 import { PainelDia, ResumoEquipe } from './painel';
 import { DisponibilidadeEmNome } from './pedido-em-nome';
@@ -36,8 +36,11 @@ export const RankingQuery = z
   .strict();
 export type RankingQuery = z.infer<typeof RankingQuery>;
 
-/** `status` filtra; sem ele vêm os ATIVOS (abertos e dispensados), que é o que a tela mostra. */
-export const AlertasQuery = z.object({ status: StatusAlerta.optional() }).strict();
+/**
+ * `status` filtra; sem ele vêm os ATIVOS (abertos e dispensados), que é o que a tela mostra. `produtividade=1` inclui os alertas de
+ * produtividade (T-0180, ADR 0059 §1): sem ele a lista os omite, para o Gestão anterior à v1.0.13 não rejeitar o tipo novo.
+ */
+export const AlertasQuery = z.object({ status: StatusAlerta.optional(), produtividade: z.literal('1').optional() }).strict();
 export type AlertasQuery = z.infer<typeof AlertasQuery>;
 
 export const DisponibilidadeEmNomeQuery = z.object({ vendedor_id: Uuid }).strict();
@@ -81,7 +84,8 @@ export type RegrasAlertaResposta = z.infer<typeof RegrasAlertaResposta>;
 export const AjusteRegraAlerta = RegraAlerta.omit({ tipo: true }).partial().strict();
 export type AjusteRegraAlerta = z.infer<typeof AjusteRegraAlerta>;
 
-export const ParamsTipoAlerta = z.object({ tipo: TipoAlerta }).strict();
+/** Só as regras da equipe têm ajuste (ADR 0059 §1): tipo de produtividade no caminho é 400, antes do banco. */
+export const ParamsTipoAlerta = z.object({ tipo: z.enum(TIPOS_REGRA_EQUIPE) }).strict();
 export const ParamsId = z.object({ id: Uuid }).strict();
 export const ParamsUsuario = z.object({ usuario_id: Uuid }).strict();
 

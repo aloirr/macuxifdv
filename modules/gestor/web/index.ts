@@ -21,6 +21,6 @@ export const moduloWeb = definirModuloShell<ComponentType>({
     { id: 'ranking', caminho: 'ranking', titulo: 'Ranking', navegacao: 'Ranking', grupo: 'analise', ordem: 20, perfis: PERFIS_LEITURA, componente: RankingPage },
     { id: 'aprovacoes', caminho: 'aprovacoes', titulo: 'Aprovações da equipe', navegacao: 'Aprovações', grupo: 'operacao', ordem: 30, perfis: PERFIS_LEITURA, componente: AprovacoesPage },
     { id: 'alertas', caminho: 'alertas', titulo: 'Alertas da equipe', navegacao: 'Alertas', grupo: 'operacao', ordem: 40, perfis: PERFIS_LEITURA, componente: AlertasPage },
-    { id: 'regras-alerta', caminho: 'parametros/alertas', titulo: 'Parâmetros › Alertas', navegacao: 'Regras de alerta', grupo: 'administracao', acao: 'alerta_regra.gerenciar', componente: ParametrosAlertasPage },
+    { id: 'regras-alerta', caminho: 'parametros/alertas', titulo: 'Alertas', navegacao: 'Regras de alerta', grupo: 'administracao', acao: 'alerta_regra.gerenciar', componente: ParametrosAlertasPage },
   ],
 });

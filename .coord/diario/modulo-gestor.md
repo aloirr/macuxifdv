@@ -39,3 +39,4 @@
 2026-11-13 — RD-0210 — removida a tag fixa 'Atenção' das pendências em alertas-screen.tsx
 2026-11-14 — oficial — cabeçalho Azul noite nas 5 telas do Gestão
 2026-11-15 — T-0180 — Parâmetros › Alertas (/parametros/alertas: regras da equipe com campos próprios + Produtividade do dia, D1/D6), GET|PUT /v1/gestor/parametros/alertas, tipos de alerta parado_entre_visitas e sem_checkin_inicio (D4, um por pessoa, sem push) no avaliador; doc aprovado. Pendências: API do avaliador ainda sem o parâmetro do core (tipos novos inativos até lá); adaptador local do contrato do core; menu/redirect/ADR/Interruptor sem texto (outros donos)
+2026-11-15 — T-0180 — rodada 2: chave produtividade:<usuario_id> com substituição, permanência fora do Gestor, contrato do Core sem espelho, avaliador com core.produtividade_equipe@1 e último contato, ?produtividade=1, página conforme a spec final, doc alinhado; recados deram 403 (sem acesso ao repositório de recados)

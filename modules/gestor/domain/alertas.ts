@@ -7,16 +7,16 @@
  *      · alerta dispensado pelo gestor não reabre enquanto a condição persiste; se sumir e voltar, abre outro.
  * O "dia" é a data civil no fuso do tenant. Funções puras e idempotentes.
  */
+import type { ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
 import { diffDays } from '@macuxi/comum';
 import { RegraAlerta, TIPOS_ALERTA, TIPOS_ALERTA_PRODUTIVIDADE, type CondicaoAlerta, type FrequenciaVisita, type MembroEquipe, type MotivoEncerramento, type Severidade, type StatusAlerta, type TipoAlerta } from '../contracts';
 import { nivelDaFilaDoGestor, pedidoPendenteDeAprovacao, situacaoDoPrazo } from './aprovacoes';
 import { situacaoDaRota } from './agora';
 import { ehDiaUtil, horasUteisEntre, instanteDoHorarioLocal } from './horario-comercial';
 import { somarDiasCivis } from '@macuxi/comum/relogio';
-import { arredondar, instanteMs, percentual } from './numeros';
+import { arredondar, instanteMs, percentual, textoDoMinuto } from './numeros';
 import { atendida, diaLocal, diasUteisDoMes, painelDoMes, statusDoDia } from './painel';
 import { resolverParametros, type ParametrosGestor } from './parametros';
-import type { ParametrosAlertasProdutividade } from './produtividade-do-dia';
 import { carteiraPendente, entradaNaCarteira, type EstadoProjecao } from './projecao';
 
 /** Regra padrão de cada tipo (valores entre colchetes do doc 02/03 e premissas da T-0014, em regras.md). */
@@ -101,7 +101,7 @@ export function tiposAtivos(regras: RegrasAlerta, modulos: ReadonlySet<string>, 
     TIPOS_ALERTA.filter((t) => {
       if (!(MODULO_DO_ALERTA[t] === 'core' || modulos.has(MODULO_DO_ALERTA[t]))) return false;
       if (!ehTipoProdutividade(t)) return regras[t].ativa;
-      const r = produtividade?.regras[t === 'parado_entre_visitas' ? 'parado_entre_visitas' : 'sem_checkin_inicio'];
+      const r = produtividade?.[t];
       return r !== undefined && r.ativa && r.gestor;
     }),
   );
@@ -116,11 +116,18 @@ export interface EntradaAvaliacao {
   modulos: ReadonlySet<string>;
   regras: RegrasAlerta;
   params?: Partial<ParametrosGestor>;
-  /** T-0180 / D4: parâmetro de produtividade do core; sem ele os alertas de produtividade não são avaliados. */
+  /** T-0180 / D4: parâmetro `alertas.produtividade` do Core (`core.produtividade_equipe@1`); sem ele os alertas de produtividade não são avaliados. */
   produtividade?: ParametrosAlertasProdutividade;
+  /**
+   * T-0180 / ADR 0059 §5: último contato do aparelho de cada usuário (UTC; `core.produtividade_equipe@1`). O alerta de produtividade
+   * só abre com contato POSTERIOR ao início da parada (não acusa quem trabalhou sem sinal e ainda não sincronizou); sem contato, não abre.
+   */
+  ultimo_contato_em?: Readonly<Record<string, string | null>>;
 }
 
 const chaveDe = (tipo: TipoAlerta, alvo: string) => `${tipo}:${alvo}`;
+/** D4 / ADR 0059 §7: os dois tipos de produtividade dividem a chave, para haver um alerta vivo por pessoa (o mais novo substitui). */
+const chaveProdutividade = (usuarioId: string) => `produtividade:${usuarioId}`;
 const naJanela = (dia: string, hoje: string, janela: number) => dia >= somarDiasCivis(hoje, -(janela - 1)) && dia <= hoje;
 
 /** Condições de alerta que valem em `agora`, ordenadas por chave (resultado estável). */
@@ -316,7 +323,7 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
   const agoraMs = instanteMs(e.agora);
   const expediente = ehDiaUtil(hoje, params) && agoraMs >= instanteDoHorarioLocal(hoje, params.horario_comercial.inicio, params.fuso) && agoraMs < instanteDoHorarioLocal(hoje, params.horario_comercial.fim, params.fuso);
   if (e.produtividade && expediente && (ativos.has('parado_entre_visitas') || ativos.has('sem_checkin_inicio'))) {
-    const prod = e.produtividade.regras;
+    const prod = e.produtividade;
     for (const m of e.membros) {
       if ((m.perfil !== 'vendedor' && m.perfil !== 'promotor') || !m.ativo) continue;
       const dia = statusDoDia(e.estado, m.id, hoje, params);
@@ -324,9 +331,11 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
       if (ativos.has('parado_entre_visitas') && dia === 'em_rota') {
         const rota = situacaoDaRota(e.estado, m.id, hoje, params.fuso);
         const parado = rota.ultimo_checkout_em ? Math.floor((agoraMs - instanteMs(rota.ultimo_checkout_em)) / 60_000) : null;
-        if (rota.paradas_pendentes > 0 && rota.ultimo_checkout_em && parado !== null && parado >= params.parado_min + prod.parado_entre_visitas.gestor_depois_min) {
+        const contato = e.ultimo_contato_em?.[m.id] ?? null;
+        const comSinal = rota.ultimo_checkout_em !== null && contato !== null && instanteMs(contato) > instanteMs(rota.ultimo_checkout_em);
+        if (rota.paradas_pendentes > 0 && rota.ultimo_checkout_em && comSinal && parado !== null && parado >= params.parado_min + prod.parado_entre_visitas.gestor_depois_min) {
           out.push({
-            chave: chaveDe('parado_entre_visitas', m.id),
+            chave: chaveProdutividade(m.id),
             tipo: 'parado_entre_visitas',
             alvo_tipo: 'usuario',
             alvo_id: m.id,
@@ -339,9 +348,11 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
           continue; // um alerta de produtividade por pessoa
         }
       }
-      if (ativos.has('sem_checkin_inicio') && dia === 'sem_checkin' && agoraMs >= instanteDoHorarioLocal(hoje, prod.sem_checkin_inicio.ate, params.fuso)) {
+      const ate = instanteDoHorarioLocal(hoje, textoDoMinuto(prod.sem_checkin_inicio.ate_min), params.fuso);
+      const contatoDoDia = e.ultimo_contato_em?.[m.id] ?? null;
+      if (ativos.has('sem_checkin_inicio') && dia === 'sem_checkin' && agoraMs >= ate && contatoDoDia !== null && instanteMs(contatoDoDia) > ate) {
         out.push({
-          chave: chaveDe('sem_checkin_inicio', m.id),
+          chave: chaveProdutividade(m.id),
           tipo: 'sem_checkin_inicio',
           alvo_tipo: 'usuario',
           alvo_id: m.id,
@@ -396,10 +407,16 @@ export function reconciliarAlertas(existentes: readonly AlertaExistente[], condi
     const [ficaCom, ...repetidos] = grupo as [AlertaExistente, ...AlertaExistente[]];
     for (const d of repetidos) ops.encerrar.push({ id: d.id, motivo: 'duplicado', encerrado_em: o.agora });
     const c = porChave.get(chave);
+    // D4: mesma chave com tipo diferente (os dois de produtividade): o mais novo substitui o vivo, mesmo dispensado
+    const substitui = c !== undefined && c.tipo !== ficaCom.tipo && o.tipos_ativos.has(c.tipo);
     if (!o.tipos_ativos.has(ficaCom.tipo)) {
       ops.encerrar.push({ id: ficaCom.id, motivo: 'regra_inativa', encerrado_em: o.agora });
+      if (substitui) ops.abrir.push(c);
     } else if (!c) {
       ops.encerrar.push({ id: ficaCom.id, motivo: 'condicao_normalizada', encerrado_em: o.agora });
+    } else if (substitui) {
+      ops.encerrar.push({ id: ficaCom.id, motivo: 'condicao_normalizada', encerrado_em: o.agora });
+      ops.abrir.push(c);
     } else {
       mantidos.add(chave);
       if (ficaCom.status === 'aberto' && (ficaCom.valor !== c.valor || ficaCom.mensagem !== c.mensagem || ficaCom.severidade !== c.severidade)) {

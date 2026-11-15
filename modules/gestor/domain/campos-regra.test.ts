@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { REGRAS_PADRAO } from './alertas';
-import { CAMPOS_REGRA, FRASE_REGRA, montarSalvamento, regrasVisiveis, TIPOS_REGRA_EQUIPE, validarCampo } from './campos-regra';
+import { CAMPOS_REGRA, FRASE_REGRA, montarSalvamento, regrasVisiveis, validarCampo } from './campos-regra';
+import { TIPOS_REGRA_EQUIPE } from '../contracts';
 import { PARAMETROS_PADRAO } from './parametros';
 
 const parametros = {
@@ -8,7 +9,6 @@ const parametros = {
   dias_sem_visita_padrao: PARAMETROS_PADRAO.dias_sem_visita_padrao,
   dias_carencia_cliente_novo: PARAMETROS_PADRAO.dias_carencia_cliente_novo,
   prazo_aprovacao_dias_uteis: PARAMETROS_PADRAO.prazo_aprovacao_dias_uteis,
-  permanencia_min_min: PARAMETROS_PADRAO.permanencia_min_min,
 };
 
 describe('Parâmetros › Alertas: campos de cada regra (T-0180)', () => {
@@ -24,10 +24,9 @@ describe('Parâmetros › Alertas: campos de cada regra (T-0180)', () => {
     expect(c).toMatchObject({ origem: { tipo: 'parametro', chave: 'prazo_aprovacao_dias_uteis' }, padrao: 1, unidade: 'dias úteis' });
   });
 
-  it('RN-PRO-07: Visita curta edita a permanência mínima (parâmetro) e a janela (regra)', () => {
-    const c = CAMPOS_REGRA.visita_curta;
-    expect(c[0]).toMatchObject({ origem: { tipo: 'parametro', chave: 'permanencia_min_min' }, padrao: 10, unidade: 'min' });
-    expect(c[1]).toMatchObject({ origem: { tipo: 'regra', campo: 'janela_dias' }, padrao: 3 });
+  it('RN-PRO-07: Visita curta mostra só o que é do gestor (a janela); a permanência mínima é do Promotor', () => {
+    expect(CAMPOS_REGRA.visita_curta).toHaveLength(1);
+    expect(CAMPOS_REGRA.visita_curta[0]).toMatchObject({ origem: { tipo: 'regra', campo: 'janela_dias' }, padrao: 3, rotulo: 'Nos últimos', unidade: 'dias' });
   });
 
   it('todo campo vem com o padrão da regra ou do tenant e toda regra tem frase curta', () => {
