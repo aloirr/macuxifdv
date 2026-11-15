@@ -407,6 +407,16 @@ export const T0170_FIXTURE = {
   },
 } as const;
 
+/**
+ * 0080 (T-0175, RN-CORE-59): Código FDV que o gatilho usuario_codigo_fdv_emitir dá aos usuários da fixture, na ordem da lista
+ * de core.usuario (um INSERT por tenant, linhas em ordem). Nada gravado pela fixture: o banco emite; o contador de A termina
+ * em 8 e o de B em 2 (recarregar a fixture não muda os códigos, só pode deixar buraco no contador).
+ */
+export const CODIGOS_FDV_FIXTURE = {
+  A: { admin: 'FDV-0001', analista: 'FDV-0002', assistente: 'FDV-0003', gerente: 'FDV-0004', supervisor: 'FDV-0005', vendedor1: 'FDV-0006', vendedor2: 'FDV-0007', promotor: 'FDV-0008' },
+  B: { admin: 'FDV-0001', vendedor: 'FDV-0002' },
+} as const;
+
 /** 0057 (ADR 0041): quem abre documento sensível do PDV = PERFIS_DOC_SENSIVEL do Core (fonte única; o gerente entrou em R-20261110-084206). */
 export const PERFIS_LEITURA_DOC_SENSIVEL = PERFIS_DOC_SENSIVEL;
 
@@ -632,6 +642,9 @@ export const ORDEM_TABELAS = [
   'plataforma.perfil_modulo',
   'core.equipe',
   'core.usuario',
+  // 0080 (T-0175): o gatilho usuario_codigo_fdv_emitir cria as linhas na carga de core.usuario; aqui o mesmo id, com o
+  // ultimo_sequencial preservado (a recarga nunca baixa o contador)
+  'core.usuario_codigo_fdv_contador',
   // 0041 (T-0112): vínculos além do principal — vazio desde a 0069 (um perfil por usuário: o gatilho usuario_perfil_principal liga o de fábrica de core.usuario.perfil)
   'plataforma.usuario_perfil',
   'plataforma.usuario_modulo',
@@ -1007,6 +1020,11 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       usuario(A.usuarios.promotor, tA, 'Promotor Alfa', 'promotor@exemplo.com.br', 'promotor', A.equipes.equipe1, senhaHash),
       usuario(B.usuarios.admin, tB, 'Admin Beta', 'admin.b@exemplo.com.br', 'admin', null, senhaHash),
       usuario(B.usuarios.vendedor, tB, 'Vendedor Beta', DOIS_TENANTS.emailRepetido, 'vendedor', B.equipes.equipe, senhaHash),
+    ],
+    // 0080 (T-0175): mesmo id e mesmo número que o gatilho grava (CODIGOS_FDV_FIXTURE: A até FDV-0008, B até FDV-0002)
+    'core.usuario_codigo_fdv_contador': [
+      { id: idDeChave(`${tA}:core.usuario_codigo_fdv_contador`), tenant_id: tA, ultimo_sequencial: 8, external_id: null },
+      { id: idDeChave(`${tB}:core.usuario_codigo_fdv_contador`), tenant_id: tB, ultimo_sequencial: 2, external_id: null },
     ],
     'plataforma.usuario_modulo': [
       { id: a('usuario_modulo', 1), tenant_id: tA, usuario_id: A.usuarios.vendedor2, modulo: 'teste', efeito: 'remover', motivo: 'fixture: exceção que remove teste (S0-042)', external_id: null },
@@ -1794,7 +1812,7 @@ export async function carregarDoisTenants(admin: ClientBase, opcoes: { senha?: s
     await gravarLinhas(admin, 'plataforma.plano', planosDaFixture());
     for (const tabela of ORDEM_TABELAS) {
       const linhas = tabela === 'core.equipe' ? dados[tabela].map((e) => ({ ...e, responsavel_id: null })) : dados[tabela];
-      const preservar = tabela === 'core.usuario' ? ['senha_hash'] : tabela === 'vendedor.numeracao_pedido' ? ['ultimo'] : [];
+      const preservar = tabela === 'core.usuario' ? ['senha_hash'] : tabela === 'vendedor.numeracao_pedido' ? ['ultimo'] : tabela === 'core.usuario_codigo_fdv_contador' ? ['ultimo_sequencial'] : [];
       await gravarLinhas(admin, tabela, linhas, { preservar });
       if (tabela === 'core.usuario') await gravarLinhas(admin, 'core.equipe', dados['core.equipe']);
     }

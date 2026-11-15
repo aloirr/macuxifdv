@@ -240,3 +240,7 @@ padrão do Core vêm do gatilho do tenant.
   14 (API 34), versão `1.0.4`, tela `/m/novo-pedido`. Sem print. O **protocolo** vem da sequência global
   `plataforma.diagnostico_protocolo_seq` (a fixture não grava a coluna; o número muda entre bancos). Testes que precisam de
   pendente, de print ou de diagnóstico velho (expurgo) gravam o seu em transação desfeita.
+
+## 0080 — Código FDV (T-0175, RN-CORE-59)
+- A fixture não grava `codigo_fdv`: o gatilho `usuario_codigo_fdv_emitir` emite na carga, na ordem da lista de `core.usuario`. Esperado em `CODIGOS_FDV_FIXTURE`: A = admin `FDV-0001` … promotor `FDV-0008`; B = admin `FDV-0001`, vendedor `FDV-0002`.
+- `core.usuario_codigo_fdv_contador` ganha uma linha em A e uma em B pelo próprio gatilho (vazamento de leitura coberto). Recarregar a fixture não muda os códigos (o upsert por id não toca a coluna); o contador pode pular números.
