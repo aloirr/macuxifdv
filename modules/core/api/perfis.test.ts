@@ -1,6 +1,6 @@
 import { catalogoDePermissoes, criarPermissoes, matrizDeFabrica, PERFIS, verificarAcao, type ClienteBanco, type ContextoBase, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { PerfilDetalheSchema, PerfilListaRespostaSchema } from '../contracts';
+import { CriarPerfilRequestSchema, PerfilDetalheSchema, PerfilListaRespostaSchema } from '../contracts';
 import { perfisDeFabrica } from '../domain';
 import { manifest } from '../manifest';
 import { rotasDePerfis } from './perfis';
@@ -26,7 +26,7 @@ function fakeDb(respostas: Resposta[] = []) {
 /** O tenant como a 0041 deixa: 7 perfis de fábrica, sem sobreposição, um admin ativo. */
 const tenant = (extra: Resposta[] = [], admins = [{ id: ADMIN.id, ativo: true, perfis: ['admin'] }]): Resposta[] => [
   ...extra,
-  [/select id, codigo, nome, descricao, base, fabrica, ativo from plataforma.perfil/, PERFIS.map((b) => ({ id: idDe(b), codigo: b, nome: b, descricao: null, base: b, fabrica: true, ativo: true }))],
+  [/select id, codigo, nome, descricao, base, fabrica, ativo, cargo from plataforma.perfil/, PERFIS.map((b) => ({ id: idDe(b), codigo: b, nome: b, descricao: null, base: b, fabrica: true, ativo: true }))],
   [/from plataforma.perfil_permissao/, []],
   [/coalesce\(array_agg/, admins],
   [/select codigo from plataforma.perfil$/, PERFIS.map((codigo) => ({ codigo }))],
@@ -161,14 +161,25 @@ describe('T-0111: limites na escrita (RN-CORE-33, RN-PRO-01, RN-CORE-04, RN-CORE
 
   it('RN-CORE-35: criar com nome repetido é 422 CODIGO_REPETIDO; criar a partir de um perfil exige a mesma base', async () => {
     const { db } = fakeDb(tenant());
-    await expect(executar(rota('POST', 'perfis'), contexto(db), { corpo: { nome: 'vendedor', base: 'vendedor' } })).rejects.toMatchObject({ codigo: 'CODIGO_REPETIDO' });
-    await expect(executar(rota('POST', 'perfis'), contexto(db), { corpo: { nome: 'Norte', base: 'promotor', copiar_de: 'vendedor' } })).rejects.toMatchObject({ codigo: 'PERFIL_DADOS_INVALIDOS' });
+    await expect(executar(rota('POST', 'perfis'), contexto(db), { corpo: { nome: 'vendedor', base: 'vendedor', cargo: 'vendedor' } })).rejects.toMatchObject({ codigo: 'CODIGO_REPETIDO' });
+    await expect(executar(rota('POST', 'perfis'), contexto(db), { corpo: { nome: 'Norte', base: 'promotor', cargo: 'promotor', copiar_de: 'vendedor' } })).rejects.toMatchObject({ codigo: 'PERFIL_DADOS_INVALIDOS' });
+  });
+
+  it('R-20261114-153500: o perfil novo exige o cargo (lista fixa) e a lista devolve o cargo de cada perfil', async () => {
+    expect(CriarPerfilRequestSchema.safeParse({ nome: 'X', base: 'vendedor' }).success).toBe(false);
+    expect(CriarPerfilRequestSchema.safeParse({ nome: 'X', base: 'vendedor', cargo: 'diretor' }).success).toBe(false);
+    const { db } = fakeDb(tenant());
+    const r = PerfilListaRespostaSchema.parse(await executar(rota('GET', 'perfis'), contexto(db), {}));
+    expect(r.itens.find((p) => p.codigo === 'admin')?.cargo).toBe('administrativo');
+    expect(r.itens.find((p) => p.codigo === 'promotor')?.cargo).toBe('promotor');
   });
 
   it('RN-AUD-01: criar grava o perfil, copia os módulos da base e audita perfil.criar', async () => {
     const { db, chamadas } = fakeDb(tenant());
-    await executar(rota('POST', 'perfis'), contexto(db), { corpo: { nome: 'Vendedor Norte', base: 'vendedor', descricao: 'Zona norte' } }).catch(() => undefined);
+    await executar(rota('POST', 'perfis'), contexto(db), { corpo: { nome: 'Vendedor Norte', base: 'vendedor', descricao: 'Zona norte', cargo: 'vendedor' } }).catch(() => undefined);
     expect(chamadas.some((c) => /insert into plataforma.perfil \(/.test(c.sql) && c.valores.includes('vendedor_norte'))).toBe(true);
+    // 0069: o cargo informado vai junto no insert (R-20261114-153500)
+    expect(chamadas.find((c) => /insert into plataforma.perfil \(.*cargo\)/.test(c.sql))?.valores.at(-1)).toBe('vendedor');
     expect(chamadas.some((c) => /insert into plataforma.perfil_modulo/.test(c.sql))).toBe(true);
     expect(chamadas.filter((c) => /insert into plataforma.auditoria/.test(c.sql)).map((c) => c.valores[1])).toEqual(['perfil.criar']);
   });
