@@ -324,6 +324,7 @@ Severidade: **alta** (confunde ou contradiz) · **média** (polui) · **baixa** 
 | RD-0479 | #323 · `ESCONDER_SENHA` (deprecated) e `rotuloOlhoSenha` (`login.ts:64`) ao lado de `OCULTAR_SENHA`/`rotuloDoOlhoDaSenha`: 2 palavras para o mesmo botão até a migração do inventário | código · texto | baixa | designer-ux · modulo-core · engenheiro-apps | **aberto** 15/11; adiado no 1826f04 para o lote da v1.0.10 (migração do inventário); segura esse lote | [2026-11-15-campo-senha](2026-11-15-campo-senha.md) | R-20261115-071000 |
 | RD-0480 | #323 · `componentes.md` repete a spec do `CampoSenha` com 44 × 44 no app, e a `campo-senha/spec.md` e o código dão 48 × 48 | doc | alta | designer-ux | **corrigido** 15/11 no 1826f04 (relatório §4) | [2026-11-15-campo-senha](2026-11-15-campo-senha.md) | R-20261115-071000 |
 | RD-0481 | #323 · o comentário da `CLASSE_CAMPO_BASE` (`web/ui.tsx:55`) diz "todo campo do kit", e agora existe a `CLASSE_CAMPO_ACESSO` | comentário | baixa | designer-ux | **aberto** 15/11; não segura (só comentário, lote seguinte) | [2026-11-15-campo-senha](2026-11-15-campo-senha.md) §4 | R-20261115-071000 |
+| RD-0507 | "As duas senhas iguais" (designer-ux fe57995) · a conta estado → "ok"/"falta" está em 4 lugares (`itensDasRegras`, `itemDaRepeticao`, `web/senha.tsx:110` e `:125`), 2 deles novos | código | baixa | designer-ux | **aberto** 15/11; segura | [2026-11-15-campo-senha](2026-11-15-campo-senha.md) §5 | R-20261115-080000-alexandre |
 
 ## Regras do checklist acrescentadas
 | Data | Regra | Origem |

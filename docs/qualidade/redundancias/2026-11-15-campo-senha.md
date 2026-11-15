@@ -81,3 +81,37 @@ O `cx` só junta as classes e não resolve conflito. Por isso, montar a de acess
 - **Onde:** `packages/ui/src/web/ui.tsx:55`, no comentário da `CLASSE_CAMPO_BASE`: "Traço, cor, texto e foco de **todo campo do kit**".
 - **O que se repete:** o comentário diz que essa é a base de todos os campos. Com a `CLASSE_CAMPO_ACESSO`, há outra base no mesmo arquivo, e quem ler o comentário pode montar uma 3ª.
 - **Proposta:** "Traço, cor, texto e foco dos campos do kit (filtros, busca e formulário; RD-0368). Telas de acesso: `CLASSE_CAMPO_ACESSO`. Cada campo só acrescenta a altura, a largura e o respiro."
+
+## 5. "As duas senhas iguais" no checklist de "Crie sua senha" (15/11/2026, commit fe57995 do designer-ux)
+**Veredito: COM ACHADO.** Há 1 achado de gravidade baixa, o RD-0507, em código de produção, que **segura**. O texto em si está sem achado.
+
+Conferi o branch `nuvem/senhas-iguais-designer-ux`, commit **fe57995**, pelo diff contra o `origin/main`:
+- o código: `comum/senha.ts`, `web/senha.tsx` e `mobile/senha.tsx`, com os testes;
+- os docs: `campo-senha/spec.md` §4, `ciclo-de-senha.md` §4 e `portal-entrar.md` §5.
+
+O texto foi aprovado pelo dono do produto (R-20261115-080000-alexandre, item 2), e não o conto como achado.
+
+| Ponto | Resultado |
+|---|---|
+| Texto | Um texto só, "As duas senhas iguais", no lugar de 3 ("As senhas conferem.", "As senhas não conferem." e "Repita a senha nova."). O estado vem da marca (○ ✓ ✕) e do "ok"/"falta" falado, como nas regras. Nada se repete na tela. |
+| Docs | A `campo-senha/spec.md` §4 agora só remete ao `ciclo-de-senha.md` §4, que é a fonte única dos estados. O `portal-entrar.md` §5 cita o item e remete ao `ciclo-de-senha.md` §7. Os estados não aparecem em 2 docs. |
+| `ESCONDER_SENHA` | Continua até o modulo-core migrar. O RD-0479 segue **aberto**, como combinado. |
+
+### RD-0507 · baixa · código · designer-ux · segura
+- **Onde:** a mesma conta, estado → "ok"/"falta" falado (`estado === 'ok' ? ESTADO_FALADO_REGRA.ok : ESTADO_FALADO_REGRA.falta`), está em 4 lugares:
+  - `comum/senha.ts`: `itensDasRegras` (`cumprida ? ok : falta`) e a nova `itemDaRepeticao` (`confere ? ok : falta`);
+  - `web/senha.tsx:110`: o `sr-only` das regras;
+  - `web/senha.tsx:125`: o `sr-only` novo da conferência. Ele refaz a conta mesmo com o `rotuloAcessivel` que a `itemDaRepeticao` acabou de calcular.
+- **O que se repete:** a mesma decisão está escrita 4 vezes, e 2 delas são deste commit. Se o falado mudar, por exemplo "pendente" no lugar de "falta", é preciso lembrar de mudar os 4.
+- **Proposta:** uma função pura em `comum/senha.ts`:
+  ```ts
+  export function estadoFalado(estado: EstadoRegraSenha): string {
+    return estado === 'ok' ? ESTADO_FALADO_REGRA.ok : ESTADO_FALADO_REGRA.falta;
+  }
+  ```
+  - `itensDasRegras` e `itemDaRepeticao` montam o `rotuloAcessivel` com `estadoFalado(estado)`.
+  - Na web, os 2 `sr-only` passam a usar `` `: ${estadoFalado(i.estado)}` `` e `` `: ${estadoFalado(conferencia.estado)}` ``.
+
+  Uma alternativa é o item já trazer o `falado` pronto e a web só ler `i.falado`.
+
+**Observação sem RD:** no cabeçalho de `web/senha.tsx`, a frase nova termina em "(R-20261115-080000-alexandre)" sem ponto, e a linha seguinte começa com "(id `<id>-repeticao`…". A frase ficou quebrada. É só um comentário; corrija junto com o RD-0507.
