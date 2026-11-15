@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { Perfil } from '@macuxi/platform-sdk';
 import { downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, Dialog, formatDateTime, IconDownload, Panel, TableScroll, td, tdNum, th, thNum, useToast } from '@macuxi/ui/web';
+import { Button, Dialog, formatDateTime, Panel, rotuloComContagem, TabelaDados, useToast, type ColunaDaTabela } from '@macuxi/ui/web';
 import type { DecidirInativacaoEntrada, PendenciaInativacao } from '../../contracts';
 import { decisaoDaPendencia, ROTULO_ENTIDADE } from '../lib/apresentacao';
 import { pendenciaParaCsv } from '../lib/csv';
@@ -17,6 +17,8 @@ const pct = (n: number) => `${n.toLocaleString('pt-BR', { maximumFractionDigits:
  * Inativação em massa aguardando confirmação (RN-INT-06, P-3): a carga completa inativaria mais que o limite dos ativos. Admin ou
  * analista confirma ou recusa, com motivo opcional; a API grava a auditoria (quem, quando, lote, quantidade) na mesma transação.
  * O botão só aparece habilitado para quem pode (`decisaoDaPendencia`); a API revalida perfil, validade e estado.
+ * Quadro de pendências (revisão do BKO §P6, regra 5): só aparece com pelo menos uma inativação aguardando, com a contagem no
+ * título; Confirmar e Recusar ficam à vista (a decisão é a ação da linha) e o CSV da amostra vai no "⋯" (§P3).
  */
 export function InativacoesPanel({ pendencias, perfil, agora, tz }: { pendencias: readonly PendenciaInativacao[]; perfil: Perfil | null; agora: Date; tz: string }) {
   const toast = useToast();
@@ -52,69 +54,50 @@ export function InativacoesPanel({ pendencias, perfil, agora, tz }: { pendencias
     downloadBlob(new Blob([pendenciaParaCsv(p, tz)], { type: 'text/csv;charset=utf-8' }), `inativacao_${p.entidade}_${p.lote_id.slice(0, 8)}.csv`);
   };
 
+  if (pendencias.length === 0) return null;
+
+  const colunas: ReadonlyArray<ColunaDaTabela<PendenciaInativacao>> = [
+    { id: 'entidade', titulo: 'Entidade', celula: (p) => <span className="font-semibold">{ROTULO_ENTIDADE[p.entidade]}</span>, texto: (p) => ROTULO_ENTIDADE[p.entidade] },
+    { id: 'conector', titulo: 'Conector', prioridade: 3, celula: (p) => <span className="font-mono text-[12px]">{p.conector_id}</span>, texto: (p) => p.conector_id },
+    { id: 'inativaria', titulo: 'Inativaria', numero: true, largura: '120px', celula: (p) => `${p.candidatos} de ${p.total_ativos}` },
+    { id: 'percentual', titulo: '% dos ativos', numero: true, largura: '112px', celula: (p) => <span className="font-semibold text-danger">{pct(p.percentual)}</span>, texto: (p) => `limite ${pct(p.limite_pct)}` },
+    { id: 'amostra', titulo: 'Amostra (código no ERP)', prioridade: 3, celula: (p) => <span className="font-mono text-[12px]">{p.amostra.join(', ') || '—'}</span>, texto: (p) => p.amostra.join(', ') },
+    { id: 'vale-ate', titulo: 'Vale até', numero: true, prioridade: 2, largura: '140px', celula: (p) => formatDateTime(p.expira_em, tz) },
+    {
+      id: 'decisao',
+      titulo: 'Decisão',
+      largura: '208px',
+      celula: (p) => {
+        const d = decisaoDaPendencia(p, perfil, agora);
+        return d.pode ? (
+          <div className="flex gap-2">
+            <Button size="sm" variant="danger" onClick={() => abrir(p, 'confirmar')} data-testid={`integracao.inativacao.confirmar.${p.id}`}>
+              Confirmar
+            </Button>
+            <Button size="sm" onClick={() => abrir(p, 'recusar')} data-testid={`integracao.inativacao.recusar.${p.id}`}>
+              Recusar
+            </Button>
+          </div>
+        ) : (
+          <div className="text-[12px] whitespace-normal text-ink-2" data-testid={`integracao.inativacao.bloqueada.${p.id}`}>
+            {d.motivo}
+          </div>
+        );
+      },
+    },
+  ];
+
   return (
-    <Panel label="Inativações aguardando" title={<>Inativação em massa <span className="font-sans text-[13px] font-normal text-ink-2">· {pendencias.length} aguardando</span></>}>
-      {pendencias.length === 0 ? (
-        <span className="text-[13px] text-ink-2" data-testid="integracao.inativacoes.vazio">
-          Nenhuma carga completa aguardando confirmação.
-        </span>
-      ) : (
-        <TableScroll minWidth={860}>
-          <thead>
-            <tr>
-              <th scope="col" className={th}>Entidade</th>
-              <th scope="col" className={th}>Conector</th>
-              <th scope="col" className={thNum}>Inativaria</th>
-              <th scope="col" className={thNum}>% dos ativos</th>
-              <th scope="col" className={th}>Amostra (código no ERP)</th>
-              <th scope="col" className={th}>Vale até</th>
-              <th scope="col" className={th}>Decisão</th>
-            </tr>
-          </thead>
-          <tbody data-testid="integracao.inativacoes">
-            {pendencias.map((p) => {
-              const d = decisaoDaPendencia(p, perfil, agora);
-              return (
-                <tr key={p.id} data-testid={`integracao.inativacao.${p.id}`}>
-                  <td className={`${td} font-semibold`}>{ROTULO_ENTIDADE[p.entidade]}</td>
-                  <td className={`${td} font-mono text-[12px]`}>{p.conector_id}</td>
-                  <td className={tdNum}>
-                    {p.candidatos} de {p.total_ativos}
-                  </td>
-                  <td className={`${tdNum} font-semibold text-danger`}>
-                    {pct(p.percentual)}
-                    <div className="text-[11px] font-normal text-ink-2">limite {pct(p.limite_pct)}</div>
-                  </td>
-                  <td className={`${td} max-w-[220px] font-mono text-[12px]`}>
-                    <span className="line-clamp-2 break-all">{p.amostra.join(', ') || '—'}</span>
-                    <Button variant="link" size="sm" onClick={() => exportar(p)} data-testid={`integracao.inativacao.csv.${p.id}`}>
-                      <IconDownload size={13} />
-                      CSV
-                    </Button>
-                  </td>
-                  <td className={`${td} whitespace-nowrap`}>{formatDateTime(p.expira_em, tz)}</td>
-                  <td className={td}>
-                    {d.pode ? (
-                      <div className="flex flex-wrap gap-2">
-                        <Button size="sm" variant="danger" onClick={() => abrir(p, 'confirmar')} data-testid={`integracao.inativacao.confirmar.${p.id}`}>
-                          Confirmar
-                        </Button>
-                        <Button size="sm" onClick={() => abrir(p, 'recusar')} data-testid={`integracao.inativacao.recusar.${p.id}`}>
-                          Recusar
-                        </Button>
-                      </div>
-                    ) : (
-                      <span className="text-[12px] text-ink-2" data-testid={`integracao.inativacao.bloqueada.${p.id}`}>
-                        {d.motivo}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </TableScroll>
-      )}
+    <Panel label="Inativações aguardando" title={rotuloComContagem('Inativações aguardando', pendencias.length)}>
+      <TabelaDados
+        colunas={colunas}
+        linhas={pendencias}
+        chave={(p) => p.id}
+        rotulo="Inativações aguardando"
+        testId="integracao.inativacoes"
+        linhaTestId={(p) => `integracao.inativacao.${p.id}`}
+        acoes={(p) => [{ id: 'csv', rotulo: 'Baixar amostra (CSV)', aoEscolher: () => exportar(p), testId: `integracao.inativacao.csv.${p.id}` }]}
+      />
 
       <Dialog
         open={!!aberta}

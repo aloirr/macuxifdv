@@ -3,10 +3,10 @@
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { travaDaChave, type Perfil } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { useMe } from '../../lib/queries';
 import { api, ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
+import { ROTULO_CARGO } from '../../../contracts/cargos';
 import {
   alternarMarcado,
   Badge,
@@ -22,19 +22,17 @@ import {
   LinhaDePermissao,
   LoadingBlock,
   NOTA_DO_RESUMO,
+  MenuAcoes,
   Notice,
-  ORDEM_PERFIL_BASE,
   PageHeader,
   Panel,
   ResumoDasMudancas,
   ROTULO_ALVO_TODOS,
-  ROTULO_LUGAR,
   ROTULO_PERFIL_BASE,
   SECOES_DO_PERFIL,
   SELO_PADRAO,
   SeletorDeNivel,
   SeletorDePerfis,
-  TableScroll,
   textoDoPadrao,
   CADEADO,
   td,
@@ -43,7 +41,7 @@ import {
   type SecaoDoPerfil,
   rotuloDoPerfil,
 } from '@macuxi/ui/web';
-import { CODIGO_REPETIDO, REGRA_DA_SENHA, MENSAGEM_NOME_OBRIGATORIO, MENSAGEM_PERFIL_REPETIDO, PerfilDetalheSchema, PerfilHistoricoRespostaSchema, PerfilListaRespostaSchema, type PerfilDetalhe, type PerfilHistoricoItem, type PerfilResumo } from '../../../contracts';
+import { CODIGO_REPETIDO, MENSAGEM_NOME_OBRIGATORIO, MENSAGEM_PERFIL_REPETIDO, REGRA_DA_SENHA, PerfilDetalheSchema, UsuarioListaRespostaSchema, PerfilHistoricoRespostaSchema, PerfilListaRespostaSchema, type PerfilDetalhe, type PerfilHistoricoItem, type PerfilResumo } from '../../../contracts';
 import {
   ALVO_TODOS_PERFIS,
   corpoDoPerfil,
@@ -68,9 +66,10 @@ import {
   type LinhaDoPerfil,
   type RegistroSobre,
 } from '../../lib/perfis';
+import { contagemPorPerfil } from '../../lib/acesso';
+import { NovoPerfil } from './novo-perfil';
 
 const CAMPO = 'h-[44px] w-full rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink disabled:bg-ground disabled:text-ink-2';
-const BOTAO_LINHA = 'min-h-[44px] rounded-xl px-2 text-[13px] font-semibold text-accent-ink hover:underline disabled:text-disabled';
 const SEM_PERMISSAO = 'O seu perfil não gerencia perfis de acesso. Fale com o admin da sua empresa.';
 const SEM_CONEXAO = 'Sem conexão. Confira a internet e tente de novo.';
 
@@ -83,11 +82,17 @@ function ListaDePerfis() {
   const router = useRouter();
   const pathname = usePathname();
   const qc = useQueryClient();
-  const toast = useToast();
-  const [novo, setNovo] = useState<{ copiaDe: PerfilResumo | null } | null>(null);
   const [acao, setAcao] = useState<{ tipo: 'desativar' | 'reativar'; perfil: PerfilResumo } | null>(null);
   const lista = useQuery({ queryKey: ['core', 'perfis'], queryFn: async () => PerfilListaRespostaSchema.parse(await api('/core/perfis')).itens });
+  // a contagem sai da MESMA lista da tela Usuários (sem filtro); sem permissão de ver usuários, vale a da API
+  const usuariosQ = useQuery({
+    queryKey: ['core', 'usuarios', '', '', ''],
+    queryFn: async () => UsuarioListaRespostaSchema.parse(await api('/core/usuarios')).itens,
+    retry: false,
+  });
   const itens = lista.data ?? [];
+  const contagem = usuariosQ.data ? contagemPorPerfil(usuariosQ.data) : null;
+  const usuariosDe = (p: PerfilResumo): number => (contagem ? (contagem[p.codigo] ?? 0) : p.usuarios);
 
   const abrir = (codigo: string) => router.push(`${pathname}?perfil=${encodeURIComponent(codigo)}`);
 
@@ -110,29 +115,27 @@ function ListaDePerfis() {
     if (ehSemPermissao(lista.error)) return <Notice tone="info">{SEM_PERMISSAO}</Notice>;
     return <ErrorBlock message={ehSemConexao(lista.error) ? SEM_CONEXAO : errorMessage(lista.error)} onRetry={() => void lista.refetch()} />;
   }
-  const soPadrao = itens.every((p) => p.fabrica);
 
   return (
-    <div className="flex flex-col gap-4" data-testid="perfis.lista">
+    <div className="flex w-full max-w-[1180px] flex-col gap-4" data-testid="perfis.lista">
       <PageHeader
         title="Perfis de acesso"
-        subtitle="O que cada perfil pode fazer e onde entra. Mudanças valem na próxima ação de quem usa o perfil, sem sair e entrar de novo."
         actions={
-          <Button variant="primary" onClick={() => setNovo({ copiaDe: null })} data-testid="perfis.novo">
+          <Button variant="primary" onClick={() => router.push(`${pathname}?novo=1`)} data-testid="perfis.novo">
             Novo perfil
           </Button>
         }
       />
       <Panel label="Perfis de acesso">
-        <TableScroll minWidth={760}>
+        <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr>
-              <th className={th}>Nome</th>
-              <th className={th}>Perfil base</th>
-              <th className={th}>Onde entra</th>
+              <th className={th}>Perfil</th>
+              <th className={th}>Cargo</th>
               <th className={`${th} text-right`}>Usuários</th>
-              <th className={th}>Situação</th>
-              <th className={th}>Ações</th>
+              <th className={`${th} w-[56px]`}>
+                <span className="sr-only">Ações</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -143,75 +146,45 @@ function ListaDePerfis() {
                     <button type="button" className="min-h-[44px] text-left text-[14px] font-semibold text-ink hover:underline" onClick={() => abrir(p.codigo)}>
                       {rotuloDoPerfil(p.codigo, { nome: p.nome })}
                     </button>
-                    {p.fabrica && <Badge tone="neutral">{SELO_PADRAO}</Badge>}
+                    {!p.ativo && <Badge tone="neutral">Inativo</Badge>}
                   </div>
-                  {p.descricao && <div className="max-w-[320px] truncate text-[12px] text-ink-2">{p.descricao}</div>}
                 </td>
-                <td className={td}>{ROTULO_PERFIL_BASE[p.base]}</td>
-                <td className={td}>
-                  {p.onde_entra.length === 0 ? (
-                    <span className="text-ink-2">Nenhum</span>
+                <td className={td}>{ROTULO_CARGO[p.cargo]}</td>
+                <td className={`${td} text-right`}>
+                  {usuariosDe(p) === 0 ? (
+                    <span className="text-ink-2">0</span>
                   ) : (
-                    <span className="flex flex-wrap gap-1">
-                      {p.onde_entra.map((l) => (
-                        <Badge key={l} tone="neutral">
-                          {ROTULO_LUGAR[l]}
-                        </Badge>
-                      ))}
-                    </span>
+                    <button type="button" className="min-h-[44px] min-w-[44px] font-semibold text-accent-ink hover:underline" onClick={() => router.push(`/usuarios?perfil=${encodeURIComponent(p.codigo)}`)}>
+                      {usuariosDe(p)}
+                    </button>
                   )}
                 </td>
                 <td className={`${td} text-right`}>
-                  {p.usuarios === 0 ? (
-                    <span className="text-ink-2">0</span>
-                  ) : (
-                    <button type="button" className="min-h-[44px] min-w-[44px] font-semibold text-accent-ink hover:underline" onClick={() => router.push(`/core/usuarios?perfil=${encodeURIComponent(p.codigo)}`)}>
-                      {p.usuarios}
-                    </button>
-                  )}
-                </td>
-                <td className={td}>{p.ativo ? <Badge tone="success">Ativo</Badge> : <Badge tone="neutral">Inativo</Badge>}</td>
-                <td className={td}>
-                  <span className="flex flex-wrap">
-                    <button type="button" className={BOTAO_LINHA} onClick={() => abrir(p.codigo)} data-testid={`perfis.editar.${p.codigo}`}>
-                      Editar
-                    </button>
-                    <button type="button" className={BOTAO_LINHA} onClick={() => setNovo({ copiaDe: p })} data-testid={`perfis.copiar.${p.codigo}`}>
-                      Novo a partir deste
-                    </button>
-                    {!p.fabrica && p.ativo && (
-                      <button type="button" className={BOTAO_LINHA} onClick={() => setAcao({ tipo: 'desativar', perfil: p })} data-testid={`perfis.desativar.${p.codigo}`}>
-                        Desativar
-                      </button>
-                    )}
-                    {!p.fabrica && !p.ativo && (
-                      <button type="button" className={BOTAO_LINHA} onClick={() => setAcao({ tipo: 'reativar', perfil: p })} data-testid={`perfis.reativar.${p.codigo}`}>
-                        Reativar
-                      </button>
-                    )}
-                  </span>
+                  <MenuAcoes
+                    rotulo={`Ações de ${p.nome}`}
+                    testId={`perfis.menu.${p.codigo}`}
+                    acoes={[
+                      { id: 'editar', rotulo: 'Editar', aoEscolher: () => abrir(p.codigo), testId: `perfis.editar.${p.codigo}` },
+                      ...(!p.fabrica && p.ativo ? [{ id: 'desativar', rotulo: 'Desativar', perigo: true, aoEscolher: () => setAcao({ tipo: 'desativar', perfil: p }), testId: `perfis.desativar.${p.codigo}` }] : []),
+                      ...(!p.fabrica && !p.ativo ? [{ id: 'reativar', rotulo: 'Reativar', aoEscolher: () => setAcao({ tipo: 'reativar', perfil: p }), testId: `perfis.reativar.${p.codigo}` }] : []),
+                    ]}
+                  />
                 </td>
               </tr>
             ))}
           </tbody>
-        </TableScroll>
+        </table>
       </Panel>
-      {soPadrao && (
-        <Notice tone="info">
-          <span data-testid="perfis.vazio">Os 7 perfis padrão já vêm prontos. Para ajustar as permissões de um grupo de pessoas, crie um perfil a partir de um deles.</span>
-        </Notice>
-      )}
-      {novo && <DialogoNovoPerfil copiaDe={novo.copiaDe} onClose={() => setNovo(null)} onCriado={(codigo) => { toast('success', 'Perfil criado. Ajuste as permissões e salve.'); setNovo(null); void qc.invalidateQueries({ queryKey: ['core', 'perfis'] }); abrir(codigo); }} />}
       {acao && (
         <Dialog
           open
           title={acao.tipo === 'desativar' ? 'Desativar este perfil?' : 'Reativar este perfil?'}
           onClose={() => setAcao(null)}
           footer={
-            acao.tipo === 'desativar' && acao.perfil.usuarios > 0 ? (
+            acao.tipo === 'desativar' && usuariosDe(acao.perfil) > 0 ? (
               <>
                 <Button onClick={() => setAcao(null)}>Fechar</Button>
-                <Button variant="primary" onClick={() => router.push(`/core/usuarios?perfil=${encodeURIComponent(acao.perfil.codigo)}`)}>
+                <Button variant="primary" onClick={() => router.push(`/usuarios?perfil=${encodeURIComponent(acao.perfil.codigo)}`)}>
                   Ver os usuários
                 </Button>
               </>
@@ -232,91 +205,14 @@ function ListaDePerfis() {
           <p className="m-0 text-[14px]">
             {acao.tipo === 'reativar'
               ? `${acao.perfil.nome} volta a aparecer no cadastro de usuários.`
-              : acao.perfil.usuarios > 0
-                ? `${acao.perfil.nome} tem ${acao.perfil.usuarios} ${acao.perfil.usuarios === 1 ? 'usuário' : 'usuários'}. Troque o perfil deles em Usuários antes de desativar.`
-                : `${acao.perfil.nome} deixa de aparecer no cadastro de usuários. Dá para reativar depois. Fica registrado no histórico.`}
+              : usuariosDe(acao.perfil) > 0
+                ? `${acao.perfil.nome} tem ${usuariosDe(acao.perfil)} ${usuariosDe(acao.perfil) === 1 ? 'usuário' : 'usuários'}. Troque o perfil deles em Usuários antes de desativar.`
+                : `${acao.perfil.nome} deixa de aparecer no cadastro de usuários. Dá para reativar depois.`}
           </p>
           {mudarSituacao.isError && <Notice tone="danger">{ehSemConexao(mudarSituacao.error) ? SEM_CONEXAO : errorMessage(mudarSituacao.error)}</Notice>}
         </Dialog>
       )}
     </div>
-  );
-}
-
-function DialogoNovoPerfil({ copiaDe, onClose, onCriado }: { copiaDe: PerfilResumo | null; onClose: () => void; onCriado: (codigo: string) => void }) {
-  const [nome, setNome] = useState(copiaDe ? `${copiaDe.nome} (cópia)` : '');
-  const [base, setBase] = useState<string>(copiaDe?.base ?? '');
-  const [descricao, setDescricao] = useState('');
-  const [tentou, setTentou] = useState(false);
-  const [erroApi, setErroApi] = useState<string | null>(null);
-  const criar = useMutation({
-    mutationFn: async () =>
-      PerfilDetalheSchema.parse(await api('/core/perfis', { method: 'POST', body: { nome: nome.trim(), base, descricao: descricao.trim() || null, ...(copiaDe ? { copiar_de: copiaDe.codigo } : {}) } })),
-    onSuccess: (d) => onCriado(d.perfil.codigo),
-    onError: (e) => setErroApi(e instanceof ApiRequestError && e.code === CODIGO_REPETIDO ? CODIGO_REPETIDO : 'Não foi possível criar agora. Tente de novo.'),
-  });
-  const erroNome = tentou && nome.trim() === '' ? MENSAGEM_NOME_OBRIGATORIO : erroApi === CODIGO_REPETIDO ? MENSAGEM_PERFIL_REPETIDO : null;
-  const erroBase = tentou && !base ? 'Escolha o perfil base.' : null;
-  const travaBko = base ? travaDaChave(base as Perfil, 'acesso.bko') : null;
-  const enviar = () => {
-    setTentou(true);
-    setErroApi(null);
-    if (nome.trim() === '' || !base) return;
-    criar.mutate();
-  };
-  return (
-    <Dialog
-      open
-      title={copiaDe ? `Novo a partir de ${copiaDe.nome}` : 'Novo perfil'}
-      onClose={onClose}
-      footer={
-        <>
-          <Button onClick={onClose}>Cancelar</Button>
-          <Button variant="primary" disabled={criar.isPending} onClick={enviar} data-testid="perfis.novo.criar">
-            {criar.isPending ? 'Criando…' : 'Criar e editar'}
-          </Button>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
-          Nome
-          <input className={CAMPO} value={nome} maxLength={40} autoFocus onFocus={(e) => copiaDe && e.currentTarget.select()} onChange={(e) => setNome(e.target.value)} data-testid="perfis.novo.nome" />
-          {erroNome && <span className="text-[12px] font-medium text-danger">{erroNome}</span>}
-        </label>
-        {copiaDe ? (
-          <p className="m-0 text-[13px]">Perfil base: {ROTULO_PERFIL_BASE[copiaDe.base]}</p>
-        ) : (
-          <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
-            Perfil base
-            <select className={CAMPO} value={base} onChange={(e) => setBase(e.target.value)} data-testid="perfis.novo.base">
-              <option value="">Escolha…</option>
-              {ORDEM_PERFIL_BASE.map((b) => (
-                <option key={b} value={b}>
-                  {ROTULO_PERFIL_BASE[b]}
-                </option>
-              ))}
-            </select>
-            {erroBase && <span className="text-[12px] font-medium text-danger">{erroBase}</span>}
-          </label>
-        )}
-        {base && (
-          <p className="m-0 text-[12px] text-ink-2">
-            Começa com as permissões do {ROTULO_PERFIL_BASE[base as keyof typeof ROTULO_PERFIL_BASE]}. {travaBko?.mensagem}
-          </p>
-        )}
-        <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
-          Descrição (opcional)
-          <textarea className="min-h-[64px] rounded-xl border border-field bg-surface px-3 py-2 text-[14px] font-normal text-ink" rows={2} maxLength={200} value={descricao} onChange={(e) => setDescricao(e.target.value)} data-testid="perfis.novo.descricao" />
-          <span className="text-[12px] font-normal text-ink-2">Para quem é este perfil. Aparece na lista.</span>
-        </label>
-        {erroApi && erroApi !== CODIGO_REPETIDO && (
-          <Notice tone="danger">
-            <span data-testid="perfis.novo.erro">{erroApi}</span>
-          </Notice>
-        )}
-      </div>
-    </Dialog>
   );
 }
 
@@ -532,9 +428,8 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
           </button>
         }
         title={d.perfil.nome}
-        badge={fab ? <Badge tone="neutral">{SELO_PADRAO}</Badge> : d.perfil.ativo ? undefined : <Badge tone="neutral">Inativo</Badge>}
-        subtitle={`Perfil base: ${ROTULO_PERFIL_BASE[base]} · ${d.perfil.usuarios} ${d.perfil.usuarios === 1 ? 'usuário' : 'usuários'}`}
-        actions={
+        badge={d.perfil.ativo ? undefined : <Badge tone="neutral">Inativo</Badge>}
+                actions={
           <>
             <Button size="sm" onClick={() => setHistorico(true)} data-testid="perfil.historico">
               Histórico
@@ -605,7 +500,6 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
                   s.id,
                   s.titulo,
                   <>
-                    {s.id === 'onde-entra' && <p className="m-0 text-[13px] text-ink-2">Em quais apps e sites quem tem este perfil consegue entrar.</p>}
                     {linhas.filter((l) => l.secao === s.id).map(renderLinha)}
                     {s.id === 'clientes' && (
                       <LinhaDePermissao id="cliente-ver-360" rotulo="Ver o Cliente 360" testId="permissao.cliente-ver-360">
@@ -796,6 +690,7 @@ function PerfisConteudo() {
   const podeGerir = usePode('perfil.gerir');
   const codigo = params.get('perfil');
   if (!podeGerir) return <Notice tone="info">{SEM_PERMISSAO}</Notice>;
+  if (params.get('novo')) return <NovoPerfil />;
   return codigo ? <EdicaoDoPerfil key={codigo} codigo={codigo} /> : <ListaDePerfis />;
 }
 

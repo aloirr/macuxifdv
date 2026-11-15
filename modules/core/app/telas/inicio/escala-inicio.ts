@@ -7,8 +7,8 @@
  *
  * A altura é estimada com 1,3 de entrelinha por linha de texto; o RN já multiplica a letra pela fonte do sistema, então aqui
  * `fontSize` é o valor base (sem `fontScale`) e `fontScale` só entra na conta da altura e no piso. Alturas e respiros do kit
- * (`ALTURA`, `ALVO_TOQUE`, `CABECALHO`) vêm de `@macuxi/ui/mobile/puro`; o respiro de cima do painel é o do `layoutCabecalho`
- * (não escala), e só ele soma a área segura.
+ * (`ALTURA`, `ALVO_TOQUE`, `CABECALHO`) vêm de `@macuxi/ui/mobile/puro`; o painel é a variação C do cabeçalho (docs/design/telas/inicio-cabecalho.md: foto de 72 dp, piso 56, à esquerda dos textos);
+ * o respiro de cima do painel é o do `layoutCabecalho` (não escala), e só ele soma a área segura.
  */
 import { ALTURA, ALVO_TOQUE, CABECALHO, space } from '@macuxi/ui/mobile/puro';
 
@@ -16,6 +16,10 @@ export const FATOR_MINIMO = 0.6;
 export const PISO_LETRA_DP = 11;
 const ENTRELINHA = 1.3;
 const MARGEM = 6;
+/** Piso da foto do painel (variação C, 72 dp na escala cheia): nunca menor que isto. */
+const AVATAR_PISO = 56;
+/** Texto típico da data · DU ("Sábado, 14 de novembro · DU 11 de 23"), para estimar 1 ou 2 linhas. */
+const CARACTERES_DATA = 36;
 /** Largura média de um caractere em fração do corpo da letra (IBM Plex Sans), para estimar as linhas da frase. */
 const LARGURA_CARACTERE = 0.46;
 
@@ -44,6 +48,7 @@ export interface EscalaInicio {
   /** Altura estimada do Início inteiro (painel + meio + rodapé) e a disponível, em dp. */
   estimada: number;
   disponivel: number;
+  /** Altura do painel sem a área segura: respiro de cima + max(foto, textos) + respiro de baixo, em dp. */
   fonte: { data: number; saudacao: number; frase: number; iniciais: number; h2: number; label: number; percentual: number; real: number; meta: number; sub: number; valorRodape: number; valorIndicador: number; ultima: number };
   painel: { paddingBottom: number; gap: number; avatar: number };
   meio: { paddingTop: number; paddingBottom: number; gap: number; linhaTitulo: number };
@@ -53,8 +58,8 @@ export interface EscalaInicio {
 }
 
 const BASE = {
-  fonte: { data: 14, saudacao: 24, frase: 14, iniciais: 16, percentual: 14, real: 18, meta: 14, valorRodape: 14, valorIndicador: 18 },
-  painel: { paddingBottom: space.lg, gap: space.xs, avatar: 40 },
+  fonte: { data: 13, saudacao: 22, frase: 13, iniciais: 24, percentual: 14, real: 18, meta: 14, valorRodape: 14, valorIndicador: 18 },
+  painel: { paddingBottom: space.lg, gap: space.xxs, avatar: 72 },
   meio: { paddingTop: space.sm, paddingBottom: space.sm, gap: space.sm, linhaTitulo: 32 },
   cartao: { preenchimento: space.md, gap: space.xs, barra: 6, alturaMaxima: 132 },
   produtividade: { preenchimento: space.md, gapLinhas: space.sm },
@@ -81,7 +86,7 @@ export function tamanhosParaFator(fator: number, fs: number, kit: FontesDoKit): 
       percentual: letra(f.percentual), real: letra(f.real), meta: letra(f.meta), sub: letra(f.sub), valorRodape: letra(f.valorRodape), valorIndicador: letra(f.valorIndicador),
       ultima: letra(f.ultima),
     },
-    painel: { paddingBottom: esp(BASE.painel.paddingBottom), gap: esp(BASE.painel.gap), avatar: limita(esp(BASE.painel.avatar), 36, 40) },
+    painel: { paddingBottom: esp(BASE.painel.paddingBottom), gap: esp(BASE.painel.gap), avatar: limita(esp(BASE.painel.avatar), AVATAR_PISO, BASE.painel.avatar) },
     meio: { paddingTop: esp(BASE.meio.paddingTop), paddingBottom: esp(BASE.meio.paddingBottom), gap: esp(BASE.meio.gap), linhaTitulo: Math.max(28, esp(BASE.meio.linhaTitulo)) },
     cartao: { preenchimento: esp(BASE.cartao.preenchimento), gap: esp(BASE.cartao.gap), barra: Math.max(4, esp(BASE.cartao.barra)), alturaMaxima: BASE.cartao.alturaMaxima },
     produtividade: { preenchimento: esp(BASE.produtividade.preenchimento), gapLinhas: esp(BASE.produtividade.gapLinhas) },
@@ -91,19 +96,37 @@ export function tamanhosParaFator(fator: number, fs: number, kit: FontesDoKit): 
 
 type Tamanhos = ReturnType<typeof tamanhosParaFator>;
 
-/** Linhas estimadas da frase na largura útil do painel (1 ou 2; o texto tem `numberOfLines={2}`). */
-export function linhasDaFrase(frase: string | undefined, corpo: number, fontScale: number, largura: number): number {
-  if (!frase) return 0;
-  const util = Math.max(1, largura - 40);
-  return Math.min(2, Math.max(1, Math.ceil(frase.length * corpo * fontScale * LARGURA_CARACTERE / util)));
+/** A única conta de linhas de um texto de `caracteres` na largura útil do painel (1 ou 2; os textos têm `numberOfLines={2}`). */
+export function linhasDeTexto(caracteres: number, corpo: number, fontScale: number, largura: number, reserva = 40): number {
+  const util = Math.max(1, largura - reserva);
+  return Math.min(2, Math.max(1, Math.ceil(caracteres * corpo * fontScale * LARGURA_CARACTERE / util)));
+}
+
+/** A única conta de altura de texto: `n` linhas de corpo `corpo`, com a fonte do sistema e a entrelinha estimada. */
+export function alturaDeLinha(corpo: number, fontScale: number, n = 1): number {
+  return corpo * fontScale * ENTRELINHA * n;
+}
+
+/**
+ * Altura do painel sem a área segura (variação C): respiro de cima + max(foto, saudação + data + frase) + respiro de baixo.
+ * Os textos ficam à direita da foto (largura útil = janela - laterais - foto - `space.md`); a saudação divide a linha com o sino, que
+ * sobe e avança no respiro (não soma altura).
+ */
+export function alturaDoPainel(t: Tamanhos, e: Pick<EntradaEscalaInicio, 'largura' | 'fontScale' | 'frase'>): number {
+  const fs = e.fontScale;
+  const linha = (corpo: number, n = 1): number => alturaDeLinha(corpo, fs, n);
+  const reserva = 40 + t.painel.avatar + space.md;
+  const linhasData = linhasDeTexto(CARACTERES_DATA, t.fonte.data, fs, e.largura, reserva);
+  const nFrase = e.frase ? linhasDeTexto(e.frase.length, t.fonte.frase, fs, e.largura, reserva) : 0;
+  const textos = linha(t.fonte.saudacao) + t.painel.gap + linha(t.fonte.data, linhasData) + (e.frase ? t.painel.gap + linha(t.fonte.frase, nFrase) : 0);
+  return CABECALHO.respiroTopo + Math.max(t.painel.avatar, textos) + t.painel.paddingBottom;
 }
 
 /** Altura estimada do Início inteiro para os tamanhos dados (dp); `fontScale` já validado por {@link fonteDoSistemaValida}. */
 export function alturaEstimadaInicio(t: Tamanhos, e: Pick<EntradaEscalaInicio, 'largura' | 'fontScale' | 'topo' | 'frase'>): number {
   const fs = e.fontScale;
-  const linha = (corpo: number, n = 1): number => corpo * fs * ENTRELINHA * n;
-  const painel =
-    e.topo + CABECALHO.respiroTopo + ALVO_TOQUE + t.painel.gap + linha(t.fonte.saudacao) + (e.frase ? t.painel.gap / 2 + linha(t.fonte.frase, linhasDaFrase(e.frase, t.fonte.frase, fs, e.largura)) : 0) + t.painel.paddingBottom;
+  const linha = (corpo: number, n = 1): number => alturaDeLinha(corpo, fs, n);
+  const painel = e.topo + alturaDoPainel(t, e);
   const c = t.cartao;
   const cartao =
     2 * c.preenchimento + Math.max(linha(t.fonte.label), linha(t.fonte.percentual)) + Math.max(linha(t.fonte.real), linha(t.fonte.meta)) + c.barra + Math.max(linha(t.fonte.sub), linha(t.fonte.valorRodape)) + 3 * c.gap;
