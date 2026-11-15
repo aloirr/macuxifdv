@@ -23,3 +23,4 @@
 2026-11-09 — T-0140/RD-0045 — arredondar e percentual do promotor passam a reexportar @macuxi/comum
 2026-11-12 — T-0166 — RD-0185: removida a faixa 'Sem sinal' da tela Loja (tela-loja.tsx)
 2026-11-15 — fonte do sistema v1.0.13 — rodada 5 — RD-0953: Campo local da tela-loja trocado por CampoTexto do kit
+2026-11-15 — fonte do sistema v1.0.13 — web do promotor na escala por papel (aba 15, valor de parâmetro 17/600); sem fonts./Archivo/Plex/800/900
