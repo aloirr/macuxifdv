@@ -3,7 +3,9 @@
  * `oidvectortypes` (independe do search_path). Toda sa_* do catálogo está em UMA das duas listas:
  *  - SA_PORTAL: as com grant ao `macuxi_portal` (0038; desde a 0039/T-0093, ADR 0031, as 12 do login só com e-mail e senha;
  *    desde a 0042/T-0094, mais 2: o super-admin lista os admins e redefine a senha de um deles = 14; desde a 0058/T-0158, mais 2:
- *    a lista e o detalhe dos diagnósticos = 16);
+ *    a lista e o detalhe dos diagnósticos = 16; desde a 0070/ADR 0047, mais 1: a assinatura da empresa = 17; desde a 0072/ADR 0052,
+ *    mais 8: inativar, reativar, backup, exclusão, reautenticação e o bloco `acoes` da lista = 25; desde a 0073, mais 2: ler e
+ *    gravar os dados legais do rodapé = 27);
  *  - SA_INTERNAS: SECURITY INVOKER, sem EXECUTE para ninguém além do dono (chamadas de dentro das sa_* DEFINER).
  * Nenhuma das duas executa como macuxi_app, macuxi_worker ou PUBLIC. A `plataforma.criar_super_admin` (0039, deploy) não tem o
  * prefixo `sa_`: sem EXECUTE para ninguém além do dono (conexão de administração).
@@ -30,6 +32,20 @@ export const SA_PORTAL: readonly string[] = [
   // 0058 (T-0158, ADR 0043): Portal › Diagnósticos, só super-admin
   'plataforma.sa_listar_diagnosticos(uuid, jsonb)',
   'plataforma.sa_diagnostico(uuid, uuid)',
+  // 0070 (ADR 0047): planos e licenças, a assinatura da empresa criada no passo "Empresa com plano", só super-admin
+  'plataforma.sa_gravar_assinatura(uuid, uuid, jsonb)',
+  // 0072 (ADR 0052): inativar, reativar, backup e excluir a empresa no portal, só super-admin
+  'plataforma.sa_inativar_tenant(uuid, uuid, text)',
+  'plataforma.sa_reativar_tenant(uuid, uuid)',
+  'plataforma.sa_pedir_backup(uuid, uuid, uuid)',
+  'plataforma.sa_listar_backups(uuid, uuid, uuid)',
+  'plataforma.sa_pedir_exclusao(uuid, uuid, uuid, uuid, text)',
+  'plataforma.sa_ler_exclusao(uuid, uuid)',
+  'plataforma.sa_reautenticar(uuid)',
+  'plataforma.sa_acoes_das_empresas(uuid)',
+  // 0073: os dados legais do rodapé (razão social, CNPJ e site), lidos e gravados só pelo super-admin
+  'plataforma.sa_dados_legais(uuid)',
+  'plataforma.sa_gravar_dados_legais(uuid, jsonb)',
 ];
 
 export const SA_INTERNAS: readonly string[] = ['plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)'];
