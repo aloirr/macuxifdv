@@ -23,3 +23,4 @@
 2026-11-15 — fonte do sistema — R-20261115-155500 registrada no manual §5 e em decisoes.md. A caixa não abriu nesta sessão (HTTP 403).
 2026-11-15 — v1.0.12/v1.0.13 pareceres de marca, rodada 1 — liberados #361, #366, #382, #373; com achado #391 (MC-0135), #367 (MC-0136..0139), #375 (MC-0142, 0143), #385 (MC-0144); #384 substituído (MC-0140, 0141). Caixa 403.
 2026-11-15 — v1.0.12/v1.0.13 pareceres de marca, rodada 2 — liberados #361, #382, #422, #423; com achado #397 (MC-0145, 0146), #404 (MC-0147, 0148), #427 (MC-0149, 0150); #367 segue com MC-0136..0139. Caixa 403.
+2026-11-15 — v1.0.12/v1.0.13 pareceres de marca, rodada 4 — fechadas MC-0135..0139, 0145, 0146, 0149, 0150; nova MC-0151 (#367 39fec9ed). Caixa 403.
