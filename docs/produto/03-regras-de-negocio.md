@@ -172,6 +172,28 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - **Nada mais na linha**: só o nome, a tag, a última visita e a seta. "Cadastro incompleto" fica na ficha do cliente e nas pendências do pedido.
   - **Filtros**: o filtro "Com título vencido" passa a se chamar **"Devendo"**, igual à tag. Os outros filtros ficam.
   - **Regra geral das listas**: uma informação por linha. A tag diz a situação e a linha de baixo diz um único fato.
+- **RN-CORE-58 Vínculo do vendedor do ERP ao usuário do BKO** (dono do produto, R-20261115-070200 item 3, R-20261115-073000 item 6, R-20261115-074500 item 8 e R-20261115-075000; T-0175):
+  - **O vínculo é pelo Código ERP** (`external_id`), igual ao do ERP. O e-mail igual deixa de ser exigência e continua só como atalho.
+  - **Provisório:** usuário que a carga criou sem e-mail (`@sem-email.invalid`).
+  - **Ação "Vincular vendedor do ERP"** (BKO, só admin): liga o provisório a um usuário real do mesmo tenant e do mesmo perfil (vendedor com vendedor, promotor com promotor). Numa transação só, o usuário real:
+    - recebe o Código ERP;
+    - recebe a carteira, sem duplicar cliente e papel;
+    - recebe as demais referências (rota, meta, indicador, nota do ERP); nas que só admitem um registro por dia ou período, fica o que o real já tem.
+  - **O provisório é desativado** e sai da lista. Cada cliente movido publica `core.cliente.atualizado@1`. A ação é auditada e idempotente.
+  - **Recusa (422):**
+    - o usuário não é provisório ou não tem Código ERP;
+    - o usuário real já tem outro código ou também é provisório;
+    - os perfis são incompatíveis;
+    - é o mesmo usuário;
+    - os tenants são diferentes.
+  - **A carga seguinte não desfaz o vínculo:**
+    - casa pelo Código ERP;
+    - nunca recria o provisório;
+    - nunca troca o e-mail real;
+    - não move a carteira.
+  - **Código repetido no cadastro:** 409, com a orientação de vincular.
+  - **Código FDV** (código próprio, para controle; R-20261115-074500): o formato vem na simulação, para o ok do dono do produto.
+  - **Telas e aviso ao admin:** só depois de o dono do produto aprovar a simulação (R-20261115-075000).
 - **RN-CORE-49 Curvas ABC do cliente** (Alexandre, chat de 14/11/2026 5h55; ficha do cliente, Campo e Gestão):
   - **Três curvas por cliente**, cada uma com o nome da dimensão na tag: **Faturamento** (R$), **Volume** (itens) e **Frequência** (pedidos). Ex.: "Faturamento A", "Volume B", "Frequência C". A tag "Curva X" sem dimensão sai.
   - **Base**: o mês atual comparado com a média dos 3 meses anteriores do próprio cliente (linhas do histórico do mesmo mês somadas; mês sem compra conta como zero).
