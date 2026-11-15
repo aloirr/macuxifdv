@@ -8,8 +8,9 @@ RN-CORE-05: isolamento total entre tenants (`tenant_id` do token + Row Level Sec
 | admin / migrador (`postgres` no Docker local; `macuxi_admin` no DBaaS) | superusuário, dono de todos os objetos (no DBaaS: sem SUPERUSER/BYPASSRLS, com CREATEDB/CREATEROLE, membro com INHERIT do `macuxi_manutencao`) | aplica migrações, cria bancos de teste, carrega seed/fixture. **Ignora RLS** (superusuário ou política `manutencao`) — nunca é usado pela API nem para provar isolamento |
 | `macuxi_manutencao` (0031) | NOLOGIN, NOSUPERUSER, **NOBYPASSRLS**; ninguém conecta com ele | só existe para a política `manutencao` (`for all ... using (true) with check (true)`) valer para o migrador, que o herda. **Nunca** concedido a `macuxi_app`, `macuxi_worker` nem `macuxi_portal` |
 | `macuxi_app` | `LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION`, não é dono de nada | **único** papel da API e dos testes de vazamento |
-| `macuxi_worker` | mesmos atributos (**NOBYPASSRLS**), não é dono de nada | despachante das outboxes (ADR 0007; 0040, ADR 0032): só lê e marca `plataforma.evento` e `plataforma.email_saida` (só a linha pendente) de todos os tenants; desde a 0058 (ADR 0043), lê `plataforma.diagnostico` sem o texto livre e marca só as `alerta_*` |
+| `macuxi_worker` | mesmos atributos (**NOBYPASSRLS**), não é dono de nada | despachante das outboxes (ADR 0007; 0040, ADR 0032): só lê e marca `plataforma.evento` e `plataforma.email_saida` (só a linha pendente) de todos os tenants; desde a 0058 (ADR 0043), lê `plataforma.diagnostico` sem o texto livre e marca só as `alerta_*`; desde a 0079 (ADR 0054), só EXECUTE em `plataforma.trabalho_reservar`/`_devolver`/`_renovar`, sem grant em `plataforma.trabalho` |
 | `macuxi_portal` (0038, T-0091) | mesmos atributos (**NOBYPASSRLS**), não é dono de nada, membro de nenhum papel, **nenhum grant de tabela** | portal do super-admin (ADR 0029): 2º pool da API; só `USAGE` em `plataforma` e `EXECUTE` nas `plataforma.sa_*` (20 na 0038; 12 desde a 0039, T-0093; 14 desde a 0042; 16 desde a 0058, T-0158) (o único papel com ele) |
+| `macuxi_leitura` (0078, ADR 0055) | mesmos atributos (**NOBYPASSRLS**), não é dono de nada, membro de nenhum papel; sessão `default_transaction_read_only = on`, `statement_timeout = 15s`, `idle_in_transaction_session_timeout = 60s` | consulta só leitura na produção (workflow `producao-consulta.yml`, serviço `pgleitura`): `USAGE` nos schemas, **só `SELECT`** (por coluna, sem as sensíveis, onde a tabela tem coluna com hash, token, senha, segredo, chave, carga ou cifrad no nome: a saída vai para o log do Actions) nas tabelas de tenant com a política `leitura` (`for select ... using (tenant_id = plataforma.tenant_atual())`; `plataforma.tenant` por `id`), `EXECUTE` só em `plataforma.tenant_por_codigo(text)`; `core.v_leitura_usuario_senha` (`id`, `tenant_id`, `tem_senha`, do tenant da sessão) no lugar de `senha_hash`. As só por função ficam sem grant (42501) |
 
 - A migração 0001 cria `macuxi_app` como `NOLOGIN` se não existir; o executor (`db/src/papeis.ts`)
   liga o `LOGIN` e define a senha a partir de `MACUXI_PG_APP_SENHA`. Papéis são do cluster: o `down` não os remove.
@@ -21,6 +22,19 @@ RN-CORE-05: isolamento total entre tenants (`tenant_id` do token + Row Level Sec
   (`garantirPapelSemLogin`, atributos conferidos), `urlPortal(cfg)` lança e o portal responde 503; a senha pública local é
   recusada). O `down` da 0038 devolve o EXECUTE das `sa_*` ao `macuxi_app` e tira o do portal; o papel fica.
   **Regra:** toda função `plataforma.sa_*` nova tem EXECUTE só ao `macuxi_portal` (nunca `macuxi_app`/`macuxi_worker`/`public`).
+- A migração 0078 cria `macuxi_leitura` como `NOLOGIN` se não existir e grava os 3 ajustes de sessão que faltarem;
+  `garantirLeitura` (`banco papeis`, `banco migrar` e bancos de teste) liga o `LOGIN` com `MACUXI_PG_LEITURA_SENHA`
+  (`leitura.env` da VM; local: `macuxi_leitura_local`; fora do local é opcional — sem ela o papel fica `NOLOGIN` e
+  `urlLeitura(cfg)` lança; a senha pública local é recusada) e grava os ajustes antes das migrações, com o lock dos papéis.
+  O ajuste só leitura é o padrão da sessão; quem impede a escrita são os grants. O `down` da 0078 apaga as políticas `leitura`
+  e revoga SELECT, USAGE e o EXECUTE; o papel e os ajustes ficam.
+  **Regra para tabela nova (0079+):** tabela de tenant leva `grant select on <t> to macuxi_leitura;` (com coluna sensível,
+  `grant select (<colunas sem as sensíveis>) on <t> to macuxi_leitura;`) e
+  `create policy leitura on <t> for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual());` (o repositório
+  não usa `ALTER DEFAULT PRIVILEGES`); schema novo, `grant usage on schema <s> to macuxi_leitura;`. `conferir-rls.sql` e
+  `papel-leitura.db.test.ts` acusam a falta. Coluna nova com nome sensível em tabela que tinha SELECT de tabela: a migração
+  troca por SELECT por coluna sem ela (0079: `catalogo.produto_midia.hash_conteudo`; o down volta o SELECT de tabela).
+  Aplicado na 0079: `plataforma.trabalho`, `catalogo.foto_lote` e `catalogo.foto_lote_item`.
 - **Como o executor mexe no papel** (`garantirPapelDeLogin`, B0 do plano B do DBaaS, T-0075, 05/11): papel **novo** =
   `CREATE ROLE ... LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD ...`; papel **existente** =
   só `ALTER ROLE <papel> LOGIN PASSWORD ...`, sem citar atributo (no PG 16, citar `NOSUPERUSER`/`NOBYPASSRLS`/
@@ -195,6 +209,7 @@ e `plataforma.auditoria`.
 | B1 (T-0078) conferência numa consulta só: zero tabelas sem RLS forçado, sem política ou sem coluna comum; a consulta acusa uma tabela criada sem RLS | `db/testes/conformidade.test.ts` + `db/scripts/conferir-rls.sql` |
 | `resumo_outbox`: só agregados de todos os tenants para o `macuxi_app`; worker sem EXECUTE | `db/testes/lgpd-outbox.test.ts` |
 | `tenants_ativos`: worker recebe só os ids dos ativos de todos os tenants (suspenso, encerrado e apagado fora); app 42501 | `db/testes/tenants-ativos.test.ts` |
+| 0079 (T-0174): `catalogo.foto_lote`, `catalogo.foto_lote_item` e `plataforma.trabalho` — B não vê, não altera e não grava de A; sem contexto = 0; app sem DELETE (e sem UPDATE no trabalho) e 42501 nas funções do worker; `trabalho_reservar` não entrega o mesmo trabalho a dois processos e ignora tenant suspenso | `db/testes/foto-lote.db.test.ts` |
 | `provisionar_tenant`: app e worker 42501; 2x a mesma entrada = mesmas contagens; só `redefinir_senha` troca o hash | `db/testes/provisionar-tenant.test.ts` |
 | Super-admin (0035/0038): app e worker 42501 direto nas 4 tabelas (e 0 linhas com grant indevido); app e worker 42501 nas 20 `sa_*` (rodam como `macuxi_portal`); primeiro acesso 2x (e em paralelo) = 1 linha; sessão falsa após revogar e após o teto; auditoria append-only que sobrevive à `excluir_tenant`; `sa_provisionar_tenant` recusa sessão revogada ou vencida; `sem_admin` + parâmetros idempotente | `db/testes/super-admin.test.ts` + `db/testes/estatico.test.ts` + `db/scripts/conferir-rls.sql` |
 | `core.plano_rv`: A não lê nem grava B; sem contexto = 0; FK do autor no próprio tenant | `db/testes/plano-rv.test.ts` |
