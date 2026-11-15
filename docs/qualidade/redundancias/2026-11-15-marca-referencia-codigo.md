@@ -33,3 +33,20 @@ Heads conferidos (depois de um `git fetch` novo):
 - **Teste Python** `test_marca_referencia_codigo_e_opcional...`: ele cobre outra coluna e outro limite (200, `EXTERNAL_ID_MAX`), por isso não repete o teste do `marca_codigo` do produto.
 - **`contrato.json`, `criar-banco.sql` e `produto.csv`**: todos saem do `gerar.ts`, e não há texto escrito à mão duas vezes.
 - **`hub-api.md`**: a frase cita `marca_external_id` uma vez e explica que ele é o código da marca no ERP. Não há um segundo nome para o mesmo campo.
+
+## 4. Reteste (15/11/2026, Manaus)
+**Veredito: LIMPO (liberado).** Os 7 achados estão corrigidos e não há achado novo. Os números RD-0597 a RD-0599 não foram usados.
+
+Conferi depois de um `git fetch` novo. Na integração, `git diff b3a7d2b5 b5f3f16c` (head **b5f3f16c**). No catálogo, `git diff f1943395 f770c041` (head **f770c041**).
+
+| ID | Evidência | Status |
+|---|---|---|
+| RD-0590 | `ROTEIRO.md:35`: "…levam até 3 códigos da concorrência; de cada um, o código da marca no ERP (…) e o nome (…), os dois opcionais." O verbo aparece uma vez só, e o texto é o da proposta. | corrigido |
+| RD-0591 | `contracts/marca-codigo.test.ts`: o 1º `it` saiu e ficou só "não tem um segundo campo marca_codigo". O helper `ref` continua em uso. | corrigido |
+| RD-0592 | `kit-thathyany.test.ts`: o `toContain('marca_nome')` saiu, e a asserção `r.marca_external_id, r.marca_nome, r.codigo` ficou. | corrigido |
+| RD-0593 | `gerar.ts:105-107`: virou um `flatMap` só. O `contrato.json` foi gerado de novo e mudou só a ordem, que agora agrupa por número; continuam as 6 regras "requer", sem nenhuma repetida. | corrigido |
+| RD-0594 | `marcas.ts`: `LIMITE_NOME_MARCA` nas duas funções (antes linhas 103 e 160). Não sobrou nenhum `120` solto. | corrigido |
+| RD-0595 | `planejarMarcasDoErp`: `nomes` começa vazio e recebe o nome depois de adotar ou criar. O caminho ficou num `if` só. O teste novo "nome de marca sem código que aparece de novo com outro código é adotado uma vez só" (`marcas.test.ts`) prova o fim do `adotar` repetido e não repete o teste de "cria uma marca só", que trata do `criar`. | corrigido |
+| RD-0596 | `marcas.test.ts`: saíram as asserções das linhas 171 e 184 e o `it` da marca inativa. O `describe` novo fica só com os testes de `planejarMarcasDoErp`. | corrigido |
+
+Observação sem RD (não é repetição e não segura): o título do teste da view (`kit-thathyany.test.ts:285`) ainda diz `{marca_nome, codigo}`, mas o JSON agora leva também `marca_external_id`. O modulo-integracao pode acertar o título no lote seguinte.
