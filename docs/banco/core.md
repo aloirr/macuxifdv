@@ -1057,8 +1057,14 @@ Proposta do modulo-core: `docs/modulos/core/filial-cadastro-venda.md`.
    `updated_at` sobe; o sync puxa a filial).
 3. Quem sobra (empresa com 2+ filiais vivas) fica sem cadastro e sem venda: bloqueado até o BKO ou a carga do ERP.
 
+### Admin inicial da empresa nova (`plataforma.sa_provisionar_tenant`)
+A 0077 redefine a `sa_provisionar_tenant` (`create or replace`, a partir do texto da 0068): o admin que ela **cria** recebe a
+filial padrão do tenant (semeada pela 0056 ao inserir o tenant) como cadastro e como venda, e não nasce bloqueado. Admin
+existente não muda. A conferência adiada `usuario_filial_inclui_cadastro` passa no COMMIT do `macuxi_portal`. Grants e
+`search_path` da função não mudam; o down volta ao texto da 0068.
+
 Volume: 1 a poucas linhas por usuário. Fixture: `USUARIO_FILIAL_FIXTURE` (grupo 0x67): A vendedor-1 (cadastro e venda na
 padrão), supervisor (cadastro na padrão; venda na padrão e na Boa Vista), os demais de A sem filial; B vendedor (cadastro na
 padrão; venda na padrão e na Campinas).
-Volta: `0077_core_usuario_filial.down.sql` (saem os gatilhos, a tabela, a função, o índice, a FK e a coluna; as filiais se
+Volta: `0077_core_usuario_filial.down.sql` (a `sa_provisionar_tenant` volta à 0068; saem os gatilhos, a tabela, a função, o índice, a FK e a coluna; as filiais se
 perdem; reaplicar refaz o backfill). Teste: `db/testes/usuario-filial.db.test.ts`.

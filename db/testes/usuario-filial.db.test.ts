@@ -8,12 +8,19 @@ import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-tes
 import { idFilialPadrao } from '../src/ids';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
-import { emTransacao, HASH_TESTE, retratoDoCatalogo } from './util';
+import { comCliente, emTransacao, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 const migracoes = lerMigracoes();
 const m77 = migracoes.find((m) => m.versao === '0077')!;
+const m68 = migracoes.find((m) => m.versao === '0068')!;
+/** Texto da sa_provisionar_tenant num SQL (do create or replace ao $$; que fecha) e o corpo entre os $$ (o prosrc). */
+const funcaoProvisionar = (sql: string) => {
+  const i = sql.indexOf('create or replace function plataforma.sa_provisionar_tenant(');
+  return i < 0 ? null : sql.slice(i, sql.indexOf('\n$$;', i) + 4);
+};
+const corpo = (f: string) => f.slice(f.indexOf('$$\n') + 2, f.lastIndexOf('$$;'));
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
 const up = semComentarios(m77.up);
 const down = semComentarios(m77.down);
@@ -66,6 +73,28 @@ describe('0077 filial de cadastro e filiais de venda (estático)', () => {
     expect(u).toMatch(/insert into core\.usuario_filial \(tenant_id, usuario_id, filial_id\) select u\.tenant_id, u\.id, fu\.filial_id .* where u\.deleted_at is null;/);
     expect(u).toContain('update core.usuario u set filial_cadastro_id = uf.filial_id');
     expect(up).not.toMatch(/f\.padrao/);
+  });
+
+  it('sa_provisionar_tenant (R-20261115-094500): up = texto da 0068 + admin criado com a filial padrão (venda e cadastro); down = texto da 0068, antes da tabela', () => {
+    const f68 = funcaoProvisionar(m68.up)!;
+    const f77 = funcaoProvisionar(m77.up)!;
+    expect(f68).toBeTruthy();
+    expect(f77).toBeTruthy();
+    const u = umaLinha(f77);
+    expect(u).toContain("if v_r ->> 'admin' = 'criado' then");
+    expect(u).toContain('v_filial := core.filial_padrao_id(v_tenant);');
+    expect(u).toContain(`insert into ${TABELA} (tenant_id, usuario_id, filial_id) values (v_tenant, v_admin, v_filial) on conflict (tenant_id, usuario_id, filial_id) where deleted_at is null do nothing;`);
+    expect(u).toContain('update core.usuario u set filial_cadastro_id = v_filial where u.tenant_id = v_tenant and u.id = v_admin;');
+    // o resto é o texto da 0068, sem tirar nada (cabeçalho, search_path, validações, auditoria)
+    const ini = f77.indexOf('\n  -- 0077 (RN-CORE-39');
+    const fim = f77.indexOf('\n  end if;\n  perform plataforma.sa_registrar_auditoria', ini) + '\n  end if;'.length;
+    expect(ini).toBeGreaterThan(0);
+    expect(fim).toBeGreaterThan(ini);
+    const semBloco = (f77.slice(0, ini) + f77.slice(fim)).replace('\n  v_tenant uuid;\n  v_filial uuid;\n  v_admin uuid;', '');
+    expect(semBloco).toBe(f68);
+    expect(funcaoProvisionar(m77.down)).toBe(f68);
+    expect(m77.down.indexOf('create or replace function plataforma.sa_provisionar_tenant(')).toBeLessThan(m77.down.indexOf(`drop table if exists ${TABELA};`));
+    expect(f77).not.toMatch(/grant |security invoker/);
   });
 
   it('down: gatilho de core.usuario, tabela, função, índice, FK e coluna; idempotente (if exists)', () => {
@@ -313,6 +342,98 @@ describe.skipIf(semBanco())('0077 up/down e backfill (banco efêmero)', () => {
         await outra.query('rollback').catch(() => undefined);
         await outra.end();
       }
+    });
+  });
+});
+
+describe.skipIf(semBanco())('0077 admin inicial da empresa provisionada pelo portal (banco efêmero, COMMIT de verdade)', () => {
+  let b: BancoDeTeste;
+  const H1 = '$argon2id$v=19$m=1,t=1,p=1$c2FsdW0$aGFzaHVt';
+  const TODOS = ['admin', 'analista', 'assistente', 'supervisor', 'gerente', 'vendedor', 'promotor'];
+  /** Dados de mentira (nunca de uma pessoa real); a forma de EntradaProvisionarPlataforma (apps/api/src/plataforma.ts). */
+  const empresa = (codigo: string, email: string) => ({
+    codigo, nome: `Distribuidora ${codigo}`, documento: '12345678000195', fuso: 'America/Manaus', plano: 'piloto',
+    modulos: [{ modulo: 'core', licencas: null, perfis: TODOS }],
+    admin: { email, nome: 'Admin Inicial', senha_hash: HASH_TESTE },
+  });
+  beforeAll(async () => {
+    b = await criarBancoDeTeste({ migrar: false });
+  });
+  afterAll(async () => {
+    await b?.apagar();
+  });
+  /** Conexão do portal; sem a senha do papel, o admin com SET ROLE de SESSÃO (o COMMIT roda como portal). */
+  async function comoPortal<T>(fn: (c: pg.Client) => Promise<T>): Promise<T> {
+    if (b.urlPortal) return comCliente(b.urlPortal, fn);
+    return comAdmin(b.nome, async (c) => {
+      await c.query('set role macuxi_portal');
+      return fn(c);
+    });
+  }
+  const prosrc = (c: pg.ClientBase) =>
+    c.query<{ s: string }>("select p.prosrc as s from pg_proc p where p.oid = 'plataforma.sa_provisionar_tenant(uuid, jsonb)'::regprocedure").then((r) => r.rows[0]!.s);
+  const filialDoAdmin = (c: pg.ClientBase, email: string) =>
+    c.query<{ tenant: string; cadastro: string | null; venda: string[] }>(
+      `select u.tenant_id as tenant, u.filial_cadastro_id as cadastro,
+              coalesce(array_agg(uf.filial_id::text) filter (where uf.id is not null), '{}') as venda
+         from core.usuario u left join ${TABELA} uf on uf.tenant_id = u.tenant_id and uf.usuario_id = u.id and uf.deleted_at is null
+        where lower(u.email) = $1 group by u.tenant_id, u.filial_cadastro_id`,
+      [email],
+    ).then((r) => r.rows);
+
+  it('empresa nova pelo portal: admin com filial_cadastro_id = filial padrão e a venda viva; admin existente não muda; down volta a função da 0068; up de novo', async () => {
+    await comAdmin(b.nome, (c) => migrarUp(c, { ate: '0077' }));
+    const sid = await comAdmin(b.nome, async (c) => {
+      const sa = (await c.query<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [
+        JSON.stringify({ acao: 'criar', email: 'operador.t0176@macuxi.exemplo', nome: 'Operador 0176', senha_hash: H1 }),
+      ])).rows[0]!.r;
+      await c.query('set role macuxi_portal');
+      try {
+        return (await c.query<{ sessao_id: string }>('select sessao_id from plataforma.sa_abrir_sessao_portal($1::jsonb)', [
+          JSON.stringify({ tipo: 'super_admin', super_admin_id: sa.super_admin_id }),
+        ])).rows[0]!.sessao_id;
+      } finally {
+        await c.query('reset role');
+      }
+    });
+    const provisionar = (codigo: string, email: string) =>
+      comoPortal(async (c) =>
+        (await c.query<{ r: { tenant_id: string; admin: string } }>('select plataforma.sa_provisionar_tenant($1, $2::jsonb) as r', [
+          sid, JSON.stringify(empresa(codigo, email)),
+        ])).rows[0]!.r);
+
+    const r1 = await provisionar('t0176-nova', 'admin@t0176-nova.exemplo');
+    expect(r1.admin).toBe('criado');
+    await comAdmin(b.nome, async (c) => {
+      expect(await filialDoAdmin(c, 'admin@t0176-nova.exemplo')).toEqual([
+        { tenant: r1.tenant_id, cadastro: idFilialPadrao(r1.tenant_id), venda: [idFilialPadrao(r1.tenant_id)] },
+      ]);
+    });
+    // de novo, a mesma empresa: admin existente, nada muda (uma venda só)
+    expect((await provisionar('t0176-nova', 'admin@t0176-nova.exemplo')).admin).toBe('existente');
+    await comAdmin(b.nome, async (c) => {
+      expect(await filialDoAdmin(c, 'admin@t0176-nova.exemplo')).toEqual([
+        { tenant: r1.tenant_id, cadastro: idFilialPadrao(r1.tenant_id), venda: [idFilialPadrao(r1.tenant_id)] },
+      ]);
+    });
+
+    await comAdmin(b.nome, async (c) => {
+      const f77 = await prosrc(c);
+      expect(f77).toBe(corpo(funcaoProvisionar(m77.up)!));
+      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0077_core_usuario_filial']);
+      expect(await prosrc(c)).toBe(corpo(funcaoProvisionar(m68.up)!));
+    });
+    // na 0076 a função da 0068 ainda cria a empresa (sem filial no admin: a coluna não existe)
+    expect((await provisionar('t0176-down', 'admin@t0176-down.exemplo')).admin).toBe('criado');
+    await comAdmin(b.nome, async (c) => {
+      await migrarUp(c, { ate: '0077' });
+      expect(await prosrc(c)).toBe(corpo(funcaoProvisionar(m77.up)!));
+    });
+    const r3 = await provisionar('t0176-up', 'admin@t0176-up.exemplo');
+    await comAdmin(b.nome, async (c) => {
+      expect(await filialDoAdmin(c, 'admin@t0176-up.exemplo')).toEqual([
+        { tenant: r3.tenant_id, cadastro: idFilialPadrao(r3.tenant_id), venda: [idFilialPadrao(r3.tenant_id)] },
+      ]);
     });
   });
 });

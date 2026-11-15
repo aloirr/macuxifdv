@@ -339,7 +339,7 @@ política `manutencao`, nenhum grant de tabela (app, worker e portal = 42501). �
 | `sa_auditar(p jsonb)` | `uuid` | como na 0035, mais `ator_tipo` (fora da lista = 22023) e `usuario_id` |
 | `sa_listar_tenants(p_sid uuid)` | `jsonb` = `ListaEmpresasSchema` (nome em `razao_social`) | super-admin: todas as vivas; cliente: só as conferidas no login; sessão inválida = 28000 |
 | `sa_tenant_ativo(p_sid uuid, p_tenant uuid)` | `boolean` | super-admin: tenant ativo; cliente: `p_tenant` é a empresa atual |
-| `sa_provisionar_tenant(p_sid uuid, p jsonb)` | `jsonb` (o da `provisionar_tenant`) | só sessão de super-admin (cliente ou inválida = 28000); aceita `admin {email, nome, senha_hash}` (RN-CORE-34; empresa existente: o admin existente fica e a senha não muda, RN-CORE-31); empresa **nova** sem `admin` = 22023 com `hint = 'RN-CORE-34'` (a API traduz em 422); empresa existente sem `admin` = `sem_admin`; `redefinir_senha` ou `sem_admin` na entrada = 22023; `ator_id` = super-admin |
+| `sa_provisionar_tenant(p_sid uuid, p jsonb)` | `jsonb` (o da `provisionar_tenant`) | só sessão de super-admin (cliente ou inválida = 28000); aceita `admin {email, nome, senha_hash}` (RN-CORE-34; empresa existente: o admin existente fica e a senha não muda, RN-CORE-31); empresa **nova** sem `admin` = 22023 com `hint = 'RN-CORE-34'` (a API traduz em 422); empresa existente sem `admin` = `sem_admin`; `redefinir_senha` ou `sem_admin` na entrada = 22023; `ator_id` = super-admin; desde a 0077, o admin criado recebe a filial padrão como cadastro e venda (RN-CORE-39, `docs/banco/core.md`) |
 
 - Interna: `sa_registrar_auditoria(p_ator_tipo, p_super_admin, p_usuario, p_sessao, p_tenant, p_acao, p_detalhes)` (`SECURITY
   INVOKER`, sem `EXECUTE` para ninguém), no lugar da de 5 argumentos.
