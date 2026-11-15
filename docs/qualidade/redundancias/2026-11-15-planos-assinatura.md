@@ -45,3 +45,19 @@ Sem achado novo no `spec.md` nem no PNG 06 (erro em 2 linhas, sem repetir o limi
 
 Sem defeito funcional para o `testes`.
 **Resultado:** RD-0323 a RD-0326 fechados. O RD-0956 fica aberto: é baixo, mas está em doc, e por isso segura o lote (R-20261111-190159).
+
+## Reteste 3 (15/11, commits `dde11a3` e `4b4fcac`, branch `nuvem/planos-assinatura-designer-ux`)
+
+| ID | Resultado | Evidência |
+|---|---|---|
+| RD-0956 | **corrigido** | (1) l. 56: "Simulação: `../planos-assinatura/02-nova-empresa.png`." (2) l. 236: sai "; substituem `depois-06b`, `depois-06c` e `depois-06d`". O `4b4fcac` troca também as imagens das tabelas: l. 69 e l. 231 mostram `../planos-assinatura/02`, l. 104 mostra `03`, `04` e `05`. Nenhuma tabela de imagem cita mais `depois-03b`/`06b`/`06c`/`06d` (`grep`); os 6 PNG de `docs/design/planos-assinatura/` existem. |
+
+### Achados novos
+
+| ID | Onde | Tipo | O que se repete | Impacto | Severidade | Proposta (antes → depois) | Dono |
+|---|---|---|---|---|---|---|---|
+| RD-0957 | `docs/design/telas/portal-config-enxuto.md` l. 56 × l. 69; l. 106 × l. 104; l. 233 × l. 231; todos × l. 422 (§13) | doc | Depois do `4b4fcac`, as tabelas já mostram as imagens novas, e o texto em volta repete: (1) o §4 diz "Simulação: `../planos-assinatura/02-nova-empresa.png`" (l. 56) e a tabela do mesmo §4 mostra a mesma imagem 13 linhas abaixo (l. 69); (2) a nota "Substituídas em 15/11 … dão lugar a `03`, `04` e `05`" (l. 106) vem logo abaixo da tabela que já mostra `03`, `04` e `05` (l. 104); (3) a nota "Substituída em 15/11: `depois-03b` dá lugar a `02` … A `depois-03c` continua vigente" (l. 233) vem logo abaixo da tabela que mostra `02` e `03c` (l. 231). A substituição é dita 4 vezes (l. 106, 233, 305 e 422); a lista "Simulações vigentes … Substituídas: …" do §13 (l. 422) é a fonte. | manutenção; leitura | baixa | (1) l. 56: sai a frase "Simulação: `../planos-assinatura/02-nova-empresa.png`." (a tabela do §4 mostra). (2) l. 106: sai a nota inteira. (3) l. 233: sai a nota inteira. Ficam a nota do §13 (l. 305), que diz como ler as tabelas de histórico, e a lista da l. 422. | designer-ux |
+| RD-0958 | `docs/design/telas/portal-config-enxuto.md` §5 (l. 75) e §8, tabela antes × depois, linha 4 (l. 91) | doc | Duas referências às simulações substituídas ficaram fora das tabelas de imagem, como se valessem: "O cabeçalho "depois" aparece no topo de `depois-05b-integracao.png` e `depois-06b-aba-empresa.png`" (l. 75) e "**diálogo** aberto pelo botão (`depois-06d-trocar-plano`)" (l. 91). É a mesma sobra do RD-0956 (1), em outras linhas. | decisão (o engenheiro-apps pode abrir o PNG antigo); manutenção | baixa | l. 75: "`depois-06b-aba-empresa.png`" → "`../planos-assinatura/03-aba-empresa.png`" (a 03 traz o mesmo cabeçalho: "Código AM4821 · CNPJ … · Manaus (UTC−4)"). l. 91: "(`depois-06d-trocar-plano`)" → "(`../planos-assinatura/05-trocar-plano.png`)". | designer-ux |
+
+Conferido sem achado: a l. 236 (§11.4) sem a nota repetida; a l. 298 (§12, adendo de 14/11) cita `depois-03b`/`06b`/`06c`/`06d` como o que existia naquele dia, e o histórico fica; as tabelas do §13 (l. 402 a 433) seguem cobertas pela nota da l. 305. Sem defeito funcional para o `testes`.
+**Resultado:** RD-0956 fechado. RD-0957 e RD-0958 abertos (baixos, em doc): seguram o lote (R-20261111-190159).
