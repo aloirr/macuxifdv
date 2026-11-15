@@ -135,3 +135,63 @@ A lista de vendas vai ser refeita. Por isso, os RD das frases (RD-0473, RD-0474 
 - **Frase 25 em A/B** (MC-0080): é decisão do dono do produto e não repete outra frase.
 - "Confira" abre a 2, a 9 e a 12 com assuntos diferentes (crédito, resumo do pedido e etiqueta). O sorteio mostra uma frase por carga, então não conto como achado.
 - **Observação sem RD:** na linha 25 do `frases.md`, a coluna Frase leva a anotação "(A/B a decidir)", que só remete à spec §4. A spec §2 diz que o bundle usa o `frases.md`. Na implementação, a anotação não pode entrar no texto da frase: o portal da simulação já a mostra sem a anotação.
+
+## 5. Texto das 30 frases novas (história e tradição de Roraima, commit ca98272 do designer-ux)
+**Veredito: COM ACHADO.** São 3 achados novos, do RD-0482 ao RD-0484: 2 de gravidade média e 1 de gravidade baixa. O layout não entrou: o reteste dele está na §4.
+
+Conferi `frases.md`, `spec.md` §2 a §4 e §6 (fontes) e os PNGs regerados (`carga-gestao.png` e `config-frases.png`). Mudou o tema (R-20261115-071500-alexandre), e conferi a distribuição pedida: 8 frases sobre os Macuxi, 8 sobre o Monte Roraima e 8 sobre Makunaimã (24 nos 3 temas) e 6 sobre o resto de Roraima. A conferência de cada fato na fonte não é minha.
+
+**Como medi:**
+- Cada frase foi quebrada por palavra a 280 dp, com a largura dos glifos da IBM Plex Sans Regular 14 (`apps/web/app/fonts/IBMPlexSans_400Regular.ttf`, sem kerning).
+- Todas as 30 cabem em 2 linhas no cálculo. 5 delas passam do limite de cerca de 80 caracteres, e 4 têm uma linha a menos de 7 dp da borda (≥ 274 de 280 dp). No aparelho, o desenho do texto pode variar, e essas viram uma 3ª linha, que a spec §1.1 corta: a frase some naquela carga.
+- Abaixo, a contagem é de caracteres.
+
+| Nº | Caracteres | Linha mais larga (dp de 280) |
+|---|---|---|
+| 29 | 86 | 280 |
+| 5 | 84 | 278 |
+| 7 | 84 | 274 |
+| 13 | 83 | 276 |
+| 18 | 81 | 260 |
+| 16 | 80 | 278 |
+| 4 | 80 | 275 (o PNG do Gestão mostra 2 linhas) |
+
+### RD-0482 · média · texto · designer-ux
+- **Onde:** `frases.md`, frases 5, 7, 13, 16, 18 e 29.
+- **O que se repete ou sobra:**
+  - Seis frases passam de 80 caracteres ou ficam no limite dos 280 dp.
+  - A 7 repete a Raposa Serra do Sol da 5 ("…nasceu na Maloca do Japó, **na Raposa Serra do Sol**").
+  - Na 29, "Roraima" sobra depois de Uiramutã, porque todas as frases já são de Roraima, e "(IBGE)" também sobra (ver RD-0483).
+- **Proposta (texto final):**
+  - 5: "A Raposa Serra do Sol, terra dos Macuxi e vizinhos, foi homologada em 2005." (75)
+  - 7: "A pintora macuxi Carmézia Emiliano nasceu na Maloca do Japó." (60)
+  - 13: "Um mapa de 1654 chama o Monte Roraima de \"montanha de cristais\"." (64). O autor do mapa fica na §6.
+  - 16: "Ingarikó e Pemon formam um mesmo mundo cultural em torno do Monte Roraima." (74)
+  - 18: "Segundo a tradição macuxi, Makunaimã e Enxikirang são irmãos, filhos do Sol." (76). O nome Wei sai. A marca confere se o nome deve ficar; se ficar, a frase precisa perder outra palavra.
+  - 29: "O ponto mais ao norte do Brasil é a nascente do rio Ailã, em Uiramutã." (70)
+  - A 4 (80, 275 dp) cabe no PNG e fica como está.
+
+### RD-0483 · baixa · texto · designer-ux
+- **Onde:** `frases.md`, as frases 3 ("Pelo Siasi/Sesai (2020), …"), 9 ("(IBGE, 2024)"), 28 ("(Embrapa)"), 29 ("(IBGE)") e 30 ("(Censo 2022)").
+- **O que se repete:** a fonte de cada frase já está na tabela da `spec.md` §6. Repetir a fonte no texto da tela gasta espaço de 2 linhas, e quem lê não precisa dela para nada. O formato também muda de uma frase para outra: as frases 6, 12 e 26 também trazem números e não citam fonte.
+- **Proposta:** na tela, a frase traz o fato e, quando o número depende do ano, o ano. A fonte fica só na §6.
+  - 3: "Em 2020, o povo Macuxi somava 37.250 pessoas em Roraima." (56)
+  - 9: "Com 2.734,9 m, o Monte Roraima é o 7º ponto mais alto do Brasil." (64)
+  - 28: "O lavrado, a savana de Roraima, cobre cerca de 17% do estado." (61)
+  - 29: o texto do RD-0482.
+  - 30: "Uiramutã tem a maior proporção de indígenas do Brasil: 96,6% em 2022." (69)
+
+### RD-0484 · média · layout · doc · designer-ux
+- **Onde:** `config-frases.png` (coluna "Para", com "Todos" nas 30 linhas), o diálogo Incluir/Editar (campo **Para**), a `spec.md` §2 ("entre as ativas **do público do usuário**"), a §3 e a §4, que mantém a coluna "para uma frase futura de um perfil só".
+- **O que se repete:** uma coluna com o mesmo valor em todas as linhas. A regra de 12/11 no catálogo diz que a etiqueta igual em todas as linhas sai. O campo do diálogo e o filtro do sorteio só servem a essa coluna, e nada pediu frase por perfil: o tema não depende do perfil.
+- **Proposta:** concordo com a recomendação do designer-ux. Saem a coluna "Para" do portal, o campo **Para** do diálogo e o "do público do usuário" do sorteio (§2: "entre as **ativas**"). A §4 deixa de tratar o "Para". Se um dia o dono do produto pedir frase por perfil, a coluna volta junto com esse pedido.
+
+**Conferido sem achado:**
+- **Nenhum par de frases diz a mesma coisa.** Os pares que se tocam trazem fatos diferentes:
+  - a 8 (Jaider Esbell ilustrou *Do Roraima ao Orinoco*) e a 23 (Koch-Grünberg registrou as narrativas, a obra que deu origem ao livro);
+  - a 18 e a 21 (irmãos diferentes de Makunaimã, em tradições diferentes);
+  - a 19 e a 22 (Wazacá e Wayaka: o monte e as plantas);
+  - a 29 e a 30 (Uiramutã: o ponto mais ao norte e a proporção de indígenas);
+  - a 1 e a 16 (os Pemon).
+- **Nenhuma frase explica o funcionamento do app nem fala de venda.**
+- **Nada na tela repete o aviso.** No PNG do Gestão, a frase 4 está entre o "Olá" e o aviso, sem repetir nenhum dos dois.
