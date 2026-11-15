@@ -36,12 +36,12 @@ export const CODIGOS_LOGO = {
 } as const;
 export type CodigoLogo = (typeof CODIGOS_LOGO)[keyof typeof CODIGOS_LOGO];
 
-/** Frases do portal (spec §2); `LOGO_LADO_MAXIMO` é proposta do desenho, a confirmar pelo designer-ux. */
+/** Frases do portal (spec §2), montadas dos limites. */
 export const MENSAGENS_LOGO: Readonly<Record<CodigoLogo, string>> = {
   LOGO_FORMATO: 'Use um arquivo PNG ou JPG.',
   LOGO_GRANDE_DEMAIS: `O arquivo passa de ${MB_LOGO} MB. Envie um menor.`,
   LOGO_ALTURA_MINIMA: `A imagem tem menos de ${LIMITES_LOGO.alturaMinPx} px de altura. Envie uma maior.`,
-  LOGO_LADO_MAXIMO: `A imagem passa de ${LIMITES_LOGO.ladoMaxPx} px. Envie uma menor.`,
+  LOGO_LADO_MAXIMO: `A imagem passa de ${LIMITES_LOGO.ladoMaxPx} px de largura ou altura. Envie uma menor.`,
   LOGO_NAO_ENCONTRADA: 'Esta empresa ainda não tem logo.',
 };
 
@@ -136,6 +136,12 @@ export const LogoDoAparelhoSchema = z
   .object({ sha256: Sha256LogoSchema, tipo: z.enum(TIPOS_LOGO), largura_px: Px, altura_px: Px })
   .strict();
 export type LogoDoAparelho = z.output<typeof LogoDoAparelhoSchema>;
+
+/**
+ * Largura ÷ altura da logo: a ÚNICA fonte da proporção (RD-0921). Vem dos px gravados na API (`conferirLogo`), então a placa
+ * já nasce do tamanho certo, sem esperar a imagem carregar. O schema garante px ≥ 1.
+ */
+export const proporcaoDaLogo = (l: Pick<LogoDoAparelho, 'largura_px' | 'altura_px'>): number => l.largura_px / l.altura_px;
 
 export const EmpresaDoAparelhoSchema = z.object({ nome: z.string().min(1), logo: LogoDoAparelhoSchema.nullable() }).strict();
 export type EmpresaDoAparelho = z.output<typeof EmpresaDoAparelhoSchema>;

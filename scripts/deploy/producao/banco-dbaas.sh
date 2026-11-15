@@ -101,22 +101,16 @@ esperado=$'macuxi_app|t|f|f|f\nmacuxi_portal|t|f|f|f\nmacuxi_worker|t|f|f|f'
 # (o começo da linha é o que o stack-isolado.yml procura: não mudar)
 log "papéis: macuxi_app e macuxi_worker com LOGIN, sem SUPERUSER/BYPASSRLS, fora do macuxi_manutencao; macuxi_portal também (T-0091)"
 # T-0091 (condição da ADR 0029): a sessão do super-admin só abre pelo macuxi_portal, e ele não lê tabela nenhuma
-# As sa_* por classe (espelho de apps/api/test/funcoes-sa.ts; o funcoes-sa.test.ts confere que as listas batem): SA_PORTAL só o macuxi_portal executa; SA_INTERNAS sem EXECUTE para ninguém além do dono.
-SA_PORTAL="'plataforma.sa_tentativa_estado(text)', 'plataforma.sa_tentativa_falha(text)', 'plataforma.sa_tentativa_sucesso(text)',
-  'plataforma.sa_contas_para_login(text)', 'plataforma.sa_abrir_sessao_portal(jsonb)', 'plataforma.sa_escolher_empresa(uuid, uuid)',
-  'plataforma.sa_sessao_valida(uuid)', 'plataforma.sa_revogar(uuid)', 'plataforma.sa_auditar(jsonb)',
-  'plataforma.sa_listar_tenants(uuid)', 'plataforma.sa_tenant_ativo(uuid, uuid)', 'plataforma.sa_provisionar_tenant(uuid, jsonb)',
-  'plataforma.sa_admins_da_empresa(uuid, uuid)', 'plataforma.sa_redefinir_senha_admin(uuid, uuid, uuid, text, text, uuid, bytea)',
-  'plataforma.sa_listar_diagnosticos(uuid, jsonb)', 'plataforma.sa_diagnostico(uuid, uuid)',
-  'plataforma.sa_gravar_assinatura(uuid, uuid, jsonb)',
-  'plataforma.sa_inativar_tenant(uuid, uuid, text)', 'plataforma.sa_reativar_tenant(uuid, uuid)',
-  'plataforma.sa_pedir_backup(uuid, uuid, uuid)', 'plataforma.sa_listar_backups(uuid, uuid, uuid)',
-  'plataforma.sa_pedir_exclusao(uuid, uuid, uuid, uuid, text)', 'plataforma.sa_ler_exclusao(uuid, uuid)',
-  'plataforma.sa_reautenticar(uuid)', 'plataforma.sa_acoes_das_empresas(uuid)',
-  'plataforma.sa_dados_legais(uuid)', 'plataforma.sa_gravar_dados_legais(uuid, jsonb)',
-  'plataforma.sa_marca_da_empresa(uuid, uuid)', 'plataforma.sa_gravar_nome_fantasia(uuid, uuid, text)',
-  'plataforma.sa_gravar_logo(uuid, uuid, jsonb)', 'plataforma.sa_remover_logo(uuid, uuid)'"
-SA_INTERNAS="'plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)'"
+# As sa_* por classe: a lista é UMA só, a de db/testes/funcoes-sa.ts (FUNCOES_SA_ATUAIS e SA_INTERNA, do banco-dados; RD-0910),
+# lida na imagem da versão que acabou de migrar. SA_PORTAL só o macuxi_portal executa; SA_INTERNAS sem EXECUTE para ninguém
+# além do dono. O apps/api/test/funcoes-sa.test.ts roda este mesmo LISTAS_SA_JS e confere a saída.
+LISTAS_SA_JS='import("./db/testes/funcoes-sa.ts").then((m) => { const q = (xs) => xs.map((f) => `\x27${f}\x27`).join(", "); console.log(q(m.FUNCOES_SA_ATUAIS)); console.log(q([m.SA_INTERNA])); })'
+listas_sa="$(dc run --rm --no-deps -T --entrypoint node banco --import tsx -e "$LISTAS_SA_JS")" || erro 1 "lista das plataforma.sa_* (db/testes/funcoes-sa.ts) não lida na imagem"
+SA_PORTAL="$(printf '%s\n' "$listas_sa" | sed -n 1p)"
+SA_INTERNAS="$(printf '%s\n' "$listas_sa" | sed -n 2p)"
+# só assinaturas entre aspas simples (o texto entra no SQL abaixo)
+ASSINATURAS_SA_RE="^'plataforma\.sa_[a-z_]+\([][a-z, ]*\)'(, 'plataforma\.sa_[a-z_]+\([][a-z, ]*\)')*$"
+[[ "$SA_PORTAL" =~ $ASSINATURAS_SA_RE && "$SA_INTERNAS" =~ $ASSINATURAS_SA_RE ]] || erro 1 "lista das plataforma.sa_* fora do formato: $(printf '%s' "$listas_sa" | tr '\n' ' ')"
 sa_fora="$(psqlc -d "$BANCO" -c "with sa as (
     select n.nspname || '.' || p.proname || '(' || oidvectortypes(p.proargtypes) || ')' as f,
            has_function_privilege('macuxi_app', p.oid, 'EXECUTE')

@@ -28,10 +28,11 @@ import {
   type AcessoPortalAutenticado,
   type ClienteBanco,
   type GravarNomeFantasia,
+  type LogRota,
   type MarcaEmpresa,
   type TipoLogo,
 } from '@macuxi/platform-sdk';
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { chaveDoArquivo, erroArmazenamentoIndisponivel, type ArmazenamentoArquivos } from './arquivos';
 import { ErroHttp } from './erros';
@@ -156,6 +157,27 @@ export function registrarRotasMarcaEmpresa(app: FastifyInstance, dep: DepsMarcaE
     return m;
   };
 
+  /**
+   * Bytes da logo atual (os dois GETs: portal e aparelho). A chave tem de ser do tenant pedido (vira caminho no armazenamento);
+   * objeto ausente = 404 com aviso no log.
+   */
+  const enviarBytesDaLogo = async (
+    reply: FastifyReply,
+    log: LogRota,
+    tenantId: string,
+    logo: { chave: string; tipo: TipoLogo; sha256: string },
+    cache: string,
+  ) => {
+    if (!chaveDoTenant(logo.chave, tenantId)) throw semLogo();
+    if (!dep.armazenamento) throw erroArmazenamentoIndisponivel();
+    const bytes = await dep.armazenamento.ler(logo.chave);
+    if (!bytes) {
+      log.warn({ tenant_id: tenantId }, 'logo: bytes ausentes no armazenamento');
+      throw semLogo();
+    }
+    return reply.header('content-type', logo.tipo).header('etag', `"${logo.sha256}"`).header('cache-control', cache).send(Buffer.from(bytes));
+  };
+
   /** Apaga o objeto que saiu (melhor esforço: a falha só vai a log, o banco já está certo). */
   const apagar = async (req: FastifyRequest, chave: string | null | undefined, tenantId: string) => {
     if (!chave || !dep.armazenamento) return;
@@ -182,17 +204,7 @@ export function registrarRotasMarcaEmpresa(app: FastifyInstance, dep: DepsMarcaE
     const quem = await exigirLeitura(req, tenantId);
     const m = await chamar(() => fonte.marca(quem.sessao_id, tenantId, dep.acessoPortal), 'sa_marca_da_empresa');
     if (!m.logo) throw semLogo();
-    if (!dep.armazenamento) throw erroArmazenamentoIndisponivel();
-    const bytes = await dep.armazenamento.ler(m.logo.chave);
-    if (!bytes) {
-      req.log.warn({ tenant_id: tenantId }, 'logo: bytes ausentes no armazenamento');
-      throw semLogo();
-    }
-    return reply
-      .header('content-type', m.logo.tipo)
-      .header('etag', `"${m.logo.sha256}"`)
-      .header('cache-control', 'private, no-store')
-      .send(Buffer.from(bytes));
+    return enviarBytesDaLogo(reply, req.log, tenantId, m.logo, 'private, no-store');
   });
 
   app.delete('/v1/plataforma/empresas/:tenant_id/logo', async (req, reply) => {
@@ -285,17 +297,6 @@ export function registrarRotasMarcaEmpresa(app: FastifyInstance, dep: DepsMarcaE
     const { sha256 } = dep.validar(ParamsLogoAparelho, req.params, 'params') as z.output<typeof ParamsLogoAparelho>;
     const logo = await ctx.comTenant((db) => fonte.logoDoTenant(db));
     if (!logo || logo.sha256 !== sha256) throw semLogo();
-    if (!chaveDoTenant(logo.chave, ctx.usuario.tenant_id)) throw semLogo();
-    if (!dep.armazenamento) throw erroArmazenamentoIndisponivel();
-    const bytes = await dep.armazenamento.ler(logo.chave);
-    if (!bytes) {
-      ctx.log.warn({ logo_sha256: sha256 }, 'logo: bytes ausentes no armazenamento');
-      throw semLogo();
-    }
-    return reply
-      .header('content-type', logo.tipo)
-      .header('etag', `"${logo.sha256}"`)
-      .header('cache-control', 'private, max-age=31536000, immutable')
-      .send(Buffer.from(bytes));
+    return enviarBytesDaLogo(reply, ctx.log, ctx.usuario.tenant_id.toLowerCase(), logo, 'private, max-age=31536000, immutable');
   });
 }

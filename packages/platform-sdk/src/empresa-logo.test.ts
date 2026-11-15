@@ -10,8 +10,8 @@ import {
   MENSAGENS_LOGO,
   nomeDaEmpresa,
   parametrosDaEmpresa,
+  proporcaoDaLogo,
   rotaLogoDoAparelho,
-  rotuloDaLogo,
   Sha256LogoSchema,
   TEXTO_LIMITES_LOGO,
 } from './empresa-logo';
@@ -70,13 +70,12 @@ describe('conferirLogo (desenho §2.2; spec §2)', () => {
     expect(TEXTO_LIMITES_LOGO).toBe('PNG ou JPG · até 1 MB · pelo menos 200 px de altura');
     expect(MENSAGENS_LOGO.LOGO_GRANDE_DEMAIS).toBe('O arquivo passa de 1 MB. Envie um menor.');
     expect(MENSAGENS_LOGO.LOGO_ALTURA_MINIMA).toBe('A imagem tem menos de 200 px de altura. Envie uma maior.');
-    expect(MENSAGENS_LOGO.LOGO_LADO_MAXIMO).toBe('A imagem passa de 4096 px. Envie uma menor.');
+    expect(MENSAGENS_LOGO.LOGO_LADO_MAXIMO).toBe('A imagem passa de 4096 px de largura ou altura. Envie uma menor.');
   });
 });
 
 describe('contratos do portal', () => {
-  it('rótulo da logo (spec §1) e sha256 em hex minúsculo (RD-0704, RD-0702)', () => {
-    expect(rotuloDaLogo('Mercado Bom')).toBe('Logo da Mercado Bom');
+  it('sha256 em hex minúsculo (RD-0702)', () => {
     expect(Sha256LogoSchema.safeParse('a'.repeat(64)).success).toBe(true);
     expect(Sha256LogoSchema.safeParse('A'.repeat(64)).success).toBe(false);
   });
@@ -116,6 +115,10 @@ describe('no aparelho: chaves reservadas do Core (desenho §3.1)', () => {
     expect(empresaDosParametros({})).toBeNull();
     expect(empresaDosParametros(undefined)).toBeNull();
     expect(empresaDosParametros({ empresa_nome: 'X', empresa_logo: { sha256: 'curto', tipo: 'image/png', largura_px: 1, altura_px: 1 } })).toEqual({ nome: 'X', logo: null });
+  });
+
+  it('proporcaoDaLogo: largura ÷ altura dos px gravados (RD-0921)', () => {
+    expect(proporcaoDaLogo({ largura_px: 600, altura_px: 240 })).toBe(2.5);
   });
 
   it('o endereço dos bytes muda com o sha256', () => {

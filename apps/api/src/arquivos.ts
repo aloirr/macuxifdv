@@ -54,7 +54,7 @@ export interface ArmazenamentoArquivos {
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const UUID_RE = new RegExp(`^${UUID}$`, 'i');
 /** Formato fechado da chave: nada de `..`, barra invertida ou caminho absoluto chega ao disco. */
-export const CHAVE_ARQUIVO_RE = new RegExp(`^${UUID}/[a-z][a-z0-9-]*/\\d{4}-\\d{2}/${UUID}(\\.m320\\.jpg|\\.jpg|\\.png)$`);
+export const CHAVE_ARQUIVO_RE = new RegExp(`^${UUID}/[a-z][a-z0-9-]*/\\d{4}-\\d{2}/${UUID}(\\.m320\\.jpg|\\.jpg|\\.png|\\.webp|\\.p\\d{3}\\.zip)$`);
 const CHAVE_RE = CHAVE_ARQUIVO_RE;
 
 /** Chave do original (`.jpg` por padrão; a logo do cliente em PNG guarda `.png`, T-0182). */
