@@ -1,0 +1,25 @@
+  /* Simulação do Sincronizar (toque e sincronização completa), R-20261115-100000. Tokens: ../catalogo-campo-v2/simulacao.css. */
+  .fx .sino { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; }
+  .rec { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+  .rec span { color: var(--ink2); }
+  .barra-meta { height: 8px; border-radius: 4px; background: var(--neutralBg); overflow: hidden; }
+  .barra-meta span { display: block; height: 100%; background: var(--grafico); }
+  .ind { display: flex; }
+  .ind div { flex: 1; display: flex; flex-direction: column; }
+  .ind b { font-family: Archivo; font-size: 16px; }
+  .ind span { font-size: 12px; color: var(--ink2); }
+  .ped { display: flex; justify-content: space-between; font-size: 14px; }
+  .ped b { font-variant-numeric: tabular-nums; }
+  .esp { flex: 1; }
+  .bsync { height: 52px; border-radius: 14px; background: var(--ink); color: #fff; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 700; font-size: 16px; flex: none; }
+  .spin { width: 20px; height: 20px; border-radius: 50%; border: 2.5px solid rgba(255,255,255,.3); border-top-color: #fff; }
+  .sit { text-align: center; font-size: 13px; color: var(--ink2); margin-top: -4px; }
+  .sit.dica { margin-top: -8px; margin-bottom: 8px; }
+  /* popup da completa: Dialogo sem botões (componente novo do kit), barra da tela de carga com os tokens do tema pérola */
+  .dlg { position: absolute; left: 24px; right: 24px; top: 50%; transform: translateY(-50%); background: #fff; border-radius: 20px; padding: 22px 20px 24px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 20px 40px rgba(15, 20, 25, .3); }
+  .dlg .dt { font-family: Archivo; font-weight: 800; font-size: 19px; line-height: 24px; }
+  .dlg .dm { font-size: 15px; color: var(--ink2); margin-bottom: 10px; }
+  .dlg .lb { display: flex; justify-content: space-between; font-size: 13px; color: #1E3350; }
+  .dlg .lb b { font-variant-numeric: tabular-nums; }
+  .dlg .bar { height: 6px; border-radius: 3px; background: #DFE2E6; overflow: hidden; }
+  .dlg .bar span { display: block; height: 100%; background: #C2540A; }

@@ -1,7 +1,7 @@
 # Catálogo do Campo v2: cartão, ficha, estoque zero, filtro de filial e busca (simulação)
 
 > 2026-11-15 · designer-ux · origem: R-20261115-071600-alexandre (teste de campo, 15/11 ~7h de Manaus) e as decisões de
-> R-20261115-073000-alexandre, R-20261115-074500-alexandre, R-20261115-084500-alexandre, R-20261115-083000-alexandre, R-20261115-083600-alexandre, R-20261115-084600-alexandre, R-20261115-085500-alexandre e R-20261115-090000-alexandre (estoque na hora e por filial, telas aprovadas, ícone `pacote`, folha) e R-20261115-093000-alexandre (regra definitiva de filial, §4, em simulação). **Aprovada** pelo dono do produto, com os códigos em duas linhas e o rótulo `Estoque: 28` (R-20261115-082500-alexandre). Fonte:
+> R-20261115-073000-alexandre, R-20261115-074500-alexandre, R-20261115-084500-alexandre, R-20261115-083000-alexandre, R-20261115-083600-alexandre, R-20261115-084600-alexandre, R-20261115-085500-alexandre e R-20261115-090000-alexandre (estoque na hora e por filial, telas aprovadas, ícone `pacote`, folha) R-20261115-093000-alexandre (regra definitiva de filial, §4) e R-20261115-100000-alexandre (N pela opção A). **Aprovada** pelo dono do produto, com os códigos em duas linhas e o rótulo `Estoque: 28` (R-20261115-082500-alexandre). Fonte:
 > `catalogo-campo-v2.html` (`?v=grade|filtrada|ficha|busca|dica|folha|filiais|multi`) e `simulacao.css`. PNGs 360 × 800 (escala 2).
 > Barra de baixo: a real do Campo, `Início · Rota · Clientes · Pedidos · Performance · Mais` (`apps/mobile/src/lib/abas.ts`, 6 posições;
 > a Performance fica na barra, R-20261115-084500). O Catálogo está no `Mais`, que fica aceso.
@@ -10,18 +10,18 @@
 
 | PNG | O que mostra |
 |---|---|
-| `01-grade.png` | grade depois do ✕ na filial: sem selo, estoque somado de todas as filiais |
-| `02-grade-filtrada-filial.png` | **como abre para o vendedor**: selo 1, chip `Filial Boa Vista ✕`, `Estoque: 0` e o botão à direita |
-| `03-ficha-referencia-cruzada.png` | ficha: `Estoque: 0` no cartão de preço com `Por filial` à direita; copiar ao lado do código; "Referência cruzada" |
+| `01-grade.png` | usuário com **uma** filial de venda: filial de cadastro na faixa, sem selo e sem chip, N da filial |
+| `02-grade-filtrada-filial.png` | **como abre** com três filiais de venda: selo 1, chip `Suas filiais (3)` sem ✕, `Estoque: 17` (0 + 12 + 5) |
+| `03-ficha-referencia-cruzada.png` | ficha: `Estoque: 17` no cartão de preço com `Por filial` à direita; copiar ao lado do código; "Referência cruzada" |
 | `04-busca-referencia-cruzada.png` | "cb3401" acha a pastilha pelo código do concorrente |
 | `05-busca-dica.png` | a dica da busca, com o campo em foco e vazio |
-| `06-folha-filtro.png` | a folha "Filtrar": filial e itens sem estoque (a mesma das outras telas, `../filtro-padrao-campo/spec.md`) |
-| `07-estoque-por-filial.png` | a folha "Estoque por filial": tabela Filial \| Estoque, sua filial primeiro, uma filial em 0 e uma negativa |
-| `08-grade-multi-filial.png` | **como abre para o multi-filial** (supervisor com 3 filiais): chip `Suas filiais (3)` sem ✕, `Estoque: 17` (0 + 12 + 5). A barra de baixo é a do Campo só para comparar; no Gestão vale a barra dele |
+| `06-folha-filtro.png` | a folha "Filtrar": `Suas filiais (3)` ou uma delas, e itens sem estoque (`../filtro-padrao-campo/spec.md`) |
+| `07-estoque-por-filial.png` | a folha "Estoque por filial": tabela Filial \| Estoque, só as filiais de venda, a de cadastro primeiro |
+| `08-grade-multi-filial.png` | uma filial escolhida no filtro: chip `Filial Manaus ✕`, N de Manaus |
 
+Dados das telas: Carla, filial de cadastro Boa Vista, filiais de venda Boa Vista, Manaus e Porto Velho (na 01, só Boa Vista).
+O login sem filial e o BKO (Usuários): `../filial-cadastro-venda/spec.md`.
 
-As 01, 02, 06 e 08 são de antes da regra de filial de R-20261115-093000. A simulação nova está em `../filial-cadastro-venda/`
-(09 a 15), e elas são refeitas depois da escolha entre as opções A e B do §3.
 ## 1. Cartão da grade (de cima para baixo)
 A ordem continua a de hoje, foto e depois nome (R-20261115-074500).
 1. **Foto** 96 dp (antes 112, para o cartão não crescer).
@@ -65,8 +65,8 @@ O toque no botão abre a **`Folha`** do kit, que sobe de baixo (decisão do dono
     produto ("tabelado: Coluna Filial… Coluna Estoque", R-20261115-083000), que fecha o RD-0574 por decisão;
   - uma linha por filial, 48 dp, divisória `lineSoft`: nome 15 `ink`; quantidade Archivo 700 16, alinhada à direita, números tabulares;
   - **quais e em que ordem** (R-20261115-093000): só as filiais de venda do usuário (§4); a de cadastro primeiro, com a marca
-    `sua filial` (13 `ink2`, como no `Filtrar`), e as outras em ordem alfabética. Na opção B do §3, uma última linha `Total`
-    (700, divisória `lineStrong`) com a soma;
+    `sua filial` (13 `ink2`, como no `Filtrar`), e as outras em ordem alfabética. Sem linha de total: o
+    `Estoque: N` do cartão e da ficha já é a soma (§3);
   - **cor da quantidade**: a do §3, só no texto, sobre branco (`success` #1D6B4F, 6,4:1; `danger` #A8261B, 7,1:1). O número
     sempre aparece, e a cor nunca está sozinha. Negativo com o sinal de menos (`−2`).
 - Tenant que não mostra a quantidade (`estoque_mostrar_quantidade` = não): a coluna `Estoque` mostra `Em estoque` (verde) ou
@@ -80,10 +80,7 @@ Rótulo `Estoque: N` no cartão da grade, na busca e na ficha, sem toque nenhum.
 - **Valor de N:**
   - com cliente: a filial do cliente (RN-CORE-39);
   - filial escolhida no filtro (§4): só a daquela filial (R-20261115-084600);
-  - sem filial escolhida, para todo perfil: **opção A ou B, em aberto** (R-20261115-093000):
-    - **A)** a soma das filiais de venda (`../filial-cadastro-venda/09-grade-opcao-a.png`);
-    - **B)** a filial de cadastro, com a soma e o detalhe só na folha (§2.1; `10-grade-opcao-b.png`).
-    Com uma filial de venda só, A e B dão o mesmo número.
+  - sem filial escolhida, para todo perfil: a **soma das filiais de venda** (opção A, R-20261115-100000); com uma só, a dela.
 - **Cor:** a do `../catalogo-grade.md` §4, no chip e na tabela da folha (§2.1). O "Risco de ruptura" da folha do item do pedido não muda.
 - **Botão no cartão** (grade e busca), à direita do chip, na mesma linha: só ícone `pacote` 18 em grafite (`ink`, a cor do secundário no kit; validação da marca), quadro de 32 dp (borda
   `lineStrong`, raio 10), `hitSlop` 8 (alvo de 48 dp, dentro do respiro do cartão); `accessibilityLabel="Estoque por filial"`.
@@ -103,12 +100,11 @@ Rótulo `Estoque: N` no cartão da grade, na busca e na ficha, sem toque nenhum.
     filtro e não tem ✕;
   - **filiais de venda**, uma ou várias: o Catálogo usa só elas no preço, no `Estoque: N` (§3), no filtro e na folha (§2.1).
 - **Filtro de filial**, só com mais de uma filial de venda (com uma só, não há chip, e o grupo Filial não aparece na folha "Filtrar"):
-  - opção A: abre em `Suas filiais (3)`, com o selo `1` e o chip sem ✕ (`EtiquetaFiltro` sem `onRemover`);
-  - opção B: abre na filial de cadastro, sem selo e sem chip, porque a faixa já diz a filial;
+  - abre em `Suas filiais (3)`, com o selo `1` e o chip sem ✕ (`EtiquetaFiltro` sem `onRemover`);
   - escolhida uma filial (R-20261115-084600): chip `Filial Manaus ✕` e o selo `1`; o ✕ volta ao padrão.
 - Preço: o da tabela da filial escolhida; sem escolha, o da filial de cadastro (RN-VEN-01).
 - A folha "Filtrar" tem dois grupos (R-20261115-074500):
-  - **Filial**: as filiais de venda, a de cadastro primeiro (`sua filial`); na opção A, antes delas, `Suas filiais (3)` (padrão);
+  - **Filial**: `Suas filiais (3)` (padrão) e as filiais de venda, a de cadastro primeiro (`sua filial`);
   - **Itens sem estoque**: `Mostrar` (padrão) ou `Ocultar`. Com `Ocultar`, o selo soma 1 e entra o chip `Só com estoque ✕`.
 - Com dois grupos, a folha segue o padrão das folhas de vários grupos: rodapé com `Limpar` (neutro: volta para o padrão do filtro de
   filial e `Mostrar`) e `Ver 1.284 produtos` (principal, fecha). O RD-0498 (tirar o `Limpar`) deixa de valer, porque agora ele

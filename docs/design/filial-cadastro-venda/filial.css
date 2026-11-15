@@ -1,5 +1,4 @@
   /* Simulação da regra de filial (R-20261115-093000). Tokens e telas do Campo: ../catalogo-campo-v2/simulacao.css. */
-  .tab-est .lin.tot { border-top: 1.5px solid var(--lineStrong); font-weight: 700; }
 
   /* login do app (modules/core/app/components/tela-login.tsx e apps/mobile/src/components/faixa-login.tsx) */
   .faixa-login { background: var(--faixa); padding: 26px 24px; flex: none; }

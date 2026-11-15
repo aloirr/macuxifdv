@@ -2,17 +2,14 @@
 
 > 2026-11-15 · designer-ux · origem: R-20261115-093000-alexandre (regra definitiva de filial, para todo perfil) e
 > R-20261115-080000-alexandre (sem filial, bloqueado). **Simulação para o dono do produto**; nada vai a PR antes do ok.
-> Fonte: `filial.html` (`?v=grade-a|grade-b|folha-a|folha-b|login|bko-lista|bko-editar`) e `filial.css`, com os tokens de
+> A regra do Catálogo foi fechada na opção A (R-20261115-100000-alexandre).
+> Fonte: `filial.html` (`?v=login|bko-lista|bko-editar`) e `filial.css`, com os tokens de
 > `../catalogo-campo-v2/simulacao.css`. PNGs: aparelho 360 × 800 e BKO 1280 × 800, escala 2. Dados fictícios.
 > Os nomes dos campos são os desta simulação; o `modulo-core` propõe os campos no banco e na API.
-> Catálogo (faixa, `Estoque: N`, filtro e folha): `../catalogo-campo-v2/spec.md` §2.1, §3 e §4.
+> Catálogo (faixa, `Estoque: N`, filtro e folha; opção A, R-20261115-100000): `../catalogo-campo-v2/spec.md` §2.1, §3 e §4.
 
 | PNG | O que mostra |
 |---|---|
-| `09-grade-opcao-a.png` | Catálogo, opção A: N = soma das 3 filiais de venda; faixa `Filial Boa Vista`; chip `Suas filiais (3)` |
-| `10-grade-opcao-b.png` | Catálogo, opção B: N = filial de cadastro; sem selo e sem chip |
-| `11-folha-opcao-a.png` | folha "Estoque por filial" na opção A: só as filiais de venda, a de cadastro marcada |
-| `12-folha-opcao-b.png` | a mesma folha na opção B, com a linha `Total` |
 | `13-login-sem-filial.png` | login do app de quem está sem filial de cadastro |
 | `14-bko-usuarios-sem-filial.png` | BKO › Usuários com o filtro `Filial de cadastro: Sem filial` |
 | `15-bko-editar-usuario-filiais.png` | BKO › Usuários › Editar usuário com `Filial de cadastro` e `Filiais de venda` |
