@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import { definirModuloShell } from '@macuxi/platform-sdk';
 import { manifest } from '../manifest';
 import { CAMINHO_TRILHA_EDITAR, CAMINHO_TRILHAS } from './lib/rotas';
+import { PainelNiveis, PainelQuizLicao, PainelXp } from './pages/parametros-paineis';
 import { TrilhaEditarPage } from './pages/trilha-editar-page';
 import { TrilhasPage } from './pages/trilhas-page';
 
@@ -16,7 +17,13 @@ const PERFIS_PAGINA_TRILHAS = ['supervisor', 'gerente', 'analista', 'admin'] as 
 export const moduloWeb = definirModuloShell<ComponentType>({
   manifesto: manifest,
   paginas: [
-    { id: 'trilhas', caminho: CAMINHO_TRILHAS, titulo: 'Treinamento', navegacao: 'Trilhas', grupo: 'cadastros', ordem: 30, perfis: PERFIS_PAGINA_TRILHAS, componente: TrilhasPage },
+    { id: 'trilhas', caminho: CAMINHO_TRILHAS, titulo: 'Treinamento', navegacao: 'Trilhas', grupo: 'treinamento', ordem: 30, perfis: PERFIS_PAGINA_TRILHAS, componente: TrilhasPage },
     { id: 'trilha-editar', caminho: CAMINHO_TRILHA_EDITAR, titulo: 'Trilha', acao: 'trilha.editar', componente: TrilhaEditarPage },
+  ],
+  // ADR 0058: só leitura (valor em uso = padrão do contrato; ainda não há rota de parâmetros do tenant)
+  paineisParametros: [
+    { id: 'quiz-licao', secao: 'treinamento', titulo: 'Quiz e lição', ordem: 10, componente: PainelQuizLicao },
+    { id: 'xp', secao: 'treinamento', titulo: 'XP', ordem: 20, componente: PainelXp },
+    { id: 'niveis-ranking', secao: 'treinamento', titulo: 'Níveis e ranking', ordem: 30, componente: PainelNiveis },
   ],
 });

@@ -23,3 +23,4 @@
 2026-11-12 — T-0166 — RD-0186: sai a faixa 'N atividades no aparelho' da aba Treinar (recusadas ficam); sem lógica nova
 2026-11-15 — fonte do sistema v1.0.13 — ranking usa token fonte; web sem fonte < 12px e na escala 12·13·15
 2026-11-15 — fonte-sistema r4 — apelidos fonte.bold e escala por papel no Treinamento
+2026-11-15 — v1.0.14 parametros — Parâmetros › Treinamento só leitura e item direto no menu; TS2352; fonte do sistema; rascunho até o SDK
