@@ -66,7 +66,8 @@ Use um usuário **novo**, para não mexer nos usuários da demo. Uma senha troca
 4. Teste a tela:
    - repetir a senha inicial → "A senha nova precisa ser diferente da senha que você recebeu.";
    - senha fraca → a lista mostra o que falta;
-   - "Repita a senha" diferente → "As senhas não conferem.";
+   - item "As duas senhas iguais" na lista, desde o início: círculo vazio enquanto "Repita a senha" está vazio ou
+     diferente; ✓ quando as duas conferem; ✕ ao tocar em "Salvar e entrar" com as duas diferentes;
    - modo avião → "Conecte-se à internet para criar a sua senha.".
 5. Crie uma senha válida e toque em "Salvar e entrar". O app entra e mostra "Senha criada." no rodapé do Início.
 6. Saia e entre de novo com a senha nova: entra direto. A senha inicial não vale mais.

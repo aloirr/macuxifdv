@@ -1065,7 +1065,7 @@ regra: vale para o CLI (`pnpm tenant:criar`), as seeds e o portal — a `sa_prov
 continua com o texto da 0068. A conferência adiada `usuario_filial_inclui_cadastro` passa também no COMMIT do `macuxi_portal`.
 Assinatura, SECURITY INVOKER, `search_path` e ACL não mudam; o down volta ao texto da 0068.
 
-Volume: 1 a poucas linhas por usuário. Fixture: `USUARIO_FILIAL_FIXTURE` (grupo 0x67): todo usuário com cadastro e venda na
+Volume: 1 a poucas linhas por usuário. Fixture: `USUARIO_FILIAL_FIXTURE` (grupo 0x68): todo usuário com cadastro e venda na
 padrão; o supervisor de A vende também na Boa Vista e o vendedor de B também na Campinas (o usuário bloqueado é montado pelo
 teste). Seeds: demo (`db/seeds/demo/filial.ts`, `dadosDemoUsuarioFilial`) com os 7 logins na Manaus (cadastro e venda) e os 2
 vendedores também na Boa Vista; Fase M com todos na padrão.
