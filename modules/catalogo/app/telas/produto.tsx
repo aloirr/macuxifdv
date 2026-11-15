@@ -11,12 +11,13 @@ import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { caminhoCatalogo, type FichaProduto } from '../../contracts';
+import { catalogoPendente, TEXTO_CATALOGO_CARREGANDO } from '../lib/carga-online';
 import { aplicacaoPrecisaRecolher, estadoOfereceJunto, LINHAS_APLICACAO_RECOLHIDA, rotuloEstoque, rotuloEstoqueFilial, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
 import { fichaLocal } from '../lib/local';
 import { hrefCatalogo, irParaProduto } from '../rotas';
 import { BotaoCopiarCodigo, BotoesAcao } from './comum';
 
-type Estado = { fase: 'carregando' } | { fase: 'pronta'; ficha: FichaProduto; noAparelho: boolean } | { fase: 'nao_encontrado' };
+type Estado = { fase: 'carregando' } | { fase: 'pronta'; ficha: FichaProduto; noAparelho: boolean } | { fase: 'nao_encontrado' } | { fase: 'catalogo_carregando' };
 
 export default function TelaProduto() {
   const params = useLocalSearchParams<{ id?: string; cliente?: string }>();
@@ -33,8 +34,19 @@ export default function TelaProduto() {
   useEffect(() => {
     let vivo = true;
     const carregar = async (): Promise<Estado> => {
+      // ADR 0054: catálogo ainda carregando = ficha e preço do cliente pela API; sem sinal, só o que já chegou ao aparelho
+      const naCarga = catalogoPendente((sync as { pendentes?: readonly string[] }).pendentes);
+      if (naCarga && id && ambiente.online()) {
+        try {
+          const ficha = await ambiente.http.get<FichaProduto>(caminhoCatalogo('produto', { id }), { customer_id: clienteId });
+          return { fase: 'pronta', ficha, noAparelho: false };
+        } catch {
+          /* cai para o aparelho abaixo */
+        }
+      }
       const local = motor ? await fichaLocal(motor, { perfil: usuario?.perfil ?? null, parametros, agora: relogioReal().agora().toISOString(), clienteId, produtoId: id }) : null;
       if (local) return { fase: 'pronta', ficha: local, noAparelho: true };
+      if (naCarga && !ambiente.online()) return { fase: 'catalogo_carregando' };
       if (!ambiente.online() || !id) return { fase: 'nao_encontrado' };
       try {
         const ficha = await ambiente.http.get<FichaProduto>(caminhoCatalogo('produto', { id }), { customer_id: clienteId });
@@ -47,7 +59,7 @@ export default function TelaProduto() {
     return () => {
       vivo = false;
     };
-  }, [motor, id, clienteId, parametros, ambiente, usuario?.perfil, sync.sincronizado_em]);
+  }, [motor, id, clienteId, parametros, ambiente, usuario?.perfil, sync.sincronizado_em, (sync as { pendentes?: readonly string[] }).pendentes]);
 
   // T-0172: título, subtítulo e voltar na faixa Azul noite do kit (docs/design/componentes.md §5.2)
   const voltar = { label: 'Catálogo', fallback: hrefCatalogo(clienteId) };
@@ -55,6 +67,13 @@ export default function TelaProduto() {
     return (
       <Screen testID="pagina-catalogo-produto" cabecalho={{ titulo: 'Produto', voltar }}>
         <ActivityIndicator color={colors.accent} />
+      </Screen>
+    );
+  }
+  if (estado.fase === 'catalogo_carregando') {
+    return (
+      <Screen testID="pagina-catalogo-produto" cabecalho={{ titulo: 'Produto', voltar }}>
+        <Empty text={TEXTO_CATALOGO_CARREGANDO} />
       </Screen>
     );
   }

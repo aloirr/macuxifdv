@@ -20,6 +20,7 @@ import { idsAtivos } from '../../domain/hierarquia';
 import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, avisoDaBusca, iconeDoAviso } from '../../domain/ia';
 import { textoPareceCodigo } from '../../domain/codigo-busca';
 import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, SEM_FILTRO, subtituloDaGrade, type FiltroDaGrade } from '../lib/grade';
+import { catalogoPendente, paginasDaApi, soVendaveisNaCarga, TEXTO_CATALOGO_CARREGANDO } from '../lib/carga-online';
 import { vazioDaBusca } from '../lib/vazio-busca';
 import { arvoreLocal, buscarLocal, nomeDoClienteLocal, produtosDaNavegacao, produtosLocais, vitrineLocal } from '../lib/local';
 import { sugestaoDaBuscaLocal } from '../texto-consultas';
@@ -60,6 +61,8 @@ export default function TelaCatalogo() {
   const auto = useAtualizacaoAutomatica({ tz: fuso });
   const idsExibidos = useMemo(() => lista.itens.map((i) => i.id), [lista.itens]);
   const miniaturas = useMiniaturasDosItens(motor, idsExibidos, sync.sincronizado_em);
+  // ADR 0054: catálogo ainda carregando na primeira carga = busca e preço pela API; os filtros da árvore ficam desligados
+  const naCarga = catalogoPendente((sync as { pendentes?: readonly string[] }).pendentes);
   const noInicial = params.no ? String(params.no) : null;
 
   useEffect(() => setLimite(POR_PAGINA), [filtro, consulta]);
@@ -122,10 +125,27 @@ export default function TelaCatalogo() {
       const organizando = 'indexando' in r && r.indexando === true;
       return { itens: r.items, total: r.total, aviso: consulta ? avisoDaBusca(aviso, organizando) : null };
     };
+    const online = async (): Promise<Omit<EstadoLista, 'carregando'>> => {
+      const query = clienteId ? { customer_id: clienteId } : {};
+      const pag = consulta
+        ? await paginasDaApi<ItemVitrine>((c, q) => ambiente.http.get(c, q), caminhoCatalogo('busca'), { q: consulta, ...query }, limite)
+        : await paginasDaApi<ItemVitrine>((c, q) => ambiente.http.get(c, q), caminhoCatalogo('produtos'), query, limite);
+      const itens = dentroDoPedido ? soVendaveisNaCarga(pag.items) : pag.items; // RN-CAT-06
+      return { itens, total: dentroDoPedido ? itens.length : pag.total, aviso: null };
+    };
     const carregar = async () => {
       setLista((l) => ({ ...l, carregando: true }));
       let r: Omit<EstadoLista, 'carregando'>;
-      if (!consulta) r = await local(null);
+      if (naCarga) {
+        if (!ambiente.online()) r = { itens: [], total: 0, aviso: TEXTO_CATALOGO_CARREGANDO };
+        else {
+          try {
+            r = await online();
+          } catch (e) {
+            r = { itens: [], total: 0, aviso: ehSemConexao(e) ? TEXTO_CATALOGO_CARREGANDO : 'Não foi possível abrir o catálogo agora. Puxe a tela para tentar de novo.' };
+          }
+        }
+      } else if (!consulta) r = await local(null);
       else if (!ambiente.online() || filtroLigado(filtro) || textoPareceCodigo(consulta)) r = await local(ambiente.online() ? null : AVISO_BUSCA_OFFLINE);
       else {
         try {
@@ -141,11 +161,11 @@ export default function TelaCatalogo() {
     return () => {
       vivo = false;
     };
-  }, [motor, arvore, filtro, consulta, limite, dentroDoPedido, clienteId, perfil, parametrosCrus, ambiente, fuso, sync.sincronizado_em]);
+  }, [motor, arvore, filtro, consulta, limite, dentroDoPedido, clienteId, perfil, parametrosCrus, ambiente, fuso, sync.sincronizado_em, naCarga]);
 
-  const chips = useMemo(() => chipsDaGrade(arvore?.arvore ?? ARVORE_VAZIA, filtro), [arvore, filtro]);
+  const chips = useMemo(() => chipsDaGrade(naCarga ? ARVORE_VAZIA : (arvore?.arvore ?? ARVORE_VAZIA), filtro), [arvore, filtro, naCarga]);
   const linhas = useMemo(() => emLinhas(lista.itens), [lista.itens]);
-  const comFiltro = filtroLigado(filtro);
+  const comFiltro = !naCarga && filtroLigado(filtro);
   const nomeDoFiltro = arvore?.arvore.nos.get(filtro.categoriaId ?? filtro.sistemaId ?? '')?.nome ?? '';
   const cabecalho = {
     titulo: 'Catálogo',
@@ -205,7 +225,7 @@ export default function TelaCatalogo() {
       ) : null}
 
       {lista.carregando && lista.itens.length === 0 ? <ActivityIndicator color={colors.accent} style={{ paddingVertical: 20 }} /> : null}
-      {!lista.carregando && lista.itens.length === 0 ? (
+      {!lista.carregando && lista.itens.length === 0 && lista.aviso !== TEXTO_CATALOGO_CARREGANDO ? (
         consulta ? (
           <VazioDaBusca
             consulta={consulta}
