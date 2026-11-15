@@ -58,7 +58,7 @@ export function usePedidos(f: FiltrosPedidos) {
   return useInfiniteQuery({
     queryKey: qk.pedidos(f),
     queryFn: async ({ pageParam, signal }) =>
-      PedidosPage.parse(await api<unknown>('/vendedor/pedidos', { query: { ...paraQuery(f), limite: POR_PAGINA, ...(pageParam ? { cursor: pageParam } : {}) }, signal })),
+      PedidosPage.parse(await api<unknown>('/vendedor/pedidos', { query: { ...paraQuery(f), limite: POR_PAGINA, sem_pendentes: '1', ...(pageParam ? { cursor: pageParam } : { totais: '1' }) }, signal })),
     initialPageParam: '' as string,
     getNextPageParam: (ultima) => ultima.proximo_cursor ?? undefined,
     enabled,

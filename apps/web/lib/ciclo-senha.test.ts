@@ -94,9 +94,9 @@ describe('"Esqueci a senha" (§3)', () => {
   });
   it('validação antes de enviar (validarEsqueci do Core, por campo; a tela mostra a do primeiro campo)', () => {
     expect(validarEsqueci({ codigo_empresa: '', email: 'a@b.com' })).toEqual({ codigo_empresa: 'Informe o código da empresa e o e-mail.' });
-    expect(validarEsqueci({ codigo_empresa: 'alfa', email: ' ' })).toEqual({ email: 'Informe o código da empresa e o e-mail.' });
-    expect(validarEsqueci({ codigo_empresa: 'alfa', email: 'ab.com' })).toEqual({ email: 'Informe um e-mail válido, como nome@empresa.com.br.' });
-    expect(validarEsqueci({ codigo_empresa: 'alfa', email: 'a@b.com' })).toEqual({});
+    expect(validarEsqueci({ codigo_empresa: 'AM4821', email: ' ' })).toEqual({ email: 'Informe o código da empresa e o e-mail.' });
+    expect(validarEsqueci({ codigo_empresa: 'AM4821', email: 'ab.com' })).toEqual({ email: 'Informe um e-mail válido, como nome@empresa.com.br.' });
+    expect(validarEsqueci({ codigo_empresa: 'AM4821', email: 'a@b.com' })).toEqual({});
   });
   it('erros: 429 em minutos (mínimo 1), sem rede, 5xx; 400 = a mesma confirmação (não revela nada)', () => {
     expect(mensagemDoEsqueci(erro(429, 'MUITAS_TENTATIVAS', { retry_after_s: 61 }))).toBe('Muitos pedidos seguidos. Tente de novo em 2 minutos.');
@@ -159,6 +159,6 @@ describe('RD-0019/RD-0020: sem cópia das peças do Core no BKO', () => {
       expect(t).not.toMatch(/EMAIL_RE|CODIGO_RE|export const TEXTOS_(CRIE_SENHA|ESQUECI|LOGIN_SENHA)|export function (detalhesDaTroca|validarEsqueci|validarCampos|textoDeMuitosPedidos)/);
       expect(t).toContain("from '@macuxi/core/contracts'");
     }
-    expect(fonte('../components/login-screen.tsx')).toMatch(/validarLogin\(campos\)/);
+    expect(fonte('../components/login-screen.tsx')).toMatch(/validarLoginNovo\(campos\)/);
   });
 });

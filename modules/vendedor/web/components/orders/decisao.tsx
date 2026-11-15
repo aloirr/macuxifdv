@@ -25,14 +25,14 @@ export function useDecidir(onFeito: (tom: NoticeTone, texto: string) => void) {
   const atualizar = useAtualizarPedidos();
   const aprovar = useMutation({
     mutationFn: async (p: PedidoDecidivel) => OrderDetail.parse(await api<unknown>(`/vendedor/pedidos/${p.id}/aprovar`, { method: 'POST', body: {} })),
-    onSuccess: (_r, p) => onFeito('success', `Pedido ${p.number} aprovado · registrado na auditoria.`),
+    onSuccess: (_r, p) => onFeito('success', `Pedido ${p.number} aprovado.`),
     onError: (e, p) => onFeito('danger', `Pedido ${p.number}: ${errorMessage(e)}`),
     onSettled: () => atualizar(),
   });
   const rejeitar = useMutation({
     mutationFn: async ({ p, motivo }: { p: PedidoDecidivel; motivo: string }) =>
       OrderDetail.parse(await api<unknown>(`/vendedor/pedidos/${p.id}/rejeitar`, { method: 'POST', body: { motivo } })),
-    onSuccess: (_r, { p }) => onFeito('success', `Pedido ${p.number} rejeitado · o vendedor vê o motivo no app · registrado na auditoria.`),
+    onSuccess: (_r, { p }) => onFeito('success', `Pedido ${p.number} rejeitado.`),
     onError: (e, { p }) => onFeito('danger', `Pedido ${p.number}: ${errorMessage(e)}`),
     onSettled: () => atualizar(),
   });
@@ -91,7 +91,7 @@ export function BotoesDeDecisao({ pedido, onFeito, tamanho = 'sm' }: { pedido: P
             {pedido.customer_name} · {pedido.seller_name} · {formatBRL(pedido.total_cents)}
           </span>
           <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-            Motivo da rejeição (obrigatório; o vendedor vê no app)
+            Motivo da rejeição
             <textarea
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
