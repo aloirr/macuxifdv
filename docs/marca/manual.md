@@ -1,6 +1,6 @@
 # Manual da marca Macuxi FDV
 
-> Versão 1 · aprovada pelo Alexandre (dono do produto) em 12/11/2026, no chat: "Aprovado" (T-0169). Neutros de interface, séries de gráfico e menu lateral do BKO aprovados em 14/11/2026 (MC-0004 B, MC-0014 A, MC-0054 a MC-0056). O histórico das decisões está em [`decisoes.md`](decisoes.md).
+> Versão 1 · aprovada pelo Alexandre (dono do produto) em 12/11/2026, no chat: "Aprovado" (T-0169). Neutros de interface, séries de gráfico e menu lateral do BKO aprovados em 14/11/2026 (MC-0004 B, MC-0014 A, MC-0054 a MC-0056). Convivência com a logo do cliente no app aprovada em 14/11/2026 (MC-0066, escolha A, §2.5). O histórico das decisões está em [`decisoes.md`](decisoes.md).
 > Fonte única da verdade da marca. Só entra aqui o que o Alexandre aprovou. Os arquivos finais estão em [`ativos/2026-11-12-v1/`](ativos/2026-11-12-v1/), e a prancha de conferência é [`ativos.png`](ativos/2026-11-12-v1/ativos.png).
 
 ## 1. Essência
@@ -44,6 +44,22 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 - escrever "MACUXI" ou "macuxi" no lugar da escrita. **Macuxi é o nome de um povo: sempre inteiro, com inicial maiúscula;**
 - aplicar o logo positivo sobre fundo escuro ou sobre foto sem contraste;
 - pôr o logo da Macuxi no mesmo nível do logo da distribuidora (o cliente).
+
+### 2.5 Convivência com a logo do cliente (a distribuidora)
+Decisão do Alexandre, 14/11/2026 ~23h45 (Manaus), R-20261114-234500 ("2: Logo A"; "Sobre a tela de login e senha, lá nao quero a logomarca da empresa parceira. deixe so o login."), MC-0066. Referência: `docs/design/telas/logo-cliente.md` (§3 a §6), `logo-cliente/carga-campo.png` e `carga-gestao.png`.
+
+- **Placa branca:** no app, a logo do cliente fica sempre numa placa branca `#FFFFFF`, raio 12, com borda `#DFE2E6` sobre o Pérola e sem borda sobre o Azul noite. A logo entra em `contain`: sem recorte, sem esticar, sem recolorir, sem sombra e sem texto de explicação ao lado.
+- **A placa é sempre menor que o logo Macuxi da tela e fica fora da área de proteção dele** (§2.3 e §2.4).
+- **Carga do app (entrada com sincronização), variação A:** a logo do cliente fica **ao lado** do logo Macuxi, na mesma linha e centralizada:
+  - logo empilhado Macuxi com 124 dp de largura (~115 dp de altura);
+  - filete de 1 × 64 dp, a 24 dp de cada lado (a altura do "M"): `#3A4D68` no Campo e `#DFE2E6` no Gestão;
+  - placa de **64 dp** de altura e até 112 dp de largura, com a logo de **48 dp** de altura e até 96 dp de largura.
+
+  Sem a logo guardada no aparelho, vale a carga de sempre (§4).
+- **Login e telas de senha do app:** **sem a logo do cliente**. Só a Macuxi.
+- **Fim do Mais:** "Licenciado para <nome fantasia>" e, embaixo, a placa de **52 dp** de altura e até 176 dp de largura, com a logo de **36 dp** de altura e até 152 dp de largura.
+- **PDF de pedido e de orçamento:** a logo do cliente no cabeçalho (§7).
+- **Cadastro da logo:** só no portal `config.`.
 
 ## 3. Paleta
 | Nome | Hex | Papel |

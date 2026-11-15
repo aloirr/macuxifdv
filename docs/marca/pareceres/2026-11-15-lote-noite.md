@@ -507,3 +507,40 @@ Continuam abertos, fora destes lotes: MC-0021, MC-0051, MC-0052, MC-0068 e MC-00
 - **Prints para reteste:**
   - navegador (1366×768): uma caixa de seleção marcada no BKO (MC-0074) e o Entrar do BKO e do portal com o rodapé;
   - aparelho (v1.0.10): o Início com a foto real e o ícone da notificação no primeiro push pelo FCM.
+
+---
+
+# Parte 5 — logo do cliente (escolha A)
+
+> 2026-11-15 · design-de-marca · pedido do gerente-projetos. Fecha a condição do lote 24 (parte 4). Branch `nuvem/logo-cliente-designer-ux`, `c6d5a4b4` (conferido com `git rev-parse`), lido com `git show` na spec `docs/design/telas/logo-cliente.md` e nos PNG `logo-cliente/carga-campo.png` e `carga-gestao.png`, abertos e medidos no pixel (escala 2).
+> **Texto literal da decisão** (R-20261114-234500, chat de 14/11/2026 ~23h45, Manaus, copiado do repositório de recados pelo gerente-projetos): "1: Build sem o rodapé / 2: Logo A / Sobre a tela de login e senha, lá nao quero a logomarca da empresa parceira. deixe so o login."
+> **Registrado:** `decisoes.md` (linha de 14/11/2026, MC-0066) e `manual.md` §2.5 (convivência com a logo do cliente). **Achado novo:** nenhum. A numeração segue na MC-0076.
+
+## Lote 24 · Logo do cliente, escolha A (designer-ux, `c6d5a4b4`)
+**A condição da parte 4 está cumprida:** o recado diz "Logo A" e "deixe so o login". É o que a spec do `c6d5a4b` já trazia (carga ao lado, §3; login e senha sem a logo do cliente, §4).
+
+**Convivência das marcas na carga A** (medido no pixel, nos dois PNG):
+
+| Ponto | Medida | Parecer |
+|---|---|---|
+| Hierarquia | logo empilhado Macuxi com ~127 × 115 dp contra a placa de ~112 × 64 dp. A Macuxi tem 1,8 vez a altura da placa e o sol laranja continua sendo o único ponto de cor da marca no topo | conforme (§2.4): a Macuxi é a marca do produto, e o cliente aparece como licenciado, não como co-marca |
+| Área de proteção | "M" com ~25 dp. Do fim da escrita ao filete, ~23 a 24 dp (o meio pixel é do antisserrilhado); do filete à placa, ~24,5 dp | no limite, sem invadir (§2.3) |
+| Filete | 1 × 64 dp, da altura da placa; `#3A4D68` no Campo (o trilho da barra, já aprovado na entrada) e `#DFE2E6` no Gestão (linha da paleta) | conforme. É divisória, não texto, então não precisa de 3:1 |
+| Alinhamento | o centro da placa fica na altura do centro do bloco Macuxi (y ≈ 597 px nos dois); o conjunto fica centralizado na tela (centro ≈ 1200 px de 1200) | conforme |
+| Tamanhos | logo Macuxi de 170 para 124 dp de largura, bem acima do mínimo (§2.3); placa 64/48; o conjunto ocupa 285 dp dos 312 úteis | conforme |
+| Placa | branca, raio 12; sem borda no Azul noite (Campo) e com borda `#DFE2E6` no Pérola (Gestão); logo fictícia em `contain`, sem recolorir | conforme |
+| Resto da tela | "Olá, Lucas", barra, etapas, ✓ e cores iguais à entrada aprovada (§4) | conforme |
+
+- **Login e telas de senha:** sem a logo do cliente (spec §4), como o Alexandre decidiu. A placa de 52/36 fica só no Mais (MC-0067 continua fechada).
+- **MC-0066 fechada por decisão do Alexandre** (escolha A, R-20261114-234500).
+- **Parecer:** **liberado** para a implementação depois da v1.0.9 (carga A, login sem logo, Mais, PDFs e cadastro no portal `config.`).
+
+**Do corretor-redundancias, contra o `c6d5a4b4`** (não são achados de marca; ficam registrados porque mexem nas mesmas peças):
+- **RD-0451** (média): texto da simulação;
+- **RD-0450**: doc.
+
+O designer-ux vai **refazer os prints da carga**. **Pendência (não é achado novo):** os PNG novos de `carga-campo.png` e `carga-gestao.png` voltam ao design-de-marca para reteste antes do lote, com a mesma tabela acima: hierarquia, área de proteção de 24 dp, filete de 1 × 64 e placa 64/48. Se a medida mudar, a carga volta a segurar.
+
+## Pendências da parte 5 para o gerente-projetos
+- Mandar ao designer-ux: lote 24 liberado pela marca; a decisão está em `docs/marca/decisoes.md` e no manual §2.5. Os prints novos da carga (depois da RD-0450 e da RD-0451) voltam ao design-de-marca antes do lote.
+- **Na implementação** (engenheiro-apps, modulo-core, modulo-vendedor, designer-ux, conforme a spec §7): os prints do aparelho (carga no Campo e no Gestão, login sem a logo do cliente, Mais) e do PDF passam pelo design-de-marca antes do lote e do build.
