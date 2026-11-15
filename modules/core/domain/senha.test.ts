@@ -76,8 +76,8 @@ describe('RN-CORE-32: espaço no começo ou no fim invalida a senha (criação e
     expect(faltasNaSenha(' Abcdef1!')).toEqual(['espaco']);
     expect(faltasNaSenha('Abcdef1! ')).toEqual(['espaco']);
     expect(senhaServe(' Abcdef1!')).toBe(false);
-    expect(mensagemDaSenha(['espaco'])).toBe('A senha não pode começar nem terminar com espaço.');
-    expect(mensagemDaSenha(faltasNaSenha(' ab'))).toBe('A senha não pode começar nem terminar com espaço.');
+    expect(mensagemDaSenha(['espaco'])).toBe('A senha não pode ter espaço no começo nem no fim. Apague o espaço e tente de novo.');
+    expect(mensagemDaSenha(faltasNaSenha(' ab'))).toBe('A senha não pode ter espaço no começo nem no fim. Apague o espaço e tente de novo.');
   });
   it('RN-CORE-32: espaço no meio continua valendo', () => {
     expect(faltasNaSenha('Abc def1!')).toEqual([]);
