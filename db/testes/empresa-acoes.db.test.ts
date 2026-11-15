@@ -38,7 +38,7 @@ import { TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
 import { FUNCOES_SA_0072, FUNCOES_SA_ATE_0072, FUNCOES_WORKER_0072 } from './funcoes-sa';
-import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo, tabelasComTenant } from './util';
+import { comoPapel, emTransacao, erroDe, erroNoSavepoint, HASH_TESTE, retratoDoCatalogo, tabelasComTenant } from './util';
 
 const migracoes = lerMigracoes();
 const m68 = migracoes.find((m) => m.versao === '0068')!;
@@ -197,30 +197,11 @@ describe.skipIf(semBanco())('0072 ações da empresa (banco, fixture dois-tenant
   });
 
   /** Roda como o papel dado dentro da transação aberta; um erro não aborta o caso. */
-  async function como<T extends pg.QueryResultRow = Record<string, unknown>>(papel: string, sql: string, params: unknown[] = []) {
-    await admin.query('savepoint como');
-    try {
-      await admin.query(`set local role ${papel}`);
-      const r = await admin.query<T>(sql, params);
-      await admin.query('reset role');
-      await admin.query('release savepoint como');
-      return r;
-    } catch (e) {
-      await admin.query('rollback to savepoint como');
-      throw e;
-    }
-  }
   const q = async <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await admin.query<T>(sql, params)).rows;
-  const portal = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await como<{ r: T }>('macuxi_portal', sql, params)).rows[0]!.r;
-  const worker = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await como<{ r: T }>('macuxi_worker', sql, params)).rows[0]!.r;
-  const abrir = async (p: unknown) => (await como<{ sessao_id: string }>('macuxi_portal', 'select * from plataforma.sa_abrir_sessao_portal($1::jsonb)', [JSON.stringify(p)])).rows[0]!;
+  const portal = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await comoPapel<{ r: T }>(admin, 'macuxi_portal', sql, params)).rows[0]!.r;
+  const worker = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await comoPapel<{ r: T }>(admin, 'macuxi_worker', sql, params)).rows[0]!.r;
+  const abrir = async (p: unknown) => (await comoPapel<{ sessao_id: string }>(admin, 'macuxi_portal', 'select * from plataforma.sa_abrir_sessao_portal($1::jsonb)', [JSON.stringify(p)])).rows[0]!;
   /** Comando do admin que deve falhar, num savepoint (o erro não aborta a transação do caso). */
-  async function erroDoAdmin(sql: string, params: unknown[] = []) {
-    await admin.query('savepoint erro');
-    const e = await erroDe(admin.query(sql, params));
-    await admin.query(e ? 'rollback to savepoint erro' : 'release savepoint erro');
-    return e;
-  }
   async function sessaoSuperAdmin() {
     const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.acoes@macuxi.exemplo', nome: 'Operador 0072', senha_hash: HASH_TESTE })]))[0]!.r;
     return (await abrir({ tipo: 'super_admin', super_admin_id: sa.super_admin_id })).sessao_id;
@@ -243,13 +224,13 @@ describe.skipIf(semBanco())('0072 ações da empresa (banco, fixture dois-tenant
 
   /** O worker exporta o backup todo (páginas de `limite`), confirma as partes e devolve as linhas por tabela. */
   async function exportarTudo(backup: string, limite = 5000) {
-    const tabelas = (await como<{ ordem: number; tabela: string; chave: string[]; adiar: string[] }>('macuxi_worker', 'select * from plataforma.tabelas_do_backup($1)', [backup])).rows;
+    const tabelas = (await comoPapel<{ ordem: number; tabela: string; chave: string[]; adiar: string[] }>(admin, 'macuxi_worker', 'select * from plataforma.tabelas_do_backup($1)', [backup])).rows;
     const linhas = new Map<string, Array<Record<string, unknown>>>();
     for (const t of tabelas) {
       const todas: Array<Record<string, unknown>> = [];
       let depois: unknown = null;
       for (;;) {
-        const pagina = (await como<{ chave: unknown; linha: Record<string, unknown> }>('macuxi_worker', 'select * from plataforma.exportar_backup_pagina($1, $2, $3::jsonb, $4)', [backup, t.tabela, depois === null ? null : JSON.stringify(depois), limite])).rows;
+        const pagina = (await comoPapel<{ chave: unknown; linha: Record<string, unknown> }>(admin, 'macuxi_worker', 'select * from plataforma.exportar_backup_pagina($1, $2, $3::jsonb, $4)', [backup, t.tabela, depois === null ? null : JSON.stringify(depois), limite])).rows;
         todas.push(...pagina.map((p) => p.linha));
         if (pagina.length < limite) break;
         depois = pagina.at(-1)!.chave;
@@ -264,7 +245,7 @@ describe.skipIf(semBanco())('0072 ações da empresa (banco, fixture dois-tenant
     await emTransacao(admin, null, async () => {
       for (const t of TABELAS) {
         for (const papel of ['macuxi_app', 'macuxi_worker', 'macuxi_portal']) {
-          expect((await erroDe(como(papel, `select 1 from ${t} limit 1`)))?.code, `${papel} ${t}`).toBe('42501');
+          expect((await erroDe(comoPapel(admin, papel, `select 1 from ${t} limit 1`)))?.code, `${papel} ${t}`).toBe('42501');
         }
       }
       const r = await q<{ f: string; app: boolean; worker: boolean; portal: boolean; definer: boolean }>(
@@ -286,7 +267,7 @@ describe.skipIf(semBanco())('0072 ações da empresa (banco, fixture dois-tenant
   it('RN-PLA-07 inativar e reativar: idempotentes, auditoria e eventos na outbox; erros do contrato', async () => {
     await emTransacao(admin, null, async () => {
       for (const papel of ['macuxi_app', 'macuxi_worker']) {
-        expect((await erroDe(como(papel, 'select plataforma.sa_inativar_tenant(null, null, null)')))?.code, papel).toBe('42501');
+        expect((await erroDe(comoPapel(admin, papel, 'select plataforma.sa_inativar_tenant(null, null, null)')))?.code, papel).toBe('42501');
       }
       expect((await falha(inativar(null, A)))?.code).toBe('28000');
       const cli = await abrir({ tipo: 'admin_cliente', empresas: [{ tenant_id: A, usuario_id: ADMIN_A }] });
@@ -336,14 +317,14 @@ describe.skipIf(semBanco())('0072 ações da empresa (banco, fixture dois-tenant
     await emTransacao(admin, null, async () => {
       const sid = await sessaoSuperAdmin();
       const ev = (await q<{ id: string }>("insert into plataforma.evento (tenant_id, nome, modulo, payload) values ($1, 'core.teste.criado@1', 'core', '{}') returning id", [A]))[0]!.id;
-      const visiveis = async () => (await como<{ id: string }>('macuxi_worker', 'select id from plataforma.evento where tenant_id = $1 and publicado_em is null', [A])).rows.map((x) => x.id);
+      const visiveis = async () => (await comoPapel<{ id: string }>(admin, 'macuxi_worker', 'select id from plataforma.evento where tenant_id = $1 and publicado_em is null', [A])).rows.map((x) => x.id);
       expect(await visiveis()).toContain(ev);
       await inativar(sid, A);
       const inativo = await visiveis();
       expect(inativo).not.toContain(ev);
       expect(inativo).toHaveLength(1); // só o plataforma.tenant.inativado@1
-      expect((await como('macuxi_worker', 'select 1 from plataforma.email_saida where tenant_id = $1', [A])).rowCount).toBe(0);
-      expect((await como('macuxi_worker', 'select 1 from plataforma.evento where tenant_id = $1', [B])).rowCount).toBe(
+      expect((await comoPapel(admin, 'macuxi_worker', 'select 1 from plataforma.email_saida where tenant_id = $1', [A])).rowCount).toBe(0);
+      expect((await comoPapel(admin, 'macuxi_worker', 'select 1 from plataforma.evento where tenant_id = $1', [B])).rowCount).toBe(
         (await q('select 1 from plataforma.evento where tenant_id = $1', [B])).length,
       );
       await reativar(sid, A);
@@ -397,15 +378,15 @@ describe.skipIf(semBanco())('0072 ações da empresa (banco, fixture dois-tenant
         const todas: string[] = [];
         let depois: unknown = null;
         for (;;) {
-          const p = (await como<{ chave: unknown; linha: { id: string } }>('macuxi_worker', 'select * from plataforma.exportar_backup_pagina($1, $2, $3::jsonb, 2)', [id(1), 'core.cliente', depois === null ? null : JSON.stringify(depois)])).rows;
+          const p = (await comoPapel<{ chave: unknown; linha: { id: string } }>(admin, 'macuxi_worker', 'select * from plataforma.exportar_backup_pagina($1, $2, $3::jsonb, 2)', [id(1), 'core.cliente', depois === null ? null : JSON.stringify(depois)])).rows;
           todas.push(...p.map((x) => x.linha.id));
           if (p.length < 2) return todas;
           depois = p.at(-1)!.chave;
         }
       })());
       expect(paginado).toEqual(linhas.get('core.cliente')!.map((l) => l.id));
-      expect((await erroDe(como('macuxi_worker', 'select * from plataforma.exportar_backup_pagina($1, $2, null, 10)', [id(1), 'plataforma.super_admin'])))?.code).toBe('22023');
-      expect((await erroDe(como('macuxi_worker', 'select * from plataforma.exportar_backup_pagina($1, $2, null, 10)', [id(9), 'core.cliente'])))?.code).toBe('P0002');
+      expect((await erroDe(comoPapel(admin, 'macuxi_worker', 'select * from plataforma.exportar_backup_pagina($1, $2, null, 10)', [id(1), 'plataforma.super_admin'])))?.code).toBe('22023');
+      expect((await erroDe(comoPapel(admin, 'macuxi_worker', 'select * from plataforma.exportar_backup_pagina($1, $2, null, 10)', [id(9), 'core.cliente'])))?.code).toBe('P0002');
 
       const pronto = BackupEmpresaSchema.parse(await worker('select plataforma.fechar_backup($1, $2::jsonb) as r', [id(1), JSON.stringify({ situacao: 'pronto', tamanho_bytes: 1234, arquivos: 3 })]));
       expect(pronto).toMatchObject({ situacao: 'pronto', consistente: true, progresso_pct: 100, tamanho_bytes: 1234, arquivos: 3, tabelas: tabelas.length });
@@ -453,8 +434,8 @@ describe.skipIf(semBanco())('0072 ações da empresa (banco, fixture dois-tenant
       expect(auditadas).toHaveLength(1);
 
       // RN-PLA-10: o código não volta para outra empresa; a restauração (mesmo id) pode
-      expect((await erroDoAdmin('insert into plataforma.tenant (codigo, nome) values ($1, $2)', [codigoA, 'Outra']))?.code).toBe('23505');
-      expect((await erroDoAdmin('update plataforma.tenant set codigo = $1 where id = $2', [codigoA.toUpperCase(), B]))?.code).toBe('23505');
+      expect((await erroNoSavepoint(admin, 'insert into plataforma.tenant (codigo, nome) values ($1, $2)', [codigoA, 'Outra']))?.code).toBe('23505');
+      expect((await erroNoSavepoint(admin, 'update plataforma.tenant set codigo = $1 where id = $2', [codigoA.toUpperCase(), B]))?.code).toBe('23505');
       await q('savepoint restaurar');
       await q('insert into plataforma.tenant (id, codigo, nome) values ($1, $2, $3)', [A, codigoA, 'Restaurada']);
       await q('rollback to savepoint restaurar');
@@ -502,7 +483,7 @@ describe.skipIf(semBanco())('0072 ações da empresa (banco, fixture dois-tenant
       expect(await falha(worker('select plataforma.fechar_backup($1, $2::jsonb) as r', [id(15), JSON.stringify({ situacao: 'pronto', tamanho_bytes: 1, arquivos: 0 })]))).toEqual({ code: '55000', hint: 'BACKUP_INCOMPLETO' });
       // retenção (RN-PLA-11): o falho e os prontos mais velhos vencem; o pronto mais novo (o 12: mesma hora do 11, id maior) fica
       await q("update plataforma.backup_empresa set expira_em = now() - interval '1 day' where id = any ($1::uuid[])", [[id(11), id(12), id(13), id(14)]]);
-      const vencidos = (await como<{ backup_id: string }>('macuxi_worker', 'select backup_id from plataforma.backups_vencidos(100)')).rows.map((x) => x.backup_id).filter((x) => x.startsWith('00720000'));
+      const vencidos = (await comoPapel<{ backup_id: string }>(admin, 'macuxi_worker', 'select backup_id from plataforma.backups_vencidos(100)')).rows.map((x) => x.backup_id).filter((x) => x.startsWith('00720000'));
       expect(vencidos.sort()).toEqual([id(11), id(13), id(14)]);
       expect(await worker('select plataforma.marcar_backup_apagado($1) as r', [id(14)])).toMatchObject({ situacao: 'apagado', erro_codigo: null });
       expect(await worker('select plataforma.marcar_backup_apagado($1) as r', [id(14)])).toMatchObject({ situacao: 'apagado' });

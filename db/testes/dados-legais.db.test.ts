@@ -21,7 +21,7 @@ import { TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
 import { DADOS_LEGAIS_PUBLICOS, FUNCOES_SA_0073, FUNCOES_SA_ATUAIS } from './funcoes-sa';
-import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
+import { comoPapel, emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
 const m73 = migracoes.find((m) => m.versao === '0073')!;
@@ -65,7 +65,9 @@ describe('0073 dados legais (estático)', () => {
     expect(up).toContain(`create policy manutencao on ${TABELA} for all to macuxi_manutencao using (true) with check (true);`);
     expect(up.match(/create policy/g)).toHaveLength(1);
     expect(up).not.toMatch(/grant [a-z, ()_]+ on plataforma\.dados_legais to/);
-    expect(up).toContain(`insert into ${TABELA} (razao_social, cnpj, site) values (null, null, 'macuxifdv.com.br');`);
+    // a linha nasce do default da coluna: o site padrão só no default e no padrão da leitura pública (RD-0452)
+    expect(up).toContain(`insert into ${TABELA} default values;`);
+    expect(up.match(/'macuxifdv\.com\.br'/g)).toHaveLength(2);
     expect(SITE_PADRAO).toBe('macuxifdv.com.br');
   });
 
@@ -103,6 +105,11 @@ describe('0073 dados legais (estático)', () => {
     expect(Object.keys(GravarDadosLegaisSchema.shape).sort()).toEqual(['cnpj', 'razao_social', 'site']);
     expect(b).toContain("using errcode = '22023';");
     expect(b).toContain('from plataforma.dados_legais d limit 1 for update;');
+    // o "antes" da auditoria = o que a leitura pública mostrava, lido com a linha já travada (RD-0452)
+    expect(b.indexOf('for update;')).toBeLessThan(b.indexOf('v_antes := plataforma.dados_legais_publicos();'));
+    expect(b.indexOf('v_antes := plataforma.dados_legais_publicos();')).toBeLessThan(b.indexOf('if not found then'));
+    expect(b.match(/v_antes :=/g)).toHaveLength(1);
+    expect(b).not.toContain('jsonb_build_object(\'razao_social\'');
     // idempotente: o mesmo conteúdo devolve antes do update e da auditoria
     expect(b.indexOf('v_atual.razao_social is not distinct from v_razao and v_atual.cnpj is not distinct from v_cnpj')).toBeLessThan(b.indexOf('update plataforma.dados_legais'));
     expect(b.indexOf('return plataforma.dados_legais_publicos();')).toBeLessThan(b.indexOf('sa_registrar_auditoria('));
@@ -128,23 +135,8 @@ describe.skipIf(semBanco())('0073 dados legais (banco, fixture dois-tenants)', (
     await admin?.end();
   });
 
-  /** Roda como o papel dado (contexto de tenant opcional) dentro da transação aberta; um erro não aborta o caso. */
-  async function como<T extends pg.QueryResultRow = Record<string, unknown>>(papel: string, sql: string, params: unknown[] = [], tenant = '') {
-    await admin.query('savepoint como');
-    try {
-      await admin.query(`set local role ${papel}`);
-      await admin.query("select set_config('app.tenant_id', $1, true)", [tenant]);
-      const r = await admin.query<T>(sql, params);
-      await admin.query('reset role');
-      await admin.query('release savepoint como');
-      return r;
-    } catch (e) {
-      await admin.query('rollback to savepoint como');
-      throw e;
-    }
-  }
   const q = async <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await admin.query<T>(sql, params)).rows;
-  const portal = <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => como<T>('macuxi_portal', sql, params).then((r) => r.rows);
+  const portal = <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => comoPapel<T>(admin, 'macuxi_portal', sql, params).then((r) => r.rows);
   const abrir = async (p: unknown) => (await portal<{ sessao_id: string }>('select * from plataforma.sa_abrir_sessao_portal($1::jsonb)', [JSON.stringify(p)]))[0]!.sessao_id;
   async function sessaoSuperAdmin() {
     const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.0073@macuxi.exemplo', nome: 'Operador 0073', senha_hash: HASH_TESTE })]))[0]!.r;
@@ -152,10 +144,14 @@ describe.skipIf(semBanco())('0073 dados legais (banco, fixture dois-tenants)', (
   }
   /** As mesmas chamadas da fonteDadosLegaisNoBanco (apps/api/src/dados-legais.ts), conferidas pelo contrato. */
   const publicos = async (papel = 'macuxi_app') =>
-    DadosLegaisSchema.parse((await como<{ r: unknown }>(papel, 'select plataforma.dados_legais_publicos() as r')).rows[0]!.r);
+    DadosLegaisSchema.parse((await comoPapel<{ r: unknown }>(admin, papel, 'select plataforma.dados_legais_publicos() as r')).rows[0]!.r);
   const ler = async (sid: string) => DadosLegaisSchema.parse((await portal<{ r: unknown }>('select plataforma.sa_dados_legais($1) as r', [sid]))[0]!.r);
   const gravar = async (sid: string, dados: unknown) =>
     DadosLegaisSchema.parse((await portal<{ r: unknown }>('select plataforma.sa_gravar_dados_legais($1, $2::jsonb) as r', [sid, JSON.stringify(dados)]))[0]!.r);
+  /** Quantas auditorias da sessão têm o antes e o depois dados (a ordem dentro da transação não é garantida). */
+  const comAntesDepois = async (sid: string, antes: unknown, depois: unknown) =>
+    (await auditorias(sid)).filter((x) => canon(x.detalhes.antes) === canon(antes) && canon(x.detalhes.depois) === canon(depois)).length;
+  const canon = (o: unknown) => JSON.stringify(Object.entries(o as object).sort());
   const auditorias = async (sid: string) =>
     q<{ detalhes: Record<string, unknown>; super_admin_id: string; tenant_alvo_id: string | null }>(
       "select detalhes, super_admin_id, tenant_alvo_id from plataforma.auditoria_plataforma where acao = 'sa.dados_legais.gravar' and sessao_id = $1 order by ocorrido_em, id",
@@ -166,8 +162,8 @@ describe.skipIf(semBanco())('0073 dados legais (banco, fixture dois-tenants)', (
     await emTransacao(admin, null, async () => {
       expect(await q(`select razao_social, cnpj, site, atualizado_por from ${TABELA}`)).toEqual([{ ...PADRAO, atualizado_por: null }]);
       for (const papel of ['macuxi_app', 'macuxi_worker', 'macuxi_portal']) {
-        expect((await erroDe(como(papel, `select 1 from ${TABELA}`, [], A)))?.code, papel).toBe('42501');
-        expect((await erroDe(como(papel, `update ${TABELA} set site = 'x.com'`, [], A)))?.code, papel).toBe('42501');
+        expect((await erroDe(comoPapel(admin, papel, `select 1 from ${TABELA}`, [], A)))?.code, papel).toBe('42501');
+        expect((await erroDe(comoPapel(admin, papel, `update ${TABELA} set site = 'x.com'`, [], A)))?.code, papel).toBe('42501');
       }
       expect((await erroDe(q(`insert into ${TABELA} (site) values ('outro.com.br')`)))?.code).toBe('23505');
     });
@@ -178,8 +174,8 @@ describe.skipIf(semBanco())('0073 dados legais (banco, fixture dois-tenants)', (
       expect(await publicos()).toEqual(PADRAO);
       for (const papel of ['macuxi_worker', 'macuxi_portal']) expect((await erroDe(publicos(papel)))?.code, papel).toBe('42501');
       for (const papel of ['macuxi_app', 'macuxi_worker']) {
-        expect((await erroDe(como(papel, 'select plataforma.sa_dados_legais(null)')))?.code, papel).toBe('42501');
-        expect((await erroDe(como(papel, "select plataforma.sa_gravar_dados_legais(null, '{}')")))?.code, papel).toBe('42501');
+        expect((await erroDe(comoPapel(admin, papel, 'select plataforma.sa_dados_legais(null)')))?.code, papel).toBe('42501');
+        expect((await erroDe(comoPapel(admin, papel, "select plataforma.sa_gravar_dados_legais(null, '{}')")))?.code, papel).toBe('42501');
       }
       await q(`delete from ${TABELA}`);
       expect(await publicos()).toEqual(PADRAO);
@@ -238,10 +234,16 @@ describe.skipIf(semBanco())('0073 dados legais (banco, fixture dois-tenants)', (
       expect(await ler(sid)).toEqual(PADRAO);
       expect(await auditorias(sid)).toHaveLength(2);
 
-      // sem a linha (apagada à mão): a gravação cria de novo, uma só
+      // linha com deleted_at: a leitura mostra o padrão, e o "antes" auditado também
+      await q(`update ${TABELA} set deleted_at = now()`);
+      expect(await gravar(sid, novo)).toEqual(novo);
+      expect(await comAntesDepois(sid, PADRAO, novo)).toBe(2);
+
+      // sem a linha (apagada à mão): a gravação cria de novo, uma só; o "antes" auditado é o padrão
       await q(`delete from ${TABELA}`);
       expect(await gravar(sid, novo)).toEqual(novo);
       expect(await q(`select count(*)::int as n from ${TABELA}`)).toEqual([{ n: 1 }]);
+      expect(await comAntesDepois(sid, PADRAO, novo)).toBe(3);
     });
   });
 });

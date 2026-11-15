@@ -20,7 +20,7 @@ import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } fr
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
 import { FUNCOES_SA_0070, FUNCOES_SA_ATE_0071 } from './funcoes-sa';
-import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
+import { emTransacao, erroDe, erroNoSavepoint, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
 const m39 = migracoes.find((m) => m.versao === '0039')!;
@@ -160,18 +160,6 @@ describe.skipIf(semBanco())('0070/0071 planos e assinatura (banco, fixture dois-
     }
   }
   const q = async <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await admin.query<T>(sql, params)).rows;
-  /** Como o q, num savepoint: o erro esperado (CHECK, único) não aborta a transação do caso (senão o comando seguinte dá 25P02). */
-  async function qsp(sql: string, params: unknown[] = []) {
-    await admin.query('savepoint qsp');
-    try {
-      const r = await q(sql, params);
-      await admin.query('release savepoint qsp');
-      return r;
-    } catch (e) {
-      await admin.query('rollback to savepoint qsp');
-      throw e;
-    }
-  }
   const portal = <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => como<T>('macuxi_portal', sql, params).then((r) => r.rows);
   const abrir = async (p: unknown) => (await portal<{ sessao_id: string }>('select * from plataforma.sa_abrir_sessao_portal($1::jsonb)', [JSON.stringify(p)]))[0];
   async function sessaoSuperAdmin() {
@@ -216,8 +204,8 @@ describe.skipIf(semBanco())('0070/0071 planos e assinatura (banco, fixture dois-
         expect((await erroDe(como('macuxi_app', sql, [], A)))?.code, sql).toBe('42501');
       }
       // CHECK: sem teste, a assinatura nasce paga; uma viva por tenant
-      expect((await erroDe(qsp('update plataforma.assinatura set teste_ate = null, paga = false where id = $1', [ASSINATURAS_FIXTURE.A.id])))?.code).toBe('23514');
-      expect((await erroDe(qsp('insert into plataforma.assinatura (tenant_id, plano_id, pedido_id, paga) values ($1, $2, gen_random_uuid(), true)', [A, PLANOS_FIXTURE.pme.id])))?.code).toBe('23505');
+      expect((await erroNoSavepoint(admin, 'update plataforma.assinatura set teste_ate = null, paga = false where id = $1', [ASSINATURAS_FIXTURE.A.id]))?.code).toBe('23514');
+      expect((await erroNoSavepoint(admin, 'insert into plataforma.assinatura (tenant_id, plano_id, pedido_id, paga) values ($1, $2, gen_random_uuid(), true)', [A, PLANOS_FIXTURE.pme.id]))?.code).toBe('23505');
     });
   });
 
