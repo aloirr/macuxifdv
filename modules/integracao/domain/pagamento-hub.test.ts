@@ -9,7 +9,7 @@ import { validarLinhas } from './idempotencia';
 import { siglasDeMedidaDoRegistro, verificarMedidas } from './medidas';
 import { DEPENDENCIAS, ordenarCarga, referenciasDoRegistro, verificarReferencias } from './ordem';
 import { gerarModeloCsv } from './modelos-csv';
-import { avisoPrazoMedioDivergente, percentualAjusteDoPrazo, prazoMedioCalculado } from './pagamento';
+import { avisoPrazoMedioDivergente, prazoMedioCalculado } from './pagamento';
 import { decidirEntradaNaFila, montarPedidoParaErp, montarSnapshotParaFila, selecionarPendentes } from './pedido-fila';
 import { exigeConector } from './pedido-versao';
 import { ordemDeCargaDoPortal } from './portal-carga';
@@ -268,14 +268,11 @@ describe('RN-INT-15: percentual de ajuste do prazo ("% Acres.Fin." do ERP), adit
     const r = validarLinhas('prazo_pagamento', [prazo, { ...prazo, external_id: 'PRZ-2', percentual_ajuste: null }]);
     expect(r.erros).toEqual([]);
     expect(r.validas).toHaveLength(2);
-    expect(percentualAjusteDoPrazo(r.validas[0]?.registro as { percentual_ajuste?: number | null })).toBe(0);
-    expect(percentualAjusteDoPrazo({ percentual_ajuste: null })).toBe(0);
   });
 
   it('RN-INT-15: aceita -1,71 (à vista), 0 e os limites -99,99 e +99,99', () => {
     const r = validarLinhas('prazo_pagamento', [-1.71, 0, -99.99, 99.99].map((p, i) => ({ ...prazo, external_id: `P${i}`, percentual_ajuste: p })));
     expect(r.erros).toEqual([]);
-    expect(percentualAjusteDoPrazo({ percentual_ajuste: -1.71 })).toBe(-1.71);
   });
 
   it('RN-INT-15: fora da faixa ou com mais de 2 casas é erro de linha', () => {

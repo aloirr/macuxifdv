@@ -23,8 +23,3 @@ export function avisoPrazoMedioDivergente(r: Pick<PrazoPagamentoPayload, 'extern
     mensagem: `O ERP informou prazo médio de ${r.prazo_medio_dias} dias, mas as parcelas ${r.parcelas_dias.join('/')} dão ${calculado}. O Macuxi usa ${calculado} (RN-VEN-24); confira o cadastro no ERP.`,
   };
 }
-
-/** RN-INT-15: percentual de ajuste do prazo ("% Acres.Fin."); ausente ou nulo vale 0 (sem ajuste). */
-export function percentualAjusteDoPrazo(r: { percentual_ajuste?: number | null }): number {
-  return r.percentual_ajuste ?? 0;
-}
