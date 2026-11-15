@@ -42,9 +42,9 @@ import type { PerfilBuild } from './endereco-do-build';
 
 // ---------- quem pode abrir ----------
 
-/** A tela só existe nos builds de desenvolvimento e preview; nunca em produção (perfil vem do eas.json). */
+/** A tela só existe no bundle de desenvolvimento (`expo start`); nunca em produção. */
 export function diagnosticoDisponivel(perfil: PerfilBuild): boolean {
-  return perfil === 'desenvolvimento' || perfil === 'preview';
+  return perfil === 'desenvolvimento';
 }
 
 /** Toques seguidos na versão (Perfil) para abrir a tela; toque depois de `janelaMs` recomeça a conta. */
