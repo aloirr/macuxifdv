@@ -18,6 +18,7 @@ import {
 } from '@/components/portal/passo-empresa';
 import { rotuloDoStatus } from '@/components/portal/tela-empresas';
 import { mensagemDoLoginPortal, TEXTOS_ENTRAR } from '@/components/portal/tela-entrar';
+import { MENSAGEM_BLOQUEADO_ADMIN, mensagemBloqueioPorTentativas, mensagemMuitasTentativas } from '@macuxi/core/contracts';
 import { ErroPortal, MENSAGEM_PORTAL_SEM_SEGREDOS, MENSAGEM_SEM_CONEXAO } from './portal-api';
 
 const form = {
@@ -118,8 +119,15 @@ describe('entrada só com e-mail e senha (T-0093; spec portal-entrar §1 e §4)'
     expect(mensagemDoLoginPortal(new ErroPortal(401, 'CREDENCIAIS_INVALIDAS', 'qualquer'))).toBe(TEXTOS_ENTRAR.credenciais);
   });
   it('423 (também para e-mail inexistente), 429, 503 e sem rede', () => {
-    expect(mensagemDoLoginPortal(new ErroPortal(423, 'BLOQUEADO', 'Acesso bloqueado por tentativas erradas.'))).toBe('Muitas tentativas erradas. Espere 15 minutos e tente de novo.');
-    expect(mensagemDoLoginPortal(new ErroPortal(429, 'LIMITE', 'x'))).toBe('Muitas tentativas deste endereço. Espere alguns minutos e tente de novo.');
+    // RN-CORE-01: 423 por tentativas (portal `BLOQUEADO` ou `LOGIN_BLOQUEADO_TENTATIVAS`) diz quanto falta, sem mandar ao administrador
+    expect(mensagemDoLoginPortal(new ErroPortal(423, 'BLOQUEADO', 'Acesso bloqueado por tentativas erradas.'))).toBe('Muitas tentativas. Tente de novo em 15 minutos.');
+    expect(mensagemDoLoginPortal(new ErroPortal(423, 'LOGIN_BLOQUEADO_TENTATIVAS', 'x', { minutos_restantes: 3 }))).toBe(mensagemBloqueioPorTentativas(3));
+    expect(mensagemDoLoginPortal(new ErroPortal(423, 'BLOQUEADO', 'x'))).not.toMatch(/administrador/);
+    // 423 do administrador: a ação é falar com ele
+    expect(mensagemDoLoginPortal(new ErroPortal(423, 'USUARIO_BLOQUEADO', 'x'))).toBe(MENSAGEM_BLOQUEADO_ADMIN);
+    // 429: o tempo vem de `retry_after_s` (sem ele, 5 min)
+    expect(mensagemDoLoginPortal(new ErroPortal(429, 'MUITAS_TENTATIVAS', 'x', { retry_after_s: 60 }))).toBe('Muitas tentativas. Tente de novo em 1 minuto.');
+    expect(mensagemDoLoginPortal(new ErroPortal(429, 'LIMITE', 'x'))).toBe(mensagemMuitasTentativas());
     expect(mensagemDoLoginPortal(new ErroPortal(503, 'PORTAL_INDISPONIVEL', 'x'))).toBe(MENSAGEM_PORTAL_SEM_SEGREDOS);
     expect(mensagemDoLoginPortal(new ErroPortal(0, 'sem_conexao', MENSAGEM_SEM_CONEXAO))).toBe(MENSAGEM_SEM_CONEXAO);
   });

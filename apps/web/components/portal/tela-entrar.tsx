@@ -9,7 +9,7 @@
  */
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
-import { CODIGOS_PORTAL } from '@macuxi/core/contracts';
+import { CODIGOS_AUTH, CODIGOS_PORTAL, MENSAGEM_BLOQUEADO_ADMIN, mensagemBloqueioPorTentativas, mensagemMuitasTentativas } from '@macuxi/core/contracts';
 import { SessaoPortalSchema } from '@macuxi/platform-sdk';
 import { Button, Notice } from '@macuxi/ui/web';
 
@@ -34,22 +34,22 @@ export const TEXTOS_ENTRAR = Object.freeze({
   esqueceu: 'Esqueceu a senha? Use "Esqueci a senha" no backoffice.',
   vazio: 'Informe o e-mail e a senha.',
   credenciais: 'E-mail ou senha incorretos.',
-  bloqueado: 'Muitas tentativas erradas. Espere 15 minutos e tente de novo.',
-  limiteIp: 'Muitas tentativas deste endereço. Espere alguns minutos e tente de novo.',
   /** T-0094 (RN-CORE-34; spec ciclo-de-senha §7): a senha conferiu, mas ainda é a temporária; a troca é no backoffice. */
   senhaATrocar: 'Crie a sua senha no backoffice antes de entrar aqui. Use o código da empresa, o e-mail e a senha que você recebeu.',
 });
 
 /**
  * Frase da entrada pelo erro da API. O 401 é o mesmo para e-mail inexistente, senha errada e conta sem empresa (sem revelar se o
- * e-mail existe); a tela mostra sempre a frase da spec, não a da API.
+ * e-mail existe); a tela mostra sempre a frase da spec, não a da API. Os dois 423 têm ações diferentes (RN-CORE-01): bloqueio pelo
+ * administrador manda falar com ele; o por tentativas (portal `BLOQUEADO` ou `LOGIN_BLOQUEADO_TENTATIVAS`) só diz quanto falta.
  */
 export function mensagemDoLoginPortal(x: unknown): string {
   if (x instanceof ErroPortal) {
     if (x.status === 401) return TEXTOS_ENTRAR.credenciais;
     if (x.codigo === CODIGOS_PORTAL.senhaATrocar) return TEXTOS_ENTRAR.senhaATrocar;
-    if (x.status === 423 || x.codigo === CODIGOS_PORTAL.bloqueado) return TEXTOS_ENTRAR.bloqueado;
-    if (x.status === 429) return TEXTOS_ENTRAR.limiteIp;
+    if (x.codigo === CODIGOS_AUTH.bloqueado) return MENSAGEM_BLOQUEADO_ADMIN;
+    if (x.status === 423 || x.codigo === CODIGOS_PORTAL.bloqueado) return mensagemBloqueioPorTentativas(x.detalhes?.minutos_restantes);
+    if (x.status === 429) return mensagemMuitasTentativas(x.detalhes?.retry_after_s);
     if (x.status === 503) return MENSAGEM_PORTAL_SEM_SEGREDOS;
     if (x.status === 0 && x.codigo === 'sem_conexao') return MENSAGEM_SEM_CONEXAO;
   }
