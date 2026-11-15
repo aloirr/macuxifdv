@@ -13,7 +13,7 @@ import type { OrderPdfView } from '../../../domain/pdf-pedido';
 import { DICA_PDF_SEM_DETALHE, MSG_ITENS_INDISPONIVEIS, MSG_SEM_DOCUMENTO, textoDaModalidade, textoDaTransportadora, textoDoAjusteDoItem, textoDoEnderecoEntrega, enderecoFoiEditado, SELO_ENDERECO_EDITADO } from '../../lib/detalhe-pedido';
 import { usePedido, useSessaoDoBko } from '../../lib/queries';
 import { AvisoDeDecisao, BotoesDeDecisao } from './decisao';
-import { exportarPdfDoPedido } from './exportar-pdf';
+import { ERRO_IMPRESSAO, exportarPdfDoPedido } from './exportar-pdf';
 import { OrderStatusBadge } from './status';
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -82,7 +82,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
               </Button>
             </div>
           </div>
-          {erroPdf && <Notice tone="danger">Não deu para abrir a impressão: {erroPdf} Tente de novo ou permita pop-ups deste site.</Notice>}
+          {erroPdf && <Notice tone="danger">{ERRO_IMPRESSAO(erroPdf)}</Notice>}
           {semDocumento && <Notice tone="warning">{MSG_SEM_DOCUMENTO}</Notice>}
           <AvisoDeDecisao aviso={aviso} onClose={() => setAviso(null)} />
           {enviadoAoErp(o.status) && <Notice tone="info">{MSG_CANCELAR_APOS_ENVIO}</Notice>}

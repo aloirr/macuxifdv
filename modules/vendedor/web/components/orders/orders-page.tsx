@@ -12,7 +12,7 @@ import { usePedidos, usePendentes, useSessaoDoBko } from '../../lib/queries';
 import { useFiltrosNaUrl } from '../../lib/use-filtros';
 import { ApprovalsPanel } from './approvals-panel';
 import { useAtualizarPedidos } from './decisao';
-import { exportarPdfDoPedido } from './exportar-pdf';
+import { ERRO_IMPRESSAO, exportarPdfDoPedido } from './exportar-pdf';
 import { OrderDrawer } from './order-drawer';
 import { seloDoPedido } from './status';
 import { api } from '@macuxi/platform-sdk/web';
@@ -67,7 +67,7 @@ export function OrdersPage() {
       const { pedido } = lerDetalheDoPedido(await api<unknown>(`/vendedor/pedidos/${o.id}`));
       await exportarPdfDoPedido(pedido, view, { empresa: sessao.empresa, tz });
     } catch (e) {
-      toast('danger', `Não deu para abrir a impressão: ${errorMessage(e)} Tente de novo ou permita pop-ups deste site.`);
+      toast('danger', ERRO_IMPRESSAO(errorMessage(e)));
     }
   };
 
