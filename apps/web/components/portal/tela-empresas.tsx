@@ -16,7 +16,10 @@ import { chamarPortal, mensagemDoErro } from '@/lib/portal-api';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 import { destinoDaSessao, ehTimeMacuxi } from '@/lib/portal-sessao';
 import { LinkBotao, MolduraPortal, useSessaoPortal } from './base';
-import { mascararCnpj, PassoEmpresa, ROTULO_MODULO } from './passo-empresa';
+import { mascararCnpj, PassoEmpresa } from './passo-empresa';
+
+/** Item da lista como o portal recebe (`EmpresaResumoSchema`, com `plano`, `teste_ate` e `em_teste` opcionais). */
+type EmpresaResumo = ReturnType<typeof ListaEmpresasSchema.parse>['itens'][number];
 
 export const CHAVE_EMPRESAS = ['portal', 'empresas'] as const;
 
@@ -30,6 +33,22 @@ const data = (iso: string) => new Date(iso).toLocaleDateString('pt-BR');
 export function rotuloDoStatus(status: string): string {
   const r: Record<string, string> = { ativo: 'Ativa', suspenso: 'Suspensa', encerrado: 'Encerrada' };
   return r[status] ?? (status ? status.charAt(0).toUpperCase() + status.slice(1) : '—');
+}
+
+/** Coluna Plano (§11.5): nome do plano ou "—" sem plano (`null` ou banco sem a 0071); `teste` = mostrar o selo "teste". */
+export function celulaDoPlano(e: Pick<EmpresaResumo, 'plano' | 'em_teste'>): { nome: string; teste: boolean } {
+  const nome = e.plano?.trim();
+  return nome ? { nome, teste: e.em_teste === true } : { nome: '—', teste: false };
+}
+
+function CelulaPlano({ empresa }: { empresa: EmpresaResumo }) {
+  const { nome, teste } = celulaDoPlano(empresa);
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {nome}
+      {teste && <Badge tone="neutral">teste</Badge>}
+    </span>
+  );
 }
 
 /** Página só do time da Macuxi: o admin do cliente é levado à página inicial dele. `true` = pode mostrar. */
@@ -88,7 +107,7 @@ function ListaEmpresas() {
               <th className={th}>Empresa</th>
               <th className={th}>Código</th>
               <th className={th}>CNPJ</th>
-              <th className={th}>Módulos</th>
+              <th className={th}>Plano</th>
               <th className={th}>Situação</th>
               <th className={th}>Criada em</th>
             </tr>
@@ -103,7 +122,9 @@ function ListaEmpresas() {
                 </td>
                 <td className={`${td} font-mono`}>{e.codigo}</td>
                 <td className={`${td} tabular-nums`}>{e.cnpj ? mascararCnpj(e.cnpj) : '—'}</td>
-                <td className={td}>{e.modulos.map((m) => ROTULO_MODULO[m.modulo].nome).join(', ')}</td>
+                <td className={td}>
+                  <CelulaPlano empresa={e} />
+                </td>
                 <td className={td}>
                   <Badge tone={e.status === 'ativo' ? 'success' : e.status === 'suspenso' ? 'warning' : 'neutral'}>{rotuloDoStatus(e.status)}</Badge>
                 </td>

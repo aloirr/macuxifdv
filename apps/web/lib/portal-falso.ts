@@ -50,6 +50,10 @@ interface EmpresaFalsa {
   status: string;
   criada_em: string;
   modulos: { modulo: string; licencas: number | null }[];
+  /** Planos (0071): nome do plano, último dia do teste e `em_teste` (a API calcula; aqui fixo). */
+  plano?: string | null;
+  teste_ate?: string | null;
+  em_teste?: boolean;
 }
 interface LoteFalso {
   tenant: string;
@@ -75,9 +79,9 @@ interface Estado {
 
 /** Empresas dos admins do cliente falsos (ids fixos: o F5 e os testes acham as mesmas). */
 const EMPRESAS_DOS_CLIENTES: EmpresaFalsa[] = [
-  { id: '0b6f1a52-5c1e-4c4e-9a43-000000000001', codigo: 'distribuidora-uma', razao_social: 'Distribuidora Uma Ltda', cnpj: '11222333000181', fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-01T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'vendedor', licencas: 10 }, { modulo: 'integracao', licencas: null }] },
-  { id: '0b6f1a52-5c1e-4c4e-9a43-000000000002', codigo: 'atacado-norte', razao_social: 'Atacado Norte S.A.', cnpj: '04252011000110', fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-02T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'vendedor', licencas: 25 }, { modulo: 'integracao', licencas: null }] },
-  { id: '0b6f1a52-5c1e-4c4e-9a43-000000000003', codigo: 'comercial-boa-vista', razao_social: 'Comercial Boa Vista Ltda', cnpj: '33000167000101', fuso: 'America/Boa_Vista', status: 'ativo', criada_em: '2026-11-03T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'promotor', licencas: 5 }, { modulo: 'integracao', licencas: null }] },
+  { id: '0b6f1a52-5c1e-4c4e-9a43-000000000001', codigo: 'distribuidora-uma', razao_social: 'Distribuidora Uma Ltda', cnpj: '11222333000181', fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-01T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'vendedor', licencas: 10 }, { modulo: 'integracao', licencas: null }], plano: 'PME', teste_ate: null, em_teste: false },
+  { id: '0b6f1a52-5c1e-4c4e-9a43-000000000002', codigo: 'atacado-norte', razao_social: 'Atacado Norte S.A.', cnpj: '04252011000110', fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-02T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'vendedor', licencas: 25 }, { modulo: 'integracao', licencas: null }], plano: 'Light', teste_ate: null, em_teste: false },
+  { id: '0b6f1a52-5c1e-4c4e-9a43-000000000003', codigo: 'comercial-boa-vista', razao_social: 'Comercial Boa Vista Ltda', cnpj: '33000167000101', fuso: 'America/Boa_Vista', status: 'ativo', criada_em: '2026-11-03T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'promotor', licencas: 5 }, { modulo: 'integracao', licencas: null }], plano: 'Enterprise', teste_ate: '2099-12-31', em_teste: true },
 ];
 /** Contas falsas por e-mail: `null` = time da Macuxi; lista = admin do cliente nessas empresas (por nome). */
 export const CONTAS_FALSAS: Readonly<Record<string, readonly string[] | null>> = Object.freeze({
