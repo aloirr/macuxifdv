@@ -291,7 +291,8 @@ describe('migrações (estático)', () => {
         expect(corpo).toMatch(/^\s+tenant_id\s+uuid not null references plataforma\.tenant \(id\)/m);
         expect(sqlUp).toMatch(new RegExp(`create policy isolamento_tenant on ${escapar(tabela)} for all to macuxi_app\\s+using \\(tenant_id = plataforma\\.tenant_atual\\(\\)\\)\\s+with check \\(tenant_id = plataforma\\.tenant_atual\\(\\)\\)`));
       } else {
-        expect(sqlUp).toMatch(new RegExp(`create policy isolamento_tenant on ${escapar(tabela)} for all to macuxi_app`));
+        // sem tenant_id: a política pode ser só de leitura (plataforma.plano, 0084: for select)
+        expect(sqlUp).toMatch(new RegExp(`create policy isolamento_tenant on ${escapar(tabela)} for (all|select) to macuxi_app`));
       }
       expect(sqlUp).toContain(`alter table ${tabela} enable row level security;`);
       expect(sqlUp).toContain(`alter table ${tabela} force row level security;`);

@@ -910,11 +910,13 @@ do sync (`TABELAS_FORA_DO_SYNC`). Volume: poucas linhas por tenant. Fixture: uma
 (`ASSINATURAS_FIXTURE.*.historico`).
 
 ### Mudanças de acesso nas tabelas da 0070
-- `plataforma.plano`: política `isolamento_tenant` para o `macuxi_app` com `id in (plano_id da assinatura viva do tenant atual)` e
-  `grant select`. Sai de `TABELAS_SO_POR_FUNCAO` (continua em `TABELAS_SEM_TENANT_ID`). Só leitura; a escrita é do dono.
+- `plataforma.plano`: política `isolamento_tenant` (`for select`) para o `macuxi_app` com `id in (plano_id da assinatura viva do
+  tenant atual)` e `grant select`. Sai de `TABELAS_SO_POR_FUNCAO` (continua em `TABELAS_SEM_TENANT_ID`). Só leitura; a escrita é do dono.
 - `plataforma.assinatura`: `grant update (updated_at)` ao `macuxi_app`, o privilégio que o Postgres exige para o `select ... for
-  update` da trava. O gatilho `assinatura_so_trava` (BEFORE UPDATE) recusa com 42501 todo UPDATE feito como `macuxi_app`; travar
-  a linha não dispara gatilho. O app continua sem INSERT, sem DELETE e sem UPDATE nas outras colunas.
+  no key update` da trava (vale para todo `for ...` de travar linha). O gatilho `assinatura_so_trava` (BEFORE UPDATE) recusa com
+  42501 todo UPDATE de quem tem os privilégios do `macuxi_app` (`pg_has_role(current_user, 'macuxi_app', 'usage')`: ele mesmo ou
+  papel que o herda; `member` pegaria o admin, membro com SET e sem INHERIT), menos quem tem os do dono da tabela (as `sa_*`
+  DEFINER e o superusuário); travar a linha não dispara gatilho. O app continua sem INSERT, sem DELETE e sem UPDATE nas outras colunas.
 
 ### A trava do cadastro de usuários (RN-PLA-04)
 `plataforma.licencas_do_tenant()` → `(item text, contratadas integer, em_uso integer, teste_ate text, paga boolean)`: 6 linhas na
@@ -922,8 +924,9 @@ ordem de `ITENS_CONTADOS` (`vendedor`, `gestor`, `bko`, `promotor`, `pesquisa`, 
 null) e `paga` se repetem em cada linha. O Core chama na **mesma transação** do insert ou update do usuário, dentro de
 `comTenant`, e converte com `usoPorItem` para a `conferirNovoUsuario` do SDK.
 - SECURITY INVOKER, sob RLS do tenant corrente (`app.tenant_id`); EXECUTE só ao `macuxi_app`.
-- 1º comando: `select ... from plataforma.assinatura where tenant_id = tenant_atual() and deleted_at is null for update`. 2º
-  comando (foto nova): a contagem. Dois cadastros simultâneos ficam em fila e o segundo já vê o usuário do primeiro (a corrida da
+- 1º comando: `select ... from plataforma.assinatura where tenant_id = tenant_atual() and deleted_at is null for no key update`
+  (conflita consigo mesmo, com o `for update` da `sa_trocar_plano` e com todo UPDATE da linha; não segura o `for key share` das
+  FKs que apontam para a assinatura). 2º comando (foto nova): a contagem. Dois cadastros simultâneos ficam em fila e o segundo já vê o usuário do primeiro (a corrida da
   última vaga). Exige READ COMMITTED, o padrão: em REPEATABLE READ o segundo contaria com a foto antiga.
 - Sem assinatura (legado anterior aos planos) ou sem contexto: nenhuma linha (não trava).
 - Apoio (SECURITY INVOKER, `search_path` fixo, sem EXECUTE para PUBLIC):

@@ -10,12 +10,14 @@
  * - sa_trocar_plano: idempotente por pedido_id, grava o histórico, liga os módulos e nunca desliga, abaixo do uso = 22023
  *   PLANO_ABAIXO_DO_USO (nada muda), hints do 422, só super-admin;
  * - licencas_do_tenant(): SECURITY INVOKER sob RLS, 6 itens = as regras do SDK (licencasContratadas, contarLicencasEmUso),
- *   for update na assinatura: na corrida da última vaga o 2º cadastro espera o 1º e já o vê (COMMIT de verdade);
- * - RLS: assinatura_historico e plano só do próprio tenant para o app; worker e portal sem tabela; o app só trava a assinatura;
+ *   for no key update na assinatura: na corrida da última vaga o 2º cadastro espera o 1º e já o vê (COMMIT de verdade);
+ * - RLS: assinatura_historico e plano só do próprio tenant para o app (plano: for select); worker e portal sem tabela; o app (e
+ *   papel que o herda) só trava a assinatura, o dono grava;
  * - up/down: só acrescenta; o down volta exatamente ao catálogo e às ACLs da migração anterior.
  * Estático (sempre) + banco (fixture dois-tenants, sempre com ROLLBACK; corrida e up/down num banco efêmero) no CI.
  * A migração é achada pelo NOME (o número 0084 fica reservado depois das 0081 a 0083 de outros lotes).
  */
+import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -41,6 +43,7 @@ import { ASSINATURAS_FIXTURE, DOIS_TENANTS, PLANOS_FIXTURE } from '../seeds/fixt
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
+import { comandoSetRole, SQL_PRECISA_SET_ROLE } from '../src/papeis';
 import { banco, semBanco } from './estado';
 import { FUNCOES_SA_0084, FUNCOES_SA_ATE_0083, FUNCOES_SA_ATUAIS } from './funcoes-sa';
 import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
@@ -102,7 +105,7 @@ describe('0084 planos, troca e licenças (estático)', () => {
     expect(TABELAS_SEM_TENANT_ID).toHaveProperty(['plataforma.plano']);
     expect(up).toContain('create unique index assinatura_historico_pedido_uk on plataforma.assinatura_historico (tenant_id, pedido_id);');
     expect(up).toMatch(
-      /create policy isolamento_tenant on plataforma\.plano for all to macuxi_app\s+using \(id in \(select a\.plano_id from plataforma\.assinatura a where a\.tenant_id = plataforma\.tenant_atual\(\) and a\.deleted_at is null\)\);/,
+      /create policy isolamento_tenant on plataforma\.plano for select to macuxi_app\s+using \(id in \(select a\.plano_id from plataforma\.assinatura a where a\.tenant_id = plataforma\.tenant_atual\(\) and a\.deleted_at is null\)\);/,
     );
     // todas as permissões novas: o app lê o histórico e o seu plano, trava a assinatura e chama a trava; o portal, as 3 sa_*
     expect([...up.matchAll(/\bgrant [^;]+;/g)].map((x) => x[0].replace(/\s+/g, ' '))).toEqual([
@@ -113,9 +116,13 @@ describe('0084 planos, troca e licenças (estático)', () => {
       ...FUNCOES_SA_0084.map((f) => `grant execute on function ${f} to macuxi_portal;`),
     ]);
     expect(up).not.toMatch(/create policy [a-z_]+ on plataforma\.[a-z_]+ for [a-z]+ to macuxi_(worker|portal)/);
-    // o app só trava a assinatura: o gatilho recusa o UPDATE feito como macuxi_app
+    // o app só trava a assinatura: o gatilho recusa o UPDATE de quem tem os privilégios do macuxi_app ('usage' pega o papel que o
+    // herda; 'member' pegaria o admin, membro com SET sem INHERIT), menos o dono da tabela (sa_* DEFINER) e o superusuário
     const trava = bloco(up, 'create function plataforma.assinatura_so_trava()');
-    expect(trava).toContain("if current_user = 'macuxi_app' then");
+    expect(trava).toMatch(
+      /if pg_has_role\(current_user, 'macuxi_app', 'usage'\)\s+and not pg_has_role\(current_user, \(select c\.relowner from pg_catalog\.pg_class c where c\.oid = tg_relid\), 'usage'\) then/,
+    );
+    expect(trava).not.toMatch(/current_user = 'macuxi_app'|'member'/);
     expect(trava).toContain("using errcode = '42501';");
     expect(up).toContain('create trigger assinatura_so_trava before update on plataforma.assinatura');
   });
@@ -123,7 +130,8 @@ describe('0084 planos, troca e licenças (estático)', () => {
   it('licencas_do_tenant: SECURITY INVOKER, trava a assinatura num comando e conta no seguinte; contagem pela base (= LICENCA_DO_PERFIL do SDK)', () => {
     const b = bloco(up, TRAVA);
     expect(b).toMatch(/returns table \(item text, contratadas integer, em_uso integer, teste_ate text, paga boolean\)\s+language plpgsql volatile security invoker\s+set search_path = pg_catalog, plataforma, pg_temp/);
-    const lock = b.indexOf('for update;');
+    expect(b).not.toContain('for update;');
+    const lock = b.indexOf('for no key update;');
     const conta = b.indexOf('return query');
     expect(lock).toBeGreaterThan(-1);
     expect(conta).toBeGreaterThan(lock);
@@ -389,7 +397,16 @@ describe.skipIf(semBanco())('0084 planos, troca e licenças (banco, fixture dois
         expect((await erroDe(como('macuxi_app', sql, [], A)))?.code, sql).toBe('42501');
       }
       // travar a linha é permitido (é o que a licencas_do_tenant faz)
-      expect((await como('macuxi_app', 'select id from plataforma.assinatura for update', [], A)).rowCount).toBe(1);
+      expect((await como('macuxi_app', 'select id from plataforma.assinatura for no key update', [], A)).rowCount).toBe(1);
+      // papel que herda o macuxi_app também só trava; o dono (admin/migrador) grava
+      const herdeiro = `macuxi_t0084_${randomBytes(4).toString('hex')}`;
+      await q(`create role ${herdeiro} nologin nosuperuser nobypassrls`);
+      await q(`grant macuxi_app to ${herdeiro} with inherit true`);
+      const set = await q<{ precisa: boolean }>(SQL_PRECISA_SET_ROLE, [herdeiro]);
+      if (set[0]?.precisa === true) await q(comandoSetRole(herdeiro));
+      expect((await como(herdeiro, 'select id from plataforma.assinatura for no key update', [], A)).rowCount).toBe(1);
+      expect((await erroDe(como(herdeiro, 'update plataforma.assinatura set updated_at = now()', [], A)))?.code).toBe('42501');
+      expect((await admin.query('update plataforma.assinatura set updated_at = updated_at where tenant_id = $1', [A])).rowCount).toBe(1);
       for (const papel of ['macuxi_worker', 'macuxi_portal']) {
         for (const t of ['plataforma.assinatura_historico', 'plataforma.plano']) {
           expect((await erroDe(como(papel, `select 1 from ${t} limit 1`, [], A)))?.code, `${papel} ${t}`).toBe('42501');

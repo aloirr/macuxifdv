@@ -14,8 +14,9 @@
 --    isolamento_tenant com o id do plano da assinatura; grant select). É o que deixa a licencas_do_tenant() ser SECURITY
 --    INVOKER sob RLS. Escrita continua só pelas funções do dono. Sai de TABELAS_SO_POR_FUNCAO (db/src/excecoes.ts).
 -- 3. plataforma.assinatura — o macuxi_app ganha UPDATE só na coluna updated_at, que é o privilégio que o Postgres exige para o
---    "select ... for update" da licencas_do_tenant(); o gatilho assinatura_so_trava recusa (42501) todo UPDATE feito como
---    macuxi_app (travar a linha não dispara gatilho). Nada mais muda na tabela.
+--    "select ... for no key update" da licencas_do_tenant(); o gatilho assinatura_so_trava recusa (42501) todo UPDATE feito
+--    por quem tem os privilégios do macuxi_app (o próprio ou papel que o herda; nunca o dono da tabela, que roda as sa_* DEFINER,
+--    nem superusuário). Travar a linha não dispara gatilho. Nada mais muda na tabela.
 -- 4. Funções de apoio (SECURITY INVOKER, search_path fixo com pg_temp no fim, sem EXECUTE para PUBLIC):
 --    - plataforma.plano_json(plano) -> jsonb: o PlanoSchema do SDK (licencas em objeto). Só o dono (dentro das sa_*).
 --    - plataforma.contratadas_do_plano(plano, adicionais jsonb) -> (item, contratadas): gêmea de licencasContratadas do SDK
@@ -29,7 +30,9 @@
 --      tipo. Sem prioridade de multiperfil. STABLE. Sob RLS para o macuxi_app (outro tenant = zeros); o dono passa o tenant.
 -- 5. plataforma.licencas_do_tenant() -> (item, contratadas, em_uso, teste_ate 'AAAA-MM-DD' | null, paga): a situação que o
 --    cadastro de usuários do Core lê na MESMA transação do insert ou update (RN-PLA-04; conferirNovoUsuario + usoPorItem do SDK).
---    SECURITY INVOKER, sob RLS do tenant corrente (app.tenant_id). Primeiro trava a assinatura viva (for update, comando próprio);
+--    SECURITY INVOKER, sob RLS do tenant corrente (app.tenant_id). Primeiro trava a assinatura viva (for no key update, comando
+--    próprio: conflita consigo mesmo, com o for update da sa_trocar_plano e com todo UPDATE da linha, e não segura o for key
+--    share das FKs que apontam para a assinatura);
 --    depois conta (comando seguinte, com foto nova): dois cadastros simultâneos ficam em fila e o segundo já vê o primeiro. Exige
 --    READ COMMITTED (o padrão). Sem assinatura (legado) ou sem contexto = nenhuma linha (sem trava). EXECUTE só ao macuxi_app.
 -- 6. Funções do portal (SECURITY DEFINER, sessão conferida a cada chamada; SQLSTATE 28000 sessão, 42501 permissão, P0002 não
@@ -111,11 +114,11 @@ revoke all on plataforma.assinatura_historico from public, macuxi_app, macuxi_wo
 grant select on plataforma.assinatura_historico to macuxi_app;
 
 -- 2. plataforma.plano: o app lê só o plano da assinatura viva do próprio tenant ----------------------------------------------
-create policy isolamento_tenant on plataforma.plano for all to macuxi_app
+create policy isolamento_tenant on plataforma.plano for select to macuxi_app
   using (id in (select a.plano_id from plataforma.assinatura a where a.tenant_id = plataforma.tenant_atual() and a.deleted_at is null));
 grant select on plataforma.plano to macuxi_app;
 
--- 3. plataforma.assinatura: o app só trava a linha (for update), nunca grava ------------------------------------------------
+-- 3. plataforma.assinatura: o app só trava a linha (for no key update), nunca grava -----------------------------------------
 grant update (updated_at) on plataforma.assinatura to macuxi_app;
 create function plataforma.assinatura_so_trava()
   returns trigger
@@ -123,7 +126,10 @@ create function plataforma.assinatura_so_trava()
   set search_path = pg_catalog, plataforma, pg_temp
   as $$
 begin
-  if current_user = 'macuxi_app' then
+  -- 'usage' = tem os privilégios do macuxi_app (ele mesmo ou papel que o herda). Não 'member': o admin é membro com SET e sem
+  -- INHERIT (db/src/papeis.ts) e é o dono que roda as sa_* DEFINER. O dono da tabela (e o superusuário) nunca é recusado.
+  if pg_has_role(current_user, 'macuxi_app', 'usage')
+     and not pg_has_role(current_user, (select c.relowner from pg_catalog.pg_class c where c.oid = tg_relid), 'usage') then
     raise exception 'plataforma.assinatura: o app só trava a linha (licencas_do_tenant); quem grava é o portal' using errcode = '42501';
   end if;
   return new;
@@ -237,7 +243,7 @@ begin
   select a.id, a.tenant_id, a.plano_id, a.adicionais, a.teste_ate, a.paga into v_a
     from plataforma.assinatura a
    where a.tenant_id = plataforma.tenant_atual() and a.deleted_at is null
-   for update;
+   for no key update;
   if not found then
     return;
   end if;
