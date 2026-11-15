@@ -5,10 +5,17 @@ export function valorParametro<K extends keyof ParametrosTreinamento>(
   parametros: Readonly<Record<string, unknown>>,
   chave: K,
 ): ParametrosTreinamento[K] {
-  const padrao = PARAMETROS_PADRAO[chave];
-  const v = parametros[chave];
-  if (Array.isArray(padrao)) return (Array.isArray(v) && v.length > 0 ? v : padrao) as ParametrosTreinamento[K];
-  return (typeof v === typeof padrao && v !== null ? v : padrao) as ParametrosTreinamento[K];
+  const padrao: unknown = PARAMETROS_PADRAO[chave];
+  const v: unknown = parametros[chave];
+  const escolhido = Array.isArray(padrao)
+    ? Array.isArray(v) && v.length > 0
+      ? v
+      : padrao
+    : typeof v === typeof padrao && v !== null
+      ? v
+      : padrao;
+  // Validado acima contra o tipo do padrão; o TS não consegue correlacionar K com o valor em runtime.
+  return escolhido as ParametrosTreinamento[K];
 }
 
 /** Valor em uso e, só quando o tenant mudou o padrão, o texto "Padrão: X". */
