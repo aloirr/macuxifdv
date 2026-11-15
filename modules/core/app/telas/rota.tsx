@@ -229,7 +229,7 @@ export function TelaRota() {
   // mapa e lista só com as paradas filtradas; a numeração continua a da rota
   // outro dia é só para ver: sem "próxima" parada
   const stops = paradasParaVer(filtrarParadas(route.stops, filtro), ehHoje);
-  const next = ehHoje ? (stops.find((s) => s.status === 'next') ?? null) : null;
+  const next = stops.find((s) => s.status === 'next') ?? null;
   const points = projectPoints(
     stops.map((s) => ({ lat: s.customer.lat, lng: s.customer.lng })),
     mapW,

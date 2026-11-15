@@ -70,8 +70,11 @@ export function filtrarParadas<T extends ParadaFiltravel>(paradas: readonly T[],
 
 /** Selo do botão: cliente, cidade, bairro e data fora de hoje contam um cada. */
 export function contarFiltrosRota(f: FiltroRota): number {
-  return [f.cliente.trim() !== '', f.cidade !== null, f.bairro !== null, f.data !== null].filter(Boolean).length;
+  return filtrosDeParada(f).filter(Boolean).length + (f.data !== null ? 1 : 0);
 }
+
+/** Cliente, cidade e bairro: os filtros que tiram paradas da lista (a data troca o dia, não filtra). */
+const filtrosDeParada = (f: FiltroRota): boolean[] => [f.cliente.trim() !== '', f.cidade !== null, f.bairro !== null];
 
 export type CampoFiltroRota = 'cliente' | 'cidade' | 'bairro' | 'data';
 
@@ -150,7 +153,7 @@ export function situacaoNaLinha(situacao: SituacaoDoCliente, garantidas: readonl
 export const filtroNoDia = (f: FiltroRota, hoje: string): FiltroRota => (f.data === hoje ? { ...f, data: null } : f);
 
 /** Filtro que tira paradas da lista (cliente, cidade ou bairro); só a data não filtra paradas. */
-export const filtraParadas = (f: FiltroRota): boolean => f.cliente.trim() !== '' || f.cidade !== null || f.bairro !== null;
+export const filtraParadas = (f: FiltroRota): boolean => filtrosDeParada(f).some(Boolean);
 
 /** Trocar a data: a cidade e o bairro que não existem nas paradas do novo dia saem. */
 export function ajustarAoDia(f: FiltroRota, paradas: readonly ParadaFiltravel[]): FiltroRota {
