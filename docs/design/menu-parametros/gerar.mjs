@@ -11,32 +11,55 @@ const AQUI = dirname(fileURLToPath(import.meta.url));
 const FONTES = '../../../apps/web/app/fonts';
 const LOGO = '../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-grafite.svg';
 
-// Menu depois da mudança (perfil Administrador, 8 módulos). Grupos e itens em ordem alfabética (ADR 0050).
+// Menu depois da mudança (perfil Administrador). Grupos e itens em ordem alfabética (ADR 0050).
+// Pesquisa, Trade e Treinamento são grupos próprios (R-20261115-113500); "Conteúdo de campo" fica vazio e some.
 const MENU = [
   ['Acesso', ['Aparelhos', 'Usuários']],
-  ['Análise', ['Indicadores', 'Metas', 'Painel da equipe', 'Ranking', 'Trade marketing']],
+  ['Análise', ['Indicadores', 'Metas', 'Painel da equipe', 'Ranking']],
   ['Cadastros', ['Carteira', 'Clientes', 'Coordenadas sugeridas', 'Filiais']],
   ['Comercial', ['Transportadoras']],
   ['Comunicação', ['Alertas', 'Recados']],
-  ['Conteúdo de campo', ['Pesquisas', 'Trade', 'Trilhas']],
   ['Operação', ['Aprovações', 'Pedidos', 'Rotas', 'Visitas']],
-  ['Parâmetros', ['Acesso', 'Alertas', 'Calendário', 'Clientes', 'Início', 'Metas e RV', 'Pedidos', 'Produtos', 'Trade', 'Visitas']],
+  ['Parâmetros', ['Acesso', 'Alertas', 'Calendário', 'Clientes', 'Início', 'Metas e RV', 'Pedidos', 'Pesquisa', 'Produtos', 'Trade', 'Treinamento', 'Visitas']],
+  ['Pesquisa', ['Pesquisas']],
   ['Produtos', ['Catálogo', 'Marcas concorrentes', 'Preço e custo', 'Tabelas de preço']],
   ['Sistema', ['Auditoria', 'Carga por arquivo', 'Integração ERP']],
+  ['Trade', ['Cadastros', 'Indicadores']],
+  ['Treinamento', ['Trilhas']],
 ];
+// Grupos que dependem de licença; na empresa sem a licença, o grupo e o submenu de Parâmetros com o mesmo nome ficam com cadeado.
+const DICA = 'Contrate o módulo para usar';
 
 const seta = (aberto) =>
   `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(${aberto ? 90 : 0}deg)"><path d="M9 6l6 6-6 6"/></svg>`;
+const cadeado = `<svg class="cad" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`;
 const pontos = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>`;
 
-function menu(ativo) {
+// aberto: grupo aberto (sanfona); ativo: item selecionado; sem: grupos sem licença; dica: id do elemento com a dica visível (simula o passar do mouse).
+function menu({ aberto = 'Parâmetros', ativo = null, sem = [], dica = null } = {}) {
+  const id = (t) => t.normalize('NFD').replace(/[^a-zA-Z]/g, '').toLowerCase();
+  const attrBloq = (alvo) => ` aria-disabled="true" aria-describedby="dica" tabindex="0"${dica === alvo ? ' data-dica' : ''}`;
   const grupos = MENU.map(([g, itens]) => {
-    const aberto = g === 'Parâmetros';
-    const lista = aberto ? itens.map((i) => `<a class="item${i === ativo ? ' ativo' : ''}">${i}</a>`).join('') : '';
-    return `<div class="grupo"><div class="titulo${aberto ? ' aberto' : ''}"><span>${g}</span>${seta(aberto)}</div>${lista}</div>`;
+    if (sem.includes(g)) {
+      return `<div class="grupo"><div class="titulo bloq" id="g-${id(g)}"${attrBloq(`g-${id(g)}`)}><span>${g}</span>${cadeado}</div></div>`;
+    }
+    const abre = g === aberto;
+    const lista = abre
+      ? itens
+          .map((i) =>
+            g === 'Parâmetros' && sem.includes(i)
+              ? `<a class="item bloq" id="p-${id(i)}"${attrBloq(`p-${id(i)}`)}><span>${i}</span>${cadeado}</a>`
+              : `<a class="item${i === ativo ? ' ativo' : ''}"${i === ativo ? ' aria-current="page"' : ''}>${i}</a>`,
+          )
+          .join('')
+      : '';
+    return `<div class="grupo"><div class="titulo${abre ? ' aberto' : ''}" aria-expanded="${abre}"><span>${g}</span>${seta(abre)}</div>${lista}</div>`;
   }).join('');
-  return `<nav class="menu"><div class="brand"><img src="${LOGO}" height="28" alt="Macuxi Força de Vendas"><span>Distribuidora Exemplo</span></div><div class="lista">${grupos}</div><div class="rodape"><b>Ana Souza</b><span>Administrador</span><div class="sair">↪ Trocar perfil</div></div></nav>`;
+  return `<nav class="menu"><div class="brand"><img src="${LOGO}" height="28" alt="Macuxi Força de Vendas"><span>Distribuidora Exemplo</span></div><div class="lista">${grupos}</div><div class="rodape"><b>Ana Souza</b><span>Administrador</span><div class="sair">↪ Trocar perfil</div></div></nav><div class="dica" id="dica" role="tooltip"${dica ? '' : ' hidden'}>${DICA}</div>`;
 }
+
+// Depois das fontes: rola a lista até o item aberto (como o shell faz ao abrir o grupo), esmaece a borda cortada e posiciona a dica.
+const SCRIPT = `<script>document.fonts.ready.then(()=>{const l=document.querySelector('.lista');const alvo=document.querySelector('.item.ativo')||[...document.querySelectorAll('.titulo.aberto ~ .item')].pop();if(alvo){const a=alvo.getBoundingClientRect(),b=l.getBoundingClientRect();if(a.bottom>b.bottom)l.scrollTop+=a.bottom-b.bottom+4;}if(l.scrollTop>0)l.classList.add('mais-acima');else if(l.scrollHeight>l.clientHeight)l.classList.add('mais-abaixo');const d=document.getElementById('dica'),t=document.querySelector('[data-dica]');if(t&&!d.hidden){const r=t.getBoundingClientRect();d.style.left=(r.right+10)+'px';d.style.top=(r.top+r.height/2-d.offsetHeight/2)+'px';}document.body.dataset.pronto='1';});</script>`;
 
 const CSS = `
 @font-face{font-family:Archivo;font-weight:700;src:url(${FONTES}/Archivo_700Bold.ttf)}
@@ -50,12 +73,19 @@ body{font-family:Plex;background:#F8F6F1;color:#16202A;width:1440px;height:900px
 .brand{display:flex;flex-direction:column;align-items:flex-start;padding:0 8px 16px}
 .brand img{display:block;height:28px;width:auto}
 .brand span{font-size:12px;line-height:16px;color:#C9CED5;margin-top:18px}
-.lista{display:flex;flex-direction:column;gap:2px}
+.lista{display:flex;flex-direction:column;gap:2px;flex:1;min-height:0;overflow:hidden}
+.lista.mais-abaixo{-webkit-mask-image:linear-gradient(to top,transparent 0,#000 36px);mask-image:linear-gradient(to top,transparent 0,#000 36px)}
+.lista.mais-acima{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 36px);mask-image:linear-gradient(to bottom,transparent 0,#000 36px)}
 .titulo{display:flex;justify-content:space-between;align-items:center;height:30px;padding:0 10px;border-radius:8px;color:#F59A52;font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase}
 .item{display:flex;align-items:center;height:32px;padding:0 10px 0 20px;border-radius:8px;font-size:14px;color:#C9CED5;white-space:nowrap;position:relative}
 .item.ativo{background:#2B3743;color:#fff;font-weight:600}
+.titulo.bloq{color:#8B96A3;cursor:not-allowed}
+.item.bloq{color:#8B96A3;justify-content:space-between;cursor:not-allowed}
+.cad{flex-shrink:0}
+.dica{position:absolute;z-index:10;background:#fff;color:#16202A;font-size:13px;font-weight:600;line-height:18px;padding:7px 12px;border-radius:8px;box-shadow:0 6px 16px rgba(22,32,42,.22);white-space:nowrap}
+.dica:before{content:'';position:absolute;left:-5px;top:50%;width:10px;height:10px;background:#fff;transform:translateY(-50%) rotate(45deg)}
 .item.ativo:before{content:'';position:absolute;left:8px;top:8px;bottom:8px;width:3px;border-radius:2px;background:#F59A52}
-.rodape{margin-top:auto;border-top:1px solid #2B3743;padding:12px 8px 0;display:flex;flex-direction:column}
+.rodape{margin-top:12px;border-top:1px solid #2B3743;padding:12px 8px 0;display:flex;flex-direction:column}
 .rodape b{font-size:14px}.rodape span{font-size:12px;color:#C9CED5}.sair{font-size:13px;font-weight:600;color:#C9CED5;margin-top:8px}
 main{flex:1;min-width:0;padding:28px 32px;display:flex;flex-direction:column;gap:20px;max-width:1212px}
 .cab{display:flex;flex-direction:column;gap:2px;min-height:42px;justify-content:center}
@@ -101,8 +131,8 @@ tr:last-child td{border-bottom:0}
 .mapa .sai{color:#4A5562;font-size:13px}
 `;
 
-const pagina = (titulo, ativo, corpo, nota) =>
-  `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>${titulo}</title><style>${CSS}</style><body>${menu(ativo)}<main>${corpo}</main>${nota ? `<div class="nota">${nota}</div>` : ''}</body></html>`;
+const pagina = (titulo, opcoes, corpo, nota) =>
+  `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>${titulo}</title><style>${CSS}</style><body>${menu(opcoes)}<main>${corpo}</main>${nota ? `<div class="nota">${nota}</div>` : ''}${SCRIPT}</body></html>`;
 
 const cab = (t) => `<div class="cab"><span class="eyebrow">Parâmetros</span><h1>${t}</h1></div>`;
 const campo = (rotulo, ajuda, valor, unidade, editado = false) =>
@@ -111,25 +141,27 @@ const campo = (rotulo, ajuda, valor, unidade, editado = false) =>
 // ---------- 01: menu com Parâmetros aberto + mapa dos submenus ----------
 const MAPA = [
   ['Acesso', 'Perfis de acesso · Módulos · Promotor vê pedidos', 'Acesso › Perfis de acesso; Usuários e módulos (só URL)'],
-  ['Alertas', 'Regras de alerta', 'Comunicação › Regras de alerta'],
+  ['Alertas', 'Regras de alerta (detalhe na spec de alertas)', 'Comunicação › Regras de alerta'],
   ['Calendário', 'Feriados · Janela do almoço', 'sem lugar no menu'],
   ['Clientes', 'Farol · Curvas ABC', 'Cadastros › Clientes (painéis)'],
   ['Início', 'Dias úteis e equipe parada · Frases do dia', 'Análise › Metas (painel); sem lugar no menu'],
   ['Metas e RV', 'Plano de RV', 'Comercial › Plano de RV'],
   ['Pedidos', 'Alçadas · Formas de pagamento e prazos', 'Comercial › Alçadas; Comercial › Formas de pagamento e prazos'],
+  ['Pesquisa', 'Vigência · Construtor · Fotos', 'sem tela'],
   ['Produtos', 'Desconto máximo padrão · Medidas', 'Produtos › Preço e custo (abas)'],
-  ['Trade', 'Parâmetros de trade', 'Conteúdo de campo › Trade (gaveta)'],
+  ['Trade', 'Validade · Visita e coleta · Gôndola', 'Conteúdo de campo › Trade (gaveta); 2 sem tela'],
+  ['Treinamento', 'Quiz e lição · XP · Níveis e ranking', 'sem tela'],
   ['Visitas', 'Motivos de não venda · Fotos do PDV · Etapa pendente', 'Cadastros › Motivos; Cadastros › Fotos do PDV; Análise › Metas (painel)'],
 ];
 const html01 = pagina(
   'Parâmetros — menu',
-  null,
+  {},
   `<div class="cab"><h1>Parâmetros</h1></div>
   <section class="quadro mapa"><h2>Submenus e seções</h2><table><colgroup><col style="width:150px"><col style="width:42%"><col></colgroup>
   <thead><tr><th>Submenu</th><th>Seções da página</th><th>Hoje está em</th></tr></thead><tbody>
   ${MAPA.map(([s, sec, de]) => `<tr><td class="forte">${s}</td><td>${sec}</td><td class="sai">${de}</td></tr>`).join('')}
   </tbody></table></section>`,
-  '<b>Simulação.</b> Grupo Parâmetros aberto (sanfona: os outros grupos fechados). Cada submenu abre <b>/parametros/&lt;submenu&gt;</b> com as seções empilhadas. A tabela serve só para a aprovação; não faz parte da tela.',
+  '<b>Simulação.</b> Empresa com os 8 módulos. Grupo Parâmetros aberto (sanfona). Com 12 grupos e 12 submenus a lista passa 63 px da altura e rola (borda de baixo esmaecida): ver D3. A tabela serve só para a aprovação.',
 );
 
 // ---------- 02: Parâmetros › Clientes ----------
@@ -137,7 +169,7 @@ const dim = (nome, a, b) =>
   `<fieldset><legend>${nome}</legend>${campo('Curva A a partir de', 'Participação no total do mês.', a, '%')}${campo('Curva B a partir de', 'Abaixo disso, curva C.', b, '%')}</fieldset>`;
 const html02 = pagina(
   'Parâmetros — Clientes',
-  'Clientes',
+  { ativo: 'Clientes' },
   `${cab('Clientes')}
   <section class="quadro"><h2>Farol</h2><div class="grade">
   ${campo('Cliente verde até', 'Dias sem compra.', '30', 'dias')}
@@ -162,7 +194,7 @@ const fp = [
 ];
 const html03 = pagina(
   'Parâmetros — Pedidos',
-  'Pedidos',
+  { ativo: 'Pedidos' },
   `${cab('Pedidos')}
   <section class="quadro"><h2>Alçadas</h2><table><colgroup><col style="width:40%"><col></colgroup><thead><tr><th>Desconto do pedido</th><th>Quem aprova</th></tr></thead><tbody>
   <tr><td>Até 5%</td><td>Vendedor (aprovado na hora)</td></tr><tr><td>Até 10%</td><td>Supervisor</td></tr><tr><td>Até 15%</td><td>Gerente</td></tr><tr><td>Acima de 15%</td><td>Analista comercial</td></tr>
@@ -184,7 +216,7 @@ const frases = [
 const dias = [['Dom', 0], ['Seg', 1], ['Ter', 1], ['Qua', 1], ['Qui', 1], ['Sex', 1], ['Sáb', 0]];
 const html04 = pagina(
   'Parâmetros — Início',
-  'Início',
+  { ativo: 'Início' },
   `${cab('Início')}
   <section class="quadro"><h2>Dias úteis e equipe parada</h2>
   <div class="campo">Dias úteis da semana<small>Base da meta do dia.</small><div class="dias">${dias.map(([d, on]) => `<span class="dia${on ? ' on' : ''}" aria-pressed="${on ? 'true' : 'false'}">${d}</span>`).join('')}</div></div>
@@ -199,11 +231,63 @@ const html04 = pagina(
   '<b>Simulação.</b> Dias úteis e minutos de "parado" saem de Análise › Metas; Frases do dia ganham lugar no menu. O prazo da etapa pendente do checkout vai para Parâmetros › Visitas. Subir, descer, editar e remover a frase ficam no "⋯".',
 );
 
+// ---------- 05: grupos dos módulos; empresa sem Pesquisa e Treinamento ----------
+const SAI = [
+  ['Conteúdo de campo › Pesquisas', 'Pesquisa › Pesquisas', 'pesquisa'],
+  ['Conteúdo de campo › Trilhas', 'Treinamento › Trilhas', 'treinamento'],
+  ['Conteúdo de campo › Trade', 'Trade › Cadastros', 'promotor'],
+  ['Análise › Trade marketing', 'Trade › Indicadores', 'promotor'],
+  ['Conteúdo de campo › Trade (gaveta "Parâmetros de trade")', 'Parâmetros › Trade', 'promotor'],
+  ['sem tela (parâmetros da Pesquisa)', 'Parâmetros › Pesquisa', 'pesquisa'],
+  ['sem tela (parâmetros do Treinamento)', 'Parâmetros › Treinamento', 'treinamento'],
+  ['Conteúdo de campo (grupo)', 'some: fica sem item', '—'],
+];
+const ESTADOS = [
+  ['Com licença', 'Título em Sol claro, seta; abre e navega.'],
+  ['Sem licença', 'Cinza #8B96A3 (5,5:1 no Grafite) e cadeado; não abre nem navega; aria-disabled.'],
+  ['Dica', 'No passar do mouse, no foco do teclado e no clique: "Contrate o módulo para usar".'],
+  ['Perfil sem o módulo', 'Empresa tem a licença, o perfil não: o grupo some (como hoje).'],
+];
+const html05 = pagina(
+  'Menus dos módulos — licença',
+  { aberto: 'Trade', sem: ['Pesquisa', 'Treinamento'], dica: 'g-pesquisa' },
+  `<div class="cab"><h1>Menus dos módulos</h1></div>
+  <section class="quadro mapa"><h2>Sai de → vai para</h2><table><colgroup><col style="width:46%"><col><col style="width:130px"></colgroup>
+  <thead><tr><th>Hoje</th><th>Vai para</th><th>Módulo</th></tr></thead><tbody>
+  ${SAI.map(([de, para, m]) => `<tr><td class="sai">${de}</td><td class="forte">${para}</td><td>${m}</td></tr>`).join('')}
+  </tbody></table></section>
+  <section class="quadro mapa"><h2>Estados do grupo</h2><table><colgroup><col style="width:190px"><col></colgroup><tbody>
+  ${ESTADOS.map(([e, d]) => `<tr><td class="forte">${e}</td><td>${d}</td></tr>`).join('')}
+  </tbody></table></section>`,
+  '<b>Simulação.</b> Empresa sem Pesquisa e Treinamento: os dois grupos aparecem com cadeado (dica visível em Pesquisa, como no passar do mouse). Trade tem licença e está aberto. As tabelas servem só para a aprovação.',
+);
+
+// ---------- 06: Parâmetros › Trade; Pesquisa e Treinamento sem licença ----------
+const html06 = pagina(
+  'Parâmetros — Trade',
+  { ativo: 'Trade', sem: ['Pesquisa', 'Treinamento'], dica: 'p-pesquisa' },
+  `${cab('Trade')}
+  <section class="quadro"><h2>Validade</h2><div class="grade">
+  ${campo('Validade crítica até', 'Padrão: 7 dias.', '7', 'dias')}
+  ${campo('Validade em atenção até', 'Padrão: 30 dias. Acima disso, ok.', '30', 'dias')}
+  </div><div class="acoes"><span class="btn d">Salvar validade</span></div></section>
+  <section class="quadro"><h2>Visita e coleta</h2><div class="grade">
+  ${campo('Permanência mínima da visita', 'Para contar nos indicadores. Padrão: 10 min.', '10', 'min')}
+  ${campo('Variação de preço sem confirmar', 'Sobre a última coleta. Padrão: 50%.', '50', '%')}
+  </div><div class="acoes"><span class="btn d">Salvar visita e coleta</span></div></section>
+  <section class="quadro"><h2>Gôndola</h2><div class="grade">
+  ${campo('Peso do parcial na conformidade', 'De 0 a 1. Padrão: 0.', '0', '')}
+  </div><div class="acoes"><span class="btn d">Salvar gôndola</span></div></section>`,
+  '<b>Simulação.</b> Empresa sem Pesquisa e Treinamento: os submenus aparecem com cadeado e não abrem (dica visível em Pesquisa). Trade reúne os 5 parâmetros do Promotor: 3 hoje na gaveta, só leitura; 2 sem tela. Salvar depende de rota nova do modulo-promotor.',
+);
+
 const TELAS = [
   ['01-menu-parametros-aberto', html01],
   ['02-parametros-clientes', html02],
   ['03-parametros-pedidos', html03],
   ['04-parametros-inicio', html04],
+  ['05-menus-modulos-licenca', html05],
+  ['06-parametros-modulos-licenca', html06],
 ];
 
 // Playwright do repositório; se o navegador dele não estiver instalado, o Playwright global da sessão (sem instalar nada).
@@ -221,11 +305,10 @@ for (const [nome, html] of TELAS) {
   const arq = join(AQUI, `${nome}.html`);
   writeFileSync(arq, html);
   await page.goto(pathToFileURL(arq).href);
-  await page.evaluate(() => document.fonts.ready);
+  await page.waitForSelector('body[data-pronto]');
   const lista = await page.evaluate(() => {
-    const l = document.querySelector('.lista').getBoundingClientRect();
-    const r = document.querySelector('.rodape').getBoundingClientRect();
-    return { fimLista: Math.round(l.bottom), inicioRodape: Math.round(r.top) };
+    const l = document.querySelector('.lista');
+    return { alturaLista: l.scrollHeight, visivel: l.clientHeight, rolagem: Math.round(l.scrollTop) };
   });
   await page.screenshot({ path: join(AQUI, `${nome}.png`) });
   console.log(nome, JSON.stringify(lista));
