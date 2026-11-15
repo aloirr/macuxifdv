@@ -11,7 +11,7 @@ import {
   colors,
   EstadoVazio,
   Loading,
-  fonts,
+  fonte,
   formatHHMM,
   LinhaChips,
   Screen,
@@ -178,5 +178,5 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   divisor: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
-  posicao: { width: 36, fontFamily: fonts.displayBold, fontSize: 16, color: colors.ink2 },
+  posicao: { width: 36, ...fonte.displayBold, fontSize: 16, color: colors.ink2 },
 });
