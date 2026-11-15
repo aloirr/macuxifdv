@@ -126,7 +126,7 @@ import { keys, readJson, writeJson } from '@/services/storage';
 import { apagarFotosLocais } from '@/services/arquivos';
 import { ligarFonteFotoPdv } from '@/services/foto-pdv';
 import { abrirFoto } from '@/services/visor-foto';
-import { ligarResolvedorMiniatura } from '@/services/miniaturas';
+import { ligarResolvedorFotoPerfil, ligarResolvedorMiniatura } from '@/services/miniaturas';
 import { esquecerRegistroPush } from '@/services/push';
 import { filaDeSaidas, reenviarSaidas, sairNoServidor, type ResultadoChamada } from '@/lib/saida-push';
 
@@ -214,6 +214,8 @@ function usePlataformaValor() {
   const sessaoRef = useRef<Sessao | null>(null);
   const [offline, setOfflineState] = useState(false);
   const offlineRef = useRef(false);
+  /** RD-0445: "pode baixar agora" (com sinal e com sessão), uma regra só para os downloads e envios do shell. */
+  const podeBaixar = useCallback(() => !offlineRef.current && sessaoRef.current !== null, []);
   const [me, setMe] = useState<Me | null>(null);
   const [motor, setMotor] = useState<MotorSync | null>(null);
   const motorRef = useRef<MotorSync | null>(null);
@@ -307,7 +309,7 @@ function usePlataformaValor() {
         api,
         // RD-0088: o visor de foto comum para os módulos (`ambiente.abrirFoto`)
         abrirFoto,
-        online: () => !offlineRef.current && sessaoRef.current !== null,
+        online: podeBaixar,
         usuario: () => {
           const s = sessaoRef.current;
           const u = s?.user;
@@ -321,14 +323,16 @@ function usePlataformaValor() {
           };
         },
       }),
-    [api],
+    [api, podeBaixar],
   );
 
   // T-0097 (a): a miniatura do catálogo que está no armazenamento da plataforma (`/v1/arquivos/<id>`) é baixada pelo shell com
   // o token da sessão (lê a sessão e o sinal por ref) e aberta do cache do app; sem sessão ou sem sinal fica vazia
-  useEffect(() => ligarResolvedorMiniatura(api, () => !offlineRef.current && sessaoRef.current !== null), [api]);
+  useEffect(() => ligarResolvedorMiniatura(api, podeBaixar), [api, podeBaixar]);
+  // RN-CORE-42: a foto do perfil do Início do Campo vem pelo mesmo download e pelo mesmo cache
+  useEffect(() => ligarResolvedorFotoPerfil(api, podeBaixar), [api, podeBaixar]);
   // T-0147: o visualizador da foto do PDV baixa com o mesmo token e o mesmo sinal (só em memória)
-  useEffect(() => ligarFonteFotoPdv(api, () => !offlineRef.current && sessaoRef.current !== null), [api]);
+  useEffect(() => ligarFonteFotoPdv(api, podeBaixar), [api, podeBaixar]);
 
   /** Etapa de plataforma: perfil/tenant do usuário (`GET /v1/me`), guardado no armazenamento do core. */
   const etapaMe = useMemo<EtapaSync>(
@@ -1002,14 +1006,14 @@ function usePlataformaValor() {
     if (!motor || !diagnosticoNuvem) return;
     return ligarEnvioDeDiagnosticos({
       api,
-      online: () => !offlineRef.current && sessaoRef.current !== null,
+      online: podeBaixar,
       dono: () => {
         const s = sessaoRef.current;
         return s ? { usuarioId: s.user.id, tenantId: s.tenant?.id ?? null } : null;
       },
       motor: () => motorRef.current,
     });
-  }, [motor, api, diagnosticoNuvem]);
+  }, [motor, api, diagnosticoNuvem, podeBaixar]);
 
   // ---------- ADR 0017: sincronização incremental em segundo plano (expo-background-task) ----------
   useEffect(() => {
