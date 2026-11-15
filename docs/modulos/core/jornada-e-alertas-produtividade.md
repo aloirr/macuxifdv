@@ -15,8 +15,9 @@ Decisões D1, D4, D5 e D6 do gerente-projetos, por delegação escrita do dono d
 
 ## 2. "Parado" (D1, RN-CORE-26)
 - O valor continua em `inicio.parado_min` (15 a 480 min, padrão 60). Saiu de Parâmetros › Início.
-- Gravação para a tela Parâmetros › Alertas (modulo-gestor): `PUT /v1/core/parametros/parado-min`, corpo `{ parado_min }` (`CAMINHO_PARAMETRO_PARADO_MIN`, `ParametroParadoMinSchema`). Leitura: `GET /v1/core/parametros/inicio`.
-- `PUT /v1/core/parametros/inicio` continua exigindo `parado_min` (a tela do Início manda o valor já salvo).
+- O parado é lido e gravado só por `GET|PUT /v1/core/parametros/parado-min`, corpo `{ parado_min }` (`CAMINHO_PARAMETRO_PARADO_MIN`, `ParametroParadoMinSchema`), ação `parametro.alertas_produtividade` (analista e admin), auditado com antes e depois, idempotente. É a tela Parâmetros › Alertas (modulo-gestor) que usa.
+- `PUT /v1/core/parametros/inicio` grava só `dias_uteis_semana` (ação `parametro.inicio`); não recebe `parado_min`.
+- `GET /v1/core/parametros/inicio` ainda devolve `parado_min` (somente leitura), para o Gestão já instalado.
 
 ## 3. Parâmetros dos alertas de produtividade (D6)
 - Chave `alertas.produtividade` (JSON). `GET|PUT /v1/core/parametros/alertas-produtividade`.
@@ -30,7 +31,7 @@ Decisões D1, D4, D5 e D6 do gerente-projetos, por delegação escrita do dono d
 - Ordem de prioridade para o teto: sem check-in, fim do almoço, parado, rota incompleta, visita aberta, envio pendente. Rota incompleta não sai se o parado disparou na última hora. Só dia útil, só horário comercial, só vendedor e promotor. O que já passou da hora não sai atrasado.
 - Textos: título curto e corpo "Próxima visita: <cliente>." em todos (sem rota, sem corpo). Vai só para a bandeja.
 - Pendente (engenheiro-apps): agendar com `expo-notifications` (está em `apps/mobile`), recalculando ao abrir, a cada sync e a cada check-in ou check-out, e guardando o que já saiu no dia (`enviados`); ícone monocromático Azul noite (designer-ux).
-- Pendente: o horário comercial do tenant ainda não existe como parâmetro; a função usa 08:00 às 18:00 (`HORARIO_COMERCIAL_PADRAO`) e aceita o valor de fora.
+- Pendente: o horário comercial do tenant ainda não existe como parâmetro; a função usa 08:00 às 18:00 (`HORARIO_COMERCIAL_PADRAO`, em `contracts/alertas-produtividade.ts`) e aceita o valor de fora.
 
 ## testIDs novos
 `calendario.almoco-padrao.inicio|fim|salvar|aviso` · `calendario.almoco-padrao.erro.inicio|fim` · `usuarios.jornada` · `usuarios.campo-almoco-padrao` · `usuarios.campo-almoco-inicio` · `usuarios.campo-almoco-fim`. Saiu `inicio-params.parado`.
