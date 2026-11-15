@@ -13,6 +13,7 @@
  *   catálogo, não por lista fixa); o macuxi_portal não tem grant de tabela, não herda papel, não é dono de nada e só tem
  *   USAGE no schema plataforma.
  * - T-0094 (0042): mais 2 sa_* do portal (sa_admins_da_empresa e sa_redefinir_senha_admin), 14 no total.
+ * - T-0181 (0081): mais 3 sa_* do portal (frases da tela de carga) e a plataforma.frases_carga_ativas() do app.
  * - T-0093 (0039, ADR 0031): as 12 sa_* do portal só com e-mail e senha substituem as 20 da 0035 (as 14 do convite/TOTP/
  *   desafio não existem mais); criar_super_admin e provisionar_tenant (deploy) são SECURITY INVOKER sem EXECUTE para app,
  *   worker ou portal; as 3 tabelas novas do portal entram na varredura "nenhum privilégio efetivo em tabela" do portal.
@@ -47,12 +48,15 @@ const DEFINER_REVISADAS: Record<string, string> = {
   // T-0078 (0024; R-20261105-001055-banco-dados): /v1/saude
   'plataforma.resumo_outbox(p_nomes text[], p_max_tentativas integer)':
     'saúde: só agregados da outbox de todos os tenants (pendentes, parados, segundos do mais antigo); sem id, tenant, payload ou erro',
+  // T-0181 (0081; desenho docs/desenho/T-0181.md §3): GET /v1/sync/frases-carga; tabela global, sem tenant (padrão dados_legais_publicos)
+  'plataforma.frases_carga_ativas()':
+    'tela de carga: só as frases ativas e vivas da plataforma (id, texto, ordem); sem tenant, sem dado pessoal, sem as inativas; stable',
 };
 
 /**
- * Funções SECURITY DEFINER que o papel do portal (macuxi_portal, 0038, T-0091) pode chamar: as 14 plataforma.sa_* — as 12 da 0039
- * (T-0093, ADR 0031: portal só com e-mail e senha; contrato R-20261107-150432-banco-dados) e as 2 da 0042 (T-0094: o super-admin
- * redefine a senha do admin do cliente; R-20261108-001804-banco-dados) — e NADA mais. As 14 do convite,
+ * Funções SECURITY DEFINER que o papel do portal (macuxi_portal, 0038, T-0091) pode chamar: as 19 plataforma.sa_* — as 12 da 0039
+ * (T-0093, ADR 0031: portal só com e-mail e senha; contrato R-20261107-150432-banco-dados), as 2 da 0042 (T-0094: o super-admin
+ * redefine a senha do admin do cliente; R-20261108-001804-banco-dados), as 2 da 0058 (T-0158) e as 3 da 0081 (T-0181) — e NADA mais. As 14 do convite,
  * do TOTP e do desafio (0035) saíram na 0039. Igualdade exata: se o macuxi_app ou o macuxi_worker voltar a executar alguma,
  * o caso do papel deles reprova; se sair ou entrar uma sa_* sem revisão, este reprova.
  */
@@ -83,6 +87,13 @@ const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
     'só dado técnico; audita só a contagem',
   'plataforma.sa_diagnostico(p_sid uuid, p_id uuid)':
     `${SA}; só super-admin; detalhe + chave do print recebido (a API lê os bytes); P0002 se não achar; audita o id`,
+  // T-0181 (0081; desenho docs/desenho/T-0181.md §3): frases da tela de carga, cadastro global do super-admin; sem exclusão
+  'plataforma.sa_listar_frases_carga(p_sid uuid)':
+    `${SA}; só super-admin (admin do cliente 42501, sessão inválida 28000); as vivas (ativas pelo Nº, inativas no fim); audita só a contagem`,
+  'plataforma.sa_incluir_frase_carga(p_sid uuid, p_id uuid, p_texto text)':
+    `${SA}; só super-admin; nasce ativa, Nº e ordem = max + 1 (tabela travada); idempotente pelo id; repetida 23505 (índice frase_carga_texto_uk) e fora de 1..90 23514 (CHECK frase_carga_texto_tamanho), sem validação repetida na função; audita id e Nº, nunca o texto`,
+  'plataforma.sa_editar_frase_carga(p_sid uuid, p_id uuid, p_texto text, p_ativa boolean)':
+    `${SA}; só super-admin; texto e/ou ativa (nulo = não muda); P0002 se não achar; repetida 23505 e fora de 1..90 23514 pelo índice e pelo CHECK; audita id, Nº, texto_mudou e ativa`,
 };
 
 /** Funções de deploy (T-0093, ADR 0031 §5): SECURITY INVOKER, chamadas pela conexão de administração; ninguém mais executa. */
