@@ -11,6 +11,7 @@ import type { ItemTabelaPreco, MidiaProduto, OfereceJunto, Promocao, SalvarCadas
 import type { NoCatalogo, VinculoProdutoNo } from '../domain/arvore';
 import { agruparTermosSemResultado, type ConteudoGuardado, type RegistroBusca } from '../domain/conteudo';
 import type { LinhaEscalonada } from '../domain/escalonada';
+import { precosDaFilialSemCliente } from '../domain/preco-filial';
 import type { UsoIa } from '../domain/limite-ia';
 import type { ProdutoCatalogo } from '../domain/vitrine';
 
@@ -35,7 +36,11 @@ export interface RepositorioCatalogo {
   produtosEmCache?(): Promise<readonly ProdutoCatalogo[]>;
   produto(id: string): Promise<ProdutoCatalogo | null>;
   sinonimos(): Promise<Sinonimo[]>;
-  precos(clienteId: string | null, produtoIds: readonly string[]): Promise<PrecosDoCliente>;
+  /**
+   * Sem cliente (`clienteId` nulo) vale a tabela da filial `filialId` (RN-VEN-01: a de mais itens nela; `precosDaFilialSemCliente`);
+   * sem filial, nada vendável.
+   */
+  precos(clienteId: string | null, produtoIds: readonly string[], filialId?: string | null): Promise<PrecosDoCliente>;
   promocoes(produtoIds: readonly string[]): Promise<Promocao[]>;
   /** Saldos por produto em todas as filiais (o domínio filtra pelas do usuário). */
   saldos(produtoIds: readonly string[]): Promise<Map<string, StockByBranch[]>>;
@@ -197,8 +202,15 @@ export function criarRepositorioMemoria(porTenant: Record<string, DadosTenantMem
       async sinonimos() {
         return copia(d.sinonimos ?? []);
       },
-      async precos(clienteId, produtoIds) {
+      async precos(clienteId, produtoIds, filialId) {
         const ids = new Set(produtoIds);
+        if (clienteId === null && filialId) {
+          const padraoId = d.filiaisDaTela?.padraoId ?? FILIAL_PADRAO_MEMORIA;
+          const daFilial = (d.itensPreco ?? []).filter((i) => i.price_table_id !== null && (i.filial_id ?? padraoId) === filialId);
+          const tabelas = (d.tabelas ?? []).map((t) => ({ id: t.id, codigo: t.codigo, ativo: t.ativo }));
+          const itens = precosDaFilialSemCliente(tabelas, daFilial.map((i) => ({ tabela_preco_id: i.price_table_id!, produto_id: i.product_id, preco_cents: i.price_cents, vigencia_inicio: i.valid_from ?? null, vigencia_fim: i.valid_to ?? null }))).filter((i) => ids.has(i.product_id));
+          return { tabelaClienteId: null, itens: copia(itens) };
+        }
         const tabela = clienteId === null ? null : (d.tabelaDoCliente?.[clienteId] ?? null);
         const itens = (d.itensPreco ?? []).filter((i) => ids.has(i.product_id) && i.price_table_id === tabela);
         return { tabelaClienteId: tabela, itens: copia(itens) };

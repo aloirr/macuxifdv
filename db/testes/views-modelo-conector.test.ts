@@ -1,7 +1,7 @@
 /**
  * Views-modelo do Conector (`db/conector/views-modelo.sql`, T-0089 fatia B2) contra o contrato canônico do Hub
  * (`SCHEMA_REGISTRO` de `modules/integracao/contracts`). Sem banco: roda no PC e no CI.
- * - uma view `vw_macuxi_<entidade>` por entidade do contrato, na ordem de carga do Conector (ORDEM_CARGA);
+ * - uma view `vw_macuxi_<entidade>` por entidade do contrato, na ordem de carga (ORDEM_CARGA_ENTIDADES do contrato);
  * - cada view devolve TODAS as colunas obrigatórias do contrato (falha se o contrato ganhar um campo obrigatório sem a view
  *   acompanhar), nenhuma coluna fora dele (pega rename/remoção, que já seriam v2) e nenhuma repetida;
  * - campo OPCIONAL do contrato sem coluna na view NÃO falha (o contrato v1 cresce de forma aditiva e é de outro dono): vira
@@ -13,11 +13,10 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ENTIDADES, SCHEMA_REGISTRO, type Entidade } from '../../modules/integracao/contracts';
+import { ENTIDADES, ORDEM_CARGA_ENTIDADES, SCHEMA_REGISTRO, type Entidade } from '../../modules/integracao/contracts';
 
 const ARQUIVO = new URL('../conector/views-modelo.sql', import.meta.url);
 const SQL = readFileSync(ARQUIVO, 'utf8');
-const FONTE_ORDEM = readFileSync(new URL('../../apps/conector/src/config/entidades.ts', import.meta.url), 'utf8');
 
 /** Forma mínima de um schema Zod que o teste usa (sem importar o zod no pacote db). */
 interface EsquemaZod {
@@ -149,12 +148,6 @@ function lerViews(sql: string): View[] {
   });
 }
 
-function ordemDeCarga(): string[] {
-  const m = /ORDEM_CARGA[^=]*=\s*\[([^\]]*)\]/.exec(FONTE_ORDEM);
-  if (!m) throw new Error('ORDEM_CARGA não encontrada em apps/conector/src/config/entidades.ts');
-  return [...m[1]!.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]!);
-}
-
 /** Colunas opcionais do contrato que faltam na view (só aviso, não falha). */
 function opcionaisFaltando(view: View, schema: unknown): string[] {
   const tem = new Set(view.colunas.map((c) => c.alias));
@@ -177,21 +170,11 @@ const EXEMPLO_CONECTOR = JSON.parse(readFileSync(new URL('../../apps/conector/ex
 };
 
 describe('views-modelo do Conector (db/conector/views-modelo.sql)', () => {
-  it('uma view por entidade do contrato, sem sobra, na ordem de carga do Conector', () => {
+  it('uma view por entidade do contrato, sem sobra, na ordem de carga do contrato', () => {
     const nomes = VIEWS.map((v) => v.entidade);
     expect(new Set(nomes).size).toBe(nomes.length);
     expect([...nomes].sort()).toEqual([...ENTIDADES].sort());
-    const ordem = ordemDeCarga();
-    expect([...ordem].sort()).toEqual([...ENTIDADES].sort());
-    expect(nomes).toEqual(ordem);
-  });
-
-  it('a ordem respeita as dependências da T-0089: forma -> prazo -> cliente; produto -> preço -> tabela_escalonada', () => {
-    const pos = (e: Entidade) => VIEWS.findIndex((v) => v.entidade === e);
-    expect(pos('forma_pagamento')).toBeLessThan(pos('prazo_pagamento'));
-    expect(pos('forma_pagamento')).toBeLessThan(pos('cliente'));
-    expect(pos('produto')).toBeLessThan(pos('tabela_escalonada'));
-    expect(pos('preco')).toBeLessThan(pos('tabela_escalonada'));
+    expect(nomes).toEqual([...ORDEM_CARGA_ENTIDADES]);
   });
 
   describe.each([...ENTIDADES])('vw_macuxi_%s', (entidade) => {

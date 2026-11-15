@@ -19,7 +19,7 @@ namespace Macuxi.Hub.Exemplos;
 /// <summary>Configuracao lida do ambiente (a chave nunca e impressa nem aparece em mensagem).</summary>
 public sealed record ConfigHub(string Url, string Chave, string ConectorId, string? ConectorVersao, int IntervaloMs)
 {
-    public const string UrlPadrao = "https://api-demo.macuxifdv.com.br/integracao/v1";
+    public const string UrlPadrao = "https://api.macuxifdv.com.br/integracao/v1";
     private static readonly Regex ReChave = new("^mxc_[A-Za-z0-9_-]{43}$", RegexOptions.Compiled);
 
     public override string ToString() => $"ConfigHub {{ Url = {Url}, ConectorId = {ConectorId} }}"; // sem a chave

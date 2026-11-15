@@ -123,7 +123,7 @@ describe('Kit do TI: coleção Postman / Insomnia gerada do OpenAPI', () => {
     for (const k of ['lote_id', 'entidade', 'pedido_uuid']) expect(vars, k).toHaveProperty(k);
     expect((ambiente.values as Json[]).map((v) => v.key)).toEqual(['servidor', 'chave_conector', 'conector_id', 'conector_versao']);
     expect((ambiente.values as Json[]).find((v) => v.key === 'chave_conector').type).toBe('secret');
-    expect((ambiente.values as Json[]).find((v) => v.key === 'servidor').value).toBe('api-demo.macuxifdv.com.br');
+    expect((ambiente.values as Json[]).find((v) => v.key === 'servidor').value).toBe('api.macuxifdv.com.br');
   });
 
   it('nenhuma chave real: só o placeholder (nenhum mxc_ + 43 caracteres) em nenhum dos três arquivos', () => {

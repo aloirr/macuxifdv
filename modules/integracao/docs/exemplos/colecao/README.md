@@ -20,7 +20,7 @@ Pastas por tag (Lotes, Pedidos, Conector); uma requisição por exemplo de corpo
 
 | Variável | Valor |
 |---|---|
-| `servidor` | `api-demo.macuxifdv.com.br` (demonstração). Para o simulador local, veja abaixo. |
+| `servidor` | `api.macuxifdv.com.br`. Para o simulador local, veja abaixo. |
 | `chave_conector` | a chave que o administrador gerou no BKO (`mxc_` + 43 caracteres, mostrada uma só vez). Trate como senha; no Postman o campo é do tipo *secret*. O arquivo traz só um marcador. |
 | `conector_id` | o identificador do Conector cadastrado no BKO (ex.: `erp-matriz`) |
 | `conector_versao` | opcional. O cabeçalho `X-Macuxi-Conector-Versao` vem **desligado**; ligue-o só com versão igual ou superior à mínima da empresa. |
