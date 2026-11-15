@@ -1,11 +1,38 @@
 # Parecer de marca · simulação do aviso e das frases na carga · cadastro no `config.`
 
 > 2026-11-15 · design-de-marca · pedido R-20261115-070000-alexandre (simulação, só docs).
-> **Base:** branch `nuvem/carga-frases-designer-ux`, commit `01b1231124a065447770b4e2edec7d57a19e6059`, pasta `docs/design/carga-aviso-frases/` (`spec.md`, `frases.md`, `carga-campo.png`, `carga-gestao.png`, `config-frases.png`, `config-editar.png` e as fontes `.html`/`app.css`), contra `docs/marca/manual.md` v1 e `decisoes.md` do `main` `06505049b`.
+> **Base:** branch `nuvem/carga-frases-designer-ux`, commit `01b1231124a065447770b4e2edec7d57a19e6059` (reteste no `ed7b6bc7e2cd092384c27ff03e561f9db97c575c`), pasta `docs/design/carga-aviso-frases/` (`spec.md`, `frases.md`, `carga-campo.png`, `carga-gestao.png`, `config-frases.png`, `config-editar.png` e as fontes `.html`/`app.css`), contra `docs/marca/manual.md` v1 e `decisoes.md` do `main` `06505049b`.
 > **Como:** leitura dos quatro PNGs, da spec, das 30 frases (todas) e dos hex do `app.css` e do `config-frases.html`; contas de altura da tela de carga com as medidas do `app.css` e o `posicaoDoLogo` (logo empilhado de 126 dp no centro).
 > **Numeração:** MC-0077 a MC-0080 (a última em uso nos branches da marca é MC-0076). O `catalogo.md` recebe estas linhas na consolidação do catálogo, junto com os branches de reteste ainda abertos, para não gerar conflito.
 
-## Veredito: **liberado com ajustes**
+## Reteste (2026-11-15, commit `ed7b6bc7e2cd092384c27ff03e561f9db97c575c`): **liberado**
+**Escopo deste reteste: só o layout e a regra de respiro.** O Alexandre mudou o tema das 30 frases (aviso do gerente-projetos, 15/11): agora são sobre a história e o folclore de Roraima, com pelo menos 24 sobre o povo Macuxi, o Monte Roraima e Makunaimã, e 6 sobre outros aspectos de Roraima. O tom da lista nova vem para a marca depois, junto com as fontes. O layout da tela de carga, o aviso e o portal estão liberados para ir ao Alexandre. Só ele aprova a marca.
+
+| Achado | Situação | Conferido em |
+|---|---|---|
+| MC-0077 | **fechado** | `spec.md` §1.1: prioridade do logo, do "Olá", do aviso e da barra; 24 dp entre a frase e o aviso, com a frase em 1 linha ou fora; o logo não se move; `cabeFrase`. `carga-campo-640.png` (360 × 640 com 48 dp de navegação): a frase sai, o aviso fica a ~41 dp do "Olá" e a área de proteção do logo está livre. As contas da spec (71 dp e 23 dp em 800) batem com as minhas |
+| MC-0079 | **cancelado** (tema novo) | a lista de dicas de venda sai; a frase 20 deixa de existir |
+| MC-0080 | **cancelado** (tema novo) | a pergunta A/B sobre "lavrado" perde o objeto: o tema agora é Roraima |
+| MC-0078 | aberto, **para a implementação** | `spec.md` §5 manda os tokens `avisoBorda` e `avisoFundo` para o `TemaEntrada`. Não segura a simulação: as cores são as mesmas |
+
+**Regra nova do designer-ux, validada:** sem 16 dp livres abaixo do "Olá", o aviso perde a caixa e fica só o texto, na mesma tipografia e na cor `texto` (branco no Azul noite, 12,77:1). Não entra cor nem peso novo, o "Não saia desta tela!" continua em SemiBold e o texto do Alexandre fica inteiro. Em tela baixa, a mensagem dele pesa mais que a moldura: a regra está certa para a marca.
+
+**O que mudou e também está conforme:**
+- **Aviso sem ícone:** fica mais limpo e não disputa com o logo. O texto e o SemiBold bastam.
+- **Portal:** sem os chips e sem o texto cinza na inativa; os hex do `config-frases.html` continuam todos na paleta.
+- **Frases:** fora deste reteste (tema novo). O layout vale para qualquer frase de até 2 linhas e 90 caracteres.
+
+**O que a marca vai conferir na lista nova** (para o designer-ux já escrever assim; base no manual §1 e §8 e no checklist D):
+1. **Fonte de cada frase** sobre o povo Macuxi e Makunaimã registrada (publicação, organização ou pessoa), na própria lista.
+2. **Narrativa como narrativa:** "segundo a tradição" (ou "conta a tradição macuxi"), nunca como fato nem como lenda exótica. Sem "mito" no sentido de mentira, sem "índio", sem tempo passado para um povo que existe hoje.
+3. **Nada sagrado ou ritual** como curiosidade; nenhuma frase liga Makunaimã ou o povo Macuxi à venda, à meta ou ao produto (seria usar a cultura como enfeite, o que o §1 proíbe).
+4. **Validação de pessoa ou organização macuxi** antes do "aprovo" do Alexandre para as frases sobre o povo e as narrativas (checklist D; o manual §8 exige artista ou organização macuxi para padrão cultural, e a marca recomenda o mesmo cuidado no texto). Sem essa validação, a marca libera só as frases de paisagem e de história documentada de Roraima.
+5. Grafia: "Macuxi" sempre inteiro e com inicial maiúscula; "Makunaimã" com a grafia que a fonte usar, a mesma em todas.
+
+**Observação para a implementação (não é achado):** a nota "(A/B a decidir)" na célula da frase 25 do `frases.md` some com a lista nova; nenhuma anotação pode ir no bundle das 30 iniciais.
+
+## Primeira análise (commit `01b1231`)
+### Veredito: liberado com ajustes
 Nada fere o manual aprovado: sem cor nova, sem fonte nova, logo certo para cada fundo e o texto do Alexandre mantido. Há um ajuste de layout que precisa entrar na spec antes de ir ao Alexandre (MC-0077), uma troca de frase (MC-0079), um ajuste de token para a implementação (MC-0078) e uma escolha que é do Alexandre (MC-0080).
 
 **Para mandar ao Alexandre:** o designer-ux corrige a MC-0077 (regra na spec e um print 360 × 640 com barra de navegação de 48 dp) e troca a frase 20 (MC-0079). A MC-0080 vai como pergunta, com as duas opções. A MC-0078 pode entrar na spec agora ou na implementação.
