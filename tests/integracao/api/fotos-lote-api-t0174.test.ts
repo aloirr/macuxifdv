@@ -7,8 +7,8 @@
  * outbox validado pelo Zod `@1`, e o CSV do relatório neutralizado contra fórmula, com cabeçalhos de download.
  * RLS de verdade (outro tenant) fica no CI: modules/catalogo/api/fotos-lote.db.test.ts e db/testes/foto-lote.db.test.ts.
  */
-import { FOTO_LOTE_ZIP_MAX_BYTES, FotoLoteCriadoSchema, FotoLoteEnfileiradoSchema, ROTAS_CATALOGO } from '@macuxi/catalogo/contracts';
-import { ErroApiSchema, PARTE_ENVIO_BYTES, type ClienteBanco, type UsuarioAutenticado } from '@macuxi/platform-sdk';
+import { FotoLoteCriadoSchema, FotoLoteEnfileiradoSchema, ROTAS_CATALOGO } from '@macuxi/catalogo/contracts';
+import { ErroApiSchema, LIMITES_ZIP_TETO, PARTE_ENVIO_BYTES, type ClienteBanco, type UsuarioAutenticado } from '@macuxi/platform-sdk';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../../apps/api/src/app';
@@ -16,6 +16,7 @@ import type { BancoApp } from '../../../apps/api/src/banco';
 import { LICENCAS_PADRAO, opcoesDeTeste, TENANT, usuarios, type Licencas } from '../../../apps/api/test/apoio';
 
 const LOTE = '0ca00000-0000-4000-8000-000000000174';
+const FOTO_LOTE_ZIP_MAX_BYTES = LIMITES_ZIP_TETO.bytesZipMax; // teto da plataforma (RN-CAT-14)
 const ARQ = '0ca00000-0000-4000-8000-0000000001a4';
 const MIB = 1024 * 1024;
 const BASE = '/v1/catalogo/';
