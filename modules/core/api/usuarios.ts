@@ -50,6 +50,7 @@ import {
   type ErroDeCampo,
   type UsuarioAuditavel,
   ERRO_SEM_PERFIL,
+  ehUsuarioProvisorio,
 } from '../domain';
 import { auditar } from './auditoria';
 import { codigosDoUsuario, conferirPerfisDoUsuario, gravarPerfisDoUsuario, perfisEscolhidos, principalDe, refsDoUsuario } from './usuario-perfis';
@@ -68,7 +69,14 @@ const naoEncontrado = () => new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usu
 const descontoPedidoObrigatorio = () => new ErroRegraNegocio(CODIGOS_USUARIO.dadosInvalidos, MENSAGEM_DESCONTO_PEDIDO_OBRIGATORIO, { campo: 'desconto_maximo_pedido_permil' });
 const dadosInvalidos = (erros: ErroDeCampo[]) => new ErroRegraNegocio(CODIGOS_USUARIO.dadosInvalidos, erros[0]!.mensagem, { campos: erros });
 const emailDuplicado = () => new ErroHttpModulo(409, CODIGOS_USUARIO.emailDuplicado, 'Já existe um usuário com este e-mail nesta empresa. Use outro e-mail ou edite o usuário existente.');
-const externalDuplicado = () => new ErroHttpModulo(409, CODIGOS_USUARIO.externalIdDuplicado, 'Já existe um usuário com este código do ERP nesta empresa. Confira o código ou deixe o campo vazio.');
+const externalDuplicado = (provisorio = false) =>
+  new ErroHttpModulo(
+    409,
+    CODIGOS_USUARIO.externalIdDuplicado,
+    provisorio
+      ? 'Este código já é de um usuário provisório criado pela carga do ERP. Use Vincular vendedor do ERP na lista de Usuários.'
+      : 'Já existe um usuário com este código do ERP nesta empresa. Confira o código ou deixe o campo vazio.',
+  );
 
 /** Traduz a violação dos índices únicos (corrida entre duas gravações) para o 409 legível. */
 function traduzirErroDeBanco(e: unknown): never {
@@ -92,6 +100,7 @@ interface LinhaUsuario {
   equipe_nome: string | null;
   ativo: boolean;
   external_id: string | null;
+  provisorio?: boolean;
   ultimo_login_em: string | null;
   trocar_senha: boolean;
   senha_expira_em: string | null;
@@ -107,7 +116,7 @@ interface LinhaUsuario {
   bloqueio_ate_login?: string | null;
 }
 
-const SELECT_USUARIO = `select u.id, u.nome, u.nome_curto, u.email, u.perfil, u.equipe_id, e.nome as equipe_nome, u.ativo, u.external_id,
+const SELECT_USUARIO = `select u.id, u.nome, u.nome_curto, u.email, u.perfil, u.equipe_id, e.nome as equipe_nome, u.ativo, u.external_id, (lower(u.email) like '%@sem-email.invalid') as provisorio,
          to_char(u.ultimo_login_em at time zone 'UTC', ${ISO}) as ultimo_login_em,
          u.trocar_senha, to_char(u.senha_expira_em at time zone 'UTC', ${ISO}) as senha_expira_em, (u.senha_hash is null) as sem_senha,
          u.desconto_limita_item, u.desconto_limita_pedido, u.desconto_maximo_pedido_permil, h.cargo, h.supervisor_id, h.gerente_id,
@@ -194,8 +203,8 @@ async function exigirUnicos(db: ClienteBanco, email: string, externalId: string 
   const e = await db.query('select 1 from core.usuario where lower(email) = $1 and deleted_at is null and ($2::uuid is null or id <> $2)', [email, exceto]);
   if (e.rows.length > 0) throw emailDuplicado();
   if (externalId !== null) {
-    const x = await db.query('select 1 from core.usuario where external_id = $1 and deleted_at is null and ($2::uuid is null or id <> $2)', [externalId, exceto]);
-    if (x.rows.length > 0) throw externalDuplicado();
+    const x = await db.query<{ email: string }>('select email from core.usuario where external_id = $1 and deleted_at is null and ($2::uuid is null or id <> $2)', [externalId, exceto]);
+    if (x.rows.length > 0) throw externalDuplicado(ehUsuarioProvisorio(x.rows[0]!.email));
   }
 }
 
@@ -238,7 +247,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
     query: UsuarioListaQuerySchema,
     executar: async (ctx) => {
       const visiveis = await ctx.usuariosVisiveis();
-      const { q, perfil, equipe_id, ativo } = ctx.query;
+      const { q, perfil, equipe_id, ativo, provisorio } = ctx.query;
       const valores: unknown[] = [];
       const onde = ['u.deleted_at is null'];
       const param = (v: unknown) => {
@@ -248,11 +257,12 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
       if (visiveis !== 'tenant') onde.push(`u.id = any(${param([...visiveis])}::uuid[])`);
       if (q) {
         const p = param(`%${q.replace(/[\\%_]/g, (m: string) => `\\${m}`)}%`);
-        onde.push(`(u.nome ilike ${p} or u.email ilike ${p})`);
+        onde.push(`(u.nome ilike ${p} or u.email ilike ${p} or u.external_id ilike ${p})`);
       }
       if (perfil) onde.push(`exists (select 1 from plataforma.usuario_perfil up join plataforma.perfil pf on pf.id = up.perfil_id where up.usuario_id = u.id and up.deleted_at is null and pf.codigo = ${param(perfil)})`);
       if (equipe_id) onde.push(`u.equipe_id = ${param(equipe_id)}`);
       if (ativo) onde.push(`u.ativo = ${param(ativo === 'true')}`);
+      if (provisorio) onde.push("lower(u.email) like '%@sem-email.invalid'");
       return ctx.comTenant(async (db) => {
         const r = await db.query<LinhaUsuario>(`${SELECT_USUARIO} where ${onde.join(' and ')} order by u.nome, u.id limit ${LIMITE}`, valores);
         // o filtro SQL já recortou; `recortarUsuarios` é a mesma regra do domínio, aplicada de novo como cinto de segurança

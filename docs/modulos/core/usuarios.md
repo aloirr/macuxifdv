@@ -76,3 +76,9 @@ Desenho: `docs/desenho/T-0094.md`; textos e telas: `docs/design/ciclo-de-senha.m
 ## Lista de Clientes (T-0171, RN-CORE-41)
 - Uma tag (Bloqueado > Devendo > Pré-Cadastro > Em dia) e só a última visita ("Visitado hoje/ontem/há N dias", "Nunca visitado"). Pré-Cadastro = cliente sem código do ERP (`external_id` vazio).
 - Última visita: `ultima_visita_em` do `cliente_visita_resumo@1` (id = cliente; último check-in concluído de qualquer vendedor, data no fuso do tenant; ver `performance-cliente.md`) somada aos check-ins feitos no aparelho. Funções puras em `domain/lista-clientes.ts`.
+
+## Vendedor do ERP ligado ao usuário do BKO (T-0175, RN-CORE-58)
+- **Código no ERP** (`external_id`) é o vínculo: editável em Novo e Editar (vendedor e promotor). Código repetido responde 409; se o dono do código é um provisório (`@sem-email.invalid`), a mensagem manda usar "Vincular vendedor do ERP".
+- A carga do ERP que cria um provisório avisa os admins (notificação de sistema, só o código do ERP). A lista de Usuários busca também pelo código e filtra "Provisórios" (`provisorio=true`).
+- `POST /v1/core/usuarios/:id/vincular-erp` (`usuario.editar`, corpo `{ usuario_id }`): uma transação; o real recebe o código, a carteira (sem duplicar), `nota_erp`, rotas, metas e indicadores; o provisório é desativado e sai da lista (`deleted_at`, mantém o código para a repetição ser idempotente); auditoria `usuario.vincular_erp`; um `core.cliente.atualizado@1` por cliente movido. Plano puro em `domain/vinculo-erp.ts` (`planejarVinculoErp`); recusas 422 `VINCULO_*`.
+- A carga seguinte casa pelo `external_id`: não recria o provisório, só troca e-mail provisório por e-mail real livre (nunca o e-mail real do vínculo) e não mexe na carteira.

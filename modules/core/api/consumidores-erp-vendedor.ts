@@ -10,9 +10,12 @@
  * versão do registro (só quando o `alterado_em` avança; a carga completa repetida não reavisa). A adoção por e-mail e o upsert
  * seguem a mesma regra. A inativação usa só o relógio do ERP (`registro.alterado_em`): o `ocorrido_em` é do Hub, outro relógio
  * (RN-INT-02), então sem registro a inativação se aplica sem comparar nem avançar `erp_alterado_em`.
+ * T-0175 / RN-CORE-58: o vínculo é pelo código do ERP, não pelo e-mail (a adoção por e-mail igual segue como atalho). Casou o `external_id`
+ * com o usuário real (vinculado pelo admin), a carga só atualiza nome, ativo e ordem: não recria o provisório, não troca o e-mail real
+ * e não mexe na carteira (ela é do cliente do ERP, que também casa pelo código). Criar um provisório avisa os admins, uma vez por código.
  */
 import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
-import { decidirOrdemErp, decidirReativacaoDoErp, ehVersaoNovaDoErp, emailDoVendedorErp } from '../domain';
+import { decidirOrdemErp, decidirReativacaoDoErp, ehVersaoNovaDoErp, ehUsuarioProvisorio, emailDoVendedorErp, emailQueACargaPodeGravar } from '../domain';
 
 import { EVENTO_ERP_VENDEDOR_ATUALIZADO } from '../../integracao/contracts';
 import { notificarSistema } from './consumidores-sistema';
@@ -35,6 +38,20 @@ async function avisarDesligadoNoBko(ctx: ContextoConsumo, externalId: string, ve
       link: null, // o CHECK notificacao_link_formato só aceita rota do app (/m/...); o admin age no BKO
       prioridade: 'normal',
     }, `vendedor-desligado|${externalId}|${versao ?? ''}`); // um aviso por versão do registro (não só por evento)
+  }
+}
+
+/** RN-CORE-58: a carga criou um usuário provisório; o admin vincula ao usuário real. Só o código do ERP vai no aviso (sem nome nem e-mail). */
+async function avisarProvisorioCriado(ctx: ContextoConsumo, externalId: string): Promise<void> {
+  ctx.log.warn({ external_id: externalId }, 'vendedor do ERP entrou como usuário provisório (sem e-mail)');
+  const admins = await ctx.db.query<{ id: string }>("select id from core.usuario where perfil = 'admin' and ativo and deleted_at is null");
+  for (const a of admins.rows) {
+    await notificarSistema(ctx, a.id, {
+      titulo: 'Vendedor do ERP sem usuário',
+      corpo: `A carga criou o vendedor ${externalId} como usuário provisório. Em Usuários, filtre por Provisórios e use Vincular vendedor do ERP.`,
+      link: null,
+      prioridade: 'normal',
+    }, `vendedor-provisorio|${externalId}`);
   }
 }
 
@@ -61,8 +78,8 @@ export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
     if (!nome) return;
     const { email, provisorio } = emailDoVendedorErp(r.email, r.external_id);
 
-    const atual = (await ctx.db.query<{ id: string; erp_alterado_em: string | null; desligado_no_bko_em: string | null }>(
-      'select id, erp_alterado_em::text, desligado_no_bko_em::text from core.usuario where external_id = $1 and deleted_at is null', [r.external_id])).rows[0];
+    const atual = (await ctx.db.query<{ id: string; email: string; erp_alterado_em: string | null; desligado_no_bko_em: string | null }>(
+      'select id, email, erp_alterado_em::text, desligado_no_bko_em::text from core.usuario where external_id = $1 and deleted_at is null', [r.external_id])).rows[0];
     if (atual) {
       if (decidirOrdemErp(atual.erp_alterado_em, r.alterado_em) === 'ignorar_antigo') {
         ctx.log.warn({ external_id: r.external_id }, 'vendedor do ERP ignorado: versão mais antiga que a já aplicada');
@@ -71,8 +88,10 @@ export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
       const reativacao = decidirReativacaoDoErp({ desligadoNoBkoEm: atual.desligado_no_bko_em, ativoNoErp: true, versaoNova: ehVersaoNovaDoErp(atual.erp_alterado_em, r.alterado_em) });
       if (reativacao.avisar) await avisarDesligadoNoBko(ctx, r.external_id, r.alterado_em);
       // E-mail real só troca se ninguém mais o usa (índice único por tenant); o provisório nunca sobrescreve um e-mail real.
+      // RN-CORE-58: o e-mail só sai do provisório para um real livre (índice único por tenant); o e-mail real do vínculo nunca é trocado
       const livre = provisorio ? false : (await ctx.db.query('select 1 from core.usuario where lower(email) = $1 and deleted_at is null and id <> $2', [email, atual.id])).rows.length === 0;
-      await ctx.db.query('update core.usuario set nome = $2, ativo = $5::boolean, erp_alterado_em = $6::timestamptz, email = case when $3::boolean then $4 else email end where id = $1', [atual.id, nome, livre, email, reativacao.ativo, r.alterado_em]);
+      const novoEmail = emailQueACargaPodeGravar({ emailAtual: atual.email, emailDoErp: email, erpProvisorio: provisorio, emailLivre: livre });
+      await ctx.db.query('update core.usuario set nome = $2, ativo = $3::boolean, erp_alterado_em = $4::timestamptz, email = coalesce($5::text, email) where id = $1', [atual.id, nome, reativacao.ativo, r.alterado_em, novoEmail]);
       await completarNotasDoVendedor(ctx, atual.id, r.external_id);
       return;
     }
@@ -94,5 +113,6 @@ export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
     );
     const criado = (await ctx.db.query<{ id: string }>('select id from core.usuario where external_id = $1 and deleted_at is null', [r.external_id])).rows[0];
     if (criado) await completarNotasDoVendedor(ctx, criado.id, r.external_id);
+    if (criado && ehUsuarioProvisorio(emailFinal)) await avisarProvisorioCriado(ctx, r.external_id);
   },
 });

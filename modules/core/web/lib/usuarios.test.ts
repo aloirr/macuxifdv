@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EquipeOpcao, UsuarioItem } from '../../contracts';
-import { permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, opcoesDeChefia, pessoasDaLista, resultadoDeCriar, resultadoDeRedefinir, seloDoUsuario, textoAcessoEnviado, textoDoSuperiorDaEquipe } from './usuarios';
+import { permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, opcoesDeChefia, pessoasDaLista, resultadoDeCriar, resultadoDeRedefinir, seloDoUsuario, textoAcessoEnviado, textoDoSuperiorDaEquipe, opcoesParaVincular, corpoDeVinculoErp, textoDoVinculoErp } from './usuarios';
 import { senhaServe } from '../../domain';
 
 const u = (extra: Partial<UsuarioItem> = {}): UsuarioItem => ({
@@ -180,5 +180,27 @@ describe('usuario-bloqueio §2: seloDoUsuario (um selo por linha, hora no fuso d
   it('sem bloqueio (0 a 4 senhas erradas não aparecem): sem selo', () => {
     expect(seloDoUsuario(u({ bloqueio: null, bloqueio_ate: null }), AGORA, M)).toBeNull();
     expect(seloDoUsuario(u({}), AGORA, M)).toBeNull();
+  });
+});
+
+describe('RN-CORE-58: Vincular vendedor do ERP no BKO', () => {
+  const prov = u({ id: '5d000000-0000-4000-8000-0000000000a1', email: 'erp-1@sem-email.invalid', provisorio: true, external_id: 'VEN-9' });
+  it('RN-CORE-58: só aparecem como destino ativos, com e-mail real, do mesmo perfil e sem código do ERP', () => {
+    const itens = [
+      prov,
+      u({ id: '5d000000-0000-4000-8000-0000000000b1', nome: 'Bia', external_id: null }),
+      u({ id: '5d000000-0000-4000-8000-0000000000b2', nome: 'Ana', external_id: null }),
+      u({ id: '5d000000-0000-4000-8000-0000000000b3', nome: 'Com código', external_id: 'V-2' }),
+      u({ id: '5d000000-0000-4000-8000-0000000000b4', nome: 'Promotor', perfil: 'promotor', external_id: null }),
+      u({ id: '5d000000-0000-4000-8000-0000000000b5', nome: 'Inativo', ativo: false, external_id: null }),
+      u({ id: '5d000000-0000-4000-8000-0000000000b6', nome: 'Outro provisório', provisorio: true, external_id: null }),
+    ];
+    expect(opcoesParaVincular(itens, prov).map((x) => x.nome)).toEqual(['Ana', 'Bia']);
+  });
+  it('RN-CORE-58: corpo e aviso do vínculo', () => {
+    expect(corpoDeVinculoErp('5d000000-0000-4000-8000-0000000000b1')).toEqual({ usuario_id: '5d000000-0000-4000-8000-0000000000b1' });
+    expect(textoDoVinculoErp({ clientes_movidos: 1, ja_vinculado: false })).toBe('Vendedor vinculado. 1 cliente passou para o usuário.');
+    expect(textoDoVinculoErp({ clientes_movidos: 158, ja_vinculado: false })).toBe('Vendedor vinculado. 158 clientes passaram para o usuário.');
+    expect(textoDoVinculoErp({ clientes_movidos: 0, ja_vinculado: true })).toBe('Este vendedor já estava vinculado.');
   });
 });
