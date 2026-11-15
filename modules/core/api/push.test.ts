@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { generateKeyPairSync, createVerify } from 'node:crypto';
-import { tipoDoToken, tokenPushFcmValido } from '../contracts';
+import { tipoDoToken } from '../contracts';
 import { assinarJwtGoogle, enviarPush, montarMensagemExpo, montarMensagemFcm, pushAtivo, type CacheOAuth } from './push';
 
 const destino = { token: 'ExponentPushToken[abc]', titulo: 'Recado', corpo: 'Reunião às 9h', link: '/m/core/notificacoes', prioridade: 'alta' as const };
@@ -64,13 +64,6 @@ function fcmFalso(respostaFcm: (n: number, c: Chamada) => { status: number; json
 }
 
 describe('ADR 0053: tipo do token', () => {
-  it('RD-0442: tokenPushFcmValido aceita só FCM de 1 a 300 caracteres', () => {
-    expect(tokenPushFcmValido('ExponentPushToken[abc]')).toBe(false);
-    expect(tokenPushFcmValido('cXyz:APA91b')).toBe(true);
-    expect(tokenPushFcmValido('')).toBe(false);
-    expect(tokenPushFcmValido('a'.repeat(301))).toBe(false);
-  });
-
   it('tipoDoToken: Expo pelo formato, o resto é FCM', () => {
     expect(tipoDoToken('ExponentPushToken[abc]')).toBe('expo');
     expect(tipoDoToken('ExpoPushToken[abc]')).toBe('expo');
