@@ -1,4 +1,50 @@
-# Fonte do sistema (R-20261115-110600, v1.0.13) · parecer final do corretor-redundancias
+# Fonte do sistema (R-20261115-110600, v1.0.13) · parecer do corretor-redundancias (3ª passada)
+
+**Veredito: COM ACHADO (não liberado).** Na 3ª passada fecharam RD-0953, RD-0954, RD-0955, RD-0956 e RD-0958. Ficam
+**2 em aberto, os 2 de gravidade baixa**: RD-0952 (c), dono design-de-marca, e RD-0957 (resíduo), dono modulo-core. Os 2
+seguram o lote, porque estão em doc e em código de produção, e não só em comentário ou título de teste (R-20261111-190159).
+Cada um se corrige com 1 linha ou 2.
+
+## 3ª passada (15/11/2026, tarde em Manaus)
+- **Combinado (LOCAL, descartável, sem push):** `tmp/fonte-c3-corretor` = `origin/main` 45916068 + os
+  `origin/nuvem/fonte-sistema-*` mais novos. Resultado: HEAD e1e6a56a. Os 14 merges entraram sem conflito, então o `-X ours`
+  não foi usado. SHAs:
+  - design-de-marca 850615bd · designer-ux 57c019fb · engenheiro-software 0a09a546 · engenheiro-apps 85757344;
+  - modulo-core 07fdb085 · modulo-vendedor bb5e83f2 · modulo-catalogo 5d3c2ec2 · modulo-gestor 121efa9c;
+  - modulo-pesquisa 4cc0ad18 · modulo-treinamento 46f4ad78 · modulo-integracao 67e67bba · modulo-promotor c79e98ff;
+  - designer-ux-limpeza 932b349a · testes 9e9a549b.
+- **Testes:** não rodei nesta sessão, porque o worktree não tem `node_modules` e o guardião bloqueia o link. O critério é o
+  CI do PR. Conferi o código direto:
+  - nada em 800/900 nem `font-display` em código de produção;
+  - web: `text-[Npx]` só em 12·13·15·17·20·24;
+  - app: `fontSize` só em 12·14·16·18·22·28;
+  - a varredura do testes (9e9a549) não tem mais `PENDENTES` nem `it.fails`. O encaminhado 1 da 2ª passada está resolvido.
+- **Marca:** o total do pedido no BKO (`order-drawer.tsx:124`) está em `font-semibold`. O encaminhado 2 está resolvido.
+
+| ID | Status | Evidência no combinado |
+|---|---|---|
+| RD-0952 | **aberto em parte (c), baixa** | (a) e (d) fecharam: o §5.3 agora traz a escala por papel (app 18 seção · 22 tela · 28 número grande e entrada; web 17 · 20 · 24) e saiu o "web desce". (c) segue. O §5.2 diz "500 · ênfase leve: **rótulo**, item de menu, chip, botão secundário", e o bullet diz "rótulos dos campos… (500 ou 600)". Todo rótulo do código está em 600: app `ESTILO_CAMPO.rotulo`, `type.label` e `type.rotulo`; web `ui.tsx:65,80,116` e `campo-senha.tsx:44`. |
+| RD-0953 | corrigido | `ListaSuspensa` (`suspensa.tsx:196`) e `Desconto` (`desconto-rn.tsx:74`) usam `RotuloCampo`. `endereco-pedido.tsx:172,187` usa `RotuloCampo` + `ESTILO_CAMPO.entrada`. `novo-pedido-abas.tsx:223-224` e `tela-loja.tsx:111,114,206,271` usam o `CampoTexto` do kit. Não sobra `Campo`/`CampoTexto` local. |
+| RD-0954 | corrigido | `textTransform: 'uppercase'` só existe em `theme.ts:70` (`type.rotulo`). Os outros usam `...t.rotulo` ou `t.rotulo` (`formulario.tsx:596`, `valores.tsx:363`, `cartoes-pedido.tsx:36`, `navegacao.tsx:226`, `login.tsx:424,457`). Não há mais espaçamento 0.4. |
+| RD-0955 | corrigido | `apps/mobile/src/components/servidor.ts`: `ENTRADA_SERVIDOR = [ESTILO_CAMPO.entrada, fonte.mono, …]` e `ENDERECO_SERVIDOR`, usados em `login.tsx:330,350` e no `profile.tsx`. |
+| RD-0956 | corrigido | Não há `font-display` em `apps/web`, `modules/*/web` nem `packages`. O único que sobra está no próprio teste-guarda do kit, que proíbe a classe. |
+| RD-0957 | **aberto em parte, baixa** | O visível fechou: `type.saudacao = h1Small` (22/700) no Gestão e 22 no Campo. Sobra uma duplicidade no código. `escala-inicio.ts:61` mantém `saudacao: 22` literal no `BASE`, e a tela não lê o kit, porque `FONTES_DO_KIT` (`tela-inicio-campo.tsx:19`) só passa `h2/label/sub/ultima`. O teste `escala-inicio.test.ts:53` só confere que o valor é 22. Com isso, o comentário do `theme.ts:58` ("o Início do Campo lê o `fontSize` daqui") fica falso, e o 22 mora em 2 lugares: se o kit mudar, o Campo e o Gestão voltam a divergir. |
+| RD-0958 | corrigido | `componentes.md` não cita mais os apelidos. `catalogo-aplicacao.md`, `inicio.md`, `pdf-pedido.md`, `emails/*`, `pedido-v4.md` e `entrada-sync.md` não citam mais Archivo, Plex, `smallStrong`, `title16`, 10,5 nem 800. `pedido-v3.md`, `revisoes/T-0141.md`, `catalogo-por-linha.md`, `clientes-lista.md` e `telas/inicio-cabecalho.md` têm a linha "Tipografia substituída…" no topo. A menção no `portal-config-enxuto.md:404,412` é log histórico de MC aceito (`manter`). Os mockups `.html` antigos são histórico. |
+
+**Redundância nova criada pelas correções:** nenhuma além do resíduo do RD-0957. `servidor.ts`, `RotuloCampo` e
+`t.rotulo` concentram o que estava copiado. Nada foi recriado em outro lugar.
+
+### Em aberto (3ª passada)
+| ID | Onde | Tipo | O que se repete | Impacto | Sev. | Proposta (antes → depois) | Dono |
+|---|---|---|---|---|---|---|---|
+| RD-0952 (c) | `docs/marca/manual.md` §5.2: tabela de pesos (linha 500) e o bullet "Mesmo papel, mesmo peso" | doc | O peso do rótulo de campo aparece de 2 formas. O manual dá 500 (e "500 ou 600" no bullet), e o código, nas 2 plataformas, usa 600. | decisão: quem seguir o manual monta o rótulo em 500, fora do resto | baixa | Linha 500: "ênfase leve: rótulo, item de menu, chip, botão secundário" → "ênfase leve: item de menu, chip, botão secundário". Linha 600: "ênfase: botão principal, …" → "ênfase: rótulo de campo e rótulo pequeno, botão principal, número de card, cabeçalho de tabela, aba ativa". No bullet, "(500 ou 600, nunca um em 400 e outro em 600)" → "(600)". O Alexandre confirma junto com os outros alinhamentos do §5. | design-de-marca |
+| RD-0957 (resíduo) | `modules/core/app/telas/inicio/escala-inicio.ts:42,61` e `tela-inicio-campo.tsx:19` | código | O tamanho-base da saudação está em 2 lugares: `type.saudacao` (kit, 22) e `BASE.fonte.saudacao: 22` (Core). | manutenção: se o kit mudar, as boas-vindas do Campo e do Gestão voltam a divergir. O comentário do `theme.ts:58` fica falso. | baixa | `FontesDoKit` passa a ser `{ h2; label; sub; ultima; saudacao }`. No `BASE.fonte`, sai `saudacao: 22`. Em `tela-inicio-campo.tsx:19`, entra `saudacao: t.saudacao.fontSize` no `FONTES_DO_KIT`, e o `KIT` do teste ganha `saudacao: 22`. | modulo-core |
+
+**Recados (via gerente-projetos, a CLI dá 403):** design-de-marca, RD-0952 (c); modulo-core, RD-0957 (resíduo).
+
+---
+
+# 2ª passada (histórico)
 
 **Veredito: COM ACHADO (não liberado).** 12 dos 13 achados da primeira passada fecharam. O RD-0952 foi reaberto em parte e
 há 6 achados novos (RD-0953 a RD-0958). Ficam **7 em aberto: 3 média · 4 baixa**. Todos seguram o lote, porque nenhum está
