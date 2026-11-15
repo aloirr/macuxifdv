@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ROTULO_PERFIL, type ModuloId } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, IconeModulo, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, useToast, rotuloDoPerfil, type AcaoDoMenu, type IdDoModulo } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, CampoSenha, IconeModulo, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, useToast, rotuloDoPerfil, type AcaoDoMenu, type IdDoModulo } from '@macuxi/ui/web';
 import { CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type LicencasEstado, type UsuarioItem } from '../../../contracts';
 import { efetivosPelasDependencias } from '../../../domain/licencas';
 import {
@@ -632,17 +632,17 @@ export function UsuariosConteudo() {
                 <p className="m-0">
                   {modal.usuario.nome} sai de todos os aparelhos e recebe a senha nova em {modal.usuario.email}.
                 </p>
-                <Campo rotulo="Senha nova">
-                  <input
-                    type={senhaVisivel ? 'text' : 'password'}
-                    autoComplete="new-password"
-                    value={novaSenha}
-                    onChange={(e) => setNovaSenha(e.target.value)}
-                    aria-describedby="usuarios-regras-senha-nova"
-                    className={CAMPO}
-                    data-testid="usuarios.senha-campo"
-                  />
-                </Campo>
+                <CampoSenha
+                  id="usuarios-senha-nova"
+                  rotulo="Senha nova"
+                  finalidade="criacao"
+                  visivel={senhaVisivel}
+                  onAlternar={() => setSenhaVisivel((v) => !v)}
+                  value={novaSenha}
+                  onChange={(e) => setNovaSenha(e.target.value)}
+                  descrito="usuarios-regras-senha-nova"
+                  testId="usuarios.senha-campo"
+                />
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -654,9 +654,6 @@ export function UsuariosConteudo() {
                     data-testid="usuarios.senha-gerar"
                   >
                     Gerar senha
-                  </button>
-                  <button type="button" className={BOTAO_LINHA} onClick={() => setSenhaVisivel((v) => !v)} aria-pressed={senhaVisivel} data-testid="usuarios.senha-mostrar">
-                    {senhaVisivel ? 'Esconder senha' : 'Mostrar senha'}
                   </button>
                 </div>
                 <RegrasDaSenha id="usuarios-regras-senha-nova" faltas={faltasDaSenhaDigitada(novaSenha)} minimo={SENHA_MIN_CARACTERES} resumo={mensagemDaSenha(faltasDaSenhaDigitada(novaSenha)) ?? undefined} />

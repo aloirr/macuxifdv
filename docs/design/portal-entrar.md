@@ -18,7 +18,7 @@ De cima para baixo, na `MolduraEstreita` de hoje:
 4. Erro (`Notice tone="danger"`, `data-testid="entrar.erro"`), só depois de tentar.
 5. Campo **"E-mail"** (`type="email"`, `autoComplete="username"`, foco inicial).
 6. Campo **"Senha"** (`type="password"`, `autoComplete="current-password"`) com o botão do olho à direita, dentro do campo:
-   `aria-label` **"Mostrar senha"** / **"Esconder senha"** (`MOSTRAR_SENHA`/`ESCONDER_SENHA` do kit), alvo ≥ 44 px.
+   `aria-label` **"Mostrar senha"** / **"Ocultar senha"** (`MOSTRAR_SENHA`/`OCULTAR_SENHA` do kit; campo único: `CampoSenha`, docs/design/campo-senha/spec.md), alvo ≥ 44 px.
    **Sem** a lista de regras aqui: o login aceita a senha já gravada (RN-CORE-32 vale só ao criar e trocar).
 7. Botão principal **"Entrar"** (enviando: **"Entrando…"**, desabilitado). Um só principal.
 8. Linha pequena (12, `text-ink-2`): **"Esqueceu a senha? Fale com a Macuxi."** (sem link; não há recuperação no portal nesta tarefa).
@@ -124,7 +124,7 @@ Novo bloco `Panel` depois dos dados da empresa e antes dos módulos:
 1. Título **"Administrador da empresa"**.
 2. Ajuda (13, `text-ink-2`): **"É o primeiro acesso da empresa. Ele cria os outros usuários no BKO."**
 3. Campos: **"Nome"**, **"E-mail"** (`autoComplete="off"`), **"Senha inicial"** (`type="password"`,
-   `autoComplete="new-password"`, botão do olho "Mostrar senha"/"Esconder senha", `aria-describedby` da lista).
+   `autoComplete="new-password"`, botão do olho "Mostrar senha"/"Ocultar senha", `aria-describedby` da lista).
 4. `RegrasDaSenha` logo abaixo do campo de senha, ao vivo; `destacar` depois de tocar Conferir/Gravar com falta.
 5. Embaixo da lista (12, `text-ink-2`): **"Passe esta senha ao administrador."** Com a T-0094, acrescenta-se **"Ele troca no
    primeiro acesso."**

@@ -32,7 +32,7 @@
       "parentId": "env_macuxi_hub_v1_base",
       "name": "Demonstração",
       "data": {
-        "servidor": "api-demo.macuxifdv.com.br",
+        "servidor": "api.macuxifdv.com.br",
         "chave_conector": "mxc_COLE_AQUI_A_CHAVE_DO_CONECTOR",
         "conector_id": "erp-matriz",
         "conector_versao": "1.2.1"

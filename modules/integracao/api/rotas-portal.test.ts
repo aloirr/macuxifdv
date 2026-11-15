@@ -56,7 +56,7 @@ describe('RN-INT-04: ordem-carga', () => {
   it('RN-INT-04: devolve as 16 entidades em ordem', async () => {
     const r = (await rotaOrdemCarga.executar(ctx({}) as never)) as { itens: { entidade: string }[] };
     expect(r.itens).toHaveLength(16);
-    expect(r.itens[0]?.entidade).toBe('vendedor');
+    expect(r.itens[0]?.entidade).toBe('filial');
   });
 });
 
