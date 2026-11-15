@@ -1,7 +1,7 @@
 /**
  * T-0181 — frases da tela de carga (desenho docs/desenho/T-0181.md; spec docs/design/carga-aviso-frases/ §2 a §4). Integração
  * de ponta a ponta: API real (`createApp` + Core + módulos, `macuxi_app` e o 2º pool do `macuxi_portal`) sobre o banco efêmero do
- * arquivo com a 0081 (banco-dados) e o contrato do SDK (`@macuxi/platform-sdk`, engenheiro-software). Padrão dos testes do portal
+ * arquivo com a 0082 (banco-dados) e o contrato do SDK (`@macuxi/platform-sdk`, engenheiro-software). Padrão dos testes do portal
  * (T-0093/T-0158): super-admin pelo caminho do deploy, admin do cliente da fixture. Só o que a API e a integração veem: o que é
  * só do banco (SQLSTATE das `sa_*` chamadas direto, catálogo de funções, privilégios dos papéis) fica em
  * `db/testes/t0181-frase-carga.db.test.ts` e em `tests/integracao/banco/conformidade.test.ts` (RD-0525).
