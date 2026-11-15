@@ -386,6 +386,22 @@ e `tabela_preco_desligado_no_bko`. Índices `tabela_preco_item_erp_versao_ix`, `
 **apagadas inclusive**, antes do insert (o ERP apaga e o mesmo `external_id` volta como linha nova). No `cliente_tabela_preco` o
 `external_id` é o do cliente. Teste: `db/testes/erp-ordem.test.ts`.
 
+## 0075 — marca opcional na referência cruzada (`0075_catalogo_referencia_marca_opcional`; R-20261115-073000-alexandre, item 3, RN-CAT-09)
+Decisão do dono do produto (15/11/2026): na referência cruzada, a marca do concorrente é opcional; basta o código.
+- `produto_referencia.marca_id` passa a **aceitar nulo** (= referência só com o código; a API grava `marca_nome` nulo junto). A FK
+  `produto_referencia_marca_fk` (0045) não muda: não confere o nulo e segue exigindo a marca informada no mesmo tenant.
+- Único vivo: sai `produto_referencia_codigo_uk (tenant_id, produto_id, marca_id, codigo_compacto)` e entra
+  **`produto_referencia_produto_codigo_uk (tenant_id, produto_id, codigo_compacto) where deleted_at is null`** — o mesmo código, em
+  qualquer grafia, uma vez só por produto, com ou sem marca. Violação: 23505 com esse nome.
+- Limpeza na migração: entre as vivas que repetem o `codigo_compacto` no mesmo produto (marcas diferentes), fica a de **menor
+  `ordem`**; as outras recebem `deleted_at` = instante da 0075 (`public.macuxi_migracao.aplicada_em`) e o `updated_at` avança (o
+  aparelho puxa a exclusão no próximo sync).
+- RLS, grants, CHECKs, demais colunas e índices não mudam. Aparelho: sem versão nova (o `marca_id` nulo chega no JSON de
+  `ent_produto_referencia`). Seed da demo e fixture dois-tenants já cabem no único novo (nenhum código repetido no produto).
+- **Volta** (`.down.sql`): recusa (raise com a contagem) se houver referência **viva** sem marca; apaga de vez as já apagadas sem
+  marca; devolve a vivas as apagadas pela 0075 quando a ordem e a marca + código delas seguem livres no produto; recria
+  `produto_referencia_codigo_uk` e o NOT NULL.
+Teste: `db/testes/referencia-marca-opcional.db.test.ts` (estático na sessão; banco e up/down no CI).
 
 ## 0079 — fotos dos produtos em lote por ZIP (`0079_catalogo_foto_lote`; T-0174, RN-CAT-14, ADR 0054)
 Desenho `docs/desenho/T-0174.md` §2; formatos JPEG, PNG e WEBP (R-20261115-074500). A parte da plataforma (tipos de

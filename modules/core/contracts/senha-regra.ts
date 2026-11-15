@@ -12,7 +12,7 @@ export const SENHA_MAX_CARACTERES = 200;
 export type FaltaNaSenha = 'caracteres' | 'letra' | 'numero' | 'especial' | 'espaco';
 
 /** Única frase do espaço no começo ou no fim da senha (criação, troca e aviso do login). */
-export const MENSAGEM_SENHA_ESPACO_NAS_PONTAS = 'A senha não pode começar nem terminar com espaço.';
+export const MENSAGEM_SENHA_ESPACO_NAS_PONTAS = 'A senha não pode ter espaço no começo nem no fim. Apague o espaço e tente de novo.';
 
 /** Regra única do espaço no começo ou no fim da senha (criação, troca e login). */
 export const temEspacoNasPontas = (s: string): boolean => s !== s.trim();
