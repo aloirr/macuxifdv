@@ -6,7 +6,9 @@
  * - só SELECT: INSERT/UPDATE/DELETE/TRUNCATE recusados (42501) mesmo com a transação em leitura e escrita;
  * - política leitura em toda tabela de tenant com RLS: só o tenant de app.tenant_id; sem contexto, 0 linhas;
  * - EXECUTE em plataforma.tenant_por_codigo(text) e em nenhuma plataforma.sa_*; as só por função seguem 42501;
- * - conferir-rls.sql acusa escrita, EXECUTE indevido e tabela sem a leitura; up/down; config e passo de papéis (B0).
+ * - SELECT por coluna onde há coluna sensível (hash, token, senha, segredo, chave, carga; regra 8: a saída vai ao log do
+ *   Actions): senha_hash nunca é lida (42501); a view core.v_leitura_usuario_senha dá só tem_senha, do tenant da sessão;
+ * - conferir-rls.sql acusa escrita, coluna sensível, EXECUTE indevido e tabela sem a leitura; up/down; config e B0.
  * Estático (sempre) + banco (fixture dois-tenants com ROLLBACK; up/down num banco efêmero). Nada roda em base real.
  */
 import { readFileSync } from 'node:fs';
@@ -16,7 +18,7 @@ import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-tes
 import { lerConfig, lerConfigApp, lerConfigTestes, PAPEL_LEITURA, SENHA_LEITURA_LOCAL, urlLeitura } from '../src/config';
 import { TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
-import { AJUSTES_LEITURA, ATRIBUTOS_DO_PAPEL, garantirLeitura } from '../src/papeis';
+import { AJUSTES_LEITURA, ATRIBUTOS_DO_PAPEL, COLUNA_SENSIVEL_LEITURA, garantirLeitura } from '../src/papeis';
 import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 import { banco, semBanco } from './estado';
 import { FUNCOES_SA_ATUAIS } from './funcoes-sa';
@@ -24,18 +26,21 @@ import { comCliente, emTransacao, erroDe, retratoDoCatalogo } from './util';
 
 const SQL_CONFERIR_RLS = readFileSync(new URL('../scripts/conferir-rls.sql', import.meta.url), 'utf8');
 const migracoes = lerMigracoes();
-const i76 = migracoes.findIndex((m) => m.versao === '0078');
-const m76 = migracoes[i76]!;
+const i78 = migracoes.findIndex((m) => m.versao === '0078');
+const m78 = migracoes[i78]!;
+const VIEW_SENHA = 'core.v_leitura_usuario_senha';
+/** A mesma regra do Postgres (COLUNA_SENSIVEL_LEITURA com ~), para o lado estático. */
+const SENSIVEL = new RegExp(COLUNA_SENSIVEL_LEITURA);
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
 const A = DOIS_TENANTS.A.tenantId;
 
 describe('0078 papel de leitura (estático)', () => {
   it('nome: 0078_plataforma_papel_leitura', () => {
-    expect(m76.nome).toBe('plataforma_papel_leitura');
+    expect(m78.nome).toBe('plataforma_papel_leitura');
   });
 
   it('up: papel só se falta e sem atributo; trava de filiação; ajustes só se faltam; laço com SELECT e a leitura; EXECUTE só no tenant_por_codigo', () => {
-    const sql = semComentarios(m76.up);
+    const sql = semComentarios(m78.up);
     expect(sql).toContain("if not exists (select 1 from pg_roles where rolname = 'macuxi_leitura') then");
     expect(sql).toContain('create role macuxi_leitura nologin nosuperuser nobypassrls nocreatedb nocreaterole noreplication;');
     expect(sql).not.toMatch(/\bpassword\b|\blogin\b/i);
@@ -43,20 +48,34 @@ describe('0078 papel de leitura (estático)', () => {
     for (const [nome, valor] of AJUSTES_LEITURA) expect(sql).toContain(`['${nome}', '${valor}']`);
     expect(sql).toContain("execute format('alter role macuxi_leitura set %s = %L', v_a[1], v_a[2]);");
     expect(sql).toMatch(/where c\.relkind in \('r', 'p'\) and c\.relrowsecurity/);
+    expect(sql).toContain("execute format('revoke select on %s from macuxi_leitura', v_t.tabela);");
+    expect(sql).toContain("execute format('grant select (%s) on %s to macuxi_leitura', v_t.colunas, v_t.tabela);");
     expect(sql).toContain("execute format('grant select on %s to macuxi_leitura', v_t.tabela);");
+    // a mesma expressão nas 3 partes do laço/conferência e no conferir-rls.sql
+    expect(sql.split(`a.attname ~ '${COLUNA_SENSIVEL_LEITURA}' and a.atttypid <> 'boolean'::regtype`).length - 1).toBe(3);
+    expect(SQL_CONFERIR_RLS).toContain(`a.attname ~ '${COLUNA_SENSIVEL_LEITURA}' and a.atttypid <> 'boolean'::regtype`);
+    expect(sql).toContain(`create or replace view ${VIEW_SENHA} with (security_barrier = true) as`);
+    expect(sql).toContain('select u.id, u.tenant_id, (u.senha_hash is not null) as tem_senha');
+    expect(sql).toContain('where u.tenant_id = plataforma.tenant_atual();');
+    expect(sql).toContain(`revoke all on ${VIEW_SENHA} from public, macuxi_app, macuxi_worker;`);
     expect(sql).toContain("execute format('grant usage on schema %I to macuxi_leitura', v_t.esquema);");
     expect(sql).toContain("execute format('create policy leitura on %s for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual())', v_t.tabela);");
     expect(sql).toContain("execute format('create policy leitura on %s for select to macuxi_leitura using (id = plataforma.tenant_atual())', v_t.tabela);");
     expect(sql).toContain('grant execute on function plataforma.tenant_por_codigo(text) to macuxi_leitura;');
     // nenhum outro grant fora do laço; nada de escrita, sequência, filiação ou função além do tenant_por_codigo
-    expect([...sql.matchAll(/^grant ([^;]+);/gm)].map((g) => g[1])).toEqual(['execute on function plataforma.tenant_por_codigo(text) to macuxi_leitura']);
+    expect([...sql.matchAll(/^grant ([^;]+);/gm)].map((g) => g[1])).toEqual([
+      'execute on function plataforma.tenant_por_codigo(text) to macuxi_leitura',
+      `select on ${VIEW_SENHA} to macuxi_leitura`,
+    ]);
     expect(sql).not.toMatch(/grant [a-z, ]*(insert|update|delete|truncate|references|trigger)[a-z, ]* on [^;]* to macuxi_leitura/i);
-    expect(sql).not.toMatch(/sequence|grant macuxi_leitura|grant [a-z_]+ to macuxi_leitura|create function|create or replace/i);
+    expect(sql).not.toMatch(/sequence|grant macuxi_leitura|grant [a-z_]+ to macuxi_leitura|create (or replace )?function/i);
     expect(sql).toContain("raise exception '0078: macuxi_leitura com privilégio de escrita em: %'");
   });
 
-  it('down: apaga as políticas leitura e revoga SELECT, USAGE e o EXECUTE; o papel e os ajustes ficam', () => {
-    const sql = semComentarios(m76.down);
+  it('down: apaga a view e as políticas leitura e revoga SELECT, USAGE e o EXECUTE; o papel e os ajustes ficam', () => {
+    const sql = semComentarios(m78.down);
+    expect(sql).toContain(`drop view if exists ${VIEW_SENHA};`);
+    expect(sql).toContain("and has_any_column_privilege('macuxi_leitura', c.oid, 'SELECT')");
     expect(sql).toContain("where p.polname = 'leitura'");
     expect(sql).toContain("execute format('drop policy if exists leitura on %s', v_t.tabela);");
     expect(sql).toContain("execute format('revoke select on %s from macuxi_leitura', v_t.tabela);");
@@ -69,7 +88,14 @@ describe('0078 papel de leitura (estático)', () => {
     for (const m of migracoes.filter((x) => x.versao > '0078')) {
       for (const [, tabela, corpo] of m.up.matchAll(/create table (?:if not exists )?([a-z_]+\.[a-z_]+) \(([\s\S]*?)\n\);/g)) {
         if (!/^\s+tenant_id\s/m.test(corpo!)) continue;
-        expect(m.up, `${m.versao}: ${tabela} sem o SELECT do macuxi_leitura (0078)`).toContain(`grant select on ${tabela} to macuxi_leitura;`);
+        // com coluna sensível (fora boolean), SELECT por coluna sem ela; senão, na tabela
+        const sensiveis = [...corpo!.matchAll(/^\s+([a-z_]+)\s+([a-z]+)/gm)].filter(([, c, tipo]) => SENSIVEL.test(c!) && tipo !== 'boolean').map((x) => x[1]!);
+        const grant = new RegExp(`grant select (\\(([a-z_, ]+)\\) )?on ${tabela!.replace('.', '\\.')} to macuxi_leitura;`).exec(m.up);
+        expect(grant, `${m.versao}: ${tabela} sem o SELECT do macuxi_leitura (0078)`).not.toBeNull();
+        if (sensiveis.length) {
+          expect(grant![2], `${m.versao}: ${tabela} tem ${sensiveis.join(', ')}: SELECT por coluna`).toBeDefined();
+          expect(grant![2]!.split(/,\s*/).filter((c) => sensiveis.includes(c)), `${m.versao}: ${tabela} com SELECT em coluna sensível`).toEqual([]);
+        }
         expect(m.up, `${m.versao}: ${tabela} sem a política leitura (0078)`).toContain(
           `create policy leitura on ${tabela} for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual());`,
         );
@@ -213,7 +239,8 @@ describe.skipIf(semBanco())('0078 papel de leitura (banco, fixture dois-tenants)
     const escrita = await admin.query(
       `select c.oid::regclass::text as t from pg_class c join pg_namespace n on n.oid = c.relnamespace
         where c.relkind in ('r', 'p', 'v', 'm', 'f') and n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
-          and has_table_privilege('macuxi_leitura', c.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')`,
+          and (has_table_privilege('macuxi_leitura', c.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
+               or has_any_column_privilege('macuxi_leitura', c.oid, 'INSERT, UPDATE, REFERENCES'))`,
     );
     expect(escrita.rows).toEqual([]);
     const sa = await admin.query(
@@ -223,6 +250,61 @@ describe.skipIf(semBanco())('0078 papel de leitura (banco, fixture dois-tenants)
     expect(sa.rows).toEqual([]);
     const tpc = await admin.query<{ ok: boolean }>("select has_function_privilege('macuxi_leitura', 'plataforma.tenant_por_codigo(text)', 'execute') as ok");
     expect(tpc.rows[0]!.ok).toBe(true);
+  });
+
+  it('nenhum SELECT em coluna sensível (hash, token, senha, segredo, chave, carga; regra 8); as tabelas com elas, por coluna', async () => {
+    const sensiveis = await admin.query<{ c: string }>(
+      `select c.oid::regclass::text || '.' || a.attname as c
+         from pg_class c join pg_namespace n on n.oid = c.relnamespace join pg_attribute a on a.attrelid = c.oid
+        where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema' and a.attnum > 0 and not a.attisdropped
+          and a.attname ~ $1 and a.atttypid <> 'boolean'::regtype and has_column_privilege('macuxi_leitura', c.oid, a.attnum, 'SELECT')`,
+      [COLUNA_SENSIVEL_LEITURA],
+    );
+    expect(sensiveis.rows).toEqual([]);
+    // as que o pedido citou: por coluna, sem a sensível, e a tabela segue legível
+    const porColuna = await admin.query<{ t: string; tabela: boolean; algum: boolean }>(
+      `select t, has_table_privilege('macuxi_leitura', t::regclass, 'SELECT') as tabela,
+              has_any_column_privilege('macuxi_leitura', t::regclass, 'SELECT') as algum
+         from unnest($1::text[]) t order by 1`,
+      [['core.usuario', 'core.sessao', 'core.usuario_convite', 'plataforma.email_saida']],
+    );
+    for (const r of porColuna.rows) expect(r, r.t).toEqual({ t: r.t, tabela: false, algum: true });
+    await emTransacao(admin, A, async () => {
+      expect((await erroDe(como('select senha_hash from core.usuario limit 1')))?.code).toBe('42501');
+      expect((await erroDe(como('select * from core.usuario limit 1')))?.code).toBe('42501');
+      expect((await erroDe(como('select carga from plataforma.email_saida limit 1')))?.code).toBe('42501');
+      expect((await erroDe(como('select token_hash from core.sessao limit 1')))?.code).toBe('42501');
+      const n = await como('select count(*)::int as n from core.usuario');
+      expect(n).toEqual([{ n: Number((await admin.query('select count(*) from core.usuario where tenant_id = $1', [A])).rows[0]!.count) }]);
+    });
+  });
+
+  it('view core.v_leitura_usuario_senha: só id, tenant_id e tem_senha do tenant da sessão; sem contexto, 0 linhas; só o macuxi_leitura lê', async () => {
+    const esperado = await admin.query<{ id: string; tem_senha: boolean }>(
+      'select id, senha_hash is not null as tem_senha from core.usuario where tenant_id = $1 order by id',
+      [A],
+    );
+    expect(esperado.rows.length).toBeGreaterThan(0);
+    await emTransacao(admin, A, async () => {
+      expect(await como(`select id, tem_senha from ${VIEW_SENHA} order by id`)).toEqual(esperado.rows);
+      expect(await como(`select 1 from ${VIEW_SENHA} where tenant_id <> $1`, [A])).toEqual([]);
+    });
+    await emTransacao(admin, null, async () => {
+      expect(await como(`select 1 from ${VIEW_SENHA}`)).toEqual([]);
+    });
+    const colunas = await admin.query<{ c: string }>(
+      `select attname as c from pg_attribute where attrelid = '${VIEW_SENHA}'::regclass and attnum > 0 order by attnum`,
+    );
+    expect(colunas.rows.map((x) => x.c)).toEqual(['id', 'tenant_id', 'tem_senha']);
+    const quem = await admin.query<{ p: string; ok: boolean }>(
+      `select p, has_table_privilege(p, '${VIEW_SENHA}'::regclass, 'SELECT') as ok from unnest(array['macuxi_app', 'macuxi_worker', 'macuxi_portal', 'macuxi_leitura']) p order by 1`,
+    );
+    expect(quem.rows).toEqual([
+      { p: 'macuxi_app', ok: false },
+      { p: 'macuxi_leitura', ok: true },
+      { p: 'macuxi_portal', ok: false },
+      { p: 'macuxi_worker', ok: false },
+    ]);
   });
 
   it('RLS: só o tenant de app.tenant_id (A não vê B); sem contexto, 0 linhas; plataforma.tenant pelo id', async () => {
@@ -294,6 +376,7 @@ describe.skipIf(semBanco())('0078 papel de leitura (banco, fixture dois-tenants)
       await admin.query('grant insert on core.cliente to macuxi_leitura');
       await admin.query(`grant execute on function ${FUNCOES_SA_ATUAIS[0]} to macuxi_leitura`);
       await admin.query('drop policy leitura on core.carteira');
+      await admin.query('grant select (senha_hash) on core.usuario to macuxi_leitura');
       await admin.query('create role macuxi_x0078 nologin');
       await admin.query('grant macuxi_x0078 to macuxi_leitura');
       const r = await admin.query<{ tabela: string; problema: string }>(SQL_CONFERIR_RLS);
@@ -301,9 +384,10 @@ describe.skipIf(semBanco())('0078 papel de leitura (banco, fixture dois-tenants)
         { tabela: 'core.cliente', problema: 'privilégio de escrita para o macuxi_leitura (0078: só SELECT)' },
         { tabela: 'core.carteira', problema: 'sem a política leitura ou o SELECT do macuxi_leitura (0078)' },
         { tabela: '(papel) macuxi_leitura', problema: 'membro de macuxi_x0078 (herdaria privilégios)' },
+        { tabela: 'core.usuario', problema: 'SELECT do macuxi_leitura na coluna sensível senha_hash (0078: hash, token, senha, segredo, chave, carga)' },
         expect.objectContaining({ tabela: '(papel) macuxi_leitura', problema: expect.stringMatching(/^EXECUTE em plataforma\.sa_/) }),
       ]));
-      expect(r.rows).toHaveLength(4);
+      expect(r.rows).toHaveLength(5);
     } finally {
       await admin.query('rollback');
     }
@@ -318,6 +402,10 @@ async function retratoLeitura(c: pg.ClientBase): Promise<string[]> {
      union all
      select 'schema ' || n.nspname || ' ' || a.privilege_type
        from pg_namespace n cross join lateral aclexplode(n.nspacl) a where n.nspacl is not null and a.grantee = 'macuxi_leitura'::regrole
+     union all
+     select 'col ' || c.oid::regclass::text || '.' || at.attname || ' ' || a.privilege_type
+       from pg_attribute at join pg_class c on c.oid = at.attrelid cross join lateral aclexplode(at.attacl) a
+      where at.attacl is not null and a.grantee = 'macuxi_leitura'::regrole
      union all
      select 'fn ' || p.oid::regprocedure::text || ' ' || a.privilege_type
        from pg_proc p cross join lateral aclexplode(p.proacl) a where p.proacl is not null and a.grantee = 'macuxi_leitura'::regrole
@@ -339,7 +427,7 @@ describe.skipIf(semBanco())('0078 up/down (banco efêmero)', () => {
 
   it('up dá SELECT, USAGE, EXECUTE e a leitura; down volta exatamente à anterior; up e down idempotentes', async () => {
     await comAdmin(b.nome, async (c) => {
-      await migrarUp(c, { ate: migracoes[i76 - 1]!.versao });
+      await migrarUp(c, { ate: migracoes[i78 - 1]!.versao });
       const catalogo = await retratoDoCatalogo(c);
       expect(await retratoLeitura(c)).toEqual([]);
       await migrarUp(c, { ate: '0078' });
@@ -349,14 +437,17 @@ describe.skipIf(semBanco())('0078 up/down (banco efêmero)', () => {
       expect(depois).toContain('pol plataforma.tenant leitura');
       expect(depois).toContain('pol core.cliente leitura');
       expect(depois).toContain('schema core USAGE');
+      expect(depois).toContain(`rel ${VIEW_SENHA} SELECT`);
+      expect(depois).toContain('col core.usuario.nome SELECT');
+      expect(depois).not.toContain('rel core.usuario SELECT');
       expect(depois.filter((l) => /^rel /.test(l) && !l.endsWith(' SELECT'))).toEqual([]);
       for (const t of TABELAS_SO_POR_FUNCAO) expect(depois.filter((l) => l.startsWith(`rel ${t} `) || l.startsWith(`pol ${t} `)), t).toEqual([]);
-      await c.query(m76.up);
+      await c.query(m78.up);
       expect(await retratoLeitura(c)).toEqual(depois);
       await migrarDown(c);
       expect(await retratoLeitura(c)).toEqual([]);
       expect(await retratoDoCatalogo(c)).toEqual(catalogo);
-      await c.query(m76.down);
+      await c.query(m78.down);
       expect(await retratoDoCatalogo(c)).toEqual(catalogo);
       await migrarUp(c, { ate: '0078' });
       expect(await retratoLeitura(c)).toEqual(depois);

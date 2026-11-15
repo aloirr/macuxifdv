@@ -12,8 +12,10 @@
 --   plataforma.evento, plataforma.email_saida e plataforma.diagnostico (alerta do diagnóstico); em qualquer outra tabela aparece
 --   como problema.
 -- Consulta só leitura (0078, ADR 0055): toda tabela com RLS e tenant_id (e a plataforma.tenant, por id) com a política
---   `leitura` for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual()) e o SELECT; nas só por função, nenhuma
---   política nem grant para ele; em nenhuma tabela privilégio de escrita; nenhuma outra política para ele. E o papel: membro de
+--   `leitura` for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual()) e o SELECT (na tabela ou por coluna);
+--   nas só por função, nenhuma política nem grant para ele; em nenhuma tabela privilégio de escrita; nenhuma outra política
+--   para ele; e nenhum SELECT dele em coluna sensível (nome com hash, token, senha, segredo, chave, carga ou cifrad, tipo que
+--   não seja boolean), em tabela ou view: a saída da consulta vai para o log do Actions (regra 8). E o papel: membro de
 --   qualquer papel, EXECUTE em alguma plataforma.sa_* ou em função SECURITY DEFINER além de plataforma.tenant_por_codigo(text)
 --   aparece como "(papel) macuxi_leitura".
 -- Resultado esperado: ZERO linhas. Exceções (iguais a db/src/excecoes.ts, TABELAS_SEM_TENANT_ID): plataforma.tenant não tem
@@ -104,18 +106,27 @@ problemas as (
                and p.polcmd = 'r' and p.polpermissive and p.polwithcheck is null
                and pg_get_expr(p.polqual, p.polrelid) = case when t.nome = 'plataforma.tenant' then '(id = plataforma.tenant_atual())'
                                                             else '(tenant_id = plataforma.tenant_atual())' end)
-          or not exists (select 1 from pg_roles r where r.rolname = 'macuxi_leitura' and has_table_privilege(r.oid, t.oid, 'SELECT')))
+          or not exists (select 1 from pg_roles r where r.rolname = 'macuxi_leitura' and has_any_column_privilege(r.oid, t.oid, 'SELECT')))
   union all
   select t.nome, 'só por função, mas com política ou grant para o macuxi_leitura (0078)' from tabelas t
    where t.nome in (select f.nome from so_por_funcao f)
      and (exists (select 1 from pg_policy p join pg_roles r on r.oid = any (p.polroles)
                    where p.polrelid = t.oid and r.rolname = 'macuxi_leitura')
           or exists (select 1 from pg_roles r where r.rolname = 'macuxi_leitura'
-                       and has_table_privilege(r.oid, t.oid, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')))
+                       and (has_table_privilege(r.oid, t.oid, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
+                            or has_any_column_privilege(r.oid, t.oid, 'SELECT, INSERT, UPDATE, REFERENCES'))))
   union all
   select t.nome, 'privilégio de escrita para o macuxi_leitura (0078: só SELECT)' from tabelas t
    where exists (select 1 from pg_roles r where r.rolname = 'macuxi_leitura'
-                   and has_table_privilege(r.oid, t.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'))
+                   and (has_table_privilege(r.oid, t.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
+                        or has_any_column_privilege(r.oid, t.oid, 'INSERT, UPDATE, REFERENCES')))
+  union all
+  select c.oid::regclass::text, 'SELECT do macuxi_leitura na coluna sensível ' || a.attname || ' (0078: hash, token, senha, segredo, chave, carga)'
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace join pg_attribute a on a.attrelid = c.oid
+    join pg_roles r on r.rolname = 'macuxi_leitura'
+   where c.relkind in ('r', 'p', 'v', 'm', 'f') and n.nspname not in ('pg_catalog', 'information_schema') and n.nspname not like 'pg\_%'
+     and a.attnum > 0 and not a.attisdropped and a.attname ~ '(hash|token|senha|segredo|chave|carga|cifrad)' and a.atttypid <> 'boolean'::regtype
+     and has_column_privilege(r.oid, c.oid, a.attnum, 'SELECT')
   union all
   select t.nome, 'política para o macuxi_leitura fora do padrão leitura (0078)' from tabelas t
    where exists (select 1 from pg_policy p join pg_roles r on r.oid = any (p.polroles)

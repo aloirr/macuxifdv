@@ -248,6 +248,13 @@ export const AJUSTES_LEITURA: readonly (readonly [string, string])[] = [
 ];
 
 /**
+ * Coluna sensível para o macuxi_leitura (0078): nome com hash, token, senha, segredo, chave, carga ou cifrad (e tipo que não seja
+ * boolean). Fica fora do SELECT por coluna (a saída da consulta vai para o log do Actions; regra 8). Expressão regular do
+ * Postgres (operador ~), a mesma da 0078 e do db/scripts/conferir-rls.sql.
+ */
+export const COLUNA_SENSIVEL_LEITURA = '(hash|token|senha|segredo|chave|carga|cifrad)';
+
+/**
  * Grava os AJUSTES_LEITURA que faltam no macuxi_leitura (o papel precisa existir: garantirPapelLeitura ou garantirPapelSemLogin
  * antes). Com o advisory lock dos papéis e só quando falta: bancos de teste migrando em paralelo não disputam
  * pg_db_role_setting ("tuple concurrently updated") e a 0078 encontra tudo pronto. Chame conectado ao banco "postgres".

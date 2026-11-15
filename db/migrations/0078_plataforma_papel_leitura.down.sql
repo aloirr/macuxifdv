@@ -1,10 +1,12 @@
 -- 0078_plataforma_papel_leitura (down) — consulta só leitura na produção (ADR 0055)
--- Desfaz a 0078: apaga as políticas leitura, revoga do macuxi_leitura o SELECT em toda tabela, o USAGE em todo schema e o
--- EXECUTE em plataforma.tenant_por_codigo(text). O workflow de consulta passa a receber 42501 (falha fechada). O papel e os 3
+-- Desfaz a 0078: apaga a view core.v_leitura_usuario_senha e as políticas leitura, revoga do macuxi_leitura o SELECT em toda
+-- tabela (inclusive o por coluna), o USAGE em todo schema e o EXECUTE em plataforma.tenant_por_codigo(text). O workflow de consulta passa a receber 42501 (falha fechada). O papel e os 3
 -- ajustes de sessão FICAM (objetos do cluster, como o macuxi_portal na 0038: outro banco do mesmo servidor pode usá-los; e
 -- nenhum ALTER ROLE aqui, para o down não disputar pg_db_role_setting com o passo de papéis). Para remover de vez, num
 -- servidor sem nenhum banco que o use: drop role macuxi_leitura;
 -- Idempotente. Pré-condição: 0079+ desfeitas.
+
+drop view if exists core.v_leitura_usuario_senha;
 
 do $$
 declare
@@ -23,7 +25,7 @@ begin
       select c.oid::regclass::text as tabela
         from pg_class c join pg_namespace n on n.oid = c.relnamespace
        where c.relkind in ('r', 'p', 'v', 'm', 'f') and n.nspname not in ('pg_catalog', 'information_schema') and n.nspname not like 'pg\_%'
-         and has_table_privilege('macuxi_leitura', c.oid, 'SELECT')
+         and has_any_column_privilege('macuxi_leitura', c.oid, 'SELECT')
        order by 1
     loop
       execute format('revoke select on %s from macuxi_leitura', v_t.tabela);

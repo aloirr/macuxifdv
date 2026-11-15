@@ -20,21 +20,29 @@
 --    da sessão (o cliente pode trocá-lo); quem impede a escrita são os grants: só SELECT.
 -- 4. Laço no catálogo pg_class (o mesmo da 0031), em toda tabela com RLS dos schemas do Macuxi (fora pg_*, information_schema
 --    e public):
---    - com coluna tenant_id: USAGE no schema, grant select e
+--    - com coluna tenant_id: USAGE no schema, o SELECT (abaixo) e
 --      create policy leitura ... for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual());
 --    - plataforma.tenant (o id é o tenant): o mesmo, com using (id = plataforma.tenant_atual());
 --    - as demais (sem tenant_id: as só por função do super-admin e do portal, TABELAS_SO_POR_FUNCAO) ficam SEM grant e SEM
 --      política (42501).
 --    Sem app.tenant_id na sessão, tenant_atual() é NULL e a leitura devolve 0 linhas (falha fechada). Nenhum INSERT, UPDATE,
---    DELETE, TRUNCATE, REFERENCES ou TRIGGER; nenhuma sequência; nenhuma view.
+--    DELETE, TRUNCATE, REFERENCES ou TRIGGER; nenhuma sequência.
+--    SELECT por COLUNA nas tabelas com coluna sensível (a saída da consulta vai para o log do Actions; regra 8 do CLAUDE.md):
+--    coluna cujo nome contém hash, token, senha, segredo, chave, carga ou cifrad, de tipo que não seja boolean, fica de fora
+--    (core.usuario.senha_hash e senha_temporaria_*, core.sessao/usuario_convite.token_hash, core.dispositivo.push_token,
+--    integracao hash_chave/hash/chave_idempotencia, plataforma.email_saida.carga e chave_idempotencia, plataforma.parametro.chave,
+--    entre outras). Tabela sem coluna sensível: SELECT na tabela. O revoke antes do grant deixa o laço idempotente.
+-- 4a. View core.v_leitura_usuario_senha (id, tenant_id, tem_senha): o que a consulta precisa do hash sem ver o hash. Roda como
+--    o dono (sem security_invoker, de propósito: o macuxi_leitura não lê senha_hash), por isso filtra o tenant da sessão no
+--    WHERE (tenant_atual() NULL = 0 linhas) e é security_barrier. SELECT só ao macuxi_leitura (nem PUBLIC, nem macuxi_app).
 -- 5. grant execute on function plataforma.tenant_por_codigo(text) to macuxi_leitura (SECURITY DEFINER, devolve só id e status;
 --    é como a consulta resolve o tenant pelo código). Nenhuma outra função: as plataforma.sa_* seguem só do macuxi_portal.
--- 6. Conferência final pelo catálogo (42501): privilégio de escrita em qualquer tabela, EXECUTE em qualquer sa_* ou tabela com
---    RLS e tenant sem a política leitura.
+-- 6. Conferência final pelo catálogo (42501): privilégio de escrita em qualquer tabela ou coluna, SELECT em coluna sensível,
+--    EXECUTE em qualquer sa_* ou tabela com RLS e tenant sem a política leitura ou sem SELECT.
 --
 -- Regra para tabela nova (0079 em diante; o repositório não usa ALTER DEFAULT PRIVILEGES): junto da isolamento_tenant e da
 -- manutencao, a migração com tabela de tenant cria
---   grant select on <schema>.<tabela> to macuxi_leitura;
+--   grant select on <schema>.<tabela> to macuxi_leitura;   (com coluna sensível: grant select (<colunas>) on ...)
 --   create policy leitura on <schema>.<tabela> for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual());
 -- db/scripts/conferir-rls.sql e db/testes/conformidade.test.ts no banco, e db/testes/papel-leitura.db.test.ts nas migrações,
 -- falham sem elas. Schema novo também precisa do grant usage on schema ... to macuxi_leitura.
@@ -85,7 +93,13 @@ declare
 begin
   for v_t in
     select c.oid, c.oid::regclass::text as tabela, n.nspname as esquema,
-           (c.oid = 'plataforma.tenant'::regclass) as eh_tenant
+           (c.oid = 'plataforma.tenant'::regclass) as eh_tenant,
+           exists (select 1 from pg_attribute a
+                    where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
+                      and a.attname ~ '(hash|token|senha|segredo|chave|carga|cifrad)' and a.atttypid <> 'boolean'::regtype) as tem_sensivel,
+           (select string_agg(quote_ident(a.attname), ', ' order by a.attnum) from pg_attribute a
+             where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
+               and not (a.attname ~ '(hash|token|senha|segredo|chave|carga|cifrad)' and a.atttypid <> 'boolean'::regtype)) as colunas
       from pg_class c
       join pg_namespace n on n.oid = c.relnamespace
      where c.relkind in ('r', 'p') and c.relrowsecurity
@@ -95,7 +109,12 @@ begin
      order by 2
   loop
     execute format('grant usage on schema %I to macuxi_leitura', v_t.esquema);
-    execute format('grant select on %s to macuxi_leitura', v_t.tabela);
+    execute format('revoke select on %s from macuxi_leitura', v_t.tabela);
+    if v_t.tem_sensivel then
+      execute format('grant select (%s) on %s to macuxi_leitura', v_t.colunas, v_t.tabela);
+    else
+      execute format('grant select on %s to macuxi_leitura', v_t.tabela);
+    end if;
     if not exists (select 1 from pg_policy p where p.polrelid = v_t.oid and p.polname = 'leitura') then
       if v_t.eh_tenant then
         execute format('create policy leitura on %s for select to macuxi_leitura using (id = plataforma.tenant_atual())', v_t.tabela);
@@ -109,6 +128,13 @@ $$;
 
 grant execute on function plataforma.tenant_por_codigo(text) to macuxi_leitura;
 
+create or replace view core.v_leitura_usuario_senha with (security_barrier = true) as
+  select u.id, u.tenant_id, (u.senha_hash is not null) as tem_senha
+    from core.usuario u
+   where u.tenant_id = plataforma.tenant_atual();
+revoke all on core.v_leitura_usuario_senha from public, macuxi_app, macuxi_worker;
+grant select on core.v_leitura_usuario_senha to macuxi_leitura;
+
 -- Conferência pelo catálogo: nenhuma escrita em tabela, nenhuma sa_* executável, toda tabela de tenant com RLS com a leitura.
 do $$
 declare
@@ -117,9 +143,18 @@ begin
   select string_agg(c.oid::regclass::text, ', ' order by 1) into v_x
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
    where c.relkind in ('r', 'p', 'v', 'm', 'f') and n.nspname not in ('pg_catalog', 'information_schema') and n.nspname not like 'pg\_%'
-     and has_table_privilege('macuxi_leitura', c.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER');
+     and (has_table_privilege('macuxi_leitura', c.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
+          or has_any_column_privilege('macuxi_leitura', c.oid, 'INSERT, UPDATE, REFERENCES'));
   if v_x is not null then
     raise exception '0078: macuxi_leitura com privilégio de escrita em: %', v_x using errcode = '42501';
+  end if;
+  select string_agg(c.oid::regclass::text || '.' || a.attname, ', ' order by 1) into v_x
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace join pg_attribute a on a.attrelid = c.oid
+   where c.relkind in ('r', 'p', 'v', 'm', 'f') and n.nspname not in ('pg_catalog', 'information_schema') and n.nspname not like 'pg\_%'
+     and a.attnum > 0 and not a.attisdropped and a.attname ~ '(hash|token|senha|segredo|chave|carga|cifrad)' and a.atttypid <> 'boolean'::regtype
+     and has_column_privilege('macuxi_leitura', c.oid, a.attnum, 'SELECT');
+  if v_x is not null then
+    raise exception '0078: macuxi_leitura com SELECT em coluna sensível: %', v_x using errcode = '42501';
   end if;
   select string_agg(p.oid::regprocedure::text, ', ' order by 1) into v_x
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -133,9 +168,10 @@ begin
      and n.nspname not in ('pg_catalog', 'information_schema', 'public') and n.nspname not like 'pg\_%'
      and (c.oid = 'plataforma.tenant'::regclass
           or exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'tenant_id' and a.attnum > 0 and not a.attisdropped))
-     and not exists (select 1 from pg_policy p where p.polrelid = c.oid and p.polname = 'leitura');
+     and (not exists (select 1 from pg_policy p where p.polrelid = c.oid and p.polname = 'leitura')
+          or not has_any_column_privilege('macuxi_leitura', c.oid, 'SELECT'));
   if v_x is not null then
-    raise exception '0078: tabela de tenant sem a política leitura: %', v_x using errcode = '42501';
+    raise exception '0078: tabela de tenant sem a política leitura ou sem SELECT: %', v_x using errcode = '42501';
   end if;
 end
 $$;
