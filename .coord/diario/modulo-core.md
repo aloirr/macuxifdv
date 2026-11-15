@@ -172,3 +172,17 @@
 2026-11-15 — PR #250 — MC-0061/62/63, RD-0394/0395 e plural de perfis; Desbloquear no BKO (selo Bloqueado/Bloqueado até HHhMM, item no ⋯ e faixa na gaveta; DELETE /core/usuarios/:id/bloqueio idempotente e auditado; usuario.desbloquear); MenuAcoes e modulos.tsx do kit; prints 1366×768 refeitos
 2026-11-15 — PR #250 — RD-0414/0415: prints do Acesso só em docs/modulos/core/telas/acesso; hora no fuso pelo formatTime/formatDateTime do kit; gaveta Novo/Editar usuário com rodapé -bottom-4 -mb-4 (nada rola por baixo do Cancelar/Salvar) e os 11 prints refeitos
 2026-11-15 — v1.0.9 (PR próprio, sem apps/web) — código da empresa UF+4 (CODIGO_EMPRESA_TAMANHO/REGEX, MENSAGEM_CODIGO_EMPRESA, validarCodigoEmpresaNovo e validarLoginNovo no app; validarLogin do BKO inalterado), senha sem espaço nas pontas (RD-0431, PE-02), servidor aceita código antigo e novo, D-01 (usuarioPorEmail travar no esqueci); RD-0430 do core
+2026-11-15 — T-0175 — RN-CORE-58: planejarVinculoErp, rota vincular-erp, carga casa pelo código do ERP, aviso de provisório, filtro Provisórios e ação no BKO
+2026-11-15 — T-0175 — RN-CORE-59 Código FDV: domain (formatar/validar/recusar), contrato aditivo codigo_fdv (UsuarioItem e UsuarioSync), 422 na criação/edição, leitura e busca atrás de COLUNA_CODIGO_FDV_PRONTA; aguarda migração e simulação
+2026-11-15 — T-0175 — proposta do vínculo automático por nome (docs/modulos/core/vinculo-erp-por-nome.md)
+2026-11-15 — T-0175 — Código FDV 5 dígitos (RN-CORE-59), usuário nunca excluído (RN-CORE-60) e vínculo automático por nome (RN-CORE-58)
+2026-11-15 — T-0175 — auditoria usuario.vincular_erp_por_nome, vinculo-por-nome.db.test.ts, proposta aprovada sem Desvincular, exceção da RN-CORE-60 (exclusão da empresa)
+2026-11-15 — T-0175 — merge da cadeia 0074–0080 do banco-dados; COLUNA_CODIGO_FDV_PRONTA=true; teste de sync ajustado
+2026-11-15 — T-0176 — filial do usuário (RN-CORE-39 revista): domain validarFiliaisDoUsuario/vendedorBloqueadoPorFilial, filial_ids em criar/editar/leitura, filial_id e sem_filial no sync usuario e sem_filial na sessão, 422/403 na API, consumidor do vendedor grava a filial pelo filial_external_id; sem telas (aguardam a simulação)
+2026-11-15 — T-0176 — proposta de filial de cadastro e filiais de venda (R-20261115-093000) em docs/modulos/core/filial-cadastro-venda.md; sem código
+2026-11-15 — T-0176 — filial de cadastro + filiais de venda (RN-CORE-39 revista): domain, contratos, API (guarda USUARIO_SEM_FILIAL, PUT eu/filial-cadastro, sync, carga do ERP) e testes; telas aguardam a simulação
+2026-11-15 — T-0176 — correções do testes: set constraints com schema (D1), ação usuario.filial_editar via pode() para admin e analista no GET e PUT (D2), coluna filial no CSV da equipe (D5); D6 depende do modulo-integracao conferir filial_external_id do vendedor com core.filiais@1
+2026-11-15 — T-0176 — merge da 0077 (banco-dados) em nuvem/filial-usuario-modulo-core sem conflitos; nomes conferidos (filial_cadastro_id, usuario_filial, set constraints immediate, Drizzle snake_case); lint/typechecks ok; vitest só com falhas de argon2
+2026-11-15 — T-0176 — telas do BKO da filial (gaveta Editar/Novo usuário, coluna, filtro e aviso na lista), testes da lib e prints
+2026-11-15 — T-0176 — tela 13: Banner de erro/aviso do login movido para entre a senha e o botão Entrar (spec §4)
+2026-11-15 — T-0176 — v1012: merges (FDV+vínculo, filial 0077, telas 13-15, SDK, main), guarda global ADR 0056 (sem_filial no autenticar, liberadaSemFilial/liberadoSemFilial, sem comGuardaDeFilial), reexport do SDK, coluna Usuários alinhada

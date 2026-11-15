@@ -5,6 +5,7 @@
 import { formatDateTime, formatTime } from '@macuxi/ui/web';
 import { temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
 import { DESCONTO_PEDIDO_PERMIL_MAX, type CriarUsuarioRequest, type EditarUsuarioRequest, type EmailAcesso, type EquipeOpcao, type UsuarioItem } from '../../contracts';
+import { filiaisDoUsuario, corpoDaFilial } from './filial-usuario';
 import { erroDoCodigoErp, errosDaHierarquia, hierarquiaDoCargo, type PessoaDaHierarquia } from '../../domain/cargos';
 import type { Cargo } from '@macuxi/platform-sdk';
 import { ERRO_SEM_PERFIL, faltasNaSenha, gerarSenhaTemporaria, validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo, type FaltaNaSenha } from '../../domain';
@@ -27,9 +28,12 @@ export interface FormularioUsuario {
   supervisor_id: string;
   gerente_id: string;
   equipe_nome: string;
+  /** T-0176 / RN-CORE-39: filial de cadastro (vazio = não escolhida) e filiais de venda (a de cadastro sempre dentro). */
+  filial_cadastro_id: string;
+  filial_venda_ids: string[];
 }
 
-export const FORMULARIO_VAZIO: FormularioUsuario = { nome: '', nome_curto: '', email: '', perfil: 'vendedor', perfis: [], equipe_id: '', external_id: '', senha: '', limita_item: true, limita_pedido: false, desconto_maximo_pedido: '', supervisor_id: '', gerente_id: '', equipe_nome: '' };
+export const FORMULARIO_VAZIO: FormularioUsuario = { nome: '', nome_curto: '', email: '', perfil: 'vendedor', perfis: [], equipe_id: '', external_id: '', senha: '', limita_item: true, limita_pedido: false, desconto_maximo_pedido: '', supervisor_id: '', gerente_id: '', equipe_nome: '', filial_cadastro_id: '', filial_venda_ids: [] };
 
 export const ERRO_DESCONTO_OBRIGATORIO = 'Obrigatório';
 export const ERRO_DESCONTO_FAIXA = 'De 0 a 100';
@@ -49,7 +53,7 @@ export function textoDoPermil(permil: number | null): string {
 export { ERRO_SEM_PERFIL };
 
 export function formularioDoUsuario(u: UsuarioItem): FormularioUsuario {
-  return { nome: u.nome, nome_curto: u.nome_curto ?? '', email: u.email, perfil: u.perfil, perfis: u.perfis.length > 0 ? u.perfis.map((p) => p.codigo) : [u.perfil], equipe_id: u.equipe_id ?? '', external_id: u.external_id ?? '', senha: '', limita_item: u.desconto_limita_item, limita_pedido: u.desconto_limita_pedido, desconto_maximo_pedido: textoDoPermil(u.desconto_maximo_pedido_permil), supervisor_id: u.supervisor_id ?? '', gerente_id: u.gerente_id ?? '', equipe_nome: u.cargo === 'supervisor' ? (u.equipe_nome ?? '') : '' };
+  return { nome: u.nome, nome_curto: u.nome_curto ?? '', email: u.email, perfil: u.perfil, perfis: u.perfis.length > 0 ? u.perfis.map((p) => p.codigo) : [u.perfil], equipe_id: u.equipe_id ?? '', external_id: u.external_id ?? '', senha: '', limita_item: u.desconto_limita_item, limita_pedido: u.desconto_limita_pedido, desconto_maximo_pedido: textoDoPermil(u.desconto_maximo_pedido_permil), supervisor_id: u.supervisor_id ?? '', gerente_id: u.gerente_id ?? '', equipe_nome: u.cargo === 'supervisor' ? (u.equipe_nome ?? '') : '', ...filiaisDoUsuario(u) };
 }
 
 const ouNulo = (v: string): string | null => (v.trim() === '' ? null : v.trim());
@@ -92,7 +96,7 @@ export function errosDoFormulario(f: FormularioUsuario, modo: 'criar' | 'editar'
 /** Corpo com a hierarquia só do que o cargo usa (`cargo` ausente = sem hierarquia, como antes da 0069). */
 const corpoDaHierarquia = (f: FormularioUsuario, cargo: Cargo | null | undefined) => (cargo === undefined ? {} : hierarquiaDoForm(f, cargo));
 
-export function corpoDeCriacao(f: FormularioUsuario, cargo?: Cargo | null): CriarUsuarioRequest {
+export function corpoDeCriacao(f: FormularioUsuario, cargo?: Cargo | null, comFilial = false): CriarUsuarioRequest {
   return {
     nome: f.nome.trim(),
     nome_curto: ouNulo(f.nome_curto),
@@ -107,11 +111,12 @@ export function corpoDeCriacao(f: FormularioUsuario, cargo?: Cargo | null): Cria
     equipe_nome: null,
     ...corpoDoLimite(f),
     ...corpoDaHierarquia(f, cargo),
+    ...corpoDaFilial(f, comFilial),
   };
 }
 
-export function corpoDeEdicao(f: FormularioUsuario, cargo?: Cargo | null): EditarUsuarioRequest {
-  return { nome: f.nome.trim(), nome_curto: ouNulo(f.nome_curto), email: f.email.trim(), perfis: f.perfis, equipe_id: ouNulo(f.equipe_id), external_id: ouNulo(f.external_id), ...corpoDoLimite(f), ...corpoDaHierarquia(f, cargo) };
+export function corpoDeEdicao(f: FormularioUsuario, cargo?: Cargo | null, comFilial = false): EditarUsuarioRequest {
+  return { nome: f.nome.trim(), nome_curto: ouNulo(f.nome_curto), email: f.email.trim(), perfis: f.perfis, equipe_id: ouNulo(f.equipe_id), external_id: ouNulo(f.external_id), ...corpoDoLimite(f), ...corpoDaHierarquia(f, cargo), ...corpoDaFilial(f, comFilial) };
 }
 
 /** A API só fala ‰; o valor guardado vai mesmo com "por pedido" desligada. */
