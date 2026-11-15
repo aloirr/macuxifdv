@@ -417,6 +417,17 @@ describe('trustProxy (túnel da demo, T-0026): limite das rotas públicas por IP
     expect((await login(a, '200.2.2.2')).statusCode).toBe(429);
   });
 
+  it('429 do limite da rota: detalhes.retry_after_s igual ao cabeçalho retry-after (o app mostra a espera real)', async () => {
+    const a = montar();
+    await login(a, '200.1.1.1');
+    const r = await login(a, '200.1.1.1');
+    expect(r.statusCode).toBe(429);
+    const espera = Number(r.headers['retry-after']);
+    expect(espera).toBeGreaterThan(0);
+    expect(espera).toBeLessThanOrEqual(60);
+    expect(r.json()).toEqual({ codigo: 'MUITAS_TENTATIVAS', mensagem: expect.any(String), detalhes: { retry_after_s: espera } });
+  });
+
   it('loopback confiável: req.ip vem do X-Forwarded-For e cada aparelho tem o próprio limite', async () => {
     const a = montar(['loopback']);
     const r1 = await login(a, '200.1.1.1');

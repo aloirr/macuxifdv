@@ -644,10 +644,10 @@ describe('super-admin redefine a senha do admin do cliente pelo portal (T-0094 f
     expect(carga).toMatchObject({ dados: { apps: [], redefinida_por: 'macuxi' } });
     const email = renderizarEmail('nova_senha', carga);
     expect(email.texto).not.toContain('backoffice');
-    expect(email.texto).toContain('Entre no Macuxi e crie a sua senha.');
+    expect(email.texto).toContain('Crie a sua senha no Macuxi\n');
     // o admin que entra no portal continua sendo mandado ao backoffice
     const portal = renderizarEmail('nova_senha', { ...carga, dados: { ...(carga as { dados: object }).dados, apps: ['web'] } });
-    expect(portal.texto).toContain('no backoffice do Macuxi');
+    expect(portal.texto).toContain('Crie a sua senha no backoffice\n');
   });
 
   it('admin do cliente: 403 (recupera pelo Esqueci a senha); sem e-mail configurado: 503 sem chamar o banco', async () => {

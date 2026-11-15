@@ -12,6 +12,11 @@
  * | `MACUXI_SMTP_TIMEOUT_MS` | 15000 | prazo de cada etapa SMTP |
  * | `MACUXI_EMAIL_ARQUIVO_DIR` | — (`<tmp>/macuxi-email` com `arquivo` explícito) | pasta do adaptador `arquivo` (a "caixa" da demo e dos testes) |
  * | `MACUXI_EMAIL_ARQUIVO_MASCARAR` | desligado | `1`: o `.eml` sai com a senha mascarada |
+ * | `MACUXI_EMAIL_URL_ATIVOS` | — (e-mail sem logo, só o texto alternativo) | base HTTPS pública dos PNG do logo (`ARQUIVOS_LOGO_EMAIL`); **configurar em produção** |
+ * | `MACUXI_EMAIL_URL_BKO` | — (sem o botão "Abrir o backoffice") | endereço HTTPS do backoffice, para o botão |
+ *
+ * As duas `MACUXI_EMAIL_URL_*` não são segredo (ADR 0032, adendo de 15/11/2026): vão no HTML do e-mail e no log da subida.
+ * Recusadas: endereço inválido, fora de http(s), com usuário/senha e, em produção, sem https.
  *
  * Chave da carga da outbox (`plataforma.email_saida.carga`, AES-256-GCM): HKDF-SHA256 do `MACUXI_JWT_SEGREDO` com
  * `info = macuxi.email_saida.v1` (ADR 0032; sem secret novo: trocar o segredo invalida só os e-mails pendentes, que vencem em 72 h).
@@ -24,7 +29,7 @@
 import { createHash, hkdfSync, randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CODIGOS_EMAIL, type EnderecoEmail } from '@macuxi/platform-sdk';
+import { CODIGOS_EMAIL, type EnderecoEmail, type OpcoesApresentacaoEmail } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import { SEGREDO_JWT_MIN } from '../config';
 import { ErroEmail } from './erros';
@@ -40,6 +45,9 @@ export const PORTA_SMTP_TLS_IMPLICITO = 465;
 export const TIMEOUT_SMTP_PADRAO_MS = 15_000;
 /** `info` do HKDF que deriva a chave da outbox de e-mail a partir do `MACUXI_JWT_SEGREDO` (desenho T-0094 §10; troca = chave nova). */
 export const ROTULO_HKDF_EMAIL = 'macuxi.email_saida.v1';
+
+/** PNG 2× do logo (60 px de altura) publicados em `MACUXI_EMAIL_URL_ATIVOS` (spec docs/design/emails/redefinir-senha.md §5). */
+export const ARQUIVOS_LOGO_EMAIL = { claro: 'macuxi-logo-positivo-email.png', escuro: 'macuxi-logo-negativo-email.png' } as const;
 
 export interface ConfigSmtp {
   host: string;
@@ -60,6 +68,8 @@ export interface ConfigEmail {
   /** Pasta do adaptador `arquivo` (`MACUXI_EMAIL_ARQUIVO_DIR`). */
   pasta: string;
   mascararSenhaNoArquivo: boolean;
+  /** Logo e botão do backoffice no e-mail (vazio = sem logo, só o texto alternativo, e sem botão). */
+  apresentacao: OpcoesApresentacaoEmail;
   /** 32 bytes (AES-256-GCM). */
   chave: Uint8Array;
   origemChave: 'MACUXI_JWT_SEGREDO' | 'efemera';
@@ -80,6 +90,32 @@ export function lerRemetente(valor: string): EnderecoEmail | null {
   const email = EmailRemetente.safeParse(m ? m[2] : v);
   if (!email.success) return null;
   return nome ? { email: email.data, nome } : { email: email.data };
+}
+
+/**
+ * Endereço público (logo, backoffice): http(s), sem usuário/senha; em produção só https. `null` = problema registrado
+ * (a mensagem leva só o nome da variável, nunca o valor).
+ */
+function lerUrlPublica(nome: string, v: string, producao: boolean, problemas: string[], avisos: string[]): string | null {
+  let url: URL;
+  try {
+    url = new URL(v);
+  } catch {
+    problemas.push(`${nome} deve ser um endereço https://`);
+    return null;
+  }
+  if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.username || url.password) {
+    problemas.push(`${nome} deve ser um endereço https:// sem usuário nem senha`);
+    return null;
+  }
+  if (url.protocol === 'http:') {
+    if (producao) {
+      problemas.push(`${nome} deve usar https em produção`);
+      return null;
+    }
+    avisos.push(`${nome} sem https: só para teste local`);
+  }
+  return url.href;
 }
 
 /** Chave da outbox de e-mail derivada do segredo do JWT (HKDF-SHA256, sal vazio, `info = macuxi.email_saida.v1`, 32 bytes). */
@@ -178,6 +214,20 @@ export function lerConfigEmail(env: NodeJS.ProcessEnv, opcoes: { producao?: bool
   const mascararBruto = (valor('MACUXI_EMAIL_ARQUIVO_MASCARAR') ?? '').toLowerCase();
   const mascararSenhaNoArquivo = mascararBruto === '1' || mascararBruto === 'true' || mascararBruto === 'sim';
 
+  const apresentacao: OpcoesApresentacaoEmail = {};
+  const ativosBruto = valor('MACUXI_EMAIL_URL_ATIVOS');
+  const ativos = ativosBruto === undefined ? null : lerUrlPublica('MACUXI_EMAIL_URL_ATIVOS', ativosBruto, producao, problemas, avisos);
+  if (ativos) {
+    const base = ativos.replace(/\/+$/, '');
+    apresentacao.urlLogo = `${base}/${ARQUIVOS_LOGO_EMAIL.claro}`;
+    apresentacao.urlLogoEscuro = `${base}/${ARQUIVOS_LOGO_EMAIL.escuro}`;
+  } else if (ativosBruto === undefined && transporte !== 'desligado') {
+    avisos.push('sem MACUXI_EMAIL_URL_ATIVOS: o e-mail sai sem o logo (só o texto alternativo)');
+  }
+  const bkoBruto = valor('MACUXI_EMAIL_URL_BKO');
+  const bko = bkoBruto === undefined ? null : lerUrlPublica('MACUXI_EMAIL_URL_BKO', bkoBruto, producao, problemas, avisos);
+  if (bko) apresentacao.urlBackoffice = bko;
+
   let chave: Uint8Array | null = null;
   let origemChave: ConfigEmail['origemChave'] = 'efemera';
   const segredoJwt = env.MACUXI_JWT_SEGREDO;
@@ -201,6 +251,7 @@ export function lerConfigEmail(env: NodeJS.ProcessEnv, opcoes: { producao?: bool
     ...(smtp ? { smtp } : {}),
     pasta,
     mascararSenhaNoArquivo,
+    apresentacao,
     chave: chave ?? new Uint8Array(randomBytes(32)),
     origemChave,
     avisos,
@@ -222,6 +273,8 @@ export function descreverConfigEmail(cfg: ConfigEmail): Record<string, unknown> 
       ? { host: cfg.smtp.host, porta: cfg.smtp.porta, tls: cfg.smtp.tls, autenticado: Boolean(cfg.smtp.credencial), timeout_ms: cfg.smtp.timeoutMs }
       : {}),
     ...(cfg.transporte === 'arquivo' ? { pasta: cfg.pasta, mascarar_senha: cfg.mascararSenhaNoArquivo } : {}),
+    ...(cfg.apresentacao.urlLogo ? { url_ativos: cfg.apresentacao.urlLogo.slice(0, -ARQUIVOS_LOGO_EMAIL.claro.length - 1) } : {}),
+    ...(cfg.apresentacao.urlBackoffice ? { url_bko: cfg.apresentacao.urlBackoffice } : {}),
     origem_chave: cfg.origemChave,
     impressao_chave: createHash('sha256').update('macuxi.email.impressao:').update(cfg.chave).digest('hex').slice(0, 8),
   };

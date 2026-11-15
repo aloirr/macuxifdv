@@ -789,8 +789,10 @@ function montarRotaPublica(
     const extra = rota.limite.chave?.({ corpo, query, params }) ?? '';
     const chave = `${req.ip}|${String(extra).toLowerCase()}`;
     if (!limitador.tentar(chave)) {
-      reply.header('retry-after', String(limitador.esperaSegundos(chave)));
-      throw new ErroHttp(429, 'MUITAS_TENTATIVAS', 'Muitas tentativas. Aguarde um pouco e tente de novo.');
+      // a espera vai no cabeçalho e em detalhes.retry_after_s (mesmo formato do 429 do módulo): o app mostra a espera real
+      const esperaS = limitador.esperaSegundos(chave);
+      reply.header('retry-after', String(esperaS));
+      throw new ErroHttp(429, 'MUITAS_TENTATIVAS', 'Muitas tentativas. Aguarde um pouco e tente de novo.', { retry_after_s: esperaS });
     }
     const log = req.log.child({ modulo, request_id: req.id });
     // T-0087: só a lista fechada de cabeçalhos (hoje `authorization`), com valores censurados se serializados; com cache, nenhum

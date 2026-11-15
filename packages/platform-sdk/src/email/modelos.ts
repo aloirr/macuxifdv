@@ -1,12 +1,13 @@
 /**
- * E-mail transacional (T-0094; ADR 0032; desenho docs/desenho/T-0094.md §10; textos docs/design/ciclo-de-senha.md §8): modelos,
- * tipos Zod e renderização. Puro TypeScript (sem `node:*`): a API valida, cifra e monta a mensagem; o BKO pode pré-visualizar.
+ * E-mail transacional (T-0094; ADR 0032, com o adendo de 15/11/2026; desenho docs/desenho/T-0094.md §10; textos e layout
+ * docs/design/emails/redefinir-senha.md, aprovado em R-20261114-202700): modelos, tipos Zod e renderização. Puro TypeScript
+ * (sem `node:*`): a API valida, cifra e monta a mensagem; o BKO pode pré-visualizar.
  *
- * Modelos (português, texto curto):
- * - `acesso_inicial` — "Seu acesso ao Macuxi": código da empresa, e-mail, senha temporária, onde entrar, troca no 1º acesso e
- *   validade (RN-CORE-34; `validade_horas = null` = não vence, P5).
- * - `nova_senha` — "Sua nova senha do Macuxi": "Esqueci a senha" (`esqueci`) ou redefinição pelo BKO/portal (`redefinida`;
- *   `redefinida_por = 'macuxi'` quando foi o suporte da Macuxi, pelo portal).
+ * Um só layout para os modelos (spec §5): título "Crie a sua senha {destino}", uma linha de contexto, o bloco de dados
+ * (código da empresa, e-mail, senha temporária e validade), o botão do backoffice (opcional) e a assinatura.
+ * - `acesso_inicial` — "Seu acesso ao Macuxi" (RN-CORE-34; `validade_horas = null` = não vence, P5).
+ * - `nova_senha` — "Sua senha temporária do Macuxi": "Esqueci a senha" (`esqueci`) ou redefinição pelo BKO/portal
+ *   (`redefinida`; `redefinida_por = 'macuxi'` quando foi o suporte da Macuxi, pelo portal).
  *
  * Nada aqui loga. `renderizarEmailParaLog` devolve a mesma mensagem com nome, e-mail e senha trocados por marcadores
  * (RN-CORE-34: nenhum e-mail, nome ou senha em log ou evento); `renderizarEmailSemSenha` troca só a senha.
@@ -21,7 +22,7 @@ export const MODELOS_EMAIL = ['acesso_inicial', 'nova_senha'] as const;
 export const ModeloEmailSchema = z.enum(MODELOS_EMAIL);
 export type ModeloEmail = z.infer<typeof ModeloEmailSchema>;
 
-/** Motivo do "Sua nova senha": pedido em "Esqueci a senha" ou redefinida pelo BKO (ou pelo portal). */
+/** Motivo do "Sua senha temporária": pedido em "Esqueci a senha" ou redefinida pelo BKO (ou pelo portal). */
 export const MOTIVOS_NOVA_SENHA = ['esqueci', 'redefinida'] as const;
 export type MotivoNovaSenha = (typeof MOTIVOS_NOVA_SENHA)[number];
 
@@ -44,7 +45,7 @@ export const EmailDestinoSchema = z.string().trim().toLowerCase().email().max(25
 /** Dados do modelo (vão só dentro da carga cifrada da outbox). */
 export const DadosMensagemEmailSchema = z
   .object({
-    /** Vazio = "Olá." */
+    /** Só no `To:` (o corpo não leva o nome, spec §1); vazio = sem nome. */
     nome: texto(0, 120),
     empresa_nome: texto(1, 120),
     codigo_empresa: texto(1, 40),
@@ -92,7 +93,7 @@ export interface EmailRenderizado {
 
 export const ASSUNTOS_EMAIL: Readonly<Record<ModeloEmail, string>> = {
   acesso_inicial: 'Seu acesso ao Macuxi',
-  nova_senha: 'Sua nova senha do Macuxi',
+  nova_senha: 'Sua senha temporária do Macuxi',
 };
 
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -100,101 +101,194 @@ export function escaparHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ESCAPES[c] ?? c);
 }
 
-const ONDE_ENTRAR: Readonly<Record<(typeof APPS_COM_LOGIN)[number], string>> = {
+type AppComLogin = (typeof APPS_COM_LOGIN)[number];
+
+const ONDE_ENTRAR: Readonly<Record<AppComLogin, string>> = {
   campo: 'no app Macuxi Campo',
   gestao: 'no app Macuxi Gestão',
-  web: 'no backoffice do Macuxi, pelo navegador',
+  web: 'no backoffice',
 };
+/** Sem destino (admin redefinido pelo portal sem acesso ao portal, `apps = []`). */
+const SEM_DESTINO = 'no Macuxi';
 
-/** "no app Macuxi Campo ou no backoffice…" na ordem campo, gestão, web (design §8). */
-export function ondeEntrar(apps: readonly (typeof APPS_COM_LOGIN)[number][]): string {
-  return APPS_COM_LOGIN.filter((a) => apps.includes(a))
-    .map((a) => ONDE_ENTRAR[a])
-    .join(' ou ');
+/** "no app Macuxi Campo ou no backoffice" na ordem campo, gestão, web; sem destino, "no Macuxi" (spec §4). */
+export function ondeEntrar(apps: readonly AppComLogin[]): string {
+  const destinos = APPS_COM_LOGIN.filter((a) => apps.includes(a)).map((a) => ONDE_ENTRAR[a]);
+  return destinos.length > 0 ? destinos.join(' ou ') : SEM_DESTINO;
 }
 
-/** Linha do texto: parágrafo, rótulo + valor, ou a senha (monoespaçada no HTML). */
-type Linha = string | { rotulo: string; valor: string; senha?: boolean };
+/** Assinatura do manual da marca §7 (aprovada pelo dono do produto, R-20261114-202700). */
+export const RODAPE_EMAIL = 'Equipe Macuxi FDV · Boa Vista, RR · macuxifdv.com.br';
+/** Texto alternativo do logo (o `aria-label` do SVG); sem `urlLogo`, entra como texto no lugar do logo. */
+export const TEXTO_ALTERNATIVO_LOGO = 'Macuxi Força de Vendas';
+const ROTULO_BOTAO_BKO = 'Abrir o backoffice';
 
-const RODAPE = 'Macuxi FDV · e-mail automático, não responda.';
-
-function montar(assunto: string, linhas: readonly Linha[]): EmailRenderizado {
-  const textoPuro = linhas.map((l) => (typeof l === 'string' ? l : `${l.rotulo}: ${l.valor}`)).join('\n') + '\n';
-  const corpo = linhas
-    .map((l) => {
-      if (typeof l === 'string') return l === '' ? '' : `<p style="margin:0 0 12px">${escaparHtml(l)}</p>`;
-      if (l.senha) {
-        return (
-          `<p style="margin:0 0 4px">${escaparHtml(l.rotulo)}:</p>` +
-          `<p style="margin:0 0 12px"><span style="display:inline-block;background:#F8F6F1;color:#16202A;padding:8px 12px;font-family:Consolas,'Courier New',monospace;font-size:18px">${escaparHtml(l.valor)}</span></p>`
-        );
-      }
-      return `<p style="margin:0 0 4px">${escaparHtml(l.rotulo)}: <strong>${escaparHtml(l.valor)}</strong></p>`;
-    })
-    .filter(Boolean)
-    .join('\n');
-  const html =
-    '<!doctype html>\n<html lang="pt-BR"><head><meta charset="utf-8"><title>' +
-    escaparHtml(assunto) +
-    '</title></head>\n<body style="margin:0;background:#FFFFFF">\n' +
-    '<div style="max-width:560px;margin:0 auto;padding:24px;font-family:\'IBM Plex Sans\',Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#1f2933">\n' +
-    `<h1 style="font-family:Archivo,Arial,Helvetica,sans-serif;font-size:20px;margin:0 0 16px">${escaparHtml(assunto)}</h1>\n` +
-    corpo +
-    '\n</div>\n</body></html>\n';
-  return { assunto, texto: textoPuro, html };
+/**
+ * Apresentação (não vem da carga cifrada; vem da configuração da API). Sem `urlLogo`, o texto alternativo entra como texto;
+ * sem `urlLogoEscuro`, o modo escuro mantém o logo positivo (PNG com fundo branco opaco); sem `urlBackoffice`, não há botão.
+ */
+export interface OpcoesApresentacaoEmail {
+  urlLogo?: string;
+  urlLogoEscuro?: string;
+  urlBackoffice?: string;
 }
 
-function renderizarValidado(modelo: ModeloEmail, c: CargaEmail): EmailRenderizado {
-  const d = c.dados;
-  const ola = d.nome ? `Olá, ${d.nome}.` : 'Olá.';
-  const onde = ondeEntrar(d.apps);
-  const comApp = d.apps.includes('campo') || d.apps.includes('gestao');
-  const credenciais: Linha[] = [
-    { rotulo: 'Código da empresa', valor: d.codigo_empresa },
-    { rotulo: 'E-mail', valor: d.login },
-    { rotulo: 'Senha temporária', valor: d.senha, senha: true },
-  ];
-  if (modelo === 'acesso_inicial') {
-    const validade =
-      d.validade_horas === null
-        ? ['No primeiro acesso, você cria a sua senha.']
-        : [`No primeiro acesso, você cria a sua senha. A senha temporária vale por ${d.validade_horas} horas.`, 'Se ela vencer, use "Esqueci a senha" na tela de entrada.'];
-    return montar(ASSUNTOS_EMAIL.acesso_inicial, [
-      ola,
-      '',
-      `Seu acesso ao Macuxi na ${d.empresa_nome} está pronto.`,
-      '',
-      ...credenciais,
-      '',
-      ...(onde ? [`Entre ${onde}.`] : []),
-      ...(comApp ? ['Ainda não tem o app? Peça ao administrador da sua empresa.'] : []),
-      '',
-      ...validade,
-      '',
-      RODAPE,
-    ]);
+/** Modelo estruturado do layout-base (spec §2): um só layout para os três e-mails. */
+interface CorpoEmail {
+  titulo: string;
+  contexto: string;
+  /** Rótulo + valor, cada valor numa linha só dele; `destaque` = a senha (a maior coisa do bloco). */
+  dados: readonly { rotulo: string; valor: string; destaque?: boolean }[];
+  validade?: string;
+  botao?: { rotulo: string; url: string };
+}
+
+const F_TITULO = 'font-family:Archivo,Arial,Helvetica,sans-serif;';
+const F_TEXTO = "font-family:'IBM Plex Sans',Arial,Helvetica,sans-serif;";
+const F_MONO = "font-family:'IBM Plex Mono',Consolas,'Courier New',monospace;";
+const SELECIONAVEL = '-webkit-user-select:all;user-select:all;word-break:break-all';
+
+function cabecalhoHtml(op: OpcoesApresentacaoEmail): string {
+  const alt = escaparHtml(TEXTO_ALTERNATIVO_LOGO);
+  const estiloAlt = `${F_TITULO}font-size:16px;font-weight:700;`;
+  if (!op.urlLogo) {
+    return `<tr><td class="mx-marca" style="padding:0 0 28px;${estiloAlt}line-height:30px;color:#1E3350">${alt}</td></tr>\n`;
   }
-  const esqueci = d.motivo === 'esqueci';
-  const abertura = esqueci
-    ? `Recebemos um pedido de senha nova para o seu acesso na ${d.empresa_nome}.`
-    : d.redefinida_por === 'macuxi'
-      ? `O suporte da Macuxi definiu uma senha nova para o seu acesso na ${d.empresa_nome}.`
-      : `O administrador da ${d.empresa_nome} definiu uma senha nova para você.`;
-  const fecho = esqueci ? 'Se não foi você, ignore este e-mail: a sua senha atual continua valendo.' : 'A senha anterior não vale mais.';
-  const validade = d.validade_horas === null ? '' : ` A senha temporária vale por ${d.validade_horas} horas.`;
-  return montar(ASSUNTOS_EMAIL.nova_senha, [
-    ola,
-    '',
-    abertura,
-    '',
-    ...credenciais,
-    '',
-    `Entre ${onde || 'no Macuxi'} e crie a sua senha.${validade}`,
-    '',
-    fecho,
-    '',
-    RODAPE,
-  ]);
+  const img = (classe: string, url: string, extra: string) =>
+    `<img class="${classe}" src="${escaparHtml(url)}" width="139" height="30" alt="${alt}" style="${extra}border:0;height:30px;width:139px;${estiloAlt}`;
+  return (
+    '<tr><td style="padding:0 0 28px">\n' +
+    img('mx-claro', op.urlLogo, 'display:block;') +
+    'color:#1E3350">\n' +
+    (op.urlLogoEscuro ? `<!--[if !mso]><!-->${img('mx-escuro', op.urlLogoEscuro, 'display:none;')}color:#FFFFFF"><!--<![endif]-->\n` : '') +
+    '</td></tr>\n'
+  );
+}
+
+function dadosHtml(c: CorpoEmail): string {
+  const linhas = c.dados.map((d) => {
+    const rotulo = `<tr><td class="mx-rotulo" style="padding:${d.destaque ? '12px' : '0'} 20px 2px;${F_TEXTO}font-size:13px;line-height:18px;color:#5B6673">${escaparHtml(d.rotulo)}</td></tr>`;
+    const fonte = d.destaque ? `padding:0 20px ${c.validade ? 4 : 16}px;${F_MONO}font-size:22px;line-height:30px;font-weight:700;` : `padding:0 20px 12px;${F_MONO}font-size:17px;line-height:24px;font-weight:500;`;
+    return `${rotulo}\n<tr><td class="mx-valor" style="${fonte}color:#16202A;${SELECIONAVEL}">${escaparHtml(d.valor)}</td></tr>`;
+  });
+  const validade = c.validade
+    ? `\n<tr><td class="mx-texto" style="padding:0 20px 16px;${F_TEXTO}font-size:14px;line-height:20px;color:#4A5562">${escaparHtml(c.validade)}</td></tr>`
+    : '';
+  return (
+    '<tr><td>\n<table role="presentation" class="mx-dados" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F8F6F1" style="background:#F8F6F1;border:1px solid #DFE2E6;border-radius:8px">\n' +
+    '<tr><td style="height:16px;line-height:16px;font-size:0">&nbsp;</td></tr>\n' +
+    linhas.join('\n') +
+    validade +
+    '\n</table>\n</td></tr>\n'
+  );
+}
+
+function botaoHtml(b: CorpoEmail['botao']): string {
+  if (!b) return '';
+  return (
+    '<tr><td style="padding:24px 0 0">\n' +
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td class="mx-botao" bgcolor="#1E3350" style="border-radius:8px;background:#1E3350">\n' +
+    `<a class="mx-botao-txt" href="${escaparHtml(b.url)}" style="display:inline-block;padding:14px 24px;${F_TEXTO}font-size:16px;line-height:20px;font-weight:600;color:#FFFFFF;text-decoration:none;border-radius:8px">${escaparHtml(b.rotulo)}</a>\n` +
+    '</td></tr></table>\n</td></tr>\n'
+  );
+}
+
+/** `<head>`: o `<style>` só melhora onde o cliente aceita (celular e modo escuro); tudo o que importa está inline. */
+function cabecaHtml(assunto: string, op: OpcoesApresentacaoEmail): string {
+  const trocaLogo = op.urlLogo && op.urlLogoEscuro ? '    .mx-claro { display:none !important; }\n    .mx-escuro { display:block !important; }\n' : '';
+  return (
+    '<!doctype html>\n<html lang="pt-BR" xmlns="http://www.w3.org/1999/xhtml">\n<head>\n<meta charset="utf-8">\n' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">\n<meta name="x-apple-disable-message-reformatting">\n' +
+    '<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">\n' +
+    '<meta name="color-scheme" content="light dark">\n<meta name="supported-color-schemes" content="light dark">\n' +
+    `<title>${escaparHtml(assunto)}</title>\n<style>\n` +
+    '  :root { color-scheme: light dark; supported-color-schemes: light dark; }\n' +
+    '  body { margin:0; padding:0; -webkit-text-size-adjust:100%; }\n' +
+    '  a[x-apple-data-detectors] { color:inherit !important; text-decoration:none !important; }\n' +
+    '  .mx-escuro { display:none; mso-hide:all; }\n' +
+    '  @media (max-width:620px) {\n' +
+    '    .mx-folha { padding:24px 20px 20px !important; }\n' +
+    '    .mx-titulo { font-size:22px !important; line-height:28px !important; }\n' +
+    '    .mx-fora { padding:0 !important; }\n' +
+    '  }\n' +
+    '  @media (prefers-color-scheme: dark) {\n' +
+    '    .mx-fundo, .mx-folha, body { background:#1E3350 !important; }\n' +
+    '    .mx-titulo, .mx-valor, .mx-marca { color:#FFFFFF !important; }\n' +
+    '    .mx-texto, .mx-rotulo, .mx-assinatura { color:#C9CED5 !important; }\n' +
+    '    .mx-dados { background:#3A4D68 !important; border-color:#3A4D68 !important; }\n' +
+    '    .mx-filete { border-top-color:#C9CED5 !important; }\n' +
+    '    .mx-botao { background:#FFFFFF !important; }\n' +
+    '    .mx-botao-txt { color:#1E3350 !important; }\n' +
+    trocaLogo +
+    '  }\n</style>\n</head>\n'
+  );
+}
+
+/**
+ * Monta o HTML (tabelas, estilos inline, 600 px, modo escuro; spec §2 e §5, base `redefinir-senha/depois-*.html`) e a versão
+ * só texto (spec §3: mesmo conteúdo e ordem, cada valor numa linha só dele).
+ */
+function montar(assunto: string, c: CorpoEmail, op: OpcoesApresentacaoEmail): EmailRenderizado {
+  const texto =
+    [
+      c.titulo,
+      '',
+      c.contexto,
+      '',
+      ...c.dados.flatMap((d, i) => [...(i > 0 ? [''] : []), d.rotulo, d.valor]),
+      ...(c.validade ? [c.validade] : []),
+      ...(c.botao ? ['', `${c.botao.rotulo}: ${c.botao.url}`] : []),
+      '',
+      '--',
+      RODAPE_EMAIL,
+    ].join('\n') + '\n';
+  const html =
+    cabecaHtml(assunto, op) +
+    '<body class="mx-fundo" style="margin:0;padding:0;background:#F8F6F1">\n' +
+    '<table role="presentation" class="mx-fundo" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F8F6F1" style="background:#F8F6F1">\n' +
+    '<tr><td class="mx-fora" align="center" style="padding:24px 12px">\n' +
+    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px">\n' +
+    '<tr><td class="mx-folha" bgcolor="#FFFFFF" style="background:#FFFFFF;padding:32px 40px 28px;border-radius:12px">\n' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">\n' +
+    cabecalhoHtml(op) +
+    `<tr><td class="mx-titulo" style="padding:0 0 8px;${F_TITULO}font-size:24px;line-height:30px;font-weight:700;color:#16202A">${escaparHtml(c.titulo)}</td></tr>\n` +
+    `<tr><td class="mx-texto" style="padding:0 0 20px;${F_TEXTO}font-size:15px;line-height:22px;color:#4A5562">${escaparHtml(c.contexto)}</td></tr>\n` +
+    dadosHtml(c) +
+    botaoHtml(c.botao) +
+    '<tr><td style="padding:32px 0 0">\n' +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="mx-filete mx-assinatura" style="border-top:2px solid #1E3350;padding:12px 0 0;${F_TEXTO}font-size:13px;line-height:18px;color:#5B6673">${escaparHtml(RODAPE_EMAIL)}</td></tr></table>\n` +
+    '</td></tr>\n</table>\n</td></tr>\n</table>\n</td></tr>\n</table>\n</body>\n</html>\n';
+  return { assunto, texto, html };
+}
+
+/** Contexto do spec §3: uma linha que diz por que o e-mail chegou. */
+function contextoDe(modelo: ModeloEmail, d: CargaEmail['dados']): string {
+  if (modelo === 'acesso_inicial') {
+    const comApp = d.apps.includes('campo') || d.apps.includes('gestao');
+    return `A ${d.empresa_nome} criou o seu acesso.${comApp ? ' Ainda não tem o app? Peça ao administrador da sua empresa.' : ''}`;
+  }
+  if (d.motivo === 'esqueci') return `Foi pedida uma senha nova para o seu acesso na ${d.empresa_nome}. Se não foi você, ignore este e-mail.`;
+  if (d.redefinida_por === 'macuxi') return `O suporte da Macuxi redefiniu a sua senha na ${d.empresa_nome}.`;
+  return `O administrador da ${d.empresa_nome} redefiniu a sua senha.`;
+}
+
+function renderizarValidado(modelo: ModeloEmail, c: CargaEmail, op: OpcoesApresentacaoEmail): EmailRenderizado {
+  const d = c.dados;
+  return montar(
+    ASSUNTOS_EMAIL[modelo],
+    {
+      titulo: `Crie a sua senha ${ondeEntrar(d.apps)}`,
+      contexto: contextoDe(modelo, d),
+      dados: [
+        { rotulo: 'Código da empresa', valor: d.codigo_empresa },
+        { rotulo: 'E-mail', valor: d.login },
+        { rotulo: 'Senha temporária', valor: d.senha, destaque: true },
+      ],
+      ...(d.validade_horas === null ? {} : { validade: `Vale por ${d.validade_horas} horas.` }),
+      ...(d.apps.includes('web') && op.urlBackoffice ? { botao: { rotulo: ROTULO_BOTAO_BKO, url: op.urlBackoffice } } : {}),
+    },
+    op,
+  );
 }
 
 /** Valida a carga (Zod) e a coerência com o modelo. Lança `ZodError`/`Error` (sem valores: a mensagem é fixa). */
@@ -207,8 +301,8 @@ export function validarCargaEmail(modelo: ModeloEmail, carga: unknown): CargaEma
 }
 
 /** Renderiza o e-mail (valida antes). */
-export function renderizarEmail(modelo: ModeloEmail, carga: unknown): EmailRenderizado {
-  return renderizarValidado(modelo, validarCargaEmail(modelo, carga));
+export function renderizarEmail(modelo: ModeloEmail, carga: unknown, opcoes: OpcoesApresentacaoEmail = {}): EmailRenderizado {
+  return renderizarValidado(modelo, validarCargaEmail(modelo, carga), opcoes);
 }
 
 /** Marcadores que substituem os dados pessoais na versão de log. */
@@ -218,16 +312,16 @@ export const MARCADORES_EMAIL = { nome: '[nome]', email: '[e-mail]', senha: '***
  * A mesma mensagem com nome, e-mail/login e senha trocados por marcadores (RN-CORE-34): é o que pode ir para console/log.
  * Recebe a carga já validada.
  */
-export function renderizarEmailParaLog(modelo: ModeloEmail, c: CargaEmail): EmailRenderizado {
+export function renderizarEmailParaLog(modelo: ModeloEmail, c: CargaEmail, opcoes: OpcoesApresentacaoEmail = {}): EmailRenderizado {
   return renderizarValidado(modelo, {
     para: MARCADORES_EMAIL.email,
     dados: { ...c.dados, nome: c.dados.nome ? MARCADORES_EMAIL.nome : '', login: MARCADORES_EMAIL.email, senha: MARCADORES_EMAIL.senha },
-  });
+  }, opcoes);
 }
 
 /** A mensagem com só a senha mascarada (nome e login reais): opção do adaptador de arquivo. */
-export function renderizarEmailSemSenha(modelo: ModeloEmail, c: CargaEmail): EmailRenderizado {
-  return renderizarValidado(modelo, { ...c, dados: { ...c.dados, senha: MARCADORES_EMAIL.senha } });
+export function renderizarEmailSemSenha(modelo: ModeloEmail, c: CargaEmail, opcoes: OpcoesApresentacaoEmail = {}): EmailRenderizado {
+  return renderizarValidado(modelo, { ...c, dados: { ...c.dados, senha: MARCADORES_EMAIL.senha } }, opcoes);
 }
 
 /** Os valores sensíveis da carga (para conferir em teste que nada vazou num log): e-mail, nome, login e senha. */
