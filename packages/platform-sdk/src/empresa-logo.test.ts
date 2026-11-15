@@ -7,6 +7,7 @@ import {
   GravarNomeFantasiaSchema,
   LIMITES_LOGO,
   MarcaEmpresaSchema,
+  MENSAGENS_ACESSO_LOGO,
   MENSAGENS_LOGO,
   nomeDaEmpresa,
   parametrosDaEmpresa,
@@ -71,6 +72,12 @@ describe('conferirLogo (desenho §2.2; spec §2)', () => {
     expect(MENSAGENS_LOGO.LOGO_GRANDE_DEMAIS).toBe('O arquivo passa de 1 MB. Envie um menor.');
     expect(MENSAGENS_LOGO.LOGO_ALTURA_MINIMA).toBe('A imagem tem menos de 200 px de altura. Envie uma maior.');
     expect(MENSAGENS_LOGO.LOGO_LADO_MAXIMO).toBe('A imagem passa de 4096 px de largura ou altura. Envie uma menor.');
+  });
+
+  it('RN-CORE-33: o 403 da leitura diz o que a pessoa vê, sem falar em alterar; o da escrita diz quem altera', () => {
+    expect(MENSAGENS_ACESSO_LOGO.leitura).toBe('Você só vê a logo e o nome fantasia da sua empresa.');
+    expect(MENSAGENS_ACESSO_LOGO.leitura).not.toMatch(/alter/i);
+    expect(MENSAGENS_ACESSO_LOGO.escrita).toBe('Só o time da Macuxi altera a logo e o nome fantasia.');
   });
 });
 

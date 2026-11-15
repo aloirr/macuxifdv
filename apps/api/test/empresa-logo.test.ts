@@ -5,7 +5,7 @@
  * de verdade são testadas no CI pelo banco-dados (`db/testes/tenant-logo.db.test.ts`). Dados fictícios.
  */
 import { createHash } from 'node:crypto';
-import { CODIGOS_LOGO, LIMITES_LOGO, MENSAGENS_LOGO, type AcessoPortalAutenticado, type ClienteBanco, type LinhaMarcaTenant } from '@macuxi/platform-sdk';
+import { CODIGOS_LOGO, LIMITES_LOGO, MENSAGENS_ACESSO_LOGO, MENSAGENS_LOGO, type AcessoPortalAutenticado, type ClienteBanco, type LinhaMarcaTenant } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
 import { CHAVE_ARQUIVO_RE, criarArmazenamentoEmMemoria } from '../src/arquivos';
@@ -46,7 +46,7 @@ interface Estado {
 }
 
 /** As `sa_*` em memória, com a mesma regra do desenho §1.2 (sessão, acesso, idempotência, `chave_anterior`). */
-function montar(op: { erroGravar?: string; semArmazenamento?: boolean } = {}) {
+function montar(op: { erroGravar?: string; semArmazenamento?: boolean; negarLeitura?: boolean } = {}) {
   const tenants = new Map<string, Estado>([
     [TENANT, { razao_social: 'Distribuidora Exemplo Ltda', nome_fantasia: null, logo: null }],
     [OUTRO, { razao_social: 'Outra Empresa Ltda', nome_fantasia: null, logo: null }],
@@ -55,7 +55,7 @@ function montar(op: { erroGravar?: string; semArmazenamento?: boolean } = {}) {
   const erro = (code: string) => Object.assign(new Error('pg'), { code });
   const ler = (sid: string, t: string, escrita: boolean) => {
     if (sid !== SA.sessao_id && sid !== CLI.sessao_id) throw erro('28000');
-    if (sid === CLI.sessao_id && (escrita || t !== TENANT)) throw erro('42501');
+    if (sid === CLI.sessao_id && (escrita || t !== TENANT || op.negarLeitura)) throw erro('42501');
     const e = tenants.get(t);
     if (!e) throw erro('P0002');
     return e;
@@ -248,6 +248,22 @@ describe('GET/DELETE da logo e a marca no portal', () => {
     const r = await app.inject({ method: 'GET', url: `/v1/plataforma/empresas/${OUTRO}/marca`, headers: cli });
     expect(r.statusCode).toBe(403);
     expect((await app.inject({ method: 'GET', url: `/v1/plataforma/empresas/${OUTRO}/marca`, headers: sa })).json().razao_social).toBe('Outra Empresa Ltda');
+  });
+
+  it('RN-CORE-33: 403 da leitura (barreira da API ou 42501 da sa_*) diz "só vê … da sua empresa", sem "alter"; o da escrita diz quem altera', async () => {
+    for (const negarLeitura of [false, true]) {
+      const { app } = montar({ negarLeitura });
+      const alvo = negarLeitura ? TENANT : OUTRO;
+      for (const rota of ['marca', 'logo']) {
+        const r = await app.inject({ method: 'GET', url: `/v1/plataforma/empresas/${alvo}/${rota}`, headers: cli });
+        expect(r.statusCode).toBe(403);
+        expect(r.json()).toMatchObject({ codigo: 'PERFIL_SEM_ACESSO', mensagem: MENSAGENS_ACESSO_LOGO.leitura });
+        expect(r.json().mensagem).not.toMatch(/alter/i);
+      }
+    }
+    const { app } = montar();
+    const r = await app.inject({ method: 'DELETE', url: `/v1/plataforma/empresas/${TENANT}/logo`, headers: cli });
+    expect(r.json()).toMatchObject({ codigo: 'PERFIL_SEM_ACESSO', mensagem: MENSAGENS_ACESSO_LOGO.escrita });
   });
 });
 

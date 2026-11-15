@@ -45,6 +45,15 @@ export const MENSAGENS_LOGO: Readonly<Record<CodigoLogo, string>> = {
   LOGO_NAO_ENCONTRADA: 'Esta empresa ainda não tem logo.',
 };
 
+/**
+ * Frases do 403 `PERFIL_SEM_ACESSO` nas rotas da marca (RN-CORE-33): `leitura` nos GET (admin do cliente fora da própria empresa,
+ * na barreira da API ou no 42501 da `sa_*`); `escrita` no PUT e no DELETE (só o super-admin grava).
+ */
+export const MENSAGENS_ACESSO_LOGO = {
+  leitura: 'Você só vê a logo e o nome fantasia da sua empresa.',
+  escrita: 'Só o time da Macuxi altera a logo e o nome fantasia.',
+} as const;
+
 export const ehTipoLogo = (t: unknown): t is TipoLogo => typeof t === 'string' && (TIPOS_LOGO as readonly string[]).includes(t);
 
 /** Resultado da conferência dos bytes; o `status` é o HTTP da recusa. */

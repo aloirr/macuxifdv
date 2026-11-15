@@ -21,6 +21,7 @@ import {
   GravarNomeFantasiaSchema,
   LIMITES_LOGO,
   MarcaEmpresaSchema,
+  MENSAGENS_ACESSO_LOGO,
   MENSAGENS_LOGO,
   ROTA_ME_EMPRESA_LOGO,
   Sha256LogoSchema,
@@ -102,16 +103,17 @@ function resposta(m: MarcaBruta): MarcaEmpresa {
 const ParamsEmpresa = z.object({ tenant_id: z.string().uuid() }).strict();
 const ParamsLogoAparelho = z.object({ sha256: Sha256LogoSchema }).strict();
 
-const SO_A_MACUXI = 'Só o time da Macuxi altera a logo e o nome fantasia.';
-
 /** A chave do objeto é do próprio tenant (`<tenant>/plataforma/...`; o banco tem o CHECK, aqui ela vira caminho). */
 const chaveDoTenant = (chave: string, tenantId: string): boolean => chave.startsWith(`${tenantId.toLowerCase()}/plataforma/`);
 const semLogo = () => new ErroHttp(404, CODIGOS_LOGO.naoEncontrada, MENSAGENS_LOGO[CODIGOS_LOGO.naoEncontrada]);
 
-/** SQLSTATE das `sa_*` → HTTP: os comuns (`traduzirErroSa`) + os desta rota. */
-const traduzir = (e: unknown): never =>
+/** Leitura (GET) ou escrita (PUT/DELETE): decide a frase do 403. */
+type Acesso = keyof typeof MENSAGENS_ACESSO_LOGO;
+
+/** SQLSTATE das `sa_*` → HTTP: os comuns (`traduzirErroSa`) + os desta rota; o 42501 leva a frase do acesso pedido. */
+const traduzir = (e: unknown, acesso: Acesso): never =>
   traduzirErroSa(e, (c) => {
-    if (c === '42501') throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', SO_A_MACUXI);
+    if (c === '42501') throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', MENSAGENS_ACESSO_LOGO[acesso]);
     if (c === 'P0002') throw new ErroHttp(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada.');
     if (c === '22023' || c === '23514') throw new ErroHttp(400, 'VALIDACAO', 'Dados da logo ou do nome fantasia inválidos.');
     if (c === '42883') throw new ErroHttp(503, 'MARCA_INDISPONIVEL', 'Logo e nome fantasia indisponíveis neste servidor.');
@@ -139,17 +141,17 @@ export function registrarRotasMarcaEmpresa(app: FastifyInstance, dep: DepsMarcaE
   const exigirLeitura = async (req: FastifyRequest, tenantId: string): Promise<AcessoPortalAutenticado> => {
     const quem = await exigirPortal(dep.autenticar, req, tenantId);
     if (quem.tipo === 'admin_cliente' && quem.empresa?.tenant_id.toLowerCase() !== tenantId)
-      throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Você só vê a logo da sua empresa.');
+      throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', MENSAGENS_ACESSO_LOGO.leitura);
     return quem;
   };
-  const exigirEscrita = (req: FastifyRequest, tenantId: string) => exigirSuperAdmin(dep.autenticar, req, tenantId, SO_A_MACUXI);
+  const exigirEscrita = (req: FastifyRequest, tenantId: string) => exigirSuperAdmin(dep.autenticar, req, tenantId, MENSAGENS_ACESSO_LOGO.escrita);
 
-  const chamar = async (f: () => Promise<unknown>, funcao: string): Promise<MarcaBruta> => {
+  const chamar = async (f: () => Promise<unknown>, funcao: string, acesso: Acesso): Promise<MarcaBruta> => {
     let bruto: unknown;
     try {
       bruto = await f();
     } catch (e) {
-      traduzir(e);
+      traduzir(e, acesso);
     }
     const m = conferirRetorno(MarcaBrutaSchema, bruto, funcao);
     for (const c of [m.logo?.chave, m.chave_anterior])
@@ -187,7 +189,7 @@ export function registrarRotasMarcaEmpresa(app: FastifyInstance, dep: DepsMarcaE
   app.get('/v1/plataforma/empresas/:tenant_id/marca', async (req, reply) => {
     const tenantId = tenantDa(req);
     const quem = await exigirLeitura(req, tenantId);
-    const m = await chamar(() => fonte.marca(quem.sessao_id, tenantId, dep.acessoPortal), 'sa_marca_da_empresa');
+    const m = await chamar(() => fonte.marca(quem.sessao_id, tenantId, dep.acessoPortal), 'sa_marca_da_empresa', 'leitura');
     return reply.header('cache-control', 'private, no-store').send(resposta(m));
   });
 
@@ -195,14 +197,14 @@ export function registrarRotasMarcaEmpresa(app: FastifyInstance, dep: DepsMarcaE
     const tenantId = tenantDa(req);
     const quem = await exigirEscrita(req, tenantId);
     const corpo = dep.validar(GravarNomeFantasiaSchema, req.body, 'corpo') as GravarNomeFantasia;
-    const m = await chamar(() => fonte.gravarNome(quem.sessao_id, tenantId, corpo.nome_fantasia, dep.acessoPortal), 'sa_gravar_nome_fantasia');
+    const m = await chamar(() => fonte.gravarNome(quem.sessao_id, tenantId, corpo.nome_fantasia, dep.acessoPortal), 'sa_gravar_nome_fantasia', 'escrita');
     return reply.header('cache-control', 'private, no-store').send(resposta(m));
   });
 
   app.get('/v1/plataforma/empresas/:tenant_id/logo', async (req, reply) => {
     const tenantId = tenantDa(req);
     const quem = await exigirLeitura(req, tenantId);
-    const m = await chamar(() => fonte.marca(quem.sessao_id, tenantId, dep.acessoPortal), 'sa_marca_da_empresa');
+    const m = await chamar(() => fonte.marca(quem.sessao_id, tenantId, dep.acessoPortal), 'sa_marca_da_empresa', 'leitura');
     if (!m.logo) throw semLogo();
     return enviarBytesDaLogo(reply, req.log, tenantId, m.logo, 'private, no-store');
   });
@@ -210,7 +212,7 @@ export function registrarRotasMarcaEmpresa(app: FastifyInstance, dep: DepsMarcaE
   app.delete('/v1/plataforma/empresas/:tenant_id/logo', async (req, reply) => {
     const tenantId = tenantDa(req);
     const quem = await exigirEscrita(req, tenantId);
-    const m = await chamar(() => fonte.removerLogo(quem.sessao_id, tenantId, dep.acessoPortal), 'sa_remover_logo');
+    const m = await chamar(() => fonte.removerLogo(quem.sessao_id, tenantId, dep.acessoPortal), 'sa_remover_logo', 'escrita');
     await apagar(req, m.chave_anterior, tenantId);
     req.log.info({ tenant_id: tenantId, removida: Boolean(m.chave_anterior) }, 'logo removida');
     return reply.header('cache-control', 'private, no-store').send(resposta(m));
@@ -256,7 +258,7 @@ export function registrarRotasMarcaEmpresa(app: FastifyInstance, dep: DepsMarcaE
         const sha256 = createHash('sha256').update(bytes).digest('hex');
 
         // idempotente: a mesma imagem da atual = 200 sem gravar nada
-        const atual = await chamar(() => fonte.marca(quem.sessao_id, tenantId, dep.acessoPortal), 'sa_marca_da_empresa');
+        const atual = await chamar(() => fonte.marca(quem.sessao_id, tenantId, dep.acessoPortal), 'sa_marca_da_empresa', 'escrita');
         const base = { tenant_id: tenantId, tamanho_bytes: bytes.length, tipo: c.tipo, largura_px: c.largura_px, altura_px: c.altura_px };
         if (atual.logo?.sha256 === sha256) {
           req.log.info({ ...base, repetida: true, ms: Date.now() - inicio }, 'logo recebida');
@@ -277,6 +279,7 @@ export function registrarRotasMarcaEmpresa(app: FastifyInstance, dep: DepsMarcaE
                 dep.acessoPortal,
               ),
             'sa_gravar_logo',
+            'escrita',
           );
         } catch (e) {
           await apagar(req, chave, tenantId);
