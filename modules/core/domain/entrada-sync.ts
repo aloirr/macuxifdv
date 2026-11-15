@@ -3,6 +3,7 @@
  * (`EstadoMotorSync.carga`, `progresso`, `erro`) e devolve nome, número, total e percentual, por perfil e módulos efetivos.
  * A etapa 1 é sempre o envio do que ficou no aparelho; as demais agrupam as entidades puxadas.
  */
+import { ENTIDADES_CORE_CATALOGO_PRECOS } from '../contracts/entrada-sync';
 import type { EtapaEntrada, EtapaEntradaId, ParadaDiagnostico, ProgressoEntrada } from '../contracts/entrada-sync';
 
 interface DefEtapa {
@@ -41,9 +42,7 @@ const ENTIDADE_CAMPO: Record<string, EtapaEntradaId> = {
   parametro: 'pedidos_metas',
   notificacao: 'pedidos_metas',
   notificacao_leitura: 'pedidos_metas',
-  produto: 'catalogo_precos',
-  produto_unidade: 'catalogo_precos',
-  medida: 'catalogo_precos',
+  ...Object.fromEntries(ENTIDADES_CORE_CATALOGO_PRECOS.map((e) => [e, 'catalogo_precos' as const])),
   foto_tipo: 'fotos_materiais',
   cliente_foto: 'fotos_materiais',
   metas: 'pedidos_metas',
@@ -183,19 +182,12 @@ export function paradaParaDiagnostico(p: ProgressoEntrada): ParadaDiagnostico | 
   return p.parou_em ? { numero: p.parou_em.numero, total: p.total, nome: p.parou_em.nome } : null;
 }
 
-/** Etapa que, ao terminar, libera a entrada no app (RN nova da entrada antecipada, ADR 0054). */
-const ETAPA_LIBERA_CAMPO: EtapaEntradaId = 'clientes_rota';
-const ETAPA_LIBERA_GESTAO: EtapaEntradaId = 'equipe';
-
 /**
- * RN nova da entrada antecipada (ADR 0054): na primeira carga o usuário entra no app quando "Clientes e rota" (Campo) ou
- * "Equipe" (Gestão) terminam; o catálogo segue carregando. Verdadeiro com a etapa de liberação `feita` ou a carga pronta.
+ * RN-CORE-48 (entrada antecipada, ADR 0054): etapa que, ao terminar, libera a entrada no app. "Clientes e rota" no Campo;
+ * "Equipe" na Gestão. O shell usa esta função para saber a etapa que libera.
  */
-export function entradaLiberada(progresso: Pick<ProgressoEntrada, 'etapas' | 'pronta'>): boolean {
-  if (progresso.pronta) return true;
-  const gestao = progresso.etapas.some((e) => e.id === 'equipe');
-  const alvo = gestao ? ETAPA_LIBERA_GESTAO : ETAPA_LIBERA_CAMPO;
-  return progresso.etapas.some((e) => e.id === alvo && e.situacao === 'feita');
+export function etapaQueLibera(perfil: string | null | undefined): EtapaEntradaId {
+  return ehGestao(perfil) ? 'equipe' : 'clientes_rota';
 }
 
 /**
@@ -203,7 +195,7 @@ export function entradaLiberada(progresso: Pick<ProgressoEntrada, 'etapas' | 'pr
  * essencial = do envio ou da etapa de liberação do perfil; quando todos concluem, o motor grava `sync:liberado_em`.
  */
 export function essencialDaEntrada(perfil: string | null | undefined, modulos: readonly string[]): (item: ItemDaCarga) => boolean {
-  const libera = ehGestao(perfil) ? ETAPA_LIBERA_GESTAO : ETAPA_LIBERA_CAMPO;
+  const libera = etapaQueLibera(perfil);
   return (item) => {
     const id = etapaDaEntidade(perfil, modulos, item);
     return id === 'envio' || id === libera;

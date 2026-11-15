@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { chaveDeOrdemDaCarga, entradaLiberada, essencialDaEntrada, etapaDaEntidade, etapasDaEntrada, paradaParaDiagnostico, progressoDaEntrada, type EntradaProgresso, type ItemDaCarga } from './entrada-sync';
+import { ENTIDADES_CORE_CATALOGO_PRECOS } from '../contracts/entrada-sync';
+import { chaveDeOrdemDaCarga, essencialDaEntrada, etapaDaEntidade, etapaQueLibera, etapasDaEntrada, paradaParaDiagnostico, progressoDaEntrada, type EntradaProgresso, type ItemDaCarga } from './entrada-sync';
 
 const base = (o: Partial<EntradaProgresso> = {}): EntradaProgresso => ({
   perfil: 'vendedor',
@@ -161,30 +162,19 @@ describe('RN-CORE-48: etapas em sequência, sem voltar', () => {
 
 describe('RN nova da entrada antecipada (ADR 0054): entra quando Clientes e rota terminam; o catálogo segue carregando', () => {
   const modulosCampo = ['core', 'catalogo', 'vendedor', 'promotor'];
-  const em = (perfil: string, modulos: string[], entidade: string | null, modulo: string | null) =>
-    progressoDaEntrada(base({ perfil, modulos, carga: { entidade, modulo, concluidas: 5, total: 40 }, progresso: 0.3 }));
 
   it('RN-CORE-48 revista: o catálogo é a última etapa do Campo e Aprovações a última da Gestão', () => {
     expect(etapasDaEntrada('vendedor', modulosCampo).at(-1)!.id).toBe('catalogo_precos');
     expect(etapasDaEntrada('gerente', ['core', 'vendedor', 'gestor']).at(-1)!.id).toBe('aprovacoes');
   });
-  it('RN nova da entrada antecipada: Campo não libera no envio nem em Clientes e rota em curso', () => {
-    expect(entradaLiberada(em('vendedor', modulosCampo, null, null))).toBe(false);
-    expect(entradaLiberada(em('vendedor', modulosCampo, 'cliente', 'core'))).toBe(false);
+  it('RN-CORE-48: a etapa que libera a entrada é Clientes e rota no Campo e Equipe na Gestão', () => {
+    expect(etapaQueLibera('vendedor')).toBe('clientes_rota');
+    expect(etapaQueLibera('promotor')).toBe('clientes_rota');
+    expect(etapaQueLibera('supervisor')).toBe('equipe');
+    expect(etapaQueLibera('gerente')).toBe('equipe');
   });
-  it('RN nova da entrada antecipada: Campo libera quando Clientes e rota estão feita (já em Pedidos e metas) e segue liberado no catálogo', () => {
-    expect(entradaLiberada(em('vendedor', modulosCampo, 'pedido', 'vendedor'))).toBe(true);
-    const noCatalogo = em('vendedor', modulosCampo, 'tabela_preco', 'catalogo');
-    expect(noCatalogo.pronta).toBe(false);
-    expect(entradaLiberada(noCatalogo)).toBe(true);
-  });
-  it('RN nova da entrada antecipada: Gestão libera quando Equipe termina; em Equipe em curso, não', () => {
-    const m = ['core', 'vendedor', 'gestor'];
-    expect(entradaLiberada(em('gerente', m, 'painel_vendedor_dia', 'gestor'))).toBe(false);
-    expect(entradaLiberada(em('gerente', m, 'meta', 'core'))).toBe(true);
-  });
-  it('RN nova da entrada antecipada: carga pronta sempre libera', () => {
-    expect(entradaLiberada(progressoDaEntrada(base({ sincronizando: false, sincronizado: true, progresso: 1 })))).toBe(true);
+  it('RN-CORE-48: as entidades do Core do Catálogo e preços caem na etapa catalogo_precos', () => {
+    for (const e of ENTIDADES_CORE_CATALOGO_PRECOS) expect(etapaDaEntidade('vendedor', modulosCampo, { entidade: e, modulo: 'core' })).toBe('catalogo_precos');
   });
   it('RN nova da entrada antecipada: essenciais do Campo são envio e Clientes e rota; o resto, inclusive o catálogo, não', () => {
     const essencial = essencialDaEntrada('vendedor', modulosCampo);
