@@ -14,10 +14,6 @@
 | SDK (`packages/platform-sdk/src/planos.ts`) | contratos e regras puras (`valorDaAssinatura`, `fimDoTeste`, `conferirTrocaDePlano`, `conferirNovoUsuario`) | — |
 | API (`apps/api/src/planos-portal.ts`) | as 4 rotas, atrás de `MACUXI_PLANOS` (desligado) | 3 das 4 rotas chamam funções que o banco ainda não tem; só o `POST` da empresa com plano acha a sua (`sa_gravar_assinatura`), e ele depende do catálogo |
 | Portal (`apps/web/app/config/**`) | nada de planos: a Nova empresa ainda marca módulo por módulo | as telas da §2 |
-| Regras (doc 03) | — | as RN-PLA-01..06, hoje só na ADR 0047 |
-| Trava no BKO (RN-PLA-04) | — | depois da `licencas_do_tenant()` |
-
-**Conclusão:** com o que está no `main`, o portal só consegue mostrar a **coluna Plano na lista de empresas** (0071). A Nova empresa com plano, a ficha e a troca dependem do banco (3 funções, o histórico e o seed).
 
 ## 2. Simulações
 
@@ -42,7 +38,9 @@
 
 O que muda em relação às simulações de 14/11:
 - **Largura:** 1366 px em todas. A aba Empresa e o diálogo cabem sem rolagem. Na Nova empresa, a tela 2 mostra a página rolada até o cartão Plano; o "Criar empresa" fica no fim da página, abaixo da dobra (§11.1).
-- **Tela 6 (nova):** Light escolhido para a empresa da ficha (14 vendedores e 2 gestores em uso; o Light tem 10 e 1). O erro fica embaixo dos planos, uma linha por item, e o principal desabilitado usa o `.btn.off` do portal (MC-0041).
+- **Tela 6 (nova):** Light escolhido para a empresa da ficha (14 vendedores e 2 gestores em uso); o principal desabilitado usa o `.btn.off` do portal (MC-0041).
+
+Ao aprovar, estas substituem `depois-03b`, `depois-06b`, `depois-06c` e `depois-06d` do `portal-config-enxuto.md`, e as §11.4, §11.5 e §13 passam a apontar para cá.
 
 ## 3. Ordem proposta para o código (depois da aprovação)
 1. **banco-dados:** as 3 funções, o histórico, a `licencas_do_tenant()` e o seed dos 4 planos.
@@ -55,6 +53,7 @@ O que muda em relação às simulações de 14/11:
 1. **Simulações:** aprova as 6 telas em 1366 × 768?
 2. **Edição do catálogo:** a ADR 0047 deixa preço e licenças só no seed, sem tela. Fica assim, ou quer uma página "Planos" no portal para o super-admin editar o catálogo? Se quiser, ela vira tarefa nova, com simulação própria.
 3. **Ordem:** o engenheiro-apps pode publicar a coluna Plano (tela 1) antes das funções do banco?
+4. **Texto do erro da troca (tela 6):** troca o texto aprovado em 14/11 ("O plano Light tem 10 licenças de vendedor e a empresa usa 14.") por "Vendedores: 14 em uso. Inative 4 antes de trocar." e "Gestores: 2 em uso. Inative 1 antes de trocar."? Se aprovar, a mensagem de `conferirTrocaDePlano` (`packages/platform-sdk/src/planos.ts`, do engenheiro-software) e o §11.4 mudam junto.
 
 ## 5. Premissas
 - **Recados:** o repositório `aloirr/macuxifdv-recados` respondeu HTTP 403 nesta sessão; a caixa do designer-ux não foi lida. Valem as decisões do §11 do `portal-config-enxuto.md` e da ADR 0047.
