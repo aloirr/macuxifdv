@@ -80,3 +80,9 @@ Em 13/11/2026 o catálogo foi alinhado ao parecer final da v1.0.5 (o primeiro ti
 | MC-0142 | `pareceres/2026-11-15-v1013-pareceres.md` | #375: valor em destaque em 700 (RD-1231) | média | modulo-core | aberto; 600 |
 | MC-0143 | `pareceres/2026-11-15-v1013-pareceres.md` | #375: sigla da medida em `font-mono` (`medidas-panel.tsx:108,162`) | baixa | modulo-core | aberto; fonte de texto |
 | MC-0144 | `pareceres/2026-11-15-v1013-pareceres.md` | #385: tamanhos fora da escala do app (`tela-performance.tsx:212` 30, `:213,224` 24, `rota.tsx:396` 13) | média | modulo-core | aberto; 28/22/14 |
+| MC-0145 | `pareceres/2026-11-15-v1013-pareceres.md` | #397: `text-[14px]` na tabela do portal (`tela-frases-carga.tsx:121`) | média | engenheiro-apps | aberto; 15 |
+| MC-0146 | `pareceres/2026-11-15-v1013-pareceres.md` | #397: comentário "(Plex 15, ~20 dp…)" em `lib/entrada.ts:40`; `saudacao` em `fontSize: 15` (`tela-entrada.tsx:346`) | baixa | engenheiro-apps | aberto; "fonte do sistema 16", 16 e conferir `LINHA_SAUDACAO` |
+| MC-0147 | `pareceres/2026-11-15-v1013-pareceres.md` | #404: valor em destaque em 700 (`cards-pedidos.tsx:20`, `folha-do-item.tsx:149,162`, `novo-pedido-itens.tsx:85`, `tabelas-pedido.tsx:152,157`, `new-order-screen.tsx:954`, `rascunhos-screen.tsx:132`, `order-detail-screen.tsx:752`, `orders-page.tsx:101`) | média | modulo-vendedor | aberto; 600 |
+| MC-0148 | `pareceres/2026-11-15-v1013-pareceres.md` | #404: PDF do pedido com rótulo e cabeçalho de tabela em 700 (`pdf-pedido.ts:206,215,227`; conferir `:243`) | média | modulo-vendedor | aberto; 600 |
+| MC-0149 | `pareceres/2026-11-15-v1013-pareceres.md` | #427: preço em destaque em 700 (`comum.tsx` 18, `produto.tsx` 22) | média | modulo-catalogo | aberto; 600 |
+| MC-0150 | `pareceres/2026-11-15-v1013-pareceres.md` | #427: PDF da exportação com `h2` em 15px (`exportacao/pdf.ts`) | baixa | modulo-catalogo | aberto; 17 |
