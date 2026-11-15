@@ -307,7 +307,7 @@ describe('GET /v1/catalogo/busca — IA, contingência e cota (RN-CAT-03)', () =
     const porta = portaFalsa(new Error('fora do ar'));
     const { rota } = montar({ portaIa: () => porta });
     const r = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'CAF-500' } });
-    expect(r.corpo).toMatchObject({ interpreted_by: 'nenhum', degraded: false, notice: null, remaining_ai_queries: null });
+    expect(r.corpo).toMatchObject({ interpreted_by: 'regras', degraded: false, notice: null, remaining_ai_queries: null });
     expect(skus(r.corpo.items)).toEqual(['CAF-500']);
     expect(porta.chamadas).toBe(0);
     expect([...memoria.estado(TENANT_A).usoIa.values()]).toEqual([]);

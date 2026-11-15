@@ -189,7 +189,8 @@ interface Interpretacao {
  */
 async function interpretar(ctx: ContextoBase, dep: DependenciasRotas, q: ConsultaBuscaQuery, semIa: boolean, vocab: VocabularioTenant, p: ParametrosCatalogo, uso: Awaited<ReturnType<RepositorioCatalogo['usoIa']>>, dia: string): Promise<Interpretacao> {
   // RN-CAT-03: texto que parece código vai direto à busca exata/FTS: sem IA, sem cota gasta e sem aviso de indisponível
-  if (semIa) return { filtros: interpretarConsulta(q.q, vocab), interpreted_by: 'nenhum', degraded: false, notice: null, remaining_ai_queries: null };
+  // modo básico = 'nenhum'; código = as mesmas regras da busca sem provedor de IA ('regras')
+  if (semIa) return { filtros: interpretarConsulta(q.q, vocab), interpreted_by: q.mode === 'basica' ? 'nenhum' : 'regras', degraded: false, notice: null, remaining_ai_queries: null };
   const timeoutMs = timeoutIaDoTenant(ctx.parametros());
   const porta = dep.portaIa?.(timeoutMs) ?? null;
   let ia: { permitido: boolean; mensagem: string | null } = { permitido: porta !== null, mensagem: null };
