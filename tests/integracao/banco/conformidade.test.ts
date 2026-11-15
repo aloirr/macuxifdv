@@ -83,6 +83,7 @@ const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
     'só dado técnico; audita só a contagem',
   'plataforma.sa_diagnostico(p_sid uuid, p_id uuid)':
     `${SA}; só super-admin; detalhe + chave do print recebido (a API lê os bytes); P0002 se não achar; audita o id`,
+  'plataforma.sa_gravar_assinatura(p_sid uuid, p_tenant uuid, p jsonb)': `${SA}; só super-admin; idempotente por tenant`,
 };
 
 /** Funções de deploy (T-0093, ADR 0031 §5): SECURITY INVOKER, chamadas pela conexão de administração; ninguém mais executa. */
