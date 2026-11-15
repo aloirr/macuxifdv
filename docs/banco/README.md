@@ -215,6 +215,17 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > retenção); código da licença nunca reaproveitado (gatilho e sorteio); despachante e e-mail pulam a empresa inativa (políticas
 > do worker). Detalhes no [plataforma.md](plataforma.md); teste `db/testes/empresa-acoes.db.test.ts`.
 >
+> **2026-11-15 (ADR 0054, pacote pronto da primeira carga):** `0074_plataforma_sync_pacote` (em cima da 0073; aditiva):
+> `plataforma.sync_pacote` (um `.sqlite.gz` por tenant, módulo e partição; um só pronto vivo por partição; chave do arquivo com o
+> tenant da linha) e `plataforma.sync_pacote_pedido` (pedido de geração idempotente por partição), fora do sync; app lê e pede,
+> worker gera; índice `catalogo.tabela_preco_item_filial_sync_ix (tenant_id, filial_id, updated_at, id)`. Detalhes no
+> [sync-pacote.md](sync-pacote.md); teste `db/testes/sync-pacote.db.test.ts`.
+>
+> **2026-11-15 (decisão do dono do produto, R-20261115-073000-alexandre, item 3):** `0075_catalogo_referencia_marca_opcional`:
+> `catalogo.produto_referencia.marca_id` aceita nulo (referência só com o código) e o único vivo passa a ser
+> `produto_referencia_produto_codigo_uk (tenant_id, produto_id, codigo_compacto)`; as vivas que repetiam o código no produto ficam
+> só na de menor ordem. Detalhes no [catalogo.md](catalogo.md); teste `db/testes/referencia-marca-opcional.db.test.ts`.
+>
 > **2026-11-15 (T-0176, R-20261115-093000 e R-20261115-094500):** `0077_core_usuario_filial` (0070–0073 no main; 0074–0076 de outros lotes):
 > `core.usuario.filial_cadastro_id` (nula = bloqueado) e `core.usuario_filial` (filiais de venda); a de cadastro está entre as
 > de venda (gatilho adiado `usuario_filial_inclui_cadastro`, 23514, hint RN-CORE-39). Backfill: na empresa com uma filial viva,

@@ -259,8 +259,15 @@ class TestRegrasDoHub(unittest.TestCase):
         self.assertEqual(self.validar("produto", {"marca_codigo": ""}).recusadas, [])
         self.assertEqual([r.campo for r in self.validar("produto", {"marca_codigo": "9" * 31}).recusadas], ["marca_codigo"])
 
+    def test_marca_referencia_codigo_e_opcional_so_vale_com_a_referencia_e_vai_ate_o_limite_do_external_id(self):
+        res = self.validar("produto", {"marca_referencia_codigo_1": "980"})
+        self.assertEqual((res.recusadas, res.validas[0][1]["marca_referencia_codigo_1"]), ([], "980"))
+        self.assertEqual(self.validar("produto", {"marca_referencia_codigo_1": ""}).recusadas, [])
+        self.assertEqual([r.campo for r in self.validar("produto", {"referencia_2": "", "marca_referencia_codigo_2": "5"}).recusadas], ["marca_referencia_codigo_2"])
+        self.assertEqual([r.campo for r in self.validar("produto", {"marca_referencia_codigo_1": "9" * 201}).recusadas], ["marca_referencia_codigo_1"])
+
     def test_produto_sem_nenhuma_referencia_passa(self):
-        res = self.validar("produto", {"referencia_1": "", "marca_referencia_1": ""})
+        res = self.validar("produto", {"referencia_1": "", "marca_referencia_codigo_1": "", "marca_referencia_1": ""})
         self.assertEqual(res.recusadas, [])
         self.assertNotIn("referencia_1", res.validas[0][1])
 

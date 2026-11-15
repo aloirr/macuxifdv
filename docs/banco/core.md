@@ -41,6 +41,7 @@ Login: código da empresa → `plataforma.tenant_por_codigo` → transação com
 | sku | text not null | único por tenant |
 | ean | text | 8 a 14 dígitos |
 | nome, marca, categoria | text | |
+| marca_codigo | varchar(30) | código da marca no ERP (ex.: 980); nulo = sem código; card do Catálogo (0076) |
 | unidade | text not null | padrão `UN` (`PC`, `JG`, ...) |
 | ativo | boolean not null | |
 
@@ -1014,6 +1015,17 @@ no banco (usuários antigos e o admin inicial do provisionamento não têm códi
 
 Volta: `0069_core_cargo_hierarquia.down.sql` (saem os 4 gatilhos do promotor, as 2 funções e a view; ver plataforma.md). Teste: `db/testes/cargo-hierarquia.db.test.ts`.
 
+## 0076 — código da marca no ERP no produto (`0076_core_produto_marca_codigo`; decisão do dono do produto R-20261115-080000-alexandre, item 1)
+Aditiva: `core.produto.marca_codigo varchar(30)` nula, sem padrão (não reescreve a tabela), sem CHECK e sem índice (só exibição,
+nunca filtro). Vem do ERP pelo Hub (`marca_codigo` do produto no contrato v1, opcional; view `vw_macuxi_produto` em
+`db/conector/views-modelo.sql`, ao lado de `marca`) e o Catálogo mostra no card. Texto vazio do ERP: o consumidor do Core grava
+nulo (o banco não recusa, para o produto não cair por isso). RLS, grants e índices de `core.produto` ficam como estão.
+Numeração: 0070 a 0075 estão reservadas por branches abertos; a 0076 entra no `main` depois delas (o migrador exige
+numeração contínua).
+
+Volta: `0076_core_produto_marca_codigo.down.sql` apaga a coluna (os códigos voltam na próxima carga do ERP). Volte antes o Core
+que lê/grava a coluna (senão 42703). Teste: `db/testes/produto-marca-codigo.db.test.ts`.
+
 ## 0077 — filial de cadastro e filiais de venda (`0077_core_usuario_filial`; T-0176, RN-CORE-39, decisões R-20261115-093000 e R-20261115-094500)
 Todo usuário (inclusive admin e analista) tem uma **filial de cadastro** e uma ou mais **filiais de venda**; a de cadastro
 está entre as de venda. Sem filial de cadastro o usuário fica **bloqueado** (domain/API do Core; o banco aceita o nulo).
@@ -1065,7 +1077,7 @@ regra: vale para o CLI (`pnpm tenant:criar`), as seeds e o portal — a `sa_prov
 continua com o texto da 0068. A conferência adiada `usuario_filial_inclui_cadastro` passa também no COMMIT do `macuxi_portal`.
 Assinatura, SECURITY INVOKER, `search_path` e ACL não mudam; o down volta ao texto da 0068.
 
-Volume: 1 a poucas linhas por usuário. Fixture: `USUARIO_FILIAL_FIXTURE` (grupo 0x68): todo usuário com cadastro e venda na
+Volume: 1 a poucas linhas por usuário. Fixture: `USUARIO_FILIAL_FIXTURE` (grupo 0x6a): todo usuário com cadastro e venda na
 padrão; o supervisor de A vende também na Boa Vista e o vendedor de B também na Campinas (o usuário bloqueado é montado pelo
 teste). Seeds: demo (`db/seeds/demo/filial.ts`, `dadosDemoUsuarioFilial`) com os 7 logins na Manaus (cadastro e venda) e os 2
 vendedores também na Boa Vista; Fase M com todos na padrão.
