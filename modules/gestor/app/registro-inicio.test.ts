@@ -9,7 +9,7 @@ const core = defineModule({
   versao: '0.1.0',
   perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'],
   apps: { campo: { abas: [] }, gestao: { abas: [] }, web: { menus: [] } },
-  ofereceConsultas: ['core.cadastro_resumo@1', 'core.calendario_metas@1'],
+  ofereceConsultas: ['core.cadastro_resumo@1', 'core.calendario_metas@1', 'core.produtividade_equipe@1'],
   ofereceExtensoes: ['cliente.abas', 'cliente.acoes', 'cliente.avisos', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'],
 });
 const gestor = { manifesto: manifest, paginas: [], extensoes: [...extensoesDoInicio<string>('Card'), ...extensoesDaFicha<string>('Aviso')] };

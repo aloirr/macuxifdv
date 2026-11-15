@@ -1,0 +1,20 @@
+/**
+ * Valores dos parâmetros do tenant que ficam DENTRO das regras de alerta da equipe (Parâmetros › Alertas, T-0180):
+ * tolerância, sem frequência e carência do cliente (RN-GES-01/02) e prazo da aprovação (RN-GES-03). A permanência mínima
+ * (RN-PRO-07) é do Promotor e não passa por aqui. Um valor, um lugar: são as mesmas chaves do tenant (parâmetros do módulo `gestor`) que o avaliador
+ * e a fila de aprovação já leem. `GET|PUT /v1/gestor/parametros/alertas` (ação `alerta_regra.gerenciar`).
+ */
+import { z } from 'zod';
+
+export const ParametrosAlertasEquipe = z
+  .object({
+    pct_tolerancia_frequencia: z.number().int().min(0).max(500),
+    dias_sem_visita_padrao: z.number().int().min(1).max(365),
+    dias_carencia_cliente_novo: z.number().int().min(0).max(365),
+    prazo_aprovacao_dias_uteis: z.number().int().min(1).max(30),
+  })
+  .strict();
+export type ParametrosAlertasEquipe = z.infer<typeof ParametrosAlertasEquipe>;
+
+export const CHAVES_PARAMETROS_ALERTAS = ['pct_tolerancia_frequencia', 'dias_sem_visita_padrao', 'dias_carencia_cliente_novo', 'prazo_aprovacao_dias_uteis'] as const;
+export type ChaveParametroAlerta = (typeof CHAVES_PARAMETROS_ALERTAS)[number];
