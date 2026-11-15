@@ -121,8 +121,7 @@ function ListaDePerfis({ emPainel }: { emPainel?: boolean }) {
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-4" data-testid="perfis.lista">
       {emPainel ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="text-[13px] font-semibold text-ink">{itens.length === 1 ? '1 perfil' : `${itens.length} perfis`}</span>
+        <div className="flex justify-end">
           <Button variant="primary" onClick={() => router.push(`${pathname}?novo=1`)} data-testid="perfis.novo">
             Novo perfil
           </Button>
