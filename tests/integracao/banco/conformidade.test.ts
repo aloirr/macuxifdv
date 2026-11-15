@@ -152,6 +152,13 @@ const DEFINER_REVISADAS_WORKER: Record<string, string> = {
     'etapa banco: reconfere a exclusao_bloqueada (RN-PLA-09), excluir_tenant, empresa_excluida (código nunca reaproveitado, RN-PLA-10), backup guardado 90 dias; idempotente',
   'plataforma.fechar_exclusao(p_exclusao uuid, p_resultado jsonb)':
     'concluida só na etapa arquivos (backup guardado 90 dias a contar daqui); falhou só na etapa banco (empresa intacta); idempotente',
+  // 0079 (T-0174, ADR 0054; fotos em lote): laço de trabalhos sob demanda; NÃO entram em DEFINER_REVISADAS (o app só lê e insere)
+  'plataforma.trabalho_reservar(p_processo text, p_trava_s integer)':
+    'reserva o próximo trabalho pendente de tenant ativo (skip locked) com trava de p_trava_s; devolve só id, tenant, módulo, nome, alvo, tentativas e fatias',
+  'plataforma.trabalho_devolver(p_id uuid, p_processo text, p_resultado text, p_erro text, p_espera_s integer)':
+    'devolve o trabalho do próprio processo (concluído, falhou ou de novo após p_espera_s); erro só como código; false se a trava não é mais dele',
+  'plataforma.trabalho_renovar(p_id uuid, p_processo text, p_trava_s integer)':
+    'estende a trava entre os itens só se o trabalho ainda é do processo; false = não é mais dele',
 };
 
 /**
@@ -187,9 +194,24 @@ async function definerExecutaveis(admin: pg.Client, papel: string, schemas: stri
   return r.rows;
 }
 
-/** Só as revisadas, todas com search_path fixo e nenhuma executável por PUBLIC. */
-function conferirDefiner(funcoes: Definer[], revisadas: Record<string, string>): void {
-  expect(funcoes.map((x) => x.assinatura).sort()).toEqual(Object.keys(revisadas).sort());
+/** Assinaturas (mesmo formato de definerExecutaveis) de todas as funções SECURITY DEFINER que existem nos schemas. */
+async function definerExistentes(admin: pg.Client, schemas: string[]): Promise<Set<string>> {
+  const r = await admin.query<{ assinatura: string }>(
+    `select n.nspname || '.' || p.proname || '(' || pg_get_function_arguments(p.oid) || ')' as assinatura
+       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where p.prosecdef and n.nspname = any($1)`,
+    [schemas],
+  );
+  return new Set(r.rows.map((x) => x.assinatura));
+}
+
+/**
+ * Só as revisadas, todas com search_path fixo e nenhuma executável por PUBLIC. Com `existentes`, a lista esperada só exige
+ * as revisadas que existem no banco (migração ainda fora do main); toda função executável continua tendo de estar na lista.
+ */
+function conferirDefiner(funcoes: Definer[], revisadas: Record<string, string>, existentes?: Set<string>): void {
+  const esperadas = Object.keys(revisadas).filter((a) => !existentes || existentes.has(a));
+  expect(funcoes.map((x) => x.assinatura).sort()).toEqual(esperadas.sort());
   for (const f of funcoes) {
     expect(f.config?.some((c) => c.startsWith('search_path=')), `${f.assinatura} sem search_path fixo`).toBe(true);
     expect(f.publico, `${f.assinatura} executável por PUBLIC`).toBe(false);
@@ -443,7 +465,8 @@ describe.skipIf(semBanco())('S0-023/S0-028 conformidade do banco para o isolamen
     });
 
     it('funções SECURITY DEFINER executáveis pelo worker (macuxi_worker): só as revisadas, com search_path fixo e sem EXECUTE para PUBLIC', async () => {
-      conferirDefiner(await definerExecutaveis(admin, PAPEL_WORKER, schemas), DEFINER_REVISADAS_WORKER);
+      // tolerante à 0079 (trabalho_*): exige da lista só o que existe; o executável fora da lista reprova do mesmo jeito
+      conferirDefiner(await definerExecutaveis(admin, PAPEL_WORKER, schemas), DEFINER_REVISADAS_WORKER, await definerExistentes(admin, schemas));
     });
 
     it('T-0091 funções SECURITY DEFINER executáveis pelo portal (macuxi_portal): só as sa_* revisadas, com search_path fixo e sem EXECUTE para PUBLIC', async () => {
