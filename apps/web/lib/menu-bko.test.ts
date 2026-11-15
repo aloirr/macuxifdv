@@ -10,6 +10,7 @@ import {
   ALTURA_DICA,
   alturaDoMenu,
   cabeTudoAberto,
+  destinoComBusca,
   grupoDaTela,
   hrefAtivo,
   hrefsNavegaveis,
@@ -271,5 +272,17 @@ describe('menu do BKO: altura e sanfona (§M3 itens 1–3)', () => {
     expect(cabeTudoAberto(grupos, ALTURA_1366X768)).toBe(false);
     expect(alturaDoMenu(grupos, new Set())).toBe(11 * 30 + 10 * 2);
     expect(alturaDoMenu(grupos, new Set(['cadastros']))).toBeLessThanOrEqual(ALTURA_1366X768);
+  });
+});
+
+describe('destinoComBusca (endereço antigo → Parâmetros, ADR 0058)', () => {
+  it('acrescenta a query atual antes da âncora e não mexe no destino sem query', () => {
+    expect(destinoComBusca('/parametros/acesso#core-usuarios-modulos', '?nivel=perfil&perfil=promotor')).toBe(
+      '/parametros/acesso?nivel=perfil&perfil=promotor#core-usuarios-modulos',
+    );
+    expect(destinoComBusca('/parametros/acesso', 'nivel=perfil')).toBe('/parametros/acesso?nivel=perfil');
+    expect(destinoComBusca('/parametros/acesso?a=1#x', '?b=2')).toBe('/parametros/acesso?a=1&b=2#x');
+    expect(destinoComBusca('/parametros/acesso#core-perfis', '')).toBe('/parametros/acesso#core-perfis');
+    expect(destinoComBusca('/parametros/acesso#core-perfis', '?')).toBe('/parametros/acesso#core-perfis');
   });
 });

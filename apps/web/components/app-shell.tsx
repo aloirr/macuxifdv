@@ -34,6 +34,7 @@ import { PROPORCAO_LOGO_HORIZONTAL, SRC_LOGO_NEGATIVO_GRAFITE } from '@/lib/logo
 import {
   ALTURA_ITEM,
   cabeTudoAberto,
+  destinoComBusca,
   grupoDaTela,
   hrefAtivo,
   hrefsNavegaveis,
@@ -154,7 +155,7 @@ export function EntradaBloqueada({ grupo }: { grupo: GrupoMenuBko }) {
         className={cx('flex h-[30px] shrink-0 cursor-not-allowed items-center justify-between rounded-lg px-2.5 text-disabled', TITULO_TEXTO, FOCO)}
       >
         {grupo.titulo}
-        <IconLock size={14} strokeWidth={2.2} className="shrink-0" />
+        <IconLock size={14} strokeWidth={2.2} className="shrink-0" aria-hidden />
       </div>
       <div
         id={idDica}
@@ -344,7 +345,7 @@ function MenuEstreito({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string
       <div className="-mr-4 flex min-w-0 flex-1 gap-1 overflow-x-auto pr-4 pb-1">
         {grupo.bloqueado ? (
           <span aria-disabled="true" className="flex h-9 shrink-0 items-center gap-1.5 px-3 text-[13px] whitespace-nowrap text-disabled">
-            <IconLock size={14} strokeWidth={2.2} className="shrink-0" />
+            <IconLock size={14} strokeWidth={2.2} className="shrink-0" aria-hidden />
             {TEXTO_SEM_LICENCA}
           </span>
         ) : (
@@ -380,7 +381,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   // ADR 0058: endereço antigo que virou painel de Parâmetros (`/perfis` → `/parametros/acesso#core-perfis`), com os efetivos já carregados
   const destinoAntigo = modulos.data ? visao.destinoParametros(pathname) : null;
   useEffect(() => {
-    if (destinoAntigo) router.replace(destinoAntigo);
+    if (destinoAntigo) router.replace(destinoComBusca(destinoAntigo, window.location.search));
   }, [destinoAntigo, router]);
   const usuario = session.user;
   const ambiente = useMemo(() => criarAmbienteWeb(() => (usuario ? { id: usuario.id, nome: usuario.name, perfil: usuario.perfil } : null)), [usuario]);

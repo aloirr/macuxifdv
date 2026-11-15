@@ -137,3 +137,16 @@ export function alturaDoMenu(grupos: readonly GrupoMenuBko[], abertos: 'todos' |
 export function cabeTudoAberto(grupos: readonly GrupoMenuBko[], alturaDisponivel: number): boolean {
   return alturaDoMenu(grupos, 'todos') <= alturaDisponivel;
 }
+
+/**
+ * Destino do endereço antigo que virou painel de Parâmetros, com a query atual preservada antes da âncora
+ * (`/usuarios-e-modulos?nivel=perfil` → `/parametros/acesso?nivel=perfil#core-…`; ADR 0058).
+ */
+export function destinoComBusca(destino: string, busca: string): string {
+  const q = busca.startsWith('?') ? busca.slice(1) : busca;
+  if (!q) return destino;
+  const i = destino.indexOf('#');
+  const base = i < 0 ? destino : destino.slice(0, i);
+  const ancora = i < 0 ? '' : destino.slice(i);
+  return `${base}${base.includes('?') ? '&' : '?'}${q}${ancora}`;
+}
