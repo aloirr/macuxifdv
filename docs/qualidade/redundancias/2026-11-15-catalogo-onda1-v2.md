@@ -14,7 +14,7 @@
 | 2 | `nuvem/catalogo-onda1-modulo-catalogo-v3` | 88122be7 → **6b1f4815** | modulo-catalogo | **COM ACHADO** no re-parecer: RD-0675 reaberto (resto). RD-0670 e RD-0676 fechados |
 | 3 | `nuvem/catalogo-onda1-designer-ux` | b63e1e3b → **87943b16** | designer-ux | **COM ACHADO** no re-parecer: RD-0671 fechado; novo RD-0696 |
 | 4 | `nuvem/catalogo-onda1-engenheiro-apps` | e4636797 → **541522ce** | engenheiro-apps | **LIMPO** no re-parecer (RD-0673, RD-0674 e RD-0677 fechados) |
-| 5 | `nuvem/catalogo-campo-modulo-catalogo-v8` | d2d4660f | modulo-catalogo | **COM ACHADO**: RD-0685 a RD-0693 abertos, mais os novos RD-0694 e RD-0695 |
+| 5 | `nuvem/catalogo-campo-modulo-catalogo-v8` | d2d4660f → **e390219f** | modulo-catalogo | **COM ACHADO** no re-parecer v8: 8 fechados; RD-0691, RD-0692 e RD-0694 (restos) e o novo RD-0698 seguram; RD-0699 não segura |
 
 ## 1. Reteste
 - **Branches 1 a 4:** os heads são **os mesmos** do parecer `2026-11-15-catalogo-onda1.md` (branch
@@ -207,3 +207,68 @@ Li só `git diff 346fabe3e..7fe323497` (1 commit, 2 arquivos: `carga-online.ts` 
 
 **Veredito do parecer final da onda 1 (depois do reteste): ONDA 1 LIBERADA.** Nenhum achado em aberto, de qualquer gravidade,
 nos 4 branches da onda 1 nos heads acima. Vale para esses heads: commit novo em qualquer um deles volta ao corretor.
+
+## Re-parecer v8 (2026-11-15, 12h05 Manaus) · branch 5 em d2d4660f → **e390219f**
+
+Pedido do gerente-projetos (Meta v1.0.13). Li `git diff d2d4660fd..e390219fd` (3 commits do dono: c9bfdff0 correções
+RD-0685 a RD-0695; fe2d0402 estoque nulo sem filial de venda; e390219f ajustes de marca MC-0130 a MC-0133) e
+`git diff origin/main...e390219fd`. Li a árvore só pelo worktree, sem checkout no diretório principal. O branch
+`nuvem/catalogo-campo-testes` ficou de fora, como pedido. Caixa e recados: HTTP 403. O gerente repassa a tabela ao
+modulo-catalogo.
+
+### Fechados (8)
+- **RD-0685 fechado.** `catalogo.tsx:184`: o chip só aparece com `nomesProprias.length > 1`. `rotuloChipFiliais` perdeu o ramo
+  "Filial X" de nome único (`estoque-campo.ts:101-104`), e o selo do Filtrar deixa de contar um filtro que não existe. Com uma
+  filial de venda, ela aparece só na faixa.
+- **RD-0686 fechado.** `estoque-folha.ts:26` ficou só com `${codigo} · ${hora}`. O teste "velho" confere que a idade não se repete.
+- **RD-0687 fechado.** A `filiaisDoEstoque` antiga e o `EntradaFiliaisDoEstoque` saíram de `domain/estoque.ts`. O repositório
+  expõe `filialDoCliente(clienteId)` (`repositorio.ts`, `repositorio-postgres.ts`). O `regras.md` aponta só para `estoque-campo.ts`.
+- **RD-0688 fechado.** Fica um leitor só, `lerFiliaisDoUsuario` (`estoque-campo.ts`, validado pelo `FilialDoUsuarioSchema`), e um
+  tipo só, `FiliaisDoUsuario`. Os dois adaptadores (`api/filiais-core.ts` e `app/lib/filiais-usuario.ts`) saíram com os testes
+  deles. Cada lado decide só o próprio fallback.
+- **RD-0689 fechado.** `rotuloAtualizacaoEstoque` saiu com o teste dela. `estoque.ts:4`, `contracts/busca.ts:103` e `regras.md`
+  citam `rotuloCargaEstoque`.
+- **RD-0690 fechado.** Saíram `podeVerEstoque` (com os 4 ramos), `filialNaCarteira` (com o caso dela) e `UsuarioFiliais.perfil`.
+- **RD-0693 fechado.** `visibilidade.ts:1-5`, `vitrine.ts:59` e `contracts/rotas.ts:26` só remetem a `estoque-campo.ts`.
+- **RD-0695 fechado.** O caso "alternativa em simulação" saiu de `estoque-campo.test.ts`.
+
+### Abertos ou reabertos (seguram a Meta)
+
+| RD | Onde (e390219f) | Gravidade | Dono | O que falta |
+|---|---|---|---|---|
+| RD-0691 (resto) | `modules/catalogo/app/lib/estoque-folha.ts:11` e `:25`; `telas/estoque-filial.tsx:29`; `estoque-folha.test.ts:27` | baixa | modulo-catalogo | Fechadas 3 partes: `codigosDoCartao` com um campo (`codigo`), um efeito só para a linha `usuario` e a prop `filialMarcada` fora. O texto agora usa a constante nos 3 lugares. **Falta** o campo `DadosDaFolha.titulo`, que é sempre `TITULO_FOLHA_ESTOQUE`, e a tela ainda faz `dados?.titulo ?? TITULO_FOLHA_ESTOQUE`. **Depois:** sai `titulo` da interface e do retorno de `dadosDaFolha`, a folha usa `titulo={TITULO_FOLHA_ESTOQUE}` e o teste confere a constante |
+| RD-0692 (resto) | `modules/catalogo/app/lib/grade.test.ts:43-48` × `domain/estoque-campo.test.ts:61-80` | baixa | modulo-catalogo | Saíram os casos repetidos de `estoque-folha.test.ts` e 3 dos 4 de `grade.test.ts`. **Falta** o caso "verde acima de 0 e vermelho em 0 ou menos": as 4 asserções (84, 6, 0, −2) repetem `corDoEstoque` e `textoEstoqueCartao` do domain. Segura porque está no corpo do teste. **Depois:** um caso só, para o que `tagDeEstoque` acrescenta (juntar texto e tom): `expect(tagDeEstoque(disp('sem_estoque', -2))).toEqual({ texto: 'Estoque: −2', tom: 'erro' })` |
+| RD-0694 (resto) | `docs/modulos/catalogo/regras.md:92` | baixa | modulo-catalogo | Fecharam 4 dos 5 lugares (`:19` fonte, `:120`, `:127` e `:197` só remetem). O §5 ainda repete o pedaço "sem filial" da RN-CAT-05 com outro texto: "Usuário **sem filial** vê `sem_estoque` (conservador)". Desde o fe2d0402 a frase também contradiz o código (sem filial de venda, `availability` nula, sem tag nem folha). **Depois:** a frase sai. A RN-CAT-05 (`:19`) já diz "usuário sem filial fica sem preço e sem estoque" |
+| **RD-0698** (novo, nasceu da correção do RD-0686) | `modules/catalogo/domain/estoque.ts:11`; `domain/estoque.test.ts:3,124`; `regras.md:95` | baixa | modulo-catalogo | `AVISO_ESTOQUE_DESATUALIZADO` ("Estoque desatualizado") ficou sem uso em produção: o único chamador era a linha da folha. Sobram o export, o teste que confere o próprio valor e o §5 do `regras.md`, que o cita como texto de tela. **Depois:** saem a constante, o caso do teste e a menção "`AVISO_ESTOQUE_DESATUALIZADO`" no §5. Se o testes decidir que o `stale` volta a aparecer (item 2 abaixo), a constante fica e passa a ter esse uso, num lugar só |
+| **RD-0699** (novo) | `modules/catalogo/app/lib/copiar-codigo.test.ts:50` | baixa | modulo-catalogo | O comentário "o toast é só do ícone da lista; a ficha confirma pelo rótulo" descreve a ficha antiga. Desde o e390219f, a ficha usa o mesmo ícone, com toast. A fonte é o comentário de `comum.tsx:25-28`. **Não segura** (só comentário de teste, exceção R-20261111-190159): vai no lote seguinte, e o comentário sai ou só remete a `BotaoCopiarCodigo` |
+
+### Encaminhado ao testes (sem RD; recado não enviado por causa do 403)
+1. **`regras.md:92` × fe2d0402:** o doc diz "sem filial vê `sem_estoque`", e o código devolve `availability` nula. A correção do
+   RD-0694 tira a frase. O testes confere que o comportamento novo é o da RN-CAT-05.
+2. **RN-CAT-07, "desatualizado depois de [24 h]":** depois do RD-0686, nenhuma tela do Campo usa `stale` (nem
+   `estoque_defasado_horas`). A idade aparece só pela hora da carga ("ontem às", "em 12/11 às"). O testes precisa conferir se
+   a RN ainda pede um sinal próprio de dado defasado (e, nesse caso, em Alertas) ou se o doc 03 muda.
+3. Item 1 do §3 anterior ("saldo negativo do ERP conta 0"): **resolvido** no c9bfdff0. O §5 agora diz "mantém o sinal".
+
+### Conferido sem achado
+- **fe2d0402:** a regra "sem filial de venda = estoque nulo" está num lugar só (`vitrine.ts:87-88`, pela `filiaisFolha` vazia).
+  `local.ts` só entrega o contexto vazio. `local.test.ts` confere o invólucro (sem usuário e `sem_filial`), e `vitrine.test.ts`
+  confere a regra. Os testes não se repetem.
+- **e390219f, ficha:** a caixa "Copiar código" saiu do corpo. O código aparece uma vez no subtítulo da faixa, com o ícone de
+  copiar ao lado (`produto.tsx:93`). A variante `ficha` e o `Button` saíram de `BotaoCopiarCodigo`. Ficou um aviso por cópia:
+  ✓ por 2 s e o toast, ou o anúncio do leitor de tela sem toast. A divisória entre o preço e o estoque é só borda, sem texto.
+- **e390219f, Filtrar:** a folha tem "Limpar" e "Ver N produtos" (o antigo rodapé virou botão principal). Não há texto novo.
+  O ✕ do título e o "Ver N produtos" fecham a folha, como no padrão `Folha` já aceito, e o "Ver N" traz a contagem que decide.
+  A divisória entre as opções é só borda.
+- **e390219f, cartão:** a foto tem 96, o nome vai até 3 linhas e o código tem 13/700. É só estilo, e o teste de fonte foi
+  atualizado (`catalogo-hierarquia.test.ts:34-36`).
+- **`git diff origin/main...e390219f`:** fora de `modules/catalogo` e do `regras.md`, o que entra veio do merge do `main`
+  (#336, #339, #340), que tem os próprios pareceres.
+
+| Branch | Head | Resultado |
+|---|---|---|
+| 5 `nuvem/catalogo-campo-modulo-catalogo-v8` | **e390219f** | **COM ACHADO**: RD-0691, RD-0692 e RD-0694 (restos) e RD-0698 seguram; RD-0699 não segura |
+
+**Veredito do re-parecer v8: NÃO LIBERADO.** Fecharam 8 dos 11 (RD-0685 a 0690, 0693 e 0695). Seguram 4 achados baixos em código de
+produção, corpo de teste e doc, fora da exceção R-20261111-190159. São correções de poucas linhas, todas do modulo-catalogo. O
+reteste vale para o próximo head do v8.
