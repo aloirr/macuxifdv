@@ -32,6 +32,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { opcoesLogger } from '../../../apps/api/src/config';
 import { A, B, comToken, erroDe, novoIp, SENHA, subirApi, type ApiDeTeste } from '../apoio/api';
 import { criarEspiaoEmail } from '../apoio/email';
+import { camposDeFilial } from '../apoio/filial-usuario';
 import { COM_RECEITA } from '../../modulos/apoio/estado-prs';
 import {
   auditoriaDoPortal,
@@ -202,7 +203,7 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0093 portal só com e-mail e senh
     });
 
     it('senha na regra cria (201); redefinir com senha fraca = 422 com o que falta; com senha na regra = 200 e o BKO pede a troca (T-0094)', async () => {
-      const criar = await api.chamar(tokenAdminA, { method: 'POST', url: '/v1/core/usuarios', payload: { nome: 'Pessoa Senha Boa', email: 'boa.t0093@exemplo.com.br', perfil: 'analista', senha: 'Válida#2026' } });
+      const criar = await api.chamar(tokenAdminA, { method: 'POST', url: '/v1/core/usuarios', payload: { nome: 'Pessoa Senha Boa', email: 'boa.t0093@exemplo.com.br', perfil: 'analista', senha: 'Válida#2026', ...(await camposDeFilial(api.admin, A.tenantId)) } });
       expect(criar.statusCode, criar.body).toBe(201);
       const id = (criar.json() as { id: string }).id;
       const fraca = await api.chamar(tokenAdminA, { method: 'PUT', url: `/v1/core/usuarios/${id}/senha`, payload: { senha: 'SemNumero!' } });
