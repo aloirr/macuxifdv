@@ -58,7 +58,7 @@ import { appsDosPerfis, emailDisponivel, empresaDoTenant, enviarEmail } from './
 import { erroHttp } from './erros';
 import { perfisDoUsuarioNoLogin } from './perfis-do-usuario';
 import { chaveDeLogin, criarLimiteDeFalhas, type LimiteDeFalhas } from './limite-login';
-import { fabricaSql, type FabricaRepositorios, type RepositorioTenant, type UsuarioLogin } from './repositorio';
+import { fabricaSql, type FabricaRepositorios, type RepositorioTenant, type TenantExibicao, type UsuarioLogin } from './repositorio';
 import { assinarAcesso, exigirSegredo, gastarTempoDeSenha, hashSenha, lerRefresh, novoRefresh, SegredoInvalido, tokenDoCabecalho, verificarJwtAcesso, verificarSenha } from './seguranca';
 
 /** Conferência e hash de senha (injetáveis nos testes para contar as conferências e baratear o argon2). */
@@ -93,6 +93,9 @@ const INTERVALO_ESQUECI_MS = 15 * 60_000;
 
 type Sessao = Omit<SessaoResposta, 'tenant'>;
 type SenhaLiberada = { tipo: 'ok' } | { tipo: 'trocar'; usada: 'atual' | 'temporaria'; motivo: MotivoDaTroca; expiraEm: Date | null };
+
+/** Motivos internos da falha de login (só na auditoria e no log; a resposta ao app é sempre genérica). */
+type MotivoFalhaLogin = 'email_nao_encontrado' | 'senha_nao_confere' | 'bloqueio' | 'aparelho_bloqueado' | 'perfil_fora_do_app' | 'senha_vencida' | 'empresa_sem_dados';
 
 type ResultadoLogin =
   | { tipo: 'ok'; sessao: Sessao; tenantId: string }
@@ -147,6 +150,20 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
   }
 
   /** Passos 1 a 8 do desenho §3, compartilhados por `login` e `senha/trocar`. `aoLiberar` roda dentro da transação, com a senha já aceita. */
+  /**
+   * RN-CORE-34 (RN-AUD-01): a falha de login entra na auditoria do tenant com o motivo interno e o usuário (quando há), na
+   * mesma transação. Nunca a senha, o hash, o e-mail digitado ou o IP; a resposta ao app continua o 401 genérico.
+   */
+  async function auditarFalha(db: ClienteBanco, ctx: ContextoPublico<unknown>, usuarioId: string | null, motivo: MotivoFalhaLogin): Promise<void> {
+    await auditar(db, { usuario: { id: usuarioId }, requestId: ctx.requestId }, {
+      acao: 'usuario.login_falha',
+      entidade: 'usuario',
+      entidadeId: usuarioId,
+      antes: null,
+      depois: { motivo },
+    });
+  }
+
   async function entrar(
     ctx: ContextoPublico<unknown>,
     e: EntradaDeSenha,
@@ -158,10 +175,15 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
     // T-0026: só FALHAS contam (entrada certa não consome); chave por IP real + empresa + e-mail
     const chave = chaveDeLogin(ctx.ip, codigo, e.email);
     const espera = limiteLogin.bloqueadoPor(chave, agora());
-    if (espera > 0) throw erroHttp(429, CODIGOS_AUTH.muitasTentativas, MENSAGEM_MUITAS, { retry_after_s: espera });
+    if (espera > 0) {
+      ctx.log.warn({ motivo: 'bloqueio_por_tentativas' }, 'login recusado');
+      throw erroHttp(429, CODIGOS_AUTH.muitasTentativas, MENSAGEM_MUITAS, { retry_after_s: espera });
+    }
     const publico = repos.publico(banco);
     const tenant = await publico.tenantPorCodigo(codigo);
     if (!tenant || tenant.status !== 'ativo') {
+      // sem empresa ativa não há tenant para a auditoria: só o motivo no log (nunca e-mail, senha ou IP)
+      ctx.log.warn({ motivo: tenant ? 'empresa_inativa' : 'empresa_nao_encontrada' }, 'login recusado');
       await conferir(e.senha, null);
       await conferir(e.senha, null);
       limiteLogin.registrarFalha(chave, agora());
@@ -175,7 +197,10 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
       // duas conferências SEMPRE, exista ou não o usuário/a temporária (o tempo não vira oráculo)
       const certaAtual = await conferir(e.senha, u?.senha_hash ?? null);
       const certaTemporaria = await conferir(e.senha, u?.senha_temporaria_hash ?? null);
-      if (!u) return { tipo: 'credenciais' };
+      if (!u) {
+        await auditarFalha(db, ctx, null, 'email_nao_encontrado');
+        return { tipo: 'credenciais' };
+      }
       const estado = estadoDoLogin({ ativo: u.ativo, bloqueadoEm: u.bloqueado_em, bloqueioAte: u.bloqueio_ate, agora: agoraData });
       const senha = avaliarSenhaDoLogin({
         certaAtual,
@@ -192,21 +217,32 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
           const c = registrarFalhaDeLogin({ falhas: u.tentativas_falhas, bloqueioAte: u.bloqueio_ate }, agoraData);
           await r.gravarTentativas(u.id, c.falhas, c.bloqueioAte);
         }
+        await auditarFalha(db, ctx, u.id, estado === 'ok' ? 'senha_nao_confere' : 'bloqueio');
         return { tipo: 'credenciais' };
       }
       // daqui em diante só quem acertou uma das senhas
-      if (estado !== 'ok') return { tipo: 'bloqueado' };
-      if (e.dispositivo_id && (await r.dispositivoBloqueado(e.dispositivo_id))) return { tipo: 'aparelho' };
+      if (estado !== 'ok') {
+        await auditarFalha(db, ctx, u.id, 'bloqueio');
+        return { tipo: 'bloqueado' };
+      }
+      if (e.dispositivo_id && (await r.dispositivoBloqueado(e.dispositivo_id))) {
+        await auditarFalha(db, ctx, u.id, 'aparelho_bloqueado');
+        return { tipo: 'aparelho' };
+      }
       // RN-CORE-33: perfil que não usa o app; sem sessão
       if (e.app) {
         const perfisDoLogin = await perfisDoUsuarioNoLogin(db, u.id, u.perfil);
         if (!podeUsarApp(perfisDoLogin, e.app)) {
           // T-0111: a mensagem fala do perfil real que fecha o app (não só do principal)
+          await auditarFalha(db, ctx, u.id, 'perfil_fora_do_app');
           const quemFecha = perfisDoLogin.find((p) => !podeUsarApp([p], e.app!));
           return { tipo: 'fora_do_app', mensagem: mensagemPerfilForaDoApp(quemFecha?.base ?? u.perfil, e.app) ?? 'Este perfil não usa este aplicativo.' };
         }
       }
-      if (senha.tipo === 'vencida') return { tipo: 'vencida' };
+      if (senha.tipo === 'vencida') {
+        await auditarFalha(db, ctx, u.id, 'senha_vencida');
+        return { tipo: 'vencida' };
+      }
       return aoLiberar(r, u, senha, db, tenant.id, agoraData);
     });
 
@@ -237,9 +273,9 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
     }
   }
 
-  async function comDadosDoTenant(ctx: ContextoPublico<unknown>, codigo: string, tenantId: string, sessao: Sessao): Promise<SessaoResposta> {
-    // senha validada: agora sim os dados da empresa
-    const exib = await repos.publico(ctx.banco).tenantParaExibicao(codigo, tenantId);
+  async function comDadosDoTenant(ctx: ContextoPublico<unknown>, codigo: string, tenantId: string, sessao: Sessao, lido?: TenantExibicao): Promise<SessaoResposta> {
+    // senha validada: agora sim os dados da empresa (a troca de senha já os leu antes de gravar)
+    const exib = lido ?? (await repos.publico(ctx.banco).tenantParaExibicao(codigo, tenantId));
     if (!exib) throw erroHttp(401, CODIGOS_AUTH.credenciais, MENSAGEM_CREDENCIAIS);
     ctx.log.info({ tenant_id: tenantId, usuario_id: sessao.usuario.id }, 'login');
     return { ...sessao, tenant: { id: exib.id, codigo: exib.codigo, nome: exib.nome, fuso: exib.fuso } };
@@ -264,6 +300,7 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
   /** `POST /v1/auth/senha/trocar` (desenho §4): "Crie sua senha". Devolve a sessão: a pessoa entra direto. */
   async function trocarSenha(ctx: ContextoPublico<TrocarSenhaRequest>): Promise<SessaoResposta> {
     const c = ctx.corpo;
+    let exibicao: TenantExibicao | undefined;
     const { resultado, tenantId, codigo } = await entrar(
       ctx,
       { codigo: c.codigo_empresa, email: c.email, senha: c.senha_atual, app: c.app, dispositivo_id: c.dispositivo_id, dispositivo_nome: c.dispositivo_nome },
@@ -273,6 +310,13 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
         const igual = hashUsado ? await senhas.verificar(c.senha_nova, hashUsado) : false;
         const recusa = validarSenhaNova(c.senha_nova, u.email, igual);
         if (recusa) return { tipo: 'senha_nova', recusa };
+        // RN-CORE-34: a troca só é gravada se o login vai dar certo; sem os dados da empresa nada muda (mesma transação)
+        const exib = await repos.publico(ctx.banco).tenantParaExibicao(c.codigo_empresa.toLowerCase(), tid);
+        if (!exib) {
+          await auditarFalha(db, ctx, u.id, 'empresa_sem_dados');
+          return { tipo: 'credenciais' };
+        }
+        exibicao = exib;
         const novoHash = await senhas.hash(c.senha_nova);
         const versao = await r.trocarSenha(u.id, novoHash, agoraData);
         await r.registrarLoginOk(u.id, agoraData);
@@ -294,7 +338,7 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
       throw erroHttp(422, x.codigo, x.mensagem, x.codigo === 'RN-CORE-32' ? { faltas: x.faltas } : undefined);
     }
     const { sessao } = lancarOuSessao(resultado);
-    return comDadosDoTenant(ctx, codigo, tenantId, sessao);
+    return comDadosDoTenant(ctx, codigo, tenantId, sessao, exibicao);
   }
 
   /**

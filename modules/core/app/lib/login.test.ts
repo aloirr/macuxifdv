@@ -1,6 +1,6 @@
 import { ErroSemConexao } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { camposIniciaisDoLogin, entrarComSenha, ehServidorInvalido, mensagemDeErroDeLogin, rotuloOlhoSenha, validarLogin } from './login';
+import { camposIniciaisDoLogin, entrarComSenha, ehServidorInvalido, mensagemDeErroDeLogin, propsDoCampoSenhaDoLogin, rotuloOlhoSenha, validarLogin } from './login';
 
 const U = '0b000000-0000-4000-8000-000000000001';
 const resposta = {
@@ -74,5 +74,30 @@ describe('RF-CORE-01: TelaLogin reabre com o e-mail (T-0094)', () => {
   });
   it('RF-CORE-01: sem emailInicial nem código salvo, os campos abrem vazios', () => {
     expect(camposIniciaisDoLogin(null, undefined)).toEqual({ codigo_empresa: '', email: '', senha: '' });
+  });
+});
+
+describe('RN-CORE-32: campo Senha do login não pode alterar o que a pessoa digita', () => {
+  it('RN-CORE-32: sem maiúscula automática, corretor nem sugestão (a temporária chega com maiúsculas e minúsculas misturadas)', () => {
+    expect(propsDoCampoSenhaDoLogin).toEqual({
+      autoCapitalize: 'none',
+      autoCorrect: false,
+      spellCheck: false,
+      autoComplete: 'current-password',
+      textContentType: 'password',
+    });
+  });
+
+  it('RN-CORE-32: a senha vai ao servidor exatamente como digitada (sem trim)', async () => {
+    let enviado: Record<string, unknown> = {};
+    await entrarComSenha(
+      async (_c, corpo) => {
+        enviado = corpo as Record<string, unknown>;
+        return resposta;
+      },
+      { codigo_empresa: ' alfa ', email: ' v@x.com ', senha: ' Ab1#cD ' },
+    );
+    expect(enviado.senha).toBe(' Ab1#cD ');
+    expect(enviado.email).toBe('v@x.com');
   });
 });

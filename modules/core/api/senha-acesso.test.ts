@@ -381,3 +381,58 @@ describe('RN-CORE-34: sessao_versao no token', () => {
     expect(TENANT_B).not.toBe(TENANT_A);
   });
 });
+
+describe('RN-CORE-34: a troca só vale se o login der certo, e a falha de login vai para a auditoria', () => {
+  const auditoria = () => consultas.filter((c) => /plataforma.auditoria/.test(c.sql)).map((c) => JSON.stringify(c.valores)).join('|');
+
+  it('RN-CORE-34: se os dados da empresa não saem (401 no fim), a senha nova NÃO é gravada e a temporária continua valendo', async () => {
+    await comTemporaria(10);
+    const hashAntes = vend().senha_hash;
+    e.exibicaoVazia = new Set(['alfa']);
+    const erro = await falha(trocar());
+    expect(erro.status).toBe(401);
+    expect(vend().senha_hash).toBe(hashAntes);
+    expect(vend().trocar_senha).toBe(true);
+    expect(vend().sessao_versao).toBe(0);
+    expect(e.sessoes).toHaveLength(0);
+    expect(auditoria()).not.toContain('usuario.senha_trocar');
+    e.exibicaoVazia = undefined;
+    expect((await trocar()).usuario.email).toBe('vendedor@exemplo.com.br'); // a mesma temporária ainda entra
+  });
+
+  it('RN-CORE-34: senha errada audita usuario.login_falha com o motivo e o usuário, sem senha nem e-mail; a resposta segue 401 genérica', async () => {
+    const erro = await falha(login({ senha: 'Errada#9999' }));
+    expect(erro.status).toBe(401);
+    const aud = auditoria();
+    expect(aud).toContain('usuario.login_falha');
+    expect(aud).toContain('senha_nao_confere');
+    expect(aud).toContain(vend().id);
+    for (const proibido of ['Errada#9999', SENHA, 'vendedor@exemplo.com.br']) expect(aud).not.toContain(proibido);
+  });
+
+  it('RN-CORE-34: e-mail desconhecido audita email_nao_encontrado (sem usuário e sem o e-mail digitado)', async () => {
+    await falha(login({ email: 'ninguem@exemplo.com.br' }));
+    const aud = auditoria();
+    expect(aud).toContain('email_nao_encontrado');
+    expect(aud).not.toContain('ninguem@exemplo.com.br');
+  });
+
+  it('RN-CORE-34: usuário bloqueado audita bloqueio, com senha certa ou errada', async () => {
+    vend().bloqueado_em = t0;
+    expect((await falha(login())).status).toBe(423);
+    expect((await falha(login({ senha: 'Errada#9999' }))).status).toBe(401);
+    expect(auditoria().match(/bloqueio/g)).toHaveLength(2);
+  });
+
+  it('RN-CORE-34: empresa não encontrada ou inativa fica só no log (sem tenant não há auditoria), sem e-mail nem senha', async () => {
+    await falha(login({ codigo_empresa: 'naoexiste' }));
+    let log = logSilencioso.linhas.join('\n'); // cada contexto zera o log: lê entre as chamadas
+    e.tenants.get('alfa')!.status = 'suspenso';
+    await falha(login());
+    log += logSilencioso.linhas.join('\n');
+    expect(log).toContain('empresa_nao_encontrada');
+    expect(log).toContain('empresa_inativa');
+    for (const proibido of [SENHA, 'vendedor@exemplo.com.br']) expect(log).not.toContain(proibido);
+    expect(auditoria()).not.toContain('usuario.login_falha');
+  });
+});

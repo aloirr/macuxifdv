@@ -19,6 +19,8 @@ export interface EstadoMemoria {
   dispositivos: Map<string, { usuario_id: string; bloqueado: boolean }>;
   /** Consultas ao tenant sem contexto (semTenant) — para provar que o nome só é lido depois da senha. */
   leituraDeExibicao: string[];
+  /** Códigos de empresa cujo `tenant_da_sessao()` volta vazio (prova que a troca de senha não grava antes). */
+  exibicaoVazia?: Set<string> | undefined;
 }
 
 /** Hash argon2id PHC com custo mínimo (m=8, t=1): só para os testes; o verificarSenha de produção lê os parâmetros do próprio hash. */
@@ -137,6 +139,7 @@ export function fabricaEmMemoria(e: EstadoMemoria): FabricaRepositorios {
         tenantParaExibicao: async (codigo, _tenantId) => {
           e.leituraDeExibicao.push(codigo);
           const t = e.tenants.get(codigo.toLowerCase());
+          if (e.exibicaoVazia?.has(codigo.toLowerCase())) return null;
           return t ? { id: t.id, codigo: t.codigo, nome: t.nome, fuso: t.fuso } : null;
         },
       };

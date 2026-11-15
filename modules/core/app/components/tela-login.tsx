@@ -11,7 +11,7 @@ import { Banner, Button, colors, Screen, type as t } from '@macuxi/ui/mobile';
 import { useRef, useState, type ComponentProps, type RefObject } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { camposIniciaisDoLogin, mensagemDeErroDeLogin, rotuloOlhoSenha, validarLogin, type CamposLogin, type ErrosLogin } from '../lib/login';
+import { camposIniciaisDoLogin, mensagemDeErroDeLogin, propsDoCampoSenhaDoLogin, rotuloOlhoSenha, validarLogin, type CamposLogin, type ErrosLogin } from '../lib/login';
 
 export interface PropsTelaLogin {
   /** Código da empresa lembrado do último login neste aparelho. */
@@ -85,6 +85,7 @@ export function TelaLogin({ codigoSalvo, emailInicial, onEntrar, rodape, onEsque
         autoCapitalize="none"
         keyboardType="email-address"
         textContentType="username"
+        autoComplete="username"
         returnKeyType="next"
         inputRef={email}
         onSubmitEditing={() => senha.current?.focus()}
@@ -97,7 +98,7 @@ export function TelaLogin({ codigoSalvo, emailInicial, onEntrar, rodape, onEsque
         onChangeText={mudar('senha')}
         secureTextEntry={!senhaVisivel}
         olho={{ visivel: senhaVisivel, alternar: () => setSenhaVisivel((v) => !v) }}
-        textContentType="password"
+        {...propsDoCampoSenhaDoLogin}
         returnKeyType="go"
         inputRef={senha}
         onSubmitEditing={() => void entrar()}
@@ -139,6 +140,7 @@ function Campo({ rotulo, valor, erro, inputRef, olho, ...resto }: PropsCampo) {
           value={valor}
           accessibilityLabel={rotulo}
           autoCorrect={false}
+          spellCheck={false}
           style={[styles.entrada, olho ? { paddingRight: 56 } : null, erro ? { borderColor: colors.danger } : null]}
           placeholderTextColor={colors.ink3}
           {...resto}

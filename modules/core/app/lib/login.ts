@@ -57,6 +57,18 @@ export function mensagemDeErroDeLogin(e: unknown): string {
   }
 }
 
+/**
+ * Propriedades do campo Senha do login: o teclado não pode pôr maiúscula, corrigir nem sugerir (a senha temporária mistura
+ * maiúsculas e minúsculas; um primeiro caractere trocado vira "senha incorreta" com os dados certos). Igual ao "Crie sua senha".
+ */
+export const propsDoCampoSenhaDoLogin = {
+  autoCapitalize: 'none',
+  autoCorrect: false,
+  spellCheck: false,
+  autoComplete: 'current-password',
+  textContentType: 'password',
+} as const;
+
 /** Rótulo acessível do botão de olho da senha. */
 export function rotuloOlhoSenha(visivel: boolean): string {
   return visivel ? ESCONDER_SENHA : MOSTRAR_SENHA;

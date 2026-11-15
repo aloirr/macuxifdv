@@ -131,6 +131,7 @@ function Campo({
         value={valor}
         accessibilityLabel={rotulo}
         autoCorrect={false}
+        spellCheck={false}
         style={[styles.entrada, erro ? { borderColor: colors.danger } : null]}
         placeholderTextColor={colors.ink3}
         {...resto}
