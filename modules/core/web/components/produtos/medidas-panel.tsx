@@ -160,7 +160,7 @@ export function MedidasPanel({ onAviso }: { onAviso: (texto: string) => void }) 
                 disabled={rascunho.siglaTravada}
                 onChange={(e) => setRascunho({ ...rascunho, sigla: e.target.value.toUpperCase() })}
                 data-testid="medidas.sigla"
-                className="h-[44px] max-w-[160px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal uppercase"
+                className={`${CLASSE_CAMPO_BKO} max-w-[160px] uppercase`}
               />
             </label>
             {rascunho.siglaTravada && <p className="font-normal text-ink-2">A sigla não muda enquanto algum produto usa a medida. Altere só a descrição ou crie outra medida e inative esta.</p>}

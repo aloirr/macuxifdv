@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   carregando: { minHeight: 48, justifyContent: 'center', alignItems: 'center' },
   dark: { backgroundColor: colors.ink, borderRadius: radius.secao, padding: 18, gap: 8 },
   darkLabel: { ...fonte.body, fontSize: 14, color: colors.darkMuted },
-  darkValue: { ...fonte.bold, fontSize: 28, color: colors.surface, fontVariant: ['tabular-nums'] },
+  darkValue: { ...t.number, fontSize: 28, color: colors.surface },
   alerta: { ...fonte.body, fontSize: 14, color: colors.dangerOnDark },
   linha: { gap: 6, padding: 14 },
   divisor: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },

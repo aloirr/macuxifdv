@@ -207,7 +207,7 @@ function estilos(e: EscalaInicio) {
     real: { ...t.number, fontSize: f.real },
     meta: { ...fonte.body, fontSize: f.meta, color: colors.ink2 },
     linhaBarra: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-    percentual: { ...fonte.bold, fontSize: f.percentual, fontVariant: ['tabular-nums'] },
+    percentual: { ...fonte.semibold, fontSize: f.percentual, fontVariant: ['tabular-nums'] },
     rodape: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     sub: { ...t.sub, fontSize: f.sub },
     valorRodape: { ...fonte.semibold, fontSize: f.valorRodape, color: colors.ink, fontVariant: ['tabular-nums'] },
