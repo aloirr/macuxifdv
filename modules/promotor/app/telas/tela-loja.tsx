@@ -8,9 +8,9 @@
 import { formatBRL } from '@macuxi/comum';
 import { formatHHMM } from '@macuxi/comum/fuso';
 import { usePode } from '@macuxi/platform-sdk/react';
-import { AvisoRodape, Banner, Botao, Cartao, Chip, ChipEstado, colors, EstadoVazio, Folha, Loading, OpcaoFolha, ProgressBar, Screen, SectionHeader, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
+import { AvisoRodape, Banner, Botao, Cartao, CampoTexto, Chip, ChipEstado, colors, EstadoVazio, Folha, Loading, OpcaoFolha, ProgressBar, Screen, SectionHeader, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { useCallback, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { ROTULO_CONFORMIDADE, CONFORMIDADES, type Conformidade } from '../../domain';
 import { montarGondola, montarPreco, montarResposta, montarRuptura, montarShare, montarTarefa } from '../lib/loja';
 import { useLoja, type UsoLoja } from '../state/use-loja';
@@ -26,15 +26,6 @@ function Aviso({ msg, tom = 'danger' }: { msg: string | null; tom?: 'danger' | '
     <Banner tone={tom} icon="alert">
       {msg}
     </Banner>
-  );
-}
-
-function Campo({ rotulo, valor, onChange, teclado = 'number-pad', testID }: { rotulo: string; valor: string; onChange: (s: string) => void; teclado?: 'number-pad' | 'decimal-pad' | 'default'; testID?: string }) {
-  return (
-    <View style={s.campo}>
-      <Text style={t.label}>{rotulo}</Text>
-      <TextInput testID={testID} accessibilityLabel={rotulo} value={valor} onChangeText={onChange} keyboardType={teclado} style={s.input} />
-    </View>
   );
 }
 
@@ -116,8 +107,12 @@ function Share({ l, categoria, setCategoria, avisar }: { l: UsoLoja; categoria: 
             ))}
           </View>
           <View style={s.linha}>
-            <Campo rotulo="Frentes nossas" valor={nossas} onChange={setNossas} testID="loja.share.nossas" />
-            <Campo rotulo="Frentes total" valor={total} onChange={setTotal} testID="loja.share.total" />
+            <View style={s.campo}>
+              <CampoTexto rotulo="Frentes nossas" valor={nossas} aoMudar={setNossas} keyboardType="number-pad" testID="loja.share.nossas" />
+            </View>
+            <View style={s.campo}>
+              <CampoTexto rotulo="Frentes total" valor={total} aoMudar={setTotal} keyboardType="number-pad" testID="loja.share.total" />
+            </View>
           </View>
           <Botao rotulo="Salvar share" onPress={() => void salvar()} testID="loja.share.salvar" />
         </>
@@ -208,7 +203,7 @@ function Preco({ l, avisar }: { l: UsoLoja; avisar: Avisar }) {
       ) : (
         <>
           <Botao rotulo={nomeEscolhido ?? 'Escolher produto'} nivel="neutro" onPress={() => setEscolhendo(true)} testID="loja.preco.produto" />
-          <Campo rotulo="Preço (R$)" valor={valor} onChange={(x) => (setValor(x), setConfirmar(false))} teclado="decimal-pad" testID="loja.preco.valor" />
+          <CampoTexto rotulo="Preço (R$)" valor={valor} aoMudar={(x) => (setValor(x), setConfirmar(false))} keyboardType="decimal-pad" testID="loja.preco.valor" />
           <Botao rotulo={confirmar ? 'Confirmar preço' : 'Salvar preço'} onPress={() => void salvar()} testID="loja.preco.salvar" />
         </>
       )}
@@ -273,7 +268,7 @@ function Gondola({ l, categoria, avisar }: { l: UsoLoja; categoria: string | nul
           <Chip key={c} label={ROTULO_CONFORMIDADE[c]} active={conf === c} onPress={() => setConf(c)} testID={`loja.gondola.${c}`} />
         ))}
       </View>
-      {conf !== 'conforme' && <Campo rotulo={conf === 'nao_conforme' ? 'Motivo (obrigatório)' : 'Motivo (opcional)'} valor={motivo} onChange={setMotivo} teclado="default" testID="loja.gondola.motivo" />}
+      {conf !== 'conforme' && <CampoTexto rotulo={conf === 'nao_conforme' ? 'Motivo (obrigatório)' : 'Motivo (opcional)'} valor={motivo} aoMudar={setMotivo} keyboardType="default" testID="loja.gondola.motivo" />}
       <Botao rotulo="Salvar gôndola" onPress={() => void salvar()} testID="loja.gondola.salvar" />
       <Aviso msg={msg?.texto ?? null} tom={msg?.tom} />
     </Cartao>
@@ -379,8 +374,7 @@ const s = StyleSheet.create({
   linha: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   bloco: { gap: 6, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
-  campo: { flex: 1, gap: 4 },
-  input: { minHeight: 48, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: 10, paddingHorizontal: 12, backgroundColor: colors.surface, color: colors.ink, fontSize: 16 },
+  campo: { flex: 1 },
 });
 
 export default TelaLoja;
