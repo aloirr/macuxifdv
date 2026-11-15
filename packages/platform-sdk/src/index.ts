@@ -45,3 +45,4 @@ export * from './diagnostico';
 export * from './cnpj';
 export * from './planos';
 export * from './empresa-acoes';
+export * from './frase-carga';

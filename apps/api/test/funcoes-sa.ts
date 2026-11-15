@@ -42,6 +42,16 @@ export const SA_PORTAL: readonly string[] = [
   // 0073: os dados legais do rodapé (razão social, CNPJ e site), lidos e gravados só pelo super-admin
   'plataforma.sa_dados_legais(uuid)',
   'plataforma.sa_gravar_dados_legais(uuid, jsonb)',
+  // 0081 (T-0181): Portal › Frases da carga, só super-admin
+  'plataforma.sa_listar_frases_carga(uuid)',
+  'plataforma.sa_incluir_frase_carga(uuid, uuid, text)',
+  'plataforma.sa_editar_frase_carga(uuid, uuid, text, boolean)',
 ];
+
+/**
+ * As 3 da 0081 (T-0181). Enquanto a 0081 não estiver no main (o PR do banco entra depois deste), os testes e o
+ * banco-dbaas.sh toleram a ausência DELAS, e só delas: com a 0081 aplicada, a conferência volta a ser exata.
+ */
+export const SA_PORTAL_0081: readonly string[] = SA_PORTAL.filter((f) => /_frases?_carga\(/.test(f));
 
 export const SA_INTERNAS: readonly string[] = ['plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)'];
