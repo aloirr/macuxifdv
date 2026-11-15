@@ -307,6 +307,53 @@ describe('RN-CORE-34: Esqueci a senha (senha/esqueci)', () => {
     expect(vend().senha_temporaria_hash).not.toBe(primeira);
   });
 
+  it('RN-CORE-34: dois pedidos ao mesmo tempo (toque duplo) geram uma só senha e um só e-mail (a leitura trava o usuário até o fim da transação)', async () => {
+    const base = fabricaEmMemoria(e);
+    let fila: Promise<void> = Promise.resolve();
+    const soltas = new WeakMap<object, Array<() => void>>();
+    const repos: typeof base = {
+      ...base,
+      doTenant: (db) => ({
+        ...base.doTenant(db),
+        // simula `select ... for update`: quem pede com `travar` espera a transação anterior terminar
+        usuarioPorEmail: async (email, o) => {
+          if (o?.travar) {
+            const anterior = fila;
+            let solta!: () => void;
+            fila = new Promise<void>((r) => (solta = r));
+            soltas.set(db, [...(soltas.get(db) ?? []), solta]);
+            await anterior;
+          }
+          return base.doTenant(db).usuarioPorEmail(email, o);
+        },
+        gravarSenhaTemporaria: async (...args) => {
+          await new Promise((r) => setTimeout(r, 25)); // latência do banco entre a leitura e a gravação
+          return base.doTenant(db).gravarSenhaTemporaria(...args);
+        },
+      }),
+    };
+    const bancoSerial: typeof banco = {
+      ...banco,
+      comTenant: async (tid, fn) => {
+        let usado: object | undefined;
+        try {
+          return await banco.comTenant(tid, (db) => {
+            usado = db;
+            return fn(db);
+          });
+        } finally {
+          for (const s of soltas.get(usado!) ?? []) s();
+        }
+      },
+    };
+    const a = criarAutenticacao({ segredo: () => SEGREDO, repos, senhas, limiteLogin: criarLimiteDeFalhas(), limiteEsqueciIp: criarLimiteDeFalhas(5, 15 * 60_000), limiteEsqueciChave: criarLimiteDeFalhas(3, 60 * 60_000) });
+    const pedir = (ip: string) =>
+      a.esqueciSenha({ ...contextoPublico(EsqueciSenhaRequestSchema.parse({ codigo_empresa: 'am4821', email: 'vendedor@exemplo.com.br' }), bancoSerial, relogio, ip), email: mail.servico } as never);
+    expect(await Promise.all([pedir('10.0.1.1'), pedir('10.0.1.2')])).toEqual([{}, {}]);
+    expect(mail.enviados).toHaveLength(1);
+    expect(vend().senha_temporaria_criada_em).toEqual(t0);
+  });
+
   it('RN-CORE-34: limites — 5 pedidos por IP em 15 min e 3 por empresa+e-mail em 1 h (429 igual para e-mail que não existe)', async () => {
     for (let i = 0; i < 5; i++) await esqueci({ email: `n${i}@exemplo.com.br` });
     const porIp = await falha(esqueci({ email: 'n9@exemplo.com.br' }));

@@ -25,11 +25,23 @@ export const ROTA_ESQUECI_SENHA = '/v1/auth/senha/esqueci';
 /** Código da empresa = código da licença (migração 0068): sigla da UF + 4 dígitos, ex.: AM4821. Sem diferenciar maiúsculas (índice `lower(codigo)`). */
 export const CODIGO_EMPRESA_TAMANHO = 6;
 export const CODIGO_EMPRESA_REGEX = new RegExp(`^(${UFS_BRASIL.join('|')})[0-9]{4}$`, 'i');
-export const CodigoEmpresaSchema = z
+/** Formato novo, imposto só no campo do app e do BKO (`erroDoCodigoEmpresa`). */
+export const CodigoEmpresaFormatoSchema = z
   .string()
   .trim()
   .length(CODIGO_EMPRESA_TAMANHO)
   .regex(CODIGO_EMPRESA_REGEX, 'Use duas letras da UF e quatro números, como AM4821.');
+/**
+ * Código aceito pela API (login, "Crie sua senha", "Esqueci a senha"): também os códigos antigos ainda gravados no banco
+ * (letras, dígitos e hífen, de 2 a 40; ex.: "demo") até a migração 0068 chegar a todas as bases. Como as senhas antigas,
+ * o servidor aceita o que já existe; quem impõe o formato novo é o campo.
+ */
+export const CodigoEmpresaSchema = z
+  .string()
+  .trim()
+  .min(2)
+  .max(40)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9-]*$/, 'Use só letras, números e hífen.');
 
 export const LoginSenhaRequestSchema = z
   .object({

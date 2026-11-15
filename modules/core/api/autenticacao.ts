@@ -371,7 +371,8 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
     if (!tenant || tenant.status !== 'ativo') return {};
     await ctx.banco.comTenant(tenant.id, async (db) => {
       const r = repos.doTenant(db);
-      const u = await r.usuarioPorEmail(email);
+      // trava a linha: o 2º pedido (toque duplo) espera o 1º e cai na regra dos 15 min, sem sobrescrever a senha
+      const u = await r.usuarioPorEmail(email, { travar: true });
       if (!u || !u.ativo || u.bloqueado_em) return;
       // menos de 15 min da última: não gera outra nem manda outro e-mail (mesma resposta)
       if (u.senha_temporaria_criada_em && agoraData.getTime() - u.senha_temporaria_criada_em.getTime() < INTERVALO_ESQUECI_MS) return;
