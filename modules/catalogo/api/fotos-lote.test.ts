@@ -136,7 +136,7 @@ describe('RN-CAT-14: criar o lote', () => {
   });
   it('RN-CAT-14: o mesmo id com outro arquivo ou outro tamanho é 409 LOTE_DIVERGENTE, sem devolver o lote', async () => {
     const outroArquivo = contexto({ lote: loteExistente('aguardando_envio') }, { corpo: { ...corpoCriar, arquivo_id: LOTE } });
-    await expect(exec(rota('POST', 'fotos-lote'), outroArquivo.ctx)).rejects.toMatchObject({ status: 409, codigo: 'LOTE_DIVERGENTE' });
+    await expect(exec(rota('POST', 'fotos-lote'), outroArquivo.ctx)).rejects.toMatchObject({ status: 409, codigo: 'LOTE_DIVERGENTE', message: 'O arquivo mudou desde o início do envio. Escolha o ZIP de novo.' });
     const outroTamanho = contexto({ lote: loteExistente('aguardando_envio') }, { corpo: { ...corpoCriar, tamanho_bytes: corpoCriar.tamanho_bytes + 1 } });
     await expect(exec(rota('POST', 'fotos-lote'), outroTamanho.ctx)).rejects.toMatchObject({ status: 409, codigo: 'LOTE_DIVERGENTE' });
   });

@@ -63,6 +63,7 @@ export const ROTULO_MOTIVO_LOTE: Readonly<Record<Exclude<MotivoLote, 'zip_grande
 
 /** Textos dos 409 do envio (a API responde com eles e a tela mostra os mesmos). */
 export const TEXTO_LOTES_ATIVOS = 'Espere um dos lotes em processamento terminar para enviar outro.';
+export const TEXTO_LOTE_DIVERGENTE = 'O arquivo mudou desde o início do envio. Escolha o ZIP de novo.';
 export const TEXTO_ENVIO_PAROU = 'O envio parou. Confira a internet e tente de novo.';
 
 // ---------- rotas ----------

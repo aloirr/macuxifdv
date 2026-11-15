@@ -86,3 +86,9 @@ describe('RN-CAT-14: filtro de itens por uma ou mais situações', () => {
     expect(FotoLoteItensQuery.safeParse({ situacao: '' }).success).toBe(false);
   });
 });
+
+describe('texto do 409 LOTE_DIVERGENTE', () => {
+  it('RN-CAT-14: TEXTO_LOTE_DIVERGENTE é o texto da spec (fotos-em-lote.md §6.1)', () => {
+    expect(contracts.TEXTO_LOTE_DIVERGENTE).toBe('O arquivo mudou desde o início do envio. Escolha o ZIP de novo.');
+  });
+});

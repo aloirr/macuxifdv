@@ -16,6 +16,7 @@ import {
   ROTAS_CATALOGO,
   SITUACOES_LOTE_EM_ANDAMENTO,
   TEXTO_ENVIO_PAROU,
+  TEXTO_LOTE_DIVERGENTE,
   TEXTO_LOTES_ATIVOS,
   type EnvioLote,
   type FotoLote,
@@ -149,7 +150,7 @@ export function criarRotasFotosLote(): RotaModulo[] {
         const existente = await lerLote(db, c.id);
         if (existente) {
           if (existente.arquivo_id !== c.arquivo_id || Number(existente.tamanho_bytes) !== c.tamanho_bytes) {
-            throw new ErroHttpModulo(409, 'LOTE_DIVERGENTE', 'Esse envio já existe com outro arquivo. Recarregue a página e escolha o ZIP de novo.');
+            throw new ErroHttpModulo(409, 'LOTE_DIVERGENTE', TEXTO_LOTE_DIVERGENTE);
           }
           const lote = loteDaLinha(existente, (await totaisDosLotes(db, [c.id])).get(c.id));
           return { lote, envio: existente.situacao === 'aguardando_envio' ? envioDoLote(existente) : null };
