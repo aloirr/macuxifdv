@@ -1,5 +1,8 @@
 # Roteiro de teste — Campo-Demo-v1.0.3 e Gestao-Demo-v1.0.3
 
+> **Histórico.** A demo foi desligada (ADR 0051) e os perfis de preview saíram do `eas.json`: este roteiro não se aplica
+> mais a builds novos. Os endereços `*-demo.macuxifdv.com.br` citados aqui não existem mais.
+
 > Para o Alexandre. Cobre o que mudou desde o **Campo-Demo-v1.0.2 / Gestao-Demo-v1.0.2** (7c9dafe8):
 > - a queda na 1ª abertura (T-0144);
 > - as permissões obrigatórias (T-0145);

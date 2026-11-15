@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Baixa o APK de um build do EAS, salva como `<Campo-Demo-vX.Y.Z>.apk` e (opcional) publica no bucket PRIVADO com
+ * Baixa o APK de um build do EAS, salva como `<Campo-Oficial-vX.Y.Z>.apk` e (opcional) publica no bucket PRIVADO com
  * link temporário (T-0109). Na pasta apps/mobile:
  *
- *   node scripts/eas/baixar-apk.mjs <campo|gestao|ambos> <demo|oficial|dev> [--build <id>] [--pasta <dir>]
+ *   node scripts/eas/baixar-apk.mjs <campo|gestao|ambos> oficial [--build <id>] [--pasta <dir>]
  *                                   [--publicar] [--validade-horas <h>]
  *
  *  - sem --build: o último build TERMINADO do perfil (eas build:list); com --build: aquele build (eas build:view),
@@ -25,14 +25,14 @@ import { PASTA_APP, ehPrincipal, nomes, rodarEas } from './comum.mjs';
 const s3 = await import('./s3-assinado.ts');
 
 const USO =
-  'uso: node scripts/eas/baixar-apk.mjs <campo|gestao|ambos> <demo|oficial|dev> [--build <id>] [--pasta <dir>] [--publicar] [--validade-horas <h>]';
+  'uso: node scripts/eas/baixar-apk.mjs <campo|gestao|ambos> oficial [--build <id>] [--pasta <dir>] [--publicar] [--validade-horas <h>]';
 
 /**
  * Opções da linha de comando (puro, para teste).
  * @param {string[]} argv
  */
 export function opcoesDoDownload(argv) {
-  const o = { alvos: /** @type {{ variante: 'campo' | 'gestao'; perfil: 'desenvolvimento' | 'preview' | 'producao' }[]} */ ([]), build: null, pasta: 'dist/apk', publicar: false, validadeHoras: 72 };
+  const o = { alvos: /** @type {{ variante: 'campo' | 'gestao'; perfil: 'producao' }[]} */ ([]), build: null, pasta: 'dist/apk', publicar: false, validadeHoras: 72 };
   const posicionais = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];

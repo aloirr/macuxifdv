@@ -5,7 +5,7 @@ new file mode 100644
 @@ -0,0 +1,62 @@
 +name: apk — publicar
 +
-+# T-0109 (opcional). Baixa o APK de um build do EAS já TERMINADO, salva como <Campo-Demo-vX.Y.Z>.apk e publica no
++# T-0109 (opcional). Baixa o APK de um build do EAS já TERMINADO, salva como <Campo-Oficial-vX.Y.Z>.apk e publica no
 +# bucket PRIVADO (compatível com S3; Magalu Cloud Object Storage, ADR 0020) com link temporário (até 7 dias).
 +# Mesmo script do PC: apps/mobile/scripts/eas/baixar-apk.mjs (só Node puro; sem pnpm install).
 +# Manual: Actions → "apk — publicar" → Run workflow. O link sai no resumo do run (repositório privado; vence sozinho).
@@ -22,10 +22,10 @@ new file mode 100644
 +        options: [campo, gestao, ambos]
 +        default: campo
 +      canal:
-+        description: 'demo (perfis *-preview) ou oficial (perfis *-producao)'
++        description: 'oficial (perfis *-producao)'
 +        type: choice
-+        options: [demo, oficial]
-+        default: demo
++        options: [oficial]
++        default: oficial
 +      validade_horas:
 +        description: 'validade do link (1 a 168 horas)'
 +        type: string

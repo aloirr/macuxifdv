@@ -89,7 +89,7 @@ export default function ProfileScreen() {
   // T-0008 P7: 7 toques seguidos na versão abrem o diagnóstico de carga (só nos builds de desenvolvimento e preview)
   const toques = useRef(criarContadorToques());
   const comDiagnostico = diagnosticoDisponivel(perfilBuildAtual());
-  // T-0109: a linha da versão é o nome do build (Campo-Demo-v1.0.0), o mesmo da mensagem do build no EAS e do APK
+  // T-0109: a linha da versão é o nome do build (Campo-Oficial-v1.0.0), o mesmo da mensagem do build no EAS e do APK
   const versaoDoBuild = textoDaVersao(varianteAtual(), perfilBuildAtual(), Constants.expoConfig?.version);
 
   if (!sessao) return <Redirect href="/login" />;

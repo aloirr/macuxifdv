@@ -56,22 +56,24 @@ describe('versão do versao.json', () => {
 
 describe('perfis do eas.json', () => {
   it('variante + canal → perfil e volta', () => {
-    expect(perfilEas('campo', 'preview')).toBe('campo-preview');
+    expect(perfilEas('campo', 'producao')).toBe('campo-producao');
     expect(perfilEas('gestao', 'producao')).toBe('gestao-producao');
-    expect(perfilEas('gestao', 'desenvolvimento')).toBe('gestao');
     expect(lerPerfilEas('campo-producao')).toEqual({ variante: 'campo', perfil: 'producao' });
-    expect(lerPerfilEas('gestao')).toEqual({ variante: 'gestao', perfil: 'desenvolvimento' });
+    expect(lerPerfilEas('gestao-producao')).toEqual({ variante: 'gestao', perfil: 'producao' });
     expect(lerPerfilEas('base')).toBeNull();
+    // perfis de desenvolvimento e preview saíram do eas.json
+    expect(lerPerfilEas('gestao')).toBeNull();
+    expect(lerPerfilEas('campo-preview')).toBeNull();
     expect(lerPerfilEas('campo-demo')).toBeNull();
   });
 
-  it('argumentos dos scripts: demo/oficial/dev e sinônimos', () => {
-    expect(lerAlvo('campo', 'demo')).toEqual({ variante: 'campo', perfil: 'preview' });
+  it('argumentos dos scripts: só oficial (e sinônimos)', () => {
     expect(lerAlvo('Gestão', 'Oficial')).toEqual({ variante: 'gestao', perfil: 'producao' });
     expect(lerAlvo('gestao', 'producao')).toEqual({ variante: 'gestao', perfil: 'producao' });
-    expect(lerAlvo('campo', 'dev')).toEqual({ variante: 'campo', perfil: 'desenvolvimento' });
-    expect(() => lerAlvo('vendedor', 'demo')).toThrow(/campo\|gestao/);
-    expect(() => lerAlvo('campo', 'beta')).toThrow(/demo\|oficial\|dev/);
+    expect(lerAlvo('campo', 'oficial')).toEqual({ variante: 'campo', perfil: 'producao' });
+    expect(() => lerAlvo('campo', 'demo')).toThrow(/<campo\|gestao> oficial/);
+    expect(() => lerAlvo('campo', 'dev')).toThrow(/alvo inválido/);
+    expect(() => lerAlvo('vendedor', 'oficial')).toThrow(/campo\|gestao/);
     expect(() => lerAlvo(undefined, undefined)).toThrow(/alvo inválido/);
   });
 });
