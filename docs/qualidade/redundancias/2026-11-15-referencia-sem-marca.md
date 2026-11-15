@@ -90,3 +90,50 @@ Corretor-redundancias, 15/11/2026, ~12h (Manaus). O pedido é do dono do produto
 
 ## 4. Recados
 Um recado `pedido` por dono, com cópia ao gerente-projetos: modulo-catalogo (RD-0510 a 0513), modulo-vendedor (RD-0514) e banco-dados (RD-0515). Um aviso ao testes, com o §3.
+
+## 5. Reteste (15/11/2026, ~08h Manaus)
+**Veredito: COM ACHADO (não liberado).** Dos 6 achados, 5 estão corrigidos: RD-0510 a RD-0513 e RD-0515. O RD-0514 foi reaberto, porque ainda sobra uma cópia do tipo. Há 2 achados novos no catálogo, o RD-0540 (doc, média) e o RD-0541 (código, baixa). Os 3 seguram o lote.
+
+Conferi os commits:
+- **ddb8c283** em `origin/nuvem/referencia-sem-marca-modulo-catalogo`;
+- **80aa6015** em `origin/nuvem/referencia-sem-marca-modulo-vendedor`;
+- **09d25c32** em `origin/nuvem/referencia-sem-marca-banco-dados`.
+
+| Achado | Resultado |
+|---|---|
+| RD-0510 | **Corrigido.** `referenciaVisivel` está no `domain/marcas.ts`, com teste RN-CAT-09, e as 4 cópias passaram a chamar a função. |
+| RD-0511 | **Corrigido.** `textoDaReferencia` está no domain. `textoEquivaleA`, `layout.ts:83` e o `ini` de `vitrine.ts:228` usam a função. |
+| RD-0512 | **Corrigido.** Agora há 2 tipos: `MotivoDescarte`, com os 3 motivos de descarte, e `MotivoSemMarca`. O parâmetro passou a se chamar `semMarca`. |
+| RD-0513 | **Corrigido.** O it repetido saiu de `cadastro-catalogo.test.ts`. |
+| `MSG_SEM_MARCAS` (§3, testes) | **Corrigido.** O texto agora termina em "ou escolha "Sem marca"." e tem teste em `marcas.test.ts:36-39`. O valor contra a regra continua com o testes. |
+| RD-0514 | **Reaberto.** As 4 cópias de fora do domain passaram a usar `ReferenciaPdf`, e o `?? null` saiu. Mas o `ReferenciaPdf` foi escrito como tipo novo (`pdf-pedido.ts:35`), em vez de vir de `OrderPdfItem['references']`. O mesmo formato continua escrito à mão em `pdf-pedido.ts:57` (`references?: ReadonlyArray<{ brand?: string \| null; code: string }>`). São 2 definições no mesmo arquivo, e elas já divergem (`brand` opcional numa, obrigatório na outra). |
+| RD-0515 | **Corrigido.** Saíram de `aplicacao-referencia.test.ts` o `marca_id.notNull` e a recusa de outra marca com o mesmo código. A regra da 0075 fica só no teste da 0075. |
+| Linha CB-3400 (`aplicacao-referencia.test.ts:263`) | **Pouco clara (sem RD).** O commit tirou o comentário "o compacto da apagada (cb3400) volta a valer", e a linha ficou sem explicação, logo abaixo do comentário sobre "cb-3401". Quem lê não sabe que o `cb3400` é a referência apagada da fixture, nem por que o `toBeNull` importa. Sugiro ao banco-dados recolocar só a parte que vale: `// a apagada (cb3400) não conta: o mesmo código volta a valer`. É comentário de teste e não segura. |
+
+### RD-0514 (reaberto) · baixa · código · modulo-vendedor
+- **Onde:** `modules/vendedor/domain/pdf-pedido.ts:35` (`export type ReferenciaPdf = { brand: string | null; code: string }`) × `:57` (`references?: ReadonlyArray<{ brand?: string | null; code: string }>`).
+- **Proposta:** antes → `references?: ReadonlyArray<{ brand?: string | null; code: string }>`; depois → `references?: ReadonlyArray<ReferenciaPdf>`. Os testes de `pdf-pedido.test.ts` já mandam o `brand` em toda referência. Se o opcional for preciso, ele vai para o `ReferenciaPdf`.
+
+### RD-0540 · média · doc · modulo-catalogo
+- **Onde:** `docs/modulos/catalogo/regras.md:170` × `:160`.
+- **O que se repete:** a mesma regra (a referência do ERP com marca desconhecida) aparece em 2 parágrafos do mesmo doc, e os 2 agora se contradizem.
+  - A linha 160, que foi atualizada, diz: "vinda do ERP, a referência entra só com o código (aviso `catalogo.referencia.marca_desconhecida@1` no Hub)".
+  - A linha 170, que não mudou, diz: "`resolverReferenciasDoErp` casa a marca, descarta a desconhecida/inativa/inválida com aviso no log".
+- **Impacto:** leitura e decisão. Quem lê o §170 acha que a referência é descartada, e ela não é mais. É o mesmo engano que o RD-0512 tirou do código.
+- **Proposta:** a fonte da regra fica na linha 160.
+  - antes → "`resolverReferenciasDoErp` casa a marca, descarta a desconhecida/inativa/inválida com aviso no log e, sem o Promotor, ignora o bloco sem apagar o atual."
+  - depois → "`resolverReferenciasDoErp` casa a marca (desconhecida ou inativa: ver acima) e, sem o Promotor, ignora o bloco sem apagar o atual."
+
+### RD-0541 · baixa · código · modulo-catalogo
+- **Onde:** `modules/catalogo/domain/marcas.ts`, no retorno de `referenciaVisivel` (`{ marca_id: string | null; marca_nome: string | null; codigo: string } | null`) e em `ResolucaoReferenciasErp.referencias` (`:47`).
+- **O que se repete:** o formato do `Referencia` do contrato (`contracts/busca.ts:128-129`) está escrito à mão 2 vezes no domain. Os 4 chamadores gravam o retorno em `Map<string, Referencia[]>`. O domain já importa tipos de `../contracts` (`cadastro-catalogo.ts:6`, `vitrine.ts`).
+- **Impacto:** manutenção. Se um campo mudar no contrato, as cópias à mão não acompanham, e o erro só aparece nos chamadores.
+- **Proposta:** `import type { Referencia } from '../contracts';`
+  - antes → `): { marca_id: string | null; marca_nome: string | null; codigo: string } | null`; depois → `): Referencia | null`;
+  - antes → `referencias: { marca_id: string | null; marca_nome: string | null; codigo: string }[]`; depois → `referencias: Referencia[]`.
+
+### Recados
+Os recados não foram gravados: a CLI recebeu 403 na escrita, como na rodada anterior. A lista foi entregue ao gerente-projetos, por dono:
+- modulo-catalogo: RD-0540 e RD-0541;
+- modulo-vendedor: RD-0514, reaberto;
+- banco-dados: a sugestão do comentário do CB-3400, sem RD e sem segurar o lote.
