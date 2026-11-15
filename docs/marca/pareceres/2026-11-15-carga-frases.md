@@ -5,6 +5,30 @@
 > **Como:** leitura dos quatro PNGs, da spec, das 30 frases (todas) e dos hex do `app.css` e do `config-frases.html`; contas de altura da tela de carga com as medidas do `app.css` e o `posicaoDoLogo` (logo empilhado de 126 dp no centro).
 > **Numeração:** MC-0077 a MC-0080 (a última em uso nos branches da marca é MC-0076). O `catalogo.md` recebe estas linhas na consolidação do catálogo, junto com os branches de reteste ainda abertos, para não gerar conflito.
 
+## Reteste das 30 frases (commit `73db26c518372139eb4eeab3e3c568fd63a85b86`): **liberado, com a validação indígena pendente nas frases 1, 2, 4, 7, 8 e 16 a 22**
+| Item | Situação | Conferido |
+|---|---|---|
+| MC-0081 (maiúscula no nome do povo) | **fechado** | 2, 7, 8, 18 a 22 e 24 com Macuxi, Pemon, Taurepang, Ingarikó e Wapichana em maiúscula. A 6 ficou "tornou cooficiais as línguas Macuxi e Wapichana" |
+| MC-0082 (sigla na 3) | **fechado** | "Em 2020, o povo Macuxi somava 37.250 pessoas em Roraima." Saiu a sigla, e o passado é do dado datado, não do povo |
+| MC-0083 (17 fora da narrativa) | **fechado** | "Makunaimã, das narrativas Macuxi e Pemon, inspirou Mário de Andrade." A figura vem da narrativa, sem "é o herói", e cabe com folga. Segue inativa |
+| MC-0084 ("mito" e fonte na tela) | **fechado** | §6, linha 22: "narrativa da agricultura (registrada em 2017)". A fonte saiu da tela em todas as frases (a 9 sem "(IBGE, 2024)" e a 30 com "em 2022" no texto), o que é mais limpo que o padrão que a marca tinha pedido: aceito, porque a fonte fica no cadastro |
+| 18 sem "Wei" | **ok** | "…são irmãos, filhos do Sol." Menos um nome sagrado na tela, sem perder o sentido |
+| 12 inativas | **ok** | `frases.md` e `config-frases.html`: 1, 2, 4, 7, 8 e 16 a 22 estão como "Inativa", e as 18 liberadas como "Ativa". A spec §4 registra a regra e a concordância dos artistas nas frases 7 e 8. O app sorteia entre as 18 ativas (§2) |
+| Coluna "Para" | **ok** | saiu da tabela e do diálogo. Como todas valem para todos, é menos um campo no cadastro |
+
+### MC-0085 · frase 4 com a sintaxe invertida · baixa
+| Campo | Conteúdo |
+|---|---|
+| Onde | `frases.md` 4 e `config-frases.html`: "A damurida, caldo de pimenta com peixe ou carne, os Macuxi chamam de tuma." |
+| Tipo | voz |
+| Fere | §9 (fala direta). O objeto vem na frente, sem retomada, e a frase obriga a reler |
+| Correção | → **"Os Macuxi chamam de tuma a damurida, caldo de pimenta com peixe ou carne."** (73 caracteres). O sujeito vem primeiro, o povo fica no presente e "tuma" fica perto de quem diz a palavra. A frase segue inativa até a validação |
+| Dono | designer-ux |
+
+**Sugestão, sem segurar:** na 15 e na 16, o povo aparece sem artigo ("ICMBio e Ingarikó catalogaram", "Ingarikó e Pemon formam"), e a frase fica com cara de manchete. Com o artigo fica mais natural: "Em 2019, o ICMBio e os Ingarikó catalogaram novas espécies no parque do monte." (79) e "Os Ingarikó e os Pemon formam um só mundo cultural em torno do Monte Roraima." (77).
+
+**Para o Alexandre:** as 18 ativas estão liberadas pela marca. As 12 inativas só são ativadas depois da validação indígena que ele escolher. Nas frases 7 e 8, vale também a concordância da artista ou de quem responde pela obra.
+
 ## Lista nova das 30 frases: tom e regras culturais (commit `ca9827287c3804c5bfaee2737a6c947766a251d1`)
 > Tema do Alexandre (R-20261115-071500-alexandre): história e tradição de Roraima, com 8 frases sobre os Macuxi, 8 sobre o Monte Roraima, 8 sobre Makunaimã e 6 sobre outros temas de Roraima. Li as 30 frases do `frases.md` e as 30 fontes da `spec.md` §6. A marca não refez a pesquisa: a exatidão dos fatos fica com quem pesquisou, e a fonte de cada um está registrada.
 
