@@ -10,8 +10,9 @@
  *  - `GET /v1/integracao/mapeamentos/codigos-macuxi?tipo=` (`monitor.ver`): códigos do Macuxi para o De-para.
  * Regras no `domain` (`status-lote.ts`); aqui só SQL no schema `integracao`, consultas declaradas no manifesto e auditoria.
  */
-import { ConsultaIndisponivel, ErroHttpModulo, ErroNaoEncontrado, definirConsulta, pode, type ClienteBanco, type ContextoRota, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
+import { ConsultaIndisponivel, ErroHttpModulo, ErroNaoEncontrado, pode, type ClienteBanco, type ContextoRota, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { z } from 'zod';
+import { CONSULTA_USUARIOS_COM_ACAO } from '@macuxi/core/contracts';
 import { CONSULTA_FORMAS_PAGAMENTO } from '../../vendedor/contracts';
 import { CodigosMacuxiQuery, ReprocessarLoteEntrada, type AutorizadoresResposta, type CancelarLoteResposta, type CodigosMacuxiResposta, type EstadoLoteBko, type ReprocessarLoteResposta } from '../contracts';
 import {
@@ -26,17 +27,8 @@ import { EVENTO_LOTE_RECEBIDO } from './eventos';
 
 const Params = z.object({ id: z.string().uuid('UUID inválido') });
 
-/**
- * `core.usuarios_com_acao@1` (T-0173; dono: modulo-core): `{ modulo, acao }` → `{ usuarios: [{ id, nome }] }`, os usuários ativos do tenant
- * com a ação pela permissão efetiva (perfil, não o perfil base). Definida aqui enquanto o Core não publica a constante em
- * `modules/core/contracts`; trocar pelo import dele quando sair (mesmo nome e mesmo formato).
- */
+/** Ação que autoriza o reprocessamento; a consulta `core.usuarios_com_acao@1` vem do contrato do Core. */
 const ACAO_REPROCESSAR = { modulo: 'integracao', acao: 'lote.reprocessar' } as const;
-const CONSULTA_USUARIOS_COM_ACAO = definirConsulta({
-  nome: 'core.usuarios_com_acao@1',
-  entrada: z.object({ modulo: z.string(), acao: z.string() }).strict(),
-  saida: z.object({ usuarios: z.array(z.object({ id: z.string().uuid(), nome: z.string() })) }),
-});
 
 /** Resultado da conferência da senha pelo Core. `indisponivel` = o Core ainda não oferece a conferência (pendência com o modulo-core). */
 export type ResultadoSenha = 'ok' | 'incorreta' | 'indisponivel';
