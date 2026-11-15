@@ -200,7 +200,7 @@ function usePlataformaValor() {
   const modo = useMemo(() => modoApi(), []);
   const variante = useMemo(() => varianteAtual(), []);
   const shell = useMemo(() => shellDaVariante(variante), [variante]);
-  /** T-0038: preview/producao usam sempre o endereço do build (sem campo Servidor); só o desenvolvimento edita. */
+  /** T-0038: producao usa sempre o endereço do build (sem campo Servidor); só o desenvolvimento edita. */
   const perfilBuild = useMemo(() => perfilBuildAtual(), []);
   const editavel = servidorEditavel(perfilBuild);
   const [ready, setReady] = useState(false);

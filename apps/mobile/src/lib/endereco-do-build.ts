@@ -1,17 +1,18 @@
 /**
  * Endereço fixo do build (T-0038, R-20261101-164531-alexandre; doc 04, "Domínio e endereços"). Puro, para teste.
  *
- * Cada perfil EAS (`apps/mobile/eas.json`) leva `EXPO_PUBLIC_API_URL` e `EXPO_PUBLIC_PERFIL_BUILD`:
- *  - `desenvolvimento` (perfis `campo` e `gestao`, com expo-dev-client): o login tem o campo Servidor, escondido em
- *    "Avançado", para apontar para a API na rede local; o endereço salvo no aparelho vale.
- *  - `preview` e `producao`: SEM campo Servidor. O app usa sempre o endereço do build; o endereço salvo por uma versão
- *    antiga do app é ignorado. Se o `/v1/saude` falhar, a mensagem é só "Servidor indisponível — tente mais tarde".
+ * Perfis do build (`EXPO_PUBLIC_PERFIL_BUILD`):
+ *  - `desenvolvimento` (bundle local do `expo start`): o login tem o campo Servidor, escondido em "Avançado", para
+ *    apontar para a API na rede local; o endereço salvo no aparelho vale.
+ *  - `producao` (perfis `*-producao` do `apps/mobile/eas.json`, que levam `EXPO_PUBLIC_API_URL`): SEM campo Servidor.
+ *    O app usa sempre o endereço do build; o endereço salvo por uma versão antiga do app é ignorado. Se o
+ *    `/v1/saude` falhar, a mensagem é só "Servidor indisponível — tente mais tarde".
  * Sem a variável (ex.: `expo start` local sem o perfil): bundle de desenvolvimento (`__DEV__`) = `desenvolvimento`;
  * bundle de release = endereço fixo (o lado seguro). A decisão é pela flag do build, nunca pelo endereço.
  */
 import { ErroHttp, ErroSemConexao } from '@macuxi/platform-sdk';
 
-export type PerfilBuild = 'desenvolvimento' | 'preview' | 'producao';
+export type PerfilBuild = 'desenvolvimento' | 'producao';
 
 export const MENSAGEM_SERVIDOR_INDISPONIVEL = 'Servidor indisponível — tente mais tarde';
 
@@ -20,7 +21,7 @@ export const CODIGO_SERVIDOR_INDISPONIVEL = 'SERVIDOR_INDISPONIVEL';
 
 export function lerPerfilBuild(env: { EXPO_PUBLIC_PERFIL_BUILD?: string | undefined }, bundleDeDesenvolvimento: boolean): PerfilBuild {
   const v = env.EXPO_PUBLIC_PERFIL_BUILD?.trim().toLowerCase();
-  if (v === 'desenvolvimento' || v === 'preview' || v === 'producao') return v;
+  if (v === 'desenvolvimento' || v === 'producao') return v;
   return bundleDeDesenvolvimento ? 'desenvolvimento' : 'producao';
 }
 

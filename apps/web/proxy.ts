@@ -1,9 +1,8 @@
 /**
  * Proxy do Next 16 (o antigo middleware). T-0086: no host `config.` (portal de implantação da T-0087) reescreve o
- * caminho para a rota `/config`; nos outros hosts (bko., bko-demo., localhost e a sonda `127.0.0.1:3100/login`) não
+ * caminho para a rota `/config`; nos outros hosts (bko., localhost e a sonda `127.0.0.1:3100/login`) não
  * reescreve nada. T-0087 (ADR 0029 §7): fora do host `config.`, `/config` e `/config/*` respondem 404, e no host
  * `config.` o `/login` do BKO vai para a entrada do portal. As regras são puras e testadas em `lib/portal.ts`.
- * T-0091: o portal da demo (`config-demo.`) segue as mesmas regras (`PREFIXOS_DO_PORTAL`).
  * Sem sessão aqui: o token do super-admin fica no `sessionStorage` da origem `config.` e as páginas do portal conferem.
  */
 import { NextResponse, type NextRequest } from 'next/server';

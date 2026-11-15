@@ -173,8 +173,8 @@ describe('contraste do laranja no shell (accentInk em texto)', () => {
     expect(corDoTexto(m, 'Avançado')).toBe('accentInk');
     expect(m).toContain('<i data-cor="accent"></i>');
   });
-  it('builds preview e produção não mostram o "Avançado"', () => {
-    sim.perfilBuild = 'preview';
+  it('build de produção não mostra o "Avançado"', () => {
+    sim.perfilBuild = 'producao';
     expect(html()).not.toContain('Avançado');
   });
   it('demonstração: a marca "MACUXI FDV" em accentInk; o spinner segue accent', () => {

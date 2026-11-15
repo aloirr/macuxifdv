@@ -10,7 +10,7 @@
  *   Início mostra "Senha criada.".
  * - Demonstração (`EXPO_PUBLIC_API_MODO=demo`, mock-api da Fase M): escolher o usuário numa lista, sem senha. O papel
  *   em inglês vira o perfil do doc 03 (`perfilDaFaseM`); entram só os perfis que entram na variante pelo motor de permissões do SDK (`entraEm`).
- * Servidor (T-0038, `endereco-do-build.ts`): nos builds preview e producao NÃO há campo Servidor; o app usa sempre o
+ * Servidor (T-0038, `endereco-do-build.ts`): no build de produção NÃO há campo Servidor; o app usa sempre o
  * endereço do build e, se a verificação de `/v1/saude` falhar, mostra só "Servidor indisponível — tente mais tarde".
  * No build de desenvolvimento o cartão Servidor fica embaixo, fechado em "Avançado" (rede local). Lá o endereço é usado
  * exatamente como digitado (R-20261101-065547-alexandre) e só é salvo se o servidor se identificar como Macuxi
@@ -239,7 +239,7 @@ function LoginReal() {
 }
 
 /**
- * Servidor no login conforme o build (T-0038): nada nos builds preview/producao; no desenvolvimento, o link "Avançado"
+ * Servidor no login conforme o build (T-0038): nada no build de produção; no desenvolvimento, o link "Avançado"
  * abre o cartão Servidor (fechado por padrão; o rótulo avisa quando há endereço personalizado salvo).
  */
 function ServidorDoLogin() {
