@@ -62,6 +62,9 @@ export const TABELAS_FORA_DO_SYNC = [
   'plataforma.arquivo',
   /** Diagnóstico do aparelho (0058, T-0158, ADR 0043): o app só envia (POST /v1/diagnosticos); só o portal do super-admin lê. */
   'plataforma.diagnostico',
+  /** Pacote da primeira carga (0070, ADR 0054): o aparelho baixa o arquivo pelo manifesto GET /v1/sync/pacotes; as linhas nunca são puxadas. */
+  'plataforma.sync_pacote',
+  'plataforma.sync_pacote_pedido',
   /** Contador do número legível do pedido (0009, T-0029): uma linha por tenant, só o servidor usa. */
   'vendedor.numeracao_pedido',
   /** Cota de IA por usuário/dia (0013, RN-CAT-03): só o servidor usa (catalogo.debitar_cota_ia). */
