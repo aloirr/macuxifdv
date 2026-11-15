@@ -5,7 +5,7 @@
  * esqueci.erro, esqueci.confirmacao, esqueci.voltar.
  */
 import { estilosDeAcesso } from './estilos-de-acesso';
-import { Banner, Button, colors, fonts, radius, Screen, toneColors, type as t, Icon } from '@macuxi/ui/mobile';
+import { Banner, Button, colors, fonte, radius, Screen, toneColors, type as t, Icon } from '@macuxi/ui/mobile';
 import { useRef, useState, type ComponentProps, type RefObject } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -144,5 +144,5 @@ function Campo({
 const styles = StyleSheet.create({
   ...estilosDeAcesso,
   aviso: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: radius.md },
-  avisoTexto: { flex: 1, fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
+  avisoTexto: { flex: 1, ...fonte.body, fontSize: 14, lineHeight: 20 },
 });

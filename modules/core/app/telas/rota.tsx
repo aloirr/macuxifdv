@@ -4,7 +4,7 @@
  * Check-in único: com um atendimento aberto, o check-in das outras paradas fica bloqueado (cadeado).
  */
 import { formatBRL0 } from '@macuxi/comum';
-import { Botao, Cartao, ChipEstado, colors, EstadoVazio, fonts, formatHHMM, Icon, radius, Screen, type as t } from '@macuxi/ui/mobile';
+import { Botao, Cartao, ChipEstado, colors, EstadoVazio, fonte, formatHHMM, Icon, radius, Screen, type as t } from '@macuxi/ui/mobile';
 import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, G, Path, Polyline, Text as SvgText } from 'react-native-svg';
@@ -91,7 +91,7 @@ export function TelaRota() {
               return (
                 <G key={s.id}>
                   <Circle cx={p.x} cy={p.y} r={16} fill={colors.accent} stroke={colors.surface} strokeWidth={3} />
-                  <SvgText x={p.x} y={p.y + 5} fontSize={14} fontFamily={fonts.display} fill={colors.surface} textAnchor="middle">
+                  <SvgText x={p.x} y={p.y + 5} fontSize={14} fontWeight="700" fill={colors.surface} textAnchor="middle">
                     {String(s.sequence)}
                   </SvgText>
                 </G>
@@ -101,7 +101,7 @@ export function TelaRota() {
               return (
                 <G key={s.id}>
                   <Circle cx={p.x} cy={p.y} r={16} fill={colors.ink} stroke={colors.surface} strokeWidth={3} />
-                  <SvgText x={p.x} y={p.y + 5} fontSize={14} fontFamily={fonts.display} fill={colors.surface} textAnchor="middle">
+                  <SvgText x={p.x} y={p.y + 5} fontSize={14} fontWeight="700" fill={colors.surface} textAnchor="middle">
                     {String(s.sequence)}
                   </SvgText>
                 </G>
@@ -111,7 +111,7 @@ export function TelaRota() {
             return (
               <G key={s.id}>
                 <Circle cx={p.x} cy={p.y} r={done ? 12 : 11} fill={done ? colors.success : colors.surface} stroke={done ? colors.success : colors.ink} strokeWidth={done ? 0 : 2} />
-                <SvgText x={p.x} y={p.y + 4} fontSize={12} fontFamily={fonts.bold} fill={done ? colors.surface : colors.ink} textAnchor="middle">
+                <SvgText x={p.x} y={p.y + 4} fontSize={12} fontWeight="700" fill={done ? colors.surface : colors.ink} textAnchor="middle">
                   {String(s.sequence)}
                 </SvgText>
               </G>
@@ -178,7 +178,7 @@ function StopRow({ stop, last, tz, locked, onPress, onAction }: { stop: RouteSto
         </View>
       ) : inProgress || isNext ? (
         <View style={[styles.num, { backgroundColor: inProgress ? colors.accent : colors.ink }]}>
-          <Text style={[styles.numText, { color: colors.onAccent, fontFamily: fonts.display, fontSize: 13 }]}>{stop.sequence}</Text>
+          <Text style={[styles.numText, { color: colors.onAccent, ...fonte.display, fontSize: 14 }]}>{stop.sequence}</Text>
         </View>
       ) : (
         <View style={[styles.num, { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.ink }]}>
@@ -225,5 +225,5 @@ const styles = StyleSheet.create({
   action: { paddingHorizontal: 12 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   num: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  numText: { fontFamily: fonts.bold, fontSize: 12, color: colors.ink },
+  numText: { ...fonte.bold, fontSize: 12, color: colors.ink },
 });

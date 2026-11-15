@@ -107,7 +107,7 @@ function StatusLegend() {
         <span className="inline-block h-3 w-3 rounded-full border-2 border-ink-2 bg-white" /> Pendente
       </span>
       <span className="flex items-center gap-1.5">
-        <span className="inline-flex h-3.5 w-5 items-center justify-center rounded-[3px] bg-ink text-[8px] font-extrabold text-white">CD</span> Saída
+        <span className="inline-flex h-3.5 w-5 items-center justify-center rounded-[3px] bg-ink text-xs font-extrabold text-white">CD</span> Saída
       </span>
     </div>
   );

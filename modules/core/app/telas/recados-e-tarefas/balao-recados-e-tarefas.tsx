@@ -5,7 +5,7 @@
  */
 import { linkInternoNavegavel } from '@macuxi/platform-sdk';
 import { useVisaoShell } from '@macuxi/platform-sdk/react';
-import { ALVO_TOQUE, colors, fonts, Icon, Pressionavel, space } from '@macuxi/ui/mobile';
+import { ALVO_TOQUE, colors, fonte, Icon, Pressionavel, space } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -88,8 +88,8 @@ export function BalaoRecadosETarefas({
 
 const s = StyleSheet.create({
   titulo: {
-    fontFamily: fonts.displayBold,
-    fontSize: 17,
+    ...fonte.displayBold,
+    fontSize: 18,
     color: colors.ink,
     paddingHorizontal: space.lg,
     paddingTop: space.lg,
@@ -105,10 +105,10 @@ const s = StyleSheet.create({
   },
   separada: { borderTopWidth: 1, borderTopColor: colors.line },
   textos: { flex: 1, gap: space.xxs },
-  tituloForte: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
-  tituloNormal: { fontFamily: fonts.body, fontSize: 15, color: colors.ink },
-  apoio: { fontFamily: fonts.body, fontSize: 14, color: colors.ink2 },
-  apoioVencida: { fontFamily: fonts.body, fontSize: 14, color: colors.danger },
+  tituloForte: { ...fonte.semibold, fontSize: 16, color: colors.ink },
+  tituloNormal: { ...fonte.body, fontSize: 16, color: colors.ink },
+  apoio: { ...fonte.body, fontSize: 14, color: colors.ink2 },
+  apoioVencida: { ...fonte.body, fontSize: 14, color: colors.danger },
   rodape: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -119,5 +119,5 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.line,
   },
-  verTodos: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
+  verTodos: { ...fonte.semibold, fontSize: 16, color: colors.ink },
 });

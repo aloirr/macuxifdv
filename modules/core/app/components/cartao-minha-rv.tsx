@@ -2,7 +2,7 @@
  * Cartão "Minha RV" da tela Metas (T-0082; RN-CORE-29): valor projetado, faixa por indicador, gatilho e o texto
  * "No ritmo" / "Ainda não atingido". Lê só a cópia do aparelho (funciona sem rede) e mostra de quando é o cálculo.
  */
-import { Banner, Cartao, ChipEstado, colors, EstadoVazio, fonts, ProgressBar, radius, type as t, useSincronizacao } from '@macuxi/ui/mobile';
+import { Banner, Cartao, ChipEstado, colors, EstadoVazio, fonte, ProgressBar, radius, type as t, useSincronizacao } from '@macuxi/ui/mobile';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -100,13 +100,13 @@ function Linha({ l, ultima }: { l: LinhaMinhaRv; ultima: boolean }) {
 const styles = StyleSheet.create({
   carregando: { minHeight: 48, justifyContent: 'center', alignItems: 'center' },
   dark: { backgroundColor: colors.ink, borderRadius: radius.secao, padding: 18, gap: 8 },
-  darkLabel: { fontFamily: fonts.body, fontSize: 13, color: colors.darkMuted },
-  darkValue: { fontFamily: fonts.display, fontSize: 34, color: colors.surface, fontVariant: ['tabular-nums'] },
-  alerta: { fontFamily: fonts.body, fontSize: 13, color: colors.dangerOnDark },
+  darkLabel: { ...fonte.body, fontSize: 14, color: colors.darkMuted },
+  darkValue: { ...fonte.display, fontSize: 28, color: colors.surface, fontVariant: ['tabular-nums'] },
+  alerta: { ...fonte.body, fontSize: 14, color: colors.dangerOnDark },
   linha: { gap: 6, padding: 14 },
   divisor: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   topo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },
-  nome: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink, flex: 1 },
-  pct: { fontFamily: fonts.display, fontSize: 18, color: colors.ink },
-  valor: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink },
+  nome: { ...fonte.semibold, fontSize: 16, color: colors.ink, flex: 1 },
+  pct: { ...fonte.display, fontSize: 18, color: colors.ink },
+  valor: { ...fonte.semibold, fontSize: 14, color: colors.ink },
 });

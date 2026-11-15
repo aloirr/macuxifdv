@@ -4,7 +4,7 @@
  * Na ficha do PRÓPRIO cliente do check-in (`clienteAtual`) a faixa some: a ficha já mostra "Em atendimento" e o Checkout no
  * rodapé, e "Ver cliente" abriria a mesma tela (relato do dono do produto, 08/11).
  */
-import { Botao, colors, fonts, formatHHMM, radius } from '@macuxi/ui/mobile';
+import { Botao, colors, fonte, formatHHMM, radius } from '@macuxi/ui/mobile';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { abrirCliente } from '../lib/navegacao';
@@ -54,10 +54,10 @@ const styles = StyleSheet.create({
   bar: { backgroundColor: colors.ink, borderRadius: radius.secao, padding: 14, gap: 10 },
   top: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.accentLight, borderWidth: 0, shadowColor: colors.accentLight, shadowOpacity: 0.6, shadowRadius: 4, shadowOffset: { width: 0, height: 0 } },
-  overline: { fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.9, color: colors.accentLight },
-  since: { marginLeft: 'auto', fontFamily: fonts.body, fontSize: 12, color: colors.darkMuted },
-  name: { fontFamily: fonts.displayBold, fontSize: 17, color: colors.surface },
-  hint: { fontFamily: fonts.body, fontSize: 12, color: colors.darkMuted },
+  overline: { ...fonte.bold, fontSize: 12, letterSpacing: 0.9, color: colors.accentLight },
+  since: { marginLeft: 'auto', ...fonte.body, fontSize: 12, color: colors.darkMuted },
+  name: { ...fonte.displayBold, fontSize: 18, color: colors.surface },
+  hint: { ...fonte.body, fontSize: 12, color: colors.darkMuted },
   actions: { flexDirection: 'row', gap: 8 },
   btn: { flex: 1 },
 });

@@ -1,7 +1,7 @@
 /**
  * Carteira: busca e filtros locais (funcionam sem sinal).
  */
-import { CabecalhoTela, Chip, ChipEstado, EstadoVazio, colors, fonts, Icon, radius, SeloAtualizacao, type as t } from '@macuxi/ui/mobile';
+import { CabecalhoTela, Chip, ChipEstado, EstadoVazio, colors, fonte, Icon, radius, SeloAtualizacao, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -215,7 +215,7 @@ function CustomerRow({ c, first, last }: { c: CustomerSummary; first: boolean; l
 const styles = StyleSheet.create({
   top: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12, gap: 12 },
   search: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, paddingHorizontal: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md },
-  searchInput: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 15, color: colors.ink, height: 44 },
+  searchInput: { flex: 1, minWidth: 0, ...fonte.body, fontSize: 16, color: colors.ink, height: 44 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 14, backgroundColor: colors.surface, borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.line },
   rowFirst: { borderTopWidth: 1, borderTopLeftRadius: radius.cartao, borderTopRightRadius: radius.cartao },
   rowLast: { borderBottomWidth: 1, borderBottomLeftRadius: radius.cartao, borderBottomRightRadius: radius.cartao },
