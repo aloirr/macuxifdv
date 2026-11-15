@@ -8,7 +8,7 @@ import type { Product } from '@macuxi/catalogo/contracts';
 import type { EnderecoEditadoValido } from '../../domain/endereco-pedido';
 import { validateOrder, type OrderIssue, type OrderTotals, type OrderValidation } from '../../domain/order';
 import type { FaixaEscalonada } from '../../domain/preco-item';
-import { mensagemAcimaDoMaximo } from '../../domain/preco-pedido';
+import { mensagemAcimaDoMaximo, percentualAjusteParaBp } from '../../domain/preco-pedido';
 import { toDomainPolicy } from './catalog';
 import { calcularPedido, fretePush, freteValido, linhasParaPush, politicaParaAutor, type Ajuste, type CalculoPedido, type FreteDoRascunho, type UnidadeDaTela } from './novo-pedido';
 import type { PrefillLine } from './order-prefill';
@@ -24,6 +24,8 @@ export interface Rascunho {
   /** T-0089 (RN-VEN-24/25): forma e prazo escolhidos; os dois juntos ou nenhum (rascunho anterior segue pela condição) */
   forma_pagamento_id?: string | null;
   prazo_pagamento_id?: string | null;
+  /** RN-VEN-43/45: % do prazo congelado na escolha (retrato; ausente = 0). Trocar o prazo grava o do novo prazo e tudo é recalculado da tabela original. */
+  prazo_percentual_ajuste?: number;
   /** Observação do pedido (editada no Resumo) */
   observacao?: string;
   /** T-0165: Observação da entrega (aba Entrega); vai junto no texto único do pedido até o contrato ganhar o campo próprio */
@@ -187,6 +189,7 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido
     desconto_valor_cents: e.rascunho.desconto_valor_cents,
     acrescimo_valor_cents: e.rascunho.acrescimo_valor_cents,
     ajuste_em: e.rascunho.ajuste_em,
+    percentual_ajuste_bp: percentualAjusteParaBp(e.rascunho.prazo_percentual_ajuste),
     catalogo: e.catalogo,
     unidades: e.unidades ?? [],
     faixas: e.faixas,
@@ -271,7 +274,7 @@ export function montarPedido(args: { id: string; cliente: CustomerSummary; rascu
     items: calculo ? linhasParaPush(calculo.linhas) : args.v.totals.lines.map((l) => ({ product_id: l.product_id, quantity: l.quantity })),
     // T-0089: com forma e prazo, a condição legada fica nula; sem eles (APK anterior, tenant sem formas) vale a condição
     condicao_pagamento_id: args.rascunho.forma_pagamento_id && args.rascunho.prazo_pagamento_id ? null : (args.rascunho.condicao_pagamento_id ?? null),
-    ...(args.rascunho.forma_pagamento_id && args.rascunho.prazo_pagamento_id ? { forma_pagamento_id: args.rascunho.forma_pagamento_id, prazo_pagamento_id: args.rascunho.prazo_pagamento_id } : {}),
+    ...(args.rascunho.forma_pagamento_id && args.rascunho.prazo_pagamento_id ? { forma_pagamento_id: args.rascunho.forma_pagamento_id, prazo_pagamento_id: args.rascunho.prazo_pagamento_id, ...(args.rascunho.prazo_percentual_ajuste ? { prazo_percentual_ajuste: args.rascunho.prazo_percentual_ajuste } : {}) } : {}),
     observacao: observacaoDoPush(args.rascunho),
     visita_id: args.rascunho.visit_id ?? null,
     // T-0053: só o orçamento leva `tipo` (o payload do pedido fica igual ao dos APKs anteriores)
