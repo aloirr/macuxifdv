@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ALTURA_CARGA_FUNDO,
   desenhoCargaFundo,
+  desenhoCatalogoCarregando,
   FOLGA_TOQUE_CARGA,
   percentualDaCarga,
   TEXTO_CATALOGO_CARREGANDO,
@@ -54,8 +55,25 @@ describe('IndicadorCargaFundo (onda 1 do catálogo, solução 5)', () => {
     expect(TEXTO_CATALOGO_CARREGANDO).toBe('Busque quando tiver sinal.');
   });
 
+  it('CatalogoCarregando: na aba, só o texto (o indicador e o selo já dizem carregando e sem sinal, RD-0671)', () => {
+    expect(desenhoCatalogoCarregando()).toEqual({ texto: 'Busque quando tiver sinal.' });
+    expect(desenhoCatalogoCarregando({ comTitulo: false })).toEqual({ texto: 'Busque quando tiver sinal.' });
+  });
+
+  it('CatalogoCarregando comTitulo: ficha e Novo pedido levam o wifiOff e "Catálogo ainda carregando"', () => {
+    expect(desenhoCatalogoCarregando({ comTitulo: true })).toEqual({ icone: 'wifiOff', titulo: 'Catálogo ainda carregando', texto: 'Busque quando tiver sinal.' });
+  });
+
+  it('CatalogoCarregando monta o EstadoVazio pelo desenho, com comTitulo falso por padrão; o vazio aceita ficar sem título', () => {
+    const rn = ler('./carga-fundo-rn.tsx');
+    expect(rn).toContain("export function CatalogoCarregando({ comTitulo = false, testID = 'catalogo-carregando' }: CatalogoCarregandoProps)");
+    expect(rn).toContain('<EstadoVazio icone={d.icone} titulo={d.titulo} texto={d.texto} testID={testID} />');
+    expect(ler('./base.tsx')).toContain('{titulo ? <Text style={s.vazioTitulo}>{titulo}</Text> : null}');
+  });
+
   it('exportado no puro e no índice do kit', () => {
     expect(puro.desenhoCargaFundo).toBe(desenhoCargaFundo);
+    expect(puro.desenhoCatalogoCarregando).toBe(desenhoCatalogoCarregando);
     const indice = ler('./index.ts');
     expect(indice).toContain("export * from './carga-fundo';");
     expect(indice).toContain("export * from './carga-fundo-rn';");

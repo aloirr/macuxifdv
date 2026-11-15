@@ -44,14 +44,21 @@ carregando, 63%, parado sem sinal"), dica "Abre o detalhe da carga", `accessibil
 ## 2. `CatalogoCarregando` (`@macuxi/ui/mobile`) — catálogo sem sinal durante a carga
 
 Quando o Catálogo está pendente e o aparelho está sem sinal (a busca online não tem como ir), a tela do catálogo, a ficha do
-produto e a busca da aba Itens do Novo pedido mostram, no lugar da lista ou da ficha, o `EstadoVazio` do kit:
+produto e a busca da aba Itens do Novo pedido mostram, no lugar da lista ou da ficha, o `EstadoVazio` do kit. A prop
+`comTitulo` (padrão `false`) decide o que vai nele:
 
-- ícone `wifiOff`;
-- título **"Catálogo ainda carregando"**;
-- texto **"Busque quando tiver sinal."**
+| Onde | Uso | O que aparece |
+|---|---|---|
+| Aba Catálogo (lista) | `<CatalogoCarregando />` | só o texto **"Busque quando tiver sinal."** |
+| Ficha do produto e busca do Novo pedido | `<CatalogoCarregando comTitulo />` | ícone `wifiOff`, título **"Catálogo ainda carregando"** e o texto |
 
-Textos em `TITULO_CATALOGO_CARREGANDO` e `TEXTO_CATALOGO_CARREGANDO` (para quem monta o próprio vazio). Substituem o texto
-provisório do modulo-catalogo. Com sinal, nada disso aparece: a busca vai à API com o preço do cliente.
+Na aba, o indicador "Catálogo 63% · parado" (com `wifiOff`) e o selo "Sem sinal" do cabeçalho já dizem que o catálogo está
+carregando e sem sinal; o vazio fica só com o que fazer (uma informação, um lugar; RD-0671). A ficha e o Novo pedido não
+mostram o indicador, por isso levam o título.
+
+Textos em `TITULO_CATALOGO_CARREGANDO` e `TEXTO_CATALOGO_CARREGANDO`; o desenho puro é `desenhoCatalogoCarregando({ comTitulo })`
+(`@macuxi/ui/mobile/puro`). Substituem o texto provisório do modulo-catalogo. Com sinal, nada disso aparece: a busca vai à
+API com o preço do cliente.
 
 ## 3. Fora desta spec
 Ordem das etapas e liberação da entrada (modulo-core, RN-CORE-48), montagem e rota do detalhe (engenheiro-apps), busca online

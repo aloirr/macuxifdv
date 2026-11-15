@@ -12,10 +12,9 @@ import { EstadoVazio } from './base';
 import {
   ALTURA_CARGA_FUNDO,
   desenhoCargaFundo,
+  desenhoCatalogoCarregando,
   ESPESSURA_BARRA_CARGA,
   FOLGA_TOQUE_CARGA,
-  TEXTO_CATALOGO_CARREGANDO,
-  TITULO_CATALOGO_CARREGANDO,
 } from './carga-fundo';
 import { Icon } from './icon';
 import { Pressionavel } from './movimento-rn';
@@ -73,9 +72,16 @@ export function IndicadorCargaFundo({ etapa, percentual, semSinal = false, aoToc
   );
 }
 
-/** Catálogo sem sinal durante a primeira carga: no lugar da lista e da ficha ("Catálogo ainda carregando"). */
-export function CatalogoCarregando({ testID = 'catalogo-carregando' }: { testID?: string }) {
-  return <EstadoVazio icone="wifiOff" titulo={TITULO_CATALOGO_CARREGANDO} texto={TEXTO_CATALOGO_CARREGANDO} testID={testID} />;
+export interface CatalogoCarregandoProps {
+  /** Ícone `wifiOff` e título "Catálogo ainda carregando": na ficha e no Novo pedido, que não mostram o indicador. */
+  comTitulo?: boolean;
+  testID?: string;
+}
+
+/** Catálogo sem sinal durante a primeira carga, no lugar da lista ou da ficha. Na aba Catálogo, só "Busque quando tiver sinal.". */
+export function CatalogoCarregando({ comTitulo = false, testID = 'catalogo-carregando' }: CatalogoCarregandoProps) {
+  const d = desenhoCatalogoCarregando({ comTitulo });
+  return <EstadoVazio icone={d.icone} titulo={d.titulo} texto={d.texto} testID={testID} />;
 }
 
 const s = StyleSheet.create({

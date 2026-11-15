@@ -19,9 +19,28 @@ export const ESPESSURA_BARRA_CARGA = 2;
  */
 export const SUFIXO_SEM_SINAL_CARGA = 'parado';
 
-/** Catálogo sem sinal enquanto a primeira carga não terminou (tela do catálogo, ficha e busca do Novo pedido). */
+/** Catálogo sem sinal enquanto a primeira carga não terminou. Título só na ficha e na busca do Novo pedido; texto em todas. */
 export const TITULO_CATALOGO_CARREGANDO = 'Catálogo ainda carregando';
 export const TEXTO_CATALOGO_CARREGANDO = 'Busque quando tiver sinal.';
+
+export interface DesenhoCatalogoCarregando {
+  /** `wifiOff` só com título (ficha e Novo pedido); na aba Catálogo o indicador já mostra o `wifiOff`. */
+  icone?: 'wifiOff';
+  /** "Catálogo ainda carregando", só com `comTitulo`. */
+  titulo?: string;
+  texto: string;
+}
+
+/**
+ * Vazio do catálogo sem sinal durante a carga. Na aba Catálogo (`comTitulo` falso, o padrão) o indicador "Catálogo 63% ·
+ * parado" e o selo "Sem sinal" já dizem que está carregando e sem sinal: o vazio fica só com o que fazer (RD-0671). A ficha
+ * e o Novo pedido, que não mostram o indicador, levam o ícone e o título.
+ */
+export function desenhoCatalogoCarregando({ comTitulo = false }: { comTitulo?: boolean } = {}): DesenhoCatalogoCarregando {
+  return comTitulo
+    ? { icone: 'wifiOff', titulo: TITULO_CATALOGO_CARREGANDO, texto: TEXTO_CATALOGO_CARREGANDO }
+    : { texto: TEXTO_CATALOGO_CARREGANDO };
+}
 
 /** Percentual inteiro de 0 a 99: enquanto o indicador está montado, a etapa não terminou (100% = o shell desmonta). */
 export function percentualDaCarga(percentual: number): number {
