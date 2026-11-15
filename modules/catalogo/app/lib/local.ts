@@ -30,7 +30,7 @@ import { interpretarConsulta } from '../../domain/consulta';
 import { AVISO_BUSCA_OFFLINE } from '../../domain/ia';
 import { nomeMarcaDaReferencia } from '../../domain/marcas';
 import { parametrosDoTenant } from '../../domain/parametros';
-import { filialDoClienteLocal, filialDoPreco, tabelaDaFilialSemCliente, type FilialLocalDoCliente } from '../../domain/preco-filial';
+import { filialDoClienteLocal, filialDoPreco, precosDaFilialSemCliente, type FilialLocalDoCliente } from '../../domain/preco-filial';
 import { expandirSinonimos, type SinonimoDoTenant } from '../../domain/texto';
 import { podeVerPrecoEstoque } from '../../domain/visibilidade';
 import { buscarProdutos, itemDaVitrine, listarVitrine, vocabularioDe, type ChipsVitrine, type ContextoVitrine, type PaginaProdutos, type ProdutoCatalogo } from '../../domain/vitrine';
@@ -151,8 +151,10 @@ function itensDaFilialPadrao(leitor: LeitorLocal): Promise<ItemTabelaPreco[]> {
     const padrao = vivas(await leitor.linhas<FilialSync & LinhaSync>('filial')).find((f) => f.padrao)?.id;
     if (!padrao) return [];
     const daFilial = vivas(await leitor.linhas<TabelaPrecoItemSync & LinhaSync>('tabela_preco_item')).filter((i) => i.filial_id === padrao);
-    const tabelaId = tabelaDaFilialSemCliente(vivas(await leitor.linhas<TabelaPrecoSync & LinhaSync>('tabela_preco')), daFilial);
-    return daFilial.filter((i) => i.tabela_preco_id === tabelaId).map((i) => ({ price_table_id: null, product_id: i.produto_id, price_cents: i.preco_cents, valid_from: i.vigencia_inicio, valid_to: i.vigencia_fim }));
+    return precosDaFilialSemCliente(
+      vivas(await leitor.linhas<TabelaPrecoSync & LinhaSync>('tabela_preco')),
+      daFilial.map((i) => ({ tabela_preco_id: i.tabela_preco_id, produto_id: i.produto_id, preco_cents: i.preco_cents, vigencia_inicio: i.vigencia_inicio ?? null, vigencia_fim: i.vigencia_fim ?? null })),
+    );
   });
 }
 

@@ -8,7 +8,7 @@ import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { MARCA_DA_FALTA } from './falta';
 import { Icon } from './icon';
-import { fonts } from './theme';
+import { fonte } from './theme';
 
 export function TextoDaFalta({ texto, testID = 'falta' }: { texto: string | null | undefined; testID?: string }) {
   if (!texto) return null;
@@ -31,5 +31,5 @@ export function bordaDaFalta(texto: string | null | undefined): ViewStyle | null
 
 const s = StyleSheet.create({
   linha: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: MARCA_DA_FALTA.respiro },
-  texto: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: MARCA_DA_FALTA.tamanhoFonte, lineHeight: MARCA_DA_FALTA.alturaLinha, color: MARCA_DA_FALTA.cor },
+  texto: { flexShrink: 1, ...fonte.semibold, fontSize: MARCA_DA_FALTA.tamanhoFonte, lineHeight: MARCA_DA_FALTA.alturaLinha, color: MARCA_DA_FALTA.cor },
 });

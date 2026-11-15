@@ -20,7 +20,7 @@ import {
   type RepeticaoSenha,
 } from '../comum/senha';
 import { Icon } from './icon';
-import { colors, fonts } from './theme';
+import { colors, fonte } from './theme';
 
 export {
   CAMPO_REPITA_A_SENHA,
@@ -32,15 +32,17 @@ export {
   itemDaRepeticao,
   itensDasRegras,
   MOSTRAR_SENHA,
+  OCULTAR_SENHA,
   REGRAS_DA_SENHA,
   resumoComRepeticao,
   resumoDaTela,
   rotuloDaRegraSenha,
+  rotuloDoOlhoDaSenha,
   SENHA_ATENDE_AS_REGRAS,
   TEXTO_REPETICAO_SENHA,
   TITULO_REGRAS_DA_SENHA,
 } from '../comum/senha';
-export type { EstadoRegraSenha, ItemRegraSenha, ItemRepeticaoSenha, RegraSenha, RepeticaoSenha } from '../comum/senha';
+export type { EstadoRegraSenha, FinalidadeSenha, ItemRegraSenha, ItemRepeticaoSenha, RegraSenha, RepeticaoSenha } from '../comum/senha';
 
 const COR_DO_TEXTO: Record<EstadoRegraSenha, string> = { ok: colors.ink, falta: colors.ink2, erro: colors.danger };
 
@@ -94,7 +96,7 @@ export function RegrasDaSenha({
       {itens.map((i) => (
         <View key={i.regra} style={s.linha} testID={`${testID}.${i.regra}`}>
           <Marca estado={i.estado} />
-          <Text style={[s.texto, { color: COR_DO_TEXTO[i.estado] }, i.estado === 'erro' && { fontFamily: fonts.semibold }]}>
+          <Text style={[s.texto, { color: COR_DO_TEXTO[i.estado] }, i.estado === 'erro' && { ...fonte.semibold }]}>
             {i.rotulo}
             {i.exemplo ? <Text style={{ color: colors.ink2 }}>{` (${i.exemplo})`}</Text> : null}
           </Text>
@@ -103,7 +105,7 @@ export function RegrasDaSenha({
       {conferencia ? (
         <View style={[s.linha, s.conferencia]} testID={`${testID}.repeticao`}>
           <Marca estado={conferencia.estado} />
-          <Text style={[s.texto, { color: COR_DO_TEXTO[conferencia.estado] }, conferencia.estado === 'erro' && { fontFamily: fonts.semibold }]}>{conferencia.texto}</Text>
+          <Text style={[s.texto, { color: COR_DO_TEXTO[conferencia.estado] }, conferencia.estado === 'erro' && { ...fonte.semibold }]}>{conferencia.texto}</Text>
         </View>
       ) : null}
     </View>
@@ -112,10 +114,10 @@ export function RegrasDaSenha({
 
 const s = StyleSheet.create({
   caixa: { gap: 6 },
-  titulo: { fontFamily: fonts.semibold, fontSize: 12, color: colors.ink2 },
+  titulo: { ...fonte.semibold, fontSize: 12, color: colors.ink2 },
   linha: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 22 },
   marca: { width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   vazia: { borderWidth: 2, borderColor: colors.lineStrong },
   conferencia: { marginTop: 4 },
-  texto: { flex: 1, fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
+  texto: { flex: 1, ...fonte.body, fontSize: 14, lineHeight: 20 },
 });

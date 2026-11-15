@@ -17,7 +17,7 @@ const chave = (c: string, area: string, extra: Partial<ChaveDoPerfil> = {}): Cha
 });
 
 const detalhe = (base: 'vendedor' | 'gerente' = 'vendedor', chaves: ChaveDoPerfil[] = []): PerfilDetalhe => ({
-  perfil: { codigo: base, nome: 'Vendedor', descricao: null, base, fabrica: true, ativo: true, usuarios: 3, onde_entra: ['campo'] },
+  perfil: { codigo: base, nome: 'Vendedor', descricao: null, base, fabrica: true, ativo: true, usuarios: 3, onde_entra: ['campo'], cargo: base },
   chaves: [
     chave('acesso.bko', 'acesso', { fabrica: v(false), atual: v(false), trava: { regra: 'RN-CORE-33', mensagem: 'Vendedor nunca entra no BKO (RN-CORE-33).' } }),
     chave('dados.escopo', 'dados', { nivel: 'escopo', fabrica: v(true, 'carteira'), atual: v(true, 'carteira') }),

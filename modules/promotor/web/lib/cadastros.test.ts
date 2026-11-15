@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EDICAO_CADASTRO } from '../../contracts';
-import { ACAO_MARCAS, avisoMarcas, cadastroCsv, corpoDoForm, formDaLinha, formVazio, lerAbaCadastro, lerPercentual, paraBuscaAba, problemasDoForm, rotuloAlvo } from './cadastros';
+import { ACAO_MARCAS, avisoMarcas, cadastroCsv, corpoDoForm, errosDoForm, formDaLinha, formVazio, lerAbaCadastro, lerPercentual, paraBuscaAba, problemasDoForm, rotuloAlvo, textosDoCadastro } from './cadastros';
 
 const ID = '00000000-0000-4000-8000-000000000001';
 const CAT = '00000000-0000-4000-8000-0000000000e1';
@@ -75,5 +75,36 @@ describe('aviso das marcas concorrentes (ADR 0034)', () => {
     expect(ACAO_MARCAS).toBe('marca.gerenciar');
     expect(avisoMarcas(true).link).toBe(true);
     expect(avisoMarcas(false).link).toBe(false);
+  });
+});
+
+describe('revisão do BKO (§P7, §P8)', () => {
+  it('§P8.3: o erro de um campo vai para o campo do formulário, não para o topo', () => {
+    const f = { ...vazio(), categoria_gondola_id: CAT, meta_pct: '' };
+    const e = errosDoForm('meta_share', f, ID);
+    expect(e.campos.meta_pct).toBeTruthy();
+    expect(e.gerais).toEqual([]);
+  });
+
+  it('RN-PRO-10: loja inválida cai no campo do alvo; vigência invertida vai no topo (sem campo)', () => {
+    const base = { ...vazio(), produto_id: ID };
+    expect(errosDoForm('mix_obrigatorio', { ...base, alvo_tipo: 'loja', alvo_valor: 'abc' }, ID).campos.alvo_valor).toMatch(/loja/);
+    expect(errosDoForm('mix_obrigatorio', { ...base, vigencia_fim: '2026-10-01' }, ID).gerais[0]).toMatch(/anterior/);
+  });
+
+  it('§P8.3: a mensagem do domain sobre o nome vai embaixo do campo, sem repetir no topo', () => {
+    const e = errosDoForm('categoria_gondola', { ...vazio(), nome: '' }, ID);
+    expect(e.campos.nome).toMatch(/nome/i);
+    expect(e.gerais).toEqual([]);
+  });
+
+  it('formulário válido não tem erro', () => {
+    expect(errosDoForm('categoria_gondola', { ...vazio(), nome: 'Massas' }, ID)).toEqual({ campos: {}, gerais: [] });
+  });
+
+  it('§P7: textos no gênero certo de cada cadastro', () => {
+    expect(textosDoCadastro('categoria_gondola')).toMatchObject({ novo: 'Nova categoria', salvo: 'Categoria salva.', desativado: 'Categoria desativada.', vazio: 'Nenhuma categoria cadastrada.' });
+    expect(textosDoCadastro('checklist_loja')).toMatchObject({ novo: 'Novo checklist', editar: 'Editar checklist', salvo: 'Checklist salvo.', vazio: 'Nenhum checklist cadastrado.' });
+    expect(textosDoCadastro('meta_share')).toMatchObject({ desativar: 'Desativar meta de share?', vazio: 'Nenhuma meta de share cadastrada.' });
   });
 });

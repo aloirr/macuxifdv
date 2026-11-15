@@ -256,7 +256,7 @@ export function LinhaDePermissao({
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-[220px] flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-1">
-            <span id={ids.rotulo} className="text-[14px] font-semibold text-ink">
+            <span id={ids.rotulo} className="text-[15px] font-semibold text-ink">
               {rotulo}
             </span>
             {trava && <Cadeado id={ids.trava} mensagem={trava.mensagem} testId={`${tid}.cadeado`} />}
@@ -342,9 +342,9 @@ export function SeletorDePerfis({
           data-testid={`${testId}.${valor === ALVO_TODOS_PERFIS ? 'todos' : valor}`}
         />
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className={cx('flex flex-wrap items-center gap-1.5 text-[14px]', off ? 'text-ink-2' : 'text-ink')}>
+          <span className={cx('flex flex-wrap items-center gap-1.5 text-[15px]', off ? 'text-ink-2' : 'text-ink')}>
             {rotulo}
-            {extra?.selo && <span className="rounded-lg bg-neutral-soft px-2 py-[2px] text-[11px] font-bold text-ink-3">{extra.selo}</span>}
+            {extra?.selo && <span className="rounded-lg bg-neutral-soft px-2 py-[2px] text-[12px] font-bold text-ink-3">{extra.selo}</span>}
           </span>
           {extra?.detalhe && <span className="text-[12px] text-ink-2">{extra.detalhe}</span>}
           {extra?.motivo && (
@@ -400,7 +400,7 @@ export function ResumoDasMudancas({
   const total = grupos.reduce((n, g) => n + g.itens.length, 0);
   return (
     <div className="flex flex-col gap-3" data-testid={testId}>
-      <p className="m-0 text-[14px] font-semibold text-ink" data-testid={`${testId}.contagem`}>
+      <p className="m-0 text-[15px] font-semibold text-ink" data-testid={`${testId}.contagem`}>
         {contagemDeMudancas(total)}
         {afetados !== undefined && total > 0 && <span className="font-normal text-ink-2">{` · ${textoDosAfetados(afetados)}`}</span>}
       </p>
