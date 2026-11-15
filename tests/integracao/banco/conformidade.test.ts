@@ -194,23 +194,32 @@ async function definerExecutaveis(admin: pg.Client, papel: string, schemas: stri
   return r.rows;
 }
 
-/** Assinaturas (mesmo formato de definerExecutaveis) de todas as funções SECURITY DEFINER que existem nos schemas. */
-async function definerExistentes(admin: pg.Client, schemas: string[]): Promise<Set<string>> {
+/**
+ * 0079: depois do merge da cadeia de migrações (#352), tirar daqui.
+ * Única tolerância nominal da lista do worker: estas 3 só deixam de ser exigidas enquanto NÃO existirem no banco.
+ * Qualquer outra função da lista continua exigida (apagada ou renomeada reprova).
+ */
+const DEFINER_WORKER_TOLERADAS_0079 = [
+  'plataforma.trabalho_reservar(p_processo text, p_trava_s integer)',
+  'plataforma.trabalho_devolver(p_id uuid, p_processo text, p_resultado text, p_erro text, p_espera_s integer)',
+  'plataforma.trabalho_renovar(p_id uuid, p_processo text, p_trava_s integer)',
+];
+
+/** Das toleradas da 0079, as que ainda não existem no banco (mesmo formato de assinatura de definerExecutaveis). */
+async function toleradas0079Ausentes(admin: pg.Client, schemas: string[]): Promise<Set<string>> {
   const r = await admin.query<{ assinatura: string }>(
     `select n.nspname || '.' || p.proname || '(' || pg_get_function_arguments(p.oid) || ')' as assinatura
        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-      where p.prosecdef and n.nspname = any($1)`,
+      where n.nspname = any($1)`,
     [schemas],
   );
-  return new Set(r.rows.map((x) => x.assinatura));
+  const existentes = new Set(r.rows.map((x) => x.assinatura));
+  return new Set(DEFINER_WORKER_TOLERADAS_0079.filter((a) => !existentes.has(a)));
 }
 
-/**
- * Só as revisadas, todas com search_path fixo e nenhuma executável por PUBLIC. Com `existentes`, a lista esperada só exige
- * as revisadas que existem no banco (migração ainda fora do main); toda função executável continua tendo de estar na lista.
- */
-function conferirDefiner(funcoes: Definer[], revisadas: Record<string, string>, existentes?: Set<string>): void {
-  const esperadas = Object.keys(revisadas).filter((a) => !existentes || existentes.has(a));
+/** Só as revisadas, todas com search_path fixo e nenhuma executável por PUBLIC; `ausentes` tira da lista esperada só as nomeadas acima. */
+function conferirDefiner(funcoes: Definer[], revisadas: Record<string, string>, ausentes?: Set<string>): void {
+  const esperadas = Object.keys(revisadas).filter((a) => !ausentes?.has(a));
   expect(funcoes.map((x) => x.assinatura).sort()).toEqual(esperadas.sort());
   for (const f of funcoes) {
     expect(f.config?.some((c) => c.startsWith('search_path=')), `${f.assinatura} sem search_path fixo`).toBe(true);
@@ -465,8 +474,8 @@ describe.skipIf(semBanco())('S0-023/S0-028 conformidade do banco para o isolamen
     });
 
     it('funções SECURITY DEFINER executáveis pelo worker (macuxi_worker): só as revisadas, com search_path fixo e sem EXECUTE para PUBLIC', async () => {
-      // tolerante à 0079 (trabalho_*): exige da lista só o que existe; o executável fora da lista reprova do mesmo jeito
-      conferirDefiner(await definerExecutaveis(admin, PAPEL_WORKER, schemas), DEFINER_REVISADAS_WORKER, await definerExistentes(admin, schemas));
+      // 0079: depois do merge da cadeia de migrações (#352), tirar daqui (só as 3 trabalho_* toleradas enquanto não existirem)
+      conferirDefiner(await definerExecutaveis(admin, PAPEL_WORKER, schemas), DEFINER_REVISADAS_WORKER, await toleradas0079Ausentes(admin, schemas));
     });
 
     it('T-0091 funções SECURITY DEFINER executáveis pelo portal (macuxi_portal): só as sa_* revisadas, com search_path fixo e sem EXECUTE para PUBLIC', async () => {
