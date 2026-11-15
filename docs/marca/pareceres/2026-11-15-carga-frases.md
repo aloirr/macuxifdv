@@ -5,6 +5,12 @@
 > **Como:** leitura dos quatro PNGs, da spec, das 30 frases (todas) e dos hex do `app.css` e do `config-frases.html`; contas de altura da tela de carga com as medidas do `app.css` e o `posicaoDoLogo` (logo empilhado de 126 dp no centro).
 > **Numeração:** MC-0077 a MC-0080 (a última em uso nos branches da marca é MC-0076). O `catalogo.md` recebe estas linhas na consolidação do catálogo, junto com os branches de reteste ainda abertos, para não gerar conflito.
 
+## Reteste final (commit `9164c13a9468d23fb3172b34998645c37e5acb01`): **liberado, com a validação indígena pendente nas 12 inativas (1, 2, 4, 7, 8 e 16 a 22)**
+- **MC-0085: fechada.** A frase 4 diz "Os Macuxi chamam de tuma a damurida, caldo de pimenta com peixe ou carne." e continua inativa.
+- **Frases 15 e 16:** ficam sem artigo, porque com ele iriam para 3 linhas em 270 dp. Não fere o manual e a sugestão não segurava a entrega. Aceito.
+- **Inativas:** o conjunto não mudou (1, 2, 4, 7, 8 e 16 a 22). A spec §4 passou a apontar a coluna "Situação inicial" do `frases.md` no lugar dos números, sem mudar a regra.
+- Nenhum achado em aberto. A **MC-0078** (tokens `avisoBorda` e `avisoFundo`) entra na implementação. Segue para o Alexandre, que é quem aprova a marca.
+
 ## Reteste das 30 frases (commit `73db26c518372139eb4eeab3e3c568fd63a85b86`): **liberado, com a validação indígena pendente nas frases 1, 2, 4, 7, 8 e 16 a 22**
 | Item | Situação | Conferido |
 |---|---|---|
