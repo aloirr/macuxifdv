@@ -60,12 +60,6 @@ export function TelaLogin({ codigoSalvo, emailInicial, onEntrar, rodape, onEsque
     <Screen gap={16} top={36} testID="login.tela">
       <Text style={t.h1}>Entrar</Text>
 
-      {erro ?? aviso ? (
-        <Banner tone="danger" icon="alert" testID="login.erro">
-          {erro ?? aviso}
-        </Banner>
-      ) : null}
-
       <Campo
         rotulo="Código da empresa"
         valor={campos.codigo_empresa}
@@ -102,6 +96,12 @@ export function TelaLogin({ codigoSalvo, emailInicial, onEntrar, rodape, onEsque
         inputRef={senha}
         onSubmitEditing={() => void entrar()}
       />
+
+      {erro ?? aviso ? (
+        <Banner tone="danger" icon="alert" testID="login.erro">
+          {erro ?? aviso}
+        </Banner>
+      ) : null}
 
       <Button testID="login.entrar" label="Entrar" variant="accent" height={52} loading={entrando} onPress={() => void entrar()} />
       {onEsqueci ? (

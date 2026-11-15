@@ -177,3 +177,4 @@
 2026-11-15 — T-0176 — filial de cadastro + filiais de venda (RN-CORE-39 revista): domain, contratos, API (guarda USUARIO_SEM_FILIAL, PUT eu/filial-cadastro, sync, carga do ERP) e testes; telas aguardam a simulação
 2026-11-15 — T-0176 — correções do testes: set constraints com schema (D1), ação usuario.filial_editar via pode() para admin e analista no GET e PUT (D2), coluna filial no CSV da equipe (D5); D6 depende do modulo-integracao conferir filial_external_id do vendedor com core.filiais@1
 2026-11-15 — T-0176 — telas do BKO da filial (gaveta Editar/Novo usuário, coluna, filtro e aviso na lista), testes da lib e prints
+2026-11-15 — T-0176 — tela 13: Banner de erro/aviso do login movido para entre a senha e o botão Entrar (spec §4)
