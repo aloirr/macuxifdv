@@ -1,5 +1,5 @@
 /**
- * ADR 0056 (RN-CORE-59, RN-CORE-23 item 1): estoque carregado uma vez por dia e o botão "Sincronizar" em dois modos.
+ * ADR 0057 (RN-CORE-61, RN-CORE-23 item 1): estoque carregado uma vez por dia e o botão "Sincronizar" em dois modos.
  * - entidades `cadencia: 'diaria'` só vêm na carga diária (`cargaDiariaDevida` injetada), na carga inicial e na `completa`;
  * - `sincronizar({ modo: 'parcial' })` = envio + entidades `parcial` (pedidos e clientes);
  * - `sincronizar({ modo: 'completa' })` = tudo do zero, diárias inclusive, com o progresso da carga e `carga_diaria_em`.
@@ -27,7 +27,7 @@ const DIA = 24 * HORA;
 const T0 = Date.parse('2026-11-16T11:00:00Z');
 
 /**
- * Espelho de teste da regra do Core (RN-CORE-59): devida quando a última carga é anterior ao último "06:00 de Manaus" já
+ * Espelho de teste da regra do Core (RN-CORE-61): devida quando a última carga é anterior ao último "06:00 de Manaus" já
  * passado (antes das 06:00, vale a de ontem). A função real é do modulo-core; o motor só a recebe.
  */
 function devidaManaus(ultima: string | null, agora: Date): boolean {
@@ -48,7 +48,7 @@ interface Montagem {
   tamanhoPagina?: number;
 }
 
-describe.each(FABRICAS_ARMAZENAMENTO)('carga diária e sincronização parcial/completa [%s] (ADR 0056)', (_nome, fabrica) => {
+describe.each(FABRICAS_ARMAZENAMENTO)('carga diária e sincronização parcial/completa [%s] (ADR 0057)', (_nome, fabrica) => {
   async function montar(m: Montagem = {}) {
     let agora = T0;
     const marcas = m.marcas ?? true;

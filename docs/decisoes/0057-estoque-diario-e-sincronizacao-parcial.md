@@ -1,4 +1,4 @@
-# ADR 0056 — Estoque carregado uma vez por dia e sincronização parcial ou completa no botão
+# ADR 0057 — Estoque carregado uma vez por dia e sincronização parcial ou completa no botão
 
 - **Status**: aceita em 2026-11-15 (aprovada pelo dono do produto, R-20261115-100000-alexandre).
 - **Data**: 2026-11-15 (Manaus)

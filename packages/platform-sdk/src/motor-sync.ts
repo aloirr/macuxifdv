@@ -44,7 +44,7 @@
  *   ou restaurada. Troca de geração: aceitos sobrepostos voltam para a fila, a fila é enviada, linhas/cursores/escopos são
  *   apagados (a fila de itens e a de arquivos ficam), cada etapa limpa o próprio cache (`aoTrocarGeracao`) e o pull completo
  *   roda de novo na mesma sincronização. Sem o campo, nada muda; a primeira geração vista é adotada sem apagar nada.
- * - ADR 0056: entidades de cadência `diaria` (estoque) só vêm na CARGA DIÁRIA (`cargaDiariaDevida` injetada pelo shell;
+ * - ADR 0057: entidades de cadência `diaria` (estoque) só vêm na CARGA DIÁRIA (`cargaDiariaDevida` injetada pelo shell;
  *   a primeira sincronização que a encontra devida a inclui e grava `carga_diaria_em`), na carga inicial e na `completa`.
  *   `sincronizar({ modo: 'parcial' })` = envio + pull só das entidades `parcial` (pedidos e clientes); `{ modo: 'completa' }`
  *   = tudo do zero (ressincronização forçada de cada entidade, retomável), diárias inclusive. Sem modo = a de sempre.
@@ -538,14 +538,14 @@ export interface EstadoMotorSync {
    */
   pendentes?: readonly string[];
   /**
-   * ADR 0056: fim da última carga diária (ISO UTC, relógio do aparelho; persistido): a passada que trouxe todas as entidades
+   * ADR 0057: fim da última carga diária (ISO UTC, relógio do aparelho; persistido): a passada que trouxe todas as entidades
    * `diaria` terminou. Nulo = nunca houve (ou a geração trocou). Ausente/nulo sempre sem `cargaDiariaDevida` no motor.
    */
   carga_diaria_em?: string | null;
 }
 
 /**
- * ADR 0056: modo de `motor.sincronizar`. `parcial` = toque no "Sincronizar" (envio + entidades `parcial`); `completa` =
+ * ADR 0057: modo de `motor.sincronizar`. `parcial` = toque no "Sincronizar" (envio + entidades `parcial`); `completa` =
  * segurar 10 s (tudo do zero, diárias inclusive). Sem modo = a sincronização de sempre (diárias só com a carga devida).
  */
 export type ModoSincronizacao = 'parcial' | 'completa';
@@ -602,7 +602,7 @@ interface RegistroRessinc {
   versao: string | null;
   vistos: string[] | null;
   /**
-   * ADR 0056: ressincronização forçada pela sincronização `completa` (tudo do zero). Qualquer passada que puxar a entidade
+   * ADR 0057: ressincronização forçada pela sincronização `completa` (tudo do zero). Qualquer passada que puxar a entidade
    * a retoma de `desde` (o cursor da página em curso, gravado ANTES de aplicá-la: a página volta, nunca falta).
    */
   refazer?: true;
@@ -667,7 +667,7 @@ export interface OpcoesMotorSync {
    */
   essenciais?: (item: ItemDaCarga) => boolean;
   /**
-   * ADR 0056 (RN-CORE-59): a carga diária está devida? Recebe a última (`carga_diaria_em`, ISO ou `null`) e o `agora`; o
+   * ADR 0057 (RN-CORE-61): a carga diária está devida? Recebe a última (`carga_diaria_em`, ISO ou `null`) e o `agora`; o
    * shell injeta a função pura do Core com o fuso do tenant e `estoque_carga_hora`. Sem ela, as entidades `diaria` são
    * contínuas e `carga_diaria_em` não é gravado (o de sempre). Se lançar, vale "devida" (na dúvida, carrega).
    */
@@ -690,7 +690,7 @@ const CHAVE = {
   sincronizadoEm: 'sync:sincronizado_em',
   /** ADR 0054 (solução 5): quando os itens essenciais da carga inicial terminaram (entrada liberada). */
   liberadoEm: 'sync:liberado_em',
-  /** ADR 0056: fim da última carga diária (entidades `diaria`). */
+  /** ADR 0057: fim da última carga diária (entidades `diaria`). */
   cargaDiaria: 'sync:carga_diaria_em',
   cursor: (e: string) => `sync:cursor:${e}`,
   /** Última `versao_escopo` recebida da entidade (ADR 0009 §4). */
@@ -806,7 +806,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
   let proximoEnvio: Promise<ResultadoItemPush[]> | null = null;
   let proximoIncluiFalhos = false;
   let syncEmCurso: Promise<boolean> | null = null;
-  /** ADR 0056: a `completa` pedida (talvez esperando outra terminar); um segundo pedido recebe a mesma. */
+  /** ADR 0057: a `completa` pedida (talvez esperando outra terminar); um segundo pedido recebe a mesma. */
   let completaEmCurso: Promise<boolean> | null = null;
   /** Roda a sincronização como a única em curso; ao terminar, solta a vaga se ela ainda for desta. */
   const emCurso = (fazer: () => Promise<boolean>): Promise<boolean> => {
@@ -1046,7 +1046,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       }
       await a.remover(CHAVE.carga);
       await a.remover(CHAVE.novidades);
-      // ADR 0056: a carga diária da base antiga não vale; a próxima passada traz as diárias de novo
+      // ADR 0057: a carga diária da base antiga não vale; a próxima passada traz as diárias de novo
       await a.remover(CHAVE.cargaDiaria);
     }));
     mudar({ carga_diaria_em: null });
@@ -1320,7 +1320,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     entidade: string,
     coberturas?: Map<string, Cobertura>,
     aoGravarPagina?: () => void,
-    /** ADR 0056: `completa` = tudo do zero (ressincronização forçada; no fim apaga o que não veio). */
+    /** ADR 0057: `completa` = tudo do zero (ressincronização forçada; no fim apaga o que não veio). */
     refazer = false,
   ): Promise<'ok' | 'indisponivel'> => {
     const a = op.armazenamento;
@@ -1347,11 +1347,11 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         ...(r.refazer ? { refazer: true as const, desde } : {}),
       } satisfies RegistroRessinc);
     if (ressincGuardada?.refazer && !cargaInicial) {
-      // ADR 0056: `completa` interrompida (app encerrado, queda): qualquer passada continua da página em curso dela
+      // ADR 0057: `completa` interrompida (app encerrado, queda): qualquer passada continua da página em curso dela
       ressinc = { versao: ressincGuardada.versao, vistos: new Set(ressincGuardada.vistos ?? []), refazer: true };
       cursor = ressincGuardada.desde ?? null;
     } else if (refazer && !cargaInicial) {
-      // ADR 0056: tudo do zero; as linhas locais ficam até o fim e só sai o que não veio
+      // ADR 0057: tudo do zero; as linhas locais ficam até o fim e só sai o que não veio
       ressinc = { versao: versaoGuardada, vistos: new Set(), refazer: true };
       cursor = null;
       await gravarRessinc(ressinc);
@@ -1378,7 +1378,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       else if (horizonte === null || Date.parse(pagina.horizonte) < Date.parse(horizonte)) horizonte = pagina.horizonte;
       const versao = pagina.versao_escopo;
       if (ressinc?.refazer && versao !== undefined && versao !== ressinc.versao) {
-        // ADR 0056: o conjunto visível mudou no meio do `refazer`: recomeça do zero com a versão nova (no 1º pedido, só adota)
+        // ADR 0057: o conjunto visível mudou no meio do `refazer`: recomeça do zero com a versão nova (no 1º pedido, só adota)
         const recomecar = cursor !== null;
         ressinc = { versao, vistos: new Set(), refazer: true };
         await gravarRessinc(ressinc);
@@ -1704,7 +1704,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     ];
   };
 
-  // ---------- carga diária (ADR 0056) ----------
+  // ---------- carga diária (ADR 0057) ----------
   /** Entidades `diaria` ativas; vazio sem `cargaDiariaDevida` (aí elas são contínuas, como sempre). */
   const entidadesDiarias = (): Set<string> =>
     op.cargaDiariaDevida
@@ -1731,7 +1731,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
 
   /**
    * Sincronização completa (corpo de `motor.sincronizar`, sem o controle de uma-por-vez). `podeTrocar` = pode fazer a troca de
-   * geração e recomeçar (ADR 0021); na passada que já recomeçou, outra troca termina com erro. `completa` (ADR 0056) = tudo do
+   * geração e recomeçar (ADR 0021); na passada que já recomeçou, outra troca termina com erro. `completa` (ADR 0057) = tudo do
    * zero (ressincronização forçada de cada entidade), diárias inclusive.
    */
   const passadaCompleta = async (podeTrocar: boolean, completa = false): Promise<boolean> => {
@@ -1742,7 +1742,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     // T-0059: na CARGA INICIAL (ainda sem `sincronizado_em`), uma passada anterior interrompida (app encerrado no meio) e
     // recente = pula o que ela já concluiu. Depois da carga, cada entidade já continua do seu cursor (delta barato).
     const cargaInicial = estado.sincronizado_em === null;
-    // ADR 0056: as diárias entram na carga inicial, na `completa` e quando a carga do dia está devida
+    // ADR 0057: as diárias entram na carga inicial, na `completa` e quando a carga do dia está devida
     const diarias = entidadesDiarias();
     const comDiarias = diarias.size > 0 && (cargaInicial || completa || cargaDiariaDevida());
     const defs = op.registro
@@ -1934,7 +1934,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     return passadaCompleta(false, completa);
   };
 
-  /** ADR 0056: entidades da sincronização `parcial` (ativas, de pull, `parcial` e não diárias), na ordem da carga. */
+  /** ADR 0057: entidades da sincronização `parcial` (ativas, de pull, `parcial` e não diárias), na ordem da carga. */
   const entidadesParciais = (): string[] => {
     const diarias = entidadesDiarias();
     const defs = op.registro
@@ -2201,10 +2201,10 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     /**
      * Sincronização (uma por vez, junto com `sincronizarNovidades`: quem chama durante uma em curso recebe a mesma promessa).
      * - Sem `modo`: a de sempre — envia a fila, puxa as entidades dos módulos efetivos (cada uma do seu cursor) e roda as
-     *   etapas extras. As entidades `diaria` só entram na carga inicial ou com a carga diária devida (ADR 0056).
-     * - `parcial` (toque no "Sincronizar", ADR 0056): envia a fila e puxa só as entidades `parcial` (pedidos e clientes), sem
+     *   etapas extras. As entidades `diaria` só entram na carga inicial ou com a carga diária devida (ADR 0057).
+     * - `parcial` (toque no "Sincronizar", ADR 0057): envia a fila e puxa só as entidades `parcial` (pedidos e clientes), sem
      *   etapas, sem novidades e sem mexer no cursor delas. Antes da 1ª sincronização, ou sem entidade `parcial`, faz a de sempre.
-     * - `completa` (segurar 10 s, ADR 0056): tudo do zero — cada entidade é ressincronizada desde o cursor nulo (no fim sai do
+     * - `completa` (segurar 10 s, ADR 0057): tudo do zero — cada entidade é ressincronizada desde o cursor nulo (no fim sai do
      *   aparelho o que não veio), diárias inclusive, com as etapas e o progresso da carga (`estado.carga`); no fim grava
      *   `carga_diaria_em`. Com outra sincronização em curso, espera ela terminar e roda depois.
      */
@@ -2234,7 +2234,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
      * Atualização LEVE (RN-CORE-23, ADR 0018): envia a fila (só se houver pendente), consulta `GET /v1/sync/novidades`
      * com o cursor guardado, aplica os módulos efetivos se mudaram e puxa só as entidades que mudaram. Com
      * `opcoes.entidades` (lista do push silencioso), puxa só essas, sem consultar novidades (o cursor não anda).
-     * ADR 0056: as entidades `diaria` ficam de fora; com a carga diária devida, entram todas (cada uma do seu cursor) e o
+     * ADR 0057: as entidades `diaria` ficam de fora; com a carga diária devida, entram todas (cada uma do seu cursor) e o
      * fim grava `carga_diaria_em`.
      * Sem `transporte.novidades` ou antes da primeira sincronização completa, faz a completa (`sincronizar`).
      * Uma por vez, junto com `sincronizar` (quem chama durante uma em curso recebe a mesma promessa).
@@ -2267,7 +2267,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
             alvo = ordenarCarga([...new Set(r.entidades)].filter((e) => ativas.has(e)).sort(), itemDe);
             cursorNovo = r.cursor;
           }
-          // ADR 0056: diárias só na carga do dia (o cursor de novidades anda; cada diária continua do seu cursor)
+          // ADR 0057: diárias só na carga do dia (o cursor de novidades anda; cada diária continua do seu cursor)
           const diarias = entidadesDiarias();
           const comDiarias = diarias.size > 0 && cargaDiariaDevida();
           alvo = alvo.filter((e) => !diarias.has(e));

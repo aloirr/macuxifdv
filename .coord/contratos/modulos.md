@@ -176,7 +176,7 @@ Contrato no SDK (`packages/platform-sdk/src/pacotes-sync.ts` e `api.ts`): o prov
 
 Fora do pacote (pull paginado de sempre): `tabela_preco`, `cliente_tabela_preco` e tudo de escopo `carteira`/`usuarios`/`proprio`.
 
-## Estoque diário e botão "Sincronizar" parcial/completo (ADR 0056, 15/11, desenho `docs/desenho/T-estoque-diario.md`), tudo aditivo
+## Estoque diário e botão "Sincronizar" parcial/completo (ADR 0057, 15/11, desenho `docs/desenho/T-estoque-diario.md`), tudo aditivo
 
 Contrato do SDK (`packages/platform-sdk/src/sync.ts` e `motor-sync.ts`). Nenhum evento novo, nenhuma versão nova, servidor sem
 mudança. Testes: `packages/platform-sdk/src/motor-sync.diaria.test.ts` (3 armazenamentos).
@@ -185,7 +185,7 @@ mudança. Testes: `packages/platform-sdk/src/motor-sync.diaria.test.ts` (3 armaz
 |---|---|---|---|
 | `DefinicaoEntidadeSync.cadencia?: CadenciaSync` (`'continua' \| 'diaria'`) | SDK; marcam: catalogo (`deposito`, `estoque_saldo`) | `diaria` = só na carga diária, na carga inicial e na `completa`; novidades, push silencioso, sincronização padrão e parcial pulam | ausente = `continua`; sem `cargaDiariaDevida` no motor, a marca não muda nada |
 | `DefinicaoEntidadeSync.parcial?: boolean` | SDK; marcam: core (clientes), vendedor (pedidos) | entra na sincronização `parcial` (toque no botão) | ausente = fora da parcial; nenhuma entidade marcada = o toque faz a de sempre |
-| `OpcoesMotorSync.cargaDiariaDevida?(ultima, agora)` | SDK; injeta: shell (engenheiro-apps) com a função pura do Core (RN-CORE-59), fuso do tenant e `catalogo.estoque_carga_hora` | `true` = a próxima sincronização (padrão ou novidades) inclui as diárias; se lançar, vale `true` | ausente = diárias contínuas |
+| `OpcoesMotorSync.cargaDiariaDevida?(ultima, agora)` | SDK; injeta: shell (engenheiro-apps) com a função pura do Core (RN-CORE-61), fuso do tenant e `catalogo.estoque_carga_hora` | `true` = a próxima sincronização (padrão ou novidades) inclui as diárias; se lançar, vale `true` | ausente = diárias contínuas |
 | `EstadoMotorSync.carga_diaria_em?: string \| null` | SDK; leem: catalogo ("Atualizado às", RN-CAT-07; busca online), vendedor (reserva, RN-VEN-20) | ISO UTC do fim da última carga diária (persistido em `sync:carga_diaria_em`); a troca de geração (ADR 0021) zera | nulo = sem carga diária (motor antigo ou sem a função): vale a regra de hoje |
 | `motor.sincronizar({ modo?: ModoSincronizacao })` (`'parcial' \| 'completa'`) | SDK; chama: shell (botão) | `parcial` = envio + entidades `parcial`, sem etapas nem novidades; `completa` = tudo do zero (ressincronização forçada e retomável), diárias inclusive, progresso em `estado.carga`/`estado.progresso`, grava `carga_diaria_em`; espera a sincronização em curso | sem modo = a de sempre (todas as chamadas atuais) |
 | Parâmetro `catalogo.estoque_carga_hora` | catalogo | `HH:MM` [06:00], fuso do tenant | novo; ausente = 06:00 |
