@@ -38,17 +38,16 @@ export function definirCargaOnline(p: PortaCargaOnline | null): void {
 }
 export const cargaOnlineDoShell = (): PortaCargaOnline | null => portaDoShell;
 
-/** `local` = como hoje; `api` = pendente e com sinal; `sem_sinal` = pendente sem sinal (mostrar o texto de carregando). */
-export function usarApiNaCarga(p: PortaCargaOnline | null): 'local' | 'api' | 'sem_sinal' {
-  if (!p || !catalogoPendente(p.pendentes())) return 'local';
-  return p.online() ? 'api' : 'sem_sinal';
-}
-
-/** Modo da carga a partir do estado do motor de sync (`pendentes` é opcional nele) e do sinal; um lugar só para as telas. */
+/** `local` = como hoje; `api` = pendente e com sinal; `sem_sinal` = pendente sem sinal (mostrar o texto de carregando). Modo da carga a partir do estado do motor de sync (`pendentes` é opcional nele) e do sinal; um lugar só para as telas. */
 export function modoDaCarga(sync: object, online: boolean): 'local' | 'api' | 'sem_sinal' {
   const pendentes = (sync as { pendentes?: readonly string[] }).pendentes;
   if (!catalogoPendente(pendentes)) return 'local';
   return online ? 'api' : 'sem_sinal';
+}
+
+/** Mesma regra de `modoDaCarga`, a partir da porta do shell (sem porta = local). */
+export function usarApiNaCarga(p: PortaCargaOnline | null): 'local' | 'api' | 'sem_sinal' {
+  return p ? modoDaCarga({ pendentes: p.pendentes() }, p.online()) : 'local';
 }
 
 /** RN-CAT-06: dentro do pedido só entra o vendável; sem preço visível (RN-CAT-05) não há o que filtrar. */

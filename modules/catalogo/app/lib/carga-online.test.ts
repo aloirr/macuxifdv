@@ -27,10 +27,8 @@ describe('catálogo pendente na carga inicial (ADR 0054, solução 5)', () => {
 });
 
 describe('fonte da busca durante a carga', () => {
-  it('RF-CAT-01: pendente e com sinal vai à API; pendente sem sinal avisa; sem pendência segue local', () => {
+  it('RF-CAT-01: a porta do shell segue a regra do modoDaCarga; sem porta fica local', () => {
     expect(usarApiNaCarga(porta())).toBe('api');
-    expect(usarApiNaCarga(porta({ online: () => false }))).toBe('sem_sinal');
-    expect(usarApiNaCarga(porta({ pendentes: () => [] }))).toBe('local');
     expect(usarApiNaCarga(null)).toBe('local');
   });
   it('RN-CAT-06: na carga, dentro do pedido, só entra produto vendável (perfil sem preço não é filtrado: RN-CAT-05)', () => {
