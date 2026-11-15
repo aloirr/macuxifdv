@@ -61,3 +61,16 @@ Sem defeito funcional para o `testes`.
 
 Conferido sem achado: a l. 236 (§11.4) sem a nota repetida; a l. 298 (§12, adendo de 14/11) cita `depois-03b`/`06b`/`06c`/`06d` como o que existia naquele dia, e o histórico fica; as tabelas do §13 (l. 402 a 433) seguem cobertas pela nota da l. 305. Sem defeito funcional para o `testes`.
 **Resultado:** RD-0956 fechado. RD-0957 e RD-0958 abertos (baixos, em doc): seguram o lote (R-20261111-190159).
+
+## Reteste 4 (15/11, commit `4404843`, branch `nuvem/planos-assinatura-designer-ux`)
+
+| ID | Resultado | Evidência |
+|---|---|---|
+| RD-0957 | **corrigido** | (1) §4 (l. 55): sai "Simulação: `../planos-assinatura/02-nova-empresa.png`."; a tabela do §4 mostra a imagem. (2) Sai a nota "Substituídas em 15/11" abaixo da tabela do §8 (l. 102–104). (3) Sai a nota "Substituída em 15/11" abaixo da tabela do §11.3 (l. 227–229). A substituição fica nos 2 lugares que a proposta mantinha: a nota do §13 (l. 301), chave de leitura das tabelas de histórico, e a lista "Simulações vigentes … Substituídas" do §13.5 (l. 418), inventário dos arquivos. |
+| RD-0958 | **corrigido** | §5 (l. 75): "`../planos-assinatura/03-aba-empresa.png`"; §8, linha 4 (l. 91): "(`../planos-assinatura/05-trocar-plano.png`)". |
+
+Conferido sem achado:
+- `grep 03b|06b|06c|06d` acha só registro histórico datado ou a chave de leitura: o adendo do §12 (l. 294, o que existia em 14/11), a nota do §13 (l. 301), o nome do achado P1 e a resposta do MC-0039 no §13.5 (l. 398 e 411, texto da resposta de 14/11; a coluna "Onde ficou" já usa `02` e `03`), a lista do §13.5 (l. 418) e a tabela do §13.6 (l. 423–429, coberta pela nota da l. 301). Registro histórico não é repetição.
+- §8, l. 84, mudada pelo designer-ux: "(o "antes" é a simulação da aba Empresa da manhã de 14/11, no git até `9b4dd17`)". Tira o nome antigo (`06b`) sem repetir nada da seção.
+
+**Resultado:** RD-0957 e RD-0958 fechados. Nenhum achado em aberto no `portal-config-enxuto.md`: o parecer não segura o lote.
