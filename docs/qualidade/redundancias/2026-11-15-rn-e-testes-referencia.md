@@ -63,3 +63,15 @@ O que tinha ido ao `testes`:
 **Nenhum achado novo** (RD-0565 a RD-0569 não foram usados).
 
 **Resultado do reteste:** o item 1 (29febf6e) está **limpo**. O item 2 **não está liberado** por causa do RD-0558, que precisa ser corrigido no `-depois`. O branch `nuvem/referencia-sem-marca-testes` (2fd46e46) pode entrar sozinho antes do Catálogo, porque o ternário serve para a transição. Mesmo assim, o RD-0558 segura o lote até o `-depois` ter a forma única.
+
+## Reteste do RD-0558 — 15/11/2026
+
+Branch `nuvem/referencia-sem-marca-testes-depois` **885fa189** (diff contra o 25d819de).
+
+| ID | Status | Evidência |
+|---|---|---|
+| RD-0558 | **corrigido** | No H-2 ficou uma forma só: `toEqual([['ZZ 0001', null]])` no banco e `toEqual([{ marca_id: null, marca_nome: null, codigo: 'ZZ 0001' }])` na ficha. O título ficou "…; marca desconhecida entra só com o código; 4 referências = 3 + aviso". Saiu o comentário de histórico, e o cabeçalho ficou "marca desconhecida entra só com o código (marca_id e marca_nome nulos)." |
+
+O `nuvem/referencia-sem-marca-testes` (2fd46e46) continua com as duas formas, como transição, e entra antes do Catálogo.
+
+**Resultado:** os itens 1 e 2 estão **limpos**. RD-0551 a RD-0559 corrigidos, sem achado novo.
