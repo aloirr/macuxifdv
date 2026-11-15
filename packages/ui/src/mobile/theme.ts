@@ -75,8 +75,9 @@ export const toneColors: Record<Tone, { fg: string; bg: string }> = {
 /**
  * Estilos de texto por PAPEL (manual da marca §5; escala do app 12 · 14 · 16 · 18 · 22 · 28, `ESCALA_FONTE`). Um nome por papel:
  * | papel | estilo | tamanho/peso |
- * | número grande, saudação ("Bom dia, Lucas") | `h1` | 28/700 |
+ * | número grande | `h1` | 28/700 |
  * | título de tela, folha e diálogo | `h1Small` | 22/700 |
+ * | saudação ("Bom dia, Lucas"), no Início do Campo e do Gestão | `saudacao` | 22/700 |
  * | título de seção ("Sua meta de hoje") | `h2` | 18/700 |
  * | valor em destaque (R$ 1.240, 2 de 6) | `number` | 18/600 tabular |
  * | texto | `body` | 16/400 |
@@ -85,8 +86,8 @@ export const toneColors: Record<Tone, { fg: string; bg: string }> = {
  * | legenda | `small` | 12/400 |
  * | rótulo pequeno | `label` | 12/600 |
  * | rótulo em maiúsculas ("RECADO DO DIA") | `rotulo` | 12/600 |
- * `saudacao`, `title16` e `smallStrong` são apelidos de `h1`, `bodyStrong` e `label` (o mesmo objeto), mantidos porque o shell
- * e os módulos usam.
+ * `saudacao` é o mesmo estilo de `h1Small` (RD-0957: um tamanho só nas duas boas-vindas; o Início do Campo lê o `fontSize` daqui).
+ * `title16` e `smallStrong` são apelidos de `bodyStrong` e `label` (o mesmo objeto), mantidos porque o shell e os módulos usam.
  */
 const estilosDeTexto = StyleSheet.create({
   h1: { ...fonte.bold, fontSize: 28, letterSpacing: -0.3, color: colors.ink },
@@ -103,8 +104,8 @@ const estilosDeTexto = StyleSheet.create({
 
 export const type = {
   ...estilosDeTexto,
-  /** "Bom dia, Lucas": o mesmo estilo de `h1`. */
-  saudacao: estilosDeTexto.h1,
+  /** "Bom dia, Lucas" no Início do Campo e do Gestão: 22/700, o mesmo estilo de `h1Small` (RD-0957). */
+  saudacao: estilosDeTexto.h1Small,
   /** @deprecated o mesmo estilo de `bodyStrong` (RD-0942); sai na v1.0.14. */
   title16: estilosDeTexto.bodyStrong,
   /** @deprecated o mesmo estilo de `label` (RD-0942); sai na v1.0.14. */
