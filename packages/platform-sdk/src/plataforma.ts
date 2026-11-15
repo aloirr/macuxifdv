@@ -252,3 +252,75 @@ export const RedefinirSenhaAdminRespostaSchema = z.object({
   repetida: z.boolean(),
 });
 export type RedefinirSenhaAdminResposta = z.output<typeof RedefinirSenhaAdminRespostaSchema>;
+
+// ---------- dados legais do rodapé (R-20261114-221000-alexandre; docs/design/telas/rodape-legal.md §3.3) ----------
+/**
+ * Razão social, CNPJ e site da Macuxi no rodapé legal (Campo, Gestão, BKO e portal). Dado da plataforma (pessoa jurídica,
+ * não é dado pessoal), sem tenant: o super-admin edita no portal e a tela Entrar lê pela rota pública, antes do login.
+ *   GET /v1/publico/dados-legais        sem login (limite por IP, cache de 60 s na API; banco fora = 503 e o cliente usa o próprio cache)
+ *   GET|PUT /v1/plataforma/dados-legais só super-admin; o PUT é idempotente, auditado e limpa o cache da rota pública
+ */
+export const SITE_PADRAO = 'macuxifdv.com.br';
+export const ROTA_DADOS_LEGAIS_PUBLICOS = '/v1/publico/dados-legais';
+export const ROTA_PORTAL_DADOS_LEGAIS = '/v1/plataforma/dados-legais';
+export const MAX_RAZAO_SOCIAL_LEGAL = 120;
+
+/** Site como o rodapé mostra: sem espaços, em minúsculas, sem `http(s)://`, sem `www.` e sem barra no fim. Não valida. */
+export function normalizarSite(bruto: string): string {
+  return bruto
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .replace(/\/+$/, '');
+}
+
+const DOMINIO_RE = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+/** Só o domínio, em minúsculas (rótulos de 1 a 63 caracteres, terminação de letras, até 253 no total). */
+export function siteValido(site: string): boolean {
+  return DOMINIO_RE.test(site);
+}
+
+/** Resposta das leituras (rota pública e portal). */
+export const DadosLegaisSchema = z.object({
+  razao_social: z.string().min(1).max(MAX_RAZAO_SOCIAL_LEGAL).nullable(),
+  cnpj: z.string().regex(/^\d{14}$/).nullable(),
+  site: z.string().min(1).max(253),
+});
+export type DadosLegais = z.output<typeof DadosLegaisSchema>;
+
+/** Corpo do `PUT /v1/plataforma/dados-legais`: o portal manda o que o super-admin digitou; a API normaliza e confere. */
+export const GravarDadosLegaisSchema = z
+  .object({
+    razao_social: z
+      .string()
+      .trim()
+      .max(MAX_RAZAO_SOCIAL_LEGAL, `Use até ${MAX_RAZAO_SOCIAL_LEGAL} caracteres.`)
+      .nullable()
+      .transform((s) => (s ? s : null)),
+    cnpj: z
+      .string()
+      .nullable()
+      .transform((s, ctx) => {
+        if (s === null || s.trim() === '') return null;
+        const digitos = s.replace(/\D/g, '');
+        if (!cnpjComDigitosValidos(digitos)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'CNPJ inválido. Confira os 14 dígitos.' });
+          return z.NEVER;
+        }
+        return digitos;
+      }),
+    site: z
+      .string()
+      .nullable()
+      .transform((s, ctx) => {
+        const site = normalizarSite(s ?? '') || SITE_PADRAO;
+        if (!siteValido(site)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Use só o endereço, ex.: macuxifdv.com.br.' });
+          return z.NEVER;
+        }
+        return site;
+      }),
+  })
+  .strict();
+export type GravarDadosLegais = z.output<typeof GravarDadosLegaisSchema>;
