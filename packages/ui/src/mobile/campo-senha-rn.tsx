@@ -16,7 +16,7 @@ import { CAMPO_SENHA, iconeDoOlhoDaSenha, propsDeTecladoDaSenha } from './campo-
 import { rotuloDoOlhoDaSenha, type FinalidadeSenha } from '../comum/senha';
 import { Icon } from './icon';
 import { Pressionavel } from './movimento-rn';
-import { colors, fonts, radius } from './theme';
+import { colors, fonte, radius } from './theme';
 
 type PropsDeTeclado = 'secureTextEntry' | 'autoCorrect' | 'autoCapitalize' | 'spellCheck' | 'autoComplete' | 'textContentType' | 'keyboardType';
 
@@ -85,14 +85,14 @@ export function CampoSenha({
 
 const s = StyleSheet.create({
   caixa: { gap: 4 },
-  rotulo: { fontFamily: fonts.semibold, fontSize: 13, color: colors.ink },
+  rotulo: { ...fonte.semibold, fontSize: 14, color: colors.ink },
   entrada: {
     minHeight: CAMPO_SENHA.altura,
     borderWidth: 1,
     borderColor: colors.lineStrong,
     borderRadius: radius.md,
     paddingHorizontal: 14,
-    fontFamily: fonts.body,
+    ...fonte.body,
     fontSize: 16,
     color: colors.ink,
     backgroundColor: colors.surface,

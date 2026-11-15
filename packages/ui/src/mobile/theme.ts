@@ -2,9 +2,9 @@
  * Tema do app (Campo e Gestão): reexporta os tokens puros (`tokens.ts`) e monta os estilos de texto do React Native.
  * Um único lugar para cor, fonte, raio, espaçamento, sombra e movimento (T-0072; guia em docs/design/componentes.md).
  */
-import { StyleSheet, type TextStyle } from 'react-native';
+import { Platform, StyleSheet, type TextStyle } from 'react-native';
 
-import { colors, radius } from './tokens';
+import { colors, familiasFonte, radius } from './tokens';
 
 export * from './tokens';
 export * from './movimento';
@@ -23,23 +23,15 @@ export const fonte = {
   medium: { fontWeight: '500' },
   semibold: { fontWeight: '600' },
   bold: { fontWeight: '700' },
-  mono: { fontFamily: 'monospace', fontWeight: '400', fontVariant: ['tabular-nums'] },
+  mono: { fontFamily: familiasFonte(Platform.OS).mono, fontWeight: '400', fontVariant: ['tabular-nums'] },
 } as const satisfies Record<string, TextStyle>;
 
 /**
- * @deprecated Transição para as telas que ainda usam `fontFamily: fonts.x`: famílias do sistema Android por nome (só há
- * 400, 500 e 900 por nome). Troque por `...fonte.x`, que dá o peso certo (600 e 700).
+ * @deprecated Transição para as telas que ainda usam `fontFamily: fonts.x`. Android: famílias do sistema por nome (só há
+ * 400, 500 e 900 por nome); web e demais: a pilha do sistema (`PILHA_SISTEMA`/`PILHA_MONO`), sem cair em serifa.
+ * Troque por `...fonte.x`, que dá o peso certo (600 e 700).
  */
-export const fonts = {
-  display: 'sans-serif-black',
-  displayBold: 'sans-serif-medium',
-  displaySemi: 'sans-serif-medium',
-  body: 'sans-serif',
-  medium: 'sans-serif-medium',
-  semibold: 'sans-serif-medium',
-  bold: 'sans-serif-medium',
-  mono: 'monospace',
-} as const;
+export const fonts = Platform.select({ android: familiasFonte('android'), web: familiasFonte('web'), default: familiasFonte('default') });
 
 /** Alvo de toque mínimo (48 dp, Material; era 44 até a T-0071). */
 export const TOUCH = 48;

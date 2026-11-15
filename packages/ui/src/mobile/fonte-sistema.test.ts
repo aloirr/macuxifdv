@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { ESCALA_FONTE, TAMANHOS_FONTE } from './tokens';
+import { ESCALA_FONTE, familiasFonte, PILHA_MONO, PILHA_SISTEMA, TAMANHOS_FONTE } from './tokens';
 
 /** Fonte do sistema e escala (R-20261115-110600, v1.0.13): saem Archivo e IBM Plex; nada abaixo de 12. */
 const pasta = (rel: string) => new URL(rel, import.meta.url);
@@ -45,5 +45,29 @@ describe('fonte do sistema (R-20261115-110600)', () => {
       for (const m of src.matchAll(/text-\[(\d+(?:\.\d+)?)px\]/g)) expect([12, 13, 15, 17, 20, 24], `${arq}: ${m[0]}`).toContain(Number(m[1]));
       expect(src, arq).not.toMatch(/font-extrabold|font-black/);
     }
+  });
+
+  it('fonts (transição): Android com os nomes do sistema; web e demais na pilha sem serifa', () => {
+    const android = familiasFonte('android');
+    expect(android.body).toBe('sans-serif');
+    expect(android.semibold).toBe('sans-serif-medium');
+    expect(android.display).toBe('sans-serif-black');
+    expect(android.mono).toBe('monospace');
+    expect(PILHA_SISTEMA).toBe('system-ui, "Segoe UI", Roboto, -apple-system, sans-serif');
+    expect(PILHA_MONO).toBe('ui-monospace, "Cascadia Mono", "Roboto Mono", monospace');
+    for (const os of ['web', 'ios', 'default']) {
+      const f = familiasFonte(os);
+      for (const [nome, familia] of Object.entries(f)) {
+        expect(familia, `${os}.${nome}`).toBe(nome === 'mono' ? PILHA_MONO : PILHA_SISTEMA);
+        expect(familia, `${os}.${nome}`).not.toMatch(/sans-serif-(medium|black)/);
+      }
+    }
+  });
+
+  it('theme.ts escolhe `fonts` e o mono de `fonte` por Platform (não fixa nomes do Android)', () => {
+    const tema = readFileSync(pasta('./theme.ts'), 'utf8');
+    expect(tema).toMatch(/export const fonts = Platform\.select\(\{ android: familiasFonte\('android'\), web: familiasFonte\('web'\)/);
+    expect(tema).toMatch(/fontFamily: familiasFonte\(Platform\.OS\)\.mono/);
+    expect(tema).not.toMatch(/'sans-serif-(medium|black)'/);
   });
 });
