@@ -141,3 +141,43 @@ comentário ou em título de teste. **Veredito da Meta v1.0.13 para estes 5 bran
 **Veredito do re-parecer da onda 1: NÃO LIBERADO.** Seguem abertos 2 achados baixos, RD-0675 (resto) e RD-0696, ambos em
 código de produção, fora da exceção R-20261111-190159. Os branches 1 e 4 estão limpos. Caixa e recados: HTTP 403, e o gerente
 repassa esta tabela aos donos.
+
+## Parecer final onda 1 (2026-11-15, ~16h30 Manaus)
+
+> Pedido do gerente-projetos depois das correções do re-parecer. Li só o que mudou (`git diff <head anterior>..<head novo>`) e
+> conferi se as correções criaram algo novo, olhando os quatro juntos. Branches 1 e 4 sem mudança desde o re-parecer.
+
+| Branch | Head | Resultado |
+|---|---|---|
+| 1 `nuvem/catalogo-onda1-modulo-core-v2` | 155544cc (igual) | **Limpo** |
+| 2 `nuvem/catalogo-onda1-modulo-catalogo-v3` | 6b1f4815 → **346fabe3** | **Com achado**: RD-0675 fechado; novo RD-0697 |
+| 3 `nuvem/catalogo-onda1-designer-ux` | 87943b16 → **674f8630** | **Limpo** (RD-0696 fechado) |
+| 4 `nuvem/catalogo-onda1-engenheiro-apps` | 541522ce (igual) | **Limpo** |
+
+### Fechados (2)
+- **RD-0696** (designer-ux): a função do kit virou `inteiroDaLinha`, sem export, usada só por `desenhoCargaFundo`
+  (`packages/ui/src/mobile/carga-fundo.ts:46,66`). O teste confere o corte pelo `desenhoCargaFundo(...).percentual`. Em
+  `packages`, `apps` e `modules`, `percentualDaCarga` agora existe só no shell (`apps/mobile/src/lib/carga.ts`).
+- **RD-0675** (modulo-catalogo): **(a)** as duas telas usam `modoDaCarga(sync, ambiente.online())` (`telas/catalogo.tsx:65`,
+  `telas/produto.tsx:31`). O cast de `pendentes` ficou num lugar só (`carga-online.ts:49`). **(b)** Na ficha, no modo `api`, a
+  1ª chamada que falha sem ficha no aparelho termina em `nao_encontrado` (`produto.tsx:55`), e o `GET produtos/:id` não sai de
+  novo. O `useEffect` depende de `modo`, e não mais do cast.
+
+### Em aberto (segura a Meta)
+
+| RD | Branch | Onde | Gravidade | Dono | Correção |
+|---|---|---|---|---|---|
+| **RD-0697** (novo, nasceu da correção do RD-0675) | 2 | `modules/catalogo/app/lib/carga-online.ts:42-45` × `:48-52`; `carga-online.test.ts:79-88` | baixa | modulo-catalogo | A regra "catálogo pendente → com sinal `api`, sem sinal `sem_sinal`, senão `local`" está escrita 2 vezes no mesmo arquivo, em `usarApiNaCarga` e em `modoDaCarga`, e o tipo `'local' \| 'api' \| 'sem_sinal'` também. A proposta do re-parecer pedia que `modoDaCarga` reaproveitasse `usarApiNaCarga`. O teste novo repete os 3 casos que o de `usarApiNaCarga` já cobre. **Depois:** `export type ModoDaCarga = 'local' \| 'api' \| 'sem_sinal';` e a regra só em `modoDaCarga`; `usarApiNaCarga(p) { return p ? modoDaCarga({ pendentes: p.pendentes() }, p.online()) : 'local'; }` (ou o inverso: a regra só numa das duas, a outra só repassa). O teste fica com os 3 modos em um bloco só, e o outro confere só o repasse (porta `null` = `local`) |
+
+### Conferido sem achado
+- `catalogo.tsx:65`: `naCarga = modoDaCarga(...) !== 'local'` dá o mesmo valor que o `catalogoPendente` de antes (pendente em
+  `api` ou `sem_sinal`). O `ambiente.online()` das linhas 140 e 149 escolhe o caminho dentro da carga e fora dela, e não repete
+  o modo.
+- `produto.tsx:53-55`: `!ambiente.online() || !id` e `modo === 'api'` são saídas diferentes (fora da carga sem sinal × na carga
+  com a API falhando). Não há texto de tela novo nem mudança de layout nas duas correções.
+- `catalogoPendente` segue exportada e usada por `usarApiNaCarga` e `modoDaCarga`, além do teste. Sai do export se o RD-0697
+  deixar a regra numa função só (opcional, entra na mesma correção).
+
+**Veredito do parecer final da onda 1: NÃO LIBERADO.** Branches 1, 3 e 4 limpos. O branch 2 segura por 1 achado baixo, o
+RD-0697, em código de produção, fora da exceção R-20261111-190159. Caixa e recados: HTTP 403, e o gerente repassa esta tabela
+ao modulo-catalogo.
