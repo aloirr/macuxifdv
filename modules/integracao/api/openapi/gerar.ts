@@ -384,8 +384,8 @@ export function gerarOpenApiHub(): DocumentoOpenApi {
     servers: [
       {
         url: 'https://{servidor}/integracao/v1',
-        description: 'Hub de Integração (HTTPS obrigatório). A produção (`api.macuxifdv.com.br`) está reservada; hoje vale o ambiente de demonstração.',
-        variables: { servidor: { default: 'api-demo.macuxifdv.com.br', description: 'Servidor da API do Macuxi.' } },
+        description: 'Hub de Integração (HTTPS obrigatório). Produção: `api.macuxifdv.com.br`.',
+        variables: { servidor: { default: 'api.macuxifdv.com.br', description: 'Servidor da API do Macuxi.' } },
       },
     ],
     tags: [

@@ -7,13 +7,12 @@
  * crie-senha.voltar, crie-senha.sem-internet.
  */
 import { estilosDeAcesso } from './estilos-de-acesso';
-import { Banner, Button, colors, Screen, type as t } from '@macuxi/ui/mobile';
+import { Banner, Button, CampoSenha, Screen, type as t } from '@macuxi/ui/mobile';
 import { RegrasDaSenha, CAMPO_REPITA_A_SENHA, CAMPO_SENHA_NOVA } from '@macuxi/ui/mobile';
 import { useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { SENHA_MIN_CARACTERES, mensagemDaSenha, type DetalhesSenhaATrocar } from '../../contracts';
-import { rotuloOlhoSenha } from '../lib/login';
 import { erroDaTroca, subtituloDaTroca, TEXTO_SEM_INTERNET_TROCA, TITULO_CRIE_SUA_SENHA, repeticaoDaSenha, validarTroca } from '../lib/senha';
 
 export interface PropsTelaCrieSuaSenha {
@@ -88,51 +87,34 @@ export function TelaCrieSuaSenha({ motivo, email, codigoEmpresa, semInternet = f
         </Banner>
       ) : null}
 
-      <View style={{ gap: 4 }}>
-        <Text style={styles.rotulo}>{CAMPO_SENHA_NOVA}</Text>
-        <View>
-          <TextInput
-            ref={nova$}
-            testID="crie-senha.nova"
-            value={nova}
-            onChangeText={setNova}
-            accessibilityLabel={CAMPO_SENHA_NOVA}
-            secureTextEntry={!visivel}
-            autoFocus
-            autoCapitalize="none"
-            autoCorrect={false}
-            textContentType="newPassword"
-            autoComplete="new-password"
-            returnKeyType="next"
-            onSubmitEditing={() => repita.current?.focus()}
-            style={[styles.entrada, { paddingRight: 56 }, destacar && v.faltas.length > 0 ? { borderColor: colors.danger } : null]}
-            placeholderTextColor={colors.ink3}
-          />
-          <Pressable testID="crie-senha.olho" accessibilityRole="button" accessibilityLabel={rotuloOlhoSenha(visivel)} hitSlop={4} onPress={() => setVisivel((x) => !x)} style={styles.olho}>
-            <Text style={styles.olhoTexto}>{visivel ? 'Esconder' : 'Mostrar'}</Text>
-          </Pressable>
-        </View>
-      </View>
+      <CampoSenha
+        rotulo={CAMPO_SENHA_NOVA}
+        valor={nova}
+        aoMudar={setNova}
+        visivel={visivel}
+        aoAlternar={() => setVisivel((x) => !x)}
+        finalidade="criacao"
+        erro={destacar && v.faltas.length > 0}
+        testID="crie-senha.nova"
+        testIDOlho="crie-senha.olho"
+        inputRef={nova$}
+        autoFocus
+        returnKeyType="next"
+        onSubmitEditing={() => repita.current?.focus()}
+      />
 
-      <View style={{ gap: 4 }}>
-        <Text style={styles.rotulo}>{CAMPO_REPITA_A_SENHA}</Text>
-        <TextInput
-          ref={repita}
-          testID="crie-senha.repita"
-          value={repetida}
-          onChangeText={setRepetida}
-          accessibilityLabel={CAMPO_REPITA_A_SENHA}
-          secureTextEntry={!visivel}
-          autoCapitalize="none"
-          autoCorrect={false}
-          textContentType="newPassword"
-          autoComplete="new-password"
-          returnKeyType="go"
-          onSubmitEditing={() => void salvar()}
-          style={[styles.entrada, destacar && v.repeticao !== 'igual' ? { borderColor: colors.danger } : null]}
-          placeholderTextColor={colors.ink3}
-        />
-      </View>
+      <CampoSenha
+        rotulo={CAMPO_REPITA_A_SENHA}
+        valor={repetida}
+        aoMudar={setRepetida}
+        visivel={visivel}
+        finalidade="criacao"
+        erro={destacar && v.repeticao !== 'igual'}
+        testID="crie-senha.repita"
+        inputRef={repita}
+        returnKeyType="go"
+        onSubmitEditing={() => void salvar()}
+      />
 
       <RegrasDaSenha faltas={v.faltas} minimo={SENHA_MIN_CARACTERES} resumo={mensagemDaSenha(v.faltas) ?? undefined} repeticao={repeticaoDaSenha(nova, repetida)} destacar={destacar} testID="crie-senha.regras" />
 

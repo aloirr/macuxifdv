@@ -50,7 +50,7 @@ Pontos que importam:
 
 ## 3. Convenções
 
-- Base: `https://<servidor>/integracao/v1` (demonstração: `api-demo.macuxifdv.com.br`; a produção será informada na contratação).
+- Base: `https://<servidor>/integracao/v1` (produção: `api.macuxifdv.com.br`).
 - Corpo JSON em UTF-8. **Dinheiro em centavos inteiros** (`_cents`). **Datas-hora em UTC com `Z`** (`2026-11-05T13:45:10Z`; deslocamento como `-03:00` é recusado). Datas civis `AAAA-MM-DD`.
 - **Todo registro tem `external_id`** (a chave do registro no seu ERP, até 200 caracteres; chaves compostas como `TAB01:P000045` valem) e `alterado_em` (instante da última alteração no ERP). `ativo: false` inativa o registro no Macuxi (nunca apaga).
 - Campos desconhecidos são **ignorados** (compatibilidade para frente). Campo novo opcional é compatível com `v1`; qualquer outra mudança vira `/v2`.
@@ -63,7 +63,8 @@ Um registro que aponta para outro (por exemplo, um cliente que cita o vendedor) 
 
 | Entidade | Depende de |
 |---|---|
-| `vendedor`, `catalogo_no`, `transportadora`, `forma_pagamento`, `filial` | nada |
+| `catalogo_no`, `transportadora`, `forma_pagamento`, `filial` | nada |
+| `vendedor` | `filial` (o vendedor tem exatamente uma filial, obrigatória: `filial_external_id` ausente ou `null` carrega o vendedor com o aviso `vendedor_sem_filial`, e ele fica bloqueado até a filial ser informada) |
 | `produto` | `catalogo_no` (referência **fraca**: nó ausente só gera aviso `referencia_fraca_ausente` e o produto entra sem o vínculo) |
 | `prazo_pagamento` | `forma_pagamento` (pelo `forma_external_id`) |
 | `cliente` | `vendedor`, `forma_pagamento` e `filial` (as `formas_pagamento` do cliente vão pelo **código** da forma; forma ainda não carregada não recusa a linha, mas carregue as formas antes; `filial_external_id` ausente ou `null` = filial padrão da empresa) |
@@ -75,7 +76,7 @@ Um registro que aponta para outro (por exemplo, um cliente que cita o vendedor) 
 | `preco`, `estoque` | `produto` e `filial` (`filial_external_id` ausente ou `null` = filial padrão; no estoque, é a filial do depósito) |
 | `tabela_escalonada` | `produto`, `preco` e `filial` (`filial_external_id` ausente = vale para todas as filiais) |
 
-Sequência segura para a primeira carga: **vendedor, filial, catalogo_no, transportadora, forma_pagamento → cliente, produto, prazo_pagamento → rota, titulo, nota, cliente_endereco, produto_unidade → preco, estoque → tabela_escalonada.** (RN-INT-04: vendedor → cliente → rota/título/nota; produto → preço/estoque.)
+Sequência segura para a primeira carga: **filial, vendedor, catalogo_no, transportadora, forma_pagamento → cliente, produto, prazo_pagamento → rota, titulo, nota, cliente_endereco, produto_unidade → preco, estoque → tabela_escalonada.** (RN-INT-04: vendedor → cliente → rota/título/nota; produto → preço/estoque.)
 
 O Hub também ajuda: um lote espera por lotes ainda em aberto das entidades de que depende (até 30 minutos); passado esse tempo ele é aplicado e as linhas sem alvo viram `referencia_ausente`. Quando o lote da dependência termina, o Hub reprocessa essas linhas sozinho.
 
@@ -576,7 +577,7 @@ Regras do retorno:
 Variáveis usadas (bash; o `jq` é opcional). A chave é a que o administrador gerou no BKO:
 
 ```bash
-export HUB="https://api-demo.macuxifdv.com.br/integracao/v1"
+export HUB="https://api.macuxifdv.com.br/integracao/v1"
 export MACUXI_CHAVE="<chave de API do Conector>"
 export MACUXI_CONECTOR="erp-matriz"
 H_AUTH=(-H "Authorization: Bearer $MACUXI_CHAVE" -H "X-Macuxi-Conector-Id: $MACUXI_CONECTOR" -H "X-Macuxi-Conector-Versao: 1.2.1")
