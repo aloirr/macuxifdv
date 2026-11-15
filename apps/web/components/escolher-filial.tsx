@@ -87,7 +87,7 @@ export function TelaEscolherFilial(p: PropsTelaEscolherFilial) {
           if (p.estado === 'escolher' && p.escolhida && !p.salvando) p.onSalvar();
         }}
       >
-        <h1 className="m-0 font-display text-[28px] font-extrabold">{T.titulo}</h1>
+        <h1 className="m-0 text-[24px] font-bold">{T.titulo}</h1>
         <div aria-live="polite" className="contents">
           {p.estado === 'escolher' && p.erroSalvar ? (
             <div data-testid="filial.erro">

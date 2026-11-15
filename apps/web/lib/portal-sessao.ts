@@ -314,19 +314,24 @@ export function desvioDoErro(s: SessaoPortal | null, status: number, codigo: str
   if (status === 409 && codigo === CODIGOS_PORTAL.empresaNaoEscolhida) return s.empresas.length >= 2 ? { para: 'escolher', aviso: null } : { para: 'entrar', aviso: null };
   // T-0176 (RN-CORE-39; ADR 0056): o admin real da empresa está sem filial de cadastro (`empresa.sem_filial` no token do portal).
   // O portal não destrava (a filial se informa no BKO): a empresa sai como no 403 de empresa, com o texto aprovado da conta sem filial.
-  if (status === 403 && codigo === CODIGO_USUARIO_SEM_FILIAL) {
-    if (s.empresas.length < 2) return { para: 'entrar', aviso: MENSAGEM_PORTAL_SEM_FILIAL };
-    const id = tenant ?? s.empresa?.id;
-    const e = s.empresas.find((x) => x.id === id);
-    return e ? { para: 'escolher', aviso: MENSAGEM_PORTAL_SEM_FILIAL, empresa: { id: e.id, nome: e.nome, semFilial: true } } : { para: 'escolher', aviso: MENSAGEM_PORTAL_SEM_FILIAL };
-  }
-  if (status === 403 && codigo === CODIGOS_PORTAL.empresaNaoPermitida) {
-    if (s.empresas.length < 2) return { para: 'entrar', aviso: MENSAGEM_EMPRESA_INDISPONIVEL };
-    const id = tenant ?? s.empresa?.id;
-    const e = s.empresas.find((x) => x.id === id);
-    return e ? { para: 'escolher', aviso: mensagemDaEmpresaIndisponivel(e.nome), empresa: { id: e.id, nome: e.nome } } : { para: 'escolher', aviso: MENSAGEM_EMPRESA_INDISPONIVEL };
-  }
+  if (status === 403 && codigo === CODIGO_USUARIO_SEM_FILIAL) return desvioDeEmpresaFora(s, tenant, true);
+  if (status === 403 && codigo === CODIGOS_PORTAL.empresaNaoPermitida) return desvioDeEmpresaFora(s, tenant, false);
   return null;
+}
+
+/**
+ * A empresa da chamada (`tenant`; sem ele, a atual) sai da Escolha: com 1 empresa só, volta à entrada. `semFilial` troca o
+ * texto da empresa indisponível pelo da conta sem filial (T-0176).
+ */
+function desvioDeEmpresaFora(s: SessaoPortal, tenant: string | undefined, semFilial: boolean): DesvioPortal {
+  const avisoGeral = semFilial ? MENSAGEM_PORTAL_SEM_FILIAL : MENSAGEM_EMPRESA_INDISPONIVEL;
+  if (s.empresas.length < 2) return { para: 'entrar', aviso: avisoGeral };
+  const id = tenant ?? s.empresa?.id;
+  const e = s.empresas.find((x) => x.id === id);
+  if (!e) return { para: 'escolher', aviso: avisoGeral };
+  return semFilial
+    ? { para: 'escolher', aviso: avisoGeral, empresa: { id: e.id, nome: e.nome, semFilial: true } }
+    : { para: 'escolher', aviso: mensagemDaEmpresaIndisponivel(e.nome), empresa: { id: e.id, nome: e.nome } };
 }
 
 let desvio: DesvioPortal | null = null;
