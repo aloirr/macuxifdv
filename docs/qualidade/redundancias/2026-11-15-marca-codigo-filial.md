@@ -82,3 +82,28 @@ Heads: `nuvem/marca-codigo-modulo-integracao` 46876619, `nuvem/referencia-cruzad
 - O apelido `ORDEM_PORTAL` (local, `portal-carga.ts:12`) e o apelido `ORDEM_CARGA` do Conector, que é usado em 6 arquivos, ficam: só dão nome local à lista única, sem segunda cópia (`manter`).
 - `docs/banco/integracao.md:421` ("1b, logo depois do vendedor") faz parte do registro histórico da 0056, então fica como está.
 - Ordem de merge, para o gerente: o teste do banco (`views-modelo-conector.test.ts:16`) importa `ORDEM_CARGA_ENTIDADES`, que só existe no branch do modulo-integracao. Por isso o PR do banco-dados entra depois dele.
+
+## 7. Reteste final (15/11/2026)
+
+Heads: `nuvem/marca-codigo-modulo-integracao` 8da18d5d, `nuvem/referencia-cruzada-modulo-integracao` 6eca6cb0 e `nuvem/marca-codigo-banco-dados` 23df9568.
+
+**Resultado: COM ACHADO.** RD-0536 a RD-0538 foram corrigidos. Surgiu 1 achado novo (RD-0539, baixo, em doc), que segura o lote.
+
+### 7.1 Reteste
+
+| RD | Evidência | Status |
+|---|---|---|
+| RD-0536 | `conector.md:432` diz "A ordem de carga é a `ORDEM_CARGA_ENTIDADES` do contrato". A mesma contradição também saiu de `carga-arquivo.md:35`, `hub-api.md:212` e `:514` e `roteiro-ensaio-conector-1.4.0.md:30`. Não sobrou nenhum "filial logo depois de vendedor" fora do registro histórico da 0056 (`docs/banco/integracao.md:421`). | **corrigido** |
+| RD-0537 | A conferência completa da lista ficou só em `ordem.test.ts:43-51`. O `modelos-csv.test.ts:102-108` confere só a igualdade com `ORDEM_CARGA_ENTIDADES` e o `RESUMO_MODELOS`. O `apps/conector/test/ordem-carga.test.ts:5-8` tem um `it` só, com `toBe(ORDEM_CARGA_ENTIDADES)`. O kit (6eca6cb0) recebeu a correção pelo merge. | **corrigido** |
+| RD-0538 | `views-modelo-conector.test.ts:174-177`: ficaram as linhas sem repetição e `expect(nomes).toEqual([...ORDEM_CARGA_ENTIDADES])`. O `it` das dependências saiu. | **corrigido** |
+
+### 7.2 Achado novo
+
+| RD | Grav. | Dono | Onde | O que se repete | Proposta (antes → depois) |
+|---|---|---|---|---|---|
+| RD-0539 | baixa (doc; segura) | modulo-integracao | `docs/modulos/integracao/carga-arquivo.md:35`, `hub-api.md:514`, `roteiro-ensaio-conector-1.4.0.md:30` | Nos 3 docs, a mesma frase diz que a filial é "a primeira" e logo depois lista 5 entidades que vêm depois dela. A lista não acrescenta nada a "a primeira" e é uma cópia parcial de `DEPENDENCIAS`. | `carga-arquivo.md:35`: "A entidade `filial` é a primeira da carga (`ORDEM_CARGA_ENTIDADES`): vem antes de `vendedor`, `cliente`, `preco`, `estoque` e `tabela_escalonada`." → "A entidade `filial` é a primeira da carga (`ORDEM_CARGA_ENTIDADES`)." `hub-api.md:514`: "`filial` é a primeira (antes de `vendedor`, `cliente`, `preco`, `estoque` e `tabela_escalonada`); a lista única é …" → "`filial` é a primeira da lista única `ORDEM_CARGA_ENTIDADES`, usada pelo portal e pelo Conector." `roteiro…:30`: "ordem: `ORDEM_CARGA_ENTIDADES` (`filial` primeiro, antes de vendedor, cliente, preço, estoque e tabela escalonada); sem bloqueio" → "ordem: `ORDEM_CARGA_ENTIDADES` (`filial` primeiro); sem bloqueio". |
+
+### 7.3 Sem outra redundância nova
+
+- `hub-api.md:212` ("filial → vendedor → cliente → (rota, título, nota); produto → (preço, estoque)") resume a cadeia de dependências da fila de aplicação, o que é outra informação. Fica.
+- Imports dos testes alterados: `ENTIDADES` e `Entidade` continuam em uso nos dois arquivos, então não há import morto.
