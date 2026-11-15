@@ -112,6 +112,7 @@ import { registrarAuditoria } from './auditoria';
 import { registrarDiagnosticos } from './diagnosticos';
 import { registrarRotasDiagnosticosPortal, type FonteDiagnosticosPortal } from './diagnosticos-portal';
 import { registrarRotasDadosLegais, type FonteDadosLegais } from './dados-legais';
+import { registrarRotasMarcaEmpresa, type FonteMarcaEmpresa } from './empresa-logo';
 import { consultaCnpjPadrao, registrarRotaConsultaCnpj, type ConsultaCnpj } from './consulta-cnpj';
 import { registrarRotasPlanosPortal, type FontePlanosPortal } from './planos-portal';
 import { acoesDasEmpresas, registrarRotasAcoesEmpresa, type FonteAcoesEmpresa } from './empresa-acoes-portal';
@@ -230,6 +231,8 @@ export interface OpcoesApp {
    * desligado (manifesto vazio). Ausente = pelo ambiente (`MACUXI_SYNC_PACOTES=1` liga; padrão DESLIGADO; `syncPacotesDoAmbiente`).
    */
   syncPacotes?: OpcoesSyncPacotes | null;
+  /** T-0182: fonte das funções da logo e do nome fantasia (padrão: `fonteMarcaNoBanco`). Testes injetam a sua. */
+  fonteMarca?: FonteMarcaEmpresa;
 }
 
 /** Cache da sonda de dependências do `/v1/saude` (a rota é pública: não vira amplificador de consultas no banco). */
@@ -677,6 +680,17 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     autenticar: autenticarDoPortal,
     validar,
     relogio,
+  });
+
+  // T-0182: logo do cliente e nome fantasia (portal: grava só o super-admin; `GET /v1/me/empresa/logo/:sha256` para o app e o BKO)
+  registrarRotasMarcaEmpresa(app, {
+    acessoPortal,
+    ...(op.fonteMarca ? { fonte: op.fonteMarca } : {}),
+    autenticar: autenticarDoPortal,
+    validar,
+    armazenamento: op.arquivos ?? null,
+    relogio,
+    plataforma,
   });
 
   // ADR 0048: consulta de CNPJ na base pública da Receita (passo Empresa do portal), super-admin ou admin do cliente
