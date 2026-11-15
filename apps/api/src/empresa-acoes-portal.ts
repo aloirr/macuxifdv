@@ -23,6 +23,7 @@ import {
   ExclusaoEmpresaSchema,
   InativarEmpresaSchema,
   ListaBackupsEmpresaSchema,
+  MENSAGEM_EXCLUSAO_NAO_ENCONTRADA,
   MENSAGEM_SO_SUPER_ADMIN_ACOES,
   MENSAGENS_ACOES_EMPRESA,
   PedirBackupEmpresaSchema,
@@ -252,7 +253,7 @@ export function registrarRotasAcoesEmpresa(app: FastifyInstance, dep: DepsAcoesE
     const tenantId = empresa(req);
     const quem = await exigir(req, tenantId);
     const r = await chamar(() => fonte.lerExclusao(quem.sessao_id, tenantId, dep.acesso));
-    if (r === null || r === undefined) throw new ErroHttp(404, 'EXCLUSAO_NAO_ENCONTRADA', 'Nenhuma exclusão pedida para esta empresa.');
+    if (r === null || r === undefined) throw new ErroHttp(404, 'EXCLUSAO_NAO_ENCONTRADA', MENSAGEM_EXCLUSAO_NAO_ENCONTRADA);
     return conferir(ExclusaoEmpresaSchema, r, 'sa_ler_exclusao');
   });
 }

@@ -8,6 +8,7 @@ import {
   BackupEmpresaSchema,
   ExclusaoEmpresaSchema,
   ListaEmpresasSchema,
+  MENSAGEM_EXCLUSAO_NAO_ENCONTRADA,
   MENSAGEM_SO_SUPER_ADMIN_ACOES,
   SituacaoEmpresaRespostaSchema,
   type AcessoPortalAutenticado,
@@ -280,7 +281,7 @@ describe('Portal › Ações da empresa (ADR 0052)', () => {
     const r = await app.inject({ method: 'GET', url: url('exclusao'), headers: sa });
     expect([r.statusCode, ExclusaoEmpresaSchema.parse(r.json()).situacao]).toEqual([200, 'em_andamento']);
     const nada = await app.inject({ method: 'GET', url: url('exclusao', OUTRA), headers: sa });
-    expect([nada.statusCode, nada.json().codigo]).toEqual([404, 'EXCLUSAO_NAO_ENCONTRADA']);
+    expect([nada.statusCode, nada.json().codigo, nada.json().mensagem]).toEqual([404, 'EXCLUSAO_NAO_ENCONTRADA', MENSAGEM_EXCLUSAO_NAO_ENCONTRADA]);
   });
 
   it('RN-PLA-07/08/09: a lista de empresas ganha `acoes` só para o super-admin e só na empresa com bloco', async () => {
