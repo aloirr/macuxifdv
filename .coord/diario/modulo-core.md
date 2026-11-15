@@ -185,3 +185,4 @@
 2026-11-15 — T-0176 — merge da 0077 (banco-dados) em nuvem/filial-usuario-modulo-core sem conflitos; nomes conferidos (filial_cadastro_id, usuario_filial, set constraints immediate, Drizzle snake_case); lint/typechecks ok; vitest só com falhas de argon2
 2026-11-15 — T-0176 — telas do BKO da filial (gaveta Editar/Novo usuário, coluna, filtro e aviso na lista), testes da lib e prints
 2026-11-15 — T-0176 — tela 13: Banner de erro/aviso do login movido para entre a senha e o botão Entrar (spec §4)
+2026-11-15 — T-0176 — v1012: merges (FDV+vínculo, filial 0077, telas 13-15, SDK, main), guarda global ADR 0056 (sem_filial no autenticar, liberadaSemFilial/liberadoSemFilial, sem comGuardaDeFilial), reexport do SDK, coluna Usuários alinhada
