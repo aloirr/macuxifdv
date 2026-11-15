@@ -5,7 +5,7 @@
 > implementação). Base: `docs/design/entrada-sync.md` (T-0172), que continua a fonte da verdade da tela de carga; esta spec
 > descreve só o que entra. Na aprovação, a §2 da `entrada-sync.md` recebe a mudança do "Fora da tela" (§5 abaixo).
 > Simulação: `carga-campo.png`, `carga-gestao.png` (360 × 800), `carga-campo-640.png` (360 × 640 com 48 dp de navegação),
-> `config-frases.png`, `config-editar.png`. Fontes: os `.html` e o `app.css` desta pasta.
+> `config-frases.png`, `config-editar.png`. Frases: `frases.md` (tema de Roraima, com as fontes na §6). Fontes: os `.html` e o `app.css` desta pasta.
 
 ## 1. Tela de carga (Campo e Gestão, rota `/sync`, estados 4 e 5 da entrada-sync)
 De cima para baixo:
@@ -45,7 +45,7 @@ Sem cor nova e sem movimento novo (a área de baixo já esmaece em 240 ms; com "
 ## 3. Portal `config.` · Frases da carga (só o time Macuxi, super-admin)
 - **Menu:** novo item "Frases da carga" depois de "Diagnósticos" (`MENU_TIME_MACUXI`), na `MolduraPortal`.
 - **Título:** `PageHeader` "Frases da carga", sem subtítulo; ação principal (única da tela) **"Incluir frase"** (`Button primary`).
-- **`Panel`** com a tabela (`th`/`td` do kit): **Nº** · **Frase** · **Para** (Vendedor, Promotor, Gestão, Todos) ·
+- **`Panel`** com a tabela (`th`/`td` do kit): **Nº** · **Frase** · **Para** (Vendedor, Promotor, Gestão, Todos; as 30 iniciais são "Todos") ·
   **Situação** (`Badge` success "Ativa" / neutral "Inativa") · links "Editar" e "Desativar" / "Ativar". As ativas vêm primeiro,
   pelo Nº; as inativas no fim. Ativar e desativar são imediatos e reversíveis, sem confirmação; a situação muda só por esse link.
 - **Incluir / Editar** (`Dialog` do kit): título "Incluir frase" ou "Editar frase {nº}"; campo **Frase** (área de texto que
@@ -54,12 +54,10 @@ Sem cor nova e sem movimento novo (a área de baixo já esmaece em 240 ms; com "
 - Sem excluir (desativar basta); não foi pedido.
 
 ## 4. Para o dono do produto decidir
-- **Frase 25 (MC-0080):** A. "Sol, chuva ou poeira do lavrado: quem está na rua faz a venda acontecer." (sinal da origem em
-  Roraima) ou B. "Sol, chuva ou poeira da estrada: quem está na rua faz a venda acontecer." (qualquer vendedor se reconhece).
-  A marca recomenda a **B**, que está no `frases.md`.
-- **Coluna "Para" (público):** o Campo é usado pelo vendedor e pelo promotor (o promotor nunca faz pedido, regra 7), e o Gestão
-  pelo supervisor. Sem o público, o promotor veria frase de pedido. Se preferir uma lista só, a coluna sai e as frases de pedido
-  e de gôndola são reescritas para servir a todos.
+- **Tema (R-20261115-071500-alexandre):** as 30 frases são sobre a história e a tradição de Roraima: 8 sobre o povo Macuxi,
+  8 sobre o Monte Roraima, 8 sobre Makunaimã e 6 sobre outros aspectos do estado (80% nos três temas principais).
+- **Coluna "Para":** o tema não depende do perfil, então as 30 são "Todos". A coluna fica para uma frase futura de um perfil só.
+  Se o dono do produto preferir, ela sai do portal e do sorteio.
 - As frases valem para todas as empresas (cadastro do super-admin); frase por empresa não foi pedida.
 
 ## 5. Na aprovação
@@ -68,3 +66,43 @@ Sem cor nova e sem movimento novo (a área de baixo já esmaece em 240 ms; com "
 - Implementação, sem segurar a v1.0.10: banco e API (modulo-core / banco-dados), portal e tela do app, `cabeLista` e
   `cabeFrase` (engenheiro-apps), tokens `avisoBorda` e `avisoFundo` no `TemaEntrada` (designer-ux, MC-0078), parecer da marca e
   do corretor no print do aparelho.
+
+## 6. Fontes
+Cada fato foi conferido na fonte citada (pesquisa de 15/11/2026). Nº da pesquisa = número da candidata na lista de 40
+(R = reserva). Regras de redação (parecer da marca `docs/marca/pareceres/2026-11-15-carga-frases.md`): narrativa com
+"Segundo a tradição {povo},"; sem "mito" no sentido de mentira, sem "índio", sem passado para um povo que existe hoje; nada
+sagrado ou ritual como curiosidade; nenhuma ligação com venda; "Makunaimã" numa grafia só (Macunaíma só para o livro de 1928).
+Ficaram de fora: o pajé e o parixara (xamanismo e ritual), o "Pikatënninan" (grafia não conferida) e o "Makunaimë".
+
+| Nº | Tema | Pesquisa | Fonte |
+|---|---|---|---|
+| 1 | Macuxi | 1 | "Macuxi", Paulo Santilli, Povos Indígenas no Brasil (ISA) · https://pib.socioambiental.org/pt/Povo:Macuxi |
+| 2 | Macuxi | 2 | "Macuxi", ISA · https://pib.socioambiental.org/pt/Povo:Macuxi |
+| 3 | Macuxi | 3 | "Macuxi", ISA (cabeçalho: RR 37250, Siasi/Sesai 2020) · https://pib.socioambiental.org/pt/Povo:Macuxi |
+| 4 | Macuxi | 6 | "Damurida e o Sabor das Transformações Históricas em Roraima", L. L. Martins, REPAM (UnB), 2023 · https://periodicos.unb.br/index.php/repam/article/download/56186/44667/230537 |
+| 5 | Macuxi | 8 | "Macuxi", ISA (homologada em abril de 2005) · https://pib.socioambiental.org/pt/Povo:Macuxi |
+| 6 | Macuxi | 10 | "Diagnóstico sociolinguístico… Lei 211/2014", J. P. Pereira e A. Machado, Tellus (UCDB) · https://tellus.ucdb.br/tellus/article/download/628/561/2596 |
+| 7 | Macuxi | 11 | Obra "Parixara", Carmézia Emiliano, acervo do MASP · https://www.masp.org.br/en/collections/works/parixara |
+| 8 | Macuxi | R1 | Resenha de P. C. Albernaz (UFRR), Revista Pesquisa FAPESP nº 327, maio 2023 · https://revistapesquisa.fapesp.br/wp-content/uploads/2023/05/096_resenha_327.pdf |
+| 9 | Monte Roraima | 12 | "Pontos mais altos do Brasil – 2024", Anuário Estatístico do Brasil, IBGE · https://anuario.ibge.gov.br/images/aeb/2024/s1/2_pdf/s1t3201.pdf |
+| 10 | Monte Roraima | 13 | Mesma tabela do IBGE, notas (2) e (3) · https://anuario.ibge.gov.br/images/aeb/2024/s1/2_pdf/s1t3201.pdf |
+| 11 | Monte Roraima | 14 | Relatório da UC, CNUC (MMA) · https://cnuc-backend.mma.gov.br/api/v1/report/uc/174 |
+| 12 | Monte Roraima | 16 | N. J. Reis et al., Brazilian Journal of Geology 47(1), 2017 (SciELO) · https://www.scielo.br/j/bjgeo/a/mPdYsxGSsrN6qb4bFs4PzLG/ |
+| 13 | Monte Roraima | 17 | "Ingarikó", ISA · https://pib.socioambiental.org/pt/Povo:Ingarik%C3%B3 |
+| 14 | Monte Roraima | 18 | C. T. F. Fagundes, Cadernos de Tradução (UFSC), 2024 · https://periodicos.ufsc.br/index.php/traducao/article/view/104170 |
+| 15 | Monte Roraima | 19 | ICMBio em Foco nº 548, ICMBio · https://www.gov.br/icmbio/pt-br/centrais-de-conteudo/publicacoes/icmbio-em-foco/pdf/icmbioemfoco548.pdf |
+| 16 | Monte Roraima | 20 | "Ingarikó", ISA · https://pib.socioambiental.org/pt/Povo:Ingarik%C3%B3 |
+| 17 | Makunaimã | 23 | J. L. Jobim, R. Mibielli et al., "Makunaimã/Macunaíma: a encenação da autoria indígena", Brasil/Brazil (UFRGS) · https://seer.ufrgs.br/index.php/brasilbrazil/article/download/149161/96406/670067 |
+| 18 | Makunaimã | 24 | "Macuxi", seção "Cosmogonia", ISA · https://pib.socioambiental.org/pt/Povo:Macuxi |
+| 19 | Makunaimã | 25+26 | "Macuxi", seção "Cosmogonia", ISA · https://pib.socioambiental.org/pt/Povo:Macuxi |
+| 20 | Makunaimã | 28 | "Taurepang", ISA · https://pib.socioambiental.org/pt/Povo:Taurepang |
+| 21 | Makunaimã | 30 | "Ingarikó", ISA · https://pib.socioambiental.org/pt/Povo:Ingarik%C3%B3 |
+| 22 | Makunaimã | 31 | "Ingarikó", mito da agricultura (narrativa de 2017), ISA · https://pib.socioambiental.org/pt/Povo:Ingarik%C3%B3 |
+| 23 | Makunaimã | 32 | Resenha de P. C. Albernaz (UFRR), Revista Pesquisa FAPESP nº 327, maio 2023 · https://revistapesquisa.fapesp.br/wp-content/uploads/2023/05/096_resenha_327.pdf |
+| 24 | Makunaimã | 33 | Jobim et al., Brasil/Brazil (UFRGS) · https://seer.ufrgs.br/index.php/brasilbrazil/article/download/149161/96406/670067 |
+| 25 | Roraima | 34 | Folder "Fique por dentro do patrimônio cultural de Roraima", Iphan-RR · https://www.gov.br/iphan/pt-br/superintendencias/roraima/FOLDERPCRR_PTBRDIGITAL1.pdf |
+| 26 | Roraima | 35 | Folder do Iphan-RR · https://www.gov.br/iphan/pt-br/superintendencias/roraima/FOLDERPCRR_PTBRDIGITAL1.pdf |
+| 27 | Roraima | 37 | "Boa Vista – Histórico", Biblioteca IBGE · https://biblioteca.ibge.gov.br/visualizacao/dtb/roraima/boavista.pdf |
+| 28 | Roraima | 38 | "Cavalo Lavradeiro…", Documentos 65, Embrapa Roraima, 2019 · https://www.infoteca.cnptia.embrapa.br/infoteca/bitstream/doc/1111745/1/DOCN65.pdf |
+| 29 | Roraima | 39 | Brasil em Números v. 31, IBGE, 2023 · https://biblioteca.ibge.gov.br/visualizacao/periodicos/2/bn_2023_v31_art02.pdf |
+| 30 | Roraima | 40 | Informativo 013/2023, Seplan-RR, com dados do Censo 2022 (IBGE) · https://seplan.rr.gov.br/wp-content/uploads/2023/11/Informativo-013-2023-POPULACAO-INDIGENA-2023.pdf.pdf |
