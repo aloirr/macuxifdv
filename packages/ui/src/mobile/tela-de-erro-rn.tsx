@@ -81,7 +81,7 @@ const s = StyleSheet.create({
   conteudo: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: layout.telaLateral, paddingVertical: space.xxxl + space.lg, gap: space.xxl },
   topo: { alignItems: 'center', gap: space.md },
   icone: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.warningBg, alignItems: 'center', justifyContent: 'center' },
-  titulo: { ...fonte.displayBold, fontSize: 22, lineHeight: 28, color: colors.ink, textAlign: 'center' },
+  titulo: { ...fonte.bold, fontSize: 22, lineHeight: 28, color: colors.ink, textAlign: 'center' },
   texto: { ...fonte.body, fontSize: 16, lineHeight: 22, color: colors.ink2, textAlign: 'center' },
   acoes: { gap: space.sm },
   nota: { ...fonte.body, fontSize: 14, lineHeight: 18, color: colors.ink2, textAlign: 'center' },
