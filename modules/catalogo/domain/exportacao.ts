@@ -1,10 +1,10 @@
 /**
  * Exportação do catálogo (RF-CAT-09, T-0085 fatia C): monta os dados que o BKO transforma em PDF e Excel.
  * Função pura. Sistema › grupo › linha = níveis 1, 2 e 3 da árvore do produto (o vínculo de trilha mais funda);
- * referências saem como o cadastro as guarda (máx. 3, marca ativa, RN-CAT-09) e "oferece junto" com até 5 ids.
+ * referências saem como na ficha (máx. 3; marca inativa ou ausente esconde a referência, sem marca = só o código, RN-CAT-09) e "oferece junto" com até 5 ids.
  */
 import type { Referencia } from '../contracts';
-import { nomeMarcaDaReferencia, type MapaMarcas } from './marcas';
+import { referenciaVisivel, type MapaMarcas } from './marcas';
 import { montarArvore, trilhaDe, type NoCatalogo, type VinculoProdutoNo } from './arvore';
 import type { ProdutoCatalogo } from './vitrine';
 
@@ -19,7 +19,7 @@ export interface ProdutoDaExportacao {
   descricao: string;
   aplicacao: string | null;
   hierarquia: { sistema: string | null; grupo: string | null; linha: string | null };
-  referencias: { marca_id: string | null; marca_nome: string | null; codigo: string }[];
+  referencias: Referencia[];
   oferece_junto: string[];
 }
 
@@ -56,7 +56,7 @@ export function montarExportacao(e: EntradaExportacao): { produtos: ProdutoDaExp
         descricao: p.nome,
         aplicacao: p.aplicacao?.trim() ? p.aplicacao : null,
         hierarquia: { sistema: t[0]?.nome ?? null, grupo: t[1]?.nome ?? null, linha: t[2]?.nome ?? null },
-        referencias: referencias.slice(0, MAX_REFERENCIAS_EXPORTACAO).map((r) => ({ marca_id: r.marca_id, marca_nome: nomeMarcaDaReferencia(r.marca_id, r.marca_nome, e.marcas ?? new Map()), codigo: r.codigo })),
+        referencias: referencias.flatMap((r) => referenciaVisivel(r, e.marcas ?? new Map()) ?? []).slice(0, MAX_REFERENCIAS_EXPORTACAO),
         oferece_junto: (e.ofereceJunto.get(p.id) ?? []).filter((id) => id !== p.id && ativos.has(id)).slice(0, MAX_OFERECE_JUNTO_EXPORTACAO),
       };
     })

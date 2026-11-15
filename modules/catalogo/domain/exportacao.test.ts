@@ -33,6 +33,18 @@ describe('RF-CAT-09: dados da exportação', () => {
   it('RN-CAT-11: aplicação vazia vira nula', () => {
     expect(montarExportacao({ produtos: [prod(1, { aplicacao: '  ' }), prod(2, { aplicacao: 'Motor 1.0' })], nos: [], vinculos: [], ofereceJunto: new Map() }).produtos.map((p) => p.aplicacao)).toEqual([null, 'Motor 1.0']);
   });
+  it('RN-CAT-09: a exportação esconde a referência de marca inativa ou ausente e mantém a sem marca, como a ficha', () => {
+    const refs = [
+      { marca_id: U(901), marca_nome: 'Ativa', codigo: 'A1' },
+      { marca_id: U(902), marca_nome: 'Velha', codigo: 'B2' },
+      { marca_id: U(903), marca_nome: 'Fantasma', codigo: 'C3' },
+      { marca_id: null, marca_nome: null, codigo: 'D4' },
+    ];
+    const marcas = new Map([[U(901), { nome: 'Nova', ativo: true }], [U(902), { nome: 'Velha', ativo: false }]]);
+    const r = montarExportacao({ produtos: [prod(1, { referencias: refs })], nos: [], vinculos: [], ofereceJunto: new Map(), marcas });
+    expect(r.produtos[0]!.referencias).toEqual([{ marca_id: U(901), marca_nome: 'Nova', codigo: 'A1' }, { marca_id: null, marca_nome: null, codigo: 'D4' }]);
+  });
+
   it('RF-CAT-09: acima do teto de 20 mil a resposta é cortada e marcada como truncada', () => {
     const produtos = Array.from({ length: LIMITE_EXPORTACAO + 1 }, (_, i) => prod(i + 1));
     const r = montarExportacao({ produtos, nos: [], vinculos: [], ofereceJunto: new Map() });

@@ -57,7 +57,6 @@ export function caminhoDoProduto(h: { sistema: string | null; grupo: string | nu
 
 export function montarCatalogo(dados: DadosExportacao, opcoes: EscopoExportacao = {}): Catalogo {
   const porId = new Map(dados.produtos.map((p) => [p.id, p]));
-  const marcas = new Map(dados.marcas.map((m) => [m.id, m.nome]));
   const secoes = new Map<string, SecaoCatalogo>();
   for (const p of dados.produtos) {
     const sistema = nome(p.hierarquia.sistema, SEM_SISTEMA);
@@ -77,11 +76,7 @@ export function montarCatalogo(dados: DadosExportacao, opcoes: EscopoExportacao 
         .map((id) => porId.get(id)?.codigo)
         .filter((c): c is string => !!c)
         .slice(0, MAX_OFERECE_JUNTO),
-      equivale_a: p.referencias.slice(0, MAX_REFERENCIAS).map((r) => {
-        // marca ativa do cadastro de marcas do Catálogo; senão o retrato gravado na referência; senão só o código (RN-CAT-09)
-        const m = (r.marca_id ? marcas.get(r.marca_id) : undefined) ?? r.marca_nome?.trim();
-        return textoDaReferencia(m, r.codigo);
-      }),
+      equivale_a: p.referencias.slice(0, MAX_REFERENCIAS).map((r) => textoDaReferencia(r.marca_nome, r.codigo)),
     });
   }
   const lista = [...secoes.values()];

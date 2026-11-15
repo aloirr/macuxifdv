@@ -25,9 +25,9 @@ describe('RF-CAT-09: layout do catálogo', () => {
     expect(i.equivale_a).toEqual(['Marca Alfa A-100', 'Z-9']);
     expect(i.aplicacao).toBe('Dianteiro\nLado esquerdo');
   });
-  it('RN-CAT-09: marca fora da lista de ativas usa o retrato marca_nome da referência', () => {
+  it('RN-CAT-09: o layout usa o marca_nome que o domain já resolveu, sem decidir de novo', () => {
     const i = montarCatalogo(com({ referencias: [{ marca_id: 'inativa', marca_nome: 'Marca Gama', codigo: 'G-1' }, { marca_id: 'm2', marca_nome: 'Nome antigo', codigo: 'B-2' }] }))[0]!.itens[0]!;
-    expect(i.equivale_a).toEqual(['Marca Gama G-1', 'Marca Beta B-2']);
+    expect(i.equivale_a).toEqual(['Marca Gama G-1', 'Nome antigo B-2']);
   });
   it('RN-CAT-11: aplicação nula vira vazio e texto acima de 2.000 é cortado', () => {
     expect(montarCatalogo(com({ aplicacao: null }))[0]!.itens[0]!.aplicacao).toBe('');
