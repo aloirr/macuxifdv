@@ -41,7 +41,8 @@
 - A etiqueta da situação marcada no filtro não se repete nas linhas (RD-0500): com `Devendo`, a linha mostra o nome, "Visitado
   há…" e o ›. Com 2 situações marcadas, a linha mostra a que a distingue.
 - **Carteira vazia** (RD-0501, modulo-core): `EstadoVazio` com o ícone `users` e uma frase só, `Sua carteira está vazia.`; o
-  subtítulo `0 na carteira` sai, porque diz o mesmo. `Nenhum cliente com esses filtros.` fica só quando há filtro ou busca.
+  subtítulo `0 na carteira` sai, porque diz o mesmo, e a linha de busca e o filtro também saem (RD-0504): não há o que
+  buscar nem filtrar. `Nenhum cliente com esses filtros.` fica só quando há filtro ou busca.
 
 ## 4. Performance
 - A linha própria do filtro sai. `Segmentado` (Resultados · Produtividade, `flex: 1`) e `BotaoFiltro` na mesma linha, `gap: 8`.
