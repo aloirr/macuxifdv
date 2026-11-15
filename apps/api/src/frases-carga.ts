@@ -64,11 +64,11 @@ const Params = z.object({ id: z.string().uuid() }).strict();
 const indisponivel = () => new ErroHttp(503, 'FRASES_CARGA_INDISPONIVEIS', 'Frases da carga indisponíveis no momento. Tente de novo em instantes.');
 const negocio = (codigo: keyof typeof MENSAGENS_FRASE_CARGA) => new ErroHttp(422, codigo, MENSAGENS_FRASE_CARGA[codigo]);
 
-/** SQLSTATE das `sa_*` da 0081 → HTTP: 23505 = repetida (422), P0002 = 404, função/tabela ausente = 503, 23514 = 400; + os comuns. */
 /** Função ou tabela da 0081 ausente no banco (antes da migração): 503. */
 const ausente = (c: unknown): boolean => c === '42883' || c === '42P01';
 const semCache = (reply: FastifyReply): FastifyReply => reply.header('cache-control', 'private, no-store');
 
+/** SQLSTATE das `sa_*` da 0081 → HTTP: 23505 = repetida (422), P0002 = 404, 23514 = 400, `ausente`; + os comuns. */
 const traduzir = (e: unknown): never =>
   traduzirErroSa(e, (c) => {
     if (c === '42501') throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', SO_A_MACUXI);
@@ -78,7 +78,7 @@ const traduzir = (e: unknown): never =>
     if (ausente(c)) throw indisponivel();
   });
 
-/** Texto pela regra do SDK (trim, vazio, > 90); duplicidade fica com o índice único do banco. */
+/** Texto pela regra do SDK (`validarTextoFrase`); a duplicidade fica com o índice único do banco. */
 function textoValido(texto: string): string {
   const r = validarTextoFrase(texto);
   if (!r.ok) throw negocio(r.codigo);
