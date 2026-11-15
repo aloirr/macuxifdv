@@ -23,5 +23,12 @@ export interface DriverSqlite {
    * conexão). Chamada aninhada no `tx` roda direto na transação de fora.
    */
   transacaoExclusiva<T>(fn: (tx: DriverSqlite) => Promise<T>): Promise<T>;
+  /**
+   * ADR 0054 (opcional): `ATTACH DATABASE <caminho> AS <apelido>` NESTA conexão (use o `tx` da transação exclusiva).
+   * `apelido` só de lista fixa (`[a-z_]+`), nunca texto livre. Sem ela, o adaptador não importa pacote.
+   */
+  anexar?(caminho: string, apelido: string): Promise<void>;
+  /** ADR 0054: `DETACH DATABASE <apelido>` na mesma conexão do `anexar`. */
+  desanexar?(apelido: string): Promise<void>;
   fechar(): Promise<void>;
 }

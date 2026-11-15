@@ -37,6 +37,7 @@ export * from './onboarding';
 export * from './plataforma';
 export * from './email';
 export * from './pacotes';
+export * from './pacotes-sync';
 export * from './diagnostico';
 export * from './cnpj';
 export * from './planos';
