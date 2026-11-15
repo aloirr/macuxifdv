@@ -109,3 +109,8 @@ perfil (`escopoDoPerfil`); onde cada perfil entra é a lista `PERFIS_DO_APP`; e 
 - Mudar o valor de fábrica de uma ação existente muda os tenants que não a sobrepuseram: é mudança de contrato (aviso a todos e
   nota no registro `.coord/contratos/permissoes.md`).
 - Custo por requisição: uma consulta a mais na transação das licenças e a resolução em memória (dezenas de chaves).
+
+## Nota de 15/11/2026 (T-0173, aditiva)
+`ContextoConsulta` ganha `permissoes?: MotorPermissoes`, o mesmo valor de `ContextoBase.permissoes`. A API preenche em toda
+`tx.consultar` (rota, consumidor, tarefa, Conector e consulta aninhada), para o Core conferir a permissão efetiva de um usuário
+(`core.credencial_conferir@1`, `core.usuarios_com_acao@1`) sem importar manifesto de outro módulo. Campo opcional: nada quebra.
