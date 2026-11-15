@@ -100,7 +100,7 @@ export const EstoqueVisivel = z.object({
   by_branch: z.array(EstoqueFilialVisivel),
   /**
    * RN-CAT-07: instante da última atualização do saldo (a mais antiga entre as filiais visíveis), sempre presente
-   * na resposta para a tela mostrar "atualizado às hh:mm" (`rotuloAtualizacaoEstoque`); nulo só quando nenhum
+   * na resposta para a tela mostrar "atualizado às hh:mm" (`rotuloCargaEstoque`); nulo só quando nenhum
    * saldo visível tem hora (aí `stale` é true).
    */
   updated_at: InstanteUtc.nullable(),

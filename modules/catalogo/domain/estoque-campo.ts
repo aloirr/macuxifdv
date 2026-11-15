@@ -5,6 +5,7 @@
  */
 import type { Perfil } from '@macuxi/platform-sdk';
 import { localDate } from '@macuxi/comum';
+import { FilialDoUsuarioSchema } from '@macuxi/core/contracts';
 import type { FaixaEstoque } from '../contracts';
 import { ROTULO_SEM_HORA } from './estoque';
 
@@ -16,13 +17,25 @@ const SO_SUAS_FILIAIS: readonly Perfil[] = ['promotor', 'supervisor', 'gerente']
 /** Perfis cujo pull de estoque já vem restrito às filiais do usuário (sync da v4, inalterado). */
 export const veSoSuasFiliais = (perfil: Perfil): boolean => SO_SUAS_FILIAIS.includes(perfil);
 
-/** Filiais do usuário como o Catálogo as lê (adaptador do contrato do Core): só as de VENDA (RN-CORE-39); a de cadastro não entra aqui. */
-export interface UsuarioFiliais {
-  perfil: Perfil;
+/** Filiais do usuário como o Catálogo as lê (`core.filiais_do_usuario@1`, RN-CORE-39). */
+export interface FiliaisDoUsuario {
   /** Filiais de venda (`filial_venda_ids`): base de preço, estoque, filtro e folha, para todos os perfis. */
   filiaisVenda: readonly string[];
-  /** Sem filial de cadastro: o usuário está bloqueado; preço e estoque saem vazios (RN-CORE-39). */
+  /** Filial de cadastro (`filial_cadastro_id`): só a faixa do cabeçalho; nunca entra na soma do estoque. */
+  filialCadastro: string | null;
+  /** Sem filial de cadastro: o usuário está bloqueado; preço e estoque saem vazios. */
   semFilial: boolean;
+}
+
+/**
+ * ÚNICO leitor da saída de `core.filiais_do_usuario@1` (API) e da linha `usuario` do sync (app), validado pelo `FilialDoUsuarioSchema`.
+ * Fora do contrato = `null` (a API trata como sem filial; o app, como estoque recebido sem lista).
+ */
+export function lerFiliaisDoUsuario(saida: unknown): FiliaisDoUsuario | null {
+  const r = FilialDoUsuarioSchema.safeParse(saida);
+  if (!r.success) return null;
+  const ids = [...new Set(r.data.filial_venda_ids)].sort();
+  return { filiaisVenda: ids, filialCadastro: r.data.filial_cadastro_id, semFilial: r.data.sem_filial || ids.length === 0 };
 }
 
 export interface FiltroDoEstoque {
@@ -37,7 +50,7 @@ export interface FiltroDoEstoque {
  * Ninguém passa das filiais de venda (interseção); `sem_filial` = nenhuma. Sempre uma lista (vazia = N 0). Trocar a regra do N
  * (ex.: filial de cadastro no cartão e a soma só na folha) é mexer SÓ aqui.
  */
-export function filiaisDoEstoque(usuario: UsuarioFiliais, e: FiltroDoEstoque): readonly string[] {
+export function filiaisDoEstoque(usuario: FiliaisDoUsuario, e: FiltroDoEstoque): readonly string[] {
   if (usuario.semFilial) return [];
   const venda = usuario.filiaisVenda;
   const dentro = (ids: readonly string[]): readonly string[] => ids.filter((id) => venda.includes(id));
@@ -47,7 +60,7 @@ export function filiaisDoEstoque(usuario: UsuarioFiliais, e: FiltroDoEstoque): r
 }
 
 /** spec §4: filiais da folha "Estoque por filial" = as de venda do usuário (todos os perfis); `sem_filial` = nenhuma. */
-export function filiaisDaFolha(usuario: UsuarioFiliais): readonly string[] {
+export function filiaisDaFolha(usuario: FiliaisDoUsuario): readonly string[] {
   return usuario.semFilial ? [] : [...usuario.filiaisVenda];
 }
 
@@ -82,15 +95,13 @@ export interface RotuloChipFiliais {
 }
 
 /**
- * spec §4: chip do filtro de filial, igual para todo perfil (só há filiais de venda). Várias: "Suas filiais (3)" sem ✕; uma só:
- * "Filial Boa Vista" sem ✕; uma escolhida entre várias: "Filial X" com ✕ (o ✕ volta a "Suas filiais").
+ * spec §4: chip do filtro de filial, só para quem tem mais de uma filial de venda (com uma só, a faixa do Catálogo já a mostra).
+ * Padrão: "Suas filiais (3)" sem ✕; uma escolhida: "Filial X" com ✕ (o ✕ volta a "Suas filiais").
  */
 export function rotuloChipFiliais(e: { nomesProprias: readonly string[]; escolhida: string | null }): RotuloChipFiliais {
   if (e.escolhida !== null && e.escolhida !== 'todas') return { texto: `Filial ${e.escolhida}`, removivel: true };
-  return { texto: nomesDoGrupo(e.nomesProprias), removivel: false };
+  return { texto: `Suas filiais (${e.nomesProprias.length})`, removivel: false };
 }
-
-const nomesDoGrupo = (nomes: readonly string[]): string => (nomes.length > 1 ? `Suas filiais (${nomes.length})` : `Filial ${nomes[0] ?? ''}`.trim());
 
 export interface LinhaFolhaEstoque {
   id: string;

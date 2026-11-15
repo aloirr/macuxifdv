@@ -12,7 +12,6 @@ import { montarUrlMiniatura } from './miniatura';
 import { ErroHttpModulo, ErroRegraNegocio, type ClienteBanco, type ContextoBase, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
 import { anoCivilNoFuso } from '../domain/ano-civil';
-import { filiaisDoEstoque } from '../domain/estoque';
 import { cederLaco, prepararIndice } from '../domain/indice-busca';
 import { precosDaTabelaSemCliente, tabelaPorContagem } from '../domain/preco-filial';
 import { filialDaTabela, filialDoClienteNoCore, filiaisDaCarteiraNoCore, filiaisDeVendaDoProprioUsuario, nomeDaFilial } from './filiais-core';
@@ -539,12 +538,8 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       }
       return saida;
     },
-    async filiaisDoUsuario(clienteId) {
-      const carteira = await ctx.carteira();
-      const cliente = clienteId ? (await filialDoClienteNoCore(tx.consultar, clienteId)).filialCliente : null;
-      const da = cliente === null && carteira !== 'tenant' ? (await filiaisDaCarteiraNoCore(tx.consultar)).daCarteira : null;
-      const lista = filiaisDoEstoque({ filialDoCliente: cliente, escopo: carteira === 'tenant' ? 'tenant' : 'carteira', filiaisDaCarteira: da });
-      return lista === null ? null : [...lista];
+    async filialDoCliente(clienteId) {
+      return (await filialDoClienteNoCore(tx.consultar, clienteId)).filialCliente;
     },
     async filiaisDeVenda() {
       return filiaisDeVendaDoProprioUsuario(tx.consultar, ctx.usuario.id);

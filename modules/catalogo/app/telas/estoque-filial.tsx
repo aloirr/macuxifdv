@@ -5,12 +5,12 @@
  */
 import { Button, colors, fonts, Folha, Icon } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type { DadosDaFolha, OpcaoFiltroFilial } from '../lib/estoque-folha';
+import { TITULO_FOLHA_ESTOQUE, type DadosDaFolha, type OpcaoFiltroFilial } from '../lib/estoque-folha';
 
 /** Botão só com o ícone `pacote`, à direita do "Estoque: N" no cartão: 32 dp, borda `lineStrong`, alvo de 48 dp (spec §3). */
 export function BotaoEstoquePorFilial({ onPress, testID }: { onPress: () => void; testID?: string }) {
   return (
-    <Pressable testID={testID} accessibilityRole="button" accessibilityLabel="Estoque por filial" onPress={onPress} hitSlop={8} style={({ pressed }) => [e.botao, pressed && { backgroundColor: colors.ground }]}>
+    <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={TITULO_FOLHA_ESTOQUE} onPress={onPress} hitSlop={8} style={({ pressed }) => [e.botao, pressed && { backgroundColor: colors.ground }]}>
       <Icon name="pacote" size={18} color={colors.ink} />
     </Pressable>
   );
@@ -18,7 +18,7 @@ export function BotaoEstoquePorFilial({ onPress, testID }: { onPress: () => void
 
 /** Botão "Por filial" da ficha: secundário claro de 48 dp com o ícone `pacote` (spec §2). */
 export function BotaoPorFilialDaFicha({ onPress }: { onPress: () => void }) {
-  return <Button testID="produto-estoque-por-filial" label="Por filial" accessibilityLabel="Estoque por filial" icon="pacote" variant="outline" height={48} onPress={onPress} />;
+  return <Button testID="produto-estoque-por-filial" label="Por filial" accessibilityLabel={TITULO_FOLHA_ESTOQUE} icon="pacote" variant="outline" height={48} onPress={onPress} />;
 }
 
 const COR_DA_LINHA = { sucesso: colors.success, erro: colors.danger } as const;
@@ -26,7 +26,7 @@ const COR_DA_LINHA = { sucesso: colors.success, erro: colors.danger } as const;
 /** Folha "Estoque por filial": a mesma `Folha` do "Filtrar", só leitura, rolável (spec §2.1). */
 export function FolhaEstoquePorFilial({ visivel, onFechar, dados }: { visivel: boolean; onFechar: () => void; dados: DadosDaFolha | null }) {
   return (
-    <Folha visivel={visivel} onFechar={onFechar} titulo={dados?.titulo ?? 'Estoque por filial'} fechar={{ rotulo: 'Fechar', testID: 'estoque-folha-fechar' }} rotuloFechar="Fechar estoque por filial" rolavel testID="estoque-folha">
+    <Folha visivel={visivel} onFechar={onFechar} titulo={dados?.titulo ?? TITULO_FOLHA_ESTOQUE} fechar={{ rotulo: 'Fechar', testID: 'estoque-folha-fechar' }} rotuloFechar="Fechar estoque por filial" rolavel testID="estoque-folha">
       {dados ? (
         <View>
           <Text style={e.apoio} testID="estoque-folha-apoio">
@@ -59,7 +59,6 @@ export function FolhaFiltroCatalogo({
   onFechar,
   opcoes,
   escolha,
-  filialMarcada,
   onEscolher,
   onLimpar,
   textoVer,
@@ -68,8 +67,6 @@ export function FolhaFiltroCatalogo({
   onFechar: () => void;
   opcoes: OpcaoFiltroFilial[];
   escolha: EscolhaFiltro;
-  /** Opção do grupo Filial marcada: a escolhida ou o padrão do perfil (a filial do vendedor; `todas` = "Suas filiais"). */
-  filialMarcada: string | null;
   onEscolher: (e: EscolhaFiltro) => void;
   onLimpar: () => void;
   /** "Ver 1.284 produtos". */
@@ -81,7 +78,7 @@ export function FolhaFiltroCatalogo({
         <View>
           <Text style={e.grupo}>Filial</Text>
           {opcoes.map((o) => (
-            <Opcao key={o.valor} rotulo={o.rotulo} apoio={o.apoio} marcada={filialMarcada === o.valor} onPress={() => onEscolher({ ...escolha, filial: o.valor })} testID={`catalogo-filtro-filial-${o.valor}`} />
+            <Opcao key={o.valor} rotulo={o.rotulo} apoio={o.apoio} marcada={(escolha.filial ?? 'todas') === o.valor} onPress={() => onEscolher({ ...escolha, filial: o.valor })} testID={`catalogo-filtro-filial-${o.valor}`} />
           ))}
         </View>
       ) : null}

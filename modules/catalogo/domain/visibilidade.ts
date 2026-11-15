@@ -1,7 +1,6 @@
 /**
- * Quem vê preço de tabela e estoque no Catálogo (RN-CAT-04, RN-CAT-05 revista, catalogo-campo-v2/spec.md §3). Todos os perfis do
- * módulo consultam (busca, ficha, fotos, "pergunte"); TODOS veem o ESTOQUE (o promotor também; promotor, supervisor e gerente só das
- * filiais deles, `estoque-campo.ts`); o promotor vê a ficha e as fotos SEM preço de tabela, a menos que o tenant ligue
+ * Quem vê preço de tabela no Catálogo (RN-CAT-04, RN-CAT-05). Todos os perfis do módulo consultam (busca, ficha, fotos, "pergunte") e
+ * todos veem o estoque (quais filiais: `estoque-campo.ts`); o promotor vê a ficha e as fotos SEM preço de tabela, a menos que o tenant ligue
  * `promotor_ve_preco_estoque` — aí vê o preço como o vendedor. A API aplica isto antes de responder
  * (vitrine, busca e ficha) e o app aplica de novo na tela; o ranking roda com os filtros já limpos.
  */
@@ -12,10 +11,7 @@ import { PARAMETROS_PADRAO } from './parametros';
 /** Perfis que sempre veem preço e estoque (espelho da ação `produto.ver_preco_estoque` do manifesto). */
 export const PERFIS_PRECO_ESTOQUE = ['vendedor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const satisfies readonly Perfil[];
 
-/** RN-CAT-05 (revista): todo perfil vê o estoque; as filiais que cada um vê são do `estoque-campo.ts`. */
-export const podeVerEstoque = (_perfil: Perfil): boolean => true;
-
-/** RN-CAT-05: o perfil vê o PREÇO de tabela? Promotor só com `promotor_ve_preco_estoque = true` (o estoque é de todos: `podeVerEstoque`). */
+/** RN-CAT-05: o perfil vê o PREÇO de tabela? Promotor só com `promotor_ve_preco_estoque = true` (o estoque é de todos; filiais: `estoque-campo.ts`). */
 export function podeVerPrecoEstoque(perfil: Perfil, p: Pick<ParametrosCatalogo, 'promotor_ve_preco_estoque'>): boolean {
   if (perfil === 'promotor') return p.promotor_ve_preco_estoque;
   return (PERFIS_PRECO_ESTOQUE as readonly Perfil[]).includes(perfil);

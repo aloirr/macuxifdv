@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ItemVitrine, type FiltrosInterpretados } from '../contracts';
 import manifest from '../manifest';
 import { PARAMETROS_PADRAO, resolverParametros } from './parametros';
-import { filtrosParaPerfil, itemVitrineParaPerfil, PERFIS_PRECO_ESTOQUE, podeVerEstoque, podeVerPrecoEstoque, variacaoEscopoPrecoEstoque, verPrecoDoPerfil } from './visibilidade';
+import { filtrosParaPerfil, itemVitrineParaPerfil, PERFIS_PRECO_ESTOQUE, podeVerPrecoEstoque, variacaoEscopoPrecoEstoque, verPrecoDoPerfil } from './visibilidade';
 
 const preco = {
   product_id: 'p1',
@@ -51,10 +51,6 @@ describe('RN-CAT-05: quem vê preço de tabela e estoque', () => {
       expect(podeVerPrecoEstoque(perfil, PARAMETROS_PADRAO), perfil).toBe(true);
       expect(podeVerPrecoEstoque(perfil, COM_PARAMETRO), perfil).toBe(true);
     }
-  });
-
-  it('RN-CAT-05 (revista, catalogo-campo-v2 §3): o promotor vê o ESTOQUE sempre, com ou sem o parâmetro; todo perfil vê estoque', () => {
-    for (const perfil of PERFIS) expect(podeVerEstoque(perfil), perfil).toBe(true);
   });
 
   it('RN-CAT-05: promotor (padrão) recebe ficha, fotos e estoque, sem preço de tabela', () => {

@@ -23,7 +23,7 @@ export const OFFSET_MAXIMO = 450;
 export const ConsultaBuscaQuery = ConsultaBusca.extend({
   /**
    * Sem `customer_id`: filial dos preços e do estoque (RN-VEN-01, RN-CORE-39); ausente = a filial padrão do tenant para o preço e a(s)
-   * filial(is) do usuário para o estoque. `todas` = "Todas as filiais" (soma de todas; para quem só vê as suas, as suas): catalogo-campo-v2 §3.
+   * filial(is) do usuário para o estoque. `todas` = "Suas filiais" (`filiaisDoEstoque`, `domain/estoque-campo.ts`).
    */
   filial: z.union([Id, z.literal('todas')]).optional(),
   only_in_stock: BooleanoQuery.optional(),

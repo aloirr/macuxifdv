@@ -88,8 +88,8 @@ export function linhaDaMarca(item: Pick<ItemVitrine, 'brand' | 'equivale_a'>): s
  * Códigos do cartão em duas linhas (catalogo-grade §2): em cima a marca (ou "Equivale a ..."), embaixo o código do produto com o
  * copiar. O copiar leva SÓ o código do produto (`erp_code`), sem marca (R-20261115-084500).
  */
-export function codigosDoCartao(item: Pick<ItemVitrine, 'brand' | 'equivale_a' | 'erp_code'>): { marca: string; produto: string; copiar: string } {
-  return { marca: linhaDaMarca(item), produto: item.erp_code, copiar: item.erp_code };
+export function codigosDoCartao(item: Pick<ItemVitrine, 'brand' | 'equivale_a' | 'erp_code'>): { marca: string; codigo: string } {
+  return { marca: linhaDaMarca(item), codigo: item.erp_code };
 }
 
 /** Preço do cartão: o valor quando vendável; senão a mensagem única do domain (RN-CAT-05); `null` = o perfil não vê preço. */

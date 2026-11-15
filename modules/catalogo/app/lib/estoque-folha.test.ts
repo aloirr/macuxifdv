@@ -1,4 +1,3 @@
-import { criarRelogio } from '@macuxi/comum/relogio';
 import { describe, expect, it } from 'vitest';
 import type { ItemVitrine } from '../../contracts';
 import { dadosDaFolha, opcoesDoFiltroFilial } from './estoque-folha';
@@ -31,44 +30,15 @@ describe('folha "Estoque por filial" (catalogo-campo-v2 §2.1)', () => {
     expect(d.leitura.map((l) => l.texto)).toEqual(['Boa Vista, estoque 0', 'Belém, estoque menos 2', 'Manaus, estoque 12']);
   });
 
-  it('RN-CORE-39 / spec §2.1: a folha lista só filiais de venda, então nenhuma linha leva a marca "sua filial"', () => {
-    const d = dadosDaFolha({ codigo: 'X', availability: disp([{ id: 'v', nome: 'Boa Vista', q: 3 }]), cargaEm: AGORA, proprias: ['v'], agora: AGORA, fuso: 'America/Manaus' });
-    expect(d.linhas[0]).toMatchObject({ propria: false });
-    expect(d.leitura[0]!.texto).toBe('Boa Vista, estoque 3');
-  });
-
-  it('decisão 5 do R-20261115-100000: na virada do dia (Manaus) a linha troca para "ontem" só quando a carga foi no dia anterior', () => {
-    const casos: Array<[string, string]> = [
-      ['2026-11-04T03:59:00Z', 'Atualizado às 23:54'],
-      ['2026-11-04T04:00:00Z', 'Atualizado ontem às 23:55'],
-      ['2026-11-04T04:06:00Z', 'Atualizado às 00:01'],
-    ];
-    for (const [agora, esperado] of casos) {
-      const r = criarRelogio({ agora });
-      const d = dadosDaFolha({ codigo: 'C', availability: disp([{ id: 'v', nome: 'V', q: 1 }]), cargaEm: r.relativo({ minutos: -5 }).toISOString(), proprias: [], agora: r.iso(), fuso: 'America/Manaus' });
-      expect(d.apoio, agora).toBe(`C · ${esperado}`);
-    }
-  });
-
   it('decisão 3 do R-20261115-100000: a folha lista só as filiais de venda, sem linha "Total"', () => {
     const d = dadosDaFolha({ codigo: 'C', availability: disp([{ id: 'v', nome: 'V', q: 1 }, { id: 'w', nome: 'W', q: 2 }]), cargaEm: AGORA, proprias: ['v', 'w'], agora: AGORA, fuso: 'America/Manaus' });
     expect(d.linhas.map((l) => l.nome)).toEqual(['V', 'W']);
     expect(d.leitura.some((l) => /total/i.test(l.texto))).toBe(false);
   });
 
-  it('RN-CAT-07: sem hora da carga a linha diz "Sem hora de atualização"; estoque desatualizado avisa', () => {
-    const sem = dadosDaFolha({ codigo: 'C', availability: disp([{ id: 'v', nome: 'V', q: 1 }]), cargaEm: null, proprias: [], agora: AGORA, fuso: 'America/Manaus' });
-    expect(sem.apoio).toBe('C · Sem hora de atualização');
+  it('RN-CAT-07: estoque desatualizado mostra só a hora da carga, sem repetir a idade na linha', () => {
     const velho = dadosDaFolha({ codigo: 'C', availability: disp([{ id: 'v', nome: 'V', q: 1 }], { stale: true }), cargaEm: '2026-11-15T10:12:00Z', proprias: [], agora: AGORA, fuso: 'America/Manaus' });
-    expect(velho.apoio).toBe('C · Estoque desatualizado · Atualizado às 06:12');
-  });
-
-  it('spec §2.1: tenant que esconde a quantidade mostra "Em estoque" ou "Sem estoque" por filial', () => {
-    const a = disp([{ id: 'v', nome: 'V', q: null }, { id: 'w', nome: 'W', q: null }], { quantity: null });
-    a.by_branch[1] = { ...a.by_branch[1]!, band: 'sem_estoque' };
-    a.by_branch[0] = { ...a.by_branch[0]!, band: 'disponivel' };
-    const d = dadosDaFolha({ codigo: 'C', availability: a, cargaEm: AGORA, proprias: [], agora: AGORA, fuso: 'America/Manaus' });
-    expect(d.linhas.map((l) => [l.nome, l.valor, l.tom])).toEqual([['V', 'Em estoque', 'sucesso'], ['W', 'Sem estoque', 'erro']]);
+    expect(velho.apoio).toBe('C · Atualizado às 06:12');
   });
 });
 

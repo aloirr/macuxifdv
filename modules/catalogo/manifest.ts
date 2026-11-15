@@ -4,7 +4,7 @@ import { defineModule } from '@macuxi/platform-sdk';
 const PERFIS_CONSULTA = ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;
 /**
  * RN-CAT-05 (revista): preço de tabela — todos os perfis de consulta menos o promotor (padrão
- * `promotor_ve_preco_estoque = false`); o estoque é de todos os perfis (`podeVerEstoque`). Com o parâmetro ligado, o domínio (`podeVerPrecoEstoque`) libera o
+ * `promotor_ve_preco_estoque = false`); o estoque é de todos os perfis (filiais: `estoque-campo.ts`). Com o parâmetro ligado, o domínio (`podeVerPrecoEstoque`) libera o
  * promotor; mantenha igual a `PERFIS_PRECO_ESTOQUE` de domain/visibilidade.ts (o teste confere).
  */
 const PERFIS_PRECO_ESTOQUE = ['vendedor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;

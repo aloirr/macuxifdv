@@ -136,9 +136,9 @@ export function CartaoGrade({ item, clienteId, miniatura = null, onPress, onEsto
       </Text>
       <View style={g.codigoLinha}>
         <Text style={g.codigo} numberOfLines={1}>
-          {codigos.produto}
+          {codigos.codigo}
         </Text>
-        <BotaoCopiarCodigo codigo={codigos.copiar} variante="icone" />
+        <BotaoCopiarCodigo codigo={codigos.codigo} variante="icone" />
       </View>
       <View style={{ flex: 1 }} />
       {preco ? (

@@ -74,23 +74,21 @@ export default function TelaCatalogo() {
 
   useEffect(() => setLimite(POR_PAGINA), [filtro, consulta, escolha]);
 
-  // filiais de venda do usuário (sync) e nomes das filiais, do aparelho
+  // linha `usuario` do sync: filiais de venda (filtro, folha) e a de CADASTRO, só para a faixa (decisão 2 do R-20261115-100000); nomes das filiais
   useEffect(() => {
     if (!motor) return;
     let vivo = true;
-    void Promise.all([filiaisDoUsuarioLocal(motor, usuarioId), filiaisLocais(motor)])
-      .then(([proprias, todas]) => vivo && setFiliais({ proprias: proprias?.filiaisVenda ?? [], todas }))
-      .catch(() => vivo && setFiliais({ proprias: [], todas: [] }));
-    return () => {
-      vivo = false;
-    };
-  }, [motor, usuarioId, sync.sincronizado_em]);
-
-  // faixa: filial de CADASTRO do usuário (decisão 2 do R-20261115-100000), lida no adaptador
-  useEffect(() => {
-    if (!motor) return;
-    let vivo = true;
-    void filialDeCadastroLocal(motor, usuarioId).then((f) => vivo && setFilialCadastro(f?.nome ?? null)).catch(() => vivo && setFilialCadastro(null));
+    void Promise.all([filiaisDoUsuarioLocal(motor, usuarioId), filiaisLocais(motor), filialDeCadastroLocal(motor, usuarioId)])
+      .then(([doUsuario, todas, cadastro]) => {
+        if (!vivo) return;
+        setFiliais({ proprias: doUsuario?.filiaisVenda ?? [], todas });
+        setFilialCadastro(cadastro?.nome ?? null);
+      })
+      .catch(() => {
+        if (!vivo) return;
+        setFiliais({ proprias: [], todas: [] });
+        setFilialCadastro(null);
+      });
     return () => {
       vivo = false;
     };
@@ -180,10 +178,10 @@ export default function TelaCatalogo() {
   const chips = useMemo(() => chipsDaGrade(arvore?.arvore ?? ARVORE_VAZIA, filtro), [arvore, filtro]);
   const linhas = useMemo(() => emLinhas(lista.itens), [lista.itens]);
   const comFiltro = filtroLigado(filtro);
-  // spec §4: chip da filial ("Filial Boa Vista ✕" do vendedor; "Suas filiais (3)" sem ✕) e o selo do botão Filtrar
+  // spec §4: chip da filial ("Suas filiais (3)"; "Filial X ✕" quando uma foi escolhida) e o selo do botão Filtrar; com uma só filial de venda a faixa já a mostra
   const nomesProprias = filiais.todas.filter((f) => filiais.proprias.includes(f.id)).map((f) => f.nome);
   const nomeEscolhida = escolha.filial === 'todas' ? 'todas' : (filiais.todas.find((f) => f.id === escolha.filial)?.nome ?? null);
-  const chipFilial = perfil && nomesProprias.length > 0 ? rotuloChipFiliais({ nomesProprias, escolhida: nomeEscolhida }) : null;
+  const chipFilial = perfil && nomesProprias.length > 1 ? rotuloChipFiliais({ nomesProprias, escolhida: nomeEscolhida }) : null;
   const opcoesFilial = perfil ? opcoesDoFiltroFilial({ proprias: filiais.proprias, filiais: filiais.todas }) : [];
   const selos = (chipFilial ? 1 : 0) + (escolha.soComEstoque ? 1 : 0);
   const abrirEstoque = (item: ItemVitrine) => {
@@ -314,7 +312,6 @@ export default function TelaCatalogo() {
         onFechar={() => setFolhaFiltro(false)}
         opcoes={opcoesFilial}
         escolha={escolha}
-        filialMarcada={escolha.filial ?? 'todas'}
         onEscolher={setEscolha}
         onLimpar={() => setEscolha({ filial: null, soComEstoque: false })}
         textoVer={`Ver ${subtituloDaGrade(lista.total)}`}
