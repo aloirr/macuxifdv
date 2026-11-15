@@ -10,12 +10,26 @@
  *   plataforma.evento (todos os tenants, por política própria). Handlers de evento usam o macuxi_app.
  * - macuxi_portal: portal do super-admin (0038, T-0091, ADR 0029). LOGIN, NOSUPERUSER, NOBYPASSRLS, sem grant de tabela e sem
  *   filiação; o ÚNICO com EXECUTE nas plataforma.sa_*. Só o 2º pool da API conecta com ele (senha no portal.env da VM).
+ * - macuxi_leitura: consulta só leitura na produção (0078, ADR 0055). LOGIN, NOSUPERUSER, NOBYPASSRLS, sem filiação; SELECT nas
+ *   tabelas de tenant com a política `leitura` (só o tenant de app.tenant_id) e EXECUTE só em plataforma.tenant_por_codigo(text).
+ *   A sessão nasce só leitura e com timeouts curtos (AJUSTES_LEITURA). Só o serviço pgleitura do compose conecta com ele.
  * - garantirPapelDeLogin (B0 do plano B do DBaaS, T-0075): CREATE com os atributos; papel existente só recebe LOGIN e a
  *   senha (atributos conferidos em pg_roles, nunca citados no ALTER ROLE); senha como verificador SCRAM quando o servidor
  *   usa scram-sha-256. Dicionário: docs/banco/rls.md (papéis).
  */
 import type { ClientBase } from 'pg';
-import { exigirBancoLocal, hostDoCliente, PAPEL_APP, PAPEL_PORTAL, PAPEL_WORKER, SENHA_APP_LOCAL, SENHA_PORTAL_LOCAL, SENHA_WORKER_LOCAL } from './config';
+import {
+  exigirBancoLocal,
+  hostDoCliente,
+  PAPEL_APP,
+  PAPEL_LEITURA,
+  PAPEL_PORTAL,
+  PAPEL_WORKER,
+  SENHA_APP_LOCAL,
+  SENHA_LEITURA_LOCAL,
+  SENHA_PORTAL_LOCAL,
+  SENHA_WORKER_LOCAL,
+} from './config';
 import { senhaAceitaPeloScramLocal, verificadorScram } from './scram';
 
 /** Chave do advisory lock que serializa CREATE/ALTER ROLE (diferente da chave do migrador). */
@@ -210,6 +224,76 @@ export async function garantirPapelPortal(admin: ClientBase, senha: string): Pro
   if (!senha) throw new Error('Senha do papel do portal vazia (MACUXI_PG_PORTAL_SENHA).');
   if (senha === SENHA_PORTAL_LOCAL) exigirBancoLocal(hostDoCliente(admin), 'Gravar a senha pública local no papel macuxi_portal');
   await garantirPapelDeLogin(admin, PAPEL_PORTAL, senha);
+}
+
+/**
+ * Papel da consulta só leitura macuxi_leitura (0078, ADR 0055): LOGIN, sem SUPERUSER/BYPASSRLS, pelo B0 (CREATE com os
+ * atributos; existente só LOGIN e a senha, como verificador SCRAM). Os privilégios (USAGE, SELECT, a política leitura e o
+ * EXECUTE em plataforma.tenant_por_codigo) vêm da migração 0078; os ajustes da sessão, de garantirAjustesLeitura.
+ */
+export async function garantirPapelLeitura(admin: ClientBase, senha: string): Promise<void> {
+  if (!senha) throw new Error('Senha do papel de leitura vazia (MACUXI_PG_LEITURA_SENHA).');
+  if (senha === SENHA_LEITURA_LOCAL) exigirBancoLocal(hostDoCliente(admin), 'Gravar a senha pública local no papel macuxi_leitura');
+  await garantirPapelDeLogin(admin, PAPEL_LEITURA, senha);
+}
+
+/**
+ * Ajustes de sessão do macuxi_leitura (ALTER ROLE ... SET, valem em todo banco do servidor): a sessão nasce só leitura e com
+ * timeouts curtos. São os mesmos que a 0078 grava; a ordem e a forma (nome=valor) são as de pg_db_role_setting.setconfig.
+ */
+export const AJUSTES_LEITURA: readonly (readonly [string, string])[] = [
+  ['default_transaction_read_only', 'on'],
+  ['statement_timeout', '15s'],
+  ['idle_in_transaction_session_timeout', '60s'],
+];
+
+/**
+ * Coluna sensível para o macuxi_leitura (0078): nome com hash, token, senha, segredo, chave, carga ou cifrad (e tipo que não seja
+ * boolean). Fica fora do SELECT por coluna (a saída da consulta vai para o log do Actions; regra 8). Expressão regular do
+ * Postgres (operador ~), a mesma da 0078 e do db/scripts/conferir-rls.sql.
+ */
+export const COLUNA_SENSIVEL_LEITURA = '(hash|token|senha|segredo|chave|carga|cifrad)';
+
+/**
+ * Grava os AJUSTES_LEITURA que faltam no macuxi_leitura (o papel precisa existir: garantirPapelLeitura ou garantirPapelSemLogin
+ * antes). Com o advisory lock dos papéis e só quando falta: bancos de teste migrando em paralelo não disputam
+ * pg_db_role_setting ("tuple concurrently updated") e a 0078 encontra tudo pronto. Chame conectado ao banco "postgres".
+ * Devolve os ajustes gravados agora (vazio = já estavam todos).
+ */
+export async function garantirAjustesLeitura(admin: ClientBase): Promise<string[]> {
+  await admin.query('begin');
+  try {
+    await admin.query('select pg_advisory_xact_lock($1)', [CHAVE_LOCK_PAPEL]);
+    const atual = await admin.query<{ ajustes: string[] | null }>(
+      `select s.setconfig as ajustes from pg_db_role_setting s
+        where s.setdatabase = 0 and s.setrole = (select oid from pg_roles where rolname = $1)`,
+      [PAPEL_LEITURA],
+    );
+    const tem = new Set(atual.rows[0]?.ajustes ?? []);
+    const gravados: string[] = [];
+    for (const [nome, valor] of AJUSTES_LEITURA) {
+      if (tem.has(`${nome}=${valor}`)) continue;
+      await admin.query(`alter role ${PAPEL_LEITURA} set ${nome} = '${valor}'`);
+      gravados.push(`${nome}=${valor}`);
+    }
+    await admin.query('commit');
+    return gravados;
+  } catch (e) {
+    await admin.query('rollback').catch(() => undefined);
+    throw e;
+  }
+}
+
+/**
+ * Passo de papéis do macuxi_leitura (0078, ADR 0055), no padrão do macuxi_portal (B0): com a senha (MACUXI_PG_LEITURA_SENHA),
+ * LOGIN com verificador SCRAM, sem SUPERUSER/BYPASSRLS/CREATEDB/CREATEROLE/REPLICATION e sem filiação; sem a senha, NOLOGIN.
+ * Nos dois casos, os AJUSTES_LEITURA. Usado por "banco papeis", "banco migrar" (criarBanco) e pelos bancos de teste.
+ */
+export async function garantirLeitura(admin: ClientBase, senha: string): Promise<'login' | 'nologin'> {
+  if (senha) await garantirPapelLeitura(admin, senha);
+  else await garantirPapelSemLogin(admin, PAPEL_LEITURA);
+  await garantirAjustesLeitura(admin);
+  return senha ? 'login' : 'nologin';
 }
 
 /**

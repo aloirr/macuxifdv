@@ -385,3 +385,79 @@ e `tabela_preco_desligado_no_bko`. Índices `tabela_preco_item_erp_versao_ix`, `
 `cliente_tabela_preco_erp_versao_ix` `(tenant_id, external_id, erp_alterado_em)` parciais: a maior versão por `external_id`,
 **apagadas inclusive**, antes do insert (o ERP apaga e o mesmo `external_id` volta como linha nova). No `cliente_tabela_preco` o
 `external_id` é o do cliente. Teste: `db/testes/erp-ordem.test.ts`.
+
+## 0075 — marca opcional na referência cruzada (`0075_catalogo_referencia_marca_opcional`; R-20261115-073000-alexandre, item 3, RN-CAT-09)
+Decisão do dono do produto (15/11/2026): na referência cruzada, a marca do concorrente é opcional; basta o código.
+- `produto_referencia.marca_id` passa a **aceitar nulo** (= referência só com o código; a API grava `marca_nome` nulo junto). A FK
+  `produto_referencia_marca_fk` (0045) não muda: não confere o nulo e segue exigindo a marca informada no mesmo tenant.
+- Único vivo: sai `produto_referencia_codigo_uk (tenant_id, produto_id, marca_id, codigo_compacto)` e entra
+  **`produto_referencia_produto_codigo_uk (tenant_id, produto_id, codigo_compacto) where deleted_at is null`** — o mesmo código, em
+  qualquer grafia, uma vez só por produto, com ou sem marca. Violação: 23505 com esse nome.
+- Limpeza na migração: entre as vivas que repetem o `codigo_compacto` no mesmo produto (marcas diferentes), fica a de **menor
+  `ordem`**; as outras recebem `deleted_at` = instante da 0075 (`public.macuxi_migracao.aplicada_em`) e o `updated_at` avança (o
+  aparelho puxa a exclusão no próximo sync).
+- RLS, grants, CHECKs, demais colunas e índices não mudam. Aparelho: sem versão nova (o `marca_id` nulo chega no JSON de
+  `ent_produto_referencia`). Seed da demo e fixture dois-tenants já cabem no único novo (nenhum código repetido no produto).
+- **Volta** (`.down.sql`): recusa (raise com a contagem) se houver referência **viva** sem marca; apaga de vez as já apagadas sem
+  marca; devolve a vivas as apagadas pela 0075 quando a ordem e a marca + código delas seguem livres no produto; recria
+  `produto_referencia_codigo_uk` e o NOT NULL.
+Teste: `db/testes/referencia-marca-opcional.db.test.ts` (estático na sessão; banco e up/down no CI).
+
+## 0079 — fotos dos produtos em lote por ZIP (`0079_catalogo_foto_lote`; T-0174, RN-CAT-14, ADR 0054)
+Desenho `docs/desenho/T-0174.md` §2; formatos JPEG, PNG e WEBP (R-20261115-074500). A parte da plataforma (tipos de
+`plataforma.arquivo` e `plataforma.trabalho`) está em [plataforma.md](plataforma.md), "0079". Volta: `.down.sql` (APAGA lotes,
+itens e trabalhos; tira `hash_conteudo`; as fotos ligadas ficam). Drizzle: `fotoLote`, `fotoLoteItem` e as listas
+`*_FOTO_LOTE*_BANCO` em `modules/catalogo/db/nuvem.ts`. Teste: `db/testes/foto-lote.db.test.ts`.
+
+### foto_lote — um envio de ZIP. Fora do sync (só o BKO lê)
+| Coluna | Tipo | Regra |
+|---|---|---|
+| id | uuid | gerado no BKO (`POST fotos-lote` idempotente) |
+| enviado_por | uuid not null | `core.usuario`, **sem FK** (fronteira de schema) |
+| arquivo_id | uuid not null | o ZIP em `plataforma.arquivo`, **sem FK** (ADR 0010; a linha some quando o lote termina e o ZIP é descartado); único vivo por tenant (`foto_lote_arquivo_uk`) |
+| nome_arquivo | text not null | 1..255, não vazio |
+| tamanho_bytes | bigint not null | 1..524288000 (500 MiB, teto da plataforma; o parâmetro do tenant só baixa) |
+| sha256 | text | hex de 64; gravado na conferência. **Idempotência do ZIP**: `foto_lote_sha256_uk (tenant_id, sha256)` entre os vivos que não são `falhou` nem `duplicado` |
+| situacao | text not null default `aguardando_envio` | `aguardando_envio` \| `enfileirado` \| `conferindo` \| `processando` \| `concluido` \| `recusado` \| `falhou` \| `duplicado` (= `SituacaoLote`) |
+| motivo | text | só e sempre no `recusado`: `zip_grande` \| `muitos_arquivos` \| `descompactado_grande` \| `zip_invalido` \| `zip64_nao_suportado` \| `zip_incompleto` (= `MOTIVOS_RECUSA_ZIP` do SDK) |
+| duplicado_de | uuid | só e sempre no `duplicado`; FK composta para o próprio `foto_lote` (diferente do id) |
+| total | integer | arquivos considerados (>= 0); nulo antes da conferência |
+| iniciado_em, concluido_em | timestamptz | `concluido_em` só e sempre nos finais (`concluido`, `recusado`, `falhou`, `duplicado`) |
+
+Índices: `foto_lote_recentes_ix (tenant_id, created_at desc)` (lista dos 20 mais recentes) e `foto_lote_ativos_ix (tenant_id,
+situacao)` parcial nos `enfileirado|conferindo|processando` (`FOTO_LOTE_ATIVOS_MAX`). macuxi_app: select, insert, update (sem DELETE).
+
+### foto_lote_item — uma entrada considerada do ZIP. Fora do sync
+| Coluna | Tipo | Regra |
+|---|---|---|
+| lote_id | uuid not null | FK composta → `foto_lote` |
+| indice | integer not null | posição no diretório central (>= 0). **Checkpoint**: `foto_lote_item_indice_uk (tenant_id, lote_id, indice)`; a conferência grava com `on conflict (tenant_id, lote_id, indice) do nothing` |
+| caminho | text not null | caminho dentro do ZIP, 1..1024 |
+| situacao | text not null default `pendente` | `pendente` \| `ligado` \| `sem_produto` \| `ambiguo` \| `recusado` \| `repetido` (= `SituacaoItem`). A fatia segue pelos `pendente` em ordem de `indice` (`foto_lote_item_fila_ix (tenant_id, lote_id, situacao, indice)`, que serve também os totais e o filtro) |
+| motivo | text | só e sempre no `recusado`: os 9 de `MOTIVOS_RECUSA_ENTRADA` + `nome_invalido` + `ordem_repetida_no_lote` |
+| tipo_detectado | text | `image/jpeg` \| `image/png` \| `image/webp` (pela assinatura) |
+| codigo | text | código lido do nome, 1..100 |
+| ordem | smallint | 1..99; obrigatória (com `produto_id`) no `ligado` e no `repetido` |
+| produto_id, produto_codigo | uuid, text | produto casado (sem FK) e o retrato do código para o relatório |
+| codigos_candidatos | text[] | 1..5 códigos, só e sempre no `ambiguo` |
+| arquivo_id, midia_id | uuid not null | **reservados na conferência**, únicos no tenant (`foto_lote_item_arquivo_uk`, `foto_lote_item_midia_uk`): repetir a fatia regrava os mesmos ids, sem mídia duplicada |
+| sha256 | text | hex de 64 da imagem |
+| processado_em | timestamptz | quando saiu de `pendente` |
+
+`foto_lote_item_ordem_uk (tenant_id, lote_id, produto_id, ordem)` parcial nos `ligado`: a 2ª foto da mesma ordem do mesmo produto
+no lote viola (23505) → o item vira `recusado` com `ordem_repetida_no_lote`. macuxi_app: select, insert, update (sem DELETE).
+
+### produto_midia (0079)
+| Coluna | Regra |
+|---|---|
+| hash_conteudo | text, SHA-256 hex da imagem (`produto_midia_hash_hex`); nulo na foto da ficha. **Repetido**: `produto_midia_hash_uk (tenant_id, produto_id, hash_conteudo)` entre as vivas (23505 = `repetido`) |
+| ordem | padrão passa de 0 a **1**; a principal tem sempre ordem 1 (`produto_midia_principal_ordem`); a ordem da foto viva >= 1 é única por produto (`produto_midia_ordem_foto_uk`, `tipo = 'foto' and ordem >= 1`); vídeo, PDF e foto com ordem 0 ficam fora |
+
+Dados: as principais antigas (ordem 0, vivas e removidas) foram para ordem 1 com o gatilho `produto_midia_updated_at` **desligado
+na migração**: o `updated_at` não andou, então o pull e a versão do catálogo não mudam e nenhum aparelho baixa as miniaturas de
+novo. Antes, a migração aborta (55000) se houver foto viva não principal na ordem 1 ao lado da principal (não há na base hoje).
+O app continua mostrando só a principal (ordem 1); a galeria é da 2ª etapa.
+
+### core.produto (0079)
+`produto_sku_lower_ix (tenant_id, lower(sku))` entre os vivos, para `core.produtos_por_sku@1` (casamento sem diferenciar
+maiúsculas). O EAN no nome do arquivo usa o `produto_ean_ix (tenant_id, ean)` da 0002.

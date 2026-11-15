@@ -64,6 +64,9 @@ chamada). Premissa: o admin é superusuário ou BYPASSRLS (como `excluir_tenant`
   - Saída ganha `codigo` (text): `{ tenant_id, codigo, resultado, modulos_adicionados, parametros_gravados, admin, avisos }`.
 - `sa_provisionar_tenant` trata como empresa **nova** (sem admin = 22023, hint RN-CORE-34) também a entrada sem `codigo` cujo `id`
   não é de tenant vivo; a `uf` segue na entrada.
+- 0077 (T-0176, RN-CORE-39): a `provisionar_tenant` (create or replace, texto da 0068) dá ao admin que ela **cria** a filial
+  padrão do tenant como cadastro e venda (CLI, seeds e portal; a `sa_provisionar_tenant` não muda). Admin existente não muda.
+  Detalhes no [core.md](core.md).
 - `atribuir_codigo_licenca(p_tenant_id uuid, p_uf text) → jsonb` (SECURITY INVOKER, sem EXECUTE para a aplicação: roda pela
   conexão de administração, como a `provisionar_tenant`): dá o código da licença a um tenant existente.
   `{ tenant_id, codigo_anterior, codigo, resultado: 'atribuido' | 'sem_mudanca' }`. Já com código da mesma UF = o mesmo
@@ -339,7 +342,7 @@ política `manutencao`, nenhum grant de tabela (app, worker e portal = 42501). �
 | `sa_auditar(p jsonb)` | `uuid` | como na 0035, mais `ator_tipo` (fora da lista = 22023) e `usuario_id` |
 | `sa_listar_tenants(p_sid uuid)` | `jsonb` = `ListaEmpresasSchema` (nome em `razao_social`) | super-admin: todas as vivas; cliente: só as conferidas no login; sessão inválida = 28000 |
 | `sa_tenant_ativo(p_sid uuid, p_tenant uuid)` | `boolean` | super-admin: tenant ativo; cliente: `p_tenant` é a empresa atual |
-| `sa_provisionar_tenant(p_sid uuid, p jsonb)` | `jsonb` (o da `provisionar_tenant`) | só sessão de super-admin (cliente ou inválida = 28000); aceita `admin {email, nome, senha_hash}` (RN-CORE-34; empresa existente: o admin existente fica e a senha não muda, RN-CORE-31); empresa **nova** sem `admin` = 22023 com `hint = 'RN-CORE-34'` (a API traduz em 422); empresa existente sem `admin` = `sem_admin`; `redefinir_senha` ou `sem_admin` na entrada = 22023; `ator_id` = super-admin |
+| `sa_provisionar_tenant(p_sid uuid, p jsonb)` | `jsonb` (o da `provisionar_tenant`) | só sessão de super-admin (cliente ou inválida = 28000); aceita `admin {email, nome, senha_hash}` (RN-CORE-34; empresa existente: o admin existente fica e a senha não muda, RN-CORE-31); empresa **nova** sem `admin` = 22023 com `hint = 'RN-CORE-34'` (a API traduz em 422); empresa existente sem `admin` = `sem_admin`; `redefinir_senha` ou `sem_admin` na entrada = 22023; `ator_id` = super-admin; o admin criado recebe a filial padrão como cadastro e venda pela `provisionar_tenant` (0077, RN-CORE-39, `docs/banco/core.md`) |
 
 - Interna: `sa_registrar_auditoria(p_ator_tipo, p_super_admin, p_usuario, p_sessao, p_tenant, p_acao, p_detalhes)` (`SECURITY
   INVOKER`, sem `EXECUTE` para ninguém), no lugar da de 5 argumentos.
@@ -1002,3 +1005,44 @@ select plataforma.sa_acoes_das_empresas($1) as r;                 -- GET /v1/pla
 select plataforma.pegar_backup() as r;                            -- worker (macuxi_worker)
 select * from plataforma.exportar_backup_pagina($1, $2, $3::jsonb, 5000);
 ```
+
+### 0074 — pacote pronto da primeira carga (`0074_plataforma_sync_pacote`; ADR 0054)
+`plataforma.sync_pacote` e `plataforma.sync_pacote_pedido`: dicionário completo, RLS, grants, índices e ciclo de vida em
+[sync-pacote.md](sync-pacote.md).
+
+## 0079 — arquivos do lote de fotos e trabalho sob demanda (`0079_catalogo_foto_lote`; T-0174, ADR 0054)
+Mesma migração das tabelas do lote ([catalogo.md](catalogo.md), "0079"). Teste: `db/testes/foto-lote.db.test.ts`.
+
+**`arquivo`**: `arquivo_tipo_valido` = `image/jpeg` \| `image/png` \| `image/webp` \| `application/zip`
+(`TIPOS_ARQUIVO_BANCO` em `db/esquema/plataforma.ts`; o `TIPOS_ARQUIVO` do SDK fica contido nele). `arquivo_tamanho_faixa` por
+tipo: imagem 1..8388608 (8 MiB), ZIP 1..524288000 (500 MiB). A rota antiga de foto continua com 2 MB no código (teto por
+categoria da API). `arquivo_recebido_completo`: o ZIP fica `recebido` no `concluir` **sem** `sha256` (o SHA é calculado no
+trabalho e fica em `catalogo.foto_lote.sha256`); a `chave_armazenamento` do ZIP é a da parte 1 (`<id>.p001.zip`); a imagem
+recebida continua exigindo o `sha256`. Volta: o down devolve os CHECKs da 0005 e **falha (55000)** se houver PNG, WEBP, ZIP ou arquivo acima de 2 MiB.
+
+### trabalho — trabalho sob demanda de um módulo. Fora do sync
+Disparado por evento da outbox (o consumidor da plataforma grava em `comTenant`, `macuxi_app`), executado em fatias pelo laço
+do worker. Um vivo por `(tenant_id, modulo, nome, alvo_id)` (`trabalho_alvo_uk`): grave com `insert ... on conflict do nothing`.
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| modulo | text not null | `^[a-z][a-z0-9-]*$` |
+| nome | text not null | `^[a-z][a-z0-9_]*$`, ≤ 100 (ex.: `processar_foto_lote`) |
+| alvo_id | uuid not null | entidade do módulo (ex.: `catalogo.foto_lote.id`); sem FK |
+| evento_id | uuid | evento da outbox que disparou; sem FK (a outbox tem retenção) |
+| situacao | text not null default `pendente` | `pendente` \| `em_execucao` \| `concluido` \| `falhou` |
+| tentativas, fatias | integer not null default 0 | >= 0 |
+| proxima_em | timestamptz not null default now() | quando pode rodar de novo |
+| travado_ate, travado_por | timestamptz, text | juntos (`trabalho_trava_par`); obrigatórios no `em_execucao`; processo 1..200 |
+| ultimo_erro | text | **só código** `^[A-Za-z0-9_.:-]{1,100}$` (nunca mensagem nem dado pessoal) |
+| concluido_em | timestamptz | só e sempre no `concluido` e no `falhou` |
+
+Índice `trabalho_fila_ix (situacao, proxima_em)`. **macuxi_app**: select e insert no próprio tenant (RLS), sem UPDATE/DELETE.
+**macuxi_worker**: nenhum privilégio de tabela; só EXECUTE nas funções (SECURITY DEFINER, `search_path = pg_catalog, plataforma,
+pg_temp`, só tenants `ativo` e vivos):
+
+| Função | O que faz |
+|---|---|
+| `trabalho_reservar(p_processo text, p_trava_s integer)` → `table(id, tenant_id, modulo, nome, alvo_id, tentativas, fatias)` | 0 ou 1 linha: o vencido mais antigo (`pendente` com `proxima_em <= now()` ou `em_execucao` com trava vencida), `for update skip locked`; marca `em_execucao`, `travado_ate = now() + p_trava_s`, `travado_por`. p_processo 1..200, p_trava_s 1..3600 (senão 22023) |
+| `trabalho_devolver(p_id uuid, p_processo text, p_resultado text, p_erro text, p_espera_s integer)` → boolean | só com a trava do processo (false = perdeu a trava; nada muda). `continua` → `pendente` agora, `fatias + 1`; `concluido` → `concluido`, `fatias + 1`; `adiar` → `pendente` daqui a `p_espera_s`, sem contar tentativa (licença inativa); `erro` (com `p_erro`) → `tentativas + 1`, `ultimo_erro`, `pendente` daqui a `p_espera_s` ou, com `p_espera_s` nulo, `falhou` (definitivo). Solta a trava |
+| `trabalho_renovar(p_id uuid, p_processo text, p_trava_s integer)` → boolean | estende a trava entre os itens; false = não é mais deste processo |
