@@ -121,7 +121,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
                 <span>− {formatBRL(o.discount_cents)}</span>
               </div>
             )}
-            <div className="flex justify-between border-t border-line-2 pt-1.5 font-display text-[20px] font-bold">
+            <div className="flex justify-between border-t border-line-2 pt-1.5 font-display text-[20px] font-semibold">
               <span>Total</span>
               <span>{formatBRL(o.total_cents)}</span>
             </div>

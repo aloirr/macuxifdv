@@ -8,7 +8,7 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import { SePode, useAmbiente, useVisaoShell } from '@macuxi/platform-sdk/react';
-import { Badge, BotaoFiltro, CABECALHO, CabecalhoTela, CampoBusca, Card, Chip, colors, Empty, EtiquetaFiltro, fonte, FolhaPeriodo, LinhaAtalho, ListaSuspensa, radius, relativeWhen, rotuloComContador, Selo, SeloAtualizacao, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Badge, BotaoFiltro, CABECALHO, CabecalhoTela, CampoBusca, Card, Chip, colors, Empty, EtiquetaFiltro, FolhaPeriodo, LinhaAtalho, ListaSuspensa, radius, relativeWhen, rotuloComContador, Selo, SeloAtualizacao, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -407,9 +407,9 @@ export default function OrdersScreen() {
 }
 
 /** Texto com o trecho achado em destaque (sem acento e sem maiúscula); fundo e tinta do kit, legíveis ao sol (Y11). */
-function Destacado({ texto, busca, style, mono, trechos, testID, testIDDestaque, linhaUnica = true }: { texto: string; busca: string; style?: object; mono?: boolean; trechos?: TrechoDoTexto[]; testID?: string; testIDDestaque?: string; linhaUnica?: boolean }) {
+function Destacado({ texto, busca, style, tabular, trechos, testID, testIDDestaque, linhaUnica = true }: { texto: string; busca: string; style?: object; tabular?: boolean; trechos?: TrechoDoTexto[]; testID?: string; testIDDestaque?: string; linhaUnica?: boolean }) {
   return (
-    <Text style={[style, mono && { ...fonte.mono }]} numberOfLines={linhaUnica ? 1 : undefined} testID={testID}>
+    <Text style={[style, tabular && { fontVariant: ['tabular-nums'] as const }]} numberOfLines={linhaUnica ? 1 : undefined} testID={testID}>
       {(trechos ?? destacarTrecho(texto, busca)).map((p, i) => (
         <Text key={i} style={p.destaque ? styles.destaque : undefined} testID={p.destaque ? testIDDestaque : undefined}>
           {p.texto}
@@ -462,7 +462,7 @@ const OrderRow = memo(function OrderRow({ o, razao, busca, primeiro, last, tz, m
           {trechosNumero ? (
             <>
               {'Nº '}
-              <Destacado texto={o.number} busca={busca} trechos={trechosNumero} mono linhaUnica={false} testID={`order-numero-${o.number}`} testIDDestaque="order-numero-destaque" />
+              <Destacado texto={o.number} busca={busca} trechos={trechosNumero} tabular linhaUnica={false} testID={`order-numero-${o.number}`} testIDDestaque="order-numero-destaque" />
             </>
           ) : mostrarVendedor && o.seller_name ? (
             o.seller_name

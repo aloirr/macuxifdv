@@ -5,7 +5,7 @@
  */
 import { formatBRL0 } from '@macuxi/comum';
 import type { ContextoCliente } from '@macuxi/core/contracts';
-import { Badge, Card, colors, fonte, Icon, radius, relativeWhen, type as t } from '@macuxi/ui/mobile';
+import { Badge, Card, colors, Icon, radius, relativeWhen, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { statusBadge } from '../lib/order-status';
@@ -105,7 +105,7 @@ export function AbaUltimosPedidos({ contexto }: { contexto: ContextoCliente }) {
             style={[styles.linha, { minHeight: 52 }, i < ultimos.length - 1 && styles.divisor]}>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={t.small}>
-                <Text style={{ ...fonte.mono }}>{o.number || 'no aparelho'}</Text> · {relativeWhen(o.received_at, new Date(), tz)}
+                <Text style={{ fontVariant: ['tabular-nums'] }}>{o.number || 'no aparelho'}</Text> · {relativeWhen(o.received_at, new Date(), tz)}
               </Text>
               <Badge label={b.label} fg={b.fg} bg={b.bg} />
             </View>

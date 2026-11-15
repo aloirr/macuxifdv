@@ -7,9 +7,10 @@ const fonte = (arquivo: string) => readFileSync(join(__dirname, arquivo), 'utf8'
 
 describe('T-0101: tela de Pedidos', () => {
   const s = fonte('orders-screen.tsx');
-  it('Y11: o número usa trechosDoNumero e fonte mono, sem map inline de destacarTrecho(o.number', () => {
+  it('Y11: o número usa trechosDoNumero e algarismos tabulares (sem mono), sem map inline de destacarTrecho(o.number', () => {
     expect(s).toContain('trechosDoNumero(o.number, busca)');
-    expect(s).toContain('fonte.mono');
+    expect(s).toContain("fontVariant: ['tabular-nums']");
+    expect(s).not.toContain('fonte.mono');
     expect(s).not.toContain('destacarTrecho(o.number');
     expect(s).toContain('order-numero-destaque');
     expect(s).toContain('order-numero-${o.number}');
