@@ -182,7 +182,7 @@ describe.skipIf(semBanco())('0028 core.plano_rv (banco, fixture dois-tenants)', 
               array(select tgname::text from pg_trigger where tgrelid = c.oid and not tgisinternal) as gatilhos
          from pg_class c where c.oid = 'core.plano_rv'::regclass`,
     );
-    expect(r.rows).toEqual([{ rls: true, force: true, politicas: ['isolamento_tenant', 'manutencao'], app: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'], gatilhos: ['plano_rv_updated_at'] }]);
+    expect(r.rows).toEqual([{ rls: true, force: true, politicas: ['isolamento_tenant', 'leitura', 'manutencao'], app: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'], gatilhos: ['plano_rv_updated_at'] }]);
   });
 });
 

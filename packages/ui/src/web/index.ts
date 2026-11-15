@@ -25,3 +25,5 @@ export * from './modulos';
 export * from './adicionais';
 // R-20261115-071000: campo de senha único (olho em ícone, "Mostrar senha"/"Ocultar senha")
 export * from './campo-senha';
+// RD-0323 (T-0104): abas acessíveis (Abas, PainelAba, ItemAba, idDaAba, idDoPainel)
+export * from './abas';
