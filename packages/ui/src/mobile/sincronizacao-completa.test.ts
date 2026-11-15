@@ -92,7 +92,7 @@ describe('criarControleSegurar', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  function montar(modoInicial: ModoSegurar = 'segurar') {
+  function montar(modoInicial: ModoSegurar = 'segurar', liberar?: () => boolean) {
     const ctl = { modo: modoInicial };
     const chamadas = { parcial: 0, completa: 0, vibrou: [] as ForcaVibracao[], ms: [] as (number | null)[] };
     const c = criarControleSegurar({
@@ -101,6 +101,7 @@ describe('criarControleSegurar', () => {
       completa: () => void chamadas.completa++,
       vibrar: (f) => void chamadas.vibrou.push(f),
       aoMudar: (ms) => void chamadas.ms.push(ms),
+      ...(liberar ? { liberar } : {}),
     });
     return { c, ctl, chamadas };
   }
@@ -186,6 +187,31 @@ describe('criarControleSegurar', () => {
     const b = montar('toque');
     b.c.acaoDoLeitor();
     expect(b.chamadas.completa).toBe(0);
+  });
+
+  it('R-20261115-125500: segurar dentro do intervalo mínimo = sem completa e sem a vibração final, em silêncio', () => {
+    let livre = false;
+    let pedidos = 0;
+    const { c, chamadas } = montar('segurar', () => (pedidos++, livre));
+    c.pressionar();
+    vi.advanceTimersByTime(10_000);
+    expect(chamadas).toMatchObject({ completa: 0, vibrou: ['leve'] });
+    expect(pedidos).toBe(1);
+    expect(chamadas.ms.at(-1)).toBeNull();
+    // soltar depois não vira parcial
+    c.soltar();
+    c.tocar();
+    expect(chamadas.parcial).toBe(0);
+    // leitor de tela também respeita o intervalo
+    c.acaoDoLeitor();
+    expect(chamadas.completa).toBe(0);
+    // livre: vibra média e chama a completa
+    livre = true;
+    c.pressionar();
+    vi.advanceTimersByTime(10_000);
+    expect(chamadas).toMatchObject({ completa: 1, vibrou: ['leve', 'leve', 'media'] });
+    c.acaoDoLeitor();
+    expect(chamadas.completa).toBe(2);
   });
 });
 

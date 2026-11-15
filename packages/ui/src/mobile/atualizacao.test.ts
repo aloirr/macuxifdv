@@ -1,19 +1,19 @@
 /**
  * T-0065 (A) — RN-CORE-23 (R-20261102-121135, R-20261102-124413, R-20261102-124628): o app sincroniza ao abrir, ao voltar
  * ao primeiro plano depois de 30 min, a cada `sync_auto_min` (padrão 30, mínimo 15) e no aviso do servidor; puxar para
- * baixo = Sincronizar com proteção de 30 s. Relógio simulado.
+ * baixo = Sincronizar; disparo manual no máximo 1 vez a cada 30 s, em silêncio (R-20261115-125500). Relógio simulado.
  */
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   criarAgendadorSync,
-  dentroDaProtecao,
+  dentroDoIntervaloManual,
   desenhoBotaoSincronizar,
   desenhoSeloAtualizacao,
   intervaloSyncAutoMs,
   PARAMETRO_SYNC_AUTO,
-  PROTECAO_PUXAR_MS,
+  INTERVALO_MIN_SYNC_MANUAL_MS,
   rodapeAtualizacao,
   SYNC_AUTO_MIN_MIN,
   SYNC_AUTO_PADRAO_MIN,
@@ -29,7 +29,9 @@ async function avancar(ms: number) {
   await vi.advanceTimersByTimeAsync(ms);
 }
 
-function montar(op: { intervaloMin?: unknown; ultima?: number | null; sinal?: boolean; ok?: boolean; abrir?: boolean; duracaoMs?: number } = {}) {
+function montar(
+  op: { intervaloMin?: unknown; ultima?: number | null; sinal?: boolean; ok?: boolean; abrir?: boolean; duracaoMs?: number; aoMudar?: (e: unknown) => void } = {},
+) {
   const chamadas: { motivo: MotivoSync; entidades?: readonly string[]; em: number }[] = [];
   let ultima: number | null = op.ultima === undefined ? INICIO - 60 * MIN : op.ultima;
   const ctl = { sinal: op.sinal ?? true, ok: op.ok ?? true, intervaloMin: op.intervaloMin };
@@ -45,6 +47,7 @@ function montar(op: { intervaloMin?: unknown; ultima?: number | null; sinal?: bo
     ultimaSincronizacao: () => ultima,
     podeSincronizar: () => ctl.sinal,
     ...(op.abrir === false ? { sincronizarAoAbrir: false } : {}),
+    ...(op.aoMudar ? { aoMudar: op.aoMudar } : {}),
   });
   return { ag, chamadas, ctl };
 }
@@ -70,12 +73,12 @@ describe('parâmetro sync_auto_min', () => {
     expect(intervaloSyncAutoMs(10_000_000)).toBe(24 * 60 * MIN);
   });
 
-  it('proteção de 30 s e volta depois de 30 min', () => {
-    expect(PROTECAO_PUXAR_MS).toBe(30_000);
+  it('R-20261115-125500: intervalo mínimo de 30 s entre disparos manuais; volta depois de 30 min', () => {
+    expect(INTERVALO_MIN_SYNC_MANUAL_MS).toBe(30_000);
     expect(VOLTA_PRIMEIRO_PLANO_MS).toBe(30 * MIN);
-    expect(dentroDaProtecao(null, INICIO)).toBe(false);
-    expect(dentroDaProtecao(INICIO, INICIO + 29_999)).toBe(true);
-    expect(dentroDaProtecao(INICIO, INICIO + 30_000)).toBe(false);
+    expect(dentroDoIntervaloManual(null, INICIO)).toBe(false);
+    expect(dentroDoIntervaloManual(INICIO, INICIO + 29_999)).toBe(true);
+    expect(dentroDoIntervaloManual(INICIO, INICIO + 30_000)).toBe(false);
   });
 });
 
@@ -86,20 +89,19 @@ describe('textos', () => {
     expect(textoUltimaSincronizacao(null, 2)).toBe('Ainda não sincronizado · 2 na fila');
   });
   it('BotaoSincronizar (T-0076): rótulo curto, situação e motivo do sem sinal numa linha própria', () => {
-    expect(desenhoBotaoSincronizar({ semSinal: false, recente: false, sincronizadoEm: INICIO, naFila: 0, tz: 'America/Manaus' })).toEqual({
+    expect(desenhoBotaoSincronizar({ semSinal: false, sincronizadoEm: INICIO, naFila: 0, tz: 'America/Manaus' })).toEqual({
       rotulo: 'Sincronizar',
       situacao: 'Última sincronização 11:00 · 0 na fila',
       tom: 'neutro',
       aviso: null,
     });
-    expect(desenhoBotaoSincronizar({ semSinal: false, recente: true, sincronizadoEm: INICIO, naFila: 2 }).situacao).toBe('Atualizado há instantes');
-    const semSinal = desenhoBotaoSincronizar({ semSinal: true, recente: false, sincronizadoEm: null, naFila: 3 });
+    const semSinal = desenhoBotaoSincronizar({ semSinal: true, sincronizadoEm: null, naFila: 3 });
     expect(semSinal).toEqual({ rotulo: 'Sem sinal', situacao: 'Ainda não sincronizado · 3 na fila', tom: 'neutro', aviso: 'Desligue o modo sem sinal para sincronizar' });
     // o rótulo cabe numa linha do botão (o Button corta em uma linha)
     expect(semSinal.rotulo.length).toBeLessThanOrEqual(12);
   });
   it('BotaoSincronizar (RD-0008): avisoDados é o aviso único de dado antigo, no lugar da última sincronização, com a fila', () => {
-    const base = { semSinal: false, recente: false, sincronizadoEm: INICIO, naFila: 0, tz: 'America/Manaus' };
+    const base = { semSinal: false, sincronizadoEm: INICIO, naFila: 0, tz: 'America/Manaus' };
     expect(desenhoBotaoSincronizar({ ...base, avisoDados: 'Dados de 06/11, 6h28' })).toEqual({
       rotulo: 'Sincronizar',
       situacao: 'Dados de 06/11, 6h28 · 0 na fila',
@@ -107,8 +109,6 @@ describe('textos', () => {
       aviso: null,
     });
     expect(desenhoBotaoSincronizar({ ...base, naFila: 2, avisoDados: 'Sincronize para ver as vendas' }).situacao).toBe('Sincronize para ver as vendas · 2 na fila');
-    // a cópia continua velha logo depois do toque: o aviso vale mais que "Atualizado há instantes"
-    expect(desenhoBotaoSincronizar({ ...base, recente: true, avisoDados: 'Dados de 06/11, 6h28' }).situacao).toBe('Dados de 06/11, 6h28 · 0 na fila');
     // sem sinal: o motivo continua na linha própria e o aviso de dados na linha de situação
     const semSinal = desenhoBotaoSincronizar({ ...base, semSinal: true, avisoDados: 'Dados de 06/11, 6h28' });
     expect(semSinal).toMatchObject({ rotulo: 'Sem sinal', tom: 'atencao', aviso: 'Desligue o modo sem sinal para sincronizar' });
@@ -140,10 +140,8 @@ describe('textos', () => {
   it('rodapé das listas', () => {
     expect(rodapeAtualizacao(null)).toBe('Puxe para sincronizar');
     expect(rodapeAtualizacao(INICIO, 'America/Manaus')).toBe('Atualizado às 11:00 · puxe para sincronizar');
-    expect(rodapeAtualizacao(INICIO, 'America/Manaus', { recente: true })).toBe('Atualizado há instantes');
     // modo sem sinal: só a hora, sem convidar a puxar (o puxar não sincroniza)
     expect(rodapeAtualizacao(INICIO, 'America/Manaus', { semSinal: true })).toBe('Atualizado às 11:00');
-    expect(rodapeAtualizacao(INICIO, 'America/Manaus', { semSinal: true, recente: true })).toBe('Atualizado às 11:00');
     expect(rodapeAtualizacao(null, 'America/Manaus', { semSinal: true })).toBe('Ainda não sincronizado');
     expect(rodapeAtualizacao(undefined, 'America/Manaus', { semSinal: true })).toBe('Ainda não sincronizado');
     expect(rodapeAtualizacao('', 'America/Manaus', { semSinal: true })).toBe('Ainda não sincronizado');
@@ -234,23 +232,54 @@ describe('criarAgendadorSync (relógio simulado)', () => {
     ag.parar();
   });
 
-  it('puxar = Sincronizar (manual) na hora, mesmo logo depois da abertura; outro puxar em menos de 30 s é ignorado ("Atualizado há instantes")', async () => {
-    const { ag, chamadas } = montar();
+  it('R-20261115-125500: puxar = Sincronizar (manual) na hora; outro em menos de 30 s é ignorado em silêncio (nenhum aoMudar, nenhum timer)', async () => {
+    const mudancas: unknown[] = [];
+    const { ag, chamadas } = montar({ aoMudar: (e) => mudancas.push(e) });
     ag.primeiroPlano();
     await avancar(0);
     vi.setSystemTime(INICIO + 2_000);
     expect(await ag.puxar()).toBe('sincronizou');
     expect(chamadas.map((c) => c.motivo)).toEqual(['abertura', 'manual']);
+    const antes = mudancas.length;
+    const estadoAntes = ag.estado();
     vi.setSystemTime(INICIO + 20_000);
-    expect(await ag.puxar()).toBe('recente');
-    expect(ag.estado().recente).toBe(true);
+    const timers = vi.getTimerCount();
+    expect(await ag.puxar()).toBe('ignorado');
+    expect(await ag.puxar()).toBe('ignorado');
+    expect(mudancas).toHaveLength(antes);
+    expect(ag.estado()).toBe(estadoAntes);
+    expect(ag.estado()).toEqual({ puxando: false });
+    expect(vi.getTimerCount()).toBe(timers);
     expect(chamadas).toHaveLength(2);
-    // a mensagem some quando a proteção acaba
-    await avancar(12_000);
-    expect(ag.estado().recente).toBe(false);
+    // passados os 30 s do último disparo, volta a disparar
+    vi.setSystemTime(INICIO + 32_000);
     expect(await ag.puxar()).toBe('sincronizou');
     expect(chamadas).toHaveLength(3);
     ag.parar();
+  });
+
+  it('R-20261115-125500: liberarManual (completa) usa o mesmo intervalo do puxar e registra o disparo', async () => {
+    const mudancas: unknown[] = [];
+    const { ag, chamadas } = montar({ aoMudar: (e) => mudancas.push(e) });
+    ag.primeiroPlano();
+    await avancar(0);
+    const antes = mudancas.length;
+    // completa livre: registra; o puxar seguinte dentro de 30 s é ignorado
+    expect(ag.liberarManual()).toBe(true);
+    expect(mudancas).toHaveLength(antes);
+    vi.setSystemTime(INICIO + 10_000);
+    expect(await ag.puxar()).toBe('ignorado');
+    expect(ag.liberarManual()).toBe(false);
+    expect(chamadas.map((c) => c.motivo)).toEqual(['abertura']);
+    // depois de 30 s do disparo: o puxar volta; a completa logo depois cai no intervalo
+    vi.setSystemTime(INICIO + 30_000);
+    expect(await ag.puxar()).toBe('sincronizou');
+    vi.setSystemTime(INICIO + 40_000);
+    expect(ag.liberarManual()).toBe(false);
+    vi.setSystemTime(INICIO + 60_000);
+    expect(ag.liberarManual()).toBe(true);
+    ag.parar();
+    expect(ag.liberarManual()).toBe(false);
   });
 
   it('puxar liga o indicador só durante a sincronização manual; puxar recomeça a contagem da automática', async () => {

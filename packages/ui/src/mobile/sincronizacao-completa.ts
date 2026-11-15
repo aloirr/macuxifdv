@@ -101,6 +101,11 @@ export interface OpcoesControleSegurar {
   parcial: () => void;
   /** Aos 10 s segurando. */
   completa: () => void;
+  /**
+   * Intervalo mínimo entre disparos manuais (R-20261115-125500, `agendador.liberarManual()`): `false` = a completa é ignorada
+   * em silêncio (sem a vibração final e sem `completa`). Ausente = sempre livre.
+   */
+  liberar?: () => boolean;
   vibrar?: (forca: ForcaVibracao) => void;
   /** Ms segurando a cada passo (`null` = solto), para redesenhar. */
   aoMudar: (ms: number | null) => void;
@@ -152,13 +157,15 @@ export function criarControleSegurar(o: OpcoesControleSegurar): ControleSegurar 
     const ms = agora() - inicio;
     const forca = vibracaoDoSegurar(ultimo, ms);
     ultimo = ms;
-    if (forca) o.vibrar?.(forca);
     if (ms >= SEGURAR_COMPLETA_MS) {
       disparou = true;
       parar();
+      if (o.liberar && !o.liberar()) return;
+      if (forca) o.vibrar?.(forca);
       o.completa();
       return;
     }
+    if (forca) o.vibrar?.(forca);
     o.aoMudar(ms);
   };
 
@@ -184,6 +191,7 @@ export function criarControleSegurar(o: OpcoesControleSegurar): ControleSegurar 
     },
     acaoDoLeitor() {
       if (o.modo() !== 'segurar') return;
+      if (o.liberar && !o.liberar()) return;
       o.completa();
     },
     desligar() {
