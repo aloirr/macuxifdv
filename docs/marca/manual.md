@@ -130,7 +130,9 @@ Decisão do Alexandre de 15/11/2026 (R-20261115-110600, meta v1.0.13): a marca u
 | Códigos (SKU, código do cliente, número do pedido) | `ui-monospace, "Cascadia Mono", "Roboto Mono", monospace`, sempre com `font-variant-numeric: tabular-nums` |
 
 - Nenhuma outra família e nenhuma fonte baixada ou embutida (`@font-face`, `next/font`, `expo-font`).
-- Valores, quantidades e percentuais em coluna ou em card usam a fonte de texto com `tabular-nums`, para os algarismos alinharem.
+- **E-mail:** os leitores de e-mail nem sempre conhecem `system-ui`, por isso só no HTML do e-mail a pilha termina em `Arial, Helvetica, sans-serif` (texto) e em `Consolas, "Courier New", monospace` (códigos). Fallback não é fonte nova: em nenhuma outra superfície.
+- **O que é código (mono):** só o identificador que a pessoa copia, dita ou confere caractere a caractere: SKU e código do produto, código do cliente e da empresa, número do pedido e da nota, chave e id do Conector, senha temporária, endereço do servidor e hash. A palavra em volta fica na fonte de texto ("Pedido" em texto, "1234" em mono).
+- **Não é código:** CNPJ e CPF, datas, valores, quantidades e percentuais usam a fonte de texto com `tabular-nums`, para os algarismos alinharem.
 
 ### 5.2 Pesos
 Não há fonte de display: o título se distingue do texto pelo peso e pelo tamanho, nunca por outra família.
@@ -142,7 +144,11 @@ Não há fonte de display: o título se distingue do texto pelo peso e pelo tama
 | 600 | ênfase: botão principal, número de card, cabeçalho de tabela, aba ativa |
 | 700 | títulos (de página, de seção e do cabeçalho Azul noite) |
 
-Só esses quatro pesos. Telas equivalentes usam o mesmo peso e o mesmo tamanho para o mesmo papel.
+Só esses quatro pesos, inclusive nos PDFs e nos e-mails. Telas equivalentes usam o mesmo peso e o mesmo tamanho para o mesmo papel.
+
+- **Nada em 800 ou 900** (`font-extrabold`, `font-black`, `font-weight: 800`, Roboto Black / `sans-serif-black`). O único 800 da marca é a escrita "Macuxi" do logo, que é desenho em contorno, não texto.
+- **Mesmo papel, mesmo peso:** os rótulos dos campos de um formulário têm todos o mesmo peso (500 ou 600, nunca um em 400 e outro em 600); os links de ação de uma tela também.
+- Valor em destaque (total do pedido, número de card) é ênfase: 600. O 700 fica para título. No e-mail, o valor em destaque usa `font-weight:600`, não o `<strong>` padrão (700).
 
 ### 5.3 Escala de tamanhos
 | Papel | Web (px) | App |
@@ -157,6 +163,8 @@ Só esses quatro pesos. Telas equivalentes usam o mesmo peso e o mesmo tamanho p
 - **Nada abaixo de 12** em nenhuma superfície.
 - A web é pensada para **1366×768**.
 - Os tokens ficam em `packages/ui` e em `apps/web/app/globals.css` (designer-ux), com esta mesma escala. Fora dela, nenhum tamanho solto.
+- **Arredondamento na troca:** no app, o tamanho que cai entre dois degraus sobe (15 → 16); na web, desce (14 → 13, 16 → 15, 18 → 17, 22 → 20), e acima de 24 vira 24. O logo não entra na escala.
+- **PDF e e-mail:** fonte do sistema, os quatro pesos do §5.2 e nada abaixo de 12 px. A escala da web serve de referência; o total do pedido no PDF pode passar de 24 px, por ser o número que o cliente procura primeiro.
 
 ## 6. Ícones do app
 | App | Fundo | Símbolo | Arquivos |
