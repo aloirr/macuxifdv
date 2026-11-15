@@ -12,10 +12,6 @@ const PADRAO: ParametrosAlertasEquipe = Object.fromEntries(CHAVES_PARAMETROS_ALE
 /** Valor efetivo do tenant (`ctx.parametros()` do SDK); chave ausente ou fora da faixa vale o padrão. */
 export function lerParametrosAlertas(ctx: Pick<ContextoRota, 'parametros'>): ParametrosAlertasEquipe {
   const atuais = ctx.parametros();
-  const bruto: Record<string, unknown> = { ...PADRAO };
-  for (const c of CHAVES_PARAMETROS_ALERTAS) if (atuais[c] !== undefined) bruto[c] = atuais[c];
-  const v = ParametrosAlertasEquipe.safeParse(bruto);
-  if (v.success) return v.data;
   const parcial: Record<string, unknown> = { ...PADRAO };
   for (const c of CHAVES_PARAMETROS_ALERTAS) if (ParametrosAlertasEquipe.shape[c].safeParse(atuais[c]).success) parcial[c] = atuais[c];
   return ParametrosAlertasEquipe.parse(parcial);

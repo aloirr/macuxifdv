@@ -22,10 +22,9 @@ const qk = {
   equipe: ['gestor', 'parametros-alertas'] as const,
   modulos: ['gestor', 'me-modulos'] as const,
   produtividade: ['core', 'parametros', 'alertas-produtividade'] as const,
-  inicio: ['core', 'parametros', 'inicio'] as const,
   paradoMin: ['core', 'parametros', 'parado-min'] as const,
 };
-/** Exportadas para teste: `parado-min` não pode dividir a chave do painel do Início (outra rota, outro formato). */
+/** Exportadas para teste: `parado-min` tem chave própria. */
 export const CHAVES_CACHE_PARAMETROS = qk;
 const useLogado = () => useSession().status === 'authenticated';
 
@@ -78,6 +77,6 @@ export function useGravarParadoMin() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (parado_min: number) => ParametroParadoMinSchema.parse(await api<unknown>(`/core/${CAMINHO_PARAMETRO_PARADO_MIN}`, { method: 'PUT', body: { parado_min } })),
-    onSuccess: () => Promise.all([qc.invalidateQueries({ queryKey: qk.paradoMin }), qc.invalidateQueries({ queryKey: qk.inicio })]),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.paradoMin }),
   });
 }
