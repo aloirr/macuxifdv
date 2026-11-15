@@ -159,7 +159,7 @@ export function CadastrosTradePage() {
             aria-selected={aba === a}
             data-testid={`cadastros-trade.aba-${a}`}
             onClick={() => mudar(a, desativados)}
-            className={cx('-mb-px min-h-[44px] border-b-2 px-4 text-[14px] font-semibold', aba === a ? 'border-accent text-ink' : 'border-transparent text-ink-2 hover:text-ink')}>
+            className={cx('-mb-px min-h-[44px] border-b-2 px-4 text-[15px] font-semibold', aba === a ? 'border-accent text-ink' : 'border-transparent text-ink-2 hover:text-ink')}>
             {rotuloComContagem(ROTULO_ABA[a], contagem[a])}
           </button>
         ))}
@@ -253,7 +253,7 @@ function Parametro({ rotulo, valor, testid }: { rotulo: string; valor: string; t
   return (
     <div>
       <dt className="text-[12px] font-semibold text-ink-2">{rotulo}</dt>
-      <dd className="m-0 text-[16px] font-bold" data-testid={`cadastros-trade.parametro-${testid}`}>
+      <dd className="m-0 text-[17px] font-semibold" data-testid={`cadastros-trade.parametro-${testid}`}>
         {valor}
       </dd>
     </div>

@@ -26,10 +26,10 @@
 
 ## 2. Estrutura (de cima para baixo)
 
-1. **Cabeçalho:** logo positivo (`macuxi-logo-positivo`) com 30 × 139 px, alinhado à esquerda, com 28 px de ar embaixo (área de proteção §2.3). Texto alternativo: **"Macuxi Força de Vendas"** (o `aria-label` do SVG), em Archivo 16/700 Azul noite, para aparecer bem quando a imagem vier bloqueada.
-2. **Título** (Archivo 24/30, 700, grafite; no celular, 22/28): a ação com o destino do perfil (§4).
-3. **Contexto** (IBM Plex Sans 15/22, `#4A5562`): uma linha que diz por que o e-mail chegou (§3).
-4. **Bloco de dados** (fundo Pérola `#F8F6F1`, borda `#DFE2E6`, raio 8, 20 px de recuo). Em cada item, o rótulo vem em 13/18 `#5B6673` e o valor em IBM Plex Mono 17/24 500 grafite, numa linha só dele:
+1. **Cabeçalho:** logo positivo (`macuxi-logo-positivo`) com 30 × 139 px, alinhado à esquerda, com 28 px de ar embaixo (área de proteção §2.3). Texto alternativo: **"Macuxi Força de Vendas"** (o `aria-label` do SVG), em 16/700 Azul noite, para aparecer bem quando a imagem vier bloqueada.
+2. **Título** (24/30, 700, grafite; no celular, 22/28): a ação com o destino do perfil (§4).
+3. **Contexto** (15/22, `#4A5562`): uma linha que diz por que o e-mail chegou (§3).
+4. **Bloco de dados** (fundo Pérola `#F8F6F1`, borda `#DFE2E6`, raio 8, 20 px de recuo). Em cada item, o rótulo vem em 13/18 `#5B6673` e o valor em mono 17/24 500 grafite, numa linha só dele:
    - Código da empresa;
    - E-mail;
    - Senha temporária, em mono 22/30 700, a maior coisa do bloco;
@@ -108,7 +108,7 @@ Ordem fixa: campo, gestão, web. Os destinos são unidos por " ou ".
 
 Um só layout para os três: muda só o assunto, o contexto e o título. Não há segundo padrão.
 
-- **HTML com tabelas** (`role="presentation"`, `cellpadding/cellspacing/border = 0`) e **estilos inline** em tudo. O `<style>` do `<head>` serve só para melhorar onde o cliente aceita (celular e modo escuro). Sem `div` de layout, sem flex/grid, sem CSS externo, sem fonte remota (a pilha é `Archivo, Arial` / `'IBM Plex Sans', Arial` / `'IBM Plex Mono', Consolas, 'Courier New'`).
+- **HTML com tabelas** (`role="presentation"`, `cellpadding/cellspacing/border = 0`) e **estilos inline** em tudo. O `<style>` do `<head>` serve só para melhorar onde o cliente aceita (celular e modo escuro). Sem `div` de layout, sem flex/grid, sem CSS externo, sem fonte remota: a fonte do sistema (R-20261115-110600, [manual da marca §5](../../marca/manual.md#5-tipografia)), com a pilha `PILHA_SISTEMA` no texto e a `PILHA_MONO` nos valores (`@macuxi/comum/fonte`; as duas estão no manual §5).
 - **Largura:** tabela de 600 px com `width:100%; max-width:600px`. Abaixo de 620 px, o `@media` reduz o recuo e o título.
 - **Modo escuro:** `<meta name="color-scheme" content="light dark">` e `supported-color-schemes`. No `@media (prefers-color-scheme: dark)`:
   - fundo e folha em Azul noite `#1E3350` (a folha não fica sobre grafite, porque o manual proíbe Azul noite sobre grafite);
@@ -136,7 +136,7 @@ Um só layout para os três: muda só o assunto, o contexto e o título. Não h�
 | `comparativo-antes-depois.png` | antes × depois × celular escuro |
 | `depois-campo.html`, `depois-backoffice.html`, `antes.html`, `comparativo.html` | HTML-fonte. Os `depois-*.html` são a referência do HTML de produção. |
 
-As fontes da marca foram carregadas só no momento da captura. No Gmail e no Outlook, entra o Arial da pilha.
+As imagens foram capturadas com a fonte anterior (histórico); a regra de hoje é a fonte do sistema da pilha acima.
 
 ## 7. Quem implementa
 

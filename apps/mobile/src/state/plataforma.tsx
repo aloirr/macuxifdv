@@ -25,6 +25,7 @@ import {
   ehAparelhoBloqueado,
   entrarComSenha,
   pedirSenhaTemporaria,
+  trocarMinhaSenha,
   trocarSenhaPeloApp,
   tratarAparelhoBloqueado,
   type CamposEsqueci,
@@ -98,6 +99,7 @@ import { enderecoSalvoValido, erroDaVerificacao, servidorEditavel } from '@/lib/
 import { rotaDeSaude, type ModoApi } from '@/lib/modo-api';
 import type { ResultadoSegundoPlano } from '@/lib/segundo-plano';
 import { testarServidor } from '@/lib/servidor';
+import { contaDaSessao, sessaoDepoisDaTroca } from '@/lib/trocar-senha-shell';
 import { criarAmbienteDoAparelho, traduzirErro } from '@/services/ambiente';
 import { ApiClient, HttpError, NetworkError } from '@/services/api';
 import {
@@ -735,6 +737,38 @@ function usePlataformaValor() {
     [aparelhoDoLogin, concluirLogin, postSemSessao, variante],
   );
 
+  /**
+   * "Trocar senha" do Perfil (T-0178; RN-CORE-32 e RN-CORE-34): troca com a senha atual de quem está no app. A API sobe a
+   * `sessao_versao`: os tokens novos da resposta tomam o lugar dos atuais, sem reabrir o motor (mesmo usuário e tenant).
+   * Erros sobem como no login (`ErroHttp`/`ErroSemConexao`) para a tela do Core.
+   */
+  const trocarMinhaSenhaNoApp = useCallback(
+    async (corpo: { senha_atual: string; senha_nova: string }) => {
+      const conta = contaDaSessao(sessaoRef.current);
+      if (!conta) throw new ErroHttp(401, 'SEM_SESSAO', 'Entre de novo para trocar a senha.');
+      const { post } = await postSemSessao();
+      let r: Awaited<ReturnType<typeof trocarMinhaSenha>>;
+      try {
+        r = await trocarMinhaSenha(post, conta, corpo, variante, await aparelhoDoLogin());
+      } catch (e) {
+        await aparelhoBloqueadoRef.current?.(e);
+        throw e;
+      }
+      const nova = sessaoDepoisDaTroca(sessaoRef.current, r);
+      if (!nova) {
+        // a sessão mudou durante a troca (saiu ou trocou de usuário): encerra a sessão que acabou de nascer
+        await post('/auth/logout', { refresh_token: r.refresh_token }).catch(() => undefined);
+        return;
+      }
+      await gravarTokens({ access: r.access_token, refresh: r.refresh_token });
+      const { token: _token, ...semToken } = nova;
+      await writeJson(keys.session, semToken);
+      sessaoRef.current = nova;
+      setSessao(nova);
+    },
+    [aparelhoDoLogin, postSemSessao, variante],
+  );
+
   /** "Esqueci a senha" (T-0094): a resposta é sempre a mesma; a tela mostra a confirmação de sempre. */
   const pedirSenha = useCallback(
     async (campos: CamposEsqueci) => {
@@ -1160,6 +1194,7 @@ function usePlataformaValor() {
     loginDemo,
     loginComSenha,
     trocarSenha,
+    trocarMinhaSenhaNoApp,
     pedirSenha,
     logout,
     setApiUrl,
