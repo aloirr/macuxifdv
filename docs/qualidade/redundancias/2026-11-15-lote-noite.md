@@ -1997,3 +1997,473 @@ Lido o commit `75609a4d` (2 arquivos novos em `tests/integracao/`): camada 1 (pa
 - **Lote 11 (logo do cliente):** os prints da carga (`carga-campo.png` e `carga-gestao.png`) precisam ser refeitos pelo
   RD-0451 e validados depois.
 - **Lote 12 (cabeçalho):** sem mudança de cor nem de layout neste delta (os 2 prints são os do #297); não precisa.
+
+
+---
+
+# Lote da noite, parte 7 — reteste dos RD abertos (15/11/2026, manhã de Manaus)
+
+Reteste só dos RD abertos da parte 6, mais a primeira avaliação de dois branches novos (12a e 12b). Três corretores leram
+os lotes em paralelo (rascunhos A, B e C) e este texto os consolida, sem reavaliar. Base: `origin/main` em `d9a53be9`, que
+já tem o **#314** (Catálogo), o **#315** (Treinamento), o **#316** (rota do rodapé) e o **#317** (chave do Conector),
+mesclado no branch do corretor (merge, sem rebase). Cada lote foi lido por `origin/<branch>`, só leitura: diff entre o SHA
+da parte 6 e o head nos retestes, e `origin/main...origin/<branch>` para ver se a correção trouxe repetição nova. Todos os
+heads conferidos no remoto batem com o SHA pedido. O `coord.mjs` continua com HTTP 403: os pedidos aos donos (cc
+`gerente-projetos`) ficam neste relatório e no catálogo. A numeração segue a partir do RD-0459 (novos: RD-0460 a RD-0466).
+
+## Resumo da parte 7
+
+| # | Branch | SHA lido | Parecer | RD retestados | RD novos (gravidade, dono) |
+|---|---|---|---|---|---|
+| 1 | `nuvem/push-fcm-v2-modulo-core` (PR #312) | `1efb8e69` → `c7e8f2e6` | **segura** (RD-0460) | RD-0443 **corrigido** | RD-0460 baixa, código (modulo-core) |
+| 2 | `nuvem/android-build-disco-engenheiro-software` (PR #313, governança) | `7440ea9f` → `ce226c48` | **sem achado em aberto** | RD-0447 **corrigido** | — |
+| 3 | `nuvem/push-fcm-engenheiro-apps` | `9334bf0e` → `891cd462` | **sem achado em aberto** (RD-0461 é só comentário) | RD-0442 **corrigido** (pelo `PushTokenSchema`); RD-0444 **corrigido** | RD-0461 baixa, só comentário, não segura (engenheiro-apps) |
+| 4 | `nuvem/inicio-cabecalho-engenheiro-apps` | `b227367e` → `8446145d` | **sem achado em aberto** (falta mesclar o `main`: diário do Core) | RD-0445 e RD-0446 **corrigidos** | — |
+| 5 | `nuvem/bko-revisao-modulo-core` | `da495ed0` → `a238186d` | **sem achado em aberto** (MC-0075 é cor: design-de-marca) | RD-0448 e RD-0449 **corrigidos** | — |
+| 6 | `nuvem/rodape-legal-banco-dados` | `c2db8450` → `b1661fbe` | **sem achado em aberto** (o que sobra é só de teste; falta mesclar o `main`) | RD-0452 **corrigido**; RD-0453 **em correção** (só teste, não segura) | RD-0465 baixa, só comentário de teste, não segura (banco-dados) |
+| 7 | `nuvem/empresa-acoes-engenheiro-software` | `f75cc7dc` → `9bede2ef` | **segura** (RD-0462) | RD-0428 **corrigido**; RD-0454 (parte da API e do SDK) feito; RD-0406 como na parte 6 (não segura) | RD-0462 baixa, tarefa · código (engenheiro-software) |
+| 8 | `nuvem/empresa-acoes-engenheiro-apps` | `8705f496` → `e60fba63` | **segura** (RD-0454) | RD-0454 **em correção** (frase igual; falta usar a constante) | — |
+| 9 | `nuvem/kit-thathyany-modulo-integracao` | `f3619bc4` → `58b62e12` (kit 1.0.4) | **sem achado em aberto** (merge depois ou junto do `kit-ps1-parse-testes`) | RD-0455, RD-0456, RD-0457, RD-0458 e RD-0459 **corrigidos** | — |
+| 10 | `nuvem/logo-cliente-designer-ux` | `c6d5a4b4` → `d832bc4a` | **sem achado em aberto** (prints novos: design-de-marca) | RD-0450 e RD-0451 **corrigidos** | — |
+| 11 | `nuvem/rodape-shell-engenheiro-apps` | `474164cb` → `30a659ed` (só o merge do `main`) | **sem achado em aberto** (parecer igual; conflito add/add com o `main` atual) | — | — |
+| 12a | `nuvem/email-senha-testes-v2` | `75fd4f84` (1ª avaliação; substitui `nuvem/email-senha-testes` @ `32bb52c8`) | **sem achado em aberto que segure** | — | RD-0466 baixa, só teste, não segura (testes) |
+| 12b | `nuvem/sa-listas-engenheiro-software` | `d3310610` (1ª avaliação) | **segura** (RD-0464) | — | RD-0462 (o mesmo do 7); RD-0463 baixa, só teste, não segura (engenheiro-software; export no `db/package.json`: banco-dados); RD-0464 baixa, comentário do script de deploy (engenheiro-software) |
+| 13 | `nuvem/bko-revisao-modulo-vendedor` (PR #298) | `f93f44cd` → `a7f25a42` | **sem achado em aberto** de redundância (CI vermelho no FB-1: testes) | RD-0441 **corrigido** no código | — |
+
+**Seguram (4):** 1 (RD-0460), 7 (RD-0462), 8 (RD-0454), 12b (RD-0464).
+**Sem achado em aberto (10):** 2, 3, 4, 5, 6, 9, 10, 11, 12a, 13.
+**Só teste ou comentário, não seguram (R-20261111-190159):** RD-0461, RD-0463, RD-0465, RD-0466 e a sobra do RD-0453.
+**Fora de RD, mas param o merge:** 13 (CI vermelho no FB-1, testes); 4, 6 e 11 precisam mesclar o `main`; 5 e 10 dependem
+da validação do design-de-marca.
+
+### Numeração (provisório → definitivo)
+
+| Rascunho | Definitivo |
+|---|---|
+| `RD-7A1` | RD-0460 |
+| `RD-7A2` | RD-0461 |
+| `RD-7B1` | RD-0462 |
+| `RD-7B2` | RD-0463 |
+| `RD-7B3` | RD-0464 |
+| `RD-7B4` | RD-0465 |
+| `RD-7C1` | RD-0466 |
+
+---
+
+## Rascunho A da parte 7: reteste dos RD abertos do push, do cabeçalho do shell e do build Android
+
+Feito em 15/11/2026, manhã de Manaus. Base `origin/main` = `d9a53be9` (#314, #315, #316, #317). Cada branch lido por
+`origin/<branch>`, só leitura: diff entre o SHA da parte 6 e o head (o que mudou) e `origin/main...origin/<branch>` (se a
+correção trouxe repetição nova). Os quatro heads batem com o SHA pedido. Nenhum dos quatro mesclou o `d9a53be9`; três
+mesclam limpo no `main` (`git merge-tree`); o cabeçalho continua com conflito em `.coord/diario/modulo-core.md`.
+
+### Lote 1: `nuvem/push-fcm-v2-modulo-core` @ `c7e8f2e6` (lido na parte 6 em `1efb8e69`)
+
+Um commit (`c7e8f2e6`): `push.ts`, `push.test.ts` e `contracts/notificacao.ts`.
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0443 | `silencioso`, `tituloDaBandeja` e `corpoDaBandeja` no topo de `push.ts` (`:35-38`); `montarMensagemExpo` e `montarMensagemFcm` só chamam os três. O 120, o 178/177 e o `trim() === ''` aparecem uma vez cada | **corrigido** |
+
+O commit também acrescenta `tokenPushFcmValido` no contrato (a proposta do RD-0442 na parte 6). Só que o app resolveu o
+RD-0442 por outro caminho (lote 3): valida com `PushTokenSchema.shape.token` e aceita Expo e FCM, como diz a ADR 0053 §1.
+Com isso, a função nova do contrato fica sem uso.
+
+| Campo | RD-0460 |
+|---|---|
+| Onde | `modules/core/contracts/notificacao.ts:82-84` (c7e8f2e6): `export const tokenPushFcmValido`, e o caso `'RD-0442: tokenPushFcmValido aceita só FCM de 1 a 300 caracteres'` em `modules/core/api/push.test.ts:67-72` |
+| Tipo | código |
+| O que se repete | Uma 3ª leitura de "token de push válido", sem quem chame. `git grep` nos branches do push: só o teste usa a função. O app (`891cd462`) usa `PushTokenSchema.shape.token` (FCM e Expo) e a API valida o registro pelo mesmo `PushTokenSchema`. O comentário diz "O app importa esta regra", e o app não importa. A regra de aceitar "só FCM" contradiz a ADR 0053 §1 ("validação que aceita os dois") |
+| Impacto | manutenção: export morto no contrato público do Core, com comentário falso e uma regra que nem a API nem o app aplicam |
+| Severidade | baixa (código de produção; segura o #312) |
+| Proposta | Apagar `tokenPushFcmValido` (as 3 linhas e o comentário) de `contracts/notificacao.ts`, o caso do teste e o import em `push.test.ts:3` (volta a `import { tipoDoToken } from '../contracts';`). Ficam `REGEX_TOKEN_EXPO`, `tipoDoToken` e `PushTokenSchema`, que bastam para o app e a API. Se o gerente preferir "o app aceita só FCM", o caminho inverso: o app troca `tokenPushValido` por `tokenPushFcmValido` e o engenheiro-software ajusta a ADR §1. Uma das duas regras sai |
+| Dono | modulo-core |
+
+Nada mais repetido no delta: o teste novo não repete o caso de `tipoDoToken`, que fica logo abaixo e cobre só o tipo.
+
+**Parecer do lote 1 (#312): segura (RD-0460).**
+
+---
+
+### Lote 3: `nuvem/push-fcm-engenheiro-apps` @ `891cd462` (lido na parte 6 em `9334bf0e`)
+
+Dois commits: `2d3890e1` (merge do `main` em `b536b829`, sem conteúdo próprio) e `891cd462` (`lib/push.ts`,
+`lib/push.test.ts`, `services/push.ts`).
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0442 | Saíram `TOKEN_FCM` e a regex própria. `tokenPushValido` (`lib/push.ts:62`) é só `PushTokenSchema.shape.token.safeParse(token).success`, importado de `@macuxi/core/contracts`. O app e a API usam a mesma regra (o `PushTokenSchema`, que já está no `main`) e o "300" ficou só no contrato. O app não usa o `tokenPushFcmValido` que o Core criou, e por isso nasce o RD-0460, que é do Core. O texto da ADR 0053 §1 ("uma validação que aceita os dois") passa a descrever o código: não precisa de ajuste | **corrigido** |
+| RD-0444 | O 1º caso de "FCM direto: data como mapa de textos" saiu. Ficam o formato Expo com `dataString` e os casos de `dadosDoPush`/`mensagemDaTarefaPush` | **corrigido** |
+
+O caso novo do validador (`push.test.ts:82-89`) junta os dois casos antigos num só, sem repetir caso. O
+`services/push.ts` só troca o nome.
+
+| Campo | RD-0461 |
+|---|---|
+| Onde | `apps/mobile/src/lib/push.ts:6-7` × `:11` (comentário do topo; já estava em `9334bf0e`) |
+| Tipo | código (só comentário) |
+| O que se repete | O formato de `entidades` está dito 2× no mesmo bloco: "Vem como lista, como texto JSON (`'["pedido"]'`, o FCM só leva texto) ou separada por vírgula" e "FCM direto (v1.0.10): `data` chega como mapa de textos; `entidades` vem como texto JSON ou separado por vírgula" |
+| Impacto | leitura |
+| Severidade | baixa: só comentário, **não segura** (R-20261111-190159); entra no lote seguinte |
+| Proposta | A última linha passa a: ` * FCM direto (v1.0.10): \`data\` chega como mapa de textos.` (o formato das entidades fica só no item `data.entidades`) |
+| Dono | engenheiro-apps |
+
+**Parecer do lote 3: sem achado em aberto (o RD-0461 é só comentário e não segura).** O app não depende do #312 para
+compilar: o `PushTokenSchema` já está no `main`.
+
+---
+
+### Lote 4: `nuvem/inicio-cabecalho-engenheiro-apps` @ `8446145d` (lido na parte 6 em `b227367e`)
+
+Um commit (`8446145d`): `state/plataforma.tsx` e `lib/foto-perfil-endereco.test.ts`.
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0445 | `const podeBaixar = useCallback(() => !offlineRef.current && sessaoRef.current !== null, [])` em `plataforma.tsx:218`. As 5 linhas (`:312`, `:331`, `:333`, `:335`, `:1009`) usam `podeBaixar`, e as dependências dos `useMemo`/`useEffect` ganharam `podeBaixar`. `git grep` não acha mais a condição escrita à mão | **corrigido** |
+| RD-0446 | Saíram os casos 2 e 3. Ficam o 1º (rota, teto e cache) e o do id que não é UUID. O comentário do topo diz em uma frase onde estão os casos que saíram | **corrigido** |
+
+**Mescla com o `main`:** o branch **não** mesclou o `main` (o merge-base continua antes do #297). O
+`origin/main...origin/<branch>` ainda leva 3 linhas do `.coord/diario/modulo-core.md` (variação C, RD-0398 e RD-0399) que
+o `main` já tem (`:168-170`), e o `merge-tree` acusa conflito nesse arquivo. Os arquivos de `modules/core` do branch
+continuam iguais ao `main`, e o delta real é o do shell. Não é RD do engenheiro-apps: é a mesma pendência de mescla da
+parte 6 (veja "Para o gerente (parte 7)", item 3). Se o conflito for resolvido ficando com as linhas do branch, o diário do Core sai com as 3
+linhas duas vezes.
+
+**Parecer do lote 4: sem achado em aberto.** O PR só deve abrir depois de mesclar o `main`, ficando com o diário do Core
+como está no `main`.
+
+---
+
+### Lote 2: `nuvem/android-build-disco-engenheiro-software` @ `ce226c48` (PR #313, lido na parte 6 em `7440ea9f`)
+
+Um commit (`ce226c48`): `android-build.yml`, `android-build.test.mjs` e uma linha do diário.
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0447 | Saiu `NDK_VERSAO: '27.1.12297006'` do `env`. O passo "liberar disco" foi para depois de "instalar dependências" (`:116` → `:122`) e lê a versão com o `sed` no `libs.versions.toml`, com `::error` se não achar. No teste saíram o `try/catch` e a comparação calada. Ele confere a ordem (depois do install, antes do prebuild), a ausência da cópia e o `sed`. O número `27.1.12297006` não aparece mais no workflow nem no teste | **corrigido** |
+
+Nada novo repetido: um só `df -h` antes e um depois, como na parte 6 (`manter`). A linha nova do diário não repete a anterior:
+uma registra o passo e a outra, o RD.
+
+**Parecer do lote 2 (#313): sem achado em aberto.**
+
+---
+
+## Rascunho B da parte 7: reteste dos RD abertos (itens 5, 6, 7, 8 e 12b)
+
+Feito em 15/11/2026, manhã de Manaus. Base `origin/main` = `d9a53be9` (#314 Catálogo, #315 Treinamento, #316 rota do rodapé,
+
+### Lote 5: `nuvem/bko-revisao-modulo-core` @ `a238186d` (lido na parte 6 em `da495ed0`)
+
+Li `git diff da495ed0 a238186d`. Há o merge `0bfeabba` do `main` (`b536b829`), sem rebase, e o commit `a238186d` com 7
+arquivos. O `merge-tree` com o `main` (`d9a53be9`) sai limpo. Abri o print novo
+`modules/core/web/docs/prints/bko-revisao/depois/rotas-1366x768.png`.
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0448 | `centavosDoTexto` saiu de `web/lib/indicadores.ts`, e `metas.ts:9` importa de `./plano-rv`. Sobrou uma função só (`plano-rv.ts:113`), coberta por `plano-rv.test.ts:56-58` | **corrigido** |
+| RD-0449 | `pending` e `avgPerRoute` saíram de `RouteKpis` e de `routeKpis` (`routes.ts:278-307`), e os dois `expect` de `routes.test.ts:229-230` seguem a proposta. O `withStops` continua em uso (`routes`). No print: "Visitadas 8 de 24 · 33%", "Em atendimento 0" e "Km total 5.083" | **corrigido** |
+
+O que passa:
+- O commit não trouxe repetição nova: só remove código e troca a cor.
+- **MC-0075** (`bg-ink` → `bg-accent` no alternador Dia/Semana/Mês, nos chips de Rotas e nos dias de Parâmetros do Início)
+  é cor, sem texto novo. Precisa da validação do design-de-marca antes do lote.
+
+**Parecer do lote 5: sem achado em aberto.** A MC-0075 depende da validação do design-de-marca.
+
+---
+
+### Lote 6: `nuvem/rodape-legal-banco-dados` @ `b1661fbe` (lido na parte 6 em `c2db8450`)
+
+O `b1661fbe` mescla o `nuvem/empresa-acoes-banco-dados` (`a298381f`) e corrige os RD-0452 e RD-0453. Li o
+`git diff c2db8450 b1661fbe` (23 arquivos: 0070–0072, Drizzle, `conferir-rls.sql`, `excecoes.ts`, testes e docs do banco).
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0452 | Na `sa_gravar_dados_legais`, logo depois do `select … for update`, vem `v_antes := plataforma.dados_legais_publicos();`. O `case` saiu, e cada ramo ficou só com o `insert` ou só com o `update`. A linha nasce com `insert into plataforma.dados_legais default values;` (l.66). O site padrão ficou em 2 lugares do código (o `default` da coluna, l.41, e o padrão da leitura pública, l.81), mais o comentário do cabeçalho (l.18), como proposto | **corrigido** |
+| RD-0453 | `db/testes/util.ts` ganhou `comoPapel` e `erroNoSavepoint`. O `qsp` saiu do `plano-assinatura` (usa `erroNoSavepoint`), e `empresa-acoes` e `dados-legais` usam `comoPapel`. **Sobram:** (1) o `como` local de `plano-assinatura.db.test.ts:148-161`, igual ao `comoPapel`, num arquivo que também é novo neste lote e foi tocado (13ª cópia); (2) o comentário órfão `/** Comando do admin que deve falhar, num savepoint … */` em `empresa-acoes.db.test.ts:205`, que ficou em cima da `sessaoSuperAdmin` quando o `erroDoAdmin` saiu | **em correção** (só teste, não segura) |
+
+**A mescla com o banco das ações da empresa:**
+- `db/testes/funcoes-sa.ts`: cada constante aparece uma vez só (`FUNCOES_SA_ATE_0069` em l.92, `FUNCOES_SA_ATE_0071`,
+  `FUNCOES_SA_ATE_0072`, `FUNCOES_SA_ATUAIS` = 27 e `FUNCOES_WORKER_0072`). A `FUNCOES_SA_ATE_0069` continua com uso
+  (`diagnostico.test.ts:141`). Nenhuma lista foi escrita duas vezes.
+- Em `conferir-rls.sql`, cada tabela nova aparece duas vezes, uma em cada lista: "sem tenant_id" (l.37-50) e "só por
+  função" (l.53-65). É o padrão que o `main` já usa, com conferência por teste. `manter`.
+- `excecoes.ts`, o Drizzle e o `estatico.test.ts` têm os dois lados juntos, sem linha repetida.
+- Novo: a composição "14 + 2 + 1 + 8 + 2" da contagem foi copiada em comentários de teste. Veja o RD-0465.
+
+| Campo | RD-0465 |
+|---|---|
+| Onde | `db/testes/diagnostico.test.ts:141` e `db/testes/portal-admin-multiperfil.test.ts:246` (comentários), × as docstrings de `db/testes/funcoes-sa.ts:100,118,131` |
+| Tipo | teste (comentário) |
+| O que se repete | A contagem por migração está escrita 3×: nas docstrings de `funcoes-sa.ts` ("as 17 até a 0071 + …", "= 25", "= 27") e nos comentários das duas asserções ("16 da 0058 à 0069; a 0070 acrescenta 1, a 0072 8 e a 0073 2" e "14 da 0047 + 2 da 0058 + 1 da 0070 + 8 da 0072 + 2 da 0073"). Esta mescla teve de mudar os dois comentários |
+| Impacto | manutenção: cada `sa_*` nova muda dois comentários de teste que não conferem nada |
+| Severidade | baixa. Está **só em comentário de teste**, então **não segura** (R-20261111-190159) |
+| Proposta | `diagnostico.test.ts:141`: `// 16 da 0058 à 0069 (as seguintes: funcoes-sa.ts)`. `portal-admin-multiperfil.test.ts:246`: `// banco na última (a composição está em funcoes-sa.ts)` |
+| Dono | banco-dados |
+
+O `merge-tree` com o `main` (`d9a53be9`) dá conflito em `apps/api/src/app.ts` e add/add em `apps/api/src/dados-legais.ts` e
+`apps/api/test/dados-legais.test.ts`. O branch ainda carrega a API antiga do rodapé (`a9965d78`), e o `main` já tem a final
+(#316). Não é redundância. Veja "Para o gerente (parte 7)", item 4.
+
+**Parecer do lote 6: sem achado em aberto.** O RD-0453 (sobra) e o RD-0465 são só de teste e não seguram.
+
+---
+
+### Lote 7: `nuvem/empresa-acoes-engenheiro-software` @ `9bede2ef` (lido na parte 6 em `f75cc7dc`)
+
+Li `git diff f75cc7dc 9bede2ef`. O `9bede2ef` mescla o `16e6eb4a` (rodapé, o mesmo conteúdo do #316) e adapta a rota.
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0428 | `portal-comum.ts`, `portal-comum.test.ts` e `dados-legais.ts` ficaram **idênticos ao `main`** (`git diff origin/main` vazio nos três). A rota das ações usa `DepsAcoesEmpresa { autenticar: AutenticarPortal; … }` e `exigirSuperAdmin(dep.autenticar, …)` (`empresa-acoes-portal.ts:106,174`). O `git grep` não acha mais `AutenticacaoDoPortal` nem `exigirSuperAdmin(dep,` no branch. O `merge-tree` com o `main` só dá conflito de texto em `app.ts` (os campos das ações da empresa ao lado do `fonteDadosLegais`), sem add/add | **corrigido** |
+| RD-0454 (parte da API) | `MENSAGEM_SO_SUPER_ADMIN_ACOES = 'Só o time da Macuxi faz esta ação.'` está no SDK (`empresa-acoes.ts:44`) e conferida em `empresa-acoes.test.ts:60`. A API usa a constante (`empresa-acoes-portal.ts:174`), e o teste da rota compara a `mensagem` do 403 com ela (l.171). No branch, a frase não aparece mais escrita à mão na API | feito (o status do RD fica no lote 8) |
+
+**O que se repete com o 12b:** este branch (`f75cc7dc`) e o `nuvem/sa-listas-engenheiro-software` (`d3310610`)
+acrescentam as mesmas 9 `sa_*` (a da 0070 e as 8 da 0072) nos mesmos 3 arquivos. O `merge-tree` entre os dois dá conflito
+nos 3 arquivos. O 12b é um superconjunto, porque traz também as 2 da 0073.
+
+| Campo | RD-0462 |
+|---|---|
+| Onde | `apps/api/test/funcoes-sa.ts` (`SA_PORTAL`, 9 linhas e a docstring), `apps/api/test/funcoes-sa.test.ts` (cabeçalho, título e `toHaveLength`) e `scripts/deploy/producao/banco-dbaas.sh:105-118` (comentário e `SA_PORTAL`), em `nuvem/empresa-acoes-engenheiro-software` (= 25) × `nuvem/sa-listas-engenheiro-software` (= 27) |
+| Tipo | tarefa · código |
+| O que se repete | As mesmas 9 assinaturas `sa_*` foram escritas duas vezes, em dois branches do mesmo dono e nos mesmos 3 arquivos. A contagem é diferente (25 × 27), e isso dá conflito nos 3 arquivos. O teste `new Set(todas).size` pega linha repetida, mas cada branch mantém sua versão |
+| Impacto | manutenção e toques: o mesmo trabalho feito duas vezes e conflito garantido no segundo merge, num script de deploy de produção |
+| Severidade | baixa. Toca um script de produção (`banco-dbaas.sh`), então **segura o lote 7** |
+| Proposta | Uma lista só, a do 12b. Ordem: 6 (banco, 0070–0073) → 12b → o 7 mescla o `main` e, nos 3 arquivos, fica com a versão do `main`. Depois disso o diff do 7 nesses arquivos fica vazio. O 7 não volta os arquivos antes da hora: sem a lista de 25, o próprio CI dele (com a 0070–0072) falha |
+| Dono | engenheiro-software |
+
+**Parecer do lote 7: segura (RD-0462, baixa).** O RD-0428 foi corrigido. O RD-0406 continua como na parte 6 (falta o Core;
+não segura este lote).
+
+---
+
+### Lote 8: `nuvem/empresa-acoes-engenheiro-apps` @ `e60fba63` (lido na parte 6 em `8705f496`)
+
+Li `git diff 8705f496 e60fba63`: um arquivo, uma linha.
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0454 | O 403 do modo falso agora diz `'Só o time da Macuxi faz esta ação.'` (`portal-falso.ts:205`), a mesma frase da API: o impacto de leitura acabou. Mas a frase continua escrita à mão em 2 lugares do branch: `portal-falso.ts:205` e `apps/api/src/empresa-acoes-portal.ts:175`, porque o branch não mescla o `9bede2ef`. O mesmo arquivo já lê `MENSAGENS_ACOES_EMPRESA` do SDK (l.23, l.199) para as outras recusas | **em correção** |
+
+Proposta (a mesma da parte 6): mesclar o `9bede2ef` (o `merge-tree` dos dois sai limpo; ele traz a constante e a API
+usando a constante) e trocar a l.205 por
+`return erro(403, 'PERFIL_SEM_ACESSO', MENSAGEM_SO_SUPER_ADMIN_ACOES);`, com o import ao lado de `MENSAGENS_ACOES_EMPRESA`.
+A mescla do 7 também acaba com o add/add de `portal-comum.ts` e `portal-comum.test.ts` com o `main`, que o `merge-tree` ainda
+acusa.
+
+**Parecer do lote 8: segura (RD-0454, baixa, código de produção).**
+
+---
+
+### Lote 12b: `nuvem/sa-listas-engenheiro-software` @ `d3310610` (primeira avaliação)
+
+Li `git diff origin/main...origin/nuvem/sa-listas-engenheiro-software`: um commit e 3 arquivos (`apps/api/test/funcoes-sa.ts`,
+`funcoes-sa.test.ts` e `scripts/deploy/producao/banco-dbaas.sh`). O commit põe as 11 `sa_*` da 0070, 0072 e 0073 nas
+listas, como pedia a observação 7 da parte 6. O `merge-tree` com o `main` sai limpo.
+
+**As listas.** Há uma terceira lista, além das duas que o commit muda:
+1. `apps/api/test/funcoes-sa.ts` (`SA_PORTAL`, 27; `SA_INTERNAS`, 1). Engenheiro-software.
+2. `scripts/deploy/producao/banco-dbaas.sh` (`SA_PORTAL`/`SA_INTERNAS` em texto, para o `psql`). É espelho da 1, e o
+   `funcoes-sa.test.ts:74` confere. O `.sh` não importa TypeScript, então precisa da lista em texto: `manter`.
+3. `db/testes/funcoes-sa.ts` (`FUNCOES_SA_ATUAIS`, 27; `SA_INTERNA`). Banco-dados, conferida pelo `papel-portal.test.ts:188`
+   e pelo `portal-email-senha.test.ts:227`.
+
+As listas 1 e 3 são o mesmo conjunto, escrito duas vezes em TypeScript por dois donos. Cada uma é conferida pelas migrações
+num teste diferente, mas nenhum teste confere uma contra a outra. Na parte 6 (lote 7b) as três ficaram como `manter`. Dois
+fatos novos mudam isso: (a) a observação 7 da parte 6 achou a lista 1 sem as `sa_*` da 0073, que a 3 já tinha; (b) o RD-0462
+(duas edições da lista 1 em paralelo). Além disso, o `@macuxi/db` já exporta utilitários de teste (`./teste/util`), então a
+API pode importar a lista 3. Daí o RD-0463.
+
+| Campo | RD-0463 |
+|---|---|
+| Onde | `apps/api/test/funcoes-sa.ts:17-49` (`SA_PORTAL`, `SA_INTERNAS`) × `db/testes/funcoes-sa.ts` (`FUNCOES_SA_ATUAIS`, `SA_INTERNA`) |
+| Tipo | teste |
+| O que se repete | As 27 assinaturas `sa_*` com grant ao portal e a interna `sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)` estão escritas nos dois arquivos, com a mesma ordem por migração |
+| Impacto | manutenção: cada `sa_*` nova pede 2 edições de 2 donos (e 3 com o `.sh`); a da API já ficou para trás uma vez (obs. 7 da parte 6) |
+| Severidade | baixa. Está **só em teste**, então **não segura** (R-20261111-190159) e entra no lote seguinte |
+| Proposta | O banco-dados exporta `"./teste/funcoes-sa": "./testes/funcoes-sa.ts"` no `db/package.json`. A API passa a ter `import { FUNCOES_SA_ATUAIS, SA_INTERNA } from '@macuxi/db/teste/funcoes-sa'; export const SA_PORTAL: readonly string[] = FUNCOES_SA_ATUAIS; export const SA_INTERNAS: readonly string[] = [SA_INTERNA];`. O `.sh` continua espelho, conferido pelo `funcoes-sa.test.ts:74` |
+| Dono | engenheiro-software (export no `db/package.json`: banco-dados) |
+
+| Campo | RD-0464 |
+|---|---|
+| Onde | `scripts/deploy/producao/banco-dbaas.sh:104-107` (comentário); no teste: `apps/api/test/funcoes-sa.ts:4-8` (docstring) e `apps/api/test/funcoes-sa.test.ts:8` (cabeçalho) |
+| Tipo | código (comentário do script de deploy) · teste |
+| O que se repete | A história da contagem ("as 12 do login … e as 2 do super-admin … as 2 dos diagnósticos … a da assinatura … as 8 das ações … as 2 dos dados legais = 27") está escrita 3× do lado da API, logo acima da lista que ela descreve. No 7 a mesma frase diz "= 25" (RD-0462) |
+| Impacto | manutenção: cada `sa_*` nova muda 3 comentários; a lista e o teste de espelho já dizem tudo |
+| Severidade | baixa. A parte do `.sh` é comentário de script de produção, então **segura o 12b**. A parte de teste não seguraria sozinha |
+| Proposta | `banco-dbaas.sh:104-107` → `# As sa_* por classe (espelho de apps/api/test/funcoes-sa.ts; o funcoes-sa.test.ts confere que as listas batem): SA_PORTAL só o macuxi_portal executa; SA_INTERNAS sem EXECUTE para ninguém além do dono.` (sem as contagens). No teste: a docstring de `funcoes-sa.ts` fica com uma frase por classe, sem a história, e a linha 8 do cabeçalho do `funcoes-sa.test.ts` sai. O número fica só no `toHaveLength(27)` e no título |
+| Dono | engenheiro-software |
+
+**Parecer do lote 12b: segura (RD-0464, baixa, pelo comentário do `.sh`).** O RD-0463 é só de teste e não segura. O
+RD-0462 é resolvido pela ordem de merge e segura o 7, não o 12b.
+
+---
+
+## Rascunho C da parte 7: reteste do kit da thathyany, logo do cliente, rodapé do shell, CS-09 e filtro de Pedidos (itens 9, 10, 11, 12a e 13)
+
+Base: `origin/main` = `d9a53be9` (já entraram #314 Catálogo, #315 Treinamento, #316 rota do rodapé e #317 chave do Conector).
+Em cada branch foram lidos o diff entre o SHA da parte 6 e o head e o `origin/main...origin/<branch>`, para ver se a correção
+trouxe repetição nova. Prints extraídos com `git show` e abertos (`7C-carga-campo.png`, `7C-carga-gestao.png`).
+
+### Lote 9: `nuvem/kit-thathyany-modulo-integracao` @ `58b62e12` (kit 1.0.4; lido na parte 6 em `f3619bc4`)
+
+Lidos o merge do `main` (`73664210`, sem mudança no kit) e o `58b62e12` (6 arquivos do kit, 18+ e 91−). No
+`origin/main...` o kit continua só com os 44 arquivos do próprio módulo; `merge-tree` com o `d9a53be9` sai limpo.
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0455 | (1) Saíram `_dv_cpf`, `cpf_valido`, os ramos `cpf` e `cpf_cnpj` de `converter_celula` e os testes `test_cpf_valido_e_invalido` e `test_regras_cpf_e_cpf_cnpj_na_celula`; nenhum `cpf` sobra no kit. (2) A l.224 usa `_so_digitos(texto)`. (3) `SERVIDOR_PADRAO = r".\SQLEXPRESS"` no topo, usado nos dois `return` e no `help` do `--servidor` (f-string). Sobram o `.\\SQLEXPRESS` da docstring de `servidor_padrao` e o esperado dos dois testes Python (l.373 e l.384): `manter` (o teste fixa o valor, não lê a constante) | **corrigido** |
+| RD-0456 | `Passo-Api` chama `$npm = Achar-Node` (l.407); a `Falha` ficou como na proposta. A busca do `npm.cmd` existe só no `Achar-Node` (l.204-210) | **corrigido** |
+| RD-0457 | `ROTEIRO.md:11` com o texto proposto, palavra por palavra: "**SQL Server Express instalado no notebook:** se ainda não houver, instale o SQL Server 2022 Express (instalação Básica) no idioma do Windows. O banco é o `ERP_THATHYANY`." O `-Instancia <nome>` ficou só nas duas `Falha` do instalador (l.166 e l.170) e no help do parâmetro. O nome do zip passou a `macuxi-kit-thathyany-1.0.4.zip` e bate com `VERSAO_KIT = '1.0.4'` | **corrigido** |
+| RD-0458 | O caso "nenhum .ps1 do zip tem $var: em string…" saiu do `kit-thathyany.test.ts`, com a lista `ok` dos 8 escopos. A checagem fica só na camada 2 de `tests/integracao/kits-ps1-parse.test.ts` (`75609a4d`), que varre os `.ps1` de `modules/integracao/kit-*` e por isso cobre o `Instalar-Thathyany.ps1` | **corrigido** (veja a observação 2 sobre a ordem de merge) |
+| RD-0459 | Saiu o caso "filial: o contrato do kit exige…". O caso "negativo" ficou só com o lado do Hub (`SCHEMA_REGISTRO.filial.safeParse` falha com o CNPJ de DV errado) e com `regra` `{ cnpj: true }` no contrato; saíram o `spawnSync` do Python, o `mkdtempSync` e os imports que só ele usava. A recusa pelo `carga_csv.py` fica no `test_carga_csv.py` | **corrigido** |
+
+O que passa:
+- O comentário de `gerar.ts:55` ("…defeito 4, kit 1.0.3") diz em que versão as regras entraram; é histórico e não repete a
+  versão do zip.
+
+**Parecer do lote 9: sem achado em aberto.**
+
+---
+
+### Lote 10: `nuvem/logo-cliente-designer-ux` @ `d832bc4a` (lido na parte 6 em `c6d5a4b4`)
+
+Lidos `fd7dee77` (RD-0451 e prints) e `d832bc4a` (RD-0450): 4 arquivos (`logo-cliente.md`, `carga.html` e os dois PNG da
+carga). `merge-tree` com o `d9a53be9` sai limpo; o `origin/main...` traz só os 18 arquivos da simulação.
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0450 | A l.5 ("Frase do Mais com o **nome fantasia**…") e as duas notas "Revisão de 2026-11-15" e "Decisão do dono do produto" saíram. Ficou uma nota só, com o texto proposto: "**Decisões** (R-20261114-223500 e R-20261114-234500-alexandre; MC-0066 e MC-0067, parecer do design-de-marca …, parte 2, lote 13): carga com a logo ao lado (§3), login e telas de senha sem logo (§4), placa 52/36 e nome fantasia no Mais (§5). O portal e os PDFs ficam como nesta simulação." O "nome fantasia" aparece no topo uma vez (resumo da decisão) e a regra fica no §5 (l.136) | **corrigido** |
+| RD-0451 | `carga.html:61`: a linha mostra só `<b>38%</b>`; "Etapa 2 de 5 · Clientes e rota" foi para o `aria-label` do `<span>`. Abertos os PNG refeitos: nas 4 telas (Campo e Gestão, sem e com logo) aparecem só o "38%", a barra e a lista de etapas, com a etapa atual em destaque ("Clientes e rota" no Campo, "Equipe" na Gestão). Nenhum "Etapa n de N" à vista; o progresso tem 2 formas (% e barra) mais a lista, como no app de hoje (RD-0239). A tela sem logo é igual à de hoje | **corrigido** |
+
+O que passa:
+- A frase combinada continua: "**Licenciado para <nome fantasia>**" no §5 (l.130) e "Licenciado para Exemplo Norte" em
+  `mais.html:43`.
+- O `aria-label` num `<span>` vazio é só da simulação; no app o rótulo vai pelo `accessibilityLabel` que já existe
+  (`apps/mobile/src/lib/entrada.ts`). Não é RD.
+
+**Parecer do lote 10: sem achado em aberto.** Os prints da carga mudaram: o design-de-marca valida os novos `carga-campo.png`
+e `carga-gestao.png`.
+
+---
+
+### Lote 11: `nuvem/rodape-shell-engenheiro-apps` @ `30a659ed` (lido na parte 6 em `474164cb`)
+
+Um commit novo só, o merge `30a659ed` (pais `474164cb` e `b536b829`). Conferido: a árvore do `30a659ed` (`aafe6720`) é
+**idêntica** à de `git merge-tree --write-tree 474164cb b536b829`. O merge não traz nenhuma linha do próprio branch: é
+só o que veio do `main`. O `origin/main...` continua com os mesmos 31 arquivos lidos na parte 6.
+
+O parecer não muda: RD-0433 em correção no lote do kit (decisão b do gerente-projetos), RD-0434 e RD-0435 corrigidos,
+RD-0436 aberto no Core (não segura o shell).
+
+Porém o branch **não mescla mais limpo com o `main` atual**: `git merge-tree origin/main` dá conflito add/add em
+`apps/api/src/dados-legais.ts`, `apps/api/src/portal-comum.ts` e `apps/api/test/portal-comum.test.ts`. O shell carrega a
+versão antiga da rota (`a9965d78` e `788cc483`, do engenheiro-software), e o #316 (`c57c26f1`) entrou com a versão nova.
+Não é RD (veja "Para o gerente (parte 7)", item 6).
+
+**Parecer do lote 11: sem achado em aberto.** Precisa de um novo merge do `main`, e os três arquivos da API ficam como
+estão no `main`.
+
+---
+
+### Lote 12a: `nuvem/email-senha-testes-v2` @ `75fd4f84` (primeira avaliação; substitui `nuvem/email-senha-testes` @ `32bb52c8`)
+
+Base: `b536b829`. `origin/main...` = 1 commit, 2 arquivos.
+
+**Não é o mesmo conteúdo do `32bb52c8`.** O `32bb52c8` comparava com `codificarCabecalho(ASSUNTOS_EMAIL[…])` e dependia do
+`mime.ts` do #302. O `75fd4f84` cria em `tests/integracao/apoio/email.ts` a função `assuntoDoEml(bruto)`: ela desdobra o
+`Subject`, decodifica as encoded-words `B` e `Q` e compara de forma exata com `ASSUNTOS_EMAIL[…]`. As duas asserções do
+CS-09 (`ciclo-senha-t0094.test.ts:1124` e `:1131`) foram trocadas, e nenhuma foi acrescentada. O resultado vale com o
+assunto em texto puro (`main`) e em RFC 2047 (#302).
+
+Repetição com o que já está no `main`:
+- `mime.test.ts:43` decodifica as encoded-words de um assunto fixo, em linha, para provar o corte de 75 caracteres
+  (unidade). O CS-09 confere o assunto de cada modelo de ponta a ponta. São camadas diferentes: `manter`.
+- `decodificarPartes` (`apps/api/src/email/apoio-teste.ts:84`) decodifica o corpo, não o cabeçalho. A função nova não
+  duplica nenhum helper.
+
+| Campo | RD-0466 |
+|---|---|
+| Onde | `tests/integracao/apoio/email.ts` (75fd4f84), `assuntoDoEml`: `PALAVRA_CODIFICADA = /=\?([^?]+)\?([BbQq])\?…/` e o ramo `: Buffer.from(texto.replace(/_/g, ' ').replace(/=([0-9A-Fa-f]{2})/g, …), 'latin1')` |
+| Tipo | teste |
+| O que se repete | Excesso: o decodificador aceita a forma `Q` (quoted-printable), mas nenhum produtor do repositório a emite. O `codificarCabecalho` do `mime.ts` (#302) só gera `=?UTF-8?B?…?=`, e o `main` grava em texto puro. O ramo `Q` (1 regex de 2 trocas) é código sem caso de uso, e nenhum teste passa por ele |
+| Impacto | manutenção: caminho de apoio não exercitado, que pode esconder um erro de decodificação e passar a impressão de que o e-mail usa `Q` |
+| Severidade | baixa. Está **só em teste**, então **não segura** (R-20261111-190159) e entra no lote seguinte |
+| Proposta | `const PALAVRA_CODIFICADA = /=\?([^?]+)\?[Bb]\?([^?]*)\?=/g;` e, na troca, `(_p, charset: string, texto: string) => new TextDecoder(charset).decode(Buffer.from(texto, 'base64'))`. Na expressão do espaço entre palavras, `\?[Bb]\?`. No comentário: "(RFC 2047, forma `B`, a única que o `mime.ts` emite)" |
+| Dono | testes |
+
+**Parecer do lote 12a: sem achado em aberto que segure** (RD-0466 é só de teste). O `nuvem/email-senha-testes`
+(`32bb52c8`) fica superado por este branch ("Para o gerente (parte 7)", Quadro).
+
+---
+
+### Lote 13: `nuvem/bko-revisao-modulo-vendedor` (PR #298) @ `a7f25a42` (lido na parte 6 em `f93f44cd`)
+
+Um commit novo, o `a7f25a42` (só `modules/vendedor/api/pedidos.ts`, 3+ e 2−). `merge-tree` com o `d9a53be9` sai limpo.
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0441 | Voltou `const valores = [e.vendedores, …, q.sem_pendentes === '1']` (17 itens, l.178). A lista usa `valores` e o total usa `[...valores, [...STATUS_FORA_DO_TOTAL]]`, então os 17 parâmetros ficam escritos 1× só. Antes, o total passava `null, null` no lugar do cursor ($11, $12); agora passa `cursor?.createdAt ?? null` e `cursor?.id ?? null`. Como o total só roda com `q.totais === '1' && !cursor` (l.207), os dois continuam `null`: não há mudança de resultado. **Falta a outra metade da proposta:** o teste FB-1 (`tests/modulos/filial-filtro-reserva-t0149.test.ts:63-68`, do testes) não mudou e nenhum branch o altera. A regex ``/order by p\.created_at desc, p\.id desc\s+limit \$9`,\s+\[([^\]]+)\]/`` não acha mais o `[` (agora vem `valores,`), e `lista[15]` dá `undefined`. Rodei a regex contra o arquivo do branch e deu `undefined`. O CI do `a7f25a42` está **vermelho**: "testes de integração (tests/, 3/3)" falha em `FB-1: o contrato da lista aceita branch_id (UUID)…`, com `expected undefined to be 'q.branch_id ?? null'` | **corrigido no código do Vendedor**. O resto é o teste do testes, que é defeito funcional (CI vermelho) e não RD; veja "Para o testes (parte 7)", item 5 |
+
+**Parecer do lote 13: sem achado em aberto** de redundância. O PR #298 **não pode ir ao merge** enquanto o FB-1 não for
+ajustado pelo testes, porque o CI está vermelho ("Para o testes (parte 7)", item 5).
+
+---
+
+## Para o testes (parte 7, sem RD)
+1. **Lote 3 × observação 1 da parte 6:** o app agora aceita token Expo e FCM (`tokenPushValido` = `PushTokenSchema`), como
+   diz a ADR 0053 §1. O caso "o token do Expo não é mais aceito" saiu. Como o `getDevicePushTokenAsync()` só devolve o token
+   FCM cru, na prática nada muda no aparelho. Conferir se fica assim e fechar a observação 1.
+2. **Lote 2:** a comparação do NDK deixou de pular calada; um `ndkVersion` que falte derruba o build no passo "liberar
+   disco". Conferir no primeiro `android-build.yml` real (o `NDK preservado:` do log precisa mostrar uma versão).
+3. **Lote 12b sozinho no `main`:** o branch não tem as migrações 0070–0073, e o `funcoes-sa.test.ts` (l.48) deve falhar com
+   27 na lista e 16 no catálogo. Só passa depois do lote 6 (banco) no `main`. Conferir no CI do PR.
+4. **Lote 6, `sa_gravar_dados_legais`:** o `v_antes := plataforma.dados_legais_publicos()` fica entre o `select … for
+   update` e o `if not found`. Uma atribuição não muda o `FOUND`, mas vale um caso de banco com a linha apagada à mão, para
+   garantir que o ramo do `insert` continua sendo o que roda. Confirmar no CI.
+5. **PR #298 (`a7f25a42`), CI vermelho no FB-1** (`tests/modulos/filial-filtro-reserva-t0149.test.ts`, caso "FB-1: o
+   contrato da lista aceita branch_id…"): a regex procura o array literal depois de ``limit $9` ``, e o modulo-vendedor
+   voltou a constante `valores` (RD-0441). Proposta: ler a constante e conferir o uso dela nas duas consultas.
+   ```ts
+   const params = /const valores = \[([^\]]+)\];/.exec(api)?.[1] ?? '';
+   const lista = params.split(/,\s*(?![^(]*\))/).map((s) => s.trim());
+   expect(lista[15]).toBe('q.branch_id ?? null');
+   expect(api).toMatch(/limit \$9`,\s+valores,/);
+   expect(api).toContain('[...valores, [...STATUS_FORA_DO_TOTAL]]');
+   ```
+   O índice foi conferido: o `split` não parte o `(q.situacao ?? null)`, e o 16º item é `q.branch_id ?? null`. O ajuste
+   entra junto com o #298 (mesmo PR ou antes dele), senão o `main` fica vermelho.
+
+## Para o gerente (parte 7)
+Já estão no `main` (base `d9a53be9`): #314, #315, #316 e #317.
+
+**Ordem de merge:**
+1. **Push:** #311 (governança) → #312 depois do RD-0460 (o Core apaga o `tokenPushFcmValido`; o app não muda). Os dois donos
+   aplicaram propostas diferentes do RD-0442: o app ficou com a ADR (aceita os dois) e o Core criou o validador "só FCM" que
+   ninguém chama. O lote 3 (app) não depende do #312 para compilar: o `PushTokenSchema` já está no `main`.
+2. **#313** liberado pelo corretor (governança: o merge depende da autorização do dono do produto).
+3. **Cabeçalho do shell (4, `8446145d`):** mesclar o `main` (sem rebase) e resolver o `.coord/diario/modulo-core.md` ficando
+   com o do `main`; só então abrir o PR. Sem isso, o PR leva 3 linhas de diário de outro dono, já presentes no `main`.
+4. **Banco e API:** 6 (`rodape-legal-banco-dados`, 0070–0073) mescla o `main` (`d9a53be9`) antes do PR, ficando com
+   `apps/api/src/app.ts`, `dados-legais.ts` e `test/dados-legais.test.ts` como no `main` (hoje carrega a API antiga
+   `a9965d78`) → 12b → 7 mescla o `main` e fica com a versão dele nos 3 arquivos das listas `sa_*` (RD-0462; conflito de
+   texto em `app.ts`) → 8 mescla o 7 e troca a l.205 do `portal-falso.ts` pela constante (RD-0454). O 7 e o 8 levam a
+   0070–0072 e arquivos de `db/` pela mescla; com o 6 no `main` antes, esse diff some.
+5. **Kit (9):** o `nuvem/kit-ps1-parse-testes` (`75609a4d`) entra antes do kit (`58b62e12`) ou junto com ele; senão o `main`
+   fica sem a checagem `$nome:` (RD-0458) até ele entrar.
+6. **Rodapé do shell (11, `30a659ed`):** conflito add/add com o `main` atual em `apps/api/src/dados-legais.ts`,
+   `apps/api/src/portal-comum.ts` e `apps/api/test/portal-comum.test.ts`. O engenheiro-apps mescla o `main` de novo e fica
+   com a versão do `main` (os arquivos são do engenheiro-software); ficar com a do branch desfaria o #316.
+7. **PR #298 (13):** RD-0441 corrigido no código, mas o CI está vermelho pelo FB-1. Pedir o ajuste ao testes (acima) e
+   mandar o #298 ao merge junto com ele.
+8. **Core (5):** a MC-0075 depende da validação do design-de-marca antes do lote.
+
+**Quadro:** o `nuvem/email-senha-testes` (`32bb52c8`) foi substituído pelo `nuvem/email-senha-testes-v2` (`75fd4f84`).
+Fechar o antigo, para não haver duas entregas da mesma tarefa.
+
+## Para o design-de-marca (parte 7)
+- **Lote 5 (Core):** MC-0075, `bg-ink` → `bg-accent` no alternador Dia/Semana/Mês, nos chips de Rotas e nos dias de
+  Parâmetros do Início (cor).
+- **Lote 10 (logo do cliente):** os novos `docs/design/telas/logo-cliente/carga-campo.png` e `carga-gestao.png` (`d832bc4a`)
+  substituem os da parte 6 e precisam da validação de layout.
