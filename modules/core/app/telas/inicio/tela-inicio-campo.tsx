@@ -204,7 +204,7 @@ function estilos(e: EscalaInicio) {
     // Realizado e meta quebram em 2 linhas quando não cabem na largura do cartão (nunca cortam o valor)
     valores: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: space.xs },
     rotuloMeta: { ...t.label, flex: 1, fontSize: f.label },
-    real: { ...fonte.bold, fontSize: f.real, color: colors.ink, fontVariant: ['tabular-nums'] },
+    real: { ...t.number, fontSize: f.real },
     meta: { ...fonte.body, fontSize: f.meta, color: colors.ink2 },
     linhaBarra: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
     percentual: { ...fonte.bold, fontSize: f.percentual, fontVariant: ['tabular-nums'] },
@@ -216,7 +216,7 @@ function estilos(e: EscalaInicio) {
     indicadorComDivisor: { borderLeftWidth: 1, borderLeftColor: colors.line },
     linhaValor: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
     ponto: { width: 8, height: 8, borderRadius: 4 },
-    valorIndicador: { ...fonte.bold, fontSize: f.valorIndicador, color: colors.ink, fontVariant: ['tabular-nums'] },
+    valorIndicador: { ...t.number, fontSize: f.valorIndicador },
     linhaSinc: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: layout.telaLateral, paddingTop: e.rodape.paddingTop, paddingBottom: e.rodape.paddingBottom, backgroundColor: colors.ground },
     // "Últ. sincronização" em cima e a hora embaixo, na largura do texto (sem largura fixa: não quebra com a fonte do sistema)
     ultima: { ...t.small, flexShrink: 0, fontSize: f.ultima },

@@ -20,9 +20,8 @@ import {
   type FormPlano,
   type FormRegra,
 } from '../../lib/plano-rv';
-
-const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal text-ink';
-const CAMPO_CURTO = `${CAMPO} w-[96px] text-right`;
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
+const CAMPO_CURTO = `${CLASSE_CAMPO_BKO} w-[96px] text-right`;
 
 function Rotulado({ rotulo, children, ajuda }: { rotulo: string; children: React.ReactNode; ajuda?: string }) {
   return (
@@ -66,7 +65,7 @@ function RegraEditor({ regra, onChange }: { regra: FormRegra; onChange: (r: Form
                       <input className={CAMPO_CURTO} inputMode="numeric" value={f.de} onChange={(e) => mudarFaixa(i, { de: e.target.value.replace(/\D/g, '') })} />
                     </Rotulado>
                     <Rotulado rotulo={`Faixa ${i + 1}: paga`}>
-                      <select className={`${CAMPO} w-[240px]`} value={f.modo} onChange={(e) => mudarFaixa(i, { modo: e.target.value as FormFaixa['modo'] })}>
+                      <select className={`${CLASSE_CAMPO_BKO} w-[240px]`} value={f.modo} onChange={(e) => mudarFaixa(i, { modo: e.target.value as FormFaixa['modo'] })}>
                         {(Object.keys(ROTULO_MODO) as Array<FormFaixa['modo']>).map((m) => (
                           <option key={m} value={m}>
                             {ROTULO_MODO[m]}
@@ -231,13 +230,13 @@ export function PlanoRvEditor({
           <h3 className="m-0 text-[15px] font-semibold text-ink">Dados do plano</h3>
           <div className="flex flex-wrap gap-6">
             <Rotulado rotulo="Nome do plano">
-              <input ref={nome} className={`${CAMPO} w-[280px]`} maxLength={80} value={form.nome} onChange={(e) => mudar({ nome: e.target.value })} data-testid="plano-rv.nome" />
+              <input ref={nome} className={`${CLASSE_CAMPO_BKO} w-[280px]`} maxLength={80} value={form.nome} onChange={(e) => mudar({ nome: e.target.value })} data-testid="plano-rv.nome" />
             </Rotulado>
             <Rotulado rotulo="Vale a partir de" ajuda="Vale até o mês anterior ao início do próximo plano.">
-              <input type="month" className={`${CAMPO} w-[180px]`} value={form.vigencia_inicio} onChange={(e) => mudar({ vigencia_inicio: e.target.value })} data-testid="plano-rv.vigencia" />
+              <input type="month" className={`${CLASSE_CAMPO_BKO} w-[180px]`} value={form.vigencia_inicio} onChange={(e) => mudar({ vigencia_inicio: e.target.value })} data-testid="plano-rv.vigencia" />
             </Rotulado>
             <Rotulado rotulo="Valor da RV com 100% em tudo (R$)" ajuda="Cada indicador paga a parte do seu peso. Faixas acima de 100% pagam mais que este valor.">
-              <input className={`${CAMPO} w-[180px] text-right`} inputMode="decimal" placeholder="2.000,00" value={form.valor_maximo} onChange={(e) => mudar({ valor_maximo: e.target.value.replace(/[^\d,.]/g, '') })} data-testid="plano-rv.valor" />
+              <input className={`${CLASSE_CAMPO_BKO} w-[180px] text-right`} inputMode="decimal" placeholder="2.000,00" value={form.valor_maximo} onChange={(e) => mudar({ valor_maximo: e.target.value.replace(/[^\d,.]/g, '') })} data-testid="plano-rv.valor" />
             </Rotulado>
           </div>
           <div className="flex flex-wrap items-center gap-5">

@@ -289,7 +289,7 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
           Check-in desde {since} · duração {checkoutDuration(open.checkin_at, new Date())}
         </Text>
       </View>
-      <Text style={[t.bodyStrong, { fontSize: 14 }]}>Como terminou a visita?</Text>
+      <Text style={t.bodyStrong}>Como terminou a visita?</Text>
       {vendedorEfetivo ? (
         <>
           <Pressable
@@ -370,8 +370,8 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
 
 const styles = StyleSheet.create({
   lockTile: { width: 48, height: 48, borderRadius: radius.cartao, backgroundColor: colors.warningBg, alignItems: 'center', justifyContent: 'center' },
-  title: { ...fonte.bold, fontSize: 22, color: colors.ink },
-  overline: { ...fonte.bold, fontSize: 12, letterSpacing: 0.7, color: colors.ink2 },
+  title: t.h1Small,
+  overline: t.rotulo,
   para: { ...fonte.body, fontSize: 14, lineHeight: 20, color: colors.ink2 },
   strong: { ...fonte.semibold, color: colors.ink },
   free: { ...fonte.semibold, fontSize: 14, color: colors.success },

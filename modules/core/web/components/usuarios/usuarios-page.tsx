@@ -36,8 +36,7 @@ import { regrasDoCargo } from '../../../domain/cargos';
 import { modulosExibiveis, removidosDoFormulario } from '../../lib/acesso';
 import { efetivosDoUsuario } from '../../lib/licencas';
 import { useMe } from '../../lib/queries';
-
-const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal text-ink';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 const BOTAO_LINHA = 'h-[44px] min-w-[88px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled';
 
 type Modal = { tipo: 'form'; usuario: UsuarioItem | null } | { tipo: 'ativo'; usuario: UsuarioItem } | { tipo: 'senha'; usuario: UsuarioItem } | null;
@@ -367,7 +366,7 @@ export function UsuariosConteudo() {
             onKeyDown={(e) => e.key === 'Enter' && set({ q: e.currentTarget.value })}
             onBlur={(e) => set({ q: e.currentTarget.value })}
             data-testid="usuarios.busca"
-            className={CAMPO}
+            className={CLASSE_CAMPO_BKO}
           />
         </label>
         <SelectField label="Perfil" value={perfil} onChange={(e) => set({ perfil: e.target.value })} data-testid="usuarios.filtro-perfil">
@@ -468,16 +467,16 @@ export function UsuariosConteudo() {
             </div>
           )}
           <Campo rotulo="Nome" erro={erroDe('nome')}>
-            <input ref={campoNome} value={form.nome} onChange={(e) => upd({ nome: e.target.value })} className={CAMPO} data-testid="usuarios.campo-nome" />
+            <input ref={campoNome} value={form.nome} onChange={(e) => upd({ nome: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-nome" />
           </Campo>
           <Campo rotulo="E-mail" erro={erroDe('email')}>
-            <input type="email" value={form.email} onChange={(e) => upd({ email: e.target.value })} className={CAMPO} data-testid="usuarios.campo-email" />
+            <input type="email" value={form.email} onChange={(e) => upd({ email: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-email" />
           </Campo>
           <Campo rotulo="Perfil" erro={tentou && form.perfis.length === 0 ? ERRO_SEM_PERFIL : undefined}>
             <select
               value={form.perfis[0] ?? ''}
               onChange={(e) => upd({ perfis: e.target.value ? [e.target.value] : [], perfil: opcoesDePerfil.find((p) => p.codigo === e.target.value)?.base ?? form.perfil })}
-              className={CAMPO}
+              className={CLASSE_CAMPO_BKO}
               data-testid="usuarios.campo-perfis"
             >
               <option value="">Escolha…</option>
@@ -493,7 +492,7 @@ export function UsuariosConteudo() {
               <select
                 value={form.gerente_id}
                 onChange={(e) => upd({ gerente_id: e.target.value, ...(cargo === 'promotor' && ativos.find((x) => x.id === form.supervisor_id)?.gerente_id !== e.target.value ? { supervisor_id: '' } : {}) })}
-                className={CAMPO}
+                className={CLASSE_CAMPO_BKO}
                 data-testid="usuarios.campo-gerente"
               >
                 <option value="">Escolha…</option>
@@ -507,7 +506,7 @@ export function UsuariosConteudo() {
           )}
           {regras.supervisor !== 'nao' && (
             <Campo rotulo="Supervisor" erro={erroDe('supervisor_id')}>
-              <select value={form.supervisor_id} onChange={(e) => upd({ supervisor_id: e.target.value })} className={CAMPO} data-testid="usuarios.campo-supervisor">
+              <select value={form.supervisor_id} onChange={(e) => upd({ supervisor_id: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-supervisor">
                 <option value="">{regras.supervisor === 'opcional' ? 'Sem supervisor' : 'Escolha…'}</option>
                 {supervisores.map((x) => (
                   <option key={x.id} value={x.id}>
@@ -519,11 +518,11 @@ export function UsuariosConteudo() {
           )}
           {regras.nomeEquipe !== 'nao' && (
             <Campo rotulo="Nome da equipe" erro={erroDe('equipe_nome')}>
-              <input value={form.equipe_nome} maxLength={80} onChange={(e) => upd({ equipe_nome: e.target.value })} className={CAMPO} data-testid="usuarios.campo-equipe-nome" />
+              <input value={form.equipe_nome} maxLength={80} onChange={(e) => upd({ equipe_nome: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-equipe-nome" />
             </Campo>
           )}
           <Campo rotulo="Código no ERP" erro={erroDe('external_id')}>
-            <input value={form.external_id} maxLength={100} onChange={(e) => upd({ external_id: e.target.value })} className={CAMPO} data-testid="usuarios.campo-external-id" />
+            <input value={form.external_id} maxLength={100} onChange={(e) => upd({ external_id: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-external-id" />
           </Campo>
           {licencas && (
             <fieldset className="m-0 flex flex-col gap-1 border-0 p-0" data-testid="usuarios.modulos-campo">

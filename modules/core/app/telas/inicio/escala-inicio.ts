@@ -58,7 +58,7 @@ export interface EscalaInicio {
 }
 
 const BASE = {
-  fonte: { data: 14, saudacao: 22, frase: 14, iniciais: 22, percentual: 14, real: 18, meta: 14, valorRodape: 14, valorIndicador: 18 },
+  fonte: { data: 14, frase: 14, iniciais: 22, percentual: 14, real: 18, meta: 14, valorRodape: 14, valorIndicador: 18 },
   painel: { paddingBottom: space.lg, gap: space.xxs, avatar: 72 },
   meio: { paddingTop: space.sm, paddingBottom: space.sm, gap: space.sm, linhaTitulo: 32 },
   cartao: { preenchimento: space.md, gap: space.xs, barra: 6, alturaMaxima: 132 },

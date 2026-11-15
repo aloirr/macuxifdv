@@ -6,8 +6,7 @@ import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, Dialog } from '@macuxi/ui/web';
 import type { Medida, ProdutoPreco } from '../../../contracts';
 import { corpoDasMedidasDoProduto, opcoesDeMedida } from '../../lib/medidas';
-
-const campo = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
 /**
  * Medida da unidade (obrigatória, só medida ativa) e embalagem opcional (medida + quantidade de unidades) do produto
@@ -48,7 +47,7 @@ export function ProdutoMedidasDialog({ produto, medidas, onFechar, onSalvo }: { 
       <div className="flex flex-col gap-3 text-[13px] font-semibold text-ink">
         <label className="flex flex-col gap-1">
           Medida da unidade
-          <select value={unidade} onChange={(e) => setUnidade(e.target.value)} data-testid="produtos.medida-unidade" className={campo}>
+          <select value={unidade} onChange={(e) => setUnidade(e.target.value)} data-testid="produtos.medida-unidade" className={CLASSE_CAMPO_BKO}>
             {opcoes.map((m) => (
               <option key={m.sigla} value={m.sigla}>
                 {m.sigla} · {m.descricao}
@@ -61,7 +60,7 @@ export function ProdutoMedidasDialog({ produto, medidas, onFechar, onSalvo }: { 
           <legend className="px-1">Embalagem (opcional)</legend>
           <label className="flex flex-col gap-1">
             Medida da embalagem
-            <select value={embMedida} onChange={(e) => setEmbMedida(e.target.value)} data-testid="produtos.medida-embalagem" className={campo}>
+            <select value={embMedida} onChange={(e) => setEmbMedida(e.target.value)} data-testid="produtos.medida-embalagem" className={CLASSE_CAMPO_BKO}>
               <option value="">Sem embalagem</option>
               {opcoes
                 .filter((m) => m.sigla !== unidade)
@@ -75,7 +74,7 @@ export function ProdutoMedidasDialog({ produto, medidas, onFechar, onSalvo }: { 
           </label>
           <label className="flex flex-col gap-1">
             Unidades por embalagem
-            <input inputMode="numeric" value={embQtd} disabled={embMedida === ''} onChange={(e) => setEmbQtd(e.target.value.replace(/\D/g, ''))} data-testid="produtos.medida-quantidade" className={campo} />
+            <input inputMode="numeric" value={embQtd} disabled={embMedida === ''} onChange={(e) => setEmbQtd(e.target.value.replace(/\D/g, ''))} data-testid="produtos.medida-quantidade" className={CLASSE_CAMPO_BKO} />
           </label>
         </fieldset>
         {!conferido.ok && <p className="font-normal text-danger">{conferido.mensagem}</p>}

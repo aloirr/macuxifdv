@@ -11,6 +11,7 @@ import { cnpjValido, formatarDocumento } from '@macuxi/comum/documento';
 import { cepValido, formatarCep } from '@macuxi/comum/endereco';
 import { faltasNoCadastroDaFilial } from '../../../domain';
 import { novoId } from '../../lib/visitas';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
 interface Rascunho {
   id: string;
@@ -81,7 +82,6 @@ export function FiliaisPage() {
   });
 
   const itens = lista.data ?? [];
-  const campo = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal';
   return (
     <div className="flex w-full max-w-[1040px] flex-col gap-5" data-testid="filiais.tela">
       <PageHeader
@@ -180,19 +180,19 @@ export function FiliaisPage() {
           <div className="flex flex-col gap-3 text-[13px] font-semibold text-ink">
             <label className="flex flex-col gap-1">
               Código
-              <input value={rascunho.codigo} maxLength={20} disabled={rascunho.doErp} onChange={(e) => setRascunho({ ...rascunho, codigo: e.target.value })} data-testid="filiais.codigo" className={campo} />
+              <input value={rascunho.codigo} maxLength={20} disabled={rascunho.doErp} onChange={(e) => setRascunho({ ...rascunho, codigo: e.target.value })} data-testid="filiais.codigo" className={CLASSE_CAMPO_BKO} />
             </label>
             <label className="flex flex-col gap-1">
               Nome
-              <input value={rascunho.nome} maxLength={80} disabled={rascunho.doErp} onChange={(e) => setRascunho({ ...rascunho, nome: e.target.value })} data-testid="filiais.nome" className={campo} />
+              <input value={rascunho.nome} maxLength={80} disabled={rascunho.doErp} onChange={(e) => setRascunho({ ...rascunho, nome: e.target.value })} data-testid="filiais.nome" className={CLASSE_CAMPO_BKO} />
             </label>
             <label className="flex flex-col gap-1">
               Cidade
-              <input value={rascunho.cidade} maxLength={80} onChange={(e) => setRascunho({ ...rascunho, cidade: e.target.value })} data-testid="filiais.cidade" className={campo} />
+              <input value={rascunho.cidade} maxLength={80} onChange={(e) => setRascunho({ ...rascunho, cidade: e.target.value })} data-testid="filiais.cidade" className={CLASSE_CAMPO_BKO} />
             </label>
             <label className="flex max-w-[160px] flex-col gap-1">
               UF
-              <select value={rascunho.uf} onChange={(e) => setRascunho({ ...rascunho, uf: e.target.value })} data-testid="filiais.uf" className={campo}>
+              <select value={rascunho.uf} onChange={(e) => setRascunho({ ...rascunho, uf: e.target.value })} data-testid="filiais.uf" className={CLASSE_CAMPO_BKO}>
                 <option value="">Escolha</option>
                 {UFS_BRASIL.map((uf) => (
                   <option key={uf} value={uf}>
@@ -203,35 +203,35 @@ export function FiliaisPage() {
             </label>
             <label className="flex max-w-[260px] flex-col gap-1">
               CNPJ
-              <input value={rascunho.cnpj} inputMode="numeric" maxLength={18} onChange={(e) => setRascunho({ ...rascunho, cnpj: e.target.value })} onBlur={() => setRascunho((r) => (r && cnpjValido(r.cnpj) ? { ...r, cnpj: formatarDocumento(r.cnpj) } : r))} data-testid="filiais.cnpj" className={campo} />
+              <input value={rascunho.cnpj} inputMode="numeric" maxLength={18} onChange={(e) => setRascunho({ ...rascunho, cnpj: e.target.value })} onBlur={() => setRascunho((r) => (r && cnpjValido(r.cnpj) ? { ...r, cnpj: formatarDocumento(r.cnpj) } : r))} data-testid="filiais.cnpj" className={CLASSE_CAMPO_BKO} />
               {rascunho.cnpj.trim() !== '' && !cnpjValido(rascunho.cnpj) ? <span className="text-[12px] font-normal text-danger">CNPJ inválido. Confira os 14 dígitos.</span> : null}
             </label>
             <label className="flex flex-col gap-1">
               Logradouro
-              <input value={rascunho.logradouro} maxLength={160} onChange={(e) => setRascunho({ ...rascunho, logradouro: e.target.value })} data-testid="filiais.logradouro" className={campo} />
+              <input value={rascunho.logradouro} maxLength={160} onChange={(e) => setRascunho({ ...rascunho, logradouro: e.target.value })} data-testid="filiais.logradouro" className={CLASSE_CAMPO_BKO} />
             </label>
             <div className="flex gap-3">
               <label className="flex max-w-[140px] flex-col gap-1">
                 Número
-                <input value={rascunho.numero} maxLength={20} onChange={(e) => setRascunho({ ...rascunho, numero: e.target.value })} data-testid="filiais.numero" className={campo} />
+                <input value={rascunho.numero} maxLength={20} onChange={(e) => setRascunho({ ...rascunho, numero: e.target.value })} data-testid="filiais.numero" className={CLASSE_CAMPO_BKO} />
               </label>
               <label className="flex flex-1 flex-col gap-1">
                 Complemento (opcional)
-                <input value={rascunho.complemento} maxLength={80} onChange={(e) => setRascunho({ ...rascunho, complemento: e.target.value })} data-testid="filiais.complemento" className={campo} />
+                <input value={rascunho.complemento} maxLength={80} onChange={(e) => setRascunho({ ...rascunho, complemento: e.target.value })} data-testid="filiais.complemento" className={CLASSE_CAMPO_BKO} />
               </label>
             </div>
             <label className="flex flex-col gap-1">
               Bairro
-              <input value={rascunho.bairro} maxLength={80} onChange={(e) => setRascunho({ ...rascunho, bairro: e.target.value })} data-testid="filiais.bairro" className={campo} />
+              <input value={rascunho.bairro} maxLength={80} onChange={(e) => setRascunho({ ...rascunho, bairro: e.target.value })} data-testid="filiais.bairro" className={CLASSE_CAMPO_BKO} />
             </label>
             <div className="flex gap-3">
               <label className="flex max-w-[160px] flex-col gap-1">
                 CEP
-                <input value={rascunho.cep} inputMode="numeric" maxLength={9} onChange={(e) => setRascunho({ ...rascunho, cep: e.target.value })} onBlur={() => setRascunho((r) => (r && cepValido(r.cep) ? { ...r, cep: formatarCep(r.cep) } : r))} data-testid="filiais.cep" className={campo} />
+                <input value={rascunho.cep} inputMode="numeric" maxLength={9} onChange={(e) => setRascunho({ ...rascunho, cep: e.target.value })} onBlur={() => setRascunho((r) => (r && cepValido(r.cep) ? { ...r, cep: formatarCep(r.cep) } : r))} data-testid="filiais.cep" className={CLASSE_CAMPO_BKO} />
               </label>
               <label className="flex flex-1 flex-col gap-1">
                 Telefone (opcional)
-                <input value={rascunho.telefone} inputMode="tel" maxLength={30} onChange={(e) => setRascunho({ ...rascunho, telefone: e.target.value })} data-testid="filiais.telefone" className={campo} />
+                <input value={rascunho.telefone} inputMode="tel" maxLength={30} onChange={(e) => setRascunho({ ...rascunho, telefone: e.target.value })} data-testid="filiais.telefone" className={CLASSE_CAMPO_BKO} />
               </label>
             </div>
             {rascunho.existente ? (

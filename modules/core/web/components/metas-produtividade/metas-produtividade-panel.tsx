@@ -24,8 +24,7 @@ import {
   type ErrosMetas,
   type TextosMetas,
 } from './formato';
-
-const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal text-ink';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 const ESCOPOS = [
   ['tenant', 'Empresa'],
   ['equipe', 'Equipe'],
@@ -134,7 +133,7 @@ export function MetasProdutividadePanel({ cliente, hoje }: { cliente?: ApiMetasP
                 </label>
               ))}
               {alvo.escopo === 'equipe' && equipes.data && (
-                <select value={alvo.equipe_id ?? ''} aria-label="Equipe" onChange={(e) => trocarAlvo({ ...alvo, equipe_id: e.target.value || null })} className={CAMPO} data-testid="metas-prod.equipe">
+                <select value={alvo.equipe_id ?? ''} aria-label="Equipe" onChange={(e) => trocarAlvo({ ...alvo, equipe_id: e.target.value || null })} className={CLASSE_CAMPO_BKO} data-testid="metas-prod.equipe">
                   <option value="">Escolha a equipe</option>
                   {equipes.data.map((q) => (
                     <option key={q.id} value={q.id}>
@@ -144,7 +143,7 @@ export function MetasProdutividadePanel({ cliente, hoje }: { cliente?: ApiMetasP
                 </select>
               )}
               {alvo.escopo === 'usuario' && consultores.data && (
-                <select value={alvo.usuario_id ?? ''} aria-label="Usuário" onChange={(e) => trocarAlvo({ ...alvo, usuario_id: e.target.value || null })} className={CAMPO} data-testid="metas-prod.usuario">
+                <select value={alvo.usuario_id ?? ''} aria-label="Usuário" onChange={(e) => trocarAlvo({ ...alvo, usuario_id: e.target.value || null })} className={CLASSE_CAMPO_BKO} data-testid="metas-prod.usuario">
                   <option value="">Escolha o usuário</option>
                   {consultores.data.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -173,7 +172,7 @@ export function MetasProdutividadePanel({ cliente, hoje }: { cliente?: ApiMetasP
                 setVigencia(e.target.value);
                 setEditados({});
               }}
-              className={CAMPO}
+              className={CLASSE_CAMPO_BKO}
               data-testid="metas-prod.vigencia"
             />
             {erros.vigencia_inicio && (
@@ -254,7 +253,7 @@ export function TabelaMetasProdutividade({
                         aria-invalid={erro ? true : undefined}
                         aria-describedby={erro ? `metas-prod.${i}.erro` : undefined}
                         onChange={(e) => onChange(i, e.target.value)}
-                        className={`${CAMPO} w-[104px]`}
+                        className={`${CLASSE_CAMPO_BKO} w-[104px]`}
                         data-testid={`metas-prod.campo.${i}`}
                       />
                       {sufixo && <span className="text-ink-2">{sufixo}</span>}

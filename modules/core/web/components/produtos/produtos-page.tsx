@@ -11,6 +11,7 @@ import { rotuloMedidaDoProduto } from '../../lib/medidas';
 import { MedidasPanel, useMedidas } from './medidas-panel';
 import { ProdutoMedidasDialog } from './produto-medidas-dialog';
 import { descontoMaximoAplicavel, lucroCents, margemNoMinimoPct, margemPct, markupPct, precoMinimoCents } from '../../../domain';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
 const pct = (v: number | null) => (v === null ? '—' : formatPct(v, 2));
 const brl = (v: number | null) => (v === null ? '—' : formatBRL(v));
@@ -135,7 +136,7 @@ export function ProdutosPage() {
                 value={valorPadrao}
                 onChange={(e) => setPadraoTexto(e.target.value)}
                 data-testid="produtos.parametro-desconto"
-                className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal"
+                className={CLASSE_CAMPO_BKO}
               />
             </label>
             <p className="font-normal text-ink-2">Vale para todo produto sem desconto máximo próprio (padrão 15%). Define o preço mínimo de venda.</p>
@@ -276,7 +277,7 @@ export function ProdutosPage() {
                   value={rascunho[campo]}
                   onChange={(e) => setRascunho({ ...rascunho, [campo]: e.target.value })}
                   data-testid={`produtos.${campo}`}
-                  className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal"
+                  className={CLASSE_CAMPO_BKO}
                 />
               </label>
             ))}
@@ -287,7 +288,7 @@ export function ProdutosPage() {
                 value={rascunho.desconto}
                 onChange={(e) => setRascunho({ ...rascunho, desconto: e.target.value })}
                 data-testid="produtos.desconto"
-                className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal"
+                className={CLASSE_CAMPO_BKO}
               />
             </label>
             {!valido && <p className="font-normal text-danger">Revise os valores: use números positivos e desconto de 0 a 100.</p>}

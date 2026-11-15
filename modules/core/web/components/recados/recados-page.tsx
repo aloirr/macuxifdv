@@ -8,6 +8,7 @@ import { Button, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, SelectFiel
 import { EnviarNotificacaoRespostaSchema, HierarquiaEquipeSchema, NotificacaoSyncSchema, RecadoDoDiaDesmarcadoSchema, RecadoDoDiaMarcadoSchema, RecadosEnviadosRespostaSchema, type NotificacaoSync } from '../../../contracts';
 import { useMe } from '../../lib/queries';
 import { ACAO_RECADO_DO_DIA, agruparPorEnvio, mensagemDoRecadoDoDia, podeMarcarRecadoDoDia } from '../../lib/recado-do-dia';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
 /**
  * Tela "Recados" do BKO (RF-CORE-09): envia um recado a pessoas do seu escopo (ação `notificacao.enviar`; a API
@@ -101,7 +102,7 @@ export function RecadosPage() {
           >
             <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
               Título
-              <input value={titulo} maxLength={120} onChange={(e) => setTitulo(e.target.value)} data-testid="recados.titulo" className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px]" />
+              <input value={titulo} maxLength={120} onChange={(e) => setTitulo(e.target.value)} data-testid="recados.titulo" className={CLASSE_CAMPO_BKO} />
             </label>
             <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
               Mensagem

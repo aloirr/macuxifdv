@@ -7,6 +7,7 @@ import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, td, th, TableScroll } from '@macuxi/ui/web';
 import { MotivoSyncSchema, type MotivoPut, type MotivoSync } from '../../../contracts';
 import { novoId } from '../../lib/visitas';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
 const TIPOS: Record<MotivoSync['tipo'], string> = { nao_venda: 'Não venda', cliente_fechado: 'Cliente fechado', fora_do_raio: 'Fora do raio' };
 
@@ -144,7 +145,7 @@ export function MotivosPage() {
                 maxLength={120}
                 onChange={(e) => setRascunho({ ...rascunho, descricao: e.target.value, codigo: rascunho.existente ? rascunho.codigo : slug(e.target.value) })}
                 data-testid="motivos.descricao"
-                className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal"
+                className={CLASSE_CAMPO_BKO}
               />
             </label>
             {rascunho.existente ? (

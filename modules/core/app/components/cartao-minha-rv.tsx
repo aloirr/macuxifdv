@@ -107,6 +107,6 @@ const styles = StyleSheet.create({
   divisor: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   topo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },
   nome: { ...fonte.semibold, fontSize: 16, color: colors.ink, flex: 1 },
-  pct: { ...fonte.bold, fontSize: 18, color: colors.ink },
+  pct: t.number,
   valor: { ...fonte.semibold, fontSize: 14, color: colors.ink },
 });

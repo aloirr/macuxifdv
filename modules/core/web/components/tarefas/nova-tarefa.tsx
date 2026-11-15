@@ -7,7 +7,8 @@ import type { EquipeOpcao } from '../../../contracts';
 import { TAREFA_DESCRICAO_MAX, TAREFA_TITULO_MAX, TIPOS_TAREFA, type TipoTarefa } from '../../../contracts/tarefa';
 import { novoId } from '../../lib/visitas';
 import { CHAVE_QUESTIONARIOS, CHAVE_TAREFAS, type ApiTarefas, type ConsultorOpcao, type QuestionarioParaTarefa } from './api';
-import { CAMPO_TAREFA, corpoDaTarefa, errosDaApi, formTarefaVazio, ROTULO_TIPO, type AlvoTarefa, type CampoTarefa, type ErrosTarefa, type FormTarefa } from './tarefas';
+import { corpoDaTarefa, errosDaApi, formTarefaVazio, ROTULO_TIPO, type AlvoTarefa, type CampoTarefa, type ErrosTarefa, type FormTarefa } from './tarefas';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
 /** Folha "Nova tarefa" (§7.1). O `id` nasce ao abrir a folha: reenviar depois de uma falha não duplica a tarefa. */
 export function NovaTarefa({
@@ -136,7 +137,7 @@ export function FormNovaTarefa({
       {aviso && <Notice tone="danger">{aviso}</Notice>}
       <label className="flex flex-col gap-1">
         Título
-        <input value={form.titulo} maxLength={TAREFA_TITULO_MAX} onChange={(e) => onChange({ titulo: e.target.value })} className={CAMPO_TAREFA} data-testid="nova-tarefa.titulo" {...descrito('titulo', erros)} />
+        <input value={form.titulo} maxLength={TAREFA_TITULO_MAX} onChange={(e) => onChange({ titulo: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="nova-tarefa.titulo" {...descrito('titulo', erros)} />
         <Erro campo="titulo" erros={erros} />
       </label>
       <label className="flex flex-col gap-1">
@@ -154,7 +155,7 @@ export function FormNovaTarefa({
       </label>
       <label className="flex flex-col gap-1">
         Prazo
-        <input type="date" value={form.prazo} min={hoje} onChange={(e) => onChange({ prazo: e.target.value })} className={CAMPO_TAREFA} data-testid="nova-tarefa.prazo" {...descrito('prazo', erros)} />
+        <input type="date" value={form.prazo} min={hoje} onChange={(e) => onChange({ prazo: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="nova-tarefa.prazo" {...descrito('prazo', erros)} />
         <Erro campo="prazo" erros={erros} />
       </label>
       <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
@@ -171,7 +172,7 @@ export function FormNovaTarefa({
       {form.tipo === 'pesquisa' && questionarios && (
         <label className="flex flex-col gap-1">
           Questionário
-          <select value={form.questionario_id} onChange={(e) => onChange({ questionario_id: e.target.value })} className={CAMPO_TAREFA} data-testid="nova-tarefa.questionario" {...descrito('questionario_id', erros)}>
+          <select value={form.questionario_id} onChange={(e) => onChange({ questionario_id: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="nova-tarefa.questionario" {...descrito('questionario_id', erros)}>
             <option value="">Escolha</option>
             {questionarios.map((q) => (
               <option key={q.questionario_id} value={q.questionario_id}>
@@ -194,7 +195,7 @@ export function FormNovaTarefa({
         </div>
         {form.alvo === 'usuarios' && (
           <div className="flex flex-col gap-2">
-            <input type="search" value={busca} placeholder="Buscar pelo nome" aria-label="Buscar pelo nome" onChange={(e) => setBusca(e.target.value)} className={CAMPO_TAREFA} data-testid="nova-tarefa.busca" />
+            <input type="search" value={busca} placeholder="Buscar pelo nome" aria-label="Buscar pelo nome" onChange={(e) => setBusca(e.target.value)} className={CLASSE_CAMPO_BKO} data-testid="nova-tarefa.busca" />
             <span className="font-normal text-ink-2" data-testid="nova-tarefa.escolhidas">
               {form.usuario_ids.length === 1 ? '1 escolhida' : `${form.usuario_ids.length} escolhidas`}
             </span>
@@ -211,7 +212,7 @@ export function FormNovaTarefa({
           </div>
         )}
         {form.alvo === 'equipe' && equipes && (
-          <select value={form.equipe_id} aria-label="Equipe" onChange={(e) => onChange({ equipe_id: e.target.value })} className={CAMPO_TAREFA} data-testid="nova-tarefa.equipe">
+          <select value={form.equipe_id} aria-label="Equipe" onChange={(e) => onChange({ equipe_id: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="nova-tarefa.equipe">
             <option value="">Escolha a equipe</option>
             {equipes.map((q) => (
               <option key={q.id} value={q.id}>
