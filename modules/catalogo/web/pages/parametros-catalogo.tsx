@@ -10,10 +10,14 @@ const PADRAO = 2000;
 export function ParametrosCatalogo() {
   const limite = limiteAplicacao(useParametros('catalogo'));
   return (
-    <div data-testid="parametros-catalogo-limite">
-      <span className="text-[13px] font-semibold text-ink">Limite da aplicação</span>
-      <p className="text-[13px] text-ink" data-testid="parametros-catalogo-valor">{limite.toLocaleString('pt-BR')} caracteres</p>
-      {limite !== PADRAO ? <p className="text-[12px] text-muted" data-testid="parametros-catalogo-padrao">Padrão: {PADRAO.toLocaleString('pt-BR')}</p> : null}
-    </div>
+    <dl data-testid="parametros-catalogo-limite" className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-2 text-sm">
+      <dt>Limite da aplicação</dt>
+      <dd className="text-right font-medium">
+        <span data-testid="parametros-catalogo-valor">{limite.toLocaleString('pt-BR')} caracteres</span>
+        {limite !== PADRAO ? (
+          <span className="block text-xs font-normal opacity-70" data-testid="parametros-catalogo-padrao">Padrão: {PADRAO.toLocaleString('pt-BR')}</span>
+        ) : null}
+      </dd>
+    </dl>
   );
 }
