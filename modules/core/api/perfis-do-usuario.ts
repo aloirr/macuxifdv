@@ -4,13 +4,12 @@
  * Sem nenhuma linha (usuário antigo, banco sem a 0041 semeada) cai no perfil de fábrica do principal: falha fechada para o que a fábrica fecha.
  * As chaves `acesso.*` são só da plataforma, então a matriz sem manifestos basta numa rota pública.
  */
-import { matrizDeFabrica, PERFIS, resolverPerfil, NIVEIS_ALCADA, NIVEIS_ESCOPO, type ClienteBanco, type NivelPermissao, type Perfil, type PerfilDaRequisicao, type SobreposicaoPermissao } from '@macuxi/platform-sdk';
-import { perfisDeFabrica } from '../domain';
+import { matrizDeFabrica, perfilDeFabrica, PERFIS, resolverPerfil, NIVEIS_ALCADA, NIVEIS_ESCOPO, type ClienteBanco, type MatrizFabrica, type NivelPermissao, type Perfil, type PerfilDaRequisicao, type SobreposicaoPermissao } from '@macuxi/platform-sdk';
 
 const MATRIZ = matrizDeFabrica([]);
 const ehNivel = (n: unknown): n is NivelPermissao => typeof n === 'string' && ([...NIVEIS_ESCOPO, ...NIVEIS_ALCADA] as readonly string[]).includes(n);
 
-function sobreposicoesDe(bruto: unknown): SobreposicaoPermissao[] {
+export function sobreposicoesDe(bruto: unknown): SobreposicaoPermissao[] {
   if (!Array.isArray(bruto)) return [];
   const saida: SobreposicaoPermissao[] = [];
   for (const i of bruto as { chave?: unknown; concedida?: unknown; nivel?: unknown; alvos?: unknown }[]) {
@@ -21,9 +20,18 @@ function sobreposicoesDe(bruto: unknown): SobreposicaoPermissao[] {
   return saida;
 }
 
-export async function perfisDoUsuarioNoLogin(db: ClienteBanco, usuarioId: string, principal: Perfil): Promise<PerfilDaRequisicao[]> {
+export const perfisDoUsuarioNoLogin = (db: ClienteBanco, usuarioId: string, principal: Perfil): Promise<PerfilDaRequisicao[]> => perfisEfetivosDoUsuario(db, usuarioId, principal, MATRIZ);
+
+/** Mesma resolução do login e da API (fábrica + sobreposições + travas), com a matriz de fábrica COMPLETA (ações dos módulos) quando quem chama a tem. */
+export function resolverLinhasDePerfil(linhas: readonly LinhaPerfilDoUsuario[], principal: Perfil, matriz: MatrizFabrica): PerfilDaRequisicao[] {
+  const validas = linhas.filter((l) => (PERFIS as readonly string[]).includes(l.base));
+  if (validas.length === 0) return [resolverPerfil(perfilDeFabrica(principal), matriz)];
+  return validas.map((l) => resolverPerfil({ codigo: l.codigo, base: l.base as Perfil, ativo: true, fabrica: l.fabrica, sobreposicoes: sobreposicoesDe(l.sobreposicoes) }, matriz));
+}
+
+export interface LinhaPerfilDoUsuario { codigo: string; base: string; fabrica: boolean; sobreposicoes: unknown }
+
+export async function perfisEfetivosDoUsuario(db: ClienteBanco, usuarioId: string, principal: Perfil, matriz: MatrizFabrica): Promise<PerfilDaRequisicao[]> {
   const r = await db.query<{ codigo: string; base: string; fabrica: boolean; sobreposicoes: unknown }>('select codigo, base, fabrica, sobreposicoes from plataforma.perfis_do_usuario($1)', [usuarioId]);
-  const linhas = r.rows.filter((l) => (PERFIS as readonly string[]).includes(l.base));
-  if (linhas.length === 0) return perfisDeFabrica(principal);
-  return linhas.map((l) => resolverPerfil({ codigo: l.codigo, base: l.base as Perfil, ativo: true, fabrica: l.fabrica, sobreposicoes: sobreposicoesDe(l.sobreposicoes) }, MATRIZ));
+  return resolverLinhasDePerfil(r.rows, principal, matriz);
 }
