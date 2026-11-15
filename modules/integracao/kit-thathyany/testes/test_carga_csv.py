@@ -234,6 +234,27 @@ class TestRegrasDoHub(unittest.TestCase):
         res = self.validar("produto", {"embalagem_medida": "", "embalagem_quantidade": ""})
         self.assertEqual(res.recusadas, [])
 
+    def test_referencia_cruzada_do_produto_ate_3_com_marca(self):
+        # RN-CAT-09: até 3 referências por produto; toda referência leva a marca (o Hub descartaria sem ela)
+        res = self.validar("produto", {"referencia_2": "ABC-9", "marca_referencia_2": "Marca Gama", "referencia_3": "ZZ-1", "marca_referencia_3": "Marca Delta"})
+        self.assertEqual(res.recusadas, [])
+        v = res.validas[0][1]
+        self.assertEqual((v["referencia_1"], v["marca_referencia_1"], v["referencia_3"]), ("PAF-0503", "Marca Beta", "ZZ-1"))
+        self.assertNotIn("referencia_4", {c["campo"] for c in ENTS["produto"]["campos"]})
+
+    def test_referencia_sem_marca_e_marca_sem_referencia_sao_recusadas(self):
+        self.assertEqual([r.campo for r in self.validar("produto", {"marca_referencia_1": ""}).recusadas], ["marca_referencia_1"])
+        self.assertEqual([r.campo for r in self.validar("produto", {"referencia_2": "", "marca_referencia_2": "Marca Gama"}).recusadas], ["referencia_2"])
+
+    def test_referencia_com_codigo_maior_que_30_e_marca_maior_que_120_sao_recusadas(self):
+        self.assertEqual([r.campo for r in self.validar("produto", {"referencia_1": "X" * 31}).recusadas], ["referencia_1"])
+        self.assertEqual([r.campo for r in self.validar("produto", {"marca_referencia_1": "M" * 121}).recusadas], ["marca_referencia_1"])
+
+    def test_produto_sem_nenhuma_referencia_passa(self):
+        res = self.validar("produto", {"referencia_1": "", "marca_referencia_1": ""})
+        self.assertEqual(res.recusadas, [])
+        self.assertNotIn("referencia_1", res.validas[0][1])
+
     def test_fim_da_vigencia_nao_anterior_ao_inicio(self):
         self.assertEqual([r.campo for r in self.validar("preco", {"vigencia_fim": "2026-10-01"}).recusadas], ["vigencia_fim"])
         self.assertEqual(self.validar("preco", {"vigencia_fim": "2026-11-01"}).recusadas, [])

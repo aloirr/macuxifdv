@@ -1,2 +1,2 @@
-﻿external_id;sku;nome;unidade;alterado_em;ativo;ean;marca;categoria;embalagem_medida;embalagem_quantidade;catalogo_no_external_id;custo_cents;preco_venda_cents;desconto_maximo_pct;aplicacao
-PRO-001;SKU-001;Refrigerante Cola 2L;UN;2026-11-01T12:00:00Z;sim;7891234567895;Marca Alfa;Bebidas;CX;12;CAT-001;850;1290;10;
+﻿external_id;sku;nome;unidade;alterado_em;ativo;ean;marca;categoria;embalagem_medida;embalagem_quantidade;catalogo_no_external_id;custo_cents;preco_venda_cents;desconto_maximo_pct;aplicacao;referencia_1;marca_referencia_1;referencia_2;marca_referencia_2;referencia_3;marca_referencia_3
+PRO-001;SKU-001;Refrigerante Cola 2L;UN;2026-11-01T12:00:00Z;sim;7891234567895;Marca Alfa;Bebidas;CX;12;CAT-001;850;1290;10;;PAF-0503;Marca Beta;;;;

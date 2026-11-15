@@ -13,6 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CAMPOS_OBRIGATORIOS_FILIAL } from '@macuxi/core/contracts';
 import { ENTIDADES_ORDEM_CARGA, dicionarioDaEntidade, gerarModeloCsv } from '../../domain/modelos-csv';
 import type { CampoDicionario } from '../../contracts/modelos';
+import { LIMITES_REFERENCIA } from '../../contracts';
 
 export const BANCO = 'ERP_THATHYANY';
 export const HUB_URL = 'https://api.macuxifdv.com.br';
@@ -29,6 +30,20 @@ export const colunaDe = (campo: string): string => campo.replace(/\./g, '_');
 
 /** Colunas que só o Conector manda (JSON): não existem no CSV, ficam nulas (= o Macuxi não altera). */
 const COLUNAS_SO_CONECTOR = ['contatos', 'referencias', 'oferece_junto', 'etiquetas', 'paradas'];
+
+/**
+ * Colunas que o kit acrescenta ao CSV e a `tha_<entidade>` e que NÃO são campos do Hub: a view monta o campo do Hub a partir delas.
+ * Produto: `referencia_1..3` (+ `marca_referencia_1..3`) viram `referencias` [{marca_nome, codigo}] na view (RN-CAT-09: até 3 por produto, marca obrigatória).
+ */
+const REFERENCIAS_POR_PRODUTO = 3;
+export const CAMPOS_SO_KIT: Record<string, CampoDicionario[]> = {
+  produto: Array.from({ length: REFERENCIAS_POR_PRODUTO }, (_, i) => i + 1).flatMap((n): CampoDicionario[] => [
+    { campo: `referencia_${n}`, obrigatorio: false, tipo: 'texto', tamanho_max: LIMITES_REFERENCIA.codigo, formato: null, exemplo: n === 1 ? 'PAF-0503' : '', observacao: `Código ${n} do produto na concorrência (até ${LIMITES_REFERENCIA.codigo} caracteres). Informe junto com marca_referencia_${n} (as duas preenchidas ou as duas vazias). Vazio nas três = não altera as referências já cadastradas.` },
+    { campo: `marca_referencia_${n}`, obrigatorio: false, tipo: 'texto', tamanho_max: LIMITES_REFERENCIA.marcaNome, formato: null, exemplo: n === 1 ? 'Marca Beta' : '', observacao: `Marca da concorrência do código ${n}; se não estiver cadastrada em Marcas do Catálogo, a referência não é gravada e o lote traz o aviso marca_concorrente_desconhecida.` },
+  ]),
+};
+/** Colunas do SELECT do conector que a view monta de outras colunas (não existem como coluna própria em `tha_<entidade>`). */
+const COLUNAS_DERIVADAS: Record<string, string[]> = { produto: ['referencias'] };
 
 /** Referência a outra entidade (campo `*_external_id`): o carga_csv.py confere antes de gravar. Tabela e depósito não são entidades. */
 const REFERENCIAS: Record<string, string> = {
@@ -74,7 +89,11 @@ export interface RegraEntidade {
 }
 export const REGRAS_ENTIDADE: Record<string, RegraEntidade[]> = {
   // entidades.ts `ProdutoPayload.superRefine`
-  produto: [{ regra: 'juntos', campos: ['embalagem_medida', 'embalagem_quantidade'], motivo: 'embalagem_medida e embalagem_quantidade devem ser informadas juntas' }],
+  produto: [
+    { regra: 'juntos', campos: ['embalagem_medida', 'embalagem_quantidade'], motivo: 'embalagem_medida e embalagem_quantidade devem ser informadas juntas' },
+    // só do kit: a marca é obrigatória na referência (catalogo-produto.ts `referenciaValida`); sem ela o Hub descartaria a referência
+    ...[1, 2, 3].map((n): RegraEntidade => ({ regra: 'juntos', campos: [`referencia_${n}`, `marca_referencia_${n}`], motivo: `referencia_${n} e marca_referencia_${n} devem ser informadas juntas (toda referência leva a marca)` })),
+  ],
   // entidades.ts `PrecoPayload.superRefine`
   preco: [{ regra: 'data_nao_anterior', campos: ['vigencia_fim', 'vigencia_inicio'], motivo: 'fim da vigência anterior ao início' }],
   // entidades.ts `TabelaEscalonadaPayload.superRefine`
@@ -183,6 +202,8 @@ export interface CampoContrato extends CampoDicionario {
   tipo_sql: string;
   regra: Regra;
   referencia?: string;
+  /** Coluna só do kit (não é campo do Hub): a view monta o campo do Hub a partir dela. */
+  so_kit?: boolean;
 }
 export interface EntidadeContrato {
   entidade: string;
@@ -205,8 +226,12 @@ export function contratoDoKit(): { versao: number; banco: string; entidades: Ent
       const obrigatorio = c.obrigatorio || (OBRIGATORIOS_EXTRA[e] ?? []).includes(c.campo);
       return { ...c, obrigatorio, coluna: colunaDe(c.campo), tipo_sql: tipoSql({ ...c, obrigatorio }, regra), regra, ...(ref ? { referencia: ref } : {}) };
     });
-    const extras = colunasDoConector(exemplo, e).filter((col) => COLUNAS_SO_CONECTOR.includes(col));
-    const faltando = colunasDoConector(exemplo, e).filter((col) => !campos.some((c) => c.coluna === col) && !extras.includes(col));
+    const derivadas = COLUNAS_DERIVADAS[e] ?? [];
+    for (const c of CAMPOS_SO_KIT[e] ?? []) {
+      campos.push({ ...c, coluna: colunaDe(c.campo), tipo_sql: tipoSql(c, {}), regra: {}, so_kit: true });
+    }
+    const extras = colunasDoConector(exemplo, e).filter((col) => COLUNAS_SO_CONECTOR.includes(col) && !derivadas.includes(col));
+    const faltando = colunasDoConector(exemplo, e).filter((col) => !campos.some((c) => c.coluna === col) && !extras.includes(col) && !derivadas.includes(col));
     if (faltando.length > 0) throw new Error(`conector.exemplo.json pede colunas fora do contrato em ${e}: ${faltando.join(', ')}.`);
     return { entidade: e, ordem: d.ordem, depende_de: d.depende_de, opcional: d.opcional, tabela: tabelaDe(e), campos, regras_entidade: REGRAS_ENTIDADE[e] ?? [], colunas_so_conector: extras };
   });
@@ -219,7 +244,10 @@ export function modelosCsv(): Record<string, string> {
     const { csv } = gerarModeloCsv(e, undefined, EXEMPLOS as unknown as Exemplos);
     // BOM + cabeçalho + 1ª linha (a 2ª linha do gerador do BKO não entra: "uma linha fictícia por entidade").
     const linhas = csv.split('\r\n');
-    saida[`${e}.csv`] = `${linhas[0]}\r\n${linhas[1]}\r\n`;
+    const extras = CAMPOS_SO_KIT[e] ?? [];
+    const cab = extras.map((c) => `;${c.campo}`).join('');
+    const ex = extras.map((c) => `;${c.exemplo}`).join('');
+    saida[`${e}.csv`] = `${linhas[0]}${cab}\r\n${linhas[1]}${ex}\r\n`;
   }
   return saida;
 }
@@ -231,12 +259,21 @@ function sqlTabela(ent: EntidadeContrato): string {
   for (const extra of ent.colunas_so_conector) linhas.push(`    ${extra} NVARCHAR(MAX) NULL`);
   linhas.push('    linha_hash CHAR(64) NULL');
   linhas.push(`    CONSTRAINT pk_${t} PRIMARY KEY (external_id)`);
-  return `IF OBJECT_ID('dbo.${t}', 'U') IS NULL\nCREATE TABLE dbo.${t} (\n${linhas.join(',\n')});\nGO\nIF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_${t}_alterado' AND object_id = OBJECT_ID('dbo.${t}'))\nCREATE INDEX ix_${t}_alterado ON dbo.${t} (alterado_em, external_id);\nGO`;
+  // banco já criado por versão anterior do kit: acrescenta as colunas só do kit (a tabela só nasce uma vez)
+  const alter = ent.campos
+    .filter((c) => c.so_kit)
+    .map((c) => `IF COL_LENGTH('dbo.${t}', '${c.coluna}') IS NULL ALTER TABLE dbo.${t} ADD ${c.coluna} ${c.tipo_sql};\nGO`)
+    .join('\n');
+  return `IF OBJECT_ID('dbo.${t}', 'U') IS NULL\nCREATE TABLE dbo.${t} (\n${linhas.join(',\n')});\nGO${alter ? `\n${alter}` : ''}\nIF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_${t}_alterado' AND object_id = OBJECT_ID('dbo.${t}'))\nCREATE INDEX ix_${t}_alterado ON dbo.${t} (alterado_em, external_id);\nGO`;
 }
+
+/** `referencias` do produto: JSON [{marca_nome, codigo}] das colunas do kit; as três vazias = NULL (o Macuxi não altera as referências já cadastradas). */
+const SQL_REFERENCIAS = `CASE WHEN referencia_1 IS NULL AND referencia_2 IS NULL AND referencia_3 IS NULL THEN NULL ELSE (SELECT r.marca_nome, r.codigo FROM (VALUES (marca_referencia_1, referencia_1), (marca_referencia_2, referencia_2), (marca_referencia_3, referencia_3)) AS r(marca_nome, codigo) WHERE r.codigo IS NOT NULL FOR JSON PATH) END AS referencias`;
 
 /** View vw_macuxi_<entidade>: as colunas do SELECT do conector.exemplo.json (nomes do contrato; data civil como texto AAAA-MM-DD; horário já em UTC). */
 function sqlView(ent: EntidadeContrato, colunas: string[]): string {
   const itens = colunas.map((col) => {
+    if (ent.entidade === 'produto' && col === 'referencias') return SQL_REFERENCIAS;
     const campo = ent.campos.find((c) => c.coluna === col);
     return campo?.tipo === 'data' ? `CONVERT(CHAR(10), ${col}, 23) AS ${col}` : col;
   });

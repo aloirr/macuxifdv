@@ -19,7 +19,7 @@ const aqui = join(dirname(fileURLToPath(import.meta.url)), '..');
 const raizRepo = join(aqui, '..', '..', '..');
 const pilotoApi = join(aqui, '..', 'kit-piloto', 'erp-via-api');
 
-export const VERSAO_KIT = '1.0.4';
+export const VERSAO_KIT = '1.0.5';
 export const ARQUIVOS_ERP_VIA_API = ['erp-via-api.mjs', 'executar.mjs', 'executar.ps1', 'Macuxi-Credencial.ps1', 'package.json'];
 
 /** Trocas de nome do "ERP via API" do piloto para a thathyany (a mesma lógica, testada no kit do piloto). A ordem importa. */

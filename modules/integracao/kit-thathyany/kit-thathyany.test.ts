@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ENTIDADES_ORDEM_CARGA } from '../domain/modelos-csv';
 import { converterCsvParaLote } from '../domain/carga-arquivo';
-import { SCHEMA_REGISTRO } from '../contracts';
+import { LIMITES_CATALOGO_PRODUTO, SCHEMA_REGISTRO } from '../contracts';
+import { limitarCatalogoDoProduto } from '../domain/catalogo-produto';
 import { artefatos, HUB_URL } from './scripts/gerar';
 // @ts-expect-error módulo .mjs sem tipos (kit em Node puro)
 import { ARQUIVOS_ERP_VIA_API, adaptarErpViaApi, montarEntradas } from './scripts/gerar-zip.mjs';
@@ -203,11 +204,21 @@ describe('ROTEIRO.md', () => {
 });
 
 describe('T-0174 defeito 4: o kit e o Zod REAL do Hub não divergem', () => {
-  type CampoK = { campo: string; obrigatorio: boolean; regra: Record<string, unknown> };
+  type CampoK = { campo: string; obrigatorio: boolean; regra: Record<string, unknown>; so_kit?: boolean };
   type EntK = { entidade: string; campos: CampoK[]; regras_entidade: { campos: string[] }[] };
   const contrato = JSON.parse(ler('contrato.json')) as { entidades: EntK[] };
   const AGORA = '2026-11-15T12:00:00Z';
-  const registroDoModelo = (e: string, texto = ler('modelos', `${e}.csv`)): Record<string, unknown> => {
+  /** Tira do CSV as colunas só do kit (referencia_N...): o Hub não as conhece, a view as converte em `referencias`. */
+  const semColunasDoKit = (e: string, texto: string): string => {
+    const fora = new Set((contrato.entidades.find((x) => x.entidade === e)?.campos ?? []).filter((c) => c.so_kit).map((c) => c.campo));
+    if (fora.size === 0) return texto;
+    const linhas = texto.replace('\uFEFF', '').split(/\r?\n/).filter((l) => l !== '');
+    const cab = (linhas[0] as string).split(';');
+    const manter = cab.map((c, i) => (fora.has(c) ? -1 : i)).filter((i) => i >= 0);
+    return linhas.map((l) => { const cel = l.split(';'); return manter.map((i) => cel[i] ?? '').join(';'); }).join('\n') + '\n';
+  };
+  const registroDoModelo = (e: string, texto0 = ler('modelos', `${e}.csv`)): Record<string, unknown> => {
+    const texto = semColunasDoKit(e, texto0);
     const r = converterCsvParaLote({ entidade: e as never, modo: 'delta', texto, agora: AGORA });
     if (!r.ok) throw new Error(`${e}: ${r.mensagem}`);
     expect(r.linhasInvalidas, e).toEqual([]);
@@ -253,5 +264,39 @@ describe('T-0174 defeito 4: o kit e o Zod REAL do Hub não divergem', () => {
     expect(hub.success).toBe(false);
     const filial = contrato.entidades.find((e) => e.entidade === 'filial') as EntK;
     expect(filial.campos.find((c) => c.campo === 'cnpj')?.regra).toMatchObject({ cnpj: true });
+  });
+});
+
+describe('Referência cruzada do produto (até 3 códigos da concorrência)', () => {
+  const sql = ler('sql', 'criar-banco.sql');
+  const modelo = ler('modelos', 'produto.csv').replace('\uFEFF', '').split(/\r?\n/);
+
+  it('RN-CAT-09: o modelo de produto traz referencia_1..3 e marca_referencia_1..3, e o limite do kit é o do Hub', () => {
+    const cab = (modelo[0] as string).split(';');
+    for (const n of [1, 2, 3]) {
+      expect(cab).toContain(`referencia_${n}`);
+      expect(cab).toContain(`marca_referencia_${n}`);
+    }
+    expect(cab).not.toContain('referencia_4');
+    expect(LIMITES_CATALOGO_PRODUTO.referencias).toBe(3);
+  });
+
+  it('RN-CAT-09: a view do produto monta `referencias` em JSON {marca_nome, codigo}; as três vazias = NULL (não altera)', () => {
+    const view = /CREATE OR ALTER VIEW dbo\.vw_macuxi_produto AS[\s\S]*?GO/.exec(sql)?.[0] ?? '';
+    expect(view).toContain('FOR JSON PATH');
+    expect(view).toContain('marca_nome');
+    expect(view).toMatch(/referencia_1 IS NULL AND referencia_2 IS NULL AND referencia_3 IS NULL THEN NULL/);
+  });
+
+  it('banco criado pela versão anterior do kit ganha as colunas (ALTER TABLE idempotente)', () => {
+    for (const col of ['referencia_1', 'marca_referencia_3']) expect(sql).toContain(`IF COL_LENGTH('dbo.tha_produto', '${col}') IS NULL ALTER TABLE dbo.tha_produto ADD ${col}`);
+  });
+
+  it('RN-CAT-09: o que o kit gera cabe no contrato do Hub (código até 30, marca até 120, marca obrigatória)', () => {
+    const r = SCHEMA_REGISTRO.produto.safeParse({ external_id: 'PRO-001', alterado_em: '2026-11-01T12:00:00Z', sku: 'SKU-001', nome: 'Refrigerante Cola 2L', unidade: 'UN', referencias: [{ marca_nome: 'Marca Beta', codigo: 'PAF-0503' }] });
+    expect(r.success).toBe(true);
+    const lim = limitarCatalogoDoProduto(r.success ? (r.data as never) : (undefined as never));
+    expect(lim.registro.referencias).toHaveLength(1);
+    expect(lim.avisos).toEqual([]);
   });
 });

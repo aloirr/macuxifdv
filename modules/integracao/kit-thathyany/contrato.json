@@ -826,6 +826,84 @@
           "coluna": "aplicacao",
           "tipo_sql": "NVARCHAR(MAX) NULL",
           "regra": {}
+        },
+        {
+          "campo": "referencia_1",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 30,
+          "formato": null,
+          "exemplo": "PAF-0503",
+          "observacao": "Código 1 do produto na concorrência (até 30 caracteres). Informe junto com marca_referencia_1 (as duas preenchidas ou as duas vazias). Vazio nas três = não altera as referências já cadastradas.",
+          "coluna": "referencia_1",
+          "tipo_sql": "NVARCHAR(30) NULL",
+          "regra": {},
+          "so_kit": true
+        },
+        {
+          "campo": "marca_referencia_1",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 120,
+          "formato": null,
+          "exemplo": "Marca Beta",
+          "observacao": "Marca da concorrência do código 1; se não estiver cadastrada em Marcas do Catálogo, a referência não é gravada e o lote traz o aviso marca_concorrente_desconhecida.",
+          "coluna": "marca_referencia_1",
+          "tipo_sql": "NVARCHAR(120) NULL",
+          "regra": {},
+          "so_kit": true
+        },
+        {
+          "campo": "referencia_2",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 30,
+          "formato": null,
+          "exemplo": "",
+          "observacao": "Código 2 do produto na concorrência (até 30 caracteres). Informe junto com marca_referencia_2 (as duas preenchidas ou as duas vazias). Vazio nas três = não altera as referências já cadastradas.",
+          "coluna": "referencia_2",
+          "tipo_sql": "NVARCHAR(30) NULL",
+          "regra": {},
+          "so_kit": true
+        },
+        {
+          "campo": "marca_referencia_2",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 120,
+          "formato": null,
+          "exemplo": "",
+          "observacao": "Marca da concorrência do código 2; se não estiver cadastrada em Marcas do Catálogo, a referência não é gravada e o lote traz o aviso marca_concorrente_desconhecida.",
+          "coluna": "marca_referencia_2",
+          "tipo_sql": "NVARCHAR(120) NULL",
+          "regra": {},
+          "so_kit": true
+        },
+        {
+          "campo": "referencia_3",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 30,
+          "formato": null,
+          "exemplo": "",
+          "observacao": "Código 3 do produto na concorrência (até 30 caracteres). Informe junto com marca_referencia_3 (as duas preenchidas ou as duas vazias). Vazio nas três = não altera as referências já cadastradas.",
+          "coluna": "referencia_3",
+          "tipo_sql": "NVARCHAR(30) NULL",
+          "regra": {},
+          "so_kit": true
+        },
+        {
+          "campo": "marca_referencia_3",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 120,
+          "formato": null,
+          "exemplo": "",
+          "observacao": "Marca da concorrência do código 3; se não estiver cadastrada em Marcas do Catálogo, a referência não é gravada e o lote traz o aviso marca_concorrente_desconhecida.",
+          "coluna": "marca_referencia_3",
+          "tipo_sql": "NVARCHAR(120) NULL",
+          "regra": {},
+          "so_kit": true
         }
       ],
       "regras_entidade": [
@@ -836,10 +914,33 @@
             "embalagem_quantidade"
           ],
           "motivo": "embalagem_medida e embalagem_quantidade devem ser informadas juntas"
+        },
+        {
+          "regra": "juntos",
+          "campos": [
+            "referencia_1",
+            "marca_referencia_1"
+          ],
+          "motivo": "referencia_1 e marca_referencia_1 devem ser informadas juntas (toda referência leva a marca)"
+        },
+        {
+          "regra": "juntos",
+          "campos": [
+            "referencia_2",
+            "marca_referencia_2"
+          ],
+          "motivo": "referencia_2 e marca_referencia_2 devem ser informadas juntas (toda referência leva a marca)"
+        },
+        {
+          "regra": "juntos",
+          "campos": [
+            "referencia_3",
+            "marca_referencia_3"
+          ],
+          "motivo": "referencia_3 e marca_referencia_3 devem ser informadas juntas (toda referência leva a marca)"
         }
       ],
       "colunas_so_conector": [
-        "referencias",
         "oferece_junto",
         "etiquetas"
       ]
