@@ -18,6 +18,7 @@ import { DEFAULT_TZ, monthStart } from '@macuxi/ui/mobile/puro';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MixSuggestion } from '@macuxi/catalogo/contracts';
 import type { CustomerDetail, EditarOrcamentoRequest, Order, OrderDetail, PedidoPush, UpdateOrderRequest } from '../../contracts';
+import type { ReferenciaPdf } from '../../domain/pdf-pedido';
 import { orderActions, type OrderStatus } from '../../domain/order';
 import type { NivelDePreco } from '../../domain/preco-pedido';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
@@ -843,13 +844,13 @@ export function useVendedor() {
    * retrato do pedido. Falha ou aparelho sem a leitura = sem referência (o PDF sai sem a linha, nunca trava).
    */
   const referenciasDeProdutos = useCallback(
-    async (ids: string[]): Promise<Map<string, Array<{ brand: string | null; code: string }>>> => {
-      const out = new Map<string, Array<{ brand: string | null; code: string }>>();
+    async (ids: string[]): Promise<Map<string, ReferenciaPdf[]>> => {
+      const out = new Map<string, ReferenciaPdf[]>();
       const unicos = [...new Set(ids)].slice(0, 500);
       if (!v1 || unicos.length === 0) return out;
       try {
         const r = await ambiente.consultar(CONSULTA_TEXTOS_PRODUTO, { produto_ids: unicos });
-        for (const it of r.itens) if (it.referencias.length > 0) out.set(it.produto_id, it.referencias.map((x) => ({ brand: x.marca_nome ?? null, code: x.codigo })));
+        for (const it of r.itens) if (it.referencias.length > 0) out.set(it.produto_id, it.referencias.map((x) => ({ brand: x.marca_nome, code: x.codigo })));
       } catch {
         // sem referência agora: o PDF sai sem a linha
       }

@@ -31,6 +31,9 @@ function zonedParts(at: string, tz: string): { year: number; month: number; day:
 
 export type OrderPdfView = 'customer' | 'bko';
 
+/** Referência cruzada ("Equivale a") de um produto, como o PDF a recebe (RN-CAT-09). */
+export type ReferenciaPdf = { brand: string | null; code: string };
+
 export interface OrderPdfItem {
   erp_code: string;
   description: string;
