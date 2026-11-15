@@ -8,9 +8,14 @@ import type { ClienteSync, FilialSync } from '@macuxi/core/contracts';
 import type { LinhaEscalonada } from '../domain/escalonada';
 import { filialDoClienteLocal, filialDoPreco, type FilialDoPreco } from '../domain/preco-filial';
 import { precosDoCliente } from '../domain/precos-cliente';
+import { cargaOnlineDoShell } from './lib/carga-online';
+import { portaDaCarga, precosClienteOnline } from './lib/consultas-online';
 import { verPrecoDoPerfil } from '../domain/visibilidade';
 
 export const consultaPrecosClienteAparelho = implementarConsultaAparelho(CONSULTA_PRECOS_CLIENTE, async (entrada, ctx) => {
+  // ADR 0054: catálogo ainda carregando = preço do cliente pela API (que revalida RN-CAT-05); depois da carga, aparelho
+  const online = portaDaCarga('catalogo.precos_cliente@1', cargaOnlineDoShell());
+  if (online) return precosClienteOnline(online, entrada);
   const perfil = ctx.usuario()?.perfil ?? null;
   // sem usuário logado não há perfil para liberar o preço (falha fechada)
   const verPreco = perfil !== null && verPrecoDoPerfil(perfil, ctx.parametros());

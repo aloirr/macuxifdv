@@ -86,7 +86,7 @@ const entidadesCore = [
   definirEntidadeSync({ nome: 'cliente', modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema: ClienteSyncSchema }),
   definirEntidadeSync({ nome: 'filial', modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema: FilialSyncSchema }),
 ];
-const mCore = defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor', 'promotor'], apps: { campo: { abas: [] } }, ofereceConsultas: ['core.cadastro_resumo@1', 'core.filiais@1'], sync: ['cliente', 'filial'] });
+const mCore = defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor', 'promotor'], apps: { campo: { abas: [] } }, ofereceConsultas: ['core.cadastro_resumo@1', 'core.filiais@1', 'core.filiais_do_usuario@1'], sync: ['cliente', 'filial'] });
 // consumidor mínimo (o Vendedor real declara o mesmo em usaConsultas)
 const mConsumidor = defineModule({
   id: 'vendedor',
