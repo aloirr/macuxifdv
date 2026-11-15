@@ -69,11 +69,11 @@ describe.skipIf(semBanco())('Core T-0176 × Postgres: filial do usuário', () =>
       expect(warn).toHaveBeenCalled();
       expect(JSON.stringify(warn.mock.calls)).not.toMatch(/@|Vendedor ERP/);
       expect(await vendedorSemFilial(c, u.id)).toBe(true);
-      const sync = `select filial_id, sem_filial from ${TABELAS_SYNC.usuario.tabela} where id = $1`;
-      expect((await q(sync, [u.id]))[0]).toEqual({ filial_id: null, sem_filial: true });
+      const sync = `select filial_id, filial_ids, sem_filial from ${TABELAS_SYNC.usuario.tabela} where id = $1`;
+      expect((await q(sync, [u.id]))[0]).toEqual({ filial_id: null, filial_ids: [], sem_filial: true });
       await gravarFiliaisDoUsuario(c, u.id, [segunda]);
       expect(await vendedorSemFilial(c, u.id)).toBe(false);
-      expect((await q(sync, [u.id]))[0]).toEqual({ filial_id: segunda, sem_filial: false });
+      expect((await q(sync, [u.id]))[0]).toEqual({ filial_id: segunda, filial_ids: [segunda], sem_filial: false });
     });
   });
 
@@ -86,6 +86,14 @@ describe.skipIf(semBanco())('Core T-0176 × Postgres: filial do usuário', () =>
     await emTransacao(A.tenantId, async ({ c, padrao, segunda }) => {
       await gravarFiliaisDoUsuario(c, A.usuarios.supervisor, [padrao, segunda]);
       expect(await conferirFiliaisDoUsuario(c, 'supervisor', [padrao, segunda])).toHaveLength(2);
+      // T-0176: o sync entrega as duas filiais do supervisor e o updated_at acompanha a troca
+      const sync = `select filial_ids, updated_at from ${TABELAS_SYNC.usuario.tabela} where id = $1`;
+      const antes = (await c.query(sync, [A.usuarios.supervisor])).rows[0] as { filial_ids: string[]; updated_at: Date };
+      expect([...antes.filial_ids].sort()).toEqual([padrao, segunda].sort());
+      await gravarFiliaisDoUsuario(c, A.usuarios.supervisor, [padrao]);
+      const depois = (await c.query(sync, [A.usuarios.supervisor])).rows[0] as { filial_ids: string[]; updated_at: Date };
+      expect(depois.filial_ids).toEqual([padrao]);
+      expect(depois.updated_at.getTime()).toBeGreaterThan(antes.updated_at.getTime() - 1);
     });
   });
 

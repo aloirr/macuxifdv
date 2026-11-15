@@ -67,6 +67,8 @@ export const UsuarioSyncSchema = z
     /** T-0176 / RN-CORE-39 (aditivo): filial do vendedor (referência de catálogo e estoque) e o indicador de bloqueio por falta dela. Ausente = emissor antigo. */
     filial_id: z.string().uuid().nullable().optional(),
     sem_filial: z.boolean().optional(),
+    /** T-0176 (aditivo): TODAS as filiais vivas do próprio usuário, de qualquer cargo (vendedor 0 ou 1; supervisor, gerente e promotor várias). `filial_id` fica por compatibilidade e é `filial_ids[0]`. Ausente = emissor antigo. */
+    filial_ids: z.array(z.string().uuid()).optional(),
   })
   .strict();
 export type UsuarioSync = z.infer<typeof UsuarioSyncSchema>;

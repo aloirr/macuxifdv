@@ -26,7 +26,7 @@ import { consumidoresDePedido } from './consumidores-pedido';
 import { consumidorMetaDefinida } from './consumidores-sistema';
 import { rotasDeLicencas } from './licencas';
 import { alertarPendenciasVencidas, consumidorBaixaPorResposta, rotasDePendenciaCheckout } from './etapas-pendencia';
-import { consultaFiliais, rotasDeFiliais } from './filiais';
+import { consultaFiliais, consultaFiliaisDoUsuario, rotasDeFiliais } from './filiais';
 import { rotasDeFotosPdv } from './fotos-pdv';
 import { consultaMedidas, rotasDeMedidas } from './medidas';
 import { rotasDeFarol } from './farol';
@@ -67,7 +67,7 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
     consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorBaixaPorResposta, consumidorMetaDefinida, ...consumidoresDoErp],
     // ADR 0022: varredura do alerta de pendência de etapa do checkout (RN-CORE-12); período múltiplo de 15 min (RN-CORE-23).
     tarefas: [definirTarefa({ nome: 'alerta_pendencia_checkout', cadaMin: 60, executar: (ctx) => alertarPendenciasVencidas(ctx) })],
-    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaFinanceiroCliente, consultaMedidas, consultaFiliais, consultaPromotorVePedidos, consultaUsuariosResumo, consultaCalendarioMetas],
+    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaFinanceiroCliente, consultaMedidas, consultaFiliais, consultaFiliaisDoUsuario, consultaPromotorVePedidos, consultaUsuariosResumo, consultaCalendarioMetas],
     rotasPublicas: [
       {
         metodo: 'POST',

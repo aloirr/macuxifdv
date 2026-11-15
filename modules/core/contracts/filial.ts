@@ -133,3 +133,13 @@ export const FiliaisSaidaSchema = z.object({
 export type FiliaisSaida = z.infer<typeof FiliaisSaidaSchema>;
 
 export const CONSULTA_FILIAIS = definirConsulta({ nome: 'core.filiais@1', entrada: FiliaisEntradaSchema, saida: FiliaisSaidaSchema });
+
+/**
+ * `core.filiais_do_usuario@1` (T-0176, RN-CORE-39): as filiais vivas de um usuário do tenant, de qualquer cargo (o Catálogo soma o estoque delas).
+ * `sem_filial` = nenhuma filial viva. Usuário inexistente, apagado ou de outro tenant devolve `filial_ids: []` e `sem_filial: true`.
+ */
+export const FiliaisDoUsuarioEntradaSchema = z.object({ usuario_id: Id }).strict();
+export type FiliaisDoUsuarioEntrada = z.infer<typeof FiliaisDoUsuarioEntradaSchema>;
+export const FiliaisDoUsuarioSaidaSchema = z.object({ filial_ids: z.array(Id), sem_filial: z.boolean() });
+export type FiliaisDoUsuarioSaida = z.infer<typeof FiliaisDoUsuarioSaidaSchema>;
+export const CONSULTA_FILIAIS_DO_USUARIO = definirConsulta({ nome: 'core.filiais_do_usuario@1', entrada: FiliaisDoUsuarioEntradaSchema, saida: FiliaisDoUsuarioSaidaSchema });

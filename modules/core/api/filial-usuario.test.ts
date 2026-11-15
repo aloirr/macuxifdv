@@ -116,5 +116,8 @@ describe('T-0176: contrato aditivo', () => {
     expect(UsuarioSyncSchema.parse({ ...linha, filial_id: F1, sem_filial: false })).toMatchObject({ filial_id: F1, sem_filial: false });
     expect(UsuarioSyncSchema.parse({ ...linha, filial_id: null, sem_filial: true }).sem_filial).toBe(true);
     expect(SessaoRespostaSchema.shape.usuario.shape.sem_filial.isOptional()).toBe(true);
+    expect(SessaoRespostaSchema.shape.usuario.shape.filial_ids.isOptional()).toBe(true);
+    expect(UsuarioSyncSchema.parse({ ...linha, filial_id: F1, filial_ids: [F1, F2] }).filial_ids).toEqual([F1, F2]);
+    expect(() => UsuarioSyncSchema.parse({ ...linha, filial_ids: ['nao-uuid'] })).toThrow();
   });
 });

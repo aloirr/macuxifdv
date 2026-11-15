@@ -90,13 +90,14 @@ export const TABELAS_SYNC = {
   usuario: {
     // T-0176 / RN-CORE-39: `filial_id` (a filial viva do vendedor; o `updated_at` acompanha a troca) e `sem_filial` (vendedor pelo cargo, sem filial)
     tabela: `(select u.id as usuario_id, u.id, greatest(u.updated_at, coalesce(f.alterado_em, u.updated_at)) as updated_at, u.deleted_at, null::text as external_id,
-        u.desconto_limita_item, u.desconto_limita_pedido, u.desconto_maximo_pedido_permil, f.filial_id,
+        u.desconto_limita_item, u.desconto_limita_pedido, u.desconto_maximo_pedido_permil, f.filial_id, coalesce(f.filial_ids, '{}'::uuid[]) as filial_ids,
         (h.cargo = 'vendedor' and f.filial_id is null) as sem_filial
       from core.usuario u
       left join core.v_usuario_hierarquia h on h.usuario_id = u.id
-      left join lateral (select max(uf.updated_at) as alterado_em, (array_agg(uf.filial_id order by uf.created_at, uf.filial_id) filter (where uf.deleted_at is null))[1] as filial_id
+      left join lateral (select max(uf.updated_at) as alterado_em, (array_agg(uf.filial_id order by uf.created_at, uf.filial_id) filter (where uf.deleted_at is null))[1] as filial_id,
+                                  array_agg(uf.filial_id order by uf.created_at, uf.filial_id) filter (where uf.deleted_at is null) as filial_ids
                            from core.usuario_filial uf where uf.usuario_id = u.id) f on true) as usuario`,
-    colunas: 'desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil, filial_id, coalesce(sem_filial, false) as sem_filial',
+    colunas: 'desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil, filial_id, filial_ids, coalesce(sem_filial, false) as sem_filial',
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
   },

@@ -1,7 +1,7 @@
 import type { ClienteBanco, ContextoConsulta } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { FiliaisEntradaSchema, FiliaisSaidaSchema } from '../contracts';
-import { consultaFiliais } from './filiais';
+import { FiliaisDoUsuarioEntradaSchema, FiliaisDoUsuarioSaidaSchema, FiliaisEntradaSchema, FiliaisSaidaSchema } from '../contracts';
+import { consultaFiliais, consultaFiliaisDoUsuario } from './filiais';
 
 const MANAUS = '0f100000-0000-4000-8000-000000000001';
 const BV = '0f100000-0000-4000-8000-000000000002';
@@ -41,5 +41,21 @@ describe('core.filiais@1 (RN-CORE-39)', () => {
   it('RN-CORE-39: sem filial padrão o tenant está inconsistente e a consulta recusa em português', async () => {
     const db: ClienteBanco = { query: async () => ({ rows: [], rowCount: 0 }) as never };
     await expect(consultaFiliais.executar(FiliaisEntradaSchema.parse({}), { db } as unknown as ContextoConsulta)).rejects.toThrow(/filial padrão/);
+  });
+});
+
+describe('core.filiais_do_usuario@1 (T-0176, RN-CORE-39)', () => {
+  const U = '0a100000-0000-4000-8000-000000000001';
+  const ctxU = (filiais: string[]) => ({ db: { query: async () => ({ rows: filiais.map((filial_id) => ({ filial_id })), rowCount: filiais.length }) } as unknown as ClienteBanco }) as unknown as ContextoConsulta;
+  it('RN-CORE-39: devolve todas as filiais vivas do usuário (supervisor com várias)', async () => {
+    const r = FiliaisDoUsuarioSaidaSchema.parse(await consultaFiliaisDoUsuario.executar(FiliaisDoUsuarioEntradaSchema.parse({ usuario_id: U }), ctxU([MANAUS, BV])));
+    expect(r).toEqual({ filial_ids: [MANAUS, BV], sem_filial: false });
+  });
+  it('RN-CORE-39: sem nenhuma filial viva (ou usuário que o tenant não enxerga) volta vazio e sem_filial', async () => {
+    const r = await consultaFiliaisDoUsuario.executar(FiliaisDoUsuarioEntradaSchema.parse({ usuario_id: U }), ctxU([]));
+    expect(r).toEqual({ filial_ids: [], sem_filial: true });
+  });
+  it('RN-CORE-39: a entrada exige usuario_id uuid', () => {
+    expect(() => FiliaisDoUsuarioEntradaSchema.parse({ usuario_id: 'x' })).toThrow();
   });
 });

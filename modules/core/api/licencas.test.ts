@@ -199,7 +199,7 @@ describe('T-0004 §5: provedores de pull do Core', () => {
 
   it('RN-VEN-11a e RN-CORE-39: a entidade usuario só expõe as 3 colunas de limite e a filial do vendedor (sem nome, e-mail nem código do ERP) e filtra pelos usuários visíveis', () => {
     const t = TABELAS_SYNC.usuario;
-    expect(t.colunas).toBe('desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil, filial_id, coalesce(sem_filial, false) as sem_filial');
+    expect(t.colunas).toBe('desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil, filial_id, filial_ids, coalesce(sem_filial, false) as sem_filial');
     expect(t.tabela).not.toMatch(/nome|email|senha/);
     const { sql } = sqlDoPull(t, pedido, new Set(['u1']));
     expect(sql).toContain('and usuario_id = any($5::uuid[])');

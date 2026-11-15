@@ -55,9 +55,9 @@ export const LoginSenhaRequestSchema = z
   .strict();
 export type LoginSenhaRequest = z.infer<typeof LoginSenhaRequestSchema>;
 
-/** `sem_filial` (T-0176, RN-CORE-39): vendedor sem filial, bloqueado no app; ausente ou falso = livre. */
+/** `sem_filial` (T-0176, RN-CORE-39): vendedor sem filial, bloqueado no app; ausente ou falso = livre. `filial_ids`: filiais vivas do usuário, de qualquer cargo (ausente = emissor antigo). */
 export const UsuarioSessaoSchema = z
-  .object({ id: z.string().uuid(), nome: z.string(), nome_curto: z.string().nullable(), email: z.string(), perfil: PerfilSchema, sem_filial: z.boolean().optional() })
+  .object({ id: z.string().uuid(), nome: z.string(), nome_curto: z.string().nullable(), email: z.string(), perfil: PerfilSchema, sem_filial: z.boolean().optional(), filial_ids: z.array(z.string().uuid()).optional() })
   .strict();
 export type UsuarioSessao = z.infer<typeof UsuarioSessaoSchema>;
 
