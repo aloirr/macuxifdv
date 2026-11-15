@@ -393,7 +393,7 @@ function StopRow({ stop, last, tz, comAcao, locked, onPress, onAction }: { stop:
         </View>
       ) : inProgress || isNext ? (
         <View style={[styles.num, { backgroundColor: inProgress ? colors.accent : colors.ink }]}>
-          <Text style={[styles.numText, { color: colors.onAccent, ...fonte.bold, fontSize: 13 }]}>{stop.sequence}</Text>
+          <Text style={[styles.numText, { color: colors.onAccent, ...fonte.bold, fontSize: 14 }]}>{stop.sequence}</Text>
         </View>
       ) : (
         <View style={[styles.num, { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.ink }]}>

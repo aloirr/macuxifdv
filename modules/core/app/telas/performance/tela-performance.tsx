@@ -209,8 +209,8 @@ function CartaoProdutividade({ c }: { c: CardProdutividade }) {
 const s = StyleSheet.create({
   linhaVisao: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   linhaPeriodo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
-  real: { ...fonte.bold, fontSize: 30, color: colors.ink, fontVariant: ['tabular-nums'] },
-  meta: { ...fonte.body, fontSize: 24, color: colors.ink2 },
+  real: { ...fonte.bold, fontSize: 28, color: colors.ink, fontVariant: ['tabular-nums'] },
+  meta: { ...fonte.body, fontSize: 22, color: colors.ink2 },
   linhaBarra: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   percentual: { ...fonte.bold, fontSize: 16, fontVariant: ['tabular-nums'] },
   colunas: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.line, paddingTop: space.md },
@@ -221,5 +221,5 @@ const s = StyleSheet.create({
   celula: { width: '50%', padding: space.xs },
   linhaValor: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   ponto: { width: 10, height: 10, borderRadius: 5 },
-  valorProdutividade: { ...fonte.bold, fontSize: 24, color: colors.ink, fontVariant: ['tabular-nums'] },
+  valorProdutividade: { ...fonte.bold, fontSize: 22, color: colors.ink, fontVariant: ['tabular-nums'] },
 });

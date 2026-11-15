@@ -92,8 +92,8 @@ export function textoDaDataDaRota(data: string, maiusculo = false): string {
   return maiusculo ? maiuscula(t) : t;
 }
 
-/** Título da tela: "Rota de hoje" ou, com outra data, "Rota de ter, 17/11". */
-export const tituloDaRota = (f: FiltroRota): string => (f.data ? `Rota de ${textoDaDataDaRota(f.data)}` : 'Rota de hoje');
+/** Título da tela: "Rota de hoje" ou, com outra data, "Rota" (a data fica só na etiqueta removível; RD-1235). */
+export const tituloDaRota = (f: FiltroRota): string => (f.data ? 'Rota' : 'Rota de hoje');
 
 /** Etiquetas removíveis, na ordem da folha. */
 export function etiquetasDaRota(f: FiltroRota): Array<{ campo: CampoFiltroRota; texto: string }> {
@@ -146,7 +146,7 @@ export function situacaoNaLinha(situacao: SituacaoDoCliente, garantidas: readonl
 }
 
 /** Na virada do dia, a data escolhida que virou hoje volta ao padrão (a rota de hoje tem check-in de novo). */
-export const filtroNoDia = (f: FiltroRota, hoje: string): FiltroRota => (f.data === hoje ? { ...f, data: null } : f);
+export const filtroNoDia = (f: FiltroRota, hoje: string): FiltroRota => (f.data ? comData(f, f.data, hoje) : f);
 
 /** Filtro que tira paradas da lista (cliente, cidade ou bairro); só a data não filtra paradas. */
 export const filtraParadas = (f: FiltroRota): boolean => filtrosDeParada(f).some(Boolean);

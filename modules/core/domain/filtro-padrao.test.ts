@@ -79,9 +79,9 @@ describe('Filtro padrão da Rota (R-20261115-072200; spec filtro-padrao-campo §
     expect(dataDaRota(f({ data: '2026-11-17' }), HOJE)).toBe('2026-11-17');
   });
 
-  it('título: "Rota de hoje" ou "Rota de ter, 17/11"; etiqueta da data "Ter, 17/11"', () => {
+  it('título: "Rota de hoje" ou "Rota" (a data fica só na etiqueta "Ter, 17/11")', () => {
     expect(tituloDaRota(FILTRO_ROTA_PADRAO)).toBe('Rota de hoje');
-    expect(tituloDaRota(f({ data: '2026-11-17' }))).toBe('Rota de ter, 17/11');
+    expect(tituloDaRota(f({ data: '2026-11-17' }))).toBe('Rota');
     expect(textoDaDataDaRota('2026-11-17', true)).toBe('Ter, 17/11');
   });
 
