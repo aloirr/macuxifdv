@@ -56,7 +56,12 @@ export type TipoAcessoPortal = (typeof TIPOS_ACESSO_PORTAL)[number];
  */
 export type AcessoPortalAutenticado =
   | { tipo: 'super_admin'; id: string; sessao_id: string }
-  | { tipo: 'admin_cliente'; sessao_id: string; empresa: { tenant_id: string; usuario_id: string } | null };
+  | {
+      tipo: 'admin_cliente';
+      sessao_id: string;
+      /** `sem_filial` (T-0176, RN-CORE-39; ADR 0056): o admin real da empresa está sem filial de cadastro. Ausente = não informado. */
+      empresa: { tenant_id: string; usuario_id: string; sem_filial?: boolean } | null;
+    };
 
 /** Teto de empresas conferidas num login (o mesmo e-mail admin em mais empresas: só as primeiras por nome; ADR 0031). */
 export const MAX_EMPRESAS_LOGIN_PORTAL = 20;
