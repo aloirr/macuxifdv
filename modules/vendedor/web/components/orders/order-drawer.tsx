@@ -2,7 +2,8 @@
 
 import { useState, type ReactNode } from 'react';
 import { formatBRL, formatPct } from '@macuxi/comum';
-import { usePode } from '@macuxi/platform-sdk/react';
+import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
+import { logoParaPdf } from '../../lib/logo-pdf';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, Drawer, ErrorBlock, formatDateTime, HistoricoEmTags, LoadingBlock, type NoticeTone, Notice, tagsDoHistorico, td, tdNum, th, thNum } from '@macuxi/ui/web';
 import type { Order } from '../../../contracts';
@@ -32,6 +33,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
   const dados = detail.data?.pedido ?? null;
   const semDocumento = detail.data?.semDocumento ?? false;
   const sessao = useSessaoDoBko();
+  const ambiente = useAmbiente();
   const podeAprovar = usePode('pedido.aprovar');
   const [aviso, setAviso] = useState<{ tom: NoticeTone; texto: string } | null>(null);
   const [erroPdf, setErroPdf] = useState<string | null>(null);
@@ -43,7 +45,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
     setGerando(view);
     setErroPdf(null);
     try {
-      await exportarPdfDoPedido(dados, view, { empresa: sessao.empresa, tz });
+      await exportarPdfDoPedido(dados, view, { empresa: sessao.empresa, tz, logo_src: await logoParaPdf(ambiente) });
     } catch (e) {
       setErroPdf(errorMessage(e));
     } finally {

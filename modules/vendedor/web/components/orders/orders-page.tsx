@@ -3,7 +3,9 @@
 import { useMemo, useState } from 'react';
 import { formatBRL } from '@macuxi/comum';
 import { localIsoDate } from '@macuxi/comum/fuso';
+import { useAmbiente } from '@macuxi/platform-sdk/react';
 import { downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
+import { logoParaPdf } from '../../lib/logo-pdf';
 import { Button, CampoBusca, CLASSE_CAMPO_BASE, type ColunaDaTabela, ErrorBlock, EstadoVazio, FilterBar, formatDateTime, LoadingBlock, type AcaoDoMenu, MenuAcoes, nomeLegivel, PageHeader, rotuloComContagem, SelectField, SeloSituacao, TabelaDados, useToast } from '@macuxi/ui/web';
 import { ORDER_STATUS_LABEL, ORDER_STATUSES, type Order } from '../../../contracts';
 import { ordersToCsv } from '../../lib/csv';
@@ -32,6 +34,7 @@ function dataCurta(iso: string, tz: string): string {
  */
 export function OrdersPage() {
   const sessao = useSessaoDoBko();
+  const ambiente = useAmbiente();
   const toast = useToast();
   const [filtros, mudar] = useFiltrosNaUrl();
   const [aberto, setAberto] = useState<Order | null>(null);
@@ -65,7 +68,7 @@ export function OrdersPage() {
   const pdfDaLinha = async (o: Order, view: 'customer' | 'bko') => {
     try {
       const { pedido } = lerDetalheDoPedido(await api<unknown>(`/vendedor/pedidos/${o.id}`));
-      await exportarPdfDoPedido(pedido, view, { empresa: sessao.empresa, tz });
+      await exportarPdfDoPedido(pedido, view, { empresa: sessao.empresa, tz, logo_src: await logoParaPdf(ambiente) });
     } catch (e) {
       toast('danger', ERRO_IMPRESSAO(errorMessage(e)));
     }
