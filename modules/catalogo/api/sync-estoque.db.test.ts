@@ -84,9 +84,10 @@ describe.skipIf(semBanco())('Catálogo × Postgres: pull de deposito e estoque_s
     for (const l of deps) DepositoSyncSchema.parse(l);
   });
 
-  it('RN-CAT-05: promotor sem o parâmetro não recebe saldo; com o parâmetro recebe', async () => {
-    expect(await puxar('estoque_saldo', ctx(A.tenantId, 'promotor'))).toEqual([]);
-    expect(await puxar('deposito', ctx(A.tenantId, 'promotor'))).toEqual([]);
+  it('RN-CAT-05 (revista): o promotor recebe o saldo e os depósitos com ou sem o parâmetro de preço', async () => {
+    const sem = await puxar('estoque_saldo', ctx(A.tenantId, 'promotor'));
+    expect(sem.map((l) => l.id)).toContain(S1);
+    expect((await puxar('deposito', ctx(A.tenantId, 'promotor'))).map((l) => l.id)).toContain(DEP_A);
     const com = await puxar('estoque_saldo', ctx(A.tenantId, 'promotor', { promotor_ve_preco_estoque: true }));
     expect(com.map((l) => l.id)).toContain(S1);
   });

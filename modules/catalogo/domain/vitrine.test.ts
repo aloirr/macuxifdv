@@ -61,6 +61,13 @@ const ctx = (o: Partial<ContextoVitrine> = {}): ContextoVitrine => ({
 });
 
 describe('itemDaVitrine — preço e estoque do cartão (RF-CAT-03)', () => {
+  it('RN-CAT-05 / RN-CORE-39: sem filial de venda (folha vazia) o estoque fica nulo, nunca 0', () => {
+    for (const perfil of ['vendedor', 'promotor'] as const) {
+      const item = itemDaVitrine(PRODUTOS[0]!, ctx({ perfil, filiais: [], filiaisFolha: [] }));
+      expect(item.availability, perfil).toBeNull();
+    }
+  });
+
   it('RN-CAT-06: com cliente em contexto, o preço é o da tabela dele; fora dela, "Sem preço para este cliente." e não vendável', () => {
     const cafe = itemDaVitrine(PRODUTOS[0]!, ctx());
     expect(cafe).toMatchObject({ id: id(1), erp_code: 'SKU-1', description: 'Café torrado e moído 500 g', brand: 'Aroma da Serra', line: 'Mercearia', unit: 'UN', price_stock_visible: true });
@@ -85,18 +92,19 @@ describe('itemDaVitrine — preço e estoque do cartão (RF-CAT-03)', () => {
     expect(itemDaVitrine(PRODUTOS[0]!, ctx({ filiais: [id(1)] })).availability).toMatchObject({ band: 'sem_estoque', quantity: 0 });
   });
 
-  it('RN-CAT-05: o promotor vê a ficha sem preço e sem estoque (padrão); com o parâmetro ligado, vê como o vendedor', () => {
+  it('RN-CAT-05 (revista): o promotor vê a ficha e o ESTOQUE, sem preço (padrão); com o parâmetro ligado, vê o preço como o vendedor', () => {
     const promotor = itemDaVitrine(PRODUTOS[0]!, ctx({ perfil: 'promotor' }));
-    expect(promotor).toMatchObject({ price: null, availability: null, price_stock_visible: false, description: 'Café torrado e moído 500 g' });
+    expect(promotor).toMatchObject({ price: null, price_stock_visible: false, description: 'Café torrado e moído 500 g' });
+    expect(promotor.availability).toMatchObject({ product_id: id(1) });
     const ligado = itemDaVitrine(PRODUTOS[0]!, ctx({ perfil: 'promotor', parametros: resolverParametros({ promotor_ve_preco_estoque: true }) }));
     expect(ligado.price?.price_cents).toBe(1890);
   });
 });
 
 describe('docDeBusca — o que o ranking enxerga', () => {
-  it('RN-CAT-05: para quem não vê estoque, todo produto entra com estoque 0 e sem preço (a ordem da lista não revela nada)', () => {
+  it('RN-CAT-05: para o promotor o ranking não enxerga preço (a ordem da lista não revela nada)', () => {
     const doc = docDeBusca(PRODUTOS[0]!, itemDaVitrine(PRODUTOS[0]!, ctx({ perfil: 'promotor' })));
-    expect(doc).toMatchObject({ estoque: 0, preco_cents: null, nome: 'Café torrado e moído 500 g', sku: 'SKU-1' });
+    expect(doc).toMatchObject({ preco_cents: null, nome: 'Café torrado e moído 500 g', sku: 'SKU-1' });
   });
 
   it('RN-CAT-07: com o número escondido pelo tenant, a faixa ainda diz se tem estoque', () => {
@@ -134,10 +142,10 @@ describe('buscarProdutos — busca paginada (RF-CAT-01, RF-CAT-02)', () => {
     expect(buscar('mercearia', { chips: { line: 'Limpeza' } }).items).toEqual([]);
   });
 
-  it('RN-CAT-05: o promotor não filtra nem ordena por preço/estoque (o filtro some e a lista não muda pela regra)', () => {
+  it('RN-CAT-05: o promotor não filtra nem ordena por preço (o filtro de preço some); o de estoque continua', () => {
     const promotor = buscarProdutos({ produtos: PRODUTOS, contexto: ctx({ perfil: 'promotor' }), filtros: interpretarConsulta('grão nobre com estoque até R$ 10', vocabularioDe(PRODUTOS)), sinonimos: [], limit: 20, offset: 0 });
-    expect(promotor.items.map((i) => i.id).sort()).toEqual([id(2), id(3)]);
-    expect(promotor.items.every((i) => i.price === null && i.availability === null)).toBe(true);
+    expect(promotor.items.map((i) => i.id).sort()).toEqual([id(2)]);
+    expect(promotor.items.every((i) => i.price === null && i.availability !== null)).toBe(true);
     const vendedor = buscarProdutos({ produtos: PRODUTOS, contexto: ctx(), filtros: interpretarConsulta('grão nobre com estoque até R$ 30', vocabularioDe(PRODUTOS)), sinonimos: [], limit: 20, offset: 0 });
     expect(vendedor.items.map((i) => i.id)).toEqual([id(2)]);
   });
