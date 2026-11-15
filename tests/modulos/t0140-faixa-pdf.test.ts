@@ -25,7 +25,7 @@ vi.mock('@macuxi/ui/mobile', async () => {
   const { createElement: ce } = await import('react');
   return {
     colors: new Proxy({}, { get: () => '#000' }),
-    fonts: new Proxy({}, { get: () => 'f' }),
+    fonte: new Proxy({}, { get: () => ({}) }),
     radius: new Proxy({}, { get: () => 8 }),
     formatHHMM: (iso: string) => iso.slice(11, 16),
     Botao: (p: { rotulo: string; testID?: string }) => ce('button', { 'data-testid': p.testID }, p.rotulo),

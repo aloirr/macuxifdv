@@ -38,7 +38,7 @@ vi.mock('@macuxi/ui/mobile', async () => {
   const h = (tag: string) => (p: { children?: import('react').ReactNode; testID?: string }) => ce(tag, p.testID ? { 'data-testid': p.testID } : {}, p.children);
   return {
     colors: new Proxy({}, { get: () => '#000' }),
-    fonts: new Proxy({}, { get: () => 'f' }),
+    fonte: new Proxy({}, { get: () => ({}) }),
     type: new Proxy({}, { get: () => ({}) }),
     initials: (n: string) => n.slice(0, 2),
     Cartao: h('section'),
