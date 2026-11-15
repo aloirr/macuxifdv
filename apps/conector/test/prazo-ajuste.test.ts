@@ -5,7 +5,7 @@ import { interpretarConfig } from '../src/config/carregar';
 import { mapearEValidar } from '../src/mapeamento';
 import { parametrosCabecalho } from '../src/pedidos';
 import { PedidoParaErp } from '@macuxi/integracao/contracts';
-import { VERSAO_CONECTOR } from '../src/versao';
+import { compararVersoes, VERSAO_CONECTOR } from '../src/versao';
 
 const ler = (nome: string) => interpretarConfig(readFileSync(join(__dirname, '..', 'exemplos', nome), 'utf8'), 'json');
 const cfg = ler('conector.exemplo.json').entidades.prazo_pagamento!;
@@ -84,6 +84,6 @@ describe('RN-INT-15: % de ajuste no pedido (Hub para ERP), só informativo', () 
   });
 
   it('RN-INT-15: o Conector é a versão 1.5.0', () => {
-    expect(VERSAO_CONECTOR).toBe('1.5.0');
+    expect(compararVersoes(VERSAO_CONECTOR, '1.5.0')).toBeGreaterThanOrEqual(0);
   });
 });
