@@ -132,6 +132,7 @@ function PaginaDeEnvio() {
   const lista = useQuery({
     queryKey: ['catalogo', 'fotos-lote'],
     queryFn: async () => FotoLoteListaSchema.parse(await api<unknown>(BASE)).lotes,
+    // timer-permitido: progresso do lote no BKO (RN-CAT-14), a cada 2 s só enquanto o lote anda; não sincroniza
     refetchInterval: (q) => (q.state.data?.some((l) => consultaViva(faseDoLote(l, false))) ? INTERVALO_CONSULTA_MS : false),
   });
   const { limites, conferencia } = useLimites();
@@ -258,6 +259,7 @@ function PaginaDoLote({ id }: { id: string }) {
   const consulta = useQuery({
     queryKey: ['catalogo', 'fotos-lote', id],
     queryFn: async () => FotoLoteSchema.parse(await api<unknown>(`${BASE}/${id}`)),
+    // timer-permitido: progresso do lote no BKO (RN-CAT-14), a cada 2 s só enquanto o lote anda; não sincroniza
     refetchInterval: (q) => (q.state.data && consultaViva(faseDoLote(q.state.data, false)) ? INTERVALO_CONSULTA_MS : false),
   });
   const lote = consulta.data;

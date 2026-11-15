@@ -78,7 +78,7 @@ const ZIP_PEQUENO: ArquivoDoZip[] = [
   { caminho: 'B2_1.jpg', bytes: jpeg(6) }, // 6 recusada: B2 ordem 1 já ocupada neste ZIP
   { caminho: 'Ab.jpg', bytes: jpeg(7) }, // 7 ambígua: AB e ab
   { caminho: 'ZZ9.jpg', bytes: jpeg(8) }, // 8 sem produto
-  { caminho: 'FALSO.png', bytes: Buffer.from('isto não é uma imagem') }, // 9 recusada: o conteúdo não é PNG
+  { caminho: 'A1_5.png', bytes: Buffer.from('isto não é uma imagem') }, // 9 recusada: o conteúdo não é PNG (o tipo é lido ao ligar ao produto)
   { caminho: '../fuga.jpg', bytes: jpeg(9) }, // 10 recusada: caminho inválido
   { caminho: '__MACOSX/._A1.jpg', bytes: jpeg(10) }, // 11 ignorada
 ];
@@ -252,22 +252,8 @@ describe.skipIf(semBanco())('Catálogo T-0174 × Postgres: fotos em lote por ZIP
     });
   });
 
-  it('RN-CAT-14: dois POST simultâneos do mesmo tenant com uma vaga livre: um 201 e um 409 LOTE_EM_ANDAMENTO (trava por tenant)', async () => {
-    const EXTRA = id(31);
-    const EXTRA_ZIP = id(32);
-    const preparo = await pool.connect();
-    try {
-      await preparo.query('begin');
-      await definirTenant(preparo, A.tenantId);
-      await preparo.query(
-        `insert into catalogo.foto_lote (id, tenant_id, enviado_por, arquivo_id, nome_arquivo, tamanho_bytes, situacao) values ($1::uuid, plataforma.tenant_atual(), $2::uuid, $3::uuid, 'ativo.zip', 1000, 'enfileirado')`,
-        [EXTRA, A.usuarios.analista, EXTRA_ZIP],
-      );
-      await preparo.query('commit');
-    } finally {
-      preparo.release();
-    }
-    const ids = [id(33), id(35)];
+  it('RN-CAT-14: dois POST simultâneos com o mesmo id (reenvio do BKO): os dois devolvem o mesmo lote, sem ID_EM_USO (trava por tenant)', async () => {
+    const ids = [id(33)];
     const tentar = async (lote: string, arquivo: string) => {
       const c = await pool.connect();
       try {
@@ -293,17 +279,18 @@ describe.skipIf(semBanco())('Catálogo T-0174 × Postgres: fotos em lote por ZIP
       }
     };
     try {
-      const r = await Promise.allSettled([tentar(ids[0]!, id(34)), tentar(ids[1]!, id(36))]);
-      expect(r.filter((x) => x.status === 'fulfilled')).toHaveLength(1);
-      const rec = r.filter((x): x is PromiseRejectedResult => x.status === 'rejected');
-      expect(rec).toHaveLength(1);
-      expect(rec[0]!.reason).toMatchObject({ status: 409, codigo: 'LOTE_EM_ANDAMENTO' });
+      // sem a trava, os dois não acham o lote, os dois gravam e o segundo cai no único do id (409 ID_EM_USO)
+      const r = await Promise.allSettled([tentar(ids[0]!, id(34)), tentar(ids[0]!, id(34))]);
+      expect(r.map((x) => x.status)).toEqual(['fulfilled', 'fulfilled']);
+      const lotes = r.map((x) => (x as PromiseFulfilledResult<{ lote: FotoLote }>).value.lote.id);
+      expect(lotes).toEqual([ids[0], ids[0]]);
     } finally {
       const limpeza = await pool.connect();
       try {
         await limpeza.query('begin');
         await definirTenant(limpeza, A.tenantId);
-        await limpeza.query(`update catalogo.foto_lote set deleted_at = now() where id = any($1::uuid[])`, [[EXTRA, ...ids]]);
+        // hora-fixa-ok: limpeza do teste, o instante nunca é comparado
+        await limpeza.query(`update catalogo.foto_lote set deleted_at = now() where id = any($1::uuid[])`, [ids]);
         await limpeza.query('commit');
       } finally {
         limpeza.release();
@@ -387,7 +374,7 @@ describe.skipIf(semBanco())('Catálogo T-0174 × Postgres: fotos em lote por ZIP
       expect(por('B2_1.jpg')).toMatchObject({ situacao: 'recusado', motivo: 'ordem_repetida_no_lote' });
       expect(por('Ab.jpg')).toMatchObject({ situacao: 'ambiguo', produto_id: null, codigos_candidatos: ['AB', 'ab'] });
       expect(por('ZZ9.jpg')).toMatchObject({ situacao: 'sem_produto', produto_id: null });
-      expect(por('FALSO.png')).toMatchObject({ situacao: 'recusado', motivo: 'tipo_nao_aceito' });
+      expect(por('A1_5.png')).toMatchObject({ situacao: 'recusado', motivo: 'tipo_nao_aceito' });
       expect(por('../fuga.jpg')).toMatchObject({ situacao: 'recusado', motivo: 'caminho_invalido' });
       expect(itens.map((i) => i.arquivo)).not.toContain('fotos/');
       expect(itens.map((i) => i.arquivo)).not.toContain('__MACOSX/._A1.jpg');
