@@ -47,6 +47,8 @@ const COERENCIA_DA_FK: Record<string, string> = {
     "prazo_pagamento_id = coalesce(prazo_pagamento_id, (select p.id from vendedor.prazo_pagamento p order by p.id limit 1)), forma_pagamento_codigo = coalesce(forma_pagamento_codigo, 'AVISTA'), forma_pagamento_nome = coalesce(forma_pagamento_nome, 'À vista'), prazo_codigo = coalesce(prazo_codigo, 'AVISTA'), prazo_descricao = coalesce(prazo_descricao, 'À vista'), prazo_parcelas_dias = coalesce(prazo_parcelas_dias, '{0}'::int[]), prazo_medio_dias = coalesce(prazo_medio_dias, 0)",
   pedido_prazo_pagamento_fk:
     "forma_pagamento_id = coalesce(forma_pagamento_id, (select f.id from vendedor.forma_pagamento f order by f.id limit 1)), forma_pagamento_codigo = coalesce(forma_pagamento_codigo, 'AVISTA'), forma_pagamento_nome = coalesce(forma_pagamento_nome, 'À vista'), prazo_codigo = coalesce(prazo_codigo, 'AVISTA'), prazo_descricao = coalesce(prazo_descricao, 'À vista'), prazo_parcelas_dias = coalesce(prazo_parcelas_dias, '{0}'::int[]), prazo_medio_dias = coalesce(prazo_medio_dias, 0)",
+  // 0079 (T-0174) foto_lote_duplicado_coerente: duplicado_de só existe com situacao 'duplicado'
+  foto_lote_duplicado_de_fk: "situacao = 'duplicado'",
 };
 
 interface Fk {
