@@ -117,7 +117,7 @@ criado_em: 2026-10-31T14:05:12-04:00
 - **Sem Docker** (decisão do Alexandre, R-20261105-053835; vale também na nuvem): nenhum agente roda `docker` nem depende de Postgres local; testes de banco e o stack isolado rodam no CI do GitHub (CI do PR e `stack-isolado.yml`), e o CI verde é o critério.
 - **Horário de Manaus** (R-20261114-195100-alexandre): horários em texto para pessoas (recados, docs, relatórios) no fuso de Manaus (UTC−4); carimbos técnicos e banco em UTC.
 - **Fase M** (`C:\Users\domon\dev\forca-vendas`, no PC do Alexandre): continua **só para consulta e cópia**, nunca alterada. Como a nuvem não alcança o PC, o que for preciso dela o Alexandre anexa à tarefa ou ao recado.
-- **Aparelho Android**: o build sai pelo `eas-build.yml` (seção 5); o teste no aparelho continua com o Alexandre.
+- **Aparelho Android**: o build sai pelo `android-build.yml` (seção 5); o teste no aparelho continua com o Alexandre.
 
 **2. Trava de arquivos entre sessões**
 - O quadro mantém a coluna **Onde** (agora a sessão: `nuvem/<branch>`) e a seção **Travado pela nuvem** com os caminhos de cada sessão aberta.
@@ -237,7 +237,7 @@ Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-
 - **Versão visível**: a versão aparece em Perfil → linha da versão, igual ao nome do build.
 - **Arquivo legível**: além do link do expo.dev, o APK sai como `Campo-Demo-vX.Y.Z.apk`, com link temporário de um bucket privado.
 - **Assunto do recado**: `BUILD PRONTO Campo-Demo-vX.Y.Z / Gestao-Demo-vX.Y.Z (<sha curto>)`.
-- **Onde sai o build** (time 100% na nuvem, 14/11/2026): pelo workflow `eas-build.yml` ("eas build", `workflow_dispatch`, inputs `variante`, `perfil` e `so_conferir`), disparado a partir do `main` depois do merge do lote. Antes do primeiro build de cada ciclo, um run com **`so_conferir=true`** testa o `EXPO_TOKEN` (`eas whoami`) sem gastar build do EAS. O `EXPO_TOKEN` fica só nos segredos do Actions.
+- **Onde sai o build** (sem conta da Expo desde 15/11/2026, R-20261115-091000-alexandre): pelo workflow `android-build.yml` ("android build", `workflow_dispatch`, inputs `variante`, `versao`, `perfil` e `version_code`), disparado a partir do `main` depois do merge do lote. Passo a passo, artefatos e conferência da assinatura: `apps/mobile/docs/build-android.md`.
 - **Deploy**: só pelos workflows de produção (`producao-publicar.yml` "producao — publicar" e, quando preciso, `producao-tenant.yml`, `producao-super-admin.yml` e `producao-ensaio-restauracao.yml`), com a tag `v*` e o recado "aprovo deploy vX.Y.Z" do Alexandre citado na mensagem da tag. A demo foi desligada em 14/11/2026 (ADR 0051).
 
 ## Contratos entre módulos
