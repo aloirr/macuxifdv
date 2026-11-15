@@ -200,6 +200,18 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - **Código repetido no cadastro:** 409, com a orientação de vincular.
   - **Código FDV** (código próprio, para controle; R-20261115-074500): o formato vem na simulação, para o ok do dono do produto.
   - **Telas e aviso ao admin:** só depois de o dono do produto aprovar a simulação (R-20261115-075000).
+- **RN-CORE-59 Código FDV** (dono do produto, R-20261115-074500 e R-20261115-110000; T-0175): todo usuário, de qualquer perfil, recebe na criação um código próprio do Macuxi.
+  - **Formato:** 5 dígitos em sequência por empresa ("00001"); acima de 99999 vira "100000", sem zero à esquerda.
+  - **Regras:** único na empresa, só de leitura e nunca reaproveitado.
+  - **Onde aparece:** na lista de Usuários, em Editar (com o botão de copiar) e no Gestão.
+- **RN-CORE-60 Usuário nunca é excluído, só desativado** (dono do produto, R-20261115-110000 e R-20261115-111500; T-0175):
+  - vale para a API, o BKO, o portal e a carga;
+  - o vínculo do ERP desativa o provisório;
+  - **única exceção:** a exclusão da empresa inteira (RN-PLA-09/10), feita depois da inativação e do backup.
+- **RN-CORE-58, vínculo automático por nome** (R-20261115-110000 e R-20261115-111500):
+  - **Quando vincula:** na carga, quando o nome completo normalizado do vendedor do ERP é igual ao de um único usuário vendedor ou promotor ativo e sem código ERP. A comparação ignora maiúsculas, acentos e pontuação, junta espaços repetidos e exige 2 ou mais palavras.
+  - **Quando não vincula e avisa:** homônimos, usuário com outro código ERP ou usuário inativo. O aviso é uma notificação aos admins; no Monitor, só a partir da v1.0.13.
+  - Não existe desvincular.
 - **RN-CORE-49 Curvas ABC do cliente** (Alexandre, chat de 14/11/2026 5h55; ficha do cliente, Campo e Gestão):
   - **Três curvas por cliente**, cada uma com o nome da dimensão na tag: **Faturamento** (R$), **Volume** (itens) e **Frequência** (pedidos). Ex.: "Faturamento A", "Volume B", "Frequência C". A tag "Curva X" sem dimensão sai.
   - **Base**: o mês atual comparado com a média dos 3 meses anteriores do próprio cliente (linhas do histórico do mesmo mês somadas; mês sem compra conta como zero).
