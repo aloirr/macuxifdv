@@ -912,3 +912,344 @@ O head no remoto continua `1ecb5fce`, o mesmo lido na parte 2. A correção do t
 - Lote 7: o MC-0065 muda a cor do "Nova trilha" e precisa da validação do design-de-marca antes do lote.
 - Merge dos lotes 8, 9 e 10: os três mexem no `montarRotaPublica` e no bloco do portal em `app.ts`. A ordem que menos
   conflita é 9 → 10 (resolvendo o RD-0428) → 8 (o 8 fica com `recusarPorLimite`).
+
+---
+
+# Lote da noite, parte 4 (14/11/2026, ~23h de Manaus)
+
+Base: `main` em `551ebd0d`, mesclado no branch do corretor (merge, sem rebase). Em todos os lotes, o head no remoto é o SHA
+pedido; nenhum avançou. Os retestes leram o diff entre o SHA da parte anterior e o head novo. A numeração segue a partir
+do RD-0430. O `coord.mjs` continua com HTTP 403: os pedidos aos donos (cc `gerente-projetos`) ficam neste relatório e no
+catálogo até a caixa voltar.
+
+## Resumo da parte 4
+
+| # | Branch | SHA lido | Parecer | RD retestados | RD novos (gravidade, dono) |
+|---|---|---|---|---|---|
+| 1 | `nuvem/login-v109-modulo-core` | `7ed7b240` | **segura** | — | RD-0430 baixa, texto e código (modulo-core; regex da CLI: engenheiro-software); RD-0431 baixa, código (modulo-core); RD-0432 baixa, só teste, não segura (modulo-core) |
+| 2 | `agente/engenheiro-apps-login-v109` | `0e3292de` (contra o item 1) | **sem achado em aberto** | — | — (o web usa `validarLogin` e `CODIGO_EMPRESA_TAMANHO` do Core, sem regra própria) |
+| 3a | `nuvem/rodape-shell-engenheiro-apps` | `155bc0d4` | **segura** | RD-0417 ampliado (Auditoria) | RD-0433 média, código (engenheiro-apps; kit: designer-ux); RD-0434 média, texto (engenheiro-apps); RD-0435 baixa, código (engenheiro-apps); RD-0436 baixa, código do Core, não segura o shell (modulo-core) |
+| 3b | `nuvem/rodape-legal-engenheiro-software` | `788cc483` → `16e6eb4a` | **sem achado em aberto neste branch** | RD-0428 **em correção**: o rodapé fez a parte dele; falta o branch das ações da empresa | — |
+| 4 | `nuvem/kit-thathyany-modulo-integracao` | `65154ee8` → `665c5c06` | **sem achado em aberto** | RD-0426 **corrigido** | — |
+| 5 | `nuvem/bko-revisao-modulo-treinamento` | `d5b5f523` → `1d1436eb` | **segura** | RD-0427 **corrigido**; RD-0416 ampliado (5ª cópia) | RD-0437 baixa, código (modulo-treinamento; pesquisa e promotor no próximo lote) |
+| 6 | `nuvem/bko-revisao-modulo-core` | `0c276eb5` → `6bf52819` | **segura** | RD-0418 **corrigido**; RD-0416, RD-0417, RD-0419, RD-0420, RD-0421 e RD-0422 continuam **abertos** | — |
+| 7 | `nuvem/bko-revisao-modulo-catalogo` | `5df48729` → `a058713b` | **segura** | RD-0416, RD-0417 e RD-0423 continuam **abertos** | RD-0438 baixa, texto; RD-0439 média, texto (modulo-catalogo) |
+| 8 | `nuvem/acesso-bko-modulo-core` (PR #250) | `1ecb5fce` → `2ff1f685` | **sem achado em aberto** | RD-0414 e RD-0415 **corrigidos** | — |
+| 9 | `nuvem/logo-cliente-designer-ux` | `184319e4` → `64a18b97` | **segura** | — | RD-0440 baixa, doc (designer-ux) |
+
+---
+
+## Lote 1: `nuvem/login-v109-modulo-core` @ `7ed7b240` (login da v1.0.9)
+
+Lido o commit `7ed7b240` (14 arquivos). A D-01 é o defeito de `docs/testes/esqueci-senha-r20261114.md` (branch
+`nuvem/esqueci-senha-testes`): dois pedidos juntos no "Esqueci a senha" geravam duas senhas.
+
+O que passa:
+- **D-01:** `usuarioPorEmail(email, { travar: true })` acrescenta `for update` dentro do mesmo `comTenant`. É uma opção
+  na função que já existe, sem consulta nova. O teste novo (`esqueci-travar.test.ts`) cobre a chamada e o SQL.
+- **Campo UF+4:** `propsDoCampoCodigoEmpresa` (app) serve ao login e ao Esqueci, com `CODIGO_EMPRESA_TAMANHO` do contrato.
+- **Senha sem espaço nas pontas:** a frase é a constante única `MENSAGEM_SENHA_ESPACO_NAS_PONTAS`, usada pela criação, pela
+  troca e pelo aviso do login.
+
+| Campo | RD-0430 |
+|---|---|
+| Onde | `modules/core/contracts/auth.ts:26-33` (`CODIGO_EMPRESA_REGEX`, `CodigoEmpresaFormatoSchema`) × `contracts/ciclo-senha.ts:146-152` (`erroDoCodigoEmpresa`); `apps/api/src/cli/codigo-licenca.ts:78` (`CODIGO_LICENCA`) |
+| Tipo | texto · código |
+| O que se repete | (1) Quatro frases para o mesmo erro do código. O schema traz "Use duas letras da UF e quatro números, como AM4821.", que nenhuma tela mostra (só se usa o `.success`). `erroDoCodigoEmpresa` escreve outras três: "O código da empresa tem 6 caracteres…", "O código da empresa tem no máximo 6 caracteres…" e "O código da empresa tem duas letras da UF e quatro números, como AM4821…". As duas primeiras se contradizem ("tem 6" × "no máximo 6"), e a ação das três é a mesma: conferir no e-mail e digitar de novo. (2) O `.length(6)` repete o que a regex já exige, porque UF + 4 dígitos sempre tem 6. (3) A regex UF+4 está escrita 2×: `CODIGO_EMPRESA_REGEX` (contrato, com `i`) e `CODIGO_LICENCA` da CLI da API (sem `i`). `CODIGO_EMPRESA_REGEX` é exportada sem uso fora de `auth.ts` |
+| Impacto | leitura: a pessoa recebe frases diferentes para o mesmo erro. Manutenção: a frase do schema fica morta, e a regra do código da licença vive em dois lugares |
+| Severidade | baixa. É texto de tela e código de produção, então **segura** |
+| Proposta | Uma frase só, no schema: `export const MENSAGEM_CODIGO_EMPRESA = 'O código da empresa tem duas letras da UF e quatro números, como AM4821. Confira no e-mail e digite de novo.';` e `CodigoEmpresaFormatoSchema = z.string().trim().regex(CODIGO_EMPRESA_REGEX, MENSAGEM_CODIGO_EMPRESA)`, sem o `.length`. `erroDoCodigoEmpresa(v) => CodigoEmpresaFormatoSchema.safeParse(v).success ? null : MENSAGEM_CODIGO_EMPRESA`. A regex sem flag fica num lugar só: a CLI importa a do contrato (`new RegExp(CODIGO_EMPRESA_REGEX.source)`, para continuar exigindo maiúsculas) ou as duas importam do SDK. Os testes de `login.test.ts` passam a esperar a frase única |
+| Dono | modulo-core (regex da CLI: engenheiro-software) |
+
+| Campo | RD-0431 |
+|---|---|
+| Onde | `modules/core/contracts/senha-regra.ts:27` (`senha !== senha.trim()` em `faltasNaSenha`) × `contracts/ciclo-senha.ts:172` (`c.senha !== c.senha.trim()` em `validarLogin`) |
+| Tipo | código |
+| O que se repete | A regra nova do espaço nas pontas está escrita 2× no contrato |
+| Impacto | manutenção: se a regra mudar (por exemplo, tabulação), o login e a criação ficam diferentes |
+| Severidade | baixa. É código de produção, então **segura** |
+| Proposta | Em `senha-regra.ts`: `export const temEspacoNasPontas = (s: string): boolean => s !== s.trim();`, usado por `faltasNaSenha` e por `validarLogin` (`else if (temEspacoNasPontas(c.senha)) erros.senha = MENSAGEM_SENHA_ESPACO_NAS_PONTAS;`). O comentário do topo de `senha-regra.ts` ("O login aceita qualquer senha já gravada") precisa bater com a decisão: ver a observação 1 para o testes |
+| Dono | modulo-core |
+
+| Campo | RD-0432 |
+|---|---|
+| Onde | `modules/core/domain/senha.test.ts`: o caso "não há trim (espaços do meio contam no tamanho; nas pontas invalidam)" × o `describe` novo "espaço no começo ou no fim invalida a senha" |
+| Tipo | teste |
+| O que se repete | O caso antigo passou a conferir `faltasNaSenha('  a1!   ')` → `['espaco']` e `'a  1!   b'` → `[]`. O `describe` novo confere o mesmo, com `' Abcdef1!'` → `['espaco']` e `'Abc def1!'` → `[]` |
+| Impacto | manutenção: dois lugares para a mesma regra no mesmo arquivo |
+| Severidade | baixa. Está **só em teste**, então **não segura** (R-20261111-190159) e entra no lote seguinte |
+| Proposta | Voltar o caso antigo ao que ele cobre (espaço no meio conta no tamanho: `faltasNaSenha('a  1!   b')` → `[]`) e deixar o espaço nas pontas só no `describe` novo |
+| Dono | modulo-core |
+
+**Parecer do lote 1: segura (RD-0430 e RD-0431, baixa; RD-0432 só em teste, não segura).**
+
+---
+
+## Lote 2: `agente/engenheiro-apps-login-v109` @ `0e3292de` (web, sobre o item 1)
+
+Lido `git diff origin/nuvem/login-v109-modulo-core...origin/agente/engenheiro-apps-login-v109` (5 arquivos):
+- O BKO não repete nenhuma regra. O login usa `validarLogin` do Core (com o UF+4 e o espaço nas pontas), e o Esqueci usa
+  `validarEsqueci` do Core. O `maxLength` dos dois campos vem de `CODIGO_EMPRESA_TAMANHO` do contrato.
+- O app usa o objeto `propsDoCampoCodigoEmpresa`, e o web passa só o `maxLength`. As props do celular (`autoCapitalize`,
+  `autoCorrect`) não se aplicam igual no navegador, e o número vem do mesmo lugar: `manter`.
+- Os testes do web mudaram só os dados de exemplo (`alfa` → `AM4821`). O caso novo de `validarCampos('alfa')` confere a
+  integração da tela com o Core, e não a regra: `manter`.
+
+**Parecer do lote 2: sem achado em aberto.**
+
+---
+
+## Lote 3a: `nuvem/rodape-shell-engenheiro-apps` @ `155bc0d4` (rodapé legal nas telas Entrar e T-0173 do shell)
+
+Lidos os commits `a3b5b1c1` (rodapé) e `155bc0d4` (Auditoria e Início), contra `docs/design/telas/rodape-legal.md` e
+`bko-revisao.md`. O branch mesclou a rota em `788cc483`, e não em `16e6eb4a`. **Não há prints** do shell (nem antes/depois da
+§P11 para Auditoria e Início).
+
+O que passa:
+- O rodapé substitui a frase da variante ("Macuxi Campo · vendedores e promotores") e não repete o nome do produto.
+- No BKO, a linha "Vendedores e promotores usam…" fica, como a spec pede (é ação).
+- Razão social, CNPJ e site vêm da rota pública, sem constante no código. O site padrão e as funções `normalizarSite` e
+  `siteValido` vêm do SDK.
+- O rodapé some com o teclado aberto.
+- Início sem subtítulo nem eyebrow, com o `EstadoVazio` uma vez. `later-page.tsx`, que não tinha uso, saiu.
+
+| Campo | RD-0433 |
+|---|---|
+| Onde | `apps/mobile/src/lib/rodape-legal.ts` × `apps/web/lib/rodape-legal.ts` (mais `apps/mobile/src/lib/rodape-legal.test.ts` e os casos de linhas de `apps/web/components/rodape-legal.test.tsx`); `mascaraCnpj` nos dois × `formatarDocumento` de `@macuxi/comum/documento` |
+| Tipo | código |
+| O que se repete | (1) A montagem das linhas (`linhasDoRodapeLegal`, `siteDoRodape`, `mascaraCnpj`, `DadosDoRodape`) foi escrita 2×, igual linha a linha. Só o comentário muda, e ele mesmo diz "hoje há uma cópia igual". A spec põe essa função no kit (`packages/ui/src/comum/legal.ts`, §5, designer-ux). (2) `mascaraCnpj` reimplementa o `formatarDocumento` que já está em `packages/comum` |
+| Impacto | manutenção: o texto legal ("© ano · Todos os direitos reservados", "Versão X") muda em dois lugares e pode divergir entre o celular e o BKO |
+| Severidade | média (código de produção copiado entre shells; segura) |
+| Proposta | Uma cópia só. O designer-ux cria `packages/ui/src/comum/legal.ts` com o conteúdo de `apps/web/lib/rodape-legal.ts`, trocando o `mascaraCnpj` por `formatarDocumento(digitos)` de `@macuxi/comum/documento` (o kit não importa o SDK: `siteDoRodape` recebe o site já normalizado, ou o padrão entra por parâmetro). Os dois shells importam de `@macuxi/ui/comum` e apagam os seus `rodape-legal.ts` e o teste das linhas. Se o kit não entrar neste lote, o engenheiro-apps põe a função num lugar só que os dois shells já importam e tira a cópia |
+| Dono | engenheiro-apps (função no kit: designer-ux) |
+
+| Campo | RD-0434 |
+|---|---|
+| Onde | `apps/web/components/audit/audit-page.tsx`: `<Panel label="Trilha de auditoria">` em volta da lista principal, debaixo do `h1` "Auditoria · 300+" |
+| Tipo | texto |
+| O que se repete | O quadro da lista principal tem título, e ele repete o `h1` ("Auditoria" × "Trilha de auditoria"). A §P6, regra 1 (RD-0364), pede: "O quadro da lista principal fica sem título: o `h1` já diz o que a lista é" |
+| Impacto | leitura: dois títulos para a mesma lista |
+| Severidade | média (contra a regra da spec; segura) |
+| Proposta | `<Panel>` sem `label` (ou a `TabelaDados` direto, como nas outras listas revisadas). O `rotulo="Trilha de auditoria"` da `TabelaDados` fica, porque é o nome para o leitor de tela |
+| Dono | engenheiro-apps |
+
+| Campo | RD-0435 |
+|---|---|
+| Onde | `apps/web/components/audit/audit-page.tsx:36` (`export const LIMITE_AUDITORIA = 300`) × `apps/web/lib/queries.ts:108` (`limite: 300` no `useAuditoria`) |
+| Tipo | código |
+| O que se repete | O limite da página foi escrito 2×. O "300+" do título depende de os dois números serem iguais |
+| Impacto | manutenção: se a consulta mudar para 500, o título mostra "300+" com 500 linhas |
+| Severidade | baixa. É código de produção, então **segura** |
+| Proposta | `export const LIMITE_AUDITORIA = 300` em `lib/queries.ts`, usado no `useAuditoria` (`limite: LIMITE_AUDITORIA`). A página importa de lá |
+| Dono | engenheiro-apps |
+
+O "Limpar filtros" da Auditoria também foi escrito à mão (`audit-page.tsx`, `auditoria.limpar-filtros`). Entra no
+RD-0417, que fica ampliado ao shell: quando o `LimparFiltros` for para o kit, a Auditoria usa o dele.
+
+| Campo | RD-0436 |
+|---|---|
+| Onde | `modules/core/app/components/tela-login.tsx:24`, `:31` e `:118` (prop `rodape` da `TelaLogin`) |
+| Tipo | código |
+| O que se repete | Depois deste lote, nenhum chamador passa `rodape` (o `login.tsx` do shell era o único). A prop e o `<Text>` ficam mortos, ao lado do rodapé legal novo |
+| Impacto | manutenção: dois caminhos para "texto embaixo do login" |
+| Severidade | baixa. É código do Core e só pode sair depois do merge deste lote, então **não segura o lote do shell** e entra no lote seguinte do modulo-core (pode ser o da v1.0.9, se este entrar antes) |
+| Proposta | Apagar `rodape?: string` da interface, o `rodape` da desestruturação e a l.118 |
+| Dono | modulo-core |
+
+**Parecer do lote 3a: segura (RD-0433 e RD-0434, média; RD-0435, baixa em código; RD-0417 ampliado).** O rodapé é
+layout novo nas quatro telas Entrar e precisa da validação do design-de-marca.
+
+---
+
+## Lote 3b: `nuvem/rodape-legal-engenheiro-software` @ `16e6eb4a` (reteste do RD-0428)
+
+Lido o commit `16e6eb4a` sobre o `788cc483`. Há um `portal-comum.ts` só neste branch, com `AutenticarPortal` (função),
+`exigirPortal`, `exigirSuperAdmin(autenticar, …)`, `traduzirErroSa(e, extras?: (code: string, hint: string) => void)` com
+28000, 42501 e 22023 comuns e `conferirRetorno(): z.output<S>`. O teste é a união dos casos. `dados-legais.ts` passa
+`dep.autenticar`. É a forma proposta no RD-0428.
+
+**`git merge-tree`:** o conflito add/add sumiu. O `nuvem/empresa-acoes-engenheiro-software` (agora em `f75cc7dc`) mesclou o
+`788cc483`, e os dois branches passaram a ter base comum: `git merge-tree --write-tree` de `16e6eb4a` com `f75cc7dc` sai
+sem conflito.
+
+**Mas o resultado não compila.** Os dois branches trocaram de forma. O rodapé adotou a função `AutenticarPortal`, e o das
+ações da empresa ficou com a forma antiga do rodapé (`788cc483`). Lá, `empresa-acoes-portal.ts:43` importa
+`type AutenticacaoDoPortal`, que o `16e6eb4a` apagou, e `:172` chama `exigirSuperAdmin(dep, …)` com o objeto. A árvore
+mesclada fica com o `portal-comum.ts` do rodapé e com essas chamadas: o typecheck da API quebra no segundo merge.
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0428 | Do lado do rodapé, feito: uma versão, na forma proposta, e o add/add sumiu. Falta o branch das ações da empresa mesclar o `16e6eb4a` e adaptar a rota: `DepsAcoesEmpresa { autenticar: AutenticarPortal; … }` no lugar de `extends AutenticacaoDoPortal`, `exigirSuperAdmin(dep.autenticar, req, tenantId, '…')` e, no `extras` do `traduzir`, `hint` como `string` (`''` quando falta) | **em correção** (engenheiro-software, branch `nuvem/empresa-acoes-engenheiro-software`) |
+
+**Parecer do lote 3b: sem achado em aberto neste branch.** O RD-0428 segura o lote das ações da empresa até o merge do
+`16e6eb4a` lá. O lote 3a (shell) mesclou o `788cc483` e não toca no `portal-comum.ts`, então entra limpo depois do 3b.
+
+A rota já entrega a razão social, o CNPJ só com dígitos e o site normalizado. As telas não repetem nenhum desses dados como
+constante. A máscara do CNPJ e o "© ano" são montados na tela, como a spec manda (§2). A cópia da montagem é o RD-0433.
+
+---
+
+## Lote 4: `nuvem/kit-thathyany-modulo-integracao` @ `665c5c06` (lido na parte 3 em `65154ee8`)
+
+Reteste do RD-0426: **corrigido**. A l.51 diz "**Desative o `thathyany-conector`:** peça ao gerente-projetos." Na l.65,
+saiu "(a mesma rota)". O teste da l.160 confere a frase nova.
+
+**Parecer do lote 4: sem achado em aberto.**
+
+---
+
+## Lote 5: `nuvem/bko-revisao-modulo-treinamento` @ `1d1436eb` (lido na parte 3 em `d5b5f523`)
+
+Reteste do RD-0427: **corrigido**. Os dois "Nova trilha" usam o `Button variant="primary"` do kit, com
+`router.push(hrefEditarTrilha())`, e a classe à mão saiu. `AbaTrilhas` tem o seu `useRouter` (l.277).
+
+Achados que as partes 1 e 3 não pegaram:
+- **RD-0416 ampliado:** `function BuscaComEspera` (`trilhas-page.tsx:157`) é a 5ª cópia da busca com espera de 300 ms, com
+  o seu próprio `setTimeout(…, 300)`. Ela entra na proposta do RD-0416 (hook do kit). Pela mesma regra do Core e do
+  Catálogo, o RD-0416 passa a segurar também o Treinamento.
+
+| Campo | RD-0437 |
+|---|---|
+| Onde | `modules/treinamento/web/pages/trilhas-page.tsx:95` (`<MenuAcoes acoes={acoes} rotulo="Mais ações" />`). Já no `main`: `modules/pesquisa/web/pages/construtor-page.tsx:144`, `resultados-page.tsx:134`, `modules/promotor/web/pages/cadastros-page.tsx:149` e `trade-page.tsx:99` |
+| Tipo | código |
+| O que se repete | O mesmo do RD-0423 (Catálogo): `rotulo="Mais ações"` passado à mão, e esse já é o padrão do `MenuAcoes` (`packages/ui/src/web/menu-acoes.tsx:31`). São 5 lugares em 3 módulos, fora os 4 do Catálogo |
+| Impacto | manutenção: se o kit trocar o rótulo, esses menus ficam com o antigo |
+| Severidade | baixa. É código de produção: **segura o Treinamento**. A Pesquisa e o Promotor já estão no `main` e corrigem no próximo lote de cada um |
+| Proposta | Tirar a prop: `<MenuAcoes acoes={acoes} />` (e o mesmo nos outros 4) |
+| Dono | modulo-treinamento (Pesquisa: modulo-pesquisa; Promotor: modulo-promotor) |
+
+**Parecer do lote 5: segura (RD-0416 ampliado, média; RD-0437, baixa em código).** O MC-0065 (cor do "Nova trilha")
+continua precisando da validação do design-de-marca.
+
+---
+
+## Lote 6: `nuvem/bko-revisao-modulo-core` @ `6bf52819` (lido na parte 2 em `0c276eb5`)
+
+O commit `6bf52819` só traz a MC-0069 e os prints "antes" refeitos. A MC-0069 é do design-de-marca (parecer
+`docs/marca/pareceres/2026-11-15-lote-noite.md`, parte 2): a aba ativa de Usuários e módulos estava em grafite e foi para
+`border-accent bg-accent` (`licencas-page.tsx:122`).
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0418 | Os 6 "antes" foram refeitos e agora diferem do "depois" (MD5 diferentes). O "antes" de Visitas é o do `main`: subtítulo "Check-ins e checkouts da equipe…", "Atualizar" e "Exportar CSV" soltos e o quadro "12 visitas · 2 fora do raio". Rotas e Licenças também foram refeitos | **corrigido** |
+| RD-0416, RD-0417 | Nenhum arquivo de lista mudou | **aberto** |
+| RD-0419, RD-0420, RD-0421 | `indicadores-page.tsx`, `indicadores.ts` e `routes-page.tsx` não mudaram | **aberto** |
+| RD-0422 | No print "depois" de Visitas, a coluna Check-in continua cortando a hora ("14/11/2026, 0…") | **aberto** |
+
+`manter?` (sem RD): a faixa Empresa / Perfil / Usuário é um `role="tablist"` escrito à mão, e o kit tem `Abas`
+(`packages/ui/src/web/abas.tsx`, com setas, Home e End). O desenho é outro (pílula cheia × sublinhado). Fica para o
+designer-ux e o design-de-marca dizerem se é o mesmo componente. A MC-0069 mexeu na cor desse controle, por isso precisa da
+validação do design-de-marca.
+
+**Parecer do lote 6: segura (RD-0416, RD-0419, RD-0420 e RD-0421, média; RD-0417 e RD-0422, baixa em código).**
+
+---
+
+## Lote 7: `nuvem/bko-revisao-modulo-catalogo` @ `a058713b` (lido na parte 2 em `5df48729`)
+
+O commit `a058713b` traz a MC-0071 (selo Destaque em `pending`), a MC-0072 (link de Marcas em `text-accent-ink`) e 13
+prints 1366×768 "depois", com um README. Todos foram abertos. O README diz "Não há prints 'antes'", e a §P11 continua sem
+a comparação.
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0416 | `web/lib/busca-com-espera.ts` não mudou | **aberto** |
+| RD-0417 | As 4 cópias do "Limpar filtros" não mudaram | **aberto** |
+| RD-0423 | `rotulo="Mais ações"` continua nos 4 lugares | **aberto** |
+
+O que passa nas telas:
+- a contagem fica num lugar só ("Produtos · 1.784" na aba, "Marcas concorrentes · 7" no `h1`);
+- o "⋯" fica no cabeçalho;
+- o vazio de Marcas aparece uma vez;
+- a gaveta do produto tem um título só e Cancelar/Salvar fixos;
+- a vigência cabe numa célula.
+
+| Campo | RD-0438 |
+|---|---|
+| Onde | BKO › Catálogo, lista de produtos, coluna "Destaque" (`catalogo-page.tsx:191`; print `catalogo-produtos-depois-1366x768.png`) |
+| Tipo | texto |
+| O que se repete | A coluna se chama "Destaque", e a célula traz o selo "Destaque" (ou "—"). A mesma palavra aparece no título e em cada linha marcada |
+| Impacto | leitura: um selo inteiro para dizer "sim" numa coluna que já diz o quê |
+| Severidade | baixa (polui; segura) |
+| Proposta | Tirar a coluna "Destaque" e pôr o selo `pending` "Destaque" ao lado do nome do produto, na célula Produto (só nos marcados). Se a coluna ficar para ordenar, a célula diz "Sim" sem selo, e o "—" continua para os outros |
+| Dono | modulo-catalogo |
+
+| Campo | RD-0439 |
+|---|---|
+| Onde | BKO › Marcas concorrentes, coluna "Situação" (`marcas-page.tsx:51`) com o filtro "Situação" (`:152`); print `marcas-depois-1366x768.png` |
+| Tipo | texto |
+| O que se repete | O filtro só tem "Ativas" ou "Inativas", então toda linha da lista tem a mesma situação. Com "Ativas", o selo "Ativa" aparece em todas as 7 linhas e repete o filtro que está logo acima |
+| Impacto | leitura: uma coluna inteira que não muda de linha para linha e não leva a nenhuma ação |
+| Severidade | média (o mesmo fato 7×; segura) |
+| Proposta | Tirar a coluna "Situação" (o filtro já diz qual lista é). Na lista de inativas, o "⋯" de cada linha já oferece "Reativar" |
+| Dono | modulo-catalogo |
+
+**Parecer do lote 7: segura (RD-0416 e RD-0439, média; RD-0417, RD-0423 e RD-0438, baixa).** A MC-0071 e a MC-0072 mudam
+cor e precisam da validação do design-de-marca.
+
+---
+
+## Lote 8: `nuvem/acesso-bko-modulo-core` @ `2ff1f685` (PR #250; lido na parte 2 em `1ecb5fce`)
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0414 | A pasta `modules/core/web/docs/prints/acesso/` foi apagada (4 arquivos). Nenhum arquivo do branch aponta para ela, fora a linha antiga do diário (l.168), que é histórico e tem a correção na l.169 | **corrigido** |
+| RD-0415 | `horaNoFuso` e `diaEHora` saíram. `seloDoUsuario` usa `formatTime(…).replace(':', 'h')`, e `etiquetaDeSenha` usa `formatDateTime`, os dois de `@macuxi/ui/web` | **corrigido** |
+
+O commit `a01db393` trocou o relógio de 1 min por um `setTimeout` único, no fim do bloqueio mais próximo. Não há cópia de
+regra: o fim vem do `bloqueio_ate` da lista. A observação da parte 2 para o testes (o corpo da gaveta passava por baixo do
+rodapé) foi resolvida: no print `usuarios-gaveta-bloqueado`, o rodapé Cancelar/Salvar cobre o fim do corpo.
+
+**Parecer do lote 8 (PR #250): sem achado em aberto.**
+
+---
+
+## Lote 9: `nuvem/logo-cliente-designer-ux` @ `64a18b97` (lido na parte 2 em `184319e4`)
+
+Lido o commit `64a18b97` (MC-0066 e MC-0067). Os PNG `carga-campo-a`, `carga-gestao-b`, `login-campo` e `mais` foram
+abertos.
+- A placa única de 52/36 serve ao login e ao Mais. A da carga (64/48) é outra de propósito, e a spec diz por quê.
+- O Mais continua com "Licenciado para Exemplo Norte" + a logo (`manter`, como na parte 2).
+- No login, a placa fica no formulário e o rodapé legal não muda.
+- `carga-login.html` foi dividido em `carga.html` e `login.html`, e os PNG antigos saíram (nenhuma imagem órfã).
+
+| Campo | RD-0440 |
+|---|---|
+| Onde | `docs/design/telas/logo-cliente.md` §3 (parágrafo "Decisão pendente do dono do produto: variação A ou B (MC-0066)…" e a tabela A × B, linha "Leitura") × §8, item 1 |
+| Tipo | doc |
+| O que se repete | A decisão pendente está descrita 2×. As duas trazem a proibição do manual §2.4, a recomendação da A pelo design-de-marca e o "ao lado" do pedido. O §8.1 ainda conta a história da primeira versão (placa de 84 dp, filete a 22 dp), que saiu da spec |
+| Impacto | leitura: o dono do produto lê a mesma escolha em dois lugares com textos diferentes |
+| Severidade | baixa. É doc de produto, então **segura** |
+| Proposta | §8, item 1: "1. **Carga com logo: escolher A ou B** (§3, MC-0066). A regra da placa branca única (52/36, sempre menor que o logo Macuxi da tela e fora da área de proteção) só entra no manual com o "aprovo" do dono do produto." O resto fica só no §3 |
+| Dono | designer-ux |
+
+**Parecer do lote 9: segura (RD-0440, baixa, doc).** É mudança de layout: precisa da validação do design-de-marca e da
+escolha A/B do dono do produto.
+
+---
+
+## Para o testes (parte 4, sem RD)
+1. **Lote 1, senha antiga com espaço nas pontas:** até este lote, a senha podia começar ou terminar com espaço. O teste
+   antigo esperava `faltasNaSenha('  a1!   ')` → `[]`, e `senha-regra.ts` diz "O login aceita qualquer senha já gravada".
+   Agora o `validarLogin` (app e BKO) recusa no aparelho a senha com espaço nas pontas, antes de ir ao servidor. Quem gravou
+   uma senha assim não entra mais pelo app nem pelo BKO. Conferir com o dono se isso é o esperado, e o caminho dessa
+   pessoa (só o "Esqueci a senha").
+2. **Lotes 1 e 2, código legado:** o campo recusa os códigos antigos (`docs/banco/plataforma.md:11`: thathyany, demo,
+   teste-macuxi) e o servidor aceita. A thathyany não entra pelo app v1.0.9 nem pelo BKO até a migração do código dela. O
+   `codigoSalvo` antigo vem preenchido e já aparece com erro. O "Esqueci a senha" não confere o formato (`validarEsqueci`
+   só olha o vazio), e o login confere.
+3. **Lote 3b × ações da empresa:** depois do segundo merge (`16e6eb4a` e `f75cc7dc`), o typecheck da API quebra
+   (`AutenticacaoDoPortal` e `exigirSuperAdmin(dep, …)` em `empresa-acoes-portal.ts`). O `merge-tree` não acusa porque o
+   conflito não é de texto.
+4. **Lote 3a:** sem prints do rodapé no aparelho e no BKO, nem antes/depois de Auditoria e Início (§P11).
+5. **Lote 7:** no print `catalogo-produtos-depois`, o caminho diz "Catálogo › Freios › Pastilhas", e a lista traz produtos
+   de Suspensão, Ignição, Filtros e outras categorias. Conferir se o filtro do caminho chega à lista ou se é só o mock do
+   print. Continua sem prints "antes" (§P11).
+
+## Para o gerente (parte 4)
+- **Ordem de merge da API:** primeiro o lote 3b (`16e6eb4a`). Depois, o `nuvem/empresa-acoes-engenheiro-software` mescla o
+  3b e adapta a rota (RD-0428), e só então entra. O lote 3a (shell) entra depois do 3b.
+- **Precisam da validação do design-de-marca:** rodapé legal (3a), MC-0065 (5), MC-0069 (6), MC-0071 e MC-0072 (7) e a logo
+  do cliente (9). O lote 9 também precisa da escolha A/B do dono do produto.
+- **O RD-0416 agora segura 3 lotes** (Core, Catálogo e Treinamento) e depende do hook no kit. Se o designer-ux pegar o
+  `useBuscaComEspera` e o `LimparFiltros` (RD-0416 e RD-0417) primeiro, os três módulos fecham juntos.
