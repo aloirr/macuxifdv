@@ -338,7 +338,7 @@ function LoginDemo() {
                 }}
                 className="group flex min-h-[132px] flex-col gap-1.5 rounded-2xl border border-line bg-surface p-4 text-left transition-colors hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-70"
               >
-                <span className="text-[11px] font-semibold tracking-[0.06em] text-accent-ink uppercase">{rotuloDoPerfil(u.perfil)}</span>
+                <span className="text-[12px] font-semibold tracking-[0.06em] text-accent-ink uppercase">{rotuloDoPerfil(u.perfil)}</span>
                 <span className="flex items-center justify-between gap-2 font-display text-[18px] font-bold">
                   {u.name}
                   <IconChevronRight size={18} className="text-ink-2 transition-transform group-hover:translate-x-0.5" />

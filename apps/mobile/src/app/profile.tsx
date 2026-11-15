@@ -18,7 +18,7 @@ import {
   Card,
   colors,
   dateTimeLabel,
-  fonts,
+  fonte,
   Icon,
   initials,
   ProgressBar,
@@ -258,7 +258,7 @@ export default function ProfileScreen() {
         <SectionHeader title="Servidor" />
         {!app.servidorEditavel ? (
           <Card style={{ padding: 14, gap: 6 }}>
-            <Text testID="profile-server-fixo" selectable style={[t.body, { fontFamily: fonts.mono, fontSize: 13 }]}>
+            <Text testID="profile-server-fixo" selectable style={[t.body, { ...fonte.mono, fontSize: 14 }]}>
               {apiUrl}
             </Text>
             <Text style={t.small}>Endereço definido nesta versão do aplicativo.</Text>
@@ -365,11 +365,11 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   who: { flexDirection: 'row', gap: 14, alignItems: 'center' },
   avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontFamily: fonts.displayBold, fontSize: 19, color: '#FFFFFF' },
+  avatarText: { ...fonte.displayBold, fontSize: 18, color: '#FFFFFF' },
   qRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11, paddingHorizontal: 14 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   discard: { height: 44, justifyContent: 'center' },
   versao: { alignSelf: 'center', paddingVertical: 8 },
-  mono: { fontFamily: fonts.mono, fontSize: 12, color: colors.ink2 },
-  input: { height: 46, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, fontFamily: fonts.mono, fontSize: 13, color: colors.ink, backgroundColor: colors.surface },
+  mono: { ...fonte.mono, fontSize: 12, color: colors.ink2 },
+  input: { height: 46, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, ...fonte.mono, fontSize: 14, color: colors.ink, backgroundColor: colors.surface },
 });
