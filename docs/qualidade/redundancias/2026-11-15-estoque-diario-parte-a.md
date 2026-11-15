@@ -5,6 +5,38 @@
 Corretor-redundancias, 15/11/2026 (horário de Manaus). Base: `git diff origin/main...origin/nuvem/estoque-diario-engenheiro-software` (HEAD `e7575ae8`): `packages/platform-sdk/src/{pacotes-sync,api,motor-sync,sync,sync-simulado}.ts`, `sqlite/*`, `apps/api/src/{sync-pacotes,sync-pacotes-gerador,worker,app,config}.ts`, testes, ADR 0054 e 0057, `docs/desenho/T-catalogo-pacote.md`, `T-estoque-diario.md` e `.coord/contratos/modulos.md`.
 Método: leitura do diff, contagem de exports por `grep` na árvore do branch, comparação frase a frase entre o ADR e o desenho (nenhuma frase igual) e entre o desenho e o registro de contratos. Dono de todos os caminhos: **engenheiro-software** (`.coord/donos.json`).
 
+## Reconferência (15/11/2026, Manaus, antes do corte das 15h30) · HEAD `a6615c94`
+**Veredito da reconferência: COM ACHADO.** Os RD-0325 a RD-0330 estão **corrigidos** (commit `a6615c94`). O commit novo do limite silencioso (`fc8651ec`, R-20261115-125500) trouxe 3 achados: o RD-0332 (código) e o RD-0333 (doc) **seguram o lote**; o RD-0334 está só em comentário e não segura. O RD-0331 (só teste) segue aberto e não segura.
+
+### R1. Reteste (evidência: `git show a6615c94` e `git grep` no branch)
+| ID | Status | Evidência |
+|---|---|---|
+| RD-0325 | **corrigido** | `versaoEscopo` exportada de `apps/api/src/sync.ts:125` e chamada em `sync-pacotes.ts:389`. `versaoEscopoDoPacote` e o `createHash` saíram; nenhuma ocorrência no branch. |
+| RD-0326 | **corrigido** | `apps/api/src/laco.ts` (`iniciarLaco`, com `apps/api/test/laco.test.ts`), usado por `sync-pacotes-gerador.ts:670`, `agendador.ts:179` (`ligado: agendadas.length > 0`) e `diagnosticos-worker.ts:396`. O laço próprio só sobra nos 2 despachantes, combinados para o lote seguinte. |
+| RD-0327 | **corrigido** | `dentroDaJanela` exportada de `sync.ts:149`, usada no pull (`:214`) e nos 2 filtros do gerador (`:449` e `:545`). |
+| RD-0328 | **corrigido** | `UUID_NULO` não existe mais no branch; `sync-simulado.ts` usa `UUID_NIL`. |
+| RD-0329 | **corrigido** | (a) `driverArquivosDoAmbiente` em `armazenamento-s3.ts:243`, usada pelas fotos e pelos pacotes; "MACUXI_ARQUIVOS_DRIVER inválido" aparece 1 vez. (b) `ligado()` único em `config.ts:13`; nenhuma outra cópia de `['1', 'true', 'sim']` em código de produção. |
+| RD-0330 | **corrigido** | Desenho `:30`: "o toque no botão não leva estoque, §9"; ADR `:7`: "(premissa E1, Decisão 5)". A explicação completa fica só no §9 do desenho e na Decisão 5 do ADR. |
+
+### R2. Achados novos que seguram o lote (commit `fc8651ec`)
+| ID | Onde | Tipo | O que se repete | Severidade | Proposta (antes → depois) |
+|---|---|---|---|---|---|
+| RD-0332 | `packages/platform-sdk/src/sync.ts:30` (`ModoSyncLimitado`) × `packages/platform-sdk/src/motor-sync.ts:555` (`ModoSincronizacao`) | código | 2 tipos públicos do SDK para o mesmo conjunto `'parcial' \| 'completa'`, os 2 exportados pelo `index.ts` (`export *` de `./sync` e de `./motor-sync`). O motor manda `ModoSincronizacao` no `TransporteSync.pull` e a API recebe `ModoSyncLimitado`: se um modo entrar só num deles, os 2 lados divergem sem erro de tipo. Mesmo caso do RD-0328 (2 nomes para a mesma coisa). | baixa (manutenção) | `sync.ts:30`: `export type ModoSyncLimitado = keyof typeof LIMITES_SYNC;` → `export type ModoSincronizacao = keyof typeof LIMITES_SYNC;` (o comentário do ADR 0057 sobe junto) e `:33` passa a devolver `ModoSincronizacao \| null`. `motor-sync.ts:555`: apagar `export type ModoSincronizacao = 'parcial' \| 'completa';` e importar `type ModoSincronizacao` de `./sync` (sem reexportar). `apps/api/src/sync.ts:65,86,88`: `ModoSyncLimitado` → `ModoSincronizacao`. |
+| RD-0333 | `docs/desenho/T-estoque-diario.md:158` e `:161-162` × `docs/decisoes/0057-estoque-diario-e-sincronizacao-parcial.md:61` e `:64-65` | doc | Os valores da janela estão no ADR ("parcial a 1 início a cada 30 s e completa a 1 a cada 5 min") e no desenho (`LIMITES_SYNC = { parcial: 30_000, completa: 300_000 }`), além do código. Os 2 docs chamam `LIMITES_SYNC` de "constante única", mas o valor está em 3 lugares. "O push nunca é limitado" também está nos 2. | baixa (leitura; se a janela mudar, o desenho fica velho) | Desenho `:158`: "o início de cada modo: `LIMITES_SYNC = { parcial: 30_000, completa: 300_000 }` (`packages/platform-sdk/src/sync.ts`, a constante única)" → "o início de cada modo, com as janelas de `LIMITES_SYNC` (`packages/platform-sdk/src/sync.ts`; valores no ADR 0057)". Desenho `:161-162`: apagar "O push nunca é limitado." (a fonte é o ADR). |
+
+### R3. Achado novo que não segura (só comentário)
+| ID | Onde | Tipo | O que se repete | Severidade | Proposta |
+|---|---|---|---|---|---|
+| RD-0334 | `apps/api/src/sync.ts:212-213` | comentário | "defesa: mesmo que o módulo erre o SQL, nada acima do horizonte nem atrás do cursor sai daqui" repete o JSDoc de `dentroDaJanela` (`:148`), e `const teto = Date.parse(ate)` ficou com 1 uso. | baixa | Apagar o comentário e usar `dentroDaJanela(l, desde, Date.parse(ate))`, como em `sync-pacotes-gerador.ts:545`. Lote seguinte. |
+
+### R4. Conferido sem achado no `fc8651ec`
+- **Constante e cabeçalho:** `LIMITES_SYNC`, `CABECALHO_MODO_SYNC` e `modoSyncDoCabecalho` só em `packages/platform-sdk/src/sync.ts`; a API e os testes importam do SDK. Nenhum `30_000`/`300_000` solto para o limite.
+- **Testes:** `apps/api/test/sync-limite.test.ts` (servidor: janela, paginação, chaves, push, licença) e `motor-sync.limite.test.ts` (aparelho: modo enviado, página `limitado`) cobrem camadas diferentes, sem caso repetido. O `it('uma constante só…')` amarra o valor combinado com o dono do produto: `manter?`.
+- **Limite do app** (1 toque a cada 30 s, engenheiro-apps) é outra camada, fora deste diff.
+
+---
+_Parecer original (HEAD `e7575ae8`), mantido abaixo para histórico._
+
 ## 1. Achados que seguram o lote
 | ID | Onde | Tipo | O que se repete | Severidade | Proposta (antes → depois) |
 |---|---|---|---|---|---|
