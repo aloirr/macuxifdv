@@ -1,5 +1,5 @@
 /**
- * Fotos dos produtos em lote por ZIP (RN-CAT-14, RF-CAT-07, T-0174, ADR 0054): constantes, estados, rotas e eventos.
+ * Fotos dos produtos em lote por ZIP (RN-CAT-14, RF-CAT-07, T-0174, ADR 0058): constantes, estados, rotas e eventos.
  * As listas de situação e motivo são as dos CHECKs da migração 0080 (`SITUACOES_FOTO_LOTE_BANCO` & cia. em `db/nuvem.ts`;
  * o teste `fotos-lote.test.ts` confere que são iguais). Saídas `.strict()`, sem dado pessoal.
  * Rótulos pt-BR: os da spec do designer-ux (`docs/design/telas/fotos-em-lote.md` §5).

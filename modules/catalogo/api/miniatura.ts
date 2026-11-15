@@ -109,7 +109,7 @@ interface ErroPg {
 }
 
 /**
- * Ponto ÚNICO de escrita das fotos do produto (T-0174, ADR 0054 §8; RN-CAT-14), na transação do chamador. Por foto, em ordem:
+ * Ponto ÚNICO de escrita das fotos do produto (T-0174, ADR 0058 §8; RN-CAT-14), na transação do chamador. Por foto, em ordem:
  * 1. `hashConteudo` igual ao de uma foto viva do produto → `repetida` (nada muda, mesmo em outra ordem);
  * 2. aposenta a viva da mesma ordem (`catalogo.foto.removida@1`, `substituida`);
  * 3. insere (`principal` = ordem 1) e publica `catalogo.foto.definida@1`.

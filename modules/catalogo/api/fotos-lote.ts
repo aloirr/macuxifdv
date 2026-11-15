@@ -1,5 +1,5 @@
 /**
- * Rotas do lote de fotos por ZIP (`/v1/catalogo/fotos-lote`, RN-CAT-14, RF-CAT-07, T-0174, ADR 0054 §9). Todas exigem
+ * Rotas do lote de fotos por ZIP (`/v1/catalogo/fotos-lote`, RN-CAT-14, RF-CAT-07, T-0174, ADR 0058 §9). Todas exigem
  * `produto.enriquecer` (analista e admin) e o Catálogo licenciado (o `createApp` confere antes); lote e itens são do tenant (RLS).
  * O envio do ZIP em partes é da plataforma (`PUT /v1/arquivos/:id/partes/:n` e `POST /v1/arquivos/:id/concluir`); aqui só o
  * lote: criar (registra o arquivo `aguardando`), enfileirar (publica `catalogo.foto_lote.enfileirado@1`), consultar, listar os

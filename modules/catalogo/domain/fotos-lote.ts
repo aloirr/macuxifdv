@@ -1,5 +1,5 @@
 /**
- * Fotos dos produtos em lote por ZIP (RN-CAT-14, T-0174, ADR 0054): funções puras. O nome do arquivo vira código e ordem;
+ * Fotos dos produtos em lote por ZIP (RN-CAT-14, T-0174, ADR 0058): funções puras. O nome do arquivo vira código e ordem;
  * o código casa com o produto (exato → sem diferenciar maiúsculas → EAN); mais de um casando = ambíguo, nada é ligado.
  * Roda na API (trabalho do lote) e no BKO (conferência do tamanho antes do envio).
  */

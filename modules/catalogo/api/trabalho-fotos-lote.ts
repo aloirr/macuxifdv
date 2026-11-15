@@ -1,5 +1,5 @@
 /**
- * Trabalho `processar_foto_lote` (RN-CAT-14, T-0174, ADR 0054 §2/§3/§6): roda em fatias (até 20 s) no worker, disparado por
+ * Trabalho `processar_foto_lote` (RN-CAT-14, T-0174, ADR 0058 §2/§3/§6): roda em fatias (até 20 s) no worker, disparado por
  * `catalogo.foto_lote.enfileirado@1`. O checkpoint é o próprio item (`situacao = 'pendente'` → final): a fatia seguinte, o
  * reinício do worker ou outro processo retomam de onde parou, e como `arquivo_id`/`midia_id` nascem na conferência, repetir um
  * item regrava as mesmas chaves e não duplica nada.

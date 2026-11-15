@@ -1,5 +1,5 @@
 /**
- * T-0174 × Postgres real (fixture dois-tenants, RLS): fotos dos produtos em lote por ZIP (RN-CAT-14, ADR 0054).
+ * T-0174 × Postgres real (fixture dois-tenants, RLS): fotos dos produtos em lote por ZIP (RN-CAT-14, ADR 0058).
  * Cobre o isolamento entre tenants nas rotas e nas tabelas, os únicos do banco (ZIP repetido, mesmo arquivo, ordem repetida no
  * lote), o ponta a ponta com um ZIP pequeno (rotas criar/enfileirar + trabalho `processar_foto_lote` + relatório) e o pull de
  * `produto_conteudo` com a miniatura da ordem 1. O armazenamento e o leitor de ZIP são da plataforma (`apps/api`): aqui o ZIP

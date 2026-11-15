@@ -54,7 +54,7 @@ export const manifest = defineModule({
     'produto_relacao',
   ],
   publica: ['catalogo.produto.visualizado@1', 'catalogo.busca.realizada@1', 'catalogo.referencia.marca_desconhecida@1', 'catalogo.marca_concorrente.alterada@1',
-    // T-0174 (RN-CAT-14, ADR 0054): fotos em lote por ZIP; o do lote enfileirado também é consumido (dispara o trabalho processar_foto_lote)
+    // T-0174 (RN-CAT-14, ADR 0058): fotos em lote por ZIP; o do lote enfileirado também é consumido (dispara o trabalho processar_foto_lote)
     'catalogo.foto_lote.enfileirado@1', 'catalogo.foto_lote.concluido@1', 'catalogo.foto.definida@1', 'catalogo.foto.removida@1'],
   // produto: só o catalogo_no_external_id, para gravar produto_no; o cadastro do produto é do Core
   consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'integracao.catalogo_no.atualizado@1', 'integracao.produto.atualizado@1', 'integracao.tabela_escalonada.atualizado@1', 'integracao.cliente.atualizado@1', 'catalogo.busca.realizada@1', 'catalogo.foto_lote.enfileirado@1'],
