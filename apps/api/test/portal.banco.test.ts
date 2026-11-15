@@ -10,7 +10,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
 import { criarBancoApp, criarBancoPortal, ErroPapelBanco } from '../src/banco';
-import { SA_INTERNAS, SA_PORTAL } from './funcoes-sa';
+import { SA_INTERNAS, SA_PORTAL, SA_PORTAL_0081 } from './funcoes-sa';
 
 const SEM_PERMISSAO = '42501';
 const UM = '00000000-0000-4000-8000-000000000001';
@@ -49,7 +49,10 @@ describe.skipIf(semBanco())('API × Postgres: papel macuxi_portal (T-0091)', () 
 
   it('toda sa_* do catálogo está em SA_PORTAL ou SA_INTERNAS (sa_* nova sem classe = vermelho)', async () => {
     const fs = await funcoesSa();
-    expect(fs.map((f) => f.assinatura).sort()).toEqual([...SA_PORTAL, ...SA_INTERNAS].sort());
+    // T-0181: sem a 0081 no banco (a tabela plataforma.frase_carga não existe), só as 3 sa_* dela podem faltar
+    const com0081 = (await admin.query<{ ok: boolean }>("select to_regclass('plataforma.frase_carga') is not null as ok")).rows[0]?.ok;
+    const vigentes = com0081 ? SA_PORTAL : SA_PORTAL.filter((f) => !SA_PORTAL_0081.includes(f));
+    expect(fs.map((f) => f.assinatura).sort()).toEqual([...vigentes, ...SA_INTERNAS].sort());
   });
 
   it('nenhuma sa_* executa como macuxi_app, macuxi_worker ou PUBLIC; as com grant executam como macuxi_portal; as internas, ninguém', async () => {

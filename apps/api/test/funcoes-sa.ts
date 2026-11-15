@@ -48,4 +48,10 @@ export const SA_PORTAL: readonly string[] = [
   'plataforma.sa_editar_frase_carga(uuid, uuid, text, boolean)',
 ];
 
+/**
+ * As 3 da 0081 (T-0181). Enquanto a 0081 não estiver no main (o PR do banco entra depois deste), os testes e o
+ * banco-dbaas.sh toleram a ausência DELAS, e só delas: com a 0081 aplicada, a conferência volta a ser exata.
+ */
+export const SA_PORTAL_0081: readonly string[] = SA_PORTAL.filter((f) => /_frases?_carga\(/.test(f));
+
 export const SA_INTERNAS: readonly string[] = ['plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)'];

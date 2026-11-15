@@ -132,6 +132,8 @@ sa_fora="$(psqlc -d "$BANCO" -c "with sa as (
     union all select f || ' (interna com EXECUTE do portal)' from sa where f = any (array[$SA_INTERNAS]) and portal
     union all select f || ' (fora de SA_PORTAL e SA_INTERNAS)' from sa where not f = any (array[$SA_PORTAL, $SA_INTERNAS])
     union all select e || ' (falta no banco)' from unnest(array[$SA_PORTAL, $SA_INTERNAS]) e where e not in (select f from sa)
+      -- T-0181: sem a 0081 (plataforma.frase_carga), só as 3 sa_* das frases podem faltar; com ela, conferência exata
+      and not (e like '%frase%carga(%' and to_regclass('plataforma.frase_carga') is null)
   ) t")"
 [ -z "$sa_fora" ] || erro 1 "funções plataforma.sa_* fora da regra do T-0091: $sa_fora"
 grants_portal="$(psqlc -d "$BANCO" -c "select count(*) from pg_class c, aclexplode(c.relacl) a where a.grantee = 'macuxi_portal'::regrole")"

@@ -8,7 +8,7 @@
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { SA_INTERNAS, SA_PORTAL } from './funcoes-sa';
+import { SA_INTERNAS, SA_PORTAL, SA_PORTAL_0081 } from './funcoes-sa';
 
 const RAIZ = new URL('../../../', import.meta.url);
 const MIGRACOES = new URL('db/migrations/', RAIZ);
@@ -17,6 +17,9 @@ const ups = readdirSync(MIGRACOES)
   .filter((f) => f.endsWith('.up.sql'))
   .sort()
   .map((f) => ({ arquivo: f, sql: ler(new URL(f, MIGRACOES)) }));
+/** T-0181: sem a migração que cria as sa_* das frases (0081), as 3 dela saem do esperado; com ela, conferência exata. */
+const com0081 = ups.some(({ sql }) => /function\s+plataforma\.sa_listar_frases_carga\s*\(/i.test(sql));
+const SA_PORTAL_VIGENTES: readonly string[] = com0081 ? SA_PORTAL : SA_PORTAL.filter((f) => !SA_PORTAL_0081.includes(f));
 const nome = (assinatura: string): string => assinatura.replace(/^plataforma\./, '').replace(/\(.*$/, '');
 const ordenado = (xs: Iterable<string>): string[] => [...xs].sort();
 /** Assinatura normalizada como a de oidvectortypes: "tipo, tipo". */
@@ -42,6 +45,7 @@ describe('plataforma.sa_*: SA_PORTAL e SA_INTERNAS (T-0091; T-0093)', () => {
     expect(new Set(todas).size).toBe(todas.length);
     expect(SA_PORTAL).toHaveLength(30);
     expect(SA_INTERNAS).toEqual(['plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)']);
+    expect(SA_PORTAL_0081).toHaveLength(3);
   });
 
   it('as sa_* que existem depois de todas as migrações (criadas menos apagadas) são exatamente as das duas listas', () => {
@@ -51,7 +55,7 @@ describe('plataforma.sa_*: SA_PORTAL e SA_INTERNAS (T-0091; T-0093)', () => {
       // drop de uma assinatura: some o nome (uma sa_* não tem sobrecarga; a recriação vem depois, noutro evento)
       if (e.tipo === 'apaga') existem.delete(e.nome);
     }
-    expect(ordenado(existem)).toEqual(ordenado(new Set([...SA_PORTAL, ...SA_INTERNAS].map(nome))));
+    expect(ordenado(existem)).toEqual(ordenado(new Set([...SA_PORTAL_VIGENTES, ...SA_INTERNAS].map(nome))));
   });
 
   it('os grants vivos ao macuxi_portal são exatamente a SA_PORTAL; nenhuma migração dá EXECUTE a uma interna', () => {
@@ -66,7 +70,7 @@ describe('plataforma.sa_*: SA_PORTAL e SA_INTERNAS (T-0091; T-0093)', () => {
       // função apagada leva os grants junto
       if (e.tipo === 'apaga' && e.assinatura) doPortal.delete(e.assinatura);
     }
-    expect(ordenado(doPortal)).toEqual(ordenado(SA_PORTAL));
+    expect(ordenado(doPortal)).toEqual(ordenado(SA_PORTAL_VIGENTES));
     expect(nasInternas).toEqual([]);
   });
 
