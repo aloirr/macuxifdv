@@ -107,6 +107,8 @@ export const ProdutoSyncSchema = z
     ean: z.string().nullable(),
     nome: z.string(),
     marca: z.string().nullable(),
+    /** T-0177 (aditivo, migração 0076): código da marca no ERP (até 30); null/ausente = sem código. */
+    marca_codigo: z.string().max(30).nullable().optional(),
     categoria: z.string().nullable(),
     unidade: z.string(),
     /** Embalagem opcional (RN-CORE-19): medida + quantidade de unidades. Opcionais: compatível com o pull anterior. */

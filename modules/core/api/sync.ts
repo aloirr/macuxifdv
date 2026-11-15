@@ -85,7 +85,7 @@ export const TABELAS_SYNC = {
     // vigentes e encerradas há ≤ 40 dias
     janela: "(fim is null or fim >= {{hoje}} - 40)",
   },
-  produto: { tabela: 'core.produto', colunas: 'sku, ean, nome, marca, categoria, unidade, embalagem_medida, embalagem_quantidade, preco_venda_cents::float8 as preco_venda_cents, desconto_maximo_pct::float8 as desconto_maximo_pct, ativo', colunaCliente: null },
+  produto: { tabela: 'core.produto', colunas: 'sku, ean, nome, marca, marca_codigo, categoria, unidade, embalagem_medida, embalagem_quantidade, preco_venda_cents::float8 as preco_venda_cents, desconto_maximo_pct::float8 as desconto_maximo_pct, ativo', colunaCliente: null },
   // RN-VEN-11a (T-0168): a linha do próprio usuário (e da equipe visível) com só as 3 colunas de limite de desconto; sem e-mail, nome nem código do ERP
   usuario: {
     tabela: '(select id as usuario_id, id, updated_at, deleted_at, null::text as external_id, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil from core.usuario) as usuario',

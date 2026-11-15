@@ -86,6 +86,8 @@ export const ProductBase = z.object({
   brand: z.string(),
   line: z.string(),
   unit: z.string(),
+  /** T-0177 (aditivo): código da marca no ERP (até 30). */
+  marca_codigo: z.string().max(30).nullable().optional(),
   ean: z.string().nullable().optional(),
   active: z.boolean().optional(),
   external_id: z.string().nullable().optional(),

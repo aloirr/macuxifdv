@@ -55,10 +55,12 @@ export const consumidorProdutoDoErp: ConsumidorEvento = definirConsumidor({
     if (l.embalagem_descartada) ctx.log.warn({ external_id: l.external_id }, 'embalagem do produto do ERP descartada: informe medida e quantidade inteira de 2 a 9999, com medida diferente da unidade');
 
     const gravado = await comMedidaAusente(() => ctx.db.query<{ id: string; embalagem_medida: string | null; embalagem_quantidade: number | null }>(
-      `insert into core.produto (tenant_id, external_id, sku, ean, nome, marca, categoria, unidade, ativo, embalagem_medida, embalagem_quantidade, erp_alterado_em)
-       values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::timestamptz)
+      `insert into core.produto (tenant_id, external_id, sku, ean, nome, marca, categoria, unidade, ativo, embalagem_medida, embalagem_quantidade, erp_alterado_em, marca_codigo)
+       values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::timestamptz, $12)
        on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null
        do update set sku = excluded.sku, ean = excluded.ean, nome = excluded.nome, marca = excluded.marca,
+                     -- T-0177: marca_codigo ausente no evento ($13 = false) não altera; null/vazio limpa
+                     marca_codigo = case when $13::boolean then excluded.marca_codigo else core.produto.marca_codigo end,
                      categoria = excluded.categoria, unidade = excluded.unidade, ativo = excluded.ativo, erp_alterado_em = excluded.erp_alterado_em,
                      -- embalagem: o ERP que informa vence; evento sem embalagem NÃO apaga a que o BKO cadastrou (par medida + quantidade)
                      -- (se a nova unidade passa a ser igual à embalagem guardada, esta é limpa para não ferir a regra "embalagem diferente da unidade")
@@ -69,7 +71,7 @@ export const consumidorProdutoDoErp: ConsumidorEvento = definirConsumidor({
                                                  when core.produto.embalagem_medida = excluded.unidade then null
                                                  else core.produto.embalagem_quantidade end
        returning id, embalagem_medida, embalagem_quantidade`,
-      [l.external_id, l.sku, l.ean, l.nome, l.marca, l.categoria, unidade, l.ativo, embalagemMedida, embalagemQuantidade, l.alterado_em],
+      [l.external_id, l.sku, l.ean, l.nome, l.marca, l.categoria, unidade, l.ativo, embalagemMedida, embalagemQuantidade, l.alterado_em, l.marca_codigo ?? null, l.marca_codigo !== undefined],
     ));
 
     // RN-VEN-15: o ERP prevalece sobre a embalagem do produto quando a mesma sigla existe como unidade de venda viva.

@@ -27,6 +27,8 @@ export interface EventoProdutoAtualizado {
         ean?: string | null;
         nome: string;
         marca?: string | null;
+        /** T-0177: código da marca no ERP (até 30); ausente = não altera, null/vazio = limpa. Leitura tolerante (o tipo do Hub pode ainda não trazê-lo). */
+        marca_codigo?: string | null;
         categoria?: string | null;
         unidade: string;
         /** RN-CORE-19: embalagem (medida + quantidade de unidades), opcional e tudo-ou-nada. */
@@ -42,6 +44,8 @@ export interface LinhaProdutoErp {
   ean: string | null;
   nome: string;
   marca: string | null;
+  /** T-0177: `undefined` = o ERP não mandou o campo (mantém o gravado); `null` = limpa; texto aparado (até 30). */
+  marca_codigo?: string | null;
   categoria: string | null;
   unidade: string;
   /** RN-CORE-19: `null` = o ERP não informou (o consumidor mantém a embalagem que o BKO cadastrou). */
@@ -95,6 +99,7 @@ export function planejarProdutoDoErp(evento: EventoProdutoAtualizado, aplicadoAl
       ean: nulo(r.ean),
       nome: r.nome.trim(),
       marca: nulo(r.marca),
+      ...(r.marca_codigo === undefined ? {} : { marca_codigo: nulo(r.marca_codigo)?.slice(0, 30) ?? null }),
       categoria: nulo(r.categoria),
       unidade,
       ...embalagem,

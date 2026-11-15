@@ -15,6 +15,18 @@ describe('ADR-0005: produto do ERP vira core.produto (integracao.produto.atualiz
     }
   });
 
+  it('RN-CORE-18: marca_codigo ausente não altera (undefined), null/vazio limpa (null) e texto entra aparado e limitado a 30', () => {
+    const linha = (extra: object) => {
+      const p = planejarProdutoDoErp({ ...base, acao: 'atualizado', registro: { ...registro, ...extra } } as EventoProdutoAtualizado);
+      return p.tipo === 'upsert' ? p.linha.marca_codigo : 'x';
+    };
+    expect(linha({})).toBeUndefined();
+    expect(linha({ marca_codigo: null })).toBeNull();
+    expect(linha({ marca_codigo: '   ' })).toBeNull();
+    expect(linha({ marca_codigo: ' 980 ' })).toBe('980');
+    expect(linha({ marca_codigo: 'A'.repeat(40) })).toBe('A'.repeat(30));
+  });
+
   it('RN-INT-06: inativado só marca ativo=false (nunca apaga) e não precisa de registro', () => {
     expect(planejarProdutoDoErp({ ...base, acao: 'inativado' } as EventoProdutoAtualizado)).toEqual({ tipo: 'inativar', external_id: 'P-100', alterado_em: null });
   });

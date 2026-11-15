@@ -288,6 +288,29 @@ describe.skipIf(semBanco())('Core T-0066 × Postgres: consumidores do ERP', () =
 
   describe('produto', () => {
     const produto = (extra: Record<string, unknown> = {}) => ev('produto', 'P-T66', { sku: 'SKU-T66', nome: 'Arroz 5kg', marca: 'Boa', categoria: 'Grãos', unidade: 'pct', ean: '7891234567895', ...extra });
+    it('RN-CORE-18 (T-0177): marca_codigo ausente não altera, null/vazio limpa, texto é aparado e o outro tenant não o enxerga', async () => {
+      const lerMarca = async (t: Teste) => (await t.q<{ marca_codigo: string | null }>("select marca_codigo from core.produto where external_id = 'P-T66'"))[0]?.marca_codigo;
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar('integracao.produto.atualizado@1', produto({ marca_codigo: ' 980 ' }));
+        expect(await lerMarca(t)).toBe('980');
+        await t.entregar('integracao.produto.atualizado@1', produto({ nome: 'Sem o campo' }));
+        expect(await lerMarca(t)).toBe('980');
+        await t.entregar('integracao.produto.atualizado@1', produto({ marca_codigo: '   ' }));
+        expect(await lerMarca(t)).toBeNull();
+        await t.entregar('integracao.produto.atualizado@1', produto({ marca_codigo: '981' }));
+        await t.entregar('integracao.produto.atualizado@1', produto({ marca_codigo: null }));
+        expect(await lerMarca(t)).toBeNull();
+        await t.entregar('integracao.produto.atualizado@1', produto({ marca_codigo: '982' }));
+        expect(await lerMarca(t)).toBe('982');
+        // dentro do mesmo teste, o tenant B (outra transação) não vê nem altera o do A
+        await emTransacao(B.tenantId, async (tb) => {
+          expect(await lerMarca(tb)).toBeUndefined();
+          await tb.entregar('integracao.produto.atualizado@1', produto({ marca_codigo: 'B-1' }));
+          expect(await lerMarca(tb)).toBe('B-1');
+        });
+        expect(await lerMarca(t)).toBe('982');
+      });
+    });
     it('RN-INT-02/RN-CORE-18: upsert idempotente, mantém custo e preço de venda, inativa pelo evento', async () => {
       await emTransacao(A.tenantId, async (t) => {
         await t.entregar('integracao.produto.atualizado@1', produto());
