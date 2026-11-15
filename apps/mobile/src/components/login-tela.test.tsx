@@ -31,6 +31,7 @@ vi.mock('react-native', () => ({
   KeyboardAvoidingView: host('div'),
   ActivityIndicator: ({ color }: Props) => createElement('progress', { 'data-cor': color }),
   StyleSheet: { create: <T,>(s: T) => s },
+  useWindowDimensions: () => ({ width: 360, height: 800, scale: 3, fontScale: 1 }),
   BackHandler: { addEventListener: () => ({ remove: () => undefined }) },
   Keyboard: { addListener: () => ({ remove: () => undefined }) },
 }));
