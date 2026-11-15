@@ -56,3 +56,25 @@ Não gravados: a CLI deu 403 na escrita (GraphQL bloqueado na sessão). O texto 
 
 - engenheiro-software: RD-0526, 0528, 0529 e 0530 (cc gerente-projetos).
 - banco-dados: RD-0527 (cc gerente-projetos).
+
+## 5. Reteste (15/11/2026, ~12h30, Manaus)
+
+Branches: `origin/nuvem/consulta-producao-banco-dados` 0cf0b3a2 e `origin/nuvem/consulta-producao-engenheiro-software` 1384dbb3.
+**Resultado: LIMPO.** Os 5 achados estão fechados e não apareceu redundância nova.
+
+| ID | Evidência | Status |
+|---|---|---|
+| RD-0526 | `consulta.mjs`: `export const TERMOS_SENSIVEIS = [...]` e `RE_SENSIVEL = new RegExp(TERMOS_SENSIVEIS.join('\|'), 'i')`, com `senha` em qualquer posição, como no SQL. O teste `producao-consulta.test.mjs:130` compara a lista com `COLUNA_SENSIVEL_LEITURA` (`db/src/papeis.ts`). `node --test` só no branch do engenheiro: 22 ok, 1 pulado. Com o `papeis.ts` e a 0078 do branch do banco no checkout: 23 ok, 0 pulado. `consulta.mjs verificar`: catálogo ok. | corrigido |
+| RD-0527 | `conferir-rls.sql:124` → `' (0078)'`. A expectativa no `papel-leitura.db.test.ts` acompanhou a mudança. | corrigido |
+| RD-0528 | `PESSOAIS_SQL` sem `senha_hash` e sem `senha_temporaria_hash`. | corrigido |
+| RD-0529 | `banco-dbaas.sh:150-157`: só existência e `rolsuper`/`rolbypassrls`. Sem a filiação e sem o bloco `problemas_leitura`. O cabeçalho (`:21-22`) e a ADR 0055, item 4, acompanharam a mudança. | corrigido |
+| RD-0530 | ADR 0055, item 3 → "coluna sensível (a do item 4)". O cabeçalho do workflow → "sem coluna sensível; ADR 0055". A lista ficou num lugar só da ADR (`:33`). | corrigido |
+
+**O teste pulado (RD-0526) é aceitável.** O pulo só acontece quando nem a constante nem a 0078 estão no checkout, ou seja, no
+branch do engenheiro antes do merge do banco. Depois desse merge, a migração fica para sempre no `main`, então o pulo não
+volta: se a constante sumir, o teste lê o regex da 0078, e se faltarem as duas, o teste falha. O fallback para a 0078 não é
+redundância: é o que mantém o teste útil se a constante mudar de nome. Condição: o merge do banco-dados entra no mesmo
+lote. Se o PR do engenheiro entrar antes, o `main` fica com o teste pulado até o merge do banco.
+
+Observação sem RD: o título do teste `producao-consulta.test.mjs:118` ainda lista os 7 termos. É só título de teste, de
+gravidade baixa, e não segura o lote (R-20261111-190159). Também não precisa de correção: o título descreve o caso testado.
