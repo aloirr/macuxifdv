@@ -162,7 +162,7 @@ export function ConstrutorPage() {
           </>
         }
       >
-        <p className="text-[14px] text-ink-2">Some do app. As respostas continuam nos resultados.</p>
+        <p className="text-[14px] text-ink-2">Some do app.</p>
       </Dialog>
 
       {aviso ? (

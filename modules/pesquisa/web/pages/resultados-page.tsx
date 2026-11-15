@@ -166,8 +166,10 @@ export function ResultadosPage() {
         <>
           <KpiGrid>
             <KpiCard label="Respostas" value={total.toLocaleString('pt-BR')} />
-            <KpiCard label="Respondentes" value={dados.tipo === 'versao' ? dados.resultado.respondentes_distintos.toLocaleString('pt-BR') : '—'} sub={dados.tipo === 'versao' ? undefined : 'Escolha uma versão'} />
-            <KpiCard label="Taxa de resposta" value={dados.tipo === 'versao' ? textoTaxa(dados.resultado.taxa_resposta_pct) : '—'} sub={dados.tipo === 'versao' ? undefined : 'Escolha uma versão'} />
+            {dados.tipo === 'versao' ? (
+              <KpiCard label="Respondentes" value={dados.resultado.respondentes_distintos.toLocaleString('pt-BR')} />
+            ) : null}
+            {dados.tipo === 'versao' ? <KpiCard label="Taxa de resposta" value={textoTaxa(dados.resultado.taxa_resposta_pct)} /> : null}
             <KpiCard label="Suspeitas" value={suspeitas.toLocaleString('pt-BR')} sub="Relógio adiantado ou fora da vigência" valueClass={suspeitas > 0 ? 'text-warning' : undefined} />
           </KpiGrid>
           <Panel label="Perguntas" title="Por pergunta">
