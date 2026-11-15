@@ -120,3 +120,33 @@ Situação final dos achados desta simulação:
 - RD-0498: encerrado por decisão do dono do produto.
 
 Nenhum achado em aberto. Os RD-0501 e RD-0502 são do modulo-core; na implementação, o reteste é no print do aparelho.
+
+## 6. Parecer da versão aprovada (15/11/2026 ~08h20 de Manaus, commit fd17f346 do designer-ux)
+**Veredito: COM ACHADO.** Há 1 achado de gravidade baixa em doc, o RD-0560, e ele segura o lote. A tela está limpa.
+
+A decisão é do dono do produto (R-20261115-082500-alexandre): o rótulo passa a `Estoque: N` no cartão, na ficha e na busca, o zero fica `Estoque: 0` em vermelho e sai a variante de uma linha do cartão. Conferi o diff (`spec.md`, `catalogo-grade.md` §4, `.html`, `.css`) e abri como imagem os PNG 01 a 05 regerados.
+
+### Tela: sem achado
+- **Cartão** (`01`, `02`, `04`, `05`): a tag `Estoque: 12` / `Estoque: 0` é a única representação do estoque. "Estoque" aparece 1 vez por cartão, e a cor só reforça a faixa sem repetir o número. **Sem achado.**
+- **Variante de uma linha**: saíram a tela, o CSS `.cods.uma`, o PNG e a pergunta da §7. Não sobrou nenhuma remissão a `card-1-linha` em `docs/design/catalogo-campo-v2/`. **Sem achado.**
+- **Ficha** (`03`): `Boa Vista [Estoque: 0]` e, logo embaixo, `Manaus 12`. **Coerente, manter.** Explico em seguida.
+
+### Ficha: o rótulo deve ser igual em todas as linhas?
+**Não.** O formato atual é o certo para a regra "uma informação, um lugar":
+1. As linhas ficam na mesma caixa, sem título. O `Estoque:` da primeira linha já diz o que é o número das outras. Escrever `Manaus  Estoque: 12` repetiria a palavra de contexto em todas as filiais, o que o checklist A não permite (no máximo 1 vez por cartão). Foi esse o motivo do RD-0497.
+2. As duas formas não dizem a mesma coisa. A tag colorida marca a filial que vale para o preço e para o pedido do vendedor, e é ela que leva à decisão (vender ou fazer orçamento). As outras filiais são só consulta, por isso o número aparece sem cor. Se todas as linhas tivessem tag, todas teriam o mesmo peso, e a filial do vendedor deixaria de se destacar.
+3. A filial do vendedor vem sempre primeiro (spec §2), então o rótulo fica logo acima dos números sem rótulo.
+
+Na implementação, confiro no print do aparelho. Se a filial do vendedor não vier primeiro, ou se ela não tiver saldo e a linha sumir, o `Manaus 12` fica sem rótulo, e isso vira achado.
+
+### RD-0560 · baixa · doc · designer-ux
+- **Onde:** `docs/design/catalogo-campo-v2/spec.md` §3 e `docs/design/catalogo-grade.md` §4.
+- **O que se repete:** a tabela das faixas (`Estoque: 84` sucesso · `Estoque: 6` aviso · `Estoque: 0` erro, "0, ou nenhum saldo recebido") está escrita duas vezes, com 3 linhas iguais. Este commit editou as duas, e cada doc aponta para o outro: a spec diz "o §4 já está com o rótulo novo", e o §4 diz "… `catalogo-campo-v2/spec.md` §3". Também o tenant que esconde a quantidade aparece com textos diferentes: a spec diz só `Sem estoque` ("premissa"), e o §4 diz `Em estoque`, `Pouco estoque`, `Sem estoque`.
+- **Impacto:** manutenção. A próxima mudança de faixa ou de texto tem de ser feita nos dois lugares, e o caso do tenant que esconde a quantidade já diverge.
+- **Proposta:** a fonte da verdade é o `catalogo-grade.md` §4, que é o doc permanente da tela.
+  - Na spec §3, antes: frase + tabela + "Acaba o `Estoque sem informação` (…). Tenant que esconde a quantidade: `Sem estoque` (premissa; …)". Depois: "Rótulo `Estoque: N` em todo o Catálogo: cartão, ficha (filial do vendedor) e busca; sem saldo ou sem informação = `Estoque: 0`, vermelho (R-20261115-082500). Faixas e tenant que esconde a quantidade: `../catalogo-grade.md` §4. Acaba o `Estoque sem informação` (`modules/catalogo/app/lib/grade.ts:47` e `apresentacao.ts`, `rotuloEstoque`)."
+  - No `catalogo-grade.md` §4, antes: "Rótulo `Estoque: N` e o fim do `Estoque sem informação`: `catalogo-campo-v2/spec.md` §3 (R-20261115-082500)." Depois: "Sem saldo recebido conta como 0; acaba o `Estoque sem informação` (R-20261115-082500)."
+
+### Fora do escopo (sem RD)
+- `docs/design/telas/T-0173-catalogo.html` ainda tem "120 em estoque". É a prancha histórica da T-0173, que não é a fonte desta tela. Não abri achado.
+- `modules/catalogo/app/lib/grade.ts:51` (`… em estoque`) e o TalkBack de `:78` mudam na implementação do modulo-catalogo. Confiro no reteste do print.
