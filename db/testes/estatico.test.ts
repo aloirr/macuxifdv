@@ -39,7 +39,7 @@ import { dadosFaseM, TENANT_FASE_M } from '../seeds/fase-m/fase-m';
 import { dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS, PEPPER_HUB_FIXTURE } from '../seeds/fixtures/dois-tenants';
 import { carregarFixtureDosTestes, dadosTreinamento, ORDEM_TREINAMENTO } from './fixture-treinamento';
 import { COLUNAS_SEM_ESPELHO_DRIZZLE, TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
-import { DADOS_LEGAIS_PUBLICOS, FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_0042, FUNCOES_SA_0058, FUNCOES_SA_0070, FUNCOES_SA_0072, FUNCOES_SA_0073, FUNCOES_WORKER_0072 } from './funcoes-sa';
+import { DADOS_LEGAIS_PUBLICOS, FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_0042, FUNCOES_SA_0058, FUNCOES_SA_0070, FUNCOES_SA_0072, FUNCOES_SA_0073, FUNCOES_SA_0084, FUNCOES_WORKER_0072 } from './funcoes-sa';
 import { idDeChave, idDeterministico, idFixo, idMedida, idUsuarioPerfil } from '../src/ids';
 import { lerMigracoes } from '../src/migrador';
 import { PASTA_DB } from '../src/config';
@@ -122,6 +122,8 @@ const TABELAS_0072 = ['plataforma.backup_empresa', 'plataforma.backup_empresa_pa
 const TABELAS_0073 = ['plataforma.dados_legais'] as const;
 /** Tabelas novas da 0074 (ADR 0054: pacote da primeira carga e pedido de geração; fora do sync; sync-pacote.db.test.ts). */
 const TABELAS_0074 = ['plataforma.sync_pacote', 'plataforma.sync_pacote_pedido'] as const;
+/** Tabela nova da 0084 (ADR 0047: histórico das trocas de plano; fora do sync; planos-troca-licencas.db.test.ts). */
+const TABELAS_0084 = ['plataforma.assinatura_historico'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -261,6 +263,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0072,
         ...TABELAS_0073,
         ...TABELAS_0074,
+        ...TABELAS_0084,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,
@@ -814,8 +817,9 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     // sa_listar_tenants com create or replace
     // 0072 (ADR 0052): as 8 sa_* das ações da empresa e as 11 do worker (empresa-acoes.db.test.ts)
     // 0073 (rodapé legal): a leitura pública (app) e as 2 sa_* dos dados legais (portal) (dados-legais.db.test.ts)
+    // 0084 (ADR 0047): as 3 sa_* dos planos no portal (planos-troca-licencas.db.test.ts); a trava licencas_do_tenant é invoker
     expect(novas.map((x) => x[1]).sort()).toEqual(
-      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', ...FUNCOES_SA_0070.map(nome), ...FUNCOES_SA_0072.map(nome), ...FUNCOES_WORKER_0072.map(nome), nome(DADOS_LEGAIS_PUBLICOS), ...FUNCOES_SA_0073.map(nome)].sort(),
+      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', ...FUNCOES_SA_0070.map(nome), ...FUNCOES_SA_0072.map(nome), ...FUNCOES_WORKER_0072.map(nome), nome(DADOS_LEGAIS_PUBLICOS), ...FUNCOES_SA_0073.map(nome), ...FUNCOES_SA_0084.map(nome)].sort(),
     );
     for (const x of novas) expect(x[2], `${x[1]}: pg_temp por último`).toMatch(/, pg_temp$/);
     expect(depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)]).length).toBe(novas.length);
@@ -989,7 +993,8 @@ describe('fixture dois-tenants (estático)', () => {
     // pesquisa.resposta_item e pesquisa.resposta_foto: o gatilho da resposta as preenche (fora de ORDEM_TABELAS e de dados)
     // treinamento (0017): fixture própria, carregada logo depois da dois-tenants (testes/fixture-treinamento.ts)
     // super-admin (0035, ADR 0029): fora dos tenants e só por função; não é dado de tenant (super-admin.test.ts cria as linhas)
-    const deTenant = [...tabelasCriadas().keys()].filter((t) => !(TABELAS_SO_POR_FUNCAO as readonly string[]).includes(t));
+    // catálogo de planos (0070; o app lê o do próprio tenant desde a 0084): fora dos tenants, gravado antes por planosDaFixture
+    const deTenant = [...tabelasCriadas().keys()].filter((t) => !(TABELAS_SO_POR_FUNCAO as readonly string[]).includes(t) && t !== 'plataforma.plano');
     expect([...ORDEM_TABELAS, ...TABELAS_PESQUISA_DO_GATILHO, ...ORDEM_TREINAMENTO].sort()).toEqual(deTenant.sort());
     for (const t of comTenant.filter((x) => !(TABELAS_PESQUISA_DO_GATILHO as readonly string[]).includes(x))) {
       const linhas = dados[t as keyof typeof dados];

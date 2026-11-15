@@ -81,6 +81,9 @@
  * - 0074 (ADR 0054; SYNC_PACOTE_FIXTURE, grupos 0x68 e 0x69): pacotes da primeira carga — A com o 'catalogo' · 'tenant'
  *   pronto, o 'catalogo' · 'filial:<padrão>' pronto e um 'catalogo' · 'tenant' substituído; B com o 'core' · 'tenant' pronto.
  *   Pedidos de geração já atendidos (A: lote; B: manifesto): nenhum pendente (o teste grava o seu em transação desfeita).
+ * - 0084 (ADR 0047; ASSINATURAS_FIXTURE.*.historico, grupo 0x6a): uma troca de plano já gravada em cada tenant — A ficou no
+ *   fixture_pme e ganhou 2 licenças de promotor (mensal); B saiu do fixture_antigo para o fixture_pme e passou a anual. Os
+ *   pedido_id delas (seq 21 e 22 do catálogo) repetidos na sa_trocar_plano dão 'existente'.
  */
 import { createHash, createHmac } from 'node:crypto';
 import type { ClientBase } from 'pg';
@@ -207,6 +210,8 @@ const G = {
   // 0074 (ADR 0054): pacote da primeira carga e pedido de geração
   sync_pacote: 0x68,
   sync_pacote_pedido: 0x69,
+  // 0084 (ADR 0047): histórico das trocas de plano
+  assinatura_historico: 0x6a,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -370,8 +375,14 @@ export const PLANOS_FIXTURE = {
   antigo: { id: idFixo('9a9a9a9a', G.assinatura, 2), codigo: 'fixture_antigo', nome: 'Antigo (fixture)' },
 } as const;
 export const ASSINATURAS_FIXTURE = {
-  A: { id: a('assinatura', 1), pedido_id: idFixo('9a9a9a9a', G.assinatura, 11), teste_ate: '2026-11-27' },
-  B: { id: b('assinatura', 1), pedido_id: idFixo('9a9a9a9a', G.assinatura, 12) },
+  A: {
+    id: a('assinatura', 1), pedido_id: idFixo('9a9a9a9a', G.assinatura, 11), teste_ate: '2026-11-27',
+    historico: { id: a('assinatura_historico', 1), pedido_id: idFixo('9a9a9a9a', G.assinatura, 21) },
+  },
+  B: {
+    id: b('assinatura', 1), pedido_id: idFixo('9a9a9a9a', G.assinatura, 12),
+    historico: { id: b('assinatura_historico', 1), pedido_id: idFixo('9a9a9a9a', G.assinatura, 22) },
+  },
 } as const;
 
 /** Linhas de plataforma.plano da fixture (sem tenant_id: fora de ORDEM_TABELAS). */
@@ -641,6 +652,8 @@ export const ORDEM_TABELAS = [
   'plataforma.tenant_modulo',
   // 0070 (ADR 0047): assinatura (FK -> plataforma.plano, gravado antes por carregarDoisTenants: planosDaFixture)
   'plataforma.assinatura',
+  // 0084 (ADR 0047): histórico das trocas (FK -> plataforma.assinatura e plataforma.plano)
+  'plataforma.assinatura_historico',
   // 0041 (T-0111): perfis personalizados e sobreposições (os 7 de fábrica vêm do gatilho do tenant), antes da FK de perfil_modulo
   'plataforma.perfil',
   'plataforma.perfil_permissao',
@@ -980,6 +993,18 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     'plataforma.assinatura': [
       { id: ASSINATURAS_FIXTURE.A.id, tenant_id: tA, plano_id: PLANOS_FIXTURE.pme.id, ciclo: 'mensal', adicionais: [{ adicional: 'promotor', quantidade: 2 }], teste_ate: ASSINATURAS_FIXTURE.A.teste_ate, paga: false, pedido_id: ASSINATURAS_FIXTURE.A.pedido_id, external_id: null },
       { id: ASSINATURAS_FIXTURE.B.id, tenant_id: tB, plano_id: PLANOS_FIXTURE.pme.id, ciclo: 'anual', adicionais: [], teste_ate: null, paga: true, pedido_id: ASSINATURAS_FIXTURE.B.pedido_id, external_id: null },
+    ],
+    'plataforma.assinatura_historico': [
+      {
+        id: ASSINATURAS_FIXTURE.A.historico.id, tenant_id: tA, assinatura_id: ASSINATURAS_FIXTURE.A.id, pedido_id: ASSINATURAS_FIXTURE.A.historico.pedido_id,
+        plano_anterior_id: PLANOS_FIXTURE.pme.id, plano_id: PLANOS_FIXTURE.pme.id, ciclo_anterior: 'mensal', ciclo: 'mensal',
+        adicionais_anteriores: [], adicionais: [{ adicional: 'promotor', quantidade: 2 }], modulos_ligados: arrayDeTexto([]), super_admin_id: null, external_id: null,
+      },
+      {
+        id: ASSINATURAS_FIXTURE.B.historico.id, tenant_id: tB, assinatura_id: ASSINATURAS_FIXTURE.B.id, pedido_id: ASSINATURAS_FIXTURE.B.historico.pedido_id,
+        plano_anterior_id: PLANOS_FIXTURE.antigo.id, plano_id: PLANOS_FIXTURE.pme.id, ciclo_anterior: 'mensal', ciclo: 'anual',
+        adicionais_anteriores: [], adicionais: [], modulos_ligados: arrayDeTexto([]), super_admin_id: null, external_id: null,
+      },
     ],
     // 0041 (ADR 0033): personalizados (os de fábrica são do gatilho tenant_semear_perfis); sobreposições só nos personalizados
     'plataforma.perfil': [

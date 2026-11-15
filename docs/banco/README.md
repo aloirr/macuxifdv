@@ -220,6 +220,14 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > tenant da linha) e `plataforma.sync_pacote_pedido` (pedido de geração idempotente por partição), fora do sync; app lê e pede,
 > worker gera; índice `catalogo.tabela_preco_item_filial_sync_ix (tenant_id, filial_id, updated_at, id)`. Detalhes no
 > [sync-pacote.md](sync-pacote.md); teste `db/testes/sync-pacote.db.test.ts`.
+>
+> **2026-11-15 (ADR 0047, planos e licenças, telas 2 a 6 do portal; R-20261115-123000, item 1):**
+> `0084_plataforma_planos_troca_licencas` (em cima da 0083; aditiva; a 0075 a 0083 são de outros lotes): os 4 planos de venda no
+> catálogo (Light, PME, Enterprise e Corporate, números do §11.3 da spec do portal); `plataforma.assinatura_historico` (uma linha
+> por troca, idempotente por `pedido_id`); 3 `sa_*` do portal (`sa_listar_planos`, `sa_assinatura_da_empresa` e
+> `sa_trocar_plano`; o portal passa a 30); a trava do cadastro de usuários `plataforma.licencas_do_tenant()` (SECURITY INVOKER,
+> sob RLS, `for update` na assinatura); o app passa a ler o plano do próprio tenant. Detalhes no [plataforma.md](plataforma.md);
+> teste `db/testes/planos-troca-licencas.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

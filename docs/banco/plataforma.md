@@ -813,8 +813,9 @@ catálogo é **dado** (RN-PLA-01): preços, licenças e dias de teste vêm do se
 | comuns | | `created_at`, `updated_at` (gatilho), `deleted_at`, `external_id` (sem `tenant_id`: `TABELAS_SEM_TENANT_ID`) |
 
 Versão nova do plano (preço ou licenças) = **linha nova** com o mesmo código e a antiga com `deleted_at`: as assinaturas antigas
-continuam na linha que contrataram. RLS ligado e forçado, só a política `manutencao`; nenhum grant de tabela para `macuxi_app`,
-`macuxi_worker` ou `macuxi_portal` (`TABELAS_SO_POR_FUNCAO`). Volume: poucas linhas.
+continuam na linha que contrataram. RLS ligado e forçado. Na 0070, só a política `manutencao` e nenhum grant de tabela; **desde
+a 0084** o `macuxi_app` lê só o plano da assinatura viva do próprio tenant (ver "Troca de plano e licenças (0084)"). Worker e
+portal continuam sem grant. Volume: poucas linhas.
 
 ### assinatura — o plano de cada tenant
 | Coluna | Tipo | Regra |
@@ -831,7 +832,7 @@ Uma **viva** por tenant: `assinatura_tenant_uk (tenant_id) where deleted_at is n
 aos planos (sem trava, RN-PLA-04). RLS ligado e forçado: `isolamento_tenant` (o `macuxi_app` só **lê** a do próprio tenant) e
 `manutencao`; worker e portal sem grant. Escrita só pela `sa_gravar_assinatura`. Fora do sync (`TABELAS_FORA_DO_SYNC`). Volume:
 uma linha por tenant. A trava do cadastro de usuários (`plataforma.licencas_do_tenant()`, RN-PLA-04) e a troca de plano
-(`sa_trocar_plano`, `assinatura_historico`) entram em migração própria.
+(`sa_trocar_plano`, `assinatura_historico`) estão na 0084.
 
 ### Funções
 - `plataforma.sa_gravar_assinatura(p_sid uuid, p_tenant uuid, p jsonb) returns jsonb` — a chamada da API
@@ -865,6 +866,131 @@ select plataforma.sa_gravar_assinatura($1, $2, $3::jsonb) as r;   -- { resultado
 select plataforma.sa_listar_tenants($1) as r;                      -- itens[].plano, teste_ate, paga
 ```
 
+
+## Troca de plano e licenças (0084, ADR 0047) — `assinatura_historico`, a trava e as `sa_*` do portal. Fora do sync
+Migração `0084_plataforma_planos_troca_licencas` (em cima da 0083; aditiva). Decisão: [ADR 0047](../decisoes/0047-planos-e-licencas.md)
+§3 a §6 e §8, revista pela [ADR 0049](../decisoes/0049-cargos-fixos-e-um-perfil-por-usuario.md) (um perfil por usuário, sem
+multiperfil); desenho `docs/desenho/planos-e-licencas.md` §3; telas 2 a 6 do portal (`docs/design/telas/portal-config-enxuto.md`
+§11.3 e §11.4; R-20261115-123000, item 1). Contrato: `ListaPlanosSchema`, `FichaAssinaturaSchema`, `TrocarPlanoSchema` e
+`UsoDeLicencaSchema` (`packages/platform-sdk/src/planos.ts`), chamados por `apps/api/src/planos-portal.ts`. Drizzle:
+`assinaturaHistorico` em `db/esquema/plataforma.ts`.
+
+### Catálogo de venda (seed na migração)
+Os planos são dado da plataforma e valem em todo ambiente, inclusive produção. Por isso o seed vai na migração, como os perfis de
+fábrica (0041) e a linha dos dados legais (0073), e não em `db/seeds/` (só a demo e a Fase M rodam). Números da tabela do §11.3
+da spec (ponte de 14/11, R-20261114-132600, item 1). Ids fixos `00840000-0000-4000-8000-00000000000N`; código já vivo no catálogo
+não é sobrescrito (`on conflict do nothing`). Preço novo = linha nova (versão), nunca `update` no seed.
+
+| codigo | nome | ordem | preco_mensal_centavos | vendedor | gestor | bko | promotor |
+|---|---|---|---|---|---|---|---|
+| `light` | Light | 1 | 61000 | 10 | 1 | 1 | 0 |
+| `pme` | PME | 2 | 119700 | 20 | 2 | 3 | 0 |
+| `enterprise` | Enterprise | 3 | 171900 | 30 | 3 | 5 | 0 |
+| `corporate` | Corporate | 4 | 259250 | 50 | 5 | 5 | 0 |
+
+Todos: `modulos` = core, catalogo, vendedor, gestor e integracao; `adicionais` = Promotor 8000, Pesquisa 1000 e Treinamento 1000
+centavos por mês, todos com `incluidos` 0 (o adicional liga o módulo); `meses_gratis_anual` 2 (anual = 10 × o mensal) e
+`dias_teste` 14. A fixture dois-tenants usa planos só de teste (`fixture_pme`, `fixture_antigo`), sem colidir com estes.
+
+### assinatura_historico — uma linha por troca de plano (RN-PLA-05)
+| Coluna | Tipo | Regra |
+|---|---|---|
+| assinatura_id | uuid not null | FK → `plataforma.assinatura` |
+| pedido_id | uuid not null | UUID do portal (`TrocarPlanoSchema.pedido_id`); único por tenant (`assinatura_historico_pedido_uk (tenant_id, pedido_id)`): é a chave de idempotência da troca |
+| plano_anterior_id, plano_id | uuid not null | FK → `plataforma.plano` (a linha de antes e a de depois) |
+| ciclo_anterior, ciclo | text not null | `mensal` \| `anual` |
+| adicionais_anteriores, adicionais | jsonb not null default `[]` | `[{ adicional, quantidade }]`, até 3 |
+| modulos_ligados | text[] not null default `{}` | módulos que a troca inseriu ou religou no `tenant_modulo` (só os 8 `MODULOS`) |
+| super_admin_id | uuid | quem trocou (sem FK; a `auditoria_plataforma` guarda a sessão) |
+| comuns | | `tenant_id` (FK), `created_at`, `updated_at` (gatilho), `deleted_at`, `external_id` |
+
+Índice `assinatura_historico_assinatura_ix (tenant_id, assinatura_id, created_at)`. RLS ligado e forçado: `isolamento_tenant` (o
+`macuxi_app` só **lê** as do próprio tenant) e `manutencao`; worker e portal sem grant. Escrita só pela `sa_trocar_plano`. Fora
+do sync (`TABELAS_FORA_DO_SYNC`). Volume: poucas linhas por tenant. Fixture: uma troca em A e uma em B
+(`ASSINATURAS_FIXTURE.*.historico`).
+
+### Mudanças de acesso nas tabelas da 0070
+- `plataforma.plano`: política `isolamento_tenant` para o `macuxi_app` com `id in (plano_id da assinatura viva do tenant atual)` e
+  `grant select`. Sai de `TABELAS_SO_POR_FUNCAO` (continua em `TABELAS_SEM_TENANT_ID`). Só leitura; a escrita é do dono.
+- `plataforma.assinatura`: `grant update (updated_at)` ao `macuxi_app`, o privilégio que o Postgres exige para o `select ... for
+  update` da trava. O gatilho `assinatura_so_trava` (BEFORE UPDATE) recusa com 42501 todo UPDATE feito como `macuxi_app`; travar
+  a linha não dispara gatilho. O app continua sem INSERT, sem DELETE e sem UPDATE nas outras colunas.
+
+### A trava do cadastro de usuários (RN-PLA-04)
+`plataforma.licencas_do_tenant()` → `(item text, contratadas integer, em_uso integer, teste_ate text, paga boolean)`: 6 linhas na
+ordem de `ITENS_CONTADOS` (`vendedor`, `gestor`, `bko`, `promotor`, `pesquisa`, `treinamento`); `teste_ate` (`AAAA-MM-DD` ou
+null) e `paga` se repetem em cada linha. O Core chama na **mesma transação** do insert ou update do usuário, dentro de
+`comTenant`, e converte com `usoPorItem` para a `conferirNovoUsuario` do SDK.
+- SECURITY INVOKER, sob RLS do tenant corrente (`app.tenant_id`); EXECUTE só ao `macuxi_app`.
+- 1º comando: `select ... from plataforma.assinatura where tenant_id = tenant_atual() and deleted_at is null for update`. 2º
+  comando (foto nova): a contagem. Dois cadastros simultâneos ficam em fila e o segundo já vê o usuário do primeiro (a corrida da
+  última vaga). Exige READ COMMITTED, o padrão: em REPEATABLE READ o segundo contaria com a foto antiga.
+- Sem assinatura (legado anterior aos planos) ou sem contexto: nenhuma linha (não trava).
+- Apoio (SECURITY INVOKER, `search_path` fixo, sem EXECUTE para PUBLIC):
+  - `plataforma.contratadas_do_plano(plano, adicionais jsonb)` → `(item, contratadas)`: gêmea de `licencasContratadas`
+    (RN-PLA-01). Vendedor, gestor e BKO = os do plano; promotor = plano + adicional; Pesquisa e Treinamento = incluídos no plano
+    + adicional, 0 se o plano não vende nem tem o módulo, sem limite (null) se tem o módulo sem vender; `null` + adicional =
+    `null`. IMMUTABLE; EXECUTE ao `macuxi_app`.
+  - `plataforma.licencas_em_uso(p_tenant uuid)` → `(item, em_uso)`: RN-PLA-02 e RN-PLA-03 com a ADR 0049. Conta o usuário ativo e
+    não excluído (o bloqueado continua contando) pela **base** do seu perfil vivo e ativo: vendedor; promotor; supervisor e
+    gerente = gestor; analista, assistente e admin = bko (= `LICENCA_DO_PERFIL` do SDK, conferido no teste estático). Sem
+    prioridade de multiperfil: há um perfil por usuário (`usuario_perfil_um_vivo`). Pesquisa e Treinamento: usuário ativo com o
+    módulo efetivo (`perfil_modulo` do perfil ∩ `tenant_modulo` ativo − exceção `remover` do usuário), de qualquer tipo. STABLE;
+    EXECUTE ao `macuxi_app` (outro tenant, pela RLS, dá zeros); o dono a usa nas `sa_*` com o tenant da chamada.
+  - `plataforma.plano_json(plano)` → o `PlanoSchema` (licenças em objeto). Só o dono.
+
+### Funções do portal (SECURITY DEFINER; EXECUTE só ao `macuxi_portal`; o portal passa a 30 `sa_*`)
+SQLSTATE: 28000 sessão inválida ou vencida; 42501 permissão; P0002 não achou; 22023 validação (na escrita, com o código no `hint`).
+- `plataforma.sa_listar_planos(p_sid uuid) returns jsonb` → `{ itens: Plano[] }` (`ListaPlanosSchema`): todos os planos vivos,
+  ativos e inativos, por `ordem` e `codigo`. Super-admin e admin do cliente. Sem auditoria (a API audita a requisição).
+- `plataforma.sa_assinatura_da_empresa(p_sid uuid, p_tenant uuid) returns jsonb` → a ficha sem o `valor` (a API calcula com
+  `valorDaAssinatura`): `{ tenant_id, plano, ciclo, adicionais, teste_ate, paga, desde, atualizada_em, licencas }`, com `desde` e
+  `atualizada_em` em ISO UTC e `licencas` = os 6 itens `{ item, contratadas, em_uso }` (os mesmos números da trava). Super-admin:
+  qualquer empresa. Admin do cliente: só a empresa escolhida na sessão; outra = 42501, antes de dizer se ela existe. Sem
+  assinatura ou empresa inexistente = P0002 (a API devolve 404 `SEM_ASSINATURA`).
+- `plataforma.sa_trocar_plano(p_sid uuid, p_tenant uuid, p jsonb) returns jsonb` → `{ resultado: 'trocada' | 'existente',
+  modulos_ligados: text[] }`. Só super-admin. `p` = `EntradaTrocaDePlano` da API: `{ plano, ciclo, adicionais, pedido_id, modulos }`;
+  chave fora ou formato errado = 22023. Ordem:
+  1. trava consultiva por tenant (a mesma da `sa_gravar_assinatura`) e a assinatura viva em `for update` (a mesma linha da trava
+     do cadastro); empresa ou assinatura ausente = P0002;
+  2. **idempotente**: `pedido_id` já no histórico do tenant devolve `existente` e nada muda;
+  3. plano do catálogo: `PLANO_DESCONHECIDO`, `PLANO_INATIVO`, `ADICIONAL_FORA_DO_PLANO`; `modulos` diferente de core e integracao
+     + os do plano + os adicionais (`modulosDaAssinatura`) = `MODULOS_FORA_DO_PLANO`;
+  4. RN-PLA-05: contratadas do plano novo × em uso, item a item; abaixo do uso = 22023 `PLANO_ABAIXO_DO_USO` (a mensagem traz os
+     itens), nada muda e nenhum usuário é desativado;
+  5. grava plano, ciclo e adicionais na assinatura (`teste_ate` e `paga` não mudam);
+  6. **liga** no `tenant_modulo` os módulos do plano: insere o que falta e religa o desligado (`ativado_em` = agora,
+     `desativado_em` = null). **Nunca desliga** módulo: desligar é do BKO de licenças (RN-CORE-02, retenção de 90 dias), que
+     confere quem usa. Os perfis do módulo novo (`perfil_modulo`) o admin liga no BKO;
+  7. grava o histórico e audita `sa.assinatura.trocar` (`plano`, `plano_anterior`, `ciclo`, `resultado`, `modulos_ligados`; sem
+     dado pessoal).
+
+Conferência no fim da migração: nenhuma `sa_*` para app, worker ou PUBLIC; as 3 novas ao portal; o total do portal = o de antes
++ 3 (pela diferença, porque as 0075 a 0083 de outros lotes também acrescentam `sa_*`); a trava e as de apoio só ao app;
+`plano_json` e o gatilho só do dono; nenhum privilégio de tabela fora do desenho. `db/testes/funcoes-sa.ts` ganhou
+`FUNCOES_SA_0084` (`FUNCOES_SA_ATUAIS` = 30); `apps/api/test/funcoes-sa.ts`, `scripts/deploy/producao/banco-dbaas.sh` e
+`tests/integracao/banco/conformidade.test.ts` ganham as 3 pelos donos.
+
+Consultas (referência):
+```sql
+-- portal (macuxi_portal)
+select plataforma.sa_listar_planos($1) as r;                       -- { itens }
+select plataforma.sa_assinatura_da_empresa($1, $2) as r;           -- ficha sem valor
+select plataforma.sa_trocar_plano($1, $2, $3::jsonb) as r;         -- { resultado, modulos_ligados }
+-- cadastro de usuários do Core (macuxi_app, na transação do insert/update, comTenant)
+select item, contratadas, em_uso, teste_ate, paga from plataforma.licencas_do_tenant();
+```
+Plano esperado (sem Postgres local; EXPLAIN a confirmar no CI): a assinatura pelo índice único parcial `assinatura_tenant_uk`; a
+contagem percorre os usuários do tenant (`core.usuario` por `tenant_id`), o vínculo por `usuario_perfil_usuario_ix` e o perfil
+pela PK; centenas de usuários por tenant, bem abaixo da meta de 300 ms.
+
+**Volta** (`.down.sql`): apaga as 3 `sa_*`, a trava e as de apoio, o gatilho, os grants novos, a política do plano, o histórico e
+os 4 planos do seed que nenhuma assinatura usa (os usados ficam). As assinaturas ficam como a última troca deixou e os módulos
+ligados continuam. Antes: desligue `MACUXI_PLANOS` na API e volte o Core sem a trava.
+
+Prova: `db/testes/planos-troca-licencas.db.test.ts` (estático sempre, inclusive o seed contra a tabela do §11.3 da spec; banco no
+CI: catálogo, RLS, trava = SDK, ficha, troca com idempotência, módulos e recusa abaixo do uso, admin do cliente de outra empresa;
+banco efêmero: a corrida da última vaga com COMMIT de verdade e o up/down).
 
 ## Ações da empresa (0072, ADR 0052) — inativar, backup e excluir. Fora do sync
 Migração `0072_plataforma_empresa_acoes` (em cima da 0071; volta: `.down.sql`, que APAGA os registros de backup, exclusão e

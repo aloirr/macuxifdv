@@ -13,8 +13,9 @@
 --   plataforma.sync_pacote e plataforma.sync_pacote_pedido (gerador do pacote da primeira carga); em qualquer outra tabela
 --   aparece como problema.
 -- Resultado esperado: ZERO linhas. Exceções (iguais a db/src/excecoes.ts, TABELAS_SEM_TENANT_ID): plataforma.tenant não tem
--- tenant_id (o id é o tenant; RLS por id) e public.macuxi_migracao fica fora (schema public, sem acesso do macuxi_app).
--- Super-admin, portal, catálogo de planos, ações da empresa e dados legais (0035, ADR 0029; 0039, ADR 0031; 0070, ADR 0047; 0072, ADR 0052; 0073, rodapé legal; TABELAS_SO_POR_FUNCAO): sem tenant_id e SEM política para o macuxi_app (só por função
+-- tenant_id (o id é o tenant; RLS por id), plataforma.plano não tem tenant_id (catálogo; desde a 0084 o app lê só o plano da
+-- assinatura do próprio tenant, política pelo id) e public.macuxi_migracao fica fora (schema public, sem acesso do macuxi_app).
+-- Super-admin, portal, ações da empresa e dados legais (0035, ADR 0029; 0039, ADR 0031; 0072, ADR 0052; 0073, rodapé legal; TABELAS_SO_POR_FUNCAO): sem tenant_id e SEM política para o macuxi_app (só por função
 -- SECURITY DEFINER); para elas o problema é o contrário: política ou qualquer grant de tabela para o macuxi_app/macuxi_worker.
 -- Prova: db/testes/conformidade.test.ts ("B1 conferência de RLS") roda este arquivo no Postgres de testes do CI.
 -- À mão (só leitura): psql "$URL_ADMIN" -v ON_ERROR_STOP=1 -f db/scripts/conferir-rls.sql
@@ -58,7 +59,6 @@ so_por_funcao (nome) as (
          ('plataforma.portal_tentativa'),
          ('plataforma.portal_sessao'),
          ('plataforma.portal_sessao_empresa'),
-         ('plataforma.plano'),
          ('plataforma.backup_empresa'),
          ('plataforma.backup_empresa_parte'),
          ('plataforma.exclusao_empresa'),
