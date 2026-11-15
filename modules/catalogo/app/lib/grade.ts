@@ -5,7 +5,7 @@
 import type { TomEstado } from '@macuxi/ui/mobile/puro';
 import type { ItemVitrine } from '../../contracts';
 import { MENSAGEM_SEM_PRECO_CATALOGO } from '../../domain/vitrine';
-import { textoEquivaleA, type RotuloPreco } from './apresentacao';
+import { textoDeEstoque, textoEquivaleA, type RotuloPreco } from './apresentacao';
 import { filhosDe, produtosDoNo, trilhaDe, type Arvore, type NoCatalogo, type VinculoProdutoNo } from '../../domain/arvore';
 
 export interface FiltroDaGrade {
@@ -40,15 +40,14 @@ export interface TagEstoque {
   tom: TomEstado;
 }
 
-/** Tag única de estoque do cartão (spec §4); `null` = o perfil não vê estoque (RN-CAT-05). */
-export function tagDeEstoque(item: Pick<ItemVitrine, 'availability' | 'price_stock_visible'>, opcoes: { filialDoCliente?: boolean } = {}): TagEstoque | null {
+const TOM_ESTADO = { success: 'sucesso', warning: 'aviso', danger: 'erro', neutral: 'neutro' } as const;
+
+/** Tag única de estoque do cartão (spec catalogo-grade §4): "Estoque: N"; `null` = o perfil não vê estoque (RN-CAT-05). Sem saldo recebido = "Estoque: 0" (RN-CORE-39 com cliente). */
+export function tagDeEstoque(item: Pick<ItemVitrine, 'availability' | 'price_stock_visible'>): TagEstoque | null {
   const a = item.availability;
   if (!item.price_stock_visible || !a) return null;
-  if (a.by_branch.length === 0) return opcoes.filialDoCliente ? { texto: 'Sem estoque', tom: 'erro' } : { texto: 'Estoque sem informação', tom: 'neutro' };
-  if (a.band === 'sem_estoque') return { texto: 'Sem estoque', tom: 'erro' };
-  const baixo = a.band === 'baixo';
-  if (a.quantity === null) return { texto: baixo ? 'Pouco estoque' : 'Em estoque', tom: baixo ? 'aviso' : 'sucesso' };
-  return { texto: `${a.quantity.toLocaleString('pt-BR')} em estoque`, tom: baixo ? 'aviso' : 'sucesso' };
+  const t = a.by_branch.length === 0 ? textoDeEstoque('sem_estoque', a.quantity, a.quantity !== null) : textoDeEstoque(a.band, a.quantity);
+  return { texto: t.texto, tom: TOM_ESTADO[t.tom] };
 }
 
 /** Contagem do cabeçalho: "40 produtos", "1 produto". */
@@ -67,6 +66,15 @@ export function emLinhas<T>(itens: readonly T[], colunas = 2): T[][] {
 export function linhaDaMarca(item: Pick<ItemVitrine, 'brand' | 'equivale_a'>): string {
   const equivale = textoEquivaleA(item);
   return equivale ? `Equivale a ${equivale}` : item.brand ?? '';
+}
+
+/**
+ * Códigos do cartão em duas linhas (catalogo-campo-v2 §1): em cima a marca (ou "Equivale a ..."), embaixo o código do produto com o
+ * copiar. O copiar leva SÓ o código do produto (`erp_code`), sem marca (R-20261115-084500). O código da marca não vem no contrato
+ * (hoje está no nome do produto), então a linha de cima mostra só a marca.
+ */
+export function codigosDoCartao(item: Pick<ItemVitrine, 'brand' | 'equivale_a' | 'erp_code'>): { marca: string; produto: string; copiar: string } {
+  return { marca: linhaDaMarca(item), produto: item.erp_code, copiar: item.erp_code };
 }
 
 /** Preço do cartão: o valor quando vendável; senão a mensagem única do domain (RN-CAT-05); `null` = o perfil não vê preço. */

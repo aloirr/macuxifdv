@@ -70,7 +70,7 @@ export default function TelaProduto() {
   const aplicacao = catalogo?.aplicacao ?? null;
   const recolher = !!aplicacao && !aplicacaoAberta && aplicacaoPrecisaRecolher(aplicacao);
   const preco = rotuloPreco(item);
-  const estoque = rotuloEstoque(item, relogioReal().agora().toISOString(), fuso, { filialDoCliente: clienteId !== null });
+  const estoque = rotuloEstoque(item, relogioReal().agora().toISOString(), fuso);
   return (
     <Screen testID="pagina-catalogo-produto" cabecalho={{ titulo: item.description, subtitulo: `${subtituloProduto(item)} · ${item.unit}${item.ean ? ` · EAN ${item.ean}` : ''}`, voltar }}>
       {item.is_campaign || (catalogo && catalogo.etiquetas.length > 0) ? (

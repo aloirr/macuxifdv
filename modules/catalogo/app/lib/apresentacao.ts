@@ -32,34 +32,38 @@ export interface RotuloEstoque {
   desatualizado: boolean;
 }
 
-const FAIXA: Record<NonNullable<ItemVitrine['availability']>['band'], { texto: string; tom: TomCatalogo }> = {
-  disponivel: { texto: ROTULO_FAIXA_ESTOQUE.disponivel, tom: 'success' },
-  baixo: { texto: ROTULO_FAIXA_ESTOQUE.baixo, tom: 'warning' },
-  sem_estoque: { texto: ROTULO_FAIXA_ESTOQUE.sem_estoque, tom: 'danger' },
-};
+type Faixa = NonNullable<ItemVitrine['availability']>['band'];
 
-/** Texto legível da faixa de estoque (nunca o código cru): "Disponível", "Estoque baixo", "Sem estoque". */
-export function rotuloFaixa(band: keyof typeof FAIXA): string {
-  return FAIXA[band].texto;
+/** Estoque que acende o tom de aviso: de 1 a 9 (docs/design/catalogo-grade.md §4); 10 ou mais é sucesso. */
+export const ESTOQUE_MINIMO_SUCESSO = 10;
+
+/**
+ * Tag única de estoque (spec catalogo-grade §4, catalogo-campo-v2 §3): "Estoque: 84" (10 ou mais, sucesso), "Estoque: 6" (1 a 9, aviso),
+ * "Estoque: 0" (zero ou nenhum saldo recebido, perigo). Tenant que esconde a quantidade (`quantity` nulo): "Em estoque", "Pouco estoque", "Sem estoque".
+ */
+export function textoDeEstoque(band: Faixa, quantity: number | null, semSaldo = false): { texto: string; tom: TomCatalogo } {
+  const mostra = quantity !== null || semSaldo;
+  if (semSaldo || band === 'sem_estoque' || (quantity !== null && quantity <= 0)) return { texto: mostra ? 'Estoque: 0' : 'Sem estoque', tom: 'danger' };
+  if (quantity === null) return band === 'baixo' ? { texto: 'Pouco estoque', tom: 'warning' } : { texto: 'Em estoque', tom: 'success' };
+  return { texto: `Estoque: ${quantity.toLocaleString('pt-BR')}`, tom: quantity >= ESTOQUE_MINIMO_SUCESSO ? 'success' : 'warning' };
 }
 
 /** Linha por filial na ficha: "Matriz: Disponível · 1.200" (número em pt-BR quando o tenant o mostra). */
-export function rotuloEstoqueFilial(b: { branch_name: string; band: keyof typeof FAIXA; quantity: number | null }): string {
-  const faixa = rotuloFaixa(b.band);
+export function rotuloEstoqueFilial(b: { branch_name: string; band: Faixa; quantity: number | null }): string {
+  const faixa = ROTULO_FAIXA_ESTOQUE[b.band];
   return `${b.branch_name}: ${b.quantity !== null && b.band !== 'sem_estoque' ? `${faixa} · ${b.quantity.toLocaleString('pt-BR')}` : faixa}`;
 }
 
-/** Estoque do cartão (RN-CAT-07); `null` = o perfil não vê estoque. Sem nenhum saldo recebido: "sem informação". */
-export function rotuloEstoque(item: ItemVitrine, agora: string, fuso: string, opcoes: { filialDoCliente?: boolean } = {}): RotuloEstoque | null {
+/**
+ * Estoque do cartão e da ficha (RN-CAT-07); `null` = o perfil não vê estoque (RN-CAT-05). Sem nenhum saldo recebido vale 0
+ * ("Estoque: 0", vermelho): acabou o "Estoque sem informação". Com cliente, a filial dele (RN-CORE-39).
+ */
+export function rotuloEstoque(item: ItemVitrine, agora: string, fuso: string): RotuloEstoque | null {
   const a = item.availability;
   if (!item.price_stock_visible || !a) return null;
-  // RN-CORE-39: com cliente no contexto o estoque é o da filial dele; sem registro nela é 0, não "sem informação"
-  if (a.by_branch.length === 0 && opcoes.filialDoCliente) return { texto: FAIXA.sem_estoque.texto, tom: FAIXA.sem_estoque.tom, detalhe: '', desatualizado: false };
-  if (a.by_branch.length === 0) return { texto: 'Estoque sem informação', tom: 'neutral', detalhe: '', desatualizado: true };
-  const f = FAIXA[a.band];
-  const texto = a.quantity !== null && a.band !== 'sem_estoque' ? `${f.texto} · ${a.quantity} ${item.unit.toLowerCase()}` : f.texto;
+  if (a.by_branch.length === 0) return { ...textoDeEstoque('sem_estoque', a.quantity, a.quantity !== null), detalhe: '', desatualizado: false };
   const hora = rotuloAtualizacaoEstoque(a, agora, fuso);
-  return { texto, tom: f.tom, detalhe: a.stale ? `${AVISO_ESTOQUE_DESATUALIZADO} · ${hora}` : hora, desatualizado: a.stale };
+  return { ...textoDeEstoque(a.band, a.quantity), detalhe: a.stale ? `${AVISO_ESTOQUE_DESATUALIZADO} · ${hora}` : hora, desatualizado: a.stale };
 }
 
 /** Linha secundária do cartão: marca · código. */

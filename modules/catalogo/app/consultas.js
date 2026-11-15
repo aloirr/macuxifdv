@@ -1,0 +1,47 @@
+/**
+ * Consulta `catalogo.precos_cliente@1` no aparelho (ADR 0012): lê só as linhas locais do Catálogo (pull de
+ * `cliente_tabela_preco`, `tabela_preco` e `tabela_preco_item`) e decide com o mesmo domain da API.
+ */
+import { implementarConsultaAparelho } from '@macuxi/platform-sdk';
+import { CONSULTA_PRECOS_CLIENTE } from '../contracts';
+import { filialDoClienteLocal, filialDoPreco } from '../domain/preco-filial';
+import { precosDoCliente } from '../domain/precos-cliente';
+import { verPrecoDoPerfil } from '../domain/visibilidade';
+export const consultaPrecosClienteAparelho = implementarConsultaAparelho(CONSULTA_PRECOS_CLIENTE, async (entrada, ctx) => {
+    const perfil = ctx.usuario()?.perfil ?? null;
+    // sem usuário logado não há perfil para liberar o preço (falha fechada)
+    const verPreco = perfil !== null && verPrecoDoPerfil(perfil, ctx.parametros());
+    let tabelaId = null;
+    let tabelaNome = null;
+    let itens = [];
+    let faixas = [];
+    let filial = null;
+    if (verPreco) {
+        const vinculos = (await ctx.linhas('cliente_tabela_preco')).filter((l) => l.cliente_id === entrada.cliente_id && !l.deleted_at);
+        const candidata = vinculos[0]?.tabela_preco_id ?? null;
+        if (candidata) {
+            const [tabela] = await ctx.linhasPorIds('tabela_preco', [candidata]);
+            if (tabela && tabela.ativo && !tabela.deleted_at) {
+                tabelaId = candidata;
+                tabelaNome = tabela.nome ?? null;
+            }
+        }
+        if (tabelaId) {
+            const id = tabelaId;
+            const pedidos = new Set(entrada.produto_ids);
+            const todos = (await ctx.linhas('tabela_preco_item')).filter((l) => l.tabela_preco_id === id && !l.deleted_at);
+            // RN-CORE-39: filial do preço (cliente, ou padrão por fallback de tabela). Sem filiais no aparelho (ainda não sincronizou): sem filtro, como antes.
+            const [cliente] = await ctx.linhasPorIds('cliente', [entrada.cliente_id]);
+            const local = filialDoClienteLocal(cliente?.filial_id, await ctx.linhas('filial'));
+            if (local) {
+                filial = filialDoPreco({ tabelaId: id, filialCliente: local.filialCliente, filialPadrao: local.filialPadrao, filiaisComItens: [...new Set(todos.flatMap((l) => (l.filial_id ? [l.filial_id] : [])))] });
+            }
+            itens = todos
+                .filter((l) => pedidos.has(l.produto_id) && (filial === null || l.filial_id === undefined || l.filial_id === filial.filialId))
+                .map((l) => ({ price_table_id: id, product_id: l.produto_id, price_cents: l.preco_cents, valid_from: l.vigencia_inicio, valid_to: l.vigencia_fim, unit: l.unidade ?? null }));
+            // RN-VEN-23: faixas dos produtos pedidos, da tabela do cliente ou gerais (a vigência e o desempate são do domain)
+            faixas = (await ctx.linhas('tabela_escalonada')).filter((l) => !l.deleted_at && l.ativo && pedidos.has(l.produto_id) && (l.tabela_preco_id === null || l.tabela_preco_id === id));
+        }
+    }
+    return precosDoCliente({ produtoIds: entrada.produto_ids, tabelaId, tabelaNome, itens, em: entrada.em, agora: ctx.agora().toISOString(), verPreco, faixas, fuso: ctx.usuario()?.fuso, filial });
+});
