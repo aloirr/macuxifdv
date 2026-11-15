@@ -110,6 +110,14 @@ const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
   'plataforma.sa_dados_legais(p_sid uuid)': `${SA}; só super-admin; o mesmo jsonb da dados_legais_publicos (razao_social, cnpj, site)`,
   'plataforma.sa_gravar_dados_legais(p_sid uuid, p jsonb)':
     `${SA}; só super-admin; exatamente razao_social, cnpj e site (22023), CHECKs (23514); idempotente (igual não muda nem audita); for update; audita antes e depois`,
+  // ADR 0047 (0083; planos e licenças, telas 2 a 6 do portal; R-20261115-123000, item 1). A licencas_do_tenant() é SECURITY
+  // INVOKER (só o macuxi_app, sob RLS): não entra aqui; se virar DEFINER, o caso do papel da aplicação reprova.
+  'plataforma.sa_listar_planos(p_sid uuid)': `${SA}; super-admin e admin do cliente; todos os planos vivos (ativos e inativos), por ordem e código; sem auditoria`,
+  'plataforma.sa_assinatura_da_empresa(p_sid uuid, p_tenant uuid)':
+    `${SA}; super-admin qualquer empresa; admin do cliente só a da sessão (outra = 42501, antes do P0002); ficha sem o valor; sem assinatura P0002`,
+  'plataforma.sa_trocar_plano(p_sid uuid, p_tenant uuid, p jsonb)':
+    `${SA}; só super-admin (admin do cliente 42501); idempotente por pedido_id (existente); abaixo do uso 22023 PLANO_ABAIXO_DO_USO e nada muda; ` +
+    'liga módulos e nunca desliga; histórico e auditoria sem dado pessoal',
 };
 
 /** Funções de deploy (T-0093, ADR 0031 §5): SECURITY INVOKER, chamadas pela conexão de administração; ninguém mais executa. */
