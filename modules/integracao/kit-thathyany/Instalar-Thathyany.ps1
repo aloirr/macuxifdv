@@ -168,15 +168,28 @@ function Detectar-Instancia {
 # ---------------------------------------------------------------------------------------------------------------------
 # 1. Programas
 # ---------------------------------------------------------------------------------------------------------------------
-# Programa ja instalado (achado no computador, nao pelo winget: instalacao manual nao aparece no "winget list") nao e reinstalado.
-function Programa-Instalado([string]$nomeExibicao) {
-    $chaves = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
-    [bool](Get-ItemProperty -Path $chaves -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like $nomeExibicao } | Select-Object -First 1)
+# Cada Achar-* devolve onde o programa esta (texto) ou $null. Achado no computador vence o winget: instalacao manual nao aparece no "winget list".
+function Achar-Ssms {
+    $exe = Get-ChildItem -Path "$env:SystemDrive\Program Files*\Microsoft SQL Server Management Studio*" -Filter 'Ssms.exe' -Recurse -Depth 6 -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($exe) { return $exe.FullName }
+    $cmd = Get-Command ssms.exe -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    $null
 }
-
-function Achar-Ssms { (Get-Command ssms.exe -ErrorAction SilentlyContinue) -or (Programa-Instalado 'SQL Server Management Studio*') -or (Programa-Instalado 'Microsoft SQL Server Management Studio*') }
-function Achar-Odbc { [bool](Get-ChildItem 'HKLM:\SOFTWARE\ODBC\ODBCINST.INI' -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -in 'ODBC Driver 18 for SQL Server', 'ODBC Driver 17 for SQL Server' }) }
-function Achar-Node { (Test-Path (Join-Path $env:ProgramFiles 'nodejs\npm.cmd')) -or [bool](Get-Command npm.cmd -ErrorAction SilentlyContinue) }
+function Achar-Odbc {
+    $nome = 'ODBC Driver 18 for SQL Server'
+    $driver = Get-OdbcDriver -Name $nome -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($driver) { return "$nome ($($driver.Platform))" }
+    if (Test-Path "HKLM:\SOFTWARE\ODBC\ODBCINST.INI\$nome") { return $nome }
+    $null
+}
+function Achar-Node {
+    $npm = Join-Path $env:ProgramFiles 'nodejs\npm.cmd'
+    if (Test-Path $npm) { return $npm }
+    $cmd = Get-Command npm.cmd -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    $null
+}
 
 # Python 3.10 ou mais novo: o py.exe (launcher) ou o python.exe do PATH. Devolve @(comando, argumentos) ou $null.
 function Achar-Python {
@@ -191,7 +204,8 @@ function Achar-Python {
 }
 
 function Garantir-Programa([string]$nome, [scriptblock]$achar, [string[]]$ids) {
-    if (& $achar) { Ok "$nome ja instalado"; return }
+    $onde = & $achar
+    if ($onde) { Ok "$nome ja instalado: $onde"; return }
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { Falha "Falta $nome e o winget nao esta instalado. Instale $nome a mao (ou atualize o 'Instalador de Aplicativo' na Microsoft Store) e rode de novo." }
     Winget-Instalar $ids $nome
     Atualizar-Path
@@ -201,7 +215,7 @@ function Passo-Programas {
     Titulo '1. Programas'
     Garantir-Programa 'SQL Server Management Studio (SSMS)' { Achar-Ssms } @('Microsoft.SQLServerManagementStudio.22', 'Microsoft.SQLServerManagementStudio.21', 'Microsoft.SQLServerManagementStudio')
     Garantir-Programa 'ODBC Driver 18 for SQL Server' { Achar-Odbc } @('Microsoft.msodbcsql.18')
-    Garantir-Programa 'Python 3' { [bool](Achar-Python) } @('Python.Python.3.12', 'Python.Python.3.13')
+    Garantir-Programa 'Python 3' { $p = Achar-Python; if ($p) { $p[0] } } @('Python.Python.3.12', 'Python.Python.3.13')
     if ($Fase -eq 'API') { Garantir-Programa 'Node.js LTS' { Achar-Node } @('OpenJS.NodeJS.LTS') }
     $py = Achar-Python
     if (-not $py) { Falha 'Nao achei o Python 3.10 ou mais novo (py.exe ou python.exe). Feche e abra o PowerShell como administrador e rode de novo.' }

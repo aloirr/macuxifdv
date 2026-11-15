@@ -143,8 +143,10 @@ describe('Instalar-Thathyany.ps1 (conferência estática)', () => {
     expect(semComentarios.join('\n')).not.toContain('.\\SQLEXPRESS');
     expect(INSTALADOR).toContain('Microsoft.msodbcsql.18');
     // programa achado no computador (registro ou Get-Command) não passa pelo winget: instalação manual não aparece no "winget list"
-    expect(INSTALADOR).toMatch(/function Garantir-Programa[\s\S]*?if \(& \$achar\) \{ Ok "\$nome ja instalado"; return \}[\s\S]*?Winget-Instalar/);
-    for (const achar of ['Achar-Ssms', 'Achar-Odbc', 'Achar-Python', 'Achar-Node']) expect(INSTALADOR).toContain(`{ ${achar} }`.replace('{ Achar-Python }', '{ [bool](Achar-Python) }'));
+    expect(INSTALADOR).toMatch(/function Garantir-Programa[\s\S]*?if \(\$onde\) \{ Ok "\$nome ja instalado: \$onde"; return \}[\s\S]*?Winget-Instalar/);
+    for (const achar of ['{ Achar-Ssms }', '{ Achar-Odbc }', '{ $p = Achar-Python; if ($p) { $p[0] } }', '{ Achar-Node }']) expect(INSTALADOR).toContain(achar);
+    expect(INSTALADOR).toContain('Program Files*\\Microsoft SQL Server Management Studio*');
+    expect(INSTALADOR).toContain("Get-OdbcDriver -Name $nome");
     expect(INSTALADOR).toContain('ODBCINST.INI');
     expect(INSTALADOR.match(/^\s*Winget-Instalar /gm) ?? []).toHaveLength(1);
     expect(INSTALADOR).toMatch(/pip install[^\n]*pyodbc/);
