@@ -9,6 +9,7 @@
  * Nada aqui vai ao log: e-mail e senha só trafegam no corpo.
  */
 import { z } from 'zod';
+import { AcoesDaEmpresaSchema } from './empresa-acoes';
 import { MODULOS } from './nomes';
 
 /** Cabeçalho com o tenant em que o super-admin age (UUID). Sem ele, a rota de módulo com `superAdmin` responde 400. */
@@ -144,6 +145,8 @@ export const EmpresaResumoSchema = z.object({
   status: z.string(),
   criada_em: Instante,
   modulos: z.array(z.object({ modulo: ModuloId, licencas: z.number().int().min(0).nullable() })),
+  /** ADR 0052 (aditivo, opcional): situação, último backup e exclusão para os botões da lista (só com `MACUXI_EMPRESA_ACOES=1`). */
+  acoes: AcoesDaEmpresaSchema.optional(),
 });
 export const ListaEmpresasSchema = z.object({ itens: z.array(EmpresaResumoSchema) });
 

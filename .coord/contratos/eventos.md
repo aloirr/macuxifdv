@@ -58,6 +58,11 @@
 | `integracao.lote.concluido@1` | integracao | integracao (monitor do BKO, RF-INT-04) | **dono** `integracao: EVENTO_LOTE_CONCLUIDO` |
 | `integracao.reconciliacao.divergente@1` | integracao | integracao (monitor do BKO), gestor (alertas; a declarar) | **dono** `integracao: EVENTO_RECONCILIACAO_DIVERGENTE` |
 | `integracao.lote.recebido@1` | integracao | integracao — **interno** (T-0025; ADR 0013 §7): a outbox como fila; o `POST /integracao/v1/lotes` publica na transação do lote (`LoteRecebidoEvento`: ids e contagens, sem linhas) e o consumidor do próprio módulo aplica o lote. Nenhum outro módulo consome | **dono** `integracao: EVENTO_LOTE_RECEBIDO` (consumo próprio, oficial) |
+| `plataforma.tenant.inativado@1` | plataforma (API, `POST /v1/plataforma/empresas/:id/inativar`, na transação; ADR 0052) | — (sem consumidor obrigatório: o bloqueio é da plataforma) | **dono** SDK `EVENTO_TENANT_INATIVADO` (`packages/platform-sdk/src/empresa-acoes.ts`). Payload strict: `tenant_id`, `motivo` (lista), `inativada_em` |
+| `plataforma.tenant.reativado@1` | plataforma (API, `…/reativar`) | — | **dono** SDK `EVENTO_TENANT_REATIVADO`. Payload strict: `tenant_id`, `reativada_em`, `inativa_desde` |
+| `plataforma.tenant.backup_concluido@1` | plataforma (worker do backup da empresa) | — | **dono** SDK `EVENTO_TENANT_BACKUP_CONCLUIDO`. Payload strict: `tenant_id`, `backup_id`, `consistente`, `tamanho_bytes`, `linhas`, `arquivos`, `concluido_em` |
+| `plataforma.tenant.backup_falhou@1` | plataforma (worker do backup da empresa) | — | **dono** SDK `EVENTO_TENANT_BACKUP_FALHOU`. Payload strict: `tenant_id`, `backup_id`, `erro_codigo` (código técnico), `falhou_em` |
+| `plataforma.tenant.excluido@1` | plataforma (worker da exclusão) | — | **dono** SDK `EVENTO_TENANT_EXCLUIDO`. **Fora da outbox** (o `plataforma.evento` do tenant some na mesma transação): é o `detalhes` da auditoria `tenant.excluido` e o registro `plataforma.empresa_excluida`. Payload strict: `tenant_id`, `codigo`, `backup_id`, `linhas_apagadas`, `excluido_em` |
 
 > Integração (T-0009): a antiga linha curinga `integracao.<entidade>.atualizado@1` virou uma linha por entidade,
 > para que cada consumidor seja explícito. "a declarar" = consumidor sugerido que ainda não está no `consome` do manifesto;
