@@ -56,14 +56,14 @@
   .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 10px 10px 12px; display: flex; flex-direction: column; min-width: 0; }
   .card .n { font-family: Archivo; font-weight: 700; font-size: 16px; line-height: 20px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 60px; }
   .foto { height: 96px; border-radius: 12px; background: var(--neutralBg); display: flex; align-items: center; justify-content: center; margin-top: 8px; overflow: hidden; flex: none; }
-  .foto.img { background: #F1F2EE; }
-  /* linha "código [copiar] · marca · código do produto" logo embaixo da foto */
+  .foto.img { background: var(--neutralBg); }
+  /* linha "código da marca · marca · código do produto [copiar]" logo embaixo da foto (R-20261115-073000) */
   .cods { display: flex; flex-wrap: wrap; align-items: center; column-gap: 4px; margin-top: 6px; font-size: 13px; line-height: 18px; color: var(--ink2); }
   .cods .c { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
   .copiar { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; color: var(--ink); background: #fff; margin: 0 2px 0 0; outline: 8px solid transparent; }
   .cods .r { white-space: nowrap; }
-  /* no cartão de 2 colunas a linha quebra em dois pontos fixos: código + copiar; marca · código do produto */
-  .mp { font-size: 13px; line-height: 18px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* no cartão de 2 colunas a linha quebra em dois pontos fixos: "código da marca · marca" e "código do produto [copiar]" */
+  .cods + .cods { margin-top: 0; }
   .eq { margin-top: 4px; font-size: 13px; line-height: 18px; color: var(--ink2); }
   .eq mark { background: var(--accentSoft); color: var(--accentInk); font-weight: 700; border-radius: 4px; padding: 0 3px; white-space: nowrap; }
   .card .p { font-family: Archivo; font-weight: 700; font-size: 18px; line-height: 24px; font-variant-numeric: tabular-nums; margin-top: auto; padding-top: 8px; }
