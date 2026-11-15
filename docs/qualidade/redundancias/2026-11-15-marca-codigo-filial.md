@@ -107,3 +107,15 @@ Heads: `nuvem/marca-codigo-modulo-integracao` 8da18d5d, `nuvem/referencia-cruzad
 
 - `hub-api.md:212` ("filial → vendedor → cliente → (rota, título, nota); produto → (preço, estoque)") resume a cadeia de dependências da fila de aplicação, o que é outra informação. Fica.
 - Imports dos testes alterados: `ENTIDADES` e `Entidade` continuam em uso nos dois arquivos, então não há import morto.
+
+## 8. Reteste do RD-0539 (15/11/2026)
+
+Heads: `nuvem/marca-codigo-modulo-integracao` 04833e6c6 e `nuvem/referencia-cruzada-modulo-integracao` 03df38dab (merge).
+
+**Resultado: LIMPO.** O RD-0539 foi corrigido e não surgiu achado novo. Os 9 achados do lote (RD-0531 a RD-0539) estão fechados.
+
+| RD | Evidência | Status |
+|---|---|---|
+| RD-0539 | `carga-arquivo.md:35`: "A entidade `filial` é a primeira da carga (`ORDEM_CARGA_ENTIDADES`)." `hub-api.md:514`: "`filial` é a primeira da lista única `ORDEM_CARGA_ENTIDADES`, usada pelo portal e pelo Conector." `roteiro-ensaio-conector-1.4.0.md:30`: "ordem: `ORDEM_CARGA_ENTIDADES` (`filial` primeiro); sem bloqueio". O kit traz os mesmos 3 arquivos pelo merge. | **corrigido** |
+
+Não houve redundância nova: o diff só tem as 3 linhas.
