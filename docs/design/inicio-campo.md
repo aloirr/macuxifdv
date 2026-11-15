@@ -45,7 +45,7 @@ aba ativa Azul noite; o laranja só na barra de meta e no contador.
 ## 3. As opções
 | | A · Seções com título | B · Painel do mês no topo | C · Recados em primeiro |
 |---|---|---|---|
-| Ideia | A tela de hoje com títulos de seção (Archivo 17 + ícone Azul noite) fora dos cartões e mais espaço entre as áreas | Painel na faixa Azul noite no alto com a saudação e a meta do mês ("Sem rota" sem "hoje", que já está em "Meta de hoje"; RD-0201). Abaixo, Recados num cartão com faixa de título Azul suave, Pedidos em dois blocos | Cabeçalho curto com as iniciais (abrem o Perfil). Recados num painel Azul suave, cada recado num balão branco. Depois Meta e Pedidos |
+| Ideia | A tela de hoje com títulos de seção (`t.h2` 18/700 + ícone Azul noite) fora dos cartões e mais espaço entre as áreas | Painel na faixa Azul noite no alto com a saudação e a meta do mês ("Sem rota" sem "hoje", que já está em "Meta de hoje"; RD-0201). Abaixo, Recados num cartão com faixa de título Azul suave, Pedidos em dois blocos | Cabeçalho curto com as iniciais (abrem o Perfil). Recados num painel Azul suave, cada recado num balão branco. Depois Meta e Pedidos |
 | Ordem | Saudação · Recados · Meta · Pedidos · Sincronizar | Saudação + Meta (painel) · Recados · Pedidos · Sincronizar | Saudação · Recados · Meta · Pedidos · Sincronizar |
 | Como Recados se separa | Pelo título e pelo espaço; o cartão é branco como os outros | Pela faixa de título colorida e pelo contraste com o painel escuro acima | Pela cor do painel inteiro: é a única área colorida da tela |
 | Ao entrar, o vendedor vê primeiro | O nome | O nome e quanto já vendeu no mês | O nome e os recados |
