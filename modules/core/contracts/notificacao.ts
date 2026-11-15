@@ -72,3 +72,9 @@ export const RecadoDoDiaDesmarcadoSchema = z.object({ envio_id: z.string().uuid(
 export type RecadoDoDiaDesmarcado = z.infer<typeof RecadoDoDiaDesmarcadoSchema>;
 /** Janela em que o recado ainda vai ao aparelho (criado há ≤ 30 dias): fora dela não vira recado do dia (RN-CORE-26). */
 export const RECADO_DO_DIA_JANELA_DIAS = 30;
+
+/** ADR 0053 §1: o tipo do token de push sai do formato. Expo: `ExponentPushToken[...]`/`ExpoPushToken[...]`; o resto é FCM. */
+export const REGEX_TOKEN_EXPO = /^Expo(nent)?PushToken\[.+\]$/;
+export function tipoDoToken(token: string): 'expo' | 'fcm' {
+  return REGEX_TOKEN_EXPO.test(token) ? 'expo' : 'fcm';
+}
