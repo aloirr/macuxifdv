@@ -177,3 +177,4 @@
 2026-11-15 — T-0175 — proposta do vínculo automático por nome (docs/modulos/core/vinculo-erp-por-nome.md)
 2026-11-15 — T-0175 — Código FDV 5 dígitos (RN-CORE-59), usuário nunca excluído (RN-CORE-60) e vínculo automático por nome (RN-CORE-58)
 2026-11-15 — T-0175 — auditoria usuario.vincular_erp_por_nome, vinculo-por-nome.db.test.ts, proposta aprovada sem Desvincular, exceção da RN-CORE-60 (exclusão da empresa)
+2026-11-15 — T-0175 — merge da cadeia 0074–0080 do banco-dados; COLUNA_CODIGO_FDV_PRONTA=true; teste de sync ajustado

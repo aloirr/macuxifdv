@@ -1,9 +1,8 @@
 /**
- * RN-CORE-59 (T-0175): a coluna `core.usuario.codigo_fdv` ainda não existe (a migração é do banco-dados). Enquanto esta constante for
- * `false`, a leitura devolve `null` e a busca ignora o código; virar `true` no PR da migração. Não há outro padrão no repositório
- * para coluna aguardando migração, por isso a constante.
+ * RN-CORE-59 (T-0175): a coluna `core.usuario.codigo_fdv` existe desde a migração 0080; com `true` a leitura, a busca e o sync
+ * usam a coluna. `false` volta ao modo sem coluna (`null`).
  */
-export const COLUNA_CODIGO_FDV_PRONTA = false;
+export const COLUNA_CODIGO_FDV_PRONTA = true;
 
 /** Expressão SQL do Código FDV de `core.usuario` (alias `u` por padrão). */
 export const sqlCodigoFdv = (alias = 'u'): string => (COLUNA_CODIGO_FDV_PRONTA ? `${alias}.codigo_fdv` : 'null::text');
