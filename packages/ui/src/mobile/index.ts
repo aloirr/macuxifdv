@@ -62,3 +62,6 @@ export * from './campo-senha';
 export * from './campo-senha-rn';
 // RD-0951: CampoTexto (rótulo, entrada e erro) e RotuloCampo, o mesmo rótulo e a mesma entrada do CampoSenha
 export * from './campo-texto-rn';
+// Onda 1 do catálogo (solução 5): IndicadorCargaFundo ("Catálogo 63%") e CatalogoCarregando, o catálogo sem sinal na carga
+export * from './carga-fundo';
+export * from './carga-fundo-rn';
