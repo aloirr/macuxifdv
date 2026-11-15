@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Onda 1 do catálogo · indicador de carga em segundo plano (simulação)</title>
+<!-- Spec: docs/design/carga-em-segundo-plano.md · componente: packages/ui/src/mobile/carga-fundo-rn.tsx (IndicadorCargaFundo,
+     CatalogoCarregando) · tokens iguais a packages/ui/src/mobile/tokens.ts (telas.css). Render: Chromium, 360 × 800, escala 2. -->
+<link rel="stylesheet" href="../telas/telas.css">
+<style>
+  @font-face { font-family: Archivo; font-weight: 700; src: url('../../../apps/web/app/fonts/Archivo_700Bold.ttf'); }
+  @font-face { font-family: Archivo; font-weight: 800; src: url('../../../apps/web/app/fonts/Archivo_800ExtraBold.ttf'); }
+  @font-face { font-family: 'IBM Plex Sans'; font-weight: 400; src: url('../../../apps/web/app/fonts/IBMPlexSans_400Regular.ttf'); }
+  @font-face { font-family: 'IBM Plex Sans'; font-weight: 500; src: url('../../../apps/web/app/fonts/IBMPlexSans_500Medium.ttf'); }
+  @font-face { font-family: 'IBM Plex Sans'; font-weight: 600; src: url('../../../apps/web/app/fonts/IBMPlexSans_600SemiBold.ttf'); }
+  @font-face { font-family: 'IBM Plex Sans'; font-weight: 700; src: url('../../../apps/web/app/fonts/IBMPlexSans_700Bold.ttf'); }
+  body { padding: 24px 28px 28px; }
+  .board { display: flex; gap: 28px; align-items: flex-start; }
+  .tela { width: 360px; display: flex; flex-direction: column; gap: 10px; }
+  .phone { width: 360px; height: 800px; }
+  .status.claro { background: var(--faixa); color: #fff; }
+  .rolagem { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding: 8px 16px 12px; gap: 12px; }
+  .rolagem > * { flex: none; }
+  .mola { flex: 1 1 auto !important; }
+  /* Início do Campo (T-0170, como está no código), em 360 de largura */
+  .painel-c { background: var(--faixa); border-radius: 22px; padding: 14px; min-height: 120px; display: flex; align-items: center; gap: 12px; }
+  .painel-c .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .painel-c .dt { font-size: 13px; color: var(--faixaSub); }
+  .painel-c .sd { font-family: Archivo, sans-serif; font-weight: 800; font-size: 24px; line-height: 30px; color: #fff; }
+  .painel-c .fr { font-size: 14px; line-height: 19px; font-style: italic; color: var(--faixaSub); }
+  .painel-c .av { width: 76px; height: 100px; border-radius: 14px; background: var(--accentSoft); color: var(--accentInk); font-family: Archivo, sans-serif; font-weight: 800; font-size: 26px; display: flex; align-items: center; justify-content: center; flex: none; }
+  .lt { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+  .lt h2 { margin: 0; font-family: Archivo, sans-serif; font-weight: 700; font-size: 17px; }
+  .sino-p { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); display: flex; align-items: center; justify-content: center; position: relative; }
+  .sino-p .cont { position: absolute; top: -8px; right: -8px; min-width: 16px; height: 20px; padding: 0 3px; border-radius: 12px; border: 2px solid var(--ground); background: var(--grafico); color: #fff; font-size: 12px; font-weight: 600; line-height: 20px; text-align: center; }
+  .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .cm { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .cm .t { font-size: 12px; font-weight: 600; color: var(--ink2); }
+  .cm .r { font-family: Archivo, sans-serif; font-weight: 800; font-size: 19px; line-height: 24px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .cm .r span { font-family: 'IBM Plex Sans', sans-serif; font-weight: 400; font-size: 15px; color: var(--ink2); }
+  .cm .lb { display: flex; align-items: center; gap: 8px; }
+  .cm .barra { flex: 1; height: 8px; border-radius: 4px; background: var(--lineSoft); overflow: hidden; }
+  .cm .barra i { display: block; height: 100%; border-radius: 4px; background: var(--grafico); }
+  .cm .pc { font-size: 13px; font-weight: 700; color: var(--danger); }
+  .cm .rp { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink2); }
+  .cm .rp b { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .ls { display: flex; align-items: center; gap: 12px; }
+  .ls .bt { flex: 1; height: 52px; border-radius: 14px; background: var(--ink); color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; font-size: 16px; }
+  .ls .bt.off { background: var(--neutralBg); color: var(--ink3); }
+  .ls .st { width: 92px; font-size: 12px; color: var(--ink2); }
+  /* Catálogo (T-0173) */
+  .fx { background: var(--faixa); padding: 4px 16px 14px; flex: none; }
+  .fx .lin { display: flex; align-items: center; gap: 8px; }
+  .fx .lin > div { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .fx .t { font-family: Archivo, sans-serif; font-weight: 800; font-size: 24px; line-height: 28px; color: #fff; }
+  .fx .s { font-size: 13px; color: var(--faixaSub); }
+  .selo-at { height: 32px; padding: 0 12px; border-radius: 999px; background: var(--warningBg); color: var(--warningInk); font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; flex: none; }
+  .corpo { flex: 1; min-height: 0; padding: 16px 16px 0; display: flex; flex-direction: column; gap: 12px; }
+  .busca-g { height: 48px; border: 1px solid var(--lineStrong); border-radius: 12px; background: #fff; display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 15px; color: var(--ink3); }
+  /* EstadoVazio do kit (base.tsx) */
+  .vazio { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px 16px; }
+  .vazio .ic { width: 48px; height: 48px; border-radius: 24px; background: var(--lineSoft); display: flex; align-items: center; justify-content: center; }
+  .vazio .ti { font-family: Archivo, sans-serif; font-weight: 700; font-size: 17px; text-align: center; }
+  .vazio .tx { font-size: 14px; line-height: 20px; color: var(--ink2); text-align: center; }
+  /* IndicadorCargaFundo (carga-fundo-rn.tsx): 32 dp no Pérola, colado em cima da barra de abas; barra de 2 dp no pé */
+  .carga { height: 32px; flex: none; position: relative; background: var(--ground); display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 20px; font-size: 12px; font-weight: 600; color: var(--ink2); font-variant-numeric: tabular-nums; }
+  .carga .tr { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--lineSoft); }
+  .carga .tr i { display: block; height: 2px; background: var(--grafico); }
+  .alvo { outline: 1px dashed rgba(30, 51, 80, .45); outline-offset: 8px; }
+  .nota-s { font-size: 12px; color: var(--ink2); line-height: 17px; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Catálogo carregando · indicador discreto (onda 1, solução 5)</h1>
+<p class="prancha">O vendedor entra quando Clientes e rota terminam; o catálogo segue carregando. Uma linha de 32 dp colada em cima da barra de abas, em todas as abas, até a carga acabar. Toque abre o detalhe da carga. Não é aviso (RN-VEN-42) e não explica o que o app faz (R-20261110-192153).</p>
+
+<div class="board">
+
+  <!-- 1 · com sinal -->
+  <div class="tela" id="t1">
+    <div class="legenda"><b>1</b>Início, com sinal<span>"Catálogo 63%" e a barra de 2 dp. A linha tracejada mostra o alvo de toque de 48 dp (não aparece no app).</span></div>
+    <div class="phone">
+      <div class="status"><span>12:29</span><span>5G ▮▮▮ 54%</span></div>
+      <div class="rolagem">
+        <div class="painel-c"><div class="tx"><span class="dt">Domingo, 15 de novembro</span><span class="sd">Bom dia, Lucas</span><span class="fr">“Cada cliente atendido é uma relação que cresce.”</span></div><div class="av">LA</div></div>
+        <div class="lt"><h2>Metas do mês</h2><div class="sino-p"><i data-i="sino" data-t="20" data-c="#16202A"></i><span class="cont">2</span></div></div>
+        <div class="grade">
+          <div class="cm"><span class="t">Vendas</span><span class="r">R$ 84,6 k<span> / 180 k</span></span><div class="lb"><div class="barra"><i style="width:47%"></i></div><span class="pc">47%</span></div><div class="rp">Meta/dia<b>R$ 8.700</b></div></div>
+          <div class="cm"><span class="t">Positivação</span><span class="r">38<span> / 70</span></span><div class="lb"><div class="barra"><i style="width:54%"></i></div><span class="pc">54%</span></div><div class="rp">Meta/dia<b>3</b></div></div>
+          <div class="cm"><span class="t">Visitas</span><span class="r">96<span> / 220</span></span><div class="lb"><div class="barra"><i style="width:44%"></i></div><span class="pc">44%</span></div><div class="rp">Meta/dia<b>12</b></div></div>
+          <div class="cm"><span class="t">Itens por pedido</span><span class="r">6,4<span> / 8,0</span></span><div class="lb"><div class="barra"><i style="width:80%"></i></div><span class="pc">80%</span></div><div class="rp">Meta/pedido<b>9,3</b></div></div>
+        </div>
+        <div class="mola"></div>
+        <div class="ls"><div class="bt"><i data-i="sync" data-t="20" data-c="#FFFFFF"></i>Sincronizar</div><span class="st">Últ. sincronização 12:20</span></div>
+      </div>
+      <div class="carga alvo"><i data-i="sync" data-t="14" data-c="#4A5562"></i>Catálogo 63%<span class="tr"><i style="width:63%"></i></span></div>
+      <div class="barra-abas" data-ativa="inicio"></div>
+    </div>
+  </div>
+
+  <!-- 2 · sem sinal -->
+  <div class="tela" id="t2">
+    <div class="legenda"><b>2</b>Início, sem sinal<span>"Catálogo 63% · parado": a causa já está no botão "Sem sinal"; a barra para onde estava.</span></div>
+    <div class="phone">
+      <div class="status"><span>12:41</span><span>✕ 52%</span></div>
+      <div class="rolagem">
+        <div class="painel-c"><div class="tx"><span class="dt">Domingo, 15 de novembro</span><span class="sd">Bom dia, Lucas</span><span class="fr">“Cada cliente atendido é uma relação que cresce.”</span></div><div class="av">LA</div></div>
+        <div class="lt"><h2>Metas do mês</h2><div class="sino-p"><i data-i="sino" data-t="20" data-c="#16202A"></i><span class="cont">2</span></div></div>
+        <div class="grade">
+          <div class="cm"><span class="t">Vendas</span><span class="r">R$ 84,6 k<span> / 180 k</span></span><div class="lb"><div class="barra"><i style="width:47%"></i></div><span class="pc">47%</span></div><div class="rp">Meta/dia<b>R$ 8.700</b></div></div>
+          <div class="cm"><span class="t">Positivação</span><span class="r">38<span> / 70</span></span><div class="lb"><div class="barra"><i style="width:54%"></i></div><span class="pc">54%</span></div><div class="rp">Meta/dia<b>3</b></div></div>
+          <div class="cm"><span class="t">Visitas</span><span class="r">96<span> / 220</span></span><div class="lb"><div class="barra"><i style="width:44%"></i></div><span class="pc">44%</span></div><div class="rp">Meta/dia<b>12</b></div></div>
+          <div class="cm"><span class="t">Itens por pedido</span><span class="r">6,4<span> / 8,0</span></span><div class="lb"><div class="barra"><i style="width:80%"></i></div><span class="pc">80%</span></div><div class="rp">Meta/pedido<b>9,3</b></div></div>
+        </div>
+        <div class="mola"></div>
+        <div class="ls"><div class="bt off"><i data-i="sync" data-t="20" data-c="#5B6673"></i>Sem sinal</div><span class="st">Últ. sincronização 12:20</span></div>
+      </div>
+      <div class="carga"><i data-i="wifiOff" data-t="14" data-c="#4A5562"></i>Catálogo 63% · parado<span class="tr"><i style="width:63%"></i></span></div>
+      <div class="barra-abas" data-ativa="inicio"></div>
+    </div>
+  </div>
+
+  <!-- 3 · catálogo sem sinal durante a carga -->
+  <div class="tela" id="t3">
+    <div class="legenda"><b>3</b>Catálogo, sem sinal, durante a carga<span>CatalogoCarregando no lugar da grade (e da ficha e da busca do Novo pedido).</span></div>
+    <div class="phone">
+      <div class="status claro"><span>12:42</span><span>✕ 52%</span></div>
+      <div class="fx"><div class="lin"><div><span class="t">Catálogo</span></div><span class="selo-at"><i data-i="wifiOff" data-t="14" data-c="#5C3B00"></i>Sem sinal</span></div></div>
+      <div class="corpo">
+        <div class="busca-g"><i data-i="search" data-t="18" data-c="#4A5562"></i>Produto, código ou aplicação</div>
+        <div class="vazio"><div class="ic"><i data-i="wifiOff" data-t="22" data-c="#4A5562"></i></div><div class="ti">Catálogo ainda carregando</div><div class="tx">Busque quando tiver sinal.</div></div>
+      </div>
+      <div class="carga"><i data-i="wifiOff" data-t="14" data-c="#4A5562"></i>Catálogo 63% · parado<span class="tr"><i style="width:63%"></i></span></div>
+      <div class="barra-abas" data-ativa="mais"></div>
+    </div>
+  </div>
+
+</div>
+<script src="../telas/icones.js"></script>
+</body>
+</html>
