@@ -9,10 +9,11 @@
 -- (macuxi_worker). Nenhum papel da aplicação ganha grant de tabela.
 --
 -- 1. plataforma.tenant ganha inativada_em (timestamptz) e motivo_inativacao (lista MOTIVOS_INATIVACAO do SDK; sem texto
---    livre). CHECK tenant_inativacao_coerente: ativo <=> sem data e sem motivo (suspenso e encerrado sempre com os dois).
---    Gatilho tenant_inativacao_preencher (BEFORE): status ativo limpa os dois; status fora de ativo sem data ou motivo ganha
---    now() e 'outro' (quem ainda faz "update status = 'suspenso'" direto não quebra). As linhas fora de ativo de antes ganham
---    a data do updated_at e 'outro'.
+--    livre; OPCIONAL e nulo, ADR 0052 §1.1: a tela não pede motivo e a API inativa sem ele). CHECK tenant_inativacao_coerente:
+--    ativo <=> sem data (suspenso e encerrado sempre com a data); motivo só fora de ativo, e pode ser nulo.
+--    Gatilho tenant_inativacao_preencher (BEFORE): status ativo limpa data e motivo; status fora de ativo sem data ganha now()
+--    (quem ainda faz "update status = 'suspenso'" direto não quebra). O gatilho não inventa motivo. As linhas fora de ativo
+--    de antes ganham só a data (do updated_at); o motivo fica nulo.
 -- 2. Tabelas que SOBREVIVEM à exclusão da empresa (exceção da regra 5, como a auditoria_plataforma): empresa_id SEM FK e sem
 --    tenant_id, então a plataforma.excluir_tenant não as toca. RLS ligado e FORÇADO, só a política manutencao, nenhum grant
 --    (app, worker e portal: 42501); leitura e escrita só pelas funções abaixo.
@@ -56,12 +57,12 @@
 -- 1. Inativação na plataforma.tenant ---------------------------------------------------------------------------------------------
 alter table plataforma.tenant add column inativada_em timestamptz;
 alter table plataforma.tenant add column motivo_inativacao text;
-update plataforma.tenant set inativada_em = updated_at, motivo_inativacao = 'outro' where status <> 'ativo';
+update plataforma.tenant set inativada_em = updated_at where status <> 'ativo';
 alter table plataforma.tenant add constraint tenant_motivo_inativacao_valido
   check (motivo_inativacao is null
          or motivo_inativacao in ('inadimplencia', 'pedido_do_cliente', 'fim_do_contrato', 'implantacao_cancelada', 'outro'));
 alter table plataforma.tenant add constraint tenant_inativacao_coerente
-  check ((status = 'ativo') = (inativada_em is null) and (inativada_em is null) = (motivo_inativacao is null));
+  check ((status = 'ativo') = (inativada_em is null) and (status <> 'ativo' or motivo_inativacao is null));
 
 create function plataforma.tenant_inativacao_preencher()
   returns trigger
@@ -72,9 +73,8 @@ begin
   if new.status = 'ativo' then
     new.inativada_em := null;
     new.motivo_inativacao := null;
-  elsif new.inativada_em is null or new.motivo_inativacao is null then
-    new.inativada_em := coalesce(new.inativada_em, now());
-    new.motivo_inativacao := coalesce(new.motivo_inativacao, 'outro');
+  elsif new.inativada_em is null then
+    new.inativada_em := now();
   end if;
   return new;
 end
@@ -484,6 +484,7 @@ revoke all on function plataforma.ordem_do_backup() from public;
 
 -- 5. Funções do portal (só super-admin) ------------------------------------------------------------------------------------------
 -- RN-PLA-07: inativar. Idempotente (já inativa = sem_mudanca, sem evento). Empresa em exclusão = 55000 EXCLUSAO_EM_ANDAMENTO.
+-- p_motivo opcional (ADR 0052 §1.1): nulo inativa sem motivo; quando vem, precisa estar na lista MOTIVOS_INATIVACAO.
 create function plataforma.sa_inativar_tenant(p_sid uuid, p_tenant uuid, p_motivo text)
   returns jsonb
   language plpgsql volatile security definer
@@ -505,7 +506,7 @@ begin
   if p_tenant is null then
     raise exception 'sa_inativar_tenant: tenant obrigatório' using errcode = '22023';
   end if;
-  if p_motivo is null or p_motivo not in ('inadimplencia', 'pedido_do_cliente', 'fim_do_contrato', 'implantacao_cancelada', 'outro') then
+  if p_motivo is not null and p_motivo not in ('inadimplencia', 'pedido_do_cliente', 'fim_do_contrato', 'implantacao_cancelada', 'outro') then
     raise exception 'sa_inativar_tenant: motivo fora da lista' using errcode = '22023';
   end if;
   select t.status, t.inativada_em, t.motivo_inativacao into v_t

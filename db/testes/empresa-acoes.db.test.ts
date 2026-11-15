@@ -2,7 +2,7 @@
  * 0072 — Inativar, Backup e Excluir a empresa pelo portal (ADR 0052; desenho docs/desenho/empresa-acoes.md §4 e §7; regras
  * aprovadas em R-20261114-195600-alexandre e R-20261114-202000-alexandre). Dicionário: docs/banco/plataforma.md ("Ações da
  * empresa (0072)"). O que o BANCO garante:
- * - RN-PLA-07: inativa = status suspenso com inativada_em e motivo (CHECK + gatilho); despachante e e-mail do worker não veem
+ * - RN-PLA-07: inativa = status suspenso com inativada_em e motivo opcional (CHECK + gatilho); despachante e e-mail do worker não veem
  *   a empresa inativa (políticas com plataforma.tenant_esta_ativo; os plataforma.tenant.* passam);
  * - RN-PLA-08: um backup em andamento por empresa; consistente só com a empresa inativa do início ao fim; o worker exporta
  *   só o tenant da LINHA DO BACKUP, em ordem de FK, por keyset;
@@ -102,7 +102,11 @@ describe('0072 ações da empresa (estático)', () => {
     expect(lista(/constraint exclusao_empresa_etapa_valida check \(etapa in \(([^)]+)\)\)/)).toEqual([...ETAPAS_EXCLUSAO]);
     // a sa_inativar_tenant confere a mesma lista
     expect(lista(/p_motivo not in \(([^)]+)\) then/)).toEqual([...MOTIVOS_INATIVACAO]);
-    expect(up).toContain("constraint tenant_inativacao_coerente\n  check ((status = 'ativo') = (inativada_em is null) and (inativada_em is null) = (motivo_inativacao is null));");
+    expect(up).toContain("constraint tenant_inativacao_coerente\n  check ((status = 'ativo') = (inativada_em is null) and (status <> 'ativo' or motivo_inativacao is null));");
+    // ADR 0052 §1.1: motivo opcional e nulo — a função aceita null, o gatilho e o backfill não inventam motivo
+    expect(bloco(up, 'create function plataforma.sa_inativar_tenant(')).toContain('if p_motivo is not null and p_motivo not in (');
+    expect(bloco(up, 'create function plataforma.tenant_inativacao_preencher(')).not.toContain("'outro'");
+    expect(up).toContain("update plataforma.tenant set inativada_em = updated_at where status <> 'ativo';");
   });
 
   it('prazos do SDK no banco: 7 dias para excluir, 30 de retenção, 90 depois da exclusão', () => {
@@ -232,7 +236,7 @@ describe.skipIf(semBanco())('0072 ações da empresa (banco, fixture dois-tenant
       return { code: x.code, hint: x.hint ?? null };
     }
   };
-  const inativar = (sid: string | null, t: string, motivo = 'inadimplencia') => portal('select plataforma.sa_inativar_tenant($1, $2, $3) as r', [sid, t, motivo]);
+  const inativar = (sid: string | null, t: string, motivo: string | null = 'inadimplencia') => portal('select plataforma.sa_inativar_tenant($1, $2, $3) as r', [sid, t, motivo]);
   const reativar = (sid: string, t: string) => portal('select plataforma.sa_reativar_tenant($1, $2) as r', [sid, t]);
   const pedirBackup = (sid: string, t: string, b: string) => portal('select plataforma.sa_pedir_backup($1, $2, $3) as r', [sid, t, b]);
   const pedirExclusao = (sid: string, t: string, x: string, b: string, codigo: string) =>
@@ -309,9 +313,21 @@ describe.skipIf(semBanco())('0072 ações da empresa (banco, fixture dois-tenant
       expect(aud.map((x) => x.acao).sort()).toEqual(['tenant.inativado', 'tenant.reativado']);
       expect(aud.find((x) => x.acao === 'tenant.inativado')!.detalhes).toEqual({ motivo: 'inadimplencia', antes: 'ativo', depois: 'suspenso', origem: 'banco' });
 
-      // quem ainda muda o status direto não quebra o CHECK: o gatilho preenche (e limpa ao voltar a ativo)
+      // ADR 0052 §1.1: sem motivo (a tela não pede) inativa com motivo nulo, e o evento e a auditoria levam null
+      const r3 = SituacaoEmpresaRespostaSchema.parse(await inativar(sid, B, null));
+      expect(r3).toMatchObject({ tenant_id: B, status: 'suspenso', motivo: null, resultado: 'alterado' });
+      expect(r3.inativada_em).not.toBeNull();
+      const evB = await q<{ payload: unknown }>('select payload from plataforma.evento where tenant_id = $1 and nome = $2', [B, EVENTO_TENANT_INATIVADO.nome]);
+      expect(EVENTO_TENANT_INATIVADO.schema.parse(evB[0]!.payload)).toMatchObject({ tenant_id: B, motivo: null });
+      SituacaoEmpresaRespostaSchema.parse(await reativar(sid, B));
+
+      // motivo só fora de ativo: na empresa ativa o gatilho limpa (o CHECK fica de rede)
+      await q("update plataforma.tenant set motivo_inativacao = 'outro' where id = $1", [B]);
+      expect(await q('select motivo_inativacao from plataforma.tenant where id = $1', [B])).toEqual([{ motivo_inativacao: null }]);
+
+      // quem ainda muda o status direto não quebra o CHECK: o gatilho põe a data, não inventa motivo (e limpa ao voltar a ativo)
       await q("update plataforma.tenant set status = 'suspenso' where id = $1", [B]);
-      expect(await q('select inativada_em is not null as tem, motivo_inativacao from plataforma.tenant where id = $1', [B])).toEqual([{ tem: true, motivo_inativacao: 'outro' }]);
+      expect(await q('select inativada_em is not null as tem, motivo_inativacao from plataforma.tenant where id = $1', [B])).toEqual([{ tem: true, motivo_inativacao: null }]);
       await q("update plataforma.tenant set status = 'ativo' where id = $1", [B]);
       expect(await q('select inativada_em, motivo_inativacao from plataforma.tenant where id = $1', [B])).toEqual([{ inativada_em: null, motivo_inativacao: null }]);
     });

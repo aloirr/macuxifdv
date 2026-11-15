@@ -48,7 +48,7 @@ export const tenant = plataforma.table('tenant', {
   geracao_base: uuid('geracao_base').notNull().defaultRandom(),
   /** 0072 (ADR 0052, RN-PLA-07): quando ficou inativa (status suspenso); null = ativa. CHECK: ativa <=> sem data e sem motivo. */
   inativada_em: timestamp('inativada_em', { withTimezone: true }),
-  /** 0072: motivo da inativação (MOTIVOS_INATIVACAO do SDK; sem texto livre). */
+  /** 0072: motivo da inativação, opcional e nulo (ADR 0052 §1.1); quando vem, MOTIVOS_INATIVACAO do SDK; sem texto livre. */
   motivo_inativacao: text('motivo_inativacao', { enum: MOTIVOS_INATIVACAO }),
   ...auditaveis(),
 });
