@@ -79,7 +79,7 @@ function Brand({ company }: { company: string }) {
   );
 }
 
-const TITULO_GRUPO = 'text-[11.5px] font-semibold tracking-[0.07em] text-nav-grupo uppercase';
+const TITULO_GRUPO = 'text-[12px] font-semibold tracking-[0.07em] text-nav-grupo uppercase';
 
 interface Painel {
   grupo: string;

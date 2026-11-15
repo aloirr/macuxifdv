@@ -39,7 +39,7 @@ vi.mock('expo-router', () => ({ router: { replace: () => undefined } }));
 vi.mock('@macuxi/ui/mobile', () => ({
   // a cor vira o nome do token: o teste lê qual token cada texto usa
   colors: new Proxy({}, { get: (_, k) => String(k) }),
-  fonts: new Proxy({}, { get: () => 'f' }),
+  fonte: new Proxy({}, { get: () => ({}) }),
   radius: new Proxy({}, { get: () => 8 }),
   type: new Proxy({}, { get: () => ({}) }),
   initials: (n: string) => n.slice(0, 2),

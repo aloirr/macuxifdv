@@ -3,7 +3,7 @@
  * (se o engenheiro-apps promover algum para `packages/ui`, trocamos). Alvos de toque ≥ 48 dp; só lê e escreve o rascunho
  * do aparelho (offline-first). O cálculo e as regras vêm de `lib/novo-pedido.ts` (domain de preço), nada é calculado aqui.
  */
-import { colors, fonts, Icon, radius, type as t } from '@macuxi/ui/mobile';
+import { colors, fonte, Icon, radius, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -135,14 +135,14 @@ const s = StyleSheet.create({
   /** alvo de toque 44 × 48 dp dentro do pai (no Android o hitSlop não passa dos limites do pai); o visual de 32 dp fica por dentro */
   passoAlvo: { width: 44, height: 48, alignItems: 'center', justifyContent: 'center' },
   passo: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  qtd: { width: 52, height: 48, textAlign: 'center', fontFamily: fonts.bold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'], padding: 0 },
+  qtd: { width: 52, height: 48, textAlign: 'center', ...fonte.bold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'], padding: 0 },
   caixaAplicacao: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10 },
   caixa: { width: 24, height: 24, borderRadius: 6, borderWidth: 1.5, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   caixaMarcada: { backgroundColor: colors.accentInk, borderColor: colors.accentInk },
   linkAjuste: { minHeight: 48, justifyContent: 'center', paddingRight: 8 },
   ajuste: { gap: 8, padding: 10, borderRadius: radius.md, backgroundColor: colors.ground },
   pctBox: { flex: 1, height: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
-  pctInput: { flex: 1, minWidth: 0, height: 46, textAlign: 'right', fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink, padding: 0 },
-  reaisPrefixo: { fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink2, marginRight: 4 },
-  pctSufixo: { flex: 1, fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink2, marginLeft: 2 },
+  pctInput: { flex: 1, minWidth: 0, height: 46, textAlign: 'right', ...fonte.bold, fontSize: 18, color: colors.ink, padding: 0 },
+  reaisPrefixo: { ...fonte.bold, fontSize: 18, color: colors.ink2, marginRight: 4 },
+  pctSufixo: { flex: 1, ...fonte.bold, fontSize: 18, color: colors.ink2, marginLeft: 2 },
 });

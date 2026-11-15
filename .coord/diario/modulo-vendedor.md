@@ -142,3 +142,6 @@
 2026-11-14 — R-20261114-151000 — Catálogo: 'Adicionar ao orçamento' no lugar de 'Adicionar ao pedido' (domain orcamento-em-aberto, folha, ação produto.acoes)
 2026-11-14 — Catálogo/Adicionar ao orçamento — achados do corretor e da marca: linha com cliente em destaque e "Nº · data" (sem "Orçamento" repetido), sem chevron; removido o mecanismo morto do produto pendente (produto-pendente.ts, rascunho-com-produto.ts e o consumo no novo pedido); aviso fora da rolagem; prints da tela real em react-native-web com as fontes do app (MC-0028/0029).
 2026-11-15 — fonte do sistema v1.0.13 — rodada 5 — RD-0953/0956: endereço e transportadora usam RotuloCampo/CampoTexto/ESTILO_CAMPO do kit; font-display removido
+2026-11-15 — fonte do sistema v1.0.13 — fonts.x→...fonte.x em 16 arquivos do app, escala 12/14/16/18/22, PDF do pedido com pilha do sistema e 12px mínimo, web já ≥12
+2026-11-15 — fonte-rodada3 — MC-0058/59/60/63 e RD-0943: escala por papel no web, nada em 800, mono só em código, PDF importa PILHA_* de @macuxi/comum/fonte
+2026-11-15 — fonte do sistema v1.0.13 — MC-0059 total do pedido no BKO em font-semibold; MC-0066 número do pedido no app sem mono (tabular-nums) em orders-screen e ficha-cliente; teste T-0101 ajustado
