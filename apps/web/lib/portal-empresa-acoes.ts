@@ -7,7 +7,7 @@
 import { CODIGOS_ACOES_EMPRESA, ROTAS_ACOES_EMPRESA, ROTULO_STATUS_EMPRESA, type AcoesDaEmpresa, type EmpresaResumoSchema, type StatusEmpresa } from '@macuxi/platform-sdk';
 import { formatDateTimeFull, type BadgeTone } from '@macuxi/ui/web';
 
-import { ErroPortal } from './portal-api';
+import { ErroPortal, mensagemDoErro } from './portal-api';
 
 const C = CODIGOS_ACOES_EMPRESA;
 
@@ -113,15 +113,21 @@ export type ErroDoExcluir =
   /** Outro erro: o `ErrorBlock` padrão, com a mensagem da API. */
   | { tipo: 'bloco' };
 
-/** Recusa do `POST …/exclusao` em frase curta (§15.2). A senha errada esvazia o campo e põe o foco nele. */
+/** Recusas do `POST …/exclusao` que viram uma linha no diálogo (§15.2); `true` = a senha errada esvazia o campo e põe o foco nele. */
+const RECUSAS_EM_LINHA: Readonly<Record<string, boolean>> = {
+  [C.reautenticacaoFalhou]: true,
+  [C.exclusaoEmpresaAtiva]: false,
+  [C.exclusaoSemBackup]: false,
+  [C.exclusaoBackupAntesDaInativacao]: false,
+  [C.exclusaoBackupVencido]: false,
+  [C.exclusaoCodigoNaoConfere]: false,
+};
+
+/** Recusa do `POST …/exclusao` (§15.2). A frase é a da API (RD-0407: uma tabela só); a tela só decide linha × bloco e o campo senha. */
 export function erroDoExcluir(e: unknown): ErroDoExcluir {
-  if (!(e instanceof ErroPortal)) return { tipo: 'bloco' };
-  if (e.status === 403 && e.codigo === C.reautenticacaoFalhou) return { tipo: 'linha', texto: 'Senha incorreta.', senha: true };
-  if (e.status === 422) {
-    if (e.codigo === C.exclusaoSemBackup || e.codigo === C.exclusaoBackupAntesDaInativacao || e.codigo === C.exclusaoBackupVencido)
-      return { tipo: 'linha', texto: 'Faça o backup antes de excluir.', senha: false };
-    if (e.codigo === C.exclusaoEmpresaAtiva) return { tipo: 'linha', texto: 'Inative a empresa antes de excluir.', senha: false };
-    if (e.codigo === C.exclusaoCodigoNaoConfere) return { tipo: 'linha', texto: 'Código não confere.', senha: false };
-  }
-  return { tipo: 'bloco' };
+  if (!(e instanceof ErroPortal) || (e.status !== 403 && e.status !== 422)) return { tipo: 'bloco' };
+  if (!Object.hasOwn(RECUSAS_EM_LINHA, e.codigo)) return { tipo: 'bloco' };
+  const senha = RECUSAS_EM_LINHA[e.codigo] === true;
+  if ((e.status === 403) !== senha) return { tipo: 'bloco' };
+  return { tipo: 'linha', texto: mensagemDoErro(e), senha };
 }

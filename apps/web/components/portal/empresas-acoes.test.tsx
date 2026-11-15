@@ -128,11 +128,11 @@ describe('diálogos (§15.2)', () => {
     expect(certo).not.toContain('data-testid="empresa-acao.confirmar" disabled=""');
     expect(certo).toContain('>Excluir empresa</button>');
   });
-  it('senha errada: "Senha incorreta." numa linha com `role="alert"` e o campo marcado', () => {
+  it('senha errada: a frase da API numa linha com `role="alert"` e o campo marcado', () => {
     const html = renderToStaticMarkup(
-      <DialogoExcluir empresa={porCodigo('AM2290')} aoFechar={() => {}} aoPedir={() => {}} inicial={{ codigo: 'AM2290', erro: { tipo: 'linha', texto: 'Senha incorreta.', senha: true } }} />,
+      <DialogoExcluir empresa={porCodigo('AM2290')} aoFechar={() => {}} aoPedir={() => {}} inicial={{ codigo: 'AM2290', erro: { tipo: 'linha', texto: 'A senha não confere.', senha: true } }} />,
     );
-    expect(html).toMatch(/role="alert" data-testid="empresa-acao.erro"[^>]*>Senha incorreta\.</);
+    expect(html).toMatch(/role="alert" data-testid="empresa-acao.erro"[^>]*>A senha não confere\.</);
     expect(html).toMatch(/aria-invalid="true"[^>]*data-testid="empresa-excluir.senha"/);
   });
 });

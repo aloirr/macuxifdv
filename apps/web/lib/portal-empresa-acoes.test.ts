@@ -6,7 +6,7 @@
 import { CODIGOS_ACOES_EMPRESA as C, type AcoesDaEmpresa, type BackupEmpresa } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 
-import { ErroPortal } from './portal-api';
+import { ErroPortal, MENSAGEM_PADRAO } from './portal-api';
 import { celulaDoBackup, erroDoExcluir, estadoDasAcoes, rotaDaAcao, rotuloDoStatus, tomDoStatus } from './portal-empresa-acoes';
 
 const T = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
@@ -73,18 +73,23 @@ describe('itens do menu (§15.1)', () => {
   });
 });
 
-describe('recusas do Excluir (§15.2)', () => {
-  const e = (status: number, codigo: string) => erroDoExcluir(new ErroPortal(status, codigo, 'x'));
-  it('backup: sem, anterior à inativação ou vencido → "Faça o backup antes de excluir."', () => {
-    for (const c of [C.exclusaoSemBackup, C.exclusaoBackupAntesDaInativacao, C.exclusaoBackupVencido]) expect(e(422, c)).toEqual({ tipo: 'linha', texto: 'Faça o backup antes de excluir.', senha: false });
+describe('recusas do Excluir (§15.2, RD-0407)', () => {
+  const e = (status: number, codigo: string, msg = 'Frase da API.') => erroDoExcluir(new ErroPortal(status, codigo, msg));
+  it('recusas da regra e do código: uma linha com a frase que a API devolve, sem marcar a senha', () => {
+    for (const c of [C.exclusaoSemBackup, C.exclusaoBackupAntesDaInativacao, C.exclusaoBackupVencido, C.exclusaoEmpresaAtiva, C.exclusaoCodigoNaoConfere])
+      expect(e(422, c)).toEqual({ tipo: 'linha', texto: 'Frase da API.', senha: false });
   });
-  it('empresa ativa, código e senha', () => {
-    expect(e(422, C.exclusaoEmpresaAtiva)).toEqual({ tipo: 'linha', texto: 'Inative a empresa antes de excluir.', senha: false });
-    expect(e(422, C.exclusaoCodigoNaoConfere)).toEqual({ tipo: 'linha', texto: 'Código não confere.', senha: false });
-    expect(e(403, C.reautenticacaoFalhou)).toEqual({ tipo: 'linha', texto: 'Senha incorreta.', senha: true });
+  it('senha errada: a frase da API e o campo senha marcado', () => {
+    expect(e(403, C.reautenticacaoFalhou, 'A senha não confere.')).toEqual({ tipo: 'linha', texto: 'A senha não confere.', senha: true });
   });
-  it('outro erro vai para o bloco padrão', () => {
+  it('texto técnico da API vira a mensagem padrão', () => {
+    expect(e(422, C.exclusaoCodigoNaoConfere, '{"x":1}')).toEqual({ tipo: 'linha', texto: MENSAGEM_PADRAO, senha: false });
+  });
+  it('outro erro, ou código com o status trocado, vai para o bloco padrão', () => {
     expect(e(409, C.exclusaoEmAndamento)).toEqual({ tipo: 'bloco' });
+    expect(e(422, C.reautenticacaoFalhou)).toEqual({ tipo: 'bloco' });
+    expect(e(403, C.exclusaoCodigoNaoConfere)).toEqual({ tipo: 'bloco' });
+    expect(e(422, 'toString')).toEqual({ tipo: 'bloco' });
     expect(e(0, 'sem_conexao')).toEqual({ tipo: 'bloco' });
     expect(erroDoExcluir(new Error('x'))).toEqual({ tipo: 'bloco' });
   });

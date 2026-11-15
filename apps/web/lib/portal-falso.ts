@@ -193,6 +193,22 @@ function resumoDaEmpresa(x: EmpresaFalsa) {
   return { ...resto, acoes };
 }
 
+/**
+ * Frases que a API devolve hoje nas recusas das ações da empresa (apps/api/src/empresa-acoes-portal.ts, `MENSAGENS` e
+ * `REAUTENTICACAO_FALHOU`), para o modo falso mostrar o mesmo texto. Sai quando o SDK tiver `MENSAGENS_ACOES_EMPRESA` (RD-0407).
+ */
+const MENSAGENS_DA_API: Readonly<Record<string, string>> = {
+  [CODIGOS_ACOES_EMPRESA.exclusaoEmAndamento]: 'A exclusão desta empresa já está em andamento.',
+  [CODIGOS_ACOES_EMPRESA.backupEmAndamento]: 'Já há um backup desta empresa em andamento.',
+  [CODIGOS_ACOES_EMPRESA.exclusaoEmpresaAtiva]: 'Inative a empresa antes de excluir.',
+  [CODIGOS_ACOES_EMPRESA.exclusaoSemBackup]: 'Faça o backup da empresa antes de excluir.',
+  [CODIGOS_ACOES_EMPRESA.exclusaoBackupAntesDaInativacao]: 'Faça um backup novo, com a empresa inativa.',
+  [CODIGOS_ACOES_EMPRESA.exclusaoBackupVencido]: 'O backup passou do prazo. Faça um backup novo.',
+  [CODIGOS_ACOES_EMPRESA.exclusaoCodigoNaoConfere]: 'O código digitado não é o da empresa.',
+  [CODIGOS_ACOES_EMPRESA.reautenticacaoFalhou]: 'A senha não confere.',
+};
+const fraseDaApi = (codigo: string): string => MENSAGENS_DA_API[codigo] ?? 'Ação recusada.';
+
 const ACOES_M = /^\/plataforma\/empresas\/([^/]+)\/(inativar|reativar|backups|exclusao)(?:\/([^/]+))?$/;
 
 /** Rotas das ações da empresa (ADR 0052 §4), só do time da Macuxi. */
@@ -204,7 +220,7 @@ function responderAcoes(metodo: string, tenant: string, acao: string, sub: strin
   const trocar = (f: (y: EmpresaFalsa) => EmpresaFalsa) => gravar({ ...e, empresas: e.empresas.map((y) => (y.id === tenant ? f(y) : y)) });
   const emExclusao = x.status === 'encerrado';
   if ((acao === 'inativar' || acao === 'reativar') && metodo === 'POST') {
-    if (emExclusao) return erro(409, CODIGOS_ACOES_EMPRESA.exclusaoEmAndamento, 'A exclusão desta empresa está em andamento.');
+    if (emExclusao) return erro(409, CODIGOS_ACOES_EMPRESA.exclusaoEmAndamento, fraseDaApi(CODIGOS_ACOES_EMPRESA.exclusaoEmAndamento));
     const alvo = acao === 'inativar' ? 'suspenso' : 'ativo';
     const mudou = x.status !== alvo;
     const inativada_em = alvo === 'suspenso' ? (mudou ? agoraIso() : (x.inativada_em ?? agoraIso())) : null;
@@ -216,9 +232,9 @@ function responderAcoes(metodo: string, tenant: string, acao: string, sub: strin
     if (c instanceof Response) return c;
     const mesmo = x.backups?.find((b) => b.id === c.id);
     if (mesmo) return json(202, backupDaApi(tenant, mesmo));
-    if (emExclusao) return erro(409, CODIGOS_ACOES_EMPRESA.exclusaoEmAndamento, 'A exclusão desta empresa está em andamento.');
+    if (emExclusao) return erro(409, CODIGOS_ACOES_EMPRESA.exclusaoEmAndamento, fraseDaApi(CODIGOS_ACOES_EMPRESA.exclusaoEmAndamento));
     if ((x.backups ?? []).some((b) => backupDaApi(tenant, b).situacao === 'em_andamento'))
-      return erro(409, CODIGOS_ACOES_EMPRESA.backupEmAndamento, 'Já há um backup desta empresa em andamento.');
+      return erro(409, CODIGOS_ACOES_EMPRESA.backupEmAndamento, fraseDaApi(CODIGOS_ACOES_EMPRESA.backupEmAndamento));
     const b: BackupFalso = { id: c.id, pedido_em: agoraIso(), consistente: x.status === 'suspenso', termina_em: Date.now() + 6_000, falha: x.codigo === 'atacado-norte' };
     trocar((y) => ({ ...y, backups: [...(y.backups ?? []), b] }));
     return json(202, backupDaApi(tenant, b));
@@ -236,8 +252,8 @@ function responderAcoes(metodo: string, tenant: string, acao: string, sub: strin
   if (acao === 'exclusao' && metodo === 'POST') {
     const c = lerCorpo(ExcluirEmpresaSchema, corpo);
     if (c instanceof Response) return c;
-    if (x.exclusao) return erro(409, CODIGOS_ACOES_EMPRESA.exclusaoEmAndamento, 'A exclusão desta empresa está em andamento.');
-    if (c.senha === 'errada') return erro(403, CODIGOS_ACOES_EMPRESA.reautenticacaoFalhou, 'Senha incorreta.');
+    if (x.exclusao) return erro(409, CODIGOS_ACOES_EMPRESA.exclusaoEmAndamento, fraseDaApi(CODIGOS_ACOES_EMPRESA.exclusaoEmAndamento));
+    if (c.senha === 'errada') return erro(403, CODIGOS_ACOES_EMPRESA.reautenticacaoFalhou, fraseDaApi(CODIGOS_ACOES_EMPRESA.reautenticacaoFalhou));
     const b = (x.backups ?? []).find((y) => y.id === c.backup_id);
     const api = b ? backupDaApi(tenant, b) : null;
     const regra = conferirExclusao(
@@ -245,8 +261,8 @@ function responderAcoes(metodo: string, tenant: string, acao: string, sub: strin
       api ? { ...api, iniciado_em: api.iniciado_em ? new Date(api.iniciado_em) : null, concluido_em: api.concluido_em ? new Date(api.concluido_em) : null } : null,
       new Date(),
     );
-    if (!regra.ok) return erro(422, regra.codigo, 'A exclusão não está liberada.');
-    if (!codigoDeConfirmacaoConfere(c.codigo_confirmacao, x.codigo)) return erro(422, CODIGOS_ACOES_EMPRESA.exclusaoCodigoNaoConfere, 'O código não confere.');
+    if (!regra.ok) return erro(422, regra.codigo, fraseDaApi(regra.codigo));
+    if (!codigoDeConfirmacaoConfere(c.codigo_confirmacao, x.codigo)) return erro(422, CODIGOS_ACOES_EMPRESA.exclusaoCodigoNaoConfere, fraseDaApi(CODIGOS_ACOES_EMPRESA.exclusaoCodigoNaoConfere));
     const f: ExclusaoFalsa = { id: c.id, backup_id: c.backup_id, pedida_em: agoraIso(), termina_em: Date.now() + 6_000 };
     trocar((y) => ({ ...y, status: 'encerrado', exclusao: f }));
     return json(202, exclusaoDaApi({ ...x, status: 'encerrado', exclusao: f }));
