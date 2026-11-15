@@ -272,3 +272,66 @@ modulo-catalogo.
 **Veredito do re-parecer v8: NÃO LIBERADO.** Fecharam 8 dos 11 (RD-0685 a 0690, 0693 e 0695). Seguram 4 achados baixos em código de
 produção, corpo de teste e doc, fora da exceção R-20261111-190159. São correções de poucas linhas, todas do modulo-catalogo. O
 reteste vale para o próximo head do v8.
+
+## Parecer final v8 (2026-11-15, 12h15 Manaus) · branch 5 em e390219f → **49ed6250** · testes em **25a5d2a5**
+
+Pedido do gerente-projetos (Meta v1.0.13). Li `git diff e390219fd..49ed62502` (2 commits do dono: 57d651ef, filial de venda
+sem saldo na folha com 0 e a de cadastro primeiro; 49ed6250, correção dos RD-0691, 0692, 0694, 0698 e 0699) e
+`git diff origin/main...25a5d2a59` (branch `nuvem/catalogo-campo-testes`, 2 commits: 70a06129 e 25a5d2a5). Li a árvore só pelos
+worktrees (`wt-cat-campo-v8`, `wt-testes-catalogo`), sem checkout no diretório principal. Caixa e recados: HTTP 403. O gerente
+repassa as tabelas ao modulo-catalogo e ao testes.
+
+### Fechados (5)
+- **RD-0691 fechado.** `DadosDaFolha.titulo` saiu da interface e do retorno de `dadosDaFolha`. A folha usa
+  `titulo={TITULO_FOLHA_ESTOQUE}` (`estoque-filial.tsx:29`).
+- **RD-0692 fechado.** `grade.test.ts:43-45` ficou com um caso só (−2: texto e tom juntos). O título do caso ficou velho: está no
+  RD-0704, que não segura.
+- **RD-0694 fechado.** A frase "Usuário **sem filial** vê `sem_estoque` (conservador)" saiu do §5 do `regras.md`. A RN-CAT-05
+  (`:19`) é a única fonte.
+- **RD-0698 fechado.** `AVISO_ESTOQUE_DESATUALIZADO` saiu de `estoque.ts`, do teste e do §5. `grep` sem nenhuma ocorrência.
+- **RD-0699 fechado.** O comentário de `copiar-codigo.test.ts:50` descreve o botão atual (ícone no cartão e na faixa, um aviso).
+
+### Novos no v8 (57d651ef e 49ed6250), dono modulo-catalogo
+
+| RD | Onde (49ed6250) | Gravidade | Segura? | O que se repete · proposta |
+|---|---|---|---|---|
+| **RD-0700** | `domain/estoque.ts:35,63-65` × `domain/estoque-campo.ts:116-135`; `app/lib/estoque-folha.ts:22` | baixa | sim (código) | A ordem "filial de cadastro primeiro, depois alfabética" está escrita 2×: `estoqueVisivel` ordena o `by_branch` (com o `cmp` binário para o nome) e `linhasDaFolhaEstoque` reordena o mesmo `by_branch` (com `ordemPorNome`, pt-BR). O `ordemPorNome` não é o comparador único: `estoque.ts` segue com o próprio. O parâmetro `marcarPropria` é sempre `true` no único chamador de produção, e `proprias` recebe no máximo 1 id. **Depois:** a ordem fica só em `estoqueVisivel`, com o `ordemPorNome` (passa para `estoque.ts`, que o `estoque-campo.ts` já importa). `linhasDaFolhaEstoque(porFilial, { filialCadastro, mostrarQuantidade })` mantém a ordem recebida e marca `propria = branch_id === filialCadastro`. Sai `marcarPropria`. O caso `estoque-campo.test.ts:107-110` passa a `filialCadastro: null` |
+| **RD-0701** | `app/telas/catalogo.tsx:68-69,82-93` | baixa | sim (código) | A filial de cadastro tem 2 estados (`filialCadastro`, o nome, e `filialCadastroId`), lidos de 2 fontes no mesmo `Promise.all`: `filialDeCadastroLocal` relê a linha `usuario` que `filiaisDoUsuarioLocal` acabou de ler. Os setters se repetem no `then` e no `catch`. **Depois:** um estado só, `cadastro: { id: string; nome: string \| null } \| null`, vindo de `filialDeCadastroLocal` (que passa a devolver o id mesmo sem o nome). A faixa usa `cadastro?.nome ?? null`, e a folha usa `cadastro?.id ?? null`. Sai `filialCadastroId` |
+| **RD-0702** | `api/rotas.ts:176` (× `:131` via `filialDaBusca` `:158-160`; `contextoVitrine` 2× em `:288,:290`) | baixa | sim (rotina) | `nomesFilial` lê `repo.filiaisDaTela()` em todo `contextoVitrine`. Na busca, a mesma consulta já rodou em `filialDaBusca`, e o `contextoVitrine` roda 2× quando há corte de candidatos: são até 3 leituras de `core.filiais@1` por requisição. O `filiaisDeVenda()` já se repetia do mesmo jeito (`:162`, `:173`). **Depois:** o repositório da requisição guarda a promessa de `filiaisDaTela()` e a de `filiaisDeVenda()`, com uma leitura de cada por requisição |
+| **RD-0703** | `api/rotas.test.ts:310` | baixa | sim (corpo de teste) | `expect(a.by_branch.map((b) => b.branch_id)).not.toContain(FILIAL_DEMO)` repete o `toEqual` exato da linha 309, que já exclui a `FILIAL_DEMO`. **Depois:** a linha 310 sai |
+| **RD-0704** | `app/lib/estoque-folha.test.ts:18`; `app/lib/grade.test.ts:43` | baixa | **não** (só título de teste, exceção R-20261111-190159) | Os títulos prometem o que o caso não confere mais: "título, …" (o título não é conferido desde o RD-0691) e "verde acima de 0 e vermelho em 0 ou menos, sem laranja" (sobrou só o −2). **Depois:** `'spec §2.1: linha "código · Atualizado às hh:mm" no fuso do tenant; a filial de cadastro primeiro, "sua filial", as outras em ordem alfabética'` e `'catalogo-campo-v2 §3: tagDeEstoque junta texto e tom (negativo com o sinal de menos)'`. Vai no lote seguinte |
+
+### Branch `nuvem/catalogo-campo-testes` (25a5d2a5), dono testes
+
+| RD | Onde (25a5d2a5) | Gravidade | Segura? | O que se repete · proposta |
+|---|---|---|---|---|
+| **RD-0705** | `tests/integracao/api/catalogo-aplicacao-t0084.test.ts:325-326`; `tests/integracao/demo/catalogo-cadastro-demo-t0084.test.ts:137-138`; `tests/modulos/catalogo-aplicacao-offline-t0084.test.ts:320-323` | baixa | sim (corpo de teste) | "O promotor vê o estoque" está conferido em 6 lugares. Ficam as 3 fontes: B-A4 online (busca, vitrine e ficha, com N = 15), B-O4 offline na busca (igual ao vendedor) e FO-1 offline na ficha (igual ao vendedor). Os 3 lugares ao lado repetem a regra com uma asserção mais fraca (`not.toBeNull`), em testes que são de aplicação e referência. O comentário "RN-CAT-05 revista (R-20261115-104500 item 4, RN-CORE-39): o promotor vê o estoque…" está escrito 2× igual. **Depois:** nos t0084 integração e demo, o `availability` só sai do `toMatchObject` (já saiu), e saem a asserção e o comentário. No FO-1, o laço da busca volta a `expect(i).toMatchObject({ price_stock_visible: false, price: null })`, e a ficha (= vendedor) fica |
+| **RD-0706** | `tests/integracao/api/catalogo-busca-t0052.test.ts:207-216` (B-A4) × `:313-322` (B-A9 vendedor); `docs/testes/T-0052.md` linha B-A9 | baixa | sim (corpo de teste) | A mesma rota com o mesmo caso aparece 2× com outro usuário: filial fora das de venda = 403 `FILIAL_FORA_DAS_SUAS`, e a padrão = 200 com N 15. `filialDaBusca` não olha o perfil. O N 15 do vendedor também está no B-A8. **Depois:** o caso do vendedor no B-A9 fica só com o que acrescenta, o 422 `FILIAL_INEXISTENTE` da filial de B: `it('vendedor: filial de outro tenant no filtro = 422 FILIAL_INEXISTENTE, sem estoque de B', …)`. No T-0052.md, B-A9 diz "vendedor: filial de B = 422 FILIAL_INEXISTENTE; supervisor: …" |
+| **RD-0707** | `tests/modulos/catalogo-so-consulta-r20261114.test.ts:224` | baixa | sim (corpo de teste) | `codigosDoCartao({ brand: 'Freiomax', erp_code: 'CB3401', equivale_a: null })` → `{ marca, codigo }` repete o caso de `modules/catalogo/app/lib/grade.test.ts:80`. O teste já confere a fonte (`codigos.codigo` vai ao botão) e o valor × rótulo logo abaixo. **Depois:** a linha 224 sai. O import de `codigosDoCartao` sai junto, se ficar sem uso |
+
+### Encaminhado ao testes (sem RD; recado não enviado por causa do 403)
+1. **`domain/estoque.ts:60`:** a filial de venda sem saldo que não está em `nomesFilial` aparece na folha como
+   `Filial ${id.slice(0, 8)}` (pedaço do UUID). Na API, `nomesFilial` vem de `filiaisDaTela()`, que filtra `ativo`: uma filial de
+   venda inativa chegaria à tela com o id cortado. O testes confere o que a RN-CORE-39 pede para a filial de venda inativa.
+2. **`catalogo-busca-t0052.test.ts:327` (B-A9 supervisor):** `availability?.quantity ?? 0` aceita `availability` nula como 0.
+   Desde o 57d651ef, a Boa Vista sem saldo vem com 0 de fato, e a asserção pode ficar sem o `?? 0`. Isso é da força do teste, não
+   é redundância.
+
+### Conferido sem achado
+- **57d651ef, domain:** a filial de venda sem linha de saldo entra com 0 num lugar só (`estoque.ts:57-61`). `vitrine.ts`, `local.ts`
+  e `rotas.ts` só repassam `filialCadastro` e `nomesFilial`. Os 3 casos novos de `estoque.test.ts` cobrem situações diferentes:
+  sem saldo numa filial, sem nenhum saldo, e a ordem. O caso "sem registro na filial do cliente" foi corrigido, sem duplicar.
+- **57d651ef, `local.ts:357`:** reaproveita o `nomesFilial` já calculado na função, sem leitura nova.
+- **49ed6250, `opcoesDoFiltroFilial`:** usa o `ordemPorNome` do domain, e o comparador local saiu.
+- **Testes, B-A4 pull:** o depósito e o saldo do promotor são conferidos contra os do vendedor, um caso só. O B-O4, sem usuário
+  (`availability` nula), confere com o FTS5 real o que o `local.test.ts` confere no invólucro: são camadas diferentes.
+  `desvios-spec-v106.test.ts` confere a ligação `codigosDoCartao(item).marca` = `linhaDaMarca(item)`, sem repetir valores.
+
+| Branch | Head | Resultado |
+|---|---|---|
+| 5 `nuvem/catalogo-campo-modulo-catalogo-v8` | **49ed6250** | **COM ACHADO**: RD-0700 a RD-0703 seguram; RD-0704 não segura |
+| `nuvem/catalogo-campo-testes` | **25a5d2a5** | **COM ACHADO**: RD-0705 a RD-0707 seguram |
+
+**Veredito do parecer final v8: NÃO LIBERADO.** Fecharam os 5 do re-parecer (RD-0691, 0692, 0694, 0698 e 0699). O 57d651ef trouxe
+4 achados baixos que seguram e 1 só de título. O branch de testes tem 3 achados baixos no corpo dos testes. São correções de
+poucas linhas. O reteste vale para os próximos heads dos dois branches.
