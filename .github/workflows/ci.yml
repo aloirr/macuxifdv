@@ -295,8 +295,8 @@ jobs:
             metro-v1-${{ hashFiles('pnpm-lock.yaml') }}-
             metro-v1-
 
-      # T-0004 §7: o mesmo bundle que o EAS roda na fase EAGER_BUNDLE (Metro + babel-preset-expo), nas duas variantes.
-      # Erro de sintaxe que o tsc aceita e o Babel não fica vermelho aqui, antes de gastar build da Expo.
+      # T-0004 §7: o mesmo bundle do build do APK (Metro + babel-preset-expo), nas duas variantes.
+      # Erro de sintaxe que o tsc aceita e o Babel não fica vermelho aqui, antes de gastar build do APK.
       - name: bundle do app (Metro) — variante campo
         if: ${{ !cancelled() && matrix.parte == 'build' && needs.escopo.outputs.build == 'true' }}
         env:
