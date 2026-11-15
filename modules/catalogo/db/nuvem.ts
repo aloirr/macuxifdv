@@ -5,7 +5,7 @@
  * 0033_catalogo_aplicacao_referencia (teto da aplicação, etiquetas, aplicação e referências na busca, produto_referencia;
  * T-0084/T-0085), 0034_catalogo_referencia_marca_nome (retrato do nome da marca na referência; T-0085) e
  * 0037_forma_prazo_escalonada (tabela_escalonada, RN-VEN-23; T-0089) e 0056_core_filial (filial do depósito, do item de preço
- * e da faixa; T-0149), para uso
+ * e da faixa; T-0149) e 0080_catalogo_foto_lote (fotos em lote por ZIP e hash/ordem da mídia; T-0174), para uso
  * INTERNO do módulo Catálogo (modules/catalogo/api).
  * Nenhum outro módulo importa este arquivo: o Vendedor obtém preço pela consulta `catalogo.precos_cliente@1` (ADR 0012).
  *
@@ -151,8 +151,11 @@ export const produtoMidia = catalogo.table('produto_midia', {
   arquivo_id: uuid('arquivo_id'),
   url: text('url'),
   titulo: text('titulo'),
-  ordem: integer('ordem').notNull().default(0),
+  /** 0080 (T-0174): padrão 1; a principal tem sempre ordem 1 (CHECK produto_midia_principal_ordem) e a ordem da foto viva >= 1 é única por produto (produto_midia_ordem_foto_uk). */
+  ordem: integer('ordem').notNull().default(1),
   principal: boolean('principal').notNull().default(false),
+  /** 0080 (T-0174): SHA-256 hex da imagem (nulo na foto da ficha); mesma imagem viva no mesmo produto = 'repetido' (produto_midia_hash_uk). */
+  hash_conteudo: text('hash_conteudo'),
 });
 
 /** Sinônimos do tenant (RF-CAT-02): termo (único vivo, sem diferenciar caixa) -> lista. */
@@ -302,4 +305,63 @@ export const tabelaEscalonada = catalogo.table('tabela_escalonada', {
   ativo: boolean('ativo').notNull().default(true),
   /** 0056 (T-0149, RN-CORE-39): filial da faixa (id de core.filial, SEM FK); nulo = todas. Entra no único da faixa. */
   filial_id: uuid('filial_id'),
+});
+
+/** Listas fechadas da 0080 (CHECKs de catalogo.foto_lote e foto_lote_item) = contratos do Catálogo (SituacaoLote, MotivoLote, SituacaoItem, MotivoItem). */
+export const SITUACOES_FOTO_LOTE_BANCO = ['aguardando_envio', 'enfileirado', 'conferindo', 'processando', 'concluido', 'recusado', 'falhou', 'duplicado'] as const;
+export const MOTIVOS_FOTO_LOTE_BANCO = ['zip_grande', 'muitos_arquivos', 'descompactado_grande', 'zip_invalido', 'zip64_nao_suportado', 'zip_incompleto'] as const;
+export const SITUACOES_FOTO_LOTE_ITEM_BANCO = ['pendente', 'ligado', 'sem_produto', 'ambiguo', 'recusado', 'repetido'] as const;
+export const MOTIVOS_FOTO_LOTE_ITEM_BANCO = [
+  'caminho_invalido', 'criptografado', 'compressao_nao_suportada', 'arquivo_vazio', 'foto_grande', 'compressao_suspeita', 'entrada_corrompida',
+  'tipo_nao_aceito', 'foto_ilegivel', 'nome_invalido', 'ordem_repetida_no_lote',
+] as const;
+export const TIPOS_IMAGEM_FOTO_LOTE_BANCO = ['image/jpeg', 'image/png', 'image/webp'] as const;
+
+/**
+ * Lote de fotos por ZIP (0080, T-0174, RN-CAT-14, ADR 0054). Fora do sync. enviado_por (core.usuario) e arquivo_id
+ * (plataforma.arquivo, o ZIP) sem FK. Mesmo ZIP no tenant: foto_lote_sha256_uk entre os vivos que não são 'falhou' nem
+ * 'duplicado' (o reenvio vira 'duplicado' com duplicado_de). motivo só e sempre no 'recusado'; concluido_em só e sempre nos finais.
+ */
+export const fotoLote = catalogo.table('foto_lote', {
+  ...comuns(),
+  enviado_por: uuid('enviado_por').notNull(),
+  arquivo_id: uuid('arquivo_id').notNull(),
+  nome_arquivo: text('nome_arquivo').notNull(),
+  tamanho_bytes: bigint('tamanho_bytes', { mode: 'number' }).notNull(),
+  sha256: text('sha256'),
+  situacao: text('situacao', { enum: SITUACOES_FOTO_LOTE_BANCO }).notNull().default('aguardando_envio'),
+  motivo: text('motivo', { enum: MOTIVOS_FOTO_LOTE_BANCO }),
+  duplicado_de: uuid('duplicado_de'),
+  /** Arquivos considerados; nulo antes da conferência. */
+  total: integer('total'),
+  iniciado_em: timestamp('iniciado_em', { withTimezone: true }),
+  concluido_em: timestamp('concluido_em', { withTimezone: true }),
+});
+
+/**
+ * Uma entrada considerada do ZIP (0080). Checkpoint: foto_lote_item_indice_uk (tenant, lote, indice) e a situação
+ * 'pendente'; arquivo_id e midia_id reservados na conferência (únicos no tenant). foto_lote_item_ordem_uk entre os 'ligado'
+ * = 'ordem_repetida_no_lote'. codigos_candidatos (1..5) só e sempre no 'ambiguo'; produto e ordem sempre no 'ligado'/'repetido'.
+ */
+export const fotoLoteItem = catalogo.table('foto_lote_item', {
+  ...comuns(),
+  lote_id: uuid('lote_id').notNull(),
+  /** Posição no diretório central do ZIP (estável). */
+  indice: integer('indice').notNull(),
+  /** Caminho dentro do ZIP (até 1024). */
+  caminho: text('caminho').notNull(),
+  situacao: text('situacao', { enum: SITUACOES_FOTO_LOTE_ITEM_BANCO }).notNull().default('pendente'),
+  motivo: text('motivo', { enum: MOTIVOS_FOTO_LOTE_ITEM_BANCO }),
+  tipo_detectado: text('tipo_detectado', { enum: TIPOS_IMAGEM_FOTO_LOTE_BANCO }),
+  /** Código lido do nome (1..100). */
+  codigo: text('codigo'),
+  ordem: smallint('ordem'),
+  produto_id: uuid('produto_id'),
+  /** Retrato do código do produto ligado (para o relatório). */
+  produto_codigo: text('produto_codigo'),
+  codigos_candidatos: text('codigos_candidatos').array(),
+  arquivo_id: uuid('arquivo_id').notNull(),
+  midia_id: uuid('midia_id').notNull(),
+  sha256: text('sha256'),
+  processado_em: timestamp('processado_em', { withTimezone: true }),
 });

@@ -789,3 +789,41 @@ select id, tenant_id, protocolo, origem, app, versao_app, aparelho_modelo, andro
  where alerta_situacao = 'pendente' and (alerta_proxima_em is null or alerta_proxima_em <= now())
  order by recebido_em limit 10 for update skip locked;
 ```
+
+
+## 0080 — arquivos do lote de fotos e trabalho sob demanda (`0080_catalogo_foto_lote`; T-0174, ADR 0054)
+Mesma migração das tabelas do lote ([catalogo.md](catalogo.md), "0080"). Teste: `db/testes/foto-lote.db.test.ts`.
+
+**`arquivo`**: `arquivo_tipo_valido` = `image/jpeg` \| `image/png` \| `image/webp` \| `application/zip`
+(`TIPOS_ARQUIVO_BANCO` em `db/esquema/plataforma.ts`; o `TIPOS_ARQUIVO` do SDK fica contido nele). `arquivo_tamanho_faixa` por
+tipo: imagem 1..8388608 (8 MiB), ZIP 1..524288000 (500 MiB). A rota antiga de foto continua com 2 MB no código (teto por
+categoria da API). `arquivo_recebido_completo`: o ZIP fica `recebido` no `concluir` **sem** `sha256` (o SHA é calculado no
+trabalho e fica em `catalogo.foto_lote.sha256`); a `chave_armazenamento` do ZIP é a da parte 1 (`<id>.p001.zip`); a imagem
+recebida continua exigindo o `sha256`. Volta: o down devolve os CHECKs da 0005 e **falha (55000)** se houver PNG, WEBP, ZIP ou arquivo acima de 2 MiB.
+
+### trabalho — trabalho sob demanda de um módulo. Fora do sync
+Disparado por evento da outbox (o consumidor da plataforma grava em `comTenant`, `macuxi_app`), executado em fatias pelo laço
+do worker. Um vivo por `(tenant_id, modulo, nome, alvo_id)` (`trabalho_alvo_uk`): grave com `insert ... on conflict do nothing`.
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| modulo | text not null | `^[a-z][a-z0-9-]*$` |
+| nome | text not null | `^[a-z][a-z0-9_]*$`, ≤ 100 (ex.: `processar_foto_lote`) |
+| alvo_id | uuid not null | entidade do módulo (ex.: `catalogo.foto_lote.id`); sem FK |
+| evento_id | uuid | evento da outbox que disparou; sem FK (a outbox tem retenção) |
+| situacao | text not null default `pendente` | `pendente` \| `em_execucao` \| `concluido` \| `falhou` |
+| tentativas, fatias | integer not null default 0 | >= 0 |
+| proxima_em | timestamptz not null default now() | quando pode rodar de novo |
+| travado_ate, travado_por | timestamptz, text | juntos (`trabalho_trava_par`); obrigatórios no `em_execucao`; processo 1..200 |
+| ultimo_erro | text | **só código** `^[A-Za-z0-9_.:-]{1,100}$` (nunca mensagem nem dado pessoal) |
+| concluido_em | timestamptz | só e sempre no `concluido` e no `falhou` |
+
+Índice `trabalho_fila_ix (situacao, proxima_em)`. **macuxi_app**: select e insert no próprio tenant (RLS), sem UPDATE/DELETE.
+**macuxi_worker**: nenhum privilégio de tabela; só EXECUTE nas funções (SECURITY DEFINER, `search_path = pg_catalog, plataforma,
+pg_temp`, só tenants `ativo` e vivos):
+
+| Função | O que faz |
+|---|---|
+| `trabalho_reservar(p_processo text, p_trava_s integer)` → `table(id, tenant_id, modulo, nome, alvo_id, tentativas, fatias)` | 0 ou 1 linha: o vencido mais antigo (`pendente` com `proxima_em <= now()` ou `em_execucao` com trava vencida), `for update skip locked`; marca `em_execucao`, `travado_ate = now() + p_trava_s`, `travado_por`. p_processo 1..200, p_trava_s 1..3600 (senão 22023) |
+| `trabalho_devolver(p_id uuid, p_processo text, p_resultado text, p_erro text, p_espera_s integer)` → boolean | só com a trava do processo (false = perdeu a trava; nada muda). `continua` → `pendente` agora, `fatias + 1`; `concluido` → `concluido`, `fatias + 1`; `adiar` → `pendente` daqui a `p_espera_s`, sem contar tentativa (licença inativa); `erro` (com `p_erro`) → `tentativas + 1`, `ultimo_erro`, `pendente` daqui a `p_espera_s` ou, com `p_espera_s` nulo, `falhou` (definitivo). Solta a trava |
+| `trabalho_renovar(p_id uuid, p_processo text, p_trava_s integer)` → boolean | estende a trava entre os itens; false = não é mais deste processo |

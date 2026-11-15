@@ -197,6 +197,14 @@ Instantes derivados do "hoje" de cada tenant, na janela da visita do Core da fix
   admins de A e de B (mesmo id do gatilho); sem multiperfil.
 - Constantes em `DOIS_TENANTS.X.{perfis, sobreposicoes}`.
 
+### T-0174 (migração 0080; fotos em lote por ZIP, ADR 0054)
+- **`catalogo.foto_lote`** (grupo **0x68**): um lote **concluído** por tenant (A `fotos-alfa.zip` do analista; B `fotos-beta.zip`
+  do admin); o ZIP já foi descartado (o `arquivo_id`, seq 101, não tem linha em `plataforma.arquivo`).
+- **`catalogo.foto_lote_item`** (grupo **0x69**): A `FOTO-X.jpg` `sem_produto`; B `BETA-001.jpg` `recusado` `tipo_nao_aceito`
+  (PNG renomeado). `arquivo_id`/`midia_id` só reservados (seq 101/201), sem linha.
+- **`plataforma.trabalho`** (grupo **0x67**): `processar_foto_lote` **concluído** de cada lote (o worker de teste não acha pendente).
+- Ids em `FOTO_LOTE_FIXTURE`.
+
 ## Seed Fase M (demonstração)
 Tenant `7d0c2f4e-1a2b-4c3d-8e9f-000000000001` "Distribuidora Exemplo", código `exemplo`, America/Manaus
 (mesmo id da Fase M). IDs determinísticos (UUID v5 de `fase-m:<tipo>:<chave>`).
