@@ -111,7 +111,7 @@ export const APLICACAO_PROTECAO_MAX = 20_000;
 /** Tetos de negócio do Catálogo (RN-CAT-09/11): acima disso o Hub corta e avisa. */
 export const LIMITES_CATALOGO_PRODUTO = { aplicacao: 2000, referencias: 3, ofereceJunto: 5, etiquetas: 4 } as const;
 
-/** Referência cruzada do ERP: a marca vem pelo `external_id` ou pelo nome (o ERP não conhece os ids do Macuxi). */
+/** Referência cruzada do ERP: só o código é obrigatório (RN-CAT-09, decisão de 15/11/2026); a marca, quando vem, é pelo `external_id` ou pelo nome (o ERP não conhece os ids do Macuxi). */
 export const ReferenciaCruzada = z.object({
   marca_external_id: z.string().nullish(),
   marca_nome: z.string().nullish(),

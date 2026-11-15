@@ -272,6 +272,10 @@ def checar_regras_da_entidade(ent: dict[str, Any], numero: int, valores: dict[st
             if any(tem) and not all(tem):
                 faltou = next(c for c, t in zip(r["campos"], tem) if not t)
                 erros.append(Recusa(numero, faltou, r["motivo"]))
+        elif r["regra"] == "requer":
+            # o 1º campo só vale com o 2º preenchido (ex.: marca da referência sem o código)
+            if valores.get(cols[0]) is not None and valores.get(cols[1]) is None:
+                erros.append(Recusa(numero, r["campos"][0], r["motivo"]))
         elif r["regra"] == "data_nao_anterior":
             alvo, ref = (valores.get(c) for c in cols)
             if alvo is not None and ref is not None and alvo < ref:

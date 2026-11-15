@@ -38,8 +38,8 @@ const COLUNAS_SO_CONECTOR = ['contatos', 'referencias', 'oferece_junto', 'etique
 const REFERENCIAS_POR_PRODUTO = 3;
 export const CAMPOS_SO_KIT: Record<string, CampoDicionario[]> = {
   produto: Array.from({ length: REFERENCIAS_POR_PRODUTO }, (_, i) => i + 1).flatMap((n): CampoDicionario[] => [
-    { campo: `referencia_${n}`, obrigatorio: false, tipo: 'texto', tamanho_max: LIMITES_REFERENCIA.codigo, formato: null, exemplo: n === 1 ? 'PAF-0503' : '', observacao: `Código ${n} do produto na concorrência (até ${LIMITES_REFERENCIA.codigo} caracteres). Informe junto com marca_referencia_${n} (as duas preenchidas ou as duas vazias). Vazio nas três = não altera as referências já cadastradas.` },
-    { campo: `marca_referencia_${n}`, obrigatorio: false, tipo: 'texto', tamanho_max: LIMITES_REFERENCIA.marcaNome, formato: null, exemplo: n === 1 ? 'Marca Beta' : '', observacao: `Marca da concorrência do código ${n}; se não estiver cadastrada em Marcas do Catálogo, a referência não é gravada e o lote traz o aviso marca_concorrente_desconhecida.` },
+    { campo: `referencia_${n}`, obrigatorio: false, tipo: 'texto', tamanho_max: LIMITES_REFERENCIA.codigo, formato: null, exemplo: n === 1 ? 'PAF-0503' : '', observacao: `Código ${n} do produto na concorrência (até ${LIMITES_REFERENCIA.codigo} caracteres). A marca (marca_referencia_${n}) é opcional. Vazio nas três = não altera as referências já cadastradas.` },
+    { campo: `marca_referencia_${n}`, obrigatorio: false, tipo: 'texto', tamanho_max: LIMITES_REFERENCIA.marcaNome, formato: null, exemplo: n === 1 ? 'Marca Beta' : '', observacao: `Marca da concorrência do código ${n} (opcional, só com referencia_${n}). Marca que não esteja cadastrada em Marcas do Catálogo: a referência entra sem marca e o lote traz o aviso marca_concorrente_desconhecida.` },
   ]),
 };
 /** Colunas do SELECT do conector que a view monta de outras colunas (não existem como coluna própria em `tha_<entidade>`). */
@@ -83,7 +83,7 @@ export const REGRA_EXTRA_DO_CAMPO: Record<string, Partial<Regra>> = {
 /** Regras entre campos da mesma linha (todas em superRefine do Zod). */
 export interface RegraEntidade {
   /** `juntos`: ou todos os campos vêm preenchidos ou nenhum. `data_nao_anterior`: `campo` não pode ser anterior a `referencia`. */
-  regra: 'juntos' | 'data_nao_anterior';
+  regra: 'juntos' | 'data_nao_anterior' | 'requer';
   campos: string[];
   motivo: string;
 }
@@ -91,8 +91,8 @@ export const REGRAS_ENTIDADE: Record<string, RegraEntidade[]> = {
   // entidades.ts `ProdutoPayload.superRefine`
   produto: [
     { regra: 'juntos', campos: ['embalagem_medida', 'embalagem_quantidade'], motivo: 'embalagem_medida e embalagem_quantidade devem ser informadas juntas' },
-    // só do kit: a marca é obrigatória na referência (catalogo-produto.ts `referenciaValida`); sem ela o Hub descartaria a referência
-    ...[1, 2, 3].map((n): RegraEntidade => ({ regra: 'juntos', campos: [`referencia_${n}`, `marca_referencia_${n}`], motivo: `referencia_${n} e marca_referencia_${n} devem ser informadas juntas (toda referência leva a marca)` })),
+    // só do kit: a marca é opcional (RN-CAT-09), mas marca sem código não tem o que carregar
+    ...[1, 2, 3].map((n): RegraEntidade => ({ regra: 'requer', campos: [`marca_referencia_${n}`, `referencia_${n}`], motivo: `marca_referencia_${n} só vale com referencia_${n} preenchida` })),
   ],
   // entidades.ts `PrecoPayload.superRefine`
   preco: [{ regra: 'data_nao_anterior', campos: ['vigencia_fim', 'vigencia_inicio'], motivo: 'fim da vigência anterior ao início' }],

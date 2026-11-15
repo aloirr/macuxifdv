@@ -242,9 +242,12 @@ class TestRegrasDoHub(unittest.TestCase):
         self.assertEqual((v["referencia_1"], v["marca_referencia_1"], v["referencia_3"]), ("PAF-0503", "Marca Beta", "ZZ-1"))
         self.assertNotIn("referencia_4", {c["campo"] for c in ENTS["produto"]["campos"]})
 
-    def test_referencia_sem_marca_e_marca_sem_referencia_sao_recusadas(self):
-        self.assertEqual([r.campo for r in self.validar("produto", {"marca_referencia_1": ""}).recusadas], ["marca_referencia_1"])
-        self.assertEqual([r.campo for r in self.validar("produto", {"referencia_2": "", "marca_referencia_2": "Marca Gama"}).recusadas], ["referencia_2"])
+    def test_referencia_sem_marca_passa_e_marca_sem_referencia_e_recusada(self):
+        # RN-CAT-09 (decisão de 15/11/2026): a marca é opcional, basta o código
+        res = self.validar("produto", {"marca_referencia_1": ""})
+        self.assertEqual(res.recusadas, [])
+        self.assertEqual(res.validas[0][1]["referencia_1"], "PAF-0503")
+        self.assertEqual([r.campo for r in self.validar("produto", {"referencia_2": "", "marca_referencia_2": "Marca Gama"}).recusadas], ["marca_referencia_2"])
 
     def test_referencia_com_codigo_maior_que_30_e_marca_maior_que_120_sao_recusadas(self):
         self.assertEqual([r.campo for r in self.validar("produto", {"referencia_1": "X" * 31}).recusadas], ["referencia_1"])

@@ -32,7 +32,7 @@ Cada fase vai do pedido no app até o número do ERP voltar ao app.
    py carga_csv.py --pasta csv --validar
    py carga_csv.py --pasta csv
    ```
-   No `produto.csv`, as colunas `referencia_1` a `referencia_3` levam até 3 códigos da concorrência (até 30 caracteres) e `marca_referencia_1` a `marca_referencia_3`, a marca de cada um. Preencha o código e a marca juntos, ou deixe os dois vazios. A marca precisa estar cadastrada em Marcas do Catálogo; se não estiver, a referência não entra e o lote do Monitor traz o aviso `marca_concorrente_desconhecida`. Com as três vazias, o Macuxi mantém as referências que já estão no cadastro (para tirar uma, use o Backoffice).
+   No `produto.csv`, as colunas `referencia_1` a `referencia_3` levam até 3 códigos da concorrência (até 30 caracteres) e `marca_referencia_1` a `marca_referencia_3`, a marca de cada um. Só o código é obrigatório; a marca é opcional (mas não vale sozinha, sem o código). Marca que não esteja em Marcas do Catálogo entra sem marca, e o lote do Monitor traz o aviso `marca_concorrente_desconhecida`. Com as três vazias, o Macuxi mantém as referências que já estão no cadastro (para tirar uma, use o Backoffice).
    O relatório mostra, por tabela, as linhas lidas, inseridas, atualizadas, sem mudança e recusadas, com a linha e o motivo da recusa. Corrija o CSV e rode de novo.
 5. **Confira a carga:** em 2 a 5 minutos, os vendedores, clientes e produtos aparecem no Backoffice. O Monitor da integração mostra o Conector `thathyany-conector` em dia, versão 1.4.0.
 6. **Pedido no app:** o vendedor sincroniza, faz um pedido para um cliente da carga e o envia.

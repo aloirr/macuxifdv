@@ -292,11 +292,13 @@ describe('Referência cruzada do produto (até 3 códigos da concorrência)', ()
     for (const col of ['referencia_1', 'marca_referencia_3']) expect(sql).toContain(`IF COL_LENGTH('dbo.tha_produto', '${col}') IS NULL ALTER TABLE dbo.tha_produto ADD ${col}`);
   });
 
-  it('RN-CAT-09: o que o kit gera cabe no contrato do Hub (código até 30, marca até 120, marca obrigatória)', () => {
+  it('RN-CAT-09: o que o kit gera cabe no contrato do Hub (código até 30, marca até 120, marca opcional)', () => {
     const r = SCHEMA_REGISTRO.produto.safeParse({ external_id: 'PRO-001', alterado_em: '2026-11-01T12:00:00Z', sku: 'SKU-001', nome: 'Refrigerante Cola 2L', unidade: 'UN', referencias: [{ marca_nome: 'Marca Beta', codigo: 'PAF-0503' }] });
     expect(r.success).toBe(true);
     const lim = limitarCatalogoDoProduto(r.success ? (r.data as never) : (undefined as never));
     expect(lim.registro.referencias).toHaveLength(1);
     expect(lim.avisos).toEqual([]);
+    const semMarca = SCHEMA_REGISTRO.produto.safeParse({ external_id: 'PRO-001', alterado_em: '2026-11-01T12:00:00Z', sku: 'SKU-001', nome: 'X', unidade: 'UN', referencias: [{ codigo: 'PAF-0503' }] });
+    expect(limitarCatalogoDoProduto(semMarca.success ? (semMarca.data as never) : (undefined as never)).registro.referencias).toEqual([{ codigo: 'PAF-0503' }]);
   });
 });
