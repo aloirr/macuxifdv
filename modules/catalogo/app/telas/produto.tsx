@@ -6,15 +6,18 @@
  */
 import { relogioReal } from '@macuxi/comum/relogio';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
-import { Badge, Card, colors, DEFAULT_TZ, Empty, fonts, Icon, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
+import { Badge, Card, ChipEstado, colors, DEFAULT_TZ, Empty, fonts, Icon, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { caminhoCatalogo, type FichaProduto } from '../../contracts';
-import { aplicacaoPrecisaRecolher, estadoOfereceJunto, LINHAS_APLICACAO_RECOLHIDA, rotuloEstoque, rotuloEstoqueFilial, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
-import { fichaLocal } from '../lib/local';
+import { aplicacaoPrecisaRecolher, estadoOfereceJunto, LINHAS_APLICACAO_RECOLHIDA, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
+import { dadosDaFolha } from '../lib/estoque-folha';
+import { leituraDoEstoque, tagDeEstoque } from '../lib/grade';
+import { fichaLocal, filiaisDoUsuarioLocal } from '../lib/local';
 import { hrefCatalogo, irParaProduto } from '../rotas';
 import { BotaoCopiarCodigo, BotoesAcao } from './comum';
+import { BotaoPorFilialDaFicha, FolhaEstoquePorFilial } from './estoque-filial';
 
 type Estado = { fase: 'carregando' } | { fase: 'pronta'; ficha: FichaProduto; noAparelho: boolean } | { fase: 'nao_encontrado' };
 
@@ -29,11 +32,24 @@ export default function TelaProduto() {
   const fuso = usuario?.fuso ?? DEFAULT_TZ;
   const [estado, setEstado] = useState<Estado>({ fase: 'carregando' });
   const [aplicacaoAberta, setAplicacaoAberta] = useState(false);
+  const [proprias, setProprias] = useState<readonly string[]>([]);
+  const [folhaAberta, setFolhaAberta] = useState(false);
+  const usuarioId = usuario?.id ?? null;
+
+  // filiais de venda do usuário (sync): a folha lista só elas
+  useEffect(() => {
+    if (!motor) return;
+    let vivo = true;
+    void filiaisDoUsuarioLocal(motor, usuarioId).then((f) => vivo && setProprias(f?.filiaisVenda ?? [])).catch(() => vivo && setProprias([]));
+    return () => {
+      vivo = false;
+    };
+  }, [motor, usuarioId, sync.sincronizado_em]);
 
   useEffect(() => {
     let vivo = true;
     const carregar = async (): Promise<Estado> => {
-      const local = motor ? await fichaLocal(motor, { perfil: usuario?.perfil ?? null, parametros, agora: relogioReal().agora().toISOString(), clienteId, produtoId: id }) : null;
+      const local = motor ? await fichaLocal(motor, { perfil: usuario?.perfil ?? null, parametros, agora: relogioReal().agora().toISOString(), clienteId, produtoId: id, usuarioId }) : null;
       if (local) return { fase: 'pronta', ficha: local, noAparelho: true };
       if (!ambiente.online() || !id) return { fase: 'nao_encontrado' };
       try {
@@ -47,7 +63,7 @@ export default function TelaProduto() {
     return () => {
       vivo = false;
     };
-  }, [motor, id, clienteId, parametros, ambiente, usuario?.perfil, sync.sincronizado_em]);
+  }, [motor, id, clienteId, parametros, ambiente, usuario?.perfil, usuarioId, sync.sincronizado_em]);
 
   // T-0172: título, subtítulo e voltar na faixa Azul noite do kit (docs/design/componentes.md §5.2)
   const voltar = { label: 'Catálogo', fallback: hrefCatalogo(clienteId) };
@@ -70,7 +86,9 @@ export default function TelaProduto() {
   const aplicacao = catalogo?.aplicacao ?? null;
   const recolher = !!aplicacao && !aplicacaoAberta && aplicacaoPrecisaRecolher(aplicacao);
   const preco = rotuloPreco(item);
-  const estoque = rotuloEstoque(item, relogioReal().agora().toISOString(), fuso, { filialDoCliente: clienteId !== null });
+  // catalogo-campo-v2 §2: "Estoque: N" (exato, sem o 999+ do cartão) com o botão "Por filial"; a tabela e a hora ficam na folha
+  const estoque = tagDeEstoque(item, { noCartao: false });
+  const folha = item.availability && usuario?.perfil ? dadosDaFolha({ codigo: item.erp_code, availability: item.availability, cargaEm: sync.sincronizado_em, proprias, agora: relogioReal().agora().toISOString(), fuso }) : null;
   return (
     <Screen testID="pagina-catalogo-produto" cabecalho={{ titulo: item.description, subtitulo: `${subtituloProduto(item)} · ${item.unit}${item.ean ? ` · EAN ${item.ean}` : ''}`, voltar }}>
       {item.is_campaign || (catalogo && catalogo.etiquetas.length > 0) ? (
@@ -100,22 +118,15 @@ export default function TelaProduto() {
             </View>
           ) : null}
           {estoque ? (
-            <View style={{ gap: 6 }}>
-              <Text style={t.label}>{clienteId && item.availability?.by_branch.length === 1 ? `Estoque na filial ${item.availability.by_branch[0]!.branch_name}` : clienteId ? 'Estoque na filial do cliente' : 'Estoque'}</Text>
-              <Badge label={estoque.texto} tone={estoque.tom} style={{ alignSelf: 'flex-start' }} />
-              {estoque.detalhe ? <Text style={[t.small, estoque.desatualizado && { color: colors.warning }]}>{estoque.detalhe}</Text> : null}
-              {item.availability && item.availability.by_branch.length > 1
-                ? item.availability.by_branch.map((b) => (
-                    <Text key={b.branch_id} style={t.small}>
-                      {rotuloEstoqueFilial(b)}
-                    </Text>
-                  ))
-                : null}
+            <View style={s.estoqueLinha}>
+              <ChipEstado texto={estoque.texto} tom={estoque.tom} rotuloAcessivel={leituraDoEstoque(item) ?? estoque.texto} testID="produto-estoque" />
+              <BotaoPorFilialDaFicha onPress={() => setFolhaAberta(true)} />
             </View>
           ) : null}
         </Card>
       ) : null}
 
+      <FolhaEstoquePorFilial visivel={folhaAberta} onFechar={() => setFolhaAberta(false)} dados={folha} />
       <BotaoCopiarCodigo codigo={item.erp_code} />
       <BotoesAcao item={item} clienteId={clienteId} />
 
@@ -212,6 +223,7 @@ export default function TelaProduto() {
 
 const s = StyleSheet.create({
   card: { padding: 14, gap: 10 },
+  estoqueLinha: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   linha: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
   preco: { fontFamily: fonts.display, fontSize: 24, color: colors.ink },
   semPreco: { fontFamily: fonts.medium, fontSize: 14, color: colors.ink2 },
