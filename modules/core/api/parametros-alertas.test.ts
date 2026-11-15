@@ -38,6 +38,7 @@ const CAM = 'parametros/alertas-produtividade';
 const PARADO = 'parametros/parado-min';
 const alertasGet = achar(rotasDeParametrosAlertas, 'GET', CAM);
 const alertasPut = achar(rotasDeParametrosAlertas, 'PUT', CAM);
+const paradoGet = achar(rotasDeParametrosAlertas, 'GET', PARADO);
 const paradoPut = achar(rotasDeParametrosAlertas, 'PUT', PARADO);
 
 describe('RN-CORE-26 (T-0180): permissão e licença dos parâmetros de alertas', () => {
@@ -48,6 +49,7 @@ describe('RN-CORE-26 (T-0180): permissão e licença dos parâmetros de alertas'
     expect(rotasDeParametrosAlertas.map((r) => `${r.metodo} ${r.caminho} ${r.acao}`)).toEqual([
       `GET ${CAM} parametro.alertas_produtividade`,
       `PUT ${CAM} parametro.alertas_produtividade`,
+      `GET ${PARADO} parametro.alertas_produtividade`,
       `PUT ${PARADO} parametro.alertas_produtividade`,
     ]);
   });
@@ -89,6 +91,27 @@ describe('RN-CORE-26 (D6): GET e PUT alertas-produtividade', () => {
   it('RN-CORE-26: corpo com campo extra (o parado não mora aqui) é recusado pelo schema', () => {
     const { db } = fakeDb([]);
     expect(() => chamar(alertasPut, db, { ...PADRAO, parado_min: 60 })).toThrow();
+  });
+});
+
+describe('RN-CORE-26 (D1): GET parametros/parado-min lê pela mesma ação da gravação', () => {
+  it('RN-CORE-26: sem linha devolve 60; com linha devolve o valor do tenant da transação (RLS)', async () => {
+    const a = fakeDb([]);
+    expect(await chamar(paradoGet, a.db)).toEqual({ parado_min: 60 });
+    expect(a.chamadas[0]!.sql).toContain('tenant_id = plataforma.tenant_atual()');
+    const b = fakeDb([{ modulo: 'core', chave: 'inicio.parado_min', valor: 45 }]);
+    expect(await chamar(paradoGet, b.db)).toEqual({ parado_min: 45 });
+  });
+  it('RN-CORE-26: perfil sem parametro.alertas_produtividade recebe 403, mesmo com parametro.inicio', () => {
+    const permissoes = criarPermissoes([manifest]);
+    const sem = PERFIS.find((p) => !verificarAcao({ id: 'x', tenant_id: TENANT, perfil: p, modulos: ['core'] }, permissoes, 'parametro.alertas_produtividade').ok)!;
+    const r = verificarAcao({ id: 'x', tenant_id: TENANT, perfil: sem, modulos: ['core'] }, permissoes, paradoGet.acao!);
+    expect(r.ok).toBe(false);
+    expect(r).toMatchObject({ status: 403 });
+  });
+  it('RN-CORE-03: sem o módulo core licenciado a leitura é negada', () => {
+    const permissoes = criarPermissoes([manifest]);
+    expect(verificarAcao({ id: 'x', tenant_id: TENANT, perfil: 'admin', modulos: [] }, permissoes, paradoGet.acao!).ok).toBe(false);
   });
 });
 

@@ -10,7 +10,7 @@ import { z } from 'zod';
 export const PARAMETRO_ALERTAS_PRODUTIVIDADE = 'alertas.produtividade';
 /** Caminho (sem `/v1/core/`) das rotas dos parâmetros dos alertas de produtividade. */
 export const CAMINHO_PARAMETROS_ALERTAS_PRODUTIVIDADE = 'parametros/alertas-produtividade';
-/** Gravação do "parado" (`inicio.parado_min`, RN-CORE-26): `PUT /v1/core/parametros/parado-min` com `{ parado_min }`, ação `parametro.alertas_produtividade`. */
+/** O "parado" (`inicio.parado_min`, RN-CORE-26): `GET|PUT /v1/core/parametros/parado-min` com `{ parado_min }` (padrão 60), ação `parametro.alertas_produtividade`. */
 export const CAMINHO_PARAMETRO_PARADO_MIN = 'parametros/parado-min';
 
 export const CHAVES_REGRA_PRODUTIVIDADE = [
