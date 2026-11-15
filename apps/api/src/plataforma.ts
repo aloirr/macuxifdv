@@ -38,6 +38,7 @@ import {
   planoDeOnboardingSemAdmin,
   type AcessoBanco,
   type AcessoPortalAutenticado,
+  type AcoesDaEmpresa,
   type Manifesto,
   type ModuloId,
   type TipoAcessoPortal,
@@ -294,6 +295,11 @@ export interface DepsRotasPlataforma {
   email?: EmailDoPortal | null;
   /** ADR 0048 e R-20261114-144000 (item 3): a Receita confere o CNPJ antes de criar a empresa (sem ela, nada é criado). */
   consultaCnpj: ConsultaCnpj;
+  /**
+   * ADR 0052 (só com `MACUXI_EMPRESA_ACOES=1`): bloco `acoes` de cada empresa, por `id` (`Map<tenant_id, AcoesDaEmpresa>`).
+   * Vazio para o admin do cliente (só o super-admin vê as ações). Ausente = a lista sai sem `acoes`.
+   */
+  acoesDasEmpresas?: (quem: AcessoPortalAutenticado) => Promise<Map<string, AcoesDaEmpresa>>;
 }
 
 /** O que a rota do portal precisa do e-mail: saber se há adaptador e cifrar a carga com o AAD da linha da outbox. */
@@ -414,7 +420,10 @@ export function registrarRotasPlataforma(app: FastifyInstance, dep: DepsRotasPla
     const quem = await exigir(req);
     const r = ListaEmpresasSchema.safeParse(await dep.fonte.listarEmpresas(quem, dep.acesso));
     if (!r.success) throw new Error('sa_listar_tenants devolveu formato diferente do combinado (desenho T-0087 §4)');
-    return r.data;
+    if (!dep.acoesDasEmpresas || quem.tipo !== 'super_admin') return r.data;
+    // ADR 0052: junta o bloco `acoes` pelo id da empresa (aditivo; empresa sem bloco sai sem `acoes`)
+    const acoes = await dep.acoesDasEmpresas(quem);
+    return { itens: r.data.itens.map((e) => { const a = acoes.get(e.id); return a ? { ...e, acoes: a } : e; }) };
   });
 
   app.post('/v1/plataforma/empresas', async (req, reply) => {

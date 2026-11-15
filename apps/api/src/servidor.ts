@@ -18,6 +18,8 @@
  * (padrão `pacotes/`), válido por `MACUXI_PACOTES_VALIDADE_S` (padrão 300 s); sem S3, a rota do download responde 503.
  * T-0158 (ADR 0043): `MACUXI_DIAGNOSTICOS=1` liga o Portal › Diagnósticos (padrão desligado; exige a migração 0058).
  * ADR 0047: `MACUXI_PLANOS=1` liga os planos e licenças do portal (padrão desligado; exige a migração dos planos).
+ * ADR 0052: `MACUXI_EMPRESA_ACOES=1` liga Inativar/Reativar, Backup e Excluir empresa no portal (padrão desligado; exige a
+ * migração 0072). O backup só roda com `MACUXI_ARQUIVOS_DRIVER=s3` e `MACUXI_BACKUP_EMPRESA_CHAVE` (32 bytes, base64 ou hex).
  * T-0118: os dois pools esperam no máximo `MACUXI_API_POOL_ESPERA_MS` (padrão 10 s) por uma conexão livre; vencida, a rota
  * responde 503 `BANCO_OCUPADO` com `Retry-After` em vez de ficar na fila sem prazo (`banco.ts`, `esperaDoPoolMs`).
  */
@@ -27,7 +29,7 @@ import { createApp } from './app';
 import { lerArmazenamentoDoAmbiente } from './armazenamento-s3';
 import { lerPacotesDoAmbiente } from './pacotes';
 import { criarBancoApp, criarBancoPortal, esperaDoPoolMs, POOL_PORTAL_PADRAO } from './banco';
-import { conferirSegredoJwt, diagnosticosAppLigados, diagnosticosLigados, lerSessaoWeb, lerTrustProxy, opcoesLogger, planosLigados } from './config';
+import { conferirSegredoJwt, diagnosticosAppLigados, diagnosticosLigados, lerSessaoWeb, lerTrustProxy, opcoesLogger, planosLigados, empresaAcoesLigadas, backupEmpresaDisponivel } from './config';
 import { criarServicoEmailDaConfig, lerConfigEmail, type ConfigEmail } from './email';
 import { registrarMetricasApi } from './observabilidade';
 
@@ -87,6 +89,9 @@ const app = createApp({
   diagnosticosApp: diagnosticosAppLigados(process.env),
   // ADR 0047: planos e licenças no portal só com MACUXI_PLANOS=1 (desligado até a migração do banco-dados)
   planosPortal: planosLigados(process.env),
+  // ADR 0052: ações da empresa no portal só com MACUXI_EMPRESA_ACOES=1; backup só com bucket S3 e chave de cifra
+  empresaAcoesPortal: empresaAcoesLigadas(process.env),
+  backupEmpresaDisponivel: backupEmpresaDisponivel(process.env),
   // sem dado pessoal em log (CLAUDE.md regra 8): nada de cabeçalhos, IP, query string ou corpo; chave do Conector redigida
   logger: opcoesLogger(process.env.MACUXI_API_LOG ?? 'info'),
 });

@@ -40,6 +40,12 @@ export const CODIGO_EMPRESA_INATIVA_CONECTOR = 'empresa_inativa';
 export const MENSAGEM_EMPRESA_INATIVA =
   'Sua empresa está inativa no Macuxi. Fale com o administrador da empresa.';
 
+/** 403 `PERFIL_SEM_ACESSO` das rotas de ações da empresa quando quem pede é o admin do cliente (só super-admin). */
+export const MENSAGEM_SO_SUPER_ADMIN_ACOES = 'Só o time da Macuxi faz esta ação.';
+
+/** 404 `EXCLUSAO_NAO_ENCONTRADA` de GET .../exclusao quando a empresa não tem exclusão pedida (fonte única: API e portal falso). */
+export const MENSAGEM_EXCLUSAO_NAO_ENCONTRADA = 'Nenhuma exclusão pedida para esta empresa.';
+
 /** Códigos de erro das rotas de ações da empresa no portal (status HTTP no comentário). */
 export const CODIGOS_ACOES_EMPRESA = {
   /** 404 — empresa inexistente ou já excluída (o mesmo código das outras rotas do portal). */
@@ -64,6 +70,22 @@ export const CODIGOS_ACOES_EMPRESA = {
   backupIndisponivel: 'BACKUP_INDISPONIVEL',
 } as const;
 export type CodigoAcaoEmpresa = (typeof CODIGOS_ACOES_EMPRESA)[keyof typeof CODIGOS_ACOES_EMPRESA];
+/**
+ * Frase de cada recusa (spec portal-config-enxuto §15.2; RD-0407): a API a põe no `mensagem` do erro e a tela mostra a mesma.
+ * Uma tabela só: corrigir o texto aqui corrige a API e o BKO.
+ */
+export const MENSAGENS_ACOES_EMPRESA: Readonly<Record<CodigoAcaoEmpresa, string>> = Object.freeze({
+  [CODIGOS_ACOES_EMPRESA.naoEncontrada]: 'Empresa não encontrada.',
+  [CODIGOS_ACOES_EMPRESA.exclusaoEmAndamento]: 'A exclusão desta empresa já está em andamento.',
+  [CODIGOS_ACOES_EMPRESA.backupEmAndamento]: 'Já há um backup desta empresa em andamento.',
+  [CODIGOS_ACOES_EMPRESA.exclusaoEmpresaAtiva]: 'Inative a empresa antes de excluir.',
+  [CODIGOS_ACOES_EMPRESA.exclusaoSemBackup]: 'Faça o backup antes de excluir.',
+  [CODIGOS_ACOES_EMPRESA.exclusaoBackupAntesDaInativacao]: 'Faça o backup antes de excluir.',
+  [CODIGOS_ACOES_EMPRESA.exclusaoBackupVencido]: 'Faça o backup antes de excluir.',
+  [CODIGOS_ACOES_EMPRESA.exclusaoCodigoNaoConfere]: 'Código não confere.',
+  [CODIGOS_ACOES_EMPRESA.reautenticacaoFalhou]: 'Senha incorreta.',
+  [CODIGOS_ACOES_EMPRESA.backupIndisponivel]: 'O backup está indisponível neste servidor. Avise o suporte da Macuxi.',
+});
 const VALORES_CODIGOS_ACOES = Object.values(CODIGOS_ACOES_EMPRESA) as [
   CodigoAcaoEmpresa,
   ...CodigoAcaoEmpresa[],

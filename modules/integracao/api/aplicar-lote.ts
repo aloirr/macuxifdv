@@ -12,7 +12,7 @@
  * esgotadas as tentativas da outbox o lote fica `recebido` com o evento parado (alerta de operação, não `falhou`); parâmetros do
  * tenant não chegam ao consumidor, valem os padrões.
  */
-import { CONSULTA_CADASTRO_CLIENTE, CONSULTA_MEDIDAS } from '@macuxi/core/contracts';
+import { CONSULTA_CADASTRO_CLIENTE, CONSULTA_FILIAIS, CONSULTA_MEDIDAS } from '@macuxi/core/contracts';
 import { definirConsumidor, ehConsultaIndisponivel, type ClienteBanco, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { CAMPO_SOMA_CONTROLE, type AvisoLinha, type Cursor, type Entidade, type EstadoLote, type LinhaErro, type LinhaInvalidaConector, type LoteRecebidoEvento } from '../contracts';
 import {
@@ -29,6 +29,7 @@ import {
   anotarLinhaDoArquivo,
   avisosCadastroIncompleto,
   avisosReferenciaFraca,
+  contarDuplicadasNoLote,
   siglasParaConferir,
   verificarMedidas,
   dadosParaConsultaCadastro,
@@ -150,6 +151,8 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
       );
       for (const r of rows) achados.add(r.external_id);
     }
+    // RN-CORE-39 + RN-INT-04: filial existe se está no Hub (registro_atual) OU no Core (core.filiais@1); a recusa do core fica como revalidação
+    if (entidade === 'filial') for (const id of await filiaisDoCore(ctx, [...ids])) achados.add(id);
     existentesRef[entidade] = achados;
   }
   const ref = verificarReferencias(lote.entidade, v.validas, existentesRef);
@@ -286,7 +289,7 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
   // ---- resultado do lote e cursor (RN-INT-03, RN-INT-05)
   const resultado = calcularResultadoLote({
     recebidas: registros.length,
-    duplicadas_no_lote: v.avisos.length,
+    duplicadas_no_lote: contarDuplicadasNoLote(v.avisos),
     erros: errosHub,
     novas: cls.novas.length,
     atualizadas: cls.atualizadas.length,
@@ -365,6 +368,21 @@ async function situacaoDasMedidas(ctx: ContextoConsumo, siglas: readonly string[
     return null;
   }
   return { ativas, inativas };
+}
+
+/** RN-CORE-39: dos `filial_external_id` citados, os que existem no tenant (`core.filiais@1`); consulta indisponível = nenhum (vale só o Hub). */
+async function filiaisDoCore(ctx: ContextoConsumo, ids: readonly string[]): Promise<Set<string>> {
+  const achadas = new Set<string>();
+  try {
+    for (const bloco of blocos(ids, 500)) {
+      const r = await ctx.consultar(CONSULTA_FILIAIS, { external_ids: bloco });
+      for (const f of r.por_external_id) achadas.add(f.external_id);
+    }
+  } catch (e) {
+    if (!ehConsultaIndisponivel(e)) ctx.log.warn({ consulta: 'core.filiais@1' }, 'não foi possível conferir as filiais; vale só o que o Hub já recebeu');
+    return new Set();
+  }
+  return achadas;
 }
 
 async function avisarCadastroIncompleto(ctx: ContextoConsumo, aceitas: readonly LinhaValida[]): Promise<AvisoLinha[]> {

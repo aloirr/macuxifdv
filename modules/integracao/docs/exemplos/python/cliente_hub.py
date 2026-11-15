@@ -29,7 +29,7 @@ from urllib.parse import quote, urlparse
 
 import requests
 
-URL_PADRAO = "https://api-demo.macuxifdv.com.br/integracao/v1"
+URL_PADRAO = "https://api.macuxifdv.com.br/integracao/v1"
 RE_CHAVE = re.compile(r"^mxc_[A-Za-z0-9_-]{43}$")
 STATUS_FINAIS = ("concluido", "concluido_com_erros", "falhou")
 STATUS_RECUSA_LOTE = (400, 409, 413, 422, 426)

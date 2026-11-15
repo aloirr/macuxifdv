@@ -106,13 +106,17 @@ export function classificarErroZod(erro: ZodError, ctx: { indice: number; extern
 }
 
 /** RN-INT-04: a linha cita um external_id de outra entidade que ainda não existe. */
-export function erroReferenciaAusente(indice: number, externalId: string | null, campo: string, entidadeAlvo: string): LinhaErro {
+export function erroReferenciaAusente(indice: number, externalId: string | null, campo: string, entidadeAlvo: string, codigoCitado?: string): LinhaErro {
+  const mensagem =
+    entidadeAlvo === 'filial' && codigoCitado
+      ? `Filial '${codigoCitado}' não cadastrada (campo ${campo}). Envie a filial na carga e reprocesse.`
+      : `O campo "${campo}" aponta para um(a) ${entidadeAlvo} que ainda não foi carregado(a). Envie ${entidadeAlvo} antes; a linha será reprocessada.`;
   return {
     indice,
     external_id: externalIdDoErro(externalId),
     codigo: 'referencia_ausente',
     campo,
-    mensagem: `O campo "${campo}" aponta para um(a) ${entidadeAlvo} que ainda não foi carregado(a). Envie ${entidadeAlvo} antes; a linha será reprocessada.`,
+    mensagem,
     reprocessavel: true,
   };
 }

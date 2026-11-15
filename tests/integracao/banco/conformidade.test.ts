@@ -47,6 +47,9 @@ const DEFINER_REVISADAS: Record<string, string> = {
   // T-0078 (0024; R-20261105-001055-banco-dados): /v1/saude
   'plataforma.resumo_outbox(p_nomes text[], p_max_tentativas integer)':
     'saúde: só agregados da outbox de todos os tenants (pendentes, parados, segundos do mais antigo); sem id, tenant, payload ou erro',
+  // 0073 (rodapé legal; R-20261114-221000-alexandre): rota pública GET /v1/publico/dados-legais, sem sessão nem tenant
+  'plataforma.dados_legais_publicos()':
+    'rodapé da tela Entrar: só razao_social, cnpj e site da Macuxi (dado de pessoa jurídica); sem a linha = padrão; STABLE; nem worker nem portal',
 };
 
 /**
@@ -83,6 +86,30 @@ const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
     'só dado técnico; audita só a contagem',
   'plataforma.sa_diagnostico(p_sid uuid, p_id uuid)':
     `${SA}; só super-admin; detalhe + chave do print recebido (a API lê os bytes); P0002 se não achar; audita o id`,
+  // ADR 0052 (0072; Inativar, Backup e Excluir a empresa; RN-PLA-07..11): só super-admin (admin do cliente 42501, sessão inválida 28000)
+  'plataforma.sa_inativar_tenant(p_sid uuid, p_tenant uuid, p_motivo text)':
+    `${SA}; só super-admin; suspenso + inativada_em, motivo opcional da lista (sem texto livre); já suspenso = sem_mudanca; audita e grava tenant.inativado@1`,
+  'plataforma.sa_reativar_tenant(p_sid uuid, p_tenant uuid)':
+    `${SA}; só super-admin; volta a ativo (data e motivo limpos pelo gatilho); backup em andamento deixa de ser consistente; audita`,
+  'plataforma.sa_pedir_backup(p_sid uuid, p_tenant uuid, p_id uuid)':
+    `${SA}; só super-admin; um backup em andamento por empresa (55000); idempotente por p_id; consistente = empresa inativa no pedido (RN-PLA-08)`,
+  'plataforma.sa_listar_backups(p_sid uuid, p_tenant uuid, p_backup uuid)':
+    `${SA}; só super-admin; até 20 backups da empresa (também da excluída), do mais novo; p_backup = só aquele`,
+  'plataforma.sa_pedir_exclusao(p_sid uuid, p_tenant uuid, p_id uuid, p_backup uuid, p_codigo text)':
+    `${SA}; só super-admin; exclusao_bloqueada (RN-PLA-09, código no hint) + código da licença digitado; idempotente por p_id; audita`,
+  'plataforma.sa_ler_exclusao(p_sid uuid, p_tenant uuid)': `${SA}; só super-admin; a exclusão mais recente da empresa (null = nenhuma)`,
+  'plataforma.sa_reautenticar(p_sid uuid)':
+    `${SA}; só super-admin; (super_admin_id, email, senha_hash) só da conta ativa DA SESSÃO, para a API conferir a senha; audita sem dado pessoal`,
+  'plataforma.sa_acoes_das_empresas(p_sid uuid)':
+    `${SA}; só super-admin; o bloco acoes de cada empresa viva (inativação, último backup, exclusão e exclusao_bloqueada)`,
+  // ADR 0047 (0070; planos e licenças, passo "Empresa com plano"): só super-admin (admin do cliente 42501, sessão inválida 28000)
+  'plataforma.sa_gravar_assinatura(p_sid uuid, p_tenant uuid, p jsonb)':
+    `${SA}; só super-admin; uma assinatura viva por tenant (trava consultiva; já existe = existente, nada muda); plano/adicional inválido 22023 ` +
+    'com o código no hint; tenant inexistente P0002; audita sem dado pessoal',
+  // 0073 (rodapé legal; R-20261114-221000-alexandre): "Dados da Macuxi" no portal, só super-admin (42501 / 28000)
+  'plataforma.sa_dados_legais(p_sid uuid)': `${SA}; só super-admin; o mesmo jsonb da dados_legais_publicos (razao_social, cnpj, site)`,
+  'plataforma.sa_gravar_dados_legais(p_sid uuid, p jsonb)':
+    `${SA}; só super-admin; exatamente razao_social, cnpj e site (22023), CHECKs (23514); idempotente (igual não muda nem audita); for update; audita antes e depois`,
 };
 
 /** Funções de deploy (T-0093, ADR 0031 §5): SECURITY INVOKER, chamadas pela conexão de administração; ninguém mais executa. */
@@ -104,6 +131,34 @@ const DEFINER_REVISADAS_WORKER: Record<string, string> = {
   // T-0158 (0058, ADR 0043; R-20261110-154349-banco-dados): NÃO entra em DEFINER_REVISADAS (o app não executa)
   'plataforma.expurgar_diagnosticos(p_agora timestamp with time zone DEFAULT now(), p_limite integer DEFAULT 500)':
     'retenção LGPD de 90 dias (prints aguardando, 7 dias): apaga de fato o diagnóstico e o arquivo do print na mesma transação; devolve as chaves; p_limite 1..5000',
+  // ADR 0052 (0072; Inativar, Backup e Excluir a empresa; RN-PLA-07..11): NÃO entram em DEFINER_REVISADAS (o app não executa);
+  // o tenant sai sempre da linha do job, nunca de argumento (a tenant_esta_ativo só responde sim ou não)
+  'plataforma.tenant_esta_ativo(p_tenant uuid)':
+    'políticas despacho_outbox e despacho_email pulam a empresa inativa (RN-PLA-07): só o booleano (ativo e não apagado), nenhuma coluna',
+  'plataforma.pegar_backup()': 'próximo backup em andamento sem concessão viva (skip locked; concessão de 10 min); devolve o job e as partes já confirmadas',
+  'plataforma.tabelas_do_backup(p_backup uuid)':
+    'ordem_do_backup (tabelas com tenant_id em ordem de FK, chave primária e colunas adiadas) só para backup em andamento',
+  'plataforma.exportar_backup_pagina(p_backup uuid, p_tabela text, p_depois jsonb, p_limite integer)':
+    'uma página keyset da tabela, só do tenant da linha do backup; tabela fora da ordem_do_backup 22023; p_limite 1..5000; renova a concessão',
+  'plataforma.registrar_parte_backup(p_backup uuid, p_tabela text, p_linhas bigint, p_bytes bigint, p_sha256 text)':
+    'confirma a parte (linhas, bytes, sha256 hex), idempotente por (backup, tabela); progresso até 90%; renova a concessão',
+  'plataforma.fechar_backup(p_backup uuid, p_resultado jsonb)':
+    'pronto (todas as partes, senão BACKUP_INCOMPLETO) ou falhou; consistente só se a empresa seguiu inativa (RN-PLA-08); expira em 30 dias; evento e auditoria; idempotente',
+  'plataforma.backups_vencidos(p_limite integer)':
+    'retenção (RN-PLA-11): só (backup_id, tenant_id) vencidos a apagar do bucket; nunca o da exclusão em andamento; p_limite 1..500',
+  'plataforma.marcar_backup_apagado(p_backup uuid)': 'situação apagado (o registro fica) só se vencido pela mesma regra da backups_vencidos (55000); idempotente',
+  'plataforma.pegar_exclusao()': 'próxima exclusão em andamento sem concessão viva (skip locked; concessão de 10 min)',
+  'plataforma.executar_exclusao(p_exclusao uuid)':
+    'etapa banco: reconfere a exclusao_bloqueada (RN-PLA-09), excluir_tenant, empresa_excluida (código nunca reaproveitado, RN-PLA-10), backup guardado 90 dias; idempotente',
+  'plataforma.fechar_exclusao(p_exclusao uuid, p_resultado jsonb)':
+    'concluida só na etapa arquivos (backup guardado 90 dias a contar daqui); falhou só na etapa banco (empresa intacta); idempotente',
+  // 0079 (T-0174, ADR 0054; fotos em lote): laço de trabalhos sob demanda; NÃO entram em DEFINER_REVISADAS (o app só lê e insere)
+  'plataforma.trabalho_reservar(p_processo text, p_trava_s integer)':
+    'reserva o próximo trabalho pendente de tenant ativo (skip locked) com trava de p_trava_s; devolve só id, tenant, módulo, nome, alvo, tentativas e fatias',
+  'plataforma.trabalho_devolver(p_id uuid, p_processo text, p_resultado text, p_erro text, p_espera_s integer)':
+    'devolve o trabalho do próprio processo (concluído, falhou ou de novo após p_espera_s); erro só como código; false se a trava não é mais dele',
+  'plataforma.trabalho_renovar(p_id uuid, p_processo text, p_trava_s integer)':
+    'estende a trava entre os itens só se o trabalho ainda é do processo; false = não é mais dele',
 };
 
 /**
@@ -139,9 +194,33 @@ async function definerExecutaveis(admin: pg.Client, papel: string, schemas: stri
   return r.rows;
 }
 
-/** Só as revisadas, todas com search_path fixo e nenhuma executável por PUBLIC. */
-function conferirDefiner(funcoes: Definer[], revisadas: Record<string, string>): void {
-  expect(funcoes.map((x) => x.assinatura).sort()).toEqual(Object.keys(revisadas).sort());
+/**
+ * 0079: depois do merge da cadeia de migrações (#352), tirar daqui.
+ * Única tolerância nominal da lista do worker: estas 3 só deixam de ser exigidas enquanto NÃO existirem no banco.
+ * Qualquer outra função da lista continua exigida (apagada ou renomeada reprova).
+ */
+const DEFINER_WORKER_TOLERADAS_0079 = [
+  'plataforma.trabalho_reservar(p_processo text, p_trava_s integer)',
+  'plataforma.trabalho_devolver(p_id uuid, p_processo text, p_resultado text, p_erro text, p_espera_s integer)',
+  'plataforma.trabalho_renovar(p_id uuid, p_processo text, p_trava_s integer)',
+];
+
+/** Das toleradas da 0079, as que ainda não existem no banco (mesmo formato de assinatura de definerExecutaveis). */
+async function toleradas0079Ausentes(admin: pg.Client, schemas: string[]): Promise<Set<string>> {
+  const r = await admin.query<{ assinatura: string }>(
+    `select n.nspname || '.' || p.proname || '(' || pg_get_function_arguments(p.oid) || ')' as assinatura
+       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = any($1)`,
+    [schemas],
+  );
+  const existentes = new Set(r.rows.map((x) => x.assinatura));
+  return new Set(DEFINER_WORKER_TOLERADAS_0079.filter((a) => !existentes.has(a)));
+}
+
+/** Só as revisadas, todas com search_path fixo e nenhuma executável por PUBLIC; `ausentes` tira da lista esperada só as nomeadas acima. */
+function conferirDefiner(funcoes: Definer[], revisadas: Record<string, string>, ausentes?: Set<string>): void {
+  const esperadas = Object.keys(revisadas).filter((a) => !ausentes?.has(a));
+  expect(funcoes.map((x) => x.assinatura).sort()).toEqual(esperadas.sort());
   for (const f of funcoes) {
     expect(f.config?.some((c) => c.startsWith('search_path=')), `${f.assinatura} sem search_path fixo`).toBe(true);
     expect(f.publico, `${f.assinatura} executável por PUBLIC`).toBe(false);
@@ -395,7 +474,8 @@ describe.skipIf(semBanco())('S0-023/S0-028 conformidade do banco para o isolamen
     });
 
     it('funções SECURITY DEFINER executáveis pelo worker (macuxi_worker): só as revisadas, com search_path fixo e sem EXECUTE para PUBLIC', async () => {
-      conferirDefiner(await definerExecutaveis(admin, PAPEL_WORKER, schemas), DEFINER_REVISADAS_WORKER);
+      // 0079: depois do merge da cadeia de migrações (#352), tirar daqui (só as 3 trabalho_* toleradas enquanto não existirem)
+      conferirDefiner(await definerExecutaveis(admin, PAPEL_WORKER, schemas), DEFINER_REVISADAS_WORKER, await toleradas0079Ausentes(admin, schemas));
     });
 
     it('T-0091 funções SECURITY DEFINER executáveis pelo portal (macuxi_portal): só as sa_* revisadas, com search_path fixo e sem EXECUTE para PUBLIC', async () => {
