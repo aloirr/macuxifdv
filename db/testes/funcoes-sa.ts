@@ -127,12 +127,30 @@ export const FUNCOES_SA_0073 = ['plataforma.sa_dados_legais(uuid)', 'plataforma.
 /** A leitura pública dos dados legais (0073): SECURITY DEFINER, sem sessão; EXECUTE só ao macuxi_app. */
 export const DADOS_LEGAIS_PUBLICOS = 'plataforma.dados_legais_publicos()';
 
+/** As 27 sa_* públicas do banco parado na 0073: as 25 até a 0072 (FUNCOES_SA_ATE_0072) + as 2 da 0073. */
+export const FUNCOES_SA_ATE_0073 = [...FUNCOES_SA_ATE_0072, ...FUNCOES_SA_0073] as const;
+
 /**
- * As sa_* públicas do banco migrado até a ÚLTIMA (0073): as 25 até a 0072 (FUNCOES_SA_ATE_0072) + as 2 da 0073 = 27. Use esta
- * lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040
- * ou 0041.
+ * As 4 sa_* da 0082 (T-0182, logo do cliente; desenho docs/desenho/T-0182-logo-cliente.md §1.2): ler a marca da empresa
+ * (super-admin em qualquer uma; admin do cliente só na empresa atual da sessão) e gravar o nome fantasia, gravar e remover a
+ * logo (SÓ super-admin; admin do cliente = 42501). EXECUTE só ao macuxi_portal. A interna que monta o jsonb
+ * (plataforma.marca_da_empresa_json, sem EXECUTE para ninguém além do dono) fica em MARCA_INTERNA_0082.
  */
-export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0072, ...FUNCOES_SA_0073] as const;
+export const FUNCOES_SA_0082 = [
+  'plataforma.sa_marca_da_empresa(uuid, uuid)',
+  'plataforma.sa_gravar_nome_fantasia(uuid, uuid, text)',
+  'plataforma.sa_gravar_logo(uuid, uuid, jsonb)',
+  'plataforma.sa_remover_logo(uuid, uuid)',
+] as const;
+/** Interna da 0082 (SECURITY INVOKER, chamada de dentro das sa_* da marca): sem EXECUTE para ninguém além do dono. */
+export const MARCA_INTERNA_0082 = 'plataforma.marca_da_empresa_json(uuid)';
+
+/**
+ * As sa_* públicas do banco migrado até a ÚLTIMA (0082): as 27 até a 0073 (FUNCOES_SA_ATE_0073) + as 4 da 0082 = 31. Use esta
+ * lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040
+ * ou 0041. Se as migrações 0074 a 0081 trouxerem sa_* novas, elas entram aqui antes da 0082.
+ */
+export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0073, ...FUNCOES_SA_0082] as const;
 
 /**
  * Funções do worker da 0072 (ADR 0052): SECURITY DEFINER, EXECUTE só ao macuxi_worker (o tenant sai da linha do job).

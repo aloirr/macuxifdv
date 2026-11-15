@@ -1006,3 +1006,57 @@ select * from plataforma.exportar_backup_pagina($1, $2, $3::jsonb, 5000);
 ### 0074 — pacote pronto da primeira carga (`0074_plataforma_sync_pacote`; ADR 0054)
 `plataforma.sync_pacote` e `plataforma.sync_pacote_pedido`: dicionário completo, RLS, grants, índices e ciclo de vida em
 [sync-pacote.md](sync-pacote.md).
+
+## Logo e nome fantasia da empresa (0082, T-0182) — colunas em `tenant`. Fora do sync
+Migração `0082_plataforma_tenant_logo` (aditiva; volta: `.down.sql`, que APAGA o nome fantasia e os metadados das logos — os
+objetos ficam órfãos no armazenamento, apagáveis pela chave `<tenant_id>/plataforma/...`; antes do down, volte a API sem as
+rotas da marca). Desenho `docs/desenho/T-0182-logo-cliente.md` §1.2; spec `docs/design/telas/logo-cliente.md`; contrato
+`MarcaEmpresaSchema` em `packages/platform-sdk/src/empresa-logo.ts`. Decisão do gerente (T-0182): **só o super-admin grava**
+(RN-CORE-33; a logo e o nome fantasia são cadastrados só no portal `config.`). Drizzle: colunas novas do `tenant` em
+`db/esquema/plataforma.ts`. Teste: `db/testes/tenant-logo.db.test.ts`.
+
+### tenant — colunas da marca
+Os **bytes** da logo ficam no armazenamento de arquivos da plataforma (disco em dev/CI, S3 em produção); aqui só os metadados.
+Nenhum índice novo (lida sempre pela PK).
+
+| Coluna | Tipo | Regra (CHECK) |
+|---|---|---|
+| nome_fantasia | text | sem espaço nas pontas, não vazio, até 80 (`tenant_nome_fantasia_valido`); null = a tela usa a razão social (`nome`) |
+| logo_id | uuid | gerado pela API a cada envio |
+| logo_tipo | text | `image/png` ou `image/jpeg` (`tenant_logo_tipo_valido`) |
+| logo_sha256 | text | `^[0-9a-f]{64}$` (`tenant_logo_sha256_hex`); idempotência e `ETag` |
+| logo_tamanho_bytes | integer | 1 a 1048576 (`tenant_logo_tamanho_faixa`) |
+| logo_largura_px | integer | 1 a 4096 (`tenant_logo_largura_faixa`) |
+| logo_altura_px | integer | 200 a 4096 (`tenant_logo_altura_faixa`) |
+| logo_chave | text | `<id do tenant>/plataforma/<aaaa-mm>/<logo_id>.png` ou `.jpg`, com a extensão do `logo_tipo` (`tenant_logo_chave_formato`): só a chave do próprio tenant e da própria logo |
+| logo_atualizada_em | timestamptz | quando a logo atual foi gravada |
+
+CHECK `tenant_logo_completa`: as 8 `logo_*` todas nulas ou todas preenchidas.
+Leitura pelo app: o `macuxi_app` já lê a linha do **próprio** tenant (`select` da 0001 com a política `isolamento_tenant`); a
+API lê as colunas novas junto com o fuso, sem grant novo. Ninguém da aplicação grava direto (sem `update`); o portal não lê a
+tabela (só pelas funções).
+
+### Funções do portal (SECURITY DEFINER; EXECUTE só ao `macuxi_portal`; mais 4 `sa_*`)
+Todas: sessão inválida = 28000; tenant nulo = 22023; tenant inexistente ou apagado = P0002 (`hint` `TENANT_NAO_ENCONTRADO`),
+conferido **depois** do perfil (o admin de outra empresa não descobre se ela existe). Retorno `MarcaEmpresa` + `logo.chave`
+(só a API usa; a rota tira antes de responder):
+`{ tenant_id, razao_social, nome_fantasia, logo: null | { sha256, tipo, tamanho_bytes, largura_px, altura_px, atualizada_em, chave } }`.
+
+| Função | Quem | Retorno e regra | Erros |
+|---|---|---|---|
+| `sa_marca_da_empresa(p_sid uuid, p_tenant uuid) returns jsonb` | super-admin (qualquer empresa) ou admin do cliente só na empresa atual da sessão | a marca | 42501 (outra empresa) |
+| `sa_gravar_nome_fantasia(p_sid uuid, p_tenant uuid, p_nome text) returns jsonb` | **só super-admin** | a marca; `null` apaga; igual = nada muda nem audita; novo audita `sa.empresa.nome_fantasia` `{ antes, depois }`; `for update` | 42501; 23514 (CHECK) |
+| `sa_gravar_logo(p_sid uuid, p_tenant uuid, p jsonb) returns jsonb` | **só super-admin** | a marca + `chave_anterior` (texto ou null). `p` com exatamente `id, tipo, sha256, tamanho_bytes, largura_px, altura_px, chave`. Mesmo `sha256` do gravado = nada muda nem audita (a `logo.chave` da resposta é a gravada: se for outra, a API apaga o objeto que acabou de enviar). Senão grava, `logo_atualizada_em = now()`, audita `sa.empresa.logo.gravar` `{ sha256_antes, sha256_depois }` (sem bytes) | 42501; 22023 (forma: chave a mais/a menos, tipo JSON errado, `id` fora de UUID minúsculo, número não inteiro ou com mais de 9 dígitos); 23514 (CHECKs) |
+| `sa_remover_logo(p_sid uuid, p_tenant uuid) returns jsonb` | **só super-admin** | a marca (`logo: null`) + `chave_anterior`; já sem logo = nada muda nem audita; senão audita `sa.empresa.logo.remover` `{ sha256_antes }` | 42501 |
+
+Interna (SECURITY INVOKER; só o dono): `marca_da_empresa_json(p_tenant uuid)` monta o jsonb num lugar só.
+
+Consultas da API (referência):
+```sql
+select plataforma.sa_marca_da_empresa($1, $2) as r;              -- GET …/marca e GET …/logo (chave e tipo)
+select plataforma.sa_gravar_nome_fantasia($1, $2, $3) as r;      -- PUT …/marca
+select plataforma.sa_gravar_logo($1, $2, $3::jsonb) as r;        -- PUT …/logo, depois de gravar o objeto
+select plataforma.sa_remover_logo($1, $2) as r;                  -- DELETE …/logo, depois apaga chave_anterior
+select nome, nome_fantasia, logo_sha256, logo_tipo, logo_largura_px, logo_altura_px, logo_chave
+  from plataforma.tenant where id = $1;                           -- macuxi_app, contexto do tenant (lerTenant)
+```

@@ -39,7 +39,7 @@ import { dadosFaseM, TENANT_FASE_M } from '../seeds/fase-m/fase-m';
 import { dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS, PEPPER_HUB_FIXTURE } from '../seeds/fixtures/dois-tenants';
 import { carregarFixtureDosTestes, dadosTreinamento, ORDEM_TREINAMENTO } from './fixture-treinamento';
 import { COLUNAS_SEM_ESPELHO_DRIZZLE, TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
-import { DADOS_LEGAIS_PUBLICOS, FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_0042, FUNCOES_SA_0058, FUNCOES_SA_0070, FUNCOES_SA_0072, FUNCOES_SA_0073, FUNCOES_WORKER_0072 } from './funcoes-sa';
+import { DADOS_LEGAIS_PUBLICOS, FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_0042, FUNCOES_SA_0058, FUNCOES_SA_0070, FUNCOES_SA_0072, FUNCOES_SA_0073, FUNCOES_SA_0082, FUNCOES_WORKER_0072 } from './funcoes-sa';
 import { idDeChave, idDeterministico, idFixo, idMedida, idUsuarioPerfil } from '../src/ids';
 import { lerMigracoes } from '../src/migrador';
 import { PASTA_DB } from '../src/config';
@@ -129,7 +129,7 @@ const sqlUp = migracoes.map((m) => m.up).join('\n');
 function tabelasCriadas(): Map<string, string> {
   const mapa = new Map<string, string>();
   for (const m of /create table (?:if not exists )?([a-z_]+\.[a-z_]+) \(([\s\S]*?)\n\);/g[Symbol.matchAll](sqlUp)) mapa.set(m[1]!, m[2]!);
-  for (const m of /^alter table ([a-z_]+\.[a-z_]+) add column (?:if not exists )?([a-z_]+) ([a-z][^;]*);/gm[Symbol.matchAll](sqlUp)) {
+  for (const m of /^alter table ([a-z_]+\.[a-z_]+) add column (?:if not exists )?([a-z_][a-z0-9_]*) ([a-z][^;]*);/gm[Symbol.matchAll](sqlUp)) {
     mapa.set(m[1]!, `${mapa.get(m[1]!) ?? ''}\n  ${m[2]!} ${m[3]!}`);
   }
   return mapa;
@@ -203,6 +203,7 @@ describe('migrações (estático)', () => {
     expect(nomes[67]).toBe('0068_plataforma_tenant_numero_licenca'); // R-20261114-130500/131200/131500: código da licença UF + 4 dígitos aleatórios (CHECK aceita os legados ou ^UF[0-9]{4}$), provisionar_tenant sem codigo sorteia pela uf e é idempotente pelo id do chamador, atribuir_codigo_licenca (tenant-numero-licenca.db.test.ts)
     expect(nomes[68]).toBe('0069_core_cargo_hierarquia'); // decisão do dono (14/11): plataforma.perfil.cargo (5 da plataforma, com promotor), gerente obrigatório do promotor (gatilhos adiados), um perfil vivo por usuário (exclusão adiada) e view core.v_usuario_hierarquia (cargo-hierarquia.db.test.ts)
     expect(nomes[73]).toBe('0074_plataforma_sync_pacote'); // ADR 0054 (pacote da primeira carga): plataforma.sync_pacote e sync_pacote_pedido (app lê e pede, worker gera), fora do sync, e índice por filial em catalogo.tabela_preco_item (sync-pacote.db.test.ts)
+    expect(nomes[81]).toBe('0082_plataforma_tenant_logo'); // T-0182 (logo do cliente): plataforma.tenant ganha nome_fantasia e as 8 logo_* (tudo ou nada), sa_marca_da_empresa, sa_gravar_nome_fantasia, sa_gravar_logo e sa_remover_logo (tenant-logo.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
@@ -814,8 +815,10 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     // sa_listar_tenants com create or replace
     // 0072 (ADR 0052): as 8 sa_* das ações da empresa e as 11 do worker (empresa-acoes.db.test.ts)
     // 0073 (rodapé legal): a leitura pública (app) e as 2 sa_* dos dados legais (portal) (dados-legais.db.test.ts)
+    // 0082 (T-0182, logo do cliente): as 4 sa_* da marca da empresa (portal); a interna marca_da_empresa_json é invoker
+    // (tenant-logo.db.test.ts)
     expect(novas.map((x) => x[1]).sort()).toEqual(
-      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', ...FUNCOES_SA_0070.map(nome), ...FUNCOES_SA_0072.map(nome), ...FUNCOES_WORKER_0072.map(nome), nome(DADOS_LEGAIS_PUBLICOS), ...FUNCOES_SA_0073.map(nome)].sort(),
+      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', ...FUNCOES_SA_0070.map(nome), ...FUNCOES_SA_0072.map(nome), ...FUNCOES_WORKER_0072.map(nome), nome(DADOS_LEGAIS_PUBLICOS), ...FUNCOES_SA_0073.map(nome), ...FUNCOES_SA_0082.map(nome)].sort(),
     );
     for (const x of novas) expect(x[2], `${x[1]}: pg_temp por último`).toMatch(/, pg_temp$/);
     expect(depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)]).length).toBe(novas.length);
