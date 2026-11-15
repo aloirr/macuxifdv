@@ -173,7 +173,9 @@ describe.skipIf(semBanco())('Core T-0082 x Postgres: plano de RV (RN-CORE-29/30)
 
   it('RN-CORE-05: a RV do tenant B não traz usuário do A', async () => {
     const rv = await chamar('GET', 'rv', adminB, 'req-rv-16', { query: { periodo: PERIODO } });
-    const idsB = new Set<string>(Object.values(B.usuarios) as string[]);
-    expect(rv.pessoas.every((p: { usuario_id: string }) => idsB.has(p.usuario_id))).toBe(true);
+    // a lista não é a fixa da fixture: outros testes do pacote criam usuários em B (ex.: usuarios.db.test); o que vale é nenhum de A
+    const idsA = new Set<string>(Object.values(A.usuarios) as string[]);
+    const ids = rv.pessoas.map((p: { usuario_id: string }) => p.usuario_id);
+    expect(ids.filter((id: string) => idsA.has(id))).toEqual([]);
   });
 });
