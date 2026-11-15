@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { atingeContraste, contraste, MINIMO_CONTRASTE } from '../comum/contraste';
-import { paresDaEntrada, TEMAS_ENTRADA, temaDaEntrada } from './entrada';
+import { MEDIDAS_FRASE_CARGA, paresDaEntrada, TEMAS_ENTRADA, temaDaEntrada } from './entrada';
 
 describe('tela de entrada (T-0172, docs/design/entrada-sync.md §4)', () => {
   it('Campo na faixa Azul noite com as cores da proposta entrada-sync §2', () => {
@@ -44,6 +44,28 @@ describe('tela de entrada (T-0172, docs/design/entrada-sync.md §4)', () => {
         expect(contraste(par.fg, par.bg), `${nome}: ${par.uso}`).toBeGreaterThanOrEqual(MINIMO_CONTRASTE[par.tipo]);
         expect(atingeContraste(par), `${nome}: ${par.uso}`).toBe(true);
       }
+    }
+  });
+
+  it('título "Você sabia?", frase e aviso da carga: medidas da spec carga-aviso-frases (T-0174, R-20261115-080500)', () => {
+    expect(MEDIDAS_FRASE_CARGA).toEqual({
+      titulo: { abaixoDoOla: 12, lampada: 16, lampadaAoTexto: 6, fonte: 'semibold', tamanho: 13, linha: 18, ateFrase: 4 },
+      frase: { larguraMax: 280, linhasMax: 2, livreAteAviso: 24, fonte: 'body', tamanho: 14, linha: 20 },
+      aviso: { fonte: 'body', tamanho: 14, linha: 20, acimaDaBarra: 18 },
+    });
+  });
+
+  it('o aviso não tem destaque: sem tokens de caixa, borda ou fundo (MC-0078 caiu)', () => {
+    for (const tema of Object.values(TEMAS_ENTRADA)) {
+      expect(Object.keys(tema).some((k) => /^aviso/.test(k))).toBe(false);
+    }
+    expect(Object.keys(MEDIDAS_FRASE_CARGA.aviso).sort()).toEqual(['acimaDaBarra', 'fonte', 'linha', 'tamanho']);
+  });
+
+  it('título, lâmpada e frase em textoClaro, com contraste de texto nos dois temas', () => {
+    for (const tema of Object.values(TEMAS_ENTRADA)) {
+      const par = paresDaEntrada(tema).find((p) => p.uso.includes('Você sabia?'));
+      expect(par).toMatchObject({ fg: tema.textoClaro, bg: tema.fundo, tipo: 'texto' });
     }
   });
 });

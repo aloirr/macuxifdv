@@ -2,7 +2,7 @@
 
 > 2026-11-12 · designer-ux · base: `docs/marca/propostas/2026-11-12-entrada-sync/` (proposta e `entrada-sync.png`), aprovada pelo
 > dono do produto em 12/11/2026 ("Aprovado. Quero na 1.0.5"); manual da marca §4 e §6.
-> Código: tokens em `packages/ui/src/mobile/entrada.ts` (`TEMAS_ENTRADA`, `temaDaEntrada`), testados em `entrada.test.ts`.
+> Código: tokens em `packages/ui/src/mobile/entrada.ts` (`TEMAS_ENTRADA`, `temaDaEntrada`, `MEDIDAS_FRASE_CARGA`), testados em `entrada.test.ts`.
 > Quem faz: engenheiro-apps (tela, splash, rota `/sync`), modulo-core (etapas: contrato `ProgressoEntrada`, RN-CORE-40),
 > design-de-marca (parecer no print do aparelho).
 
@@ -21,6 +21,13 @@ A tela é sempre a mesma: o logo parado e, embaixo, a área de sincronização. 
 ## 2. Área de baixo (estados 2, 4, 5 e 6)
 De cima para baixo, alinhada à margem lateral de 32 dp:
 1. **"Olá, {primeiro nome}"** (só depois do login): IBM Plex Sans 15, `textoClaro`, centralizado, logo abaixo do logo.
+   - **Título "Você sabia?" com lâmpada e frase sorteada** (estados 4 e 5), logo abaixo do "Olá": uma frase por carga, parada;
+     título, lâmpada (`<Icon name="lampada">`) e frase em `textoClaro`. Em tela baixa, a frase cai para 1 linha ou some, e o
+     título some junto.
+   - **Aviso** (estados 4 e 5), logo acima da linha da barra: "Baixando os dados do servidor. Não desligue.", Plex Sans 14,
+     `texto`, sem caixa, sem borda e sem negrito. No erro (estado 6) sai.
+   - Medidas em `MEDIDAS_FRASE_CARGA` (`packages/ui/src/mobile/entrada.ts`); sorteio, respiro e cadastro em
+     `docs/design/carga-aviso-frases/spec.md` (T-0174).
 2. **Linha da barra:** à esquerda "Etapa {n} de {N} · {nome da etapa}" (Plex Sans 13, `texto`); à direita o percentual (Plex Sans
    Bold 13, `texto`, números tabulares). Antes do login, o nome da tarefa no lugar da etapa. Pronto: "Pronto" e "100%".
 3. **Barra:** 6 dp de altura, raio 3, trilho `trilho`, preenchimento `preenchimento`. É o percentual do total (ADR 0017), de 0 a
@@ -41,7 +48,7 @@ De cima para baixo, alinhada à margem lateral de 32 dp:
    **Tela baixa:** se a lista não cabe entre o logo e a borda de baixo, ela sai e ficam só a linha da barra e a barra.
 
 **Fora da tela:**
-- frase que se alterna, dica, texto sobre o que o app faz por trás, nome de tabela, de entidade ou de módulo;
+- frase que se alterna durante a carga, texto sobre o que o app faz por trás, nome de tabela, de entidade ou de módulo;
 - percentual por etapa e contagem de registros.
 
 ## 3. Parou (estado 6)

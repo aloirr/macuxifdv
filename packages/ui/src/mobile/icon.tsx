@@ -51,7 +51,8 @@ export type IconName =
   | 'config'
   | 'nuvem'
   | 'olho'
-  | 'olhoRiscado';
+  | 'olhoRiscado'
+  | 'lampada';
 
 interface Props {
   name: IconName;
@@ -288,6 +289,14 @@ function render(name: IconName, c: Common) {
           <Path d="M6.6 6.6C3.7 8.5 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6" {...c} />
           <Path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" {...c} />
           <Path d="m3 3 18 18" {...c} />
+        </>
+      );
+    case 'lampada':
+      // título "Você sabia?" da tela de carga (T-0174, R-20261115-080500)
+      return (
+        <>
+          <Path d="M9 18h6M10 21h4" {...c} />
+          <Path d="M9 15.5c0-1.4-.7-2.3-1.6-3.3A5.5 5.5 0 1 1 16.6 12.2c-.9 1-1.6 1.9-1.6 3.3z" {...c} />
         </>
       );
     case 'nuvem':

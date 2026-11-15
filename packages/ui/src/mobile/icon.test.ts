@@ -30,4 +30,12 @@ describe('ícones do kit mobile', () => {
       expect(bloco, nome).not.toMatch(/stroke=|strokeWidth=|fill=|#[0-9A-Fa-f]{3,6}/);
     }
   });
+
+  it('tem a lâmpada do título "Você sabia?" da tela de carga, no padrão do traço comum (T-0174)', () => {
+    expect(nomesDoTipo()).toContain('lampada');
+    const bloco = /case 'lampada':([\s\S]*?)\);\n/.exec(fonte)?.[1] ?? '';
+    expect(bloco).toContain('{...c}');
+    expect(bloco).not.toMatch(/stroke=|strokeWidth=|fill=|#[0-9A-Fa-f]{3,6}/);
+  });
 });
+
