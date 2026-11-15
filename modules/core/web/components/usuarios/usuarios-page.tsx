@@ -11,6 +11,7 @@ import { CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasE
 import { efetivosPelasDependencias } from '../../../domain/licencas';
 import {
   acaoDeSenha,
+  almocoPadraoDoTenant,
   corpoDeRedefinicao,
   faltasDaSenhaDigitada,
   gerarSenhaNoNavegador,
@@ -25,6 +26,7 @@ import {
   errosDoFormulario,
   FORMULARIO_VAZIO,
   formularioDoUsuario,
+  formularioNovo,
   type FormularioUsuario,
   ERRO_SEM_PERFIL,
   opcoesDeChefia,
@@ -36,6 +38,8 @@ import { regrasDoCargo } from '../../../domain/cargos';
 import { modulosExibiveis, removidosDoFormulario } from '../../lib/acesso';
 import { efetivosDoUsuario } from '../../lib/licencas';
 import { useMe } from '../../lib/queries';
+import { CHAVE_JORNADA, criarApiJornada } from '../calendario/almoco-padrao';
+import { rotuloDoAlmoco } from '../../../domain/jornada';
 
 const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
 const BOTAO_LINHA = 'h-[44px] min-w-[88px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled';
@@ -87,6 +91,9 @@ export function UsuariosConteudo() {
   const [modal, setModal] = useState<Modal>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [form, setForm] = useState<FormularioUsuario>(FORMULARIO_VAZIO);
+  // T-0180 (D5): padrão da empresa para o rótulo e para preencher a jornada; sem permissão de ler o parâmetro, vale 12:00 às 13:00
+  const jornada = useQuery({ queryKey: CHAVE_JORNADA, queryFn: criarApiJornada().ler, enabled: podeEditar, retry: false });
+  const padraoAlmoco = almocoPadraoDoTenant(jornada.data);
   const [desmarcados, setDesmarcados] = useState<ReadonlySet<string>>(new Set());
   const [tentou, setTentou] = useState(false);
   const [erroApi, setErroApi] = useState<string | null>(null);
@@ -267,7 +274,7 @@ export function UsuariosConteudo() {
     setSemEmail(null);
     setErroApi(null);
     setTentou(false);
-    setForm(u ? formularioDoUsuario(u) : { ...FORMULARIO_VAZIO, perfil: 'vendedor', perfis: [] });
+    setForm(u ? formularioDoUsuario(u, padraoAlmoco) : formularioNovo(padraoAlmoco));
     setDesmarcados(new Set(u ? (licencas?.usuarios.find((x) => x.id === u.id)?.removidos ?? []) : []));
     setModal({ tipo: 'form', usuario: u });
   };
@@ -525,6 +532,25 @@ export function UsuariosConteudo() {
           <Campo rotulo="Código no ERP" erro={erroDe('external_id')}>
             <input value={form.external_id} maxLength={100} onChange={(e) => upd({ external_id: e.target.value })} className={CAMPO} data-testid="usuarios.campo-external-id" />
           </Campo>
+          {editando && (
+            <fieldset className="m-0 flex flex-col gap-2 border-0 p-0" data-testid="usuarios.jornada">
+              <legend className="mb-1 p-0 text-[13px] font-semibold text-ink">Jornada</legend>
+              <label className="flex min-h-[48px] items-center gap-3 rounded-xl border border-line bg-surface px-3 text-[14px] font-semibold text-ink">
+                <input type="checkbox" className="h-5 w-5 accent-accent" checked={form.almoco_padrao} onChange={(e) => upd({ almoco_padrao: e.target.checked })} data-testid="usuarios.campo-almoco-padrao" />
+                Padrão da empresa ({rotuloDoAlmoco(padraoAlmoco)})
+              </label>
+              {!form.almoco_padrao && (
+                <div className="flex flex-wrap items-start gap-3">
+                  <Campo rotulo="Início do almoço" erro={erroDe('almoco_inicio')}>
+                    <input value={form.almoco_inicio} inputMode="numeric" aria-invalid={erroDe('almoco_inicio') ? true : undefined} onChange={(e) => upd({ almoco_inicio: e.target.value })} className={`${CAMPO} w-[120px]`} data-testid="usuarios.campo-almoco-inicio" />
+                  </Campo>
+                  <Campo rotulo="Fim do almoço" erro={erroDe('almoco_fim')}>
+                    <input value={form.almoco_fim} inputMode="numeric" aria-invalid={erroDe('almoco_fim') ? true : undefined} onChange={(e) => upd({ almoco_fim: e.target.value })} className={`${CAMPO} w-[120px]`} data-testid="usuarios.campo-almoco-fim" />
+                  </Campo>
+                </div>
+              )}
+            </fieldset>
+          )}
           {licencas && (
             <fieldset className="m-0 flex flex-col gap-1 border-0 p-0" data-testid="usuarios.modulos-campo">
               <legend className="mb-1 p-0 text-[13px] font-semibold text-ink">Módulos</legend>

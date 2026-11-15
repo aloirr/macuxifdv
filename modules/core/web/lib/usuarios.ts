@@ -4,10 +4,10 @@
  */
 import { formatDateTime, formatTime } from '@macuxi/ui/web';
 import { temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
-import { DESCONTO_PEDIDO_PERMIL_MAX, type CriarUsuarioRequest, type EditarUsuarioRequest, type EmailAcesso, type EquipeOpcao, type UsuarioItem } from '../../contracts';
+import { ALMOCO_PADRAO_EMPRESA, DESCONTO_PEDIDO_PERMIL_MAX, type CriarUsuarioRequest, type EditarUsuarioRequest, type EmailAcesso, type EquipeOpcao, type HorarioAlmoco, type UsuarioItem } from '../../contracts';
 import { erroDoCodigoErp, errosDaHierarquia, hierarquiaDoCargo, type PessoaDaHierarquia } from '../../domain/cargos';
 import type { Cargo } from '@macuxi/platform-sdk';
-import { ERRO_SEM_PERFIL, faltasNaSenha, gerarSenhaTemporaria, validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo, type FaltaNaSenha } from '../../domain';
+import { ERRO_SEM_PERFIL, lerHorarioAlmocoTexto, textoDoMinuto, faltasNaSenha, gerarSenhaTemporaria, validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo, type FaltaNaSenha } from '../../domain';
 
 export interface FormularioUsuario {
   nome: string;
@@ -27,9 +27,13 @@ export interface FormularioUsuario {
   supervisor_id: string;
   gerente_id: string;
   equipe_nome: string;
+  /** T-0180 (D5): seção Jornada. Marcado = padrão da empresa; desmarcado, início e fim (hh:mm) valem para o usuário. */
+  almoco_padrao: boolean;
+  almoco_inicio: string;
+  almoco_fim: string;
 }
 
-export const FORMULARIO_VAZIO: FormularioUsuario = { nome: '', nome_curto: '', email: '', perfil: 'vendedor', perfis: [], equipe_id: '', external_id: '', senha: '', limita_item: true, limita_pedido: false, desconto_maximo_pedido: '', supervisor_id: '', gerente_id: '', equipe_nome: '' };
+export const FORMULARIO_VAZIO: FormularioUsuario = { nome: '', nome_curto: '', email: '', perfil: 'vendedor', perfis: [], equipe_id: '', external_id: '', senha: '', limita_item: true, limita_pedido: false, desconto_maximo_pedido: '', supervisor_id: '', gerente_id: '', equipe_nome: '', almoco_padrao: true, almoco_inicio: textoDoMinuto(ALMOCO_PADRAO_EMPRESA.inicio_min), almoco_fim: textoDoMinuto(ALMOCO_PADRAO_EMPRESA.fim_min) };
 
 export const ERRO_DESCONTO_OBRIGATORIO = 'Obrigatório';
 export const ERRO_DESCONTO_FAIXA = 'De 0 a 100';
@@ -48,8 +52,20 @@ export function textoDoPermil(permil: number | null): string {
 
 export { ERRO_SEM_PERFIL };
 
-export function formularioDoUsuario(u: UsuarioItem): FormularioUsuario {
-  return { nome: u.nome, nome_curto: u.nome_curto ?? '', email: u.email, perfil: u.perfil, perfis: u.perfis.length > 0 ? u.perfis.map((p) => p.codigo) : [u.perfil], equipe_id: u.equipe_id ?? '', external_id: u.external_id ?? '', senha: '', limita_item: u.desconto_limita_item, limita_pedido: u.desconto_limita_pedido, desconto_maximo_pedido: textoDoPermil(u.desconto_maximo_pedido_permil), supervisor_id: u.supervisor_id ?? '', gerente_id: u.gerente_id ?? '', equipe_nome: u.cargo === 'supervisor' ? (u.equipe_nome ?? '') : '' };
+/** Horário da jornada no formulário: o próprio do usuário, ou o padrão da empresa (marcado) já preenchido nos dois campos. */
+function jornadaDoForm(u: UsuarioItem | null, padrao: HorarioAlmoco): Pick<FormularioUsuario, 'almoco_padrao' | 'almoco_inicio' | 'almoco_fim'> {
+  const proprio = u?.almoco_inicio_min != null && u.almoco_fim_min != null;
+  return { almoco_padrao: !proprio, almoco_inicio: textoDoMinuto(proprio ? u.almoco_inicio_min! : padrao.inicio_min), almoco_fim: textoDoMinuto(proprio ? u.almoco_fim_min! : padrao.fim_min) };
+}
+
+/** Padrão da empresa para a jornada: o parâmetro lido, ou 12:00 às 13:00 quando ele não chegou. */
+export const almocoPadraoDoTenant = (p: { almoco_padrao: HorarioAlmoco } | undefined): HorarioAlmoco => p?.almoco_padrao ?? ALMOCO_PADRAO_EMPRESA;
+
+/** Formulário de um usuário novo: jornada no padrão da empresa. */
+export const formularioNovo = (padrao: HorarioAlmoco = ALMOCO_PADRAO_EMPRESA): FormularioUsuario => ({ ...FORMULARIO_VAZIO, perfil: 'vendedor', perfis: [], ...jornadaDoForm(null, padrao) });
+
+export function formularioDoUsuario(u: UsuarioItem, padrao: HorarioAlmoco = ALMOCO_PADRAO_EMPRESA): FormularioUsuario {
+  return { ...jornadaDoForm(u, padrao), nome: u.nome, nome_curto: u.nome_curto ?? '', email: u.email, perfil: u.perfil, perfis: u.perfis.length > 0 ? u.perfis.map((p) => p.codigo) : [u.perfil], equipe_id: u.equipe_id ?? '', external_id: u.external_id ?? '', senha: '', limita_item: u.desconto_limita_item, limita_pedido: u.desconto_limita_pedido, desconto_maximo_pedido: textoDoPermil(u.desconto_maximo_pedido_permil), supervisor_id: u.supervisor_id ?? '', gerente_id: u.gerente_id ?? '', equipe_nome: u.cargo === 'supervisor' ? (u.equipe_nome ?? '') : '' };
 }
 
 const ouNulo = (v: string): string | null => (v.trim() === '' ? null : v.trim());
@@ -76,6 +92,14 @@ export function errosDoFormulario(f: FormularioUsuario, modo: 'criar' | 'editar'
     const permil = permilDoTexto(f.desconto_maximo_pedido);
     if (f.desconto_maximo_pedido.trim() === '') erros.push({ campo: 'desconto_maximo_pedido', mensagem: ERRO_DESCONTO_OBRIGATORIO });
     else if (permil === null || permil > DESCONTO_PEDIDO_PERMIL_MAX) erros.push({ campo: 'desconto_maximo_pedido', mensagem: ERRO_DESCONTO_FAIXA });
+  }
+  // RN-CORE-44 (D5): horário próprio só na edição; fim > início e de 15 min a 3 h; o erro vem ao salvar, no texto do campo
+  if (modo === 'editar' && !f.almoco_padrao) {
+    const h = lerHorarioAlmocoTexto(f.almoco_inicio, f.almoco_fim);
+    if (!h.ok) {
+      if (h.erros.inicio) erros.push({ campo: 'almoco_inicio', mensagem: h.erros.inicio });
+      if (h.erros.fim) erros.push({ campo: 'almoco_fim', mensagem: h.erros.fim });
+    }
   }
   if (modo === 'criar') {
     const fraca = validarSenhaInicial(f.senha, f.email);
@@ -111,7 +135,9 @@ export function corpoDeCriacao(f: FormularioUsuario, cargo?: Cargo | null): Cria
 }
 
 export function corpoDeEdicao(f: FormularioUsuario, cargo?: Cargo | null): EditarUsuarioRequest {
-  return { nome: f.nome.trim(), nome_curto: ouNulo(f.nome_curto), email: f.email.trim(), perfis: f.perfis, equipe_id: ouNulo(f.equipe_id), external_id: ouNulo(f.external_id), ...corpoDoLimite(f), ...corpoDaHierarquia(f, cargo) };
+  const h = f.almoco_padrao ? null : lerHorarioAlmocoTexto(f.almoco_inicio, f.almoco_fim);
+  const almoco = h?.ok ? { almoco_inicio_min: h.inicio_min, almoco_fim_min: h.fim_min } : { almoco_inicio_min: null, almoco_fim_min: null };
+  return { ...almoco, nome: f.nome.trim(), nome_curto: ouNulo(f.nome_curto), email: f.email.trim(), perfis: f.perfis, equipe_id: ouNulo(f.equipe_id), external_id: ouNulo(f.external_id), ...corpoDoLimite(f), ...corpoDaHierarquia(f, cargo) };
 }
 
 /** A API só fala ‰; o valor guardado vai mesmo com "por pedido" desligada. */

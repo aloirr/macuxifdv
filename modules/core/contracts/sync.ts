@@ -64,6 +64,9 @@ export const UsuarioSyncSchema = z
     desconto_limita_item: z.boolean().default(true),
     desconto_limita_pedido: z.boolean().default(false),
     desconto_maximo_pedido_permil: z.number().int().min(0).max(1000).nullable().default(null),
+    /** T-0180 (D5): horário de almoço próprio, em minutos do dia; nulo = padrão da empresa (`jornada.almoco_padrao`). */
+    almoco_inicio_min: z.number().int().min(0).max(1439).nullable().default(null),
+    almoco_fim_min: z.number().int().min(0).max(1439).nullable().default(null),
   })
   .strict();
 export type UsuarioSync = z.infer<typeof UsuarioSyncSchema>;

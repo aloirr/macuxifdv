@@ -136,9 +136,17 @@ describe('T-0170: parâmetros, servidor e base', () => {
   const p = (chave: string, valor: unknown): ParametroSync => ({ id: id(800), updated_at: '2026-11-01T00:00:00Z', deleted_at: null, external_id: null, modulo: 'core', chave, valor });
 
   it('almoço: parâmetro válido vale; inválido ou ausente = 12:00 e 11:00–15:00', () => {
-    expect(almocoDoAparelho([p('produtividade.almoco_corte', '12:30'), p('produtividade.almoco_janela', { inicio: '11:30', fim: '14:00' })])).toEqual({ corte_min: 750, janela_inicio_min: 690, janela_fim_min: 840 });
-    expect(almocoDoAparelho([p('produtividade.almoco_corte', '16:00'), p('produtividade.almoco_janela', { inicio: '11:00', fim: '15:00' })])).toEqual({ corte_min: 720, janela_inicio_min: 660, janela_fim_min: 900 });
-    expect(almocoDoAparelho([])).toEqual({ corte_min: 720, janela_inicio_min: 660, janela_fim_min: 900 });
+    expect(almocoDoAparelho([p('produtividade.almoco_corte', '12:30'), p('produtividade.almoco_janela', { inicio: '11:30', fim: '14:00' })])).toEqual({ corte_min: 750, janela_inicio_min: 690, janela_fim_min: 840, horario: { inicio_min: 720, fim_min: 780 } });
+    expect(almocoDoAparelho([p('produtividade.almoco_corte', '16:00'), p('produtividade.almoco_janela', { inicio: '11:00', fim: '15:00' })])).toEqual({ corte_min: 720, janela_inicio_min: 660, janela_fim_min: 900, horario: { inicio_min: 720, fim_min: 780 } });
+    expect(almocoDoAparelho([])).toEqual({ corte_min: 720, janela_inicio_min: 660, janela_fim_min: 900, horario: { inicio_min: 720, fim_min: 780 } });
+  });
+
+  it('RN-CORE-44 (D5): o horário cadastrado manda: o do usuário, senão o padrão da empresa (parâmetro jornada.almoco_padrao), senão 12:00 às 13:00', () => {
+    const padrao = p('jornada.almoco_padrao', { inicio_min: 690, fim_min: 750 });
+    expect(almocoDoAparelho([padrao]).horario).toEqual({ inicio_min: 690, fim_min: 750 });
+    expect(almocoDoAparelho([padrao], { almoco_inicio_min: 780, almoco_fim_min: 840 }).horario).toEqual({ inicio_min: 780, fim_min: 840 });
+    expect(almocoDoAparelho([padrao], { almoco_inicio_min: null, almoco_fim_min: null }).horario).toEqual({ inicio_min: 690, fim_min: 750 });
+    expect(almocoDoAparelho([], null).horario).toEqual({ inicio_min: 720, fim_min: 780 });
   });
 
   it('fora da janela, a visão é a do servidor; a consulta segue o contrato', () => {

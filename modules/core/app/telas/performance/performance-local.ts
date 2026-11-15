@@ -7,9 +7,9 @@
  */
 import type { ItemSobreposicao } from '@macuxi/platform-sdk';
 
-import type { MetaSync, ParametroSync, RotaParadaSync, RotaSync, VisitaSync } from '../../../contracts';
+import type { MetaSync, ParametroSync, RotaParadaSync, RotaSync, UsuarioSync, VisitaSync } from '../../../contracts';
 import type { CalendarioPeriodo, Performance, ProdutividadeIndicador, RealizadoServidor, ResultadoIndicador } from '../../../contracts/performance';
-import { aplicarPendentesVisita, calendarioDoTenant, dataLocal, type CalendarioTenant } from '../../../domain';
+import { almocoDoUsuario, almocoPadraoDasLinhas, aplicarPendentesVisita, calendarioDoTenant, dataLocal, type CalendarioTenant } from '../../../domain';
 import { ALMOCO_PADRAO, type ParametrosAlmoco } from '../../../domain/performance/almoco';
 import { calendarioDoPeriodo } from '../../../domain/performance/calendario';
 import { metasProdutividadeVigentes, type EquipeArvore, type LinhaMetaProdutividade } from '../../../domain/performance/metas-produtividade';
@@ -30,6 +30,7 @@ export const ENTIDADES_PERFORMANCE = {
   parametros: 'parametro',
   metasProdutividade: 'meta_produtividade',
   deslocamentos: 'deslocamento_dia',
+  usuarios: 'usuario',
 } as const;
 
 /** Chave da cópia de `GET /v1/core/performance` no armazenamento do Core: uma por período guardado (Este mês e Mês passado). */
@@ -43,6 +44,8 @@ export interface LinhasPerformance {
   parametros: readonly ParametroSync[];
   metasProdutividade: readonly LinhaMetaProdutividade[];
   deslocamentos: readonly (DeslocamentoResumo & { usuario_id?: string })[];
+  /** T-0180 (D5): a linha do próprio usuário traz o horário de almoço (nulo = padrão da empresa). */
+  usuarios?: readonly Pick<UsuarioSync, 'id' | 'almoco_inicio_min' | 'almoco_fim_min' | 'deleted_at'>[];
   /** Árvore de equipes, para a meta da equipe de cima (RN-CORE-45). Vazia: só usuário, tenant e padrão. */
   equipes?: readonly EquipeArvore[];
 }
@@ -85,7 +88,12 @@ const minutoDoTexto = (v: unknown): number | null => {
 };
 
 /** `produtividade.almoco_corte` ("12:00") e `produtividade.almoco_janela` ({ inicio, fim }); inválido ou ausente = padrão. */
-export function almocoDoAparelho(ps: readonly ParametroSync[]): ParametrosAlmoco {
+export function almocoDoAparelho(ps: readonly ParametroSync[], eu?: { almoco_inicio_min?: number | null; almoco_fim_min?: number | null } | null): ParametrosAlmoco {
+  // RN-CORE-44 (D5): o horário cadastrado (o do usuário ou o padrão da empresa) manda; a janela e o corte ficam só como base
+  return { ...almocoDaJanela(ps), horario: almocoDoUsuario(eu, almocoPadraoDasLinhas(ps)) };
+}
+
+function almocoDaJanela(ps: readonly ParametroSync[]): ParametrosAlmoco {
   const corte = minutoDoTexto(parametro(ps, 'produtividade.almoco_corte'));
   const janela = parametro(ps, 'produtividade.almoco_janela') as { inicio?: unknown; fim?: unknown } | null | undefined;
   const inicio = minutoDoTexto(janela?.inicio);
@@ -145,7 +153,7 @@ export function montarPerformance(
       alvo: { usuario_id: o.usuarioId, equipe_id: o.equipeId ?? null },
       mes: ate.slice(0, 7),
     }),
-    almoco: almocoDoAparelho(l.parametros),
+    almoco: almocoDoAparelho(l.parametros, (l.usuarios ?? []).find((u) => u.id === o.usuarioId && !u.deleted_at)),
   });
 
   return {

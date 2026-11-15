@@ -18,6 +18,7 @@ import { PerfilSchema } from './auth';
 import { CargoSchema } from '@macuxi/platform-sdk';
 
 const Uuid = z.string().uuid();
+const MinutoDoDia = z.number().int().min(0).max(1439);
 const Texto = (max: number) => z.string().trim().max(max);
 /** Código de perfil do tenant (os 7 de fábrica têm o código da base). */
 const CodigoPerfil = z.string().regex(/^[a-z][a-z0-9_]{1,39}$/);
@@ -81,6 +82,9 @@ export const UsuarioItemSchema = z
     bloqueio: BloqueioDoUsuarioSchema.nullable().optional(),
     /** Fim do bloqueio por tentativas (UTC, ISO); nulo fora dele. A tela mostra no fuso do tenant. */
     bloqueio_ate: z.string().datetime().nullable().optional(),
+    /** T-0180 (D5): horário de almoço próprio em minutos do dia; nulo nos dois = padrão da empresa. */
+    almoco_inicio_min: MinutoDoDia.nullable().optional(),
+    almoco_fim_min: MinutoDoDia.nullable().optional(),
   })
   .strict();
 export type UsuarioItem = z.infer<typeof UsuarioItemSchema>;
@@ -181,6 +185,9 @@ export const EditarUsuarioRequestSchema = z
     desconto_limita_item: z.boolean().optional(),
     desconto_limita_pedido: z.boolean().optional(),
     desconto_maximo_pedido_permil: LimiteDescontoSchema.shape.desconto_maximo_pedido_permil.optional(),
+    /** T-0180 (D5): os dois nulos = padrão da empresa; os dois com valor = horário próprio (`validarHorarioAlmoco`). Ausente = mantém. */
+    almoco_inicio_min: MinutoDoDia.nullable().optional(),
+    almoco_fim_min: MinutoDoDia.nullable().optional(),
   })
   .strict();
 export type EditarUsuarioRequest = z.infer<typeof EditarUsuarioRequestSchema>;

@@ -7,6 +7,7 @@ import { ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, SelectField, TableScroll, formatDayMonthLong, td, th } from '@macuxi/ui/web';
 import { textoDaHora } from '../metas-produtividade/formato';
 import { useHojeDoTenant } from '../../lib/queries';
+import { AlmocoPadraoPanel } from './almoco-padrao-panel';
 import { CHAVE_CALENDARIO, criarApiCalendario, type ApiCalendario, type ParametrosCalendario } from './api';
 import { FERIADO_NOME_MAX, feriadosDoAno, incluirFeriado, lerAlmoco, type ErroFeriado, type ErrosAlmoco, type LinhaFeriado } from './calendario';
 
@@ -171,6 +172,7 @@ export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoj
           </Panel>
         </>
       )}
+      <AlmocoPadraoPanel />
     </div>
   );
 }

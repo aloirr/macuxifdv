@@ -7,6 +7,10 @@
  *    da tarde".
  * 3. Visita que atravessa o corte: o maior intervalo que começa dentro da janela (padrão 11:00 a 15:00, inclusive).
  * 4. Nenhum intervalo na janela, ou dia que termina antes do corte (meio expediente): sem almoço identificado.
+ *
+ * T-0180 (D5): com o horário de almoço CADASTRADO (`horario`: o do usuário ou o padrão da empresa) a detecção pela janela e pelo
+ * corte sai: o almoço do dia é o intervalo que mais se sobrepõe ao horário cadastrado (empate: o mais longo); sem sobreposição
+ * (inclusive meio expediente que acaba antes do horário), sem almoço identificado.
  */
 import { emMs, msDoDia } from './tempo';
 
@@ -31,6 +35,8 @@ export interface ParametrosAlmoco {
   corte_min: number;
   janela_inicio_min: number;
   janela_fim_min: number;
+  /** D5: horário de almoço cadastrado (minutos do dia); quando existe, é ele que manda (RN-CORE-44). */
+  horario?: { inicio_min: number; fim_min: number };
 }
 export const ALMOCO_PADRAO: ParametrosAlmoco = {
   corte_min: 12 * 60,
@@ -79,8 +85,24 @@ export function intervaloDoAlmoco(
   fuso: string,
   p: ParametrosAlmoco = ALMOCO_PADRAO,
 ): Intervalo | null {
-  const corte = p.corte_min * 60_000;
   const intervalos = intervalosDoDia(visitas);
+  if (p.horario) {
+    const [hi, hf] = [p.horario.inicio_min * 60_000, p.horario.fim_min * 60_000];
+    let melhor: Intervalo | null = null;
+    let melhorSobreposicao = 0;
+    for (const i of intervalos) {
+      const [a, b] = [msDoDia(i.inicio_ms, fuso), msDoDia(i.fim_ms, fuso)];
+      if (b < a) continue; // atravessa a virada do dia: não é almoço
+      const sobreposicao = Math.min(b, hf) - Math.max(a, hi);
+      if (sobreposicao <= 0) continue;
+      if (sobreposicao > melhorSobreposicao || (sobreposicao === melhorSobreposicao && melhor !== null && i.fim_ms - i.inicio_ms > melhor.fim_ms - melhor.inicio_ms)) {
+        melhor = i;
+        melhorSobreposicao = sobreposicao;
+      }
+    }
+    return melhor;
+  }
+  const corte = p.corte_min * 60_000;
   const normal = intervalos.find(
     (i) => msDoDia(i.inicio_ms, fuso) < corte && msDoDia(i.fim_ms, fuso) > corte,
   );

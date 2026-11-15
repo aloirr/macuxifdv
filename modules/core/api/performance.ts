@@ -14,7 +14,7 @@ import { somarDiasCivis } from '@macuxi/comum/relogio';
 import { z } from 'zod';
 import { Cents, Id, IsoDateTime } from '../contracts';
 import { PerformanceQuerySchema, PerformanceSchema, type Performance, type RealizadoServidor } from '../contracts/performance';
-import { dataLocal } from '../domain';
+import { almocoDoUsuario, almocoPadraoDasLinhas, dataLocal } from '../domain';
 import { realizadoPorTipo, STATUS_APROVADOS, type FaturamentoApuravel, type PedidoDaMeta, type TipoMeta } from '../domain/apuracao';
 import { CALENDARIO_PADRAO, calendarioDoTenant, type CalendarioTenant } from '../domain/meta-do-dia';
 import { calendarioDoPeriodo } from '../domain/performance/calendario';
@@ -252,6 +252,8 @@ interface LinhaUsuario {
   perfil: string;
   equipe_id: string | null;
   ativo: boolean;
+  almoco_inicio_min?: number | null;
+  almoco_fim_min?: number | null;
 }
 
 /** Cálculo da Performance sobre o banco da transação (exportado para o teste com banco). */
@@ -262,7 +264,7 @@ export async function calcularPerformance(
 ): Promise<Performance> {
   const hoje = dataLocal(e.agora, e.fuso);
   const mesHoje = hoje.slice(0, 7);
-  const u = (await db.query<LinhaUsuario>('select id, perfil, equipe_id, ativo from core.usuario where id = $1 and deleted_at is null', [e.usuario_id])).rows[0];
+  const u = (await db.query<LinhaUsuario>('select id, perfil, equipe_id, ativo, almoco_inicio_min, almoco_fim_min from core.usuario where id = $1 and deleted_at is null', [e.usuario_id])).rows[0];
   if (!u) throw new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado na sua equipe. Atualize a lista e tente de novo.');
   if (u.perfil !== 'vendedor' && u.perfil !== 'promotor') {
     throw new ErroRegraNegocio('PERFORMANCE_USUARIO_INVALIDO', 'A Performance é de vendedor ou promotor. Escolha um deles.');
@@ -270,7 +272,7 @@ export async function calcularPerformance(
   const perfil = u.perfil;
   const parametros = (
     await db.query<{ modulo: string; chave: string; valor: unknown; deleted_at: string | null }>(
-      "select modulo, chave, valor, null::text as deleted_at from plataforma.parametro where modulo = 'core' and chave in ('metas.dias_uteis_semana', 'metas.feriados', 'produtividade.almoco_corte', 'produtividade.almoco_janela') and deleted_at is null",
+      "select modulo, chave, valor, null::text as deleted_at from plataforma.parametro where modulo = 'core' and chave in ('metas.dias_uteis_semana', 'metas.feriados', 'produtividade.almoco_corte', 'produtividade.almoco_janela', 'jornada.almoco_padrao') and deleted_at is null",
     )
   ).rows;
   const calendario = calendarioComFeriados(parametros);
@@ -310,7 +312,7 @@ export async function calcularPerformance(
   }
 
   const resultados = resultadosDoPeriodo({ de: e.de, ate: e.ate, hoje, calendario, perfil, metas, realizado, visitas });
-  const produtividade = produtividadeDoPeriodo({ de: e.de, ate: e.ate, hoje, fuso: e.fuso, visitas, paradas, rotas, deslocamentos, metas: metasProdutividade, almoco: parametrosDoAlmoco(parametros) });
+  const produtividade = produtividadeDoPeriodo({ de: e.de, ate: e.ate, hoje, fuso: e.fuso, visitas, paradas, rotas, deslocamentos, metas: metasProdutividade, almoco: { ...parametrosDoAlmoco(parametros), horario: almocoDoUsuario(u, almocoPadraoDasLinhas(parametros)) } });
   return PerformanceSchema.parse({
     usuario_id: e.usuario_id,
     de: e.de,

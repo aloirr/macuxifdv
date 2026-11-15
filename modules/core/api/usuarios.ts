@@ -38,6 +38,7 @@ import {
   normalizarEmail,
   recortarUsuarios,
   superiorImediatoNaEquipe,
+  validarAlmocoDoUsuario,
   validarDadosDeUsuario,
   faltasNaSenha,
   gerarSenhaTemporaria,
@@ -99,6 +100,8 @@ interface LinhaUsuario {
   desconto_limita_item: boolean;
   desconto_limita_pedido: boolean;
   desconto_maximo_pedido_permil: number | null;
+  almoco_inicio_min: number | null;
+  almoco_fim_min: number | null;
   cargo?: string | null;
   supervisor_id?: string | null;
   gerente_id?: string | null;
@@ -110,7 +113,7 @@ interface LinhaUsuario {
 const SELECT_USUARIO = `select u.id, u.nome, u.nome_curto, u.email, u.perfil, u.equipe_id, e.nome as equipe_nome, u.ativo, u.external_id,
          to_char(u.ultimo_login_em at time zone 'UTC', ${ISO}) as ultimo_login_em,
          u.trocar_senha, to_char(u.senha_expira_em at time zone 'UTC', ${ISO}) as senha_expira_em, (u.senha_hash is null) as sem_senha,
-         u.desconto_limita_item, u.desconto_limita_pedido, u.desconto_maximo_pedido_permil, h.cargo, h.supervisor_id, h.gerente_id,
+         u.desconto_limita_item, u.desconto_limita_pedido, u.desconto_maximo_pedido_permil, u.almoco_inicio_min, u.almoco_fim_min, h.cargo, h.supervisor_id, h.gerente_id,
          (u.bloqueado_em is not null) as bloqueado_admin, to_char(u.bloqueio_ate at time zone 'UTC', ${ISO}) as bloqueio_ate_login
     from core.usuario u left join core.equipe e on e.id = u.equipe_id and e.deleted_at is null
     left join core.v_usuario_hierarquia h on h.usuario_id = u.id`;
@@ -176,7 +179,7 @@ async function itemPorId(db: ClienteBanco, id: string): Promise<UsuarioItem> {
 interface UsuarioBruto extends UsuarioAuditavel {
   id: string;
 }
-const COLUNAS_BRUTAS = 'id, nome, nome_curto, email, perfil, equipe_id, ativo, external_id, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil';
+const COLUNAS_BRUTAS = 'id, nome, nome_curto, email, perfil, equipe_id, ativo, external_id, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil, almoco_inicio_min, almoco_fim_min';
 
 async function buscarParaAlterar(db: ClienteBanco, id: string): Promise<UsuarioBruto> {
   const r = await db.query<UsuarioBruto>(`select ${COLUNAS_BRUTAS} from core.usuario where id = $1 and deleted_at is null for update`, [id]);
@@ -385,7 +388,11 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
             desconto_limita_item: c.desconto_limita_item ?? antes.desconto_limita_item,
             desconto_limita_pedido: c.desconto_limita_pedido ?? antes.desconto_limita_pedido,
             desconto_maximo_pedido_permil: c.desconto_maximo_pedido_permil === undefined ? antes.desconto_maximo_pedido_permil : c.desconto_maximo_pedido_permil,
+            almoco_inicio_min: c.almoco_inicio_min === undefined ? antes.almoco_inicio_min : c.almoco_inicio_min,
+            almoco_fim_min: c.almoco_fim_min === undefined ? antes.almoco_fim_min : c.almoco_fim_min,
           };
+          const errosAlmoco = validarAlmocoDoUsuario({ almoco_inicio_min: depois.almoco_inicio_min ?? null, almoco_fim_min: depois.almoco_fim_min ?? null });
+          if (errosAlmoco.length > 0) throw new ErroRegraNegocio(CODIGOS_USUARIO.dadosInvalidos, errosAlmoco.map((x) => x.mensagem).join(' '), { regra: 'RN-CORE-44', erros: errosAlmoco });
           const erros = validarDadosDeUsuario(depois);
           if (erros.length > 0) throw dadosInvalidos(erros);
           if (!limiteDescontoCompleto({ desconto_limita_item: depois.desconto_limita_item ?? true, desconto_limita_pedido: depois.desconto_limita_pedido ?? false, desconto_maximo_pedido_permil: depois.desconto_maximo_pedido_permil ?? null })) throw descontoPedidoObrigatorio();
@@ -408,7 +415,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
           if (diff.campos_alterados.length === 0 && !perfisMudaram && !hierarquiaMudou) return itemPorId(db, antes.id);
           if (depois.equipe_id !== antes.equipe_id) await exigirEquipe(db, depois.equipe_id);
           await exigirUnicos(db, depois.email.toLowerCase(), depois.external_id, antes.id);
-          await db.query('update core.usuario set nome = $2, nome_curto = $3, email = $4, perfil = $5, equipe_id = $6, external_id = $7, desconto_limita_item = $8, desconto_limita_pedido = $9, desconto_maximo_pedido_permil = $10 where id = $1', [
+          await db.query('update core.usuario set nome = $2, nome_curto = $3, email = $4, perfil = $5, equipe_id = $6, external_id = $7, desconto_limita_item = $8, desconto_limita_pedido = $9, desconto_maximo_pedido_permil = $10, almoco_inicio_min = $11, almoco_fim_min = $12 where id = $1', [
             antes.id,
             depois.nome,
             depois.nome_curto,
@@ -419,6 +426,8 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
             depois.desconto_limita_item,
             depois.desconto_limita_pedido,
             depois.desconto_maximo_pedido_permil,
+            depois.almoco_inicio_min ?? null,
+            depois.almoco_fim_min ?? null,
           ]);
           if (escolhidos && perfisMudaram) {
             await gravarPerfisDoUsuario(db, antes.id, escolhidos.map((x) => x.codigo));

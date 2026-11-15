@@ -36,6 +36,8 @@ import { rotasDeMetas } from './metas';
 import { rotasDeProdutos } from './produtos';
 import { rotasDePromotorPedidos } from './promotor-pedidos';
 import { rotasDeParametrosInicio } from './parametros-inicio';
+import { rotasDeParametrosAlertas } from './parametros-alertas';
+import { rotasDeParametrosJornada } from './parametros-jornada';
 import { rotasDeParametrosCurvaAbc } from './parametros-curvas-abc';
 import { rotasDeAvatar } from './avatar';
 import { rotasDeFrases } from './frases';
@@ -62,7 +64,7 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
   const sa = criarSuperAdmin(plataforma);
   return definirModuloApi({
     manifesto: manifest,
-    rotas: [...rotasDeLicencas, ...rotasDeUsuarios, ...rotasDePerfis, ...rotasDeEquipeCsv, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDeFiliais, ...rotasDeFotosPdv, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeParametrosCurvaAbc, ...rotasDeFarol, ...rotasDePlanoRv, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes, ...rotasDeTarefas, ...rotasDeFrases, ...rotasDeAvatar, ...rotasDeMetasProdutividade, ...rotasDePerformance],
+    rotas: [...rotasDeLicencas, ...rotasDeUsuarios, ...rotasDePerfis, ...rotasDeEquipeCsv, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDeFiliais, ...rotasDeFotosPdv, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeParametrosAlertas, ...rotasDeParametrosJornada, ...rotasDeParametrosCurvaAbc, ...rotasDeFarol, ...rotasDePlanoRv, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes, ...rotasDeTarefas, ...rotasDeFrases, ...rotasDeAvatar, ...rotasDeMetasProdutividade, ...rotasDePerformance],
     sync: [...provedoresSyncCore, ...provedoresDeNotificacao, ...provedoresSyncT0170],
     consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorBaixaPorResposta, consumidorMetaDefinida, ...consumidoresDoErp],
     // ADR 0022: varredura do alerta de pendência de etapa do checkout (RN-CORE-12); período múltiplo de 15 min (RN-CORE-23).

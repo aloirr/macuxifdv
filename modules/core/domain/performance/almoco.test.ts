@@ -84,4 +84,28 @@ describe('RN-CORE-44: almoço do dia (§3.2)', () => {
   it('RN-CORE-44: dia com uma visita só não tem almoço', () => {
     expect(almocoDoDia([visita('a', D, '08:00', '17:00')], FUSO)).toBeNull();
   });
+  it('RN-CORE-44 (D5): com o horário cadastrado, o almoço é o intervalo que mais se sobrepõe a ele (padrão 12:00 às 13:00)', () => {
+    const h = { ...ALMOCO_PADRAO, horario: { inicio_min: 720, fim_min: 780 } };
+    const dia = [visita('a', D, '08:00', '10:00'), visita('b', D, '10:20', '11:50'), visita('c', D, '13:10', '13:40')];
+    expect(almocoDoDia(dia, FUSO, h)?.minutos).toBe(80);
+    // intervalos às 09:00 e 10:00 não tocam o horário cadastrado: sem almoço
+    const fora = [visita('a', D, '08:00', '09:00'), visita('b', D, '09:30', '10:00'), visita('c', D, '10:30', '15:00')];
+    expect(almocoDoDia(fora, FUSO, h)).toBeNull();
+  });
+  it('RN-CORE-44 (D5): horário próprio do usuário (11:00 às 12:00) troca o intervalo escolhido', () => {
+    const dia = [visita('a', D, '08:00', '11:05'), visita('b', D, '11:55', '12:10'), visita('c', D, '13:00', '13:30')];
+    expect(almocoDoDia(dia, FUSO, { ...ALMOCO_PADRAO, horario: { inicio_min: 660, fim_min: 720 } })?.minutos).toBe(50);
+    expect(almocoDoDia(dia, FUSO, { ...ALMOCO_PADRAO, horario: { inicio_min: 720, fim_min: 780 } })?.minutos).toBe(50);
+  });
+  it('RN-CORE-44 (D5): meio expediente que acaba antes do horário cadastrado não tem almoço', () => {
+    const sab = '2026-11-14';
+    const h = { ...ALMOCO_PADRAO, horario: { inicio_min: 720, fim_min: 780 } };
+    expect(almocoDoDia([visita('a', sab, '08:00', '11:00'), visita('b', sab, '11:20', '11:50')], FUSO, h)).toBeNull();
+  });
+  it('RN-CORE-44 (D5): duas visitas com sobreposição igual: vale a de intervalo mais longo', () => {
+    const h = { ...ALMOCO_PADRAO, horario: { inicio_min: 720, fim_min: 780 } };
+    const dia = [visita('a', D, '08:00', '12:00'), visita('b', D, '12:30', '12:45'), visita('c', D, '13:00', '13:30')];
+    // intervalos 12:00→12:30 (30 min) e 12:45→13:00 (15 min): vence a maior sobreposição
+    expect(almocoDoDia(dia, FUSO, h)?.minutos).toBe(30);
+  });
 });
