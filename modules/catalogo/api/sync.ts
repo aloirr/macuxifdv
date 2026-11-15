@@ -10,7 +10,8 @@ import type { ContextoBase, LinhaSync, PedidoPull, ProvedorSync } from '@macuxi/
 import { entidadeCatalogoNo, entidadeClienteTabelaPreco, entidadeDeposito, entidadeEstoqueSaldo, entidadeMarcaConcorrente, entidadeProdutoAtributo, entidadeProdutoConteudo, entidadeProdutoNo, entidadeProdutoReferencia, entidadeProdutoRelacao, entidadeSinonimo, entidadeTabelaEscalonada, entidadeTabelaPreco, entidadeTabelaPrecoItem } from '../contracts';
 import { SQL_MINIATURA_DO_CONTEUDO } from './miniatura';
 import { variacaoEscopoPrecoEstoque, verPrecoDoPerfil } from '../domain/visibilidade';
-import { filiaisDaCarteiraNoCore } from './filiais-core';
+import { veSoSuasFiliais } from '../domain/estoque-campo';
+import { filiaisDaCarteiraNoCore, filiaisDeVendaDoProprioUsuario } from './filiais-core';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 const ts = (c: string) => `to_char(${c} at time zone 'UTC', ${UTC}) as ${c}`;
@@ -99,23 +100,27 @@ export function sqlPullPreco(nome: keyof typeof TABELAS, pedido: PedidoPull, cli
 }
 
 async function puxar(nome: keyof typeof TABELAS, ctx: ContextoBase, pedido: PedidoPull): Promise<LinhaSync[]> {
-  if (!ARVORE.has(nome) && !verPrecoDoPerfil(ctx.usuario.perfil, ctx.parametros())) return [];
+  // RN-CAT-05 (revista): o estoque (depósito e saldo) vai a todo perfil; só o preço depende de `promotor_ve_preco_estoque`
+  if (!ARVORE.has(nome) && !DO_ESTOQUE.has(nome) && !verPrecoDoPerfil(ctx.usuario.perfil, ctx.parametros())) return [];
   let clientes: readonly string[] | null = null;
   if (TABELAS[nome].colunaCliente) {
     const c = await ctx.carteira();
     clientes = c === 'tenant' ? null : [...c];
   }
-  const { sql, valores } = sqlPullPreco(nome, pedido, clientes, TABELAS_POR_FILIAL.has(nome) ? await filiaisDoPull(ctx) : null);
+  const { sql, valores } = sqlPullPreco(nome, pedido, clientes, TABELAS_POR_FILIAL.has(nome) ? await filiaisDoPull(ctx, DO_ESTOQUE.has(nome)) : null);
   return ctx.comTenant(async (db) => (await db.query(sql, valores)).rows as unknown as LinhaSync[]);
 }
 
 const TABELAS_POR_FILIAL: ReadonlySet<string> = new Set(['tabela_preco_item', 'tabela_escalonada', 'deposito', 'estoque_saldo']);
+const DO_ESTOQUE: ReadonlySet<string> = new Set(['deposito', 'estoque_saldo']);
 
 /**
  * RN-CORE-39 (T-0149): filiais da carteira de quem puxa + a padrão (`core.filiais@1 { escopo: 'carteira' }`); `null` = todas.
  * O aparelho só recebe preço e estoque delas, então a carga não cresce com o número de filiais da empresa.
  */
-async function filiaisDoPull(ctx: ContextoBase): Promise<readonly string[] | null> {
+async function filiaisDoPull(ctx: ContextoBase, doEstoque = false): Promise<readonly string[] | null> {
+  // catalogo-campo-v2 §4: promotor, supervisor e gerente recebem o estoque só das filiais de venda deles (`core.filiais_do_usuario@1`, T-0176; inalterado)
+  if (doEstoque && veSoSuasFiliais(ctx.usuario.perfil)) return ctx.comTenant(async (_db, tx) => (await filiaisDeVendaDoProprioUsuario(tx.consultar, ctx.usuario.id)).filiaisVenda);
   return ctx.comTenant(async (_db, tx) => (await filiaisDaCarteiraNoCore(tx.consultar)).daCarteira);
 }
 
@@ -133,6 +138,9 @@ const variacaoPorFilial = async (ctx: ContextoBase): Promise<string> => {
   return `${base};filiais=${versaoDasFiliais(await filiaisDoPull(ctx))}`;
 };
 
+/** Variação das entidades de estoque: sempre com a lista de filiais (o estoque vai a todo perfil, RN-CAT-05 revista); o preço oculto do promotor continua na base. */
+const variacaoDoEstoque = async (ctx: ContextoBase): Promise<string> => `${variacaoPrecoEstoque(ctx)};filiais=${versaoDasFiliais(await filiaisDoPull(ctx, true))}`;
+
 /** RN-CAT-05 (T-0121 N3): promotor que perde o direito a preço e estoque muda a versao_escopo e o aparelho apaga o que já baixou. */
 const variacaoPrecoEstoque = (ctx: ContextoBase): string => variacaoEscopoPrecoEstoque(ctx.usuario.perfil, ctx.parametros());
 
@@ -144,8 +152,8 @@ export const provedoresSyncCatalogo: readonly ProvedorSync[] = [
   { entidade: entidadeCatalogoNo, escopo: 'tenant', puxar: (ctx, p) => puxar('catalogo_no', ctx, p) },
   { entidade: entidadeProdutoNo, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_no', ctx, p) },
   { entidade: entidadeProdutoRelacao, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_relacao', ctx, p) },
-  { entidade: entidadeDeposito, escopo: 'tenant', puxar: (ctx, p) => puxar('deposito', ctx, p), variacaoEscopo: variacaoPorFilial },
-  { entidade: entidadeEstoqueSaldo, escopo: 'tenant', puxar: (ctx, p) => puxar('estoque_saldo', ctx, p), variacaoEscopo: variacaoPorFilial },
+  { entidade: entidadeDeposito, escopo: 'tenant', puxar: (ctx, p) => puxar('deposito', ctx, p), variacaoEscopo: variacaoDoEstoque },
+  { entidade: entidadeEstoqueSaldo, escopo: 'tenant', puxar: (ctx, p) => puxar('estoque_saldo', ctx, p), variacaoEscopo: variacaoDoEstoque },
   { entidade: entidadeSinonimo, escopo: 'tenant', puxar: (ctx, p) => puxar('sinonimo', ctx, p) },
   { entidade: entidadeProdutoAtributo, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_atributo', ctx, p) },
   { entidade: entidadeProdutoConteudo, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_conteudo', ctx, p) },
