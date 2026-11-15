@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { perfilDoEas, planoDoBuild, VERSION_CODE_MAX, versionCodeDe } from './android-build.mjs';
+import { certificadoDoApk, perfilDoEas, planoDoBuild, VERSION_CODE_MAX, versionCodeDe } from './android-build.mjs';
 
 const ler = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8');
 const EAS = JSON.parse(ler('apps/mobile/eas.json'));
@@ -74,7 +74,6 @@ test('workflow: só manual, permissões mínimas, secrets por variante sem eco e
     assert.match(linha, /^\s+[A-Z][A-Z0-9_]*: \$\{\{/, `secret fora de env: ${linha.trim()}`);
   }
   assert.match(wf, /- name: apagar keystore\n\s+if: \$\{\{ always\(\) \}\}\n\s+run: rm -f "\$RUNNER_TEMP\/keystore\.jks"/);
-  assert.match(wf, /apksigner" verify --print-certs/);
   assert.match(wf, /name: \$\{\{ steps\.plano\.outputs\.nome \}\}/);
   assert.doesNotMatch(wf, /persist-credentials: true/);
 });
@@ -100,4 +99,45 @@ test('workflow: libera disco depois do install, preserva o NDK do react-native, 
   assert.match(wf, /definir reactNativeArchitectures 'arm64-v8a,armeabi-v7a'/);
   assert.match(wf, /definir org\.gradle\.jvmargs '-Xmx4g -XX:MaxMetaspaceSize=1g/);
   assert.match(wf, /\.\/gradlew assembleRelease --build-cache --no-daemon/);
+});
+
+// Saídas reais de `apksigner verify --print-certs` (certificado descartável; o hash é inventado).
+const SHA = 'ab'.repeat(32);
+const bloco = (prefixo, sha = SHA, dn = 'CN=Macuxi, O=Macuxi FDV') =>
+  [`${prefixo} certificate DN: ${dn}`, `${prefixo} certificate SHA-256 digest: ${sha}`, `${prefixo} certificate SHA-1 digest: ${'cd'.repeat(20)}`, `${prefixo} certificate MD5 digest: ${'ef'.repeat(16)}`].join('\n');
+const BT36 = `${bloco('Signer #1')}\n`;
+const BT37 = `${bloco('V2 Signer:')}\n`;
+const BT37_V3 = `${bloco('V3.0 Signer:')}\n`;
+
+test('certificado: lê o SHA-256 do build-tools 36 (Signer #1) e do 37 (V2/V3.0 Signer:)', () => {
+  for (const saida of [BT36, BT37, BT37_V3, `${bloco('V2 Signer:')}\n${bloco('V3.0 Signer:')}\n`, BT37.replace(/\n/g, '\r\n')]) {
+    const c = certificadoDoApk(saida, '');
+    assert.equal(c.sha, SHA);
+    assert.equal(c.conferido, 'sem valor esperado: confira com o do expo.dev');
+    // no log só o DN de cada assinante (o SHA-256 sai uma vez, na linha do resultado)
+    assert.ok(c.dns.length >= 1 && c.dns.every((l) => / certificate DN: /.test(l)), JSON.stringify(c.dns));
+  }
+  const esperado = SHA.toUpperCase().match(/../g).join(':');
+  assert.equal(certificadoDoApk(BT37, esperado).conferido, 'igual ao esperado');
+  assert.equal(certificadoDoApk(`WARNING: META-INF/x não protegido\n${BT37}`, '').sha, SHA);
+  // carimbo de origem não é o certificado do app
+  assert.equal(certificadoDoApk(`${BT37}${bloco('Source Stamp Signer:', 'ff'.repeat(32))}\n`, '').sha, SHA);
+});
+
+test('certificado: vermelho para debug, sem SHA, certificados diferentes ou esperado diferente', () => {
+  assert.throws(() => certificadoDoApk(bloco('V2 Signer:', SHA, 'CN=Android Debug, O=Android, C=US'), ''), /debug/);
+  assert.throws(() => certificadoDoApk('', ''), /não mostrou o SHA-256/);
+  assert.throws(() => certificadoDoApk('Verifies\n', ''), /não mostrou o SHA-256/);
+  assert.throws(() => certificadoDoApk(`${bloco('V2 Signer:')}\n${bloco('V3.0 Signer:', 'cd'.repeat(32))}\n`, ''), /certificados diferentes/);
+  assert.throws(() => certificadoDoApk(BT37, '00'.repeat(32)), /diferente do esperado/);
+});
+
+test('workflow: a assinatura é conferida pelo android-build.mjs, com a saída do apksigner no log e o resumo à parte', () => {
+  const wf = ler('.github/workflows/android-build.yml');
+  assert.match(wf, /if ! CERTS="\$\("\$FERRAMENTAS\/apksigner" verify --print-certs "\$APK"\)"; then\n\s+printf '%s\\n' "\$CERTS"; echo '::error title=assinatura::/);
+  assert.match(wf, /printf '%s\\n' "\$CERTS" \| node scripts\/ci\/android-build\.mjs certificado\n/);
+  // a expressão antiga (só "Signer #1") não volta
+  assert.doesNotMatch(wf, /\^Signer #1/);
+  assert.match(wf, /SHA: \$\{\{ steps\.apk\.outputs\.sha \}\}/);
+  assert.match(wf, /CONFERIDO: \$\{\{ steps\.apk\.outputs\.conferido \}\}/);
 });

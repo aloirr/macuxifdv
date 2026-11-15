@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CODIGO_EMPRESA_REGEX, CODIGO_EMPRESA_TAMANHO, CodigoEmpresaFormatoSchema, CodigoEmpresaSchema, EsqueciSenhaRequestSchema, LoginSenhaRequestSchema, TrocarSenhaRequestSchema } from './auth';
+import { normalizarCodigoEmpresa, CODIGO_EMPRESA_REGEX, CODIGO_EMPRESA_TAMANHO, CodigoEmpresaFormatoSchema, CodigoEmpresaSchema, EsqueciSenhaRequestSchema, LoginSenhaRequestSchema, TrocarSenhaRequestSchema } from './auth';
 import { validarCodigoEmpresaNovo, validarLogin, validarLoginNovo } from './ciclo-senha';
 
 const ANTIGOS = ['demo', 'alfa', 'beta', 'portal-t0087', 'cliente-t0093'];
@@ -44,5 +44,14 @@ describe('RF-CORE-01: duas regras convivem até o BKO migrar', () => {
   it('RN-CORE-32: senha com espaço nas pontas é recusada no login nas duas regras', () => {
     expect(validarLogin({ codigo_empresa: 'AM4821', email: 'a@b.com', senha: ' x' }).senha).toBeDefined();
     expect(validarLoginNovo({ codigo_empresa: 'AM4821', email: 'a@b.com', senha: 'x ' }).senha).toBeDefined();
+  });
+});
+
+describe('RF-CORE-01: código da empresa normalizado (API e app)', () => {
+  it('RF-CORE-01: "aM2808 " vira "AM2808"; a API aceita minúsculas e entrega maiúsculas', () => {
+    expect(normalizarCodigoEmpresa('aM2808 ')).toBe('AM2808');
+    expect(LoginSenhaRequestSchema.parse({ codigo_empresa: ' am2808 ', email: 'a@b.com', senha: 'x' }).codigo_empresa).toBe('AM2808');
+    expect(EsqueciSenhaRequestSchema.parse({ codigo_empresa: 'am2808', email: 'a@b.com' }).codigo_empresa).toBe('AM2808');
+    expect(validarCodigoEmpresaNovo('aM2808 ')).toBeNull();
   });
 });

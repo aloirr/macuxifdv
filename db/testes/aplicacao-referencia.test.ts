@@ -110,7 +110,7 @@ describe('0033 aplicação e referência cruzada (estático)', () => {
     expect(nuvemCatalogo.produtoConteudo.etiquetas.notNull).toBe(true);
     expect(nuvemCatalogo.produtoBusca.aplicacao.notNull).toBe(false);
     expect(nuvemCatalogo.produtoBusca.referencias.notNull).toBe(false);
-    for (const c of ['produto_id', 'marca_id', 'codigo', 'codigo_compacto', 'ordem'] as const) expect(nuvemCatalogo.produtoReferencia[c].notNull, c).toBe(true);
+    for (const c of ['produto_id', 'codigo', 'codigo_compacto', 'ordem'] as const) expect(nuvemCatalogo.produtoReferencia[c].notNull, c).toBe(true);
     expect(nuvemVendedor.pedidoItem.aplicacao.notNull).toBe(false);
   });
 
@@ -232,7 +232,7 @@ describe.skipIf(semBanco())('0033 aplicação e referência cruzada (banco, pape
     expect((await achar(A.tenantId, 'cb3401')).rows).toEqual([{ produto_id: A.produtos.p1 }]);
   });
 
-  it('produto_referencia — checks (ordem 1..3, código 1..30 não vazio, compacto), até 3 vivas, sem repetir marca+compacto, FK só da marca (0045), updated_at', async () => {
+  it('produto_referencia — checks (ordem 1..3, código 1..30 não vazio, compacto), até 3 vivas, sem repetir o compacto no produto (0075), FK só da marca (0045), updated_at', async () => {
     const inserir = (o: { produto?: string; marca?: string; codigo?: string; compacto?: string; ordem?: number | null; external?: string | null }) =>
       q('insert into catalogo.produto_referencia (tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem, external_id) values ($1, $2, $3, $4, $5, $6, $7)', [
         A.tenantId,
@@ -260,8 +260,7 @@ describe.skipIf(semBanco())('0033 aplicação e referência cruzada (banco, pape
     expect((await erroEmA(() => inserir({ produto: A.produtos.p1, codigo: 'ZZ 2', compacto: 'zz2', ordem: 1 })))?.code).toBe('23505');
     // mesma marca e mesmo compacto com outra grafia ("cb-3401" x "CB 3401") no mesmo produto: recusado
     expect((await erroEmA(() => inserir({ produto: A.produtos.p1, codigo: 'cb-3401', compacto: 'cb3401', ordem: 3 })))?.code).toBe('23505');
-    // outra marca com o mesmo código passa; o compacto da apagada (cb3400) volta a valer
-    expect(await erroEmA(() => inserir({ produto: A.produtos.p1, marca: MARCAS_FIXTURE.A.inativa, codigo: 'CB 3401', compacto: 'cb3401', ordem: 3 }))).toBeNull();
+    // a apagada (cb3400) não conta: o mesmo código volta a valer
     expect(await erroEmA(() => inserir({ produto: A.produtos.p1, codigo: 'CB-3400', compacto: 'cb3400', ordem: 3 }))).toBeNull();
     // external_id único vivo por tenant
     expect((await erroEmA(() => inserir({ external: 'REF-A-1' })))?.code).toBe('23505');

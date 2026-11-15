@@ -4,6 +4,8 @@
  * então decidem igual.
  */
 
+import type { ItemTabelaPreco } from '../contracts';
+
 export type OrigemFilialPreco = 'cliente' | 'padrao';
 
 export interface EntradaFilialDoPreco {
@@ -88,7 +90,41 @@ export interface TabelaSemCliente {
 export function tabelaDaFilialSemCliente(tabelas: readonly TabelaSemCliente[], itensDaFilial: readonly { tabela_preco_id: string }[]): string | null {
   const contagem = new Map<string, number>();
   for (const i of itensDaFilial) contagem.set(i.tabela_preco_id, (contagem.get(i.tabela_preco_id) ?? 0) + 1);
-  const candidatas = tabelas.filter((t) => t.ativo && contagem.has(t.id));
+  return tabelaPorContagem(tabelas, contagem);
+}
+
+/** Mesma escolha de `tabelaDaFilialSemCliente`, com a contagem de itens vivos por tabela já feita (SQL `group by`). */
+export function tabelaPorContagem(tabelas: readonly TabelaSemCliente[], contagem: ReadonlyMap<string, number>): string | null {
+  const candidatas = tabelas.filter((t) => t.ativo && (contagem.get(t.id) ?? 0) > 0);
   candidatas.sort((a, b) => contagem.get(b.id)! - contagem.get(a.id)! || (a.codigo < b.codigo ? -1 : a.codigo > b.codigo ? 1 : 0));
   return candidatas[0]?.id ?? null;
+}
+
+export interface ItemDaFilialSemCliente {
+  tabela_preco_id: string;
+  produto_id: string;
+  preco_cents: number;
+  vigencia_inicio: string | null;
+  vigencia_fim: string | null;
+}
+
+/**
+ * RN-VEN-01: os preços do Catálogo sem cliente, a partir dos itens vivos da FILIAL: só os da tabela escolhida por
+ * `tabelaDaFilialSemCliente`, sem tabela no item (o domain de preço trata "sem tabela" como a padrão). O app e a API chamam esta função.
+ */
+export function precosDaFilialSemCliente(tabelas: readonly TabelaSemCliente[], itensDaFilial: readonly ItemDaFilialSemCliente[]): ItemTabelaPreco[] {
+  return precosDaTabelaSemCliente(tabelaDaFilialSemCliente(tabelas, itensDaFilial), itensDaFilial);
+}
+
+/** Só filtra e converte: os itens da tabela já escolhida (nula = nenhum), sem tabela no item. */
+export function precosDaTabelaSemCliente(tabelaId: string | null, itensDaFilial: readonly ItemDaFilialSemCliente[]): ItemTabelaPreco[] {
+  if (tabelaId === null) return [];
+  return itensDaFilial
+    .filter((i) => i.tabela_preco_id === tabelaId)
+    .map((i) => ({ price_table_id: null, product_id: i.produto_id, price_cents: i.preco_cents, valid_from: i.vigencia_inicio, valid_to: i.vigencia_fim }));
+}
+
+/** RN-CORE-04: a filial escolhida está entre as filiais da carteira do usuário? (`daCarteira` nulo = todas). */
+export function filialNaCarteira(filialId: string, daCarteira: readonly string[] | null): boolean {
+  return daCarteira === null || daCarteira.includes(filialId);
 }

@@ -261,14 +261,17 @@ export const marcaConcorrente = catalogo.table('marca_concorrente', {
 /**
  * Referência cruzada ("Equivale a: <marca> <código>"): até 3 vivas por produto (ordem 1..3, único vivo por (tenant, produto,
  * ordem)). marca_id = id de catalogo.marca_concorrente, desde a 0045 com FK produto_referencia_marca_fk (tenant_id, marca_id)
- * e índice produto_referencia_marca_ix (antes, o cadastro `concorrente` do Promotor, sem FK); produto_id sem FK (core.produto). codigo = como foi escrito (1..30, não vazio). codigo_compacto = forma
+ * e índice produto_referencia_marca_ix (antes, o cadastro `concorrente` do Promotor, sem FK); desde a 0075 (R-20261115-073000,
+ * item 3) a marca é OPCIONAL: nulo = referência só com o código (a FK não confere o nulo). produto_id sem FK (core.produto).
+ * codigo = como foi escrito (1..30, não vazio). codigo_compacto = forma
  * normalizada para a busca, GRAVADA PELA API com `codigoCompacto` do domain (o banco só confere `^[a-z0-9]{1,30}$`);
- * (tenant, produto, marca, compacto) único vivo. Pull escopo tenant (o aparelho recalcula o compacto; ele não vai no pull).
+ * (tenant, produto, compacto) único vivo desde a 0075 (antes, com a marca). Pull escopo tenant (o aparelho recalcula o
+ * compacto; ele não vai no pull).
  */
 export const produtoReferencia = catalogo.table('produto_referencia', {
   ...comuns(),
   produto_id: uuid('produto_id').notNull(),
-  marca_id: uuid('marca_id').notNull(),
+  marca_id: uuid('marca_id'),
   codigo: text('codigo').notNull(),
   codigo_compacto: text('codigo_compacto').notNull(),
   ordem: smallint('ordem').notNull(),

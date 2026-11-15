@@ -85,7 +85,8 @@ import { resolverCodigosOfereceJunto, validarMarcasDaReferencia } from '../domai
 import { montarExportacao } from '../domain/exportacao';
 import { montarArvore, produtosDoNo } from '../domain/arvore';
 import { idsAtivos, navegarHierarquia } from '../domain/hierarquia';
-import { filialDaTelaDePreco } from '../domain/preco-filial';
+import { filialDaTelaDePreco, filialNaCarteira } from '../domain/preco-filial';
+import { textoPareceCodigo } from '../domain/codigo-busca';
 import { conflitoDeFaixa, dataCivilNoFuso, faixaMaisCaraQueATabela, faixaVigente, validarFaixa } from '../domain/escalonada';
 import { conflitoDeSinonimo, montarFicha, normalizarSinonimo, termoDeBusca } from '../domain/conteudo';
 import { interpretarConsulta, type VocabularioTenant } from '../domain/consulta';
@@ -139,19 +140,38 @@ async function conferirCliente(ctx: ContextoBase, clienteId: string | undefined)
   return clienteId;
 }
 
+/** Filial da busca sem cliente: a que vale para o preço (a escolhida ou a padrão) e a escolhida de fato (nula = padrão, estoque da carteira). */
+interface FilialDaBuscaSemCliente {
+  filialId: string;
+  escolhida: string | null;
+}
+
+/**
+ * RN-VEN-01: sem cliente, a busca usa a filial padrão do tenant (ou a pedida em `filial`), como o app pelo menu. Revalida tenant (filial do
+ * core.filiais@1) e escopo (filiais da carteira). Com cliente em contexto a filial é a dele e `filial` é ignorada.
+ */
+async function filialDaBusca(repo: RepositorioCatalogo, clienteId: string | null, pedida: string | undefined): Promise<FilialDaBuscaSemCliente | null> {
+  if (clienteId !== null) return null;
+  const { filialId } = await filialDaTela(repo, pedida);
+  // RN-CORE-04: a filial escolhida precisa estar entre as da carteira (nulo = todas)
+  const daCarteira = pedida ? await repo.filiaisDoUsuario(null) : null;
+  if (pedida && !filialNaCarteira(pedida, daCarteira)) throw new ErroHttpModulo(403, 'FILIAL_FORA_DA_CARTEIRA', 'Você não tem acesso a essa filial. Escolha uma das suas filiais.');
+  return { filialId, escolhida: pedida ?? null };
+}
+
 /** Monta o contexto de preço/estoque do usuário. RN-CAT-05: para quem não vê, nada de preço/estoque é lido do banco. */
-async function contextoVitrine(ctx: ContextoBase, repo: RepositorioCatalogo, p: ParametrosCatalogo, clienteId: string | null, produtos: readonly ProdutoCatalogo[], soEstoque = false): Promise<ContextoVitrine> {
+async function contextoVitrine(ctx: ContextoBase, repo: RepositorioCatalogo, p: ParametrosCatalogo, clienteId: string | null, produtos: readonly ProdutoCatalogo[], soEstoque = false, filial: FilialDaBuscaSemCliente | null = null): Promise<ContextoVitrine> {
   const base = { perfil: ctx.usuario.perfil, parametros: p, agora: ctx.agora().toISOString(), clienteId };
   if (!podeVerPrecoEstoque(ctx.usuario.perfil, p)) {
     return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: new Map(), filiais: [] };
   }
   const ids = produtos.filter((x) => x.ativo).map((x) => x.id);
   // T-0119: o corte dos candidatos só precisa do estoque (a nota da busca não usa o preço)
-  if (soEstoque) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: await repo.saldos(ids), filiais: await repo.filiaisDoUsuario(clienteId) };
-  const precos = await repo.precos(clienteId, ids);
+  if (soEstoque) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: await repo.saldos(ids), filiais: (filial?.escolhida ? [filial.escolhida] : await repo.filiaisDoUsuario(clienteId)) };
+  const precos = await repo.precos(clienteId, ids, filial?.filialId ?? null);
   const promocoes = await repo.promocoes(ids);
   const saldos = await repo.saldos(ids);
-  const filiais = await repo.filiaisDoUsuario(clienteId);
+  const filiais = (filial?.escolhida ? [filial.escolhida] : await repo.filiaisDoUsuario(clienteId));
   return { ...base, tabelaClienteId: precos.tabelaClienteId, itensPreco: precos.itens, promocoes, saldos, filiais };
 }
 
@@ -167,8 +187,10 @@ interface Interpretacao {
  * Ordem da RN-CAT-03 (docs/modulos/catalogo/ia.md): `verificarConsultaIa` (não consome) → provedor FORA da transação
  * (até `ia_timeout_ms`; a conexão do banco não fica presa) → débito atômico só se respondeu.
  */
-async function interpretar(ctx: ContextoBase, dep: DependenciasRotas, q: ConsultaBuscaQuery, vocab: VocabularioTenant, p: ParametrosCatalogo, uso: Awaited<ReturnType<RepositorioCatalogo['usoIa']>>, dia: string): Promise<Interpretacao> {
-  if (q.mode === 'basica') return { filtros: interpretarConsulta(q.q, vocab), interpreted_by: 'nenhum', degraded: false, notice: null, remaining_ai_queries: null };
+async function interpretar(ctx: ContextoBase, dep: DependenciasRotas, q: ConsultaBuscaQuery, semIa: boolean, vocab: VocabularioTenant, p: ParametrosCatalogo, uso: Awaited<ReturnType<RepositorioCatalogo['usoIa']>>, dia: string): Promise<Interpretacao> {
+  // RN-CAT-03: texto que parece código vai direto à busca exata/FTS: sem IA, sem cota gasta e sem aviso de indisponível
+  // modo básico = 'nenhum'; código = as mesmas regras da busca sem provedor de IA ('regras')
+  if (semIa) return { filtros: interpretarConsulta(q.q, vocab), interpreted_by: q.mode === 'basica' ? 'nenhum' : 'regras', degraded: false, notice: null, remaining_ai_queries: null };
   const timeoutMs = timeoutIaDoTenant(ctx.parametros());
   const porta = dep.portaIa?.(timeoutMs) ?? null;
   let ia: { permitido: boolean; mensagem: string | null } = { permitido: porta !== null, mensagem: null };
@@ -230,22 +252,26 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
       const q = ctx.query;
       const p = parametrosDoTenant(ctx.parametros());
       const clienteId = await conferirCliente(ctx, q.customer_id);
+      // RN-CAT-03: modo básico e texto de código não usam IA (nem leem a cota)
+      const semIa = q.mode === 'basica' || textoPareceCodigo(q.q);
       const dia = diaDoTenant(ctx.agora(), ctx.fuso());
+      const podeVer = podeVerPrecoEstoque(ctx.usuario.perfil, p);
       // 1) leitura curta: produtos, sinônimos e uso de IA do dia
-      const leitura = await comRepo(ctx, async (repo) => ({ produtos: await (repo.produtosEmCache?.() ?? repo.produtos()), sinonimos: await repo.sinonimos(), uso: q.mode === 'basica' ? null : await repo.usoIa(dia) }));
+      const leitura = await comRepo(ctx, async (repo) => ({ produtos: await (repo.produtosEmCache?.() ?? repo.produtos()), sinonimos: await repo.sinonimos(), uso: semIa ? null : await repo.usoIa(dia) }));
       const vocab = vocabularioEmCache(leitura.produtos);
       // 2) interpretação (provedor fora da transação)
-      const interp = await interpretar(ctx, dep, q, vocab, p, leitura.uso, dia);
+      const interp = await interpretar(ctx, dep, q, semIa, vocab, p, leitura.uso, dia);
       // 3) preço/estoque do usuário, ranking e registro da busca (RF-CAT-07)
       return comRepo(ctx, async (repo) => {
+        const filial = podeVer ? await filialDaBusca(repo, clienteId, q.filial) : null;
         const sinonimos: readonly SinonimoDoTenant[] = leitura.sinonimos;
         const chips = { line: q.line, brand: q.brand, only_in_stock: q.only_in_stock };
         // T-0119 (D-T0107b): com catálogo grande o índice separa os candidatos; preço e estoque são lidos só deles
         let candidatos = candidatosDaBusca({ produtos: leitura.produtos, contexto: { perfil: ctx.usuario.perfil, parametros: p, agora: ctx.agora().toISOString() }, filtros: interp.filtros, chips, sinonimos });
         // teto de candidatos antes do ranking completo (só o estoque é lido para todos; o preço, só para os que ficam)
-        if (candidatos && candidatos.produtos.length > TETO_CANDIDATOS) candidatos = cortarCandidatos(candidatos, await contextoVitrine(ctx, repo, p, clienteId, candidatos.produtos, true));
+        if (candidatos && candidatos.produtos.length > TETO_CANDIDATOS) candidatos = cortarCandidatos(candidatos, await contextoVitrine(ctx, repo, p, clienteId, candidatos.produtos, true, filial));
         const produtosDaBusca = candidatos?.produtos ?? leitura.produtos;
-        const contexto = await contextoVitrine(ctx, repo, p, clienteId, produtosDaBusca);
+        const contexto = await contextoVitrine(ctx, repo, p, clienteId, produtosDaBusca, false, filial);
         const pagina = buscarProdutos({ produtos: produtosDaBusca, contexto, filtros: interp.filtros, chips, sinonimos, limit: q.limit, offset: q.offset, ...(candidatos ? { maxVendas: candidatos.maxVendas } : {}) });
         const termo = termoDeBusca(q.q);
         if (termo && q.offset === 0) {
