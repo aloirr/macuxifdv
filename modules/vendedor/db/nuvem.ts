@@ -177,6 +177,11 @@ export const pedido = vendedor.table('pedido', {
   prazo_parcelas_dias: integer('prazo_parcelas_dias').array(),
   /** Prazo médio do prazo no aceite (entre a menor e a maior parcela). */
   prazo_medio_dias: integer('prazo_medio_dias'),
+  /**
+   * 0075 (RN-VEN-45): RETRATO do % do prazo no pedido, −99,99 a +99,99 (numeric chega como string no `pg`). Nulo no pedido
+   * antigo e no do APK anterior à v1.0.13 (= sem ajuste); fora do pedido_pagamento_completo; só com prazo (CHECK).
+   */
+  prazo_percentual_ajuste: numeric('prazo_percentual_ajuste', { precision: 5, scale: 2 }),
   // --- 0056 (T-0149, RN-CORE-39, ADR 0040): filial do cliente no recebimento (o pedido não escolhe filial) ---
   /** id de core.filial (sem FK: fronteira). Nulo nos pedidos anteriores à 0056. Os dois juntos ou nenhum (pedido_filial_coerente). */
   filial_id: uuid('filial_id'),
@@ -311,6 +316,11 @@ export const prazoPagamento = vendedor.table('prazo_pagamento', {
   prazo_medio_dias: integer('prazo_medio_dias').notNull(),
   ativo: boolean('ativo').notNull().default(true),
   ordem: integer('ordem').notNull().default(0),
+  /**
+   * 0075 (RN-VEN-43/46, RN-INT-15): % do prazo vindo do ERP ("% Acres.Fin."), −99,99 a +99,99, negativo = desconto; ajusta a
+   * tabela de cada produto. Somente leitura no BKO; prazo criado no BKO = 0 (numeric chega como string no `pg`).
+   */
+  percentual_ajuste: numeric('percentual_ajuste', { precision: 5, scale: 2 }).notNull().default('0'),
 });
 
 /** Contador do número legível (uma linha por tenant; use a função vendedor.proximo_numero_pedido()). Fora do sync. */

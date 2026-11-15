@@ -176,7 +176,10 @@ FROM erp_forma_pagamento f;
 --    ERP sem vínculo condição x forma: crie uma tabela de-para (forma, condição) e faça uma linha por par, com
 --    external_id = forma:condição e codigo único no tenant ENTRE TODAS AS FORMAS (ex.: 'BOL-2856').
 --    conector.json, "campos": external_id, alterado_em, ativo {booleano}, forma_external_id, codigo, descricao,
---    parcelas_dias {json}, prazo_medio_dias {inteiro}, ordem {inteiro}.
+--    parcelas_dias {json}, prazo_medio_dias {inteiro}, ordem {inteiro}, percentual_ajuste {decimal}.
+--    percentual_ajuste (v1.0.13, Conector 1.5.0; RN-VEN-43, RN-INT-15): "% Acres.Fin." da condição, −99,99 a +99,99 com 2
+--    casas (negativo = desconto); ajusta a tabela de cada produto no Macuxi. Opcional: ausente/NULL = 0; fora da faixa ou
+--    com mais de 2 casas = erro de linha. Conector anterior ao 1.5.0 ignora a coluna.
 -- ---------------------------------------------------------------------------------------------------------------------
 CREATE VIEW vw_macuxi_prazo_pagamento AS
 SELECT
@@ -198,6 +201,8 @@ SELECT
       WHERE p.id_condicao = c.id_condicao)                   AS parcelas_dias,
     c.prazo_medio                                            AS prazo_medio_dias, -- opcional (NULL = o Macuxi só calcula)
     COALESCE(c.ordem, 0)                                     AS ordem
+    -- percentual_ajuste: entra na view quando o contrato do Hub (PrazoPagamentoPayload, modulo-integracao) tiver o campo:
+    -- , CAST(COALESCE(c.perc_acres_fin, 0) AS DECIMAL(5, 2))  AS percentual_ajuste  -- "% Acres.Fin."; Oracle: NUMBER(5,2)
 FROM erp_condicao_pagamento c;
 
 

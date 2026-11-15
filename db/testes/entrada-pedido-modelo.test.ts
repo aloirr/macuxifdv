@@ -45,7 +45,7 @@ function parametrosDaProcedure(): Map<string, string> {
   if (!m) throw new Error('sp_macuxi_pedido_inserir não encontrada');
   const corpo = m[1]!.replace(/--[^\n]*/g, '');
   const mapa = new Map<string, string>();
-  for (const d of corpo.matchAll(/@(\w+)\s+([^,@]+)/g)) mapa.set(d[1]!, d[2]!.trim());
+  for (const d of corpo.matchAll(/@(\w+)\s+((?:\([^)]*\)|[^,@(])+)/g)) mapa.set(d[1]!, d[2]!.trim());
   return mapa;
 }
 
@@ -90,7 +90,7 @@ describe('entrada de pedidos do Conector (db/conector/entrada-pedido-modelo.sql)
     const colsInsert = insert![1]!.split(',').map((x) => x.trim());
     const valores = insert![2]!.split(',').map((x) => x.trim());
     expect(valores).toEqual(colsInsert.map((c) => `@${c}`));
-    for (const n of NOVOS_T0149) {
+    for (const n of [...NOVOS_T0149, 'pagamento_percentual_ajuste' /* v1.0.13, RN-INT-15: informativo */]) {
       expect(params.get(n), `@${n}`).toMatch(/= NULL$/);
       expect(colunas.get(n), `coluna ${n}`).toMatch(/ NULL$/);
       expect(colsInsert, `INSERT sem ${n}`).toContain(n);
