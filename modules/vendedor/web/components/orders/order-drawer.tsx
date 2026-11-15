@@ -2,7 +2,8 @@
 
 import { useState, type ReactNode } from 'react';
 import { formatBRL, formatPct } from '@macuxi/comum';
-import { usePode } from '@macuxi/platform-sdk/react';
+import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
+import { logoParaPdf, nomeDaEmpresaParaPdf } from '../../../domain/empresa-pdf';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, Drawer, ErrorBlock, formatDateTime, HistoricoEmTags, LoadingBlock, type NoticeTone, Notice, tagsDoHistorico, td, tdNum, th, thNum } from '@macuxi/ui/web';
 import type { Order } from '../../../contracts';
@@ -11,7 +12,7 @@ import { enviadoAoErp, MSG_CANCELAR_APOS_ENVIO } from '../../../domain/order';
 import { descontoDoPedidoPct } from '../../../domain/preco-pedido';
 import type { OrderPdfView } from '../../../domain/pdf-pedido';
 import { DICA_PDF_SEM_DETALHE, MSG_ITENS_INDISPONIVEIS, MSG_SEM_DOCUMENTO, textoDaModalidade, textoDaTransportadora, textoDoAjusteDoItem, textoDoEnderecoEntrega, enderecoFoiEditado, SELO_ENDERECO_EDITADO } from '../../lib/detalhe-pedido';
-import { usePedido, useSessaoDoBko } from '../../lib/queries';
+import { usePedido } from '../../lib/queries';
 import { AvisoDeDecisao, BotoesDeDecisao } from './decisao';
 import { ERRO_IMPRESSAO, exportarPdfDoPedido } from './exportar-pdf';
 import { OrderStatusBadge } from './status';
@@ -31,7 +32,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
   const detail = usePedido(order?.id ?? null);
   const dados = detail.data?.pedido ?? null;
   const semDocumento = detail.data?.semDocumento ?? false;
-  const sessao = useSessaoDoBko();
+  const ambiente = useAmbiente();
   const podeAprovar = usePode('pedido.aprovar');
   const [aviso, setAviso] = useState<{ tom: NoticeTone; texto: string } | null>(null);
   const [erroPdf, setErroPdf] = useState<string | null>(null);
@@ -43,7 +44,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
     setGerando(view);
     setErroPdf(null);
     try {
-      await exportarPdfDoPedido(dados, view, { empresa: sessao.empresa, tz });
+      await exportarPdfDoPedido(dados, view, { empresa: nomeDaEmpresaParaPdf(ambiente.parametros('core')), tz, logo_src: await logoParaPdf(ambiente) });
     } catch (e) {
       setErroPdf(errorMessage(e));
     } finally {
