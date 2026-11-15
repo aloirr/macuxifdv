@@ -1,44 +1,45 @@
 'use client';
 
-import { Badge, Button, FilterBar, formatDateTime, Panel, SelectField, TableScroll, td, tdNum, th, thNum } from '@macuxi/ui/web';
+import { Badge, Button, EstadoVazio, FilterBar, formatDateTime, Panel, rotuloComContagem, SelectField, TabelaDados, type ColunaDaTabela } from '@macuxi/ui/web';
 import { ENTIDADES, ESTADOS_LOTE, type ConectorResumo, type LoteListagemItem } from '../../contracts';
 import { ROTULO_ENTIDADE, ROTULO_STATUS_LOTE, TOM_STATUS_LOTE } from '../lib/apresentacao';
 import { ROTULO_MODO } from '../lib/csv';
 import { FILTROS_VAZIOS, type FiltrosMonitor, temFiltro } from '../lib/filtros-url';
 
+/** Colunas da lista (revisão do BKO §P2): a entidade abre o lote; a situação é um selo só (§P5); as contagens do lote ficam na gaveta. */
+function colunas(tz: string): ReadonlyArray<ColunaDaTabela<LoteListagemItem>> {
+  return [
+    { id: 'entidade', titulo: 'Entidade', celula: (l) => ROTULO_ENTIDADE[l.entidade], texto: (l) => ROTULO_ENTIDADE[l.entidade] },
+    { id: 'conector', titulo: 'Conector', prioridade: 2, celula: (l) => <span className="font-mono text-[12px]">{l.conector_id}</span>, texto: (l) => l.conector_id },
+    { id: 'modo', titulo: 'Modo', prioridade: 3, largura: '150px', celula: (l) => ROTULO_MODO[l.modo], texto: (l) => ROTULO_MODO[l.modo] },
+    { id: 'recebido', titulo: 'Recebido', numero: true, largura: '140px', celula: (l) => formatDateTime(l.recebido_em, tz) },
+    { id: 'recebidas', titulo: 'Linhas', numero: true, prioridade: 3, largura: '88px', celula: (l) => l.recebidas },
+    { id: 'erros', titulo: 'Erros', numero: true, prioridade: 2, largura: '80px', celula: (l) => <span className={l.com_erro > 0 ? 'font-semibold text-danger' : ''}>{l.com_erro}</span> },
+    { id: 'situacao', titulo: 'Situação', largura: '164px', celula: (l) => <Badge tone={TOM_STATUS_LOTE[l.status]}>{ROTULO_STATUS_LOTE[l.status]}</Badge> },
+  ];
+}
+
 /**
- * Lotes recentes (RF-INT-04): recebido → aplicado (com ou sem erros) ou falhou, com as contagens. Filtros na URL. Clique abre a
- * gaveta com os erros por linha.
+ * Lotes recentes (RF-INT-04): recebido → aplicado (com ou sem erros) ou falhou. Filtros na URL. Clique na entidade abre a
+ * gaveta com as contagens e os erros por linha. A contagem do título é a do filtro (revisão do BKO §P6); lista vazia mostra o
+ * `EstadoVazio` uma vez (§P7).
  */
 export function LotesPanel({
   lotes,
-  total,
   conectores,
   filtros,
   mudar,
   tz,
 }: {
   lotes: readonly LoteListagemItem[];
-  total: number;
   conectores: readonly ConectorResumo[];
   filtros: FiltrosMonitor;
   mudar: (patch: Partial<FiltrosMonitor>) => void;
   tz: string;
 }) {
-  const abrir = (l: LoteListagemItem) => mudar({ lote: l.lote_id });
+  const filtrado = temFiltro(filtros);
   return (
-    <Panel
-      label="Lotes recentes"
-      title={
-        <>
-          Lotes recentes{' '}
-          <span className="font-sans text-[13px] font-normal text-ink-2">
-            · {lotes.length}
-            {lotes.length !== total ? ` de ${total}` : ''}
-          </span>
-        </>
-      }
-    >
+    <Panel label="Lotes recentes" title={rotuloComContagem('Lotes recentes', lotes.length)}>
       <FilterBar>
         <SelectField label="Conector" value={filtros.conector} onChange={(e) => mudar({ conector: e.target.value })} data-testid="integracao.filtro-conector">
           <option value="">Todos</option>
@@ -56,8 +57,8 @@ export function LotesPanel({
             </option>
           ))}
         </SelectField>
-        <SelectField label="Status" value={filtros.status} onChange={(e) => mudar({ status: e.target.value })} data-testid="integracao.filtro-status">
-          <option value="">Todos</option>
+        <SelectField label="Situação" value={filtros.status} onChange={(e) => mudar({ status: e.target.value })} data-testid="integracao.filtro-status">
+          <option value="">Todas</option>
           {ESTADOS_LOTE.map((s) => (
             <option key={s} value={s}>
               {ROTULO_STATUS_LOTE[s]}
@@ -68,61 +69,23 @@ export function LotesPanel({
           <input type="checkbox" className="h-5 w-5" checked={filtros.com_erro === '1'} onChange={(e) => mudar({ com_erro: e.target.checked ? '1' : '' })} data-testid="integracao.filtro-com-erro" />
           Só com erro
         </label>
-        {temFiltro(filtros) && (
+        {filtrado && (
           <Button size="sm" onClick={() => mudar({ ...FILTROS_VAZIOS, lote: filtros.lote })} data-testid="integracao.limpar-filtros">
             Limpar filtros
           </Button>
         )}
       </FilterBar>
 
-      <TableScroll minWidth={900}>
-        <thead>
-          <tr>
-            <th scope="col" className={th}>Recebido</th>
-            <th scope="col" className={th}>Conector</th>
-            <th scope="col" className={th}>Entidade</th>
-            <th scope="col" className={th}>Modo</th>
-            <th scope="col" className={th}>Status</th>
-            <th scope="col" className={thNum}>Recebidas</th>
-            <th scope="col" className={thNum}>Novas</th>
-            <th scope="col" className={thNum}>Atualizadas</th>
-            <th scope="col" className={thNum}>Erros</th>
-            <th scope="col" className={thNum}>Inativadas</th>
-          </tr>
-        </thead>
-        <tbody data-testid="integracao.lotes">
-          {lotes.map((l) => (
-            <tr
-              key={l.lote_id}
-              tabIndex={0}
-              aria-label={`Abrir lote de ${ROTULO_ENTIDADE[l.entidade]} recebido em ${formatDateTime(l.recebido_em, tz)}`}
-              data-testid={`integracao.lote.${l.lote_id}`}
-              onClick={() => abrir(l)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  abrir(l);
-                }
-              }}
-              className="cursor-pointer outline-none hover:bg-ground focus-visible:bg-ground"
-            >
-              <td className={`${td} whitespace-nowrap text-ink-2`}>{formatDateTime(l.recebido_em, tz)}</td>
-              <td className={`${td} font-mono text-[12px]`}>{l.conector_id}</td>
-              <td className={td}>{ROTULO_ENTIDADE[l.entidade]}</td>
-              <td className={`${td} whitespace-nowrap`}>{ROTULO_MODO[l.modo]}</td>
-              <td className={td}>
-                <Badge tone={TOM_STATUS_LOTE[l.status]}>{ROTULO_STATUS_LOTE[l.status]}</Badge>
-              </td>
-              <td className={tdNum}>{l.recebidas}</td>
-              <td className={tdNum}>{l.novas}</td>
-              <td className={tdNum}>{l.atualizadas}</td>
-              <td className={`${tdNum} ${l.com_erro > 0 ? 'font-semibold text-danger' : ''}`}>{l.com_erro}</td>
-              <td className={tdNum}>{l.inativadas}</td>
-            </tr>
-          ))}
-        </tbody>
-      </TableScroll>
-      {lotes.length === 0 && <span className="text-[13px] text-ink-2">{total === 0 ? 'Nenhum lote recebido ainda.' : 'Nenhum lote com esses filtros.'}</span>}
+      <TabelaDados
+        colunas={colunas(tz)}
+        linhas={lotes}
+        chave={(l) => l.lote_id}
+        rotulo="Lotes recentes"
+        aoAbrir={(l) => mudar({ lote: l.lote_id })}
+        testId="integracao.lotes"
+        linhaTestId={(l) => `integracao.lote.${l.lote_id}`}
+        vazio={<EstadoVazio titulo={filtrado ? 'Nenhum lote com esses filtros.' : 'Nenhum lote recebido ainda.'} testId="integracao.lotes.vazio" />}
+      />
     </Panel>
   );
 }

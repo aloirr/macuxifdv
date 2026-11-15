@@ -24,6 +24,7 @@ import {
   MENSAGEM_DESCONTO_PEDIDO_OBRIGATORIO,
   limiteDescontoCompleto,
   type CriarUsuarioResposta,
+  type DesbloquearUsuarioResposta,
   type EquipeOpcao,
   type RedefinirSenhaResposta,
   type UsuarioItem,
@@ -40,7 +41,9 @@ import {
   validarDadosDeUsuario,
   faltasNaSenha,
   gerarSenhaTemporaria,
+  hierarquiaDoCargo,
   podeRedefinirSenha,
+  estadoDoLogin,
   validadeDaSenhaTemporaria,
   validarSenhaInicial,
   type EquipeLinha,
@@ -54,6 +57,7 @@ import { carregar } from './perfis';
 import { perfisDoUsuarioNoLogin } from './perfis-do-usuario';
 import { appsDosPerfis, emailDisponivel, empresaDoTenant, enviarEmail } from './email';
 import { hashSenha } from './seguranca';
+import { cargoDoPerfil, conferirHierarquia, erroDaHierarquiaNoBanco, hierarquiaAtual, posicionarNaEquipe } from './hierarquia-cadastro';
 
 type Visiveis = ReadonlySet<string> | 'tenant';
 const IdParam = z.object({ id: z.string().uuid() });
@@ -68,6 +72,8 @@ const externalDuplicado = () => new ErroHttpModulo(409, CODIGOS_USUARIO.external
 
 /** Traduz a violação dos índices únicos (corrida entre duas gravações) para o 409 legível. */
 function traduzirErroDeBanco(e: unknown): never {
+  const hierarquia = erroDaHierarquiaNoBanco(e);
+  if (hierarquia) throw hierarquia;
   const x = e as { code?: string; constraint?: string };
   if (x?.code === '23505') {
     if (x.constraint === 'usuario_email_uk') throw emailDuplicado();
@@ -93,13 +99,21 @@ interface LinhaUsuario {
   desconto_limita_item: boolean;
   desconto_limita_pedido: boolean;
   desconto_maximo_pedido_permil: number | null;
+  cargo?: string | null;
+  supervisor_id?: string | null;
+  gerente_id?: string | null;
+  /** Colunas do bloqueio do login; viram `bloqueio`/`bloqueio_ate` em `montarItens` e não vão à resposta. */
+  bloqueado_admin?: boolean;
+  bloqueio_ate_login?: string | null;
 }
 
 const SELECT_USUARIO = `select u.id, u.nome, u.nome_curto, u.email, u.perfil, u.equipe_id, e.nome as equipe_nome, u.ativo, u.external_id,
          to_char(u.ultimo_login_em at time zone 'UTC', ${ISO}) as ultimo_login_em,
          u.trocar_senha, to_char(u.senha_expira_em at time zone 'UTC', ${ISO}) as senha_expira_em, (u.senha_hash is null) as sem_senha,
-         u.desconto_limita_item, u.desconto_limita_pedido, u.desconto_maximo_pedido_permil
-    from core.usuario u left join core.equipe e on e.id = u.equipe_id and e.deleted_at is null`;
+         u.desconto_limita_item, u.desconto_limita_pedido, u.desconto_maximo_pedido_permil, h.cargo, h.supervisor_id, h.gerente_id,
+         (u.bloqueado_em is not null) as bloqueado_admin, to_char(u.bloqueio_ate at time zone 'UTC', ${ISO}) as bloqueio_ate_login
+    from core.usuario u left join core.equipe e on e.id = u.equipe_id and e.deleted_at is null
+    left join core.v_usuario_hierarquia h on h.usuario_id = u.id`;
 
 async function equipesAtivas(db: ClienteBanco): Promise<EquipeLinha[]> {
   return (await db.query<EquipeLinha>('select id, equipe_pai_id, responsavel_id from core.equipe where deleted_at is null and ativo')).rows;
@@ -130,7 +144,16 @@ async function perfisDosUsuarios(db: ClienteBanco, ids: readonly string[]): Prom
   return m;
 }
 
-async function montarItens(db: ClienteBanco, linhas: readonly LinhaUsuario[], visiveis: Visiveis): Promise<UsuarioItem[]> {
+/** O bloqueio do login pela mesma regra do login (`estadoDoLogin`), sem o inativo, que já vem em `ativo`. */
+export function bloqueioDaLinha(l: { bloqueado_admin?: boolean; bloqueio_ate_login?: string | null }, agora: Date): Pick<UsuarioItem, 'bloqueio' | 'bloqueio_ate'> {
+  const bloqueioAte = l.bloqueio_ate_login ? new Date(l.bloqueio_ate_login) : null;
+  const estado = estadoDoLogin({ ativo: true, bloqueadoEm: l.bloqueado_admin ? agora : null, bloqueioAte, agora });
+  if (estado === 'bloqueado_admin') return { bloqueio: 'admin', bloqueio_ate: null };
+  if (estado === 'bloqueado_tentativas') return { bloqueio: 'tentativas', bloqueio_ate: l.bloqueio_ate_login ?? null };
+  return { bloqueio: null, bloqueio_ate: null };
+}
+
+async function montarItens(db: ClienteBanco, linhas: readonly LinhaUsuario[], visiveis: Visiveis, agora: Date = new Date()): Promise<UsuarioItem[]> {
   const hierarquia = montarHierarquia(
     await equipesAtivas(db),
     linhas.map((l) => ({ id: l.id, nome: l.nome, perfil: l.perfil, equipe_id: l.equipe_id, ativo: l.ativo })),
@@ -138,9 +161,9 @@ async function montarItens(db: ClienteBanco, linhas: readonly LinhaUsuario[], vi
   const superiorDe = new Map(hierarquia.map((m) => [m.id, superiorVisivel(m.superior_id, visiveis)]));
   const nomes = await nomesDe(db, [...superiorDe.values()].filter((x): x is string => x !== null));
   const perfisDe = await perfisDosUsuarios(db, linhas.map((l) => l.id));
-  return linhas.map((l) => {
+  return linhas.map(({ bloqueado_admin, bloqueio_ate_login, ...l }) => {
     const sup = superiorDe.get(l.id) ?? null;
-    return UsuarioItemSchema.parse({ ...l, perfis: perfisDe.get(l.id) ?? [], superior_id: sup, superior_nome: sup ? (nomes.get(sup) ?? null) : null });
+    return UsuarioItemSchema.parse({ ...l, ...bloqueioDaLinha({ bloqueado_admin, bloqueio_ate_login }, agora), perfis: perfisDe.get(l.id) ?? [], superior_id: sup, superior_nome: sup ? (nomes.get(sup) ?? null) : null });
   });
 }
 
@@ -191,7 +214,7 @@ async function usuariosDoEstado(db: ClienteBanco, atorId: string, alvoId: string
 async function conferirAlteracao(ctx: ContextoBase, db: ClienteBanco, alvo: UsuarioBruto, depois: { perfil: Perfil; ativo: boolean; perfis?: readonly string[] }): Promise<void> {
   const motor = ctx.permissoes ?? { catalogo: [], matriz: matrizDeFabrica([]) };
   const usuarios = await usuariosDoEstado(db, ctx.usuario.id, alvo.id); // trava os admins, o ator e o alvo
-  // T-0111: o estado real do tenant (perfis personalizados, sobreposições, multiperfil), não só o principal e o padrão de fábrica
+  // T-0111: o estado real do tenant (perfis personalizados, sobreposições), não só o principal e o padrão de fábrica
   const estado = await carregar(db, true);
   const r = avaliarAlteracaoDeUsuario({
     ator: { id: ctx.usuario.id, perfis: ctx.usuario.perfis ?? [] },
@@ -233,7 +256,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
       return ctx.comTenant(async (db) => {
         const r = await db.query<LinhaUsuario>(`${SELECT_USUARIO} where ${onde.join(' and ')} order by u.nome, u.id limit ${LIMITE}`, valores);
         // o filtro SQL já recortou; `recortarUsuarios` é a mesma regra do domínio, aplicada de novo como cinto de segurança
-        return { itens: await montarItens(db, recortarUsuarios(r.rows, visiveis), visiveis) };
+        return { itens: await montarItens(db, recortarUsuarios(r.rows, visiveis), visiveis, ctx.agora()) };
       });
     },
   },
@@ -290,6 +313,8 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
       const nome = c.nome.trim();
       const externalId = c.external_id?.trim() ?? null;
       const codigosPedidos = c.perfis ?? (c.perfil ? [c.perfil] : []);
+      // o BKO manda `perfis` (um só) e a hierarquia do cargo; o campo legado `perfil` (scripts, testes antigos) só confere o que vier
+      const comHierarquia = c.perfis !== undefined || c.supervisor_id !== null || c.gerente_id !== null || c.equipe_nome !== null;
       if (codigosPedidos.length === 0) throw dadosInvalidos([{ campo: 'perfil', mensagem: ERRO_SEM_PERFIL }]);
       const erros = validarDadosDeUsuario({ nome, email, perfil: c.perfil ?? 'vendedor', external_id: externalId });
       if (erros.length > 0) throw dadosInvalidos(erros);
@@ -304,6 +329,8 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
           const escolhidos = await perfisEscolhidos(db, codigosPedidos);
           const principal = principalDe(escolhidos);
           await conferirPerfisDoUsuario(ctx, db, randomUUID(), escolhidos.map((x) => x.codigo), c.ativo);
+          const cargo = await cargoDoPerfil(db, escolhidos[0]!.codigo);
+          const hierarquia = comHierarquia ? await conferirHierarquia(db, cargo, c, externalId) : null;
           const r = await db.query<{ id: string }>(
             `insert into core.usuario (tenant_id, nome, nome_curto, email, perfil, equipe_id, senha_hash, trocar_senha, senha_expira_em, ativo, external_id, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil)
              values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, true, $7, $8, $9, $10, $11, $12) returning id`,
@@ -311,6 +338,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
           );
           const id = r.rows[0]!.id;
           await gravarPerfisDoUsuario(db, id, escolhidos.map((x) => x.codigo));
+          const equipeFinal = hierarquia ? await posicionarNaEquipe(db, id, cargo, hierarquia, c.equipe_id) : c.equipe_id;
           const empresa = await empresaDoTenant(db);
           // a senha só sai na carga cifrada do e-mail (mesma transação: criou <=> enfileirou)
           const envio = await enviarEmail(ctx, db, {
@@ -320,7 +348,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
             dados: { nome, empresa_nome: empresa.nome, codigo_empresa: empresa.codigo, login: email, senha: c.senha, validade_horas: SENHA_TEMPORARIA_HORAS, apps: appsDosPerfis(await perfisDoUsuarioNoLogin(db, id, principal)) },
             chave_idempotencia: `${id}:acesso`,
           });
-          await auditar(db, ctx, { acao: 'usuario.criar', entidade: 'usuario', entidadeId: id, antes: null, depois: { perfil: principal, perfis: escolhidos.map((x) => x.codigo), equipe_id: c.equipe_id, ativo: c.ativo, external_id: externalId, desconto_limita_item: c.desconto_limita_item, desconto_limita_pedido: c.desconto_limita_pedido, desconto_maximo_pedido_permil: c.desconto_maximo_pedido_permil, senha_definida: true, trocar_senha: true, email: envio } });
+          await auditar(db, ctx, { acao: 'usuario.criar', entidade: 'usuario', entidadeId: id, antes: null, depois: { perfil: principal, perfis: escolhidos.map((x) => x.codigo), cargo, equipe_id: equipeFinal, supervisor_id: hierarquia?.supervisor_id ?? null, gerente_id: hierarquia?.gerente_id ?? null, ativo: c.ativo, external_id: externalId, desconto_limita_item: c.desconto_limita_item, desconto_limita_pedido: c.desconto_limita_pedido, desconto_maximo_pedido_permil: c.desconto_maximo_pedido_permil, senha_definida: true, trocar_senha: true, email: envio } });
           return CriarUsuarioRespostaSchema.parse({ ...(await itemPorId(db, id)), email_acesso: envio });
         });
       } catch (e) {
@@ -363,8 +391,21 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
           if (!limiteDescontoCompleto({ desconto_limita_item: depois.desconto_limita_item ?? true, desconto_limita_pedido: depois.desconto_limita_pedido ?? false, desconto_maximo_pedido_permil: depois.desconto_maximo_pedido_permil ?? null })) throw descontoPedidoObrigatorio();
           await conferirAlteracao(ctx, db, antes, { perfil: depois.perfil as Perfil, ativo: depois.ativo, ...(escolhidos ? { perfis: escolhidos.map((x) => x.codigo) } : {}) });
           if (escolhidos && perfisMudaram) await conferirPerfisDoUsuario(ctx, db, antes.id, escolhidos.map((x) => x.codigo), depois.ativo);
+          // RN-CORE-55/57 (0069): o BKO manda o perfil e a hierarquia do cargo; o que não vier fica como está
+          const mexeNaHierarquia = c.perfis !== undefined || c.supervisor_id !== undefined || c.gerente_id !== undefined || c.equipe_nome !== undefined;
+          const atual = mexeNaHierarquia ? await hierarquiaAtual(db, antes.id) : null;
+          const cargo = atual ? (escolhidos ? await cargoDoPerfil(db, escolhidos[0]!.codigo) : atual.cargo) : null;
+          const hierarquia = atual
+            ? await conferirHierarquia(db, cargo, {
+                supervisor_id: c.supervisor_id === undefined ? atual.supervisor_id : c.supervisor_id,
+                gerente_id: c.gerente_id === undefined ? atual.gerente_id : c.gerente_id,
+                equipe_nome: c.equipe_nome === undefined ? atual.equipe_nome : c.equipe_nome,
+              }, depois.external_id)
+            : null;
+          const hierarquiaAntes = atual ? hierarquiaDoCargo(cargo, atual) : null;
+          const hierarquiaMudou = !!hierarquia && JSON.stringify(hierarquia) !== JSON.stringify(hierarquiaAntes);
           const diff = diffAuditavelDeUsuario(antes, depois);
-          if (diff.campos_alterados.length === 0 && !perfisMudaram) return itemPorId(db, antes.id);
+          if (diff.campos_alterados.length === 0 && !perfisMudaram && !hierarquiaMudou) return itemPorId(db, antes.id);
           if (depois.equipe_id !== antes.equipe_id) await exigirEquipe(db, depois.equipe_id);
           await exigirUnicos(db, depois.email.toLowerCase(), depois.external_id, antes.id);
           await db.query('update core.usuario set nome = $2, nome_curto = $3, email = $4, perfil = $5, equipe_id = $6, external_id = $7, desconto_limita_item = $8, desconto_limita_pedido = $9, desconto_maximo_pedido_permil = $10 where id = $1', [
@@ -384,6 +425,12 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
             diff.campos_alterados.push('perfis');
             diff.antes.perfis = codigosAntes;
             diff.depois.perfis = escolhidos.map((x) => x.codigo).sort();
+          }
+          if (hierarquia && (hierarquiaMudou || perfisMudaram)) {
+            await posicionarNaEquipe(db, antes.id, cargo, hierarquia, depois.equipe_id);
+            diff.campos_alterados.push('hierarquia');
+            diff.antes.hierarquia = { supervisor_id: hierarquiaAntes?.supervisor_id ?? null, gerente_id: hierarquiaAntes?.gerente_id ?? null };
+            diff.depois.hierarquia = { supervisor_id: hierarquia.supervisor_id, gerente_id: hierarquia.gerente_id };
           }
           await auditar(db, ctx, { acao: 'usuario.editar', entidade: 'usuario', entidadeId: antes.id, antes: { ...diff.antes, campos_alterados: diff.campos_alterados }, depois: diff.depois });
           return itemPorId(db, antes.id);
@@ -428,6 +475,39 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
       }),
   },
   {
+    // Desbloquear o login (spec docs/design/telas/usuario-bloqueio.md §6.2): zera tentativas, bloqueio por tentativas e do admin.
+    // Não mexe em `ativo`, na senha nem nas sessões. Idempotente: quem já está livre volta 200 sem auditoria nova.
+    metodo: 'DELETE',
+    caminho: 'usuarios/:id/bloqueio',
+    superficie: 'bko',
+    acao: 'usuario.desbloquear',
+    carteira: 'nao_se_aplica',
+    params: IdParam,
+    executar: (ctx): Promise<DesbloquearUsuarioResposta> =>
+      ctx.comTenant(async (db) => {
+        const r = await db.query<{ id: string; bloqueado_admin: boolean; bloqueio_ate_login: string | null; tentativas_falhas: number }>(
+          `select id, (bloqueado_em is not null) as bloqueado_admin, to_char(bloqueio_ate at time zone 'UTC', ${ISO}) as bloqueio_ate_login, tentativas_falhas
+             from core.usuario where id = $1 and deleted_at is null for update`,
+          [ctx.params.id],
+        );
+        const antes = r.rows[0];
+        if (!antes) throw naoEncontrado();
+        const bloqueio = bloqueioDaLinha(antes, ctx.agora());
+        if (bloqueio.bloqueio !== null) {
+          await db.query('update core.usuario set tentativas_falhas = 0, bloqueio_ate = null, bloqueado_em = null where id = $1', [antes.id]);
+          // RN-AUD-01: só o id, sem nome nem e-mail
+          await auditar(db, ctx, {
+            acao: 'usuario.desbloquear',
+            entidade: 'usuario',
+            entidadeId: antes.id,
+            antes: { ...bloqueio, tentativas_falhas: Number(antes.tentativas_falhas) },
+            depois: { bloqueio: null, bloqueio_ate: null, tentativas_falhas: 0 },
+          });
+        }
+        return { id: antes.id, bloqueio: null };
+      }),
+  },
+  {
     metodo: 'PUT',
     caminho: 'usuarios/:id/senha',
     superficie: 'bko',
@@ -439,7 +519,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
       ctx.comTenant(async (db) => {
         const alvo = await buscarParaAlterar(db, ctx.params.id);
         // P7: nunca a própria conta nem um admin; o alvo precisa estar ativo (o super-admin do portal age como admin)
-        // T-0111: TODOS os perfis reais do alvo (um [analista, admin] é admin); a lista da chave tem de cobrir cada um
+        // T-0111: o perfil real do alvo (personalizado inclusive); a lista da chave tem de cobri-lo
         const refsDoAlvo = await refsDoUsuario(db, alvo.id, alvo.perfil as Perfil);
         const pode = podeRedefinirSenha({ id: ctx.usuario.id, perfis: ctx.usuario.perfis ?? [] }, { id: alvo.id, perfis: refsDoAlvo, ativo: alvo.ativo });
         if (!pode.ok) throw new ErroRegraNegocio(pode.codigo, pode.mensagem, { regra: 'RN-CORE-35' });

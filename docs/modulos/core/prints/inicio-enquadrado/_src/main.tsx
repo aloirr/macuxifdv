@@ -13,9 +13,9 @@ const BOTTOM = 24;
 
 function Sino() {
   return (
-    <Pressionavel testID="sino" accessibilityRole="button" accessibilityLabel="Sino" style={{ width: 48, height: 48, borderRadius: 24, borderWidth: 1, borderColor: colors.faixaTrilho, alignItems: 'center', justifyContent: 'center' }}>
+    <Pressionavel testID="sino" accessibilityRole="button" accessibilityLabel="Sino" style={{ width: 48, height: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.faixaTrilho, alignItems: 'center', justifyContent: 'center' }}>
       <Icon name="bell" size={22} color={colors.faixaTitulo} />
-      <View style={{ position: 'absolute', top: 10, right: 11, width: 10, height: 10, borderRadius: 5, backgroundColor: colors.graficoEscuro, borderWidth: 2, borderColor: colors.faixa }} />
+      <View style={{ position: 'absolute', top: 10, right: 10, width: 12, height: 12, borderRadius: 6, backgroundColor: colors.graficoEscuro, borderWidth: 2, borderColor: colors.faixa }} />
     </Pressionavel>
   );
 }

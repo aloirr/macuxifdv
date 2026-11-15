@@ -58,21 +58,29 @@ await esbuild.build({
 });
 writeFileSync(join(saida, 'index.html'), `<!doctype html><meta charset="utf-8"><style>${css}\nhtml,body{margin:0;padding:0;background:#fff}#raiz{display:flex}</style><div id="raiz"></div><script src="app.js"></script>`);
 
-const TAMANHOS = [[360, 640], [360, 800], [393, 852], [412, 915]];
-const ESCALAS = [1, 1.15];
-const CASOS = [
-  { id: '', nome: 'MARIA EDUARDA SILVA', saud: 'Boa tarde' },
-  { id: '-nome-comprido', nome: 'MAXIMILIANO', saud: 'Boa tarde' },
-];
+// MACUXI_CABECALHO=1: só os dois casos da variação C do cabeçalho (R-20261114-212000), 390x844, fonte 1, em inicio-cabecalho-*.png
+const CABECALHO = process.env.MACUXI_CABECALHO === '1';
+const TAMANHOS = CABECALHO ? [[390, 844]] : [[360, 640], [360, 800], [393, 852], [412, 915]];
+const ESCALAS = CABECALHO ? [1] : [1, 1.15];
+const CASOS = CABECALHO
+  ? [
+      { id: '-nome-curto-com-foto', nome: 'LUCAS ANDRADE', saud: 'Boa noite', foto: '1' },
+      { id: '-nome-longo-sem-foto', nome: 'MAXIMILIANO APARECIDO CONCEIÇÃO', saud: 'Boa noite' },
+    ]
+  : [
+      { id: '', nome: 'MARIA EDUARDA SILVA', saud: 'Boa tarde' },
+      { id: '-nome-comprido', nome: 'MAXIMILIANO', saud: 'Boa tarde' },
+    ];
+if (CABECALHO) console.log('Modo cabeçalho (variação C): só os prints, sem reescrever o README.');
 const navegador = await chromium.launch(process.env.MACUXI_CHROMIUM ? { executablePath: process.env.MACUXI_CHROMIUM } : undefined);
 const linhas = [];
 let falhas = 0;
 for (const [L, A] of TAMANHOS) {
   for (const f of ESCALAS) {
     for (const caso of CASOS) {
-      if (caso.id && !(f === 1.15 && L === 360 && A === 640)) continue; // nome comprido só no pior caso
+      if (!CABECALHO && caso.id && !(f === 1.15 && L === 360 && A === 640)) continue; // nome comprido só no pior caso
       const pagina = await navegador.newPage({ viewport: { width: L, height: A }, deviceScaleFactor: 2 });
-      const q = new URLSearchParams({ t: `${L}x${A}`, f: String(f), nome: caso.nome, saud: caso.saud });
+      const q = new URLSearchParams({ t: `${L}x${A}`, f: String(f), nome: caso.nome, saud: caso.saud, ...(caso.foto ? { foto: caso.foto } : {}) });
       await pagina.goto(`file://${join(saida, 'index.html')}?${q}`);
       await pagina.evaluate(() => document.fonts.ready);
       await pagina.waitForTimeout(400);
@@ -116,7 +124,7 @@ for (const [L, A] of TAMANHOS) {
           sinoDentroDoPainel: sino.right <= window.innerWidth && sino.top < painel.top + 40,
         };
       });
-      const arq = `inicio-${L}x${A}-fonte-${String(f).replace('.', '_')}${caso.id}.png`;
+      const arq = `${CABECALHO ? 'inicio-cabecalho' : 'inicio'}-${L}x${A}-fonte-${String(f).replace('.', '_')}${caso.id}.png`;
       await pagina.screenshot({ path: join(AQUI, arq) });
       const ok = m.semRolagem && m.sincAcimaDasAbas && m.saudacaoSemReticencias && m.semQuebraNoMeio;
       // Início responsivo (R-20261114-153500): em todo tamanho e fonte tem de caber sem rolar
@@ -127,6 +135,7 @@ for (const [L, A] of TAMANHOS) {
   }
 }
 await navegador.close();
+if (CABECALHO) process.exit(falhas ? 1 : 0);
 const md = `# Início do Campo enquadrado (R-20261114-145000)
 
 Gerado por \`gerar.mjs\` (a \`TelaInicioCampo\` real com react-native-web; barra de status 24 dp, a \`BarraAbas\` do kit (64 dp + 24 dp de área segura); fonte do sistema simulada). Nomes e números são fictícios. O Início é responsivo (\`escala-inicio.ts\`: letra, espaços, cartões e painel escalam pela janela e pela fonte do sistema) e cabe sem rolar em todos os tamanhos abaixo; \"folga\" é o espaço livre do meio, em dp.

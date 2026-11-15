@@ -55,6 +55,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { opcoesLogger } from '../../../apps/api/src/config';
 import { A, B, comToken, erroDe, novoIp, SEGREDO_JWT, SENHA, subirApi, type ApiDeTeste, type Tenant } from '../apoio/api';
 import {
+  assuntoDoEml,
   cargaDaOutbox,
   criarEspiaoEmail,
   despacharParaArquivo,
@@ -1119,14 +1120,15 @@ describe.skipIf(semBanco())('T-0094 acesso por perfil e ciclo de senha (critéri
           expect(a, `arquivo do e-mail ${m.modelo} de ${m.usuario_id}`).toBeDefined();
           expect(a!.texto).toContain(`Senha temporária: ${m.dados.senha}`);
           expect(a!.texto).toContain(`Código da empresa: ${m.dados.codigo_empresa}`);
-          expect(a!.bruto).toContain(`Subject: ${ASSUNTOS_EMAIL[m.modelo]}`);
+          // assunto pelo cabeçalho decodificado (texto puro ou RFC 2047), comparado de forma exata
+          expect(assuntoDoEml(a!.bruto)).toBe(ASSUNTOS_EMAIL[m.modelo]);
           expect(a!.html).toContain(`<title>${ASSUNTOS_EMAIL[m.modelo]}</title>`);
         }
         if (doPortal.emailId) {
           const a = porId.get(doPortal.emailId);
           expect(a, 'arquivo do e-mail do portal (CS-06b)').toBeDefined();
           expect(a!.texto).toContain(`Senha temporária: ${doPortal.senha}`);
-          expect(a!.bruto).toContain(`Subject: ${ASSUNTOS_EMAIL.nova_senha}`);
+          expect(assuntoDoEml(a!.bruto)).toBe(ASSUNTOS_EMAIL.nova_senha);
           expect(a!.bruto).toContain(ADMIN3.email);
         }
         // a senha só no arquivo: nem no log do despacho, nem na outbox
