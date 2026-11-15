@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CAMPOS_OBRIGATORIOS_FILIAL } from '@macuxi/core/contracts';
 import { ENTIDADES_ORDEM_CARGA, dicionarioDaEntidade, gerarModeloCsv } from '../../domain/modelos-csv';
 import type { CampoDicionario } from '../../contracts/modelos';
-import { LIMITES_CATALOGO_PRODUTO, LIMITES_REFERENCIA } from '../../contracts';
+import { EXTERNAL_ID_MAX, LIMITES_CATALOGO_PRODUTO, LIMITES_REFERENCIA } from '../../contracts';
 
 export const BANCO = 'ERP_THATHYANY';
 export const HUB_URL = 'https://api.macuxifdv.com.br';
@@ -33,7 +33,7 @@ const COLUNAS_SO_CONECTOR = ['contatos', 'oferece_junto', 'etiquetas', 'paradas'
 
 /**
  * Colunas que o kit acrescenta ao CSV e a `tha_<entidade>` e que NÃO são campos do Hub: a view monta o campo do Hub a partir delas.
- * Produto: `referencia_1..3` (+ `marca_referencia_codigo_1..3` e `marca_referencia_1..3`) viram `referencias` [{marca_codigo, marca_nome, codigo}] na view (RN-CAT-09: até 3 por produto; a marca é opcional, basta o código).
+ * Produto: `referencia_1..3` (+ `marca_referencia_codigo_1..3` e `marca_referencia_1..3`) viram `referencias` [{marca_external_id, marca_nome, codigo}] na view (RN-CAT-09: até 3 por produto; a marca é opcional, basta o código).
  */
 /** Máximo de referências por produto: o do Hub (RN-CAT-09), o único lugar onde o número existe. */
 const N_REFERENCIAS = LIMITES_CATALOGO_PRODUTO.referencias;
@@ -41,12 +41,12 @@ const NUMEROS_REFERENCIA = Array.from({ length: N_REFERENCIAS }, (_, i) => i + 1
 export const CAMPOS_SO_KIT: Record<string, CampoDicionario[]> = {
   produto: NUMEROS_REFERENCIA.flatMap((n): CampoDicionario[] => [
     { campo: `referencia_${n}`, obrigatorio: false, tipo: 'texto', tamanho_max: LIMITES_REFERENCIA.codigo, formato: null, exemplo: n === 1 ? 'PAF-0503' : '', observacao: `Código ${n} do produto na concorrência (até ${LIMITES_REFERENCIA.codigo} caracteres). A marca (marca_referencia_${n}) é opcional. Vazio nas três = não altera as referências já cadastradas.` },
-    { campo: `marca_referencia_codigo_${n}`, obrigatorio: false, tipo: 'texto', tamanho_max: LIMITES_REFERENCIA.marcaCodigo, formato: null, exemplo: n === 1 ? '980' : '', observacao: `Código no ERP da marca da concorrência do código ${n} (opcional, só com referencia_${n}).` },
+    { campo: `marca_referencia_codigo_${n}`, obrigatorio: false, tipo: 'texto', tamanho_max: EXTERNAL_ID_MAX, formato: null, exemplo: n === 1 ? '980' : '', observacao: `Código no ERP da marca da concorrência do código ${n} (opcional, só com referencia_${n}).` },
     { campo: `marca_referencia_${n}`, obrigatorio: false, tipo: 'texto', tamanho_max: LIMITES_REFERENCIA.marcaNome, formato: null, exemplo: n === 1 ? 'Marca Beta' : '', observacao: `Marca da concorrência do código ${n} (opcional, só com referencia_${n}). Sem o código da marca, o nome precisa estar em Marcas do Catálogo; senão a referência entra sem marca e o lote traz o aviso marca_concorrente_desconhecida.` },
   ]),
 };
-/** `referencias` do produto: JSON [{marca_codigo, marca_nome, codigo}] das colunas do kit; todas vazias = NULL (o Macuxi não altera as referências já cadastradas). */
-const SQL_REFERENCIAS = `CASE WHEN ${NUMEROS_REFERENCIA.map((n) => `referencia_${n} IS NULL`).join(' AND ')} THEN NULL ELSE (SELECT r.marca_codigo, r.marca_nome, r.codigo FROM (VALUES ${NUMEROS_REFERENCIA.map((n) => `(marca_referencia_codigo_${n}, marca_referencia_${n}, referencia_${n})`).join(', ')}) AS r(marca_codigo, marca_nome, codigo) WHERE r.codigo IS NOT NULL FOR JSON PATH) END AS referencias`;
+/** `referencias` do produto: JSON [{marca_external_id, marca_nome, codigo}] das colunas do kit; todas vazias = NULL (o Macuxi não altera as referências já cadastradas). */
+const SQL_REFERENCIAS = `CASE WHEN ${NUMEROS_REFERENCIA.map((n) => `referencia_${n} IS NULL`).join(' AND ')} THEN NULL ELSE (SELECT r.marca_external_id, r.marca_nome, r.codigo FROM (VALUES ${NUMEROS_REFERENCIA.map((n) => `(marca_referencia_codigo_${n}, marca_referencia_${n}, referencia_${n})`).join(', ')}) AS r(marca_external_id, marca_nome, codigo) WHERE r.codigo IS NOT NULL FOR JSON PATH) END AS referencias`;
 /** Colunas do SELECT do conector que a view monta de outras colunas (não existem em `tha_<entidade>`): entidade -> coluna -> expressão SQL. */
 const COLUNAS_DERIVADAS: Record<string, Record<string, string>> = { produto: { referencias: SQL_REFERENCIAS } };
 

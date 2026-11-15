@@ -125,12 +125,10 @@ export const LIMITES_CATALOGO_PRODUTO = { aplicacao: 2000, referencias: 3, ofere
 export const ReferenciaCruzada = z.object({
   marca_external_id: z.string().nullish(),
   marca_nome: z.string().nullish(),
-  /** Código da marca da referência no ERP (aditivo e opcional no v1; só transporte: o consumidor do Catálogo decide o que fazer com ele). */
-  marca_codigo: z.string().trim().max(30, 'marca_codigo aceita até 30 caracteres').nullish(),
   codigo: z.string(),
 });
 /** Limites da referência válida; fora deles `limitarCatalogoDoProduto` descarta SÓ a referência, com aviso (a linha do produto segue). */
-export const LIMITES_REFERENCIA = { codigo: 30, marcaNome: 120, marcaCodigo: 30, etiqueta: 20 } as const;
+export const LIMITES_REFERENCIA = { codigo: 30, marcaNome: 120, etiqueta: 20 } as const;
 export type ReferenciaCruzada = z.infer<typeof ReferenciaCruzada>;
 
 const ProdutoBase = RegistroBase.extend({
