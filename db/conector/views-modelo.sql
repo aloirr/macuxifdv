@@ -234,6 +234,10 @@ SELECT
     p.cod_barras                                             AS ean,             -- 8, 12, 13 ou 14 dígitos; NULL se não tem
     p.descricao                                              AS nome,            -- até 200
     p.marca                                                  AS marca,
+    -- código da marca no ERP (ex.: 980), até 30; NULL = sem código. O Catálogo mostra no card (R-20261115-080000-alexandre).
+    -- [Oracle]     TO_CHAR(p.id_marca)                      AS marca_codigo,
+    -- [SQL Server]
+    CAST(p.id_marca AS VARCHAR(30))                          AS marca_codigo,
     p.categoria                                              AS categoria,
     UPPER(p.unidade)                                         AS unidade,         -- sigla da unidade base (RN-CORE-19)
     UPPER(p.unidade_embalagem)                               AS embalagem_medida, -- ex.: 'CX'; vai junto com a quantidade
