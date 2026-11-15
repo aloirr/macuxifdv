@@ -35,7 +35,8 @@ import {
 } from '@macuxi/core/contracts';
 import { entraEm, mensagemPerfilForaDoApp, perfisDeFabricaQueEntram, type Perfil } from '@macuxi/platform-sdk';
 import { api, apiFetch, errorMessage, MODO_API } from '@macuxi/platform-sdk/web';
-import { Button, CampoSenha, CLASSE_CAMPO_ACESSO, ErrorBlock, IconChevronRight, LoadingBlock, Notice, rotuloDoPerfil, useToast } from '@macuxi/ui/web';
+import { Button, CampoSenha, ErrorBlock, IconChevronRight, LoadingBlock, Notice, rotuloDoPerfil, useToast } from '@macuxi/ui/web';
+import { Campo } from '@/components/campo-acesso';
 import { CrieSuaSenha, EsqueciSenha } from '@/components/ciclo-senha';
 import { MarcaNaFaixa } from '@/components/marca-faixa';
 import { CAMINHO_ESQUECI_SENHA, consumirAvisoDoLogin } from '@/lib/ciclo-senha';
@@ -182,27 +183,18 @@ function LoginReal() {
   };
 
   const campo = (nome: 'codigo_empresa' | 'email', rotulo: string, props: { type: string; autoComplete: string; maxLength?: number }) => (
-    <label className="flex flex-col gap-1">
-      <span className="text-[13px] font-semibold text-ink">{rotulo}</span>
-      <input
-        data-testid={`login.${nome === 'codigo_empresa' ? 'codigo-empresa' : nome}`}
-        name={nome}
-        ref={(el) => {
-          refs.current[nome] = el;
-        }}
-        value={campos[nome]}
-        onChange={mudar(nome)}
-        aria-invalid={erros[nome] ? true : undefined}
-        aria-describedby={erros[nome] ? `login-erro-${nome}` : undefined}
-        className={CLASSE_CAMPO_ACESSO}
-        {...props}
-      />
-      {erros[nome] && (
-        <span id={`login-erro-${nome}`} className="text-[12px] text-danger">
-          {erros[nome]}
-        </span>
-      )}
-    </label>
+    <Campo
+      rotulo={rotulo}
+      testId={`login.${nome === 'codigo_empresa' ? 'codigo-empresa' : nome}`}
+      name={nome}
+      ref={(el) => {
+        refs.current[nome] = el;
+      }}
+      value={campos[nome]}
+      onChange={mudar(nome)}
+      erro={erros[nome]}
+      {...props}
+    />
   );
 
   if (troca) {

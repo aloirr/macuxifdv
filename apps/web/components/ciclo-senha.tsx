@@ -23,8 +23,9 @@ import {
   validarEsqueci,
   type DetalhesSenhaATrocar,
 } from '@macuxi/core/contracts';
-import { Button, CAMPO_REPITA_A_SENHA, CAMPO_SENHA_NOVA, CampoSenha, CLASSE_CAMPO_ACESSO, Notice, RegrasDaSenha } from '@macuxi/ui/web';
+import { Button, CAMPO_REPITA_A_SENHA, CAMPO_SENHA_NOVA, CampoSenha, Notice, RegrasDaSenha } from '@macuxi/ui/web';
 
+import { Campo } from '@/components/campo-acesso';
 import { mensagemDoEsqueci, resultadoDoErroDaTroca } from '@/lib/ciclo-senha';
 
 /** Id do campo "Senha nova" (foco depois de limpar). */
@@ -224,14 +225,8 @@ export function EsqueciSenha({ codigoEmpresa, email: emailInicial, onPedir, onVo
         <h1 className="m-0 font-display text-[28px] font-extrabold">{TEXTOS_ESQUECI.titulo}</h1>
         <span className="text-[14px] text-ink-2">{TEXTOS_ESQUECI.instrucao}</span>
       </div>
-      <label className="flex flex-col gap-1">
-        <span className="text-[13px] font-semibold text-ink">Código da empresa</span>
-        <input ref={codigoRef} data-testid="esqueci.codigo-empresa" type="text" autoComplete="organization" maxLength={CODIGO_EMPRESA_TAMANHO} value={codigo} onChange={(e) => setCodigo(e.target.value)} className={CLASSE_CAMPO_ACESSO} />
-      </label>
-      <label className="flex flex-col gap-1">
-        <span className="text-[13px] font-semibold text-ink">E-mail</span>
-        <input ref={emailRef} data-testid="esqueci.email" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} className={CLASSE_CAMPO_ACESSO} />
-      </label>
+      <Campo rotulo="Código da empresa" ref={codigoRef} testId="esqueci.codigo-empresa" type="text" autoComplete="organization" maxLength={CODIGO_EMPRESA_TAMANHO} value={codigo} onChange={(e) => setCodigo(e.target.value)} />
+      <Campo rotulo="E-mail" ref={emailRef} testId="esqueci.email" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
       <Button data-testid="esqueci.enviar" type="submit" variant="primary" disabled={enviando}>
         {enviando ? TEXTOS_ESQUECI.enviando : TEXTOS_ESQUECI.enviar}
       </Button>

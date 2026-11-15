@@ -26,7 +26,9 @@ import {
   lerSessaoPortal,
   salvarSessaoPortal,
 } from '@/lib/portal-sessao';
-import { Campo, MolduraEstreita } from './base';
+import { Campo } from '@/components/campo-acesso';
+
+import { MolduraEstreita } from './base';
 
 /** Textos da entrada (spec §1 e §4): sem variação. */
 export const TEXTOS_ENTRAR = Object.freeze({

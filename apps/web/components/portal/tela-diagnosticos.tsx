@@ -15,7 +15,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { DiagnosticoDetalheSchema, DiagnosticoListaSchema, ORIGENS_DIAGNOSTICO, type DiagnosticoDetalhe } from '@macuxi/platform-sdk';
-import { Badge, Button, CLASSE_CAMPO_ACESSO, cx, ErrorBlock, LoadingBlock, PageHeader, Panel, rotuloDoPerfil, SelectField, TableScroll, td, th } from '@macuxi/ui/web';
+import { Badge, Button, CLASSE_CAMPO_BASE, cx, ErrorBlock, LoadingBlock, PageHeader, Panel, rotuloDoPerfil, SelectField, TableScroll, td, th } from '@macuxi/ui/web';
 
 import { blobDoPortal, chamarPortal, mensagemDoErro } from '@/lib/portal-api';
 import {
@@ -242,7 +242,7 @@ function Filtros({ filtros, versoes, agora, ir }: { filtros: FiltrosDaTela; vers
           onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
             if (e.key === 'Enter') aplicarModelo();
           }}
-          className={cx(CLASSE_CAMPO_ACESSO, 'h-[38px] w-[170px] rounded-[10px] text-[14px]')}
+          className={cx(CLASSE_CAMPO_BASE, 'h-[38px] w-[170px] px-2.5')}
         />
       </label>
       <SelectField label="Empresa" data-testid="diagnosticos.filtro-empresa" value={filtros.empresa} onChange={mudar('empresa')} className="min-w-[200px]">

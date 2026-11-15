@@ -2,14 +2,14 @@
 
 /**
  * Peças comuns do portal `config.` (T-0087; T-0093): moldura, cabeçalho com a sessão (e o "Trocar de empresa" do admin do
- * cliente), campo de formulário e a guarda de sessão. O campo de senha é o `CampoSenha` do kit (R-20261115-071000).
+ * cliente) e a guarda de sessão. Os campos são o `Campo` de `components/campo-acesso.tsx`. O campo de senha é o `CampoSenha` do kit (R-20261115-071000).
  * Visual pelos tokens e componentes de `@macuxi/ui/web` (os do login do BKO); sem menu dos módulos (o portal não é o BKO).
  * Caminhos sem o prefixo `/config`: no host `config.` o navegador vê `/empresas` e o `proxy.ts` reescreve.
  */
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type InputHTMLAttributes, type MouseEvent, type ReactNode } from 'react';
-import { Button, CLASSE_CAMPO_ACESSO, cx, Dialog, LoadingBlock } from '@macuxi/ui/web';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from 'react';
+import { Button, cx, Dialog, LoadingBlock } from '@macuxi/ui/web';
 
 import { MarcaNaFaixa } from '@/components/marca-faixa';
 import { houveUsoRecente, MODO_PORTAL_FALSO, registrarUso, renovarSessaoPortal, sairDoPortal } from '@/lib/portal-api';
@@ -86,34 +86,6 @@ export function MolduraEstreita({ children, testId }: { children: ReactNode; tes
         </div>
       </div>
     </div>
-  );
-}
-
-export function Campo({
-  rotulo,
-  erro,
-  ajuda,
-  testId,
-  className,
-  ...rest
-}: InputHTMLAttributes<HTMLInputElement> & { rotulo: string; erro?: string | null; ajuda?: ReactNode; testId: string }) {
-  // o erro (ou a ajuda) fica ligado ao campo: o leitor de tela lê junto com o rótulo (revisão de UX R-20261106-050553 Y10)
-  const idNota = `${useId()}-nota`;
-  const nota = erro || ajuda ? idNota : undefined;
-  return (
-    <label className={cx('flex flex-col gap-1', className)}>
-      <span className="text-[13px] font-semibold text-ink">{rotulo}</span>
-      <input data-testid={testId} aria-invalid={erro ? true : undefined} aria-describedby={nota} className={CLASSE_CAMPO_ACESSO} {...rest} />
-      {erro ? (
-        <span id={idNota} className="text-[12px] text-danger">
-          {erro}
-        </span>
-      ) : ajuda ? (
-        <span id={idNota} className="text-[12px] text-ink-2">
-          {ajuda}
-        </span>
-      ) : null}
-    </label>
   );
 }
 

@@ -13,11 +13,11 @@ import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { faltasNaSenha, mensagemDaSenha, SENHA_MIN_CARACTERES, textoDoErroDaSenha } from '@macuxi/core/contracts';
 import { AdminInicialEmpresaSchema, CriarEmpresaRespostaSchema, CriarEmpresaSchema, MODULOS, type ModuloId } from '@macuxi/platform-sdk';
-import { Badge, Button, CampoSenha, CLASSE_CAMPO_ACESSO, Notice, Panel, parseDecimalInput, RegrasDaSenha, SelectField, SENHA_ATENDE_AS_REGRAS } from '@macuxi/ui/web';
+import { Badge, Button, CampoSenha, CLASSE_CAMPO_BASE, cx, Notice, Panel, parseDecimalInput, RegrasDaSenha, SelectField, SENHA_ATENDE_AS_REGRAS } from '@macuxi/ui/web';
 
 import { chamarPortal, ErroPortal, mensagemDoErro } from '@/lib/portal-api';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
-import { Campo } from './base';
+import { Campo } from '@/components/campo-acesso';
 
 type Resposta = ReturnType<typeof CriarEmpresaRespostaSchema.parse>;
 export interface EmpresaExistente {
@@ -443,7 +443,7 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
                     <input
                       data-testid={`empresa.licencas-${m}`}
                       inputMode="numeric"
-                      className={`${CLASSE_CAMPO_ACESSO} h-9 w-24`}
+                      className={cx(CLASSE_CAMPO_BASE, 'h-9 w-24 px-2.5 aria-[invalid=true]:border-danger')}
                       placeholder="sem limite"
                       value={v?.licencas ?? ''}
                       disabled={ja}
