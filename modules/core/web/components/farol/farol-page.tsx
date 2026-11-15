@@ -48,8 +48,6 @@ import {
   tomDaCor,
 } from '../../lib/farol';
 import { useHojeDoTenant, useSellersDeCampo } from '../../lib/queries';
-import { CurvasAbcParametrosPanel } from './curvas-abc-parametros-panel';
-import { FarolParametrosPanel } from './farol-parametros-panel';
 
 const CAMPO =
   'h-[38px] rounded-[10px] border border-field bg-surface px-2.5 text-[14px] font-medium text-ink';
@@ -421,12 +419,6 @@ export function FarolPage() {
   return (
     <Suspense fallback={<LoadingBlock label="Carregando o farol…" />}>
       <FarolConteudo />
-      <div id="farol-parametros" className="mt-5 w-full max-w-[1280px]">
-        <FarolParametrosPanel />
-      </div>
-      <div id="curvas-abc-parametros" className="mt-5 w-full max-w-[1280px]">
-        <CurvasAbcParametrosPanel />
-      </div>
     </Suspense>
   );
 }

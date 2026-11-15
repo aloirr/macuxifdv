@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, Panel } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice } from '@macuxi/ui/web';
+import { Moldura } from '../moldura';
 import { FRASE_TEXTO_MAX, type FraseDiaSync } from '../../../contracts/frases';
 import { fraseDoDia, validarFrase } from '../../../domain/frase-avatar/frase-do-dia';
 import { useHojeDoTenant } from '../../lib/queries';
@@ -23,7 +24,7 @@ type Acao = { tipo: 'criar'; texto: string } | { tipo: 'editar'; id: string; tex
  * testIDs: `frases.painel` · `.hoje` · `.nova` · `.nova.erro` · `.adicionar` · `.linha.<id>` · `.subir|descer|editar|ativa|remover.<id>`
  * · `.editar.texto` · `.editar.erro` · `.editar.salvar` · `.remover.confirmar` · `.erro`.
  */
-export function FrasesDoDiaPanel({ cliente, hoje }: { cliente?: ApiFrases; hoje?: string }) {
+export function FrasesDoDiaPanel({ cliente, hoje, semMoldura }: { cliente?: ApiFrases; hoje?: string; semMoldura?: boolean }) {
   const apiFrases = useMemo(() => cliente ?? criarApiFrases(), [cliente]);
   const pode = usePode('frase_dia.editar');
   const hojeDoTenant = useHojeDoTenant();
@@ -85,7 +86,7 @@ export function FrasesDoDiaPanel({ cliente, hoje }: { cliente?: ApiFrases; hoje?
   };
 
   return (
-    <Panel title="Frases do dia">
+    <Moldura sem={semMoldura} title="Frases do dia">
       <div className="flex flex-col gap-4 text-[13px]" data-testid="frases.painel">
         {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
         {q.isPending && <LoadingBlock label="Carregando as frases…" />}
@@ -205,6 +206,6 @@ export function FrasesDoDiaPanel({ cliente, hoje }: { cliente?: ApiFrases; hoje?
           {remover.padrao_codigo && <p className="mb-0 mt-2 text-ink-2">Frase padrão removida não volta. Para só tirar do rodízio, use Desativar.</p>}
         </Dialog>
       )}
-    </Panel>
+    </Moldura>
   );
 }

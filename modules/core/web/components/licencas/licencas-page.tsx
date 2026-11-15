@@ -8,7 +8,6 @@ import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
 import { LicencasEstadoSchema, NIVEIS_LICENCA, type LicencasEstado, type NivelLicenca } from '../../../contracts';
-import { PromotorPedidosPanel } from './promotor-pedidos-panel';
 import { csvDeLicencas, efetivosDoUsuario, linhasDoNivel, modulosQueTambemDesligam, ROTULO_NIVEL } from '../../lib/licencas';
 
 const CHAVE = ['core', 'licencas'] as const;
@@ -193,7 +192,6 @@ function LicencasConteudo() {
         </Panel>
       )}
 
-      {nivel === 'perfil' && perfil === 'promotor' && <PromotorPedidosPanel />}
 
       {estado && nivel === 'usuario' && (
         <Panel title="Módulos efetivos do usuário">

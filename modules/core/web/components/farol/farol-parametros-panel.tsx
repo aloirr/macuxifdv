@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { ApiRequestError, api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, ErrorBlock, LoadingBlock, Notice, Panel } from '@macuxi/ui/web';
+import { Button, ErrorBlock, LoadingBlock, Notice } from '@macuxi/ui/web';
+import { Moldura } from '../moldura';
 import { ErroParametroFarolSchema, ParametrosFarolSchema, type ErroParametroFarol } from '../../../contracts';
 import { FAROL_DIAS_MAX } from '../../../domain';
 import { textosDosParametros, validarFormularioDoFarol, type TextosDosParametros } from '../../lib/farol';
@@ -49,7 +50,7 @@ function CampoNumerico({ id, rotulo, ajuda, unidade, valor, erro, onChange }: { 
  * Só quem tem `parametro.farol` (analista e admin) vê; a API revalida e audita antes/depois. Erros aparecem no campo.
  * testIDs: `farol-params.painel` · `.<campo>` · `.<campo>.erro` · `.salvar`.
  */
-export function FarolParametrosPanel({ aoSalvar }: { aoSalvar?: () => void }) {
+export function FarolParametrosPanel({ aoSalvar, semMoldura }: { aoSalvar?: () => void; semMoldura?: boolean }) {
   const pode = usePode('parametro.farol');
   const qc = useQueryClient();
   const [textos, setTextos] = useState<TextosDosParametros | null>(null);
@@ -100,7 +101,7 @@ export function FarolParametrosPanel({ aoSalvar }: { aoSalvar?: () => void }) {
   };
 
   return (
-    <Panel title="Parâmetros do farol">
+    <Moldura sem={semMoldura} title="Parâmetros do farol">
       <div className="flex flex-col gap-4" data-testid="farol-params.painel">
         {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
         {q.isPending && <LoadingBlock label="Carregando os parâmetros…" />}
@@ -132,6 +133,6 @@ export function FarolParametrosPanel({ aoSalvar }: { aoSalvar?: () => void }) {
           </>
         )}
       </div>
-    </Panel>
+    </Moldura>
   );
 }

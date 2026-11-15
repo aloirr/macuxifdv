@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Panel, td, th, TableScroll } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, td, th, TableScroll } from '@macuxi/ui/web';
+import { Moldura } from '../moldura';
 import { MedidasListaSchema, type Medida } from '../../../contracts';
 import { DESCRICAO_MEDIDA_MAX, normalizarSigla } from '../../../domain';
 import { erroDoFormularioDeMedida } from '../../lib/medidas';
@@ -27,11 +28,11 @@ export const useMedidas = () =>
   });
 
 /**
- * Medidas do produto (RN-CORE-19; RF-CORE-14), na aba Medidas de Parâmetros → Produtos. Cadastra, edita, inativa e reativa;
+ * Medidas do produto (RN-CORE-19; RF-CORE-14), no painel Medidas da página Parâmetros (ADR 0058). Cadastra, edita, inativa e reativa;
  * só apaga medida sem uso (em uso, o botão fica desligado e explica: inative em vez de apagar). Analista e admin editam
  * (ação `medida.gerenciar`); gerente consulta. A API revalida tudo e audita.
  */
-export function MedidasPanel({ onAviso }: { onAviso: (texto: string) => void }) {
+export function MedidasPanel({ onAviso, semMoldura }: { onAviso: (texto: string) => void; semMoldura?: boolean }) {
   const qc = useQueryClient();
   const pode = usePode('medida.gerenciar');
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
@@ -90,7 +91,7 @@ export function MedidasPanel({ onAviso }: { onAviso: (texto: string) => void }) 
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando as medidas…" />}
       {lista.data && (
-        <Panel title={`${itens.length} medidas`}>
+        <Moldura sem={semMoldura} title={`${itens.length} medidas`}>
           <TableScroll minWidth={640}>
             <table className="w-full border-collapse text-[13px]">
               <thead>
@@ -134,7 +135,7 @@ export function MedidasPanel({ onAviso }: { onAviso: (texto: string) => void }) 
               </tbody>
             </table>
           </TableScroll>
-        </Panel>
+        </Moldura>
       )}
       {rascunho && (
         <Dialog

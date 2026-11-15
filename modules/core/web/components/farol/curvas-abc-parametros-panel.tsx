@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { ApiRequestError, api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, ErrorBlock, LoadingBlock, Notice, Panel } from '@macuxi/ui/web';
+import { Button, ErrorBlock, LoadingBlock, Notice } from '@macuxi/ui/web';
+import { Moldura } from '../moldura';
 import { DIMENSOES_CURVA_ABC, ErroParametroCurvaAbcSchema, ParametrosCurvaAbcSchema, type DimensaoCurvaAbc, type ErroParametroCurvaAbc, type ParametrosCurvaAbc } from '../../../contracts';
 import { ROTULOS_DIMENSAO_CURVA, validarParametrosCurvaAbc } from '../../../domain';
 
@@ -55,7 +56,7 @@ function CampoPct({ dimensao, campo, rotulo, valor, erro, onChange }: { dimensao
  * "B a partir de" (C é o que fica abaixo). Só quem tem `parametro.curva_abc` (analista e admin) vê; a API revalida e audita.
  * testIDs: `curvas-abc-params.painel` · `.<dimensao>.<a_min_pct|b_min_pct>` · `.<campo>.erro` · `.salvar`.
  */
-export function CurvasAbcParametrosPanel() {
+export function CurvasAbcParametrosPanel({ semMoldura }: { semMoldura?: boolean } = {}) {
   const pode = usePode('parametro.curva_abc');
   const qc = useQueryClient();
   const [textos, setTextos] = useState<Textos | null>(null);
@@ -105,7 +106,7 @@ export function CurvasAbcParametrosPanel() {
   };
 
   return (
-    <Panel title="Curvas ABC do cliente">
+    <Moldura sem={semMoldura} title="Curvas ABC do cliente">
       <div className="flex flex-col gap-4" data-testid="curvas-abc-params.painel">
         {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
         {q.isPending && <LoadingBlock label="Carregando as curvas…" />}
@@ -139,6 +140,6 @@ export function CurvasAbcParametrosPanel() {
           </>
         )}
       </div>
-    </Panel>
+    </Moldura>
   );
 }

@@ -19,10 +19,11 @@ const CAMPO_DA_API: Readonly<Record<string, keyof ErrosAlmoco>> = { almoco_corte
  * Parâmetros › Calendário (desenho `docs/desenho/performance-produtividade.md` §1.3, §3.2 e §6.5): os feriados do ano, com os
  * nacionais em leitura e os do tenant com incluir e remover (cada mudança grava na hora), e o corte e a janela do almoço da
  * Produtividade. Ação `parametro.inicio` (analista e admin); a API revalida e audita.
+ * `embutido`: dentro da página Parâmetros (ADR 0058), sem o título da página (o shell já mostra o do painel).
  * testIDs: `calendario.tela` · `.ano` · `.feriado.data|nome` · `.feriado.<data|nome>.erro` · `.incluir` · `.linha.<data>` ·
  * `.remover.<data>` · `.almoco.corte|inicio|fim` · `.almoco.<corte|janela>.erro` · `.almoco.salvar` · `.aviso`.
  */
-export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoje?: string }) {
+export function CalendarioPage({ cliente, hoje, embutido }: { cliente?: ApiCalendario; hoje?: string; embutido?: boolean }) {
   const apiCalendario = useMemo(() => cliente ?? criarApiCalendario(), [cliente]);
   const pode = usePode('parametro.inicio');
   const hojeDoTenant = useHojeDoTenant();
@@ -80,8 +81,8 @@ export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoj
   };
 
   return (
-    <div className="flex w-full max-w-[860px] flex-col gap-5" data-testid="calendario.tela">
-      <PageHeader title="Calendário" />
+    <div className={embutido ? 'flex w-full flex-col gap-5' : 'flex w-full max-w-[860px] flex-col gap-5'} data-testid="calendario.tela">
+      {!embutido && <PageHeader title="Calendário" />}
       {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
       {q.isPending && <LoadingBlock label="Carregando o calendário…" />}
       {aviso && (

@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, ErrorBlock, LoadingBlock, Notice, Panel } from '@macuxi/ui/web';
+import { Badge, ErrorBlock, LoadingBlock, Notice } from '@macuxi/ui/web';
+import { Moldura } from '../moldura';
 import { PromotorVePedidosSchema } from '../../../contracts';
 
 const CHAVE = ['core', 'parametros', 'promotor-ve-pedidos'] as const;
@@ -16,7 +17,7 @@ const CAMINHO = '/core/parametros/promotor-ve-pedidos';
  * Só admin (ação `parametro.promotor_ve_pedidos`; a API revalida e audita antes/depois). Vale nos aparelhos no próximo sync.
  * testIDs: `promotor-pedidos.painel` · `promotor-pedidos.toggle` (role=switch) · `promotor-pedidos.estado` (data-estado ligado|desligado).
  */
-export function PromotorPedidosPanel() {
+export function PromotorPedidosPanel({ semMoldura }: { semMoldura?: boolean } = {}) {
   const pode = usePode('parametro.promotor_ve_pedidos');
   const qc = useQueryClient();
   const [aviso, setAviso] = useState<string | null>(null);
@@ -33,7 +34,7 @@ export function PromotorPedidosPanel() {
   if (!pode) return null;
   const ligado = q.data?.ligado;
   return (
-    <Panel title="Opções do perfil Promotor">
+    <Moldura sem={semMoldura} title="Opções do perfil Promotor">
       <div className="flex flex-col gap-3" data-testid="promotor-pedidos.painel">
         {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
         {q.isPending && <LoadingBlock label="Carregando a opção…" />}
@@ -66,6 +67,6 @@ export function PromotorPedidosPanel() {
           </div>
         )}
       </div>
-    </Panel>
+    </Moldura>
   );
 }
