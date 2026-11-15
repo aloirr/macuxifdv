@@ -19,7 +19,7 @@ Precisa de internet e de uns 20 minutos na primeira vez.
 5. Se o relatório do fim mostrar linha recusada, corrija-a na planilha e rode o instalador de novo.
 
 ## Usar
-- **Dados:** edite as planilhas em `C:\MacuxiPiloto\planilhas` (a aba `colunas` mostra o tipo e se o campo é obrigatório), salve, feche o Excel e rode o instalador de novo. Linha apagada da planilha fica inativa.
+- **Dados:** edite as planilhas em `C:\MacuxiPiloto\planilhas` (a aba `colunas` mostra o tipo e se o campo é obrigatório), salve, feche o Excel e rode o instalador de novo. Linha apagada da planilha fica inativa (usuário nunca é excluído). O Macuxi recebe a filial primeiro; linha que cita uma filial inexistente chega como `referencia_ausente` e se reprocessa no Monitor. O código FDV é gerado pelo Macuxi; não preencha.
 - **Pedido aprovado no app:** entra na ERP_PILOTO em 1 a 2 minutos. Veja no SSMS (Windows Authentication, servidor `localhost,1433`, banco `ERP_PILOTO`):
   `SELECT * FROM vw_piloto_pedidos ORDER BY recebido_em DESC;` — a coluna **origem** diz se veio da *Piloto Conector* ou da *Piloto API*.
 - **Simular o ERP andando:** `UPDATE macuxi_pedido_entrada SET situacao='R', motivo='Sem estoque', situacao_em=SYSUTCDATETIME() WHERE numero_pedido=1;` (R rejeitado, C cancelado; P/F faturado exigem `nota_numero`, `nota_emitida_em` e `nota_total_cents`). Confira o status no app em 1 a 2 minutos.
