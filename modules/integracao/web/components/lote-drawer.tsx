@@ -2,11 +2,33 @@
 
 import { useMemo, useState } from 'react';
 import { downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Drawer, ErrorBlock, formatDateTime, IconDownload, LoadingBlock, SelectField, TableScroll, td, th, useToast } from '@macuxi/ui/web';
-import { CODIGOS_ERRO_LINHA, type LoteListagemItem } from '../../contracts';
+import { Badge, Button, Drawer, ErrorBlock, EstadoVazio, formatDateTime, IconDownload, LoadingBlock, SelectField, TabelaDados, useToast, type ColunaDaTabela } from '@macuxi/ui/web';
+import { CODIGOS_ERRO_LINHA, type ErrosLoteResposta, type LoteListagemItem } from '../../contracts';
+
+type ErroLinhaLote = ErrosLoteResposta['itens'][number];
 import { ROTULO_ENTIDADE, ROTULO_STATUS_LOTE, TOM_STATUS_LOTE } from '../lib/apresentacao';
 import { errosParaCsv, ROTULO_MODO } from '../lib/csv';
 import { buscarTodosErros, useErrosLote } from '../lib/queries';
+
+/**
+ * Erros por linha na gaveta (revisão do BKO §P2): sem rolagem lateral; a mensagem quebra a linha (é o que se lê para corrigir) e
+ * leva embaixo o código no ERP, o campo e o código do erro. Reprocessável é o selo único da linha (§P5).
+ */
+const COLUNAS_ERRO: ReadonlyArray<ColunaDaTabela<ErroLinhaLote>> = [
+  { id: 'linha', titulo: 'Linha', numero: true, largura: '64px', celula: (e) => e.indice + 1 },
+  {
+    id: 'mensagem',
+    titulo: 'Mensagem',
+    texto: (e) => e.mensagem,
+    celula: (e) => (
+      <div className="whitespace-normal">
+        {e.mensagem}
+        <div className="font-mono text-[11px] text-ink-2">{[e.external_id, e.campo, e.codigo].filter(Boolean).join(' · ')}{e.origem === 'conector' ? ' · informado pelo Conector' : ''}</div>
+      </div>
+    ),
+  },
+  { id: 'reprocessavel', titulo: 'Reprocessável', largura: '140px', celula: (e) => (e.reprocessavel ? <Badge tone="pending">Sim</Badge> : <Badge tone="neutral">Corrigir no ERP</Badge>) },
+];
 
 /**
  * Detalhe do lote (RF-INT-04): contagens e os erros por linha (código do ERP, campo, mensagem legível, reprocessável, origem), filtro
@@ -67,12 +89,10 @@ function DetalheLote({ lote, tz }: { lote: LoteListagemItem; tz: string }) {
         ))}
       </dl>
       {lote.status === 'falhou' && (
-        <p className="m-0 text-[13px] text-danger">O lote falhou e nada foi aplicado. O Conector reenvia sozinho; se repetir, confira os erros abaixo e o serviço no servidor do ERP.</p>
+        <p className="m-0 text-[13px] text-danger">O lote falhou e nada foi aplicado. Se repetir, confira os erros abaixo e o serviço no servidor do ERP.</p>
       )}
 
-      {lote.com_erro === 0 ? (
-        <span className="text-[13px] text-ink-2">Nenhuma linha com erro neste lote.</span>
-      ) : (
+      {lote.com_erro > 0 && (
         <>
           <div className="flex flex-wrap items-end justify-between gap-2">
             <SelectField label="Erro" value={codigo} onChange={(e) => setCodigo(e.target.value)} data-testid="integracao.erros.filtro-codigo">
@@ -92,37 +112,19 @@ function DetalheLote({ lote, tz }: { lote: LoteListagemItem; tz: string }) {
           {erros.isPending && <LoadingBlock label="Carregando erros…" />}
           {erros.data && (
             <>
-              <TableScroll minWidth={620}>
-                <thead>
-                  <tr>
-                    <th scope="col" className={th}>Linha</th>
-                    <th scope="col" className={th}>Código no ERP</th>
-                    <th scope="col" className={th}>Campo</th>
-                    <th scope="col" className={th}>Mensagem</th>
-                    <th scope="col" className={th}>Reprocessável</th>
-                  </tr>
-                </thead>
-                <tbody data-testid="integracao.erros">
-                  {itens.map((e) => (
-                    <tr key={`${e.indice}-${e.codigo}-${e.campo ?? ''}`}>
-                      <td className={`${td} tabular-nums`}>{e.indice + 1}</td>
-                      <td className={`${td} font-mono text-[12px]`}>{e.external_id ?? '—'}</td>
-                      <td className={`${td} font-mono text-[12px]`}>{e.campo ?? '—'}</td>
-                      <td className={td}>
-                        {e.mensagem}
-                        <div className="text-[11px] text-ink-2">
-                          {e.codigo}
-                          {e.origem === 'conector' ? ' · informado pelo Conector' : ''}
-                        </div>
-                      </td>
-                      <td className={td}>{e.reprocessavel ? <Badge tone="pending">Sim</Badge> : <Badge tone="neutral">Corrigir no ERP</Badge>}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </TableScroll>
-              <span className="text-[12px] text-ink-2">
-                {itens.length} de {total} linhas com erro
-              </span>
+              <TabelaDados
+                colunas={COLUNAS_ERRO}
+                linhas={itens}
+                chave={(e) => `${e.indice}-${e.codigo}-${e.campo ?? ''}`}
+                rotulo="Linhas com erro"
+                testId="integracao.erros"
+                vazio={<EstadoVazio titulo="Nenhum erro com esses filtros." testId="integracao.erros.vazio" />}
+              />
+              {itens.length < total && (
+                <span className="text-[12px] text-ink-2">
+                  {itens.length} de {total} linhas com erro
+                </span>
+              )}
               {erros.hasNextPage && (
                 <Button onClick={() => void erros.fetchNextPage()} disabled={erros.isFetchingNextPage} data-testid="integracao.erros.carregar-mais">
                   {erros.isFetchingNextPage ? 'Carregando…' : 'Carregar mais'}
