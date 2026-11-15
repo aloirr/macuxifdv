@@ -10,7 +10,9 @@ import {
   cabeLista,
   criarMemoriaDaEntrada,
   erroDeSinal,
+  LARGURA_LOGO_COM_CLIENTE,
   LARGURA_LOGO_ENTRADA,
+  linhaComLogoDoCliente,
   posicaoDoLogo,
   rotuloDaBarra,
   textoDoErro,
@@ -166,5 +168,22 @@ describe('memória da entrada (RN-CORE-48: "1 de 5, 2 de 5, 3 de 5...")', () => 
       { entidade: null, modulo: null, chave: 'u2|t2' },
     ]);
     expect(xs).toEqual([4, 4, 2, 4, 1]);
+  });
+});
+
+describe('T-0182: carga com a logo da empresa (variação A, spec logo-cliente §3)', () => {
+  it('Macuxi a 124 dp, filete com 24 dp de cada lado e a placa até 112: logo larga = 285 dp, dentro dos 312 úteis de 360 dp', () => {
+    const larga = linhaComLogoDoCliente(4);
+    expect(larga.larguraPlaca).toBe(112);
+    expect(larga.total).toBe(124 + 24 + 1 + 24 + 112);
+    expect(larga.total).toBeLessThanOrEqual(312);
+  });
+  it('logo quadrada: placa de 64 × 64 (nunca mais estreita que alta)', () => {
+    expect(linhaComLogoDoCliente(1).larguraPlaca).toBe(64);
+  });
+  it('passagem da splash: o Macuxi parte do centro da linha e do tamanho da splash', () => {
+    const l = linhaComLogoDoCliente(2.5);
+    expect(l.deslocamentoInicial).toBe((l.total - LARGURA_LOGO_COM_CLIENTE) / 2);
+    expect(l.escalaInicial).toBeCloseTo(LARGURA_LOGO_ENTRADA / LARGURA_LOGO_COM_CLIENTE, 5);
   });
 });

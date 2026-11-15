@@ -11,11 +11,39 @@
  *   `ProgressoEntrada`) e o percentual do total. Aqui ficam só os textos da tela.
  */
 import type { EtapaEntrada, ProgressoEntrada } from '@macuxi/core/contracts';
+import { caixaDaPlacaLogo } from '@macuxi/ui/mobile/puro';
 
 import { PROPORCAO_LOGO_EMPILHADO } from './logo-marca';
 
 /** Largura do logo empilhado, em dp: a mesma `LARGURA_LOGO_SPLASH` do app.config.ts (o teste confere). */
 export const LARGURA_LOGO_ENTRADA = 136;
+
+/**
+ * T-0182, variação A (spec docs/design/telas/logo-cliente.md §3; parecer da marca 2026-11-15): com a logo da empresa guardada,
+ * a carga mostra na mesma linha, centralizados, o logo Macuxi a 124 dp, um filete de 1 × 64 dp com 24 dp de cada lado e a
+ * placa da logo (64 dp de altura, até 112 de largura). Na passagem da splash, o Macuxi reduz de `LARGURA_LOGO_ENTRADA` para 124
+ * e desliza do centro para a esquerda (`deslocamentoInicial`, `escalaInicial`); o filete e a placa entram com esmaecer.
+ */
+export const LARGURA_LOGO_COM_CLIENTE = 124;
+export const ESPACO_FILETE = 24;
+export const FILETE_ENTRADA = { largura: 1, altura: 64 } as const;
+
+export function linhaComLogoDoCliente(proporcaoLogo: number): {
+  larguraPlaca: number;
+  total: number;
+  deslocamentoInicial: number;
+  escalaInicial: number;
+} {
+  const { larguraPlaca } = caixaDaPlacaLogo('carga', proporcaoLogo);
+  const total = LARGURA_LOGO_COM_CLIENTE + 2 * ESPACO_FILETE + FILETE_ENTRADA.largura + larguraPlaca;
+  return {
+    larguraPlaca,
+    total,
+    // do centro da linha (onde a splash desenha o logo) até o centro do Macuxi na linha
+    deslocamentoInicial: (total - LARGURA_LOGO_COM_CLIENTE) / 2,
+    escalaInicial: LARGURA_LOGO_ENTRADA / LARGURA_LOGO_COM_CLIENTE,
+  };
+}
 
 /** Margem lateral e de baixo da área de sincronização (spec §2 e §5), em dp. */
 export const MARGEM_ENTRADA = 32;

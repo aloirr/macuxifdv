@@ -21,6 +21,8 @@ export interface FontesAmbiente {
   usuario: () => UsuarioAmbiente | null;
   /** Visor de foto comum do shell (RD-0088); `false` = fonte recusada e nada abriu. */
   abrirFoto?: (p: PedidoAbrirFoto) => boolean;
+  /** T-0182: a logo da empresa como data URI (cópia guardada no aparelho), para o PDF; `null` = sem logo. */
+  logoDaEmpresa?: () => Promise<string | null>;
 }
 
 /** Erro do `ApiClient` no contrato do SDK (o que módulos e a tela de login do Core entendem). */
@@ -43,5 +45,13 @@ export function criarAmbienteDoAparelho(f: FontesAmbiente): AmbienteAparelho {
   );
   // `abrirFoto` ainda não está no tipo do SDK (pedido ao engenheiro-software): vai por espalhamento até entrar
   const visor = f.abrirFoto ? { abrirFoto: f.abrirFoto } : {};
-  return { http, online: f.online, novoId: uuid, posicaoAgora, usuario: f.usuario, ...visor };
+  return {
+    http,
+    online: f.online,
+    novoId: uuid,
+    posicaoAgora,
+    usuario: f.usuario,
+    ...(f.logoDaEmpresa ? { logoDaEmpresa: f.logoDaEmpresa } : {}),
+    ...visor,
+  };
 }
