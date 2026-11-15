@@ -465,12 +465,10 @@ test.describe('ADR 0058 — menu do BKO (API simulada)', () => {
     await expect(page.getByRole('button', { name: '‹ Perfis de acesso' })).toHaveCount(0);
   });
 
-  // D-PAR-01 (modulo-core, aberto 15/11): o painel Módulos só lê `?modulos_perfil=`; o `perfil` do link antigo se perde e o
-  // filtro abre em Vendedor. `test.fail` marca o defeito conhecido: quando o core corrigir, este teste fica vermelho e vira `test`.
+  // D-PAR-01 (modulo-core, corrigido em f879873): o `perfil` do link antigo chega ao filtro do painel Módulos.
   test('D-PAR-01: link antigo /usuarios-e-modulos?nivel=perfil&perfil=promotor abre Módulos filtrado em Promotor', async ({
     page,
   }) => {
-    test.fail(true, 'D-PAR-01 aberto (modulo-core): perfilDosModulos ignora o `perfil` do link antigo');
     await entrarSimulado(page);
     await page.goto('/usuarios-e-modulos?nivel=perfil&perfil=promotor');
     const seletor = page.getByTestId('parametros-core-usuarios-e-modulos').getByTestId('licencas.seletor-perfil');
