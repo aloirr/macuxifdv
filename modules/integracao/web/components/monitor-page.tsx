@@ -71,13 +71,11 @@ export function MonitorPage() {
   const noAr = m?.conectores.filter((c) => c.saude === 'ok').length ?? 0;
   const ativos = m?.conectores.filter((c) => c.ativo).length ?? 0;
   const lotesComErro = m?.lotes_recentes.filter((l) => l.com_erro > 0 || l.status === 'falhou').length ?? 0;
-  const criticos = m?.alertas.filter((a) => a.severidade === 'critico').length ?? 0;
 
   return (
     <>
       <PageHeader
         title="Integração ERP"
-        badge={criticos > 0 ? <Badge tone="danger">{criticos} crítico{criticos > 1 ? 's' : ''}</Badge> : undefined}
         actions={
           <MenuAcoes
             testId="integracao.monitor.mais-acoes"
@@ -96,9 +94,8 @@ export function MonitorPage() {
       {m && (
         <div className="flex flex-col gap-4" data-testid="pagina-integracao-monitor-conteudo">
           <KpiGrid>
-            <KpiCard label="Conectores no ar" value={`${noAr} de ${ativos}`} sub="sinal há menos de 3 min" />
-            <KpiCard label="Lotes com erro" value={lotesComErro} sub={`dos ${m.lotes_recentes.length} mais recentes`} />
-            <KpiCard label="Pedidos presos ou retidos" value={m.pedidos.presos + m.pedidos.retidos} sub="fila do ERP" />
+            <KpiCard label="Conectores no ar" value={`${noAr} de ${ativos}`} />
+            <KpiCard label="Lotes com erro" value={lotesComErro} />
           </KpiGrid>
 
           <AlertasPanel alertas={m.alertas} />

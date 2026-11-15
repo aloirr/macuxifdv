@@ -75,7 +75,6 @@ export function CargaArquivoPage() {
     enviar.mutate(
       { entrada: { entidade, modo, texto, aoEnviarParte: (enviadas, total) => setProgresso({ enviadas, total }) }, chave },
       {
-        onSuccess: (r) => toast('success', `Arquivo recebido: ${r.totalLinhas.toLocaleString('pt-BR')} linhas. O Macuxi confere cada linha e grava em segundo plano.`),
         onError: (e) => (e instanceof ErroDeArquivo ? setErroArquivo(e.message) : toast('danger', errorMessage(e))),
       },
     );
@@ -193,8 +192,7 @@ export function CargaArquivoPage() {
             </div>
             {r && (
               <div className="rounded-md border border-line p-3 text-[13px]" data-testid="integracao.carga.resultado">
-                <strong>Recebido.</strong> {r.totalLinhas.toLocaleString('pt-BR')} linhas em {lotes.length} {lotes.length === 1 ? 'parte' : 'partes'}
-                {invalidasLeitura > 0 ? `; ${invalidasLeitura.toLocaleString('pt-BR')} com erro de leitura (aparecem com a linha do arquivo)` : ''}. Acompanhe o resultado e baixe os erros em{' '}
+                <strong>Recebido:</strong> {r.totalLinhas.toLocaleString('pt-BR')} linhas{invalidasLeitura > 0 ? `; ${invalidasLeitura.toLocaleString('pt-BR')} com erro de leitura` : ''}. Resultado e erros em{' '}
                 <a className="font-semibold underline" href={`/integracao?lote=${encodeURIComponent(lotes[0]?.lote_id ?? '')}`}>
                   Integração ERP
                 </a>
