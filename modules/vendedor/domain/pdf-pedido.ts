@@ -121,7 +121,7 @@ export interface OrderPdfContext {
   generated_at: string;
   /** `referencia_no_orcamento` do tenant (RN-CAT-10, padrão não): a referência cruzada também sai no PDF do cliente */
   reference_on_customer_pdf?: boolean;
-  /** T-0159: logo cadastrada do tenant (URL ou data URI); ausente = logo padrão do app. Hoje o tenant não tem o campo: vale sempre a padrão. */
+  /** T-0182: logo cadastrada da empresa (data URI vindo de `AmbienteAparelho.logoDaEmpresa?()`); vazio ou ausente = logo padrão do app (manual §7). */
   logo_src?: string | null;
 }
 
@@ -197,7 +197,7 @@ html, body { margin: 0; background: #FFFFFF; }
 body { font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #16202A; font-size: 15px; line-height: 1.35; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .cab { display: flex; justify-content: space-between; align-items: center; gap: 8mm; padding-bottom: 3mm; }
 .marca { display: flex; align-items: center; gap: 4mm; }
-.logo { width: 16mm; height: 16mm; object-fit: contain; border-radius: 2mm; }
+.logo { width: auto; max-width: 48mm; height: 16mm; object-fit: contain; object-position: left center; border-radius: 0; }
 .empresa { font-weight: 800; font-size: 20px; line-height: 1.15; }
 .emit { font-size: 12px; color: #4A5562; }
 .doc { text-align: right; }
