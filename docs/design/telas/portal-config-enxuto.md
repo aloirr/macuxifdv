@@ -53,7 +53,7 @@ Título **"Empresas"** + **"Nova empresa"**. Sai o subtítulo "Cada empresa clie
 | ![Empresas, antes](portal-config-enxuto/antes-02-empresas.png) | ![Empresas, depois](portal-config-enxuto/depois-02-empresas.png) |
 
 ## 4. Nova empresa
-> Ver §11: CNPJ no topo preenche o cartão "Empresa" pela Receita; o cartão "Módulos e licenças" (item 2) dá lugar a Plano, Adicionais e Ciclo. Simulação nova: `depois-03b-nova-empresa.png`.
+> Ver §11: CNPJ no topo preenche o cartão "Empresa" pela Receita; o cartão "Módulos e licenças" (item 2) dá lugar a Plano, Adicionais e Ciclo. Simulação: `../planos-assinatura/02-nova-empresa.png`.
 
 "← Empresas" · **"Nova empresa"**. Saem "Passo 1" e "Confira antes de gravar: o código da empresa não muda depois. As bases vêm nos próximos passos."
 1. **"Empresa"**: **Razão social** · **CNPJ** · **UF** (obrigatório, lista das 27, sem pré-seleção; erro **"Escolha a UF."**) · **Fuso**. Sai o campo "Código da empresa" e a ajuda dele; sai a ajuda do fuso "Datas e horários do app e do BKO aparecem neste fuso."
@@ -233,7 +233,7 @@ Sucesso, como no §4: **"Empresa criada. Código da empresa: AM4821."** Erro ger
 > **Substituída em 15/11** (R-20261115-123000): `depois-03b` dá lugar a `../planos-assinatura/02-nova-empresa.png`. A `depois-03c` (estados do CNPJ) continua vigente.
 
 ### 11.4 Aba Empresa: cartão "Plano" e diálogo "Trocar de plano"
-Simulações (aprovadas em 15/11, R-20261115-123000): `../planos-assinatura/03-aba-empresa.png` (super-admin), `04-aba-empresa-cliente.png` (admin do cliente), `05-trocar-plano.png` (diálogo) e `06-trocar-abaixo-do-uso.png` (plano abaixo do uso); substituem `depois-06b`, `depois-06c` e `depois-06d`.
+Simulações (aprovadas em 15/11, R-20261115-123000): `../planos-assinatura/03-aba-empresa.png` (super-admin), `04-aba-empresa-cliente.png` (admin do cliente), `05-trocar-plano.png` (diálogo) e `06-trocar-abaixo-do-uso.png` (plano abaixo do uso).
 Coluna esquerda da aba (§8). Dados da ficha: `GET rotaPortalAssinatura(tenantId)` (`FichaAssinaturaSchema`).
 - **Título "Plano {nome}"** (ex.: **"Plano PME"**) e, à direita, **"Trocar de plano"** (principal: a única ação principal da aba; só super-admin). Embaixo do título, uma linha: valor **"R$ 1.537,00/mês"** (ou **"R$ 15.370,00/ano"**; `valor.por_ciclo_centavos`; o "/mês" ou "/ano" já diz o ciclo, P4) + selo de alerta **"Teste até 27/11/2026"** se `teste_ate` e não `paga` (data no fuso do tenant, `fimDoTeste`).
 - **Licenças em blocos** (`licencas[]`): um bloco por item, com o nome em cima e **"{em uso} de {contratadas}"** embaixo (número em Archivo 700). **Vendedor**, **Gestor** e **BKO** sempre; **Promotor**, **Pesquisa** e **Treinamento** (ícone + nome do §11.10) só quando contratados. `contratadas` = `null`: **"{em uso} · sem limite"**. Em uso = contratadas: só o selo de alerta **"no limite"** ao lado do número; borda e número seguem iguais aos demais blocos (RD-a: uma informação, um sinal). Grade: 3 por linha na coluna do super-admin; 5 por linha (até 6) na largura toda do admin do cliente; 2 por linha abaixo de 768 px.
