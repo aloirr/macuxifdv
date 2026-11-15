@@ -19,7 +19,7 @@
 --    mínimo no maior Código FDV já gravado no tenant (vivo ou apagado). macuxi_app só LÊ (select, RLS por tenant); quem
 --    escreve é a função do gatilho (SECURITY DEFINER, abaixo).
 --    Backup da empresa (0072, ordem_do_backup): o contador só tem FK para plataforma.tenant e sai na 1ª leva, antes de
---    core.usuario (que espera core.equipe, ciclo quebrado). A restauração dá certo em qualquer ordem, sem desligar estes gatilhos:
+--    core.usuario (que espera core.equipe, ciclo quebrado, e core.filial pela 0077). A restauração dá certo em qualquer ordem, sem desligar estes gatilhos:
 --    contador antes -> cada usuário com código sobe o contador para greatest(atual, n); usuários antes -> o usuário com código
 --    não cria a linha, e o insert do contador do backup (insert, não update: o "nunca diminui" não entra) passa pelo piso.
 -- 3. core.usuario_codigo_fdv() — função dos 2 gatilhos de core.usuario, SECURITY DEFINER (roda como o dono, que é quem grava o
@@ -40,6 +40,8 @@
 --    updated_at dos vivos anda (gatilho usuario_updated_at): o aparelho puxa o usuário de novo com o código (UsuarioSync).
 --
 -- RLS: a tabela nova com enable + force + isolamento_tenant (macuxi_app) + manutencao (0031); grant só select ao macuxi_app;
+-- consulta só leitura (0078, ADR 0055): select e política leitura no contador ao macuxi_leitura, e select na coluna nova
+-- core.usuario.codigo_fdv (a 0078 deu SELECT por coluna em core.usuario, que tem coluna sensível; coluna nova fica sem grant);
 -- macuxi_worker e macuxi_portal: nada (o portal cria o admin pela sa_provisionar_tenant, SECURITY DEFINER: o gatilho roda como
 -- o dono). core.usuario segue com as políticas de sempre.
 -- Volume: 1 linha de contador por tenant; o índice único cobre a busca pelo código (q da lista do BKO, por tenant).
@@ -55,6 +57,7 @@ alter table core.usuario add constraint usuario_codigo_fdv_formato
   check (codigo_fdv is null or codigo_fdv ~ '^(0000[1-9]|000[1-9][0-9]|00[1-9][0-9]{2}|0[1-9][0-9]{3}|[1-9][0-9]{4,})$');
 create unique index usuario_codigo_fdv_uk on core.usuario (tenant_id, codigo_fdv)
   where deleted_at is null and codigo_fdv is not null;
+grant select (codigo_fdv) on core.usuario to macuxi_leitura;
 
 -- 2. Contador por tenant --------------------------------------------------------------------------------------------------------
 create table core.usuario_codigo_fdv_contador (
@@ -113,6 +116,8 @@ create policy isolamento_tenant on core.usuario_codigo_fdv_contador for all to m
   with check (tenant_id = plataforma.tenant_atual());
 create policy manutencao on core.usuario_codigo_fdv_contador for all to macuxi_manutencao using (true) with check (true);
 grant select on core.usuario_codigo_fdv_contador to macuxi_app;
+grant select on core.usuario_codigo_fdv_contador to macuxi_leitura;
+create policy leitura on core.usuario_codigo_fdv_contador for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual());
 
 -- 4. Backfill (antes dos gatilhos de core.usuario: o somente_leitura recusaria o update) ---------------------------------------
 with ordem as (

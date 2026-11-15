@@ -65,6 +65,10 @@
  *   cliente (todo cliente da fixture fica na padrão: estoque e preço de hoje não mudam). Depósitos, itens de preço e faixas da
  *   fixture não informam a filial: o gatilho grava a padrão (a regra "ausente = padrão" do Hub). Os testes que precisam de
  *   cliente, depósito ou preço na 0002 gravam em transação desfeita.
+ * - T-0176 (0077, RN-CORE-39; USUARIO_FILIAL_FIXTURE, grupo 0x6a): filial de cadastro (core.usuario.filial_cadastro_id) e
+ *   filiais de venda (core.usuario_filial) — TODO usuário com cadastro e venda na padrão (sem filial ele ficaria bloqueado,
+ *   R-20261115-094500, e os testes de login e de rota quebrariam); o supervisor de A vende também na Boa Vista e o vendedor de
+ *   B também na Campinas. O usuário bloqueado (sem cadastro) é montado pelo teste em transação desfeita.
  * - T-0147 (0057, RN-CORE-38; FOTOS_PDV_FIXTURE): o gatilho tenant_semear_foto_tipo cria a "Fachada" (obrigatória) em A e em B
  *   (fora das listas, id idFotoTipoFachada); nas listas (grupo 0x0b) A tem "CNH do sócio" (sensível, obrigatória) e B
  *   "Contrato social" (sensível). Fotos (grupo 0x0c): A com a fachada e a CNH de c1 (arquivo da CNH com perfis_leitura
@@ -78,6 +82,9 @@
  *   (A: equipe-2 visitas_dia 12 desde 2026-01; B: tenant km_dia 150 km desde 2026-01); resumo de km de ontem (A: promotor;
  *   B: vendedor-B). Fora dos usuários e das vigências que os testes t0170-*.db.test.ts usam (analista, assistente,
  *   vendedor-1 nas metas e no km, 2030-01, 2031-12, 2032-01).
+ * - 0074 (ADR 0054; SYNC_PACOTE_FIXTURE, grupos 0x68 e 0x69): pacotes da primeira carga — A com o 'catalogo' · 'tenant'
+ *   pronto, o 'catalogo' · 'filial:<padrão>' pronto e um 'catalogo' · 'tenant' substituído; B com o 'core' · 'tenant' pronto.
+ *   Pedidos de geração já atendidos (A: lote; B: manifesto): nenhum pendente (o teste grava o seu em transação desfeita).
  */
 import { createHash, createHmac } from 'node:crypto';
 import type { ClientBase } from 'pg';
@@ -201,6 +208,11 @@ const G = {
   deslocamento_dia: 0x66,
   // 0070 (ADR 0047): assinatura do tenant (o catálogo de planos, fora dos tenants, usa o prefixo 9a9a9a9a)
   assinatura: 0x67,
+  // 0074 (ADR 0054): pacote da primeira carga e pedido de geração
+  sync_pacote: 0x68,
+  sync_pacote_pedido: 0x69,
+  // 0077 (T-0176, RN-CORE-39): filiais do usuário
+  usuario_filial: 0x6a,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -322,6 +334,16 @@ export const FILIAIS_FIXTURE = {
   B: { padrao: idFilialPadrao(b('tenant', 1)), campinas: b('filial', 1) },
 } as const;
 
+/** 0077 (T-0176, RN-CORE-39): filiais de venda do usuário (ver o cabeçalho). */
+export const USUARIO_FILIAL_FIXTURE = {
+  A: {
+    vendedor1Padrao: a('usuario_filial', 1), supervisorPadrao: a('usuario_filial', 2), supervisorBoaVista: a('usuario_filial', 3),
+    adminPadrao: a('usuario_filial', 4), analistaPadrao: a('usuario_filial', 5), assistentePadrao: a('usuario_filial', 6),
+    gerentePadrao: a('usuario_filial', 7), vendedor2Padrao: a('usuario_filial', 8), promotorPadrao: a('usuario_filial', 9),
+  },
+  B: { vendedorPadrao: b('usuario_filial', 2), vendedorCampinas: b('usuario_filial', 1), adminPadrao: b('usuario_filial', 3) },
+} as const;
+
 /**
  * 0057 (T-0147, RN-CORE-38): tipos e fotos do PDV. A "Fachada" vem do gatilho tenant_semear_foto_tipo (id idFotoTipoFachada);
  * A: CNH do sócio (sensível, obrigatória), fachada e CNH de c1 (arquivo da CNH restrito a admin/analista/supervisor);
@@ -386,6 +408,15 @@ export function planosDaFixture(): Linha[] {
     plano(PLANOS_FIXTURE.antigo, { ordem: 9, ativo: false }),
   ];
 }
+
+/**
+ * 0074 (ADR 0054): pacotes da primeira carga e pedidos de geração (ver o cabeçalho). geracao_base fixa (a do tenant é aleatória
+ * na fixture; o gerador grava a do tenant). Nenhum pedido pendente.
+ */
+export const SYNC_PACOTE_FIXTURE = {
+  A: { catalogo: a('sync_pacote', 1), filialPadrao: a('sync_pacote', 2), substituido: a('sync_pacote', 3), pedido: a('sync_pacote_pedido', 1) },
+  B: { core: b('sync_pacote', 1), pedido: b('sync_pacote_pedido', 1) },
+} as const;
 
 /** 0064–0066 (T-0170): uma linha de cada tabela nova em A e em B (ver o cabeçalho). */
 export const T0170_FIXTURE = {
@@ -663,6 +694,9 @@ export const ORDEM_TABELAS = [
   'plataforma.email_saida',
   // 0058 (T-0158): diagnóstico do aparelho (FK composta -> core.usuario); alerta já resolvido, sem print
   'plataforma.diagnostico',
+  // 0074 (ADR 0054): pacote da primeira carga e pedido de geração (sem FK além do tenant)
+  'plataforma.sync_pacote',
+  'plataforma.sync_pacote_pedido',
   'plataforma.evento',
   'plataforma.evento_consumo',
   'plataforma.parametro',
@@ -701,6 +735,8 @@ export const ORDEM_TABELAS = [
   // 0066 (T-0170): meta de produtividade (FKs -> core.equipe, core.usuario) e resumo do km (FK -> core.usuario)
   'core.meta_produtividade',
   'core.deslocamento_dia',
+  // 0077 (T-0176): filiais de venda do usuário (FKs -> core.usuario, core.filial)
+  'core.usuario_filial',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
   ...ORDEM_GESTOR,
   // 0015 (T-0056): schema promotor — linhas de A e B em ./promotor.ts
@@ -711,7 +747,10 @@ export const ORDEM_TABELAS = [
 
 export type DadosFixture = Record<(typeof ORDEM_TABELAS)[number], Linha[]>;
 
-const usuario = (id: string, tenant_id: string, nome: string, email: string, perfil: string, equipe_id: string | null, senha_hash: string): Linha => ({
+const usuario = (
+  id: string, tenant_id: string, nome: string, email: string, perfil: string, equipe_id: string | null, senha_hash: string,
+  filial_cadastro_id: string | null,
+): Linha => ({
   id,
   tenant_id,
   nome,
@@ -729,6 +768,8 @@ const usuario = (id: string, tenant_id: string, nome: string, email: string, per
   senha_temporaria_hash: null,
   senha_temporaria_expira_em: null,
   senha_temporaria_criada_em: null,
+  // 0077 (T-0176): a padrão (já existe ao gravar o usuário: gatilho tenant_semear_filial); nula = bloqueado
+  filial_cadastro_id,
   external_id: null,
 });
 
@@ -1010,16 +1051,16 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       { id: B.equipes.equipe, tenant_id: tB, nome: 'Equipe Beta', equipe_pai_id: null, responsavel_id: B.usuarios.admin, ativo: true, external_id: null },
     ],
     'core.usuario': [
-      usuario(A.usuarios.admin, tA, 'Admin Alfa', 'admin@exemplo.com.br', 'admin', null, senhaHash),
-      usuario(A.usuarios.analista, tA, 'Analista Alfa', 'analista@exemplo.com.br', 'analista', null, senhaHash),
-      usuario(A.usuarios.assistente, tA, 'Assistente Alfa', 'assistente@exemplo.com.br', 'assistente', null, senhaHash),
-      usuario(A.usuarios.gerente, tA, 'Gerente Alfa', 'gerente@exemplo.com.br', 'gerente', A.equipes.regional, senhaHash),
-      usuario(A.usuarios.supervisor, tA, 'Supervisor Alfa', 'supervisor@exemplo.com.br', 'supervisor', A.equipes.equipe1, senhaHash),
-      usuario(A.usuarios.vendedor1, tA, 'Vendedor Um', DOIS_TENANTS.emailRepetido, 'vendedor', A.equipes.equipe1, senhaHash),
-      usuario(A.usuarios.vendedor2, tA, 'Vendedor Dois', 'vendedor2@exemplo.com.br', 'vendedor', A.equipes.equipe2, senhaHash),
-      usuario(A.usuarios.promotor, tA, 'Promotor Alfa', 'promotor@exemplo.com.br', 'promotor', A.equipes.equipe1, senhaHash),
-      usuario(B.usuarios.admin, tB, 'Admin Beta', 'admin.b@exemplo.com.br', 'admin', null, senhaHash),
-      usuario(B.usuarios.vendedor, tB, 'Vendedor Beta', DOIS_TENANTS.emailRepetido, 'vendedor', B.equipes.equipe, senhaHash),
+      usuario(A.usuarios.admin, tA, 'Admin Alfa', 'admin@exemplo.com.br', 'admin', null, senhaHash, FILIAIS_FIXTURE.A.padrao),
+      usuario(A.usuarios.analista, tA, 'Analista Alfa', 'analista@exemplo.com.br', 'analista', null, senhaHash, FILIAIS_FIXTURE.A.padrao),
+      usuario(A.usuarios.assistente, tA, 'Assistente Alfa', 'assistente@exemplo.com.br', 'assistente', null, senhaHash, FILIAIS_FIXTURE.A.padrao),
+      usuario(A.usuarios.gerente, tA, 'Gerente Alfa', 'gerente@exemplo.com.br', 'gerente', A.equipes.regional, senhaHash, FILIAIS_FIXTURE.A.padrao),
+      usuario(A.usuarios.supervisor, tA, 'Supervisor Alfa', 'supervisor@exemplo.com.br', 'supervisor', A.equipes.equipe1, senhaHash, FILIAIS_FIXTURE.A.padrao),
+      usuario(A.usuarios.vendedor1, tA, 'Vendedor Um', DOIS_TENANTS.emailRepetido, 'vendedor', A.equipes.equipe1, senhaHash, FILIAIS_FIXTURE.A.padrao),
+      usuario(A.usuarios.vendedor2, tA, 'Vendedor Dois', 'vendedor2@exemplo.com.br', 'vendedor', A.equipes.equipe2, senhaHash, FILIAIS_FIXTURE.A.padrao),
+      usuario(A.usuarios.promotor, tA, 'Promotor Alfa', 'promotor@exemplo.com.br', 'promotor', A.equipes.equipe1, senhaHash, FILIAIS_FIXTURE.A.padrao),
+      usuario(B.usuarios.admin, tB, 'Admin Beta', 'admin.b@exemplo.com.br', 'admin', null, senhaHash, FILIAIS_FIXTURE.B.padrao),
+      usuario(B.usuarios.vendedor, tB, 'Vendedor Beta', DOIS_TENANTS.emailRepetido, 'vendedor', B.equipes.equipe, senhaHash, FILIAIS_FIXTURE.B.padrao),
     ],
     // 0080 (T-0175): mesmo id e mesmo número que o gatilho grava (CODIGOS_FDV_FIXTURE: A até 00008, B até 00002)
     'core.usuario_codigo_fdv_contador': [
@@ -1090,6 +1131,16 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
         detalhe: { erro: { mensagem: 'TypeError: x is undefined', pilha: null, origem: 'tela' } },
       }),
     ],
+    'plataforma.sync_pacote': [
+      syncPacote(SYNC_PACOTE_FIXTURE.A.catalogo, tA, 'catalogo', null, {}),
+      syncPacote(SYNC_PACOTE_FIXTURE.A.filialPadrao, tA, 'catalogo', FILIAIS_FIXTURE.A.padrao, {}),
+      syncPacote(SYNC_PACOTE_FIXTURE.A.substituido, tA, 'catalogo', null, { situacao: 'substituido', substituido_em: DATA_FIXA_ACESSO }),
+      syncPacote(SYNC_PACOTE_FIXTURE.B.core, tB, 'core', null, { entidades: { produto: 2, produto_unidade: 2, medida: 3 } }),
+    ],
+    'plataforma.sync_pacote_pedido': [
+      syncPacotePedido(SYNC_PACOTE_FIXTURE.A.pedido, tA, 'catalogo', null, 'lote'),
+      syncPacotePedido(SYNC_PACOTE_FIXTURE.B.pedido, tB, 'core', null, 'manifesto'),
+    ],
     'plataforma.evento': [
       evento(a('evento', 1), tA, A.usuarios.vendedor2),
       evento(b('evento', 1), tB, B.usuarios.admin),
@@ -1123,6 +1174,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     ...dadosPagamento(hojeA, hojeB),
     'core.plano_rv': dadosPlanoRv(hojeA, hojeB),
     ...dadosT0170(hojeA, hojeB),
+    'core.usuario_filial': dadosUsuarioFilial(),
     ...dadosGestor({ tenant: tA, vendedor: A.usuarios.vendedor1, cliente: A.clientes.c1 }, { tenant: tB, vendedor: B.usuarios.vendedor, cliente: B.clientes.c1 }),
     ...dadosPromotorFixture(
       {
@@ -1182,6 +1234,30 @@ function dadosT0170(
       deslocamento(FB.deslocamento, B.tenantId, B.usuarios.vendedor, somarDias(hojeB, -1), 18_700, 96),
     ],
   };
+}
+
+/** 0077 (T-0176): filiais de venda do usuário (USUARIO_FILIAL_FIXTURE); a de cadastro de cada um está entre elas. */
+function dadosUsuarioFilial(): Linha[] {
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const UA = USUARIO_FILIAL_FIXTURE.A;
+  const vinculo = (id: string, tenant_id: string, usuario_id: string, filial_id: string): Linha => ({
+    id, tenant_id, usuario_id, filial_id, deleted_at: null, external_id: null,
+  });
+  return [
+    vinculo(UA.vendedor1Padrao, A.tenantId, A.usuarios.vendedor1, FILIAIS_FIXTURE.A.padrao),
+    vinculo(UA.supervisorPadrao, A.tenantId, A.usuarios.supervisor, FILIAIS_FIXTURE.A.padrao),
+    vinculo(UA.supervisorBoaVista, A.tenantId, A.usuarios.supervisor, FILIAIS_FIXTURE.A.boaVista),
+    vinculo(USUARIO_FILIAL_FIXTURE.B.vendedorPadrao, B.tenantId, B.usuarios.vendedor, FILIAIS_FIXTURE.B.padrao),
+    vinculo(USUARIO_FILIAL_FIXTURE.B.vendedorCampinas, B.tenantId, B.usuarios.vendedor, FILIAIS_FIXTURE.B.campinas),
+    vinculo(UA.adminPadrao, A.tenantId, A.usuarios.admin, FILIAIS_FIXTURE.A.padrao),
+    vinculo(UA.analistaPadrao, A.tenantId, A.usuarios.analista, FILIAIS_FIXTURE.A.padrao),
+    vinculo(UA.assistentePadrao, A.tenantId, A.usuarios.assistente, FILIAIS_FIXTURE.A.padrao),
+    vinculo(UA.gerentePadrao, A.tenantId, A.usuarios.gerente, FILIAIS_FIXTURE.A.padrao),
+    vinculo(UA.vendedor2Padrao, A.tenantId, A.usuarios.vendedor2, FILIAIS_FIXTURE.A.padrao),
+    vinculo(UA.promotorPadrao, A.tenantId, A.usuarios.promotor, FILIAIS_FIXTURE.A.padrao),
+    vinculo(USUARIO_FILIAL_FIXTURE.B.adminPadrao, B.tenantId, B.usuarios.admin, FILIAIS_FIXTURE.B.padrao),
+  ];
 }
 
 type TabelaSprint1 = (typeof ORDEM_SPRINT1)[number];
@@ -1781,6 +1857,26 @@ function diagnostico(id: string, tenant_id: string, usuario_id: string, perfil: 
     aparelho_modelo: 'SM-A155M', android: '14', android_api: 34, tela: '/m/novo-pedido', motivo: null, descricao: null,
     detalhe: {}, print_id: null, ocorrido_em: DATA_FIXA_ACESSO, recebido_em: DATA_FIXA_ACESSO, alerta_situacao: 'enviado',
     alerta_tentativas: 0, alerta_proxima_em: null, alerta_recado_id: null, alerta_em: null, external_id: null, ...extra,
+  };
+}
+
+/** 0074 (ADR 0054): pacote com a chave do armazenamento no formato do CHECK sync_pacote_chave_do_tenant. */
+function syncPacote(id: string, tenant_id: string, modulo: string, filial_id: string | null, extra: Partial<Linha>): Linha {
+  const particao = filial_id ? `filial:${filial_id}` : 'tenant';
+  return {
+    id, tenant_id, modulo, particao, filial_id, formato: 1, situacao: 'pronto', horizonte: DATA_FIXA_ACESSO,
+    geracao_base: '00000000-0000-4000-8000-000000000070',
+    chave_armazenamento: `sync-pacotes/${tenant_id}/${modulo}/${particao}/${id}.sqlite.gz`,
+    bytes: 4096, md5: 'd41d8cd98f00b204e9800998ecf8427e', entidades: filial_id ? { tabela_preco_item: 4, deposito: 1 } : { catalogo_no: 2, sinonimo: 1 },
+    substituido_em: null, arquivo_apagado_em: null, external_id: null, ...extra,
+  };
+}
+
+/** 0074 (ADR 0054): pedido de geração já atendido (nenhum pendente na fixture). */
+function syncPacotePedido(id: string, tenant_id: string, modulo: string, filial_id: string | null, origem: 'lote' | 'manifesto' | 'agendado'): Linha {
+  return {
+    id, tenant_id, modulo, particao: filial_id ? `filial:${filial_id}` : 'tenant', filial_id, origem, situacao: 'atendido',
+    gerar_apos: DATA_FIXA_ACESSO, tentativas: 1, ultimo_erro: null, atendido_em: DATA_FIXA_ACESSO, external_id: null,
   };
 }
 

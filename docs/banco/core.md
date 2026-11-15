@@ -41,6 +41,7 @@ Login: código da empresa → `plataforma.tenant_por_codigo` → transação com
 | sku | text not null | único por tenant |
 | ean | text | 8 a 14 dígitos |
 | nome, marca, categoria | text | |
+| marca_codigo | varchar(30) | código da marca no ERP (ex.: 980); nulo = sem código; card do Catálogo (0076) |
 | unidade | text not null | padrão `UN` (`PC`, `JG`, ...) |
 | ativo | boolean not null | |
 
@@ -1014,6 +1015,75 @@ no banco (usuários antigos e o admin inicial do provisionamento não têm códi
 
 Volta: `0069_core_cargo_hierarquia.down.sql` (saem os 4 gatilhos do promotor, as 2 funções e a view; ver plataforma.md). Teste: `db/testes/cargo-hierarquia.db.test.ts`.
 
+## 0076 — código da marca no ERP no produto (`0076_core_produto_marca_codigo`; decisão do dono do produto R-20261115-080000-alexandre, item 1)
+Aditiva: `core.produto.marca_codigo varchar(30)` nula, sem padrão (não reescreve a tabela), sem CHECK e sem índice (só exibição,
+nunca filtro). Vem do ERP pelo Hub (`marca_codigo` do produto no contrato v1, opcional; view `vw_macuxi_produto` em
+`db/conector/views-modelo.sql`, ao lado de `marca`) e o Catálogo mostra no card. Texto vazio do ERP: o consumidor do Core grava
+nulo (o banco não recusa, para o produto não cair por isso). RLS, grants e índices de `core.produto` ficam como estão.
+Numeração: 0070 a 0075 estão reservadas por branches abertos; a 0076 entra no `main` depois delas (o migrador exige
+numeração contínua).
+
+Volta: `0076_core_produto_marca_codigo.down.sql` apaga a coluna (os códigos voltam na próxima carga do ERP). Volte antes o Core
+que lê/grava a coluna (senão 42703). Teste: `db/testes/produto-marca-codigo.db.test.ts`.
+
+## 0077 — filial de cadastro e filiais de venda (`0077_core_usuario_filial`; T-0176, RN-CORE-39, decisões R-20261115-093000 e R-20261115-094500)
+Todo usuário (inclusive admin e analista) tem uma **filial de cadastro** e uma ou mais **filiais de venda**; a de cadastro
+está entre as de venda. Sem filial de cadastro o usuário fica **bloqueado** (domain/API do Core; o banco aceita o nulo).
+Proposta do modulo-core: `docs/modulos/core/filial-cadastro-venda.md`.
+
+### usuario — coluna nova
+| Coluna | Tipo | Regra |
+|---|---|---|
+| filial_cadastro_id | uuid null | FK composta `usuario_filial_cadastro_fk (tenant_id, filial_cadastro_id)` para `filial` (outro tenant = 23503); nulo = bloqueado |
+
+- Índice `usuario_filial_cadastro_ix (tenant_id, filial_cadastro_id) where deleted_at is null`: "usuários da filial" e a trava
+  de inativar filial. RLS e grants de `usuario` não mudam.
+
+### usuario_filial — filiais de VENDA do usuário. Índice de sync; o pull é decisão do modulo-core
+| Coluna | Tipo | Regra |
+|---|---|---|
+| usuario_id | uuid not null | FK composta `usuario_filial_usuario_fk` para `usuario` |
+| filial_id | uuid not null | FK composta `usuario_filial_filial_fk` para `filial` (filial de outro tenant = 23503) |
+
+- Único vivo `usuario_filial_uk (tenant_id, usuario_id, filial_id) where deleted_at is null` (23505): também atende
+  "filiais de venda do usuário". `usuario_filial_filial_ix (tenant_id, filial_id)` vivo: "usuários que vendem pela filial".
+  Sync `usuario_filial_sync_ix (tenant_id, updated_at, id)`; `usuario_filial_external_uk`.
+- Remover = soft delete (`deleted_at`). `macuxi_app`: select, insert, update (sem DELETE); worker e portal: nada.
+  RLS `isolamento_tenant` + `manutencao`. O mínimo de 1 filial de venda é do domain/API do Core (422).
+
+### Invariante: a filial de cadastro está entre as de venda
+- `filial_cadastro_id` preenchida num usuário vivo exige linha viva em `usuario_filial` com a mesma filial.
+- Gatilhos de restrição **adiados** (conferidos no COMMIT; a ordem das gravações na transação não importa), os dois com o nome
+  **`usuario_filial_inclui_cadastro`**: em `usuario` (insert; update de `filial_cadastro_id`, `deleted_at`) e em
+  `usuario_filial` (update de `usuario_id`, `filial_id`, `deleted_at` ou delete de linha viva). Função
+  `core.filial_cadastro_conferir()` SECURITY DEFINER (COMMIT do portal), sem EXECUTE a ninguém.
+- Erro `23514`, constraint `usuario_filial_inclui_cadastro`, detail `usuario_id=<uuid>`, hint `RN-CORE-39` → 422 na API. Para
+  o erro sair no comando: `set constraints core.usuario_filial_inclui_cadastro immediate`.
+- Concorrência: a conferência trava a linha do usuário (`for no key update`); trocar o cadastro e apagar a venda do mesmo
+  usuário em transações paralelas ficam em fila, e a segunda falha no COMMIT.
+
+### Backfill (R-20261115-094500, item 5)
+1. "Quem já tem filial vinculada": **não se aplica** — antes da 0077 não há vínculo usuário–filial em tabela nenhuma
+   (`usuario`, `equipe`, `plataforma.*` não têm filial; `usuario_filial` nasce na 0077).
+2. Empresa com **uma** filial viva: todo usuário vivo (ativo ou não) recebe essa filial como venda e como cadastro (o
+   `updated_at` sobe; o sync puxa a filial).
+3. Quem sobra (empresa com 2+ filiais vivas) fica sem cadastro e sem venda: bloqueado até o BKO ou a carga do ERP.
+
+### Admin inicial da empresa nova (`plataforma.provisionar_tenant`)
+A 0077 redefine a `provisionar_tenant` (`create or replace`, a partir do texto da 0068): o admin que ela **cria** recebe a
+filial padrão do tenant (semeada pela 0056 ao inserir o tenant) como cadastro (no insert do usuário) e como venda, e não nasce
+bloqueado; sem padrão viva = 55000 (hint RN-CORE-39). Admin existente não muda (nem ganha filial). É o lugar **único** da
+regra: vale para o CLI (`pnpm tenant:criar`), as seeds e o portal — a `sa_provisionar_tenant` chama a `provisionar_tenant` e
+continua com o texto da 0068. A conferência adiada `usuario_filial_inclui_cadastro` passa também no COMMIT do `macuxi_portal`.
+Assinatura, SECURITY INVOKER, `search_path` e ACL não mudam; o down volta ao texto da 0068.
+
+Volume: 1 a poucas linhas por usuário. Fixture: `USUARIO_FILIAL_FIXTURE` (grupo 0x6a): todo usuário com cadastro e venda na
+padrão; o supervisor de A vende também na Boa Vista e o vendedor de B também na Campinas (o usuário bloqueado é montado pelo
+teste). Seeds: demo (`db/seeds/demo/filial.ts`, `dadosDemoUsuarioFilial`) com os 7 logins na Manaus (cadastro e venda) e os 2
+vendedores também na Boa Vista; Fase M com todos na padrão.
+Volta: `0077_core_usuario_filial.down.sql` (a `provisionar_tenant` volta à 0068; saem os gatilhos, a tabela, a função, o índice, a FK e a coluna; as filiais se
+perdem; reaplicar refaz o backfill). Teste: `db/testes/usuario-filial.db.test.ts`.
+
 ## 0080 — Código FDV do usuário (`0080_core_usuario_codigo_fdv`; T-0175, RN-CORE-59)
 Especificação: [docs/modulos/core/usuarios.md](../modulos/core/usuarios.md) ("Código FDV") e `modules/core/domain/codigo-fdv.ts`.
 Dois códigos por usuário: o Código ERP (`external_id`) e o **Código FDV**, gerado pelo banco em sequência por empresa
@@ -1024,12 +1094,19 @@ empresa, só de leitura e nunca reaproveitado.
 |---|---|
 | `core.usuario.codigo_fdv text` | o código; nulo só no usuário apagado antes da 0080. CHECK `usuario_codigo_fdv_formato` (`^(0000[1-9]|000[1-9][0-9]|00[1-9][0-9]{2}|0[1-9][0-9]{3}|[1-9][0-9]{4,})$`: só o que o gatilho gera, 5 dígitos de `00001` a `99999` ou 6 ou mais sem zero à esquerda; `00000`, `000001` e `0100000` são recusados) |
 | `usuario_codigo_fdv_uk` | único `(tenant_id, codigo_fdv) where deleted_at is null and codigo_fdv is not null`; cobre a busca pelo código |
-| `core.usuario_codigo_fdv_contador` | uma linha por tenant (`usuario_codigo_fdv_contador_tenant_uk`; id = `uuid_de_chave('<tenant>:core.usuario_codigo_fdv_contador')`), `ultimo_sequencial bigint >= 0` = maior número emitido. Colunas-padrão, RLS forçado, `isolamento_tenant` + `manutencao`; `macuxi_app` só **select**. Fora do sync |
+| `core.usuario_codigo_fdv_contador` | uma linha por tenant (`usuario_codigo_fdv_contador_tenant_uk`; id = `uuid_de_chave('<tenant>:core.usuario_codigo_fdv_contador')`), `ultimo_sequencial bigint >= 0` = maior número emitido. Colunas-padrão, RLS forçado, `isolamento_tenant` + `manutencao`; `macuxi_app` só **select**. `macuxi_leitura` (0078): select e política `leitura`. Fora do sync |
 | `usuario_codigo_fdv_contador_nao_diminui` | gatilho BEFORE UPDATE do contador: diminuir ou trocar de tenant = 23514, constraint de mesmo nome |
 | `usuario_codigo_fdv_contador_piso` | gatilho BEFORE INSERT do contador (função `core.usuario_codigo_fdv_contador_piso()`, invoker, sem EXECUTE a ninguém): a linha nova nasce no mínimo no maior código já gravado no tenant (vivo ou apagado, máximo numérico) |
 | `core.usuario_codigo_fdv()` | função dos 2 gatilhos abaixo, SECURITY DEFINER, `search_path = pg_catalog, core, plataforma, pg_temp`, sem EXECUTE a ninguém |
 | `usuario_codigo_fdv_emitir` | BEFORE INSERT em `core.usuario`: código nulo -> `update ... set ultimo_sequencial = ultimo_sequencial + 1 returning` no contador; sem a linha, insert no piso (`on conflict (tenant_id) do nothing`) e o mesmo update (a linha fica travada até o fim da transação, então inserts concorrentes do mesmo tenant numeram em fila, sem repetir) e grava `lpad(n, greatest(5, dígitos), '0')`. Código informado (restauração de backup, carga técnica) fica, e o contador que existe sobe para `greatest(atual, n)`; sem a linha, nada (o piso cuida quando ela nascer) |
 | `usuario_codigo_fdv_somente_leitura` | BEFORE UPDATE em `core.usuario`: mudar `codigo_fdv` = **SQLSTATE 23514**, **constraint `usuario_codigo_fdv_somente_leitura`**, coluna `codigo_fdv`, hint `RN-CORE-59` -> o Core mapeia para 422 `CODIGO_FDV_SOMENTE_LEITURA`. O apagado sem código que volta a vivo ganha o próximo número |
+
+**Consulta só leitura** (0078): `grant select (codigo_fdv) on core.usuario to macuxi_leitura` (a 0078 deu SELECT por coluna em
+`core.usuario`; coluna nova não herda).
+
+**Filial (0077)**: o gatilho `usuario_codigo_fdv_emitir` é BEFORE INSERT e não toca a filial; o admin que a
+`plataforma.provisionar_tenant` cria (CLI, seeds e portal) recebe a filial padrão e o próximo Código FDV no mesmo insert. A
+conferência adiada `usuario_filial_inclui_cadastro` não dispara no backfill (o update só muda `codigo_fdv`).
 
 **Backfill**: os vivos (`deleted_at` nulo) de cada tenant, por `created_at, id`, recebem `00001`…; o contador termina no maior
 emitido (tenant sem vivo fica sem linha até o 1º insert). O `updated_at` dos vivos anda: o aparelho puxa o usuário com o código.
@@ -1039,7 +1116,7 @@ código) fica fora da unicidade dos vivos, mas o número dele já foi contado. N
 `ON CONFLICT` dele) não volta: buraco aceito.
 
 **Backup e restauração da empresa** (0072, `ordem_do_backup`): o contador só tem FK para `plataforma.tenant` e sai na 1ª leva,
-antes de `core.usuario` (que espera `core.equipe`, ciclo quebrado). A restauração dá certo em qualquer ordem, com os gatilhos
+antes de `core.usuario` (que espera `core.equipe`, ciclo quebrado, e `core.filial` pela 0077). A restauração dá certo em qualquer ordem, com os gatilhos
 ligados: contador antes -> cada usuário com código sobe o contador para `greatest(atual, n)`; usuários antes -> o usuário com
 código não cria a linha, e o contador do backup entra por insert (o "nunca diminui" é de update e não entra) e passa pelo piso.
 Contador do backup atrás dos códigos (cópia inconsistente) também sobe até o maior. Não desligue os gatilhos do contador na

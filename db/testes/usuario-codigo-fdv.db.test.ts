@@ -12,10 +12,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as nuvemCore from '../../modules/core/db/nuvem';
 import { CODIGOS_FDV_FIXTURE, DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
+import { idFilialPadrao } from '../src/ids';
 import { TABELAS_FORA_DO_SYNC } from '../src/excecoes';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
-import { emTransacao, erroDe, retratoDoCatalogo } from './util';
+import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
@@ -133,6 +134,12 @@ describe('0080 Código FDV (estático)', () => {
     expect(down).toContain('alter table core.usuario drop constraint if exists usuario_codigo_fdv_formato;');
     expect(down).toContain('alter table core.usuario drop column if exists codigo_fdv;');
     expect(down).not.toMatch(/\b(add|create)\b/i);
+  });
+
+  it('consulta só leitura (0078): SELECT e política leitura no contador; SELECT na coluna nova de core.usuario', () => {
+    expect(up).toContain(`grant select on ${CONTADOR} to macuxi_leitura;`);
+    expect(up).toContain(`create policy leitura on ${CONTADOR} for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual());`);
+    expect(up).toContain('grant select (codigo_fdv) on core.usuario to macuxi_leitura;');
   });
 
   it('espelho Drizzle (snake_case): usuario.codigo_fdv e o contador', () => {
@@ -449,6 +456,27 @@ describe.skipIf(semBanco())('0080 concorrência e up/down (bancos efêmeros)', (
       } finally {
         await c.query('rollback');
       }
+    });
+  });
+
+  it('empresa nova (provisionar_tenant da 0077): o admin criado com a filial padrão ganha 00001; o 2º admin, 00002', async () => {
+    const empresa = (email: string) => ({
+      codigo: 't80-prov', nome: 'Distribuidora t80-prov', documento: '12345678000195', fuso: 'America/Manaus', plano: 'piloto',
+      modulos: [{ modulo: 'core', licencas: null, perfis: ['admin'] }],
+      admin: { email, nome: 'Admin Inicial', senha_hash: HASH_TESTE },
+    });
+    await comAdmin(b.nome, async (c) => {
+      const prov = async (email: string) =>
+        (await c.query<{ r: { tenant_id: string; admin: string } }>('select plataforma.provisionar_tenant($1::jsonb) as r', [JSON.stringify(empresa(email))])).rows[0]!.r;
+      const r1 = await prov('admin@t80-prov.exemplo');
+      const r2 = await prov('admin2@t80-prov.exemplo');
+      expect([r1.admin, r2.admin]).toEqual(['criado', 'criado']);
+      const linhas = await c.query('select email, codigo_fdv, filial_cadastro_id from core.usuario where tenant_id = $1 order by codigo_fdv', [r1.tenant_id]);
+      expect(linhas.rows).toEqual([
+        { email: 'admin@t80-prov.exemplo', codigo_fdv: '00001', filial_cadastro_id: idFilialPadrao(r1.tenant_id) },
+        { email: 'admin2@t80-prov.exemplo', codigo_fdv: '00002', filial_cadastro_id: idFilialPadrao(r1.tenant_id) },
+      ]);
+      expect((await c.query(`select ultimo_sequencial::int as n from ${CONTADOR} where tenant_id = $1`, [r1.tenant_id])).rows).toEqual([{ n: 2 }]);
     });
   });
 });

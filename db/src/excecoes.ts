@@ -85,6 +85,9 @@ export const TABELAS_FORA_DO_SYNC = [
   'plataforma.diagnostico',
   /** Assinatura do tenant (0070, ADR 0047 §2): uma por tenant; o portal grava (sa_gravar_assinatura) e a API lê; nunca vai ao aparelho. */
   'plataforma.assinatura',
+  /** Pacote da primeira carga (0074, ADR 0054): o aparelho baixa o arquivo pelo manifesto GET /v1/sync/pacotes; as linhas nunca são puxadas. */
+  'plataforma.sync_pacote',
+  'plataforma.sync_pacote_pedido',
   /** Contador do número legível do pedido (0009, T-0029): uma linha por tenant, só o servidor usa. */
   'vendedor.numeracao_pedido',
   /** Contador do Código FDV (0080, T-0175, RN-CORE-59): uma linha por tenant, só o gatilho de core.usuario grava; o código vai no usuário. */

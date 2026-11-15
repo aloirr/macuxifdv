@@ -64,6 +64,9 @@ chamada). Premissa: o admin é superusuário ou BYPASSRLS (como `excluir_tenant`
   - Saída ganha `codigo` (text): `{ tenant_id, codigo, resultado, modulos_adicionados, parametros_gravados, admin, avisos }`.
 - `sa_provisionar_tenant` trata como empresa **nova** (sem admin = 22023, hint RN-CORE-34) também a entrada sem `codigo` cujo `id`
   não é de tenant vivo; a `uf` segue na entrada.
+- 0077 (T-0176, RN-CORE-39): a `provisionar_tenant` (create or replace, texto da 0068) dá ao admin que ela **cria** a filial
+  padrão do tenant como cadastro e venda (CLI, seeds e portal; a `sa_provisionar_tenant` não muda). Admin existente não muda.
+  Detalhes no [core.md](core.md).
 - `atribuir_codigo_licenca(p_tenant_id uuid, p_uf text) → jsonb` (SECURITY INVOKER, sem EXECUTE para a aplicação: roda pela
   conexão de administração, como a `provisionar_tenant`): dá o código da licença a um tenant existente.
   `{ tenant_id, codigo_anterior, codigo, resultado: 'atribuido' | 'sem_mudanca' }`. Já com código da mesma UF = o mesmo
@@ -339,7 +342,7 @@ política `manutencao`, nenhum grant de tabela (app, worker e portal = 42501). �
 | `sa_auditar(p jsonb)` | `uuid` | como na 0035, mais `ator_tipo` (fora da lista = 22023) e `usuario_id` |
 | `sa_listar_tenants(p_sid uuid)` | `jsonb` = `ListaEmpresasSchema` (nome em `razao_social`) | super-admin: todas as vivas; cliente: só as conferidas no login; sessão inválida = 28000 |
 | `sa_tenant_ativo(p_sid uuid, p_tenant uuid)` | `boolean` | super-admin: tenant ativo; cliente: `p_tenant` é a empresa atual |
-| `sa_provisionar_tenant(p_sid uuid, p jsonb)` | `jsonb` (o da `provisionar_tenant`) | só sessão de super-admin (cliente ou inválida = 28000); aceita `admin {email, nome, senha_hash}` (RN-CORE-34; empresa existente: o admin existente fica e a senha não muda, RN-CORE-31); empresa **nova** sem `admin` = 22023 com `hint = 'RN-CORE-34'` (a API traduz em 422); empresa existente sem `admin` = `sem_admin`; `redefinir_senha` ou `sem_admin` na entrada = 22023; `ator_id` = super-admin |
+| `sa_provisionar_tenant(p_sid uuid, p jsonb)` | `jsonb` (o da `provisionar_tenant`) | só sessão de super-admin (cliente ou inválida = 28000); aceita `admin {email, nome, senha_hash}` (RN-CORE-34; empresa existente: o admin existente fica e a senha não muda, RN-CORE-31); empresa **nova** sem `admin` = 22023 com `hint = 'RN-CORE-34'` (a API traduz em 422); empresa existente sem `admin` = `sem_admin`; `redefinir_senha` ou `sem_admin` na entrada = 22023; `ator_id` = super-admin; o admin criado recebe a filial padrão como cadastro e venda pela `provisionar_tenant` (0077, RN-CORE-39, `docs/banco/core.md`) |
 
 - Interna: `sa_registrar_auditoria(p_ator_tipo, p_super_admin, p_usuario, p_sessao, p_tenant, p_acao, p_detalhes)` (`SECURITY
   INVOKER`, sem `EXECUTE` para ninguém), no lugar da de 5 argumentos.
@@ -1003,3 +1006,7 @@ select plataforma.sa_acoes_das_empresas($1) as r;                 -- GET /v1/pla
 select plataforma.pegar_backup() as r;                            -- worker (macuxi_worker)
 select * from plataforma.exportar_backup_pagina($1, $2, $3::jsonb, 5000);
 ```
+
+### 0074 — pacote pronto da primeira carga (`0074_plataforma_sync_pacote`; ADR 0054)
+`plataforma.sync_pacote` e `plataforma.sync_pacote_pedido`: dicionário completo, RLS, grants, índices e ciclo de vida em
+[sync-pacote.md](sync-pacote.md).

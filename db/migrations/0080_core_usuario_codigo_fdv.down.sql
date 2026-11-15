@@ -1,6 +1,6 @@
 -- 0080_core_usuario_codigo_fdv (down) — desfaz a 0080 (T-0175, RN-CORE-59) e volta ao catálogo da 0079.
 -- Ordem: os 2 gatilhos de core.usuario e a função deles; o contador (leva os gatilhos dele) e as funções do "nunca diminui" e do piso; o
--- índice único, o CHECK e a coluna. PERDE os códigos emitidos e o contador: reaplicar a 0080 renumera os vivos por
+-- índice único, o CHECK e a coluna (levam a política leitura e os grants do macuxi_leitura, 0078). PERDE os códigos emitidos e o contador: reaplicar a 0080 renumera os vivos por
 -- created_at, id. Volte antes o Core que lê o código (COLUNA_CODIGO_FDV_PRONTA = false), senão 42703. Idempotente.
 -- Pré-condição: 0081+ desfeitas.
 
