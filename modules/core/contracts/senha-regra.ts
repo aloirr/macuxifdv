@@ -3,7 +3,7 @@
  * inicial da empresa, super-admin). Regra pura, sem dependência: a API revalida sempre.
  * - de 8 a 200 caracteres, contados em pontos de código (um emoji conta como 1);
  * - pelo menos uma letra (`\p{L}`, acentuada vale), um número (`\p{Nd}`) e um caractere especial (`[^\p{L}\p{N}\s]`);
- * - espaço no meio é permitido e não conta como especial; espaço no começo ou no fim invalida a senha; ela nunca passa por `trim`.
+ * - espaço no meio é permitido e não conta como especial; espaço no começo ou no fim invalida a senha (só quando há algum caractere que não é espaço; vazia ou só de espaços cai nas faltas comuns); ela nunca passa por `trim`.
  * O login aceita qualquer senha já gravada: a regra não vale na conferência.
  */
 export const SENHA_MIN_CARACTERES = 8;
@@ -24,7 +24,7 @@ const tamanho = (s: string): number => [...s].length;
 export function faltasNaSenha(senha: string): FaltaNaSenha[] {
   const n = tamanho(senha);
   const faltas: FaltaNaSenha[] = [];
-  if (senha !== senha.trim()) faltas.push('espaco');
+  if (senha.trim() !== '' && senha !== senha.trim()) faltas.push('espaco');
   if (n < SENHA_MIN_CARACTERES || n > SENHA_MAX_CARACTERES) faltas.push('caracteres');
   if (!/\p{L}/u.test(senha)) faltas.push('letra');
   if (!/\p{Nd}/u.test(senha)) faltas.push('numero');

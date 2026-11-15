@@ -62,6 +62,16 @@ describe('RN-CORE-32: senha com 8+ caracteres, letra, número e caractere especi
 });
 
 describe('RN-CORE-32: espaço no começo ou no fim invalida a senha (criação e troca)', () => {
+  it('RN-CORE-32: só espaços ou vazia caem nas faltas de antes, sem a falta espaco', () => {
+    expect(faltasNaSenha('        ')).toEqual(['letra', 'numero', 'especial']);
+    expect(faltasNaSenha('')).toEqual(['caracteres', 'letra', 'numero', 'especial']);
+    expect(mensagemDaSenha(faltasNaSenha('        '))).toBe('Faltam uma letra, um número e um caractere especial.');
+  });
+  it('RN-CORE-32: espaço na ponta só vale com algum caractere que não é espaço', () => {
+    expect(faltasNaSenha(' Abc123!x')).toEqual(['espaco']);
+    expect(faltasNaSenha('Abc123!x ')).toEqual(['espaco']);
+    expect(faltasNaSenha('Abc 123!x')).toEqual([]);
+  });
   it('RN-CORE-32: espaço na ponta é uma falta e a mensagem é a constante única', () => {
     expect(faltasNaSenha(' Abcdef1!')).toEqual(['espaco']);
     expect(faltasNaSenha('Abcdef1! ')).toEqual(['espaco']);
