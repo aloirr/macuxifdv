@@ -225,7 +225,7 @@ Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-
 - **Status diário:** recado do gerente ao dono do produto às 18h, com o percentual de cada dia do cronograma (doc 05) e o risco para a entrega.
 
 **5. Nome e versão dos builds** (dono do produto, R-20261107-151653)
-- **Nome no Expo** (`eas build --message`), nos recados e no WhatsApp:
+- **Nome do build**, nos recados e no WhatsApp:
   - preview/demo: `Campo-Demo-vX.Y.Z` e `Gestao-Demo-vX.Y.Z`;
   - produção: `Campo-Oficial-vX.Y.Z` e `Gestao-Oficial-vX.Y.Z`.
 - **Versão semântica no app**:
@@ -235,9 +235,8 @@ Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-
   - a produção começa em Oficial-v1.0.0, com numeração própria;
   - Campo e Gestão sobem juntos quando saem no mesmo lote.
 - **Versão visível**: a versão aparece em Perfil → linha da versão, igual ao nome do build.
-- **Arquivo legível**: além do link do expo.dev, o APK sai como `Campo-Demo-vX.Y.Z.apk`, com link temporário de um bucket privado.
 - **Assunto do recado**: `BUILD PRONTO Campo-Demo-vX.Y.Z / Gestao-Demo-vX.Y.Z (<sha curto>)`.
-- **Onde sai o build** (sem conta da Expo desde 15/11/2026, R-20261115-091000-alexandre): pelo workflow `android-build.yml` ("android build", `workflow_dispatch`, inputs `variante`, `versao`, `perfil` e `version_code`), disparado a partir do `main` depois do merge do lote. Passo a passo, artefatos e conferência da assinatura: `apps/mobile/docs/build-android.md`.
+- **Onde sai o build** (sem conta da Expo desde 15/11/2026, R-20261115-091000-alexandre): pelo workflow `android-build.yml`, disparado a partir do `main` depois do merge do lote. Passo a passo: `apps/mobile/docs/build-android.md`.
 - **Deploy**: só pelos workflows de produção (`producao-publicar.yml` "producao — publicar" e, quando preciso, `producao-tenant.yml`, `producao-super-admin.yml` e `producao-ensaio-restauracao.yml`), com a tag `v*` e o recado "aprovo deploy vX.Y.Z" do Alexandre citado na mensagem da tag. A demo foi desligada em 14/11/2026 (ADR 0051).
 
 ## Contratos entre módulos
