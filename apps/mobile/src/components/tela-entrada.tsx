@@ -120,15 +120,14 @@ export function TelaEntrada({
           ) : null
         ) : (
           <Animated.View style={{ gap: 18, opacity: opacidade }}>
-            {/* RD-0635: a barra do kit (a mesma do popup da sincronização completa); com a lista na tela, o rótulo
-                ("Etapa n de N · nome") fica só para o leitor de tela, na região viva (RD-0239) */}
+            {/* RD-0635: a barra do kit (a mesma do popup da sincronização completa); o rótulo ("Etapa n de N · nome")
+                fica sempre à vista, também com a lista, como na entrada aprovada (MC-0088, manual da marca §4) */}
             {barra ? (
               <BarraProgresso
                 rotulo={barra.rotulo}
                 pct={barra.pct}
                 cores={tema}
                 reduzirMovimento={reduzir}
-                mostrarRotulo={!mostrarEtapas}
                 rotuloAcessivel={ROTULO_BARRA_ENTRADA}
                 testID="entrada"
               />
