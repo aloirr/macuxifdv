@@ -64,7 +64,7 @@ describe('RN-CORE-32/34: validarSenhaNova', () => {
     expect(r && 'faltas' in r ? r.faltas : []).toContain('caracteres');
   });
   it('RN-CORE-34: recusa repetir a senha usada para entrar', () => {
-    expect(validarSenhaNova('Boa#Senha1', 'a@b.com', true)).toEqual({ codigo: 'RN-CORE-34', mensagem: 'A senha nova não pode ser igual à senha temporária.' });
+    expect(validarSenhaNova('Boa#Senha1', 'a@b.com', true)).toEqual({ codigo: 'RN-CORE-34', mensagem: 'A senha nova precisa ser diferente da atual.' });
   });
   it('RN-CORE-32: senha boa e diferente passa', () => {
     expect(validarSenhaNova('Boa#Senha1', 'a@b.com', false)).toBeNull();
