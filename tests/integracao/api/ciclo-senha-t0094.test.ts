@@ -1117,15 +1117,15 @@ describe.skipIf(semBanco())('T-0094 acesso por perfil e ciclo de senha (critéri
         for (const m of entregues) {
           const a = porId.get(m.id!);
           expect(a, `arquivo do e-mail ${m.modelo} de ${m.usuario_id}`).toBeDefined();
-          expect(a!.texto).toContain(`Senha temporária: ${m.dados.senha}`);
-          expect(a!.texto).toContain(`Código da empresa: ${m.dados.codigo_empresa}`);
+          expect(a!.texto).toContain(`\nSenha temporária\n${m.dados.senha}\n`);
+          expect(a!.texto).toContain(`\nCódigo da empresa\n${m.dados.codigo_empresa}\n`);
           expect(a!.bruto).toContain(`Subject: ${ASSUNTOS_EMAIL[m.modelo]}`);
           expect(a!.html).toContain(`<title>${ASSUNTOS_EMAIL[m.modelo]}</title>`);
         }
         if (doPortal.emailId) {
           const a = porId.get(doPortal.emailId);
           expect(a, 'arquivo do e-mail do portal (CS-06b)').toBeDefined();
-          expect(a!.texto).toContain(`Senha temporária: ${doPortal.senha}`);
+          expect(a!.texto).toContain(`\nSenha temporária\n${doPortal.senha}\n`);
           expect(a!.bruto).toContain(`Subject: ${ASSUNTOS_EMAIL.nova_senha}`);
           expect(a!.bruto).toContain(ADMIN3.email);
         }

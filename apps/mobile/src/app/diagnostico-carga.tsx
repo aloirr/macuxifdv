@@ -1,7 +1,7 @@
 /**
  * Tela oculta de diagnóstico de carga e busca do SQLite (T-0008, critérios 1 e 2, e T-0084, critério 5: aplicação longa,
  * referências, reindexação completa e a busca do Novo pedido pela C9; medidos no aparelho de referência).
- * Só nos builds de desenvolvimento e preview (`EXPO_PUBLIC_PERFIL_BUILD` do eas.json); em produção a rota redireciona
+ * Só no bundle de desenvolvimento (`expo start`, `EXPO_PUBLIC_PERFIL_BUILD`); em produção a rota redireciona
  * para o Início. Abre com 7 toques na versão, no fim do Perfil.
  *
  * Usa um banco SEPARADO e temporário (`macuxi-diagnostico-carga.db`), nunca o do usuário: apagado antes de começar, ao
@@ -163,7 +163,7 @@ function Diagnostico({ perfil }: { perfil: ReturnType<typeof perfilBuildAtual> }
       {!disponivel ? (
         <Card testID="diagnostico-sem-sqlite" style={{ padding: 14, gap: 6 }}>
           <Text style={[t.bodyStrong, { color: colors.danger }]}>Este APK não tem o SQLite do aparelho (expo-sqlite).</Text>
-          <Text style={t.small}>Gere o APK de preview depois da instalação do expo-sqlite e abra esta tela de novo.</Text>
+          <Text style={t.small}>Rode o app de novo depois da instalação do expo-sqlite e abra esta tela.</Text>
         </Card>
       ) : (
         <Button testID="diagnostico-rodar" label={emCurso ? 'Medindo…' : estado.tipo === 'parado' ? 'Rodar medição' : 'Rodar de novo'} loading={emCurso} onPress={rodar} />

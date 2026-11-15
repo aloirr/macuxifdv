@@ -25,12 +25,12 @@ describe('versão: fonte única e versionCode crescente', () => {
     else process.env.APP_VARIANT = varianteAntes;
   });
 
-  // Sem travar o número: o teste confere o formato e o nome derivado (ex.: 1.0.4 → Campo-Demo-v1.0.4 / Gestao-Demo-v1.0.4).
+  // Sem travar o número: o teste confere o formato e o nome derivado (ex.: 1.0.7 → Campo-Oficial-v1.0.7 / Gestao-Oficial-v1.0.7).
   it('versao.json em X.Y.Z e nome do build derivado dele, igual nas duas variantes', () => {
     expect(versaoDoArquivo).toMatch(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/);
     expect(versaoAtual()).toBe(versaoDoArquivo);
-    const nomesDemo = planoDeBuild(['ambos', 'demo'], versaoAtual()).builds.map((b) => b.nome);
-    expect(nomesDemo).toEqual([`Campo-Demo-v${versaoDoArquivo}`, `Gestao-Demo-v${versaoDoArquivo}`]);
+    const nomesOficiais = planoDeBuild(['ambos', 'oficial'], versaoAtual()).builds.map((b) => b.nome);
+    expect(nomesOficiais).toEqual([`Campo-Oficial-v${versaoDoArquivo}`, `Gestao-Oficial-v${versaoDoArquivo}`]);
   });
 
   it('versão torta no versao.json é recusada', () => {
@@ -59,17 +59,19 @@ describe('versão: fonte única e versionCode crescente', () => {
       return p.autoIncrement ?? (p.extends ? herda(p.extends) : undefined);
     };
     const perfis = Object.keys(eas.build).filter((n) => n !== 'base');
-    expect(perfis.sort()).toEqual(['campo', 'campo-preview', 'campo-producao', 'gestao', 'gestao-preview', 'gestao-producao']);
+    // só produção: os perfis de desenvolvimento (campo/gestao) e preview (*-preview) saíram do eas.json
+    expect(perfis.sort()).toEqual(['campo-producao', 'gestao-producao']);
+    for (const p of perfis) expect(eas.build[p]?.extends, p).toBe('base');
     for (const p of perfis) expect(herda(p), p).toBe(true);
   });
 });
 
 describe('build.mjs: mensagem do build', () => {
-  it('campo demo → perfil campo-preview e mensagem Campo-Demo-v1.0.0', () => {
-    const { builds, simular } = planoDeBuild(['campo', 'demo'], '1.0.0');
+  it('campo oficial → perfil campo-producao e mensagem Campo-Oficial-v1.0.0', () => {
+    const { builds, simular } = planoDeBuild(['campo', 'oficial'], '1.0.0');
     expect(simular).toBe(false);
     expect(builds).toEqual([
-      { nome: 'Campo-Demo-v1.0.0', perfilEas: 'campo-preview', args: ['build', '--platform', 'android', '--profile', 'campo-preview', '--message', 'Campo-Demo-v1.0.0'] },
+      { nome: 'Campo-Oficial-v1.0.0', perfilEas: 'campo-producao', args: ['build', '--platform', 'android', '--profile', 'campo-producao', '--message', 'Campo-Oficial-v1.0.0'] },
     ]);
   });
 
@@ -86,15 +88,13 @@ describe('build.mjs: mensagem do build', () => {
   });
 
   it('cada perfil montado existe no eas.json', () => {
-    for (const canal of ['demo', 'oficial', 'dev']) {
-      for (const b of planoDeBuild(['ambos', canal], '1.0.0').builds) expect(eas.build[b.perfilEas], b.perfilEas).toBeDefined();
-    }
+    for (const b of planoDeBuild(['ambos', 'oficial'], '1.0.0').builds) expect(eas.build[b.perfilEas], b.perfilEas).toBeDefined();
   });
 
   it('argumento errado = mensagem de uso', () => {
     expect(() => planoDeBuild(['campo'], '1.0.0')).toThrow(/uso:/);
-    expect(() => planoDeBuild(['campo', 'demo', '--no-wait'], '1.0.0')).toThrow(/opção desconhecida/);
-    expect(() => planoDeBuild(['campo', 'demo'], '1.0')).toThrow(/versão inválida/);
+    expect(() => planoDeBuild(['campo', 'oficial', '--no-wait'], '1.0.0')).toThrow(/opção desconhecida/);
+    expect(() => planoDeBuild(['campo', 'oficial'], '1.0')).toThrow(/versão inválida/);
   });
 });
 
@@ -102,35 +102,37 @@ describe('baixar-apk.mjs: APK com o nome do build', () => {
   const build = {
     id: 'b1',
     status: 'FINISHED',
-    buildProfile: 'campo-preview',
+    buildProfile: 'campo-producao',
     appVersion: '1.0.0',
     appBuildVersion: '42',
-    message: 'Campo-Demo-v1.0.0',
+    message: 'Campo-Oficial-v1.0.0',
     artifacts: { buildUrl: 'https://expo.dev/artifacts/eas/x.apk' },
   };
 
   it('opções: alvo, pasta, publicar e validade', () => {
-    const o = opcoesDoDownload(['campo', 'demo', '--publicar', '--validade-horas', '24', '--pasta', 'saida']);
-    expect(o).toMatchObject({ alvos: [{ variante: 'campo', perfil: 'preview' }], publicar: true, validadeHoras: 24, pasta: 'saida', build: null });
+    const o = opcoesDoDownload(['campo', 'oficial', '--publicar', '--validade-horas', '24', '--pasta', 'saida']);
+    expect(o).toMatchObject({ alvos: [{ variante: 'campo', perfil: 'producao' }], publicar: true, validadeHoras: 24, pasta: 'saida', build: null });
     expect(opcoesDoDownload(['--build', 'abc'])).toMatchObject({ alvos: [], build: 'abc', validadeHoras: 72, pasta: 'dist/apk' });
     expect(opcoesDoDownload(['ambos', 'oficial']).alvos).toHaveLength(2);
-    expect(() => opcoesDoDownload(['campo', 'demo', '--validade-horas', '200'])).toThrow(/1 a 168/);
-    expect(() => opcoesDoDownload(['ambos', 'demo', '--build', 'x'])).toThrow(/ambos/);
-    expect(() => opcoesDoDownload(['campo', 'demo', '--build'])).toThrow(/falta o valor/);
+    expect(() => opcoesDoDownload(['campo', 'oficial', '--validade-horas', '200'])).toThrow(/1 a 168/);
+    expect(() => opcoesDoDownload(['ambos', 'oficial', '--build', 'x'])).toThrow(/ambos/);
+    expect(() => opcoesDoDownload(['campo', 'oficial', '--build'])).toThrow(/falta o valor/);
   });
 
   it('nome do arquivo = nome do build, pela versão gravada no build', () => {
-    const d = dadosDoBuild(build, { variante: 'campo', perfil: 'preview' });
-    expect(d).toMatchObject({ nomeApk: 'Campo-Demo-v1.0.0.apk', versionCode: '42', url: 'https://expo.dev/artifacts/eas/x.apk', avisoMensagem: null });
+    const d = dadosDoBuild(build, { variante: 'campo', perfil: 'producao' });
+    expect(d).toMatchObject({ nomeApk: 'Campo-Oficial-v1.0.0.apk', versionCode: '42', url: 'https://expo.dev/artifacts/eas/x.apk', avisoMensagem: null });
     expect(dadosDoBuild({ ...build, buildProfile: 'gestao-producao', appVersion: '1.1.0', message: undefined }, null).nomeApk).toBe('Gestao-Oficial-v1.1.0.apk');
   });
 
   it('avisa quando a mensagem do build não bate com o nome', () => {
-    expect(dadosDoBuild({ ...build, message: 'build manual' }, null).avisoMensagem).toMatch(/Campo-Demo-v1\.0\.0/);
+    expect(dadosDoBuild({ ...build, message: 'build manual' }, null).avisoMensagem).toMatch(/Campo-Oficial-v1\.0\.0/);
   });
 
   it('recusa build de outro perfil, não terminado ou sem APK', () => {
-    expect(() => dadosDoBuild(build, { variante: 'gestao', perfil: 'preview' })).toThrow(/gestao-preview/);
+    expect(() => dadosDoBuild(build, { variante: 'gestao', perfil: 'producao' })).toThrow(/gestao-producao/);
+    // APK antigo de preview não é mais um perfil nosso
+    expect(() => dadosDoBuild({ ...build, buildProfile: 'campo-preview' }, null)).toThrow(/não é campo\/gestao/);
     expect(() => dadosDoBuild({ ...build, status: 'IN_PROGRESS' }, null)).toThrow(/não terminou/);
     expect(() => dadosDoBuild({ ...build, artifacts: {} }, null)).toThrow(/sem|não tem APK/);
     expect(() => dadosDoBuild({ ...build, buildProfile: 'base' }, null)).toThrow(/não é campo\/gestao/);
@@ -154,11 +156,11 @@ describe('baixar-apk.mjs: APK com o nome do build', () => {
       MACUXI_APK_S3_SEGREDO: 'SEGREDO',
     });
     const agora = new Date('2026-11-07T12:00:00Z');
-    const u = urlsDoBucket(bucket, 'Campo-Demo-v1.0.0.apk', '42', 72, agora);
-    expect(u.chave).toBe('apk/build-42/Campo-Demo-v1.0.0.apk');
-    expect(u.download.startsWith('https://br-se1.magaluobjects.com/macuxi-apk/apk/build-42/Campo-Demo-v1.0.0.apk?')).toBe(true);
+    const u = urlsDoBucket(bucket, 'Campo-Oficial-v1.0.0.apk', '42', 72, agora);
+    expect(u.chave).toBe('apk/build-42/Campo-Oficial-v1.0.0.apk');
+    expect(u.download.startsWith('https://br-se1.magaluobjects.com/macuxi-apk/apk/build-42/Campo-Oficial-v1.0.0.apk?')).toBe(true);
     expect(u.download).toContain('X-Amz-Expires=259200');
-    expect(u.download).toContain('response-content-disposition=attachment%3B%20filename%3D%22Campo-Demo-v1.0.0.apk%22');
+    expect(u.download).toContain('response-content-disposition=attachment%3B%20filename%3D%22Campo-Oficial-v1.0.0.apk%22');
     expect(u.envio).toContain('X-Amz-Expires=900');
     expect(u.download).not.toContain('SEGREDO');
     expect(u.expiraEm.toISOString()).toBe('2026-11-10T12:00:00.000Z');
@@ -191,7 +193,7 @@ describe('s3-assinado: SigV4 na query', () => {
   it('codificação RFC 3986, chave e endereço no estilo de caminho', () => {
     expect(codificar("a b/c!'()*~")).toBe('a%20b%2Fc%21%27%28%29%2A~');
     expect(chaveDoApk('Gestao-Oficial-v1.0.0.apk', 7)).toBe('apk/build-7/Gestao-Oficial-v1.0.0.apk');
-    expect(chaveDoApk('Campo-Demo-v1.0.0.apk', null, '')).toBe('sem-versioncode/Campo-Demo-v1.0.0.apk');
+    expect(chaveDoApk('Campo-Oficial-v1.0.0.apk', null, '')).toBe('sem-versioncode/Campo-Oficial-v1.0.0.apk');
     expect(() => chaveDoApk('../x.apk', 1)).toThrow(/inválido/);
     expect(alvoNoBucket('https://s3.exemplo.com/', 'meu-bucket', 'a/b.apk')).toEqual({ protocolo: 'https:', host: 's3.exemplo.com', caminho: '/meu-bucket/a/b.apk' });
     expect(() => alvoNoBucket('http://s3.exemplo.com', 'meu-bucket', 'a')).toThrow(/https/);
@@ -227,21 +229,9 @@ describe('eas-build.yml: workflow do EAS sem o PC (Oficial v1.0.7)', () => {
     expect(yml).toContain('--non-interactive --no-wait');
   });
 
-  it('cada perfil do formulário vira o canal do build.mjs e perfis existentes do eas.json', () => {
-    const opcoes = /perfil:[\s\S]*?options: \[([^\]]+)\]/.exec(yml)?.[1]?.split(',').map((s) => s.trim());
-    expect(opcoes).toEqual(['producao', 'preview', 'desenvolvimento']);
-    const esperado: Record<string, [string, string[]]> = {
-      producao: ['oficial', ['campo-producao', 'gestao-producao']],
-      preview: ['demo', ['campo-preview', 'gestao-preview']],
-      desenvolvimento: ['dev', ['campo', 'gestao']],
-    };
-    for (const opcao of opcoes ?? []) {
-      const [canal, perfis] = esperado[opcao] ?? ['', []];
-      expect(yml).toContain(`${opcao}) CANAL=${canal} ;;`);
-      const builds = planoDeBuild(['ambos', canal, '--', '--non-interactive', '--no-wait'], versaoAtual()).builds;
-      expect(builds.map((b) => b.perfilEas)).toEqual(perfis);
-      for (const b of builds) expect(eas.build[b.perfilEas], b.perfilEas).toBeDefined();
-    }
+  it('formulário sem perfil e canal: CANAL fixo em oficial', () => {
+    expect(yml).not.toMatch(/^ {6}(perfil|canal):/m);
+    expect(yml).toContain('CANAL: oficial');
     expect(yml).toContain('ambas) VARIANTE=ambos ;;');
   });
 });

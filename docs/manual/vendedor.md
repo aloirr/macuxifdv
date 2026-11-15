@@ -160,7 +160,8 @@ Quando há problema no pedido, o título vermelho **ALERTAS** aparece no topo de
 | Tela **Permissões** não sai | Uma permissão está em Falta ou Negada. Toque em **Abrir configurações** e libere. |
 | "Código da empresa, e-mail ou senha incorretos" | Confira os três campos. Se continuar, use **Esqueci a senha**. |
 | Senha temporária vencida (mais de 72 h) | Use **Esqueci a senha** para receber outra. |
-| "Seu acesso está bloqueado" ou "Muitas tentativas seguidas" | Fale com o administrador da empresa. |
+| "Seu acesso está bloqueado" | Peça ao administrador para desbloquear. |
+| "Muitas tentativas" | Espere os minutos indicados ou peça ao administrador para desbloquear. |
 | "Este aparelho foi bloqueado pela sua empresa" | O administrador bloqueou o aparelho e os dados foram apagados. Fale com ele para liberar. |
 | "Servidor indisponível — tente mais tarde" | O problema é no servidor, não no aparelho. Trabalhe sem sinal e tente depois. |
 | Pedido volta com "Sem estoque na filial para um dos itens" | Outro pedido levou o saldo antes. Reduza a quantidade ou salve como orçamento. |
