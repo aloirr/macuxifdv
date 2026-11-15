@@ -8,6 +8,7 @@
  * ações de outros módulos só pela extensão `produto.acoes` (RN-PRO-01). Com `?pedido=1` só entram os produtos da tabela do cliente. `?no=` abre com o filtro já marcado.
  */
 import { relogioReal } from '@macuxi/comum/relogio';
+import { HORA_CARGA_DIARIA_PADRAO } from '@macuxi/core/contracts';
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
 import { Banner, CampoBusca, Chip, colors, DEFAULT_TZ, Empty, EstadoVazio, LinhaChips, MostrarMais, NadaEncontrado, PAGINA_DA_BUSCA, proximaPaginaDaBusca, Screen, SeloAtualizacao, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
@@ -16,6 +17,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { caminhoCatalogo, type ItemVitrine, type RespostaBusca } from '../../contracts';
 import { montarArvore, type Arvore, type VinculoProdutoNo } from '../../domain/arvore';
+import { AVISO_ESTOQUE_DESATUALIZADO, disponibilidadeDaBuscaOnline, rotuloCargaEstoque } from '../../domain/estoque';
 import { idsAtivos } from '../../domain/hierarquia';
 import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, avisoDaBusca, iconeDoAviso } from '../../domain/ia';
 import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, SEM_FILTRO, subtituloDaGrade, type FiltroDaGrade } from '../lib/grade';
@@ -129,7 +131,13 @@ export default function TelaCatalogo() {
       else {
         try {
           const api = await ambiente.http.get<RespostaBusca>(caminhoCatalogo('busca'), { q: consulta, customer_id: clienteId, limit: limite });
-          r = { itens: api.items, total: api.total, aviso: api.notice };
+          // RN-CAT-07 (ADR 0057): com a carga diária feita, a disponibilidade exibida é a do aparelho
+          let itens = api.items;
+          if (sync.carga_diaria_em && itens.length > 0) {
+            const locais = await vitrineLocal(motor, { ...entrada, chips: { only_product_ids: new Set(itens.map((i) => i.id)) }, limit: itens.length, offset: 0 });
+            itens = disponibilidadeDaBuscaOnline(itens, new Map(locais.items.map((i) => [i.id, i.availability])), sync.carga_diaria_em);
+          }
+          r = { itens, total: api.total, aviso: api.notice };
         } catch (e) {
           r = await local(ehSemConexao(e) ? AVISO_BUSCA_OFFLINE : AVISO_BUSCA_FALHOU);
         }
@@ -140,7 +148,7 @@ export default function TelaCatalogo() {
     return () => {
       vivo = false;
     };
-  }, [motor, arvore, filtro, consulta, limite, dentroDoPedido, clienteId, perfil, parametrosCrus, ambiente, fuso, sync.sincronizado_em]);
+  }, [motor, arvore, filtro, consulta, limite, dentroDoPedido, clienteId, perfil, parametrosCrus, ambiente, fuso, sync.sincronizado_em, sync.carga_diaria_em]);
 
   const chips = useMemo(() => chipsDaGrade(arvore?.arvore ?? ARVORE_VAZIA, filtro), [arvore, filtro]);
   const linhas = useMemo(() => emLinhas(lista.itens), [lista.itens]);
@@ -162,6 +170,11 @@ export default function TelaCatalogo() {
     );
   }
 
+  // RN-CAT-07: a hora da carga aparece uma vez, numa faixa acima da lista (nunca em cada cartão)
+  const cargaEstoque = sync.carga_diaria_em
+    ? rotuloCargaEstoque({ carga_diaria_em: sync.carga_diaria_em, agora: relogioReal().agora().toISOString(), fuso, hora: (parametrosCrus as { estoque_carga_hora?: string } | null | undefined)?.estoque_carga_hora ?? HORA_CARGA_DIARIA_PADRAO })
+    : null;
+  const avisoEstoque = cargaEstoque?.desatualizado ? `${AVISO_ESTOQUE_DESATUALIZADO} · ${cargaEstoque.quando.replace(/^em /, '')}` : null;
   const aparelhoVazio = !lista.carregando && lista.itens.length === 0 && !consulta && !comFiltro;
 
   return (
@@ -195,6 +208,12 @@ export default function TelaCatalogo() {
             <Chip key={n.id} label={n.nome} active={filtro.categoriaId === n.id} onPress={() => setFiltro((f) => escolherCategoria(f, n.id))} testID={`catalogo-chip-categoria-${n.codigo}`} />
           ))}
         </LinhaChips>
+      ) : null}
+
+      {avisoEstoque ? (
+        <Banner testID="catalogo-aviso-estoque" icon="alert">
+          {avisoEstoque}
+        </Banner>
       ) : null}
 
       {lista.aviso && lista.aviso !== AVISO_BUSCA_OFFLINE ? (

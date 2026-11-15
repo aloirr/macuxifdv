@@ -13,8 +13,8 @@ export const ENTIDADES_PRECO = [entidadeTabelaPreco, entidadeTabelaPrecoItem, en
 // T-0052: conteúdo e estoque para a busca offline e a ficha sem sinal (provedores na API depois da migração 0013)
 export const entidadeProdutoAtributo = definirEntidadeSync({ nome: 'produto_atributo', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: ProdutoAtributoSyncSchema });
 export const entidadeSinonimo = definirEntidadeSync({ nome: 'sinonimo', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: SinonimoSyncSchema });
-export const entidadeDeposito = definirEntidadeSync({ nome: 'deposito', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: DepositoSyncSchema });
-export const entidadeEstoqueSaldo = definirEntidadeSync({ nome: 'estoque_saldo', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: EstoqueSaldoSyncSchema });
+export const entidadeDeposito = definirEntidadeSync({ nome: 'deposito', modulo: 'catalogo', direcao: 'pull', cadencia: 'diaria', conflito: 'servidor_vence', schema: DepositoSyncSchema });
+export const entidadeEstoqueSaldo = definirEntidadeSync({ nome: 'estoque_saldo', modulo: 'catalogo', direcao: 'pull', cadencia: 'diaria', conflito: 'servidor_vence', schema: EstoqueSaldoSyncSchema });
 export const entidadeProdutoConteudo = definirEntidadeSync({ nome: 'produto_conteudo', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: ProdutoConteudoSyncSchema });
 // T-0085 / RN-CAT-09: referência cruzada (marca do concorrente + código), até 3 por produto
 export const entidadeProdutoReferencia = definirEntidadeSync({ nome: 'produto_referencia', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: ProdutoReferenciaSyncSchema });

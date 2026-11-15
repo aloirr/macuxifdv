@@ -2,7 +2,7 @@ import { criarRelogio } from '@macuxi/comum/relogio';
 import { describe, expect, it } from 'vitest';
 import type { ItemVitrine } from '../../contracts';
 import { formatBRL } from '@macuxi/comum';
-import { aplicacaoPrecisaRecolher, estadoOfereceJunto, rotuloEstoque, rotuloEstoqueFilial, rotuloFaixa, rotuloPreco, subtituloProduto, textoEquivaleA } from './apresentacao';
+import { aplicacaoPrecisaRecolher, estadoOfereceJunto, rotuloEstoque, rotuloEstoqueFilial, rotuloFaixa, rotuloPreco, subtituloProduto, textoEquivaleA, tituloEstoque } from './apresentacao';
 
 // Relógio fixo (meio-dia em Manaus): a hora da atualização (-5 min) nunca cruza a meia-noite local. Ver o teste da virada do dia.
 const relogio = criarRelogio({ agora: '2026-11-03T16:00:00Z' });
@@ -46,6 +46,38 @@ describe('textos do cartão do catálogo', () => {
     expect(rotuloEstoque(velho, AGORA, 'America/Manaus')!.detalhe).toMatch(/^Estoque desatualizado · /);
     const vazio = item({ availability: { ...item().availability!, band: 'sem_estoque', quantity: 0, by_branch: [], updated_at: null, stale: true } });
     expect(rotuloEstoque(vazio, AGORA, 'America/Manaus')).toMatchObject({ texto: 'Estoque sem informação', tom: 'neutral' });
+  });
+
+  describe('RN-CAT-07: hora da carga diária (ADR 0057)', () => {
+    const M = 'America/Manaus';
+    const carga = (em: string | null) => ({ carga_diaria_em: em, hora: '06:00' });
+    const hoje = '2026-11-03T10:12:00Z'; // 06:12 em Manaus, mesmo dia do AGORA (12:00)
+    it('RN-CAT-07: ficha com a carga de hoje = "Atualizado às 06:12"', () => {
+      expect(rotuloEstoque(item(), AGORA, M, { carga: carga(hoje), onde: 'ficha' })).toMatchObject({ detalhe: 'Atualizado às 06:12', desatualizado: false });
+    });
+    it('RN-CAT-07: ficha de ontem antes das 06:00 = "Atualizado ontem às 06:12"', () => {
+      const cedo = '2026-11-03T07:00:00Z'; // 03:00 em Manaus
+      expect(rotuloEstoque(item(), cedo, M, { carga: carga('2026-11-02T10:12:00Z'), onde: 'ficha' })).toMatchObject({ detalhe: 'Atualizado ontem às 06:12', desatualizado: false });
+    });
+    it('RN-CAT-07: ficha desatualizada = "Desatualizado · ontem às 06:12" (sem repetir "Estoque")', () => {
+      expect(rotuloEstoque(item(), AGORA, M, { carga: carga('2026-11-02T10:12:00Z'), onde: 'ficha' })).toMatchObject({ detalhe: 'Desatualizado · ontem às 06:12', desatualizado: true });
+    });
+    it('RN-CAT-07: ficha com outra data = "Desatualizado · 30/10 às 06:12"; sem saldo = "Sem informação"', () => {
+      expect(rotuloEstoque(item(), AGORA, M, { carga: carga('2026-10-30T10:12:00Z'), onde: 'ficha' })!.detalhe).toBe('Desatualizado · 30/10 às 06:12');
+      const vazio = item({ availability: { ...item().availability!, by_branch: [], updated_at: null, band: 'sem_estoque', quantity: 0, stale: true } });
+      expect(rotuloEstoque(vazio, AGORA, M, { carga: carga(hoje), onde: 'ficha' })).toMatchObject({ texto: 'Sem informação' });
+    });
+    it('RN-CAT-07: na lista a hora nunca aparece; desatualizado = "Estoque desatualizado"', () => {
+      expect(rotuloEstoque(item(), AGORA, M, { carga: carga(hoje), onde: 'lista' })!.detalhe).toBe('');
+      expect(rotuloEstoque(item(), AGORA, M, { carga: carga('2026-11-02T10:12:00Z'), onde: 'lista' })).toMatchObject({ detalhe: 'Estoque desatualizado', desatualizado: true });
+    });
+    it('RN-CAT-07: sem carga_diaria_em vale a regra atual das [24] h', () => {
+      expect(rotuloEstoque(item(), AGORA, M, { carga: carga(null), onde: 'ficha' })!.detalhe).toMatch(/^Atualizado às \d{2}:\d{2}$/);
+    });
+    it('RN-CAT-07: título do bloco "Estoque · filial X"', () => {
+      expect(tituloEstoque('Matriz')).toBe('Estoque · filial Matriz');
+      expect(tituloEstoque(null)).toBe('Estoque');
+    });
   });
 
   it('RN-CORE-39: com cliente no contexto, sem registro na filial dele o estoque é 0 (Sem estoque), não "sem informação"', () => {
