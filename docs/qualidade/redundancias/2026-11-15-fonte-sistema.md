@@ -1,81 +1,96 @@
-# Fonte do sistema (R-20261115-110600, v1.0.13) · parecer do corretor-redundancias
+# Fonte do sistema (R-20261115-110600, v1.0.13) · parecer final do corretor-redundancias
 
-**Veredito: COM ACHADO (não liberado).** 13 achados (RD-0940 a RD-0952): 0 alta · 8 média · 5 baixa. Todos seguram o lote.
-Só o RD-0941 é código de teste; ele não é comentário nem título de teste, por isso também segura.
+**Veredito: COM ACHADO (não liberado).** 12 dos 13 achados da primeira passada fecharam. O RD-0952 foi reaberto em parte e
+há 6 achados novos (RD-0953 a RD-0958). Ficam **7 em aberto: 3 média · 4 baixa**. Todos seguram o lote, porque nenhum está
+só em comentário ou em título de teste (R-20261111-190159).
 
-- **Escopo:** só excessos, duplicidades e redundâncias da troca para a fonte do sistema: tokens e código de fonte, testes,
-  docs e a escala em cada módulo. Os prints foram olhados.
-- **Combinado (LOCAL, descartável, sem push):** `tmp/fonte-combinado-corretor` = `origin/main` 2e554c4a + os 11 branches
-  `nuvem/fonte-sistema-*` da receita (`design-de-marca` be4ca2a … `modulo-integracao` 14965f9). HEAD local b9a4ee3e,
-  157 arquivos. O único conflito foi em `.coord/diario/engenheiro-software.md`. O `-X union` da receita não existe no
-  `git merge`, e o guardião barra editar o diário alheio, então usei `-X ours`. Só as linhas do diário do
-  engenheiro-software ficaram de fora do combinado; o código entrou inteiro. Não houve conflito em código.
-- **Prints:** `combinado/depois-combinado-app-campo-v2.png` e `-v3.png` (login do Campo), `depois-combinado-login.png`
-  (BKO), `depois-combinado-auditoria.png` e `depois-combinado-portal.png`, além dos `engenheiro-apps/*`.
-- **Regras aplicadas** (`combinado-fonte.md`):
-  - app 12 · 14 · 16 · 18 · 22 · 28; no empate, sobe;
-  - web 12 · 13 · 15 · 17 · 20 · 24; no empate, desce (14→13, 16→15, 22→20); acima de 24 vira 24, menos o logo;
-  - nenhum peso 800/900 e nenhum `fontFamily: fonts.x`.
-- **O que está em ordem:**
-  - **app:** nenhum `fontSize` fora da escala em `apps/mobile`, `modules/*/app` e `packages/ui/src/mobile`;
-  - **mapeamento do app, igual em todos os módulos:** 10/11→12 · 13→14 · 15→16 · 17→18 · 19→18 · 20→22 · 24→22 · 26/30/34→28;
-  - **base do app:** o único 14→16 é o `type.body`/`bodyStrong`, que é a base nova e é intencional;
-  - **uso de `fonts.x`:** zero em todo o repositório.
+- **Escopo:** só excessos, duplicidades, código morto e a mesma escala ou o mesmo peso para o mesmo papel, na troca para a
+  fonte do sistema. O defeito funcional que achei foi encaminhado ao testes, no fim deste parecer.
+- **Primeira passada:** o texto dos RD-0940 a RD-0952 está no commit `be183a3a` deste branch e no `catalogo.md`.
+- **Estado julgado:** o estado final, com tudo combinado. A ordem dos PRs é designer-ux → engenheiro-software → módulos →
+  designer-ux-limpeza → testes. O `fonts` e os apelidos @deprecated da transição não contam, porque a limpeza os apaga.
 
-## Achados
+## Combinado (LOCAL, descartável, sem push)
+- **Base e branches:** `tmp/fonte-final-corretor` = `origin/main` 007289e0 + os `origin/nuvem/fonte-sistema-*` mais novos:
+  - design-de-marca 02b68048 · designer-ux e3d72e17 · engenheiro-software 312418ff · engenheiro-apps 153ff74f;
+  - modulo-core f10b769f · modulo-vendedor 29d7ec13 · modulo-catalogo 5d3c2ec2 · modulo-gestor 121efa9c;
+  - modulo-pesquisa 4cc0ad18 · modulo-treinamento 46f4ad78 · modulo-integracao 67e67bba · modulo-promotor ea7893ef;
+  - designer-ux-limpeza 3d8912b1 · testes bc60389a.
+- **Resultado:** HEAD 385ccada, 236 arquivos.
+- **Conflitos:** o `-X ours` só tocou os diários. Conferi que nenhum código se perdeu:
+  - `apps/` do combinado é igual ao branch do engenheiro-apps;
+  - `packages/ui` e `docs/design` são iguais aos da designer-ux-limpeza;
+  - cada `modules/<m>` é igual ao branch do próprio módulo.
+- **Testes:**
+  - `packages/ui`: 427/427 verdes;
+  - `tests/fundacao/fonte-sistema-varredura.test.ts`: **1 vermelho** (encaminhado ao testes, abaixo).
+- **Prints:** os 4 de `rodada3/`:
+  - `depois-app-campo.png`: os 3 rótulos do login do Campo saem iguais;
+  - `depois-login.png`, `depois-auditoria.png` e `depois-portal.png`: títulos em 24/700 e nada em 800.
+
+## Reteste da primeira passada
+| ID | Status | Evidência no combinado |
+|---|---|---|
+| RD-0940 | corrigido | Não sobra `fonts`, `familiasFonte`, `FAMILIAS_ANDROID` nem `displaySemi` em código. O teste virou um caso só (`fonte-sistema.test.ts:50-55`). |
+| RD-0941 | corrigido | Os 2 mocks agora usam `fonte: new Proxy(...)`. |
+| RD-0942 | corrigido | `fonte` tem um nome por peso (`body`, `medium`, `semibold`, `bold`, `mono`) e `type` um nome por papel (`theme.ts:19-71`). |
+| RD-0943 | corrigido | A pilha fica só em `packages/comum/src/fonte.ts`. O PDF do pedido, o PDF do catálogo e o e-mail importam dali, e o `globals.css` declara a pilha uma vez. |
+| RD-0944 | corrigido | `--font-display: var(--font-sans)` e `font-size: var(--text-base)`. O que sobra disso está no RD-0956. |
+| RD-0945 | corrigido | Os campos de Integração e de Gestor › Regras estão em `text-[15px]`, como o kit e Pesquisa. |
+| RD-0946 · 0947 · 0948 · 0949 · 0950 | corrigido | Contagem de `text-[Npx]` na web: 152×12 · 265×13 · 157×15 · 19×17 · 4×20 · 10×24, todos dentro da escala. Não há `font-extrabold`/`font-black` em produção. |
+| RD-0951 | corrigido | Login e Esqueci a senha usam o `CampoTexto` do kit, e o `CampoSenha` usa `RotuloCampo`/`ESTILO_CAMPO`. No print, os 3 rótulos são iguais. |
+| RD-0952 | **reaberto** (parte) | O (b), número em 600, fechou, e o `componentes.md` agora remete ao manual. O (a), o (c) e o (d) seguem no `manual.md`, ver abaixo. |
+
+## Em aberto
 
 | ID | Onde | Tipo | O que se repete | Impacto | Sev. | Proposta (antes → depois) | Dono |
 |---|---|---|---|---|---|---|---|
-| RD-0940 | `packages/ui/src/mobile/theme.ts:28-34` (`fonts` @deprecated); `tokens.ts:91-125` (`FAMILIAS_ANDROID`, `FamiliasFonte`, `familiasFonte`, os 7 `PILHA_SISTEMA` repetidos); `fonte-sistema.test.ts:50-74` | código morto · teste | O `fonts` tem **0 usos** em `apps/`, `modules/` e `packages/` (grep `fonts\.` e `{ fonts }`). Ele só existe para a "transição", que já acabou no combinado. Dois testes (`:50-66` e `:68-74`) garantem o formato desse código morto, um deles pelo texto-fonte do `theme.ts` (regex). O `fonte.displaySemi` também tem **0 usos**. | manutenção: 3 nomes de família para um objeto que ninguém lê | média | Apagar o `fonts` e a sua JSDoc em `theme.ts`. Em `tokens.ts`, `familiasFonte`/`FAMILIAS_ANDROID`/`FamiliasFonte` viram uma constante só: `export const FAMILIA_MONO = Platform.OS === 'android' ? 'monospace' : PILHA_MONO` (ou `familiaMono(os)`, para o teste puro). O `fonte.mono` passa a usar essa constante. Apagar `fonte.displaySemi`. No teste, trocar `:50-74` por um caso só: "mono: Android `monospace`, web `PILHA_MONO`; nenhum `sans-serif-black`". | designer-ux |
-| RD-0941 | `tests/modulos/t0140-faixa-pdf.test.ts:28`, `tests/modulos/meta-de-hoje-rd0001-t0124.test.ts:41` | teste | Mock `fonts: new Proxy(...)` de um export que nenhum componente lê mais (2 cópias). | manutenção | baixa | Apagar as 2 linhas. Se o mock precisar de algo, usar `fonte: new Proxy({}, { get: () => ({}) })`. | testes |
-| RD-0942 | `packages/ui/src/mobile/theme.ts:19-25` e `:53-77` | código | Há 3 apelidos para o mesmo peso 700: `display` (29 usos), `displayBold` (29) e `bold` (42). Os estilos ficaram idênticos depois da troca: `h2` = `titulo` = `secao` = 18/700 e `number` = `numeroGrande` = 18/700 tabular. Antes eram 17/700 e 19/800. | leitura do kit: o nome promete uma hierarquia que não existe mais | baixa | Manter só `bold` (700) e marcar `display`/`displayBold` como apelidos com data para sair. Em `type`, deixar `secao` como fonte e `h2: type.secao`/`titulo` apontando para ele, ou separar de verdade (título de folha 22, conforme RD-0952). `number` → `numeroGrande`. | designer-ux |
-| RD-0943 | pilha da fonte copiada em 5 lugares: `packages/ui/src/mobile/tokens.ts:87-89`, `apps/web/app/globals.css:44-46`, `modules/vendedor/domain/pdf-pedido.ts:197` e `:232`, `modules/catalogo/web/exportacao/pdf.ts:34`, `packages/platform-sdk/src/email/modelos.ts:122-123` (com Arial, `manter?` para o e-mail) | código | A string `system-ui, "Segoe UI", Roboto, -apple-system, sans-serif` aparece 5 vezes, e a mono 4 vezes. | manutenção: quem trocar a pilha num lugar esquece os outros | média | Criar `packages/comum/src/fonte.ts` com `PILHA_SISTEMA` e `PILHA_MONO`, exportados no `index.ts` (engenheiro-software). O `tokens.ts` reexporta. `pdf-pedido.ts` e `catalogo/.../pdf.ts` passam a usar `font-family:${PILHA_SISTEMA}`. O e-mail fica `${PILHA_SISTEMA}` com Arial/Helvetica antes do `sans-serif`, montado a partir da constante. O `globals.css` não importa TS: fica com um comentário `/* mesma pilha de @macuxi/comum fonte.ts */`. | engenheiro-software · designer-ux · modulo-vendedor · modulo-catalogo · engenheiro-apps |
-| RD-0944 | `apps/web/app/globals.css:44-45` e `:71` | código | `--font-display` é a cópia literal de `--font-sans`. O `font-size: 15px` do `body` repete o `--text-base`. | manutenção | baixa | `--font-display: var(--font-sans);` e `font-size: var(--text-base);` | engenheiro-apps |
-| RD-0945 | mesmo papel ("campo de formulário") em degraus diferentes na web: `modules/integracao/web/components/mapeamento-panel.tsx:20` e `inativacoes-panel.tsx:127` (14→**13**), `modules/gestor/web/pages/regras-page.tsx:31` (`text-sm` = 13) × `packages/ui/src/web/ui.tsx:59` e `:138`, `modules/pesquisa/web/components/editor-pergunta.tsx:11` (14→**15**) | layout · código | O mesmo 14 px antigo foi levado a 13 por uns e a 15 por outros. O empate da receita manda 13, e o `componentes.md` manda "campo 15". No BKO, o campo de Integração e de Regras fica menor que o de Pesquisa e o do kit. | leitura: o mesmo controle com 2 tamanhos | média | Campo, botão e aba seguem o papel do `componentes.md` (15), e tabela e apoio ficam em 13. Em Integração, `mapeamento-panel.tsx:20` e `inativacoes-panel.tsx:127` passam de `text-[13px]` para `text-[15px]` (ou usar `CLASSE_CAMPO_BASE` do kit, como o gestor). Em Gestor, `regras-page.tsx:31` passa de `text-sm` para `text-[15px]`. Antes, a decisão do empate × papel (RD-0952). | modulo-integracao · modulo-gestor |
-| RD-0946 | `modules/core/web/**`: **73× `text-[14px]`**, `routes-page.tsx:84` 16, `:457` 18, `:110` `font-extrabold`, `route-editor.tsx:158` 19 | layout · código | O Core web não passou pela escala. O mesmo papel fica em 14 no Core e em 13 ou 15 nos outros módulos. Há peso 800 junto do 700 do kit. | leitura: o BKO com 3 tamanhos para o mesmo texto | média | Cada `text-[14px]` vai para o degrau do papel (campo e botão 15, apoio e tabela 13). 16→15, 18/19→17, `font-extrabold`→`font-bold`. Melhor ainda: as classes `text-sm`/`text-base`/`text-lg` dos tokens, sem px solto. | modulo-core |
-| RD-0947 | `apps/web/components/**`: **25× `text-[14px]`**; títulos `text-[28px] font-extrabold` em `login-screen.tsx:229,318`, `ciclo-senha.tsx:106,209,225`, `aviso-link-antigo.tsx:28`, `portal/tela-entrar.tsx:116`, `portal/tela-escolher-empresa.tsx:165`; `login-screen.tsx:342` e `later-page.tsx:15` 18 | layout · código | Título de página em 28/800 no login, no portal e no ciclo de senha, contra 24/700 no `PageHeader` do kit (`ui.tsx:40`). São 2 tamanhos e 2 pesos para o mesmo papel (print `depois-combinado-login.png`: o "Entrar" ficou maior e mais pesado que o título das telas internas). | leitura | média | `text-[28px] font-extrabold` → `text-[24px] font-bold` (8 lugares). 18→17. Cada 14 vai ao degrau do papel. | engenheiro-apps |
-| RD-0948 | `modules/vendedor/web/components/orders/`: `order-drawer.tsx` 16 ×5 (`:92,132,154,203,240`), `:124` 18 + `font-extrabold`, `orders-page.tsx:101` 18, 14 ×7 | layout · código | Mesma divergência da RD-0946 no módulo Pedidos do BKO. | leitura | média | 16→15, 18→17, `font-extrabold`→`font-bold`, cada 14 ao degrau do papel. | modulo-vendedor |
-| RD-0949 | `modules/catalogo/web/pages/catalogo-page.tsx:294,689`, `tabelas-preco-page.tsx:335,394` | layout | 14 px mantido (4×), enquanto o próprio kit foi para 15 ou 13. | leitura | baixa | Cada um ao degrau do papel (13 ou 15). | modulo-catalogo |
-| RD-0950 | `modules/promotor/web/pages/cadastros-page.tsx:162` (14), `:256` (16) | layout | Mesma divergência; não há branch `fonte-sistema-modulo-promotor` no combinado. | leitura | baixa | 14 → degrau do papel, 16→15. | modulo-promotor |
-| RD-0951 | Campo › Login: rótulos "Código da empresa" e "E-mail" (`modules/core/app/components/tela-login.tsx:133-150`, `Campo` local + `estilos-de-acesso.ts:7`) × "Senha" (`packages/ui/src/mobile/campo-senha-rn.tsx:58` e `:88`); o mesmo em `tela-esqueci-senha.tsx:87,98` | código · layout | O rótulo do campo está implementado **duas vezes**: um `Campo` local no Core e o `CampoSenha` do kit, cada um com o seu estilo. No print (`depois-combinado-app-campo-v2/v3.png`), "Código da empresa" e "E-mail" saem em peso regular e "Senha" em semibold, na mesma tela. "Esqueci a senha" (`linkTexto`) também sai regular. | leitura: 3 rótulos iguais com 2 pesos | média | O kit expõe um `CampoTexto` (rótulo, entrada, erro) com o mesmo `s.rotulo` do `CampoSenha` (designer-ux), e o Core apaga o `Campo` local e o `rotulo`/`entrada` do `estilos-de-acesso.ts`, usando o do kit no login, no Esqueci a senha e no Crie sua senha (modulo-core). O porquê de o semibold do código sair regular no print vai ao testes (abaixo). | modulo-core · designer-ux |
-| RD-0952 | a mesma regra descrita em 2 docs com valores diferentes: `docs/marca/manual.md` §5.2–5.3 × `docs/design/componentes.md` (seção Fonte do sistema) × receita do combinado (empate) | doc | (a) Título de seção do app: **22** no manual, **18** no `componentes.md` e no `theme.ts` (`secao`). (b) Número de cartão: peso **600** no manual, **700** no `componentes.md` e no código (`numeroGrande`, KPI do `ui.tsx:158`). (c) Rótulo: **500** no manual, **600** no código (`label`, `rotulo`, `ui.tsx:116`). (d) Web 14 px: "empate desce → 13" na receita, "campo e botão 15" no `componentes.md`. As pilhas e a escala estão copiadas por inteiro nos 2 docs. | decisão: cada agente seguiu um texto (é a origem das RD-0945 a RD-0950) | média | A fonte da verdade é o **manual §5** (aprovado pelo dono do produto). O design-de-marca fecha (a), (b), (c) e (d) no manual. O `componentes.md` apaga as pilhas, os pesos e a tabela de escala e fica só com o mapeamento de tokens (`type.x` → papel do manual §5.3), com o link "§5 do manual". O `decisoes.md` é histórico (`manter`). | design-de-marca · designer-ux |
+| RD-0952 (reaberto) | `docs/marca/manual.md` §5.2-5.3 × código e decisão do gerente (rodada 3, item 1) | doc | O manual, que é a fonte da verdade, ainda traz 3 divergências. (a) **App:** título de seção 22 e título de página 28 no manual; no código, seção 18 (`type.h2`), tela 22 (`h1Small`) e 28 só para número grande e saudação. **Web:** título de seção 20 no manual; no código, seção 17 (`Panel`) e cartão ou diálogo 20. (c) "500: rótulo" no manual, enquanto `type.label`/`rotulo` e o rótulo de campo estão em 600. (d) O manual manda arredondar ("na web, desce: 14 → 13"); o código seguiu o **papel** (14 → 15 em texto, campo e célula). | decisão: quem ler o manual monta a tela fora do resto | média | O §5.3 passa a ter a tabela por papel da rodada 3: web 12 · 13 · 15 · 17 seção · 20 cartão/diálogo · 24 página; app 12 · 14 · 16 · 18 seção · 22 tela/folha/diálogo · 28 número grande e saudação. Trocar o bullet "Arredondamento na troca" por "Na troca, cada tamanho vai ao degrau do seu papel (tabela acima)". No §5.2, ficam "500: meta, item de menu, chip" e "600: rótulo de campo e rótulo pequeno". O Alexandre confirma. | design-de-marca |
+| RD-0953 | **Rótulo de campo do app** em 3 formas: kit `RotuloCampo`/`CampoTexto`/`CampoSenha` (`campo-texto-rn.tsx:21`, 14/600 `ink`) × kit `ListaSuspensa` e `CampoAjuste` (`suspensa.tsx:195,333`) e `Desconto` (`desconto-rn.tsx:72,109`), 12/600 **maiúsculas** `ink2` × rótulos locais: `modules/vendedor/app/components/endereco-pedido.tsx:170,263` (12/600 `ink2`), `modules/promotor/app/telas/tela-loja.tsx:32-38` (`Campo` com `t.label`, 12/600) e `modules/vendedor/app/components/novo-pedido-abas.tsx:232` (`CampoTexto` local, com o mesmo nome do kit e o rótulo só no placeholder) | código · layout | No mesmo papel há 3 tamanhos e 2 caixas. Na folha Endereço do Novo pedido, "Cidade" (12, minúsculas) fica ao lado de "UF" (12, MAIÚSCULAS). Isso contradiz o `componentes.md` ("Nenhuma tela monta rótulo de campo próprio") e o manual §5.2 ("mesmo papel, mesmo peso"). | leitura: o formulário muda de cara de um campo para o outro | média | **designer-ux:** `ListaSuspensa`, `CampoAjuste` e `Desconto` passam a usar `<RotuloCampo>{rotulo}</RotuloCampo>` e apagam o `s.rotulo` próprio. Se o campo de escolha precisar de rótulo em maiúsculas, a regra muda no `RotuloCampo` e vale para todos. **modulo-vendedor:** em `endereco-pedido.tsx`, `campo()` usa `<RotuloCampo>` e `ESTILO_CAMPO.entrada` (o foco e o erro continuam por cima), e sai o `s.rotulo:263`. Em `novo-pedido-abas.tsx`, o `CampoTexto` local dá lugar ao `CampoTexto` do kit (`rotulo="Nome"`/`"CNPJ"`, `aoMudar`). **modulo-promotor:** em `tela-loja.tsx`, o `Campo` dá lugar ao `CampoTexto` do kit (`keyboardType` pelo resto das props). | designer-ux · modulo-vendedor · modulo-promotor |
+| RD-0954 | `type.rotulo` (12/600, maiúsculas, espaçamento 0.6) refeito à mão 7 vezes, 5 delas com espaçamento **0.4**: `packages/ui/src/mobile/cartoes-pedido.tsx:68`, `desconto-rn.tsx:109`, `formulario.tsx:596`, `suspensa.tsx:333`, `valores.tsx:363` (0.4); `navegacao.tsx:226` e `apps/mobile/src/app/login.tsx:483` (`group`, 0.6) | código | O mesmo papel ("RÓTULO EM MAIÚSCULAS") aparece com 2 espaçamentos e 7 cópias literais. | manutenção: mudar o rótulo exige 8 edições | baixa | Cada um vira `{ ...t.rotulo, <só o que muda: flex, lineHeight, numberOfLines> }`. O espaçamento fica um só (o 0.6 do `type`). Os 2 de `desconto-rn` e `suspensa` já saem pelo RD-0953. | designer-ux · engenheiro-apps (`login.tsx:483`) |
+| RD-0955 | Campo "Servidor" do app: o estilo `input` (46 dp, `fonte.mono` 14) está copiado em `apps/mobile/src/app/login.tsx:493` e `profile.tsx:374`, e o endereço `[t.body, { ...fonte.mono, fontSize: 14 }]` em `login.tsx:349` e `profile.tsx:261` | código · layout | São 2 cópias de 2 estilos, e a entrada fica em 14, enquanto todo campo do app usa 16 (`ESTILO_CAMPO.entrada` e os módulos). | manutenção; leitura | baixa | Um estilo só, `ENTRADA_SERVIDOR = [ESTILO_CAMPO.entrada, fonte.mono]` (16, mono, a mesma altura do kit), e um `ENDERECO_SERVIDOR = { ...fonte.mono, fontSize: 14, color: colors.ink }`, num arquivo do shell (por exemplo `src/components/servidor.ts`), usados no login e no perfil. | engenheiro-apps |
+| RD-0956 | Classe `font-display` em 22 lugares: `apps/web/components/**` 13 (`login-screen.tsx:229,318,342`, `ciclo-senha.tsx:106,209,225`, `aviso-link-antigo.tsx:28`, `later-page.tsx:15`, `marca-faixa.tsx:22`, `portal/cartao-base.tsx:214`, `portal/cartao-equipe.tsx:114`, `portal/tela-entrar.tsx:116`, `portal/tela-escolher-empresa.tsx:165`), `modules/core/web/**` 3 (`novo-perfil.tsx:74`, `route-editor.tsx:158`, `routes-page.tsx:457`) e `modules/vendedor/web/components/orders/order-drawer.tsx` 6 (`:92,124,132,154,203,240`); token `--font-display` em `globals.css:45` | código | A classe é a mesma `--font-sans` que o `body` já usa, então não tem efeito. O kit já tirou a classe (`fonte-sistema.test.ts:64-67`: "web sem `font-display`"), e os títulos do kit (`PageHeader`, `Panel`) saem iguais sem ela. São 2 nomes para a mesma fonte. | manutenção: sugere uma fonte de título que não existe mais | baixa | Apagar `font-display ` das 22 classes, por exemplo `m-0 font-display text-[24px] font-bold` → `m-0 text-[24px] font-bold`. Depois, a linha `--font-display: var(--font-sans);` do `globals.css`. Este achado substitui a proposta do RD-0944, que mantinha o apelido. | engenheiro-apps · modulo-core · modulo-vendedor |
+| RD-0957 | Saudação "Bom dia, Lucas": no Início do Gestão, `type.saudacao` = `h1` **28**/700 (`apps/mobile/src/components/inicio.tsx:34`); no Início do Campo, **22**/700 (`modules/core/app/telas/inicio/escala-inicio.ts:61`, `tela-inicio-campo.tsx:193`), que é o valor-base próprio da escala do Início | layout | O mesmo papel sai em 2 tamanhos em telas equivalentes. O `theme.ts` (tabela do `type`) diz que é 28. | leitura entre Campo e Gestão | baixa | Um valor só, decidido pela designer-ux. A sugestão é 22/700, que já está aprovado na faixa do Campo: `saudacao: estilosDeTexto.h1Small` no `theme.ts`, com a tabela corrigida. O Core lê a base do kit (`FontesDoKit` + `saudacao: t.saudacao.fontSize`) em vez do `22` literal do `BASE`. | designer-ux · modulo-core |
+| RD-0958 | Docs com a regra antiga, em conflito com o manual §5 | doc | (1) `docs/design/componentes.md:26-30` ainda cita `display`/`displayBold` ("saem na v1.0.14"), `title16` e `smallStrong`, que a limpeza apagou. (2) `catalogo-aplicacao.md:19,26` usa `t.smallStrong`, e `inicio.md:79` usa `title16`/"Archivo 22". (3) 19 specs de `docs/design` ainda receitam Archivo e IBM Plex, entre elas `pdf-pedido.md:116,138-149` (rótulos de **10,5 px** e Archivo **800**, contra "nada abaixo de 12, nada em 800"), `emails/redefinir-senha.md`, `pedido-v4.md` (11×) e `entrada-sync.md` (8×). | decisão: a spec ensina o contrário do manual | média | (1) Em `componentes.md`, apagar "`display`/`displayBold` são apelidos de `bold` e saem na v1.0.14.", "(`title16` é o mesmo)" e "(`smallStrong` é o mesmo)". (2) `t.smallStrong` → `t.label`; `title16`/Archivo 22 → `t.number`. (3) Nas specs vivas (`pdf-pedido.md`, `emails/*`, `pedido-v4.md`, `entrada-sync.md`, `telas/bko-revisao.md`, `telas/portal-config-enxuto.md`), a família sai e o peso e o tamanho vão para o §5. Em `pdf-pedido.md`, 10,5 → 12 e 800 → 700 (o total → 600). Nas antigas (`pedido-v3.md`, `revisoes/*`), basta uma linha no topo: "Tipografia substituída pela fonte do sistema (manual §5, 15/11/2026)". Os roteiros de `docs/testes` são histórico (`manter`). | designer-ux |
 
 ### Redundância útil (`manter`)
-- `packages/platform-sdk/src/email/modelos.ts:122-123`: a pilha do e-mail tem Arial/Helvetica/Consolas porque os clientes
-  de e-mail não têm `system-ui`. A variação é útil; só a parte comum entra na RD-0943.
-- `docs/marca/decisoes.md`: repete as pilhas como registro da decisão de 15/11. É histórico, não é a regra viva.
-- Os diários (`.coord/diario/*`) citam a R-20261115-110600 em várias entradas: é registro de trabalho, não é RD.
+- Pilha do e-mail com Arial e Helvetica (`PILHA_SISTEMA_EMAIL`): agora sai da mesma constante, então está certo.
+- `ESCALA_FONTE`/`TAMANHOS_FONTE` só são usados pelo teste do kit. Ficam, porque são a referência da escala para quem monta
+  tela.
+- As guardas `packages/ui/src/mobile/fonte-sistema.test.ts` (kit) e `tests/fundacao/fonte-sistema-varredura.test.ts` (fora
+  do kit) se complementam. Não há caso repetido entre as duas.
+- `docs/marca/decisoes.md` e os pareceres antigos da marca citam `fonts.x`. São histórico.
 
 ### Encaminhado ao testes (defeito funcional, sem número RD)
-1. **Login do Campo (Expo web):** `estilos-de-acesso.ts:7` e `:20` declaram `...fonte.semibold`, mas o print mostra
-   "Código da empresa", "E-mail" e "Esqueci a senha" em peso regular, e "Senha" (kit) em semibold. É preciso confirmar no
-   aparelho Android se o peso some, por exemplo no `StyleSheet.create({ ...estilosDeAcesso })` de `tela-login.tsx`, que
-   cria de novo um estilo já criado.
-2. **Fora da regra R-20261115-110600 em produção:**
-   - `font-extrabold` (800) em 9 lugares (RD-0947 e RD-0948, `routes-page.tsx:110`);
-   - texto web acima de 24 px (28 px) fora do logo;
-   - a guarda `fonte-sistema.test.ts` só lê `packages/ui`: proposta de estender a checagem de px e peso a `apps/web` e a
-     `modules/*/web`, como teste de `tests/` (testes) ou do lint (engenheiro-software).
+1. **`tests/fundacao/fonte-sistema-varredura.test.ts` fica vermelho no combinado:**
+   - o `it.fails('PENDENTES vazio…')` falha com "Expect test to fail", porque o modulo-core já corrigiu o `font-extrabold`
+     de `routes-page.tsx:110`;
+   - o mapa `PENDENTES` (linhas 70-73) ficou sem caso;
+   - a correção é apagar a entrada do mapa e o `it.fails`, ou só o `it.fails` enquanto o mapa estiver vazio;
+   - sem isso, o CI do PR do testes (o último do lote) fica vermelho.
+2. **Para a marca** (MC-0059, não é RD): o total do pedido no BKO (`order-drawer.tsx:124`) ficou em 20/**700**. A proposta
+   da marca era 600 (valor em destaque).
+
+### Fora do escopo da fonte (já no `origin/main`, sem RD neste lote; sugiro tarefa para o próximo parecer de telas)
+- **BKO › Entrar:** o subtítulo "Use o código da sua empresa, o seu e-mail e a sua senha." repete os 3 rótulos logo abaixo.
+- **BKO › Auditoria:** o subtítulo "… · toda gravação do sistema entra aqui" explica como o sistema funciona
+  (R-20261110-192153). A coluna "Entidade" mostra "aparelho" em todas as linhas do print.
+- **Portal › Empresas:** "Cada empresa cliente é um tenant." explica o funcionamento e usa jargão.
+- **Campo › Entrar:** o aviso de servidor fora do ar tem 6 linhas, com uma explicação técnica.
 
 ## Recados
-Recados do GitHub deram **403** nesta sessão (`coord.mjs caixa`: "GitHub access to this repository is not enabled for
-this session"). Caixa não lida. Os recados abaixo **não foram gravados** e ficam para o gerente enviar ou repassar
-(todos com cc `gerente-projetos`, tarefa = fonte do sistema v1.0.13):
+A CLI de recados dá 403 nesta sessão, por isso os recados vão pelo gerente-projetos, com cópia para ele e a tarefa da fonte
+do sistema v1.0.13:
 
-| Para | Tipo | Assunto | Achados |
-|---|---|---|---|
-| designer-ux | pedido | Fonte do sistema: código morto `fonts`, apelidos de peso, `CampoTexto` no kit, `componentes.md` × manual | RD-0940, RD-0942, RD-0943 (tokens), RD-0951 (kit), RD-0952 |
-| engenheiro-software | pedido | `PILHA_SISTEMA`/`PILHA_MONO` em `packages/comum` | RD-0943 |
-| engenheiro-apps | pedido | `globals.css` duplicado; títulos 28/800 e 14 px no shell web | RD-0943 (css), RD-0944, RD-0947 |
-| modulo-core | pedido | 73× 14 px no BKO; rótulo do login duplicado | RD-0946, RD-0951 |
-| modulo-vendedor | pedido | Pedidos no BKO fora da escala; pilha no PDF | RD-0943, RD-0948 |
-| modulo-catalogo | pedido | 14 px no BKO; pilha no PDF | RD-0943, RD-0949 |
-| modulo-integracao | pedido | Campo em 13 (kit em 15) | RD-0945 |
-| modulo-gestor | pedido | Campo de Regras em `text-sm` | RD-0945 |
-| modulo-promotor | pedido | Cadastros em 14/16 | RD-0950 |
-| testes | pedido | Mock `fonts` morto; defeitos encaminhados 1 e 2 | RD-0941 + encaminhados |
-| design-de-marca | pedido | Manual §5 × `componentes.md`: seção 22/18, número de cartão 600/700, rótulo 500/600, 14 px web | RD-0952 |
-| gerente-projetos | entrega | Parecer da fonte do sistema: 13 achados, não liberado | todos |
+| Para | Achados |
+|---|---|
+| design-de-marca | RD-0952 (reaberto) |
+| designer-ux | RD-0953 (kit), RD-0954, RD-0957, RD-0958 |
+| modulo-vendedor | RD-0953 (`endereco-pedido`, `novo-pedido-abas`), RD-0956 (`order-drawer`) |
+| modulo-promotor | RD-0953 (`tela-loja`) |
+| modulo-core | RD-0956 (3 classes), RD-0957 (base da saudação) |
+| engenheiro-apps | RD-0954 (`login.tsx:483`), RD-0955, RD-0956 (13 classes e o token) |
+| testes | encaminhado 1 |
+| gerente-projetos | entrega deste parecer; encaminhado 2 para a marca; itens fora do escopo |
 
-Numeração provisória RD-0940 a RD-0952 (há branches paralelos do corretor ainda sem merge com RD-09xx até RD-0921). No
-merge, o catálogo renumera se colidir.
+A numeração é provisória (RD-0953 a RD-0958): o catálogo renumera no merge se colidir com outros branches do corretor.
