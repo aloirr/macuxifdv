@@ -194,8 +194,9 @@ export const PrazoPagamentoSyncSchema = z
     ordem: z.number().int(),
     /**
      * RN-VEN-43 (v1.0.13): "Desc./Acrésc. (%)" do prazo (-99,99 a +99,99; negativo = desconto), vindo do ERP; ausente = 0.
-     * Sem `.strict()` de propósito: o app antigo ignora o campo novo no pull em vez de quebrar (§6 da proposta).
+     * Mantém o `.strict()` (desenho 7a8e57d): o campo entra explícito; o app antigo ignora a chave nova.
      */
     percentual_ajuste: PercentualAjusteSchema,
-  });
+  })
+  .strict();
 export type PrazoPagamentoSync = z.infer<typeof PrazoPagamentoSyncSchema>;
