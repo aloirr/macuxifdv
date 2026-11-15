@@ -16,7 +16,7 @@
 ## Decisão
 
 ### 1. Inativar e Reativar (RN-PLA-07)
-1. **Estado**: o próprio `plataforma.tenant.status`. Inativa = `suspenso` (o portal mostra "Inativa"; `ROTULO_STATUS_EMPRESA`). O valor do banco não muda e não há migração do check. Colunas novas: `inativada_em`, `motivo_inativacao` (lista `MOTIVOS_INATIVACAO`, sem texto livre). Inativar **não apaga nem altera** nenhum dado da empresa e **não revoga** as sessões: ao reativar, quem estava logado volta sem novo login e a fila do aparelho sobe.
+1. **Estado**: o próprio `plataforma.tenant.status`. Inativa = `suspenso` (o portal mostra "Inativa"; `ROTULO_STATUS_EMPRESA`). O valor do banco não muda e não há migração do check. Colunas novas: `inativada_em`, `motivo_inativacao` (lista `MOTIVOS_INATIVACAO`, sem texto livre; **opcional e nulo**: a tela aprovada pelo dono do produto, "Inativar {empresa}? Todos os acessos ficam bloqueados. [Cancelar] [Inativar]", não pede motivo, e a API inativa sem ele). Inativar **não apaga nem altera** nenhum dado da empresa e **não revoga** as sessões: ao reativar, quem estava logado volta sem novo login e a fila do aparelho sobe.
 2. **Quem**: só o super-admin, pelas rotas do portal (§4). O admin do cliente recebe 403 `PERFIL_SEM_ACESSO`.
 3. **O que bloqueia** (código único `EMPRESA_INATIVA`, `CODIGO_EMPRESA_INATIVA` no SDK):
 
@@ -34,7 +34,7 @@
 | E-mails (`plataforma.email_saida`) | o worker não envia os do tenant inativo: ficam aguardando e vencem pelo prazo normal |
 | App (Campo e Gestão) | ao receber 403 `EMPRESA_INATIVA`, mostra `MENSAGEM_EMPRESA_INATIVA` (texto final do designer-ux) e para de sincronizar. **Não apaga** os dados locais nem a fila (diferente do 423 de aparelho bloqueado) |
 
-4. **Auditoria**: uma linha `tenant.inativado` ou `tenant.reativado` em `plataforma.auditoria_plataforma`, com o motivo, o antes e o depois, e o evento `plataforma.tenant.inativado@1` ou `plataforma.tenant.reativado@1` na outbox do tenant, na mesma transação. Ações idempotentes: repetir dá 200 com `resultado: 'sem_mudanca'` e não grava evento.
+4. **Auditoria**: uma linha `tenant.inativado` ou `tenant.reativado` em `plataforma.auditoria_plataforma`, com o motivo (quando houver), o antes e o depois, e o evento `plataforma.tenant.inativado@1` ou `plataforma.tenant.reativado@1` na outbox do tenant, na mesma transação. Ações idempotentes: repetir dá 200 com `resultado: 'sem_mudanca'` e não grava evento.
 
 ### 2. Backup da empresa (RN-PLA-08)
 1. **Formato**: exportação lógica por tabela, não `pg_dump`. Para cada tabela com `tenant_id` (a mesma lista do catálogo da `excluir_tenant`, em ordem de FK, mães antes das filhas) e mais a linha de `plataforma.tenant`, um arquivo NDJSON (`row_to_json` da linha inteira), compactado com gzip e cifrado. Mais um `manifesto.json` (`ManifestoBackupEmpresaSchema`): versão do formato, migração do banco, contagem, bytes e sha256 de cada parte. Os arquivos (fotos, prints, miniaturas) de `arquivos/<tenant_id>/` são **copiados no próprio bucket** (`CopyObject`, sem baixar).
@@ -65,7 +65,7 @@ Rotas do portal, só super-admin, atrás de `MACUXI_EMPRESA_ACOES=1` (padrão de
 
 | Rota | Corpo / resposta | Erros |
 |---|---|---|
-| `POST /v1/plataforma/empresas/:tenant_id/inativar` | `InativarEmpresaSchema` → 200 `SituacaoEmpresaRespostaSchema` | 404 `TENANT_NAO_ENCONTRADO`, 409 `EXCLUSAO_EM_ANDAMENTO` |
+| `POST /v1/plataforma/empresas/:tenant_id/inativar` | `InativarEmpresaSchema` (`{}` ou motivo opcional) → 200 `SituacaoEmpresaRespostaSchema` | 404 `TENANT_NAO_ENCONTRADO`, 409 `EXCLUSAO_EM_ANDAMENTO` |
 | `POST /v1/plataforma/empresas/:tenant_id/reativar` | `{}` → 200 `SituacaoEmpresaRespostaSchema` | 404, 409 `EXCLUSAO_EM_ANDAMENTO` |
 | `POST /v1/plataforma/empresas/:tenant_id/backups` | `PedirBackupEmpresaSchema` → 202 `BackupEmpresaSchema` | 404, 409 `BACKUP_EM_ANDAMENTO` / `EXCLUSAO_EM_ANDAMENTO`, 503 `BACKUP_INDISPONIVEL` |
 | `GET /v1/plataforma/empresas/:tenant_id/backups[/:backup_id]` | → 200 `ListaBackupsEmpresaSchema` (até 20) / `BackupEmpresaSchema` | 404 |

@@ -4,10 +4,10 @@
 - **Autor**: engenheiro-software. **Tarefa**: o gerente atribui o número.
 
 ## 1. Tela
-Tela, textos e estados: `docs/design/telas/portal-config-enxuto.md` §15 (designer-ux). Dados da linha: `EmpresaResumoSchema.acoes`.
+Textos e estados: `docs/design/telas/portal-config-enxuto.md` §15 (designer-ux). Dados da linha: `EmpresaResumoSchema.acoes`.
 
 ## 2. Sequências
-**Inativar**: `POST …/inativar` → `sa_inativar_tenant(sid, tenant, motivo)` numa transação: status `suspenso`, `inativada_em = now()`, motivo, auditoria `tenant.inativado`, evento `plataforma.tenant.inativado@1`. A partir do commit, a próxima requisição de qualquer token do tenant leva 403 `EMPRESA_INATIVA`.
+**Inativar**: `POST …/inativar` → `sa_inativar_tenant(sid, tenant, motivo)` numa transação (motivo opcional e nulo: o diálogo não o pede): status `suspenso`, `inativada_em = now()`, motivo, auditoria `tenant.inativado`, evento `plataforma.tenant.inativado@1`. A partir do commit, a próxima requisição de qualquer token do tenant leva 403 `EMPRESA_INATIVA`.
 
 **Backup**: `POST …/backups` → `sa_pedir_backup(sid, tenant, id)` grava `em_andamento` (único por empresa; o mesmo `id` devolve o mesmo) e marca `consistente = (status = 'suspenso')`. O worker, a cada ciclo:
 1. pega um job (`for update skip locked`);
@@ -36,7 +36,7 @@ Falha no passo 1 desfaz tudo, e a empresa continua inativa e intacta. Falha no p
 A empresa volta inativa. O tempo é parecido com o do backup.
 
 ## 4. Banco (pedido ao banco-dados)
-- `plataforma.tenant`: colunas `inativada_em timestamptz`, `motivo_inativacao text` (check da lista), com o check "inativa ⇔ data e motivo".
+- `plataforma.tenant`: colunas `inativada_em timestamptz`, `motivo_inativacao text` (check da lista, nulo permitido), com o check "inativa ⇔ data" e "motivo só na inativa".
 - `plataforma.backup_empresa`, `plataforma.backup_empresa_parte` e `plataforma.exclusao_empresa`, com `empresa_id` sem FK e sem `tenant_id` (para sobreviver à `excluir_tenant`). RLS ligado e política `manutencao`. Exceção da regra 5 no `docs/banco/rls.md` e na conformidade.
 - `plataforma.empresa_excluida` (id, código, CNPJ, razão social, `excluida_em`, `backup_id`, `super_admin_id`).
 - Funções `sa_*` (EXECUTE só `macuxi_portal`): `sa_inativar_tenant`, `sa_reativar_tenant`, `sa_pedir_backup`, `sa_listar_backups`, `sa_pedir_exclusao`, `sa_ler_exclusao`, `sa_reautenticar`. A `sa_listar_tenants` ganha o bloco `acoes`.
@@ -46,7 +46,7 @@ A empresa volta inativa. O tempo é parecido com o do backup.
 - Testes `*.db.test.ts`: a função do worker não lê outro tenant; o argumento de tenant não existe; a exclusão em ordem com backup; o ensaio de restauração (backup → exclusão → restauração → contagem igual por tabela); o código não reaproveitado.
 
 ## 5. Códigos
-Códigos: `CODIGOS_ACOES_EMPRESA` e ADR §4; texto final: designer-ux.
+`CODIGOS_ACOES_EMPRESA` e ADR §4; texto final: designer-ux.
 
 ## 6. Regras novas (para o doc 03, pelo gerente)
 - **RN-PLA-07**: só o super-admin inativa e reativa. Inativar não apaga nada e corta todo acesso da empresa (apps, BKO, portal do admin do cliente, sync, arquivos, Conector, jobs, outbox e e-mails) com 403 `EMPRESA_INATIVA`. Reativar devolve tudo, sem novo login.

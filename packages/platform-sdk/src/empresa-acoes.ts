@@ -120,8 +120,13 @@ export const ROTULO_MOTIVO_INATIVACAO: Readonly<Record<MotivoInativacao, string>
   outro: 'Outro',
 });
 
-/** `POST …/inativar`. Motivo de lista (sem texto livre: nada de dado pessoal na auditoria). */
-export const InativarEmpresaSchema = z.object({ motivo: z.enum(MOTIVOS_INATIVACAO) }).strict();
+/**
+ * `POST …/inativar`. A tela não pede motivo (corpo `{}`); o motivo é opcional, de lista (sem texto livre: nada de dado
+ * pessoal na auditoria), e ausente = `null`.
+ */
+export const InativarEmpresaSchema = z
+  .object({ motivo: z.enum(MOTIVOS_INATIVACAO).nullable().optional() })
+  .strict();
 export type InativarEmpresa = z.infer<typeof InativarEmpresaSchema>;
 /** `POST …/reativar` (corpo vazio). */
 export const ReativarEmpresaSchema = z.object({}).strict();
@@ -138,10 +143,10 @@ export const SituacaoEmpresaRespostaSchema = z
   .strict()
   .superRefine((r, ctx) => {
     const inativa = r.status === 'suspenso';
-    if (inativa !== (r.inativada_em !== null) || inativa !== (r.motivo !== null)) {
+    if (inativa !== (r.inativada_em !== null) || (!inativa && r.motivo !== null)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'inativada_em e motivo só (e sempre) na empresa inativa',
+        message: 'inativada_em só (e sempre) na empresa inativa; motivo (opcional) só nela',
         path: ['inativada_em'],
       });
     }
@@ -373,7 +378,9 @@ export type AcoesDaEmpresa = z.infer<typeof AcoesDaEmpresaSchema>;
 /** Publicado pela API na outbox do próprio tenant, na transação da inativação. */
 export const EVENTO_TENANT_INATIVADO = definirEvento(
   'plataforma.tenant.inativado@1',
-  z.object({ tenant_id: Uuid, motivo: z.enum(MOTIVOS_INATIVACAO), inativada_em: Instante }).strict(),
+  z
+    .object({ tenant_id: Uuid, motivo: z.enum(MOTIVOS_INATIVACAO).nullable(), inativada_em: Instante })
+    .strict(),
 );
 /** Publicado pela API na outbox do próprio tenant, na transação da reativação. */
 export const EVENTO_TENANT_REATIVADO = definirEvento(
