@@ -126,7 +126,7 @@ import { keys, readJson, writeJson } from '@/services/storage';
 import { apagarFotosLocais } from '@/services/arquivos';
 import { ligarFonteFotoPdv } from '@/services/foto-pdv';
 import { abrirFoto } from '@/services/visor-foto';
-import { ligarResolvedorMiniatura } from '@/services/miniaturas';
+import { ligarResolvedorFotoPerfil, ligarResolvedorMiniatura } from '@/services/miniaturas';
 import { esquecerRegistroPush } from '@/services/push';
 import { filaDeSaidas, reenviarSaidas, sairNoServidor, type ResultadoChamada } from '@/lib/saida-push';
 
@@ -327,6 +327,8 @@ function usePlataformaValor() {
   // T-0097 (a): a miniatura do catálogo que está no armazenamento da plataforma (`/v1/arquivos/<id>`) é baixada pelo shell com
   // o token da sessão (lê a sessão e o sinal por ref) e aberta do cache do app; sem sessão ou sem sinal fica vazia
   useEffect(() => ligarResolvedorMiniatura(api, () => !offlineRef.current && sessaoRef.current !== null), [api]);
+  // RN-CORE-42: a foto do perfil do Início do Campo vem pelo mesmo download e pelo mesmo cache
+  useEffect(() => ligarResolvedorFotoPerfil(api, () => !offlineRef.current && sessaoRef.current !== null), [api]);
   // T-0147: o visualizador da foto do PDV baixa com o mesmo token e o mesmo sinal (só em memória)
   useEffect(() => ligarFonteFotoPdv(api, () => !offlineRef.current && sessaoRef.current !== null), [api]);
 

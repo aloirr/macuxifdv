@@ -15,11 +15,18 @@ import {
   type TransporteSync,
 } from '@macuxi/platform-sdk';
 import { TarefaSyncSchema } from '@macuxi/core/contracts';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { opcoesDoAdaptador } from './armazenamento-aparelho';
 import { MANIFESTOS_INSTALADOS } from './instalados';
 import { comSyncT0170, ENTIDADES_SYNC_T0170, itemTrocaDeAvatar } from './sync-t0170';
+
+// RD-0399: o nome da entidade vem do Core; o índice `@macuxi/core/app` carrega telas (react-native), então o teste usa o
+// arquivo puro de onde o índice reexporta a constante.
+vi.mock('@macuxi/core/app', async () => {
+  const { ENTIDADE_USUARIO_AVATAR } = await import('../../../../modules/core/app/telas/inicio/foto-perfil');
+  return { ENTIDADE_USUARIO_AVATAR };
+});
 
 const DIRECOES = {
   tarefa: 'pull',

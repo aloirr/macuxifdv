@@ -5,7 +5,8 @@
  * - push `tarefa_conclusao` (comando, `somente_insercao`, ADR 0009);
  * - `usuario_avatar` nos dois sentidos (RN-CORE-42): o aparelho envia a troca e recebe a linha.
  * Cada entidade registrada ganha a tabela `ent_<entidade>` no SQLite do aparelho (SDK, `sqlite/esquema.ts`): não há
- * migração local. A entidade que o Core já registrar no `moduloApp` dele não entra de novo. Puro (sem react-native).
+ * migração local. A entidade que o Core já registrar no `moduloApp` dele não entra de novo.
+ * O nome `usuario_avatar` vem do Core (`ENTIDADE_USUARIO_AVATAR` de `@macuxi/core/app`, RD-0399).
  */
 import {
   ConclusaoTarefaSchema,
@@ -17,19 +18,18 @@ import {
   UsuarioAvatarSyncSchema,
   type UsuarioAvatarPush,
 } from '@macuxi/core/contracts';
+import { ENTIDADE_USUARIO_AVATAR } from '@macuxi/core/app';
 import { definirEntidadeSync, type DefinicaoEntidadeSync, type ModuloShell, type NovoItemOutbox } from '@macuxi/platform-sdk';
 
 const pull = (nome: string, schema: DefinicaoEntidadeSync['schema']) =>
   definirEntidadeSync({ nome, modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema });
-
-export const ENTIDADE_AVATAR = 'usuario_avatar';
 
 export const ENTIDADES_SYNC_T0170: readonly DefinicaoEntidadeSync[] = [
   pull('tarefa', TarefaSyncSchema),
   definirEntidadeSync({ nome: 'tarefa_conclusao', modulo: 'core', direcao: 'push', conflito: 'somente_insercao', schema: ConclusaoTarefaSchema }),
   pull('frase_dia', FraseDiaSyncSchema),
   definirEntidadeSync({
-    nome: ENTIDADE_AVATAR,
+    nome: ENTIDADE_USUARIO_AVATAR,
     modulo: 'core',
     direcao: 'ambos',
     conflito: 'servidor_vence',
@@ -55,5 +55,5 @@ export type EscolhaDoPerfil = Pick<UsuarioAvatarPush, 'tipo' | 'avatar_codigo' |
  */
 export function itemTrocaDeAvatar(p: { id: string; usuarioId: string; escolha: EscolhaDoPerfil; agora: Date }): NovoItemOutbox {
   const payload: UsuarioAvatarPush = { id: p.id, usuario_id: p.usuarioId, ...p.escolha, alterado_em: p.agora.toISOString() };
-  return { id: p.id, entidade: ENTIDADE_AVATAR, payload, rotulo: 'Foto do perfil' };
+  return { id: p.id, entidade: ENTIDADE_USUARIO_AVATAR, payload, rotulo: 'Foto do perfil' };
 }
