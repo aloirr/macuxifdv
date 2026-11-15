@@ -13,11 +13,11 @@ import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { faltasNaSenha, mensagemDaSenha, SENHA_MIN_CARACTERES, textoDoErroDaSenha } from '@macuxi/core/contracts';
 import { AdminInicialEmpresaSchema, CriarEmpresaRespostaSchema, CriarEmpresaSchema, MODULOS, type ModuloId } from '@macuxi/platform-sdk';
-import { Badge, Button, Notice, Panel, parseDecimalInput, RegrasDaSenha, SelectField, SENHA_ATENDE_AS_REGRAS } from '@macuxi/ui/web';
+import { Badge, Button, CampoSenha, CLASSE_CAMPO_ACESSO, Notice, Panel, parseDecimalInput, RegrasDaSenha, SelectField, SENHA_ATENDE_AS_REGRAS } from '@macuxi/ui/web';
 
 import { chamarPortal, ErroPortal, mensagemDoErro } from '@/lib/portal-api';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
-import { Campo, campoCss, CampoSenha } from './base';
+import { Campo } from './base';
 
 type Resposta = ReturnType<typeof CriarEmpresaRespostaSchema.parse>;
 export interface EmpresaExistente {
@@ -253,6 +253,7 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
   const [enviando, setEnviando] = useState<'conferir' | 'gravar' | null>(null);
   // tentou conferir ou gravar com a senha fora da RN-CORE-32: a lista pinta as faltas de vermelho
   const [destacarSenha, setDestacarSenha] = useState(false);
+  const [senhaVisivel, setSenhaVisivel] = useState(false);
   const [erroAdmin, setErroAdmin] = useState<string | null>(null);
   // e-mail do administrador do último envio (o resultado diz "Administrador criado: <e-mail>.")
   const [emailEnviado, setEmailEnviado] = useState<string | null>(null);
@@ -381,9 +382,12 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
             </div>
             <div className="flex max-w-[420px] flex-col gap-2">
               <CampoSenha
+                id="empresa-admin-senha"
                 rotulo="Senha inicial"
                 testId="empresa.admin-senha"
-                autoComplete="new-password"
+                finalidade="criacao"
+                visivel={senhaVisivel}
+                onAlternar={() => setSenhaVisivel((v) => !v)}
                 descrito="empresa-admin-senha-regras"
                 value={f.admin.senha}
                 erro={erros['admin.senha']}
@@ -439,7 +443,7 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
                     <input
                       data-testid={`empresa.licencas-${m}`}
                       inputMode="numeric"
-                      className={`${campoCss} h-9 w-24`}
+                      className={`${CLASSE_CAMPO_ACESSO} h-9 w-24`}
                       placeholder="sem limite"
                       value={v?.licencas ?? ''}
                       disabled={ja}

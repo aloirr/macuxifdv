@@ -2,14 +2,14 @@
 
 /**
  * Peças comuns do portal `config.` (T-0087; T-0093): moldura, cabeçalho com a sessão (e o "Trocar de empresa" do admin do
- * cliente), campo de formulário, campo de senha com o olho e a guarda de sessão.
+ * cliente), campo de formulário e a guarda de sessão. O campo de senha é o `CampoSenha` do kit (R-20261115-071000).
  * Visual pelos tokens e componentes de `@macuxi/ui/web` (os do login do BKO); sem menu dos módulos (o portal não é o BKO).
  * Caminhos sem o prefixo `/config`: no host `config.` o navegador vê `/empresas` e o `proxy.ts` reescreve.
  */
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type InputHTMLAttributes, type MouseEvent, type ReactNode } from 'react';
-import { Button, cx, Dialog, ESCONDER_SENHA, IconEye, IconEyeOff, LoadingBlock, MOSTRAR_SENHA } from '@macuxi/ui/web';
+import { Button, CLASSE_CAMPO_ACESSO, cx, Dialog, LoadingBlock } from '@macuxi/ui/web';
 
 import { MarcaNaFaixa } from '@/components/marca-faixa';
 import { houveUsoRecente, MODO_PORTAL_FALSO, registrarUso, renovarSessaoPortal, sairDoPortal } from '@/lib/portal-api';
@@ -41,9 +41,6 @@ import {
   type DesvioPortal,
   type SessaoPortal,
 } from '@/lib/portal-sessao';
-
-export const campoCss =
-  'h-11 w-full rounded-xl border border-field bg-surface px-3 text-[15px] text-ink outline-none focus-visible:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-[invalid=true]:border-danger disabled:bg-ground disabled:text-ink-2';
 
 /** Marca do portal: o logo negativo na faixa Azul noite (T-0172). */
 export function Marca() {
@@ -106,7 +103,7 @@ export function Campo({
   return (
     <label className={cx('flex flex-col gap-1', className)}>
       <span className="text-[13px] font-semibold text-ink">{rotulo}</span>
-      <input data-testid={testId} aria-invalid={erro ? true : undefined} aria-describedby={nota} className={campoCss} {...rest} />
+      <input data-testid={testId} aria-invalid={erro ? true : undefined} aria-describedby={nota} className={CLASSE_CAMPO_ACESSO} {...rest} />
       {erro ? (
         <span id={idNota} className="text-[12px] text-danger">
           {erro}
@@ -117,59 +114,6 @@ export function Campo({
         </span>
       ) : null}
     </label>
-  );
-}
-
-/**
- * Campo de senha com o botão do olho dentro, à direita (spec docs/design/portal-entrar.md §1 e §6): "Mostrar senha" /
- * "Esconder senha" (`MOSTRAR_SENHA`/`ESCONDER_SENHA` do kit) com `IconEye`/`IconEyeOff` do kit, alvo de 44 px. `descrito` liga a lista das regras (`RegrasDaSenha`)
- * ao campo pelo `aria-describedby`, junto com o erro.
- */
-export function CampoSenha({
-  rotulo,
-  erro,
-  testId,
-  descrito,
-  className,
-  ...rest
-}: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & { rotulo: string; erro?: string | null; testId: string; descrito?: string }) {
-  const [mostrar, setMostrar] = useState(false);
-  const idCampo = useId();
-  const idErro = `${idCampo}-erro`;
-  const ligados = [descrito, erro ? idErro : null].filter(Boolean).join(' ') || undefined;
-  return (
-    <div className={cx('flex flex-col gap-1', className)}>
-      <label htmlFor={idCampo} className="text-[13px] font-semibold text-ink">
-        {rotulo}
-      </label>
-      <div className="relative">
-        <input
-          id={idCampo}
-          data-testid={testId}
-          type={mostrar ? 'text' : 'password'}
-          spellCheck={false}
-          autoCapitalize="none"
-          aria-invalid={erro ? true : undefined}
-          aria-describedby={ligados}
-          className={cx(campoCss, 'pr-12')}
-          {...rest}
-        />
-        <button
-          type="button"
-          data-testid={`${testId}.olho`}
-          aria-label={mostrar ? ESCONDER_SENHA : MOSTRAR_SENHA}
-          onClick={() => setMostrar((m) => !m)}
-          className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-xl text-ink-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
-        >
-          {mostrar ? <IconEyeOff size={18} /> : <IconEye size={18} />}
-        </button>
-      </div>
-      {erro && (
-        <span id={idErro} className="text-[12px] text-danger">
-          {erro}
-        </span>
-      )}
-    </div>
   );
 }
 

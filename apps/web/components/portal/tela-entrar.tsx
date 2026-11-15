@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import { CODIGOS_PORTAL } from '@macuxi/core/contracts';
 import { SessaoPortalSchema } from '@macuxi/platform-sdk';
-import { Button, Notice } from '@macuxi/ui/web';
+import { Button, CampoSenha, Notice } from '@macuxi/ui/web';
 
 import { chamarPortal, ErroPortal, MENSAGEM_PORTAL_SEM_SEGREDOS, MENSAGEM_SEM_CONEXAO, MENSAGEM_SESSAO_TERMINOU, mensagemDoErro } from '@/lib/portal-api';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
@@ -26,7 +26,7 @@ import {
   lerSessaoPortal,
   salvarSessaoPortal,
 } from '@/lib/portal-sessao';
-import { Campo, CampoSenha, MolduraEstreita } from './base';
+import { Campo, MolduraEstreita } from './base';
 
 /** Textos da entrada (spec §1 e §4): sem variação. */
 export const TEXTOS_ENTRAR = Object.freeze({
@@ -60,6 +60,7 @@ export function TelaEntrar() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
+  const [senhaVisivel, setSenhaVisivel] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -122,7 +123,7 @@ export function TelaEntrar() {
           </div>
         )}
         <Campo rotulo="E-mail" testId="entrar.email" type="email" autoComplete="username" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
-        <CampoSenha rotulo="Senha" testId="entrar.senha" autoComplete="current-password" value={senha} onChange={(e) => setSenha(e.target.value)} />
+        <CampoSenha id="entrar-senha" rotulo="Senha" testId="entrar.senha" visivel={senhaVisivel} onAlternar={() => setSenhaVisivel((v) => !v)} value={senha} onChange={(e) => setSenha(e.target.value)} />
         <Button data-testid="entrar.entrar" type="submit" variant="primary" disabled={enviando}>
           {enviando ? 'Entrando…' : 'Entrar'}
         </Button>
