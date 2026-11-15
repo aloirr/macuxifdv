@@ -118,12 +118,23 @@ export const MOTIVO_TITULO_VENCIDO = 'Título vencido';
 
 type RecebimentoAceito = Extract<ResultadoRecebimento, { aceito: true }>;
 
+/** Texto da pendência quando o percentual do prazo mudou depois do pedido (RN-VEN-45); o aparelho declara a data, então não vale direto. */
+export const MOTIVO_PERCENTUAL_DO_PRAZO_MUDOU = 'Percentual do prazo mudou';
+
 /** RN-VEN-13: título vencido com prazo a prazo manda para aprovação (nível supervisor) ou soma o motivo `credito` a uma aprovação por desconto. */
 export function comTituloVencido(r: Omit<RecebimentoAceito, 'aceito'>): Omit<RecebimentoAceito, 'aceito'> {
+  return comPendenciaDePrazo(r, MOTIVO_TITULO_VENCIDO);
+}
+
+/** RN-VEN-45: o percentual do prazo mudou depois do pedido: aprovação da alçada (RN-VEN-10), mesmo caminho do título vencido. */
+export function comPercentualDoPrazoMudou(r: Omit<RecebimentoAceito, 'aceito'>): Omit<RecebimentoAceito, 'aceito'> {
+  return comPendenciaDePrazo(r, MOTIVO_PERCENTUAL_DO_PRAZO_MUDOU);
+}
+
+function comPendenciaDePrazo(r: Omit<RecebimentoAceito, 'aceito'>, texto: string): Omit<RecebimentoAceito, 'aceito'> {
   if (r.status === 'pending_approval') {
-    return r.motivos.includes('credito')
-      ? r
-      : { ...r, motivos: [...r.motivos, 'credito'], pending_reason: `${r.pending_reason} · ${MOTIVO_TITULO_VENCIDO}`.trim() };
+    if (r.pending_reason.includes(texto)) return r;
+    return { ...r, motivos: r.motivos.includes('credito') ? r.motivos : [...r.motivos, 'credito'], pending_reason: `${r.pending_reason} · ${texto}`.trim() };
   }
   const entrada = r.historico.filter((h) => h.para !== 'approved');
   return {
@@ -132,8 +143,8 @@ export function comTituloVencido(r: Omit<RecebimentoAceito, 'aceito'>): Omit<Rec
     nivel: 'supervisor',
     motivos: ['credito'],
     aprovacao_automatica: false,
-    pending_reason: MOTIVO_TITULO_VENCIDO,
-    historico: [...entrada, { de: 'received', para: 'pending_approval', motivo: MOTIVO_TITULO_VENCIDO }],
+    pending_reason: texto,
+    historico: [...entrada, { de: 'received', para: 'pending_approval', motivo: texto }],
   };
 }
 
@@ -243,6 +254,8 @@ export interface RevalidarEntrada {
    * motivos da 0009; o texto diz "título vencido"). Ausente = sem restrição (consulta indisponível não bloqueia).
    */
   titulo_vencido?: boolean;
+  /** RN-VEN-45: o percentual do push difere do vigente (cadastro mudou depois da data declarada pelo aparelho): vai para aprovação. */
+  percentual_mudou?: boolean;
 }
 
 export interface ItemRevalidado {
@@ -402,7 +415,8 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
   if (!r0.aceito) return { ok: false, codigo: r0.codigo, http: r0.http, mensagem: r0.mensagem };
   const { aceito: _aceito, ...resto0 } = r0;
   void _aceito;
-  const resto = e.titulo_vencido ? comTituloVencido(resto0) : resto0;
+  const comVencido = e.titulo_vencido ? comTituloVencido(resto0) : resto0;
+  const resto = e.percentual_mudou ? comPercentualDoPrazoMudou(comVencido) : comVencido;
   return {
     ok: true,
     ...resto,

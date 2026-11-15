@@ -122,6 +122,17 @@ describe('RN-VEN-43/44: revalidarPedido com o percentual do prazo', () => {
 import { revalidarPercentualDoPrazo } from './pagamento';
 import { percentualDoPrazoPadraoBp, precoDoCatalogoCents } from '../contracts/prazo-ajuste';
 
+import { PedidoPush } from '../contracts';
+
+describe('RN-VEN-43: o push recusa mais de 2 casas no percentual do prazo', () => {
+  const push = (n: number) => PedidoPush.safeParse({ id: '0f290000-0000-4000-8000-000000000001', prazo_percentual_ajuste: n }).error?.issues.some((i) => i.path[0] === 'prazo_percentual_ajuste') ?? false;
+  it('RN-VEN-43: -1,715 é recusado; -1,71 e ausente passam', () => {
+    expect(push(-1.715)).toBe(true);
+    expect(push(-1.71)).toBe(false);
+    expect(PedidoPush.safeParse({}).error?.issues.some((i) => i.path[0] === 'prazo_percentual_ajuste') ?? false).toBe(false);
+  });
+});
+
 describe('RN-VEN-45: percentual congelado e revalidado no envio', () => {
   const base = { criado_em: '2026-11-15T14:00:00.000Z' };
   it('RN-VEN-45: igual ao vigente aceita sem aviso', () => {
@@ -134,7 +145,7 @@ describe('RN-VEN-45: percentual congelado e revalidado no envio', () => {
   });
   it('RN-VEN-45: diferente sem mudança posterior recusa com a mensagem em português (RN-VEN-40)', () => {
     const r = revalidarPercentualDoPrazo({ ...base, push: -1.71, vigente: 2.5, cadastro_atualizado_em: '2026-11-15T13:00:00.000Z' });
-    expect(r).toMatchObject({ ok: false, codigo: 'prazo_percentual_mudou', mensagem: 'O prazo de pagamento mudou de percentual. Atualize o app e refaça o pedido.' });
+    expect(r).toMatchObject({ ok: false, codigo: 'RN-VEN-45', mensagem: 'O prazo de pagamento mudou de percentual. Atualize o app e refaça o pedido.' });
   });
   it('RN-VEN-45: app antigo (sem percentual) com prazo que tem percentual é recusado; sem percentual no cadastro passa', () => {
     expect(revalidarPercentualDoPrazo({ ...base, push: undefined, vigente: -1.71, cadastro_atualizado_em: null }).ok).toBe(false);

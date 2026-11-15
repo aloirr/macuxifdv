@@ -49,7 +49,7 @@ export interface PagamentoResolvido {
 
 export type ResultadoPagamento =
   | { ok: true; pagamento: PagamentoResolvido | null; titulo_vencido: boolean; percentual_ajuste_bp: number; percentual_ajuste: number; aviso_percentual: string | null }
-  | { ok: false; codigo: 'RN-VEN-24' | 'RN-VEN-25' | 'prazo_percentual_mudou'; mensagem: string };
+  | { ok: false; codigo: 'RN-VEN-24' | 'RN-VEN-25' | 'RN-VEN-45'; mensagem: string };
 
 export const textoDoPagamento = (forma: { nome: string }, prazo: { descricao: string }): string => `${forma.nome} · ${prazo.descricao}`;
 
@@ -94,7 +94,7 @@ export async function resolverPagamento(
   }
   // RN-VEN-45: o percentual do push é revalidado contra o vigente; os preços são recalculados por ele (RN-VEN-43)
   const pct = revalidarPercentualDoPrazo({ push: p.prazo_percentual_ajuste, vigente: prazo!.percentual_ajuste, cadastro_atualizado_em: prazo!.atualizado_em, criado_em: p.created_offline_at ?? ctx.agora().toISOString() });
-  if (!pct.ok) return { ok: false, codigo: 'prazo_percentual_mudou', mensagem: pct.mensagem };
+  if (!pct.ok) return { ok: false, codigo: 'RN-VEN-45', mensagem: pct.mensagem };
   return {
     ok: true,
     pagamento: { forma: forma!, prazo: prazo!, texto: textoDoPagamento(forma!, prazo!) },
@@ -122,8 +122,11 @@ export function valoresPagamento(pg: PagamentoResolvido | null): unknown[] {
   return [pg.forma.id, pg.prazo.id, pg.forma.codigo, pg.forma.nome, pg.prazo.codigo, pg.prazo.descricao, pg.prazo.parcelas_dias, pg.prazo.prazo_medio_dias];
 }
 
-/** RN-VEN-45: a 9ª coluna do retrato (`prazo_percentual_ajuste`, banco-dados); `0` quando sem prazo. Depende do merge do PR do banco-dados. */
+/**
+ * RN-VEN-45: a 9ª coluna do retrato (`prazo_percentual_ajuste`, banco-dados). Sem prazo (condição legada, RN-VEN-14) vai `null`: o CHECK
+ * `pedido_prazo_percentual_com_prazo` (0075) só aceita o percentual com `prazo_pagamento_id`. Depende do merge do PR do banco-dados.
+ */
 export const COLUNA_PRAZO_PERCENTUAL = 'prazo_percentual_ajuste';
-export function valorPercentualPrazo(percentual: number): number {
-  return percentual;
+export function valorPercentualPrazo(pagamento: PagamentoResolvido | null, percentual: number): number | null {
+  return pagamento ? percentual : null;
 }

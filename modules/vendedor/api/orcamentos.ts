@@ -126,7 +126,7 @@ export const rotaEditarOrcamento: RotaModulo = {
           enderecoRetrato ? JSON.stringify(enderecoRetrato) : null,
           v.desconto_valor_cents, v.acrescimo_valor_cents, v.ajuste_em, hash,
           ...valoresPagamento(pagamento),
-          valorPercentualPrazo(calc.percentualAjustePrazo),
+          valorPercentualPrazo(calc.pagamento, calc.percentualAjustePrazo),
         ],
       );
       // reprecificou (preço vencido): a nova validade = dia da edição + validade_orcamento_dias, pela função única; preco_data vira o dia da edição

@@ -248,6 +248,8 @@ export async function calcularDocumento(
     precos: mapaPreco,
     faixas: mapaFaixas,
     titulo_vencido: pg.titulo_vencido,
+    // RN-VEN-45: percentual divergente do vigente (aviso) = aprovação da alçada; o aviso vai no motivo da pendência (`pending_reason`)
+    percentual_mudou: pg.aviso_percentual !== null,
     aplicacao_max: aplicacaoMaxOrcamento(ctx.parametros()),
     // RN-VEN-10: o pedido do gestor usa a alçada do gestor
     policy: emNome ? politicaDoAutor(politicaDosParametros(ctx.parametros()), ctx.usuario.perfil) : politicaDosParametros(ctx.parametros()),
@@ -373,7 +375,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
       v.desconto_valor_cents, v.acrescimo_valor_cents, v.ajuste_em, eu,
       ...valoresPagamento(pagamento),
       retratoFilial?.filial_id ?? null, retratoFilial ? JSON.stringify(retratoFilial.filial) : null,
-      valorPercentualPrazo(percentualAjustePrazo),
+      valorPercentualPrazo(pagamento, percentualAjustePrazo),
     ],
   );
   // outro tenant com o mesmo id (chave primária global): não revela, só recusa

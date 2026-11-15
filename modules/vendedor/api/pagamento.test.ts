@@ -1,6 +1,6 @@
 import { ConsultaIndisponivel, type ClienteBanco, type ContextoBase, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { resolverPagamento, valoresPagamento } from './pagamento';
+import { resolverPagamento, valorPercentualPrazo, valoresPagamento } from './pagamento';
 
 const FORMAS = [
   { id: 'f-pix', codigo: 'PIX', nome: 'Pix', ativo: true, ordem: 1 },
@@ -36,6 +36,9 @@ describe('API: forma e prazo do pedido (RN-VEN-24/25, RN-VEN-13)', () => {
     const r = await resolverPagamento(ctx(), db, tx(null), base, cli, 'pedido');
     expect(r).toEqual({ ok: true, pagamento: null, titulo_vencido: false, percentual_ajuste_bp: 0, percentual_ajuste: 0, aviso_percentual: null });
     expect(valoresPagamento(null)).toEqual([null, null, null, null, null, null, null, null]);
+    // RN-VEN-45: sem prazo o retrato do percentual é NULL (CHECK pedido_prazo_percentual_com_prazo da 0075), nunca 0
+    expect(valorPercentualPrazo(null, 0)).toBeNull();
+    expect(valorPercentualPrazo({ forma: {} as never, prazo: {} as never, texto: 'x' }, -1.71)).toBe(-1.71);
   });
   it('RN-VEN-24: só a forma ou só o prazo é 422 RN-VEN-24', async () => {
     expect(await resolverPagamento(ctx(), db, tx(null), { ...base, forma_pagamento_id: 'f-bol' }, cli, 'pedido')).toMatchObject({ ok: false, codigo: 'RN-VEN-24' });
@@ -79,7 +82,7 @@ describe('API: forma e prazo do pedido (RN-VEN-24/25, RN-VEN-13)', () => {
   });
   it('RN-VEN-45: percentual diferente do vigente sem mudança posterior recusa com 422 em português (RN-VEN-40)', async () => {
     const p = { ...base, forma_pagamento_id: 'f-pix', prazo_pagamento_id: 'p-av-d', prazo_percentual_ajuste: 0, created_offline_at: '2026-11-15T15:00:00.000Z' };
-    expect(await resolverPagamento(ctx(), db, tx(null), p, cli, 'pedido')).toMatchObject({ ok: false, codigo: 'prazo_percentual_mudou', mensagem: 'O prazo de pagamento mudou de percentual. Atualize o app e refaça o pedido.' });
+    expect(await resolverPagamento(ctx(), db, tx(null), p, cli, 'pedido')).toMatchObject({ ok: false, codigo: 'RN-VEN-45', mensagem: 'O prazo de pagamento mudou de percentual. Atualize o app e refaça o pedido.' });
   });
   it('RN-VEN-45: cadastro mudou depois do pedido: aceita o percentual do pedido, com aviso', async () => {
     const p = { ...base, forma_pagamento_id: 'f-pix', prazo_pagamento_id: 'p-av-d', prazo_percentual_ajuste: 0, created_offline_at: '2026-11-15T09:00:00.000Z' };
