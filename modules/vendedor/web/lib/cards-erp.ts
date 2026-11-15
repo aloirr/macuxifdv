@@ -1,7 +1,7 @@
 /**
  * Cards "Pedidos no ERP" no início da lista de Pedidos do BKO (T-0173; RN-INT-08, RN-VEN-42; spec em
  * docs/design/integracao-simples/README.md §8). Funções puras: os números vêm de `MonitorResumo.pedidos` (contrato do
- * módulo Integração) e o card filtra a lista pelo status do pedido no Vendedor.
+ * módulo Integração) e os cards são só informativos (sem clique e sem filtro).
  */
 import type { MonitorResumo } from '@macuxi/integracao/contracts';
 
@@ -25,18 +25,4 @@ export function cardsPedidosErp(p: MonitorResumo['pedidos']): CardErp[] {
     { id: 'presos', rotulo: 'Presos sem retorno', valor: p.presos, tom: com(p.presos, 'danger') },
     { id: 'retidos', rotulo: 'Retidos sem mapeamento', valor: p.retidos, tom: com(p.retidos, 'warning') },
   ];
-}
-
-const STATUS_DO_CARD: Record<IdCardErp, string> = {
-  na_fila: 'approved',
-  entregue: 'sent_to_erp',
-  rejeitado: 'rejected',
-  presos: 'sent_to_erp',
-  retidos: 'approved',
-};
-
-/** Status da lista ao clicar no card; clicar no card já ativo volta a "Todas". */
-export function statusDoCard(id: IdCardErp, statusAtual: string): string {
-  const alvo = STATUS_DO_CARD[id];
-  return alvo === statusAtual ? '' : alvo;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MonitorResumo } from '@macuxi/integracao/contracts';
-import { cardsPedidosErp, statusDoCard } from './cards-erp';
+import { cardsPedidosErp } from './cards-erp';
 
 const pedidos = (p: Partial<MonitorResumo['pedidos']> = {}): MonitorResumo['pedidos'] => ({ por_estado: {}, presos: 0, retidos: 0, ...p });
 
@@ -29,14 +29,5 @@ describe('cards "Pedidos no ERP" no início de Pedidos (T-0173; RN-INT-08, RN-VE
   it('RN-VEN-42: Integrado, Faturado e Cancelado não viram card (já estão na coluna Situação)', () => {
     const ids = cardsPedidosErp(pedidos({ por_estado: { integrado: 9, faturado_total: 5, cancelado: 1 } })).map((x) => x.id);
     expect(ids).toEqual(['na_fila', 'entregue', 'rejeitado', 'presos', 'retidos']);
-  });
-
-  it('filtro do card: cada card aponta para o status da lista; clicar de novo no card ativo limpa', () => {
-    expect(statusDoCard('na_fila', '')).toBe('approved');
-    expect(statusDoCard('entregue', '')).toBe('sent_to_erp');
-    expect(statusDoCard('rejeitado', '')).toBe('rejected');
-    expect(statusDoCard('presos', '')).toBe('sent_to_erp');
-    expect(statusDoCard('retidos', '')).toBe('approved');
-    expect(statusDoCard('entregue', 'sent_to_erp')).toBe('');
   });
 });

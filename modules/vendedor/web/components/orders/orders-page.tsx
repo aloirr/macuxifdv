@@ -103,7 +103,7 @@ export function OrdersPage() {
         actions={<MenuAcoes acoes={acoesDaPagina} rotulo="Mais ações" testId="pedidos.mais-acoes" />}
       />
 
-      <CardsPedidosErp status={filtros.status} aoFiltrar={(s) => set('status', s)} />
+      <CardsPedidosErp />
 
       <FilterBar>
         <CampoBusca rotulo="Buscar cliente ou nº do pedido" value={filtros.q} maxLength={100} onChange={(e) => set('q', e.target.value)} data-testid="pedidos.filtro-busca" />
