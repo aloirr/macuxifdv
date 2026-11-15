@@ -64,6 +64,12 @@
   .cods .r { white-space: nowrap; }
   /* no cartão de 2 colunas a linha quebra em dois pontos fixos: "código da marca · marca" e "código do produto [copiar]" */
   .cods + .cods { margin-top: 0; }
+  /* variante em aberto (R-20261115-084500): tudo numa linha; o código do produto e o copiar não encolhem, a marca encurta com "…" */
+  .cods.uma { flex-wrap: nowrap; }
+  .cods.uma { font-size: 12px; column-gap: 3px; }
+  .cods.uma > * { flex: none; }
+  .cods.uma .copiar { width: 24px; height: 24px; border: 0; margin: 0; outline-width: 10px; }
+  .cods.uma .m { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .eq { margin-top: 4px; font-size: 13px; line-height: 18px; color: var(--ink2); }
   .eq mark { background: var(--accentSoft); color: var(--accentInk); font-weight: 700; border-radius: 4px; padding: 0 3px; white-space: nowrap; }
   .card .p { font-family: Archivo; font-weight: 700; font-size: 18px; line-height: 24px; font-variant-numeric: tabular-nums; margin-top: auto; padding-top: 8px; }

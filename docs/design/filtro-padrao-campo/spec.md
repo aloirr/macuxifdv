@@ -4,6 +4,8 @@
 > muda no código antes do "aprovado" do dono do produto. Fonte: `filtro-padrao-campo.html` (`?v=rota|rota-folha|clientes|clientes-folha|clientes-vazia|performance`),
 > com o CSS de `../catalogo-campo-v2/simulacao.css`. PNGs 360 × 800 (escala 2). Dados de exemplo fictícios.
 > Pareceres: corretor (RD-0499 a RD-0502) e marca (MC-0086) atendidos.
+> Barra de baixo: a real do Campo, `Início · Rota · Clientes · Pedidos · Performance · Mais` (`apps/mobile/src/lib/abas.ts`;
+> a Performance fica na barra, R-20261115-084500); na `05` a aba acesa é a Performance.
 > Telas: `modules/core/app/telas/rota.tsx`, `clientes.tsx` e `performance/tela-performance.tsx` (modulo-core). O Catálogo está em `../catalogo-campo-v2/spec.md`.
 
 | PNG | O que mostra |
