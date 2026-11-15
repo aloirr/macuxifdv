@@ -103,6 +103,8 @@ Fica: um só principal na aba ("Trocar de plano"); ícones e nomes dos adicionai
 |---|---|---|---|
 | ![Aba Empresa, antes](portal-config-enxuto/antes-06-aba-empresa.png) | ![Aba Empresa, depois](portal-config-enxuto/depois-06b-aba-empresa.png) | ![Aba Empresa, cliente](portal-config-enxuto/depois-06c-aba-empresa-cliente.png) | ![Trocar de plano](portal-config-enxuto/depois-06d-trocar-plano.png) |
 
+> **Substituídas em 15/11** (R-20261115-123000): `depois-06b`, `depois-06c` e `depois-06d` dão lugar a `../planos-assinatura/03-aba-empresa.png`, `04-aba-empresa-cliente.png` e `05-trocar-plano.png` (§11.4).
+
 ## 9. Diagnósticos
 Sai o subtítulo "Enviados pelos aparelhos. Ficam 90 dias." inteiro (o RD-0295 propõe manter "Ficam 90 dias."; fica a saída inteira: o prazo é o que o sistema faz por trás e o time não age por ele). A contagem ("12 diagnósticos") só aparece com 1 ou mais; no vazio fica só **"Nenhum diagnóstico com estes filtros."**/**"Nenhum diagnóstico recebido."** (ajustado pelo RD-0294). Resto igual. Sai: 2 + a contagem "0 diagnósticos".
 
@@ -228,24 +230,27 @@ Sucesso, como no §4: **"Empresa criada. Código da empresa: AM4821."** Erro ger
 |---|---|
 | ![Nova empresa com planos](portal-config-enxuto/depois-03b-nova-empresa.png) | ![Estados do CNPJ](portal-config-enxuto/depois-03c-cnpj-estados.png) |
 
+> **Substituída em 15/11** (R-20261115-123000): `depois-03b` dá lugar a `../planos-assinatura/02-nova-empresa.png`. A `depois-03c` (estados do CNPJ) continua vigente.
+
 ### 11.4 Aba Empresa: cartão "Plano" e diálogo "Trocar de plano"
+Simulações (aprovadas em 15/11, R-20261115-123000): `../planos-assinatura/03-aba-empresa.png` (super-admin), `04-aba-empresa-cliente.png` (admin do cliente), `05-trocar-plano.png` (diálogo) e `06-trocar-abaixo-do-uso.png` (plano abaixo do uso); substituem `depois-06b`, `depois-06c` e `depois-06d`.
 Coluna esquerda da aba (§8). Dados da ficha: `GET rotaPortalAssinatura(tenantId)` (`FichaAssinaturaSchema`).
 - **Título "Plano {nome}"** (ex.: **"Plano PME"**) e, à direita, **"Trocar de plano"** (principal: a única ação principal da aba; só super-admin). Embaixo do título, uma linha: valor **"R$ 1.537,00/mês"** (ou **"R$ 15.370,00/ano"**; `valor.por_ciclo_centavos`; o "/mês" ou "/ano" já diz o ciclo, P4) + selo de alerta **"Teste até 27/11/2026"** se `teste_ate` e não `paga` (data no fuso do tenant, `fimDoTeste`).
 - **Licenças em blocos** (`licencas[]`): um bloco por item, com o nome em cima e **"{em uso} de {contratadas}"** embaixo (número em Archivo 700). **Vendedor**, **Gestor** e **BKO** sempre; **Promotor**, **Pesquisa** e **Treinamento** (ícone + nome do §11.10) só quando contratados. `contratadas` = `null`: **"{em uso} · sem limite"**. Em uso = contratadas: só o selo de alerta **"no limite"** ao lado do número; borda e número seguem iguais aos demais blocos (RD-a: uma informação, um sinal). Grade: 3 por linha na coluna do super-admin; 5 por linha (até 6) na largura toda do admin do cliente; 2 por linha abaixo de 768 px.
-- **Admin do cliente** (decidido em 14/11): só vê; o valor e o selo do teste ficam na linha do título, sem "Trocar de plano" (o `PUT` é só do super-admin); sem o cartão Administradores. Simulação: `depois-06c-aba-empresa-cliente.png`.
+- **Admin do cliente** (decidido em 14/11): só vê; o valor e o selo do teste ficam na linha do título, sem "Trocar de plano" (o `PUT` é só do super-admin); sem o cartão Administradores. Simulação: `../planos-assinatura/04-aba-empresa-cliente.png`.
 
-**Diálogo "Trocar de plano"** (`depois-06d-trocar-plano.png`; 880 px no desktop, folha de tela cheia abaixo de 768 px, planos 2 × 2):
+**Diálogo "Trocar de plano"** (`../planos-assinatura/05-trocar-plano.png`; 880 px no desktop, folha de tela cheia abaixo de 768 px, planos 2 × 2):
 - **4 planos** em uma linha (o mesmo seletor do Criar empresa, §11.3; licenças em duas linhas, "30 vendedores" / "3 gestores · 5 BKO"); o atual com o selo **"Atual"** (Névoa `#ECEEF1`, texto `#34404D`, MC-0039) e já selecionado.
 - **Adicionais** numa lista de uma linha por adicional: caixa · ícone · nome · preço no ciclo · campo de quantidade (só com a caixa marcada); um cabeçalho só, **"Adicionais"** e **"Quantidade"** (`aria-label` "Quantidade de {adicional}" em cada campo). Os atuais já marcados, com as quantidades atuais.
 - **Ciclo:** o alternador **Mensal / Anual** (selo "2 meses grátis") numa linha própria, logo abaixo dos Adicionais: o mesmo componente do cartão "Ciclo" do Criar empresa (§11.3), sem título e sem a caixa do teste (MC-0050).
 - **Rodapé:** só **"Total: R$ 20.590,00/ano"** à esquerda e, à direita, **"Cancelar"** e **"Trocar para {plano}"** (principal). Sem mudança, o principal fica desabilitado como **"Trocar de plano"**. "Cancelar" e Esc fecham sem gravar. Envio: `PUT rotaPortalAssinatura(tenantId)` (`TrocarPlanoSchema`, com `pedido_id`).
 - Sucesso: o diálogo fecha e aparece o aviso success fechável **"Plano trocado: Enterprise."**
-- Plano abaixo do uso (`conferirTrocaDePlano`; 422 `PLANO_ABAIXO_DO_USO`, `detalhes.problemas[].mensagem`): erro embaixo do cartão do plano, dentro do diálogo, uma linha por item, principal desabilitado. Texto do contrato: **"O plano Light tem 10 licenças de vendedor e a empresa usa 14."** Pedido ao engenheiro-software para acrescentar **"Inative 4 antes de trocar."** (recados-pendentes.md); até lá, vale a do contrato.
+- Plano abaixo do uso (`conferirTrocaDePlano`; 422 `PLANO_ABAIXO_DO_USO`, `detalhes.problemas[].mensagem`): erro embaixo do cartão do plano, dentro do diálogo, uma linha por item, principal desabilitado. Texto (aprovado em 15/11, R-20261115-123000; já no contrato): **"Vendedores: 14 em uso. Inative 4 antes de trocar."** Simulação: `../planos-assinatura/06-trocar-abaixo-do-uso.png`.
 - Plano atual fora de venda (`PLANO_INATIVO`): **"O plano {nome} não está mais à venda."** (do contrato), no cartão dele.
 - A tela não explica cobrança nem quando a troca vale.
 
 ### 11.5 Lista de Empresas (§3)
-Tabela **Empresa · Código · CNPJ · Plano · Situação · Criada em**. A coluna Plano mostra o nome (ex.: "PME"); em teste, o selo **"teste"** ao lado. Sem simulação nova (só troca o cabeçalho e o conteúdo da coluna).
+Tabela **Empresa · Código · CNPJ · Plano · Situação · Criada em**. A coluna Plano mostra o nome (ex.: "PME"); em teste, o selo **"teste"** ao lado. Simulação: `../planos-assinatura/01-empresas.png`.
 
 ### 11.7 Perguntas ao dono do produto
 1. ~~**Teste de 14 dias:** caixa marcada por padrão?~~ **Decidido em 14/11:** a caixa "Começar com 14 dias de teste" começa **desmarcada** (§11.3).
@@ -296,6 +301,8 @@ Pedido do dono do produto (14/11): "Deixe mais bonito os nomes do módulo com a 
 
 ## 13. Achados RD (corretor) e MC (marca) — respostas
 > 2026-11-14 · designer-ux. Fontes: parecer do corretor-redundancias `docs/qualidade/redundancias/2026-11-14-portal-config.md` (branch `nuvem/config-auditoria-corretor`; RD-0260 a RD-0295, RD-0089/RD-0090 fechados e os 3 desvios do §12 dele) e parecer do design-de-marca `docs/marca/pareceres/2026-11-14-portal-config.md` (branch `nuvem/config-auditoria-marca`; MC-0021 a MC-0024 e 3 itens fora do escopo da marca). Os dois pareceres olharam o portal **de hoje** (`main` `bb20d06`); muitos achados já estavam resolvidos por esta spec, que tira mais do que eles pediam (aba Bases, Equipe e CSV saem inteiros, §10 e §12).
+>
+> **15/11 (R-20261115-123000):** as simulações de planos passaram para `docs/design/planos-assinatura/01` a `06`. Onde as tabelas abaixo citam `depois-03b`, `depois-06b`, `depois-06c` ou `depois-06d` (substituídas), valem `02-nova-empresa`, `03-aba-empresa`, `04-aba-empresa-cliente` e `05-trocar-plano`.
 >
 > **Resposta:** **aceito** = a spec mudou agora (nota "ajustado pelo …" na seção); **coberto** = a spec já resolvia antes do parecer; **recusado** = não entra, com o motivo. **Nenhum recusado.** Referências a §6 e §7 nesta tabela apontam para as seções retiradas (Histórico, §14).
 
@@ -412,7 +419,7 @@ Conta das frases: 59 (placares anteriores, §14) + 3 frases curtas que ficavam n
 | MC-0048 | "✓" em texto sai em fonte de reserva (o IBM Plex não tem o glifo) | aceito: o SVG do `IconCheck` do kit em `#1D6B4F`, 16 px no CNPJ e 12 px na lista da senha (como `packages/ui/src/web/senha.tsx`) | `depois-03b` (CNPJ e senha), `depois-03c` (estado 3) |
 | Fora | caixa marcada; "Sair" no celular | aceito: caixa branca com borda e ✓ em Azul noite; no celular, "Sair" na linha do logo, à direita | §11.3; §10.2; `depois-05b-integracao-celular` |
 
-**Simulações vigentes** (PNG em escala 2, fontes do BKO): `depois-01-entrar`, `depois-09-escolher`, `depois-02-empresas`, `depois-03b-nova-empresa`, `depois-03c-cnpj-estados`, `depois-05b-integracao` (+ `-celular`, 390 px), `depois-06b-aba-empresa`, `depois-06c-aba-empresa-cliente`, `depois-06d-trocar-plano`, `depois-07-diagnosticos` e `prancha-icones-adicionais`.
+**Simulações vigentes** (PNG em escala 2, fontes do BKO): `depois-01-entrar`, `depois-09-escolher`, `depois-02-empresas`, `depois-03c-cnpj-estados`, `depois-05b-integracao` (+ `-celular`, 390 px), `depois-07-diagnosticos`, `prancha-icones-adicionais` e, dos planos, `docs/design/planos-assinatura/01` a `06` (15/11). Substituídas: `depois-03b`, `depois-06b`, `depois-06c` e `depois-06d`.
 
 ### 13.6 Terceira passada (corretor RD-a a RD-d; marca MC-0050 e lista da senha) — respostas
 | Id | Achado (curto) | Resposta | Onde ficou |
