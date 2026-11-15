@@ -717,6 +717,18 @@
           "regra": {}
         },
         {
+          "campo": "marca_codigo",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 30,
+          "formato": null,
+          "exemplo": "Exemplo 1",
+          "observacao": null,
+          "coluna": "marca_codigo",
+          "tipo_sql": "NVARCHAR(30) NULL",
+          "regra": {}
+        },
+        {
           "campo": "categoria",
           "obrigatorio": false,
           "tipo": "texto",

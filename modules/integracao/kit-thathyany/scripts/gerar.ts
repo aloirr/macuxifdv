@@ -33,7 +33,7 @@ const COLUNAS_SO_CONECTOR = ['contatos', 'oferece_junto', 'etiquetas', 'paradas'
 
 /**
  * Colunas que o kit acrescenta ao CSV e a `tha_<entidade>` e que NÃO são campos do Hub: a view monta o campo do Hub a partir delas.
- * Produto: `referencia_1..3` (+ `marca_referencia_1..3`) viram `referencias` [{marca_nome, codigo}] na view (RN-CAT-09: até 3 por produto, marca obrigatória).
+ * Produto: `referencia_1..3` (+ `marca_referencia_1..3`) viram `referencias` [{marca_nome, codigo}] na view (RN-CAT-09: até 3 por produto; a marca é opcional, basta o código).
  */
 /** Máximo de referências por produto: o do Hub (RN-CAT-09), o único lugar onde o número existe. */
 const N_REFERENCIAS = LIMITES_CATALOGO_PRODUTO.referencias;
@@ -48,6 +48,9 @@ export const CAMPOS_SO_KIT: Record<string, CampoDicionario[]> = {
 const SQL_REFERENCIAS = `CASE WHEN ${NUMEROS_REFERENCIA.map((n) => `referencia_${n} IS NULL`).join(' AND ')} THEN NULL ELSE (SELECT r.marca_nome, r.codigo FROM (VALUES ${NUMEROS_REFERENCIA.map((n) => `(marca_referencia_${n}, referencia_${n})`).join(', ')}) AS r(marca_nome, codigo) WHERE r.codigo IS NOT NULL FOR JSON PATH) END AS referencias`;
 /** Colunas do SELECT do conector que a view monta de outras colunas (não existem em `tha_<entidade>`): entidade -> coluna -> expressão SQL. */
 const COLUNAS_DERIVADAS: Record<string, Record<string, string>> = { produto: { referencias: SQL_REFERENCIAS } };
+
+/** Campos do Hub acrescentados depois da 1.0.4: o banco já criado ganha a coluna por `ALTER TABLE` (a tabela só nasce uma vez). */
+const COLUNAS_ACRESCENTADAS: Record<string, string[]> = { produto: ['marca_codigo'] };
 
 /** Referência a outra entidade (campo `*_external_id`): o carga_csv.py confere antes de gravar. Tabela e depósito não são entidades. */
 const REFERENCIAS: Record<string, string> = {
@@ -66,6 +69,7 @@ const EXEMPLOS = {
   'cliente.canal': ['Varejo', 'Varejo'],
   'prazo_pagamento.forma_external_id': ['FPG-001', 'FPG-001'],
   'produto.aplicacao': ['', ''],
+  'produto.marca_codigo': ['980', ''],
   'cliente.latitude': ['', ''],
   'cliente.longitude': ['', ''],
 } as const;
@@ -86,7 +90,7 @@ export const REGRA_EXTRA_DO_CAMPO: Record<string, Partial<Regra>> = {
 
 /** Regras entre campos da mesma linha (todas em superRefine do Zod). */
 export interface RegraEntidade {
-  /** `juntos`: ou todos os campos vêm preenchidos ou nenhum. `data_nao_anterior`: `campo` não pode ser anterior a `referencia`. */
+  /** `juntos`: ou todos os campos vêm preenchidos ou nenhum. `data_nao_anterior`: `campo` não pode ser anterior a `referencia`. `requer`: o 1º campo só vale com o 2º preenchido (ex.: marca_referencia_N sem referencia_N). */
   regra: 'juntos' | 'data_nao_anterior' | 'requer';
   campos: string[];
   motivo: string;
@@ -234,7 +238,7 @@ export function contratoDoKit(): { versao: number; banco: string; entidades: Ent
     for (const c of CAMPOS_SO_KIT[e] ?? []) {
       campos.push({ ...c, coluna: colunaDe(c.campo), tipo_sql: tipoSql(c, {}), regra: {}, so_kit: true });
     }
-    const extras = colunasDoConector(exemplo, e).filter((col) => COLUNAS_SO_CONECTOR.includes(col) && !derivadas.includes(col));
+    const extras = colunasDoConector(exemplo, e).filter((col) => COLUNAS_SO_CONECTOR.includes(col));
     const faltando = colunasDoConector(exemplo, e).filter((col) => !campos.some((c) => c.coluna === col) && !extras.includes(col) && !derivadas.includes(col));
     if (faltando.length > 0) throw new Error(`conector.exemplo.json pede colunas fora do contrato em ${e}: ${faltando.join(', ')}.`);
     return { entidade: e, ordem: d.ordem, depende_de: d.depende_de, opcional: d.opcional, tabela: tabelaDe(e), campos, regras_entidade: REGRAS_ENTIDADE[e] ?? [], colunas_so_conector: extras };
@@ -265,7 +269,7 @@ function sqlTabela(ent: EntidadeContrato): string {
   linhas.push(`    CONSTRAINT pk_${t} PRIMARY KEY (external_id)`);
   // banco já criado por versão anterior do kit: acrescenta as colunas só do kit (a tabela só nasce uma vez)
   const alter = ent.campos
-    .filter((c) => c.so_kit)
+    .filter((c) => c.so_kit || (COLUNAS_ACRESCENTADAS[ent.entidade] ?? []).includes(c.campo))
     .map((c) => `IF COL_LENGTH('dbo.${t}', '${c.coluna}') IS NULL ALTER TABLE dbo.${t} ADD ${c.coluna} ${c.tipo_sql};\nGO`)
     .join('\n');
   return `IF OBJECT_ID('dbo.${t}', 'U') IS NULL\nCREATE TABLE dbo.${t} (\n${linhas.join(',\n')});\nGO${alter ? `\n${alter}` : ''}\nIF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_${t}_alterado' AND object_id = OBJECT_ID('dbo.${t}'))\nCREATE INDEX ix_${t}_alterado ON dbo.${t} (alterado_em, external_id);\nGO`;

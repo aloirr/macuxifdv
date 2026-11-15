@@ -235,7 +235,7 @@ class TestRegrasDoHub(unittest.TestCase):
         self.assertEqual(res.recusadas, [])
 
     def test_referencia_cruzada_do_produto_ate_3_com_marca(self):
-        # RN-CAT-09: até 3 referências por produto; toda referência leva a marca (o Hub descartaria sem ela)
+        # RN-CAT-09: até 3 referências por produto; a marca é opcional, mas só vale com o código
         res = self.validar("produto", {"referencia_2": "ABC-9", "marca_referencia_2": "Marca Gama", "referencia_3": "ZZ-1", "marca_referencia_3": "Marca Delta"})
         self.assertEqual(res.recusadas, [])
         v = res.validas[0][1]
@@ -252,6 +252,12 @@ class TestRegrasDoHub(unittest.TestCase):
     def test_referencia_com_codigo_maior_que_30_e_marca_maior_que_120_sao_recusadas(self):
         self.assertEqual([r.campo for r in self.validar("produto", {"referencia_1": "X" * 31}).recusadas], ["referencia_1"])
         self.assertEqual([r.campo for r in self.validar("produto", {"marca_referencia_1": "M" * 121}).recusadas], ["marca_referencia_1"])
+
+    def test_marca_codigo_do_produto_e_opcional_e_vai_ate_30_caracteres(self):
+        res = self.validar("produto", {"marca_codigo": "980"})
+        self.assertEqual((res.recusadas, res.validas[0][1]["marca_codigo"]), ([], "980"))
+        self.assertEqual(self.validar("produto", {"marca_codigo": ""}).recusadas, [])
+        self.assertEqual([r.campo for r in self.validar("produto", {"marca_codigo": "9" * 31}).recusadas], ["marca_codigo"])
 
     def test_produto_sem_nenhuma_referencia_passa(self):
         res = self.validar("produto", {"referencia_1": "", "marca_referencia_1": ""})

@@ -288,6 +288,12 @@ describe('Referência cruzada do produto (até 3 códigos da concorrência)', ()
     expect(view).toMatch(/referencia_1 IS NULL AND referencia_2 IS NULL AND referencia_3 IS NULL THEN NULL/);
   });
 
+  it('marca_codigo: coluna no modelo, na view e no conector.json, e o banco antigo ganha a coluna', () => {
+    expect((modelo[0] as string).split(';')).toContain('marca_codigo');
+    expect(sql).toContain("IF COL_LENGTH('dbo.tha_produto', 'marca_codigo') IS NULL ALTER TABLE dbo.tha_produto ADD marca_codigo");
+    expect(ler('conector', 'conector.json')).toContain('"marca_codigo": "marca_codigo"');
+  });
+
   it('banco criado pela versão anterior do kit ganha as colunas (ALTER TABLE idempotente)', () => {
     for (const col of ['referencia_1', 'marca_referencia_3']) expect(sql).toContain(`IF COL_LENGTH('dbo.tha_produto', '${col}') IS NULL ALTER TABLE dbo.tha_produto ADD ${col}`);
   });
