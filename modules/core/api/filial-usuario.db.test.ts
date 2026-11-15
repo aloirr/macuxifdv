@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { consumidorVendedorDoErp } from './consumidores-erp-vendedor';
 import { conferirFiliaisDoUsuario, filiaisDoUsuario, gravarFiliaisDoUsuario, usuarioSemFilial } from './filiais-usuario';
 import { rotasDeFilialDoProprioUsuario } from './filiais-usuario-rotas';
+import { perfisDeFabrica } from '../domain';
 import { TABELAS_SYNC } from './sync';
 
 const A = DOIS_TENANTS.A;
@@ -51,7 +52,7 @@ describe.skipIf(semBanco())('Core T-0176 × Postgres: filial do usuário', () =>
     (await q<{ filial_id: string }>('select uf.filial_id from core.usuario_filial uf join core.usuario u on u.id = uf.usuario_id where u.external_id = $1 and uf.deleted_at is null order by uf.filial_id', [ext])).map((l) => l.filial_id).sort();
   const cadastro = async (q: Q, ext: string) => (await q<{ f: string | null }>('select filial_cadastro_id as f from core.usuario where external_id = $1', [ext]))[0]!.f;
   const ctxRota = (c: pg.PoolClient, usuario: { id: string; perfil: string }, corpo?: unknown) =>
-    ({ usuario: { ...usuario, tenant_id: 't' }, requestId: 'r', corpo, comTenant: async (fn: (d: pg.PoolClient) => unknown) => fn(c) }) as never;
+    ({ usuario: { ...usuario, tenant_id: 't', perfis: perfisDeFabrica(usuario.perfil as never) }, requestId: 'r', corpo, comTenant: async (fn: (d: pg.PoolClient) => unknown) => fn(c) }) as never;
 
   it('RN-CORE-39: a carga com filial_external_id grava a de cadastro e a inclui na de venda; sem o campo não altera; a troca mantém as de venda', async () => {
     await emTransacao(A.tenantId, async ({ carga, q, padrao, segunda }) => {
@@ -112,11 +113,11 @@ describe.skipIf(semBanco())('Core T-0176 × Postgres: filial do usuário', () =>
     });
   });
 
-  it('RN-CORE-39: o banco recusa a de cadastro fora das de venda (23514 no COMMIT; aqui antecipado) e a API mapeia para 422', async () => {
+  it('RN-CORE-39: o banco recusa a de cadastro fora das de venda (23514; com a constraint já imediata, no próprio update) e a API mapeia para 422', async () => {
     await emTransacao(A.tenantId, async ({ c, q, padrao, segunda }) => {
       await gravarFiliaisDoUsuario(c, A.usuarios.supervisor, padrao, [padrao]);
-      await q('update core.usuario set filial_cadastro_id = $2 where id = $1', [A.usuarios.supervisor, segunda]);
-      await expect(c.query('set constraints core.usuario_filial_inclui_cadastro immediate')).rejects.toMatchObject({ code: '23514' });
+      // gravarFiliaisDoUsuario já deixou a constraint imediata nesta transação: a falha vem no próprio update.
+      await expect(q('update core.usuario set filial_cadastro_id = $2 where id = $1', [A.usuarios.supervisor, segunda])).rejects.toMatchObject({ code: '23514', constraint: 'usuario_filial_inclui_cadastro' });
     });
   });
 

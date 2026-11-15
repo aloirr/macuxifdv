@@ -48,12 +48,25 @@ describe.skipIf(semBanco())('Core T-0067 × Postgres: usuários no BKO', () => {
     const r = rota(metodo, caminho);
     return r.executar({ ...ctx(u), corpo: r.corpo ? r.corpo.parse(extra.corpo ?? {}) : {}, query: r.query ? r.query.parse(extra.query ?? {}) : {}, params: r.params ? r.params.parse(extra.params ?? {}) : {} } as never) as Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   };
-  const novo = (sufixo: string, extra: Record<string, unknown> = {}) => ({ nome: `Teste ${sufixo}`, email: `teste.${sufixo}@exemplo.com.br`, perfil: 'vendedor', external_id: `T0067-${sufixo}`, senha: SENHA, ...extra });
+  /** Filial padrão de cada tenant (lida no beforeAll): a de cadastro é obrigatória ao criar (RN-CORE-39). */
+  const filialPadrao = new Map<string, string>();
+  const novo = (sufixo: string, extra: Record<string, unknown> = {}, tenant = A.tenantId) => ({
+    nome: `Teste ${sufixo}`,
+    email: `teste.${sufixo}@exemplo.com.br`,
+    perfil: 'vendedor',
+    external_id: `T0067-${sufixo}`,
+    senha: SENHA,
+    filial_cadastro_id: filialPadrao.get(tenant),
+    ...extra,
+  });
   const auditorias = (acao: string, id: string) =>
     comTenant(pool, A.tenantId, async (c) => (await c.query<{ antes: unknown; depois: unknown }>("select antes, depois from plataforma.auditoria where acao = $1 and entidade_id = $2 and modulo = 'core'", [acao, id])).rows);
 
-  beforeAll(() => {
+  beforeAll(async () => {
     pool = new pg.Pool({ connectionString: banco().urlApp, max: 4 });
+    for (const t of [A.tenantId, B.tenantId]) {
+      filialPadrao.set(t, await comTenant(pool, t, async (c) => (await c.query<{ id: string }>('select id from core.filial where padrao and deleted_at is null')).rows[0]!.id));
+    }
     acesso = {
       comTenant: (tenantId, fn) => comTenant(pool, tenantId, (c) => fn(c as unknown as ClienteBanco)),
       semTenant: (fn) => fn({ query: async () => ({ rows: [], rowCount: 0 }) } as unknown as ClienteBanco),
@@ -101,7 +114,7 @@ describe.skipIf(semBanco())('Core T-0067 × Postgres: usuários no BKO', () => {
   });
 
   it('RN-CORE-05: o tenant B pode ter o mesmo e-mail (único por tenant)', async () => {
-    const r = await chamar('POST', 'usuarios', adminB, { corpo: novo('a1') });
+    const r = await chamar('POST', 'usuarios', adminB, { corpo: novo('a1', {}, B.tenantId) });
     expect(r.email).toBe('teste.a1@exemplo.com.br');
   });
 

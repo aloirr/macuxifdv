@@ -91,7 +91,7 @@ describe.skipIf(semBanco())('Core T-0175 × Postgres: vincular vendedor do ERP',
 
   it('RN-CORE-58: o admin vincula: código passa ao real, carteira sem duplicar, nota corrigida, provisório fora da lista, auditoria e um evento por cliente movido', async () => {
     await emTransacao(async (t) => {
-      await t.q("insert into core.nota_erp (tenant_id, cliente_id, tipo, numero, emitida_em, ano_mes, total_cents, vendedor_external_id, usuario_id) values (plataforma.tenant_atual(), $1, 'faturamento', 'N-T175', now(), '2026-11', 100, $2, $3)", [A.clientes.c1, CODIGO, t.prov]);
+      await t.q("insert into core.nota_erp (tenant_id, external_id, cliente_id, tipo, numero, emitida_em, ano_mes, total_cents, vendedor_external_id, usuario_id) values (plataforma.tenant_atual(), 'NF-T175', $1, 'faturamento', 'N-T175', now(), '2026-11', 100, $2, $3)", [A.clientes.c1, CODIGO, t.prov]);
       const r = await t.chamar('usuarios/:id/vincular-erp', A.usuarios.admin, 'admin', { usuario_id: t.real }, { id: t.prov });
       expect(r).toMatchObject({ provisorio_id: t.prov, usuario_id: t.real, external_id: CODIGO, clientes_movidos: 1, ja_vinculado: false });
       expect((await t.q<{ external_id: string }>('select external_id from core.usuario where id = $1', [t.real]))[0]?.external_id).toBe(CODIGO);
@@ -193,7 +193,8 @@ describe.skipIf(semBanco())('Core T-0175 × Postgres: vincular vendedor do ERP',
       await t.carga('outro@erp.exemplo.com.br'); // e depois com um e-mail diferente do real
       const vivos = await t.q<{ id: string; email: string }>('select id, email from core.usuario where external_id = $1 and deleted_at is null', [CODIGO]);
       expect(vivos).toEqual([{ id: t.real, email: EMAIL_REAL }]);
-      expect((await t.q('select 1 from core.usuario where lower(email) like $1 and deleted_at is null and id <> $2', ['erp-%@sem-email.invalid', t.real])).length).toBe(0);
+      // o próprio provisório fica (inativo, sem código; RN-CORE-60 não exclui usuário): nenhum provisório NOVO nasce
+      expect((await t.q('select 1 from core.usuario where lower(email) like $1 and deleted_at is null and id <> all($2::uuid[])', ['erp-%@sem-email.invalid', [t.real, t.prov]])).length).toBe(0);
       expect((await t.q('select 1 from core.carteira where usuario_id = $1 and deleted_at is null', [t.real])).length).toBe(2);
       expect((await t.q('select 1 from core.carteira where usuario_id = $1 and deleted_at is null', [t.prov])).length).toBe(0);
     });

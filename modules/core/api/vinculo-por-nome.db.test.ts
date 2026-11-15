@@ -68,7 +68,7 @@ describe.skipIf(semBanco())('Core T-0175 × Postgres: vínculo automático por n
   it('RN-CORE-58: a carga com o mesmo nome vincula o usuário, completa as notas e não cria provisório', async () => {
     await emTransacao(async (t) => {
       const id = await t.novo('  ANDERSON pereira da  Silva ', 'anderson.n175@exemplo.com.br');
-      await t.q("insert into core.nota_erp (tenant_id, cliente_id, tipo, numero, emitida_em, ano_mes, total_cents, vendedor_external_id, usuario_id) values (plataforma.tenant_atual(), $1, 'faturamento', 'N-N175', now(), '2026-11', 100, $2, null)", [A.clientes.c1, CODIGO]);
+      await t.q("insert into core.nota_erp (tenant_id, external_id, cliente_id, tipo, numero, emitida_em, ano_mes, total_cents, vendedor_external_id, usuario_id) values (plataforma.tenant_atual(), 'NF-N175', $1, 'faturamento', 'N-N175', now(), '2026-11', 100, $2, null)", [A.clientes.c1, CODIGO]);
       await t.carga();
       expect((await t.q<{ external_id: string }>('select external_id from core.usuario where id = $1', [id]))[0]?.external_id).toBe(CODIGO);
       expect((await t.q('select 1 from core.usuario where external_id = $1 and deleted_at is null', [CODIGO])).length).toBe(1);
