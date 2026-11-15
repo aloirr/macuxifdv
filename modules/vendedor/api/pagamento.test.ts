@@ -36,7 +36,7 @@ describe('API: forma e prazo do pedido (RN-VEN-24/25, RN-VEN-13)', () => {
     const r = await resolverPagamento(ctx(), db, tx(null), base, cli, 'pedido');
     expect(r).toEqual({ ok: true, pagamento: null, titulo_vencido: false, percentual_ajuste_bp: 0, percentual_ajuste: 0, percentual_mudou: false });
     expect(valoresPagamento(null)).toEqual([null, null, null, null, null, null, null, null]);
-    // RN-VEN-45: sem prazo o retrato do percentual é NULL (CHECK pedido_prazo_percentual_com_prazo da 0075), nunca 0
+    // RN-VEN-45: sem prazo o retrato do percentual é NULL (CHECK pedido_prazo_percentual_com_prazo da 0086), nunca 0
     expect(valorPercentualPrazo(null, 0)).toBeNull();
     expect(valorPercentualPrazo({ forma: {} as never, prazo: {} as never, texto: 'x' }, -1.71)).toBe(-1.71);
   });
