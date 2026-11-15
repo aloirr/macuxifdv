@@ -16,12 +16,12 @@ const dados = {
 
 describe('exportarPdfDoPedido (T-0182, logo do cliente)', () => {
   beforeEach(() => imprimirHtml.mockClear());
-  it('T-0182: usa a logo recebida de quem chama', async () => {
-    await exportarPdfDoPedido(dados, 'customer', { empresa: 'Dist', tz: 'America/Manaus', logo_src: 'data:image/png;base64,AAAA' });
+  it('T-0182: usa a logo da empresa do ambiente', async () => {
+    await exportarPdfDoPedido(dados, 'customer', { ambiente: { parametros: () => ({ empresa_nome: 'Dist' }), logoDaEmpresa: async () => 'data:image/png;base64,AAAA' }, tz: 'America/Manaus' });
     expect(imprimirHtml.mock.calls[0]![0]).toContain('<img class="logo" src="data:image/png;base64,AAAA"');
   });
   it('T-0182: sem logo, sai com a logo padrão', async () => {
-    await exportarPdfDoPedido(dados, 'customer', { empresa: 'Dist', tz: 'America/Manaus' });
+    await exportarPdfDoPedido(dados, 'customer', { ambiente: { parametros: () => ({}) }, tz: 'America/Manaus' });
     expect(imprimirHtml.mock.calls[0]![0]).toContain(`<img class="logo" src="${LOGO_PADRAO_DATA_URI}"`);
   });
 });

@@ -3,7 +3,6 @@
 import { useState, type ReactNode } from 'react';
 import { formatBRL, formatPct } from '@macuxi/comum';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
-import { logoParaPdf, nomeDaEmpresaParaPdf } from '../../../domain/empresa-pdf';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, Drawer, ErrorBlock, formatDateTime, HistoricoEmTags, LoadingBlock, type NoticeTone, Notice, tagsDoHistorico, td, tdNum, th, thNum } from '@macuxi/ui/web';
 import type { Order } from '../../../contracts';
@@ -44,7 +43,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
     setGerando(view);
     setErroPdf(null);
     try {
-      await exportarPdfDoPedido(dados, view, { empresa: nomeDaEmpresaParaPdf(ambiente.parametros('core')), tz, logo_src: await logoParaPdf(ambiente) });
+      await exportarPdfDoPedido(dados, view, { ambiente, tz });
     } catch (e) {
       setErroPdf(errorMessage(e));
     } finally {
