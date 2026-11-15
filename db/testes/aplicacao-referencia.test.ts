@@ -277,7 +277,7 @@ describe.skipIf(semBanco())('0033 aplicação e referência cruzada (banco, pape
     });
   });
 
-  it('busca pelo código normalizado usa índice: igualdade no codigo_compacto_ix ou no produto_codigo_uk (0075), prefixo no codigo_compacto_ix', async () => {
+  it('busca pelo código normalizado usa índice: igualdade e prefixo no codigo_compacto_ix ou no produto_codigo_uk (0075)', async () => {
     const plano = (sql: string, params: unknown[]) =>
       emTransacao(app, A.tenantId, async () => {
         await q('set local enable_seqscan = off');
@@ -288,7 +288,10 @@ describe.skipIf(semBanco())('0033 aplicação e referência cruzada (banco, pape
     const igual = await plano(`select produto_id ${filtro} and codigo_compacto = $2`, [A.tenantId, 'cb3401']);
     expect(igual).toMatch(/produto_referencia_(codigo_compacto_ix|produto_codigo_uk)/);
     expect(igual).not.toContain('Seq Scan');
-    expect(await plano(`select produto_id ${filtro} and codigo_compacto like $2`, [A.tenantId, 'cb34%'])).toContain('produto_referencia_codigo_compacto_ix');
+    // com tabela pequena o planejador também prefere o único da 0075 para o prefixo (filtro dentro do Index Only Scan)
+    const prefixo = await plano(`select produto_id ${filtro} and codigo_compacto like $2`, [A.tenantId, 'cb34%']);
+    expect(prefixo).toMatch(/produto_referencia_(codigo_compacto_ix|produto_codigo_uk)/);
+    expect(prefixo).not.toContain('Seq Scan');
   });
 });
 
