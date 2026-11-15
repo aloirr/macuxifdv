@@ -1,0 +1,122 @@
+name: producao — consulta só leitura
+
+# Consulta SÓ LEITURA no banco de PRODUÇÃO (autorizada pelo dono do produto: R-20261115-073000-alexandre, item 5). Para
+# diagnóstico (ex.: vendedor do ERP sem carteira, "Sem preço" no Catálogo) sem acesso de escrita e sem dado pessoal.
+#   - nunca SQL livre: o disparo escolhe o NOME de uma consulta do catálogo versionado scripts/producao/consultas/*.sql
+#     (revisado por PR; o CI roda `node scripts/producao/consulta.mjs verificar`) e só roda a partir do main;
+#   - parâmetros simples validados: tenant pelo código (AM2808, thathyany) e external_id (VEN-000034), quando a consulta
+#     declara; viram variáveis do psql (-v), nunca texto do SQL;
+#   - mesmo caminho dos outros workflows de produção: ssh na VM (o DBaaS só tem IP privado) e o psql 16 do compose, no
+#     serviço pgleitura: papel macuxi_leitura (só SELECT, sem BYPASSRLS; senha do leitura.env gerada NA VM, sem secret novo),
+#     sessão com default_transaction_read_only=on e statement_timeout=15s, transação READ ONLY desfeita no fim;
+#   - saída conferida antes de publicar (colunas declaradas, só contagens, ids, flags, datas e códigos): no
+#     GITHUB_STEP_SUMMARY e no artifact. Qualquer desvio = nada publicado. Nenhum segredo nem o CSV bruto vão ao log.
+# Pré-requisito (uma vez): papel macuxi_leitura criado pelo passo de papéis do banco-dados e uma publicação que leve o
+# serviço pgleitura e o leitura.env à VM.
+
+on:
+  workflow_dispatch:
+    inputs:
+      consulta:
+        description: consulta do catálogo (scripts/producao/consultas)
+        type: choice
+        options: [catalogo-sem-preco, vendedor-erp]
+      tenant:
+        description: código da empresa (ex. AM2808 ou thathyany)
+        required: true
+      external_id:
+        description: código do ERP, só nas consultas que pedem (ex. VEN-000034); vazio nas outras
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: producao-vm
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  consulta:
+    name: consulta só leitura na produção
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: PRODUCAO
+    steps:
+      - name: só a partir do main (catálogo revisado)
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          [ "$REF" = refs/heads/main ] || { echo "::error::dispare a partir do main (o catálogo de consultas só vale revisado)"; exit 1; }
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: catálogo, entradas e script do psql
+        env:
+          CONSULTA: ${{ inputs.consulta }}
+          TENANT: ${{ inputs.tenant }}
+          EXTERNAL_ID: ${{ inputs.external_id }}
+          ARGS_PSQL: ${{ runner.temp }}/psql.args
+        run: |
+          node scripts/producao/consulta.mjs verificar
+          node scripts/producao/consulta.mjs montar > "$RUNNER_TEMP/consulta.sql"
+
+      - name: chave SSH
+        env:
+          CHAVE: ${{ secrets.PROD_SSH_KEY }}
+          HOST: ${{ secrets.PROD_HOST }}
+          CONHECIDOS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$CHAVE" | tr -d '\r' > ~/.ssh/prod
+          chmod 600 ~/.ssh/prod
+          if [ -n "$CONHECIDOS" ]; then printf '%s\n' "$CONHECIDOS" | tr -d '\r' > ~/.ssh/known_hosts
+          else ssh-keyscan -T 15 -t ed25519 "$HOST" >> ~/.ssh/known_hosts 2>/dev/null; fi
+          printf 'Host prod\n  HostName %s\n  IdentityFile ~/.ssh/prod\n  IdentitiesOnly yes\n  BatchMode yes\n  StrictHostKeyChecking yes\n' "$HOST" > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: consulta (psql como macuxi_leitura, transação READ ONLY)
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+        run: |
+          mapfile -t args < "$RUNNER_TEMP/psql.args"
+          # argumentos (já validados) escapados com %q para o shell remoto; o SQL vai pelo stdin; o CSV fica num arquivo
+          remoto='set -euo pipefail; cd /opt/macuxi;'
+          remoto+=' grep -q "^MACUXI_PG_LEITURA_SENHA=." leitura.env 2>/dev/null || { echo "leitura.env ausente: publique uma versão com o preparar-vm.sh da consulta só leitura" >&2; exit 4; };'
+          remoto+=' dc() { docker compose --env-file .env --env-file imagens.env --profile ferramentas "$@"; };'
+          remoto+=' dc config --services | grep -qx pgleitura || { echo "serviço pgleitura ausente no compose da VM: publique uma versão nova" >&2; exit 4; };'
+          remoto+=" dc run --rm --no-deps -T pgleitura psql $(printf '%q ' "${args[@]}")"
+          set +e
+          ssh -l "$USUARIO" prod "$remoto" < "$RUNNER_TEMP/consulta.sql" > "$RUNNER_TEMP/saida.csv" 2> "$RUNNER_TEMP/erro.txt"
+          codigo=$?
+          set -e
+          # só as linhas de diagnóstico do psql/ssh (nunca o CSV); erro de conexão não traz senha (ela vai pelo ambiente)
+          head -n 20 "$RUNNER_TEMP/erro.txt" | cut -c1-300
+          [ "$codigo" = 0 ] || { echo "::error::a consulta falhou (código $codigo): tenant inexistente, papel macuxi_leitura sem permissão ou timeout de 15 s"; exit 1; }
+
+      - name: resultado conferido (resumo e artifact)
+        env:
+          CONSULTA: ${{ inputs.consulta }}
+          TENANT: ${{ inputs.tenant }}
+          EXTERNAL_ID: ${{ inputs.external_id }}
+          SAIDA_JSON: ${{ runner.temp }}/resultado/resultado.json
+        run: |
+          mkdir -p "$RUNNER_TEMP/resultado"
+          node scripts/producao/consulta.mjs relatorio "$RUNNER_TEMP/saida.csv" > "$RUNNER_TEMP/resultado/resultado.md"
+          cat "$RUNNER_TEMP/resultado/resultado.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: consulta-${{ inputs.consulta }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/resultado/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: limpar a chave e a saída bruta do runner
+        if: ${{ always() }}
+        run: rm -f ~/.ssh/prod ~/.ssh/config ~/.ssh/known_hosts "$RUNNER_TEMP/saida.csv" "$RUNNER_TEMP/erro.txt"

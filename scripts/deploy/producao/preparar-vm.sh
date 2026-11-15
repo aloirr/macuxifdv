@@ -189,6 +189,13 @@ PORTAL_ENV="$PASTA/portal.env"
 grep -q '^MACUXI_PG_PORTAL_SENHA=' "$PORTAL_ENV" || { printf 'MACUXI_PG_PORTAL_SENHA=%s\n' "$(openssl rand -hex 32)" >> "$PORTAL_ENV"; log "gerado MACUXI_PG_PORTAL_SENHA (portal.env)"; }
 chown "$USUARIO:$USUARIO" "$PORTAL_ENV"
 chmod 600 "$PORTAL_ENV"
+# Consulta só leitura (R-20261115-073000-alexandre, item 5): senha do papel macuxi_leitura num arquivo PRÓPRIO, que só o
+# serviço pgleitura e o passo de papéis (serviço banco) leem. Gerada uma vez, nunca regenerada, nunca impressa.
+LEITURA_ENV="$PASTA/leitura.env"
+[ -f "$LEITURA_ENV" ] || : > "$LEITURA_ENV"
+grep -q '^MACUXI_PG_LEITURA_SENHA=' "$LEITURA_ENV" || { printf 'MACUXI_PG_LEITURA_SENHA=%s\n' "$(openssl rand -hex 32)" >> "$LEITURA_ENV"; log "gerado MACUXI_PG_LEITURA_SENHA (leitura.env)"; }
+chown "$USUARIO:$USUARIO" "$LEITURA_ENV"
+chmod 600 "$LEITURA_ENV"
 for f in banco.env admin.env segredos.env email.env tunel.env alerta.env recados.env push.env; do
   [ -f "$PASTA/$f" ] && { chown "$USUARIO:$USUARIO" "$PASTA/$f"; chmod 600 "$PASTA/$f"; }
 done

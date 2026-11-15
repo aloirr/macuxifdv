@@ -163,6 +163,9 @@ services:
       - path: portal.env
       - path: banco.env
       - path: admin.env
+      # papel macuxi_leitura (consulta só leitura): o passo de papéis do banco-dados cria com esta senha
+      - path: leitura.env
+        required: false
     environment:
       <<: *ambiente-api
     volumes:
@@ -246,6 +249,36 @@ services:
       PGSSLROOTCERT: /certs/dbaas-ca.pem
       PGCONNECT_TIMEOUT: '10'
       PGAPPNAME: macuxi-pgcliente
+    volumes:
+      - ./certs:/certs:ro
+    networks: [macuxi]
+
+  # Consulta SÓ LEITURA na produção (workflow producao-consulta.yml; R-20261115-073000-alexandre, item 5). psql como o
+  # papel macuxi_leitura (só SELECT, sem BYPASSRLS), com a senha do leitura.env (gerada na VM pelo preparar-vm.sh). NUNCA
+  # recebe o admin.env. A sessão já nasce só leitura e com timeout curto (PGOPTIONS); o script do catálogo ainda abre a
+  # transação READ ONLY e desfaz no fim (scripts/producao/consulta.mjs).
+  pgleitura:
+    image: pgvector/pgvector:pg16
+    profiles: [ferramentas]
+    restart: 'no'
+    entrypoint:
+      - sh
+      - -c
+      - 'export PGHOST="$$MACUXI_PG_HOST" PGPORT="$${MACUXI_PG_PORTA:-5432}" PGUSER=macuxi_leitura PGPASSWORD="$$MACUXI_PG_LEITURA_SENHA"; unset MACUXI_PG_LEITURA_SENHA; exec "$$@"'
+      - pgleitura
+    command: ['psql', '--version']
+    env_file:
+      - path: banco.env
+      - path: leitura.env
+    environment:
+      TZ: UTC
+      PGTZ: UTC
+      PGDATABASE: macuxi
+      PGSSLMODE: ${MACUXI_PG_SSL_LIBPQ:-require}
+      PGSSLROOTCERT: /certs/dbaas-ca.pem
+      PGCONNECT_TIMEOUT: '10'
+      PGAPPNAME: macuxi-consulta-leitura
+      PGOPTIONS: '-c default_transaction_read_only=on -c statement_timeout=15s -c lock_timeout=2s -c idle_in_transaction_session_timeout=60s'
     volumes:
       - ./certs:/certs:ro
     networks: [macuxi]
