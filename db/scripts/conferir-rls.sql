@@ -11,6 +11,11 @@
 -- Despachantes (0003, ADR 0007; 0040, ADR 0032; 0058, ADR 0043): política para o macuxi_worker (que lê todos os tenants) só em
 --   plataforma.evento, plataforma.email_saida e plataforma.diagnostico (alerta do diagnóstico); em qualquer outra tabela aparece
 --   como problema.
+-- Consulta só leitura (0078, ADR 0055): toda tabela com RLS e tenant_id (e a plataforma.tenant, por id) com a política
+--   `leitura` for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual()) e o SELECT; nas só por função, nenhuma
+--   política nem grant para ele; em nenhuma tabela privilégio de escrita; nenhuma outra política para ele. E o papel: membro de
+--   qualquer papel, EXECUTE em alguma plataforma.sa_* ou em função SECURITY DEFINER além de plataforma.tenant_por_codigo(text)
+--   aparece como "(papel) macuxi_leitura".
 -- Resultado esperado: ZERO linhas. Exceções (iguais a db/src/excecoes.ts, TABELAS_SEM_TENANT_ID): plataforma.tenant não tem
 -- tenant_id (o id é o tenant; RLS por id) e public.macuxi_migracao fica fora (schema public, sem acesso do macuxi_app).
 -- Super-admin e portal (0035, ADR 0029; 0039, ADR 0031; TABELAS_SO_POR_FUNCAO): sem tenant_id e SEM política para o macuxi_app (só por função
@@ -88,10 +93,47 @@ problemas as (
   select t.nome, 'política para o macuxi_worker fora das outboxes (plataforma.evento, plataforma.email_saida, plataforma.diagnostico)' from tabelas t
    where t.nome not in ('plataforma.evento', 'plataforma.email_saida', 'plataforma.diagnostico')
      and exists (select 1 from pg_policy p join pg_roles r on r.oid = any (p.polroles)
-                  where p.polrelid = t.oid and r.rolname = 'macuxi_worker')  union all
+                  where p.polrelid = t.oid and r.rolname = 'macuxi_worker')
+  union all
+  select t.nome, 'sem a política leitura ou o SELECT do macuxi_leitura (0078)' from tabelas t
+   where t.rls and t.nome not in (select f.nome from so_por_funcao f)
+     and (t.nome = 'plataforma.tenant' or exists (select 1 from pg_attribute a where a.attrelid = t.oid and a.attname = 'tenant_id' and a.attnum > 0 and not a.attisdropped))
+     and (not exists (
+            select 1 from pg_policy p join pg_roles r on r.oid = any (p.polroles)
+             where p.polrelid = t.oid and p.polname = 'leitura' and r.rolname = 'macuxi_leitura' and cardinality(p.polroles) = 1
+               and p.polcmd = 'r' and p.polpermissive and p.polwithcheck is null
+               and pg_get_expr(p.polqual, p.polrelid) = case when t.nome = 'plataforma.tenant' then '(id = plataforma.tenant_atual())'
+                                                            else '(tenant_id = plataforma.tenant_atual())' end)
+          or not exists (select 1 from pg_roles r where r.rolname = 'macuxi_leitura' and has_table_privilege(r.oid, t.oid, 'SELECT')))
+  union all
+  select t.nome, 'só por função, mas com política ou grant para o macuxi_leitura (0078)' from tabelas t
+   where t.nome in (select f.nome from so_por_funcao f)
+     and (exists (select 1 from pg_policy p join pg_roles r on r.oid = any (p.polroles)
+                   where p.polrelid = t.oid and r.rolname = 'macuxi_leitura')
+          or exists (select 1 from pg_roles r where r.rolname = 'macuxi_leitura'
+                       and has_table_privilege(r.oid, t.oid, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')))
+  union all
+  select t.nome, 'privilégio de escrita para o macuxi_leitura (0078: só SELECT)' from tabelas t
+   where exists (select 1 from pg_roles r where r.rolname = 'macuxi_leitura'
+                   and has_table_privilege(r.oid, t.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'))
+  union all
+  select t.nome, 'política para o macuxi_leitura fora do padrão leitura (0078)' from tabelas t
+   where exists (select 1 from pg_policy p join pg_roles r on r.oid = any (p.polroles)
+                  where p.polrelid = t.oid and r.rolname = 'macuxi_leitura' and (p.polname <> 'leitura' or p.polcmd <> 'r'))
+  union all
+  select '(papel) macuxi_leitura', 'membro de ' || m.roleid::regrole::text || ' (herdaria privilégios)'
+    from pg_auth_members m where m.member = (select oid from pg_roles where rolname = 'macuxi_leitura')
+  union all
+  select '(papel) macuxi_leitura', 'EXECUTE em ' || p.oid::regprocedure::text || ' (0078: só plataforma.tenant_por_codigo(text))'
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace join pg_roles r on r.rolname = 'macuxi_leitura'
+   where n.nspname not in ('pg_catalog', 'information_schema') and n.nspname not like 'pg\_%'
+     and ((n.nspname = 'plataforma' and p.proname like 'sa\_%') or p.prosecdef)
+     and p.oid <> 'plataforma.tenant_por_codigo(text)'::regprocedure
+     and has_function_privilege(r.oid, p.oid, 'execute')
+  union all
   select '(papel) ' || a.rolname, 'membro de macuxi_manutencao (ignoraria a RLS)'
     from pg_roles a join pg_roles m on m.rolname = 'macuxi_manutencao'
-   where a.rolname in ('macuxi_app', 'macuxi_worker', 'macuxi_portal') and pg_has_role(a.oid, m.oid, 'MEMBER')
+   where a.rolname in ('macuxi_app', 'macuxi_worker', 'macuxi_portal', 'macuxi_leitura') and pg_has_role(a.oid, m.oid, 'MEMBER')
   union all
   select t.nome, 'coluna ' || k.coluna || ' ausente, de outro tipo ou anulável' from tabelas t cross join comuns k
    where not (k.coluna = 'tenant_id' and t.nome in (select s.nome from sem_tenant_id s))
