@@ -15,6 +15,8 @@ import {
 } from '@macuxi/platform-sdk';
 import type { BadgeTone } from '@macuxi/ui/web';
 
+import { SEM_ACESSO_TIME_MACUXI } from './portal-sessao';
+
 /** Página do portal (sem o prefixo `/config`: no host `config.` o navegador vê `/diagnosticos`). */
 export const CAMINHO_DIAGNOSTICOS = '/diagnosticos';
 export const caminhoDoDiagnostico = (id: string) => `${CAMINHO_DIAGNOSTICOS}/${encodeURIComponent(id)}`;
@@ -30,7 +32,7 @@ export const TEXTOS_PORTAL_DIAGNOSTICOS = {
   vazio: 'Nenhum diagnóstico recebido.',
   limpar: 'Limpar filtros',
   mais: 'Mostrar mais 50',
-  semAcesso: 'Esta área é só do time Macuxi.',
+  semAcesso: SEM_ACESSO_TIME_MACUXI,
   semRelato: 'Sem relato.',
   semPrint: 'Não anexado.',
   abrirPrint: 'Abrir em tamanho real',

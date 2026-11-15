@@ -263,10 +263,14 @@ export function GuardaPortal({ children }: { children: ReactNode }) {
   );
 }
 
-/** Itens do cabeçalho do time da Macuxi (T-0158: "Diagnósticos" ao lado de "Empresas"); o admin do cliente não vê nenhum. */
+/**
+ * Itens do cabeçalho do time da Macuxi (T-0158: "Diagnósticos" ao lado de "Empresas"; T-0181: "Frases da carga" depois);
+ * o admin do cliente não vê nenhum.
+ */
 export const MENU_TIME_MACUXI = [
   { href: '/empresas', rotulo: 'Empresas', testId: 'portal.menu.empresas' },
   { href: '/diagnosticos', rotulo: 'Diagnósticos', testId: 'portal.menu.diagnosticos' },
+  { href: '/frases-carga', rotulo: 'Frases da carga', testId: 'portal.menu.frases-carga' },
 ] as const;
 
 /** Item ativo pelo caminho (no host `config.` o navegador vê `/diagnosticos`; no PC sem o host, `/config/diagnosticos`). */

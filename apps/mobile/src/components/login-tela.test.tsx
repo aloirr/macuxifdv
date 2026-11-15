@@ -31,6 +31,7 @@ vi.mock('react-native', () => ({
   KeyboardAvoidingView: host('div'),
   ActivityIndicator: ({ color }: Props) => createElement('progress', { 'data-cor': color }),
   StyleSheet: { create: <T,>(s: T) => s },
+  useWindowDimensions: () => ({ width: 360, height: 800, scale: 3, fontScale: 1 }),
   BackHandler: { addEventListener: () => ({ remove: () => undefined }) },
   Keyboard: { addListener: () => ({ remove: () => undefined }) },
 }));
@@ -55,6 +56,7 @@ const sim = vi.hoisted(() => ({
   perfilBuild: 'development',
   telaLogin: [] as Record<string, unknown>[],
   etapa: null as Record<string, unknown> | null,
+  telaEntrada: [] as Record<string, unknown>[],
 }));
 vi.mock('@macuxi/core/app', () => ({
   AVISO_SENHA_CRIADA: 'Senha criada.',
@@ -80,7 +82,10 @@ vi.mock('@/lib/etapa-login', async (original) => {
   };
 });
 vi.mock('@/components/tela-entrada', () => ({
-  TelaEntrada: ({ barra }: { barra?: { rotulo: string } | null }) => createElement('div', { 'data-testid': 'tela-entrada' }, barra?.rotulo ?? ''),
+  TelaEntrada: (props: { barra?: { rotulo: string } | null }) => {
+    sim.telaEntrada.push(props);
+    return createElement('div', { 'data-testid': 'tela-entrada' }, props.barra?.rotulo ?? '');
+  },
 }));
 vi.mock('@/lib/endereco-do-build', () => ({
   avisoDeServidorNoLogin: () => null,
@@ -120,6 +125,7 @@ beforeEach(() => {
   sim.perfilBuild = 'development';
   sim.telaLogin = [];
   sim.etapa = null;
+  sim.telaEntrada = [];
 });
 
 describe('T-0172: faixa Azul noite com o logo no topo do login (quadro 3, entrada-sync)', () => {
@@ -153,6 +159,17 @@ describe('T-0172: antes do login, a tela de entrada confere o servidor uma vez p
     expect(abertura).not.toContain('login.tela');
     servidorNaAbertura.conferido = true;
     expect(html()).toContain('data-testid="login.tela"');
+  });
+  it('T-0181: conferindo o servidor (estado 2) e no login (estado 3), sem o aviso e sem o "Você sabia?" da carga', () => {
+    servidorNaAbertura.conferido = false;
+    const abertura = html();
+    expect(sim.telaEntrada.length).toBeGreaterThan(0);
+    for (const props of sim.telaEntrada) {
+      expect(props.aviso ?? null).toBeNull();
+      expect(props.frase ?? null).toBeNull();
+    }
+    servidorNaAbertura.conferido = true;
+    for (const markup of [abertura, html()]) expect(markup).not.toMatch(/carga-aviso|carga-frase|Não desligue|Você sabia/);
   });
 });
 
