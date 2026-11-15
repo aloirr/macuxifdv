@@ -2,7 +2,7 @@
  * Tema do app (Campo e Gestão): reexporta os tokens puros (`tokens.ts`) e monta os estilos de texto do React Native.
  * Um único lugar para cor, fonte, raio, espaçamento, sombra e movimento (T-0072; guia em docs/design/componentes.md).
  */
-import { Platform, StyleSheet, type TextStyle } from 'react-native';
+import { StyleSheet, type TextStyle } from 'react-native';
 
 import { colors, radius } from './tokens';
 
@@ -26,38 +26,7 @@ const PESO = {
 export const fonte = {
   ...PESO,
   mono: { fontFamily: 'monospace', fontWeight: '400', fontVariant: ['tabular-nums'] },
-  /** @deprecated Apelido de `fonte.bold` (700, título), ainda usado nos módulos e no shell; sai na v1.0.14 (RD-0942). */
-  display: PESO.bold,
-  /** @deprecated Apelido de `fonte.bold` (700, título), ainda usado nos módulos e no shell; sai na v1.0.14 (RD-0942). */
-  displayBold: PESO.bold,
 } as const satisfies Record<string, TextStyle>;
-
-/**
- * @deprecated Transição da v1.0.13: os módulos e o shell trocam `fontFamily: fonts.x` por `...fonte.x`; sai na limpeza
- * deste lote (branch `nuvem/fonte-sistema-designer-ux-limpeza`). Android: famílias do sistema por nome, só 400
- * (`sans-serif`) e 500 (`sans-serif-medium`), nunca a família de peso 900; web e demais: a pilha do sistema, sem serifa.
- */
-export const fonts = Platform.select({
-  android: {
-    display: 'sans-serif-medium',
-    displayBold: 'sans-serif-medium',
-    body: 'sans-serif',
-    medium: 'sans-serif-medium',
-    semibold: 'sans-serif-medium',
-    bold: 'sans-serif-medium',
-    mono: 'monospace',
-  },
-  // pilha do sistema escrita aqui de propósito: sai na limpeza deste lote
-  default: {
-    display: 'system-ui, "Segoe UI", Roboto, -apple-system, sans-serif',
-    displayBold: 'system-ui, "Segoe UI", Roboto, -apple-system, sans-serif',
-    body: 'system-ui, "Segoe UI", Roboto, -apple-system, sans-serif',
-    medium: 'system-ui, "Segoe UI", Roboto, -apple-system, sans-serif',
-    semibold: 'system-ui, "Segoe UI", Roboto, -apple-system, sans-serif',
-    bold: 'system-ui, "Segoe UI", Roboto, -apple-system, sans-serif',
-    mono: 'monospace',
-  },
-});
 
 /** Alvo de toque mínimo (48 dp, Material; era 44 até a T-0071). */
 export const TOUCH = 48;
@@ -85,8 +54,7 @@ export const toneColors: Record<Tone, { fg: string; bg: string }> = {
  * | legenda | `small` | 12/400 |
  * | rótulo pequeno | `label` | 12/600 |
  * | rótulo em maiúsculas ("RECADO DO DIA") | `rotulo` | 12/600 |
- * `saudacao`, `title16` e `smallStrong` são apelidos de `h1`, `bodyStrong` e `label` (o mesmo objeto), mantidos porque o shell
- * e os módulos usam.
+ * `saudacao` é apelido de `h1` (o mesmo objeto).
  */
 const estilosDeTexto = StyleSheet.create({
   h1: { ...fonte.bold, fontSize: 28, letterSpacing: -0.3, color: colors.ink },
@@ -105,10 +73,6 @@ export const type = {
   ...estilosDeTexto,
   /** "Bom dia, Lucas": o mesmo estilo de `h1`. */
   saudacao: estilosDeTexto.h1,
-  /** @deprecated o mesmo estilo de `bodyStrong` (RD-0942); sai na v1.0.14. */
-  title16: estilosDeTexto.bodyStrong,
-  /** @deprecated o mesmo estilo de `label` (RD-0942); sai na v1.0.14. */
-  smallStrong: estilosDeTexto.label,
 };
 
 export const ui = StyleSheet.create({

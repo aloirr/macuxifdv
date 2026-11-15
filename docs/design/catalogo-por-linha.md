@@ -104,7 +104,7 @@ Pastilhas                                         ← h2, Archivo 17
   da busca, nesta ordem: foto, código, descrição até 2 linhas, **"Serve em:"** com a aplicação **em até 2 linhas** com
   reticências (RN-CAT-12; a ficha mostra tudo), **"Equivale a:"** com as referências de concorrente (RN-CAT-09), as
   **etiquetas** em `Selo` neutro (até 4), preço e estoque no contexto do cliente (promotor sem preço e estoque, RN-CAT-05).
-  Rótulos "Serve em:"/"Equivale a:" em `t.smallStrong`, texto em `t.sub` `ink2`. Tudo lido do aparelho (offline igual).
+  Rótulos "Serve em:"/"Equivale a:" em `t.label`, texto em `t.sub` `ink2`. Tudo lido do aparelho (offline igual).
   Sem aplicação, referência ou etiqueta: a linha não aparece (nada de "Sem aplicação").
 - **"Oferece junto" só na ficha** (`catalogo-aplicacao.md` §3.1), não no cartão: manteria o cartão alto demais para a lista.
 - Na busca, o mesmo cartão mostra o caminho acima da descrição e o trecho achado em negrito (§5).

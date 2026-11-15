@@ -125,7 +125,7 @@ Total                                    R$ 19,70
 [ Apenas salvar ]  [ Salvar como orçamento ]      ← secundários, metade cada
                Cancelar                           ← texto, abre "Sair do pedido?"
 ```
-- Cliente: 16 `title16` `ink`, "Nome · cód. C5002".
+- Cliente: 16 `bodyStrong` `ink`, "Nome · cód. C5002".
 - Linhas VENDA, ITENS, ENTREGA, OBS.: `LinhaResumo` (rótulo de 64 dp à esquerda). VENDA leva o `alerta` (aviso ou erro) quando a
   aba Venda tem alerta que muda o destino ("Vai para aprovação (título vencido)", "Cliente bloqueado · só orçamento"). ITENS usa
   `linhas` (um `LinhaValor` por item: "nome · qtd medida" ··· total). ENTREGA: endereço · CIF, ou endereço · FOB · transportadora.

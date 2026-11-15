@@ -50,16 +50,8 @@ describe('fonte do sistema (R-20261115-110600)', () => {
   it('app: `fonte` só dá o peso (400 · 500 · 600 · 700); o mono é `monospace`, sem pilha nem família por nome', () => {
     const tema = readFileSync(pasta('./theme.ts'), 'utf8');
     expect(tema).toMatch(/mono: \{ fontFamily: 'monospace', fontWeight: '400', fontVariant: \['tabular-nums'\] \}/);
-    expect(tema).not.toMatch(/familiasFonte|displaySemi/);
+    expect(tema).not.toMatch(/export const fonts\b|familiasFonte|displaySemi|sans-serif|title16|smallStrong|display(Bold)?:/);
     for (const { arq, src } of [...app, ...web]) expect(src, arq).not.toMatch(/PILHA_SISTEMA|PILHA_MONO|FAMILIAS_ANDROID/);
-  });
-
-  it('transição: `fonts` (@deprecated) só usa `sans-serif` e `sans-serif-medium` no Android e a pilha do sistema no resto', () => {
-    const tema = readFileSync(pasta('./theme.ts'), 'utf8');
-    const familias = [...tema.matchAll(/'(sans-serif[a-z-]*)'/g)].map((m) => m[1]);
-    expect(familias.length).toBeGreaterThan(0);
-    for (const f of familias) expect(['sans-serif', 'sans-serif-medium']).toContain(f);
-    expect(tema).not.toMatch(/(?<![-\w])serif\b/);
   });
 
   it('rótulo de campo único: `CampoSenha` usa o `RotuloCampo` e a entrada do `CampoTexto` (RD-0951)', () => {

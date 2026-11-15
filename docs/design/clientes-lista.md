@@ -15,7 +15,7 @@ Ordem, da esquerda para a direita:
 
 | Posição | O que aparece | Como |
 |---|---|---|
-| 1ª linha | nome do cliente (fantasia; sem fantasia, a razão social) | `t.title16` (16 px, IBM Plex Sans SemiBold), 1 linha, reticências |
+| 1ª linha | nome do cliente (fantasia; sem fantasia, a razão social) | `t.bodyStrong` (16 px, peso 600), 1 linha, reticências |
 | 2ª linha | a última visita | `t.sub` (13 px, `ink2`), 1 linha, sem cor e sem ícone |
 | Direita | a tag de situação | `ChipEstado pequeno` (24 dp) |
 | Fim | seta | `Icon chevron` 16, `ink3` |
@@ -66,5 +66,5 @@ Prioridade: **Bloqueado > Devendo > Pré-Cadastro > Em dia** (RN-CORE-41). Mostr
 - A informação que saiu da linha vive nos filtros e na ficha. Vazio: sem mudança ("Nenhum cliente com esses filtros").
 
 ## 5. Componentes
-`ChipEstado` (tons `erro`, `neutro` e `sucesso`, `pequeno`, `icone="lock"`), `Icon`, `t.title16`, `t.sub`, `Screen` com
+`ChipEstado` (tons `erro`, `neutro` e `sucesso`, `pequeno`, `icone="lock"`), `Icon`, `t.bodyStrong`, `t.sub`, `Screen` com
 `cabecalho` e `SeloAtualizacao sobreFaixa`, todos de `@macuxi/ui/mobile`. Nenhum componente novo.
