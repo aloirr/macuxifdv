@@ -9,7 +9,7 @@
 | PNG | O que mostra |
 |---|---|
 | `01-inicio-repouso.png` | o botão, a situação e a dica de segurar |
-| `02-toque-normal.png` | depois do toque: o botão com o indicador e `Atualizando pedidos e clientes` |
+| `02-toque-normal.png` | depois do toque: o botão com o indicador e `Atualizando pedidos e clientes`, sem a dica |
 | `03-segurando.png` | segurando há 4 s: anel no lugar do ícone, `Continue segurando · 6 s` |
 | `04-popup-completa.png` | aos 10 s: o popup da sincronização completa, com a barra da tela de carga |
 
@@ -21,7 +21,8 @@
 - O puxar para baixo e o selo `↻ 07:28` das listas fazem o mesmo que o toque normal.
 
 ## 2. Como o usuário sabe que pode segurar (`01`)
-- Abaixo da situação, uma segunda linha, `small` `ink2`, centralizada: `Segure 10 s para a sincronização completa`.
+- Abaixo da situação, uma segunda linha, `small` `ink2`, centralizada: `Segure 10 s para a sincronização completa`. Ela só
+  aparece com o botão livre: sai enquanto sincroniza e com `Sem sinal`.
 - Leitor de tela: o botão tem a ação `Sincronização completa` (`accessibilityActions`), porque o TalkBack não segura 10 s.
   Rótulo: `Sincronizar. Toque para pedidos e clientes; ação: sincronização completa`.
 
@@ -38,15 +39,15 @@
   Voltar do Android não fecham (o Voltar não faz nada). A tela não apaga enquanto ele está aberto.
 - Texto (R-20261115-100000): título `Realizando a sincronização completa` (Archivo 800 19) e, embaixo,
   `Aguarde e não saia desta tela.` (15 `ink2`).
-- **Barra igual à da tela de carga** (`../entrada-sync.md` §2, tema pérola): linha `Etapa 3 de 5 · Catálogo e preços` à esquerda
-  e `43%` em negrito à direita (13, `#1E3350`); barra de 6 dp, raio 3, trilho `#DFE2E6`, preenchimento `#C2540A`. As etapas são as
-  da carga (Campo: Envio do que ficou no aparelho · Clientes e rota · Catálogo e preços · Pedidos e metas · Fotos e materiais).
+- **Barra e etapas iguais às da tela de carga** (`../entrada-sync.md` §2, itens 2 a 4, tema pérola), sem a lista de etapas.
 - **Pronto:** `Pronto` e `100%`; o popup fecha sozinho depois de 600 ms, e a situação mostra `Atualizado há instantes`.
-- **Parou:** no lugar da linha da barra, a linha de erro da carga (`Parou na etapa 3 de 5` ou `Sem internet na etapa 3 de 5`) e
-  os botões `Tentar de novo` (principal) e `Fechar` (neutro). Só aí o Voltar fecha.
+- **Parou:** a linha de erro da carga (`../entrada-sync.md` §3, item 1) e os botões `Tentar de novo` (principal) e `Fechar` (neutro).
+  Só aí o Voltar fecha.
 - Leitor de tela: o popup é modal; anuncia o título e cada troca de etapa; a barra é `progressbar` (`Sincronização`, 0 a 100).
 
 ## 5. Componentes
 - `BotaoSincronizar` do kit ganha o segurar (anel, contagem, vibração, ação do leitor) e duas ações vindas do shell: rápida e completa.
-- Componente novo do kit: o popup de progresso sem botão (`DialogoProgresso`), com a linha e a barra da `entrada-sync`.
+- Popup da completa: o `Dialogo` do kit (`folha.tsx`) ganha a forma sem botões. Sem `cancelar` e `confirmar`, o conteúdo vai por
+  `children`, e o Voltar não faz nada. A linha da etapa com a barra sai da `TelaEntrada` (`Barra`, `tela-entrada.tsx`) e vai para o kit,
+  e a carga e o popup usam a mesma. Nenhum componente novo.
 - O que cada sincronização baixa e a tela que não apaga ficam com o `engenheiro-apps` (shell e agendador, `apps/mobile/src/state/plataforma.tsx`).

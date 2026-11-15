@@ -2,7 +2,6 @@
 
 > 2026-11-15 · designer-ux · origem: R-20261115-093000-alexandre (regra definitiva de filial, para todo perfil) e
 > R-20261115-080000-alexandre (sem filial, bloqueado). **Simulação para o dono do produto**; nada vai a PR antes do ok.
-> A regra do Catálogo foi fechada na opção A (R-20261115-100000-alexandre).
 > Fonte: `filial.html` (`?v=login|bko-lista|bko-editar`) e `filial.css`, com os tokens de
 > `../catalogo-campo-v2/simulacao.css`. PNGs: aparelho 360 × 800 e BKO 1280 × 800, escala 2. Dados fictícios.
 > Os nomes dos campos são os desta simulação; o `modulo-core` propõe os campos no banco e na API.
@@ -11,12 +10,12 @@
 | PNG | O que mostra |
 |---|---|
 | `13-login-sem-filial.png` | login do app de quem está sem filial de cadastro |
-| `14-bko-usuarios-sem-filial.png` | BKO › Usuários com o filtro `Filial de cadastro: Sem filial` |
+| `14-bko-usuarios-sem-filial.png` | BKO › Usuários com o filtro `Filial de cadastro: Sem filial` (sem a coluna Filial) |
 | `15-bko-editar-usuario-filiais.png` | BKO › Usuários › Editar usuário com `Filial de cadastro` e `Filiais de venda` |
 
 ## 1. A regra (R-20261115-093000)
 - **Filial de cadastro:** uma, obrigatória, para todo perfil (vendedor, promotor, supervisor, gerente). É a base do usuário.
-- **Filiais de venda:** uma ou várias, escolhidas no BKO, para qualquer perfil. O Catálogo usa só elas.
+- **Filiais de venda:** uma ou várias, escolhidas no BKO, para qualquer perfil (uso no Catálogo: `../catalogo-campo-v2/spec.md` §4).
 - **Proposta do designer:** a filial de cadastro é sempre uma das de venda. Assim a folha sempre tem a filial marcada, e o
   usuário nunca fica sem filial de venda.
 - Carga do ERP: o `filial_external_id` do `vendedor.csv` é a filial de cadastro; as de venda vêm do BKO.
@@ -35,7 +34,7 @@ hierarquia (Gerente, Supervisor, Nome da equipe) e antes de `Código no ERP`:
 
 ## 3. BKO › Usuários, lista (`14`)
 - **Coluna `Filial`**, depois de `Perfil`: o nome da filial de cadastro; sem ela, o selo `Sem filial` (`Badge tone="danger"`).
-  As filiais de venda não entram na lista: ficam na gaveta.
+  Com o filtro `Sem filial`, a coluna sai, porque todas as linhas diriam o mesmo. As filiais de venda não entram na lista: ficam na gaveta.
 - **Filtro `Filial de cadastro`** na `FilterBar`: `Todas` (padrão), `Sem filial` e as filiais, em ordem alfabética.
 - **Aviso** (`Notice tone="warning"`) no topo, só quando há usuário sem filial e o filtro não é `Sem filial`:
   `2 usuários sem filial de cadastro não entram no app.` e o botão `Ver os 2`, que aplica o filtro. Ver a gaveta `15`, ao fundo.

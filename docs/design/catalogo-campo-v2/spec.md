@@ -17,7 +17,7 @@
 | `05-busca-dica.png` | a dica da busca, com o campo em foco e vazio |
 | `06-folha-filtro.png` | a folha "Filtrar": `Suas filiais (3)` ou uma delas, e itens sem estoque (`../filtro-padrao-campo/spec.md`) |
 | `07-estoque-por-filial.png` | a folha "Estoque por filial": tabela Filial \| Estoque, só as filiais de venda, a de cadastro primeiro |
-| `08-grade-multi-filial.png` | uma filial escolhida no filtro: chip `Filial Manaus ✕`, N de Manaus |
+| `08-grade-multi-filial.png` | uma filial escolhida no filtro: chip `Filial Manaus ✕`, preço e N de Manaus; a faixa continua com a sua filial |
 
 Dados das telas: Carla, filial de cadastro Boa Vista, filiais de venda Boa Vista, Manaus e Porto Velho (na 01, só Boa Vista).
 O login sem filial e o BKO (Usuários): `../filial-cadastro-venda/spec.md`.
@@ -94,11 +94,11 @@ Rótulo `Estoque: N` no cartão da grade, na busca e na ficha, sem toque nenhum.
 ## 4. Filtro no topo (padrão de Pedidos)
 - Linha de busca de Pedidos: `CampoBusca` + `BotaoFiltro` (48 dp, selo com a contagem) e `EtiquetaFiltro` embaixo
   (`packages/ui/src/mobile/filtro.tsx`, `pedidos-filtro-periodo.md`).
-- **Regra de filial** (R-20261115-093000, para todo perfil; substitui a regra por perfil de R-20261115-073000, R-20261115-090000
-  e R-20261115-092000; cadastro no BKO e bloqueio: `../filial-cadastro-venda/spec.md`):
-  - **filial de cadastro**, uma e obrigatória: aparece **sempre na faixa**, no subtítulo `Filial Boa Vista · 1.284 produtos`. Não é
-    filtro e não tem ✕;
-  - **filiais de venda**, uma ou várias: o Catálogo usa só elas no preço, no `Estoque: N` (§3), no filtro e na folha (§2.1).
+- **Filial** (regra: `../filial-cadastro-venda/spec.md` §1, R-20261115-093000; substitui a regra por perfil de R-20261115-073000,
+  R-20261115-090000 e R-20261115-092000):
+  - a filial de cadastro aparece **sempre na faixa**, no subtítulo `Sua filial: Boa Vista · 1.284 produtos`. Não é filtro e não
+    tem ✕; com outra filial escolhida no filtro, a faixa continua nela, e o chip diz a filial do preço e do estoque (`08`);
+  - o preço, o `Estoque: N` (§3), o filtro e a folha (§2.1) usam só as filiais de venda.
 - **Filtro de filial**, só com mais de uma filial de venda (com uma só, não há chip, e o grupo Filial não aparece na folha "Filtrar"):
   - abre em `Suas filiais (3)`, com o selo `1` e o chip sem ✕ (`EtiquetaFiltro` sem `onRemover`);
   - escolhida uma filial (R-20261115-084600): chip `Filial Manaus ✕` e o selo `1`; o ✕ volta ao padrão.
