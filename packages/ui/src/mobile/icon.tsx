@@ -49,7 +49,9 @@ export type IconName =
   | 'mais'
   | 'galeria'
   | 'config'
-  | 'nuvem';
+  | 'nuvem'
+  | 'olho'
+  | 'olhoRiscado';
 
 interface Props {
   name: IconName;
@@ -268,6 +270,24 @@ function render(name: IconName, c: Common) {
         <>
           <Circle cx={12} cy={12} r={3} {...c} />
           <Path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" {...c} />
+        </>
+      );
+    case 'olho':
+      // campo de senha (R-20261115-071000): botão "Mostrar senha", com a senha oculta; mesmo desenho do IconEye do kit web
+      return (
+        <>
+          <Path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" {...c} />
+          <Circle cx={12} cy={12} r={3} {...c} />
+        </>
+      );
+    case 'olhoRiscado':
+      // campo de senha: botão "Ocultar senha", com a senha visível; mesmo desenho do IconEyeOff do kit web
+      return (
+        <>
+          <Path d="M9.9 5.2A9.6 9.6 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-2.8 3.7" {...c} />
+          <Path d="M6.6 6.6C3.7 8.5 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6" {...c} />
+          <Path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" {...c} />
+          <Path d="m3 3 18 18" {...c} />
         </>
       );
     case 'nuvem':

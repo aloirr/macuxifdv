@@ -130,6 +130,8 @@ const ProdutoBase = RegistroBase.extend({
     .nullish(),
   nome: Texto(200),
   marca: TextoOpcional(80),
+  /** Código da marca no ERP (ex.: 980), aditivo e opcional no v1; o Catálogo mostra no card e na ficha. Ausente = não altera. */
+  marca_codigo: TextoOpcional(30),
   categoria: TextoOpcional(80),
   /** Sigla da medida cadastrada no tenant (RN-CORE-19); o A7 confere com `core.medidas@1` (ausente/inativa = `referencia_ausente`). */
   unidade: Texto(10),

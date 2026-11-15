@@ -116,6 +116,25 @@ jobs:
       - name: instalar dependências
         run: pnpm install --frozen-lockfile
 
+      # O ubuntu-latest (2 núcleos, ~14 GB livres) ficou sem disco no assembleRelease (run 43673109770: "No space left
+      # on device"). Depois do install: apaga do runner o que o build não usa e preserva só o NDK que o react-native do
+      # repositório pede (ndkVersion do libs.versions.toml). docker image prune é limpeza do runner, não roda container.
+      - name: liberar disco
+        run: |
+          df -h /
+          NDK_VERSAO=$(sed -n 's/^ndkVersion = "\(.*\)"/\1/p' node_modules/react-native/gradle/libs.versions.toml)
+          [ -n "$NDK_VERSAO" ] || { echo '::error title=NDK::ndkVersion não encontrado no react-native'; exit 1; }
+          NDK_DIR=/usr/local/lib/android/sdk/ndk
+          if [ -d "$NDK_DIR" ]; then
+            for d in "$NDK_DIR"/*; do
+              [ "$(basename "$d")" = "$NDK_VERSAO" ] || sudo rm -rf "$d"
+            done
+          fi
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
+          docker image prune -af > /dev/null 2>&1 || true
+          echo "NDK preservado: $(ls "$NDK_DIR" 2>/dev/null | tr '\n' ' ')"
+          df -h /
+
       # Metro: os.tmpdir()/metro-cache. Chave por variante (o bundle muda com APP_VARIANT) + lockfile + commit.
       - name: cache do Metro
         uses: actions/cache@v4
@@ -152,6 +171,23 @@ jobs:
             echo '::error title=versionCode::não achei versionCode/versionName no android/app/build.gradle do prebuild'; exit 1
           fi
 
+      # Só arm64-v8a e armeabi-v7a (aparelhos; x86/x86_64 são de emulador): metade do código nativo, menos disco e
+      # tempo. Memória para o runner de 7 GB; o gradlew roda com --no-daemon. Idempotente: troca a linha ou acrescenta.
+      - name: gradle.properties (ABIs e memória)
+        working-directory: apps/mobile/android
+        run: |
+          definir() {
+            if grep -qE "^$1=" gradle.properties; then
+              sed -i -E "s|^$1=.*|$1=$2|" gradle.properties
+            else
+              printf '\n%s=%s\n' "$1" "$2" >> gradle.properties
+            fi
+          }
+          definir reactNativeArchitectures 'arm64-v8a,armeabi-v7a'
+          definir org.gradle.jvmargs '-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8'
+          definir org.gradle.parallel false
+          grep -E '^(reactNativeArchitectures|org\.gradle\.jvmargs|org\.gradle\.parallel)=' gradle.properties
+
       - name: keystore
         env:
           KS_BASE64: ${{ secrets[format('ANDROID_KEYSTORE_BASE64_{0}', env.SUFIXO)] }}
@@ -167,7 +203,7 @@ jobs:
           KEY_ALIAS: ${{ secrets[format('ANDROID_KEY_ALIAS_{0}', env.SUFIXO)] }}
           KEY_PASSWORD: ${{ secrets[format('ANDROID_KEY_PASSWORD_{0}', env.SUFIXO)] }}
         run: |
-          ./gradlew assembleRelease --build-cache \
+          ./gradlew assembleRelease --build-cache --no-daemon \
             -Pandroid.injected.signing.store.file="$RUNNER_TEMP/keystore.jks" \
             -Pandroid.injected.signing.store.password="$KS_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \

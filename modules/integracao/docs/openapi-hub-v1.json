@@ -5212,6 +5212,17 @@
               }
             ]
           },
+          "marca_codigo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "categoria": {
             "anyOf": [
               {

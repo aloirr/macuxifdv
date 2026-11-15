@@ -23,3 +23,5 @@ export * from './menu-acoes';
 export * from './modulos';
 // MC-0042: módulos adicionais do plano (nome e ícone)
 export * from './adicionais';
+// R-20261115-071000: campo de senha único (olho em ícone, "Mostrar senha"/"Ocultar senha")
+export * from './campo-senha';

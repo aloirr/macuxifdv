@@ -46,7 +46,7 @@ De cima para baixo:
 3. Linha de quem está entrando (13, `ink-2`): **"<e-mail> · <código da empresa>"**. Sem campo de e-mail nem de senha atual: a
    senha usada no login fica só na memória da tela (nunca em storage, URL ou log) e some ao sair dela.
 4. Campo **"Senha nova"** (`CAMPO_SENHA_NOVA`; `autoComplete="new-password"`, foco inicial) com o olho **"Mostrar senha"** /
-   **"Esconder senha"** à direita, dentro do campo, alvo ≥ 44 px. **O olho mostra os dois campos** (um só toque).
+   **"Ocultar senha"** à direita, dentro do campo, alvo ≥ 44 px. **O olho mostra os dois campos** (um só toque).
 5. Campo **"Repita a senha"** (`CAMPO_REPITA_A_SENHA`; `autoComplete="new-password"`).
 6. `RegrasDaSenha` logo abaixo dos dois campos, ao vivo, com `repeticao` (§4). No BKO: `id="senha-regras"`; o campo "Senha
    nova" com `aria-describedby="senha-regras"` e o "Repita a senha" com `aria-describedby="senha-regras-repeticao"`.
@@ -122,7 +122,7 @@ const repeticao = repetida === '' ? 'vazia' : repetida === senhaNova ? 'igual' :
 ## 5. BKO · Usuários (`modules/core/web/components/usuarios/usuarios-page.tsx`)
 **Formulário "Novo usuário"**
 - O campo "Senha inicial (8+ caracteres, com letras e números)" vira **"Senha inicial"** (`type="password"`,
-  `autoComplete="new-password"`, olho "Mostrar senha"/"Esconder senha").
+  `autoComplete="new-password"`, olho "Mostrar senha"/"Ocultar senha").
 - Ao lado do campo, botão secundário pequeno **"Gerar senha"**: preenche o campo (`crypto.getRandomValues`, mesma regra do
   `gerarSenhaTemporaria`) e liga o "Mostrar senha" para o admin ver o que foi gerado.
 - `RegrasDaSenha` logo abaixo (sem `repeticao`), `destacar` depois de tentar salvar com falta.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buscaDosFiltrosTabelas, centavosDoTexto, faixaDoForm, FORM_FAIXA_VAZIO, formDaFaixa, faixasParaCsv, lerFiltrosTabelas, textoDosCentavos, precosParaCsv } from './tabelas-preco';
+import { buscaDosFiltrosTabelas, centavosDoTexto, filtrosTabelasLigados, seloDaFaixa, textoVigencia, faixaDoForm, FORM_FAIXA_VAZIO, formDaFaixa, faixasParaCsv, lerFiltrosTabelas, textoDosCentavos, precosParaCsv } from './tabelas-preco';
 
 const P1 = '0b000000-0000-4000-8000-000000000001';
 const faixa = {
@@ -72,5 +72,31 @@ describe('BKO Tabelas de preço: preço da UN e aba Escalonada (RN-VEN-23, RN-VE
   it('CSV do preço da UN: uma linha por produto', () => {
     const csv = precosParaCsv([{ produto_id: P1, sku: 'P-1', nome: 'Pastilha', preco_cents: 1890, vigencia_inicio: null, vigencia_fim: '2026-12-31T00:00:00.000000Z' }]);
     expect(csv.replace(/^\uFEFF/, '').split('\r\n').slice(0, 2)).toEqual(['Código;Produto;Preço da unidade (R$);Início;Fim', 'P-1;Pastilha;18,90;;2026-12-31']);
+  });
+
+  it('RN-VEN-23: a vigência cabe numa célula (com fim, sem fim, sem início) e aceita instante ISO', () => {
+    expect(textoVigencia('2026-11-01', '2026-12-31')).toBe('01/11 a 31/12/2026');
+    expect(textoVigencia('2025-11-01', '2026-12-31')).toBe('01/11/2025 a 31/12/2026');
+    expect(textoVigencia(null, '2026-12-31')).toBe('Até 31/12/2026');
+    expect(textoVigencia('2026-11-01T00:00:00.000Z', null)).toBe('Desde 01/11/2026');
+    expect(textoVigencia(null, null)).toBe('—');
+  });
+
+  it('RN-VEN-23: a Situação mostra um selo só, na ordem acima da tabela > inativa > fora da vigência > vigente', () => {
+    const base = { mais_cara_que_a_tabela: false, ativo: true, vigente: true };
+    expect(seloDaFaixa(base)).toEqual({ tom: 'success', texto: 'Vigente' });
+    expect(seloDaFaixa({ ...base, vigente: false })).toEqual({ tom: 'neutral', texto: 'Fora da vigência' });
+    expect(seloDaFaixa({ ...base, ativo: false, vigente: false })).toEqual({ tom: 'neutral', texto: 'Inativa' });
+    expect(seloDaFaixa({ mais_cara_que_a_tabela: true, ativo: false, vigente: false })).toEqual({ tom: 'warning', texto: 'Acima da tabela' });
+  });
+
+  it('RN-VEN-23: "Limpar filtros" aparece com busca e, na Escalonada, com tabela ou vigência; a escolha de tabela do Preço da UN não é filtro', () => {
+    const f = { aba: 'precos' as const, tabela: '', filial: '', q: '', vigente: false };
+    expect(filtrosTabelasLigados(f)).toBe(false);
+    expect(filtrosTabelasLigados({ ...f, tabela: 't1', filial: 'f1' })).toBe(false);
+    expect(filtrosTabelasLigados({ ...f, q: 'pastilha' })).toBe(true);
+    expect(filtrosTabelasLigados({ ...f, aba: 'escalonada' })).toBe(false);
+    expect(filtrosTabelasLigados({ ...f, aba: 'escalonada', tabela: 't1' })).toBe(true);
+    expect(filtrosTabelasLigados({ ...f, aba: 'escalonada', vigente: true })).toBe(true);
   });
 });

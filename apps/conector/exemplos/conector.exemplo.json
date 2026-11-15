@@ -193,7 +193,7 @@
     "produto": {
       "ativa": true,
       "periodicidadeSegundos": 3600,
-      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, sku, ean, nome, marca, categoria, unidade, embalagem_medida, embalagem_quantidade, catalogo_no_external_id, custo_cents, preco_venda_cents, desconto_maximo_pct, aplicacao, referencias, oferece_junto, etiquetas FROM dbo.vw_macuxi_produto WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, sku, ean, nome, marca, marca_codigo, categoria, unidade, embalagem_medida, embalagem_quantidade, catalogo_no_external_id, custo_cents, preco_venda_cents, desconto_maximo_pct, aplicacao, referencias, oferece_junto, etiquetas FROM dbo.vw_macuxi_produto WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
       "campos": {
         "external_id": "external_id",
         "alterado_em": "alterado_em",
@@ -205,6 +205,7 @@
         "ean": "ean",
         "nome": "nome",
         "marca": "marca",
+        "marca_codigo": "marca_codigo",
         "categoria": "categoria",
         "unidade": "unidade",
         "embalagem_medida": "embalagem_medida",

@@ -96,7 +96,7 @@ export const ROTULO_AVISO_LINHA: Record<string, string> = {
   referencia_fraca_ausente: 'Produto sem nó do catálogo',
   aplicacao_cortada: 'Aplicação cortada em 2.000 caracteres',
   referencias_cortadas: 'Referências cortadas em 3',
-  referencia_descartada: 'Referência sem marca ou com código inválido descartada',
+  referencia_descartada: 'Referência com código vazio ou grande demais descartada',
   oferece_junto_cortado: 'Oferece junto cortado em 5',
   prazo_medio_divergente: 'Prazo médio diferente do calculado',
   marca_concorrente_desconhecida: 'Marca concorrente não cadastrada',
