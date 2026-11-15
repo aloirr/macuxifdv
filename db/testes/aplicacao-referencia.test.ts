@@ -260,6 +260,7 @@ describe.skipIf(semBanco())('0033 aplicação e referência cruzada (banco, pape
     expect((await erroEmA(() => inserir({ produto: A.produtos.p1, codigo: 'ZZ 2', compacto: 'zz2', ordem: 1 })))?.code).toBe('23505');
     // mesma marca e mesmo compacto com outra grafia ("cb-3401" x "CB 3401") no mesmo produto: recusado
     expect((await erroEmA(() => inserir({ produto: A.produtos.p1, codigo: 'cb-3401', compacto: 'cb3401', ordem: 3 })))?.code).toBe('23505');
+    // a apagada (cb3400) não conta: o mesmo código volta a valer
     expect(await erroEmA(() => inserir({ produto: A.produtos.p1, codigo: 'CB-3400', compacto: 'cb3400', ordem: 3 }))).toBeNull();
     // external_id único vivo por tenant
     expect((await erroEmA(() => inserir({ external: 'REF-A-1' })))?.code).toBe('23505');
