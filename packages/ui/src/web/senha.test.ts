@@ -63,24 +63,31 @@ describe('RegrasDaSenha (web)', () => {
     expect(texto(porTestId(a, 'regras-da-senha.resumo'))).toBe('A senha atende às regras.');
   });
 
-  it('T-0094: "Repita a senha" diferente aparece fora da lista, com id para o aria-describedby, e entra na região viva', () => {
+  it('T-0094: "As duas senhas iguais" fica fora da lista, com id para o aria-describedby, "falta" falado, e entra na região viva', () => {
     const a = arvore({ faltas: ['numero'], resumo: 'Falta um número.', repeticao: 'diferente', id: 'senha-regras' });
     const linha = porTestId(a, 'regras-da-senha.repeticao');
     expect(linha?.type).toBe('p');
     expect(linha?.props.id).toBe('senha-regras-repeticao');
     expect(linha?.props['data-estado']).toBe('falta');
-    expect(texto(linha)).toBe('As senhas não conferem.');
+    expect(texto(linha)).toBe('As duas senhas iguais: falta');
     expect(a.filter((n) => n.type === 'li')).toHaveLength(4);
-    expect(texto(porTestId(a, 'regras-da-senha.resumo'))).toBe('Falta um número. As senhas não conferem.');
+    expect(texto(porTestId(a, 'regras-da-senha.resumo'))).toBe('Falta um número. As duas senhas iguais: falta.');
   });
 
-  it('T-0094: depois de tentar salvar, diferente e vazia viram erro; igual fica ok', () => {
+  it('R-20261115-080000-alexandre: o item aparece desde o início (vazia = círculo vazio) e o id do aria-describedby existe sempre', () => {
+    const vazia = porTestId(arvore({ faltas: [], repeticao: 'vazia', id: 'senha-regras' }), 'regras-da-senha.repeticao');
+    expect(vazia?.props['data-estado']).toBe('falta');
+    expect(vazia?.props.id).toBe('senha-regras-repeticao');
+  });
+
+  it('T-0094: depois de tentar salvar, diferente e vazia viram erro (✕); igual fica ok (✓)', () => {
     expect(porTestId(arvore({ faltas: [], repeticao: 'diferente', destacar: true }), 'regras-da-senha.repeticao')?.props['data-estado']).toBe('erro');
     const vazia = porTestId(arvore({ faltas: [], repeticao: 'vazia', destacar: true }), 'regras-da-senha.repeticao');
     expect(vazia?.props['data-estado']).toBe('erro');
-    expect(texto(vazia)).toBe('Repita a senha nova.');
+    expect(texto(vazia)).toBe('As duas senhas iguais: falta');
     const igual = arvore({ faltas: [], repeticao: 'igual', destacar: true });
     expect(porTestId(igual, 'regras-da-senha.repeticao')?.props['data-estado']).toBe('ok');
-    expect(texto(porTestId(igual, 'regras-da-senha.resumo'))).toBe('A senha atende às regras. As senhas conferem.');
+    expect(texto(porTestId(igual, 'regras-da-senha.repeticao'))).toBe('As duas senhas iguais: ok');
+    expect(texto(porTestId(igual, 'regras-da-senha.resumo'))).toBe('A senha atende às regras. As duas senhas iguais: ok.');
   });
 });

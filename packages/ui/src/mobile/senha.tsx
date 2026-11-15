@@ -5,8 +5,8 @@
  *
  * Acessível: a lista é um elemento só para o TalkBack, com o resumo como rótulo ("Falta um número."), numa região viva educada:
  * ele lê de novo quando o resumo muda. Na tela, cada regra muda de forma (✓ ou círculo vazio), não só de cor.
- * T-0094: com `repeticao` ("Crie sua senha"), uma linha abaixo da lista diz "As senhas conferem." / "As senhas não conferem.", e
- * o rótulo falado traz as duas coisas ("Falta um número. As senhas não conferem.").
+ * T-0094: com `repeticao` ("Crie sua senha"), o item "As duas senhas iguais" fica abaixo da lista, com a mesma marca das regras
+ * (R-20261115-080000-alexandre), e o rótulo falado traz as duas coisas ("Falta um número. As duas senhas iguais: falta.").
  */
 import { StyleSheet, Text, View } from 'react-native';
 

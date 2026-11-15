@@ -5,7 +5,8 @@
  *
  * Acessível: cada regra diz "ok" ou "falta" em texto (não só a cor: o sinal muda de forma, ✓ ou círculo vazio) e uma região viva
  * educada lê o resumo quando ele muda ("Falta um número."). Ligue o campo com `aria-describedby={id}`.
- * T-0094: com `repeticao` (tela "Crie sua senha"), uma linha fora da lista diz "As senhas conferem." / "As senhas não conferem."
+ * T-0094: com `repeticao` (tela "Crie sua senha"), o item "As duas senhas iguais" fica fora da lista, com a mesma marca e o mesmo
+ * "ok"/"falta" falado das regras (R-20261115-080000-alexandre)
  * (id `<id>-repeticao`, para o `aria-describedby` do campo "Repita a senha"), e a região viva lê as duas coisas.
  * Sem hooks (o teste chama o componente como função).
  */
@@ -119,7 +120,10 @@ export function RegrasDaSenha({
           className={cx('m-0 mt-1 flex items-center gap-2 text-[13px]', COR_DO_TEXTO[conferencia.estado])}
         >
           {marca(conferencia.estado)}
-          <span>{conferencia.texto}</span>
+          <span>
+            {conferencia.texto}
+            <span className="sr-only">{`: ${conferencia.estado === 'ok' ? ESTADO_FALADO_REGRA.ok : ESTADO_FALADO_REGRA.falta}`}</span>
+          </span>
         </p>
       )}
       <span role="status" aria-live="polite" className="sr-only" data-testid={`${testId}.resumo`}>

@@ -11,6 +11,7 @@ import {
   resumoDaTela,
   rotuloDaRegraSenha,
   SENHA_ATENDE_AS_REGRAS,
+  TEXTO_REPETICAO_SENHA,
 } from './senha';
 
 /** O mínimo que as telas passam (`SENHA_MIN_CARACTERES` do Core); aqui só como dado de teste. */
@@ -63,28 +64,37 @@ describe('RN-CORE-34: "Repita a senha" na "Crie sua senha" (T-0094)', () => {
     expect(CAMPO_REPITA_A_SENHA).toBe('Repita a senha');
   });
 
-  it('sem repetição (portal, formulário de usuário) ou campo vazio enquanto digita: a linha não aparece', () => {
+  it('sem repetição (portal, formulário de usuário): o item não aparece', () => {
     expect(itemDaRepeticao(undefined)).toBeNull();
     expect(itemDaRepeticao(undefined, true)).toBeNull();
-    expect(itemDaRepeticao('vazia')).toBeNull();
   });
 
-  it('igual = ok; diferente = neutra enquanto digita e erro depois de tentar salvar', () => {
-    expect(itemDaRepeticao('igual')).toEqual({ estado: 'ok', texto: 'As senhas conferem.' });
-    expect(itemDaRepeticao('igual', true)).toEqual({ estado: 'ok', texto: 'As senhas conferem.' });
-    expect(itemDaRepeticao('diferente')).toEqual({ estado: 'falta', texto: 'As senhas não conferem.' });
-    expect(itemDaRepeticao('diferente', true)).toEqual({ estado: 'erro', texto: 'As senhas não conferem.' });
+  it('R-20261115-080000-alexandre: texto único "As duas senhas iguais", no padrão das regras', () => {
+    expect(TEXTO_REPETICAO_SENHA).toBe('As duas senhas iguais');
+    for (const r of ['vazia', 'igual', 'diferente'] as const) {
+      for (const d of [false, true]) expect(itemDaRepeticao(r, d)?.texto).toBe('As duas senhas iguais');
+    }
   });
 
-  it('vazia depois de tentar salvar = erro "Repita a senha nova."', () => {
-    expect(itemDaRepeticao('vazia', true)).toEqual({ estado: 'erro', texto: 'Repita a senha nova.' });
+  it('círculo vazio enquanto não conferem (inclusive "Repita a senha" vazio), ✓ quando conferem, ✕ depois de tentar salvar', () => {
+    expect(itemDaRepeticao('vazia')).toEqual({ estado: 'falta', texto: 'As duas senhas iguais', rotuloAcessivel: 'As duas senhas iguais: falta' });
+    expect(itemDaRepeticao('diferente')?.estado).toBe('falta');
+    expect(itemDaRepeticao('igual')).toEqual({ estado: 'ok', texto: 'As duas senhas iguais', rotuloAcessivel: 'As duas senhas iguais: ok' });
+    expect(itemDaRepeticao('igual', true)?.estado).toBe('ok');
+    expect(itemDaRepeticao('diferente', true)?.estado).toBe('erro');
+    expect(itemDaRepeticao('vazia', true)?.estado).toBe('erro');
   });
 
-  it('a frase falada junta as regras e a conferência', () => {
-    expect(resumoComRepeticao(resumoDaTela('Falta um número.'), 'diferente')).toBe('Falta um número. As senhas não conferem.');
-    expect(resumoComRepeticao(resumoDaTela(null), 'igual')).toBe('A senha atende às regras. As senhas conferem.');
-    expect(resumoComRepeticao(resumoDaTela(null), 'vazia')).toBe('A senha atende às regras.');
+  it('a frase falada junta as regras e a conferência, com "ok"/"falta" como as regras', () => {
+    expect(resumoComRepeticao(resumoDaTela('Falta um número.'), 'diferente')).toBe('Falta um número. As duas senhas iguais: falta.');
+    expect(resumoComRepeticao(resumoDaTela(null), 'igual')).toBe('A senha atende às regras. As duas senhas iguais: ok.');
+    expect(resumoComRepeticao(resumoDaTela(null), 'vazia')).toBe('A senha atende às regras. As duas senhas iguais: falta.');
     expect(resumoComRepeticao(resumoDaTela(null), undefined)).toBe('A senha atende às regras.');
+  });
+
+  it('os textos antigos saíram', () => {
+    const tudo = JSON.stringify([TEXTO_REPETICAO_SENHA, ...(['vazia', 'igual', 'diferente'] as const).flatMap((r) => [itemDaRepeticao(r), itemDaRepeticao(r, true)])]);
+    expect(tudo).not.toMatch(/conferem|Repita a senha nova/);
   });
 });
 

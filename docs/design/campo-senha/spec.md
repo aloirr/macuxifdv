@@ -51,19 +51,8 @@ Web — `import { CampoSenha } from '@macuxi/ui/web'`: `id` (obrigatório), `rot
 `finalidade?`, `erro?` (texto), `descrito?` (id das `RegrasDaSenha`), `testId?` (olho: `<testId>.olho`), `className?` e os
 atributos de `<input>` (menos `type`, `autoComplete` e os de corretor).
 
-## 4. Checklist de "Crie sua senha": o item da repetição (proposta, para aprovação)
-Hoje (print da v1.0.9) a lista diz o que a senha **precisa ter** ("8 caracteres ou mais", "Uma letra", "Um número", "Um
-caractere especial") e o último item destoa: **"As senhas não conferem."** com o círculo vazio, uma frase de erro enquanto a
-pessoa ainda digita. Proposta, no mesmo padrão dos outros (o que é preciso, sem ponto, a marca diz o estado):
-
-- Texto único **"As duas senhas iguais"**, nos três estados: ○ enquanto não conferem (ou "Repita a senha" vazio), ✓ quando
-  conferem, ✕ depois de tentar salvar sem conferir. O leitor de tela segue o padrão das regras: "As duas senhas iguais: falta"
-  / ": ok".
-- A linha aparece desde o início (como as regras), em vez de surgir só depois de digitar no "Repita a senha".
-- Some "As senhas conferem." / "As senhas não conferem." / "Repita a senha nova.".
-
-Onde está: `packages/ui/src/comum/senha.ts` (`TEXTO_REPETICAO_SENHA`, `itemDaRepeticao`, linhas 106-126), desenhado por
-`RegrasDaSenha` em `packages/ui/src/mobile/senha.tsx` e `packages/ui/src/web/senha.tsx` — **dono: designer-ux**. As telas
-(modulo-core no app, engenheiro-apps na web) não mudam: só passam `repeticao`. Muda texto aprovado, então entra só depois do
-"de acordo" do dono do produto, com corretor e marca; os testes que conferem o texto são só os do kit
-(`comum/senha.test.ts`, `web/senha.test.ts`).
+## 4. Checklist de "Crie sua senha": o item da repetição (aprovado)
+Aprovado pelo dono do produto em R-20261115-080000-alexandre (item 2): o último item passa a ser **"As duas senhas iguais"**,
+no padrão das regras, no lugar de "As senhas conferem." / "As senhas não conferem." / "Repita a senha nova.". Estados e leitura:
+[`ciclo-de-senha.md`](../ciclo-de-senha.md) §4. Código: `TEXTO_REPETICAO_SENHA` e `itemDaRepeticao` em
+`packages/ui/src/comum/senha.ts` (designer-ux); as telas não mudam, só passam `repeticao`.

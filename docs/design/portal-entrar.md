@@ -116,8 +116,8 @@ O caso "mais de 200" só o Core distingue (`mensagemDaSenha(faltas, senha)`); a 
   `resumo={mensagemDaSenha(faltas)}` para usar a frase do Core.
 - Onde usar: passo Empresa (§6), formulário de usuário do BKO, aceite do convite da Equipe e as telas da T-0094
   ("Crie sua senha", troca no 1º uso, Esqueci a senha). Nunca no login.
-- **T-0094:** o aceite do convite sai; a "Crie sua senha" usa a prop nova `repeticao` (linha "As senhas conferem." / "As senhas
-  não conferem."). Textos do ciclo de senha, do item 8 do §1 e do item 5 do §6 atualizados em [`ciclo-de-senha.md`](ciclo-de-senha.md) §7.
+- **T-0094:** o aceite do convite sai; a "Crie sua senha" usa a prop nova `repeticao` (item "As duas senhas iguais", abaixo da
+  lista). Textos do ciclo de senha, do item 8 do §1 e do item 5 do §6 atualizados em [`ciclo-de-senha.md`](ciclo-de-senha.md) §7.
 
 ## 6. Passo Empresa — administrador da empresa (RN-CORE-34)
 Novo bloco `Panel` depois dos dados da empresa e antes dos módulos:

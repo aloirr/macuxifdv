@@ -105,31 +105,36 @@ export type RepeticaoSenha = 'vazia' | 'igual' | 'diferente';
 export const CAMPO_SENHA_NOVA = 'Senha nova';
 export const CAMPO_REPITA_A_SENHA = 'Repita a senha';
 
-/** Textos da linha de conferência (aprovados). */
-export const TEXTO_REPETICAO_SENHA = {
-  igual: 'As senhas conferem.',
-  diferente: 'As senhas não conferem.',
-  vazia: 'Repita a senha nova.',
-} as const;
+/**
+ * Item da conferência, no padrão das regras (o que é preciso; a marca diz o estado). Texto único aprovado pelo dono do produto
+ * (R-20261115-080000-alexandre, item 2), no lugar de "As senhas conferem." / "As senhas não conferem." / "Repita a senha nova.".
+ */
+export const TEXTO_REPETICAO_SENHA = 'As duas senhas iguais';
 
 export interface ItemRepeticaoSenha {
   estado: EstadoRegraSenha;
   texto: string;
+  /** "As duas senhas iguais: falta" (leitor de tela, como as regras). */
+  rotuloAcessivel: string;
 }
 
 /**
- * Linha abaixo da lista: `null` = não aparece (campo vazio enquanto digita). Igual = ok (✓). Diferente = neutra enquanto digita
- * (a pessoa ainda pode estar no meio da senha) e erro depois de tentar salvar. Vazia depois de tentar salvar = erro.
+ * Item abaixo da lista, sempre com o mesmo texto, desde o início (como as regras): ✓ quando as senhas conferem; círculo vazio
+ * enquanto não conferem (ou "Repita a senha" vazio); ✕ depois de tentar salvar sem conferir. `null` = tela sem "Repita a senha".
  */
 export function itemDaRepeticao(repeticao: RepeticaoSenha | undefined, destacar = false): ItemRepeticaoSenha | null {
   if (!repeticao) return null;
-  if (repeticao === 'igual') return { estado: 'ok', texto: TEXTO_REPETICAO_SENHA.igual };
-  if (repeticao === 'diferente') return { estado: destacar ? 'erro' : 'falta', texto: TEXTO_REPETICAO_SENHA.diferente };
-  return destacar ? { estado: 'erro', texto: TEXTO_REPETICAO_SENHA.vazia } : null;
+  const confere = repeticao === 'igual';
+  const estado: EstadoRegraSenha = confere ? 'ok' : destacar ? 'erro' : 'falta';
+  return {
+    estado,
+    texto: TEXTO_REPETICAO_SENHA,
+    rotuloAcessivel: `${TEXTO_REPETICAO_SENHA}: ${confere ? ESTADO_FALADO_REGRA.ok : ESTADO_FALADO_REGRA.falta}`,
+  };
 }
 
-/** Frase da região viva com a conferência no fim: "Falta um número. As senhas não conferem." */
+/** Frase da região viva com a conferência no fim: "Falta um número. As duas senhas iguais: falta." */
 export function resumoComRepeticao(resumo: string, repeticao: RepeticaoSenha | undefined, destacar = false): string {
   const r = itemDaRepeticao(repeticao, destacar);
-  return r ? `${resumo} ${r.texto}` : resumo;
+  return r ? `${resumo} ${r.rotuloAcessivel}.` : resumo;
 }

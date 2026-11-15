@@ -108,14 +108,13 @@ kit continua sem receber senha nenhuma:
 const repeticao = repetida === '' ? 'vazia' : repetida === senhaNova ? 'igual' : 'diferente';
 <RegrasDaSenha faltas={faltas} minimo={SENHA_MIN_CARACTERES} resumo={mensagemDaSenha(faltas)} repeticao={repeticao} destacar={tentouSalvar} id="senha-regras" />
 ```
-- Uma linha **fora** da lista "A senha precisa ter", logo abaixo dela, com a mesma marca de forma:
-  - `igual` → ✓ verde **"As senhas conferem."**
-  - `diferente` → círculo vazio, `ink-2`, **"As senhas não conferem."** enquanto digita; ✕ vermelho, semibold, depois de tentar
-    salvar (`destacar`);
-  - `vazia` → nada enquanto digita; ✕ vermelho **"Repita a senha nova."** depois de tentar salvar.
+- Um item **fora** da lista "A senha precisa ter", logo abaixo dela, sempre com o texto **"As duas senhas iguais"** e a mesma marca
+  das regras (R-20261115-080000-alexandre, item 2), desde o início:
+  - `igual` → ✓ verde;
+  - `diferente` ou `vazia` → círculo vazio, `ink-2`, enquanto digita; ✕ vermelho, semibold, depois de tentar salvar (`destacar`).
 - Sem `repeticao` (portal, formulário de Usuários) o componente fica como era.
-- Leitor de tela: a região viva (web) e o rótulo falado (TalkBack) juntam as duas frases: "Falta um número. As senhas não
-  conferem." No web a linha tem `id="<id>-repeticao"` para o `aria-describedby` do campo "Repita a senha".
+- Leitor de tela: a região viva (web) e o rótulo falado (TalkBack) juntam as duas coisas, com "ok"/"falta" como as
+  regras: "Falta um número. As duas senhas iguais: falta." No web a linha tem `id="<id>-repeticao"` para o `aria-describedby` do campo "Repita a senha".
 - Exportados também: `CAMPO_SENHA_NOVA`, `CAMPO_REPITA_A_SENHA`, `TEXTO_REPETICAO_SENHA`, `itemDaRepeticao`,
   `resumoComRepeticao`. Testes: `packages/ui/src/comum/senha.test.ts` e `packages/ui/src/web/senha.test.ts`.
 
