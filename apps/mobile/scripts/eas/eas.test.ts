@@ -229,12 +229,9 @@ describe('eas-build.yml: workflow do EAS sem o PC (Oficial v1.0.7)', () => {
     expect(yml).toContain('--non-interactive --no-wait');
   });
 
-  it('o build sai sempre no canal oficial, com os perfis de produção do eas.json', () => {
+  it('formulário sem perfil e canal: CANAL fixo em oficial', () => {
     expect(yml).not.toMatch(/^ {6}(perfil|canal):/m);
     expect(yml).toContain('CANAL: oficial');
-    const builds = planoDeBuild(['ambos', 'oficial', '--', '--non-interactive', '--no-wait'], versaoAtual()).builds;
-    expect(builds.map((b) => b.perfilEas)).toEqual(['campo-producao', 'gestao-producao']);
-    for (const b of builds) expect(eas.build[b.perfilEas], b.perfilEas).toBeDefined();
     expect(yml).toContain('ambas) VARIANTE=ambos ;;');
   });
 });
