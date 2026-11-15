@@ -115,6 +115,37 @@ describe('menu do BKO: grupos e itens (§M2)', () => {
   });
 });
 
+describe('menu do BKO: Parâmetros → Integração (T-0173, R-20261115-121000; docs/design/menu-parametros/spec.md §2)', () => {
+  /** Grupo `parametros` do SDK (spec do menu Parâmetros, §3 "Quem implementaria"): o shell usa o id e o rótulo que vierem. */
+  const deParaIntegracao: EntradaNavegacao = { grupoMenu: 'parametros', rotuloGrupo: 'Parâmetros', caminho: 'parametros/integracao', rotulo: 'Integração', testID: 'nav-integracao-de-para' };
+  const comLicenca = [...ADMIN, deParaIntegracao];
+  const grupos = montarGruposMenu({ navegacao: comLicenca, plataforma: true });
+  const de = (id: string) => grupos.find((g) => g.id === id)?.itens;
+
+  it('Parâmetros entra na ordem alfabética, entre Operação e Produtos (P1), com o item Integração em /parametros/integracao', () => {
+    expect(grupos.map((g) => g.titulo)).toEqual(['Acesso', 'Análise', 'Cadastros', 'Comercial', 'Comunicação', 'Conteúdo de campo', 'Operação', 'Parâmetros', 'Produtos', 'Sistema']);
+    expect(de('parametros')).toEqual([{ href: '/parametros/integracao', label: 'Integração', testId: 'nav-integracao-de-para' }]);
+  });
+
+  it('Integração ERP (a tabela de lotes) continua em Sistema', () => {
+    expect(de('sistema')?.map((i) => i.label)).toEqual(['Auditoria', 'Carga por arquivo', 'Integração ERP']);
+    expect(de('sistema')?.find((i) => i.label === 'Integração ERP')?.href).toBe('/integracao');
+  });
+
+  it('a tela do De-para acende o item de Parâmetros, não o Integração ERP de Sistema', () => {
+    const hrefs = grupos.flatMap((g) => g.itens.map((i) => i.href));
+    expect(hrefAtivo('/parametros/integracao', hrefs)).toBe('/parametros/integracao');
+    expect(grupoDaTela(grupos, hrefAtivo('/parametros/integracao', hrefs))).toBe('parametros');
+    expect(grupoDaTela(grupos, hrefAtivo('/integracao', hrefs))).toBe('sistema');
+  });
+
+  it('sem a licença da Integração (a navegação já vem sem as páginas dela) somem os dois itens e o grupo Parâmetros vazio', () => {
+    const sem = montarGruposMenu({ navegacao: comLicenca.filter((e) => !e.testID.startsWith('nav-integracao-')), plataforma: true });
+    expect(sem.some((g) => g.id === 'parametros')).toBe(false);
+    expect(sem.find((g) => g.id === 'sistema')?.itens.map((i) => i.label)).toEqual(['Auditoria']);
+  });
+});
+
 describe('menu do BKO: registro real dos 8 módulos (ADR 0050)', () => {
   const visao = SHELL_WEB.montar({ perfil: 'admin', modulosAtivos: ['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao'] });
   const grupos = montarGruposMenu({ navegacao: visao.navegacao, plataforma: true });

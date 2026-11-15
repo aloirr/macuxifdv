@@ -21,8 +21,11 @@ export interface GrupoMenuBko {
   itens: ItemMenuBko[];
 }
 
-/** Item de navegação do SDK (`ItemNavegacao`), só com o que o menu usa. */
-export type EntradaNavegacao = Pick<ItemNavegacao<unknown>, 'grupoMenu' | 'rotuloGrupo' | 'caminho' | 'rotulo' | 'testID'>;
+/**
+ * Item de navegação do SDK (`ItemNavegacao`), só com o que o menu usa. O id do grupo é texto: o shell mostra todo grupo que
+ * o SDK resolver (ex.: `parametros`, T-0173 e docs/design/menu-parametros/spec.md), na ordem alfabética do rótulo.
+ */
+export type EntradaNavegacao = Pick<ItemNavegacao<unknown>, 'rotuloGrupo' | 'caminho' | 'rotulo' | 'testID'> & { grupoMenu: string };
 
 /** Item do slot `menu.itens` do Core (`ItemMenu`). */
 export interface EntradaMais {
