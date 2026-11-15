@@ -23,7 +23,7 @@ export { BalaoRecadosETarefas, ENTIDADE_TAREFA } from './telas/recados-e-tarefas
 export { abrirTarefaDoCore, ROTA_RECADOS_E_TAREFAS, rotaDaTarefa } from './telas/paginas-recados-e-tarefas';
 export { chaveDaCopiaPerformance, ENTIDADES_PERFORMANCE } from './telas/performance';
 export { useInicio } from './lib/usar-inicio';
-export { TelaInicioCampo, useInicioCampo, ENTIDADE_FRASE_DIA, type PropsTelaInicioCampo, type VisaoInicioCampo } from './telas/inicio';
+export { TelaInicioCampo, useInicioCampo, ENTIDADE_FRASE_DIA, definirResolvedorFotoPerfil, type ResolvedorFotoPerfil, type PropsTelaInicioCampo, type VisaoInicioCampo } from './telas/inicio';
 export { useNotificacoes } from './lib/usar-notificacoes';
 export { chaveDeOrdemDaCarga, progressoDaEntrada } from '../domain/entrada-sync';
 export { OpenVisitBar } from './components/open-visit-bar';

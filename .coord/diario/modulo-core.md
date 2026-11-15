@@ -162,3 +162,4 @@
 2026-11-14 — T-0174 — PR #258: RD-0260..0266 e MC-0032..0034 (cliente_ultima_visita retirada, rodapé 48 dp sem fonte local, botoesDoRodapeCliente com visitadoHoje, prints em docs/modulos/core/prints/checkin)
 2026-11-14 — T-0174 — PR #258: gerador versionado dos prints do check-in (docs/modulos/core/prints/checkin/gerar.mjs, TelaCliente real); 7 prints refeitos (faixa nova, folha com e sem GPS); folha-checkin-continuar.png substituído; comentário de cliente.tsx (achado do corretor)
 2026-11-15 — R-20261114-212000 — Início do Campo, cabeçalho variação C (foto 72 à esquerda, textos à direita, sino na linha da saudação); escala e prints
+2026-11-15 — retrabalho cabeçalho do Início (variação C) — RD-0398: uma conta de linhas (linhasDeTexto) e uma de altura (alturaDeLinha); foto do perfil ligada a usuario_avatar via resolvedor injetável (foto-perfil.ts); sem foto, iniciais

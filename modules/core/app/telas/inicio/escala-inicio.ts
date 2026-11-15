@@ -97,11 +97,15 @@ export function tamanhosParaFator(fator: number, fs: number, kit: FontesDoKit): 
 
 type Tamanhos = ReturnType<typeof tamanhosParaFator>;
 
-/** Linhas estimadas da frase na largura útil do painel (1 ou 2; o texto tem `numberOfLines={2}`). */
-export function linhasDaFrase(frase: string | undefined, corpo: number, fontScale: number, largura: number, reserva = 40): number {
-  if (!frase) return 0;
+/** A única conta de linhas de um texto de `caracteres` na largura útil do painel (1 ou 2; os textos têm `numberOfLines={2}`). */
+export function linhasDeTexto(caracteres: number, corpo: number, fontScale: number, largura: number, reserva = 40): number {
   const util = Math.max(1, largura - reserva);
-  return Math.min(2, Math.max(1, Math.ceil(frase.length * corpo * fontScale * LARGURA_CARACTERE / util)));
+  return Math.min(2, Math.max(1, Math.ceil(caracteres * corpo * fontScale * LARGURA_CARACTERE / util)));
+}
+
+/** A única conta de altura de texto: `n` linhas de corpo `corpo`, com a fonte do sistema e a entrelinha estimada. */
+export function alturaDeLinha(corpo: number, fontScale: number, n = 1): number {
+  return corpo * fontScale * ENTRELINHA * n;
 }
 
 /**
@@ -111,10 +115,10 @@ export function linhasDaFrase(frase: string | undefined, corpo: number, fontScal
  */
 export function alturaDoPainel(t: Tamanhos, e: Pick<EntradaEscalaInicio, 'largura' | 'fontScale' | 'frase'>): number {
   const fs = e.fontScale;
-  const linha = (corpo: number, n = 1): number => corpo * fs * ENTRELINHA * n;
+  const linha = (corpo: number, n = 1): number => alturaDeLinha(corpo, fs, n);
   const reserva = 40 + t.painel.avatar + space.md;
-  const linhasData = Math.min(2, Math.max(1, Math.ceil(CARACTERES_DATA * t.fonte.data * fs * LARGURA_CARACTERE / Math.max(1, e.largura - reserva))));
-  const nFrase = linhasDaFrase(e.frase, t.fonte.frase, fs, e.largura, reserva);
+  const linhasData = linhasDeTexto(CARACTERES_DATA, t.fonte.data, fs, e.largura, reserva);
+  const nFrase = e.frase ? linhasDeTexto(e.frase.length, t.fonte.frase, fs, e.largura, reserva) : 0;
   const textos = linha(t.fonte.saudacao) + t.painel.gap + linha(t.fonte.data, linhasData) + (e.frase ? t.painel.gap + linha(t.fonte.frase, nFrase) : 0);
   return CABECALHO.respiroTopo + Math.max(t.painel.avatar, textos) + t.painel.paddingBottom;
 }
@@ -122,7 +126,7 @@ export function alturaDoPainel(t: Tamanhos, e: Pick<EntradaEscalaInicio, 'largur
 /** Altura estimada do Início inteiro para os tamanhos dados (dp); `fontScale` já validado por {@link fonteDoSistemaValida}. */
 export function alturaEstimadaInicio(t: Tamanhos, e: Pick<EntradaEscalaInicio, 'largura' | 'fontScale' | 'topo' | 'frase'>): number {
   const fs = e.fontScale;
-  const linha = (corpo: number, n = 1): number => corpo * fs * ENTRELINHA * n;
+  const linha = (corpo: number, n = 1): number => alturaDeLinha(corpo, fs, n);
   const painel = e.topo + alturaDoPainel(t, e);
   const c = t.cartao;
   const cartao =

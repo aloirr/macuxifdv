@@ -2,7 +2,7 @@
 import { ALVO_TOQUE } from '@macuxi/ui/mobile/puro';
 import { describe, expect, it } from 'vitest';
 
-import { escalaInicio, fonteDoSistemaValida, FATOR_MINIMO, linhasDaFrase, PISO_LETRA_DP } from './escala-inicio';
+import { escalaInicio, fonteDoSistemaValida, FATOR_MINIMO, linhasDeTexto, alturaDeLinha, PISO_LETRA_DP } from './escala-inicio';
 
 const KIT = { h2: 17, label: 12, sub: 13, ultima: 12 };
 const FRASE = 'Cada cliente atendido é uma relação que cresce.';
@@ -69,9 +69,15 @@ describe('R-20261114-153500: escala do Início', () => {
     expect([0.1, 1.15, 9].map(fonteDoSistemaValida)).toEqual([0.5, 1.15, 3]);
   });
 
-  it('frase longa vale 2 linhas e a curta 1; sem frase, 0', () => {
-    expect(linhasDaFrase(FRASE, 14, 1, 360)).toBe(1);
-    expect(linhasDaFrase(`${FRASE} ${FRASE}`, 14, 1, 360)).toBe(2);
-    expect(linhasDaFrase(undefined, 14, 1, 360)).toBe(0);
+  it('texto longo vale 2 linhas e o curto 1 (a mesma conta da frase e da data)', () => {
+    expect(linhasDeTexto(FRASE.length, 14, 1, 360)).toBe(1);
+    expect(linhasDeTexto(`${FRASE} ${FRASE}`.length, 14, 1, 360)).toBe(2);
+    expect(linhasDeTexto(36, 13, 1, 360)).toBe(1);
+    expect(linhasDeTexto(36, 13, 1.5, 200)).toBe(2);
+  });
+
+  it('altura de linha: corpo x fonte do sistema x 1,3 x linhas', () => {
+    expect(alturaDeLinha(10, 1)).toBeCloseTo(13);
+    expect(alturaDeLinha(10, 1.5, 2)).toBeCloseTo(39);
   });
 });
