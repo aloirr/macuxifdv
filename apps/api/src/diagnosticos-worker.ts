@@ -24,6 +24,7 @@
 import { formatarProtocolo, RETENCAO_DIAGNOSTICO_DIAS, rotuloDoMotivoDiagnostico, type LogRota } from '@macuxi/platform-sdk';
 import type pg from 'pg';
 import type { ArmazenamentoArquivos } from './arquivos';
+import { iniciarLaco } from './laco';
 import { mensagemSegura } from './log-seguro';
 import type { ClienteRecadosGithub } from './recados-github';
 
@@ -392,34 +393,22 @@ export function criarWorkerDiagnosticos(op: OpcoesWorkerDiagnosticos) {
     chavesPendentes: (): readonly string[] => [...chavesPendentes],
     /** Laço do processo: alerta + resumo + expurgo do dia a cada `intervaloMs` (padrão 60 s). Erro é logado e o laço segue. */
     iniciar(o: { intervaloMs?: number } = {}): { parar(): Promise<void> } {
-      const intervalo = o.intervaloMs ?? 60_000;
-      let ativo = true;
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      let atual: Promise<void> = Promise.resolve();
-      const passo = async (): Promise<void> => {
-        try {
-          await cicloAlerta();
-        } catch (e) {
-          log.error({ tipo: 'diagnostico', erro: mensagemSegura(e) }, 'ciclo do alerta de diagnóstico falhou');
-        }
-        try {
-          await talvezExpurgar();
-        } catch (e) {
-          log.error({ tipo: 'diagnostico', etapa: 'expurgo', erro: mensagemSegura(e) }, 'expurgo de diagnósticos falhou');
-        }
-        if (ativo) {
-          timer = setTimeout(() => (atual = passo()), intervalo);
-          (timer as unknown as { unref?: () => void }).unref?.();
-        }
-      };
-      atual = passo();
-      return {
-        async parar() {
-          ativo = false;
-          if (timer) clearTimeout(timer);
-          await atual;
+      return iniciarLaco({
+        ciclo: async () => {
+          try {
+            await cicloAlerta();
+          } catch (e) {
+            log.error({ tipo: 'diagnostico', erro: mensagemSegura(e) }, 'ciclo do alerta de diagnóstico falhou');
+          }
+          try {
+            await talvezExpurgar();
+          } catch (e) {
+            log.error({ tipo: 'diagnostico', etapa: 'expurgo', erro: mensagemSegura(e) }, 'expurgo de diagnósticos falhou');
+          }
         },
-      };
+        intervaloMs: o.intervaloMs ?? 60_000,
+        aoFalhar: () => {}, // cada etapa já loga a própria falha
+      });
     },
   };
 }
