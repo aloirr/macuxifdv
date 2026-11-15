@@ -53,7 +53,7 @@ Cores: o popup é claro nos dois apps, então usa o tema Pérola da entrada (`te
 `#DFE2E6`, preenchimento `#C2540A` (3,54:1 no trilho e 4,60:1 no branco, mínimo de gráfico 3:1), textos da barra `#1E3350` (12,77:1). Sem lista de etapas, sem ícone, sem botão.
 
 ### 2.2 Pronto
-O rótulo vira **"Pronto"** e **"100%"**; depois de 600 ms (`ESPERA_PRONTO_MS`, o mesmo da tela de carga) o popup fecha sozinho
+O texto do item 1 sai (deixou de ser verdade, como no 2.3); ficam **"Pronto"**, **"100%"** e a barra cheia por 600 ms. Depois de 600 ms (`ESPERA_PRONTO_MS`, o mesmo da tela de carga) o popup fecha sozinho
 (esmaecer de 240 ms). A linha de situação do botão mostra "Atualizado há instantes" (o de hoje). Sem aviso no rodapé (a linha
 de situação já diz).
 
@@ -74,13 +74,17 @@ Se o vendedor sair do app no meio, ao voltar com a completa ainda em curso o pop
 nada aparece; se parou, aparece o 2.3.
 
 ## 3. Hora do estoque (RN-CAT-07 revista, `carga_diaria_em` no fuso do tenant)
-| Situação da carga diária | Texto |
-|---|---|
-| Carga de hoje | **"Atualizado às 06:12"** |
-| Carga de ontem e ainda antes da hora da carga de hoje (06:00) | **"Atualizado ontem às 06:12"** |
-| Carga de antes de ontem e ainda antes da hora da carga de hoje | **"Atualizado em 13/11 às 06:12"** (outro ano: "em 13/11/2025 às 06:12") |
-| Desatualizado (a hora da carga de hoje passou e ela não aconteceu) | **"Estoque desatualizado · ontem às 06:12"** ou **"Estoque desatualizado · 13/11 às 06:12"**, `warningInk` SemiBold |
-| Sem carga nenhuma | "Estoque sem informação" (o de hoje) |
+| Situação da carga diária | Catálogo e Alertas do Novo pedido (sem título de contexto) | Ficha do produto e popup do item (sob "Estoque · filial X") |
+|---|---|---|
+| Carga de hoje | — (nada aparece) | **"Atualizado às 06:12"** |
+| Carga de ontem e ainda antes da hora da carga de hoje (06:00) | — | **"Atualizado ontem às 06:12"** |
+| Carga de antes de ontem e ainda antes da hora da carga de hoje | — | **"Atualizado em 13/11 às 06:12"** (outro ano: "em 13/11/2025 às 06:12") |
+| Desatualizado (a hora da carga de hoje passou e ela não aconteceu) | **"Estoque desatualizado · ontem às 06:12"** ou **"Estoque desatualizado · 13/11 às 06:12"** | **"Desatualizado · ontem às 06:12"** ou **"Desatualizado · 13/11 às 06:12"** |
+| Sem carga nenhuma | "Estoque sem informação" (o de hoje) | **"Sem informação"** |
+
+Cor do desatualizado: `warning` (#7A4F00, 7,13:1 no branco e 6,38:1 no `warningBg` #FFF1D6), SemiBold; a cor de aviso do manual
+(MC-0057). Na ficha e no popup do item a palavra "Estoque" sai porque o título do bloco já a diz (RD-0324); a função pura do
+Catálogo recebe se o texto vai com contexto (forma curta) ou sem contexto (forma com "Estoque").
 
 - "Hoje" e "ontem" são dias do calendário no fuso do tenant. Hora sempre `HH:MM` 24 h. Uma função pura do Catálogo gera o texto
   (modulo-catalogo), com teste de virada de dia e de ano.
@@ -97,11 +101,17 @@ nada aparece; se parou, aparece o 2.3.
 - **Tokens: nenhum novo.** Usa `colors.ink`, `colors.graficoEscuro` (#F59A52 no Grafite: 7,56:1), `colors.danger`,
   `colors.scrim`, `radius.xxl`, `ALTURA.principal`/`secundario` e `temaDaEntrada('gestao')` (trilho, preenchimento, texto).
   Movimento: `duracaoMovimento('dialogo')`, 240 ms da barra, `vibrarLeve`; vibração de confirmação aos 10 s.
-- **Mudança no kit (designer-ux, `packages/ui/src/mobile/sincronizacao.tsx`)**: o `BotaoSincronizar` hoje só tem `onPress`. Ele
-  precisa ganhar o segurar com a faixa e a contagem (§1) e uma prop `onSegurar` (ou um `puxarCompleta` no
-  `ValorSincronizacao`), com o tempo de 10 s e o limiar de 600 ms como constantes testadas. Não foi feito nesta tarefa (escopo só
-  `docs/design/**`); vira tarefa do designer-ux em `packages/ui` antes da parte E.
-- **Componente novo:** o popup (§2). Proposta: `PopupSincronizacaoCompleta` no kit (`packages/ui/src/mobile/`), recebendo
-  `{ visivel, rotulo, pct, erro: string | null, onTentarDeNovo, onFechar }` já prontos do shell (o kit não depende do
-  platform-sdk); a barra é extraída da `Barra` da `tela-entrada.tsx` para o kit e usada nos dois lugares (uma barra só). O
-  shell (engenheiro-apps) monta o popup com `estado.carga`/`estado.progresso`/`estado.erro` e os textos de `lib/entrada.ts`.
+- **Kit (feito, designer-ux, `packages/ui/src/mobile/`)**:
+  - `BotaoSincronizar` ganhou `onPress?: () => void` (toque e soltar antes dos 10 s; padrão `agendador.puxar()`) e
+    `onSegurar?: () => void` (10 s segurando). Sem `onSegurar`, o botão é o de antes. Com ele, usa `BotaoSegurarSincronizar`
+    (`sincronizar-segurar-rn.tsx`): contagem e faixa a partir de 600 ms, vibração aos 600 ms e aos 10 s, ação de
+    acessibilidade "Sincronização completa", anúncio único aos 600 ms; ocupado = o toque não faz nada, o segurar funciona.
+    Regras puras e constantes em `sincronizar-segurar.ts` (`SEGURAR_COMPLETA_MS`, `LIMIAR_CONTAGEM_MS`,
+    `criarControleSegurar`, `TEXTO_SINCRONIZACAO_COMPLETA`), testadas com timers falsos (9,9 s = toque; 10 s = segurar).
+  - `PopupSincronizacaoCompleta` `{ visivel, rotulo, pct, erro, onTentarDeNovo, onFechar, testID? }`: sem fechar por toque
+    fora nem Voltar (o Voltar só fecha no erro); `pct` 100 sem `erro` = Pronto (a frase sai) e, depois de
+    `ESPERA_PRONTO_POPUP_MS` (600), chama `onFechar`; o shell põe `visivel = false`.
+  - `BarraProgresso` `{ tema, rotulo, pct, comLista?, reduzir?, rotuloAcessivel?, testID? }`: a `Barra` da
+    `tela-entrada.tsx` no kit, com os mesmos testIDs (`entrada-etapa`, `entrada-pct`). O engenheiro-apps troca a `Barra` local
+    por `<BarraProgresso tema={tema} rotulo={barra.rotulo} pct={barra.pct} reduzir={reduzir} comLista={mostrarEtapas} />` e
+    apaga a função local, `TRECHO_SEM_MEDIDA` e os estilos `linha`, `rotulo`, `pct`, `trilho`, `preenchimento` que só ela usa.

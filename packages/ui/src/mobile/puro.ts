@@ -18,6 +18,7 @@ export * from '../comum/cadastro';
 export * from '../comum/senha';
 export * from './desconto';
 export * from './acoes';
+export * from './sincronizar-segurar';
 export * from '../comum/historico';
 // RD-0014: nome curto e longo dos 7 perfis padrão (o mesmo do BKO, do portal e do login)
 export * from '../comum/perfis';

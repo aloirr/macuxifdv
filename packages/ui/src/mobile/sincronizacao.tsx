@@ -11,6 +11,7 @@ import type { AgendadorSync, EstadoAgendadorSync } from './atualizacao';
 import { desenhoBotaoSincronizar, desenhoSeloAtualizacao } from './atualizacao';
 import { Icon } from './icon';
 import { Pressionavel } from './movimento-rn';
+import { BotaoSegurarSincronizar } from './sincronizar-segurar-rn';
 import { ALTURA, colors, fonts, type as t } from './theme';
 import { Button } from './ui';
 
@@ -51,23 +52,46 @@ export function useSincronizacao(): ValorSincronizacao | null {
  * vendas"), texto pronto do shell. Com ele, a linha de situação fica `⟳ {aviso} · N na fila` em `warningInk` (ícone sync de
  * 14, mesma linha, centralizada), testID `{testID}-aviso-dados` no texto; a linha continua `{testID}-situacao`. Sem ele
  * (null/undefined/vazio), nada muda. O Perfil não passa.
+ *
+ * Estoque diário, parte F (docs/design/sincronizacao-completa.md §1): com `onSegurar`, o botão ganha o segurar 10 s
+ * (contagem e faixa a partir de 600 ms, vibração aos 10 s; soltar antes = toque; ação de acessibilidade "Sincronização
+ * completa"). `onPress` troca o toque (padrão: `agendador.puxar()`). Sem `onSegurar`, o botão é o de antes.
  */
 export function BotaoSincronizar({
   testID = 'sincronizar',
   variant = 'dark',
   avisoDados,
+  onPress,
+  onSegurar,
 }: {
   testID?: string;
   variant?: 'dark' | 'outline' | 'accent';
   /** RD-0008: aviso de dado antigo, já no fuso do tenant; troca "Última sincronização…" e mantém o "N na fila". */
   avisoDados?: string | null;
+  /** Toque (e soltar antes dos 10 s): sincronização parcial. Padrão: `agendador.puxar()`. */
+  onPress?: () => void;
+  /** Segurou 10 s: sincronização completa (o shell abre o `PopupSincronizacaoCompleta`). */
+  onSegurar?: () => void;
 }) {
   const s = useSincronizacao();
   if (!s) return null;
   const ocupado = s.estado.puxando || s.sincronizando;
+  const tocar = onPress ?? (() => void s.agendador.puxar());
   const d = desenhoBotaoSincronizar({ semSinal: s.semSinal, recente: s.estado.recente, sincronizadoEm: s.sincronizadoEm, naFila: s.naFila, tz: s.tz, avisoDados });
   return (
     <View style={{ gap: 6 }} testID={`${testID}-bloco`}>
+      {onSegurar ? (
+        <BotaoSegurarSincronizar
+          testID={testID}
+          rotulo={d.rotulo}
+          rotuloAcessivel={d.aviso ? `${d.rotulo}. ${d.aviso}` : undefined}
+          variant={variant}
+          ocupado={ocupado}
+          desligado={s.semSinal}
+          onPress={tocar}
+          onSegurar={onSegurar}
+        />
+      ) : (
       <Button
         testID={testID}
         label={d.rotulo}
@@ -77,8 +101,9 @@ export function BotaoSincronizar({
         height={ALTURA.principal}
         loading={ocupado}
         disabled={s.semSinal}
-        onPress={() => void s.agendador.puxar()}
+        onPress={tocar}
       />
+      )}
       {d.aviso ? (
         <Text style={[t.small, { color: colors.warningInk, textAlign: 'center' }]} testID={`${testID}-sem-sinal`}>
           {d.aviso}
