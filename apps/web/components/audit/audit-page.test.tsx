@@ -13,12 +13,14 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/auditoria',
 }));
 vi.mock('@/lib/session', () => ({ useSessao: () => ({ user: { fuso: 'America/Manaus' } }) }));
-vi.mock('@/lib/queries', () => ({
+vi.mock('@/lib/queries', async (original) => ({
+  LIMITE_AUDITORIA: (await original<typeof import('@/lib/queries')>()).LIMITE_AUDITORIA,
   useMe: () => ({ data: undefined }),
   useAuditoria: () => ({ data: sim.linhas, isError: false, isPending: false, isFetching: false, refetch: async () => undefined }),
 }));
 
-const { AuditPage, LIMITE_AUDITORIA } = await import('./audit-page');
+const { AuditPage } = await import('./audit-page');
+const { LIMITE_AUDITORIA } = await import('@/lib/queries');
 
 const linha = (i: number) => ({
   id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
@@ -48,6 +50,7 @@ describe('Auditoria (revisão do BKO)', () => {
     expect(m).not.toContain('Quem alterou o quê');
     expect(m).toContain('data-testid="auditoria.tabela"');
     expect(m).toContain('table-fixed');
+    expect(m.match(/Trilha de auditoria/g)).toHaveLength(1); // só o nome da tabela para o leitor de tela; o quadro fica sem título (§P6)
     expect(m).toContain('data-testid="auditoria.mais-acoes"');
     expect(m).not.toContain('auditoria.limpar-filtros');
   });

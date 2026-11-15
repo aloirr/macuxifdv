@@ -26,14 +26,11 @@ import {
   TabelaDados,
   type ColunaDaTabela,
 } from '@macuxi/ui/web';
-import { useAuditoria, useMe } from '@/lib/queries';
+import { LIMITE_AUDITORIA, useAuditoria, useMe } from '@/lib/queries';
 import { useSessao } from '@/lib/session';
 
 /** Entidades no filtro: as que os módulos gravam com `tx.auditar` (RN-AUD-01). */
 const ENTITY_OPTIONS = ['pedido', 'alcada', 'rota', 'meta', 'carteira', 'cliente', 'motivo', 'dispositivo', 'notificacao', 'licenca', 'parametro'];
-
-/** Quantos registros a API devolve (`limite` de `useAuditoria`): com esse número, pode haver mais ("300+"). */
-export const LIMITE_AUDITORIA = 300;
 
 const quem = (a: LinhaAuditoria) => a.usuario_nome ?? (a.usuario_id ? 'Usuário removido' : 'Sistema');
 
@@ -97,7 +94,7 @@ export function AuditPage() {
         (rows.length === 0 ? (
           <EstadoVazio testId="auditoria.vazio" titulo={entity ? 'Nenhum registro com esses filtros.' : 'Nenhum registro ainda.'} />
         ) : (
-          <Panel label="Trilha de auditoria">
+          <Panel>
             <TabelaDados testId="auditoria.tabela" rotulo="Trilha de auditoria" colunas={colunas} linhas={rows} chave={(a) => a.id} />
           </Panel>
         ))}

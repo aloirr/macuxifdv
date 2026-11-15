@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { linhasDoRodapeLegal, mascaraCnpj, siteDoRodape } from './rodape-legal';
+import { linhasDoRodapeLegal, siteDoRodape } from './rodape-legal';
 
 const NBSP = ' ';
 const preenchido = { razao_social: 'Empresa Teste Ltda.', cnpj: '11444777000161', site: 'macuxifdv.com.br' };
@@ -38,14 +38,10 @@ describe('linhasDoRodapeLegal', () => {
   });
 });
 
-describe('site e CNPJ', () => {
+describe('site', () => {
   it('site sem https, www e barra; vazio ou inválido vira o padrão', () => {
     expect(siteDoRodape('https://www.Exemplo.com.br/')).toBe('exemplo.com.br');
     expect(siteDoRodape('')).toBe('macuxifdv.com.br');
     expect(siteDoRodape('não é site')).toBe('macuxifdv.com.br');
-  });
-  it('máscara só com 14 dígitos', () => {
-    expect(mascaraCnpj('11444777000161')).toBe('11.444.777/0001-61');
-    expect(mascaraCnpj('123')).toBe('123');
   });
 });

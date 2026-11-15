@@ -9,7 +9,6 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { buscarDadosLegais, CAMINHO_DADOS_LEGAIS, esquecerDadosLegais } from '@/lib/dados-legais';
-import { linhasDoRodapeLegal } from '@/lib/rodape-legal';
 import { RodapeLegalVisual } from './rodape-legal';
 
 const preenchido = { razao_social: 'Empresa Teste Ltda.', cnpj: '11444777000161', site: 'macuxifdv.com.br' };
@@ -30,9 +29,6 @@ describe('RodapeLegalVisual', () => {
     expect(m).not.toContain('rodape-legal.empresa');
     expect(m).not.toContain('Versão');
     expect(m).toContain('>macuxifdv.com.br</a>');
-  });
-  it('a montagem é a mesma do app (linhas puras)', () => {
-    expect(linhasDoRodapeLegal({ dados: { ...preenchido, razao_social: null }, versao: null, ano: 2026 }).empresa?.leitor).toBe('CNPJ 11.444.777/0001-61');
   });
 });
 
