@@ -24,7 +24,7 @@ describe.skipIf(semBanco())('Core T-0174 × Postgres: core.produtos_por_sku@1', 
     pool = new pg.Pool({ connectionString: banco().urlApp });
     await limpar();
     await comTenant(pool, A.tenantId, async (c) => {
-      await c.query("insert into core.produto (id, tenant_id, sku, nome, ean) values ($1, $2, 'PS-100', 'Exato', '7890000000011')", [id(1), A.tenantId]);
+      await c.query("insert into core.produto (id, tenant_id, sku, nome, ean) values ($1, $2, 'PS-100', 'Exato', '7890000099174')", [id(1), A.tenantId]);
       await c.query("insert into core.produto (id, tenant_id, sku, nome, ativo) values ($1, $2, 'PS-Inativo', 'Inativo', false)", [id(2), A.tenantId]);
       await c.query("insert into core.produto (id, tenant_id, sku, nome, deleted_at) values ($1, $2, 'PS-Removido', 'Removido', now())", [id(3), A.tenantId]);
       await c.query("insert into core.produto (id, tenant_id, sku, nome) values ($1, $2, 'PS-Outro', 'Outro')", [id(4), A.tenantId]);
@@ -37,10 +37,10 @@ describe.skipIf(semBanco())('Core T-0174 × Postgres: core.produtos_por_sku@1', 
   });
 
   it('T-0174: casa por sku exato, por sku sem maiúsculas e por EAN, e devolve também o inativo', async () => {
-    const r = await consultar(A.tenantId, ['PS-100', 'ps-inativo', '7890000000011']);
+    const r = await consultar(A.tenantId, ['PS-100', 'ps-inativo', '7890000099174']);
     expect(r.produtos.map((p) => p.id).sort()).toEqual([id(1), id(2)]);
     expect(r.produtos.find((p) => p.id === id(2))).toMatchObject({ sku: 'PS-Inativo', ean: null, ativo: false });
-    expect(r.produtos.find((p) => p.id === id(1))).toMatchObject({ ean: '7890000000011', ativo: true });
+    expect(r.produtos.find((p) => p.id === id(1))).toMatchObject({ ean: '7890000099174', ativo: true });
   });
   it('T-0174: produto removido nunca aparece e código sem produto devolve lista vazia', async () => {
     expect((await consultar(A.tenantId, ['PS-Removido'])).produtos).toEqual([]);
