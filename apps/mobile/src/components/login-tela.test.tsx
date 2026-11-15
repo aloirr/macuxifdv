@@ -10,6 +10,7 @@
  * - T-0176 (tela 13): conta sem filial de cadastro — o aviso aprovado vai na prop `aviso` da `TelaLogin` (no lugar do erro), o
  *   "Entrar" não lança (a senha fica no campo) e quem saiu pelo 403 volta com o e-mail preenchido.
  */
+import { MENSAGEM_USUARIO_SEM_FILIAL } from '@macuxi/platform-sdk';
 import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -199,7 +200,7 @@ describe('contraste do laranja no shell (accentInk em texto)', () => {
 });
 
 describe('T-0176: login sem filial de cadastro (tela 13, spec filial-cadastro-venda §4)', () => {
-  const AVISO = 'Sua conta está sem filial de cadastro. Peça ao administrador da empresa para informar a filial.';
+  const AVISO = MENSAGEM_USUARIO_SEM_FILIAL;
 
   it('sem filial: o aviso aprovado vai na prop `aviso` da TelaLogin (Banner danger, no lugar do erro)', () => {
     sim.semFilial = { email: null };

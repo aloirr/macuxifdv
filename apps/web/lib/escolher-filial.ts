@@ -8,6 +8,8 @@
  * Leitura tolerante do GET até o contrato do Core chegar ao `main`: campo ausente ou de tipo errado vira o valor neutro (sem filial, sem
  * permissão, lista vazia). Aqui só a apresentação: a regra (quem pode, qual filial vale) é da API.
  */
+import { codigoDoErroHttp } from '@macuxi/platform-sdk';
+
 /** Caminho no SDK web (`api()` acrescenta o `/v1` pelo proxy). */
 export const ROTA_MINHA_FILIAL = '/core/eu/filial-cadastro';
 
@@ -23,9 +25,10 @@ export const TEXTOS_ESCOLHER_FILIAL = {
   salvar: 'Salvar',
   salvando: 'Salvando…',
   sair: 'Sair',
-  semFiliais: 'Envie as filiais pela carga do ERP e tente de novo.',
+  semFiliais: 'Envie as filiais pela carga do ERP.',
   tentar: 'Tentar de novo',
   erroSalvar: 'Não deu para salvar. Tente de novo.',
+  erroCarga: 'Não deu para carregar as filiais.',
 } as const;
 
 export interface FilialParaEscolher {
@@ -83,12 +86,6 @@ export function estadoDaEscolha(q: {
 
 export type ResultadoSalvar = 'salvo' | 'ja_informada' | 'erro';
 
-function codigoDoErro(e: unknown): { status?: unknown; codigo?: unknown } {
-  if (!e || typeof e !== 'object') return {};
-  const x = e as { status?: unknown; code?: unknown; codigo?: unknown };
-  return { status: x.status, codigo: x.code ?? x.codigo };
-}
-
 /**
  * `PUT eu/filial-cadastro` com a filial escolhida. 409 `USUARIO_FILIAL_JA_INFORMADA` = `ja_informada` (a tela mostra o erro e relê o
  * GET: se a filial já estiver definida, entra no Início). Qualquer outra falha = `erro` (16d; a escolha continua).
@@ -101,7 +98,7 @@ export async function salvarMinhaFilial(
     await put({ filial_cadastro_id: filialId });
     return 'salvo';
   } catch (e) {
-    const { status, codigo } = codigoDoErro(e);
+    const { status, codigo } = codigoDoErroHttp(e);
     if (status === 409 && codigo === CODIGO_FILIAL_JA_INFORMADA) return 'ja_informada';
     return 'erro';
   }

@@ -21,7 +21,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type MouseEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ItemMenu } from '@macuxi/core/contracts';
-import { entraEm, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
+import { ehUsuarioSemFilial, entraEm, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
 import { ShellProvider } from '@macuxi/platform-sdk/react';
 import { errorMessage, MODO_API, tentarRestaurarSessao } from '@macuxi/platform-sdk/web';
 import { cx, ErrorBlock, IconChevronRight, IconLogout, LoadingBlock, rotuloDoPerfil } from '@macuxi/ui/web';
@@ -32,7 +32,7 @@ import { PROPORCAO_LOGO_HORIZONTAL, SRC_LOGO_NEGATIVO_GRAFITE } from '@/lib/logo
 import { ALTURA_ITEM, grupoDaTela, cabeTudoAberto, hrefAtivo, montarGruposMenu, type GrupoMenuBko, type ItemMenuBko } from '@/lib/menu-bko';
 import { SHELL_WEB } from '@/lib/modulos';
 import { qk, useMe, useModulosEfetivos } from '@/lib/queries';
-import { aoSemFilial, ehUsuarioSemFilial } from '@/lib/sem-filial';
+import { aoSemFilial } from '@/lib/sem-filial';
 import { encerrarSessao, useSessao } from '@/lib/session';
 import { CHAVE_MINHA_FILIAL, EscolherFilial } from './escolher-filial';
 import { SessaoSemConexao } from './sessao-sem-conexao';

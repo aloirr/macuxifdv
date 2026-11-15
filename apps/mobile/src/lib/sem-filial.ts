@@ -7,29 +7,11 @@
  *   usuário e a fila offline ficam no aparelho, como no "Sair") e volta ao login com o mesmo aviso.
  * - Depois que o admin informa a filial, o mesmo "Entrar" funciona e o próximo login reabre o mesmo banco com a fila.
  *
- * Puro (sem React Native): sessão, sync e navegação são injetados por `state/plataforma.tsx`.
+ * Puro (sem React Native): sessão, sync e navegação são injetados por `state/plataforma.tsx`. Código, texto e detecção do 403
+ * vêm só do SDK (`@macuxi/platform-sdk`, RD-0881/0882).
  */
 
-/** Código do 403 da guarda global (`CODIGO_USUARIO_SEM_FILIAL` do SDK, ADR 0056). */
-export const CODIGO_USUARIO_SEM_FILIAL = 'USUARIO_SEM_FILIAL';
-
-/** Texto aprovado da tela 13 (R-20261115-104500). */
-export const AVISO_SEM_FILIAL = 'Sua conta está sem filial de cadastro. Peça ao administrador da empresa para informar a filial.';
-
-/** 403 `USUARIO_SEM_FILIAL`, venha do cliente do shell (`HttpError.code`) ou do contrato do SDK (`ErroHttp.codigo`). */
-export function ehUsuarioSemFilial(e: unknown): boolean {
-  if (!e || typeof e !== 'object') return false;
-  const x = e as { status?: unknown; code?: unknown; codigo?: unknown };
-  return x.status === 403 && (x.code === CODIGO_USUARIO_SEM_FILIAL || x.codigo === CODIGO_USUARIO_SEM_FILIAL);
-}
-
-/**
- * A sessão do login veio com o usuário bloqueado? Leitura tolerante: o campo `sem_filial` entra no contrato da sessão com o
- * branch do Core (T-0176); ausente = emissor antigo = livre.
- */
-export function sessaoSemFilial(usuario: object): boolean {
-  return (usuario as { sem_filial?: unknown }).sem_filial === true;
-}
+import { ehUsuarioSemFilial } from '@macuxi/platform-sdk';
 
 export interface FontesSemFilial {
   /** Há sessão aberta agora (sem ela, o 403 é de uma chamada que sobrou e nada há a fazer). */

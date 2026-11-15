@@ -33,7 +33,9 @@ import {
 } from '@macuxi/core/app';
 import type { FakeUser, Me } from '@macuxi/core/contracts';
 import {
+  CODIGO_USUARIO_SEM_FILIAL,
   ErroHttp,
+  MENSAGEM_USUARIO_SEM_FILIAL,
   mensagemPerfilForaDoApp,
   perfilDaFaseM,
   type AberturaArmazenamento,
@@ -70,7 +72,7 @@ import { router } from 'expo-router';
 import { AppState } from 'react-native';
 
 import { criarTratadorAparelhoBloqueado } from '@/lib/aparelho-bloqueado';
-import { AVISO_SEM_FILIAL, CODIGO_USUARIO_SEM_FILIAL, criarTratadorSemFilial, sessaoSemFilial } from '@/lib/sem-filial';
+import { criarTratadorSemFilial } from '@/lib/sem-filial';
 import {
   agendarSemPressa,
   ESPERA_TELA_PREPARO_MS,
@@ -666,10 +668,11 @@ function usePlataformaValor() {
       }
       // T-0176 (RN-CORE-39): a senha está certa, mas a conta não tem filial de cadastro. O app não entra: encerra a sessão
       // recém-criada e o login mostra o aviso da tela 13; depois que o admin informa a filial, o mesmo "Entrar" funciona
-      if (sessaoSemFilial(r.usuario)) {
+      // `sem_filial` da sessão (contrato do Core, T-0176); ausente = emissor antigo = livre
+      if ('sem_filial' in r.usuario && r.usuario.sem_filial === true) {
         await post('/auth/logout', { refresh_token: r.refresh_token }).catch(() => undefined);
         setSemFilial({ email: r.usuario.email });
-        throw new ErroHttp(403, CODIGO_USUARIO_SEM_FILIAL, AVISO_SEM_FILIAL);
+        throw new ErroHttp(403, CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL);
       }
       const user: UsuarioSessao = {
         id: r.usuario.id,

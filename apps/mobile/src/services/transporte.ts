@@ -19,10 +19,10 @@ import {
   type ResultadoEnvioArquivo,
   type ResultadoItemPush,
   type TransporteSync,
+  ehUsuarioSemFilial,
 } from '@macuxi/platform-sdk';
 
 import type { ModoApi } from '@/lib/modo-api';
-import { ehUsuarioSemFilial } from '@/lib/sem-filial';
 import { cederAVez } from '@/lib/trava-sync';
 
 import { HttpError, type ApiClient } from './api';

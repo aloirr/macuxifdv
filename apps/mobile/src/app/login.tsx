@@ -31,7 +31,7 @@ import {
   type CamposLogin,
 } from '@macuxi/core/app';
 import type { FakeUser } from '@macuxi/core/contracts';
-import { entraEm, ErroHttp, PERFIS, type Perfil } from '@macuxi/platform-sdk';
+import { ehUsuarioSemFilial, entraEm, ErroHttp, MENSAGEM_USUARIO_SEM_FILIAL, PERFIS, type Perfil } from '@macuxi/platform-sdk';
 import { Banner, Button, Card, colors, fonts, Icon, initials, radius, rotuloDoPerfil, Screen, type as t } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -46,7 +46,6 @@ import { EXEMPLO_ENDERECO, normalizeApiUrl as normalize } from '@/lib/api-url';
 import { ESPERA_BARRA_SERVIDOR_MS, ROTULO_SERVIDOR, servidorNaAbertura, TEMPO_SERVIDOR_ABERTURA_MS } from '@/lib/entrada';
 import { ETAPA_INICIAL, etapaDeVolta, propsDoLogin, type EtapaLogin } from '@/lib/etapa-login';
 import { guardarAvisoPosLogin } from '@/lib/aviso-pos-login';
-import { AVISO_SEM_FILIAL, ehUsuarioSemFilial } from '@/lib/sem-filial';
 import { avisoDeServidorNoLogin, cartaoServidorNoLogin, mensagemServidorFalhou } from '@/lib/endereco-do-build';
 import { ApiClient, errorMessage } from '@/services/api';
 import { usePlataforma, usuarioDaFaseM } from '@/state/plataforma';
@@ -220,7 +219,7 @@ function LoginReal() {
       <TelaLogin
         key={chaveDoLogin}
         {...doLogin}
-        aviso={semFilial ? AVISO_SEM_FILIAL : doLogin.aviso}
+        aviso={semFilial ? MENSAGEM_USUARIO_SEM_FILIAL : doLogin.aviso}
         {...(emailInicial ? { emailInicial } : {})}
         onEntrar={entrar}
         onEsqueci={(c) => setEtapa({ tipo: 'esqueci', codigo_empresa: c.codigo_empresa.trim(), email: c.email.trim() })}

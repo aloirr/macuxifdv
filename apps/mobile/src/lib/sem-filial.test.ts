@@ -1,43 +1,18 @@
 /**
  * T-0176 (RN-CORE-39; ADR 0056; tela 13 da spec docs/design/filial-cadastro-venda §4): usuário sem filial de cadastro no app.
- * - a sessão do login com `sem_filial: true` é reconhecida (leitura tolerante: ausente = livre);
  * - o 403 `USUARIO_SEM_FILIAL` no meio da sessão sai UMA vez, depois da sincronização em curso, sem apagar nada;
  * - a fila offline fica pendente: o push recusado com 403 não vira "falhou" e segue quando a filial for informada.
  */
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { comPrefixo, criarMotorSync, criarRegistroSync, defineModule, definirEntidadeSync, ErroHttp, type ArmazenamentoSync } from '@macuxi/platform-sdk';
+import { comPrefixo, criarMotorSync, criarRegistroSync, defineModule, definirEntidadeSync, type ArmazenamentoSync } from '@macuxi/platform-sdk';
 
 import { HttpError, type ApiClient } from '@/services/api';
 import { transporteV1 } from '@/services/transporte';
 
-import { AVISO_SEM_FILIAL, criarTratadorSemFilial, ehUsuarioSemFilial, sessaoSemFilial, type FontesSemFilial } from './sem-filial';
+import { criarTratadorSemFilial, type FontesSemFilial } from './sem-filial';
 
 const PEDIDO = '0e000000-0000-4000-8000-000000000001';
-
-describe('ehUsuarioSemFilial', () => {
-  it('403 USUARIO_SEM_FILIAL do cliente do shell (code) e do SDK (codigo)', () => {
-    expect(ehUsuarioSemFilial(new HttpError(403, 'USUARIO_SEM_FILIAL', 'x'))).toBe(true);
-    expect(ehUsuarioSemFilial(new ErroHttp(403, 'USUARIO_SEM_FILIAL', 'x'))).toBe(true);
-  });
-  it('outro 403, outro status ou não erro: não', () => {
-    expect(ehUsuarioSemFilial(new HttpError(403, 'MODULO_INATIVO', 'x'))).toBe(false);
-    expect(ehUsuarioSemFilial(new HttpError(401, 'USUARIO_SEM_FILIAL', 'x'))).toBe(false);
-    expect(ehUsuarioSemFilial(null)).toBe(false);
-    expect(ehUsuarioSemFilial('USUARIO_SEM_FILIAL')).toBe(false);
-  });
-});
-
-describe('sessaoSemFilial (leitura tolerante da sessão do login)', () => {
-  it('só `sem_filial: true` bloqueia; ausente (emissor antigo) ou false entra', () => {
-    expect(sessaoSemFilial({ id: 'u', sem_filial: true })).toBe(true);
-    expect(sessaoSemFilial({ id: 'u', sem_filial: false })).toBe(false);
-    expect(sessaoSemFilial({ id: 'u' })).toBe(false);
-  });
-  it('o texto aprovado da tela 13', () => {
-    expect(AVISO_SEM_FILIAL).toBe('Sua conta está sem filial de cadastro. Peça ao administrador da empresa para informar a filial.');
-  });
-});
 
 function fontes(sessao = true) {
   const ordem: string[] = [];

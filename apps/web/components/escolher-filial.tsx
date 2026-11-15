@@ -15,7 +15,8 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api, errorMessage } from '@macuxi/platform-sdk/web';
+import { MENSAGEM_USUARIO_SEM_FILIAL } from '@macuxi/platform-sdk';
+import { api } from '@macuxi/platform-sdk/web';
 import { Button, CLASSE_CAMPO_ACESSO, ErrorBlock, Notice } from '@macuxi/ui/web';
 import { Moldura } from '@/components/login-screen';
 import {
@@ -28,7 +29,6 @@ import {
   type EstadoEscolherFilial,
   type FilialParaEscolher,
 } from '@/lib/escolher-filial';
-import { AVISO_SEM_FILIAL } from '@/lib/sem-filial';
 
 const ID_CAMPO = 'filial-cadastro';
 
@@ -38,8 +38,6 @@ export interface PropsTelaEscolherFilial {
   escolhida: string;
   salvando: boolean;
   erroSalvar: boolean;
-  /** Mensagem do GET que falhou (rede, servidor). */
-  erroCarga?: string;
   onEscolher: (id: string) => void;
   onSalvar: () => void;
   onTentar: () => void;
@@ -58,7 +56,7 @@ export function TelaEscolherFilial(p: PropsTelaEscolherFilial) {
     <Button
       data-testid="filial.sair"
       variant="link"
-      className="min-h-[44px] self-start text-[14px] underline"
+      className="min-h-[44px] self-start text-[14px]"
       onClick={p.onSair}
     >
       {T.sair}
@@ -70,7 +68,7 @@ export function TelaEscolherFilial(p: PropsTelaEscolherFilial) {
       <Moldura>
         <div data-testid="filial.tela" className="flex flex-col gap-5">
           <div data-testid="filial.sem-permissao" aria-live="polite">
-            <Notice tone="danger">{AVISO_SEM_FILIAL}</Notice>
+            <Notice tone="danger">{MENSAGEM_USUARIO_SEM_FILIAL}</Notice>
           </div>
           {sair}
         </div>
@@ -139,7 +137,7 @@ export function TelaEscolherFilial(p: PropsTelaEscolherFilial) {
           </>
         ) : p.estado === 'erro_carga' ? (
           <div data-testid="filial.erro-carga">
-            <ErrorBlock message={p.erroCarga ?? ''} onRetry={p.onTentar} />
+            <ErrorBlock message={T.erroCarga} onRetry={p.onTentar} />
           </div>
         ) : (
           <Button data-testid="filial.tentar" variant="primary" onClick={p.onTentar}>
@@ -197,7 +195,6 @@ export function EscolherFilial({ onSalvo, onSair }: { onSalvo: () => void; onSai
       escolhida={escolhida}
       salvando={salvando}
       erroSalvar={erroSalvar}
-      erroCarga={consulta.isError ? errorMessage(consulta.error) : undefined}
       onEscolher={(id) => {
         setEscolhida(id);
         setErroSalvar(false);

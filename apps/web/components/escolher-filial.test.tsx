@@ -67,7 +67,7 @@ vi.mock('./escolher-filial', async (original) => {
 
 const { AppShell } = await import('./app-shell');
 const { TelaEscolherFilial } = await import('./escolher-filial');
-const { AVISO_SEM_FILIAL } = await import('@/lib/sem-filial');
+const { MENSAGEM_USUARIO_SEM_FILIAL } = await import('@macuxi/platform-sdk');
 const { TEXTOS_ESCOLHER_FILIAL: T } = await import('@/lib/escolher-filial');
 
 const BV = { id: '7d1c2a4e-2f0b-4c55-9a1e-0b6d1f2e3a01', nome: 'Boa Vista' };
@@ -125,7 +125,7 @@ describe('Escolha a sua filial (spec §5)', () => {
 
   it('16c empresa sem filial: o aviso e o "Tentar de novo", sem campo e sem Salvar', () => {
     const html = tela({ estado: 'sem_filiais', filiais: [] });
-    expect(html).toContain('Envie as filiais pela carga do ERP e tente de novo.');
+    expect(html).toContain('Envie as filiais pela carga do ERP.');
     expect(html).toContain('data-testid="filial.tentar"');
     expect(html).toContain('Tentar de novo');
     expect(html).not.toContain('filial.campo');
@@ -141,7 +141,7 @@ describe('Escolha a sua filial (spec §5)', () => {
 
   it('pode_informar=false: só o aviso aprovado e o "Sair"', () => {
     const html = tela({ estado: 'sem_permissao', filiais: [] });
-    expect(html).toContain(AVISO_SEM_FILIAL);
+    expect(html).toContain(MENSAGEM_USUARIO_SEM_FILIAL);
     expect(html).toContain('data-testid="filial.sair"');
     expect(html).not.toContain(T.titulo);
     expect(html).not.toContain('filial.campo');
