@@ -82,9 +82,9 @@ Sequência da primeira carga (ordem única, `ORDEM_CARGA_ENTIDADES`; RN-INT-04):
 - **Filial do usuário** (RN-CORE-39): o vendedor vem com `filial_external_id`. Filial que ainda não foi carregada vira a linha `referencia_ausente`, que você reprocessa no Monitor depois de carregar a filial. A filial de cadastro é obrigatória e as filiais de venda são pelo menos uma (a de cadastro sempre entra); hoje a carga só leva a filial de cadastro, e as de venda a mais ficam no BKO.
 - **Referência cruzada** (RN-CAT-09): só o código é obrigatório. A marca é opcional, pelo `marca_external_id` ou pelo nome; marca inativa ou ausente fica oculta.
 - **Código FDV:** o sistema gera (5 dígitos, `00001`, por empresa) e ele é só leitura; não envie.
-- **Usuário nunca é excluído:** o vendedor que sai do ERP fica inativo, também pela carga.
+- **Usuário só é desativado:** o vendedor que sai do ERP fica inativo, também pela carga; única exceção: exclusão da empresa inteira (RN-PLA-09/10, ADR 0052).
 - **Estoque por filial:** envie o saldo de cada depósito com a filial dele; o app soma só as filiais de venda do usuário.
-- **Vínculo do ERP** (a confirmar): manual no BKO, ou automático quando o nome completo é igual; a normalização do nome e os homônimos estão em definição.
+- **Vínculo do ERP** (RN-CORE-58/61): na carga do vendedor, e-mail, depois nome completo normalizado, depois provisório. Só vincula com um candidato ativo, do mesmo perfil e sem código ERP; homônimo, outro código ou inativo cria o provisório e avisa os admins. Detalhes na [seção 21 do hub-api](../../../docs/modulos/integracao/hub-api.md#21-regras-de-carga-15112026).
 
 O Hub também ajuda: um lote espera por lotes ainda em aberto das entidades de que depende (até 30 minutos); passado esse tempo ele é aplicado e as linhas sem alvo viram `referencia_ausente`. Quando o lote da dependência termina, o Hub reprocessa essas linhas sozinho.
 
