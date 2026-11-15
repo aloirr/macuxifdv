@@ -2,19 +2,24 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<title>Logo do cliente · carga e login</title>
+<title>Logo do cliente · carga (variações A e B)</title>
 <link rel="stylesheet" href="logo-cliente.css">
 <!--
-  Simulação da spec docs/design/telas/logo-cliente.md §3 e §4. Uso: carga-login.html?v=campo | ?v=gestao.
-  PNG (Playwright, deviceScaleFactor 2): carga-login-campo.png e carga-login-gestao.png.
+  Simulação da spec docs/design/telas/logo-cliente.md §3 (MC-0066). Uso: carga.html?v=campo|gestao&o=a|b.
+  PNG (Playwright, deviceScaleFactor 2): carga-campo-a.png, carga-campo-b.png, carga-gestao-a.png, carga-gestao-b.png.
+  A: a logo do cliente ao lado do logo Macuxi (124 dp). B: a logo do cliente abaixo do logo Macuxi (170 dp).
   Empresa e logo FICTÍCIAS: "Distribuidora Exemplo Norte", logo-ficticia-exemplo-norte.svg, código AM4821, Lucas.
 -->
 <style>
   .entrada{flex:1;display:flex;flex-direction:column;align-items:center}
   .entrada .meio{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding-top:20px}
+  /* Variação A (MC-0066): ao lado, placa 64 × até 112, logo 48 × até 96, filete 1 × 64 a 24 dp de cada lado */
   .par{display:flex;align-items:center}
-  .par .div{width:1px;height:84px;margin:0 22px}
-  .par .placa{width:136px;height:84px;padding:12px}
+  .par .div{width:1px;height:64px;margin:0 24px;flex:none}
+  /* Variação B (MC-0066): placa abaixo do logo Macuxi (170 dp), 36 dp abaixo dele (o "M" mede ~33 dp a 170) */
+  .pilha{display:flex;flex-direction:column;align-items:center;gap:36px}
+  .placa.carga{height:64px;max-width:112px;padding:8px}
+  .placa.carga img{height:48px;max-width:96px}
   .ola{font-size:15px}
   .baixo{width:100%;padding:0 32px 36px;display:flex;flex-direction:column;gap:10px;min-height:250px;justify-content:flex-end}
   .linha{display:flex;justify-content:space-between;font-size:13px}
@@ -23,28 +28,14 @@
   .trilho i{display:block;height:100%;border-radius:3px}
   .et{display:flex;align-items:center;gap:10px;font-size:14px;height:32px}
   .bola{width:20px;height:20px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
-  /* login */
-  .fx{background:var(--noite);padding:0 24px 26px;flex:none}
-  .fx .st{padding:0;margin:0 -4px 22px}
-  .fx img{height:44px;display:block}
-  .form{flex:1;padding:24px 20px 16px;display:flex;flex-direction:column;gap:14px}
-  .form .placa{align-self:flex-start;height:64px;max-width:220px;padding:8px 12px;border:1px solid var(--line)}
-  .form .placa img{height:48px;max-width:196px}
-  .form h1{font:800 28px/34px Archivo,sans-serif}
-  .cp{display:flex;flex-direction:column;gap:4px}
-  .cp label{font-size:13px;font-weight:600}
-  .ent{height:52px;border:1px solid var(--forte);border-radius:12px;background:#fff;display:flex;align-items:center;padding:0 14px;font-size:16px;justify-content:space-between}
-  .ent .olho{font-size:12px;font-weight:600;color:var(--noite)}
-  .btn{height:52px;border-radius:12px;background:var(--noite);color:#fff;font-weight:600;font-size:16px;display:flex;align-items:center;justify-content:center}
-  .esq{height:44px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--noite)}
-  .pe{margin-top:auto;text-align:center;font-size:12px;line-height:16px;color:var(--ink2)}
-  .pe a{color:var(--noite);font-weight:600;text-decoration:underline}
 </style>
 </head>
 <body>
 <div class="board" id="board"></div>
 <script>
-const v = new URLSearchParams(location.search).get('v') || 'campo';
+const q = new URLSearchParams(location.search);
+const v = q.get('v') || 'campo';
+const o = (q.get('o') || 'a').toLowerCase();
 const A = '../../../marca/ativos/2026-11-12-v1/';
 const campo = v === 'campo';
 const T = campo
@@ -56,9 +47,12 @@ const st = '<div class="st"><span>06:30</span><span>4G ▮▮▮ 90%</span></div
 const LOGO_CLI = 'logo-ficticia-exemplo-norte.svg';
 
 function marca(comLogo) {
-  const m = `<img src="${T.logo}" alt="Macuxi Força de Vendas" style="width:${comLogo ? 124 : 170}px;display:block">`;
+  const lado = comLogo && o === 'a';
+  const m = `<img src="${T.logo}" alt="Macuxi Força de Vendas" style="width:${lado ? 124 : 170}px;display:block">`;
   if (!comLogo) return m;
-  return `<div class="par">${m}<span class="div" style="background:${T.div}"></span><span class="placa" style="border:${T.placaBorda}"><img src="${LOGO_CLI}" alt="Logo da Exemplo Norte"></span></div>`;
+  const placa = `<span class="placa carga" style="border:${T.placaBorda}"><img src="${LOGO_CLI}" alt="Logo da Exemplo Norte"></span>`;
+  if (lado) return `<div class="par">${m}<span class="div" style="background:${T.div}"></span>${placa}</div>`;
+  return `<div class="pilha">${m}${placa}</div>`;
 }
 function etapas() {
   return T.etapas.map((e, i) => {
@@ -75,24 +69,9 @@ function carga(comLogo) {
     <div class="entrada"><div class="meio">${marca(comLogo)}<div class="ola" style="color:${T.claro}">Olá, Lucas</div></div>
     <div class="baixo">${baixo}</div></div></div>`;
 }
-function login(comLogo) {
-  return `<div class="phone"><div class="fx">${st.replace('class="st"', 'class="st" style="color:#fff"')}<img src="${A}macuxi-logo-negativo-azul-noite.svg" alt="Macuxi Força de Vendas"></div>
-    <div class="form">
-      ${comLogo ? `<span class="placa"><img src="${LOGO_CLI}" alt="Logo da Exemplo Norte"></span>` : ''}
-      <h1>Entrar</h1>
-      <div class="cp"><label>Código da empresa</label><div class="ent">${comLogo ? 'AM4821' : ''}</div></div>
-      <div class="cp"><label>E-mail</label><div class="ent">${comLogo ? 'lucas@exemplo.com.br' : ''}</div></div>
-      <div class="cp"><label>Senha</label><div class="ent"><span></span><span class="olho">Mostrar</span></div></div>
-      <div class="btn">Entrar</div>
-      <div class="esq">Esqueci a senha</div>
-      <div class="pe">© 2026 · Todos os direitos reservados<br>Versão 1.0.9 · <a>macuxifdv.com.br</a></div>
-    </div></div>`;
-}
 const telas = [
-  ['1 · Carga, sem logo', carga(false)],
-  ['2 · Carga, com logo', carga(true)],
-  ['3 · Entrar, sem logo', login(false)],
-  ['4 · Entrar, com logo', login(true)],
+  ['Carga, sem logo', carga(false)],
+  [`Carga, com logo · variação ${o.toUpperCase()}`, carga(true)],
 ];
 document.getElementById('board').innerHTML = telas.map(([l, h]) => `<div class="tela"><div class="leg">${T.nome} · ${l}</div>${h}</div>`).join('');
 </script>
