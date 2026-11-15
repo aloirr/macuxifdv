@@ -250,10 +250,10 @@ export interface ProblemaDePlano {
 }
 
 /**
- * Rótulo de cada item contado (plural), usado nas mensagens do SDK (RN-PLA-01, RN-PLA-04 e RN-PLA-05); a tela não lê este
- * mapa. Pesquisa e Treinamento são o nome do adicional (contam usuários com o módulo).
+ * Rótulo de cada item contado (plural), usado nas mensagens do SDK (RN-PLA-01, RN-PLA-04 e RN-PLA-05). Pesquisa e
+ * Treinamento são o nome do adicional (contam usuários com o módulo).
  */
-export const ROTULO_ITEM: Readonly<Record<ItemContado, string>> = Object.freeze({
+const ROTULO_ITEM: Readonly<Record<ItemContado, string>> = Object.freeze({
   vendedor: 'Vendedores',
   gestor: 'Gestores',
   bko: 'BKO',
