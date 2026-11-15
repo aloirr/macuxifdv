@@ -2,7 +2,7 @@
 
 > 2026-11-12 · designer-ux · base: `docs/marca/propostas/2026-11-12-entrada-sync/` (proposta e `entrada-sync.png`), aprovada pelo
 > dono do produto em 12/11/2026 ("Aprovado. Quero na 1.0.5"); manual da marca §4 e §6.
-> Código: tokens em `packages/ui/src/mobile/entrada.ts` (`TEMAS_ENTRADA`, `temaDaEntrada`), testados em `entrada.test.ts`.
+> Código: tokens em `packages/ui/src/mobile/entrada.ts` (`TEMAS_ENTRADA`, `temaDaEntrada`, `MEDIDAS_FRASE_CARGA`), testados em `entrada.test.ts`.
 > Quem faz: engenheiro-apps (tela, splash, rota `/sync`), modulo-core (etapas: contrato `ProgressoEntrada`, RN-CORE-40),
 > design-de-marca (parecer no print do aparelho).
 
@@ -21,6 +21,16 @@ A tela é sempre a mesma: o logo parado e, embaixo, a área de sincronização. 
 ## 2. Área de baixo (estados 2, 4, 5 e 6)
 De cima para baixo, alinhada à margem lateral de 32 dp:
 1. **"Olá, {primeiro nome}"** (só depois do login): IBM Plex Sans 15, `textoClaro`, centralizado, logo abaixo do logo.
+   - **"Você sabia?" e frase sorteada** (estados 4 e 5), 20 dp abaixo do "Olá", centralizados: lâmpada de 16 dp
+     (`<Icon name="lampada">`, cor `preenchimento`, gráfico) e, 6 dp depois, "Você sabia?" em Plex Sans SemiBold 13/18, `texto`;
+     6 dp abaixo, a frase em Plex Sans 14/20, `textoClaro`, largura máxima 280 dp, até 2 linhas, sem aspas e sem itálico. Uma
+     frase por carga, parada. Precisa de 24 dp livres até o aviso; sem isso, a frase cai para 1 linha (se couber inteira) ou o
+     bloco inteiro sai. O título nunca aparece sozinho.
+   - **Aviso** (estados 4 e 5), 10 dp acima da linha da barra, alinhado à esquerda: "Baixando os dados do servidor. Não
+     desligue.", Plex Sans 13/18, `textoClaro`, 1 linha na escala de fonte 1,0; com fonte grande pode quebrar em 2, nunca é
+     cortado. Sem caixa, sem borda, sem negrito e sem ícone. No erro (estado 6) sai.
+   - Medidas em `MEDIDAS_FRASE_CARGA` (`packages/ui/src/mobile/entrada.ts`); sorteio, respiro e cadastro em
+     `docs/design/carga-aviso-frases/spec.md` (T-0181).
 2. **Linha da barra:** à esquerda "Etapa {n} de {N} · {nome da etapa}" (Plex Sans 13, `texto`); à direita o percentual (Plex Sans
    Bold 13, `texto`, números tabulares). Antes do login, o nome da tarefa no lugar da etapa. Pronto: "Pronto" e "100%".
 3. **Barra:** 6 dp de altura, raio 3, trilho `trilho`, preenchimento `preenchimento`. É o percentual do total (ADR 0017), de 0 a
@@ -38,10 +48,11 @@ De cima para baixo, alinhada à margem lateral de 32 dp:
    - **Gestão:** Envio do que ficou no aparelho · Equipe · Aprovações · Metas · Alertas.
    - Os nomes e a divisão vêm do modulo-core.
 
-   **Tela baixa:** se a lista não cabe entre o logo e a borda de baixo, ela sai e ficam só a linha da barra e a barra.
+   **Tela baixa:** se a lista não cabe entre o logo e a borda de baixo, ela sai e ficam só a linha da barra e a barra. Na carga,
+   a lista sai antes do bloco "Você sabia?" (`cabeLista` conta o aviso e o bloco); logo, "Olá", aviso e barra ficam sempre.
 
 **Fora da tela:**
-- frase que se alterna, dica, texto sobre o que o app faz por trás, nome de tabela, de entidade ou de módulo;
+- frase que se alterna durante a carga, texto sobre o que o app faz por trás, nome de tabela, de entidade ou de módulo;
 - percentual por etapa e contagem de registros.
 
 ## 3. Parou (estado 6)
