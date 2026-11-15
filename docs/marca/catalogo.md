@@ -70,3 +70,13 @@ Em 13/11/2026 o catálogo foi alinhado ao parecer final da v1.0.5 (o primeiro ti
 | MC-0064 | `pareceres/2026-11-15-fonte-sistema.md` | login do Campo (print v3): "Código da empresa", "E-mail" e "Esqueci a senha" em 400, "Senha" em 600 | média | engenheiro-apps (print) · modulo-core | fechado no print da rodada 3 |
 | MC-0065 | `pareceres/2026-11-15-fonte-sistema.md` | BKO, Filiais: CNPJ em mono (`filiais-page.tsx:128`) | baixa | modulo-core | fechado (`tabular-nums`, core 07fdb08) |
 | MC-0066 | `pareceres/2026-11-15-fonte-sistema.md` | app: número do pedido em mono (`orders-screen.tsx:465`, `ficha-cliente.tsx:108`) | baixa | modulo-vendedor | fechado (texto com `tabular-nums`, vendedor bb5e83f) |
+| MC-0135 | `pareceres/2026-11-15-v1013-pareceres.md` | #391: título de escolher filial em display, 800 e 28 px (`escolher-filial.tsx:90`; prints `filial-16/*`) | média | engenheiro-apps | aberto; `m-0 text-[24px] font-bold` e prints refeitos |
+| MC-0136 | `pareceres/2026-11-15-v1013-pareceres.md` | #367: simulação carrega IBM Plex e Archivo por `@font-face` (`config-frases.html:8-12`, `app.css:2-4`); `frases.md:4-5` diz "IBM Plex Sans 14" | média | designer-ux | aberto; só fonte do sistema |
+| MC-0137 | `pareceres/2026-11-15-v1013-pareceres.md` | #367: `h1` em Archivo, 800, 24px (`config-frases.html:34`) | média | designer-ux | aberto; 24/700 na fonte do sistema |
+| MC-0138 | `pareceres/2026-11-15-v1013-pareceres.md` | #367: `.badge` em 11px (`config-frases.html:42`) | média | designer-ux | aberto; 12 |
+| MC-0139 | `pareceres/2026-11-15-v1013-pareceres.md` | #367: 14px na web (`config-frases.html:16,40`) | baixa | designer-ux | aberto; base 15 |
+| MC-0140 | `pareceres/2026-11-15-v1013-pareceres.md` | #384: parecer de T-0174 com SHAs antigos e "Tipos de 12, 13 e 14 px" | baixa | design-de-marca | resolvido por este parecer (reconferência nos heads atuais) |
+| MC-0141 | `pareceres/2026-11-15-v1013-pareceres.md` | commits f649ae40 (#366) e 6cf270b9 (#382) citam "MC-1201", inexistente | baixa | design-de-marca | resolvido por este parecer (MC-1201 não existe) |
+| MC-0142 | `pareceres/2026-11-15-v1013-pareceres.md` | #375: valor em destaque em 700 (RD-1231) | média | modulo-core | aberto; 600 |
+| MC-0143 | `pareceres/2026-11-15-v1013-pareceres.md` | #375: sigla da medida em `font-mono` (`medidas-panel.tsx:108,162`) | baixa | modulo-core | aberto; fonte de texto |
+| MC-0144 | `pareceres/2026-11-15-v1013-pareceres.md` | #385: tamanhos fora da escala do app (`tela-performance.tsx:212` 30, `:213,224` 24, `rota.tsx:396` 13) | média | modulo-core | aberto; 28/22/14 |
