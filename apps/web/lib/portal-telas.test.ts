@@ -16,7 +16,8 @@ import {
   TEXTOS_ADMIN,
   textoDoAdminNoResultado,
 } from '@/components/portal/passo-empresa';
-import { celulaDoPlano, rotuloDoStatus } from '@/components/portal/tela-empresas';
+import { celulaDoPlano } from '@/components/portal/tela-empresas';
+import { rotuloDoStatus } from '@/lib/portal-empresa-acoes';
 import { mensagemDoLoginPortal, TEXTOS_ENTRAR } from '@/components/portal/tela-entrar';
 import { ErroPortal, MENSAGEM_PORTAL_SEM_SEGREDOS, MENSAGEM_SEM_CONEXAO } from './portal-api';
 
@@ -140,8 +141,8 @@ describe('textos do portal (revisão de UX R-20261106-023316)', () => {
     expect(rotuloDoFuso('America/Manaus')).toBe('Manaus (AM, RR, RO) — UTC−4');
     expect(rotuloDoFuso('Europe/Lisbon')).toBe('Europe/Lisbon');
     expect(rotuloDoStatus('ativo')).toBe('Ativa');
-    expect(rotuloDoStatus('suspenso')).toBe('Suspensa');
-    expect(rotuloDoStatus('encerrado')).toBe('Encerrada');
+    expect(rotuloDoStatus('suspenso')).toBe('Inativa');
+    expect(rotuloDoStatus('encerrado')).toBe('Em exclusão');
     expect(rotuloDoStatus('novo')).toBe('Novo');
   });
   it('coluna Plano da lista de empresas (§11.5): nome, selo "teste" só em teste e "—" sem plano', () => {
