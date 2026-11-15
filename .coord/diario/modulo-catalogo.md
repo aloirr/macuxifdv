@@ -83,3 +83,4 @@
 2026-11-12 — T-0167 — RD-0194: contagem do Catálogo num lugar só (topo só quando tudo está à vista; com mais de 20, só 'Mostrando N de M' no fim); T-0166 sem RD do Catálogo
 2026-11-13 — T-0173 — Catálogo em grade no app (cartões 2 colunas, chips sistema/categoria, preço da filial padrão sem cliente, tag de estoque 1-9 laranja)
 2026-11-15 — fonte do sistema v1.0.13 — app com ...fonte.x e escala 12/14/16/18/22, PDF em pilha do sistema com 12px mínimo
+2026-11-15 — fonte rodada 3 — catálogo: web na escala por papel (15), PDF com PILHA_SISTEMA, th 600 e neutros do manual (MC-0058/0062, RD-0949/0943)
