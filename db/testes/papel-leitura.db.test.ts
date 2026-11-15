@@ -384,7 +384,7 @@ describe.skipIf(semBanco())('0078 papel de leitura (banco, fixture dois-tenants)
         { tabela: 'core.cliente', problema: 'privilégio de escrita para o macuxi_leitura (0078: só SELECT)' },
         { tabela: 'core.carteira', problema: 'sem a política leitura ou o SELECT do macuxi_leitura (0078)' },
         { tabela: '(papel) macuxi_leitura', problema: 'membro de macuxi_x0078 (herdaria privilégios)' },
-        { tabela: 'core.usuario', problema: 'SELECT do macuxi_leitura na coluna sensível senha_hash (0078: hash, token, senha, segredo, chave, carga)' },
+        { tabela: 'core.usuario', problema: 'SELECT do macuxi_leitura na coluna sensível senha_hash (0078)' },
         expect.objectContaining({ tabela: '(papel) macuxi_leitura', problema: expect.stringMatching(/^EXECUTE em plataforma\.sa_/) }),
       ]));
       expect(r.rows).toHaveLength(5);

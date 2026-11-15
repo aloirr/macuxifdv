@@ -121,7 +121,7 @@ problemas as (
                    and (has_table_privilege(r.oid, t.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
                         or has_any_column_privilege(r.oid, t.oid, 'INSERT, UPDATE, REFERENCES')))
   union all
-  select c.oid::regclass::text, 'SELECT do macuxi_leitura na coluna sensível ' || a.attname || ' (0078: hash, token, senha, segredo, chave, carga)'
+  select c.oid::regclass::text, 'SELECT do macuxi_leitura na coluna sensível ' || a.attname || ' (0078)'
     from pg_class c join pg_namespace n on n.oid = c.relnamespace join pg_attribute a on a.attrelid = c.oid
     join pg_roles r on r.rolname = 'macuxi_leitura'
    where c.relkind in ('r', 'p', 'v', 'm', 'f') and n.nspname not in ('pg_catalog', 'information_schema') and n.nspname not like 'pg\_%'
