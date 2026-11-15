@@ -87,15 +87,15 @@ export const contarFiltros = (sel: SelecaoPeriodo): number => (sel.tipo === 'ata
 const maiuscula = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 /**
- * Nome do período na linha de cima dos cards (é o único lugar em que ele aparece: a tela não repete numa etiqueta).
- * Mês: "Novembro" (no ano de hoje) ou "Setembro de 2025"; ano: "2026"; dia: "Seg, 02/11/2026"; atalhos curtos pelo nome.
+ * Nome do período na linha de baixo do filtro (filtro padrão do Campo, R-20261115-072200): no padrão é texto; fora dele, é a
+ * etiqueta removível no mesmo lugar (um lugar só). Mês: "Novembro de 2026"; ano: "2026"; dia: "Seg, 02/11/2026"; atalhos
+ * curtos pelo nome.
  */
 export function rotuloDoPeriodo(sel: SelecaoPeriodo, hoje: string): string {
   const { de } = intervaloDaSelecao(sel, hoje);
   const ehMes = (sel.tipo === 'atalho' && (sel.id === 'este_mes' || sel.id === 'mes_passado')) || (sel.tipo === 'escolha' && sel.escolha.tipo === 'mes');
   if (ehMes) {
-    const nome = maiuscula(MONTHS[Number(de.slice(5, 7)) - 1] ?? '');
-    return de.slice(0, 4) === hoje.slice(0, 4) ? nome : `${nome} de ${de.slice(0, 4)}`;
+    return `${maiuscula(MONTHS[Number(de.slice(5, 7)) - 1] ?? '')} de ${de.slice(0, 4)}`;
   }
   if (sel.tipo === 'atalho') {
     if (sel.id === 'este_ano') return de.slice(0, 4);

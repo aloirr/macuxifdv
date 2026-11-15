@@ -40,9 +40,9 @@ describe('T-0170 §1.1: o período da Performance vira [de, ate]', () => {
     expect(contarFiltros({ tipo: 'escolha', escolha: { tipo: 'mes', valor: '2026-11' } })).toBe(1);
   });
 
-  it('o nome do período, um lugar só: "Novembro", "Setembro de 2025", "Hoje", "2026", "Seg, 02/11/2026"', () => {
-    expect(rotuloDoPeriodo(SELECAO_PADRAO, HOJE)).toBe('Novembro');
-    expect(rotuloDoPeriodo(atalho('mes_passado'), HOJE)).toBe('Outubro');
+  it('o nome do período, um lugar só: "Novembro de 2026", "Setembro de 2025", "Hoje", "2026", "Seg, 02/11/2026"', () => {
+    expect(rotuloDoPeriodo(SELECAO_PADRAO, HOJE)).toBe('Novembro de 2026');
+    expect(rotuloDoPeriodo(atalho('mes_passado'), HOJE)).toBe('Outubro de 2026');
     expect(rotuloDoPeriodo({ tipo: 'escolha', escolha: { tipo: 'mes', valor: '2025-09' } }, HOJE)).toBe('Setembro de 2025');
     expect(rotuloDoPeriodo(atalho('hoje'), HOJE)).toBe('Hoje');
     expect(rotuloDoPeriodo(atalho('esta_semana'), HOJE)).toBe('Esta semana');
