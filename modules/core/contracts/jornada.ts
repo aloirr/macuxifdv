@@ -38,3 +38,22 @@ export function minutoDoTextoHora(t: string): number | null {
   return Number(m[1]) < 24 && Number(m[2]) < 60 ? min : null;
 }
 
+
+const MIN_MS = 60_000;
+/** Janela do almoço em milissegundos (instantes absolutos do dia). */
+export type AlmocoEmMs = { inicio: number; fim: number };
+
+/** Soma `minutos` a `refMs` sem contar o tempo de almoço (RN-CORE-44: o horário cadastrado). Única implementação do desconto. */
+export function somarSemAlmoco(refMs: number, minutos: number, almocoMs: AlmocoEmMs): number {
+  const fimSimples = refMs + minutos * MIN_MS;
+  if (refMs >= almocoMs.fim || fimSimples <= almocoMs.inicio) return fimSimples;
+  if (refMs >= almocoMs.inicio) return almocoMs.fim + minutos * MIN_MS;
+  return fimSimples + (almocoMs.fim - almocoMs.inicio);
+}
+
+/** Minutos (fracionados) entre `deMs` e `ateMs` sem a parte que cai no almoço (RN-CORE-26, RN-CORE-44); nunca negativo. */
+export function minutosSemAlmoco(deMs: number, ateMs: number, almocoMs: AlmocoEmMs): number {
+  if (ateMs <= deMs) return 0;
+  const sobre = Math.max(0, Math.min(ateMs, almocoMs.fim) - Math.max(deMs, almocoMs.inicio));
+  return (ateMs - deMs - sobre) / MIN_MS;
+}

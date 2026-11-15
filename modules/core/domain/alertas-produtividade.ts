@@ -22,17 +22,16 @@ export function parametrosAlertasDasLinhas(linhas: readonly Linha[]): Parametros
   return structuredClone(r.success ? r.data : PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO);
 }
 
-const NOMES = NOME_REGRA_PRODUTIVIDADE;
 const faixa = (n: unknown, f: { min: number; max: number }) => typeof n === 'number' && Number.isInteger(n) && n >= f.min && n <= f.max;
 
 /** RN-CORE-26 (D6): valida as faixas do PUT; as mensagens dizem a regra, o intervalo e a ação. */
 export function validarParametrosAlertasProdutividade(p: ParametrosAlertasProdutividade): { ok: true; valores: ParametrosAlertasProdutividade } | { ok: false; erros: ErroParametroAlertas[] } {
   const erros: ErroParametroAlertas[] = [];
   const e = (campo: string, mensagem: string) => erros.push({ campo, mensagem });
-  if (!faixa(p.fim_almoco.antecedencia_min, F.antecedencia_min)) e('fim_almoco', `${NOMES.fim_almoco}: avise de ${F.antecedencia_min.min} a ${F.antecedencia_min.max} minutos antes.`);
-  if (!faixa(p.parado_entre_visitas.gestor_depois_min, F.gestor_depois_min)) e('parado_entre_visitas', `${NOMES.parado_entre_visitas}: o gestor é avisado de ${F.gestor_depois_min.min} a ${F.gestor_depois_min.max} minutos depois.`);
-  if (!faixa(p.visita_aberta.apos_min, F.visita_aberta_min)) e('visita_aberta', `${NOMES.visita_aberta}: informe de ${F.visita_aberta_min.min} a ${F.visita_aberta_min.max} minutos.`);
-  if (!faixa(p.envio_pendente.apos_h, F.envio_pendente_h)) e('envio_pendente', `${NOMES.envio_pendente}: informe de ${F.envio_pendente_h.min} a ${F.envio_pendente_h.max} horas.`);
+  if (!faixa(p.fim_almoco.antecedencia_min, F.antecedencia_min)) e('fim_almoco', `${NOME_REGRA_PRODUTIVIDADE.fim_almoco}: avise de ${F.antecedencia_min.min} a ${F.antecedencia_min.max} minutos antes.`);
+  if (!faixa(p.parado_entre_visitas.gestor_depois_min, F.gestor_depois_min)) e('parado_entre_visitas', `${NOME_REGRA_PRODUTIVIDADE.parado_entre_visitas}: o gestor é avisado de ${F.gestor_depois_min.min} a ${F.gestor_depois_min.max} minutos depois.`);
+  if (!faixa(p.visita_aberta.apos_min, F.visita_aberta_min)) e('visita_aberta', `${NOME_REGRA_PRODUTIVIDADE.visita_aberta}: informe de ${F.visita_aberta_min.min} a ${F.visita_aberta_min.max} minutos.`);
+  if (!faixa(p.envio_pendente.apos_h, F.envio_pendente_h)) e('envio_pendente', `${NOME_REGRA_PRODUTIVIDADE.envio_pendente}: informe de ${F.envio_pendente_h.min} a ${F.envio_pendente_h.max} horas.`);
   if (!faixa(p.teto_lembretes_dia, F.teto_lembretes_dia)) e('teto_lembretes_dia', `O teto de lembretes por dia vai de ${F.teto_lembretes_dia.min} a ${F.teto_lembretes_dia.max}.`);
   return erros.length > 0 ? { ok: false, erros } : { ok: true, valores: p };
 }

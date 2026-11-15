@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO as PADRAO, type ParametrosAlertasProdutividade } from '../contracts';
-import { agendaDeLembretes, duracaoCurta, somarSemAlmoco, type EntradaLembretes } from './lembretes-produtividade';
+import { minutosSemAlmoco, somarSemAlmoco } from '../contracts/jornada';
+import { agendaDeLembretes, duracaoCurta, type EntradaLembretes } from './lembretes-produtividade';
 
 // segunda, 16/11/2026, fuso de Manaus (UTC-4): 00:00 local = 04:00Z
 const DIA = '2026-11-16T04:00:00.000Z';
@@ -78,6 +79,16 @@ describe('RN-CORE-26 (D4/D6): lembretes locais de produtividade no Campo', () =>
     expect(agendaDeLembretes(entrada({ ...base, paradas: [] }, '09:05'))).toEqual([semProxima]);
     expect(agendaDeLembretes(entrada({ ...base, visitas: [] }, '09:05'))).toEqual([]);
   });
+  it('RN-CORE-26 e RN-CORE-44: minutosSemAlmoco desconta só a parte que cai no almoço', () => {
+    const a = { inicio: 12 * 60 * 60_000, fim: 13 * 60 * 60_000 };
+    const h = (x: number) => x * 60 * 60_000;
+    expect(minutosSemAlmoco(h(11), h(14), a)).toBe(120);
+    expect(minutosSemAlmoco(h(9), h(10), a)).toBe(60);
+    expect(minutosSemAlmoco(h(12.25), h(12.75), a)).toBe(0);
+    expect(minutosSemAlmoco(h(12.5), h(14), a)).toBe(60);
+    expect(minutosSemAlmoco(h(14), h(11), a)).toBe(0);
+  });
+
   it('RN-CORE-44: o tempo do almoço não conta no "parado" (checkout 11:30 + 60 min dentro do almoço vira 13:30)', () => {
     const r = agendaDeLembretes(entrada({ parametros: so({ parado_entre_visitas: PADRAO.parado_entre_visitas }), visitas: [v('c1', '08:00', '11:30')] }, '11:40'));
     expect(hora(r[0]!.em)).toBe('13:30');

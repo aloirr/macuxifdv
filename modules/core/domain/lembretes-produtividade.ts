@@ -15,7 +15,7 @@
  */
 import { HORARIO_COMERCIAL_PADRAO, type ParametrosAlertasProdutividade } from '../contracts/alertas-produtividade';
 import type { HorarioAlmoco } from '../contracts/jornada';
-import { textoDoMinuto } from '../contracts/jornada';
+import { somarSemAlmoco, textoDoMinuto } from '../contracts/jornada';
 
 export type TipoLembrete = 'sem_checkin_inicio' | 'fim_almoco' | 'parado_entre_visitas' | 'rota_incompleta' | 'visita_aberta' | 'envio_pendente';
 
@@ -74,14 +74,6 @@ export function duracaoCurta(min: number): string {
   const m = min % 60;
   if (h === 0) return `${m} min`;
   return m === 0 ? `${h} h` : `${h} h ${m} min`;
-}
-
-/** Soma `minutos` a `ref` sem contar o tempo de almoço (RN-CORE-44: o horário cadastrado). */
-export function somarSemAlmoco(refMs: number, minutos: number, almocoMs: { inicio: number; fim: number }): number {
-  const fimSimples = refMs + minutos * MIN;
-  if (refMs >= almocoMs.fim || fimSimples <= almocoMs.inicio) return fimSimples;
-  if (refMs >= almocoMs.inicio) return almocoMs.fim + minutos * MIN;
-  return fimSimples + (almocoMs.fim - almocoMs.inicio);
 }
 
 type Candidato = LembreteDoDia & { emMs: number };
