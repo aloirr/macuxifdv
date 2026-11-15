@@ -59,15 +59,52 @@ O delta dos dois commits não altera `packages/ui/src/mobile/icon.tsx`, `package
 ## Para o Alexandre
 Depois da MC-0089, a simulação segue para ele sem ressalva de marca. O Catálogo e o Sincronizar já podem ir como estão. Só ele aprova.
 
+## Reteste · 6966b01d
+
+### Veredito: liberado
+A MC-0089 está corrigida e fechada no PNG. A troca do rótulo da faixa do Catálogo e os preços de Manaus na tela 08 não mexem na marca. O resto do delta não traz cor nova. Não há achado novo. A simulação inteira (Catálogo 01 a 08, login 13, BKO 14 e 15, Sincronizar 01 a 04) segue para o Alexandre sem ressalva de marca.
+
+> 2026-11-15, 09h42 (Manaus) · design-de-marca · reteste pedido pelo gerente-projetos.
+> **Base:** branch `nuvem/catalogo-campo-designer-ux`, commit `6966b01d`. Delta `4d6de8de..6966b01d`: `filial.css`, `filial.html` e a spec de `filial-cadastro-venda/` com os PNGs 14 e 15; o HTML e a spec de `catalogo-campo-v2/` com os PNGs 01, 02, 04, 05, 06 e 08; `sync.css`, `sync.html` e a spec de `sync-completa/` com o PNG 02. Os arquivos de `docs/marca/ativos/` não mudaram.
+> **Como:** li o diff. Medi os pixels dos PNGs no Chromium (node + playwright-core, `/opt/pw-browsers/chromium-1243`), com o histograma de cor por região e a caixa do logo. Calculei o contraste WCAG dos pares.
+
+### MC-0089 · fechada (retestado no PNG)
+| Item | Pedido | No código (`6966b01d`) | No PNG (escala 2) |
+|---|---|---|---|
+| Logo | `macuxi-logo-negativo-grafite.svg` a 28 px, sem texto digitado | `filial.html`, telas 14 e 15: `<img src="../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-grafite.svg" alt="Macuxi Força de Vendas">`. `filial.css`: `.marca-bko img { height: 28px }`. As regras `.m` e `b` saíram | Na 14, a caixa do logo vai de y 48 a 103, ou seja, 56 px = **28 px**. A proporção é 4,63, igual à do `viewBox` (514,41 × 110,85): o logo não foi esticado. As cores são as do arquivo: `#FFFFFF`, `#9AA3B0`, `#C9D0D8` e o sol `#F59A52` |
+| Nome da distribuidora | abaixo, em `#C9CED5`, fora da área de proteção | `.marca-bko` em coluna, e `span { margin-top: 18px; font-size: 12px; color: #C9CED5 }` | `Distribuidora Norte` em `#C9CED5` (10,42:1 no grafite), 43 px (cerca de 21 px CSS) abaixo do logo |
+| Título de grupo | Sol claro `#F59A52` | `.lateral .grupo { color: #F59A52; font-size: 11.5px; letter-spacing: .07em }`, igual ao `TITULO_GRUPO` do `app-shell.tsx` no `main` | `EQUIPE` em `#F59A52` (7,56:1 no grafite) |
+| Tela atual | barra de 3 px Sol claro | `.op.on::before`, 3 px, `left/top/bottom: 8px`, raio 2, `#F59A52` | Barra `#F59A52` (5,56:1 no `#2B3743`, acima de 3:1) e `Usuários` branco no `#2B3743` (12,14:1) |
+
+Na tela 15, o `scrim` da gaveta escurece a página inteira, menu incluído (o logo cai para `#AEB1B5` e o sol para `#A76F44`). É o estado de "fundo atrás da gaveta", que já estava no PNG liberado e não é recolorir o logo. Com a gaveta fechada (tela 14), as cores são as do arquivo.
+
+### Rótulo da faixa: `Filial Boa Vista · …` → `Sua filial: Boa Vista · …` · sem objeção de marca
+- **Tom de voz:** é a fala de quem conhece o campo: direta e próxima, no "você" do vendedor. Conversa com o chip `Suas filiais (3)` e com o `sua filial` da folha 06, então o app usa a mesma palavra para a mesma coisa. Não traz jargão. O texto de interface continua com o `designer-ux` e o `corretor-redundancias`. Pela marca, está liberado.
+- **Tipografia e cor:** a classe `.s` não mudou, e o CSS do Catálogo ficou fora do delta. No PNG 01 e no 08, o subtítulo segue em `#C9CED5` no Azul noite `#1E3350` (8,07:1), e o título `Catálogo` em branco. O texto mais longo cabe numa linha e termina antes do selo `↻ 07:28` (x 455 contra 527 no PNG 01).
+- **Tela 08 com os preços de Manaus:** os novos preços (`R$ 88,90`, `R$ 158,50` e `R$ 37,40`) vêm em grafite `#16202A` no branco, igual aos outros cartões. O chip `Filial Manaus ✕` continua com o Azul noite no `#DFE2E6` (9,83:1). Não há cor nova.
+- **Fora da marca (para o corretor e o designer-ux):** na 08, a faixa diz `Sua filial: Boa Vista · 1.284 produtos` enquanto o preço e o estoque são de Manaus. A spec escolheu isso de propósito (o chip diz a filial do preço). Se o `1.284` é de Boa Vista ou de Manaus, e se a leitura confunde, é questão de UX e de "uma informação, um lugar", não de marca. Não catalogo esse ponto.
+
+### Resto do delta
+- **BKO 14:** com o filtro `Sem filial`, a coluna `Filial` sai, e com ela o selo `Sem filial` em vermelho. A tabela fica só com as cores já liberadas. A mudança é de UX.
+- **Sincronizar 02:** a dica `Segure 10 s…` sai enquanto sincroniza (`.sit.ult`, só margem). As cores medidas são as mesmas do parecer: o botão grafite, o indicador branco e a situação em `ink2`.
+- **Spec do Sincronizar:** o `DialogoProgresso` deixou de ser componente novo. O popup passa a ser o `Dialogo` do kit sem botões, com a `Barra` da `TelaEntrada` levada ao kit. A barra fica "igual à da tela de carga, tema Pérola". Os hex saíram do texto da spec, e o PNG 04 não mudou. A nota "Para a implementação" acima continua valendo com o nome novo: a `Barra` usa os tokens de `TEMAS_ENTRADA.perola`, sem hex.
+- **Catálogo 02, 04, 05 e 06:** só o rótulo da faixa mudou.
+
+### Achados novos
+Nenhum. Nota da numeração: as MC-0090 a MC-0100 já foram usadas nos branches `nuvem/T-0174-design-de-marca` e `nuvem/fotos-lote-2-design-de-marca` (fotos em lote). O próximo achado novo da marca é a **MC-0101**, e não a MC-0090.
+
+### Catálogo de achados
+A linha da MC-0089 ainda não está em `docs/marca/catalogo.md` deste branch. Ela entra como "retestado e fechado (6966b01d)" no registro do catálogo, junto com as MC-0090 a MC-0100 dos outros branches, para não haver conflito entre os PRs.
+
 ## Recados pendentes
-O repositório de recados deu 403 nesta sessão, então os recados não foram enviados. Comandos para o gerente-projetos enviar, ou para a próxima sessão com acesso:
+O repositório de recados deu 403 de novo, então os recados não foram enviados. O primeiro recado do parecer (MC-0089 para o `designer-ux`) **não deve mais ser enviado**, porque a MC-0089 já está fechada. Ficam estes dois, para o gerente-projetos enviar ou para a próxima sessão com acesso:
 
 ```bash
-node scripts/coord.mjs enviar --de design-de-marca --para designer-ux --cc gerente-projetos --tipo pedido \
-  --assunto "MC-0089: menu lateral do BKO nas telas 14 e 15 da simulação de filial" \
-  --corpo "Parecer docs/marca/pareceres/2026-11-15-catalogo-filial-sync.md (branch nuvem/catalogo-filial-sync-design-de-marca). MC-0089 (média): em docs/design/filial-cadastro-venda/filial.html e filial.css, troque o símbolo com 'Macuxi FDV' digitado pelo arquivo macuxi-logo-negativo-grafite.svg a 28 px, com 'Distribuidora Norte' abaixo em #C9CED5 (margem de 18 px). O título de grupo passa de #9AA3B0 para #F59A52, e a tela atual ganha a barra de 3 px em #F59A52, como no app-shell.tsx do main. Gere de novo os PNGs 14 e 15. O Catálogo 01-08, o login 13 e o Sincronizar 01-04 estão liberados. Na implementação do DialogoProgresso, use os tokens de TEMAS_ENTRADA.perola, sem hex."
+node scripts/coord.mjs enviar --de design-de-marca --para designer-ux --cc gerente-projetos --tipo aviso \
+  --assunto "Reteste da marca 6966b01d: MC-0089 fechada, simulação de filial liberada" \
+  --corpo "Parecer docs/marca/pareceres/2026-11-15-catalogo-filial-sync.md, seção 'Reteste · 6966b01d' (branch nuvem/catalogo-filial-sync-design-de-marca). MC-0089 fechada no PNG: logo negativo grafite a 28 px sem distorção, 'Distribuidora Norte' em #C9CED5, EQUIPE e a barra da tela atual em #F59A52. O rótulo 'Sua filial: Boa Vista · …' e os preços de Manaus na 08 não têm objeção de marca. Sem achado novo. Na implementação, a Barra que vai para o kit usa os tokens de TEMAS_ENTRADA.perola, sem hex."
 
 node scripts/coord.mjs enviar --de design-de-marca --para gerente-projetos --tipo entrega \
-  --assunto "Marca: simulação de filial, Catálogo na opção A e Sincronizar, liberado com ajustes (MC-0089)" \
-  --corpo "Branch nuvem/catalogo-filial-sync-design-de-marca, parecer docs/marca/pareceres/2026-11-15-catalogo-filial-sync.md, base 4d6de8de. Liberados: Catálogo 01-08, login 13, Sincronizar 01-04 e DialogoProgresso. Ajuste: MC-0089 (média, designer-ux), menu lateral do BKO nas telas 14 e 15 com o logo remontado e o título de grupo em #9AA3B0. Reteste no PNG depois da correção."
+  --assunto "Marca: reteste 6966b01d liberado (MC-0089 fechada)" \
+  --corpo "Branch nuvem/catalogo-filial-sync-design-de-marca, parecer docs/marca/pareceres/2026-11-15-catalogo-filial-sync.md. Base nuvem/catalogo-campo-designer-ux 6966b01d: liberado. MC-0089 retestada e fechada nos PNGs 14 e 15. A troca do rótulo para 'Sua filial: …' e os preços de Manaus na 08 estão liberados pela marca. Se a faixa com Boa Vista ao lado do preço de Manaus confunde, isso é com o corretor e o designer-ux, não com a marca. Sem achado novo; o próximo ID livre é a MC-0101 (as MC-0090 a MC-0100 estão nos branches das fotos em lote). A simulação vai ao Alexandre sem ressalva de marca."
 ```
