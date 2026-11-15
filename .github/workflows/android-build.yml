@@ -62,6 +62,9 @@ jobs:
       VERSION_CODE_INFORMADO: ${{ inputs.version_code }}
       # sufixo dos secrets e variáveis da variante (CAMPO ou GESTAO); nunca cai no conjunto da outra variante
       SUFIXO: ${{ matrix.variante == 'campo' && 'CAMPO' || 'GESTAO' }}
+      # NDK do react-native do repositório (node_modules/react-native/gradle/libs.versions.toml, ndkVersion); a
+      # limpeza do disco preserva só esta versão. O teste scripts/ci/android-build.test.mjs confere a igualdade.
+      NDK_VERSAO: '27.1.12297006'
     steps:
       # Antes de tudo (segundos): falta de secret derruba o job sem gastar o build. Nunca imprime valor.
       - name: secrets da variante
@@ -83,6 +86,23 @@ jobs:
             echo "### $VARIANTE: secrets ausentes — ${FALTAM[*]}" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
+
+      # O ubuntu-latest (2 núcleos, ~14 GB livres) ficou sem disco no assembleRelease (run 43673109770: "No space left
+      # on device"). Apaga do runner o que o build não usa; o NDK do projeto fica. docker image prune é limpeza do
+      # runner, não roda container.
+      - name: liberar disco
+        run: |
+          df -h /
+          NDK_DIR=/usr/local/lib/android/sdk/ndk
+          if [ -d "$NDK_DIR" ]; then
+            for d in "$NDK_DIR"/*; do
+              [ "$(basename "$d")" = "$NDK_VERSAO" ] || sudo rm -rf "$d"
+            done
+          fi
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
+          docker image prune -af > /dev/null 2>&1 || true
+          echo "NDK preservado: $(ls "$NDK_DIR" 2>/dev/null | tr '\n' ' ')"
+          df -h /
 
       - uses: actions/checkout@v4
         with:
@@ -152,6 +172,23 @@ jobs:
             echo '::error title=versionCode::não achei versionCode/versionName no android/app/build.gradle do prebuild'; exit 1
           fi
 
+      # Só arm64-v8a e armeabi-v7a (aparelhos; x86/x86_64 são de emulador): metade do código nativo, menos disco e
+      # tempo. Memória para o runner de 7 GB; o gradlew roda com --no-daemon. Idempotente: troca a linha ou acrescenta.
+      - name: gradle.properties (ABIs e memória)
+        working-directory: apps/mobile/android
+        run: |
+          definir() {
+            if grep -qE "^$1=" gradle.properties; then
+              sed -i -E "s|^$1=.*|$1=$2|" gradle.properties
+            else
+              printf '\n%s=%s\n' "$1" "$2" >> gradle.properties
+            fi
+          }
+          definir reactNativeArchitectures 'arm64-v8a,armeabi-v7a'
+          definir org.gradle.jvmargs '-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8'
+          definir org.gradle.parallel false
+          grep -E '^(reactNativeArchitectures|org\.gradle\.jvmargs|org\.gradle\.parallel)=' gradle.properties
+
       - name: keystore
         env:
           KS_BASE64: ${{ secrets[format('ANDROID_KEYSTORE_BASE64_{0}', env.SUFIXO)] }}
@@ -167,7 +204,7 @@ jobs:
           KEY_ALIAS: ${{ secrets[format('ANDROID_KEY_ALIAS_{0}', env.SUFIXO)] }}
           KEY_PASSWORD: ${{ secrets[format('ANDROID_KEY_PASSWORD_{0}', env.SUFIXO)] }}
         run: |
-          ./gradlew assembleRelease --build-cache \
+          ./gradlew assembleRelease --build-cache --no-daemon \
             -Pandroid.injected.signing.store.file="$RUNNER_TEMP/keystore.jks" \
             -Pandroid.injected.signing.store.password="$KS_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
