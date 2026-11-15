@@ -167,3 +167,4 @@
 2026-11-15 — T-0094 (PR #285) — corretor RD-0375..0379: textoEmMinutos único, MENSAGEM_SESSAO/CREDENCIAIS reaproveitadas, 423 do portal com minutos_restantes, JSDoc de entrar, teste duplicado removido.
 2026-11-15 — PR #285 (R-20261114-204500) — código da empresa só UF+4 dígitos (6 caracteres, maxLength 6), senha sem espaço nas pontas (criação, troca, redefinição, aviso no login); recados ao engenheiro-apps/testes bloqueados pelo GitHub (403), pendentes
 2026-11-15 — PR #285 (CI vermelho + D-01) — CodigoEmpresaSchema volta a aceitar código antigo no servidor (formato UF+4 só no campo: CodigoEmpresaFormatoSchema); esqueciSenha trava o usuário (for update) e o toque duplo gera uma só senha e um só e-mail.
+2026-11-15 — PR #285 (CI 1179cc5) — merge do main sem conflito; pnpm test geral: só apps/web/lib/login.test.ts reprova (teste usa 'alfa', fora do formato UF+4; dono engenheiro-apps); sem mudança de código do core.
