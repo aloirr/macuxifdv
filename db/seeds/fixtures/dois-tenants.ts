@@ -65,6 +65,8 @@
  *   cliente (todo cliente da fixture fica na padrão: estoque e preço de hoje não mudam). Depósitos, itens de preço e faixas da
  *   fixture não informam a filial: o gatilho grava a padrão (a regra "ausente = padrão" do Hub). Os testes que precisam de
  *   cliente, depósito ou preço na 0002 gravam em transação desfeita.
+ * - T-0176 (0070, RN-CORE-39; USUARIO_FILIAL_FIXTURE, grupo 0x67): filiais do usuário — A: vendedor-1 na padrão e o supervisor
+ *   na padrão e na Boa Vista (várias); o vendedor-2 fica SEM filial (o caso do aviso ao admin); B: vendedor-B na Campinas.
  * - T-0147 (0057, RN-CORE-38; FOTOS_PDV_FIXTURE): o gatilho tenant_semear_foto_tipo cria a "Fachada" (obrigatória) em A e em B
  *   (fora das listas, id idFotoTipoFachada); nas listas (grupo 0x0b) A tem "CNH do sócio" (sensível, obrigatória) e B
  *   "Contrato social" (sensível). Fotos (grupo 0x0c): A com a fachada e a CNH de c1 (arquivo da CNH com perfis_leitura
@@ -199,6 +201,8 @@ const G = {
   usuario_avatar: 0x64,
   meta_produtividade: 0x65,
   deslocamento_dia: 0x66,
+  // 0070 (T-0176, RN-CORE-39): filiais do usuário
+  usuario_filial: 0x67,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -318,6 +322,12 @@ const chaveHubFixture = (prefixo: string, segredo: string) => {
 export const FILIAIS_FIXTURE = {
   A: { padrao: idFilialPadrao(a('tenant', 1)), boaVista: a('filial', 1) },
   B: { padrao: idFilialPadrao(b('tenant', 1)), campinas: b('filial', 1) },
+} as const;
+
+/** 0070 (T-0176, RN-CORE-39): filiais do usuário (ver o cabeçalho). */
+export const USUARIO_FILIAL_FIXTURE = {
+  A: { vendedor1Padrao: a('usuario_filial', 1), supervisorPadrao: a('usuario_filial', 2), supervisorBoaVista: a('usuario_filial', 3) },
+  B: { vendedorCampinas: b('usuario_filial', 1) },
 } as const;
 
 /**
@@ -648,6 +658,8 @@ export const ORDEM_TABELAS = [
   // 0066 (T-0170): meta de produtividade (FKs -> core.equipe, core.usuario) e resumo do km (FK -> core.usuario)
   'core.meta_produtividade',
   'core.deslocamento_dia',
+  // 0070 (T-0176): filiais do usuário (FKs -> core.usuario, core.filial)
+  'core.usuario_filial',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
   ...ORDEM_GESTOR,
   // 0015 (T-0056): schema promotor — linhas de A e B em ./promotor.ts
@@ -1061,6 +1073,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     ...dadosPagamento(hojeA, hojeB),
     'core.plano_rv': dadosPlanoRv(hojeA, hojeB),
     ...dadosT0170(hojeA, hojeB),
+    'core.usuario_filial': dadosUsuarioFilial(),
     ...dadosGestor({ tenant: tA, vendedor: A.usuarios.vendedor1, cliente: A.clientes.c1 }, { tenant: tB, vendedor: B.usuarios.vendedor, cliente: B.clientes.c1 }),
     ...dadosPromotorFixture(
       {
@@ -1120,6 +1133,22 @@ function dadosT0170(
       deslocamento(FB.deslocamento, B.tenantId, B.usuarios.vendedor, somarDias(hojeB, -1), 18_700, 96),
     ],
   };
+}
+
+/** 0070 (T-0176): filiais do usuário (USUARIO_FILIAL_FIXTURE). */
+function dadosUsuarioFilial(): Linha[] {
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const UA = USUARIO_FILIAL_FIXTURE.A;
+  const vinculo = (id: string, tenant_id: string, usuario_id: string, filial_id: string): Linha => ({
+    id, tenant_id, usuario_id, filial_id, deleted_at: null, external_id: null,
+  });
+  return [
+    vinculo(UA.vendedor1Padrao, A.tenantId, A.usuarios.vendedor1, FILIAIS_FIXTURE.A.padrao),
+    vinculo(UA.supervisorPadrao, A.tenantId, A.usuarios.supervisor, FILIAIS_FIXTURE.A.padrao),
+    vinculo(UA.supervisorBoaVista, A.tenantId, A.usuarios.supervisor, FILIAIS_FIXTURE.A.boaVista),
+    vinculo(USUARIO_FILIAL_FIXTURE.B.vendedorCampinas, B.tenantId, B.usuarios.vendedor, FILIAIS_FIXTURE.B.campinas),
+  ];
 }
 
 type TabelaSprint1 = (typeof ORDEM_SPRINT1)[number];

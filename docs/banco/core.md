@@ -1013,3 +1013,39 @@ no banco (usuários antigos e o admin inicial do provisionamento não têm códi
 (domain/API do Core). Nenhuma coluna nova.
 
 Volta: `0069_core_cargo_hierarquia.down.sql` (saem os 4 gatilhos do promotor, as 2 funções e a view; ver plataforma.md). Teste: `db/testes/cargo-hierarquia.db.test.ts`.
+
+## 0070 — filiais do usuário (`0070_core_usuario_filial`; T-0176, RN-CORE-39, decisão R-20261115-073000 item 1)
+Muda a RN-CORE-39: o **vendedor** tem **uma** filial (a referência de preço, estoque e filtro do Catálogo); **supervisor,
+promotor e gerente** têm várias. O banco garante só o **máximo de 1** do vendedor e o backfill; o mínimo (exatamente 1 do
+vendedor; 1+ dos outros três; 0+ de admin e analista) é do domain/API do Core (`validarFiliaisDoUsuario`, 422).
+
+### usuario_filial — filiais do usuário. Índice de sync; o pull é decisão do modulo-core
+| Coluna | Tipo | Regra |
+|---|---|---|
+| usuario_id | uuid not null | FK composta `usuario_filial_usuario_fk` para `usuario` |
+| filial_id | uuid not null | FK composta `usuario_filial_filial_fk` para `filial` (filial de outro tenant = 23503) |
+
+- Único vivo `usuario_filial_uk (tenant_id, usuario_id, filial_id) where deleted_at is null` (23505): também atende
+  "filiais do usuário". `usuario_filial_filial_ix (tenant_id, filial_id)` vivo: "usuários da filial" (BKO; trava de inativar
+  filial com usuário). Sync `usuario_filial_sync_ix (tenant_id, updated_at, id)`; `usuario_filial_external_uk`.
+- Remover o vínculo = soft delete (`deleted_at`). `macuxi_app`: select, insert, update (sem DELETE); worker e portal: nada.
+  RLS `isolamento_tenant` + `manutencao`.
+- **Vendedor com no máximo 1 filial viva** — gatilhos de restrição **adiados** (conferidos no COMMIT; trocar a filial =
+  apagar a antiga e inserir a nova em qualquer ordem), função `core.conferir_filial_vendedor`:
+  - erro `23514`, constraint **`usuario_filial_vendedor_uma`**, detail `usuario_id=<uuid>`, hint `RN-CORE-39` → 422 na API;
+  - "vendedor" = **cargo** `vendedor` do perfil único (`core.v_usuario_hierarquia`, a régua da 0069): o perfil personalizado
+    de cargo vendedor conta; vale para o usuário vivo, ativo ou não;
+  - gatilhos: `usuario_filial_conferir_vendedor` (insert; update de usuario_id, filial_id, deleted_at),
+    `usuario_conferir_filial_vendedor` (core.usuario, update de deleted_at: restaurado), `usuario_perfil_conferir_filial_vendedor`
+    (plataforma.usuario_perfil, insert; update de perfil_id, deleted_at: virou vendedor) e `perfil_conferir_filial_vendedor`
+    (plataforma.perfil, update de cargo). Função de gatilho `core.filial_vendedor_conferir()` SECURITY DEFINER (COMMIT do portal);
+  - para o erro sair no comando, a API pode rodar `set constraints usuario_filial_conferir_vendedor immediate` antes de terminar;
+  - concorrência: `usuario_filial_travar` (BEFORE, imediato) e a conferência pegam `pg_advisory_xact_lock` por (tenant, usuário):
+    a 2ª transação espera a 1ª e falha no COMMIT.
+- **Backfill** (na 0070, antes dos gatilhos): todo vendedor vivo e ativo sem vínculo vivo recebe a filial **padrão**
+  (`id = uuid_de_chave('<tenant>:core.usuario_filial:<usuario>:<filial>')`). Vendedor criado depois (carga do ERP, CSV) sem
+  filial passa no banco e vira aviso ao admin; consulta: vendedor vivo e ativo sem linha viva aqui (`usuario_filial_uk`).
+
+Volume: 1 linha por vendedor; poucas por supervisor, promotor e gerente. Fixture: `USUARIO_FILIAL_FIXTURE` (grupo 0x67).
+Volta: `0070_core_usuario_filial.down.sql` (saem os gatilhos, a tabela e as 3 funções; os vínculos se perdem). Teste:
+`db/testes/usuario-filial.db.test.ts`.
