@@ -3,16 +3,14 @@
  * REAL: `createApp` com os 8 módulos, JWT de verdade e Postgres como `macuxi_app` (RLS), fixture dois-tenants num banco
  * efêmero próprio do arquivo. Agente `testes`. Banco só no CI (sem Docker na sessão).
  *
- * SÓ ENTRA DEPOIS do merge do Catálogo (nuvem/referencia-sem-marca-modulo-catalogo: exportação com `referenciaVisivel`) e do
- * banco (nuvem/referencia-sem-marca-banco-dados: 0075, `marca_id` nulo). No main de 15/11/2026 a referência sem marca não
- * grava (NOT NULL) e a de marca inativa sai com `marca_nome` nulo em vez de sumir.
+ * Depende do Catálogo (`referenciaVisivel` na exportação) e da migração 0075 (`marca_id` nulo).
  *
  * A exportação mostra a referência como a ficha, o cartão e a busca:
  *  X-1  marca ativa: sai com o nome do cadastro de marcas do Catálogo (não o retrato velho `marca_nome`).
  *  X-2  marca inativa: a referência some.
  *  X-3  marca ausente (apagada do cadastro): a referência some, mesmo com retrato `marca_nome`.
  *  X-4  sem marca: sai só com o código (`marca_id` e `marca_nome` nulos).
- *  X-5  as escondidas não ocupam vaga no teto de 3 por produto; a ordem do cadastro se mantém.
+ *  X-5  a ordem do cadastro se mantém entre as visíveis.
  */
 import { RespostaExportacao } from '@macuxi/catalogo/contracts';
 import { semBanco } from '@macuxi/db/teste/estado';
@@ -62,7 +60,7 @@ describe.skipIf(semBanco())('RN-CAT-09 — exportação com marca ativa, inativa
     expect(await exportar()).toEqual([{ marca_id: MARCAS_FIXTURE.A.ativa, marca_nome: MARCA_NOME_FIXTURE.A, codigo: 'AT 0001' }]);
   });
 
-  it('X-4/X-5: sem marca sai só com o código, na ordem do cadastro; a inativa some e não ocupa vaga', async () => {
+  it('X-4/X-5: sem marca sai só com o código; a inativa no meio some e a ordem do cadastro se mantém', async () => {
     await gravarReferencias([
       { marca_id: null, marca_nome: null, codigo: 'SM-0004' },
       { marca_id: MARCAS_FIXTURE.A.inativa, marca_nome: 'Marca Inativa Alfa', codigo: 'IN 0005' },
