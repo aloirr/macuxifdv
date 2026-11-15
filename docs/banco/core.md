@@ -1013,3 +1013,15 @@ no banco (usuários antigos e o admin inicial do provisionamento não têm códi
 (domain/API do Core). Nenhuma coluna nova.
 
 Volta: `0069_core_cargo_hierarquia.down.sql` (saem os 4 gatilhos do promotor, as 2 funções e a view; ver plataforma.md). Teste: `db/testes/cargo-hierarquia.db.test.ts`.
+
+## 0085 — almoço do usuário (`0085_core_almoco_gestor_alerta_produtividade`; T-0180, D5, RN-CORE-44)
+`core.usuario` ganha `almoco_inicio_min smallint null` e `almoco_fim_min smallint null`: início e fim do almoço em **minutos do
+dia**, hora local do tenant (12:00 = 720; 13:00 = 780). As duas **nulas = "Padrão da empresa"** (parâmetro
+`jornada.almoco_padrao` do Core, 12:00–13:00 na D6); todo usuário tem horário, o próprio ou o padrão (quem resolve é o domain
+do Core). CHECKs: `usuario_almoco_par` (as duas nulas ou as duas preenchidas), `usuario_almoco_faixa` (0..1439 cada) e
+`usuario_almoco_duracao` (fim > início e duração de 15 a 180 min; não cruza a meia-noite). Grava: o BKO do Core (ficha do
+usuário); ERP e CSV não tocam. Aditiva, sem backfill, sem índice (leitura por PK), sem andar o `updated_at`. RLS e grants de
+sempre. A mesma migração amplia `gestor.alerta.alerta_tipo_valido` (ver gestor.md, "0085").
+
+Volta: `0085_core_almoco_gestor_alerta_produtividade.down.sql` (apaga os 3 CHECKs e as 2 colunas; o almoço próprio se perde e
+todos voltam ao padrão). Volte antes o Core que lê ou grava. Teste: `db/testes/almoco-alerta-produtividade.db.test.ts`.

@@ -26,6 +26,8 @@ import { banco, semBanco } from './estado';
 import { comCliente, emTransacao, erroDe } from './util';
 
 const m14 = lerMigracoes().find((m) => m.versao === '0014')!;
+/** Tipos que a 0085 acrescenta ao CHECK alerta_tipo_valido (nunca ao alerta_regra_tipo_valido). */
+const TIPOS_ALERTA_PRODUTIVIDADE_0085 = ['parado_entre_visitas', 'sem_checkin_inicio'] as const;
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 const HASH_FALSO = '$argon2id$v=19$m=1,t=1,p=1$c2Fs$aGFzaA';
@@ -39,8 +41,10 @@ function listaDoCheck(nome: string): string[] {
 
 describe('0014 gestor (estático)', () => {
   it('listas fechadas do SQL = contratos do Gestor (tipo, alvo, severidade, status, motivo) e tabelas do EstadoProjecao', () => {
-    expect(listaDoCheck('alerta_tipo_valido')).toEqual([...TIPOS_ALERTA]);
-    expect(listaDoCheck('alerta_regra_tipo_valido')).toEqual([...TIPOS_ALERTA]);
+    // os tipos de produtividade (0085, T-0180) entram só no CHECK do alerta, numa migração própria (almoco-alerta-produtividade.db.test.ts)
+    const daRegra = TIPOS_ALERTA.filter((t) => !(TIPOS_ALERTA_PRODUTIVIDADE_0085 as readonly string[]).includes(t));
+    expect(listaDoCheck('alerta_tipo_valido')).toEqual(daRegra);
+    expect(listaDoCheck('alerta_regra_tipo_valido')).toEqual(daRegra);
     expect(listaDoCheck('alerta_alvo_valido')).toEqual([...ALVOS_ALERTA]);
     expect(listaDoCheck('alerta_severidade_valida')).toEqual([...SEVERIDADES]);
     expect(listaDoCheck('alerta_status_valido')).toEqual([...STATUS_ALERTA]);

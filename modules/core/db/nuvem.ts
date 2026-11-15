@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador; 0085: almoço do usuário), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -78,6 +78,14 @@ export const usuario = core.table('usuario', {
   desconto_limita_pedido: boolean('desconto_limita_pedido').notNull().default(false),
   /** Desconto máximo do pedido em décimos de % (‰): 8,0% = 80; 0..1000. Desligar "por pedido" mantém o número. */
   desconto_maximo_pedido_permil: integer('desconto_maximo_pedido_permil'),
+  // --- 0085 (T-0180, D5, RN-CORE-44): almoço da pessoa. Gravado só pelo BKO (ERP e CSV não tocam). ---
+  /**
+   * Início/fim do almoço em minutos do dia, hora local do tenant (12:00 = 720). As duas nulas = "Padrão da empresa"
+   * (jornada.almoco_padrao). CHECKs: usuario_almoco_par (as duas ou nenhuma), usuario_almoco_faixa (0..1439) e
+   * usuario_almoco_duracao (fim > início, 15 a 180 min).
+   */
+  almoco_inicio_min: smallint('almoco_inicio_min'),
+  almoco_fim_min: smallint('almoco_fim_min'),
 });
 
 /**
