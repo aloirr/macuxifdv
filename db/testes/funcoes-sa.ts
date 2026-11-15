@@ -97,12 +97,47 @@ export const FUNCOES_SA_ATE_0069 = [...FUNCOES_SA_ATE_0057, ...FUNCOES_SA_0058] 
  */
 export const FUNCOES_SA_0070 = ['plataforma.sa_gravar_assinatura(uuid, uuid, jsonb)'] as const;
 
+/** As 17 sa_* públicas do banco parado na 0070 ou na 0071: as 16 até a 0069 (FUNCOES_SA_ATE_0069) + a da 0070. */
+export const FUNCOES_SA_ATE_0071 = [...FUNCOES_SA_ATE_0069, ...FUNCOES_SA_0070] as const;
+
 /**
- * As sa_* públicas do banco migrado até a ÚLTIMA (0071): as 16 até a 0069 (FUNCOES_SA_ATE_0069) + a da 0070 = 17 (a 0071 só
- * reescreve a sa_listar_tenants). Use esta lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA
- * continua sendo a do banco parado na 0039, 0040 ou 0041.
+ * As 8 sa_* da 0072 (ADR 0052; inativar, backup e excluir a empresa no portal): só super-admin (sessão inválida 28000, admin do
+ * cliente 42501). EXECUTE só ao macuxi_portal.
  */
-export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0069, ...FUNCOES_SA_0070] as const;
+export const FUNCOES_SA_0072 = [
+  'plataforma.sa_inativar_tenant(uuid, uuid, text)',
+  'plataforma.sa_reativar_tenant(uuid, uuid)',
+  'plataforma.sa_pedir_backup(uuid, uuid, uuid)',
+  'plataforma.sa_listar_backups(uuid, uuid, uuid)',
+  'plataforma.sa_pedir_exclusao(uuid, uuid, uuid, uuid, text)',
+  'plataforma.sa_ler_exclusao(uuid, uuid)',
+  'plataforma.sa_reautenticar(uuid)',
+  'plataforma.sa_acoes_das_empresas(uuid)',
+] as const;
+
+/**
+ * As sa_* públicas do banco migrado até a ÚLTIMA (0072): as 17 até a 0071 (FUNCOES_SA_ATE_0071) + as 8 da 0072 = 25. Use esta
+ * lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040
+ * ou 0041.
+ */
+export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0071, ...FUNCOES_SA_0072] as const;
+
+/**
+ * Funções do worker da 0072 (ADR 0052): SECURITY DEFINER, EXECUTE só ao macuxi_worker (o tenant sai da linha do job).
+ */
+export const FUNCOES_WORKER_0072 = [
+  'plataforma.tenant_esta_ativo(uuid)',
+  'plataforma.pegar_backup()',
+  'plataforma.tabelas_do_backup(uuid)',
+  'plataforma.exportar_backup_pagina(uuid, text, jsonb, integer)',
+  'plataforma.registrar_parte_backup(uuid, text, bigint, bigint, text)',
+  'plataforma.fechar_backup(uuid, jsonb)',
+  'plataforma.backups_vencidos(integer)',
+  'plataforma.marcar_backup_apagado(uuid)',
+  'plataforma.pegar_exclusao()',
+  'plataforma.executar_exclusao(uuid)',
+  'plataforma.fechar_exclusao(uuid, jsonb)',
+] as const;
 
 /** Interna (SECURITY INVOKER, sem EXECUTE para ninguém além do dono), chamada de dentro das sa_*: assinatura da 0039. */
 export const SA_INTERNA = 'plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)';
