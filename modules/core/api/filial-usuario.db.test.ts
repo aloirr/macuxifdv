@@ -13,6 +13,7 @@ import { consumidorVendedorDoErp } from './consumidores-erp-vendedor';
 import { conferirFiliaisDoUsuario, filiaisDoUsuario, gravarFiliaisDoUsuario, usuarioSemFilial } from './filiais-usuario';
 import { rotasDeFilialDoProprioUsuario } from './filiais-usuario-rotas';
 import { perfisDeFabrica } from '../domain';
+import { SQL_FILIAL_PADRAO } from './apoio-teste-banco';
 import { TABELAS_SYNC } from './sync';
 
 const A = DOIS_TENANTS.A;
@@ -40,7 +41,7 @@ describe.skipIf(semBanco())('Core T-0176 × Postgres: filial do usuário', () =>
         await consumidorVendedorDoErp.executar(consumidorVendedorDoErp.evento.schema.parse(payload), ctx);
       };
       const q: Q = async (sql, v = []) => (await c.query(sql, v)).rows as never[];
-      const padrao = (await q<{ id: string }>('select id from core.filial where padrao and deleted_at is null'))[0]!.id;
+      const padrao = (await q<{ id: string }>(SQL_FILIAL_PADRAO))[0]!.id;
       const segunda = (await q<{ id: string }>("select id from core.filial where codigo = '0002' and deleted_at is null"))[0]!.id;
       await fn({ c, carga, warn, q, padrao, segunda });
     } finally {

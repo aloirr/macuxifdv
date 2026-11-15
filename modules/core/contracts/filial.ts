@@ -142,7 +142,7 @@ export const CONSULTA_FILIAIS = definirConsulta({ nome: 'core.filiais@1', entrad
  */
 export const FiliaisDoUsuarioEntradaSchema = z.object({ usuario_id: Id }).strict();
 export type FiliaisDoUsuarioEntrada = z.infer<typeof FiliaisDoUsuarioEntradaSchema>;
-/** RD-1211: a mesma forma da leitura da filial do usuário (um schema só). */
+/** Mesma forma de FilialDoUsuarioSchema. */
 export const FiliaisDoUsuarioSaidaSchema = FilialDoUsuarioSchema;
 export type FiliaisDoUsuarioSaida = z.infer<typeof FiliaisDoUsuarioSaidaSchema>;
 export const CONSULTA_FILIAIS_DO_USUARIO = definirConsulta({ nome: 'core.filiais_do_usuario@1', entrada: FiliaisDoUsuarioEntradaSchema, saida: FiliaisDoUsuarioSaidaSchema });
