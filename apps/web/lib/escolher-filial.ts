@@ -15,6 +15,7 @@ import {
   type InformarFilialCadastroRequest,
   type MinhaFilialCadastro,
 } from '@macuxi/core/contracts';
+import { filiaisEmOrdem } from '@macuxi/core/web';
 import { codigoDoErroHttp } from '@macuxi/platform-sdk';
 
 /** Caminho no SDK web (`api()` acrescenta o `/v1` pelo proxy). */
@@ -35,20 +36,11 @@ export const TEXTOS_ESCOLHER_FILIAL = {
   erroCarga: 'Não deu para carregar as filiais.',
 } as const;
 
-type FilialDaLista = MinhaFilialCadastro['filiais'][number];
-
-/** Ordem alfabética do nome (spec §5), no português do Brasil. */
-export function ordenarFiliais(fs: readonly FilialDaLista[]): FilialDaLista[] {
-  return [...fs].sort(
-    (a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }) || a.id.localeCompare(b.id),
-  );
-}
-
 /** `GET eu/filial-cadastro` validado pelo `MinhaFilialCadastroSchema` do Core; fora do contrato = erro (a tela mostra o "Tentar de novo"). */
 export async function buscarMinhaFilial(get: (rota: string) => Promise<unknown>): Promise<MinhaFilialCadastro> {
   const r = MinhaFilialCadastroSchema.safeParse(await get(ROTA_MINHA_FILIAL));
   if (!r.success) throw r.error;
-  return { ...r.data, filiais: ordenarFiliais(r.data.filiais) };
+  return { ...r.data, filiais: filiaisEmOrdem(r.data.filiais) }; // ordem alfabética do nome (spec §5), a do Core
 }
 
 export type EstadoEscolherFilial =
