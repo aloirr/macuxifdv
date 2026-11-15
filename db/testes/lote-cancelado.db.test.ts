@@ -1,8 +1,8 @@
 /**
- * 0075 — estado `cancelado` do lote (T-0173, RN-INT-15). Dicionário: docs/banco/integracao.md, "0075".
+ * 0083 — estado `cancelado` do lote (T-0173, RN-INT-15). Dicionário: docs/banco/integracao.md, "0083".
  * - lote_status_valido aceita os 6 estados (ESTADOS_LOTE_BANCO ⊇ ESTADOS_LOTE do contrato); nenhum dado muda no up;
  * - integracao.expurgar_retencao trata o cancelado como lote final (apaga em 12 meses; corpo do staging em 7 dias);
- * - down volta ao catálogo da 0074 e recusa (P0001) se houver lote cancelado, sem alterar dado.
+ * - down volta ao catálogo da migração anterior e recusa (P0001) se houver lote cancelado, sem alterar dado.
  * Estático no PC; banco (fixture dois-tenants, ROLLBACK) e up/down num banco efêmero no CI.
  */
 import pg from 'pg';
@@ -20,10 +20,12 @@ const B = DOIS_TENANTS.B;
 const IA = A.integracao;
 const migracoes = lerMigracoes();
 const m10 = migracoes.find((m) => m.versao === '0010')!;
-const m75 = migracoes.find((m) => m.versao === '0075')!;
+const m83 = migracoes.find((m) => m.versao === '0083')!;
+/** A migração logo antes da 0083 (a 0082 depois de as 0076–0082 dos outros branches entrarem no main). */
+const anterior = migracoes[migracoes.indexOf(m83) - 1]!;
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
-const up = semComentarios(m75.up);
-const down = semComentarios(m75.down);
+const up = semComentarios(m83.up);
+const down = semComentarios(m83.down);
 const umaLinha = (s: string) => s.replace(/\s+/g, ' ');
 const CHECK = 'lote_status_valido';
 const valoresDoCheck = (sql: string) =>
@@ -37,10 +39,10 @@ const funcao = (sql: string) => {
 };
 const da10 = funcao(semComentarios(m10.up)).replace('set search_path = pg_catalog, integracao\n', 'set search_path = pg_catalog, integracao, pg_temp\n');
 
-describe('0075 lote cancelado (estático)', () => {
-  it('nome e posição: 0075_integracao_lote_cancelado logo depois da 0074_plataforma_sync_pacote', () => {
+describe('0083 lote cancelado (estático)', () => {
+  it('nome e posição: 0083_integracao_lote_cancelado é a 83ª migração (numeração sem buraco)', () => {
     const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
-    expect(nomes[nomes.indexOf('0074_plataforma_sync_pacote') + 1]).toBe('0075_integracao_lote_cancelado');
+    expect(nomes[82]).toBe('0083_integracao_lote_cancelado');
   });
 
   it('CHECK do up = ESTADOS_LOTE_BANCO (os 5 da 0010 + cancelado) ⊇ contrato; down = os 5 originais', () => {
@@ -80,7 +82,7 @@ describe('0075 lote cancelado (estático)', () => {
   });
 });
 
-describe.skipIf(semBanco())('0075 lote cancelado (banco, fixture)', () => {
+describe.skipIf(semBanco())('0083 lote cancelado (banco, fixture)', () => {
   let app: pg.Client;
   beforeAll(async () => {
     app = new pg.Client({ connectionString: banco().urlApp });
@@ -140,7 +142,7 @@ describe.skipIf(semBanco())('0075 lote cancelado (banco, fixture)', () => {
       try {
         await c.query("update integracao.lote set status = 'cancelado' where id = $1", [IA.lotes.delta]);
         await c.query('savepoint s');
-        const e = await erroDe(c.query(m75.down));
+        const e = await erroDe(c.query(m83.down));
         await c.query('rollback to savepoint s');
         const def = await c.query("select pg_get_constraintdef(oid) as d from pg_constraint where conname = $1 and conrelid = 'integracao.lote'::regclass", [CHECK]);
         return { e, def: (def.rows[0] as { d: string }).d };
@@ -153,7 +155,7 @@ describe.skipIf(semBanco())('0075 lote cancelado (banco, fixture)', () => {
   });
 });
 
-describe.skipIf(semBanco())('0075 up/down (banco efêmero)', () => {
+describe.skipIf(semBanco())('0083 up/down (banco efêmero)', () => {
   let b: BancoDeTeste;
   beforeAll(async () => {
     b = await criarBancoDeTeste({ migrar: false });
@@ -162,22 +164,22 @@ describe.skipIf(semBanco())('0075 up/down (banco efêmero)', () => {
     await b?.apagar();
   });
 
-  it('up muda só o CHECK e o expurgo; reaplicar o up não muda nada; down volta ao catálogo da 0074 (idempotente); up de novo igual', async () => {
+  it('up muda só o CHECK e o expurgo; reaplicar o up não muda nada; down volta ao catálogo da anterior (idempotente); up de novo igual', async () => {
     await comAdmin(b.nome, async (c) => {
-      await migrarUp(c, { ate: '0074' });
+      await migrarUp(c, { ate: anterior.versao });
       const antes = await retratoDoCatalogo(c);
-      expect((await migrarUp(c, { ate: '0075' })).aplicadas).toEqual(['0075_integracao_lote_cancelado']);
+      expect((await migrarUp(c, { ate: '0083' })).aplicadas).toEqual(['0083_integracao_lote_cancelado']);
       const depois = await retratoDoCatalogo(c);
       const novas = depois.filter((x) => !antes.includes(x));
       expect(novas.some((x) => x.includes(CHECK) && x.includes("'cancelado'"))).toBe(true);
       expect(novas.every((x) => x.includes(CHECK) || x.includes('expurgar_retencao'))).toBe(true);
-      await c.query(m75.up); // idempotente
+      await c.query(m83.up); // idempotente
       expect(await retratoDoCatalogo(c)).toEqual(depois);
-      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0075_integracao_lote_cancelado']);
+      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0083_integracao_lote_cancelado']);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      await c.query(m75.down); // idempotente
+      await c.query(m83.down); // idempotente
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      await migrarUp(c, { ate: '0075' });
+      await migrarUp(c, { ate: '0083' });
       expect(await retratoDoCatalogo(c)).toEqual(depois);
     });
   });
