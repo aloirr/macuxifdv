@@ -13,9 +13,22 @@
  * `@sem-email.` (o redefinir dele responde 503 `EMAIL_INDISPONIVEL`, como a API sem e-mail configurado) e um admin + vendedor
  * (`entra_no_portal = false`, migração 0047, RN-CORE-35); nas outras, o admin
  * inicial com a troca pendente. Só na memória da aba (nada de e-mail no `sessionStorage`).
+ * Backup, Inativar e Excluir (ADR 0052; spec portal-config-enxuto §15.3): as empresas começam nos estados da simulação
+ * `depois-02b` (ativa com backup, ativa sem backup, inativa com backup em andamento, anterior à inativação, vencido e válido).
+ * O backup leva 6 s; o da Atacado Norte sempre falha. A exclusão leva 6 s; a senha `errada` dá 403 `REAUTENTICACAO_FALHOU`.
+ * A liberação do Excluir é a `conferirExclusao` do SDK, a mesma da API.
  */
 import {
+  CODIGOS_ACOES_EMPRESA,
   CriarEmpresaSchema,
+  ExcluirEmpresaSchema,
+  PedirBackupEmpresaSchema,
+  codigoDeConfirmacaoConfere,
+  conferirExclusao,
+  type AcoesDaEmpresa,
+  type BackupEmpresa,
+  type ExclusaoEmpresa,
+  type StatusEmpresa,
   EscolherEmpresaPortalSchema,
   LoginPortalSchema,
   RedefinirSenhaAdminSchema,
@@ -50,6 +63,24 @@ interface EmpresaFalsa {
   status: string;
   criada_em: string;
   modulos: { modulo: string; licencas: number | null }[];
+  /** ADR 0052 (só no modo falso; a lista devolve no bloco `acoes`). */
+  inativada_em?: string | null;
+  backups?: BackupFalso[];
+  exclusao?: ExclusaoFalsa | null;
+}
+/** Backup falso: termina em `termina_em` (ms) como `pronto`, ou `falhou` com `falha`. */
+interface BackupFalso {
+  id: string;
+  pedido_em: string;
+  consistente: boolean;
+  termina_em: number;
+  falha: boolean;
+}
+interface ExclusaoFalsa {
+  id: string;
+  backup_id: string;
+  pedida_em: string;
+  termina_em: number;
 }
 interface LoteFalso {
   tenant: string;
@@ -79,6 +110,150 @@ const EMPRESAS_DOS_CLIENTES: EmpresaFalsa[] = [
   { id: '0b6f1a52-5c1e-4c4e-9a43-000000000002', codigo: 'atacado-norte', razao_social: 'Atacado Norte S.A.', cnpj: '04252011000110', fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-02T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'vendedor', licencas: 25 }, { modulo: 'integracao', licencas: null }] },
   { id: '0b6f1a52-5c1e-4c4e-9a43-000000000003', codigo: 'comercial-boa-vista', razao_social: 'Comercial Boa Vista Ltda', cnpj: '33000167000101', fuso: 'America/Boa_Vista', status: 'ativo', criada_em: '2026-11-03T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'promotor', licencas: 5 }, { modulo: 'integracao', licencas: null }] },
 ];
+const DIA = 86_400_000;
+const HORA = 3_600_000;
+const iso = (ms: number) => new Date(ms).toISOString();
+const backupFalso = (n: number, pedidoHa: number, duracao: number, consistente: boolean): BackupFalso => ({
+  id: `7c0d5e1a-2b4f-4c6d-8e9f-00000000000${n}`,
+  pedido_em: iso(Date.now() - pedidoHa),
+  consistente,
+  termina_em: Date.now() - pedidoHa + duracao,
+  falha: false,
+});
+const empresaDoTime = (n: number, codigo: string, razao_social: string, cnpj: string, criada: string): EmpresaFalsa => ({
+  id: `0b6f1a52-5c1e-4c4e-9a43-00000000001${n}`,
+  codigo,
+  razao_social,
+  cnpj,
+  fuso: 'America/Manaus',
+  status: 'suspenso',
+  criada_em: `${criada}T12:00:00.000Z`,
+  modulos: [{ modulo: 'core', licencas: null }, { modulo: 'vendedor', licencas: 10 }, { modulo: 'integracao', licencas: null }],
+});
+
+/** Empresas do começo, nos estados da simulação `depois-02b` (datas relativas a agora). */
+function empresasIniciais(): EmpresaFalsa[] {
+  const agora = Date.now();
+  const [uma, norte, boaVista] = EMPRESAS_DOS_CLIENTES as [EmpresaFalsa, EmpresaFalsa, EmpresaFalsa];
+  return [
+    { ...uma, inativada_em: null, backups: [backupFalso(1, 20 * HORA, 5 * 60_000, false)] },
+    { ...norte, inativada_em: null, backups: [] },
+    { ...boaVista, status: 'suspenso', inativada_em: iso(agora - 2 * DIA), backups: [{ ...backupFalso(2, 5 * 60_000, 2 * HORA, true) }] },
+    { ...empresaDoTime(1, 'RR4410', 'Mercado Caracaraí Ltda', '19131243000197', '2026-10-29'), inativada_em: iso(agora - DIA), backups: [backupFalso(3, 3 * DIA, 10 * 60_000, false)] },
+    { ...empresaDoTime(2, 'AM5173', 'Solimões Ltda', '45997418000153', '2026-10-27'), inativada_em: iso(agora - 20 * DIA), backups: [backupFalso(4, 9 * DIA, 10 * 60_000, true)] },
+    { ...empresaDoTime(3, 'AM2290', 'Mercantil Rio Branco Ltda', '07526557000100', '2026-10-28'), inativada_em: iso(agora - 2 * DIA), backups: [backupFalso(5, DIA, 10 * 60_000, true)] },
+  ];
+}
+
+/** Backup falso como a API devolve, na hora `agora`. */
+function backupDaApi(tenant: string, b: BackupFalso, agora = Date.now()): BackupEmpresa {
+  const pronto = agora >= b.termina_em;
+  const base = { id: b.id, tenant_id: tenant, consistente: b.consistente, pedido_em: b.pedido_em, iniciado_em: b.pedido_em, expira_em: null, tabelas: null, linhas: null, arquivos: null };
+  if (!pronto) return { ...base, situacao: 'em_andamento', concluido_em: null, progresso_pct: 40, tamanho_bytes: null, erro_codigo: null };
+  if (b.falha) return { ...base, situacao: 'falhou', concluido_em: null, progresso_pct: 40, tamanho_bytes: null, erro_codigo: 'S3_FALHOU' };
+  return { ...base, situacao: 'pronto', concluido_em: iso(b.termina_em), progresso_pct: 100, tamanho_bytes: 512_000, tabelas: 115, linhas: 1802, arquivos: 0, erro_codigo: null };
+}
+
+function exclusaoDaApi(x: EmpresaFalsa, agora = Date.now()): ExclusaoEmpresa | null {
+  const f = x.exclusao;
+  if (!f) return null;
+  const fim = agora >= f.termina_em;
+  return {
+    id: f.id,
+    tenant_id: x.id,
+    codigo: x.codigo,
+    backup_id: f.backup_id,
+    situacao: fim ? 'concluida' : 'em_andamento',
+    etapa: fim ? 'fim' : 'banco',
+    pedida_em: f.pedida_em,
+    concluida_em: fim ? iso(f.termina_em) : null,
+    linhas_apagadas: fim ? 1802 : null,
+    arquivos_apagados: fim ? 0 : null,
+    erro_codigo: null,
+  };
+}
+const excluida = (x: EmpresaFalsa) => exclusaoDaApi(x)?.situacao === 'concluida';
+
+/** O último backup que conta (o que falhou não aparece: a célula fica no anterior). */
+function ultimoBackup(x: EmpresaFalsa): BackupEmpresa | null {
+  const lista = (x.backups ?? []).map((b) => backupDaApi(x.id, b)).filter((b) => b.situacao !== 'falhou');
+  return lista.sort((a, b) => b.pedido_em.localeCompare(a.pedido_em))[0] ?? null;
+}
+
+/** Item da lista como a API (`EmpresaResumoSchema` com o bloco `acoes`). */
+function resumoDaEmpresa(x: EmpresaFalsa) {
+  const { inativada_em = null, backups: _b, exclusao: _x, ...resto } = x;
+  const ultimo = ultimoBackup(x);
+  const regra = conferirExclusao(
+    { id: x.id, status: x.status as StatusEmpresa, inativada_em: inativada_em ? new Date(inativada_em) : null },
+    ultimo ? { ...ultimo, iniciado_em: ultimo.iniciado_em ? new Date(ultimo.iniciado_em) : null, concluido_em: ultimo.concluido_em ? new Date(ultimo.concluido_em) : null } : null,
+    new Date(),
+  );
+  const acoes: AcoesDaEmpresa = { inativada_em, motivo_inativacao: null, ultimo_backup: ultimo, exclusao: exclusaoDaApi(x), exclusao_bloqueada: regra.ok ? null : regra.codigo };
+  return { ...resto, acoes };
+}
+
+const ACOES_M = /^\/plataforma\/empresas\/([^/]+)\/(inativar|reativar|backups|exclusao)(?:\/([^/]+))?$/;
+
+/** Rotas das ações da empresa (ADR 0052 §4), só do time da Macuxi. */
+function responderAcoes(metodo: string, tenant: string, acao: string, sub: string | undefined, sessao: SessaoFalsa, e: Estado, corpo: unknown): Response {
+  if (sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi usa estas ações.');
+  // a exclusão concluída continua legível (GET …/exclusao), como o registro da API
+  const x = e.empresas.find((y) => y.id === tenant && (!excluida(y) || (acao === 'exclusao' && metodo === 'GET')));
+  if (!x) return erro(404, CODIGOS_ACOES_EMPRESA.naoEncontrada, 'Empresa não encontrada.');
+  const trocar = (f: (y: EmpresaFalsa) => EmpresaFalsa) => gravar({ ...e, empresas: e.empresas.map((y) => (y.id === tenant ? f(y) : y)) });
+  const emExclusao = x.status === 'encerrado';
+  if ((acao === 'inativar' || acao === 'reativar') && metodo === 'POST') {
+    if (emExclusao) return erro(409, CODIGOS_ACOES_EMPRESA.exclusaoEmAndamento, 'A exclusão desta empresa está em andamento.');
+    const alvo = acao === 'inativar' ? 'suspenso' : 'ativo';
+    const mudou = x.status !== alvo;
+    const inativada_em = alvo === 'suspenso' ? (mudou ? agoraIso() : (x.inativada_em ?? agoraIso())) : null;
+    if (mudou) trocar((y) => ({ ...y, status: alvo, inativada_em }));
+    return json(200, { tenant_id: tenant, status: alvo, inativada_em, motivo: null, resultado: mudou ? 'alterado' : 'sem_mudanca' });
+  }
+  if (acao === 'backups' && metodo === 'POST') {
+    const c = lerCorpo(PedirBackupEmpresaSchema, corpo);
+    if (c instanceof Response) return c;
+    const mesmo = x.backups?.find((b) => b.id === c.id);
+    if (mesmo) return json(202, backupDaApi(tenant, mesmo));
+    if (emExclusao) return erro(409, CODIGOS_ACOES_EMPRESA.exclusaoEmAndamento, 'A exclusão desta empresa está em andamento.');
+    if ((x.backups ?? []).some((b) => backupDaApi(tenant, b).situacao === 'em_andamento'))
+      return erro(409, CODIGOS_ACOES_EMPRESA.backupEmAndamento, 'Já há um backup desta empresa em andamento.');
+    const b: BackupFalso = { id: c.id, pedido_em: agoraIso(), consistente: x.status === 'suspenso', termina_em: Date.now() + 6_000, falha: x.codigo === 'atacado-norte' };
+    trocar((y) => ({ ...y, backups: [...(y.backups ?? []), b] }));
+    return json(202, backupDaApi(tenant, b));
+  }
+  if (acao === 'backups' && metodo === 'GET') {
+    const lista = (x.backups ?? []).map((b) => backupDaApi(tenant, b));
+    if (!sub) return json(200, { itens: lista });
+    const b = lista.find((y) => y.id === sub);
+    return b ? json(200, b) : erro(404, 'BACKUP_NAO_ENCONTRADO', 'Backup não encontrado.');
+  }
+  if (acao === 'exclusao' && metodo === 'GET') {
+    const ex = exclusaoDaApi(x);
+    return ex ? json(200, ex) : erro(404, 'EXCLUSAO_NAO_ENCONTRADA', 'Sem exclusão pedida.');
+  }
+  if (acao === 'exclusao' && metodo === 'POST') {
+    const c = lerCorpo(ExcluirEmpresaSchema, corpo);
+    if (c instanceof Response) return c;
+    if (x.exclusao) return erro(409, CODIGOS_ACOES_EMPRESA.exclusaoEmAndamento, 'A exclusão desta empresa está em andamento.');
+    if (c.senha === 'errada') return erro(403, CODIGOS_ACOES_EMPRESA.reautenticacaoFalhou, 'Senha incorreta.');
+    const b = (x.backups ?? []).find((y) => y.id === c.backup_id);
+    const api = b ? backupDaApi(tenant, b) : null;
+    const regra = conferirExclusao(
+      { id: x.id, status: x.status as StatusEmpresa, inativada_em: x.inativada_em ? new Date(x.inativada_em) : null },
+      api ? { ...api, iniciado_em: api.iniciado_em ? new Date(api.iniciado_em) : null, concluido_em: api.concluido_em ? new Date(api.concluido_em) : null } : null,
+      new Date(),
+    );
+    if (!regra.ok) return erro(422, regra.codigo, 'A exclusão não está liberada.');
+    if (!codigoDeConfirmacaoConfere(c.codigo_confirmacao, x.codigo)) return erro(422, CODIGOS_ACOES_EMPRESA.exclusaoCodigoNaoConfere, 'O código não confere.');
+    const f: ExclusaoFalsa = { id: c.id, backup_id: c.backup_id, pedida_em: agoraIso(), termina_em: Date.now() + 6_000 };
+    trocar((y) => ({ ...y, status: 'encerrado', exclusao: f }));
+    return json(202, exclusaoDaApi({ ...x, status: 'encerrado', exclusao: f }));
+  }
+  return erro(404, 'NAO_ENCONTRADO', 'Rota não encontrada.');
+}
+
 /** Contas falsas por e-mail: `null` = time da Macuxi; lista = admin do cliente nessas empresas (por nome). */
 export const CONTAS_FALSAS: Readonly<Record<string, readonly string[] | null>> = Object.freeze({
   'time@macuxi.com.br': null,
@@ -151,7 +326,7 @@ function responderAdmins(metodo: string, tenant: string, usuario: string | undef
   return json(200, resposta);
 }
 
-const vazio = (): Estado => ({ sessoes: {}, empresas: [...EMPRESAS_DOS_CLIENTES], conectores: {}, lotes: {} });
+const vazio = (): Estado => ({ sessoes: {}, empresas: empresasIniciais(), conectores: {}, lotes: {} });
 
 function ler(): Estado {
   try {
@@ -271,7 +446,7 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
       return erro(401, 'CREDENCIAIS_INVALIDAS', 'E-mail ou senha incorretos. Confira e tente de novo.');
     }
     falhas.delete(c.email);
-    const base: Estado = { ...e, empresas: [...e.empresas, ...EMPRESAS_DOS_CLIENTES.filter((x) => !e.empresas.some((y) => y.id === x.id))] };
+    const base: Estado = { ...e, empresas: [...e.empresas, ...empresasIniciais().filter((x) => !e.empresas.some((y) => y.id === x.id))] };
     const s: SessaoFalsa =
       conta === null
         ? { tipo: 'super_admin', empresas: [], empresa: null, teto: agoraIso(480) }
@@ -305,7 +480,12 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
   }
 
   // ---------- empresas
-  if (rota === `GET ${ROTAS_PORTAL.empresas}`) return json(200, { itens: sessao.tipo === 'super_admin' ? e.empresas : e.empresas.filter((x) => sessao.empresas.includes(x.id)) });
+  if (rota === `GET ${ROTAS_PORTAL.empresas}`) {
+    const vivas = e.empresas.filter((x) => !excluida(x)).map(resumoDaEmpresa);
+    return json(200, { itens: sessao.tipo === 'super_admin' ? vivas : vivas.filter((x) => sessao.empresas.includes(x.id)) });
+  }
+  const acaoM = ACOES_M.exec(caminho);
+  if (acaoM) return responderAcoes(metodo, decodeURIComponent(acaoM[1] ?? ''), acaoM[2] ?? '', acaoM[3] ? decodeURIComponent(acaoM[3]) : undefined, sessao, e, corpo);
   if (rota === `POST ${ROTAS_PORTAL.empresas}`) {
     if (sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi cadastra empresas.');
     const c = lerCorpo(CriarEmpresaSchema, corpo);
