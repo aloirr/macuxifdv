@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, td, th, TableScroll } from '@macuxi/ui/web';
+import { Moldura } from '../moldura';
+import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, PageHeader, td, th, TableScroll } from '@macuxi/ui/web';
 import { FotoTipoCriarSchema, FotoTipoEditarSchema, FotoTiposListaSchema } from '../../../contracts';
 import { novoId } from '../../lib/visitas';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
@@ -26,7 +27,7 @@ const vazio = (): Rascunho => ({ id: novoId(), existente: false, fachada: false,
  * obrigatórios e quais são documentos sensíveis (só admin, analista, gerente e supervisor da carteira abrem). A Fachada já nasce
  * cadastrada: não se apaga, não se inativa e nunca é sensível. Só o admin edita (`foto_tipo.editar`); a API revalida e audita.
  */
-export function FotosPdvPage() {
+export function FotosPdvPage({ emPainel }: { emPainel?: boolean }) {
   const qc = useQueryClient();
   const pode = usePode('foto_tipo.editar');
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
@@ -59,16 +60,25 @@ export function FotosPdvPage() {
 
   const itens = lista.data ?? [];
   return (
-    <div className="flex w-full max-w-[960px] flex-col gap-5" data-testid="fotos-pdv.tela">
-      <PageHeader
-        title="Fotos do PDV"
-        subtitle="Tipos de foto da ficha do cliente. O vendedor vê só a fachada."
-        actions={
+    <div className={`flex w-full flex-col ${emPainel ? 'gap-4' : 'max-w-[960px] gap-5'}`} data-testid="fotos-pdv.tela">
+      {emPainel ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="m-0 text-[13px] text-ink-2">Tipos de foto da ficha do cliente.</p>
           <Button variant="primary" disabled={!pode} onClick={() => setRascunho(vazio())} data-testid="fotos-pdv.novo">
             Novo tipo
           </Button>
-        }
-      />
+        </div>
+      ) : (
+        <PageHeader
+          title="Fotos do PDV"
+          subtitle="Tipos de foto da ficha do cliente."
+          actions={
+            <Button variant="primary" disabled={!pode} onClick={() => setRascunho(vazio())} data-testid="fotos-pdv.novo">
+              Novo tipo
+            </Button>
+          }
+        />
+      )}
       {!pode && <Notice tone="info">Só o administrador edita os tipos de foto. Você pode consultar.</Notice>}
       {aviso && (
         <Notice tone="info" onClose={() => setAviso(null)}>
@@ -78,7 +88,7 @@ export function FotosPdvPage() {
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando os tipos de foto…" />}
       {lista.data && (
-        <Panel title={`${itens.length} ${itens.length === 1 ? 'tipo' : 'tipos'}`}>
+        <Moldura sem={emPainel} title={`${itens.length} ${itens.length === 1 ? 'tipo' : 'tipos'}`}>
           <TableScroll minWidth={640}>
             <table className="w-full border-collapse text-[13px]">
               <thead>
@@ -110,7 +120,7 @@ export function FotosPdvPage() {
                         </Button>
                         {!t.fachada ? (
                           <Button disabled={!pode || apagar.isPending} onClick={() => apagar.mutate(t.id)} data-testid={`fotos-pdv.apagar.${t.id}`}>
-                            Apagar
+                            Remover
                           </Button>
                         ) : null}
                       </div>
@@ -120,7 +130,7 @@ export function FotosPdvPage() {
               </tbody>
             </table>
           </TableScroll>
-        </Panel>
+        </Moldura>
       )}
       {rascunho && (
         <Dialog

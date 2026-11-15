@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
@@ -18,10 +18,11 @@ const CAMPO_DA_API: Readonly<Record<string, keyof ErrosAlmoco>> = { almoco_corte
  * Parâmetros › Calendário (desenho `docs/desenho/performance-produtividade.md` §1.3, §3.2 e §6.5): os feriados do ano, com os
  * nacionais em leitura e os do tenant com incluir e remover (cada mudança grava na hora), e o corte e a janela do almoço da
  * Produtividade. Ação `parametro.inicio` (analista e admin); a API revalida e audita.
+ * `embutido`: dentro da página Parâmetros (ADR 0058), sem o título da página (o shell já mostra o do painel).
  * testIDs: `calendario.tela` · `.ano` · `.feriado.data|nome` · `.feriado.<data|nome>.erro` · `.incluir` · `.linha.<data>` ·
  * `.remover.<data>` · `.almoco.corte|inicio|fim` · `.almoco.<corte|janela>.erro` · `.almoco.salvar` · `.aviso`.
  */
-export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoje?: string }) {
+export function CalendarioPage({ cliente, hoje, embutido }: { cliente?: ApiCalendario; hoje?: string; embutido?: boolean }) {
   const apiCalendario = useMemo(() => cliente ?? criarApiCalendario(), [cliente]);
   const pode = usePode('parametro.inicio');
   const hojeDoTenant = useHojeDoTenant();
@@ -79,8 +80,8 @@ export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoj
   };
 
   return (
-    <div className="flex w-full max-w-[860px] flex-col gap-5" data-testid="calendario.tela">
-      <PageHeader title="Calendário" />
+    <div className={embutido ? 'flex w-full flex-col gap-5' : 'flex w-full max-w-[860px] flex-col gap-5'} data-testid="calendario.tela">
+      {!embutido && <PageHeader title="Calendário" />}
       {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
       {q.isPending && <LoadingBlock label="Carregando o calendário…" />}
       {aviso && (
@@ -90,7 +91,8 @@ export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoj
       )}
       {p && textoAlmoco && (
         <>
-          <Panel
+          <Secao
+            embutido={embutido}
             title="Feriados"
             aside={
               <SelectField label="Ano" value={String(ano)} onChange={(e) => setAno(Number(e.target.value))} data-testid="calendario.ano">
@@ -138,8 +140,8 @@ export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoj
               </div>
               <TabelaFeriados linhas={feriadosDoAno(ano, p.feriados)} ocupado={gravar.isPending} onRemover={remover} />
             </div>
-          </Panel>
-          <Panel title="Almoço">
+          </Secao>
+          <Secao embutido={embutido} title="Almoço">
             <div className="flex flex-wrap items-start gap-4 text-[13px]">
               <label className="flex flex-col gap-1 font-semibold text-ink">
                 Corte
@@ -164,13 +166,27 @@ export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoj
                 <ErroCampo id="calendario.almoco.janela.erro" texto={errosAlmoco.janela} />
               </fieldset>
               <Button variant="primary" className="mt-[21px]" disabled={gravar.isPending || Object.keys(almoco).length === 0} onClick={salvarAlmoco} data-testid="calendario.almoco.salvar">
-                Salvar
+                Salvar almoço
               </Button>
             </div>
-          </Panel>
+          </Secao>
         </>
       )}
     </div>
+  );
+}
+
+/** Cartão avulso na página; embutido em Parâmetros o shell já tem a caixa, então vira seção solta (sem caixa dentro de caixa). */
+function Secao({ embutido, title, aside, children }: { embutido?: boolean; title: string; aside?: ReactNode; children: ReactNode }) {
+  if (!embutido) return <Panel title={title} aside={aside}>{children}</Panel>;
+  return (
+    <section aria-label={title} className="flex flex-col gap-3 border-t border-line-2 pt-4 first:border-t-0 first:pt-0">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <h3 className="m-0 text-[15px] font-semibold text-ink">{title}</h3>
+        {aside}
+      </div>
+      {children}
+    </section>
   );
 }
 

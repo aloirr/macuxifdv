@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, ErrorBlock, LoadingBlock, Notice, Panel } from '@macuxi/ui/web';
+import { ErrorBlock, LoadingBlock, Notice } from '@macuxi/ui/web';
+import { Moldura } from '../moldura';
 import { PromotorVePedidosSchema } from '../../../contracts';
 
 const CHAVE = ['core', 'parametros', 'promotor-ve-pedidos'] as const;
@@ -16,7 +17,7 @@ const CAMINHO = '/core/parametros/promotor-ve-pedidos';
  * Só admin (ação `parametro.promotor_ve_pedidos`; a API revalida e audita antes/depois). Vale nos aparelhos no próximo sync.
  * testIDs: `promotor-pedidos.painel` · `promotor-pedidos.toggle` (role=switch) · `promotor-pedidos.estado` (data-estado ligado|desligado).
  */
-export function PromotorPedidosPanel() {
+export function PromotorPedidosPanel({ semMoldura }: { semMoldura?: boolean } = {}) {
   const pode = usePode('parametro.promotor_ve_pedidos');
   const qc = useQueryClient();
   const [aviso, setAviso] = useState<string | null>(null);
@@ -33,7 +34,7 @@ export function PromotorPedidosPanel() {
   if (!pode) return null;
   const ligado = q.data?.ligado;
   return (
-    <Panel title="Opções do perfil Promotor">
+    <Moldura sem={semMoldura} title="Promotor vê pedidos">
       <div className="flex flex-col gap-3" data-testid="promotor-pedidos.painel">
         {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
         {q.isPending && <LoadingBlock label="Carregando a opção…" />}
@@ -45,12 +46,9 @@ export function PromotorPedidosPanel() {
         {q.data && (
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex min-w-[240px] flex-1 flex-col gap-1">
-              <span className="text-[15px] font-semibold text-ink">Promotor vê pedidos</span>
-              <span className="text-[13px] text-ink-2">Mostra ao promotor, só para leitura, os pedidos dos clientes da carteira dele (Cliente 360 e lista de pedidos). Ele nunca cria nem altera pedido.</span>
+              {!semMoldura && <span className="text-[15px] font-semibold text-ink">Promotor vê pedidos</span>}
+              <span className="text-[13px] text-ink-2">Mostra ao promotor, só para leitura, os pedidos dos clientes da carteira dele.</span>
             </div>
-            <span data-testid="promotor-pedidos.estado" data-estado={ligado ? 'ligado' : 'desligado'}>
-              <Badge tone={ligado ? 'success' : 'neutral'}>{ligado ? 'Ligado' : 'Desligado'}</Badge>
-            </span>
             <button
               type="button"
               role="switch"
@@ -58,6 +56,7 @@ export function PromotorPedidosPanel() {
               aria-label={ligado ? 'Desligar: promotor não vê pedidos' : 'Ligar: promotor vê pedidos'}
               disabled={gravar.isPending}
               data-testid="promotor-pedidos.toggle"
+              data-estado={ligado ? 'ligado' : 'desligado'}
               onClick={() => gravar.mutate(!ligado)}
               className="h-[44px] min-w-[96px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled"
             >
@@ -66,6 +65,6 @@ export function PromotorPedidosPanel() {
           </div>
         )}
       </div>
-    </Panel>
+    </Moldura>
   );
 }

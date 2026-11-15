@@ -6,9 +6,9 @@ import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { formatBRL, formatPct } from '@macuxi/comum';
 import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, td, th, TableScroll } from '@macuxi/ui/web';
-import { ProdutoParametrosSchema, ProdutosPrecoListaSchema, type ProdutoPreco } from '../../../contracts';
+import { ProdutosPrecoListaSchema, type ProdutoPreco } from '../../../contracts';
 import { rotuloMedidaDoProduto } from '../../lib/medidas';
-import { MedidasPanel, useMedidas } from './medidas-panel';
+import { useMedidas } from './medidas-panel';
 import { ProdutoMedidasDialog } from './produto-medidas-dialog';
 import { descontoMaximoAplicavel, lucroCents, margemNoMinimoPct, margemPct, markupPct, precoMinimoCents } from '../../../domain';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
@@ -41,20 +41,17 @@ interface Rascunho {
 /**
  * Preço e custo do produto (RN-CORE-18, RN-VEN-11; T-0062). Margem, markup, lucro, preço mínimo e margem no mínimo são
  * calculados pelo domínio (a mesma regra da API) e aparecem no diálogo enquanto se digita. O custo é dado interno: só
- * gerente, analista e admin veem (ação `produto.editar_preco`), e ele nunca vai ao app. A aba Parâmetros define o desconto
- * máximo padrão do tenant (analista e admin).
+ * gerente, analista e admin veem (ação `produto.editar_preco`), e ele nunca vai ao app. O desconto máximo padrão e as medidas
+ * ficam na página Parâmetros (ADR 0058).
  */
 export function ProdutosPage() {
   const qc = useQueryClient();
-  const podeParametros = usePode('produto.parametros');
-  const podeMedidas = usePode('medida.gerenciar');
-  const [aba, setAba] = useState<'produtos' | 'medidas' | 'parametros'>('produtos');
   const [medidasDe, setMedidasDe] = useState<ProdutoPreco | null>(null);
+  const podeMedidas = usePode('medida.gerenciar');
   const medidas = useMedidas();
   const [busca, setBusca] = useState('');
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-  const [padraoTexto, setPadraoTexto] = useState<string | null>(null);
 
   const lista = useQuery({
     queryKey: ['core', 'produtos', busca],
@@ -72,16 +69,6 @@ export function ProdutosPage() {
     },
     onError: (e) => setAviso(errorMessage(e)),
   });
-  const salvarPadrao = useMutation({
-    mutationFn: (v: number) => api('/core/produtos/parametros', { method: 'PUT', body: ProdutoParametrosSchema.parse({ desconto_maximo_produto_pct: v }) }),
-    onSuccess: async () => {
-      setPadraoTexto(null);
-      setAviso('Desconto máximo padrão salvo. Vale para os produtos sem desconto próprio.');
-      await qc.invalidateQueries({ queryKey: ['core', 'produtos'] });
-    },
-    onError: (e) => setAviso(errorMessage(e)),
-  });
-
   const custo = rascunho ? paraCentavos(rascunho.custo) : null;
   const preco = rascunho ? paraCentavos(rascunho.preco) : null;
   const desconto = rascunho ? paraPct(rascunho.desconto) : null;
@@ -99,58 +86,17 @@ export function ProdutosPage() {
       : null;
 
   const abrir = (p: ProdutoPreco) => setRascunho({ id: p.id, nome: p.nome, custo: emReais(p.custo_cents), preco: emReais(p.preco_venda_cents), desconto: p.desconto_maximo_pct === null ? '' : String(p.desconto_maximo_pct).replace('.', ',') });
-  const valorPadrao = padraoTexto ?? String(padrao).replace('.', ',');
-  const padraoNovo = paraPct(valorPadrao);
 
   return (
     <div className="flex w-full max-w-[1100px] flex-col gap-5" data-testid="produtos.tela">
       <PageHeader title="Preço e custo dos produtos" subtitle="Custo, preço de venda e desconto máximo. O custo é interno: nunca aparece no app nem no PDF do cliente." />
-      <div className="flex gap-2" role="tablist">
-        <Button variant={aba === 'produtos' ? 'primary' : undefined} onClick={() => setAba('produtos')} data-testid="produtos.aba-produtos">
-          Produtos
-        </Button>
-        <Button variant={aba === 'medidas' ? 'primary' : undefined} onClick={() => setAba('medidas')} data-testid="produtos.aba-medidas">
-          Medidas
-        </Button>
-        {podeParametros && (
-          <Button variant={aba === 'parametros' ? 'primary' : undefined} onClick={() => setAba('parametros')} data-testid="produtos.aba-parametros">
-            Parâmetros
-          </Button>
-        )}
-      </div>
       {aviso && (
         <Notice tone="info" onClose={() => setAviso(null)}>
           {aviso}
         </Notice>
       )}
 
-      {aba === 'medidas' && <MedidasPanel onAviso={setAviso} />}
-
-      {aba === 'parametros' && podeParametros && (
-        <Panel title="Desconto máximo padrão">
-          <div className="flex flex-col gap-3 text-[13px] font-semibold text-ink">
-            <label className="flex max-w-[260px] flex-col gap-1">
-              Desconto máximo do produto (%)
-              <input
-                inputMode="decimal"
-                value={valorPadrao}
-                onChange={(e) => setPadraoTexto(e.target.value)}
-                data-testid="produtos.parametro-desconto"
-                className={CLASSE_CAMPO_BKO}
-              />
-            </label>
-            <p className="font-normal text-ink-2">Vale para todo produto sem desconto máximo próprio (padrão 15%). Define o preço mínimo de venda.</p>
-            {padraoNovo === undefined && <p className="font-normal text-danger">Informe um valor entre 0 e 100.</p>}
-            <div>
-              <Button variant="primary" disabled={salvarPadrao.isPending || padraoNovo === undefined || padraoNovo === null} onClick={() => padraoNovo != null && salvarPadrao.mutate(padraoNovo)} data-testid="produtos.parametro-salvar">
-                Salvar
-              </Button>
-            </div>
-          </div>
-        </Panel>
-      )}
-
-      {aba === 'produtos' && (
+      {(
         <>
           <input
             value={busca}

@@ -4,14 +4,13 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { ApiRequestError, api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, ErrorBlock, LoadingBlock, Notice, Panel } from '@macuxi/ui/web';
+import { Button, ErrorBlock, LoadingBlock, Notice } from '@macuxi/ui/web';
+import { Moldura } from '../moldura';
 import {
   ErroParametroInicioSchema,
-  ParametroCheckoutPendenciaSchema,
   ParametrosInicioSchema,
   type ErroParametroInicio,
 } from '../../../contracts';
-import { AJUDA_ALERTA_H, ALERTA_H_PADRAO, validarAlertaH } from '../../lib/etapas-visita';
 import {
   PARADO_MIN_MAX,
   PARADO_MIN_MIN,
@@ -20,8 +19,6 @@ import {
 
 const CHAVE = ['core', 'parametros', 'inicio'] as const;
 const CAMINHO = '/core/parametros/inicio';
-const CHAVE_PRAZO = ['core', 'parametros', 'checkout-pendencia'] as const;
-const CAMINHO_PRAZO = '/core/parametros/checkout-pendencia';
 const DIAS = [
   [0, 'Dom', 'Domingo'],
   [1, 'Seg', 'Segunda-feira'],
@@ -33,7 +30,7 @@ const DIAS = [
 ] as const;
 const CAMPO = 'h-[44px] w-full rounded-xl border bg-surface px-3 text-[15px] font-normal text-ink';
 
-type CampoParam = 'dias' | 'parado' | 'alerta';
+type CampoParam = 'dias' | 'parado';
 type ErrosCampo = Partial<Record<CampoParam, string>>;
 const CAMPO_DA_CHAVE: Record<ErroParametroInicio['campo'], CampoParam> = {
   dias_uteis_semana: 'dias',
@@ -68,12 +65,11 @@ function MensagemErro({ id, texto }: { id: string; texto?: string }) {
  * fica só para erro sem campo (rede, 403).
  * testIDs: `inicio-params.painel` · `.dia.<0-6>` · `.parado` · `.<campo>.erro` · `.salvar`.
  */
-export function InicioParametrosPanel() {
+export function InicioParametrosPanel({ semMoldura }: { semMoldura?: boolean } = {}) {
   const pode = usePode('parametro.inicio');
   const qc = useQueryClient();
   const [dias, setDias] = useState<number[]>([]);
   const [parado, setParado] = useState('60');
-  const [alertaH, setAlertaH] = useState(String(ALERTA_H_PADRAO));
   const [aviso, setAviso] = useState<string | null>(null);
   const [salvo, setSalvo] = useState(false);
   const [erros, setErros] = useState<ErrosCampo>({});
@@ -82,20 +78,6 @@ export function InicioParametrosPanel() {
     enabled: pode,
     queryFn: async () => ParametrosInicioSchema.parse(await api<unknown>(CAMINHO)),
   });
-  // Prazo da etapa pendente (T-0039): rota própria, separada do PUT do Início (contrato estrito); só aparece com a permissão dele.
-  const podePrazo = usePode('parametro.checkout_pendencia');
-  const qPrazo = useQuery({
-    queryKey: CHAVE_PRAZO,
-    enabled: pode && podePrazo,
-    retry: false,
-    queryFn: async () =>
-      ParametroCheckoutPendenciaSchema.parse(await api<unknown>(CAMINHO_PRAZO)).checkout_pendencia_alerta_h,
-  });
-  const prazoServidor = qPrazo.data ?? null;
-  const temAlerta = podePrazo && prazoServidor !== null;
-  useEffect(() => {
-    if (prazoServidor !== null) setAlertaH(String(prazoServidor));
-  }, [prazoServidor]);
   useEffect(() => {
     if (!q.data) return;
     setDias(q.data.dias_uteis_semana);
@@ -106,19 +88,14 @@ export function InicioParametrosPanel() {
     mutationFn: async (corpo: {
       dias_uteis_semana: number[];
       parado_min: number;
-      prazo?: number;
     }) => {
-      const { prazo, ...inicio } = corpo;
-      await api<unknown>(CAMINHO, { method: 'PUT', body: inicio });
-      if (prazo !== undefined && prazo !== prazoServidor)
-        await api<unknown>(CAMINHO_PRAZO, { method: 'PUT', body: { checkout_pendencia_alerta_h: prazo } });
+      await api<unknown>(CAMINHO, { method: 'PUT', body: corpo });
     },
     onSuccess: async () => {
       setErros({});
       setAviso(null);
       setSalvo(true);
       await qc.invalidateQueries({ queryKey: CHAVE });
-      await qc.invalidateQueries({ queryKey: CHAVE_PRAZO });
     },
     onError: (e) => {
       setSalvo(false);
@@ -137,20 +114,19 @@ export function InicioParametrosPanel() {
   });
 
   if (!pode) return null;
+  const alterado = !!q.data && (parado !== String(q.data.parado_min) || JSON.stringify([...dias].sort()) !== JSON.stringify([...q.data.dias_uteis_semana].sort()));
   const salvar = () => {
     const corpo = { dias_uteis_semana: dias, parado_min: Number(parado) };
     const v = validarParametrosInicio(corpo);
     setSalvo(false);
-    const a = temAlerta ? validarAlertaH(alertaH) : ({ ok: true, valor: ALERTA_H_PADRAO } as const);
     const m = v.ok ? { campos: {} as ErrosCampo, soltos: [] as string[] } : mapearErros(v.erros);
-    if (!a.ok) m.campos.alerta = a.erro;
-    if (!v.ok || !a.ok) {
+    if (!v.ok) {
       setErros(m.campos);
       return setAviso(m.soltos.length > 0 ? m.soltos.join(' ') : null);
     }
     setErros({});
     setAviso(null);
-    gravar.mutate({ ...v.valores, ...(temAlerta ? { prazo: a.valor } : {}) });
+    gravar.mutate(v.valores);
   };
   const alternar = (d: number) => {
     setSalvo(false);
@@ -160,7 +136,7 @@ export function InicioParametrosPanel() {
   };
 
   return (
-    <Panel title="Parâmetros do Início">
+    <Moldura sem={semMoldura} title="Dias úteis e equipe parada">
       <div className="flex flex-col gap-4" data-testid="inicio-params.painel">
         {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
         {q.isPending && <LoadingBlock label="Carregando os parâmetros…" />}
@@ -189,7 +165,7 @@ export function InicioParametrosPanel() {
                     aria-describedby={erros.dias ? 'inicio-params.dias.erro' : undefined}
                     data-testid={`inicio-params.dia.${n}`}
                     onClick={() => alternar(n)}
-                    className={`h-[44px] min-w-[56px] rounded-xl border px-3 text-[13px] font-semibold ${dias.includes(n) ? 'border-ink bg-ink text-white' : 'border-field bg-surface text-ink hover:bg-ground'}`}
+                    className={`h-[44px] min-w-[56px] rounded-xl border px-3 text-[13px] font-semibold ${dias.includes(n) ? 'border-accent bg-accent text-white' : 'border-field bg-surface text-ink hover:bg-ground'}`}
                   >
                     {rotulo}
                   </button>
@@ -224,36 +200,9 @@ export function InicioParametrosPanel() {
                 </span>
               </span>
             </label>
-            {temAlerta && (
-              <label className="flex max-w-[260px] flex-col gap-1 text-[15px] font-semibold text-ink">
-                Prazo para avisar etapa pendente (horas)
-                <span className="text-[13px] font-normal text-ink-2">{AJUDA_ALERTA_H}</span>
-                <MensagemErro id="inicio-params.alerta.erro" texto={erros.alerta} />
-                <span className="relative block">
-                  <input
-                    className={`${CAMPO} pr-12 ${erros.alerta ? 'border-danger' : 'border-field'}`}
-                    inputMode="numeric"
-                    value={alertaH}
-                    onChange={(e) => {
-                      setSalvo(false);
-                      setAlertaH(e.target.value.replace(/\D/g, ''));
-                    }}
-                    aria-invalid={erros.alerta ? true : undefined}
-                    aria-describedby={erros.alerta ? 'inicio-params.alerta.erro' : undefined}
-                    data-testid="inicio-params.alerta"
-                  />
-                  <span
-                    aria-hidden
-                    className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] font-normal text-ink-2"
-                  >
-                    h
-                  </span>
-                </span>
-              </label>
-            )}
             <div className="flex flex-wrap items-center gap-3">
-              <Button onClick={salvar} disabled={gravar.isPending} data-testid="inicio-params.salvar">
-                {gravar.isPending ? 'Salvando…' : 'Salvar parâmetros'}
+              <Button variant="primary" onClick={salvar} disabled={gravar.isPending || !alterado} data-testid="inicio-params.salvar">
+                {gravar.isPending ? 'Salvando…' : 'Salvar dias úteis'}
               </Button>
               {salvo && (
                 <Notice tone="success" onClose={() => setSalvo(false)}>
@@ -264,6 +213,6 @@ export function InicioParametrosPanel() {
           </>
         )}
       </div>
-    </Panel>
+    </Moldura>
   );
 }

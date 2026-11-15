@@ -10,7 +10,6 @@ import { CopiarMetasRespostaSchema, EquipeListaRespostaSchema, MetaEquipeRespost
 import { INDICADORES_META, ROTULO_INDICADOR_META } from '../../../contracts';
 import { avisoDaCopia, avisoDoLote, mesAnterior, CABECALHO_METAS, celulasDaLinha, corpoDaMeta, csvDeMetas, filtrarPorIndicador, ROTULO_TIPO, textoDeEdicao, totalEditavel, UNIDADE_DO_CAMPO } from '../../lib/metas';
 import { useHojeDoTenant } from '../../lib/queries';
-import { InicioParametrosPanel } from './inicio-parametros-panel';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 const BOTAO_LINHA = 'h-[44px] min-w-[88px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled';
 
@@ -282,9 +281,6 @@ export function MetasPage() {
   return (
     <Suspense fallback={<LoadingBlock label="Carregando as metas…" />}>
       <MetasConteudo />
-      <div className="mt-5 w-full max-w-[1280px]">
-        <InicioParametrosPanel />
-      </div>
     </Suspense>
   );
 }

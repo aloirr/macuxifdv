@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, Panel } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, MenuAcoes, Notice } from '@macuxi/ui/web';
+import { Moldura } from '../moldura';
 import { FRASE_TEXTO_MAX, type FraseDiaSync } from '../../../contracts/frases';
 import { fraseDoDia, validarFrase } from '../../../domain/frase-avatar/frase-do-dia';
 import { useHojeDoTenant } from '../../lib/queries';
@@ -17,13 +18,13 @@ type Acao = { tipo: 'criar'; texto: string } | { tipo: 'editar'; id: string; tex
 
 /**
  * Parâmetros › Início › "Frases do dia" (RN-CORE-41; desenho `docs/desenho/inicio-frase-avatar-pedidos.md` §1.1, §2.1 e §3):
- * as 30 padrão e as do tenant, com adicionar, editar, desativar, reordenar e remover. A linha "Frase de hoje" usa o mesmo
+ * as 30 padrão e as do tenant, com adicionar, editar, desativar, reordenar e remover. A linha com o selo "Hoje" usa o mesmo
  * `fraseDoDia` do aparelho e é recalculada a cada salvamento (a frase do dia pode mudar quando a lista muda, §3).
  * Ação `frase_dia.editar` (analista e admin); a API revalida e audita.
- * testIDs: `frases.painel` · `.hoje` · `.nova` · `.nova.erro` · `.adicionar` · `.linha.<id>` · `.subir|descer|editar|ativa|remover.<id>`
+ * testIDs: `frases.painel` · `.hoje` (selo) · `.acoes.<id>` · `.nova` · `.nova.erro` · `.adicionar` · `.linha.<id>` · `.subir|descer|editar|ativa|remover.<id>`
  * · `.editar.texto` · `.editar.erro` · `.editar.salvar` · `.remover.confirmar` · `.erro`.
  */
-export function FrasesDoDiaPanel({ cliente, hoje }: { cliente?: ApiFrases; hoje?: string }) {
+export function FrasesDoDiaPanel({ cliente, hoje, semMoldura }: { cliente?: ApiFrases; hoje?: string; semMoldura?: boolean }) {
   const apiFrases = useMemo(() => cliente ?? criarApiFrases(), [cliente]);
   const pode = usePode('frase_dia.editar');
   const hojeDoTenant = useHojeDoTenant();
@@ -85,7 +86,7 @@ export function FrasesDoDiaPanel({ cliente, hoje }: { cliente?: ApiFrases; hoje?
   };
 
   return (
-    <Panel title="Frases do dia">
+    <Moldura sem={semMoldura} title={`Frases do dia · ${q.data?.length ?? 0}`}>
       <div className="flex flex-col gap-4 text-[13px]" data-testid="frases.painel">
         {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
         {q.isPending && <LoadingBlock label="Carregando as frases…" />}
@@ -96,16 +97,6 @@ export function FrasesDoDiaPanel({ cliente, hoje }: { cliente?: ApiFrases; hoje?
         )}
         {q.data && (
           <>
-            <p className="m-0 rounded-xl bg-neutral-soft px-3 py-2.5 text-[15px] text-ink" data-testid="frases.hoje">
-              {deHoje ? (
-                <>
-                  <span className="font-semibold">Frase de hoje: </span>
-                  {deHoje.texto}
-                </>
-              ) : (
-                'Nenhuma frase ativa.'
-              )}
-            </p>
             <div className="flex flex-col gap-1">
               <div className="flex gap-2">
                 <input
@@ -162,23 +153,22 @@ export function FrasesDoDiaPanel({ cliente, hoje }: { cliente?: ApiFrases; hoje?
                     <>
                       <span className={`min-w-[240px] flex-1 text-[15px] ${f.ativa ? 'text-ink' : 'text-ink-2'}`}>{f.texto}</span>
                       {!f.ativa && <Badge tone="neutral">Desativada</Badge>}
-                      <div className="flex flex-wrap gap-1">
-                        <Button size="sm" disabled={ocupado || i === 0} aria-label={`Subir a frase ${i + 1}`} onClick={() => mover(f.id, -1)} data-testid={`frases.subir.${f.id}`}>
-                          ↑
-                        </Button>
-                        <Button size="sm" disabled={ocupado || i === frases.length - 1} aria-label={`Descer a frase ${i + 1}`} onClick={() => mover(f.id, 1)} data-testid={`frases.descer.${f.id}`}>
-                          ↓
-                        </Button>
-                        <Button size="sm" disabled={ocupado} onClick={() => setEdicao({ id: f.id, texto: f.texto, erro: null })} data-testid={`frases.editar.${f.id}`}>
-                          Editar
-                        </Button>
-                        <Button size="sm" disabled={ocupado} onClick={() => gravar.mutate({ tipo: 'ativa', id: f.id, ativa: !f.ativa })} data-testid={`frases.ativa.${f.id}`}>
-                          {f.ativa ? 'Desativar' : 'Ativar'}
-                        </Button>
-                        <Button size="sm" disabled={ocupado} onClick={() => setRemover(f)} data-testid={`frases.remover.${f.id}`}>
-                          Remover
-                        </Button>
-                      </div>
+                      {deHoje?.id === f.id && (
+                        <span className="rounded-full bg-accent px-2.5 py-0.5 text-[12px] font-semibold text-white" data-testid="frases.hoje">
+                          Hoje
+                        </span>
+                      )}
+                      <MenuAcoes
+                        rotulo={`Ações da frase ${i + 1}`}
+                        testId={`frases.acoes.${f.id}`}
+                        acoes={[
+                          { id: 'subir', rotulo: 'Subir', desligada: ocupado || i === 0, aoEscolher: () => mover(f.id, -1), testId: `frases.subir.${f.id}` },
+                          { id: 'descer', rotulo: 'Descer', desligada: ocupado || i === frases.length - 1, aoEscolher: () => mover(f.id, 1), testId: `frases.descer.${f.id}` },
+                          { id: 'editar', rotulo: 'Editar', desligada: ocupado, aoEscolher: () => setEdicao({ id: f.id, texto: f.texto, erro: null }), testId: `frases.editar.${f.id}` },
+                          { id: 'ativa', rotulo: f.ativa ? 'Desativar' : 'Ativar', desligada: ocupado, aoEscolher: () => gravar.mutate({ tipo: 'ativa', id: f.id, ativa: !f.ativa }), testId: `frases.ativa.${f.id}` },
+                          { id: 'remover', rotulo: 'Remover', perigo: true, desligada: ocupado, aoEscolher: () => setRemover(f), testId: `frases.remover.${f.id}` },
+                        ]}
+                      />
                     </>
                   )}
                 </li>
@@ -205,6 +195,6 @@ export function FrasesDoDiaPanel({ cliente, hoje }: { cliente?: ApiFrases; hoje?
           {remover.padrao_codigo && <p className="mb-0 mt-2 text-ink-2">Frase padrão removida não volta. Para só tirar do rodízio, use Desativar.</p>}
         </Dialog>
       )}
-    </Panel>
+    </Moldura>
   );
 }

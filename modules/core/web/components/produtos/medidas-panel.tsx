@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Panel, td, th, TableScroll } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, MenuAcoes, td, th, TableScroll } from '@macuxi/ui/web';
+import { Moldura } from '../moldura';
 import { MedidasListaSchema, type Medida } from '../../../contracts';
 import { DESCRICAO_MEDIDA_MAX, normalizarSigla } from '../../../domain';
 import { erroDoFormularioDeMedida } from '../../lib/medidas';
@@ -28,11 +29,11 @@ export const useMedidas = () =>
   });
 
 /**
- * Medidas do produto (RN-CORE-19; RF-CORE-14), na aba Medidas de Parâmetros → Produtos. Cadastra, edita, inativa e reativa;
+ * Medidas do produto (RN-CORE-19; RF-CORE-14), no painel Medidas da página Parâmetros (ADR 0058). Cadastra, edita, inativa e reativa;
  * só apaga medida sem uso (em uso, o botão fica desligado e explica: inative em vez de apagar). Analista e admin editam
  * (ação `medida.gerenciar`); gerente consulta. A API revalida tudo e audita.
  */
-export function MedidasPanel({ onAviso }: { onAviso: (texto: string) => void }) {
+export function MedidasPanel({ onAviso, semMoldura }: { onAviso: (texto: string) => void; semMoldura?: boolean }) {
   const qc = useQueryClient();
   const pode = usePode('medida.gerenciar');
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
@@ -91,14 +92,13 @@ export function MedidasPanel({ onAviso }: { onAviso: (texto: string) => void }) 
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando as medidas…" />}
       {lista.data && (
-        <Panel title={`${itens.length} medidas`}>
+        <Moldura sem={semMoldura} title={`${itens.length} medidas`}>
           <TableScroll minWidth={640}>
             <table className="w-full border-collapse text-[13px]">
               <thead>
                 <tr>
                   <th className={th}>Sigla</th>
                   <th className={th}>Descrição</th>
-                  <th className={th}>Situação</th>
                   <th className={th}>Produtos</th>
                   <th className={th}>Ações</th>
                 </tr>
@@ -106,36 +106,28 @@ export function MedidasPanel({ onAviso }: { onAviso: (texto: string) => void }) 
               <tbody>
                 {itens.map((m) => (
                   <tr key={m.id} data-testid={`medidas.linha.${m.sigla}`}>
-                    <td className={`${td} font-semibold`}>{m.sigla}</td>
-                    <td className={td}>{m.descricao}</td>
-                    <td className={td}>
-                      <Badge tone={m.ativo ? 'success' : 'warning'}>{m.ativo ? 'Ativa' : 'Inativa'}</Badge>
+                    <td className={`${td} font-semibold`}>
+                      {m.sigla} {!m.ativo && <Badge tone="warning">Inativa</Badge>}
                     </td>
+                    <td className={td}>{m.descricao}</td>
                     <td className={td}>{m.em_uso === 0 ? <span className="text-ink-2">sem uso</span> : `${m.em_uso} em uso`}</td>
                     <td className={td}>
-                      <div className="flex flex-wrap gap-2">
-                        <Button disabled={!pode} onClick={() => setRascunho({ id: m.id, existente: true, sigla: m.sigla, descricao: m.descricao, siglaTravada: m.em_uso > 0 })} data-testid={`medidas.editar.${m.sigla}`}>
-                          Editar
-                        </Button>
-                        <Button disabled={!pode || alternar.isPending} onClick={() => alternar.mutate(m)} data-testid={`medidas.alternar.${m.sigla}`}>
-                          {m.ativo ? 'Inativar' : 'Reativar'}
-                        </Button>
-                        <Button
-                          disabled={!pode || apagar.isPending || m.em_uso > 0}
-                          title={m.em_uso > 0 ? `Medida em uso por ${m.em_uso} produto(s): inative em vez de apagar.` : undefined}
-                          onClick={() => apagar.mutate(m)}
-                          data-testid={`medidas.apagar.${m.sigla}`}
-                        >
-                          Apagar
-                        </Button>
-                      </div>
+                      <MenuAcoes
+                        rotulo={`Ações da medida ${m.sigla}`}
+                        testId={`medidas.acoes.${m.sigla}`}
+                        acoes={[
+                          { id: 'editar', rotulo: 'Editar', desligada: !pode, aoEscolher: () => setRascunho({ id: m.id, existente: true, sigla: m.sigla, descricao: m.descricao, siglaTravada: m.em_uso > 0 }), testId: `medidas.editar.${m.sigla}` },
+                          { id: 'alternar', rotulo: m.ativo ? 'Inativar' : 'Reativar', desligada: !pode || alternar.isPending, aoEscolher: () => alternar.mutate(m), testId: `medidas.alternar.${m.sigla}` },
+                          { id: 'apagar', rotulo: m.em_uso > 0 ? 'Apagar (em uso: inative)' : 'Apagar', perigo: true, desligada: !pode || apagar.isPending || m.em_uso > 0, aoEscolher: () => apagar.mutate(m), testId: `medidas.apagar.${m.sigla}` },
+                        ]}
+                      />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </TableScroll>
-        </Panel>
+        </Moldura>
       )}
       {rascunho && (
         <Dialog
