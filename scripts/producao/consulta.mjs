@@ -58,13 +58,14 @@ const PESSOAIS = [
 ];
 const PESSOAIS_SET = new Set(PESSOAIS);
 /** No SQL, o identificador inteiro (não o pedaço): lote_linha_erro é tabela, ultimo_erro é coluna com texto livre. */
-const PESSOAIS_SQL = new Set([...PESSOAIS, 'nome_curto', 'nome_fantasia', 'razao_social', 'senha_hash', 'senha_temporaria_hash',
+const PESSOAIS_SQL = new Set([...PESSOAIS, 'nome_curto', 'nome_fantasia', 'razao_social',
   'ultimo_erro', 'cpf_cnpj', 'inscricao_estadual']);
 /**
- * Coluna sensível (regra do conferir-rls.sql, 0078/ADR 0055): o macuxi_leitura não tem SELECT nela, nem como flag; recusada
+ * Coluna sensível (a mesma lista do COLUNA_SENSIVEL_LEITURA de db/src/papeis.ts, 0078/ADR 0055): o macuxi_leitura não tem SELECT nela, nem como flag; recusada
  * em qualquer uso. Para saber se o usuário tem senha: join core.v_leitura_usuario_senha s on s.id = u.id (s.tem_senha).
  */
-const RE_SENSIVEL = /hash|token|segredo|chave|carga|cifrad|(?:^|_)senha(?:_|$)/i;
+export const TERMOS_SENSIVEIS = ['hash', 'token', 'senha', 'segredo', 'chave', 'carga', 'cifrad'];
+const RE_SENSIVEL = new RegExp(TERMOS_SENSIVEIS.join('|'), 'i');
 const SENSIVEIS_PERMITIDAS = new Set(['tem_senha']);
 /** Colunas pessoais só como flag (valor booleano conferido na saída). */
 const RE_FLAG = /^(?:sem|tem|com)_|_(?:vazio|preenchido)$/;

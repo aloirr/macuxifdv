@@ -18,8 +18,8 @@
 #   6. conferências (só leitura): macuxi_app/macuxi_worker/macuxi_portal com LOGIN, sem SUPERUSER/BYPASSRLS e fora do
 #      macuxi_manutencao; macuxi_portal sem grant em tabela e o único (com o dono) que executa as plataforma.sa_* com grant; as internas só
 #      pelo dono; sa_* fora das duas listas = erro (T-0091);
-#      admin herdando o macuxi_manutencao; macuxi_leitura (0078, ADR 0055) sem SUPERUSER/BYPASSRLS, membro de nenhum papel
-#      e com a seção dele no conferir-rls.sql vazia; db/scripts/conferir-rls.sql com ZERO linhas; última migração aplicada.
+#      admin herdando o macuxi_manutencao; macuxi_leitura (0078, ADR 0055) existente e sem
+#      SUPERUSER/BYPASSRLS; db/scripts/conferir-rls.sql com ZERO linhas; última migração aplicada.
 # Nenhum segredo é impresso: as senhas só chegam aos contêineres pelos env_file do compose.
 set -euo pipefail
 
@@ -147,22 +147,14 @@ log "admin herda o macuxi_manutencao (0031, B1)"
 
 # conferir-rls.sql (dono banco-dados) sai da PRÓPRIA imagem da API (mesma versão das migrações)
 problemas="$(dc run --rm --no-deps -T --entrypoint cat banco db/scripts/conferir-rls.sql | psqlc -d "$BANCO")"
-# Consulta só leitura (0078, ADR 0055): o papel macuxi_leitura existe, sem SUPERUSER/BYPASSRLS, membro de nenhum papel, e a
-# seção dele no conferir-rls.sql (linhas que citam macuxi_leitura: política leitura, só SELECT, nenhuma coluna sensível,
-# EXECUTE só em plataforma.tenant_por_codigo) volta vazia. Conferida à parte para o erro dizer qual papel falhou.
-leitura="$(psqlc -d "$BANCO" -c "select r.rolsuper, r.rolbypassrls, exists (select 1 from pg_auth_members m where m.member = r.oid), r.rolcanlogin
-                                    from pg_roles r where r.rolname = 'macuxi_leitura'")"
+# Consulta só leitura (0078, ADR 0055): o papel macuxi_leitura existe, sem SUPERUSER/BYPASSRLS. Grants, políticas, colunas
+# sensíveis e filiação ficam no conferir-rls.sql logo abaixo.
+leitura="$(psqlc -d "$BANCO" -c "select r.rolsuper, r.rolbypassrls from pg_roles r where r.rolname = 'macuxi_leitura'")"
 case "$leitura" in
   "") erro 1 "papel macuxi_leitura ausente (migração 0078): a consulta só leitura da produção não tem papel" ;;
-  f\|f\|f\|*) ;;
-  *) erro 1 "papel macuxi_leitura fora do esperado (sem SUPERUSER/BYPASSRLS, membro de nenhum papel): $leitura" ;;
+  "f|f") log "macuxi_leitura: sem SUPERUSER/BYPASSRLS (0078)" ;;
+  *) erro 1 "papel macuxi_leitura com SUPERUSER ou BYPASSRLS: $leitura" ;;
 esac
-problemas_leitura="$(printf '%s\n' "$problemas" | grep -F 'macuxi_leitura' || true)"
-if [ -n "$problemas_leitura" ]; then
-  printf '%s\n' "$problemas_leitura" | head -n 40 >&2
-  erro 1 "conferir-rls.sql: $(printf '%s\n' "$problemas_leitura" | wc -l) problema(s) do macuxi_leitura (só SELECT, sem coluna sensível; lista acima)"
-fi
-log "macuxi_leitura: só SELECT com a política leitura, sem coluna sensível, sem SUPERUSER/BYPASSRLS (LOGIN: ${leitura##*|})"
 if [ -n "$problemas" ]; then
   printf '%s\n' "$problemas" | head -n 40 >&2
   erro 1 "conferir-rls.sql achou $(printf '%s\n' "$problemas" | wc -l) problema(s) de RLS (lista acima)"

@@ -1,13 +1,13 @@
 // Consulta só leitura na produção (R-20261115-073000-alexandre, item 5): catálogo, entrada, recusa de dado pessoal,
 // transação READ ONLY e o caminho até o banco (workflow × compose × preparar-vm). node --test scripts/ci/*.test.mjs.
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  analisarArquivo, analisarSaida, colunaPessoal, lerCatalogo, montarScript, argumentosPsql, paraMarkdown, validarEntrada,
+  TERMOS_SENSIVEIS, analisarArquivo, analisarSaida, colunaPessoal, lerCatalogo, montarScript, argumentosPsql, paraMarkdown, validarEntrada,
   valorPermitido,
 } from '../producao/consulta.mjs';
 
@@ -122,6 +122,27 @@ test('coluna sensível (hash, token, senha, segredo, chave, carga, cifrad) é re
     assert.match(problemas(sql(ruim), 'x').join(), /coluna sensível/, ruim);
   }
   assert.deepEqual(problemas("select (not s.tem_senha) as sem_senha from core.usuario u join core.v_leitura_usuario_senha s on s.id = u.id where u.tenant_id = :'tenant_id';", 'sem_senha'), []);
+});
+
+// Mesma lista do banco (RD-0526). Fonte: COLUNA_SENSIVEL_LEITURA de db/src/papeis.ts; sem ela, o regex da migração 0078.
+// Antes do merge da 0078 (branch do banco-dados) nenhuma das duas existe e o teste fica pulado com o motivo; depois dele a
+// migração é permanente no main, então o pulo não volta: constante ou regex ausentes, ou lista diferente, falham.
+test('TERMOS_SENSIVEIS igual ao COLUNA_SENSIVEL_LEITURA do banco (db/src/papeis.ts ou migração 0078)', (t) => {
+  const papeis = ler('db/src/papeis.ts');
+  const migracao = 'db/migrations/0078_plataforma_papel_leitura.up.sql';
+  const temMigracao = existsSync(fileURLToPath(new URL(migracao, RAIZ)));
+  let lista = /export const COLUNA_SENSIVEL_LEITURA\s*=\s*'\(([^')]+)\)'/.exec(papeis)?.[1];
+  let fonte = 'db/src/papeis.ts';
+  if (!lista && temMigracao) {
+    lista = /attname ~ '\(([^')]+)\)'/.exec(ler(migracao))?.[1];
+    fonte = migracao;
+  }
+  if (!lista && !temMigracao) {
+    t.skip('migração 0078 (macuxi_leitura) ainda fora deste branch: sem lista do banco para comparar');
+    return;
+  }
+  assert.ok(lista, `COLUNA_SENSIVEL_LEITURA não encontrada em db/src/papeis.ts nem o regex attname em ${migracao}`);
+  assert.deepEqual([...TERMOS_SENSIVEIS].sort(), lista.split('|').sort(), `lista de colunas sensíveis diferente de ${fonte}`);
 });
 
 test('asterisco é recusado (select *, x.*); count(*) passa', () => {
