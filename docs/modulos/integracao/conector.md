@@ -438,5 +438,5 @@ O Hub ganhou, aditivas na v1, as entidades `forma_pagamento`, `prazo_pagamento` 
 Texto completo em `hub-api.md` §21. O que muda no Conector:
 - **Ordem única** (RN-INT-04): o Conector envia as entidades na `ORDEM_CARGA_ENTIDADES` (`filial` primeiro, `nota` por último), a mesma do portal e do kit.
 - **Filial inexistente:** a linha do vendedor, do cliente, do preço ou do estoque que cita uma filial ainda não carregada fica `referencia_ausente` e é reprocessada no Monitor; não é erro da view.
-- **Usuário nunca é excluído:** vendedor que sai da view fica inativo no Hub, nunca apagado.
+- **Usuário nunca é excluído, só desativado:** vendedor que sai da view fica inativo no Hub (única exceção: exclusão da empresa inteira, RN-PLA-09/10).
 - **Estoque:** `vw_macuxi_estoque` leva uma linha por depósito, com a filial dele; a soma das filiais de venda é feita no app.
