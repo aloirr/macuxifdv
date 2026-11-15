@@ -15,7 +15,7 @@
  *  D-4b (T-0113): os produtos do concorrente do Trade apontam para marcas do Catálogo do mesmo tenant (mesmo id, sem órfão).
  *  D-5 (T-0085 c7/c8): o promotor da demo abre a ficha da PST-D01 com aplicação, 2 referências, oferece junto (disco e fluido)
  *      e etiquetas, sem preço.
- *  D-6 (T-0085 c6): o analista exporta o catálogo com sistema › grupo › linha e as marcas; o vendedor não.
+ *  D-6 (T-0085 c6): o analista exporta o catálogo com sistema › grupo › linha e o nome da marca em cada referência; o vendedor não.
  */
 import { FichaProduto, RespostaBusca, RespostaExportacao } from '@macuxi/catalogo/contracts';
 import { semBanco } from '@macuxi/db/teste/estado';
@@ -148,10 +148,11 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
     const pst = e.produtos.find((p) => p.codigo === 'PST-D01')!;
     expect(pst.hierarquia.sistema).toBeTruthy();
     expect(pst.hierarquia.linha).toBeTruthy();
-    expect(pst.referencias).toHaveLength(2);
+    expect(pst.referencias.map((x) => [x.marca_nome, x.codigo])).toEqual([['Freiomax', 'CB 3401'], ['Rodaforte', 'RF-1187']]);
     expect(pst.oferece_junto).toEqual([idPorSku.get('DSC-D01'), idPorSku.get('FLU-DOT4')]);
-    // as 6 do cadastro do Catálogo (T-0113): as 4 de autopeças e as 2 fictícias de mercearia/limpeza do Trade; nenhuma marca real
-    expect(e.marcas.map((m) => m.nome)).toEqual(expect.arrayContaining(MARCAS_FICTICIAS));
+    // o nome da marca vem na referência (o campo `marcas` da resposta saiu, RD-0544): só marcas fictícias do cadastro do Catálogo, nenhuma real
+    const nomes = new Set(e.produtos.flatMap((p) => p.referencias.flatMap((x) => (x.marca_nome ? [x.marca_nome] : []))));
+    expect([...nomes].filter((n) => !MARCAS_FICTICIAS.includes(n))).toEqual([]);
     const v = await api.chamar(tk.vendedor, { method: 'GET', url: '/v1/catalogo/exportacao' });
     expect(v.statusCode).toBe(403);
   });

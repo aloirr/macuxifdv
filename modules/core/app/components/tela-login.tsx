@@ -7,11 +7,11 @@
  * `aviso` mostra, no lugar do erro, o texto de uma volta (ex.: "Esta senha não vale mais. Entre de novo.").
  */
 import { estilosDeAcesso } from './estilos-de-acesso';
-import { Banner, Button, colors, Screen, type as t } from '@macuxi/ui/mobile';
+import { Banner, Button, CampoSenha, colors, Screen, type as t } from '@macuxi/ui/mobile';
 import { useRef, useState, type ComponentProps, type RefObject } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { camposIniciaisDoLogin, mensagemDeErroDeLogin, propsDoCampoCodigoEmpresa, rotuloOlhoSenha, validarLogin, type CamposLogin, type ErrosLogin } from '../lib/login';
+import { camposIniciaisDoLogin, mensagemDeErroDeLogin, propsDoCampoCodigoEmpresa, validarLogin, type CamposLogin, type ErrosLogin } from '../lib/login';
 
 export interface PropsTelaLogin {
   /** Código da empresa lembrado do último login neste aparelho. */
@@ -71,7 +71,7 @@ export function TelaLogin({ codigoSalvo, emailInicial, onEntrar, rodape, onEsque
         valor={campos.codigo_empresa}
         erro={erros.codigo_empresa}
         testID="login.codigo-empresa"
-        onChangeText={mudar('codigo_empresa')}
+        onChangeText={(v) => mudar('codigo_empresa')(v.toUpperCase())}
         {...propsDoCampoCodigoEmpresa}
         returnKeyType="next"
         onSubmitEditing={() => email.current?.focus()}
@@ -89,19 +89,22 @@ export function TelaLogin({ codigoSalvo, emailInicial, onEntrar, rodape, onEsque
         inputRef={email}
         onSubmitEditing={() => senha.current?.focus()}
       />
-      <Campo
-        rotulo="Senha"
-        valor={campos.senha}
-        erro={erros.senha}
-        testID="login.senha"
-        onChangeText={mudar('senha')}
-        secureTextEntry={!senhaVisivel}
-        olho={{ visivel: senhaVisivel, alternar: () => setSenhaVisivel((v) => !v) }}
-        textContentType="password"
-        returnKeyType="go"
-        inputRef={senha}
-        onSubmitEditing={() => void entrar()}
-      />
+      <View style={{ gap: 4 }}>
+        <CampoSenha
+          rotulo="Senha"
+          valor={campos.senha}
+          erro={Boolean(erros.senha)}
+          testID="login.senha"
+          testIDOlho="login.senha-olho"
+          aoMudar={mudar('senha')}
+          visivel={senhaVisivel}
+          aoAlternar={() => setSenhaVisivel((v) => !v)}
+          returnKeyType="go"
+          inputRef={senha}
+          onSubmitEditing={() => void entrar()}
+        />
+        {erros.senha ? <Text style={[t.small, { color: colors.danger }]}>{erros.senha}</Text> : null}
+      </View>
 
       <Button testID="login.entrar" label="Entrar" variant="accent" height={52} loading={entrando} onPress={() => void entrar()} />
       {onEsqueci ? (
@@ -125,11 +128,9 @@ interface PropsCampo extends Omit<ComponentProps<typeof TextInput>, 'value' | 's
   valor: string;
   erro?: string | undefined;
   inputRef?: RefObject<TextInput | null>;
-  /** Botão de olho (campo de senha). */
-  olho?: { visivel: boolean; alternar: () => void };
 }
 
-function Campo({ rotulo, valor, erro, inputRef, olho, ...resto }: PropsCampo) {
+function Campo({ rotulo, valor, erro, inputRef, ...resto }: PropsCampo) {
   return (
     <View style={{ gap: 4 }}>
       <Text style={styles.rotulo}>{rotulo}</Text>
@@ -139,22 +140,10 @@ function Campo({ rotulo, valor, erro, inputRef, olho, ...resto }: PropsCampo) {
           value={valor}
           accessibilityLabel={rotulo}
           autoCorrect={false}
-          style={[styles.entrada, olho ? { paddingRight: 56 } : null, erro ? { borderColor: colors.danger } : null]}
+          style={[styles.entrada, erro ? { borderColor: colors.danger } : null]}
           placeholderTextColor={colors.ink3}
           {...resto}
         />
-        {olho ? (
-          <Pressable
-            testID="login.senha-olho"
-            accessibilityRole="button"
-            accessibilityLabel={rotuloOlhoSenha(olho.visivel)}
-            hitSlop={4}
-            onPress={olho.alternar}
-            style={styles.olho}
-          >
-            <Text style={styles.olhoTexto}>{olho.visivel ? 'Esconder' : 'Mostrar'}</Text>
-          </Pressable>
-        ) : null}
       </View>
       {erro ? <Text style={[t.small, { color: colors.danger }]}>{erro}</Text> : null}
     </View>

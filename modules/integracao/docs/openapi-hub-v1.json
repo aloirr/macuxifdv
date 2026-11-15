@@ -9,10 +9,10 @@
   "servers": [
     {
       "url": "https://{servidor}/integracao/v1",
-      "description": "Hub de Integração (HTTPS obrigatório). A produção (`api.macuxifdv.com.br`) está reservada; hoje vale o ambiente de demonstração.",
+      "description": "Hub de Integração (HTTPS obrigatório). Produção: `api.macuxifdv.com.br`.",
       "variables": {
         "servidor": {
-          "default": "api-demo.macuxifdv.com.br",
+          "default": "api.macuxifdv.com.br",
           "description": "Servidor da API do Macuxi."
         }
       }
@@ -2512,6 +2512,7 @@
               "oferece_junto_cortado",
               "prazo_medio_divergente",
               "marca_concorrente_desconhecida",
+              "vendedor_sem_filial",
               "avisos_omitidos"
             ]
           },
@@ -5212,6 +5213,17 @@
               }
             ]
           },
+          "marca_codigo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "categoria": {
             "anyOf": [
               {
@@ -6475,6 +6487,18 @@
               {
                 "type": "string",
                 "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "filial_external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
               },
               {
                 "type": "null"
