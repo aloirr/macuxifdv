@@ -249,7 +249,7 @@ export function gerarPostman(doc) {
 export function gerarAmbientePostman(doc) {
   const padrao = valoresPadrao(doc);
   return {
-    name: `${NOME} — demonstração`,
+    name: `${NOME}`,
     values: VARIAVEIS_AMBIENTE.map((v) => ({ key: v.chave, value: padrao[v.chave], type: v.segredo ? 'secret' : 'default', enabled: true })),
     _postman_variable_scope: 'environment',
   };

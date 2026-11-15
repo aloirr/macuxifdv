@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { tmpdir, homedir } from 'node:os';
 import { Worker, MessageChannel, receiveMessageOnPort } from 'node:worker_threads';
 import { createHash } from 'node:crypto';
+import { gunzipSync } from 'node:zlib';
 
 export const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -728,12 +729,15 @@ export function agenteDaSessao({ argumento, entrada, env = process.env, raiz = R
 // enviar e lido gravam direto no aloirr/macuxifdv-recados pela API do GitHub; caixa, pendencias, ler e fio leem o
 // main do GitHub na hora. Sem clone, junção, Agendador nem sincronização. Sem dependências: o HTTP roda num processo
 // filho do próprio Node (fetch), chamado de forma síncrona, para o coord.mjs e os guardiões continuarem síncronos.
-// - Escrita: um commit por envio, pela mutação GraphQL createCommitOnBranch com expectedHeadOid (concorrência
-//   otimista). Se outro agente gravou antes, o GitHub recusa; o coord relê e tenta de novo. O commit é atômico (todos
-//   os destinos ou nenhum) e nunca sobrescreve: o id é escolhido contra a árvore daquele mesmo commit.
+// Só a API REST (contents, git/trees, git/blobs, git/commits, git/refs, compare, tarball): nas sessões da nuvem o
+// proxy recusa a GraphQL com HTTP 403 (R-20261114-202700-alexandre, item 3).
+// - Escrita: um commit por envio. Blobs, árvore (sobre a do commit lido) e commit são criados soltos; só o avanço do
+//   branch (PATCH git/refs sem force) publica, e o GitHub o recusa se o main tiver mudado desde a leitura (concorrência
+//   otimista, como o expectedHeadOid). O coord relê e tenta de novo. O commit é atômico (todos os destinos ou nenhum)
+//   e nunca sobrescreve: o id é escolhido contra a árvore daquele mesmo commit.
 // - Leitura: índice local (cache fora do repositório) por commit. A cada leitura, compara o commit do cache com o main
-//   (REST compare) e baixa só os arquivos novos (GraphQL, 100 por consulta). Os textos do cache são conferidos pelo
-//   hash do git; a lista que autoriza merge (guarda-merge) vem sempre direto do GitHub.
+//   (REST compare) e baixa só os arquivos novos (blob a blob; muitos de uma vez, pelo tarball do commit). Os textos do
+//   cache são conferidos pelo hash do git; a lista que autoriza merge (guarda-merge) vem sempre direto do GitHub.
 // - Token só do ambiente: MACUXI_RECADOS_TOKEN, GH_TOKEN, GITHUB_TOKEN ou `gh auth token`. Nunca vai para arquivo,
 //   argumento de processo ou log (vai ao processo filho pelo stdin).
 
@@ -802,7 +806,8 @@ export function ghAuthToken({ executar = executarGhAuthToken, esperar = esperarS
 }
 
 // HTTP síncrono (fetch em paralelo, fora da thread principal). O núcleo recebe {token, reqs} e devolve
-// [{status, texto} | {rede}]. O erro de rede traz só o tipo e o código, nunca cabeçalho nem token.
+// [{status, texto} | {status, base64} (pedido `binario` com resposta 2xx) | {rede}]. O erro de rede traz só o tipo e
+// o código, nunca cabeçalho nem token.
 const NUCLEO_HTTP = `
 async function executar({ token, reqs, concorrencia, timeoutMs }) {
   const res = new Array(reqs.length);
@@ -814,7 +819,8 @@ async function executar({ token, reqs, concorrencia, timeoutMs }) {
     if (r.corpo !== undefined) h['content-type'] = 'application/json';
     try {
       const resp = await fetch(r.url, { method: r.metodo || 'GET', headers: h, body: r.corpo === undefined ? undefined : JSON.stringify(r.corpo), signal: AbortSignal.timeout(timeoutMs) });
-      res[k] = { status: resp.status, texto: await resp.text() };
+      if (r.binario && resp.ok) res[k] = { status: resp.status, base64: Buffer.from(await resp.arrayBuffer()).toString('base64') };
+      else res[k] = { status: resp.status, texto: await resp.text() };
     } catch (e) {
       const c = e && e.cause;
       res[k] = { rede: [e && e.name, c && (c.code || c.message)].filter(Boolean).join(': ') || 'falha de rede' };
@@ -845,8 +851,8 @@ process.stdout.write(JSON.stringify(await executar(JSON.parse(readFileSync(0, 'u
 const temProxy = (env) => ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].some((k) => String(env[k] || '').trim());
 
 /**
- * HTTP síncrono: (reqs: {url, metodo?, corpo?}[]) => ({status, texto} | {rede})[]. O token vai pela memória (worker)
- * ou pelo stdin (processo filho), nunca por argumento nem arquivo.
+ * HTTP síncrono: (reqs: {url, metodo?, corpo?, binario?}[]) => ({status, texto} | {status, base64} | {rede})[].
+ * O token vai pela memória (worker) ou pelo stdin (processo filho), nunca por argumento nem arquivo.
  */
 export function httpSincrono({ token, timeoutMs = 30_000, concorrencia = 8, env = process.env } = {}) {
   const prazo = (n) => timeoutMs * (Math.ceil(n / concorrencia) + 1);
@@ -888,113 +894,155 @@ export function httpSincrono({ token, timeoutMs = 30_000, concorrencia = 8, env 
   };
 }
 
-const Q_CABECA = `query Cabeca($dono: String!, $nome: String!, $ref: String!) {
-  repository(owner: $dono, name: $nome) { ref(qualifiedName: $ref) { target { oid } } } }`;
-const Q_LISTAGEM = `query Listagem($dono: String!, $nome: String!, $ref: String!) {
-  repository(owner: $dono, name: $nome) { ref(qualifiedName: $ref) { target { ... on Commit { oid
-    recados: file(path: "recados") { object { ... on Tree { entries { name type oid object { ... on Tree { entries { name type oid } } } } } } }
-    lidos: file(path: "lidos") { object { ... on Tree { entries { name type oid } } } }
-  } } } } }`;
-const Q_ARQUIVO = `query Arquivo($dono: String!, $nome: String!, $ref: String!, $caminho: String!) {
-  repository(owner: $dono, name: $nome) { ref(qualifiedName: $ref) { target { ... on Commit { oid
-    arquivo: file(path: $caminho) { oid object { ... on Blob { text } } }
-  } } } } }`;
-const Q_PASTA = `query Pasta($dono: String!, $nome: String!, $ref: String!, $caminho: String!) {
-  repository(owner: $dono, name: $nome) { ref(qualifiedName: $ref) { target { ... on Commit { oid
-    pasta: file(path: $caminho) { object { ... on Tree { entries { name type oid } } } }
-  } } } } }`;
-const M_COMMIT = `mutation CriarCommit($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid url } } }`;
-const LOTE_DE_BLOBS = 100;
+// Só a API REST do GitHub: nas sessões da nuvem o proxy recusa a GraphQL (HTTP 403).
+const LIMIAR_DO_PACOTE = 20; // acima disso, os textos vêm num tarball do commit (um pedido), e não blob a blob
+const ehBinario = (b) => b.subarray(0, 8000).includes(0); // a mesma regra do git
+
+/** Conteúdos dos arquivos comuns de um .tar (gzip ou não). Os caminhos não importam: o conteúdo é achado pelo hash. */
+export function conteudosDoTar(dados) {
+  let buf = Buffer.isBuffer(dados) ? dados : Buffer.from(dados);
+  if (buf[0] === 0x1f && buf[1] === 0x8b) buf = gunzipSync(buf);
+  const res = [];
+  for (let p = 0; p + 512 <= buf.length;) {
+    const h = buf.subarray(p, p + 512);
+    if (!h.some((b) => b !== 0)) break;
+    const tamanho = parseInt(h.toString('latin1', 124, 136).replace(/\0.*$/s, '').trim() || '0', 8);
+    if (!Number.isFinite(tamanho) || tamanho < 0) break;
+    p += 512;
+    if (h[156] === 0 || h[156] === 0x30) res.push(buf.subarray(p, p + tamanho));
+    p += Math.ceil(tamanho / 512) * 512;
+  }
+  return res;
+}
 
 /**
- * Cliente da API do GitHub para o repositório de recados (síncrono). `http` é injetável (testes).
+ * Cliente da API REST do GitHub para o repositório de recados (síncrono). `http` é injetável (testes).
  * @param {{http: (reqs: any[]) => any[], repo?: string, api?: string, branch?: string, origem?: string}} p
  */
 export function criarClienteDeRecados({ http, repo = REPO_RECADOS, api = API_GITHUB, branch = BRANCH_RECADOS, origem = 'token' }) {
-  const [dono, nome] = repo.split('/');
-  const ref = `refs/heads/${branch}`;
-  const base = { dono, nome, ref };
+  const raiz = `${api}/repos/${repo}`;
+  const caminhoUrl = (c) => c.split('/').map(encodeURIComponent).join('/');
 
-  /** data do GraphQL; NOT_FOUND de arquivo (file(path:) inexistente) não é erro: o campo vem null. */
-  function dados(r) {
+  /** JSON da resposta REST; com `aceita404`, o 404 vira null (arquivo ou objeto que não existe). */
+  function json(r, { aceita404 = false } = {}) {
     if (r.rede) throw new ErroRecados(`sem acesso ao GitHub (${r.rede})`, { rede: true });
     let j = null;
     try { j = JSON.parse(r.texto); } catch { /* abaixo */ }
     if (r.status === 401) throw new ErroRecados(`o GitHub recusou o token (${origem}, HTTP 401)`);
     if (r.status === 403 || r.status === 429) throw new ErroRecados(`o GitHub recusou o pedido (HTTP ${r.status}${j?.message ? `: ${j.message}` : ''})`, { rede: true });
-    if (!j) throw new ErroRecados(`resposta inválida do GitHub (HTTP ${r.status})`, { rede: r.status >= 500 });
-    const erros = (j.errors || []).filter((e) => !(e?.type === 'NOT_FOUND' && Array.isArray(e.path) && e.path.length > 3));
-    if (erros.length) {
-      if (erros.some((e) => e?.type === 'NOT_FOUND')) throw new ErroRecados(`o token (${origem}) não enxerga ${repo}: ${erros.map((e) => e.message).join('; ')}`);
-      throw new ErroRecados(`GitHub: ${erros.map((e) => e?.message).join('; ')}`);
-    }
-    if (r.status >= 400 || !j.data) throw new ErroRecados(`GitHub: HTTP ${r.status}${j.message ? ` (${j.message})` : ''}`, { rede: r.status >= 500 });
-    return j.data;
+    if (r.status === 404 && aceita404) return null;
+    if (r.status === 404) throw new ErroRecados(`o token (${origem}) não enxerga ${repo} (HTTP 404)`);
+    if (r.status >= 400 || !j) throw new ErroRecados(`GitHub: HTTP ${r.status}${j?.message ? ` (${j.message})` : ''}`, { rede: r.status >= 500 });
+    return j;
   }
-  const gql = (consultas) => http(consultas.map((corpo) => ({ url: `${api}/graphql`, metodo: 'POST', corpo }))).map(dados);
-  const alvo = (d) => {
-    const t = d?.repository?.ref?.target;
-    if (!t?.oid) throw new ErroRecados(`o branch ${branch} do ${repo} não foi encontrado`);
-    return t;
+  const pedir = (reqs, o) => http(reqs).map((r) => json(r, o));
+  const um = (req, o) => pedir([req], o)[0];
+
+  /** oid do commit no topo do branch. */
+  function cabeca() {
+    const j = um({ url: `${raiz}/git/ref/heads/${caminhoUrl(branch)}` }, { aceita404: true });
+    if (!j?.object?.sha) throw new ErroRecados(`o branch ${branch} do ${repo} não foi encontrado (ou o token (${origem}) não enxerga o repositório)`);
+    return j.object.sha;
+  }
+  /** Árvore raiz do commit. */
+  const arvoreDoCommit = (oid) => {
+    const j = um({ url: `${raiz}/git/commits/${oid}` });
+    if (!j?.tree?.sha) throw new ErroRecados(`o GitHub não devolveu a árvore do commit ${oid.slice(0, 7)}`);
+    return j.tree.sha;
   };
+  /** Entradas de uma árvore: [{path, type, sha}] (com `recursivo`, os caminhos são relativos a ela). */
+  const entradas = (sha, recursivo = false) => um({ url: `${raiz}/git/trees/${sha}${recursivo ? '?recursive=1' : ''}` });
+  /** Entradas da pasta `caminho` no commit (descendo pasta a pasta), ou null se ela não existir. */
+  function entradasDaPasta(oid, caminho) {
+    let atual = entradas(arvoreDoCommit(oid)).tree || [];
+    for (const parte of caminho.split('/').filter(Boolean)) {
+      const e = atual.find((x) => x.path === parte && x.type === 'tree');
+      if (!e) return null;
+      atual = entradas(e.sha).tree || [];
+    }
+    return atual;
+  }
+  const texto = (b) => (ehBinario(b) ? null : b.toString('utf8'));
+
+  /** Textos dos blobs, um pedido por blob (em paralelo). Binário e blob inexistente ficam de fora. */
+  function textosBlobABlob(oids) {
+    const res = {};
+    pedir(oids.map((o) => ({ url: `${raiz}/git/blobs/${o}` })), { aceita404: true }).forEach((j, i) => {
+      if (!j || typeof j.content !== 'string') return;
+      const t = texto(Buffer.from(j.content, j.encoding === 'base64' ? 'base64' : 'utf8'));
+      if (t !== null) res[oids[i]] = t;
+    });
+    return res;
+  }
 
   return {
     repo,
-    /** oid do commit no topo do main. */
-    cabeca() { return alvo(gql([{ query: Q_CABECA, variables: base }])[0]).oid; },
+    cabeca,
 
-    /** {oid, arquivos: {caminho: oid do blob}} do main, numa leitura só (consistente com o commit). */
+    /** {oid, arquivos: {caminho: oid do blob}} do main, todos lidos do mesmo commit. */
     listar() {
-      const t = alvo(gql([{ query: Q_LISTAGEM, variables: base }])[0]);
+      const oid = cabeca();
+      const topo = entradas(arvoreDoCommit(oid)).tree || [];
       const arquivos = {};
-      for (const d of t.recados?.object?.entries || []) {
-        if (d.type !== 'tree') continue;
-        for (const f of d.object?.entries || []) {
-          const caminho = `recados/${d.name}/${f.name}`;
-          if (f.type === 'blob' && ehArquivoDoIndice(caminho)) arquivos[caminho] = f.oid;
-        }
+      const anotar = (caminho, e) => { if (e.type === 'blob' && ehArquivoDoIndice(caminho)) arquivos[caminho] = e.sha; };
+      const recados = topo.find((e) => e.path === 'recados' && e.type === 'tree');
+      const lidos = topo.find((e) => e.path === 'lidos' && e.type === 'tree');
+      const alvos = [recados && `${recados.sha}?recursive=1`, lidos?.sha];
+      const resp = pedir(alvos.filter(Boolean).map((a) => ({ url: `${raiz}/git/trees/${a}` })));
+      const [rec, lid] = alvos.map((a) => (a ? resp.shift() : null));
+      if (rec && !rec.truncated) {
+        for (const e of rec.tree || []) anotar(`recados/${e.path}`, e);
+      } else if (rec) {
+        // lista grande demais para uma resposta só: pasta a pasta (sem os anexos)
+        const pastas = (entradas(recados.sha).tree || []).filter((e) => e.type === 'tree' && e.path !== 'anexos');
+        pedir(pastas.map((d) => ({ url: `${raiz}/git/trees/${d.sha}` }))).forEach((j, i) => {
+          for (const e of j.tree || []) anotar(`recados/${pastas[i].path}/${e.path}`, e);
+        });
       }
-      for (const f of t.lidos?.object?.entries || []) {
-        const caminho = `lidos/${f.name}`;
-        if (f.type === 'blob' && ehArquivoDoIndice(caminho)) arquivos[caminho] = f.oid;
-      }
-      return { oid: t.oid, arquivos };
+      for (const e of lid?.tree || []) anotar(`lidos/${e.path}`, e);
+      return { oid, arquivos };
     },
 
     /** Um arquivo no topo do main: {oid do commit, existe, blob, texto}. */
     arquivo(caminho) {
-      const t = alvo(gql([{ query: Q_ARQUIVO, variables: { ...base, caminho } }])[0]);
-      const a = t.arquivo;
-      return { oid: t.oid, existe: Boolean(a), blob: a?.oid || null, texto: a?.object?.text ?? (a ? '' : null) };
+      const oid = cabeca();
+      const j = um({ url: `${raiz}/contents/${caminhoUrl(caminho)}?ref=${oid}` }, { aceita404: true });
+      if (!j || Array.isArray(j) || j.type !== 'file') return { oid, existe: false, blob: null, texto: null };
+      const t = j.encoding === 'base64' && typeof j.content === 'string' && (j.content || !j.size)
+        ? texto(Buffer.from(j.content, 'base64'))
+        : textosBlobABlob([j.sha])[j.sha] ?? null; // acima de 1 MB a API de conteúdo não traz o texto
+      return { oid, existe: true, blob: j.sha, texto: t };
     },
 
     /** Entradas de uma pasta no topo do main, direto do GitHub: {oid, entradas: [{name, type, oid}]}. */
     pasta(caminho) {
-      const t = alvo(gql([{ query: Q_PASTA, variables: { ...base, caminho } }])[0]);
-      return { oid: t.oid, entradas: t.pasta?.object?.entries || [] };
+      const oid = cabeca();
+      return { oid, entradas: (entradasDaPasta(oid, caminho) || []).map((e) => ({ name: e.path, type: e.type, oid: e.sha })) };
     },
 
-    /** Textos dos blobs ({oid: texto}), 100 por consulta, consultas em paralelo. Binário fica de fora. */
-    textos(oids) {
+    /**
+     * Textos dos blobs ({oid: texto}). Com o `commit` e muitos blobs, baixa o tarball do commit num pedido só e acha
+     * cada texto pelo hash; o que faltar (ou se o tarball falhar) vem blob a blob. Binário fica de fora.
+     */
+    textos(oids, commit = null) {
       const lista = [...new Set(oids)];
-      const consultas = [];
-      for (let i = 0; i < lista.length; i += LOTE_DE_BLOBS) {
-        const lote = lista.slice(i, i + LOTE_DE_BLOBS);
-        const vars = lote.map((_, k) => `$o${k}: GitObjectID!`).join(', ');
-        const campos = lote.map((_, k) => `b${k}: object(oid: $o${k}) { ... on Blob { text isBinary } }`).join(' ');
-        consultas.push({
-          query: `query Blobs($dono: String!, $nome: String!, ${vars}) { repository(owner: $dono, name: $nome) { ${campos} } }`,
-          variables: { dono, nome, ...Object.fromEntries(lote.map((o, k) => [`o${k}`, o])) },
-          lote,
-        });
-      }
       const res = {};
-      const respostas = gql(consultas.map(({ query, variables }) => ({ query, variables })));
-      respostas.forEach((d, i) => consultas[i].lote.forEach((oid, k) => {
-        const b = d?.repository?.[`b${k}`];
-        if (b && !b.isBinary && typeof b.text === 'string') res[oid] = b.text;
-      }));
-      return res;
+      const binarios = new Set();
+      if (commit && lista.length > LIMIAR_DO_PACOTE) {
+        try {
+          const [r] = http([{ url: `${raiz}/tarball/${commit}`, binario: true }]);
+          if (r.status === 200 && typeof r.base64 === 'string') {
+            const querido = new Set(lista);
+            for (const b of conteudosDoTar(Buffer.from(r.base64, 'base64'))) {
+              const o = shaDoBlob(b);
+              if (!querido.has(o)) continue;
+              const t = texto(b);
+              if (t === null) binarios.add(o); else res[o] = t;
+            }
+          }
+        } catch { /* sem o pacote: blob a blob */ }
+      }
+      return Object.assign(res, textosBlobABlob(lista.filter((o) => res[o] === undefined && !binarios.has(o))));
     },
 
     /**
@@ -1002,7 +1050,7 @@ export function criarClienteDeRecados({ http, repo = REPO_RECADOS, api = API_GIT
      * null quando não dá para usar o delta (commit desconhecido, histórico reescrito, mais de 250 commits ou 300 arquivos).
      */
     comparar(de) {
-      const [r] = http([{ url: `${api}/repos/${repo}/compare/${de}...${branch}` }]);
+      const [r] = http([{ url: `${raiz}/compare/${de}...${branch}` }]);
       if (r.rede) throw new ErroRecados(`sem acesso ao GitHub (${r.rede})`, { rede: true });
       if (r.status === 404 || r.status === 422) return null;
       let j = null;
@@ -1016,17 +1064,29 @@ export function criarClienteDeRecados({ http, repo = REPO_RECADOS, api = API_GIT
       return { oid: commits[commits.length - 1].sha, mudancas: arquivos };
     },
 
-    /** Um commit no main com os arquivos (atômico), só se o topo ainda for `esperado`. → {oid, url} */
+    /**
+     * Um commit no main com os arquivos (atômico), só se o topo ainda for `esperado` → {oid, url}. Blobs, árvore e
+     * commit são criados soltos; só o avanço do branch (PATCH sem force) publica. Se o main mudou, o GitHub recusa o
+     * avanço (não é fast-forward) e nada aparece no branch.
+     */
     commitar({ esperado, adicoes, titulo, corpo = '' }) {
-      const input = {
-        branch: { repositoryNameWithOwner: repo, branchName: branch },
-        expectedHeadOid: esperado,
-        message: { headline: titulo, ...(corpo ? { body: corpo } : {}) },
-        fileChanges: { additions: adicoes.map((a) => ({ path: a.caminho, contents: (Buffer.isBuffer(a.conteudo) ? a.conteudo : Buffer.from(String(a.conteudo), 'utf8')).toString('base64') })) },
-      };
-      const c = gql([{ query: M_COMMIT, variables: { input } }])[0]?.createCommitOnBranch?.commit;
-      if (!c?.oid) throw new ErroRecados('o GitHub não devolveu o commit');
-      return c;
+      const bufs = adicoes.map((a) => (Buffer.isBuffer(a.conteudo) ? a.conteudo : Buffer.from(String(a.conteudo), 'utf8')));
+      const unicos = [...new Map(bufs.map((b) => [shaDoBlob(b), b])).entries()];
+      const criados = pedir(unicos.map(([, b]) => ({ url: `${raiz}/git/blobs`, metodo: 'POST', corpo: { content: b.toString('base64'), encoding: 'base64' } })));
+      criados.forEach((j, i) => { if (j?.sha !== unicos[i][0]) throw new ErroRecados('o GitHub devolveu um blob diferente do enviado'); });
+      const arvore = um({
+        url: `${raiz}/git/trees`, metodo: 'POST',
+        corpo: { base_tree: arvoreDoCommit(esperado), tree: adicoes.map((a, i) => ({ path: a.caminho, mode: '100644', type: 'blob', sha: shaDoBlob(bufs[i]) })) },
+      });
+      const c = um({ url: `${raiz}/git/commits`, metodo: 'POST', corpo: { message: corpo ? `${titulo}\n\n${corpo}` : titulo, tree: arvore?.sha, parents: [esperado] } });
+      if (!c?.sha) throw new ErroRecados('o GitHub não devolveu o commit');
+      const [r] = http([{ url: `${raiz}/git/refs/heads/${caminhoUrl(branch)}`, metodo: 'PATCH', corpo: { sha: c.sha, force: false } }]);
+      if (r.status === 409 || r.status === 422) {
+        throw new ErroRecados(`o ${branch} do ${repo} mudou antes do commit (HTTP ${r.status}); nada foi publicado`);
+      }
+      const j = json(r);
+      if (j?.object?.sha !== c.sha) throw new ErroRecados('o GitHub não confirmou o avanço do branch');
+      return { oid: c.sha, url: c.html_url };
     },
   };
 }
@@ -1095,7 +1155,7 @@ export function atualizarIndiceDeRecados({ cliente, cache, exigirOnline = false,
       if (salvo?.textos[oid] !== undefined) textos[oid] = salvo.textos[oid];
       else faltam.push(oid);
     }
-    Object.assign(textos, cliente.textos(faltam));
+    Object.assign(textos, cliente.textos(faltam, atual.oid));
     const idx = { repo: cliente.repo, oid: atual.oid, arquivos: atual.arquivos, textos, em: agora().toISOString() };
     if (!salvo || salvo.oid !== idx.oid || faltam.length) cache.gravar(idx);
     return { ...idx, online: true };
@@ -1206,12 +1266,12 @@ export function marcarLidosNoGitHub({ cliente, agente, ids, tentativas = 6, espe
  * `filtro(nome)` limita o que é baixado. Sem GitHub, lança (quem chama trata como "nenhuma autorização").
  */
 export function recadosDaPastaNoGitHub({ cliente, cache, pasta, filtro = () => true }) {
-  const { entradas } = cliente.pasta(`recados/${pasta}`);
+  const { oid, entradas } = cliente.pasta(`recados/${pasta}`);
   const escolhidas = entradas.filter((e) => e.type === 'blob' && /\.md$/i.test(e.name) && filtro(e.name));
   const salvo = cacheConferido(cache?.ler?.() || null);
   const textos = {};
   for (const e of escolhidas) if (salvo?.textos[e.oid] !== undefined) textos[e.oid] = salvo.textos[e.oid];
-  Object.assign(textos, cliente.textos(escolhidas.filter((e) => textos[e.oid] === undefined).map((e) => e.oid)));
+  Object.assign(textos, cliente.textos(escolhidas.filter((e) => textos[e.oid] === undefined).map((e) => e.oid), oid));
   return escolhidas.filter((e) => typeof textos[e.oid] === 'string').map((e) => ({ nome: e.name, texto: textos[e.oid] }));
 }
 

@@ -129,6 +129,14 @@ export function CampoFormulario({ rotulo, opcional, erro, children, className }:
   );
 }
 
+/**
+ * Caixa do campo das telas de acesso (login do BKO, portal de implantação, "Crie sua senha"): 44 px, texto 15. Serve a
+ * qualquer campo dessas telas, de senha ou não; o `CampoSenha` usa esta classe (RD-0478). Os `campoCss` locais do apps/web
+ * passam a importar esta.
+ */
+export const CLASSE_CAMPO_ACESSO =
+  'h-11 w-full rounded-xl border border-field bg-surface px-3 text-[15px] text-ink outline-none focus-visible:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-[invalid=true]:border-danger disabled:bg-ground disabled:text-ink-2';
+
 /** Classe do controle dentro do `CampoFormulario`: 42 px, a mesma altura do botão `md`. */
 export const CLASSE_CAMPO = cx(CLASSE_CAMPO_BASE, 'h-[42px] w-full px-3 aria-[invalid=true]:border-danger');
 

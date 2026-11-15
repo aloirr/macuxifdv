@@ -194,7 +194,7 @@ describe('OpenAPI do Hub: cobertura das rotas do contrato', () => {
   });
 
   it('servidor com variável e produção reservada; info aponta o guia', () => {
-    expect(doc.servers[0]).toMatchObject({ url: 'https://{servidor}/integracao/v1', variables: { servidor: { default: 'api-demo.macuxifdv.com.br' } } });
+    expect(doc.servers[0]).toMatchObject({ url: 'https://{servidor}/integracao/v1', variables: { servidor: { default: 'api.macuxifdv.com.br' } } });
     expect(String(doc.info.description)).toContain('guia-api-hub.md');
     expect(doc.info.version).toBe('v1');
   });

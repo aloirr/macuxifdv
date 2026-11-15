@@ -201,6 +201,20 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > [plataforma.md](plataforma.md) e no [core.md](core.md); teste `db/testes/cargo-hierarquia.db.test.ts`; diagnóstico
 > `db/scripts/diagnostico-0069.sql`.
 >
+> **2026-11-14 (ADR 0047, planos e licenças; portal config. enxuto, R-20261114-170600 e R-20261114-181000):**
+> `0070_plataforma_plano_assinatura` (em cima da 0069; aditiva): `plataforma.plano` (catálogo da plataforma, sem `tenant_id`, só
+> por função) e `plataforma.assinatura` (uma viva por tenant, RLS por tenant, o app só lê), e a
+> `plataforma.sa_gravar_assinatura(p_sid uuid, p_tenant uuid, p jsonb)` (só super-admin; o portal passa a 17 `sa_*`).
+> `0071_plataforma_listar_tenants_plano`: a `sa_listar_tenants` ganha `plano`, `teste_ate` e `paga` em cada empresa. Detalhes no
+> [plataforma.md](plataforma.md); teste `db/testes/plano-assinatura.db.test.ts`.
+>
+> **2026-11-15 (ADR 0052, inativar, backup e excluir a empresa no portal):**
+> `0072_plataforma_empresa_acoes` (em cima da 0071): `plataforma.tenant` ganha `inativada_em` e `motivo_inativacao` (inativa =
+> `suspenso`); `backup_empresa`, `backup_empresa_parte`, `exclusao_empresa` e `empresa_excluida` (sem `tenant_id`, sobrevivem à
+> exclusão, só por função); 8 `sa_*` do portal (25 no total) e as funções do worker (backup por keyset, exclusão em 2 etapas,
+> retenção); código da licença nunca reaproveitado (gatilho e sorteio); despachante e e-mail pulam a empresa inativa (políticas
+> do worker). Detalhes no [plataforma.md](plataforma.md); teste `db/testes/empresa-acoes.db.test.ts`.
+>
 > **2026-11-15 (ADR 0054, pacote pronto da primeira carga):** `0074_plataforma_sync_pacote` (em cima da 0073; aditiva):
 > `plataforma.sync_pacote` (um `.sqlite.gz` por tenant, módulo e partição; um só pronto vivo por partição; chave do arquivo com o
 > tenant da linha) e `plataforma.sync_pacote_pedido` (pedido de geração idempotente por partição), fora do sync; app lê e pede,

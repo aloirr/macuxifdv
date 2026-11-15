@@ -1,0 +1,2684 @@
+{
+  "versao": 1,
+  "banco": "ERP_THATHYANY",
+  "entidades": [
+    {
+      "entidade": "filial",
+      "ordem": 1,
+      "depende_de": [],
+      "opcional": false,
+      "tabela": "tha_filial",
+      "campos": [
+        {
+          "campo": "external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "FIL-001",
+          "observacao": "Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).",
+          "coluna": "external_id",
+          "tipo_sql": "VARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "codigo",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 20,
+          "formato": null,
+          "exemplo": "0001",
+          "observacao": "Código da filial (até 20 caracteres). A filial padrão nasce com o código 0001 e é adotada pela carga que trouxer o mesmo código.",
+          "coluna": "codigo",
+          "tipo_sql": "NVARCHAR(20) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "nome",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 80,
+          "formato": null,
+          "exemplo": "Manaus",
+          "observacao": null,
+          "coluna": "nome",
+          "tipo_sql": "NVARCHAR(80) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "alterado_em",
+          "obrigatorio": false,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-11-01T12:00:00Z",
+          "observacao": "Pode ficar de fora ou vazia: vale o instante do envio.",
+          "coluna": "alterado_em",
+          "tipo_sql": "DATETIME2(3) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "ativo",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = sim.",
+          "coluna": "ativo",
+          "tipo_sql": "TINYINT NOT NULL CONSTRAINT {df_ativo} DEFAULT 1",
+          "regra": {}
+        },
+        {
+          "campo": "cidade",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 80,
+          "formato": null,
+          "exemplo": "Manaus",
+          "observacao": null,
+          "coluna": "cidade",
+          "tipo_sql": "NVARCHAR(80) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "uf",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": null,
+          "formato": "padrão ^[A-Z]{2}$",
+          "exemplo": "AM",
+          "observacao": null,
+          "coluna": "uf",
+          "tipo_sql": "NVARCHAR(2) NOT NULL",
+          "regra": {
+            "uf": true
+          }
+        },
+        {
+          "campo": "cnpj",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 18,
+          "formato": null,
+          "exemplo": "11222333000181",
+          "observacao": null,
+          "coluna": "cnpj",
+          "tipo_sql": "NVARCHAR(18) NOT NULL",
+          "regra": {
+            "cnpj": true
+          }
+        },
+        {
+          "campo": "logradouro",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 160,
+          "formato": null,
+          "exemplo": "Avenida Djalma Batista",
+          "observacao": null,
+          "coluna": "logradouro",
+          "tipo_sql": "NVARCHAR(160) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "numero",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 20,
+          "formato": null,
+          "exemplo": "1000",
+          "observacao": null,
+          "coluna": "numero",
+          "tipo_sql": "NVARCHAR(20) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "complemento",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 80,
+          "formato": null,
+          "exemplo": "Sala 2",
+          "observacao": null,
+          "coluna": "complemento",
+          "tipo_sql": "NVARCHAR(80) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "bairro",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 80,
+          "formato": null,
+          "exemplo": "Chapada",
+          "observacao": null,
+          "coluna": "bairro",
+          "tipo_sql": "NVARCHAR(80) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "cep",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 9,
+          "formato": null,
+          "exemplo": "69050010",
+          "observacao": null,
+          "coluna": "cep",
+          "tipo_sql": "NVARCHAR(9) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "telefone",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 30,
+          "formato": null,
+          "exemplo": "(95) 99999-0001",
+          "observacao": null,
+          "coluna": "telefone",
+          "tipo_sql": "NVARCHAR(30) NULL",
+          "regra": {}
+        }
+      ],
+      "regras_entidade": [],
+      "colunas_so_conector": []
+    },
+    {
+      "entidade": "vendedor",
+      "ordem": 2,
+      "depende_de": [
+        "filial"
+      ],
+      "opcional": false,
+      "tabela": "tha_vendedor",
+      "campos": [
+        {
+          "campo": "external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "VEN-001",
+          "observacao": "Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).",
+          "coluna": "external_id",
+          "tipo_sql": "VARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "nome",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 120,
+          "formato": null,
+          "exemplo": "Maria Silva",
+          "observacao": null,
+          "coluna": "nome",
+          "tipo_sql": "NVARCHAR(120) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "alterado_em",
+          "obrigatorio": false,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-11-01T12:00:00Z",
+          "observacao": "Pode ficar de fora ou vazia: vale o instante do envio.",
+          "coluna": "alterado_em",
+          "tipo_sql": "DATETIME2(3) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "ativo",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = sim.",
+          "coluna": "ativo",
+          "tipo_sql": "TINYINT NOT NULL CONSTRAINT {df_ativo} DEFAULT 1",
+          "regra": {}
+        },
+        {
+          "campo": "email",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 160,
+          "formato": null,
+          "exemplo": "contato@exemplo.com.br",
+          "observacao": null,
+          "coluna": "email",
+          "tipo_sql": "NVARCHAR(160) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "telefone",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 30,
+          "formato": null,
+          "exemplo": "(95) 99999-0001",
+          "observacao": null,
+          "coluna": "telefone",
+          "tipo_sql": "NVARCHAR(30) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "filial_external_id",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "FIL-001",
+          "observacao": null,
+          "coluna": "filial_external_id",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {},
+          "referencia": "filial"
+        }
+      ],
+      "regras_entidade": [],
+      "colunas_so_conector": []
+    },
+    {
+      "entidade": "catalogo_no",
+      "ordem": 3,
+      "depende_de": [],
+      "opcional": false,
+      "tabela": "tha_catalogo_no",
+      "campos": [
+        {
+          "campo": "external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "CAT-001",
+          "observacao": "Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).",
+          "coluna": "external_id",
+          "tipo_sql": "VARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "codigo",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 60,
+          "formato": null,
+          "exemplo": "BEB",
+          "observacao": null,
+          "coluna": "codigo",
+          "tipo_sql": "NVARCHAR(60) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "nome",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 120,
+          "formato": null,
+          "exemplo": "Bebidas",
+          "observacao": null,
+          "coluna": "nome",
+          "tipo_sql": "NVARCHAR(120) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "nivel",
+          "obrigatorio": true,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "inteiro de 1 a 8",
+          "exemplo": "1",
+          "observacao": null,
+          "coluna": "nivel",
+          "tipo_sql": "INT NOT NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 1,
+            "max": 8
+          }
+        },
+        {
+          "campo": "alterado_em",
+          "obrigatorio": false,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-11-01T12:00:00Z",
+          "observacao": "Pode ficar de fora ou vazia: vale o instante do envio.",
+          "coluna": "alterado_em",
+          "tipo_sql": "DATETIME2(3) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "ativo",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = sim.",
+          "coluna": "ativo",
+          "tipo_sql": "TINYINT NOT NULL CONSTRAINT {df_ativo} DEFAULT 1",
+          "regra": {}
+        },
+        {
+          "campo": "pai_external_id",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "CAT-001",
+          "observacao": null,
+          "coluna": "pai_external_id",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {},
+          "referencia": "catalogo_no"
+        },
+        {
+          "campo": "ordem",
+          "obrigatorio": false,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "inteiro",
+          "exemplo": "0",
+          "observacao": "Vazio = 0.",
+          "coluna": "ordem",
+          "tipo_sql": "INT NULL",
+          "regra": {
+            "inteiro": true
+          }
+        }
+      ],
+      "regras_entidade": [],
+      "colunas_so_conector": []
+    },
+    {
+      "entidade": "forma_pagamento",
+      "ordem": 4,
+      "depende_de": [],
+      "opcional": false,
+      "tabela": "tha_forma_pagamento",
+      "campos": [
+        {
+          "campo": "external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "FPG-001",
+          "observacao": "Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).",
+          "coluna": "external_id",
+          "tipo_sql": "VARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "codigo",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 20,
+          "formato": null,
+          "exemplo": "PIX",
+          "observacao": null,
+          "coluna": "codigo",
+          "tipo_sql": "NVARCHAR(20) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "nome",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 60,
+          "formato": null,
+          "exemplo": "PIX",
+          "observacao": null,
+          "coluna": "nome",
+          "tipo_sql": "NVARCHAR(60) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "alterado_em",
+          "obrigatorio": false,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-11-01T12:00:00Z",
+          "observacao": "Pode ficar de fora ou vazia: vale o instante do envio.",
+          "coluna": "alterado_em",
+          "tipo_sql": "DATETIME2(3) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "ativo",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = sim.",
+          "coluna": "ativo",
+          "tipo_sql": "TINYINT NOT NULL CONSTRAINT {df_ativo} DEFAULT 1",
+          "regra": {}
+        },
+        {
+          "campo": "ordem",
+          "obrigatorio": false,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "inteiro",
+          "exemplo": "1",
+          "observacao": "Vazio = 0.",
+          "coluna": "ordem",
+          "tipo_sql": "INT NULL",
+          "regra": {
+            "inteiro": true
+          }
+        }
+      ],
+      "regras_entidade": [],
+      "colunas_so_conector": []
+    },
+    {
+      "entidade": "prazo_pagamento",
+      "ordem": 5,
+      "depende_de": [
+        "forma_pagamento"
+      ],
+      "opcional": false,
+      "tabela": "tha_prazo_pagamento",
+      "campos": [
+        {
+          "campo": "external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "PRZ-001",
+          "observacao": "Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).",
+          "coluna": "external_id",
+          "tipo_sql": "VARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "forma_external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "FPG-002",
+          "observacao": "external_id de uma forma do modelo forma_pagamento (carregue a forma antes).",
+          "coluna": "forma_external_id",
+          "tipo_sql": "NVARCHAR(200) NOT NULL",
+          "regra": {},
+          "referencia": "forma_pagamento"
+        },
+        {
+          "campo": "codigo",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 20,
+          "formato": null,
+          "exemplo": "30-60-90",
+          "observacao": null,
+          "coluna": "codigo",
+          "tipo_sql": "NVARCHAR(20) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "parcelas_dias",
+          "obrigatorio": true,
+          "tipo": "lista de números",
+          "tamanho_max": null,
+          "formato": "lista de números inteiros separados por / (ex.: 30/60/90), cada um de 0 a 365, no mínimo 1 e até 24 itens",
+          "exemplo": "30/60/90",
+          "observacao": "Dias de cada parcela, em ordem crescente (0 = à vista): 30/60/90 vale, 60/30 não.",
+          "coluna": "parcelas_dias",
+          "tipo_sql": "NVARCHAR(MAX) NOT NULL",
+          "regra": {
+            "lista": {
+              "item": "numero",
+              "min": 0,
+              "max": 365,
+              "min_itens": 1,
+              "max_itens": 24,
+              "nao_decrescente": true
+            }
+          }
+        },
+        {
+          "campo": "alterado_em",
+          "obrigatorio": false,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-11-01T12:00:00Z",
+          "observacao": "Pode ficar de fora ou vazia: vale o instante do envio.",
+          "coluna": "alterado_em",
+          "tipo_sql": "DATETIME2(3) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "ativo",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = sim.",
+          "coluna": "ativo",
+          "tipo_sql": "TINYINT NOT NULL CONSTRAINT {df_ativo} DEFAULT 1",
+          "regra": {}
+        },
+        {
+          "campo": "descricao",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 60,
+          "formato": null,
+          "exemplo": "30/60/90 dias",
+          "observacao": null,
+          "coluna": "descricao",
+          "tipo_sql": "NVARCHAR(60) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "prazo_medio_dias",
+          "obrigatorio": false,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "inteiro de 0 a 365",
+          "exemplo": "60",
+          "observacao": "Informativo: o Macuxi calcula o prazo médio; valor diferente gera aviso.",
+          "coluna": "prazo_medio_dias",
+          "tipo_sql": "INT NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 0,
+            "max": 365
+          }
+        },
+        {
+          "campo": "ordem",
+          "obrigatorio": false,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "inteiro",
+          "exemplo": "1",
+          "observacao": "Vazio = 0.",
+          "coluna": "ordem",
+          "tipo_sql": "INT NULL",
+          "regra": {
+            "inteiro": true
+          }
+        }
+      ],
+      "regras_entidade": [],
+      "colunas_so_conector": []
+    },
+    {
+      "entidade": "produto",
+      "ordem": 6,
+      "depende_de": [
+        "catalogo_no"
+      ],
+      "opcional": false,
+      "tabela": "tha_produto",
+      "campos": [
+        {
+          "campo": "external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "PRO-001",
+          "observacao": "Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).",
+          "coluna": "external_id",
+          "tipo_sql": "VARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "sku",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 60,
+          "formato": null,
+          "exemplo": "SKU-001",
+          "observacao": null,
+          "coluna": "sku",
+          "tipo_sql": "NVARCHAR(60) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "nome",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "Refrigerante Cola 2L",
+          "observacao": null,
+          "coluna": "nome",
+          "tipo_sql": "NVARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "unidade",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 10,
+          "formato": null,
+          "exemplo": "UN",
+          "observacao": null,
+          "coluna": "unidade",
+          "tipo_sql": "NVARCHAR(10) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "alterado_em",
+          "obrigatorio": false,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-11-01T12:00:00Z",
+          "observacao": "Pode ficar de fora ou vazia: vale o instante do envio.",
+          "coluna": "alterado_em",
+          "tipo_sql": "DATETIME2(3) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "ativo",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = sim.",
+          "coluna": "ativo",
+          "tipo_sql": "TINYINT NOT NULL CONSTRAINT {df_ativo} DEFAULT 1",
+          "regra": {}
+        },
+        {
+          "campo": "ean",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": null,
+          "formato": "8, 12, 13 ou 14 dígitos",
+          "exemplo": "7891234567895",
+          "observacao": null,
+          "coluna": "ean",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {
+            "digitos": [
+              8,
+              12,
+              13,
+              14
+            ]
+          }
+        },
+        {
+          "campo": "marca",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 80,
+          "formato": null,
+          "exemplo": "Marca Alfa",
+          "observacao": null,
+          "coluna": "marca",
+          "tipo_sql": "NVARCHAR(80) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "marca_codigo",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 30,
+          "formato": null,
+          "exemplo": "Exemplo 1",
+          "observacao": null,
+          "coluna": "marca_codigo",
+          "tipo_sql": "NVARCHAR(30) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "categoria",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 80,
+          "formato": null,
+          "exemplo": "Bebidas",
+          "observacao": null,
+          "coluna": "categoria",
+          "tipo_sql": "NVARCHAR(80) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "embalagem_medida",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 10,
+          "formato": null,
+          "exemplo": "CX",
+          "observacao": "Informe junto com embalagem_quantidade (as duas preenchidas ou as duas vazias).",
+          "coluna": "embalagem_medida",
+          "tipo_sql": "NVARCHAR(10) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "embalagem_quantidade",
+          "obrigatorio": false,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "inteiro de 2 a 9999",
+          "exemplo": "12",
+          "observacao": "Informe junto com embalagem_medida (as duas preenchidas ou as duas vazias).",
+          "coluna": "embalagem_quantidade",
+          "tipo_sql": "INT NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 2,
+            "max": 9999
+          }
+        },
+        {
+          "campo": "catalogo_no_external_id",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "CAT-001",
+          "observacao": null,
+          "coluna": "catalogo_no_external_id",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {},
+          "referencia": "catalogo_no"
+        },
+        {
+          "campo": "custo_cents",
+          "obrigatorio": false,
+          "tipo": "centavos",
+          "tamanho_max": null,
+          "formato": "centavos inteiros, sem separador (R$ 15,00 = 1500); 0 ou mais",
+          "exemplo": "850",
+          "observacao": null,
+          "coluna": "custo_cents",
+          "tipo_sql": "DECIMAL(19, 0) NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 0
+          }
+        },
+        {
+          "campo": "preco_venda_cents",
+          "obrigatorio": false,
+          "tipo": "centavos",
+          "tamanho_max": null,
+          "formato": "centavos inteiros, sem separador (R$ 15,00 = 1500); 0 ou mais",
+          "exemplo": "1290",
+          "observacao": null,
+          "coluna": "preco_venda_cents",
+          "tipo_sql": "DECIMAL(19, 0) NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 0
+          }
+        },
+        {
+          "campo": "desconto_maximo_pct",
+          "obrigatorio": false,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "número de 0 a 100",
+          "exemplo": "10",
+          "observacao": null,
+          "coluna": "desconto_maximo_pct",
+          "tipo_sql": "DECIMAL(18, 6) NULL",
+          "regra": {
+            "inteiro": false,
+            "min": 0,
+            "max": 100
+          }
+        },
+        {
+          "campo": "aplicacao",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 20000,
+          "formato": null,
+          "exemplo": "Exemplo 1",
+          "observacao": null,
+          "coluna": "aplicacao",
+          "tipo_sql": "NVARCHAR(MAX) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "referencia_1",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 30,
+          "formato": null,
+          "exemplo": "PAF-0503",
+          "observacao": "Código 1 do produto na concorrência (até 30 caracteres). A marca (marca_referencia_1) é opcional. Vazio nas três = não altera as referências já cadastradas.",
+          "coluna": "referencia_1",
+          "tipo_sql": "NVARCHAR(30) NULL",
+          "regra": {},
+          "so_kit": true
+        },
+        {
+          "campo": "marca_referencia_1",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 120,
+          "formato": null,
+          "exemplo": "Marca Beta",
+          "observacao": "Marca da concorrência do código 1 (opcional, só com referencia_1). Marca que não esteja cadastrada em Marcas do Catálogo: a referência entra sem marca e o lote traz o aviso marca_concorrente_desconhecida.",
+          "coluna": "marca_referencia_1",
+          "tipo_sql": "NVARCHAR(120) NULL",
+          "regra": {},
+          "so_kit": true
+        },
+        {
+          "campo": "referencia_2",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 30,
+          "formato": null,
+          "exemplo": "",
+          "observacao": "Código 2 do produto na concorrência (até 30 caracteres). A marca (marca_referencia_2) é opcional. Vazio nas três = não altera as referências já cadastradas.",
+          "coluna": "referencia_2",
+          "tipo_sql": "NVARCHAR(30) NULL",
+          "regra": {},
+          "so_kit": true
+        },
+        {
+          "campo": "marca_referencia_2",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 120,
+          "formato": null,
+          "exemplo": "",
+          "observacao": "Marca da concorrência do código 2 (opcional, só com referencia_2). Marca que não esteja cadastrada em Marcas do Catálogo: a referência entra sem marca e o lote traz o aviso marca_concorrente_desconhecida.",
+          "coluna": "marca_referencia_2",
+          "tipo_sql": "NVARCHAR(120) NULL",
+          "regra": {},
+          "so_kit": true
+        },
+        {
+          "campo": "referencia_3",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 30,
+          "formato": null,
+          "exemplo": "",
+          "observacao": "Código 3 do produto na concorrência (até 30 caracteres). A marca (marca_referencia_3) é opcional. Vazio nas três = não altera as referências já cadastradas.",
+          "coluna": "referencia_3",
+          "tipo_sql": "NVARCHAR(30) NULL",
+          "regra": {},
+          "so_kit": true
+        },
+        {
+          "campo": "marca_referencia_3",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 120,
+          "formato": null,
+          "exemplo": "",
+          "observacao": "Marca da concorrência do código 3 (opcional, só com referencia_3). Marca que não esteja cadastrada em Marcas do Catálogo: a referência entra sem marca e o lote traz o aviso marca_concorrente_desconhecida.",
+          "coluna": "marca_referencia_3",
+          "tipo_sql": "NVARCHAR(120) NULL",
+          "regra": {},
+          "so_kit": true
+        }
+      ],
+      "regras_entidade": [
+        {
+          "regra": "juntos",
+          "campos": [
+            "embalagem_medida",
+            "embalagem_quantidade"
+          ],
+          "motivo": "embalagem_medida e embalagem_quantidade devem ser informadas juntas"
+        },
+        {
+          "regra": "requer",
+          "campos": [
+            "marca_referencia_1",
+            "referencia_1"
+          ],
+          "motivo": "marca_referencia_1 só vale com referencia_1 preenchida"
+        },
+        {
+          "regra": "requer",
+          "campos": [
+            "marca_referencia_2",
+            "referencia_2"
+          ],
+          "motivo": "marca_referencia_2 só vale com referencia_2 preenchida"
+        },
+        {
+          "regra": "requer",
+          "campos": [
+            "marca_referencia_3",
+            "referencia_3"
+          ],
+          "motivo": "marca_referencia_3 só vale com referencia_3 preenchida"
+        }
+      ],
+      "colunas_so_conector": [
+        "oferece_junto",
+        "etiquetas"
+      ]
+    },
+    {
+      "entidade": "produto_unidade",
+      "ordem": 7,
+      "depende_de": [
+        "produto"
+      ],
+      "opcional": false,
+      "tabela": "tha_produto_unidade",
+      "campos": [
+        {
+          "campo": "external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "PRO-001:UN",
+          "observacao": "Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).",
+          "coluna": "external_id",
+          "tipo_sql": "VARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "produto_external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "PRO-001",
+          "observacao": null,
+          "coluna": "produto_external_id",
+          "tipo_sql": "NVARCHAR(200) NOT NULL",
+          "regra": {},
+          "referencia": "produto"
+        },
+        {
+          "campo": "unidade",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": null,
+          "formato": "1 a 4 letras maiúsculas",
+          "exemplo": "UN",
+          "observacao": null,
+          "coluna": "unidade",
+          "tipo_sql": "NVARCHAR(200) NOT NULL",
+          "regra": {
+            "letras": [
+              1,
+              4
+            ]
+          }
+        },
+        {
+          "campo": "fator",
+          "obrigatorio": true,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "inteiro de 1 a 9999",
+          "exemplo": "1",
+          "observacao": null,
+          "coluna": "fator",
+          "tipo_sql": "INT NOT NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 1,
+            "max": 9999
+          }
+        },
+        {
+          "campo": "alterado_em",
+          "obrigatorio": false,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-11-01T12:00:00Z",
+          "observacao": "Pode ficar de fora ou vazia: vale o instante do envio.",
+          "coluna": "alterado_em",
+          "tipo_sql": "DATETIME2(3) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "ativo",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = sim.",
+          "coluna": "ativo",
+          "tipo_sql": "TINYINT NOT NULL CONSTRAINT {df_ativo} DEFAULT 1",
+          "regra": {}
+        },
+        {
+          "campo": "ean",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": null,
+          "formato": "8, 12, 13 ou 14 dígitos",
+          "exemplo": "17891234567892",
+          "observacao": null,
+          "coluna": "ean",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {
+            "digitos": [
+              8,
+              12,
+              13,
+              14
+            ]
+          }
+        },
+        {
+          "campo": "padrao",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = não.",
+          "coluna": "padrao",
+          "tipo_sql": "TINYINT NULL",
+          "regra": {}
+        }
+      ],
+      "regras_entidade": [],
+      "colunas_so_conector": []
+    },
+    {
+      "entidade": "preco",
+      "ordem": 8,
+      "depende_de": [
+        "produto",
+        "filial"
+      ],
+      "opcional": false,
+      "tabela": "tha_preco",
+      "campos": [
+        {
+          "campo": "external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "TAB-01:PRO-001",
+          "observacao": "Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).",
+          "coluna": "external_id",
+          "tipo_sql": "VARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "tabela_external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "TAB-01",
+          "observacao": null,
+          "coluna": "tabela_external_id",
+          "tipo_sql": "NVARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "tabela_nome",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 120,
+          "formato": null,
+          "exemplo": "Tabela Varejo",
+          "observacao": null,
+          "coluna": "tabela_nome",
+          "tipo_sql": "NVARCHAR(120) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "vigencia_inicio",
+          "obrigatorio": true,
+          "tipo": "data",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DD",
+          "exemplo": "2026-11-01",
+          "observacao": null,
+          "coluna": "vigencia_inicio",
+          "tipo_sql": "DATE NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "produto_external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "PRO-001",
+          "observacao": null,
+          "coluna": "produto_external_id",
+          "tipo_sql": "NVARCHAR(200) NOT NULL",
+          "regra": {},
+          "referencia": "produto"
+        },
+        {
+          "campo": "preco_cents",
+          "obrigatorio": true,
+          "tipo": "centavos",
+          "tamanho_max": null,
+          "formato": "centavos inteiros, sem separador (R$ 15,00 = 1500); 0 ou mais",
+          "exemplo": "1290",
+          "observacao": null,
+          "coluna": "preco_cents",
+          "tipo_sql": "DECIMAL(19, 0) NOT NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 0
+          }
+        },
+        {
+          "campo": "alterado_em",
+          "obrigatorio": false,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-11-01T12:00:00Z",
+          "observacao": "Pode ficar de fora ou vazia: vale o instante do envio.",
+          "coluna": "alterado_em",
+          "tipo_sql": "DATETIME2(3) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "ativo",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = sim.",
+          "coluna": "ativo",
+          "tipo_sql": "TINYINT NOT NULL CONSTRAINT {df_ativo} DEFAULT 1",
+          "regra": {}
+        },
+        {
+          "campo": "vigencia_fim",
+          "obrigatorio": false,
+          "tipo": "data",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DD",
+          "exemplo": "2026-12-31",
+          "observacao": "Não pode ser anterior a vigencia_inicio. Vazio = sem data de fim.",
+          "coluna": "vigencia_fim",
+          "tipo_sql": "DATE NULL",
+          "regra": {}
+        },
+        {
+          "campo": "unidade",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 6,
+          "formato": null,
+          "exemplo": "UN",
+          "observacao": null,
+          "coluna": "unidade",
+          "tipo_sql": "NVARCHAR(6) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "filial_external_id",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "FIL-001",
+          "observacao": "external_id de uma filial do modelo filial. Vazio = filial padrão.",
+          "coluna": "filial_external_id",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {},
+          "referencia": "filial"
+        }
+      ],
+      "regras_entidade": [
+        {
+          "regra": "data_nao_anterior",
+          "campos": [
+            "vigencia_fim",
+            "vigencia_inicio"
+          ],
+          "motivo": "fim da vigência anterior ao início"
+        }
+      ],
+      "colunas_so_conector": []
+    },
+    {
+      "entidade": "tabela_escalonada",
+      "ordem": 9,
+      "depende_de": [
+        "produto",
+        "preco",
+        "filial"
+      ],
+      "opcional": false,
+      "tabela": "tha_tabela_escalonada",
+      "campos": [
+        {
+          "campo": "external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "ESC-001",
+          "observacao": "Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).",
+          "coluna": "external_id",
+          "tipo_sql": "VARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "produto_external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "PRO-001",
+          "observacao": null,
+          "coluna": "produto_external_id",
+          "tipo_sql": "NVARCHAR(200) NOT NULL",
+          "regra": {},
+          "referencia": "produto"
+        },
+        {
+          "campo": "quantidade_minima",
+          "obrigatorio": true,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "inteiro maior ou igual a 1",
+          "exemplo": "10",
+          "observacao": null,
+          "coluna": "quantidade_minima",
+          "tipo_sql": "INT NOT NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 1
+          }
+        },
+        {
+          "campo": "preco_unidade_cents",
+          "obrigatorio": true,
+          "tipo": "centavos",
+          "tamanho_max": null,
+          "formato": "centavos inteiros, sem separador (R$ 15,00 = 1500); 0 ou mais",
+          "exemplo": "1200",
+          "observacao": "Preço da unidade base na faixa. Faixas do mesmo produto: quantidade_minima maior, preço igual ou menor.",
+          "coluna": "preco_unidade_cents",
+          "tipo_sql": "DECIMAL(19, 0) NOT NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 1
+          }
+        },
+        {
+          "campo": "vigencia_inicio",
+          "obrigatorio": true,
+          "tipo": "data",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DD",
+          "exemplo": "2026-11-01",
+          "observacao": null,
+          "coluna": "vigencia_inicio",
+          "tipo_sql": "DATE NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "alterado_em",
+          "obrigatorio": false,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-11-01T12:00:00Z",
+          "observacao": "Pode ficar de fora ou vazia: vale o instante do envio.",
+          "coluna": "alterado_em",
+          "tipo_sql": "DATETIME2(3) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "ativo",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = sim.",
+          "coluna": "ativo",
+          "tipo_sql": "TINYINT NOT NULL CONSTRAINT {df_ativo} DEFAULT 1",
+          "regra": {}
+        },
+        {
+          "campo": "medida",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": null,
+          "formato": "1 a 4 letras maiúsculas",
+          "exemplo": "UN",
+          "observacao": null,
+          "coluna": "medida",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {
+            "letras": [
+              1,
+              4
+            ]
+          }
+        },
+        {
+          "campo": "vigencia_fim",
+          "obrigatorio": false,
+          "tipo": "data",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DD",
+          "exemplo": "2026-12-31",
+          "observacao": null,
+          "coluna": "vigencia_fim",
+          "tipo_sql": "DATE NULL",
+          "regra": {}
+        },
+        {
+          "campo": "tabela_external_id",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "TAB-01",
+          "observacao": "Vazio = vale para todas as tabelas de preço.",
+          "coluna": "tabela_external_id",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "filial_external_id",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "FIL-001",
+          "observacao": "external_id de uma filial do modelo filial. Vazio = vale para todas as filiais.",
+          "coluna": "filial_external_id",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {},
+          "referencia": "filial"
+        }
+      ],
+      "regras_entidade": [
+        {
+          "regra": "data_nao_anterior",
+          "campos": [
+            "vigencia_fim",
+            "vigencia_inicio"
+          ],
+          "motivo": "fim da vigência anterior ao início"
+        }
+      ],
+      "colunas_so_conector": []
+    },
+    {
+      "entidade": "estoque",
+      "ordem": 10,
+      "depende_de": [
+        "produto",
+        "filial"
+      ],
+      "opcional": false,
+      "tabela": "tha_estoque",
+      "campos": [
+        {
+          "campo": "external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "DEP-01:PRO-001",
+          "observacao": "Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).",
+          "coluna": "external_id",
+          "tipo_sql": "VARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "deposito_external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "DEP-01",
+          "observacao": null,
+          "coluna": "deposito_external_id",
+          "tipo_sql": "NVARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "produto_external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "PRO-001",
+          "observacao": null,
+          "coluna": "produto_external_id",
+          "tipo_sql": "NVARCHAR(200) NOT NULL",
+          "regra": {},
+          "referencia": "produto"
+        },
+        {
+          "campo": "saldo",
+          "obrigatorio": true,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "número (decimal com vírgula, sem separador de milhar)",
+          "exemplo": "120",
+          "observacao": null,
+          "coluna": "saldo",
+          "tipo_sql": "DECIMAL(18, 6) NOT NULL",
+          "regra": {
+            "inteiro": false
+          }
+        },
+        {
+          "campo": "alterado_em",
+          "obrigatorio": false,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-11-01T12:00:00Z",
+          "observacao": "Pode ficar de fora ou vazia: vale o instante do envio.",
+          "coluna": "alterado_em",
+          "tipo_sql": "DATETIME2(3) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "ativo",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = sim.",
+          "coluna": "ativo",
+          "tipo_sql": "TINYINT NOT NULL CONSTRAINT {df_ativo} DEFAULT 1",
+          "regra": {}
+        },
+        {
+          "campo": "deposito_nome",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 120,
+          "formato": null,
+          "exemplo": "Depósito Central",
+          "observacao": null,
+          "coluna": "deposito_nome",
+          "tipo_sql": "NVARCHAR(120) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "filial_external_id",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "FIL-001",
+          "observacao": "external_id da filial do depósito. Vazio = filial padrão (depósito novo) ou não altera (depósito já conhecido).",
+          "coluna": "filial_external_id",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {},
+          "referencia": "filial"
+        }
+      ],
+      "regras_entidade": [],
+      "colunas_so_conector": []
+    },
+    {
+      "entidade": "cliente",
+      "ordem": 11,
+      "depende_de": [
+        "vendedor",
+        "forma_pagamento",
+        "filial"
+      ],
+      "opcional": false,
+      "tabela": "tha_cliente",
+      "campos": [
+        {
+          "campo": "external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "CLI-001",
+          "observacao": "Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).",
+          "coluna": "external_id",
+          "tipo_sql": "VARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "razao_social",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 160,
+          "formato": null,
+          "exemplo": "Mercadinho Boa Vista Ltda",
+          "observacao": null,
+          "coluna": "razao_social",
+          "tipo_sql": "NVARCHAR(160) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "alterado_em",
+          "obrigatorio": false,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-11-01T12:00:00Z",
+          "observacao": "Pode ficar de fora ou vazia: vale o instante do envio.",
+          "coluna": "alterado_em",
+          "tipo_sql": "DATETIME2(3) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "ativo",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = sim.",
+          "coluna": "ativo",
+          "tipo_sql": "TINYINT NOT NULL CONSTRAINT {df_ativo} DEFAULT 1",
+          "regra": {}
+        },
+        {
+          "campo": "nome_fantasia",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 160,
+          "formato": null,
+          "exemplo": "Mercadinho Boa Vista",
+          "observacao": null,
+          "coluna": "nome_fantasia",
+          "tipo_sql": "NVARCHAR(160) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "documento",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 18,
+          "formato": null,
+          "exemplo": "11222333000181",
+          "observacao": null,
+          "coluna": "documento",
+          "tipo_sql": "NVARCHAR(18) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "vendedor_external_id",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "VEN-001",
+          "observacao": null,
+          "coluna": "vendedor_external_id",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {},
+          "referencia": "vendedor"
+        },
+        {
+          "campo": "endereco.logradouro",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 160,
+          "formato": null,
+          "exemplo": "Rua das Palmeiras",
+          "observacao": null,
+          "coluna": "endereco_logradouro",
+          "tipo_sql": "NVARCHAR(160) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "endereco.numero",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 20,
+          "formato": null,
+          "exemplo": "100",
+          "observacao": null,
+          "coluna": "endereco_numero",
+          "tipo_sql": "NVARCHAR(20) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "endereco.complemento",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 80,
+          "formato": null,
+          "exemplo": "Sala 2",
+          "observacao": null,
+          "coluna": "endereco_complemento",
+          "tipo_sql": "NVARCHAR(80) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "endereco.bairro",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 80,
+          "formato": null,
+          "exemplo": "Centro",
+          "observacao": null,
+          "coluna": "endereco_bairro",
+          "tipo_sql": "NVARCHAR(80) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "endereco.cidade",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 80,
+          "formato": null,
+          "exemplo": "Boa Vista",
+          "observacao": null,
+          "coluna": "endereco_cidade",
+          "tipo_sql": "NVARCHAR(80) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "endereco.uf",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 2,
+          "formato": "exatamente 2 caracteres",
+          "exemplo": "RR",
+          "observacao": null,
+          "coluna": "endereco_uf",
+          "tipo_sql": "NVARCHAR(2) NULL",
+          "regra": {
+            "uf": true
+          }
+        },
+        {
+          "campo": "endereco.cep",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 9,
+          "formato": null,
+          "exemplo": "69301-000",
+          "observacao": null,
+          "coluna": "endereco_cep",
+          "tipo_sql": "NVARCHAR(9) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "latitude",
+          "obrigatorio": false,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "número de -90 a 90",
+          "exemplo": "2,8235",
+          "observacao": null,
+          "coluna": "latitude",
+          "tipo_sql": "DECIMAL(18, 6) NULL",
+          "regra": {
+            "inteiro": false,
+            "min": -90,
+            "max": 90
+          }
+        },
+        {
+          "campo": "longitude",
+          "obrigatorio": false,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "número de -180 a 180",
+          "exemplo": "-60,6753",
+          "observacao": null,
+          "coluna": "longitude",
+          "tipo_sql": "DECIMAL(18, 6) NULL",
+          "regra": {
+            "inteiro": false,
+            "min": -180,
+            "max": 180
+          }
+        },
+        {
+          "campo": "telefone",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 30,
+          "formato": null,
+          "exemplo": "(95) 99999-0001",
+          "observacao": null,
+          "coluna": "telefone",
+          "tipo_sql": "NVARCHAR(30) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "email",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 160,
+          "formato": null,
+          "exemplo": "contato@exemplo.com.br",
+          "observacao": null,
+          "coluna": "email",
+          "tipo_sql": "NVARCHAR(160) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "limite_credito_cents",
+          "obrigatorio": false,
+          "tipo": "centavos",
+          "tamanho_max": null,
+          "formato": "centavos inteiros, sem separador (R$ 15,00 = 1500); 0 ou mais",
+          "exemplo": "500000",
+          "observacao": null,
+          "coluna": "limite_credito_cents",
+          "tipo_sql": "DECIMAL(19, 0) NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 0
+          }
+        },
+        {
+          "campo": "inscricao_estadual",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 20,
+          "formato": null,
+          "exemplo": "ISENTO",
+          "observacao": null,
+          "coluna": "inscricao_estadual",
+          "tipo_sql": "NVARCHAR(20) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "observacao",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 1000,
+          "formato": null,
+          "exemplo": "Entregar após as 14h",
+          "observacao": null,
+          "coluna": "observacao",
+          "tipo_sql": "NVARCHAR(1000) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "bloqueado",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "não",
+          "observacao": "Vazio = não.",
+          "coluna": "bloqueado",
+          "tipo_sql": "TINYINT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "canal",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 60,
+          "formato": null,
+          "exemplo": "Exemplo 1",
+          "observacao": null,
+          "coluna": "canal",
+          "tipo_sql": "NVARCHAR(60) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "prazo_medio_max_dias",
+          "obrigatorio": false,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "inteiro de 0 a 365",
+          "exemplo": "60",
+          "observacao": "Prazo médio máximo aceito pelo cliente, em dias. Vazio = não altera.",
+          "coluna": "prazo_medio_max_dias",
+          "tipo_sql": "INT NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 0,
+            "max": 365
+          }
+        },
+        {
+          "campo": "formas_pagamento",
+          "obrigatorio": false,
+          "tipo": "lista de textos",
+          "tamanho_max": null,
+          "formato": "lista de códigos separados por / (ex.: PIX/BOLETO), cada um com até 20 caracteres, até 20 itens",
+          "exemplo": "PIX/BOLETO",
+          "observacao": "Códigos das formas de pagamento permitidas (as do modelo forma_pagamento), separados por /. Vazio = não altera.",
+          "coluna": "formas_pagamento",
+          "tipo_sql": "NVARCHAR(MAX) NULL",
+          "regra": {
+            "lista": {
+              "item": "texto",
+              "tamanho_item": 20,
+              "min_itens": 1,
+              "max_itens": 20
+            }
+          }
+        },
+        {
+          "campo": "tabela_preco_external_id",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "Exemplo 1",
+          "observacao": null,
+          "coluna": "tabela_preco_external_id",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "filial_external_id",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "FIL-001",
+          "observacao": "external_id de uma filial do modelo filial. Vazio = não altera (cliente novo fica na filial padrão).",
+          "coluna": "filial_external_id",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {},
+          "referencia": "filial"
+        }
+      ],
+      "regras_entidade": [],
+      "colunas_so_conector": [
+        "contatos"
+      ]
+    },
+    {
+      "entidade": "cliente_endereco",
+      "ordem": 12,
+      "depende_de": [
+        "cliente"
+      ],
+      "opcional": false,
+      "tabela": "tha_cliente_endereco",
+      "campos": [
+        {
+          "campo": "external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "END-001",
+          "observacao": "Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).",
+          "coluna": "external_id",
+          "tipo_sql": "VARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "cliente_external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "CLI-001",
+          "observacao": null,
+          "coluna": "cliente_external_id",
+          "tipo_sql": "NVARCHAR(200) NOT NULL",
+          "regra": {},
+          "referencia": "cliente"
+        },
+        {
+          "campo": "logradouro",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 160,
+          "formato": null,
+          "exemplo": "Rua das Palmeiras",
+          "observacao": null,
+          "coluna": "logradouro",
+          "tipo_sql": "NVARCHAR(160) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "cidade",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 80,
+          "formato": null,
+          "exemplo": "Boa Vista",
+          "observacao": null,
+          "coluna": "cidade",
+          "tipo_sql": "NVARCHAR(80) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "uf",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 2,
+          "formato": "exatamente 2 caracteres",
+          "exemplo": "RR",
+          "observacao": null,
+          "coluna": "uf",
+          "tipo_sql": "NVARCHAR(2) NOT NULL",
+          "regra": {
+            "uf": true
+          }
+        },
+        {
+          "campo": "alterado_em",
+          "obrigatorio": false,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-11-01T12:00:00Z",
+          "observacao": "Pode ficar de fora ou vazia: vale o instante do envio.",
+          "coluna": "alterado_em",
+          "tipo_sql": "DATETIME2(3) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "ativo",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = sim.",
+          "coluna": "ativo",
+          "tipo_sql": "TINYINT NOT NULL CONSTRAINT {df_ativo} DEFAULT 1",
+          "regra": {}
+        },
+        {
+          "campo": "tipo",
+          "obrigatorio": false,
+          "tipo": "enum",
+          "tamanho_max": null,
+          "formato": "uma destas opções: principal, entrega, cobranca",
+          "exemplo": "principal",
+          "observacao": "Vazio = entrega.",
+          "coluna": "tipo",
+          "tipo_sql": "NVARCHAR(40) NULL",
+          "regra": {
+            "opcoes": [
+              "principal",
+              "entrega",
+              "cobranca"
+            ]
+          }
+        },
+        {
+          "campo": "descricao",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 80,
+          "formato": null,
+          "exemplo": "Matriz",
+          "observacao": null,
+          "coluna": "descricao",
+          "tipo_sql": "NVARCHAR(80) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "numero",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 20,
+          "formato": null,
+          "exemplo": "100",
+          "observacao": null,
+          "coluna": "numero",
+          "tipo_sql": "NVARCHAR(20) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "complemento",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 80,
+          "formato": null,
+          "exemplo": "Sala 2",
+          "observacao": null,
+          "coluna": "complemento",
+          "tipo_sql": "NVARCHAR(80) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "bairro",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 80,
+          "formato": null,
+          "exemplo": "Centro",
+          "observacao": null,
+          "coluna": "bairro",
+          "tipo_sql": "NVARCHAR(80) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "cep",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 9,
+          "formato": null,
+          "exemplo": "69301-000",
+          "observacao": null,
+          "coluna": "cep",
+          "tipo_sql": "NVARCHAR(9) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "latitude",
+          "obrigatorio": false,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "número de -90 a 90",
+          "exemplo": "2,8235",
+          "observacao": null,
+          "coluna": "latitude",
+          "tipo_sql": "DECIMAL(18, 6) NULL",
+          "regra": {
+            "inteiro": false,
+            "min": -90,
+            "max": 90
+          }
+        },
+        {
+          "campo": "longitude",
+          "obrigatorio": false,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "número de -180 a 180",
+          "exemplo": "-60,6753",
+          "observacao": null,
+          "coluna": "longitude",
+          "tipo_sql": "DECIMAL(18, 6) NULL",
+          "regra": {
+            "inteiro": false,
+            "min": -180,
+            "max": 180
+          }
+        },
+        {
+          "campo": "principal",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = não.",
+          "coluna": "principal",
+          "tipo_sql": "TINYINT NULL",
+          "regra": {}
+        }
+      ],
+      "regras_entidade": [],
+      "colunas_so_conector": []
+    },
+    {
+      "entidade": "transportadora",
+      "ordem": 13,
+      "depende_de": [],
+      "opcional": false,
+      "tabela": "tha_transportadora",
+      "campos": [
+        {
+          "campo": "external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "TRA-001",
+          "observacao": "Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).",
+          "coluna": "external_id",
+          "tipo_sql": "VARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "nome",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 120,
+          "formato": null,
+          "exemplo": "Transportes Norte Ltda",
+          "observacao": null,
+          "coluna": "nome",
+          "tipo_sql": "NVARCHAR(120) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "alterado_em",
+          "obrigatorio": false,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-11-01T12:00:00Z",
+          "observacao": "Pode ficar de fora ou vazia: vale o instante do envio.",
+          "coluna": "alterado_em",
+          "tipo_sql": "DATETIME2(3) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "ativo",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = sim.",
+          "coluna": "ativo",
+          "tipo_sql": "TINYINT NOT NULL CONSTRAINT {df_ativo} DEFAULT 1",
+          "regra": {}
+        },
+        {
+          "campo": "documento",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": null,
+          "formato": "14 dígitos",
+          "exemplo": "12345678000195",
+          "observacao": null,
+          "coluna": "documento",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {
+            "digitos": [
+              14
+            ]
+          }
+        },
+        {
+          "campo": "inscricao_estadual",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 20,
+          "formato": null,
+          "exemplo": "ISENTO",
+          "observacao": null,
+          "coluna": "inscricao_estadual",
+          "tipo_sql": "NVARCHAR(20) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "telefone",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 30,
+          "formato": null,
+          "exemplo": "(95) 99999-0001",
+          "observacao": null,
+          "coluna": "telefone",
+          "tipo_sql": "NVARCHAR(30) NULL",
+          "regra": {}
+        }
+      ],
+      "regras_entidade": [],
+      "colunas_so_conector": []
+    },
+    {
+      "entidade": "rota",
+      "ordem": 14,
+      "depende_de": [
+        "vendedor",
+        "cliente"
+      ],
+      "opcional": false,
+      "tabela": "tha_rota",
+      "campos": [
+        {
+          "campo": "external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "ROT-001",
+          "observacao": "Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).",
+          "coluna": "external_id",
+          "tipo_sql": "VARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "nome",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 120,
+          "formato": null,
+          "exemplo": "Rota Centro - Segunda",
+          "observacao": null,
+          "coluna": "nome",
+          "tipo_sql": "NVARCHAR(120) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "vendedor_external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "VEN-001",
+          "observacao": null,
+          "coluna": "vendedor_external_id",
+          "tipo_sql": "NVARCHAR(200) NOT NULL",
+          "regra": {},
+          "referencia": "vendedor"
+        },
+        {
+          "campo": "alterado_em",
+          "obrigatorio": false,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-11-01T12:00:00Z",
+          "observacao": "Pode ficar de fora ou vazia: vale o instante do envio.",
+          "coluna": "alterado_em",
+          "tipo_sql": "DATETIME2(3) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "ativo",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = sim.",
+          "coluna": "ativo",
+          "tipo_sql": "TINYINT NOT NULL CONSTRAINT {df_ativo} DEFAULT 1",
+          "regra": {}
+        },
+        {
+          "campo": "dia_semana",
+          "obrigatorio": false,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "inteiro de 0 a 6",
+          "exemplo": "1",
+          "observacao": null,
+          "coluna": "dia_semana",
+          "tipo_sql": "INT NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 0,
+            "max": 6
+          }
+        }
+      ],
+      "regras_entidade": [],
+      "colunas_so_conector": [
+        "paradas"
+      ]
+    },
+    {
+      "entidade": "titulo",
+      "ordem": 15,
+      "depende_de": [
+        "cliente"
+      ],
+      "opcional": true,
+      "tabela": "tha_titulo",
+      "campos": [
+        {
+          "campo": "external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "TIT-1001-1",
+          "observacao": "Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).",
+          "coluna": "external_id",
+          "tipo_sql": "VARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "cliente_external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "CLI-001",
+          "observacao": null,
+          "coluna": "cliente_external_id",
+          "tipo_sql": "NVARCHAR(200) NOT NULL",
+          "regra": {},
+          "referencia": "cliente"
+        },
+        {
+          "campo": "numero",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 40,
+          "formato": null,
+          "exemplo": "1001",
+          "observacao": null,
+          "coluna": "numero",
+          "tipo_sql": "NVARCHAR(40) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "vencimento",
+          "obrigatorio": true,
+          "tipo": "data",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DD",
+          "exemplo": "2026-11-05",
+          "observacao": null,
+          "coluna": "vencimento",
+          "tipo_sql": "DATE NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "valor_cents",
+          "obrigatorio": true,
+          "tipo": "centavos",
+          "tamanho_max": null,
+          "formato": "centavos inteiros, sem separador (R$ 15,00 = 1500); 0 ou mais",
+          "exemplo": "150000",
+          "observacao": null,
+          "coluna": "valor_cents",
+          "tipo_sql": "DECIMAL(19, 0) NOT NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 0
+          }
+        },
+        {
+          "campo": "saldo_cents",
+          "obrigatorio": true,
+          "tipo": "centavos",
+          "tamanho_max": null,
+          "formato": "centavos inteiros, sem separador (R$ 15,00 = 1500); 0 ou mais",
+          "exemplo": "150000",
+          "observacao": null,
+          "coluna": "saldo_cents",
+          "tipo_sql": "DECIMAL(19, 0) NOT NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 0
+          }
+        },
+        {
+          "campo": "situacao",
+          "obrigatorio": true,
+          "tipo": "enum",
+          "tamanho_max": null,
+          "formato": "uma destas opções: aberto, baixado, cancelado",
+          "exemplo": "aberto",
+          "observacao": null,
+          "coluna": "situacao",
+          "tipo_sql": "NVARCHAR(40) NOT NULL",
+          "regra": {
+            "opcoes": [
+              "aberto",
+              "baixado",
+              "cancelado"
+            ]
+          }
+        },
+        {
+          "campo": "alterado_em",
+          "obrigatorio": false,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-11-01T12:00:00Z",
+          "observacao": "Pode ficar de fora ou vazia: vale o instante do envio.",
+          "coluna": "alterado_em",
+          "tipo_sql": "DATETIME2(3) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "ativo",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = sim.",
+          "coluna": "ativo",
+          "tipo_sql": "TINYINT NOT NULL CONSTRAINT {df_ativo} DEFAULT 1",
+          "regra": {}
+        },
+        {
+          "campo": "parcela",
+          "obrigatorio": false,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "inteiro maior ou igual a 1",
+          "exemplo": "1",
+          "observacao": null,
+          "coluna": "parcela",
+          "tipo_sql": "INT NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 1
+          }
+        },
+        {
+          "campo": "emissao",
+          "obrigatorio": false,
+          "tipo": "data",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DD",
+          "exemplo": "2026-10-05",
+          "observacao": null,
+          "coluna": "emissao",
+          "tipo_sql": "DATE NULL",
+          "regra": {}
+        },
+        {
+          "campo": "baixado_em",
+          "obrigatorio": false,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-10-20T15:30:00Z",
+          "observacao": null,
+          "coluna": "baixado_em",
+          "tipo_sql": "DATETIME2(3) NULL",
+          "regra": {}
+        }
+      ],
+      "regras_entidade": [],
+      "colunas_so_conector": []
+    },
+    {
+      "entidade": "nota",
+      "ordem": 16,
+      "depende_de": [
+        "cliente",
+        "vendedor"
+      ],
+      "opcional": true,
+      "tabela": "tha_nota",
+      "campos": [
+        {
+          "campo": "external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "NF-5001",
+          "observacao": "Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).",
+          "coluna": "external_id",
+          "tipo_sql": "VARCHAR(200) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "cliente_external_id",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "CLI-001",
+          "observacao": null,
+          "coluna": "cliente_external_id",
+          "tipo_sql": "NVARCHAR(200) NOT NULL",
+          "regra": {},
+          "referencia": "cliente"
+        },
+        {
+          "campo": "tipo",
+          "obrigatorio": true,
+          "tipo": "enum",
+          "tamanho_max": null,
+          "formato": "uma destas opções: faturamento, devolucao",
+          "exemplo": "faturamento",
+          "observacao": null,
+          "coluna": "tipo",
+          "tipo_sql": "NVARCHAR(40) NOT NULL",
+          "regra": {
+            "opcoes": [
+              "faturamento",
+              "devolucao"
+            ]
+          }
+        },
+        {
+          "campo": "numero",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 40,
+          "formato": null,
+          "exemplo": "5001",
+          "observacao": null,
+          "coluna": "numero",
+          "tipo_sql": "NVARCHAR(40) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "emitida_em",
+          "obrigatorio": true,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-10-30T13:20:00Z",
+          "observacao": null,
+          "coluna": "emitida_em",
+          "tipo_sql": "DATETIME2(3) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "total_cents",
+          "obrigatorio": true,
+          "tipo": "centavos",
+          "tamanho_max": null,
+          "formato": "centavos inteiros, sem separador (R$ 15,00 = 1500)",
+          "exemplo": "250000",
+          "observacao": null,
+          "coluna": "total_cents",
+          "tipo_sql": "DECIMAL(19, 0) NOT NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 0
+          }
+        },
+        {
+          "campo": "alterado_em",
+          "obrigatorio": false,
+          "tipo": "data-hora",
+          "tamanho_max": null,
+          "formato": "AAAA-MM-DDTHH:MM:SSZ (UTC, terminando em Z)",
+          "exemplo": "2026-11-01T12:00:00Z",
+          "observacao": "Pode ficar de fora ou vazia: vale o instante do envio.",
+          "coluna": "alterado_em",
+          "tipo_sql": "DATETIME2(3) NOT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "ativo",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "sim",
+          "observacao": "Vazio = sim.",
+          "coluna": "ativo",
+          "tipo_sql": "TINYINT NOT NULL CONSTRAINT {df_ativo} DEFAULT 1",
+          "regra": {}
+        },
+        {
+          "campo": "vendedor_external_id",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 200,
+          "formato": null,
+          "exemplo": "VEN-001",
+          "observacao": null,
+          "coluna": "vendedor_external_id",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {},
+          "referencia": "vendedor"
+        },
+        {
+          "campo": "serie",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 10,
+          "formato": null,
+          "exemplo": "1",
+          "observacao": null,
+          "coluna": "serie",
+          "tipo_sql": "NVARCHAR(10) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "quantidade_itens",
+          "obrigatorio": false,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "inteiro maior ou igual a 0",
+          "exemplo": "10",
+          "observacao": null,
+          "coluna": "quantidade_itens",
+          "tipo_sql": "INT NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 0
+          }
+        },
+        {
+          "campo": "pedido_uuid",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": null,
+          "formato": "UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)",
+          "exemplo": "3f2b8a52-6d1e-4c7a-9b0e-5a1d2c3e4f60",
+          "observacao": null,
+          "coluna": "pedido_uuid",
+          "tipo_sql": "NVARCHAR(200) NULL",
+          "regra": {
+            "uuid": true
+          }
+        },
+        {
+          "campo": "cancelada",
+          "obrigatorio": false,
+          "tipo": "sim/não",
+          "tamanho_max": null,
+          "formato": "sim ou não",
+          "exemplo": "não",
+          "observacao": "Vazio = não.",
+          "coluna": "cancelada",
+          "tipo_sql": "TINYINT NULL",
+          "regra": {}
+        }
+      ],
+      "regras_entidade": [],
+      "colunas_so_conector": []
+    }
+  ]
+}
