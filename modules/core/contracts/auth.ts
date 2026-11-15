@@ -102,14 +102,17 @@ export const CODIGOS_AUTH = {
 
 /** RN-CORE-01: bloqueio pelo administrador (ou usuário inativo): a ação é falar com o administrador. */
 export const MENSAGEM_BLOQUEADO_ADMIN = 'Seu acesso está bloqueado. Fale com o administrador da sua empresa.';
-const emMinutos = (n: number): string => (n === 1 ? 'em 1 minuto' : `em ${n} minutos`);
-const minutosDe = (v: unknown, padrao: number, divisor: number): number =>
-  typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.max(1, Math.ceil(v / divisor)) : padrao;
+/** `v` (em unidades de `divisor` por minuto) → "em 1 minuto" / "em 3 minutos" (mínimo 1); valor ausente ou inválido usa `padrao` minutos. */
+export function textoEmMinutos(v: unknown, padrao: number, divisor: number): string {
+  const n = typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.max(1, Math.ceil(v / divisor)) : padrao;
+  return n === 1 ? 'em 1 minuto' : `em ${n} minutos`;
+}
 /** RN-CORE-01: 5 senhas erradas bloqueiam por 15 min; `minutos` vem de `detalhes.minutos_restantes` (sem ele, 15). */
-export const mensagemBloqueioPorTentativas = (minutos?: unknown): string => `Muitas tentativas. Tente de novo ${emMinutos(minutosDe(minutos, 15, 1))}.`;
+export const mensagemBloqueioPorTentativas = (minutos?: unknown): string => `Muitas tentativas. Tente de novo ${textoEmMinutos(minutos, 15, 1)}.`;
 /** Limite de falhas por IP (429): o tempo vem de `detalhes.retry_after_s` (segundos; sem ele, 5 min). */
-export const mensagemMuitasTentativas = (retryAfterS?: unknown): string => `Muitas tentativas. Tente de novo ${emMinutos(minutosDe(retryAfterS, 5, 60))}.`;
+export const mensagemMuitasTentativas = (retryAfterS?: unknown): string => `Muitas tentativas. Tente de novo ${textoEmMinutos(retryAfterS, 5, 60)}.`;
 
+export const MENSAGEM_SESSAO = 'Sua sessão expirou. Entre de novo com o código da empresa, o e-mail e a senha.';
 export const MENSAGEM_CREDENCIAIS = 'Código da empresa, e-mail ou senha incorretos. Confira os dados e tente de novo.';
 
 export const MENSAGEM_SENHA_VENCIDA = 'Esta senha temporária venceu. Peça outra em "Esqueci a senha" ou fale com o administrador da sua empresa.';

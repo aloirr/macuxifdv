@@ -27,6 +27,7 @@ import {
   MENSAGEM_APARELHO_BLOQUEADO,
   MENSAGEM_BLOQUEADO_ADMIN,
   MENSAGEM_CREDENCIAIS,
+  MENSAGEM_SESSAO,
   mensagemBloqueioPorTentativas,
   mensagemMuitasTentativas,
   MENSAGEM_SENHA_A_TROCAR,
@@ -88,7 +89,6 @@ export interface DepsAutenticacao {
   aleatorio?: (n: number) => Uint8Array;
 }
 
-const MENSAGEM_SESSAO = 'Sua sessão expirou. Entre de novo com o código da empresa, o e-mail e a senha.';
 const MENSAGEM_MUITOS_PEDIDOS = 'Muitos pedidos de senha. Aguarde alguns minutos e tente de novo.';
 /** Entre dois "Esqueci a senha" do mesmo usuário (no banco): não gera outra senha nem manda outro e-mail. */
 const INTERVALO_ESQUECI_MS = 15 * 60_000;
@@ -152,10 +152,9 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
     dispositivo_nome: string | undefined;
   }
 
-  /** Passos 1 a 8 do desenho §3, compartilhados por `login` e `senha/trocar`. `aoLiberar` roda dentro da transação, com a senha já aceita. */
   /**
    * RN-CORE-34 (RN-AUD-01): a falha de login entra na auditoria do tenant com o motivo interno e o usuário (quando há), na
-   * mesma transação. Nunca a senha, o hash, o e-mail digitado ou o IP; a resposta ao app continua o 401 genérico.
+   * mesma transação. Nunca a senha, o hash, o e-mail digitado ou o IP.
    */
   async function auditarFalha(db: ClienteBanco, ctx: ContextoPublico<unknown>, usuarioId: string | null, motivo: MotivoFalhaLogin): Promise<void> {
     await auditar(db, { usuario: { id: usuarioId }, requestId: ctx.requestId }, {
@@ -169,6 +168,7 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
 
   const motivoDoBloqueio = (estado: string): MotivoFalhaLogin => (estado === 'bloqueado_tentativas' ? 'bloqueio_tentativas' : 'bloqueio_admin');
 
+  /** Passos 1 a 8 do desenho §3, compartilhados por `login` e `senha/trocar`. `aoLiberar` roda dentro da transação, com a senha já aceita. */
   async function entrar(
     ctx: ContextoPublico<unknown>,
     e: EntradaDeSenha,

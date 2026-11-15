@@ -164,3 +164,4 @@
 2026-11-15 — R-20261114-201000 — login com senha temporária: campo Senha sem autocapitalização, troca de senha atômica, falha de login na auditoria (branch nuvem/login-senha-modulo-core, e8457e8)
 2026-11-15 — login — bloqueio por tentativas (LOGIN_BLOQUEADO_TENTATIVAS, 15 min na mensagem) separado do bloqueio do administrador; 429 com tempo; auditoria bloqueio_tentativas/bloqueio_admin
 2026-11-15 — T-login-senha (etapa 3) — mensagens do código da empresa por motivo (curto, longo, caractere) em validarLogin; avaliação do corte em 40 no código sugerido
+2026-11-15 — T-0094 (PR #285) — corretor RD-0375..0379: textoEmMinutos único, MENSAGEM_SESSAO/CREDENCIAIS reaproveitadas, 423 do portal com minutos_restantes, JSDoc de entrar, teste duplicado removido.

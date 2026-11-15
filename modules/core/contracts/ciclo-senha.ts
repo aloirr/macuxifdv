@@ -5,7 +5,7 @@
  */
 import { ehEmail } from '@macuxi/comum/email';
 import { ehSemConexao, VALIDADE_SENHA_PROVISORIA_HORAS } from '@macuxi/platform-sdk';
-import { CodigoEmpresaSchema, DetalhesSenhaATrocarSchema, type DetalhesSenhaATrocar } from './auth';
+import { CodigoEmpresaSchema, DetalhesSenhaATrocarSchema, textoEmMinutos, type DetalhesSenhaATrocar } from './auth';
 import { faltasNaSenha, mensagemDaSenha, type FaltaNaSenha } from './senha';
 
 /** Formato do e-mail: `ehEmail` de `@macuxi/comum` (RD-0020), já sem os espaços das pontas. */
@@ -118,10 +118,7 @@ export const repeticaoDaSenha = (nova: string, repetida: string): RepeticaoDaSen
 export const trocaProntaParaEnviar = (nova: string, repetida: string): boolean => faltasNaSenha(nova).length === 0 && repeticaoDaSenha(nova, repetida) === 'igual';
 
 /** `retry_after_s` → "em 1 minuto" / "em 3 minutos" (mínimo 1). */
-export function textoDeEspera(retryAfterS: unknown): string {
-  const n = typeof retryAfterS === 'number' && Number.isFinite(retryAfterS) ? Math.max(1, Math.ceil(retryAfterS / 60)) : 1;
-  return n === 1 ? 'em 1 minuto' : `em ${n} minutos`;
-}
+export const textoDeEspera = (retryAfterS: unknown): string => textoEmMinutos(retryAfterS, 1, 60);
 export const textoDeMuitosPedidos = (retryAfterS: unknown): string => `Muitos pedidos seguidos. Tente de novo ${textoDeEspera(retryAfterS)}.`;
 
 export interface CamposEsqueci {

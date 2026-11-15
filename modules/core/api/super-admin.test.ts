@@ -239,6 +239,8 @@ describe('ADR 0031: login do portal só com e-mail e senha', () => {
     const sexta = await falha(sa().login(ctx({ email: 'fantasma@x.com', senha: 'x' })));
     expect(sexta.status).toBe(423);
     expect(sexta.codigo).toBe(CODIGOS_PORTAL.bloqueado);
+    expect(sexta.message).toBe('Muitas tentativas. Tente de novo em 15 minutos.');
+    expect((sexta as { detalhes?: unknown }).detalhes).toEqual({ minutos_restantes: 15 });
     expect(mem.consultas.length).toBe(5); // a 6ª nem chegou a consultar contas
   });
 
@@ -246,7 +248,11 @@ describe('ADR 0031: login do portal só com e-mail e senha', () => {
     mem.contas.push(contaAdmin(TENANT_A, USU_A, 'Alfa'));
     for (let i = 0; i < 5; i++) await falha(sa().login(ctx({ email: EMAIL, senha: 'errada' })));
     expect((await falha(sa().login(ctx({ email: EMAIL, senha: SENHA })))).status).toBe(423);
-    avancar(16 * 60);
+    avancar(10 * 60);
+    const restante = await falha(sa().login(ctx({ email: EMAIL, senha: SENHA })));
+    expect(restante.message).toBe('Muitas tentativas. Tente de novo em 5 minutos.');
+    expect((restante as { detalhes?: unknown }).detalhes).toEqual({ minutos_restantes: 5 });
+    avancar(6 * 60);
     expect((await sa().login(ctx({ email: EMAIL, senha: SENHA }))).tipo).toBe('admin_cliente');
   });
 

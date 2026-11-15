@@ -5,7 +5,7 @@
  * Senha e token nunca vão para log, nem para o armazenamento do módulo (o shell guarda o token em área segura).
  */
 import { ehSemConexao, type AppComLogin } from '@macuxi/platform-sdk';
-import { AVISO_APARELHO_LIMPO, MENSAGEM_BLOQUEADO_ADMIN, mensagemBloqueioPorTentativas, mensagemMuitasTentativas, CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, validarLogin, type CamposLogin, type ErrosLogin, MENSAGEM_SENHA_A_TROCAR, MENSAGEM_SENHA_VENCIDA, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
+import { AVISO_APARELHO_LIMPO, MENSAGEM_BLOQUEADO_ADMIN, MENSAGEM_CREDENCIAIS, MENSAGEM_SESSAO, mensagemBloqueioPorTentativas, mensagemMuitasTentativas, CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, validarLogin, type CamposLogin, type ErrosLogin, MENSAGEM_SENHA_A_TROCAR, MENSAGEM_SENHA_VENCIDA, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
 import { ESCONDER_SENHA, MOSTRAR_SENHA } from '@macuxi/ui/mobile/puro';
 import { tolerante } from './leitor-tolerante';
 
@@ -35,7 +35,7 @@ export function mensagemDeErroDeLogin(e: unknown): string {
   const detalhes = x?.detalhes;
   switch (x?.codigo) {
     case CODIGOS_AUTH.credenciais:
-      return 'Código da empresa, e-mail ou senha incorretos. Confira os dados e tente de novo.';
+      return MENSAGEM_CREDENCIAIS;
     case CODIGOS_AUTH.bloqueado:
       return MENSAGEM_BLOQUEADO_ADMIN;
     case CODIGOS_AUTH.bloqueadoTentativas:
@@ -45,7 +45,7 @@ export function mensagemDeErroDeLogin(e: unknown): string {
     case CODIGOS_AUTH.muitasTentativas:
       return mensagemMuitasTentativas(detalhes?.retry_after_s);
     case CODIGOS_AUTH.sessao:
-      return 'Sua sessão expirou. Entre de novo com o código da empresa, o e-mail e a senha.';
+      return MENSAGEM_SESSAO;
     case CODIGOS_AUTH.senhaVencida:
       return MENSAGEM_SENHA_VENCIDA;
     case CODIGOS_AUTH.senhaATrocar:
