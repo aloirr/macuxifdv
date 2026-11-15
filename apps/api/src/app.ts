@@ -97,7 +97,7 @@ import { ZodError, type ZodTypeAny } from 'zod';
 import { esperaDoPoolEsgotada, RETRY_AFTER_BANCO_OCUPADO_S, type BancoApp, type BancoPortal } from './banco';
 import { excedeElementos, MAX_PROBLEMAS_RESPOSTA } from './corpo';
 import { corpoDoDocumento, criarMemoEtag, ifNoneMatchAtende, TIPO_DOCUMENTO_PUBLICO } from './cache-publico';
-import { criarLimitador } from './limitador';
+import { criarLimitador, recusarPorLimite } from './limitador';
 import { prepararSessaoWeb, SESSAO_WEB_PADRAO, type OpcoesSessaoWeb } from './sessao-web';
 import { registrarConector, ehRotaConector } from './conector';
 import { licencasDoBanco, licencasDoTenantNoBanco, type FonteLicencas, type FonteLicencasTenant } from './licencas';
@@ -585,11 +585,12 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   // T-0091: tudo do portal na conexão do macuxi_portal; sem ela, 503 antes de olhar o token
   // ADR 0048: uma consulta de CNPJ só (mesmo cache) para a rota de consulta e para a criação da empresa
   const consultaCnpj = op.consultaCnpj ?? consultaCnpjPadrao();
+  const autenticarDoPortal = async (req: FastifyRequest) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal());
   registrarRotasPlataforma(app, {
     manifestos,
     acesso: acessoPortal,
     fonte: fontePlataforma,
-    autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+    autenticar: autenticarDoPortal,
     validar,
     ...(op.senhaPortal ? { senha: op.senhaPortal } : {}),
     // T-0094: o redefinir senha do admin cifra a carga do e-mail com a mesma chave da porta (só a porta da API sabe cifrar)
@@ -605,7 +606,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     registrarRotasDiagnosticosPortal(app, {
       acesso: acessoPortal,
       ...(op.fonteDiagnosticos ? { fonte: op.fonteDiagnosticos } : {}),
-      autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+      autenticar: autenticarDoPortal,
       validar,
       armazenamento: op.arquivos ?? null,
     });
@@ -617,14 +618,14 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     banco,
     acessoPortal,
     ...(op.fonteDadosLegais ? { fonte: op.fonteDadosLegais } : {}),
-    autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+    autenticar: autenticarDoPortal,
     validar,
     relogio,
   });
 
   // ADR 0048: consulta de CNPJ na base pública da Receita (passo Empresa do portal), super-admin ou admin do cliente
   registrarRotaConsultaCnpj(app, {
-    autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+    autenticar: autenticarDoPortal,
     validar,
     consulta: consultaCnpj,
   });
@@ -636,7 +637,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       fonte: fontePlataforma,
       ...(op.senhaPortal ? { senha: op.senhaPortal } : {}),
       ...(op.fontePlanos ? { fontePlanos: op.fontePlanos } : {}),
-      autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+      autenticar: autenticarDoPortal,
       validar,
       relogio,
     });
@@ -802,10 +803,7 @@ function montarRotaPublica(
     const corpo = validar(rota.corpo, corpoBruto, 'corpo');
     const extra = rota.limite.chave?.({ corpo, query, params }) ?? '';
     const chave = `${req.ip}|${String(extra).toLowerCase()}`;
-    if (!limitador.tentar(chave)) {
-      reply.header('retry-after', String(limitador.esperaSegundos(chave)));
-      throw new ErroHttp(429, 'MUITAS_TENTATIVAS', 'Muitas tentativas. Aguarde um pouco e tente de novo.');
-    }
+    if (!limitador.tentar(chave)) recusarPorLimite(reply, limitador.esperaSegundos(chave));
     const log = req.log.child({ modulo, request_id: req.id });
     // T-0087: só a lista fechada de cabeçalhos (hoje `authorization`), com valores censurados se serializados; com cache, nenhum
     const cabecalhosRota = cache ? SEM_CABECALHOS : cabecalhosPublicos(req.headers);

@@ -3,6 +3,9 @@
  * Janela fixa em memória do processo: suficiente para uma instância (Sprint 0). Com mais de uma instância,
  * troca-se por um contador no Postgres/Redis com a mesma interface (registrado no desenho T-0004 §6).
  */
+import type { FastifyReply } from 'fastify';
+import { ErroHttp } from './erros';
+
 export interface Limitador {
   /** Conta a tentativa; `false` = estourou o limite na janela (responder 429). */
   tentar(chave: string): boolean;
@@ -71,4 +74,10 @@ export function criarContadorFalhas(max: number, janelaMs: number, agora: () => 
       else janelas.set(chave, { inicio: t, contagem: 1 });
     },
   };
+}
+
+/** 429 das rotas públicas (RD-0404): `Retry-After` + `detalhes.retry_after_s`, o mesmo formato do 429 do módulo (o app mostra a espera real). */
+export function recusarPorLimite(reply: FastifyReply, esperaS: number): never {
+  reply.header('retry-after', String(esperaS));
+  throw new ErroHttp(429, 'MUITAS_TENTATIVAS', 'Muitas tentativas. Aguarde um pouco e tente de novo.', { retry_after_s: esperaS });
 }

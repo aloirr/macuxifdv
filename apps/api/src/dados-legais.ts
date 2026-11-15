@@ -24,8 +24,8 @@ import {
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { z } from 'zod';
 import { ErroHttp } from './erros';
-import { criarLimitador } from './limitador';
-import { marcarPortal } from './plataforma';
+import { criarLimitador, recusarPorLimite } from './limitador';
+import { conferirRetorno, exigirSuperAdmin as exigirSuperAdminDoPortal, traduzirErroSa } from './portal-comum';
 
 /** Acesso às funções do banco (testes injetam a sua). Devolvem o jsonb cru `{ razao_social, cnpj, site }`; a rota confere pelo contrato. */
 export interface FonteDadosLegais {
@@ -75,21 +75,17 @@ const codigoSql = (e: unknown): string | null => {
   return typeof c === 'string' ? c : null;
 };
 
-function conferir(bruto: unknown, funcao: string): DadosLegais {
-  const r = DadosLegaisSchema.safeParse(bruto);
-  if (!r.success) throw new Error(`${funcao} devolveu formato diferente do combinado (rodape-legal.md §3.3; DadosLegaisSchema)`);
-  return r.data;
-}
+const SO_A_MACUXI = 'Só o time da Macuxi edita os dados legais.';
 
-/** SQLSTATE das `sa_*` → HTTP (sessão vencida = 401; não é super-admin = 403; dado recusado = 400; função ausente = 503). */
-function traduzir(e: unknown): never {
-  const c = codigoSql(e);
-  if (c === '28000') throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Sua sessão do portal expirou. Entre de novo.');
-  if (c === '42501') throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi edita os dados legais.');
-  if (c === '22023' || c === '23514') throw new ErroHttp(400, 'VALIDACAO', 'Dados legais inválidos.');
-  if (c === '42883') throw indisponivel();
-  throw e;
-}
+const conferir = (bruto: unknown, funcao: string): DadosLegais => conferirRetorno(DadosLegaisSchema, bruto, funcao);
+
+/** SQLSTATE das `sa_*` → HTTP: os comuns (`traduzirErroSa`) + mensagens próprias, 23514 = 400 e função ausente (42883) = 503. */
+const traduzir = (e: unknown): never =>
+  traduzirErroSa(e, (c) => {
+    if (c === '42501') throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', SO_A_MACUXI);
+    if (c === '22023' || c === '23514') throw new ErroHttp(400, 'VALIDACAO', 'Dados legais inválidos.');
+    if (c === '42883') throw indisponivel();
+  });
 
 export function registrarRotasDadosLegais(app: FastifyInstance, dep: DepsDadosLegais): void {
   const fonte = dep.fonte ?? fonteDadosLegaisNoBanco;
@@ -119,10 +115,7 @@ export function registrarRotasDadosLegais(app: FastifyInstance, dep: DepsDadosLe
   };
 
   app.get(ROTA_DADOS_LEGAIS_PUBLICOS, async (req, reply) => {
-    if (!limitador.tentar(req.ip)) {
-      reply.header('retry-after', String(limitador.esperaSegundos(req.ip)));
-      throw new ErroHttp(429, 'MUITAS_TENTATIVAS', 'Muitas tentativas. Aguarde um pouco e tente de novo.');
-    }
+    if (!limitador.tentar(req.ip)) recusarPorLimite(reply, limitador.esperaSegundos(req.ip));
     try {
       if (!dep.banco) throw new BancoDadosLegaisFora(null);
       const dados = await publicos(dep.banco);
@@ -135,13 +128,7 @@ export function registrarRotasDadosLegais(app: FastifyInstance, dep: DepsDadosLe
     }
   });
 
-  const exigirSuperAdmin = async (req: FastifyRequest): Promise<AcessoPortalAutenticado & { tipo: 'super_admin' }> => {
-    const quem = await dep.autenticar(req);
-    if (!quem) throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Entre no portal para continuar.');
-    marcarPortal(req, { quem, tenantId: null });
-    if (quem.tipo !== 'super_admin') throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi edita os dados legais.');
-    return quem;
-  };
+  const exigirSuperAdmin = (req: FastifyRequest) => exigirSuperAdminDoPortal(dep, req, null, SO_A_MACUXI);
 
   app.get(ROTA_PORTAL_DADOS_LEGAIS, async (req, reply) => {
     const quem = await exigirSuperAdmin(req);

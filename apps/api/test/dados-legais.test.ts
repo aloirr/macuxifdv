@@ -117,6 +117,7 @@ describe('GET /v1/publico/dados-legais (rodapé legal, sem login)', () => {
     const r = await app.inject({ method: 'GET', url: URL_PUBLICA });
     expect([r.statusCode, r.json().codigo]).toEqual([429, 'MUITAS_TENTATIVAS']);
     expect(Number(r.headers['retry-after'])).toBeGreaterThan(0);
+    expect(r.json().detalhes).toEqual({ retry_after_s: Number(r.headers['retry-after']) });
   });
 });
 
