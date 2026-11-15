@@ -13,7 +13,7 @@ import { Badge, Bar, Button, Dialog, ErrorBlock, IconDownload, Notice, useToast 
 import { rotuloDoLote, tomDoLote } from '@macuxi/integracao/web';
 
 import { baixarDoPortal, chamarPortal, ehRotaAusente, mensagemDoErro } from '@/lib/portal-api';
-import { baixarTexto, CARTAO_DA_ENTIDADE, conferirArquivo, errosDaConferenciaCsv, estadoDoResultado, formatarLinhas, importarArquivo, novaChaveDeCarga, planejarEnvio, ROTULO_MODO, type PlanoDeEnvio, type ProgressoCarga, type ResultadoCarga } from '@/lib/portal-carga';
+import { baixarTexto, CARTAO_DA_ENTIDADE, conferirArquivo, errosDaConferenciaCsv, estadoDoResultado, formatarErros, formatarLinhas, importarArquivo, novaChaveDeCarga, planejarEnvio, ROTULO_MODO, type PlanoDeEnvio, type ProgressoCarga, type ResultadoCarga } from '@/lib/portal-carga';
 import { criarPortaCarga } from '@/lib/portal-carga-rede';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 
@@ -69,7 +69,7 @@ function ListaErros({ erros, omitidos, testId }: { erros: readonly LinhaErro[]; 
           </li>
         ))}
       </ul>
-      {!!omitidos && omitidos > 0 && <span className="text-[12px] text-ink-2">E mais {omitidos.toLocaleString('pt-BR')} erros. Corrija estes e confira de novo.</span>}
+      {!!omitidos && omitidos > 0 && <span className="text-[12px] text-ink-2">E mais {formatarErros(omitidos)}. Corrija estes e confira de novo.</span>}
     </div>
   );
 }
@@ -91,7 +91,7 @@ function ErrosDoLote({ tenant, loteId, entidade }: { tenant: string; loteId: str
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[13px] font-semibold">{q.data.total.toLocaleString('pt-BR')} linhas com erro</span>
+        <span className="text-[13px] font-semibold">{formatarLinhas(q.data.total)} com erro</span>
         <Button size="sm" data-testid={`base-${entidade}.baixar-erros`} onClick={() => void baixar()}>
           <IconDownload size={14} /> Baixar erros (.csv)
         </Button>

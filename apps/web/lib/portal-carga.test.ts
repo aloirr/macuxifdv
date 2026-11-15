@@ -4,7 +4,7 @@ import { LoteResultadoBko, type CargaArquivoAceita, CargaArquivoEntrada, Confere
 import { rotuloDoLote, tomDoLote } from '@macuxi/integracao/web';
 
 import { chamarPortal } from './portal-api';
-import { conferirArquivo, corpoDaParte, errosDaConferenciaCsv, estadoDoResultado, importarArquivo, loteTerminou, novaChaveDeCarga, percentualDaCarga, planejarEnvio, somarConferencias, type PortaCarga, type ProgressoCarga } from './portal-carga';
+import { conferirArquivo, corpoDaParte, errosDaConferenciaCsv, estadoDoResultado, formatarErros, formatarLinhas, importarArquivo, loteTerminou, novaChaveDeCarga, percentualDaCarga, planejarEnvio, somarConferencias, type PortaCarga, type ProgressoCarga } from './portal-carga';
 import { criarPortaCarga } from './portal-carga-rede';
 
 vi.mock('./portal-api', async (orig) => ({ ...(await orig<typeof import('./portal-api')>()), chamarPortal: vi.fn(async () => ({ status: 'cancelado' })) }));
@@ -204,5 +204,16 @@ describe('estadoDoResultado (selo do cartão)', () => {
     expect(estadoDoResultado(sessao({ situacao: 'completa' }))).toBe('concluido');
     expect(estadoDoResultado(sessao({ partes_aplicadas: 3 }))).toBe('concluido');
     expect(estadoDoResultado(sessao({}))).toBe('processando');
+  });
+});
+
+describe('contagens do cartão (T-0173: "1 linhas com erro")', () => {
+  it('linha e erro no singular com 1 e no plural com 2 ou mais', () => {
+    expect(`${formatarLinhas(1)} com erro`).toBe('1 linha com erro');
+    expect(`${formatarLinhas(2)} com erro`).toBe('2 linhas com erro');
+    expect(`${formatarLinhas(1234)} com erro`).toBe('1.234 linhas com erro');
+    expect(formatarErros(1)).toBe('1 erro');
+    expect(formatarErros(2)).toBe('2 erros');
+    expect(formatarErros(5000)).toBe('5.000 erros');
   });
 });

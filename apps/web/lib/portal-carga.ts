@@ -126,6 +126,10 @@ export function formatarLinhas(n: number): string {
   return `${n.toLocaleString('pt-BR')} ${n === 1 ? 'linha' : 'linhas'}`;
 }
 
+export function formatarErros(n: number): string {
+  return `${n.toLocaleString('pt-BR')} ${n === 1 ? 'erro' : 'erros'}`;
+}
+
 // ---------------------------------------------------------------------------------------------------------------- execução
 
 /** O que a execução precisa da rede (injetado: a tela passa o `chamarPortal`; o teste passa um falso). */
