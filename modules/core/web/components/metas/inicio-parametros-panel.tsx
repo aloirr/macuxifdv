@@ -203,7 +203,7 @@ export function InicioParametrosPanel({ open, onClose }: { open: boolean; onClos
                     aria-describedby={erros.dias ? 'inicio-params.dias.erro' : undefined}
                     data-testid={`inicio-params.dia.${n}`}
                     onClick={() => alternar(n)}
-                    className={`h-[44px] min-w-[56px] rounded-xl border px-3 text-[13px] font-semibold ${dias.includes(n) ? 'border-ink bg-ink text-white' : 'border-field bg-surface text-ink hover:bg-ground'}`}
+                    className={`h-[44px] min-w-[56px] rounded-xl border px-3 text-[13px] font-semibold ${dias.includes(n) ? 'border-accent bg-accent text-white' : 'border-field bg-surface text-ink hover:bg-ground'}`}
                   >
                     {rotulo}
                   </button>

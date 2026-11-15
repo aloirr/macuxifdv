@@ -47,10 +47,3 @@ export function csvDeIndicadores(l: IndicadoresLista): string {
   const linhas = l.itens.map((u) => celulasDoUsuario(u).map(aspas).join(';'));
   return BOM_CSV + `${[CABECALHO.map(aspas).join(';'), ...linhas].join('\r\n')}\r\n`;
 }
-
-/** Valor mensal em reais digitado → centavos inteiros (vírgula ou ponto); inválido → null. Usado pela tela Metas e RV. */
-export function centavosDoTexto(texto: string): number | null {
-  const limpo = texto.trim().replace(/\./g, '').replace(',', '.');
-  if (!/^\d+(\.\d{1,2})?$/.test(limpo)) return null;
-  return Math.round(Number(limpo) * 100);
-}

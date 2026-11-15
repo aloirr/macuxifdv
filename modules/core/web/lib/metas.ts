@@ -6,7 +6,7 @@
 import { BOM_CSV } from '@macuxi/comum/csv';
 import { ROTULO_INDICADOR_META, type LinhaMetaBko, type PutMeta } from '../../contracts';
 import { formatarIndicador } from '../../app/lib/metas-formato';
-import { centavosDoTexto } from './indicadores';
+import { centavosDoTexto } from './plano-rv';
 
 type Indicador = LinhaMetaBko['indicador'];
 

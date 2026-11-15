@@ -64,7 +64,7 @@ function Segmented({ value, onChange }: { value: PeriodMode; onChange: (m: Perio
             onClick={() => onChange(m)}
             className={cx(
               'rounded-[7px] px-3.5 text-[14px] font-semibold transition-colors',
-              value === m ? 'bg-ink text-white' : 'text-ink hover:bg-ground',
+              value === m ? 'bg-accent text-white' : 'text-ink hover:bg-ground',
             )}
           >
             {PERIOD_LABEL[m]}
@@ -349,7 +349,7 @@ export function RoutesPage() {
                 type="button"
                 aria-pressed={!effectiveHighlight}
                 onClick={() => highlightDay(null)}
-                className={cx('h-8 rounded-full border px-3 text-[12px] font-semibold', !effectiveHighlight ? 'border-ink bg-ink text-white' : 'border-field bg-surface text-ink hover:bg-ground')}
+                className={cx('h-8 rounded-full border px-3 text-[12px] font-semibold', !effectiveHighlight ? 'border-accent bg-accent text-white' : 'border-field bg-surface text-ink hover:bg-ground')}
               >
                 Todos os dias
               </button>
@@ -361,7 +361,7 @@ export function RoutesPage() {
                     type="button"
                     aria-pressed={on}
                     onClick={() => highlightDay(on ? null : r.key)}
-                    className={cx('flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[12px] font-semibold tabular-nums', on ? 'border-ink bg-ink text-white' : 'border-field bg-surface text-ink hover:bg-ground')}
+                    className={cx('flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[12px] font-semibold tabular-nums', on ? 'border-accent bg-accent text-white' : 'border-field bg-surface text-ink hover:bg-ground')}
                   >
                     <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: weekdayColor(r.date) }} />
                     {mode === 'month' ? `${WEEKDAY_SHORT[weekday(r.date)]} ${r.date.slice(8, 10)}` : dayShortLabel(r.date)}

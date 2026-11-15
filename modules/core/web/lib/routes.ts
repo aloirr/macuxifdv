@@ -281,8 +281,6 @@ export interface RouteKpis {
   km: number;
   done: number;
   inProgress: number;
-  pending: number;
-  avgPerRoute: number;
 }
 
 export function routeKpis(routes: RouteDay[]): RouteKpis {
@@ -305,8 +303,6 @@ export function routeKpis(routes: RouteDay[]): RouteKpis {
     km: Math.round(km),
     done,
     inProgress,
-    pending: planned - done - inProgress,
-    avgPerRoute: withStops ? Math.round((planned / withStops) * 10) / 10 : 0,
   };
 }
 

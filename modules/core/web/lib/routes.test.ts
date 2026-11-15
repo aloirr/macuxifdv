@@ -226,8 +226,8 @@ describe('indicadores', () => {
       route('s2', '2026-10-12', [stop('4', 1, 'pending', c)], 8.3),
       route('s3', '2026-10-12', [], 0),
     ]);
-    expect(k).toEqual({ routes: 2, planned: 4, km: 21, done: 1, inProgress: 1, pending: 2, avgPerRoute: 2 });
-    expect(routeKpis([])).toEqual({ routes: 0, planned: 0, km: 0, done: 0, inProgress: 0, pending: 0, avgPerRoute: 0 });
+    expect(k).toEqual({ routes: 2, planned: 4, km: 21, done: 1, inProgress: 1 });
+    expect(routeKpis([])).toEqual({ routes: 0, planned: 0, km: 0, done: 0, inProgress: 0 });
   });
 });
 
