@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Sincronizar: toque e segurar 10 s, popup da completa e hora do estoque (estoque diário, parte F)</title>
+<!--
+  Simulação da spec docs/design/sincronizacao-completa.md (R-20261115-100000-alexandre, decisão 4; R-20261115-121000-alexandre).
+  Aparelho de 360 x 760 dp. PNG: T-estoque-diario-sincronizar.png nesta pasta, Playwright com deviceScaleFactor 2 e largura 2780.
+  Tokens iguais a packages/ui/src/mobile/tokens.ts; a barra do popup é a da tela de carga (apps/mobile/src/components/tela-entrada.tsx)
+  com o tema Pérola (temaDaEntrada('gestao')). Nomes, números e horas são fictícios.
+-->
+<style>
+@font-face{font-family:Archivo;font-weight:800;src:url(../../../apps/web/app/fonts/Archivo_800ExtraBold.ttf)}
+@font-face{font-family:Archivo;font-weight:700;src:url(../../../apps/web/app/fonts/Archivo_700Bold.ttf)}
+@font-face{font-family:'IBM Plex Sans';font-weight:400;src:url(../../../apps/web/app/fonts/IBMPlexSans_400Regular.ttf)}
+@font-face{font-family:'IBM Plex Sans';font-weight:600;src:url(../../../apps/web/app/fonts/IBMPlexSans_600SemiBold.ttf)}
+@font-face{font-family:'IBM Plex Sans';font-weight:700;src:url(../../../apps/web/app/fonts/IBMPlexSans_700Bold.ttf)}
+:root{
+  --ground:#F8F6F1;--surface:#FFFFFF;--ink:#16202A;--ink2:#4A5562;--ink3:#5B6673;--line:#DFE2E6;--lineSoft:#ECEEF1;
+  --accent:#1E3350;--faixa:#1E3350;--faixaSub:#C9CED5;--graficoEscuro:#F59A52;--grafico:#C2540A;
+  --danger:#A8261B;--warningInk:#5C3B00;--warningBg:#FFF1D6;--success:#1D6B4F;--successBg:#E2F1EA;--scrim:rgba(15,20,25,.45);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:2780px;background:#DADDD6;font-family:'IBM Plex Sans',sans-serif;color:var(--ink);padding:32px 36px 40px}
+h1{font:800 26px/1.15 Archivo}
+.sub{font-size:14px;color:var(--ink2);margin:6px 0 24px;max-width:1700px;line-height:1.45}
+.board{display:flex;gap:28px;align-items:flex-start}
+.tela{width:360px;display:flex;flex-direction:column;gap:10px}
+.leg{font-size:13px;font-weight:600;min-height:54px;line-height:1.35}
+.leg b{display:inline-block;background:var(--ink);color:#fff;border-radius:6px;padding:1px 7px;margin-right:6px;font-family:Archivo}
+.leg span{display:block;font-weight:400;color:var(--ink2);font-size:12px}
+.phone{width:360px;height:760px;background:var(--ground);border-radius:26px;overflow:hidden;position:relative;border:1px solid #BFC4BC;box-shadow:0 10px 28px rgba(22,32,42,.16);display:flex;flex-direction:column}
+.st{height:26px;flex:none;background:var(--faixa);color:#fff;display:flex;justify-content:space-between;align-items:center;padding:0 20px;font-size:12px;font-weight:600}
+.cabec{background:var(--faixa);padding:10px 20px 18px;flex:none}
+.cabec .ola{font:800 22px/28px Archivo;color:#fff}
+.cabec .dt{font-size:13px;color:var(--faixaSub);margin-top:2px}
+.sc{flex:1;padding:16px 20px 16px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.cartao{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
+.cartao .t{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--ink2)}
+.cartao .v{font:700 24px/30px Archivo;margin-top:4px;font-variant-numeric:tabular-nums}
+.cartao .a{font-size:13px;color:var(--ink2)}
+.mola{flex:1}
+/* BotaoSincronizar */
+.bs{display:flex;flex-direction:column;gap:6px}
+.btn{height:52px;border-radius:14px;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:600;font-size:16px;position:relative;overflow:hidden}
+.btn.segurando{transform:scale(.97)}
+.btn .faixa{position:absolute;left:0;bottom:0;height:4px;background:var(--graficoEscuro)}
+.btn svg{width:20px;height:20px}
+.situ{font-size:13px;color:var(--ink2);text-align:center}
+.abas{flex:none;height:64px;background:var(--surface);border-top:1px solid var(--line);display:flex}
+.abas div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:600;color:var(--ink2)}
+.abas div.ativa{color:var(--accent);font-weight:700}
+.abas i{width:22px;height:22px;border-radius:6px;border:1.8px solid currentColor;display:block}
+.dedo{position:absolute;width:56px;height:56px;border-radius:50%;background:rgba(194,84,10,.22);border:2px solid rgba(194,84,10,.55);left:272px;bottom:98px}
+/* popup */
+.scrim{position:absolute;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:24px}
+.pop{width:100%;background:var(--surface);border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:16px}
+.pop .msg{font-weight:600;font-size:16px;line-height:22px;color:var(--ink)}
+.linha{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:#1E3350}
+.linha b{font-weight:700;font-variant-numeric:tabular-nums}
+.trilho{height:6px;border-radius:3px;background:#DFE2E6;overflow:hidden;margin-top:8px}
+.trilho i{display:block;height:100%;border-radius:3px;background:var(--grafico)}
+.erro{display:flex;gap:8px;align-items:center;color:var(--danger);font-weight:600;font-size:15px}
+.erro svg{width:16px;height:16px;flex:none}
+.princ{height:52px;border-radius:14px;background:var(--accent);color:#fff;font-weight:600;font-size:16px;display:flex;align-items:center;justify-content:center}
+.neutro{height:44px;border-radius:12px;background:var(--lineSoft);color:var(--ink);font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center}
+.acoes{display:flex;flex-direction:column;gap:10px}
+/* estoque */
+.cab2{background:var(--surface);border-bottom:1px solid var(--line);padding:10px 16px;flex:none}
+.cab2 .n{font:700 17px/21px Archivo}
+.cab2 .c{font-size:12px;color:var(--ink2)}
+.rot{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--ink2)}
+.est{display:flex;flex-direction:column;gap:4px}
+.chip{align-self:flex-start;height:28px;border-radius:999px;padding:0 12px;display:flex;align-items:center;font-size:13px;font-weight:600;background:var(--successBg);color:var(--success)}
+.hora{font-size:13px;color:var(--ink2);font-variant-numeric:tabular-nums}
+.hora.aviso{color:var(--warningInk);font-weight:600}
+.ex{border-top:1px solid var(--lineSoft);padding-top:10px}
+.ex .q{font-size:11px;color:var(--ink3);margin-bottom:2px}
+.alerta{background:var(--warningBg);color:var(--warningInk);border-radius:12px;padding:10px 12px;font-size:13px;font-weight:600;display:flex;gap:8px;align-items:center}
+.alerta svg{width:16px;height:16px;flex:none}
+</style>
+</head>
+<body>
+<h1>Sincronizar: toque e segurar 10 s, popup da sincronização completa e hora do estoque</h1>
+<p class="sub">Estoque diário, parte F (ADR 0057; spec docs/design/sincronizacao-completa.md). Toque = pedidos e clientes (sem popup). Segurar 10 s = sincronização completa: a contagem e a faixa aparecem aos 600 ms; soltar antes dos 10 s vale como toque. O popup não fecha até terminar; parado, mostra o erro, "Tentar de novo" e "Fechar". Campo na simulação; no Gestão o botão e o popup são iguais.</p>
+<div class="board" id="board"></div>
+<script>
+const SYNC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.3-4.3L4 9M4 4v5h5M4 13a8 8 0 0 0 14.3 4.3L20 15M20 20v-5h-5"/></svg>';
+const ALERTA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></svg>';
+const abas = '<div class="abas"><div class="ativa"><i></i>Início</div><div><i></i>Rota</div><div><i></i>Clientes</div><div><i></i>Pedidos</div><div><i></i>Catálogo</div></div>';
+function inicio({ rotulo = 'Sincronizar', faixa = null, situ = 'Última sincronização 09:42 · 0 na fila', dedo = false, sobre = '' } = {}) {
+  return `<div class="phone"><div class="st"><span>09:58</span><span>4G ▮▮▮</span></div>
+  <div class="cabec"><div class="ola">Bom dia, Lucas</div><div class="dt">Sexta, 15 de novembro</div></div>
+  <div class="sc">
+    <div class="cartao"><div class="t">Rota de hoje</div><div class="v">3 de 8 visitas</div><div class="a">Próxima: Mercadinho Boa Vista, 10:30</div></div>
+    <div class="cartao"><div class="t">Vendas do mês</div><div class="v">R$ 48.320,00</div><div class="a">62% da meta</div></div>
+    <div class="mola"></div>
+    <div class="bs"><div class="btn${faixa !== null ? ' segurando' : ''}">${SYNC}<span>${rotulo}</span>${faixa !== null ? `<span class="faixa" style="width:${faixa}%"></span>` : ''}</div>
+    <div class="situ">${situ}</div></div>
+  </div>${abas}${dedo ? '<div class="dedo"></div>' : ''}${sobre}</div>`;
+}
+const barra = (rot, pct) => `<div><div class="linha"><span>${rot}</span><b>${pct}%</b></div><div class="trilho"><i style="width:${pct}%"></i></div></div>`;
+const popup = (corpo) => `<div class="scrim"><div class="pop">${corpo}</div></div>`;
+const MSG = '<div class="msg">Realizando a sincronização completa, aguarde e não saia dessa tela</div>';
+
+function painel() {
+  return `<div class="cartao" style="display:flex;flex-direction:column;gap:10px;width:360px">
+      <div class="rot">Os textos da hora (um por vez, no fuso do tenant)</div>
+      <div class="ex"><div class="q">Carga de hoje</div><div class="hora">Atualizado às 06:12</div></div>
+      <div class="ex"><div class="q">Carga de ontem, antes das 06:00 de hoje</div><div class="hora">Atualizado ontem às 06:12</div></div>
+      <div class="ex"><div class="q">Carga mais antiga, antes das 06:00 de hoje</div><div class="hora">Atualizado em 13/11 às 06:12</div></div>
+      <div class="ex"><div class="q">Passou das 06:00 e a carga de hoje não veio</div><div class="hora aviso">Estoque desatualizado · ontem às 06:12</div></div>
+      <div class="ex"><div class="q">Novo pedido desatualizado: só na área Alertas (RN-VEN-42), nunca nos itens</div><div class="alerta">${ALERTA}<span>Estoque desatualizado · ontem às 06:12</span></div></div>
+    </div>`;
+}
+function estoque() {
+  return `<div class="phone"><div class="st"><span>09:58</span><span>4G ▮▮▮</span></div>
+  <div class="cab2"><div class="n">Pastilha de freio dianteira</div><div class="c">Freiomax · PF 2210</div></div>
+  <div class="sc">
+    <div class="cartao est"><div class="rot">Estoque · filial Centro</div><div class="chip">Disponível · 12 jg</div><div class="hora">Atualizado às 06:12</div></div>
+  </div>${abas}</div>`;
+}
+
+const telas = [
+  ['1', 'Repouso', 'O de hoje. Nenhuma dica de "segure" na tela (fica no leitor de tela).', inicio()],
+  ['2', 'Segurando (4 s)', 'Aos 600 ms: rótulo com a contagem e faixa #F59A52 de 4 dp no pé do botão, de 0 a 100% em 10 s. Soltou antes = toque.', inicio({ rotulo: 'Sincronização completa em 6 s', faixa: 40, dedo: true })],
+  ['3', 'Popup em andamento', 'Abre aos 10 s, com vibração. Não fecha (toque fora e Voltar ignorados). Barra igual à da tela de carga.', inicio({ sobre: popup(MSG + barra('Etapa 3 de 5 · Catálogo e preços', 46)) })],
+  ['4', 'Pronto', '"Pronto" e 100% por 600 ms; o popup fecha sozinho e a situação vira "Atualizado há instantes".', inicio({ sobre: popup(MSG + barra('Pronto', 100)) })],
+  ['5', 'Parou', 'Mesmos textos da tela de carga. "Tentar de novo" retoma; "Fechar" (e o Voltar) fecha.', inicio({ sobre: popup(`<div class="erro">${ALERTA}<span>Sem internet na etapa 3 de 5</span></div><div class="acoes"><div class="princ">Tentar de novo</div><div class="neutro">Fechar</div></div>`) })],
+  ['6', 'Hora do estoque na ficha', 'A hora da carga é a mesma para todos os itens: vai uma vez, na ficha e no popup do item, nunca em cada cartão de lista.', estoque()],
+  ['7', 'Textos da hora', 'Função pura do Catálogo (RN-CAT-07 revista). "Hoje" e "ontem" no calendário do tenant.', painel()],
+];
+document.getElementById('board').innerHTML = telas.map(([n, t, s, h]) => `<div class="tela"><div class="leg"><b>${n}</b>${t}<span>${s}</span></div>${h}</div>`).join('');
+</script>
+</body>
+</html>
