@@ -6,7 +6,7 @@
  * não prende o dependente para sempre (a linha vira `referencia_ausente`, reprocessável). Um lote por vez por (Conector, entidade),
  * na ordem de chegada, para o cursor (RN-INT-05) e o comparador de hash (RN-INT-02) não competirem.
  */
-import { ENTIDADES, type ContagensLote, type Entidade, type EstadoLote } from '../contracts';
+import { ENTIDADES, type ContagensLote, type Entidade, type EstadoLoteBko } from '../contracts';
 import { DEPENDENCIAS, ordenarCarga } from './ordem';
 import { PARAMETROS_PADRAO } from './parametros';
 
@@ -14,7 +14,7 @@ export interface LoteNaFila {
   lote_id: string;
   conector_id: string;
   entidade: Entidade;
-  status: EstadoLote;
+  status: EstadoLoteBko;
   recebido_em: string;
   /** Parte da sessão de carga completa; `null` no delta. */
   parte: number | null;
@@ -80,7 +80,7 @@ export type EstadoCargaEntidade = 'sem_lotes' | 'pendente' | 'em_andamento' | 'c
 
 export interface LoteParaResumo {
   entidade: Entidade;
-  status: EstadoLote;
+  status: EstadoLoteBko;
   contagens: Pick<ContagensLote, 'recebidas' | 'com_erro' | 'novas' | 'atualizadas' | 'inalteradas'>;
 }
 

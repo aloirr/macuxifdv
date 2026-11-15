@@ -6,7 +6,7 @@ import { Badge, Button, Drawer, ErrorBlock, EstadoVazio, formatDateTime, IconDow
 import { CODIGOS_ERRO_LINHA, type ErrosLoteResposta, type LoteListagemItem } from '../../contracts';
 
 type ErroLinhaLote = ErrosLoteResposta['itens'][number];
-import { ROTULO_ENTIDADE, ROTULO_STATUS_LOTE, TOM_STATUS_LOTE } from '../lib/apresentacao';
+import { ROTULO_ENTIDADE, rotuloDoLote, tomDoLote } from '../lib/apresentacao';
 import { errosParaCsv, ROTULO_MODO } from '../lib/csv';
 import { buscarTodosErros, useErrosLote } from '../lib/queries';
 
@@ -76,7 +76,7 @@ function DetalheLote({ lote, tz }: { lote: LoteListagemItem; tz: string }) {
   return (
     <div className="flex flex-col gap-4" data-testid="integracao.lote-detalhe">
       <div className="flex flex-wrap items-center gap-2 text-[13px]">
-        <Badge tone={TOM_STATUS_LOTE[lote.status]}>{ROTULO_STATUS_LOTE[lote.status]}</Badge>
+        <Badge tone={tomDoLote(lote.status)}>{rotuloDoLote(lote.status)}</Badge>
         <span>{ROTULO_MODO[lote.modo]}</span>
         <span className="text-ink-2">{lote.concluido_em ? `concluído ${formatDateTime(lote.concluido_em, tz)}` : 'ainda não concluído'}</span>
       </div>

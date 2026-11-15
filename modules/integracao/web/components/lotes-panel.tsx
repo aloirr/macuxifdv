@@ -1,54 +1,109 @@
 'use client';
 
-import { Badge, Button, EstadoVazio, FilterBar, formatDateTime, Panel, rotuloComContagem, SelectField, TabelaDados, type ColunaDaTabela } from '@macuxi/ui/web';
-import { ENTIDADES, ESTADOS_LOTE, type ConectorResumo, type LoteListagemItem } from '../../contracts';
-import { ROTULO_ENTIDADE, ROTULO_STATUS_LOTE, TOM_STATUS_LOTE } from '../lib/apresentacao';
-import { ROTULO_MODO } from '../lib/csv';
+import { useState } from 'react';
+import type { Perfil } from '@macuxi/platform-sdk';
+import { errorMessage } from '@macuxi/platform-sdk/web';
+import { Badge, Button, Dialog, EstadoVazio, FilterBar, Panel, SelectField, TabelaDados, formatDataHoraCurta, formatDuracao, formatInt, useToast, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
+import { ENTIDADES, type LoteListagemItem } from '../../contracts';
+import { STATUS_LOTE, acoesDoLote, duracaoLoteSegundos, linhasIntegradas } from '../../domain';
+import { ROTULO_ENTIDADE, ROTULO_STATUS, podeExecutar, rotuloDoLote, tomDoLote } from '../lib/apresentacao';
 import { FILTROS_VAZIOS, type FiltrosMonitor, temFiltro } from '../lib/filtros-url';
+import { precisaAutorizador, useCancelarLote, useReprocessarLote } from '../lib/queries';
+import { AutorizarReprocessamento } from './autorizar-reprocessamento';
 
-/** Colunas da lista (revisão do BKO §P2): a entidade abre o lote; a situação é um selo só (§P5); as contagens do lote ficam na gaveta. */
-function colunas(tz: string): ReadonlyArray<ColunaDaTabela<LoteListagemItem>> {
+const numero = formatInt;
+
+/** Colunas da spec docs/design/integracao-simples §3: sem travessão, Conclusão vazia em andamento, número à direita. */
+function colunas(tz: string, agora: Date): ReadonlyArray<ColunaDaTabela<LoteListagemItem>> {
   return [
-    { id: 'entidade', titulo: 'Entidade', celula: (l) => ROTULO_ENTIDADE[l.entidade], texto: (l) => ROTULO_ENTIDADE[l.entidade] },
-    { id: 'conector', titulo: 'Conector', prioridade: 2, celula: (l) => <span className="font-mono text-[12px]">{l.conector_id}</span>, texto: (l) => l.conector_id },
-    { id: 'modo', titulo: 'Modo', prioridade: 3, largura: '150px', celula: (l) => ROTULO_MODO[l.modo], texto: (l) => ROTULO_MODO[l.modo] },
-    { id: 'recebido', titulo: 'Recebido', numero: true, largura: '140px', celula: (l) => formatDateTime(l.recebido_em, tz) },
-    { id: 'recebidas', titulo: 'Linhas', numero: true, prioridade: 3, largura: '88px', celula: (l) => l.recebidas },
-    { id: 'erros', titulo: 'Erros', numero: true, prioridade: 2, largura: '80px', celula: (l) => <span className={l.com_erro > 0 ? 'font-semibold text-danger' : ''}>{l.com_erro}</span> },
-    { id: 'situacao', titulo: 'Situação', largura: '164px', celula: (l) => <Badge tone={TOM_STATUS_LOTE[l.status]}>{ROTULO_STATUS_LOTE[l.status]}</Badge> },
+    { id: 'entidade', titulo: 'Entidade', largura: '19%', celula: (l) => <span className="font-normal">{ROTULO_ENTIDADE[l.entidade]}</span>, texto: (l) => ROTULO_ENTIDADE[l.entidade] },
+    {
+      id: 'lote',
+      titulo: 'Lote',
+      prioridade: 2,
+      largura: '11%',
+      celula: (l) => (
+        <span className="font-mono text-[12px]" title={l.lote_id}>
+          {l.lote_id.slice(0, 8)}
+        </span>
+      ),
+      texto: (l) => l.lote_id.slice(0, 8),
+    },
+    { id: 'inicio', titulo: 'Início', largura: '12%', celula: (l) => formatDataHoraCurta(l.recebido_em, tz), texto: (l) => formatDataHoraCurta(l.recebido_em, tz) },
+    {
+      id: 'duracao',
+      titulo: 'Duração',
+      prioridade: 2,
+      largura: '11%',
+      celula: (l) => formatDuracao(duracaoLoteSegundos(l.recebido_em, l.concluido_em, agora)),
+    },
+    { id: 'conclusao', titulo: 'Conclusão', prioridade: 3, largura: '12%', celula: (l) => formatDataHoraCurta(l.concluido_em, tz) },
+    {
+      id: 'status',
+      titulo: 'Status',
+      largura: '15%',
+      celula: (l) => <Badge tone={tomDoLote(l.status)}>{rotuloDoLote(l.status)}</Badge>,
+    },
+    {
+      id: 'linhas',
+      titulo: 'Linhas integradas',
+      numero: true,
+      largura: '14%',
+      celula: (l) => {
+        const r = linhasIntegradas(l.recebidas, l.com_erro);
+        return r.comErro ? `${numero(r.integradas)} de ${numero(r.total)}` : numero(r.integradas);
+      },
+    },
   ];
 }
 
 /**
- * Lotes recentes (RF-INT-04): recebido → aplicado (com ou sem erros) ou falhou. Filtros na URL. Clique na entidade abre a
- * gaveta com as contagens e os erros por linha. A contagem do título é a do filtro (revisão do BKO §P6); lista vazia mostra o
- * `EstadoVazio` uma vez (§P7).
+ * Lotes (RF-INT-04; T-0173): filtros Entidade e Status, a tabela da spec, o clique na linha abre o log (gaveta) e o "⋯" só nas linhas
+ * com ação (RN-INT-15): Cancelar (em andamento, com confirmação) e Reprocessar (Com falha e Concluído com avisos). Quem não tem
+ * `lote.reprocessar` autoriza com a senha de um admin/analista (RN-INT-16). A API revalida tudo.
  */
 export function LotesPanel({
   lotes,
-  conectores,
   filtros,
   mudar,
   tz,
+  agora,
+  perfil,
 }: {
   lotes: readonly LoteListagemItem[];
-  conectores: readonly ConectorResumo[];
   filtros: FiltrosMonitor;
   mudar: (patch: Partial<FiltrosMonitor>) => void;
   tz: string;
+  agora: Date;
+  perfil: Perfil | null;
 }) {
+  const toast = useToast();
+  const cancelar = useCancelarLote();
+  const reprocessar = useReprocessarLote();
+  const [cancelando, setCancelando] = useState<LoteListagemItem | null>(null);
+  const [autorizando, setAutorizando] = useState<string | null>(null);
   const filtrado = temFiltro(filtros);
+  const direto = podeExecutar('lote.reprocessar', perfil);
+
+  const iniciar = (loteId: string) =>
+    reprocessar.mutate(
+      { loteId },
+      {
+        onSuccess: () => toast('success', 'Reprocessamento iniciado.'),
+        onError: (e) => (precisaAutorizador(e) ? setAutorizando(loteId) : toast('danger', errorMessage(e))),
+      },
+    );
+
+  const acoes = (l: LoteListagemItem): AcaoDoMenu[] =>
+    acoesDoLote(l.status).map((a) =>
+      a === 'cancelar'
+        ? { id: 'cancelar', rotulo: 'Cancelar', perigo: true, testId: `integracao.lote.cancelar.${l.lote_id}`, aoEscolher: () => setCancelando(l) }
+        : { id: 'reprocessar', rotulo: 'Reprocessar', testId: `integracao.lote.reprocessar.${l.lote_id}`, aoEscolher: () => (direto ? iniciar(l.lote_id) : setAutorizando(l.lote_id)) },
+    );
+
   return (
-    <Panel label="Lotes recentes" title={rotuloComContagem('Lotes recentes', lotes.length)}>
+    <>
       <FilterBar>
-        <SelectField label="Conector" value={filtros.conector} onChange={(e) => mudar({ conector: e.target.value })} data-testid="integracao.filtro-conector">
-          <option value="">Todos</option>
-          {conectores.map((c) => (
-            <option key={c.id} value={c.conector_id}>
-              {c.nome}
-            </option>
-          ))}
-        </SelectField>
         <SelectField label="Entidade" value={filtros.entidade} onChange={(e) => mudar({ entidade: e.target.value })} data-testid="integracao.filtro-entidade">
           <option value="">Todas</option>
           {ENTIDADES.map((e) => (
@@ -57,18 +112,14 @@ export function LotesPanel({
             </option>
           ))}
         </SelectField>
-        <SelectField label="Situação" value={filtros.status} onChange={(e) => mudar({ status: e.target.value })} data-testid="integracao.filtro-status">
-          <option value="">Todas</option>
-          {ESTADOS_LOTE.map((s) => (
+        <SelectField label="Status" value={filtros.status} onChange={(e) => mudar({ status: e.target.value })} data-testid="integracao.filtro-status">
+          <option value="">Todos</option>
+          {STATUS_LOTE.map((s) => (
             <option key={s} value={s}>
-              {ROTULO_STATUS_LOTE[s]}
+              {ROTULO_STATUS[s]}
             </option>
           ))}
         </SelectField>
-        <label className="flex h-10 items-center gap-2 self-end text-[13px] font-semibold text-ink-2">
-          <input type="checkbox" className="h-5 w-5" checked={filtros.com_erro === '1'} onChange={(e) => mudar({ com_erro: e.target.checked ? '1' : '' })} data-testid="integracao.filtro-com-erro" />
-          Só com erro
-        </label>
         {filtrado && (
           <Button size="sm" onClick={() => mudar({ ...FILTROS_VAZIOS, lote: filtros.lote })} data-testid="integracao.limpar-filtros">
             Limpar filtros
@@ -76,16 +127,70 @@ export function LotesPanel({
         )}
       </FilterBar>
 
+      <Panel label="Lotes">
       <TabelaDados
-        colunas={colunas(tz)}
+        colunas={colunas(tz, agora)}
         linhas={lotes}
         chave={(l) => l.lote_id}
-        rotulo="Lotes recentes"
+        rotulo="Lotes"
         aoAbrir={(l) => mudar({ lote: l.lote_id })}
+        acoes={acoes}
         testId="integracao.lotes"
         linhaTestId={(l) => `integracao.lote.${l.lote_id}`}
-        vazio={<EstadoVazio titulo={filtrado ? 'Nenhum lote com esses filtros.' : 'Nenhum lote recebido ainda.'} testId="integracao.lotes.vazio" />}
+        vazio={
+          <EstadoVazio semBorda
+            titulo={filtrado ? 'Nenhum lote com esses filtros.' : 'Nenhum lote recebido ainda.'}
+            testId="integracao.lotes.vazio"
+          />
+        }
       />
-    </Panel>
+      </Panel>
+
+      <Dialog
+        open={cancelando !== null}
+        title="Cancelar este lote?"
+        onClose={() => setCancelando(null)}
+        footer={
+          <>
+            <Button onClick={() => setCancelando(null)}>Voltar</Button>
+            <Button
+              variant="danger"
+              disabled={cancelar.isPending}
+              data-testid="integracao.cancelar.confirmar"
+              onClick={() =>
+                cancelando &&
+                cancelar.mutate(cancelando.lote_id, {
+                  onSuccess: () => {
+                    toast('success', 'Lote cancelado.');
+                    setCancelando(null);
+                  },
+                  onError: (e) => {
+                    toast('danger', errorMessage(e));
+                    setCancelando(null);
+                  },
+                })
+              }
+            >
+              Cancelar lote
+            </Button>
+          </>
+        }
+      >
+        {cancelando && (
+          <p className="m-0 text-[14px]">
+            {ROTULO_ENTIDADE[cancelando.entidade]} · lote {cancelando.lote_id.slice(0, 8)}
+          </p>
+        )}
+      </Dialog>
+
+      <AutorizarReprocessamento
+        loteId={autorizando}
+        onClose={() => setAutorizando(null)}
+        onAutorizado={() => {
+          setAutorizando(null);
+          toast('success', 'Reprocessamento iniciado.');
+        }}
+      />
+    </>
   );
 }

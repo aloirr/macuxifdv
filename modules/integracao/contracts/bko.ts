@@ -10,8 +10,16 @@ import { DataHoraUtc, Uuid } from './base';
 import { AtualizacaoConector, PoliticaVersaoConector } from './conector';
 import { ConectorIdentificador } from './hub';
 import { ENTIDADES, Entidade } from './entidades';
-import { EstadoLote, LinhaErro } from './lote';
+import { ESTADOS_LOTE, LinhaErro, LoteResultado } from './lote';
 import { EstadoPedidoErp } from './pedido';
+
+/** Estados do lote no BKO: os do Hub v1 mais `cancelado` (T-0173). O Conector v1 nunca recebe `cancelado`: lá sai `falhou`. */
+export const ESTADOS_LOTE_BKO = [...ESTADOS_LOTE, 'cancelado'] as const;
+export const EstadoLoteBko = z.enum(ESTADOS_LOTE_BKO);
+export type EstadoLoteBko = z.infer<typeof EstadoLoteBko>;
+/** `GET /v1/integracao/lotes/{id}` (BKO): o resultado do v1 com o estado ampliado. */
+export const LoteResultadoBko = LoteResultado.extend({ status: EstadoLoteBko });
+export type LoteResultadoBko = z.infer<typeof LoteResultadoBko>;
 
 export const TIPOS_CONECTOR = ['conector', 'nuvem', 'arquivo'] as const;
 export const TipoConector = z.enum(TIPOS_CONECTOR);
@@ -159,7 +167,7 @@ export type PoliticaVersaoEntrada = z.infer<typeof PoliticaVersaoEntrada>;
 export const LoteListagemQuery = z.object({
   conector_id: ConectorIdentificador.optional(),
   entidade: Entidade.optional(),
-  status: EstadoLote.optional(),
+  status: EstadoLoteBko.optional(),
   /** Só lotes com erro por linha. */
   com_erro: z.coerce.boolean().optional(),
   de: DataHoraUtc.optional(),
@@ -174,7 +182,7 @@ export const LoteListagemItem = z.object({
   conector_id: ConectorIdentificador,
   entidade: Entidade,
   modo: z.enum(['completo', 'delta']),
-  status: EstadoLote,
+  status: EstadoLoteBko,
   recebidas: z.number().int().nonnegative(),
   com_erro: z.number().int().nonnegative(),
   novas: z.number().int().nonnegative(),
@@ -207,11 +215,30 @@ export type ErrosLoteQuery = z.infer<typeof ErrosLoteQuery>;
 export const ErrosLoteResposta = z.object({ itens: z.array(LinhaErro), total: z.number().int().nonnegative() });
 export type ErrosLoteResposta = z.infer<typeof ErrosLoteResposta>;
 
-/** `POST /v1/integracao/lotes/{id}/reprocessar`: reaplica do staging as linhas reprocessáveis (referencia_ausente, falha_processamento). */
-export const ReprocessarLoteEntrada = z.object({ codigos: z.array(z.enum(['referencia_ausente', 'falha_processamento'])).min(1).optional() });
+/**
+ * `POST /v1/integracao/lotes/{id}/reprocessar`: reaplica do staging o lote em Com falha ou Concluído com avisos (RN-INT-15).
+ * Quem tem `lote.reprocessar` reprocessa direto. Quem não tem envia `autorizador_id` (usuário listado em `GET /lotes/autorizadores`)
+ * e a `senha` dele (RN-INT-16): a API confere a senha pelo Core, exige `lote.reprocessar` do autorizador (outra pessoa, não o próprio
+ * solicitante: 422 `autorizador_invalido`), limita as tentativas e audita quem autorizou. A senha nunca é guardada nem vai para log.
+ */
+export const ReprocessarLoteEntrada = z.object({
+  autorizador_id: Uuid.optional(),
+  senha: z.string().min(1).max(200).optional(),
+});
 export type ReprocessarLoteEntrada = z.infer<typeof ReprocessarLoteEntrada>;
-export const ReprocessarLoteResposta = z.object({ lote_id: Uuid, reenfileiradas: z.number().int().nonnegative(), status: EstadoLote });
+export const ReprocessarLoteResposta = z.object({ lote_id: Uuid, reenfileiradas: z.number().int().nonnegative(), status: EstadoLoteBko });
 export type ReprocessarLoteResposta = z.infer<typeof ReprocessarLoteResposta>;
+
+/** `POST /v1/integracao/lotes/{id}/cancelar` (`lote.cancelar`): só lote em andamento; outro estado = 409 `lote_nao_esta_em_andamento`. */
+export const CancelarLoteResposta = z.object({ lote_id: Uuid, status: z.literal('cancelado') });
+export type CancelarLoteResposta = z.infer<typeof CancelarLoteResposta>;
+
+/**
+ * `GET /v1/integracao/lotes/autorizadores` (`monitor.ver`): quem pode autorizar o reprocessamento, pela permissão efetiva
+ * `lote.reprocessar` (consulta `core.usuarios_com_acao@1`), sem quem pede. Sem e-mail nem perfil.
+ */
+export const AutorizadoresResposta = z.object({ itens: z.array(z.object({ id: Uuid, nome: z.string() })) });
+export type AutorizadoresResposta = z.infer<typeof AutorizadoresResposta>;
 
 /** Trava de inativação em massa (RN-INT-06): a carga completa fica aguardando confirmação do operador no BKO. */
 export const ESTADOS_PENDENCIA_INATIVACAO = ['aguardando', 'confirmada', 'recusada', 'expirada'] as const;
@@ -305,6 +332,35 @@ export type MapeamentosResposta = z.infer<typeof MapeamentosResposta>;
 export const GravarMapeamentoResposta = z.object({ item: MapeamentoItem, pedidos_liberados: z.number().int().nonnegative() });
 export type GravarMapeamentoResposta = z.infer<typeof GravarMapeamentoResposta>;
 
+/**
+ * `GET /v1/integracao/mapeamentos/codigos-macuxi?tipo=...` (`monitor.ver`): códigos do Macuxi que o De-para pode mapear, por entidade
+ * (`condicao_pagamento` vem do Vendedor, `vendedor.formas_pagamento@1`). `disponivel: false` = a fonte do tipo não está
+ * instalada ou ainda não oferece a lista; a tela aceita o código digitado.
+ */
+export const CodigosMacuxiQuery = z.object({ tipo: TipoMapeamento });
+export type CodigosMacuxiQuery = z.infer<typeof CodigosMacuxiQuery>;
+export const CodigosMacuxiResposta = z.object({
+  tipo: TipoMapeamento,
+  disponivel: z.boolean(),
+  itens: z.array(z.object({ codigo: z.string(), nome: z.string(), ativo: z.boolean() })),
+});
+export type CodigosMacuxiResposta = z.infer<typeof CodigosMacuxiResposta>;
+
+/**
+ * Os 5 números dos cards no início de BKO > Pedidos (T-0173, decisão R-20261115-110600 item 3), consumidos pelo Vendedor. Já vêm
+ * em `MonitorResumo.resumo_pedidos` (`GET /v1/integracao/monitor`, ação `monitor.ver`), montado pelo domain (`resumoPedidosErp`).
+ */
+export const ResumoPedidosErp = z.object({
+  na_fila: z.number().int().nonnegative(),
+  entregue_ao_conector: z.number().int().nonnegative(),
+  rejeitado_pelo_erp: z.number().int().nonnegative(),
+  presos_sem_retorno: z.number().int().nonnegative(),
+  retidos_sem_mapeamento: z.number().int().nonnegative(),
+});
+export type ResumoPedidosErp = z.infer<typeof ResumoPedidosErp>;
+/** Rota (relativa a `/v1`) que traz os 5 números dentro de `MonitorResumo.resumo_pedidos`. */
+export const ROTA_RESUMO_PEDIDOS_ERP = '/integracao/monitor';
+
 /** Pedido na fila do ERP, para o monitor (sem itens nem dado do cliente). */
 export const PedidoFilaItem = z.object({
   pedido_uuid: Uuid,
@@ -376,10 +432,7 @@ export const MonitorResumo = z.object({
       contagem_macuxi: z.number(),
     }),
   ),
-  pedidos: z.object({
-    por_estado: z.record(EstadoPedidoErp, z.number().int().nonnegative()),
-    presos: z.number().int().nonnegative(),
-    retidos: z.number().int().nonnegative(),
-  }),
+  /** Os 5 números dos cards de BKO > Pedidos, já calculados pela API (T-0173); o Vendedor só exibe. Aditivo. */
+  resumo_pedidos: ResumoPedidosErp,
 });
 export type MonitorResumo = z.infer<typeof MonitorResumo>;

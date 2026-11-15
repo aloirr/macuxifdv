@@ -605,8 +605,8 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
         agora: () => new Date(),
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
         comTenant: (fn: (db: pg.PoolClient, tx: unknown) => Promise<unknown>) => comTenant(pool, tenantId, (db) => fn(db, {})),
-      } as never) as Promise<{ pedidos: { retidos: number }; alertas: { codigo: string; mensagem: string }[] }>;
-    const contarRetidos = async (tenantId: string) => (await monitor(tenantId)).pedidos.retidos;
+      } as never) as Promise<{ resumo_pedidos: { retidos_sem_mapeamento: number }; alertas: { codigo: string; mensagem: string }[] }>;
+    const contarRetidos = async (tenantId: string) => (await monitor(tenantId)).resumo_pedidos.retidos_sem_mapeamento;
 
     it('RN-INT-08 (T-0032 🟡): aprovado sem chave do ERP NÃO lança nem some: fica RETIDO na fila (mapeamento_ausente, payload nulo) com a mensagem do que completar, visível no monitor e fora do GET do Conector', async () => {
       await limpar();
@@ -621,7 +621,7 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
       expect(f?.retencao_mensagem).toMatch(/cancele este pedido/i);
       expect((await retirar()).pedidos.map((x) => x.pedido_uuid)).not.toContain(uuid);
       const m = await monitor(A.tenantId);
-      expect(m.pedidos.retidos).toBe(antes + 1);
+      expect(m.resumo_pedidos.retidos_sem_mapeamento).toBe(antes + 1);
       expect(m.alertas.find((a) => a.codigo === 'pedido_retido_sem_mapeamento')?.mensagem).toMatch(/chaves do ERP/);
       // outro tenant não vê o retido de A
       expect(await filaCompleta(B.tenantId, uuid)).toBeUndefined();

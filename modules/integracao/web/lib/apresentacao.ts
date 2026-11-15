@@ -9,14 +9,14 @@ import type {
   AlertaMonitor,
   AtualizacaoConector,
   Entidade,
-  EstadoLote,
+  EstadoLoteBko,
   EstadoPedidoErp,
   MonitorResumo,
   PendenciaInativacao,
   SaudeConector,
   SITUACOES_VERSAO_CONECTOR,
 } from '../../contracts';
-import { autorizarAcaoIntegracao, situacaoPendencia, type AcaoIntegracao } from '../../domain';
+import { autorizarAcaoIntegracao, situacaoPendencia, statusDoLote, type AcaoIntegracao, type StatusLote } from '../../domain';
 
 type SituacaoVersao = (typeof SITUACOES_VERSAO_CONECTOR)[number];
 type EstadoCarga = MonitorResumo['cargas'][number]['estado'];
@@ -55,21 +55,26 @@ export const TOM_SITUACAO_VERSAO: Record<SituacaoVersao, BadgeTone> = {
   abaixo_da_minima: 'danger',
 };
 
-export const ROTULO_STATUS_LOTE: Record<EstadoLote, string> = {
-  recebido: 'Recebido',
-  processando: 'Processando',
-  concluido: 'Aplicado',
-  concluido_com_erros: 'Aplicado com erros',
-  falhou: 'Falhou',
+/** RN-INT-15: os 5 status que a pessoa vê; o estado técnico do lote vira um deles em `statusDoLote` (domain). */
+export const ROTULO_STATUS: Record<StatusLote, string> = {
+  em_andamento: 'Em andamento',
+  concluido: 'Concluído',
+  concluido_com_avisos: 'Concluído com avisos',
+  com_falha: 'Com falha',
+  cancelado: 'Cancelado',
 };
 
-export const TOM_STATUS_LOTE: Record<EstadoLote, BadgeTone> = {
-  recebido: 'pending',
-  processando: 'pending',
+export const TOM_STATUS: Record<StatusLote, BadgeTone> = {
+  em_andamento: 'pending',
   concluido: 'success',
-  concluido_com_erros: 'warning',
-  falhou: 'danger',
+  concluido_com_avisos: 'warning',
+  com_falha: 'danger',
+  cancelado: 'neutral',
 };
+
+/** Rótulo e tom do status da pessoa para o estado técnico do lote (RN-INT-15), via `statusDoLote` do domain. Aceita `EstadoLote` (v1) e `EstadoLoteBko`. */
+export const rotuloDoLote = (estado: EstadoLoteBko): string => ROTULO_STATUS[statusDoLote(estado)];
+export const tomDoLote = (estado: EstadoLoteBko): BadgeTone => TOM_STATUS[statusDoLote(estado)];
 
 export const ROTULO_ENTIDADE: Record<Entidade, string> = {
   vendedor: 'Vendedores',
@@ -193,3 +198,6 @@ export function resumoAtualizacao(a: AtualizacaoConector | null | undefined): { 
   const versoes = a.resultado === 'atualizado' && a.versao_de && a.versao_para ? ` ${a.versao_de} → ${a.versao_para}.` : '';
   return { rotulo: ROTULO_ATUALIZACAO[a.resultado], tom: TOM_ATUALIZACAO[a.resultado], detalhe: `${a.mensagem}${versoes}` };
 }
+
+/** RD-0967: sem nenhum de-para cadastrado, filtros e busca não aparecem (o vazio só convida a cadastrar pelo cabeçalho). */
+export const mostrarFiltrosDePara = (totalCadastrado: number): boolean => totalCadastrado > 0;

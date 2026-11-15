@@ -27,9 +27,9 @@ Padrão do BKO (BOM, `;`, CRLF). Só códigos do ERP (`external_id`), contagens 
 
 ## Arquivos
 - `web/index.ts` — `moduloWeb` (página `monitor`).
-- `web/components/` — `monitor-page`, `alertas-panel`, `conectores-panel`, `inativacoes-panel`, `lotes-panel`, `lote-drawer`, `pedidos-panel`.
+- `web/components/` — `monitor-page` (cabeçalho, filtros e tabela de lotes), `lotes-panel`, `lote-drawer`, `autorizar-reprocessamento`, `de-para-page`, `carga-arquivo-page`.
 - `web/lib/` — `apresentacao` (rótulos, tons, `tempoDesde`, `podeExecutar`, `decisaoDaPendencia`), `filtros-url`, `use-filtros`, `csv`, `queries`.
-- Testes: `web/lib/*.test.ts` (puros, relógio de `@macuxi/comum/relogio`, sem hora fixa) e `web/components/paineis.render.test.ts` (renderização no servidor: botões de decisão por perfil e validade, sinal de vida).
+- Testes: `web/lib/*.test.ts` (puros, relógio de `@macuxi/comum/relogio`, sem hora fixa).
 
 ## Pendências (fora da T-0051 nuvem)
 1. **Rota `GET /v1/integracao/lotes/{id}/erros`** — implementada em `modules/integracao/api/bko-carga-arquivo.ts` (T-0032, carga por arquivo): `ErrosLoteQuery` → `ErrosLoteResposta`, paginada, filtro por `codigo`/`reprocessavel`; a gaveta já a consome. Junto veio `GET /v1/integracao/lotes/{id}` (`LoteResultado`).
@@ -43,3 +43,10 @@ Padrão do BKO (BOM, `;`, CRLF). Só códigos do ERP (`external_id`), contagens 
 ## De-para de códigos e aviso de marca desconhecida (T-0120, T-0103)
 - **Painel "De-para de códigos"** (rodapé da página): lista condição de pagamento, depósito e status ERP ↔ Macuxi. Lê com `monitor.ver` (`GET /v1/integracao/mapeamentos`); salva, inativa, apaga e reprocessa com `mapeamento.editar` (admin ou analista; `PUT/DELETE /v1/integracao/mapeamentos`, `POST /v1/integracao/pedidos/reprocessar-retidos`). Regra (RN-INT-08): um correspondente **ativo** por condição do Macuxi; a API recusa o segundo com a ação seguinte. Ao salvar uma condição de pagamento, os pedidos **retidos por falta de de-para** são reavaliados na mesma transação e seguem para a fila. Quando há pedidos retidos, o painel avisa quais condições faltam e quantos pedidos esperam, com botão "Preencher".
 - **Aviso `marca_concorrente_desconhecida`** na gaveta do lote: o Hub consome `catalogo.referencia.marca_desconhecida@1` e acrescenta o aviso ao lote que originou a linha ("Produto ABC: marca "X" não cadastrada; a referência foi carregada sem marca resolvida"). É aviso, nunca erro; limite de 200 avisos por lote, depois "e mais N" (`avisos_omitidos`).
+
+## T-0173: Integração ERP simples (v1.0.13)
+- **Tela Integração ERP** (`monitor`): só cabeçalho + Atualizar, filtros Entidade e Status e a tabela de lotes (Entidade, Lote, Início, Duração, Conclusão, Status, Linhas integradas). Clique na linha abre o log; "⋯" só em linha com ação.
+- **5 status (RN-INT-15, `domain/status-lote.ts`)**: Em andamento (recebido, processando), Concluído, Concluído com avisos (`concluido_com_erros`), Com falha (`falhou`), Cancelado (estado novo `cancelado`). Cancelar só em andamento (`POST /v1/integracao/lotes/:id/cancelar`, ação `lote.cancelar`, 409 `lote_nao_esta_em_andamento`); Reprocessar só em Com falha e Concluído com avisos (`POST /v1/integracao/lotes/:id/reprocessar`).
+- **Autorização do reprocessamento (RN-INT-16)**: sem `lote.reprocessar`, o corpo leva `autorizador_id` (de `GET /v1/integracao/lotes/autorizadores`) e `senha`; senha conferida pelo Core (porta `VerificadorSenha`; pendente `core.credencial_conferir@1`), 5 erros em 15 min bloqueiam (429), auditoria grava quem autorizou.
+- **De-para** saiu do monitor: página `de-para` (`parametros/integracao`), códigos do Macuxi em `GET /v1/integracao/mapeamentos/codigos-macuxi?tipo=`.
+- **Cards de pedidos (Vendedor)**: `MonitorResumo.pedidos` em `GET /v1/integracao/monitor`; `resumoPedidosErp()` (domain) e `ResumoPedidosErp` (contrato) dão os 5 números.
