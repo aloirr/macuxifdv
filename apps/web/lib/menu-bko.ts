@@ -56,6 +56,12 @@ export const TEXTO_SEM_LICENCA = 'Contrate o módulo para usar';
 export const ALTURA_TITULO = 30;
 export const ALTURA_ITEM = 32;
 export const ESPACO_ENTRE_GRUPOS = 2;
+/**
+ * Balão "Contrate o módulo para usar" (spec §3): ocupa a linha logo abaixo da entrada bloqueada, dentro do menu (6 px da
+ * seta + 32 px do balão), para nunca cobrir o conteúdo. Um balão por vez: a lista reserva uma linha dele quando há
+ * entrada bloqueada, e abrir o balão não muda o modo (aberto ou sanfona) nem cria rolagem.
+ */
+export const ALTURA_DICA = 38;
 
 /** Caminho do slot "Mais" (escrito pelo módulo, com ou sem barra inicial) → href. */
 const href = (caminho: string) => `/${caminho.replace(/^\/+/, '')}`;
@@ -117,12 +123,14 @@ export const soTitulo = (g: GrupoMenuBko) => g.direto || g.bloqueado;
 
 /**
  * Altura da lista do menu (px): toda entrada mostra o título; os grupos em `abertos` mostram também os itens. Item direto e
- * entrada bloqueada nunca abrem. `abertos = 'todos'` mede o menu inteiro aberto.
+ * entrada bloqueada nunca abrem. `abertos = 'todos'` mede o menu inteiro aberto. Com entrada bloqueada, soma a linha do
+ * balão (`ALTURA_DICA`).
  */
 export function alturaDoMenu(grupos: readonly GrupoMenuBko[], abertos: 'todos' | ReadonlySet<string>): number {
   if (grupos.length === 0) return 0;
   const itens = grupos.reduce((soma, g) => soma + (!soTitulo(g) && (abertos === 'todos' || abertos.has(g.id)) ? g.itens.length : 0), 0);
-  return grupos.length * ALTURA_TITULO + itens * ALTURA_ITEM + (grupos.length - 1) * ESPACO_ENTRE_GRUPOS;
+  const dica = grupos.some((g) => g.bloqueado) ? ALTURA_DICA : 0;
+  return grupos.length * ALTURA_TITULO + itens * ALTURA_ITEM + (grupos.length - 1) * ESPACO_ENTRE_GRUPOS + dica;
 }
 
 /** Tudo aberto cabe na altura disponível (entre a marca e o rodapé)? Senão, sanfona (§M3). */

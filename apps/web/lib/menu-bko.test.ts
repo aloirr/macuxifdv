@@ -7,6 +7,7 @@ import { ROTULO_GRUPO_MENU, type GrupoMenu } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 
 import {
+  ALTURA_DICA,
   alturaDoMenu,
   cabeTudoAberto,
   grupoDaTela,
@@ -162,6 +163,12 @@ describe('menu do BKO: vitrine sem licença (ADR 0058, spec §3)', () => {
   it('grupo misto: o item bloqueado não aparece', () => {
     const misto = montarGruposMenu({ navegacao: [n('trade', 'trade', 'Indicadores', 'promotor'), n('trade', 'x', 'X', 'pesquisa', true)], plataforma: false });
     expect(misto).toEqual([{ id: 'trade', titulo: 'Trade', itens: [{ href: '/trade', label: 'Indicadores', testId: 'nav-promotor-trade' }], direto: true, bloqueado: false, testId: 'nav-promotor-trade' }]);
+  });
+
+  it('com entrada bloqueada, a altura reserva uma linha do balão dentro do menu (um balão por vez)', () => {
+    const semBloqueio = grupos.map((g) => ({ ...g, bloqueado: false, direto: true }));
+    expect(alturaDoMenu(grupos, new Set())).toBe(alturaDoMenu(semBloqueio, new Set()) + ALTURA_DICA);
+    expect(ALTURA_DICA).toBe(6 + 32);
   });
 });
 

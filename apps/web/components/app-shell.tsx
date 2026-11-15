@@ -123,32 +123,23 @@ function ItemDireto({ grupo, active, onNavegar }: { grupo: GrupoMenuBko; active:
 
 /**
  * Entrada de módulo de vitrine que a empresa não contratou (ADR 0058, spec §3): cinza no grafite com cadeado no lugar da
- * seta; não abre nem navega; `aria-disabled`, foco de teclado e o balão "Contrate o módulo para usar" à direita do menu no
- * passar do ponteiro, no foco e no clique (some ao sair, no Esc ou no clique fora).
+ * seta; não abre nem navega; `aria-disabled`, foco de teclado e o balão "Contrate o módulo para usar" no passar do
+ * ponteiro, no foco e no clique (some ao sair, no Esc ou no clique fora). O balão ocupa a linha logo abaixo da entrada,
+ * dentro da largura do menu, com a seta para cima: nunca cobre o conteúdo (spec §3; altura reservada em `ALTURA_DICA`).
  */
-function EntradaBloqueada({ grupo }: { grupo: GrupoMenuBko }) {
-  const [dica, setDica] = useState<{ top: number; left: number } | null>(null);
+export function EntradaBloqueada({ grupo }: { grupo: GrupoMenuBko }) {
+  const [dica, setDica] = useState(false);
   const idDica = `menu-dica-${grupo.id}`;
-  const mostrar = (el: HTMLElement) => {
-    const r = el.getBoundingClientRect();
-    const menu = el.closest('nav')?.getBoundingClientRect();
-    setDica({ top: r.top + r.height / 2, left: (menu?.right ?? r.right) + 10 });
-  };
   useEffect(() => {
     if (!dica) return;
     const tecla = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setDica(null);
+      if (e.key === 'Escape') setDica(false);
     };
-    const rolar = () => setDica(null);
     document.addEventListener('keydown', tecla);
-    window.addEventListener('scroll', rolar, true);
-    return () => {
-      document.removeEventListener('keydown', tecla);
-      window.removeEventListener('scroll', rolar, true);
-    };
+    return () => document.removeEventListener('keydown', tecla);
   }, [dica]);
   return (
-    <>
+    <div className="flex shrink-0 flex-col" onMouseLeave={() => setDica(false)}>
       <div
         role="link"
         tabIndex={0}
@@ -156,11 +147,10 @@ function EntradaBloqueada({ grupo }: { grupo: GrupoMenuBko }) {
         aria-describedby={idDica}
         data-testid={grupo.testId}
         data-bloqueado=""
-        onMouseEnter={(e) => mostrar(e.currentTarget)}
-        onMouseLeave={() => setDica(null)}
-        onFocus={(e) => mostrar(e.currentTarget)}
-        onBlur={() => setDica(null)}
-        onClick={(e) => mostrar(e.currentTarget)}
+        onMouseEnter={() => setDica(true)}
+        onFocus={() => setDica(true)}
+        onBlur={() => setDica(false)}
+        onClick={() => setDica(true)}
         className={cx('flex h-[30px] shrink-0 cursor-not-allowed items-center justify-between rounded-lg px-2.5 text-disabled', TITULO_TEXTO, FOCO)}
       >
         {grupo.titulo}
@@ -170,12 +160,12 @@ function EntradaBloqueada({ grupo }: { grupo: GrupoMenuBko }) {
         id={idDica}
         role="tooltip"
         hidden={!dica}
-        style={dica ? { top: dica.top, left: dica.left } : undefined}
-        className="pointer-events-none fixed z-50 -translate-y-1/2 rounded-lg bg-surface px-3 py-[7px] text-[13px] leading-[18px] font-semibold whitespace-nowrap text-ink shadow-[0_6px_16px_rgba(22,32,42,0.22)] before:absolute before:top-1/2 before:-left-[5px] before:size-2.5 before:-translate-y-1/2 before:rotate-45 before:bg-surface before:content-['']"
+        data-testid={`${grupo.testId}-dica`}
+        className="pointer-events-none relative mt-1.5 self-start rounded-lg bg-surface px-3 py-[7px] text-[13px] leading-[18px] font-semibold whitespace-nowrap text-ink shadow-[0_6px_16px_rgba(22,32,42,0.22)] before:absolute before:-top-[5px] before:left-4 before:size-2.5 before:rotate-45 before:bg-surface before:content-['']"
       >
         {TEXTO_SEM_LICENCA}
       </div>
-    </>
+    </div>
   );
 }
 
