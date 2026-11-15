@@ -877,12 +877,12 @@ Teste: `db/testes/empresa-acoes.db.test.ts`.
 | Coluna | Tipo | Regra |
 |---|---|---|
 | inativada_em | timestamptz | quando ficou inativa (`status = 'suspenso'`, rótulo "Inativa"); null = ativa |
-| motivo_inativacao | text | `MOTIVOS_INATIVACAO` do SDK (CHECK `tenant_motivo_inativacao_valido`); sem texto livre |
+| motivo_inativacao | text | opcional e nulo (ADR 0052 §1.1: a tela não pede motivo); quando vem, `MOTIVOS_INATIVACAO` do SDK (CHECK `tenant_motivo_inativacao_valido`); sem texto livre; só fora de `ativo` |
 
-CHECK `tenant_inativacao_coerente`: ativo ⇔ sem data e sem motivo (suspenso e encerrado sempre com os dois). Gatilho
-`tenant_inativacao_preencher` (BEFORE): status `ativo` limpa os dois; status fora de `ativo` sem data ou motivo ganha `now()` e
-`outro` (o `update ... set status = 'suspenso'` direto continua valendo). Na migração, as linhas fora de `ativo` ganharam a data
-do `updated_at` e `outro`.
+CHECK `tenant_inativacao_coerente`: ativo ⇔ sem data (suspenso e encerrado sempre com a data); motivo só fora de `ativo`, e
+pode ser nulo. Gatilho `tenant_inativacao_preencher` (BEFORE): status `ativo` limpa data e motivo; status fora de `ativo` sem
+data ganha `now()` (o `update ... set status = 'suspenso'` direto continua valendo); o gatilho não inventa motivo. Na migração,
+as linhas fora de `ativo` ganharam só a data (do `updated_at`); o motivo ficou nulo.
 
 ### Tabelas que sobrevivem à exclusão (exceção da regra 5; só por função)
 As quatro têm `empresa_id` **sem FK** (ou o próprio id, na `empresa_excluida`) e nenhum `tenant_id`, como a
@@ -941,7 +941,7 @@ Todas: sessão inválida = 28000; admin do cliente = 42501; o código do contrat
 
 | Função | Retorno | Erros |
 |---|---|---|
-| `sa_inativar_tenant(p_sid uuid, p_tenant uuid, p_motivo text)` | `SituacaoEmpresaResposta` (`resultado` `alterado` \| `sem_mudanca`); grava status, data e motivo, auditoria `tenant.inativado` e o evento `plataforma.tenant.inativado@1` na outbox, na mesma transação | 22023 (motivo fora da lista); P0002 `EMPRESA_NAO_ENCONTRADA`; 55000 `EXCLUSAO_EM_ANDAMENTO` |
+| `sa_inativar_tenant(p_sid uuid, p_tenant uuid, p_motivo text)` | `SituacaoEmpresaResposta` (`resultado` `alterado` \| `sem_mudanca`); grava status, data e motivo (nulo quando não vem), auditoria `tenant.inativado` e o evento `plataforma.tenant.inativado@1` na outbox, na mesma transação | 22023 (motivo informado fora da lista); P0002 `EMPRESA_NAO_ENCONTRADA`; 55000 `EXCLUSAO_EM_ANDAMENTO` |
 | `sa_reativar_tenant(p_sid uuid, p_tenant uuid)` | idem; auditoria `tenant.reativado`, evento `plataforma.tenant.reativado@1`; o backup em andamento deixa de ser consistente | P0002; 55000 `EXCLUSAO_EM_ANDAMENTO` |
 | `sa_pedir_backup(p_sid uuid, p_tenant uuid, p_id uuid)` | `BackupEmpresa` (o mesmo id devolve o mesmo); auditoria `tenant.backup_pedido` | P0002; 55000 `EXCLUSAO_EM_ANDAMENTO` / `BACKUP_EM_ANDAMENTO`; 23505 (id de backup de outra empresa) |
 | `sa_listar_backups(p_sid uuid, p_tenant uuid, p_backup uuid)` | `{ itens: BackupEmpresa[] }` (até 20, do mais novo; `p_backup` = só aquele; vale para a empresa excluída) | P0002 |
