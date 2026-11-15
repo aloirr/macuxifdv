@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Portal config. › Dados da Macuxi (rodapé legal)</title>
+<link rel="stylesheet" href="portal-config-enxuto/portal.css">
+<!--
+  Simulação da spec docs/design/telas/rodape-legal.md §3.1 (R-20261114-202000). 1366 x 768, Playwright, deviceScaleFactor 2:
+  rodape-legal-config-dados.png. Só o time da Macuxi (super-admin) vê o item "Dados da Macuxi".
+  Dados FICTÍCIOS: Exemplo Tecnologia Ltda., CNPJ 11.222.333/0001-81 (dígitos válidos).
+-->
+<style>
+  body { width: 1366px; min-height: 768px; }
+  .form { max-width: 720px; }
+  .acoes { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="topo"><div class="in">
+  <div class="marca"><img src="../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-azul-noite.svg" alt="Macuxi Força de Vendas" width="104"><small>Portal de implantação</small></div>
+  <nav class="menu"><a>Empresas</a><a>Diagnósticos</a><a class="ativo">Dados da Macuxi</a></nav>
+  <span class="sessao">Sessão até 18:40</span><span class="btn s">Sair</span>
+</div></div>
+<main>
+  <h1>Dados da Macuxi</h1>
+  <div class="sub" style="margin-bottom:18px">Aparecem no rodapé das telas Entrar.</div>
+  <div class="cartao form">
+    <div class="campos">
+      <div class="campo largo"><label>Razão social</label><div class="inp">Exemplo Tecnologia Ltda.</div></div>
+      <div class="campo"><label>CNPJ</label><div class="inp">11.222.333/0001-81</div></div>
+      <div class="campo"><label>Site</label><div class="inp">macuxifdv.com.br</div><div class="ajuda">Sem https:// e sem www.</div></div>
+    </div>
+    <div class="acoes"><span class="btn p">Salvar</span></div>
+  </div>
+  <div class="legenda-sim" style="text-align:left;padding-left:0">Dados fictícios.</div>
+</main>
+</body>
+</html>

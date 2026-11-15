@@ -6,9 +6,10 @@
 <link rel="stylesheet" href="telas.css">
 <!--
   Simulação da spec docs/design/telas/rodape-legal.md (pedido R-20261114-201200-alexandre).
-  Uso: rodape-legal.html?v=<campo|gestao|bko|portal>-<antes|depois>. Campo e Gestão em 390 x 844; BKO e portal em 1366 x 768.
-  PNG gerados com Playwright (deviceScaleFactor 2): rodape-legal-<v>.png nesta pasta.
-  {RAZÃO SOCIAL} e {00.000.000/0000-00} são espaços reservados: o dono do produto informa os dados (não inventar).
+  Uso: rodape-legal.html?v=<campo|gestao|bko|portal>-<antes|depois-preenchido|depois-em-branco>. Campo e Gestão em 390 x 844;
+  BKO e portal em 1366 x 768. PNG gerados com Playwright (deviceScaleFactor 2): rodape-legal-<v>.png nesta pasta.
+  Razão social e CNPJ vêm do cadastro "Dados da Macuxi" do portal (R-20261114-202000). Os do estado preenchido são
+  FICTÍCIOS (Exemplo Tecnologia Ltda., CNPJ 11.222.333/0001-81, dígitos válidos); no estado em branco a linha 1 some.
 -->
 <style>
   body { margin: 0; padding: 0; background: var(--ground); }
@@ -67,19 +68,28 @@
 <div id="raiz"></div>
 <script>
   const q = new URLSearchParams(location.search);
-  const v = q.get('v') || 'campo-depois';
+  const v = q.get('v') || 'campo-depois-preenchido';
   if (q.get('alvo') === '1') document.body.classList.add('alvo');
-  const [sup, fase] = v.split('-');
-  const depois = fase === 'depois';
+  const sup = v.split('-')[0];
+  const fase = v.slice(sup.length + 1);
+  const depois = fase.startsWith('depois');
+  // dados lidos do cadastro (aqui, fixos para a simulação); em branco = null
+  const DADOS = fase === 'depois-preenchido'
+    ? { razaoSocial: 'Exemplo Tecnologia Ltda.', cnpj: '11.222.333/0001-81', site: 'macuxifdv.com.br' } // fictícios
+    : { razaoSocial: null, cnpj: null, site: 'macuxifdv.com.br' };
   const LOGO = '../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-azul-noite.svg';
 
   // Texto do RodapeLegal (o mesmo nas quatro telas). Versão: app = scripts/eas/versao.json (1.0.8); web = tag da produção (ex.: v1.0.7).
-  const legal = (versao) => `
+  // Linha 1 só com o que estiver preenchido; os dois em branco = sem linha 1 (linhasDoRodapeLegal, packages/ui).
+  const legal = (versao) => {
+    const empresa = [DADOS.razaoSocial, DADOS.cnpj ? `<span class="nb">CNPJ ${DADOS.cnpj}</span>` : null].filter(Boolean).join(' · ');
+    return `
     <footer class="legal" role="contentinfo">
-      <div class="l">{RAZÃO SOCIAL} · <span class="nb">CNPJ {00.000.000/0000-00}</span></div>
+      ${empresa ? `<div class="l">${empresa}</div>` : ''}
       <div class="l">© 2026 · Todos os direitos reservados</div>
-      <div class="l">Versão ${versao} · <a href="https://macuxifdv.com.br">macuxifdv.com.br</a></div>
+      <div class="l">Versão ${versao} · <a href="https://${DADOS.site}">${DADOS.site}</a></div>
     </footer>`;
+  };
 
   const campoCel = (r, o) => `<div class="cp"><label>${r}</label><div class="ent"><span>${o || ''}</span>${r === 'Senha' ? '<span class="olho">Mostrar</span>' : ''}</div></div>`;
 
