@@ -42,6 +42,17 @@ export async function filialPadrao(db: Consulta, tenantId: string): Promise<stri
   return id;
 }
 
+/**
+ * Código da filial padrão viva do tenant, para a coluna `filial` do CSV da Equipe. RN-CORE-39 (#361): o tenant A da fixture tem
+ * 2 filiais, então quem é criado pelo CSV precisa da coluna `filial`; o main antes do #361 a ignora. Conexão de administração.
+ */
+export async function codigoDaFilialPadrao(db: Consulta, tenantId: string): Promise<string> {
+  const r = await db.query('select codigo from core.filial where tenant_id = $1 and padrao and deleted_at is null', [tenantId]);
+  const codigo = (r.rows[0] as { codigo: string } | undefined)?.codigo;
+  if (!codigo) throw new Error(`tenant ${tenantId} sem filial padrão viva`);
+  return codigo;
+}
+
 /** Filiais vivas do tenant, a padrão primeiro (id, código e `external_id`). Conexão de administração. */
 export async function filiaisDoTenant(db: Consulta, tenantId: string): Promise<{ id: string; codigo: string; external_id: string | null; padrao: boolean }[]> {
   const r = await db.query(
