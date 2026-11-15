@@ -1253,3 +1253,80 @@ escolha A/B do dono do produto.
   do cliente (9). O lote 9 também precisa da escolha A/B do dono do produto.
 - **O RD-0416 agora segura 3 lotes** (Core, Catálogo e Treinamento) e depende do hook no kit. Se o designer-ux pegar o
   `useBuscaComEspera` e o `LimparFiltros` (RD-0416 e RD-0417) primeiro, os três módulos fecham juntos.
+
+---
+
+# Lote da noite, parte 5 — reteste rápido (14/11/2026, ~23h45 de Manaus)
+
+Base: `main` em `21ab3b20`, mesclado no branch do corretor (merge, sem rebase). Os dois heads conferidos no remoto depois do
+fetch: `f93f44cd` (vendedor) e `d955b035` (core), sem avanço. O `coord.mjs` continua com HTTP 403: os pedidos aos donos (cc
+`gerente-projetos`) ficam neste relatório e no catálogo. A numeração segue a partir do RD-0441.
+
+## Resumo da parte 5
+
+| # | Branch | SHA lido | Parecer | RD retestados | RD novos (gravidade, dono) |
+|---|---|---|---|---|---|
+| 1 | `nuvem/bko-revisao-modulo-vendedor` (PR #298) | `540196f5` → `f93f44cd` | **segura** | — | RD-0441 média, código (modulo-vendedor; teste FB-1: testes) |
+| 2 | `nuvem/login-v109-modulo-core` | `7ed7b240` → `d955b035` | **sem achado em aberto neste branch** | RD-0430 **em correção** (Core feito; falta a regex da CLI, engenheiro-software); RD-0431 **corrigido**; RD-0432 aberto e ampliado (só teste, não segura) | — |
+
+---
+
+## Lote 1: `nuvem/bko-revisao-modulo-vendedor` @ `f93f44cd` (PR #298; lido na parte 3 em `540196f5`)
+
+Lido `git diff 540196f5 f93f44cd`: um arquivo, `modules/vendedor/api/pedidos.ts` (+2 −3). Não há prints novos; a tela não
+mudou. O filtro "Filial" da tela (`orders-page.tsx`) não foi tocado: um `SelectField` "Filial" com "Todas", sem chip nem
+resumo que o repita, e o "Limpar filtros" zera a filial. O motivo da mudança é o teste FB-1
+(`tests/modulos/filial-filtro-reserva-t0149.test.ts:63-68`), que lê o código-fonte e procura o array de parâmetros escrito
+logo depois de `limit $9\``. A constante `valores` (criada em `1a151258`) fazia o teste falhar.
+
+| Campo | RD-0441 |
+|---|---|
+| Onde | `modules/vendedor/api/pedidos.ts:202` (parâmetros da lista) × `:214` (parâmetros do total do filtro, §P6) |
+| Tipo | código |
+| O que se repete | O array de 17 parâmetros do mesmo `filtro` (`e.vendedores, e.clientes, status…, q.branch_id ?? null, q.sem_pendentes === '1'`) está escrito 2×, inteiro, a uma dúzia de linhas um do outro. As cópias já diferem: a lista passa `cursor?.createdAt ?? null, cursor?.id ?? null` e o total passa `null, null` (hoje dá no mesmo, porque o total só roda sem cursor). Antes de `f93f44cd`, era uma constante só (`valores`, e o total usava `[...valores, [...STATUS_FORA_DO_TOTAL]]`) |
+| Impacto | manutenção: um filtro novo (como foi a Filial, `$16`) precisa entrar nos dois arrays na mesma posição; se entrar só na lista, o título "Pedidos · N · R$ X" passa a contar outro conjunto |
+| Severidade | média (código de produção copiado; segura) |
+| Proposta | Voltar a constante única: `const valores = [e.vendedores, …, q.sem_pendentes === '1'];`, a lista com `valores` e o total com `[...valores, [...STATUS_FORA_DO_TOTAL]]`. O testes ajusta o FB-1 para ler o array da constante: `const params = /const valores = \[([^\]]+)\]/.exec(api)?.[1] ?? '';` (o resto do caso fica igual; `lista[15]` continua `q.branch_id ?? null`). Os dois commits entram juntos, para o FB-1 não ficar vermelho no meio |
+| Dono | modulo-vendedor (teste FB-1: testes) |
+
+O que passa: o filtro é um só (tela → `paraQuery` → contrato → `$16`); nenhum rótulo, chip ou texto novo.
+
+**Parecer do lote 1: segura (RD-0441, média, código de produção).**
+
+---
+
+## Lote 2: `nuvem/login-v109-modulo-core` @ `d955b035` (lido na parte 4 em `7ed7b240`)
+
+Lido `git diff 7ed7b240 d955b035` (12 arquivos): `f709b530` (PE-02), o merge `0e4c28c3` do web (`0e3292de`, já lido na
+parte 4, lote 2) e `d955b035` (RD-0430 e RD-0431).
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0430 | Uma frase só: `MENSAGEM_CODIGO_EMPRESA` em `contracts/auth.ts:29`, usada pelo schema (`:31`) e por `erroDoCodigoEmpresa` (`ciclo-senha.ts:147`, uma linha). O `.length(6)` saiu. As frases "tem 6" e "no máximo 6" saíram, e os testes do app esperam a frase única. **Falta** a regex da CLI: `apps/api/src/cli/codigo-licenca.ts:78` (`CODIGO_LICENCA`) continua com a sua cópia, igual no `main` (`21ab3b20`), e `CODIGO_EMPRESA_REGEX` segue sem uso fora de `auth.ts` (passa a ter quando a CLI importar). Proposta, a mesma da parte 4: `const CODIGO_LICENCA = new RegExp(CODIGO_EMPRESA_REGEX.source);` (sem a flag `i`, a CLI continua exigindo maiúsculas) | **em correção** (parte do Core corrigida; resto com o engenheiro-software, fora deste branch) |
+| RD-0431 | `temEspacoNasPontas` (`senha-regra.ts:18`) é a regra única, usada por `faltasNaSenha` (`:30`) e por `validarLogin` (`ciclo-senha.ts:168`), e reexportada em `senha.ts`. O comentário do topo de `senha-regra.ts` agora diz o que o login faz | **corrigido** |
+| RD-0432 | O caso antigo "não há trim" continua conferindo `'  a1!   '` → `['espaco']`. A PE-02 acrescentou um terceiro caso para o mesmo: "espaço na ponta só vale com algum caractere que não é espaço" confere `' Abc123!x'` e `'Abc123!x '` → `['espaco']`, como o caso seguinte faz com `' Abcdef1!'` e `'Abcdef1! '`. O que esse caso traz de novo é só `'Abc 123!x'` → `[]` | **aberto, ampliado** (só teste, não segura; R-20261111-190159). Proposta: o caso novo fica só com o `[]` do espaço no meio (ou entra no caso seguinte), e o "não há trim" volta ao espaço no meio |
+
+O que passa:
+- **PE-02** (`f709b530`): uma condição a mais dentro de `faltasNaSenha` (`senha.trim() !== '' && …`); a frase da falta
+  continua a constante única. Os dois casos de "vazia ou só de espaços" no teste são novos.
+- **Merge do web** (`0e4c28c3`): os dois campos do código usam `CODIGO_EMPRESA_TAMANHO` do contrato e a validação do Core;
+  os testes do web só trocaram os dados de exemplo. Sem regra nem frase própria.
+- Não há tela nova nem texto novo além da frase única; sem prints a conferir.
+
+**Parecer do lote 2: sem achado em aberto neste branch.** O resto do RD-0430 (CLI) é do engenheiro-software e segura o lote
+dele que tocar `codigo-licenca.ts`, como o RD-0428 fez na parte 4.
+
+---
+
+## Para o testes (parte 5, sem RD)
+1. **Lote 2, senha só de espaços:** a PE-02 tirou a falta "espaço" de senha vazia ou só de espaços na criação e na troca
+   (`faltasNaSenha`), mas `validarLogin` chama `temEspacoNasPontas` direto: no login, `'        '` mostra "A senha não pode
+   começar nem terminar com espaço.", e na criação mostra "Faltam uma letra, um número e um caractere especial.". Conferir
+   se a PE-02 vale também para o login. Se valer, a condição `trim() !== ''` vai para dentro de `temEspacoNasPontas`, e as
+   duas telas ficam iguais.
+2. **Lote 1:** o FB-1 lê o código-fonte com regex; qualquer refatoração dos parâmetros quebra o caso sem mudar o
+   comportamento. O caso com banco (`tests/integracao/demo/filial-demo-t0149.test.ts`) já cobre o filtro de verdade.
+
+## Para o gerente (parte 5)
+- **PR #298 segura** pelo RD-0441: o modulo-vendedor e o testes precisam entrar juntos (constante de volta + regex do FB-1).
+- **Login v1.0.9 do Core liberado** pelo corretor. O engenheiro-software precisa pegar a regex da CLI (resto do RD-0430).
