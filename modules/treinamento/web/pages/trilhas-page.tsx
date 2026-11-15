@@ -116,7 +116,7 @@ export function TrilhasPage() {
                     aria-controls="treinamento-painel"
                     data-testid={`treinamento.aba-${a}`}
                     onClick={() => mudar({ aba: a })}
-                    className={cx('-mb-px min-h-[44px] shrink-0 border-b-2 px-4 text-[14px] font-semibold', aba === a ? 'border-accent text-accent-ink' : 'border-transparent text-ink-2 hover:text-ink')}>
+                    className={cx('-mb-px min-h-[44px] shrink-0 border-b-2 px-4 text-[15px] font-semibold', aba === a ? 'border-accent text-accent-ink' : 'border-transparent text-ink-2 hover:text-ink')}>
                     {n > 0 ? `${ROTULO_ABA[a]} (${n.toLocaleString('pt-BR')})` : ROTULO_ABA[a]}
                   </button>
                 );
@@ -175,7 +175,7 @@ const COLUNAS_ADESAO: ColunaDaTabela<AdesaoResposta['trilhas'][number]>[] = [
     celula: (t) => (
       <>
         <span className="font-semibold">{t.titulo}</span>
-        {t.obrigatoria && <span className="ml-2 text-[11px] text-ink-2">obrigatória{t.prazo ? ` até ${dataBr(t.prazo)}` : ''}</span>}
+        {t.obrigatoria && <span className="ml-2 text-[12px] text-ink-2">obrigatória{t.prazo ? ` até ${dataBr(t.prazo)}` : ''}</span>}
       </>
     ),
   },
@@ -314,7 +314,7 @@ function AbaTrilhas({ q, f }: { q: Consulta<BkoTrilhaResumo[]>; f: FiltrosTrilha
       celula: (t) => (
         <>
           <span className="font-semibold text-accent-ink">{t.titulo}</span>
-          {t.obrigatoria && <span className="ml-2 text-[11px] text-ink-2">obrigatória{t.prazo ? ` até ${dataBr(t.prazo)}` : ''}</span>}
+          {t.obrigatoria && <span className="ml-2 text-[12px] text-ink-2">obrigatória{t.prazo ? ` até ${dataBr(t.prazo)}` : ''}</span>}
         </>
       ),
     },

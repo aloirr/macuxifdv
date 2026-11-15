@@ -46,4 +46,4 @@ export function textoDoCampoEscolha(
 }
 
 /** Medidas: campo 48 dp (borda `lineStrong` 1, raio 12), linhas da folha 52 dp, texto 15. */
-export const CAMPO_ESCOLHA = { altura: 48, raio: 12, linha: 52, fonte: 15, seta: 18 } as const;
+export const CAMPO_ESCOLHA = { altura: 48, raio: 12, linha: 52, fonte: 16, seta: 18 } as const;

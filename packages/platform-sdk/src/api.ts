@@ -21,15 +21,17 @@
 import type { z } from 'zod';
 import type { ErroApi } from './acesso';
 import type { MetodoHttp } from './ambiente';
-import type { NovoArquivo } from './arquivos';
+import type { InfoArquivo, NovoArquivo } from './arquivos';
 import { caminhoConectorParaRoteador, problemasApiConector, type ApiConector } from './conector';
 import type { DefinicaoConsulta } from './consultas-tipos';
 import type { DefinicaoEvento, EnvelopeEvento } from './eventos';
+import type { TipoImagem } from './imagens';
 import type { Manifesto } from './manifesto';
 import type { ServicoEmail } from './email/porta';
 import type { ServicoPacotes } from './pacotes';
 import { problemasCookieSessao, type CookieSessaoRota } from './cookie-sessao';
 import type { SuperficieRota } from './perfis';
+import type { EntradaZip, LimitesZip, MotivoRecusaEntrada, MotivoRecusaZip } from './zip';
 import { ehChavePlataforma, pode, type AlvoPermissao, type DefinicaoChave, type MatrizFabrica, type PerfilDaRequisicao } from './permissoes-perfil';
 import { MODOS_SUPER_ADMIN, type AcessoPortalAutenticado, type ModoSuperAdmin, type SuperAdminAutenticado } from './plataforma';
 import {
@@ -117,6 +119,11 @@ export interface TransacaoTenant {
    * A API sempre implementa; é opcional só para os `TransacaoTenant` falsos dos testes dos módulos.
    */
   restringirArquivos?(alvo: { entidade: string; entidade_ids: readonly string[]; perfis_leitura: readonly Perfil[] | null }): Promise<{ alterados: number }>;
+  /**
+   * ADR 0058: situação de um arquivo DO MÓDULO DA ROTA (ex.: o ZIP do lote antes de enfileirar). `null` = não existe, foi
+   * removido ou é de outro módulo (RLS do tenant). A API sempre implementa; opcional só para os falsos dos testes.
+   */
+  infoArquivo?(id: string): Promise<InfoArquivo | null>;
   /**
    * ADR 0012: consulta a outro módulo NA MESMA transação (mesmo tenant, RLS, papel macuxi_app). Só consultas em
    * `usaConsultas` ou `usaConsultasOpcionais` (ADR 0019) do manifesto do módulo da rota (fora disso = erro de programação). Entrada e saída validadas pelo
@@ -629,6 +636,116 @@ export function definirTarefa(t: TarefaPeriodica): TarefaPeriodica {
   return t;
 }
 
+/**
+ * ADR 0058 §2: trabalho SOB DEMANDA, longo, em fatias com checkpoint (ex.: processar o ZIP do lote de fotos). O módulo
+ * publica um evento próprio (`disparadoPor`, em `publica` e em `consome` do manifesto) na transação que pede o trabalho;
+ * a plataforma grava UMA linha em `plataforma.trabalho` por (tenant, módulo, nome, `alvo(payload)`) e o laço do worker
+ * (`apps/api/src/trabalhos.ts`) chama `executarFatia` até devolver `'concluido'`. Uma fatia dura até `PRAZO_FATIA_MS`
+ * (`ctx.deveParar()`); o checkpoint é do módulo, no banco (ex.: item `pendente` → final, cada um na sua transação curta),
+ * então a fatia seguinte, outro processo ou o reinício do worker retomam de onde parou. A fatia TEM de ser reexecutável:
+ * a trava vence e outra execução pode repetir o último item. Exceção conta tentativa (espera crescente); esgotadas as
+ * `TENTATIVAS_TRABALHO_MAX`, a plataforma chama `aoFalhar` (marque o alvo como falho) e o trabalho para. Só roda com o
+ * módulo licenciado no tenant (sem licença, espera e tenta depois sem contar tentativa).
+ */
+export const PRAZO_FATIA_MS = 20_000;
+export const TENTATIVAS_TRABALHO_MAX = 5;
+
+/** Foto gravada no armazenamento pelo trabalho (`ArquivosDoTrabalho.guardarImagem`): original + miniatura `.m320.jpg`. */
+export interface ImagemGuardada {
+  sha256: string;
+  tamanho_bytes: number;
+  largura_px: number;
+  altura_px: number;
+  tipo: TipoImagem;
+  /** Chave do original no armazenamento (opaca para o módulo: só repasse a `registrarArquivo`). */
+  chave: string;
+}
+
+export type LeituraEntradaZip =
+  | { ok: true; bytes: Uint8Array; sha256: string; tipo: TipoImagem; largura: number; altura: number }
+  | { ok: false; motivo: MotivoRecusaEntrada; tipo_detectado: TipoImagem | null };
+
+/** ZIP aberto pelo trabalho (partes juntadas num temporário do worker; leitura aleatória pelo diretório central). */
+export interface ZipAberto {
+  sha256: string;
+  tamanho_bytes: number;
+  /** Entradas na ordem do diretório central (o `indice` é estável: chave do checkpoint). */
+  entradas: readonly EntradaZip[];
+  /**
+   * Lê uma entrada e confere: tipo pela assinatura (`tipo_nao_aceito` se fora de `op.tipos` ou sem decodificador),
+   * tetos (`foto_grande`, `compressao_suspeita`), CRC-32 e tamanho real (`entrada_corrompida`) e se decodifica
+   * dentro do teto de megapixels (`foto_ilegivel`).
+   */
+  ler(indice: number, op: { tipos: readonly TipoImagem[] }): Promise<LeituraEntradaZip>;
+  fechar(): Promise<void>;
+}
+
+export interface ArquivosDoTrabalho {
+  /** Abre o ZIP (arquivo do módulo, `recebido`) com os limites do lote; recusa o lote inteiro com o motivo. */
+  abrirZip(arquivoId: string, limites: LimitesZip): Promise<{ ok: true; zip: ZipAberto } | { ok: false; motivo: MotivoRecusaZip }>;
+  /** Grava o original e a miniatura FORA da transação; depois registre com `registrarArquivo({ ..., recebido })`. */
+  guardarImagem(e: { id: string; bytes: Uint8Array; tipo: TipoImagem }): Promise<{ ok: true; recebido: ImagemGuardada } | { ok: false; motivo: 'foto_ilegivel' }>;
+  /** Apaga as partes do arquivo e marca a linha removida (o ZIP não fica guardado depois do lote). */
+  descartar(arquivoId: string): Promise<void>;
+}
+
+/** Transação curta do trabalho (tenant do trabalho, `macuxi_app`, RLS). Nada de rede nem disco aqui dentro. */
+export interface TransacaoTrabalho {
+  db: ClienteBanco;
+  publicar: TransacaoTenant['publicar'];
+  consultar: TransacaoTenant['consultar'];
+  /**
+   * Como `TransacaoTenant.registrarArquivo`, mas sem pessoa na sessão: `enviado_por` vem do módulo (ex.: quem enviou o lote).
+   * Com `recebido`, a linha nasce já `recebido` (bytes gravados antes por `guardarImagem`).
+   */
+  registrarArquivo(a: NovoArquivo & { enviado_por: string; recebido?: ImagemGuardada }): Promise<{ criado: boolean }>;
+  infoArquivo(id: string): Promise<InfoArquivo | null>;
+}
+
+export interface ContextoTrabalho {
+  tenantId: string;
+  alvoId: string;
+  /** Fatias já concluídas antes desta (0 na primeira). */
+  fatia: number;
+  /** Tentativas com falha antes desta. */
+  tentativa: number;
+  /** Transação curta nova a cada chamada; o autor dos eventos é o sistema (sem usuário). */
+  emTransacao<T>(fn: (t: TransacaoTrabalho) => Promise<T>): Promise<T>;
+  arquivos: ArquivosDoTrabalho;
+  /** Prazo da fatia vencido ou worker desligando: termine o item atual e devolva `'continua'`. */
+  deveParar(): boolean;
+  parametros(): Readonly<Record<string, unknown>>;
+  fuso(): string;
+  agora(): Date;
+  /** Logger com tenant_id, modulo, trabalho, alvo_id e fatia (nunca nome de arquivo, código ou dado pessoal). */
+  log: LogRota;
+}
+
+export type ResultadoFatia = 'continua' | 'concluido';
+
+export interface TrabalhoSobDemanda<S extends z.ZodTypeAny = z.ZodTypeAny> {
+  /** `[a-z][a-z0-9_]*`, único no módulo (ex.: `processar_foto_lote`). */
+  nome: string;
+  disparadoPor: DefinicaoEvento<S>;
+  /** UUID do alvo; um trabalho vivo por (tenant, módulo, nome, alvo). */
+  alvo(payload: z.output<S>): string;
+  executarFatia(alvoId: string, ctx: ContextoTrabalho): Promise<ResultadoFatia>;
+  /** Tentativas esgotadas: marque o alvo como falho (só o código do erro chega aqui). */
+  aoFalhar(alvoId: string, ctx: ContextoTrabalho, erro: { codigo: string }): Promise<void>;
+}
+
+/** Problemas do trabalho isolado (vazio = válido). O resto (evento no manifesto) é conferido por `definirModuloApi`. */
+export function problemasTrabalho(t: Pick<TrabalhoSobDemanda, 'nome'>): string[] {
+  return NOME_TAREFA_RE.test(t.nome) ? [] : [`trabalho ${t.nome}: nome inválido (minúsculas, dígitos e _)`];
+}
+
+/** Declara um trabalho sob demanda (o tipo do payload de `alvo` sai do schema do evento). */
+export function definirTrabalho<S extends z.ZodTypeAny>(t: TrabalhoSobDemanda<S>): TrabalhoSobDemanda {
+  const p = problemasTrabalho(t);
+  if (p.length > 0) throw new Error(p.join('; '));
+  return t as unknown as TrabalhoSobDemanda;
+}
+
 /** Acesso ao banco fora de uma requisição autenticada (login, autenticação do token). */
 export interface AcessoBanco {
   /** Transação com o tenant informado (RLS). Use só depois de resolver o tenant por um meio confiável. */
@@ -832,6 +949,8 @@ export interface ModuloApi {
   consultas?: readonly ImplementacaoConsulta[];
   /** Tarefas periódicas por tenant, rodadas pelo agendador do worker (ADR 0022; `apps/api/src/agendador.ts`). */
   tarefas?: readonly TarefaPeriodica[];
+  /** Trabalhos sob demanda disparados por evento do próprio módulo, rodados pelo laço do worker (ADR 0058; `apps/api/src/trabalhos.ts`). */
+  trabalhos?: readonly TrabalhoSobDemanda[];
   /**
    * Rotas chamadas pelo Conector (ADR 0013; `conector.ts`), montadas em `/<modulo>/v1/<caminho>` com chave de API, sem JWT.
    * Só módulo com `apps.conector` no manifesto (hoje a Integração).
@@ -1064,6 +1183,19 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
     problemas.push(...problemasTarefa(t));
     if (tarefas.has(t.nome)) problemas.push(`tarefa ${t.nome}: repetida`);
     tarefas.add(t.nome);
+  }
+  const trabalhos = new Set<string>();
+  for (const t of m.trabalhos ?? []) {
+    problemas.push(...problemasTrabalho(t));
+    const ev = t.disparadoPor.nome;
+    if (trabalhos.has(t.nome)) problemas.push(`trabalho ${t.nome}: repetido`);
+    trabalhos.add(t.nome);
+    if (t.disparadoPor.modulo !== id) problemas.push(`trabalho ${t.nome}: ${ev} é evento de outro módulo`);
+    if (!m.manifesto.consome.includes(ev)) problemas.push(`trabalho ${t.nome}: ${ev} não está em "consome" do manifesto de ${id}`);
+    if (!m.manifesto.publica.includes(ev)) problemas.push(`trabalho ${t.nome}: ${ev} não está em "publica" do manifesto de ${id}`);
+    // o trabalho é o consumo do evento pelo módulo (evento_consumo por módulo): não pode haver os dois
+    if (assinados.has(ev)) problemas.push(`trabalho ${t.nome}: ${ev} já tem consumidor no módulo`);
+    assinados.add(ev);
   }
   if (id !== 'core' && m.servicos) problemas.push('só o core declara serviços de plataforma');
   const publicas = new Set<string>();

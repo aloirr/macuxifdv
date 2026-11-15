@@ -22,6 +22,8 @@ import { randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { erroDe } from '../apoio/api';
 import type { ApiDemo, ChaveDemo } from '../apoio/demo';
+import { camposDeFilial } from '../apoio/filial-usuario';
+import { TENANT_DEMO } from '@macuxi/db/teste';
 
 export interface CtxTelasNovas {
   api(): ApiDemo;
@@ -157,7 +159,7 @@ export function casosUsuarios(ctx: CtxTelasNovas): void {
     const senha2 = senhaDescartavel();
     const trocar = (atual: string, nova: string) =>
       api.app.inject({ method: 'POST', url: '/v1/auth/senha/trocar', remoteAddress: `10.67.0.${Math.floor(Math.random() * 250) + 1}`, payload: { codigo_empresa: 'demo', email, senha_atual: atual, senha_nova: nova, app: 'campo' } });
-    const criar = await api.chamar(adm, { method: 'POST', url: '/v1/core/usuarios', payload: { nome: 'Vendedor do Smoke', email, perfil: 'vendedor', equipe_id: lucas.equipe_id, senha: senha1 } });
+    const criar = await api.chamar(adm, { method: 'POST', url: '/v1/core/usuarios', payload: { nome: 'Vendedor do Smoke', email, perfil: 'vendedor', equipe_id: lucas.equipe_id, senha: senha1, ...(await camposDeFilial(api.admin, TENANT_DEMO)) } });
     expect(criar.statusCode, criar.body).toBe(201);
     const novo = corpo<UsuarioBko>(criar);
     expect(novo).toMatchObject({ email, perfil: 'vendedor', equipe_id: lucas.equipe_id, ativo: true, superior_id: ctx.usuarioId('supervisor') });

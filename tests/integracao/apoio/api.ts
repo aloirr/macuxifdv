@@ -23,6 +23,7 @@ import { criarBancoApp, criarBancoPortal } from '../../../apps/api/src/banco';
 import type { ServicoEmailDaApi } from '../../../apps/api/src/email';
 import { MODULOS_API } from '../../../apps/api/src/modulos';
 import { comEmail, type criarEspiaoEmail } from './email';
+import { garantirFilialDosUsuarios } from './filial-usuario';
 
 export const A = DOIS_TENANTS.A;
 export const B = DOIS_TENANTS.B;
@@ -222,7 +223,13 @@ export async function subirApi(
     receita?: ReceitaDeTeste | ConsultaCnpjDeTeste;
   } = {},
 ): Promise<ApiDeTeste> {
-  const banco = await criarBancoDeTeste({ preparar: (c) => carregarDoisTenants(c, { senha: SENHA }).then(() => undefined) });
+  // T-0176 (RN-CORE-39): todo usuário da fixture destravado (filial padrão como cadastro e venda); os testes da T-0176 travam quem precisarem
+  const banco = await criarBancoDeTeste({
+    preparar: async (c) => {
+      await carregarDoisTenants(c, { senha: SENHA });
+      await garantirFilialDosUsuarios(c);
+    },
+  });
   const app_ = poolComEncerramento(new pg.Pool({ connectionString: banco.urlApp, max: opcoes.poolMax ?? 6 }));
   const admin_ = poolComEncerramento(new pg.Pool({ connectionString: banco.urlAdmin, max: 2 }));
   // T-0091: o 2º pool, do macuxi_portal (o único com EXECUTE nas plataforma.sa_*); max 2, como o padrão do servidor
