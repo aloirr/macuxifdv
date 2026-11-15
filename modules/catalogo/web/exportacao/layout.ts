@@ -1,5 +1,6 @@
 /** Layout do catálogo exportado (RF-CAT-09): funções puras, sem DOM. */
 import { NO_SEM_LINHA } from '../../domain/hierarquia';
+import { textoDaReferencia } from '../../domain/marcas';
 import { MAX_APLICACAO, MAX_OFERECE_JUNTO, MAX_REFERENCIAS, type DadosExportacao } from './formato';
 
 export const COLUNAS = ['Código', 'Aplicação', 'Oferece junto', 'Equivale a'] as const;
@@ -79,7 +80,7 @@ export function montarCatalogo(dados: DadosExportacao, opcoes: EscopoExportacao 
       equivale_a: p.referencias.slice(0, MAX_REFERENCIAS).map((r) => {
         // marca ativa do cadastro de marcas do Catálogo; senão o retrato gravado na referência; senão só o código (RN-CAT-09)
         const m = (r.marca_id ? marcas.get(r.marca_id) : undefined) ?? r.marca_nome?.trim();
-        return m ? `${m} ${r.codigo}` : r.codigo;
+        return textoDaReferencia(m, r.codigo);
       }),
     });
   }

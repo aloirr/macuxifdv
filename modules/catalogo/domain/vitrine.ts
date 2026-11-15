@@ -8,6 +8,7 @@ import type { Perfil } from '@macuxi/platform-sdk';
 import type { AtributoProduto, EquivaleA, FiltrosInterpretados, ItemTabelaPreco, ItemVitrine, PrecoVisivel, Promocao, Referencia, StockByBranch } from '../contracts';
 import type { VocabularioTenant } from './consulta';
 import { estoqueVisivel } from './estoque';
+import { textoDaReferencia } from './marcas';
 import type { ParametrosCatalogo } from './parametros';
 import { MENSAGEM_SEM_PRECO_CLIENTE, precoVisivel } from './preco';
 import { rankear, TOKENS_DO_PRODUTO, type DocBusca } from './ranking';
@@ -224,7 +225,7 @@ export function buscarProdutos(e: EntradaBuscaProdutos): PaginaProdutos {
 /** RN-CAT-09: 'Equivale a: <marca> <código>' com o código marcado. */
 export function equivaleA(ref: Referencia | undefined): EquivaleA | null {
   if (!ref) return null;
-  const ini = ref.marca_nome ? ref.marca_nome.length + 1 : 0;
+  const ini = textoDaReferencia(ref.marca_nome, ref.codigo).length - ref.codigo.length;
   return { ...ref, marcas: [[ini, ini + ref.codigo.length]] };
 }
 

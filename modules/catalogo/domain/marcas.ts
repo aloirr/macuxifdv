@@ -10,7 +10,7 @@ import { codigoCompacto } from './ranking';
 export type MapaMarcas = ReadonlyMap<string, { nome: string; ativo: boolean }>;
 
 const MSG_SEM_MARCAS =
-  'Não há marcas concorrentes ativas. Cadastre a marca em Catálogo → Marcas concorrentes ou salve o produto sem referência cruzada.';
+  'Não há marcas concorrentes ativas. Cadastre a marca em Catálogo → Marcas concorrentes ou escolha "Sem marca".';
 
 /** Cada referência precisa apontar para uma marca ativa de Marcas concorrentes. Mapa vazio = consulta indisponível ou sem marcas. */
 export function validarMarcasDaReferencia(referencias: readonly { marca_id?: string | null | undefined }[], marcas: MapaMarcas): ErroCadastro[] {
@@ -40,13 +40,14 @@ export interface ReferenciaDoErp {
   codigo: string;
 }
 
-export type MotivoDescarte = 'marca_desconhecida' | 'marca_inativa' | 'codigo_invalido' | 'repetida' | 'excede_limite';
+export type MotivoDescarte = 'codigo_invalido' | 'repetida' | 'excede_limite';
+export type MotivoSemMarca = 'marca_desconhecida' | 'marca_inativa';
 
 export interface ResolucaoReferenciasErp {
   referencias: { marca_id: string | null; marca_nome: string | null; codigo: string }[];
   descartadas: { codigo: string; motivo: MotivoDescarte }[];
   /** Referências que entraram sem marca por a marca informada ser desconhecida ou inativa (aviso `marca_desconhecida`). */
-  semMarca: { codigo: string; motivo: MotivoDescarte }[];
+  semMarca: { codigo: string; motivo: MotivoSemMarca }[];
 }
 
 /**
@@ -112,12 +113,12 @@ export function nomeMarcaDaReferencia(marcaId: string | null, retrato: string | 
  */
 export function marcasDesconhecidasDaLinha(
   entrada: readonly ReferenciaDoErp[],
-  descartadas: readonly { codigo: string; motivo: MotivoDescarte }[],
+  semMarca: readonly { codigo: string; motivo: MotivoSemMarca }[],
 ): { marcas: string[]; marca_external_id?: string } | null {
   const marcas: string[] = [];
   const vistas = new Set<string>();
   let externalId: string | undefined;
-  for (const d of descartadas) {
+  for (const d of semMarca) {
     if (d.motivo !== 'marca_desconhecida') continue;
     const e = entrada.find((x) => x.codigo.trim() === d.codigo);
     const bruta = (e?.marca_nome?.trim() || e?.marca_external_id?.trim() || '').slice(0, 120);
@@ -127,4 +128,19 @@ export function marcasDesconhecidasDaLinha(
     externalId ??= e?.marca_external_id?.trim() || undefined;
   }
   return marcas.length === 0 ? null : externalId ? { marcas, marca_external_id: externalId } : { marcas };
+}
+
+/** RN-CAT-09: referência como aparece na tela; null = esconder (marca informada inativa ou ausente). Sem marca = só o código. */
+export function referenciaVisivel(
+  r: { marca_id: string | null; marca_nome?: string | null | undefined; codigo: string },
+  marcas: MapaMarcas,
+): { marca_id: string | null; marca_nome: string | null; codigo: string } | null {
+  const nome = nomeMarcaDaReferencia(r.marca_id, r.marca_nome, marcas);
+  return nome === null && r.marca_id !== null ? null : { marca_id: r.marca_id, marca_nome: nome, codigo: r.codigo };
+}
+
+/** Texto "marca código", ou só o código quando não há marca (RN-CAT-09). */
+export function textoDaReferencia(marca: string | null | undefined, codigo: string): string {
+  const m = marca?.trim();
+  return m ? `${m} ${codigo}` : codigo;
 }

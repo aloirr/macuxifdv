@@ -1,6 +1,6 @@
 /** RN-CAT-09 (marca da referência vem de Marcas concorrentes) e RN-CAT-11 (oferece junto por código). */
 import { describe, expect, it } from 'vitest';
-import { marcasDesconhecidasDaLinha, nomeMarcaDaReferencia, resolverCodigosOfereceJunto, resolverReferenciasDoErp, validarMarcasDaReferencia } from './marcas';
+import { marcasDesconhecidasDaLinha, nomeMarcaDaReferencia, referenciaVisivel, resolverCodigosOfereceJunto, resolverReferenciasDoErp, textoDaReferencia, validarMarcasDaReferencia } from './marcas';
 
 const M1 = '00000000-0000-4000-8000-0000000000a1';
 const M2 = '00000000-0000-4000-8000-0000000000a2';
@@ -32,6 +32,10 @@ describe('validarMarcasDaReferencia', () => {
   });
   it('RN-CAT-09: sem referências nada é exigido, mesmo sem marcas', () => {
     expect(validarMarcasDaReferencia([], new Map())).toEqual([]);
+  });
+  it('RN-CAT-09: sem marcas ativas a mensagem manda escolher "Sem marca"', () => {
+    const e = validarMarcasDaReferencia([{ marca_id: M1 }], new Map());
+    expect(e[0]!.mensagem).toBe('Não há marcas concorrentes ativas. Cadastre a marca em Catálogo → Marcas concorrentes ou escolha "Sem marca".');
   });
 });
 
@@ -124,16 +128,33 @@ describe('marcasDesconhecidasDaLinha (T-0103: aviso de marca concorrente desconh
       { marca_nome: 'Velha', codigo: 'A4' },
       { marca_nome: 'Outra', codigo: 'A5' },
     ];
-    const descartadas = [
+    const semMarca = [
       { codigo: 'A1', motivo: 'marca_desconhecida' as const },
       { codigo: 'A2', motivo: 'marca_desconhecida' as const },
       { codigo: 'A3', motivo: 'marca_desconhecida' as const },
       { codigo: 'A4', motivo: 'marca_inativa' as const },
       { codigo: 'A5', motivo: 'marca_desconhecida' as const },
     ];
-    expect(marcasDesconhecidasDaLinha(entrada, descartadas)).toEqual({ marcas: ['Nenhuma', 'ZZ', 'Outra'], marca_external_id: 'ZZ' });
+    expect(marcasDesconhecidasDaLinha(entrada, semMarca)).toEqual({ marcas: ['Nenhuma', 'ZZ', 'Outra'], marca_external_id: 'ZZ' });
   });
-  it('RN-CAT-09: sem descarte por marca desconhecida devolve nada', () => {
-    expect(marcasDesconhecidasDaLinha([{ marca_nome: 'X', codigo: 'A1' }], [{ codigo: 'A1', motivo: 'repetida' }])).toBeNull();
+  it('RN-CAT-09: sem referência sem marca desconhecida devolve nada', () => {
+    expect(marcasDesconhecidasDaLinha([{ marca_nome: 'X', codigo: 'A1' }], [{ codigo: 'A1', motivo: 'marca_inativa' }])).toBeNull();
+  });
+});
+
+describe('referenciaVisivel e textoDaReferencia', () => {
+  const marcas = new Map([[M1, { nome: 'Freiomax', ativo: true }], [M2, { nome: 'Velha', ativo: false }]]);
+  it('RN-CAT-09: referência sem marca aparece só com o código', () => {
+    expect(referenciaVisivel({ marca_id: null, marca_nome: null, codigo: 'CB 1' }, marcas)).toEqual({ marca_id: null, marca_nome: null, codigo: 'CB 1' });
+  });
+  it('RN-CAT-09: marca ativa aparece com o nome do cadastro; inativa ou ausente esconde a referência', () => {
+    expect(referenciaVisivel({ marca_id: M1, marca_nome: 'Antigo', codigo: 'CB 1' }, marcas)?.marca_nome).toBe('Freiomax');
+    expect(referenciaVisivel({ marca_id: M2, marca_nome: 'Velha', codigo: 'CB 1' }, marcas)).toBeNull();
+    expect(referenciaVisivel({ marca_id: M3, marca_nome: 'X', codigo: 'CB 1' }, marcas)).toBeNull();
+  });
+  it('RN-CAT-09: texto "marca código", ou só o código sem marca', () => {
+    expect(textoDaReferencia('Freiomax', 'CB 1')).toBe('Freiomax CB 1');
+    expect(textoDaReferencia(null, 'CB 1')).toBe('CB 1');
+    expect(textoDaReferencia('  ', 'CB 1')).toBe('CB 1');
   });
 });

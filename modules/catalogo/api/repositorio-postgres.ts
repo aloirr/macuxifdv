@@ -17,7 +17,7 @@ import { cederLaco, prepararIndice } from '../domain/indice-busca';
 import { filialDaTabela, filialDoClienteNoCore, filiaisDaCarteiraNoCore, nomeDaFilial } from './filiais-core';
 import type { ItemTabelaPreco, MidiaProduto, Referencia, SalvarFaixa, Sinonimo, StockByBranch } from '../contracts';
 import type { NoCatalogo, VinculoProdutoNo } from '../domain/arvore';
-import { nomeMarcaDaReferencia } from '../domain/marcas';
+import { referenciaVisivel } from '../domain/marcas';
 import { codigoCompacto } from '../domain/ranking';
 import { produtoDoCadastroCore } from './cadastro-core';
 import { definirFotoPrincipal } from './miniatura';
@@ -92,9 +92,8 @@ async function enriquecer(db: ClienteBanco, produtos: ProdutoCatalogo[], marcas:
   const referencias = new Map<string, Referencia[]>();
   for (const r of rf.rows) {
     // cadastro de marcas disponível: manda (marca inativa/ausente esconde); vazio: retrato marca_nome (RN-CAT-09)
-    const nome = nomeMarcaDaReferencia(r.marca_id, r.marca_nome, marcas);
-    if (nome === null && r.marca_id !== null) continue;
-    referencias.set(r.produto_id, [...(referencias.get(r.produto_id) ?? []), { marca_id: r.marca_id, marca_nome: nome, codigo: r.codigo }]);
+    const ref = referenciaVisivel(r, marcas);
+    if (ref) referencias.set(r.produto_id, [...(referencias.get(r.produto_id) ?? []), ref]);
   }
   const thumb = new Map(mi.rows.map((r) => [r.produto_id, montarUrlMiniatura(r.arquivo_id, r.url)]));
   return produtos.map((p) => ({

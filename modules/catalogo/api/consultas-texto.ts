@@ -16,7 +16,7 @@ import { implementarConsulta } from '@macuxi/platform-sdk';
 import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_FOTO_PRODUTO, CONSULTA_TEXTOS_PRODUTO } from '../contracts';
 import { buscarParaConsulta, textosParaConsulta } from '../domain/busca-consulta';
 import { anoCivilNoFuso } from '../domain/ano-civil';
-import { nomeMarcaDaReferencia } from '../domain/marcas';
+import { referenciaVisivel } from '../domain/marcas';
 import { parametrosDoTenant } from '../domain/parametros';
 import type { ProdutoCatalogo } from '../domain/vitrine';
 import type { Referencia } from '../contracts';
@@ -44,9 +44,8 @@ async function referenciasDosProdutos(db: { query: (sql: string, valores?: unkno
   const marcas = new Map((m.rows as Array<{ id: string; nome: string; ativo: boolean }>).map((x) => [x.id, { nome: x.nome, ativo: x.ativo }]));
   const saida = new Map<string, Referencia[]>();
   for (const x of r.rows as Array<{ produto_id: string; marca_id: string | null; codigo: string; marca_nome: string | null }>) {
-    const nome = nomeMarcaDaReferencia(x.marca_id, x.marca_nome, marcas);
-    if (nome === null && x.marca_id !== null) continue;
-    saida.set(x.produto_id, [...(saida.get(x.produto_id) ?? []), { marca_id: x.marca_id, marca_nome: nome, codigo: x.codigo }]);
+    const ref = referenciaVisivel(x, marcas);
+    if (ref) saida.set(x.produto_id, [...(saida.get(x.produto_id) ?? []), ref]);
   }
   return saida;
 }
