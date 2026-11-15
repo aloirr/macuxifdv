@@ -11,6 +11,7 @@
  * Demonstração (sem novidades) e modo sem sinal: o comportamento de antes (manual = completa; sem sinal = `sincronizar`).
  */
 import type { EtapaEntrada, ProgressoEntrada } from '@macuxi/core/contracts';
+import type { MotorSync } from '@macuxi/platform-sdk';
 
 import { ESPERA_PRONTO_MS, rotuloDaBarra, textoDoErro } from './entrada';
 
@@ -26,11 +27,7 @@ export function pedidoDoAgendador(motivo: string, entidades?: readonly string[])
 }
 
 /** O que o shell usa do motor (o `MotorSync` do platform-sdk atende). */
-export interface MotorDoSync {
-  enviar(opcoes?: { incluirFalhos?: boolean }): Promise<unknown>;
-  sincronizar(opcoes?: { modo?: 'parcial' | 'completa' }): Promise<boolean>;
-  sincronizarNovidades(opcoes?: { entidades?: readonly string[] }): Promise<boolean>;
-}
+export type MotorDoSync = Pick<MotorSync, 'enviar' | 'sincronizar' | 'sincronizarNovidades'>;
 
 export interface ContextoDoSync {
   modo: 'v1' | 'demo' | string;
