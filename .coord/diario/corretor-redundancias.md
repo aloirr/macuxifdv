@@ -71,3 +71,4 @@
 2026-11-15 — v1.0.12/v1.0.13 pareceres, rodada 2 (fim da tarde, Manaus) — COM ACHADO: reconferidos #361 da842202, #382 ed02ef3d, #383 4bb9b75a (RD anteriores abertos); novos RD-1242 a RD-1258 em #361, #382, #383, #397, #400, #402, #404, #422, #423, #427. Caixa 403.
 2026-11-15 — v1.0.12/v1.0.13 pareceres, rodada 3 (~17h10 Manaus) — #428 c4cc20d9 COM ACHADO (RD-1249..1252 abertos; novos RD-1260..1265); #361 03b5339c COM ACHADO (RD-1259 novo, não segura); #367/#397 sem head novo; #369 mergeado com RD-1225..1228 abertos. Caixa 403.
 2026-11-15 — v1.0.12/v1.0.13 pareceres, rodada 3 (cont.) — #429 707fae54 LIBERADO (RD-1266 baixa, só comentário de teste).
+2026-11-15 — v1.0.12/v1.0.13 pareceres, rodada 4 (~17h45 Manaus) — LIBERADOS #382 209ff4da, #387 95a64ecc, #388 596fdfa8, #427 7bc85e20; COM ACHADO #367 (RD-1270), #397 (RD-1271, 1272), #366 (RD-1273), #383 (RD-1245), #391 (RD-1217), #430 (RD-1267, 1268; RD-1269 fora do diff). Caixa 403.
