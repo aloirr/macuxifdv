@@ -206,3 +206,32 @@ export type ProdutosPorSkuEntrada = z.infer<typeof ProdutosPorSkuEntradaSchema>;
 export const ProdutosPorSkuSaidaSchema = z.object({ produtos: z.array(z.object({ id: z.string().uuid(), sku: z.string(), ean: z.string().nullable(), ativo: z.boolean() })) });
 export type ProdutosPorSkuSaida = z.infer<typeof ProdutosPorSkuSaidaSchema>;
 export const CONSULTA_PRODUTOS_POR_SKU = definirConsulta({ nome: 'core.produtos_por_sku@1', entrada: ProdutosPorSkuEntradaSchema, saida: ProdutosPorSkuSaidaSchema });
+
+/**
+ * `core.credencial_conferir@1` (T-0173, RN-INT-16): o Hub confere a senha de um administrador ou analista que autoriza o reprocessamento
+ * de um lote. O tenant vem do contexto. `bloqueado` = usuário inativo, excluído ou bloqueado (por administrador ou por tentativas), e só é
+ * revelado a quem acertou a senha (RN-CORE-15: não revela quem existe). Usuário inexistente, sem senha ou senha errada = `incorreta`,
+ * no mesmo tempo. `sem_permissao` = senha certa, conta ativa e a permissão efetiva do usuário no tenant não inclui `acao` (também só revelado a quem acertou a senha). A senha nunca vai para log, erro ou auditoria; quem chama limita as tentativas.
+ */
+export const CredencialConferirEntradaSchema = z
+  .object({
+    usuario_id: z.string().uuid(),
+    senha: z.string().min(1).max(200),
+    /** Ação (chave de permissão do manifesto de `modulo`) que a senha autoriza; conferida na permissão EFETIVA do usuário (perfis personalizados). */
+    acao: z.object({ modulo: z.string().min(1).max(40), acao: z.string().min(1).max(100) }).strict(),
+  })
+  .strict();
+export type CredencialConferirEntrada = z.infer<typeof CredencialConferirEntradaSchema>;
+export const CredencialConferirSaidaSchema = z.object({ resultado: z.enum(['ok', 'incorreta', 'bloqueado', 'sem_permissao']) });
+export type CredencialConferirSaida = z.infer<typeof CredencialConferirSaidaSchema>;
+export const CONSULTA_CREDENCIAL_CONFERIR = definirConsulta({ nome: 'core.credencial_conferir@1', entrada: CredencialConferirEntradaSchema, saida: CredencialConferirSaidaSchema });
+
+/**
+ * `core.usuarios_com_acao@1` (T-0173, RN-INT-16): quem pode autorizar uma ação, pela permissão EFETIVA (perfis personalizados, RN-CORE-35),
+ * só usuários ativos e liberados para entrar. Só `id` e `nome`: sem e-mail, senha nem perfil.
+ */
+export const UsuariosComAcaoEntradaSchema = z.object({ modulo: z.string().min(1).max(40), acao: z.string().min(1).max(100) }).strict();
+export type UsuariosComAcaoEntrada = z.infer<typeof UsuariosComAcaoEntradaSchema>;
+export const UsuariosComAcaoSaidaSchema = z.object({ usuarios: z.array(z.object({ id: z.string().uuid(), nome: z.string() })) });
+export type UsuariosComAcaoSaida = z.infer<typeof UsuariosComAcaoSaidaSchema>;
+export const CONSULTA_USUARIOS_COM_ACAO = definirConsulta({ nome: 'core.usuarios_com_acao@1', entrada: UsuariosComAcaoEntradaSchema, saida: UsuariosComAcaoSaidaSchema });
