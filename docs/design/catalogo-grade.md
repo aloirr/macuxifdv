@@ -46,8 +46,8 @@ embaixo, alinhados. O cartão inteiro é o alvo e abre a ficha.
 | 4 | preço | Archivo 700 18, números tabulares (§3) |
 | 5 | estoque | `ChipEstado pequeno` (24 dp), §4 |
 
-- Uma informação por linha (RD-0207): sem código, sem hora do estoque e sem etiquetas no cartão. Código, etiquetas e
-  estoque por filial ficam na ficha.
+- Uma informação por linha (RD-0207): sem código, sem hora do estoque e sem etiquetas no cartão. Código e etiquetas ficam na
+  ficha; o estoque por filial, na folha `Estoque por filial` (§4).
 - Promoção: o preço de tabela riscado ao lado do preço, 12/400 `ink2` (`R$ 8,99 R$ 9,90`). É o mesmo fato (preço).
 - Busca que achou pelo código do concorrente (RN-CAT-09): a linha da marca vira `Equivale a Freiomax CB 3401`, com o trecho
   destacado.
@@ -67,19 +67,18 @@ embaixo, alinhados. O cartão inteiro é o alvo e abre a ficha.
 Nada na tela explica de qual tabela é o preço: com cliente, o voltar na faixa já diz o nome dele.
 
 ## 4. Tag de estoque (uma só)
+Desde R-20261115-083600, só duas cores, no cartão, na busca e na ficha (o laranja de 1 a 9 saiu):
+
 | Estoque | Texto | Tom do `ChipEstado` |
 |---|---|---|
-| 10 ou mais | `Estoque: 84` | `sucesso` (`success` sobre `successBg`, 5,5:1) |
-| de 1 a 9 | `Estoque: 6` | `aviso`, o laranja da simulação (`warning` #7A4F00 sobre `warningBg` #FFF1D6, 6,4:1) |
-| 0, ou nenhum saldo recebido | `Estoque: 0` | `erro` (`danger` sobre `dangerBg`, 6,0:1) |
+| acima de 0 | `Estoque: 84` | `sucesso` (`success` sobre `successBg`, 5,5:1) |
+| 0, negativo ou nenhum saldo recebido | `Estoque: 0` | `erro` (`danger` sobre `dangerBg`, 6,0:1) |
 
-- Tenant que não mostra a quantidade (`estoque_mostrar_quantidade` = não): `Em estoque`, `Pouco estoque`, `Sem estoque`.
-- O número é inteiro, na unidade base, das filiais que valem para o estoque (RN-CAT-07; com cliente, a filial dele,
-  RN-CORE-39). Sem hora no cartão.
-- **A conferir pelo modulo-catalogo:** o parâmetro `estoque_baixo_ate` tem padrão 10 (doc 03, tabela de parâmetros); a regra
-  pedida é de 1 a 9, a mesma do "Risco de ruptura" da folha do item (`pedido-v4.md` §5.2).
-- A tag vale para o cartão e a busca. Na ficha, o estoque de cada filial fica na folha `Estoque por filial`, com só duas cores
-  (acima de 0 verde, 0 ou negativo vermelho): `catalogo-campo-v2/spec.md` §2.1 (R-20261115-083000).
+- Tenant que não mostra a quantidade (`estoque_mostrar_quantidade` = não): `Em estoque` ou `Sem estoque`.
+- O número é inteiro, na unidade base. Valor de N (filial do vendedor, soma das filiais do multi-filial, filial do filtro),
+  o botão `Estoque por filial` à direita e o `999+`: `catalogo-campo-v2/spec.md` §3. Com cliente, a filial dele (RN-CORE-39).
+  Sem hora no cartão.
+- Na ficha, o estoque de cada filial fica na folha `Estoque por filial`: `catalogo-campo-v2/spec.md` §2.1.
 
 ## 5. Estados
 - Carregando a 1ª vez: `Loading` no lugar da grade; a faixa e a busca já aparecem.

@@ -1,8 +1,8 @@
 # Catálogo do Campo v2: cartão, ficha, estoque zero, filtro de filial e busca (simulação)
 
 > 2026-11-15 · designer-ux · origem: R-20261115-071600-alexandre (teste de campo, 15/11 ~7h de Manaus) e as decisões de
-> R-20261115-073000-alexandre, R-20261115-074500-alexandre, R-20261115-084500-alexandre e R-20261115-083000-alexandre (estoque por filial). **Aprovada** pelo dono do produto, com os códigos em duas linhas e o rótulo `Estoque: 28` (R-20261115-082500-alexandre). Fonte:
-> `catalogo-campo-v2.html` (`?v=grade|filtrada|ficha|busca|dica|folha|filiais`) e `simulacao.css`. PNGs 360 × 800 (escala 2).
+> R-20261115-073000-alexandre, R-20261115-074500-alexandre, R-20261115-084500-alexandre R-20261115-083000-alexandre e R-20261115-083600-alexandre (estoque na hora e por filial). **Aprovada** pelo dono do produto, com os códigos em duas linhas e o rótulo `Estoque: 28` (R-20261115-082500-alexandre). Fonte:
+> `catalogo-campo-v2.html` (`?v=grade|filtrada|ficha|busca|dica|folha|filiais|multi`) e `simulacao.css`. PNGs 360 × 800 (escala 2).
 > Barra de baixo: a real do Campo, `Início · Rota · Clientes · Pedidos · Performance · Mais` (`apps/mobile/src/lib/abas.ts`, 6 posições;
 > a Performance fica na barra, R-20261115-084500). O Catálogo está no `Mais`, que fica aceso.
 > Pareceres: corretor (RD-0496 e RD-0497) e marca (MC-0086) atendidos; o RD-0498 deixou de valer (§4). Altera `catalogo-grade.md` §1, §2 e §4.
@@ -10,13 +10,14 @@
 
 | PNG | O que mostra |
 |---|---|
-| `01-grade.png` | grade depois do ✕ na filial: sem selo, estoque somado das filiais |
-| `02-grade-filtrada-filial.png` | **como abre**: selo 1 e o chip `Filial Boa Vista ✕` |
-| `03-ficha-referencia-cruzada.png` | ficha: copiar ao lado do código do produto; botão `Estoque por filial`; "Referência cruzada" |
+| `01-grade.png` | grade depois do ✕ na filial: sem selo, estoque somado de todas as filiais |
+| `02-grade-filtrada-filial.png` | **como abre para o vendedor**: selo 1, chip `Filial Boa Vista ✕`, `Estoque: 0` e o botão à direita |
+| `03-ficha-referencia-cruzada.png` | ficha: `Estoque: 0` no cartão de preço com `Por filial` à direita; copiar ao lado do código; "Referência cruzada" |
 | `04-busca-referencia-cruzada.png` | "cb3401" acha a pastilha pelo código do concorrente |
 | `05-busca-dica.png` | a dica da busca, com o campo em foco e vazio |
 | `06-folha-filtro.png` | a folha "Filtrar": filial e itens sem estoque (a mesma das outras telas, `../filtro-padrao-campo/spec.md`) |
 | `07-estoque-por-filial.png` | a folha "Estoque por filial": tabela Filial \| Estoque, sua filial primeiro, uma filial em 0 e uma negativa |
+| `08-grade-multi-filial.png` | **como abre para o multi-filial** (supervisor com 3 filiais): chip `Suas filiais (3) ✕`, `Estoque: 17` (0 + 12 + 5). A barra de baixo é a do Campo só para comparar; no Gestão vale a barra dele |
 
 ## 1. Cartão da grade (de cima para baixo)
 A ordem continua a de hoje, foto e depois nome (R-20261115-074500).
@@ -27,7 +28,7 @@ A ordem continua a de hoje, foto e depois nome (R-20261115-074500).
    13 `ink2`) e embaixo `PAF.1434 [copiar]` (código do produto, 13/700 `ink`; o botão é um quadro de 28 dp com o ícone
    `copiar`, alvo de 44 dp). Na ficha, uma linha só. Sem marca, a linha fica só com o código do produto e o copiar.
 4. Busca que achou pela referência cruzada: `Equivale a Freiomax CB 3401`, com o código destacado (`accentSoft`), como já previa o RN-CAT-09.
-5. **Preço** (sem mudança) e **estoque** (§3).
+5. **Preço** (sem mudança) e, na última linha, **`Estoque: N`** com o botão `Estoque por filial` à direita (§3).
 
 O copiar sai do rodapé do cartão e **copia só o código do produto** (`PAF.1434`), sem o código da marca nem a marca
 (decisão do dono do produto, R-20261115-084500). O cartão inteiro continua abrindo a ficha; o toque
@@ -37,11 +38,13 @@ no copiar só copia (`Código copiado`).
 - Faixa: `‹ Catálogo`, o nome (título) e a linha `980 · Travex · PAF.1434 [copiar]`; embaixo, `PC · EAN 7891234500980`.
 - **Sai** o botão `Copiar código` na caixa própria (`BotaoCopiarCodigo variante="ficha"`): fica só a variante ícone, ao lado do código do produto.
 - O copiar da ficha também **copia só o código do produto** (`PAF.1434`), igual ao do cartão (R-20261115-084500).
-- Cartão de preço: `Preço` e o valor; embaixo, o botão **`Estoque por filial`** (R-20261115-083000). **Saem** do cartão as
-  linhas por filial (`Boa Vista [Estoque: 0]`, `Manaus 12`) e o `Atualizado às`, que passam para a folha (§2.1).
-  - `Button variant="outline"` (secundário claro, borda `lineStrong`), `height={48}`, largura cheia, ícone `home`, texto
-    `Estoque por filial`. O principal da tela continua só o `Adicionar ao orçamento`.
-  - Leitor de tela: `Estoque por filial, botão`. O botão aparece com qualquer número de filiais (com uma só, a tabela tem uma linha).
+- Cartão de preço (R-20261115-083600, substitui o botão sozinho de R-20261115-083000): `Preço` e o valor; uma divisória
+  `lineSoft`; embaixo, numa linha, **`Estoque: N`** à esquerda (`ChipEstado`, 28 dp, 13/600; cor e valor de N no §3) e o botão
+  **`Por filial`** à direita. As linhas por filial e o `Atualizado às` ficam só na folha (§2.1).
+  - Botão: `Button variant="outline"` (secundário claro, borda `lineStrong`), `height={48}`, largura do texto, ícone `caixa`
+    (o `home` sai: é o ícone da aba Início). O principal da tela continua só o `Adicionar ao orçamento`.
+  - Leitor de tela: o chip lê `Estoque 0` e o botão `Estoque por filial, botão`. Aparece com qualquer número de filiais (com
+    uma só, a tabela tem uma linha).
 - `Adicionar ao orçamento` (extensão `produto.acoes`, sem mudança).
 - **Referência cruzada** (era "Equivale a"): até 3 linhas `marca` (`ink2`) e `código` (700), na ordem do cadastro. A marca é
   opcional (R-20261115-073000): sem ela, a linha mostra só o código. Sem referência, a seção não aparece.
@@ -57,7 +60,8 @@ O toque no botão abre a **`Folha`** do kit (`packages/ui/src/mobile/folha.tsx`)
 - **Tabela** de duas colunas:
   - cabeçalho `Filial` (à esquerda) e `Estoque` (à direita), 13/600 `ink2` sobre `neutralBg`, 36 dp;
   - uma linha por filial, 48 dp, divisória `lineSoft`: nome 15 `ink`; quantidade Archivo 700 16, alinhada à direita, números tabulares;
-  - **ordem**: a filial do vendedor primeiro, com a marca `sua filial` (13 `ink2`, como no `Filtrar`); as outras em ordem alfabética;
+  - **ordem** (R-20261115-083600): as filiais do usuário primeiro, depois as outras, cada grupo em ordem alfabética. O vendedor
+    vê a dele com a marca `sua filial` (13 `ink2`, como no `Filtrar`); o multi-filial vê a mesma marca em cada uma das dele;
   - **cor da quantidade** (R-20261115-083000): **acima de 0** em `success` #1D6B4F (6,4:1 sobre branco); **0 ou negativo** em
     `danger` #A8261B (7,1:1). O número sempre aparece, a cor nunca está sozinha. Negativo com o sinal de menos (`−2`).
   - Só verde e vermelho: aqui não há o laranja de 1 a 9 da tag do cartão (`../catalogo-grade.md` §4).
@@ -67,9 +71,23 @@ O toque no botão abre a **`Folha`** do kit (`packages/ui/src/mobile/folha.tsx`)
   item só: `Boa Vista, sua filial, estoque 0` · `Belém, estoque menos 2` · `Manaus, estoque 12`. O cabeçalho da tabela não é lido
   (cada linha já diz "estoque").
 
-## 3. Estoque: sem saldo ou sem informação = 0
-Rótulo `Estoque: N` no cartão da grade e na busca (filial do vendedor); o zero fica vermelho (R-20261115-082500). Na ficha, o
-estoque fica na folha `Estoque por filial` (§2.1, R-20261115-083000). Faixas e tenant que esconde a quantidade: `../catalogo-grade.md` §4. Acaba o `Estoque sem
+## 3. Estoque na hora: `Estoque: N` e o botão à direita (R-20261115-083600)
+Rótulo `Estoque: N` no cartão da grade, na busca e na ficha, sem toque nenhum. Sem saldo ou sem informação = 0.
+- **Valor de N:**
+  - vendedor: o estoque da filial dele;
+  - multi-filial (supervisor, gerente, promotor): a **soma** das filiais ligadas a ele (o `modulo-core` expõe a lista);
+  - filial escolhida no filtro (§4): o daquela filial; `Todas as filiais`: a soma de todas. **Proposta da ponte, falta o ok
+    final do dono do produto.**
+- **Cor, só duas** (no chip e na tabela da folha): **acima de 0** `sucesso` (`success` sobre `successBg`, 5,5:1); **0 ou
+  negativo** `erro` (`danger` sobre `dangerBg`, 6,0:1). **O laranja de 1 a 9 sai do Catálogo** (cartão, busca e ficha): pela
+  regra nova, acima de 0 é verde. O "Risco de ruptura" da folha do item do pedido não muda.
+- **Botão no cartão** (grade e busca), à direita do chip, na mesma linha: só ícone `caixa` 18, quadro de 32 dp (borda
+  `lineStrong`, raio 10), `hitSlop` 8 (alvo de 48 dp, dentro do respiro do cartão); `accessibilityLabel="Estoque por filial"`.
+  O toque abre a folha (§2.1) e não abre a ficha. TalkBack do cartão: `…, R$ 86,40, estoque 0`; depois, o botão.
+- **Cabe no aparelho de 360 dp** (medido na simulação): o cartão tem 136 dp por dentro; chip (respiro 8) + 6 + botão 32.
+  Cabe até `Estoque: 999` e `Estoque: −999`. **Acima de 999, o cartão mostra `Estoque: 999+`** (o número exato fica na ficha
+  e na folha). Abaixo de −999 não cabe: **a confirmar** com o modulo-catalogo se o ERP manda saldo assim.
+- Promotor com `promotor_ve_preco_estoque` = não (RN-CAT-05): sem chip e sem botão. Faixas e tenant que esconde a quantidade: `../catalogo-grade.md` §4. Acaba o `Estoque sem
 informação` (`modules/catalogo/app/lib/grade.ts:47` e `apresentacao.ts`, `rotuloEstoque`).
 
 ## 4. Filtro no topo (padrão de Pedidos)
@@ -78,6 +96,8 @@ informação` (`modules/catalogo/app/lib/grade.ts:47` e `apresentacao.ts`, `rotu
 - **O vendedor tem uma filial, obrigatória** (R-20261115-073000): ela é a referência de preço e estoque, e o filtro abre nela, com
   o selo `1` e o chip `Filial Boa Vista ✕`. Diferente de Pedidos (o padrão "Este mês" não conta), aqui o padrão aparece, como o
   dono do produto pediu.
+- **Multi-filial** (R-20261115-083600; proposta, falta o ok): abre nas filiais dele, com o selo `1` e o chip `Suas filiais (3) ✕`;
+  na folha "Filtrar", o grupo Filial tem `Suas filiais (3)` (padrão), cada uma delas, as outras e `Todas as filiais`.
 - O ✕ do chip mostra **Todas as filiais**: estoque somado; o preço continua o da tabela da filial do vendedor (RN-VEN-01).
 - A folha "Filtrar" tem dois grupos (R-20261115-074500):
   - **Filial**: a do vendedor (`sua filial`), as outras e `Todas as filiais`;

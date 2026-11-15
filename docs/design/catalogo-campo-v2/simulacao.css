@@ -68,11 +68,14 @@
   .eq mark { background: var(--accentSoft); color: var(--accentInk); font-weight: 700; border-radius: 4px; padding: 0 3px; white-space: nowrap; }
   .card .p { font-family: Archivo; font-weight: 700; font-size: 18px; line-height: 24px; font-variant-numeric: tabular-nums; margin-top: auto; padding-top: 8px; }
   .card .p.sem { font-family: 'IBM Plex Sans'; font-weight: 600; font-size: 15px; color: var(--ink3); }
-  .card .tg { margin-top: 6px; }
+  /* "Estoque: N" e, à direita, o botão só com ícone (32 dp visível, alvo de 48 com hitSlop 8) que abre "Estoque por filial" */
+  .card .est { margin-top: 6px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .card .est .ce { padding: 0 8px; }
+  .bf { width: 32px; height: 32px; flex: none; border-radius: 10px; border: 1px solid var(--lineStrong); background: #fff; display: flex; align-items: center; justify-content: center; color: var(--ink); outline: 8px solid transparent; }
   .ce { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
   .ce.suc { background: var(--successBg); color: var(--success); }
-  .ce.av { background: var(--warningBg); color: var(--warning); }
   .ce.erro { background: var(--dangerBg); color: var(--danger); }
+  .ce.m { height: 28px; font-size: 13px; padding: 0 12px; }
 
   /* ficha */
   .fx .cods { margin-top: 6px; font-size: 14px; color: var(--faixaSub); }
@@ -117,8 +120,9 @@
   body.so .tela.mostrar { display: flex; }
   body.so .phone { border: 0; }
 
-  /* ficha: botão secundário "Estoque por filial" (Button variant="outline", 48 dp) e a folha com a tabela (R-20261115-083000) */
-  .sec { height: 48px; border-radius: 12px; border: 1px solid var(--lineStrong); background: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; font-size: 15px; color: var(--ink); flex: none; }
+  /* ficha: "Estoque: N" e o botão secundário "Por filial" (Button variant="outline", 48 dp) e a folha com a tabela (R-20261115-083000) */
+  .est-f { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--lineSoft); padding-top: 10px; }
+  .sec { height: 48px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--lineStrong); background: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; font-size: 15px; color: var(--ink); flex: none; }
   .folha .sub { font-size: 13px; color: var(--ink2); margin-top: -6px; }
   .tab-est { display: flex; flex-direction: column; margin-top: 8px; }
   .tab-est .cab { display: flex; justify-content: space-between; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; background: var(--neutralBg); font-size: 13px; font-weight: 600; color: var(--ink2); }
