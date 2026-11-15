@@ -1,7 +1,7 @@
 # Estoque carregado uma vez por dia no aparelho — proposta
 
 Origem: R-20261115-084000-alexandre, texto literal: "Estoque é algo carregado apenas uma vez no dia. Para não pesar no FDV."
-Autor: engenheiro-software, 15/11/2026 (Manaus). Situação: **proposta, sem código**. Se for aprovada, vira o ADR 0055 e as tarefas do §7.
+Autor: engenheiro-software, 15/11/2026 (Manaus). Situação: **proposta, sem código**. Se for aprovada, vira a próxima ADR livre (hoje 0056) e as tarefas do §7; a ADR só é escrita depois das respostas do Alexandre.
 Base lida: branch `nuvem/catalogo-pacote-engenheiro-software` (4e6fc2d), com o pacote da 1ª carga (ADR 0054, `docs/desenho/T-catalogo-pacote.md`).
 
 ## 0. Como funciona hoje
@@ -90,7 +90,7 @@ Base lida: branch `nuvem/catalogo-pacote-engenheiro-software` (4e6fc2d), com o p
 ## 7. Divisão por dono (caminhos exclusivos; números T-nnnn pelo gerente)
 | # | Dono | O que faz | Caminhos | Depende |
 |---|---|---|---|---|
-| A | engenheiro-software | `DefinicaoEntidadeSync.cadencia?: 'continua' \| 'diaria'` (aditivo); motor pula as diárias nas novidades, push silencioso e completa fora da carga; carga diária dentro da sincronização quando `cargaDiariaDevida` (injetada, como `essenciais`); `EstadoMotorSync.carga_diaria_em`; apaga na troca de geração; testes no simulado; ADR 0055 | `packages/platform-sdk/src/{sync,motor-sync}.ts` (+ testes), `docs/decisoes/0055-*`, `.coord/contratos/modulos.md` | — |
+| A | engenheiro-software | `DefinicaoEntidadeSync.cadencia?: 'continua' \| 'diaria'` (aditivo); motor pula as diárias nas novidades, push silencioso e completa fora da carga; carga diária dentro da sincronização quando `cargaDiariaDevida` (injetada, como `essenciais`); `EstadoMotorSync.carga_diaria_em`; apaga na troca de geração; testes no simulado; a próxima ADR livre (hoje 0056), escrita só depois das respostas do Alexandre | `packages/platform-sdk/src/{sync,motor-sync}.ts` (+ testes), `docs/decisoes/0056-*`, `.coord/contratos/modulos.md` | — |
 | B | modulo-core | `cargaDiariaDevida` e `cargaDeHoje` (funções puras, fuso do tenant, testes citando RN-CORE-23) | `modules/core/domain/carga-diaria.ts` (+ teste), `modules/core/contracts/` (export) | — |
 | C | modulo-catalogo | `cadencia: 'diaria'` em `entidadeDeposito` e `entidadeEstoqueSaldo`; parâmetro `estoque_carga_hora`; `rotuloEstoque`/`estoqueVisivel` no app pela `carga_diaria_em` (desatualizado pela regra do §2); estoque local sobre a busca online (§4) | `modules/catalogo/contracts/**`, `modules/catalogo/domain/{estoque,parametros}.ts` (+ testes), `modules/catalogo/app/**` | A, B |
 | D | modulo-vendedor | Só se o item (b) for aprovado: reserva de pedido faturado depois da carga continua descontada | `modules/vendedor/domain/reserva-filial.ts` (+ teste), `modules/vendedor/app/state/use-vendedor.ts` | A |
