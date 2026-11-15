@@ -150,3 +150,21 @@ Na implementação, confiro no print do aparelho. Se a filial do vendedor não v
 ### Fora do escopo (sem RD)
 - `docs/design/telas/T-0173-catalogo.html` ainda tem "120 em estoque". É a prancha histórica da T-0173, que não é a fonte desta tela. Não abri achado.
 - `modules/catalogo/app/lib/grade.ts:51` (`… em estoque`) e o TalkBack de `:78` mudam na implementação do modulo-catalogo. Confiro no reteste do print.
+
+## 7. Reteste do RD-0560 (15/11/2026 ~08h25 de Manaus, commit 251555dc do designer-ux)
+**Veredito: COM ACHADO.** O RD-0560 está corrigido. Há 1 achado novo de gravidade baixa em doc, o RD-0561, e ele segura o lote.
+
+| RD | Situação | Evidência |
+|---|---|---|
+| RD-0560 | **corrigido** | A tabela das faixas existe só no `catalogo-grade.md` §4. A spec §3 tem uma frase e a remissão ao §4, sem tabela e sem a linha do tenant. A spec não diz mais "o §4 já está com o rótulo novo", e o §4 não aponta mais para a spec. O tenant que esconde a quantidade está num lugar só (§4: `Em estoque`, `Pouco estoque`, `Sem estoque`). |
+
+### RD-0561 · baixa · doc · designer-ux
+- **Onde:** `docs/design/catalogo-campo-v2/spec.md` §3 e `docs/design/catalogo-grade.md` §4 (a frase depois da tabela).
+- **O que se repete:** a regra "sem saldo = 0" aparece duas vezes em cada doc.
+  - Na spec, o título "## 3. Estoque: sem saldo ou sem informação = 0" e logo depois a frase "sem saldo ou sem informação = `Estoque: 0`".
+  - No §4, a linha da tabela "0, ou nenhum saldo recebido | `Estoque: 0`" e logo depois "Sem saldo recebido conta como 0".
+  - Essa frase do §4 veio da minha proposta para o RD-0560, e a repetição passou no meu parecer (§6).
+- **Impacto:** manutenção (pouco). O mesmo fato fica escrito duas vezes, a uma linha de distância.
+- **Proposta:**
+  - **Spec §3**, antes: "… e busca; sem saldo ou sem informação = `Estoque: 0`, vermelho (R-20261115-082500). …". Depois: "… e busca; o zero fica vermelho (R-20261115-082500). …". O título continua igual.
+  - **`catalogo-grade.md` §4**, antes: "Sem saldo recebido conta como 0; acaba o `Estoque sem informação` (R-20261115-082500).". Depois: "Acaba o `Estoque sem informação` (R-20261115-082500).".

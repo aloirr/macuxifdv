@@ -71,3 +71,4 @@
 - 2026-11-15 · reteste do Catálogo v2 e do filtro padrão (designer-ux 860b064 e a4b88ed): RD-0496, RD-0497 e RD-0499 a RD-0502 corrigidos; RD-0498 encerrado (decisão nova); RD-0504 novo (carteira vazia com busca e filtro). Relatório §4.
 - 2026-11-15 · reteste final do Catálogo v2 e do filtro padrão (designer-ux f7f3f4c): **LIMPO**. RD-0504 corrigido; a simulação não tem nenhum RD aberto. Relatório §5.
 - 2026-11-15 · parecer da versão aprovada do Catálogo v2 (designer-ux fd17f346, `Estoque: N`, sem a variante de uma linha) · **COM ACHADO**: RD-0560 (baixa, doc: a tabela de estoque aparece na spec §3 e no catalogo-grade §4). A tela está limpa; na ficha, `Boa Vista [Estoque: 0]` + `Manaus 12` fica como está. Relatório §6.
+- 2026-11-15 · reteste do RD-0560 (designer-ux 251555dc): corrigido. Achado novo RD-0561 (baixa, doc: "sem saldo = 0" dito 2 vezes na spec §3 e no grade §4; a frase do §4 veio da minha proposta). Relatório §7.
