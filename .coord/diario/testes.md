@@ -158,3 +158,4 @@
 2026-11-14 — v1.0.6 — desvios de spec D-V106-1..4 em teste e roteiro do aparelho
 2026-11-13 — v1.0.6 — main vermelho (run 43545686800, 1bdf5d16): tests/modulos/desvios-spec-v106.test.ts D-V106-3 atualizado ao #151 (Equivale a em linhaDaMarca/grade.ts; D-V106-3a TalkBack corrigido, it.fails → it); 7/7 verdes contra o main
 2026-11-15 — T-0176 — apoio filial-usuario (helpers compatíveis main/branches), ajuste de ciclo-senha, portal-email-senha, telas-novas, onboarding e apoio api/demo/portal; aceite filial-usuario-t0176 (F-01..F-06); defeitos D-T0176-1..6
+2026-11-15 — T-0176 — v1.0.12: merge do topo das migrações (codigo-fdv-banco-dados) e da guarda global (#339, 9b959fd7); D-T0176-2 e D-T0176-3 de it.fails para it; 403 sem filial com código e mensagem do SDK; casos novos F-06b (Catálogo) e F-07 (sync do bloqueado só entrega usuario; push 403).

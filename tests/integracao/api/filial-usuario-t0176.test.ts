@@ -1,6 +1,6 @@
 /**
  * T-0176 — filial de CADASTRO e filiais de VENDA do usuário pela API REAL (RN-CORE-39 revista; R-20261115-093000 "regra
- * definitiva" e R-20261115-094500 "respostas do dono do produto"). Matriz: docs/testes/T-0176.md (F-01..F-08).
+ * definitiva" e R-20261115-094500 "respostas do dono do produto"). Matriz: docs/testes/T-0176.md (F-01..F-07).
  *
  * `createApp` + os 8 módulos + Postgres efêmero do arquivo (dois-tenants + 0077) pelo `macuxi_app` (RLS). O `subirApi` dá a filial
  * padrão a todo usuário da fixture (tests/integracao/apoio/filial-usuario.ts); cada caso trava quem precisa (`deixarSemFilial`) e
@@ -8,21 +8,20 @@
  * merge dos branches `nuvem/filial-usuario-banco-dados` e `nuvem/filial-usuario-modulo-core`, pula.
  *
  * Convenção: `it` = vale hoje; `it.fails` = defeito aberto (o caso diz o que falta; quando corrigir, fica vermelho e vira `it`).
- *  - D-T0176-2 (modulo-core): o analista sem filial vê `pode_informar: true` no GET, mas o PUT `eu/filial-cadastro` exige a ação
- *    `usuario.editar`, que o analista não tem de fábrica (só o admin) → 403 PERFIL_SEM_ACESSO; ele não se destrava.
- *  - D-T0176-3 (engenheiro-software/modulo-core): o bloqueio `USUARIO_SEM_FILIAL` só cobre as rotas `/v1/core`; as de dados dos
- *    outros módulos (ex.: `/v1/vendedor/formas-pagamento`) seguem 200 para o usuário sem filial.
+ * v1.0.12: D-T0176-2 (ação `usuario.filial_editar` de admin/analista no Core) e D-T0176-3 (guarda global da plataforma, ADR 0056,
+ * #339) corrigidos; os casos viraram `it`. O 403 traz `CODIGO_USUARIO_SEM_FILIAL` e `MENSAGEM_USUARIO_SEM_FILIAL` do SDK, vale em
+ * toda rota autenticada (Catálogo, Vendedor…) e o sync do bloqueado só entrega a entidade `usuario` (push = 403 no lote inteiro).
  */
 import { CriarUsuarioRespostaSchema, SessaoRespostaSchema } from '@macuxi/core/contracts';
 import { definirTenant } from '@macuxi/db/teste';
 import { semBanco } from '@macuxi/db/teste/estado';
-import type { ContextoConsumo } from '@macuxi/platform-sdk';
+import { CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { A, B, erroDe, subirApi, type ApiDeTeste, type Tenant } from '../apoio/api';
 import { API_TEM_FILIAL_DE_USUARIO, deixarSemFilial, filiaisDoTenant, filiaisNoBanco, filialPadrao, garantirFilialDosUsuarios } from '../apoio/filial-usuario';
 
-const SEM_FILIAL = 'USUARIO_SEM_FILIAL';
+const SEM_FILIAL = CODIGO_USUARIO_SEM_FILIAL;
 const EVENTO_VENDEDOR = 'integracao.vendedor.atualizado@1';
 /** Senha inicial dos usuários criados aqui (RN-CORE-32). */
 const SENHA_NOVA = 'Filial#T0176-ok';
@@ -66,6 +65,12 @@ describe.skipIf(semBanco() || !API_TEM_FILIAL_DE_USUARIO)('T-0176 filial de cada
     const r = await api.chamar(token, { method, url, ...(payload ? { payload } : {}) });
     return r.statusCode >= 400 ? `${r.statusCode} ${erroDe(r).codigo}` : String(r.statusCode);
   };
+  /** 403 do usuário sem filial: código e texto aprovados, os do SDK (fonte única). */
+  const esperarSemFilial = async (token: string, method: 'GET' | 'POST' | 'PUT', url: string, payload?: object) => {
+    const r = await api.chamar(token, { method, url, ...(payload ? { payload } : {}) });
+    expect(r.statusCode, `${url}: ${r.body}`).toBe(403);
+    expect(erroDe(r), url).toMatchObject({ codigo: CODIGO_USUARIO_SEM_FILIAL, mensagem: MENSAGEM_USUARIO_SEM_FILIAL });
+  };
   /** Volta o usuário ao estado da fixture (filial padrão). */
   const destravar = (id: string) => garantirFilialDosUsuarios(api.admin, [id]);
 
@@ -99,7 +104,7 @@ describe.skipIf(semBanco() || !API_TEM_FILIAL_DE_USUARIO)('T-0176 filial de cada
         expect(s.usuario).toMatchObject({ id, perfil, sem_filial: true, filial_cadastro_id: null, filial_venda_ids: [] });
         // o token novo e o emitido ANTES do bloqueio: o bloqueio é lido a cada requisição
         for (const token of [s.access_token, comFilial.access_token]) {
-          for (const url of abertas) expect(await status(token, 'GET', url), `${perfil} ${url}`).toBe(`403 ${SEM_FILIAL}`);
+          for (const url of abertas) await esperarSemFilial(token, 'GET', url);
         }
         // a única rota liberada: o estado do próprio usuário (o app/BKO abre só a tela de bloqueio ou a que pede a filial)
         const eu = await api.chamar(s.access_token, { method: 'GET', url: '/v1/core/eu/filial-cadastro' });
@@ -169,8 +174,8 @@ describe.skipIf(semBanco() || !API_TEM_FILIAL_DE_USUARIO)('T-0176 filial de cada
       }
     });
 
-    // D-T0176-2: o GET promete (pode_informar true) o que o PUT recusa (usuario.editar é só do admin de fábrica)
-    it.fails('analista sem filial se destrava como o admin (o GET diz pode_informar: true)', async () => {
+    // D-T0176-2 corrigido na v1.0.12: a ação `usuario.filial_editar` (admin e analista) no Core
+    it('analista sem filial se destrava como o admin (o GET diz pode_informar: true)', async () => {
       const id = A.usuarios.analista;
       await deixarSemFilial(api.admin, id);
       try {
@@ -345,15 +350,64 @@ describe.skipIf(semBanco() || !API_TEM_FILIAL_DE_USUARIO)('T-0176 filial de cada
   });
 
   // ------------------------------------------------------------------------------------------------------------------ F-06
-  describe('F-06 bloqueio fora do Core', () => {
-    // D-T0176-3: `comGuardaDeFilial` só embrulha as rotas do Core; falta o gancho da plataforma para os outros módulos
-    it.fails('vendedor sem filial: rota de dados do Vendedor (/v1/vendedor/formas-pagamento) = 403 USUARIO_SEM_FILIAL', async () => {
+  describe('F-06 bloqueio fora do Core (guarda global, ADR 0056)', () => {
+    // D-T0176-3 corrigido na v1.0.12 (#339): a guarda está no `preparar` da API, vale para toda rota autenticada
+    it('vendedor sem filial: rota de dados do Vendedor (/v1/vendedor/formas-pagamento) = 403 USUARIO_SEM_FILIAL', async () => {
       const id = A.usuarios.vendedor1;
       const antes = (await sessao('vendedor@exemplo.com.br', 'campo')).access_token;
       expect(await status(antes, 'GET', '/v1/vendedor/formas-pagamento')).toBe('200');
       await deixarSemFilial(api.admin, id);
       try {
-        expect(await status(antes, 'GET', '/v1/vendedor/formas-pagamento')).toBe(`403 ${SEM_FILIAL}`);
+        await esperarSemFilial(antes, 'GET', '/v1/vendedor/formas-pagamento');
+      } finally {
+        await destravar(id);
+      }
+      expect(await status(antes, 'GET', '/v1/vendedor/formas-pagamento')).toBe('200');
+    });
+
+    it('vendedor sem filial: rota do Catálogo (/v1/catalogo/produtos) = 403 com o código e a mensagem do SDK; destravado, volta 200', async () => {
+      const id = A.usuarios.vendedor1;
+      const antes = (await sessao('vendedor@exemplo.com.br', 'campo')).access_token;
+      expect(await status(antes, 'GET', '/v1/catalogo/produtos')).toBe('200');
+      await deixarSemFilial(api.admin, id);
+      try {
+        await esperarSemFilial(antes, 'GET', '/v1/catalogo/produtos');
+        await esperarSemFilial((await sessao('vendedor@exemplo.com.br', 'campo')).access_token, 'GET', '/v1/catalogo/produtos');
+      } finally {
+        await destravar(id);
+      }
+      expect(await status(antes, 'GET', '/v1/catalogo/produtos')).toBe('200');
+    });
+  });
+
+  // ------------------------------------------------------------------------------------------------------------------ F-07
+  describe('F-07 sync do usuário sem filial: só a entidade usuario', () => {
+    it('novidades = só [usuario]; pull do usuario traz só a própria linha (sem_filial); pull de outra entidade e push = 403', async () => {
+      const id = A.usuarios.vendedor1;
+      const t = (await sessao('vendedor@exemplo.com.br', 'campo')).access_token;
+      const livre = await api.chamar(t, { method: 'GET', url: '/v1/sync/novidades' });
+      expect(livre.statusCode, livre.body).toBe(200);
+      const todas = (livre.json() as { entidades: string[] }).entidades;
+      const outra = todas.find((e) => e !== 'usuario');
+      expect(todas, 'com filial: o vendedor recebe mais que a entidade usuario').toContain('usuario');
+      expect(outra, 'com filial: alguma entidade além de usuario').toBeDefined();
+
+      await deixarSemFilial(api.admin, id);
+      try {
+        const nov = await api.chamar(t, { method: 'GET', url: '/v1/sync/novidades' });
+        expect(nov.statusCode, nov.body).toBe(200);
+        expect((nov.json() as { entidades: string[] }).entidades).toEqual(['usuario']);
+
+        const pull = await api.chamar(t, { method: 'GET', url: '/v1/sync/pull?entidade=usuario' });
+        expect(pull.statusCode, pull.body).toBe(200);
+        const itens = (pull.json() as { itens: ({ id: string } & ComFilial)[] }).itens;
+        expect(itens.map((l) => l.id)).toEqual([id]);
+        expect(itens[0]).toMatchObject({ sem_filial: true, filial_cadastro_id: null });
+
+        await esperarSemFilial(t, 'GET', `/v1/sync/pull?entidade=${outra!}`);
+        const pedido = randomUUID();
+        await esperarSemFilial(t, 'POST', '/v1/sync/push', { itens: [{ entidade: 'pedido', id: pedido, operacao: 'upsert', payload: {} }] });
+        expect((await api.admin.query('select 1 from vendedor.pedido where id = $1', [pedido])).rowCount, 'push bloqueado não grava').toBe(0);
       } finally {
         await destravar(id);
       }
