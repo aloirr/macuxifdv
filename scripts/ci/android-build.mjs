@@ -14,7 +14,10 @@
  *
  * Uso no workflow:  VARIANTE=campo VERSAO=1.0.8 PERFIL=producao VERSION_CODE_INFORMADO= node scripts/ci/android-build.mjs
  * Escreve em $GITHUB_ENV (env do perfil, NOME_BUILD, VERSION_CODE) e em $GITHUB_OUTPUT (node, nome, version_code).
- * Saída: 0 = ok; 2 = entrada inválida (::error:: com o motivo).
+ *
+ * Conferência da assinatura:  apksigner verify --print-certs APK | ESPERADO=<sha> node scripts/ci/android-build.mjs certificado
+ * Mostra no log só as linhas de certificado (DN e SHA-256: públicos) e escreve em $GITHUB_OUTPUT (sha, conferido).
+ * Saída: 0 = ok; 2 = entrada inválida ou assinatura recusada (::error:: com o motivo).
  */
 import { appendFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -78,7 +81,43 @@ export function planoDoBuild({ easJson, variante, versao, perfil, versionCode })
   return { perfilEas: p.nome, node: p.node, env: { ...p.env, NOME_BUILD: nome, VERSION_CODE: String(code) }, nome, versionCode: code };
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/**
+ * SHA-256 do certificado de assinatura na saída de `apksigner verify --print-certs` (função pura). Aceita os dois
+ * formatos: até o build-tools 36 (`Signer #1 certificate SHA-256 digest: <hex>`) e a partir do 37 (`V2 Signer: ...`,
+ * `V3.0 Signer: ...`, um bloco por esquema). Todos os assinantes têm de ter o mesmo certificado; o carimbo de origem
+ * (Source Stamp) não é o certificado do app e fica fora. Lança Error com o motivo.
+ */
+export function certificadoDoApk(saida, esperado) {
+  const texto = String(saida ?? '');
+  if (/DOES NOT VERIFY/.test(texto)) throw new Error('apksigner: o APK não verifica (DOES NOT VERIFY)');
+  const linhas = texto
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => / certificate (DN|SHA-256 digest): /.test(l) && !/^Source Stamp/i.test(l));
+  if (linhas.some((l) => / certificate DN: .*CN=Android Debug/.test(l))) throw new Error('o APK saiu com o certificado de debug');
+  const shas = [...new Set(linhas.map((l) => / certificate SHA-256 digest: ([0-9a-f]{64})$/i.exec(l)?.[1]?.toLowerCase()).filter(Boolean))];
+  if (shas.length === 0) throw new Error('apksigner não mostrou o SHA-256 do certificado');
+  if (shas.length > 1) throw new Error(`assinantes com certificados diferentes: ${shas.join(', ')}`);
+  const [sha] = shas;
+  const normal = String(esperado ?? '').replace(/[:\s]/g, '').toLowerCase();
+  if (normal && normal !== sha) throw new Error(`SHA-256 ${sha} diferente do esperado na variável ANDROID_CERT_SHA256 da variante`);
+  return { sha, conferido: normal ? 'igual ao esperado' : 'sem valor esperado: confira com o do expo.dev', linhas };
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url) && process.argv[2] === 'certificado') {
+  const saida = readFileSync(0, 'utf8');
+  try {
+    const c = certificadoDoApk(saida, process.env.ESPERADO);
+    for (const l of c.linhas) console.log(l);
+    console.log(`SHA-256 do certificado: ${c.sha} (${c.conferido})`);
+    if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `sha=${c.sha}\nconferido=${c.conferido}\n`);
+  } catch (err) {
+    // a saída do apksigner só tem certificados e erros de verificação (nada secreto): vai inteira ao log
+    console.log(saida.trim() || '(apksigner sem saída)');
+    console.log(`::error title=assinatura::${err instanceof Error ? err.message : String(err)}`);
+    process.exit(2);
+  }
+} else if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const raiz = fileURLToPath(new URL('../../', import.meta.url));
   try {
     const easJson = JSON.parse(readFileSync(resolve(raiz, 'apps/mobile/eas.json'), 'utf8'));
