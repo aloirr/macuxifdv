@@ -7,12 +7,12 @@
  */
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, CampoBusca, CampoFormulario, CLASSE_CAMPO, Dialog, Drawer, ErrorBlock, EstadoVazio, FilterBar, LoadingBlock, MenuAcoes, Notice, PageHeader, rotuloComContagem, SelectField, SeloSituacao, TabelaDados, useToast, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
+import { Button, CampoBusca, CampoFormulario, CLASSE_CAMPO, Dialog, Drawer, ErrorBlock, EstadoVazio, FilterBar, LoadingBlock, MenuAcoes, Notice, PageHeader, rotuloComContagem, SelectField, TabelaDados, useToast, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { MarcaListaSaidaSchema, type MarcaListaSaida } from '../../contracts';
 import { mensagemInativarMarca, validarNomeMarca } from '../../domain/marcas-cadastro';
-import { useBuscaComEspera } from '../lib/busca-com-espera';
+import { LimparFiltros, useBuscaComEspera } from '../lib/lista';
 import { buscaDosFiltrosMarcas, FILTROS_MARCAS_PADRAO, filtrosMarcasLigados, lerFiltrosMarcas, marcasParaCsv, type FiltrosMarcas } from '../lib/marcas';
 
 const BASE = '/catalogo';
@@ -48,7 +48,6 @@ const COLUNAS_BASE = (): ColunaDaTabela<Marca>[] => [
   { id: 'nome', titulo: 'Marca', celula: (m) => m.nome, texto: (m) => m.nome },
   { id: 'referencias', titulo: 'Referências', numero: true, largura: '130px', celula: (m) => m.referencias },
   { id: 'external', titulo: 'Código no ERP', prioridade: 2, largura: '180px', celula: (m) => m.external_id ?? '—', texto: (m) => m.external_id ?? '' },
-  { id: 'situacao', titulo: 'Situação', largura: '120px', celula: (m) => <SeloSituacao selos={[m.ativo ? { tom: 'success', texto: 'Ativa' } : { tom: 'neutral', texto: 'Inativa' }]} /> },
 ];
 
 export function MarcasPage() {
@@ -137,8 +136,7 @@ export function MarcasPage() {
               </Button>
             )}
             <MenuAcoes
-              rotulo="Mais ações"
-              acoes={[
+                acoes={[
                 { id: 'csv', rotulo: 'Exportar CSV', desligada: itens.length === 0, aoEscolher: () => downloadBlob(new Blob([marcasParaCsv(itens)], { type: 'text/csv;charset=utf-8' }), 'marcas-concorrentes.csv'), testId: 'marcas.csv' },
                 { id: 'atualizar', rotulo: lista.isFetching ? 'Atualizando…' : 'Atualizar', desligada: lista.isFetching, aoEscolher: () => void lista.refetch(), testId: 'marcas.atualizar' },
               ]}
@@ -154,11 +152,7 @@ export function MarcasPage() {
           <option value="inativas">Inativas</option>
           <option value="todas">Todas</option>
         </SelectField>
-        {ligados && (
-          <Button size="sm" onClick={() => mudar(FILTROS_MARCAS_PADRAO)} data-testid="marcas.limpar">
-            Limpar filtros
-          </Button>
-        )}
+        <LimparFiltros ligado={ligados} onLimpar={() => mudar(FILTROS_MARCAS_PADRAO)} testId="marcas.limpar" />
       </FilterBar>
 
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}

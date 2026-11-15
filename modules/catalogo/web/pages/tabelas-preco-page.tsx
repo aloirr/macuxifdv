@@ -12,7 +12,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ListaTabelasPreco, PaginaEscalonada, PaginaPrecosTabela, RespostaBusca, type FaixaCadastrada, type PrecoUnidadeLinha } from '../../contracts';
 import { textoRemoverFaixa } from '../lib/formularios';
-import { useBuscaComEspera } from '../lib/busca-com-espera';
+import { LimparFiltros, useBuscaComEspera } from '../lib/lista';
 import { buscaDosFiltrosTabelas, faixaDoForm, faixasParaCsv, filtrosTabelasLigados, FORM_FAIXA_VAZIO, formDaFaixa, lerFiltrosTabelas, precosParaCsv, seloDaFaixa, textoVigencia, type FiltrosTabelas, type FormFaixa } from '../lib/tabelas-preco';
 
 const BASE = '/catalogo';
@@ -114,7 +114,6 @@ function PrecosUnidade({ filtros, mudar, tabelas, filiais, filialId, tabelaId }:
         total={tabelas.length === 0 ? undefined : total}
         actions={
           <MenuAcoes
-            rotulo="Mais ações"
             acoes={[
               { id: 'csv', rotulo: 'Exportar CSV', desligada: itens.length === 0, aoEscolher: () => downloadBlob(new Blob([precosParaCsv(itens)], { type: 'text/csv;charset=utf-8' }), 'precos-da-unidade.csv'), testId: 'tabelas-preco.csv' },
               { id: 'atualizar', rotulo: lista.isFetching ? 'Atualizando…' : 'Atualizar', desligada: lista.isFetching || tabelaId === '', aoEscolher: () => void lista.refetch() },
@@ -143,11 +142,7 @@ function PrecosUnidade({ filtros, mudar, tabelas, filiais, filialId, tabelaId }:
                 </option>
               ))}
             </SelectField>
-            {ligados && (
-              <Button size="sm" onClick={() => mudar({ q: '' })} data-testid="tabelas-preco.limpar">
-                Limpar filtros
-              </Button>
-            )}
+            <LimparFiltros ligado={ligados} onLimpar={() => mudar({ q: '' })} testId="tabelas-preco.limpar" />
           </FilterBar>
           {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
           {lista.isPending && tabelaId !== '' && <LoadingBlock label="Carregando os preços…" />}
@@ -262,8 +257,7 @@ function Escalonada({ filtros, mudar, tabelas }: { filtros: FiltrosTabelas; muda
               Nova faixa
             </Button>
             <MenuAcoes
-              rotulo="Mais ações"
-              acoes={[
+                acoes={[
                 { id: 'csv', rotulo: 'Exportar CSV', desligada: itens.length === 0, aoEscolher: () => downloadBlob(new Blob([faixasParaCsv(itens)], { type: 'text/csv;charset=utf-8' }), 'tabela-escalonada.csv'), testId: 'escalonada.csv' },
                 { id: 'atualizar', rotulo: lista.isFetching ? 'Atualizando…' : 'Atualizar', desligada: lista.isFetching, aoEscolher: () => void lista.refetch() },
               ]}
@@ -285,11 +279,7 @@ function Escalonada({ filtros, mudar, tabelas }: { filtros: FiltrosTabelas; muda
           <option value="">Todas</option>
           <option value="hoje">Vigentes hoje</option>
         </SelectField>
-        {ligados && (
-          <Button size="sm" onClick={() => mudar({ q: '', tabela: '', vigente: false })} data-testid="escalonada.limpar">
-            Limpar filtros
-          </Button>
-        )}
+        <LimparFiltros ligado={ligados} onLimpar={() => mudar({ q: '', tabela: '', vigente: false })} testId="escalonada.limpar" />
       </FilterBar>
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando as faixas…" />}

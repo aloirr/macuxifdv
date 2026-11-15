@@ -17,7 +17,7 @@ import { linhasEstoquePorFilial } from '../lib/estoque-filial';
 import { caminhoDoProduto, escopoDoNivel } from '../exportacao/layout';
 import { chaveDeTermo } from '../../domain/texto';
 import { LIMITES_CADASTRO_CATALOGO } from '../../domain/cadastro-catalogo';
-import { useBuscaComEspera } from '../lib/busca-com-espera';
+import { LimparFiltros, useBuscaComEspera } from '../lib/lista';
 import { abrirEditores, acaoTecladoOfereceJunto, adicionarOfereceJunto, anuncioOfereceJunto, listaOfereceJunto, moverOfereceJunto, removerOfereceJunto, sugestoesOfereceJunto, abrirParaLeitura, buscaDosFiltros, cadastroCatalogoDoForm, conteudoDoForm, contadorAplicacao, EDITORES_FECHADOS, formCadastroDaFicha, formDaFicha, formDoSinonimo, lerFiltrosBko, limiteAplicacao, mapaIdsPorCodigo, nomesDoOfereceJunto, produtosParaCsv, sinonimoDoForm, type AbaBko, type EditoresAbertos, type FiltrosBko, type FormCadastroCatalogo, type FormConteudo, type FormSinonimo } from '../lib/formularios';
 
 const POR_PAGINA = 100;
@@ -183,12 +183,20 @@ function Produtos({ filtros, mudar, podeConteudo, abas }: { filtros: FiltrosBko;
   const total = mostrarTabela ? (lista.data ? visiveis.length : undefined) : h?.tipo === 'niveis' ? h.total_produtos : undefined;
   const haMais = mostrarTabela && !!lista.hasNextPage;
   const colunas: ColunaDaTabela<ItemVitrine>[] = [
-    { id: 'produto', titulo: 'Produto', celula: (i) => nomeLegivel(i.description), texto: (i) => i.description },
+    { id: 'produto', titulo: 'Produto', celula: (i) => (
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate">{nomeLegivel(i.description)}</span>
+          {i.is_campaign && (
+            <span className="shrink-0">
+              <SeloSituacao selos={[{ tom: 'pending', texto: 'Destaque' }]} />
+            </span>
+          )}
+        </span>
+      ), texto: (i) => i.description },
     { id: 'codigo', titulo: 'Código', prioridade: 2, largura: '120px', celula: (i) => <span className="font-mono">{i.erp_code}</span>, texto: (i) => i.erp_code },
     { id: 'marca', titulo: 'Marca', prioridade: 2, celula: (i) => i.brand || '—', texto: (i) => i.brand },
     { id: 'categoria', titulo: 'Categoria', prioridade: 3, celula: (i) => i.line || '—', texto: (i) => i.line },
     ...(mostrarCaminho ? [{ id: 'caminho', titulo: 'Caminho', prioridade: 3 as const, celula: (i: ItemVitrine) => <span data-testid={`catalogo.caminho.${i.erp_code}`}>{caminhos.get(i.id) ?? '—'}</span>, texto: (i: ItemVitrine) => caminhos.get(i.id) ?? '' }] : []),
-    { id: 'destaque', titulo: 'Destaque', largura: '110px', celula: (i) => (i.is_campaign ? <SeloSituacao selos={[{ tom: 'pending', texto: 'Destaque' }]} /> : '—') },
   ];
   const acoesDaLinha = (i: ItemVitrine): AcaoDoMenu[] =>
     podeDestaque
@@ -204,14 +212,10 @@ function Produtos({ filtros, mudar, podeConteudo, abas }: { filtros: FiltrosBko;
 
   return (
     <>
-      <Cabecalho aba="produtos" abas={abas} mudar={mudar} total={total} haMais={haMais} actions={<MenuAcoes rotulo="Mais ações" acoes={acoesPagina} />} />
+      <Cabecalho aba="produtos" abas={abas} mudar={mudar} total={total} haMais={haMais} actions={<MenuAcoes acoes={acoesPagina} />} />
       <FilterBar>
         <CampoBusca rotulo="Buscar produto, código ou EAN" {...busca} data-testid="catalogo.busca" />
-        {filtros.q !== '' && (
-          <Button size="sm" onClick={() => mudar({ q: '' })} data-testid="catalogo.limpar">
-            Limpar filtros
-          </Button>
-        )}
+        <LimparFiltros ligado={filtros.q !== ''} onLimpar={() => mudar({ q: '' })} testId="catalogo.limpar" />
       </FilterBar>
       {hier.isError && filtros.q === '' && <ErrorBlock message={errorMessage(hier.error)} onRetry={() => void hier.refetch()} />}
       {!mostrarTabela && (
