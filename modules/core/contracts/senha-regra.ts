@@ -4,7 +4,7 @@
  * - de 8 a 200 caracteres, contados em pontos de código (um emoji conta como 1);
  * - pelo menos uma letra (`\p{L}`, acentuada vale), um número (`\p{Nd}`) e um caractere especial (`[^\p{L}\p{N}\s]`);
  * - espaço no meio é permitido e não conta como especial; espaço no começo ou no fim invalida a senha (só quando há algum caractere que não é espaço; vazia ou só de espaços cai nas faltas comuns); ela nunca passa por `trim`.
- * O login aceita qualquer senha já gravada: a regra não vale na conferência.
+ * No login, só o espaço nas pontas é recusado antes de enviar (a conferência da senha gravada é do servidor).
  */
 export const SENHA_MIN_CARACTERES = 8;
 export const SENHA_MAX_CARACTERES = 200;
@@ -13,6 +13,9 @@ export type FaltaNaSenha = 'caracteres' | 'letra' | 'numero' | 'especial' | 'esp
 
 /** Única frase do espaço no começo ou no fim da senha (criação, troca e aviso do login). */
 export const MENSAGEM_SENHA_ESPACO_NAS_PONTAS = 'A senha não pode começar nem terminar com espaço.';
+
+/** Regra única do espaço no começo ou no fim da senha (criação, troca e login). */
+export const temEspacoNasPontas = (s: string): boolean => s !== s.trim();
 
 /** Texto aprovado para a ajuda do campo (telas do BKO, do portal e do convite). */
 export const REGRA_DA_SENHA = 'Pelo menos 8 caracteres, com letra, número e caractere especial.';
@@ -24,7 +27,7 @@ const tamanho = (s: string): number => [...s].length;
 export function faltasNaSenha(senha: string): FaltaNaSenha[] {
   const n = tamanho(senha);
   const faltas: FaltaNaSenha[] = [];
-  if (senha.trim() !== '' && senha !== senha.trim()) faltas.push('espaco');
+  if (senha.trim() !== '' && temEspacoNasPontas(senha)) faltas.push('espaco');
   if (n < SENHA_MIN_CARACTERES || n > SENHA_MAX_CARACTERES) faltas.push('caracteres');
   if (!/\p{L}/u.test(senha)) faltas.push('letra');
   if (!/\p{Nd}/u.test(senha)) faltas.push('numero');

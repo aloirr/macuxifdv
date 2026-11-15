@@ -3,9 +3,9 @@
  * `senha-regra.ts` (sem dependências); aqui ficam reexportadas e o schema Zod que as telas usam para validar o campo.
  */
 import { z } from 'zod';
-import { MENSAGEM_SENHA_ESPACO_NAS_PONTAS, REGRA_DA_SENHA, SENHA_MAX_CARACTERES, SENHA_MIN_CARACTERES, faltasNaSenha, mensagemDaSenha, senhaServe, type FaltaNaSenha } from './senha-regra';
+import { MENSAGEM_SENHA_ESPACO_NAS_PONTAS, REGRA_DA_SENHA, SENHA_MAX_CARACTERES, SENHA_MIN_CARACTERES, faltasNaSenha, mensagemDaSenha, senhaServe, temEspacoNasPontas, type FaltaNaSenha } from './senha-regra';
 
-export { MENSAGEM_SENHA_ESPACO_NAS_PONTAS, REGRA_DA_SENHA, SENHA_MAX_CARACTERES, SENHA_MIN_CARACTERES, faltasNaSenha, mensagemDaSenha, senhaServe };
+export { MENSAGEM_SENHA_ESPACO_NAS_PONTAS, REGRA_DA_SENHA, SENHA_MAX_CARACTERES, SENHA_MIN_CARACTERES, faltasNaSenha, mensagemDaSenha, senhaServe, temEspacoNasPontas };
 export type { FaltaNaSenha };
 
 /** Senha NOVA (criação ou troca): cumpre a RN-CORE-32; a mensagem de erro diz o que falta. Sem `trim`. O login não usa este schema. */

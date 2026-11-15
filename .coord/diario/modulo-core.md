@@ -162,3 +162,4 @@
 2026-11-14 — T-0174 — PR #258: RD-0260..0266 e MC-0032..0034 (cliente_ultima_visita retirada, rodapé 48 dp sem fonte local, botoesDoRodapeCliente com visitadoHoje, prints em docs/modulos/core/prints/checkin)
 2026-11-14 — T-0174 — PR #258: gerador versionado dos prints do check-in (docs/modulos/core/prints/checkin/gerar.mjs, TelaCliente real); 7 prints refeitos (faixa nova, folha com e sem GPS); folha-checkin-continuar.png substituído; comentário de cliente.tsx (achado do corretor)
 2026-11-15 — login v1.0.9 — PR #303: faltasNaSenha não marca espaco em senha vazia ou só de espaços (PE-02)
+2026-11-15 — T-0094 — login v1.0.9: RD-0430 (frase única do código da empresa, sem .length) e RD-0431 (temEspacoNasPontas); regex da CLI pendente com engenheiro-software

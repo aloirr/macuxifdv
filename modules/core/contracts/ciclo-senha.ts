@@ -5,8 +5,8 @@
  */
 import { ehEmail } from '@macuxi/comum/email';
 import { ehSemConexao, VALIDADE_SENHA_PROVISORIA_HORAS } from '@macuxi/platform-sdk';
-import { CODIGO_EMPRESA_TAMANHO, CodigoEmpresaFormatoSchema, DetalhesSenhaATrocarSchema, type DetalhesSenhaATrocar } from './auth';
-import { faltasNaSenha, mensagemDaSenha, MENSAGEM_SENHA_ESPACO_NAS_PONTAS, type FaltaNaSenha } from './senha';
+import { CodigoEmpresaFormatoSchema, DetalhesSenhaATrocarSchema, MENSAGEM_CODIGO_EMPRESA, type DetalhesSenhaATrocar } from './auth';
+import { faltasNaSenha, mensagemDaSenha, MENSAGEM_SENHA_ESPACO_NAS_PONTAS, temEspacoNasPontas, type FaltaNaSenha } from './senha';
 
 /** Formato do e-mail: `ehEmail` de `@macuxi/comum` (RD-0020), já sem os espaços das pontas. */
 export const ehEmailValido = (email: string): boolean => ehEmail(email.trim());
@@ -142,13 +142,9 @@ export function validarEsqueci(c: CamposEsqueci): ErrosEsqueci {
   return erros;
 }
 
-/** RF-CORE-01: mensagem do código da empresa inválido, com o motivo real (curto, longo ou caractere); `null` se vale. O tamanho vem antes do caractere. */
+/** RF-CORE-01: mensagem única do código da empresa inválido (com a ação seguinte); `null` se vale. */
 export function erroDoCodigoEmpresa(valor: string): string | null {
-  const v = valor.trim();
-  if (CodigoEmpresaFormatoSchema.safeParse(v).success) return null;
-  if (v.length < CODIGO_EMPRESA_TAMANHO) return `O código da empresa tem ${CODIGO_EMPRESA_TAMANHO} caracteres. Confira no e-mail e digite de novo.`;
-  if (v.length > CODIGO_EMPRESA_TAMANHO) return `O código da empresa tem no máximo ${CODIGO_EMPRESA_TAMANHO} caracteres. Confira no e-mail e digite de novo.`;
-  return 'O código da empresa tem duas letras da UF e quatro números, como AM4821. Confira no e-mail e digite de novo.';
+  return CodigoEmpresaFormatoSchema.safeParse(valor).success ? null : MENSAGEM_CODIGO_EMPRESA;
 }
 
 export interface CamposLogin {
@@ -169,6 +165,6 @@ export function validarLogin(c: CamposLogin): ErrosLogin {
   if (!c.email.trim()) erros.email = 'Informe o seu e-mail.';
   else if (!ehEmailValido(c.email)) erros.email = 'Esse e-mail não parece certo. Confira e digite de novo.';
   if (!c.senha) erros.senha = 'Informe a sua senha.';
-  else if (c.senha !== c.senha.trim()) erros.senha = MENSAGEM_SENHA_ESPACO_NAS_PONTAS;
+  else if (temEspacoNasPontas(c.senha)) erros.senha = MENSAGEM_SENHA_ESPACO_NAS_PONTAS;
   return erros;
 }

@@ -22,11 +22,11 @@ describe('RF-CORE-01: login do app', () => {
     });
     expect(validarLogin({ codigo_empresa: 'AM4821', email: 'sem-arroba', senha: 'x' }).email).toContain('e-mail');
     expect(validarLogin({ codigo_empresa: 'AM 821', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('duas letras da UF e quatro números');
-    expect(validarLogin({ codigo_empresa: 'AM48211', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('no máximo 6 caracteres');
-    expect(validarLogin({ codigo_empresa: 'AM48', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('6 caracteres');
+    expect(validarLogin({ codigo_empresa: 'AM48211', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('duas letras da UF e quatro números');
+    expect(validarLogin({ codigo_empresa: 'AM48', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('duas letras da UF e quatro números');
     expect(validarLogin({ codigo_empresa: 'XX4821', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('duas letras da UF e quatro números');
     expect(validarLogin({ codigo_empresa: 'alfa12', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('duas letras da UF e quatro números');
-    expect(validarLogin({ codigo_empresa: 'alfa', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('6 caracteres');
+    expect(validarLogin({ codigo_empresa: 'alfa', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('duas letras da UF e quatro números');
     expect(validarLogin({ codigo_empresa: 'AM4821', email: 'v@x.com', senha: 'x' })).toEqual({});
     expect(validarLogin({ codigo_empresa: ' Am4821 ', email: ' v@x.com ', senha: 'x' })).toEqual({});
   });
