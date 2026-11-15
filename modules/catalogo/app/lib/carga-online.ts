@@ -44,6 +44,13 @@ export function usarApiNaCarga(p: PortaCargaOnline | null): 'local' | 'api' | 's
   return p.online() ? 'api' : 'sem_sinal';
 }
 
+/** Modo da carga a partir do estado do motor de sync (`pendentes` é opcional nele) e do sinal; um lugar só para as telas. */
+export function modoDaCarga(sync: object, online: boolean): 'local' | 'api' | 'sem_sinal' {
+  const pendentes = (sync as { pendentes?: readonly string[] }).pendentes;
+  if (!catalogoPendente(pendentes)) return 'local';
+  return online ? 'api' : 'sem_sinal';
+}
+
 /** RN-CAT-06: dentro do pedido só entra o vendável; sem preço visível (RN-CAT-05) não há o que filtrar. */
 export const soVendaveisNaCarga = <T extends { price: { sellable: boolean } | null }>(itens: readonly T[]): T[] => itens.filter((i) => i.price === null || i.price.sellable);
 

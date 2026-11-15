@@ -4,6 +4,7 @@ import {
   catalogoPendente,
   definirCargaOnline,
   fichasDaApi,
+  modoDaCarga,
   paginasDaApi,
   soVendaveisNaCarga,
   usarApiNaCarga,
@@ -72,5 +73,16 @@ describe('fichas da API (preço do cliente e textos)', () => {
   it('definirCargaOnline guarda a porta do shell', () => {
     expect(() => definirCargaOnline(porta())).not.toThrow();
     definirCargaOnline(null);
+  });
+});
+
+describe('modo da carga a partir do estado do sync', () => {
+  it('RF-CAT-01: sem pendência do catálogo = local, com ou sem sinal', () => {
+    expect(modoDaCarga({}, true)).toBe('local');
+    expect(modoDaCarga({ pendentes: ['cliente'] }, false)).toBe('local');
+  });
+  it('RF-CAT-01: pendente com sinal = api; pendente sem sinal = sem_sinal', () => {
+    expect(modoDaCarga({ pendentes: ['catalogo_precos'] }, true)).toBe('api');
+    expect(modoDaCarga({ pendentes: ['produto'] }, false)).toBe('sem_sinal');
   });
 });

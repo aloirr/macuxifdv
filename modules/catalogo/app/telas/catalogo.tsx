@@ -20,7 +20,7 @@ import { idsAtivos } from '../../domain/hierarquia';
 import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, avisoDaBusca, iconeDoAviso } from '../../domain/ia';
 import { textoPareceCodigo } from '../../domain/codigo-busca';
 import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, SEM_FILTRO, subtituloDaGrade, type FiltroDaGrade } from '../lib/grade';
-import { catalogoPendente, paginasDaApi, soVendaveisNaCarga } from '../lib/carga-online';
+import { modoDaCarga, paginasDaApi, soVendaveisNaCarga } from '../lib/carga-online';
 import { vazioDaBusca } from '../lib/vazio-busca';
 import { arvoreLocal, buscarLocal, nomeDoClienteLocal, produtosDaNavegacao, produtosLocais, vitrineLocal } from '../lib/local';
 import { sugestaoDaBuscaLocal } from '../texto-consultas';
@@ -62,7 +62,7 @@ export default function TelaCatalogo() {
   const idsExibidos = useMemo(() => lista.itens.map((i) => i.id), [lista.itens]);
   const miniaturas = useMiniaturasDosItens(motor, idsExibidos, sync.sincronizado_em);
   // ADR 0054: catálogo ainda carregando na primeira carga = busca e preço pela API; os filtros da árvore ficam desligados
-  const naCarga = catalogoPendente((sync as { pendentes?: readonly string[] }).pendentes);
+  const naCarga = modoDaCarga(sync, ambiente.online()) !== 'local';
   const noInicial = params.no ? String(params.no) : null;
 
   useEffect(() => setLimite(POR_PAGINA), [filtro, consulta]);
