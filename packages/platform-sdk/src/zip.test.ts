@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classificarEntradaZip, LIMITES_ZIP_TETO, type EntradaZip } from './zip';
+import { classificarEntradaZip, FOLGA_COMPACTADO_BYTES, LIMITES_ZIP_TETO, type EntradaZip } from './zip';
 
 const MB = 1024 * 1024;
 const entrada = (caminho: string, e: Partial<EntradaZip> = {}): EntradaZip => ({
@@ -50,6 +50,14 @@ describe('RN-CAT-14 / ADR 0054 §3: classificação de cada entrada do ZIP', () 
     expect(classificar('A1.jpg', { descompactado: 2_100_000, compactado: 100_000 })).toEqual({ acao: 'recusar', motivo: 'compressao_suspeita' });
     expect(classificar('A1.jpg', { descompactado: 2_000_000, compactado: 100_000 }).acao).toBe('aceitar');
     expect(classificar('A1.jpg', { descompactado: 30, compactado: 0 })).toEqual({ acao: 'recusar', motivo: 'compressao_suspeita' });
+  });
+
+  it('A-T0174-1: compactado declarado acima do teto por foto + folga → foto_grande (o leitor nunca aloca além disso)', () => {
+    expect(classificar('A1.jpg', { metodo: 0, compactado: 400 * MB, descompactado: 1000 })).toEqual({ acao: 'recusar', motivo: 'foto_grande' });
+    expect(classificar('A1.jpg', { metodo: 8, compactado: 8 * MB + FOLGA_COMPACTADO_BYTES + 1, descompactado: 8 * MB })).toEqual({ acao: 'recusar', motivo: 'foto_grande' });
+    expect(classificar('A1.jpg', { metodo: 8, compactado: 8 * MB + FOLGA_COMPACTADO_BYTES, descompactado: 8 * MB }).acao).toBe('aceitar');
+    const teto2 = { ...LIMITES_ZIP_TETO, bytesEntradaMax: 2 * MB };
+    expect(classificarEntradaZip(entrada('A1.jpg', { metodo: 0, compactado: 3 * MB, descompactado: 1000 }), teto2)).toEqual({ acao: 'recusar', motivo: 'foto_grande' });
   });
 
   it('os limites do tenant só baixam o teto (foto de 3 MB com teto de 2 MB → foto_grande)', () => {

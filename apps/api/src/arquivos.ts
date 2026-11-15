@@ -38,6 +38,8 @@ import {
   ehJpeg,
   EXTENSAO_POR_TIPO,
   LIMITE_ARQUIVO_BYTES,
+  LIMITES_ZIP_TETO,
+  megabytesParaMensagem,
   PARTE_ENVIO_BYTES,
   PARTES_ENVIO_MAX,
   partesDoEnvio,
@@ -211,15 +213,19 @@ export const TETO_POR_CATEGORIA: ReadonlyMap<string, { bytes: number; codigo: st
   ['core/avatar', { bytes: 300 * 1024, codigo: 'RN-CORE-42', mensagem: 'A foto do perfil passa de 300 KB. Tire ou escolha a foto de novo.' }],
 ]);
 
-/** Teto do arquivo enviado em partes quando a categoria não tem o seu (o CHECK do banco para o ZIP: 500 MiB). */
-export const TETO_ENVIO_EM_PARTES_PADRAO = 500 * 1024 * 1024;
+/** Teto do arquivo enviado em partes quando a categoria não tem o seu: o do ZIP (`LIMITES_ZIP_TETO.bytesZipMax`, 500 MiB). */
+export const TETO_ENVIO_EM_PARTES_PADRAO = LIMITES_ZIP_TETO.bytesZipMax;
+const MB_ENVIO_EM_PARTES = megabytesParaMensagem(TETO_ENVIO_EM_PARTES_PADRAO);
 
 /**
  * ADR 0054: teto do arquivo enviado em partes por `<modulo>/<finalidade>`, conferido no `concluir` (413 com o código da RN).
  * `catalogo/foto_lote` = `FOTO_LOTE_ZIP_MAX_BYTES` do contrato do Catálogo (RN-CAT-14).
  */
 export const TETO_ENVIO_EM_PARTES: ReadonlyMap<string, { bytes: number; codigo: string; mensagem: string }> = new Map([
-  ['catalogo/foto_lote', { bytes: 500 * 1024 * 1024, codigo: 'RN-CAT-14', mensagem: 'O arquivo ZIP passa de 500 MB. Divida as fotos em mais de um ZIP.' }],
+  [
+    'catalogo/foto_lote',
+    { bytes: TETO_ENVIO_EM_PARTES_PADRAO, codigo: 'RN-CAT-14', mensagem: `O ZIP passa de ${MB_ENVIO_EM_PARTES} MB. Divida as fotos em mais de um ZIP.` },
+  ],
 ]);
 
 /** Validade da URL assinada de envio (15 min). */
@@ -452,7 +458,7 @@ export function registrarArquivos(
       const teto = TETO_ENVIO_EM_PARTES.get(`${linha.modulo}/${linha.finalidade}`) ?? {
         bytes: TETO_ENVIO_EM_PARTES_PADRAO,
         codigo: CODIGOS_ARQUIVO.grandeDemais,
-        mensagem: `Arquivo maior que ${TETO_ENVIO_EM_PARTES_PADRAO / 1024 / 1024} MB.`,
+        mensagem: `Arquivo maior que ${MB_ENVIO_EM_PARTES} MB.`,
       };
       if (total > teto.bytes) throw new ErroHttp(413, teto.codigo, teto.mensagem, { limite_bytes: teto.bytes });
       // tamanhos das partes fora da transação (HEAD no S3)

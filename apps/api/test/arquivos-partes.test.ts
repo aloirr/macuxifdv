@@ -154,7 +154,11 @@ describe('POST /v1/arquivos/:id/concluir (ADR 0054 §1)', () => {
     const { app } = montar();
     const r = await concluir(app, { partes: 63, tamanho_bytes: 500 * 1024 * 1024 + 1 });
     expect(r.statusCode).toBe(413);
-    expect(r.json()).toMatchObject({ codigo: 'RN-CAT-14' });
+    expect(r.json()).toMatchObject({
+      codigo: 'RN-CAT-14',
+      mensagem: 'O ZIP passa de 500 MB. Divida as fotos em mais de um ZIP.',
+      detalhes: { limite_bytes: 500 * 1024 * 1024 },
+    });
     await app.close();
   });
 

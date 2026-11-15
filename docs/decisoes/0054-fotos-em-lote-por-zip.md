@@ -41,7 +41,8 @@
    arquivo temporário (calcula o SHA-256 do ZIP nesse passo) e lê o diretório central com acesso aleatório. Regras:
    - **Path traversal**: separador `\` vira `/`; caminho absoluto, letra de unidade ou segmento `..` → item **recusado**
      (`caminho_invalido`); nos outros, vale só o **nome-base**. Nada é escrito a partir do nome.
-   - **Zip bomb**: até 8 MB descompactados por entrada (declarado e **real**: `inflateRaw` com `maxOutputLength`), razão
+   - **Zip bomb**: até 8 MB descompactados por entrada (declarado e **real**: `inflateRaw` com `maxOutputLength`) e até
+     8 MB + 64 KiB compactados (o leitor nunca aloca mais que isso por entrada), razão
      descompactado/compactado até **20**, soma descompactada do lote até **1 GiB**, CRC-32 e tamanho real iguais aos
      declarados. Fora disso o item é recusado (`foto_grande`, `compressao_suspeita`, `entrada_corrompida`) ou o lote
      inteiro (`descompactado_grande`).

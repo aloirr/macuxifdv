@@ -28,6 +28,13 @@ export const LIMITES_ZIP_TETO: Readonly<LimitesZip> = Object.freeze({
   bytesDescompactadosMax: 1024 * MIB,
 });
 
+/**
+ * Folga do compactado sobre o teto por foto (A-T0174-1): o deflate de dado incompressível cresce ~5 bytes a cada 64 KiB
+ * (≈ 640 bytes em 8 MiB). Compactado declarado acima de `bytesEntradaMax + FOLGA_COMPACTADO_BYTES` → `foto_grande`, e o
+ * leitor nunca aloca mais que isso por entrada.
+ */
+export const FOLGA_COMPACTADO_BYTES = 64 * 1024;
+
 /** Diretório central com mais entradas que isto (contando pastas e ignorados) recusa o lote antes de qualquer leitura. */
 export const ENTRADAS_BRUTAS_MAX = 20_000;
 
@@ -75,7 +82,8 @@ const CONTROLE_RE = /[\u0000-\u001f\u007f]/;
 
 /**
  * O que fazer com a entrada, nesta ordem: caminho perigoso → recusa; pasta, `__MACOSX`, oculto, `Thumbs.db`,
- * `desktop.ini` → ignora; controle no nome → recusa; criptografia e método; vazio, teto por foto e razão de compressão;
+ * `desktop.ini` → ignora; controle no nome → recusa; criptografia e método; vazio, teto por foto (descompactado e
+ * compactado + folga) e razão de compressão;
  * senão aceita com o nome-base.
  */
 export function classificarEntradaZip(e: EntradaZip, limites: LimitesZip): ClassificacaoEntradaZip {
@@ -91,6 +99,7 @@ export function classificarEntradaZip(e: EntradaZip, limites: LimitesZip): Class
   if (e.metodo !== 0 && e.metodo !== 8) return { acao: 'recusar', motivo: 'compressao_nao_suportada' };
   if (e.descompactado === 0) return { acao: 'recusar', motivo: 'arquivo_vazio' };
   if (e.descompactado > limites.bytesEntradaMax) return { acao: 'recusar', motivo: 'foto_grande' };
+  if (e.compactado > limites.bytesEntradaMax + FOLGA_COMPACTADO_BYTES) return { acao: 'recusar', motivo: 'foto_grande' };
   if (e.descompactado / Math.max(e.compactado, 1) > limites.razaoMax) return { acao: 'recusar', motivo: 'compressao_suspeita' };
   return { acao: 'aceitar', nomeBase };
 }

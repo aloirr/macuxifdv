@@ -193,6 +193,7 @@ export async function abrirZipLocal(
       if (cab.length < 30 || cab.readUInt32LE(0) !== SIG_LOCAL) return recusa('entrada_corrompida');
       const inicio = off + 30 + cab.readUInt16LE(26) + cab.readUInt16LE(28);
       if (inicio + e.compactado > d.inicioDiretorio) return recusa('entrada_corrompida');
+      // A-T0174-1: a classificação acima já limitou o compactado ao teto por foto + folga; a alocação nunca vai além disso
       const bruto = await lerEm(f, inicio, e.compactado);
       if (bruto.length !== e.compactado) return recusa('entrada_corrompida');
       let bytes: Buffer;

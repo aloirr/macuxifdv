@@ -125,6 +125,12 @@ describe('abrirZipLocal: diretório central (ADR 0054 §3)', () => {
     await zip.fechar();
   });
 
+  it('A-T0174-1: stored que declara 400 MiB compactados e 1 KB descompactado → foto_grande, sem alocar o compactado', async () => {
+    const { zip } = await aberto([{ nome: 'A1.jpg', dados: JPEG, metodo: 0, descompactado: 1000, compactado: 400 * 1024 * 1024 }]);
+    expect(await zip.ler(0, { tipos: TODOS })).toEqual({ ok: false, motivo: 'foto_grande', tipo_detectado: null });
+    await zip.fechar();
+  });
+
   it('deflate que mente o tamanho para caber na razão: o inflate para no declarado (nunca passa do teto real)', async () => {
     // declara 30 KB descompactados (razão < 20 com 4 KB compactados), mas descompacta 4 MB: corta no declarado
     const { zip } = await aberto([{ nome: 'mentira.jpg', dados: new Uint8Array(4 * 1024 * 1024), descompactado: 30_000 }]);
