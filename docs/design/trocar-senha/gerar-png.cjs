@@ -10,6 +10,8 @@ const NOMES = {
   t05: '05-senha-atual-errada',
   t06: '06-sem-internet',
   t07: '07-sucesso',
+  t08: '08-esqueci-a-senha',
+  t09: '09-esqueci-pedido-feito',
 };
 
 (async () => {
