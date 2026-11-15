@@ -16,3 +16,7 @@
   .rd .tx b { font-size: 14px; }
   .rd .tx span { font-size: 12px; color: var(--ink2); }
   .toast { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #fff; border-radius: 12px; padding: 12px 16px; display: flex; gap: 10px; align-items: center; font-size: 14px; font-weight: 600; box-shadow: 0 8px 20px rgba(15, 20, 25, .3); }
+  /* Código FDV (proposta): só leitura, com o copiar (BotaoCopiarCodigo da web) */
+  .inp.ro { background: var(--lineSoft); justify-content: space-between; padding-right: 4px; font-variant-numeric: tabular-nums; }
+  .inp.ro .cop { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--lineStrong); background: #fff; display: flex; align-items: center; justify-content: center; }
+  table.d td.cod { font-variant-numeric: tabular-nums; }
