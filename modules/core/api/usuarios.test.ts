@@ -129,7 +129,7 @@ describe('RF-CORE-02: criar usuário', () => {
     const { filial_cadastro_id: _f, ...semFilial } = { ...corpo, filial_cadastro_id: FIL };
     await expect(executar(rota('POST', 'usuarios'), contexto(db), { corpo: semFilial })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_FILIAL_CADASTRO_OBRIGATORIA' });
     expect(chamadas.some((c) => /insert into core.usuario/.test(c.sql))).toBe(false);
-    await expect(executar(rota('POST', 'usuarios'), contexto(db, { usuario: { ...ADMIN, perfil: 'gerente' } as unknown as typeof ADMIN }), { corpo: { ...corpo, filial_cadastro_id: FIL } })).rejects.toMatchObject({ status: 403, codigo: 'USUARIO_FILIAL_SEM_PERMISSAO' });
+    await expect(executar(rota('POST', 'usuarios'), contexto(db, { usuario: { ...ADMIN, perfil: 'gerente', perfis: perfisDeFabrica('gerente') } as unknown as typeof ADMIN }), { corpo: { ...corpo, filial_cadastro_id: FIL } })).rejects.toMatchObject({ status: 403, codigo: 'USUARIO_FILIAL_SEM_PERMISSAO' });
   });
   it('RF-CORE-01: grava hash argon2id (nunca a senha), e-mail em minúsculas e audita sem senha, hash, nome nem e-mail (RN-AUD-01)', async () => {
     const { db, chamadas } = fakeDb(respostas);
@@ -185,7 +185,7 @@ describe('RF-CORE-02: criar usuário', () => {
   });
 
   it('RF-CORE-02: external_id já usado responde 409 USUARIO_EXTERNAL_ID_DUPLICADO', async () => {
-    const { db } = fakeDb([[/external_id = \$1/, [{ '?column?': 1 }]], ...respostas]);
+    const { db } = fakeDb([[/external_id = \$1/, [{ email: 'outra@exemplo.com.br' }]], ...respostas]);
     await expect(executar(rota('POST', 'usuarios'), contexto(db), { corpo })).rejects.toMatchObject({ status: 409, codigo: 'USUARIO_EXTERNAL_ID_DUPLICADO' });
   });
 
