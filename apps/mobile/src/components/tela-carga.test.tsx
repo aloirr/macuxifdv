@@ -68,8 +68,8 @@ vi.mock('@macuxi/ui/mobile', () => {
       Icon: () => createElement('i'),
       useReduzirMovimento: () => true,
       Botao: ({ rotulo, testID }: { rotulo: string; testID?: string }) => createElement('button', { 'data-testid': testID }, rotulo),
-      PlacaLogoCliente: ({ testID, fonte, nomeFantasia, borda }: { testID?: string; fonte: string; nomeFantasia?: string | null; borda?: boolean }) =>
-        createElement('img', { 'data-testid': testID, src: fonte, 'aria-label': `Logo da ${nomeFantasia}`, 'data-borda': String(borda) }),
+      PlacaLogoCliente: ({ testID, fonte, nomeEmpresa, borda }: { testID?: string; fonte: string; nomeEmpresa?: string | null; borda?: boolean }) =>
+        createElement('img', { 'data-testid': testID, src: fonte, 'aria-label': `Logo da ${nomeEmpresa}`, 'data-borda': String(borda) }),
     } as Record<string | symbol, unknown>,
     { get: (simulado, chave) => (chave in simulado ? simulado[chave] : chave === 'then' ? undefined : vazio), has: () => true },
   );

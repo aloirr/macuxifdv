@@ -12,7 +12,6 @@ import {
   caminhoDaLogo,
   dataUriDaLogo,
   logoDoTenant,
-  proporcaoDaLogo,
   type LogoGuardada,
   type PortaLogoEmpresa,
 } from './logo-empresa';
@@ -83,8 +82,7 @@ describe('caminho e leitura', () => {
     expect(logoDoTenant(g, TENANT_B)).toBeNull();
     expect(logoDoTenant(g, null)).toBeNull();
   });
-  it('proporção e data URI', () => {
-    expect(proporcaoDaLogo({ largura_px: 600, altura_px: 240 })).toBe(2.5);
+  it('data URI', () => {
     expect(dataUriDaLogo('image/jpeg', 'QUJD')).toBe('data:image/jpeg;base64,QUJD');
   });
 });

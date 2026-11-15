@@ -28,7 +28,7 @@ export const LARGURA_LOGO_COM_CLIENTE = 124;
 export const ESPACO_FILETE = 24;
 export const FILETE_ENTRADA = { largura: 1, altura: 64 } as const;
 
-export function linhaComLogoDoCliente(proporcaoLogo: number | null): {
+export function linhaComLogoDoCliente(proporcaoLogo: number): {
   larguraPlaca: number;
   total: number;
   deslocamentoInicial: number;

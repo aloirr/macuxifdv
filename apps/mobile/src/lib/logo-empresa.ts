@@ -38,11 +38,6 @@ export function logoDoTenant(guardada: LogoGuardada | null, tenantId: string | n
   return guardada && tenantId && guardada.tenant_id === tenantId ? guardada : null;
 }
 
-/** Largura ÷ altura guardadas: a placa já nasce do tamanho certo (não pula quando a imagem carrega). */
-export function proporcaoDaLogo(l: Pick<LogoGuardada, 'largura_px' | 'altura_px'>): number {
-  return l.largura_px / l.altura_px;
-}
-
 export type AcaoLogo = { tipo: 'manter' } | { tipo: 'apagar' } | { tipo: 'baixar'; logo: LogoDoAparelho };
 
 /**

@@ -192,7 +192,7 @@ function LogosDaEntrada({
           tamanho="carga"
           // a placa branca ganha borda só sobre o Pérola (Gestão); no Azul noite (Campo), sem borda
           borda={tema.logo !== 'negativo'}
-          nomeFantasia={cliente.nome}
+          nomeEmpresa={cliente.nome}
           proporcao={cliente.proporcao}
         />
       </Animated.View>

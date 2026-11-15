@@ -38,6 +38,7 @@ import {
   perfilDaFaseM,
   type AberturaArmazenamento,
   empresaDosParametros,
+  proporcaoDaLogo,
   type AmbienteAparelho,
   type ArmazenamentoSync,
   type EtapaSync,
@@ -78,7 +79,7 @@ import {
   type ResumoArmazenamento,
 } from '@/lib/armazenamento-aparelho';
 import { limparHistoricoDoShell } from '@/lib/historico-telas';
-import { atualizarLogoDaEmpresa, logoDoTenant, proporcaoDaLogo, type LogoGuardada } from '@/lib/logo-empresa';
+import { atualizarLogoDaEmpresa, logoDoTenant, type LogoGuardada } from '@/lib/logo-empresa';
 import { deveSincronizar, type MotivoSync } from '@/lib/carga';
 import { proximaEsperaFila } from '@/lib/fila-reenvio';
 import {
