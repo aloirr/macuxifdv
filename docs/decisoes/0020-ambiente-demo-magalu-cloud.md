@@ -1,6 +1,8 @@
 # ADR 0020 — Ambiente demo/homologação na Magalu Cloud: VM com Docker Compose, túnel da Cloudflare, imagens no GHCR e fotos em Object Storage S3
 
-- **Status**: aprovada (04/11/2026, por Alexandre, R-20261104-213539)
+- **Status**: aprovada (04/11/2026, por Alexandre, R-20261104-213539) · **desligada em 14/11/2026** (R-20261114-230600-alexandre:
+  VM `macuxi-demo-se1`, Postgres, túnel `macuxi-demo-nuvem` e bucket `macuxi-demo-arquivos` fora do ar; `demo-publicar.yml` e
+  `demo-recriar-base.yml` removidos; a imagem da API da produção passa a ser montada na liberação, ADR 0051)
 - **Data**: 2026-11-04
 - **Tarefa**: T-0074 (desenho: [docs/desenho/T-0074.md](../desenho/T-0074.md))
 - **Autor**: engenheiro-software

@@ -1,5 +1,8 @@
 # Roteiro de teste — Campo-Demo-v1.0.1 e Gestao-Demo-v1.0.1 (338e9976)
 
+> **Histórico.** A demo foi desligada (ADR 0051) e os perfis de preview saíram do `eas.json`: este roteiro não se aplica
+> mais a builds novos. Os endereços `*-demo.macuxifdv.com.br` citados aqui não existem mais.
+
 > Para o Alexandre. Cobre o que mudou desde o **Campo-Demo-v1.0.0 / Gestao-Demo-v1.0.0** (714d0d1b, 08/11): o lote 02
 > inteiro, commit **338e9976** do main (mesma árvore do retrato bc7c574, CI e stack verdes nos runs 42587137650 e
 > 42587150490). Pedido: R-20261108-220117 (build às 4h30). Dono: engenheiro-apps. Os links dos APKs vêm no recado

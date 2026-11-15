@@ -45,7 +45,7 @@ Prazo do cronograma (doc 05). O que faltar até sexta à noite adia o sábado. A
 |---|---|---|
 | Qui 12/11 | Ensaio completo nos recursos criados: publicar uma tag de ensaio, criar o super-admin e a empresa `teste-macuxi`, carga inicial de teste e ensaio de restauração com resultado `IGUAL` | gerente, engenheiro-software, banco-dados |
 | Qui 12/11 | Conector 1.4.0 instalado no servidor do cliente e `testar-conexao` sem erro, apontando para a produção | modulo-integracao com o TI do cliente |
-| Sex 13/11 | v1.0.5 oficial no `main`, com CI e "demo — publicar" verdes | gerente |
+| Sex 13/11 | v1.0.5 oficial no `main`, com CI e "demo — publicar" verdes (a demo foi desligada em 14/11/2026, ADR 0051) | gerente |
 | Sex 13/11 | APKs Campo-Oficial-v1.0.5 e Gestao-Oficial-v1.0.5 (perfis EAS `campo-producao` e `gestao-producao`) gerados do commit da v1.0.5 e testados na empresa `teste-macuxi` | engenheiro-apps |
 | Sex 13/11, até 20h | Recado do Alexandre com "aprovo deploy v1.0.5" (R-20261111-213829) | Alexandre |
 

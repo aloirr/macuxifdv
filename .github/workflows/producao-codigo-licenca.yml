@@ -1,0 +1,91 @@
+name: producao — código da licença
+
+# ADR 0048 e migração 0068 §6 (R-20261114-204500-alexandre: "Ajuste no banco a thathyany para o codigo novo").
+# `pnpm tenant:codigo-licenca` contra a PRODUÇÃO, pela VM (o DBaaS só tem IP privado na VPC), com a imagem da API que está
+# no ar (/opt/macuxi/imagens.env) e a conexão de administração (admin.env), no padrão do producao-tenant.yml.
+# Para cada tenant: CNPJ gravado no banco (plataforma.tenant.documento; sem ele, core.filial.cnpj) → UF pela BrasilAPI
+# (reserva CNPJá) → plataforma.atribuir_codigo_licenca (idempotente, auditoria tenant.codigo_licenca).
+# Saída: uma linha JSON por tenant {codigo_anterior, codigo, resultado, ...} com o CNPJ mascarado. "simular" = cada chamada
+# numa transação desfeita (padrão: true; rode primeiro simulando — o código mostrado é um sorteio de exemplo, a rodada de
+# verdade sorteia outro). Só manual e só no environment PRODUCAO.
+# Depende da imagem com apps/api/src/cli/codigo-licenca.ts e do compose.yml com o serviço codigo-licenca (deploy v1.0.9).
+
+on:
+  workflow_dispatch:
+    inputs:
+      codigo:
+        description: código antigo da empresa (ex. thathyany) ou "todos-legados"
+        required: true
+      simular:
+        description: simular (transação desfeita no fim)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: producao-vm
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  codigo-licenca:
+    name: tenant:codigo-licenca na produção
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: PRODUCAO
+    steps:
+      - name: entradas
+        env:
+          CODIGO: ${{ inputs.codigo }}
+        run: |
+          [ "$CODIGO" = todos-legados ] || [[ "$CODIGO" =~ ^[a-z0-9][a-z0-9-]{1,39}$ ]] || [[ "$CODIGO" =~ ^[A-Z]{2}[0-9]{4}$ ]] \
+            || { echo "::error::código inválido (um código de empresa ou todos-legados)"; exit 1; }
+
+      - name: chave SSH
+        env:
+          CHAVE: ${{ secrets.PROD_SSH_KEY }}
+          HOST: ${{ secrets.PROD_HOST }}
+          CONHECIDOS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$CHAVE" | tr -d '\r' > ~/.ssh/prod
+          chmod 600 ~/.ssh/prod
+          if [ -n "$CONHECIDOS" ]; then printf '%s\n' "$CONHECIDOS" | tr -d '\r' > ~/.ssh/known_hosts
+          else ssh-keyscan -T 15 -t ed25519 "$HOST" >> ~/.ssh/known_hosts 2>/dev/null; fi
+          printf 'Host prod\n  HostName %s\n  IdentityFile ~/.ssh/prod\n  IdentitiesOnly yes\n  BatchMode yes\n  StrictHostKeyChecking yes\n' "$HOST" > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: tenant:codigo-licenca
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+          CODIGO: ${{ inputs.codigo }}
+          SIMULAR: ${{ inputs.simular }}
+        run: |
+          if [ "$CODIGO" = todos-legados ]; then args=(--todos-legados); else args=(--codigo "$CODIGO"); fi
+          [ "$SIMULAR" = true ] && args+=(--simular)
+          # o serviço só existe no compose da versão que trouxe a CLI (v1.0.9): sem ele, para com a explicação
+          remoto='set -euo pipefail; cd /opt/macuxi; dc() { docker compose --env-file .env --env-file imagens.env "$@"; };'
+          remoto+=' dc --profile ferramentas config --services | grep -qx codigo-licenca'
+          remoto+=' || { echo "o compose da produção ainda não tem o serviço codigo-licenca: faça antes o deploy da versão com a CLI (v1.0.9)" >&2; exit 9; };'
+          remoto+=" dc --profile ferramentas run --rm -T codigo-licenca $(printf '%q ' "${args[@]}")"
+          set +e
+          ssh -l "$USUARIO" prod "$remoto" | tee saida.jsonl
+          status=${PIPESTATUS[0]}
+          set -e
+          {
+            echo "### tenant:codigo-licenca ($([ "$SIMULAR" = true ] && echo simulado || echo de verdade))"
+            echo '```'
+            cat saida.jsonl
+            echo '```'
+            echo "saída: $status (0 ok · 1 erro · 2 uso · 3 código não encontrado · 4 algum tenant ficou sem o código novo · 9 sem deploy)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: limpar a chave do runner
+        if: ${{ always() }}
+        run: rm -f ~/.ssh/prod ~/.ssh/config ~/.ssh/known_hosts saida.jsonl

@@ -143,12 +143,23 @@ export const IconEyeOff = (p: IconProps) => (
     <path d="m3 3 18 18" />
   </Svg>
 );
+/** Lupa do `CampoBusca` (revisão do BKO §P4). */
+export const IconBusca = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </Svg>
+);
+/** Traço único dos ícones de módulo e do "⋯" (validação da marca, RD-0367). */
+const TRACO_DO_MODULO = 1.9;
+
 /**
- * MC-0042: ícones dos módulos adicionais do plano (mapa id → nome → ícone em `./adicionais`). Traço único, sem cor própria
- * (herdam o Azul noite do texto). Promotor = gôndola com produtos; Pesquisa = prancheta com respostas; Treinamento = capelo.
+ * Ícones dos módulos (mapa id → nome → ícone em `./modulos`; MC-0042 e revisão do BKO §P10). Traço único de 1,9, sem cor
+ * própria (herdam a cor do texto). Promotor = gôndola com produtos; Pesquisa = prancheta com respostas; Treinamento =
+ * capelo; Vendedor = carrinho; Gestor = barras subindo; Core = quatro blocos; Catálogo = livro aberto; Integração = setas.
  */
 export const IconPromotor = (p: IconProps) => (
-  <Svg {...p}>
+  <Svg strokeWidth={TRACO_DO_MODULO} {...p}>
     <path d="M4 3v18" />
     <path d="M20 3v18" />
     <path d="M4 11h16" />
@@ -159,7 +170,7 @@ export const IconPromotor = (p: IconProps) => (
   </Svg>
 );
 export const IconPesquisa = (p: IconProps) => (
-  <Svg {...p}>
+  <Svg strokeWidth={TRACO_DO_MODULO} {...p}>
     <rect x="5" y="4" width="14" height="17" rx="2" />
     <path d="M9 2.5h6v3H9z" />
     <path d="m8.5 11 1.5 1.5 2.5-2.5" />
@@ -169,9 +180,52 @@ export const IconPesquisa = (p: IconProps) => (
   </Svg>
 );
 export const IconTreinamento = (p: IconProps) => (
-  <Svg {...p}>
+  <Svg strokeWidth={TRACO_DO_MODULO} {...p}>
     <path d="m2 9 10-5 10 5-10 5Z" />
     <path d="M6 11v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5" />
     <path d="M22 9v6" />
+  </Svg>
+);
+export const IconVendedor = (p: IconProps) => (
+  <Svg strokeWidth={TRACO_DO_MODULO} {...p}>
+    <circle cx="9.5" cy="19.5" r="1.5" />
+    <circle cx="17.5" cy="19.5" r="1.5" />
+    <path d="M2.5 3.5h2.6l2.4 11.3a1.6 1.6 0 0 0 1.6 1.2h8.6a1.6 1.6 0 0 0 1.5-1.2L21 7.5H6" />
+  </Svg>
+);
+export const IconGestor = (p: IconProps) => (
+  <Svg strokeWidth={TRACO_DO_MODULO} {...p}>
+    <path d="M3.5 20.5h17" />
+    <path d="M7 16.5v-4" />
+    <path d="M12 16.5v-8" />
+    <path d="M17 16.5V4.5" />
+  </Svg>
+);
+export const IconCore = (p: IconProps) => (
+  <Svg strokeWidth={TRACO_DO_MODULO} {...p}>
+    <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+    <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
+    <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
+    <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
+  </Svg>
+);
+export const IconCatalogo = (p: IconProps) => (
+  <Svg strokeWidth={TRACO_DO_MODULO} {...p}>
+    <path d="M2.5 5h6a3.5 3.5 0 0 1 3.5 3.5V20a2.8 2.8 0 0 0-2.8-2.8H2.5z" />
+    <path d="M21.5 5h-6A3.5 3.5 0 0 0 12 8.5V20a2.8 2.8 0 0 1 2.8-2.8h6.7z" />
+  </Svg>
+);
+export const IconIntegracao = (p: IconProps) => (
+  <Svg strokeWidth={TRACO_DO_MODULO} {...p}>
+    <path d="M4 8h14l-3.5-3.5" />
+    <path d="M20 16H6l3.5 3.5" />
+  </Svg>
+);
+/** Botão "⋯" do `MenuAcoes` (revisão do BKO §P3): três pontos cheios, no mesmo traço dos ícones de módulo. */
+export const IconMais = ({ size = 18, ...p }: IconProps) => (
+  <Svg size={size} strokeWidth={TRACO_DO_MODULO} fill="currentColor" {...p}>
+    <circle cx="5" cy="12" r="1" />
+    <circle cx="12" cy="12" r="1" />
+    <circle cx="19" cy="12" r="1" />
   </Svg>
 );

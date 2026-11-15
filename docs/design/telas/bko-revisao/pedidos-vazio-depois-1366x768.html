@@ -1,0 +1,52 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Pedidos</title><style>
+@font-face{font-family:Archivo;font-weight:700;src:url(../../../../apps/web/app/fonts/Archivo_700Bold.ttf)}
+@font-face{font-family:Archivo;font-weight:800;src:url(../../../../apps/web/app/fonts/Archivo_800ExtraBold.ttf)}
+@font-face{font-family:Plex;font-weight:400;src:url(../../../../apps/web/app/fonts/IBMPlexSans_400Regular.ttf)}
+@font-face{font-family:Plex;font-weight:500;src:url(../../../../apps/web/app/fonts/IBMPlexSans_500Medium.ttf)}
+@font-face{font-family:Plex;font-weight:600;src:url(../../../../apps/web/app/fonts/IBMPlexSans_600SemiBold.ttf)}
+@font-face{font-family:Mono;font-weight:500;src:url(../../../../apps/web/app/fonts/IBMPlexMono_500Medium.ttf)}
+*{box-sizing:border-box;margin:0}
+body{font-family:Plex;background:#F8F6F1;color:#16202A;width:1366px;height:768px;display:flex;overflow:hidden;position:relative}
+.menu{width:240px;height:768px;background:#16202A;color:#fff;display:flex;flex-direction:column;padding:20px 12px 16px;flex-shrink:0}
+.brand{display:flex;flex-direction:column;align-items:flex-start;padding:0 8px 16px}
+.brand img{display:block;height:28px;width:auto}
+.brand span{font-size:12px;line-height:16px;color:#C9CED5;margin-top:18px}
+.lista{display:flex;flex-direction:column;gap:2px}
+.titulo{display:flex;justify-content:space-between;align-items:center;height:30px;padding:0 10px;border-radius:8px;color:#F59A52;font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase}
+.item{display:flex;align-items:center;height:32px;padding:0 10px 0 20px;border-radius:8px;font-size:14px;color:#C9CED5;white-space:nowrap;position:relative}
+.item.ativo{background:#2B3743;color:#fff;font-weight:600}
+.item.ativo:before{content:'';position:absolute;left:8px;top:8px;bottom:8px;width:3px;border-radius:2px;background:#F59A52}
+.rodape{margin-top:auto;border-top:1px solid #2B3743;padding:12px 8px 0;display:flex;flex-direction:column}
+.rodape b{font-size:14px}.rodape span{font-size:12px;color:#C9CED5}.sair{font-size:13px;font-weight:600;color:#C9CED5;margin-top:8px}
+main{flex:1;min-width:0;padding:28px 32px;display:flex;flex-direction:column;gap:16px}
+.cab{display:flex;align-items:center;justify-content:space-between;min-height:42px}
+.cab .t{display:flex;align-items:center;gap:12px}
+h1{font-family:Archivo;font-weight:800;font-size:24px;line-height:1.2}
+.total{font-family:Archivo;font-weight:700;font-size:18px;color:#4A5562;font-variant-numeric:tabular-nums}
+.mais{width:42px;height:42px;border:1px solid #C9CED5;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;color:#16202A}
+.filtros{display:flex;align-items:flex-end;gap:10px}
+.f{display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;color:#4A5562}
+.campo{height:38px;border:1px solid #C9CED5;border-radius:10px;background:#fff;font-size:14px;font-weight:500;color:#16202A;display:flex;align-items:center;padding:0 10px;justify-content:space-between;gap:8px;white-space:nowrap}
+.busca{width:280px;padding-left:10px;justify-content:flex-start}
+.busca.sem{color:#4A5562;font-weight:400}
+.btn2{height:38px;border:1px solid #C9CED5;border-radius:10px;background:#fff;font-size:13px;font-weight:600;padding:0 12px;display:flex;align-items:center}
+.quadro{background:#fff;border:1px solid #DFE2E6;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+h2{font-family:Archivo;font-weight:700;font-size:18px}
+table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px}
+th{text-align:left;font-weight:600;color:#4A5562;padding:8px 10px;border-bottom:1px solid #DFE2E6;white-space:nowrap}
+td{padding:0 10px;height:44px;border-bottom:1px solid #ECEEF1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.n{text-align:right;font-variant-numeric:tabular-nums}
+.nome{font-weight:600}
+.mono{font-family:Mono;font-size:12.5px}
+.selo{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.ok{color:#1D6B4F;background:#E2F1EA}.al{color:#7A4F00;background:#FFF1D6}.pe{color:#A8261B;background:#FDE8E6}.ne{color:#34404D;background:#ECEEF1}
+.pend{color:#1E3350;background:#DFE2E6}
+.ac{width:52px;text-align:center;padding:0}
+.dots{display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;border-radius:10px;color:#4A5562}
+.dots.on{background:#F8F6F1;color:#16202A}
+.menuacoes{position:absolute;background:#fff;border:1px solid #DFE2E6;border-radius:12px;box-shadow:0 10px 24px rgba(22,32,42,.16);padding:4px 0;min-width:200px;z-index:5}
+.menuacoes div{height:40px;display:flex;align-items:center;padding:0 14px;font-size:14px;font-weight:500}
+.menuacoes .foco{background:#DFE2E6;outline:2px solid #1E3350;outline-offset:-2px}
+.vazio{border:1px dashed #C9CED5;border-radius:16px;padding:40px 24px;text-align:center;font-size:14px;font-weight:500;color:#4A5562;background:#fff}
+.nota{position:absolute;right:20px;bottom:16px;max-width:560px;font-size:12px;line-height:1.5;color:#34404D;background:#fff;border:1px solid #DFE2E6;border-left:4px solid #1D6B4F;border-radius:8px;padding:8px 12px;box-shadow:0 4px 12px rgba(22,32,42,.08);z-index:9}
+</style><body><nav class="menu"><div class="brand"><img src="../../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-grafite.svg" height="28" alt="Macuxi Força de Vendas"><span>Distribuidora Exemplo</span></div><div class="lista"><div class="grupo"><div class="titulo"><span>Acesso</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Análise</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Cadastros</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Comercial</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Comunicação</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Conteúdo de campo</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Operação</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(90deg)"><path d="M9 6l6 6-6 6"/></svg></div><a class="item">Aprovações</a><a class="item ativo">Pedidos</a><a class="item">Rotas</a><a class="item">Visitas</a></div><div class="grupo"><div class="titulo"><span>Produtos</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Sistema</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div></div><div class="rodape"><b>Ana Souza</b><span>Administrador</span><div class="sair">↪ Trocar perfil</div></div></nav><main><div class="cab"><div class="t"><h1>Pedidos</h1></div><div style="display:flex;gap:8px"><div class="mais" aria-label="Mais ações"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.9"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></div></div></div><div class="filtros"><span class="campo busca" aria-label="Buscar cliente ou nº do pedido"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4A5562" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Boa Vista</span></span><label class="f">Situação<span class="campo" style="width:130px">Todas<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></label><label class="f">Vendedor<span class="campo" style="width:130px">Todos<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></label><label class="f">Filial<span class="campo" style="width:130px">Todas<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></label><label class="f">Período<span class="campo" style="width:190px">01/11 a 14/11/2026</span></label><span class=btn2>Limpar filtros</span></div><div class="vazio" role="status">Nenhum pedido com esses filtros.</div></main><div class="nota"><b>Depois:</b> o zero aparece uma vez, na frase do vazio, sem quadro e sem título repetindo "Pedidos". Sem pedido pendente, o quadro "Aguardando aprovação" não aparece. "Limpar filtros" fica só na barra de filtros. Atualizar e Exportar CSV ficam no "⋯".</div></body></html>

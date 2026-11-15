@@ -4,8 +4,9 @@
  * negócio de eu entrar para criar tag. Quero só aprovar"). Sem dependência: node:child_process e node:fs.
  * A aprovação é a trava por issue (ADR 0046, scripts/ci/producao-trava.mjs).
  *
- *   producao-liberar.yml  — `entrada` (versão vX.Y.Z nova, SHA completo, disparo pelo main) e `conferir`; depois abre a
- *                           issue "Aprovar deploy vX.Y.Z";
+ *   producao-liberar.yml  — `entrada` (versão vX.Y.Z nova, SHA completo, disparo pelo main) e `commit` (no main, CI
+ *                           verde); monta a imagem da API do commit se ela ainda não existe no GHCR (ADR 0051); depois
+ *                           `conferir` e abre a issue "Aprovar deploy vX.Y.Z";
  *   producao-aprovar.yml  — `entrada` e `conferir` de novo no comentário "aprovado vX.Y.Z"; depois cria a tag com o
  *                           GITHUB_TOKEN e dispara o producao-publicar.yml na tag;
  *   producao-publicar.yml — `ref` (push de tag v* ou disparo manual NA tag v*) e `conferir`.
@@ -14,9 +15,12 @@
  *   ref       GITHUB_EVENT_NAME, GITHUB_REF, GITHUB_REF_NAME → o publicar só roda numa tag v* (push ou workflow_dispatch).
  *   entrada   VERSAO, SHA, GITHUB_REF, GITHUB_REPOSITORY, GH_TOKEN → versão vX.Y.Z, SHA de 40 hex, liberar disparado do
  *             main e a tag ainda não existe no GitHub.
- *   conferir  SHA, VERSAO, DONO, GITHUB_REPOSITORY, GH_TOKEN → o commit está no main (origin/main do checkout com
- *             fetch-depth 0), tem CI verde de push no main e a imagem ghcr.io/<dono>/macuxi-api:<sha> existe no GHCR
- *             (docker login feito antes). Escreve sha, versao, dono e api (por digest) em $GITHUB_OUTPUT.
+ *   commit    SHA, GITHUB_REPOSITORY, GH_TOKEN → o commit está no main (origin/main do checkout com fetch-depth 0) e
+ *             tem CI verde de push no main. Sem GHCR: é o que o liberar confere ANTES de montar a imagem.
+ *   imagem    SHA, DONO → a imagem ghcr.io/<dono>/macuxi-api:<sha> já existe? Escreve existe=1|0 em $GITHUB_OUTPUT;
+ *             falha (sem build) se o GHCR não respondeu: tag existente nunca é montada de novo (o digest não muda).
+ *   conferir  SHA, VERSAO, DONO, GITHUB_REPOSITORY, GH_TOKEN → o `commit` e a imagem ghcr.io/<dono>/macuxi-api:<sha>
+ *             existe no GHCR (docker login feito antes). Escreve sha, versao, dono e api (por digest) em $GITHUB_OUTPUT.
  * Saída: 0 = ok; 1 = conferência falhou (com ::error::); 2 = erro de uso.
  */
 import { execFileSync } from 'node:child_process';
@@ -56,13 +60,12 @@ const executar = (cmd, args, opcoes = {}) =>
   execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], ...opcoes });
 
 /**
- * Commit no main, CI verde e imagem da API. `exec(cmd, args)` devolve a saída padrão ou lança (injetável nos testes).
- * @returns {{erro: string} | {sha: string, versao: string, dono: string, api: string}}
+ * Commit no main e CI verde de push no main. `exec(cmd, args)` devolve a saída padrão ou lança (injetável nos testes).
+ * @returns {{erro: string} | {ci: number}}
  */
-export function conferir({ sha, versao, dono, repositorio }, exec = executar) {
+export function conferirCommit({ sha, versao, repositorio }, exec = executar) {
   if (!SHA_COMPLETO.test(String(sha || ''))) return { erro: `SHA inválido: "${sha}"` };
-  const donoMin = String(dono || '').toLowerCase();
-  if (!donoMin || !repositorio) return { erro: 'faltam DONO e GITHUB_REPOSITORY' };
+  if (!repositorio) return { erro: 'falta GITHUB_REPOSITORY' };
 
   // fetch-depth: 0 já trouxe refs/remotes/origin/main (sem credencial guardada, não dá para fazer fetch de novo)
   try {
@@ -89,22 +92,50 @@ export function conferir({ sha, versao, dono, repositorio }, exec = executar) {
     n = 0;
   }
   if (!(n >= 1)) return { erro: `o commit ${sha} não tem CI verde de push no main: publique só um commit que passou no CI` };
+  return { ci: n };
+}
 
-  const img = `ghcr.io/${donoMin}/macuxi-api:${sha}`;
-  let digest = '';
+/** Saída do docker quando a tag não existe no registro (não é falha passageira: o ghcr-tentar não repete). */
+export const IMAGEM_AUSENTE = /not found|manifest unknown|MANIFEST_UNKNOWN|name unknown|NAME_UNKNOWN/i;
+
+/**
+ * Digest de uma imagem no GHCR (docker login feito antes). A consulta repete no 403/429/5xx (T-0154, ghcr-tentar.sh).
+ * @returns {{digest: string} | {ausente: true} | {erro: string}} `ausente` só quando o registro diz que a tag não existe:
+ *   qualquer outra falha é `erro`, para o liberar nunca montar (e sobrescrever) uma tag que existe mas não respondeu.
+ */
+export function digestNoGhcr(img, exec = executar) {
+  let saida = '';
   try {
-    // T-0154: a consulta ao GHCR também repete no 403/429/5xx (imagem inexistente não repete)
-    digest = String(
+    saida = String(
       exec('bash', ['scripts/deploy/demo/ghcr-tentar.sh', 'digest da API no GHCR', '--',
         'docker', 'buildx', 'imagetools', 'inspect', img, '--format', '{{.Manifest.Digest}}']),
     ).trim();
-  } catch {
-    digest = '';
+  } catch (e) {
+    const texto = `${e?.stdout ?? ''}${e?.message ?? ''}`;
+    return IMAGEM_AUSENTE.test(texto) ? { ausente: true } : { erro: `não consegui consultar ${img} no GHCR` };
   }
-  if (!DIGEST.test(digest))
-    return { erro: `${img} não está no GHCR (o "demo — publicar" desse commit rodou verde? Commit só de .github/docs não monta imagem: rode o "demo — publicar" manual no main)` };
+  return DIGEST.test(saida) ? { digest: saida } : { erro: `digest inválido de ${img}: "${saida}"` };
+}
 
-  return { sha, versao, dono: donoMin, api: `ghcr.io/${donoMin}/macuxi-api@${digest}`, ci: n };
+/**
+ * Commit no main, CI verde e imagem da API. `exec(cmd, args)` devolve a saída padrão ou lança (injetável nos testes).
+ * @returns {{erro: string} | {sha: string, versao: string, dono: string, api: string}}
+ */
+export function conferir({ sha, versao, dono, repositorio }, exec = executar) {
+  if (!SHA_COMPLETO.test(String(sha || ''))) return { erro: `SHA inválido: "${sha}"` };
+  const donoMin = String(dono || '').toLowerCase();
+  if (!donoMin || !repositorio) return { erro: 'faltam DONO e GITHUB_REPOSITORY' };
+  const c = conferirCommit({ sha, versao, repositorio }, exec);
+  if (c.erro) return c;
+  const n = c.ci;
+
+  const img = `ghcr.io/${donoMin}/macuxi-api:${sha}`;
+  const d = digestNoGhcr(img, exec);
+  if (d.erro) return { erro: d.erro };
+  if (d.ausente)
+    return { erro: `${img} não está no GHCR (o "producao — liberar versão" monta a imagem do commit: libere a versão por ele)` };
+
+  return { sha, versao, dono: donoMin, api: `ghcr.io/${donoMin}/macuxi-api@${d.digest}`, ci: n };
 }
 
 const erro = (m) => console.log(`::error::${m}`);
@@ -129,6 +160,21 @@ function principal(modo, env) {
     console.log(`[producao] versão ${env.VERSAO} nova; commit ${env.SHA}`);
     return 0;
   }
+  if (modo === 'commit') {
+    const r = conferirCommit({ sha: env.SHA, versao: env.VERSAO, repositorio: env.GITHUB_REPOSITORY });
+    if (r.erro) return erro(r.erro), 1;
+    console.log(`[producao] ${env.SHA}: no main, CI verde (${r.ci} execução(ões))`);
+    return 0;
+  }
+  if (modo === 'imagem') {
+    const img = `ghcr.io/${String(env.DONO || '').toLowerCase()}/macuxi-api:${env.SHA}`;
+    if (!env.DONO || !SHA_COMPLETO.test(String(env.SHA || ''))) return erro('faltam DONO e SHA completo'), 1;
+    const d = digestNoGhcr(img);
+    if (d.erro) return erro(`${d.erro}: a imagem não é montada de novo sem a certeza de que ela não existe`), 1;
+    console.log(d.digest ? `[producao] ${img} já existe (${d.digest}): reaproveitada, sem build` : `[producao] ${img} não existe: monta agora`);
+    if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `existe=${d.digest ? 1 : 0}\n`);
+    return 0;
+  }
   if (modo === 'conferir') {
     const r = conferir({ sha: env.SHA, versao: env.VERSAO, dono: env.DONO, repositorio: env.GITHUB_REPOSITORY });
     if (r.erro) return erro(r.erro), 1;
@@ -137,7 +183,7 @@ function principal(modo, env) {
       appendFileSync(env.GITHUB_OUTPUT, `sha=${r.sha}\nversao=${r.versao}\ndono=${r.dono}\napi=${r.api}\n`);
     return 0;
   }
-  console.error('uso: node scripts/ci/producao-conferir.mjs ref|entrada|conferir');
+  console.error('uso: node scripts/ci/producao-conferir.mjs ref|entrada|commit|imagem|conferir');
   return 2;
 }
 

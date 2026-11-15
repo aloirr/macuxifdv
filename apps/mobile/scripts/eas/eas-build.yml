@@ -16,11 +16,6 @@ on:
         type: choice
         options: [ambas, campo, gestao]
         default: ambas
-      perfil:
-        description: 'producao (campo-producao/gestao-producao), preview (*-preview) ou desenvolvimento (campo/gestao)'
-        type: choice
-        options: [producao, preview, desenvolvimento]
-        default: producao
       ref:
         description: 'branch, tag ou commit'
         type: string
@@ -35,7 +30,7 @@ concurrency:
 
 jobs:
   build:
-    name: eas build (${{ inputs.variante }}, ${{ inputs.perfil }})
+    name: eas build (${{ inputs.variante }}, oficial)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -68,10 +63,9 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           VARIANTE: ${{ inputs.variante }}
-          PERFIL: ${{ inputs.perfil }}
+          CANAL: oficial
         run: |
           case "$VARIANTE" in ambas) VARIANTE=ambos ;; campo|gestao) ;; *) echo "::error::variante inválida"; exit 2 ;; esac
-          case "$PERFIL" in producao) CANAL=oficial ;; preview) CANAL=demo ;; desenvolvimento) CANAL=dev ;; *) echo "::error::perfil inválido"; exit 2 ;; esac
           set -o pipefail
           node scripts/eas/build.mjs "$VARIANTE" "$CANAL" -- --non-interactive --no-wait 2>&1 | tee "$RUNNER_TEMP/eas.txt"
 
