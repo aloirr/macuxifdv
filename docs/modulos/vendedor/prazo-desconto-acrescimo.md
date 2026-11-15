@@ -13,7 +13,7 @@ Referências: doc 03 RN-VEN-02, 03, 10, 11, 12, 18, 24, 40, 42; RN-INT-09; `pedi
 1. Ao escolher o prazo, o **valor de tabela de cada produto muda** pelo % do prazo: nos itens do pedido e no preço exibido do Catálogo.
 2. O % **não aparece em lugar nenhum**: sem linha nos totais, sem % na lista de prazos do app, nada no PDF.
 3. Desconto, alçada, preço mínimo e crédito são calculados **sobre a tabela já ajustada**. Nenhuma regra nova de alçada: o ajuste é parte da tabela.
-4. O % vem do ERP (entidade prazo de pagamento, coluna "% Acres.Fin."). **No BKO é só leitura** (some o campo editável; `SalvarPrazoRequest` não leva o percentual).
+4. O % vem do ERP (entidade prazo de pagamento, coluna "% Acres.Fin."). **No BKO é só leitura** (§7; `SalvarPrazoRequest` não leva o percentual).
 5. Ficam como estavam: pedido offline com percentual congelado e revalidado (seção 5) e Conector 1.5.0 (seção 6).
 
 ## 2. Cálculo e arredondamento
@@ -22,8 +22,7 @@ Função pura no `domain`: `tabelaAjustadaCents(tabela_cents, bp)`, com `bp` = *
 `ajustada = arredondarMeiaParaCima(tabela_cents × (10 000 + bp) ÷ 10 000)`
 
 - **Por unidade, antes da quantidade**: o preço unitário ajustado é um valor em centavos inteiro; total do item = unitário × quantidade (igual ao `precoDoItem` de hoje; o preço que o cliente vê na linha multiplica exato). Vale por unidade base (`fator` da embalagem multiplica depois).
-- **Desconto % do item incide no unitário, não na linha** (`precoUnitarioFinal`/`precoDoItem` em `modules/vendedor/domain/preco-pedido.ts`, RN-VEN-02 v2): o unitário é arredondado meia para cima ao centavo e o total da linha é unitário × quantidade. Ex.: tabela ajustada 18,19 com −5% = 17,28 por unidade (1 728,05 → 1 728); × 20 = **345,60** (e não 345,61).
-- Meia para cima (preço é sempre positivo; não há "sinal" a tratar).
+- **Desconto % do item incide no unitário, não na linha** (`precoUnitarioFinal`/`precoDoItem` em `modules/vendedor/domain/preco-pedido.ts`, RN-VEN-02 v2): o unitário é arredondado ao centavo. Ex.: tabela ajustada 18,19 com −5% = 17,28 por unidade (1 728,05 → 1 728); × 20 = **345,60** (e não 345,61).
 - Faixa −99,99 a +99,99, 2 casas; ausente = 0 (função devolve a tabela intacta).
 
 Exemplos:
@@ -59,21 +58,19 @@ O pedido guarda o retrato `prazo_percentual_ajuste` (junto do retrato de forma/p
 ## 6. ERP e Conector
 - **Vai ao ERP com os valores já ajustados** (preço unitário e total de cada item e total do pedido), nos campos que já existem.
 - **O percentual também vai, só como informação** (`pagamento.percentual_ajuste`, opcional): serve a auditoria e conferência. **Risco:** o ERP da thathyany aplica "% Acres.Fin." ao lançar a condição; se a procedure reaplicar sobre o preço já ajustado, haverá **dupla aplicação**. Mitigação: a procedure grava as linhas como vêm e trata o percentual como informativo (RN-INT-15); a conferência é validar, no ensaio, que o total no ERP = total do app. Alternativa se o ERP não puder ignorar: **não enviar** o percentual (o aceite do ERP decide; pergunta 1).
-- **Nome:** `pagamento.ajuste_cents` **deixa de fazer sentido** (não há ajuste em valor separado; o ajuste está embutido nos preços). Sai da proposta, bem como `prazo_ajuste_cents` no pedido. Fica `prazo_pagamento.percentual_ajuste` e, no pedido, só `prazo_percentual_ajuste` (retrato) e `pagamento.percentual_ajuste` (informativo).
+- **Campos:** `prazo_pagamento.percentual_ajuste`, `prazo_percentual_ajuste` (retrato) e `pagamento.percentual_ajuste` (informativo).
 - **Versão:** mesma `v1` (campo opcional, RN-INT-09). **Conector 1.5.0** como versão recomendada (lê "% Acres.Fin." na carga do prazo e leva o informativo). Como os valores enviados já vêm ajustados, o Conector 1.4.x **continua correto** no total; só não leva o informativo. Pull: `.strict()` do `PrazoPagamentoSyncSchema` exige liberar o campo depois do app novo ou passar a `.passthrough()` (decisão do `engenheiro-software`).
 - Entrada: ERP (carga/delta/CSV) → `prazo_pagamento.percentual_ajuste`, `numeric(5,2) not null default 0`, `check between -99.99 and 99.99`; ausente = 0.
 
 ## 7. BKO — Prazos
-**Tabela única** de prazos, **sem sub-tópicos por forma**, com abas **Prazos / Formas**. O percentual aparece como coluna **somente leitura** (vem do ERP) e no CSV; o BKO não edita o percentual. Visual e disposição: `designer-ux`. Permissões inalteradas (`forma_pagamento.gerenciar` para os demais campos).
-
-Menu do BKO: **Cadastros > Formas de pagamento e prazos** (não em Financeiro) e tabela única com abas Prazos/Formas aprovadas (R-20261115-122000, R-20261115-121500). "Novo prazo" criado no BKO entra com percentual 0,00 e não mostra o campo.
+Cadastros > Formas de pagamento e prazos (não em Financeiro); tabela única, sem sub-tópicos por forma, abas Prazos/Formas; o percentual é coluna somente leitura (vem do ERP), também no CSV; "Novo prazo" entra com 0,00 sem o campo (R-20261115-121500, R-20261115-122000). Visual: `designer-ux`. Permissões inalteradas (`forma_pagamento.gerenciar` para os demais campos).
 
 ## 8. RN propostas (numeração a partir de RN-VEN-42 e RN-INT-14)
 Emendas: **RN-VEN-02** (trocar "± ajuste financeiro da condição" por "a tabela do item é ajustada pelo % do prazo, RN-VEN-43"); **RN-VEN-03/10/11/12** (calculados sobre a tabela ajustada); **RN-VEN-24** (o prazo tem o percentual, vindo do ERP).
 - **RN-VEN-43 Tabela ajustada pelo prazo.** O % do prazo (−99,99 a +99,99, 2 casas; negativo = desconto) altera o valor de tabela de cada produto: `ajustada = meia-para-cima(tabela × (10 000 + bp) ÷ 10 000)`, por unidade antes da quantidade, em centavos, `bp` inteiro. Aplica nos itens do pedido e no preço do Catálogo (prazo padrão do cliente; sem cliente, tabela pura). Desconto, alçada, preço mínimo e crédito usam a tabela ajustada. O % não é exibido em totais, lista de prazos nem PDF.
 - **RN-VEN-44 Troca de prazo.** Trocar o prazo recalcula tudo a partir da tabela original; o desconto do vendedor se mantém em %; excesso de alçada ou abaixo do mínimo é sinalizado (Alertas), nunca corrigido em silêncio.
 - **RN-VEN-45 Percentual congelado.** O pedido guarda o percentual do momento; a API recalcula e aceita o do push se for o vigente ou se o cadastro mudou depois do `criado_em` (aviso na linha do tempo); senão recusa (RN-VEN-40).
-- **RN-VEN-46 Prazo no BKO.** Tabela única de prazos (abas Prazos/Formas); percentual somente leitura, também no CSV.
+- **RN-VEN-46 Prazo no BKO.** Cadastro de prazos no BKO conforme a §7.
 - **RN-INT-15 Percentual do prazo no Hub.** `prazo_pagamento.percentual_ajuste` vem do ERP ("% Acres.Fin."), opcional e aditivo no `v1`, ausente = 0, fora da faixa ou com mais de 2 casas = erro de linha. Os preços do pedido ao ERP já vão ajustados; `pagamento.percentual_ajuste` é informativo e o ERP **não** o reaplica.
 - RN-CORE: nenhuma.
 
@@ -90,10 +87,10 @@ Emendas: **RN-VEN-02** (trocar "± ajuste financeiro da condição" por "a tabel
 | `gerente-projetos` | incorporar as RN ao doc 03 após aprovação |
 
 ## 10. Riscos
-1. **Dupla aplicação no ERP** (maior risco financeiro): exige o aceite da procedure da thathyany e conferência de total no ensaio.
+1. **Dupla aplicação no ERP** (maior risco financeiro): ver §6.
 2. **Preço diferente entre Catálogo e pedido** se o prazo escolhido não for o padrão do cliente: esperado; o pedido sempre vale.
 3. Mínimo mais baixo no prazo à vista: efeito direto da decisão do Alexandre.
-4. Pull estrito quebra o app antigo (seção 6).
+4. Pull estrito quebra o app antigo (§6).
 5. Relatórios do Gestor comparam descontos sobre a tabela ajustada, não sobre a de cadastro.
 
 ## 11. Perguntas em aberto
