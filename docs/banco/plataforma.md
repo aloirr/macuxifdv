@@ -865,3 +865,140 @@ select plataforma.sa_gravar_assinatura($1, $2, $3::jsonb) as r;   -- { resultado
 select plataforma.sa_listar_tenants($1) as r;                      -- itens[].plano, teste_ate, paga
 ```
 
+
+## Ações da empresa (0072, ADR 0052) — inativar, backup e excluir. Fora do sync
+Migração `0072_plataforma_empresa_acoes` (em cima da 0071; volta: `.down.sql`, que APAGA os registros de backup, exclusão e
+empresa excluída e as colunas da inativação; desligue antes `MACUXI_EMPRESA_ACOES` e o worker de backup). Desenho
+`docs/desenho/empresa-acoes.md` §4; contrato `packages/platform-sdk/src/empresa-acoes.ts` (RN-PLA-07..11). Drizzle: colunas
+novas do `tenant` e `backupEmpresa`, `backupEmpresaParte`, `exclusaoEmpresa`, `empresaExcluida` em `db/esquema/plataforma.ts`.
+Teste: `db/testes/empresa-acoes.db.test.ts`.
+
+### tenant — colunas da inativação (RN-PLA-07)
+| Coluna | Tipo | Regra |
+|---|---|---|
+| inativada_em | timestamptz | quando ficou inativa (`status = 'suspenso'`, rótulo "Inativa"); null = ativa |
+| motivo_inativacao | text | opcional (a tela envia `{}`; null = sem motivo); `MOTIVOS_INATIVACAO` do SDK (CHECK `tenant_motivo_inativacao_valido`); sem texto livre |
+
+CHECK `tenant_inativacao_coerente`: ativo ⇔ sem data, e o motivo só existe fora de `ativo` (suspenso e encerrado sempre com a
+data; o motivo pode ser nulo). Gatilho `tenant_inativacao_preencher` (BEFORE): status `ativo` limpa os dois; status fora de
+`ativo` sem data ganha `now()`, sem motivo (o `update ... set status = 'suspenso'` direto continua valendo). Na migração, as
+linhas fora de `ativo` ganharam a data do `updated_at` e motivo nulo.
+
+### Tabelas que sobrevivem à exclusão (exceção da regra 5; só por função)
+As quatro têm `empresa_id` **sem FK** (ou o próprio id, na `empresa_excluida`) e nenhum `tenant_id`, como a
+`auditoria_plataforma`: a `excluir_tenant` não as toca. RLS ligado e forçado, só a política `manutencao`, nenhum grant de tabela
+(`macuxi_app`, `macuxi_worker` e `macuxi_portal`: 42501). `TABELAS_SEM_TENANT_ID` e `TABELAS_SO_POR_FUNCAO`.
+
+**backup_empresa** — um job de backup por linha (RN-PLA-08).
+| Coluna | Tipo | Regra |
+|---|---|---|
+| id | uuid | gerado no portal (chave de idempotência do pedido) |
+| empresa_id | uuid not null | o tenant (sem FK) |
+| codigo | text not null | código da empresa no pedido (vai ao manifesto) |
+| situacao | text not null default `em_andamento` | `em_andamento` → `pronto` \| `falhou` → `apagado` (retenção) |
+| consistente | boolean not null default false | pedido com a empresa inativa e ela inativa até o fim (a `sa_reativar_tenant` zera o do backup em andamento; a `fechar_backup` reconfere `inativada_em <= iniciado_em`) |
+| pedido_em, iniciado_em, concluido_em, expira_em | timestamptz | `iniciado_em` = 1ª vez que o worker pegou; `expira_em` = fim + 30 dias (o da exclusão: fim da exclusão + 90 dias) |
+| progresso_pct | integer not null default 0 | 0..100; as partes levam até 90, o fechamento a 100 |
+| tamanho_bytes, tabelas, linhas, arquivos | bigint/integer | do fechamento (`tabelas` e `linhas` somados das partes) |
+| erro_codigo | text | `^[A-Z][A-Z0-9_]{1,59}$`, só (e sempre) em `falhou` |
+| bloqueado_ate | timestamptz | concessão do worker (10 min, renovada a cada página e parte) |
+| super_admin_id, sessao_id | uuid | quem pediu |
+| comuns | | `created_at`, `updated_at` (gatilho), `deleted_at`, `external_id` |
+
+CHECKs: pronto tem `concluido_em`, `tamanho_bytes` e 100%; em andamento sem `concluido_em`. Índices: um em andamento por
+empresa (`backup_empresa_um_em_andamento_uk`), `(empresa_id, pedido_em desc, id)` (lista do portal), fila `(pedido_em, id)` dos
+em andamento e `expira_em` dos prontos e falhos (retenção). Volume: poucas linhas por empresa por mês.
+
+**backup_empresa_parte** — parte confirmada no bucket: `backup_id` (FK, `on delete cascade`), `tabela`
+(`esquema.tabela`), `ordem` (da `ordem_do_backup`), `linhas`, `bytes`, `sha256` (hex); única por `(backup_id, tabela)` (o worker
+retoma da última confirmada; regravar a mesma parte só a atualiza).
+
+**exclusao_empresa** — o job da exclusão (RN-PLA-09): `id` (portal), `empresa_id`, `codigo`, `backup_id` (FK para o backup que
+liberou), `situacao` (`em_andamento` \| `concluida` \| `falhou`), `etapa` (`banco` → `arquivos` → `fim`), `pedida_em`,
+`concluida_em`, `linhas_apagadas`, `arquivos_apagados`, `contagem` (jsonb: linhas apagadas por tabela, o retorno da
+`excluir_tenant`), `erro_codigo` (só e sempre em `falhou`), `bloqueado_ate`, `super_admin_id`, `sessao_id` e os comuns.
+Concluída tem `concluida_em` e etapa `fim`. Uma em andamento por empresa (`exclusao_empresa_em_andamento_uk`).
+
+**empresa_excluida** — o registro da empresa apagada (RN-PLA-10): `id` (= o do tenant), `codigo`, `documento` (CNPJ),
+`razao_social`, `excluida_em`, `backup_id`, `exclusao_id` (FKs), `super_admin_id` e os comuns. Código único entre as excluídas
+(`empresa_excluida_codigo_uk`, `lower(codigo)`). A restauração (operação manual, desenho §3) apaga a linha do id restaurado.
+
+### Código da licença nunca reaproveitado (RN-PLA-10)
+- Gatilho `tenant_codigo_nao_reaproveitado` (BEFORE INSERT ou UPDATE OF `codigo` em `plataforma.tenant`): código de empresa
+  excluída com **outro** id = 23505. Vale para `provisionar_tenant`, `sa_provisionar_tenant`, `atribuir_codigo_licenca` e
+  qualquer insert. O mesmo id (restauração) passa.
+- `sortear_codigo_licenca` (create or replace; mesma assinatura e ACL da 0068) não sorteia código de empresa excluída.
+
+### Despachante e e-mail pulam a empresa inativa (RN-PLA-07)
+`plataforma.tenant_esta_ativo(p_tenant uuid) returns boolean` (SECURITY DEFINER, EXECUTE só ao `macuxi_worker`): status `ativo` e
+não apagado. As políticas do worker passam a usá-la: `despacho_outbox` (`plataforma.evento`, SELECT) =
+`nome like 'plataforma.tenant.%' or tenant_esta_ativo(tenant_id)`; `despacho_email` (`plataforma.email_saida`, SELECT) =
+`tenant_esta_ativo(tenant_id)`. As consultas do despachante e do worker de e-mail **não mudam**: as linhas da empresa inativa
+ficam esperando (sem contar tentativa) e voltam ao reativar. O agendador já parava (`tenants_ativos`, 0027).
+
+### Funções do portal (SECURITY DEFINER; EXECUTE só ao `macuxi_portal`; o portal passa a 25 `sa_*`)
+Todas: sessão inválida = 28000; admin do cliente = 42501; o código do contrato vai no `hint` do erro.
+
+| Função | Retorno | Erros |
+|---|---|---|
+| `sa_inativar_tenant(p_sid uuid, p_tenant uuid, p_motivo text)` | `SituacaoEmpresaResposta` (`resultado` `alterado` \| `sem_mudanca`); grava status, data e motivo (`p_motivo` opcional: null = sem motivo), auditoria `tenant.inativado` e o evento `plataforma.tenant.inativado@1` na outbox, na mesma transação | 22023 (motivo fora da lista); P0002 `TENANT_NAO_ENCONTRADO`; 55000 `EXCLUSAO_EM_ANDAMENTO` |
+| `sa_reativar_tenant(p_sid uuid, p_tenant uuid)` | idem; auditoria `tenant.reativado`, evento `plataforma.tenant.reativado@1`; o backup em andamento deixa de ser consistente | P0002; 55000 `EXCLUSAO_EM_ANDAMENTO` |
+| `sa_pedir_backup(p_sid uuid, p_tenant uuid, p_id uuid)` | `BackupEmpresa` (o mesmo id devolve o mesmo); auditoria `tenant.backup_pedido` | P0002; 55000 `EXCLUSAO_EM_ANDAMENTO` / `BACKUP_EM_ANDAMENTO`; 23505 (id de backup de outra empresa) |
+| `sa_listar_backups(p_sid uuid, p_tenant uuid, p_backup uuid)` | `{ itens: BackupEmpresa[] }` (até 20, do mais novo; `p_backup` = só aquele; vale para a empresa excluída) | P0002 |
+| `sa_pedir_exclusao(p_sid uuid, p_tenant uuid, p_id uuid, p_backup uuid, p_codigo text)` | `ExclusaoEmpresa` (`em_andamento`/`banco`; o mesmo id devolve a mesma); auditoria `tenant.exclusao_pedida` | P0002; 55000 `EXCLUSAO_EM_ANDAMENTO`; 22023 `EXCLUSAO_EMPRESA_ATIVA`, `EXCLUSAO_SEM_BACKUP`, `EXCLUSAO_BACKUP_ANTES_DA_INATIVACAO`, `EXCLUSAO_BACKUP_VENCIDO`, `EXCLUSAO_CODIGO_NAO_CONFERE`; 23505 (id de outra empresa) |
+| `sa_ler_exclusao(p_sid uuid, p_tenant uuid)` | `ExclusaoEmpresa` mais recente ou null (também depois de concluída) | — |
+| `sa_reautenticar(p_sid uuid)` | table `(super_admin_id, email, senha_hash)` do super-admin da sessão (a API confere a senha e conta a falha em `sa_tentativa_falha`); auditoria `sa.reautenticar` | — (0 linhas = conta inativa) |
+| `sa_acoes_das_empresas(p_sid uuid)` | `{ itens: [{ tenant_id, inativada_em, motivo_inativacao, ultimo_backup, exclusao, exclusao_bloqueada }] }` das empresas vivas; a API junta no item da `sa_listar_tenants` pelo `tenant_id` (sem ele, é o `AcoesDaEmpresaSchema`) | — |
+
+A senha do super-admin é conferida pela API **antes** da `sa_pedir_exclusao`, que revalida a `conferirExclusao` na transação
+(pela interna `exclusao_bloqueada`).
+
+### Funções do worker (SECURITY DEFINER; EXECUTE só ao `macuxi_worker`; o tenant sai sempre da linha do job)
+- `pegar_backup() returns jsonb` — próximo backup em andamento sem concessão viva (`for update skip locked`), marca `iniciado_em`
+  na 1ª vez e dá 10 min; devolve `BackupEmpresa` + `codigo` + `partes` (tabelas já confirmadas). null = fila vazia.
+- `tabelas_do_backup(p_backup uuid) returns table (ordem, tabela, chave text[], adiar text[])` — a `ordem_do_backup` (só com o
+  backup em andamento: 55000; inexistente: P0002).
+- `exportar_backup_pagina(p_backup uuid, p_tabela text, p_depois jsonb, p_limite integer) returns table (chave jsonb, linha
+  jsonb)` — página por keyset da chave primária (`p_depois` = a `chave` da última linha; null = do começo; `p_limite` 1..5000),
+  só do tenant da linha do backup; `linha` = `to_jsonb` da linha inteira (a restauração volta com `jsonb_populate_record`).
+  Tabela fora da lista = 22023.
+- `registrar_parte_backup(p_backup uuid, p_tabela text, p_linhas bigint, p_bytes bigint, p_sha256 text) returns jsonb` —
+  idempotente por (backup, tabela); progresso até 90%.
+- `fechar_backup(p_backup uuid, p_resultado jsonb) returns jsonb` — `{ situacao: 'pronto', tamanho_bytes, arquivos }` (exige
+  todas as partes: 55000 `BACKUP_INCOMPLETO`) ou `{ situacao: 'falhou', erro_codigo }`; reconfere a consistência; expira em 30
+  dias; evento `backup_concluido@1` ou `backup_falhou@1` na outbox do tenant; auditoria `tenant.backup_concluido`/`_falhou`.
+- `backups_vencidos(p_limite integer)` (1..500) e `marcar_backup_apagado(p_backup uuid)` — retenção (RN-PLA-11): falho vencido;
+  pronto vencido com outro pronto mais novo da empresa, ou da empresa excluída (o pronto mais novo de quem existe sempre fica).
+- `pegar_exclusao() returns jsonb` — próxima exclusão em andamento sem concessão viva.
+- `executar_exclusao(p_exclusao uuid) returns jsonb` — etapa `banco`, na transação do worker: reconfere, `encerrado`,
+  `excluir_tenant` (0032), outros backups em andamento da empresa = `falhou`/`EMPRESA_EXCLUIDA`, backup da exclusão guardado 90
+  dias, `empresa_excluida`, auditoria `tenant.excluido` (detalhes = payload de `plataforma.tenant.excluido@1`), etapa
+  `arquivos`. Conferência que não passa = exclusão `falhou` com o código (empresa intacta). Etapa já passada = devolve.
+- `fechar_exclusao(p_exclusao uuid, p_resultado jsonb) returns jsonb` — `{ situacao: 'concluida', arquivos_apagados }` (só na
+  etapa `arquivos`) ou `{ situacao: 'falhou', erro_codigo }` (só na etapa `banco`; na `arquivos`, 55000: tente de novo).
+
+### Internas (SECURITY INVOKER; só o dono)
+`instante_iso(timestamptz)`, `backup_empresa_json(backup_empresa)`, `exclusao_empresa_json(exclusao_empresa)`,
+`exclusao_bloqueada(p_tenant, p_backup, p_exclusao)` (a `conferirExclusao` do SDK, mesma ordem) e `ordem_do_backup()`:
+`plataforma.tenant` (ordem 1) e toda tabela com `tenant_id`, mães antes das filhas; ciclo de FK (hoje `core.usuario` ↔
+`core.equipe`) e autorreferência anulável viram colunas `adiar` (a restauração grava nulo e completa no fim).
+
+Pendente (fora da 0072): a restauração (`db/backup/restaurar-empresa.mjs`, com o leitor do manifesto, e o ensaio backup →
+exclusão → restauração no CI). Os gatilhos de semeadura (`tenant_semear_*` na inserção do tenant, `usuario_perfil_principal`,
+`resposta_normalizar`) gravam linhas que o backup também traz: a restauração precisa desligá-los (`alter table ... disable
+trigger user` pelo dono, numa janela) ou apagar o semeado antes de cada tabela. O teste desta migração prova a outra metade: o
+que a exclusão apaga é, tabela a tabela, o que o backup exportou.
+
+Consultas da API e do worker (referência):
+```sql
+select plataforma.sa_inativar_tenant($1, $2, $3) as r;            -- POST …/inativar
+select plataforma.sa_reativar_tenant($1, $2) as r;                -- POST …/reativar
+select plataforma.sa_pedir_backup($1, $2, $3) as r;               -- POST …/backups (202)
+select plataforma.sa_listar_backups($1, $2, $3) as r;             -- GET …/backups[/:backup_id]
+select * from plataforma.sa_reautenticar($1);                     -- POST …/exclusao, antes da sa_pedir_exclusao
+select plataforma.sa_pedir_exclusao($1, $2, $3, $4, $5) as r;     -- POST …/exclusao (202)
+select plataforma.sa_ler_exclusao($1, $2) as r;                   -- GET …/exclusao (null = 404)
+select plataforma.sa_acoes_das_empresas($1) as r;                 -- GET /v1/plataforma/empresas (bloco acoes)
+select plataforma.pegar_backup() as r;                            -- worker (macuxi_worker)
+select * from plataforma.exportar_backup_pagina($1, $2, $3::jsonb, 5000);
+```

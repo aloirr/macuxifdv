@@ -39,7 +39,7 @@ import { dadosFaseM, TENANT_FASE_M } from '../seeds/fase-m/fase-m';
 import { dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS, PEPPER_HUB_FIXTURE } from '../seeds/fixtures/dois-tenants';
 import { carregarFixtureDosTestes, dadosTreinamento, ORDEM_TREINAMENTO } from './fixture-treinamento';
 import { COLUNAS_SEM_ESPELHO_DRIZZLE, TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
-import { FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_0042, FUNCOES_SA_0058, FUNCOES_SA_0070 } from './funcoes-sa';
+import { FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_0042, FUNCOES_SA_0058, FUNCOES_SA_0070, FUNCOES_SA_0072, FUNCOES_WORKER_0072 } from './funcoes-sa';
 import { idDeChave, idDeterministico, idFixo, idMedida, idUsuarioPerfil } from '../src/ids';
 import { lerMigracoes } from '../src/migrador';
 import { PASTA_DB } from '../src/config';
@@ -116,6 +116,8 @@ const TABELAS_0064_0066 = [
 ] as const;
 /** Tabelas novas da 0070 (ADR 0047: catálogo de planos, só por função, e a assinatura do tenant; fora do sync; plano-assinatura.db.test.ts). */
 const TABELAS_0070 = ['plataforma.plano', 'plataforma.assinatura'] as const;
+/** Tabelas novas da 0072 (ADR 0052: backup, exclusão e empresa excluída; sem tenant_id, só por função; empresa-acoes.db.test.ts). */
+const TABELAS_0072 = ['plataforma.backup_empresa', 'plataforma.backup_empresa_parte', 'plataforma.exclusao_empresa', 'plataforma.empresa_excluida'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -251,6 +253,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0058,
         ...TABELAS_0064_0066,
         ...TABELAS_0070,
+        ...TABELAS_0072,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,
@@ -326,6 +329,8 @@ describe('0003 macuxi_worker (estático, ADR 0007)', () => {
       'select (id, tenant_id, protocolo, usuario_id, perfil, origem, app, versao_app, build, aparelho_fabricante, aparelho_modelo, android, android_api, tela, motivo, print_id, ocorrido_em, recebido_em, alerta_situacao, alerta_tentativas, alerta_proxima_em, alerta_recado_id, alerta_em) on plataforma.diagnostico',
       'update (alerta_situacao, alerta_tentativas, alerta_proxima_em, alerta_recado_id, alerta_em) on plataforma.diagnostico',
       'execute on function plataforma.expurgar_diagnosticos(timestamptz, integer)',
+      // 0072 (ADR 0052): política do despachante e do e-mail (tenant ativo) e o job de backup e de exclusão da empresa
+      ...FUNCOES_WORKER_0072.map((f) => `execute on function ${f}`),
     ]);
   });
 
@@ -791,8 +796,9 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     // 0069 (ADR 0049): a função de gatilho do promotor, conferida no COMMIT do portal (cargo-hierarquia.db.test.ts)
     // 0070 (ADR 0047): a sa_* que grava a assinatura da empresa (plano-assinatura.db.test.ts); a 0071 reescreve a
     // sa_listar_tenants com create or replace
+    // 0072 (ADR 0052): as 8 sa_* das ações da empresa e as 11 do worker (empresa-acoes.db.test.ts)
     expect(novas.map((x) => x[1]).sort()).toEqual(
-      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', ...FUNCOES_SA_0070.map(nome)].sort(),
+      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', ...FUNCOES_SA_0070.map(nome), ...FUNCOES_SA_0072.map(nome), ...FUNCOES_WORKER_0072.map(nome)].sort(),
     );
     for (const x of novas) expect(x[2], `${x[1]}: pg_temp por último`).toMatch(/, pg_temp$/);
     expect(depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)]).length).toBe(novas.length);

@@ -23,6 +23,14 @@ export const TABELAS_SEM_TENANT_ID = {
   'plataforma.portal_sessao_empresa': 'empresas conferidas no login do portal (ADR 0031); só por função',
   /** Catálogo de planos (0070, ADR 0047 §1): dado da PLATAFORMA, igual para todos os tenants; só pelas funções plataforma.sa_*. */
   'plataforma.plano': 'catálogo de planos da plataforma, fora dos tenants (ADR 0047); só por função',
+  /**
+   * Ações da empresa (0072, ADR 0052): empresa_id SEM FK no lugar de tenant_id, de propósito, como a auditoria_plataforma: o
+   * backup, a exclusão e o registro da empresa excluída sobrevivem à plataforma.excluir_tenant. Só pelas funções sa_* e do worker.
+   */
+  'plataforma.backup_empresa': 'backup da empresa, sobrevive à exclusão do tenant (ADR 0052); só por função',
+  'plataforma.backup_empresa_parte': 'partes confirmadas do backup da empresa (ADR 0052); só por função',
+  'plataforma.exclusao_empresa': 'job da exclusão da empresa, sobrevive à exclusão do tenant (ADR 0052); só por função',
+  'plataforma.empresa_excluida': 'registro da empresa excluída, código nunca reaproveitado (ADR 0052, RN-PLA-10); só por função',
 } as const;
 
 /**
@@ -41,6 +49,11 @@ export const TABELAS_SO_POR_FUNCAO = [
   'plataforma.portal_sessao_empresa',
   /** 0070 (ADR 0047): catálogo de planos; lido e gravado só pelas sa_* do portal. */
   'plataforma.plano',
+  /** 0072 (ADR 0052): backup, exclusão e empresa excluída; lidos e gravados só pelas sa_* do portal e pelas funções do worker. */
+  'plataforma.backup_empresa',
+  'plataforma.backup_empresa_parte',
+  'plataforma.exclusao_empresa',
+  'plataforma.empresa_excluida',
 ] as const;
 
 /** Tabelas sem o índice de sync (tenant_id, updated_at, id): não são puxadas pelo app. */

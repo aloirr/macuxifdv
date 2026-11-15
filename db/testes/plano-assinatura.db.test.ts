@@ -19,7 +19,7 @@ import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-tes
 import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
-import { FUNCOES_SA_0070, FUNCOES_SA_ATUAIS } from './funcoes-sa';
+import { FUNCOES_SA_0070, FUNCOES_SA_ATE_0071 } from './funcoes-sa';
 import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
@@ -81,7 +81,7 @@ describe('0070 planos e assinatura (estático)', () => {
 
   it('sa_gravar_assinatura: a assinatura que a API chama, SECURITY DEFINER, 28000/42501, hints do 422, idempotente, só o portal executa', () => {
     expect(FUNCOES_SA_0070).toEqual([GRAVAR]);
-    expect(FUNCOES_SA_ATUAIS).toHaveLength(17);
+    expect(FUNCOES_SA_ATE_0071).toHaveLength(17);
     const b = bloco(up70, 'create function plataforma.sa_gravar_assinatura(p_sid uuid, p_tenant uuid, p jsonb)');
     expect(b).toMatch(/returns jsonb\s+language plpgsql volatile security definer\s+set search_path = pg_catalog, plataforma, pg_temp/);
     expect(b).toMatch(/if v_tipo is null then\s+raise exception '[^']+' using errcode = '28000';/);

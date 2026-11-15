@@ -13,7 +13,7 @@
 --   como problema.
 -- Resultado esperado: ZERO linhas. Exceções (iguais a db/src/excecoes.ts, TABELAS_SEM_TENANT_ID): plataforma.tenant não tem
 -- tenant_id (o id é o tenant; RLS por id) e public.macuxi_migracao fica fora (schema public, sem acesso do macuxi_app).
--- Super-admin, portal e catálogo de planos (0035, ADR 0029; 0039, ADR 0031; 0070, ADR 0047; TABELAS_SO_POR_FUNCAO): sem tenant_id e SEM política para o macuxi_app (só por função
+-- Super-admin, portal, catálogo de planos e ações da empresa (0035, ADR 0029; 0039, ADR 0031; 0070, ADR 0047; 0072, ADR 0052; TABELAS_SO_POR_FUNCAO): sem tenant_id e SEM política para o macuxi_app (só por função
 -- SECURITY DEFINER); para elas o problema é o contrário: política ou qualquer grant de tabela para o macuxi_app/macuxi_worker.
 -- Prova: db/testes/conformidade.test.ts ("B1 conferência de RLS") roda este arquivo no Postgres de testes do CI.
 -- À mão (só leitura): psql "$URL_ADMIN" -v ON_ERROR_STOP=1 -f db/scripts/conferir-rls.sql
@@ -42,7 +42,11 @@ sem_tenant_id (nome) as (
          ('plataforma.portal_tentativa'),
          ('plataforma.portal_sessao'),
          ('plataforma.portal_sessao_empresa'),
-         ('plataforma.plano')
+         ('plataforma.plano'),
+         ('plataforma.backup_empresa'),
+         ('plataforma.backup_empresa_parte'),
+         ('plataforma.exclusao_empresa'),
+         ('plataforma.empresa_excluida')
 ),
 so_por_funcao (nome) as (
   values ('plataforma.super_admin'),
@@ -52,7 +56,11 @@ so_por_funcao (nome) as (
          ('plataforma.portal_tentativa'),
          ('plataforma.portal_sessao'),
          ('plataforma.portal_sessao_empresa'),
-         ('plataforma.plano')
+         ('plataforma.plano'),
+         ('plataforma.backup_empresa'),
+         ('plataforma.backup_empresa_parte'),
+         ('plataforma.exclusao_empresa'),
+         ('plataforma.empresa_excluida')
 ),
 problemas as (
   select t.nome, 'RLS desligado' as problema from tabelas t where not t.rls
