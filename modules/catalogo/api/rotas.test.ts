@@ -637,7 +637,7 @@ describe('PUT produtos/:id/cadastro-catalogo e a ficha (T-0084/T-0085; RN-CAT-09
     expect((await chamar(rota('GET', 'hierarquia'), usuario('vendedor', { modulos: ['core'] }))).status).toBe(403);
   });
 
-  it('RF-CAT-09: GET exportacao devolve produtos com aplicação, referências e oferece junto, e as marcas ativas; só analista e admin', async () => {
+  it('RF-CAT-09: GET exportacao devolve produtos com aplicação, referências e oferece junto; só analista e admin', async () => {
     const { rota } = montar();
     await chamar(rota('PUT', 'produtos/:id/cadastro-catalogo'), usuario('analista'), { params: { id: FEI }, corpo: corpo() });
     const r = await chamar<RespostaExportacao>(rota('GET', 'exportacao'), usuario('analista'));
@@ -645,7 +645,6 @@ describe('PUT produtos/:id/cadastro-catalogo e a ficha (T-0084/T-0085; RN-CAT-09
     expect(RespostaExportacao.safeParse(r.corpo).success).toBe(true);
     const p = r.corpo.produtos.find((x) => x.id === FEI)!;
     expect(p).toMatchObject({ aplicacao: 'Fiat Uno 1.0/1.4 2010–2014', referencias: [{ marca_id: MARCA_A, marca_nome: 'Freiomax', codigo: 'CB 3401' }], oferece_junto: [CAF] });
-    expect(r.corpo.marcas.map((m) => m.nome)).toEqual(['Freiomax', 'Rodaforte']);
     expect(r.corpo.truncado).toBe(false);
     expect((await chamar(rota('GET', 'exportacao'), usuario('admin'))).status).toBe(200);
     for (const perfil of ['vendedor', 'promotor', 'supervisor'] as const) expect((await chamar(rota('GET', 'exportacao'), usuario(perfil))).status).toBe(403);
@@ -658,7 +657,6 @@ describe('PUT produtos/:id/cadastro-catalogo e a ficha (T-0084/T-0085; RN-CAT-09
     const com = await chamar<RespostaExportacao>(rota('GET', 'exportacao'), usuario('analista'));
     expect(RespostaExportacao.safeParse(com.corpo).success).toBe(true);
     expect(com.corpo.produtos.find((x) => x.id === FEI)!.referencias).toEqual([{ marca_id: MARCA_A, marca_nome: 'Freiomax', codigo: 'CB 3401' }]);
-    expect(com.corpo.marcas).toEqual([]);
     const prod = memoria.estado(TENANT_A).dados.produtos.find((x) => x.id === FEI)!;
     prod.referencias = [{ marca_id: MARCA_A, marca_nome: '', codigo: 'CB 3401' }];
     const sem = await chamar<RespostaExportacao>(rota('GET', 'exportacao'), usuario('analista'));
@@ -672,7 +670,6 @@ describe('PUT produtos/:id/cadastro-catalogo e a ficha (T-0084/T-0085; RN-CAT-09
     expect(semLicenca.status).toBe(403);
     const b = await chamar<RespostaExportacao>(rota('GET', 'exportacao'), usuario('analista', { tenant_id: TENANT_B }));
     expect(b.corpo.produtos.map((x) => x.codigo)).toEqual(['B-1']);
-    expect(b.corpo.marcas).toEqual([]);
   });
 
   it('RN-CAT-09: GET marcas-concorrentes lista só as ativas, em ordem de nome, e só para quem enriquece', async () => {

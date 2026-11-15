@@ -8,7 +8,7 @@ import { htmlDoCatalogo, nomeArquivoCatalogo } from './pdf';
 import { podeExportarCatalogo } from './permissao';
 
 const base = DADOS_EXEMPLO.produtos[1]!;
-const com = (p: Partial<typeof base>): Dados => ({ marcas: DADOS_EXEMPLO.marcas, truncado: false, produtos: [{ ...base, ...p }] });
+const com = (p: Partial<typeof base>): Dados => ({ truncado: false, produtos: [{ ...base, ...p }] });
 
 describe('RF-CAT-09: layout do catálogo', () => {
   it('RF-CAT-09: colunas Código · Aplicação · Oferece junto · Equivale a', () => {
@@ -36,7 +36,6 @@ describe('RF-CAT-09: layout do catálogo', () => {
   it('RN-CAT-09: no máximo 3 referências e 5 oferece junto na saída', () => {
     const ids = Array.from({ length: 8 }, (_, n) => ({ ...base, id: `c${n}`, codigo: `C${n}` }));
     const dados: Dados = {
-      marcas: DADOS_EXEMPLO.marcas,
       truncado: false,
       produtos: [{ ...base, id: 'x', codigo: 'X', oferece_junto: ids.map((p) => p.id), referencias: Array.from({ length: 5 }, (_, n) => ({ marca_id: 'm1', marca_nome: null, codigo: `R${n}` })) }, ...ids],
     };

@@ -249,7 +249,6 @@ export type ProdutoExportacao = z.infer<typeof ProdutoExportacao>;
 
 export const RespostaExportacao = z.object({
   produtos: z.array(ProdutoExportacao).max(20_000),
-  marcas: z.array(z.object({ id: Id, nome: z.string() })),
   /** Havia mais produtos que o teto: a lista saiu cortada (o BKO avisa). */
   truncado: z.boolean().default(false),
 });
