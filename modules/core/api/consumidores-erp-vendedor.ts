@@ -41,8 +41,8 @@ async function avisarDesligadoNoBko(ctx: ContextoConsumo, externalId: string, ve
   }
 }
 
-/** Aviso de provisório ao admin: texto sob simulação do designer-ux (R-20261115-075000); desligado até o dono aprovar. */
-export const AVISO_PROVISORIO_ATIVO = false;
+/** Aviso de provisório ao admin: texto sob simulação do designer-ux (R-20261115-075000); ligado junto com as telas, após a simulação aprovada. */
+export const AVISO_PROVISORIO_ATIVO = true;
 
 /** RN-CORE-58: a carga criou um usuário provisório; o admin vincula ao usuário real. Só o código do ERP vai no aviso (sem nome nem e-mail). */
 async function avisarProvisorioCriado(ctx: ContextoConsumo, externalId: string): Promise<void> {

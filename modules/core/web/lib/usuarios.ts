@@ -4,7 +4,7 @@
  */
 import { formatDateTime, formatTime } from '@macuxi/ui/web';
 import { temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
-import { DESCONTO_PEDIDO_PERMIL_MAX, type CriarUsuarioRequest, type EditarUsuarioRequest, type EmailAcesso, type EquipeOpcao, type UsuarioItem } from '../../contracts';
+import { DESCONTO_PEDIDO_PERMIL_MAX, type CriarUsuarioRequest, type EditarUsuarioRequest, type EmailAcesso, type EquipeOpcao, type UsuarioItem, type VincularErpRequest } from '../../contracts';
 import { erroDoCodigoErp, errosDaHierarquia, hierarquiaDoCargo, type PessoaDaHierarquia } from '../../domain/cargos';
 import type { Cargo } from '@macuxi/platform-sdk';
 import { ERRO_SEM_PERFIL, faltasNaSenha, gerarSenhaTemporaria, validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo, type FaltaNaSenha } from '../../domain';
@@ -56,6 +56,18 @@ const ouNulo = (v: string): string | null => (v.trim() === '' ? null : v.trim())
 
 /** Cargo, gerente e situação de cada usuário da lista: quem pode ser escolhido como supervisor ou gerente. */
 export const pessoasDaLista = (itens: readonly UsuarioItem[]): PessoaDaHierarquia[] => itens.map((u) => ({ id: u.id, cargo: u.cargo ?? null, gerente_id: u.gerente_id ?? null, ativo: u.ativo }));
+
+/** RN-CORE-58: quem pode receber o vínculo do provisório: ativo, com e-mail real, do mesmo perfil e sem Código no ERP. */
+export function opcoesParaVincular(itens: readonly UsuarioItem[], provisorio: UsuarioItem): UsuarioItem[] {
+  return itens.filter((u) => u.id !== provisorio.id && u.ativo && !u.provisorio && u.perfil === provisorio.perfil && (u.external_id ?? '').trim() === '').sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+/** Corpo do `POST /core/usuarios/:id/vincular-erp`. */
+export const corpoDeVinculoErp = (usuarioId: string): VincularErpRequest => ({ usuario_id: usuarioId });
+
+/** Texto do aviso depois de vincular (só o que o admin usa: quantos clientes passaram). */
+export const textoDoVinculoErp = (r: { clientes_movidos: number; ja_vinculado: boolean }): string =>
+  r.ja_vinculado ? 'Este vendedor já estava vinculado.' : r.clientes_movidos === 1 ? 'Vendedor vinculado. 1 cliente passou para o usuário.' : `Vendedor vinculado. ${r.clientes_movidos} clientes passaram para o usuário.`;
 
 /** Opções do select de Supervisor ou Gerente: ativos do cargo, por nome; o supervisor do promotor só entre os do gerente escolhido. */
 export function opcoesDeChefia(itens: readonly UsuarioItem[], cargo: 'supervisor' | 'gerente', doGerente = ''): UsuarioItem[] {

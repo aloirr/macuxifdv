@@ -7,11 +7,14 @@ import { ROTULO_PERFIL, type ModuloId } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, IconeModulo, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, useToast, rotuloDoPerfil, type AcaoDoMenu, type IdDoModulo } from '@macuxi/ui/web';
-import { CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type LicencasEstado, type UsuarioItem } from '../../../contracts';
+import { CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, VincularErpRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type LicencasEstado, type UsuarioItem } from '../../../contracts';
 import { efetivosPelasDependencias } from '../../../domain/licencas';
 import {
   acaoDeSenha,
   corpoDeRedefinicao,
+  corpoDeVinculoErp,
+  opcoesParaVincular,
+  textoDoVinculoErp,
   faltasDaSenhaDigitada,
   gerarSenhaNoNavegador,
   resultadoDeCriar,
@@ -40,7 +43,7 @@ import { useMe } from '../../lib/queries';
 const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
 const BOTAO_LINHA = 'h-[44px] min-w-[88px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled';
 
-type Modal = { tipo: 'form'; usuario: UsuarioItem | null } | { tipo: 'ativo'; usuario: UsuarioItem } | { tipo: 'senha'; usuario: UsuarioItem } | null;
+type Modal = { tipo: 'form'; usuario: UsuarioItem | null } | { tipo: 'ativo'; usuario: UsuarioItem } | { tipo: 'senha'; usuario: UsuarioItem } | { tipo: 'vincular'; usuario: UsuarioItem } | null;
 
 /** Ícone do módulo na coluna "Módulos", com o nome para leitor de tela e dica (nome e ícone de `modulos.tsx`, §P10). */
 function IconeComNome({ id, nome }: { id: IdDoModulo; nome: string }) {
@@ -107,14 +110,17 @@ export function UsuariosConteudo() {
   const q = params.get('q') ?? '';
   const perfil = params.get('perfil') ?? '';
   const situacao = params.get('situacao') ?? '';
+  const provisorios = params.get('provisorios') === '1';
+  const [vinculoEscolhido, setVinculoEscolhido] = useState('');
 
   const lista = useQuery({
-    queryKey: ['core', 'usuarios', q, perfil, situacao],
+    queryKey: ['core', 'usuarios', q, perfil, situacao, provisorios],
     queryFn: async () => {
       const qs = new URLSearchParams();
       if (q) qs.set('q', q);
       if (perfil) qs.set('perfil', perfil);
       if (situacao) qs.set('ativo', situacao === 'ativo' ? 'true' : 'false');
+      if (provisorios) qs.set('provisorio', 'true');
       return UsuarioListaRespostaSchema.parse(await api(`/core/usuarios${qs.size ? `?${qs.toString()}` : ''}`)).itens;
     },
   });
@@ -218,6 +224,11 @@ export function UsuariosConteudo() {
     onSuccess: (_r, u) => concluir(u.ativo ? 'Usuário desativado.' : 'Usuário reativado.'),
     onError: (e) => setErroApi(errorMessage(e)),
   });
+  const vincular = useMutation({
+    mutationFn: async (u: UsuarioItem) => VincularErpRespostaSchema.parse(await api(`/core/usuarios/${u.id}/vincular-erp`, { method: 'POST', body: corpoDeVinculoErp(vinculoEscolhido) })),
+    onSuccess: (r) => concluir(textoDoVinculoErp(r)),
+    onError: (e) => setErroApi(errorMessage(e)),
+  });
   const redefinir = useMutation({
     mutationFn: async (u: UsuarioItem) => api(`/core/usuarios/${u.id}/senha`, { method: 'PUT', body: corpoDeRedefinicao(novaSenha) }),
     onSuccess: (r, u) => {
@@ -275,7 +286,7 @@ export function UsuariosConteudo() {
   const comSenha = (f: FormularioUsuario): FormularioUsuario => (editando ? f : { ...f, senha: f.senha || gerarSenhaNoNavegador() });
   const erros = modal?.tipo === 'form' ? errosDoFormulario(comSenha(form), editando ? 'editar' : 'criar', { cargo, pessoas: pessoasDaLista(ativos) }) : [];
   const erroDe = (campo: string) => (tentou ? erros.find((e) => e.campo === campo)?.mensagem : undefined);
-  const ocupado = salvar.isPending || alternar.isPending || redefinir.isPending;
+  const ocupado = salvar.isPending || alternar.isPending || redefinir.isPending || vincular.isPending;
   const upd = (patch: Partial<FormularioUsuario>) => setForm((f) => ({ ...f, ...patch }));
 
   const itens = lista.data ?? [];
@@ -289,6 +300,21 @@ export function UsuariosConteudo() {
       ? [{ id: 'desbloquear', rotulo: desbloqueando(u) ? 'Desbloqueando…' : 'Desbloquear', desligada: desbloqueando(u), aoEscolher: () => desbloquear.mutate({ u, naGaveta: false }), testId: `usuarios.desbloquear.${u.id}` }]
       : []),
     ...(podeEditar ? [{ id: 'editar', rotulo: 'Editar', aoEscolher: () => abrirForm(u), testId: `usuarios.editar.${u.id}` }] : []),
+    ...(podeEditar && u.provisorio && u.ativo
+      ? [
+          {
+            id: 'vincular',
+            rotulo: 'Vincular vendedor do ERP',
+            testId: `usuarios.vincular.${u.id}`,
+            aoEscolher: () => {
+              setAviso(null);
+              setErroApi(null);
+              setVinculoEscolhido('');
+              setModal({ tipo: 'vincular', usuario: u });
+            },
+          },
+        ]
+      : []),
     ...(podeSenha && acaoDeSenha(u)
       ? [
           {
@@ -361,7 +387,7 @@ export function UsuariosConteudo() {
       </span>
       <FilterBar>
         <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
-          Buscar por nome ou e-mail
+          Buscar por nome, e-mail ou código do ERP
           <input
             defaultValue={q}
             onKeyDown={(e) => e.key === 'Enter' && set({ q: e.currentTarget.value })}
@@ -382,6 +408,10 @@ export function UsuariosConteudo() {
           <option value="">Todos</option>
           <option value="ativo">Ativos</option>
           <option value="inativo">Inativos</option>
+        </SelectField>
+        <SelectField label="Provisórios" value={provisorios ? '1' : ''} onChange={(e) => set({ provisorios: e.target.value })} data-testid="usuarios.filtro-provisorios">
+          <option value="">Todos os usuários</option>
+          <option value="1">Só provisórios da carga do ERP</option>
         </SelectField>
       </FilterBar>
 
@@ -418,6 +448,11 @@ export function UsuariosConteudo() {
                     <td className={td}>
                       <span className="flex flex-wrap items-center gap-2">
                         {u.nome}
+                        {u.provisorio && (
+                          <span data-testid={`usuarios.provisorio.${u.id}`}>
+                            <Badge tone="warning">{u.external_id ? `Provisório ${u.external_id}` : 'Provisório'}</Badge>
+                          </span>
+                        )}
                         {selo && (
                           <span data-testid={`usuarios.selo.${u.id}`}>
                             <Badge tone={selo.tom}>{selo.texto}</Badge>
@@ -598,6 +633,39 @@ export function UsuariosConteudo() {
                 ? `${modal.usuario.nome} perde o acesso e sai de todos os aparelhos.`
                 : `${modal.usuario.nome} volta a entrar com a senha atual.`}
             </p>
+            {erroApi && <Notice tone="danger">{erroApi}</Notice>}
+          </div>
+        )}
+      </Dialog>
+
+      <Dialog
+        open={modal?.tipo === 'vincular'}
+        title="Vincular vendedor do ERP"
+        onClose={fechar}
+        footer={
+          <>
+            <Button onClick={fechar} data-testid="usuarios.vincular-cancelar">
+              Cancelar
+            </Button>
+            <Button variant="primary" disabled={ocupado || vinculoEscolhido === ''} onClick={() => modal?.tipo === 'vincular' && vincular.mutate(modal.usuario)} data-testid="usuarios.vincular-confirmar">
+              {vincular.isPending ? 'Vinculando…' : 'Vincular'}
+            </Button>
+          </>
+        }
+      >
+        {modal?.tipo === 'vincular' && (
+          <div className="flex flex-col gap-3">
+            <p className="m-0">
+              Escolha o usuário que fica com o código {modal.usuario.external_id ?? ''} e com os clientes de {modal.usuario.nome}. O provisório sai da lista.
+            </p>
+            <SelectField label="Usuário" value={vinculoEscolhido} onChange={(e) => setVinculoEscolhido(e.target.value)} data-testid="usuarios.vincular-usuario">
+              <option value="">Escolha…</option>
+              {opcoesParaVincular(ativos, modal.usuario).map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.nome} · {x.email}
+                </option>
+              ))}
+            </SelectField>
             {erroApi && <Notice tone="danger">{erroApi}</Notice>}
           </div>
         )}

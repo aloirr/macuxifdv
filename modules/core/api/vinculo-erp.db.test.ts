@@ -156,12 +156,13 @@ describe.skipIf(semBanco())('Core T-0175 × Postgres: vincular vendedor do ERP',
     });
   });
 
-  it('RN-CORE-58: a carga que cria o provisório (aviso ao admin desligado até a simulação) e a lista filtra Provisórios e busca pelo código do ERP', async () => {
+  it('RN-CORE-58: a carga que cria o provisório avisa os admins e a lista filtra Provisórios e busca pelo código do ERP', async () => {
     await emTransacao(async (t) => {
       await t.q('update core.usuario set deleted_at = now(), external_id = null where id = $1', [t.prov]); // libera o código para a carga criar
       await t.carga(null);
       const aviso = await t.q<{ corpo: string }>("select corpo from core.notificacao where tipo = 'sistema' and titulo = 'Vendedor do ERP sem usuário'");
-      expect(aviso.length).toBe(0); // AVISO_PROVISORIO_ATIVO = false
+      expect(aviso.length).toBeGreaterThan(0);
+      expect(aviso[0]!.corpo).toContain(CODIGO);
       const lista = rotasDeUsuarios.find((x) => x.metodo === 'GET' && x.caminho === 'usuarios')!;
       const ctx = (query: unknown) => ({
         usuario: { id: A.usuarios.admin, tenant_id: A.tenantId, perfil: 'admin', perfis: perfisDeFabrica('admin') },
