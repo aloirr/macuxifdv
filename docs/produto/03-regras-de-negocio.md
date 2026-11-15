@@ -134,7 +134,8 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
     - **supervisor, promotor e gerente:** uma ou mais filiais;
     - **admin e analista:** filial opcional (premissa do gerente);
     - **BKO:** não salva o vendedor sem filial e mostra um aviso ao admin, nos Alertas, com os vendedores sem filial;
-    - **carga do ERP:** o vendedor traz a filial. Sem filial, fica na filial padrão e entra no aviso ao admin (premissa do gerente; modulo-integracao);
+    - **vendedor sem filial fica bloqueado** (R-20261115-080000): não usa o app até a carga do ERP ou o BKO informar a filial. O app mostra o bloqueio e o admin recebe aviso no BKO. Nenhuma filial é posta de forma provisória;
+    - **carga do ERP:** o vendedor traz a filial (modulo-integracao);
     - **pedido:** continua com a filial do cliente (premissa da T-0149) até decisão contrária do dono do produto.
   - **Técnico:** ADR 0040 e `docs/desenho/T-0149.md`. Tudo é aditivo: consulta `core.filiais@1`, evento `integracao.filial.atualizado@1` e Conector 1.4.0 para pedido de filial que não é a padrão.
 
