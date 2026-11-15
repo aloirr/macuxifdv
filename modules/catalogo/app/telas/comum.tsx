@@ -9,7 +9,7 @@ import { AccessibilityInfo, Clipboard, Platform, Pressable, StyleSheet, Text, To
 import type { AcaoProduto, ContextoProduto, ItemVitrine, MiniaturaProduto as Miniatura } from '../../contracts';
 import { rotuloPreco } from '../lib/apresentacao';
 import { AVISO_CODIGO_COPIADO, copiarCodigo, ROTULO_COPIAR_CODIGO, rotuloAcessivelCopiar } from '../lib/copiar-codigo';
-import { linhaDaMarca, precoDoCartao, rotuloAcessivelDoCartao, tagDeEstoque } from '../lib/grade';
+import { codigosDoCartao, precoDoCartao, rotuloAcessivelDoCartao, tagDeEstoque } from '../lib/grade';
 import { MiniaturaProduto } from './miniatura';
 
 /** Itens do slot `produto.acoes` visíveis ao usuário (módulo efetivo, perfil e ação). */
@@ -113,14 +113,14 @@ function BotoesAcaoDoCartao({ item, clienteId, acoes }: { item: ItemVitrine; cli
 
 /**
  * Cartão da grade de 2 colunas (T-0173, docs/design/catalogo-grade.md §2): foto (sem foto, a caixa `neutralBg` vazia; RD-0242), nome em até 2 linhas,
- * marca, preço e uma tag de estoque. Uma informação por linha: sem código, hora nem etiquetas (ficam na ficha). O cartão inteiro
- * abre a ficha; o botão da extensão `produto.acoes` (de outro módulo, só dentro do fluxo dele) fica ao lado do preço. No rodapé,
- * o ícone de copiar o código (alvo 48 dp; o código em si só aparece na ficha).
+ * marca, preço e uma tag de estoque. Códigos em duas linhas (marca em cima; código do produto com o copiar embaixo; o copiar leva só o código do produto, catalogo-grade §2). O cartão inteiro
+ * abre a ficha; o botão da extensão `produto.acoes` (de outro módulo, só dentro do fluxo dele) fica ao lado do preço.
  */
 export function CartaoGrade({ item, clienteId, miniatura = null, onPress }: { item: ItemVitrine; clienteId: string | null; miniatura?: Miniatura | null; onPress: () => void }) {
   const preco = rotuloPreco(item);
   const tag = tagDeEstoque(item, { filialDoCliente: clienteId !== null });
-  const linhaMarca = linhaDaMarca(item);
+  const codigos = codigosDoCartao(item);
+  const linhaMarca = codigos.marca;
   const precoTexto = precoDoCartao(preco);
   const acoes = useAcoesProduto();
   const rotulo = rotuloAcessivelDoCartao([item.description, linhaMarca, precoTexto, tag?.texto]);
@@ -133,6 +133,12 @@ export function CartaoGrade({ item, clienteId, miniatura = null, onPress }: { it
       <Text style={g.marca} numberOfLines={1}>
         {linhaMarca}
       </Text>
+      <View style={g.codigoLinha}>
+        <Text style={g.codigo} numberOfLines={1}>
+          {codigos.produto}
+        </Text>
+        <BotaoCopiarCodigo codigo={codigos.copiar} variante="icone" />
+      </View>
       <View style={{ flex: 1 }} />
       {preco ? (
         <View style={g.precoLinha}>
@@ -145,9 +151,6 @@ export function CartaoGrade({ item, clienteId, miniatura = null, onPress }: { it
       ) : null}
       <View style={g.rodape}>
         {tag ? <ChipEstado texto={tag.texto} tom={tag.tom} pequeno testID={`catalogo-estoque-${item.erp_code}`} /> : null}
-        <View style={{ marginLeft: 'auto' }}>
-          <BotaoCopiarCodigo codigo={item.erp_code} variante="icone" />
-        </View>
       </View>
     </Cartao>
   );
@@ -162,6 +165,8 @@ const g = StyleSheet.create({
   semPreco: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink3 },
   riscado: { fontFamily: fonts.body, fontSize: 12, color: colors.ink2, textDecorationLine: 'line-through' },
   acoes: { flexDirection: 'row', gap: 6, marginLeft: 'auto' },
+  codigoLinha: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  codigo: { fontFamily: fonts.displayBold, fontSize: 13, color: colors.ink },
   rodape: { flexDirection: 'row', alignItems: 'center' },
   // 28 dp de caixa + 10 de folga em cada lado = alvo de 48 dp, sem empurrar o rodapé para fora da coluna de 360 dp
   copiar: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },

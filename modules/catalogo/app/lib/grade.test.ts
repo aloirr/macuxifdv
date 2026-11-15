@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { montarArvore, type NoCatalogo, type VinculoProdutoNo } from '../../domain/arvore';
-import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, linhaDaMarca, precoDoCartao, rotuloAcessivelDoCartao, subtituloDaGrade, tagDeEstoque } from './grade';
+import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, codigosDoCartao, linhaDaMarca, precoDoCartao, rotuloAcessivelDoCartao, subtituloDaGrade, tagDeEstoque } from './grade';
 import { MENSAGEM_SEM_PRECO_CATALOGO } from '../../domain/vitrine';
 
 const no = (id: string, pai: string | null, nivel: number, nome: string): NoCatalogo => ({ id, pai_id: pai, nivel, codigo: id, nome, ordem: 0, ativo: true });
@@ -76,5 +76,11 @@ describe('Catálogo em grade (T-0173)', () => {
     expect(precoDoCartao(null)).toBeNull();
     expect(precoDoCartao({ texto: 'R$ 4,95', riscado: null, vendavel: true })).toBe('R$ 4,95');
     expect(precoDoCartao({ texto: 'Fora da tabela do cliente', riscado: null, vendavel: false })).toBe(MENSAGEM_SEM_PRECO_CATALOGO);
+  });
+
+  it('catalogo-grade §2: códigos em duas linhas e o copiar leva só o código do produto', () => {
+    expect(codigosDoCartao({ brand: 'Travex', equivale_a: null, erp_code: 'PAF.1434' })).toEqual({ marca: 'Travex', produto: 'PAF.1434', copiar: 'PAF.1434' });
+    expect(codigosDoCartao({ brand: 'Travex', equivale_a: { marca_nome: 'Freiomax', codigo: 'CB 3401', marcas: [], marca_id: 'm1' }, erp_code: 'PAF.1434' }).marca).toBe('Equivale a Freiomax CB 3401');
+    expect(codigosDoCartao({ brand: '', equivale_a: null, erp_code: 'PAF.1434' }).marca).toBe('');
   });
 });
