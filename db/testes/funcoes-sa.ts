@@ -148,7 +148,7 @@ export const MARCA_INTERNA_0081 = 'plataforma.marca_da_empresa_json(uuid)';
 /**
  * As sa_* públicas do banco migrado até a ÚLTIMA (0081): as 27 até a 0073 (FUNCOES_SA_ATE_0073) + as 4 da 0081 = 31. Use esta
  * lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040
- * ou 0041. Se as migrações 0074 a 0080 trouxerem sa_* novas, elas entram aqui antes da 0081.
+ * ou 0041. As migrações 0074 a 0080 não criam sa_* (só funções de gatilho e do worker).
  */
 export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0073, ...FUNCOES_SA_0081] as const;
 
