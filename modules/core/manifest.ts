@@ -11,7 +11,7 @@ export const manifest = defineModule({
   apps: {
     campo: { abas: ['Início', 'Rota', 'Clientes', 'Performance'] },
     gestao: { abas: ['Início', 'Clientes'] },
-    web: { menus: ['Clientes', 'Rotas', 'Visitas', 'Coordenadas sugeridas', 'Motivos', 'Produtos', 'Recados', 'Carteira', 'Metas', 'Plano de RV', 'Usuários e módulos', 'Usuários', 'Perfis de acesso', 'Aparelhos', 'Filiais', 'Fotos do PDV', 'Indicadores', 'Tarefas'] },
+    web: { menus: ['Clientes', 'Rotas', 'Visitas', 'Coordenadas sugeridas', 'Motivos', 'Preço e custo', 'Recados', 'Carteira', 'Metas', 'Plano de RV', 'Perfis de acesso', 'Usuários', 'Aparelhos', 'Filiais', 'Fotos do PDV', 'Indicadores', 'Tarefas'] },
   },
   sync: ['cliente', 'cliente_contato', 'carteira', 'cliente_financeiro', 'titulo', 'historico_compra', 'rota', 'rota_parada', 'visita', 'visita_checkout', 'visita_etapa', 'motivo', 'parametro', 'meta', 'indicador_diario', 'notificacao', 'notificacao_leitura', 'produto', 'produto_unidade', 'medida', 'cliente_endereco', 'filial', 'foto_tipo', 'cliente_foto', 'usuario', 'cliente_visita_resumo', 'tarefa', 'tarefa_conclusao', 'frase_dia', 'usuario_avatar', 'meta_produtividade', 'deslocamento_dia'],
   publica: ['core.cliente.atualizado@1', 'core.visita.checkin@1', 'core.visita.checkout@1', 'core.usuario.modulos_alterados@1', 'core.notificacao.criada@1', 'core.meta.definida@1', 'core.tarefa.criada@1', 'core.tarefa.concluida@1', 'core.tarefa.cancelada@1'],
@@ -26,6 +26,7 @@ export const manifest = defineModule({
     'usuario.ver': { perfis: ['gerente', 'admin'], descricao: 'Ver a lista de usuários no BKO, recortada pelo escopo: equipes abaixo (gerente), tenant (admin); o supervisor não usa o BKO (RF-CORE-02, RN-CORE-04, RN-CORE-33)' },
     'cliente.pagamento_editar': { perfis: ['analista', 'admin'], descricao: 'Editar no cliente o prazo médio máximo e as formas de pagamento permitidas (RN-VEN-25); auditado (BKO)' },
     'carteira.editar': { perfis: ['analista', 'admin'], descricao: 'Vincular/desvincular clientes a vendedor ou promotor, com vigência e frequência de visita (BKO)' },
+    'usuario.desbloquear': { perfis: ['admin', 'analista'], descricao: 'Desbloquear no BKO o login de um usuário bloqueado por senhas erradas ou pelo admin; vale também para admin, não mexe na senha nem no ativo; auditado' },
     'dispositivo.bloquear': { perfis: ['admin', 'analista'], descricao: 'Bloquear/desbloquear aparelho no BKO; vale para o tenant inteiro (RN-CORE-15)' },
     'motivo.editar': { perfis: ['analista', 'admin'], descricao: 'Cadastrar e ativar/desativar motivos de não venda; motivos de sistema não mudam (RN-CORE-14)' },
     'produto.editar_preco': { perfis: ['gerente', 'analista', 'admin'], descricao: 'Ver custo e editar custo, preço de venda e desconto máximo do produto no BKO; o custo nunca vai ao app (RN-CORE-18)' },

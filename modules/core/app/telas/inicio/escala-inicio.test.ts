@@ -2,7 +2,7 @@
 import { ALVO_TOQUE } from '@macuxi/ui/mobile/puro';
 import { describe, expect, it } from 'vitest';
 
-import { escalaInicio, fonteDoSistemaValida, FATOR_MINIMO, linhasDaFrase, PISO_LETRA_DP } from './escala-inicio';
+import { alturaDoPainel, escalaInicio, fonteDoSistemaValida, tamanhosParaFator, FATOR_MINIMO, linhasDeTexto, alturaDeLinha, PISO_LETRA_DP } from './escala-inicio';
 
 const KIT = { h2: 17, label: 12, sub: 13, ultima: 12 };
 const FRASE = 'Cada cliente atendido é uma relação que cresce.';
@@ -40,8 +40,24 @@ describe('R-20261114-153500: escala do Início', () => {
     expect(e.cabe).toBe(false);
   });
 
-  it('o avatar do painel é pequeno (40) e não tira largura da saudação', () => {
-    expect(escalaInicio({ kit: KIT, largura: 412, altura: 915, fontScale: 1, topo: 24, base: 24 }).painel.avatar).toBe(40);
+  it('variação C: a foto do painel é 72 na escala cheia e nunca menor que 56 (piso) no menor fator', () => {
+    expect(escalaInicio({ kit: KIT, largura: 412, altura: 915, fontScale: 1, topo: 24, base: 24 }).painel.avatar).toBe(72);
+    const apertada = escalaInicio({ kit: KIT, largura: 320, altura: 480, fontScale: 1.5, topo: 24, base: 24, frase: FRASE });
+    expect(apertada.fator).toBe(FATOR_MINIMO);
+    expect(apertada.painel.avatar).toBe(56);
+    for (const [largura, altura] of TELAS) expect(escalaInicio({ kit: KIT, largura, altura, fontScale: 1, topo: 24, base: 24, frase: FRASE }).painel.avatar).toBeGreaterThanOrEqual(56);
+  });
+
+  it('variação C: saudação 22, data e frase 13 e iniciais 24 na escala cheia', () => {
+    const e = escalaInicio({ kit: KIT, largura: 412, altura: 915, fontScale: 1, topo: 24, base: 24, frase: FRASE });
+    expect([e.fonte.saudacao, e.fonte.data, e.fonte.frase, e.fonte.iniciais]).toEqual([22, 13, 13, 24]);
+  });
+
+  it('variação C: a altura do painel é max(foto, textos), cerca de 100 dp sem a barra de status (era 131)', () => {
+    const e = escalaInicio({ kit: KIT, largura: 390, altura: 844, fontScale: 1, topo: 0, base: 0, frase: 'Planejar a rota é ganhar tempo na rua.' });
+    const altura = alturaDoPainel(tamanhosParaFator(e.fator, 1, KIT), { largura: 390, fontScale: 1, frase: 'Planejar a rota é ganhar tempo na rua.' });
+    expect(altura).toBeGreaterThanOrEqual(96);
+    expect(altura).toBeLessThanOrEqual(104);
   });
 
   it('entradas inválidas não quebram (fontScale 0 vira 1)', () => {
@@ -54,9 +70,15 @@ describe('R-20261114-153500: escala do Início', () => {
     expect([0.1, 1.15, 9].map(fonteDoSistemaValida)).toEqual([0.5, 1.15, 3]);
   });
 
-  it('frase longa vale 2 linhas e a curta 1; sem frase, 0', () => {
-    expect(linhasDaFrase(FRASE, 14, 1, 360)).toBe(1);
-    expect(linhasDaFrase(`${FRASE} ${FRASE}`, 14, 1, 360)).toBe(2);
-    expect(linhasDaFrase(undefined, 14, 1, 360)).toBe(0);
+  it('texto longo vale 2 linhas e o curto 1 (a mesma conta da frase e da data)', () => {
+    expect(linhasDeTexto(FRASE.length, 14, 1, 360)).toBe(1);
+    expect(linhasDeTexto(`${FRASE} ${FRASE}`.length, 14, 1, 360)).toBe(2);
+    expect(linhasDeTexto(36, 13, 1, 360)).toBe(1);
+    expect(linhasDeTexto(36, 13, 1.5, 200)).toBe(2);
+  });
+
+  it('altura de linha: corpo x fonte do sistema x 1,3 x linhas', () => {
+    expect(alturaDeLinha(10, 1)).toBeCloseTo(13);
+    expect(alturaDeLinha(10, 1.5, 2)).toBeCloseTo(39);
   });
 });

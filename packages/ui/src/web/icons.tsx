@@ -128,7 +128,7 @@ export const IconUser = (p: IconProps) => (
     <path d="M4 21a8 8 0 0 1 16 0" />
   </Svg>
 );
-/** Olho do campo de senha (T-0093): `IconEye` no botão "Mostrar senha" (senha escondida); `IconEyeOff` no "Esconder senha". */
+/** Olho do campo de senha (T-0093; `CampoSenha` do kit): `IconEye` no botão "Mostrar senha" (senha oculta); `IconEyeOff` no "Ocultar senha". */
 export const IconEye = (p: IconProps) => (
   <Svg {...p}>
     <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />

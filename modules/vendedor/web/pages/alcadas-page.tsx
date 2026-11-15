@@ -2,15 +2,21 @@
 
 import { formatPct } from '@macuxi/comum';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { ErrorBlock, formatDateTime, LoadingBlock, Notice, PageHeader, Panel, td, th } from '@macuxi/ui/web';
+import { type ColunaDaTabela, ErrorBlock, EstadoVazio, formatDateTime, LoadingBlock, PageHeader, Panel, TabelaDados } from '@macuxi/ui/web';
 import { useAlcadas, useDecisoesRecentes, useSessaoDoBko } from '../lib/queries';
 
 const ROTULO_ACAO: Record<string, string> = { 'pedido.aprovar': 'Aprovou', 'pedido.rejeitar': 'Rejeitou', 'pedido.cancelar': 'Cancelou' };
 
+interface Faixa {
+  id: string;
+  desconto: string;
+  quem: string;
+}
+
 /**
  * Alçadas de desconto (RN-VEN-10), só leitura nesta fatia: os limites vêm dos parâmetros do tenant e são os mesmos que o
- * servidor aplica ao receber o pedido e que o aparelho mostra ao vendedor. Editar alçadas com auditoria é a próxima fatia
- * (T-0029 §14). A trilha mostra quem decidiu pedidos (auditoria da plataforma, RN-AUD-01).
+ * servidor aplica ao receber o pedido e que o aparelho mostra ao vendedor. Revisão do BKO: sem subtítulo nem texto de
+ * explicação (§P1, §P9). A trilha mostra quem decidiu pedidos (auditoria da plataforma, RN-AUD-01).
  */
 export function AlcadasPage() {
   const alcadas = useAlcadas();
@@ -18,67 +24,45 @@ export function AlcadasPage() {
   const { fuso } = useSessaoDoBko();
   const p = alcadas.data;
 
+  const faixas: Faixa[] = p
+    ? [
+        { id: 'vendedor', desconto: `Até ${formatPct(p.seller_pct)}`, quem: 'Vendedor (aprovado na hora)' },
+        { id: 'supervisor', desconto: `Até ${formatPct(p.supervisor_pct)}`, quem: 'Supervisor' },
+        { id: 'gerente', desconto: `Até ${formatPct(p.manager_pct)}`, quem: 'Gerente' },
+        { id: 'acima', desconto: `Acima de ${formatPct(p.manager_pct)}`, quem: p.above_manager === 'block' ? 'Bloqueado: o vendedor não consegue enviar' : 'Analista comercial' },
+      ]
+    : [];
+  const colunasFaixas: ColunaDaTabela<Faixa>[] = [
+    { id: 'desconto', titulo: 'Desconto do pedido', celula: (f) => f.desconto, texto: (f) => f.desconto, largura: '40%' },
+    { id: 'quem', titulo: 'Quem aprova', celula: (f) => f.quem, texto: (f) => f.quem },
+  ];
+  const colunasDecisoes: ColunaDaTabela<NonNullable<typeof decisoes.data>[number]>[] = [
+    { id: 'quando', titulo: 'Quando', celula: (d) => formatDateTime(d.ocorrido_em, fuso), texto: (d) => formatDateTime(d.ocorrido_em, fuso), largura: '30%' },
+    { id: 'quem', titulo: 'Quem', celula: (d) => d.usuario_nome ?? '—', texto: (d) => d.usuario_nome ?? '' },
+    { id: 'o-que', titulo: 'O que', celula: (d) => ROTULO_ACAO[d.acao] ?? d.acao, texto: (d) => ROTULO_ACAO[d.acao] ?? d.acao, largura: '25%' },
+  ];
+
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="alcadas.tela">
-      <PageHeader title="Alçadas de desconto" subtitle="Quem aprova cada faixa de desconto de um pedido." />
-      <Notice tone="info">Os limites abaixo vêm dos parâmetros da empresa e valem para todos os vendedores. A edição pelo BKO chega em uma próxima atualização; até lá, a mudança é pedida ao suporte.</Notice>
+      <PageHeader title="Alçadas de desconto" />
       {alcadas.isError && <ErrorBlock message={errorMessage(alcadas.error)} onRetry={() => void alcadas.refetch()} />}
       {alcadas.isPending && <LoadingBlock label="Carregando as alçadas…" />}
       {p && (
         <Panel label="Limites" title="Limites por nível">
-          <table className="w-full max-w-[640px] border-collapse text-[14px]" data-testid="alcadas.tabela">
-            <thead>
-              <tr>
-                <th scope="col" className={th}>Desconto do pedido</th>
-                <th scope="col" className={th}>Quem aprova</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className={td}>Até {formatPct(p.seller_pct)}</td>
-                <td className={td}>Vendedor (aprovado na hora)</td>
-              </tr>
-              <tr>
-                <td className={td}>
-                  Até {formatPct(p.supervisor_pct)}
-                </td>
-                <td className={td}>Supervisor</td>
-              </tr>
-              <tr>
-                <td className={td}>Até {formatPct(p.manager_pct)}</td>
-                <td className={td}>Gerente</td>
-              </tr>
-              <tr>
-                <td className={td}>Acima de {formatPct(p.manager_pct)}</td>
-                <td className={td}>{p.above_manager === 'block' ? 'Bloqueado: o vendedor não consegue enviar' : 'Analista comercial'}</td>
-              </tr>
-            </tbody>
-          </table>
-          <span className="text-[12px] text-ink-2">O gerente também pode decidir os pedidos do nível do supervisor; a decisão fica registrada como acima do nível.</span>
+          <TabelaDados rotulo="Limites por nível" colunas={colunasFaixas} linhas={faixas} chave={(f) => f.id} testId="alcadas.tabela" />
         </Panel>
       )}
       <Panel label="Decisões recentes" title="Decisões recentes de pedidos">
         {decisoes.isError && <ErrorBlock message={errorMessage(decisoes.error)} onRetry={() => void decisoes.refetch()} />}
-        {decisoes.data && decisoes.data.length === 0 && <span className="text-[13px] text-ink-2">Nenhuma decisão registrada ainda.</span>}
-        {decisoes.data && decisoes.data.length > 0 && (
-          <table className="w-full border-collapse text-[13px]" data-testid="alcadas.decisoes">
-            <thead>
-              <tr>
-                <th scope="col" className={th}>Quando</th>
-                <th scope="col" className={th}>Quem</th>
-                <th scope="col" className={th}>O que</th>
-              </tr>
-            </thead>
-            <tbody>
-              {decisoes.data.map((d) => (
-                <tr key={d.id}>
-                  <td className={`${td} whitespace-nowrap text-ink-2`}>{formatDateTime(d.ocorrido_em, fuso)}</td>
-                  <td className={td}>{d.usuario_nome ?? '—'}</td>
-                  <td className={td}>{ROTULO_ACAO[d.acao] ?? d.acao}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {decisoes.data && (
+          <TabelaDados
+            rotulo="Decisões recentes de pedidos"
+            colunas={colunasDecisoes}
+            linhas={decisoes.data}
+            chave={(d) => d.id}
+            testId="alcadas.decisoes"
+            vazio={<EstadoVazio titulo="Nenhuma decisão registrada." />}
+          />
         )}
       </Panel>
     </div>

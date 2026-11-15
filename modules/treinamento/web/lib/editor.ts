@@ -213,15 +213,56 @@ function ondeEsta(caminho: readonly (string | number)[]): string {
   return partes.join(' › ');
 }
 
+/** Mensagem do problema, com o texto que diz o que fazer quando o do contrato é técnico. */
+function mensagemDoProblema(caminho: readonly PropertyKey[], codigo: string, mensagem: string): string {
+  if (caminho.at(-2) === 'equipes' || caminho.at(-1) === 'equipes') return 'use ids de equipe válidos (UUID).';
+  if (codigo === 'invalid_string' && caminho.at(-1) === 'midia_url') return 'informe um endereço completo (https://...).';
+  return mensagem;
+}
+
 /** Confere o formulário com o contrato antes de enviar: lista de mensagens (vazia = pode salvar). A API revalida. */
 export function problemasDoFormulario(e: EditorTrilha): string[] {
   const r = TrilhaEdicao.safeParse(paraEdicao(e));
   if (r.success) return [];
   return [...new Set(r.error.issues.map((i) => {
     const onde = ondeEsta(i.path);
-    const msg = i.path.at(-2) === 'equipes' || i.path.at(-1) === 'equipes' ? 'use ids de equipe válidos (UUID).' : i.code === 'invalid_string' && i.path.at(-1) === 'midia_url' ? 'informe um endereço completo (https://...).' : i.message;
+    const msg = mensagemDoProblema(i.path, i.code, i.message);
     return onde ? `${onde}: ${msg}` : msg;
   }))];
+}
+
+/** Campos do editor que mostram o erro embaixo (revisão do BKO §P8): a chave é o caminho no contrato. */
+const CAMPOS_COM_ERRO = new Set(['titulo', 'descricao', 'prazo', 'enunciado', 'texto', 'midia_url', 'duracao_estimada_seg']);
+
+export interface ErrosDoFormulario {
+  /** Erro de cada campo, pelo caminho no contrato ("titulo", "modulos.0.licoes.1.titulo"); o primeiro de cada campo. */
+  campos: Readonly<Record<string, string>>;
+  /** Problemas que não são de um campo só (ex.: quiz sem alternativa correta), com o lugar em português. */
+  outros: string[];
+}
+
+/**
+ * Erros do formulário para a tela (revisão do BKO §P8, regra 3): cada um embaixo do seu campo; o que não é de um campo
+ * (lista vazia, quiz sem correta) vai numa lista só, com o lugar. As posições batem com as do editor (`paraEdicao` só
+ * renumera a ordem).
+ */
+export function errosDoFormulario(e: EditorTrilha): ErrosDoFormulario {
+  const r = TrilhaEdicao.safeParse(paraEdicao(e));
+  if (r.success) return { campos: {}, outros: [] };
+  const campos: Record<string, string> = {};
+  const outros = new Set<string>();
+  for (const i of r.error.issues) {
+    const msg = mensagemDoProblema(i.path, i.code, i.message);
+    const ultimo = i.path.at(-1);
+    if (typeof ultimo === 'string' && CAMPOS_COM_ERRO.has(ultimo)) {
+      const chave = i.path.join('.');
+      campos[chave] ??= msg;
+    } else {
+      const onde = ondeEsta(i.path);
+      outros.add(onde ? `${onde}: ${msg}` : msg);
+    }
+  }
+  return { campos, outros: [...outros] };
 }
 
 // ---------- operações imutáveis ----------

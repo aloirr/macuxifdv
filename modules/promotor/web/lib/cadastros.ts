@@ -136,9 +136,75 @@ export function corpoDoForm(c: CadastroGravavel, f: FormCadastro, id: string): R
 
 /** Problemas do corpo em português, pelo MESMO contrato (e domain) que a API usa; lista vazia = pode enviar. */
 export function problemasDoForm(c: CadastroGravavel, f: FormCadastro, id: string): string[] {
+  const e = errosDoForm(c, f, id);
+  return [...new Set([...Object.values(e.campos), ...e.gerais])];
+}
+
+/** Campo do formulário que mostra o erro embaixo dele (revisão do BKO §P8.3). */
+export type CampoDoForm = 'nome' | 'ordem' | 'meta_pct' | 'categoria_gondola_id' | 'concorrente_id' | 'produto_id' | 'alvo_valor' | 'vigencia_inicio' | 'vigencia_fim' | 'etapas';
+const CAMPO_DO_CAMINHO: Readonly<Record<string, CampoDoForm>> = {
+  nome: 'nome',
+  ordem: 'ordem',
+  meta_pct: 'meta_pct',
+  categoria_gondola_id: 'categoria_gondola_id',
+  concorrente_id: 'concorrente_id',
+  produto_id: 'produto_id',
+  cliente_id: 'alvo_valor',
+  segmento: 'alvo_valor',
+  vigencia_inicio: 'vigencia_inicio',
+  vigencia_fim: 'vigencia_fim',
+  itens: 'etapas',
+};
+
+/**
+ * Erros do formulário pelo mesmo contrato da API: os de um campo vão embaixo dele (§P8.3); as regras do domain que
+ * cruzam campos (vigência invertida, checklist sem etapa) vêm sem campo e vão no topo da gaveta.
+ */
+export function errosDoForm(c: CadastroGravavel, f: FormCadastro, id: string): { campos: Partial<Record<CampoDoForm, string>>; gerais: string[] } {
+  const campos: Partial<Record<CampoDoForm, string>> = {};
+  const gerais: string[] = [];
   const r = EDICAO_CADASTRO[c].safeParse(corpoDoForm(c, f, id));
-  if (r.success) return [];
-  return [...new Set(r.error.issues.map((i) => (i.code === 'custom' ? i.message : mensagemDoCampo(i.path.map(String)))))];
+  if (r.success) return { campos, gerais };
+  for (const i of r.error.issues) {
+    const campo = CAMPO_DO_CAMINHO[String(i.path[0] ?? '')];
+    const msg = i.code === 'custom' ? i.message : mensagemDoCampo(i.path.map(String));
+    // regra do domain com caminho num campo: a mensagem dela (mais específica) vai embaixo do campo; sem campo, no topo
+    if (campo) {
+      if (i.code === 'custom') campos[campo] = msg;
+      else campos[campo] ??= msg;
+    } else if (!gerais.includes(msg)) gerais.push(msg);
+  }
+  // regra do domain sem caminho que fala de um campo já com erro: a mensagem dela (mais específica) vai embaixo do campo, sem repetir no topo
+  for (const g of [...gerais]) {
+    const alvo = (Object.keys(campos) as CampoDoForm[]).find((k) => PALAVRA_DO_CAMPO[k]?.test(g));
+    if (!alvo) continue;
+    campos[alvo] = g;
+    gerais.splice(gerais.indexOf(g), 1);
+  }
+  return { campos, gerais };
+}
+const PALAVRA_DO_CAMPO: Readonly<Partial<Record<CampoDoForm, RegExp>>> = { nome: /\bnome\b/i, meta_pct: /\bmeta\b/i, etapas: /\betapa/i };
+
+/** Nome do item de cada cadastro e o gênero, para "Nova categoria", "Checklist salvo.", "Nenhuma meta de share cadastrada.". */
+const ITEM_DO_CADASTRO: Readonly<Record<CadastroGravavel, { nome: string; fem: boolean }>> = {
+  categoria_gondola: { nome: 'categoria', fem: true },
+  checklist_loja: { nome: 'checklist', fem: false },
+  meta_share: { nome: 'meta de share', fem: true },
+  mix_obrigatorio: { nome: 'item do mix', fem: false },
+  produto_concorrente: { nome: 'produto do concorrente', fem: false },
+};
+const maiuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+export function textosDoCadastro(c: CadastroGravavel) {
+  const { nome, fem } = ITEM_DO_CADASTRO[c];
+  const o = fem ? 'a' : 'o';
+  return {
+    novo: `Nov${o} ${nome}`,
+    editar: `Editar ${nome}`,
+    desativar: `Desativar ${nome}?`,
+    salvo: `${maiuscula(nome)} salv${o}.`,
+    desativado: `${maiuscula(nome)} desativad${o}.`,
+    vazio: `Nenhum${fem ? 'a' : ''} ${nome} cadastrad${o}.`,
+  };
 }
 
 const ROTULO_CAMPO: Readonly<Record<string, string>> = {

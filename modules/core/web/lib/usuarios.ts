@@ -2,19 +2,19 @@
  * Visão da tela "Usuários" do BKO (RF-CORE-02; T-0067): funções puras sobre `GET /v1/core/usuarios`. Sem React e sem rede.
  * A validação reaproveita as regras do domínio (a API revalida tudo).
  */
-import { BOM_CSV } from '@macuxi/comum/csv';
-import { ROTULO_PERFIL, temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
+import { formatDateTime, formatTime } from '@macuxi/ui/web';
+import { temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
 import { DESCONTO_PEDIDO_PERMIL_MAX, type CriarUsuarioRequest, type EditarUsuarioRequest, type EmailAcesso, type EquipeOpcao, type UsuarioItem } from '../../contracts';
+import { erroDoCodigoErp, errosDaHierarquia, hierarquiaDoCargo, type PessoaDaHierarquia } from '../../domain/cargos';
+import type { Cargo } from '@macuxi/platform-sdk';
 import { ERRO_SEM_PERFIL, faltasNaSenha, gerarSenhaTemporaria, validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo, type FaltaNaSenha } from '../../domain';
-
-const aspas = (v: string) => `"${v.replace(/"/g, '""')}"`;
 
 export interface FormularioUsuario {
   nome: string;
   nome_curto: string;
   email: string;
   perfil: Perfil;
-  /** T-0111: códigos dos perfis do usuário (um ou mais; o primeiro é o principal). */
+  /** Código do perfil do usuário (RN-CORE-54: um só; a API recebe a lista de um item). */
   perfis: string[];
   equipe_id: string;
   external_id: string;
@@ -23,9 +23,13 @@ export interface FormularioUsuario {
   limita_item: boolean;
   limita_pedido: boolean;
   desconto_maximo_pedido: string;
+  /** RN-CORE-55 (0069): hierarquia pelo cargo do perfil (`regrasDoCargo`); vazio = sem escolha. */
+  supervisor_id: string;
+  gerente_id: string;
+  equipe_nome: string;
 }
 
-export const FORMULARIO_VAZIO: FormularioUsuario = { nome: '', nome_curto: '', email: '', perfil: 'vendedor', perfis: [], equipe_id: '', external_id: '', senha: '', limita_item: true, limita_pedido: false, desconto_maximo_pedido: '' };
+export const FORMULARIO_VAZIO: FormularioUsuario = { nome: '', nome_curto: '', email: '', perfil: 'vendedor', perfis: [], equipe_id: '', external_id: '', senha: '', limita_item: true, limita_pedido: false, desconto_maximo_pedido: '', supervisor_id: '', gerente_id: '', equipe_nome: '' };
 
 export const ERRO_DESCONTO_OBRIGATORIO = 'Obrigatório';
 export const ERRO_DESCONTO_FAIXA = 'De 0 a 100';
@@ -45,13 +49,26 @@ export function textoDoPermil(permil: number | null): string {
 export { ERRO_SEM_PERFIL };
 
 export function formularioDoUsuario(u: UsuarioItem): FormularioUsuario {
-  return { nome: u.nome, nome_curto: u.nome_curto ?? '', email: u.email, perfil: u.perfil, perfis: u.perfis.length > 0 ? u.perfis.map((p) => p.codigo) : [u.perfil], equipe_id: u.equipe_id ?? '', external_id: u.external_id ?? '', senha: '', limita_item: u.desconto_limita_item, limita_pedido: u.desconto_limita_pedido, desconto_maximo_pedido: textoDoPermil(u.desconto_maximo_pedido_permil) };
+  return { nome: u.nome, nome_curto: u.nome_curto ?? '', email: u.email, perfil: u.perfil, perfis: u.perfis.length > 0 ? u.perfis.map((p) => p.codigo) : [u.perfil], equipe_id: u.equipe_id ?? '', external_id: u.external_id ?? '', senha: '', limita_item: u.desconto_limita_item, limita_pedido: u.desconto_limita_pedido, desconto_maximo_pedido: textoDoPermil(u.desconto_maximo_pedido_permil), supervisor_id: u.supervisor_id ?? '', gerente_id: u.gerente_id ?? '', equipe_nome: u.cargo === 'supervisor' ? (u.equipe_nome ?? '') : '' };
 }
 
 const ouNulo = (v: string): string | null => (v.trim() === '' ? null : v.trim());
 
-/** Erros por campo, em português; vazio = pode enviar. Na criação a senha inicial é obrigatória. */
-export function errosDoFormulario(f: FormularioUsuario, modo: 'criar' | 'editar'): ErroDeCampo[] {
+/** Cargo, gerente e situação de cada usuário da lista: quem pode ser escolhido como supervisor ou gerente. */
+export const pessoasDaLista = (itens: readonly UsuarioItem[]): PessoaDaHierarquia[] => itens.map((u) => ({ id: u.id, cargo: u.cargo ?? null, gerente_id: u.gerente_id ?? null, ativo: u.ativo }));
+
+/** Opções do select de Supervisor ou Gerente: ativos do cargo, por nome; o supervisor do promotor só entre os do gerente escolhido. */
+export function opcoesDeChefia(itens: readonly UsuarioItem[], cargo: 'supervisor' | 'gerente', doGerente = ''): UsuarioItem[] {
+  return itens.filter((u) => u.ativo && u.cargo === cargo && (!doGerente || u.gerente_id === doGerente)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+const hierarquiaDoForm = (f: FormularioUsuario, cargo: Cargo | null) => hierarquiaDoCargo(cargo, { supervisor_id: ouNulo(f.supervisor_id), gerente_id: ouNulo(f.gerente_id), equipe_nome: ouNulo(f.equipe_nome) });
+
+/**
+ * Erros por campo, em português; vazio = pode enviar. Na criação a senha inicial é obrigatória. Com `hierarquia` (cargo do perfil
+ * escolhido e as pessoas da lista), confere também supervisor, gerente, nome da equipe (RN-CORE-55/56) e código no ERP (RN-CORE-57), como a API.
+ */
+export function errosDoFormulario(f: FormularioUsuario, modo: 'criar' | 'editar', hierarquia?: { cargo: Cargo | null; pessoas: readonly PessoaDaHierarquia[] }): ErroDeCampo[] {
   const erros = validarDadosDeUsuario({ nome: f.nome, email: f.email, perfil: f.perfil, external_id: f.external_id.trim() === '' ? null : f.external_id });
   if (f.perfis.length === 0) erros.push({ campo: 'perfil', mensagem: ERRO_SEM_PERFIL });
   // RN-VEN-11a: o número só é exigido com "por pedido" ligada (desligada, o valor fica guardado)
@@ -64,10 +81,18 @@ export function errosDoFormulario(f: FormularioUsuario, modo: 'criar' | 'editar'
     const fraca = validarSenhaInicial(f.senha, f.email);
     if (fraca) erros.push({ campo: 'senha', mensagem: fraca });
   }
+  if (hierarquia) {
+    for (const e of errosDaHierarquia(hierarquia.cargo, hierarquiaDoForm(f, hierarquia.cargo), hierarquia.pessoas)) erros.push({ campo: e.campo, mensagem: e.mensagem });
+    const erp = erroDoCodigoErp(f.external_id);
+    if (erp) erros.push({ campo: erp.campo, mensagem: erp.mensagem });
+  }
   return erros;
 }
 
-export function corpoDeCriacao(f: FormularioUsuario): CriarUsuarioRequest {
+/** Corpo com a hierarquia só do que o cargo usa (`cargo` ausente = sem hierarquia, como antes da 0069). */
+const corpoDaHierarquia = (f: FormularioUsuario, cargo: Cargo | null | undefined) => (cargo === undefined ? {} : hierarquiaDoForm(f, cargo));
+
+export function corpoDeCriacao(f: FormularioUsuario, cargo?: Cargo | null): CriarUsuarioRequest {
   return {
     nome: f.nome.trim(),
     nome_curto: ouNulo(f.nome_curto),
@@ -77,12 +102,16 @@ export function corpoDeCriacao(f: FormularioUsuario): CriarUsuarioRequest {
     external_id: ouNulo(f.external_id),
     ativo: true,
     senha: f.senha,
+    supervisor_id: null,
+    gerente_id: null,
+    equipe_nome: null,
     ...corpoDoLimite(f),
+    ...corpoDaHierarquia(f, cargo),
   };
 }
 
-export function corpoDeEdicao(f: FormularioUsuario): EditarUsuarioRequest {
-  return { nome: f.nome.trim(), nome_curto: ouNulo(f.nome_curto), email: f.email.trim(), perfis: f.perfis, equipe_id: ouNulo(f.equipe_id), external_id: ouNulo(f.external_id), ...corpoDoLimite(f) };
+export function corpoDeEdicao(f: FormularioUsuario, cargo?: Cargo | null): EditarUsuarioRequest {
+  return { nome: f.nome.trim(), nome_curto: ouNulo(f.nome_curto), email: f.email.trim(), perfis: f.perfis, equipe_id: ouNulo(f.equipe_id), external_id: ouNulo(f.external_id), ...corpoDoLimite(f), ...corpoDaHierarquia(f, cargo) };
 }
 
 /** A API só fala ‰; o valor guardado vai mesmo com "por pedido" desligada. */
@@ -97,15 +126,6 @@ export function textoDoSuperiorDaEquipe(equipes: readonly EquipeOpcao[], equipeI
   const e = equipes.find((x) => x.id === equipeId);
   if (!e) return 'Equipe não encontrada.';
   return e.superior_nome ? `Superior imediato: ${e.superior_nome} (responsável da equipe).` : 'Esta equipe não tem responsável definido: sem superior imediato.';
-}
-
-/** CSV com ponto e vírgula (Excel pt-BR). Sem senha nem hash (a API nunca os envia). */
-export function csvDeUsuarios(itens: readonly UsuarioItem[]): string {
-  const cab = ['Nome', 'E-mail', 'Perfil', 'Equipe', 'Superior imediato', 'Código do ERP', 'Situação'];
-  const linhas = itens.map((u) =>
-    [u.nome, u.email, ROTULO_PERFIL[u.perfil], u.equipe_nome ?? '', u.superior_nome ?? '', u.external_id ?? '', u.ativo ? 'Ativo' : 'Inativo'].map(aspas).join(';'),
-  );
-  return BOM_CSV + `${[cab.map(aspas).join(';'), ...linhas].join('\r\n')}\r\n`;
 }
 
 // ---------- T-0094: senha por e-mail, troca no 1º acesso, "Redefinir senha" / "Enviar acesso" (RN-CORE-34; docs/design/ciclo-de-senha.md §5) ----------
@@ -123,22 +143,13 @@ export interface EtiquetaDeSenha {
   tom: 'warning' | 'danger' | 'neutral';
 }
 
-function diaEHora(iso: string, fuso: string): string {
-  const p = Object.fromEntries(
-    new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
-      .formatToParts(new Date(iso))
-      .map((x) => [x.type, x.value]),
-  );
-  return `${p.day}/${p.month} às ${p.hour}:${p.minute}`;
-}
-
 /** Etiqueta da coluna de situação, depois de Ativo/Inativo. Nenhuma para senha definitiva. */
 export function etiquetaDeSenha(u: Pick<UsuarioItem, 'sem_senha' | 'trocar_senha' | 'senha_expira_em'>, fuso: string, agora: Date = new Date()): EtiquetaDeSenha | null {
   if (u.sem_senha) return { texto: 'Sem senha', tom: 'neutral' };
   if (!u.trocar_senha) return null;
   if (!u.senha_expira_em) return { texto: 'Troca de senha pendente', tom: 'warning' };
   if (new Date(u.senha_expira_em).getTime() <= agora.getTime()) return { texto: 'Senha temporária vencida', tom: 'danger' };
-  return { texto: `Troca de senha pendente · vence em ${diaEHora(u.senha_expira_em, fuso)}`, tom: 'warning' };
+  return { texto: `Troca de senha pendente · vence em ${formatDateTime(u.senha_expira_em, fuso)}`, tom: 'warning' };
 }
 
 export type RotuloAcaoDeSenha = 'Redefinir senha' | 'Enviar acesso';
@@ -160,24 +171,37 @@ export type ResultadoDoEmail =
 
 /** Depois de criar: toast quando o e-mail foi na fila; aviso com a senha quando não foi. */
 export function resultadoDeCriar(email: EmailAcesso, destino: string, senha: string): ResultadoDoEmail {
-  if (email === 'indisponivel') return { tipo: 'sem_email', antes: 'Usuário criado, mas não conseguimos enviar o e-mail. Passe a senha à pessoa: ', senha, depois: '. Ela cria a dela no primeiro acesso.' };
-  return { tipo: 'enviado', texto: `Usuário criado. O acesso vai para ${destino} em alguns minutos.` };
+  if (email === 'indisponivel') return { tipo: 'sem_email', antes: 'Usuário criado, mas não conseguimos enviar o e-mail. Passe a senha à pessoa: ', senha, depois: '.' };
+  return { tipo: 'enviado', texto: `Usuário criado. O acesso vai para ${destino}.` };
 }
 
 /** Depois de redefinir (com senha definida na tela). */
 export function resultadoDeRedefinir(email: EmailAcesso, destino: string, senha: string): ResultadoDoEmail {
-  if (email === 'indisponivel') return { tipo: 'sem_email', antes: 'Senha redefinida, mas não conseguimos enviar o e-mail. Passe a senha à pessoa: ', senha, depois: '. Ela cria a dela no próximo acesso.' };
-  return { tipo: 'enviado', texto: `Senha redefinida. A senha nova vai para ${destino} em alguns minutos.` };
+  if (email === 'indisponivel') return { tipo: 'sem_email', antes: 'Senha redefinida, mas não conseguimos enviar o e-mail. Passe a senha à pessoa: ', senha, depois: '.' };
+  return { tipo: 'enviado', texto: `Senha redefinida e enviada para ${destino}.` };
 }
 
 export const textoAcessoEnviado = (destino: string): string => `Acesso enviado para ${destino}.`;
 export const TEXTO_ENVIAR_ACESSO_SEM_EMAIL = 'Não conseguimos enviar o e-mail. Use "Redefinir senha" para definir uma senha e passá-la à pessoa.';
 export const TEXTO_SENHA_NAO_REDEFINIVEL = 'Esta senha não pode ser redefinida aqui. O administrador usa "Esqueci a senha".';
-export const AJUDA_SENHA_INICIAL = 'Ela vai para o e-mail da pessoa, que cria a dela no primeiro acesso. Vale por 72 horas.';
 
-/** Onde a pessoa entra com os perfis escolhidos: apps = qualquer perfil; BKO e portal = todos (regra mais restritiva, RN-CORE-35). */
-export function ondeEntraDosPerfis(escolhidos: readonly { onde_entra: readonly ('campo' | 'gestao' | 'bko' | 'portal')[] }[]): ('campo' | 'gestao' | 'bko' | 'portal')[] {
-  if (escolhidos.length === 0) return [];
-  const ok = (l: 'campo' | 'gestao' | 'bko' | 'portal') => (l === 'bko' || l === 'portal' ? escolhidos.every((p) => p.onde_entra.includes(l)) : escolhidos.some((p) => p.onde_entra.includes(l)));
-  return (['campo', 'gestao', 'bko', 'portal'] as const).filter(ok);
+// ---------------------------------------------------------------- bloqueio do login (docs/design/telas/usuario-bloqueio.md)
+
+export interface SeloDoUsuario {
+  tom: 'neutral' | 'danger' | 'warning';
+  texto: string;
+  /** Selo de bloqueio: a linha ganha "Desbloquear" (o inativo se resolve com "Reativar"). */
+  bloqueado: boolean;
 }
+
+/**
+ * O selo único da linha (§2): Inativo > Bloqueado > Bloqueado até HHhMM (hora no fuso do tenant). O bloqueio por tentativas
+ * vencido não tem selo: a tela compara com a hora atual, e o login (`estadoDoLogin`) já deixa entrar.
+ */
+export function seloDoUsuario(u: Pick<UsuarioItem, 'ativo' | 'bloqueio' | 'bloqueio_ate'>, agora: Date, fuso: string): SeloDoUsuario | null {
+  if (!u.ativo) return { tom: 'neutral', texto: 'Inativo', bloqueado: false };
+  if (u.bloqueio === 'admin') return { tom: 'danger', texto: 'Bloqueado', bloqueado: true };
+  if (u.bloqueio === 'tentativas' && u.bloqueio_ate && new Date(u.bloqueio_ate).getTime() > agora.getTime()) return { tom: 'warning', texto: `Bloqueado até ${formatTime(u.bloqueio_ate, fuso).replace(':', 'h')}`, bloqueado: true };
+  return null;
+}
+

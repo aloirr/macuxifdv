@@ -57,3 +57,6 @@ export * from './botao-editar-rn';
 // RD-0039: BotaoFolha (perigo sólido / contorno, toque por opacidade) e LinhaOpcaoFolha, das folhas de ação do pedido
 export * from './botao-folha';
 export * from './botao-folha-rn';
+// R-20261115-071000: CampoSenha, o campo de senha único (olho em ícone, props de teclado de senha)
+export * from './campo-senha';
+export * from './campo-senha-rn';

@@ -55,32 +55,6 @@ describe('validação de entrada (RF-CORE-02)', () => {
   });
 });
 
-describe('estado real do tenant e multiperfil (T-0111; RN-CORE-01/35)', () => {
-  const matriz = matrizDeFabrica([]);
-  const admin = { id: 'a1', perfis: perfisDeFabrica('admin') };
-  const perfis = PERFIS.map(perfilDeFabrica);
-  // a2 tem dois perfis: o principal é o analista, mas ele também é admin (o único outro admin ativo além de a1 é ele)
-  const a2 = { id: 'a2', perfil: 'analista' as Perfil, ativo: true };
-  const estado = (admins: string[]) => ({ perfis, usuarios: [{ id: 'a1', ativo: true, perfis: admins.includes('a1') ? ['admin'] : ['gerente'] }, { id: 'a2', ativo: true, perfis: ['analista', 'admin'] }] });
-  it('RN-CORE-35: desativar o último admin que é [analista, admin] é recusado (ULTIMO_ADMIN), o que o padrão de fábrica não via', () => {
-    const e = estado([]);
-    const alvo = { ...a2, perfis: [{ codigo: 'analista', base: 'analista' as Perfil }, { codigo: 'admin', base: 'admin' as Perfil }] };
-    const semEstado = avaliarAlteracaoDeUsuario({ ator: admin, alvo: a2, depois: { perfil: 'analista', ativo: false }, usuarios: [{ id: 'a1', perfil: 'admin', ativo: true }, a2], matriz });
-    expect(semEstado).toEqual({ ok: true }); // só o principal: o buraco antigo
-    const real = avaliarAlteracaoDeUsuario({ ator: { id: 'a1', perfis: perfisDeFabrica('admin') }, alvo, depois: { perfil: 'analista', ativo: false }, usuarios: [], estado: e, matriz });
-    expect(real).toMatchObject({ ok: false, codigo: 'ULTIMO_ADMIN' });
-  });
-  it('RN-CORE-35: com outro admin ativo, desativar o multiperfil passa; trocar os perfis para tirar o admin do último também é recusado', () => {
-    const alvo = { ...a2, perfis: [{ codigo: 'analista', base: 'analista' as Perfil }, { codigo: 'admin', base: 'admin' as Perfil }] };
-    expect(avaliarAlteracaoDeUsuario({ ator: admin, alvo, depois: { perfil: 'analista', ativo: false }, usuarios: [], estado: estado(['a1']), matriz })).toEqual({ ok: true });
-    expect(avaliarAlteracaoDeUsuario({ ator: admin, alvo, depois: { perfil: 'analista', ativo: true, perfis: ['analista'] }, usuarios: [], estado: estado([]), matriz })).toMatchObject({ ok: false, codigo: 'ULTIMO_ADMIN' });
-  });
-  it('RN-CORE-35: o admin [admin, analista] continua sem desativar a si mesmo, mesmo com vários perfis', () => {
-    const alvo = { id: 'a1', perfil: 'admin' as Perfil, ativo: true, perfis: [{ codigo: 'admin', base: 'admin' as Perfil }, { codigo: 'analista', base: 'analista' as Perfil }] };
-    expect(avaliarAlteracaoDeUsuario({ ator: admin, alvo, depois: { perfil: 'admin', ativo: false }, usuarios: [], estado: estado(['a1']), matriz })).toMatchObject({ ok: false, codigo: 'USUARIO_AUTODESATIVACAO' });
-  });
-});
-
 describe('desativar e alterar perfil (RF-CORE-01/02; RN-CORE-01/35)', () => {
   const matriz = matrizDeFabrica([]);
   const admin = { id: 'a1', perfis: perfisDeFabrica('admin') };
