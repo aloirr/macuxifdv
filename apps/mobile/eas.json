@@ -1,20 +1,15 @@
 {
-  "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
   "build": {
-    "base": { "node": "24.21.0", "pnpm": "12.11.2", "autoIncrement": true },
+    "base": { "node": "24.21.0", "pnpm": "12.11.2" },
     "campo-producao": {
       "extends": "base",
-      "environment": "production",
       "distribution": "internal",
-      "credentialsSource": "remote",
       "env": { "APP_VARIANT": "campo", "EXPO_PUBLIC_API_URL": "https://api.macuxifdv.com.br/v1", "EXPO_PUBLIC_PERFIL_BUILD": "producao" },
       "android": { "buildType": "apk" }
     },
     "gestao-producao": {
       "extends": "base",
-      "environment": "production",
       "distribution": "internal",
-      "credentialsSource": "remote",
       "env": { "APP_VARIANT": "gestao", "EXPO_PUBLIC_API_URL": "https://api.macuxifdv.com.br/v1", "EXPO_PUBLIC_PERFIL_BUILD": "producao" },
       "android": { "buildType": "apk" }
     }

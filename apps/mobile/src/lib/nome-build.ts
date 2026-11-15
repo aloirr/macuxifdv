@@ -1,6 +1,6 @@
 /**
  * Nome e versão dos builds (T-0109). Puro, sem Expo: usado pelo app (linha da versão no Perfil), pelo `app.config.ts`
- * e pelos scripts de build (`scripts/eas/build.mjs` e `scripts/ci/android-build.mjs` da raiz, que o importam pelo Node com
+ * e pelo script de build (`scripts/ci/android-build.mjs` da raiz, que o importa pelo Node com
  * remoção de tipos — por isso aqui só entra TypeScript "apagável": nada de enum, namespace ou import de valor).
  *
  * Nome do build = `<Variante>-<Canal>-v<versão>`:
@@ -8,9 +8,8 @@
  *  - canal: `Oficial` (perfis `*-producao`, os únicos do eas.json desde R-20261114-200000-alexandre, sem os perfis
  *    de desenvolvimento e preview). `Dev` só aparece na linha da versão de um bundle local (`expo start`);
  *  - versão: a de `scripts/eas/versao.json` (fonte única do `version` do app.config), no formato X.Y.Z.
- * O mesmo nome vai na mensagem do build no EAS (`eas build --message`), na linha da versão do Perfil e no arquivo do
- * APK publicado (`Campo-Oficial-v1.0.0.apk`). O `versionCode` do Android não entra no nome: é do EAS (remoto, sempre
- * crescente por pacote), ver `eas.json`.
+ * O mesmo nome vai na linha da versão do Perfil e no artefato do APK (`Campo-Oficial-v1.0.0`). O `versionCode` do Android
+ * não entra no nome e fica fora do repositório (scripts/ci/android-build.mjs, `versionCodeDe`).
  */
 import type { PerfilBuild } from './endereco-do-build';
 import type { Variante } from './variante-tipo';
