@@ -2,8 +2,6 @@
 
 Pedido do Alexandre: R-20261115-111000, alvo **v1.0.13**. Modelo refeito pelas decisões de **R-20261115-121000**. **Só simulação**, sem código de produção.
 
-**Menu:** a tela fica em **Cadastros › Formas de pagamento e prazos**, e não em Financeiro. As decisões da seção 4 seguem para aprovação.
-
 Nas imagens, o **contorno laranja tracejado só marca o que muda**. Ele não sai no app, no PDF nem no BKO.
 
 Modelo e conta: docs/modulos/vendedor/prazo-desconto-acrescimo.md §1–2 (fonte da verdade).
