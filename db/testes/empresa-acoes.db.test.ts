@@ -37,7 +37,7 @@ import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-tes
 import { TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
-import { FUNCOES_SA_0072, FUNCOES_SA_ATUAIS, FUNCOES_WORKER_0072 } from './funcoes-sa';
+import { FUNCOES_SA_0072, FUNCOES_SA_ATE_0072, FUNCOES_WORKER_0072 } from './funcoes-sa';
 import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo, tabelasComTenant } from './util';
 
 const migracoes = lerMigracoes();
@@ -133,7 +133,7 @@ describe('0072 ações da empresa (estático)', () => {
       expect(up).toContain(`revoke all on function ${f} from public, macuxi_app, macuxi_worker;`);
       expect(up).toContain(`grant execute on function ${f} to macuxi_portal;`);
     }
-    expect(FUNCOES_SA_ATUAIS).toHaveLength(25);
+    expect(FUNCOES_SA_ATE_0072).toHaveLength(25);
     expect(up).toContain('if v_n <> 25 then');
     for (const f of FUNCOES_WORKER_0072) {
       const b = bloco(up, `create function ${nomeDe(f)}(`);

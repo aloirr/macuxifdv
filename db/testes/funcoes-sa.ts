@@ -115,12 +115,24 @@ export const FUNCOES_SA_0072 = [
   'plataforma.sa_acoes_das_empresas(uuid)',
 ] as const;
 
+/** As 25 sa_* públicas do banco parado na 0072: as 17 até a 0071 (FUNCOES_SA_ATE_0071) + as 8 da 0072. */
+export const FUNCOES_SA_ATE_0072 = [...FUNCOES_SA_ATE_0071, ...FUNCOES_SA_0072] as const;
+
 /**
- * As sa_* públicas do banco migrado até a ÚLTIMA (0072): as 17 até a 0071 (FUNCOES_SA_ATE_0071) + as 8 da 0072 = 25. Use esta
+ * As 2 sa_* da 0073 (rodapé legal, docs/design/telas/rodape-legal.md §3.2): o super-admin lê e grava os dados legais da Macuxi
+ * (razão social, CNPJ e site). EXECUTE só ao macuxi_portal; admin do cliente = 42501. A leitura pública
+ * (plataforma.dados_legais_publicos(), do macuxi_app) não é sa_* e fica em DADOS_LEGAIS_PUBLICOS.
+ */
+export const FUNCOES_SA_0073 = ['plataforma.sa_dados_legais(uuid)', 'plataforma.sa_gravar_dados_legais(uuid, jsonb)'] as const;
+/** A leitura pública dos dados legais (0073): SECURITY DEFINER, sem sessão; EXECUTE só ao macuxi_app. */
+export const DADOS_LEGAIS_PUBLICOS = 'plataforma.dados_legais_publicos()';
+
+/**
+ * As sa_* públicas do banco migrado até a ÚLTIMA (0073): as 25 até a 0072 (FUNCOES_SA_ATE_0072) + as 2 da 0073 = 27. Use esta
  * lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040
  * ou 0041.
  */
-export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0071, ...FUNCOES_SA_0072] as const;
+export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0072, ...FUNCOES_SA_0073] as const;
 
 /**
  * Funções do worker da 0072 (ADR 0052): SECURITY DEFINER, EXECUTE só ao macuxi_worker (o tenant sai da linha do job).

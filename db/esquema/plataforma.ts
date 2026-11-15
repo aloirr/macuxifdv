@@ -2,10 +2,11 @@
  * Schema `plataforma` em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas pela
  * migrações db/migrations/0001_plataforma.up.sql, 0003_plataforma_worker.up.sql, 0005_plataforma_arquivo.up.sql, 0022_plataforma_geracao_base.up.sql
  * e 0035_plataforma_super_admin.up.sql (super-admin, só por função), 0039_plataforma_portal_email_senha.up.sql (portal por
- * e-mail e senha, só por função), 0040_core_senha_email_saida.up.sql (outbox de e-mail) e
+ * e-mail e senha, só por função), 0040_core_senha_email_saida.up.sql (outbox de e-mail),
  * 0041_plataforma_perfis_de_acesso.up.sql (perfis de acesso, ADR 0033; cargo e um perfil por usuário desde a
- * 0069_core_cargo_hierarquia.up.sql), 0070_plataforma_plano_assinatura.up.sql (planos e assinatura, ADR 0047) e
- * 0072_plataforma_empresa_acoes.up.sql (inativar, backup e excluir a empresa, ADR 0052; só por função), para consultas da API.
+ * 0069_core_cargo_hierarquia.up.sql), 0070_plataforma_plano_assinatura.up.sql (planos e assinatura, ADR 0047),
+ * 0072_plataforma_empresa_acoes.up.sql (inativar, backup e excluir a empresa, ADR 0052; só por função) e
+ * 0073_plataforma_dados_legais.up.sql (dados legais do rodapé, só por função), para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -515,5 +516,24 @@ export const empresaExcluida = plataforma.table('empresa_excluida', {
   backup_id: uuid('backup_id').notNull(),
   exclusao_id: uuid('exclusao_id').notNull(),
   super_admin_id: uuid('super_admin_id'),
+  ...auditaveis(),
+});
+
+/**
+ * Dados legais da Macuxi (0073, rodapé legal; docs/design/telas/rodape-legal.md §3.2): UMA linha só, dado da PLATAFORMA
+ * (sem tenant_id, exceção em db/src/excecoes.ts). RLS forçado sem política nem grant para os papéis da aplicação: a API lê
+ * por plataforma.dados_legais_publicos() (app) e plataforma.sa_dados_legais() (portal) e grava por
+ * plataforma.sa_gravar_dados_legais() (portal, super-admin). O espelho existe só para tipar e para o teste Drizzle x banco.
+ */
+export const dadosLegais = plataforma.table('dados_legais', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  /** Sem espaços nas pontas, não vazia, até 120 (CHECK); nulo = sem valor. */
+  razao_social: text('razao_social'),
+  /** Só os 14 dígitos (CHECK); o dígito verificador é conferido no contrato e na API. */
+  cnpj: text('cnpj'),
+  /** Só o domínio, em minúsculas (CHECK com o DOMINIO_RE do SDK). */
+  site: text('site').notNull().default('macuxifdv.com.br'),
+  /** plataforma.super_admin.id de quem gravou por último; nulo na linha da migração. */
+  atualizado_por: uuid('atualizado_por'),
   ...auditaveis(),
 });
