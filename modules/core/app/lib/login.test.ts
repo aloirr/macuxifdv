@@ -1,6 +1,6 @@
 import { ErroSemConexao } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { camposIniciaisDoLogin, entrarComSenha, ehServidorInvalido, mensagemDeErroDeLogin, propsDoCampoCodigoEmpresa, propsDoCampoSenha, rotuloOlhoSenha, validarLogin } from './login';
+import { camposIniciaisDoLogin, entrarComSenha, ehServidorInvalido, mensagemDeErroDeLogin, propsDoCampoCodigoEmpresa, validarLogin } from './login';
 import { MENSAGEM_SENHA_ESPACO_NAS_PONTAS } from '../../contracts';
 
 const U = '0b000000-0000-4000-8000-000000000001';
@@ -73,11 +73,6 @@ describe('RF-CORE-01: login do app', () => {
     expect(ehServidorInvalido({ status: 401, codigo: 'CREDENCIAIS_INVALIDAS' })).toBe(false);
     expect(mensagemDeErroDeLogin(new Error('boom'))).toContain('Não foi possível entrar agora');
   });
-
-  it('RF-CORE-01: rótulo do botão de olho alterna entre mostrar e ocultar', () => {
-    expect(rotuloOlhoSenha(false)).toBe('Mostrar senha');
-    expect(rotuloOlhoSenha(true)).toBe('Esconder senha');
-  });
 });
 
 describe('RF-CORE-01: TelaLogin reabre com o e-mail (T-0094)', () => {
@@ -96,12 +91,6 @@ describe('RF-CORE-01: campo Código da empresa do login', () => {
 });
 
 describe('RF-CORE-01: teclado não muda a senha nem o código da empresa (v1.0.10)', () => {
-  it('RF-CORE-01: campo da senha desliga correção, capitalização e pontuação inteligente; visível no Android usa visible-password', () => {
-    expect(propsDoCampoSenha(false, 'android')).toEqual({ autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'password', textContentType: 'password' });
-    expect(propsDoCampoSenha(true, 'ios')).not.toHaveProperty('keyboardType');
-    expect(propsDoCampoSenha(false, 'android')).not.toHaveProperty('keyboardType');
-    expect(propsDoCampoSenha(true, 'android')).toMatchObject({ keyboardType: 'visible-password', autoCorrect: false, autoCapitalize: 'none' });
-  });
   it('RF-CORE-01: código "aM2808 " é validado e enviado como "AM2808"', async () => {
     expect(validarLogin({ codigo_empresa: 'aM2808 ', email: 'a@b.com', senha: 'x' })).toEqual({});
     let corpo: { codigo_empresa?: string } = {};

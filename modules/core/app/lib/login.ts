@@ -6,7 +6,6 @@
  */
 import { ehSemConexao, type AppComLogin } from '@macuxi/platform-sdk';
 import { AVISO_APARELHO_LIMPO, CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, validarLoginNovo as validarLogin, type CamposLogin, type ErrosLogin, CODIGO_EMPRESA_TAMANHO, normalizarCodigoEmpresa, MENSAGEM_SENHA_A_TROCAR, MENSAGEM_SENHA_VENCIDA, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
-import { ESCONDER_SENHA, MOSTRAR_SENHA } from '@macuxi/ui/mobile/puro';
 import { tolerante } from './leitor-tolerante';
 
 export { validarLogin, type CamposLogin, type ErrosLogin };
@@ -59,20 +58,6 @@ export function mensagemDeErroDeLogin(e: unknown): string {
 
 /** Propriedades do campo Código da empresa (login e "Esqueci a senha"): cabe só o código da licença, UF + 4 dígitos (ex.: AM4821). */
 export const propsDoCampoCodigoEmpresa = { maxLength: CODIGO_EMPRESA_TAMANHO, autoCapitalize: 'characters', autoCorrect: false, spellCheck: false } as const;
-
-/**
- * Propriedades do campo Senha: o teclado não corrige, não capitaliza nem põe espaço depois da pontuação (RN-CORE-32 recusa
- * espaço no fim). Com a senha visível no Android, `visible-password` desliga a pontuação inteligente do teclado.
- */
-export function propsDoCampoSenha(visivel: boolean, os: string): { autoCapitalize: 'none'; autoCorrect: false; spellCheck: false; autoComplete: 'password'; textContentType: 'password'; keyboardType?: 'visible-password' } {
-  const base = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'password', textContentType: 'password' } as const;
-  return visivel && os === 'android' ? { ...base, keyboardType: 'visible-password' } : base;
-}
-
-/** Rótulo acessível do botão de olho da senha. */
-export function rotuloOlhoSenha(visivel: boolean): string {
-  return visivel ? ESCONDER_SENHA : MOSTRAR_SENHA;
-}
 
 /** Transporte sem token (o shell entrega): POST do corpo no caminho `/auth/login` da API v1. */
 export type PostSemSessao = (caminho: string, corpo: unknown) => Promise<unknown>;
