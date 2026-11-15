@@ -118,6 +118,10 @@ type Linha = string | { rotulo: string; valor: string; senha?: boolean };
 
 const RODAPE = 'Macuxi FDV · e-mail automático, não responda.';
 
+/** Fonte do sistema (R-20261115-110600); Arial/Helvetica cobrem clientes de e-mail sem system-ui. */
+const FONTE_TEXTO = "system-ui,'Segoe UI',Roboto,-apple-system,Arial,Helvetica,sans-serif";
+const FONTE_CODIGO = "ui-monospace,'Cascadia Mono','Roboto Mono',Consolas,'Courier New',monospace";
+
 function montar(assunto: string, linhas: readonly Linha[]): EmailRenderizado {
   const textoPuro = linhas.map((l) => (typeof l === 'string' ? l : `${l.rotulo}: ${l.valor}`)).join('\n') + '\n';
   const corpo = linhas
@@ -126,7 +130,7 @@ function montar(assunto: string, linhas: readonly Linha[]): EmailRenderizado {
       if (l.senha) {
         return (
           `<p style="margin:0 0 4px">${escaparHtml(l.rotulo)}:</p>` +
-          `<p style="margin:0 0 12px"><span style="display:inline-block;background:#F8F6F1;color:#16202A;padding:8px 12px;font-family:Consolas,'Courier New',monospace;font-size:18px">${escaparHtml(l.valor)}</span></p>`
+          `<p style="margin:0 0 12px"><span style="display:inline-block;background:#F8F6F1;color:#16202A;padding:8px 12px;font-family:${FONTE_CODIGO};font-variant-numeric:tabular-nums;font-size:18px">${escaparHtml(l.valor)}</span></p>`
         );
       }
       return `<p style="margin:0 0 4px">${escaparHtml(l.rotulo)}: <strong>${escaparHtml(l.valor)}</strong></p>`;
@@ -137,8 +141,8 @@ function montar(assunto: string, linhas: readonly Linha[]): EmailRenderizado {
     '<!doctype html>\n<html lang="pt-BR"><head><meta charset="utf-8"><title>' +
     escaparHtml(assunto) +
     '</title></head>\n<body style="margin:0;background:#FFFFFF">\n' +
-    '<div style="max-width:560px;margin:0 auto;padding:24px;font-family:\'IBM Plex Sans\',Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#1f2933">\n' +
-    `<h1 style="font-family:Archivo,Arial,Helvetica,sans-serif;font-size:20px;margin:0 0 16px">${escaparHtml(assunto)}</h1>\n` +
+    `<div style="max-width:560px;margin:0 auto;padding:24px;font-family:${FONTE_TEXTO};font-size:15px;line-height:1.5;color:#1f2933">\n` +
+    `<h1 style="font-family:${FONTE_TEXTO};font-size:20px;margin:0 0 16px">${escaparHtml(assunto)}</h1>\n` +
     corpo +
     '\n</div>\n</body></html>\n';
   return { assunto, texto: textoPuro, html };

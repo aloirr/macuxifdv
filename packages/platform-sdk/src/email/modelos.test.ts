@@ -42,8 +42,17 @@ describe('RN-CORE-34 — "Seu acesso ao Macuxi" (design ciclo-de-senha §8.1)', 
     }
     expect(r.texto).toContain('Entre no app Macuxi Campo ou no backoffice do Macuxi, pelo navegador.');
     expect(r.texto).toContain('Senha temporária: Prov1sor1a-Xq7');
-    expect(r.html).toContain('monospace;font-size:18px">Prov1sor1a-Xq7</span>');
+    expect(r.html).toContain('monospace;font-variant-numeric:tabular-nums;font-size:18px">Prov1sor1a-Xq7</span>');
     expect(VALIDADE_SENHA_PROVISORIA_HORAS).toBe(72);
+  });
+
+  it('HTML usa a fonte do sistema e nenhum texto abaixo de 12px (R-20261115-110600)', () => {
+    const r = renderizarEmail('acesso_inicial', carga);
+    expect(r.html).toContain("font-family:system-ui,'Segoe UI',Roboto,-apple-system,Arial,Helvetica,sans-serif");
+    expect(r.html).toContain("font-family:ui-monospace,'Cascadia Mono','Roboto Mono'");
+    const tamanhos = [...r.html.matchAll(/font-size:(\d+)px/g)].map((m) => Number(m[1]));
+    expect(tamanhos.length).toBeGreaterThan(0);
+    expect(Math.min(...tamanhos)).toBeGreaterThanOrEqual(12);
   });
 
   it('validade nula (admin inicial, P5): sem a frase da validade nem a do "Se ela vencer"', () => {

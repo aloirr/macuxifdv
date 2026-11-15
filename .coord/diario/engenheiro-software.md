@@ -230,3 +230,4 @@
 2026-11-15 — empresa-acoes (PR #283) — achados RD-0345..0353 e do testes: desenho §1/§5 enxutos, ADR 0052 sem Pendências e sem passo a passo repetido, TENANT_NAO_ENCONTRADO no lugar de EMPRESA_NAO_ENCONTRADA, ErroCodigo/RE_TABELA, exclusao_bloqueada como enum, 11 itens no roteiro; merge do main (README das ADRs).
 2026-11-15 — empresa-acoes — RD-0380 (desenho §1 e §5) e motivo da inativação opcional e nulo (ADR 0052, desenho, InativarEmpresaSchema, resposta e evento inativado@1), com testes.
 2026-11-15 — fonte do sistema — lock: pnpm-lock.yaml sem @expo-google-fonts/archivo, ibm-plex-mono e ibm-plex-sans (R-20261115-110600), branch nuvem/fonte-sistema-engenheiro-software sobre o do engenheiro-apps.
+2026-11-15 — fonte do sistema v1.0.13 — e-mails do platform-sdk com a pilha system-ui (Arial/Helvetica de fallback), código em ui-monospace com tabular-nums; teste de nada < 12px no HTML
