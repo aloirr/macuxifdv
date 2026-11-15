@@ -169,6 +169,18 @@ describe('Instalar-Thathyany.ps1 (conferência estática)', () => {
     expect(ler('sql', 'usuario-conector.sql')).toContain('ALTER LOGIN macuxi_conector ENABLE');
   });
 
+  it('chave pela área de transferência (o console 5.1 não cola no Read-Host mascarado), limpa logo depois e nunca mostrada', () => {
+    const pedir = /function PedirChave[\s\S]*?\n\}/.exec(INSTALADOR)![0];
+    expect(pedir).toContain('Get-Clipboard -Raw');
+    expect(pedir).toMatch(/\$copiada -match \$REGEX_CHAVE\) \{\s+Limpar-AreaTransferencia/);
+    expect(pedir).toContain('lida da area de transferencia');
+    expect(pedir).toMatch(/Read-Host -AsSecureString/);
+    expect(INSTALADOR).toContain('Set-Clipboard -Value $null');
+    expect(INSTALADOR).not.toMatch(/(Write-\w+|Ok|Aviso|Falha)[^\n]*\$copiada/);
+    expect(ROTEIRO).toContain('copie a chave gerada no portal e, logo em seguida, rode:');
+    expect(ROTEIRO).toContain('copie a chave nova e, logo em seguida, rode:');
+  });
+
   it('segredos só por Read-Host mascarado e Gerenciador de Credenciais, nunca em arquivo ou log', () => {
     expect(INSTALADOR).toMatch(/Read-Host -AsSecureString/);
     expect(INSTALADOR).not.toMatch(/Read-Host(?! -AsSecureString)[^\n]*(chave|senha)/i);

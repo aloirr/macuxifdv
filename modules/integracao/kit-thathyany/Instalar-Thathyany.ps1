@@ -5,7 +5,7 @@
 
 .DESCRIPTION
   Rode como administrador, no Windows PowerShell 5.1 (o azul). Pode rodar quantas vezes quiser: o que ja esta pronto e pulado.
-  Senhas e chaves: so Read-Host mascarado e Gerenciador de Credenciais do Windows; nada vai para arquivo ou log.
+  Senhas e chaves: area de transferencia (limpa logo depois), Read-Host mascarado e Gerenciador de Credenciais do Windows; nada vai para arquivo ou log.
 
 .PARAMETER Fase
   Conector (fase 1): instala o Conector 1.4.0 baixado do portal como servico e desliga o "ERP via API".
@@ -64,15 +64,33 @@ function SenhaAleatoria {
     'Mx' + [Convert]::ToBase64String($bytes).Replace('+', 'a').Replace('/', 'b').Replace('=', '') + '9z'
 }
 
+# Limpa a area de transferencia depois de ler a chave (a chave nao fica copiada no Windows).
+function Limpar-AreaTransferencia {
+    try { Set-Clipboard -Value $null } catch {
+        try { Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Clipboard]::Clear() } catch { Aviso 'Nao consegui limpar a area de transferencia. Copie qualquer outro texto.' }
+    }
+}
+
+# No console do Windows PowerShell 5.1, colar no Read-Host -AsSecureString entra um caractere so: a chave vem da area de
+# transferencia (copiada no portal antes de rodar); digitar fica de reserva. Nada disso vai para a tela nem para log.
 function PedirChave($identificador) {
+    $copiada = $null
+    try { $copiada = Get-Clipboard -Raw -ErrorAction Stop } catch { $copiada = $null }
+    if ($copiada) { $copiada = $copiada.Trim() }
+    if ($copiada -and $copiada -match $REGEX_CHAVE) {
+        Limpar-AreaTransferencia
+        Ok "chave do Conector '$identificador' lida da area de transferencia"
+        return $copiada
+    }
+    $copiada = $null
     for ($i = 0; $i -lt 3; $i++) {
-        $seguro = Read-Host -AsSecureString "Cole a chave gerada no portal para o Conector '$identificador' (comeca com mxc_; o texto fica oculto)"
+        $seguro = Read-Host -AsSecureString "Digite a chave gerada no portal para o Conector '$identificador' (comeca com mxc_; o texto fica oculto)"
         $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($seguro)
         try { $chave = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr).Trim() } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
         if ($chave -match $REGEX_CHAVE) { return $chave }
-        Aviso 'Essa chave nao tem o formato certo (mxc_ e mais 43 caracteres). Copie de novo no portal.'
+        Aviso 'Essa chave nao tem o formato certo (mxc_ e mais 43 caracteres). Copie a chave no portal e rode o instalador de novo.'
     }
-    Falha 'Chave invalida tres vezes. Gere uma nova no portal e rode o instalador de novo.'
+    Falha 'Chave invalida tres vezes. Copie a chave no portal (ou gere uma nova) e rode o instalador de novo.'
 }
 
 function Abrir-Sql([string]$banco = 'master') {

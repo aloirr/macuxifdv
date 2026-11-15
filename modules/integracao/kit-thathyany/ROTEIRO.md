@@ -20,12 +20,12 @@ Cada fase vai do pedido no app até o número do ERP voltar ao app.
 ## Fase 1 — Conector 1.4.0
 1. **Portal, aba Integração:** em **Gerar credencial**, use o identificador `thathyany-conector`, o nome "Conector thathyany", marque **Recebe pedidos** e gere. Copie a chave (ela aparece uma vez só).
 2. **Portal, aba Integração:** clique em **Baixar o Conector** e salve o `conector-1.4.0.zip`.
-3. **Instale:**
+3. **Instale:** copie a chave gerada no portal e, logo em seguida, rode:
    ```
    cd C:\MacuxiKit
    powershell -ExecutionPolicy Bypass -File .\Instalar-Thathyany.ps1 -Fase Conector
    ```
-   Quando pedir, cole a chave gerada no portal e digite a senha do Windows (o texto fica oculto).
+   Quando pedir, digite a senha do Windows (o texto fica oculto).
 4. **Carregue os dados:** troque os CSVs de `C:\MacuxiThathyany\csv` pelos da thathyany e rode:
    ```
    cd C:\MacuxiThathyany
@@ -50,12 +50,11 @@ Cada fase vai do pedido no app até o número do ERP voltar ao app.
 ## Fase 2 — API com outra credencial
 1. **Desative o `thathyany-conector`:** peça ao gerente-projetos.
 2. **Portal, aba Integração:** em **Gerar credencial**, use o identificador `thathyany-api`, o nome "API thathyany", marque **Recebe pedidos** e gere. Copie a chave nova.
-3. **Instale:**
+3. **Instale:** copie a chave nova e, logo em seguida, rode:
    ```
    cd C:\MacuxiKit
    powershell -ExecutionPolicy Bypass -File .\Instalar-Thathyany.ps1 -Fase API
    ```
-   Quando pedir, cole a chave nova.
 4. **Carga pela API:** mude um preço ou um cliente no CSV e rode `py carga_csv.py --pasta csv`. Em 2 a 6 minutos a mudança aparece no Backoffice.
 5. **Pedido no app:** o vendedor faz e envia um pedido novo.
 6. **Pedido no ERP:** em 1 a 2 minutos, a consulta do passo 7 da fase 1 mostra o pedido com a origem **Thathyany API**.
