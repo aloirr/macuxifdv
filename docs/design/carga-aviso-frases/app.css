@@ -16,13 +16,21 @@ body { background: #888; font-family: 'IBM Plex Sans', sans-serif; }
 .frase { margin-top: 12px; max-width: 280px; font-size: 14px; line-height: 20px; color: var(--textoClaro); text-align: center; }
 .baixo { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 32px 32px; display: flex; flex-direction: column; gap: 18px; }
 /* NOVO: aviso acima da barra */
-.aviso { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--trilho); border-radius: 12px; padding: 12px 14px; font-size: 14px; line-height: 20px; color: var(--texto); }
+.aviso { border: 1px solid var(--trilho); border-radius: 12px; padding: 12px 14px; font-size: 14px; line-height: 20px; color: var(--texto); }
 .campo .aviso { border-color: #C9CED5; }
 .gestao .aviso { background: #FFFFFF; border-color: #C9CED5; }
-.aviso svg { flex: none; margin-top: 2px; }
 .aviso b { font-weight: 600; white-space: nowrap; }
 .barra { display: flex; flex-direction: column; gap: 8px; }
 .linha { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; }
 .pct { font-weight: 700; font-variant-numeric: tabular-nums; }
 .trilho { height: 6px; border-radius: 3px; background: var(--trilho); overflow: hidden; }
 .trilho i { display: block; height: 6px; border-radius: 3px; background: var(--preenchimento); }
+/* Variante 360 x 640 com 3 botões de navegação (inset de baixo 48 dp): logo no centro da janela, (640 - 126) / 2 = 257 */
+.baixa { height: 640px; }
+.baixa .logo { top: 257px; }
+.baixa .baixo { bottom: 48px; }
+.nav { position: absolute; left: 0; right: 0; bottom: 0; height: 48px; display: flex; justify-content: space-around; align-items: center; background: #000; color: #fff; font-size: 14px; opacity: .85; }
+/* Regra de respiro (spec §1.1): sem 24 dp entre a frase e o aviso, a frase cai para 1 linha e, se ainda não couber, sai.
+   Sem 16 dp entre o "Olá" e o aviso, o aviso fica sem a caixa (só o texto). Na 640 com navegação, os dois casos. */
+.baixa .frase { display: none; }
+.baixa .aviso { border: 0; padding: 0; background: none; }
