@@ -216,12 +216,12 @@ describe('PR do modulo-catalogo — "Copiar código" copia o código exibido e n
     }
     const produto = semComentarios(ler('modules/catalogo/app/telas/produto.tsx'));
     const comum = semComentarios(ler('modules/catalogo/app/telas/comum.tsx'));
-    expect(produto).toContain('<BotaoCopiarCodigo codigo={item.erp_code} />');
+    expect(produto).toContain('<BotaoCopiarCodigo codigo={item.erp_code} variante="faixa" />');
     expect(produto).toMatch(/subtitulo: `\$\{subtituloProduto\(item\)\}/);
-    // Catálogo Campo v8 (R-20261115-084500): o cartão copia `codigosDoCartao(item).copiar`, que é SÓ o `erp_code` (sem a marca)
+    // Catálogo Campo v8 (R-20261115-084500): o cartão copia `codigosDoCartao(item).codigo`, que é SÓ o `erp_code` (sem a marca); a ficha copia na faixa
     expect(comum).toContain('const codigos = codigosDoCartao(item);');
-    expect(comum).toContain('<BotaoCopiarCodigo codigo={codigos.copiar} variante="icone" />');
-    expect(codigosDoCartao({ brand: 'Freiomax', erp_code: 'CB3401', equivale_a: null })).toMatchObject({ copiar: 'CB3401', produto: 'CB3401' });
+    expect(comum).toContain('<BotaoCopiarCodigo codigo={codigos.codigo} variante="icone" />');
+    expect(codigosDoCartao({ brand: 'Freiomax', erp_code: 'CB3401', equivale_a: null })).toEqual({ marca: 'Freiomax', codigo: 'CB3401' });
     // valor × rótulo: o código copiado é o que o subtítulo da ficha mostra
     const item = { brand: 'Freiomax', erp_code: 'CB3401' };
     const copiados: string[] = [];

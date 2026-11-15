@@ -258,12 +258,11 @@ describe('T-0052 — busca offline do Catálogo no aparelho com o FTS5 real (mot
           expect(i.availability, `estoque do promotor, cliente ${clienteId}`).toEqual(doVendedor.availability);
         }
       }
-      // sem usuário no aparelho (sessão perdida) a regra falha fechada: sem preço e nenhum saldo revelado (sem filial nenhuma,
-      // o domain devolve N 0 sem linha de filial, ou nada)
+      // sem usuário no aparelho (sessão perdida) a regra falha fechada (RN-CAT-05, RN-CORE-39): sem preço e estoque VAZIO
+      // (availability nula, sem tag), nunca "0" (Catálogo Campo v8, fe2d0402e)
       const semUsuario = (await busca(ap.leitor, 'sapata', null)).items[0]!;
       expect(semUsuario).toMatchObject({ price_stock_visible: false, price: null });
-      const a = semUsuario.availability;
-      if (a !== null) expect({ quantidade: a.quantity, filiais: a.by_branch }, 'nenhum saldo sem usuário').toEqual({ quantidade: 0, filiais: [] });
+      expect(semUsuario.availability, 'sem usuário: estoque vazio, não 0').toBeNull();
     });
   });
 
