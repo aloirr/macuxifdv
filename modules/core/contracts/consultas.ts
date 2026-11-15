@@ -195,3 +195,15 @@ export const FinanceiroClienteSaidaSchema = z.object({
 });
 export type FinanceiroClienteSaida = z.infer<typeof FinanceiroClienteSaidaSchema>;
 export const CONSULTA_FINANCEIRO_CLIENTE = definirConsulta({ nome: 'core.financeiro_cliente@1', entrada: FinanceiroClienteEntradaSchema, saida: FinanceiroClienteSaidaSchema });
+
+/**
+ * `core.credencial_conferir@1` (T-0173, RN-INT-16): o Hub confere a senha de um administrador ou analista que autoriza o reprocessamento
+ * de um lote. O tenant vem do contexto. `bloqueado` = usuário inativo, excluído ou bloqueado (por administrador ou por tentativas), e só é
+ * revelado a quem acertou a senha (RN-CORE-15: não revela quem existe). Usuário inexistente, sem senha ou senha errada = `incorreta`,
+ * no mesmo tempo. A senha nunca vai para log, erro ou auditoria; quem chama limita as tentativas.
+ */
+export const CredencialConferirEntradaSchema = z.object({ usuario_id: z.string().uuid(), senha: z.string().min(1).max(200) }).strict();
+export type CredencialConferirEntrada = z.infer<typeof CredencialConferirEntradaSchema>;
+export const CredencialConferirSaidaSchema = z.object({ resultado: z.enum(['ok', 'incorreta', 'bloqueado']) });
+export type CredencialConferirSaida = z.infer<typeof CredencialConferirSaidaSchema>;
+export const CONSULTA_CREDENCIAL_CONFERIR = definirConsulta({ nome: 'core.credencial_conferir@1', entrada: CredencialConferirEntradaSchema, saida: CredencialConferirSaidaSchema });

@@ -9,6 +9,7 @@ export * from './matriz';
 export * from './escopo';
 export * from './fila-modulo-desativado';
 export * from './auth';
+export * from './credencial';
 export * from './produto';
 export * from './checkin';
 export * from './checkin-rota';
