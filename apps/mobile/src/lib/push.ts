@@ -8,6 +8,7 @@
  * - `data.link`: rota do app (`/m/pedido?id=...`, `/m/core/notificacoes`). Só caminhos internos começando por `/`.
  * - `data.pedido_id`: atalho para o detalhe do pedido quando não vem `link`.
  * Push SILENCIOSO = sem título e sem corpo: só dispara o motor, nada aparece na bandeja.
+ * FCM direto (v1.0.10): `data` chega como mapa de textos; `entidades` vem como texto JSON ou separado por vírgula.
  */
 
 /** Nome de entidade do sync: letras minúsculas, dígitos e `_` (ex.: `pedido`, `cliente_condicao`). */
@@ -53,9 +54,50 @@ export function pushSilencioso(conteudo: { title?: string | null; body?: string 
   return !conteudo?.title && !conteudo?.body;
 }
 
-/** Token do Expo aceito pelo servidor (`montarMensagemExpo` em modules/core/api/push.ts). */
-export function tokenExpoValido(token: unknown): token is string {
-  return typeof token === 'string' && token.length <= 300 && /^Expo(nent)?PushToken\[.+\]$/.test(token);
+/** Token FCM: texto opaco do Firebase (em geral 140 a 200 caracteres; o contrato `PushTokenSchema` aceita até 300). */
+const TOKEN_FCM = /^[A-Za-z0-9_:-]{20,300}$/;
+
+/**
+ * Token do aparelho para o push pelo FCM direto (inventário do Expo, opção 2): o token FCM cru de
+ * `getDevicePushTokenAsync()`. O token do Expo (`ExponentPushToken[...]`) não é mais aceito.
+ */
+export function tokenFcmValido(token: unknown): token is string {
+  return typeof token === 'string' && TOKEN_FCM.test(token);
+}
+
+type Mapa = Record<string, unknown>;
+
+function mapa(v: unknown): Mapa | null {
+  return v && typeof v === 'object' && !Array.isArray(v) ? (v as Mapa) : null;
+}
+
+/**
+ * `data` do push como mapa. FCM direto: mapa de textos (`{ link, entidades }`). Formato Expo: os dados vêm em
+ * `dataString` (texto JSON), que é aberto e prevalece sobre as chaves soltas.
+ */
+export function dadosDoPush(data: unknown): Mapa {
+  const d = mapa(data);
+  if (!d) return {};
+  const texto = d.dataString;
+  if (typeof texto === 'string' && texto.trim().startsWith('{')) {
+    try {
+      const aberto = mapa(JSON.parse(texto));
+      if (aberto) return { ...d, ...aberto };
+    } catch {
+      // texto ilegível: fica com as chaves soltas
+    }
+  }
+  return d;
+}
+
+/**
+ * Mensagem entregue à tarefa `macuxi-push-sync` (o expo-notifications roda a tarefa a cada mensagem do FCM, com o app
+ * aberto ou não): `{ data: { ...dados }, notification: { title, body } | null }`. `soDados` = sem o bloco `notification`:
+ * com o app aberto, o expo-notifications não entrega essa mensagem ao ouvinte do primeiro plano, só à tarefa.
+ */
+export function mensagemDaTarefaPush(payload: unknown): { dados: Mapa; soDados: boolean } {
+  const p = mapa(payload) ?? {};
+  return { dados: dadosDoPush(p.data), soDados: mapa(p.notification) === null };
 }
 
 /** Registro do token no servidor: chave local por usuário e aparelho, para não repetir o PUT a cada abertura. */
