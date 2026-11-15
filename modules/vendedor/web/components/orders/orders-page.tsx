@@ -10,6 +10,7 @@ import { ordersToCsv } from '../../lib/csv';
 import { type FiltrosPedidos, temFiltro } from '../../lib/filtros-url';
 import { usePedidos, usePendentes, useSessaoDoBko } from '../../lib/queries';
 import { useFiltrosNaUrl } from '../../lib/use-filtros';
+import { CardsPedidosErp } from './cards-pedidos-erp';
 import { ApprovalsPanel } from './approvals-panel';
 import { useAtualizarPedidos } from './decisao';
 import { ERRO_IMPRESSAO, exportarPdfDoPedido } from './exportar-pdf';
@@ -101,6 +102,8 @@ export function OrdersPage() {
         badge={soma !== null && quantidade > 0 ? <span className="font-display text-[18px] font-bold text-ink-2" data-testid="pedidos.total">{formatBRL(soma)}</span> : undefined}
         actions={<MenuAcoes acoes={acoesDaPagina} rotulo="Mais ações" testId="pedidos.mais-acoes" />}
       />
+
+      <CardsPedidosErp status={filtros.status} aoFiltrar={(s) => set('status', s)} />
 
       <FilterBar>
         <CampoBusca rotulo="Buscar cliente ou nº do pedido" value={filtros.q} maxLength={100} onChange={(e) => set('q', e.target.value)} data-testid="pedidos.filtro-busca" />
