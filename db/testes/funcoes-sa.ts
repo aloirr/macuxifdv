@@ -128,13 +128,6 @@ export const FUNCOES_SA_0073 = ['plataforma.sa_dados_legais(uuid)', 'plataforma.
 export const DADOS_LEGAIS_PUBLICOS = 'plataforma.dados_legais_publicos()';
 
 /**
- * As sa_* públicas do banco migrado até a ÚLTIMA (0073): as 25 até a 0072 (FUNCOES_SA_ATE_0072) + as 2 da 0073 = 27. Use esta
- * lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040
- * ou 0041.
- */
-export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0072, ...FUNCOES_SA_0073] as const;
-
-/**
  * Funções do worker da 0072 (ADR 0052): SECURITY DEFINER, EXECUTE só ao macuxi_worker (o tenant sai da linha do job).
  */
 export const FUNCOES_WORKER_0072 = [
@@ -150,6 +143,29 @@ export const FUNCOES_WORKER_0072 = [
   'plataforma.executar_exclusao(uuid)',
   'plataforma.fechar_exclusao(uuid, jsonb)',
 ] as const;
+
+/**
+ * As 3 sa_* da 0082 (T-0181): o super-admin lista, inclui e edita (texto e/ou ativa) as frases da tela de carga. EXECUTE só ao
+ * macuxi_portal; admin do cliente = 42501.
+ */
+export const FUNCOES_SA_0082 = [
+  'plataforma.sa_listar_frases_carga(uuid)',
+  'plataforma.sa_incluir_frase_carga(uuid, uuid, text)',
+  'plataforma.sa_editar_frase_carga(uuid, uuid, text, boolean)',
+] as const;
+
+/**
+ * As 27 sa_* públicas do banco parado entre a 0073 e a 0080: as 25 até a 0072 (FUNCOES_SA_ATE_0072) + as 2 da 0073 (da 0074 à
+ * 0080 nenhuma sa_* nova; a 0077 só recria a sa_sessao_valida).
+ */
+export const FUNCOES_SA_ATE_0080 = [...FUNCOES_SA_ATE_0072, ...FUNCOES_SA_0073] as const;
+
+/**
+ * As sa_* públicas do banco migrado até a ÚLTIMA (0082): as 27 até a 0080 (FUNCOES_SA_ATE_0080) + as 3 da 0082 = 30. Use esta
+ * lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040
+ * ou 0041.
+ */
+export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0080, ...FUNCOES_SA_0082] as const;
 
 /** Interna (SECURITY INVOKER, sem EXECUTE para ninguém além do dono), chamada de dentro das sa_*: assinatura da 0039. */
 export const SA_INTERNA = 'plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)';

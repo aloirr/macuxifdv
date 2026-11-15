@@ -1048,3 +1048,69 @@ pg_temp`, só tenants `ativo` e vivos):
 | `trabalho_reservar(p_processo text, p_trava_s integer)` → `table(id, tenant_id, modulo, nome, alvo_id, tentativas, fatias)` | 0 ou 1 linha: o vencido mais antigo (`pendente` com `proxima_em <= now()` ou `em_execucao` com trava vencida), `for update skip locked`; marca `em_execucao`, `travado_ate = now() + p_trava_s`, `travado_por`. p_processo 1..200, p_trava_s 1..3600 (senão 22023) |
 | `trabalho_devolver(p_id uuid, p_processo text, p_resultado text, p_erro text, p_espera_s integer)` → boolean | só com a trava do processo (false = perdeu a trava; nada muda). `continua` → `pendente` agora, `fatias + 1`; `concluido` → `concluido`, `fatias + 1`; `adiar` → `pendente` daqui a `p_espera_s`, sem contar tentativa (licença inativa); `erro` (com `p_erro`) → `tentativas + 1`, `ultimo_erro`, `pendente` daqui a `p_espera_s` ou, com `p_espera_s` nulo, `falhou` (definitivo). Solta a trava |
 | `trabalho_renovar(p_id uuid, p_processo text, p_trava_s integer)` → boolean | estende a trava entre os itens; false = não é mais deste processo |
+## Frases da carga (0082, T-0181) — `frase_carga`. Global, só por função, fora do sync por linha
+Migração `0082_plataforma_frase_carga` (volta: `.down.sql`, APAGA as frases, inclusive as incluídas e editadas no portal; a
+auditoria fica). Spec aprovada: `docs/design/carga-aviso-frases/spec.md` §2 a §4 e `frases.md` (commit `3cdb384`). Drizzle:
+`fraseCarga` em `db/esquema/plataforma.ts`. Teste: `db/testes/t0181-frase-carga.db.test.ts`.
+Número 0082 (sessão fixa, 15/11/2026 13h37 de Manaus): a 0081 é a do logo do cliente e entra antes desta.
+
+**Tabela global, sem `tenant_id`** (exceção declarada em `db/src/excecoes.ts`: `TABELAS_SEM_TENANT_ID` e `TABELAS_SO_POR_FUNCAO`,
+e em `db/scripts/conferir-rls.sql`): as frases valem para todas as empresas e só o super-admin (time Macuxi) cadastra; frase por
+empresa não foi pedida (spec §4). Mesmo precedente das tabelas globais da 0035/0039 (`super_admin`, `portal_sessao`...): RLS
+ligado e forçado, só a política `manutencao`, **nenhum grant de tabela** para `macuxi_app`, `macuxi_worker` ou `macuxi_portal`.
+Sem dado de tenant e sem dado pessoal.
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| id | uuid pk | as 30 iniciais: `plataforma.uuid_de_chave('plataforma:frase_carga:NN')`, NN = `01`..`30` (mesma regra do `FRASES_CARGA_INICIAIS` do SDK; gêmea TS `idDeChave`); as incluídas: `gen_random_uuid()` |
+| numero | integer not null | o "Nº" do portal; >= 1; único (`frase_carga_numero_uk`); na inclusão = `max(numero) + 1`; nunca reusado (não há exclusão) |
+| texto | text not null | 1..90 caracteres depois do `btrim` (`FRASE_CARGA_MAX`), gravado sem espaços nas pontas; único entre as vivas sem diferenciar maiúsculas nem espaços nas pontas (`frase_carga_texto_uk`, `lower(btrim(texto)) where deleted_at is null`) |
+| ativa | boolean not null default true | inativa sai do sorteio do app no próximo sync e continua no portal |
+| ordem | integer not null | >= 1; ordem de leitura do app; a incluída recebe `max(ordem) + 1` |
+| created_at, updated_at, deleted_at, external_id | | comuns (regra 5); `updated_at` pelo gatilho `frase_carga_updated_at`; `deleted_at` e `external_id` sem uso hoje |
+
+Índices: `frase_carga_numero_uk (numero)`, `frase_carga_texto_uk` (acima) e `frase_carga_ativa_ix (ordem, numero) where ativa and
+deleted_at is null` (leitura do app). Volume: dezenas de linhas.
+
+**Carga inicial** (na própria migração): as 30 do `frases.md`, texto literal, Nº e ordem 1..30, todas ativas;
+`on conflict do nothing` **sem alvo** (idempotente: id, Nº ou texto vivo já existentes ficam como estão). O teste do banco
+(`t0181-frase-carga.db.test.ts`) confere o seed contra a lista `FRASES_ESPERADAS` (cópia literal do `frases.md`, commit
+`3cdb384`) e, quando `docs/design/carga-aviso-frases/frases.md` está no repositório, contra o próprio arquivo; não lê o SDK.
+Quem confronta o seed com o `FRASES_CARGA_INICIAIS` do SDK é o FC-01 da integração (testes).
+
+**Funções** (SECURITY DEFINER, `search_path = pg_catalog, plataforma, pg_temp`, padrão da 0058; assinaturas alinhadas com a
+API na tabela da seção 3, "Banco — funções que a API chama", de `docs/desenho/T-0181.md`):
+- `plataforma.sa_listar_frases_carga(p_sid uuid) returns jsonb` → `{ itens: [{ id, numero, texto, ativa, ordem }] }`: as vivas,
+  ativas primeiro e depois as inativas, cada grupo pelo `numero`. Audita `sa.frase_carga.listar` com a contagem.
+- `plataforma.sa_incluir_frase_carga(p_sid uuid, p_id uuid, p_texto text) returns jsonb` → `{ id, numero, texto, ativa, ordem }`:
+  `p_id` gerado pela API (nulo = o banco gera); nasce ativa, `numero = max(numero) + 1` e `ordem = max(ordem) + 1` (tabela
+  travada na transação). Reenvio com o mesmo `p_id` e o mesmo texto (sem diferenciar maiúsculas nem espaços nas pontas) devolve
+  a frase já gravada, sem nova auditoria; o mesmo `p_id` com outro texto = 23505. Audita `sa.frase_carga.incluir` com
+  `frase_id` e `numero` (nunca o texto).
+- `plataforma.sa_editar_frase_carga(p_sid uuid, p_id uuid, p_texto text, p_ativa boolean) returns jsonb` → a frase depois. Nulo =
+  não muda; ativar/desativar = `p_ativa` com `p_texto` nulo; só grava quando algo muda. Audita `sa.frase_carga.editar` com
+  `frase_id`, `numero`, `texto_mudou` e `ativa`.
+- As 3: EXECUTE só ao `macuxi_portal`. Erros para a API traduzir (pelo código): sessão inválida ou vencida **28000**; admin do
+  cliente **42501**; id não achado ou apagado **P0002**; texto vazio ou acima de 90 **23514** (do CHECK
+  `frase_carga_texto_tamanho`; a API recusa antes, com 422 pelo SDK); repetida entre as vivas **23505** (do índice
+  `frase_carga_texto_uk`; também o mesmo `p_id` com outro texto na inclusão). O limite e a repetida são decididos só pela
+  tabela (RD-0523): as funções não repetem a checagem e propagam o erro do banco. Sem exclusão (desativar basta).
+- `plataforma.frases_carga_ativas() returns jsonb` → `{ frases: [{ id, texto, ordem }] }` (`language sql stable`): as ativas e
+  vivas, por `ordem, numero`. EXECUTE só ao `macuxi_app` (`GET /v1/sync/frases-carga`, dentro do `comTenant` da requisição;
+  nada de tenant entra nem sai). O aparelho guarda a lista e sorteia offline.
+
+As 3 `sa_*` entram nas listas de conformidade (`db/testes/funcoes-sa.ts` `FUNCOES_SA_0082`, `FUNCOES_SA_ATUAIS` = 30: as 27
+até a 0080 mais as 3 da 0082). Fora deste caminho, a cargo dos donos: `apps/api/test/funcoes-sa.ts` e
+`scripts/deploy/producao/banco-dbaas.sh` (engenheiro-software) e `DEFINER_REVISADAS`/`DEFINER_REVISADAS_PORTAL` de
+`tests/integracao/banco/conformidade.test.ts` (testes). A conferência do fim da 0082 não fixa o total de `sa_*` (fica em
+`db/testes/funcoes-sa.ts`): confere as 3 novas no portal e nenhuma `sa_*` no app, no worker ou em PUBLIC.
+
+Consultas da API (referência):
+```sql
+-- portal (macuxi_portal, sessão do super-admin)
+select plataforma.sa_listar_frases_carga($1) as r;                       -- GET /v1/plataforma/frases-carga
+select plataforma.sa_incluir_frase_carga($1, $2, $3) as r;               -- POST (sid, id, texto)
+select plataforma.sa_editar_frase_carga($1, $2, $3, $4) as r;            -- PATCH /:id (texto e/ou ativa; ausente = null)
+-- app (macuxi_app)
+select plataforma.frases_carga_ativas() as r;                            -- GET /v1/sync/frases-carga
+```
