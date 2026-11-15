@@ -22,7 +22,7 @@ function montar(disponivel: boolean) {
   const db: ClienteBanco = {
     query: async (sql, valores = []) => {
       consultas.push({ sql, valores });
-      const rows = /insert into core.usuario/.test(sql) ? [{ id: NOVO_ID }] : /from plataforma.tenant where id/.test(sql) ? [{ nome: 'Distribuidora Alfa', codigo: 'alfa' }] : [];
+      const rows = /insert into core.usuario/.test(sql) ? [{ id: NOVO_ID }] : /from plataforma.tenant where id/.test(sql) ? [{ nome: 'Distribuidora Alfa', codigo: 'AM4821' }] : [];
       return { rows: rows as never[], rowCount: rows.length };
     },
   };
@@ -79,7 +79,7 @@ describe('RN-CORE-34: Equipe por CSV sem convite', () => {
     expect(String(ins.valores[4])).toMatch(/^\$argon2id\$/);
     expect(ins.valores.find((v) => v instanceof Date)).toEqual(new Date('2026-11-10T12:00:00Z'));
     expect(m.enviados).toHaveLength(1);
-    expect(m.enviados[0]).toMatchObject({ modelo: 'acesso_inicial', usuario_id: NOVO_ID, para: 'vera.csv@exemplo.com.br', dados: { empresa_nome: 'Distribuidora Alfa', codigo_empresa: 'alfa', validade_horas: 72 } });
+    expect(m.enviados[0]).toMatchObject({ modelo: 'acesso_inicial', usuario_id: NOVO_ID, para: 'vera.csv@exemplo.com.br', dados: { empresa_nome: 'Distribuidora Alfa', codigo_empresa: 'AM4821', validade_horas: 72 } });
     const senha = m.enviados[0]!.dados.senha;
     expect(senha).toHaveLength(12);
     const tudo = JSON.stringify([m.auditorias, m.logs, m.consultas.map((c) => c.valores)]);
