@@ -32,15 +32,15 @@ export default function TelaProduto() {
   const fuso = usuario?.fuso ?? DEFAULT_TZ;
   const [estado, setEstado] = useState<Estado>({ fase: 'carregando' });
   const [aplicacaoAberta, setAplicacaoAberta] = useState(false);
-  const [proprias, setProprias] = useState<readonly string[]>([]);
+  const [filialCadastroId, setFilialCadastroId] = useState<string | null>(null);
   const [folhaAberta, setFolhaAberta] = useState(false);
   const usuarioId = usuario?.id ?? null;
 
-  // filiais de venda do usuário (sync): a folha lista só elas
+  // filial de cadastro do usuário (sync): primeira na folha, "sua filial"
   useEffect(() => {
     if (!motor) return;
     let vivo = true;
-    void filiaisDoUsuarioLocal(motor, usuarioId).then((f) => vivo && setProprias(f?.filiaisVenda ?? [])).catch(() => vivo && setProprias([]));
+    void filiaisDoUsuarioLocal(motor, usuarioId).then((f) => vivo && setFilialCadastroId(f?.filialCadastro ?? null)).catch(() => vivo && setFilialCadastroId(null));
     return () => {
       vivo = false;
     };
@@ -88,7 +88,7 @@ export default function TelaProduto() {
   const preco = rotuloPreco(item);
   // catalogo-campo-v2 §2: "Estoque: N" (exato, sem o 999+ do cartão) com o botão "Por filial"; a tabela e a hora ficam na folha
   const estoque = tagDeEstoque(item, { noCartao: false });
-  const folha = item.availability && usuario?.perfil ? dadosDaFolha({ codigo: item.erp_code, availability: item.availability, cargaEm: sync.sincronizado_em, proprias, agora: relogioReal().agora().toISOString(), fuso }) : null;
+  const folha = item.availability && usuario?.perfil ? dadosDaFolha({ codigo: item.erp_code, availability: item.availability, cargaEm: sync.sincronizado_em, filialCadastro: filialCadastroId, agora: relogioReal().agora().toISOString(), fuso }) : null;
   return (
     <Screen testID="pagina-catalogo-produto" cabecalho={{ titulo: item.description, subtitulo: `${subtituloProduto(item)} · ${item.unit}${item.ean ? ` · EAN ${item.ean}` : ''}`, voltar, direita: <BotaoCopiarCodigo codigo={item.erp_code} variante="faixa" /> }}>
       {item.is_campaign || (catalogo && catalogo.etiquetas.length > 0) ? (

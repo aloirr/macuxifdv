@@ -16,11 +16,11 @@ export interface DadosDaFolha {
   leitura: { id: string; texto: string }[];
 }
 
-export function dadosDaFolha(e: { codigo: string; availability: NonNullable<ItemVitrine['availability']>; /** Carimbo da carga do estoque no aparelho (UTC). */ cargaEm: string | null; proprias: readonly string[]; agora: string; fuso: string }): DadosDaFolha {
+export function dadosDaFolha(e: { codigo: string; availability: NonNullable<ItemVitrine['availability']>; /** Carimbo da carga do estoque no aparelho (UTC). */ cargaEm: string | null; /** Id da filial de CADASTRO (primeira, "sua filial", spec §2.1). */ filialCadastro: string | null; agora: string; fuso: string }): DadosDaFolha {
   const a = e.availability;
   const hora = rotuloCargaEstoque(e.cargaEm, e.agora, e.fuso);
   const mostrar = a.quantity !== null || a.by_branch.some((b) => b.quantity !== null);
-  const linhas = linhasDaFolhaEstoque(a.by_branch, { proprias: e.proprias, mostrarQuantidade: mostrar, marcarPropria: false });
+  const linhas = linhasDaFolhaEstoque(a.by_branch, { proprias: e.filialCadastro === null ? [] : [e.filialCadastro], mostrarQuantidade: mostrar, marcarPropria: true });
   return {
     titulo: TITULO_FOLHA_ESTOQUE,
     apoio: `${e.codigo} · ${hora}`,

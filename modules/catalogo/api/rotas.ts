@@ -169,26 +169,27 @@ async function filialDaBusca(ctx: ContextoBase, repo: RepositorioCatalogo, clien
  * `sem_filial`: como no Core (RN-CORE-39), vale para QUALQUER perfil, admin e analista inclusive (eles se destravam em
  * `PUT /v1/core/eu/filial-cadastro`): a API recusa com 403 USUARIO_SEM_FILIAL e nada de preço ou estoque sai.
  */
-async function filiaisDoEstoqueDoUsuario(repo: RepositorioCatalogo, clienteId: string | null, filial: FilialDaBuscaSemCliente | null): Promise<{ filiais: readonly string[]; filiaisFolha: readonly string[] }> {
+async function filiaisDoEstoqueDoUsuario(repo: RepositorioCatalogo, clienteId: string | null, filial: FilialDaBuscaSemCliente | null): Promise<{ filiais: readonly string[]; filiaisFolha: readonly string[]; filialCadastro: string | null; nomesFilial: Readonly<Record<string, string>> }> {
   const venda = await repo.filiaisDeVenda();
   if (venda.semFilial) throw new ErroHttpModulo(403, CODIGOS_FILIAL_USUARIO.semFilial, MENSAGEM_USUARIO_SEM_FILIAL);
   const filialDoCliente = clienteId !== null ? await repo.filialDoCliente(clienteId) : null;
-  return { filiais: filiaisDoEstoque(venda, { filialDoCliente, filtro: filial?.filtro ?? null }), filiaisFolha: filiaisDaFolha(venda) };
+  const nomesFilial = Object.fromEntries((await repo.filiaisDaTela()).filiais.map((f) => [f.id, f.nome]));
+  return { filiais: filiaisDoEstoque(venda, { filialDoCliente, filtro: filial?.filtro ?? null }), filiaisFolha: filiaisDaFolha(venda), filialCadastro: venda.filialCadastro, nomesFilial };
 }
 
 /** Monta o contexto de preço/estoque do usuário. RN-CAT-05: para quem não vê, nada de preço/estoque é lido do banco. */
 async function contextoVitrine(ctx: ContextoBase, repo: RepositorioCatalogo, p: ParametrosCatalogo, clienteId: string | null, produtos: readonly ProdutoCatalogo[], soEstoque = false, filial: FilialDaBuscaSemCliente | null = null): Promise<ContextoVitrine> {
   const base = { perfil: ctx.usuario.perfil, parametros: p, agora: ctx.agora().toISOString(), clienteId };
   const ids = produtos.filter((x) => x.ativo).map((x) => x.id);
-  const { filiais, filiaisFolha } = await filiaisDoEstoqueDoUsuario(repo, clienteId, filial);
+  const { filiais, filiaisFolha, filialCadastro, nomesFilial } = await filiaisDoEstoqueDoUsuario(repo, clienteId, filial);
   const saldos = await repo.saldos(ids);
   // T-0119: o corte dos candidatos só precisa do estoque (a nota da busca não usa o preço)
-  if (soEstoque) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos, filiais, filiaisFolha };
+  if (soEstoque) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos, filiais, filiaisFolha, filialCadastro, nomesFilial };
   // RN-CAT-05 (revista): promotor sem `promotor_ve_preco_estoque` recebe o estoque, nunca o preço (nada de preço é lido do banco)
-  if (!podeVerPrecoEstoque(ctx.usuario.perfil, p)) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos, filiais, filiaisFolha };
+  if (!podeVerPrecoEstoque(ctx.usuario.perfil, p)) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos, filiais, filiaisFolha, filialCadastro, nomesFilial };
   const precos = await repo.precos(clienteId, ids, filial?.filialId ?? null);
   const promocoes = await repo.promocoes(ids);
-  return { ...base, tabelaClienteId: precos.tabelaClienteId, itensPreco: precos.itens, promocoes, saldos, filiais, filiaisFolha };
+  return { ...base, tabelaClienteId: precos.tabelaClienteId, itensPreco: precos.itens, promocoes, saldos, filiais, filiaisFolha, filialCadastro, nomesFilial };
 }
 
 interface Interpretacao {

@@ -66,6 +66,7 @@ export default function TelaCatalogo() {
   const [dadosDaFolhaEstoque, setDadosDaFolhaEstoque] = useState<DadosDaFolha | null>(null);
   const [filiais, setFiliais] = useState<{ proprias: readonly string[]; todas: { id: string; nome: string }[] }>({ proprias: [], todas: [] });
   const [filialCadastro, setFilialCadastro] = useState<string | null>(null);
+  const [filialCadastroId, setFilialCadastroId] = useState<string | null>(null);
   const usuarioId = usuario?.id ?? null;
   const auto = useAtualizacaoAutomatica({ tz: fuso });
   const idsExibidos = useMemo(() => lista.itens.map((i) => i.id), [lista.itens]);
@@ -83,11 +84,13 @@ export default function TelaCatalogo() {
         if (!vivo) return;
         setFiliais({ proprias: doUsuario?.filiaisVenda ?? [], todas });
         setFilialCadastro(cadastro?.nome ?? null);
+        setFilialCadastroId(doUsuario?.filialCadastro ?? null);
       })
       .catch(() => {
         if (!vivo) return;
         setFiliais({ proprias: [], todas: [] });
         setFilialCadastro(null);
+        setFilialCadastroId(null);
       });
     return () => {
       vivo = false;
@@ -186,7 +189,7 @@ export default function TelaCatalogo() {
   const selos = (chipFilial ? 1 : 0) + (escolha.soComEstoque ? 1 : 0);
   const abrirEstoque = (item: ItemVitrine) => {
     if (!item.availability || !perfil) return;
-    setDadosDaFolhaEstoque(dadosDaFolha({ codigo: item.erp_code, availability: item.availability, cargaEm: sync.sincronizado_em, proprias: filiais.proprias, agora: relogioReal().agora().toISOString(), fuso }));
+    setDadosDaFolhaEstoque(dadosDaFolha({ codigo: item.erp_code, availability: item.availability, cargaEm: sync.sincronizado_em, filialCadastro: filialCadastroId, agora: relogioReal().agora().toISOString(), fuso }));
   };
   const nomeDoFiltro = arvore?.arvore.nos.get(filtro.categoriaId ?? filtro.sistemaId ?? '')?.nome ?? '';
   const cabecalho = {

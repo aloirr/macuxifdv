@@ -57,6 +57,9 @@ export interface ContextoVitrine {
   filiais: readonly string[] | null;
   /** Filiais da folha "Estoque por filial" (`filiaisDaFolha`, `estoque-campo.ts`); ausente = as mesmas de `filiais`. */
   filiaisFolha?: readonly string[] | null;
+  /** Filial de cadastro (primeira na folha, spec §2.1) e nomes das filiais (as de venda sem saldo aparecem com 0). */
+  filialCadastro?: string | null;
+  nomesFilial?: Readonly<Record<string, string>>;
 }
 
 /** RN-VEN-01 (T-0173): sem cliente vale a tabela da filial padrão; produto sem preço nela mostra só "Sem preço". */
@@ -85,7 +88,7 @@ export function itemDaVitrine(p: ProdutoCatalogo, ctx: ContextoVitrine): ItemVit
   const base = { id: p.id, erp_code: p.sku, description: p.nome, brand: p.marca, line: p.categoria, unit: p.unidade, ean: p.ean, thumbnail_url: p.thumbnail_url, is_campaign: p.campanha };
   // RN-CAT-05 / RN-CORE-39: sem filial de venda (sem_filial ou sem usuário) o estoque fica VAZIO (nulo), nunca "0"
   const semFilialDeVenda = ctx.filiaisFolha !== undefined && ctx.filiaisFolha !== null && ctx.filiaisFolha.length === 0;
-  const availability = semFilialDeVenda ? null : estoqueVisivel(p.id, ctx.saldos.get(p.id) ?? [], { filiais: ctx.filiais, ...(ctx.filiaisFolha !== undefined ? { filiaisFolha: ctx.filiaisFolha } : {}), agora: ctx.agora, parametros: ctx.parametros });
+  const availability = semFilialDeVenda ? null : estoqueVisivel(p.id, ctx.saldos.get(p.id) ?? [], { filiais: ctx.filiais, ...(ctx.filiaisFolha !== undefined ? { filiaisFolha: ctx.filiaisFolha } : {}), ...(ctx.filialCadastro !== undefined ? { filialCadastro: ctx.filialCadastro } : {}), ...(ctx.nomesFilial !== undefined ? { nomesFilial: ctx.nomesFilial } : {}), agora: ctx.agora, parametros: ctx.parametros });
   if (!podeVerPrecoEstoque(ctx.perfil, ctx.parametros)) return { ...base, price: null, availability, price_stock_visible: false };
   const item: ItemVitrine = {
     ...base,

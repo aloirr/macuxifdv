@@ -296,7 +296,7 @@ describe('GET /v1/catalogo/busca — sem cliente: preço e estoque da filial (RN
     }
   });
 
-  it('RN-CAT-05 (revista) / spec §4: supervisor soma as filiais dele e a folha lista só as dele', async () => {
+  it('RN-CAT-05 (revista) / spec §4: supervisor soma as filiais dele e a folha lista só as dele (a de venda sem saldo com 0, RN-CORE-39)', async () => {
     const em = relogio.relativo({ horas: -1 }).toISOString();
     const cafeId = dadosA().produtos[0]!.id;
     comFiliais({
@@ -306,7 +306,8 @@ describe('GET /v1/catalogo/busca — sem cliente: preço e estoque da filial (RN
     const { rota } = montar();
     const a = cafe((await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('supervisor'), { query: { q: 'café' } })).corpo).availability!;
     expect(a.quantity).toBe(7);
-    expect(a.by_branch.map((b) => b.branch_id)).toEqual([FILIAL_BVB]);
+    expect(a.by_branch.map((b) => [b.branch_id, b.quantity])).toEqual([[FILIAL_BVB, 7], [FILIAL_PADRAO_MEMORIA, 0]]);
+    expect(a.by_branch.map((b) => b.branch_id)).not.toContain(FILIAL_DEMO);
     const fora = await chamar(rota('GET', 'busca'), usuario('supervisor'), { query: { q: 'café', filial: FILIAL_DEMO } });
     expect(fora).toMatchObject({ status: 403, codigo: 'FILIAL_FORA_DAS_SUAS' });
   });

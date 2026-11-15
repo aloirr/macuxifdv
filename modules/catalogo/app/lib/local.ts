@@ -354,7 +354,7 @@ export async function contextoLocal(leitor: LeitorLocal, e: EntradaLocal, produt
   // RN-CORE-39: usuário sem filial = preço e estoque vazios
   if (doUsuario.semFilial) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos, filiais: [], filiaisFolha: [] };
   const filiais = filiaisDoEstoque(doUsuario, { filialDoCliente: filialDoCliente?.filialCliente ?? null, filtro: e.filtroFilial ?? null });
-  return { ...base, tabelaClienteId, itensPreco, promocoes: [], saldos, filiais, filiaisFolha: filiaisDaFolha(doUsuario) };
+  return { ...base, tabelaClienteId, itensPreco, promocoes: [], saldos, filiais, filiaisFolha: filiaisDaFolha(doUsuario), filialCadastro: doUsuario.filialCadastro, nomesFilial };
 }
 
 /** Filiais de venda da linha `usuario` do sync (T-0176, via `lerFiliaisDoUsuario`); `null` = sem a lista (emissor antigo ou usuário fora do aparelho). */

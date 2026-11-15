@@ -16,6 +16,10 @@ export interface OpcoesEstoque {
   filiais: readonly string[] | null;
   /** catalogo-campo-v2 §4: filiais listadas na folha "Estoque por filial" (`null` = todas). Ausente = as mesmas de `filiais`; o total (N) soma só `filiais`. */
   filiaisFolha?: readonly string[] | null;
+  /** catalogo-campo-v2 §2.1: filial de CADASTRO do usuário; vem primeiro na folha (as outras, em ordem alfabética). */
+  filialCadastro?: string | null;
+  /** Nome das filiais (id → nome) para a filial de venda sem linha de saldo (RN-CORE-39), que aparece com 0. */
+  nomesFilial?: Readonly<Record<string, string>>;
   /** Instante da consulta (ISO UTC). */
   agora: string;
   parametros: Pick<ParametrosCatalogo, 'estoque_baixo_ate' | 'estoque_mostrar_quantidade' | 'estoque_defasado_horas'>;
@@ -52,7 +56,15 @@ export function estoqueVisivel(produtoId: string, saldos: readonly StockByBranch
     porFilial.set(s.branch_id, atual);
   }
 
-  const filiais = [...porFilial.entries()].sort(([ia, a], [ib, b]) => cmp(a.nome, b.nome) || cmp(ia, ib));
+  // RN-CORE-39: filial de venda sem linha de saldo aparece na folha com 0 (o N soma 0 dela)
+  if (daFolha) {
+    for (const id of daFolha) {
+      if (!porFilial.has(id)) porFilial.set(id, { nome: opcoes.nomesFilial?.[id] ?? `Filial ${id.slice(0, 8)}`, quantidade: 0, atualizado: null, semHora: false });
+    }
+  }
+  const cadastro = opcoes.filialCadastro ?? null;
+  // catalogo-campo-v2 §2.1: a de cadastro primeiro; as outras em ordem alfabética
+  const filiais = [...porFilial.entries()].sort(([ia, a], [ib, b]) => Number(ib === cadastro) - Number(ia === cadastro) || cmp(a.nome, b.nome) || cmp(ia, ib));
   const doTotal = filiais.filter(([id]) => !permitidas || permitidas.has(id));
   const total = doTotal.reduce((acc, [, f]) => acc + f.quantidade, 0);
   const horas_conhecidas = doTotal.map(([, f]) => f.atualizado).filter((t): t is number => t !== null);

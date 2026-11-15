@@ -56,6 +56,23 @@ describe('RF-CAT-03 / RN-VEN-20: estoque visível por filial/depósito do usuár
     expect(r.by_branch.map((b) => b.branch_id)).not.toContain('f3');
   });
 
+  it('RN-CORE-39 e catalogo-campo-v2 §2.1: filial de venda SEM linha de saldo aparece na folha com estoque 0 (o N continua a soma)', () => {
+    const r = estoqueVisivel('p1', [saldo('f1', 5)], { filiais: ['f1', 'f2'], filiaisFolha: ['f1', 'f2'], nomesFilial: { f2: 'Manaus' }, agora: '2026-11-01T12:00:00Z', parametros: resolverParametros({}) });
+    expect(r.quantity).toBe(5);
+    expect(r.by_branch.map((b) => [b.branch_id, b.branch_name, b.quantity, b.band])).toEqual([['f1', 'Filial f1', 5, 'baixo'], ['f2', 'Manaus', 0, 'sem_estoque']]);
+  });
+
+  it('RN-CORE-39: produto sem nenhum saldo e com filiais de venda lista todas com 0; sem filial nenhuma a folha fica vazia', () => {
+    const p = resolverParametros({});
+    expect(estoqueVisivel('p1', [], { filiais: ['f1', 'f2'], agora: '2026-11-01T12:00:00Z', parametros: p }).by_branch.map((b) => [b.branch_id, b.quantity])).toEqual([['f1', 0], ['f2', 0]]);
+    expect(estoqueVisivel('p1', [], { filiais: [], agora: '2026-11-01T12:00:00Z', parametros: p }).by_branch).toEqual([]);
+  });
+
+  it('catalogo-campo-v2 §2.1: a filial de cadastro vem primeiro e as outras de venda em ordem alfabética', () => {
+    const r = estoqueVisivel('p1', [saldo('b', 1), saldo('m', 2), saldo('v', 3)], { filiais: ['b', 'm', 'v'], filialCadastro: 'v', nomesFilial: {}, agora: '2026-11-01T12:00:00Z', parametros: resolverParametros({}) });
+    expect(r.by_branch.map((b) => b.branch_id)).toEqual(['v', 'b', 'm']);
+  });
+
   it('RF-CAT-03: linhas repetidas da mesma filial somam', () => {
     expect(ver([saldo('f1', 3), saldo('f1', 4)], ['f1']).by_branch).toHaveLength(1);
     expect(ver([saldo('f1', 3), saldo('f1', 4)], ['f1']).quantity).toBe(7);
@@ -146,8 +163,9 @@ describe('RN-CORE-39: estoque da filial do cliente (T-0149)', () => {
     expect(r.by_branch.map((b) => b.branch_id)).toEqual(['f2']);
   });
 
-  it('RN-CORE-39: sem registro na filial do cliente o estoque é 0 (nunca o da padrão)', () => {
+  it('RN-CORE-39: sem registro na filial do cliente o estoque é 0 (nunca o da padrão), e a filial aparece com 0', () => {
     const r = ver([saldo('f1', 50)], ['f2']);
-    expect(r).toMatchObject({ quantity: 0, band: 'sem_estoque', by_branch: [] });
+    expect(r).toMatchObject({ quantity: 0, band: 'sem_estoque' });
+    expect(r.by_branch.map((b) => [b.branch_id, b.quantity])).toEqual([['f2', 0]]);
   });
 });
