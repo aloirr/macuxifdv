@@ -176,6 +176,11 @@ describe('RN-CAT-14: textos do relatório e do lote recusado (spec do designer)'
   it('RN-CAT-14: o aviso do lote recusado usa o limite efetivo do tenant', () => {
     expect(mensagemMotivoLote('zip_grande', { bytesZipMax: 200 * 1024 * 1024 })).toBe('O ZIP passa de 200 MB. Divida as fotos em mais de um ZIP.');
     expect(mensagemMotivoLote('muitos_arquivos', { arquivosMax: 5000 })).toBe('O ZIP passa de 5.000 arquivos. Divida as fotos em mais de um ZIP.');
+    expect(mensagemMotivoLote('zip_grande')).toBe('O ZIP passa de 500 MB. Divida as fotos em mais de um ZIP.');
+    expect(mensagemMotivoLote('descompactado_grande')).toBe('As fotos passam de 1024 MB descompactadas. Divida em mais de um ZIP.');
+    expect(textoMotivoItem({ situacao: 'recusado', motivo: 'foto_grande', codigos_candidatos: null })).toBe('Foto acima de 8 MB');
+    expect(textoMotivoItem({ situacao: 'recusado', motivo: 'foto_grande', codigos_candidatos: null }, { bytesEntradaMax: 2 * 1024 * 1024 })).toBe('Foto acima de 2 MB');
+    expect(csvRelatorioFotos([{ arquivo: 'a.jpg', situacao: 'recusado', motivo: 'foto_grande', codigo: null, produto_codigo: null, ordem: null, codigos_candidatos: null }], { bytesEntradaMax: 2 * 1024 * 1024 })).toContain('Foto acima de 2 MB');
     expect(mensagemMotivoLote('zip_invalido')).toBe('O arquivo não abre como ZIP. Compacte as fotos de novo.');
   });
 });

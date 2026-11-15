@@ -4,7 +4,7 @@
  * Roda na API (trabalho do lote) e no BKO (conferência do tamanho antes do envio).
  */
 import { BOM_CSV, celulaCsv } from '@macuxi/comum/csv';
-import { LIMITES_ZIP_TETO, type LimitesZip, type MotivoRecusaZip } from '@macuxi/platform-sdk';
+import { LIMITES_ZIP_TETO, megabytesParaMensagem, type LimitesZip, type MotivoRecusaZip } from '@macuxi/platform-sdk';
 import {
   FOTO_LOTE_CODIGO_MAX,
   FOTO_LOTE_ORDEM_MAX,
@@ -32,16 +32,11 @@ export function limitesFotoLote(parametros: Readonly<Record<string, unknown>>): 
   };
 }
 
-const MIB = 1024 * 1024;
-
 /** Bytes em MB (1 MB = 1 MiB, como o envio em partes). */
-export const megabytes = (bytes: number): number => bytes / MIB;
+export const megabytes = (bytes: number): number => bytes / (1024 * 1024);
 
-/** `500 MB`, `1,5 MB`: o único formato de tamanho dos textos do lote. */
-export function textoMb(bytes: number): string {
-  const mb = megabytes(bytes);
-  return `${Number.isInteger(mb) ? mb : mb.toFixed(1).replace('.', ',')} MB`;
-}
+/** `500 MB`, `1,5 MB`: o único formato de tamanho dos textos do lote (o do SDK). */
+export const textoMb = (bytes: number): string => `${megabytesParaMensagem(bytes)} MB`;
 
 /** Linha de limites da área de envio (spec `fotos-em-lote.md` §2.1), com os limites efetivos do tenant. */
 export function textoLimitesLote(limites: Pick<LimitesZip, 'bytesZipMax' | 'arquivosMax' | 'bytesEntradaMax'>): string {
@@ -55,12 +50,20 @@ export function conferirTamanhoZip(tamanhoBytes: number, limites: Pick<LimitesZi
 }
 
 /**
- * Aviso do lote recusado (spec do designer-ux §5.4). Os números saem dos limites efetivos do tenant, não do texto fixo.
+ * Aviso do lote recusado (spec do designer-ux §5.4). Os números saem do limite efetivo do tenant; sem ele, do teto da plataforma.
  */
-export function mensagemMotivoLote(motivo: MotivoLote, limites: Partial<Pick<LimitesZip, 'bytesZipMax' | 'arquivosMax'>> = {}): string {
-  if (motivo === 'zip_grande' && limites.bytesZipMax !== undefined) return `O ZIP passa de ${textoMb(limites.bytesZipMax)}. Divida as fotos em mais de um ZIP.`;
-  if (motivo === 'muitos_arquivos' && limites.arquivosMax !== undefined) return `O ZIP passa de ${limites.arquivosMax.toLocaleString('pt-BR')} arquivos. Divida as fotos em mais de um ZIP.`;
-  return ROTULO_MOTIVO_LOTE[motivo];
+export function mensagemMotivoLote(motivo: MotivoLote, limites: Partial<Pick<LimitesZip, 'bytesZipMax' | 'arquivosMax' | 'bytesDescompactadosMax'>> = {}): string {
+  const l = { ...LIMITES_ZIP_TETO, ...limites };
+  switch (motivo) {
+    case 'zip_grande':
+      return `O ZIP passa de ${textoMb(l.bytesZipMax)}. Divida as fotos em mais de um ZIP.`;
+    case 'muitos_arquivos':
+      return `O ZIP passa de ${l.arquivosMax.toLocaleString('pt-BR')} arquivos. Divida as fotos em mais de um ZIP.`;
+    case 'descompactado_grande':
+      return `As fotos passam de ${textoMb(l.bytesDescompactadosMax)} descompactadas. Divida em mais de um ZIP.`;
+    default:
+      return ROTULO_MOTIVO_LOTE[motivo];
+  }
 }
 
 // ---------- nome → código e ordem ----------
@@ -168,7 +171,8 @@ export function listaComE(itens: readonly string[]): string {
 }
 
 /** Coluna Motivo da tela e do CSV (spec §5.3): vazia quando a situação já diz tudo; ambígua lista os produtos candidatos. */
-export function textoMotivoItem(i: Pick<ItemRelatorioFoto, 'situacao' | 'motivo' | 'codigos_candidatos'>): string {
+export function textoMotivoItem(i: Pick<ItemRelatorioFoto, 'situacao' | 'motivo' | 'codigos_candidatos'>, limites: Partial<Pick<LimitesZip, 'bytesEntradaMax'>> = {}): string {
+  if (i.motivo === 'foto_grande') return `Foto acima de ${textoMb(limites.bytesEntradaMax ?? LIMITES_ZIP_TETO.bytesEntradaMax)}`;
   if (i.motivo) return ROTULO_MOTIVO_ITEM[i.motivo];
   if (i.situacao === 'ambiguo' && i.codigos_candidatos && i.codigos_candidatos.length > 0) return `Serve para ${listaComE(i.codigos_candidatos)}`;
   return '';
@@ -182,11 +186,12 @@ const CABECALHO_RELATORIO = ['Arquivo', 'Situação', 'Motivo', 'Código no nome
  */
 export function csvRelatorioFotos(
   itens: readonly ItemRelatorioFoto[],
+  limites: Partial<Pick<LimitesZip, 'bytesEntradaMax'>> = {},
 ): string {
   const linhas = [CABECALHO_RELATORIO.map(celulaCsv).join(';')];
   for (const i of itens) {
     linhas.push(
-      [i.arquivo, ROTULO_SITUACAO_ITEM[i.situacao], textoMotivoItem(i), i.codigo ?? '', i.produto_codigo ?? '', i.ordem === null ? '' : String(i.ordem)].map(celulaCsv).join(';'),
+      [i.arquivo, ROTULO_SITUACAO_ITEM[i.situacao], textoMotivoItem(i, limites), i.codigo ?? '', i.produto_codigo ?? '', i.ordem === null ? '' : String(i.ordem)].map(celulaCsv).join(';'),
     );
   }
   return `${BOM_CSV}${linhas.join('\r\n')}\r\n`;

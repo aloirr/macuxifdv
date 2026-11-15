@@ -27,8 +27,10 @@ const AGORA = '2026-11-15T12:00:00.000Z';
 describe('RN-CAT-14: estados do lote e do item', () => {
   it('RN-CAT-14: todo estado e motivo tem rótulo em português', () => {
     for (const s of SituacaoItem.options) expect(ROTULO_SITUACAO_ITEM[s], s).toBeTruthy();
-    for (const m of MotivoItem.options) expect(ROTULO_MOTIVO_ITEM[m], m).toBeTruthy();
-    for (const m of MotivoLote.options) expect(ROTULO_MOTIVO_LOTE[m], m).toBeTruthy();
+    // os motivos com número (teto do tenant) saem do domain: `mensagemMotivoLote` e `textoMotivoItem`
+    const comNumero = new Set<string>(['foto_grande', 'zip_grande', 'muitos_arquivos', 'descompactado_grande']);
+    for (const m of MotivoItem.options.filter((x) => !comNumero.has(x))) expect((ROTULO_MOTIVO_ITEM as Record<string, string>)[m], m).toBeTruthy();
+    for (const m of MotivoLote.options.filter((x) => !comNumero.has(x))) expect((ROTULO_MOTIVO_LOTE as Record<string, string>)[m], m).toBeTruthy();
   });
   it('RN-CAT-14: o item aceita os estados ligado, sem produto, ambíguo, recusado com motivo e repetido', () => {
     const base = { indice: 0, arquivo: 'A1.jpg', tipo_detectado: null, codigo: 'A1', ordem: 1, produto_id: U(1), produto_codigo: 'A1', codigos_candidatos: null };

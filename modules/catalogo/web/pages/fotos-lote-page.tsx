@@ -412,6 +412,7 @@ function Andamento({ lote, fase, envio, tamanho }: { lote: FotoLote; fase: FaseL
 }
 
 function Relatorio({ lote }: { lote: FotoLote }) {
+  const { limites } = useLimites();
   const [tela, ir] = useTela();
   const cartao = tela.cartao;
   const [paginas, setPaginas] = useState<FotoLoteItem[]>([]);
@@ -448,7 +449,7 @@ function Relatorio({ lote }: { lote: FotoLote }) {
     { id: 'situacao', titulo: 'Situação', largura: '130px', celula: (i) => <SeloSituacao selos={[seloDoItem(i.situacao)]} /> },
     { id: 'produto', titulo: 'Produto', prioridade: 2, largura: '22%', celula: (i) => (i.situacao === 'ligado' || i.situacao === 'repetido' ? (i.produto_codigo ?? '—') : '—'), texto: (i) => i.produto_codigo ?? '' },
     { id: 'ordem', titulo: 'Ordem', prioridade: 2, numero: true, largura: '72px', celula: (i) => (i.situacao === 'ligado' || i.situacao === 'repetido' ? (i.ordem ?? '—') : '—') },
-    { id: 'motivo', titulo: 'Motivo', celula: (i) => textoMotivoItem(i), texto: (i) => textoMotivoItem(i) },
+    { id: 'motivo', titulo: 'Motivo', celula: (i) => textoMotivoItem(i, limites ?? {}), texto: (i) => textoMotivoItem(i, limites ?? {}) },
   ];
   const marcar = (c: CartaoFoto | null) => ir({ cartao: c }, 'replace');
 

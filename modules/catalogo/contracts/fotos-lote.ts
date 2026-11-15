@@ -41,13 +41,12 @@ export const ROTULO_SITUACAO_ITEM: Readonly<Record<SituacaoItem, string>> = {
   recusado: 'Recusada',
   repetido: 'Repetida',
 };
-/** Texto da coluna Motivo (tela e CSV; spec `docs/design/telas/fotos-em-lote.md` §5.3). `ambiguo` usa `textoMotivoItem` do domain. */
-export const ROTULO_MOTIVO_ITEM: Readonly<Record<MotivoItem, string>> = {
+/** Texto da coluna Motivo (tela e CSV; spec `docs/design/telas/fotos-em-lote.md` §5.3). `ambiguo` e `foto_grande` (número do teto do tenant) saem de `textoMotivoItem` do domain. */
+export const ROTULO_MOTIVO_ITEM: Readonly<Record<Exclude<MotivoItem, 'foto_grande'>, string>> = {
   caminho_invalido: 'Caminho inválido no ZIP',
   criptografado: 'Arquivo com senha',
   compressao_nao_suportada: 'Compactação não aceita',
   arquivo_vazio: 'Arquivo vazio',
-  foto_grande: 'Foto acima de 8 MB',
   compressao_suspeita: 'Compactação suspeita',
   entrada_corrompida: 'Arquivo corrompido',
   tipo_nao_aceito: 'Não é JPEG, PNG nem WEBP',
@@ -55,15 +54,16 @@ export const ROTULO_MOTIVO_ITEM: Readonly<Record<MotivoItem, string>> = {
   nome_invalido: 'Nome não é código nem EAN',
   ordem_repetida_no_lote: 'Outra foto do ZIP tem a mesma ordem',
 };
-/** Aviso do lote recusado com os tetos da plataforma; com limite menor do tenant use `mensagemMotivoLote` do domain. */
-export const ROTULO_MOTIVO_LOTE: Readonly<Record<MotivoLote, string>> = {
-  zip_grande: 'O ZIP passa de 500 MB. Divida as fotos em mais de um ZIP.',
-  muitos_arquivos: 'O ZIP passa de 10.000 arquivos. Divida as fotos em mais de um ZIP.',
-  descompactado_grande: 'As fotos passam de 1 GB descompactadas. Divida em mais de um ZIP.',
+/** Aviso do lote recusado sem número; os que citam limite saem de `mensagemMotivoLote` do domain (teto do tenant). */
+export const ROTULO_MOTIVO_LOTE: Readonly<Record<Exclude<MotivoLote, 'zip_grande' | 'muitos_arquivos' | 'descompactado_grande'>, string>> = {
   zip_invalido: 'O arquivo não abre como ZIP. Compacte as fotos de novo.',
   zip64_nao_suportado: 'Formato de ZIP não aceito. Compacte de novo sem a opção ZIP64.',
   zip_incompleto: 'O ZIP chegou incompleto. Envie de novo.',
 };
+
+/** Textos dos 409 do envio (a API responde com eles e a tela mostra os mesmos). */
+export const TEXTO_LOTES_ATIVOS = 'Espere um dos lotes em processamento terminar para enviar outro.';
+export const TEXTO_ENVIO_PAROU = 'O envio parou. Confira a internet e tente de novo.';
 
 // ---------- rotas ----------
 export const FotoLoteCriarSchema = z

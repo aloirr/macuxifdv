@@ -15,6 +15,8 @@ import {
   ParamsFotoLote,
   ROTAS_CATALOGO,
   SITUACOES_LOTE_EM_ANDAMENTO,
+  TEXTO_ENVIO_PAROU,
+  TEXTO_LOTES_ATIVOS,
   type EnvioLote,
   type FotoLote,
   type FotoLoteCriado,
@@ -154,7 +156,7 @@ export function criarRotasFotosLote(): RotaModulo[] {
         }
         const ativos = await db.query<{ n: number }>(`select count(*)::int as n from catalogo.foto_lote where situacao = any($1::text[]) and deleted_at is null`, [[...SITUACOES_LOTE_EM_ANDAMENTO]]);
         if ((ativos.rows[0]?.n ?? 0) >= FOTO_LOTE_ATIVOS_MAX) {
-          throw new ErroHttpModulo(409, 'LOTE_EM_ANDAMENTO', 'Já há lotes de fotos sendo processados. Aguarde um deles terminar e envie o ZIP de novo.');
+          throw new ErroHttpModulo(409, 'LOTE_EM_ANDAMENTO', TEXTO_LOTES_ATIVOS);
         }
         try {
           await db.query(
@@ -189,7 +191,7 @@ export function criarRotasFotosLote(): RotaModulo[] {
         if (lote.situacao !== 'aguardando_envio') return loteComTotais(db, lote.id);
         const arquivo = tx.infoArquivo ? await tx.infoArquivo(lote.arquivo_id) : null;
         if (!arquivo || arquivo.situacao !== 'recebido') {
-          throw new ErroHttpModulo(409, 'ENVIO_INCOMPLETO', 'O envio do ZIP não terminou. Envie o arquivo de novo e confirme ao final.');
+          throw new ErroHttpModulo(409, 'ENVIO_INCOMPLETO', TEXTO_ENVIO_PAROU);
         }
         await db.query(`update catalogo.foto_lote set situacao = 'enfileirado' where id = $1::uuid and situacao = 'aguardando_envio'`, [lote.id]);
         await tx.publicar(EVENTO_FOTO_LOTE_ENFILEIRADO, { lote_id: lote.id, arquivo_id: lote.arquivo_id, enviado_por: lote.enviado_por, ocorrido_em: ctx.agora().toISOString() }, lote.id);
@@ -278,7 +280,7 @@ export function criarRotasFotosLote(): RotaModulo[] {
       return ctx.comTenant(async (db) => {
         if (!(await lerLote(db, ctx.params.id))) throw new ErroNaoEncontrado('LOTE_NAO_ENCONTRADO', 'Lote de fotos não encontrado. Volte à lista e abra o lote de novo.');
         const r = await db.query<LinhaItem>(`select ${COLUNAS_ITEM} from catalogo.foto_lote_item where lote_id = $1::uuid and deleted_at is null order by indice`, [ctx.params.id]);
-        return csvRelatorioFotos(r.rows.map((l) => ({ arquivo: l.caminho, situacao: l.situacao, motivo: l.motivo, codigo: l.codigo, produto_codigo: l.produto_codigo, ordem: l.ordem, codigos_candidatos: l.codigos_candidatos })));
+        return csvRelatorioFotos(r.rows.map((l) => ({ arquivo: l.caminho, situacao: l.situacao, motivo: l.motivo, codigo: l.codigo, produto_codigo: l.produto_codigo, ordem: l.ordem, codigos_candidatos: l.codigos_candidatos })), limitesFotoLote(ctx.parametros()));
       });
     },
   };

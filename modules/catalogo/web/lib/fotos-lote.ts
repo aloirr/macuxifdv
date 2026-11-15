@@ -5,7 +5,7 @@
  */
 import { partesDoEnvio, PARTE_ENVIO_BYTES, type LimitesZip } from '@macuxi/platform-sdk';
 import { DEFAULT_TZ, formatDateTime, formatInt, type Selo } from '@macuxi/ui/web';
-import { FOTO_LOTE_ATIVOS_MAX, ROTULO_SITUACAO_ITEM, SITUACOES_LOTE_EM_ANDAMENTO, type FotoLote, type FotoLoteLimites, type SituacaoItem, type TotaisLote } from '../../contracts';
+import { FOTO_LOTE_ATIVOS_MAX, TEXTO_ENVIO_PAROU, TEXTO_LOTES_ATIVOS, ROTULO_SITUACAO_ITEM, SITUACOES_LOTE_EM_ANDAMENTO, type FotoLote, type FotoLoteLimites, type SituacaoItem, type TotaisLote } from '../../contracts';
 import { conferirTamanhoZip, megabytes } from '../../domain';
 
 // ---------- cartões do relatório ----------
@@ -123,8 +123,7 @@ export function dataHoraCurta(iso: string, tz: string = DEFAULT_TZ): string {
 export function avisoLoteRepetido(criadoEm: string, tz: string = DEFAULT_TZ): string {
   return `Este ZIP já foi enviado em ${formatDateTime(criadoEm, tz)}. O resultado está abaixo.`;
 }
-export const TEXTO_ENVIO_PAROU = 'O envio parou. Confira a internet e tente de novo.';
-export const TEXTO_LOTES_ATIVOS = 'Espere um dos lotes em processamento terminar para enviar outro.';
+export { TEXTO_ENVIO_PAROU, TEXTO_LOTES_ATIVOS };
 
 // ---------- conferência do arquivo ----------
 /** Limites efetivos do tenant (`GET fotos-lote/limites`) no formato do domain. */
