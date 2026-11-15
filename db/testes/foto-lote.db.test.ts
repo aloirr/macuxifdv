@@ -1,6 +1,6 @@
 /**
- * 0080 — fotos dos produtos em lote por ZIP e trabalho sob demanda (T-0174, RN-CAT-14, ADR 0054; desenho docs/desenho/T-0174.md
- * §2). Dicionário: docs/banco/catalogo.md e docs/banco/plataforma.md, "0080". O que o BANCO garante:
+ * 0079 — fotos dos produtos em lote por ZIP e trabalho sob demanda (T-0174, RN-CAT-14, ADR 0054; desenho docs/desenho/T-0174.md
+ * §2). Dicionário: docs/banco/catalogo.md e docs/banco/plataforma.md, "0079". O que o BANCO garante:
  * - plataforma.arquivo aceita JPEG, PNG e WEBP até 8 MiB e o ZIP até 500 MiB (R-20261115-074500); nada além;
  * - catalogo.foto_lote: o mesmo ZIP (SHA-256) vivo uma vez por tenant (fora 'falhou' e 'duplicado'); coerências de situação;
  * - catalogo.foto_lote_item: checkpoint único por (lote, indice); ordem repetida no lote entre os 'ligado'; ids reservados únicos;
@@ -25,10 +25,10 @@ import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 const migracoes = lerMigracoes();
-const m80 = migracoes.find((m) => m.versao === '0080')!;
+const m79 = migracoes.find((m) => m.versao === '0079')!;
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
-const up = semComentarios(m80.up);
-const down = semComentarios(m80.down);
+const up = semComentarios(m79.up);
+const down = semComentarios(m79.down);
 const umaLinha = up.replace(/\s+/g, ' ');
 const MIB = 1024 * 1024;
 const TABELAS = ['plataforma.trabalho', 'catalogo.foto_lote', 'catalogo.foto_lote_item'] as const;
@@ -48,10 +48,10 @@ const valoresDoCheck = (nome: string): string[] =>
   [...(new RegExp(`constraint ${nome} check \\([a-z_]+ in \\(([^)]*)\\)\\)`).exec(umaLinha)?.[1] ?? '').matchAll(/'([a-z0-9_/]+)'/g)].map((x) => x[1]!);
 const colunasDrizzle = (t: Parameters<typeof getTableConfig>[0]) => getTableConfig(t).columns.map((c) => c.name).sort();
 
-describe('0080 fotos em lote e trabalho sob demanda (estático)', () => {
-  it('nome e posição: 0080_catalogo_foto_lote na posição 80 (número reservado, R-20261115-115000)', () => {
+describe('0079 fotos em lote e trabalho sob demanda (estático)', () => {
+  it('nome e posição: 0079_catalogo_foto_lote na posição 79 (número 0079, correção da sessão principal em 15/11)', () => {
     const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
-    expect(nomes[79]).toBe('0080_catalogo_foto_lote');
+    expect(nomes[78]).toBe('0079_catalogo_foto_lote');
   });
 
   it('plataforma.arquivo: JPEG, PNG e WEBP até 8 MiB; ZIP até 500 MiB (R-20261115-074500)', () => {
@@ -176,7 +176,7 @@ describe('0080 fotos em lote e trabalho sob demanda (estático)', () => {
   });
 });
 
-describe.skipIf(semBanco())('0080 fotos em lote (banco, papel de aplicação, fixture dois-tenants)', () => {
+describe.skipIf(semBanco())('0079 fotos em lote (banco, papel de aplicação, fixture dois-tenants)', () => {
   let app: pg.Client;
   beforeAll(async () => {
     app = new pg.Client({ connectionString: banco().urlApp });
@@ -395,15 +395,15 @@ describe.skipIf(semBanco())('0080 fotos em lote (banco, papel de aplicação, fi
   });
 });
 
-describe.skipIf(semBanco())('0080 up/down e funções do worker (banco efêmero)', () => {
+describe.skipIf(semBanco())('0079 up/down e funções do worker (banco efêmero)', () => {
   let b: BancoDeTeste;
   const T = 'cccccccc-0000-4000-8000-000000000080';
   const S = 'cccccccc-0000-4000-8000-000000000071';
-  const U = 'cccccccc-0080-4000-8000-000000000001';
-  const P1 = 'cccccccc-0080-4000-8000-000000000101';
-  const P2 = 'cccccccc-0080-4000-8000-000000000102';
-  const M = (n: number) => `cccccccc-0080-4000-8000-0000000002${String(n).padStart(2, '0')}`;
-  const W = (n: number) => `cccccccc-0080-4000-8000-0000000003${String(n).padStart(2, '0')}`;
+  const U = 'cccccccc-0079-4000-8000-000000000001';
+  const P1 = 'cccccccc-0079-4000-8000-000000000101';
+  const P2 = 'cccccccc-0079-4000-8000-000000000102';
+  const M = (n: number) => `cccccccc-0079-4000-8000-0000000002${String(n).padStart(2, '0')}`;
+  const W = (n: number) => `cccccccc-0079-4000-8000-0000000003${String(n).padStart(2, '0')}`;
   /** hora-fixa-ok: updated_at antigo das mídias, só comparado com ele mesmo depois da migração. */
   const ANTIGO = '2026-01-02T03:04:05.000Z';
   let antes: string[];
@@ -427,7 +427,7 @@ describe.skipIf(semBanco())('0080 up/down e funções do worker (banco efêmero)
 
   it('up: aborta (55000) com foto viva não principal na ordem 1 ao lado da principal; corrigido, as principais vão a 1 SEM andar o updated_at', async () => {
     await comAdmin(b.nome, async (c) => {
-      await migrarUp(c, { ate: '0079' });
+      await migrarUp(c, { ate: '0078' });
       antes = await retratoDoCatalogo(c);
       await c.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 'antigo70', 'Antigo')", [T]);
       const midia = "insert into catalogo.produto_midia (id, tenant_id, produto_id, tipo, url, ordem, principal, updated_at, deleted_at) values ($1, $2, $3, 'foto', 'https://x/f.jpg', $4, $5, $6, $7)";
@@ -435,10 +435,10 @@ describe.skipIf(semBanco())('0080 up/down e funções do worker (banco efêmero)
       await c.query(midia, [M(2), T, P1, 0, true, ANTIGO, ANTIGO]); // principal antiga, removida
       await c.query(midia, [M(3), T, P2, 0, true, ANTIGO, null]);
       await c.query(midia, [M(4), T, P2, 1, false, ANTIGO, null]); // colidiria com a principal de P2 na ordem 1
-      expect(await falhaDaMigracao(migrarUp(c, { ate: '0080' }))).toMatchObject({ code: '55000', message: expect.stringContaining('1 foto(s)') });
+      expect(await falhaDaMigracao(migrarUp(c, { ate: '0079' }))).toMatchObject({ code: '55000', message: expect.stringContaining('1 foto(s)') });
       await c.query('update catalogo.produto_midia set ordem = 2 where id = $1', [M(4)]);
       const tocadas = (await c.query<{ updated_at: Date }>('select updated_at from catalogo.produto_midia where id = $1', [M(4)])).rows[0]!.updated_at;
-      expect((await migrarUp(c, { ate: '0080' })).aplicadas).toEqual(['0080_catalogo_foto_lote']);
+      expect((await migrarUp(c, { ate: '0079' })).aplicadas).toEqual(['0079_catalogo_foto_lote']);
       const r = await c.query<{ id: string; ordem: number; updated_at: Date }>('select id, ordem, updated_at from catalogo.produto_midia order by id');
       expect(r.rows.map((x) => [x.id, x.ordem])).toEqual([[M(1), 1], [M(2), 1], [M(3), 1], [M(4), 2]]);
       for (const x of r.rows.filter((y) => y.id !== M(4))) expect(x.updated_at.toISOString(), x.id).toBe(ANTIGO);
@@ -453,7 +453,7 @@ describe.skipIf(semBanco())('0080 up/down e funções do worker (banco efêmero)
     });
   });
 
-  it('down: aborta (55000) com arquivo ZIP; sem ele, volta ao catálogo da 0079; idempotente; up de novo igual', async () => {
+  it('down: aborta (55000) com arquivo ZIP; sem ele, volta ao catálogo da 0078; idempotente; up de novo igual', async () => {
     await comAdmin(b.nome, async (c) => {
       await c.query("insert into core.usuario (id, tenant_id, nome, email, perfil, senha_hash) values ($1, $2, 'Analista', 'a@x.com.br', 'analista', $3)", [U, T, HASH_TESTE]);
       const zip = (
@@ -464,11 +464,11 @@ describe.skipIf(semBanco())('0080 up/down e funções do worker (banco efêmero)
       ).rows[0]!.id;
       expect(await falhaDaMigracao(migrarDown(c, { passos: 1 }))).toMatchObject({ code: '55000', message: expect.stringContaining('1 arquivo(s)') });
       await c.query('delete from plataforma.arquivo where id = $1', [zip]);
-      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0080_catalogo_foto_lote']);
+      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0079_catalogo_foto_lote']);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      await c.query(m80.down);
+      await c.query(m79.down);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      await migrarUp(c, { ate: '0080' });
+      await migrarUp(c, { ate: '0079' });
       expect(await retratoDoCatalogo(c)).toEqual(depois);
     });
   });

@@ -201,7 +201,7 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > [plataforma.md](plataforma.md) e no [core.md](core.md); teste `db/testes/cargo-hierarquia.db.test.ts`; diagnóstico
 > `db/scripts/diagnostico-0069.sql`.
 >
-> **2026-11-15 (T-0174, RN-CAT-14, ADR 0054; R-20261115-074500):** `0080_catalogo_foto_lote` (número reservado, R-20261115-115000):
+> **2026-11-15 (T-0174, RN-CAT-14, ADR 0054; R-20261115-074500):** `0079_catalogo_foto_lote` (número 0079, correção da sessão principal em 15/11):
 > `plataforma.arquivo` aceita PNG, WEBP (imagens até 8 MiB) e ZIP (até 500 MiB); `plataforma.trabalho` com
 > `trabalho_reservar`/`trabalho_devolver`/`trabalho_renovar` (só ao worker); `catalogo.foto_lote` (idempotência pelo SHA-256 do
 > ZIP) e `catalogo.foto_lote_item` (checkpoint por índice); `catalogo.produto_midia.hash_conteudo` (repetido) e a principal

@@ -62,9 +62,9 @@ export const TABELAS_FORA_DO_SYNC = [
   'plataforma.arquivo',
   /** Diagnóstico do aparelho (0058, T-0158, ADR 0043): o app só envia (POST /v1/diagnosticos); só o portal do super-admin lê. */
   'plataforma.diagnostico',
-  /** Trabalho sob demanda (0080, T-0174, ADR 0054): só a API e o worker usam. */
+  /** Trabalho sob demanda (0079, T-0174, ADR 0054): só a API e o worker usam. */
   'plataforma.trabalho',
-  /** Lote de fotos por ZIP e o relatório por arquivo (0080, T-0174, RN-CAT-14): só o BKO lê; a foto ligada vai ao aparelho pela produto_midia. */
+  /** Lote de fotos por ZIP e o relatório por arquivo (0079, T-0174, RN-CAT-14): só o BKO lê; a foto ligada vai ao aparelho pela produto_midia. */
   'catalogo.foto_lote',
   'catalogo.foto_lote_item',
   /** Contador do número legível do pedido (0009, T-0029): uma linha por tenant, só o servidor usa. */

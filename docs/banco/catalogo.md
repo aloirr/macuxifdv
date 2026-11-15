@@ -387,9 +387,9 @@ e `tabela_preco_desligado_no_bko`. Índices `tabela_preco_item_erp_versao_ix`, `
 `external_id` é o do cliente. Teste: `db/testes/erp-ordem.test.ts`.
 
 
-## 0080 — fotos dos produtos em lote por ZIP (`0080_catalogo_foto_lote`; T-0174, RN-CAT-14, ADR 0054)
+## 0079 — fotos dos produtos em lote por ZIP (`0079_catalogo_foto_lote`; T-0174, RN-CAT-14, ADR 0054)
 Desenho `docs/desenho/T-0174.md` §2; formatos JPEG, PNG e WEBP (R-20261115-074500). A parte da plataforma (tipos de
-`plataforma.arquivo` e `plataforma.trabalho`) está em [plataforma.md](plataforma.md), "0080". Volta: `.down.sql` (APAGA lotes,
+`plataforma.arquivo` e `plataforma.trabalho`) está em [plataforma.md](plataforma.md), "0079". Volta: `.down.sql` (APAGA lotes,
 itens e trabalhos; tira `hash_conteudo`; as fotos ligadas ficam). Drizzle: `fotoLote`, `fotoLoteItem` e as listas
 `*_FOTO_LOTE*_BANCO` em `modules/catalogo/db/nuvem.ts`. Teste: `db/testes/foto-lote.db.test.ts`.
 
@@ -431,7 +431,7 @@ situacao)` parcial nos `enfileirado|conferindo|processando` (`FOTO_LOTE_ATIVOS_M
 `foto_lote_item_ordem_uk (tenant_id, lote_id, produto_id, ordem)` parcial nos `ligado`: a 2ª foto da mesma ordem do mesmo produto
 no lote viola (23505) → o item vira `recusado` com `ordem_repetida_no_lote`. macuxi_app: select, insert, update (sem DELETE).
 
-### produto_midia (0080)
+### produto_midia (0079)
 | Coluna | Regra |
 |---|---|
 | hash_conteudo | text, SHA-256 hex da imagem (`produto_midia_hash_hex`); nulo na foto da ficha. **Repetido**: `produto_midia_hash_uk (tenant_id, produto_id, hash_conteudo)` entre as vivas (23505 = `repetido`) |
@@ -442,6 +442,6 @@ na migração**: o `updated_at` não andou, então o pull e a versão do catálo
 novo. Antes, a migração aborta (55000) se houver foto viva não principal na ordem 1 ao lado da principal (não há na base hoje).
 O app continua mostrando só a principal (ordem 1); a galeria é da 2ª etapa.
 
-### core.produto (0080)
+### core.produto (0079)
 `produto_sku_lower_ix (tenant_id, lower(sku))` entre os vivos, para `core.produtos_por_sku@1` (casamento sem diferenciar
 maiúsculas). O EAN no nome do arquivo usa o `produto_ean_ix (tenant_id, ean)` da 0002.

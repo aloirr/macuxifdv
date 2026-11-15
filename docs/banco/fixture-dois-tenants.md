@@ -197,7 +197,7 @@ Instantes derivados do "hoje" de cada tenant, na janela da visita do Core da fix
   admins de A e de B (mesmo id do gatilho); sem multiperfil.
 - Constantes em `DOIS_TENANTS.X.{perfis, sobreposicoes}`.
 
-### T-0174 (migração 0080; fotos em lote por ZIP, ADR 0054)
+### T-0174 (migração 0079; fotos em lote por ZIP, ADR 0054)
 - **`catalogo.foto_lote`** (grupo **0x68**): um lote **concluído** por tenant (A `fotos-alfa.zip` do analista; B `fotos-beta.zip`
   do admin); o ZIP já foi descartado (o `arquivo_id`, seq 101, não tem linha em `plataforma.arquivo`).
 - **`catalogo.foto_lote_item`** (grupo **0x69**): A `FOTO-X.jpg` `sem_produto`; B `BETA-001.jpg` `recusado` `tipo_nao_aceito`

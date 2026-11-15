@@ -199,7 +199,7 @@ const G = {
   usuario_avatar: 0x64,
   meta_produtividade: 0x65,
   deslocamento_dia: 0x66,
-  // 0080 (T-0174, ADR 0054): trabalho sob demanda e o lote de fotos por ZIP
+  // 0079 (T-0174, ADR 0054): trabalho sob demanda e o lote de fotos por ZIP
   trabalho: 0x67,
   foto_lote: 0x68,
   foto_lote_item: 0x69,
@@ -374,7 +374,7 @@ export const T0170_FIXTURE = {
 } as const;
 
 /**
- * 0080 (T-0174, ADR 0054): um lote de fotos JÁ CONCLUÍDO por tenant (o ZIP já foi descartado: arquivo_id sem linha em
+ * 0079 (T-0174, ADR 0054): um lote de fotos JÁ CONCLUÍDO por tenant (o ZIP já foi descartado: arquivo_id sem linha em
  * plataforma.arquivo, como depois do fim do lote), um item e o trabalho concluído. A: item 'sem_produto' (FOTO-X.jpg);
  * B: item 'recusado' por 'tipo_nao_aceito' (PNG renomeado). arquivo_id e midia_id dos itens são só reservados (nada gravado).
  * Um worker de teste não acha trabalho pendente; os testes que precisam de pendente gravam o seu em transação desfeita.
@@ -663,7 +663,7 @@ export const ORDEM_TABELAS = [
   // 0066 (T-0170): meta de produtividade (FKs -> core.equipe, core.usuario) e resumo do km (FK -> core.usuario)
   'core.meta_produtividade',
   'core.deslocamento_dia',
-  // 0080 (T-0174): lote de fotos (FK do item -> lote) e o trabalho sob demanda que o processou
+  // 0079 (T-0174): lote de fotos (FK do item -> lote) e o trabalho sob demanda que o processou
   'catalogo.foto_lote',
   'catalogo.foto_lote_item',
   'plataforma.trabalho',
@@ -1142,7 +1142,7 @@ function dadosT0170(
   };
 }
 
-/** 0080 (T-0174): lote concluído, um item e o trabalho concluído em A e em B (FOTO_LOTE_FIXTURE). */
+/** 0079 (T-0174): lote concluído, um item e o trabalho concluído em A e em B (FOTO_LOTE_FIXTURE). */
 function dadosFotoLote(): Pick<DadosFixture, 'catalogo.foto_lote' | 'catalogo.foto_lote_item' | 'plataforma.trabalho'> {
   const A = DOIS_TENANTS.A;
   const B = DOIS_TENANTS.B;

@@ -4,7 +4,7 @@
  * e 0035_plataforma_super_admin.up.sql (super-admin, só por função), 0039_plataforma_portal_email_senha.up.sql (portal por
  * e-mail e senha, só por função), 0040_core_senha_email_saida.up.sql (outbox de e-mail) e
  * 0041_plataforma_perfis_de_acesso.up.sql (perfis de acesso, ADR 0033; cargo e um perfil por usuário desde a
- * 0069_core_cargo_hierarquia.up.sql) e 0080_catalogo_foto_lote.up.sql (tipos de arquivo e trabalho sob demanda, ADR 0054),
+ * 0069_core_cargo_hierarquia.up.sql) e 0079_catalogo_foto_lote.up.sql (tipos de arquivo e trabalho sob demanda, ADR 0054),
  * para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
@@ -176,7 +176,7 @@ export const auditoria = plataforma.table('auditoria', {
   ocorrido_em: timestamp('ocorrido_em', { withTimezone: true }).notNull().defaultNow(),
 });
 
-/** Tipos aceitos em plataforma.arquivo (CHECK arquivo_tipo_valido, 0080); o TIPOS_ARQUIVO do platform-sdk fica contido aqui. */
+/** Tipos aceitos em plataforma.arquivo (CHECK arquivo_tipo_valido, 0079); o TIPOS_ARQUIVO do platform-sdk fica contido aqui. */
 export const TIPOS_ARQUIVO_BANCO = ['image/jpeg', 'image/png', 'image/webp', 'application/zip'] as const;
 
 /**
@@ -192,7 +192,7 @@ export const arquivo = plataforma.table('arquivo', {
   entidade_id: uuid('entidade_id').notNull(),
   cliente_id: uuid('cliente_id'),
   enviado_por: uuid('enviado_por').notNull(),
-  /** 0080 (T-0174, ADR 0054): imagens até 8 MiB e o ZIP do lote de fotos até 500 MiB (CHECK arquivo_tamanho_faixa, por tipo). */
+  /** 0079 (T-0174, ADR 0054): imagens até 8 MiB e o ZIP do lote de fotos até 500 MiB (CHECK arquivo_tamanho_faixa, por tipo). */
   tipo: text('tipo', { enum: TIPOS_ARQUIVO_BANCO }).notNull().default('image/jpeg'),
   tamanho_bytes: integer('tamanho_bytes'),
   sha256: text('sha256'),
@@ -389,11 +389,11 @@ export const diagnostico = plataforma.table('diagnostico', {
   alerta_em: timestamp('alerta_em', { withTimezone: true }),
 });
 
-/** Situações de plataforma.trabalho (CHECK trabalho_situacao_valida, 0080). */
+/** Situações de plataforma.trabalho (CHECK trabalho_situacao_valida, 0079). */
 export const SITUACOES_TRABALHO_BANCO = ['pendente', 'em_execucao', 'concluido', 'falhou'] as const;
 
 /**
- * Trabalho sob demanda de um módulo (0080, T-0174, ADR 0054): disparado por evento da outbox, executado em fatias pelo worker.
+ * Trabalho sob demanda de um módulo (0079, T-0174, ADR 0054): disparado por evento da outbox, executado em fatias pelo worker.
  * Um vivo por (tenant, modulo, nome, alvo_id) (trabalho_alvo_uk: o consumidor grava com insert ... on conflict do nothing).
  * O macuxi_app só lê e insere no próprio tenant; a situação, a trava e os contadores mudam só pelas funções do worker
  * plataforma.trabalho_reservar / trabalho_devolver / trabalho_renovar (SECURITY DEFINER, só tenants ativos). Fora do sync.

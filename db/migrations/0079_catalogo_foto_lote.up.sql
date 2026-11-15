@@ -1,6 +1,6 @@
--- 0080_catalogo_foto_lote (up) — T-0174 (fotos dos produtos em lote por ZIP; RF-CAT-07, RN-CAT-14, RN-CAT-04). Decisão: ADR 0054;
--- desenho docs/desenho/T-0174.md §2; formatos JPEG, PNG e WEBP (R-20261115-074500). Migração 0080 (número reservado, R-20261115-115000); as 0070–0079 vêm de outros branches.
--- Dicionário: docs/banco/catalogo.md ("0080") e docs/banco/plataforma.md ("0080"). Teste: db/testes/foto-lote.db.test.ts
+-- 0079_catalogo_foto_lote (up) — T-0174 (fotos dos produtos em lote por ZIP; RF-CAT-07, RN-CAT-14, RN-CAT-04). Decisão: ADR 0054;
+-- desenho docs/desenho/T-0174.md §2; formatos JPEG, PNG e WEBP (R-20261115-074500). Número 0079, correção da sessão principal em 15/11; as 0070–0078 vêm de outros branches.
+-- Dicionário: docs/banco/catalogo.md ("0079") e docs/banco/plataforma.md ("0079"). Teste: db/testes/foto-lote.db.test.ts
 -- (estático no PC; banco e up/down no CI).
 --
 -- 1. plataforma.arquivo aceita a foto do lote e o ZIP: arquivo_tipo_valido com image/jpeg, image/png, image/webp e
@@ -45,7 +45,7 @@
 -- (remover = deleted_at); plataforma.trabalho só select e insert (quem muda a situação são as funções do worker).
 -- Fora do sync (db/src/excecoes.ts): plataforma.trabalho, catalogo.foto_lote e catalogo.foto_lote_item nunca vão ao aparelho.
 --
--- Caminho de volta: 0080_catalogo_foto_lote.down.sql (APAGA lotes, itens e trabalhos; tira hash_conteudo e os índices novos;
+-- Caminho de volta: 0079_catalogo_foto_lote.down.sql (APAGA lotes, itens e trabalhos; tira hash_conteudo e os índices novos;
 -- devolve os CHECKs de plataforma.arquivo da 0005 — FALHA (55000) se houver arquivo PNG, WEBP, ZIP ou acima de 2 MB; as
 -- principais ficam com ordem 1, que a 0013 aceita). Volte antes a API, o worker e o Catálogo que usam as tabelas.
 
@@ -334,7 +334,7 @@ begin
      and exists (select 1 from catalogo.produto_midia p
                   where p.tenant_id = m.tenant_id and p.produto_id = m.produto_id and p.principal and p.deleted_at is null);
   if v_n > 0 then
-    raise exception '0080: % foto(s) viva(s) não principal(is) com ordem 1 no produto de uma principal (colidiriam em produto_midia_ordem_foto_uk)', v_n
+    raise exception '0079: % foto(s) viva(s) não principal(is) com ordem 1 no produto de uma principal (colidiriam em produto_midia_ordem_foto_uk)', v_n
       using errcode = '55000',
             hint = 'Mude a ordem dessas fotos (2 em diante) ou remova-as (deleted_at) e rode a migração de novo.';
   end if;

@@ -1,4 +1,4 @@
--- 0080_catalogo_foto_lote (down) — desfaz a 0080 (T-0174, ADR 0054) e volta ao catálogo de antes dela.
+-- 0079_catalogo_foto_lote (down) — desfaz a 0079 (T-0174, ADR 0054) e volta ao catálogo de antes dela.
 -- APAGA catalogo.foto_lote_item, catalogo.foto_lote e plataforma.trabalho (lotes, relatórios e trabalhos), as 3 funções do
 -- worker, a coluna catalogo.produto_midia.hash_conteudo (com o CHECK e o único) e os índices produto_midia_ordem_foto_uk e
 -- core.produto_sku_lower_ix; o padrão de produto_midia.ordem volta a 0. As fotos ligadas pelo lote FICAM em produto_midia
@@ -16,7 +16,7 @@ begin
   select count(*) into v_n from plataforma.arquivo a
    where a.tipo <> 'image/jpeg' or (a.tamanho_bytes is not null and a.tamanho_bytes > 2097152);
   if v_n > 0 then
-    raise exception '0080 down: % arquivo(s) PNG, WEBP, ZIP ou acima de 2 MiB não cabem nos CHECKs da 0005', v_n
+    raise exception '0079 down: % arquivo(s) PNG, WEBP, ZIP ou acima de 2 MiB não cabem nos CHECKs da 0005', v_n
       using errcode = '55000',
             hint = 'Apague essas linhas de plataforma.arquivo (e os bytes pela chave_armazenamento) e rode o down de novo.';
   end if;

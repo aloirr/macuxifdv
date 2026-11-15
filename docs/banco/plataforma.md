@@ -791,8 +791,8 @@ select id, tenant_id, protocolo, origem, app, versao_app, aparelho_modelo, andro
 ```
 
 
-## 0080 — arquivos do lote de fotos e trabalho sob demanda (`0080_catalogo_foto_lote`; T-0174, ADR 0054)
-Mesma migração das tabelas do lote ([catalogo.md](catalogo.md), "0080"). Teste: `db/testes/foto-lote.db.test.ts`.
+## 0079 — arquivos do lote de fotos e trabalho sob demanda (`0079_catalogo_foto_lote`; T-0174, ADR 0054)
+Mesma migração das tabelas do lote ([catalogo.md](catalogo.md), "0079"). Teste: `db/testes/foto-lote.db.test.ts`.
 
 **`arquivo`**: `arquivo_tipo_valido` = `image/jpeg` \| `image/png` \| `image/webp` \| `application/zip`
 (`TIPOS_ARQUIVO_BANCO` em `db/esquema/plataforma.ts`; o `TIPOS_ARQUIVO` do SDK fica contido nele). `arquivo_tamanho_faixa` por

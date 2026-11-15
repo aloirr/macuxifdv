@@ -5,7 +5,7 @@
  * 0033_catalogo_aplicacao_referencia (teto da aplicação, etiquetas, aplicação e referências na busca, produto_referencia;
  * T-0084/T-0085), 0034_catalogo_referencia_marca_nome (retrato do nome da marca na referência; T-0085) e
  * 0037_forma_prazo_escalonada (tabela_escalonada, RN-VEN-23; T-0089) e 0056_core_filial (filial do depósito, do item de preço
- * e da faixa; T-0149) e 0080_catalogo_foto_lote (fotos em lote por ZIP e hash/ordem da mídia; T-0174), para uso
+ * e da faixa; T-0149) e 0079_catalogo_foto_lote (fotos em lote por ZIP e hash/ordem da mídia; T-0174), para uso
  * INTERNO do módulo Catálogo (modules/catalogo/api).
  * Nenhum outro módulo importa este arquivo: o Vendedor obtém preço pela consulta `catalogo.precos_cliente@1` (ADR 0012).
  *
@@ -151,10 +151,10 @@ export const produtoMidia = catalogo.table('produto_midia', {
   arquivo_id: uuid('arquivo_id'),
   url: text('url'),
   titulo: text('titulo'),
-  /** 0080 (T-0174): padrão 1; a principal tem sempre ordem 1 (CHECK produto_midia_principal_ordem) e a ordem da foto viva >= 1 é única por produto (produto_midia_ordem_foto_uk). */
+  /** 0079 (T-0174): padrão 1; a principal tem sempre ordem 1 (CHECK produto_midia_principal_ordem) e a ordem da foto viva >= 1 é única por produto (produto_midia_ordem_foto_uk). */
   ordem: integer('ordem').notNull().default(1),
   principal: boolean('principal').notNull().default(false),
-  /** 0080 (T-0174): SHA-256 hex da imagem (nulo na foto da ficha); mesma imagem viva no mesmo produto = 'repetido' (produto_midia_hash_uk). */
+  /** 0079 (T-0174): SHA-256 hex da imagem (nulo na foto da ficha); mesma imagem viva no mesmo produto = 'repetido' (produto_midia_hash_uk). */
   hash_conteudo: text('hash_conteudo'),
 });
 
@@ -307,7 +307,7 @@ export const tabelaEscalonada = catalogo.table('tabela_escalonada', {
   filial_id: uuid('filial_id'),
 });
 
-/** Listas fechadas da 0080 (CHECKs de catalogo.foto_lote e foto_lote_item) = contratos do Catálogo (SituacaoLote, MotivoLote, SituacaoItem, MotivoItem). */
+/** Listas fechadas da 0079 (CHECKs de catalogo.foto_lote e foto_lote_item) = contratos do Catálogo (SituacaoLote, MotivoLote, SituacaoItem, MotivoItem). */
 export const SITUACOES_FOTO_LOTE_BANCO = ['aguardando_envio', 'enfileirado', 'conferindo', 'processando', 'concluido', 'recusado', 'falhou', 'duplicado'] as const;
 export const MOTIVOS_FOTO_LOTE_BANCO = ['zip_grande', 'muitos_arquivos', 'descompactado_grande', 'zip_invalido', 'zip64_nao_suportado', 'zip_incompleto'] as const;
 export const SITUACOES_FOTO_LOTE_ITEM_BANCO = ['pendente', 'ligado', 'sem_produto', 'ambiguo', 'recusado', 'repetido'] as const;
@@ -318,7 +318,7 @@ export const MOTIVOS_FOTO_LOTE_ITEM_BANCO = [
 export const TIPOS_IMAGEM_FOTO_LOTE_BANCO = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
 /**
- * Lote de fotos por ZIP (0080, T-0174, RN-CAT-14, ADR 0054). Fora do sync. enviado_por (core.usuario) e arquivo_id
+ * Lote de fotos por ZIP (0079, T-0174, RN-CAT-14, ADR 0054). Fora do sync. enviado_por (core.usuario) e arquivo_id
  * (plataforma.arquivo, o ZIP) sem FK. Mesmo ZIP no tenant: foto_lote_sha256_uk entre os vivos que não são 'falhou' nem
  * 'duplicado' (o reenvio vira 'duplicado' com duplicado_de). motivo só e sempre no 'recusado'; concluido_em só e sempre nos finais.
  */
@@ -339,7 +339,7 @@ export const fotoLote = catalogo.table('foto_lote', {
 });
 
 /**
- * Uma entrada considerada do ZIP (0080). Checkpoint: foto_lote_item_indice_uk (tenant, lote, indice) e a situação
+ * Uma entrada considerada do ZIP (0079). Checkpoint: foto_lote_item_indice_uk (tenant, lote, indice) e a situação
  * 'pendente'; arquivo_id e midia_id reservados na conferência (únicos no tenant). foto_lote_item_ordem_uk entre os 'ligado'
  * = 'ordem_repetida_no_lote'. codigos_candidatos (1..5) só e sempre no 'ambiguo'; produto e ordem sempre no 'ligado'/'repetido'.
  */
