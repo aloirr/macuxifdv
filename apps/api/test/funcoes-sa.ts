@@ -3,7 +3,7 @@
  * `oidvectortypes` (independe do search_path). Toda sa_* do catálogo está em UMA das duas listas:
  *  - SA_PORTAL: as com grant ao `macuxi_portal` (0038; desde a 0039/T-0093, ADR 0031, as 12 do login só com e-mail e senha;
  *    desde a 0042/T-0094, mais 2: o super-admin lista os admins e redefine a senha de um deles = 14; desde a 0058/T-0158, mais 2:
- *    a lista e o detalhe dos diagnósticos = 16);
+ *    a lista e o detalhe dos diagnósticos = 16; desde a 0075/T-0174, mais 3: as frases da tela de carga = 19);
  *  - SA_INTERNAS: SECURITY INVOKER, sem EXECUTE para ninguém além do dono (chamadas de dentro das sa_* DEFINER).
  * Nenhuma das duas executa como macuxi_app, macuxi_worker ou PUBLIC. A `plataforma.criar_super_admin` (0039, deploy) não tem o
  * prefixo `sa_`: sem EXECUTE para ninguém além do dono (conexão de administração).
@@ -30,6 +30,10 @@ export const SA_PORTAL: readonly string[] = [
   // 0058 (T-0158, ADR 0043): Portal › Diagnósticos, só super-admin
   'plataforma.sa_listar_diagnosticos(uuid, jsonb)',
   'plataforma.sa_diagnostico(uuid, uuid)',
+  // 0075 (T-0174): Portal › Frases da carga, só super-admin
+  'plataforma.sa_listar_frases_carga(uuid)',
+  'plataforma.sa_incluir_frase_carga(uuid, uuid, text)',
+  'plataforma.sa_editar_frase_carga(uuid, uuid, text, boolean)',
 ];
 
 export const SA_INTERNAS: readonly string[] = ['plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)'];
