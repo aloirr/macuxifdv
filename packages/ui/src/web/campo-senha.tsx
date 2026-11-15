@@ -11,15 +11,9 @@
  */
 import type { InputHTMLAttributes } from 'react';
 
-import { rotuloDoOlhoDaSenha } from '../comum/senha';
+import { rotuloDoOlhoDaSenha, type FinalidadeSenha } from '../comum/senha';
 import { IconEye, IconEyeOff } from './icons';
-import { cx } from './ui';
-
-export type FinalidadeSenhaWeb = 'login' | 'criacao';
-
-/** Mesma caixa do campo do portal e do BKO (44 px), com espaço à direita para o olho. */
-export const CAMPO_SENHA_CSS =
-  'h-11 w-full rounded-xl border border-field bg-surface px-3 text-[15px] text-ink outline-none focus-visible:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-[invalid=true]:border-danger disabled:bg-ground disabled:text-ink-2';
+import { CLASSE_CAMPO_ACESSO, cx } from './ui';
 
 /** Botão do olho: 44 × 44 px, colado à direita do campo. */
 export const OLHO_SENHA_CSS =
@@ -34,7 +28,7 @@ export type CampoSenhaProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'
   /** Clique no olho. Ausente = campo sem olho. */
   onAlternar?: () => void;
   /** `login` (padrão): `current-password`; `criacao`: `new-password`. */
-  finalidade?: FinalidadeSenhaWeb;
+  finalidade?: FinalidadeSenha;
   erro?: string | null;
   /** Id de outro texto que descreve o campo (lista das regras). */
   descrito?: string;
@@ -62,7 +56,7 @@ export function CampoSenha({ id, rotulo, visivel, onAlternar, finalidade = 'logi
           autoCorrect="off"
           aria-invalid={erro ? true : undefined}
           aria-describedby={ligados}
-          className={cx(CAMPO_SENHA_CSS, onAlternar && 'pr-12')}
+          className={cx(CLASSE_CAMPO_ACESSO, onAlternar && 'pr-12')}
         />
         {onAlternar && (
           <button

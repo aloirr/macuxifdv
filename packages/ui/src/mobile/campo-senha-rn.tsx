@@ -12,8 +12,8 @@
 import type { Ref } from 'react';
 import { Platform, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
-import { CAMPO_SENHA, iconeDoOlhoDaSenha, propsDeTecladoDaSenha, type FinalidadeSenha } from './campo-senha';
-import { rotuloDoOlhoDaSenha } from '../comum/senha';
+import { CAMPO_SENHA, iconeDoOlhoDaSenha, propsDeTecladoDaSenha } from './campo-senha';
+import { rotuloDoOlhoDaSenha, type FinalidadeSenha } from '../comum/senha';
 import { Icon } from './icon';
 import { Pressionavel } from './movimento-rn';
 import { colors, fonts, radius } from './theme';

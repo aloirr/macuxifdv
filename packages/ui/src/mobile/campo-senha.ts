@@ -9,6 +9,7 @@
  *   criação (o gerenciador de senhas oferece guardar). Visível no Android = teclado `visible-password` (sem sugestões nem
  *   espaço automático, R-20261115-064000).
  */
+import type { FinalidadeSenha } from '../comum/senha';
 import { ALVO_TOQUE } from './componentes';
 
 /** Medidas (dp): campo de 52 (mesma altura do botão principal) e o olho com alvo de 48 na ponta direita. */
@@ -21,9 +22,6 @@ export const CAMPO_SENHA = {
   /** Espaço à direita do texto, para não passar por baixo do olho. */
   recuoDoTexto: ALVO_TOQUE + 4,
 } as const;
-
-/** `login` = senha que já existe; `criacao` = senha nova ("Crie sua senha", troca). */
-export type FinalidadeSenha = 'login' | 'criacao';
 
 export type IconeDoOlho = 'olho' | 'olhoRiscado';
 

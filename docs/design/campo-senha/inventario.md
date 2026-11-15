@@ -44,8 +44,8 @@ próprio e rótulo "Esconder senha"; **Sem olho** = campo sem o botão.
 `modules/core/app/components/tela-esqueci-senha.tsx`, `apps/conector` (sem interface) e `apps/api` (CLI).
 
 ## Kit e docs (designer-ux, feitos neste lote)
-`packages/ui/src/comum/senha.ts` (`OCULTAR_SENHA`, `rotuloDoOlhoDaSenha`; `ESCONDER_SENHA` fica `@deprecated` até as telas acima
-migrarem), `packages/ui/src/mobile/campo-senha.ts`, `campo-senha-rn.tsx`, `icon.tsx` (`olho`, `olhoRiscado`),
+`packages/ui/src/comum/senha.ts` (`OCULTAR_SENHA`, `rotuloDoOlhoDaSenha`; `ESCONDER_SENHA` fica `@deprecated` e sai no lote da
+v1.0.10, com a migração das telas acima; RD-0479), `CLASSE_CAMPO_ACESSO` em `packages/ui/src/web/ui.tsx` (RD-0478), `packages/ui/src/mobile/campo-senha.ts`, `campo-senha-rn.tsx`, `icon.tsx` (`olho`, `olhoRiscado`),
 `packages/ui/src/web/campo-senha.tsx`; `docs/design/ciclo-de-senha.md`, `portal-entrar.md` e `componentes.md` passam a dizer
 "Ocultar senha".
 
@@ -53,4 +53,5 @@ migrarem), `packages/ui/src/mobile/campo-senha.ts`, `campo-senha-rn.tsx`, `icon.
 - **modulo-core** (4 lugares): login do app, "Crie sua senha" do app (2 campos), `estilos-de-acesso.ts` / `rotuloOlhoSenha`,
   redefinir senha em Usuários (BKO). Juntar com `nuvem/login-teclado-modulo-core` (R-20261115-064000), que mexe no mesmo login.
 - **engenheiro-apps** (3 lugares): login do BKO (ganha o olho), "Crie sua senha" web (`ciclo-senha.tsx`), `CampoSenha` local do
-  portal (`base.tsx`, usado em Entrar e Passo Empresa).
+  portal (`base.tsx`, usado em Entrar e Passo Empresa). Na mesma troca, os `campoCss` de `portal/base.tsx:45` e `ciclo-senha.tsx`
+  passam a importar `CLASSE_CAMPO_ACESSO` do kit (RD-0478).

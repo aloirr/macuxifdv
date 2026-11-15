@@ -42,7 +42,7 @@ export {
   TEXTO_REPETICAO_SENHA,
   TITULO_REGRAS_DA_SENHA,
 } from '../comum/senha';
-export type { EstadoRegraSenha, ItemRegraSenha, ItemRepeticaoSenha, RegraSenha, RepeticaoSenha } from '../comum/senha';
+export type { EstadoRegraSenha, FinalidadeSenha, ItemRegraSenha, ItemRepeticaoSenha, RegraSenha, RepeticaoSenha } from '../comum/senha';
 
 const COR_DO_TEXTO: Record<EstadoRegraSenha, string> = { ok: colors.ink, falta: colors.ink2, erro: colors.danger };
 
