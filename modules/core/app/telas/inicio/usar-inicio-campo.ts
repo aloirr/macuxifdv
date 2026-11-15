@@ -37,6 +37,8 @@ export interface VisaoInicioCampo {
   frase: string | null;
   /** Nome completo, para as iniciais do avatar. */
   nome: string;
+  /** Foto do perfil (URI); ausente ou null = as iniciais ocupam o mesmo tamanho. */
+  foto?: string | null;
   metas: CardMetaInicio[];
   produtividade: IndicadorInicio[];
   /** Para o shell desenhar o sino. */

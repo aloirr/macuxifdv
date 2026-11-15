@@ -40,8 +40,23 @@ describe('R-20261114-153500: escala do Início', () => {
     expect(e.cabe).toBe(false);
   });
 
-  it('o avatar do painel é pequeno (40) e não tira largura da saudação', () => {
-    expect(escalaInicio({ kit: KIT, largura: 412, altura: 915, fontScale: 1, topo: 24, base: 24 }).painel.avatar).toBe(40);
+  it('variação C: a foto do painel é 72 na escala cheia e nunca menor que 56 (piso) no menor fator', () => {
+    expect(escalaInicio({ kit: KIT, largura: 412, altura: 915, fontScale: 1, topo: 24, base: 24 }).painel.avatar).toBe(72);
+    const apertada = escalaInicio({ kit: KIT, largura: 320, altura: 480, fontScale: 1.5, topo: 24, base: 24, frase: FRASE });
+    expect(apertada.fator).toBe(FATOR_MINIMO);
+    expect(apertada.painel.avatar).toBe(56);
+    for (const [largura, altura] of TELAS) expect(escalaInicio({ kit: KIT, largura, altura, fontScale: 1, topo: 24, base: 24, frase: FRASE }).painel.avatar).toBeGreaterThanOrEqual(56);
+  });
+
+  it('variação C: saudação 22, data e frase 13 e iniciais 24 na escala cheia', () => {
+    const e = escalaInicio({ kit: KIT, largura: 412, altura: 915, fontScale: 1, topo: 24, base: 24, frase: FRASE });
+    expect([e.fonte.saudacao, e.fonte.data, e.fonte.frase, e.fonte.iniciais]).toEqual([22, 13, 13, 24]);
+  });
+
+  it('variação C: a altura do painel é max(foto, textos), cerca de 100 dp sem a barra de status (era 131)', () => {
+    const e = escalaInicio({ kit: KIT, largura: 390, altura: 844, fontScale: 1, topo: 0, base: 0, frase: 'Planejar a rota é ganhar tempo na rua.' });
+    expect(e.painelAltura).toBeGreaterThanOrEqual(96);
+    expect(e.painelAltura).toBeLessThanOrEqual(104);
   });
 
   it('entradas inválidas não quebram (fontScale 0 vira 1)', () => {
