@@ -12,7 +12,7 @@
  */
 import { z } from 'zod';
 import { MODULOS, type ModuloId, type Perfil } from './nomes';
-import { CriarEmpresaSchema } from './plataforma';
+import { CriarEmpresaSchema, Dia } from './plataforma';
 
 // ---------- rotas do portal (`/v1/plataforma/*`) ----------
 /** `GET` catálogo de planos ativos (super-admin e admin do cliente). */
@@ -60,7 +60,6 @@ export type Ciclo = (typeof CICLOS)[number];
 
 const Uuid = z.string().uuid();
 const Instante = z.string().datetime({ offset: true });
-const Dia = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use AAAA-MM-DD.');
 const Centavos = z.number().int().min(0);
 /** Quantidade contratada; `null` = sem limite. */
 const Quantidade = z.number().int().min(0).nullable();
@@ -250,15 +249,18 @@ export interface ProblemaDePlano {
   item?: ItemContado;
 }
 
-const NOME_ITEM: Readonly<Record<ItemContado, string>> = {
-  vendedor: 'vendedor',
-  gestor: 'gestor',
+/**
+ * Rótulo de cada item contado (plural), usado nas mensagens do SDK (RN-PLA-01, RN-PLA-04 e RN-PLA-05); a tela não lê este
+ * mapa. Pesquisa e Treinamento são o nome do adicional (contam usuários com o módulo).
+ */
+export const ROTULO_ITEM: Readonly<Record<ItemContado, string>> = Object.freeze({
+  vendedor: 'Vendedores',
+  gestor: 'Gestores',
   bko: 'BKO',
-  promotor: 'promotor',
+  promotor: 'Promotores',
   pesquisa: 'Pesquisa',
   treinamento: 'Treinamento',
-};
-const licencasEm = (n: number): string => (n === 1 ? 'licença' : 'licenças');
+});
 
 /** RN-PLA-01: o plano está ativo e vende cada adicional pedido. Vale na criação e na troca. */
 export function conferirEscolhaDePlano(plano: Plano, adicionais: readonly AdicionalContratado[]): ProblemaDePlano[] {
@@ -266,7 +268,7 @@ export function conferirEscolhaDePlano(plano: Plano, adicionais: readonly Adicio
   if (!plano.ativo) problemas.push({ codigo: 'PLANO_INATIVO', mensagem: `O plano ${plano.nome} não está mais à venda.` });
   for (const a of adicionais) {
     if (!plano.adicionais.some((x) => x.adicional === a.adicional))
-      problemas.push({ codigo: 'ADICIONAL_FORA_DO_PLANO', mensagem: `O plano ${plano.nome} não tem o adicional ${NOME_ITEM[a.adicional]}.`, item: a.adicional });
+      problemas.push({ codigo: 'ADICIONAL_FORA_DO_PLANO', mensagem: `O plano ${plano.nome} não tem o adicional ${ROTULO_ITEM[a.adicional]}.`, item: a.adicional });
   }
   return problemas;
 }
@@ -274,6 +276,8 @@ export function conferirEscolhaDePlano(plano: Plano, adicionais: readonly Adicio
 /**
  * RN-PLA-05: troca de plano (para cima ou para baixo) só se o novo cobre o que está em uso, item a item. Abaixo do uso, a
  * troca é recusada: primeiro inativa os usuários ou tira o módulo deles. A troca nunca desativa usuário sozinha.
+ * Mensagem: `<Rótulo>: <em uso> em uso. Inative <excesso> antes de trocar.` (ex.: "Vendedores: 14 em uso. Inative 4 antes de
+ * trocar."; mesmo formato para Pesquisa e Treinamento).
  */
 export function conferirTrocaDePlano(
   novo: Plano,
@@ -288,7 +292,7 @@ export function conferirTrocaDePlano(
       problemas.push({
         codigo: 'PLANO_ABAIXO_DO_USO',
         item,
-        mensagem: `O plano ${novo.nome} tem ${limite} ${licencasEm(limite)} de ${NOME_ITEM[item]} e a empresa usa ${emUso[item]}.`,
+        mensagem: `${ROTULO_ITEM[item]}: ${emUso[item]} em uso. Inative ${emUso[item] - limite} antes de trocar.`,
       });
   }
   return problemas;
@@ -338,7 +342,7 @@ export function conferirNovoUsuario(
         pode: false,
         codigo: 'LICENCAS_ESGOTADAS',
         item,
-        mensagem: `As ${limite} ${licencasEm(limite)} de ${NOME_ITEM[item]} do plano estão em uso. Inative um usuário ou troque de plano.`,
+        mensagem: `${ROTULO_ITEM[item]}: ${limite} em uso, o limite do plano. Inative um usuário ou troque de plano.`,
       };
   }
   return { pode: true };
