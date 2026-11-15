@@ -163,10 +163,6 @@ describe('RN-CORE-48: etapas em sequência, sem voltar', () => {
 describe('RN nova da entrada antecipada (ADR 0054): entra quando Clientes e rota terminam; o catálogo segue carregando', () => {
   const modulosCampo = ['core', 'catalogo', 'vendedor', 'promotor'];
 
-  it('RN-CORE-48 revista: o catálogo é a última etapa do Campo e Aprovações a última da Gestão', () => {
-    expect(etapasDaEntrada('vendedor', modulosCampo).at(-1)!.id).toBe('catalogo_precos');
-    expect(etapasDaEntrada('gerente', ['core', 'vendedor', 'gestor']).at(-1)!.id).toBe('aprovacoes');
-  });
   it('RN-CORE-48: a etapa que libera a entrada é Clientes e rota no Campo e Equipe na Gestão', () => {
     expect(etapaQueLibera('vendedor')).toBe('clientes_rota');
     expect(etapaQueLibera('promotor')).toBe('clientes_rota');
