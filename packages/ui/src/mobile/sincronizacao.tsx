@@ -115,9 +115,8 @@ export function BotaoSincronizar({
   if (!s) return null;
   const d = desenhoBotaoSincronizar({ semSinal: s.semSinal, recente: s.estado.recente, sincronizadoEm: s.sincronizadoEm, naFila: s.naFila, tz: s.tz, avisoDados });
   const g = desenhoSegurar(modo === 'segurar' ? segurandoMs : null, { reduzirMovimento: reduzir });
-  const temCompleta = Boolean(s.sincronizarCompleta);
-  const dica = dicaDoSegurar({ temCompleta, semSinal: s.semSinal, segurando: g.anel });
-  const oferece = temCompleta && !s.semSinal;
+  const dica = dicaDoSegurar({ modo, segurando: g.anel });
+  const oferece = modo === 'segurar';
   const rotuloAcessivel = d.aviso ? `${d.rotulo}. ${d.aviso}` : oferece ? ROTULO_ACESSIVEL_SYNC : undefined;
   return (
     <View style={{ gap: 6 }} testID={`${testID}-bloco`}>
@@ -181,7 +180,7 @@ function AnelSegurar({ cor, progresso }: { cor: string; progresso: number }) {
         fill="none"
         strokeLinecap="round"
         strokeDasharray={`${volta} ${volta}`}
-        strokeDashoffset={volta * (1 - Math.min(1, Math.max(0, progresso)))}
+        strokeDashoffset={volta * (1 - progresso)}
         transform={`rotate(-90 ${c} ${c})`}
       />
     </Svg>

@@ -33,7 +33,7 @@ import { alturaMaximaDaFolha, ALVO_TOQUE, coberturaDoTeclado, rolagemAteCampo } 
 import { Icon, type IconName } from './icon';
 import { deslocamentoDaFolha, duracaoMovimento } from './movimento';
 import { curvaPadrao, Pressionavel, useReduzirMovimento } from './movimento-rn';
-import { colors, fonts, radius, shadow } from './theme';
+import { colors, fonts, radius, shadow, type as t } from './theme';
 
 /** Mantém montado durante a saída e devolve o progresso 0 → 1 da entrada (0 = fechado). */
 function useEntradaSaida(visivel: boolean, duracao: number) {
@@ -312,7 +312,7 @@ export function Dialogo({
     <Modal visible={montado} transparent animationType="none" onRequestClose={fechar} statusBarTranslucent>
       <Animated.View style={[s.dialogoFundo, { opacity: progresso }]}>
         <View style={s.dialogo} testID={testID} accessibilityViewIsModal accessibilityRole="alert">
-          <Text style={s.dialogoTitulo} accessibilityRole="header">
+          <Text style={t.titulo} accessibilityRole="header">
             {titulo}
           </Text>
           {mensagem ? <Text style={s.dialogoMsg}>{mensagem}</Text> : null}
@@ -379,9 +379,10 @@ const s = StyleSheet.create({
   opcaoSub: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink2 },
   // diálogo central
   dialogoFundo: { flex: 1, backgroundColor: FUNDO, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  dialogo: { width: '100%', maxWidth: 420, backgroundColor: colors.surface, borderRadius: radius.xxl, padding: 18, gap: 8 },
-  dialogoTitulo: { fontFamily: fonts.display, fontSize: 18, color: colors.ink },
-  dialogoMsg: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.ink2 },
+  // padrão único de diálogo (simulação aprovada da sync completa, docs/design/sync-completa/sync.css): raio 20, 22/20/24, gap 10;
+  // título = `type.titulo` (Archivo 800 19, ink); mensagem 15/22 ink2
+  dialogo: { width: '100%', maxWidth: 420, backgroundColor: colors.surface, borderRadius: radius.dialogo, padding: 20, paddingTop: 22, paddingBottom: 24, gap: 10 },
+  dialogoMsg: { fontFamily: fonts.body, fontSize: 15, lineHeight: 22, color: colors.ink2 },
   dialogoBotoes: { flexDirection: 'row', gap: 9, marginTop: 8 },
   dialogoBotao: { flex: 1, minHeight: ALVO_TOQUE, borderRadius: radius.botaoMedio, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   /** nível neutro do guia (Cancelar) */
