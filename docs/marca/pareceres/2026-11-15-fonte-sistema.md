@@ -93,3 +93,6 @@ As cinco médias fecharam. Ficam três baixas, com a correção de uma linha cad
 - modulo-vendedor: MC-0059 (total em 600) e MC-0066.
 - modulo-core: MC-0065.
 - gerente-projetos: levar ao dono do produto os dois alinhamentos do §5 acima, junto com os quatro da primeira passada.
+
+## Conferência final (15/11/2026)
+- Fechados, conferidos com `git grep`: MC-0059 (total do pedido em 600, `order-drawer.tsx:124` `font-semibold`, vendedor bb5e83f), MC-0065 (CNPJ em `tabular-nums`, sem mono, `filiais-page.tsx:128`, core 07fdb08) e MC-0066 (número do pedido em texto com `tabular-nums`, sem mono, `orders-screen.tsx:465` e `ficha-cliente.tsx:108`, vendedor bb5e83f). Manual §5.2: rótulo de campo e rótulo pequeno em 600 (RD-0952 c). Nenhum achado de marca em aberto neste lote: **liberado**.

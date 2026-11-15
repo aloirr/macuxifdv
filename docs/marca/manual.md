@@ -140,14 +140,14 @@ Não há fonte de display: o título se distingue do texto pelo peso e pelo tama
 | Peso | Uso |
 |---|---|
 | 400 | texto corrido, valores em tabela, legendas |
-| 500 | ênfase leve: rótulo, item de menu, chip, botão secundário |
-| 600 | ênfase: botão principal, número de card, cabeçalho de tabela, aba ativa |
+| 500 | ênfase leve: item de menu, chip, botão secundário |
+| 600 | ênfase: rótulo de campo e rótulo pequeno, botão principal, número de card, cabeçalho de tabela, aba ativa |
 | 700 | títulos (de página, de seção e do cabeçalho Azul noite) |
 
 Só esses quatro pesos, inclusive nos PDFs e nos e-mails. Telas equivalentes usam o mesmo peso e o mesmo tamanho para o mesmo papel.
 
 - **Nada em 800 ou 900** (`font-extrabold`, `font-black`, `font-weight: 800`, Roboto Black / `sans-serif-black`). O único 800 da marca é a escrita "Macuxi" do logo, que é desenho em contorno, não texto.
-- **Mesmo papel, mesmo peso:** os rótulos dos campos de um formulário têm todos o mesmo peso (500 ou 600, nunca um em 400 e outro em 600); os links de ação de uma tela também.
+- **Mesmo papel, mesmo peso:** os rótulos dos campos de um formulário têm todos o mesmo peso (600); os links de ação de uma tela também.
 - Valor em destaque (total do pedido, número de card) é ênfase: 600. O 700 fica para título. No e-mail, o valor em destaque usa `font-weight:600`, não o `<strong>` padrão (700).
 
 ### 5.3 Escala de tamanhos
