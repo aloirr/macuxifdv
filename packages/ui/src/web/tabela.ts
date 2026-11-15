@@ -8,7 +8,7 @@ export type PropsDaTabela = { style?: CSSProperties; className?: string };
  * devolve o `<table>` quando ele é o único filho, para não aninhar tabela em tabela (HTML inválido; quebra a hidratação).
  * Atenção: o `<table>` pronto precisa trazer as próprias classes (`w-full border-collapse text-[13px]`, ou o tamanho de
  * fonte da tela): as classes do `<table>` do kit não entram nele. Sem elas, a tabela fica sem largura total, sem colapso
- * de borda e na fonte do corpo. Não mesclamos classes de propósito (`text-[13px]` + `text-[14px]` dependeria da ordem do CSS).
+ * de borda e na fonte do corpo. Não mesclamos classes de propósito (`text-[13px]` + `text-[15px]` dependeria da ordem do CSS).
  */
 export function tabelaPronta(children: ReactNode): ReactElement<PropsDaTabela> | null {
   const itens = Children.toArray(children);
