@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.accentLight, borderWidth: 0, shadowColor: colors.accentLight, shadowOpacity: 0.6, shadowRadius: 4, shadowOffset: { width: 0, height: 0 } },
   overline: { ...fonte.bold, fontSize: 12, letterSpacing: 0.9, color: colors.accentLight },
   since: { marginLeft: 'auto', ...fonte.body, fontSize: 12, color: colors.darkMuted },
-  name: { ...fonte.displayBold, fontSize: 18, color: colors.surface },
+  name: { ...fonte.bold, fontSize: 18, color: colors.surface },
   hint: { ...fonte.body, fontSize: 12, color: colors.darkMuted },
   actions: { flexDirection: 'row', gap: 8 },
   btn: { flex: 1 },

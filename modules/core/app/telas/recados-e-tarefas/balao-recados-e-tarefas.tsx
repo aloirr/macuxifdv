@@ -88,7 +88,7 @@ export function BalaoRecadosETarefas({
 
 const s = StyleSheet.create({
   titulo: {
-    ...fonte.displayBold,
+    ...fonte.bold,
     fontSize: 18,
     color: colors.ink,
     paddingHorizontal: space.lg,

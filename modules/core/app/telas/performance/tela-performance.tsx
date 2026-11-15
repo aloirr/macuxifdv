@@ -145,7 +145,7 @@ function CartaoResultado({ c }: { c: CardResultado }) {
   return (
     <Cartao testID={`performance-resultado-${c.indicador}`} preenchimento={layout.secao} gap={space.md}>
       <View style={{ gap: space.xxs }}>
-        <Text style={t.title16}>{c.titulo}</Text>
+        <Text style={t.bodyStrong}>{c.titulo}</Text>
         <Text style={s.real} testID={`performance-resultado-${c.indicador}-valor`}>
           {c.real}
           {c.meta ? <Text style={s.meta}> / {c.meta}</Text> : null}
@@ -196,7 +196,7 @@ function CartaoProdutividade({ c }: { c: CardProdutividade }) {
 const s = StyleSheet.create({
   filtro: { flexDirection: 'row', justifyContent: 'flex-end' },
   linhaPeriodo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
-  real: { ...fonte.display, fontSize: 28, color: colors.ink, fontVariant: ['tabular-nums'] },
+  real: { ...fonte.bold, fontSize: 28, color: colors.ink, fontVariant: ['tabular-nums'] },
   meta: { ...fonte.body, fontSize: 22, color: colors.ink2 },
   linhaBarra: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   percentual: { ...fonte.bold, fontSize: 16, fontVariant: ['tabular-nums'] },
@@ -208,5 +208,5 @@ const s = StyleSheet.create({
   celula: { width: '50%', padding: space.xs },
   linhaValor: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   ponto: { width: 10, height: 10, borderRadius: 5 },
-  valorProdutividade: { ...fonte.display, fontSize: 22, color: colors.ink, fontVariant: ['tabular-nums'] },
+  valorProdutividade: { ...fonte.bold, fontSize: 22, color: colors.ink, fontVariant: ['tabular-nums'] },
 });

@@ -55,5 +55,5 @@ const styles = StyleSheet.create({
   linha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, padding: 14 },
   meta: { gap: 6, paddingHorizontal: 14, paddingVertical: 10 },
   nome: { ...fonte.semibold, fontSize: 16, color: colors.ink, flex: 1 },
-  valor: { ...fonte.display, fontSize: 18, color: colors.ink },
+  valor: { ...fonte.bold, fontSize: 18, color: colors.ink },
 });

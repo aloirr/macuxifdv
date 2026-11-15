@@ -170,7 +170,7 @@ function LinhaCliente({ id, nome, situacao, visita, first, last }: { id: string;
       onPress={() => abrirCliente(id, 'Clientes')}
       style={({ pressed }) => [styles.row, first && styles.rowFirst, last && styles.rowLast, !last && styles.divider, pressed && { backgroundColor: colors.ground }]}>
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={t.title16} numberOfLines={1}>
+        <Text style={t.bodyStrong} numberOfLines={1}>
           {nome}
         </Text>
         {visita ? (

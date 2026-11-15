@@ -122,8 +122,8 @@ describe('T-0170 Início do Campo: sino e sincronização', () => {
 
 describe('Marca no Início do Campo (fonte da tela)', () => {
   const fonte = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'tela-inicio-campo.tsx'), 'utf8');
-  it('MC-0017: valorIndicador usa fonte.displayBold (peso 700 da fonte do sistema)', () => {
-    expect(fonte).toMatch(/valorIndicador:\s*\{\s*\.\.\.fonte\.displayBold/);
+  it('MC-0017: valorIndicador usa fonte.bold (peso 700 da fonte do sistema)', () => {
+    expect(fonte).toMatch(/valorIndicador:\s*\{\s*\.\.\.fonte\.bold/);
   });
   it('MC-0016: a ProgressBar do CartaoMeta usa color={colors.grafico}', () => {
     expect(fonte).toContain('color={colors.grafico}');
