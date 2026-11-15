@@ -129,7 +129,13 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
     - a tabela escalonada sem filial vale para todas as filiais;
     - o cadastro de filial é feito por admin e analista;
     - ~~o vendedor não tem filial própria~~ (revogada em 15/11/2026; ver "Filial do usuário" abaixo).
-  - **Filial do usuário** (dono do produto, R-20261115-073000, item 1; T-0176):
+  - **Filial do usuário — regra definitiva** (dono do produto, R-20261115-093000; T-0176; substitui o bloco seguinte, de 07h30, no que conflitar):
+    - **filial de cadastro:** todo usuário (vendedor, supervisor, gerente, promotor) tem **uma**, obrigatória. É a base dele. Sem ela, o usuário fica **bloqueado**, em qualquer perfil;
+    - **filiais de venda:** escolhidas no BKO (Usuários), uma ou várias, em qualquer perfil. São onde o usuário vende ou visualiza;
+    - **Catálogo:** usa as filiais de venda para preço, estoque, filtro e folha. A filial de cadastro aparece sempre na tela principal;
+    - **carga do ERP:** o `filial_external_id` do vendedor é a filial de cadastro;
+    - o modelo e o contrato estão em proposta (`docs/modulos/core/filial-cadastro-venda.md`), para o ok do dono do produto.
+  - *Bloco anterior, superado no que conflitar:* **Filial do usuário** (dono do produto, R-20261115-073000, item 1; T-0176):
     - **vendedor:** exatamente **uma** filial, obrigatória. Ela é a referência do vendedor: preço e estoque no Catálogo e o filtro de filial, que abre já marcado;
     - **supervisor, promotor e gerente:** uma ou mais filiais;
     - **admin e analista:** filial opcional (premissa do gerente);
