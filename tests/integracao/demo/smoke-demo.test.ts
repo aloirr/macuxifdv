@@ -44,7 +44,8 @@ import { buscarLocal } from '../../../modules/catalogo/app/lib/local';
 import { listarClientesLocais } from '../../../modules/core/app/lib/cliente360-local';
 import { abrirVisitaLoja, checkinAberto, montarFoto, montarGondola, montarShare } from '../../../modules/promotor/app/lib/loja';
 import { checklistDaLoja, metaDaCategoria } from '../../../modules/promotor/domain';
-import { buildOrderPdfHtml, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido } from '../../../modules/vendedor/app/lib/order-pdf';
+import { nomeDaEmpresaParaPdf } from '../../../modules/vendedor/domain/empresa-pdf';
+import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido } from '../../../modules/vendedor/app/lib/order-pdf';
 import { montarPedido, prepararPedido, rascunhoVazio, type Rascunho } from '../../../modules/vendedor/app/lib/pedidos';
 import { condicoesDoCliente, detalheDoPedido, lerLinhas, listaDeClientes, meDoAparelho, politicaApi, produtosComPrecos } from '../../../modules/vendedor/app/lib/pull';
 import { aparelhoCampo, esperarHorizonte, type AparelhoCampo } from '../apoio/campo';
@@ -498,7 +499,7 @@ describe.skipIf(semBanco())('SMOKE DEMO 03/11 — roteiro do dono do produto (ba
     expect(local, 'pedido do S3 nas linhas do aparelho').not.toBeNull();
     expect(local!.status).toBe('approved');
     const doc = pdfDoPedido(local!);
-    const ctx = { tenant_name: nomeDaDistribuidora(lucas.sessao.tenant.nome, lucas.motor.parametros('core')), product_name: 'Macuxi FDV', tz: lucas.sessao.tenant.fuso, generated_at: new Date().toISOString() };
+    const ctx = { tenant_name: nomeDaEmpresaParaPdf(lucas.motor.parametros('core')), product_name: 'Macuxi FDV', tz: lucas.sessao.tenant.fuso, generated_at: new Date().toISOString() };
     const interno = buildOrderPdfHtml(doc, 'bko', ctx);
     expect(interno).toContain(numero);
     expect(interno).toContain('8,0%');
