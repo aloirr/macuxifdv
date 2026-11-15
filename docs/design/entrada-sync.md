@@ -20,7 +20,7 @@ A tela é sempre a mesma: o logo parado e, embaixo, a área de sincronização. 
 
 ## 2. Área de baixo (estados 2, 4, 5 e 6)
 De cima para baixo, alinhada à margem lateral de 32 dp:
-1. **"Olá, {primeiro nome}"** (só depois do login): IBM Plex Sans 15, `textoClaro`, centralizado, logo abaixo do logo.
+1. **"Olá, {primeiro nome}"** (só depois do login): 16/400, `textoClaro`, centralizado, logo abaixo do logo.
    - **"Você sabia?" e frase sorteada** (estados 4 e 5), abaixo do "Olá", centralizados: lâmpada (`<Icon name="lampada">`,
      gráfico), o rótulo "Você sabia?" e a frase, sem aspas e sem itálico. Uma frase por carga, parada. Sem respiro até o aviso,
      a frase cai para 1 linha (se couber inteira) ou o bloco inteiro sai. O rótulo nunca aparece sozinho.
@@ -28,18 +28,18 @@ De cima para baixo, alinhada à margem lateral de 32 dp:
      Sem caixa, sem borda, sem negrito e sem ícone. No erro (estado 6) sai.
    - Medidas, fontes e cores: só em `MEDIDAS_FRASE_CARGA` (`packages/ui/src/mobile/entrada.ts`) e na §1 de
      `docs/design/carga-aviso-frases/spec.md` (T-0181), que também traz o sorteio, o respiro e o cadastro.
-2. **Linha da barra:** à esquerda "Etapa {n} de {N} · {nome da etapa}" (Plex Sans 13, `texto`); à direita o percentual (Plex Sans
-   Bold 13, `texto`, números tabulares). Antes do login, o nome da tarefa no lugar da etapa. Pronto: "Pronto" e "100%".
+2. **Linha da barra:** à esquerda "Etapa {n} de {N} · {nome da etapa}" (14/400, `texto`); à direita o percentual
+   (14/700, `texto`, números tabulares). Antes do login, o nome da tarefa no lugar da etapa. Pronto: "Pronto" e "100%".
 3. **Barra:** 6 dp de altura, raio 3, trilho `trilho`, preenchimento `preenchimento`. É o percentual do total (ADR 0017), de 0 a
    100, nunca volta. Anima a largura em 240 ms; com "reduzir movimento", troca sem animar.
 4. **Lista de etapas:** uma linha de 32 dp por etapa, só as dos módulos ativos no perfil, na ordem do contrato:
 
    | Situação | Marcador (20 dp) | Nome |
    |---|---|---|
-   | feita | círculo `feita` com ✓ | `texto`, Plex Sans 14 |
-   | atual | anel `preenchimento` com ponto no meio | `texto`, Plex Sans SemiBold 14 |
-   | falta | anel `trilho` | `textoClaro`, Plex Sans 14 |
-   | parou | círculo `erro` com "!" | `texto`, Plex Sans SemiBold 14 |
+   | feita | círculo `feita` com ✓ | `texto`, 14/400 |
+   | atual | anel `preenchimento` com ponto no meio | `texto`, 14/600 |
+   | falta | anel `trilho` | `textoClaro`, 14/400 |
+   | parou | círculo `erro` com "!" | `texto`, 14/600 |
 
    - **Campo:** Envio do que ficou no aparelho · Clientes e rota · Catálogo e preços · Pedidos e metas · Fotos e materiais.
    - **Gestão:** Envio do que ficou no aparelho · Equipe · Aprovações · Metas · Alertas.
@@ -54,7 +54,7 @@ De cima para baixo, alinhada à margem lateral de 32 dp:
 
 ## 3. Parou (estado 6)
 No lugar da linha da barra e da barra, de cima para baixo (a lista continua, com a etapa marcada):
-1. **Linha do erro:** ícone de alerta 16 dp e o texto em `erro`, Plex Sans SemiBold 14:
+1. **Linha do erro:** ícone de alerta 16 dp e o texto em `erro`, 14/600:
    - sem sinal: **"Sem internet na etapa {n} de {N}"**;
    - outro erro: **"Parou na etapa {n} de {N}"**.
 
@@ -63,7 +63,7 @@ No lugar da linha da barra e da barra, de cima para baixo (a lista continua, com
    (`<Botao nivel="principal" sobreEscuro>` no Campo; `<Botao nivel="principal">` no Gestão).
 3. **"Continuar sem sincronizar"**: secundário de contorno, 52 dp, largura total (`contorno`, `contornoTexto`). Só aparece se já
    houver uma carga anterior no aparelho. Na primeira carga, só "Tentar de novo".
-4. **"Trocar usuário"**: link centralizado, Plex Sans SemiBold 14, `textoClaro`, alvo de 48 dp. Leva ao login.
+4. **"Trocar usuário"**: link centralizado, 14/600, `textoClaro`, alvo de 48 dp. Leva ao login.
 
 ## 4. Cores (`TEMAS_ENTRADA`)
 Cada app usa o fundo da própria splash nativa (manual §6), para a passagem da splash para a tela não ter corte.

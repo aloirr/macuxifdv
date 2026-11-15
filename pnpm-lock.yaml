@@ -247,6 +247,9 @@ importers:
       fastify:
         specifier: ^5.6.0
         version: 5.12.7
+      image-in-browser:
+        specifier: 3.7.0
+        version: 3.7.0
       jpeg-js:
         specifier: 0.4.4
         version: 0.4.4
@@ -5341,6 +5344,9 @@ packages:
   ignore@7.0.5:
     resolution: {integrity: sha512-Hs59xBNfUIunMFgWAbGX5cq6893IbWg4KnrjbYwX3tx0ztorVgTDA6B2sxf8ejHJ4wz8BqGUMYlnzNBer5NvGg==}
     engines: {node: '>= 4'}
+
+  image-in-browser@3.7.0:
+    resolution: {integrity: sha512-TSwLCxb/MW97krcfY6YTNM3oqVcH9ZwT17ygDwB2vYEtEMHs4H5INUr7L6civIS5WeciB6HS/ZbS6RFWPHzOHQ==}
 
   immediate@3.0.6:
     resolution: {integrity: sha512-XXOFtyqDjNDAQxVfYxuF7g9Il/IbWmmlQg2MYKOH8ExIT1qg6xc4zyS3HaEEATgs1btfzxq15ciUiY7gjSXRGQ==}
@@ -12214,6 +12220,8 @@ snapshots:
   ignore@7.0.14: {}
 
   ignore@7.0.5: {}
+
+  image-in-browser@3.7.0: {}
 
   immediate@3.0.6: {}
 
