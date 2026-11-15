@@ -1,6 +1,6 @@
 # ADR 0052 — Inativar, fazer backup e excluir a empresa pelo portal
 
-- **Status**: proposta em 2026-11-14 (três pontos aguardam o Alexandre: §Pendências).
+- **Status**: proposta em 2026-11-14; regra da exclusão, retenção de 90 dias, código não reaproveitado e backup sem download aprovados pelo dono do produto (R-20261114-202000-alexandre).
 - **Data**: 2026-11-14 (Manaus)
 - **Tarefa**: ações da empresa no portal (branch `nuvem/empresa-acoes-engenheiro-software`; o gerente atribui o número)
 - **Autor**: engenheiro-software
@@ -16,7 +16,7 @@
 ## Decisão
 
 ### 1. Inativar e Reativar (RN-PLA-07)
-1. **Estado**: o próprio `plataforma.tenant.status`. Inativa = `suspenso` (o portal mostra "Inativa"; `ROTULO_STATUS_EMPRESA`). O valor do banco não muda e não há migração do check. Colunas novas: `inativada_em`, `motivo_inativacao` (lista `MOTIVOS_INATIVACAO`, sem texto livre). Inativar **não apaga nem altera** nenhum dado da empresa e **não revoga** as sessões: ao reativar, quem estava logado volta sem novo login e a fila do aparelho sobe.
+1. **Estado**: o próprio `plataforma.tenant.status`. Inativa = `suspenso` (o portal mostra "Inativa"; `ROTULO_STATUS_EMPRESA`). O valor do banco não muda e não há migração do check. Colunas novas: `inativada_em`, `motivo_inativacao` (lista `MOTIVOS_INATIVACAO`, sem texto livre; **opcional e nulo**: a tela, portal-config-enxuto §15, não pede motivo, e a API inativa sem ele). Inativar **não apaga nem altera** nenhum dado da empresa e **não revoga** as sessões: ao reativar, quem estava logado volta sem novo login e a fila do aparelho sobe.
 2. **Quem**: só o super-admin, pelas rotas do portal (§4). O admin do cliente recebe 403 `PERFIL_SEM_ACESSO`.
 3. **O que bloqueia** (código único `EMPRESA_INATIVA`, `CODIGO_EMPRESA_INATIVA` no SDK):
 
@@ -32,9 +32,9 @@
 | Jobs do agendador | já param (`tenants_ativos()` só traz `ativo`) |
 | Despachante da outbox | segura os eventos do tenant inativo (não entrega nem conta tentativa). Ao reativar, eles seguem. Exceção: os `plataforma.tenant.*` |
 | E-mails (`plataforma.email_saida`) | o worker não envia os do tenant inativo: ficam aguardando e vencem pelo prazo normal |
-| App (Campo e Gestão) | ao receber 403 `EMPRESA_INATIVA`, mostra "Sua empresa está inativa no Macuxi. Fale com o administrador da empresa." e para de sincronizar. **Não apaga** os dados locais nem a fila (diferente do 423 de aparelho bloqueado) |
+| App (Campo e Gestão) | ao receber 403 `EMPRESA_INATIVA`, mostra `MENSAGEM_EMPRESA_INATIVA` (texto final do designer-ux) e para de sincronizar. **Não apaga** os dados locais nem a fila (diferente do 423 de aparelho bloqueado) |
 
-4. **Auditoria**: uma linha `tenant.inativado` ou `tenant.reativado` em `plataforma.auditoria_plataforma`, com o motivo, o antes e o depois, e o evento `plataforma.tenant.inativado@1` ou `plataforma.tenant.reativado@1` na outbox do tenant, na mesma transação. Ações idempotentes: repetir dá 200 com `resultado: 'sem_mudanca'` e não grava evento.
+4. **Auditoria**: uma linha `tenant.inativado` ou `tenant.reativado` em `plataforma.auditoria_plataforma`, com o motivo (quando houver), o antes e o depois, e o evento `plataforma.tenant.inativado@1` ou `plataforma.tenant.reativado@1` na outbox do tenant, na mesma transação. Ações idempotentes: repetir dá 200 com `resultado: 'sem_mudanca'` e não grava evento.
 
 ### 2. Backup da empresa (RN-PLA-08)
 1. **Formato**: exportação lógica por tabela, não `pg_dump`. Para cada tabela com `tenant_id` (a mesma lista do catálogo da `excluir_tenant`, em ordem de FK, mães antes das filhas) e mais a linha de `plataforma.tenant`, um arquivo NDJSON (`row_to_json` da linha inteira), compactado com gzip e cifrado. Mais um `manifesto.json` (`ManifestoBackupEmpresaSchema`): versão do formato, migração do banco, contagem, bytes e sha256 de cada parte. Os arquivos (fotos, prints, miniaturas) de `arquivos/<tenant_id>/` são **copiados no próprio bucket** (`CopyObject`, sem baixar).
@@ -45,7 +45,7 @@
 6. **Consistência**: sem transação longa, para não segurar o horizonte do pull de todos os tenants. O backup feito com a empresa **inativa** do começo ao fim é `consistente` (nada escreve: API, Conector, outbox e jobs parados). Feito com a empresa ativa, ele é permitido, mas sai `consistente: false` e não libera a exclusão.
 7. **Tempo e tamanho esperados**: a demo tem 1.802 linhas e 115 tabelas, então leva segundos e menos de 1 MB. Um cliente médio (50 usuários, 5 mil clientes, 20 mil produtos, 1 ano de pedidos, cerca de 2 milhões de linhas) dá de 100 a 300 MB compactados e de 2 a 5 minutos de dados. As fotos dominam: 50 mil fotos de cerca de 300 KB somam 15 GB e de 20 a 40 minutos de cópia no bucket. O portal mostra o progresso. A rota responde 202 na hora.
 8. **Retenção** (RN-PLA-11): 30 dias com a empresa existindo, ficando sempre o mais novo pronto. O backup que serviu a uma exclusão fica 90 dias depois dela, e depois o worker apaga. **Ainda vale**: o dump diário do banco inteiro guarda a empresa excluída por até 30 dias (ADR 0028).
-9. **Restaurar**: comando `tenant:restaurar --backup <id>` na ferramenta `tenant` da VM, com a conexão do migrador (`macuxi_manutencao`), como o `tenant:criar`. Ele confere o manifesto e o sha256 de cada parte, decifra e exige a mesma migração do banco (senão para; o caminho é restaurar num banco nessa versão e migrar). Exige também que o tenant não exista e que o código esteja livre ou seja o da mesma empresa excluída. Insere tudo numa transação, mães antes das filhas, com o ciclo `core.usuario` ↔ `core.equipe` gravado com nulo e completado no fim. Copia os arquivos de volta para `arquivos/<tenant_id>/` e devolve a empresa **inativa**: o super-admin confere e reativa. O `updated_at` sai com a hora da restauração (gatilhos ligados). O ensaio de restauração entra no CI (`*.db.test.ts`).
+9. **Restaurar**: comando `tenant:restaurar --backup <id>` na ferramenta `tenant` da VM, com a conexão do migrador (`macuxi_manutencao`), como o `tenant:criar`. Só restaura no banco com a mesma migração do backup. A empresa volta **inativa**, e o super-admin confere e reativa. O ensaio de restauração entra no CI (`*.db.test.ts`). Passos: desenho §3.
 
 ### 3. Excluir (RN-PLA-09/10)
 1. **Pré-condições** (`conferirExclusao` no SDK; a API revalida na transação):
@@ -54,9 +54,7 @@
 
    Recusas 422: `EXCLUSAO_EMPRESA_ATIVA`, `EXCLUSAO_SEM_BACKUP`, `EXCLUSAO_BACKUP_ANTES_DA_INATIVACAO`, `EXCLUSAO_BACKUP_VENCIDO` e `EXCLUSAO_CODIGO_NAO_CONFERE`. 409 `EXCLUSAO_EM_ANDAMENTO`.
 2. **Confirmação forte**: diálogo com o nome e o código da empresa. O super-admin digita o código (`AM4821`) e a **própria senha**, conferida de novo (403 `REAUTENTICACAO_FALHOU`, que conta no limite de falhas do portal), e escolhe o backup (`backup_id` no corpo).
-3. **Execução**: job assíncrono (`plataforma.exclusao_empresa`, sem `tenant_id`, como o backup), em duas etapas:
-   - **banco**: numa transação, a função `SECURITY DEFINER` `plataforma.executar_exclusao(p_exclusao)` (dono: migrador; EXECUTE só para o `macuxi_worker`) lê tudo da linha do job, confere de novo as pré-condições, passa o tenant a `encerrado`, chama a `excluir_tenant` (ordem de FK, B2) e grava o registro `plataforma.empresa_excluida`;
-   - **arquivos**: remove os objetos de `arquivos/<tenant_id>/` (listagem e DELETE em lote, idempotente, com nova tentativa).
+3. **Execução**: job assíncrono (`plataforma.exclusao_empresa`, sem `tenant_id`, como o backup), pelo worker, com a função `SECURITY DEFINER` `plataforma.executar_exclusao` (dono: migrador; EXECUTE só para o `macuxi_worker`) e a `excluir_tenant` (B2). Etapas: desenho §2.
 
    As cópias em `backups-empresas/` ficam pela retenção (§2.8).
 4. **Código da licença**: **não é reaproveitado**. O registro `plataforma.empresa_excluida` (id antigo, código, CNPJ, razão social, `excluida_em`, `backup_id`, super-admin) guarda o código. O `sortear_codigo_licenca` e o `provisionar_tenant` recusam o código que está nele. Assim a restauração volta com o mesmo id e o mesmo código, e o app instalado com o código antigo nunca entra em outra empresa. A assinatura (ADR 0047) é apagada junto com o tenant.
@@ -67,7 +65,7 @@ Rotas do portal, só super-admin, atrás de `MACUXI_EMPRESA_ACOES=1` (padrão de
 
 | Rota | Corpo / resposta | Erros |
 |---|---|---|
-| `POST /v1/plataforma/empresas/:tenant_id/inativar` | `InativarEmpresaSchema` → 200 `SituacaoEmpresaRespostaSchema` | 404 `EMPRESA_NAO_ENCONTRADA`, 409 `EXCLUSAO_EM_ANDAMENTO` |
+| `POST /v1/plataforma/empresas/:tenant_id/inativar` | `InativarEmpresaSchema` (`{}` ou motivo opcional) → 200 `SituacaoEmpresaRespostaSchema` | 404 `TENANT_NAO_ENCONTRADO`, 409 `EXCLUSAO_EM_ANDAMENTO` |
 | `POST /v1/plataforma/empresas/:tenant_id/reativar` | `{}` → 200 `SituacaoEmpresaRespostaSchema` | 404, 409 `EXCLUSAO_EM_ANDAMENTO` |
 | `POST /v1/plataforma/empresas/:tenant_id/backups` | `PedirBackupEmpresaSchema` → 202 `BackupEmpresaSchema` | 404, 409 `BACKUP_EM_ANDAMENTO` / `EXCLUSAO_EM_ANDAMENTO`, 503 `BACKUP_INDISPONIVEL` |
 | `GET /v1/plataforma/empresas/:tenant_id/backups[/:backup_id]` | → 200 `ListaBackupsEmpresaSchema` (até 20) / `BackupEmpresaSchema` | 404 |
@@ -75,22 +73,7 @@ Rotas do portal, só super-admin, atrás de `MACUXI_EMPRESA_ACOES=1` (padrão de
 | `GET /v1/plataforma/empresas/:tenant_id/exclusao` | → 200 `ExclusaoEmpresaSchema` (também depois de concluída, pelo registro) | 404 |
 | `GET /v1/plataforma/empresas` (já existe) | item ganha `acoes?: AcoesDaEmpresaSchema` (aditivo): inativação, último backup, exclusão e `exclusao_bloqueada` | — |
 
-Eventos (`EVENTOS_TENANT`):
-
-| Evento | Publicado por | Via |
-|---|---|---|
-| `plataforma.tenant.inativado@1` | API | outbox do tenant |
-| `plataforma.tenant.reativado@1` | API | outbox do tenant |
-| `plataforma.tenant.backup_concluido@1` | worker | outbox do tenant |
-| `plataforma.tenant.backup_falhou@1` | worker | outbox do tenant |
-| `plataforma.tenant.excluido@1` | — | só auditoria e registro, fora da outbox |
-
-Nenhum módulo precisa consumir: o bloqueio é da plataforma.
-
-## Pendências (decisão do Alexandre)
-1. **Prazo do backup para excluir**: 7 dias contados do fim do backup, e o backup feito com a empresa já inativa. Recomendação: manter.
-2. **Retenção do backup depois da exclusão**: 90 dias, e depois ele é apagado de vez (LGPD). Recomendação: 90 dias.
-3. **Código da licença da empresa excluída**: nunca reaproveitado. Recomendação: manter.
+Eventos `plataforma.tenant.*@1` (`EVENTOS_TENANT`): ver `.coord/contratos/eventos.md`. Nenhum módulo precisa consumir: o bloqueio é da plataforma.
 
 ## Alternativas descartadas
 - **`pg_dump` por tenant**: o `pg_dump` não filtra linhas. Com `--enable-row-security` e um papel no contexto do tenant, depende de papel com LOGIN e segredo novo para cada execução. Restaurar um dump parcial no banco em uso também não é seguro.

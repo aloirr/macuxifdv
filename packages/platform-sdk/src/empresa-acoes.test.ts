@@ -66,12 +66,16 @@ describe('RN-PLA-07: inativar e reativar', () => {
     expect(transicaoDeSituacao('encerrado', 'inativar')).toBe('recusado');
     expect(transicaoDeSituacao('encerrado', 'reativar')).toBe('recusado');
   });
-  it('motivo só de lista (sem texto livre); chave extra recusada', () => {
+  it('inativar sem motivo: corpo vazio ou motivo nulo', () => {
+    expect(InativarEmpresaSchema.parse({})).toEqual({});
+    expect(InativarEmpresaSchema.parse({ motivo: null })).toEqual({ motivo: null });
+  });
+  it('motivo, quando vem, só de lista (sem texto livre); chave extra recusada', () => {
     expect(InativarEmpresaSchema.parse({ motivo: 'inadimplencia' })).toEqual({ motivo: 'inadimplencia' });
     expect(InativarEmpresaSchema.safeParse({ motivo: 'cliente João não pagou' }).success).toBe(false);
     expect(InativarEmpresaSchema.safeParse({ motivo: 'outro', obs: 'x' }).success).toBe(false);
   });
-  it('resposta: inativada_em e motivo só na empresa inativa', () => {
+  it('resposta: inativada_em só na empresa inativa; motivo opcional, só nela', () => {
     const ok = {
       tenant_id: T,
       status: 'suspenso',
@@ -85,7 +89,11 @@ describe('RN-PLA-07: inativar e reativar', () => {
       SituacaoEmpresaRespostaSchema.safeParse({ ...ok, status: 'ativo', inativada_em: null, motivo: null })
         .success,
     ).toBe(true);
-    expect(SituacaoEmpresaRespostaSchema.safeParse({ ...ok, motivo: null }).success).toBe(false);
+    expect(SituacaoEmpresaRespostaSchema.safeParse({ ...ok, motivo: null }).success).toBe(true);
+    expect(SituacaoEmpresaRespostaSchema.safeParse({ ...ok, inativada_em: null }).success).toBe(false);
+    expect(
+      SituacaoEmpresaRespostaSchema.safeParse({ ...ok, status: 'ativo', inativada_em: null }).success,
+    ).toBe(false);
   });
 });
 
@@ -272,6 +280,10 @@ describe('contratos da lista e eventos', () => {
       exclusao_bloqueada: null,
     };
     expect(AcoesDaEmpresaSchema.safeParse(acoes).success).toBe(true);
+    expect(
+      AcoesDaEmpresaSchema.safeParse({ ...acoes, exclusao_bloqueada: C.exclusaoBackupVencido }).success,
+    ).toBe(true);
+    expect(AcoesDaEmpresaSchema.safeParse({ ...acoes, exclusao_bloqueada: 'QUALQUER' }).success).toBe(false);
     expect(EmpresaResumoSchema.safeParse({ ...item, acoes }).success).toBe(true);
   });
   it('eventos plataforma.tenant.*@1 com nome válido e payload estrito, sem dado pessoal', () => {
@@ -287,6 +299,10 @@ describe('contratos da lista e eventos', () => {
     const [inativado] = EVENTOS_TENANT;
     expect(
       inativado.schema.safeParse({ tenant_id: T, motivo: 'outro', inativada_em: '2026-11-10T12:00:00Z' })
+        .success,
+    ).toBe(true);
+    expect(
+      inativado.schema.safeParse({ tenant_id: T, motivo: null, inativada_em: '2026-11-10T12:00:00Z' })
         .success,
     ).toBe(true);
     expect(
