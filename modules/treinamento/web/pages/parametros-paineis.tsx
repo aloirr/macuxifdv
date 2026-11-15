@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { useParametros } from '@macuxi/platform-sdk/react';
+import { rotuloDoPerfil } from '@macuxi/ui/web';
 import { PARAMETROS_PADRAO as P, type ParametrosTreinamento } from '../../domain/parametros';
 import { valorComPadrao, valorParametro } from '../lib/parametros-valor';
 
@@ -40,6 +41,7 @@ function linha<K extends keyof ParametrosTreinamento>(
   return { rotulo, valor: r.texto, padrao: r.padrao };
 }
 
+const num = (n: number) => n.toLocaleString('pt-BR');
 const pct = (n: number) => `${n}%`;
 const min = (n: number) => `${n} min`;
 const seg = (n: number) => `${n} s`;
@@ -55,19 +57,19 @@ export const linhasQuizLicao = (p: Params): readonly Linha[] => [
 ];
 
 export const linhasXp = (p: Params): readonly Linha[] => [
-  linha(p, 'Lição concluída', 'xp_licao'),
-  linha(p, 'Acerto no quiz', 'xp_acerto_questao'),
-  linha(p, 'Trilha concluída', 'xp_trilha'),
-  linha(p, 'Sequência, por dia', 'xp_streak_por_dia'),
-  linha(p, 'Sequência, teto', 'xp_streak_teto'),
-  linha(p, 'Teto por dia', 'xp_teto_diario'),
-  linha(p, 'Teto por desafio', 'xp_max_por_desafio'),
+  linha(p, 'Lição concluída', 'xp_licao', num),
+  linha(p, 'Acerto no quiz', 'xp_acerto_questao', num),
+  linha(p, 'Trilha concluída', 'xp_trilha', num),
+  linha(p, 'Sequência, por dia', 'xp_streak_por_dia', num),
+  linha(p, 'Sequência, teto', 'xp_streak_teto', num),
+  linha(p, 'Teto por dia', 'xp_teto_diario', num),
+  linha(p, 'Teto por desafio', 'xp_max_por_desafio', num),
 ];
 
 export const linhasNiveis = (p: Params): readonly Linha[] => [
-  linha(p, 'XP de cada nível', 'niveis_xp_min', (v) => v.join(' · ')),
+  linha(p, 'XP de cada nível', 'niveis_xp_min', (v) => v.map((n) => n.toLocaleString('pt-BR')).join(' · ')),
   linha(p, 'Medalha de sequência', 'streak_medalha_dias', dias),
-  linha(p, 'Perfis no ranking', 'perfis_ranking', (v) => v.join(', ')),
+  linha(p, 'Perfis no ranking', 'perfis_ranking', (v) => v.map((c) => rotuloDoPerfil(c, { forma: 'longo' })).join(', ')),
 ];
 
 export const PainelQuizLicao = () => <Lista testID="treinamento-quiz-licao" linhas={linhasQuizLicao(useParametros('treinamento'))} />;
