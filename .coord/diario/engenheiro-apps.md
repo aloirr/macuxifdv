@@ -120,3 +120,4 @@
 2026-11-13 — T-0170 — v1.0.6: Início do Campo passa a ser a TelaInicioCampo do Core com o sino do shell (prop sino); saem Orçamentos, A faturar e o cartão de Recados (RD-0249, também no Início da Gestão); código morto do cartão de Recados removido (components/inicio.tsx, lib/inicio.ts e testes).
 2026-11-14 — T-0170 — v1.0.6: costura do sync no app (tarefa, frase_dia, usuario_avatar, meta_produtividade, deslocamento_dia; filas tarefa_conclusao e usuario_avatar); depende do #152
 2026-11-14 — Oficial — workflow do EAS sem o PC (pronto em apps/mobile/scripts/eas/eas-build.yml)
+2026-11-15 — R-20261114-221000 (rodapé legal) — rodapé legal no Entrar do Campo, da Gestão, do BKO e do portal (shell; leitura da rota pública /v1/publico/dados-legais com cache no app; versão do expo-constants e NEXT_PUBLIC_VERSAO via ARG MACUXI_VERSAO no Dockerfile); frase da variante saiu do login do app; montagem e componente locais até o kit ter os dele.

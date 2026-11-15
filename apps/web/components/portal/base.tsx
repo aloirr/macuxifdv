@@ -12,6 +12,7 @@ import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type
 import { Button, cx, Dialog, ESCONDER_SENHA, IconEye, IconEyeOff, LoadingBlock, MOSTRAR_SENHA } from '@macuxi/ui/web';
 
 import { MarcaNaFaixa } from '@/components/marca-faixa';
+import { RodapeLegal } from '@/components/rodape-legal';
 import { houveUsoRecente, MODO_PORTAL_FALSO, registrarUso, renovarSessaoPortal, sairDoPortal } from '@/lib/portal-api';
 import {
   assinarSaida,
@@ -77,16 +78,18 @@ export function AvisoModoFalso() {
 }
 
 /** Tela estreita (entrar, escolha a empresa). */
-export function MolduraEstreita({ children, testId }: { children: ReactNode; testId: string }) {
+/** `rodapeLegal` (só o Entrar liga; a "Escolha a empresa" não): rodapé legal no pé da página (docs/design/telas/rodape-legal.md). */
+export function MolduraEstreita({ children, testId, rodapeLegal = false }: { children: ReactNode; testId: string; rodapeLegal?: boolean }) {
   return (
-    <div className="min-h-screen bg-ground">
+    <div className="flex min-h-screen flex-col bg-ground">
       <AvisoModoFalso />
-      <div data-testid={testId} className="flex flex-col items-center px-4 py-10 sm:py-16">
+      <div data-testid={testId} className={cx('flex flex-1 flex-col items-center px-4 pt-10 sm:pt-16', !rodapeLegal && 'pb-10 sm:pb-16')}>
         <div className="flex w-full max-w-[440px] flex-col gap-5">
           <Marca />
           {/* cartão branco: hierarquia e contraste dos links (accent sobre o fundo dá 4,2:1; sobre branco, 4,6:1; R-20261106-023316 🟡 9) */}
           <div className="rounded-2xl border border-line bg-surface p-5">{children}</div>
         </div>
+        {rodapeLegal && <RodapeLegal className="mt-auto pt-8 pb-6" />}
       </div>
     </div>
   );
