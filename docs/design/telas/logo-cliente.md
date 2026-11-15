@@ -2,7 +2,6 @@
 
 > 2026-11-15 · designer-ux · pedido do dono do produto R-20261114-223000-alexandre (pelo gerente-projetos): mostrar a
 > logo do cliente (a distribuidora). **Agora é só a simulação.** A implementação fica para depois do build da v1.0.9.
-> Frase do Mais com o **nome fantasia** (decisão do dono do produto, R-20261114-223500-alexandre).
 > Simulações em `docs/design/telas/logo-cliente/`: HTML + PNG (Playwright, deviceScaleFactor 2). Celular a 360 dp;
 > portal a 1366 px; PDF em A4 paisagem.
 >
@@ -14,11 +13,9 @@
 >
 > Nada disso vai para código, seed nem teste como dado real.
 >
-> **Revisão de 2026-11-15** (parecer do design-de-marca `docs/marca/pareceres/2026-11-15-lote-noite.md`, parte 2,
-> lote 13): **MC-0067**, placa de 52/36 no Mais (§5); **MC-0066**, carga com logo (§3).
->
-> **Decisão do dono do produto** (R-20261114-234500-alexandre, 14/11/2026 ~23h45, Manaus, pelo gerente-projetos):
-> fecha a carga (§3, MC-0066 decidida) e o login (§4); o Mais, os PDFs e o portal ficam como estão nesta simulação.
+> **Decisões** (R-20261114-223500 e R-20261114-234500-alexandre; MC-0066 e MC-0067, parecer do design-de-marca
+> `docs/marca/pareceres/2026-11-15-lote-noite.md`, parte 2, lote 13): carga com a logo ao lado (§3), login e telas de
+> senha sem logo (§4), placa 52/36 e nome fantasia no Mais (§5). O portal e os PDFs ficam como nesta simulação.
 
 ## 0. O que existe hoje no `main` (busca em `db/`, `modules/` e `apps/`)
 
