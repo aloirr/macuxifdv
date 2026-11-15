@@ -42,7 +42,6 @@
 
   /* fonte do sistema no texto e nos títulos; códigos em mono com tabular-nums (R-20261115-110600) */
   --font-sans: system-ui, 'Segoe UI', Roboto, -apple-system, sans-serif;
-  --font-display: var(--font-sans);
   --font-mono: ui-monospace, 'Cascadia Mono', 'Roboto Mono', monospace;
 
   /* escala do texto pensada para 1366×768: 12 (mínimo) · 13 · 15 (base) · 17 · 20 · 24 (R-20261115-110600) */
