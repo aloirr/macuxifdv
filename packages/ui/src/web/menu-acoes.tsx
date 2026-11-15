@@ -7,6 +7,7 @@
  * andam entre os itens. Ação de perigo (Desativar, Excluir) vai por último, em vermelho, depois de um traço.
  */
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { IconMais } from './icons';
 import { indiceNoMenu, posicaoDoMenu } from './tabela-dados';
 import { cx } from './ui';
 
@@ -19,14 +20,6 @@ export interface AcaoDoMenu {
   desligada?: boolean;
   testId?: string;
 }
-
-export const IconMais = ({ size = 18 }: { size?: number }) => (
-  <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-    <circle cx="5" cy="12" r="1.9" />
-    <circle cx="12" cy="12" r="1.9" />
-    <circle cx="19" cy="12" r="1.9" />
-  </svg>
-);
 
 /** Perigo por último: a ordem dentro de cada grupo é a da tela. */
 export function ordenarAcoes(acoes: readonly AcaoDoMenu[]): AcaoDoMenu[] {
@@ -136,7 +129,7 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', testId }: { acoes: r
                 a.aoEscolher();
               }}
               className={cx(
-                'flex h-10 items-center px-3.5 text-left text-[14px] font-medium whitespace-nowrap hover:bg-ground focus-visible:bg-ground focus-visible:outline-none disabled:cursor-not-allowed disabled:text-disabled disabled:hover:bg-transparent',
+                'flex h-10 items-center px-3.5 text-left text-[14px] font-medium whitespace-nowrap hover:bg-ground focus-visible:bg-accent-soft focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:text-disabled disabled:hover:bg-transparent',
                 a.perigo ? 'text-danger' : 'text-ink',
                 a.perigo && i > 0 && !itens[i - 1]?.perigo && 'mt-1 border-t border-line-2',
               )}

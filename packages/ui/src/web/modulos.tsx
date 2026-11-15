@@ -5,8 +5,8 @@
  * Core, Integração e Catálogo são nativos: entram em toda empresa e SOMEM de toda lista de módulos (licenças, perfis, portal).
  * Os contratáveis são Vendedor, Gestor, Promotor, Pesquisa e Treinamento, em ordem alfabética.
  */
-import type { ReactElement, SVGProps } from 'react';
-import { IconPesquisa, IconPromotor, IconTreinamento } from './icons';
+import type { ComponentType, SVGProps } from 'react';
+import { IconCatalogo, IconCore, IconGestor, IconIntegracao, IconPesquisa, IconPromotor, IconTreinamento, IconVendedor } from './icons';
 import { Interruptor } from './permissoes';
 import { cx } from './ui';
 
@@ -17,81 +17,40 @@ const MODULOS: readonly string[] = IDS_DOS_MODULOS;
 
 export const MODULOS_NATIVOS: readonly IdDoModulo[] = ['catalogo', 'core', 'integracao'];
 
-type PropsIcone = SVGProps<SVGSVGElement> & { size?: number };
+type IconeDoModulo = ComponentType<SVGProps<SVGSVGElement> & { size?: number }>;
 
-function Traco({ size = 20, children, ...rest }: PropsIcone) {
-  return (
-    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" {...rest}>
-      {children}
-    </svg>
-  );
-}
-
-/** Ícones dos módulos, no traço dos ícones do kit (24×24, ponta redonda). Validação da marca: docs/design/telas/bko-revisao.md §P10. */
-const ICONES: Record<IdDoModulo, (p: PropsIcone) => ReactElement> = {
-  // pedido: carrinho
-  vendedor: (p) => (
-    <Traco {...p}>
-      <circle cx="9.5" cy="19.5" r="1.5" />
-      <circle cx="17.5" cy="19.5" r="1.5" />
-      <path d="M2.5 3.5h2.6l2.4 11.3a1.6 1.6 0 0 0 1.6 1.2h8.6a1.6 1.6 0 0 0 1.5-1.2L21 7.5H6" />
-    </Traco>
-  ),
-  // equipe e indicadores: barras subindo
-  gestor: (p) => (
-    <Traco {...p}>
-      <path d="M3.5 20.5h17" />
-      <path d="M7 16.5v-4" />
-      <path d="M12 16.5v-8" />
-      <path d="M17 16.5V4.5" />
-    </Traco>
-  ),
-  // promotor, pesquisa e treinamento: os mesmos ícones do MC-0042 (`./icons`), um desenho por módulo
-  promotor: (p) => <IconPromotor strokeWidth={1.9} {...p} />,
-  pesquisa: (p) => <IconPesquisa strokeWidth={1.9} {...p} />,
-  treinamento: (p) => <IconTreinamento strokeWidth={1.9} {...p} />,
-  // base: quatro blocos
-  core: (p) => (
-    <Traco {...p}>
-      <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
-      <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
-      <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
-      <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
-    </Traco>
-  ),
-  // catálogo: livro aberto
-  catalogo: (p) => (
-    <Traco {...p}>
-      <path d="M2.5 5h6a3.5 3.5 0 0 1 3.5 3.5V20a2.8 2.8 0 0 0-2.8-2.8H2.5z" />
-      <path d="M21.5 5h-6A3.5 3.5 0 0 0 12 8.5V20a2.8 2.8 0 0 1 2.8-2.8h6.7z" />
-    </Traco>
-  ),
-  // ERP: duas setas trocando
-  integracao: (p) => (
-    <Traco {...p}>
-      <path d="M4 8h14l-3.5-3.5" />
-      <path d="M20 16H6l3.5 3.5" />
-    </Traco>
-  ),
+/** Só o mapa id → ícone; os desenhos ficam em `./icons` (RD-0367). Validação da marca: bko-revisao.md §P10. */
+const ICONES: Record<IdDoModulo, IconeDoModulo> = {
+  catalogo: IconCatalogo,
+  core: IconCore,
+  gestor: IconGestor,
+  integracao: IconIntegracao,
+  pesquisa: IconPesquisa,
+  promotor: IconPromotor,
+  treinamento: IconTreinamento,
+  vendedor: IconVendedor,
 };
+
+/** Ícone do módulo (o mesmo do `IconeModulo`), para quem precisa do componente. */
+export const iconeDoModulo = (id: IdDoModulo): IconeDoModulo => ICONES[id];
 
 export interface InfoDoModulo {
   id: IdDoModulo;
   nome: string;
-  /** Frase de valor do cartão: o que a equipe ganha, em uma linha. */
-  valor: string;
+  /** Frase de valor do cartão: o que a equipe ganha, em uma linha. Os nativos não têm (não aparecem em lista). */
+  valor?: string;
   nativo: boolean;
 }
 
 const INFO: Record<IdDoModulo, Omit<InfoDoModulo, 'id' | 'nativo'>> = {
-  catalogo: { nome: 'Catálogo', valor: 'Busca de produtos com aplicação, preço e estoque.' },
-  core: { nome: 'Core', valor: 'Usuários, clientes, rotas e metas.' },
-  gestor: { nome: 'Gestor', valor: 'Equipe, aprovações e indicadores na palma da mão.' },
-  integracao: { nome: 'Integração com o ERP', valor: 'Cadastros e pedidos trocados com o ERP.' },
+  catalogo: { nome: 'Catálogo' },
+  core: { nome: 'Core' },
+  gestor: { nome: 'Gestor', valor: 'Equipe, aprovações e indicadores.' },
+  integracao: { nome: 'Integração com o ERP' },
   pesquisa: { nome: 'Pesquisa', valor: 'Questionários na visita, com fotos e resultados.' },
   promotor: { nome: 'Promotor', valor: 'Gôndola, share, preço, ruptura e validade no PDV.' },
   treinamento: { nome: 'Treinamento', valor: 'Trilhas, quizzes e ranking para a equipe de campo.' },
-  vendedor: { nome: 'Vendedor', valor: 'Pedidos e orçamentos no app, mesmo sem sinal.' },
+  vendedor: { nome: 'Vendedor', valor: 'Pedidos e orçamentos no app.' },
 };
 
 export function infoDoModulo(id: IdDoModulo): InfoDoModulo {
@@ -144,9 +103,11 @@ export function CartaoDeModulo({
         <span id={rotuloId} className="font-display text-[15px] font-bold text-ink">
           {m.nome}
         </span>
-        <span className="truncate text-[13px] text-ink-2" title={m.valor}>
-          {m.valor}
-        </span>
+        {m.valor && (
+          <span className="truncate text-[13px] text-ink-2" title={m.valor}>
+            {m.valor}
+          </span>
+        )}
       </div>
       {aoAlternar ? (
         <Interruptor ligado={ativo} onChange={aoAlternar} rotuloId={rotuloId} desabilitado={desabilitado} testId={testId ? `${testId}.interruptor` : undefined} />

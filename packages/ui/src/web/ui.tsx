@@ -51,12 +51,21 @@ export function FilterBar({ children }: { children: ReactNode }) {
   return <div className="flex flex-wrap items-end gap-2.5">{children}</div>;
 }
 
+/**
+ * Traço, cor, texto e foco de todo campo do kit (filtros, busca e formulário; RD-0368). Cada campo só acrescenta a altura,
+ * a largura e o respiro.
+ */
+export const CLASSE_CAMPO_BASE = cx(
+  'rounded-[10px] border border-field bg-surface text-[14px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2 disabled:opacity-60',
+  CLASSES_DESTAQUE.foco,
+);
+
 export function SelectField({ label, children, className, ...rest }: SelectHTMLAttributes<HTMLSelectElement> & { label: string }) {
   return (
     <label className="flex flex-col gap-[3px] text-[12px] font-semibold text-ink-2">
       {label}
       <select
-        className={cx('h-[38px] min-w-[120px] rounded-[10px] border border-field bg-surface px-2.5 text-[14px] font-medium text-ink disabled:opacity-60', CLASSES_DESTAQUE.foco, className)}
+        className={cx(CLASSE_CAMPO_BASE, 'h-[38px] min-w-[120px] px-2.5', className)}
         {...rest}
       >
         {children}
@@ -71,7 +80,7 @@ export function TextField({ label, className, ...rest }: InputHTMLAttributes<HTM
     <label className="flex flex-col gap-[3px] text-[12px] font-semibold text-ink-2">
       {label}
       <input
-        className={cx('h-[38px] min-w-[120px] rounded-[10px] border border-field bg-surface px-2.5 text-[14px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2 disabled:opacity-60', CLASSES_DESTAQUE.foco, className)}
+        className={cx(CLASSE_CAMPO_BASE, 'h-[38px] min-w-[120px] px-2.5', className)}
         {...rest}
       />
     </label>
@@ -90,7 +99,7 @@ export function CampoBusca({ rotulo, className, ...rest }: Omit<InputHTMLAttribu
         type="search"
         aria-label={rotulo}
         placeholder={rotulo}
-        className={cx('h-[38px] w-full rounded-[10px] border border-field bg-surface pr-2.5 pl-9 text-[14px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2', CLASSES_DESTAQUE.foco)}
+        className={cx(CLASSE_CAMPO_BASE, 'h-[38px] w-full pr-2.5 pl-9')}
         {...rest}
       />
     </div>
@@ -121,10 +130,7 @@ export function CampoFormulario({ rotulo, opcional, erro, children, className }:
 }
 
 /** Classe do controle dentro do `CampoFormulario`: 42 px, a mesma altura do botão `md`. */
-export const CLASSE_CAMPO = cx(
-  'h-[42px] w-full rounded-[10px] border border-field bg-surface px-3 text-[14px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2 disabled:opacity-60 aria-[invalid=true]:border-danger',
-  CLASSES_DESTAQUE.foco,
-);
+export const CLASSE_CAMPO = cx(CLASSE_CAMPO_BASE, 'h-[42px] w-full px-3 aria-[invalid=true]:border-danger');
 
 /**
  * Título de quadro com a contagem (revisão do BKO §P6: o número aparece num lugar só). "Pedidos · 12", "Pedidos · 50+"

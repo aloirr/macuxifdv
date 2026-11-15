@@ -1,25 +1,19 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { colunasVisiveis, classeDaPrioridade, indiceNoMenu, nomeLegivel, posicaoDoMenu, LARGURA_MINIMA_DA_PRIORIDADE } from './tabela-dados';
+import { classeDaPrioridade, indiceNoMenu, nomeLegivel, posicaoDoMenu } from './tabela-dados';
 import { ordenarAcoes } from './menu-acoes';
-import { infoDoModulo, modulosContrataveis, nomeDoModulo, IDS_DOS_MODULOS } from './modulos';
-import { rotuloComContagem, seloPrincipal } from './ui';
+import { iconeDoModulo, infoDoModulo, modulosContrataveis, nomeDoModulo, IDS_DOS_MODULOS } from './modulos';
+import { IconCatalogo, IconCore, IconGestor, IconIntegracao, IconMais, IconPesquisa, IconPromotor, IconTreinamento, IconVendedor } from './icons';
+import { CLASSE_CAMPO, CLASSE_CAMPO_BASE, rotuloComContagem, seloPrincipal } from './ui';
+
+const fonte = (arquivo: string) => readFileSync(new URL(arquivo, import.meta.url), 'utf8');
 
 describe('Revisão do BKO §P2: tabela sem rolagem lateral', () => {
-  const cols = [{ id: 'nome' }, { id: 'perfil', prioridade: 2 as const }, { id: 'erp', prioridade: 3 as const }];
-
-  it('prioridade 1 sempre; 2 a partir de 672 px de quadro; 3 a partir de 1024 px', () => {
-    expect(colunasVisiveis(cols, 480).map((c) => c.id)).toEqual(['nome']);
-    expect(colunasVisiveis(cols, 672).map((c) => c.id)).toEqual(['nome', 'perfil']);
-    expect(colunasVisiveis(cols, 1023).map((c) => c.id)).toEqual(['nome', 'perfil']);
-    expect(colunasVisiveis(cols, 1024).map((c) => c.id)).toEqual(['nome', 'perfil', 'erp']);
-  });
-
-  it('as classes batem com os tamanhos de contêiner do Tailwind (@2xl = 42rem, @5xl = 64rem)', () => {
+  it('prioridade 1 sempre; 2 a partir de @2xl (672 px de quadro); 3 a partir de @5xl (1024 px)', () => {
+    expect(classeDaPrioridade()).toBe('');
     expect(classeDaPrioridade(1)).toBe('');
     expect(classeDaPrioridade(2)).toBe('hidden @2xl/tabela:table-cell');
     expect(classeDaPrioridade(3)).toBe('hidden @5xl/tabela:table-cell');
-    expect(LARGURA_MINIMA_DA_PRIORIDADE[2]).toBe(42 * 16);
-    expect(LARGURA_MINIMA_DA_PRIORIDADE[3]).toBe(64 * 16);
   });
 });
 
@@ -85,6 +79,14 @@ describe('Mapa único dos módulos (R-20261114-143500)', () => {
     expect(infoDoModulo('integracao').nativo).toBe(true);
     expect(infoDoModulo('pesquisa').nativo).toBe(false);
   });
+  it('frase de valor só nos contratáveis, sem texto de funcionamento; os nativos ficam sem frase', () => {
+    expect(infoDoModulo('gestor').valor).toBe('Equipe, aprovações e indicadores.');
+    expect(infoDoModulo('vendedor').valor).toBe('Pedidos e orçamentos no app.');
+    for (const m of modulosContrataveis()) expect(m.valor).toBeTruthy();
+    expect(infoDoModulo('core').valor).toBeUndefined();
+    expect(infoDoModulo('catalogo').valor).toBeUndefined();
+    expect(infoDoModulo('integracao').valor).toBeUndefined();
+  });
   it('nome com maiúscula e acento, nunca o id', () => {
     expect(nomeDoModulo('catalogo')).toBe('Catálogo');
     expect(nomeDoModulo('integracao')).toBe('Integração com o ERP');
@@ -101,5 +103,33 @@ describe('Revisão do BKO §P6: a contagem aparece num lugar só', () => {
   it('com zero, só o rótulo: o vazio quem diz é o EstadoVazio', () => {
     expect(rotuloComContagem('Pedidos', 0)).toBe('Pedidos');
     expect(rotuloComContagem('Pedidos', 0, true)).toBe('Pedidos');
+  });
+});
+
+describe('Ícones num lugar só (RD-0367)', () => {
+  it('cada módulo usa o ícone de icons.tsx, um desenho por módulo', () => {
+    const esperados = { vendedor: IconVendedor, gestor: IconGestor, promotor: IconPromotor, pesquisa: IconPesquisa, treinamento: IconTreinamento, core: IconCore, catalogo: IconCatalogo, integracao: IconIntegracao };
+    for (const id of IDS_DOS_MODULOS) expect(iconeDoModulo(id)).toBe(esperados[id]);
+    expect(new Set(IDS_DOS_MODULOS.map(iconeDoModulo)).size).toBe(IDS_DOS_MODULOS.length);
+  });
+  it('um traço só (1,9) nos ícones de módulo e no "⋯"', () => {
+    for (const Icone of [IconVendedor, IconGestor, IconPromotor, IconPesquisa, IconTreinamento, IconCore, IconCatalogo, IconIntegracao, IconMais]) {
+      expect(Icone({}).props.strokeWidth).toBe(1.9);
+    }
+  });
+  it('modulos.tsx e menu-acoes.tsx só mapeiam: nenhum desenho de ícone fora de icons.tsx', () => {
+    for (const arquivo of ['./modulos.tsx', './menu-acoes.tsx']) expect(fonte(arquivo)).not.toMatch(/<(svg|path|circle|rect)\b/);
+  });
+});
+
+describe('Classe de campo num lugar só (RD-0368)', () => {
+  it('o traço, a cor e o foco dos campos estão escritos uma vez em ui.tsx', () => {
+    const ui = fonte('./ui.tsx');
+    expect(ui.match(/rounded-\[10px\] border border-field bg-surface/g)).toHaveLength(1);
+    expect(ui.match(/placeholder:text-ink-2/g)).toHaveLength(1);
+  });
+  it('o campo do formulário parte da classe-base', () => {
+    for (const c of CLASSE_CAMPO_BASE.split(' ')) expect(CLASSE_CAMPO.split(' ')).toContain(c);
+    expect(CLASSE_CAMPO).toContain('h-[42px]');
   });
 });

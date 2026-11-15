@@ -11,19 +11,11 @@ import { indiceDaTecla } from './abas';
 
 export type PrioridadeDaColuna = 1 | 2 | 3;
 
-/** Largura do quadro (px) a partir da qual a coluna aparece. Bate com os tamanhos de contêiner do Tailwind (@2xl e @5xl). */
-export const LARGURA_MINIMA_DA_PRIORIDADE: Readonly<Record<PrioridadeDaColuna, number>> = { 1: 0, 2: 672, 3: 1024 };
-
 /** Classe da célula (cabeçalho e corpo) para a prioridade. As classes ficam escritas por inteiro para o Tailwind achar. */
 export function classeDaPrioridade(prioridade: PrioridadeDaColuna = 1): string {
   if (prioridade === 2) return 'hidden @2xl/tabela:table-cell';
   if (prioridade === 3) return 'hidden @5xl/tabela:table-cell';
   return '';
-}
-
-/** Colunas que aparecem num quadro desta largura (a mesma regra das classes; para teste e para o CSV de "colunas visíveis"). */
-export function colunasVisiveis<C extends { prioridade?: PrioridadeDaColuna }>(colunas: readonly C[], larguraDoQuadro: number): C[] {
-  return colunas.filter((c) => larguraDoQuadro >= LARGURA_MINIMA_DA_PRIORIDADE[c.prioridade ?? 1]);
 }
 
 /** Largura fixa da coluna do menu "⋯" (o botão de 36 px e o respiro da célula). */
