@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CAMPOS_OBRIGATORIOS_FILIAL } from '@macuxi/core/contracts';
 import { ENTIDADES_ORDEM_CARGA, dicionarioDaEntidade, gerarModeloCsv } from '../../domain/modelos-csv';
 import type { CampoDicionario } from '../../contracts/modelos';
-import { LIMITES_REFERENCIA } from '../../contracts';
+import { LIMITES_CATALOGO_PRODUTO, LIMITES_REFERENCIA } from '../../contracts';
 
 export const BANCO = 'ERP_THATHYANY';
 export const HUB_URL = 'https://api.macuxifdv.com.br';
@@ -29,21 +29,25 @@ export const tabelaDe = (entidade: string): string => `tha_${entidade}`;
 export const colunaDe = (campo: string): string => campo.replace(/\./g, '_');
 
 /** Colunas que só o Conector manda (JSON): não existem no CSV, ficam nulas (= o Macuxi não altera). */
-const COLUNAS_SO_CONECTOR = ['contatos', 'referencias', 'oferece_junto', 'etiquetas', 'paradas'];
+const COLUNAS_SO_CONECTOR = ['contatos', 'oferece_junto', 'etiquetas', 'paradas'];
 
 /**
  * Colunas que o kit acrescenta ao CSV e a `tha_<entidade>` e que NÃO são campos do Hub: a view monta o campo do Hub a partir delas.
  * Produto: `referencia_1..3` (+ `marca_referencia_1..3`) viram `referencias` [{marca_nome, codigo}] na view (RN-CAT-09: até 3 por produto, marca obrigatória).
  */
-const REFERENCIAS_POR_PRODUTO = 3;
+/** Máximo de referências por produto: o do Hub (RN-CAT-09), o único lugar onde o número existe. */
+const N_REFERENCIAS = LIMITES_CATALOGO_PRODUTO.referencias;
+const NUMEROS_REFERENCIA = Array.from({ length: N_REFERENCIAS }, (_, i) => i + 1);
 export const CAMPOS_SO_KIT: Record<string, CampoDicionario[]> = {
-  produto: Array.from({ length: REFERENCIAS_POR_PRODUTO }, (_, i) => i + 1).flatMap((n): CampoDicionario[] => [
+  produto: NUMEROS_REFERENCIA.flatMap((n): CampoDicionario[] => [
     { campo: `referencia_${n}`, obrigatorio: false, tipo: 'texto', tamanho_max: LIMITES_REFERENCIA.codigo, formato: null, exemplo: n === 1 ? 'PAF-0503' : '', observacao: `Código ${n} do produto na concorrência (até ${LIMITES_REFERENCIA.codigo} caracteres). A marca (marca_referencia_${n}) é opcional. Vazio nas três = não altera as referências já cadastradas.` },
     { campo: `marca_referencia_${n}`, obrigatorio: false, tipo: 'texto', tamanho_max: LIMITES_REFERENCIA.marcaNome, formato: null, exemplo: n === 1 ? 'Marca Beta' : '', observacao: `Marca da concorrência do código ${n} (opcional, só com referencia_${n}). Marca que não esteja cadastrada em Marcas do Catálogo: a referência entra sem marca e o lote traz o aviso marca_concorrente_desconhecida.` },
   ]),
 };
-/** Colunas do SELECT do conector que a view monta de outras colunas (não existem como coluna própria em `tha_<entidade>`). */
-const COLUNAS_DERIVADAS: Record<string, string[]> = { produto: ['referencias'] };
+/** `referencias` do produto: JSON [{marca_nome, codigo}] das colunas do kit; todas vazias = NULL (o Macuxi não altera as referências já cadastradas). */
+const SQL_REFERENCIAS = `CASE WHEN ${NUMEROS_REFERENCIA.map((n) => `referencia_${n} IS NULL`).join(' AND ')} THEN NULL ELSE (SELECT r.marca_nome, r.codigo FROM (VALUES ${NUMEROS_REFERENCIA.map((n) => `(marca_referencia_${n}, referencia_${n})`).join(', ')}) AS r(marca_nome, codigo) WHERE r.codigo IS NOT NULL FOR JSON PATH) END AS referencias`;
+/** Colunas do SELECT do conector que a view monta de outras colunas (não existem em `tha_<entidade>`): entidade -> coluna -> expressão SQL. */
+const COLUNAS_DERIVADAS: Record<string, Record<string, string>> = { produto: { referencias: SQL_REFERENCIAS } };
 
 /** Referência a outra entidade (campo `*_external_id`): o carga_csv.py confere antes de gravar. Tabela e depósito não são entidades. */
 const REFERENCIAS: Record<string, string> = {
@@ -92,7 +96,7 @@ export const REGRAS_ENTIDADE: Record<string, RegraEntidade[]> = {
   produto: [
     { regra: 'juntos', campos: ['embalagem_medida', 'embalagem_quantidade'], motivo: 'embalagem_medida e embalagem_quantidade devem ser informadas juntas' },
     // só do kit: a marca é opcional (RN-CAT-09), mas marca sem código não tem o que carregar
-    ...[1, 2, 3].map((n): RegraEntidade => ({ regra: 'requer', campos: [`marca_referencia_${n}`, `referencia_${n}`], motivo: `marca_referencia_${n} só vale com referencia_${n} preenchida` })),
+    ...NUMEROS_REFERENCIA.map((n): RegraEntidade => ({ regra: 'requer', campos: [`marca_referencia_${n}`, `referencia_${n}`], motivo: `marca_referencia_${n} só vale com referencia_${n} preenchida` })),
   ],
   // entidades.ts `PrecoPayload.superRefine`
   preco: [{ regra: 'data_nao_anterior', campos: ['vigencia_fim', 'vigencia_inicio'], motivo: 'fim da vigência anterior ao início' }],
@@ -226,7 +230,7 @@ export function contratoDoKit(): { versao: number; banco: string; entidades: Ent
       const obrigatorio = c.obrigatorio || (OBRIGATORIOS_EXTRA[e] ?? []).includes(c.campo);
       return { ...c, obrigatorio, coluna: colunaDe(c.campo), tipo_sql: tipoSql({ ...c, obrigatorio }, regra), regra, ...(ref ? { referencia: ref } : {}) };
     });
-    const derivadas = COLUNAS_DERIVADAS[e] ?? [];
+    const derivadas = Object.keys(COLUNAS_DERIVADAS[e] ?? {});
     for (const c of CAMPOS_SO_KIT[e] ?? []) {
       campos.push({ ...c, coluna: colunaDe(c.campo), tipo_sql: tipoSql(c, {}), regra: {}, so_kit: true });
     }
@@ -267,13 +271,11 @@ function sqlTabela(ent: EntidadeContrato): string {
   return `IF OBJECT_ID('dbo.${t}', 'U') IS NULL\nCREATE TABLE dbo.${t} (\n${linhas.join(',\n')});\nGO${alter ? `\n${alter}` : ''}\nIF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_${t}_alterado' AND object_id = OBJECT_ID('dbo.${t}'))\nCREATE INDEX ix_${t}_alterado ON dbo.${t} (alterado_em, external_id);\nGO`;
 }
 
-/** `referencias` do produto: JSON [{marca_nome, codigo}] das colunas do kit; as três vazias = NULL (o Macuxi não altera as referências já cadastradas). */
-const SQL_REFERENCIAS = `CASE WHEN referencia_1 IS NULL AND referencia_2 IS NULL AND referencia_3 IS NULL THEN NULL ELSE (SELECT r.marca_nome, r.codigo FROM (VALUES (marca_referencia_1, referencia_1), (marca_referencia_2, referencia_2), (marca_referencia_3, referencia_3)) AS r(marca_nome, codigo) WHERE r.codigo IS NOT NULL FOR JSON PATH) END AS referencias`;
-
 /** View vw_macuxi_<entidade>: as colunas do SELECT do conector.exemplo.json (nomes do contrato; data civil como texto AAAA-MM-DD; horário já em UTC). */
 function sqlView(ent: EntidadeContrato, colunas: string[]): string {
   const itens = colunas.map((col) => {
-    if (ent.entidade === 'produto' && col === 'referencias') return SQL_REFERENCIAS;
+    const derivada = COLUNAS_DERIVADAS[ent.entidade]?.[col];
+    if (derivada) return derivada;
     const campo = ent.campos.find((c) => c.coluna === col);
     return campo?.tipo === 'data' ? `CONVERT(CHAR(10), ${col}, 23) AS ${col}` : col;
   });
