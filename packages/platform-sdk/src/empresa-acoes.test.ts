@@ -11,6 +11,9 @@ import {
   ExclusaoEmpresaSchema,
   InativarEmpresaSchema,
   ManifestoBackupEmpresaSchema,
+  MENSAGEM_EXCLUSAO_NAO_ENCONTRADA,
+  MENSAGEM_SO_SUPER_ADMIN_ACOES,
+  MENSAGENS_ACOES_EMPRESA,
   parteDaTabela,
   PRAZO_BACKUP_PARA_EXCLUIR_DIAS,
   prefixoDoBackupEmpresa,
@@ -54,6 +57,11 @@ const backupJson = {
 };
 
 describe('RN-PLA-07: inativar e reativar', () => {
+  it('RD-0454: o 403 do admin do cliente tem uma frase só, a do SDK', () => {
+    expect(MENSAGEM_SO_SUPER_ADMIN_ACOES).toBe('Só o time da Macuxi faz esta ação.');
+    expect(MENSAGEM_EXCLUSAO_NAO_ENCONTRADA).toBe('Nenhuma exclusão pedida para esta empresa.');
+  });
+
   it('inativa = status suspenso, com o rótulo "Inativa" no portal; o valor do banco não muda', () => {
     expect(ROTULO_STATUS_EMPRESA.suspenso).toBe('Inativa');
     expect(ROTULO_STATUS_EMPRESA.ativo).toBe('Ativa');
@@ -313,5 +321,19 @@ describe('contratos da lista e eventos', () => {
         email: 'a@b.c',
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('RD-0407: uma frase por código de recusa', () => {
+  it('todo código de CODIGOS_ACOES_EMPRESA tem frase, e só eles', () => {
+    expect(Object.keys(MENSAGENS_ACOES_EMPRESA).sort()).toEqual(Object.values(C).sort());
+    for (const frase of Object.values(MENSAGENS_ACOES_EMPRESA)) expect(frase).toMatch(/^\S.*\.$/);
+    expect(Object.isFrozen(MENSAGENS_ACOES_EMPRESA)).toBe(true);
+  });
+
+  it('o texto da tela (spec §15.2)', () => {
+    expect(MENSAGENS_ACOES_EMPRESA[C.exclusaoBackupVencido]).toBe('Faça o backup antes de excluir.');
+    expect(MENSAGENS_ACOES_EMPRESA[C.exclusaoCodigoNaoConfere]).toBe('Código não confere.');
+    expect(MENSAGENS_ACOES_EMPRESA[C.reautenticacaoFalhou]).toBe('Senha incorreta.');
   });
 });

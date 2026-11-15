@@ -92,6 +92,33 @@ export function lerConfigSyncPacotes(env: NodeJS.ProcessEnv): ConfigSyncPacotes 
 }
 
 /**
+ * ADR 0052: `MACUXI_EMPRESA_ACOES` liga as ações da empresa no portal (Inativar/Reativar, Backup, Excluir e o bloco `acoes` da
+ * lista). Só `1`/`true`/`sim` liga; ausente ou outro valor = DESLIGADO (padrão até a migração 0072 do banco-dados).
+ */
+export function empresaAcoesLigadas(env: NodeJS.ProcessEnv): boolean {
+  return ligado(env.MACUXI_EMPRESA_ACOES);
+}
+
+/** Chave AES-256 do backup de empresa: 32 bytes em base64 ou em 64 caracteres hex. `null` = ausente ou inválida. Nunca vai a log. */
+export function chaveBackupEmpresa(env: NodeJS.ProcessEnv): Buffer | null {
+  const v = String(env.MACUXI_BACKUP_EMPRESA_CHAVE ?? '').trim();
+  if (!v) return null;
+  if (/^[0-9a-fA-F]{64}$/.test(v)) return Buffer.from(v, 'hex');
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(v)) return null;
+  const b = Buffer.from(v, 'base64');
+  return b.length === 32 ? b : null;
+}
+
+/**
+ * ADR 0052 §2.3: o backup de empresa só existe com o bucket (`MACUXI_ARQUIVOS_DRIVER=s3`) e a chave de cifra
+ * (`MACUXI_BACKUP_EMPRESA_CHAVE`, 32 bytes). Falso = o pedido de backup responde 503 `BACKUP_INDISPONIVEL` (falha fechada).
+ */
+export function backupEmpresaDisponivel(env: NodeJS.ProcessEnv): boolean {
+  const driver = String(env.MACUXI_ARQUIVOS_DRIVER ?? '').trim().toLowerCase();
+  return driver === 's3' && chaveBackupEmpresa(env) !== null;
+}
+
+/**
  * T-0158 (R-20261111-011107): `MACUXI_DIAGNOSTICOS_APP` é a chave remota do botão "Enviar diagnóstico" no app
  * (`recursos.diagnosticos` do `GET /v1/saude`). Flag próprio, fora dos `compose.yml`, para o `MACUXI_DIAGNOSTICOS=1` da demo
  * (portal, alerta, expurgo) não ligar o botão sem a decisão do dono do produto. Só vale com `MACUXI_DIAGNOSTICOS` também

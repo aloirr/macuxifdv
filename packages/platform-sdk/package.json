@@ -11,7 +11,8 @@
     "./eventos": "./src/eventos.ts",
     "./web": "./src/web/index.ts",
     "./react": "./src/react/index.tsx",
-    "./sqlite-node": "./src/sqlite/driver-node.ts"
+    "./sqlite-node": "./src/sqlite/driver-node.ts",
+    "./tentativas-portal": "./src/tentativas-portal.ts"
   },
   "scripts": {
     "lint": "eslint src",
