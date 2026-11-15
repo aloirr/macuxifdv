@@ -207,6 +207,9 @@ jobs:
           PROD_SMTP_USUARIO: ${{ secrets.PROD_SMTP_USUARIO }}
           PROD_SMTP_SENHA: ${{ secrets.PROD_SMTP_SENHA }}
           PROD_SMTP_REMETENTE: ${{ secrets.PROD_SMTP_REMETENTE }}
+          # e-mail de senha (ADR 0032, adendo de 15/11/2026): variáveis de repositório opcionais, não são segredo
+          EMAIL_URL_ATIVOS: ${{ vars.MACUXI_EMAIL_URL_ATIVOS }}
+          EMAIL_URL_BKO: ${{ vars.MACUXI_EMAIL_URL_BKO }}
         run: |
           falta=()
           for n in PROD_SSH_KEY PROD_HOST PROD_USER PROD_PG_HOST PROD_PG_ADMIN_USUARIO PROD_PG_ADMIN_SENHA PROD_S3_KEY_ID PROD_S3_SECRET PROD_CLOUDFLARE_TUNNEL_TOKEN; do
@@ -236,6 +239,12 @@ jobs:
             [ -z "$PROD_SMTP_PORTA$PROD_SMTP_TLS$PROD_SMTP_USUARIO$PROD_SMTP_SENHA$PROD_SMTP_REMETENTE" ] || { echo "::error::há PROD_SMTP_* sem PROD_SMTP_HOST"; exit 1; }
             echo "::warning::sem PROD_SMTP_HOST: e-mail desligado (o BKO mostra a senha ao admin; a Equipe por CSV recusa)"
           fi
+          # URLs do e-mail (opcionais): vazias, o e-mail sai sem logo e sem o botão; preenchidas, https numa linha, sem espaço, aspas nem $
+          for n in EMAIL_URL_ATIVOS EMAIL_URL_BKO; do
+            v="$(printf '%s' "${!n}" | tr -d '\r')"
+            [ -z "$v" ] || [[ "$v" =~ ^https://[^[:space:]\'\"\$]+$ ]] || { echo "::error::vars.MACUXI_$n deve ser um endereço https:// (uma linha, sem espaço, aspas nem \$)"; exit 1; }
+            [ -n "$v" ] || echo "::notice::sem vars.MACUXI_$n: o e-mail de senha sai sem esse item"
+          done
           echo "secrets obrigatórios presentes"
 
       - name: chave SSH
@@ -283,6 +292,9 @@ jobs:
           SMTP_USUARIO: ${{ secrets.PROD_SMTP_USUARIO }}
           SMTP_SENHA: ${{ secrets.PROD_SMTP_SENHA }}
           SMTP_REMETENTE: ${{ secrets.PROD_SMTP_REMETENTE }}
+          # e-mail de senha (ADR 0032, adendo de 15/11/2026): opcionais, não são segredo; conferidas no passo dos secrets
+          EMAIL_URL_ATIVOS: ${{ vars.MACUXI_EMAIL_URL_ATIVOS }}
+          EMAIL_URL_BKO: ${{ vars.MACUXI_EMAIL_URL_BKO }}
           # T-0158 (ADR 0043): recado automático do diagnóstico (opcional)
           RECADOS_SERVIDOR: ${{ secrets.MACUXI_RECADOS_TOKEN_SERVIDOR }}
         run: |
@@ -294,13 +306,18 @@ jobs:
           printf 'TUNNEL_TOKEN=%s\n' "$TUNEL" | grava tunel.env
           # e-mail (T-0094): sem PROD_SMTP_HOST, email.env vazio e e-mail desligado. Valores conferidos no passo dos secrets;
           # usuário, senha e remetente entre aspas simples (o compose não interpola $ dentro delas)
-          if [ -n "$SMTP_HOST" ]; then
-            printf 'MACUXI_SMTP_HOST=%s\n' "$SMTP_HOST"
-            [ -z "$SMTP_PORTA" ] || printf 'MACUXI_SMTP_PORTA=%s\n' "$SMTP_PORTA"
-            [ -z "$SMTP_TLS" ] || printf 'MACUXI_SMTP_TLS=%s\n' "$SMTP_TLS"
-            printf "MACUXI_SMTP_USUARIO='%s'\nMACUXI_SMTP_SENHA='%s'\n" "$SMTP_USUARIO" "$SMTP_SENHA"
-            [ -z "$SMTP_REMETENTE" ] || printf "MACUXI_SMTP_REMETENTE='%s'\n" "$SMTP_REMETENTE"
-          fi | tr -d '\r' | grava email.env
+          # URLs do e-mail (vars opcionais): só entram quando preenchidas
+          {
+            if [ -n "$SMTP_HOST" ]; then
+              printf 'MACUXI_SMTP_HOST=%s\n' "$SMTP_HOST"
+              [ -z "$SMTP_PORTA" ] || printf 'MACUXI_SMTP_PORTA=%s\n' "$SMTP_PORTA"
+              [ -z "$SMTP_TLS" ] || printf 'MACUXI_SMTP_TLS=%s\n' "$SMTP_TLS"
+              printf "MACUXI_SMTP_USUARIO='%s'\nMACUXI_SMTP_SENHA='%s'\n" "$SMTP_USUARIO" "$SMTP_SENHA"
+              [ -z "$SMTP_REMETENTE" ] || printf "MACUXI_SMTP_REMETENTE='%s'\n" "$SMTP_REMETENTE"
+            fi
+            [ -z "$EMAIL_URL_ATIVOS" ] || printf 'MACUXI_EMAIL_URL_ATIVOS=%s\n' "$EMAIL_URL_ATIVOS"
+            [ -z "$EMAIL_URL_BKO" ] || printf 'MACUXI_EMAIL_URL_BKO=%s\n' "$EMAIL_URL_BKO"
+          } | tr -d '\r' | grava email.env
           # token do remetente de sistema `diagnostico`, só no worker (recados.env); sem o secret, arquivo vazio e alerta desligado
           if [ -n "$RECADOS_SERVIDOR" ]; then printf 'MACUXI_RECADOS_TOKEN_SERVIDOR=%s\n' "$RECADOS_SERVIDOR"; fi | grava recados.env
           [ -n "$RECADOS_SERVIDOR" ] || echo "::notice::sem MACUXI_RECADOS_TOKEN_SERVIDOR: os diagnósticos chegam ao portal, mas o recado automático fica desligado"
