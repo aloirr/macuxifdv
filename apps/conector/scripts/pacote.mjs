@@ -20,6 +20,8 @@ import { crc32, deflateRawSync, inflateRawSync } from 'node:zlib';
 export const NODE_VERSAO = '24.21.0';
 export const NODE_ZIP_SHA256 = '158f7685b44de51f6c0df1d153526cbcd3e1bc739a8dfc607721cef75de9e541';
 export const NODE_ZIP_URL = `https://nodejs.org/dist/v${NODE_VERSAO}/node-v${NODE_VERSAO}-win-x64.zip`;
+/** Id da chave pública embutida no Conector (src/atualizacao/chaves.ts) que confere a assinatura. */
+export const CHAVE_PUBLICA_ID = 'macuxi-2026';
 export const WINSW_VERSAO = '2.12.0';
 export const WINSW_SHA256 = '05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da';
 export const WINSW_URL = `https://github.com/winsw/winsw/releases/download/v${WINSW_VERSAO}/WinSW-x64.exe`;
@@ -176,7 +178,7 @@ export async function montarPacote({ saida, cache, chavePem, baixarFn }) {
   writeFileSync(caminho, zip);
   writeFileSync(`${caminho}.sha256`, `${sha256(zip)}  ${arquivo}\n`);
   if (chavePem) writeFileSync(`${caminho}.sig`, assinar(zip, chavePem));
-  return { caminho, versao, sha256: sha256(zip), assinado: Boolean(chavePem) };
+  return { caminho, versao, sha256: sha256(zip), assinado: Boolean(chavePem), chave_publica_id: chavePem ? CHAVE_PUBLICA_ID : undefined };
 }
 
 function arg(nome) {
@@ -188,5 +190,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const chaveArq = arg('--chave');
   const chavePem = process.env.MACUXI_ASSINATURA_CHAVE_PEM || (chaveArq ? readFileSync(chaveArq, 'utf8') : undefined);
   const r = await montarPacote({ saida: arg('--saida') ?? join(raiz, 'dist/pacote'), cache: arg('--cache') ?? join(raiz, 'dist/.cache-terceiros'), chavePem });
-  console.log(`Pacote: ${r.caminho}\nSHA-256: ${r.sha256}\nAssinatura: ${r.assinado ? 'gerada (.sig)' : 'NÃO gerada (sem chave); publique só depois de assinar'}`);
+  console.log(`Pacote: ${r.caminho}\nSHA-256: ${r.sha256}\nAssinatura: ${r.assinado ? 'gerada (.sig)' : 'NÃO gerada (sem chave); publique só depois de assinar'}${r.chave_publica_id ? `\nchave_publica_id: ${r.chave_publica_id}` : ''}`);
 }
