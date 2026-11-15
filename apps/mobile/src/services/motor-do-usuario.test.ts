@@ -3,11 +3,13 @@
  * "Clientes e rota"/"Equipe") e liga a busca online do Catálogo (`definirCargaOnline`) a ele; a tarefa em segundo plano
  * (`cargaOnline: false`) não troca a porta do app.
  */
-import { criarArmazenamentoEmMemoria, criarRegistroSync, type AmbienteAparelho, type ItemDaCarga, type MotorSync, type OpcoesMotorSync } from '@macuxi/platform-sdk';
+import { criarArmazenamentoEmMemoria, criarRegistroSync, type AmbienteAparelho, type ItemDaCarga, type MotorSync } from '@macuxi/platform-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { OpcoesComEssenciais } from './motor-do-usuario';
+
 const sim = vi.hoisted(() => ({
-  opcoes: null as unknown as OpcoesMotorSync,
+  opcoes: null as unknown as OpcoesComEssenciais,
   definir: [] as unknown[],
   pendentes: undefined as readonly string[] | undefined,
 }));
@@ -25,7 +27,7 @@ vi.mock('./storage', () => ({ readJson: async () => null, writeJson: async () =>
 vi.mock('./transporte', () => ({ modoSync: () => 'v1', transporteV1: () => ({}), transporteFaseM: () => ({}) }));
 vi.mock('@macuxi/platform-sdk', async (original) => ({
   ...(await original<typeof import('@macuxi/platform-sdk')>()),
-  criarMotorSync: (o: OpcoesMotorSync) => {
+  criarMotorSync: (o: OpcoesComEssenciais) => {
     sim.opcoes = o;
     return { estado: () => ({ modulosAtivos: ['core', 'catalogo', 'vendedor'], pendentes: sim.pendentes }) } as unknown as MotorSync;
   },

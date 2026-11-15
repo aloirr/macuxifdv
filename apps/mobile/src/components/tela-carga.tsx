@@ -22,6 +22,7 @@ import { AppState } from 'react-native';
 
 import { AcaoEntrada, ErroEntrada, TelaEntrada } from '@/components/tela-entrada';
 import { percentualDaCarga, situacaoDaCarga } from '@/lib/carga';
+import type { EstadoComCarga } from '@/lib/carga-fundo';
 import {
   criarMemoriaDaEntrada,
   erroDeSinal,
@@ -43,7 +44,8 @@ export function TelaCarga() {
     variante,
     perfil,
   } = usePlataforma();
-  const { estado } = useMotorSync();
+  // ADR 0054: `liberado_em` por tipo estrutural (ausente no motor sem a peça)
+  const estado: EstadoComCarga = useMotorSync().estado;
   const { detalhe } = useLocalSearchParams<{ detalhe?: string }>();
   // ADR 0054: entrada liberada pelo motor (sem a peça, `liberado_em` não vem e vale só a carga completa)
   const liberada = Boolean(estado.liberado_em) && detalhe !== '1';

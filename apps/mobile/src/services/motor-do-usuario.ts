@@ -7,11 +7,23 @@
  */
 import { definirCargaOnline, type PortaCargaOnline } from '@macuxi/catalogo/app';
 import { MeusModulosRespostaSchema, RefreshRespostaSchema } from '@macuxi/core/contracts';
-import { criarMotorSync, type AmbienteAparelho, type ArmazenamentoSync, type EtapaSync, type ModuloId, type MotorSync, type ParametrosModulos, type Perfil } from '@macuxi/platform-sdk';
+import {
+  criarMotorSync,
+  type AmbienteAparelho,
+  type ArmazenamentoSync,
+  type EtapaSync,
+  type ItemDaCarga,
+  type ModuloId,
+  type MotorSync,
+  type OpcoesMotorSync,
+  type ParametrosModulos,
+  type Perfil,
+} from '@macuxi/platform-sdk';
 
 import { efetivosSemServidor } from '@/lib/efetivos-locais';
 import type { ModoApi } from '@/lib/modo-api';
 import type { shellDaVariante } from '@/lib/modulos';
+import type { EstadoComCarga } from '@/lib/carga-fundo';
 import { essenciaisDoUsuario, ordemDaCargaDoUsuario } from '@/lib/ordem-da-carga';
 
 import { ApiClient, errorMessage, HttpError } from './api';
@@ -80,16 +92,25 @@ export interface OpcoesMotorDoUsuario {
  */
 export function portaCargaOnline(motor: Pick<MotorSync, 'estado'>, ambiente: Pick<AmbienteAparelho, 'http' | 'online'>): PortaCargaOnline {
   return {
-    pendentes: () => motor.estado().pendentes,
+    pendentes: () => {
+      const e: EstadoComCarga = motor.estado();
+      return e.pendentes;
+    },
     online: () => ambiente.online(),
     get: (caminho, query) => ambiente.http.get(caminho, query),
   };
 }
 
+/**
+ * Opções do motor com os `essenciais` da entrada enquanto carrega (ADR 0054), por tipo estrutural: o SDK ainda não os
+ * declara; o motor sem a peça os ignora e só a carga completa libera a entrada (comportamento de antes).
+ */
+export type OpcoesComEssenciais = OpcoesMotorSync & { essenciais?: (item: ItemDaCarga) => boolean };
+
 /** Motor de sync do usuário (armazenamento isolado por usuário e tenant, já aberto), sem `carregar()`. */
 export function criarMotorDoUsuario(o: OpcoesMotorDoUsuario): MotorSync {
   const ref: { m: MotorSync | null } = { m: null };
-  ref.m = criarMotorSync({
+  const opcoes: OpcoesComEssenciais = {
     registro: o.shell.registroSync,
     armazenamento: o.armazenamento,
     transporte: modoSync(o.modo) === 'v1' ? transporteV1(o.api) : transporteFaseM(o.api),
@@ -104,7 +125,8 @@ export function criarMotorDoUsuario(o: OpcoesMotorDoUsuario): MotorSync {
     ordemDaCarga: ordemDaCargaDoUsuario(o.perfil ?? (() => null), () => ref.m?.estado().modulosAtivos ?? []),
     // ADR 0054 (solução 5): o envio e "Clientes e rota" (Campo) ou "Equipe" (Gestão) liberam a entrada (`liberado_em`)
     essenciais: essenciaisDoUsuario(o.perfil ?? (() => null), () => ref.m?.estado().modulosAtivos ?? []),
-  });
+  };
+  ref.m = criarMotorSync(opcoes);
   if (o.cargaOnline !== false) definirCargaOnline(portaCargaOnline(ref.m, o.ambiente));
   return ref.m;
 }

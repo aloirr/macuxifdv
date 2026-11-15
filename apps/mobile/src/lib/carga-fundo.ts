@@ -14,7 +14,13 @@ import type { EstadoMotorSync } from '@macuxi/platform-sdk';
 import { percentualDaCarga } from './carga';
 import { erroDeSinal } from './entrada';
 
-type EstadoEntrada = Pick<EstadoMotorSync, 'sincronizado_em' | 'liberado_em'>;
+/**
+ * Estado do motor com os campos da entrada enquanto carrega (ADR 0054), lidos por tipo estrutural: o SDK ainda não os
+ * declara; sem eles (motor sem a peça) vêm ausentes e vale o comportamento de antes (só a carga completa libera).
+ */
+export type EstadoComCarga = EstadoMotorSync & { liberado_em?: string | null; pendentes?: readonly string[] };
+
+type EstadoEntrada = Pick<EstadoComCarga, 'sincronizado_em' | 'liberado_em'>;
 
 /** O usuário entra nas abas: carga completa gravada ou os essenciais da carga inicial feitos (ADR 0054). */
 export function entradaLiberadaPeloMotor(estado: EstadoEntrada): boolean {
@@ -22,7 +28,7 @@ export function entradaLiberadaPeloMotor(estado: EstadoEntrada): boolean {
 }
 
 /** Ainda há carga inicial a terminar com o usuário dentro do app (`pendentes` do motor; ausente = motor sem a peça). */
-export function cargaEmFundo(estado: Pick<EstadoMotorSync, 'pendentes'>): boolean {
+export function cargaEmFundo(estado: Pick<EstadoComCarga, 'pendentes'>): boolean {
   return (estado.pendentes?.length ?? 0) > 0;
 }
 
@@ -30,7 +36,7 @@ export function cargaEmFundo(estado: Pick<EstadoMotorSync, 'pendentes'>): boolea
  * App reaberto no meio da carga inicial: liberado, sem carga completa e nada rodando. O agendador do shell só sincroniza
  * depois de `sincronizado_em` e a tela de carga não abre mais, então as abas pedem a retomada (o motor pula o que já gravou).
  */
-export function deveRetomarCarga(estado: Pick<EstadoMotorSync, 'sincronizado_em' | 'liberado_em' | 'sincronizando'>): boolean {
+export function deveRetomarCarga(estado: Pick<EstadoComCarga, 'sincronizado_em' | 'liberado_em' | 'sincronizando'>): boolean {
   return Boolean(estado.liberado_em) && !estado.sincronizado_em && !estado.sincronizando;
 }
 
@@ -51,7 +57,7 @@ export interface IndicadorDaCarga {
  * (RN-CORE-48 revista: Catálogo no Campo, Aprovações na Gestão).
  */
 export function indicadorDaCargaFundo(
-  estado: Pick<EstadoMotorSync, 'pendentes' | 'sincronizando' | 'erro' | 'sincronizado_em' | 'progresso' | 'carga'>,
+  estado: Pick<EstadoComCarga, 'pendentes' | 'sincronizando' | 'erro' | 'sincronizado_em' | 'progresso' | 'carga'>,
   progresso: Pick<ProgressoEntrada, 'atual' | 'etapas'>,
   offline: boolean,
 ): IndicadorDaCarga | null {

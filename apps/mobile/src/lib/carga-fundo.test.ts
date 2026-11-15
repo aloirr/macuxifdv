@@ -4,12 +4,12 @@
  * (docs/design/carga-em-segundo-plano.md).
  */
 import type { EtapaEntrada, ProgressoEntrada } from '@macuxi/core/contracts';
-import { CARGA_VAZIA, type EstadoMotorSync } from '@macuxi/platform-sdk';
+import { CARGA_VAZIA, criarArmazenamentoEmMemoria, criarMotorSync, criarRegistroSync, type TransporteSync } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 
-import { cargaEmFundo, deveRetomarCarga, entradaLiberadaPeloMotor, indicadorDaCargaFundo } from './carga-fundo';
+import { cargaEmFundo, deveRetomarCarga, entradaLiberadaPeloMotor, indicadorDaCargaFundo, type EstadoComCarga } from './carga-fundo';
 
-type Estado = Pick<EstadoMotorSync, 'pendentes' | 'sincronizando' | 'erro' | 'sincronizado_em' | 'progresso' | 'carga' | 'liberado_em'>;
+type Estado = Pick<EstadoComCarga, 'pendentes' | 'sincronizando' | 'erro' | 'sincronizado_em' | 'progresso' | 'carga' | 'liberado_em'>;
 const LIBERADO = '2026-11-15T11:00:00.000Z';
 const BASE: Estado = { sincronizando: true, erro: null, sincronizado_em: null, progresso: 0.6, carga: CARGA_VAZIA, liberado_em: LIBERADO, pendentes: ['produto', 'tabela_preco'] };
 
@@ -80,5 +80,21 @@ describe('indicador da carga em fundo (docs/design/carga-em-segundo-plano.md)', 
     expect(indicadorDaCargaFundo(BASE, progresso(4), true)?.semSinal).toBe(true);
     expect(indicadorDaCargaFundo({ ...BASE, sincronizando: false, erro: 'Sem conexão com https://api.exemplo.' }, progresso(4), false)?.semSinal).toBe(true);
     expect(indicadorDaCargaFundo({ ...BASE, sincronizando: false, erro: 'HTTP 500' }, progresso(4), false)?.semSinal).toBe(false);
+  });
+});
+
+describe('fallback: motor do SDK sem a peça da entrada enquanto carrega (ADR 0054)', () => {
+  it('sem `liberado_em` e `pendentes` no estado, só a carga completa libera e não há carga em fundo (como antes)', () => {
+    const motor = criarMotorSync({
+      registro: criarRegistroSync([]),
+      armazenamento: criarArmazenamentoEmMemoria(),
+      transporte: {} as TransporteSync,
+      online: () => false,
+    });
+    const estado: EstadoComCarga = motor.estado();
+    expect(entradaLiberadaPeloMotor(estado)).toBe(Boolean(estado.sincronizado_em));
+    expect(cargaEmFundo(estado)).toBe(false);
+    expect(deveRetomarCarga(estado)).toBe(false);
+    expect(indicadorDaCargaFundo(estado, progresso(4), false)).toBeNull();
   });
 });
