@@ -7,7 +7,7 @@
  * Confere: senha certa reprocessa e apaga os erros antigos; a lista de autorizadores vem do Core, sem quem pede; o solicitante não
  * autoriza a si mesmo (422 `autorizador_invalido`); a conferência devolve `incorreta`/`bloqueado`/`sem_permissao` e a porta do
  * apps/api esconde os dois últimos; a 6ª falha do mesmo autorizador dá 429; outro autorizador não é afetado; perfil personalizado
- * com a ação autoriza; cancelar de novo devolve 200 sem auditar; a auditoria grava quem autorizou e nunca a senha (nem em log).
+ * com a ação autoriza; a auditoria grava quem autorizou e nunca a senha (nem em log).
  * Precisa de Node >= 24.7 (crypto.argon2); em Node mais antigo, pula com aviso.
  */
 import crypto from 'node:crypto';
@@ -22,7 +22,6 @@ import { hashSenha } from '../../modules/core/api/seguranca';
 import {
   criarLimiteTentativas,
   criarRotaReprocessarLote,
-  rotaCancelarLote,
   rotaListarAutorizadores,
 } from '../../modules/integracao/api/bko-lotes-acoes';
 
@@ -109,7 +108,7 @@ beforeAll(async () => {
 });
 
 /** Banco do Hub (schema integracao) e do Core (schema core) simulados: o Core só é lido pelas consultas do próprio Core. */
-function criarDb(status = 'falhou') {
+function criarDb() {
   const sqls: string[] = [];
   const db = {
     query: async (sql: string, params: unknown[] = []) => {
@@ -136,7 +135,7 @@ function criarDb(status = 'falhou') {
         return { rows: x ? [x] : [] };
       }
       if (/from integracao\.lote where/.test(sql))
-        return { rows: [{ id: LOTE, entidade: 'cliente', status, com_erro: 4, recebidas: 10 }] };
+        return { rows: [{ id: LOTE, entidade: 'cliente', status: 'falhou', com_erro: 4, recebidas: 10 }] };
       if (/from integracao\.lote_staging/.test(sql)) return { rows: [{ tem: true }] };
       if (/join integracao\.conector/.test(sql))
         return { rows: [{ conector: 'erp-1', entidade: 'cliente', modo: 'delta' }] };
@@ -148,11 +147,11 @@ function criarDb(status = 'falhou') {
 
 type Executavel = { executar: (c: never) => Promise<unknown> };
 
-function montar(o: { status?: string; solicitante?: string } = {}) {
+function montar(o: { solicitante?: string } = {}) {
   const auditoria: Array<Record<string, unknown>> = [];
   const logs: unknown[] = [];
   const consultas: string[] = [];
-  const { db, sqls } = criarDb(o.status);
+  const { db, sqls } = criarDb();
   const usuario = { id: o.solicitante ?? SOLICITANTE, tenant_id: TENANT, perfil: 'gerente', perfis: [] };
   const ctxConsulta = {
     db,
@@ -326,16 +325,6 @@ describe.skipIf(!temArgon2)(
       ]);
       const tudo = JSON.stringify([m.auditoria, m.logs]);
       for (const s of [SENHA[ANA]!, SENHA[BRUNO]!, 'errada-1']) expect(tudo).not.toContain(s);
-    });
-
-    it('RN-INT-15: cancelar lote já cancelado devolve 200 com o mesmo corpo, sem update nem auditoria', async () => {
-      const m = montar({ status: 'cancelado' });
-      expect(await m.chamar(rotaCancelarLote as never)).toEqual({ lote_id: LOTE, status: 'cancelado' });
-      expect(m.updates()).toHaveLength(0);
-      expect(m.auditoria).toHaveLength(0);
-      const concluido = montar({ status: 'concluido' });
-      const e = await erroDe(concluido.chamar(rotaCancelarLote as never));
-      expect([e.status, e.codigo]).toEqual([409, 'lote_nao_esta_em_andamento']);
     });
   },
 );

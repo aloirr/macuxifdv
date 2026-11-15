@@ -6,7 +6,7 @@
  *  - duração (`45 s`, `2 min 10 s`, `3 min`, `1 h 05 min`; em andamento, até agora) e "x de y" nas linhas integradas;
  *  - os 5 status e o "⋯" só com ação (Cancelar em andamento; Reprocessar em Com falha e Concluído com avisos);
  *  - popup de autorização (RN-INT-16): senha errada, 429 e a senha nunca na URL;
- *  - De-para em Parâmetros → Integração e os 5 cards de Pedidos com os números de `MonitorResumo.pedidos`; sem licença, tudo some.
+ *  - De-para em Parâmetros → Integração e os 5 cards de Pedidos com os números de `MonitorResumo.resumo_pedidos`; sem licença, tudo some.
  * O esperado é calculado À MÃO pela regra (não pelo código do módulo). Os dados são fictícios.
  *
  * Pré-requisito: o BKO no ar (`pnpm --filter web dev`, porta 3000). Rodar: `pnpm test:e2e tests/e2e/bko/integracao-simples.spec.ts`
@@ -136,35 +136,13 @@ const LOTES: Array<[ReturnType<typeof lote>, string[], string[]]> = [
   ],
 ];
 
-const PEDIDOS_ERP = {
-  por_estado: {
-    pendente: 7,
-    enviado: 1234,
-    integrado: 980,
-    rejeitado_erp: 3,
-    faturado_parcial: 4,
-    faturado_total: 900,
-    cancelado: 2,
-  },
-  presos: 2,
-  retidos: 5,
-};
-/**
- * RN-INT-08: os 5 números vêm PRONTOS em `MonitorResumo.resumo_pedidos` (a Integração calcula; a tela de Pedidos só formata).
- * De propósito, diferentes do que daria recalcular `pedidos.por_estado`: se a tela recalcular, o teste fica vermelho.
- */
+/** RN-INT-08: os 5 números vêm PRONTOS em `MonitorResumo.resumo_pedidos` (a Integração calcula; a tela de Pedidos só formata). */
 const RESUMO_PEDIDOS = {
   na_fila: 7,
   entregue_ao_conector: 1234,
   rejeitado_pelo_erp: 3,
   presos_sem_retorno: 2,
   retidos_sem_mapeamento: 5,
-};
-const PEDIDOS_ERP_DIVERGENTE = {
-  ...PEDIDOS_ERP,
-  por_estado: { ...PEDIDOS_ERP.por_estado, pendente: 70, enviado: 99, rejeitado_erp: 30 },
-  presos: 20,
-  retidos: 50,
 };
 /** [testId, rótulo, valor exibido, classe de cor] — números de MonitorResumo.resumo_pedidos (contrato do Hub). */
 const CARDS: Array<[string, string, string, string | null]> = [
@@ -287,7 +265,6 @@ async function preparar(page: Page, c: Cenario = {}): Promise<string[]> {
         cargas: [],
         pendencias_inativacao: [],
         reconciliacoes: [],
-        pedidos: PEDIDOS_ERP_DIVERGENTE,
         resumo_pedidos: RESUMO_PEDIDOS,
       });
     }
@@ -439,10 +416,15 @@ test.describe('T-0173 — Integração ERP simples (API simulada)', () => {
     await expect(page.locator('[role="dialog"]').last()).toContainText('Novo de-para');
   });
 
-  test('De-para vazio', async ({ page }) => {
+  test('De-para vazio: só o texto, "Novo de-para" só no cabeçalho, sem filtros nem busca (RD-0967)', async ({
+    page,
+  }) => {
     await preparar(page, { mapeamentosVazio: true });
     await page.goto('/parametros/integracao');
     await expect(page.getByText('Nenhum de-para ainda.')).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByRole('button', { name: 'Novo de-para' })).toHaveCount(1);
+    await expect(page.getByTestId('integracao.mapeamento.filtro-entidade')).toHaveCount(0);
+    await expect(page.getByTestId('integracao.mapeamento.busca')).toHaveCount(0);
   });
 
   test('RN-INT-08: os 5 cards de Pedidos mostram os números prontos de MonitorResumo.resumo_pedidos, só informativos', async ({
@@ -610,5 +592,10 @@ test('RN-INT-15: portal config. — o selo da carga mostra os 5 status, sem os r
   const todas = (await page.getByTestId('empresa-pagina.bases').innerText()).split('\n').map((l) => l.trim());
   for (const velho of ['Na fila', 'Gravando', 'Concluído com erros', 'Falhou'])
     expect(todas, velho).not.toContain(velho);
+  // RD-0968: o cartão em andamento tem o selo e só a ação; o "Gravando no Hub…" e o aviso longo saíram
+  const preco = await page.getByTestId('base-preco').innerText();
+  expect(preco).toContain('Volte daqui a pouco para ver o resultado.');
+  for (const velho of ['Gravando no Hub', 'O Hub continua gravando'])
+    expect(preco, velho).not.toContain(velho);
   expect(erros).toEqual([]);
 });
