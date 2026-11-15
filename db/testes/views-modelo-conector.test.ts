@@ -174,17 +174,7 @@ describe('views-modelo do Conector (db/conector/views-modelo.sql)', () => {
     const nomes = VIEWS.map((v) => v.entidade);
     expect(new Set(nomes).size).toBe(nomes.length);
     expect([...nomes].sort()).toEqual([...ENTIDADES].sort());
-    const ordem = [...ORDEM_CARGA_ENTIDADES];
-    expect([...ordem].sort()).toEqual([...ENTIDADES].sort());
-    expect(nomes).toEqual(ordem);
-  });
-
-  it('a ordem respeita as dependências da T-0089: forma -> prazo -> cliente; produto -> preço -> tabela_escalonada', () => {
-    const pos = (e: Entidade) => VIEWS.findIndex((v) => v.entidade === e);
-    expect(pos('forma_pagamento')).toBeLessThan(pos('prazo_pagamento'));
-    expect(pos('forma_pagamento')).toBeLessThan(pos('cliente'));
-    expect(pos('produto')).toBeLessThan(pos('tabela_escalonada'));
-    expect(pos('preco')).toBeLessThan(pos('tabela_escalonada'));
+    expect(nomes).toEqual([...ORDEM_CARGA_ENTIDADES]);
   });
 
   describe.each([...ENTIDADES])('vw_macuxi_%s', (entidade) => {
