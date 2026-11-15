@@ -27,7 +27,7 @@ Base lida: branch `nuvem/catalogo-pacote-engenheiro-software` (4e6fc2d), com o p
 
 ## 1. Quando acontece a carga diária
 - **Gatilho:** a **primeira sincronização do dia que tiver sinal** (abrir o app, voltar ao primeiro plano, automática ou
-  puxar para baixo; o toque no botão é a parcial e não leva estoque, nem depois da hora: confirmado em R-20261115-121000-alexandre, §9), a partir da hora `estoque_carga_hora` [06:00] no **fuso do tenant**. Não há timer novo
+  puxar para baixo; o toque no botão não leva estoque, §9), a partir da hora `estoque_carga_hora` [06:00] no **fuso do tenant**. Não há timer novo
   (RN-CORE-23 continua sem timer abaixo de 15 min); a carga vai junto da sincronização que já ia acontecer.
 - **Regra (função pura):** `cargaDiariaDevida({ ultima, agora, fuso, hora })` = verdadeiro quando não houve carga ou quando a última
   aconteceu antes do instante "hoje às `hora`" no fuso do tenant e `agora` já passou desse instante. Antes da hora, vale a carga de

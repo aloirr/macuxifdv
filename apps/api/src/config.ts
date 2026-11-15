@@ -9,6 +9,9 @@
 
 import { serializarErro, type ErroDeLog } from './log-seguro';
 
+/** Chave liga/desliga do ambiente: só `1`/`true`/`sim` liga; ausente ou outro valor = desligado. */
+const ligado = (v: string | undefined): boolean => ['1', 'true', 'sim'].includes(String(v ?? '').trim().toLowerCase());
+
 /** Mesmo mínimo do Core (`modules/core/api/seguranca.ts`). */
 export const SEGREDO_JWT_MIN = 32;
 
@@ -37,7 +40,7 @@ export function conferirSegredoJwt(env: NodeJS.ProcessEnv, hostBanco: string): S
  * alerta e expurgo no worker). Só `1`/`true`/`sim` liga; ausente ou outro valor = DESLIGADO (padrão até a v1.0.4).
  */
 export function diagnosticosLigados(env: NodeJS.ProcessEnv): boolean {
-  return ['1', 'true', 'sim'].includes(String(env.MACUXI_DIAGNOSTICOS ?? '').trim().toLowerCase());
+  return ligado(env.MACUXI_DIAGNOSTICOS);
 }
 
 /**
@@ -45,7 +48,7 @@ export function diagnosticosLigados(env: NodeJS.ProcessEnv): boolean {
  * DESLIGADO (padrão até a migração de `plataforma.plano`/`plataforma.assinatura` do banco-dados).
  */
 export function planosLigados(env: NodeJS.ProcessEnv): boolean {
-  return ['1', 'true', 'sim'].includes(String(env.MACUXI_PLANOS ?? '').trim().toLowerCase());
+  return ligado(env.MACUXI_PLANOS);
 }
 
 /**
@@ -55,7 +58,7 @@ export function planosLigados(env: NodeJS.ProcessEnv): boolean {
  * Exige a migração 0074 (`plataforma.sync_pacote` e `plataforma.sync_pacote_pedido`).
  */
 export function syncPacotesLigados(env: NodeJS.ProcessEnv): boolean {
-  return ['1', 'true', 'sim'].includes(String(env.MACUXI_SYNC_PACOTES ?? '').trim().toLowerCase());
+  return ligado(env.MACUXI_SYNC_PACOTES);
 }
 
 /** Validade do link do pacote (s): padrão 900 (15 min, ADR 0054 §4), de 60 a 3600. */
@@ -95,7 +98,7 @@ export function lerConfigSyncPacotes(env: NodeJS.ProcessEnv): ConfigSyncPacotes 
  * ligado (o portal precisa existir para ler o que chega). Mesmos valores: `1`/`true`/`sim`; o resto = DESLIGADO.
  */
 export function diagnosticosAppLigados(env: NodeJS.ProcessEnv): boolean {
-  return diagnosticosLigados(env) && ['1', 'true', 'sim'].includes(String(env.MACUXI_DIAGNOSTICOS_APP ?? '').trim().toLowerCase());
+  return diagnosticosLigados(env) && ligado(env.MACUXI_DIAGNOSTICOS_APP);
 }
 
 /**
@@ -105,7 +108,7 @@ export function diagnosticosAppLigados(env: NodeJS.ProcessEnv): boolean {
  */
 export function lerSessaoWeb(env: NodeJS.ProcessEnv, hostBanco: string): { seguro: boolean } {
   const v = (env.MACUXI_SESSAO_COOKIE_SEGURO ?? '').trim().toLowerCase();
-  if (['1', 'true', 'sim'].includes(v)) return { seguro: true };
+  if (ligado(v)) return { seguro: true };
   if (['0', 'false', 'nao', 'não'].includes(v)) return { seguro: false };
   return { seguro: !ehAmbienteLocal(env, hostBanco) };
 }

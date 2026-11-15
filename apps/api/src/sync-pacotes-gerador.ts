@@ -52,9 +52,11 @@ import {
 import type pg from 'pg';
 import { ErroArmazenamentoS3 } from './armazenamento-s3';
 import type { BancoApp } from './banco';
+import { iniciarLaco } from './laco';
 import { licencasDoTenantNoBanco, type LicencasTenant } from './licencas';
 import { mensagemSegura } from './log-seguro';
 import { registroDeConsultas, transacaoTenant } from './outbox';
+import { dentroDaJanela } from './sync';
 import { chaveDoPacoteSync, provedoresDePacote, type ArmazenamentoPacotesSync } from './sync-pacotes';
 
 /** Linhas por página do `pacote.puxar` (desenho §1.4). */
@@ -443,8 +445,8 @@ export function criarGeradorPacotes(op: OpcoesGeradorPacotes) {
           let desde: CursorSync | null = null;
           for (;;) {
             const brutas: LinhaSync[] = (await prov.pacote!.puxar(ctx, { desde, ate, limite: pagina, filial })).slice().sort(compararCursor);
-            // defesa (como o pull): só vivas, abaixo do horizonte e depois do cursor, mesmo que o módulo erre o SQL
-            const validas = brutas.filter((l) => !l.deleted_at && Date.parse(l.updated_at) < limite && (!desde || compararCursor(l, desde) > 0));
+            // defesa do pull: só vivas e dentro da janela, mesmo que o módulo erre o SQL
+            const validas = brutas.filter((l) => !l.deleted_at && dentroDaJanela(l, desde, limite));
             db.exec('BEGIN');
             try {
               for (const l of validas) inserir.run(l.id, l.updated_at, JSON.stringify(l));
@@ -540,7 +542,7 @@ export function criarGeradorPacotes(op: OpcoesGeradorPacotes) {
         let mudou = false;
         for (const prov of provedoresDaParticao(alvo.modulo, alvo.particao)) {
           const linhas = await prov.pacote!.puxar(ctx, { desde, ate, limite: 1, filial: filialDaParticao(alvo.particao) });
-          if (linhas.some((l) => compararCursor(l, desde) > 0 && Date.parse(l.updated_at) < Date.parse(ate))) {
+          if (linhas.some((l) => dentroDaJanela(l, desde, Date.parse(ate)))) {
             mudou = true;
             break;
           }
@@ -665,28 +667,13 @@ export function criarGeradorPacotes(op: OpcoesGeradorPacotes) {
     ciclo,
     /** Laço: ciclo na subida e depois a cada `intervaloMs`. Erro do ciclo é logado e o laço segue. */
     iniciar({ intervaloMs }: { intervaloMs: number }): { parar(): Promise<void> } {
-      let ativo = true;
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      let atual: Promise<void> = Promise.resolve();
-      const passo = async (): Promise<void> => {
-        try {
+      return iniciarLaco({
+        ciclo: async () => {
           await ciclo();
-        } catch (e) {
-          log.error({ erro: mensagemSegura(e) }, 'ciclo do gerador de pacotes falhou');
-        }
-        if (ativo) {
-          timer = setTimeout(() => (atual = passo()), intervaloMs);
-          (timer as unknown as { unref?: () => void }).unref?.();
-        }
-      };
-      atual = passo();
-      return {
-        async parar() {
-          ativo = false;
-          if (timer) clearTimeout(timer);
-          await atual;
         },
-      };
+        intervaloMs,
+        aoFalhar: (e) => log.error({ erro: mensagemSegura(e) }, 'ciclo do gerador de pacotes falhou'),
+      });
     },
   };
 }

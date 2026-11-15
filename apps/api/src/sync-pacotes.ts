@@ -19,7 +19,6 @@
  * Desligado (`MACUXI_SYNC_PACOTES` ausente; `config.ts`), banco antes da 0074 ou sem pacote pronto: `{ pacotes: [] }`.
  * Log: só contagens, `tenant_id`, `modulo`, `particao` (uuid da filial, não é dado pessoal). Nunca a URL assinada.
  */
-import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -42,10 +41,10 @@ import {
   type ProvedorSync,
 } from '@macuxi/platform-sdk';
 import type { FastifyInstance } from 'fastify';
-import { DIR_ARQUIVOS_PADRAO } from './arquivos';
-import { codigoDoErro, criarClienteS3, ErroArmazenamentoS3, lerConfigS3DoAmbiente, type ClienteS3 } from './armazenamento-s3';
+import { codigoDoErro, criarClienteS3, driverArquivosDoAmbiente, ErroArmazenamentoS3, type ClienteS3 } from './armazenamento-s3';
 import { lerConfigSyncPacotes, syncPacotesLigados } from './config';
 import { ErroHttp, semBanco } from './erros';
+import { versaoEscopo } from './sync';
 import type { Plataforma, RequisicaoPreparada } from './tipos';
 
 // ---------- chave e armazenamento ----------
@@ -137,10 +136,9 @@ const TIMEOUT_S3_PACOTE_MS = 120_000;
  * `MACUXI_S3_*` (falta = erro com o NOME da variável). API e worker precisam ver o mesmo lugar (no disco, a mesma máquina).
  */
 export function armazenamentoPacotesSyncDoAmbiente(env: NodeJS.ProcessEnv): { armazenamento: ArmazenamentoPacotesSync; descricao: string } {
-  const driver = (env.MACUXI_ARQUIVOS_DRIVER ?? 'disco').trim().toLowerCase() || 'disco';
-  if (driver === 'disco') return { armazenamento: criarArmazenamentoPacotesSyncEmDisco(env.MACUXI_ARQUIVOS_DIR || DIR_ARQUIVOS_PADRAO), descricao: 'disco' };
-  if (driver !== 's3') throw new Error('MACUXI_ARQUIVOS_DRIVER inválido: use disco ou s3');
-  const cfg = lerConfigS3DoAmbiente(env);
+  const d = driverArquivosDoAmbiente(env);
+  if (d.driver === 'disco') return { armazenamento: criarArmazenamentoPacotesSyncEmDisco(d.dir), descricao: 'disco' };
+  const { cfg } = d;
   return {
     armazenamento: criarArmazenamentoPacotesSyncS3(criarClienteS3({ ...cfg, timeoutMs: TIMEOUT_S3_PACOTE_MS })),
     descricao: `s3 ${cfg.bucket}/sync-pacotes/`,
@@ -280,15 +278,6 @@ export function entidadesDaParticao(plano: PlanoModuloPacote, particao: string):
   return plano.filial?.filiais.includes(particao as ParticaoPacote) ? plano.filial.provedores : null;
 }
 
-/**
- * `versao_escopo` da entidade para o usuário: a MESMA conta do pull (`sync.ts`, `versaoEscopo`) para provedor de escopo
- * `tenant` (o único com pacote): só a `variacaoEscopo` entra; sem ela, nenhuma versão. O teste amarra as duas contas.
- */
-export async function versaoEscopoDoPacote(prov: ProvedorSync, ctx: ContextoBase): Promise<string | undefined> {
-  if (!prov.variacaoEscopo) return undefined;
-  return createHash('sha256').update(`variacao:${await prov.variacaoEscopo(ctx)}`).digest('hex').slice(0, 16);
-}
-
 type Avaliacao = { ok: true; linha: LinhaPacoteSync } | { ok: false; pedir: boolean };
 
 /** O pacote pronto da partição serve ao usuário? Faltando ou velho = pedir outro; com entidade que ele não vê = não serve. */
@@ -396,7 +385,8 @@ export function registrarSyncPacotes(app: FastifyInstance, p: Plataforma, op: Op
       const cursor = codificarCursor({ updated_at: horizonte, id: UUID_NIL });
       const entidades = [];
       for (const [nome, n] of Object.entries(linha.entidades)) {
-        const versao = await versaoEscopoDoPacote(provedores.get(nome)!, plano.ctx);
+        // a mesma conta do pull (escopo `tenant`, o único com pacote: só a `variacaoEscopo` entra)
+        const versao = await versaoEscopo(provedores.get(nome)!, plano.ctx);
         entidades.push({ nome, linhas: n, cursor, ...(versao !== undefined ? { versao_escopo: versao } : {}) });
       }
       pacotes.push({

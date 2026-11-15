@@ -59,6 +59,7 @@ import {
   TAMANHO_PAGINA_SYNC,
   UUID_NIL,
   type ContextoBase,
+  type CursorSync,
   type ItemPush,
   type LinhaSync,
   type ModoSyncLimitado,
@@ -121,7 +122,7 @@ const escoposDe = (prov: ProvedorSync) =>
  * `versao_escopo` da página (ADR 0009 §4): só nos escopos que mudam no aparelho (`carteira`, `usuarios`) e na
  * `variacaoEscopo` do provedor (T-0121 N3: regra que muda o que o usuário vê, ex.: RN-CAT-05).
  */
-async function versaoEscopo(prov: ProvedorSync, ctx: ContextoBase): Promise<string | undefined> {
+export async function versaoEscopo(prov: ProvedorSync, ctx: ContextoBase): Promise<string | undefined> {
   const variacao = prov.variacaoEscopo ? await prov.variacaoEscopo(ctx) : undefined;
   return versaoDosEscopos(new Set(escoposDe(prov)), ctx, variacao);
 }
@@ -143,6 +144,10 @@ async function versaoDosEscopos(escopos: ReadonlySet<string>, ctx: ContextoBase,
   if (partes.length === 1) return partes[0];
   return createHash('sha256').update(partes.join('|')).digest('hex').slice(0, 16);
 }
+
+/** Defesa do pull e do pacote: só abaixo do horizonte (`limite`, ms) e depois do cursor, mesmo que o módulo erre o SQL. */
+export const dentroDaJanela = (l: LinhaSync, desde: CursorSync | null, limite: number): boolean =>
+  Date.parse(l.updated_at) < limite && (!desde || compararCursor(l, desde) > 0);
 
 export function registrarSync(app: FastifyInstance, p: Plataforma): void {
   const provedores = new Map<string, ProvedorSync>();
@@ -206,9 +211,7 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
     const linhas = await prov.puxar(ctx, { desde, ate, limite: TAMANHO_PAGINA_SYNC + 1 });
     // defesa: mesmo que o módulo erre o SQL, nada acima do horizonte nem atrás do cursor sai daqui
     const teto = Date.parse(ate);
-    const validas = linhas
-      .filter((l) => Date.parse(l.updated_at) < teto &&(!desde || compararCursor(l, desde) > 0))
-      .sort(compararCursor);
+    const validas = linhas.filter((l) => dentroDaJanela(l, desde, teto)).sort(compararCursor);
     const itens = validas.slice(0, TAMANHO_PAGINA_SYNC);
     const ultimo = itens[itens.length - 1];
     const geracao = await p.banco.geracaoBase?.(ctx.usuario.tenant_id);

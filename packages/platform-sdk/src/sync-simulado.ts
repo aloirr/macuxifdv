@@ -9,7 +9,7 @@
  * monta as linhas e as entidades de um pacote como o gerador da API (só vivas abaixo do horizonte, cursor com o UUID nulo).
  */
 import type { ModuloId } from './nomes';
-import { codificarCursorNovidades, decodificarCursorNovidades, type NovidadesResposta } from './novidades';
+import { codificarCursorNovidades, decodificarCursorNovidades, UUID_NIL, type NovidadesResposta } from './novidades';
 import type { EntidadePacoteSync, PacotesSyncResposta } from './pacotes-sync';
 import type { TransporteSync } from './motor-sync';
 import type { ItemPush, LinhaSync, RegistroSync, ResultadoItemPush } from './sync';
@@ -73,9 +73,6 @@ export interface ServidorSyncSimulado extends TransporteSync {
   falhaPacotes: Error | null;
 }
 
-/** UUID nulo do cursor do pacote (`(horizonte, UUID nulo)`, ADR 0054 §1.5). */
-export const UUID_NULO = '00000000-0000-0000-0000-000000000000';
-
 /**
  * ADR 0054: o que o gerador da API poria no pacote das `entidades` com o `horizonte`: só linhas vivas com `updated_at`
  * abaixo dele, `linhas` contadas, cursor `(horizonte, UUID nulo)` e a `versao_escopo` do servidor.
@@ -94,7 +91,7 @@ export function conteudoDoPacoteSimulado(
     entidades: entidades.map((nome) => ({
       nome,
       linhas: linhas[nome]!.length,
-      cursor: codificarCursor({ updated_at: horizonte, id: UUID_NULO }),
+      cursor: codificarCursor({ updated_at: horizonte, id: UUID_NIL }),
       ...(s.versoesEscopo[nome] === undefined ? {} : { versao_escopo: s.versoesEscopo[nome] }),
     })),
   };

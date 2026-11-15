@@ -233,14 +233,18 @@ export function criarArmazenamentoS3(cfg: ConfigS3): ArmazenamentoArquivos {
  *   com o NOME da variável e nunca o valor.
  */
 export function lerArmazenamentoDoAmbiente(env: NodeJS.ProcessEnv): { armazenamento: ArmazenamentoArquivos; descricao: string } {
-  const driver = (env.MACUXI_ARQUIVOS_DRIVER ?? 'disco').trim().toLowerCase() || 'disco';
-  if (driver === 'disco') {
-    const dir = env.MACUXI_ARQUIVOS_DIR || DIR_ARQUIVOS_PADRAO;
-    return { armazenamento: criarArmazenamentoEmDisco(dir), descricao: 'disco' };
-  }
-  if (driver !== 's3') throw new Error(`MACUXI_ARQUIVOS_DRIVER inválido: use disco ou s3`);
-  const cfg = lerConfigS3DoAmbiente(env);
+  const d = driverArquivosDoAmbiente(env);
+  if (d.driver === 'disco') return { armazenamento: criarArmazenamentoEmDisco(d.dir), descricao: 'disco' };
+  const { cfg } = d;
   return { armazenamento: criarArmazenamentoS3(cfg), descricao: `s3 ${new URL(cfg.endpoint).host}/${cfg.bucket}/${cfg.prefixo}` };
+}
+
+/** Driver de arquivos do ambiente (fotos e pacotes de sync): `disco` com a pasta, ou `s3` com a config; outro valor = erro. */
+export function driverArquivosDoAmbiente(env: NodeJS.ProcessEnv): { driver: 'disco'; dir: string } | { driver: 's3'; cfg: ConfigS3 } {
+  const driver = (env.MACUXI_ARQUIVOS_DRIVER ?? 'disco').trim().toLowerCase() || 'disco';
+  if (driver === 'disco') return { driver: 'disco', dir: env.MACUXI_ARQUIVOS_DIR || DIR_ARQUIVOS_PADRAO };
+  if (driver !== 's3') throw new Error('MACUXI_ARQUIVOS_DRIVER inválido: use disco ou s3');
+  return { driver: 's3', cfg: lerConfigS3DoAmbiente(env) };
 }
 
 /** Lê `MACUXI_S3_*` (sem decidir o driver). Falta alguma = erro com o NOME da variável, nunca o valor. */
