@@ -5,7 +5,8 @@
  * `/v1/<modulo>/<caminho>`; as rotas públicas do Core sob `/v1/<caminho>`; e as rotas da plataforma:
  * `GET /v1/saude`, `GET /v1/me/modulos`, `GET /v1/sync/novidades` (RN-CORE-23), `GET /v1/sync/pull`, `POST /v1/sync/push`, `PUT|GET /v1/arquivos/:id` (ADR 0010) e `GET /v1/auditoria` (RN-AUD-01).
  *
- * Toda rota autenticada passa por `prepararRequisicao` (401 → licença 403 MODULO_INATIVO → perfil/ação
+ * Toda rota autenticada passa por `prepararRequisicao` (401 → sem a filial de cadastro 403 USUARIO_SEM_FILIAL, RN-CORE-39 e ADR 0056,
+ * salvo rota do Core `liberadaSemFilial` e o sync restrito → licença 403 MODULO_INATIVO → perfil/ação
  * 403 PERFIL_SEM_ACESSO → Zod 400 → carteira 403 FORA_DA_CARTEIRA). Os módulos efetivos são calculados
  * por requisição (RN-CORE-01/03, `modulosEfetivos` do SDK) a partir da fonte de licenças. Banco só por
  * `comTenant` com o tenant do token (papel macuxi_app). Corpo de erro: `ErroApiSchema` `{ codigo, mensagem, detalhes? }`;
@@ -51,6 +52,9 @@ import {
   podeEntrar,
   perfilUsaSuperficie,
   CODIGO_PERFIL_SEM_BKO,
+  acessoSemFilial,
+  CODIGO_USUARIO_SEM_FILIAL,
+  MENSAGEM_USUARIO_SEM_FILIAL,
   dependenciasDosManifestos,
   erroCorpoGrande,
   ErroHttpModulo,
@@ -433,7 +437,11 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       if (!empresa) throw new ErroHttp(409, 'EMPRESA_NAO_ESCOLHIDA', 'Escolha a empresa para continuar.');
       if (!bruto || !UUID.test(bruto)) throw new ErroHttp(400, 'TENANT_OBRIGATORIO', 'Escolha a empresa (cabeçalho x-macuxi-tenant).');
       if (bruto.toLowerCase() !== empresa.tenant_id.toLowerCase()) throw new ErroHttp(403, 'EMPRESA_NAO_PERMITIDA', 'Você não tem acesso a esta empresa. Escolha outra.');
-      return { quem, usuario: { id: empresa.usuario_id, tenant_id: empresa.tenant_id, perfil: 'admin' }, superAdmin: null };
+      return {
+        quem,
+        usuario: { id: empresa.usuario_id, tenant_id: empresa.tenant_id, perfil: 'admin', ...(empresa.sem_filial === true ? { sem_filial: true } : {}) },
+        superAdmin: null,
+      };
     }
     marcarPortal(req, { quem, tenantId: null });
     if (!bruto || !UUID.test(bruto)) throw new ErroHttp(400, 'TENANT_OBRIGATORIO', 'Escolha a empresa (cabeçalho x-macuxi-tenant).');
@@ -443,7 +451,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     return { quem, usuario: { id: quem.id, tenant_id: tenantId, perfil: 'admin' }, superAdmin: { id: quem.id, sessao_id: quem.sessao_id } };
   };
 
-  const preparar: Plataforma['preparar'] = async (req, modulo, modoSuperAdmin) => {
+  const preparar: Plataforma['preparar'] = async (req, modulo, opcoes = {}) => {
+    const modoSuperAdmin = opcoes.superAdmin;
     const doPortal = await portalDaRequisicao(req, modoSuperAdmin);
     // super-admin: autorização pela opção da rota, licença do tenant, carteira 'tenant'; admin do cliente: como um usuário do BKO
     const doSA = doPortal?.superAdmin ? { sa: doPortal.superAdmin, tenantId: doPortal.usuario.tenant_id } : null;
@@ -457,6 +466,10 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Faça login para continuar.');
     }
     if (!UUID.test(token.tenant_id)) throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Sessão inválida. Faça login de novo.');
+    // T-0176 (RN-CORE-39; ADR 0056): usuário sem a filial de cadastro = 403 fora das exceções (antes das licenças: nenhuma leitura a mais)
+    const filial = acessoSemFilial(token, opcoes.semFilial === 'aceita');
+    if (filial === 'bloqueado') throw new ErroHttp(403, CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL);
+    const restritoSemFilial = filial === 'restrito';
     // licença checada a cada requisição (RN-CORE-01/02; nunca congelada no token). Super-admin: a do tenant (todos os perfis)
     const licencas = doSA
       ? await licencasTenant(doSA.tenantId, acesso).then((t) => ({ ...t, doPerfil: t.ativosNoTenant, removidosDoUsuario: [] as ModuloId[] }))
@@ -513,8 +526,11 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
           )),
         ),
       // memo por requisição; rejeitada (ex.: transação abortada) não fica guardada
+      // T-0176: o usuário sem filial (restrito) não vê cliente nem equipe; só o próprio
       carteira: () =>
-        (carteira ??= doSA
+        (carteira ??= restritoSemFilial
+          ? Promise.resolve(new Set<string>())
+          : doSA
           ? Promise.resolve('tenant' as const)
           : carteiraDe(token, acessoDaRequisicao, { agora: relogio, fuso }).catch((e: unknown) => {
               carteira = null;
@@ -522,7 +538,9 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
             })),
       // o próprio usuário sempre está no conjunto, mesmo que o serviço o omita
       usuariosVisiveis: () =>
-        (usuariosVisiveis ??= doSA
+        (usuariosVisiveis ??= restritoSemFilial
+          ? Promise.resolve(new Set<string>([token.id]))
+          : doSA
           ? Promise.resolve('tenant' as const)
           : usuariosDe(token, acessoDaRequisicao).then(
               (v) => (v === 'tenant' || v.has(token.id) ? v : new Set([...v, token.id])),
@@ -538,7 +556,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       email,
       pacotes,
     });
-    return { ctx: contexto(modulo), licencas, doModulo: contexto };
+    return { ctx: contexto(modulo), licencas, doModulo: contexto, restritoSemFilial };
   };
 
   const plataforma: Plataforma = { manifestos, modulos, permissoes, preparar, relogio, banco };
@@ -715,7 +733,7 @@ function montarRota(app: FastifyInstance, p: Plataforma, permissoes: ReturnType<
         }
       : {}),
     handler: async (req: FastifyRequest, reply: FastifyReply) => {
-      const { ctx } = await p.preparar(req, modulo, rota.superAdmin);
+      const { ctx } = await p.preparar(req, modulo, { superAdmin: rota.superAdmin, semFilial: rota.liberadaSemFilial ? 'aceita' : undefined });
       const u = ctx.usuario;
       // 1) licença do módulo da rota (403 MODULO_INATIVO); para o super-admin, a licença do tenant
       const lic = verificarAcesso(u, { modulo, perfis: [u.perfil] });

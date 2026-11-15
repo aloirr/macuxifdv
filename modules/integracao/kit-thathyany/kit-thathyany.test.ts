@@ -276,6 +276,7 @@ describe('Referência cruzada do produto (até 3 códigos da concorrência)', ()
     for (const n of [1, 2, 3]) {
       expect(cab).toContain(`referencia_${n}`);
       expect(cab).toContain(`marca_referencia_${n}`);
+      expect(cab).toContain(`marca_referencia_codigo_${n}`);
     }
     expect(cab).not.toContain('referencia_4');
     expect(LIMITES_CATALOGO_PRODUTO.referencias).toBe(3);
@@ -284,12 +285,13 @@ describe('Referência cruzada do produto (até 3 códigos da concorrência)', ()
   it('RN-CAT-09: a view do produto monta `referencias` em JSON {marca_nome, codigo}; as três vazias = NULL (não altera)', () => {
     const view = /CREATE OR ALTER VIEW dbo\.vw_macuxi_produto AS[\s\S]*?GO/.exec(sql)?.[0] ?? '';
     expect(view).toContain('FOR JSON PATH');
-    expect(view).toContain('marca_nome');
+    expect(view).toContain('marca_referencia_codigo_1, marca_referencia_1, referencia_1');
+    expect(view).toContain('r.marca_external_id, r.marca_nome, r.codigo');
     expect(view).toMatch(/referencia_1 IS NULL AND referencia_2 IS NULL AND referencia_3 IS NULL THEN NULL/);
   });
 
   it('banco criado pela versão anterior do kit ganha as colunas novas (ALTER TABLE idempotente): referências, marca_codigo e filial do vendedor', () => {
-    const colunas: [string, string][] = [['tha_produto', 'referencia_1'], ['tha_produto', 'marca_referencia_3'], ['tha_produto', 'marca_codigo'], ['tha_vendedor', 'filial_external_id']];
+    const colunas: [string, string][] = [['tha_produto', 'referencia_1'], ['tha_produto', 'marca_referencia_3'], ['tha_produto', 'marca_referencia_codigo_3'], ['tha_produto', 'marca_codigo'], ['tha_vendedor', 'filial_external_id']];
     for (const [tabela, col] of colunas) expect(sql).toContain(`IF COL_LENGTH('dbo.${tabela}', '${col}') IS NULL ALTER TABLE dbo.${tabela} ADD ${col}`);
   });
 
@@ -302,7 +304,7 @@ describe('Referência cruzada do produto (até 3 códigos da concorrência)', ()
   });
 
   it('RN-CAT-09: o que o kit gera cabe no contrato do Hub (código até 30, marca até 120, marca opcional)', () => {
-    const r = SCHEMA_REGISTRO.produto.safeParse({ external_id: 'PRO-001', alterado_em: '2026-11-01T12:00:00Z', sku: 'SKU-001', nome: 'Refrigerante Cola 2L', unidade: 'UN', referencias: [{ marca_nome: 'Marca Beta', codigo: 'PAF-0503' }] });
+    const r = SCHEMA_REGISTRO.produto.safeParse({ external_id: 'PRO-001', alterado_em: '2026-11-01T12:00:00Z', sku: 'SKU-001', nome: 'Refrigerante Cola 2L', unidade: 'UN', referencias: [{ marca_external_id: '980', marca_nome: 'Marca Beta', codigo: 'PAF-0503' }] });
     expect(r.success).toBe(true);
     const lim = limitarCatalogoDoProduto(r.success ? (r.data as never) : (undefined as never));
     expect(lim.registro.referencias).toHaveLength(1);

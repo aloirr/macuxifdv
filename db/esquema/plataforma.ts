@@ -5,8 +5,9 @@
  * e-mail e senha, só por função), 0040_core_senha_email_saida.up.sql (outbox de e-mail),
  * 0041_plataforma_perfis_de_acesso.up.sql (perfis de acesso, ADR 0033; cargo e um perfil por usuário desde a
  * 0069_core_cargo_hierarquia.up.sql), 0070_plataforma_plano_assinatura.up.sql (planos e assinatura, ADR 0047),
- * 0072_plataforma_empresa_acoes.up.sql (inativar, backup e excluir a empresa, ADR 0052; só por função) e
- * 0073_plataforma_dados_legais.up.sql (dados legais do rodapé, só por função), para consultas da API.
+ * 0072_plataforma_empresa_acoes.up.sql (inativar, backup e excluir a empresa, ADR 0052; só por função),
+ * 0073_plataforma_dados_legais.up.sql (dados legais do rodapé, só por função) e 0074_plataforma_sync_pacote.up.sql (pacote da
+ * primeira carga, ADR 0054), para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -536,4 +537,50 @@ export const dadosLegais = plataforma.table('dados_legais', {
   /** plataforma.super_admin.id de quem gravou por último; nulo na linha da migração. */
   atualizado_por: uuid('atualizado_por'),
   ...auditaveis(),
+});
+
+/**
+ * Pacote pronto da primeira carga (0074, ADR 0054; desenho docs/desenho/T-catalogo-pacote.md §1.4): um .sqlite.gz por
+ * (tenant, módulo, partição), gerado pelo worker. particao 'tenant' ou 'filial:<uuid>' (filial_id só e sempre na de filial);
+ * chave_armazenamento = 'sync-pacotes/<tenant_id>/<modulo>/<particao>/<id>.sqlite.gz' (CHECK). Uma só linha 'pronto' viva por
+ * partição. pronto -> substituido (substituido_em) -> apagado (arquivo_apagado_em). O app só lê; o worker grava. Fora do sync.
+ */
+export const syncPacote = plataforma.table('sync_pacote', {
+  ...comuns(),
+  modulo: text('modulo').notNull(),
+  particao: text('particao').notNull(),
+  filial_id: uuid('filial_id'),
+  /** FORMATO_PACOTE_SYNC do SDK (1). */
+  formato: integer('formato').notNull().default(1),
+  situacao: text('situacao', { enum: ['pronto', 'substituido', 'apagado'] }).notNull().default('pronto'),
+  /** Relógio do banco na geração: toda linha viva com updated_at < horizonte está no arquivo (cursor do manifesto). */
+  horizonte: timestamp('horizonte', { withTimezone: true }).notNull(),
+  geracao_base: uuid('geracao_base').notNull(),
+  chave_armazenamento: text('chave_armazenamento').notNull(),
+  bytes: bigint('bytes', { mode: 'number' }).notNull(),
+  md5: text('md5').notNull(),
+  /** { <entidade>: linhas } (o mesmo do _pacote.entidades do arquivo). */
+  entidades: jsonb('entidades').$type<Record<string, number>>().notNull(),
+  substituido_em: timestamp('substituido_em', { withTimezone: true }),
+  arquivo_apagado_em: timestamp('arquivo_apagado_em', { withTimezone: true }),
+});
+
+/**
+ * Pedido de geração de pacote (0074, ADR 0054; desenho §1.4): origem lote (integracao.lote.concluido@1), manifesto (GET
+ * /v1/sync/pacotes sem pacote pronto) ou agendado (mais de 24 h com mudança). Um só pendente vivo por partição (insert ... on
+ * conflict (tenant_id, modulo, particao) where situacao = 'pendente' and deleted_at is null do nothing). O app só insere
+ * (id, tenant_id, modulo, particao, filial_id, origem); o worker atende. Fora do sync.
+ */
+export const syncPacotePedido = plataforma.table('sync_pacote_pedido', {
+  ...comuns(),
+  modulo: text('modulo').notNull(),
+  particao: text('particao').notNull(),
+  filial_id: uuid('filial_id'),
+  origem: text('origem', { enum: ['lote', 'manifesto', 'agendado'] }).notNull(),
+  situacao: text('situacao', { enum: ['pendente', 'atendido', 'descartado'] }).notNull().default('pendente'),
+  gerar_apos: timestamp('gerar_apos', { withTimezone: true }).notNull().defaultNow(),
+  tentativas: integer('tentativas').notNull().default(0),
+  /** Só código curto (sem dado pessoal). */
+  ultimo_erro: text('ultimo_erro'),
+  atendido_em: timestamp('atendido_em', { withTimezone: true }),
 });
