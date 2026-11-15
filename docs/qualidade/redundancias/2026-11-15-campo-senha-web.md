@@ -39,3 +39,13 @@ Corretor-redundancias, 15/11/2026 (Manaus). Conferi o PR #328, branch `nuvem/cam
 - **Estado do olho:** o `useState` + `onAlternar` se repete em 4 telas (login, Entrar, Passo Empresa, Crie sua senha). É o modo "controlado" da spec do `CampoSenha` (§2), em que cada tela guarda o próprio estado e "Crie sua senha" divide um estado só entre os 2 campos. Não conto como duplicação.
 - **Foco no campo:** o `document.getElementById(ID_SENHA…)` substitui o `ref`, porque o kit não repassa o `ref`. Aparece uma vez por tela.
 - **Testes:** o `campo-senha-telas.test.tsx` confere as telas (`testId`, um olho só, `new-password`, sem "Esconder senha"), e o teste do kit confere o componente. Nenhum caso se repete.
+
+## 4. Reteste (15/11/2026, PR #328, commit 2a4532f do engenheiro-apps)
+**Veredito: LIMPO.** Os 2 achados estão corrigidos e não há achado novo.
+
+| RD | Situação | Evidência |
+|---|---|---|
+| RD-0505 | **corrigido** | O filtro do Diagnósticos virou `cx(CLASSE_CAMPO_BASE, 'h-[38px] w-[170px] px-2.5')` (`tela-diagnosticos.tsx:245`), igual aos filtros do kit. As licenças do Passo Empresa viraram `cx(CLASSE_CAMPO_BASE, 'h-9 w-24 px-2.5 aria-[invalid=true]:border-danger')`. Nenhum campo fica com 2 alturas ou 2 raios. |
+| RD-0506 | **corrigido** | Há um componente só, o `Campo`, em `apps/web/components/campo-acesso.tsx`, que repassa o `ref` direto ao `<input>`. O `Campo` saiu do `portal/base.tsx`, e as 5 telas o importam: Entrar, Passo Empresa, Integração, login e Esqueci a senha. No "Esqueci a senha", os 2 `<label>` à mão viraram 2 `Campo`. No login, a função `campo()` continua, mas agora só liga o estado do formulário (testId, ref, valor, erro) ao `Campo` e não desenha mais o campo. Não é outra versão do componente. |
+
+**Também conferido:** no `apps/mobile/docs/roteiro-campo-demo-v1.0.0.md` §4, o passo "Repita a senha diferente → As senhas não conferem." virou o item "As duas senhas iguais", com os 3 estados (círculo vazio, ✓ e ✕), iguais aos do `ciclo-de-senha.md` §4. A descrição dos estados não se repete no roteiro.

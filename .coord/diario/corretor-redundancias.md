@@ -68,3 +68,4 @@
 - 2026-11-14 — Oficial final — NÃO LIBERADO: 20 RD fechados, 5 novos seguram (RD-0254 a 0258), 1 comentário (RD-0259). `main` 2fdad4d; relatório `2026-11-14-oficial-final.md`.
 2026-11-14 — v1.0.8 — relatório 2026-11-14-v1.0.8 (COM ACHADO: RD-0319 segura; RD-0320..0322 e RD-0316 não seguram; herdados RD-0263/0266/0268/0269 abertos); catálogo com os provisórios de 14/11 renumerados (v1.0.7 RD-0260..0270, portal RD-0271..0306, pareceres RD-0307..0318)
 - 2026-11-15 · PR #328, campos de senha da web (engenheiro-apps f324573) · **COM ACHADO**: RD-0505 (`CLASSE_CAMPO_ACESSO` sobrescrita) e RD-0506 (3 versões do campo de acesso, herdado). As partes web do RD-0478 e do RD-0479 estão fechadas. Relatório `2026-11-15-campo-senha-web.md`.
+- 2026-11-15 · reteste do PR #328 (engenheiro-apps 2a4532f): **LIMPO**. RD-0505 e RD-0506 corrigidos (`campo-acesso.tsx`); roteiro do Campo com "As duas senhas iguais".
