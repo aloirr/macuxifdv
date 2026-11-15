@@ -120,7 +120,7 @@ describe('memória da entrada (RN-CORE-48: "1 de 5, 2 de 5, 3 de 5...")', () => 
 
   it('Campo (vendedor): entidades fora de ordem não fazem a etapa voltar', () => {
     const modulos = ['core', 'catalogo', 'vendedor', 'promotor'];
-    // sem a memória: 1, 4, 2, 3, 5, 2 (o que o dono do produto viu)
+    // sem a memória: 1, 3, 2, 5, 4, 2 (o defeito que o dono do produto viu; catálogo por último, ADR 0054)
     const passos: Carga[] = [
       { entidade: null, modulo: null },
       { entidade: 'pedido', modulo: 'vendedor' },
@@ -129,14 +129,14 @@ describe('memória da entrada (RN-CORE-48: "1 de 5, 2 de 5, 3 de 5...")', () => 
       { entidade: 'cliente_foto', modulo: 'core' },
       { entidade: 'rota', modulo: 'core' },
     ];
-    expect(mostrados('vendedor', modulos, passos)).toEqual([1, 4, 4, 4, 5, 5]);
+    expect(mostrados('vendedor', modulos, passos)).toEqual([1, 3, 3, 5, 5, 5]);
     // em ordem, a memória não muda nada: 1, 2, 3, 4, 5 e a última no fim
     const emOrdem: Carga[] = [
       { entidade: null, modulo: null },
       { entidade: 'cliente', modulo: 'core' },
-      { entidade: 'produto', modulo: 'catalogo' },
       { entidade: 'pedido', modulo: 'vendedor' },
       { entidade: 'cliente_foto', modulo: 'core' },
+      { entidade: 'produto', modulo: 'catalogo' },
     ];
     expect(mostrados('vendedor', modulos, emOrdem, true)).toEqual([1, 2, 3, 4, 5, 5]);
   });
@@ -152,7 +152,7 @@ describe('memória da entrada (RN-CORE-48: "1 de 5, 2 de 5, 3 de 5...")', () => 
       { entidade: 'cliente', modulo: 'core' },
     ];
     const xs = mostrados('supervisor', modulos, passos);
-    expect(xs).toEqual([1, 4, 4, 4, 5, 5]);
+    expect(xs).toEqual([1, 3, 3, 5, 5, 5]);
     expect(xs).toEqual([...xs].sort((a, b) => a - b));
   });
 
@@ -165,6 +165,6 @@ describe('memória da entrada (RN-CORE-48: "1 de 5, 2 de 5, 3 de 5...")', () => 
       { entidade: 'pedido', modulo: 'vendedor', chave: 'u2|t1' },
       { entidade: null, modulo: null, chave: 'u2|t2' },
     ]);
-    expect(xs).toEqual([4, 4, 2, 4, 1]);
+    expect(xs).toEqual([3, 3, 2, 3, 1]);
   });
 });

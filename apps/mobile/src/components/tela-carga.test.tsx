@@ -14,6 +14,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { deveSincronizar, type MotivoSync } from '@/lib/carga';
+import type { EstadoComCarga } from '@/lib/carga-fundo';
 import { MANIFESTOS_INSTALADOS } from '@/lib/instalados';
 
 /** Uma linha do tempo só: o instante "agora" do teste (a carga termina 1 s antes). */
@@ -54,6 +55,7 @@ vi.mock('@/components/area-segura', () => ({ useFaixaSuperior: () => 24, useCorD
 vi.mock('expo-router', () => ({
   Redirect: ({ href }: { href: string }) => createElement('a', { 'data-redirect': href }),
   router: { replace: () => undefined },
+  useLocalSearchParams: () => sim.params,
 }));
 /** Kit simulado. O resto do kit (usado pelas telas do Core, carregadas junto com o `@macuxi/core/app`) vira um vazio. */
 vi.mock('@macuxi/ui/mobile', () => {
@@ -88,13 +90,14 @@ const ESTADO_INICIAL: EstadoMotorSync = {
 };
 
 const sim = vi.hoisted(() => ({
-  estado: null as unknown as EstadoMotorSync,
+  estado: null as unknown as EstadoComCarga,
   perfil: 'vendedor' as Perfil,
   variante: 'campo' as 'campo' | 'gestao',
   modulos: [] as ModuloId[],
   offline: false,
   sincronizacoes: 0,
   ultimoInicio: null as number | null,
+  params: {} as { detalhe?: string },
 }));
 
 /** Mesma regra do shell (`state/plataforma.tsx`): decide pelo estado do motor com `deveSincronizar`. */
@@ -154,6 +157,7 @@ beforeEach(() => {
   sim.offline = false;
   sim.sincronizacoes = 0;
   sim.ultimoInicio = null;
+  sim.params = {};
 });
 
 describe('Carga na tela de entrada — navegação pelo estado (R-20261102-091336, T-0172)', () => {
@@ -202,6 +206,30 @@ describe('Carga na tela de entrada — navegação pelo estado (R-20261102-09133
   });
 });
 
+describe('Carga na tela de entrada — entrada enquanto carrega (ADR 0054, solução 5)', () => {
+  const LIBERADO = '2026-11-02T13:05:00.000Z';
+
+  it('essenciais feitos (`liberado_em`) → entra na hora, com a carga ainda rodando', () => {
+    sim.estado = { ...sim.estado, sincronizando: true, progresso: 0.42, carga: { ...CARGA_VAZIA, entidade: 'pedido', modulo: 'vendedor', total: 10, concluidas: 4 } };
+    expect(redireciona(montar())).toBe(false);
+    sim.estado = { ...sim.estado, liberado_em: LIBERADO, pendentes: ['produto'] };
+    expect(redireciona(montar())).toBe(true);
+  });
+
+  it('motor sem `liberado_em` (sem a peça): como antes, só a carga completa libera', () => {
+    sim.estado = { ...sim.estado, sincronizando: true, progresso: 0.8 };
+    expect(redireciona(montar())).toBe(false);
+  });
+
+  it('aberta pelo indicador das abas (detalhe): mostra a carga e não volta sozinha', () => {
+    sim.params = { detalhe: '1' };
+    sim.estado = { ...sim.estado, sincronizando: true, progresso: 0.63, liberado_em: LIBERADO, pendentes: ['produto'], carga: { ...CARGA_VAZIA, entidade: 'produto', modulo: 'catalogo', total: 10, concluidas: 6 } };
+    const html = montar();
+    expect(redireciona(html)).toBe(false);
+    expect(html).toContain('entrada-etapa-5-atual');
+  });
+});
+
 describe('Carga na tela de entrada — etapas sem nome técnico (R-20261102-090915, T-0172)', () => {
   it('em nenhuma entidade do motor aparece entidade ou módulo; aparece "Olá" e o percentual; "Etapa n de N · nome" só ao leitor', () => {
     expect(ENTIDADES).toEqual(expect.arrayContaining(['cliente_condicao', 'cliente_tabela_preco', 'historico_compra', 'indicador_diario', 'pedido_evento']));
@@ -220,11 +248,15 @@ describe('Carga na tela de entrada — etapas sem nome técnico (R-20261102-0909
     sim.estado = { ...ESTADO_INICIAL, sincronizando: true, progresso: 0.4, carga: { ...CARGA_VAZIA, entidade: 'produto', modulo: 'catalogo', total: 10, concluidas: 4 } };
     const html = montar();
     // RD-0239: com a lista na tela, a etapa não se repete na linha da barra (fica só para o leitor de tela)
-    expect(rotuloLeitor(html)).toBe('Etapa 3 de 5 · Catálogo e preços');
-    expect(texto(html)).not.toContain('Etapa 3 de 5');
-    expect(html).toContain('entrada-etapa-2-feita');
-    expect(html).toContain('entrada-etapa-3-atual');
-    expect(html).toContain('entrada-etapa-4-pendente');
+    // RN-CORE-48 revista (ADR 0054): o catálogo é a última etapa
+    expect(rotuloLeitor(html)).toBe('Etapa 5 de 5 · Catálogo e preços');
+    expect(texto(html)).not.toContain('Etapa 5 de 5');
+    expect(html).toContain('entrada-etapa-4-feita');
+    expect(html).toContain('entrada-etapa-5-atual');
+    sim.estado = { ...ESTADO_INICIAL, sincronizando: true, progresso: 0.2, carga: { ...CARGA_VAZIA, entidade: 'cliente', modulo: 'core', total: 10, concluidas: 2 } };
+    const inicio = montar();
+    expect(inicio).toContain('entrada-etapa-2-atual');
+    expect(inicio).toContain('entrada-etapa-5-pendente');
   });
 
   it('sem frase sobre o que o app faz por trás (só o nome da etapa e o percentual)', () => {

@@ -10,16 +10,19 @@
  * - R-20261102-090919 item 2: montar a tela (ou remontar) não reinicia a carga em andamento (`sincronizarSeNecessario`).
  * - ADR 0017: a barra é o percentual do total já gravado (`percentualDaCarga`), também na retomada.
  * As frases que se alternavam saíram (T-0172): fica só o nome da etapa e o percentual.
+ * ADR 0054 (solução 5): com `liberado_em` (os essenciais da carga terminaram) o usuário entra na hora e a carga segue em
+ * segundo plano. Aberta pelo indicador das abas (`?detalhe=1`), é o detalhe da carga e não volta sozinha às abas.
  */
 import { progressoDaEntrada } from '@macuxi/core/app';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import { firstName } from '@macuxi/ui/mobile';
-import { Redirect, router } from 'expo-router';
+import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { AcaoEntrada, ErroEntrada, TelaEntrada } from '@/components/tela-entrada';
 import { percentualDaCarga, situacaoDaCarga } from '@/lib/carga';
+import type { EstadoComCarga } from '@/lib/carga-fundo';
 import {
   criarMemoriaDaEntrada,
   erroDeSinal,
@@ -41,7 +44,11 @@ export function TelaCarga() {
     variante,
     perfil,
   } = usePlataforma();
-  const { estado } = useMotorSync();
+  // ADR 0054: `liberado_em` por tipo estrutural (ausente no motor sem a peça)
+  const estado: EstadoComCarga = useMotorSync().estado;
+  const { detalhe } = useLocalSearchParams<{ detalhe?: string }>();
+  // ADR 0054: entrada liberada pelo motor (sem a peça, `liberado_em` não vem e vale só a carga completa)
+  const liberada = Boolean(estado.liberado_em) && detalhe !== '1';
   // RN-CORE-48: a etapa mostrada nunca volta (1, 2, 3... de N); tela montada de novo = carga nova, do zero
   const [lembrar] = useState(criarMemoriaDaEntrada);
   /** A carga já estava gravada quando a tela abriu: não prende o usuário enquanto a sincronização roda. */
@@ -131,7 +138,7 @@ export function TelaCarga() {
             )
           : null}
       </TelaEntrada>
-      {pronta && (tinhaCarga || mostrouPronto) ? <Redirect href="/" /> : null}
+      {liberada || (pronta && (tinhaCarga || mostrouPronto)) ? <Redirect href="/" /> : null}
     </>
   );
 }
