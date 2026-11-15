@@ -146,7 +146,7 @@ Premissas:
 - P1. O portal de configuração (`config.<host>`) não entra (outro site e outro público).
 - P2. Medidas é parâmetro do produto (Parâmetros › Produtos); a etapa pendente do checkout é assunto de visita (Parâmetros › Visitas).
 - P3. "Sem licença" = a empresa não contratou. Perfil sem o módulo, com a empresa licenciada, continua escondendo (RN-CORE-01).
-- P4. Os parâmetros de Pesquisa, Trade e Treinamento aparecem só para leitura (valor atual; "Padrão: X" só quando difere), sem campo editável nem Salvar, inclusive Pesquisa e Treinamento quando tiverem licença (decisão do gerente, RD-P07). A rota de gravação de cada módulo é lote futuro.
+- P4. Os parâmetros de Pesquisa, Trade e Treinamento aparecem só para leitura (valor atual; ver §3), sem campo editável nem Salvar, inclusive Pesquisa e Treinamento quando tiverem licença (decisão do gerente, RD-P07). A rota de gravação de cada módulo é lote futuro.
 - P6. Alçadas (03) fica só leitura, como hoje: `modules/vendedor/web/pages/alcadas-page.tsx` só mostra os limites, sem edição.
 - P5. Seção bloqueada: ver §3.
 
@@ -174,3 +174,7 @@ Cada PNG tem o `.html` de mesmo nome. Saíram desta versão: `01-menu-parametros
 15/11/2026 (horário de Manaus), todos corrigidos nesta versão:
 - **corretor-redundancias**: RD-P01 a RD-P11 corrigidos (grade das Curvas ABC; frase do dia como selo "Hoje" na linha, sem faixa; "Frases do dia · 32"; Desconto sem rótulo repetido; "Padrão: X" só quando difere; rótulos curtos do Trade; Trade só leitura; "Salvar <coisa>"; nota do 02; §1 "Ficam fora"; seção bloqueada só no §3). Para decidir, decisão do gerente: ajuda do Catálogo "De 100 a 2.000."; nomes Cadastros/Indicadores do Trade ficam (D8).
 - **design-de-marca**: MC-x1 (`#5B6673` em `.sec.bloq` e `.no.mod`), MC-x2 (barra da seção em Azul noite `#1E3350`) e MC-x3 (borda da nota em `#C9CED5`) corrigidos; botão desabilitado mantido como o do `packages/ui`.
+
+Reconferência 15/11/2026 (horário de Manaus):
+- **corretor-redundancias**: RD-P01 a RD-P13 fechados (RD-P12: P4 remete ao §3; RD-P13: nota do 03 remete a P6).
+- **design-de-marca**: MC-x1 a MC-x3 fechados e selo "Hoje" aprovado; liberado pela marca, sem achados.

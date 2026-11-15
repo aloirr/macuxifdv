@@ -214,7 +214,7 @@ const html03 = parametros(
   `<section class="quadro"><h2>Alçadas</h2><table><colgroup><col style="width:40%"><col></colgroup><thead><tr><th>Desconto do pedido</th><th>Quem aprova</th></tr></thead><tbody>
   <tr><td>Até 5%</td><td>Vendedor (aprovado na hora)</td></tr><tr><td>Até 10%</td><td>Supervisor</td></tr><tr><td>Até 15%</td><td>Gerente</td></tr><tr><td>Acima de 15%</td><td>Analista comercial</td></tr>
   </tbody></table></section>`,
-  '<b>Simulação.</b> Alçadas (só os limites) sai do antigo Comercial; as decisões recentes vão para Operação › Pedidos (D5). Só leitura, como hoje (a página atual não edita os limites).',
+  '<b>Simulação.</b> Alçadas (só os limites) sai do antigo Comercial; as decisões recentes vão para Operação › Pedidos (D5). Só leitura, como hoje (P6).',
 );
 
 // ---------- 04: Início ----------
