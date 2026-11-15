@@ -23,7 +23,7 @@ import {
   precisaRegistrarPush,
   pushSilencioso,
   rotaDoPush,
-  tokenFcmValido,
+  tokenPushValido,
   type RegistroPush,
 } from '@/lib/push';
 import { semDerrubar, semDerrubarAgora } from '@/lib/trava-sync';
@@ -148,7 +148,7 @@ export async function registrarPush(opcoes: {
     if (!perm.granted) return 'sem_permissao';
     // FCM direto: no Android, o token do aparelho é o token FCM cru (sem o projeto da Expo)
     const token: unknown = (await n.getDevicePushTokenAsync()).data;
-    if (!tokenFcmValido(token)) return 'sem_token';
+    if (!tokenPushValido(token)) return 'sem_token';
     // a tarefa do push silencioso só existe com o token (o servidor só manda push a quem registrou)
     if (nat.tm) await n.registerTaskAsync(TAREFA_PUSH_SYNC).catch(() => undefined);
     const chave = chaveRegistroPush(opcoes.usuarioId);

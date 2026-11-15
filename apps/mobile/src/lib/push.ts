@@ -10,6 +10,7 @@
  * Push SILENCIOSO = sem título e sem corpo: só dispara o motor, nada aparece na bandeja.
  * FCM direto (v1.0.10): `data` chega como mapa de textos; `entidades` vem como texto JSON ou separado por vírgula.
  */
+import { PushTokenSchema } from '@macuxi/core/contracts';
 
 /** Nome de entidade do sync: letras minúsculas, dígitos e `_` (ex.: `pedido`, `cliente_condicao`). */
 const NOME_ENTIDADE = /^[a-z][a-z0-9_]{0,62}$/;
@@ -54,15 +55,12 @@ export function pushSilencioso(conteudo: { title?: string | null; body?: string 
   return !conteudo?.title && !conteudo?.body;
 }
 
-/** Token FCM: texto opaco do Firebase (em geral 140 a 200 caracteres; o contrato `PushTokenSchema` aceita até 300). */
-const TOKEN_FCM = /^[A-Za-z0-9_:-]{20,300}$/;
-
 /**
- * Token do aparelho para o push pelo FCM direto (inventário do Expo, opção 2): o token FCM cru de
- * `getDevicePushTokenAsync()`. O token do Expo (`ExponentPushToken[...]`) não é mais aceito.
+ * Token do aparelho para o registro do push: vale o que o contrato `PushTokenSchema` aceita (ADR 0053 §1: tokens Expo
+ * e FCM convivem; o servidor tira o tipo do formato). O app não tem regra própria de formato.
  */
-export function tokenFcmValido(token: unknown): token is string {
-  return typeof token === 'string' && TOKEN_FCM.test(token);
+export function tokenPushValido(token: unknown): token is string {
+  return PushTokenSchema.shape.token.safeParse(token).success;
 }
 
 type Mapa = Record<string, unknown>;

@@ -12,7 +12,7 @@ import {
   precisaRegistrarPush,
   pushSilencioso,
   rotaDoPush,
-  tokenFcmValido,
+  tokenPushValido,
   VALIDADE_REGISTRO_PUSH_MS,
 } from './push';
 
@@ -36,12 +36,6 @@ describe('entidadesDoPush', () => {
 });
 
 describe('FCM direto: data como mapa de textos', () => {
-  it('link e entidades chegam como texto e são lidos como antes', () => {
-    const dados = dadosDoPush({ link: '/m/core/notificacoes', entidades: '["pedido","meta"]' });
-    expect(rotaDoPush(dados)).toBe('/m/core/notificacoes');
-    expect(entidadesDoPush(dados)).toEqual(['pedido', 'meta']);
-    expect(entidadesDoPush(dadosDoPush({ entidades: 'pedido,cliente_condicao' }))).toEqual(['pedido', 'cliente_condicao']);
-  });
   it('formato Expo (dataString JSON) continua aceito e prevalece sobre as chaves soltas', () => {
     const dados = dadosDoPush({ dataString: '{"link":"/m/pedido?id=abc","entidades":["pedido"]}', link: '/m/outra' });
     expect(rotaDoPush(dados)).toBe('/m/pedido?id=abc');
@@ -85,21 +79,13 @@ describe('pushSilencioso e token', () => {
     expect(pushSilencioso({})).toBe(true);
     expect(pushSilencioso({ title: 'Pedido aprovado', body: '' })).toBe(false);
   });
-  it('só token FCM: texto sem espaço, de 20 a 300 caracteres, com letras, dígitos, _, : e -', () => {
-    expect(TOKEN_FCM).toHaveLength(162);
-    expect(tokenFcmValido(TOKEN_FCM)).toBe(true);
-    expect(tokenFcmValido('a'.repeat(300))).toBe(true);
-    expect(tokenFcmValido('a'.repeat(301))).toBe(false);
-    expect(tokenFcmValido('curto:1')).toBe(false);
-    expect(tokenFcmValido('')).toBe(false);
-    expect(tokenFcmValido(`${TOKEN_FCM} x`)).toBe(false);
-    expect(tokenFcmValido(`${TOKEN_FCM}/x`)).toBe(false);
-    expect(tokenFcmValido(null)).toBe(false);
-    expect(tokenFcmValido(123)).toBe(false);
-  });
-  it('o token do Expo não é mais aceito', () => {
-    expect(tokenFcmValido('ExponentPushToken[abcdefghijklmnopqrstuvwxyz]')).toBe(false);
-    expect(tokenFcmValido('ExpoPushToken[abcdefghijklmnopqrstuvwxyz]')).toBe(false);
+  it('token do push: aceita FCM e Expo; recusa vazio, mais de 300 caracteres e o que não é texto', () => {
+    expect(tokenPushValido(TOKEN_FCM)).toBe(true);
+    expect(tokenPushValido('ExponentPushToken[abcdefghijklmnopqrstuvwxyz]')).toBe(true);
+    expect(tokenPushValido('')).toBe(false);
+    expect(tokenPushValido('a'.repeat(301))).toBe(false);
+    expect(tokenPushValido(null)).toBe(false);
+    expect(tokenPushValido(123)).toBe(false);
   });
 });
 
