@@ -15,8 +15,10 @@
 > Nada disso vai para código, seed nem teste como dado real.
 >
 > **Revisão de 2026-11-15** (parecer do design-de-marca `docs/marca/pareceres/2026-11-15-lote-noite.md`, parte 2,
-> lote 13): **MC-0067**, placa única de 52/36 no login e no Mais (§4, §5 e §7); **MC-0066**, carga com logo em duas
-> variações, A e B, para a escolha do dono do produto (§3 e §8).
+> lote 13): **MC-0067**, placa de 52/36 no Mais (§5); **MC-0066**, carga com logo (§3).
+>
+> **Decisão do dono do produto** (R-20261114-234500-alexandre, 14/11/2026 ~23h45, Manaus, pelo gerente-projetos):
+> fecha a carga (§3, MC-0066 decidida) e o login (§4); o Mais, os PDFs e o portal ficam como estão nesta simulação.
 
 ## 0. O que existe hoje no `main` (busca em `db/`, `modules/` e `apps/`)
 
@@ -31,7 +33,7 @@
 
 ## 1. Regras de todas as superfícies
 
-- **Uma logo por empresa** (tenant). Sem logo, cada lugar volta a ser como é hoje (§3 a §6); nenhum lugar mostra espaço
+- **Uma logo por empresa** (tenant). Sem logo, cada lugar volta a ser como é hoje (§3, §5 e §6); nenhum lugar mostra espaço
   vazio nem "sem logo".
 - **Placa branca no app:** a logo do cliente fica sempre numa placa branca (`#FFFFFF`, raio 12, borda `#DFE2E6` 1 px sobre o
   Pérola; sem borda sobre o Azul noite). Logo de cliente costuma ter fundo branco ou cores escuras, e some no Azul noite.
@@ -71,8 +73,8 @@ vê e muda é quem já entra nessa aba: o time da Macuxi e o administrador do cl
   volta ao que estava.
 - **Troca:** "Trocar" → escolhe o arquivo → estado 2 com a logo nova → "Salvar". A antiga sai quando a nova é salva. Não
   há diálogo de confirmação: a pré-visualização já é a conferência.
-- **Remoção:** "Remover" → diálogo sem texto de corpo → "Remover" volta ao estado 1. Os lugares das §3 a §6 voltam a ser como
-  são hoje.
+- **Remoção:** "Remover" → diálogo sem texto de corpo → "Remover" volta ao estado 1. Os lugares das §3, §5 e §6 voltam a ser
+  como são hoje.
 - **Limites** (linha de baixo, `#4A5562` 13 px): **"PNG ou JPG · até 1 MB · pelo menos 200 px de altura"**.
   - **PNG ou JPG:** o `Image` do app e o PDF mostram os dois sem biblioteca nova. SVG fica fora, porque pode levar
     script e o app precisaria do `SvgXml` para cada logo.
@@ -90,56 +92,36 @@ vê e muda é quem já entra nessa aba: o time da Macuxi e o administrador do cl
 
 ## 3. Carga do app (entrada com sincronização)
 
-**Decisão pendente do dono do produto: variação A ou B (MC-0066).** Até a decisão, a carga com logo não vai para o
-código. Cada imagem mostra a tela sem logo (igual nas duas variações) e a tela com logo da variação.
+Cada imagem mostra a tela sem logo e a tela com logo:
 
-| | Variação A (recomendada pelo design-de-marca): ao lado | Variação B: abaixo |
-|---|---|---|
-| **Campo** | ![Campo A](logo-cliente/carga-campo-a.png) `carga-campo-a.png` | ![Campo B](logo-cliente/carga-campo-b.png) `carga-campo-b.png` |
-| **Gestão** | ![Gestão A](logo-cliente/carga-gestao-a.png) `carga-gestao-a.png` | ![Gestão B](logo-cliente/carga-gestao-b.png) `carga-gestao-b.png` |
-| Logo Macuxi (empilhado) | 124 dp de largura (~115 dp de altura) | 170 dp, o mesmo da tela sem logo |
-| Placa da carga | 64 dp de altura, até 112 dp de largura; logo de 48 × até 96 dp | a mesma placa |
-| Posição | na mesma linha, centralizada, depois de um filete de 1 × 64 dp com 24 dp de cada lado (a altura do "M", fora da área de proteção): `#3A4D68` no Campo e `#DFE2E6` no Gestão. Largura total: 124 + 24 + 1 + 24 + 112 = 285 dp, dentro dos 312 úteis | no centro, 36 dp abaixo do logo Macuxi (o "M" mede ~33 dp a 170), entre o logo e o "Olá" |
-| Leitura | atende ao "ao lado" do pedido; a Macuxi segue maior (115 contra 64 dp de altura) | hierarquia mais clara, mas foge do "ao lado" |
-| Passagem da splash | o logo Macuxi reduz de 170 para 124 dp e desliza para a esquerda; o filete e a placa entram com esmaecer; 240 ms | o logo Macuxi fica parado; a placa entra com esmaecer, 240 ms |
+| Campo | Gestão |
+|---|---|
+| ![Campo](logo-cliente/carga-campo.png) `carga-campo.png` | ![Gestão](logo-cliente/carga-gestao.png) `carga-gestao.png` |
 
 - **As duas telas de cada imagem mostram o mesmo momento** (depois do login, etapa 2 de 5): a única diferença entre
   elas é a logo do cliente.
 - **Sem logo:** igual a hoje (`docs/design/entrada-sync.md`): o logo empilhado da Macuxi a 170 dp de largura, no centro,
-  com "Olá, Lucas", a barra e as etapas. Não muda em nenhuma das variações.
-- **Com logo:** a placa branca (§1) com a logo em `contain`; no Gestão, com a borda `#DFE2E6`. O resto da tela não muda:
-  "Olá, Lucas", a barra, as etapas e o erro.
-- **A placa da carga (64 dp) é maior que a placa única do login e do Mais (52 dp, §4):** a carga é a tela da marca, e o
-  logo Macuxi ali tem 115 dp ou mais de altura, então a placa continua bem menor que ele.
+  com "Olá, Lucas", a barra e as etapas.
+- **Com logo:** a logo do cliente fica **ao lado** do logo Macuxi, na mesma linha, centralizada:
+  - logo Macuxi (empilhado) com 124 dp de largura (~115 dp de altura);
+  - filete de 1 × 64 dp com 24 dp de cada lado (a altura do "M", fora da área de proteção): `#3A4D68` no Campo e
+    `#DFE2E6` no Gestão;
+  - placa branca (§1) de 64 dp de altura e até 112 dp de largura, com a logo de 48 × até 96 dp em `contain`; no Gestão,
+    com a borda `#DFE2E6`;
+  - largura total: 124 + 24 + 1 + 24 + 112 = 285 dp, dentro dos 312 úteis.
+
+  O resto da tela não muda: "Olá, Lucas", a barra, as etapas e o erro.
+- **A placa da carga (64 dp) é maior que a do Mais (52 dp, §5):** a carga é a tela da marca, e o logo Macuxi ali tem
+  ~115 dp de altura, então a placa continua bem menor que ele.
 - **Quando aparece:** só quando o aparelho já tem a logo guardada da empresa do último login. Na primeira abertura, antes
   de qualquer login, não há empresa: vale a tela sem logo.
-- **Splash nativa:** a splash do sistema é uma imagem fixa do build (`app.config.ts`) e não pode ter a logo de cada
-  cliente. A passagem para a entrada é a da tabela. Com "reduzir movimento", a troca é direta, sem animação.
-- **Opção C** do parecer (manter a placa de 84 dp ao lado): não foi simulada. Exige mudar o §2.4 do manual (a carga
-  vira co-marca), e o design-de-marca não a recomenda.
+- **Passagem da splash:** a splash do sistema é uma imagem fixa do build (`app.config.ts`) e não pode ter a logo de cada
+  cliente. Na entrada, o logo Macuxi reduz de 170 para 124 dp e desliza para a esquerda; o filete e a placa entram com
+  esmaecer; 240 ms. Com "reduzir movimento", a troca é direta, sem animação.
 
-## 4. Login (Entrar) do app
+## 4. Login e telas de senha do app
 
-`login-campo.png` e `login-gestao.png` (o login é o mesmo nos dois apps; muda só o nome na legenda):
-
-![Login Campo](logo-cliente/login-campo.png)
-![Login Gestão](logo-cliente/login-gestao.png)
-
-- **Sem logo:** igual a hoje: a faixa Azul noite com o logo horizontal negativo e o formulário no Pérola, com o
-  rodapé legal (`rodape-legal.md`).
-- **Com logo:** a **placa única** (MC-0067) com borda `#DFE2E6` fica **no topo do formulário, acima de "Entrar"**,
-  alinhada à esquerda:
-  - placa de **52 dp** de altura e até **176 dp** de largura (8 dp de folga em cima e embaixo e 12 dp dos lados);
-  - logo com **36 dp** de altura e até **152 dp** de largura, menor que o logo Macuxi da faixa (44 dp);
-  - 14 dp até o título.
-  A faixa da Macuxi não muda. É a mesma placa do fim do Mais (§5).
-- **Por que no formulário e não na faixa:** na faixa, a logo do cliente ficaria do tamanho do logo Macuxi e lado a lado
-  com ele, e o manual proíbe o logo Macuxi no mesmo nível do logo da distribuidora (§2.4). Também não sobra largura:
-  360 − 48 de margem − 204 do logo = 108 dp.
-- **Quando aparece:** quando o aparelho tem a logo guardada do último login, que é o mesmo `codigoSalvo` que já
-  preenche o "Código da empresa". Se a pessoa apaga o código ou digita outro, a placa some na hora: a logo é da empresa
-  do código salvo, não da digitada.
-- **Teclado aberto:** a placa some com o teclado, como o rodapé legal; o formulário tem prioridade.
+Não mostram a logo do cliente (decisão R-20261114-234500-alexandre) e ficam como hoje.
 
 ## 5. Fim do menu Mais
 
@@ -149,8 +131,8 @@ código. Cada imagem mostra a tela sem logo (igual nas duas variações) e a tel
 
 - **O bloco:** é o último da tela "Mais" (`apps/mobile/src/app/(tabs)/mais.tsx`), depois da lista "Outras telas":
   1. **"Licenciado para <nome fantasia>"**: `type.small` 13/18, `#4A5562` (7,03:1 no Pérola), centralizado;
-  2. 10 dp abaixo, a **placa única** do login (§4, MC-0067), com borda `#DFE2E6`: 52 dp de altura, até 176 dp de
-     largura; logo com 36 dp de altura e até 152 dp de largura.
+  2. 10 dp abaixo, a **placa** (MC-0067), com borda `#DFE2E6`: 52 dp de altura, até 176 dp de largura (8 dp de folga
+     em cima e embaixo e 12 dp dos lados); logo com 36 dp de altura e até 152 dp de largura.
 - **Posição:** com espaço sobrando, o bloco vai para o pé da área de rolagem, logo acima da barra de abas (`marginTop:
   auto`, 24 dp mínimos acima). Com lista comprida, fica depois do último item e rola junto.
 - **Sem logo:** só a frase, no mesmo lugar.
@@ -185,18 +167,17 @@ Simulações geradas do próprio `buildOrderPdfHtml` (versão do cliente):
 |---|---|
 | engenheiro-software | desenho e contrato: onde a logo fica (arquivo no armazenamento, URL ou bytes no tenant), rota do portal de envio e remoção, campo na carga do app |
 | banco-dados | campo/tabela da logo do tenant (com os campos comuns e RLS) |
-| engenheiro-apps | cartão "Logo" do portal (`apps/web/components/portal/tela-empresa.tsx`); entrada, login e Mais no shell (`apps/mobile`); cópia no aparelho |
+| engenheiro-apps | cartão "Logo" do portal (`apps/web/components/portal/tela-empresa.tsx`); entrada e Mais no shell (`apps/mobile`); cópia no aparelho |
 | modulo-core | a logo e o nome fantasia na carga do app (contrato da empresa) |
 | modulo-vendedor | `logo_src` com a logo cadastrada e a caixa nova da `.logo` em `pdf-pedido.ts` |
-| designer-ux | placa da logo como componente em `packages/ui` (mobile): a placa única de 52/36 (login e Mais) e a de 64/48 da carga, conforme a variação escolhida; revisão de UX |
+| designer-ux | placa da logo como componente em `packages/ui` (mobile): a de 52/36 do Mais e a de 64/48 da carga; revisão de UX |
 | design-de-marca | validação nos prints (Campo, Gestão, portal e PDF) |
 
 ## 8. Premissas e pontos para o dono do produto e o design-de-marca
 
-1. **Carga com logo: escolher A ou B** (§3, MC-0066). A regra da placa branca única (52/36, sempre menor que o logo Macuxi da tela e fora da área de proteção) só entra no manual com o "aprovo" do dono do produto.
-2. **No login**, a logo fica no formulário e não na faixa (§4). É uma leitura de "no login do app" que respeita o manual e a
-   largura da tela.
-3. **Limites** (PNG/JPG, 1 MB, 200 px de altura): são uma proposta minha. O engenheiro-software pode ajustá-los no
+1. **Manual:** a regra da placa branca (sempre menor que o logo Macuxi da tela e fora da área de proteção) só entra no
+   manual com o "aprovo" do dono do produto.
+2. **Limites** (PNG/JPG, 1 MB, 200 px de altura): são uma proposta minha. O engenheiro-software pode ajustá-los no
    desenho.
-4. **Sem cadastro no BKO:** só o portal `config.`, como foi pedido.
-5. **Gestão:** a carga dele continua no Pérola (`entrada-sync.md` §7). A placa ganha borda para não sumir no fundo claro.
+3. **Sem cadastro no BKO:** só o portal `config.`, como foi pedido.
+4. **Gestão:** a carga dele continua no Pérola (`entrada-sync.md` §7). A placa ganha borda para não sumir no fundo claro.
