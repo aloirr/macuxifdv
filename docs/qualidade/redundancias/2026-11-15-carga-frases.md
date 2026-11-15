@@ -195,3 +195,32 @@ Conferi `frases.md`, `spec.md` §2 a §4 e §6 (fontes) e os PNGs regerados (`ca
   - a 1 e a 16 (os Pemon).
 - **Nenhuma frase explica o funcionamento do app nem fala de venda.**
 - **Nada na tela repete o aviso.** No PNG do Gestão, a frase 4 está entre o "Olá" e o aviso, sem repetir nenhum dos dois.
+
+## 6. Reteste das frases de Roraima (15/11/2026, commit 73db26c do designer-ux)
+**Veredito:**
+- **3 corrigidos:** RD-0482, RD-0483 e RD-0484.
+- **1 achado novo:** RD-0485, de gravidade baixa, num doc. Ele segura a simulação.
+- **A frase 4 tem texto proposto** (abaixo).
+
+Conferi `frases.md`, `spec.md` §2 a §4 e §6, `config-frases.html` e os PNGs (`config-frases.png` e `config-editar.png`). A medida foi a mesma da §5, agora em **270 dp**: as 30 cabem em 2 linhas, e a linha mais larga é a da frase 10, com 269 dp.
+
+| RD | Situação | Evidência |
+|---|---|---|
+| RD-0482 | **corrigido** | As frases 5, 13, 18 e 29 têm o texto proposto. A 7 ficou "A pintora Macuxi Carmézia Emiliano nasceu na Maloca do Japó." e não repete mais a Raposa Serra do Sol da 5. A 16 ficou "Ingarikó e Pemon formam um só mundo cultural em torno do Monte Roraima." (71 caracteres). Nenhuma frase passa de 78 caracteres. |
+| RD-0483 | **corrigido** | A tela não tem mais a fonte entre parênteses: o texto das frases 3, 9, 28, 29 e 30 é o proposto. O "(2019)" da 24 é o ano da peça, não a fonte. A §6 diz: "A fonte não vai no texto da tela". |
+| RD-0484 | **corrigido** | A coluna "Para" saiu do `config-frases.png`, e o campo saiu do diálogo (`config-editar.png`, "Editar frase 9": só Frase e o contador). Na §2 o sorteio fica "entre as **ativas**", e a §3 já não tem "Para". As 12 inativas aparecem no fim da lista (1, 2, 4, 7, 8, 16–22), como diz a §3. |
+
+### Textos que o designer mudou por conta própria (16, 17 e 4)
+- **16:** "Ingarikó e Pemon formam um só mundo cultural em torno do Monte Roraima." Não repete nenhuma outra frase.
+- **17:** "Makunaimã, das narrativas Macuxi e Pemon, inspirou Mário de Andrade." Não repete a 23, que fala do registro feito por Koch-Grünberg, nem a 24, que fala da peça de 2019.
+- **4 (sugestão, sem RD; a sintaxe não é redundância):** a frase "A damurida, caldo de pimenta com peixe ou carne, os Macuxi chamam de tuma." põe o objeto antes do sujeito sem retomá-lo. Proposta, com 73 caracteres e 2 linhas a 270 dp (a linha mais larga mede 255 dp):
+  - **"Os Macuxi chamam de tuma a damurida, caldo de pimenta com peixe ou carne."**
+  - Alternativa medida, com 70 caracteres e a linha mais larga de 269 dp, sem folga: "Tuma é o nome macuxi da damurida, caldo de pimenta com peixe ou carne." Não a recomendo: fica no limite e escreve "macuxi" com inicial minúscula, contra a MC-0081.
+
+### RD-0485 · baixa · doc · designer-ux
+- **Onde:** `spec.md` §2 ("as ativas das 30 iniciais … `frases.md`; **hoje 18**") e §4 ("**18** frases entram ativas (… 3, 5, 6, 9 a 15 e 23 a 30)", "as **12** … (1, 2, 4, 7, 8 e 16 a 22) entram inativas", "O app sorteia entre as **18** ativas") × `frases.md`, coluna **Situação inicial**.
+- **O que se repete:** a mesma informação, quais frases entram ativas e quantas são, está em 4 lugares: a coluna do `frases.md`, as 2 listas de números da §4, o "hoje 18" da §2 e o "18 ativas" no fim da §4. Quando uma frase for ativada depois da validação, os 4 lugares precisam mudar juntos. Se um deles ficar para trás, a contagem passa a não bater.
+- **Proposta:** a fonte da verdade é a coluna **Situação inicial** do `frases.md`. A spec fica com o critério e a remissão, sem números:
+  - §2, antes: "o app usa as ativas das 30 iniciais que vão no bundle (`frases.md`; hoje 18)."
+  - §2, depois: "o app usa as ativas das 30 iniciais que vão no bundle (`frases.md`, coluna Situação inicial)."
+  - §4, depois: "**Validação indígena (recomendação do parecer da marca de 15/11):** as frases de paisagem, natureza e história documentada entram ativas. As que falam do povo e das narrativas entram inativas (coluna Situação inicial do `frases.md`) e só são ativadas depois da validação de pessoa ou organização indígena que o dono do produto escolher (…). As frases 7 (Carmézia Emiliano) e 8 (Jaider Esbell) pedem também a concordância da artista ou de quem responde pela obra; sem ela, são trocadas." A frase "O app sorteia entre as 18 ativas" sai, porque a §2 já diz isso.
