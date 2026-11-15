@@ -39,7 +39,7 @@ import { dadosFaseM, TENANT_FASE_M } from '../seeds/fase-m/fase-m';
 import { dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS, PEPPER_HUB_FIXTURE } from '../seeds/fixtures/dois-tenants';
 import { carregarFixtureDosTestes, dadosTreinamento, ORDEM_TREINAMENTO } from './fixture-treinamento';
 import { COLUNAS_SEM_ESPELHO_DRIZZLE, TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
-import { FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_0042, FUNCOES_SA_0058 } from './funcoes-sa';
+import { DADOS_LEGAIS_PUBLICOS, FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_0042, FUNCOES_SA_0058, FUNCOES_SA_0073 } from './funcoes-sa';
 import { idDeChave, idDeterministico, idFixo, idMedida, idUsuarioPerfil } from '../src/ids';
 import { lerMigracoes } from '../src/migrador';
 import { PASTA_DB } from '../src/config';
@@ -114,6 +114,8 @@ const TABELAS_0058 = ['plataforma.diagnostico'] as const;
 const TABELAS_0064_0066 = [
   'core.tarefa', 'core.tarefa_destinatario', 'core.frase_dia', 'core.usuario_avatar', 'core.meta_produtividade', 'core.deslocamento_dia',
 ] as const;
+/** Tabela nova da 0073 (rodapé legal: dados legais da Macuxi; sem tenant_id, só por função; dados-legais.db.test.ts). */
+const TABELAS_0073 = ['plataforma.dados_legais'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -248,6 +250,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0057,
         ...TABELAS_0058,
         ...TABELAS_0064_0066,
+        ...TABELAS_0073,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,
@@ -786,8 +789,9 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     // 0052 (T-0122 N5): tenant_por_codigo recriada (drop + create, o retorno fica só id e status; tenant-por-codigo-minimo.test.ts)
     // 0058 (T-0158, ADR 0043): as 2 sa_* do diagnóstico (portal) e o expurgo de 90 dias (worker) (diagnostico.test.ts)
     // 0069 (ADR 0049): a função de gatilho do promotor, conferida no COMMIT do portal (cargo-hierarquia.db.test.ts)
+    // 0073 (rodapé legal): a leitura pública (app) e as 2 sa_* dos dados legais (portal) (dados-legais.db.test.ts)
     expect(novas.map((x) => x[1]).sort()).toEqual(
-      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir'].sort(),
+      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', nome(DADOS_LEGAIS_PUBLICOS), ...FUNCOES_SA_0073.map(nome)].sort(),
     );
     for (const x of novas) expect(x[2], `${x[1]}: pg_temp por último`).toMatch(/, pg_temp$/);
     expect(depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)]).length).toBe(novas.length);

@@ -88,12 +88,24 @@ export const FUNCOES_SA_0058 = ['plataforma.sa_listar_diagnosticos(uuid, jsonb)'
  */
 export const FUNCOES_SA_ATE_0057 = [...FUNCOES_SA, ...FUNCOES_SA_0042] as const;
 
+/** As 16 sa_* públicas do banco parado entre a 0058 e a 0069: as 14 até a 0057 (FUNCOES_SA_ATE_0057) + as 2 da 0058. */
+export const FUNCOES_SA_ATE_0069 = [...FUNCOES_SA_ATE_0057, ...FUNCOES_SA_0058] as const;
+
 /**
- * As sa_* públicas do banco migrado até a ÚLTIMA (0058): as 14 até a 0057 (FUNCOES_SA_ATE_0057) + as 2 da 0058 = 16. Use esta
- * lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040
- * ou 0041.
+ * As 2 sa_* da 0073 (rodapé legal, docs/design/telas/rodape-legal.md §3.2): o super-admin lê e grava os dados legais da Macuxi
+ * (razão social, CNPJ e site). EXECUTE só ao macuxi_portal; admin do cliente = 42501. A leitura pública
+ * (plataforma.dados_legais_publicos(), do macuxi_app) não é sa_* e fica em DADOS_LEGAIS_PUBLICOS.
  */
-export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0057, ...FUNCOES_SA_0058] as const;
+export const FUNCOES_SA_0073 = ['plataforma.sa_dados_legais(uuid)', 'plataforma.sa_gravar_dados_legais(uuid, jsonb)'] as const;
+/** A leitura pública dos dados legais (0073): SECURITY DEFINER, sem sessão; EXECUTE só ao macuxi_app. */
+export const DADOS_LEGAIS_PUBLICOS = 'plataforma.dados_legais_publicos()';
+
+/**
+ * As sa_* públicas do banco migrado até a ÚLTIMA (0073): as 16 até a 0069 (FUNCOES_SA_ATE_0069) + as 2 da 0073 = 18. Use esta
+ * lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040
+ * ou 0041. (Junto com a 0070–0072, ADR 0047/0052: + a sa_* da 0070 e as 8 da 0072.)
+ */
+export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0069, ...FUNCOES_SA_0073] as const;
 
 /** Interna (SECURITY INVOKER, sem EXECUTE para ninguém além do dono), chamada de dentro das sa_*: assinatura da 0039. */
 export const SA_INTERNA = 'plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)';

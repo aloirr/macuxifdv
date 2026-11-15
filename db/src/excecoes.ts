@@ -21,6 +21,8 @@ export const TABELAS_SEM_TENANT_ID = {
   'plataforma.portal_sessao': 'sessão do portal, super-admin ou admin do cliente (ADR 0031); só por função',
   /** tenant_alvo_id (sem FK) no lugar de tenant_id, como na auditoria_plataforma: não é tabela de tenant. */
   'plataforma.portal_sessao_empresa': 'empresas conferidas no login do portal (ADR 0031); só por função',
+  /** Dados legais da Macuxi (0073, rodapé legal): dado da PLATAFORMA, uma linha só; só pelas funções plataforma.sa_* e dados_legais_publicos. */
+  'plataforma.dados_legais': 'razão social, CNPJ e site da Macuxi, fora dos tenants (rodape-legal.md §3.2); só por função',
 } as const;
 
 /**
@@ -37,6 +39,8 @@ export const TABELAS_SO_POR_FUNCAO = [
   'plataforma.portal_tentativa',
   'plataforma.portal_sessao',
   'plataforma.portal_sessao_empresa',
+  /** 0073 (rodapé legal): lida pela dados_legais_publicos (app) e pelas sa_* do portal; gravada só pela sa_gravar_dados_legais. */
+  'plataforma.dados_legais',
 ] as const;
 
 /** Tabelas sem o índice de sync (tenant_id, updated_at, id): não são puxadas pelo app. */
