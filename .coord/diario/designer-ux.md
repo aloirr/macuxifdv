@@ -118,3 +118,4 @@
 2026-11-14 — R-20261114-141500 — Dialog e Drawer do kit: Tab preso dentro do popup, foco inicial no Drawer; prints em 4 larguras em docs/design/prints-popups-2026-11-14
 2026-11-15 — R-20261115-071000 — CampoSenha no kit (mobile @macuxi/ui/mobile e web @macuxi/ui/web): olho só em ícone (olho/olhoRiscado), "Mostrar senha"/"Ocultar senha", alvo 48/44, props de teclado de senha; inventário e spec em docs/design/campo-senha/ (7 lugares: modulo-core e engenheiro-apps); proposta do item "As duas senhas iguais".
 2026-11-15 — T-0174 — spec Fotos em lote (docs/design/telas/fotos-em-lote.md), repetido = 4º cartão só com >0; Progresso exportado no kit web
+2026-11-15 — T-0174 — KpiCard com onClick/selecionado (MC-0090), Progresso mostrarRotulo='valor', spec Fotos em lote sem repetição (RD-0615, RD-0616, RD-0622)

@@ -1,6 +1,7 @@
 # Catálogo → Fotos em lote (BKO) — especificação visual (designer-ux)
 
 > 2026-11-15 (Manaus) · designer-ux · T-0174 · RN-CAT-14, RF-CAT-07 · desenho `docs/desenho/T-0174.md` (§0, §1.3, §3.4, §5)
+> Revisão 2026-11-15 (Manaus): KpiCard `selecionado` (MC-0090), andamento sem repetir o selo (RD-0615), lote que falhou sem aviso (RD-0616), lote na busca `?lote=&filtro=` (RD-0622).
 > Tela de `modules/catalogo/web/pages/fotos-lote` (dono: modulo-catalogo). Kit: `packages/ui/src/web/`.
 > Regras transversais: revisão do BKO (`docs/design/telas/bko-revisao.md` §P1 a §P9): uma informação num lugar só,
 > só o texto que o usuário usa para agir, um botão principal por tela.
@@ -17,9 +18,14 @@
 | Item | Valor |
 |---|---|
 | Menu | grupo **Produtos**, item **Fotos em lote** (ordem alfabética: Catálogo, Fotos em lote, Marcas concorrentes, Preço e custo, Tabelas de preço) |
-| Rotas | `/catalogo/fotos-lote` (envio e lotes recentes) · `/catalogo/fotos-lote/:id` (um lote: andamento e relatório) |
+| Rotas | `/catalogo/fotos-lote` (envio e lotes recentes) · `/catalogo/fotos-lote?lote=<id>&filtro=<cartão>` (um lote: andamento e relatório; `filtro` só com cartão marcado, seção 3.4) |
 | Ação | `produto.enriquecer`; sem a ação, o item não aparece no menu e a URL mostra o erro padrão de acesso do shell |
 | Título da página (`titulo`/`navegacao`) | `Fotos em lote` |
+
+**Rota do lote (RD-0622):** o shell do BKO só monta caminhos fixos, então o lote abre na mesma página, pela busca:
+`?lote=<id>` e, com cartão marcado, `&filtro=<cartão>` (`ligadas`, `pendencias`, `recusadas`, `repetidas`); o Voltar do
+navegador volta para a lista. O caminho próprio `/catalogo/fotos-lote?lote=<id>` depende de rota dinâmica no shell
+(engenheiro-apps) e fica fora desta tarefa; quando existir, esta spec troca o endereço e o resto não muda.
 
 ## 2. Página de envio — `/catalogo/fotos-lote`
 
@@ -46,11 +52,11 @@ Quadro tracejado do tamanho da largura útil, 200 px de altura mínima (mesmas c
 - Mais de um arquivo solto: usa o primeiro `.zip` e ignora o resto (sem aviso).
 - **Com 2 lotes em processamento** (`FOTO_LOTE_ATIVOS_MAX`): o botão fica desligado e a linha 1 vira
   `Espere um dos lotes em processamento terminar para enviar outro.` (a mesma frase do 409 `LOTE_EM_ANDAMENTO`).
-- Ao escolher um arquivo válido, a página vai na hora para `/catalogo/fotos-lote/:id` (seção 3) e o envio começa lá.
+- Ao escolher um arquivo válido, a página vai na hora para `/catalogo/fotos-lote?lote=<id>` (seção 3) e o envio começa lá.
 
 ### 2.2 Lotes recentes
 `Panel title="Lotes recentes"` + `TabelaDados` (rótulo `Lotes recentes`), os 20 de `GET fotos-lote`, mais novo em cima.
-Clique na linha abre `/catalogo/fotos-lote/:id`.
+Clique na linha abre `/catalogo/fotos-lote?lote=<id>`.
 
 | Coluna | Prioridade / largura | Conteúdo |
 |---|---|---|
@@ -64,7 +70,7 @@ Clique na linha abre `/catalogo/fotos-lote/:id`.
 - Sem lote: o quadro **não aparece** (a área de envio já é o estado vazio da página; nada de "Nenhum lote ainda").
 - Carregando: `LoadingBlock` dentro do quadro. Erro: `ErrorBlock` com `Tentar de novo`.
 
-## 3. Página do lote — `/catalogo/fotos-lote/:id`
+## 3. Página do lote — `/catalogo/fotos-lote?lote=<id>&filtro=<cartão>`
 
 ### 3.1 Cabeçalho
 `PageHeader` com `eyebrow` `‹ Fotos em lote` (volta para a seção 2), título = `nome_arquivo`, `badge` = selo da
@@ -81,22 +87,24 @@ situação do lote (seção 5.1). Ações à direita, conforme o estado:
 `GET fotos-lote/:id/relatorio.csv` (nome do arquivo vem da API); enquanto baixa, `Baixando…` e o botão desligado.
 
 ### 3.2 Avisos (um lugar só, abaixo do cabeçalho)
-`Notice` único; textos na seção 6. Casos: erro do envio, lote recusado, lote que falhou, ZIP repetido (abre o lote
-existente, seção 3.6). Nenhum outro aviso na página.
+`Notice` único; textos na seção 6. Casos: erro do envio, lote recusado, ZIP repetido (abre o lote
+existente, seção 3.6). Nenhum outro aviso na página. O lote que falhou não tem aviso (RD-0616): o selo `Falhou` e o
+botão `Enviar outro ZIP` do cabeçalho já dizem o problema e a ação.
 
-### 3.3 Andamento (até sair de `enfileirado | conferindo | processando`) [conferir simulação]
-`Panel` sem título, acima dos cartões. Um elemento por vez:
+### 3.3 Andamento (só enviando e `processando`) [conferir simulação]
+`Panel` sem título, acima dos cartões. A fase já está no selo do cabeçalho (3.1), então o quadro não a repete
+(RD-0615): a barra mostra só o número e o rótulo fica só no `aria-label` (`Progresso` com `mostrarRotulo="valor"`).
 
-| Fase | O que aparece | Texto exato |
-|---|---|---|
-| Enviando (partes de 8 MiB, `File.slice`) | `Progresso` (tom `destaque`) por bytes | rótulo `Enviando`; valor `120 de 340 MB` (MB inteiros, `formatInt`) |
-| | linha abaixo, 13 px `text-ink-2` | `Mantenha esta aba aberta até o envio terminar.` |
-| `enfileirado` | `LoadingBlock` | `Na fila…` |
-| `conferindo` | `LoadingBlock` | `Conferindo o ZIP…` |
-| `processando` | `Progresso` (tom `destaque`); `valor` = total − `totais.pendente`, `maximo` = `total` | rótulo `Processando`; valor `1.240 de 3.000 fotos` |
+| Fase | O que aparece | Texto visível | `rotulo` (só `aria-label`) |
+|---|---|---|---|
+| Enviando (partes de 8 MiB, `File.slice`) | `Progresso` (tom `destaque`) por bytes | `120 de 340 MB` (MB inteiros, `formatInt`) | `Enviando` |
+| | linha abaixo, 13 px `text-ink-2` | `Mantenha esta aba aberta até o envio terminar.` | — |
+| `processando` | `Progresso` (tom `destaque`); `valor` = total − `totais.pendente`, `maximo` = `total` | `1.240 de 3.000 fotos` | `Processando` |
 
+- Em `enfileirado` e `conferindo` o quadro **não aparece**: o selo `Na fila` ou `Conferindo` do cabeçalho é o único
+  sinal da fase (sem `LoadingBlock` repetindo a mesma palavra).
 - O quadro some quando o lote termina; os cartões e a tabela ficam.
-- A página consulta `GET fotos-lote/:id` a cada 2 s só nessas fases (desenho §3.4). Sem animação extra: a barra anda
+- A página consulta `GET fotos-lote/:id` a cada 2 s só em `enfileirado`, `conferindo` e `processando` (desenho §3.4). Sem animação extra: a barra anda
   com `transition: width 240ms`, desligada com `prefers-reduced-motion`.
 - "Mantenha esta aba aberta" é a única linha de orientação e só existe durante o envio: fechar a aba para o envio,
   então é texto para agir. No processamento não há texto: o lote continua em Lotes recentes.
@@ -118,8 +126,10 @@ ou procurar erro que não existe, e o cartão com zero não leva a nenhuma açã
 
 - O cartão 2 filtra duas situações: `FotoLoteItensQuery.situacao` precisa aceitar uma lista
   (`situacao=sem_produto,ambiguo`) — pedido ao modulo-catalogo (contrato dele). Na tabela, o selo separa as duas.
-- Cartão marcado: traço de 2 px `border-accent` e fundo `bg-accent-soft`, `aria-pressed="true"`; outro clique no mesmo
-  desmarca. Botão inteiro com alvo ≥ 44 px, foco visível (`outline-accent`).
+- Cartão-filtro: `KpiCard` com `onClick` (o próprio cartão vira `<button aria-pressed>`, alvo ≥ 44 px, foco visível
+  `outline-accent`) e `selecionado` no cartão marcado: fundo `bg-accent-soft` e borda de 2 px `border-accent`, uma
+  borda só (MC-0090). Sem `<button>` em volta do cartão. Outro clique no mesmo desmarca. O cartão marcado vai para a
+  URL em `&filtro=<cartão>`.
 - Com um cartão marcado, aparece `Limpar filtro` (`Button size="sm"`, secundário) à direita, acima da tabela. Só ali.
 - Os números dos cartões são a contagem do relatório: a tabela não leva título nem contagem própria (§P6).
 - Cor nunca sozinha: o rótulo diz a situação; o número com zero fica em `text-ink` (não pinta de vermelho um zero).
@@ -145,7 +155,7 @@ Durante o processamento, mostra só os itens já resolvidos (sem `pendente`); a 
 - Carregando: `LoadingBlock`. Erro: `ErrorBlock` com `Tentar de novo`.
 
 ### 3.6 Lote repetido (mesmo ZIP enviado de novo)
-Quando o lote novo termina como `duplicado`, a página troca para `/catalogo/fotos-lote/<duplicado_de>` (substitui o
+Quando o lote novo termina como `duplicado`, a página troca para `/catalogo/fotos-lote?lote=<duplicado_de>&repetido=1` (substitui o
 endereço; o Voltar do navegador não volta ao lote `duplicado`) e mostra o aviso `info`:
 `Este ZIP já foi enviado em 15/11 às 09:12. O resultado está abaixo.` (data `criado_em` do lote existente, fuso do tenant).
 O lote `duplicado` não aparece em Lotes recentes (a API já o tira).
@@ -154,14 +164,14 @@ O lote `duplicado` não aparece em Lotes recentes (a API já o tira).
 
 | Situação do lote | Cabeçalho (selo · ações) | Aviso | Andamento | Cartões e tabela |
 |---|---|---|---|---|
-| enviando | `Enviando` · Cancelar envio | — (ou erro do envio) | barra por bytes | não |
+| enviando | `Enviando` · Cancelar envio | — (ou erro do envio) | barra por bytes (só o número) | não |
 | `aguardando_envio` aberto em outra aba ou depois de fechar | `Envio interrompido` · Enviar outro ZIP | — | não | não |
-| `enfileirado` | `Na fila` | — | `Na fila…` | não |
-| `conferindo` | `Conferindo` | — | `Conferindo o ZIP…` | não |
-| `processando` | `Processando` | — | barra por fotos | sim, ao vivo |
+| `enfileirado` | `Na fila` | — | não | não |
+| `conferindo` | `Conferindo` | — | não | não |
+| `processando` | `Processando` | — | barra por fotos (só o número) | sim, ao vivo |
 | `concluido` | `Concluído` · Baixar CSV, Enviar outro ZIP | — | não | sim |
 | `recusado` | `Recusado` · Enviar outro ZIP | motivo do lote (5.4), `danger` | não | não |
-| `falhou` | `Falhou` · Enviar outro ZIP | `Não foi possível processar o ZIP. Envie de novo.`, `danger` | não | sim, se houver item resolvido |
+| `falhou` | `Falhou` · Enviar outro ZIP | — | não | sim, se houver item resolvido |
 | `duplicado` | (troca para o lote existente, 3.6) | `info` da 3.6 | — | do lote existente |
 
 "Envio interrompido" vale para `aguardando_envio` sem envio em andamento nesta aba (não há como retomar o arquivo
@@ -249,8 +259,8 @@ Ao fechar ou recarregar a aba durante o envio, o navegador pede confirmação (`
 | Cabeçalho, eyebrow, selo | `PageHeader`, `Badge`/`SeloSituacao` |
 | Botões | `Button` (`primary`, `secondary`, `danger`, `size="sm"`) |
 | Avisos | `Notice`, `ErrorBlock`, `LoadingBlock` |
-| Barra de envio e de processamento | `Progresso` (**exportado agora** em `packages/ui/src/web/index.ts`; já existia em `progresso.tsx`, só não saía no índice) |
-| Cartões | `KpiGrid`, `KpiCard` (o cartão-filtro é o `KpiCard` dentro de um `<button aria-pressed>`, como o Farol §P4.6) |
+| Barra de envio e de processamento | `Progresso` com `mostrarRotulo="valor"` (**exportado agora** em `packages/ui/src/web/index.ts`; a opção `'valor'` mostra só o número, RD-0615) |
+| Cartões | `KpiGrid`, `KpiCard` com `onClick` e `selecionado` (o kit monta o `<button aria-pressed>`, §P4.6; MC-0090) |
 | Tabelas | `TabelaDados`, `EstadoVazio`, `MenuAcoes` (⋯ dos lotes recentes) |
 | Confirmar cancelamento | `Dialog` |
 | Datas e números | `formatDateTime`, `formatInt` (fuso do tenant) |
