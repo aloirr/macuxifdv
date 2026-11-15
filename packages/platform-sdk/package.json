@@ -11,7 +11,8 @@
     "./eventos": "./src/eventos.ts",
     "./web": "./src/web/index.ts",
     "./react": "./src/react/index.tsx",
-    "./sqlite-node": "./src/sqlite/driver-node.ts"
+    "./sqlite-node": "./src/sqlite/driver-node.ts",
+    "./tentativas-portal": "./src/tentativas-portal.ts"
   },
   "scripts": {
     "lint": "eslint src",
@@ -20,6 +21,7 @@
   },
   "dependencies": {
     "@macuxi/comum": "workspace:*",
+    "fflate": "^0.8.3",
     "zod": "^3.25.76"
   },
   "peerDependencies": {

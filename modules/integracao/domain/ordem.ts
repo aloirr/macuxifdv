@@ -163,7 +163,7 @@ export function verificarReferencias<L extends LinhaComReferencias>(
   for (const l of linhas) {
     const ausentes = referenciasDoRegistro(entidade, l.registro).filter((r) => !existentes[r.entidade]?.has(r.external_id));
     if (ausentes.length === 0) aceitas.push(l);
-    else for (const a of ausentes) erros.push(erroReferenciaAusente(l.indice, l.external_id, a.campo, a.entidade));
+    else for (const a of ausentes) erros.push(erroReferenciaAusente(l.indice, l.external_id, a.campo, a.entidade, a.external_id));
   }
   return { aceitas, erros };
 }

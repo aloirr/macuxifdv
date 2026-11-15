@@ -12,7 +12,7 @@ import { Botao } from './base';
 import { leituraDoMostrarMais, ROTULO_MOSTRAR_MAIS, textoDaContagemDaBusca, textoNadaEncontrado, textoVoceQuisDizer } from './busca';
 import { ALVO_TOQUE } from './componentes';
 import { Pressionavel } from './movimento-rn';
-import { colors, fonts, radius } from './theme';
+import { colors, fonte, radius } from './theme';
 
 export function MostrarMais({
   mostrando,
@@ -79,9 +79,9 @@ export function NadaEncontrado({
 
 const s = StyleSheet.create({
   mais: { gap: 8, paddingTop: 4 },
-  contagem: { textAlign: 'center', fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: colors.ink2, fontVariant: ['tabular-nums'] },
+  contagem: { textAlign: 'center', ...fonte.body, fontSize: 14, lineHeight: 18, color: colors.ink2, fontVariant: ['tabular-nums'] },
   cartao: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.cartao, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
-  frase: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.ink, paddingBottom: 8 },
+  frase: { ...fonte.body, fontSize: 14, lineHeight: 20, color: colors.ink, paddingBottom: 8 },
   sugestao: { minHeight: ALVO_TOQUE, justifyContent: 'center' },
-  sugestaoTexto: { fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20, color: colors.accentInk },
+  sugestaoTexto: { ...fonte.semibold, fontSize: 14, lineHeight: 20, color: colors.accentInk },
 });

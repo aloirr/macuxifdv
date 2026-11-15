@@ -1,5 +1,7 @@
 # Trocar senha — Perfil do Campo e do Gestão (simulação)
 
+> **Tipografia substituída** pela fonte do sistema (R-20261115-110600, 15/11/2026): ver o [manual da marca §5](../../marca/manual.md#5-tipografia).
+
 > 2026-11-15 · designer-ux · pedido aprovado pelo dono do produto (R-20261115-104500). **Simulação para aprovação**; a implementação
 > (modulo-core na tela, engenheiro-apps na rota do shell) fica para depois da v1.0.12.
 > Telas: [`telas.html`](telas.html) · PNGs em [`png/`](png/) (gerados por [`gerar-png.cjs`](gerar-png.cjs)).

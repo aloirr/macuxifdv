@@ -65,7 +65,7 @@ function ItemFila({ i, nome, ultimo }: { i: ItemFilaAprovacao; nome: string; ult
       </Text>
       <View style={styles.linha}>
         <ChipEstado texto={prazo.label} tom={TOM_PARA_CHIP[prazo.tom]} pequeno />
-        {i.pode_decidir ? <Text style={[t.smallStrong, { color: colors.accentInk }]}>Decidir</Text> : null}
+        {i.pode_decidir ? <Text style={[t.label, { color: colors.accentInk }]}>Decidir</Text> : null}
       </View>
     </Pressable>
   );

@@ -5,8 +5,10 @@
  * e-mail e senha, só por função), 0040_core_senha_email_saida.up.sql (outbox de e-mail),
  * 0041_plataforma_perfis_de_acesso.up.sql (perfis de acesso, ADR 0033; cargo e um perfil por usuário desde a
  * 0069_core_cargo_hierarquia.up.sql), 0070_plataforma_plano_assinatura.up.sql (planos e assinatura, ADR 0047),
- * 0072_plataforma_empresa_acoes.up.sql (inativar, backup e excluir a empresa, ADR 0052; só por função) e
- * 0073_plataforma_dados_legais.up.sql (dados legais do rodapé, só por função), para consultas da API.
+ * 0072_plataforma_empresa_acoes.up.sql (inativar, backup e excluir a empresa, ADR 0052; só por função),
+ * 0073_plataforma_dados_legais.up.sql (dados legais do rodapé, só por função), 0074_plataforma_sync_pacote.up.sql (pacote da
+ * primeira carga, ADR 0054) e 0079_catalogo_foto_lote.up.sql (tipos de arquivo e trabalho sob demanda, ADR 0058),
+ * para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -181,6 +183,9 @@ export const auditoria = plataforma.table('auditoria', {
   ocorrido_em: timestamp('ocorrido_em', { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** Tipos aceitos em plataforma.arquivo (CHECK arquivo_tipo_valido, 0079); o TIPOS_ARQUIVO do platform-sdk fica contido aqui. */
+export const TIPOS_ARQUIVO_BANCO = ['image/jpeg', 'image/png', 'image/webp', 'application/zip'] as const;
+
 /**
  * Metadados de arquivo enviado pelo aparelho (0005, ADR 0010). id = UUID do aparelho. O módulo cria a linha
  * 'aguardando' na transação do comando que referencia o arquivo; a rota PUT /v1/arquivos/:id completa
@@ -194,7 +199,8 @@ export const arquivo = plataforma.table('arquivo', {
   entidade_id: uuid('entidade_id').notNull(),
   cliente_id: uuid('cliente_id'),
   enviado_por: uuid('enviado_por').notNull(),
-  tipo: text('tipo', { enum: ['image/jpeg'] }).notNull().default('image/jpeg'),
+  /** 0079 (T-0174, ADR 0058): imagens até 8 MiB e o ZIP do lote de fotos até 500 MiB (CHECK arquivo_tamanho_faixa, por tipo). */
+  tipo: text('tipo', { enum: TIPOS_ARQUIVO_BANCO }).notNull().default('image/jpeg'),
   tamanho_bytes: integer('tamanho_bytes'),
   sha256: text('sha256'),
   largura_px: integer('largura_px'),
@@ -536,4 +542,79 @@ export const dadosLegais = plataforma.table('dados_legais', {
   /** plataforma.super_admin.id de quem gravou por último; nulo na linha da migração. */
   atualizado_por: uuid('atualizado_por'),
   ...auditaveis(),
+});
+
+/**
+ * Pacote pronto da primeira carga (0074, ADR 0054; desenho docs/desenho/T-catalogo-pacote.md §1.4): um .sqlite.gz por
+ * (tenant, módulo, partição), gerado pelo worker. particao 'tenant' ou 'filial:<uuid>' (filial_id só e sempre na de filial);
+ * chave_armazenamento = 'sync-pacotes/<tenant_id>/<modulo>/<particao>/<id>.sqlite.gz' (CHECK). Uma só linha 'pronto' viva por
+ * partição. pronto -> substituido (substituido_em) -> apagado (arquivo_apagado_em). O app só lê; o worker grava. Fora do sync.
+ */
+export const syncPacote = plataforma.table('sync_pacote', {
+  ...comuns(),
+  modulo: text('modulo').notNull(),
+  particao: text('particao').notNull(),
+  filial_id: uuid('filial_id'),
+  /** FORMATO_PACOTE_SYNC do SDK (1). */
+  formato: integer('formato').notNull().default(1),
+  situacao: text('situacao', { enum: ['pronto', 'substituido', 'apagado'] }).notNull().default('pronto'),
+  /** Relógio do banco na geração: toda linha viva com updated_at < horizonte está no arquivo (cursor do manifesto). */
+  horizonte: timestamp('horizonte', { withTimezone: true }).notNull(),
+  geracao_base: uuid('geracao_base').notNull(),
+  chave_armazenamento: text('chave_armazenamento').notNull(),
+  bytes: bigint('bytes', { mode: 'number' }).notNull(),
+  md5: text('md5').notNull(),
+  /** { <entidade>: linhas } (o mesmo do _pacote.entidades do arquivo). */
+  entidades: jsonb('entidades').$type<Record<string, number>>().notNull(),
+  substituido_em: timestamp('substituido_em', { withTimezone: true }),
+  arquivo_apagado_em: timestamp('arquivo_apagado_em', { withTimezone: true }),
+});
+
+/**
+ * Pedido de geração de pacote (0074, ADR 0054; desenho §1.4): origem lote (integracao.lote.concluido@1), manifesto (GET
+ * /v1/sync/pacotes sem pacote pronto) ou agendado (mais de 24 h com mudança). Um só pendente vivo por partição (insert ... on
+ * conflict (tenant_id, modulo, particao) where situacao = 'pendente' and deleted_at is null do nothing). O app só insere
+ * (id, tenant_id, modulo, particao, filial_id, origem); o worker atende. Fora do sync.
+ */
+export const syncPacotePedido = plataforma.table('sync_pacote_pedido', {
+  ...comuns(),
+  modulo: text('modulo').notNull(),
+  particao: text('particao').notNull(),
+  filial_id: uuid('filial_id'),
+  origem: text('origem', { enum: ['lote', 'manifesto', 'agendado'] }).notNull(),
+  situacao: text('situacao', { enum: ['pendente', 'atendido', 'descartado'] }).notNull().default('pendente'),
+  gerar_apos: timestamp('gerar_apos', { withTimezone: true }).notNull().defaultNow(),
+  tentativas: integer('tentativas').notNull().default(0),
+  /** Só código curto (sem dado pessoal). */
+  ultimo_erro: text('ultimo_erro'),
+  atendido_em: timestamp('atendido_em', { withTimezone: true }),
+});
+
+/** Situações de plataforma.trabalho (CHECK trabalho_situacao_valida, 0079). */
+export const SITUACOES_TRABALHO_BANCO = ['pendente', 'em_execucao', 'concluido', 'falhou'] as const;
+
+/**
+ * Trabalho sob demanda de um módulo (0079, T-0174, ADR 0058): disparado por evento da outbox, executado em fatias pelo worker.
+ * Um vivo por (tenant, modulo, nome, alvo_id) (trabalho_alvo_uk: o consumidor grava com insert ... on conflict do nothing).
+ * O macuxi_app só lê e insere no próprio tenant; a situação, a trava e os contadores mudam só pelas funções do worker
+ * plataforma.trabalho_reservar / trabalho_devolver / trabalho_renovar (SECURITY DEFINER, só tenants ativos). Fora do sync.
+ */
+export const trabalho = plataforma.table('trabalho', {
+  ...comuns(),
+  modulo: text('modulo').notNull(),
+  nome: text('nome').notNull(),
+  /** Entidade do módulo que o trabalho processa (ex.: catalogo.foto_lote.id); sem FK. */
+  alvo_id: uuid('alvo_id').notNull(),
+  /** Evento da outbox que disparou o trabalho; sem FK (a outbox tem retenção). */
+  evento_id: uuid('evento_id'),
+  situacao: text('situacao', { enum: SITUACOES_TRABALHO_BANCO }).notNull().default('pendente'),
+  tentativas: integer('tentativas').notNull().default(0),
+  fatias: integer('fatias').notNull().default(0),
+  proxima_em: timestamp('proxima_em', { withTimezone: true }).notNull().defaultNow(),
+  travado_ate: timestamp('travado_ate', { withTimezone: true }),
+  travado_por: text('travado_por'),
+  /** Só código (^[A-Za-z0-9_.:-]{1,100}$): nunca mensagem nem dado pessoal. */
+  ultimo_erro: text('ultimo_erro'),
+  /** Fim em 'concluido' ou 'falhou' (CHECK trabalho_concluido_coerente). */
+  concluido_em: timestamp('concluido_em', { withTimezone: true }),
 });

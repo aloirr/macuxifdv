@@ -60,7 +60,7 @@ Versão 1.0.8 · macuxifdv.com.br
 
 | Item | Celular (Campo, Gestão) | Web (BKO, portal) |
 |---|---|---|
-| Texto | `type.small`: IBM Plex Sans 12, altura de linha 16, `colors.ink2` #4A5562 | `text-[12px] leading-4 text-ink-2` |
+| Texto | `type.small`: 12/400, altura de linha 16, `colors.ink2` #4A5562 | `text-[12px] leading-4 text-ink-2` |
 | Contraste | #4A5562 no Pérola #F8F6F1 = **7,03:1** (AA e AAA para texto) | idem |
 | Link | `colors.accentInk` #1E3350, semibold 12, **sublinhado** — 11,82:1 no Pérola. O sublinhado é obrigatório: entre o link e o texto ao lado a diferença de cor é pequena (WCAG 1.4.1) | `text-accent-ink font-semibold underline underline-offset-2` |
 | Espaço entre linhas | 2 dp | `gap-0.5` |

@@ -3,7 +3,7 @@
  * É a chamada da tela: cartão em destaque tocável, sem botão de 52. O toque leva à lista de aprovações (aprovar segue em
  * 1 toque no pedido, RN-GES-08). Lê só o cache do aparelho; sem cópia da fila, não aparece.
  */
-import { Cartao, colors, fonts, Icon, type as t } from '@macuxi/ui/mobile';
+import { Cartao, colors, fonte, Icon, type as t } from '@macuxi/ui/mobile';
 import { Text, View } from 'react-native';
 import { nomesDaVisao } from '../lib/apresentacao';
 import { resumoDoCardAprovacao } from '../lib/card-inicio';
@@ -31,11 +31,11 @@ export function CardAprovacoes() {
       preenchimento={14}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64 }}>
       <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontFamily: fonts.display, fontSize: 18, color: colors.surface }}>{r.total}</Text>
+        <Text style={{ ...fonte.bold, fontSize: 18, color: colors.surface }}>{r.total}</Text>
       </View>
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={[t.bodyStrong, { fontSize: 15 }]}>{r.titulo}</Text>
-        <Text style={{ fontFamily: fonts.body, fontSize: 12, color: colors.accentInk }} numberOfLines={1}>
+        <Text style={[t.bodyStrong, { fontSize: 16 }]}>{r.titulo}</Text>
+        <Text style={{ ...fonte.body, fontSize: 12, color: colors.accentInk }} numberOfLines={1}>
           {r.linha}
         </Text>
       </View>

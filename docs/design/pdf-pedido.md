@@ -113,7 +113,7 @@ O retrato da filial é do pedido: se o cadastro da filial mudar depois, o PDF de
 13. Página `@page { size: A4 landscape }`; cabeçalho da tabela com `COR_CABECALHO_TABELA` (#00843D); caixa do Total com borda de 2 px.
 
 ## 6. Visual horizontal: medidas, cores e tokens
-Unidades em px CSS (96 dpi) e mm; as imagens estão em 2x. Fontes: Archivo (títulos, rótulos e números grandes), IBM Plex Sans (texto), IBM Plex Mono (código do item); no aparelho valem os fallbacks do sistema.
+Unidades em px CSS (96 dpi) e mm; as imagens estão em 2x. Fonte do sistema (R-20261115-110600; [manual da marca §5](../marca/manual.md#5-tipografia)): a pilha sans do sistema em tudo e a mono do sistema no código do item, sem fonte embutida. Nada abaixo de 12 px e nenhum peso acima de 700.
 
 ### 6.1 Tokens (cores)
 | Token | Valor | Uso |
@@ -135,18 +135,18 @@ A4 **paisagem** (297 × 210 mm), margens de 10 mm em cima, 11 mm dos lados e 12 
 | Elemento | Tamanho | Peso / estilo |
 |---|---|---|
 | Itens da tabela e valores da ficha | **15 px** | 400; razão social 600; Total do item 700 |
-| Código do item | 14 px | Plex Mono 500, `--pdf-tinta-2` |
+| Código do item | 14 px | mono do sistema 400, `--pdf-tinta-2` |
 | Número do Item | 15 px | 400, alinhado à direita |
 | Texto das observações | 15 px | **600**, `--pdf-tinta` |
-| Rótulos da ficha, do Histórico e do cabeçalho da tabela | **10,5 px** | Archivo 700, maiúsculas, espaçamento .09 a .1em |
-| Nome da distribuidora | 22 px | Archivo 800 |
+| Rótulos da ficha, do Histórico e do cabeçalho da tabela | **12 px** | 700, maiúsculas, espaçamento .06em |
+| Nome da distribuidora | 22 px | 700 |
 | Linhas da filial | 13 px | 400, `--pdf-tinta-2` |
-| Rótulo "Pedido"/"Orçamento" (+ "· uso interno") | 13 px | Archivo 700, maiúsculas, .12em, `--pdf-destaque` |
-| Número do documento | 28 px | Archivo 800 |
+| Rótulo "Pedido"/"Orçamento" (+ "· uso interno") | 13 px | 700, maiúsculas, .12em, `--pdf-destaque` |
+| Número do documento | 28 px | 700, tabular |
 | Data | 13 px | 400, `--pdf-tinta-2` |
 | Linhas Valor de tabela, Desconto (%) e Desconto (R$) da caixa | 15 px | 400 |
 | Rótulo "Valor final" da caixa | 15 px | 700 |
-| Valor do Total | **26 px** | Archivo 800 |
+| Valor do Total | **26 px** | 600, tabular |
 | Nota do cliente | 12 px | 400, `--pdf-tinta-2` |
 
 ### 6.4 Blocos
@@ -159,7 +159,7 @@ A4 **paisagem** (297 × 210 mm), margens de 10 mm em cima, 11 mm dos lados e 12 
   - cliente: Item 15 · Código 26 · Marca 31 · Emb. 28 · Qtd 16 · Preço unit. 38 · Total 26 mm; Descrição, o resto;
   - escritório: Item 15 · Código 24 · Marca 30 · Emb. 24 · Qtd 15 · Tabela 22 · Desc./Acr. 27 · Líquido 22 · Total 22 mm; Descrição, o resto.
 - **Rodapé** (**24 px** abaixo da tabela, o dobro da v1; as duas colunas alinhadas **pelo topo**, 20 mm ou mais entre elas):
-  - à esquerda, de cima para baixo: **Observação do pedido**, 3,5 mm, **Observação da entrega** (rótulo 10,5 px `--pdf-rotulo` em maiúsculas, 1 mm, texto 15 px peso 600 `--pdf-tinta`; sem fundo e sem borda; vazia guarda a altura de uma linha); 4,5 mm; no cliente, a nota; no escritório, o **Histórico** em caixa de borda 1 px `--pdf-linha`, raio 1,6 mm, fundo branco, rótulo e etapas na mesma linha (6 mm entre eles), largura do conteúdo;
+  - à esquerda, de cima para baixo: **Observação do pedido**, 3,5 mm, **Observação da entrega** (rótulo 12 px `--pdf-rotulo` em maiúsculas, 1 mm, texto 15 px peso 600 `--pdf-tinta`; sem fundo e sem borda; vazia guarda a altura de uma linha); 4,5 mm; no cliente, a nota; no escritório, o **Histórico** em caixa de borda 1 px `--pdf-linha`, raio 1,6 mm, fundo branco, rótulo e etapas na mesma linha (6 mm entre eles), largura do conteúdo;
   - à direita, a **caixa do Total**: 87 mm de largura, borda de **2 px** `--pdf-tinta`, raio 1,6 mm, fundo `--pdf-ficha`, 3 mm × 4,5 mm por dentro. No escritório: Valor de tabela, Desconto (%) e Desconto (R$) (rótulo à esquerda, valor à direita), um traço de 1 px `--pdf-linha` e o Valor final. No cliente: só o Valor final.
 - O Desconto da caixa sai na cor do texto (`--pdf-tinta`), sem laranja: o sinal "−" já diz o que é.
 
