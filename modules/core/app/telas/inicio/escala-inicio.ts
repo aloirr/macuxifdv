@@ -49,7 +49,6 @@ export interface EscalaInicio {
   estimada: number;
   disponivel: number;
   /** Altura do painel sem a área segura: respiro de cima + max(foto, textos) + respiro de baixo, em dp. */
-  painelAltura: number;
   fonte: { data: number; saudacao: number; frase: number; iniciais: number; h2: number; label: number; percentual: number; real: number; meta: number; sub: number; valorRodape: number; valorIndicador: number; ultima: number };
   painel: { paddingBottom: number; gap: number; avatar: number };
   meio: { paddingTop: number; paddingBottom: number; gap: number; linhaTitulo: number };
@@ -76,7 +75,7 @@ export function fonteDoSistemaValida(fontScale: number): number {
 }
 
 /** Tamanhos para um fator; `fs` já validado por {@link fonteDoSistemaValida}. A letra respeita o piso de 11 dp com a fonte do sistema, o espaço o mínimo de 2 dp. */
-export function tamanhosParaFator(fator: number, fs: number, kit: FontesDoKit): Omit<EscalaInicio, 'fator' | 'cabe' | 'estimada' | 'disponivel' | 'painelAltura'> {
+export function tamanhosParaFator(fator: number, fs: number, kit: FontesDoKit): Omit<EscalaInicio, 'fator' | 'cabe' | 'estimada' | 'disponivel'> {
   const piso = Math.ceil(PISO_LETRA_DP / fs);
   const letra = (b: number): number => Math.min(b, Math.max(piso, arredonda(b * fator)));
   const esp = (b: number): number => Math.max(2, arredonda(b * fator));
@@ -148,6 +147,6 @@ export function escalaInicio(entrada: EntradaEscalaInicio): EscalaInicio {
     const fator = Math.max(FATOR_MINIMO, Math.round((1 - passo * 0.02) * 100) / 100);
     const t = tamanhosParaFator(fator, fs, entrada.kit);
     const estimada = alturaEstimadaInicio(t, dados);
-    if (estimada <= disponivel || fator === FATOR_MINIMO) return { fator, cabe: estimada <= disponivel, estimada: Math.round(estimada), disponivel: Math.round(disponivel), painelAltura: Math.round(alturaDoPainel(t, dados)), ...t };
+    if (estimada <= disponivel || fator === FATOR_MINIMO) return { fator, cabe: estimada <= disponivel, estimada: Math.round(estimada), disponivel: Math.round(disponivel), ...t };
   }
 }

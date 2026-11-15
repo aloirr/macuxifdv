@@ -2,7 +2,7 @@
 import { ALVO_TOQUE } from '@macuxi/ui/mobile/puro';
 import { describe, expect, it } from 'vitest';
 
-import { escalaInicio, fonteDoSistemaValida, FATOR_MINIMO, linhasDeTexto, alturaDeLinha, PISO_LETRA_DP } from './escala-inicio';
+import { alturaDoPainel, escalaInicio, fonteDoSistemaValida, tamanhosParaFator, FATOR_MINIMO, linhasDeTexto, alturaDeLinha, PISO_LETRA_DP } from './escala-inicio';
 
 const KIT = { h2: 17, label: 12, sub: 13, ultima: 12 };
 const FRASE = 'Cada cliente atendido é uma relação que cresce.';
@@ -55,8 +55,9 @@ describe('R-20261114-153500: escala do Início', () => {
 
   it('variação C: a altura do painel é max(foto, textos), cerca de 100 dp sem a barra de status (era 131)', () => {
     const e = escalaInicio({ kit: KIT, largura: 390, altura: 844, fontScale: 1, topo: 0, base: 0, frase: 'Planejar a rota é ganhar tempo na rua.' });
-    expect(e.painelAltura).toBeGreaterThanOrEqual(96);
-    expect(e.painelAltura).toBeLessThanOrEqual(104);
+    const altura = alturaDoPainel(tamanhosParaFator(e.fator, 1, KIT), { largura: 390, fontScale: 1, frase: 'Planejar a rota é ganhar tempo na rua.' });
+    expect(altura).toBeGreaterThanOrEqual(96);
+    expect(altura).toBeLessThanOrEqual(104);
   });
 
   it('entradas inválidas não quebram (fontScale 0 vira 1)', () => {

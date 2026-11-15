@@ -24,6 +24,7 @@ export { abrirTarefaDoCore, ROTA_RECADOS_E_TAREFAS, rotaDaTarefa } from './telas
 export { chaveDaCopiaPerformance, ENTIDADES_PERFORMANCE } from './telas/performance';
 export { useInicio } from './lib/usar-inicio';
 export { TelaInicioCampo, useInicioCampo, ENTIDADE_FRASE_DIA, definirResolvedorFotoPerfil, type ResolvedorFotoPerfil, type PropsTelaInicioCampo, type VisaoInicioCampo } from './telas/inicio';
+export { ENTIDADE_USUARIO_AVATAR } from './telas/inicio/foto-perfil';
 export { useNotificacoes } from './lib/usar-notificacoes';
 export { chaveDeOrdemDaCarga, progressoDaEntrada } from '../domain/entrada-sync';
 export { OpenVisitBar } from './components/open-visit-bar';
