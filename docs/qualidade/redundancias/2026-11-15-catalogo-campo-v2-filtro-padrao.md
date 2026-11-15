@@ -188,4 +188,75 @@ Na implementação, confiro no print do aparelho. Se a filial do vendedor não v
 - **Fechamento:** o achado fecha quando eu conferir esse diff, sem mais nada a pedir.
 
 ## 9. Reteste do RD-0562 (15/11/2026 ~08h35 de Manaus, commit f41b0217 do designer-ux)
-**Veredito: LIMPO.** RD-0562 **corrigido**: `git diff f78ea0af f41b0217` só apaga a linha "Acaba o `Estoque sem informação`" e a linha em branco do `catalogo-grade.md` §4; a tabela segue direto do item do tenant, com uma linha em branco; a frase fica só na spec §3. RD-0560 a RD-0562 corrigidos; nenhum achado em aberto no Catálogo v2.
+**Veredito: LIMPO.** RD-0562 **corrigido**: `git diff f78ea0af f41b0217` só apaga a linha "Acaba o `Estoque sem informação`" e a linha em branco do `catalogo-grade.md` §4; o item do tenant vem logo depois da tabela, com uma linha em branco; a frase fica só na spec §3. RD-0560 a RD-0562 corrigidos; nenhum achado em aberto no Catálogo v2.
+
+## 10. Parecer do estoque na hora e por filial (15/11/2026 ~08h45 de Manaus, `git diff f41b0217 d4d41718`, designer-ux)
+**Veredito: COM ACHADO.** 5 achados, RD-0571 a RD-0575 (2 médios e 3 baixos), todos do designer-ux. Todos seguram o lote: o RD-0575 está no corpo do teste, e não só no título, então a exceção de R-20261111-190159 não vale.
+
+Decisões do dono do produto: R-20261115-083000, R-20261115-083600 e R-20261115-084600. Conferi o diff (`spec.md`, `catalogo-grade.md`, `.html`, `.css`, `icones.js`, `packages/ui` mobile e web, `icon.test.ts`) e abri como imagem os 4 PNG (vendedor com `Estoque: 0`, supervisor com 3 filiais e `Estoque: 17`, ficha e folha).
+
+### Tela: o que está limpo
+- **Cartão** (A, B): `Estoque: N` e o botão só com ícone `pacote` na mesma linha. "Estoque" aparece 1 vez por cartão, e o botão não tem texto, então não repete o chip. **Sem achado.**
+- **Ficha** (C): `Estoque: 0` e `Por filial` se completam ("estoque" + "por filial"), sem repetir palavra. As linhas por filial e o `Atualizado às` saíram da ficha e estão só na folha. **Sem achado.**
+- **Chip `Suas filiais (3) ✕` com o selo `1`**: segue o padrão já aceito (§4, selo + etiqueta). **Sem achado.**
+- **Promotor sem número e sem botão** (spec §3): é o que pede a RN-CAT-05, sem resto na tela. **Sem achado.**
+- **Laranja**: saiu do CSS (`.ce.av`) e da tabela do §4. **Sem achado de tela.** O texto dos docs está no RD-0572.
+
+### Observações sem RD (`manter?`)
+- **Subtítulo da folha `PAF.1434 · Atualizado às 07:28`**: o código também aparece na faixa da ficha, escurecida atrás da folha. Pela grade, porém, a folha cobre o cartão, e o código diz de qual produto é a tabela. A hora só está ali. Manter.
+- **`docs/design/telas/icones.js`**: tem `caixa` (dos mockups antigos da T-0142) e agora `pacote`, dois desenhos de caixa parecidos. É só a biblioteca das simulações e não entra no app. Manter. Se um dia unificar, `pacote` é o do kit.
+
+### RD-0571 · média · doc · designer-ux: a regra do N está escrita em 3 lugares e partida
+- **Onde:** `docs/design/catalogo-campo-v2/spec.md` §3 ("Valor de N", a fonte) e §4 (linha 105, "O ✕ do chip mostra **Todas as filiais**: estoque somado"), e `docs/design/catalogo-grade.md` §4 ("Valor de N (filial do vendedor, soma das filiais do multi-filial, filial do filtro)").
+- **O que se repete:** a soma de "Todas as filiais" aparece na spec §3 e na spec §4. O resumo das 3 regras aparece entre parênteses no §4 do grade. Além disso, um pedaço da regra ("Com cliente, a filial dele (RN-CORE-39)") está **só** no grade §4 e falta na lista da spec §3. Quem implementar pela spec não vê esse caso.
+- **Proposta, texto exato:**
+  - **Spec §3, "Valor de N":** acrescentar, depois de "vendedor: o estoque da filial dele;", a linha `  - com cliente: a filial do cliente (RN-CORE-39);`.
+  - **Spec §4, linha 105.** Antes: "O ✕ do chip mostra **Todas as filiais**: estoque somado; o preço continua…". Depois: "O ✕ do chip mostra **Todas as filiais** (N no §3); o preço continua o da tabela da filial do vendedor (RN-VEN-01)."
+  - **Grade §4, item do número.** Depois: "- O número é inteiro, na unidade base. Valor de N, o botão `Estoque por filial` e o `999+`: `catalogo-campo-v2/spec.md` §3. Sem hora no cartão." Saem o parêntese e o "Com cliente, a filial dele (RN-CORE-39)", que passa para a spec.
+
+### RD-0572 · média · doc · designer-ux: as cores estão em 3 lugares, e uma frase ficou falsa
+- **Onde:** `catalogo-grade.md` §4 (tabela, a fonte), spec §3 ("Cor, só duas": repete tons e contrastes) e spec §2.1 ("cor da quantidade" e "Só verde e vermelho: aqui não há o laranja de 1 a 9 da tag do cartão").
+- **O que se repete:** a regra "acima de 0 verde, 0 ou negativo vermelho" está escrita 3 vezes. A frase da §2.1 diz que a tag do cartão tem o laranja, mas o laranja saiu do cartão neste mesmo diff. Foi a cópia que deixou a frase velha.
+- **Proposta, texto exato:**
+  - **Spec §3.** Antes: o item "**Cor, só duas** (…) … O "Risco de ruptura" da folha do item do pedido não muda.". Depois: "- **Cor:** a do `../catalogo-grade.md` §4, no chip e na tabela da folha (§2.1). O "Risco de ruptura" da folha do item do pedido não muda."
+  - **Spec §2.1.** Antes: o item "**cor da quantidade** (R-20261115-083000): **acima de 0** em `success` … Negativo com o sinal de menos (`−2`).". Depois: "- **cor da quantidade**: a do §3, só no texto, sobre branco (`success` #1D6B4F, 6,4:1; `danger` #A8261B, 7,1:1). O número sempre aparece, e a cor nunca está sozinha. Negativo com o sinal de menos (`−2`)."
+  - **Spec §2.1:** apagar o item "Só verde e vermelho: aqui não há o laranja de 1 a 9 da tag do cartão (`../catalogo-grade.md` §4)."
+
+### RD-0573 · baixa · doc · designer-ux: "o estoque por filial fica na folha" aparece 2 vezes no grade
+- **Onde:** `catalogo-grade.md` §2, no item "Uma informação por linha" ("o estoque por filial, na folha `Estoque por filial` (§4)"), e no último item do §4 ("Na ficha, o estoque de cada filial fica na folha `Estoque por filial`: `catalogo-campo-v2/spec.md` §2.1").
+- **Proposta, texto exato:**
+  - **Grade §4:** apagar o último item.
+  - **Grade §2.** Antes: "…; o estoque por filial, na folha `Estoque por filial` (§4).". Depois: "…; o estoque por filial, na folha `Estoque por filial` (`catalogo-campo-v2/spec.md` §2.1)."
+
+### RD-0574 · baixa · texto · designer-ux: o cabeçalho da tabela repete o título da folha
+- **Onde:** `07-estoque-por-filial.png` / D: o título é "Estoque por filial", e logo abaixo vem o cabeçalho cinza "Filial | Estoque". Isso está na spec §2.1, no `.html` e no `.css` (`.tab-est .cab`).
+- **O que se repete:** "Estoque" e "Filial", 2 vezes cada, a uma linha de distância. Uma faixa de 36 dp não acrescenta nada: o nome à esquerda é claramente a filial, e o número à direita é o estoque que o título anuncia. A própria spec admite isso para o leitor de tela: "O cabeçalho da tabela não é lido (cada linha já diz 'estoque')".
+- **Proposta:**
+  - **Tabela:** sai o cabeçalho, e a tabela começa direto na primeira filial, com as linhas de 48 dp, os números à direita e a divisória.
+  - **Spec §2.1:** apagar o item "cabeçalho `Filial` (à esquerda) e `Estoque` (à direita), …, 36 dp" e a frase "O cabeçalho da tabela não é lido (cada linha já diz "estoque")".
+  - **PNG 07 na tabela da spec.** Antes: "tabela Filial \| Estoque, sua filial primeiro…". Depois: "uma linha por filial, sua filial primeiro, uma filial em 0 e uma negativa".
+  - **Se o dono do produto pediu o cabeçalho de colunas** junto com a "tabela" (R-20261115-083000), o achado fecha por decisão dele.
+
+### RD-0575 · baixa · teste · designer-ux: o teste do ícone repete dois testes que já existem
+- **Onde:** `packages/ui/src/mobile/icon.test.ts:34-45`, no teste "tem o pacote do estoque, com o mesmo desenho do IconPacote da web".
+- **O que se repete:**
+  - `expect(nomesDoTipo()).toContain('pacote')` faz a mesma conferência do teste "tem câmera e caixa de entrada" (`:22`).
+  - `toContain('{...c}')` e `not.toMatch(/stroke=|strokeWidth=|fill=|#…/)` copiam o corpo do laço de "câmera e caixa de entrada seguem o padrão" (`:26-32`), com a mesma regex.
+  - Só a comparação dos traços mobile × web é nova.
+- **Impacto:** manutenção. Uma mudança na regra do padrão de traço passa a ter de ser feita em 2 lugares.
+- **Proposta, texto exato:**
+  - `:22`: título `'tem câmera, caixa de entrada e pacote (R-20261104-231124, T-0072, R-20261115-084600)'`, com `expect.arrayContaining(['camera', 'inbox', 'pacote'])`.
+  - `:26`: título `'câmera, caixa de entrada e pacote seguem o padrão: traço comum, sem cor nem espessura própria'`, com `for (const nome of ['camera', 'inbox', 'pacote'])`.
+  - O teste novo fica só com o que é dele:
+```ts
+  it('o pacote tem o mesmo desenho no kit mobile e no web (R-20261115-084600)', () => {
+    const bloco = /case 'pacote':([\s\S]*?)\);\n/.exec(fonte)?.[1] ?? '';
+    const web = readFileSync(new URL('../web/icons.tsx', import.meta.url), 'utf8');
+    const blocoWeb = /export const IconPacote[\s\S]*?<\/Svg>/.exec(web)?.[0] ?? '';
+    const tracos = (t: string) => [...t.matchAll(/d="([^"]+)"/g)].map((m) => m[1]);
+    expect(tracos(bloco)).toHaveLength(4);
+    expect(tracos(blocoWeb)).toEqual(tracos(bloco));
+  });
+```
+
+Os RD-0576 a RD-0579 não foram usados.
