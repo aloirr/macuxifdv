@@ -1330,3 +1330,670 @@ dele que tocar `codigo-licenca.ts`, como o RD-0428 fez na parte 4.
 ## Para o gerente (parte 5)
 - **PR #298 segura** pelo RD-0441: o modulo-vendedor e o testes precisam entrar juntos (constante de volta + regex do FB-1).
 - **Login v1.0.9 do Core liberado** pelo corretor. O engenheiro-software precisa pegar a regex da CLI (resto do RD-0430).
+
+---
+
+# Lote da noite, parte 6 — todos os lotes abertos (v1.0.10)
+
+Feita em 15/11/2026, madrugada de Manaus (~1h–1h50), a pedido do dono do produto (R-20261115-010000-alexandre), para a
+v1.0.10. Três corretores leram os lotes em paralelo (rascunhos A, B e C) e este texto os consolida, sem reavaliar.
+Base: `origin/main` em `b536b829` (#310), mesclado no branch do corretor (merge, sem rebase). Cada lote foi lido por
+`origin/<branch>`, só leitura: diff completo `origin/main...origin/<branch>` na primeira avaliação e diff entre o SHA da
+parte anterior e o head nos retestes. Todos os heads conferidos no remoto batem com o SHA pedido. O `coord.mjs` continua
+com HTTP 403: os pedidos aos donos (cc `gerente-projetos`) ficam neste relatório e no catálogo. A numeração segue a partir
+do RD-0441 (novos: RD-0442 a RD-0459).
+
+**Login fora desta parte:** o login (`nuvem/login-v109-modulo-core` e o web dele) ficou de fora pela exceção do dono do
+produto (R-20261115-002000-alexandre). O parecer dele é o da parte 5.
+
+## Resumo da parte 6
+
+| # | Branch | SHA lido | Parecer | RD retestados | RD novos (gravidade, dono) |
+|---|---|---|---|---|---|
+| 1 | `nuvem/bko-revisao-modulo-vendedor` (PR #298) | `f93f44cd` (sem push novo) | **segura, sem mudança** | RD-0441 aberto | — |
+| 2 | `nuvem/bko-revisao-modulo-core` | `6bf52819` → `da495ed0` | **segura** | RD-0419, RD-0420, RD-0421, RD-0422 **corrigidos**; RD-0416 e RD-0417 **em correção** (Core feito; passam ao lote do kit, decisão a) | RD-0448 baixa, código; RD-0449 baixa, código (modulo-core) |
+| 3 | `nuvem/bko-revisao-modulo-catalogo` | `a058713b` → `364ac40a` | **sem achado em aberto** (decisão a) | RD-0423, RD-0438, RD-0439 **corrigidos**; RD-0416 e RD-0417 **em correção** (Catálogo feito; passam ao lote do kit) | — |
+| 4 | `nuvem/bko-revisao-modulo-treinamento` | `1d1436eb` → `cf22a7a6` | **sem achado em aberto** (decisão a) | RD-0437 **corrigido no Treinamento** (Pesquisa e Promotor seguem no `main`); RD-0416 e RD-0417 (ampliado) passam ao lote do kit | — |
+| 5 | `nuvem/rodape-shell-engenheiro-apps` | `155bc0d4` → `474164cb` | **sem achado em aberto** (decisão b; faltam os prints da §P11: observação para o testes) | RD-0433 **em correção** (CNPJ pelo `formatarDocumento`; a cópia única passa ao kit, decisão b); RD-0434 e RD-0435 **corrigidos**; RD-0436 aberto (Core, não segura o shell) | — |
+| 6a | `nuvem/rodape-legal-engenheiro-software` | `16e6eb4a` (sem avanço) | **sem achado em aberto** | — | — |
+| 6b | `nuvem/rodape-legal-banco-dados` | `c2db8450` (1ª avaliação) | **segura** | — | RD-0452 baixa, código (banco-dados); RD-0453 baixa, só teste, não segura (banco-dados) |
+| 7a | `nuvem/empresa-acoes-banco-dados` | `60a31e44` → `a298381f` | **sem achado em aberto** (o RD-0453 cita o `qsp` novo; só teste) | — | (RD-0453) |
+| 7b | `nuvem/empresa-acoes-engenheiro-software` | `f75cc7dc` (sem avanço desde a parte 4) | **segura** | RD-0428 **em correção, sem mudança**; RD-0406 **em correção** (falta o Core; não segura este lote) | — |
+| 7c | `nuvem/empresa-acoes-engenheiro-apps` | `d807bcf0` → `8705f496` | **segura** | RD-0429 **corrigido** | RD-0454 baixa, texto (engenheiro-apps; constante no SDK e uso na API: engenheiro-software) |
+| 8a | `nuvem/email-senha-engenheiro-software` | `da106be2` (sem avanço) | **sem achado em aberto** | — | — |
+| 8b | `nuvem/email-senha-testes` | `32bb52c8` (1ª avaliação) | **sem achado em aberto** | — | — |
+| 9a | `nuvem/kit-thathyany-modulo-integracao` | `665c5c06` → `f3619bc4` (kit 1.0.3) | **segura** | — | RD-0455 baixa, código; RD-0456 baixa, código; RD-0457 baixa, doc · texto; RD-0459 baixa, só teste, não segura (todos modulo-integracao) |
+| 9b | `nuvem/kit-ps1-parse-testes` | `75609a4d` (1ª avaliação) | **sem achado em aberto neste branch** | — | RD-0458 baixa, só teste, não segura (o caso a tirar é do modulo-integracao) |
+| 10 | `nuvem/chave-conector-modulo-integracao` | `3352c984` (sem SHA novo) | **sem achado que segure** | RD-0424 aberto (só teste, não segura) | — |
+| 11 | `nuvem/logo-cliente-designer-ux` | `64a18b97` → `c6d5a4b4` | **segura** | RD-0440 **corrigido** | RD-0450 baixa, doc; RD-0451 média, texto da simulação (designer-ux) |
+| 12 | `nuvem/inicio-cabecalho-engenheiro-apps` | `b227367e` | **segura** | RD-0399 item 3 **corrigido** no shell; resolvedor da foto agora ligado | RD-0445 baixa, código; RD-0446 baixa, só teste, não segura (engenheiro-apps) |
+| 13a | `nuvem/push-fcm-v2-engenheiro-software` (PR #311, governança) | `46b8c6b3` | **sem achado em aberto** | — | — |
+| 13b | `nuvem/push-fcm-v2-modulo-core` (PR #312) | `1efb8e69` | **segura** | — | RD-0443 baixa, código (modulo-core) |
+| 13c | `nuvem/push-fcm-engenheiro-apps` | `9334bf0e` | **segura** | — | RD-0442 média, código (engenheiro-apps; contrato: modulo-core; ADR: engenheiro-software); RD-0444 baixa, só teste, não segura (engenheiro-apps) |
+| 14 | `nuvem/android-build-disco-engenheiro-software` (governança) | `7440ea9f` | **segura** | — | RD-0447 baixa, workflow (engenheiro-software) |
+
+**Seguram (11):** 1 (RD-0441), 2 (RD-0448, RD-0449), 6b (RD-0452), 7b (RD-0428), 7c (RD-0454), 9a (RD-0455, RD-0456,
+RD-0457), 11 (RD-0450, RD-0451), 12 (RD-0445), 13b (RD-0443), 13c (RD-0442), 14 (RD-0447).
+**Sem achado em aberto (10):** 3, 4, 5, 6a, 7a, 8a, 8b, 9b, 10 (só RD-0424, de teste), 13a.
+**Só teste, não seguram (R-20261111-190159):** RD-0444, RD-0446, RD-0453, RD-0458, RD-0459 e o RD-0424.
+
+### Numeração (provisório → definitivo)
+
+| Rascunho | Definitivo |
+|---|---|
+| `RD-A1` | RD-0442 |
+| `RD-A2` | RD-0443 |
+| `RD-A3` | RD-0444 |
+| `RD-A4` | RD-0445 |
+| `RD-A5` | RD-0446 |
+| `RD-A6` | RD-0447 |
+| `RD-B1` | RD-0448 |
+| `RD-B2` | RD-0449 |
+| `RD-B3` | RD-0450 |
+| `RD-B4` | RD-0451 |
+| `RD-C1` | RD-0452 |
+| `RD-C2` | RD-0453 |
+| `RD-C3` | RD-0454 |
+| `RD-C4` | RD-0455 |
+| `RD-C5` | RD-0456 |
+| `RD-C6` | RD-0457 |
+| `RD-C7` | RD-0458 |
+| `RD-C8` | RD-0459 |
+
+## Decisões do gerente-projetos (sessão do corretor, 15/11/2026, madrugada de Manaus)
+
+No mesmo critério do RD-0430 (parte 5): quando o resto de um RD depende de um lugar que o dono do lote não pode alterar,
+o RD deixa de segurar esse lote e passa a segurar o lote de quem pode fazer o resto. **As duas decisões são reversíveis
+pelo dono do produto.**
+
+a. **RD-0416 e RD-0417** deixam de segurar Core, Catálogo e Treinamento e passam a segurar o **lote do kit do
+   designer-ux**: pôr em `packages/ui` (`src/web`) a versão de `modules/catalogo/web/lib/lista.tsx` (`ESPERA_BUSCA_MS`,
+   `useBuscaComEspera` e `LimparFiltros`). Cada módulo (Core, Catálogo, Treinamento e o shell na Auditoria) troca o import
+   no lote seguinte ao merge do kit. Com isso, Catálogo (3) e Treinamento (4) ficam **sem achado em aberto**; o Core (2)
+   continua segurando pelos RD-0448 e RD-0449.
+b. **RD-0433** (os dois `rodape-legal.ts` iguais no app e no BKO): dono = **designer-ux**, no kit (`packages/ui`), como a
+   spec §5 pede. Deixa de segurar o lote 5 (`rodape-shell-engenheiro-apps`) e passa a segurar o lote do kit; o
+   engenheiro-apps troca o import no lote seguinte. Com isso, o lote 5 fica **sem achado em aberto** (o RD-0436 não segura
+   o shell). A falta dos prints da §P11 é observação para o testes, não RD.
+
+---
+
+## Rascunho A: push pelo FCM, build Android, foto do perfil no shell e chave do Conector (itens 13, 14, 12 e 10)
+
+Os três branches do push mesclam entre si sem conflito, e cada um mescla limpo no `main` (`git merge-tree`). O push dos
+apps também mescla limpo com o build Android e com o cabeçalho. O `nuvem/inicio-cabecalho-engenheiro-apps` conflita com o
+`main` em `.coord/diario/modulo-core.md` (veja "Para o gerente").
+
+### Lote 13: push pelo FCM (ADR 0053)
+
+#### Os três branches entre si
+- **Contrato**: um só. `REGEX_TOKEN_EXPO` e `tipoDoToken` nascem em `modules/core/contracts/notificacao.ts` (13b) e o
+  `push.ts` do Core importa de lá; a regex que estava escrita dentro de `montarMensagemExpo` saiu. O `PushTokenSchema` não
+  mudou, e ninguém criou contrato `@v2`.
+- **Registro do token**: o app usa o mesmo `PUT /v1/dispositivos/atual/push` e a mesma chave local (`chaveRegistroPush`);
+  não há rota nem fila nova.
+- **Config**: os nomes `FCM_SERVICE_ACCOUNT_JSON`, `FCM_PROJECT_ID` e `MACUXI_PUSH_ATIVO` existem só no `push.env` (13a); o
+  Core lê `env.FCM_*` sem redefinir. O `google-services.json` do app (13c) usa o secret `GOOGLE_SERVICES_JSON_BASE64` que o
+  `android-build.yml` do `main` já decodifica; o app não refaz a decodificação.
+- **Texto de notificação**: canal `avisos`, cortes 120/178 e silencioso continuam nascendo só no servidor; o app só lê
+  `title`/`body`. Dentro do servidor há a cópia do RD-0443.
+- **Regra do formato do token**: o app não usa o `tipoDoToken` do contrato e escreve outra regra (RD-0442).
+- **Arquivos repetidos**: o 13b traz o commit `46b8c6b3` inteiro (empilhado sobre o 13a). Não é cópia de conteúdo: é o
+  mesmo commit. Veja "Para o gerente".
+
+#### 13a: `nuvem/push-fcm-v2-engenheiro-software` @ `46b8c6b3`
+Lidos a ADR 0053, a linha do índice, os dois passos do `producao-publicar.yml`, `compose.yml`, `env.modelo`,
+`preparar-vm.sh` e `scripts/ci/producao-push.test.mjs`.
+- O par "os dois ou nenhum" é conferido uma vez, no passo dos secrets. O passo de gravar repete só o `[ -n … ] && [ -n … ]`
+  que decide se escreve, e o comentário diz isso. Segue o desenho do `email.env` e do `recados.env`.
+- `push.env` entra no `for f in …` do `preparar-vm.sh` e no `env_file` só do worker. O teste confere os quatro arquivos sem
+  repetir caso.
+- A ADR não repete o inventário do Expo: ela aponta os itens.
+
+**Parecer do 13a: sem achado em aberto.**
+
+#### 13b: `nuvem/push-fcm-v2-modulo-core` @ `1efb8e69`
+Lidos `push.ts`, `consumidores.ts`, `contracts/notificacao.ts` e os casos novos de `push.test.ts` (tipo do token,
+mensagem, silencioso, JWT, cache, 401, limpeza, 5xx/429/rede, paralelo de 5 e falha segura). Cada caso cobre um item
+diferente da ADR; os casos de Expo continuam até o §7.
+
+| Campo | RD-0443 |
+|---|---|
+| Onde | `modules/core/api/push.ts` (1efb8e69): `montarMensagemExpo` (`:36-47`) × `montarMensagemFcm` (novo) |
+| Tipo | código |
+| O que se repete | A regra da bandeja está escrita 2×, igual: o silencioso `d.titulo.trim() === '' && d.corpo.trim() === ''`, o título `d.titulo.slice(0, 120)` e o corpo `d.corpo.length > 178 ? \`${d.corpo.slice(0, 177)}…\` : d.corpo`. A ADR 0053 §2 manda os dois caminhos usarem "os mesmos cortes de hoje" |
+| Impacto | manutenção: mudar o corte ou a regra do silencioso num caminho só deixa Expo e FCM com bandejas diferentes (durante a convivência, aparelhos v1.0.9 e v1.0.10 mostram textos diferentes) |
+| Severidade | baixa (código de produção; segura) |
+| Proposta | Três auxiliares no topo de `push.ts`, usados pelos dois montadores: `const silencioso = (d: DestinoPush) => d.titulo.trim() === '' && d.corpo.trim() === '';` · `const tituloDaBandeja = (t: string) => t.slice(0, 120);` · `const corpoDaBandeja = (c: string) => (c.length > 178 ? \`${c.slice(0, 177)}…\` : c);`. Quando o §7 tirar o Expo, os três ficam só com o FCM |
+| Dono | modulo-core |
+
+**Parecer do 13b: segura (RD-0443).**
+
+#### 13c: `nuvem/push-fcm-engenheiro-apps` @ `9334bf0e`
+Lidos `app.config.ts`, `lib/push.ts`, `services/push.ts` e os dois testes. O `dadosDoPush` reaproveita `entidadesDoPush` e
+`rotaDoPush`, e o `dadosDe` do serviço passou a chamá-lo. Não há texto novo de tela.
+
+| Campo | RD-0442 |
+|---|---|
+| Onde | `apps/mobile/src/lib/push.ts` (9334bf0e): `TOKEN_FCM = /^[A-Za-z0-9_:-]{20,300}$/` e `tokenFcmValido` × `modules/core/contracts/notificacao.ts` (1efb8e69): `REGEX_TOKEN_EXPO`/`tipoDoToken`, e `PushTokenSchema.token` (`min(1).max(300)`) |
+| Tipo | código |
+| O que se repete | A regra "o que é um token FCM aceito" tem 2 definições, em 2 donos, e elas já divergem. O contrato diz: FCM é tudo o que não é Expo, de 1 a 300. O app diz: FCM é texto `[A-Za-z0-9_:-]` de 20 a 300, e o Expo é recusado. O "300" está escrito nos dois. A ADR 0053 §1 diz que `tipoDoToken` está no contrato porque "o app e a API usam a mesma" e que o app troca o `tokenExpoValido` "por uma validação que aceita os dois (ou usa `tipoDoToken`)". O app já importa `@macuxi/core/contracts` em outras telas |
+| Impacto | manutenção e regra: quando o formato mudar, o servidor e o app aceitam conjuntos diferentes; a ADR descreve um código que não existe |
+| Severidade | média (regra escrita fora do dono; segura) |
+| Proposta | Uma regra só, no contrato do Core. O modulo-core acrescenta em `contracts/notificacao.ts`: `export const tokenPushFcmValido = (t: unknown): t is string => typeof t === 'string' && PushTokenSchema.shape.token.safeParse(t).success && tipoDoToken(t) === 'fcm';` (se quiser o filtro de caracteres, ele entra aqui, uma vez). O app apaga `TOKEN_FCM` e `tokenFcmValido` e importa `tokenPushFcmValido` de `@macuxi/core/contracts`. O engenheiro-software ajusta a frase da ADR §1 ao que ficar (o app aceita só FCM) |
+| Dono | engenheiro-apps (com o modulo-core no contrato e o engenheiro-software na ADR) |
+
+| Campo | RD-0444 |
+|---|---|
+| Onde | `apps/mobile/src/lib/push.test.ts` (9334bf0e): 1º caso de "FCM direto: data como mapa de textos" × caso "aceita lista, texto JSON e texto separado por vírgula" (`:23-29`) |
+| Tipo | teste |
+| O que se repete | `entidadesDoPush(... '["pedido","meta"]')` → `['pedido','meta']` e a lista separada por vírgula já estão no caso antigo. O `dadosDoPush` de um mapa sem `dataString` devolve o próprio mapa, então o caso novo não acrescenta nada além do `rotaDoPush`, que o `describe('rotaDoPush')` já cobre |
+| Impacto | manutenção |
+| Severidade | baixa: só teste, **não segura** (R-20261111-190159); entra no lote seguinte |
+| Proposta | Apagar o 1º caso. O 2º (formato Expo com `dataString`), o 3º e o 4º ficam: são os únicos sobre `dadosDoPush` e `mensagemDaTarefaPush` |
+| Dono | engenheiro-apps |
+
+**Parecer do 13c: segura (RD-0442). O RD-0444 não segura.**
+
+---
+
+### Lote 14: `nuvem/android-build-disco-engenheiro-software` @ `7440ea9f` (build Android sem disco)
+
+Lidos o diff do `android-build.yml` (passo "liberar disco", "gradle.properties (ABIs e memória)", `--no-daemon`) e o caso
+novo de `scripts/ci/android-build.test.mjs`. Nenhum outro workflow do repositório limpa o disco do runner nem mexe no
+`gradle.properties`. O cache continua um só por coisa: o `setup-gradle` cuida do `~/.gradle` e o `actions/cache` do Metro;
+o PR não acrescenta cache. O `df -h /` antes e depois é o que mostra quanto foi liberado: `manter`.
+
+| Campo | RD-0447 |
+|---|---|
+| Onde | `.github/workflows/android-build.yml` (7440ea9f): `NDK_VERSAO: '27.1.12297006'` no `env` do job × `node_modules/react-native/gradle/libs.versions.toml` (`ndkVersion = "27.1.12297006"`); guarda em `scripts/ci/android-build.test.mjs` (caso novo, bloco `try { toml = ler(...) } catch {}`) |
+| Tipo | rotina (CI) |
+| O que se repete | A versão do NDK está copiada à mão no workflow. O teste que deveria pegar a divergência só compara quando há `node_modules`. O job do CI que roda `node --test scripts/ci/*.test.mjs` (`ci.yml`, "guardas do CI") não faz `pnpm install` ("Sem pnpm install: tudo aqui é node puro"), então no CI a comparação nunca roda e o caso passa calado |
+| Impacto | manutenção: ao atualizar o react-native, a limpeza apaga o NDK novo; o Gradle baixa de novo (~1 GB, mais tempo e o mesmo disco que o passo quer poupar), e nada fica vermelho |
+| Severidade | baixa (workflow; segura) |
+| Proposta | Ler a versão de onde ela nasce, sem a cópia. Mover o passo "liberar disco" para logo depois de "instalar dependências" (o disco acabou no `assembleRelease`, não no install) e trocar a linha do env por: `NDK_VERSAO=$(sed -n 's/^ndkVersion = "\(.*\)"/\1/p' node_modules/react-native/gradle/libs.versions.toml)` · `[ -n "$NDK_VERSAO" ] \|\| { echo '::error title=NDK::ndkVersion não encontrado no react-native'; exit 1; }`. Saem `NDK_VERSAO:` do `env`, o `try/catch` e a comparação do teste; o teste passa a conferir o `sed` e que a limpeza vem depois do install. Se a limpeza precisar mesmo vir antes do checkout, então `manter?` a cópia, mas a comparação precisa rodar num job com `node_modules` (pedir ao testes) em vez de pular calada |
+| Dono | engenheiro-software |
+
+**Parecer do lote 14: segura (RD-0447).**
+
+---
+
+### Lote 12: `nuvem/inicio-cabecalho-engenheiro-apps` @ `b227367e` (foto do perfil pelo shell)
+
+O branch empilha os commits do Core (`d6a36237`…`e0ac4444`). O `main` já tem esse conteúdo pelo #297, em squash: os arquivos
+de `modules/core/app/telas/inicio`, `modules/core/app/index.ts` e `docs/modulos/core/prints/inicio-enquadrado` do branch são
+iguais aos do `main`. O delta real é o do shell: `apps/mobile/src/lib/foto-perfil-endereco.ts` (+ teste),
+`lib/sync-t0170.ts` (+ teste), `services/miniaturas.ts`, `state/plataforma.tsx` e o diário.
+
+#### Reteste
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0399 item 3 | `export const ENTIDADE_AVATAR = 'usuario_avatar'` saiu de `sync-t0170.ts`. A definição da entidade e o `itemTrocaDeAvatar` usam `ENTIDADE_USUARIO_AVATAR` de `@macuxi/core/app` (a constante do Core, `foto-perfil.ts:10`) | **corrigido** |
+| Observação da parte 3 (resolvedor sem quem chame) | `plataforma.tsx:331` chama `ligarResolvedorFotoPerfil`, que chama `definirResolvedorFotoPerfil` do Core e desliga com `null` na saída. O download e a pasta são os da miniatura do Catálogo: `dependencias()` foi extraída e serve aos dois resolvedores; nada de rede ou cache foi refeito | **resolvido** |
+
+#### Achados novos
+
+| Campo | RD-0445 |
+|---|---|
+| Onde | `apps/mobile/src/state/plataforma.tsx` (b227367e): `:310`, `:329`, `:331` (nova), `:333` e `:1007` |
+| Tipo | código |
+| O que se repete | A regra "pode baixar agora" `() => !offlineRef.current && sessaoRef.current !== null` está escrita 5× no mesmo arquivo; este lote acrescenta a 5ª, para a foto do perfil |
+| Impacto | manutenção: uma condição nova (por exemplo, sessão expirada) precisa entrar nas 5 linhas; esquecer uma deixa um único download (miniatura, foto do perfil, foto do PDV) tentando sem sessão |
+| Severidade | baixa (código de produção; segura) |
+| Proposta | Uma função só, perto das refs: `const podeBaixar = useCallback(() => !offlineRef.current && sessaoRef.current !== null, []);`. As 5 linhas passam a `podeBaixar` (`online: podeBaixar`, `ligarResolvedorMiniatura(api, podeBaixar)`, `ligarResolvedorFotoPerfil(api, podeBaixar)`, `ligarFonteFotoPdv(api, podeBaixar)`) |
+| Dono | engenheiro-apps |
+
+| Campo | RD-0446 |
+|---|---|
+| Onde | `apps/mobile/src/lib/foto-perfil-endereco.test.ts` (b227367e): casos 2 ("sem sinal e sem cache devolve null") e 3 ("falha no download ou foto acima do teto devolve null") × `lib/miniatura-endereco.test.ts:60-76` ("sem sinal, acima do teto, em erro ou com arquivo_id divergente: null e nada gravado") |
+| Tipo | teste |
+| O que se repete | O `criarResolvedorFotoPerfil` só repassa ao `criarResolvedorMiniatura`. Os casos 2 e 3 repetem, pelo invólucro, o sem sinal, o acima do teto (`baixar` → `null`) e o erro que o teste da miniatura já cobre |
+| Impacto | manutenção |
+| Severidade | baixa: só teste, **não segura** (R-20261111-190159); entra no lote seguinte |
+| Proposta | Apagar os casos 2 e 3. Ficam o 1º (rota `/arquivos/<id>` com `AVATAR_FOTO_MAX_BYTES` e cache) e o 4º (id que não é UUID), que são o que o invólucro acrescenta |
+| Dono | engenheiro-apps |
+
+Sem texto de tela novo. Os 2 prints (`…nome-curto-com-foto.png`, `…nome-longo-sem-foto.png`) são os do #297, iguais aos
+do `main`: não mudou cor nem layout neste delta, então não precisa do design-de-marca.
+
+**Parecer do lote 12: segura (RD-0445). O RD-0446 não segura.**
+
+---
+
+### Lote 10: `nuvem/chave-conector-modulo-integracao` @ `3352c984` (lido na parte 2 no mesmo SHA)
+
+O branch não avançou. O diff refeito contra o `main` novo (`b536b829`) dá os mesmos 3 arquivos (+57 −8), e o merge-tree é
+limpo. Os 12 commits que o `main` ganhou desde a base (`a073edf1`) não tocam `apps/conector`, e nenhum outro lugar do `main`
+usa `macuxi-2026` nem `CHAVE_PUBLICA_ID`. O parecer não muda:
+- RD-0424 (2º e 4º casos de `chaves.test.ts` repetem `assinatura.test.ts`): **aberto**, só teste, não segura.
+- `CHAVE_PUBLICA_ID` de `pacote.mjs` × o id do mapa de `chaves.ts`: continua `manter?`, com a mesma sugestão de teste
+  (`CHAVE_PUBLICA_ID in CHAVES_PUBLICAS_PACOTE`).
+
+**Parecer do lote 10: sem achado que segure.**
+
+---
+
+## Rascunho B: revisão do BKO (Vendedor, Core, Catálogo, Treinamento) e logo do cliente (itens 1, 2, 3, 4 e 11)
+
+Os 5 branches mesclam no `main` sem conflito (`git merge-tree`). Spec: `docs/design/telas/bko-revisao.md`.
+
+### Lote 1: `nuvem/bko-revisao-modulo-vendedor` @ `f93f44cd` (PR #298; lido na parte 5)
+
+O head continua `f93f44cd`. O `main` (`b536b829`) não mexeu em `modules/vendedor/api/pedidos.ts` nem no teste FB-1
+(`tests/modulos/filial-filtro-reserva-t0149.test.ts`).
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0441 | Os dois arrays de 17 parâmetros continuam em `pedidos.ts:202` e `:214` | **aberto** |
+
+**Parecer do lote 1: segura, sem mudança (RD-0441, média, código de produção; modulo-vendedor e testes juntos).**
+
+---
+
+### Lote 2: `nuvem/bko-revisao-modulo-core` @ `da495ed0` (lido na parte 4 em `6bf52819`)
+
+Lido `git diff 6bf52819 da495ed0` (28 arquivos, um commit). Abertos os prints "depois" de Indicadores, Rotas, Visitas,
+Coordenadas e Filiais.
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0416 | `useBuscaComEspera(valor, aoMudar, espera?)` fica só em `web/lib/lista-bko.tsx:17-52`, e os `setTimeout` de Aparelhos e Farol saíram (`aparelhos-page.tsx:70` e `farol-page.tsx:145` usam o hook). Produtos e Medidas passaram para a mesma assinatura. O hook é igual, linha a linha, ao do Catálogo (`catalogo/web/lib/lista.tsx:14-50`): mudam só os comentários e a ordem dos imports | **em correção**: Core feito; falta o kit (designer-ux) |
+| RD-0417 | `LimparFiltros({ ligado, onLimpar, testId? })` em `lista-bko.tsx:55` é usado em todas as listas do Core (aparelhos, carteira, farol, indicadores, metas, rotas, visitas, produtos, medidas, tarefas). Nenhum botão "Limpar filtros" à mão sobrou no Core. O componente é igual ao do Catálogo (`lista.tsx:53`) | **em correção**: Core feito; falta o kit |
+| RD-0419 | Coluna "Por dia útil (12 restantes)" (`indicadores.ts:31-34`), e a célula traz só "R$ 3.125", "Batida" ou "—" (`:37-42`). No print, o valor aparece inteiro nas 6 linhas. O CSV mantém a frase (teste `indicadores.test.ts:39`) | **corrigido** |
+| RD-0420 | Saíram de Indicadores o botão "Definir meta de venda", a gaveta, o `useMutation` e o `Notice`. A meta se define só em Metas e RV | **corrigido** (sobra: RD-0448) |
+| RD-0421 | Três cartões em Rotas: "Visitadas 8 de 24 · 33%", "Em atendimento 0" e "Km total". Saíram "Visitas planejadas" e "Pendentes" | **corrigido** (sobra: RD-0449) |
+| RD-0422 | Visitas: "14/11 às 08:05" (`formatDateTime` do kit), sem corte no print. Coordenadas: data e hora numa linha e o vendedor embaixo, os dois inteiros | **corrigido** |
+
+O que passa:
+- **MC-0073**: o selo de inativo foi para `neutral` em Filiais, Fotos do PDV, Motivos e Medidas. Não há texto novo. Em
+  Filiais, "Ativa" e "Inativa" ficam no mesmo tom, e a linha inativa fica esmaecida. É cor: precisa da validação do
+  design-de-marca.
+- **Cliente 360**: "Última compra" em dd/mm/aaaa. **Carteira**: a coluna Frequência foi de 170 para 210 px. As duas
+  observações da parte 2 para o testes foram resolvidas.
+- `quando` (`web/lib/visitas.ts:23`) continua em uso no CSV de Visitas e no Cliente 360; não ficou morto.
+
+#### Achados novos
+
+| Campo | RD-0448 |
+|---|---|
+| Onde | `modules/core/web/lib/indicadores.ts:51-56` (`centavosDoTexto`) × `modules/core/web/lib/plano-rv.ts:112-117` (`centavosDoTexto`); único chamador da primeira: `web/lib/metas.ts:9` |
+| Tipo | código |
+| O que se repete | A mesma função, com o mesmo corpo, está em 2 arquivos do Core. A cópia de `indicadores.ts` ficou sem uso em Indicadores depois do RD-0420, e o branch trocou o comentário para "Usado pela tela Metas e RV" em vez de tirá-la de lá. O teste dela também saiu (`indicadores.test.ts`); o de `plano-rv.test.ts:56-58` cobre o mesmo |
+| Impacto | manutenção: uma regra de parse de dinheiro em dois lugares do mesmo módulo, e uma delas sem teste |
+| Severidade | baixa. É código de produção num arquivo que o branch mudou: **segura o Core** |
+| Proposta | Apagar `centavosDoTexto` de `indicadores.ts`. `metas.ts:9` passa a ler `import { centavosDoTexto } from './plano-rv';`. Para depois, sem segurar: o Catálogo tem uma 3ª versão, mais rígida (`catalogo/web/lib/tabelas-preco.ts:41`), e o kit tem `parseDecimalInput` (`packages/ui/src/web/format.ts:111`). A versão única de reais → centavos é candidata ao kit |
+| Dono | modulo-core |
+
+| Campo | RD-0449 |
+|---|---|
+| Onde | `modules/core/web/lib/routes.ts:284-285` e `:308-309` (`RouteKpis.pending`, `RouteKpis.avgPerRoute`); `routes.test.ts:229-230` |
+| Tipo | código |
+| O que se repete | Depois do RD-0421, nenhum lugar lê `kpis.pending` nem `kpis.avgPerRoute`: a tela usa `routes`, `planned`, `done`, `inProgress` e `km` (`routes-page.tsx:263,313-315`). Os dois campos continuam calculados e conferidos no teste. A lista da direita calcula as pendentes de cada pessoa por conta própria (`routes-page.tsx:458`) |
+| Impacto | manutenção: dois números calculados e testados que nenhuma tela mostra |
+| Severidade | baixa. É código de produção: **segura o Core** |
+| Proposta | Tirar `pending` e `avgPerRoute` de `RouteKpis` e de `routeKpis`. Os dois `expect` do teste ficam `{ routes: 2, planned: 4, km: 21, done: 1, inProgress: 1 }` e `{ routes: 0, planned: 0, km: 0, done: 0, inProgress: 0 }` |
+| Dono | modulo-core |
+
+**Parecer do lote 2: segura (RD-0448 e RD-0449, baixa, código de produção).** O RD-0416 e o RD-0417 não seguram mais o Core
+(decisão do gerente-projetos, 15/11, madrugada; veja "Decisões do gerente-projetos"). A MC-0073 é cor e precisa da validação do design-de-marca.
+
+---
+
+### Lote 3: `nuvem/bko-revisao-modulo-catalogo` @ `364ac40a` (lido na parte 4 em `a058713b`)
+
+Lido `git diff a058713b 364ac40a` (9 arquivos). Abertos os prints `catalogo-produtos-depois` e `marcas-depois`.
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0416 | `web/lib/busca-com-espera.ts` virou `web/lib/lista.tsx`, com o hook na assinatura do kit, usado em `catalogo-page.tsx:148`, `marcas-page.tsx:61` e `tabelas-preco-page.tsx:92,169`. É igual ao do Core (lote 2). O arquivo diz "Vai para o kit (packages/ui) pelo RD-0416 e RD-0417; então só muda o import." | **em correção**: Catálogo feito; falta o kit |
+| RD-0417 | As 4 cópias do botão saíram; os 4 lugares usam `LimparFiltros` de `lista.tsx:53` | **em correção**: Catálogo feito; falta o kit |
+| RD-0423 | Nenhum `rotulo="Mais ações"` no módulo | **corrigido** |
+| RD-0438 | Saiu a coluna "Destaque". O selo `pending` "Destaque" fica ao lado do nome, só nos 3 marcados. Os outros não levam "—" | **corrigido** |
+| RD-0439 | Saiu a coluna "Situação" de Marcas. O filtro "Situação: Ativas" fica, e a lista mostra Marca, Referências e Código no ERP | **corrigido** |
+
+O README dos prints diz a origem nova. Continua sem prints "antes" (§P11), o que já estava anotado para o testes na
+parte 4.
+
+**Parecer do lote 3: sem achado em aberto.** O RD-0416 e o RD-0417 passaram a segurar o lote do kit
+(decisão do gerente-projetos, 15/11, madrugada; veja "Decisões do gerente-projetos"). A MC-0071 e a MC-0072 (parte 4) continuam com o design-de-marca.
+
+---
+
+### Lote 4: `nuvem/bko-revisao-modulo-treinamento` @ `cf22a7a6` (lido na parte 4 em `1d1436eb`)
+
+Lido `git diff 1d1436eb cf22a7a6` (2 arquivos, 2 linhas).
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0437 | `<MenuAcoes acoes={acoes} />` em `trilhas-page.tsx` e também em `trilha-editar-page.tsx`, que a parte 4 não tinha listado. Nenhum `rotulo="Mais ações"` no módulo. Pesquisa (`construtor-page.tsx:144`, `resultados-page.tsx:134`) e Promotor (`cadastros-page.tsx:149`, `trade-page.tsx:99`) continuam no `main` e corrigem no próximo lote de cada um | **corrigido no Treinamento**; aberto em Pesquisa e Promotor |
+| RD-0416 | `function BuscaComEspera` (`trilhas-page.tsx:157-164`) não mudou: é a 3ª versão entre módulos, com outra forma (componente com `key` para limpar) | **em correção**: depende do kit; o Treinamento troca no lote seguinte ao kit |
+| RD-0417 (ampliado) | O botão "Limpar filtros" está escrito à mão em `trilhas-page.tsx:140-144`; a parte 4 não pegou. Entra na mesma troca do kit | **em correção**: depende do kit |
+
+**Parecer do lote 4: sem achado em aberto.** O RD-0416 e o RD-0417 passaram a segurar o lote do kit
+(decisão do gerente-projetos, 15/11, madrugada; veja "Decisões do gerente-projetos"). O MC-0065
+continua com o design-de-marca.
+
+---
+
+### Lote 11: `nuvem/logo-cliente-designer-ux` @ `c6d5a4b4` (lido na parte 4 em `64a18b97`)
+
+Lidos `147ce5cf` (RD-0440) e `c6d5a4b4` (decisão do dono do produto R-20261114-234500: carga A, login sem logo). Abertos
+`carga-campo.png` e o antigo `carga-campo-a.png`.
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0440 | A decisão A/B foi fechada pelo dono do produto e saiu da spec: §3 descreve só a carga com a logo ao lado; a tabela A × B, a opção C e o histórico da placa de 84 dp saíram; o §8.1 ficou só com a regra do manual. Saíram `login.html`, os PNG do login e os de B, e nenhum arquivo aponta para eles | **corrigido** |
+
+O que passa:
+- A frase do Mais é "Licenciado para <nome fantasia>" (§5, l.133), como foi combinado, e `mais.html:43` mostra
+  "Licenciado para Exemplo Norte". Sem nome fantasia, vale a razão social (l.139).
+- §4 diz numa linha que o login e as telas de senha ficam sem a logo. A tabela "Quem faz" tirou o login do engenheiro-apps,
+  e a placa do kit ficou só com 52/36 do Mais e 64/48 da carga.
+
+#### Achados novos
+
+| Campo | RD-0450 |
+|---|---|
+| Onde | `docs/design/telas/logo-cliente.md:5`, `:17-18` e `:20-21` (as notas do topo) × §3, §4 e §5 |
+| Tipo | doc |
+| O que se repete | O topo traz 3 notas de decisão sobre o que o corpo já diz. A l.5 ("Frase do Mais com o **nome fantasia** (decisão…, R-20261114-223500)") repete o §5, l.139 ("**Nome:** o **nome fantasia** da empresa (R-20261114-223500)"). A "Revisão de 2026-11-15" (l.17-18: "MC-0066, carga com logo (§3)") e a "Decisão do dono do produto" (l.20-21: "fecha a carga (§3, MC-0066 decidida)") dizem 2× que a carga está no §3 com a MC-0066 |
+| Impacto | leitura: quem implementa lê três notas antes da spec, e duas dizem a mesma coisa |
+| Severidade | baixa. É doc de produto: **segura** |
+| Proposta | Trocar a l.5 e as duas notas (l.17-21) por uma só: "> **Decisões** (R-20261114-223500 e R-20261114-234500-alexandre; MC-0066 e MC-0067, parecer do design-de-marca `docs/marca/pareceres/2026-11-15-lote-noite.md`, parte 2, lote 13): carga com a logo ao lado (§3), login e telas de senha sem logo (§4), placa 52/36 e nome fantasia no Mais (§5). O portal e os PDFs ficam como nesta simulação." |
+| Dono | designer-ux |
+
+| Campo | RD-0451 |
+|---|---|
+| Onde | `docs/design/telas/logo-cliente/carga.html:61` e os PNG `carga-campo.png` e `carga-gestao.png` (as duas telas, sem e com logo) |
+| Tipo | texto (simulação de tela) |
+| O que se repete | A linha da barra mostra "Etapa 2 de 5 · Clientes e rota", e logo abaixo a lista de etapas destaca "Clientes e rota". O mesmo fato aparece 2×, e "2 de 5" é a 3ª forma do progresso, com "38%" e a barra. É a repetição do RD-0239, corrigido no app: com a lista na tela, o rótulo "Etapa n de N · nome" vai só ao leitor de tela (`apps/mobile/src/lib/entrada.ts:78-82`, `tela-entrada.tsx:147`; teste `tela-carga.test.tsx:213`: `not.toMatch(/Etapa \d de \d/)`). A spec diz "Sem logo: igual a hoje", e a tela sem logo da simulação não é igual a hoje |
+| Impacto | leitura e risco de volta: é a imagem que vai ao dono do produto, ao design-de-marca e ao engenheiro-apps como referência da carga, e ela traz de volta uma redundância já tirada |
+| Severidade | média (o mesmo fato 2× na tela de referência; segura) |
+| Proposta | `carga.html:61`: a linha mostra só o percentual, `<div class="linha" …><span></span><b>38%</b></div>` (ou a mesma linha do app de hoje), com `aria-label="Etapa 2 de 5 · Clientes e rota"`. Gerar de novo `carga-campo.png` e `carga-gestao.png` |
+| Dono | designer-ux |
+
+**Parecer do lote 11: segura (RD-0451, média; RD-0450, baixa, doc).** É layout: o design-de-marca valida os prints da carga,
+e eles precisam ser refeitos pelo RD-0451.
+
+---
+
+## Rascunho C: rodapé legal, ações da empresa, e-mails de senha e kit da thathyany (itens 5 a 9)
+
+### Lote 5: `nuvem/rodape-shell-engenheiro-apps` @ `474164cb` (lido na parte 4 em `155bc0d4`)
+
+Lido `git diff 155bc0d4 474164cb` (um commit, 9 arquivos). **Não há prints** no branch: nem do rodapé no aparelho e no BKO,
+nem o antes/depois de Auditoria e Início pedido na §P11 (segue para o testes e o gerente, abaixo).
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0433 | Item (2) feito: `mascaraCnpj` saiu dos dois shells, e os dois usam `somenteDigitos` e `formatarDocumento` de `@macuxi/comum/documento` (14 dígitos dão a mesma máscara). O teste das linhas ficou só no app (`apps/web/components/rodape-legal.test.tsx` perdeu o caso "a montagem é a mesma do app"). **Falta o item (1):** `apps/mobile/src/lib/rodape-legal.ts` e `apps/web/lib/rodape-legal.ts` continuam iguais linha a linha (`DadosDoRodape`, `LinhasDoRodapeLegal`, `NBSP`, `siteDoRodape`, `linhasDoRodapeLegal`); o comentário dos dois chama a cópia de "Pendência (RD-0433)". Nenhum branch no remoto tem `packages/ui/src/comum/legal.ts`. O engenheiro-apps não pode criar a cópia única sozinho (os dois lugares possíveis são de outro dono) | **em correção**. A cópia única fica no kit (`packages/ui`), com o designer-ux, como a spec §5 pede; o RD-0433 deixa de segurar este lote e segura o lote do kit; o engenheiro-apps troca o import no lote seguinte (decisão do gerente-projetos, 15/11, madrugada; veja "Decisões do gerente-projetos") |
+| RD-0434 | `<Panel>` sem `label`; o `rotulo="Trilha de auditoria"` ficou só na `TabelaDados` (leitor de tela). O teste confere 1 ocorrência | **corrigido** |
+| RD-0435 | `LIMITE_AUDITORIA = 300` só em `apps/web/lib/queries.ts:99`, usado no `useAuditoria` (`:111`) e importado pela página; o teste lê a mesma constante | **corrigido** |
+| RD-0436 | `modules/core/app/components/tela-login.tsx:24,31,118` igual no `main`, no `login-v109-modulo-core` (`d955b035`) e aqui. Nenhum chamador passa `rodape` à `TelaLogin` (os `rodape=` do grep são da `Folha`/`BottomSheet`) | **aberto** (modulo-core; não segura o shell, entra no próximo lote do Core) |
+
+O que passa:
+- MC-0074: `accent-color: var(--color-accent)` nas caixas nativas, uma regra só em `globals.css` (sem outra cópia no repo).
+  É **cor**: precisa da validação do design-de-marca.
+- O RD-0417 (Limpar filtros à mão na Auditoria) segue ampliado, como na parte 4.
+- `git merge-tree` com o `main` e com `16e6eb4a` sai limpo. O branch ainda mescla o `788cc483`, e não o `16e6eb4a`; não toca
+  no `portal-comum.ts`.
+
+**Parecer do lote 5: sem achado em aberto.** O RD-0433 passou a segurar o lote do kit (decisão do gerente-projetos, 15/11, madrugada; veja "Decisões do gerente-projetos"); o RD-0436 é do Core
+e não segura o shell. Faltam os prints da §P11: é observação para o testes, não RD. Rodapé e MC-0074 precisam do
+design-de-marca.
+
+---
+
+### Lote 6a: `nuvem/rodape-legal-engenheiro-software` @ `16e6eb4a` (sem avanço desde a parte 4)
+
+Head igual ao da parte 4. `git merge-tree` com o `main` (`b536b829`) sai limpo. A rota não repete nenhum dado legal como
+constante: o padrão do site vem de `SITE_PADRAO` do SDK, a forma do CNPJ e do site fica no `GravarDadosLegaisSchema`, e a
+frase do 403 (`SO_A_MACUXI`) é uma só para as duas rotas do portal.
+
+**Parecer do lote 6a: sem achado em aberto.** (A ordem de merge com as ações da empresa continua a do RD-0428, lote 7b.)
+
+---
+
+### Lote 6b: `nuvem/rodape-legal-banco-dados` @ `c2db8450` (primeira avaliação)
+
+O branch está sobre o `a9965d78` (API antiga do rodapé). O commit do banco-dados é só o `c2db8450` (9 arquivos): migração
+0073 (up/down), espelho Drizzle, `conferir-rls.sql`, `excecoes.ts`, `funcoes-sa.ts`, `estatico.test.ts`,
+`diagnostico.test.ts` e o teste novo `dados-legais.db.test.ts`.
+
+O que passa:
+- O banco não repete a validação da API além da defesa em profundidade que a regra 2 pede: os CHECKs conferem a forma (razão
+  social, 14 dígitos, domínio), e o dígito verificador fica só no contrato e na API. `manter`.
+- A leitura do portal (`sa_dados_legais`) devolve `dados_legais_publicos()`, sem montar o jsonb de novo.
+- As listas de exceção (`excecoes.ts` × `conferir-rls.sql`) já são espelho conferido por teste; a 0073 só acrescenta a linha.
+- O teste estático (texto do SQL, roda na sessão) e o de banco (comportamento, roda no CI) cobrem coisas diferentes.
+
+| Campo | RD-0452 |
+|---|---|
+| Onde | `db/migrations/0073_plataforma_dados_legais.up.sql`: l.41 (`default` da coluna), l.66 (`insert … values (null, null, 'macuxifdv.com.br')`), l.81 (o padrão da `dados_legais_publicos`), l.154 e l.162 (`v_antes` na `sa_gravar_dados_legais`) |
+| Tipo | código |
+| O que se repete | O jsonb "sem dados" `jsonb_build_object('razao_social', null, 'cnpj', null, 'site', 'macuxifdv.com.br')` está escrito 3× (padrão da leitura pública e os dois ramos do `v_antes`), e o site padrão aparece 5× no SQL (o `default` da coluna, o `insert` e os três jsonb). O `v_antes` dos três casos (sem linha, linha apagada, linha viva) é exatamente o que `plataforma.dados_legais_publicos()` devolve antes da gravação |
+| Impacto | manutenção: se o padrão mudar, são 5 lugares numa função que audita o "antes"; um esquecido grava na auditoria um "antes" diferente do que a tela mostrava |
+| Severidade | baixa. É código de produção (migração ainda não aplicada; depois do merge não muda mais), então **segura** |
+| Proposta | Na `sa_gravar_dados_legais`, logo depois do `select … for update`: `v_antes := plataforma.dados_legais_publicos();`. O ramo `if not found` fica só com o `insert`, e o `else` só com o `update` (sai o `case`). Na linha da migração: `insert into plataforma.dados_legais default values;` (usa o `default` da coluna). O literal fica em 2 lugares (o `default` da coluna e o padrão da leitura pública). Os testes estáticos que procuram o texto antigo acompanham |
+| Dono | banco-dados |
+
+| Campo | RD-0453 |
+|---|---|
+| Onde | `db/testes/dados-legais.db.test.ts:132` (`como`, 12ª cópia) e `db/testes/plano-assinatura.db.test.ts:163-174` (`qsp`, novo em `a298381f`, branch `nuvem/empresa-acoes-banco-dados`) × `db/testes/empresa-acoes.db.test.ts:219-224` (`erroDoAdmin`) |
+| Tipo | teste |
+| O que se repete | (1) O `como(papel, sql, params, tenant?)` com `savepoint`/`set local role`/`rollback to savepoint` está escrito em 10 arquivos no `main` (cargo-hierarquia, diagnostico, papel-portal, perfis-acesso, portal-admin-multiperfil, portal-email-senha, portal-multiperfil, portal-redefinir-senha, senha-email-saida, super-admin) e ganhou mais 2 (empresa-acoes, dados-legais). (2) O `qsp` (comando do admin num savepoint, para o erro esperado não abortar o caso) é o mesmo `erroDoAdmin` do `empresa-acoes.db.test.ts`, no mesmo branch |
+| Impacto | manutenção: um ajuste no padrão do savepoint (como o 25P02 que motivou o `qsp`) tem de ser repetido em 12 arquivos |
+| Severidade | baixa. Está **só em teste**, então **não segura** (R-20261111-190159) e entra no lote seguinte |
+| Proposta | Em `db/testes/util.ts`, ao lado do `erroDe`: `export async function comoPapel<T>(admin, papel, sql, params = [], tenant?)` e `export async function erroNoSavepoint(admin, sql, params = [])` (o corpo do `erroDoAdmin`). O `plano-assinatura` usa `erroNoSavepoint` no lugar do `qsp`; os arquivos novos (empresa-acoes, dados-legais) usam `comoPapel`; os 10 antigos migram quando forem tocados |
+| Dono | banco-dados |
+
+**Parecer do lote 6b: segura (RD-0452, baixa, código de produção; RD-0453 só teste, não segura).**
+
+---
+
+### Lote 7a: `nuvem/empresa-acoes-banco-dados` @ `a298381f` (lido na parte 1 em `60a31e44`)
+
+Lido `git diff 60a31e44 a298381f`: um arquivo, `db/testes/plano-assinatura.db.test.ts` (+14 −2), o `qsp` em savepoint para os
+dois CHECKs esperados (23514 e 23505). A cópia do `erroDoAdmin` entra no RD-0453 (só teste). `merge-tree` com o `main` limpo.
+
+**Parecer do lote 7a: sem achado em aberto** (o RD-0453 é só de teste e não segura).
+
+---
+
+### Lote 7b: `nuvem/empresa-acoes-engenheiro-software` @ `f75cc7dc` (sem avanço desde a parte 4)
+
+O head é o mesmo que a parte 4 usou no `merge-tree`. Histórico conferido:
+- `b9e9c577` (parte 3) já tinha a forma nova: `type AutenticarPortal`, `exigirSuperAdmin(dep.autenticar, …)`.
+- `c002ecd5` mesclou o **`788cc483`** (rodapé antigo), e o `f75cc7dc` voltou a rota para a forma antiga
+  (`extends AutenticacaoDoPortal`, `exigirSuperAdmin(dep, …)`, l.43, l.105 e l.172).
+- O `16e6eb4a` (rodapé) adotou a forma do `b9e9c577`. Os dois trocaram de lado.
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0428 | Sem mudança. `merge-tree` de `16e6eb4a` com `f75cc7dc` sai sem conflito de texto, mas a árvore fica com o `portal-comum.ts` sem `AutenticacaoDoPortal` e com `empresa-acoes-portal.ts` importando esse tipo e chamando `exigirSuperAdmin(dep, …)`: o typecheck da API quebra. Proposta, a mesma: mesclar o `16e6eb4a` e voltar a rota à forma do próprio `b9e9c577` (`DepsAcoesEmpresa { autenticar: AutenticarPortal; … }`, `exigirSuperAdmin(dep.autenticar, …)`, `hint` como `string`) | **em correção** (segura este lote) |
+| RD-0406 | A API usa `chaveDeTentativaDoPortal` do SDK (`@macuxi/platform-sdk/tentativas-portal`). O Core continua com `chaveDeTentativa` (`modules/core/api/seguranca-plataforma.ts:29`) em todos os branches do Core no remoto | **em correção** (falta o modulo-core depois do merge; não segura este lote) |
+
+O commit `f75cc7dc` também acrescenta a `sa_gravar_assinatura` e as 8 da 0072 em `apps/api/test/funcoes-sa.ts` (`SA_PORTAL`,
+25) e no espelho de `scripts/deploy/producao/banco-dbaas.sh`. As três listas (banco, API e script de deploy) já eram espelhos
+conferidos por teste; o `.sh` precisa da lista em texto. `manter`. Ver a observação 7 para o testes (parte 6) (as 2 `sa_*` da 0073).
+
+**Parecer do lote 7b: segura (RD-0428).**
+
+---
+
+### Lote 7c: `nuvem/empresa-acoes-engenheiro-apps` @ `8705f496` (lido na parte 3 em `d807bcf0`)
+
+Lido `git diff d807bcf0 8705f496`: o merge do `b9e9c577` (já lido na parte 3) e o `8705f496` (RD-0429).
+
+| RD | Reteste | Status |
+|---|---|---|
+| RD-0429 | `MENSAGENS_DA_API` saiu de `apps/web/lib/portal-falso.ts`. `fraseDaApi(codigo: CodigoAcaoEmpresa)` lê `MENSAGENS_ACOES_EMPRESA` do SDK, também no 404 `naoEncontrada`. Os testes comparam com a constante do SDK, e não com a frase escrita à mão | **corrigido** |
+
+| Campo | RD-0454 |
+|---|---|
+| Onde | `apps/web/lib/portal-falso.ts:205` (`'Só o time da Macuxi usa estas ações.'`) × `apps/api/src/empresa-acoes-portal.ts:175` (`'Só o time da Macuxi faz esta ação.'`, literal sem constante) |
+| Tipo | texto |
+| O que se repete | O 403 das ações da empresa tem duas frases: a da API e a do modo falso. É a última recusa das ações que o `portal-falso.ts` ainda escreve à mão, depois do RD-0429 |
+| Impacto | leitura: o print e a demonstração no modo falso mostram uma frase que a API não manda |
+| Severidade | baixa. É texto de código de produção, então **segura** |
+| Proposta | No SDK (`packages/platform-sdk/src/empresa-acoes.ts`): `export const MENSAGEM_SO_SUPER_ADMIN_ACOES = 'Só o time da Macuxi faz esta ação.';`. A API usa em `exigirSuperAdmin(…, MENSAGEM_SO_SUPER_ADMIN_ACOES)`, e o modo falso em `erro(403, 'PERFIL_SEM_ACESSO', MENSAGEM_SO_SUPER_ADMIN_ACOES)` |
+| Dono | engenheiro-apps (constante no SDK e uso na API: engenheiro-software) |
+
+Merge: este branch carrega o `portal-comum.ts` do `b9e9c577`. `merge-tree` com o `f75cc7dc` sai limpo, mas com o `16e6eb4a`
+dá **add/add** em `apps/api/src/portal-comum.ts` e conflito em `apps/api/src/app.ts`. Depois que o 7b mesclar o `16e6eb4a`
+(RD-0428), este branch mescla o 7b corrigido antes de entrar.
+
+**Parecer do lote 7c: segura (RD-0454, baixa; ordem de merge do RD-0428).**
+
+---
+
+### Lote 8a: `nuvem/email-senha-engenheiro-software` @ `da106be2` (lido na parte 3; o `main` avançou)
+
+O head não mudou. O `main` foi de `a073edf1` (base do branch) a `b536b829` (12 PRs). Conferido o que o `main` trouxe perto do
+branch: `modules/core/api/email.ts` (só um comentário), `contracts/senha-regra.ts` (`temEspacoNasPontas`, RD-0431) e o código
+UF+4. O `DadosMensagemEmailSchema` do SDK tem o seu `.refine((s) => s === s.trim())`, mas essa linha já está no `main`
+(`modelos.ts:58`) e não é do branch; o SDK não pode importar do Core. O modelo mostra `codigo_empresa` como veio, sem regra
+própria de formato. `merge-tree` com o `main` limpo.
+
+**Parecer do lote 8a: sem achado em aberto.**
+
+### Lote 8b: `nuvem/email-senha-testes` @ `32bb52c8` (primeira avaliação)
+
+Diff completo = o lote 8a + o `32bb52c8`, que só ajusta as duas asserções de assunto do CS-09
+(`tests/integracao/api/ciclo-senha-t0094.test.ts:1124` e `:1131`) para `Subject: ${codificarCabecalho(ASSUNTOS_EMAIL[…])}\r\n`.
+Não é caso novo: troca o esperado de duas linhas que já existiam. Os testes de unidade do `mime.test.ts` e do
+`arquivo.test.ts` conferem a codificação com um assunto fixo; o CS-09 confere o assunto de cada modelo no fluxo de ponta a
+ponta. `manter`. `merge-tree` com o `main` limpo.
+
+**Parecer do lote 8b: sem achado em aberto.**
+
+---
+
+### Lote 9a: `nuvem/kit-thathyany-modulo-integracao` @ `f3619bc4` (kit 1.0.3; lido na parte 4 em `665c5c06`)
+
+Lidos os 6 commits (`98fafdd5` a `f3619bc4`, 9 arquivos): ROTEIRO, `Instalar-Thathyany.ps1`, `carga_csv.py` e o teste dele,
+`contrato.json`, `gerar.ts`, `gerar-zip.mjs`, `criar-banco.sql` e `kit-thathyany.test.ts`.
+
+O que passa:
+- As regras do Hub entram no contrato do kit por uma tabela só (`OBRIGATORIOS_EXTRA`, `REGRA_EXTRA_DO_CAMPO`,
+  `REGRAS_ENTIDADE` em `gerar.ts`), e os obrigatórios da filial vêm de `CAMPOS_OBRIGATORIOS_FILIAL` do Core, sem cópia. A sonda
+  contra o Zod real confere que kit e Hub não divergem.
+- O dígito verificador do CNPJ em Python repete o `packages/comum/src/documento.ts`, mas o kit roda sozinho no notebook, sem
+  Node do repositório: `manter`.
+- `servidor.txt` grava o servidor uma vez (instalador) e o `carga_csv.py` lê.
+- A versão do zip (`VERSAO_KIT = '1.0.3'`) e o nome no ROTEIRO batem.
+
+| Campo | RD-0455 |
+|---|---|
+| Onde | `modules/integracao/kit-thathyany/carga_csv.py:88-106` (`_dv_cpf`, `cpf_valido`), `:242-245` (regras `cpf` e `cpf_cnpj` em `converter_celula`), `:73-75` (`_so_digitos`) × `:236` (`re.sub(r"\D", "", texto)`), `:54-60` (`r".\SQLEXPRESS"` 2×); `testes/test_carga_csv.py:213-227` |
+| Tipo | código |
+| O que se repete | (1) Código morto: o contrato só emite a regra `cnpj` (`Regra` de `gerar.ts` não tem `cpf` nem `cpf_cnpj`; `contrato.json` só tem `"cnpj": true`). O próprio `gerar.ts` diz que o dígito do documento do cliente não entra, porque o Hub o trata como ausente (RN-INT-14). Mesmo assim, o Python traz `cpf_valido`, `_dv_cpf` e os ramos `cpf` e `cpf_cnpj`, com 2 testes só para eles. (2) O "só dígitos" está em `_so_digitos` e de novo, à mão, na l.236. (3) O padrão `.\SQLEXPRESS` está 2× em `servidor_padrao` |
+| Impacto | manutenção: regra que o contrato nunca liga; se alguém ligar `cpf_cnpj` no cliente, o kit passa a recusar o que o Hub aceita (contra a RN-INT-14) |
+| Severidade | baixa. É código de produção do kit, então **segura** |
+| Proposta | Apagar `_dv_cpf`, `cpf_valido`, os dois `if regra.get("cpf…")` e os testes `test_cpf_valido_e_invalido` e `test_regras_cpf_e_cpf_cnpj_na_celula`. Na l.236: `so_digitos = _so_digitos(texto) if campo["campo"] != "ean" else texto`. Em `servidor_padrao`: `SERVIDOR_PADRAO = r".\SQLEXPRESS"` no topo, usado nos dois `return` e no `help` do `--servidor` |
+| Dono | modulo-integracao |
+
+| Campo | RD-0456 |
+|---|---|
+| Onde | `modules/integracao/kit-thathyany/Instalar-Thathyany.ps1:407-409` (`Passo-Api`) × `:204-210` (`Achar-Node`) |
+| Tipo | código |
+| O que se repete | `Passo-Api` procura o `npm.cmd` com a mesma lógica do `Achar-Node` (primeiro `Program Files\nodejs\npm.cmd`, depois `Get-Command npm.cmd`), escrita de novo |
+| Impacto | manutenção: se a busca do Node mudar (como mudou neste lote), o passo 1 acha e o passo da API não |
+| Severidade | baixa. É código de produção do kit, então **segura** |
+| Proposta | Em `Passo-Api`: `$npm = Achar-Node` e `if (-not $npm) { Falha 'Nao achei o Node.js (npm.cmd). Feche e abra o PowerShell como administrador e rode de novo.' }` |
+| Dono | modulo-integracao |
+
+| Campo | RD-0457 |
+|---|---|
+| Onde | `modules/integracao/kit-thathyany/ROTEIRO.md:11` ("O que ter em mãos", item SQL Server Express) × `Instalar-Thathyany.ps1` `Detectar-Instancia` (as duas `Falha` com o link e com `-Instancia <nome>`) |
+| Tipo | doc · texto |
+| O que se repete | O item conta o que o instalador faz ("o instalador usa o que já está instalado. Se não houver, ele mostra o link…") e repete a instrução `-Instancia <nome>`, que o instalador já dá na hora em que ela é preciso (só com mais de uma instância) |
+| Impacto | leitura: o item de preparo vira explicação de funcionamento (R-20261110-192153); a mesma instrução fica em dois lugares |
+| Severidade | baixa. É doc do kit, então **segura** |
+| Proposta | "- **SQL Server Express instalado no notebook:** se ainda não houver, instale o SQL Server 2022 Express (instalação Básica) no idioma do Windows. O banco é o `ERP_THATHYANY`." |
+| Dono | modulo-integracao |
+
+| Campo | RD-0459 |
+|---|---|
+| Onde | `modules/integracao/kit-thathyany/kit-thathyany.test.ts`, `describe('T-0174 defeito 4…')`: casos "filial: o contrato do kit exige CNPJ (DV), logradouro…" e a parte do `carga_csv.py` do caso "negativo: filial sem logradouro ou com CNPJ de DV errado…" × `testes/test_carga_csv.py:234-245` e o caso "sonda" do mesmo `describe` |
+| Tipo | teste |
+| O que se repete | (1) O caso "negativo" roda o `carga_csv.py --validar` com filial sem logradouro e com CNPJ de DV errado e confere a recusa sem citar o valor: é o `test_filial_sem_logradouro_ou_com_cnpj_de_dv_errado_e_recusada_sem_citar_o_valor` do Python. (2) O caso "filial: o contrato exige…" confere os obrigatórios da filial, que a sonda já confere campo a campo contra o Zod real (e o Python, na l.241) |
+| Impacto | manutenção: a mesma regra em três testes |
+| Severidade | baixa. Está **só em teste**, então **não segura** (R-20261111-190159) e entra no lote seguinte |
+| Proposta | O caso "negativo" fica só com o lado do Hub (`SCHEMA_REGISTRO.filial.safeParse(...)` falha com o CNPJ de DV errado) e com `expect(filial.campos.find((c) => c.campo === 'cnpj')?.regra).toMatchObject({ cnpj: true })`; sai o `spawnSync` do Python e sai o caso "filial: o contrato exige…" |
+| Dono | modulo-integracao |
+
+**Parecer do lote 9a: segura (RD-0455, RD-0456 e RD-0457, baixa; RD-0459 só teste, não segura).**
+
+### Lote 9b: `nuvem/kit-ps1-parse-testes` @ `75609a4d` (primeira avaliação)
+
+Lido o commit `75609a4d` (2 arquivos novos em `tests/integracao/`): camada 1 (parser real com `pwsh`) e camada 2
+(`checarPs1`, varredura de `$nome:` em string de aspas duplas, here-string e `$(...)`), sobre todo `.ps1` de
+`modules/integracao/kit-*`. Os casos sintéticos provam acusação e não acusação. `merge-tree` com o `main` e com o 9a limpo.
+
+| Campo | RD-0458 |
+|---|---|
+| Onde | `modules/integracao/kit-thathyany/kit-thathyany.test.ts` (9a), caso "nenhum .ps1 do zip tem $var: em string (PowerShell 5.1 lê como variável de unidade)" × `tests/integracao/kits-ps1-parse.test.ts` "camada 2" e `tests/integracao/apoio/ps1-estatico.ts` (9b) |
+| Tipo | teste |
+| O que se repete | A mesma regra (o defeito do 1.0.0, `"Conector $versao: …"`) conferida 2×, com duas listas iguais dos 8 escopos válidos (`ok` × `ESCOPOS_VALIDOS`). A do 9b cobre mais (todos os `kit-*`, here-strings, `$(...)`, comentário de bloco e o parser real); a do kit é uma regex por linha sobre os `.ps1` do zip |
+| Impacto | manutenção: um escopo novo (ou um falso positivo) tem de ser ajustado em dois lugares, de dois donos |
+| Severidade | baixa. Está **só em teste**, então **não segura** (R-20261111-190159) e entra no lote seguinte |
+| Proposta | Sai o caso do `kit-thathyany.test.ts`; fica o do testes, que já lê os `.ps1` do `kit-piloto/erp-via-api` (a origem dos que o `gerar-zip.mjs` adapta) |
+| Dono | modulo-integracao (o caso a tirar é do kit; o do testes fica) |
+
+**Parecer do lote 9b: sem achado em aberto neste branch** (o RD-0458 se resolve no 9a).
+
+---
+
+## Para o testes (parte 6, sem RD)
+1. **Lote 13c × ADR 0053 §1**: o app v1.0.10 recusa token Expo (`tokenFcmValido`), mas a ADR fala em "validação que aceita
+   os dois". Conferir com o engenheiro-software qual é o comportamento certo; o RD-0442 cuida só de ter uma regra.
+2. **Lote 14**: o caso novo do `android-build.test.mjs` passa no CI sem comparar o NDK (o job não tem `node_modules`).
+   Se o RD-0447 ficar como `manter?`, a comparação precisa rodar num job que tenha o install.
+3. **Lote 4, busca do Treinamento sem Enter:** a §P4 pede "busca ao digitar, espera de 300 ms e Enter". A
+   `BuscaComEspera` do Treinamento (`trilhas-page.tsx:157-164`) só tem o `setTimeout`, sem `onKeyDown`. As listas do
+   Core e do Catálogo aplicam no Enter. O hook do kit (RD-0416) resolve; até lá, conferir se é aceito.
+4. **Lote 2, prints:** os campos de data dos prints (Indicadores "November 2026", Visitas "11/08/2026") saem no formato
+   do navegador do Playwright, que não está em pt-BR. Conferir se o BKO de verdade mostra mês e data em português, ou
+   gerar os prints com `locale: 'pt-BR'`.
+5. **Lote 5:** continuam sem prints o rodapé no aparelho e no BKO e o antes/depois de Auditoria e Início (§P11).
+6. **Lotes 6b × 7a (banco):** a 0073 depende da 0070–0072 ("o migrador recusa buraco na numeração"), mas o
+   `rodape-legal-banco-dados` não mescla o `empresa-acoes-banco-dados`. O `merge-tree` dos dois dá conflito em 6 arquivos
+   (`plataforma.ts` do Drizzle, `conferir-rls.sql`, `excecoes.ts`, `diagnostico.test.ts`, `estatico.test.ts`,
+   `funcoes-sa.ts`). Os dois criam `FUNCOES_SA_ATE_0069` e mudam `FUNCOES_SA_ATUAIS` (25 × 18; junto: 27).
+7. **Lotes 6a/6b × 7b (listas de `sa_*`):** nenhum branch da API acrescenta `sa_dados_legais(uuid)` e
+   `sa_gravar_dados_legais(uuid, jsonb)` em `apps/api/test/funcoes-sa.ts` (`SA_PORTAL`) e no espelho do
+   `scripts/deploy/producao/banco-dbaas.sh`. Com a 0073 no `main`, o `funcoes-sa.test.ts` da API e a conferência do deploy
+   ("sa_* do catálogo fora das duas listas = erro") devem falhar. Conferir também onde entra a `dados_legais_publicos()`
+   (EXECUTE do `macuxi_app`).
+8. **Lote 7b:** o typecheck da API quebra no segundo merge (`16e6eb4a` + `f75cc7dc`), como na parte 4; o `merge-tree` não
+   acusa porque o conflito não é de texto.
+
+## Para o gerente (parte 6)
+- **Decisões a e b** (acima): o designer-ux precisa de tarefa para o lote do kit em `packages/ui` com
+  `ESPERA_BUSCA_MS`, `useBuscaComEspera` e `LimparFiltros` (cópia de `modules/catalogo/web/lib/lista.tsx`) e com o
+  `rodape-legal` (cópia de `apps/web/lib/rodape-legal.ts`). Depois, Core, Catálogo, Treinamento e o shell (Auditoria e
+  rodapé) trocam o import. Os botões "Limpar filtros" à mão que já estão no `main` (Integração `lotes-panel.tsx:73`,
+  Pesquisa `questionarios-page.tsx:127`, Promotor `trade-page.tsx:105`, Vendedor `orders-page.tsx:118`,
+  `formas-pagamento-page.tsx:164` e `transportadoras-page.tsx:139`) entram no próximo lote de cada um.
+- **PR #298 continua preso** pelo RD-0441 (sem push novo; modulo-vendedor e testes juntos).
+- **Ordem do push**: o PR #312 (Core) traz o commit `46b8c6b3` do #311 (governança) empilhado. Mergear o #311 primeiro (com a
+  autorização do dono do produto) e só depois o #312, para o #312 não levar governança sem a autorização.
+- **#311 liberado** pelo corretor. O **#312** espera o RD-0443; o **branch dos apps** espera o RD-0442 (com o contrato do
+  Core; se a função entrar no #312, o app depende dele).
+- **Cabeçalho do shell** (`b227367e`): conflito com o `main` em `.coord/diario/modulo-core.md`, porque os commits do Core
+  entraram em squash pelo #297. O engenheiro-apps mescla o `main` no branch (sem rebase); o diário do Core deve ficar como
+  está no `main`. Do contrário, o PR leva linhas de diário de outro dono.
+- **Ordem de merge da API e do portal:** 6a (`16e6eb4a`) → 7b mescla o 6a e volta à forma do `b9e9c577` (RD-0428) → 7c
+  mescla o 7b corrigido. Hoje o 7c dá add/add com o 6a.
+- **Ordem do banco:** 7a (0070–0072) antes do 6b (0073), com o 6b mesclando o 7a.
+
+## Para o design-de-marca (parte 6)
+- **Lote 2 (Core):** MC-0073, selo de inativo em `neutral` em Filiais, Fotos do PDV, Motivos e Medidas (cor).
+- **Lote 3 (Catálogo):** MC-0071 e MC-0072 (parte 4) continuam pendentes.
+- **Lote 4 (Treinamento):** MC-0065 continua pendente.
+- **Lote 5 (shell):** rodapé legal e MC-0074 (`accent-color: var(--color-accent)` nas caixas nativas, `globals.css`).
+- **Lote 11 (logo do cliente):** os prints da carga (`carga-campo.png` e `carga-gestao.png`) precisam ser refeitos pelo
+  RD-0451 e validados depois.
+- **Lote 12 (cabeçalho):** sem mudança de cor nem de layout neste delta (os 2 prints são os do #297); não precisa.
