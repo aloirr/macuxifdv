@@ -297,7 +297,7 @@ Clientes (RD-0365): o Cliente 360 é o detalhe do cliente, então abre pelo cliq
 **Hoje.** Três mapas de nome de módulo e telas que mostram o id:
 - `licencas-page.tsx:167` mostra o id na tabela ("vendedor", "integracao") e no diálogo "Ativar vendedor?" (`:212`);
 - `apps/web/components/portal/passo-empresa.tsx:34` tem o próprio `ROTULO_MODULO` (nome e frase), usado em `tela-empresa.tsx:167`, `tela-empresas.tsx` e `cartao-equipe.tsx`;
-- `packages/ui/src/web/adicionais.tsx` (MC-0042) tem nome e ícone dos adicionais, com "Promotor Avulso".
+- `packages/ui/src/web/adicionais.tsx` (MC-0042) tem o próprio mapa de nome e ícone dos adicionais.
 
 **Regra.**
 1. Uma fonte só: `modulos.tsx` (id → nome → ícone → frase de valor). Ícones de Promotor, Pesquisa e Treinamento já são os mesmos de `icons.tsx` (MC-0042), um desenho por módulo.
@@ -305,7 +305,7 @@ Clientes (RD-0365): o Cliente 360 é o detalhe do cliente, então abre pelo cliq
 3. Ligar e desligar módulo usa o `CartaoDeModulo` (ícone, nome, frase de valor e interruptor Sim/Não).
 
 **Texto final.** Nomes: Gestor, Pesquisa, Promotor, Treinamento, Vendedor (nativos: Catálogo, Core, Integração com o ERP). Frases de valor só dos contratáveis (RD-0370): Gestor "Equipe, aprovações e indicadores.", Pesquisa "Questionários na visita, com fotos e resultados.", Promotor "Gôndola, share, preço, ruptura e validade no PDV.", Treinamento "Trilhas, quizzes e ranking para a equipe de campo.", Vendedor "Pedidos e orçamentos no app.". Os nativos ficam sem frase (não aparecem em lista).
-Nome do adicional: "Promotor" em todo lugar, com "avulso" só na linha do preço (recomendação da marca, usada por ora; decisão e da §P13). `adicionais.tsx` lê nome e ícone de `modulos.tsx` (RD-0366): um mapa só.
+Nome do adicional: "Promotor" em todo lugar, com "avulso" só na linha do preço (decisão e da §P13, R-20261114-205500-alexandre). `adicionais.tsx` lê nome e ícone de `modulos.tsx` (RD-0366): um mapa só.
 Ícones: todos em `icons.tsx` (`IconVendedor`, `IconGestor`, `IconPromotor`, `IconPesquisa`, `IconTreinamento`, `IconCore`, `IconCatalogo`, `IconIntegracao` e o `IconMais` do "⋯"), com um traço só, 1,9 (RD-0367); `modulos.tsx` só mapeia o id ao ícone.
 
 **Mudam:** Licenças, Perfis (módulos do perfil), gaveta de Novo usuário, portal (`passo-empresa.tsx`, `tela-empresa.tsx`, `tela-empresas.tsx`, `cartao-equipe.tsx`).
@@ -350,7 +350,7 @@ a. **Atualizar e Exportar CSV no "⋯" da página** (§P1): a página fica só c
 b. **Pendências só com item** (§P6): "Aguardando aprovação" some quando não há pedido pendente.
 c. **Farol** (§P2, §P4, §P6, §P9): abas Clientes e Vendedores no lugar de dois quadros; os KPIs filtram e o select "Farol" sai; "Positivação 62%" na cor da faixa, sem selo; colunas Cliente · Vendedor · Dias sem compra · Farol (saem Última compra, Positivado e Documento); legenda das faixas e parâmetros na gaveta "Parâmetros do farol"; sai o KPI "Clientes na carteira" (o número está na aba).
 d. **Formulário na gaveta** (§P8) em vez do quadro no meio da página.
-e. **Nome do adicional**: "Promotor" em todo lugar, com "avulso" só na linha do preço (recomendação da marca, já no kit), ou "Promotor Avulso". O kit tem um mapa só (`adicionais.tsx` lê de `modulos.tsx`): a decisão muda uma linha.
+e. **Nome do adicional: decidida** (R-20261114-205500-alexandre). "Promotor" em todo lugar; "avulso" só na linha do preço ("Promotor · R$ 80,00 por licença avulsa/mês"). O kit já segue (`adicionais.tsx` lê de `modulos.tsx`).
 f. **"Período" num campo só** (§P4) no lugar de "De" e "Até": pede um seletor de intervalo de datas no kit (`packages/ui`), feito depois da aprovação.
 g. **"Desc." sai da lista de Pedidos** (§P2): o desconto fica no detalhe do pedido e no cartão da aprovação.
 h. **Pedido pendente num lugar só** (§P6, RD-0363). Hoje ele aparece no quadro de pendências e na lista.
