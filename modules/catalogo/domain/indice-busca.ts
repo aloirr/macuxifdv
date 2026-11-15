@@ -8,7 +8,7 @@
 import type { FiltrosInterpretados } from '../contracts';
 import { anoCivilNoFuso } from './ano-civil';
 import { expandirAplicacao } from './aplicacao';
-import { casaComCodigo, cmp, codigoCompacto, codigosDaConsulta, nivelDaPalavra, nomeChave, notaFinal, soCasaExato, TOKENS_DO_PRODUTO, tokensDoDoc, toleranciaDaPalavra } from './ranking';
+import { casaComCodigo, cmp, codigoCompacto, codigosCompactosDoProduto, codigosDaConsulta, nivelDaPalavra, nomeChave, notaFinal, soCasaExato, TOKENS_DO_PRODUTO, tokensDoDoc, toleranciaDaPalavra } from './ranking';
 import { chaveDeTermo, expandirSinonimos, tokensDeBuscaSemMemo, type SinonimoDoTenant } from './texto';
 import { aplicarChips, entraNaVitrine, temEstoqueParaBusca, type ChipsVitrine, type ContextoVitrine, type ProdutoCatalogo } from './vitrine';
 import { filtrosParaPerfil } from './visibilidade';
@@ -105,7 +105,7 @@ export class ConstrutorIndice {
   private produto(i: number): void {
     const p = this.produtos[i]!;
     const atributos = p.atributos.map((x) => `${x.name} ${x.value}`).join(' ');
-    const tk = tokensDoDoc({ sku: p.sku, ean: p.ean, nome: p.nome, marca: p.marca, categoria: p.categoria, atributos, referencias: p.referencias ?? [] }, true);
+    const tk = tokensDoDoc({ sku: p.sku, ean: p.ean, external_id: p.external_id, descricao: p.descricao, nome: p.nome, marca: p.marca, categoria: p.categoria, atributos, referencias: p.referencias ?? [] }, true);
     TOKENS_DO_PRODUTO.set(p, tk);
     for (const campo of [tk.nome, tk.codigo, tk.marca, tk.categoria, tk.atributos]) for (const x of campo) acrescentar(this.porTermo, x, i);
     for (const r of p.referencias ?? []) acrescentar(this.porCodigo, codigoCompacto(r.codigo), i);
@@ -116,7 +116,7 @@ export class ConstrutorIndice {
       for (const x of tokensDeBuscaSemMemo(e.textoIndice)) acrescentar(this.porTermoApl, x, i);
       if (e.anos.length > 0) this.anos[i] = e.anos;
     }
-    acrescentar(this.porCodigo, codigoCompacto(p.sku), i);
+    for (const c of codigosCompactosDoProduto(p.sku, p.external_id, [])) acrescentar(this.porCodigo, c, i);
     if (p.ean) acrescentar(this.porCodigo, p.ean, i);
     this.marcaChave[i] = chaveDeTermo(p.marca);
     this.categoriaChave[i] = chaveDeTermo(p.categoria);

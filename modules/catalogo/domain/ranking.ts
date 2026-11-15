@@ -17,11 +17,15 @@ export interface DocBusca {
   /** Código ERP/SKU. */
   sku: string;
   ean: string | null;
+  /** Código do produto no ERP (RN-CAT-08: a busca acha por ele, como pelo SKU). */
+  external_id?: string | null | undefined;
   nome: string;
   marca: string;
   categoria: string;
   /** Atributos técnicos em texto livre (quanto menos peso, mais genérico). */
   atributos: string;
+  /** Descrição longa do conteúdo (RN-CAT-08): entra na busca com o peso dos atributos, o menor. */
+  descricao?: string | null | undefined;
   /** RN-CAT-11: Aplicação (descrição 2) do cadastro; '' = sem aplicação (o ranking fica igual ao de antes). */
   aplicacao: string;
   /** RN-CAT-09: referências cruzadas ativas (até 3); marca inativa já fica de fora. */
@@ -48,17 +52,36 @@ export interface TokensDoDoc {
 }
 
 /** Termos dos campos do documento. `semMemo` evita encher a memória de textos normalizados na carga de 20 mil produtos. */
-export function tokensDoDoc(d: Pick<DocBusca, 'sku' | 'ean' | 'nome' | 'marca' | 'categoria' | 'atributos' | 'referencias'>, semMemo = false): TokensDoDoc {
+export function tokensDoDoc(d: Pick<DocBusca, 'sku' | 'ean' | 'nome' | 'marca' | 'categoria' | 'atributos' | 'referencias'> & Partial<Pick<DocBusca, 'external_id' | 'descricao'>>, semMemo = false): TokensDoDoc {
   const tk = semMemo ? tokensDeBuscaSemMemo : tokensDeBusca;
   const referencias = d.referencias ?? [];
   const codigosRef = referencias.flatMap((r) => [...tk(r.codigo), codigoCompacto(r.codigo)]).filter(Boolean);
+  const codigoErp = d.external_id?.trim() ?? '';
   return {
     nome: tk(d.nome),
-    codigo: tk(`${d.sku} ${d.ean ?? ''}`.trim()).concat([d.sku, d.ean ?? ''].map((c) => chaveDeTermo(c)).filter(Boolean), codigoCompacto(d.sku) || [], codigosRef),
-    marca: tk(d.marca),
+    codigo: tk(`${d.sku} ${d.ean ?? ''} ${codigoErp}`.trim()).concat([d.sku, d.ean ?? '', codigoErp].map((c) => chaveDeTermo(c)).filter(Boolean), codigoCompacto(d.sku) || [], codigoErp ? codigoCompacto(codigoErp) || [] : [], codigosRef),
+    marca: tk(`${d.marca} ${marcasDasReferencias(referencias)}`.trim()),
     categoria: tk(d.categoria),
-    atributos: tk(d.atributos),
+    atributos: tk(`${d.atributos} ${textoDescricaoParaBusca(d.descricao)}`.trim()),
   };
+}
+
+/** Tamanho máximo da descrição longa que entra na busca (20 mil produtos: o índice não pode crescer sem limite). */
+export const LIMITE_DESCRICAO_BUSCA = 400;
+
+/** RN-CAT-08: descrição longa do conteúdo como entra na busca (primeiros 400 caracteres; vazia = ''). */
+export function textoDescricaoParaBusca(descricao: string | null | undefined): string {
+  return (descricao ?? '').trim().slice(0, LIMITE_DESCRICAO_BUSCA);
+}
+
+/** RN-CAT-09: marcas concorrentes das referências cruzadas (sem repetir) como texto de busca; sem marca = ''. */
+export function marcasDasReferencias(referencias: readonly { marca_nome?: string | null | undefined }[]): string {
+  return [...new Set(referencias.map((r) => r.marca_nome?.trim() ?? '').filter(Boolean))].join(' ');
+}
+
+/** RN-CAT-08/09: códigos compactos do produto no índice (SKU, código ERP e códigos das referências), sem repetir nem vazios. Uma função para o índice do app e o da API. */
+export function codigosCompactosDoProduto(sku: string, externalId: string | null | undefined, codigosReferencias: readonly string[]): string[] {
+  return [...new Set([codigoCompacto(sku), codigoCompacto(externalId ?? ''), ...codigosReferencias.map((c) => codigoCompacto(c))].filter(Boolean))];
 }
 
 /** Termos já preparados por produto (carga do índice); a vida da entrada é a do objeto do produto. */
