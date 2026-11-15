@@ -124,3 +124,4 @@
 2026-11-15 — T-0174 — spec Fotos em lote (docs/design/telas/fotos-em-lote.md), repetido = 4º cartão só com >0; Progresso exportado no kit web
 2026-11-15 — T-0174 — KpiCard com onClick/selecionado (MC-0090), Progresso mostrarRotulo='valor', spec Fotos em lote sem repetição (RD-0615, RD-0616, RD-0622)
 2026-11-15 — T-0174 (#366) — RD-1222: a spec Fotos em lote (§1 e §6.1) cita a frase de acesso da página
+2026-11-15 — T-0174 (#366) — RD-1273: a §1 da spec remete ao aviso de acesso da §6.1 (frase uma vez só)

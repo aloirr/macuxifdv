@@ -19,7 +19,7 @@
 |---|---|
 | Menu | grupo **Produtos**, item **Fotos em lote** (ordem alfabética: Catálogo, Fotos em lote, Marcas concorrentes, Preço e custo, Tabelas de preço) |
 | Rotas | `/catalogo/fotos-lote` (envio e lotes recentes) · `/catalogo/fotos-lote?lote=<id>&filtro=<cartão>` (um lote, na mesma página; `filtro` só com cartão marcado: `ligadas`, `pendencias`, `recusadas`, `repetidas`; o Voltar do navegador volta para a lista) |
-| Ação | `produto.enriquecer`; sem a ação, o item não aparece no menu e a URL mostra `Você não tem acesso a Fotos em lote. Peça ao administrador da sua empresa.` (6.1) |
+| Ação | `produto.enriquecer`; sem a ação, o item não aparece no menu e a URL mostra o aviso de acesso da §6.1 |
 | Título da página (`titulo`/`navegacao`) | `Fotos em lote` |
 
 A rota própria `/catalogo/fotos-lote/:id` depende de rota dinâmica no shell (engenheiro-apps) e fica fora desta tarefa (RD-0622).
