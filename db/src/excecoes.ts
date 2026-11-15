@@ -21,6 +21,8 @@ export const TABELAS_SEM_TENANT_ID = {
   'plataforma.portal_sessao': 'sessão do portal, super-admin ou admin do cliente (ADR 0031); só por função',
   /** tenant_alvo_id (sem FK) no lugar de tenant_id, como na auditoria_plataforma: não é tabela de tenant. */
   'plataforma.portal_sessao_empresa': 'empresas conferidas no login do portal (ADR 0031); só por função',
+  /** Catálogo de planos (0070, ADR 0047 §1): dado da PLATAFORMA, igual para todos os tenants; só pelas funções plataforma.sa_*. */
+  'plataforma.plano': 'catálogo de planos da plataforma, fora dos tenants (ADR 0047); só por função',
 } as const;
 
 /**
@@ -37,6 +39,8 @@ export const TABELAS_SO_POR_FUNCAO = [
   'plataforma.portal_tentativa',
   'plataforma.portal_sessao',
   'plataforma.portal_sessao_empresa',
+  /** 0070 (ADR 0047): catálogo de planos; lido e gravado só pelas sa_* do portal. */
+  'plataforma.plano',
 ] as const;
 
 /** Tabelas sem o índice de sync (tenant_id, updated_at, id): não são puxadas pelo app. */
@@ -62,6 +66,8 @@ export const TABELAS_FORA_DO_SYNC = [
   'plataforma.arquivo',
   /** Diagnóstico do aparelho (0058, T-0158, ADR 0043): o app só envia (POST /v1/diagnosticos); só o portal do super-admin lê. */
   'plataforma.diagnostico',
+  /** Assinatura do tenant (0070, ADR 0047 §2): uma por tenant; o portal grava (sa_gravar_assinatura) e a API lê; nunca vai ao aparelho. */
+  'plataforma.assinatura',
   /** Contador do número legível do pedido (0009, T-0029): uma linha por tenant, só o servidor usa. */
   'vendedor.numeracao_pedido',
   /** Cota de IA por usuário/dia (0013, RN-CAT-03): só o servidor usa (catalogo.debitar_cota_ia). */
