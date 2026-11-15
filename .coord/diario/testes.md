@@ -158,3 +158,4 @@
 2026-11-14 — v1.0.6 — desvios de spec D-V106-1..4 em teste e roteiro do aparelho
 2026-11-13 — v1.0.6 — main vermelho (run 43545686800, 1bdf5d16): tests/modulos/desvios-spec-v106.test.ts D-V106-3 atualizado ao #151 (Equivale a em linhaDaMarca/grade.ts; D-V106-3a TalkBack corrigido, it.fails → it); 7/7 verdes contra o main
 2026-11-15 — T-0182 — ajustes da revisão: leitura de outra empresa = 403 com frase de acesso e 42501 da sa_marca_da_empresa; frase nova do lado máximo; LC-02 enxuto (RD-0706); defeito de texto do 42501 na leitura (empresa-logo.ts:113, engenheiro-software)
+2026-11-15 — T-0182 — conferência final do lote integrado: smoke-demo passa a usar nomeDaEmpresaParaPdf (typecheck:tests); defeito de texto restante em apps/web/lib/portal-falso.ts:140 (engenheiro-apps)
