@@ -11,3 +11,4 @@ export * from './csv';
 export * from './dado-pessoal';
 export * from './endereco';
 export * from './numeros';
+export * from './fonte';
