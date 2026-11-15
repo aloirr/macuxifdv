@@ -2,7 +2,7 @@
 
 import { formatPct } from '@macuxi/comum';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { type ColunaDaTabela, ErrorBlock, LoadingBlock, Panel, TabelaDados } from '@macuxi/ui/web';
+import { type ColunaDaTabela, ErrorBlock, LoadingBlock, TabelaDados } from '@macuxi/ui/web';
 import { useAlcadas } from '../lib/queries';
 
 interface Faixa {
@@ -38,9 +38,7 @@ export function AlcadasPage() {
       {alcadas.isError && <ErrorBlock message={errorMessage(alcadas.error)} onRetry={() => void alcadas.refetch()} />}
       {alcadas.isPending && <LoadingBlock label="Carregando as alçadas…" />}
       {p && (
-        <Panel label="Limites" title="Limites por nível">
-          <TabelaDados rotulo="Limites por nível" colunas={colunasFaixas} linhas={faixas} chave={(f) => f.id} testId="alcadas.tabela" />
-        </Panel>
+        <TabelaDados rotulo="Alçadas" colunas={colunasFaixas} linhas={faixas} chave={(f) => f.id} testId="alcadas.tabela" />
       )}
     </div>
   );

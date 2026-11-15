@@ -1,7 +1,7 @@
 'use client';
 
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { type ColunaDaTabela, ErrorBlock, EstadoVazio, formatDateTime, Panel, TabelaDados } from '@macuxi/ui/web';
+import { type ColunaDaTabela, ErrorBlock, formatDateTime, Panel, TabelaDados } from '@macuxi/ui/web';
 import { useDecisoesRecentes, useSessaoDoBko } from '../../lib/queries';
 
 const ROTULO_ACAO: Record<string, string> = { 'pedido.aprovar': 'Aprovou', 'pedido.rejeitar': 'Rejeitou', 'pedido.cancelar': 'Cancelou' };
@@ -15,17 +15,17 @@ export function DecisoesAlcada() {
     { id: 'quem', titulo: 'Quem', celula: (d) => d.usuario_nome ?? '—', texto: (d) => d.usuario_nome ?? '' },
     { id: 'o-que', titulo: 'O que', celula: (d) => ROTULO_ACAO[d.acao] ?? d.acao, texto: (d) => ROTULO_ACAO[d.acao] ?? d.acao, largura: '25%' },
   ];
+  if (decisoes.data && decisoes.data.length === 0) return null;
   return (
-    <Panel label="Decisões recentes" title="Decisões recentes de pedidos">
+    <Panel label="Decisões recentes" title="Decisões de alçada">
       {decisoes.isError && <ErrorBlock message={errorMessage(decisoes.error)} onRetry={() => void decisoes.refetch()} />}
       {decisoes.data && (
         <TabelaDados
-          rotulo="Decisões recentes de pedidos"
+          rotulo="Decisões de alçada"
           colunas={colunas}
           linhas={decisoes.data}
           chave={(d) => d.id}
           testId="alcadas.decisoes"
-          vazio={<EstadoVazio titulo="Nenhuma decisão registrada." />}
         />
       )}
     </Panel>
