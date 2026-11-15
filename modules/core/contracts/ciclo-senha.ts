@@ -142,6 +142,15 @@ export function validarEsqueci(c: CamposEsqueci): ErrosEsqueci {
   return erros;
 }
 
+/** RF-CORE-01: mensagem do código da empresa inválido, com o motivo real (curto, longo ou caractere); `null` se vale. O tamanho vem antes do caractere. */
+export function erroDoCodigoEmpresa(valor: string): string | null {
+  const v = valor.trim();
+  if (CodigoEmpresaSchema.safeParse(v).success) return null;
+  if (v.length < 2) return 'O código da empresa tem no mínimo 2 caracteres. Confira no e-mail e digite de novo.';
+  if (v.length > 40) return 'O código da empresa tem no máximo 40 caracteres. Confira no e-mail e digite de novo.';
+  return 'O código da empresa tem só letras, números e hífen, sem espaços. Confira no e-mail e digite de novo.';
+}
+
 export interface CamposLogin {
   codigo_empresa: string;
   email: string;
@@ -153,7 +162,10 @@ export type ErrosLogin = Partial<Record<keyof CamposLogin, string>>;
 export function validarLogin(c: CamposLogin): ErrosLogin {
   const erros: ErrosLogin = {};
   if (!c.codigo_empresa.trim()) erros.codigo_empresa = 'Informe o código da empresa (quem administra o sistema na sua empresa sabe qual é).';
-  else if (!CodigoEmpresaSchema.safeParse(c.codigo_empresa).success) erros.codigo_empresa = 'O código da empresa tem só letras, números e hífen. Confira e digite de novo.';
+  else {
+    const e = erroDoCodigoEmpresa(c.codigo_empresa);
+    if (e) erros.codigo_empresa = e;
+  }
   if (!c.email.trim()) erros.email = 'Informe o seu e-mail.';
   else if (!ehEmailValido(c.email)) erros.email = 'Esse e-mail não parece certo. Confira e digite de novo.';
   if (!c.senha) erros.senha = 'Informe a sua senha.';

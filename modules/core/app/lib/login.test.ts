@@ -21,6 +21,10 @@ describe('RF-CORE-01: login do app', () => {
     });
     expect(validarLogin({ codigo_empresa: 'alfa', email: 'sem-arroba', senha: 'x' }).email).toContain('e-mail');
     expect(validarLogin({ codigo_empresa: 'a b', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('letras, números e hífen');
+    expect(validarLogin({ codigo_empresa: 'a'.repeat(41), email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('no máximo 40 caracteres');
+    expect(validarLogin({ codigo_empresa: `${'a'.repeat(30)} ${'b'.repeat(15)}`, email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('no máximo 40');
+    expect(validarLogin({ codigo_empresa: 'a', email: 'v@x.com', senha: 'x' }).codigo_empresa).toContain('no mínimo 2');
+    expect(validarLogin({ codigo_empresa: 'a'.repeat(40), email: 'v@x.com', senha: 'x' })).toEqual({});
     expect(validarLogin({ codigo_empresa: ' Alfa ', email: ' v@x.com ', senha: 'x' })).toEqual({});
   });
 
