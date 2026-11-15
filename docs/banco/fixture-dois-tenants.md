@@ -241,7 +241,7 @@ padrão do Core vêm do gatilho do tenant.
   `plataforma.diagnostico_protocolo_seq` (a fixture não grava a coluna; o número muda entre bancos). Testes que precisam de
   pendente, de print ou de diagnóstico velho (expurgo) gravam o seu em transação desfeita.
 
-## 0070 — pacote da primeira carga (ADR 0054)
+## 0074 — pacote da primeira carga (ADR 0054)
 - **Pacotes** (`SYNC_PACOTE_FIXTURE`, grupo `0x67`, `plataforma.sync_pacote`): A com `catalogo`·`tenant` pronto,
   `catalogo`·`filial:<padrão de A>` pronto e um `catalogo`·`tenant` substituído; B com `core`·`tenant` pronto. Chave no formato
   do CHECK (`sync-pacotes/<tenant>/<modulo>/<particao>/<id>.sqlite.gz`), `geracao_base` fixa (não é a do tenant), md5 de exemplo.

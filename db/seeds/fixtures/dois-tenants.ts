@@ -78,7 +78,7 @@
  *   (A: equipe-2 visitas_dia 12 desde 2026-01; B: tenant km_dia 150 km desde 2026-01); resumo de km de ontem (A: promotor;
  *   B: vendedor-B). Fora dos usuários e das vigências que os testes t0170-*.db.test.ts usam (analista, assistente,
  *   vendedor-1 nas metas e no km, 2030-01, 2031-12, 2032-01).
- * - 0070 (ADR 0054; SYNC_PACOTE_FIXTURE, grupos 0x67 e 0x68): pacotes da primeira carga — A com o 'catalogo' · 'tenant'
+ * - 0074 (ADR 0054; SYNC_PACOTE_FIXTURE, grupos 0x67 e 0x68): pacotes da primeira carga — A com o 'catalogo' · 'tenant'
  *   pronto, o 'catalogo' · 'filial:<padrão>' pronto e um 'catalogo' · 'tenant' substituído; B com o 'core' · 'tenant' pronto.
  *   Pedidos de geração já atendidos (A: lote; B: manifesto): nenhum pendente (o teste grava o seu em transação desfeita).
  */
@@ -202,7 +202,7 @@ const G = {
   usuario_avatar: 0x64,
   meta_produtividade: 0x65,
   deslocamento_dia: 0x66,
-  // 0070 (ADR 0054): pacote da primeira carga e pedido de geração
+  // 0074 (ADR 0054): pacote da primeira carga e pedido de geração
   sync_pacote: 0x67,
   sync_pacote_pedido: 0x68,
 } as const;
@@ -356,7 +356,7 @@ export const DIAGNOSTICOS_FIXTURE = {
 } as const;
 
 /**
- * 0070 (ADR 0054): pacotes da primeira carga e pedidos de geração (ver o cabeçalho). geracao_base fixa (a do tenant é aleatória
+ * 0074 (ADR 0054): pacotes da primeira carga e pedidos de geração (ver o cabeçalho). geracao_base fixa (a do tenant é aleatória
  * na fixture; o gerador grava a do tenant). Nenhum pedido pendente.
  */
 export const SYNC_PACOTE_FIXTURE = {
@@ -625,7 +625,7 @@ export const ORDEM_TABELAS = [
   'plataforma.email_saida',
   // 0058 (T-0158): diagnóstico do aparelho (FK composta -> core.usuario); alerta já resolvido, sem print
   'plataforma.diagnostico',
-  // 0070 (ADR 0054): pacote da primeira carga e pedido de geração (sem FK além do tenant)
+  // 0074 (ADR 0054): pacote da primeira carga e pedido de geração (sem FK além do tenant)
   'plataforma.sync_pacote',
   'plataforma.sync_pacote_pedido',
   'plataforma.evento',
@@ -1750,7 +1750,7 @@ function diagnostico(id: string, tenant_id: string, usuario_id: string, perfil: 
   };
 }
 
-/** 0070 (ADR 0054): pacote com a chave do armazenamento no formato do CHECK sync_pacote_chave_do_tenant. */
+/** 0074 (ADR 0054): pacote com a chave do armazenamento no formato do CHECK sync_pacote_chave_do_tenant. */
 function syncPacote(id: string, tenant_id: string, modulo: string, filial_id: string | null, extra: Partial<Linha>): Linha {
   const particao = filial_id ? `filial:${filial_id}` : 'tenant';
   return {
@@ -1762,7 +1762,7 @@ function syncPacote(id: string, tenant_id: string, modulo: string, filial_id: st
   };
 }
 
-/** 0070 (ADR 0054): pedido de geração já atendido (nenhum pendente na fixture). */
+/** 0074 (ADR 0054): pedido de geração já atendido (nenhum pendente na fixture). */
 function syncPacotePedido(id: string, tenant_id: string, modulo: string, filial_id: string | null, origem: 'lote' | 'manifesto' | 'agendado'): Linha {
   return {
     id, tenant_id, modulo, particao: filial_id ? `filial:${filial_id}` : 'tenant', filial_id, origem, situacao: 'atendido',

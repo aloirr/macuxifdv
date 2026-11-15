@@ -1,4 +1,4 @@
--- 0070_plataforma_sync_pacote (down) — desfaz a 0070 (pacote pronto da primeira carga, ADR 0054) e volta ao catálogo da 0069.
+-- 0074_plataforma_sync_pacote (down) — desfaz a 0074 (pacote pronto da primeira carga, ADR 0054) e volta ao catálogo da 0073.
 -- APAGA plataforma.sync_pacote (metadados dos pacotes) e plataforma.sync_pacote_pedido (fila de geração) e o índice
 -- catalogo.tabela_preco_item_filial_sync_ix. Os arquivos no armazenamento (sync-pacotes/<tenant_id>/...) FICAM: antes do
 -- down, liste as chaves com

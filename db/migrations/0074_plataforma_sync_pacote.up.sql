@@ -1,6 +1,6 @@
--- 0070_plataforma_sync_pacote (up) — pacote pronto da primeira carga (solução 4 do catálogo; R-20261115-070200-alexandre,
+-- 0074_plataforma_sync_pacote (up) — pacote pronto da primeira carga (solução 4 do catálogo; R-20261115-070200-alexandre,
 -- ADR 0054 proposta). Desenho docs/desenho/T-catalogo-pacote.md §1.4 (gerador e gatilhos), §1.6 (manifesto) e §5 tarefa B.
--- Migração em cima da 0069. Dicionário: docs/banco/sync-pacote.md. Teste: db/testes/sync-pacote.db.test.ts (estático na
+-- Migração em cima da 0073. Dicionário: docs/banco/sync-pacote.md. Teste: db/testes/sync-pacote.db.test.ts (estático na
 -- sessão; banco e up/down no CI).
 --
 -- Migração ADITIVA: 2 tabelas novas em plataforma e 1 índice em catalogo.tabela_preco_item. Nada existente muda.
@@ -39,7 +39,7 @@
 -- filial_id) parcial. catalogo.tabela_preco_item_filial_sync_ix (tenant_id, filial_id, updated_at, id): leitura por filial do
 -- pull (filtroFilial do Catálogo) e do pacote.puxar (páginas de 5.000 até o horizonte), pedido no desenho §5 B.
 --
--- Caminho de volta: 0070_plataforma_sync_pacote.down.sql (APAGA as 2 tabelas e o índice). Os arquivos no armazenamento
+-- Caminho de volta: 0074_plataforma_sync_pacote.down.sql (APAGA as 2 tabelas e o índice). Os arquivos no armazenamento
 -- (sync-pacotes/<tenant_id>/...) FICAM: liste antes as chaves com
 --   select chave_armazenamento from plataforma.sync_pacote where situacao <> 'apagado';
 -- e apague os objetos. Pré-condição: a API e o worker sem as rotas e o gerador de pacotes (MACUXI_SYNC_PACOTES desligado);

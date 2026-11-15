@@ -790,6 +790,6 @@ select id, tenant_id, protocolo, origem, app, versao_app, aparelho_modelo, andro
  order by recebido_em limit 10 for update skip locked;
 ```
 
-### 0070 — pacote pronto da primeira carga (`0070_plataforma_sync_pacote`; ADR 0054)
+### 0074 — pacote pronto da primeira carga (`0074_plataforma_sync_pacote`; ADR 0054)
 `plataforma.sync_pacote` e `plataforma.sync_pacote_pedido`: dicionário completo, RLS, grants, índices e ciclo de vida em
 [sync-pacote.md](sync-pacote.md).

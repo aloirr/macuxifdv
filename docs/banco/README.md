@@ -201,7 +201,7 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > [plataforma.md](plataforma.md) e no [core.md](core.md); teste `db/testes/cargo-hierarquia.db.test.ts`; diagnóstico
 > `db/scripts/diagnostico-0069.sql`.
 >
-> **2026-11-15 (ADR 0054, pacote pronto da primeira carga):** `0070_plataforma_sync_pacote` (em cima da 0069; aditiva):
+> **2026-11-15 (ADR 0054, pacote pronto da primeira carga):** `0074_plataforma_sync_pacote` (em cima da 0073; aditiva):
 > `plataforma.sync_pacote` (um `.sqlite.gz` por tenant, módulo e partição; um só pronto vivo por partição; chave do arquivo com o
 > tenant da linha) e `plataforma.sync_pacote_pedido` (pedido de geração idempotente por partição), fora do sync; app lê e pede,
 > worker gera; índice `catalogo.tabela_preco_item_filial_sync_ix (tenant_id, filial_id, updated_at, id)`. Detalhes no

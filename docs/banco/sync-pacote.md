@@ -1,6 +1,6 @@
-# Pacote pronto da primeira carga — `plataforma.sync_pacote` e `plataforma.sync_pacote_pedido` (0070)
+# Pacote pronto da primeira carga — `plataforma.sync_pacote` e `plataforma.sync_pacote_pedido` (0074)
 
-Dono: `banco-dados`. Migração `db/migrations/0070_plataforma_sync_pacote.{up,down}.sql` (em cima da 0069, aditiva).
+Dono: `banco-dados`. Migração `db/migrations/0074_plataforma_sync_pacote.{up,down}.sql` (em cima da 0073, aditiva).
 Origem: aprovação das soluções 4 e 5 do catálogo pelo dono do produto (15/11/2026). Decisão: ADR 0054 (proposta). Desenho:
 `docs/desenho/T-catalogo-pacote.md` §1.4 (gerador e gatilhos), §1.5 (versão), §1.6 (manifesto) e §5, tarefa B.
 Teste: `db/testes/sync-pacote.db.test.ts` (parte estática roda na sessão; banco e up/down só no CI).
@@ -96,7 +96,7 @@ Por (tenant, módulo): 1 pacote `tenant` + 1 por filial prontos; substituídos p
 partição. Linhas pequenas (metadados); os bytes ficam no armazenamento.
 
 ## Caminho de volta
-`0070_plataforma_sync_pacote.down.sql` apaga o índice de `catalogo.tabela_preco_item` e as duas tabelas (com índices, gatilhos,
+`0074_plataforma_sync_pacote.down.sql` apaga o índice de `catalogo.tabela_preco_item` e as duas tabelas (com índices, gatilhos,
 políticas e grants). Os arquivos no armazenamento **ficam**: antes, liste
 `select chave_armazenamento from plataforma.sync_pacote where situacao <> 'apagado';` e apague os objetos. Pré-condição: API e
 worker sem as rotas e o gerador (`MACUXI_SYNC_PACOTES` desligado). Idempotente. `plataforma.excluir_tenant` já apaga as linhas

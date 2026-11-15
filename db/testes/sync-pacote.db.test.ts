@@ -1,5 +1,5 @@
 /**
- * 0070 — pacote pronto da primeira carga (ADR 0054 proposta; desenho docs/desenho/T-catalogo-pacote.md §1.4, §1.6 e §5 B).
+ * 0074 — pacote pronto da primeira carga (ADR 0054 proposta; desenho docs/desenho/T-catalogo-pacote.md §1.4, §1.6 e §5 B).
  * Dicionário: docs/banco/sync-pacote.md.
  * - plataforma.sync_pacote: um .sqlite.gz por (tenant, módulo, partição); uma só linha 'pronto' viva por partição; a chave do
  *   armazenamento leva sempre o tenant da linha (CHECK); pronto -> substituido -> apagado;
@@ -23,10 +23,10 @@ import { emTransacao, erroDe, retratoDoCatalogo } from './util';
 const A = DOIS_TENANTS.A.tenantId;
 const B = DOIS_TENANTS.B.tenantId;
 const migracoes = lerMigracoes();
-const m70 = migracoes.find((m) => m.versao === '0070')!;
+const m74 = migracoes.find((m) => m.versao === '0074')!;
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
-const up = semComentarios(m70.up);
-const down = semComentarios(m70.down);
+const up = semComentarios(m74.up);
+const down = semComentarios(m74.down);
 const umaLinha = up.replace(/\s+/g, ' ');
 const PACOTE = 'plataforma.sync_pacote';
 const PEDIDO = 'plataforma.sync_pacote_pedido';
@@ -49,10 +49,10 @@ const colunasDoSql = (tabela: string): string[] =>
   [...corpoDe(tabela).matchAll(/^\s+([a-z0-9_]+)\s+(?:uuid|text|integer|bigint|jsonb|timestamptz)\b/gm)].map((m) => m[1]!);
 const chave = (tenant: string, modulo: string, particao: string, id: string) => `sync-pacotes/${tenant}/${modulo}/${particao}/${id}.sqlite.gz`;
 
-describe('0070 pacote da primeira carga (estático)', () => {
-  it('nome e posição: 0070_plataforma_sync_pacote logo depois da 0069', () => {
+describe('0074 pacote da primeira carga (estático)', () => {
+  it('nome e posição: 0074_plataforma_sync_pacote logo depois da 0073 (registro único da numeração, R-20261115-115000-gerente-projetos)', () => {
     const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
-    expect(nomes[nomes.indexOf('0069_core_cargo_hierarquia') + 1]).toBe('0070_plataforma_sync_pacote');
+    expect(nomes[73]).toBe('0074_plataforma_sync_pacote');
   });
 
   it('aditiva: 2 tabelas novas e 1 índice; nada existente é alterado nem apagado no up', () => {
@@ -189,7 +189,7 @@ describe('0070 pacote da primeira carga (estático)', () => {
   });
 });
 
-describe.skipIf(semBanco())('0070 pacote da primeira carga (banco, fixture dois-tenants)', () => {
+describe.skipIf(semBanco())('0074 pacote da primeira carga (banco, fixture dois-tenants)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });
@@ -364,7 +364,7 @@ describe.skipIf(semBanco())('0070 pacote da primeira carga (banco, fixture dois-
   });
 });
 
-describe.skipIf(semBanco())('0070 up/down (banco efêmero)', () => {
+describe.skipIf(semBanco())('0074 up/down (banco efêmero)', () => {
   let b: BancoDeTeste;
   const T = 'cccccccc-0000-4000-8000-000000000070';
   beforeAll(async () => {
@@ -374,11 +374,11 @@ describe.skipIf(semBanco())('0070 up/down (banco efêmero)', () => {
     await b?.apagar();
   });
 
-  it('down volta ao catálogo da 0069; idempotente; up de novo igual', async () => {
+  it('down volta ao catálogo da 0073; idempotente; up de novo igual', async () => {
     await comAdmin(b.nome, async (c) => {
-      await migrarUp(c, { ate: '0069' });
+      await migrarUp(c, { ate: '0073' });
       const antes = await retratoDoCatalogo(c);
-      expect((await migrarUp(c, { ate: '0070' })).aplicadas).toEqual(['0070_plataforma_sync_pacote']);
+      expect((await migrarUp(c, { ate: '0074' })).aplicadas).toEqual(['0074_plataforma_sync_pacote']);
       const depois = await retratoDoCatalogo(c);
       expect(depois).toContain('col plataforma.sync_pacote.chave_armazenamento text nn=true');
       expect(depois).toContain('col plataforma.sync_pacote_pedido.origem text nn=true');
@@ -388,11 +388,11 @@ describe.skipIf(semBanco())('0070 up/down (banco efêmero)', () => {
          values ($1, $2, 'core', 'tenant', now(), $3, $4, 10, $5, '{}')`,
         [T, '00700000-0000-4000-8000-0000000000aa', GERACAO, chave(T, 'core', 'tenant', '00700000-0000-4000-8000-0000000000aa'), MD5],
       );
-      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0070_plataforma_sync_pacote']);
+      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0074_plataforma_sync_pacote']);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      await c.query(m70.down); // idempotente
+      await c.query(m74.down); // idempotente
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      await migrarUp(c, { ate: '0070' });
+      await migrarUp(c, { ate: '0074' });
       expect(await retratoDoCatalogo(c)).toEqual(depois);
     });
   });
