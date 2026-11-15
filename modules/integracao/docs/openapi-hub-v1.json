@@ -3418,8 +3418,7 @@
           "processando",
           "concluido",
           "concluido_com_erros",
-          "falhou",
-          "cancelado"
+          "falhou"
         ]
       },
       "EstadoPedidoErp": {

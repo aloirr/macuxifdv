@@ -8,6 +8,7 @@ import { codigoDoErro, useAutorizadores, useReprocessarLote } from '../lib/queri
 /** Frase de cada recusa (RN-INT-16), embaixo da senha, com a ação seguinte. */
 export function mensagemDaAutorizacao(codigo: string): string {
   if (codigo === 'senha_incorreta') return 'Senha incorreta.';
+  if (codigo === 'autorizador_invalido') return 'Escolha outra pessoa para autorizar.';
   if (codigo === 'muitas_tentativas') return 'Muitas tentativas. Tente de novo em alguns minutos.';
   return 'Não deu para autorizar agora. Tente de novo.';
 }

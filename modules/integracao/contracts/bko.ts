@@ -10,8 +10,16 @@ import { DataHoraUtc, Uuid } from './base';
 import { AtualizacaoConector, PoliticaVersaoConector } from './conector';
 import { ConectorIdentificador } from './hub';
 import { ENTIDADES, Entidade } from './entidades';
-import { EstadoLote, LinhaErro } from './lote';
+import { ESTADOS_LOTE, LinhaErro, LoteResultado } from './lote';
 import { EstadoPedidoErp } from './pedido';
+
+/** Estados do lote no BKO: os do Hub v1 mais `cancelado` (T-0173). O Conector v1 nunca recebe `cancelado`: lá sai `falhou`. */
+export const ESTADOS_LOTE_BKO = [...ESTADOS_LOTE, 'cancelado'] as const;
+export const EstadoLoteBko = z.enum(ESTADOS_LOTE_BKO);
+export type EstadoLoteBko = z.infer<typeof EstadoLoteBko>;
+/** `GET /v1/integracao/lotes/{id}` (BKO): o resultado do v1 com o estado ampliado. */
+export const LoteResultadoBko = LoteResultado.extend({ status: EstadoLoteBko });
+export type LoteResultadoBko = z.infer<typeof LoteResultadoBko>;
 
 export const TIPOS_CONECTOR = ['conector', 'nuvem', 'arquivo'] as const;
 export const TipoConector = z.enum(TIPOS_CONECTOR);
@@ -159,7 +167,7 @@ export type PoliticaVersaoEntrada = z.infer<typeof PoliticaVersaoEntrada>;
 export const LoteListagemQuery = z.object({
   conector_id: ConectorIdentificador.optional(),
   entidade: Entidade.optional(),
-  status: EstadoLote.optional(),
+  status: EstadoLoteBko.optional(),
   /** Só lotes com erro por linha. */
   com_erro: z.coerce.boolean().optional(),
   de: DataHoraUtc.optional(),
@@ -174,7 +182,7 @@ export const LoteListagemItem = z.object({
   conector_id: ConectorIdentificador,
   entidade: Entidade,
   modo: z.enum(['completo', 'delta']),
-  status: EstadoLote,
+  status: EstadoLoteBko,
   recebidas: z.number().int().nonnegative(),
   com_erro: z.number().int().nonnegative(),
   novas: z.number().int().nonnegative(),
@@ -210,24 +218,26 @@ export type ErrosLoteResposta = z.infer<typeof ErrosLoteResposta>;
 /**
  * `POST /v1/integracao/lotes/{id}/reprocessar`: reaplica do staging o lote em Com falha ou Concluído com avisos (RN-INT-15).
  * Quem tem `lote.reprocessar` reprocessa direto. Quem não tem envia `autorizador_id` (usuário listado em `GET /lotes/autorizadores`)
- * e a `senha` dele (RN-INT-16): a API confere a senha pelo Core, exige `lote.reprocessar` do autorizador, limita as tentativas e
- * audita quem autorizou. A senha nunca é guardada nem vai para log.
+ * e a `senha` dele (RN-INT-16): a API confere a senha pelo Core, exige `lote.reprocessar` do autorizador (outra pessoa, não o próprio
+ * solicitante: 422 `autorizador_invalido`), limita as tentativas e audita quem autorizou. A senha nunca é guardada nem vai para log.
  */
 export const ReprocessarLoteEntrada = z.object({
-  codigos: z.array(z.enum(['referencia_ausente', 'falha_processamento'])).min(1).optional(),
   autorizador_id: Uuid.optional(),
   senha: z.string().min(1).max(200).optional(),
 });
 export type ReprocessarLoteEntrada = z.infer<typeof ReprocessarLoteEntrada>;
-export const ReprocessarLoteResposta = z.object({ lote_id: Uuid, reenfileiradas: z.number().int().nonnegative(), status: EstadoLote });
+export const ReprocessarLoteResposta = z.object({ lote_id: Uuid, reenfileiradas: z.number().int().nonnegative(), status: EstadoLoteBko });
 export type ReprocessarLoteResposta = z.infer<typeof ReprocessarLoteResposta>;
 
 /** `POST /v1/integracao/lotes/{id}/cancelar` (`lote.cancelar`): só lote em andamento; outro estado = 409 `lote_nao_esta_em_andamento`. */
 export const CancelarLoteResposta = z.object({ lote_id: Uuid, status: z.literal('cancelado') });
 export type CancelarLoteResposta = z.infer<typeof CancelarLoteResposta>;
 
-/** `GET /v1/integracao/lotes/autorizadores` (`monitor.ver`): quem pode autorizar o reprocessamento (tem `lote.reprocessar`). Sem e-mail. */
-export const AutorizadoresResposta = z.object({ itens: z.array(z.object({ id: Uuid, nome: z.string(), perfil: z.enum(['admin', 'analista']) })) });
+/**
+ * `GET /v1/integracao/lotes/autorizadores` (`monitor.ver`): quem pode autorizar o reprocessamento, pela permissão efetiva
+ * `lote.reprocessar` (consulta `core.usuarios_com_acao@1`), sem quem pede. Sem e-mail nem perfil.
+ */
+export const AutorizadoresResposta = z.object({ itens: z.array(z.object({ id: Uuid, nome: z.string() })) });
 export type AutorizadoresResposta = z.infer<typeof AutorizadoresResposta>;
 
 /** Trava de inativação em massa (RN-INT-06): a carga completa fica aguardando confirmação do operador no BKO. */

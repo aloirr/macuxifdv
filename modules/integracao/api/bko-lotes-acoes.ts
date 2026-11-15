@@ -1,19 +1,19 @@
 /**
  * Ações do BKO sobre o lote e apoio da tela "Integração ERP" (T-0173; RN-INT-15, RN-INT-16):
- *  - `POST /v1/integracao/lotes/:id/cancelar` (`lote.cancelar`): só lote em andamento; outro estado = 409 `lote_nao_esta_em_andamento`.
+ *  - `POST /v1/integracao/lotes/:id/cancelar` (`lote.cancelar`): só lote em andamento; outro estado = 409 `lote_nao_esta_em_andamento`;
+ *    lote já cancelado = 200 com o mesmo corpo (idempotente).
  *  - `POST /v1/integracao/lotes/:id/reprocessar`: só Com falha ou Concluído com avisos (409 nos demais). Quem tem `lote.reprocessar`
  *    reprocessa direto; quem não tem envia `autorizador_id` + `senha`: a senha é conferida pelo Core (porta `VerificadorSenha`),
- *    o autorizador precisa ter `lote.reprocessar`, as tentativas erradas são limitadas e a auditoria grava quem autorizou.
+ *    o autorizador (outra pessoa) precisa ter `lote.reprocessar` pela permissão efetiva, as tentativas erradas são limitadas e a auditoria grava quem autorizou.
  *    A senha nunca vai para log, auditoria nem resposta.
- *  - `GET /v1/integracao/lotes/autorizadores` (`monitor.ver`): quem pode autorizar, sem e-mail.
+ *  - `GET /v1/integracao/lotes/autorizadores` (`monitor.ver`): quem tem `lote.reprocessar` (consulta `core.usuarios_com_acao@1`), sem quem pede e sem e-mail.
  *  - `GET /v1/integracao/mapeamentos/codigos-macuxi?tipo=` (`monitor.ver`): códigos do Macuxi para o De-para.
  * Regras no `domain` (`status-lote.ts`); aqui só SQL no schema `integracao`, consultas declaradas no manifesto e auditoria.
  */
-import { ConsultaIndisponivel, ErroHttpModulo, ErroNaoEncontrado, pode, type ClienteBanco, type ContextoRota, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
-import { CONSULTA_USUARIOS_RESUMO } from '@macuxi/core/contracts';
+import { ConsultaIndisponivel, ErroHttpModulo, ErroNaoEncontrado, definirConsulta, pode, type ClienteBanco, type ContextoRota, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import { CONSULTA_FORMAS_PAGAMENTO } from '../../vendedor/contracts';
-import { CodigosMacuxiQuery, ReprocessarLoteEntrada, type AutorizadoresResposta, type CancelarLoteResposta, type CodigosMacuxiResposta, type EstadoLote, type ReprocessarLoteResposta } from '../contracts';
+import { CodigosMacuxiQuery, ReprocessarLoteEntrada, type AutorizadoresResposta, type CancelarLoteResposta, type CodigosMacuxiResposta, type EstadoLoteBko, type ReprocessarLoteResposta } from '../contracts';
 import {
   JANELA_TENTATIVAS_AUTORIZACAO_MS,
   autorizacaoReprocessar,
@@ -25,7 +25,18 @@ import {
 import { EVENTO_LOTE_RECEBIDO } from './eventos';
 
 const Params = z.object({ id: z.string().uuid('UUID inválido') });
-const PERFIS_AUTORIZADORES = ['admin', 'analista'] as const;
+
+/**
+ * `core.usuarios_com_acao@1` (T-0173; dono: modulo-core): `{ modulo, acao }` → `{ usuarios: [{ id, nome }] }`, os usuários ativos do tenant
+ * com a ação pela permissão efetiva (perfil, não o perfil base). Definida aqui enquanto o Core não publica a constante em
+ * `modules/core/contracts`; trocar pelo import dele quando sair (mesmo nome e mesmo formato).
+ */
+const ACAO_REPROCESSAR = { modulo: 'integracao', acao: 'lote.reprocessar' } as const;
+const CONSULTA_USUARIOS_COM_ACAO = definirConsulta({
+  nome: 'core.usuarios_com_acao@1',
+  entrada: z.object({ modulo: z.string(), acao: z.string() }).strict(),
+  saida: z.object({ usuarios: z.array(z.object({ id: z.string().uuid(), nome: z.string() })) }),
+});
 
 /** Resultado da conferência da senha pelo Core. `indisponivel` = o Core ainda não oferece a conferência (pendência com o modulo-core). */
 export type ResultadoSenha = 'ok' | 'incorreta' | 'indisponivel';
@@ -35,7 +46,7 @@ export type ResultadoSenha = 'ok' | 'incorreta' | 'indisponivel';
  * modulo-core: `core.credencial_conferir@1`); enquanto isso o padrão devolve `indisponivel` (503 com a ação seguinte) e nunca
  * aceita uma senha sem conferir. A implementação real entra no `criarModuloApiIntegracao({ verificarSenha })`.
  */
-export type VerificadorSenha = (entrada: { tenant_id: string; usuario_id: string; senha: string }, tx: TransacaoTenant) => Promise<ResultadoSenha>;
+export type VerificadorSenha = (entrada: { tenant_id: string; usuario_id: string; senha: string; acao: { modulo: string; acao: string } }, tx: TransacaoTenant) => Promise<ResultadoSenha>;
 export const verificadorSenhaIndisponivel: VerificadorSenha = async () => 'indisponivel';
 
 /** Falhas de senha por autorizador na janela (RN-INT-16), em memória do processo; a cota durável fica como pendência do banco-dados. */
@@ -63,7 +74,7 @@ export function criarLimiteTentativas(janelaMs = JANELA_TENTATIVAS_AUTORIZACAO_M
 interface LinhaLoteAcao {
   id: string;
   entidade: string;
-  status: EstadoLote;
+  status: EstadoLoteBko;
   com_erro: number;
   recebidas: number;
 }
@@ -89,6 +100,7 @@ export const rotaCancelarLote: RotaModulo = {
     return ctx.comTenant(async (db, tx) => {
       const l = await lerLoteTravado(db, tenantId, ctx.params.id);
       const t = podeCancelarLote(l.status) ? transicionarLote(l.status, 'cancelado') : null;
+      if (l.status === 'cancelado') return { lote_id: l.id, status: 'cancelado' as const };
       if (!t?.ok) throw new ErroHttpModulo(409, 'lote_nao_esta_em_andamento', 'Este lote já terminou e não pode ser cancelado. Atualize a lista em Integração ERP.');
       await db.query("update integracao.lote set status = 'cancelado', concluido_em = $3::timestamptz where tenant_id = $1 and id = $2", [tenantId, l.id, ctx.agora().toISOString()]);
       await tx.auditar({ acao: 'lote.cancelar', entidade: 'lote', entidade_id: l.id, antes: { status: l.status }, depois: { status: 'cancelado', entidade_lote: l.entidade } });
@@ -97,19 +109,10 @@ export const rotaCancelarLote: RotaModulo = {
   },
 };
 
-/** Usuários ativos admin/analista do tenant (sem e-mail), pela consulta do Core. */
+/** Quem tem `lote.reprocessar` pela permissão efetiva, ordenado por nome, sem e-mail (consulta do Core). */
 async function lerAutorizadores(tx: TransacaoTenant): Promise<AutorizadoresResposta['itens']> {
-  const itens: AutorizadoresResposta['itens'] = [];
-  let apos: string | undefined;
-  for (let pagina = 0; pagina < 20; pagina++) {
-    const r = await tx.consultar(CONSULTA_USUARIOS_RESUMO, { limite: 500, ...(apos ? { apos_id: apos } : {}) });
-    for (const u of r.usuarios) {
-      if (u.ativo && (PERFIS_AUTORIZADORES as readonly string[]).includes(u.perfil)) itens.push({ id: u.id, nome: u.nome, perfil: u.perfil as (typeof PERFIS_AUTORIZADORES)[number] });
-    }
-    if (!r.proximo_cursor) break;
-    apos = r.proximo_cursor;
-  }
-  return itens.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  const r = await tx.consultar(CONSULTA_USUARIOS_COM_ACAO, ACAO_REPROCESSAR);
+  return r.usuarios.map((u) => ({ id: u.id, nome: u.nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
 export const rotaListarAutorizadores: RotaModulo = {
@@ -117,7 +120,7 @@ export const rotaListarAutorizadores: RotaModulo = {
   caminho: 'lotes/autorizadores',
   acao: 'monitor.ver',
   carteira: 'nao_se_aplica',
-  executar: async (ctx: ContextoRota): Promise<AutorizadoresResposta> => ctx.comTenant(async (_db, tx) => ({ itens: await lerAutorizadores(tx) })),
+  executar: async (ctx: ContextoRota): Promise<AutorizadoresResposta> => ctx.comTenant(async (_db, tx) => ({ itens: (await lerAutorizadores(tx)).filter((a) => a.id !== ctx.usuario.id) })),
 };
 
 export function criarRotaReprocessarLote(o: { verificarSenha: VerificadorSenha; limite: LimiteTentativas }): RotaModulo {
@@ -131,7 +134,7 @@ export function criarRotaReprocessarLote(o: { verificarSenha: VerificadorSenha; 
     corpo: ReprocessarLoteEntrada,
     executar: async (ctx: ContextoRota<ReprocessarLoteEntrada, unknown, z.infer<typeof Params>>): Promise<ReprocessarLoteResposta> => {
       const tenantId = ctx.usuario.tenant_id;
-            const solicitantePode = pode(ctx.usuario.perfis, 'lote.reprocessar');
+      const solicitantePode = pode(ctx.usuario.perfis, 'lote.reprocessar');
       const { autorizador_id, senha } = ctx.corpo;
       return ctx.comTenant(async (db, tx) => {
         const l = await lerLoteTravado(db, tenantId, ctx.params.id);
@@ -149,11 +152,11 @@ export function criarRotaReprocessarLote(o: { verificarSenha: VerificadorSenha; 
           const chaveLimite = `${tenantId}:${autorizador_id}`;
           const bloqueio = limiteTentativasAutorizacao(o.limite.falhas(chaveLimite, agora));
           if (bloqueio.bloqueado) throw new ErroHttpModulo(429, 'muitas_tentativas', bloqueio.mensagem);
+          // fora da lista (sem a ação, inativo ou de outro tenant) = sem permissão para autorizar; o próprio solicitante nunca autoriza
           const alvo = (await lerAutorizadores(tx)).find((a) => a.id === autorizador_id);
-          // fora da lista (outro perfil, inativo ou de outro tenant) = sem permissão para autorizar
-          const decisao = autorizacaoReprocessar({ solicitantePode: false, autorizador: alvo ? { perfil: alvo.perfil } : { perfil: 'vendedor' } });
-          if (!decisao.ok) throw new ErroHttpModulo(403, decisao.codigo, decisao.mensagem);
-          const r = await o.verificarSenha({ tenant_id: tenantId, usuario_id: autorizador_id, senha }, tx);
+          const decisao = autorizacaoReprocessar({ solicitantePode: false, solicitanteId: ctx.usuario.id, autorizadorId: autorizador_id, autorizadorPode: !!alvo });
+          if (!decisao.ok) throw new ErroHttpModulo(decisao.codigo === 'autorizador_invalido' ? 422 : 403, decisao.codigo, decisao.mensagem);
+          const r = await o.verificarSenha({ tenant_id: tenantId, usuario_id: autorizador_id, senha, acao: ACAO_REPROCESSAR }, tx);
           if (r === 'indisponivel') throw new ErroHttpModulo(503, 'autorizacao_indisponivel', 'Não deu para autorizar agora. Peça a um administrador ou analista para reprocessar.');
           if (r === 'incorreta') {
             o.limite.registrarFalha(chaveLimite, agora);
@@ -171,6 +174,8 @@ export function criarRotaReprocessarLote(o: { verificarSenha: VerificadorSenha; 
         if (!t.ok) throw new ErroHttpModulo(409, 'lote_nao_pode_reprocessar', t.mensagem);
         const agoraIso = ctx.agora().toISOString();
         await db.query("update integracao.lote set status = 'recebido', concluido_em = null, iniciado_em = null, ultimo_erro = null where tenant_id = $1 and id = $2", [tenantId, l.id]);
+        // o reprocesso regera os erros do zero: sem apagar os antigos, o log e o "x de y" não batem
+        await db.query('delete from integracao.lote_linha_erro where tenant_id = $1 and lote_id = $2', [tenantId, l.id]);
         // volta à fila: o consumidor de integracao.lote.recebido@1 reaplica do staging (linhas iguais viram "inalteradas")
         const c = await db.query<{ conector: string; entidade: string; modo: string }>(
           `select c.identificador as conector, l.entidade, l.modo from integracao.lote l join integracao.conector c on c.tenant_id = l.tenant_id and c.id = l.conector_id where l.tenant_id = $1 and l.id = $2`,

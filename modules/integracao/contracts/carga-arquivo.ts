@@ -6,7 +6,8 @@
  */
 import { z } from 'zod';
 import { Uuid, DataHoraUtc } from './base';
-import { EstadoLote, InativacaoLote, LoteAceito, ModoCarga } from './lote';
+import { EstadoLoteBko } from './bko';
+import { InativacaoLote, LoteAceito, ModoCarga } from './lote';
 import { Entidade } from './entidades';
 
 export const CargaArquivoEntrada = z.object({
@@ -83,7 +84,7 @@ export const ProgressoSessaoArquivo = z.object({
   partes_aplicadas: z.number().int().nonnegative(),
   partes_com_falha: z.number().int().nonnegative(),
   partes_faltando: z.array(z.number().int().positive()),
-  partes: z.array(ContagensParte.extend({ parte: z.number().int().positive(), lote_id: Uuid, status: EstadoLote })),
+  partes: z.array(ContagensParte.extend({ parte: z.number().int().positive(), lote_id: Uuid, status: EstadoLoteBko })),
   /** Contagens somadas das partes. */
   contagens: ContagensParte,
   /** Soma dos erros por linha de todas as partes (detalhe em `GET lotes/{id}/erros` de cada parte). */

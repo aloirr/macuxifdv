@@ -4,6 +4,7 @@ import { criarLimiteTentativas, criarRotaReprocessarLote, rotaCancelarLote, rota
 
 const LOTE = '0b7e6c52-1c1c-4b43-9d1e-0a4f0f3a1111';
 const ADMIN = '11111111-1111-4111-8111-111111111111';
+const ANALISTA = '33333333-3333-4333-8333-333333333333';
 const GERENTE = '22222222-2222-4222-8222-222222222222';
 const SENHA = 'segredo-que-nao-pode-vazar';
 
@@ -11,6 +12,7 @@ interface Cenario {
   status: string;
   staging?: boolean;
   perfisPermitidos?: boolean;
+  incluirSolicitante?: boolean;
 }
 
 function montar(c: Cenario) {
@@ -31,15 +33,9 @@ function montar(c: Cenario) {
     auditar: async (r: Record<string, unknown>) => void auditoria.push(r),
     publicar: async (_d: unknown, p: unknown) => void eventos.push(p),
     consultar: async (def: { nome: string }) => {
-      if (def.nome === 'core.usuarios_resumo@1') {
-        return {
-          usuarios: [
-            { id: ADMIN, nome: 'Ana', perfil: 'admin', equipe_id: null, regional_id: null, ativo: true },
-            { id: GERENTE, nome: 'Gil', perfil: 'gerente', equipe_id: null, regional_id: null, ativo: true },
-            { id: '33333333-3333-4333-8333-333333333333', nome: 'Bia', perfil: 'analista', equipe_id: null, regional_id: null, ativo: false },
-          ],
-          proximo_cursor: null,
-        };
+      if (def.nome === 'core.usuarios_com_acao@1') {
+        // o Core já devolve só quem tem a ação (permissão efetiva); o Gil (gerente) não tem
+        return { usuarios: [{ id: ADMIN, nome: 'Ana' }, { id: ANALISTA, nome: 'Bia' }, ...(c.incluirSolicitante ? [{ id: 'u1', nome: 'Eu' }] : [])] };
       }
       return { formas: [{ codigo: 'B', nome: 'Boleto', ativo: true }, { codigo: 'A', nome: 'À vista', ativo: false }] };
     },
@@ -74,11 +70,18 @@ describe('RN-INT-15: cancelar lote', () => {
   });
 
   it('RN-INT-15: lote que não está em andamento responde 409', async () => {
-    for (const status of ['concluido', 'concluido_com_erros', 'falhou', 'cancelado']) {
+    for (const status of ['concluido', 'concluido_com_erros', 'falhou']) {
       const e = await erroDe(executar(rotaCancelarLote, montar({ status }).ctx));
       expect(e.status, status).toBe(409);
       expect(e.codigo).toBe('lote_nao_esta_em_andamento');
     }
+  });
+
+  it('RN-INT-15: cancelar um lote já cancelado é idempotente: 200 com o mesmo corpo, sem gravar de novo', async () => {
+    const m = montar({ status: 'cancelado' });
+    expect(await executar(rotaCancelarLote, m.ctx)).toEqual({ lote_id: LOTE, status: 'cancelado' });
+    expect(m.sqls.some((s) => /update integracao\.lote/.test(s))).toBe(false);
+    expect(m.auditoria).toHaveLength(0);
   });
 
   it('RN-INT-15: a rota exige a ação lote.cancelar', () => {
@@ -96,6 +99,11 @@ describe('RN-INT-15/16: reprocessar lote', () => {
     const rota = criarRotaReprocessarLote({ verificarSenha: nunca, limite: criarLimiteTentativas() });
     expect(await executar(rota, m.ctx, { corpo: {} })).toEqual({ lote_id: LOTE, reenfileiradas: 3, status: 'recebido' });
     expect(m.eventos).toHaveLength(1);
+    // erros antigos saem na mesma transação que volta o lote a recebido, para o log e o "x de y" baterem
+    const iUpdate = m.sqls.findIndex((q) => /set status = 'recebido'/.test(q));
+    const iApaga = m.sqls.findIndex((q) => /delete from integracao\.lote_linha_erro/.test(q));
+    expect(iUpdate).toBeGreaterThanOrEqual(0);
+    expect(iApaga).toBeGreaterThan(iUpdate);
     expect(m.auditoria[0]).toMatchObject({ acao: 'lote.reprocessar', depois: { via: 'direto', autorizado_por: null } });
   });
 
@@ -123,10 +131,25 @@ describe('RN-INT-15/16: reprocessar lote', () => {
 
   it('RN-INT-16: senha certa de quem tem lote.reprocessar autoriza e a auditoria grava quem autorizou, sem a senha', async () => {
     const m = montar({ status: 'falhou' });
-    const rota = criarRotaReprocessarLote({ verificarSenha: async (e) => (e.senha === SENHA && e.usuario_id === ADMIN ? 'ok' : 'incorreta'), limite: criarLimiteTentativas() });
+    const chamadas: unknown[] = [];
+    const rota = criarRotaReprocessarLote({
+      verificarSenha: async (e) => {
+        chamadas.push(e.acao);
+        return e.senha === SENHA && e.usuario_id === ADMIN ? 'ok' : 'incorreta';
+      },
+      limite: criarLimiteTentativas(),
+    });
     await executar(rota, m.ctx, { corpo: { autorizador_id: ADMIN, senha: SENHA } });
+    // o Core confere a senha e a ação exigida (permissão efetiva, não o perfil base)
+    expect(chamadas).toEqual([{ modulo: 'integracao', acao: 'lote.reprocessar' }]);
     expect(m.auditoria[0]).toMatchObject({ depois: { via: 'autorizado', autorizado_por: ADMIN } });
     expect(JSON.stringify([m.auditoria, m.logs, m.eventos])).not.toContain(SENHA);
+  });
+
+  it('RN-INT-16: o solicitante não autoriza a si mesmo: 422 autorizador_invalido, sem conferir a senha', async () => {
+    const rota = criarRotaReprocessarLote({ verificarSenha: nunca, limite: criarLimiteTentativas() });
+    const e = await erroDe(executar(rota, montar({ status: 'falhou', incluirSolicitante: true }).ctx, { corpo: { autorizador_id: 'u1', senha: SENHA } }));
+    expect([e.status, e.codigo]).toEqual([422, 'autorizador_invalido']);
   });
 
   it('RN-INT-16: o autorizador sem lote.reprocessar (gerente) ou fora da lista é recusado antes de conferir a senha', async () => {
@@ -162,9 +185,9 @@ describe('RN-INT-15/16: reprocessar lote', () => {
 });
 
 describe('T-0173: autorizadores e códigos do Macuxi', () => {
-  it('RN-INT-16: lista só admin e analista ativos, sem e-mail', async () => {
-    const r = (await executar(rotaListarAutorizadores, montar({ status: 'falhou' }).ctx)) as { itens: Array<Record<string, unknown>> };
-    expect(r.itens).toEqual([{ id: ADMIN, nome: 'Ana', perfil: 'admin' }]);
+  it('RN-INT-16: lista quem tem lote.reprocessar pela permissão efetiva, sem quem pede e sem e-mail', async () => {
+    const r = (await executar(rotaListarAutorizadores, montar({ status: 'falhou', incluirSolicitante: true }).ctx)) as { itens: Array<Record<string, unknown>> };
+    expect(r.itens).toEqual([{ id: ADMIN, nome: 'Ana' }, { id: ANALISTA, nome: 'Bia' }]);
     expect(rotaListarAutorizadores.acao).toBe('monitor.ver');
   });
 

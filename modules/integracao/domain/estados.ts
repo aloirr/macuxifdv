@@ -1,7 +1,7 @@
 /**
  * Máquinas de estado do lote e do retorno de pedido ao ERP (RN-INT-08, RN-INT-03).
  */
-import type { EstadoLote, EstadoPedidoErp } from '../contracts';
+import type { EstadoLoteBko, EstadoPedidoErp } from '../contracts';
 import { PARAMETROS_PADRAO } from './parametros';
 
 export type ResultadoTransicao<E extends string> =
@@ -25,7 +25,7 @@ function transicionar<E extends string>(tabela: Readonly<Record<E, readonly E[]>
  * Lote: `concluido` e `cancelado` são finais; `concluido_com_erros` e `falhou` podem ser reprocessados (voltam à fila: `recebido`);
  * só o lote em andamento (`recebido`, `processando`) pode ser cancelado (RN-INT-15, T-0173).
  */
-export const TRANSICOES_LOTE: Readonly<Record<EstadoLote, readonly EstadoLote[]>> = {
+export const TRANSICOES_LOTE: Readonly<Record<EstadoLoteBko, readonly EstadoLoteBko[]>> = {
   recebido: ['processando', 'falhou', 'cancelado'],
   processando: ['concluido', 'concluido_com_erros', 'falhou', 'cancelado'],
   concluido: [],
@@ -34,7 +34,7 @@ export const TRANSICOES_LOTE: Readonly<Record<EstadoLote, readonly EstadoLote[]>
   cancelado: [],
 };
 
-export function transicionarLote(de: EstadoLote, para: EstadoLote): ResultadoTransicao<EstadoLote> {
+export function transicionarLote(de: EstadoLoteBko, para: EstadoLoteBko): ResultadoTransicao<EstadoLoteBko> {
   return transicionar(TRANSICOES_LOTE, de, para, false, 'lote');
 }
 

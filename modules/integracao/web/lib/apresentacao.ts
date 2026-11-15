@@ -9,7 +9,7 @@ import type {
   AlertaMonitor,
   AtualizacaoConector,
   Entidade,
-  EstadoLote,
+  EstadoLoteBko,
   EstadoPedidoErp,
   MonitorResumo,
   PendenciaInativacao,
@@ -72,7 +72,7 @@ export const TOM_STATUS: Record<StatusLote, BadgeTone> = {
   cancelado: 'neutral',
 };
 
-export const ROTULO_STATUS_LOTE: Record<EstadoLote, string> = {
+export const ROTULO_STATUS_LOTE: Record<EstadoLoteBko, string> = {
   recebido: ROTULO_STATUS.em_andamento,
   processando: ROTULO_STATUS.em_andamento,
   concluido: ROTULO_STATUS.concluido,
@@ -81,7 +81,7 @@ export const ROTULO_STATUS_LOTE: Record<EstadoLote, string> = {
   cancelado: ROTULO_STATUS.cancelado,
 };
 
-export const TOM_STATUS_LOTE: Record<EstadoLote, BadgeTone> = {
+export const TOM_STATUS_LOTE: Record<EstadoLoteBko, BadgeTone> = {
   recebido: TOM_STATUS.em_andamento,
   processando: TOM_STATUS.em_andamento,
   concluido: TOM_STATUS.concluido,
