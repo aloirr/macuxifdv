@@ -1,4 +1,4 @@
-/** T-0176 (RN-CORE-39; ADR 0056): o BKO reconhece o 403 `USUARIO_SEM_FILIAL` e troca o miolo pelo aviso aprovado. */
+/** T-0176 (RN-CORE-39; ADR 0056): o BKO reconhece o 403 `USUARIO_SEM_FILIAL` e abre a "Escolha a sua filial". */
 import { ApiRequestError } from '@macuxi/platform-sdk/web';
 import { describe, expect, it, vi } from 'vitest';
 

@@ -14,26 +14,27 @@
  * no motor de permissões do SDK, `entraEm`, ou o 403 `PERFIL_SEM_BKO` de qualquer chamada) encerra a sessão e volta ao
  * Entrar com o aviso. Nenhuma lista de perfis no shell: onde entra e o que aparece vêm do motor (ADR 0033).
  * T-0176 (RN-CORE-39; ADR 0056): conta sem filial de cadastro (403 `USUARIO_SEM_FILIAL` nos módulos ou em qualquer chamada): o
- * miolo vira o aviso aprovado da tela 13, no lugar do erro genérico; a sessão fica (o destravamento usa `eu/filial-cadastro`).
+ * BKO abre só a "Escolha a sua filial" (spec docs/design/filial-cadastro-venda §5), sem menu; a sessão fica (`eu/filial-cadastro`).
  */
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type MouseEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type MouseEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ItemMenu } from '@macuxi/core/contracts';
 import { entraEm, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
 import { ShellProvider } from '@macuxi/platform-sdk/react';
 import { errorMessage, MODO_API, tentarRestaurarSessao } from '@macuxi/platform-sdk/web';
-import { cx, ErrorBlock, IconChevronRight, IconLogout, LoadingBlock, Notice, rotuloDoPerfil } from '@macuxi/ui/web';
+import { cx, ErrorBlock, IconChevronRight, IconLogout, LoadingBlock, rotuloDoPerfil } from '@macuxi/ui/web';
 import { criarAmbienteWeb } from '@/lib/ambiente';
 import { aoPerfilSemBko, guardarAvisoDoLogin, mensagemSemBko } from '@/lib/ciclo-senha';
 import { estadoDaSessao, estadoDoConteudo } from '@/lib/estado-shell';
 import { PROPORCAO_LOGO_HORIZONTAL, SRC_LOGO_NEGATIVO_GRAFITE } from '@/lib/logo-marca';
 import { ALTURA_ITEM, grupoDaTela, cabeTudoAberto, hrefAtivo, montarGruposMenu, type GrupoMenuBko, type ItemMenuBko } from '@/lib/menu-bko';
 import { SHELL_WEB } from '@/lib/modulos';
-import { useMe, useModulosEfetivos } from '@/lib/queries';
-import { aoSemFilial, AVISO_SEM_FILIAL, ehUsuarioSemFilial } from '@/lib/sem-filial';
+import { qk, useMe, useModulosEfetivos } from '@/lib/queries';
+import { aoSemFilial, ehUsuarioSemFilial } from '@/lib/sem-filial';
 import { encerrarSessao, useSessao } from '@/lib/session';
+import { CHAVE_MINHA_FILIAL, EscolherFilial } from './escolher-filial';
 import { SessaoSemConexao } from './sessao-sem-conexao';
 
 /** Largura do logo A a 28 px de altura (viewBox 514,41 × 110,85 → ≈ 130 px). */
@@ -303,6 +304,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   // T-0176: 403 USUARIO_SEM_FILIAL numa página (o dos módulos efetivos o shell lê direto da consulta)
   const [semFilialNaPagina, setSemFilialNaPagina] = useState(false);
   useEffect(() => aoSemFilial(() => setSemFilialNaPagina(true)), []);
+  // T-0176 (spec §5, 16e): filial salva = some a tela, os módulos efetivos são relidos e o BKO entra no Início, com o menu
+  const filialSalva = useCallback(() => {
+    setSemFilialNaPagina(false);
+    qc.removeQueries({ queryKey: CHAVE_MINHA_FILIAL });
+    void qc.resetQueries({ queryKey: qk.modulos });
+    router.replace('/');
+  }, [qc, router]);
 
   if (session.status === 'sem_conexao') return <SessaoSemConexao aviso={session.aviso} onTentar={() => void tentarRestaurarSessao()} />;
   if (session.status !== 'authenticated') {
@@ -330,6 +338,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     modulos,
     semFilial: semFilialNaPagina || ehUsuarioSemFilial(modulos.error),
   });
+
+  // T-0176 (spec §5): sem filial de cadastro, o BKO abre só a "Escolha a sua filial" (moldura do login, sem menu)
+  if (conteudo === 'sem_filial') return <EscolherFilial onSalvo={filialSalva} onSair={switchProfile} />;
 
   return (
     <div className="flex min-h-screen flex-col bg-ground md:flex-row">
@@ -371,10 +382,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           <ErrorBlock message={errorMessage(me.error)} onRetry={() => void me.refetch()} />
         ) : conteudo === 'perfil_fora_do_bko' ? (
           <SemBko perfil={perfil} />
-        ) : conteudo === 'sem_filial' ? (
-          <div data-testid="shell-sem-filial">
-            <Notice tone="danger">{AVISO_SEM_FILIAL}</Notice>
-          </div>
         ) : conteudo === 'erro_modulos' ? (
           <ErrorBlock message={errorMessage(modulos.error)} onRetry={() => void modulos.refetch()} />
         ) : conteudo === 'carregando_modulos' ? (
