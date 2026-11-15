@@ -8,7 +8,7 @@
  */
 import { CONSULTA_FINANCEIRO_CLIENTE } from '@macuxi/core/contracts';
 import { ehConsultaIndisponivel, type ClienteBanco, type ContextoBase, type TransacaoTenant } from '@macuxi/platform-sdk';
-import { exigeAprovacaoPorVencido, tituloVencidoDias, validarPagamento, type FormaDePagamento, type PrazoDePagamento } from '../domain';
+import { exigeAprovacaoPorVencido, percentualAjusteParaBp, revalidarPercentualDoPrazo, tituloVencidoDias, validarPagamento, type FormaDePagamento, type PrazoDePagamento } from '../domain';
 
 interface FormaLinha {
   id: string;
@@ -26,7 +26,19 @@ interface PrazoLinha {
   prazo_medio_dias: number;
   ativo: boolean;
   ordem: number;
+  /** RN-VEN-43: vem da coluna `percentual_ajuste` (migração do banco-dados, T prazo-ajuste); ausente = 0 */
+  percentual_ajuste?: number | null;
+  atualizado_em?: string | null;
 }
+
+/**
+ * RN-VEN-43/45: ÚNICO ponto que lê a coluna nova do prazo (`percentual_ajuste`, do PR do banco-dados). Depende do merge dele:
+ * sem a coluna a consulta falha em tempo de execução, não no typecheck.
+ */
+export const SELECT_PRAZO =
+  `select id, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ativo, ordem, percentual_ajuste::float8 as percentual_ajuste,
+          to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as atualizado_em
+     from vendedor.prazo_pagamento where id = $1 and deleted_at is null`;
 
 export interface PagamentoResolvido {
   forma: FormaLinha;
@@ -36,8 +48,8 @@ export interface PagamentoResolvido {
 }
 
 export type ResultadoPagamento =
-  | { ok: true; pagamento: PagamentoResolvido | null; titulo_vencido: boolean }
-  | { ok: false; codigo: 'RN-VEN-24' | 'RN-VEN-25'; mensagem: string };
+  | { ok: true; pagamento: PagamentoResolvido | null; titulo_vencido: boolean; percentual_ajuste_bp: number; percentual_ajuste: number; aviso_percentual: string | null }
+  | { ok: false; codigo: 'RN-VEN-24' | 'RN-VEN-25' | 'prazo_percentual_mudou'; mensagem: string };
 
 export const textoDoPagamento = (forma: { nome: string }, prazo: { descricao: string }): string => `${forma.nome} · ${prazo.descricao}`;
 
@@ -49,22 +61,17 @@ export async function resolverPagamento(
   ctx: ContextoBase,
   db: ClienteBanco,
   tx: TransacaoTenant,
-  p: { forma_pagamento_id?: string | null; prazo_pagamento_id?: string | null; customer_id: string },
+  p: { forma_pagamento_id?: string | null; prazo_pagamento_id?: string | null; customer_id: string; prazo_percentual_ajuste?: number | null; created_offline_at?: string | null },
   cliente: { prazo_medio_max_dias?: number | null; formas_pagamento?: string[] | null },
   tipo: 'pedido' | 'orcamento',
 ): Promise<ResultadoPagamento> {
   const formaId = p.forma_pagamento_id ?? null;
   const prazoId = p.prazo_pagamento_id ?? null;
-  if (!formaId && !prazoId) return { ok: true, pagamento: null, titulo_vencido: false };
+  if (!formaId && !prazoId) return { ok: true, pagamento: null, titulo_vencido: false, percentual_ajuste_bp: 0, percentual_ajuste: 0, aviso_percentual: null };
   if (!formaId || !prazoId) return { ok: false, codigo: 'RN-VEN-24', mensagem: 'Escolha a forma de pagamento e o prazo.' };
 
   const forma = (await db.query<FormaLinha>('select id, codigo, nome, ativo, ordem from vendedor.forma_pagamento where id = $1 and deleted_at is null', [formaId])).rows[0];
-  const prazo = (
-    await db.query<PrazoLinha>(
-      'select id, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ativo, ordem from vendedor.prazo_pagamento where id = $1 and deleted_at is null',
-      [prazoId],
-    )
-  ).rows[0];
+  const prazo = (await db.query<PrazoLinha>(SELECT_PRAZO, [prazoId])).rows[0];
   const r = validarPagamento({
     forma: forma as FormaDePagamento | undefined,
     prazo: prazo as PrazoDePagamento | undefined,
@@ -85,7 +92,17 @@ export async function resolverPagamento(
       if (!ehConsultaIndisponivel(e)) throw e;
     }
   }
-  return { ok: true, pagamento: { forma: forma!, prazo: prazo!, texto: textoDoPagamento(forma!, prazo!) }, titulo_vencido };
+  // RN-VEN-45: o percentual do push é revalidado contra o vigente; os preços são recalculados por ele (RN-VEN-43)
+  const pct = revalidarPercentualDoPrazo({ push: p.prazo_percentual_ajuste, vigente: prazo!.percentual_ajuste, cadastro_atualizado_em: prazo!.atualizado_em, criado_em: p.created_offline_at ?? ctx.agora().toISOString() });
+  if (!pct.ok) return { ok: false, codigo: 'prazo_percentual_mudou', mensagem: pct.mensagem };
+  return {
+    ok: true,
+    pagamento: { forma: forma!, prazo: prazo!, texto: textoDoPagamento(forma!, prazo!) },
+    titulo_vencido,
+    percentual_ajuste_bp: percentualAjusteParaBp(pct.percentual),
+    percentual_ajuste: pct.percentual,
+    aviso_percentual: pct.aviso,
+  };
 }
 
 /** As 8 colunas do retrato (0037, `pedido_pagamento_completo`: juntas ou nenhuma), na ordem de `COLUNAS_PAGAMENTO`. */
@@ -103,4 +120,10 @@ export const COLUNAS_PAGAMENTO = [
 export function valoresPagamento(pg: PagamentoResolvido | null): unknown[] {
   if (!pg) return [null, null, null, null, null, null, null, null];
   return [pg.forma.id, pg.prazo.id, pg.forma.codigo, pg.forma.nome, pg.prazo.codigo, pg.prazo.descricao, pg.prazo.parcelas_dias, pg.prazo.prazo_medio_dias];
+}
+
+/** RN-VEN-45: a 9ª coluna do retrato (`prazo_percentual_ajuste`, banco-dados); `0` quando sem prazo. Depende do merge do PR do banco-dados. */
+export const COLUNA_PRAZO_PERCENTUAL = 'prazo_percentual_ajuste';
+export function valorPercentualPrazo(percentual: number): number {
+  return percentual;
 }

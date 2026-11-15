@@ -141,3 +141,4 @@
 2026-11-14 — T-0170 — cards de Pedidos viram 3 cartões lado a lado (rótulo, quantidade Archivo 22, valor); quantidadeDoCard/valorDoCard; progressViewOffset no puxar-para-atualizar
 2026-11-14 — R-20261114-151000 — Catálogo: 'Adicionar ao orçamento' no lugar de 'Adicionar ao pedido' (domain orcamento-em-aberto, folha, ação produto.acoes)
 2026-11-14 — Catálogo/Adicionar ao orçamento — achados do corretor e da marca: linha com cliente em destaque e "Nº · data" (sem "Orçamento" repetido), sem chevron; removido o mecanismo morto do produto pendente (produto-pendente.ts, rascunho-com-produto.ts e o consumo no novo pedido); aviso fora da rolagem; prints da tela real em react-native-web com as fontes do app (MC-0028/0029).
+2026-11-15 — prazo-ajuste (v1.0.13) — RN-VEN-43..46: tabelaAjustadaCents, preço/mínimo, API (revalida percentual), app (pull, recálculo); depende do PR do banco-dados

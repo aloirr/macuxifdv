@@ -56,7 +56,7 @@ import {
   type Recusa,
 } from '../domain';
 import { payloadAprovado } from './aprovado-erp';
-import { resolverPagamento, valoresPagamento } from './pagamento';
+import { resolverPagamento, valoresPagamento, valorPercentualPrazo, COLUNA_PRAZO_PERCENTUAL } from './pagamento';
 import { preVenda } from './pre-venda';
 import { precosCongeladosDoDocumento } from './preco-congelado';
 import { faltaDeEstoqueNaFilial, provedorSaldoDaFilial } from './estoque-filial';
@@ -240,8 +240,11 @@ export async function calcularDocumento(
       // RN-VEN-11: mínimo por unidade base = preço de venda × (1 − desconto máximo efetivo), do Core (null = sem preço de venda, sem mínimo)
       // T-0084 (RN-VEN-19): retrato do aparelho; nulo/ausente = sem aplicação
       aplicacao: i.aplicacao ?? null,
-      preco_minimo_base_cents: precoMinimoBaseCents({ preco_venda_cents: produtos.get(i.product_id)?.preco_venda_cents ?? null, desconto_maximo_pct: produtos.get(i.product_id)?.desconto_maximo_pct ?? 100 }),
+      // RN-VEN-43: o mínimo parte da tabela ajustada pelo prazo; o preço congelado do orçamento (RN-VEN-18) já está gravado ajustado
+      percentual_ajuste_bp: congelados?.[i.product_id] !== undefined ? 0 : pg.percentual_ajuste_bp,
+      preco_minimo_base_cents: precoMinimoBaseCents({ preco_venda_cents: produtos.get(i.product_id)?.preco_venda_cents ?? null, desconto_maximo_pct: produtos.get(i.product_id)?.desconto_maximo_pct ?? 100, percentual_ajuste_bp: congelados?.[i.product_id] !== undefined ? 0 : pg.percentual_ajuste_bp }),
     })),
+    percentual_ajuste_bp: pg.percentual_ajuste_bp,
     precos: mapaPreco,
     faixas: mapaFaixas,
     titulo_vencido: pg.titulo_vencido,
@@ -265,7 +268,7 @@ export async function calcularDocumento(
   const v = validadeCivil
     ? { ...rv, status: 'received' as const, nivel: null, motivos: [], aprovacao_automatica: false, pending_reason: '', historico: historicoDoOrcamento(validadeCivil.data, validadeOrcamentoDias(ctx.parametros())) }
     : rv;
-  return { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm, retratoFilial };
+  return { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm, retratoFilial, percentualAjustePrazo: pg.percentual_ajuste };
 }
 
 /** Tudo que o servidor decide sobre o documento antes de gravar (preço, alçada, medida, frete, endereço, condição). */
@@ -333,7 +336,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   }
   const calc = await calcularDocumento(ctx, db, tx, pDoc, tipo, item.id, undefined, congelados);
   if ('status' in calc) return calc;
-  const { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm, retratoFilial } = calc;
+  const { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm, retratoFilial, percentualAjustePrazo } = calc;
 
   // 8) grava (pedido, itens, histórico, auditoria, eventos) na mesma transação
   const numero = (await db.query<{ n: string }>('select vendedor.proximo_numero_pedido() as n')).rows[0]!.n;
@@ -355,10 +358,10 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
         transportadora_documento, transportadora_telefone, endereco_entrega_id, endereco_entrega,
         desconto_valor_cents, acrescimo_valor_cents, ajuste_em,
         forma_pagamento_id, prazo_pagamento_id, forma_pagamento_codigo, forma_pagamento_nome, prazo_codigo, prazo_descricao, prazo_parcelas_dias, prazo_medio_dias,
-        filial_id, filial)
+        filial_id, filial, ${COLUNA_PRAZO_PERCENTUAL})
      values ($1, plataforma.tenant_atual(), $2, $3, $38, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19, $20, $21, $22, $23::text[], $24,
         $25, $26, $27, $28, $29, $30, $31, $32, $33, $34::jsonb, $35, $36, $37,
-        $39, $40, $41, $42, $43, $44, $45::int[], $46, $47, $48::jsonb)
+        $39, $40, $41, $42, $43, $44, $45::int[], $46, $47, $48::jsonb, $49)
      on conflict (id) do nothing returning id`,
     [
       p.id, p.customer_id, donoId, v.status, pagamento?.texto ?? condicao?.descricao ?? null, v.desconto_pct, v.total_tabela_cents, v.total_cents,
@@ -370,6 +373,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
       v.desconto_valor_cents, v.acrescimo_valor_cents, v.ajuste_em, eu,
       ...valoresPagamento(pagamento),
       retratoFilial?.filial_id ?? null, retratoFilial ? JSON.stringify(retratoFilial.filial) : null,
+      valorPercentualPrazo(percentualAjustePrazo),
     ],
   );
   // outro tenant com o mesmo id (chave primária global): não revela, só recusa

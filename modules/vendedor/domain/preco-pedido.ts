@@ -23,6 +23,26 @@ function aplicarPontosBase(valor: number, delta: number): number {
   return Math.floor((bruto + 5_000) / 10_000);
 }
 
+// ---------- tabela ajustada pelo prazo (RN-VEN-43) ----------
+/** Faixa do percentual do prazo em bp (centésimos de ponto percentual): -99,99 a +99,99. */
+export const AJUSTE_PRAZO_BP_MAX = 9_999;
+
+/** RN-VEN-43: % do prazo (2 casas, negativo = desconto) → bp inteiro; ausente = 0. Arredonda só para limpar o ponto flutuante. */
+export function percentualAjusteParaBp(pct: number | null | undefined): number {
+  return pct == null ? 0 : Math.round(pct * 100);
+}
+
+/**
+ * RN-VEN-43: tabela do produto ajustada pelo % do prazo, POR UNIDADE e antes da quantidade, em centavos inteiros:
+ * `meia-para-cima(tabela × (10 000 + bp) ÷ 10 000)`. `bp` é inteiro em centésimos de ponto percentual (-1,71% = -171).
+ * Parte sempre da tabela ORIGINAL (RN-VEN-44). `bp` 0 devolve a tabela intacta.
+ */
+export function tabelaAjustadaCents(tabelaCents: number, percentualBp: number): number {
+  if (!Number.isInteger(percentualBp) || Math.abs(percentualBp) > AJUSTE_PRAZO_BP_MAX) throw new Error('RN-VEN-43: percentual do prazo fora da faixa -99,99 a +99,99.');
+  if (percentualBp === 0) return tabelaCents;
+  return aplicarPontosBase(tabelaCents, percentualBp);
+}
+
 export const MSG_DESCONTO_E_ACRESCIMO = 'Desconto e acréscimo são excludentes: use um ou outro.';
 
 /** RN-VEN-02: desconto e acréscimo (item ou pedido) são excludentes. `null` = ok. */
@@ -153,6 +173,8 @@ export interface ItemParaPreco {
   ajuste?: AjusteItem;
   /** RN-VEN-11: preço mínimo por unidade base (null = sem trava) */
   preco_minimo_base_cents?: number | null;
+  /** RN-VEN-43: % do prazo em bp; a tabela da unidade base é ajustada antes do fator e do desconto. Ausente = 0. */
+  percentual_ajuste_bp?: number;
 }
 
 export interface PrecoDoItem {
@@ -171,9 +193,10 @@ function exigirFator(fator: number): void {
 }
 
 /** Preço de tabela da unidade vendida (RN-VEN-15 nova, T-0089): sempre preço da unidade × quantidade da embalagem, sem preço de caixa. */
-export function precoTabelaDaUnidade(i: Pick<ItemParaPreco, 'preco_tabela_unidade_cents' | 'fator'>): number {
+export function precoTabelaDaUnidade(i: Pick<ItemParaPreco, 'preco_tabela_unidade_cents' | 'fator' | 'percentual_ajuste_bp'>): number {
   exigirFator(i.fator);
-  return i.preco_tabela_unidade_cents * i.fator;
+  // RN-VEN-43: a unidade base é ajustada pelo prazo antes do fator (a caixa é sempre a unidade ajustada × fator)
+  return tabelaAjustadaCents(i.preco_tabela_unidade_cents, i.percentual_ajuste_bp ?? 0) * i.fator;
 }
 
 /** RN-VEN-02 (v2): o preço UNITÁRIO é arredondado e o total da linha é unitário × quantidade. */
@@ -192,9 +215,9 @@ export function precoDoItem(i: ItemParaPreco): PrecoDoItem {
 
 // ---------- preço mínimo (RN-VEN-11) ----------
 /** Mínimo por unidade base: preço de venda × (1 − desconto máximo), arredondado PARA CIMA ao centavo (igual ao `precoMinimoCents` do Core que o BKO mostra; a API nunca aceita abaixo do exibido). `null` = produto sem preço de venda. */
-export function precoMinimoBaseCents(p: { preco_venda_cents: number | null; desconto_maximo_pct: number }): number | null {
+export function precoMinimoBaseCents(p: { preco_venda_cents: number | null; desconto_maximo_pct: number; /** RN-VEN-43: % do prazo em bp; o mínimo parte da tabela ajustada */ percentual_ajuste_bp?: number }): number | null {
   if (p.preco_venda_cents == null) return null;
-  return Math.ceil((p.preco_venda_cents * (10_000 - pontosBase(clampPct(p.desconto_maximo_pct)))) / 10_000);
+  return Math.ceil((tabelaAjustadaCents(p.preco_venda_cents, p.percentual_ajuste_bp ?? 0) * (10_000 - pontosBase(clampPct(p.desconto_maximo_pct)))) / 10_000);
 }
 
 /** "Desconto máximo deste produto: X%": maior desconto do item que não fura o mínimo (2 casas, truncado); 0 se a tabela já está abaixo. */

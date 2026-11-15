@@ -51,14 +51,14 @@ export function rascunhoComPagamentoPadrao(r: Rascunho, formas: readonly FormaDe
 }
 
 export function comPagamento(r: Rascunho, forma: FormaDePagamento, prazo: PrazoDePagamento): Rascunho {
-  return { ...r, forma_pagamento_id: forma.id, prazo_pagamento_id: prazo.id, payment_terms: `${forma.nome} · ${prazo.descricao}`, condicao_pagamento_id: null };
+  return { ...r, forma_pagamento_id: forma.id, prazo_pagamento_id: prazo.id, prazo_percentual_ajuste: prazo.percentual_ajuste ?? 0, payment_terms: `${forma.nome} · ${prazo.descricao}`, condicao_pagamento_id: null };
 }
 
 /** Trocar a forma: o prazo atual só fica se ele for dessa forma e estiver habilitado; senão volta ao placeholder (o campo fica com erro até escolher). */
 export function comForma(r: Rascunho, forma: FormaDePagamento, prazos: readonly PrazoDePagamento[], cliente: LimitesDoCliente): Rascunho {
   const prazo = prazosDaForma(prazos, forma.id, cliente.prazo_medio_max_dias).find((x) => x.prazo.id === r.prazo_pagamento_id && x.habilitado)?.prazo;
   if (prazo) return comPagamento(r, forma, prazo);
-  return { ...r, forma_pagamento_id: forma.id, prazo_pagamento_id: null, payment_terms: forma.nome, condicao_pagamento_id: null };
+  return { ...r, forma_pagamento_id: forma.id, prazo_pagamento_id: null, prazo_percentual_ajuste: 0, payment_terms: forma.nome, condicao_pagamento_id: null };
 }
 
 export function comPrazo(r: Rascunho, prazoId: string, formas: readonly FormaDePagamento[], prazos: readonly PrazoDePagamento[]): Rascunho {

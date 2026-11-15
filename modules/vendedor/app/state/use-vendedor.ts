@@ -20,6 +20,7 @@ import type { MixSuggestion } from '@macuxi/catalogo/contracts';
 import type { CustomerDetail, EditarOrcamentoRequest, Order, OrderDetail, PedidoPush, UpdateOrderRequest } from '../../contracts';
 import { orderActions, type OrderStatus } from '../../domain/order';
 import type { NivelDePreco } from '../../domain/preco-pedido';
+import { percentualAjusteParaBp } from '../../domain/preco-pedido';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
 import { copiaDoDetalhe, copiaDoPayload, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from '../lib/documento';
 import { precoDoOrcamentoVale, type MudancaNaConversao } from '../../domain/orcamento';
@@ -202,7 +203,7 @@ export function useVendedor() {
         const tabela = dados.produtos[cli?.price_table_id ?? 'default'];
         if (!cli || !tabela || !dados.politica) return null;
         try {
-          return calcularPedido({ lines: r.lines, ajustes: r.ajustes ?? {}, desconto_pct: r.discount_pct, acrescimo_pct: r.acrescimo_pct ?? 0, desconto_valor_cents: r.desconto_valor_cents, acrescimo_valor_cents: r.acrescimo_valor_cents, ajuste_em: r.ajuste_em, catalogo: tabela.items, unidades: unidadesDaTela(linhasRef.current), faixas: tabela.faixas, ...(r.precos_congelados ? { congelados: r.precos_congelados } : {}), politica: politicaApi(parametrosRef.current), vendedor_id: eu }).total_cents;
+          return calcularPedido({ percentual_ajuste_bp: percentualAjusteParaBp(r.prazo_percentual_ajuste), lines: r.lines, ajustes: r.ajustes ?? {}, desconto_pct: r.discount_pct, acrescimo_pct: r.acrescimo_pct ?? 0, desconto_valor_cents: r.desconto_valor_cents, acrescimo_valor_cents: r.acrescimo_valor_cents, ajuste_em: r.ajuste_em, catalogo: tabela.items, unidades: unidadesDaTela(linhasRef.current), faixas: tabela.faixas, ...(r.precos_congelados ? { congelados: r.precos_congelados } : {}), politica: politicaApi(parametrosRef.current), vendedor_id: eu }).total_cents;
         } catch {
           return null;
         }

@@ -23,6 +23,7 @@ import { SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '../domain/orcamento';
 import { ORDER_STATUSES } from '../domain/order';
 import { EnderecoEditadoPedido, EnderecoEntregaPedido, Frete, FreteDoPedido, ItemPush } from './frete';
 export * from './formas-pagamento';
+export * from './prazo-ajuste';
 
 /** T-0054 (RN-VEN-37, proposta): situação da devolução do pedido. */
 export const SITUACOES_DEVOLUCAO = ['nenhuma', 'parcial', 'total'] as const;
@@ -283,6 +284,11 @@ export const PedidoPush = CreateOrderRequest.extend({
    */
   forma_pagamento_id: z.string().uuid().nullable().optional(),
   prazo_pagamento_id: z.string().uuid().nullable().optional(),
+  /**
+   * RN-VEN-45 (v1.0.13, aditivo): "Desc./Acrésc. (%)" do prazo no momento do pedido (congelado). A API recalcula os preços por ele
+   * e o revalida (aceita o vigente, ou o antigo se o cadastro mudou depois do `created_offline_at`). Ausente = 0.
+   */
+  prazo_percentual_ajuste: z.number().min(-99.99).max(99.99).optional(),
   observacao: z.string().max(500).nullable().optional(),
   visita_id: z.string().uuid().nullable().optional(),
   /**

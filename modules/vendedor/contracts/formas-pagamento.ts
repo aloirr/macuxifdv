@@ -39,6 +39,8 @@ export const PrazoPagamento = z.object({
   descricao: z.string().min(1).max(60),
   parcelas_dias: z.array(z.number().int().min(0).max(365)).min(1).max(24),
   prazo_medio_dias: z.number().int().min(0).max(365),
+  /** RN-VEN-46: "Desc./Acrésc. (%)" do ERP, somente leitura no BKO; `SalvarPrazoRequest` não leva o campo. Ausente = 0. */
+  percentual_ajuste: z.number().min(-99.99).max(99.99).optional(),
   ativo: z.boolean(),
   ordem: z.number().int(),
   external_id: z.string().nullable(),
