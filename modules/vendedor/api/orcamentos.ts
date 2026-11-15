@@ -14,7 +14,7 @@ import { ErroHttpModulo, ErroNaoEncontrado, type ClienteBanco, type RotaModulo }
 import { CancelarOrcamentoRequest, EditarOrcamentoRequest, PedidoPush } from '../contracts';
 import { acoesDoOrcamento, conteudoDoEnvio, precoDoOrcamentoVale, situacaoDoOrcamento, validadeDoPreco, validadeOrcamentoDias } from '../domain';
 import { calcularDocumento } from './receber';
-import { COLUNA_PRAZO_PERCENTUAL, valoresPagamento, valorPercentualPrazo } from './pagamento';
+import { valoresPagamento, valorPercentualPrazo } from './pagamento';
 import { preVenda } from './pre-venda';
 import { precosCongeladosDoDocumento } from './preco-congelado';
 
@@ -116,7 +116,7 @@ export const rotaEditarOrcamento: RotaModulo = {
             transportadora_nome = $18, transportadora_documento = $19, transportadora_telefone = $20, endereco_entrega_id = $21, endereco_entrega = $22::jsonb,
             desconto_valor_cents = $23, acrescimo_valor_cents = $24, ajuste_em = $25, hash_envio = $26,
             forma_pagamento_id = $27, prazo_pagamento_id = $28, forma_pagamento_codigo = $29, forma_pagamento_nome = $30, prazo_codigo = $31,
-            prazo_descricao = $32, prazo_parcelas_dias = $33::int[], prazo_medio_dias = $34, ${COLUNA_PRAZO_PERCENTUAL} = $35
+            prazo_descricao = $32, prazo_parcelas_dias = $33::int[], prazo_medio_dias = $34, prazo_percentual_ajuste = $35
           where id = $1`,
         [
           id, pagamento?.texto ?? condicao?.descricao ?? null, v.desconto_pct, v.total_tabela_cents, v.total_cents, p.observacao ?? null, p.visita_id ?? null,

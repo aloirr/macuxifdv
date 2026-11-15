@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import { definirConsulta } from '@macuxi/platform-sdk';
 import { Id, IsoDateTime } from '@macuxi/core/contracts';
+import { PercentualAjusteBase } from './sync';
 
 export const FormasPagamentoEntradaSchema = z.object({}).strict();
 export const FormasPagamentoSaidaSchema = z.object({
@@ -40,7 +41,7 @@ export const PrazoPagamento = z.object({
   parcelas_dias: z.array(z.number().int().min(0).max(365)).min(1).max(24),
   prazo_medio_dias: z.number().int().min(0).max(365),
   /** RN-VEN-46: "Desc./Acrésc. (%)" do ERP, somente leitura no BKO; `SalvarPrazoRequest` não leva o campo. Ausente = 0. */
-  percentual_ajuste: z.number().min(-99.99).max(99.99).optional(),
+  percentual_ajuste: PercentualAjusteBase.optional(),
   ativo: z.boolean(),
   ordem: z.number().int(),
   external_id: z.string().nullable(),

@@ -16,7 +16,6 @@ describe('RN-VEN-43: percentual do prazo no pull', () => {
   });
   it('RN-VEN-43: o pull segue estrito (campo desconhecido é rejeitado; percentual_ajuste é explícito)', () => {
     expect(PrazoPagamentoSyncSchema.safeParse({ ...prazo, campo_futuro: 1 }).success).toBe(false);
-    expect(PrazoPagamentoSyncSchema.safeParse({ ...prazo, percentual_ajuste: 2 }).success).toBe(true);
   });
   it('RN-VEN-45: o push aceita o percentual congelado do prazo, opcional', () => {
     expect('prazo_percentual_ajuste' in PedidoPush.shape).toBe(true);

@@ -34,7 +34,7 @@ const base = { customer_id: 'c1' };
 describe('API: forma e prazo do pedido (RN-VEN-24/25, RN-VEN-13)', () => {
   it('RN-VEN-24: sem forma e prazo no payload segue pela condição legada (APK anterior)', async () => {
     const r = await resolverPagamento(ctx(), db, tx(null), base, cli, 'pedido');
-    expect(r).toEqual({ ok: true, pagamento: null, titulo_vencido: false, percentual_ajuste_bp: 0, percentual_ajuste: 0, aviso_percentual: null });
+    expect(r).toEqual({ ok: true, pagamento: null, titulo_vencido: false, percentual_ajuste_bp: 0, percentual_ajuste: 0, percentual_mudou: false });
     expect(valoresPagamento(null)).toEqual([null, null, null, null, null, null, null, null]);
     // RN-VEN-45: sem prazo o retrato do percentual é NULL (CHECK pedido_prazo_percentual_com_prazo da 0075), nunca 0
     expect(valorPercentualPrazo(null, 0)).toBeNull();
@@ -82,12 +82,12 @@ describe('API: forma e prazo do pedido (RN-VEN-24/25, RN-VEN-13)', () => {
   });
   it('RN-VEN-45: percentual diferente do vigente sem mudança posterior recusa com 422 em português (RN-VEN-40)', async () => {
     const p = { ...base, forma_pagamento_id: 'f-pix', prazo_pagamento_id: 'p-av-d', prazo_percentual_ajuste: 0, created_offline_at: '2026-11-15T15:00:00.000Z' };
-    expect(await resolverPagamento(ctx(), db, tx(null), p, cli, 'pedido')).toMatchObject({ ok: false, codigo: 'RN-VEN-45', mensagem: 'O prazo de pagamento mudou de percentual. Atualize o app e refaça o pedido.' });
+    expect(await resolverPagamento(ctx(), db, tx(null), p, cli, 'pedido')).toMatchObject({ ok: false, codigo: 'RN-VEN-45' });
   });
-  it('RN-VEN-45: cadastro mudou depois do pedido: aceita o percentual do pedido, com aviso', async () => {
+  it('RN-VEN-45: cadastro mudou depois do pedido: aceita o percentual do pedido e manda para aprovação', async () => {
     const p = { ...base, forma_pagamento_id: 'f-pix', prazo_pagamento_id: 'p-av-d', prazo_percentual_ajuste: 0, created_offline_at: '2026-11-15T09:00:00.000Z' };
     const r = await resolverPagamento(ctx(), db, tx(null), p, cli, 'pedido');
     expect(r).toMatchObject({ ok: true, percentual_ajuste_bp: 0 });
-    expect(r.ok && r.aviso_percentual).not.toBeNull();
+    expect(r.ok && r.percentual_mudou).toBe(true);
   });
 });

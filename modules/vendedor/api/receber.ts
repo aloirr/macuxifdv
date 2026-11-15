@@ -56,7 +56,7 @@ import {
   type Recusa,
 } from '../domain';
 import { payloadAprovado } from './aprovado-erp';
-import { resolverPagamento, valoresPagamento, valorPercentualPrazo, COLUNA_PRAZO_PERCENTUAL } from './pagamento';
+import { resolverPagamento, valoresPagamento, valorPercentualPrazo } from './pagamento';
 import { preVenda } from './pre-venda';
 import { precosCongeladosDoDocumento } from './preco-congelado';
 import { faltaDeEstoqueNaFilial, provedorSaldoDaFilial } from './estoque-filial';
@@ -227,7 +227,9 @@ export async function calcularDocumento(
     acrescimo_pct: p.acrescimo_pct ?? 0,
     desconto_valor_cents: p.desconto_valor_cents ?? 0,
     acrescimo_valor_cents: p.acrescimo_valor_cents ?? 0,
-    itens: p.items.map((i, idx) => ({
+    itens: p.items.map((i, idx) => {
+      const bpDoItem = congelados?.[i.product_id] !== undefined ? 0 : pg.percentual_ajuste_bp;
+      return {
       product_id: i.product_id,
       sku: produtos.get(i.product_id)?.sku ?? i.product_id,
       quantity: i.quantity,
@@ -241,15 +243,16 @@ export async function calcularDocumento(
       // T-0084 (RN-VEN-19): retrato do aparelho; nulo/ausente = sem aplicação
       aplicacao: i.aplicacao ?? null,
       // RN-VEN-43: o mínimo parte da tabela ajustada pelo prazo; o preço congelado do orçamento (RN-VEN-18) já está gravado ajustado
-      percentual_ajuste_bp: congelados?.[i.product_id] !== undefined ? 0 : pg.percentual_ajuste_bp,
-      preco_minimo_base_cents: precoMinimoBaseCents({ preco_venda_cents: produtos.get(i.product_id)?.preco_venda_cents ?? null, desconto_maximo_pct: produtos.get(i.product_id)?.desconto_maximo_pct ?? 100, percentual_ajuste_bp: congelados?.[i.product_id] !== undefined ? 0 : pg.percentual_ajuste_bp }),
-    })),
+      percentual_ajuste_bp: bpDoItem,
+      preco_minimo_base_cents: precoMinimoBaseCents({ preco_venda_cents: produtos.get(i.product_id)?.preco_venda_cents ?? null, desconto_maximo_pct: produtos.get(i.product_id)?.desconto_maximo_pct ?? 100, percentual_ajuste_bp: bpDoItem }),
+      };
+    }),
     percentual_ajuste_bp: pg.percentual_ajuste_bp,
     precos: mapaPreco,
     faixas: mapaFaixas,
     titulo_vencido: pg.titulo_vencido,
-    // RN-VEN-45: percentual divergente do vigente (aviso) = aprovação da alçada; o aviso vai no motivo da pendência (`pending_reason`)
-    percentual_mudou: pg.aviso_percentual !== null,
+    // RN-VEN-45: percentual divergente do vigente = aprovação da alçada
+    percentual_mudou: pg.percentual_mudou,
     aplicacao_max: aplicacaoMaxOrcamento(ctx.parametros()),
     // RN-VEN-10: o pedido do gestor usa a alçada do gestor
     policy: emNome ? politicaDoAutor(politicaDosParametros(ctx.parametros()), ctx.usuario.perfil) : politicaDosParametros(ctx.parametros()),
@@ -360,7 +363,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
         transportadora_documento, transportadora_telefone, endereco_entrega_id, endereco_entrega,
         desconto_valor_cents, acrescimo_valor_cents, ajuste_em,
         forma_pagamento_id, prazo_pagamento_id, forma_pagamento_codigo, forma_pagamento_nome, prazo_codigo, prazo_descricao, prazo_parcelas_dias, prazo_medio_dias,
-        filial_id, filial, ${COLUNA_PRAZO_PERCENTUAL})
+        filial_id, filial, prazo_percentual_ajuste)
      values ($1, plataforma.tenant_atual(), $2, $3, $38, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19, $20, $21, $22, $23::text[], $24,
         $25, $26, $27, $28, $29, $30, $31, $32, $33, $34::jsonb, $35, $36, $37,
         $39, $40, $41, $42, $43, $44, $45::int[], $46, $47, $48::jsonb, $49)

@@ -5,7 +5,7 @@
 import { pagamentoPadrao, formasDoCliente, type FormaDePagamento, type LimitePagamentoDoCliente, type PrazoDePagamento } from '../domain/pagamento';
 import { percentualAjusteParaBp, tabelaAjustadaCents } from '../domain/preco-pedido';
 
-export { tabelaAjustadaCents, percentualAjusteParaBp, AJUSTE_PRAZO_BP_MAX } from '../domain/preco-pedido';
+export { tabelaAjustadaCents, percentualAjusteParaBp } from '../domain/preco-pedido';
 export type { FormaDePagamento, PrazoDePagamento, LimitePagamentoDoCliente } from '../domain/pagamento';
 
 /**
@@ -15,12 +15,12 @@ export type { FormaDePagamento, PrazoDePagamento, LimitePagamentoDoCliente } fro
 export function percentualDoPrazoPadraoBp(i: {
   cliente: LimitePagamentoDoCliente | null | undefined;
   formas: readonly FormaDePagamento[];
-  prazos: readonly (PrazoDePagamento & { percentual_ajuste?: number })[];
+  prazos: readonly PrazoDePagamento[];
 }): number {
   if (!i.cliente) return 0;
   const padrao = pagamentoPadrao(formasDoCliente(i.formas, i.cliente.formas_pagamento), i.prazos, i.cliente.prazo_medio_max_dias);
   if (!padrao) return 0;
-  return percentualAjusteParaBp((i.prazos.find((p) => p.id === padrao.prazo.id) as { percentual_ajuste?: number } | undefined)?.percentual_ajuste);
+  return percentualAjusteParaBp(i.prazos.find((p) => p.id === padrao.prazo.id)?.percentual_ajuste);
 }
 
 /** RN-VEN-43: preço de tabela exibido no Catálogo = tabela ajustada pelo prazo padrão do cliente (sem cliente, a tabela pura). */

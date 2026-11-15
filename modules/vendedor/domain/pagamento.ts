@@ -119,20 +119,20 @@ export function validarPagamento(i: {
   return { ok: true };
 }
 
-export const MSG_PERCENTUAL_DO_PRAZO_MUDOU = 'O prazo de pagamento mudou de percentual. Atualize o app e refaça o pedido.';
+export const MSG_PERCENTUAL_DO_PRAZO_MUDOU = 'Este prazo de pagamento mudou. Atualize o app e refaça o pedido.';
 
 /**
  * RN-VEN-45: o percentual do pedido é congelado e revalidado no envio. `push` = o do aparelho (ausente = 0); `vigente` = o do
- * cadastro agora. Igual: aceita. Diferente e o cadastro do prazo mudou DEPOIS do `criado_em` do pedido: aceita o do push, com
- * aviso; o chamador manda o pedido para aprovação (RN-VEN-10, a data é do aparelho). Diferente sem mudança posterior: recusa (RN-VEN-40). Devolve o percentual a usar no cálculo.
+ * cadastro agora. Igual: aceita. Diferente e o cadastro do prazo mudou DEPOIS do `criado_em` do pedido: aceita o do push
+ * (`mudou_depois`); o chamador manda o pedido para aprovação (RN-VEN-10, a data é do aparelho). Diferente sem mudança posterior: recusa (RN-VEN-40). Devolve o percentual a usar no cálculo.
  */
-export type ResultadoPercentualDoPrazo = { ok: true; percentual: number; aviso: string | null } | { ok: false; codigo: 'RN-VEN-45'; mensagem: string };
+export type ResultadoPercentualDoPrazo = { ok: true; percentual: number; mudou_depois: boolean } | { ok: false; codigo: 'RN-VEN-45'; mensagem: string };
 export function revalidarPercentualDoPrazo(i: { push: number | null | undefined; vigente: number | null | undefined; cadastro_atualizado_em: string | null | undefined; criado_em: string }): ResultadoPercentualDoPrazo {
   const push = i.push ?? 0;
   const vigente = i.vigente ?? 0;
-  if (Math.round(push * 100) === Math.round(vigente * 100)) return { ok: true, percentual: push, aviso: null };
+  if (Math.round(push * 100) === Math.round(vigente * 100)) return { ok: true, percentual: push, mudou_depois: false };
   const mudouDepois = !!i.cadastro_atualizado_em && Date.parse(i.cadastro_atualizado_em) > Date.parse(i.criado_em);
-  if (mudouDepois) return { ok: true, percentual: push, aviso: 'O percentual do prazo mudou depois que o pedido foi feito; valeu o do momento do pedido.' };
+  if (mudouDepois) return { ok: true, percentual: push, mudou_depois: true };
   return { ok: false, codigo: 'RN-VEN-45', mensagem: MSG_PERCENTUAL_DO_PRAZO_MUDOU };
 }
 

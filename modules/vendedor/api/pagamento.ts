@@ -26,17 +26,15 @@ interface PrazoLinha {
   prazo_medio_dias: number;
   ativo: boolean;
   ordem: number;
-  /** RN-VEN-43: vem da coluna `percentual_ajuste` (migração do banco-dados, T prazo-ajuste); ausente = 0 */
+  /** RN-VEN-43 */
   percentual_ajuste?: number | null;
   atualizado_em?: string | null;
 }
 
-/**
- * RN-VEN-43/45: ÚNICO ponto que lê a coluna nova do prazo (`percentual_ajuste`, do PR do banco-dados). Depende do merge dele:
- * sem a coluna a consulta falha em tempo de execução, não no typecheck.
- */
+/** RN-VEN-43: leitura do percentual do prazo (2 casas); a mesma nos SELECTs de prazo. */
+export const COLUNA_PERCENTUAL_AJUSTE = 'round(percentual_ajuste, 2)::float8 as percentual_ajuste';
 export const SELECT_PRAZO =
-  `select id, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ativo, ordem, percentual_ajuste::float8 as percentual_ajuste,
+  `select id, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ativo, ordem, ${COLUNA_PERCENTUAL_AJUSTE},
           to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as atualizado_em
      from vendedor.prazo_pagamento where id = $1 and deleted_at is null`;
 
@@ -48,7 +46,7 @@ export interface PagamentoResolvido {
 }
 
 export type ResultadoPagamento =
-  | { ok: true; pagamento: PagamentoResolvido | null; titulo_vencido: boolean; percentual_ajuste_bp: number; percentual_ajuste: number; aviso_percentual: string | null }
+  | { ok: true; pagamento: PagamentoResolvido | null; titulo_vencido: boolean; percentual_ajuste_bp: number; percentual_ajuste: number; percentual_mudou: boolean }
   | { ok: false; codigo: 'RN-VEN-24' | 'RN-VEN-25' | 'RN-VEN-45'; mensagem: string };
 
 export const textoDoPagamento = (forma: { nome: string }, prazo: { descricao: string }): string => `${forma.nome} · ${prazo.descricao}`;
@@ -67,7 +65,7 @@ export async function resolverPagamento(
 ): Promise<ResultadoPagamento> {
   const formaId = p.forma_pagamento_id ?? null;
   const prazoId = p.prazo_pagamento_id ?? null;
-  if (!formaId && !prazoId) return { ok: true, pagamento: null, titulo_vencido: false, percentual_ajuste_bp: 0, percentual_ajuste: 0, aviso_percentual: null };
+  if (!formaId && !prazoId) return { ok: true, pagamento: null, titulo_vencido: false, percentual_ajuste_bp: 0, percentual_ajuste: 0, percentual_mudou: false };
   if (!formaId || !prazoId) return { ok: false, codigo: 'RN-VEN-24', mensagem: 'Escolha a forma de pagamento e o prazo.' };
 
   const forma = (await db.query<FormaLinha>('select id, codigo, nome, ativo, ordem from vendedor.forma_pagamento where id = $1 and deleted_at is null', [formaId])).rows[0];
@@ -101,7 +99,7 @@ export async function resolverPagamento(
     titulo_vencido,
     percentual_ajuste_bp: percentualAjusteParaBp(pct.percentual),
     percentual_ajuste: pct.percentual,
-    aviso_percentual: pct.aviso,
+    percentual_mudou: pct.mudou_depois,
   };
 }
 
@@ -123,10 +121,9 @@ export function valoresPagamento(pg: PagamentoResolvido | null): unknown[] {
 }
 
 /**
- * RN-VEN-45: a 9ª coluna do retrato (`prazo_percentual_ajuste`, banco-dados). Sem prazo (condição legada, RN-VEN-14) vai `null`: o CHECK
- * `pedido_prazo_percentual_com_prazo` (0075) só aceita o percentual com `prazo_pagamento_id`. Depende do merge do PR do banco-dados.
+ * RN-VEN-45: valor da coluna `prazo_percentual_ajuste` do retrato. Sem prazo (condição legada, RN-VEN-14) vai `null`: o CHECK
+ * `pedido_prazo_percentual_com_prazo` só aceita o percentual com `prazo_pagamento_id`.
  */
-export const COLUNA_PRAZO_PERCENTUAL = 'prazo_percentual_ajuste';
 export function valorPercentualPrazo(pagamento: PagamentoResolvido | null, percentual: number): number | null {
   return pagamento ? percentual : null;
 }
