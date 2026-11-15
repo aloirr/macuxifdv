@@ -46,7 +46,7 @@ export function TabelaDados<T>({ colunas, linhas, chave, rotulo, acoes, aoAbrir,
   const temAcoes = !!acoes;
   return (
     <div className="@container/tabela w-full min-w-0">
-      <table className="w-full table-fixed border-collapse text-[13px]" data-testid={testId}>
+      <table className="w-full table-fixed border-collapse text-[15px]" data-testid={testId}>
         <caption className="sr-only">{rotulo}</caption>
         <thead>
           <tr>

@@ -1,5 +1,8 @@
 # Início do Campo: cabeçalho com a foto ao lado dos textos
 
+> **Tipografia substituída** pela fonte do sistema (R-20261115-110600, 15/11/2026): ver o [manual da marca §5](../../marca/manual.md#5-tipografia).
+> Famílias, pesos acima de 700 e tamanhos fora da escala citados abaixo ficam só como histórico.
+
 > **Escolhida: C (72).** 14/11/2026, dono do produto, recado R-20261114-212000-alexandre ("Tamanho C"). As variações A e B
 > ficam só como histórico.
 >
@@ -26,20 +29,20 @@ e o sino.
 ## 2. Variações
 | | Foto | Raio | Iniciais |
 |---|---|---|---|
-| A | 56 × 56 | `radius.md` (12) | `fonts.display` 20 |
-| B | 64 × 64 | `radius.lg` (14) | `fonts.display` 22 |
-| **C (escolhida)** | **72 × 72** | `radius.xl` (16) | `fonts.display` 24 |
+| A | 56 × 56 | `radius.md` (12) | `fonte.bold` 20 |
+| B | 64 × 64 | `radius.lg` (14) | `fonte.bold` 22 |
+| **C (escolhida)** | **72 × 72** | `radius.xl` (16) | `fonte.bold` 24 |
 
 **Por que a C:** é a que tem a altura do bloco de três linhas de texto (≈ 70 dp), que é o pedido ("ao lado de" e
 "maior"), e a data e a frase ainda cabem em uma linha a 390 dp.
 
 ## 3. Tipografia e cores (tokens de `packages/ui`)
-- Saudação: `fonts.display` **22** (hoje 24), cor `colors.faixaTitulo`; 1 linha, encolhe para caber até 0,75
+- Saudação: `fonte.bold` **22** (hoje 24), cor `colors.faixaTitulo`; 1 linha, encolhe para caber até 0,75
   (`adjustsFontSizeToFit`, `minimumFontScale={0.75}`, ≈ 16,5) e só então reticências. Continua só o primeiro nome
   (`saudacaoComNome`). No teste a 390 dp: "Boa noite, Maximiliano" ficou em 19,5, sem reticências.
-- Data · DU: `fonts.body` **13** (hoje 14; o corpo do `type.sub`), `colors.faixaSub`; o "· DU 11 de 23" segue sem quebra
+- Data · DU: `fonte.body` **13** (hoje 14; o corpo do `type.sub`), `colors.faixaSub`; o "· DU 11 de 23" segue sem quebra
   (`semQuebra`). Se não couber, quebra em 2 linhas antes do "·".
-- Frase: `fonts.body` **13** itálico (hoje 14), `colors.faixaSub`, até 2 linhas (`numberOfLines={2}`), com aspas.
+- Frase: `fonte.body` **13** itálico (hoje 14), `colors.faixaSub`, até 2 linhas (`numberOfLines={2}`), com aspas.
 - Foto/iniciais: medidas da C (§2); fundo `colors.neutralBg`, iniciais em `colors.accentInk` (`initials(nome)`); com foto, a imagem cobre a área
   (`resizeMode="cover"`) com o mesmo raio. A foto vem do perfil (o mesmo dado do avatar de hoje).
 - Espaços: `layoutCabecalho(insets.top)` como hoje (respiro de cima 12, lateral 20, embaixo 16); foto ↔ textos `space.md`

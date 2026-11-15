@@ -27,11 +27,11 @@ describe('índice FTS5 do Catálogo no aparelho (T-0008, pedido R-20261031-20543
         (entidade === 'produto_atributo'
           ? [linha({ id: 'a2', nome: 'Volume', valor: '5 L' }), linha({ id: 'a1', nome: 'Fragrância', valor: 'Neutro' }), linha({ id: 'a3', nome: 'Velho', valor: 'x', deleted_at: QUANDO })]
           : entidade === 'produto_conteudo'
-            ? [linha({ id: 'c1', aplicacao: aplicacao })]
-            : [linha({ id: 'r2', codigo: 'FB-0207', ordem: 2 }), linha({ id: 'r1', codigo: 'CB 3401', ordem: 1 }), linha({ id: 'r3', codigo: 'VELHA', ordem: 3, deleted_at: QUANDO })]) as L[],
+            ? [linha({ id: 'c1', aplicacao: aplicacao, descricao: 'Limpa pisos pesados' })]
+            : [linha({ id: 'r2', codigo: 'FB-0207', ordem: 2, marca_nome: 'Freiomax' }), linha({ id: 'r1', codigo: 'CB 3401', ordem: 1, marca_nome: 'Freiomax' }), linha({ id: 'r3', codigo: 'VELHA', ordem: 3, deleted_at: QUANDO })]) as L[],
     });
     const p = linha({ sku: 'DET-5L', ean: '7891000100103', nome: 'Detergente 5 L', marca: 'Brilho', categoria: 'Limpeza', unidade: 'UN', ativo: true, external_id: 'ERP-77' });
-    expect(await INDICE_BUSCA_CATALOGO.documento(P, ler(p))).toEqual({ sku: 'DET-5L', ean: '7891000100103', codigos: 'det5l erp77 cb3401 fb0207', nome: 'Detergente 5 L', marca: 'Brilho', categoria: 'Limpeza', atributos: 'Fragrância Neutro Volume 5 L', aplicacao: `${aplicacao} 2011 2012 2013`, referencias: 'CB 3401 FB-0207' });
+    expect(await INDICE_BUSCA_CATALOGO.documento(P, ler(p))).toEqual({ sku: 'DET-5L', ean: '7891000100103', codigos: 'det5l erp77 cb3401 fb0207', nome: 'Detergente 5 L', marca: 'Brilho Freiomax', categoria: 'Limpeza', atributos: 'Fragrância Neutro Volume 5 L Limpa pisos pesados', aplicacao: `${aplicacao} 2011 2012 2013`, referencias: 'CB 3401 FB-0207' });
     expect(await INDICE_BUSCA_CATALOGO.documento(P, ler({ ...p, ativo: false } as LinhaSync))).toBeNull();
     expect(await INDICE_BUSCA_CATALOGO.documento(P, ler(null))).toBeNull();
   });
@@ -50,6 +50,6 @@ describe('índice FTS5 do Catálogo no aparelho (T-0008, pedido R-20261031-20543
     const t = 'Fusca 1960 em diante; Civic 2018 em diante; Fit 2015–2020';
     const extras = textoIndiceAplicacao(t).slice(t.length + 1).split(' ').map(Number);
     expect(extras).toEqual([...new Set([...anos(1961, 2000), ...anos(2016, 2017), ...anos(2019, 2058)])].sort((a, b) => a - b).filter((a) => a !== 2020));
-    expect(INDICE_BUSCA_CATALOGO.versaoDocumentos?.({ agora: criarRelogio().agora(), fuso: 'America/Manaus' })).toBe('v4');
+    expect(INDICE_BUSCA_CATALOGO.versaoDocumentos?.({ agora: criarRelogio().agora(), fuso: 'America/Manaus' })).toBe('v5');
   });
 });
