@@ -10,6 +10,7 @@ import { MeusModulosRespostaSchema, type Me } from '@macuxi/core/contracts';
 import { AuditoriaRespostaSchema, modulosEfetivos, ROTA_AUDITORIA, type ModuloId, type Perfil } from '@macuxi/platform-sdk';
 import { api, ApiRequestError, MODO_API } from '@macuxi/platform-sdk/web';
 import { intervaloSyncAutoMs, PARAMETRO_SYNC_AUTO, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
+import { separarContratados } from './modulos-contratados';
 import { MANIFESTOS_WEB } from './modulos';
 import { useSessao } from './session';
 
@@ -45,6 +46,11 @@ interface ModulosDoUsuario {
   ids: ModuloId[];
   /** `parametros.core.sync_auto_min` do tenant (RN-CORE-23), ou `undefined` (vale o padrão de 30 min). */
   syncAutoMin: unknown;
+  /**
+   * ADR 0058: `modulos_contratados` (módulos ativos no tenant, sem o recorte do perfil), só para mostrar a vitrine sem licença.
+   * Campo aditivo e opcional: ausente ou inválido = `undefined` (nada aparece desativado).
+   */
+  contratados: ModuloId[] | undefined;
 }
 
 /** Uma consulta só a `GET /v1/me/modulos` (cache do React Query): os efetivos e o `sync_auto_min` saem dela. */
@@ -57,8 +63,9 @@ function useMeusModulos<T>(perfil: Perfil | null, select: (d: ModulosDoUsuario) 
     select,
     queryFn: async (): Promise<ModulosDoUsuario> => {
       try {
-        const r = MeusModulosRespostaSchema.parse(await api<unknown>('/me/modulos'));
-        return { ids: r.modulos.map((m) => m.id), syncAutoMin: r.modulos.find((m) => m.id === 'core')?.parametros?.[PARAMETRO_SYNC_AUTO] };
+        const { resto, contratados } = separarContratados(await api<unknown>('/me/modulos'));
+        const r = MeusModulosRespostaSchema.parse(resto);
+        return { ids: r.modulos.map((m) => m.id), syncAutoMin: r.modulos.find((m) => m.id === 'core')?.parametros?.[PARAMETRO_SYNC_AUTO], contratados };
       } catch (e) {
         if (!(e instanceof ApiRequestError) || e.status !== 404 || !perfil) throw e;
         return {
@@ -68,6 +75,7 @@ function useMeusModulos<T>(perfil: Perfil | null, select: (d: ModulosDoUsuario) 
             doPerfil: MANIFESTOS_WEB.filter((m) => m.perfis.includes(perfil)).map((m) => m.id),
           }),
           syncAutoMin: undefined,
+          contratados: undefined,
         };
       }
     },
@@ -75,6 +83,7 @@ function useMeusModulos<T>(perfil: Perfil | null, select: (d: ModulosDoUsuario) 
 }
 
 const soIds = (d: ModulosDoUsuario) => d.ids;
+const soContratados = (d: ModulosDoUsuario) => d.contratados;
 const soIntervalo = (d: ModulosDoUsuario) => intervaloSyncAutoMs(d.syncAutoMin);
 
 /**
@@ -84,6 +93,11 @@ const soIntervalo = (d: ModulosDoUsuario) => intervaloSyncAutoMs(d.syncAutoMin);
  */
 export function useModulosEfetivos(perfil: Perfil | null) {
   return useMeusModulos(perfil, soIds);
+}
+
+/** ADR 0058: módulos contratados pela empresa (`modulos_contratados`), ou `undefined` (ausente: nada fica desativado). */
+export function useModulosContratados(perfil: Perfil | null): ModuloId[] | undefined {
+  return useMeusModulos(perfil, soContratados).data;
 }
 
 /**

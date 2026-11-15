@@ -24,6 +24,7 @@ vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ clear: () => 
 vi.mock('@/lib/queries', () => ({
   useMe: () => ({ data: undefined, isError: false }),
   useModulosEfetivos: () => ({ data: undefined, isError: false }),
+  useModulosContratados: () => undefined,
 }));
 vi.mock('@/lib/session', () => ({ useSessao: () => estado.sessao, encerrarSessao: () => Promise.resolve() }));
 vi.mock('@macuxi/platform-sdk/web', async (original) => ({

@@ -39,6 +39,8 @@
      próprio, não o accent-light: mesmo valor, outro papel (docs/design/telas/bko-revisao.md §M4) */
   --color-nav-grupo: #f59a52;
   --color-disabled: #8b96a3;
+  /* Texto de apoio (#5B6673 no Pérola, 5,41:1): seção bloqueada da página Parâmetros (ADR 0058; spec menu-parametros §3, MC-x1) */
+  --color-texto-apoio: #5b6673;
 
   --font-sans: var(--font-plex-sans), 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-display: var(--font-archivo), 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;

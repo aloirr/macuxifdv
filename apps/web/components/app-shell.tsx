@@ -9,6 +9,10 @@
  * Menu (R-20261114-192700; docs/design/telas/bko-revisao.md §M2–§M4): grupos do SDK (`grupoMenu`/`rotuloGrupo`, ADR 0050), em ordem alfabética
  * (lib/menu-bko.ts); tudo aberto quando cabe na altura, senão sanfona com o grupo da tela atual aberto e painel ao lado
  * do menu ao passar o ponteiro (ou dar foco) num grupo fechado. Marca: logo A negativo para o grafite (MC-0056).
+ * ADR 0058 (spec docs/design/menu-parametros/spec.md §2–§3): Parâmetros e Sistema fixos no fim; grupo de um item vira item
+ * direto (D9); Pesquisa, Trade e Treinamento sem a licença da EMPRESA (`modulos_contratados` de `/v1/me/modulos`) aparecem
+ * com cadeado, não navegam e mostram o balão "Contrate o módulo para usar"; os endereços antigos que viraram painel de
+ * Parâmetros (`/perfis`, `/motivos`, `/alcadas`…) vão para `/parametros/<secao>#<ancora>` (`visao.destinoParametros`).
  * As páginas recebem o ambiente do navegador (`useHttp()`/`useAmbiente()` — lib/ambiente.ts).
  * RN-CORE-33 (T-0094; spec docs/design/ciclo-de-senha.md §1): perfil sem backoffice (a sessão cujo perfil não tem `acesso.bko`
  * no motor de permissões do SDK, `entraEm`, ou o 403 `PERFIL_SEM_BKO` de qualquer chamada) encerra a sessão e volta ao
@@ -22,14 +26,24 @@ import type { ItemMenu } from '@macuxi/core/contracts';
 import { entraEm, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
 import { ShellProvider } from '@macuxi/platform-sdk/react';
 import { errorMessage, MODO_API, tentarRestaurarSessao } from '@macuxi/platform-sdk/web';
-import { cx, ErrorBlock, IconChevronRight, IconLogout, LoadingBlock, rotuloDoPerfil } from '@macuxi/ui/web';
+import { cx, ErrorBlock, IconChevronRight, IconLock, IconLogout, LoadingBlock, rotuloDoPerfil } from '@macuxi/ui/web';
 import { criarAmbienteWeb } from '@/lib/ambiente';
 import { aoPerfilSemBko, guardarAvisoDoLogin, mensagemSemBko } from '@/lib/ciclo-senha';
 import { estadoDaSessao, estadoDoConteudo } from '@/lib/estado-shell';
 import { PROPORCAO_LOGO_HORIZONTAL, SRC_LOGO_NEGATIVO_GRAFITE } from '@/lib/logo-marca';
-import { ALTURA_ITEM, grupoDaTela, cabeTudoAberto, hrefAtivo, montarGruposMenu, type GrupoMenuBko, type ItemMenuBko } from '@/lib/menu-bko';
+import {
+  ALTURA_ITEM,
+  cabeTudoAberto,
+  grupoDaTela,
+  hrefAtivo,
+  hrefsNavegaveis,
+  montarGruposMenu,
+  TEXTO_SEM_LICENCA,
+  type GrupoMenuBko,
+  type ItemMenuBko,
+} from '@/lib/menu-bko';
 import { SHELL_WEB } from '@/lib/modulos';
-import { useMe, useModulosEfetivos } from '@/lib/queries';
+import { useMe, useModulosContratados, useModulosEfetivos } from '@/lib/queries';
 import { encerrarSessao, useSessao } from '@/lib/session';
 import { SessaoSemConexao } from './sessao-sem-conexao';
 
@@ -79,7 +93,91 @@ function Brand({ company }: { company: string }) {
   );
 }
 
-const TITULO_GRUPO = 'text-[11.5px] font-semibold tracking-[0.07em] text-nav-grupo uppercase';
+const TITULO_TEXTO = 'text-[11.5px] font-semibold tracking-[0.07em] uppercase';
+const TITULO_GRUPO = cx(TITULO_TEXTO, 'text-nav-grupo');
+
+/**
+ * Item direto de 1º nível (D9: grupo com uma página só; Parâmetros): o título do grupo (Sol claro, maiúsculas, 30 px), sem
+ * seta, navega no clique; tela atual com o fundo do item ativo e o texto branco (spec §3).
+ */
+function ItemDireto({ grupo, active, onNavegar }: { grupo: GrupoMenuBko; active: boolean; onNavegar?: () => void }) {
+  const item = grupo.itens[0];
+  if (!item) return null;
+  return (
+    <Link
+      href={item.href}
+      data-testid={item.testId}
+      aria-current={active ? 'page' : undefined}
+      onClick={onNavegar}
+      className={cx(
+        'flex h-[30px] shrink-0 items-center rounded-lg px-2.5 no-underline transition-colors',
+        TITULO_TEXTO,
+        FOCO,
+        active ? 'bg-nav-active text-white' : 'text-nav-grupo hover:bg-nav-active',
+      )}
+    >
+      {grupo.titulo}
+    </Link>
+  );
+}
+
+/**
+ * Entrada de módulo de vitrine que a empresa não contratou (ADR 0058, spec §3): cinza no grafite com cadeado no lugar da
+ * seta; não abre nem navega; `aria-disabled`, foco de teclado e o balão "Contrate o módulo para usar" à direita do menu no
+ * passar do ponteiro, no foco e no clique (some ao sair, no Esc ou no clique fora).
+ */
+function EntradaBloqueada({ grupo }: { grupo: GrupoMenuBko }) {
+  const [dica, setDica] = useState<{ top: number; left: number } | null>(null);
+  const idDica = `menu-dica-${grupo.id}`;
+  const mostrar = (el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    const menu = el.closest('nav')?.getBoundingClientRect();
+    setDica({ top: r.top + r.height / 2, left: (menu?.right ?? r.right) + 10 });
+  };
+  useEffect(() => {
+    if (!dica) return;
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDica(null);
+    };
+    const rolar = () => setDica(null);
+    document.addEventListener('keydown', tecla);
+    window.addEventListener('scroll', rolar, true);
+    return () => {
+      document.removeEventListener('keydown', tecla);
+      window.removeEventListener('scroll', rolar, true);
+    };
+  }, [dica]);
+  return (
+    <>
+      <div
+        role="link"
+        tabIndex={0}
+        aria-disabled="true"
+        aria-describedby={idDica}
+        data-testid={grupo.testId}
+        data-bloqueado=""
+        onMouseEnter={(e) => mostrar(e.currentTarget)}
+        onMouseLeave={() => setDica(null)}
+        onFocus={(e) => mostrar(e.currentTarget)}
+        onBlur={() => setDica(null)}
+        onClick={(e) => mostrar(e.currentTarget)}
+        className={cx('flex h-[30px] shrink-0 cursor-not-allowed items-center justify-between rounded-lg px-2.5 text-disabled', TITULO_TEXTO, FOCO)}
+      >
+        {grupo.titulo}
+        <IconLock size={14} strokeWidth={2.2} className="shrink-0" />
+      </div>
+      <div
+        id={idDica}
+        role="tooltip"
+        hidden={!dica}
+        style={dica ? { top: dica.top, left: dica.left } : undefined}
+        className="pointer-events-none fixed z-50 -translate-y-1/2 rounded-lg bg-surface px-3 py-[7px] text-[13px] leading-[18px] font-semibold whitespace-nowrap text-ink shadow-[0_6px_16px_rgba(22,32,42,0.22)] before:absolute before:top-1/2 before:-left-[5px] before:size-2.5 before:-translate-y-1/2 before:rotate-45 before:bg-surface before:content-['']"
+      >
+        {TEXTO_SEM_LICENCA}
+      </div>
+    </>
+  );
+}
 
 interface Painel {
   grupo: string;
@@ -155,6 +253,8 @@ function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string 
   return (
     <div ref={listaRef} className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1">
       {grupos.map((g) => {
+        if (g.bloqueado) return <EntradaBloqueada key={g.id} grupo={g} />;
+        if (g.direto) return <ItemDireto key={g.id} grupo={g} active={g.itens[0]?.href === ativo} />;
         const estaAberto = tudoAberto || aberto === g.id;
         const comPainel = !estaAberto && painel?.grupo === g.id;
         const titulo = (e: { currentTarget: HTMLElement }) => e.currentTarget.querySelector<HTMLElement>('[data-menu-titulo]');
@@ -177,13 +277,14 @@ function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string 
             }}
           >
             {tudoAberto ? (
-              <span data-menu-titulo="" className={cx('flex h-[30px] shrink-0 items-center px-2.5', TITULO_GRUPO)}>
+              <span data-menu-titulo="" data-testid={g.testId} className={cx('flex h-[30px] shrink-0 items-center px-2.5', TITULO_GRUPO)}>
                 {g.titulo}
               </span>
             ) : (
               <button
                 type="button"
                 data-menu-titulo=""
+                data-testid={g.testId}
                 aria-expanded={estaAberto}
                 aria-controls={`menu-grupo-${g.id}`}
                 onClick={() => {
@@ -251,9 +352,14 @@ function MenuEstreito({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string
         ))}
       </select>
       <div className="-mr-4 flex min-w-0 flex-1 gap-1 overflow-x-auto pr-4 pb-1">
-        {grupo.itens.map((i) => (
-          <NavLink key={i.href} item={i} active={i.href === ativo} variante="compact" />
-        ))}
+        {grupo.bloqueado ? (
+          <span aria-disabled="true" className="flex h-9 shrink-0 items-center gap-1.5 px-3 text-[13px] whitespace-nowrap text-disabled">
+            <IconLock size={14} strokeWidth={2.2} className="shrink-0" />
+            {TEXTO_SEM_LICENCA}
+          </span>
+        ) : (
+          grupo.itens.map((i) => <NavLink key={i.href} item={i} active={i.href === ativo} variante="compact" />)
+        )}
       </div>
     </div>
   );
@@ -267,6 +373,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const me = useMe();
   const perfil = session.user?.perfil ?? null;
   const modulos = useModulosEfetivos(perfil);
+  const contratados = useModulosContratados(perfil);
 
   // T-0117 (G2): só `anonymous` (401/423 ou sem usuário) vai ao login; `sem_conexao` fica na aba com o aviso
   const estadoSessao = estadoDaSessao(session.status);
@@ -275,7 +382,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [estadoSessao, router, pathname]);
 
   // menu: só o Core enquanto `/v1/me/modulos` carrega; o miolo (páginas, que decidem 404) espera os efetivos (D-B30)
-  const visao = useMemo(() => SHELL_WEB.montar({ perfil, modulosAtivos: modulos.data ?? ['core'] }), [perfil, modulos.data]);
+  // ADR 0058: `modulos_contratados` só quando a API manda (ausente: nada aparece desativado)
+  const visao = useMemo(
+    () => SHELL_WEB.montar({ perfil, modulosAtivos: modulos.data ?? ['core'], ...(contratados ? { modulosContratados: contratados } : {}) }),
+    [perfil, modulos.data, contratados],
+  );
+  // ADR 0058: endereço antigo que virou painel de Parâmetros (`/perfis` → `/parametros/acesso#core-perfis`), com os efetivos já carregados
+  const destinoAntigo = modulos.data ? visao.destinoParametros(pathname) : null;
+  useEffect(() => {
+    if (destinoAntigo) router.replace(destinoAntigo);
+  }, [destinoAntigo, router]);
   const usuario = session.user;
   const ambiente = useMemo(() => criarAmbienteWeb(() => (usuario ? { id: usuario.id, nome: usuario.name, perfil: usuario.perfil } : null)), [usuario]);
 
@@ -315,14 +431,15 @@ export function AppShell({ children }: { children: ReactNode }) {
     navegacao: visao.navegacao,
     mais: visao.extensoes<ItemMenu>('menu.itens').map((i) => i.payload),
     plataforma: entraEm('bko', perfil),
+    parametros: visao.parametros.length > 0,
   });
-  const ativo = hrefAtivo(pathname, grupos.flatMap((g) => g.itens.map((i) => i.href)));
+  const ativo = hrefAtivo(pathname, hrefsNavegaveis(grupos));
   const conteudo = estadoDoConteudo({ erroMe: MODO_API === 'demo' && me.isError, perfilUsaWeb: entraEm('bko', perfil), modulos });
 
   return (
     <div className="flex min-h-screen flex-col bg-ground md:flex-row">
       {/* menu lateral (desktop): a lista ocupa o espaço entre a marca e o rodapé; o menu em si não rola */}
-      <nav aria-label="Menu do backoffice" data-testid="menu-bko" className="sticky top-0 hidden h-screen w-[240px] shrink-0 flex-col bg-ink px-3 pt-3.5 pb-3 text-white md:flex">
+      <nav aria-label="Menu do backoffice" data-testid="menu-bko" className="sticky top-0 z-40 hidden h-screen w-[240px] shrink-0 flex-col bg-ink px-3 pt-3.5 pb-3 text-white md:flex">
         <div className="shrink-0 px-2 pb-3">
           <Brand company={company} />
         </div>
@@ -361,7 +478,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <SemBko perfil={perfil} />
         ) : conteudo === 'erro_modulos' ? (
           <ErrorBlock message={errorMessage(modulos.error)} onRetry={() => void modulos.refetch()} />
-        ) : conteudo === 'carregando_modulos' ? (
+        ) : conteudo === 'carregando_modulos' || destinoAntigo ? (
           <div data-testid="shell-carregando-modulos">
             <LoadingBlock label="Carregando…" />
           </div>
