@@ -110,6 +110,17 @@ const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
   'plataforma.sa_dados_legais(p_sid uuid)': `${SA}; só super-admin; o mesmo jsonb da dados_legais_publicos (razao_social, cnpj, site)`,
   'plataforma.sa_gravar_dados_legais(p_sid uuid, p jsonb)':
     `${SA}; só super-admin; exatamente razao_social, cnpj e site (22023), CHECKs (23514); idempotente (igual não muda nem audita); for update; audita antes e depois`,
+  // T-0182 (0081; logo do cliente e nome fantasia em plataforma.tenant; RN-CORE-33): leitura super-admin ou admin da própria empresa;
+  // escrita só super-admin (admin do cliente 42501, sessão inválida 28000, tenant inexistente P0002)
+  'plataforma.sa_marca_da_empresa(p_sid uuid, p_tenant uuid)':
+    `${SA}; super-admin em qualquer empresa, admin do cliente só na da sessão (42501); MarcaEmpresa + logo.chave (a API tira); sem auditoria`,
+  'plataforma.sa_gravar_nome_fantasia(p_sid uuid, p_tenant uuid, p_nome text)':
+    `${SA}; só super-admin; null apaga; CHECK 23514; idempotente (igual não muda nem audita); for update; audita antes e depois (pessoa jurídica)`,
+  'plataforma.sa_gravar_logo(p_sid uuid, p_tenant uuid, p jsonb)':
+    `${SA}; só super-admin; exatamente id, tipo, sha256, tamanho_bytes, largura_px, altura_px e chave (22023); CHECKs (23514, chave do próprio tenant); ` +
+    'idempotente pelo sha256; audita só os sha256 (sem bytes); devolve chave_anterior',
+  'plataforma.sa_remover_logo(p_sid uuid, p_tenant uuid)':
+    `${SA}; só super-admin; zera as 8 logo_*; idempotente (sem logo não muda nem audita); audita o sha256 antes; devolve chave_anterior`,
 };
 
 /** Funções de deploy (T-0093, ADR 0031 §5): SECURITY INVOKER, chamadas pela conexão de administração; ninguém mais executa. */
