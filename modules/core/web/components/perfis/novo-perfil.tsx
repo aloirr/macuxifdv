@@ -71,7 +71,7 @@ function TabelaDoModulo({ id, nome, linhas, marcadas, onChange, agrupada = false
     <table className="w-full border-collapse overflow-hidden rounded-2xl border border-line bg-surface text-[15px]" data-testid={`perfil.modulo.${id}`}>
       <thead>
         <tr className="bg-accent text-white">
-          <th scope="col" className="px-4 py-3 text-left font-display text-[15px] font-bold">
+          <th scope="col" className="px-4 py-3 text-left text-[15px] font-bold">
             <span className="flex items-center gap-3">
               <CaixaDoCabecalho nome={nome} estado={marcacaoDoModulo(linhas, marcadas)} onChange={(marcar) => onChange(alternarModulo(linhas, marcadas, marcar))} />
               <IconeModulo id={id} size={18} />

@@ -175,3 +175,4 @@
 2026-11-15 — fonte do sistema v1.0.13 — fonts.x → ...fonte.x no app do core, escala 12/14/16/18/22/28, web sem texto < 12px, títulos de teste sem Archivo/Plex
 2026-11-15 — fonte-sistema r3 — web na escala 12/13/15/17/20, selo CD em bold, login e esqueci-senha com CampoTexto do kit (MC-0058/0059, RD-0946/0951)
 2026-11-15 — fonte do sistema v1.0.13 — CNPJ (filiais) e coordenadas (lat/lng) saem do mono para tabular-nums; mono fica só em código/sigla/SKU/senha
+2026-11-15 — fonte do sistema v1.0.13 — rodada 5 — RD-0956 removido font-display (3 arquivos web); RD-0957 Início do Campo já em 22/700 = type.saudacao

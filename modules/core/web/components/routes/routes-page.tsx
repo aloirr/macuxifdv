@@ -81,7 +81,7 @@ function PeriodNav({ label, onPrev, onNext, onToday, isToday }: { label: string;
       <button type="button" className={btn} onClick={onPrev} aria-label="Período anterior">
         <IconChevronRight size={16} className="rotate-180" />
       </button>
-      <span className="flex h-[38px] min-w-[150px] items-center justify-center px-1 font-display text-[17px] font-bold whitespace-nowrap" aria-live="polite" data-testid="period-label">
+      <span className="flex h-[38px] min-w-[150px] items-center justify-center px-1 text-[17px] font-bold whitespace-nowrap" aria-live="polite" data-testid="period-label">
         {label}
       </span>
       <button type="button" className={btn} onClick={onNext} aria-label="Próximo período">
@@ -454,7 +454,7 @@ function RouteList({
   return (
     <>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="m-0 font-display text-[17px] font-bold">Rotas do período</h2>
+        <h2 className="m-0 text-[17px] font-bold">Rotas do período</h2>
         <span className="text-[12px] text-ink-2">{withRoute} com visitas</span>
       </div>
       {loading && <LoadingBlock />}

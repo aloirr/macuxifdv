@@ -155,7 +155,7 @@ export function RouteEditor({ sellerId, sellerName, date, route, start, canEdit,
             <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: color }} aria-hidden="true" />
             {sellerName}
           </span>
-          <h2 className="m-0 font-display text-[20px] font-bold">{dayLabel(date)}</h2>
+          <h2 className="m-0 text-[20px] font-bold">{dayLabel(date)}</h2>
           <span className="text-[13px] text-ink-2 tabular-nums">
             {draft.length} {draft.length === 1 ? 'visita' : 'visitas'} · {formatKm(km)}
             {dirty && baseline.length > 0 && km !== baseKm && <span className={cx('ml-1 font-semibold', km < baseKm ? 'text-success' : 'text-accent-ink')}>(antes {formatKm(baseKm)})</span>}
