@@ -1,5 +1,78 @@
 # Filial de cadastro e venda, Sincronizar com a completa e Catálogo na opção A · simulação · parecer do corretor-redundancias
 
+## Reteste — 6966b01d
+
+**Resultado: COM ACHADO.** Dos 6 achados, 5 estão fechados (RD-0635, RD-0636, RD-0638, RD-0639 e RD-0640). O RD-0637 foi
+**reaberto** porque falta corrigir o PNG 04. Há 3 achados novos, todos do designer-ux e todos seguram o lote:
+- RD-0641 (média): "sua filial" aparece 2 vezes no print 06. Nasceu da troca do rótulo da faixa;
+- RD-0642 (baixa): a spec do Catálogo diz 3 vezes na §4 que o preço e o estoque são os da filial escolhida;
+- RD-0643 (baixa): a regra `.lateral .op` aparece 2 vezes no `filial.css`.
+
+A troca do rótulo para `Sua filial:` fica, e o rótulo bate com os números em todas as telas (detalhe abaixo).
+
+Corretor-redundancias, 15/11/2026, ~11h de Manaus.
+
+### Escopo
+Branch `origin/nuvem/catalogo-campo-designer-ux`, delta `git diff 4d6de8de 6966b01d` (17 arquivos, 1 commit: "simulação da filial
+e do Sincronizar com os RD-0635 a RD-0640 e a MC-0089"). Li as 3 specs, o `.html` e o `.css` de cada simulação. Abri como imagem
+os 9 PNGs mudados (Catálogo 01, 02, 04, 05 e 06; 14 e 15; sync 02) e mais 3 que não mudaram, para comparar: Catálogo 07 e 08 e
+sync 04.
+
+### Fechamento
+| RD | Situação | Evidência |
+|---|---|---|
+| RD-0635 | corrigido | `sync-completa/spec.md:50-52`: o `Dialogo` do kit ganha a forma sem botões, a `Barra` sai da `TelaEntrada` para o kit, e o texto diz "Nenhum componente novo". O comentário de `sync.css:19` foi atualizado |
+| RD-0636 | corrigido | `sync-completa/spec.md:42` e `:44` só remetem à `entrada-sync.md` §2 (itens 2 a 4) e §3 (item 1). Saíram as medidas, os hex, a lista de etapas e os 2 exemplos de erro |
+| RD-0637 | **reaberto** (segura) | A spec §2 (`spec.md:24-25`, "sai enquanto sincroniza e com `Sem sinal`") e o `02-toque-normal.png` (`sync.html:39`, só `Atualizando pedidos e clientes`) estão corrigidos. **Falta o PNG `04-popup-completa.png`** (`sync.html:73`): durante a completa, atrás do popup, a dica `Segure 10 s para a sincronização completa` continua embaixo do botão. A correção: tirar a linha `<div class="sit dica">…` da tela 04 e refazer o PNG |
+| RD-0638 | corrigido | `catalogo-campo-v2/spec.md:97-101` diz só como o Catálogo usa a regra e remete à `filial-cadastro-venda/spec.md` §1. A §1 (`:18`) remete ao Catálogo §4 |
+| RD-0639 | corrigido | No cabeçalho de `filial-cadastro-venda/spec.md` ficou só a linha `:8` com a opção A |
+| RD-0640 | corrigido | O `14-bko-usuarios-sem-filial.png` não tem mais a coluna `Filial` (`filial.html:42`), e a spec §3 (`:37`) diz por quê |
+
+### A troca para "Sua filial: Boa Vista · …" (avaliação)
+- **Rótulo × número.** Nas telas 01, 02, 04, 05 e 06, sem filial escolhida, o preço é o da filial de cadastro
+  (`spec.md:105`, RN-VEN-01): R$ 86,40 e R$ 154,90 são de Boa Vista. O `Estoque: 17` é a soma, e o chip `Suas filiais (3)` diz
+  isso (17 = 0 + 12 + 5, como na folha 07). Na 08, com `Filial Manaus ✕`, os preços mudaram de tabela (R$ 88,90, R$ 158,50 e
+  R$ 37,40 contra R$ 86,40, R$ 154,90 e R$ 36,90 na 02). O `Estoque: 12` é o de Manaus na folha 07. O `1.284 produtos` é o mesmo
+  em qualquer filial, porque a filial não esconde produto (`spec.md:112`); na 04, `1 produto` é o resultado da busca. Bate em
+  todas as telas.
+- **Coerência com o filtro.** `Sua filial` dá nome a um fato fixo, a filial de cadastro. O chip dá o recorte do preço e do
+  estoque. Na 08, a faixa (Boa Vista) e o chip (Manaus) dizem coisas diferentes, e o "Sua" tira a leitura de que a faixa é a filial
+  do preço. O ponto que mandei ao `testes` na rodada anterior (faixa × Manaus) fica resolvido, do lado do corretor. Quem fecha é o
+  `testes`, e o recado de reteste está abaixo.
+- **Repetição.** Na grade (01, 02, 04, 05 e 08), "Sua filial" aparece uma vez por tela. Na **06** aparece 2 vezes: na faixa,
+  visível acima da folha, e na marca `sua filial` ao lado de Boa Vista na folha "Filtrar". Essa marca tinha ficado na rodada
+  anterior porque a faixa só dizia `Filial Boa Vista`. Com o "Sua" na faixa, ela passou a repetir (RD-0641). Na folha 07, que abre
+  da ficha e não tem faixa, a marca continua sendo o único lugar que diz qual filial é a de cadastro, e fica.
+- **`manter?`: a faixa na 08.** Com Manaus escolhida, o vendedor age sobre o preço de Manaus, e `Sua filial: Boa Vista` não
+  muda essa decisão. A faixa fica porque é o contexto fixo da tela, no mesmo lugar em todas as telas, e é curta. Se o dono do
+  produto quiser enxugar, a alternativa é a faixa mostrar só `1.284 produtos` quando houver uma filial escolhida.
+
+### Achados novos
+| RD | Onde | Fere | Correção | Dono | Gravidade |
+|---|---|---|---|---|---|
+| RD-0641 | `catalogo-campo-v2/06-folha-filtro.png`, `catalogo-campo-v2.html:147`, spec §4 (`:107`) e §2.1 (`:68`) | uma informação, um lugar: `Sua filial: Boa Vista` na faixa e `Boa Vista  sua filial` na folha "Filtrar", no mesmo print | sai a marca da folha "Filtrar": `html:147` passa a `<span>Boa Vista</span>` e o PNG 06 é refeito. Spec `:107`: "**Filial**: `Suas filiais (3)` (padrão) e as filiais de venda, a de cadastro primeiro;". Spec `:68`: "…com a marca `sua filial` (13 `ink2`), e as outras em ordem alfabética." (sai o "como no `Filtrar`"). A marca da folha 07 fica | designer-ux | média |
+| RD-0642 | `catalogo-campo-v2/spec.md` §4, `:100` × `:105` × `:112` | a mesma regra 3 vezes na mesma seção: "o chip diz a filial do preço e do estoque", "Preço: o da tabela da filial escolhida" e "A filial muda o estoque (e o preço) mostrado". A 1ª entrou neste delta | `:99-100` passa a "…Não é filtro e não tem ✕; com outra filial escolhida no filtro, a faixa continua nela (`08`);". As linhas `:105` e `:112` ficam | designer-ux | baixa |
+| RD-0643 | `filial-cadastro-venda/filial.css:25` e `:28` | a mesma regra CSS 2 vezes: `.lateral .op { padding: 9px 12px; border-radius: 10px; }` e, 3 linhas abaixo, `.lateral .op { padding-left: 20px; }` | uma regra só na `:25`, `.lateral .op { padding: 9px 12px 9px 20px; border-radius: 10px; }`, e sai a `:28` | designer-ux | baixa |
+
+Os 3 seguram o lote porque estão na simulação e na spec, não em comentário ou título de teste.
+
+### Sem achado (conferido no delta)
+- **Marca no menu do BKO (14 e 15, MC-0056 e MC-0089).** O logo com o nome tomou o lugar do símbolo com o texto `Macuxi FDV`, e
+  não sobrou o nome 2 vezes. A cor e o layout são do `design-de-marca`. **Observação fora do delta, sem RD:**
+  `docs/design/telas/T-0168-bko.html:14-18` e `:74` ainda têm o menu antigo (símbolo e `Macuxi FDV`). Quando a MC-0089 for para
+  o shell, as simulações do BKO devem usar o mesmo menu.
+- **Legenda 14.** "a coluna Filial sai; o aviso do topo leva a este filtro" está certa: o aviso não aparece com esse filtro (spec §3).
+- **Tabela de PNGs das specs** (Catálogo `:20`, filial `:13`, sync `:12`). Descrevem o print sem repetir regra.
+- **`sync.css:18` (`.sit.ult`).** É a margem da última linha, agora que a dica saiu da tela 02. Não é regra duplicada.
+
+### Recados pendentes deste reteste
+O repositório de recados dá 403 nesta sessão, e nada foi enviado. Os comandos estão na seção "Recados pendentes", no fim do
+relatório.
+
+---
+
+## Parecer — 4d6de8de
+
 **Resultado: COM ACHADO.** São 6 achados, do RD-0635 ao RD-0640: 5 de gravidade média e 1 de gravidade baixa. Todos são do
 designer-ux (specs da simulação) e todos seguram o lote: nenhum está só em comentário ou título de teste.
 - RD-0635 (média): o `DialogoProgresso` novo repete o `Dialogo` do kit e a barra da carga;
@@ -122,4 +195,13 @@ node scripts/coord.mjs enviar --de corretor-redundancias --para testes --cc gere
 node scripts/coord.mjs enviar --de corretor-redundancias --para gerente-projetos --tipo entrega --assunto "Parecer filial e Sincronizar (d6f194ac..4d6de8de): COM ACHADO" --corpo "6 achados do designer-ux, RD-0635 a RD-0640 (5 médias, 1 baixa), todos seguram. 1 ponto ao testes (08, faixa × Manaus). Ícones e packages/ui fora do delta. Relatório docs/qualidade/redundancias/2026-11-15-catalogo-filial-sync.md, branch nuvem/catalogo-filial-sync-corretor-redundancias."
 ```
 
-Os RD-0641 a RD-0649 não foram usados.
+### Reteste 6966b01d (15/11, ~11h de Manaus)
+```
+node scripts/coord.mjs enviar --de corretor-redundancias --para designer-ux --cc gerente-projetos --tipo pedido --assunto "Reteste da simulação filial e Sincronizar (6966b01d): RD-0637 reaberto, RD-0641 a RD-0643" --corpo "RD-0635, 0636, 0638, 0639 e 0640 fechados. Seguram: RD-0637 reaberto (média), porque o sync 04-popup-completa.png (sync.html:73) ainda mostra 'Segure 10 s…' atrás do popup e a linha precisa sair; RD-0641 (média): 'sua filial' 2x na 06 (faixa + folha Filtrar), e sai a marca da folha Filtrar (html:147, spec :107 e :68), mas a da folha 07 fica; RD-0642 (baixa): a spec do Catálogo §4 :100 repete :105 e :112, então :100 termina em 'a faixa continua nela (08);'; RD-0643 (baixa): filial.css :25 e :28 com .lateral .op 2x, então fica uma regra só, com padding 9px 12px 9px 20px. A troca para 'Sua filial:' fica. Textos prontos em docs/qualidade/redundancias/2026-11-15-catalogo-filial-sync.md, seção Reteste."
+
+node scripts/coord.mjs enviar --de corretor-redundancias --para testes --cc gerente-projetos --tipo aviso --assunto "Catálogo v2 08 (6966b01d): faixa 'Sua filial: Boa Vista' e preços de Manaus, para reteste" --corpo "O ponto que mandei em 4d6de8de (faixa × Manaus) mudou: a faixa agora é 'Sua filial: Boa Vista' (cadastro) e o chip 'Filial Manaus' dá o preço e o estoque. Na 08, os preços são R$ 88,90, R$ 158,50 e R$ 37,40, diferentes dos da 02, e o Estoque: 12 bate com Manaus na 07. Do lado do corretor, não há mais contradição. Vocês confirmam valor × regra e fecham."
+
+node scripts/coord.mjs enviar --de corretor-redundancias --para gerente-projetos --tipo entrega --assunto "Reteste filial e Sincronizar (6966b01d): COM ACHADO" --corpo "5 fechados (RD-0635, 0636, 0638, 0639, 0640). Seguram, todos do designer-ux: RD-0637 reaberto (média, sync 04), RD-0641 (média, 'sua filial' 2x na 06, vindo da troca do rótulo), RD-0642 (baixa, spec §4) e RD-0643 (baixa, filial.css). A troca para 'Sua filial:' fica: rótulo e números batem em todas as telas. O ponto da 08 vai ao testes para reteste. Relatório docs/qualidade/redundancias/2026-11-15-catalogo-filial-sync.md, branch nuvem/catalogo-filial-sync-corretor-redundancias."
+```
+
+Nesta rodada usei os RD-0641 a RD-0643; os RD-0644 a RD-0649 continuam livres.
