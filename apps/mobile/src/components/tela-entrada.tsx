@@ -7,7 +7,7 @@
  * Cores do kit (`temaDaEntrada`, designer-ux); posição do logo e textos em `lib/entrada.ts`.
  */
 import type { EtapaEntrada } from '@macuxi/core/contracts';
-import { Botao, fonte, Icon, temaDaEntrada, useReduzirMovimento, type TemaEntrada } from '@macuxi/ui/mobile';
+import { BarraProgresso, Botao, fonte, Icon, temaDaEntrada, useReduzirMovimento, type TemaEntrada } from '@macuxi/ui/mobile';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -51,7 +51,7 @@ interface Props {
   nomeDoApp?: string;
 }
 
-/** Duração do esmaecer da área de baixo e da largura da barra (spec §6). */
+/** Duração do esmaecer da área de baixo (spec §6; a da barra é a do kit). */
 const DURACAO_MS = 240;
 
 export function TelaEntrada({
@@ -120,7 +120,18 @@ export function TelaEntrada({
           ) : null
         ) : (
           <Animated.View style={{ gap: 18, opacity: opacidade }}>
-            {barra ? <Barra tema={tema} barra={barra} reduzir={reduzir} comLista={mostrarEtapas} /> : null}
+            {/* RD-0635: a barra do kit (a mesma do popup da sincronização completa); o rótulo ("Etapa n de N · nome")
+                fica sempre à vista, também com a lista, como na entrada aprovada (MC-0088, manual da marca §4) */}
+            {barra ? (
+              <BarraProgresso
+                rotulo={barra.rotulo}
+                pct={barra.pct}
+                cores={tema}
+                reduzirMovimento={reduzir}
+                rotuloAcessivel={ROTULO_BARRA_ENTRADA}
+                testID="entrada"
+              />
+            ) : null}
             {mostrarEtapas && etapas ? <ListaEtapas tema={tema} etapas={etapas} /> : null}
             {typeof children === 'function' ? children(mostrarEtapas) : children}
           </Animated.View>
@@ -142,76 +153,6 @@ function useEsmaecer(visivel: boolean, reduzir: boolean): Animated.Value {
   }, [visivel, reduzir, opacidade]);
   return opacidade;
 }
-
-/**
- * Barra do total. Com a lista de etapas na tela, a linha mostra só o percentual e o rótulo ("Etapa n de N · nome") fica só
- * para o leitor de tela, na região viva (RD-0239); sem a lista (tela baixa), o rótulo aparece.
- */
-function Barra({
-  tema,
-  barra,
-  reduzir,
-  comLista,
-}: {
-  tema: TemaEntrada;
-  barra: BarraEntrada;
-  reduzir: boolean;
-  comLista: boolean;
-}) {
-  const pct = barra.pct === null ? null : Math.max(0, Math.min(100, barra.pct));
-  const largura = pct ?? TRECHO_SEM_MEDIDA;
-  const anim = useRef(new Animated.Value(largura)).current;
-  useEffect(() => {
-    if (reduzir) anim.setValue(largura);
-    else Animated.timing(anim, { toValue: largura, duration: DURACAO_MS, useNativeDriver: false }).start();
-  }, [largura, reduzir, anim]);
-  return (
-    <View style={{ gap: 8 }}>
-      <View style={styles.linha}>
-        {/* o leitor anuncia só a troca de etapa (o percentual não é lido a cada passo) */}
-        <Text
-          testID="entrada-etapa"
-          style={[styles.rotulo, { color: tema.texto }]}
-          accessibilityLiveRegion="polite"
-          accessibilityLabel={barra.rotulo}
-          numberOfLines={1}
-        >
-          {comLista ? '' : barra.rotulo}
-        </Text>
-        {pct === null ? null : (
-          <Text
-            testID="entrada-pct"
-            style={[styles.pct, { color: tema.texto }]}
-            importantForAccessibility="no"
-            accessibilityElementsHidden
-          >
-            {pct}%
-          </Text>
-        )}
-      </View>
-      <View
-        style={[styles.trilho, { backgroundColor: tema.trilho }]}
-        accessible
-        accessibilityRole="progressbar"
-        accessibilityLabel={ROTULO_BARRA_ENTRADA}
-        accessibilityValue={pct === null ? undefined : { min: 0, max: 100, now: pct }}
-      >
-        <Animated.View
-          style={[
-            styles.preenchimento,
-            {
-              backgroundColor: tema.preenchimento,
-              width: anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
-            },
-          ]}
-        />
-      </View>
-    </View>
-  );
-}
-
-/** Trecho da barra quando não há medida (o teste do servidor dura no máximo `TEMPO_SERVIDOR_ABERTURA_MS`). */
-const TRECHO_SEM_MEDIDA = 30;
 
 const ROTULO_SITUACAO: Record<EtapaEntrada['situacao'], string> = {
   feita: 'feita',
@@ -273,9 +214,12 @@ function Marcador({ tema, situacao }: { tema: TemaEntrada; situacao: EtapaEntrad
   );
 }
 
-/** Linha do erro: ícone e texto na cor de erro da entrada; região viva assertiva (spec §6). */
-export function ErroEntrada({ variante, texto }: { variante: Variante; texto: string }) {
-  const tema = temaDaEntrada(variante);
+/**
+ * Linha do erro: ícone e texto na cor de erro da entrada; região viva assertiva (spec §6). `tema` explícito: o popup da
+ * sincronização completa (sempre no Pérola, R-20261115-100000).
+ */
+export function ErroEntrada({ variante, tema: temaFixo, texto }: { variante: Variante; tema?: TemaEntrada; texto: string }) {
+  const tema = temaFixo ?? temaDaEntrada(variante);
   return (
     <View style={styles.erro} testID="entrada-erro" accessibilityLiveRegion="assertive">
       <Icon name="alert" size={16} color={tema.erro} />
@@ -328,11 +272,6 @@ const styles = StyleSheet.create({
   saudacao: { ...fonte.body, fontSize: 16, marginTop: 28, textAlign: 'center' },
   baixo: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: MARGEM_ENTRADA },
   nomeDoApp: { ...fonte.body, fontSize: 14, textAlign: 'center' },
-  linha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  rotulo: { flex: 1, ...fonte.body, fontSize: 14 },
-  pct: { ...fonte.bold, fontSize: 14, fontVariant: ['tabular-nums'] },
-  trilho: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  preenchimento: { height: 6, borderRadius: 3 },
   etapa: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 32 },
   marcador: {
     width: 20,
