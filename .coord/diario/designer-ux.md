@@ -138,3 +138,4 @@
 2026-11-15 — v1.0.14 parametros — simulação final do menu Parâmetros (D1–D11) trazida de nuvem/menu-parametros-designer-ux, refeita na fonte do sistema e a 1366×768 (item longo do menu quebra linha; a página pode rolar).
 2026-11-16 — v1.0.14 parametros — #408: merge do main e RD-1577 a RD-1579, MC-1510 (Salvar só nos painéis editáveis; quem implementa no desenho e ADR 0060; P3 sem repetir o §3; parâmetros só leitura no arranjo do código, valor em 400).
 2026-11-16 — v1.0.14 parametros — #408: RD-1901 (sai o parâmetro ajuda da leitura() e os 5 textos que não apareciam).
+2026-11-16 — v1.0.14 parametros — #408: RD-1871 (o parado sai de Parâmetros › Início: painel Dias úteis, sem o campo; spec e PNG 04 refeitos).

@@ -224,16 +224,15 @@ const frases = [
 const dias = [['Dom', 0], ['Seg', 1], ['Ter', 1], ['Qua', 1], ['Qui', 1], ['Sex', 1], ['Sáb', 0]];
 const html04 = parametros(
   'Início',
-  `<section class="quadro"><h2>Dias úteis e equipe parada</h2>
-  <div class="campo">Dias úteis da semana<small>Base da meta do dia.</small><div class="dias">${dias.map(([d, on]) => `<span class="dia${on ? ' on' : ''}" aria-pressed="${on ? 'true' : 'false'}">${d}</span>`).join('')}</div></div>
-  <div class="grade" style="grid-template-columns:minmax(0,380px)">${campo('Minutos para considerar "parado"', 'Sem check-in depois do último checkout. De 15 a 480.', '45', 'min')}</div>
+  `<section class="quadro"><h2>Dias úteis</h2>
+  <div class="campo" role="group" aria-label="Dias úteis"><small>Base da meta do dia.</small><div class="dias">${dias.map(([d, on]) => `<span class="dia${on ? ' on' : ''}" aria-pressed="${on ? 'true' : 'false'}">${d}</span>`).join('')}</div></div>
   <div class="acoes"><span class="btn d">Salvar dias úteis</span></div></section>
   <section class="quadro"><h2>Frases do dia · 32</h2>
   <div class="nova"><span class="input">Nova frase</span><span class="btn p">Adicionar frase</span></div>
   <table><colgroup><col style="width:44px"><col><col style="width:120px"><col style="width:120px"><col style="width:52px"></colgroup><thead><tr><th class="n">#</th><th>Frase</th><th>Origem</th><th>Situação</th><th class="ac"></th></tr></thead><tbody>
   ${frases.map(([t, o, a, h], i) => `<tr><td class="n">${i + 1}</td><td>${h ? '<span class="selo hj">Hoje</span>' : ''}${t}</td><td>${o}</td><td><span class="selo ${a ? 'ok' : 'ne'}">${a ? 'Ativa' : 'Desativada'}</span></td>${linhaMenu()}</tr>`).join('')}
   </tbody></table></section>`,
-  '<b>Simulação.</b> Dias úteis e "parado" saem de Análise › Metas; Frases do dia ganham tela (30 padrão + 2 da empresa; aparecem as primeiras). Subir, descer, editar e remover ficam no "⋯".',
+  '<b>Simulação.</b> Dias úteis saem de Análise › Metas; Frases do dia ganham tela (30 padrão + 2 da empresa; aparecem as primeiras). Subir, descer, editar e remover ficam no "⋯".',
 );
 
 // ---------- 05: Produtos (com Catálogo, D6) ----------

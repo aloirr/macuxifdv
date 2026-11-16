@@ -13,7 +13,7 @@ Fonte: `modules/*/web/index.ts`, `modules/*/manifest.ts` e `TRANSICAO_GRUPO` em 
 |---|---|---|---|---|---|
 | 1 | `/clientes` (painel) | Cadastros › Clientes | core | Farol: dias do cliente verde e amarelo; positivação do vendedor verde e amarelo | `parametro.farol`, RN-CORE-28 |
 | 2 | `/clientes` (painel) | Cadastros › Clientes | core | Curvas ABC: A e B por faturamento, volume e frequência | `parametro.curva_abc`, RN-CORE-49 |
-| 3 | `/metas` (painel) | Análise › Metas | core | Dias úteis da semana; minutos para "parado" | `parametro.inicio`, RN-CORE-26 |
+| 3 | `/metas` (painel) | Análise › Metas | core | Dias úteis da semana (o "parado" vai para Parâmetros › Alertas, D1) | `parametro.inicio`, RN-CORE-26 |
 | 4 | `/metas` (mesmo painel) | Análise › Metas | core | Prazo para avisar etapa pendente do checkout (horas) | `parametro.checkout_pendencia` |
 | 5 | sem rota | nenhum | core | Frases do dia (30 padrão + as da empresa) | `parametro.inicio`, RN-CORE-41 |
 | 6 | sem rota | nenhum | core | Calendário: feriados do ano; janela do almoço da Produtividade | `parametro.inicio` |
@@ -73,7 +73,7 @@ Item único no menu; a página tem a lista de seções à esquerda (200 px, orde
 | Alertas | `/parametros/alertas` | Regras de alerta (desenho na spec da sessão `nuvem/alertas-designer-ux`, R-20261115-112500) | gestor |
 | Calendário | `/parametros/calendario` | Feriados · Janela do almoço | core |
 | Clientes | `/parametros/clientes` | Farol · Curvas ABC | core |
-| Início | `/parametros/inicio` | Dias úteis e equipe parada · Frases do dia | core |
+| Início | `/parametros/inicio` | Dias úteis · Frases do dia | core |
 | Metas e RV | `/parametros/metas-e-rv` | Plano de RV | core |
 | Pedidos | `/parametros/pedidos` | Alçadas (só os limites, D5) | vendedor |
 | Pesquisa 🔒 | `/parametros/pesquisa` | Vigência · Construtor · Fotos | pesquisa |
@@ -88,7 +88,7 @@ Item único no menu; a página tem a lista de seções à esquerda (200 px, orde
 |---|---|---|---|
 | Acesso › Perfis de acesso | a página inteira | Parâmetros › Acesso | fica Aparelhos, Usuários |
 | `/usuarios-e-modulos` (só URL) | licenças e "Promotor vê pedidos" | Parâmetros › Acesso (D2) | já estava fora do menu |
-| Análise › Metas | painel "Parâmetros do Início" | Parâmetros › Início (dias úteis, parado) e › Visitas (etapa pendente) | o item fica |
+| Análise › Metas | painel "Parâmetros do Início" | Parâmetros › Início (dias úteis), › Alertas (parado, D1) e › Visitas (etapa pendente) | o item fica |
 | Cadastros › Clientes | painéis do farol e das Curvas ABC | Parâmetros › Clientes | o item fica |
 | Cadastros › Fotos do PDV; › Motivos | as páginas inteiras | Parâmetros › Visitas | perdem o item |
 | Comercial › Alçadas | os limites | Parâmetros › Pedidos | o grupo Comercial sai (D4) |
@@ -156,7 +156,7 @@ Gerador: `node docs/design/menu-parametros/gerar.mjs` (escreve os `.html` e os `
 | `01-menu-lateral.png` | Menu final: Trade aberto com Indicadores selecionado; Pesquisa e Treinamento com cadeado (balão em Treinamento, sobre área livre); Parâmetros acima de Sistema. Ao lado, o primeiro nível (só para a aprovação) |
 | `02-parametros-clientes.png` | Parâmetros › Clientes: Farol com um campo alterado e Salvar ativo; Curvas ABC em grade (Curva A/B × Faturamento, Volume, Frequência) com Salvar desabilitado |
 | `03-parametros-pedidos.png` | Parâmetros › Pedidos: só Alçadas (os limites), só leitura como hoje (P6) |
-| `04-parametros-inicio.png` | Parâmetros › Início: Dias úteis e equipe parada; Frases do dia · 32 (30 padrão + 2 da empresa; aparecem as primeiras), a do dia com o selo "Hoje" na linha |
+| `04-parametros-inicio.png` | Parâmetros › Início: Dias úteis; Frases do dia · 32 (30 padrão + 2 da empresa; aparecem as primeiras), a do dia com o selo "Hoje" na linha |
 | `05-parametros-produtos.png` | Parâmetros › Produtos: Desconto máximo padrão, Medidas e Catálogo (limite da aplicação) |
 | `06-parametros-trade.png` | Parâmetros › Trade: Validade, Visita e coleta e Gôndola, só leitura (P4); "Padrão: 30 dias" só em Em atenção até, que difere |
 | `07-parametros-pesquisa-sem-licenca.png` | Parâmetros › Pesquisa sem licença: seção com cadeado selecionada; o lado direito mostra só "Contrate o módulo para usar" |
