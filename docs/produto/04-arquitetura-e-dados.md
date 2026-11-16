@@ -35,7 +35,7 @@ Domínio `macuxifdv.com.br` (registro.br, DNS na Cloudflare). O domínio raiz e 
 | `api-demo.macuxifdv.com.br` | API da demonstração (túnel nomeado `macuxi-demo` no notebook do Alexandre → porta 8100) | ativo (T-0038) |
 | `bko-demo.macuxifdv.com.br` | BKO da demonstração (mesmo túnel) | ativo (T-0038) |
 | `api.macuxifdv.com.br`, `bko.macuxifdv.com.br`, `app.macuxifdv.com.br` | produção | **reservados** (servidor não decidido; não criar nada) |
-- Os builds do APK levam o endereço da API do perfil (`EXPO_PUBLIC_API_URL`). Preview e dev usam `https://api-demo.macuxifdv.com.br/v1`; o perfil `producao` usa `https://api.macuxifdv.com.br/v1`.
+- Os builds do APK levam o endereço da API do perfil do `eas.json` (`EXPO_PUBLIC_API_URL`).
 - Os builds preview e producao não têm o campo Servidor no login. No build de desenvolvimento, o campo fica em "Avançado".
 
 ## Por que monólito modular (e não microserviços)
