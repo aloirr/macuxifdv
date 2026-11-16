@@ -7,11 +7,9 @@
  * nunca chegar a log.
  */
 import { CONSULTA_CREDENCIAL_CONFERIR } from '@macuxi/core/contracts';
-import type { criarModuloApiIntegracao } from '@macuxi/integracao/api';
+import type { VerificadorSenha } from '@macuxi/integracao/api';
 
-export type VerificadorSenhaAutorizador = NonNullable<Parameters<typeof criarModuloApiIntegracao>[0]['verificarSenha']>;
-
-export const verificarSenhaAutorizador: VerificadorSenhaAutorizador = async ({ usuario_id, senha, acao }, tx) => {
+export const verificarSenhaAutorizador: VerificadorSenha = async ({ usuario_id, senha, acao }, tx) => {
   try {
     const { resultado } = await tx.consultar(CONSULTA_CREDENCIAL_CONFERIR, { usuario_id, senha, acao });
     return resultado === 'ok' ? 'ok' : 'incorreta';

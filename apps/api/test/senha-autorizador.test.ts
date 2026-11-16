@@ -1,8 +1,4 @@
-/**
- * Adaptador da senha do autorizador (T-0173, RN-INT-16): o Hub confere a senha pelo `core.credencial_conferir@1` (`tx.consultar`).
- * A ação que a senha autoriza vai junto (o Core confere a permissão efetiva). `bloqueado` e `sem_permissao` viram `incorreta` (não
- * revelam o estado da conta nem a permissão e contam como tentativa); erro da consulta vira `indisponivel` (503).
- */
+/** Adaptador da senha do autorizador (T-0173, RN-INT-16): ver src/senha-autorizador.ts. */
 import { CONSULTA_CREDENCIAL_CONFERIR } from '@macuxi/core/contracts';
 import { ConsultaIndisponivel, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { describe, expect, it, vi } from 'vitest';
