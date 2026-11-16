@@ -276,8 +276,8 @@ function LoginReal() {
   );
 }
 
-/** Moldura do login (marca + coluna estreita), igual nas três etapas. */
-function Moldura({ children }: { children: ReactNode }) {
+/** Moldura do login (marca + coluna estreita), igual nas três etapas e na "Escolha a sua filial" (T-0176, spec §5). */
+export function Moldura({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col items-center bg-ground px-4 py-10 sm:py-16">
       <div className="flex w-full max-w-[400px] flex-col gap-5">
