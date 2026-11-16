@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Simulação · portal config. · Frases da carga</title>
+<style>
+/* Tokens de apps/web/app/globals.css e componentes de @macuxi/ui/web (PageHeader, Panel, th/td, Badge, Button, Dialog). */
+:root { --ground:#F8F6F1; --surface:#FFFFFF; --ink:#16202A; --ink2:#4A5562; --ink3:#34404D; --line:#DFE2E6; --line2:#ECEEF1; --field:#C9CED5;
+  --accent:#1E3350; --faixa:#1E3350; --faixaTexto:#C9CED5; --success:#1D6B4F; --successSoft:#E2F1EA; --neutralSoft:#ECEEF1; }
+* { box-sizing: border-box; margin: 0; }
+body { background: var(--ground); color: var(--ink); font-family: system-ui, "Segoe UI", Roboto, -apple-system, sans-serif; font-size: 15px; min-height: 100vh; }
+header { background: var(--surface); border-bottom: 1px solid var(--line); }
+.hwrap { max-width: 1120px; margin: 0 auto; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.esq { display: flex; align-items: center; gap: 24px; align-self: stretch; }
+.marca { display: flex; align-items: center; gap: 12px; background: var(--faixa); border-radius: 12px; padding: 10px 14px; }
+.marca img { width: 130px; display: block; }
+.marca .sep { width: 1px; height: 24px; background: rgba(201,206,213,.4); }
+.marca span { font-weight: 600; font-size: 15px; color: var(--faixaTexto); }
+nav { display: flex; gap: 4px; align-self: stretch; }
+nav a { display: flex; align-items: center; min-height: 44px; padding: 0 12px; margin-bottom: -12px; padding-bottom: 0; border-bottom: 2px solid transparent; font-weight: 600; color: var(--ink2); text-decoration: none; }
+nav a.ativo { border-color: var(--accent); color: var(--ink); }
+.dir { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--ink2); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; font-weight: 600; font-size: 15px; height: 42px; border-radius: 12px; padding: 0 16px; border: 1px solid var(--field); background: var(--surface); color: var(--ink); white-space: nowrap; }
+.btn.sm { height: 38px; border-radius: 10px; padding: 0 12px; font-size: 13px; }
+.btn.prim { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.link { border: 0; background: none; height: auto; padding: 0 4px; min-height: 44px; font-size: 13px; color: var(--accent); }
+main { max-width: 1120px; margin: 0 auto; padding: 24px 16px; display: flex; flex-direction: column; gap: 20px; }
+.ph { display: flex; justify-content: space-between; align-items: center; min-height: 42px; }
+h1 { font-weight: 700; font-size: 24px; line-height: 1.2; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; font-weight: 600; color: var(--ink2); white-space: nowrap; }
+td { border-bottom: 1px solid var(--line2); padding: 6px 10px; vertical-align: middle; }
+td.n { width: 44px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+td.t { font-size: 15px; }
+td.acoes { text-align: right; white-space: nowrap; width: 1%; }
+.badge { display: inline-block; border-radius: 8px; padding: 3px 8px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.badge.ok { color: var(--success); background: var(--successSoft); }
+.badge.neu { color: var(--ink3); background: var(--neutralSoft); }
+.cont { font-size: 12px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+/* Dialog do kit */
+.veu { position: fixed; inset: 0; background: rgba(22,32,42,.45); display: none; align-items: center; justify-content: center; }
+.editar .veu { display: flex; }
+.dialog { width: 520px; background: var(--surface); border-radius: 16px; box-shadow: 0 12px 40px rgba(22,32,42,.25); display: flex; flex-direction: column; }
+.dialog h2 { font-weight: 700; font-size: 20px; padding: 18px 20px 0; }
+.dcorpo { padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; }
+.dpe { padding: 12px 20px 18px; display: flex; justify-content: flex-end; gap: 8px; }
+label.rot { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; }
+textarea, select { font: inherit; font-size: 15px; line-height: 21px; color: var(--ink); border: 1px solid var(--field); border-radius: 12px; padding: 10px 12px; background: var(--surface); }
+textarea { height: 68px; resize: none; border: 2px solid var(--accent); padding: 9px 11px; }
+select { height: 44px; padding: 0 12px; }
+.ajuda { display: flex; justify-content: flex-end; font-size: 12px; font-weight: 400; color: var(--ink2); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<header><div class="hwrap">
+  <div class="esq">
+    <div class="marca"><img src="../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-azul-noite.svg" alt="Macuxi Força de Vendas"><span class="sep"></span><span>Portal de implantação</span></div>
+    <nav aria-label="Portal"><a href="#">Empresas</a><a href="#">Diagnósticos</a><a href="#" class="ativo" aria-current="page">Frases da carga</a></nav>
+  </div>
+  <div class="dir"><span>Sessão até 07:52 · encerra após 15 min sem uso</span><button class="btn sm">Sair</button></div>
+</div></header>
+<main>
+  <div class="ph"><h1>Frases da carga</h1><button class="btn prim">Incluir frase</button></div>
+  <section class="panel">
+    <table>
+      <thead><tr><th>Nº</th><th>Frase</th><th>Situação</th><th></th></tr></thead>
+      <tbody id="linhas"></tbody>
+    </table>
+  </section>
+</main>
+<div class="veu"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dt">
+  <h2 id="dt">Editar frase 9</h2>
+  <div class="dcorpo">
+    <label class="rot">Frase<textarea>Com 2.734,9 m, o Monte Roraima é o 7º ponto mais alto do Brasil.</textarea><span class="ajuda">64 de 90</span></label>
+  </div>
+  <div class="dpe"><button class="btn">Cancelar</button><button class="btn prim">Salvar</button></div>
+</div></div>
+<script>
+const FRASES = [
+{"n": 1, "t": "Os Macuxi se autodenominam Pemon e falam uma língua da família Karib.", "ativa": true},
+{"n": 2, "t": "O território Macuxi vai do lavrado, ao sul, às serras com floresta, ao norte.", "ativa": true},
+{"n": 3, "t": "Em 2020, o povo Macuxi somava 37.250 pessoas em Roraima.", "ativa": true},
+{"n": 4, "t": "Os Macuxi chamam de tuma a damurida, caldo de pimenta com peixe ou carne.", "ativa": true},
+{"n": 5, "t": "A Raposa Serra do Sol, terra dos Macuxi e vizinhos, foi homologada em 2005.", "ativa": true},
+{"n": 6, "t": "Em Bonfim, a Lei 211/2014 tornou cooficiais as línguas Macuxi e Wapichana.", "ativa": true},
+{"n": 7, "t": "A pintora Macuxi Carmézia Emiliano nasceu na Maloca do Japó.", "ativa": true},
+{"n": 8, "t": "O artista Macuxi Jaider Esbell ilustrou Do Roraima ao Orinoco em português.", "ativa": true},
+{"n": 9, "t": "Com 2.734,9 m, o Monte Roraima é o 7º ponto mais alto do Brasil.", "ativa": true},
+{"n": 10, "t": "O Monte Roraima fica na fronteira do Brasil com a Venezuela e a Guiana.", "ativa": true},
+{"n": 11, "t": "O Parque Nacional do Monte Roraima foi criado em 28 de junho de 1989.", "ativa": true},
+{"n": 12, "t": "As rochas que formam o Monte Roraima têm até 1,95 bilhão de anos.", "ativa": true},
+{"n": 13, "t": "Um mapa de 1654 chama o Monte Roraima de \"montanha de cristais\".", "ativa": true},
+{"n": 14, "t": "Um relato de 1885 sobre o Monte Roraima influenciou O Mundo Perdido.", "ativa": true},
+{"n": 15, "t": "Em 2019, ICMBio e Ingarikó catalogaram novas espécies no parque do monte.", "ativa": true},
+{"n": 16, "t": "Ingarikó e Pemon formam um só mundo cultural em torno do Monte Roraima.", "ativa": true},
+{"n": 17, "t": "Makunaimã, das narrativas Macuxi e Pemon, inspirou Mário de Andrade.", "ativa": true},
+{"n": 18, "t": "Segundo a tradição Macuxi, Makunaimã e Enxikirang são irmãos, filhos do Sol.", "ativa": true},
+{"n": 19, "t": "Segundo a tradição Macuxi, o Monte Roraima é o tronco da árvore Wazacá.", "ativa": true},
+{"n": 20, "t": "Segundo a tradição Taurepang, Makunaimã fez gente e bichos de barro.", "ativa": true},
+{"n": 21, "t": "Segundo a tradição Ingarikó, o povo descende de Siikë, irmão de Makunaimã.", "ativa": true},
+{"n": 22, "t": "Segundo a tradição Ingarikó, as plantas cultivadas vêm das sementes da Wayaka.", "ativa": true},
+{"n": 23, "t": "Entre 1911 e 1913, Koch-Grünberg registrou narrativas de Makunaimã.", "ativa": true},
+{"n": 24, "t": "A peça Makunaimã (2019) reúne autores Macuxi, Taurepang e Wapichana.", "ativa": true},
+{"n": 25, "t": "O Forte São Joaquim, de 1775, é o único bem tombado pelo Iphan em Roraima.", "ativa": true},
+{"n": 26, "t": "Na Pedra Pintada, em Pacaraima, há marcas humanas de cerca de 4.000 anos.", "ativa": true},
+{"n": 27, "t": "Roraima nasceu em 1943 como Território do Rio Branco; o nome veio em 1962.", "ativa": true},
+{"n": 28, "t": "O lavrado, a savana de Roraima, cobre cerca de 17% do estado.", "ativa": true},
+{"n": 29, "t": "O ponto mais ao norte do Brasil é a nascente do rio Ailã, em Uiramutã.", "ativa": true},
+{"n": 30, "t": "Uiramutã tem a maior proporção de indígenas do Brasil: 96,6% em 2022.", "ativa": true}];
+if (location.hash === '#editar') document.body.classList.add('editar');
+// inativas no fim da lista (RD-0470)
+const ORDEM = FRASES.filter(f => f.ativa).concat(FRASES.filter(f => !f.ativa));
+document.getElementById('linhas').innerHTML = ORDEM.map(f => '<tr>' +
+  '<td class="n">' + f.n + '</td><td class="t">' + f.t + '</td>' +
+  '<td><span class="badge ' + (f.ativa ? 'ok">Ativa' : 'neu">Inativa') + '</span></td>' +
+  '<td class="acoes"><button class="btn link">Editar</button><button class="btn link">' + (f.ativa ? 'Desativar' : 'Ativar') + '</button></td></tr>').join('');
+</script>
+</body>
+</html>

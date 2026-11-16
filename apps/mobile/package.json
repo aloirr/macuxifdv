@@ -12,7 +12,6 @@
     "ios": "expo start --ios",
     "bundle:android": "expo export:embed --eager --platform android --dev false",
     "eas:build": "node scripts/eas/build.mjs",
-    "eas:apk": "node scripts/eas/baixar-apk.mjs",
     "lint": "eslint src index.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
