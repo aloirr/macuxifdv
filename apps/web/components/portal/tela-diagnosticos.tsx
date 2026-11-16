@@ -335,11 +335,11 @@ function Detalhe({ d }: { d: DiagnosticoDetalhe }) {
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="flex min-w-0 flex-col gap-4">
           <Bloco titulo="O que aconteceu?" testId="diagnosticos.relato">
-            <p className="m-0 text-[14px] whitespace-pre-wrap">{d.descricao || T.semRelato}</p>
+            <p className="m-0 text-[15px] whitespace-pre-wrap">{d.descricao || T.semRelato}</p>
           </Bloco>
           <Bloco titulo="Saída do Android" testId="diagnosticos.saidas" copiar={saidas.length ? textoDasSaidas(saidas) : undefined}>
             {saidas.length === 0 ? (
-              <p className="m-0 text-[14px] text-ink-2">{T.semSaida}</p>
+              <p className="m-0 text-[13px] text-ink-2">{T.semSaida}</p>
             ) : (
               <div className="flex flex-col gap-2">
                 {saidas.map((s, i) => (
@@ -363,13 +363,13 @@ function Detalhe({ d }: { d: DiagnosticoDetalhe }) {
                 {d.erro.pilha ? <PilhaTecnica pilha={d.erro.pilha} /> : null}
               </Tecnico>
             ) : (
-              <p className="m-0 text-[14px] text-ink-2">{T.semErro}</p>
+              <p className="m-0 text-[13px] text-ink-2">{T.semErro}</p>
             )}
           </Bloco>
         </div>
         <div className="flex min-w-0 flex-col gap-4">
           <Bloco titulo="Origem" testId="diagnosticos.origem">
-            <dl className="m-0 flex flex-col text-[14px]">
+            <dl className="m-0 flex flex-col text-[15px]">
               <Par rotulo="Empresa">
                 {d.tenant_nome ?? '—'}
                 <Id valor={d.tenant_id} prefixo="tenant" />
@@ -387,7 +387,7 @@ function Detalhe({ d }: { d: DiagnosticoDetalhe }) {
             </dl>
           </Bloco>
           <Bloco titulo="Print" testId="diagnosticos.print">
-            {d.tem_print ? <Print id={d.id} /> : <p className="m-0 text-[14px] text-ink-2">{T.semPrint}</p>}
+            {d.tem_print ? <Print id={d.id} /> : <p className="m-0 text-[13px] text-ink-2">{T.semPrint}</p>}
           </Bloco>
           <Bloco titulo="Recado automático" testId="diagnosticos.recado">
             <Recado alerta={d.alerta} />
@@ -518,7 +518,7 @@ function Print({ id }: { id: string }) {
 function Recado({ alerta }: { alerta: DiagnosticoDetalhe['alerta'] }) {
   const s = situacaoDoRecado(alerta);
   return (
-    <div className="flex flex-col items-start gap-2 text-[14px]">
+    <div className="flex flex-col items-start gap-2 text-[15px]">
       <Badge tone={s.tom}>{s.rotulo}</Badge>
       {s.nota && <span className="text-ink-2">{s.nota}</span>}
       {alerta.recado_id && (

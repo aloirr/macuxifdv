@@ -3,7 +3,7 @@
 Pedido do Alexandre (15/11/2026, 10h40, horário de Manaus): um menu **PARÂMETROS** no BKO que reúne tudo o que é parâmetro e configuração, com um submenu por funcionalidade (ex.: Parâmetros › Clientes).
 Acréscimo (15/11/2026, R-20261115-113500): Pesquisa, Trade e Treinamento viram menus próprios, sempre visíveis e desativados sem licença; os parâmetros deles vão para Parâmetros › <módulo>. Regras de alerta: R-20261115-112500.
 Decisões finais: 15/11/2026, 12h10 (horário de Manaus), R-20261115-121000 (decisões delegadas à sessão coordenadora; seção 4). Correção de 15/11/2026, 12h20, R-20261115-122000: Formas de pagamento e prazos vai para Cadastros (D11).
-**Só simulação.** Nada muda no código antes da ADR nova (seção 4, pendências). Padrão visual: `docs/design/telas/bko-revisao.md` §M2–§M7 (sanfona, título 30 px, item 32 px, menu de 240 px, título em Sol claro `#F59A52` sobre o Grafite).
+**Só simulação.** O código segue a ADR 0060 (proposta). Padrão visual: `docs/design/telas/bko-revisao.md` §M2–§M7 (sanfona, título 30 px, item 32 px, menu de 240 px, título em Sol claro `#F59A52` sobre o Grafite).
 
 ## 1. Inventário (o que hoje é parâmetro ou configuração)
 
@@ -65,7 +65,7 @@ Sem grupo Financeiro (D11): no BKO não há tela financeira de menu; crédito e 
 
 ### Página Parâmetros
 
-Item único no menu; a página tem a lista de seções à esquerda (200 px, ordem alfabética) e o conteúdo da seção à direita, um `Panel` por assunto, cada um com o próprio Salvar. Endereço `/parametros/<secao>`; `/parametros` abre a primeira seção disponível.
+Item único no menu; a página tem a lista de seções à esquerda (200 px, ordem alfabética) e o conteúdo da seção à direita, um `Panel` por assunto, cada painel editável com o próprio Salvar (os só leitura, P4 e P6, sem Salvar). Endereço `/parametros/<secao>`; `/parametros` abre a primeira seção disponível.
 
 | Seção | Endereço | Painéis (na ordem) | Dono |
 |---|---|---|---|
@@ -118,13 +118,7 @@ Item único no menu; a página tem a lista de seções à esquerda (200 px, orde
   - empresa com a licença e perfil sem o módulo: a entrada some, como hoje (é permissão, não contratação);
   - endereço digitado sem licença: a API recusa e o shell mostra o estado de sem acesso que já existe.
 - **Links antigos**: `/perfis`, `/motivos`, `/fotos-pdv`, `/plano-rv`, `/alcadas`, `/regras-alerta` e `/usuarios-e-modulos` redirecionam para `/parametros/<secao>` (com a âncora do painel). `/formas-pagamento` fica como está, agora no grupo Cadastros (D11).
-- **Quem implementa** (depois da ADR nova):
-  - engenheiro-software (`packages/platform-sdk/src/shell.ts`): item direto de primeiro nível e posição fixa de Parâmetros no `GRUPOS_MENU`; saem `comercial` e `conteudo_campo`, entra `trade`; estado "sem licença" da entrada; seções de Parâmetros vindas de módulos diferentes (extensão `parametros.secoes` ou equivalente, a definir na ADR).
-  - engenheiro-apps (`apps/web`): rotas `/parametros/*`, lista de seções, redirecionamentos, teste do menu.
-  - modulo-core, modulo-vendedor, modulo-gestor, modulo-promotor, modulo-catalogo: mover os painéis para as seções e ajustar `navegacao` e `apps.web.menus` no mesmo PR; modulo-vendedor leva as decisões recentes para Operação › Pedidos e passa Formas de pagamento e prazos para o grupo `cadastros` (D11); modulo-catalogo cria o painel Catálogo.
-  - modulo-promotor, modulo-pesquisa, modulo-treinamento: seção de parâmetros de cada um e rota de gravação (hoje só leitura).
-  - designer-ux: item direto, estado desativado com cadeado, balão e lista de seções em `packages/ui`.
-  - testes: e2e do menu (cadeado sem licença sem navegar; entrada some sem o módulo no perfil; seção bloqueada mostra o aviso; links antigos).
+- **Quem implementa**: ver `docs/desenho/menu-parametros.md` §2 (ADR 0060).
 
 ## 4. Decisões, premissas e pendências
 
@@ -145,13 +139,13 @@ Correção de 15/11/2026, 12h20 (horário de Manaus), R-20261115-122000 (vale so
 Premissas:
 - P1. O portal de configuração (`config.<host>`) não entra (outro site e outro público).
 - P2. Medidas é parâmetro do produto (Parâmetros › Produtos); a etapa pendente do checkout é assunto de visita (Parâmetros › Visitas).
-- P3. "Sem licença" = a empresa não contratou. Perfil sem o módulo, com a empresa licenciada, continua escondendo (RN-CORE-01).
+- P3. "Sem licença" = a empresa não contratou (o resto em §3).
 - P4. Os parâmetros de Pesquisa, Trade e Treinamento aparecem só para leitura (valor atual; ver §3), sem campo editável nem Salvar, inclusive Pesquisa e Treinamento quando tiverem licença (decisão do gerente, RD-P07). A rota de gravação de cada módulo é lote futuro.
 - P6. Alçadas (03) fica só leitura, como hoje: `modules/vendedor/web/pages/alcadas-page.tsx` só mostra os limites, sem edição.
 - P5. Seção bloqueada: ver §3.
 
 Pendências (não são decisões abertas):
-- **ADR nova do engenheiro-software**: "sempre aparece, desativado" muda RN-CORE-01/03 e a ADR 0050; a mesma ADR registra o item direto de primeiro nível (D9), a posição fixa de Parâmetros (D1) e a fonte das seções de Parâmetros. Com ela, o ajuste da RN-CORE-03 no doc 03.
+- **ADR 0060 (proposta)**: "sempre aparece, desativado", item direto (D9), posição fixa de Parâmetros (D1) e a fonte das seções; com ela, o ajuste da RN-CORE-03 no doc 03.
 
 ## 5. Simulações (1366 de largura, escala 2, fonte do sistema)
 

@@ -6,7 +6,20 @@
  */
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type AccessibilityActionEvent,
+  type AccessibilityActionInfo,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DentroDeCartao, useDentroDeCartao } from './base';
@@ -164,6 +177,11 @@ export function Button({
   textStyle,
   testID,
   accessibilityLabel,
+  onPressIn,
+  onPressOut,
+  desenharIcone,
+  accessibilityActions,
+  onAccessibilityAction,
 }: {
   label: string;
   onPress?: () => void;
@@ -176,10 +194,19 @@ export function Button({
   textStyle?: StyleProp<TextStyle>;
   testID?: string;
   accessibilityLabel?: string;
+  /** Segurar (R-20261115-100000, `BotaoSincronizar`): o dedo encostou / saiu. Opcionais; sem eles nada muda. */
+  onPressIn?: () => void;
+  onPressOut?: () => void;
+  /** Troca o ícone por um desenho na cor do texto do botão (ex.: o anel do segurar). Ganha do `icon`. */
+  desenharIcone?: (cor: string) => ReactNode;
+  /** Ações do leitor de tela (ex.: "Sincronização completa"). */
+  accessibilityActions?: readonly AccessibilityActionInfo[];
+  onAccessibilityAction?: (e: AccessibilityActionEvent) => void;
 }) {
   const off = Boolean(disabled || loading);
   const v = disabled ? { ...BUTTON[variant], bg: BOTAO_DESABILITADO.fundo, fg: BOTAO_DESABILITADO.texto, border: 'transparent', borderWidth: 0 } : BUTTON[variant];
   const grande = height >= 52;
+  const tamIcone = grande ? 18 : 16;
   return (
     <Pressionavel
       testID={testID}
@@ -188,13 +215,17 @@ export function Button({
       accessibilityState={{ disabled: off, busy: Boolean(loading) }}
       disabled={off}
       onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      accessibilityActions={accessibilityActions}
+      onAccessibilityAction={onAccessibilityAction}
       vibrar={variant === 'accent'}
       style={[
         styles.button,
         { height, backgroundColor: v.bg, borderColor: v.border, borderWidth: v.borderWidth, borderRadius: grande ? radius.botao : radius.botaoMedio },
         style,
       ]}>
-      {loading ? <ActivityIndicator color={v.fg} size="small" /> : icon ? <Icon name={icon} size={grande ? 18 : 16} color={v.fg} /> : null}
+      {loading ? <ActivityIndicator color={v.fg} size="small" /> : desenharIcone ? desenharIcone(v.fg) : icon ? <Icon name={icon} size={tamIcone} color={v.fg} /> : null}
       <Text style={[styles.buttonText, { color: v.fg, fontSize: grande ? 16 : 14 }, textStyle]} numberOfLines={1}>
         {label}
       </Text>

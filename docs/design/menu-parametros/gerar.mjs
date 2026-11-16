@@ -130,8 +130,9 @@ tr:last-child td{border-bottom:0}
 .dia{width:52px;height:44px;border-radius:10px;border:1px solid #C9CED5;background:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:#34404D}
 .dia.on{background:#1E3350;border-color:#1E3350;color:#fff}
 .hj{color:#fff;background:#1E3350;margin-right:8px}
-.leitura .valor{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;padding-top:4px}
-.leitura .valor i{font-style:normal;font-size:13px;font-weight:400;color:#4A5562;margin-left:8px}
+.campo.leitura{flex-direction:row;justify-content:space-between;align-items:baseline;gap:16px}
+.leitura .valor{font-size:15px;font-weight:400;font-variant-numeric:tabular-nums;text-align:right}
+.leitura .valor i{display:block;font-style:normal;font-size:13px;font-weight:400;color:#4A5562}
 .nova{display:flex;gap:8px}
 .nova .input{flex:1;color:#4A5562;font-weight:400}
 .vazio{align-items:center;justify-content:center;text-align:center;padding:56px 16px;gap:10px;color:#34404D}
@@ -259,8 +260,9 @@ const html05 = parametros(
 
 // ---------- 06: Trade (com licença; só leitura até existir a rota de gravação, P4/RD-P07) ----------
 // "Padrão: X" só quando o valor difere do padrão (RD-P05): aqui, Em atenção até (45; padrão 30).
+// MC-1510: o mesmo arranjo do código (rótulo à esquerda em 600, valor à direita em 400, "Padrão: X" embaixo); sem ajuda.
 const leitura = (rotulo, ajuda, valor, unidade, padrao = '') =>
-  `<div class="campo leitura">${rotulo}<small>${ajuda}</small><span class="valor">${valor}${unidade === '%' ? '%' : unidade ? ` ${unidade}` : ''}${padrao ? `<i>Padrão: ${padrao}</i>` : ''}</span></div>`;
+  `<div class="campo leitura"><span>${rotulo}</span><span class="valor">${valor}${unidade === '%' ? '%' : unidade ? ` ${unidade}` : ''}${padrao ? `<i>Padrão: ${padrao}</i>` : ''}</span></div>`;
 const html06 = parametros(
   'Trade',
   `<section class="quadro"><h2>Validade</h2><div class="grade">
