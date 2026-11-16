@@ -9,7 +9,7 @@ nav{width:240px;flex:none;background:var(--ink);color:#fff;padding:14px 12px;dis
 nav .marca{padding:6px 10px 14px}
 nav .marca img{display:block;height:28px;width:auto}
 nav .marca .empresa{display:block;margin-top:18px;font-size:12px;line-height:16px;color:#C9CED5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-nav .g{font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--navGrupo);padding:14px 10px 6px}
+nav .g{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--navGrupo);padding:14px 10px 6px}
 nav .i{color:var(--navText);font-size:15px;padding:9px 10px;border-radius:8px}
 nav .i.on{background:var(--navActive);color:#fff;font-weight:600;box-shadow:inset 3px 0 0 var(--navGrupo)}
 main{flex:1;padding:22px 28px;display:flex;flex-direction:column;gap:16px;min-width:0;position:relative}
@@ -31,20 +31,20 @@ tr:last-child td{border-bottom:0}
 table[aria-label="Lotes"] tbody tr{cursor:pointer}
 tr.hov td{background:var(--ground)}
 .num{text-align:right;font-variant-numeric:tabular-nums}
-.mono{font-family:ui-monospace,'Cascadia Mono','Roboto Mono',monospace;font-weight:500;font-size:13px}
+.mono{font-family:ui-monospace,'Cascadia Mono','Roboto Mono',monospace;font-weight:400;font-size:15px;font-variant-numeric:tabular-nums}
 .mut{color:var(--ink2)}
-.bd{display:inline-block;border-radius:8px;padding:3px 8px;font-size:12px;font-weight:700;white-space:nowrap}
+.bd{display:inline-block;border-radius:8px;padding:3px 8px;font-size:12px;font-weight:500;white-space:nowrap}
 .bd.success{background:var(--successSoft);color:var(--success)}.bd.warning{background:var(--warningSoft);color:var(--warning)}
 .bd.danger{background:var(--dangerSoft);color:var(--danger)}.bd.pending{background:var(--pendingSoft);color:var(--pending)}.bd.neutral{background:var(--neutralSoft);color:var(--ink2)}
 td.ac{padding:0 6px;overflow:visible}
 .kebab{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--ink);font-size:17px;font-weight:700;letter-spacing:1px}
 .kebab.on{background:var(--ground);outline:2px solid var(--accent);outline-offset:-2px}
 .menu{position:absolute;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px rgba(22,32,42,.18);padding:6px;min-width:190px;z-index:5}
-.menu div{height:44px;display:flex;align-items:center;padding:0 12px;border-radius:8px;font-size:15px}
+.menu div{height:44px;display:flex;align-items:center;padding:0 12px;border-radius:8px;font-size:15px;font-weight:500}
 .menu div.h{background:var(--ground)}.menu div.dng{color:var(--danger)}
 .veu{position:fixed;inset:0;background:rgba(22,32,42,.45);z-index:9}
 .dlg{position:fixed;z-index:10;left:50%;top:50%;transform:translate(-50%,-50%);width:420px;background:var(--surface);border-radius:16px;box-shadow:0 20px 50px rgba(22,32,42,.3);padding:20px}
-.dlg h2{margin:0;font:700 17px system-ui,'Segoe UI',Roboto,-apple-system,sans-serif}
+.dlg h2{margin:0;font:700 20px system-ui,'Segoe UI',Roboto,-apple-system,sans-serif}
 .dlg .acoes{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
 .campo{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--ink2);margin-top:14px}
 .campo .ctl{height:44px;min-width:0;width:100%}
@@ -60,8 +60,8 @@ td.ac{padding:0 6px;overflow:visible}
 .lista .op.h{background:var(--ground)}
 .lista .op .mono{color:var(--ink2)}
 .lista .op.dis{color:var(--ink2)}
-.lnk{color:var(--accent);font:600 13px system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;cursor:pointer}
-/* Área "Alertas" (Panel do kit, como em modules/integracao/web/components/alertas-panel.tsx) */
+.lnk{color:var(--accent);font:600 15px system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;cursor:pointer}
+/* Área "Alertas" (Panel do kit) */
 .alertas{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px 16px;display:flex;flex-direction:column;gap:6px}
 .alertas h2{margin:0;font:700 17px system-ui,'Segoe UI',Roboto,-apple-system,sans-serif}
 .alertas .al{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:15px}

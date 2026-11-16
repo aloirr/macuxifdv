@@ -134,7 +134,7 @@ describe('Classe de campo num lugar só (RD-0368)', () => {
   });
 });
 
-describe('EstadoVazio: semBorda dentro do cartão (MC-0061, RD-0970)', () => {
+describe('EstadoVazio: semBorda dentro do cartão (manual da marca §4, cartão; RD-0970)', () => {
   const classe = (semBorda?: boolean) => String(EstadoVazio({ titulo: 'Nenhum registro.', semBorda }).props.className);
   const titulo = (semBorda?: boolean) => EstadoVazio({ titulo: 'Nenhum registro.', semBorda }).props.children[0].props.className as string;
   it('padrão: borda tracejada e cantos próprios, solto no fundo', () => {

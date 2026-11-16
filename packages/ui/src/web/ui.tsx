@@ -278,7 +278,7 @@ export function SeloSituacao({ selos }: { selos: ReadonlyArray<Selo | null | und
  * Lista vazia (revisão do BKO §P7): uma frase do que falta e, quando o perfil pode, a ação que resolve. Sem ilustração,
  * sem explicação do sistema. Mesmo nome e mesma regra do `EstadoVazio` do app. Filtro sem resultado: "Nenhum <item> com esses
  * filtros.", sem botão (o "Limpar filtros" fica só na barra de filtros, §P4).
- * `semBorda` (MC-0061, RD-0970): dentro de um cartão, sem borda tracejada nem cantos próprios, porque o cartão já tem os dois.
+ * `semBorda` (manual da marca §4, cartão; RD-0970): dentro de um cartão, sem borda tracejada nem cantos próprios, porque o cartão já tem os dois.
  */
 export function EstadoVazio({ titulo, acao, testId, semBorda = false }: { titulo: string; acao?: ReactNode; testId?: string; semBorda?: boolean }) {
   return (

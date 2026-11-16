@@ -5,7 +5,7 @@ Regras do corretor: uma informação, um lugar; só o texto que a pessoa usa par
 
 ## 1. O que sai da tela
 Saem o de-para (mapeamento), os cards "Pedidos no ERP", conectores, alertas, carga por entidade, inativações, os KPIs do topo, o filtro "Conector",
-"Só com erro" e "Exportar lotes (CSV)". O de-para vai para Parâmetros → Integração (confirmado; seção 9).
+"Só com erro" e "Exportar lotes (CSV)". O de-para vai para Parâmetros → Integração (seção 9).
 
 ## 2. Ordem na tela
 1. `PageHeader` com o título **Integração ERP**, sem subtítulo; à direita, a ação `Button variant="link"` **Atualizar**.
@@ -20,15 +20,15 @@ Saem o de-para (mapeamento), os cards "Pedidos no ERP", conectores, alertas, car
 | Lote | 8 primeiros caracteres do id, fonte mono; id inteiro no `title` | 9% | 2 |
 | Início | `15/11 14:31` | 11% | 1 |
 | Duração | `2 min 10 s` | 10% | 2 |
-| Conclusão | `15/11 14:33`; **célula vazia** em andamento | 11% | 3 |
+| Conclusão | `15/11 14:33`; **célula vazia** em andamento (o selo já diz "Em andamento" e a Duração conta ao vivo) | 11% | 3 |
 | Status | um `Badge` (seção 4) | 18% | 1 |
 | Linhas integradas | número (`numero: true`): `1.240`; se houve erro, `1.180 de 1.240` | 14% | 1 |
 | (ações) | `MenuAcoes` "⋯", só nas linhas com ação (seção 5); nas outras a célula fica vazia | 52 px | 1 |
 
 As colunas cabem no quadro de 1366 px com o menu lateral aberto; nada corta o selo nem o número.
-**Data+hora**: `dd/mm hh:mm`, 24 h, no fuso do tenant (`sessao.fuso`), sem "às" e sem ano.
+**Data+hora**: `dd/mm hh:mm`, 24 h, no fuso do tenant (`sessao.fuso`), sem "às" e sem ano: é o formato de célula de tabela do BKO (`formatDataHoraCurta`); data dentro de frase usa `formatDateTime`.
 **Duração** (do início até a conclusão; em andamento, até agora, e atualiza com a tabela): `< 1 min` → `45 s`; `< 1 h` → `2 min 10 s`
-(segundos zerados somem: `3 min`); `≥ 1 h` → `1 h 05 min`. Sem início: célula vazia. A tabela não usa **—**.
+(segundos zerados somem: `3 min`); `≥ 1 h` → `1 h 5 min` (minutos zerados somem: `1 h`). Sem início: célula vazia. A tabela não usa **—**.
 Os dois formatadores entram em `packages/ui/src/web/format.ts` (`formatDataHoraCurta`, `formatDuracao`), feitos pelo designer-ux; o módulo não cria cópia.
 
 ## 4. Status (rótulo e tom do `Badge`)
@@ -62,7 +62,7 @@ O status da mesma linha volta a Em andamento.
 `Dialog` curto, sem parágrafo: título **Autorizar reprocessamento**; um campo **Senha de [quem ▼]** (o seletor, alvo de 44 px, lista
 os usuários do tenant com `lote.reprocessar`, isto é, perfis `admin` e `analista`, `PERFIS_ACAO_INTEGRACAO`; vem com o primeiro
 escolhido, então só a senha é digitada; senha com "Mostrar", foco nela); botões **Voltar** e **Autorizar** (principal; desligado
-com a senha vazia; "Autorizando…" enquanto espera). Sem e-mail digitado.
+com a senha vazia; "Autorizando…" enquanto espera). Sem e-mail digitado: o seletor diz quem autorizou, que a senha sozinha não diz (a auditoria precisa do autor). O seletor é um campo do kit (15 px, 400).
 - Erros (embaixo da senha, `text-danger`; a senha é limpa e recebe o foco): **Senha incorreta.** · **Muitas tentativas. Tente de novo
   em alguns minutos.** · **Não deu para autorizar agora. Tente de novo.** (o "sem perfil" some: a lista só traz quem pode).
 - Sucesso: fecha e mostra **Reprocessamento iniciado.**
@@ -85,7 +85,7 @@ A lista "Erros de retorno" não vai para os cards: os avisos ficam só na área 
 ## 9. De-para em Parâmetros → Integração (confirmado)
 Página **De-para de códigos** (rota em Parâmetros → Integração), campos reais do `Mapeamento` (`tipo`, `codigo_macuxi`, `codigo_erp`, `descricao`, `ativo`).
 1. `PageHeader` com **Novo de-para** (o único botão principal) à direita.
-2. Área **Alertas** (`Panel` label "Alertas", como no monitor), só quando há pedido retido (`condicoes_sem_correspondente`), uma linha por
+2. Área **Alertas** (`Panel title="Alertas"`, sem `label`: o título já nomeia a área), só quando há pedido retido (`condicoes_sem_correspondente`), uma linha por
    condição: **{n} pedidos retidos: condição {código} sem código do ERP** + botão secundário **Cadastrar**, que abre a folha já com a entidade
    e o código do Macuxi (RN-VEN-42: nenhum aviso fora de Alertas).
 3. `FilterBar`: **Entidade** (Todas + os 4 rótulos de `ROTULO_TIPO_MAPEAMENTO`) e **Buscar** (código ou nome, Macuxi ou ERP).
@@ -93,21 +93,19 @@ Página **De-para de códigos** (rota em Parâmetros → Integração), campos r
    Menu ⋯: **Editar** · **Ativar** ou **Inativar** (só a que vale) · **Apagar** (perigo, por último, com `Dialog` de confirmação).
    Sem `mapeamento.editar`: sem botão Novo, sem ⋯ e sem "Cadastrar" (nada de texto "só administrador…").
 5. Folha (`Drawer`, 480 px) **Novo de-para** / **Editar de-para**: **Entidade** (select) · **No Macuxi** (combobox com busca na lista
-   da entidade; mostra `código · nome`; marca **{n} retidos** e deixa desligado o que já tem de-para, com "já tem: ERP {código}") ·
-   **No ERP** (texto, até 60) · **Descrição (opcional)**. Na lista, o único aviso é o selo **{n} retidos**. Rodapé: **Cancelar** e **Salvar de-para**. Novo nasce ativo (o "Ativo" sai do formulário).
+   da entidade; mostra `código · nome`; marca com o selo **{n} retidos** (o único aviso da lista) e deixa desligado o que já tem de-para, com "já tem: ERP {código}") ·
+   **No ERP** (texto, até 60) · **Descrição (opcional)**. Rodapé: **Cancelar** e **Salvar de-para**. Novo nasce ativo (o "Ativo" sai do formulário).
    Aviso ao salvar: **De-para salvo.** ou **De-para salvo. {n} pedidos seguiram para o ERP.**
 6. Vazio (`EstadoVazio`): só **Nenhum de-para ainda.**, sem botão; o **Novo de-para** fica só no `PageHeader` (item 1: um só principal).
    Sem itens, o `FilterBar` (Entidade e Buscar) some.
 Premissa: a lista de códigos do Macuxi por entidade vem de uma consulta do modulo-integracao (a pedir).
-Decisões da marca (valem para a tabela de lotes e para o de-para):
-- MC-0061: tabelas e o vazio ficam dentro de um cartão branco (`--surface`) com borda contínua (`--line`), raio 12 px.
-- MC-0062: códigos (Macuxi, ERP e lote) em IBM Plex Mono; **{n} retidos** é um selo `Badge` de aviso (`warning`).
-- MC-0063: o nome da entidade na tabela vai em peso 400 (texto comum, sem negrito).
+Marca (valem para a tabela de lotes e para o de-para; manual da marca §4 e §5):
+- tabelas e o vazio ficam dentro de um cartão branco (`--surface`) com borda contínua (`--line`), raio 12 px;
+- códigos (Macuxi, ERP e lote) na pilha mono do manual §5.1, 15/400, com `tabular-nums`; **{n} retidos** é um selo `Badge` de aviso (`warning`);
+- o nome da entidade na tabela vai em peso 400 (texto comum, sem negrito).
 
 ## 10. Simulações (1366×768, PNG 2x)
 `simulacoes/`: `lotes.png` (menu ⋯ aberto num lote em andamento: só Cancelar), `lotes-popup.png`, `de-para.png` (menu ⋯ de um inativo),
-`de-para-folha.png` (busca do código do Macuxi aberta), `de-para-vazio.png`. HTML e `base.css` ao lado, com os tokens do BKO, o logo A negativo para o grafite (28 px, MC-0057) e a fonte do sistema (manual da marca §5)
-ligadas por `@font-face` (MC-0058; captura só depois de `document.fonts.ready`); dados fictícios.
-Decisões (R-20261115-111800): ação que não vale some do menu; ⋯ só em linha com ação e log no clique da linha (RD-0324); Conclusão
-vazia em andamento (o selo já diz "Em andamento" e a Duração conta ao vivo, então qualquer texto ali repetiria); popup com 1 campo;
-seletor de quem autoriza em vez de e-mail (a senha sozinha não diz quem autorizou, e a auditoria precisa do autor).
+`de-para-folha.png` (busca do código do Macuxi aberta), `de-para-vazio.png`. HTML e `base.css` ao lado, com os tokens do BKO, o logo
+negativo para o grafite (28 px, manual da marca §2) e a fonte do sistema, sem `@font-face` (manual §5); dados fictícios.
+Decisões: R-20261115-111800.
