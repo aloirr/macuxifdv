@@ -74,9 +74,7 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
     tarefas: [definirTarefa({ nome: 'alerta_pendencia_checkout', cadaMin: 60, executar: (ctx) => alertarPendenciasVencidas(ctx) })],
     consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaFinanceiroCliente, consultaMedidas, consultaFiliais, consultaFiliaisDoUsuario, consultaPromotorVePedidos, consultaUsuariosResumo, consultaCalendarioMetas, consultaProdutosPorSku, consultaProdutividadeEquipe],
     // T-0180 (ADR 0059 §5): último contato do aparelho, chamado pela API depois do novidades e do push (melhor esforço)
-    // PENDÊNCIA T-0180: o tipo `ModuloApi.contatoDoAparelho` vem do branch do engenheiro-software (ainda fora do main); o spread isola
-    // a propriedade para este branch compilar sozinho. Com o SDK no main, trocar por `contatoDoAparelho: registrarContatoDoAparelho,`.
-    ...({ contatoDoAparelho: registrarContatoDoAparelho } satisfies Record<string, unknown>),
+    contatoDoAparelho: registrarContatoDoAparelho,
     rotasPublicas: [
       {
         metodo: 'POST',
