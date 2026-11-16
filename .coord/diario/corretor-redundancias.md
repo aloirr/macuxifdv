@@ -88,3 +88,4 @@
 2026-11-16 — v1.0.14 — #420 b72873ae LIBERADO (RD-1575/1576 fechados); depende do #410 exportar VerificadorSenha.
 2026-11-16 — v1.0.14 — #421 c14b1ead: RD-1580/1581 fechados; RD-2000 (alta: 127 .js compilados no SDK) e RD-2001.
 2026-11-16 — v1.0.14 — renumeração: RD-1842 do corretor local (#408) → RD-2100; RD-1843, RD-1844, MC-1594 mantidos. #464 0e458b54: RD-1218 fechado; nova RD-2101.
+2026-11-16 — v1.0.14 — #390 a5de41eb (marca liberada; corretor RD-1863 em parte e RD-2030); #411 c000d732 (RD-1574).
