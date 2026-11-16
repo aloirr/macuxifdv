@@ -1129,3 +1129,36 @@ restauração (sem o piso, um contador atrasado repetiria número).
 Caminho de volta: `0080_core_usuario_codigo_fdv.down.sql` apaga gatilhos, funções, contador, índice, CHECK e coluna; **perde os
 códigos** (reaplicar renumera os vivos). Volte antes o Core (`COLUNA_CODIGO_FDV_PRONTA = false`). Teste:
 `db/testes/usuario-codigo-fdv.db.test.ts`.
+## 0084 — almoço do usuário (`0084_core_almoco_gestor_alerta_produtividade`; T-0180, D5, RN-CORE-44)
+`core.usuario` ganha `almoco_inicio_min smallint null` e `almoco_fim_min smallint null`: início e fim do almoço em **minutos do
+dia**, hora local do tenant (12:00 = 720; 13:00 = 780). As duas **nulas = "Padrão da empresa"** (parâmetro
+`jornada.almoco_padrao` do Core, 12:00–13:00 na D6); todo usuário tem horário, o próprio ou o padrão (quem resolve é o domain
+do Core). CHECKs: `usuario_almoco_par` (as duas nulas ou as duas preenchidas), `usuario_almoco_faixa` (0..1439 cada) e
+`usuario_almoco_duracao` (fim > início e duração de 15 a 180 min; não cruza a meia-noite). Grava: o BKO do Core (ficha do
+usuário); ERP e CSV não tocam. Aditiva, sem backfill, sem índice (leitura por PK), sem andar o `updated_at`. RLS e grants de
+sempre; o `macuxi_leitura` (0078, SELECT por coluna em `core.usuario`) recebe `select (almoco_inicio_min, almoco_fim_min)`. A mesma migração amplia `gestor.alerta.alerta_tipo_valido` (ver gestor.md, "0084").
+
+### 0084 — `core.usuario_contato`: último contato do aparelho (T-0180, ADR 0059 §5)
+Uma linha por usuário com o instante da última `GET /v1/sync/novidades` ou `POST /v1/sync/push` autenticada. Fica fora de
+`core.usuario` para o `updated_at` do usuário não andar a cada sincronização (todo aparelho puxaria o usuário de novo).
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `id` | uuid PK | `gen_random_uuid()` (o gancho não manda id) |
+| `tenant_id` | uuid not null | FK `plataforma.tenant` |
+| `usuario_id` | uuid not null | FK composta `(tenant_id, usuario_id)` → `core.usuario` (`usuario_contato_usuario_fk`) |
+| `contato_em` | timestamptz not null | instante UTC do último contato |
+| `created_at`, `updated_at`, `deleted_at`, `external_id` | | regra 5; `updated_at` pelo gatilho `usuario_contato_updated_at` |
+
+Índices e restrições: `usuario_contato_usuario_uk` **UNIQUE (tenant_id, usuario_id), não parcial** (alvo do
+`insert … on conflict (tenant_id, usuario_id) do update … where contato_em < excluded.contato_em - interval '1 minute'` do
+`contatoDoAparelho` do Core: trava de 1 min no SQL, idempotente), `usuario_contato_tenant_id_uk (tenant_id, id)` e
+`usuario_contato_external_uk` (parcial). **Fora do sync** (`TABELAS_FORA_DO_SYNC`): sem índice `(tenant_id, updated_at, id)`; a
+consulta `core.produtividade_equipe@1` lê por `(tenant_id, usuario_id)`, coberta pelo unique. RLS ligado e forçado
+(`isolamento_tenant` por `app.tenant_id` e `manutencao`); `macuxi_app`: select, insert, update (sem delete); `macuxi_leitura`
+(0078): select e política `leitura`. Volume: uma linha
+por usuário; no máximo 1 escrita por minuto por usuário.
+
+Volta: `0084_core_almoco_gestor_alerta_produtividade.down.sql` (apaga `core.usuario_contato`, os 3 CHECKs e as 2 colunas; o
+almoço próprio se perde e todos voltam ao padrão; o último contato volta no próximo sync de cada aparelho). Volte antes o Core
+que lê ou grava. Teste: `db/testes/almoco-alerta-produtividade.db.test.ts`.

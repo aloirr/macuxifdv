@@ -8,6 +8,9 @@
  * - T-0094: 403 `SENHA_A_TROCAR` leva à "Crie sua senha" (`TelaCrieSuaSenha` do Core) e o link "Esqueci a senha" à
  *   `TelaEsqueciSenha`, as duas nesta mesma rota: nada do app abre antes da troca. Depois da troca, a sessão vem na resposta e o
  *   Início mostra "Senha criada.".
+ * - T-0176 (RN-CORE-39; spec docs/design/filial-cadastro-venda §4, tela 13): conta sem filial de cadastro — no login (sessão com
+ *   `sem_filial`) ou depois, pelo 403 `USUARIO_SEM_FILIAL` — o login fica aberto, com os campos preenchidos e o aviso no
+ *   lugar do erro (`aviso` da `TelaLogin`). O mesmo "Entrar" funciona depois que a filial for informada.
  * - Demonstração (`EXPO_PUBLIC_API_MODO=demo`, mock-api da Fase M): escolher o usuário numa lista, sem senha. O papel
  *   em inglês vira o perfil do doc 03 (`perfilDaFaseM`); entram só os perfis que entram na variante pelo motor de permissões do SDK (`entraEm`).
  * Servidor (T-0038, `endereco-do-build.ts`): no build de produção NÃO há campo Servidor; o app usa sempre o
@@ -28,8 +31,8 @@ import {
   type CamposLogin,
 } from '@macuxi/core/app';
 import type { FakeUser } from '@macuxi/core/contracts';
-import { entraEm, ErroHttp, PERFIS, type Perfil } from '@macuxi/platform-sdk';
-import { Banner, Button, Card, colors, fonts, Icon, initials, radius, rotuloDoPerfil, Screen, type as t } from '@macuxi/ui/mobile';
+import { ehUsuarioSemFilial, entraEm, ErroHttp, MENSAGEM_USUARIO_SEM_FILIAL, PERFIS, type Perfil } from '@macuxi/platform-sdk';
+import { Banner, Button, Card, colors, fonte, Icon, initials, rotuloDoPerfil, Screen, type as t } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -37,6 +40,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AcimaDoTeclado } from '@/components/acima-do-teclado';
 import { FaixaDoLogin } from '@/components/faixa-login';
+import { ENDERECO_SERVIDOR, ENTRADA_SERVIDOR } from '@/components/servidor';
 import { TelaEntrada } from '@/components/tela-entrada';
 import { ondeOPerfilEntra } from '@/lib/acesso';
 import { EXEMPLO_ENDERECO, normalizeApiUrl as normalize } from '@/lib/api-url';
@@ -107,7 +111,7 @@ export default function LoginScreen() {
 
 /** Login real: tela do Core + "Crie sua senha" + "Esqueci a senha" + aviso de aparelho bloqueado (RN-CORE-15) + servidor. */
 function LoginReal() {
-  const { avisoLogin, codigoSalvo, loginComSenha, offline, pedirSenha, perfilBuild, trocarSenha, variante } = usePlataforma();
+  const { avisoLogin, codigoSalvo, loginComSenha, offline, pedirSenha, perfilBuild, semFilial, trocarSenha, variante } = usePlataforma();
   const [aviso, setAviso] = useState<string | null>(null);
   const [servidorFora, setServidorFora] = useState<string | null>(null);
   const [etapa, setEtapa] = useState<EtapaLogin>(ETAPA_INICIAL);
@@ -140,6 +144,8 @@ function LoginReal() {
         setEtapa({ tipo: 'trocar', codigo_empresa: campos.codigo_empresa.trim(), email: campos.email.trim(), senha_atual: campos.senha, motivo: troca.motivo });
         return;
       }
+      // T-0176: sem filial de cadastro — o aviso vem do estado da plataforma; sem erro, a senha digitada fica no campo
+      if (ehUsuarioSemFilial(e)) return;
       if (e instanceof ErroHttp && e.codigo === 'PERFIL_FORA_DO_APP') {
         setAviso(e.message);
         return;
@@ -195,12 +201,16 @@ function LoginReal() {
 
   // o código e o e-mail que vieram da troca ou do pedido; senão, o código do último login neste aparelho
   const { key: chaveDoLogin, ...doLogin } = propsDoLogin(etapa, codigoSalvo);
+  // T-0176 (tela 13): o aviso de sem filial ocupa o lugar do erro; quem saiu pelo 403 volta com o e-mail preenchido
+  const emailInicial = doLogin.emailInicial ?? semFilial?.email ?? undefined;
   return (
     <AcimaDoTeclado>
       <FaixaDoLogin />
       <TelaLogin
         key={chaveDoLogin}
         {...doLogin}
+        aviso={semFilial ? MENSAGEM_USUARIO_SEM_FILIAL : doLogin.aviso}
+        {...(emailInicial ? { emailInicial } : {})}
         onEntrar={entrar}
         onEsqueci={(c) => setEtapa({ tipo: 'esqueci', codigo_empresa: c.codigo_empresa.trim(), email: c.email.trim() })}
         rodape={variante === 'gestao' ? 'Macuxi Gestão · supervisores e gerentes' : 'Macuxi Campo · vendedores e promotores'}
@@ -315,7 +325,7 @@ function CartaoServidor() {
             returnKeyType="go"
             onSubmitEditing={() => void saveUrl()}
             accessibilityLabel="Endereço do servidor"
-            style={styles.input}
+            style={ENTRADA_SERVIDOR}
             placeholder={EXEMPLO_ENDERECO}
             placeholderTextColor={colors.ink3}
           />
@@ -335,7 +345,7 @@ function CartaoServidor() {
           </View>
         </>
       ) : (
-        <Text testID="server-url" style={[t.body, { fontFamily: fonts.mono, fontSize: 13 }]} selectable>
+        <Text testID="server-url" style={ENDERECO_SERVIDOR} selectable>
           {apiUrl}
           {apiOverride ? '' : '  (padrão)'}
         </Text>
@@ -409,7 +419,7 @@ function LoginDemo() {
         ) : null}
 
         <View style={{ gap: 8 }}>
-          <Text style={styles.group}>{variante === 'gestao' ? 'Supervisores e gerentes' : 'Vendedores e promotores'}</Text>
+          <Text style={t.rotulo}>{variante === 'gestao' ? 'Supervisores e gerentes' : 'Vendedores e promotores'}</Text>
           {users === null ? (
             <ActivityIndicator color={colors.accent} style={{ paddingVertical: 20 }} />
           ) : (
@@ -427,7 +437,7 @@ function LoginDemo() {
                     <Text style={styles.avatarText}>{initials(u.name)}</Text>
                   </View>
                   <View style={{ flex: 1, gap: 1 }}>
-                    <Text style={t.title16}>{u.name}</Text>
+                    <Text style={t.bodyStrong}>{u.name}</Text>
                     <Text style={t.small}>
                       {rotulo(u.perfil)}
                       {u.team_name ? ` · ${u.team_name}` : ''}
@@ -442,7 +452,7 @@ function LoginDemo() {
 
         {others.length > 0 ? (
           <View style={{ gap: 8 }}>
-            <Text style={styles.group}>Outros perfis</Text>
+            <Text style={t.rotulo}>Outros perfis</Text>
             <Card>
               {others.map((u, i) => (
                 <View key={u.id} style={[styles.userRow, styles.muted, i < others.length - 1 && styles.divider]}>
@@ -468,16 +478,14 @@ function LoginDemo() {
 
 const styles = StyleSheet.create({
   // texto laranja sobre claro: accentInk (contraste >= 4,5:1; docs/design/componentes.md §1.1)
-  brand: { fontFamily: fonts.displayBold, fontSize: 12, letterSpacing: 1.2, color: colors.accentInk },
-  group: { fontFamily: fonts.semibold, fontSize: 12, color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.6 },
+  brand: { ...fonte.bold, fontSize: 12, letterSpacing: 1.2, color: colors.accentInk },
   userRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 11, minHeight: 60 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   muted: { opacity: 0.75 },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontFamily: fonts.displayBold, fontSize: 14, color: '#FFFFFF' },
-  link: { fontFamily: fonts.semibold, fontSize: 13, color: colors.accentInk },
+  avatarText: { ...fonte.bold, fontSize: 14, color: '#FFFFFF' },
+  link: { ...fonte.semibold, fontSize: 14, color: colors.accentInk },
   // alvo de toque >= 48 dp
   avancado: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 48 },
   rodape: { gap: 10, paddingHorizontal: 16, paddingBottom: 16 },
-  input: { minHeight: 46, paddingVertical: 10, textAlignVertical: 'center', borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, fontFamily: fonts.mono, fontSize: 13, color: colors.ink, backgroundColor: colors.surface },
 });

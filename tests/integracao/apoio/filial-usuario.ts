@@ -34,12 +34,25 @@ export async function bancoTemFilialDeUsuario(db: Consulta): Promise<boolean> {
   return (r.rowCount ?? r.rows.length) > 0;
 }
 
-/** Filial padrão viva do tenant (gatilho `tenant_semear_filial` da 0056). Use a conexão de administração (sem RLS). */
+/** Id e código da filial padrão viva do tenant (gatilho `tenant_semear_filial` da 0056). Conexão de administração (sem RLS). */
+async function lerFilialPadrao(db: Consulta, tenantId: string): Promise<{ id: string; codigo: string }> {
+  const r = await db.query('select id::text as id, codigo from core.filial where tenant_id = $1 and padrao and deleted_at is null', [tenantId]);
+  const filial = r.rows[0] as { id: string; codigo: string } | undefined;
+  if (!filial) throw new Error(`tenant ${tenantId} sem filial padrão viva`);
+  return filial;
+}
+
+/** Id da filial padrão viva do tenant. Conexão de administração. */
 export async function filialPadrao(db: Consulta, tenantId: string): Promise<string> {
-  const r = await db.query('select id::text as id from core.filial where tenant_id = $1 and padrao and deleted_at is null', [tenantId]);
-  const id = (r.rows[0] as { id: string } | undefined)?.id;
-  if (!id) throw new Error(`tenant ${tenantId} sem filial padrão viva`);
-  return id;
+  return (await lerFilialPadrao(db, tenantId)).id;
+}
+
+/**
+ * Código da filial padrão viva do tenant, para a coluna `filial` do CSV da Equipe. RN-CORE-39 (#361): o tenant A da fixture tem
+ * 2 filiais, então quem é criado pelo CSV precisa da coluna `filial`; o main antes do #361 a ignora. Conexão de administração.
+ */
+export async function codigoDaFilialPadrao(db: Consulta, tenantId: string): Promise<string> {
+  return (await lerFilialPadrao(db, tenantId)).codigo;
 }
 
 /** Filiais vivas do tenant, a padrão primeiro (id, código e `external_id`). Conexão de administração. */
@@ -94,6 +107,31 @@ export async function filiaisNoBanco(db: Consulta, usuarioId: string): Promise<{
   const u = await db.query('select filial_cadastro_id::text as f from core.usuario where id = $1', [usuarioId]);
   const v = await db.query('select filial_id::text as f from core.usuario_filial where usuario_id = $1 and deleted_at is null order by filial_id', [usuarioId]);
   return { cadastro: (u.rows[0] as { f: string | null } | undefined)?.f ?? null, venda: (v.rows as { f: string }[]).map((x) => x.f) };
+}
+
+/** Retrato das filiais de um usuário (o que `filiaisNoBanco` devolve). */
+export type RetratoFiliais = Awaited<ReturnType<typeof filiaisNoBanco>>;
+
+/**
+ * Volta o usuário ao retrato (cadastro + TODAS as de venda), p.ex. o tirado antes de `deixarSemFilial`. Conexão de administração.
+ * A ordem respeita o gatilho adiado `usuario_filial_inclui_cadastro` (0077), conferido no fim de cada comando: tira o cadastro,
+ * dá soft delete nas vendas vivas fora do retrato, insere as que faltam (`usuario_filial_uk` vivo) e só então grava o cadastro.
+ */
+export async function restaurarFiliais(db: Consulta, usuarioId: string, retrato: RetratoFiliais): Promise<void> {
+  await db.query('update core.usuario set filial_cadastro_id = null where id = $1', [usuarioId]);
+  await db.query('update core.usuario_filial set deleted_at = now() where usuario_id = $1 and deleted_at is null and not (filial_id = any($2::uuid[]))', [
+    usuarioId,
+    retrato.venda,
+  ]);
+  await db.query(
+    `insert into core.usuario_filial (tenant_id, usuario_id, filial_id)
+     select u.tenant_id, u.id, f.id from core.usuario u cross join unnest($2::uuid[]) as f(id)
+      where u.id = $1
+        and not exists (select 1 from core.usuario_filial uf
+                         where uf.tenant_id = u.tenant_id and uf.usuario_id = u.id and uf.filial_id = f.id and uf.deleted_at is null)`,
+    [usuarioId, retrato.venda],
+  );
+  await db.query('update core.usuario set filial_cadastro_id = $2 where id = $1', [usuarioId, retrato.cadastro]);
 }
 
 /**

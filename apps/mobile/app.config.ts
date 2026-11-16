@@ -2,10 +2,11 @@
  * Config dinâmica do Expo com as duas variantes do shell (docs/produto/04):
  *  - APP_VARIANT=campo  → "Macuxi Campo"  (vendedor/promotor)
  *  - APP_VARIANT=gestao → "Macuxi Gestão" (supervisor/gerente)
- * Mesmo código e mesmo projeto EAS; nome, pacote Android e scheme diferentes para conviverem no aparelho.
- * Perfis de build em eas.json: só `campo-producao`/`gestao-producao` (T-0086, environment `production` da EAS; os perfis
- * de desenvolvimento e preview saíram com a demo) = APK de distribuição direta, assinado com a chave gerenciada pela EAS
- * (`credentialsSource: remote`, nenhuma keystore no repositório), versionCode pela EAS (`autoIncrement`) e API
+ * Mesmo código; nome, pacote Android e scheme diferentes para conviverem no aparelho. Sem conta da Expo
+ * (R-20261115-091000): sem `extra.eas.projectId`, sem `owner` e sem OTA; o build é o android-build.yml do Actions,
+ * que lê os perfis do eas.json (`scripts/ci/android-build.mjs`).
+ * Perfis de build em eas.json: só `campo-producao`/`gestao-producao` (T-0086; os perfis de desenvolvimento e preview
+ * saíram com a demo) = APK de distribuição direta (nenhuma keystore no repositório) e API
  * `https://api.macuxifdv.com.br/v1`. O Google Play (AAB) fica para depois.
  * Nome e ícone são os mesmos em todos os builds ("Macuxi Campo"/"Macuxi Gestão"): o pacote é um só por variante.
  * Endereço da API (T-0038, doc 04 "Domínio e endereços"): `EXPO_PUBLIC_API_URL` e `EXPO_PUBLIC_PERFIL_BUILD`
@@ -16,8 +17,7 @@
  * cor da notificação `#1E3350`. A tela de entrada do JS (`components/tela-entrada.tsx`) repete o fundo e o logo da splash
  * no mesmo lugar e no mesmo tamanho (`LARGURA_LOGO_ENTRADA`), para a passagem não ter corte.
  * Versão (T-0109): `version` vem de `scripts/eas/versao.json` (fonte única, igual nas duas variantes e em todos os
- * perfis) e o `android.versionCode` é do EAS (`appVersionSource: remote` + `autoIncrement` no eas.json): sobe a cada
- * build e nunca repete por pacote. Nome do build (`Campo-Oficial-v1.0.0`) em `src/lib/nome-build.ts`.
+ * perfis) e o `android.versionCode` não fica aqui: o android-build o deriva da versão ou recebe do input. Nome do build (`Campo-Oficial-v1.0.0`) em `src/lib/nome-build.ts`.
  * Base copiada do app.json da Fase M.
  */
 import { existsSync } from 'node:fs';
@@ -88,7 +88,7 @@ function versaoDoApp(): string {
 export const GOOGLE_SERVICES_PADRAO = './google-services.json';
 
 /**
- * `android.googleServicesFile` só quando o arquivo existe: o caminho de `GOOGLE_SERVICES_JSON` (Actions e EAS) ou o
+ * `android.googleServicesFile` só quando o arquivo existe: o caminho de `GOOGLE_SERVICES_JSON` (Actions) ou o
  * padrão. Sem o arquivo, nada (o dev local e o bundle seguem sem push, em vez de o prebuild falhar).
  */
 export function arquivoGoogleServices(
@@ -131,10 +131,9 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       },
       predictiveBackGestureEnabled: false,
       // RN-CORE-23 / T-0065: push pelo FCM direto (v1.0.10). O arquivo vem do caminho em GOOGLE_SERVICES_JSON (no Actions,
-      // o android-build.yml decodifica o secret GOOGLE_SERVICES_JSON_BASE64 e grava o caminho; no EAS, a variável de
-      // arquivo); sem a variável, ./google-services.json (fora do git). Nenhum agente lê nem commita o arquivo. Sem o
+      // o android-build.yml decodifica o secret GOOGLE_SERVICES_JSON_BASE64 e grava o caminho); sem a variável, ./google-services.json (fora do git). Nenhum agente lê nem commita o arquivo. Sem o
       // arquivo (build de desenvolvimento), o app compila sem push e segue com o Sincronizar e a atualização automática.
-      // projectRoot vem do Expo; quem chama a config sem ele (testes de scripts/eas) usa a pasta atual
+      // projectRoot vem do Expo; quem chama a config sem ele (testes) usa a pasta atual
       ...arquivoGoogleServices(projectRoot ?? process.cwd(), process.env, existsSync),
       // teclado (R-20261101-023401-alexandre): adjustResize explícito; no edge-to-edge (Android 15+) a janela não
       // encolhe, então as telas com campo embaixo usam KeyboardAvoidingView (login.tsx), que mede o quanto o teclado cobre
@@ -186,8 +185,6 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
     extra: {
       router: {},
       variante: id,
-      eas: { projectId: '48bb6c9b-e9ae-46af-ae98-abe16b450446' },
     },
-    owner: 'macuxifdv',
   };
 };

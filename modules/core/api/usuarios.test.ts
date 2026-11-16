@@ -1,6 +1,6 @@
 import { criarPermissoes, verificarAcao, PERFIS, type ClienteBanco, type ContextoBase, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { CriarUsuarioRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioItemSchema } from '../contracts';
+import { CriarUsuarioRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioItemSchema, UsuarioListaRespostaSchema } from '../contracts';
 import type { MensagemEmail, ServicoEmail } from './email';
 import { manifest } from '../manifest';
 import { perfisDeFabrica } from '../domain';
@@ -10,6 +10,7 @@ const TENANT = '0a000000-0000-4000-8000-0000000000aa';
 const ADMIN = { id: '0b000000-0000-4000-8000-0000000000ad', tenant_id: TENANT, perfil: 'admin' as const, modulos: ['core' as const], perfis: perfisDeFabrica('admin') };
 const ALVO = '0b000000-0000-4000-8000-000000000001';
 const EQUIPE = '0c000000-0000-4000-8000-000000000001';
+const FIL = '0f000000-0000-4000-8000-0000000000a1';
 const SENHA = 'Senha@Forte123';
 
 type Resposta = [RegExp, unknown[] | ((valores: readonly unknown[]) => unknown[])];
@@ -111,10 +112,11 @@ export const respostasDoTenant = (): Resposta[] => [
   [/from plataforma.perfil_permissao/, []],
   [/coalesce\(array_agg/, [{ id: ADMIN.id, ativo: true, perfis: ['admin'] }]],
   [/select codigo, nome, base from plataforma.perfil where deleted_at is null and ativo/, [{ codigo: 'vendedor', nome: 'Vendedor', base: 'vendedor' }]],
+  [/from core\.filial where id = any/, [{ id: FIL }]], // RN-CORE-39: a filial de cadastro do corpo existe
 ];
 
 describe('RF-CORE-02: criar usuário', () => {
-  const corpo = { nome: 'Nova Pessoa', email: 'Nova@Exemplo.com.br', perfil: 'vendedor', equipe_id: EQUIPE, external_id: 'V-100', senha: SENHA };
+  const corpo = { nome: 'Nova Pessoa', email: 'Nova@Exemplo.com.br', perfil: 'vendedor', equipe_id: EQUIPE, external_id: 'V-100', senha: SENHA, filial_cadastro_id: FIL };
   const respostas: Resposta[] = [
     ...respostasDoTenant(),
     [/select 1 from core.equipe where id/, [{ '?column?': 1 }]],
@@ -122,6 +124,13 @@ describe('RF-CORE-02: criar usuário', () => {
     [/from core.usuario u left join/, [linhaItem({ equipe_id: EQUIPE, equipe_nome: 'Equipe 1', external_id: 'V-100' })]],
   ];
 
+  it('RN-CORE-39: criar sem filial de cadastro dá 422 e não grava; quem não é admin nem analista leva 403', async () => {
+    const { db, chamadas } = fakeDb(respostas);
+    const { filial_cadastro_id: _f, ...semFilial } = { ...corpo, filial_cadastro_id: FIL };
+    await expect(executar(rota('POST', 'usuarios'), contexto(db), { corpo: semFilial })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_FILIAL_CADASTRO_OBRIGATORIA' });
+    expect(chamadas.some((c) => /insert into core.usuario/.test(c.sql))).toBe(false);
+    await expect(executar(rota('POST', 'usuarios'), contexto(db, { usuario: { ...ADMIN, perfil: 'gerente', perfis: perfisDeFabrica('gerente') } as unknown as typeof ADMIN }), { corpo: { ...corpo, filial_cadastro_id: FIL } })).rejects.toMatchObject({ status: 403, codigo: 'USUARIO_FILIAL_SEM_PERMISSAO' });
+  });
   it('RF-CORE-01: grava hash argon2id (nunca a senha), e-mail em minúsculas e audita sem senha, hash, nome nem e-mail (RN-AUD-01)', async () => {
     const { db, chamadas } = fakeDb(respostas);
     const r = CriarUsuarioRespostaSchema.parse(await executar(rota('POST', 'usuarios'), contexto(db), { corpo }));
@@ -176,7 +185,7 @@ describe('RF-CORE-02: criar usuário', () => {
   });
 
   it('RF-CORE-02: external_id já usado responde 409 USUARIO_EXTERNAL_ID_DUPLICADO', async () => {
-    const { db } = fakeDb([[/external_id = \$1/, [{ '?column?': 1 }]], ...respostas]);
+    const { db } = fakeDb([[/external_id = \$1/, [{ email: 'outra@exemplo.com.br' }]], ...respostas]);
     await expect(executar(rota('POST', 'usuarios'), contexto(db), { corpo })).rejects.toMatchObject({ status: 409, codigo: 'USUARIO_EXTERNAL_ID_DUPLICADO' });
   });
 
@@ -213,7 +222,7 @@ describe('RN-CORE-54/55/56/57: um perfil, hierarquia pelo cargo e código no ERP
   const SUP = '0b000000-0000-4000-8000-0000000000e3';
   const EQ_SUP = '0c000000-0000-4000-8000-0000000000e3';
   const EQ_GER = '0c000000-0000-4000-8000-0000000000e1';
-  const corpo = { nome: 'Nova Pessoa', email: 'nova@exemplo.com.br', external_id: 'V-100', senha: SENHA };
+  const corpo = { nome: 'Nova Pessoa', email: 'nova@exemplo.com.br', external_id: 'V-100', senha: SENHA, filial_cadastro_id: FIL };
   const pessoas = [
     { id: GER, cargo: 'gerente', gerente_id: null, ativo: true },
     { id: GER2, cargo: 'gerente', gerente_id: null, ativo: true },
@@ -321,13 +330,35 @@ describe('RN-VEN-11a: limite de desconto do usuário (T-0168)', () => {
     const r = await executar(rota('PUT', 'usuarios/:id'), contexto(db), { params: { id: ALVO }, corpo: { desconto_limita_pedido: true, desconto_maximo_pedido_permil: 80 } });
     expect(r).toMatchObject({ desconto_limita_pedido: true, desconto_maximo_pedido_permil: 80 });
     const up = chamadas.find((c) => /update core.usuario set nome/.test(c.sql))!;
-    expect(up.valores.slice(-3)).toEqual([true, true, 80]);
+    expect(up.valores.slice(-5, -2)).toEqual([true, true, 80]);
     const a = jsonDaAuditoria(chamadas);
     expect(a).toContain('desconto_limita_pedido');
     expect(a).toContain('desconto_maximo_pedido_permil');
   });
+  it('RN-CORE-44 (D5): grava o horário de almoço próprio (11:30 às 12:30), audita antes e depois e devolve no item', async () => {
+    const { db, chamadas } = fakeDb([estado, ...cargaPadrao, [/for update/, [bruto()]], [/from core.usuario u left join/, [linhaItem({ almoco_inicio_min: 690, almoco_fim_min: 750 })]]]);
+    const r = await executar(rota('PUT', 'usuarios/:id'), contexto(db), { params: { id: ALVO }, corpo: { almoco_inicio_min: 690, almoco_fim_min: 750 } });
+    expect(r).toMatchObject({ almoco_inicio_min: 690, almoco_fim_min: 750 });
+    const up = chamadas.find((c) => /update core.usuario set nome/.test(c.sql))!;
+    expect(up.valores.slice(-2)).toEqual([690, 750]);
+    const a = jsonDaAuditoria(chamadas);
+    expect(a).toContain('almoco_inicio_min');
+    expect(a).toContain('almoco_fim_min');
+  });
+  it('RN-CORE-44 (D5): fim antes do início, duração fora de 15 min a 3 h ou um campo só é 422 USUARIO_DADOS_INVALIDOS e nada é gravado', async () => {
+    for (const corpo of [{ almoco_inicio_min: 780, almoco_fim_min: 720 }, { almoco_inicio_min: 720, almoco_fim_min: 730 }, { almoco_inicio_min: 690, almoco_fim_min: null }]) {
+      const { db, chamadas } = fakeDb([estado, ...cargaPadrao, [/for update/, [bruto()]]]);
+      await expect(executar(rota('PUT', 'usuarios/:id'), contexto(db), { params: { id: ALVO }, corpo })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_DADOS_INVALIDOS', detalhes: { regra: 'RN-CORE-44' } });
+      expect(chamadas.find((c) => /update core.usuario set nome/.test(c.sql))).toBeUndefined();
+    }
+  });
+  it('RN-CORE-44 (D5): voltar ao padrão da empresa grava os dois como nulos', async () => {
+    const { db, chamadas } = fakeDb([estado, ...cargaPadrao, [/for update/, [bruto({ almoco_inicio_min: 690, almoco_fim_min: 750 })]], [/from core.usuario u left join/, [linhaItem()]]]);
+    await executar(rota('PUT', 'usuarios/:id'), contexto(db), { params: { id: ALVO }, corpo: { almoco_inicio_min: null, almoco_fim_min: null } });
+    expect(chamadas.find((c) => /update core.usuario set nome/.test(c.sql))!.valores.slice(-2)).toEqual([null, null]);
+  });
   it('RN-VEN-11a: criar com "por pedido" sem o número é recusado; sem os campos nasce no padrão', async () => {
-    const corpo = { nome: 'Nova Pessoa', email: 'Nova@Exemplo.com.br', perfil: 'vendedor', equipe_id: EQUIPE, external_id: 'V-100', senha: SENHA };
+    const corpo = { nome: 'Nova Pessoa', email: 'Nova@Exemplo.com.br', perfil: 'vendedor', equipe_id: EQUIPE, external_id: 'V-100', senha: SENHA, filial_cadastro_id: FIL };
     const { db } = fakeDb([...respostasDoTenant(), [/select 1 from core.equipe where id/, [{ '?column?': 1 }]]]);
     await expect(executar(rota('POST', 'usuarios'), contexto(db), { corpo: { ...corpo, desconto_limita_pedido: true } })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_DADOS_INVALIDOS' });
     const ok = rota('POST', 'usuarios').corpo!.parse(corpo) as unknown as Record<string, unknown>;
@@ -560,5 +591,18 @@ describe('usuario-bloqueio §6: bloqueio do login na lista e Desbloquear (BKO)',
   it('§6.2: usuário de outro tenant ou apagado: 404', async () => {
     const { db } = fakeDb([]);
     await expect(executar(rota('DELETE', 'usuarios/:id/bloqueio'), contexto(db), { params: { id: ALVO } })).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe('RN-CORE-44 (D5): a lista leva o padrão de almoço da empresa para quem edita usuário', () => {
+  it('RN-CORE-44: sem parâmetro salvo, a resposta traz 12:00 às 13:00; com parâmetro, o da empresa (quem tem só usuario.editar não precisa de parametro.inicio)', async () => {
+    const base: Resposta[] = [[/from core.usuario u left join/, [linhaItem()]]];
+    const semParam = fakeDb(base);
+    const r1 = (await executar(rota('GET', 'usuarios'), contexto(semParam.db), { query: {} })) as { almoco_padrao: unknown };
+    expect(r1.almoco_padrao).toEqual({ inicio_min: 720, fim_min: 780 });
+    const comParam = fakeDb([[/jornada\.almoco_padrao|from plataforma\.parametro/, (v) => ((v[0] as string[]).includes('jornada.almoco_padrao') ? [{ modulo: 'core', chave: 'jornada.almoco_padrao', valor: { inicio_min: 690, fim_min: 750 } }] : [])], ...base]);
+    const r2 = (await executar(rota('GET', 'usuarios'), contexto(comParam.db), { query: {} })) as { almoco_padrao: unknown };
+    expect(r2.almoco_padrao).toEqual({ inicio_min: 690, fim_min: 750 });
+    expect(UsuarioListaRespostaSchema.safeParse(r2).success).toBe(true);
   });
 });

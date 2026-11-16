@@ -75,6 +75,14 @@
 2026-11-15 — v1.0.12/v1.0.13 pareceres, rodada 5 (~18h30 Manaus) — LIBERADO #430 c48b0c39; COM ACHADO #361 2d106fee (RD-1276, 1277), #428 cba6b82c (RD-1279, 1280), #404 f8a9dc63 (MC-0152, 0153), #432 f4d190cc (RD-1274; RD-1275 não segura). CLAUDE.md não é governança (correção da rodada 4). Caixa 403.
 2026-11-15 — v1.0.12/v1.0.13 pareceres, rodada 6 (~19h Manaus) — LIBERADOS #366 a42b847f, #367 bcfacc43, #386 9b80aa98; COM ACHADO #375 2e2c5795 (RD-1281, 1282), #385 1cb49ea4 (RD-1283 na spec), #431 105d64e4 (RD-1284..1286; RD-1288 não segura), #433 679dfe82 (RD-1287). Caixa 403.
 2026-11-15 — v1.0.12/v1.0.13 pareceres, rodada 7 (~19h Manaus) — LIBERADOS #361 c39e7470, #404 83bd2b35, #432 44d0a131, #397 b8d39d18, #422 2856ed91, #423 4aa444cb, #382 5e184ffc, #367 319c154d; COM ACHADO #431 6d7c8dd4 (RD-1289; RD-1290 não segura), #437 8dbf49ef (RD-1291..1293, MC-0156). Conflito #397×#422×#423: reconferir o SHA final. Caixa 403.
+2026-11-15 — v1.0.14 rodada 1 (27 PRs nuvem/v1014-*) — relatório 2026-11-15-v1014.md: COM ACHADO em 22 PRs (RD-1500..1515, 1560..1587, 1620..1632, 1680; não seguram RD-1561, 1576, 1632); LIBERADOS #407, #392, #395, #403, #417; cinco migrações 0081 (#392–#396) ao gerente. Sem recados (CLI 403); achados em comentário nos PRs.
+2026-11-15 — v1.0.14 rodada 2 (PRs conjuntos #434, #435, #436) — #434 COM ACHADO (RD-1628, 1630, 1631, nova RD-1681), #435 COM ACHADO (RD-1623..1628), #436 LIBERADO; 0081 ainda repetida.
+2026-11-15 — v1.0.14 rodada 3 (catálogo v2) — #441 27887603 COM ACHADO (RD-1700..1703); branch nuvem/v1014-catalogo-modulo-catalogo f6c87089 COM ACHADO (RD-1704..1711; RD-1712 não segura).
+2026-11-15 — v1.0.14 rodada 4 (lote único das migrações a1b8b0fe, sem PR) — COM ACHADO: RD-1740..1744 novos, RD-1681 aberto (RD-1632 não segura); RD-1628, 1630, 1631, RD-0910 e os da carga (L6) fechados; RD-1745 fora do lote.
+2026-11-15 — v1.0.14 rodada 5 (#442 c50aae5b) — COM ACHADO RD-1780..1785 (RD-1780 é a origem da RD-1569 do #410).
+2026-11-15 — v1.0.14 rodada 6 — #441 97961dc4 LIBERADO (RD-1700..1703 fechados); lote a03a9f6f: RD-1740, 1741, 1744, 1681 fechados; RD-1742 e RD-1743 abertos em parte (doc).
+2026-11-15 — v1.0.14 rodada 7 — lote c76d3700 LIBERADO (RD-1742, RD-1743 fechados; RD-1632 não segura).
+2026-11-15 — v1.0.14 rodada 8 — catálogo c7db7a90 COM ACHADO: RD-1704 em parte, RD-1707, novos RD-1800 e RD-1801; fechados RD-1705, 1706, 1708–1711; RD-1712/1802 não seguram.
 2026-11-16 — v1.0.12/v1.0.13 pareceres, rodada 8 (15/11 ~22h Manaus, retomada depois do limite da conta) — LIBERADOS #385 4c494151, #375 a432331b, #431 b4d79c9f, #437 644359c3, #433 f288479c, #428 7cc06a1b; COM ACHADO #391 0f39cc06 (RD-1217), #424 b35d4e34 (RD-1294..1296), #425 f2b2ef81 (RD-1297..1300), #439 2e8ab64d (RD-1301..1304). Caixa 403.
 2026-11-16 — v1.0.12/v1.0.13 pareceres, rodada 9 (15/11 ~21h40 Manaus) — LIBERADOS #439 4d5bedf4, #425 11cb0213, #424 760504cb, #386 5a16f1ae, #382 45202dd4; COM ACHADO #373 2255b5a1 (RD-1230; MC-0158). #433 fechado sem merge. Caixa 403.
 2026-11-16 — v1.0.13 pareceres, rodada 10 (governança, 15/11 ~22h–23h20 Manaus) — #440 f288479c LIBERADO; #443 cafcc584 COM ACHADO (RD-1305, 1306) → a76bbb9e LIBERADO; #444 c018b098 LIBERADO (RD-1306); #445 19bbab7c COM ACHADO (RD-1307..1311; RD-1269 fora). Caixa 403.
@@ -83,3 +91,30 @@
 2026-11-16 — correção da linha da rodada 12: são 21 heads (o #423 e o #385 com delta porque a fonte do sistema já estava no main), não 20.
 2026-11-16 — v1.0.13 pareceres, rodada 13 (15/11 ~22h40 e 16/11 ~5h10 Manaus) — #449 e0c4a1a7 LIBERADO; #450 d4304201 (RD-1314, 1317), #451 3212f8ea (RD-1315, 1316) e #445 bce7e9aa (RD-1318) COM ACHADO. Caixa 403.
 2026-11-16 — v1.0.12/v1.0.13 pareceres, rodada 14 final (~5h20 Manaus) — #455, #391, #445, #383, #422, #423, #450, #451 LIBERADOS; fechados RD-1217, 1314..1318; nenhum PR da fila com achado aberto. Caixa 403.
+2026-11-16 — v1.0.14 rodadas 9 e 10 — #453 849e5141 COM ACHADO (RD-1707, RD-1800 abertos; 1704, 1801, 1802 fechados; 1712 não segura); #448 b1ac10cd COM ACHADO (RD-1820..1827; nota ao testes: matriz de fábrica sem as ações do core).
+2026-11-16 — v1.0.14 rodada 11 (heads novos) — #399 LIBERADO; #398 RD-1840; #401 RD-1841; #396 RD-1560/1562 abertos; #395 RD-1842; #403 liberado; #414–#416 sem mudança (achados seguem).
+2026-11-16 — v1.0.14 rodadas 12 e 13 — #442 LIBERADO; #405 RD-1900, #408 RD-1901, #453 RD-1902/1903 (RD-1707, 1800 em parte); heads só com merge do main sem mudança de parecer; #456 RD-1860..1870, #457 RD-1871..1880 (RD-1871 alta: parado editável em 2 lugares).
+2026-11-16 — v1.0.14 rodada 14 — #401 e #399 LIBERADOS; #448 RD-1940/1941; #398 RD-1942; #419 RD-1508/1509 abertos; #414–#416 RD-1583/1584 abertos (dependem da ListaParametros no kit).
+2026-11-16 — v1.0.14 rodada 15 — #405 e #395 LIBERADOS; #408 RD-1871 aberta; #396 RD-1560 aberto (RD-1561 não segura); ordem: #395 antes do #396, #410 antes do #396.
+2026-11-16 — v1.0.14 rodada 16 — #453 5b384227 (RD-1902/1903 fechados; RD-1707, RD-1800 em parte); #406 e71e78c8 (RD-1505 fechado; RD-1502..1504, 1506 abertos).
+2026-11-16 — v1.0.14 — #410 77babb6c: marca MC-1513/1514/1559 fechadas, nova MC-1680 (baixa); corretor RD-1563..1572 abertos.
+2026-11-16 — v1.0.14 — #408 e #401 liberados; #453 d64cc794 (RD-1800 fechado; RD-1707 aberto); #398 be06e09a (RD-1942 em parte: .total sem uso).
+2026-11-16 — v1.0.14 — #456 9a1fd369: marca liberada (MC-1610 fechada); corretor RD-1860..1870 fechados na parte do core, novas RD-1980..1983 (RD-1984 não segura); pendências no #390 e no engenheiro-apps.
+2026-11-16 — v1.0.14 — LIBERADOS #448 10d1d0ee, #419 481041fd, #413 29efc2db, #398 1e271131.
+2026-11-16 — v1.0.14 — #420 b72873ae LIBERADO (RD-1575/1576 fechados); depende do #410 exportar VerificadorSenha.
+2026-11-16 — v1.0.14 — #421 c14b1ead: RD-1580/1581 fechados; RD-2000 (alta: 127 .js compilados no SDK) e RD-2001.
+2026-11-16 — v1.0.14 — renumeração: RD-1842 do corretor local (#408) → RD-2100; RD-1843, RD-1844, MC-1594 mantidos. #464 0e458b54: RD-1218 fechado; nova RD-2101.
+2026-11-16 — v1.0.14 — #390 a5de41eb (marca liberada; corretor RD-1863 em parte e RD-2030); #411 c000d732 (RD-1574).
+2026-11-16 — v1.0.14 — #456 556ccc40 (marca liberada; RD-2010); #457 a3bc1121 (RD-1871..1880 fechados; RD-2011..2014; MC-1700).
+2026-11-16 — v1.0.14 — #410 09d029ce (marca liberada; RD-1567 em parte, RD-2050); #406 1fdcb8eb (RD-2051..2053; MC-1720).
+2026-11-16 — v1.0.14 — #464 b5af4db8 LIBERADO (RD-2101 fechado no código; frase do JSDoc para o lote seguinte).
+2026-11-16 — v1.0.14 — #456 8435f201 LIBERADO; #405 59eaebaa LIBERADO.
+2026-11-16 — v1.0.14 — LIBERADOS #411 d80045ce e #406 1dfcd904.
+2026-11-16 — v1.0.14 — #410 3b6d99cd LIBERADO (RD-1567, RD-2050 fechados).
+2026-11-16 — v1.0.14 — #390 32cddc26 LIBERADO.
+2026-11-16 — v1.0.14 — #457 6cb6e678: RD-2011..2014 e MC-1700 fechados; novas RD-2110..2113, MC-1730, MC-1731.
+2026-11-16 — v1.0.14 — #421 cbf69082: RD-2114 (baixa).
+2026-11-16 — v1.0.14 — #421 4376a795 LIBERADO.
+2026-11-16 — v1.0.14 — #457 8ca5977c LIBERADO.
+2026-11-16 — v1.0.14 — #465 2af065b5 LIBERADO.
+2026-11-16 — v1.0.14 — #466 409e5c11 LIBERADO (ciclo-erp no monitor novo).

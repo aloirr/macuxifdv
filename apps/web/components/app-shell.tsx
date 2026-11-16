@@ -13,13 +13,15 @@
  * RN-CORE-33 (T-0094; spec docs/design/ciclo-de-senha.md §1): perfil sem backoffice (a sessão cujo perfil não tem `acesso.bko`
  * no motor de permissões do SDK, `entraEm`, ou o 403 `PERFIL_SEM_BKO` de qualquer chamada) encerra a sessão e volta ao
  * Entrar com o aviso. Nenhuma lista de perfis no shell: onde entra e o que aparece vêm do motor (ADR 0033).
+ * T-0176 (RN-CORE-39; ADR 0056): conta sem filial de cadastro (403 `USUARIO_SEM_FILIAL` nos módulos ou em qualquer chamada): o
+ * BKO abre só a "Escolha a sua filial" (spec docs/design/filial-cadastro-venda §5), sem menu; a sessão fica (`eu/filial-cadastro`).
  */
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type MouseEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type MouseEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ItemMenu } from '@macuxi/core/contracts';
-import { entraEm, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
+import { ehUsuarioSemFilial, entraEm, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
 import { ShellProvider } from '@macuxi/platform-sdk/react';
 import { errorMessage, MODO_API, tentarRestaurarSessao } from '@macuxi/platform-sdk/web';
 import { cx, ErrorBlock, IconChevronRight, IconLogout, LoadingBlock, rotuloDoPerfil } from '@macuxi/ui/web';
@@ -29,8 +31,10 @@ import { estadoDaSessao, estadoDoConteudo } from '@/lib/estado-shell';
 import { PROPORCAO_LOGO_HORIZONTAL, SRC_LOGO_NEGATIVO_GRAFITE } from '@/lib/logo-marca';
 import { ALTURA_ITEM, grupoDaTela, cabeTudoAberto, hrefAtivo, montarGruposMenu, type GrupoMenuBko, type ItemMenuBko } from '@/lib/menu-bko';
 import { SHELL_WEB } from '@/lib/modulos';
-import { useMe, useModulosEfetivos } from '@/lib/queries';
+import { qk, useMe, useModulosEfetivos } from '@/lib/queries';
+import { aoSemFilial } from '@/lib/sem-filial';
 import { encerrarSessao, useSessao } from '@/lib/session';
+import { CHAVE_MINHA_FILIAL, EscolherFilial } from './escolher-filial';
 import { SessaoSemConexao } from './sessao-sem-conexao';
 
 /** Largura do logo A a 28 px de altura (viewBox 514,41 × 110,85 → ≈ 130 px). */
@@ -56,7 +60,7 @@ function NavLink({ item, active, variante = 'lateral', recuo = true, onNavegar }
       className={cx(
         'flex shrink-0 items-center rounded-lg whitespace-nowrap no-underline transition-colors',
         FOCO,
-        lateral ? cx('relative h-8 pr-2.5 text-[14px]', recuo ? 'pl-5' : 'pl-2.5') : 'h-9 px-3 text-[13px]',
+        lateral ? cx('relative h-8 pr-2.5 text-[15px]', recuo ? 'pl-5' : 'pl-2.5') : 'h-9 px-3 text-[13px]',
         active ? 'bg-nav-active font-semibold text-white' : 'text-nav-text hover:bg-nav-active hover:text-white',
         active && lateral && "before:absolute before:top-2 before:bottom-2 before:left-2 before:w-[3px] before:rounded-sm before:bg-nav-grupo before:content-['']",
       )}
@@ -79,7 +83,7 @@ function Brand({ company }: { company: string }) {
   );
 }
 
-const TITULO_GRUPO = 'text-[11.5px] font-semibold tracking-[0.07em] text-nav-grupo uppercase';
+const TITULO_GRUPO = 'text-[12px] font-semibold tracking-[0.07em] text-nav-grupo uppercase';
 
 interface Painel {
   grupo: string;
@@ -297,6 +301,17 @@ export function AppShell({ children }: { children: ReactNode }) {
     [perfil, qc, router],
   );
 
+  // T-0176: 403 USUARIO_SEM_FILIAL numa página (o dos módulos efetivos o shell lê direto da consulta)
+  const [semFilialNaPagina, setSemFilialNaPagina] = useState(false);
+  useEffect(() => aoSemFilial(() => setSemFilialNaPagina(true)), []);
+  // T-0176 (spec §5, 16e): filial salva = some a tela, os módulos efetivos são relidos e o BKO entra no Início, com o menu
+  const filialSalva = useCallback(() => {
+    setSemFilialNaPagina(false);
+    qc.removeQueries({ queryKey: CHAVE_MINHA_FILIAL });
+    void qc.resetQueries({ queryKey: qk.modulos });
+    router.replace('/');
+  }, [qc, router]);
+
   if (session.status === 'sem_conexao') return <SessaoSemConexao aviso={session.aviso} onTentar={() => void tentarRestaurarSessao()} />;
   if (session.status !== 'authenticated') {
     return (
@@ -317,7 +332,15 @@ export function AppShell({ children }: { children: ReactNode }) {
     plataforma: entraEm('bko', perfil),
   });
   const ativo = hrefAtivo(pathname, grupos.flatMap((g) => g.itens.map((i) => i.href)));
-  const conteudo = estadoDoConteudo({ erroMe: MODO_API === 'demo' && me.isError, perfilUsaWeb: entraEm('bko', perfil), modulos });
+  const conteudo = estadoDoConteudo({
+    erroMe: MODO_API === 'demo' && me.isError,
+    perfilUsaWeb: entraEm('bko', perfil),
+    modulos,
+    semFilial: semFilialNaPagina || ehUsuarioSemFilial(modulos.error),
+  });
+
+  // T-0176 (spec §5): sem filial de cadastro, o BKO abre só a "Escolha a sua filial" (moldura do login, sem menu)
+  if (conteudo === 'sem_filial') return <EscolherFilial onSalvo={filialSalva} onSair={switchProfile} />;
 
   return (
     <div className="flex min-h-screen flex-col bg-ground md:flex-row">
@@ -329,7 +352,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <MenuLateral grupos={grupos} ativo={ativo} />
         <div className="mt-1 flex shrink-0 flex-col gap-0.5 border-t border-nav-active px-2 pt-3">
           <div className="flex flex-col">
-            <span className="truncate text-[14px] leading-5 font-semibold">{user?.name ?? '—'}</span>
+            <span className="truncate text-[15px] leading-5 font-semibold">{user?.name ?? '—'}</span>
             <span className="text-[12px] leading-4 text-nav-text">{roleLabel}</span>
           </div>
           <button type="button" data-testid="trocar-perfil" onClick={switchProfile} className={cx('flex h-8 items-center gap-2 rounded-lg px-0 text-[13px] font-semibold text-nav-text hover:text-white', FOCO)}>

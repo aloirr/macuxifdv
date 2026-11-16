@@ -151,15 +151,47 @@ export function rotuloComContagem(rotulo: string, quantidade: number, haMais = f
 
 /* ---------- cartões ---------- */
 
-export function KpiCard({ label, value, sub, valueClass, dark, extra }: { label: string; value: ReactNode; sub?: ReactNode; valueClass?: string; dark?: boolean; extra?: ReactNode }) {
-  return (
-    <div className={cx('flex flex-col gap-1 rounded-[14px] px-4 py-3.5', dark ? 'bg-ink text-white' : 'border border-line bg-surface')}>
-      <span className={cx('text-[13px]', dark ? 'text-nav-text' : 'text-ink-2')}>{label}</span>
+export type PropsKpiCard = {
+  label: string;
+  value: ReactNode;
+  sub?: ReactNode;
+  valueClass?: string;
+  dark?: boolean;
+  extra?: ReactNode;
+  /** Cartão-filtro (revisão do BKO §P4.6): com `onClick`, o cartão inteiro é um `<button aria-pressed>`. */
+  onClick?: () => void;
+  /** Cartão-filtro marcado (MC-0090): fundo `bg-accent-soft` e borda de 2 px `border-accent`; vence o `dark`. */
+  selecionado?: boolean;
+  testid?: string;
+};
+
+export function KpiCard({ label, value, sub, valueClass, dark, extra, onClick, selecionado, testid }: PropsKpiCard) {
+  const escuro = dark && !selecionado;
+  const classe = cx(
+    'flex flex-col gap-1 rounded-[14px] px-4 py-3.5',
+    escuro ? 'bg-ink text-white' : selecionado ? 'border border-accent ring-1 ring-inset ring-accent bg-accent-soft' : 'border border-line bg-surface',
+    onClick && cx('min-h-11 w-full cursor-pointer text-left text-ink', CLASSES_DESTAQUE.foco),
+  );
+  const miolo = (
+    <>
+      <span className={cx('text-[13px]', escuro ? 'text-nav-text' : 'text-ink-2')}>{label}</span>
       <span className={cx('text-[24px] leading-tight font-semibold tabular-nums', valueClass)}>
         {value}
         {extra}
       </span>
-      {sub !== undefined && <span className={cx('text-[12px]', dark ? 'text-nav-text' : 'text-ink-2')}>{sub}</span>}
+      {sub !== undefined && <span className={cx('text-[12px]', escuro ? 'text-nav-text' : 'text-ink-2')}>{sub}</span>}
+    </>
+  );
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} aria-pressed={!!selecionado} data-testid={testid} className={classe}>
+        {miolo}
+      </button>
+    );
+  }
+  return (
+    <div data-testid={testid} className={classe}>
+      {miolo}
     </div>
   );
 }
@@ -246,10 +278,14 @@ export function SeloSituacao({ selos }: { selos: ReadonlyArray<Selo | null | und
  * Lista vazia (revisão do BKO §P7): uma frase do que falta e, quando o perfil pode, a ação que resolve. Sem ilustração,
  * sem explicação do sistema. Mesmo nome e mesma regra do `EstadoVazio` do app. Filtro sem resultado: "Nenhum <item> com esses
  * filtros.", sem botão (o "Limpar filtros" fica só na barra de filtros, §P4).
+ * `semBorda` (manual da marca §4, cartão; RD-0970): dentro de um cartão, sem borda tracejada nem cantos próprios, porque o cartão já tem os dois.
  */
-export function EstadoVazio({ titulo, acao, testId }: { titulo: string; acao?: ReactNode; testId?: string }) {
+export function EstadoVazio({ titulo, acao, testId, semBorda = false }: { titulo: string; acao?: ReactNode; testId?: string; semBorda?: boolean }) {
   return (
-    <div data-testid={testId} className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-field px-6 py-10 text-center">
+    <div
+      data-testid={testId}
+      className={cx('flex flex-col items-center gap-3 px-6 py-10 text-center', !semBorda && 'rounded-2xl border border-dashed border-field')}
+    >
       <span className="text-[15px] font-semibold text-ink-2">{titulo}</span>
       {acao}
     </div>

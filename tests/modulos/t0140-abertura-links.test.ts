@@ -150,7 +150,9 @@ describe('T-0140 A — Novo pedido sem fechar o app (regra dos hooks, RF-VEN-05)
         // até o #258: a folha do check-in (aberta pela Rota) chama a MESMA ação de destaque da ficha, com a visita recém-aberta
         expect(ficha).toMatch(/testID: 'checkin-new-order'[\s\S]*?acaoDestaque\.payload\.abrir\(\{ \.\.\.contexto, visitaId \}\)/);
       }
-      expect(ler('modules/core/app/telas/rota.tsx')).toMatch(/abrirCliente\(s\.customer\.id, 'Rota de hoje', true\)/);
+      // #385: o título da origem vem do filtro da rota (tituloDaRota), não mais o texto fixo 'Rota de hoje'
+      const rota = ler('modules/core/app/telas/rota.tsx');
+      expect(rota).toMatch(/const titulo = tituloDaRota\(filtro\);[\s\S]*?abrirCliente\(s\.customer\.id, titulo, true\)/);
     });
     it('a tela decide editor × seletor só pelo `customerId` e remonta o editor por cliente (chave)', () => {
       const tela = ler('modules/vendedor/app/screens/new-order-screen.tsx');
