@@ -145,3 +145,4 @@
 2026-11-16 — v1.0.14 parametros — #408: RD-1901 (sai o parâmetro ajuda da leitura() e os 5 textos que não apareciam).
 2026-11-16 — v1.0.14 parametros — #408: RD-1871 (o parado sai de Parâmetros › Início: painel Dias úteis, sem o campo; spec e PNG 04 refeitos).
 2026-11-16 — v1.0.14 parametros — #408: RD-1842 (seção Integração com o de-para; Alertas com os dois painéis da T-0180, gestor + core; Sistema › Integração ERP no sai de → vai para; PNGs 02 a 07 refeitos).
+2026-11-16 — v1.0.14 parametros — #408: achado do RD-2100 (Integração ERP fica só com os lotes; a Carga por arquivo já é item à parte).

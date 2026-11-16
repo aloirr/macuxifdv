@@ -105,7 +105,7 @@ Item único no menu; a página tem a lista de seções à esquerda (200 px, orde
 | Produtos › Preço e custo | abas "Parâmetros" e "Medidas" | Parâmetros › Produtos | o item fica |
 | nenhum | Frases do dia; Calendário; limite da aplicação (D6) | Parâmetros › Início; › Calendário; › Produtos | ganham tela |
 | nenhum | parâmetros da Pesquisa, do Treinamento e 2 do Promotor | Parâmetros › Pesquisa; › Treinamento; › Trade | ganham tela |
-| Sistema › Integração ERP | painel do de-para | Parâmetros › Integração | o item fica (lotes e Carga por arquivo) |
+| Sistema › Integração ERP | painel do de-para | Parâmetros › Integração | o item fica (só os lotes) |
 
 ## 3. Comportamento
 
