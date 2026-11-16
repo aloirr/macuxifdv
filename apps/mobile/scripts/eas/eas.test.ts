@@ -1,5 +1,5 @@
 /**
- * T-0109: scripts do EAS (mensagem do build, APK com o nome do build, link temporário do bucket) e invariantes da
+ * T-0109: build.mjs e comum.mjs (ainda chamados pelo .github/workflows/eas-build.yml) e invariantes da
  * versão (versao.json como fonte única do `version`; versionCode remoto e sempre crescente em todo perfil).
  */
 import { readFileSync } from 'node:fs';
@@ -7,10 +7,8 @@ import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import appConfig from '../../app.config';
-import { configDoBucket, dadosDoBuild, opcoesDoDownload, urlsDoBucket } from './baixar-apk.mjs';
 import { planoDeBuild } from './build.mjs';
 import { ambienteDoEas, nomes, versaoAtual } from './comum.mjs';
-import { alvoNoBucket, chaveDoApk, codificar, urlAssinada, VALIDADE_MAXIMA_S } from './s3-assinado';
 
 const eas = JSON.parse(readFileSync(new URL('../../eas.json', import.meta.url), 'utf8')) as {
   cli: { appVersionSource?: string };
@@ -98,140 +96,11 @@ describe('build.mjs: mensagem do build', () => {
   });
 });
 
-describe('baixar-apk.mjs: APK com o nome do build', () => {
-  const build = {
-    id: 'b1',
-    status: 'FINISHED',
-    buildProfile: 'campo-producao',
-    appVersion: '1.0.0',
-    appBuildVersion: '42',
-    message: 'Campo-Oficial-v1.0.0',
-    artifacts: { buildUrl: 'https://expo.dev/artifacts/eas/x.apk' },
-  };
-
-  it('opções: alvo, pasta, publicar e validade', () => {
-    const o = opcoesDoDownload(['campo', 'oficial', '--publicar', '--validade-horas', '24', '--pasta', 'saida']);
-    expect(o).toMatchObject({ alvos: [{ variante: 'campo', perfil: 'producao' }], publicar: true, validadeHoras: 24, pasta: 'saida', build: null });
-    expect(opcoesDoDownload(['--build', 'abc'])).toMatchObject({ alvos: [], build: 'abc', validadeHoras: 72, pasta: 'dist/apk' });
-    expect(opcoesDoDownload(['ambos', 'oficial']).alvos).toHaveLength(2);
-    expect(() => opcoesDoDownload(['campo', 'oficial', '--validade-horas', '200'])).toThrow(/1 a 168/);
-    expect(() => opcoesDoDownload(['ambos', 'oficial', '--build', 'x'])).toThrow(/ambos/);
-    expect(() => opcoesDoDownload(['campo', 'oficial', '--build'])).toThrow(/falta o valor/);
-  });
-
-  it('nome do arquivo = nome do build, pela versão gravada no build', () => {
-    const d = dadosDoBuild(build, { variante: 'campo', perfil: 'producao' });
-    expect(d).toMatchObject({ nomeApk: 'Campo-Oficial-v1.0.0.apk', versionCode: '42', url: 'https://expo.dev/artifacts/eas/x.apk', avisoMensagem: null });
-    expect(dadosDoBuild({ ...build, buildProfile: 'gestao-producao', appVersion: '1.1.0', message: undefined }, null).nomeApk).toBe('Gestao-Oficial-v1.1.0.apk');
-  });
-
-  it('avisa quando a mensagem do build não bate com o nome', () => {
-    expect(dadosDoBuild({ ...build, message: 'build manual' }, null).avisoMensagem).toMatch(/Campo-Oficial-v1\.0\.0/);
-  });
-
-  it('recusa build de outro perfil, não terminado ou sem APK', () => {
-    expect(() => dadosDoBuild(build, { variante: 'gestao', perfil: 'producao' })).toThrow(/gestao-producao/);
-    // APK antigo de preview não é mais um perfil nosso
-    expect(() => dadosDoBuild({ ...build, buildProfile: 'campo-preview' }, null)).toThrow(/não é campo\/gestao/);
-    expect(() => dadosDoBuild({ ...build, status: 'IN_PROGRESS' }, null)).toThrow(/não terminou/);
-    expect(() => dadosDoBuild({ ...build, artifacts: {} }, null)).toThrow(/sem|não tem APK/);
-    expect(() => dadosDoBuild({ ...build, buildProfile: 'base' }, null)).toThrow(/não é campo\/gestao/);
-  });
-
-  it('bucket: lista só os NOMES das variáveis que faltam', () => {
-    expect(() => configDoBucket({ MACUXI_APK_S3_CHAVE: 'segredo-que-nao-pode-vazar' })).toThrow(/MACUXI_APK_S3_ENDPOINT/);
-    try {
-      configDoBucket({ MACUXI_APK_S3_CHAVE: 'segredo-que-nao-pode-vazar' });
-    } catch (e) {
-      expect(String(e)).not.toContain('segredo-que-nao-pode-vazar');
-    }
-  });
-
-  it('link temporário com a validade pedida e o nome do arquivo no download', () => {
-    const bucket = configDoBucket({
-      MACUXI_APK_S3_ENDPOINT: 'https://br-se1.magaluobjects.com',
-      MACUXI_APK_S3_REGIAO: 'br-se1',
-      MACUXI_APK_S3_BUCKET: 'macuxi-apk',
-      MACUXI_APK_S3_CHAVE: 'AKID',
-      MACUXI_APK_S3_SEGREDO: 'SEGREDO',
-    });
-    const agora = new Date('2026-11-07T12:00:00Z');
-    const u = urlsDoBucket(bucket, 'Campo-Oficial-v1.0.0.apk', '42', 72, agora);
-    expect(u.chave).toBe('apk/build-42/Campo-Oficial-v1.0.0.apk');
-    expect(u.download.startsWith('https://br-se1.magaluobjects.com/macuxi-apk/apk/build-42/Campo-Oficial-v1.0.0.apk?')).toBe(true);
-    expect(u.download).toContain('X-Amz-Expires=259200');
-    expect(u.download).toContain('response-content-disposition=attachment%3B%20filename%3D%22Campo-Oficial-v1.0.0.apk%22');
-    expect(u.envio).toContain('X-Amz-Expires=900');
-    expect(u.download).not.toContain('SEGREDO');
-    expect(u.expiraEm.toISOString()).toBe('2026-11-10T12:00:00.000Z');
-  });
-});
-
-describe('s3-assinado: SigV4 na query', () => {
-  it('confere com o exemplo de URL assinada da documentação da AWS (GET examplebucket/test.txt)', () => {
-    const url = urlAssinada({
-      metodo: 'GET',
-      protocolo: 'https:',
-      host: 'examplebucket.s3.amazonaws.com',
-      caminho: '/test.txt',
-      credenciais: { regiao: 'us-east-1', chave: 'AKIAIOSFODNN7EXAMPLE', segredo: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY' },
-      agora: new Date('2013-05-24T00:00:00Z'),
-      expiraEm: 86400,
-    });
-    expect(url).toBe(
-      'https://examplebucket.s3.amazonaws.com/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20130524%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20130524T000000Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404',
-    );
-  });
-
-  it('validade de 1 s a 7 dias; credencial completa', () => {
-    const base = { metodo: 'GET' as const, protocolo: 'https:', host: 'h', caminho: '/b/k', credenciais: { regiao: 'r', chave: 'c', segredo: 's' }, agora: new Date(0) };
-    expect(() => urlAssinada({ ...base, expiraEm: VALIDADE_MAXIMA_S + 1 })).toThrow(/7 dias/);
-    expect(() => urlAssinada({ ...base, expiraEm: 0 })).toThrow(/limite/);
-    expect(() => urlAssinada({ ...base, expiraEm: 60, credenciais: { regiao: 'r', chave: '', segredo: 's' } })).toThrow(/incompletas/);
-  });
-
-  it('codificação RFC 3986, chave e endereço no estilo de caminho', () => {
-    expect(codificar("a b/c!'()*~")).toBe('a%20b%2Fc%21%27%28%29%2A~');
-    expect(chaveDoApk('Gestao-Oficial-v1.0.0.apk', 7)).toBe('apk/build-7/Gestao-Oficial-v1.0.0.apk');
-    expect(chaveDoApk('Campo-Oficial-v1.0.0.apk', null, '')).toBe('sem-versioncode/Campo-Oficial-v1.0.0.apk');
-    expect(() => chaveDoApk('../x.apk', 1)).toThrow(/inválido/);
-    expect(alvoNoBucket('https://s3.exemplo.com/', 'meu-bucket', 'a/b.apk')).toEqual({ protocolo: 'https:', host: 's3.exemplo.com', caminho: '/meu-bucket/a/b.apk' });
-    expect(() => alvoNoBucket('http://s3.exemplo.com', 'meu-bucket', 'a')).toThrow(/https/);
-  });
-});
-
 describe('comum.mjs: ambiente do eas (v1.0.1)', () => {
   it('liga EAS_SKIP_AUTO_FINGERPRINT=1 por padrão (o fingerprint levou ~20 min por build no v1.0.0) e mantém o resto', () => {
     expect(ambienteDoEas({ PATH: 'x' })).toEqual({ PATH: 'x', EAS_SKIP_AUTO_FINGERPRINT: '1' });
   });
   it('respeita quem já definiu a variável', () => {
     expect(ambienteDoEas({ EAS_SKIP_AUTO_FINGERPRINT: '0' }).EAS_SKIP_AUTO_FINGERPRINT).toBe('0');
-  });
-});
-
-describe('eas-build.yml: workflow do EAS sem o PC (Oficial v1.0.7)', () => {
-  const yml = readFileSync(new URL('./eas-build.yml', import.meta.url), 'utf8');
-  const blocoOn = /^on:\n([\s\S]*?)^\S/m.exec(yml)?.[1] ?? '';
-
-  it('só manual: on com workflow_dispatch e nenhum outro gatilho', () => {
-    expect(blocoOn).toMatch(/^ {2}workflow_dispatch:/m);
-    expect(blocoOn.match(/^ {2}\S[^:]*:/gm)).toEqual(['  workflow_dispatch:']);
-    for (const g of ['pull_request', 'pull_request_target', 'push', 'schedule', 'workflow_run']) expect(yml).not.toMatch(new RegExp(`^\\s*${g}:`, 'm'));
-  });
-
-  it('permissions só de leitura', () => {
-    expect(yml).toMatch(/^permissions:\n {2}contents: read\n/m);
-    expect(yml).not.toMatch(/:\s*write\b/);
-  });
-
-  it('EXPO_TOKEN ausente dá a mensagem do passo a passo e o eas roda sem perguntar e sem esperar', () => {
-    expect(yml).toContain('Crie o secret EXPO_TOKEN em Settings → Secrets and variables → Actions');
-    expect(yml).toContain('--non-interactive --no-wait');
-  });
-
-  it('formulário sem perfil e canal: CANAL fixo em oficial', () => {
-    expect(yml).not.toMatch(/^ {6}(perfil|canal):/m);
-    expect(yml).toContain('CANAL: oficial');
-    expect(yml).toContain('ambas) VARIANTE=ambos ;;');
   });
 });
