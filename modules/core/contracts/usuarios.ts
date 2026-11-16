@@ -16,6 +16,7 @@
 import { z } from 'zod';
 import { PerfilSchema } from './auth';
 import { FilialVendaIdsSchema } from './filial-usuario';
+import { HorarioAlmocoSchema, MinutoDoDiaSchema } from './jornada';
 import { CargoSchema } from '@macuxi/platform-sdk';
 
 const Uuid = z.string().uuid();
@@ -92,6 +93,9 @@ export const UsuarioItemSchema = z
     filial_cadastro_id: z.string().uuid().nullable().optional(),
     filial_venda_ids: FilialVendaIdsSchema.optional(),
     sem_filial: z.boolean().optional(),
+    /** T-0180 (D5): horário de almoço próprio em minutos do dia; nulo nos dois = padrão da empresa. */
+    almoco_inicio_min: MinutoDoDiaSchema.nullable().optional(),
+    almoco_fim_min: MinutoDoDiaSchema.nullable().optional(),
   })
   .strict();
 export type UsuarioItem = z.infer<typeof UsuarioItemSchema>;
@@ -117,7 +121,8 @@ export type UsuarioListaQuery = z.infer<typeof UsuarioListaQuerySchema>;
 export const EmailAcessoSchema = z.enum(['enfileirado', 'indisponivel']);
 export type EmailAcesso = z.infer<typeof EmailAcessoSchema>;
 
-export const UsuarioListaRespostaSchema = z.object({ itens: z.array(UsuarioItemSchema) }).strict();
+/** `almoco_padrao` (T-0180, D5; RN-CORE-44): padrão real da empresa, para o rótulo da gaveta de quem edita usuário sem `parametro.inicio`. Ausente = servidor antigo. */
+export const UsuarioListaRespostaSchema = z.object({ itens: z.array(UsuarioItemSchema), almoco_padrao: HorarioAlmocoSchema.optional() }).strict();
 export type UsuarioListaResposta = z.infer<typeof UsuarioListaRespostaSchema>;
 
 export const EquipeOpcaoSchema = z
@@ -204,6 +209,9 @@ export const EditarUsuarioRequestSchema = z
     /** T-0176 / RN-CORE-39: ausente = mantém; presente troca (só admin e analista). `filial_venda_ids` presente troca a lista inteira; a de cadastro sempre fica nela. */
     filial_cadastro_id: z.string().uuid().optional(),
     filial_venda_ids: FilialVendaIdsSchema.optional(),
+    /** T-0180 (D5): os dois nulos = padrão da empresa; os dois com valor = horário próprio (`validarHorarioAlmoco`). Ausente = mantém. */
+    almoco_inicio_min: MinutoDoDiaSchema.nullable().optional(),
+    almoco_fim_min: MinutoDoDiaSchema.nullable().optional(),
   })
   .strict();
 export type EditarUsuarioRequest = z.infer<typeof EditarUsuarioRequestSchema>;
