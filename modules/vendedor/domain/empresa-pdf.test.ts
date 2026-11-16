@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { logoParaPdf, nomeDaEmpresaParaPdf } from './empresa-pdf';
+import { logoParaPdf, logoSrcDoPdf, nomeDaEmpresaParaPdf } from './empresa-pdf';
 
 describe('logoParaPdf (T-0182, MC-0134, RD-0705)', () => {
   it('T-0182: devolve a logo cadastrada da empresa', async () => {
@@ -10,6 +10,15 @@ describe('logoParaPdf (T-0182, MC-0134, RD-0705)', () => {
     expect(await logoParaPdf({})).toBeNull();
     expect(await logoParaPdf({ logoDaEmpresa: async () => { throw new Error('sem rede'); } })).toBeNull();
     expect(await logoParaPdf({ logoDaEmpresa: () => { throw new Error('falha'); } })).toBeNull();
+  });
+});
+
+describe('logoSrcDoPdf (RD-1744)', () => {
+  it('RD-1744: com logo devolve { logo_src }; sem logo, string vazia ou erro devolve {}', async () => {
+    expect(await logoSrcDoPdf({ logoDaEmpresa: async () => 'data:image/png;base64,AAAA' })).toEqual({ logo_src: 'data:image/png;base64,AAAA' });
+    expect(await logoSrcDoPdf({ logoDaEmpresa: async () => null })).toEqual({});
+    expect(await logoSrcDoPdf({ logoDaEmpresa: async () => '' })).toEqual({});
+    expect(await logoSrcDoPdf({})).toEqual({});
   });
 });
 

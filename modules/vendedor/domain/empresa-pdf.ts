@@ -12,6 +12,12 @@ export async function logoParaPdf(ambiente: Pick<AmbienteAparelho, 'logoDaEmpres
   }
 }
 
+/** Fragmento do contexto do PDF: `{ logo_src }` com logo, `{}` sem logo (RD-1744: expressão única para app e BKO). */
+export async function logoSrcDoPdf(ambiente: Pick<AmbienteAparelho, 'logoDaEmpresa'>): Promise<{ logo_src?: string }> {
+  const logo_src = await logoParaPdf(ambiente);
+  return logo_src ? { logo_src } : {};
+}
+
 /** Nome da distribuidora no cabeçalho: o nome da empresa dos parâmetros do Core (fantasia, ou razão social se vazio); sem nome = `''` (o PDF sai sem texto, nunca "Macuxi"). */
 export function nomeDaEmpresaParaPdf(parametrosCore: Readonly<Record<string, unknown>> | null | undefined): string {
   return empresaDosParametros(parametrosCore)?.nome.trim() ?? '';
