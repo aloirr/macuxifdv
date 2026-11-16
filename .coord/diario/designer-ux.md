@@ -145,6 +145,9 @@
 2026-11-16 — v1.0.14 prazo — #398: RD-1840 (pilha da fonte só no body do telas.css, campo.css e bko-1), MC-1590 (valores, aba ativa e erro em 600 no telas.css) e MC-1591 (nada abaixo de 12; 17→18 e 20→22 na escala do app).
 2026-11-16 — v1.0.14 prazo — #398: RD-1942 (estilo comum das duas simulações do BKO em prazo-ajuste/bko.css, pilha da fonte só no body).
 2026-11-16 — v1.0.14 prazo — #398: RD-1942 (sai a .total sem uso do bko.css).
+2026-11-15 — v1.0.14 alertas — T-0180: spec aprovada de Parâmetros › Alertas e Interruptor com estadoEscrito="so-desligada" no kit (nuvem/T-0180-alertas-designer-ux); simulações refeitas no menu final (Parâmetros com a lista de seções), na fonte do sistema e a 1366×768.
+2026-11-16 — v1.0.14 alertas — #405: merge do main e RD-1507, RD-1680, MC-1508, MC-1509 (fontes do conteúdo na spec; título Parâmetros e a seção só na lista; barra em Azul noite e item direto ativo em branco; Gestão na escala do app; legend 17/700).
+2026-11-16 — v1.0.14 alertas — #405: RD-1900 (sai a cab vazia e as 2 chamadas) e MC-1611 (legenda Jornada 13/600 e opção 15/600, como o formulário do código).
 2026-11-15 — v1.0.14 parametros — simulação final do menu Parâmetros (D1–D11) trazida de nuvem/menu-parametros-designer-ux, refeita na fonte do sistema e a 1366×768 (item longo do menu quebra linha; a página pode rolar).
 2026-11-16 — v1.0.14 parametros — #408: merge do main e RD-1577 a RD-1579, MC-1510 (Salvar só nos painéis editáveis; quem implementa no desenho e ADR 0060; P3 sem repetir o §3; parâmetros só leitura no arranjo do código, valor em 400).
 2026-11-16 — v1.0.14 parametros — #408: RD-1901 (sai o parâmetro ajuda da leitura() e os 5 textos que não apareciam).

@@ -16,14 +16,13 @@ import {
   type IndicadorProdutividade,
   type ProdutividadeIndicador,
 } from '../../contracts/performance';
+import type { HorarioAlmoco } from '../../contracts/jornada';
 import {
-  ALMOCO_PADRAO,
   intervaloDoAlmoco,
   intervalosDoDia,
   ordenarPorCheckin,
   temCheckoutReal,
   type Intervalo,
-  type ParametrosAlmoco,
   type VisitaProdutividade,
 } from './almoco';
 import type { MetasProdutividadeResolvidas } from './metas-produtividade';
@@ -66,8 +65,8 @@ export interface EntradaProdutividade {
   deslocamentos: readonly DeslocamentoResumo[];
   /** Metas resolvidas (`metasProdutividadeVigentes`); indicador ausente = `sem_meta`. */
   metas: MetasProdutividadeResolvidas;
-  /** Parâmetros do almoço; padrão 12:00 e 11:00–15:00. */
-  almoco?: ParametrosAlmoco;
+  /** Horário de almoço do usuário (ou o padrão da empresa, RN-CORE-44); ausente = 12:00 às 13:00. */
+  almoco?: HorarioAlmoco;
 }
 
 const MS_MIN = 60_000;
@@ -103,14 +102,13 @@ function montarDias(e: EntradaProdutividade): Dia[] {
   }
   const metros = new Map<string, number>();
   for (const d of e.deslocamentos) if (!d.deleted_at && !metros.has(d.data)) metros.set(d.data, d.metros);
-  const p = e.almoco ?? ALMOCO_PADRAO;
-  return [...porData.entries()]
+    return [...porData.entries()]
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .map(([data, l]) => {
       const visitas = ordenarPorCheckin(l);
       const checkins = visitas.map((v) => emMs(v.checkin_em));
       const checkouts = visitas.filter(temCheckoutReal).map((v) => emMs(v.checkout_em));
-      const almoco = intervaloDoAlmoco(visitas, e.fuso, p);
+      const almoco = intervaloDoAlmoco(visitas, e.fuso, e.almoco);
       return {
         data,
         encerrado: modoHoje || data < e.hoje,
