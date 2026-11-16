@@ -162,3 +162,5 @@
 2026-11-15 — Trocar senha — merge do main no nuvem/trocar-senha-designer-ux e nota da fonte do sistema no topo da spec (como as specs antigas, RD-0958); só docs, o app já entrou no #370
 2026-11-16 — Trocar senha (#426) — RD-1844: spec e prancha dizem que a tela já foi implementada na T-0178 (#357 e #370); saem as pendências de implementação; 00-prancha.png regerado
 2026-11-16 — Trocar senha (#426) — título sem '(simulação)', §8 'Textos novos' e premissa 3 no presente
+2026-11-15 — v1.0.14 catalogo — ícone pacote (caixa) no kit mobile e web (R-20261115-084600) e spec do Catálogo v2 com Estoque: N e a folha Estoque por filial (nuvem/catalogo-campo-designer-ux); pranchas na fonte do sistema.
+2026-11-16 — v1.0.14 catalogo — #441: RD-1700 a RD-1703 e MC-1520 a MC-1523 (cartão com fonte única no v2, IconPacote web saiu, botão de estoque por filial só com mais de uma filial, apoio da folha sem o código, pesos 600 e escala do app, título da folha 22/700).
