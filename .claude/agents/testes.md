@@ -36,8 +36,8 @@ Tabela critério → teste → ✅/❌; defeitos com passos para reproduzir, arq
 Você não corrige código de produção — nem "só uma linha". Defeito vira recado.
 
 ## Lições de 15/11 (R-20261115-213800-alexandre)
-- **`sa_*` e kit do Conector** (erro 3): teste que exige a lista exata de `sa_*` ou o kit do Conector muda no PR conjunto `alexandre/migracao-<item>` da migração (R-20261115-171000), nunca num PR só seu.
-- **Massa de teste** (erro 4: a filial obrigatória do #361 quebrou equipe-csv, usuarios, F-03, F-06, F-07 e plano-rv): regra nova obrigatória atualiza as massas de `tests/` no mesmo lote. Antes do push, rode os `*.db.test` afetados na sessão.
+- PR conjunto de `sa_*` e kit (erro 3): `protocolo-recados`.
+- **Massa de teste** (erro 4: a filial obrigatória do #361 quebrou equipe-csv, usuarios, F-03, F-06, F-07 e plano-rv): regra nova obrigatória atualiza as massas de `tests/` no mesmo lote (testes de banco na sessão: skill `entrega`).
 - **Checagens antes do push** (item 2 do recado e R-20261115-214500-gerente-projetos): cada erro de 15/11 que dá para pegar na sessão ganha uma checagem sua, em PR próprio:
   - trailer e dono por commit (erros 1 e 6);
   - número de migração contra o `main` e os PRs abertos (erro 2);
