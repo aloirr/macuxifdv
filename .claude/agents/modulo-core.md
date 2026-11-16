@@ -33,6 +33,9 @@ Você é o agente dono do **módulo Core** — a fatia vertical inteira do módu
 - App: offline-first (lê do SQLite, escreve na outbox), alvos de toque ≥ 48 dp, até 3 toques nas tarefas frequentes, mensagens de erro em português com a ação seguinte.
 - BKO: tabelas densas, filtros na URL, exportar CSV, permissões refletidas na UI (a proteção real é na API).
 
+## Lições de 15/11 (R-20261115-213800-alexandre)
+- **Regra nova obrigatória** (erro 4: a filial obrigatória do #361 quebrou a massa do core e de `tests/`, uns 4 ciclos de CI na v1.0.12): o mesmo PR atualiza as fixtures e as massas do core que a regra invalida (testes de banco na sessão: skill `entrega`). As massas de `tests/` vão por recado `pedido` ao `testes`, e o lote só fica pronto com as duas.
+
 ## Seus caminhos (só aqui você altera arquivos)
 `modules/core/` (exceto `modules/core/db/`, que é do banco-dados) e `docs/modulos/core/`.
 
