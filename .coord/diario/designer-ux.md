@@ -125,5 +125,9 @@
 2026-11-15 — T-0174 — KpiCard com onClick/selecionado (MC-0090), Progresso mostrarRotulo='valor', spec Fotos em lote sem repetição (RD-0615, RD-0616, RD-0622)
 2026-11-15 — T-0174 (#366) — RD-1222: a spec Fotos em lote (§1 e §6.1) cita a frase de acesso da página
 2026-11-15 — T-0174 (#366) — RD-1273: a §1 da spec remete ao aviso de acesso da §6.1 (frase uma vez só)
+2026-11-15 — T-0181 (era T-0174) — ajuste R-20261115-080500: ícone lampada no kit mobile, MEDIDAS_FRASE_CARGA em entrada.ts (sem tokens de aviso), entrada-sync §2 com título 'Você sabia?' e aviso curto conforme a spec final 74f6160 (Olá→título 20, título→frase 6, aviso 13/18 textoClaro a 10 da barra; título em texto; lâmpada em preenchimento)
+2026-11-15 — T-0181 — kit3: aviso da carga nunca cortado (1 linha na escala 1,0, pode quebrar em 2 com fonte grande); `aviso.linhas` mantido porque o shell (linhasDoAviso) ainda lê; teste novo; T-0174 renomeado para T-0181
+2026-11-15 — T-0181 (#367) — pareceres: RD-1219 (saem os testes 2 a 4 de MEDIDAS_FRASE_CARGA), RD-1220 (sai a §5 'Na aprovação'; Fontes vira §5), RD-1221 e MC-0136 a MC-0139 (simulação na fonte do sistema, 14/20 e 16 no app, web 15, h1 24/700, selo 12, PNGs regerados); manter? do aviso: mantido (texto aprovado pelo dono do produto)
+2026-11-15 — T-0181 (#367) — MC-0151 (nome do módulo na faixa em 15) e RD-1270 (pilha da fonte só no body; botões e campos herdam); PNGs do portal regerados
 2026-11-15 — RD-1283 — spec do filtro padrão do Campo no main (título 'Rota' com outra data, a data só na etiqueta, RD-1235; nota da fonte do sistema; sem o html, que dependia do CSS do catálogo v2 fora do main)
 2026-11-15 — RD-1283 (#437) — MC-0156 (rótulo t.label 12/600), RD-1291 (sai o aviso de simulação para aprovação), RD-1292 (sai a linha de pareceres), RD-1293 (etiqueta para o removível; chip só os de marcar)
