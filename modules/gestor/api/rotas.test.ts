@@ -5,6 +5,8 @@
  * Uma só linha do tempo: o relógio do teste (`criarRelogio`), injetado em `ctx.agora` e no consumidor.
  */
 import { describe, expect, it } from 'vitest';
+import { ZodError } from 'zod';
+import { PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO } from '@macuxi/core/contracts';
 import { criarRelogio } from '@macuxi/comum/relogio';
 import {
   criarPermissoes,
@@ -52,10 +54,14 @@ const PERFIL: Record<string, Perfil> = Object.fromEntries(CADASTRO.map((c) => [c
 const TODOS: ModuloId[] = ['core', 'gestor', 'vendedor', 'promotor', 'catalogo'];
 
 function cenario() {
+  /** Último contato do aparelho por usuário, como a consulta `core.produtividade_equipe@1` do Core devolve (nulo = nunca sincronizou). */
+  const contatos: Record<string, string | null> = {};
   const relogio = criarRelogio({ agora: '2026-11-03T15:00:00Z' }); // terça, 11:00 em Manaus
   const repo = criarRepositorioEmMemoria();
   const api = criarApiGestor(repo);
   const auditoria: RegistroAuditoria[] = [];
+  /** Parâmetros do módulo como o SDK guarda por tenant; `gravarParametros` grava e audita como o SDK. */
+  const guardados: Record<string, unknown> = {};
   const rota = (metodo: string, caminho: string): RotaModulo => {
     const r = api.rotas!.find((x) => x.metodo === metodo && x.caminho === caminho);
     if (!r) throw new Error(`rota ${metodo} ${caminho} não existe`);
@@ -70,10 +76,13 @@ function cenario() {
       registrarArquivo: async () => {
         throw new Error('sem arquivo');
       },
-      consultar: async (def: { nome: string }, entrada: { usuario_ids: string[] }) =>
-        def.nome === 'core.calendario_metas@1'
-          ? { dias_uteis_semana: DIAS_UTEIS_DO_CORE, feriados: [] }
-          : { clientes: [], produtos: [], usuarios: CADASTRO.filter((c) => entrada.usuario_ids.includes(c.id)).map((c) => ({ ...c, external_id: null })) },
+      consultar: async (def: { nome: string }, entrada: { usuario_ids: string[] }) => {
+        if (def.nome === 'core.calendario_metas@1') return { dias_uteis_semana: DIAS_UTEIS_DO_CORE, feriados: [] };
+        if (def.nome === 'core.produtividade_equipe@1') {
+          return { parado_min: 60, alertas: PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO, usuarios: entrada.usuario_ids.map((id) => ({ id, ultimo_contato_em: contatos[id] ?? null, almoco_inicio_min: 720, almoco_fim_min: 780 })) };
+        }
+        return { clientes: [], produtos: [], usuarios: CADASTRO.filter((c) => entrada.usuario_ids.includes(c.id)).map((c) => ({ ...c, external_id: null })) };
+      },
       auditar: async (a: RegistroAuditoria) => {
         auditoria.push(a);
       },
@@ -86,7 +95,12 @@ function cenario() {
       comTenant: async <T,>(fn: (db: never, tx: never) => Promise<T>) => fn({ query: async () => ({ rows: [], rowCount: 0 }) } as never, tx as never),
       carteira: async () => 'tenant' as const,
       usuariosVisiveis: async () => VISIVEIS[quem] ?? new Set([quem]),
-      parametros: () => ({}),
+      parametros: () => ({ ...guardados }),
+      gravarParametros: async (v: Record<string, unknown>, op?: { acao?: string }) => {
+        const mudou = Object.entries(v).some(([k, x]) => guardados[k] !== x);
+        Object.assign(guardados, v);
+        if (mudou) auditoria.push({ acao: op?.acao ?? 'parametro.gravar', entidade: 'parametro', entidade_id: null, antes: null, depois: v } as RegistroAuditoria);
+      },
       fuso: () => 'America/Manaus',
       log: { info: () => {}, warn: () => {}, error: () => {} },
       query: r.query ? r.query.parse(o.query ?? {}) : undefined,
@@ -102,7 +116,7 @@ function cenario() {
       await c.executar(c.evento.schema.parse(e.payload), ctx);
     }
   };
-  return { relogio, repo, api, auditoria, chamar, publicar };
+  return { relogio, repo, api, auditoria, chamar, publicar, contatos };
 }
 
 const iso = (r: ReturnType<typeof criarRelogio>, hora: string, dias = 0) => r.instante({ dias, hora }).toISOString();
@@ -128,7 +142,7 @@ const aprovacaoSolicitada = (r: ReturnType<typeof criarRelogio>, o: { pedido: st
 const DIAS_UTEIS_DO_CORE = [1, 2, 3, 4, 5, 6];
 
 describe('API do Gestor: declaração, licença e perfis (regra 6)', () => {
-  it('a API é válida no SDK: 9 rotas, um consumidor por evento de `consome`, escrita sempre com ação do manifesto', () => {
+  it('a API é válida no SDK: 11 rotas, um consumidor por evento de `consome`, escrita sempre com ação do manifesto', () => {
     expect(apiGestor.rotas!.map((r) => `${r.metodo} ${r.caminho}`)).toEqual([
       'GET equipe',
       'GET equipe/:usuario_id',
@@ -138,6 +152,8 @@ describe('API do Gestor: declaração, licença e perfis (regra 6)', () => {
       'POST alertas/:id/dispensar',
       'GET alertas/regras',
       'PUT alertas/regras/:tipo',
+      'GET parametros/alertas',
+      'PUT parametros/alertas',
       'GET pedido-em-nome/disponibilidade',
     ]);
     expect(apiGestor.consumidores!.map((c) => c.evento.nome)).toEqual(manifest.consome);
@@ -163,11 +179,13 @@ describe('API do Gestor: declaração, licença e perfis (regra 6)', () => {
     for (const perfil of ['supervisor', 'gerente'] as const) {
       expect(pode(perfil, rotas['POST alertas/:id/dispensar']!)).toBe(true);
       expect(pode(perfil, rotas['PUT alertas/regras/:tipo']!)).toBe(false);
+      expect(pode(perfil, rotas['PUT parametros/alertas']!)).toBe(false);
     }
     for (const perfil of ['analista', 'admin'] as const) {
       expect(pode(perfil, rotas['GET equipe']!)).toBe(true);
       expect(pode(perfil, rotas['POST alertas/:id/dispensar']!)).toBe(false); // RN-GES-07: só leitura
       expect(pode(perfil, rotas['PUT alertas/regras/:tipo']!)).toBe(true);
+      expect(pode(perfil, rotas['PUT parametros/alertas']!)).toBe(true);
     }
     expect(promotorBarradoNaRota(rotas['GET pedido-em-nome/disponibilidade']!)).toBe(true);
   });
@@ -274,6 +292,48 @@ describe('API do Gestor: fluxo de ponta a ponta com eventos (RF-GES-01..07)', ()
     expect(regras.regras.find((x) => x.tipo === 'ruptura_recorrente')?.limiar).toBe(4);
     expect(c.auditoria.map((a) => a.acao)).toEqual(['alerta_regra.gerenciar']);
     await expect(c.chamar('PUT', 'alertas/regras/:tipo', ANALISTA, { params: { tipo: 'cliente_sem_visita' }, corpo: { limiar: 5 } })).rejects.toMatchObject({ status: 422, codigo: 'REGRA_ALERTA_INVALIDA' });
+  });
+
+  it('RN-GES-01/03, RN-PRO-07: Parâmetros › Alertas devolve os padrões, grava só o que mudou, audita e recusa valor fora da faixa', async () => {
+    const c = cenario();
+    const padrao = { pct_tolerancia_frequencia: 50, dias_sem_visita_padrao: 30, dias_carencia_cliente_novo: 15, prazo_aprovacao_dias_uteis: 1 };
+    expect(await c.chamar('GET', 'parametros/alertas', ANALISTA)).toEqual(padrao);
+    expect(await c.chamar('PUT', 'parametros/alertas', ANALISTA, { corpo: { ...padrao, pct_tolerancia_frequencia: 60 } })).toMatchObject({ pct_tolerancia_frequencia: 60 });
+    expect(c.auditoria.map((a) => a.acao)).toEqual(['alerta_regra.gerenciar']);
+    const recusado = await c.chamar('PUT', 'parametros/alertas', ANALISTA, { corpo: { ...padrao, dias_sem_visita_padrao: 0 } }).catch((e: unknown) => e);
+    expect(recusado).toBeInstanceOf(ZodError);
+    expect((recusado as ZodError).issues[0]).toMatchObject({ path: ['dias_sem_visita_padrao'], code: 'too_small' });
+  });
+
+  it('RN-PRO-07: a permanência mínima é do Promotor; o PUT do Gestor recusa o campo e a leitura não o traz', async () => {
+    const c = cenario();
+    expect(await c.chamar('GET', 'parametros/alertas', ANALISTA)).not.toHaveProperty('permanencia_min_min');
+    const recusado = await c
+      .chamar('PUT', 'parametros/alertas', ANALISTA, { corpo: { pct_tolerancia_frequencia: 50, dias_sem_visita_padrao: 30, dias_carencia_cliente_novo: 15, prazo_aprovacao_dias_uteis: 1, permanencia_min_min: 5 } })
+      .catch((e: unknown) => e);
+    expect((recusado as ZodError).issues[0]).toMatchObject({ code: 'unrecognized_keys', keys: ['permanencia_min_min'] });
+  });
+
+  it('RN-VEN-42, D4: a lista só traz os alertas de produtividade com `?produtividade=1` e só de quem sincronizou depois do horário do check-in', async () => {
+    const c = cenario(); // terça, 11:00 em Manaus; ninguém fez check-in; o "até" padrão é 10:00
+    c.contatos[VENDEDOR] = '2026-11-03T14:30:00Z'; // 10:30 em Manaus, depois das 10:00
+    c.contatos[VENDEDOR_2] = '2026-11-03T13:00:00Z'; // 09:00, antes das 10:00: pode estar sem sinal, não acusa
+    const sem = ListaAlertas.parse(await c.chamar('GET', 'alertas', SUPERVISOR));
+    expect(sem.itens.filter((a) => a.tipo === 'sem_checkin_inicio')).toEqual([]); // Gestão anterior à v1.0.13 não recebe o tipo novo
+    const com = ListaAlertas.parse(await c.chamar('GET', 'alertas', SUPERVISOR, { query: { produtividade: '1' } }));
+    expect(com.itens.filter((a) => a.tipo === 'sem_checkin_inicio').map((a) => [a.alvo_id, a.chave, a.mensagem])).toEqual([[VENDEDOR, `produtividade:${VENDEDOR}`, 'Vera']]);
+    const semFiltroDeNovo = ListaAlertas.parse(await c.chamar('GET', 'alertas', SUPERVISOR));
+    expect(semFiltroDeNovo.itens.some((a) => a.tipo === 'sem_checkin_inicio')).toBe(false); // omitir da lista não encerra o alerta
+    expect(ListaAlertas.parse(await c.chamar('GET', 'alertas', SUPERVISOR, { query: { produtividade: '1' } })).itens.filter((a) => a.tipo === 'sem_checkin_inicio')).toHaveLength(1);
+  });
+
+  it('ADR 0059 §1: ajustar regra de produtividade é recusado com erro de validação (4xx), não com 500', async () => {
+    const c = cenario();
+    const recusado = await c.chamar('PUT', 'alertas/regras/:tipo', ANALISTA, { params: { tipo: 'parado_entre_visitas' }, corpo: { ativa: false } }).catch((e: unknown) => e);
+    expect(recusado).toBeInstanceOf(ZodError);
+    expect((recusado as ZodError).issues[0]).toMatchObject({ path: ['tipo'], code: 'invalid_enum_value' });
+    const regras = (await c.chamar('GET', 'alertas/regras', ANALISTA)) as { regras: RegraAlerta[] };
+    expect(regras.regras.map((r) => r.tipo)).toEqual(['cliente_sem_visita', 'ritmo_abaixo_meta', 'pedido_aguardando_aprovacao', 'ruptura_recorrente', 'visita_curta', 'fotos_sem_gps']);
   });
 
   it('RF-GES-05 / RN-VEN-35: disponibilidade do pedido em nome segue o escopo e some sem o Vendedor', async () => {

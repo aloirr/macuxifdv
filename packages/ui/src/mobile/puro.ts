@@ -32,3 +32,9 @@ export * from './busca';
 export * from './botao-editar';
 // R-20261115-071000: CampoSenha (medidas, ícone do olho e props de teclado)
 export * from './campo-senha';
+// R-20261115-100000: segurar 10 s no Sincronizar = sincronização completa (tempos, textos, desenho e controle do gesto)
+export * from './sincronizacao-completa';
+// Onda 1 do catálogo (solução 5): textos e medidas do indicador de carga em segundo plano
+export * from './carga-fundo';
+// T-0182: PlacaLogoCliente (medidas, caixa pela proporção e leitura do TalkBack)
+export * from './placa-logo';

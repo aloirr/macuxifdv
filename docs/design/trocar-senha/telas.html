@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Trocar senha · Campo e Gestão (simulação)</title>
+<!--
+  Simulação da "Trocar senha" (R-20261115-104500). Spec: spec.md (mesma pasta). PNGs: gerar-png.cjs.
+  Tokens da marca v1 (packages/ui/src/mobile/tokens.ts e comum/contraste.ts); fontes do próprio repositório (node_modules).
+-->
+<style>
+  @font-face { font-family: Archivo; font-weight: 800; src: url('../../../node_modules/@expo-google-fonts/archivo/800ExtraBold/Archivo_800ExtraBold.ttf'); }
+  @font-face { font-family: Archivo; font-weight: 700; src: url('../../../node_modules/@expo-google-fonts/archivo/700Bold/Archivo_700Bold.ttf'); }
+  @font-face { font-family: 'IBM Plex Sans'; font-weight: 400; src: url('../../../node_modules/@expo-google-fonts/ibm-plex-sans/400Regular/IBMPlexSans_400Regular.ttf'); }
+  @font-face { font-family: 'IBM Plex Sans'; font-weight: 500; src: url('../../../node_modules/@expo-google-fonts/ibm-plex-sans/500Medium/IBMPlexSans_500Medium.ttf'); }
+  @font-face { font-family: 'IBM Plex Sans'; font-weight: 600; src: url('../../../node_modules/@expo-google-fonts/ibm-plex-sans/600SemiBold/IBMPlexSans_600SemiBold.ttf'); }
+  :root {
+    --ground: #F8F6F1; --surface: #FFFFFF; --ink: #16202A; --ink2: #4A5562; --ink3: #5B6673;
+    --line: #DFE2E6; --lineSoft: #ECEEF1; --lineStrong: #C9CED5;
+    --accent: #1E3350; --onAccent: #FFFFFF; --faixa: #1E3350; --faixaSub: #C9CED5;
+    --success: #1D6B4F; --successBg: #E2F1EA; --successOnDark: #7FD1A8;
+    --warningInk: #5C3B00; --warningBg: #FFF1D6; --danger: #A8261B; --dangerBg: #FDE8E6;
+    --neutralBg: #ECEEF1;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #DFE2E6; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: var(--ink); padding: 28px 32px 36px; }
+  h1.prancha { font-family: Archivo, sans-serif; font-weight: 800; font-size: 24px; margin: 0 0 4px; }
+  p.prancha { margin: 0 0 22px; font-size: 14px; color: var(--ink2); max-width: 1500px; }
+  .board { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+  .tela { width: 360px; display: flex; flex-direction: column; gap: 10px; }
+  .legenda { font-size: 13px; font-weight: 600; min-height: 36px; }
+  .legenda b { display: inline-flex; width: 22px; height: 22px; border-radius: 11px; background: var(--ink); color: #fff; align-items: center; justify-content: center; font-size: 12px; margin-right: 6px; }
+  .legenda span { display: block; font-weight: 400; color: var(--ink2); margin-top: 2px; }
+  .phone { position: relative; width: 360px; height: 740px; background: var(--ground); border-radius: 26px; overflow: hidden; box-shadow: 0 0 0 8px #16202A, 0 10px 30px rgba(0,0,0,.25); display: flex; flex-direction: column; }
+  /* faixa Azul noite (CabecalhoTela): status claro, voltar e título branco */
+  .faixa { background: var(--faixa); padding: 0 20px 16px; color: #fff; }
+  .status { height: 28px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: #fff; }
+  .voltar { display: inline-flex; align-items: center; gap: 2px; height: 40px; margin-left: -6px; font-size: 14px; font-weight: 500; color: var(--faixaSub); }
+  .faixa h2 { margin: 0; font-family: Archivo, sans-serif; font-weight: 800; font-size: 24px; line-height: 28px; color: #fff; }
+  .corpo { flex: 1; padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+  /* Banner do kit: a área de alertas, no topo do corpo */
+  .banner { display: flex; gap: 10px; align-items: flex-start; border-radius: 14px; padding: 12px 14px; font-size: 14px; line-height: 20px; font-weight: 500; }
+  .banner.aviso { background: var(--warningBg); color: var(--warningInk); }
+  .banner.perigo { background: var(--dangerBg); color: var(--danger); }
+  .banner svg { flex: none; margin-top: 1px; }
+  /* CampoSenha: rótulo 13/600, campo 52, olho 48 dentro à direita */
+  .campo { display: flex; flex-direction: column; gap: 4px; }
+  .campo label { font-size: 13px; font-weight: 600; }
+  .entrada { position: relative; height: 52px; border: 1px solid var(--lineStrong); border-radius: 12px; background: var(--surface); display: flex; align-items: center; padding: 0 52px 0 14px; font-size: 16px; }
+  .entrada.foco { border: 2px solid var(--accent); padding-left: 13px; }
+  .entrada.erro { border: 2px solid var(--danger); padding-left: 13px; }
+  .entrada .pontos { letter-spacing: 3px; font-size: 18px; }
+  .entrada .cursor { display: inline-block; width: 2px; height: 22px; background: var(--accent); margin-left: 1px; vertical-align: middle; }
+  .entrada .olho { position: absolute; right: 2px; top: 1px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; }
+  /* RegrasDaSenha */
+  .regras { display: flex; flex-direction: column; gap: 6px; }
+  .regras .t { font-size: 12px; font-weight: 600; color: var(--ink2); }
+  .regras .l { display: flex; align-items: center; gap: 8px; min-height: 22px; font-size: 14px; line-height: 20px; }
+  .regras .l.conf { margin-top: 4px; }
+  .marca { width: 18px; height: 18px; border-radius: 9px; flex: none; display: flex; align-items: center; justify-content: center; }
+  .marca.vazia { border: 2px solid var(--lineStrong); }
+  .marca.ok { background: var(--successBg); }
+  .marca.erro { background: var(--dangerBg); }
+  .l.falta { color: var(--ink2); }
+  .l.erro { color: var(--danger); font-weight: 600; }
+  .ex { color: var(--ink2); font-weight: 400; margin-left: -8px; }
+  .espaco { flex: 1; }
+  /* link "Esqueci a senha": estilosDeAcesso.link + linkTexto (o do login: 14/600 accentInk, alvo de 48), alinhado à direita, logo abaixo do campo */
+  .link-campo { align-self: flex-end; min-height: 48px; margin: -14px -8px -14px 0; padding: 0 8px; display: flex; align-items: center; font-size: 14px; font-weight: 600; color: var(--accent); }
+  /* Esqueci a senha (TelaEsqueciSenha do Core) */
+  .fixo { font-size: 16px; line-height: 22px; color: var(--ink); }
+  .confirma { display: flex; gap: 8px; align-items: flex-start; border-radius: 12px; padding: 12px; background: #DFE2E6; color: #1E3350; font-size: 14px; line-height: 20px; }
+  .confirma svg { flex: none; margin-top: 1px; }
+  .peq { font-size: 12px; line-height: 17px; color: var(--ink2); }
+  .btn { height: 52px; border-radius: 14px; background: var(--accent); color: var(--onAccent); font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn.desab { background: var(--neutralBg); color: var(--ink3); }
+  /* Perfil */
+  .quem { display: flex; gap: 14px; align-items: center; }
+  .av { width: 56px; height: 56px; border-radius: 28px; background: var(--ink); color: #fff; font-family: Archivo, sans-serif; font-weight: 700; font-size: 19px; display: flex; align-items: center; justify-content: center; flex: none; }
+  .quem .n { font-family: Archivo, sans-serif; font-weight: 800; font-size: 22px; line-height: 26px; }
+  .quem .p { font-size: 13px; color: var(--ink2); margin-top: 2px; }
+  .secao-t { font-family: Archivo, sans-serif; font-weight: 700; font-size: 17px; }
+  .linhas { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .linhas .l { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 12px 6px 14px; font-size: 15px; font-weight: 500; }
+  .linhas .l + .l { border-top: 1px solid var(--lineSoft); }
+  .linhas .l .n { flex: 1; }
+  .btn.escuro { background: var(--ink); color: #fff; }
+  .sit { text-align: center; font-size: 12px; color: var(--ink2); margin-top: -6px; }
+  .abas { height: 64px; background: var(--surface); border-top: 1px solid var(--line); display: flex; }
+  .abas div { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 11px; font-weight: 600; color: var(--ink2); }
+  .abas div.ativa { color: var(--accent); box-shadow: inset 0 3px 0 var(--accent); }
+  /* AvisoRodape (grafite, ícone verde) */
+  .aviso-rodape { position: absolute; left: 16px; right: 16px; bottom: 80px; min-height: 52px; background: var(--ink); color: #fff; border-radius: 14px; display: flex; align-items: center; gap: 12px; padding: 8px 14px; font-size: 14px; font-weight: 500; box-shadow: 0 4px 10px rgba(15,20,25,.2); }
+  .teclado { height: 236px; background: #D3D7DD; display: grid; grid-template-rows: repeat(4, 1fr); gap: 8px; padding: 10px 6px 14px; }
+  .teclado .fila { display: flex; gap: 6px; justify-content: center; }
+  .teclado .fila span { flex: 1; max-width: 32px; background: #fff; border-radius: 6px; box-shadow: 0 1px 0 #9AA3B0; }
+  .teclado .fila span.lg { max-width: 120px; flex: 3; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Trocar senha · Perfil do Campo e do Gestão</h1>
+<p class="prancha">R-20261115-104500 · Regras e decisões: spec.md.</p>
+
+<div class="board">
+
+  <!-- 1 · Perfil: entrada -->
+  <div class="tela" id="t01">
+    <div class="legenda"><b>1</b>Perfil → Trocar senha<span>Uma linha na seção Conta, logo abaixo de quem está no app.</span></div>
+    <div class="phone">
+      <div class="faixa"><div class="status"><span>09:30</span><span>4G 80%</span></div>
+        <div class="voltar"><i data-i="back" data-t="18" data-c="#C9CED5"></i>Início</div><h2>Perfil</h2></div>
+      <div class="corpo">
+        <div class="quem"><div class="av">LA</div><div><div class="n">Lucas Andrade</div><div class="p">Vendedor de campo · Equipe Norte</div></div></div>
+        <div class="secao-t">Conta</div>
+        <div class="linhas">
+          <div class="l"><i data-i="lock" data-t="20" data-c="#1E3350"></i><span class="n">Trocar senha</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        </div>
+        <div class="secao-t">Sincronização</div>
+        <div class="btn escuro"><i data-i="sync" data-t="18" data-c="#fff"></i>Sincronizar</div>
+        <div class="sit">Última sincronização 09:15 · 0 na fila</div>
+        <div class="secao-t">Aparelho</div>
+        <div class="linhas"><div class="l"><span class="n">Meus módulos</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div></div>
+      </div>
+      <div class="abas"><div><i data-i="home" data-t="20" data-c="#4A5562"></i>Início</div><div><i data-i="pin" data-t="20" data-c="#4A5562"></i>Rota</div><div><i data-i="clipboard" data-t="20" data-c="#4A5562"></i>Pedidos</div><div class="ativa"><i data-i="user" data-t="20" data-c="#1E3350"></i>Perfil</div></div>
+    </div>
+  </div>
+
+  <!-- 2 · Vazia -->
+  <div class="tela" id="t02">
+    <div class="legenda"><b>2</b>Ao abrir<span>Foco na senha atual. "Esqueci a senha" logo abaixo dela. Três campos com o olho; as regras já à vista.</span></div>
+    <div class="phone">
+      <div class="faixa"><div class="status"><span>09:31</span><span>4G 80%</span></div>
+        <div class="voltar"><i data-i="back" data-t="18" data-c="#C9CED5"></i>Perfil</div><h2>Trocar senha</h2></div>
+      <div class="corpo">
+        <div class="campo"><label>Senha atual</label><div class="entrada foco"><span class="cursor"></span><span class="olho"><i data-i="olho" data-t="22" data-c="#4A5562"></i></span></div></div>
+        <div class="link-campo">Esqueci a senha</div>
+        <div class="campo"><label>Senha nova</label><div class="entrada"><span class="olho"><i data-i="olho" data-t="22" data-c="#4A5562"></i></span></div></div>
+        <div class="campo"><label>Repita a senha</label><div class="entrada"><span class="olho"><i data-i="olho" data-t="22" data-c="#4A5562"></i></span></div></div>
+        <div class="regras">
+          <div class="t">A senha precisa ter</div>
+          <div class="l falta"><span class="marca vazia"></span>8 caracteres ou mais</div>
+          <div class="l falta"><span class="marca vazia"></span>Uma letra</div>
+          <div class="l falta"><span class="marca vazia"></span>Um número</div>
+          <div class="l falta"><span class="marca vazia"></span>Um caractere especial<span class="ex">&nbsp;(! @ # $)</span></div>
+        </div>
+        <div class="espaco"></div>
+        <div class="btn">Salvar senha</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 · Preenchendo -->
+  <div class="tela" id="t03">
+    <div class="legenda"><b>3</b>Digitando<span>Olho da senha nova aberto. As regras e a conferência mudam a cada tecla.</span></div>
+    <div class="phone">
+      <div class="faixa"><div class="status"><span>09:31</span><span>4G 80%</span></div>
+        <div class="voltar"><i data-i="back" data-t="18" data-c="#C9CED5"></i>Perfil</div><h2>Trocar senha</h2></div>
+      <div class="corpo">
+        <div class="campo"><label>Senha atual</label><div class="entrada"><span class="pontos">••••••••••</span><span class="olho"><i data-i="olho" data-t="22" data-c="#4A5562"></i></span></div></div>
+        <div class="link-campo">Esqueci a senha</div>
+        <div class="campo"><label>Senha nova</label><div class="entrada"><span>Cupuacu#2026</span><span class="olho"><i data-i="olhoRiscado" data-t="22" data-c="#4A5562"></i></span></div></div>
+        <div class="campo"><label>Repita a senha</label><div class="entrada foco"><span class="pontos">••••••</span><span class="cursor"></span><span class="olho"><i data-i="olho" data-t="22" data-c="#4A5562"></i></span></div></div>
+        <div class="regras">
+          <div class="t">A senha precisa ter</div>
+          <div class="l"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>8 caracteres ou mais</div>
+          <div class="l"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>Uma letra</div>
+          <div class="l"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>Um número</div>
+          <div class="l"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>Um caractere especial<span class="ex">&nbsp;(! @ # $)</span></div>
+          <div class="l conf falta"><span class="marca vazia"></span>As senhas não conferem.</div>
+        </div>
+        <div class="espaco"></div>
+        <div class="btn">Salvar senha</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 · Senhas não conferem -->
+  <div class="tela" id="t04">
+    <div class="legenda"><b>4</b>Senhas que não batem<span>Tocou em Salvar: nada sai do aparelho. A linha da conferência fica vermelha.</span></div>
+    <div class="phone">
+      <div class="faixa"><div class="status"><span>09:32</span><span>4G 80%</span></div>
+        <div class="voltar"><i data-i="back" data-t="18" data-c="#C9CED5"></i>Perfil</div><h2>Trocar senha</h2></div>
+      <div class="corpo">
+        <div class="campo"><label>Senha atual</label><div class="entrada"><span class="pontos">••••••••••</span><span class="olho"><i data-i="olho" data-t="22" data-c="#4A5562"></i></span></div></div>
+        <div class="link-campo">Esqueci a senha</div>
+        <div class="campo"><label>Senha nova</label><div class="entrada"><span class="pontos">••••••••••••</span><span class="olho"><i data-i="olho" data-t="22" data-c="#4A5562"></i></span></div></div>
+        <div class="campo"><label>Repita a senha</label><div class="entrada erro"><span class="pontos">•••••••••••</span><span class="olho"><i data-i="olho" data-t="22" data-c="#4A5562"></i></span></div></div>
+        <div class="regras">
+          <div class="t">A senha precisa ter</div>
+          <div class="l"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>8 caracteres ou mais</div>
+          <div class="l"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>Uma letra</div>
+          <div class="l"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>Um número</div>
+          <div class="l"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>Um caractere especial<span class="ex">&nbsp;(! @ # $)</span></div>
+          <div class="l conf erro"><span class="marca erro"><i data-i="x" data-t="12" data-c="#A8261B" data-s="2.6"></i></span>As senhas não conferem.</div>
+        </div>
+        <div class="espaco"></div>
+        <div class="btn">Salvar senha</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 · Senha atual errada -->
+  <div class="tela" id="t05">
+    <div class="legenda"><b>5</b>Senha atual errada<span>Resposta do servidor. Aviso no topo; a senha atual some e recebe o foco; as novas ficam. O link continua no mesmo lugar.</span></div>
+    <div class="phone">
+      <div class="faixa"><div class="status"><span>09:33</span><span>4G 80%</span></div>
+        <div class="voltar"><i data-i="back" data-t="18" data-c="#C9CED5"></i>Perfil</div><h2>Trocar senha</h2></div>
+      <div class="corpo">
+        <div class="banner perigo"><i data-i="alert" data-t="18" data-c="#A8261B"></i><span>A senha atual está errada. Digite de novo.</span></div>
+        <div class="campo"><label>Senha atual</label><div class="entrada erro"><span class="cursor"></span><span class="olho"><i data-i="olho" data-t="22" data-c="#4A5562"></i></span></div></div>
+        <div class="link-campo">Esqueci a senha</div>
+        <div class="campo"><label>Senha nova</label><div class="entrada"><span class="pontos">••••••••••••</span><span class="olho"><i data-i="olho" data-t="22" data-c="#4A5562"></i></span></div></div>
+        <div class="campo"><label>Repita a senha</label><div class="entrada"><span class="pontos">••••••••••••</span><span class="olho"><i data-i="olho" data-t="22" data-c="#4A5562"></i></span></div></div>
+        <div class="regras">
+          <div class="t">A senha precisa ter</div>
+          <div class="l"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>8 caracteres ou mais</div>
+          <div class="l"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>Uma letra</div>
+          <div class="l"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>Um número</div>
+          <div class="l"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>Um caractere especial<span class="ex">&nbsp;(! @ # $)</span></div>
+          <div class="l conf"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>As senhas conferem.</div>
+        </div>
+        <div class="espaco"></div>
+        <div class="btn">Salvar senha</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 · Sem rede -->
+  <div class="tela" id="t06">
+    <div class="legenda"><b>6</b>Sem internet<span>Só funciona online. Aviso no topo ao abrir ou ao tentar; o botão continua ativo.</span></div>
+    <div class="phone">
+      <div class="faixa"><div class="status"><span>09:34</span><span>Sem sinal 80%</span></div>
+        <div class="voltar"><i data-i="back" data-t="18" data-c="#C9CED5"></i>Perfil</div><h2>Trocar senha</h2></div>
+      <div class="corpo">
+        <div class="banner aviso"><i data-i="wifiOff" data-t="18" data-c="#5C3B00"></i><span>Conecte-se à internet para trocar a senha.</span></div>
+        <div class="campo"><label>Senha atual</label><div class="entrada"><span class="pontos">••••••••••</span><span class="olho"><i data-i="olho" data-t="22" data-c="#4A5562"></i></span></div></div>
+        <div class="link-campo">Esqueci a senha</div>
+        <div class="campo"><label>Senha nova</label><div class="entrada"><span class="pontos">••••••••••••</span><span class="olho"><i data-i="olho" data-t="22" data-c="#4A5562"></i></span></div></div>
+        <div class="campo"><label>Repita a senha</label><div class="entrada"><span class="pontos">••••••••••••</span><span class="olho"><i data-i="olho" data-t="22" data-c="#4A5562"></i></span></div></div>
+        <div class="regras">
+          <div class="t">A senha precisa ter</div>
+          <div class="l"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>8 caracteres ou mais</div>
+          <div class="l"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>Uma letra</div>
+          <div class="l"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>Um número</div>
+          <div class="l"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>Um caractere especial<span class="ex">&nbsp;(! @ # $)</span></div>
+          <div class="l conf"><span class="marca ok"><i data-i="check" data-t="12" data-c="#1D6B4F" data-s="2.6"></i></span>As senhas conferem.</div>
+        </div>
+        <div class="espaco"></div>
+        <div class="btn">Salvar senha</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7 · Sucesso -->
+  <div class="tela" id="t07">
+    <div class="legenda"><b>7</b>Sucesso<span>Volta ao Perfil com o aviso no rodapé e vibração leve. Continua no app.</span></div>
+    <div class="phone">
+      <div class="faixa"><div class="status"><span>09:35</span><span>4G 80%</span></div>
+        <div class="voltar"><i data-i="back" data-t="18" data-c="#C9CED5"></i>Início</div><h2>Perfil</h2></div>
+      <div class="corpo">
+        <div class="quem"><div class="av">LA</div><div><div class="n">Lucas Andrade</div><div class="p">Vendedor de campo · Equipe Norte</div></div></div>
+        <div class="secao-t">Conta</div>
+        <div class="linhas"><div class="l"><i data-i="lock" data-t="20" data-c="#1E3350"></i><span class="n">Trocar senha</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div></div>
+        <div class="secao-t">Sincronização</div>
+        <div class="btn escuro"><i data-i="sync" data-t="18" data-c="#fff"></i>Sincronizar</div>
+        <div class="sit">Última sincronização 09:15 · 0 na fila</div>
+        <div class="secao-t">Aparelho</div>
+        <div class="linhas"><div class="l"><span class="n">Meus módulos</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div></div>
+      </div>
+      <div class="aviso-rodape"><i data-i="check" data-t="20" data-c="#7FD1A8"></i>Senha trocada.</div>
+      <div class="abas"><div><i data-i="home" data-t="20" data-c="#4A5562"></i>Início</div><div><i data-i="pin" data-t="20" data-c="#4A5562"></i>Rota</div><div><i data-i="clipboard" data-t="20" data-c="#4A5562"></i>Pedidos</div><div class="ativa"><i data-i="user" data-t="20" data-c="#1E3350"></i>Perfil</div></div>
+    </div>
+  </div>
+
+  <!-- 8 · Esqueci a senha: pedido -->
+  <div class="tela" id="t08">
+    <div class="legenda"><b>8</b>Esqueci a senha<span>A TelaEsqueciSenha do Core, enxuta dentro do app: o código e o e-mail vêm da sessão. Um toque envia.</span></div>
+    <div class="phone">
+      <div class="faixa"><div class="status"><span>09:36</span><span>4G 80%</span></div>
+        <div class="voltar"><i data-i="back" data-t="18" data-c="#C9CED5"></i>Trocar senha</div><h2>Esqueci a senha</h2></div>
+      <div class="corpo" style="gap:16px">
+        <div class="campo"><label>E-mail</label><div class="fixo">lucas.andrade@exemplo.com.br</div></div>
+        <div class="btn">Enviar senha temporária</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9 · Esqueci a senha: confirmação -->
+  <div class="tela" id="t09">
+    <div class="legenda"><b>9</b>Pedido feito<span>A confirmação do app, em qualquer caso. O voltar da faixa leva de novo à Trocar senha.</span></div>
+    <div class="phone">
+      <div class="faixa"><div class="status"><span>09:36</span><span>4G 80%</span></div>
+        <div class="voltar"><i data-i="back" data-t="18" data-c="#C9CED5"></i>Trocar senha</div><h2>Esqueci a senha</h2></div>
+      <div class="corpo" style="gap:16px">
+        <div class="confirma"><i data-i="send" data-t="18" data-c="#1E3350"></i><span>Você vai receber uma senha temporária em alguns minutos. Ela vale por 72 horas.</span></div>
+        <div class="peq">Não chegou? Confira o spam ou fale com o administrador da sua empresa.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ícones em traço, mesmos desenhos de packages/ui/src/mobile/icon.tsx
+  const P = {
+    back: '<path d="m15 6-6 6 6 6"/>',
+    chevron: '<path d="m9 6 6 6-6 6"/>',
+    check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+    x: '<path d="M6 6l12 12M18 6 6 18"/>',
+    alert: '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>',
+    send: '<path d="M12 19V5M5 12l7-7 7 7"/>',
+    lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+    wifiOff: '<path d="M3 3l18 18M8.5 16.4a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 5.2-2.7M14.4 10.3A10 10 0 0 1 19 12.9M2 9.3a15 15 0 0 1 4.3-2.8M10.5 5.1A15 15 0 0 1 22 9.3"/><circle cx="12" cy="19.5" r="0.8"/>',
+    olho: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    olhoRiscado: '<path d="M9.9 5.2A9.6 9.6 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-2.8 3.7"/><path d="M6.6 6.6C3.7 8.5 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="m3 3 18 18"/>',
+    sync: '<path d="M20 11a8 8 0 0 0-14.3-4.3L4 9M4 4v5h5M4 13a8 8 0 0 0 14.3 4.3L20 15M20 20v-5h-5"/>',
+    home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+    pin: '<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+    clipboard: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6"/>',
+  };
+  document.querySelectorAll('i[data-i]').forEach((el) => {
+    const t = el.dataset.t || 18, c = el.dataset.c || '#16202A', s = el.dataset.s || 2;
+    el.outerHTML = `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${s}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[el.dataset.i] || ''}</svg>`;
+  });
+</script>
+</body>
+</html>

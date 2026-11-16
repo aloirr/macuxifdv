@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PARADO_MIN_PADRAO } from './inicio';
 import { PARAMETROS_INICIO_PADRAO, parametrosInicioDasLinhas, validarParametrosInicio } from './inicio-parametros';
 
-const ok = { dias_uteis_semana: [1, 2, 3, 4, 5], parado_min: 45 };
+const ok = { dias_uteis_semana: [1, 2, 3, 4, 5] };
 
 describe('RN-CORE-26: parâmetros do Início por tenant', () => {
   it('RN-CORE-26: sem linha vale o padrão (seg a sáb, 60 min)', () => {
@@ -21,7 +21,7 @@ describe('RN-CORE-26: parâmetros do Início por tenant', () => {
   });
   it('RN-CORE-26: entrada válida é normalizada (dias sem repetição e em ordem)', () => {
     const r = validarParametrosInicio({ ...ok, dias_uteis_semana: [5, 1, 1, 3] });
-    expect(r).toEqual({ ok: true, valores: { dias_uteis_semana: [1, 3, 5], parado_min: 45 } });
+    expect(r).toEqual({ ok: true, valores: { dias_uteis_semana: [1, 3, 5] } });
   });
   it('RN-CORE-26: semana sem nenhum dia útil, dia fora de 0 a 6 ou fracionado é recusada com a ação seguinte', () => {
     for (const dias of [[], [7], [-1], [1.5]]) {
@@ -30,13 +30,9 @@ describe('RN-CORE-26: parâmetros do Início por tenant', () => {
       if (!r.ok) expect(r.erros).toEqual([{ campo: 'dias_uteis_semana', mensagem: expect.stringMatching(/dia/i) }]);
     }
   });
-  it('RN-CORE-26: parado_min aceita inteiro de 15 a 480; fora disso é recusado', () => {
-    for (const n of [15, 60, 480]) expect(validarParametrosInicio({ ...ok, parado_min: n }).ok, String(n)).toBe(true);
-    for (const n of [14, 481, 0, 30.5, Number.NaN]) expect(validarParametrosInicio({ ...ok, parado_min: n }), String(n)).toMatchObject({ ok: false, erros: [{ campo: 'parado_min' }] });
-  });
-  it('RN-CORE-26: cada erro leva a chave do campo (a tela liga por ela, não pela redação); vários erros juntos', () => {
-    const r = validarParametrosInicio({ dias_uteis_semana: [], parado_min: 1 });
+  it('RN-CORE-26: cada erro leva a chave do campo (a tela liga por ela, não pela redação)', () => {
+    const r = validarParametrosInicio({ dias_uteis_semana: [] });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.erros.map((e) => e.campo)).toEqual(['dias_uteis_semana', 'parado_min']);
+    if (!r.ok) expect(r.erros.map((e) => e.campo)).toEqual(['dias_uteis_semana']);
   });
 });

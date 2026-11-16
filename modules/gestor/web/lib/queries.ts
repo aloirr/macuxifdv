@@ -10,7 +10,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, useSession } from '@macuxi/platform-sdk/web';
 import { DEFAULT_TZ, intervaloSyncAutoMs, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
 import { Alerta, FilaAprovacao, ListaAlertas, RankingEquipe, RegraAlerta, RegrasAlertaResposta, ROTAS_GESTOR, VisaoEquipe, type AjusteRegraAlerta, type TipoAlerta } from '../../contracts';
-import { paraQuery, type FiltrosAlertas, type FiltrosPainel, type FiltrosRanking } from './filtros';
+import { paraQuery, queryAlertas, type FiltrosAlertas, type FiltrosPainel, type FiltrosRanking } from './filtros';
 
 const qk = {
   equipe: (f: FiltrosPainel) => ['gestor', 'equipe', f] as const,
@@ -41,7 +41,7 @@ export function useFila() {
 }
 
 export function useAlertas(f: FiltrosAlertas) {
-  return useQuery({ queryKey: qk.alertas(f), enabled: useLogado(), queryFn: async ({ signal }) => ListaAlertas.parse(await api<unknown>(ROTAS_GESTOR.alertas, { query: paraQuery(f), signal })) });
+  return useQuery({ queryKey: qk.alertas(f), enabled: useLogado(), queryFn: async ({ signal }) => ListaAlertas.parse(await api<unknown>(ROTAS_GESTOR.alertas, { query: queryAlertas(f), signal })) });
 }
 
 export function useDispensarAlerta() {

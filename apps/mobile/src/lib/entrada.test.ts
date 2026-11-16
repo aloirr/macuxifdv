@@ -4,12 +4,19 @@
  */
 import { readFileSync } from 'node:fs';
 
+import { MEDIDAS_FRASE_CARGA } from '@macuxi/ui/mobile/puro';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  alturaDoAviso,
+  alturaDoBlocoFrase,
+  cabeFrase,
   cabeLista,
   criarMemoriaDaEntrada,
   erroDeSinal,
+  fraseEmUmaLinha,
+  fraseInteira,
+  linhasDoAviso,
   LARGURA_LOGO_ENTRADA,
   posicaoDoLogo,
   rotuloDaBarra,
@@ -24,6 +31,13 @@ vi.mock('react-native-svg', () => import('@/teste/nativo-vazio').then((m) => m.m
 vi.mock('expo-router', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
 vi.mock('@macuxi/ui/mobile', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
 const { progressoDaEntrada } = await import('@macuxi/core/app');
+
+// medidas do kit (MC-1203: fonte do sistema, título, frase e aviso em 14/20): os valores esperados saem delas
+const { titulo: TITULO, frase: FRASE, aviso: AVISO } = MEDIDAS_FRASE_CARGA;
+const BLOCO_1_LINHA = TITULO.abaixoDoOla + TITULO.linha + TITULO.ateFrase + FRASE.linha;
+const BLOCO_2_LINHAS = BLOCO_1_LINHA + FRASE.linha;
+/** Linha de texto na escala de fonte dada (arredonda para cima, como a tela). */
+const naEscala = (linha: number, escala: number) => Math.ceil(linha * escala);
 
 /** Largura e altura de um PNG (cabeçalho IHDR). */
 function tamanhoPng(caminho: URL): { largura: number; altura: number } {
@@ -56,6 +70,104 @@ describe('logo da entrada × splash nativa', () => {
     // parada: o erro e as ações ocupam o lugar da barra; a lista só fica na tela alta
     expect(cabeLista(915, 5, 48, true, true)).toBe(false);
     expect(cabeLista(1280, 5, 48, true, true)).toBe(true);
+  });
+});
+
+describe('carga: bloco "Você sabia?" e aviso (T-0181, spec carga-aviso-frases §1.1)', () => {
+  const LONGA = 'Os Macuxi se autodenominam Pemon e falam uma língua da família Karib.';
+  const CURTA = 'O lavrado é a savana de Roraima.';
+
+  it('bloco: 86 dp com a frase em 2 linhas, 66 com 1; a frase curta cabe em 1 linha, a longa não', () => {
+    expect([BLOCO_2_LINHAS, BLOCO_1_LINHA]).toEqual([86, 66]);
+    expect(alturaDoBlocoFrase(2)).toBe(BLOCO_2_LINHAS);
+    expect(alturaDoBlocoFrase(1)).toBe(BLOCO_1_LINHA);
+    expect(alturaDoBlocoFrase(0)).toBe(0);
+    expect(fraseEmUmaLinha(CURTA)).toBe(true);
+    expect(fraseEmUmaLinha(LONGA)).toBe(false);
+  });
+
+  it('360 × 800 sem navegação: tudo aparece, frase em 2 linhas', () => {
+    expect(cabeFrase(800, 0, LONGA)).toBe(2);
+  });
+
+  it('360 × 800 com 48 dp de navegação: tudo aparece, frase em 2 linhas', () => {
+    expect(cabeFrase(800, 48, LONGA)).toBe(2);
+  });
+
+  it('360 × 640 com 48 dp de navegação: o bloco inteiro sai (ficam logo, "Olá", aviso e barra)', () => {
+    expect(cabeFrase(640, 48, LONGA)).toBe(0);
+    expect(cabeFrase(640, 48, CURTA)).toBe(0);
+  });
+
+  it('altura intermediária: a frase cai para 1 linha só se couber inteira; senão o bloco sai (sem reticências)', () => {
+    expect(cabeFrase(700, 48, CURTA)).toBe(1);
+    expect(cabeFrase(700, 48, LONGA)).toBe(0);
+    expect(cabeFrase(0, 48, CURTA)).toBe(0);
+    expect(cabeFrase(800, 0, '   ')).toBe(0);
+  });
+
+  it('a lista de etapas sai antes do bloco: conta o aviso e o bloco com o respiro de 24 dp', () => {
+    // 860 com 48 de navegação: sem o bloco a lista cabia; com aviso e bloco de 2 linhas, sai e o bloco fica
+    expect(cabeLista(860, 5, 48, true)).toBe(true);
+    expect(cabeFrase(860, 48, LONGA)).toBe(2);
+    expect(cabeLista(860, 5, 48, true, false, { aviso: true, linhasFrase: 2 })).toBe(false);
+    // só o aviso já pesa
+    expect(cabeLista(860, 5, 48, true, false, { aviso: true })).toBe(false);
+    // tela alta: tudo junto
+    expect(cabeLista(1100, 5, 48, true, false, { aviso: true, linhasFrase: 2 })).toBe(true);
+    // parada (sem aviso nem bloco): a regra de antes
+    expect(cabeLista(1280, 5, 48, true, true, {})).toBe(true);
+  });
+});
+
+describe('carga: escala de fonte e frase sem reticências (T-0181, revisão 🟡1 e 🟡2)', () => {
+  const LONGA = 'Os Macuxi se autodenominam Pemon e falam uma língua da família Karib.';
+  const CURTA = 'O lavrado é a savana de Roraima.';
+
+  it('aviso nunca cortado: 1 linha na escala 1,0; com fonte grande, 2 linhas, e a altura conta as 2', () => {
+    expect(linhasDoAviso()).toBe(1);
+    expect(linhasDoAviso(1)).toBe(1);
+    expect(linhasDoAviso(1.15)).toBe(2);
+    expect(linhasDoAviso(1.3)).toBe(2);
+    expect(alturaDoAviso()).toBe(AVISO.linha + AVISO.acimaDaBarra);
+    expect(alturaDoAviso()).toBe(30);
+    expect(alturaDoAviso(1.3)).toBe(2 * naEscala(AVISO.linha, 1.3) + AVISO.acimaDaBarra);
+  });
+
+  it('o bloco cresce com a fonte: 86 dp na escala 1,0, 104 na 1,3 (texto escala, espaços não)', () => {
+    const tituloEFrase = TITULO.abaixoDoOla + naEscala(TITULO.linha, 1.3) + TITULO.ateFrase;
+    expect(alturaDoBlocoFrase(2, 1)).toBe(BLOCO_2_LINHAS);
+    expect(alturaDoBlocoFrase(2, 1.3)).toBe(tituloEFrase + 2 * naEscala(FRASE.linha, 1.3));
+    expect(alturaDoBlocoFrase(2, 1.3)).toBe(104);
+    expect(alturaDoBlocoFrase(1, 1.3)).toBe(tituloEFrase + naEscala(FRASE.linha, 1.3));
+  });
+
+  it('com fonte grande, cabe menos numa linha: a frase curta que cabia em 1 linha deixa de caber', () => {
+    expect(fraseEmUmaLinha(CURTA, 1)).toBe(true);
+    expect(fraseEmUmaLinha(CURTA, 1.3)).toBe(false);
+    // escala menor que 1 não aumenta o que cabe (conta por baixo)
+    expect(fraseEmUmaLinha('x'.repeat(33), 0.85)).toBe(false);
+  });
+
+  it('a mesma tela dá menos espaço com fonte grande: 800 + 48 de navegação tem 2 linhas na 1,0 e nada na 1,3', () => {
+    expect(cabeFrase(800, 48, LONGA, 1)).toBe(2);
+    expect(cabeFrase(800, 48, LONGA, 1.3)).toBe(0);
+    expect(cabeFrase(900, 0, LONGA, 1.3)).toBe(2);
+  });
+
+  it('a lista de etapas conta o aviso em 2 linhas e o bloco maior com fonte grande', () => {
+    expect(cabeLista(1100, 5, 48, true, false, { aviso: true, linhasFrase: 2 })).toBe(true);
+    expect(cabeLista(1100, 5, 48, true, false, { aviso: true, linhasFrase: 2, escala: 1.3 })).toBe(false);
+  });
+
+  it('frase medida na tela: só aparece se coube nas linhas dadas; senão o bloco inteiro sai (sem reticências)', () => {
+    expect(fraseInteira(null, 2)).toBe(false);
+    expect(fraseInteira(0, 2)).toBe(false);
+    expect(fraseInteira(1, 2)).toBe(true);
+    expect(fraseInteira(2, 2)).toBe(true);
+    expect(fraseInteira(3, 2)).toBe(false);
+    expect(fraseInteira(1, 1)).toBe(true);
+    expect(fraseInteira(2, 1)).toBe(false);
   });
 });
 
@@ -120,7 +232,7 @@ describe('memória da entrada (RN-CORE-48: "1 de 5, 2 de 5, 3 de 5...")', () => 
 
   it('Campo (vendedor): entidades fora de ordem não fazem a etapa voltar', () => {
     const modulos = ['core', 'catalogo', 'vendedor', 'promotor'];
-    // sem a memória: 1, 4, 2, 3, 5, 2 (o que o dono do produto viu)
+    // sem a memória: 1, 3, 2, 5, 4, 2 (o defeito que o dono do produto viu; catálogo por último, ADR 0054)
     const passos: Carga[] = [
       { entidade: null, modulo: null },
       { entidade: 'pedido', modulo: 'vendedor' },
@@ -129,14 +241,14 @@ describe('memória da entrada (RN-CORE-48: "1 de 5, 2 de 5, 3 de 5...")', () => 
       { entidade: 'cliente_foto', modulo: 'core' },
       { entidade: 'rota', modulo: 'core' },
     ];
-    expect(mostrados('vendedor', modulos, passos)).toEqual([1, 4, 4, 4, 5, 5]);
+    expect(mostrados('vendedor', modulos, passos)).toEqual([1, 3, 3, 5, 5, 5]);
     // em ordem, a memória não muda nada: 1, 2, 3, 4, 5 e a última no fim
     const emOrdem: Carga[] = [
       { entidade: null, modulo: null },
       { entidade: 'cliente', modulo: 'core' },
-      { entidade: 'produto', modulo: 'catalogo' },
       { entidade: 'pedido', modulo: 'vendedor' },
       { entidade: 'cliente_foto', modulo: 'core' },
+      { entidade: 'produto', modulo: 'catalogo' },
     ];
     expect(mostrados('vendedor', modulos, emOrdem, true)).toEqual([1, 2, 3, 4, 5, 5]);
   });
@@ -152,7 +264,7 @@ describe('memória da entrada (RN-CORE-48: "1 de 5, 2 de 5, 3 de 5...")', () => 
       { entidade: 'cliente', modulo: 'core' },
     ];
     const xs = mostrados('supervisor', modulos, passos);
-    expect(xs).toEqual([1, 4, 4, 4, 5, 5]);
+    expect(xs).toEqual([1, 3, 3, 5, 5, 5]);
     expect(xs).toEqual([...xs].sort((a, b) => a - b));
   });
 
@@ -165,6 +277,6 @@ describe('memória da entrada (RN-CORE-48: "1 de 5, 2 de 5, 3 de 5...")', () => 
       { entidade: 'pedido', modulo: 'vendedor', chave: 'u2|t1' },
       { entidade: null, modulo: null, chave: 'u2|t2' },
     ]);
-    expect(xs).toEqual([4, 4, 2, 4, 1]);
+    expect(xs).toEqual([3, 3, 2, 3, 1]);
   });
 });
