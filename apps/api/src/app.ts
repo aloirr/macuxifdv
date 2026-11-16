@@ -644,6 +644,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   const autenticarDoPortal = async (req: FastifyRequest) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal());
   registrarRotasPlataforma(app, {
     manifestos,
+    agora: relogio,
     acesso: acessoPortal,
     fonte: fontePlataforma,
     autenticar: autenticarDoPortal,
