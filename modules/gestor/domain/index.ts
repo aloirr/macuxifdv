@@ -13,6 +13,8 @@ export * from './equipe';
 export * from './ranking';
 export * from './aprovacoes';
 export * from './alertas';
+export * from './campos-regra';
+export * from './produtividade-do-dia';
 export * from './pedido-em-nome';
 export * from './visao';
 export * from './sincronizacao';
