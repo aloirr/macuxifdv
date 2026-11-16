@@ -10,7 +10,7 @@ import { AuditoriaRespostaSchema, ROTA_AUDITORIA } from '@macuxi/platform-sdk';
 import { api, useSession } from '@macuxi/platform-sdk/web';
 import { DEFAULT_TZ } from '@macuxi/ui/web';
 import { DiscountPolicy, FormasEPrazosResposta, FreteParametros, PedidosPage, Transportadora } from '../../contracts';
-import { MonitorResumo, ROTA_RESUMO_PEDIDOS_ERP } from '@macuxi/integracao/contracts';
+import { MonitorResumo, ROTA_MONITOR } from '@macuxi/integracao/contracts';
 import { z } from 'zod';
 import { type FiltrosTransportadoras, queryDosFiltrosTransportadoras } from './transportadoras';
 import { type FiltrosPedidos, paraQuery } from './filtros-url';
@@ -140,7 +140,7 @@ export function usePedidosNoErp() {
   const enabled = useAuthed();
   return useQuery({
     queryKey: ['vendedor', 'pedidos', 'no-erp'] as const,
-    queryFn: async ({ signal }) => MonitorPedidos.parse(await api<unknown>(ROTA_RESUMO_PEDIDOS_ERP, { signal })).resumo_pedidos,
+    queryFn: async ({ signal }) => MonitorPedidos.parse(await api<unknown>(ROTA_MONITOR, { signal })).resumo_pedidos,
     enabled,
     retry: false,
   });
