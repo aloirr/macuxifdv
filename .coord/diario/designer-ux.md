@@ -148,3 +148,7 @@
 2026-11-15 — v1.0.14 alertas — T-0180: spec aprovada de Parâmetros › Alertas e Interruptor com estadoEscrito="so-desligada" no kit (nuvem/T-0180-alertas-designer-ux); simulações refeitas no menu final (Parâmetros com a lista de seções), na fonte do sistema e a 1366×768.
 2026-11-16 — v1.0.14 alertas — #405: merge do main e RD-1507, RD-1680, MC-1508, MC-1509 (fontes do conteúdo na spec; título Parâmetros e a seção só na lista; barra em Azul noite e item direto ativo em branco; Gestão na escala do app; legend 17/700).
 2026-11-16 — v1.0.14 alertas — #405: RD-1900 (sai a cab vazia e as 2 chamadas) e MC-1611 (legenda Jornada 13/600 e opção 15/600, como o formulário do código).
+2026-11-15 — v1.0.14 logo — T-0182: placa da logo do cliente (PlacaLogoCliente) e spec docs/design/telas/logo-cliente.md trazidas de nuvem/logo-cliente-designer-ux-v13 (pareceres do corretor e da marca liberados); pranchas na fonte do sistema. Rascunho até o @macuxi/comum/marca (engenheiro-software) entrar no main.
+2026-11-16 — v1.0.14 logo — #399: merge do main (com @macuxi/comum/marca) e RD-1629, MC-1511, MC-1512 (Licenciado para no type.small; pesos 600 nos PDFs, aba ativa e carga).
+2026-11-16 — v1.0.14 logo — #399: MC-1592 (neutros dos 3 PDFs simulados na paleta: #F8F6F1 e #ECEEF1).
+2026-11-16 — v1.0.14 logo — #399: RD-1843 (spec aponta para a entrada-sync §2) e MC-1594 (carga com Você sabia?, frase e aviso acima da barra, estado 4, 360 × 800; respiro de 176 dp ≥ 24).
