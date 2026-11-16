@@ -3,6 +3,7 @@
  * snake_case, dinheiro em centavos (`*_cents`), instantes ISO UTC com microssegundos, `deleted_at` preenchido quando
  * removida. O push de `pedido` segue o payload `CreateOrderRequest` (comando); a linha do servidor é diferente.
  */
+import { PercentualAjuste } from '@macuxi/integracao/contracts';
 import { z } from 'zod';
 import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
 import { TIPOS_DOCUMENTO } from '../domain/orcamento';
@@ -184,6 +185,11 @@ export const PrazoPagamentoSyncSchema = z
     prazo_medio_dias: z.number().int().min(0).max(365),
     ativo: z.boolean(),
     ordem: z.number().int(),
+    /**
+     * RN-VEN-43 (v1.0.13): "Desc./Acrésc. (%)" do prazo (-99,99 a +99,99; negativo = desconto), vindo do ERP; ausente = 0.
+     * Mantém o `.strict()` (desenho 7a8e57d): o campo entra explícito; o app antigo ignora a chave nova.
+     */
+    percentual_ajuste: PercentualAjuste.default(0),
   })
   .strict();
 export type PrazoPagamentoSync = z.infer<typeof PrazoPagamentoSyncSchema>;

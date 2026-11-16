@@ -1,5 +1,5 @@
 /**
- * 0085 — estado `cancelado` do lote (T-0173, RN-INT-15). Dicionário: docs/banco/integracao.md, "0085".
+ * 0086 — estado `cancelado` do lote (T-0173, RN-INT-15). Dicionário: docs/banco/integracao.md, "0086".
  * - lote_status_valido aceita os 6 estados (ESTADOS_LOTE_BANCO ⊇ ESTADOS_LOTE do contrato); nenhum dado muda no up;
  * - integracao.expurgar_retencao trata o cancelado como lote final (apaga em 12 meses; corpo do staging em 7 dias);
  * - down volta ao catálogo da migração anterior e recusa (P0001) se houver lote cancelado, sem alterar dado.
@@ -21,7 +21,7 @@ const IA = A.integracao;
 const migracoes = lerMigracoes();
 const m10 = migracoes.find((m) => m.versao === '0010')!;
 const mig = migracoes.find((m) => m.nome === 'integracao_lote_cancelado')!;
-/** A migração logo antes da 0085 (sem fixar o número: se outro branch entrar antes no main, a renumeração não mexe aqui). */
+/** A migração logo antes da 0086 (sem fixar o número: se outro branch entrar antes no main, a renumeração não mexe aqui). */
 const anterior = migracoes[migracoes.indexOf(mig) - 1]!;
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
 const up = semComentarios(mig.up);
@@ -39,7 +39,7 @@ const funcao = (sql: string) => {
 };
 const da10 = funcao(semComentarios(m10.up)).replace('set search_path = pg_catalog, integracao\n', 'set search_path = pg_catalog, integracao, pg_temp\n');
 
-describe('0085 lote cancelado (estático)', () => {
+describe('0086 lote cancelado (estático)', () => {
   it('CHECK do up = ESTADOS_LOTE_BANCO (os 5 do contrato + cancelado); down = os 5 do contrato', () => {
     expect(valoresDoCheck(up)).toEqual([...nuvemIntegracao.ESTADOS_LOTE_BANCO]);
     expect(valoresDoCheck(down)).toEqual([...ESTADOS_LOTE]);
@@ -75,7 +75,7 @@ describe('0085 lote cancelado (estático)', () => {
   });
 });
 
-describe.skipIf(semBanco())('0085 lote cancelado (banco, fixture)', () => {
+describe.skipIf(semBanco())('0086 lote cancelado (banco, fixture)', () => {
   let app: pg.Client;
   beforeAll(async () => {
     app = new pg.Client({ connectionString: banco().urlApp });
@@ -148,7 +148,7 @@ describe.skipIf(semBanco())('0085 lote cancelado (banco, fixture)', () => {
   });
 });
 
-describe.skipIf(semBanco())('0085 up/down (banco efêmero)', () => {
+describe.skipIf(semBanco())('0086 up/down (banco efêmero)', () => {
   let b: BancoDeTeste;
   beforeAll(async () => {
     b = await criarBancoDeTeste({ migrar: false });

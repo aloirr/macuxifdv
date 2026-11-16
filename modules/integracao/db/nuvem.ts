@@ -49,7 +49,7 @@ export const ENTIDADES_0013 = [...ENTIDADES_ORIGINAIS, 'catalogo_no', 'produto_u
 export const ENTIDADES_0037 = [...ENTIDADES_0013, 'forma_pagamento', 'prazo_pagamento', 'tabela_escalonada'] as const;
 /** 0056 (T-0149, R-20261110-074414): + `filial` (16). */
 export const ENTIDADES_BANCO = [...ENTIDADES_0037, 'filial'] as const;
-/** `lote.status`: os estados do contrato (ESTADOS_LOTE, os 5 da 0010) + `cancelado` da 0085 (T-0173, RN-INT-15). */
+/** `lote.status`: os estados do contrato (ESTADOS_LOTE, os 5 da 0010) + `cancelado` da 0086 (T-0173, RN-INT-15). */
 export const ESTADOS_LOTE_BANCO = [...ESTADOS_LOTE, 'cancelado'] as const;
 /** Retenção do pedido na fila (montarPedidoParaErp / decidirEntradaNaFila em domain/pedido-fila.ts). */
 export const RETENCOES_PEDIDO_ERP = ['mapeamento_ausente', 'mapeamento_ambiguo', 'sequencia_repetida'] as const;

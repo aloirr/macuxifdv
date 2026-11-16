@@ -1,6 +1,6 @@
--- 0085_integracao_lote_cancelado (up) — T-0173 (RN-INT-15): o lote ganha o estado final `cancelado` (ação "Cancelar lote"
+-- 0086_integracao_lote_cancelado (up) — T-0173 (RN-INT-15): o lote ganha o estado final `cancelado` (ação "Cancelar lote"
 -- do monitor; só `recebido` e `processando` podem ser cancelados: regra no domain do modulo-integracao, TRANSICOES_LOTE).
--- Migração em cima da 0084 (número provisório, renumerado na ordem de merge). Dicionário: docs/banco/integracao.md ("0085"). Teste: db/testes/lote-cancelado.db.test.ts.
+-- Migração em cima da 0085 (número provisório, renumerado na ordem de merge). Dicionário: docs/banco/integracao.md ("0086"). Teste: db/testes/lote-cancelado.db.test.ts.
 --
 -- O que muda (só catálogo; NENHUM dado é tocado):
 --   integracao.lote.lote_status_valido  recriado com os 6 estados (= ESTADOS_LOTE_BANCO em modules/integracao/db/nuvem.ts).
@@ -14,7 +14,7 @@
 -- ('recebido', 'processando')); o cancelado sai da fila e libera o "um processando por Conector+entidade", como esperado.
 -- Nenhuma view (nem as views-modelo do Conector, que leem o ERP) usa integracao.lote.status.
 -- Idempotente (drop if exists + add; create or replace). Lock: ACCESS EXCLUSIVE curto em integracao.lote (varredura do CHECK).
--- Caminho de volta: 0085_integracao_lote_cancelado.down.sql (exige nenhum lote `cancelado`; ver a pré-condição lá).
+-- Caminho de volta: 0086_integracao_lote_cancelado.down.sql (exige nenhum lote `cancelado`; ver a pré-condição lá).
 
 alter table integracao.lote drop constraint if exists lote_status_valido;
 alter table integracao.lote add constraint lote_status_valido
