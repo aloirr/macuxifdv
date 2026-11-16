@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ItemVitrine } from '../../contracts';
-import { dadosDaFolha, opcoesDoFiltroFilial } from './estoque-folha';
+import { dadosDaFolha, mostraEstoquePorFilial, opcoesDoFiltroFilial } from './estoque-folha';
 
 type Disp = NonNullable<ItemVitrine['availability']>;
 const disp = (por: { id: string; nome: string; q: number | null }[], o: Partial<Disp> = {}): Disp => ({
@@ -15,7 +15,13 @@ const disp = (por: { id: string; nome: string; q: number | null }[], o: Partial<
 const AGORA = '2026-11-15T16:00:00Z';
 
 describe('folha "Estoque por filial" (catalogo-campo-v2 §2.1)', () => {
-  it('spec §2.1: linha "Atualizado às hh:mm" (sem o código, RD-1704) no fuso do tenant; a filial de cadastro primeiro, "sua filial", as outras em ordem alfabética', () => {
+  it('spec §3: o botão da folha só aparece com mais de uma filial no estoque', () => {
+    expect(mostraEstoquePorFilial(null)).toBe(false);
+    expect(mostraEstoquePorFilial(disp([{ id: 'v', nome: 'Boa Vista', q: 3 }]))).toBe(false);
+    expect(mostraEstoquePorFilial(disp([{ id: 'v', nome: 'Boa Vista', q: 3 }, { id: 'm', nome: 'Manaus', q: 0 }]))).toBe(true);
+  });
+
+  it('spec §2.1: linha "Atualizado às hh:mm" no fuso do tenant; a filial de cadastro primeiro, "sua filial", as outras em ordem alfabética', () => {
     const d = dadosDaFolha({
       availability: disp([{ id: 'v', nome: 'Boa Vista', q: 0 }, { id: 'b', nome: 'Belém', q: -2 }, { id: 'm', nome: 'Manaus', q: 12 }]),
       cargaEm: '2026-11-15T10:12:00Z',

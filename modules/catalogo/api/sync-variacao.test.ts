@@ -44,7 +44,7 @@ describe('RN-CORE-39: pull de preço e estoque só das filiais da carteira (T-01
   const provedores = provedoresSyncCatalogo.filter((p) => POR_FILIAL.includes(nome(p)));
   const pedido = { ate: '2026-11-10T12:00:00Z', desde: null, limite: 500 } as never;
 
-  it('RN-CORE-39: a variacaoEscopo das 4 entidades por filial muda com a lista: carteira no preço, filiais de venda do usuário no estoque (RD-1708)', async () => {
+  it('RN-CORE-39: a variacaoEscopo das 4 entidades por filial muda com a lista: carteira no preço, filiais de venda do usuário no estoque', async () => {
     for (const p of provedores) {
       const doEstoque = ['deposito', 'estoque_saldo'].includes(nome(p));
       const ctx = (ids: string[]) => (doEstoque ? ctxDe('vendedor', {}, [MAO], ids) : ctxDe('vendedor', {}, ids));

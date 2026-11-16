@@ -5,6 +5,7 @@
  */
 import type { ClienteBanco, ContextoConsulta, TransacaoTenant } from '@macuxi/platform-sdk';
 import { CONSULTA_FILIAIS, CONSULTA_FILIAIS_DO_USUARIO, type Filial } from '@macuxi/core/contracts';
+import { nomeDaFilialOuCodigo } from '../domain/estoque';
 import { lerFiliaisDoUsuario, type FiliaisDoUsuario } from '../domain/estoque-campo';
 import { filialDoPreco, type FilialDoPreco } from '../domain/preco-filial';
 
@@ -55,7 +56,7 @@ export async function filiaisDeVendaDoProprioUsuario(consultar: Consultar, usuar
 }
 
 /** Nome da filial no estoque (`branch_name`): "Boa Vista"; filial desconhecida cai no código curto do id. */
-export const nomeDaFilial = (filiais: ReadonlyMap<string, Filial>, id: string): string => filiais.get(id)?.nome ?? `Filial ${id.slice(0, 8)}`;
+export const nomeDaFilial = (filiais: ReadonlyMap<string, Filial>, id: string): string => nomeDaFilialOuCodigo(id, filiais.get(id)?.nome);
 
 /** RN-CORE-39: a tabela tem item vivo na filial? (uma consulta curta, índice `(tenant_id, tabela_preco_id, filial_id)`). */
 export async function filialDaTabela(db: ClienteBanco, tabelaId: string, f: Pick<FilialDoCliente, 'filialCliente' | 'filialPadrao'>): Promise<FilialDoPreco> {

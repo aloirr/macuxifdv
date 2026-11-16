@@ -5,10 +5,12 @@
  */
 import { Botao, Button, colors, Folha, fonte, Icon, type } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { TITULO_FOLHA_ESTOQUE, type DadosDaFolha, type OpcaoFiltroFilial } from '../lib/estoque-folha';
+import type { ItemVitrine } from '../../contracts';
+import { mostraEstoquePorFilial, TITULO_FOLHA_ESTOQUE, type DadosDaFolha, type OpcaoFiltroFilial } from '../lib/estoque-folha';
 
-/** Botão só com o ícone `pacote`, à direita do "Estoque: N" no cartão: 32 dp, borda `lineStrong`, alvo de 48 dp (spec §3). */
-export function BotaoEstoquePorFilial({ onPress, testID }: { onPress: () => void; testID?: string }) {
+/** Botão só com o ícone `pacote`, à direita do "Estoque: N" no cartão: 32 dp, borda `lineStrong`, alvo de 48 dp (spec §3); só com mais de uma filial. */
+export function BotaoEstoquePorFilial({ availability, onPress, testID }: { availability: ItemVitrine['availability']; onPress: () => void; testID?: string }) {
+  if (!mostraEstoquePorFilial(availability)) return null;
   return (
     <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={TITULO_FOLHA_ESTOQUE} onPress={onPress} hitSlop={8} style={({ pressed }) => [e.botao, pressed && { backgroundColor: colors.ground }]}>
       <Icon name="pacote" size={18} color={colors.ink} />
@@ -16,8 +18,9 @@ export function BotaoEstoquePorFilial({ onPress, testID }: { onPress: () => void
   );
 }
 
-/** Botão "Por filial" da ficha: secundário claro de 48 dp com o ícone `pacote` (spec §2). */
-export function BotaoPorFilialDaFicha({ onPress }: { onPress: () => void }) {
+/** Botão "Por filial" da ficha: secundário claro de 48 dp com o ícone `pacote` (spec §2); só com mais de uma filial. */
+export function BotaoPorFilialDaFicha({ availability, onPress }: { availability: ItemVitrine['availability']; onPress: () => void }) {
+  if (!mostraEstoquePorFilial(availability)) return null;
   return <Button testID="produto-estoque-por-filial" label="Por filial" accessibilityLabel={TITULO_FOLHA_ESTOQUE} icon="pacote" variant="outline" height={48} onPress={onPress} />;
 }
 

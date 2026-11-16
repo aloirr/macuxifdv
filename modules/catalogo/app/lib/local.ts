@@ -33,6 +33,7 @@ import { nomeMarcaDaReferencia } from '../../domain/marcas';
 import { parametrosDoTenant } from '../../domain/parametros';
 import { filialDoClienteLocal, filialDoPreco, precosDaFilialSemCliente, type FilialLocalDoCliente } from '../../domain/preco-filial';
 import { expandirSinonimos, type SinonimoDoTenant } from '../../domain/texto';
+import { nomeDaFilialOuCodigo } from '../../domain/estoque';
 import { filiaisDaFolha, filiaisDoEstoque, lerFiliaisDoUsuario, type FiliaisDoUsuario, type FiltroFilial } from '../../domain/estoque-campo';
 import { podeVerPrecoEstoque } from '../../domain/visibilidade';
 import { buscarProdutos, itemDaVitrine, listarVitrine, vocabularioDe, type ChipsVitrine, type ContextoVitrine, type PaginaProdutos, type ProdutoCatalogo } from '../../domain/vitrine';
@@ -345,7 +346,8 @@ export async function contextoLocal(leitor: LeitorLocal, e: EntradaLocal, produt
     const l = saldos.get(s.produto_id) ?? [];
     const dep = depositos.get(s.deposito_id);
     // RN-CORE-39: o saldo é da FILIAL do depósito (o domain soma os depósitos da mesma filial); depósito sem filial (pull antigo) fica como estava
-    l.push({ branch_id: dep?.filial ?? s.deposito_id, branch_name: (dep?.filial && nomesFilial[dep.filial]) || dep?.nome || 'Depósito', quantity: Math.trunc(s.quantidade), updated_at: s.atualizado_em });
+    const filial = dep?.filial ?? s.deposito_id;
+    l.push({ branch_id: filial, branch_name: nomeDaFilialOuCodigo(filial, (dep?.filial && nomesFilial[dep.filial]) || dep?.nome), quantity: Math.trunc(s.quantidade), updated_at: s.atualizado_em });
     saldos.set(s.produto_id, l);
   }
   // o pull de estoque já vem filtrado pelas filiais da carteira (escopo do servidor, RN-CORE-39). Com cliente no contexto vale só a filial

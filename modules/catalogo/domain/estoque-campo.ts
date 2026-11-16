@@ -73,7 +73,7 @@ const EM_ESTOQUE = 'Em estoque';
 const SEM_ESTOQUE = 'Sem estoque';
 
 /** Quantidade que decide texto e cor: o número do ERP; tenant que esconde a quantidade manda só a faixa (com estoque = 1, sem = 0). */
-export function quantidadeDoEstoque(quantity: number | null, band?: FaixaEstoque | null): number {
+function quantidadeDoEstoque(quantity: number | null, band?: FaixaEstoque | null): number {
   return quantity ?? (band && band !== 'sem_estoque' ? 1 : 0);
 }
 
@@ -115,7 +115,7 @@ export interface LinhaFolhaEstoque {
   id: string;
   nome: string;
   valor: string;
-  /** Marca "sua filial" (spec §2.1); com só filiais de venda na folha o app não a usa. */
+  /** Marca "sua filial" (filial de cadastro, spec §2.1). */
   propria: boolean;
   tom: 'sucesso' | 'erro';
 }

@@ -51,7 +51,7 @@ describe.skipIf(semBanco())('Catálogo × Postgres: preço e estoque por filial 
       } as unknown as ContextoConsulta),
     ) as Promise<{ tabela_preco_id: string | null; filial_id?: string | null; filial_origem?: string; itens: Array<{ produto_id: string; preco_cents: number | null; motivo_sem_preco: string | null }> }>;
 
-  /** `doUsuario` = filiais de venda do próprio usuário (estoque, RD-1708); por padrão, as mesmas da carteira. */
+  /** `doUsuario` = filiais de venda do próprio usuário (estoque); por padrão, as mesmas da carteira. */
   const ctxPull = (daCarteira: string[] | null, doUsuario: string[] | undefined = daCarteira ?? undefined): ContextoBase =>
     ({
       usuario: { perfil: 'vendedor', tenant_id: A.tenantId },

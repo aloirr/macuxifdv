@@ -84,3 +84,4 @@
 2026-11-13 — T-0173 — Catálogo em grade no app (cartões 2 colunas, chips sistema/categoria, preço da filial padrão sem cliente, tag de estoque 1-9 laranja)
 2026-11-16 — v1.0.14 catalogo — catálogo v2 (estoque pelas filiais de venda, folha por filial, códigos em 2 linhas) sem os 10 arquivos do #382/#387; rascunho até eles e o ícone do kit entrarem
 2026-11-16 — v1.0.14 catalogo — parte 1 compilando (sem comum/grade/apresentacao/repositorio da parte 2); RD-1704/1705/1706/1708/1709/1711 e MC-1524/1525 corrigidos
+2026-11-16 — v1.0.14 catalogo — RD-1704 (botão só com mais de uma filial), RD-1801 e RD-1802; parte 2 segue esperando #382/#387/#427

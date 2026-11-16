@@ -114,11 +114,11 @@ const TABELAS_POR_FILIAL: ReadonlySet<string> = new Set(['tabela_preco_item', 't
 const DO_ESTOQUE: ReadonlySet<string> = new Set(['deposito', 'estoque_saldo']);
 
 /**
- * RN-CORE-39 (T-0149): filiais da carteira de quem puxa + a padrão (`core.filiais@1 { escopo: 'carteira' }`); `null` = todas.
- * O aparelho só recebe preço e estoque delas, então a carga não cresce com o número de filiais da empresa.
+ * RN-CORE-39 (T-0149): filiais da carteira para o PREÇO (`core.filiais@1 { escopo: 'carteira' }` + a padrão; `null` = todas); o estoque
+ * usa as filiais de venda do usuário (`doEstoque`). A carga não cresce com o número de filiais da empresa.
  */
 async function filiaisDoPull(ctx: ContextoBase, doEstoque = false): Promise<readonly string[] | null> {
-  // catalogo-campo-v2 §4 (RD-1708): todo perfil recebe o estoque só das filiais de venda dele (`core.filiais_do_usuario@1`, T-0176), as mesmas de `filiaisDoEstoque`
+  // catalogo-campo-v2 §4: todo perfil recebe o estoque só das filiais de venda dele (`core.filiais_do_usuario@1`, T-0176)
   if (doEstoque) return ctx.comTenant(async (_db, tx) => (await filiaisDeVendaDoProprioUsuario(tx.consultar, ctx.usuario.id)).filiaisVenda);
   return ctx.comTenant(async (_db, tx) => (await filiaisDaCarteiraNoCore(tx.consultar)).daCarteira);
 }

@@ -8,8 +8,11 @@ import { leituraDoEstoque, linhasDaFolhaEstoque, rotuloCargaEstoque, rotuloSuasF
 
 export const TITULO_FOLHA_ESTOQUE = 'Estoque por filial';
 
+/** spec §3: o botão da folha "Estoque por filial" (cartão, busca e ficha) só aparece com mais de uma filial no estoque. */
+export const mostraEstoquePorFilial = (a: ItemVitrine['availability']): boolean => (a?.by_branch.length ?? 0) > 1;
+
 export interface DadosDaFolha {
-  /** "Atualizado às 06:12" (o código já está no cartão e na ficha, RD-1704): hora da carga do estoque no aparelho (decisão 5 do R-20261115-100000). */
+  /** "Atualizado às 06:12": hora da carga do estoque no aparelho (decisão 5 do R-20261115-100000). */
   apoio: string;
   linhas: LinhaFolhaEstoque[];
   /** Uma frase por filial para o TalkBack: "Boa Vista, sua filial, estoque 0". */

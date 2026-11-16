@@ -10,6 +10,9 @@ import type { ParametrosCatalogo } from './parametros';
 
 /** RN-CAT-07: aviso discreto quando `stale` é true. Transição: sai na parte 2 do Catálogo v2 (comum.tsx/produto.tsx). */
 export const AVISO_ESTOQUE_DESATUALIZADO = 'Estoque desatualizado';
+/** Nome da filial no estoque; sem nome conhecido, o código curto do id ("Filial 0f000000"). */
+export const nomeDaFilialOuCodigo = (id: string, nome?: string | null): string => nome || `Filial ${id.slice(0, 8)}`;
+
 export const ROTULO_SEM_HORA = 'Sem hora de atualização';
 
 export interface OpcoesEstoque {
@@ -63,7 +66,7 @@ export function estoqueVisivel(produtoId: string, saldos: readonly StockByBranch
   // RN-CORE-39: filial de venda sem linha de saldo aparece na folha com 0 (o N soma 0 dela)
   if (daFolha) {
     for (const id of daFolha) {
-      if (!porFilial.has(id)) porFilial.set(id, { nome: opcoes.nomesFilial?.[id] ?? `Filial ${id.slice(0, 8)}`, quantidade: 0, atualizado: null, semHora: false });
+      if (!porFilial.has(id)) porFilial.set(id, { nome: nomeDaFilialOuCodigo(id, opcoes.nomesFilial?.[id]), quantidade: 0, atualizado: null, semHora: false });
     }
   }
   const cadastro = opcoes.filialCadastro ?? null;
