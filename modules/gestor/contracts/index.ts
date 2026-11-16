@@ -5,6 +5,7 @@
  */
 export * from './base';
 export * from './parametros';
+export * from './parametros-alertas';
 export * from './eventos-consumidos';
 export * from './painel';
 export * from './equipe';

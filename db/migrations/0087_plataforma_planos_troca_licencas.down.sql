@@ -1,4 +1,4 @@
--- 0085_plataforma_planos_troca_licencas (down) — desfaz a 0085 (ADR 0047) e volta exatamente ao catálogo e às ACLs da 0084.
+-- 0087_plataforma_planos_troca_licencas (down) — desfaz a 0087 (ADR 0047) e volta exatamente ao catálogo e às ACLs da 0086.
 -- APAGA o histórico das trocas de plano. As assinaturas ficam como a última troca deixou (plano, ciclo e adicionais), e os
 -- módulos que as trocas ligaram no tenant_modulo continuam ligados. Os 4 planos do seed (ids 00830000-...-00000000000N) saem
 -- só se nenhuma assinatura os usa; os usados ficam no catálogo (a FK da assinatura os segura) e o up seguinte não os duplica.

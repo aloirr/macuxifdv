@@ -99,6 +99,7 @@ export async function payloadAprovado(db: ClienteBanco, tx: TransacaoTenant, ped
             prazo_external_id: p.prazo_external_id,
             parcelas_dias: p.prazo_parcelas_dias.map(Number),
             prazo_medio_dias: Number(p.prazo_medio_dias),
+            // PENDÊNCIA (RN-VEN-45, v1.0.13): o `percentual_ajuste` informativo (p.prazo_percentual_ajuste) ainda NÃO vai ao ERP; o Conector 1.5.0 recebe NULL até fechar a pergunta da dupla aplicação.
           }
         : null,
     criado_em: p.criado_em,
