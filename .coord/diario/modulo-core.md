@@ -175,3 +175,8 @@
 2026-11-15 — v1.0.12 — branch limpo nuvem/v1012b-modulo-core a partir do main, só com os 73 arquivos do modulo-core (revisão RD-1209)
 2026-11-15 — T-0178 — Trocar senha no Perfil: TelaTrocarSenha, trocarMinhaSenha, erroDaTrocaVoluntaria, modo dentroDoApp do Esqueci, texto RN-CORE-34 novo; testes da API da troca voluntária.
 2026-11-15 — expo-limpeza — push só pelo FCM HTTP v1 no servidor (ADR 0053): envio FCM trazido do branch push-fcm-v2, caminho Expo/exp.host removido (token Expo ignorado, sem limpeza), limparToken no consumidor, testes puros
+2026-11-15 — fonte do sistema v1.0.13 — fonts.x → ...fonte.x no app do core, escala 12/14/16/18/22/28, web sem texto < 12px, títulos de teste sem Archivo/Plex
+2026-11-15 — fonte-sistema r3 — web na escala 12/13/15/17/20, selo CD em bold, login e esqueci-senha com CampoTexto do kit (MC-0058/0059, RD-0946/0951)
+2026-11-15 — fonte do sistema v1.0.13 — CNPJ (filiais) e coordenadas (lat/lng) saem do mono para tabular-nums; mono fica só em código/sigla/SKU/senha
+2026-11-15 — fonte do sistema v1.0.13 — rodada 5 — RD-0956 removido font-display (3 arquivos web); RD-0957 Início do Campo já em 22/700 = type.saudacao
+2026-11-15 — filtro padrão Campo (v1.0.13) — Rota (cliente, cidade, bairro, data), Clientes (situação na folha, carteira vazia) e Performance (filtro na linha das abas, "Não é dia útil"); regras em domain/filtro-padrao.ts; branch nuvem/filtro-padrao-modulo-core

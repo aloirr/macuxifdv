@@ -11,8 +11,7 @@ import { INDICADORES_META, ROTULO_INDICADOR_META } from '../../../contracts';
 import { avisoDaCopia, avisoDoLote, mesAnterior, CABECALHO_METAS, celulasDaLinha, corpoDaMeta, csvDeMetas, filtrarPorIndicador, ROTULO_TIPO, textoDeEdicao, totalEditavel, UNIDADE_DO_CAMPO } from '../../lib/metas';
 import { useHojeDoTenant } from '../../lib/queries';
 import { InicioParametrosPanel } from './inicio-parametros-panel';
-
-const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 const BOTAO_LINHA = 'h-[44px] min-w-[88px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled';
 
 type Indicador = LinhaMetaBko['indicador'];
@@ -148,7 +147,7 @@ function MetasConteudo() {
       <FilterBar>
         <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
           Mês
-          <input type="month" value={mes} onChange={(e) => e.target.value && set({ mes: e.target.value })} data-testid="metas.filtro-mes" className={CAMPO} />
+          <input type="month" value={mes} onChange={(e) => e.target.value && set({ mes: e.target.value })} data-testid="metas.filtro-mes" className={CLASSE_CAMPO_BKO} />
         </label>
         <SelectField label="Equipe" value={equipe} onChange={(e) => set({ equipe: e.target.value })} data-testid="metas.filtro-equipe">
           <option value="">Todas as equipes</option>
@@ -257,7 +256,7 @@ function MetasConteudo() {
           )}
           <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
             Meta ({UNIDADE_DO_CAMPO[campoRotulo]})
-            <input inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder={alvoVenda ? '25.000,00' : campoRotulo === 'cobertura_pct' ? '85' : campoRotulo === 'itens_por_pedido' ? '8,5' : '40'} data-testid="metas.valor" className={CAMPO} />
+            <input inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder={alvoVenda ? '25.000,00' : campoRotulo === 'cobertura_pct' ? '85' : campoRotulo === 'itens_por_pedido' ? '8,5' : '40'} data-testid="metas.valor" className={CLASSE_CAMPO_BKO} />
           </label>
           {alvoVenda && (
             <SelectField label="Apurar por" value={tipo} onChange={(e) => setTipo(e.target.value as LinhaMetaBko['tipo'])} data-testid="metas.tipo">

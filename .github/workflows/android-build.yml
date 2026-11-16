@@ -1,20 +1,20 @@
 name: android build
 
-# Build do APK no próprio GitHub Actions, sem a fila do EAS (R-20261114-224500-alexandre). Só manual:
-# Actions → "android build" → Run workflow. Passo a passo do dono do produto: docs/producao/build-actions.md.
+# Build do APK no próprio GitHub Actions (R-20261114-224500-alexandre). Só manual:
+# Actions → "android build" → Run workflow. Passo a passo do dono do produto: apps/mobile/docs/build-android.md.
 # Reproduz o perfil do eas.json (<variante>-<perfil>): env do perfil (APP_VARIANT, EXPO_PUBLIC_API_URL,
 # EXPO_PUBLIC_PERFIL_BUILD), Node do perfil, pnpm do packageManager e APK. O plano sai de scripts/ci/android-build.mjs
 # (nome do build pelas regras de apps/mobile/src/lib/nome-build.ts: Campo-Oficial-v1.0.8).
 # Versão: a do input vale para o build (o versao.json do runner é sobrescrito; o repositório não muda). versionCode: o
-# do input ou MAIOR*1000000 + MENOR*1000 + CORRECAO (1.0.8 → 1000008), acima do contador remoto do EAS.
+# do input ou MAIOR*1000000 + MENOR*1000 + CORRECAO (1.0.8 → 1000008), acima do versionCode dos APKs antigos.
 # Assinatura: a keystore do EAS de cada variante, por secrets (sem mudar apps/mobile), injetada no gradle pelas
 # propriedades android.injected.signing.*; a keystore é apagada no fim. Secrets por variante (sufixo _CAMPO/_GESTAO):
 #   ANDROID_KEYSTORE_BASE64_*  ANDROID_KEYSTORE_PASSWORD_*  ANDROID_KEY_ALIAS_*  ANDROID_KEY_PASSWORD_*
-# e GOOGLE_SERVICES_JSON_BASE64 (push pelo FCM, o mesmo arquivo da variável GOOGLE_SERVICES_JSON do EAS).
+# e GOOGLE_SERVICES_JSON_BASE64 (push pelo FCM, o google-services.json em base64).
 # Variáveis de repositório (Settings → Secrets and variables → Actions → Variables), opcionais:
 #   ANDROID_RUNNER              label do runner (padrão ubuntu-latest, 2 núcleos em repositório privado de conta pessoal;
 #                               ubuntu-latest-4-cores só com larger runner, que exige organização Team/Enterprise)
-#   ANDROID_CERT_SHA256_CAMPO / ANDROID_CERT_SHA256_GESTAO   SHA-256 esperado do certificado (o do expo.dev); se
+#   ANDROID_CERT_SHA256_CAMPO / ANDROID_CERT_SHA256_GESTAO   SHA-256 esperado do certificado da keystore; se
 #                               existir e não bater, o build fica vermelho.
 
 on:
@@ -146,7 +146,7 @@ jobs:
             metro-v1-${{ matrix.variante }}-
 
       # A versão do input entra no app.config.ts pelo versao.json (só no runner) e o google-services.json pelo caminho
-      # da variável GOOGLE_SERVICES_JSON, como no EAS.
+      # da variável GOOGLE_SERVICES_JSON.
       - name: versão e google-services.json
         env:
           GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
@@ -162,7 +162,7 @@ jobs:
         working-directory: apps/mobile
         run: npx expo prebuild --platform android --clean --no-install
 
-      # O app.config.ts não tem versionCode (é do EAS): o prebuild escreve 1; aqui vale o do plano.
+      # O app.config.ts não tem versionCode: o prebuild escreve 1; aqui vale o do plano.
       - name: versionCode e versionName
         working-directory: apps/mobile/android/app
         run: |

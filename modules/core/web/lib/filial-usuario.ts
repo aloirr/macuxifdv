@@ -13,8 +13,9 @@ export const ROTULO_FILIAL_DE_CADASTRO = 'filial de cadastro';
 export const FILTRO_FILIAL_SEM = 'sem';
 export const SELO_SEM_FILIAL = 'Sem filial';
 
-/** Ordem alfabética (pt-BR, sem distinguir acento nem caixa). */
-export const filiaisEmOrdem = <T extends FilialOpcao>(filiais: readonly T[]): T[] => [...filiais].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+/** Ordem alfabética (pt-BR, sem distinguir acento nem caixa); nomes iguais desempatam pelo id (ordem estável). Exportada em `web/index.ts`. */
+export const filiaisEmOrdem = <T extends FilialOpcao>(filiais: readonly T[]): T[] =>
+  [...filiais].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }) || a.id.localeCompare(b.id));
 
 export interface FiliaisDoForm {
   filial_cadastro_id: string;
