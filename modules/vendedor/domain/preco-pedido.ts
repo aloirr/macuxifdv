@@ -33,6 +33,14 @@ export function percentualAjusteParaBp(pct: number | null | undefined): number {
 }
 
 /**
+ * RN-VEN-43/18: bp do prazo para UM item. O preço congelado do orçamento já foi gravado ajustado e nunca ajusta de novo (0);
+ * os outros itens usam o bp do pedido.
+ */
+export function bpDoItem(congelado: boolean, percentualBp: number): number {
+  return congelado ? 0 : percentualBp;
+}
+
+/**
  * RN-VEN-43: tabela do produto ajustada pelo % do prazo, POR UNIDADE e antes da quantidade, em centavos inteiros:
  * `meia-para-cima(tabela × (10 000 + bp) ÷ 10 000)`. `bp` é inteiro em centésimos de ponto percentual (-1,71% = -171).
  * Parte sempre da tabela ORIGINAL (RN-VEN-44). `bp` 0 devolve a tabela intacta.

@@ -127,7 +127,7 @@ describe('RN-VEN-24: tabela única de prazos, abas, busca e CSV', () => {
   it('RN-VEN-24: o CSV da aba Prazos segue as colunas da tabela, em padrão brasileiro', () => {
     const csv = prazosToCsv(linhasDePrazos(formas, [...prazos.slice(0, 1), { ...prazos[1]!, percentual_ajuste: -1.71 }, prazos[2]!], vazios));
     expect(csv).toContain('"Código";"Descrição";"Forma";"Código da forma";"Parcelas (dias)";"Prazo médio (dias)";"Desc./Acrésc. (%)";"Situação";"Origem"');
-    expect(csv).toContain('"BOL-28";"28 dias";"Boleto";"BOLETO";"28";"28";"\u22121,71%";"Inativo";"BKO"');
+    expect(csv).toContain('"BOL-28";"28 dias";"Boleto";"BOLETO";"28";"28";"\u22121,71";"Inativo";"BKO"');
     expect(csv.split('\r\n').filter(Boolean)).toHaveLength(1 + 3);
   });
   it('RN-VEN-24: o CSV da aba Formas tem uma linha por forma', () => {
@@ -139,9 +139,9 @@ describe('RN-VEN-24: tabela única de prazos, abas, busca e CSV', () => {
 
 describe('RN-VEN-24: Desc./Acrésc. (%) do prazo (vem do ERP, só leitura)', () => {
   it('RN-VEN-46: formata com sinal, vírgula e 2 casas', () => {
-    expect(formatarPercentualPrazo(-1.71)).toBe('\u22121,71%');
-    expect(formatarPercentualPrazo(2.5)).toBe('+2,50%');
-    expect(formatarPercentualPrazo(0)).toBe('0,00%');
+    expect(formatarPercentualPrazo(-1.71)).toBe('\u22121,71');
+    expect(formatarPercentualPrazo(2.5)).toBe('+2,50');
+    expect(formatarPercentualPrazo(0)).toBe('0,00');
   });
   it('RN-VEN-46: a leitura devolve o % do ERP; prazo sem o campo (criado no BKO) vale 0', () => {
     expect(percentualDoPrazo(prazo(1, U(1), 'X', [0], 0))).toBe(0);

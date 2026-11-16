@@ -118,8 +118,8 @@ export const MOTIVO_TITULO_VENCIDO = 'Título vencido';
 
 type RecebimentoAceito = Extract<ResultadoRecebimento, { aceito: true }>;
 
-/** RN-VEN-45: aviso na linha do tempo quando o % do prazo do pedido difere do vigente porque o cadastro mudou depois do pedido. */
-export const MOTIVO_PERCENTUAL_DO_PRAZO_MUDOU = 'Percentual do prazo mudou';
+/** RN-VEN-45: motivo do recebimento quando o prazo do pedido mudou no cadastro depois do pedido (sem citar o %). */
+export const MOTIVO_PRAZO_MUDOU = 'Prazo de pagamento mudou';
 
 /** RN-VEN-13: título vencido com prazo a prazo manda para aprovação (nível supervisor) ou soma o motivo `credito` a uma aprovação por desconto. */
 export function comTituloVencido(r: Omit<RecebimentoAceito, 'aceito'>): Omit<RecebimentoAceito, 'aceito'> {
@@ -142,10 +142,10 @@ export function comTituloVencido(r: Omit<RecebimentoAceito, 'aceito'>): Omit<Rec
 
 /**
  * RN-VEN-45 (R-20261115-124833): o % divergente aceito (cadastro mudou depois do pedido) fica FORA da alçada: o status não muda;
- * só o evento de recebimento leva o aviso, que aparece na linha do tempo do pedido.
+ * o recebimento ganha o motivo próprio `MOTIVO_PRAZO_MUDOU`, que aparece na linha do tempo do pedido.
  */
-export function comAvisoDoPercentualDoPrazo(r: Omit<RecebimentoAceito, 'aceito'>): Omit<RecebimentoAceito, 'aceito'> {
-  return { ...r, historico: r.historico.map((h) => (h.de === null && h.para === 'received' ? { ...h, motivo: `${h.motivo} · ${MOTIVO_PERCENTUAL_DO_PRAZO_MUDOU}` } : h)) };
+export function comAvisoDoPrazoMudou(r: Omit<RecebimentoAceito, 'aceito'>): Omit<RecebimentoAceito, 'aceito'> {
+  return { ...r, historico: r.historico.map((h) => (h.de === null && h.para === 'received' ? { ...h, motivo: MOTIVO_PRAZO_MUDOU } : h)) };
 }
 
 export type ResultadoRecebimento =
@@ -416,7 +416,7 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
   const { aceito: _aceito, ...resto0 } = r0;
   void _aceito;
   const comVencido = e.titulo_vencido ? comTituloVencido(resto0) : resto0;
-  const resto = e.percentual_mudou ? comAvisoDoPercentualDoPrazo(comVencido) : comVencido;
+  const resto = e.percentual_mudou ? comAvisoDoPrazoMudou(comVencido) : comVencido;
   return {
     ok: true,
     ...resto,

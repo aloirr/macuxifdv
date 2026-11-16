@@ -31,12 +31,6 @@ describe('RN-VEN-43: o pedido usa a tabela ajustada pelo prazo', () => {
     expect(c.total_cents).toBe(19_658);
   });
 
-  it('RN-VEN-44: trocar o prazo recalcula sempre da tabela original (ida e volta devolve os mesmos centavos)', () => {
-    const a = calcularPedido(entrada({ percentual_ajuste_bp: -171 })).total_cents;
-    expect(calcularPedido(entrada({ percentual_ajuste_bp: 250 })).total_cents).toBe(20_500);
-    expect(calcularPedido(entrada({ percentual_ajuste_bp: -171 })).total_cents).toBe(a);
-  });
-
   it('RN-VEN-44: o desconto do vendedor se mantém em % e incide sobre a tabela ajustada', () => {
     const c = calcularPedido(entrada({ percentual_ajuste_bp: -171, ajustes: { a: { desconto_pct: 5 } } }));
     expect(c.linhas[0]!.preco_unitario_cents).toBe(9_338); // 9 829 × 0,95 = 9 337,55

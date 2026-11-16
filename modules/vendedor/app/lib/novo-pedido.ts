@@ -19,6 +19,7 @@ import {
   ajusteDePct,
   ajusteDoPedidoCents,
   bloqueadoPelaAlcada,
+  bpDoItem,
   equivalenteDoAjuste,
   itemRespeitaPrecoMinimo,
   MSG_DESCONTO_E_ACRESCIMO,
@@ -251,7 +252,7 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
     // T-0134 (RN-VEN-18): item salvo no orçamento mantém o preço salvo; só o item novo entra pelo preço de hoje
     const escolhido = precoDoItemNaEdicao({ congelado_cents: e.congelados?.[product_id], hoje_cents: produto.price_cents, faixas_hoje: e.faixas?.[product_id] });
     // RN-VEN-43: o preço congelado do orçamento (RN-VEN-18) já está gravado ajustado e não ajusta de novo
-    const bp = e.congelados?.[product_id] !== undefined ? 0 : (e.percentual_ajuste_bp ?? 0);
+    const bp = bpDoItem(e.congelados?.[product_id] !== undefined, e.percentual_ajuste_bp ?? 0);
     if (escolhido.preco_unidade_cents === null) {
       pendencias.push({ codigo: 'sem_preco', alvo: { item: nome }, mensagem: `${nome}: sem preço na tabela deste cliente. Remova o item ou peça a atualização da tabela.` });
       continue;

@@ -170,12 +170,12 @@ export function linhasDeFormas(formas: readonly FormaPagamento[], f: FiltrosForm
 const MENOS = '\u2212';
 const PERCENTUAL = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-/** "−1,71%", "+2,50%", "0,00%". */
+/** "−1,71", "+2,50", "0,00" (a unidade fica no título "Desc./Acrésc. (%)"). */
 export function formatarPercentualPrazo(valor: number): string {
   const abs = PERCENTUAL.format(Math.abs(valor));
-  if (valor > 0) return `+${abs}%`;
-  if (valor < 0 && abs !== '0,00') return `${MENOS}${abs}%`;
-  return `${abs}%`;
+  if (valor > 0) return `+${abs}`;
+  if (valor < 0 && abs !== '0,00') return `${MENOS}${abs}`;
+  return abs;
 }
 
 /** RN-VEN-46: % de desconto/acréscimo do prazo (vem do ERP, só leitura); ausente = 0 (prazo criado no BKO). */

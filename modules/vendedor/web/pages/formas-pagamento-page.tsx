@@ -157,7 +157,7 @@ export function FormasPagamentoPage() {
     { id: 'forma', titulo: 'Forma', celula: (l) => l.formaNome, largura: '14%' },
     { id: 'parcelas', titulo: 'Parcelas (dias)', celula: (l) => textoDasParcelas(l.prazo.parcelas_dias), prioridade: 2, largura: '120px' },
     { id: 'medio', titulo: 'Prazo médio', numero: true, celula: (l) => `${l.prazo.prazo_medio_dias} ${l.prazo.prazo_medio_dias === 1 ? 'dia' : 'dias'}`, prioridade: 2, largura: '110px' },
-    { id: 'ajuste', titulo: `Desc./Acrésc. (%) · ${TEXTO_VEM_DO_ERP}`, numero: true, celula: (l) => <span data-testid={`formas-pagamento.ajuste-${l.prazo.codigo}`}>{formatarPercentualPrazo(percentualDoPrazo(l.prazo))}</span>, texto: (l) => formatarPercentualPrazo(percentualDoPrazo(l.prazo)), prioridade: 2, largura: '200px' },
+    { id: 'ajuste', titulo: 'Desc./Acrésc. (%)', numero: true, celula: (l) => <span data-testid={`formas-pagamento.ajuste-${l.prazo.codigo}`}>{formatarPercentualPrazo(percentualDoPrazo(l.prazo))}</span>, texto: (l) => formatarPercentualPrazo(percentualDoPrazo(l.prazo)), prioridade: 2, largura: '200px' },
     { id: 'situacao', titulo: 'Situação', celula: (l) => <SeloSituacao selos={[prazoEfetivamenteAtivo(l) ? { tom: 'success', texto: 'Ativo' } : { tom: 'neutral', texto: 'Inativo' }]} />, largura: '100px' },
     { id: 'origem', titulo: 'Origem', celula: (l) => (l.prazo.external_id ? 'ERP' : 'BKO'), prioridade: 3, largura: '70px' },
   ];
@@ -334,6 +334,11 @@ export function FormasPagamentoPage() {
             <CampoFormulario rotulo={prazoDoErp ? `Dias das parcelas · ${TEXTO_VEM_DO_ERP}` : 'Dias das parcelas (ex.: 28/56 ou à vista)'} erro={tentou ? errosPrazo.parcelas : undefined}>
               <input className={CLASSE_CAMPO} value={prazoEmEdicao.form.parcelas} maxLength={120} readOnly={prazoDoErp} aria-readonly={prazoDoErp} aria-invalid={tentou && !!errosPrazo.parcelas} onChange={(e) => setP('parcelas', e.target.value)} data-testid="formas-pagamento.prazo-parcelas" />
             </CampoFormulario>
+            {prazoDoErp && prazoEmEdicao && (
+              <CampoFormulario rotulo={`Desc./Acrésc. (%) · ${TEXTO_VEM_DO_ERP}`}>
+                <input className={CLASSE_CAMPO} value={formatarPercentualPrazo(percentualDoPrazo(prazos.find((p) => p.id === prazoEmEdicao.id) ?? {}))} readOnly aria-readonly data-testid="formas-pagamento.prazo-ajuste" />
+              </CampoFormulario>
+            )}
             {previa && (
               <span className="text-[13px] font-semibold text-ink" data-testid="formas-pagamento.previa">
                 {previa.descricao} · prazo médio {previa.prazoMedio} {previa.prazoMedio === 1 ? 'dia' : 'dias'}

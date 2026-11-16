@@ -101,13 +101,13 @@ describe('revalidarPedido: título vencido (RN-VEN-13, T-0089)', () => {
   it('RN-VEN-45: percentual do prazo que mudou depois do pedido é aceito FORA da alçada, com aviso na linha do tempo', () => {
     const r = revalidarPedido(entrada({ percentual_mudou: true }));
     expect(r).toMatchObject({ ok: true, status: 'approved', aprovacao_automatica: true });
-    expect(r.ok && r.historico[0]).toMatchObject({ de: null, para: 'received', motivo: 'Recebido pelo servidor · Percentual do prazo mudou' });
+    expect(r.ok && r.historico[0]).toMatchObject({ de: null, para: 'received', motivo: 'Prazo de pagamento mudou' });
     expect(r.ok && r.historico.map((h) => h.para)).toEqual(['received', 'approved']);
   });
-  it('RN-VEN-45: com título vencido, o pedido vai à aprovação só pelo título; o aviso do % segue no recebimento', () => {
+  it('RN-VEN-45: com título vencido, o pedido vai à aprovação só pelo título; o motivo do prazo segue no recebimento', () => {
     const r = revalidarPedido(entrada({ percentual_mudou: true, titulo_vencido: true }));
     expect(r).toMatchObject({ ok: true, status: 'pending_approval', pending_reason: 'Título vencido' });
-    expect(r.ok && r.historico[0]!.motivo).toContain('Percentual do prazo mudou');
+    expect(r.ok && r.historico[0]!.motivo).toBe('Prazo de pagamento mudou');
   });
   it('RN-VEN-13: sem título vencido (ou à vista) segue aprovado na hora', () => {
     expect(revalidarPedido(entrada({ titulo_vencido: false }))).toMatchObject({ ok: true, status: 'approved' });

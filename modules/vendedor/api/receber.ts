@@ -22,6 +22,7 @@ import {
   PedidoPush,
 } from '../contracts';
 import {
+  bpDoItem,
   conteudoDoEnvio,
   retratoFilialDoPedido,
   dataDoPreco,
@@ -228,7 +229,7 @@ export async function calcularDocumento(
     desconto_valor_cents: p.desconto_valor_cents ?? 0,
     acrescimo_valor_cents: p.acrescimo_valor_cents ?? 0,
     itens: p.items.map((i, idx) => {
-      const bpDoItem = congelados?.[i.product_id] !== undefined ? 0 : pg.percentual_ajuste_bp;
+      const bpItem = bpDoItem(congelados?.[i.product_id] !== undefined, pg.percentual_ajuste_bp);
       return {
       product_id: i.product_id,
       sku: produtos.get(i.product_id)?.sku ?? i.product_id,
@@ -243,8 +244,8 @@ export async function calcularDocumento(
       // T-0084 (RN-VEN-19): retrato do aparelho; nulo/ausente = sem aplicação
       aplicacao: i.aplicacao ?? null,
       // RN-VEN-43: o mínimo parte da tabela ajustada pelo prazo; o preço congelado do orçamento (RN-VEN-18) já está gravado ajustado
-      percentual_ajuste_bp: bpDoItem,
-      preco_minimo_base_cents: precoMinimoBaseCents({ preco_venda_cents: produtos.get(i.product_id)?.preco_venda_cents ?? null, desconto_maximo_pct: produtos.get(i.product_id)?.desconto_maximo_pct ?? 100, percentual_ajuste_bp: bpDoItem }),
+      percentual_ajuste_bp: bpItem,
+      preco_minimo_base_cents: precoMinimoBaseCents({ preco_venda_cents: produtos.get(i.product_id)?.preco_venda_cents ?? null, desconto_maximo_pct: produtos.get(i.product_id)?.desconto_maximo_pct ?? 100, percentual_ajuste_bp: bpItem }),
       };
     }),
     percentual_ajuste_bp: pg.percentual_ajuste_bp,
