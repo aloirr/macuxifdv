@@ -34,9 +34,9 @@ export function ApprovalsPanel({ approvals, nowMs, onOpen }: { approvals: Order[
             <div key={a.id} className="flex flex-col gap-2 rounded-xl border border-line p-3">
               <div className="flex justify-between gap-2">
                 <button type="button" onClick={() => onOpen(a)} className="flex min-w-0 flex-col gap-px text-left hover:underline" aria-label={`Abrir pedido ${a.number}`}>
-                  <span className="text-[14px] font-semibold">{nomeLegivel(a.customer_name)}</span>
+                  <span className="text-[15px] font-semibold">{nomeLegivel(a.customer_name)}</span>
                 </button>
-                <span className="text-[14px] font-semibold whitespace-nowrap tabular-nums">{formatBRL(a.total_cents)}</span>
+                <span className="text-[15px] font-semibold whitespace-nowrap tabular-nums">{formatBRL(a.total_cents)}</span>
               </div>
               {/* RD-0217: a linha 2 é o motivo, com a idade em tag ao lado; o Nº fica só no aria-label */}
               <div className="flex flex-wrap items-center gap-2">
