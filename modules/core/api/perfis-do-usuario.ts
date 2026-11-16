@@ -1,8 +1,7 @@
 /**
  * Perfis de acesso de um usuário no login (RN-CORE-01/35; ADR 0033): lê `plataforma.perfis_do_usuario` (0041) na transação do tenant e
  * resolve com o motor do SDK. Um perfil por usuário (RN-CORE-54): perfil de base vendedor/promotor/supervisor fecha o BKO.
- * Sem nenhuma linha (usuário antigo, banco sem a 0041 semeada) cai no perfil de fábrica do principal (`perfisDeFabrica`, com as ações do Core,
- * ex.: `usuario.filial_editar`, RN-CORE-39): falha fechada para o que a fábrica fecha.
+ * Sem nenhuma linha (usuário antigo, banco sem a 0041 semeada) cai em `perfisDeFabrica` (domain/matriz.ts).
  * As chaves `acesso.*` são só da plataforma, então a matriz sem manifestos basta para as linhas numa rota pública.
  */
 import { matrizDeFabrica, PERFIS, resolverPerfil, NIVEIS_ALCADA, NIVEIS_ESCOPO, type ClienteBanco, type MatrizFabrica, type NivelPermissao, type Perfil, type PerfilDaRequisicao, type SobreposicaoPermissao } from '@macuxi/platform-sdk';
@@ -24,10 +23,7 @@ function sobreposicoesDe(bruto: unknown): SobreposicaoPermissao[] {
   return saida;
 }
 
-/**
- * Mesma resolução do login e da API (fábrica + sobreposições + travas). `matriz` = a de fábrica COMPLETA (ações dos módulos) quando quem
- * chama a tem; sem ela, as linhas usam só a da plataforma (falha fechada) e o caso sem linhas, a do Core (como no login).
- */
+/** Mesma resolução do login e da API. `matriz` = a de fábrica COMPLETA (ações dos módulos) quando quem chama a tem; sem ela, as linhas usam só a da plataforma. */
 export function resolverLinhasDePerfil(linhas: readonly LinhaPerfilDoUsuario[], principal: Perfil, matriz?: MatrizFabrica): PerfilDaRequisicao[] {
   const validas = linhas.filter((l) => (PERFIS as readonly string[]).includes(l.base));
   if (validas.length === 0) return perfisDeFabrica(principal, matriz);

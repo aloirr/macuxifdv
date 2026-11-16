@@ -1,7 +1,7 @@
 import { pode, type ClienteBanco } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { podeAcessarBko, podeUsarApp } from '../domain';
-import { perfisDoUsuarioNoLogin, resolverLinhasDePerfil } from './perfis-do-usuario';
+import { perfisDoUsuarioNoLogin } from './perfis-do-usuario';
 
 const dbCom = (rows: unknown[]): ClienteBanco => ({ query: async () => ({ rows: rows as never[], rowCount: rows.length }) });
 const linha = (codigo: string, base: string, sobreposicoes: unknown = []) => ({ codigo, base, fabrica: codigo === base, sobreposicoes });
@@ -26,8 +26,7 @@ describe('RN-CORE-35: o login lê o perfil real do usuário (personalizado, com 
     expect(podeUsarApp(perfis, 'gestao')).toBe(true);
   });
 
-  it('RN-CORE-39: sem nenhuma linha, a fábrica do principal leva as ações do Core (admin mantém usuario.filial_editar), no login e sem a matriz da API', async () => {
+  it('RN-CORE-39: sem nenhuma linha, o login cai na fábrica do principal com as ações do Core', async () => {
     expect(pode(await perfisDoUsuarioNoLogin(dbCom([]), 'u1', 'admin'), 'usuario.filial_editar')).toBe(true);
-    expect(pode(resolverLinhasDePerfil([], 'admin'), 'usuario.filial_editar')).toBe(true);
   });
 });

@@ -21,7 +21,7 @@ export const consultaCredencialConferir = implementarConsulta(CONSULTA_CREDENCIA
   if (u?.senha_hash) senhaConfere = await verificarSenha(entrada.senha, u.senha_hash);
   else await gastarTempoDeSenha(entrada.senha);
   // permissão EFETIVA (perfis personalizados, multiperfil), sempre calculada, exista o usuário ou não: mesmo caminho e mesmo custo.
-  // A matriz é a da API (`ctx.permissoes`, com as ações dos módulos); sem ela, falha fechada (`sem_permissao`), nunca aberta.
+  // A matriz é a da API (`ctx.permissoes`).
   const perfis = await perfisEfetivosDoUsuario(ctx.db, entrada.usuario_id, (u?.perfil ?? 'vendedor') as Perfil, ctx.permissoes?.matriz);
   const permitido = u !== null && pode(perfis, entrada.acao.acao);
   const resultado = decidirCredencial({
