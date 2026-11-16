@@ -6,10 +6,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PERFIS, ROTULO_PERFIL, type ModuloId, type Perfil } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
 import { LicencasEstadoSchema, NIVEIS_LICENCA, type LicencasEstado, type NivelLicenca } from '../../../contracts';
-import { PromotorPedidosPanel } from './promotor-pedidos-panel';
+import { rotuloDoModulo } from '../../lib/perfis';
 import { csvDeLicencas, efetivosDoUsuario, linhasDoNivel, modulosQueTambemDesligam, ROTULO_NIVEL } from '../../lib/licencas';
+import { PARAM_MODULOS_PERFIL, perfilDosModulos } from '../../lib/parametros-url';
 
 const CHAVE = ['core', 'licencas'] as const;
 
@@ -29,7 +30,7 @@ function caminhoDaAlteracao(a: Alteracao): string {
 }
 
 /**
- * Tela "Usuários e módulos" do BKO (RF-CORE-02; RN-CORE-01/02/03). Só admin: o item de menu e a página dependem da
+ * Tela "Módulos" (Parâmetros › Acesso) do BKO (RF-CORE-02; RN-CORE-01/02/03). Só admin: o item de menu e a página dependem da
  * ação `modulo.gerir_licencas` e a API revalida. Filtros (nível, perfil, usuário) ficam na URL. Desligar módulo com
  * dependentes mostra o aviso antes de confirmar; o `core` não desliga. testIDs: docs/modulos/core/test-ids.md.
  */
@@ -42,7 +43,7 @@ function LicencasConteudo() {
 
   const nivelParam = params.get('nivel');
   const nivel: NivelLicenca = (NIVEIS_LICENCA as readonly string[]).includes(nivelParam ?? '') ? (nivelParam as NivelLicenca) : 'tenant';
-  const perfilParam = params.get('perfil');
+  const perfilParam = perfilDosModulos(params);
   const perfil: Perfil = (PERFIS as readonly string[]).includes(perfilParam ?? '') ? (perfilParam as Perfil) : 'vendedor';
   const usuarioParam = params.get('usuario');
 
@@ -57,7 +58,7 @@ function LicencasConteudo() {
     mutationFn: async (a: Alteracao) => api(caminhoDaAlteracao(a), { method: 'PUT', body: { ativo: a.ativo } }),
     onSuccess: async (_r, a) => {
       setPendente(null);
-      setAviso(`${a.ativo ? 'Ativado' : 'Desativado'}: ${a.modulo}. Vale para os aparelhos no próximo sync.`);
+      setAviso(`${a.ativo ? 'Ativado' : 'Desativado'}: ${rotuloDoModulo(a.modulo)}.`);
       await qc.invalidateQueries({ queryKey: CHAVE });
     },
     onError: (e) => {
@@ -92,24 +93,14 @@ function LicencasConteudo() {
   };
 
   return (
-    <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="licencas.tela">
-      <PageHeader
-        title="Usuários e módulos"
-        subtitle="Quais módulos cada empresa, perfil e usuário usa. O usuário só enxerga o que passa pelos três níveis (empresa ∩ perfil, menos as exceções)."
-        actions={
-          <Button onClick={exportar} disabled={!estado} data-testid="licencas.exportar-csv">
-            Exportar CSV
-          </Button>
-        }
-      />
-
-      {!pode && <Notice tone="info">Só o administrador altera licenças. Você pode consultar.</Notice>}
+    <div className="flex w-full flex-col gap-5" data-testid="licencas.tela">
       {aviso && (
         <Notice tone="info" onClose={() => setAviso(null)}>
           {aviso}
         </Notice>
       )}
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
       <div role="tablist" aria-label="Nível da licença" className="flex flex-wrap gap-2">
         {NIVEIS_LICENCA.map((n) => (
           <button
@@ -119,16 +110,20 @@ function LicencasConteudo() {
             aria-selected={n === nivel}
             data-testid={`licencas.nivel.${n}`}
             onClick={() => set({ nivel: n === 'tenant' ? null : n })}
-            className={`h-[42px] rounded-xl border px-4 text-[15px] font-semibold ${n === nivel ? 'border-ink bg-ink text-white' : 'border-field bg-surface text-ink hover:bg-ground'}`}
+            className={`h-[42px] rounded-xl border px-4 text-[15px] font-semibold ${n === nivel ? 'border-accent bg-accent text-white' : 'border-field bg-surface text-ink hover:bg-ground'}`}
           >
             {ROTULO_NIVEL[n]}
           </button>
         ))}
       </div>
+      <Button onClick={exportar} disabled={!estado} data-testid="licencas.exportar-csv">
+        Exportar CSV
+      </Button>
+      </div>
 
       <FilterBar>
         {nivel === 'perfil' && (
-          <SelectField label="Perfil" value={perfil} onChange={(e) => set({ perfil: e.target.value })} data-testid="licencas.seletor-perfil">
+          <SelectField label="Perfil" value={perfil} onChange={(e) => set({ [PARAM_MODULOS_PERFIL]: e.target.value })} data-testid="licencas.seletor-perfil">
             {PERFIS.map((p) => (
               <option key={p} value={p}>
                 {ROTULO_PERFIL[p]}
@@ -151,65 +146,65 @@ function LicencasConteudo() {
       {q.isPending && <LoadingBlock label="Carregando as licenças…" />}
 
       {estado && (
-        <Panel title={nivel === 'usuario' ? 'Exceções do usuário (só removem módulo)' : `Módulos — ${ROTULO_NIVEL[nivel]}`}>
-          <TableScroll minWidth={560}>
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr>
-                  <th className={th}>Módulo</th>
-                  <th className={th}>Estado</th>
-                  <th className={th}>Ação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {linhas.map((l) => (
-                  <tr key={l.modulo} data-testid={`licencas.modulo.${nivel}.${l.modulo}`}>
-                    <td className={td}>{l.modulo}</td>
-                    <td className={td}>
-                      <span data-testid={`licencas.estado.${nivel}.${l.modulo}`} data-estado={l.ativo ? 'ativo' : 'inativo'}>
-                        <Badge tone={l.ativo ? 'success' : 'neutral'}>{l.ativo ? 'Ativo' : 'Inativo'}</Badge>
+        <TableScroll minWidth={560}>
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr>
+                <th className={th}>Módulo</th>
+                <th className={th}>Ação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.map((l) => (
+                <tr key={l.modulo} data-testid={`licencas.modulo.${nivel}.${l.modulo}`}>
+                  <td className={td}>{rotuloDoModulo(l.modulo)}</td>
+                  <td className={td}>
+                    {l.travado ? (
+                      <span className="text-[13px] text-ink-2" data-testid={`licencas.estado.${nivel}.${l.modulo}`} data-estado="ativo">
+                        Sempre ativo
                       </span>
-                    </td>
-                    <td className={td}>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={l.ativo}
-                        aria-label={`${l.ativo ? 'Desativar' : 'Ativar'} ${l.modulo}`}
-                        aria-disabled={l.travado || !pode}
-                        disabled={l.travado || !pode}
-                        data-testid={`licencas.toggle.${nivel}.${l.modulo}`}
-                        onClick={() => pedir(l.modulo, !l.ativo)}
-                        className="h-[44px] min-w-[96px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled"
-                      >
-                        {l.travado ? 'Sempre ativo' : l.ativo ? 'Desativar' : 'Ativar'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        </Panel>
+                    ) : (
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={l.ativo}
+                      data-estado={l.ativo ? 'ativo' : 'inativo'}
+                      aria-label={`${l.ativo ? 'Desativar' : 'Ativar'} ${rotuloDoModulo(l.modulo)}`}
+                      aria-disabled={!pode}
+                      disabled={!pode}
+                      data-testid={`licencas.toggle.${nivel}.${l.modulo}`}
+                      onClick={() => pedir(l.modulo, !l.ativo)}
+                      className="h-[44px] min-w-[96px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled"
+                    >
+                      {l.ativo ? 'Desativar' : 'Ativar'}
+                    </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
 
-      {nivel === 'perfil' && perfil === 'promotor' && <PromotorPedidosPanel />}
-
       {estado && nivel === 'usuario' && (
-        <Panel title="Módulos efetivos do usuário">
+        <section className="flex flex-col gap-2" aria-labelledby="licencas.efetivos.titulo">
+          <h3 id="licencas.efetivos.titulo" className="m-0 text-[15px] font-semibold text-ink">
+            Módulos efetivos do usuário
+          </h3>
           <ul className="m-0 flex list-none flex-wrap gap-2 p-0" data-testid="licencas.efetivos">
             {efetivos.map((m) => (
               <li key={m} data-testid={`licencas.efetivo.${m}`}>
-                <Badge tone="success">{m}</Badge>
+                <Badge tone="success">{rotuloDoModulo(m)}</Badge>
               </li>
             ))}
           </ul>
-        </Panel>
+        </section>
       )}
 
       <Dialog
         open={pendente !== null}
-        title={pendente?.ativo ? `Ativar ${pendente.modulo}?` : `Desativar ${pendente?.modulo ?? ''}?`}
+        title={pendente?.ativo ? `Ativar ${rotuloDoModulo(pendente.modulo)}?` : `Desativar ${pendente ? rotuloDoModulo(pendente.modulo) : ''}?`}
         onClose={() => setPendente(null)}
         footer={
           <>
@@ -231,7 +226,7 @@ function LicencasConteudo() {
             </p>
             {pendente.tambemDesligam.length > 0 && (
               <Notice tone="warning">
-                <span data-testid="licencas.aviso-dependencia">Este módulo também desliga: {pendente.tambemDesligam.join(', ')}.</span>
+                <span data-testid="licencas.aviso-dependencia">Este módulo também desliga: {pendente.tambemDesligam.map(rotuloDoModulo).join(', ')}.</span>
               </Notice>
             )}
           </div>

@@ -1,9 +1,9 @@
 # Rastreamento contínuo de localização (tracking) — desenho técnico (T-0156)
 
 - **Autor**: engenheiro-software, 15/11/2026 (Manaus). **Decisão de arquitetura**: [ADR 0061](../decisoes/0061-rastreamento-continuo-de-localizacao.md).
-- **Regras**: RF-CORE-17, RN-CORE-13 (localização e tracking), RN-CORE-37 (permissões), RN-CORE-46 (km do dia).
-- **Base LGPD**: [finalidade](T-0156-legal-finalidade.md), [aviso](T-0156-legal-aviso-ao-vendedor.md) e [termo de ciência](T-0156-legal-termo-de-ciencia.md) (**rascunho para revisão de advogado**). Parte de
-  [`T-0145-lgpd-tracking.md`](T-0145-lgpd-tracking.md), que segue como fonte do aviso curto da tela de permissões (§6 dele).
+- **Regras**: RF-CORE-17, RN-CORE-13 (localização e tracking), RN-CORE-37 (permissões), RN-CORE-46 (km do dia; proposta,
+  [performance-produtividade.md §8](performance-produtividade.md#8-rn-propostas-texto-para-o-doc-03-numeração-a-confirmar-pelo-gerente)).
+- **Base LGPD**: [finalidade](T-0156-legal-finalidade.md), [aviso](T-0156-legal-aviso-ao-vendedor.md) e [termo de ciência](T-0156-legal-termo-de-ciencia.md) (**rascunho para revisão de advogado**).
 - **Consumidor já pronto**: a Performance lê só o resumo `core.deslocamento_dia` e usa `metrosDoTrajeto`
   ([performance-produtividade.md §5](performance-produtividade.md#5-km-e-o-rastreamento-de-localização)).
 - Valores entre [colchetes] são parâmetros ajustáveis. As decisões de negócio do §12 foram aprovadas pelo Alexandre em 16/11/2026
@@ -75,7 +75,7 @@ momento, como hoje (RN-CORE-13).
 - Parâmetro do tenant `rastreamento.expediente`: por dia da semana, de 0 a 2 faixas `{ inicio, fim }` no **fuso do tenant**.
   Proposta: seg–sex 08:00–18:00, sáb 08:00–12:00, dom sem expediente.
 - Sem expediente cadastrado, o tracking não liga, mesmo com `rastreamento.ativo`.
-- Um expediente só por empresa (§12).
+- Um expediente só por empresa.
 
 ### 4.2 Feriados e ausências
 - **Feriado**: o calendário do tenant (`core.calendario_metas@1`, que já devolve `feriados`) vale aqui: feriado = sem expediente.
@@ -129,6 +129,7 @@ de [5] anos. O log leva só o tenant e a contagem.
   "Li e estou ciente". O app **segue usável** sem o aceite (o tracking não é condição para vender); só não grava trajeto.
   A tela volta a cada abertura até o aceite.
 - Versão nova publicada: chega no pull e o tracking para até o novo aceite.
+- Depois do aceite, o termo vigente fica no Perfil do Campo, só leitura, com o link "Meu trajeto".
 
 ## 7. Quem vê (motor de permissões, ADR 0033)
 | Ação | Chave | Padrão de fábrica |
@@ -143,12 +144,8 @@ de [5] anos. O log leva só o tenant e a contagem.
 - Vendedor e promotor nunca veem o trajeto de colegas.
 
 ## 8. Retenção
-| Dado | Onde | Prazo |
-|---|---|---|
-| Pontos e pausas | servidor | [90] dias, depois apagados (§5.4) |
-| Pontos | aparelho | os de hoje (enviados) ou até o envio; nunca mais de [90] dias |
-| Resumo diário (km, pontos, 1º e último instante) | servidor e aparelho | [5] anos (metas e RV) |
-| Aceite do termo | servidor | enquanto o usuário existir + [5] anos |
+Prazos: [finalidade §5](T-0156-legal-finalidade.md#5-quem-vê-e-por-quanto-tempo). Servidor: expurgo do §5.4 (as pausas seguem o
+prazo dos pontos). Aparelho: §3.4.
 
 ## 9. Privacidade técnica
 - **Nenhuma coordenada** em log, mensagem de erro, Diagnóstico, Sentry ou telemetria: só id do usuário, contagem e tempo.
@@ -176,14 +173,12 @@ de [5] anos. O log leva só o tenant e a contagem.
 
 ## 12. Decisões
 **Do Alexandre**, aprovadas em 16/11/2026 (R-20261116-110200-alexandre):
-1. **Base legal**: legítimo interesse e execução do contrato, **sem** consentimento (o termo é de ciência), a confirmar com o advogado.
-2. **Retenção**: pontos [90] dias; resumo [5] anos; aceite enquanto o usuário existir + [5] anos.
-3. **Expediente**: um por empresa.
-4. **Pausa pessoal** (§4.3): entra, com limite de [60] min.
-5. **Ausências** (§4.2): cadastradas pelo admin e pelo supervisor.
-6. **Representante autônomo**: só com o contrato de representação prevendo a comprovação de visita.
-7. **Admin vê os pontos**: sim.
+1. Base legal: finalidade §3 (a confirmar com o advogado).
+2. Retenção: finalidade §5.
+3. Expediente: §4.1.
+4. Pausa pessoal: §4.3.
+5. Ausências: §4.2.
+6. Representante autônomo: finalidade §3.
+7. Admin vê os pontos: §7.
 
-**Técnicas** (decididas pelo engenheiro, na ADR 0061, "Decisões técnicas"): frequência [200 m] / [5 min] com entrega em lote e
-meta de bateria ≤ [8%], ajustáveis por parâmetro; lotes de envio de [500] pontos; sem partição na v1; correção do 1º ponto em
-`metrosDoTrajeto`.
+**Técnicas**: ADR 0061, "Decisões técnicas".

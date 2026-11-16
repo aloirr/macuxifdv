@@ -20,6 +20,13 @@
 2026-11-15 — fonte do sistema — R-20261115-110600 registrada: manual §5 reescrito (pilha do sistema no texto e nos títulos; códigos na monoespaçada do sistema com tabular-nums; pesos 400/500/600/700; escala web 12·13·15·17·20·24 e app 12·14·16·18·22·28; mínimo 12; base 15 na web, para 1366×768); logo sem mudança (Archivo em contorno); linha nova em decisoes.md; MC-0030 passa a pedir a fonte do sistema. Pendente: PDF do pedido ainda em IBM Plex (modulo-vendedor). Sem recados (CLI com HTTP 403).
 2026-11-15 — fonte do sistema (validação do combinado, 11 branches) — SEGURA: logo inalterado; app Campo/Gestão certo no código, print do login a refazer (MC-0064); abertas MC-0057 a MC-0060 (médias: 800 e 28 px na web, escala web, PDF do pedido) e MC-0061 a MC-0063 (baixas). Manual §5 com 4 esclarecimentos de aplicação para o Alexandre confirmar. Sem recados (CLI com HTTP 403).
 2026-11-15 — fonte do sistema, 2ª passada (combinado de 14 branches sobre main 007289e) — LIBERADO COM AJUSTES: fechadas MC-0057, 0058, 0060, 0061, 0062, 0063 e 0064 (print); MC-0059 em parte (total do pedido em 700, pede 600; modulo-vendedor); novas baixas MC-0065 (CNPJ em mono nas Filiais, modulo-core) e MC-0066 (número do pedido em mono no app, modulo-vendedor). Manual §5.3 em escala por papel e §5.1 com número do pedido em texto, alinhados às decisões do gerente; confirmação do dono do produto pendente.
+2026-11-15 — fonte do sistema — R-20261115-155500 registrada no manual §5 e em decisoes.md. A caixa não abriu nesta sessão (HTTP 403).
+2026-11-15 — v1.0.12/v1.0.13 pareceres de marca, rodada 1 — liberados #361, #366, #382, #373; com achado #391 (MC-0135), #367 (MC-0136..0139), #375 (MC-0142, 0143), #385 (MC-0144); #384 substituído (MC-0140, 0141). Caixa 403.
+2026-11-15 — v1.0.12/v1.0.13 pareceres de marca, rodada 2 — liberados #361, #382, #422, #423; com achado #397 (MC-0145, 0146), #404 (MC-0147, 0148), #427 (MC-0149, 0150); #367 segue com MC-0136..0139. Caixa 403.
+2026-11-15 — v1.0.12/v1.0.13 pareceres de marca, rodada 4 — fechadas MC-0135..0139, 0145, 0146, 0149, 0150; nova MC-0151 (#367 39fec9ed). Caixa 403.
+2026-11-15 — v1.0.12/v1.0.13 pareceres de marca, rodada 5 — #404 f8a9dc63: fechadas MC-0147, 0148; novas MC-0152, 0153. #361 liberada. Caixa 403.
+2026-11-15 — v1.0.12/v1.0.13 pareceres de marca, rodada 6 — fechadas MC-0142, 0143, 0144, 0151; novas MC-0154 (#375 2e2c5795) e MC-0155 (#385 1cb49ea4). Caixa 403.
+2026-11-15 — v1.0.12/v1.0.13 pareceres de marca, rodada 7 — fechadas MC-0152, 0153 (#404 83bd2b35); nova MC-0156 (#437 8dbf49ef); abertas MC-0154, 0155. Caixa 403.
 2026-11-15 — v1.0.14 rodada 1 — parecer 2026-11-15-v1014.md: com achado #398, #401, #405, #408, #399, #410, #414–#416 (MC-1500..1515, todas seguram); liberados #403, #421, #417, #390, #406, #409, #411, #412; #414–#416 com o peso rótulo 600/valor 400 conforme à R-20261115-155500 (só a cor do "Padrão", MC-1515). Manual sem mudança. Sem recados (CLI 403).
 2026-11-15 — v1.0.14 rodada 2 — #434 liberado; #435 e #436 não se aplica.
 2026-11-15 — v1.0.14 rodada 3 (catálogo v2) — #441 com achado (MC-1520..1523); branch do modulo-catalogo f6c87089 com achado (MC-1524, MC-1525); ícone pacote conforme.
@@ -27,6 +34,9 @@
 2026-11-15 — v1.0.14 rodada 5 (#442 c50aae5b) — com achado MC-1550..1558 (MC-1560 não segura); #410 ganha MC-1559.
 2026-11-15 — v1.0.14 rodada 6 — #441 97961dc4 liberado (MC-1520..1523 fechadas); lote a03a9f6f liberado.
 2026-11-15 — v1.0.14 rodada 8 — catálogo c7db7a90 liberado (MC-1524, MC-1525 fechadas; condição para a parte 2).
+2026-11-16 — v1.0.12/v1.0.13 pareceres de marca, rodada 8 (15/11 ~22h Manaus) — fechadas MC-0154, 0155, 0156; nova MC-0157 (#424 b35d4e34); #425 liberada. Caixa 403.
+2026-11-16 — v1.0.12/v1.0.13 pareceres de marca, rodada 9 (15/11 ~21h40 Manaus) — fechada MC-0157 (#424 760504cb); nova MC-0158 (#373 2255b5a1). Caixa 403.
+2026-11-16 — v1.0.13 pareceres de marca, rodada 11 — fechada MC-0158 (#373 08ac09dd); nenhuma MC aberta no lote. Caixa 403.
 2026-11-16 — v1.0.14 rodada 9 — #453 849e5141 liberado; #448 não se aplica.
 2026-11-16 — v1.0.14 rodada 10 (heads novos) — #398 MC-1590/1591, #399 MC-1592, #401 MC-1593 (13 antigas fechadas); #403 liberado; #414–#416 seguem com MC-1515.
 2026-11-16 — v1.0.14 rodada 11 — #442 e #408 liberados; #405 MC-1611; #456 MC-1610; #457 MC-1612, MC-1613; #406/#411/#412/#453 sem mudança visual; #410 segue com MC-1513/1514/1559.

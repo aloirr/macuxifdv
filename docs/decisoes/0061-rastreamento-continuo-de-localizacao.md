@@ -3,7 +3,8 @@
 - **Status**: aceita em 2026-11-16 (R-20261116-110200-alexandre: as 7 decisões de negócio do desenho §12 aprovadas). Execução na v1.0.15.
 - **Data**: 2026-11-15 (Manaus)
 - **Autor**: engenheiro-software
-- **Origem**: T-0156 (R-20261110-085951-alexandre, item 5); RF-CORE-17, RN-CORE-13, RN-CORE-37, RN-CORE-46.
+- **Origem**: T-0156 (R-20261110-085951-alexandre, item 5); RF-CORE-17, RN-CORE-13, RN-CORE-37, RN-CORE-46 (proposta,
+  `docs/desenho/performance-produtividade.md` §8).
 - **Desenho**: [`docs/desenho/tracking.md`](../desenho/tracking.md). **Base LGPD**: `docs/desenho/T-0156-legal-*.md` (rascunho para revisão de advogado).
 - **Quem implementa**: banco-dados, modulo-core, engenheiro-apps e modulo-gestor (desenho §11).
 
@@ -21,14 +22,14 @@
 2. **Portão de seis condições** (desenho §2) avaliado pela mesma função pura `podeRastrear` no app e na API: empresa ligou
    (padrão desligado), usuário de campo no Campo, aceite da versão vigente do termo, dentro do expediente do tenant e fora de
    feriado e ausência, sem pausa, permissão concedida. Fora do portão o app não grava nem guarda ponto, e a API descarta o que chegar.
-3. **Captura no Android** por `expo-location` com serviço em primeiro plano e notificação fixa "localização ativa no expediente",
-   [200 m] ou [5 min], entrega em lote; a tarefa `macuxi-trajeto` só grava no SQLite, sem rede e sem derrubar o processo.
+3. **Captura no Android** por `expo-location` com serviço em primeiro plano e notificação fixa "localização ativa no expediente"
+   (frequência em "Decisões técnicas"); a tarefa `macuxi-trajeto` só grava no SQLite, sem rede e sem derrubar o processo.
    Liga ao abrir, ao voltar ao primeiro plano e na `macuxi-sync-delta` (ADR 0017); desliga sozinha quando o portão fecha.
 4. **Envio pelo motor de sync** como entidades só de envio (`ponto_trajeto`, `pausa_trajeto`, `aceite_termo_rastreamento`), em
-   lotes, idempotentes pelo UUID do aparelho; o aceite vai antes dos pontos. Descarte de ponto não trava a fila.
-5. **Resumo diário** recalculado do dia inteiro a cada push em `core.deslocamento_dia` (upsert idempotente). Os pontos ficam
-   [90] dias e saem por `delete` físico num expurgo diário (exceção consciente ao `deleted_at`: a eliminação é obrigação da LGPD);
-   o resumo fica [5] anos.
+   lotes, idempotentes pelo UUID do aparelho; o aceite vai antes dos pontos.
+5. **Resumo diário** recalculado do dia inteiro a cada push em `core.deslocamento_dia` (upsert idempotente). No fim do prazo
+   (`docs/desenho/T-0156-legal-finalidade.md` §5), os pontos saem por `delete` físico num expurgo diário (exceção consciente ao
+   `deleted_at`: a eliminação é obrigação da LGPD).
 6. **Termo versionado por tenant** (`core.termo_rastreamento`) e aceite por usuário e versão; versão nova suspende o tracking até
    o novo aceite. O app segue usável sem o aceite.
 7. **Acesso** pelo motor de permissões (ADR 0033): `core.trajeto.ver_proprio`, `core.trajeto.ver_equipe`,
@@ -48,7 +49,7 @@
 ## Decisões técnicas
 - **Frequência e bateria**: `distanceInterval` [200 m], `timeInterval` [5 min], `deferredUpdatesInterval` [5 min], `accuracy: High`;
   meta ≤ [8%] da bateria em 10 h de expediente, medida no ensaio em 2 aparelhos de entrada. Ajuste por parâmetro, sem build.
-- **Envio**: lotes de [500] pontos; o descarte de ponto pela API não trava a fila.
+- **Envio**: lotes de [500] pontos.
 - **Volume**: sem partição na v1 (~1,4 milhão de linhas por tenant grande em 90 dias); reavaliar acima de 10 milhões.
 - **Km**: em `metrosDoTrajeto`, o 1º ponto só vira referência se o 2º for compatível (achado baixo da T-0170).
 
@@ -58,4 +59,3 @@
 - Os cards de km da Performance passam a ter dado para quem aceitou o termo.
 - O tracking **não liga em produção** antes da revisão de advogado (inclusive da base legal) e do cadastro de ausências
   (desenho §10).
-- Custo de bateria a medir no ensaio; ajuste por parâmetro, sem build.
