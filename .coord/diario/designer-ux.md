@@ -138,3 +138,4 @@
 2026-11-15 — v1.0.14 prazo — simulação do Desc./Acrésc. (%) do prazo trazida de nuvem/prazo-ajuste-designer-ux: tabela de prazos com Código | Descrição | Forma | Parcelas (dias) | Prazo médio | Desc./Acrésc. (%) | Situação | Origem | ⋯ (R-20261115-121000), menu da árvore final do Parâmetros, fonte do sistema nas pranchas; sem linha nos totais nem % na lista de prazos.
 2026-11-16 — v1.0.14 prazo — #398: RD-1500 e MC-1500 a MC-1503 (menu por referência ao menu-parametros §2; telas.css sem Google Fonts e na fonte do sistema; pesos 600; neutros da paleta); merge do main.
 2026-11-16 — v1.0.14 prazo — #398: RD-1840 (pilha da fonte só no body do telas.css, campo.css e bko-1), MC-1590 (valores, aba ativa e erro em 600 no telas.css) e MC-1591 (nada abaixo de 12; 17→18 e 20→22 na escala do app).
+2026-11-16 — v1.0.14 prazo — #398: RD-1942 (estilo comum das duas simulações do BKO em prazo-ajuste/bko.css, pilha da fonte só no body).

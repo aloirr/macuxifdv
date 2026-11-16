@@ -73,4 +73,4 @@ Imagens de 1366 × 768 (PNG em 2×), com Cadastros aberto no menu lateral e o it
 3. **Catálogo** com o preço no prazo padrão do cliente; pelo menu, a tabela pura.
 
 ## 5. Arquivos
-`campo.html` + `campo.css` (app), `pdf-escritorio-60-dias.html` (PDF; HTML do `buildOrderPdfHtml` com os números do exemplo e a marcação da prancha), `bko-1-lista.html` e `bko-2-edicao.html` (BKO). Fonte do sistema (manual da marca §5), sem fonte baixada; tokens de `packages/ui` (via `docs/design/telas/telas.css`) e marca v1. PNG com Playwright (Chromium, `deviceScaleFactor` 2).
+`campo.html` + `campo.css` (app), `pdf-escritorio-60-dias.html` (PDF; HTML do `buildOrderPdfHtml` com os números do exemplo e a marcação da prancha), `bko-1-lista.html` e `bko-2-edicao.html` com o estilo comum em `bko.css` (BKO). Fonte do sistema (manual da marca §5), sem fonte baixada; tokens de `packages/ui` (via `docs/design/telas/telas.css`) e marca v1. PNG com Playwright (Chromium, `deviceScaleFactor` 2).
