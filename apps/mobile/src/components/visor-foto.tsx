@@ -4,7 +4,7 @@
  * foto aproximada e toque duplo (aproxima / volta). Sem biblioteca de gestos: `PanResponder` + `Animated` do React Native.
  * Só desenha: a fonte e o estado vêm da rota (`app/foto.tsx`); regras puras em `@/lib/visor-foto`.
  */
-import { colors, fonts, Icon } from '@macuxi/ui/mobile';
+import { colors, fonte, Icon } from '@macuxi/ui/mobile';
 import { useMemo, useRef } from 'react';
 import { ActivityIndicator, Animated, Image, PanResponder, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -150,10 +150,10 @@ const s = StyleSheet.create({
   fecharPressionado: { opacity: 0.5 },
   topo: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 20, paddingVertical: 14 },
   titulos: { flex: 1, minWidth: 0 },
-  titulo: { fontFamily: fonts.semibold, fontSize: 16, color: colors.surface },
-  subtitulo: { fontFamily: fonts.body, fontSize: 12, color: colors.darkMuted, marginTop: 2 },
+  titulo: { ...fonte.semibold, fontSize: 16, color: colors.surface },
+  subtitulo: { ...fonte.body, fontSize: 12, color: colors.darkMuted, marginTop: 2 },
   corpo: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, overflow: 'hidden' },
   area: { width: '100%', height: '100%' },
   imagem: { width: '100%', height: '100%' },
-  erro: { fontFamily: fonts.body, fontSize: 14, color: colors.darkMuted, textAlign: 'center', paddingHorizontal: 20 },
+  erro: { ...fonte.body, fontSize: 14, color: colors.darkMuted, textAlign: 'center', paddingHorizontal: 20 },
 });

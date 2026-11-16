@@ -18,6 +18,8 @@ export const MOVIMENTO = {
   aviso: { duracaoMs: 200, visivelMs: 2500, visivelComLeitorMs: 8000 },
   /** Diálogo central: só esmaece. */
   dialogo: { duracaoMs: 200 },
+  /** Barra de progresso (entrada e sincronização completa): o preenchimento anda até o novo valor. */
+  barra: { duracaoMs: 240 },
 } as const;
 
 export type TipoMovimento = keyof typeof MOVIMENTO;
