@@ -240,7 +240,7 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > e no [plataforma.md](plataforma.md); teste `db/testes/foto-lote.db.test.ts`.
 >
 > **2026-11-15 (ADR 0047, planos e licenças, telas 2 a 6 do portal; R-20261115-123000, item 1):**
-> `0084_plataforma_planos_troca_licencas` (em cima da 0083; aditiva): os 4 planos de venda no
+> `0086_plataforma_planos_troca_licencas` (em cima da 0085; aditiva): os 4 planos de venda no
 > catálogo (Light, PME, Enterprise e Corporate, números do §11.3 da spec do portal); `plataforma.assinatura_historico` (uma linha
 > por troca, idempotente por `pedido_id`); 3 `sa_*` do portal (`sa_listar_planos`, `sa_assinatura_da_empresa` e
 > `sa_trocar_plano`); a trava do cadastro de usuários `plataforma.licencas_do_tenant()`; o app passa a ler o plano do

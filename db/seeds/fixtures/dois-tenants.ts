@@ -85,7 +85,7 @@
  * - 0074 (ADR 0054; SYNC_PACOTE_FIXTURE, grupos 0x68 e 0x69): pacotes da primeira carga — A com o 'catalogo' · 'tenant'
  *   pronto, o 'catalogo' · 'filial:<padrão>' pronto e um 'catalogo' · 'tenant' substituído; B com o 'core' · 'tenant' pronto.
  *   Pedidos de geração já atendidos (A: lote; B: manifesto): nenhum pendente (o teste grava o seu em transação desfeita).
- * - 0084 (ADR 0047; ASSINATURAS_FIXTURE.*.historico, grupo 0x6e): uma troca de plano já gravada em cada tenant — A ficou no
+ * - 0086 (ADR 0047; ASSINATURAS_FIXTURE.*.historico, grupo 0x6e): uma troca de plano já gravada em cada tenant — A ficou no
  *   fixture_pme e ganhou 2 licenças de promotor (mensal); B saiu do fixture_antigo para o fixture_pme e passou a anual. Os
  *   pedido_id delas (seq 21 e 22 do catálogo) repetidos na sa_trocar_plano dão 'existente'.
  */
@@ -220,7 +220,7 @@ const G = {
   trabalho: 0x6b,
   foto_lote: 0x6c,
   foto_lote_item: 0x6d,
-  // 0084 (ADR 0047): histórico das trocas de plano
+  // 0086 (ADR 0047): histórico das trocas de plano
   assinatura_historico: 0x6e,
 } as const;
 
@@ -693,7 +693,7 @@ export const ORDEM_TABELAS = [
   'plataforma.tenant_modulo',
   // 0070 (ADR 0047): assinatura (FK -> plataforma.plano, gravado antes por carregarDoisTenants: planosDaFixture)
   'plataforma.assinatura',
-  // 0084 (ADR 0047): histórico das trocas (FK -> plataforma.assinatura e plataforma.plano)
+  // 0086 (ADR 0047): histórico das trocas (FK -> plataforma.assinatura e plataforma.plano)
   'plataforma.assinatura_historico',
   // 0041 (T-0111): perfis personalizados e sobreposições (os 7 de fábrica vêm do gatilho do tenant), antes da FK de perfil_modulo
   'plataforma.perfil',
