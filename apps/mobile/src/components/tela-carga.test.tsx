@@ -220,11 +220,15 @@ describe('Carga na tela de entrada — etapas sem nome técnico (R-20261102-0909
     sim.estado = { ...ESTADO_INICIAL, sincronizando: true, progresso: 0.4, carga: { ...CARGA_VAZIA, entidade: 'produto', modulo: 'catalogo', total: 10, concluidas: 4 } };
     const html = montar();
     // RD-0239: com a lista na tela, a etapa não se repete na linha da barra (fica só para o leitor de tela)
-    expect(rotuloLeitor(html)).toBe('Etapa 3 de 5 · Catálogo e preços');
-    expect(texto(html)).not.toContain('Etapa 3 de 5');
-    expect(html).toContain('entrada-etapa-2-feita');
-    expect(html).toContain('entrada-etapa-3-atual');
-    expect(html).toContain('entrada-etapa-4-pendente');
+    // RN-CORE-48 revista (ADR 0054): o catálogo é a última etapa
+    expect(rotuloLeitor(html)).toBe('Etapa 5 de 5 · Catálogo e preços');
+    expect(texto(html)).not.toContain('Etapa 5 de 5');
+    expect(html).toContain('entrada-etapa-4-feita');
+    expect(html).toContain('entrada-etapa-5-atual');
+    sim.estado = { ...ESTADO_INICIAL, sincronizando: true, progresso: 0.2, carga: { ...CARGA_VAZIA, entidade: 'cliente', modulo: 'core', total: 10, concluidas: 2 } };
+    const inicio = montar();
+    expect(inicio).toContain('entrada-etapa-2-atual');
+    expect(inicio).toContain('entrada-etapa-5-pendente');
   });
 
   it('sem frase sobre o que o app faz por trás (só o nome da etapa e o percentual)', () => {

@@ -1,7 +1,7 @@
 import { PedidoParaErp } from '@macuxi/integracao/contracts';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cicloPedidos, parametrosCabecalho } from '../src/pedidos';
-import { VERSAO_CONECTOR } from '../src/versao';
+import { compararVersoes, VERSAO_CONECTOR } from '../src/versao';
 import { type Ambiente, criarAmbiente } from './suporte/ambiente';
 
 let amb: Ambiente | undefined;
@@ -35,8 +35,8 @@ async function gravarCom(p: PedidoParaErp): Promise<Record<string, unknown>> {
 }
 
 describe('RN-CORE-39 (T-0149): filial do pedido na gravação do Conector 1.4.0', () => {
-  it('RN-CORE-39: o Conector é a versão 1.4.0 (a que o Hub exige para pedido de filial não padrão)', () => {
-    expect(VERSAO_CONECTOR).toBe('1.4.0');
+  it('RN-CORE-39: o Conector é 1.4.0 ou mais novo (a partir da 1.4.0 o Hub aceita pedido de filial não padrão)', () => {
+    expect(compararVersoes(VERSAO_CONECTOR, '1.4.0')).toBeGreaterThanOrEqual(0);
   });
 
   it('RN-CORE-39: o cabeçalho recebe filial_codigo e filial_external_id do pedido da filial Boa Vista', async () => {

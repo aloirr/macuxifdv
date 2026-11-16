@@ -175,9 +175,9 @@ describe('T-0170 §3 (RN-CORE-43/45/46): cards de Produtividade', () => {
 
 describe('T-0170 §1.3 (RN-CORE-41, D1): a linha dos dias úteis', () => {
   const mes = { de: '2026-11-01', ate: '2026-11-30' };
-  it('"DU 9 de 20 · 12 restantes" com hoje no período; dia não útil = "DU —"', () => {
+  it('"DU 9 de 20 · 12 restantes" com hoje no período; dia não útil = "Não é dia útil" (RD-0502)', () => {
     expect(textoDosDiasUteis({ du_total: 20, du_decorridos: 9, du_restantes: 12, du_hoje: 9 }, mes, '2026-11-12')).toBe('DU 9 de 20 · 12 restantes');
-    expect(textoDosDiasUteis({ du_total: 20, du_decorridos: 9, du_restantes: 11, du_hoje: null }, mes, '2026-11-15')).toBe('DU — de 20 · 11 restantes');
+    expect(textoDosDiasUteis({ du_total: 20, du_decorridos: 9, du_restantes: 11, du_hoje: null }, mes, '2026-11-15')).toBe('Não é dia útil · 11 restantes');
     expect(textoDosDiasUteis({ du_total: 20, du_decorridos: 20, du_restantes: 1, du_hoje: 20 }, mes, '2026-11-30')).toBe('DU 20 de 20 · 1 restante');
   });
   it('período encerrado: só o total', () => {

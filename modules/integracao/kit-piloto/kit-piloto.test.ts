@@ -127,7 +127,8 @@ describe('SQL da ERP_PILOTO (conferência estática)', () => {
       const consulta: string = cfg.entidades[entidade].consulta;
       const lista = /SELECT TOP \(:limite\) (.+?) FROM dbo\.(vw_macuxi_\w+)/.exec(consulta)!;
       const colunas = colunasDaView(SQL_ESQUEMA, lista[2]!);
-      for (const c of lista[1]!.split(',').map((x) => x.trim())) expect(colunas, `${entidade}.${c}`).toContain(c);
+      // SELECT * (RN-INT-15, prazo): a coluna opcional só é lida se existir; não há lista a conferir
+      for (const c of lista[1]!.split(',').filter((x) => x.trim() !== '*').map((x) => x.trim())) expect(colunas, `${entidade}.${c}`).toContain(c);
       // as colunas da view do kit existem no modelo oficial (o kit não inventa campo)
       const modelo = raiz('db', 'conector', 'views-modelo.sql');
       expect(modelo).toContain(`CREATE VIEW ${lista[2]} AS`);
