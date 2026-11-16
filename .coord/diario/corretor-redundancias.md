@@ -83,3 +83,4 @@
 2026-11-16 — v1.0.14 rodada 16 — #453 5b384227 (RD-1902/1903 fechados; RD-1707, RD-1800 em parte); #406 e71e78c8 (RD-1505 fechado; RD-1502..1504, 1506 abertos).
 2026-11-16 — v1.0.14 — #410 77babb6c: marca MC-1513/1514/1559 fechadas, nova MC-1680 (baixa); corretor RD-1563..1572 abertos.
 2026-11-16 — v1.0.14 — #408 e #401 liberados; #453 d64cc794 (RD-1800 fechado; RD-1707 aberto); #398 be06e09a (RD-1942 em parte: .total sem uso).
+2026-11-16 — v1.0.14 — #456 9a1fd369: marca liberada (MC-1610 fechada); corretor RD-1860..1870 fechados na parte do core, novas RD-1980..1983 (RD-1984 não segura); pendências no #390 e no engenheiro-apps.
