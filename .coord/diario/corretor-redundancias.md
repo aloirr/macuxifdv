@@ -118,3 +118,9 @@
 2026-11-16 — v1.0.14 — #457 8ca5977c LIBERADO.
 2026-11-16 — v1.0.14 — #465 2af065b5 LIBERADO.
 2026-11-16 — v1.0.14 — #466 409e5c11 LIBERADO (ciclo-erp no monitor novo).
+2026-11-16 — v1.0.14 — #470 e29e0411 (0085 filial matriz): regra correta; RD-2120, RD-2121 (baixas, seguram), RD-2122 (não segura).
+2026-11-16 — v1.0.14 — #470 81818005 LIBERADO (RD-2120, RD-2121 fechados; RD-2122 não segura).
+2026-11-16 — #471 96b8d6d8 (T-0156 docs): COM ACHADO RD-2130..2138 (RD-2130 alta: base LGPD em T-0145 e T-0156).
+2026-11-16 — #471 56049e51 LIBERADO (RD-2131 aberta nos docs do gerente).
+2026-11-16 — #472 72e70196 LIBERADO (testes depois do #457).
+2026-11-16 — #475 6529b88c LIBERADO (trechos idênticos ao #420).
