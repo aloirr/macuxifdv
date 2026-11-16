@@ -27,3 +27,4 @@
 2026-11-15 — v1.0.12/v1.0.13 pareceres de marca, rodada 5 — #404 f8a9dc63: fechadas MC-0147, 0148; novas MC-0152, 0153. #361 liberada. Caixa 403.
 2026-11-15 — v1.0.12/v1.0.13 pareceres de marca, rodada 6 — fechadas MC-0142, 0143, 0144, 0151; novas MC-0154 (#375 2e2c5795) e MC-0155 (#385 1cb49ea4). Caixa 403.
 2026-11-15 — v1.0.12/v1.0.13 pareceres de marca, rodada 7 — fechadas MC-0152, 0153 (#404 83bd2b35); nova MC-0156 (#437 8dbf49ef); abertas MC-0154, 0155. Caixa 403.
+2026-11-16 — v1.0.12/v1.0.13 pareceres de marca, rodada 8 (15/11 ~22h Manaus) — fechadas MC-0154, 0155, 0156; nova MC-0157 (#424 b35d4e34); #425 liberada. Caixa 403.
