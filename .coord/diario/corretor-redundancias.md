@@ -80,3 +80,5 @@
 2026-11-16 — v1.0.13 pareceres, rodada 10 (governança, 15/11 ~22h–23h20 Manaus) — #440 f288479c LIBERADO; #443 cafcc584 COM ACHADO (RD-1305, 1306) → a76bbb9e LIBERADO; #444 c018b098 LIBERADO (RD-1306); #445 19bbab7c COM ACHADO (RD-1307..1311; RD-1269 fora). Caixa 403.
 2026-11-16 — v1.0.13 pareceres, rodada 11 (~23h40–0h10 Manaus) — #446 a1c910b2, #445 ad62b0a7, #423 09ee2e84, #373 08ac09dd, #440 effe8e7d, #439 761aef9f LIBERADOS; RD-1312 e RD-1313 abertos e fechados na rodada; seguem #391 (RD-1217) e #383 (RD-1245). Caixa 403.
 2026-11-16 — v1.0.13 pareceres, rodada 12 (15/11 ~22h–22h30 Manaus) — #447 (c76d3700 → 7d6bbc79), #383 13442019 (RD-1245 fechado) e 20 heads "só merge do main" LIBERADOS; único com achado: #391 (RD-1217). Caixa 403.
+2026-11-16 — correção da linha da rodada 12: são 21 heads (o #423 e o #385 com delta porque a fonte do sistema já estava no main), não 20.
+2026-11-16 — v1.0.13 pareceres, rodada 13 (15/11 ~22h40 e 16/11 ~5h10 Manaus) — #449 e0c4a1a7 LIBERADO; #450 d4304201 (RD-1314, 1317), #451 3212f8ea (RD-1315, 1316) e #445 bce7e9aa (RD-1318) COM ACHADO. Caixa 403.
