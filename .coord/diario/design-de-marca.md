@@ -28,3 +28,4 @@
 2026-11-15 — v1.0.14 rodada 6 — #441 97961dc4 liberado (MC-1520..1523 fechadas); lote a03a9f6f liberado.
 2026-11-15 — v1.0.14 rodada 8 — catálogo c7db7a90 liberado (MC-1524, MC-1525 fechadas; condição para a parte 2).
 2026-11-16 — v1.0.14 rodada 9 — #453 849e5141 liberado; #448 não se aplica.
+2026-11-16 — v1.0.14 rodada 10 (heads novos) — #398 MC-1590/1591, #399 MC-1592, #401 MC-1593 (13 antigas fechadas); #403 liberado; #414–#416 seguem com MC-1515.
