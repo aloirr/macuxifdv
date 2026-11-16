@@ -130,6 +130,8 @@ const TABELAS_0079 = ['plataforma.trabalho', 'catalogo.foto_lote', 'catalogo.fot
 const TABELAS_0080 = ['core.usuario_codigo_fdv_contador'] as const;
 /** Tabela nova da 0081 (T-0181: frases da tela de carga, globais, só por função; t0181-frase-carga.db.test.ts). */
 const TABELAS_0081 = ['plataforma.frase_carga'] as const;
+/** Tabela nova da 0084 (T-0180, ADR 0059 §5: último contato do aparelho por usuário; fora do sync; almoco-alerta-produtividade.db.test.ts). */
+const TABELAS_0084 = ['core.usuario_contato'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -217,6 +219,7 @@ describe('migrações (estático)', () => {
     expect(nomes[80]).toBe('0081_plataforma_frase_carga'); // T-0181: plataforma.frase_carga global (sem tenant_id, só por função), as 30 frases iniciais, 3 sa_* do portal e frases_carga_ativas() do app (t0181-frase-carga.db.test.ts)
     expect(nomes[81]).toBe('0082_vendedor_prazo_percentual_ajuste'); // v1.0.14 (RN-VEN-43 a 46, RN-INT-15): vendedor.prazo_pagamento.percentual_ajuste numeric(5,2) not null default 0 e o retrato vendedor.pedido.prazo_percentual_ajuste, com CHECKs de faixa −99,99..99,99
     expect(nomes[82]).toBe('0083_plataforma_tenant_logo'); // T-0182 (logo do cliente): plataforma.tenant ganha nome_fantasia e as 8 logo_* (tudo ou nada), sa_marca_da_empresa, sa_gravar_nome_fantasia, sa_gravar_logo e sa_remover_logo (tenant-logo.db.test.ts)
+    expect(nomes[83]).toBe('0084_core_almoco_gestor_alerta_produtividade'); // T-0180 (D3–D5, RN-CORE-44): core.usuario.almoco_inicio_min/almoco_fim_min (nulas = padrão da empresa), parado_entre_visitas e sem_checkin_inicio no alerta_tipo_valido e core.usuario_contato (último contato do aparelho, fora do sync) (almoco-alerta-produtividade.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
@@ -279,6 +282,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0079,
         ...TABELAS_0080,
         ...TABELAS_0081,
+        ...TABELAS_0084,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,

@@ -204,8 +204,8 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0181 frases da tela de carga: por
       const linhas = await auditoriaDoPortal(api.admin);
       const inclusoes = linhas.filter((l) => l.acao === 'sa.frase_carga.incluir');
       expect(inclusoes.map((l) => l.detalhes)).toEqual([
-        { frase_id: criadas.nova, numero: 31 },
-        { frase_id: criadas.semId, numero: 32 },
+        { frase_id: criadas.nova, numero: 31, origem: 'banco' },
+        { frase_id: criadas.semId, numero: 32, origem: 'banco' },
       ]);
       expect(inclusoes.map((l) => [l.ator_tipo, l.super_admin_id !== null])).toEqual([['super_admin', true], ['super_admin', true]]);
       const vazou = linhas.filter((l) => textosDeTeste.some((t) => l.bruto.includes(t)) || FRASES_CARGA_INICIAIS.some((f) => l.bruto.includes(f.texto)));
@@ -280,7 +280,7 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0181 frases da tela de carga: por
     it('a auditoria registra sa.frase_carga.editar com texto_mudou, sem o texto', async () => {
       const edicoes = (await auditoriaDoPortal(api.admin)).filter((l) => l.acao === 'sa.frase_carga.editar');
       expect(edicoes.length).toBeGreaterThanOrEqual(3);
-      expect(edicoes[0]!.detalhes).toEqual({ frase_id: criadas.nova, numero: 31, texto_mudou: true, ativa: true });
+      expect(edicoes[0]!.detalhes).toEqual({ frase_id: criadas.nova, numero: 31, texto_mudou: true, ativa: true, origem: 'banco' });
       expect(edicoes.filter((l) => textosDeTeste.some((t) => l.bruto.includes(t) || l.bruto.includes(t.toUpperCase())))).toEqual([]);
     });
   });
