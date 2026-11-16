@@ -6,6 +6,7 @@
  */
 import { definirConsulta } from '@macuxi/platform-sdk';
 import { z } from 'zod';
+import { FilialDoUsuarioSchema } from './filial-usuario';
 
 /** Códigos de erro 422 da filial (a API devolve `ErroRegraNegocio`). */
 export const ERROS_FILIAL = {
@@ -133,3 +134,15 @@ export const FiliaisSaidaSchema = z.object({
 export type FiliaisSaida = z.infer<typeof FiliaisSaidaSchema>;
 
 export const CONSULTA_FILIAIS = definirConsulta({ nome: 'core.filiais@1', entrada: FiliaisEntradaSchema, saida: FiliaisSaidaSchema });
+
+/**
+ * `core.filiais_do_usuario@1` (T-0176, RN-CORE-39 revista): filial de cadastro e filiais de VENDA de um usuário do tenant, de qualquer perfil.
+ * O Catálogo usa `filial_venda_ids` (preço, estoque, filtro, folha); `filial_cadastro_id` é só para exibir. `sem_filial` = sem cadastro (bloqueado).
+ * Usuário inexistente, apagado ou de outro tenant devolve `{ null, [], true }`.
+ */
+export const FiliaisDoUsuarioEntradaSchema = z.object({ usuario_id: Id }).strict();
+export type FiliaisDoUsuarioEntrada = z.infer<typeof FiliaisDoUsuarioEntradaSchema>;
+/** Mesma forma de FilialDoUsuarioSchema. */
+export const FiliaisDoUsuarioSaidaSchema = FilialDoUsuarioSchema;
+export type FiliaisDoUsuarioSaida = z.infer<typeof FiliaisDoUsuarioSaidaSchema>;
+export const CONSULTA_FILIAIS_DO_USUARIO = definirConsulta({ nome: 'core.filiais_do_usuario@1', entrada: FiliaisDoUsuarioEntradaSchema, saida: FiliaisDoUsuarioSaidaSchema });

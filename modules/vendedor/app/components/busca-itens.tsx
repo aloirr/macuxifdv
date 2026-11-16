@@ -5,7 +5,7 @@
  * A lista é feita para receber a busca paginada da T-0167: recebe só a página que o pai monta e não conhece a consulta.
  */
 import type { Product } from '@macuxi/catalogo/contracts';
-import { Balao, Botao, BotaoEditar, colors, fonts, Icon } from '@macuxi/ui/mobile';
+import { Balao, Botao, BotaoEditar, colors, fonte, Icon } from '@macuxi/ui/mobile';
 import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { TrechoServeEm } from '../../domain/busca-seletor';
@@ -138,15 +138,15 @@ const s = StyleSheet.create({
   visor: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center', padding: 16 },
   visorImagem: { width: '100%', height: '80%' },
   traco: { borderTopWidth: 1, borderTopColor: colors.lineSoft },
-  nome: { fontFamily: fonts.body, fontSize: 15, lineHeight: 20, color: colors.ink },
-  nomeForte: { fontFamily: fonts.semibold, color: colors.ink },
+  nome: { ...fonte.body, fontSize: 16, lineHeight: 20, color: colors.ink },
+  nomeForte: { ...fonte.semibold, color: colors.ink },
   nomeLink: { textDecorationLine: 'underline', textDecorationStyle: 'dotted' },
-  detalhe: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink2 },
-  codigo: { fontFamily: fonts.mono, fontSize: 12, color: colors.ink2 },
-  semPreco: { fontFamily: fonts.semibold, fontSize: 12, color: colors.danger },
-  contagem: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
+  detalhe: { ...fonte.body, fontSize: 12, color: colors.ink2 },
+  codigo: { ...fonte.mono, fontSize: 12, color: colors.ink2 },
+  semPreco: { ...fonte.semibold, fontSize: 12, color: colors.danger },
+  contagem: { ...fonte.body, fontSize: 14, color: colors.ink2 },
   semResultado: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: 12, padding: 14, gap: 4 },
-  semResultadoTexto: { fontFamily: fonts.body, fontSize: 14, color: colors.ink },
+  semResultadoTexto: { ...fonte.body, fontSize: 14, color: colors.ink },
   sugestao: { minHeight: 44, justifyContent: 'center' },
-  sugestaoTexto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.accentInk },
+  sugestaoTexto: { ...fonte.semibold, fontSize: 14, color: colors.accentInk },
 });

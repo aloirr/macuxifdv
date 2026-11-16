@@ -11,6 +11,7 @@ import { ClienteListaRespostaSchema, type CarteiraItemPut } from '../../../contr
 import { csvDaCarteira, DIAS_DA_SEMANA, rotuloFrequencia } from '../../lib/carteira';
 import { usePapeisDeCampo, useSellersDeCampo } from '../../lib/queries';
 import type { ClienteDaCarteira } from '../../lib/rotas-api';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
 type Frequencia = 1 | 2 | 4 | null;
 
@@ -115,7 +116,7 @@ function CarteiraConteudo() {
           <Panel title="Vincular cliente">
             <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
               Buscar cliente por nome, CNPJ ou cidade (mínimo 3 letras)
-              <input value={busca} onChange={(e) => setBusca(e.target.value)} data-testid="carteira.busca" disabled={!pode} className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal" />
+              <input value={busca} onChange={(e) => setBusca(e.target.value)} data-testid="carteira.busca" disabled={!pode} className={CLASSE_CAMPO_BKO} />
             </label>
             {candidatos.data && candidatos.data.length === 0 && <p className="mt-2 text-[13px] text-ink-2">Nenhum cliente encontrado.</p>}
             <ul className="mt-2 flex flex-col gap-2">

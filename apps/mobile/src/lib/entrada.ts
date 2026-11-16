@@ -164,6 +164,8 @@ export const ROTULO_ATUALIZANDO = 'Atualizando o app';
 /** Antes do login: o teste do servidor (`/saude`). */
 export const ROTULO_SERVIDOR = 'Conferindo o servidor';
 export const ROTULO_PRONTO = 'Pronto';
+/** Botão do erro da carga e do popup da sincronização completa. */
+export const ROTULO_TENTAR_DE_NOVO = 'Tentar de novo';
 /** Com tudo feito, o Início abre sozinho depois disto (spec §1, estado 5: dá para ver o 100%). */
 export const ESPERA_PRONTO_MS = 600;
 /** Conferir o servidor só mostra a barra se passar disto (sem piscar quando a resposta é rápida). */

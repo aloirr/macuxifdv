@@ -54,6 +54,7 @@ const LINHAS: readonly DefLinha[] = [
   I('usuario-editar', 'usuarios', 'Editar usuário', ['usuario.editar'], 'Nome, e-mail, equipe e perfil.'),
   I('usuario-desativar', 'usuarios', 'Desativar usuário', ['usuario.desativar'], 'Nunca o próprio.'),
   I('usuario-desbloquear', 'usuarios', 'Desbloquear usuário', ['usuario.desbloquear']),
+  I('usuario-filial-editar', 'usuarios', 'Informar a filial do usuário', ['usuario.filial_editar'], 'Filial de cadastro e filiais de venda, a própria inclusive.'),
   { id: 'senha-redefinir', secao: 'usuarios', rotulo: 'Redefinir senha', tipo: 'alvos', chaves: ['senha.redefinir'], ajuda: 'Ninguém redefine a própria senha por aqui: use "Esqueci a senha" no login.' },
   I('perfil-gerir', 'usuarios', 'Gerenciar perfis de acesso', ['perfil.gerir']),
   I('carteira-editar', 'clientes', 'Transferir cliente de carteira', ['carteira.editar'], 'Vincular e desvincular clientes de vendedor ou promotor.'),

@@ -11,7 +11,7 @@
  * `Storage` por parâmetro.
  */
 import { CODIGOS_PORTAL } from '@macuxi/core/contracts';
-import { SessaoPortalSchema } from '@macuxi/platform-sdk';
+import { CODIGO_USUARIO_SEM_FILIAL, SessaoPortalSchema } from '@macuxi/platform-sdk';
 
 /** O apps/web não depende do zod direto: o tipo sai do schema do SDK. */
 export type SessaoPortal = ReturnType<typeof SessaoPortalSchema.parse>;
@@ -254,11 +254,23 @@ export function itensDaEscolha(s: SessaoPortal, fora: readonly string[] = []): I
 
 /** 403 `EMPRESA_NAO_PERMITIDA` (spec §4): aviso na entrada (1 empresa) ou na Escolha quando não se sabe qual empresa foi. */
 export const MENSAGEM_EMPRESA_INDISPONIVEL = 'Esta empresa não está mais disponível para você.';
+/**
+ * RD-1009 (T-0176; RN-CORE-39): só no portal, o admin sem filial é quem se destrava no Backoffice. O app e a tela 16f
+ * seguem com `MENSAGEM_USUARIO_SEM_FILIAL` do SDK; `MENSAGEM_PORTAL_SEM_FILIAL` é só deste arquivo.
+ */
+export const MENSAGEM_PORTAL_SEM_FILIAL = 'Sua conta está sem filial de cadastro. Entre no Backoffice e escolha a sua filial.';
+
 /** 403 `EMPRESA_NAO_PERMITIDA` na Escolha a empresa (2+): o aviso diz o nome, e ela sai da lista (spec §4). */
 export const mensagemDaEmpresaIndisponivel = (nome: string): string => `A empresa ${nome} não está mais disponível para você.`;
 
-/** Empresa que deu 403 `EMPRESA_NAO_PERMITIDA`: sai da lista da Escolha e dá nome ao aviso. */
-export type EmpresaIndisponivel = { id: string; nome: string };
+/**
+ * Empresa que deu 403 `EMPRESA_NAO_PERMITIDA` (ou `USUARIO_SEM_FILIAL`, com `semFilial`): sai da lista da Escolha e dá o aviso.
+ * T-0176 (RN-CORE-39; ADR 0056): sem filial, o aviso é o texto aprovado da conta sem filial, não o de empresa indisponível.
+ */
+export type EmpresaIndisponivel = { id: string; nome: string; semFilial?: true };
+
+/** Aviso da Escolha para a empresa que saiu da lista. */
+export const avisoDaEmpresaIndisponivel = (e: EmpresaIndisponivel): string => (e.semFilial ? MENSAGEM_PORTAL_SEM_FILIAL : mensagemDaEmpresaIndisponivel(e.nome));
 
 /**
  * Sessão sem a empresa `id` (403 `EMPRESA_NAO_PERMITIDA`), quando o resultado ainda é uma sessão válida pelo `SessaoPortalSchema`:
@@ -303,13 +315,26 @@ export type DesvioPortal = { para: 'escolher' | 'entrar'; aviso: string | null; 
 export function desvioDoErro(s: SessaoPortal | null, status: number, codigo: string, tenant?: string): DesvioPortal | null {
   if (!s || s.tipo !== 'admin_cliente') return null;
   if (status === 409 && codigo === CODIGOS_PORTAL.empresaNaoEscolhida) return s.empresas.length >= 2 ? { para: 'escolher', aviso: null } : { para: 'entrar', aviso: null };
-  if (status === 403 && codigo === CODIGOS_PORTAL.empresaNaoPermitida) {
-    if (s.empresas.length < 2) return { para: 'entrar', aviso: MENSAGEM_EMPRESA_INDISPONIVEL };
-    const id = tenant ?? s.empresa?.id;
-    const e = s.empresas.find((x) => x.id === id);
-    return e ? { para: 'escolher', aviso: mensagemDaEmpresaIndisponivel(e.nome), empresa: { id: e.id, nome: e.nome } } : { para: 'escolher', aviso: MENSAGEM_EMPRESA_INDISPONIVEL };
-  }
+  // T-0176 (RN-CORE-39; ADR 0056): o admin real da empresa está sem filial de cadastro (`empresa.sem_filial` no token do portal).
+  // O portal não destrava (a filial se informa no BKO): a empresa sai como no 403 de empresa, com o texto aprovado da conta sem filial.
+  if (status === 403 && codigo === CODIGO_USUARIO_SEM_FILIAL) return desvioDeEmpresaFora(s, tenant, true);
+  if (status === 403 && codigo === CODIGOS_PORTAL.empresaNaoPermitida) return desvioDeEmpresaFora(s, tenant, false);
   return null;
+}
+
+/**
+ * A empresa da chamada (`tenant`; sem ele, a atual) sai da Escolha: com 1 empresa só, volta à entrada. `semFilial` troca o
+ * texto da empresa indisponível pelo da conta sem filial (T-0176).
+ */
+function desvioDeEmpresaFora(s: SessaoPortal, tenant: string | undefined, semFilial: boolean): DesvioPortal {
+  const avisoGeral = semFilial ? MENSAGEM_PORTAL_SEM_FILIAL : MENSAGEM_EMPRESA_INDISPONIVEL;
+  if (s.empresas.length < 2) return { para: 'entrar', aviso: avisoGeral };
+  const id = tenant ?? s.empresa?.id;
+  const e = s.empresas.find((x) => x.id === id);
+  if (!e) return { para: 'escolher', aviso: avisoGeral };
+  return semFilial
+    ? { para: 'escolher', aviso: avisoGeral, empresa: { id: e.id, nome: e.nome, semFilial: true } }
+    : { para: 'escolher', aviso: mensagemDaEmpresaIndisponivel(e.nome), empresa: { id: e.id, nome: e.nome } };
 }
 
 let desvio: DesvioPortal | null = null;
@@ -332,7 +357,7 @@ export function retirarDesvioPortal(): DesvioPortal | null {
 
 /** Aviso para a próxima tela (entrada ou escolha): só o texto fixo da spec, nunca dado pessoal. Vale uma vez. */
 export const CHAVE_AVISO_PORTAL = 'macuxi.portal.aviso';
-const AVISOS_ACEITOS: readonly string[] = [MENSAGEM_EMPRESA_INDISPONIVEL];
+const AVISOS_ACEITOS: readonly string[] = [MENSAGEM_EMPRESA_INDISPONIVEL, MENSAGEM_PORTAL_SEM_FILIAL];
 
 export function guardarAvisoPortal(aviso: string, st: Storage | null = armazenamento()) {
   if (!AVISOS_ACEITOS.includes(aviso)) return;
@@ -361,7 +386,7 @@ export const CHAVE_EMPRESA_INDISPONIVEL = 'macuxi.portal.empresa-indisponivel';
 
 export function guardarEmpresaIndisponivel(e: EmpresaIndisponivel, st: Storage | null = armazenamento()) {
   try {
-    st?.setItem(CHAVE_EMPRESA_INDISPONIVEL, JSON.stringify({ id: e.id, nome: e.nome }));
+    st?.setItem(CHAVE_EMPRESA_INDISPONIVEL, JSON.stringify({ id: e.id, nome: e.nome, ...(e.semFilial ? { semFilial: true } : {}) }));
   } catch {
     // sem storage: a Escolha abre sem o aviso (a sessão já saiu sem a empresa, quando possível)
   }
@@ -372,9 +397,10 @@ export function consumirEmpresaIndisponivel(st: Storage | null = armazenamento()
     const bruto = st?.getItem(CHAVE_EMPRESA_INDISPONIVEL) ?? null;
     st?.removeItem(CHAVE_EMPRESA_INDISPONIVEL);
     if (!bruto) return null;
-    const x = JSON.parse(bruto) as { id?: unknown; nome?: unknown };
+    const x = JSON.parse(bruto) as { id?: unknown; nome?: unknown; semFilial?: unknown };
     const ok = typeof x.id === 'string' && x.id.length > 0 && x.id.length <= 64 && typeof x.nome === 'string' && x.nome.length > 0 && x.nome.length <= 200;
-    return ok ? { id: x.id as string, nome: x.nome as string } : null;
+    if (!ok) return null;
+    return { id: x.id as string, nome: x.nome as string, ...(x.semFilial === true ? { semFilial: true as const } : {}) };
   } catch {
     return null;
   }

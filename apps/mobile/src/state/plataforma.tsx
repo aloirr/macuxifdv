@@ -34,7 +34,9 @@ import {
 } from '@macuxi/core/app';
 import type { FakeUser, Me } from '@macuxi/core/contracts';
 import {
+  CODIGO_USUARIO_SEM_FILIAL,
   ErroHttp,
+  MENSAGEM_USUARIO_SEM_FILIAL,
   mensagemPerfilForaDoApp,
   perfilDaFaseM,
   type AberturaArmazenamento,
@@ -71,6 +73,7 @@ import { router } from 'expo-router';
 import { AppState } from 'react-native';
 
 import { criarTratadorAparelhoBloqueado } from '@/lib/aparelho-bloqueado';
+import { criarTratadorSemFilial } from '@/lib/sem-filial';
 import {
   agendarSemPressa,
   ESPERA_TELA_PREPARO_MS,
@@ -80,6 +83,13 @@ import {
 import { limparHistoricoDoShell } from '@/lib/historico-telas';
 import { deveSincronizar, type MotivoSync } from '@/lib/carga';
 import { proximaEsperaFila } from '@/lib/fila-reenvio';
+import {
+  decidirPedidoSync,
+  pedidoDoAgendador,
+  rodarSync,
+  type PedidoSync,
+  type TipoSync,
+} from '@/lib/sync-completa';
 import {
   mesmoEstadoDePermissoes,
   permissoesLiberadas,
@@ -122,7 +132,11 @@ import {
 } from '@/services/segundo-plano';
 import { gravarErro } from '@/services/erros';
 import { atualizarFrasesDaCarga } from '@/services/frase-carga';
-import { atualizarDiagnosticoRemoto, ligarEnvioDeDiagnosticos, useDiagnosticoNuvem } from '@/services/diagnostico';
+import {
+  atualizarDiagnosticoRemoto,
+  ligarEnvioDeDiagnosticos,
+  useDiagnosticoNuvem,
+} from '@/services/diagnostico';
 import { registrarSaidaAnterior } from '@/services/saida-android';
 import { apiDoAndroid, executarAcaoDePermissao, lerPermissoes } from '@/services/permissoes';
 import { keys, readJson, writeJson } from '@/services/storage';
@@ -227,8 +241,16 @@ function usePlataformaValor() {
   /** RN-CORE-15: aviso de aparelho bloqueado (dados apagados) que fica visível na tela de login. */
   const [avisoLogin, setAvisoLogin] = useState<string | null>(null);
   const aparelhoBloqueadoRef = useRef<((erro: unknown) => Promise<boolean>) | null>(null);
+  /**
+   * T-0176 (RN-CORE-39, tela 13): usuário sem filial de cadastro. O login fica aberto com o aviso no lugar do erro; `email` =
+   * de quem saiu da sessão pelo 403, para o login reabrir preenchido. Nada é apagado do aparelho.
+   */
+  const [semFilial, setSemFilial] = useState<{ email: string | null } | null>(null);
+  const semFilialRef = useRef<((erro: unknown) => Promise<boolean>) | null>(null);
   /** T-0059: sincronização do shell em curso (inclui a consulta dos módulos antes do motor) e quando começou. */
   const syncEmCursoRef = useRef<Promise<boolean> | null>(null);
+  /** Tipo da sincronização em curso (R-20261115-100000: a completa pedida durante a parcial não se junta a ela). */
+  const tipoEmCursoRef = useRef<TipoSync | null>(null);
   const ultimoInicioRef = useRef<number | null>(null);
   /** Abriu o app com sessão e carga gravada: vai direto ao Início e sincroniza em segundo plano (R-20261102-091336). */
   const sincronizarAoAbrirRef = useRef(false);
@@ -237,10 +259,7 @@ function usePlataformaValor() {
   const [segundoPlano, setSegundoPlano] = useState<ResultadoSegundoPlano | null>(null);
   /** RN-CORE-23: agendador único do app (abrir, voltar depois de 30 min, `sync_auto_min`, push, puxar/botão). */
   const [agendador, setAgendador] = useState<AgendadorSync | null>(null);
-  const [estadoAgendador, setEstadoAgendador] = useState<EstadoAgendadorSync>({
-    puxando: false,
-    recente: false,
-  });
+  const [estadoAgendador, setEstadoAgendador] = useState<EstadoAgendadorSync>({ puxando: false });
   /**
    * T-0088: armazenamento aberto da sessão (SQLite do usuário e tenant ou o AsyncStorage de reserva). O motor e a
    * tarefa em segundo plano usam a MESMA instância; o logout fecha sem apagar.
@@ -298,7 +317,11 @@ function usePlataformaValor() {
         sessaoRef.current?.token ?? null,
         modo === 'v1' ? () => renovarRef.current?.() ?? Promise.resolve(null) : undefined,
         // qualquer chamada (fila, pull, etapas, telas) que receba 423 DISPOSITIVO_BLOQUEADO limpa o aparelho
-        (e) => void aparelhoBloqueadoRef.current?.(e).catch(() => undefined),
+        (e) => {
+          void aparelhoBloqueadoRef.current?.(e).catch(() => undefined);
+          // T-0176: 403 USUARIO_SEM_FILIAL em qualquer chamada (rota, módulos, sync) volta ao login sem apagar nada
+          void semFilialRef.current?.(e).catch(() => undefined);
+        },
       ),
     [modo],
   );
@@ -329,7 +352,10 @@ function usePlataformaValor() {
 
   // T-0097 (a): a miniatura do catálogo que está no armazenamento da plataforma (`/v1/arquivos/<id>`) é baixada pelo shell com
   // o token da sessão (lê a sessão e o sinal por ref) e aberta do cache do app; sem sessão ou sem sinal fica vazia
-  useEffect(() => ligarResolvedorMiniatura(api, () => !offlineRef.current && sessaoRef.current !== null), [api]);
+  useEffect(
+    () => ligarResolvedorMiniatura(api, () => !offlineRef.current && sessaoRef.current !== null),
+    [api],
+  );
   // T-0147: o visualizador da foto do PDV baixa com o mesmo token e o mesmo sinal (só em memória)
   useEffect(() => ligarFonteFotoPdv(api, () => !offlineRef.current && sessaoRef.current !== null), [api]);
 
@@ -514,15 +540,20 @@ function usePlataformaValor() {
   }, [api, modo]);
 
   /**
-   * Sincronização completa. Uma por vez (T-0059): quem chama durante uma em curso recebe a mesma promessa, sem
-   * consultar os módulos de novo nem reiniciar a carga. Telas navegam pelo ESTADO do motor, não por esta promessa.
+   * Sincronização do app (R-20261115-100000, `lib/sync-completa.ts`): parcial (botão, puxar para baixo e selo: fila + pedidos e
+   * clientes), completa (segurar 10 s, tela de carga: fila + módulos + tudo) ou leve (automática e aviso: novidades). Uma por
+   * vez (T-0059): quem chama durante uma em curso recebe a mesma promessa, sem consultar os módulos de novo nem reiniciar a
+   * carga; só a completa pedida durante uma parcial ou leve roda, depois da em curso (`rodarSync` espera ela; o motor, ADR 0057). Telas
+   * navegam pelo ESTADO do motor, não por esta promessa.
    */
   const executarSync = useCallback(
-    (leve: { entidades?: readonly string[] } | null): Promise<boolean> => {
+    (pedido: PedidoSync): Promise<boolean> => {
       const m = motorRef.current;
       // T-0145: sem as permissões obrigatórias nada sincroniza (nem a carga, nem o agendador, nem o botão)
       if (!m || !permissoesOkRef.current) return Promise.resolve(false);
-      if (syncEmCursoRef.current) return syncEmCursoRef.current;
+      const emCurso = syncEmCursoRef.current;
+      const decisao = decidirPedidoSync(pedido.tipo, emCurso ? tipoEmCursoRef.current : null);
+      if (emCurso && decisao === 'juntar') return emCurso;
       ultimoInicioRef.current = Date.now();
       // T-0140: a sincronização do app (inclui a carga inicial) segura a trava única: a tarefa sem tela não começa junto
       travaSync.entrar('sincronizacao');
@@ -535,34 +566,29 @@ function usePlataformaValor() {
           if (motorRef.current !== m) return false;
           await m.carregar();
         }
-        if (offlineRef.current) return m.sincronizar();
-        // leve com o motor novo: a própria chamada de novidades traz os módulos efetivos (1 requisição sem mudança)
-        // (T-0065: `motor.sincronizarNovidades` + `transporteV1.novidades`). Demonstração (Fase M, sem novidades): completa
-        if (leve && modo === 'v1')
-          return m.sincronizarNovidades(leve.entidades ? { entidades: leve.entidades } : {});
-        // spec rota-catalogo-perfil §4: a completa (botão Sincronizar, puxar para baixo) reenvia também os itens que falharam;
-        // o "Enviar agora" do Perfil saiu
-        await m.enviar({ incluirFalhos: true });
-        try {
+        // a completa pedida durante uma parcial ou leve espera a em curso antes do envio e dos módulos.
+        // T-0181: com os módulos (só na completa), as frases da carga, sem segurar a carga; a falha mantém a lista anterior
+        const modulosEFrases = async () => {
+          if (modo === 'v1') void atualizarFrasesDaCarga(api());
           await atualizarModulos();
-        } catch {
-          // sem rede: o motor registra o erro na sincronização abaixo
-        }
-        // T-0181: as frases da carga (plataforma), sem segurar a carga; a falha mantém a lista anterior
-        if (modo === 'v1') void atualizarFrasesDaCarga(api());
-        return m.sincronizar();
+        };
+        return rodarSync(pedido, m, { modo, offline: offlineRef.current, atualizarModulos: modulosEFrases, emCurso });
       })().finally(() => {
         travaSync.sair('sincronizacao');
-        if (syncEmCursoRef.current === p) syncEmCursoRef.current = null;
+        if (syncEmCursoRef.current === p) {
+          syncEmCursoRef.current = null;
+          tipoEmCursoRef.current = null;
+        }
       });
       syncEmCursoRef.current = p;
+      tipoEmCursoRef.current = pedido.tipo;
       return p;
     },
     [api, atualizarModulos, modo],
   );
 
-  /** Sincronização completa (botão Sincronizar, puxar para baixo, tela de carga): envia a fila e puxa na hora. */
-  const sincronizar = useCallback((): Promise<boolean> => executarSync(null), [executarSync]);
+  /** Sincronização completa (segurar 10 s no Sincronizar, tela de carga, modo sem sinal desligado): envia a fila e puxa tudo. */
+  const sincronizar = useCallback((): Promise<boolean> => executarSync({ tipo: 'completa' }), [executarSync]);
 
   /** Sincroniza só se faz sentido agora (`deveSincronizar`): não reinicia a carga em andamento nem a que acabou de terminar. */
   const sincronizarSeNecessario = useCallback(
@@ -592,6 +618,7 @@ function usePlataformaValor() {
     async (s: Sessao, refresh: string | null) => {
       await gravarTokens({ access: s.token, refresh });
       setAvisoLogin(null);
+      setSemFilial(null);
       const { token: _token, ...semToken } = s;
       await writeJson(keys.session, semToken);
       sessaoRef.current = s;
@@ -647,7 +674,10 @@ function usePlataformaValor() {
 
   /** Sessão recebida do login ou da troca de senha: salva o código da empresa, confere o perfil da variante e abre o app. */
   const concluirLogin = useCallback(
-    async (r: Awaited<ReturnType<typeof entrarComSenha>>, post: (caminho: string, corpo: unknown) => Promise<unknown>) => {
+    async (
+      r: Awaited<ReturnType<typeof entrarComSenha>>,
+      post: (caminho: string, corpo: unknown) => Promise<unknown>,
+    ) => {
       const codigo = r.tenant.codigo;
       setCodigoSalvo(codigo);
       await writeJson(CHAVE_CODIGO_EMPRESA, codigo);
@@ -656,6 +686,14 @@ function usePlataformaValor() {
       if (fora) {
         await post('/auth/logout', { refresh_token: r.refresh_token }).catch(() => undefined);
         throw new ErroHttp(403, 'PERFIL_FORA_DO_APP', fora);
+      }
+      // T-0176 (RN-CORE-39): a senha está certa, mas a conta não tem filial de cadastro. O app não entra: encerra a sessão
+      // recém-criada e o login mostra o aviso da tela 13; depois que o admin informa a filial, o mesmo "Entrar" funciona
+      // `sem_filial` do `UsuarioSessao` do Core (T-0176); ausente = emissor antigo = livre
+      if (r.usuario.sem_filial === true) {
+        await post('/auth/logout', { refresh_token: r.refresh_token }).catch(() => undefined);
+        setSemFilial({ email: r.usuario.email });
+        throw new ErroHttp(403, CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL);
       }
       const user: UsuarioSessao = {
         id: r.usuario.id,
@@ -681,6 +719,8 @@ function usePlataformaValor() {
    */
   const loginComSenha = useCallback(
     async (campos: CamposLogin) => {
+      // nova tentativa: o aviso de sem filial só volta se a API ainda disser que falta a filial
+      setSemFilial(null);
       const { endereco, post } = await postSemSessao();
       // o servidor acabou de responder: é a hora de mandar as saídas que ficaram na fila (logout sem sinal)
       void reenviarSaidasPendentes(endereco).catch(() => undefined);
@@ -762,6 +802,7 @@ function usePlataformaValor() {
     desassinarRef.current?.();
     desassinarRef.current = null;
     syncEmCursoRef.current = null;
+    tipoEmCursoRef.current = null;
     ultimoInicioRef.current = null;
     sincronizarAoAbrirRef.current = false;
     const usuarioId = sessaoRef.current?.user.id;
@@ -819,6 +860,9 @@ function usePlataformaValor() {
     // e o próximo login do mesmo usuário e tenant reabre o mesmo arquivo, com a fila offline que ficou
     await fecharArmazenamentoDoUsuario(aberto?.arquivo ?? null).catch(() => undefined);
   }, [modo, fecharSessaoLocal]);
+  // o tratador do sem filial é criado uma vez: lê o `logout` atual por ref
+  const logoutRef = useRef(logout);
+  logoutRef.current = logout;
 
   /** T-0088: "Tentar de novo" da tela de erro do armazenamento (arquivo do SQLite que não abriu). */
   const tentarAbrirDeNovo = useCallback(async () => {
@@ -863,6 +907,25 @@ function usePlataformaValor() {
     tratarAparelhoBloqueado,
     ehAparelhoBloqueado,
   );
+
+  /**
+   * T-0176 (RN-CORE-39; ADR 0056): 403 `USUARIO_SEM_FILIAL` com o usuário logado. Espera a sincronização em curso, sai como no
+   * "Sair" (fecha o banco do usuário SEM apagar dados nem a fila offline) e volta ao login com o aviso da tela 13.
+   */
+  semFilialRef.current ??= criarTratadorSemFilial({
+    temSessao: () => sessaoRef.current !== null,
+    email: () => sessaoRef.current?.user.email ?? null,
+    esperarSync: () => syncEmCursoRef.current ?? Promise.resolve(),
+    sair: () => logoutRef.current(),
+    avisar: (email) => setSemFilial({ email }),
+    irParaLogin: () => {
+      try {
+        router.replace('/login');
+      } catch {
+        // navegação ainda não montada: sem sessão, as abas já redirecionam ao login
+      }
+    },
+  });
 
   /** 401 na API real: troca o refresh por um par novo (uma troca por vez). Refresh recusado = sessão encerrada. */
   const renovando = useRef<Promise<string | null> | null>(null);
@@ -938,8 +1001,9 @@ function usePlataformaValor() {
     const m = motor;
     const ag = criarAgendadorSync({
       intervaloMs: () => intervaloSyncAutoMs(m.parametros('core')[PARAMETRO_SYNC_AUTO]),
+      // R-20261115-100000: `manual` (botão, puxar para baixo, selo) = parcial; os outros = leve
       sincronizar: (motivo: MotivoAgendador, entidades?: readonly string[]) =>
-        motivo === 'manual' ? executarSync(null) : executarSync(entidades ? { entidades } : {}),
+        executarSync(pedidoDoAgendador(motivo, entidades)),
       ultimaSincronizacao: () => {
         const em = m.estado().sincronizado_em;
         const ms = em ? Date.parse(em) : NaN;
@@ -1052,15 +1116,13 @@ function usePlataformaValor() {
   useEffect(() => {
     if (!motor) return;
     // com o app vivo neste processo, a tarefa usa ESTE motor (mesma promessa de `sincronizar`, nada em paralelo)
-    const semApp = registrarAppAberto(
-      {
-        sincronizadoEm: () => motor.estado().sincronizado_em,
-        prepararSessao: async () => 'ok',
-        // ADR 0018 item 8: a passada é a atualização leve (novidades), como a automática do app
-        sincronizar: () => executarSync({}),
-        erro: () => motor.estado().erro,
-      },
-    );
+    const semApp = registrarAppAberto({
+      sincronizadoEm: () => motor.estado().sincronizado_em,
+      prepararSessao: async () => 'ok',
+      // ADR 0018 item 8: a passada é a atualização leve (novidades), como a automática do app
+      sincronizar: () => executarSync({ tipo: 'leve' }),
+      erro: () => motor.estado().erro,
+    });
     // T-0140: a tarefa não mexe em estado de React; o Diagnóstico relê o resultado dela quando o app volta ao primeiro plano
     const semVolta = AppState.addEventListener('change', (st) => {
       if (st !== 'active') return;
@@ -1142,6 +1204,7 @@ function usePlataformaValor() {
     perfil,
     me,
     avisoLogin,
+    semFilial,
     offline,
     motor,
     ambiente: ambienteTela,

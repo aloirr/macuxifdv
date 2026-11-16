@@ -108,6 +108,16 @@ describe('Progresso: árvore', () => {
     expect(raiz.props['aria-valuetext']).toBe('50%');
   });
 
+  it("mostrarRotulo='valor' mostra só o número; o rótulo fica só no aria-label (RD-0615)", () => {
+    const { raiz, linha } = montar({ valor: 120, maximo: 340, rotulo: 'Enviando', textoValor: '120 de 340 MB', mostrarRotulo: 'valor' });
+    expect(linha).not.toBeNull();
+    const textos = (Array.isArray(linha?.props.children) ? linha?.props.children : [linha?.props.children]) as unknown[];
+    const visiveis = textos.filter(Boolean).map((t) => (t as No).props.children);
+    expect(visiveis).toEqual(['120 de 340 MB']);
+    expect(raiz.props['aria-label']).toBe('Enviando');
+    expect(raiz.props['aria-valuetext']).toBe('120 de 340 MB');
+  });
+
   it('className da tela entra no contêiner', () => {
     expect(montar({ valor: 1, rotulo: 'A', className: 'w-60' }).raiz.props.className).toContain('w-60');
   });

@@ -33,6 +33,10 @@ Você é o agente dono do **módulo Integracao** — a fatia vertical inteira do
 - App: offline-first (lê do SQLite, escreve na outbox), alvos de toque ≥ 48 dp, até 3 toques nas tarefas frequentes, mensagens de erro em português com a ação seguinte.
 - BKO: tabelas densas, filtros na URL, exportar CSV, permissões refletidas na UI (a proteção real é na API).
 
+## Lições de 15/11 (R-20261115-213800-alexandre)
+- Grafo do turbo (erro 5, #439 com caminho fora do pacote, R2): `protocolo-recados`.
+- **Migração da Integração** (erro 2: a 0081 repetiu a da carga): o número da migração é do `banco-dados`, pela ordem de merge (R-20261115-140000). Não crie migração no seu branch.
+
 ## Seus caminhos (só aqui você altera arquivos)
 `modules/integracao/` (exceto `modules/integracao/db/`, que é do banco-dados) e `docs/modulos/integracao/` e `apps/conector/`.
 
