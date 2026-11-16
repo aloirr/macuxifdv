@@ -17,11 +17,11 @@ Saem o de-para (mapeamento), os cards "Pedidos no ERP", conectores, alertas, car
 | Coluna | Conteúdo | Largura | Prioridade |
 |---|---|---|---|
 | Entidade | `ROTULO_ENTIDADE` (ex.: Clientes) | 20% | 1 |
-| Lote | 8 primeiros caracteres do id, fonte mono; id inteiro no `title` | 9% | 2 |
+| Lote | 8 primeiros caracteres do id, fonte mono; id inteiro no `title` | 10% | 2 |
 | Início | `15/11 14:31` | 11% | 1 |
 | Duração | `2 min 10 s` | 10% | 2 |
 | Conclusão | `15/11 14:33`; **célula vazia** em andamento (o selo já diz "Em andamento" e a Duração conta ao vivo) | 11% | 3 |
-| Status | um `Badge` (seção 4) | 18% | 1 |
+| Status | um `Badge` (seção 4) | 16% | 1 |
 | Linhas integradas | número (`numero: true`): `1.240`; se houve erro, `1.180 de 1.240` | 14% | 1 |
 | (ações) | `MenuAcoes` "⋯", só nas linhas com ação (seção 5); nas outras a célula fica vazia | 52 px | 1 |
 
