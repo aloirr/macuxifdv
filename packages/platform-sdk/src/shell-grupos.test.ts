@@ -4,11 +4,35 @@
  */
 import { describe, expect, it } from 'vitest';
 import { defineModule } from './manifesto';
-import { compararRotuloMenu, criarShell, definirModuloShell, grupoDoMenu, GRUPOS_MENU, ROTULO_GRUPO_MENU } from './shell';
+import {
+  compararGrupoMenu,
+  compararRotuloMenu,
+  criarShell,
+  definirModuloShell,
+  grupoDoMenu,
+  GRUPOS_MENU,
+  ROTULO_GRUPO_MENU,
+  ROTULO_SECAO_PARAMETROS,
+  SECOES_PARAMETROS,
+} from './shell';
 
-describe('GRUPOS_MENU e rótulos (ADR 0050)', () => {
-  it('9 grupos, cada um com o rótulo do M2', () => {
-    expect(GRUPOS_MENU).toEqual(['acesso', 'analise', 'cadastros', 'comercial', 'comunicacao', 'conteudo_campo', 'operacao', 'produtos', 'sistema']);
+describe('GRUPOS_MENU e rótulos (ADR 0050 revista pela 0060)', () => {
+  it('13 grupos, cada um com o rótulo; Comercial e Conteúdo de campo deprecados até o shell migrar', () => {
+    expect(GRUPOS_MENU).toEqual([
+      'acesso',
+      'analise',
+      'cadastros',
+      'comercial',
+      'comunicacao',
+      'conteudo_campo',
+      'operacao',
+      'parametros',
+      'pesquisa',
+      'produtos',
+      'sistema',
+      'trade',
+      'treinamento',
+    ]);
     expect(GRUPOS_MENU.map((g) => ROTULO_GRUPO_MENU[g])).toEqual([
       'Acesso',
       'Análise',
@@ -17,39 +41,95 @@ describe('GRUPOS_MENU e rótulos (ADR 0050)', () => {
       'Comunicação',
       'Conteúdo de campo',
       'Operação',
+      'Parâmetros',
+      'Pesquisa',
       'Produtos',
       'Sistema',
+      'Trade',
+      'Treinamento',
+    ]);
+  });
+
+  it('D1: alfabético com Parâmetros e Sistema fixos no fim, nesta ordem (aceita o grupo "Mais" do shell)', () => {
+    const grupos = [...GRUPOS_MENU.map((id) => ({ id: id as string, titulo: ROTULO_GRUPO_MENU[id] })), { id: 'mais', titulo: 'Mais' }];
+    expect(grupos.sort(compararGrupoMenu).map((g) => g.titulo)).toEqual([
+      'Acesso',
+      'Análise',
+      'Cadastros',
+      'Comercial',
+      'Comunicação',
+      'Conteúdo de campo',
+      'Mais',
+      'Operação',
+      'Pesquisa',
+      'Produtos',
+      'Trade',
+      'Treinamento',
+      'Parâmetros',
+      'Sistema',
+    ]);
+  });
+
+  it('13 seções de Parâmetros com os rótulos da spec e a Integração (De-para, R-20261115-110600)', () => {
+    expect(SECOES_PARAMETROS.map((s) => ROTULO_SECAO_PARAMETROS[s])).toEqual([
+      'Acesso',
+      'Alertas',
+      'Calendário',
+      'Clientes',
+      'Início',
+      'Integração',
+      'Metas e RV',
+      'Pedidos',
+      'Pesquisa',
+      'Produtos',
+      'Trade',
+      'Treinamento',
+      'Visitas',
     ]);
   });
 });
 
-describe('grupoDoMenu: grupo do M2 com a transição dos grupos antigos', () => {
+describe('grupoDoMenu: grupo final com a transição dos grupos antigos', () => {
   it('grupo novo declarado vale como está; sem grupo = operacao', () => {
     expect(grupoDoMenu('gestor', { id: 'painel', grupo: 'analise' })).toBe('analise');
     expect(grupoDoMenu('vendedor', { id: 'pedidos' })).toBe('operacao');
-    expect(grupoDoMenu('core', { id: 'qualquer', grupo: 'conteudo_campo' })).toBe('conteudo_campo');
+    expect(grupoDoMenu('core', { id: 'qualquer', grupo: 'trade' })).toBe('trade');
   });
 
-  it('transição: o grupo de hoje vira o grupo do M2', () => {
+  it('transição: o grupo de antes vira o grupo final (ADR 0060)', () => {
     expect(grupoDoMenu('core', { id: 'usuarios', grupo: 'administracao' })).toBe('acesso');
     expect(grupoDoMenu('core', { id: 'clientes', grupo: 'operacao' })).toBe('cadastros');
     expect(grupoDoMenu('core', { id: 'clientes' })).toBe('cadastros');
     expect(grupoDoMenu('core', { id: 'recados', grupo: 'operacao' })).toBe('comunicacao');
     expect(grupoDoMenu('core', { id: 'produtos', grupo: 'cadastros' })).toBe('produtos');
-    expect(grupoDoMenu('vendedor', { id: 'formas-pagamento', grupo: 'administracao' })).toBe('comercial');
-    expect(grupoDoMenu('promotor', { id: 'cadastros', grupo: 'cadastros' })).toBe('conteudo_campo');
+    expect(grupoDoMenu('vendedor', { id: 'formas-pagamento', grupo: 'administracao' })).toBe('cadastros');
+    expect(grupoDoMenu('vendedor', { id: 'transportadoras', grupo: 'comercial' })).toBe('cadastros');
+    expect(grupoDoMenu('vendedor', { id: 'transportadoras', grupo: 'cadastros' })).toBe('cadastros');
+    expect(grupoDoMenu('promotor', { id: 'cadastros', grupo: 'conteudo_campo' })).toBe('trade');
+    expect(grupoDoMenu('promotor', { id: 'trade', grupo: 'analise' })).toBe('trade');
+    expect(grupoDoMenu('pesquisa', { id: 'pesquisas', grupo: 'cadastros' })).toBe('pesquisa');
+    expect(grupoDoMenu('treinamento', { id: 'trilhas', grupo: 'conteudo_campo' })).toBe('treinamento');
     expect(grupoDoMenu('integracao', { id: 'monitor', grupo: 'administracao' })).toBe('sistema');
   });
 
-  it('página que já declara o grupo novo não passa pela tabela', () => {
+  it('transição para Parâmetros: a página fica no grupo parametros (não vira item)', () => {
+    expect(grupoDoMenu('core', { id: 'perfis', grupo: 'acesso' })).toBe('parametros');
+    expect(grupoDoMenu('core', { id: 'plano-rv', grupo: 'comercial' })).toBe('parametros');
+    expect(grupoDoMenu('vendedor', { id: 'alcadas', grupo: 'cadastros' })).toBe('parametros');
+    expect(grupoDoMenu('gestor', { id: 'regras-alerta', grupo: 'administracao' })).toBe('parametros');
+  });
+
+  it('página que já declara o grupo final não passa pela tabela', () => {
     expect(grupoDoMenu('core', { id: 'clientes', grupo: 'cadastros' })).toBe('cadastros');
     expect(grupoDoMenu('core', { id: 'recados', grupo: 'comunicacao' })).toBe('comunicacao');
-    // o módulo escolheu outro grupo que não o "de" da tabela: vale o declarado
+    // o módulo escolheu outro grupo que não um "de" da tabela: vale o declarado
     expect(grupoDoMenu('core', { id: 'usuarios', grupo: 'sistema' })).toBe('sistema');
   });
 
-  it("'administracao' fora da tabela cai em Sistema", () => {
+  it("fora da tabela: 'administracao' cai em Sistema; 'comercial' e 'conteudo_campo' em Cadastros", () => {
     expect(grupoDoMenu('gestor', { id: 'nova-config', grupo: 'administracao' })).toBe('sistema');
+    expect(grupoDoMenu('gestor', { id: 'outra', grupo: 'comercial' })).toBe('cadastros');
+    expect(grupoDoMenu('gestor', { id: 'outra', grupo: 'conteudo_campo' })).toBe('cadastros');
   });
 });
 
