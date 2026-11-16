@@ -1162,3 +1162,18 @@ por usuário; no máximo 1 escrita por minuto por usuário.
 Volta: `0084_core_almoco_gestor_alerta_produtividade.down.sql` (apaga `core.usuario_contato`, os 3 CHECKs e as 2 colunas; o
 almoço próprio se perde e todos voltam ao padrão; o último contato volta no próximo sync de cada aparelho). Volte antes o Core
 que lê ou grava. Teste: `db/testes/almoco-alerta-produtividade.db.test.ts`.
+
+## 0085 — filial matriz para o usuário sem filial de cadastro (`0085_core_usuario_filial_matriz`; v1.0.14, RN-CORE-39, R-20261116-093600-alexandre)
+Correção só de **dados** (nenhuma tabela, coluna, índice, RLS ou grant muda). Desde a v1.0.13 o usuário sem filial de cadastro
+recebe 403 `USUARIO_SEM_FILIAL`; a 0085 dá a **filial matriz** do tenant a todo usuário vivo (`deleted_at` nulo, ativo ou não)
+com `filial_cadastro_id` nulo. Quem já tem filial de cadastro fica com a dela; usuário apagado não muda.
+
+**Matriz** (por tenant, só filiais vivas e ativas): 1) a de CNPJ com sufixo de estabelecimento `0001` (só dígitos, 14, posições
+9 a 12); 2) empate entre várias /0001, ou tenant sem /0001: a de **menor código** (só dígitos antes, em ordem numérica, depois
+texto; desempate pelo id; `core.filial` não tem coluna de ordem); 3) tenant sem filial viva e ativa: nada muda.
+
+Grava a matriz também como filial de **venda** (`core.usuario_filial`) quando o usuário ainda não a tem viva (invariante
+`usuario_filial_inclui_cadastro` da 0077); as vendas que ele já tinha ficam. O `updated_at` do usuário anda (o sync puxa a filial e
+o app sai do bloqueio). Idempotente. Roda como o migrador (políticas `manutencao`, 0031). Sem `plataforma.auditoria` (nenhum
+backfill de migração grava lá). Volta: `0085_core_usuario_filial_matriz.down.sql` é no-op documentado (os dados ficam). Teste:
+`db/testes/usuario-filial-matriz.db.test.ts`.
