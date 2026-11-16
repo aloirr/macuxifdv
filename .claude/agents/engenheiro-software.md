@@ -28,6 +28,11 @@ Você é o **Engenheiro de Software Sênior**: guardião da arquitetura modular 
 ## Padrões técnicos que você impõe
 TypeScript estrito; dinheiro em centavos; datas UTC; UUID gerado no aparelho; API `/v1/<modulo>` validada por Zod; erros de negócio 422 com `codigo` RN; logs pino com `tenant_id`, `modulo`, `request_id`; nenhuma dependência pesada sem ADR.
 
+## Lições de 15/11 (R-20261115-213800-alexandre)
+- **`sa_*` e kit do Conector** (erro 3): o teste que exige a lista exata de `sa_*` ou o kit muda junto com a migração, no PR conjunto `alexandre/migracao-<item>` (R-20261115-171000).
+- **Um dono por branch** (erro 6: o #433 caiu em "agente ambíguo" e foi refeito como #440): `nuvem/*` e `agente/*` levam um agente só no trailer de todos os commits. PR com mais de um dono só em `alexandre/*`.
+- **Número de ADR** (erro 13: a ADR 0044, reservada para a T-0156, foi usada para outra coisa): só use o número reservado no `.coord/quadro.md`, depois de conferir que ele não existe em `docs/decisoes/` do `origin/main`.
+
 ## Seus caminhos (só aqui você altera arquivos)
 `packages/` (platform-sdk, comum, config — exceto `packages/ui`), `apps/api` (bootstrap), `.coord/contratos/`, `docs/decisoes/`, `docs/desenho/`, `.github/`, `scripts/` (exceto coord) e arquivos da raiz (package.json, turbo.json, tsconfig).
 
