@@ -6,11 +6,20 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ROTULO_PERFIL, type ModuloId } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, CampoSenha, IconeModulo, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, useToast, rotuloDoPerfil, type AcaoDoMenu, type IdDoModulo } from '@macuxi/ui/web';
-import { CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type LicencasEstado, type UsuarioItem } from '../../../contracts';
+import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, CampoSenha, IconeModulo, IconUser, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, useToast, rotuloDoPerfil, type AcaoDoMenu, type IdDoModulo } from '@macuxi/ui/web';
+import { FiliaisListaSchema, CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, VincularErpRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type LicencasEstado, type UsuarioItem } from '../../../contracts';
 import { efetivosPelasDependencias } from '../../../domain/licencas';
 import {
   acaoDeSenha,
+  codigoFdvParaLista,
+  corpoDeVinculoErp,
+  emailParaLista,
+  podeVincularErp,
+  provisoriosParaVincular,
+  textoDaOpcaoDoProvisorio,
+  textoDaConfirmacaoDoVinculo,
+  textoDoVinculoErp,
+  tituloDaConfirmacaoDoVinculo,
   corpoDeRedefinicao,
   faltasDaSenhaDigitada,
   gerarSenhaNoNavegador,
@@ -32,12 +41,12 @@ import {
   seloDoUsuario,
   type SeloDoUsuario,
 } from '../../lib/usuarios';
+import { alternarVenda, avisoSemFilial, descricaoParaLeitor, erroDaFilialCadastro, escolherCadastro, estaSemFilial, filiaisEmOrdem, filtrarPorFilial, FILTRO_FILIAL_SEM, mostraColunaFilial, nomeDaFilialDe, ROTULO_FILIAL_DE_CADASTRO, SELO_SEM_FILIAL, vendaTravada } from '../../lib/filial-usuario';
 import { regrasDoCargo } from '../../../domain/cargos';
 import { modulosExibiveis, removidosDoFormulario } from '../../lib/acesso';
 import { efetivosDoUsuario } from '../../lib/licencas';
 import { useMe } from '../../lib/queries';
-
-const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 const BOTAO_LINHA = 'h-[44px] min-w-[88px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled';
 
 type Modal = { tipo: 'form'; usuario: UsuarioItem | null } | { tipo: 'ativo'; usuario: UsuarioItem } | { tipo: 'senha'; usuario: UsuarioItem } | null;
@@ -79,6 +88,7 @@ export function UsuariosConteudo() {
   const podeDesativar = usePode('usuario.desativar');
   const podeSenha = usePode('senha.redefinir');
   const podeDesbloquear = usePode('usuario.desbloquear');
+  const podeFilial = usePode('usuario.filial_editar');
   const fuso = useMe().data.tenant.timezone;
   const [agora, setAgora] = useState(() => new Date());
   const [anuncio, setAnuncio] = useState('');
@@ -95,6 +105,15 @@ export function UsuariosConteudo() {
   // e-mail que não saiu: a senha aparece UMA vez, da memória da tela, e some ao fechar o aviso ou sair da página
   const [semEmail, setSemEmail] = useState<Extract<ResultadoDoEmail, { tipo: 'sem_email' }> | null>(null);
   const toast = useToast();
+  const [vinculo, setVinculo] = useState<{ real: UsuarioItem; escolhido: string; etapa: 'escolher' | 'confirmar'; erro: string | null } | null>(null);
+  const copiarCodigoFdv = async (codigo: string) => {
+    try {
+      await navigator.clipboard.writeText(codigo);
+      toast('success', 'Código copiado');
+    } catch {
+      toast('danger', 'Não foi possível copiar. Selecione o código e copie.');
+    }
+  };
   const copiarSenha = async (senha: string) => {
     try {
       await navigator.clipboard.writeText(senha);
@@ -107,14 +126,17 @@ export function UsuariosConteudo() {
   const q = params.get('q') ?? '';
   const perfil = params.get('perfil') ?? '';
   const situacao = params.get('situacao') ?? '';
+  const filialFiltro = params.get('filial') ?? '';
+  const provisorios = params.get('provisorios') === '1';
 
   const lista = useQuery({
-    queryKey: ['core', 'usuarios', q, perfil, situacao],
+    queryKey: ['core', 'usuarios', q, perfil, situacao, provisorios],
     queryFn: async () => {
       const qs = new URLSearchParams();
       if (q) qs.set('q', q);
       if (perfil) qs.set('perfil', perfil);
       if (situacao) qs.set('ativo', situacao === 'ativo' ? 'true' : 'false');
+      if (provisorios) qs.set('provisorio', 'true');
       return UsuarioListaRespostaSchema.parse(await api(`/core/usuarios${qs.size ? `?${qs.toString()}` : ''}`)).itens;
     },
   });
@@ -141,6 +163,11 @@ export function UsuariosConteudo() {
   // RN-CORE-55 (0069): supervisores e gerentes para a hierarquia da gaveta, de todos os ativos (a lista da tela pode estar filtrada)
   const ativosQ = useQuery({ queryKey: ['core', 'usuarios', 'ativos'], queryFn: async () => UsuarioListaRespostaSchema.parse(await api('/core/usuarios?ativo=true')).itens });
   const ativos = ativosQ.data ?? [];
+  // filiais para a coluna, o filtro e a gaveta (RN-CORE-39); quem não consegue lê-las vê a lista sem a coluna
+  const filiaisQ = useQuery({ queryKey: ['core', 'filiais', 'opcoes'], queryFn: async () => FiliaisListaSchema.parse(await api('/core/filiais')).itens.filter((f) => f.ativo), retry: false });
+  const filiais = filiaisEmOrdem(filiaisQ.data ?? []);
+  const semFilialNoApp = ativos.filter(estaSemFilial).length;
+  const aviso0 = avisoSemFilial(semFilialNoApp, filialFiltro);
 
   const fechar = () => {
     setModal(null);
@@ -198,11 +225,11 @@ export function UsuariosConteudo() {
   const salvar = useMutation({
     mutationFn: async ({ editando, corpo }: { editando: UsuarioItem | null; corpo: FormularioUsuario }) => {
       if (editando) {
-        await api(`/core/usuarios/${editando.id}`, { method: 'PUT', body: corpoDeEdicao(corpo, cargo) });
+        await api(`/core/usuarios/${editando.id}`, { method: 'PUT', body: corpoDeEdicao(corpo, cargo, podeFilial) });
         await gravarModulos(editando.id, licencas?.usuarios.find((x) => x.id === editando.id)?.removidos ?? []);
         return null;
       }
-      const criado = CriarUsuarioRespostaSchema.parse(await api('/core/usuarios', { method: 'POST', body: corpoDeCriacao(corpo, cargo) }));
+      const criado = CriarUsuarioRespostaSchema.parse(await api('/core/usuarios', { method: 'POST', body: corpoDeCriacao(corpo, cargo, podeFilial) }));
       await gravarModulos(criado.id, []);
       return criado;
     },
@@ -217,6 +244,18 @@ export function UsuariosConteudo() {
     mutationFn: async (u: UsuarioItem) => api(`/core/usuarios/${u.id}/ativo`, { method: 'PUT', body: { ativo: !u.ativo } }),
     onSuccess: (_r, u) => concluir(u.ativo ? 'Usuário desativado.' : 'Usuário reativado.'),
     onError: (e) => setErroApi(errorMessage(e)),
+  });
+  const vincular = useMutation({
+    mutationFn: async ({ provisorio, real }: { provisorio: UsuarioItem; real: UsuarioItem }) => VincularErpRespostaSchema.parse(await api(`/core/usuarios/${provisorio.id}/vincular-erp`, { method: 'POST', body: corpoDeVinculoErp(real.id) })),
+    onSuccess: async (r, { provisorio, real }) => {
+      setVinculo(null);
+      toast('success', textoDoVinculoErp(r, real.nome));
+      setForm((f) => ({ ...f, external_id: r.external_id }));
+      if (modal?.tipo === 'form' && modal.usuario?.id === real.id) setModal({ tipo: 'form', usuario: { ...modal.usuario, external_id: r.external_id } });
+      qc.setQueriesData<UsuarioItem[]>({ queryKey: ['core', 'usuarios'] }, (velha) => velha?.filter((x) => x.id !== provisorio.id));
+      await qc.invalidateQueries({ queryKey: ['core', 'usuarios'] });
+    },
+    onError: (e) => setVinculo((v) => (v ? { ...v, erro: errorMessage(e) } : v)),
   });
   const redefinir = useMutation({
     mutationFn: async (u: UsuarioItem) => api(`/core/usuarios/${u.id}/senha`, { method: 'PUT', body: corpoDeRedefinicao(novaSenha) }),
@@ -275,10 +314,12 @@ export function UsuariosConteudo() {
   const comSenha = (f: FormularioUsuario): FormularioUsuario => (editando ? f : { ...f, senha: f.senha || gerarSenhaNoNavegador() });
   const erros = modal?.tipo === 'form' ? errosDoFormulario(comSenha(form), editando ? 'editar' : 'criar', { cargo, pessoas: pessoasDaLista(ativos) }) : [];
   const erroDe = (campo: string) => (tentou ? erros.find((e) => e.campo === campo)?.mensagem : undefined);
-  const ocupado = salvar.isPending || alternar.isPending || redefinir.isPending;
+  const ocupado = salvar.isPending || alternar.isPending || redefinir.isPending || vincular.isPending;
   const upd = (patch: Partial<FormularioUsuario>) => setForm((f) => ({ ...f, ...patch }));
 
-  const itens = lista.data ?? [];
+  const itens = filtrarPorFilial(lista.data ?? [], filialFiltro);
+  const comColunaFilial = mostraColunaFilial(filialFiltro);
+  const colunas = comColunaFilial ? 7 : 6;
   // um perfil por usuário (0069, R-20261114-153500)
   const rotuloDoPerfilDe = (u: UsuarioItem) => (u.perfis[0] ? rotuloDoPerfil(u.perfis[0].codigo, { nome: u.perfis[0].nome }) : ROTULO_PERFIL[u.perfil]);
   const supervisores = opcoesDeChefia(ativos, 'supervisor', cargo === 'promotor' ? form.gerente_id : '').filter((u) => u.id !== editando?.id);
@@ -359,15 +400,25 @@ export function UsuariosConteudo() {
       <span className="sr-only" aria-live="polite" data-testid="usuarios.anuncio">
         {anuncio}
       </span>
+      {aviso0 && (
+        <Notice tone="warning">
+          <span className="flex flex-wrap items-center gap-3" data-testid="usuarios.aviso-sem-filial">
+            {aviso0.texto}
+            <button type="button" className={BOTAO_LINHA} onClick={() => set({ filial: FILTRO_FILIAL_SEM, q: null, perfil: null, situacao: 'ativo' })} data-testid="usuarios.ver-sem-filial">
+              {aviso0.botao}
+            </button>
+          </span>
+        </Notice>
+      )}
       <FilterBar>
         <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
-          Buscar por nome ou e-mail
+          Buscar
           <input
             defaultValue={q}
             onKeyDown={(e) => e.key === 'Enter' && set({ q: e.currentTarget.value })}
             onBlur={(e) => set({ q: e.currentTarget.value })}
             data-testid="usuarios.busca"
-            className={CAMPO}
+            className={CLASSE_CAMPO_BKO}
           />
         </label>
         <SelectField label="Perfil" value={perfil} onChange={(e) => set({ perfil: e.target.value })} data-testid="usuarios.filtro-perfil">
@@ -383,6 +434,21 @@ export function UsuariosConteudo() {
           <option value="ativo">Ativos</option>
           <option value="inativo">Inativos</option>
         </SelectField>
+        <SelectField label="Provisórios" value={provisorios ? '1' : ''} onChange={(e) => set({ provisorios: e.target.value })} data-testid="usuarios.filtro-provisorios">
+          <option value="">Todos os usuários</option>
+          <option value="1">Só provisórios</option>
+        </SelectField>
+        {filiaisQ.data && (
+          <SelectField label="Filial de cadastro" value={filialFiltro} onChange={(e) => set({ filial: e.target.value })} data-testid="usuarios.filtro-filial">
+            <option value="">Todas</option>
+            <option value={FILTRO_FILIAL_SEM}>{SELO_SEM_FILIAL}</option>
+            {filiais.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.nome}
+              </option>
+            ))}
+          </SelectField>
+        )}
       </FilterBar>
 
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
@@ -396,6 +462,8 @@ export function UsuariosConteudo() {
                 <th className={th}>Nome</th>
                 <th className={th}>E-mail</th>
                 <th className={th}>Perfil</th>
+                {comColunaFilial && <th className={th}>Filial</th>}
+                <th className={th}>Código FDV</th>
                 <th className={th}>Módulos</th>
                 <th className={th}>
                   <span className="sr-only">Ações</span>
@@ -405,7 +473,7 @@ export function UsuariosConteudo() {
             <tbody>
               {itens.length === 0 && (
                 <tr>
-                  <td className={td} colSpan={5}>
+                  <td className={td} colSpan={colunas}>
                     Nenhum usuário com esses filtros. Limpe a busca ou os filtros para ver todos.
                   </td>
                 </tr>
@@ -418,6 +486,11 @@ export function UsuariosConteudo() {
                     <td className={td}>
                       <span className="flex flex-wrap items-center gap-2">
                         {u.nome}
+                        {u.provisorio && (
+                          <span data-testid={`usuarios.provisorio.${u.id}`}>
+                            <Badge tone="neutral">Provisório</Badge>
+                          </span>
+                        )}
                         {selo && (
                           <span data-testid={`usuarios.selo.${u.id}`}>
                             <Badge tone={selo.tom}>{selo.texto}</Badge>
@@ -425,8 +498,16 @@ export function UsuariosConteudo() {
                         )}
                       </span>
                     </td>
-                    <td className={`${td} whitespace-nowrap`}>{u.email}</td>
+                    <td className={`${td} whitespace-nowrap`}>{emailParaLista(u)}</td>
                     <td className={td}>{rotuloDoPerfilDe(u)}</td>
+                    {comColunaFilial && (
+                      <td className={td} data-testid={`usuarios.filial.${u.id}`}>
+                        {estaSemFilial(u) ? <Badge tone="danger">{SELO_SEM_FILIAL}</Badge> : (nomeDaFilialDe(u, filiais) ?? '—')}
+                      </td>
+                    )}
+                    <td className={`${td} font-mono`} data-testid={`usuarios.codigo-fdv.${u.id}`}>
+                      {codigoFdvParaLista(u)}
+                    </td>
                     <td className={td}>
                       {modulos === null ? (
                         '—'
@@ -456,7 +537,7 @@ export function UsuariosConteudo() {
             setTentou(true);
             setErroApi(null);
             const corpo = comSenha(form);
-            if (erros.length === 0 && !ocupado) salvar.mutate({ editando, corpo });
+            if (erros.length === 0 && !erroDaFilialCadastro(form, podeFilial) && !ocupado) salvar.mutate({ editando, corpo });
           }}
         >
           {editando && seloDaGaveta?.bloqueado && (
@@ -468,16 +549,16 @@ export function UsuariosConteudo() {
             </div>
           )}
           <Campo rotulo="Nome" erro={erroDe('nome')}>
-            <input ref={campoNome} value={form.nome} onChange={(e) => upd({ nome: e.target.value })} className={CAMPO} data-testid="usuarios.campo-nome" />
+            <input ref={campoNome} value={form.nome} onChange={(e) => upd({ nome: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-nome" />
           </Campo>
           <Campo rotulo="E-mail" erro={erroDe('email')}>
-            <input type="email" value={form.email} onChange={(e) => upd({ email: e.target.value })} className={CAMPO} data-testid="usuarios.campo-email" />
+            <input type="email" value={form.email} onChange={(e) => upd({ email: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-email" />
           </Campo>
           <Campo rotulo="Perfil" erro={tentou && form.perfis.length === 0 ? ERRO_SEM_PERFIL : undefined}>
             <select
               value={form.perfis[0] ?? ''}
               onChange={(e) => upd({ perfis: e.target.value ? [e.target.value] : [], perfil: opcoesDePerfil.find((p) => p.codigo === e.target.value)?.base ?? form.perfil })}
-              className={CAMPO}
+              className={CLASSE_CAMPO_BKO}
               data-testid="usuarios.campo-perfis"
             >
               <option value="">Escolha…</option>
@@ -493,7 +574,7 @@ export function UsuariosConteudo() {
               <select
                 value={form.gerente_id}
                 onChange={(e) => upd({ gerente_id: e.target.value, ...(cargo === 'promotor' && ativos.find((x) => x.id === form.supervisor_id)?.gerente_id !== e.target.value ? { supervisor_id: '' } : {}) })}
-                className={CAMPO}
+                className={CLASSE_CAMPO_BKO}
                 data-testid="usuarios.campo-gerente"
               >
                 <option value="">Escolha…</option>
@@ -507,7 +588,7 @@ export function UsuariosConteudo() {
           )}
           {regras.supervisor !== 'nao' && (
             <Campo rotulo="Supervisor" erro={erroDe('supervisor_id')}>
-              <select value={form.supervisor_id} onChange={(e) => upd({ supervisor_id: e.target.value })} className={CAMPO} data-testid="usuarios.campo-supervisor">
+              <select value={form.supervisor_id} onChange={(e) => upd({ supervisor_id: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-supervisor">
                 <option value="">{regras.supervisor === 'opcional' ? 'Sem supervisor' : 'Escolha…'}</option>
                 {supervisores.map((x) => (
                   <option key={x.id} value={x.id}>
@@ -519,12 +600,75 @@ export function UsuariosConteudo() {
           )}
           {regras.nomeEquipe !== 'nao' && (
             <Campo rotulo="Nome da equipe" erro={erroDe('equipe_nome')}>
-              <input value={form.equipe_nome} maxLength={80} onChange={(e) => upd({ equipe_nome: e.target.value })} className={CAMPO} data-testid="usuarios.campo-equipe-nome" />
+              <input value={form.equipe_nome} maxLength={80} onChange={(e) => upd({ equipe_nome: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-equipe-nome" />
+            </Campo>
+          )}
+          {podeFilial && (
+            <>
+              <Campo rotulo="Filial de cadastro" erro={erroDaFilialCadastro(form, tentou)}>
+                <select value={form.filial_cadastro_id} onChange={(e) => upd(escolherCadastro(form, e.target.value))} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-filial-cadastro">
+                  <option value="">Escolha…</option>
+                  {filiais.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.nome}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+              <fieldset className="m-0 flex flex-col gap-2 border-0 p-0" data-testid="usuarios.filiais-venda">
+                <legend className="mb-1 p-0 text-[13px] font-semibold text-ink">Filiais de venda</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {filiais.map((f) => {
+                    const travada = vendaTravada(form, f.id);
+                    return (
+                      <label key={f.id} className={`flex min-h-[48px] items-center gap-3 rounded-xl border border-line px-3 text-[15px] font-semibold text-ink ${travada ? 'bg-ground' : 'bg-surface'}`}>
+                        <input
+                          type="checkbox"
+                          className="h-5 w-5 accent-accent"
+                          checked={form.filial_venda_ids.includes(f.id)}
+                          aria-disabled={travada || undefined}
+                          aria-label={descricaoParaLeitor(f.nome, form, f.id)}
+                          onChange={() => !travada && upd(alternarVenda(form, f.id))}
+                          data-testid={`usuarios.filial-venda.${f.id}`}
+                        />
+                        <span className="flex flex-wrap items-baseline gap-x-2">
+                          {f.nome}
+                          {travada && <span className="text-[12px] font-normal text-ink-2">{ROTULO_FILIAL_DE_CADASTRO}</span>}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            </>
+          )}
+          {editando && (
+            <Campo rotulo="Código FDV">
+              <span className="flex items-center gap-2 rounded-xl border border-line bg-ground px-3 py-1" data-testid="usuarios.codigo-fdv">
+                <span className="flex-1 font-mono text-[15px] font-medium text-ink" data-testid="usuarios.campo-codigo-fdv">
+                  {codigoFdvParaLista(editando)}
+                </span>
+                {editando.codigo_fdv && (
+                  <button type="button" aria-label="Copiar código FDV" onClick={() => void copiarCodigoFdv(editando.codigo_fdv!)} className="flex h-[36px] w-[36px] items-center justify-center rounded-lg border border-line bg-surface text-ink" data-testid="usuarios.copiar-codigo-fdv">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                      <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+                      <path d="M10.5 3.5V3a1.5 1.5 0 0 0-1.5-1.5H3A1.5 1.5 0 0 0 1.5 3v6A1.5 1.5 0 0 0 3 10.5h.5" />
+                    </svg>
+                  </button>
+                )}
+              </span>
             </Campo>
           )}
           <Campo rotulo="Código no ERP" erro={erroDe('external_id')}>
-            <input value={form.external_id} maxLength={100} onChange={(e) => upd({ external_id: e.target.value })} className={CAMPO} data-testid="usuarios.campo-external-id" />
+            <input value={form.external_id} maxLength={100} onChange={(e) => upd({ external_id: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-external-id" />
           </Campo>
+          {editando && podeEditar && podeVincularErp(ativos, editando) && form.external_id.trim() === '' && (
+            <div>
+              <Button onClick={() => setVinculo({ real: editando, escolhido: '', etapa: 'escolher', erro: null })} data-testid="usuarios.vincular">
+                <IconUser size={18} /> Vincular vendedor do ERP
+              </Button>
+            </div>
+          )}
           {licencas && (
             <fieldset className="m-0 flex flex-col gap-1 border-0 p-0" data-testid="usuarios.modulos-campo">
               <legend className="mb-1 p-0 text-[13px] font-semibold text-ink">Módulos</legend>
@@ -532,7 +676,7 @@ export function UsuariosConteudo() {
                 const noPerfil = doPerfil.includes(m.id);
                 const marcado = efetivosDoForm.includes(m.id);
                 return (
-                  <label key={m.id} className={`flex min-h-[48px] items-center gap-3 rounded-xl border border-line bg-surface px-3 text-[14px] font-semibold ${noPerfil ? 'text-ink' : 'text-disabled'}`}>
+                  <label key={m.id} className={`flex min-h-[48px] items-center gap-3 rounded-xl border border-line bg-surface px-3 text-[15px] font-semibold ${noPerfil ? 'text-ink' : 'text-disabled'}`}>
                     <input
                       type="checkbox"
                       className="h-5 w-5 accent-accent"
@@ -570,6 +714,61 @@ export function UsuariosConteudo() {
           </div>
         </form>
       </Drawer>
+
+      {vinculo &&
+        (() => {
+          const opcoes = provisoriosParaVincular(ativos, vinculo.real);
+          const escolhido = opcoes.find((x) => x.id === vinculo.escolhido);
+          const confirmando = vinculo.etapa === 'confirmar' && escolhido;
+          return (
+            <Dialog
+              open
+              title={confirmando ? tituloDaConfirmacaoDoVinculo(escolhido, vinculo.real) : 'Vincular vendedor do ERP'}
+              onClose={() => setVinculo(null)}
+              footer={
+                confirmando ? (
+                  <>
+                    <Button onClick={() => setVinculo({ ...vinculo, etapa: 'escolher', erro: null })} data-testid="usuarios.vincular-voltar">
+                      Voltar
+                    </Button>
+                    <Button variant="primary" disabled={vincular.isPending} onClick={() => vincular.mutate({ provisorio: escolhido, real: vinculo.real })} data-testid="usuarios.vincular-confirmar">
+                      {vincular.isPending ? 'Vinculando…' : 'Vincular'}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button onClick={() => setVinculo(null)} data-testid="usuarios.vincular-cancelar">
+                      Cancelar
+                    </Button>
+                    <Button variant="primary" disabled={!escolhido} onClick={() => setVinculo({ ...vinculo, etapa: 'confirmar', erro: null })} data-testid="usuarios.vincular-continuar">
+                      Continuar
+                    </Button>
+                  </>
+                )
+              }
+            >
+              <div className="flex flex-col gap-3">
+                {confirmando ? (
+                  <p className="m-0">{textoDaConfirmacaoDoVinculo(escolhido)}</p>
+                ) : (
+                  <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
+                    <legend className="mb-2 p-0 text-[15px] font-normal text-ink">Escolha o vendedor provisório que é {vinculo.real.nome}.</legend>
+                    {opcoes.map((x) => (
+                      <label key={x.id} className={`flex min-h-[56px] items-center gap-3 rounded-xl border px-3 text-[15px] ${vinculo.escolhido === x.id ? 'border-2 border-accent' : 'border-line'}`}>
+                        <input type="radio" name="provisorio" className="h-5 w-5 accent-accent" checked={vinculo.escolhido === x.id} onChange={() => setVinculo({ ...vinculo, escolhido: x.id })} data-testid={`usuarios.vincular-opcao.${x.id}`} />
+                        <span className="flex flex-col">
+                          <span className="font-semibold text-ink">{x.nome}</span>
+                          <span className="text-[13px] text-ink-2">{textoDaOpcaoDoProvisorio(x)}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </fieldset>
+                )}
+                {vinculo.erro && <Notice tone="danger">{vinculo.erro}</Notice>}
+              </div>
+            </Dialog>
+          );
+        })()}
 
       <Dialog
         open={modal?.tipo === 'ativo'}

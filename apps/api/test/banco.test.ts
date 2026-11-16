@@ -77,6 +77,8 @@ describe.skipIf(semBanco())('API × Postgres (papel macuxi_app)', () => {
     // ctx.fuso() (T-0035): fuso de plataforma.tenant, só do tenant do token (A = Manaus, B = São Paulo)
     expect(v1.fuso).toBe('America/Manaus');
     expect(adminB.fuso).toBe('America/Sao_Paulo');
+    // T-0182: nome e logo da empresa nas chaves reservadas do Core (sem nome fantasia = razão social; sem logo = null)
+    expect(v1.parametros.core).toMatchObject({ empresa_nome: expect.any(String), empresa_logo: null });
   });
 
   it('GET /v1/me/modulos com o banco real: vendedor, promotor e admin de B (exceção remove o Vendedor)', async () => {
