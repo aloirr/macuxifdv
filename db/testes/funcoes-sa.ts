@@ -188,9 +188,9 @@ export const FUNCOES_SA_PLANOS = [
 ] as const;
 
 /**
- * As sa_* públicas do banco migrado até a ÚLTIMA: as 27 até a 0080 (FUNCOES_SA_ATE_0080) + as de cada lote da v1.0.14, uma
- * constante por lote (FUNCOES_SA_CARGA, 3; FUNCOES_SA_LOGO, 4; FUNCOES_SA_PLANOS, 3) = 37. Use esta lista nas conferências pelo catálogo do banco
- * migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040 ou 0041.
+ * As sa_* públicas do banco migrado até a ÚLTIMA: as até a 0080 (FUNCOES_SA_ATE_0080) + uma constante por lote da v1.0.14
+ * (FUNCOES_SA_CARGA, FUNCOES_SA_LOGO, FUNCOES_SA_PLANOS). Use esta lista nas conferências pelo catálogo do banco migrado até o
+ * fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040 ou 0041.
  */
 export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0080, ...FUNCOES_SA_CARGA, ...FUNCOES_SA_LOGO, ...FUNCOES_SA_PLANOS] as const;
 

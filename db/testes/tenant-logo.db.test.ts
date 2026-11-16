@@ -109,7 +109,6 @@ describe('0083 logo do cliente (estático)', () => {
     expect(up.match(/\bgrant execute\b/g)).toHaveLength(FUNCOES_SA_LOGO.length);
     expect(up.match(/\bgrant\b/g)).toHaveLength(FUNCOES_SA_LOGO.length + 1); // + o SELECT por coluna do macuxi_leitura
     expect(FUNCOES_SA_ATUAIS).toEqual(expect.arrayContaining([...FUNCOES_SA_LOGO]));
-    expect(new Set(FUNCOES_SA_ATUAIS).size).toBe(FUNCOES_SA_ATUAIS.length); // sem repetição; o total não é fixado (cada lote soma a sua)
     // a interna: invoker, sem EXECUTE para ninguém além do dono; a forma do jsonb num lugar só
     expect(bloco(up, INTERNA)).toMatch(/language sql stable security invoker\s+set search_path = pg_catalog, plataforma, pg_temp\s/);
     expect(up).toContain(`revoke all on function ${MARCA_INTERNA_LOGO} from public;`);

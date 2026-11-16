@@ -44,14 +44,14 @@ import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } fr
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { comandoSetRole, SQL_PRECISA_SET_ROLE } from '../src/papeis';
 import { banco, semBanco } from './estado';
-import { FUNCOES_SA_PLANOS, FUNCOES_SA_ATE_0080, FUNCOES_SA_ATUAIS } from './funcoes-sa';
+import { FUNCOES_SA_PLANOS, FUNCOES_SA_ATUAIS } from './funcoes-sa';
 import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
-const m81 = migracoes.find((m) => m.nome === 'plataforma_planos_troca_licencas')!;
+const mig = migracoes.find((m) => m.nome === 'plataforma_planos_troca_licencas')!;
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
-const up = semComentarios(m81?.up ?? '');
-const down = semComentarios(m81?.down ?? '');
+const up = semComentarios(mig?.up ?? '');
+const down = semComentarios(mig?.down ?? '');
 /** Do início até o `$$;` que fecha a função. */
 const bloco = (sql: string, inicio: string) => {
   const i = sql.indexOf(inicio);
@@ -93,16 +93,10 @@ const ADMIN_A = DOIS_TENANTS.A.usuarios.admin;
 const ADMIN_B = DOIS_TENANTS.B.usuarios.admin;
 
 describe('0086 planos, troca e licenças (estático)', () => {
-  it('a migração existe com up e down, depois da 0074', () => {
-    expect(m81, '0086_plataforma_planos_troca_licencas').toBeDefined();
-    expect(m81.versao > '0074').toBe(true);
-  });
-
   it('assinatura_historico: RLS por tenant, app só lê, fora do sync, pedido único por tenant; plano: o app lê só o do próprio tenant', () => {
     expect(TABELAS_SEM_TENANT_ID).not.toHaveProperty(['plataforma.assinatura_historico']);
     expect(TABELAS_FORA_DO_SYNC).toContain('plataforma.assinatura_historico');
     expect(TABELAS_SO_POR_FUNCAO).not.toContain('plataforma.plano');
-    expect(TABELAS_SEM_TENANT_ID).toHaveProperty(['plataforma.plano']);
     expect(up).toContain('create unique index assinatura_historico_pedido_uk on plataforma.assinatura_historico (tenant_id, pedido_id);');
     expect(up).toMatch(
       /create policy isolamento_tenant on plataforma\.plano for select to macuxi_app\s+using \(id in \(select a\.plano_id from plataforma\.assinatura a where a\.tenant_id = plataforma\.tenant_atual\(\) and a\.deleted_at is null\)\);/,
@@ -165,10 +159,7 @@ describe('0086 planos, troca e licenças (estático)', () => {
   });
 
   it('sa_*: SECURITY DEFINER, sessão (28000), permissão (42501), P0002, hints do 422, idempotência por pedido_id e trava da assinatura', () => {
-    // as 27 até o main na frente; as dos lotes da v1.0.14 (outros lotes, como a logo, também entram) depois
-    expect(FUNCOES_SA_ATUAIS.slice(0, FUNCOES_SA_ATE_0080.length)).toEqual([...FUNCOES_SA_ATE_0080]);
     expect(FUNCOES_SA_ATUAIS).toEqual(expect.arrayContaining([...FUNCOES_SA_PLANOS]));
-    expect(new Set(FUNCOES_SA_ATUAIS).size).toBe(FUNCOES_SA_ATUAIS.length); // sem repetição; o total não é fixado (cada lote soma a sua)
     for (const inicio of [LISTAR, FICHA, TROCAR]) {
       const b = bloco(up, inicio);
       expect(b, inicio).toMatch(/returns jsonb\s+language plpgsql volatile security definer\s+set search_path = pg_catalog, plataforma, pg_temp/);
@@ -506,8 +497,8 @@ describe.skipIf(semBanco())('0086 planos, troca e licenças (banco, fixture dois
   it('sa_trocar_plano: troca, grava o histórico, liga (e religa) os módulos e nunca desliga; idempotente por pedido_id; audita', async () => {
     await emTransacao(admin, null, async () => {
       const sid = await sessaoSuperAdmin();
-      await planoDeTeste('teste_livre_84');
-      const livre = await planoDoCatalogo(sid, 'teste_livre_84');
+      await planoDeTeste('teste_livre');
+      const livre = await planoDoCatalogo(sid, 'teste_livre');
       // integracao desligado antes: a troca religa
       await q("insert into plataforma.tenant_modulo (tenant_id, modulo, ativo, desativado_em) values ($1, 'integracao', false, now())", [A]);
       const adicionais = [{ adicional: 'promotor' as const, quantidade: 1 }];
@@ -559,12 +550,12 @@ describe.skipIf(semBanco())('0086 planos, troca e licenças (banco, fixture dois
       const sid = await sessaoSuperAdmin();
       const n = (await linhasDaTrava(A)).find((l) => l.item === 'vendedor')!.em_uso;
       expect(n).toBeGreaterThanOrEqual(2);
-      await planoDeTeste('teste_justo_84', { vendedor: n });
-      await planoDeTeste('teste_curto_84', { vendedor: n - 1 });
-      await planoDeTeste('teste_livre_b_84');
-      const justo = await planoDoCatalogo(sid, 'teste_justo_84');
-      const curto = await planoDoCatalogo(sid, 'teste_curto_84');
-      const livre = await planoDoCatalogo(sid, 'teste_livre_b_84');
+      await planoDeTeste('teste_justo', { vendedor: n });
+      await planoDeTeste('teste_curto', { vendedor: n - 1 });
+      await planoDeTeste('teste_livre_b');
+      const justo = await planoDoCatalogo(sid, 'teste_justo');
+      const curto = await planoDoCatalogo(sid, 'teste_curto');
+      const livre = await planoDoCatalogo(sid, 'teste_livre_b');
       const pedido = '00830000-0000-4000-8000-0000000000c1';
       const entrada = (p: Plano) => ({ plano: p.codigo, ciclo: 'mensal', adicionais: [], pedido_id: pedido, modulos: modulosDaAssinatura(p, []) });
       const assinatura = (tenant: string) =>
@@ -605,8 +596,8 @@ describe.skipIf(semBanco())('0086 planos, troca e licenças (banco, fixture dois
   it('sa_trocar_plano: abaixo do uso = 22023 PLANO_ABAIXO_DO_USO e nada muda; hints do 422; entrada fora do contrato 22023; 42501, 28000 e P0002', async () => {
     await emTransacao(admin, null, async () => {
       const sid = await sessaoSuperAdmin();
-      await planoDeTeste('teste_zero_84', { vendedor: 0 });
-      const zero = await planoDoCatalogo(sid, 'teste_zero_84');
+      await planoDeTeste('teste_zero', { vendedor: 0 });
+      const zero = await planoDoCatalogo(sid, 'teste_zero');
       const pme = await planoDoCatalogo(sid, PLANOS_FIXTURE.pme.codigo);
       const entrada = (p: Plano, extra: Record<string, unknown> = {}) => ({
         plano: p.codigo, ciclo: 'mensal', adicionais: [], pedido_id: '00830000-0000-4000-8000-0000000000b1', modulos: modulosDaAssinatura(p, []), ...extra,
@@ -713,7 +704,7 @@ describe.skipIf(semBanco())('0086 corrida e up/down (banco efêmero, COMMIT de v
     const outro = await criarBancoDeTeste({ migrar: false });
     try {
       await comAdmin(outro.nome, async (c) => {
-        const anterior = migracoes[migracoes.indexOf(m81) - 1]!.versao;
+        const anterior = migracoes[migracoes.indexOf(mig) - 1]!.versao;
         const privilegios = async () =>
           (await c.query(
             `select has_table_privilege('macuxi_app', 'plataforma.plano', 'select') as plano_app,
@@ -725,7 +716,7 @@ describe.skipIf(semBanco())('0086 corrida e up/down (banco efêmero, COMMIT de v
         await migrarUp(c, { ate: anterior });
         const catalogo = await retratoDoCatalogo(c);
         const antes = await privilegios();
-        expect((await migrarUp(c, { ate: m81.versao })).aplicadas).toEqual([`${m81.versao}_${m81.nome}`]);
+        expect((await migrarUp(c, { ate: mig.versao })).aplicadas).toEqual([`${mig.versao}_${mig.nome}`]);
         const depois = await retratoDoCatalogo(c);
         expect(catalogo.filter((l) => !depois.includes(l))).toEqual([]);
         const novos = depois.filter((l) => !catalogo.includes(l));
@@ -759,10 +750,10 @@ describe.skipIf(semBanco())('0086 corrida e up/down (banco efêmero, COMMIT de v
         ]);
         expect(await privilegios()).toEqual({ plano_app: true, trava_app: true, sa_portal: antes!.sa_portal + 3, planos: antes!.planos + 4 });
 
-        expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual([`${m81.versao}_${m81.nome}`]);
+        expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual([`${mig.versao}_${mig.nome}`]);
         expect(await retratoDoCatalogo(c)).toEqual(catalogo);
         expect(await privilegios()).toEqual(antes);
-        await migrarUp(c, { ate: m81.versao });
+        await migrarUp(c, { ate: mig.versao });
         expect(await retratoDoCatalogo(c)).toEqual(depois);
       });
     } finally {

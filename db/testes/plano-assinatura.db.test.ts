@@ -1,7 +1,7 @@
 /**
  * 0070 e 0071 — planos e licenças no banco (ADR 0047; portal config. enxuto, R-20261114-170600 e R-20261114-181000). Dicionário:
  * docs/banco/plataforma.md ("Planos e assinatura (0070)"). O que o BANCO garante:
- * - plataforma.plano: catálogo da plataforma, sem tenant_id, só por função (nenhum grant de tabela para app, worker ou portal);
+ * - plataforma.plano: catálogo da plataforma, sem tenant_id (o acesso ao plano depois da 0086 fica em planos-troca-licencas.db.test.ts);
  * - plataforma.assinatura: uma VIVA por tenant, RLS por tenant (o macuxi_app só lê a do próprio tenant), CHECK paga ou com teste;
  * - plataforma.sa_gravar_assinatura(p_sid uuid, p_tenant uuid, p jsonb) — a chamada de apps/api/src/planos-portal.ts: só
  *   super-admin (28000 sem sessão, 42501 para o admin do cliente), entrada revalidada (22023, com o código no hint para plano
@@ -16,7 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ListaEmpresasSchema, MODULOS } from '@macuxi/platform-sdk';
 import { ASSINATURAS_FIXTURE, DOIS_TENANTS, PLANOS_FIXTURE } from '../seeds/fixtures/dois-tenants';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
-import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
+import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID } from '../src/excecoes';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
 import { FUNCOES_SA_0070, FUNCOES_SA_ATE_0071 } from './funcoes-sa';
@@ -52,10 +52,8 @@ describe('0070 planos e assinatura (estático)', () => {
     expect(nomes.slice(i + 1, i + 3)).toEqual(['0070_plataforma_plano_assinatura', '0071_plataforma_listar_tenants_plano']);
   });
 
-  it('plano: fora dos tenants e só por função; assinatura: RLS por tenant, app só lê, fora do sync; nenhum grant ao portal', () => {
+  it('plano: fora dos tenants; assinatura: RLS por tenant, app só lê, fora do sync; nenhum grant ao portal', () => {
     expect(TABELAS_SEM_TENANT_ID).toHaveProperty(['plataforma.plano']);
-    // desde a 0086 o app lê o plano do próprio tenant (planos-troca-licencas.db.test.ts): o plano saiu de TABELAS_SO_POR_FUNCAO
-    expect(TABELAS_SO_POR_FUNCAO).not.toContain('plataforma.plano');
     expect(TABELAS_SEM_TENANT_ID).not.toHaveProperty(['plataforma.assinatura']);
     expect(TABELAS_FORA_DO_SYNC).toContain('plataforma.assinatura');
     expect(up70).toContain('create unique index plano_codigo_uk on plataforma.plano (codigo) where deleted_at is null;');
@@ -186,12 +184,8 @@ describe.skipIf(semBanco())('0070/0071 planos e assinatura (banco, fixture dois-
   const novoTenant = async (codigo: string) =>
     (await q<{ id: string }>('insert into plataforma.tenant (codigo, nome) values ($1, $2) returning id', [codigo, `Empresa ${codigo}`]))[0]!.id;
 
-  it('acesso direto: plano 42501 para worker e portal (o app lê só o do próprio tenant desde a 0086); assinatura: app só lê a do próprio tenant, sem escrita; worker e portal 42501', async () => {
+  it('acesso direto à assinatura: app só lê a do próprio tenant, sem escrita; worker e portal 42501', async () => {
     await emTransacao(admin, null, async () => {
-      for (const papel of ['macuxi_worker', 'macuxi_portal']) {
-        expect((await erroDe(como(papel, 'select 1 from plataforma.plano limit 1', [], A)))?.code, papel).toBe('42501');
-      }
-      expect((await como<{ id: string }>('macuxi_app', 'select id from plataforma.plano', [], A)).rows).toEqual([{ id: PLANOS_FIXTURE.pme.id }]);
       for (const papel of ['macuxi_worker', 'macuxi_portal']) {
         expect((await erroDe(como(papel, 'select 1 from plataforma.assinatura limit 1', [], A)))?.code, papel).toBe('42501');
       }
