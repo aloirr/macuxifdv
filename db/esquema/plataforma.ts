@@ -9,7 +9,7 @@
  * 0073_plataforma_dados_legais.up.sql (dados legais do rodapé, só por função), 0074_plataforma_sync_pacote.up.sql (pacote da
  * primeira carga, ADR 0054), 0079_catalogo_foto_lote.up.sql (tipos de arquivo e trabalho sob demanda, ADR 0058) e
  * 0081_plataforma_frase_carga.up.sql (frases da tela de carga, globais, só por função), 0083_plataforma_tenant_logo.up.sql
- * (logo e nome fantasia em plataforma.tenant) e 0087_plataforma_planos_troca_licencas.up.sql (histórico das trocas de plano,
+ * (logo e nome fantasia em plataforma.tenant) e 0086_plataforma_planos_troca_licencas.up.sql (histórico das trocas de plano,
  * ADR 0047), para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
@@ -421,9 +421,9 @@ export interface AdicionalDoPlanoLinha {
 
 /**
  * Catálogo de planos (0070, ADR 0047 §1): DADO da plataforma, fora dos tenants (exceção à regra 5, como a super_admin). Gravado só
- * pelas funções do dono; desde a 0087 o macuxi_app lê só o plano da assinatura viva do próprio tenant. Versão nova do plano =
+ * pelas funções do dono; desde a 0086 o macuxi_app lê só o plano da assinatura viva do próprio tenant. Versão nova do plano =
  * linha nova; a antiga ganha deleted_at e as assinaturas continuam apontando para ela. Código único entre os vivos. Licenças
- * por tipo: null = sem limite. Os 4 planos de venda (light, pme, enterprise, corporate) vêm da 0087.
+ * por tipo: null = sem limite. Os 4 planos de venda (light, pme, enterprise, corporate) vêm da 0086.
  */
 export const plano = plataforma.table('plano', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -462,7 +462,7 @@ export const assinatura = plataforma.table('assinatura', {
 });
 
 /**
- * Histórico das trocas de plano (0087, ADR 0047 §6, RN-PLA-05): uma linha por troca, gravada só pela plataforma.sa_trocar_plano
+ * Histórico das trocas de plano (0086, ADR 0047 §6, RN-PLA-05): uma linha por troca, gravada só pela plataforma.sa_trocar_plano
  * (portal, super-admin); o macuxi_app lê só as do próprio tenant. pedido_id = chave de idempotência do portal, única por tenant.
  * Fora do sync.
  */

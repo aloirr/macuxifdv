@@ -817,7 +817,7 @@ catálogo é **dado** (RN-PLA-01): preços, licenças e dias de teste vêm do se
 
 Versão nova do plano (preço ou licenças) = **linha nova** com o mesmo código e a antiga com `deleted_at`: as assinaturas antigas
 continuam na linha que contrataram. RLS ligado e forçado. Na 0070, só a política `manutencao` e nenhum grant de tabela; **desde
-a 0087** o `macuxi_app` lê só o plano da assinatura viva do próprio tenant (ver "Troca de plano e licenças (0087)"). Worker e
+a 0086** o `macuxi_app` lê só o plano da assinatura viva do próprio tenant (ver "Troca de plano e licenças (0086)"). Worker e
 portal continuam sem grant. Volume: poucas linhas.
 
 ### assinatura — o plano de cada tenant
@@ -835,7 +835,7 @@ Uma **viva** por tenant: `assinatura_tenant_uk (tenant_id) where deleted_at is n
 aos planos (sem trava, RN-PLA-04). RLS ligado e forçado: `isolamento_tenant` (o `macuxi_app` só **lê** a do próprio tenant) e
 `manutencao`; worker e portal sem grant. Escrita só pela `sa_gravar_assinatura`. Fora do sync (`TABELAS_FORA_DO_SYNC`). Volume:
 uma linha por tenant. A trava do cadastro de usuários (`plataforma.licencas_do_tenant()`, RN-PLA-04) e a troca de plano
-(`sa_trocar_plano`, `assinatura_historico`) estão na 0087.
+(`sa_trocar_plano`, `assinatura_historico`) estão na 0086.
 
 ### Funções
 - `plataforma.sa_gravar_assinatura(p_sid uuid, p_tenant uuid, p jsonb) returns jsonb` — a chamada da API
@@ -870,8 +870,8 @@ select plataforma.sa_listar_tenants($1) as r;                      -- itens[].pl
 ```
 
 
-## Troca de plano e licenças (0087, ADR 0047) — `assinatura_historico`, a trava e as `sa_*` do portal. Fora do sync
-Migração `0087_plataforma_planos_troca_licencas` (em cima da 0086; aditiva). Decisão: [ADR 0047](../decisoes/0047-planos-e-licencas.md)
+## Troca de plano e licenças (0086, ADR 0047) — `assinatura_historico`, a trava e as `sa_*` do portal. Fora do sync
+Migração `0086_plataforma_planos_troca_licencas` (em cima da 0085; aditiva). Decisão: [ADR 0047](../decisoes/0047-planos-e-licencas.md)
 §3 a §6 e §8, revista pela [ADR 0049](../decisoes/0049-cargos-fixos-e-um-perfil-por-usuario.md) (um perfil por usuário, sem
 multiperfil); desenho `docs/desenho/planos-e-licencas.md` §3; telas 2 a 6 do portal (`docs/design/telas/portal-config-enxuto.md`
 §11.3 e §11.4; R-20261115-123000, item 1). Contrato: `ListaPlanosSchema`, `FichaAssinaturaSchema`, `TrocarPlanoSchema` e
@@ -898,7 +898,7 @@ centavos por mês, todos com `incluidos` 0 (o adicional liga o módulo); `meses_
 ### assinatura_historico — uma linha por troca de plano (RN-PLA-05)
 | Coluna | Tipo | Regra |
 |---|---|---|
-| assinatura_id | uuid not null | FK composta `assinatura_historico_assinatura_fk` (tenant_id, assinatura_id) → `plataforma.assinatura` (tenant_id, id); a 0087 cria o alvo `assinatura_tenant_id_uk` unique (tenant_id, id) na assinatura (o down o apaga) |
+| assinatura_id | uuid not null | FK composta `assinatura_historico_assinatura_fk` (tenant_id, assinatura_id) → `plataforma.assinatura` (tenant_id, id); a 0086 cria o alvo `assinatura_tenant_id_uk` unique (tenant_id, id) na assinatura (o down o apaga) |
 | pedido_id | uuid not null | UUID do portal (`TrocarPlanoSchema.pedido_id`); único por tenant (`assinatura_historico_pedido_uk (tenant_id, pedido_id)`): é a chave de idempotência da troca |
 | plano_anterior_id, plano_id | uuid not null | FK → `plataforma.plano` (a linha de antes e a de depois) |
 | ciclo_anterior, ciclo | text not null | `mensal` \| `anual` |
@@ -976,7 +976,7 @@ SQLSTATE: 28000 sessão inválida ou vencida; 42501 permissão; P0002 não achou
      dado pessoal).
 
 Conferência no fim da migração: nenhuma `sa_*` para app, worker ou PUBLIC; as 3 novas ao portal; o total do portal = o de antes
-+ 3 (pela diferença, porque as 0075 a 0086 de outros lotes também acrescentam `sa_*`); a trava e as de apoio só ao app;
++ 3 (pela diferença, porque as 0075 a 0085 de outros lotes também acrescentam `sa_*`); a trava e as de apoio só ao app;
 `plano_json` e o gatilho só do dono; nenhum privilégio de tabela fora do desenho. `db/testes/funcoes-sa.ts` ganhou
 `FUNCOES_SA_PLANOS` (em `FUNCOES_SA_ATUAIS`); a API e o `banco-dbaas.sh` leem essa lista (RD-0910).
 

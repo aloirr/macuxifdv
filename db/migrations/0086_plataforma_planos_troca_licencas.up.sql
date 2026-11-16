@@ -1,10 +1,10 @@
--- 0087_plataforma_planos_troca_licencas (up) — planos e licenças, parte do banco das telas 2 a 6 do portal config.: catálogo,
+-- 0086_plataforma_planos_troca_licencas (up) — planos e licenças, parte do banco das telas 2 a 6 do portal config.: catálogo,
 -- ficha da empresa, troca de plano e a trava do cadastro de usuários (ADR 0047 §3 a §6 e §8, revista pela ADR 0049: um perfil
 -- por usuário, sem multiperfil; desenho docs/desenho/planos-e-licencas.md §3; spec docs/design/telas/portal-config-enxuto.md
 -- §11.3 e §11.4; decisão R-20261115-123000, item 1). Contrato: packages/platform-sdk/src/planos.ts (ListaPlanosSchema,
 -- FichaAssinaturaSchema, TrocarPlanoSchema, UsoDeLicencaSchema) e apps/api/src/planos-portal.ts (fontePlanosNoBanco).
--- Dicionário: docs/banco/plataforma.md ("Troca de plano e licenças (0087)"). Teste: db/testes/planos-troca-licencas.db.test.ts
--- (estático na sessão; banco, corrida e up/down no CI). Migração ADITIVA em cima da 0086: nada existente muda de forma.
+-- Dicionário: docs/banco/plataforma.md ("Troca de plano e licenças (0086)"). Teste: db/testes/planos-troca-licencas.db.test.ts
+-- (estático na sessão; banco, corrida e up/down no CI). Migração ADITIVA em cima da 0085: nada existente muda de forma.
 --
 -- 1. plataforma.assinatura_historico — uma linha por troca de plano (RN-PLA-05): antes e depois (plano, ciclo, adicionais), os
 --    módulos que a troca ligou, o super-admin e o pedido_id do portal (idempotência: único por tenant). Colunas padrão; RLS
@@ -40,7 +40,7 @@
 --    READ COMMITTED (o padrão). Sem assinatura (legado) ou sem contexto = nenhuma linha (sem trava). EXECUTE só ao macuxi_app.
 -- 6. Funções do portal (SECURITY DEFINER, sessão conferida a cada chamada; SQLSTATE 28000 sessão, 42501 permissão, P0002 não
 --    achou, 22023 validação com o código no hint). EXECUTE só ao macuxi_portal; o portal passa de N para N + 3 sa_* (conferido
---    abaixo pela diferença, porque as 0075 a 0086 de outros lotes também acrescentam sa_*):
+--    abaixo pela diferença, porque as 0075 a 0085 de outros lotes também acrescentam sa_*):
 --    - sa_listar_planos(p_sid) -> { itens: Plano[] }: todos os planos vivos, ativos e inativos, por ordem e código. Super-admin
 --      e admin do cliente. Sem auditoria (leitura do catálogo; a API audita a requisição).
 --    - sa_assinatura_da_empresa(p_sid, p_tenant) -> a ficha sem o valor (FichaAssinaturaSchema sem `valor`; a API calcula):
@@ -64,13 +64,13 @@
 --    integracao; adicionais Promotor 8000, Pesquisa 1000 e Treinamento 1000 centavos, todos com incluidos 0; 2 meses grátis
 --    no anual e 14 dias de teste. Código já vivo no catálogo não é sobrescrito (on conflict do nothing).
 --
--- Caminho de volta: 0087_plataforma_planos_troca_licencas.down.sql (apaga as 3 sa_*, a licencas_do_tenant e as de apoio, o
+-- Caminho de volta: 0086_plataforma_planos_troca_licencas.down.sql (apaga as 3 sa_*, a licencas_do_tenant e as de apoio, o
 -- gatilho e os grants novos, o histórico de trocas e os 4 planos do seed que nenhuma assinatura usa; as assinaturas, as trocas
 -- já aplicadas e os módulos ligados ficam). Antes do down: desligue MACUXI_PLANOS na API e volte o Core sem a trava
 -- (licencas_do_tenant some).
 
 -- 0. Quantas sa_* o portal executa antes desta migração (a conferência do fim exige exatamente mais 3) --------------------------
-select set_config('macuxi.sa_portal_antes_0087', (
+select set_config('macuxi.sa_portal_antes_0086', (
   select count(*)::text
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'plataforma' and p.proname like 'sa\_%' and has_function_privilege('macuxi_portal', p.oid, 'execute')
@@ -556,7 +556,7 @@ do $$
 declare
   v_f text;
   v_n int;
-  v_antes int := nullif(current_setting('macuxi.sa_portal_antes_0087', true), '')::int;
+  v_antes int := nullif(current_setting('macuxi.sa_portal_antes_0086', true), '')::int;
 begin
   select string_agg(p.oid::regprocedure::text, ', ' order by 1) into v_f
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -565,18 +565,18 @@ begin
           or exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
                       where a.grantee = 0 and a.privilege_type = 'EXECUTE'));
   if v_f is not null then
-    raise exception '0087: função executável pelo macuxi_app, macuxi_worker ou PUBLIC: %', v_f using errcode = '42501';
+    raise exception '0086: função executável pelo macuxi_app, macuxi_worker ou PUBLIC: %', v_f using errcode = '42501';
   end if;
   if not has_function_privilege('macuxi_portal', 'plataforma.sa_listar_planos(uuid)', 'execute')
      or not has_function_privilege('macuxi_portal', 'plataforma.sa_assinatura_da_empresa(uuid, uuid)', 'execute')
      or not has_function_privilege('macuxi_portal', 'plataforma.sa_trocar_plano(uuid, uuid, jsonb)', 'execute') then
-    raise exception '0087: as 3 sa_* dos planos devem ser executáveis pelo macuxi_portal' using errcode = '42501';
+    raise exception '0086: as 3 sa_* dos planos devem ser executáveis pelo macuxi_portal' using errcode = '42501';
   end if;
   select count(*) into v_n
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'plataforma' and p.proname like 'sa\_%' and has_function_privilege('macuxi_portal', p.oid, 'execute');
   if v_antes is null or v_n <> v_antes + 3 then
-    raise exception '0087: esperadas % + 3 funções sa_* executáveis pelo macuxi_portal, há %', v_antes, v_n using errcode = '42501';
+    raise exception '0086: esperadas % + 3 funções sa_* executáveis pelo macuxi_portal, há %', v_antes, v_n using errcode = '42501';
   end if;
   -- a trava e as de apoio: só o app (e o dono); nenhuma ao worker, ao portal ou a PUBLIC
   select string_agg(f, ', ') into v_f
@@ -588,12 +588,12 @@ begin
       or exists (select 1 from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
                   where p.oid = f::regprocedure and a.grantee = 0 and a.privilege_type = 'EXECUTE');
   if v_f is not null then
-    raise exception '0087: EXECUTE fora do desenho em %', v_f using errcode = '42501';
+    raise exception '0086: EXECUTE fora do desenho em %', v_f using errcode = '42501';
   end if;
   if has_function_privilege('macuxi_app', 'plataforma.plano_json(plataforma.plano)', 'execute')
      or has_function_privilege('macuxi_portal', 'plataforma.plano_json(plataforma.plano)', 'execute')
      or has_function_privilege('macuxi_app', 'plataforma.assinatura_so_trava()', 'execute') then
-    raise exception '0087: plano_json e assinatura_so_trava só do dono' using errcode = '42501';
+    raise exception '0086: plano_json e assinatura_so_trava só do dono' using errcode = '42501';
   end if;
   if has_table_privilege('macuxi_app', 'plataforma.plano', 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
      or has_table_privilege('macuxi_worker', 'plataforma.plano', 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
@@ -602,7 +602,7 @@ begin
      or has_column_privilege('macuxi_app', 'plataforma.assinatura', 'paga', 'UPDATE')
      or has_table_privilege('macuxi_app', 'plataforma.assinatura_historico', 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
      or has_table_privilege('macuxi_portal', 'plataforma.assinatura_historico', 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER') then
-    raise exception '0087: privilégio de tabela fora do desenho' using errcode = '42501';
+    raise exception '0086: privilégio de tabela fora do desenho' using errcode = '42501';
   end if;
 end
 $$;

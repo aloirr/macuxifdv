@@ -54,7 +54,7 @@ describe('0070 planos e assinatura (estático)', () => {
 
   it('plano: fora dos tenants e só por função; assinatura: RLS por tenant, app só lê, fora do sync; nenhum grant ao portal', () => {
     expect(TABELAS_SEM_TENANT_ID).toHaveProperty(['plataforma.plano']);
-    // desde a 0087 o app lê o plano do próprio tenant (planos-troca-licencas.db.test.ts): o plano saiu de TABELAS_SO_POR_FUNCAO
+    // desde a 0086 o app lê o plano do próprio tenant (planos-troca-licencas.db.test.ts): o plano saiu de TABELAS_SO_POR_FUNCAO
     expect(TABELAS_SO_POR_FUNCAO).not.toContain('plataforma.plano');
     expect(TABELAS_SEM_TENANT_ID).not.toHaveProperty(['plataforma.assinatura']);
     expect(TABELAS_FORA_DO_SYNC).toContain('plataforma.assinatura');
@@ -186,7 +186,7 @@ describe.skipIf(semBanco())('0070/0071 planos e assinatura (banco, fixture dois-
   const novoTenant = async (codigo: string) =>
     (await q<{ id: string }>('insert into plataforma.tenant (codigo, nome) values ($1, $2) returning id', [codigo, `Empresa ${codigo}`]))[0]!.id;
 
-  it('acesso direto: plano 42501 para worker e portal (o app lê só o do próprio tenant desde a 0087); assinatura: app só lê a do próprio tenant, sem escrita; worker e portal 42501', async () => {
+  it('acesso direto: plano 42501 para worker e portal (o app lê só o do próprio tenant desde a 0086); assinatura: app só lê a do próprio tenant, sem escrita; worker e portal 42501', async () => {
     await emTransacao(admin, null, async () => {
       for (const papel of ['macuxi_worker', 'macuxi_portal']) {
         expect((await erroDe(como(papel, 'select 1 from plataforma.plano limit 1', [], A)))?.code, papel).toBe('42501');
