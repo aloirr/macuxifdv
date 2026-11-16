@@ -11,7 +11,7 @@ import { useHojeDoTenant } from '../../lib/queries';
 import { CHAVE_FRASES, criarApiFrases, type ApiFrases } from './api';
 import { MENSAGEM_ERRO_FRASE, mensagemDoErroFrase, moverFrase } from './frases';
 
-const CAMPO = 'h-[44px] w-full rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
+const CAMPO = 'h-[44px] w-full rounded-xl border border-field bg-surface px-3 text-[15px] font-normal text-ink';
 
 type Acao = { tipo: 'criar'; texto: string } | { tipo: 'editar'; id: string; texto: string } | { tipo: 'ativa'; id: string; ativa: boolean } | { tipo: 'remover'; id: string } | { tipo: 'ordem'; ids: string[] };
 
@@ -96,7 +96,7 @@ export function FrasesDoDiaPanel({ cliente, hoje }: { cliente?: ApiFrases; hoje?
         )}
         {q.data && (
           <>
-            <p className="m-0 rounded-xl bg-neutral-soft px-3 py-2.5 text-[14px] text-ink" data-testid="frases.hoje">
+            <p className="m-0 rounded-xl bg-neutral-soft px-3 py-2.5 text-[15px] text-ink" data-testid="frases.hoje">
               {deHoje ? (
                 <>
                   <span className="font-semibold">Frase de hoje: </span>
@@ -160,7 +160,7 @@ export function FrasesDoDiaPanel({ cliente, hoje }: { cliente?: ApiFrases; hoje?
                     </div>
                   ) : (
                     <>
-                      <span className={`min-w-[240px] flex-1 text-[14px] ${f.ativa ? 'text-ink' : 'text-ink-2'}`}>{f.texto}</span>
+                      <span className={`min-w-[240px] flex-1 text-[15px] ${f.ativa ? 'text-ink' : 'text-ink-2'}`}>{f.texto}</span>
                       {!f.ativa && <Badge tone="neutral">Desativada</Badge>}
                       <div className="flex flex-wrap gap-1">
                         <Button size="sm" disabled={ocupado || i === 0} aria-label={`Subir a frase ${i + 1}`} onClick={() => mover(f.id, -1)} data-testid={`frases.subir.${f.id}`}>

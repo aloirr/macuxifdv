@@ -4,7 +4,7 @@
  *
  * - `sync_auto_min` (parâmetro do tenant): atualização automática leve do app e do BKO, padrão 30 min, mínimo 15.
  * - Voltar ao primeiro plano dispara a verificação se a última sincronização tem 30 min ou mais.
- * - Puxar para baixo = Sincronizar, com proteção de 30 s contra toques repetidos.
+ * - Puxar para baixo = Sincronizar; disparo manual no máximo 1 vez a cada 30 s, toques repetidos ignorados em silêncio (R-20261115-125500).
  * - Nenhum timer automático abaixo de 15 min no app e no BKO; a exceção é o envio da fila (só sobe o que está pendente).
  */
 
@@ -17,8 +17,12 @@ export const SYNC_AUTO_MIN_MIN = 15;
 export const SYNC_AUTO_MAX_MIN = 24 * 60;
 /** Voltar ao primeiro plano dispara a verificação depois de 30 min sem sincronizar. */
 export const VOLTA_PRIMEIRO_PLANO_MS = 30 * 60_000;
-/** Puxar para baixo / botão Sincronizar: outro toque em menos de 30 s não dispara outra sincronização. */
-export const PROTECAO_PUXAR_MS = 30_000;
+/**
+ * Intervalo mínimo entre disparos manuais (R-20261115-125500): botão Sincronizar, puxar para baixo, selo e a completa
+ * (segurar 10 s) disparam no máximo 1 vez a cada 30 s por aparelho. Toque dentro do intervalo é ignorado em silêncio
+ * (nada visível: sem aviso, contador nem botão desabilitado). Regra interna, para aliviar o servidor.
+ */
+export const INTERVALO_MIN_SYNC_MANUAL_MS = 30_000;
 
 /** Intervalo em ms a partir do valor do parâmetro (número ou texto). Inválido, ausente, 0 ou negativo → 30 min; abaixo de 15 → 15. */
 export function intervaloSyncAutoMs(valor: unknown): number {
@@ -27,7 +31,7 @@ export function intervaloSyncAutoMs(valor: unknown): number {
   return Math.round(min * 60_000);
 }
 
-/** Proteção de 30 s: `true` = o toque anterior (manual) foi há menos de 30 s e este não sincroniza de novo. */
-export function dentroDaProtecao(ultimoManual: number | null, agora: number): boolean {
-  return ultimoManual !== null && agora - ultimoManual >= 0 && agora - ultimoManual < PROTECAO_PUXAR_MS;
+/** `true` = o disparo manual anterior foi há menos de `INTERVALO_MIN_SYNC_MANUAL_MS` e este é ignorado em silêncio. */
+export function dentroDoIntervaloManual(ultimoManual: number | null, agora: number): boolean {
+  return ultimoManual !== null && agora - ultimoManual >= 0 && agora - ultimoManual < INTERVALO_MIN_SYNC_MANUAL_MS;
 }
