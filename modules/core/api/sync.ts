@@ -12,7 +12,12 @@
 import { sqlCodigoFdv } from './codigo-fdv';
 import { definirEntidadeSync, type ContextoBase, type LinhaSync, type PedidoPull, type ProvedorSync } from '@macuxi/platform-sdk';
 import {
+  PARAMETRO_ALERTAS_PRODUTIVIDADE,
+  PARAMETRO_ALMOCO_PADRAO,
+  PARAMETRO_DIAS_UTEIS,
   PARAMETRO_FERIADOS,
+  PARAMETRO_PARADO_MIN,
+  PARAMETRO_PROMOTOR_VE_PEDIDOS,
   CarteiraSyncSchema,
   ClienteContatoSyncSchema,
   ClienteFinanceiroSyncSchema,
@@ -71,6 +76,9 @@ export interface Tabela {
   /** Filtro fixo que vale também para linhas removidas (SQL fixo, sem entrada do usuário). */
   onde?: string;
 }
+
+/** Chaves de `plataforma.parametro` (módulo core) que vão ao aparelho no pull `parametro` (lista fixa). */
+const CHAVES_PARAMETRO_SYNC = ['checkin.raio_m', PARAMETRO_PROMOTOR_VE_PEDIDOS, PARAMETRO_DIAS_UTEIS, PARAMETRO_PARADO_MIN, PARAMETRO_FERIADOS, PARAMETRO_ALMOCO_PADRAO, PARAMETRO_ALERTAS_PRODUTIVIDADE] as const;
 
 export const TABELAS_SYNC = {
   cliente: {
@@ -158,7 +166,7 @@ export const TABELAS_SYNC = {
     tabela: 'plataforma.parametro',
     colunas: 'modulo, chave, valor',
     colunaCliente: null,
-    onde: `modulo = 'core' and chave in ('checkin.raio_m', 'promotor_ve_pedidos', 'metas.dias_uteis_semana', 'inicio.parado_min', '${PARAMETRO_FERIADOS}', 'jornada.almoco_padrao', 'alertas.produtividade')`,
+    onde: `modulo = 'core' and chave in (${CHAVES_PARAMETRO_SYNC.map((c) => `'${c}'`).join(', ')})`,
   },
   rota: {
     tabela: 'core.rota',

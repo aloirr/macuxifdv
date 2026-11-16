@@ -12,7 +12,8 @@ export const ALMOCO_DURACAO_MIN = 15;
 export const ALMOCO_DURACAO_MAX = 180;
 
 /** Minuto do dia (0 a 1439) no fuso do tenant: o único formato de horário dos contratos (RD-1863). */
-export const MinutoDoDiaSchema = z.number().int().min(0).max(1439);
+export const FAIXA_MINUTO_DO_DIA = { min: 0, max: 1439 } as const;
+export const MinutoDoDiaSchema = z.number().int().min(FAIXA_MINUTO_DO_DIA.min).max(FAIXA_MINUTO_DO_DIA.max);
 /** Erro de horário digitado fora de hh:mm (telas do Core e do Gestor). */
 export const ERRO_HORA_HHMM = 'Use o horário em hh:mm.';
 

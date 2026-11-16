@@ -95,6 +95,8 @@ describe('RN-CORE-26 (D4/D6): lembretes locais de produtividade no Campo', () =>
     expect(hora(r[0]!.em)).toBe('13:30');
     expect(duracaoCurta(90)).toBe('1 h 30 min');
     expect(duracaoCurta(45)).toBe('45 min');
+    expect(duracaoCurta(60)).toBe('1 h');
+    expect(duracaoCurta(120)).toBe('2 h');
     const a = { inicio: 10, fim: 20 };
     expect(somarSemAlmoco(25, 1, a)).toBe(25 + 60_000); // depois do almoço
     expect(somarSemAlmoco(0, 0.0001, a)).toBeLessThan(10); // antes e sem tocar
