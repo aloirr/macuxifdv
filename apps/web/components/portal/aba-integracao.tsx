@@ -43,7 +43,7 @@ function Credencial({ c, aoFechar }: { c: Criado; aoFechar: () => void }) {
   };
   return (
     <div data-testid="integracao.credencial" className="flex flex-col gap-3 rounded-xl border border-accent bg-accent-soft p-4">
-      <strong className="text-[14px]">Credencial do Conector "{c.chave.conector_id}"</strong>
+      <strong className="text-[15px]">Credencial do Conector "{c.chave.conector_id}"</strong>
       <Notice tone="warning">Esta chave aparece só agora. Copie e cole na configuração do Conector; depois desta tela ela não é mostrada de novo.</Notice>
       <code data-testid="integracao.chave" className="rounded-lg border border-line bg-surface px-3 py-2 font-mono text-[13px] break-all select-all">
         {c.chave.chave}
@@ -166,7 +166,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
               <Campo rotulo="Identificador do Conector" testId="integracao.identificador" value={identificador} spellCheck={false} onChange={(e) => setIdentificador(e.target.value.replace(/[^A-Za-z0-9._-]/g, ''))} ajuda="Vai no arquivo de configuração do Conector." />
               <Campo rotulo="Nome" testId="integracao.nome" value={nome} onChange={(e) => setNome(e.target.value)} />
             </div>
-            <label className="flex items-center gap-2.5 text-[14px]">
+            <label className="flex items-center gap-2.5 text-[15px]">
               <input type="checkbox" data-testid="integracao.recebe-pedidos" className="h-4 w-4 accent-accent" checked={recebePedidos} onChange={(e) => setRecebePedidos(e.target.checked)} />
               Este Conector leva os pedidos aprovados ao ERP
             </label>
@@ -185,7 +185,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
       </Panel>
 
       <Panel title="Conector e documentação">
-        <div className="flex flex-col gap-2 text-[14px]">
+        <div className="flex flex-col gap-2 text-[15px]">
           <BaixarConector tenant={tenant} />
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="link" data-testid="integracao.openapi" onClick={() => void baixarOpenapi()}>

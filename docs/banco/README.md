@@ -519,15 +519,13 @@ para o admin sem superusuário). TZ UTC, UTF8, locale `en_US.UTF-8` e pgvector (
 
 | Quero | Comando |
 |---|---|
-| Subir (instala o que faltar; idempotente) e ver as variáveis | `bash db/scripts/pg-local.sh` (ou `--subir`) |
-| Carregar as variáveis do CI no shell | `eval "$(bash db/scripts/pg-local.sh --env)"` |
+| Subir (instala o que faltar; idempotente) | `bash db/scripts/pg-local.sh` (ou `--subir`) |
+| Ver as variáveis do CI e o `PATH` | `bash db/scripts/pg-local.sh --env` |
 | Ver se estão de pé | `bash db/scripts/pg-local.sh --status` |
 | Parar (os dados ficam) | `bash db/scripts/pg-local.sh --parar` |
 | Recriar a 5433 limpa (repetir o admin sem superusuário) | `bash db/scripts/pg-local.sh --limpar-5433` |
 
-O `--env` imprime `MACUXI_PG_EXIGIR=1`, `MACUXI_PG_AUTO_SUBIR=0`, `MACUXI_PG_HOST=127.0.0.1`, `MACUXI_PG_PORTA=5432`,
-`MACUXI_PG_ADMIN_USUARIO=postgres`, `MACUXI_PG_ADMIN_SENHA=postgres` (senha pública do Postgres descartável, a do `ci.yml`)
-e o `PATH` (binários do 16 e Node 24). Suítes, como no CI:
+Suítes, como no CI:
 ```bash
 eval "$(bash db/scripts/pg-local.sh --env)"
 pnpm --filter @macuxi/db test                                  # 5432, superusuário
@@ -536,9 +534,7 @@ MACUXI_PG_PORTA=5433 MACUXI_PG_ADMIN_USUARIO=macuxi_admin_sem_super MACUXI_PG_AD
   MACUXI_PG_ADMIN_SEM_SUPER=1 pnpm --filter @macuxi/db test   # 5433, sem superusuário
 ```
 O `admin-sem-superusuario` recusa servidor com banco modelo/teste de uma rodada anterior: rode `--limpar-5433` antes de
-repetir. Medição de 16/11/2026 (4 CPUs): 1ª subida 9 s (pgvector do apt + 2 initdb), religar 1 s; suíte do `@macuxi/db`
-~110 s com superusuário (1909 passam, 1 pulado) e ~100 s sem (1896 passam, 14 pulados: up/down antes da 0031, A11 sem
-`create extension` e o caso de restauração do `backup.test.ts`).
+repetir. Tempos medidos: [docs/testes/antes-do-push.md](../testes/antes-do-push.md).
 
 ## Para o agente `testes` (tests/)
 

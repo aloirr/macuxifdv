@@ -1,22 +1,6 @@
 #!/usr/bin/env bash
-# Postgres local SEM Docker para os testes de banco na sessão da nuvem (dono: banco-dados; R-20261115-213600-alexandre).
-#
-# Sobe os DOIS servidores do CI (.github/workflows/ci.yml, job de testes) com o PostgreSQL 16 do sistema:
-#   5432  superusuário postgres/postgres: pnpm --filter @macuxi/db test, tests/ e os demais pacotes;
-#   5433  servidor limpo, também postgres/postgres: pnpm --filter @macuxi/db admin-sem-superusuario + a suíte com
-#         MACUXI_PG_ADMIN_SEM_SUPER=1 (o script exige servidor sem os papéis da aplicação: use --limpar-5433 para repetir).
-# Como a imagem do CI: TZ=UTC, codificação UTF8, locale en_US.utf8 (gera com locale-gen se faltar) e pgvector.
-# Diferenças conhecidas: pgvector 0.6.0 do Ubuntu (o CI tem 0.8.2) e fsync/synchronous_commit desligados (base descartável).
-# O pacote fica no 16.15 travado pelo CI (digest no ci.yml): o script nunca atualiza o postgresql-16.
-# Os dados ficam fora do repositório (MACUXI_PG_LOCAL_DIR, padrão /var/lib/postgresql/macuxi); nada sai da máquina.
-#
-# Uso (raiz do repositório):
-#   bash db/scripts/pg-local.sh [--subir]   instala o que faltar, sobe 5432 e 5433 e imprime as linhas do --env
-#   bash db/scripts/pg-local.sh --status    pg_isready e versão de cada servidor
-#   bash db/scripts/pg-local.sh --parar     para os dois servidores (os dados ficam)
-#   bash db/scripts/pg-local.sh --env       só as linhas export MACUXI_PG_...=... do CI (+ export PATH: pg_dump 16, Node 24)
-#   bash db/scripts/pg-local.sh --limpar-5433  apaga e recria o servidor 5433 (para repetir o admin sem superusuário)
-#   eval "$(bash db/scripts/pg-local.sh --env)"
+# Postgres local sem Docker (servidores 5432 e 5433 do CI) para os testes de banco na sessão da nuvem; dono: banco-dados.
+# Uso e detalhes: docs/banco/README.md, seção "Testes de banco na sessão da nuvem".
 set -euo pipefail
 
 PG_VERSAO=16
@@ -219,6 +203,6 @@ case "${1:---subir}" in
     subir_um 5433
     status >&2
     ;;
-  -h | --help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//' ;;
+  -h | --help) sed -n '2,3p' "$0" | sed 's/^# \{0,1\}//' ;;
   *) falha "opção desconhecida: $1 (use --subir, --status, --parar, --env, --limpar-5433)" ;;
 esac

@@ -88,7 +88,7 @@ function versaoDoApp(): string {
 export const GOOGLE_SERVICES_PADRAO = './google-services.json';
 
 /**
- * `android.googleServicesFile` só quando o arquivo existe: o caminho de `GOOGLE_SERVICES_JSON` (Actions e EAS) ou o
+ * `android.googleServicesFile` só quando o arquivo existe: o caminho de `GOOGLE_SERVICES_JSON` (Actions) ou o
  * padrão. Sem o arquivo, nada (o dev local e o bundle seguem sem push, em vez de o prebuild falhar).
  */
 export function arquivoGoogleServices(
@@ -131,10 +131,9 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       },
       predictiveBackGestureEnabled: false,
       // RN-CORE-23 / T-0065: push pelo FCM direto (v1.0.10). O arquivo vem do caminho em GOOGLE_SERVICES_JSON (no Actions,
-      // o android-build.yml decodifica o secret GOOGLE_SERVICES_JSON_BASE64 e grava o caminho; no EAS, a variável de
-      // arquivo); sem a variável, ./google-services.json (fora do git). Nenhum agente lê nem commita o arquivo. Sem o
+      // o android-build.yml decodifica o secret GOOGLE_SERVICES_JSON_BASE64 e grava o caminho); sem a variável, ./google-services.json (fora do git). Nenhum agente lê nem commita o arquivo. Sem o
       // arquivo (build de desenvolvimento), o app compila sem push e segue com o Sincronizar e a atualização automática.
-      // projectRoot vem do Expo; quem chama a config sem ele (testes de scripts/eas) usa a pasta atual
+      // projectRoot vem do Expo; quem chama a config sem ele (testes) usa a pasta atual
       ...arquivoGoogleServices(projectRoot ?? process.cwd(), process.env, existsSync),
       // teclado (R-20261101-023401-alexandre): adjustResize explícito; no edge-to-edge (Android 15+) a janela não
       // encolhe, então as telas com campo embaixo usam KeyboardAvoidingView (login.tsx), que mede o quanto o teclado cobre

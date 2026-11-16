@@ -16,7 +16,7 @@ import {
   dateTimeLabel,
   Dialogo,
   EstadoVazio,
-  fonts,
+  fonte,
   Folha,
   HistoricoEmTags,
   LinhaValor,
@@ -54,7 +54,8 @@ import { estadoDasAcoes, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
 import { PERGUNTA_DA_ALCADA, perguntaDaAlcada } from '../../domain/botoes-resumo';
 import { acoesDoDetalhe, alertasDoDetalhe, clienteComCodigo, eventosDoOrcamento, eventosDoPedido, fonteDasLinhasDoDetalhe, itensVisiveis, linhaDeItemEmTabela, linhasDosTotais } from '../lib/detalhe-pedido';
 import { textoDoFrete } from '../lib/resumo-tabela';
-import { buildOrderPdfHtml, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
+import { logoSrcDoPdf, nomeDaEmpresaParaPdf } from '../../domain/empresa-pdf';
+import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
 import { errorMessage } from '../lib/erros';
 import { TEXTOS_ENDERECO } from '../lib/endereco-pedido';
 import { textoDoEndereco } from '../lib/novo-pedido';
@@ -436,8 +437,10 @@ export default function OrderDetailScreen() {
       const referenciaNoCliente = referenciaNoOrcamento(ambiente.parametros('vendedor'));
       const refs = view === 'bko' || referenciaNoCliente ? await app.referenciasDeProdutos(lines.map((l) => l.product_id).filter((x): x is string => Boolean(x))) : new Map<string, Array<{ brand: string; code: string }>>();
       const pedidoPdf = pdfOrder(refs);
+      // T-0182: logo da empresa do aparelho; sem logo ou com erro de leitura, o PDF sai com a logo padrão
       const html = buildOrderPdfHtml(pedidoPdf, view, {
-        tenant_name: nomeDaDistribuidora(me?.tenant.name, ambiente.parametros('core')),
+        ...(await logoSrcDoPdf(ambiente)),
+        tenant_name: nomeDaEmpresaParaPdf(ambiente.parametros('core')),
         product_name: me?.tenant.product_name ?? 'Macuxi FDV',
         tz,
         generated_at: new Date().toISOString(),
@@ -683,7 +686,7 @@ export default function OrderDetailScreen() {
         <Folha visivel={transformarAberto && !precosDeHoje} onFechar={() => setTransformarAberto(false)} rotuloFechar="Fechar" titulo={folhaTransformar.titulo} testID="folha-conferencia" rodape={{ rotulo: 'Voltar', onPress: () => setTransformarAberto(false), testID: 'conferencia-voltar' }}>
           <View style={{ gap: 8 }}>
             {conferencia?.bloqueio ? (
-              <Text style={[t.smallStrong, { color: colors.danger }]} testID="conferencia-bloqueio">
+              <Text style={[t.label, { color: colors.danger }]} testID="conferencia-bloqueio">
                 {conferencia.bloqueio}
               </Text>
             ) : null}
@@ -748,8 +751,8 @@ export default function OrderDetailScreen() {
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-      <Text style={[t.sub, strong && { color: colors.ink, fontFamily: fonts.semibold }]}>{label}</Text>
-      <Text style={[strong ? { fontFamily: fonts.display, fontSize: 18, color: colors.ink } : t.body, { fontVariant: ['tabular-nums'] }]}>{value}</Text>
+      <Text style={[t.sub, strong && { color: colors.ink, ...fonte.semibold }]}>{label}</Text>
+      <Text style={[strong ? t.number : t.body, { fontVariant: ['tabular-nums'] }]}>{value}</Text>
     </View>
   );
 }

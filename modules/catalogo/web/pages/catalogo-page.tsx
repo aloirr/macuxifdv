@@ -291,7 +291,7 @@ function EditorProduto({ item, editores, todos, podeConteudo, fechar }: { item: 
       }>
       <div className="flex flex-col gap-6">
         {podeConteudo && (
-          <p className="m-0 text-[14px] font-semibold">
+          <p className="m-0 text-[15px] font-semibold">
             <span className="font-mono">{item.erp_code}</span> · {nomeLegivel(item.description)}
           </p>
         )}
@@ -686,7 +686,7 @@ function Sinonimos({ mudar, abas }: { mudar: Mudar; abas: { id: AbaBko; rotulo: 
           <CampoFormulario rotulo="Sinônimos (separados por vírgula)">
             <input className={CLASSE_CAMPO} placeholder="refri, soda" value={form.sinonimos} onChange={(e) => setForm({ ...form, sinonimos: e.target.value })} data-testid="sinonimos.lista" />
           </CampoFormulario>
-          <label className="inline-flex min-h-[42px] items-center gap-2 text-[14px] font-semibold">
+          <label className="inline-flex min-h-[42px] items-center gap-2 text-[15px] font-semibold">
             <input type="checkbox" checked={form.ativo} onChange={(e) => setForm({ ...form, ativo: e.target.checked })} /> Ativo
           </label>
         </div>
