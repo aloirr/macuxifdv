@@ -45,6 +45,8 @@ export const TIPO_ALERTA_ROTULO: Readonly<Record<TipoAlerta, string>> = {
   ruptura_recorrente: 'Ruptura recorrente',
   visita_curta: 'Visita curta',
   fotos_sem_gps: 'Fotos sem GPS',
+  parado_entre_visitas: 'Parado',
+  sem_checkin_inicio: 'Sem check-in',
 };
 
 export const SEVERIDADE_TOM: Readonly<Record<Severidade, Tom>> = { info: 'neutral', atencao: 'warning', critica: 'danger' };

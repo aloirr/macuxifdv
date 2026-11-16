@@ -16,6 +16,7 @@ import {
   type MetasProdutividadePut,
   type OrigemMetaProdutividade,
 } from '../../../contracts/performance';
+import { ERRO_HORA_HHMM, minutoDoTextoHora, textoDoMinuto } from '../../../contracts';
 import type { EquipeArvore, ErroMetaProdutividade } from '../../../domain/performance/metas-produtividade';
 
 /** Ordem da §3.1. */
@@ -53,17 +54,6 @@ export function sufixoDo(i: IndicadorProdutividade): string {
   }
 }
 
-/** Minuto do dia (0 a 1439) → "hh:mm". */
-export const textoDaHora = (min: number) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
-
-/** "hh:mm" → minuto do dia; `null` se não for um horário. */
-export function lerHora(texto: string): number | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(texto.trim());
-  const h = Number(m?.[1]);
-  const min = Number(m?.[2]);
-  return m && h < 24 && min < 60 ? h * 60 + min : null;
-}
-
 const umaCasa = (n: number) => n.toFixed(1).replace('.', ',');
 const semZero = (s: string) => s.replace(/,0$/, '');
 
@@ -71,7 +61,7 @@ const semZero = (s: string) => s.replace(/,0$/, '');
 export function textoDoCampo(i: IndicadorProdutividade, valor: number): string {
   switch (UNIDADES_PRODUTIVIDADE[i]) {
     case 'minuto_do_dia':
-      return textoDaHora(valor);
+      return textoDoMinuto(valor);
     case 'minutos':
       return String(valor);
     case 'pontos_base':
@@ -96,8 +86,8 @@ export function lerMeta(i: IndicadorProdutividade, texto: string): { ok: true; v
   if (!t) return { ok: true, valor: null };
   const unidade = UNIDADES_PRODUTIVIDADE[i];
   if (unidade === 'minuto_do_dia') {
-    const min = lerHora(t);
-    return min === null ? { ok: false, erro: 'Use o horário em hh:mm.' } : { ok: true, valor: min };
+    const min = minutoDoTextoHora(t);
+    return min === null ? { ok: false, erro: ERRO_HORA_HHMM } : { ok: true, valor: min };
   }
   const n = parseDecimalInput(t);
   if (n === null || n < 0) return { ok: false, erro: 'Use um número.' };
