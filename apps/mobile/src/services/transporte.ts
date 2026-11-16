@@ -19,6 +19,7 @@ import {
   type ResultadoEnvioArquivo,
   type ResultadoItemPush,
   type TransporteSync,
+  ehUsuarioSemFilial,
 } from '@macuxi/platform-sdk';
 
 import type { ModoApi } from '@/lib/modo-api';
@@ -33,8 +34,10 @@ export function modoSync(modo: ModoApi): ModoSync {
   return modo === 'demo' ? 'fase-m' : 'v1';
 }
 
-// 401 = sessão (o item não tem culpa): o motor tenta de novo depois do novo login, sem rejeitar a fila
-const retentavel = (e: unknown) => !(e instanceof HttpError) || e.status >= 500 || e.status === 401 || e.status === 408 || e.status === 429;
+// 401 = sessão (o item não tem culpa): o motor tenta de novo depois do novo login, sem rejeitar a fila. 403 USUARIO_SEM_FILIAL
+// (T-0176, ADR 0056) também é da conta, não do item: a fila fica pendente e segue quando a filial for informada
+const retentavel = (e: unknown) =>
+  !(e instanceof HttpError) || e.status >= 500 || e.status === 401 || e.status === 408 || e.status === 429 || ehUsuarioSemFilial(e);
 
 /** Lote inteiro recusado com 4xx (ex.: 403 MODULO_INATIVO na rota): vira rejeição de cada item. */
 function rejeitarLote(itens: ItemPush[], e: unknown): ResultadoItemPush[] {

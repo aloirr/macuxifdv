@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { actionLabel, ENTITY_LABEL, entityLabel, summarizeChange } from '@/lib/audit';
+import { actionLabel, autorDaAuditoria, ENTITY_LABEL, entityLabel, summarizeChange } from '@/lib/audit';
 import { Button, DEFAULT_TZ, ErrorBlock, FilterBar, formatDateTime, LoadingBlock, PageHeader, Panel, SelectField, TableScroll, td, th } from '@macuxi/ui/web';
 import { useAuditoria, useMe } from '@/lib/queries';
 import { useSessao } from '@/lib/session';
@@ -60,7 +60,7 @@ export function AuditPage() {
               {rows.map((a) => (
                 <tr key={a.id}>
                   <td className={`${td} whitespace-nowrap text-ink-2`}>{formatDateTime(a.ocorrido_em, tz)}</td>
-                  <td className={`${td} font-semibold whitespace-nowrap`}>{a.usuario_nome ?? (a.usuario_id ? 'Usuário removido' : 'Sistema')}</td>
+                  <td className={`${td} font-semibold whitespace-nowrap`}>{autorDaAuditoria(a)}</td>
                   <td className={`${td} whitespace-nowrap`}>{entityLabel(a.entidade)}</td>
                   <td className={`${td} whitespace-nowrap`}>{actionLabel(a.acao)}</td>
                   <td className={`${td} text-ink-3`}>{summarizeChange(a.antes, a.depois)}</td>
