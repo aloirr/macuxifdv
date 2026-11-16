@@ -65,6 +65,10 @@ Cada fase vai do pedido no app até o número do ERP voltar ao app.
 
 Para voltar à fase 1: peça ao gerente-projetos para reativar o `thathyany-conector` e desativar o `thathyany-api`, e rode `.\Instalar-Thathyany.ps1 -Fase Conector`.
 
+## Atenção: % Acres.Fin. do ERP (RN-INT-15)
+Os preços do pedido já chegam **ajustados** pelo "% Acres.Fin." do prazo (à vista = -1,71). O ERP deve gravar os preços como vêm e **não reaplicar** o "% Acres.Fin.": o percentual vai na coluna `pagamento_percentual_ajuste` só como informação. Confira o total do ERP com o total do app no primeiro pedido; se for diferente, o ERP está aplicando o percentual duas vezes.
+No `prazo_pagamento.csv`, a coluna `percentual_ajuste` leva o "% Acres.Fin." (ponto decimal, de -99.99 a 99.99; vazio = 0).
+
 ## Se der errado
 - **O serviço do Conector não inicia** (ou você trocou a senha do Windows): rode a fase 1 de novo e digite a senha atual.
 - **Chave errada ou trocada no portal:** rode a fase de novo com `-TrocarChave`.

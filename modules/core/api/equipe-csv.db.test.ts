@@ -11,16 +11,15 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { MensagemEmail, ServicoEmail } from './email';
 import { perfisDeFabrica } from '../domain';
+import { filialPadraoDoTenant } from './apoio-teste-banco';
 import { rotasDeEquipeCsv } from './equipe-csv';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
-const CSV = [
-  'nome,email,telefone,perfil,email_superior,codigo_erp,modulos',
-  'Vera Campo,vera.csv@exemplo.com.br,,vendedor,sandra.csv@exemplo.com.br,CSV-V1,',
-  'Sandra Sup,sandra.csv@exemplo.com.br,95991112222,supervisor,gil.csv@exemplo.com.br,,',
-  'Gil Gerente,gil.csv@exemplo.com.br,,gerente,,,',
-].join('\n');
+/** Código da filial padrão do tenant A, para a coluna `filial` (lido no beforeAll; ver `filialPadraoDoTenant`). */
+let FIL = '';
+const CAB = 'nome,email,telefone,perfil,email_superior,codigo_erp,modulos,filial';
+let CSV = '';
 
 describe.skipIf(semBanco())('Core T-0087 E × Postgres: Equipe por CSV com senha temporária por e-mail', () => {
   const enviados: MensagemEmail[] = [];
@@ -54,8 +53,15 @@ describe.skipIf(semBanco())('Core T-0087 E × Postgres: Equipe por CSV com senha
   };
   const linhas = <R,>(tenant: string, sql: string, v: unknown[] = []) => comTenant(pool, tenant, async (c) => (await c.query<R & object>(sql, v)).rows);
 
-  beforeAll(() => {
+  beforeAll(async () => {
     pool = new pg.Pool({ connectionString: banco().urlApp, max: 4 });
+    FIL = (await filialPadraoDoTenant(pool, A.tenantId)).codigo;
+    CSV = [
+      CAB,
+      `Vera Campo,vera.csv@exemplo.com.br,,vendedor,sandra.csv@exemplo.com.br,CSV-V1,,${FIL}`,
+      `Sandra Sup,sandra.csv@exemplo.com.br,95991112222,supervisor,gil.csv@exemplo.com.br,,,${FIL}`,
+      `Gil Gerente,gil.csv@exemplo.com.br,,gerente,,,,${FIL}`,
+    ].join('\n');
   });
   afterAll(async () => {
     await pool?.end();
@@ -121,7 +127,7 @@ describe.skipIf(semBanco())('Core T-0087 E × Postgres: Equipe por CSV com senha
   });
 
   it('RN-CORE-31: arquivo com erro não grava nada (superior inexistente) e o erro não repete o dado da célula', async () => {
-    const csv = 'nome,email,perfil,email_superior\nZed,zed.csv@exemplo.com.br,vendedor,ninguem@exemplo.com.br';
+    const csv = `nome,email,perfil,email_superior,filial\nZed,zed.csv@exemplo.com.br,vendedor,ninguem@exemplo.com.br,${FIL}`;
     const r = await chamar('POST', 'equipe/importacoes', admin, { corpo: { csv, modo: 'gravar' } });
     expect(r.gravado).toBe(false);
     expect(r.erros[0]).toMatchObject({ linha: 2, coluna: 'email_superior' });
@@ -136,14 +142,14 @@ describe.skipIf(semBanco())('Core T-0087 E × Postgres: Equipe por CSV com senha
   });
 
   it('RN-CORE-31: só o telefone mudou no arquivo — é gravado', async () => {
-    const csv = 'nome,email,telefone,perfil,email_superior,codigo_erp,modulos\nSandra Sup,sandra.csv@exemplo.com.br,95993334444,supervisor,gil.csv@exemplo.com.br,,';
+    const csv = `${CAB}\nSandra Sup,sandra.csv@exemplo.com.br,95993334444,supervisor,gil.csv@exemplo.com.br,,,${FIL}`;
     const r = await chamar('POST', 'equipe/importacoes', admin, { corpo: { csv, modo: 'gravar' } });
     expect(r.resumo).toMatchObject({ atualizados: 1 });
     expect((await linhas<{ telefone: string }>(A.tenantId, "select telefone from core.usuario where email = 'sandra.csv@exemplo.com.br'"))[0]!.telefone).toBe('95993334444');
   });
 
   it('RN-CORE-04: supervisor que troca de gerente leva a equipe dele junto (equipe_pai_id acompanha)', async () => {
-    const csv = ['nome,email,telefone,perfil,email_superior,codigo_erp,modulos', 'Sandra Sup,sandra.csv@exemplo.com.br,,supervisor,gina.csv@exemplo.com.br,,', 'Gina Gerente,gina.csv@exemplo.com.br,,gerente,,,'].join('\n');
+    const csv = [CAB, `Sandra Sup,sandra.csv@exemplo.com.br,,supervisor,gina.csv@exemplo.com.br,,,${FIL}`, `Gina Gerente,gina.csv@exemplo.com.br,,gerente,,,,${FIL}`].join('\n');
     const r = await chamar('POST', 'equipe/importacoes', admin, { corpo: { csv, modo: 'gravar' } });
     expect(r.erros).toEqual([]);
     const l = await linhas<{ pai: string }>(
