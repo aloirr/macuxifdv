@@ -144,7 +144,7 @@ const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
     `${SA}; só super-admin; exatamente razao_social, cnpj e site (22023), CHECKs (23514); idempotente (igual não muda nem audita); for update; audita antes e depois`,
   ...SA_PORTAL_CARGA,
   ...SA_PORTAL_LOGO,
-  // ADR 0047 (0087_plataforma_planos_troca_licencas; planos e licenças, telas 2 a 6 do portal; R-20261115-123000, item 1).
+  // ADR 0047 (0086_plataforma_planos_troca_licencas; planos e licenças, telas 2 a 6 do portal; R-20261115-123000, item 1).
   // A licencas_do_tenant() é SECURITY INVOKER (só o macuxi_app, sob RLS): não entra aqui; se virar DEFINER, o caso do papel
   // da aplicação reprova.
   'plataforma.sa_listar_planos(p_sid uuid)': `${SA}; super-admin e admin do cliente; todos os planos vivos (ativos e inativos), por ordem e código; sem auditoria`,

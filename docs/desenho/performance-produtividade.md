@@ -260,24 +260,19 @@ consulta opcional, sem aresta de dependência). Sem o Vendedor instalado ou lice
 cards ficam `sem_dado`.
 
 ## 5. Km e o rastreamento de localização
-O rastreamento contínuo é a T-0156 (base LGPD na T-0145). Ele só liga com o termo aceito e o expediente cadastrado. A
-Performance **não grava ponto nenhum**: ela só lê o **resumo diário**. O mínimo que a T-0156 precisa entregar para os cards de km:
+O rastreamento contínuo é a T-0156 ([tracking.md](tracking.md), ADR 0061). A Performance não grava ponto: só lê
+`core.deslocamento_dia` ([tracking.md §5.3](tracking.md#53-resumo-diário)).
 
-1. **Pontos** do expediente no aparelho e no servidor, com latitude, longitude, precisão, instante UTC e velocidade, conforme a
-   T-0145 §4. Ficam 90 dias.
-2. **Resumo diário** numa tabela nova, `core.deslocamento_dia`, mantida pelo servidor quando os pontos chegam. É idempotente: o
-   resumo é recalculado do dia inteiro.
-   | Coluna | Tipo | Regra |
-   |---|---|---|
-   | `usuario_id`, `data` | uuid, date | único vivo por (tenant, usuário, data) |
-   | `metros` | integer ≥ 0 | Σ haversine entre pontos consecutivos, descartando ponto com precisão > [50 m] e salto com velocidade implícita > [150 km/h] |
-   | `pontos` | integer ≥ 0 | pontos usados |
-   | `primeiro_ponto_em`, `ultimo_ponto_em` | timestamptz | — |
-   | `origem` | text | `'rastreamento'` (reservado para `'manual'` no futuro) |
-   + campos comuns e RLS. A retenção é a do resumo na T-0145 §5 (5 anos). É dado pessoal derivado, mas sem coordenada.
-3. **Pull** `deslocamento_dia` com a mesma janela das visitas (§7.2) e escopo de usuário (RN-CORE-04).
-4. **Hoje no aparelho:** o app calcula o km parcial do dia pelos **pontos locais**, com a mesma função pura do servidor
-   (`metrosDoTrajeto`, no domain do Core). Assim o km de hoje aparece offline. Quando o resumo do servidor chega, ele vence.
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `usuario_id`, `data` | uuid, date | único vivo por (tenant, usuário, data) |
+| `metros` | integer ≥ 0 | Σ haversine entre pontos consecutivos, descartando ponto com precisão > [50 m] e salto com velocidade implícita > [150 km/h] |
+| `pontos` | integer ≥ 0 | pontos usados |
+| `primeiro_ponto_em`, `ultimo_ponto_em` | timestamptz | — |
+| `origem` | text | `'rastreamento'` (reservado para `'manual'` no futuro) |
+
+- Pull com a mesma janela das visitas (§7.2) e escopo de usuário (RN-CORE-04).
+- Km de hoje: pelos pontos locais com `metrosDoTrajeto` (tracking.md §3.4); quando o resumo do servidor chega, ele vence.
 
 **Até o rastreamento existir** (ou para usuário sem termo aceito):
 - Km por dia e Km por cliente ficam `sem_dado` ("—", sem ponto), com a meta visível.
