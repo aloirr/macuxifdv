@@ -6,7 +6,7 @@
  *  - RN-PRO-07: a permanência mínima é do Promotor e não se edita aqui; "Visita curta" mostra só a janela;
  *  - RN-CORE-03: sem o módulo de origem, a regra não aparece.
  */
-import { TIPOS_REGRA_EQUIPE, type ChaveParametroAlerta, type ParametrosAlertasEquipe, type RegraAlerta, type Severidade, type TipoRegraEquipe } from '../contracts';
+import { FAIXAS_PARAMETROS_ALERTAS, TIPOS_REGRA_EQUIPE, type ChaveParametroAlerta, type ParametrosAlertasEquipe, type RegraAlerta, type Severidade, type TipoRegraEquipe } from '../contracts';
 import { MODULO_DO_ALERTA, REGRAS_PADRAO } from './alertas';
 import { PARAMETROS_PADRAO } from './parametros';
 
@@ -23,12 +23,11 @@ export interface CampoRegra {
   origem: { tipo: 'regra'; campo: CampoDaRegra } | { tipo: 'parametro'; chave: ChaveParametroAlerta };
 }
 
-const par = (chave: ChaveParametroAlerta, rotulo: string, unidade: string, min: number, max: number): CampoRegra => ({
+const par = (chave: ChaveParametroAlerta, rotulo: string, unidade: string): CampoRegra => ({
   id: chave,
   rotulo,
   unidade,
-  min,
-  max,
+  ...FAIXAS_PARAMETROS_ALERTAS[chave],
   padrao: PARAMETROS_PADRAO[chave],
   origem: { tipo: 'parametro', chave },
 });
@@ -44,12 +43,12 @@ const reg = (tipo: TipoRegraEquipe, campo: CampoDaRegra, rotulo: string, unidade
 
 export const CAMPOS_REGRA: Readonly<Record<TipoRegraEquipe, readonly CampoRegra[]>> = {
   cliente_sem_visita: [
-    par('pct_tolerancia_frequencia', 'Tolerância sobre a frequência', '% da frequência', 0, 500),
-    par('dias_sem_visita_padrao', 'Cliente sem frequência', 'dias', 1, 365),
-    par('dias_carencia_cliente_novo', 'Carência do cliente novo', 'dias', 0, 365),
+    par('pct_tolerancia_frequencia', 'Tolerância', '% da frequência'),
+    par('dias_sem_visita_padrao', 'Sem frequência', 'dias'),
+    par('dias_carencia_cliente_novo', 'Carência do cliente novo', 'dias'),
   ],
-  ritmo_abaixo_meta: [reg('ritmo_abaixo_meta', 'limiar', 'Ritmo mínimo', '% da meta', 1, 100), reg('ritmo_abaixo_meta', 'amostra_min', 'A partir do dia útil', 'nº', 0, 31)],
-  pedido_aguardando_aprovacao: [par('prazo_aprovacao_dias_uteis', 'Prazo', 'dias úteis', 1, 30)],
+  ritmo_abaixo_meta: [reg('ritmo_abaixo_meta', 'limiar', 'Ritmo mínimo', '% da meta', 1, 100), reg('ritmo_abaixo_meta', 'amostra_min', 'A partir do', 'º dia útil', 0, 31)],
+  pedido_aguardando_aprovacao: [par('prazo_aprovacao_dias_uteis', 'Prazo', 'dias úteis')],
   ruptura_recorrente: [reg('ruptura_recorrente', 'limiar', 'Ruptura em', 'visitas', 1, 30), reg('ruptura_recorrente', 'janela_dias', 'No período de', 'dias', 1, 90)],
   visita_curta: [reg('visita_curta', 'janela_dias', 'Nos últimos', 'dias', 1, 30)],
   fotos_sem_gps: [

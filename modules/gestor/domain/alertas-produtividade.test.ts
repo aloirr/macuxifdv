@@ -189,7 +189,6 @@ describe('D4: um alerta de produtividade aberto por pessoa; encerra sozinho no p
 describe('D4 / RN-VEN-42: os tipos de produtividade não têm regra própria na lista de regras da equipe', () => {
   it('os 8 tipos existem; a lista de regras da equipe tem só os 6 de sempre e a regra padrão dos novos não é ajustável aqui', () => {
     expect(TIPOS_ALERTA).toHaveLength(8);
-    expect([...TIPOS_REGRA_EQUIPE]).toEqual(TIPOS_ALERTA.filter((t) => !(TIPOS_ALERTA_PRODUTIVIDADE as readonly string[]).includes(t)));
     expect(REGRAS_PADRAO.parado_entre_visitas.tipo).toBe('parado_entre_visitas');
     const r = ajustarRegraAlerta({}, 'parado_entre_visitas', { ativa: false });
     expect(r).toEqual({ ok: false, erros: ['Este alerta liga e desliga em Parâmetros › Alertas › Produtividade do dia.'] });

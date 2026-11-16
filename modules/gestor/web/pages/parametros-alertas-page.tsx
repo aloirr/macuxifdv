@@ -10,10 +10,10 @@
  * (`campos-regra`, `produtividade-do-dia`); a API revalida.
  */
 import { useState, type ReactNode } from 'react';
-import { CHAVES_REGRA_PRODUTIVIDADE, NOME_REGRA_PRODUTIVIDADE, type ChaveRegraProdutividade, type ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
+import { CHAVES_REGRA_PRODUTIVIDADE, NOME_REGRA_PRODUTIVIDADE, textoDoMinuto, type ChaveRegraProdutividade, type ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
 import { Button, CLASSE_CAMPO_BASE, ErrorBlock, Interruptor, LoadingBlock, Notice, PageHeader, Panel, cx, type NoticeTone } from '@macuxi/ui/web';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { SEVERIDADES, type ParametrosAlertasEquipe, type RegraAlerta, type Severidade, type TipoRegraEquipe } from '../../contracts';
+import { ROTULO_SEVERIDADE, SEVERIDADES, type ParametrosAlertasEquipe, type RegraAlerta, type Severidade, type TipoRegraEquipe } from '../../contracts';
 import {
   CAMPOS_PRODUTIVIDADE,
   CAMPOS_REGRA,
@@ -25,7 +25,6 @@ import {
   REGRAS_COM_DESTINOS,
   regrasVisiveis,
 } from '../../domain';
-import { textoDoMinuto } from '@macuxi/core/contracts';
 import { TIPO_ALERTA_ROTULO } from '../../app/lib/apresentacao';
 import { useAjustarRegra, useRegras } from '../lib/queries';
 import {
@@ -38,7 +37,6 @@ import {
   useParametrosProdutividade,
 } from '../lib/parametros-alertas';
 
-const SEV: Record<Severidade, string> = { info: 'Informativo', atencao: 'Atenção', critica: 'Crítico' };
 const SELECT = cx(CLASSE_CAMPO_BASE, 'h-[44px] w-full px-3 text-[15px] disabled:border-line disabled:bg-ground disabled:text-ink disabled:opacity-100');
 const numero = (s: string): number | null => (s.trim() === '' || Number.isNaN(Number(s.replace(',', '.'))) ? null : Number(s.replace(',', '.')));
 
@@ -142,7 +140,7 @@ function CartaoEquipe({ tipo, regra, parametros, aoSalvar }: { tipo: TipoRegraEq
           <select className={SELECT} value={e.severidade} disabled={!e.ativa} onChange={(ev) => setE({ ...e, severidade: ev.target.value as Severidade })} data-testid={`gestor.parametros-alertas.${tipo}.severidade`}>
             {SEVERIDADES.map((s) => (
               <option key={s} value={s}>
-                {SEV[s]}
+                {ROTULO_SEVERIDADE[s]}
               </option>
             ))}
           </select>

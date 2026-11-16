@@ -6,12 +6,21 @@
  */
 import { z } from 'zod';
 
+/** Faixas aceitas de cada parâmetro: o Zod e os campos da tela (`CAMPOS_REGRA`) leem daqui (RD-1511). */
+export const FAIXAS_PARAMETROS_ALERTAS = {
+  pct_tolerancia_frequencia: { min: 0, max: 500 },
+  dias_sem_visita_padrao: { min: 1, max: 365 },
+  dias_carencia_cliente_novo: { min: 0, max: 365 },
+  prazo_aprovacao_dias_uteis: { min: 1, max: 30 },
+} as const;
+const faixa = (f: { min: number; max: number }) => z.number().int().min(f.min).max(f.max);
+
 export const ParametrosAlertasEquipe = z
   .object({
-    pct_tolerancia_frequencia: z.number().int().min(0).max(500),
-    dias_sem_visita_padrao: z.number().int().min(1).max(365),
-    dias_carencia_cliente_novo: z.number().int().min(0).max(365),
-    prazo_aprovacao_dias_uteis: z.number().int().min(1).max(30),
+    pct_tolerancia_frequencia: faixa(FAIXAS_PARAMETROS_ALERTAS.pct_tolerancia_frequencia),
+    dias_sem_visita_padrao: faixa(FAIXAS_PARAMETROS_ALERTAS.dias_sem_visita_padrao),
+    dias_carencia_cliente_novo: faixa(FAIXAS_PARAMETROS_ALERTAS.dias_carencia_cliente_novo),
+    prazo_aprovacao_dias_uteis: faixa(FAIXAS_PARAMETROS_ALERTAS.prazo_aprovacao_dias_uteis),
   })
   .strict();
 export type ParametrosAlertasEquipe = z.infer<typeof ParametrosAlertasEquipe>;

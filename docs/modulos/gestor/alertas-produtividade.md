@@ -14,7 +14,6 @@ Donos: modulo-gestor (regras da equipe e alertas ao gestor), modulo-core (almoç
 - **Alertas da equipe:** as 6 regras (`TIPOS_REGRA_EQUIPE`), cada uma com liga/desliga, frase, só os campos que usa e o próprio Salvar. Os valores que moram em parâmetros do tenant (tolerância, sem frequência, carência, prazo da aprovação: RN-GES-01/02/03) ficam na própria regra, editáveis ali: um valor, um lugar.
 - **Permanência mínima (RN-PRO-07) não se edita aqui.** O valor é do Promotor; "Visita curta" mostra só a janela. O campo volta quando o Promotor oferecer a consulta e a rota de escrita (ADR 0059 §6; tarefa seguinte).
 - **Produtividade do dia:** 6 regras e o teto de lembretes, no formato do parâmetro `alertas.produtividade` do Core (`PUT /v1/core/parametros/alertas-produtividade`). Padrões e faixas vêm do contrato do Core. Destinos (Vendedor e Gestor) só no Parado e no Sem check-in.
-- O "parado" (`inicio.parado_min`, RN-CORE-26) é gravado por `PUT /v1/core/parametros/parado-min` e continua editável com a regra desligada (D1).
 
 ## 2. O que o servidor avalia (alerta ao gestor)
 Só dois tipos, no escopo do supervisor ou gerente, sem push (D3):
@@ -24,7 +23,6 @@ Só dois tipos, no escopo do supervisor ou gerente, sem push (D3):
 - **Último contato do aparelho (ADR 0059 §5):** a API chama `core.produtividade_equipe@1` e só abre o alerta se o último contato for posterior ao início da parada (último checkout, ou o horário `ate_min`). Sem contato, não abre: não acusa quem trabalhou sem sinal.
 - **Um alerta por pessoa (D4):** os dois tipos usam a chave `produtividade:<usuario_id>`; o mais novo substitui o vivo (`condicao_normalizada`), mesmo dispensado. Encerra sozinho quando a condição some.
 - **Compatibilidade:** `GET /v1/gestor/alertas` só traz esses tipos com `?produtividade=1` (o Gestão novo e o BKO pedem); sem ele, a lista os omite para o Gestão instalado não rejeitar o tipo novo.
-- Textos: tipo "Parado", mensagem "João Silva: último checkout às 10:12."; tipo "Sem check-in", mensagem só o nome.
 
 Rota incompleta, visita aberta, envio pendente e fim do almoço são lembretes do Campo (notificação local, só na bandeja do Android); não geram alerta ao gestor.
 
@@ -34,7 +32,7 @@ Rota incompleta, visita aberta, envio pendente e fim do almoço são lembretes d
 - **D3.** Sem push ao gestor; só a lista de Alertas (Gestão e BKO).
 - **D4.** No servidor entram só `parado_entre_visitas` e `sem_checkin_inicio`; um alerta de produtividade aberto por pessoa, o mais novo substitui.
 - **D5.** Almoço por pessoa com o padrão da empresa (modulo-core).
-- **D6.** Padrões: almoço 12:00–13:00, aviso 10 min antes; parado 60 min, gestor 30 min depois; sem check-in até 10:00; rota às 16:00; visita aberta 120 min; envio pendente 4 h; teto de 4 lembretes por pessoa por dia.
+- **D6.** Padrões: doc do core (`docs/modulos/core/jornada-e-alertas-produtividade.md`) §3.
 
 ## 4. Como ficou no código (modulo-gestor)
 - `domain/campos-regra.ts`: campos de cada regra da equipe, frases, regras visíveis por módulo e `montarSalvamento` (separa o que é da regra do que é parâmetro do tenant).

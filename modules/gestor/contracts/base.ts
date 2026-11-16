@@ -49,21 +49,11 @@ export const MOTIVOS_APROVACAO = ['desconto', 'credito', 'estoque', 'preco_minim
 export const MotivoAprovacao = z.enum(MOTIVOS_APROVACAO);
 export type MotivoAprovacao = z.infer<typeof MotivoAprovacao>;
 
-export const TIPOS_ALERTA = [
-  'cliente_sem_visita',
-  'ritmo_abaixo_meta',
-  'pedido_aguardando_aprovacao',
-  'ruptura_recorrente',
-  'visita_curta',
-  'fotos_sem_gps',
-  // T-0180 / D4: produtividade do dia, um alerta aberto por pessoa; ligam e desligam em Parâmetros › Alertas › Produtividade do dia
-  'parado_entre_visitas',
-  'sem_checkin_inicio',
-] as const;
-/** T-0180 / D4: tipos de produtividade (sem regra própria em `alerta_regra`; o liga/desliga vem do parâmetro do core). */
-export const TIPOS_ALERTA_PRODUTIVIDADE = ['parado_entre_visitas', 'sem_checkin_inicio'] as const;
 /** As 6 regras da equipe, na ordem da tela (`alerta_regra`); só elas têm ajuste em `alertas/regras` (ADR 0059 §1). */
 export const TIPOS_REGRA_EQUIPE = ['cliente_sem_visita', 'ritmo_abaixo_meta', 'pedido_aguardando_aprovacao', 'ruptura_recorrente', 'visita_curta', 'fotos_sem_gps'] as const;
+/** T-0180 / D4: tipos de produtividade do dia, um alerta aberto por pessoa (sem regra própria em `alerta_regra`; o liga/desliga vem do parâmetro do core). */
+export const TIPOS_ALERTA_PRODUTIVIDADE = ['parado_entre_visitas', 'sem_checkin_inicio'] as const;
+export const TIPOS_ALERTA = [...TIPOS_REGRA_EQUIPE, ...TIPOS_ALERTA_PRODUTIVIDADE] as const;
 export type TipoRegraEquipe = (typeof TIPOS_REGRA_EQUIPE)[number];
 export const TipoAlerta = z.enum(TIPOS_ALERTA);
 export type TipoAlerta = z.infer<typeof TipoAlerta>;
@@ -86,6 +76,8 @@ export interface AlertaPendenciaCheckout {
 export const SEVERIDADES = ['info', 'atencao', 'critica'] as const;
 export const Severidade = z.enum(SEVERIDADES);
 export type Severidade = z.infer<typeof Severidade>;
+/** Rótulo da severidade nas telas do BKO e do Gestão (um lugar só, RD-1513). */
+export const ROTULO_SEVERIDADE: Readonly<Record<Severidade, string>> = { info: 'Informativo', atencao: 'Atenção', critica: 'Crítico' };
 
 /** Período do ranking: dia, semana (segunda a domingo) ou mês civil, no fuso do tenant. */
 export const PERIODOS_RANKING = ['diario', 'semanal', 'mensal'] as const;

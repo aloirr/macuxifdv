@@ -7,7 +7,7 @@
  *      · alerta dispensado pelo gestor não reabre enquanto a condição persiste; se sumir e voltar, abre outro.
  * O "dia" é a data civil no fuso do tenant. Funções puras e idempotentes.
  */
-import { ALMOCO_PADRAO_EMPRESA, minutosSemAlmoco, textoDoMinuto, type HorarioAlmoco, type ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
+import { ALMOCO_PADRAO_EMPRESA, almocoEmMs, minutosSemAlmoco, textoDoMinuto, type HorarioAlmoco, type ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
 import { diffDays } from '@macuxi/comum';
 import { RegraAlerta, TIPOS_ALERTA, TIPOS_ALERTA_PRODUTIVIDADE, type CondicaoAlerta, type FrequenciaVisita, type MembroEquipe, type MotivoEncerramento, type Severidade, type StatusAlerta, type TipoAlerta } from '../contracts';
 import { nivelDaFilaDoGestor, pedidoPendenteDeAprovacao, situacaoDoPrazo } from './aprovacoes';
@@ -329,17 +329,18 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
     for (const m of e.membros) {
       if ((m.perfil !== 'vendedor' && m.perfil !== 'promotor') || !m.ativo) continue;
       const dia = statusDoDia(e.estado, m.id, hoje, params);
+      const contato = e.ultimo_contato_em?.[m.id] ?? null;
       // RN-CORE-26: parado = sem check-in aberto e `parado_min` desde o último checkout, com ou sem rota; o gestor só vê `gestor_depois_min` depois
       if (ativos.has('parado_entre_visitas') && dia === 'em_rota') {
         const rota = situacaoDaRota(e.estado, m.id, hoje, params.fuso);
         const almoco = e.almoco?.[m.id] ?? ALMOCO_PADRAO_EMPRESA;
         const inicioDoDia = instanteDoHorarioLocal(hoje, '00:00', params.fuso);
         const parado = rota.ultimo_checkout_em
-          ? Math.floor(minutosSemAlmoco(instanteMs(rota.ultimo_checkout_em), agoraMs, { inicio: inicioDoDia + almoco.inicio_min * 60_000, fim: inicioDoDia + almoco.fim_min * 60_000 }))
+          ? Math.floor(minutosSemAlmoco(instanteMs(rota.ultimo_checkout_em), agoraMs, almocoEmMs(inicioDoDia, almoco)))
           : null;
-        const contato = e.ultimo_contato_em?.[m.id] ?? null;
+        const limiarGestor = params.parado_min + prod.parado_entre_visitas.gestor_depois_min;
         const comSinal = rota.ultimo_checkout_em !== null && contato !== null && instanteMs(contato) > instanteMs(rota.ultimo_checkout_em);
-        if (rota.ultimo_checkout_em && comSinal && parado !== null && parado >= params.parado_min + prod.parado_entre_visitas.gestor_depois_min) {
+        if (rota.ultimo_checkout_em && comSinal && parado !== null && parado >= limiarGestor) {
           out.push({
             chave: chaveProdutividade(m.id),
             tipo: 'parado_entre_visitas',
@@ -347,7 +348,7 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
             alvo_id: m.id,
             responsavel_id: m.id,
             valor: parado,
-            limiar: params.parado_min + prod.parado_entre_visitas.gestor_depois_min,
+            limiar: limiarGestor,
             severidade: e.regras.parado_entre_visitas.severidade,
             mensagem: `${m.nome}: último checkout às ${horaLocal(rota.ultimo_checkout_em)}.`,
           });
@@ -355,8 +356,7 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
         }
       }
       const ate = instanteDoHorarioLocal(hoje, textoDoMinuto(prod.sem_checkin_inicio.ate_min), params.fuso);
-      const contatoDoDia = e.ultimo_contato_em?.[m.id] ?? null;
-      if (ativos.has('sem_checkin_inicio') && dia === 'sem_checkin' && agoraMs >= ate && contatoDoDia !== null && instanteMs(contatoDoDia) > ate) {
+      if (ativos.has('sem_checkin_inicio') && dia === 'sem_checkin' && agoraMs >= ate && contato !== null && instanteMs(contato) > ate) {
         out.push({
           chave: chaveProdutividade(m.id),
           tipo: 'sem_checkin_inicio',

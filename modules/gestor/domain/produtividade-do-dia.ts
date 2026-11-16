@@ -7,7 +7,10 @@
  * `PUT /core/parametros/parado-min`; aqui é só o campo que o edita.
  */
 import {
+  ERRO_HORA_HHMM,
   FAIXAS_ALERTAS_PRODUTIVIDADE as FAIXAS,
+  MinutoDoDiaSchema,
+  minutoDoTextoHora,
   PARADO_MIN_MAX,
   PARADO_MIN_MIN,
   PARADO_MIN_PADRAO,
@@ -16,7 +19,6 @@ import {
   type ParametrosAlertasProdutividade,
 } from '@macuxi/core/contracts';
 import { validarCampo } from './campos-regra';
-import { minutoDoTextoHora } from '@macuxi/core/contracts';
 
 export interface CampoProdutividade {
   /** Nome do campo no contrato do Core; `parado_min` é o de `inicio.parado_min`. */
@@ -33,7 +35,7 @@ export interface CampoProdutividade {
   origem: 'produtividade' | 'core_parado_min';
 }
 const num = (id: string, rotulo: string, unidade: string, f: { min: number; max: number }, padrao: number): CampoProdutividade => ({ id, rotulo, unidade, tipo: 'numero', min: f.min, max: f.max, padrao, origem: 'produtividade' });
-const hora = (id: string, rotulo: string, padrao: number): CampoProdutividade => ({ id, rotulo, unidade: '', tipo: 'hora', min: 0, max: 1439, padrao, origem: 'produtividade' });
+const hora = (id: string, rotulo: string, padrao: number): CampoProdutividade => ({ id, rotulo, unidade: '', tipo: 'hora', min: MinutoDoDiaSchema.minValue ?? 0, max: MinutoDoDiaSchema.maxValue ?? 1439, padrao, origem: 'produtividade' });
 
 export const CAMPOS_PRODUTIVIDADE: Readonly<Record<ChaveRegraProdutividade, readonly CampoProdutividade[]>> = {
   fim_almoco: [num('antecedencia_min', 'Antes do fim', 'min', FAIXAS.antecedencia_min, PADRAO.fim_almoco.antecedencia_min)],
@@ -84,7 +86,7 @@ export function montarSalvamentoProdutividade(chave: ChaveRegraProdutividade, r:
   for (const c of CAMPOS_PRODUTIVIDADE[chave]) {
     const bruto = r.valores[c.id] ?? null;
     const n = c.tipo === 'hora' && typeof bruto === 'string' ? minutoDoTextoHora(bruto) : typeof bruto === 'number' ? bruto : null;
-    const erro = c.tipo === 'hora' && n === null ? 'Use o horário em hh:mm.' : validarCampo(c, n);
+    const erro = c.tipo === 'hora' && n === null ? ERRO_HORA_HHMM : validarCampo(c, n);
     if (erro) erros[c.id] = erro;
     else if (c.origem === 'core_parado_min') paradoMin = n !== atual.paradoMin ? n : null;
     else depois[c.id] = n;

@@ -24,8 +24,6 @@ const qk = {
   produtividade: ['core', 'parametros', 'alertas-produtividade'] as const,
   paradoMin: ['core', 'parametros', 'parado-min'] as const,
 };
-/** Exportadas para teste: `parado-min` tem chave própria. */
-export const CHAVES_CACHE_PARAMETROS = qk;
 const useLogado = () => useSession().status === 'authenticated';
 
 export function useParametrosAlertasEquipe() {
