@@ -1,5 +1,7 @@
 # Carga em segundo plano: indicador discreto e catálogo sem sinal (onda 1 do catálogo, solução 5)
 
+> **Tipografia substituída** pela fonte do sistema (R-20261115-110600, 15/11/2026): ver o [manual da marca §5](../marca/manual.md#5-tipografia).
+
 > 2026-11-15 · designer-ux · origem: aprovação do dono do produto (R-20261115-070200) e desenho do engenheiro-software
 > (`docs/desenho/T-catalogo-pacote.md`, §2.2 "Indicador discreto" e §5 linha F).
 > Simulação: `docs/design/simulacoes/2026-11-15-catalogo-carregando.png` (prancha) e `-1.png`, `-2.png`, `-3.png` (cada tela em
@@ -21,7 +23,7 @@
 vazio; desmonta ao terminar. Não vai no topo da tela porque o cabeçalho Azul noite começa na barra de status (manual da marca
 §4) e a linha cortaria a faixa. Não entra em tela empilhada (Novo pedido, ficha), que esconde as abas.
 
-**Desenho:** linha de 32 dp no Pérola (`ground`); ícone de 14 e texto Plex Sans SemiBold 12 em `ink2` (7,03:1 no Pérola),
+**Desenho:** linha de 32 dp no Pérola (`ground`); ícone de 14 e texto na fonte do sistema, 600, 12 em `ink2` (7,03:1 no Pérola),
 centralizados, números tabulares; barra de 2 dp no pé, trilho `lineSoft` e preenchimento `grafico` (é gráfico, manual §3).
 Sem animação própria: a largura troca a cada atualização do percentual (nada a reduzir com "reduzir movimento").
 
@@ -57,7 +59,7 @@ carregando e sem sinal; o vazio fica só com o que fazer (uma informação, um l
 mostram o indicador, por isso levam o título.
 
 Textos em `TITULO_CATALOGO_CARREGANDO` e `TEXTO_CATALOGO_CARREGANDO`; o desenho puro é `desenhoCatalogoCarregando({ comTitulo })`
-(`@macuxi/ui/mobile/puro`). Substituem o texto provisório do modulo-catalogo. Com sinal, nada disso aparece: a busca vai à
+(`@macuxi/ui/mobile/puro`). Com sinal, nada disso aparece: a busca vai à
 API com o preço do cliente.
 
 ## 3. Fora desta spec

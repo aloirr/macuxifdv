@@ -1,10 +1,6 @@
 /**
- * Onda 1 do catálogo, solução 5 (docs/design/carga-em-segundo-plano.md): `IndicadorCargaFundo`, a linha fina no topo das
- * abas enquanto a primeira carga continua em segundo plano ("Catálogo 63%"). O shell monta enquanto `pendentes` não está
- * vazio e desmonta ao terminar; o toque abre o detalhe da carga (rota do shell). Não é aviso (RN-VEN-42) e não explica o
- * que o app faz por trás (R-20261110-192153). Linha de 32 dp no Pérola, ícone 14 + texto 12 semibold `ink2` (7,03:1),
- * barra de 2 dp no pé (trilho `lineSoft`, preenchimento `grafico`); alvo de toque 48 com hitSlop.
- * `CatalogoCarregando`: o estado vazio do catálogo sem sinal durante a carga (textos fechados em `carga-fundo.ts`).
+ * Componentes do indicador de carga em segundo plano e do catálogo sem sinal: desenho em docs/design/carga-em-segundo-plano.md,
+ * medidas e textos em `carga-fundo.ts`.
  */
 import { StyleSheet, Text, View } from 'react-native';
 

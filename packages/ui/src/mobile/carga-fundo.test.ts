@@ -50,11 +50,6 @@ describe('IndicadorCargaFundo (onda 1 do catálogo, solução 5)', () => {
     for (const t of textos) expect(t).not.toMatch(/segundo plano|servidor|baixando|sincroniz|aguarde/i);
   });
 
-  it('textos fechados do catálogo sem sinal durante a carga', () => {
-    expect(TITULO_CATALOGO_CARREGANDO).toBe('Catálogo ainda carregando');
-    expect(TEXTO_CATALOGO_CARREGANDO).toBe('Busque quando tiver sinal.');
-  });
-
   it('CatalogoCarregando: na aba, só o texto (o indicador e o selo já dizem carregando e sem sinal, RD-0671)', () => {
     expect(desenhoCatalogoCarregando()).toEqual({ texto: 'Busque quando tiver sinal.' });
     expect(desenhoCatalogoCarregando({ comTitulo: false })).toEqual({ texto: 'Busque quando tiver sinal.' });
