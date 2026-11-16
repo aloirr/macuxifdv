@@ -4,7 +4,7 @@ import { classeDaPrioridade, indiceNoMenu, nomeLegivel, posicaoDoMenu } from './
 import { ordenarAcoes } from './menu-acoes';
 import { iconeDoModulo, infoDoModulo, modulosContrataveis, nomeDoModulo, IDS_DOS_MODULOS } from './modulos';
 import { IconCatalogo, IconCore, IconGestor, IconIntegracao, IconMais, IconPesquisa, IconPromotor, IconTreinamento, IconVendedor } from './icons';
-import { CLASSE_CAMPO, CLASSE_CAMPO_BASE, rotuloComContagem, seloPrincipal } from './ui';
+import { CLASSE_CAMPO, CLASSE_CAMPO_BASE, EstadoVazio, rotuloComContagem, seloPrincipal } from './ui';
 
 const fonte = (arquivo: string) => readFileSync(new URL(arquivo, import.meta.url), 'utf8');
 
@@ -131,5 +131,22 @@ describe('Classe de campo num lugar só (RD-0368)', () => {
   it('o campo do formulário parte da classe-base', () => {
     for (const c of CLASSE_CAMPO_BASE.split(' ')) expect(CLASSE_CAMPO.split(' ')).toContain(c);
     expect(CLASSE_CAMPO).toContain('h-[42px]');
+  });
+});
+
+describe('EstadoVazio: semBorda dentro do cartão (manual da marca §4, cartão; RD-0970)', () => {
+  const classe = (semBorda?: boolean) => String(EstadoVazio({ titulo: 'Nenhum registro.', semBorda }).props.className);
+  const titulo = (semBorda?: boolean) => EstadoVazio({ titulo: 'Nenhum registro.', semBorda }).props.children[0].props.className as string;
+  it('padrão: borda tracejada e cantos próprios, solto no fundo', () => {
+    expect(classe()).toMatch(/\bborder-dashed\b/);
+    expect(classe()).toMatch(/\brounded-2xl\b/);
+  });
+  it('semBorda: sem borda, sem cantos e sem fundo próprios (o cartão já tem)', () => {
+    expect(classe(true)).not.toMatch(/\bborder\b|border-dashed|border-field|rounded|\bbg-/);
+    expect(classe(true)).toMatch(/\bpx-6\b.*\bpy-10\b/);
+  });
+  it('mesma tipografia com e sem borda', () => {
+    expect(titulo(true)).toBe(titulo(false));
+    expect(titulo(true)).toContain('text-[15px]');
   });
 });

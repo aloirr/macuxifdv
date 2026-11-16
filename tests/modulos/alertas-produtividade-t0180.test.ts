@@ -21,12 +21,14 @@ import {
   PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO as PADRAO,
   ParametroParadoMinSchema,
   ParametrosAlertasProdutividadeSchema,
+  ParametrosInicioPutSchema,
   type ParametrosAlertasProdutividade,
 } from '@macuxi/core/contracts';
 import { criarPermissoes, verificarAcao, verificarAcesso, PERFIS, type ContextoRota, type ModuloId, type Perfil, type RotaModulo } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { consultaProdutividadeEquipe } from '../../modules/core/api/produtividade-equipe';
 import { rotasDeParametrosAlertas as rotasCoreAlertas } from '../../modules/core/api/parametros-alertas';
+import { rotasDeParametrosInicio } from '../../modules/core/api/parametros-inicio';
 import { rotasDeParametrosJornada } from '../../modules/core/api/parametros-jornada';
 import { validarParametrosAlertasProdutividade } from '../../modules/core/domain';
 import { manifest as core } from '../../modules/core/manifest';
@@ -138,6 +140,11 @@ describe('T-0180 — o Gestor grava no contrato do Core (alertas.produtividade e
     expect(web).not.toMatch(/body: \{ dias_uteis_semana/);
     expect(ParametroParadoMinSchema.safeParse({ parado_min: 45 }).success).toBe(true);
     expect(ParametroParadoMinSchema.safeParse({ parado_min: 45, dias_uteis_semana: [1] }).success).toBe(false);
+    // o PUT do Início recusa o "parado" (corpo estrito → 400 no SDK): o valor mora só em parametros/parado-min
+    const putInicio = rotasDeParametrosInicio.find((r) => r.metodo === 'PUT' && r.caminho === 'parametros/inicio');
+    expect(putInicio?.corpo).toBe(ParametrosInicioPutSchema);
+    expect(ParametrosInicioPutSchema.safeParse({ dias_uteis_semana: [1, 2, 3, 4, 5] }).success).toBe(true);
+    expect(ParametrosInicioPutSchema.safeParse({ dias_uteis_semana: [1, 2, 3, 4, 5], parado_min: 45 }).success).toBe(false);
   });
 
   it('o Gestor usa o tipo e o padrão do contrato do Core (sem espelho local)', () => {

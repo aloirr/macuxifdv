@@ -7,7 +7,7 @@ import { ROTULO_PERFIL, type ModuloId } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, CampoSenha, IconeModulo, IconUser, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, useToast, rotuloDoPerfil, type AcaoDoMenu, type IdDoModulo } from '@macuxi/ui/web';
-import { FiliaisListaSchema, CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, VincularErpRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type LicencasEstado, type UsuarioItem } from '../../../contracts';
+import { FiliaisListaSchema, CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, VincularErpRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type HorarioAlmoco, type LicencasEstado, type UsuarioItem } from '../../../contracts';
 import { efetivosPelasDependencias } from '../../../domain/licencas';
 import {
   acaoDeSenha,
@@ -20,6 +20,7 @@ import {
   textoDaConfirmacaoDoVinculo,
   textoDoVinculoErp,
   tituloDaConfirmacaoDoVinculo,
+  almocoPadraoDoTenant,
   corpoDeRedefinicao,
   faltasDaSenhaDigitada,
   gerarSenhaNoNavegador,
@@ -34,6 +35,7 @@ import {
   errosDoFormulario,
   FORMULARIO_VAZIO,
   formularioDoUsuario,
+  formularioNovo,
   type FormularioUsuario,
   ERRO_SEM_PERFIL,
   opcoesDeChefia,
@@ -46,8 +48,8 @@ import { regrasDoCargo } from '../../../domain/cargos';
 import { modulosExibiveis, removidosDoFormulario } from '../../lib/acesso';
 import { efetivosDoUsuario } from '../../lib/licencas';
 import { useMe } from '../../lib/queries';
-
-const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
+import { rotuloDoAlmoco } from '../../../domain/jornada';
 const BOTAO_LINHA = 'h-[44px] min-w-[88px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled';
 
 type Modal = { tipo: 'form'; usuario: UsuarioItem | null } | { tipo: 'ativo'; usuario: UsuarioItem } | { tipo: 'senha'; usuario: UsuarioItem } | null;
@@ -98,6 +100,9 @@ export function UsuariosConteudo() {
   const [modal, setModal] = useState<Modal>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [form, setForm] = useState<FormularioUsuario>(FORMULARIO_VAZIO);
+  // T-0180 (D5; RN-CORE-44): o padrão da empresa vem na própria lista de usuários (quem edita usuário não precisa de `parametro.inicio`)
+  const [padraoDaLista, setPadraoDaLista] = useState<HorarioAlmoco | undefined>(undefined);
+  const padraoAlmoco = almocoPadraoDoTenant(padraoDaLista ? { almoco_padrao: padraoDaLista } : undefined);
   const [desmarcados, setDesmarcados] = useState<ReadonlySet<string>>(new Set());
   const [tentou, setTentou] = useState(false);
   const [erroApi, setErroApi] = useState<string | null>(null);
@@ -138,7 +143,9 @@ export function UsuariosConteudo() {
       if (perfil) qs.set('perfil', perfil);
       if (situacao) qs.set('ativo', situacao === 'ativo' ? 'true' : 'false');
       if (provisorios) qs.set('provisorio', 'true');
-      return UsuarioListaRespostaSchema.parse(await api(`/core/usuarios${qs.size ? `?${qs.toString()}` : ''}`)).itens;
+      const resposta = UsuarioListaRespostaSchema.parse(await api(`/core/usuarios${qs.size ? `?${qs.toString()}` : ''}`));
+      if (resposta.almoco_padrao) setPadraoDaLista(resposta.almoco_padrao);
+      return resposta.itens;
     },
   });
   // §2: o selo "Bloqueado até" some sozinho, na hora em que o bloqueio vence (um único aviso do relógio, sem rede)
@@ -307,7 +314,7 @@ export function UsuariosConteudo() {
     setSemEmail(null);
     setErroApi(null);
     setTentou(false);
-    setForm(u ? formularioDoUsuario(u) : { ...FORMULARIO_VAZIO, perfil: 'vendedor', perfis: [] });
+    setForm(u ? formularioDoUsuario(u, padraoAlmoco) : formularioNovo(padraoAlmoco));
     setDesmarcados(new Set(u ? (licencas?.usuarios.find((x) => x.id === u.id)?.removidos ?? []) : []));
     setModal({ tipo: 'form', usuario: u });
   };
@@ -419,7 +426,7 @@ export function UsuariosConteudo() {
             onKeyDown={(e) => e.key === 'Enter' && set({ q: e.currentTarget.value })}
             onBlur={(e) => set({ q: e.currentTarget.value })}
             data-testid="usuarios.busca"
-            className={CAMPO}
+            className={CLASSE_CAMPO_BKO}
           />
         </label>
         <SelectField label="Perfil" value={perfil} onChange={(e) => set({ perfil: e.target.value })} data-testid="usuarios.filtro-perfil">
@@ -550,16 +557,16 @@ export function UsuariosConteudo() {
             </div>
           )}
           <Campo rotulo="Nome" erro={erroDe('nome')}>
-            <input ref={campoNome} value={form.nome} onChange={(e) => upd({ nome: e.target.value })} className={CAMPO} data-testid="usuarios.campo-nome" />
+            <input ref={campoNome} value={form.nome} onChange={(e) => upd({ nome: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-nome" />
           </Campo>
           <Campo rotulo="E-mail" erro={erroDe('email')}>
-            <input type="email" value={form.email} onChange={(e) => upd({ email: e.target.value })} className={CAMPO} data-testid="usuarios.campo-email" />
+            <input type="email" value={form.email} onChange={(e) => upd({ email: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-email" />
           </Campo>
           <Campo rotulo="Perfil" erro={tentou && form.perfis.length === 0 ? ERRO_SEM_PERFIL : undefined}>
             <select
               value={form.perfis[0] ?? ''}
               onChange={(e) => upd({ perfis: e.target.value ? [e.target.value] : [], perfil: opcoesDePerfil.find((p) => p.codigo === e.target.value)?.base ?? form.perfil })}
-              className={CAMPO}
+              className={CLASSE_CAMPO_BKO}
               data-testid="usuarios.campo-perfis"
             >
               <option value="">Escolha…</option>
@@ -575,7 +582,7 @@ export function UsuariosConteudo() {
               <select
                 value={form.gerente_id}
                 onChange={(e) => upd({ gerente_id: e.target.value, ...(cargo === 'promotor' && ativos.find((x) => x.id === form.supervisor_id)?.gerente_id !== e.target.value ? { supervisor_id: '' } : {}) })}
-                className={CAMPO}
+                className={CLASSE_CAMPO_BKO}
                 data-testid="usuarios.campo-gerente"
               >
                 <option value="">Escolha…</option>
@@ -589,7 +596,7 @@ export function UsuariosConteudo() {
           )}
           {regras.supervisor !== 'nao' && (
             <Campo rotulo="Supervisor" erro={erroDe('supervisor_id')}>
-              <select value={form.supervisor_id} onChange={(e) => upd({ supervisor_id: e.target.value })} className={CAMPO} data-testid="usuarios.campo-supervisor">
+              <select value={form.supervisor_id} onChange={(e) => upd({ supervisor_id: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-supervisor">
                 <option value="">{regras.supervisor === 'opcional' ? 'Sem supervisor' : 'Escolha…'}</option>
                 {supervisores.map((x) => (
                   <option key={x.id} value={x.id}>
@@ -601,13 +608,13 @@ export function UsuariosConteudo() {
           )}
           {regras.nomeEquipe !== 'nao' && (
             <Campo rotulo="Nome da equipe" erro={erroDe('equipe_nome')}>
-              <input value={form.equipe_nome} maxLength={80} onChange={(e) => upd({ equipe_nome: e.target.value })} className={CAMPO} data-testid="usuarios.campo-equipe-nome" />
+              <input value={form.equipe_nome} maxLength={80} onChange={(e) => upd({ equipe_nome: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-equipe-nome" />
             </Campo>
           )}
           {podeFilial && (
             <>
               <Campo rotulo="Filial de cadastro" erro={erroDaFilialCadastro(form, tentou)}>
-                <select value={form.filial_cadastro_id} onChange={(e) => upd(escolherCadastro(form, e.target.value))} className={CAMPO} data-testid="usuarios.campo-filial-cadastro">
+                <select value={form.filial_cadastro_id} onChange={(e) => upd(escolherCadastro(form, e.target.value))} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-filial-cadastro">
                   <option value="">Escolha…</option>
                   {filiais.map((f) => (
                     <option key={f.id} value={f.id}>
@@ -622,7 +629,7 @@ export function UsuariosConteudo() {
                   {filiais.map((f) => {
                     const travada = vendaTravada(form, f.id);
                     return (
-                      <label key={f.id} className={`flex min-h-[48px] items-center gap-3 rounded-xl border border-line px-3 text-[14px] font-semibold text-ink ${travada ? 'bg-ground' : 'bg-surface'}`}>
+                      <label key={f.id} className={`flex min-h-[48px] items-center gap-3 rounded-xl border border-line px-3 text-[15px] font-semibold text-ink ${travada ? 'bg-ground' : 'bg-surface'}`}>
                         <input
                           type="checkbox"
                           className="h-5 w-5 accent-accent"
@@ -646,7 +653,7 @@ export function UsuariosConteudo() {
           {editando && (
             <Campo rotulo="Código FDV">
               <span className="flex items-center gap-2 rounded-xl border border-line bg-ground px-3 py-1" data-testid="usuarios.codigo-fdv">
-                <span className="flex-1 font-mono text-[14px] font-medium text-ink" data-testid="usuarios.campo-codigo-fdv">
+                <span className="flex-1 font-mono text-[15px] font-medium text-ink" data-testid="usuarios.campo-codigo-fdv">
                   {codigoFdvParaLista(editando)}
                 </span>
                 {editando.codigo_fdv && (
@@ -661,7 +668,7 @@ export function UsuariosConteudo() {
             </Campo>
           )}
           <Campo rotulo="Código no ERP" erro={erroDe('external_id')}>
-            <input value={form.external_id} maxLength={100} onChange={(e) => upd({ external_id: e.target.value })} className={CAMPO} data-testid="usuarios.campo-external-id" />
+            <input value={form.external_id} maxLength={100} onChange={(e) => upd({ external_id: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-external-id" />
           </Campo>
           {editando && podeEditar && podeVincularErp(ativos, editando) && form.external_id.trim() === '' && (
             <div>
@@ -670,6 +677,25 @@ export function UsuariosConteudo() {
               </Button>
             </div>
           )}
+          {editando && (
+            <fieldset className="m-0 flex flex-col gap-2 border-0 p-0" data-testid="usuarios.jornada">
+              <legend className="mb-1 p-0 text-[13px] font-semibold text-ink">Horário de almoço</legend>
+              <label className="flex min-h-[48px] items-center gap-3 rounded-xl border border-line bg-surface px-3 text-[15px] font-semibold text-ink">
+                <input type="checkbox" className="h-5 w-5 accent-accent" checked={form.almoco_padrao} onChange={(e) => upd({ almoco_padrao: e.target.checked })} data-testid="usuarios.campo-almoco-padrao" />
+                Padrão da empresa ({rotuloDoAlmoco(padraoAlmoco)})
+              </label>
+              {!form.almoco_padrao && (
+                <div className="flex flex-wrap items-start gap-3">
+                  <Campo rotulo="Início" erro={erroDe('almoco_inicio')}>
+                    <input value={form.almoco_inicio} inputMode="numeric" aria-invalid={erroDe('almoco_inicio') ? true : undefined} onChange={(e) => upd({ almoco_inicio: e.target.value })} className={`${CLASSE_CAMPO_BKO} w-[120px]`} data-testid="usuarios.campo-almoco-inicio" />
+                  </Campo>
+                  <Campo rotulo="Fim" erro={erroDe('almoco_fim')}>
+                    <input value={form.almoco_fim} inputMode="numeric" aria-invalid={erroDe('almoco_fim') ? true : undefined} onChange={(e) => upd({ almoco_fim: e.target.value })} className={`${CLASSE_CAMPO_BKO} w-[120px]`} data-testid="usuarios.campo-almoco-fim" />
+                  </Campo>
+                </div>
+              )}
+            </fieldset>
+          )}
           {licencas && (
             <fieldset className="m-0 flex flex-col gap-1 border-0 p-0" data-testid="usuarios.modulos-campo">
               <legend className="mb-1 p-0 text-[13px] font-semibold text-ink">Módulos</legend>
@@ -677,7 +703,7 @@ export function UsuariosConteudo() {
                 const noPerfil = doPerfil.includes(m.id);
                 const marcado = efetivosDoForm.includes(m.id);
                 return (
-                  <label key={m.id} className={`flex min-h-[48px] items-center gap-3 rounded-xl border border-line bg-surface px-3 text-[14px] font-semibold ${noPerfil ? 'text-ink' : 'text-disabled'}`}>
+                  <label key={m.id} className={`flex min-h-[48px] items-center gap-3 rounded-xl border border-line bg-surface px-3 text-[15px] font-semibold ${noPerfil ? 'text-ink' : 'text-disabled'}`}>
                     <input
                       type="checkbox"
                       className="h-5 w-5 accent-accent"
@@ -753,9 +779,9 @@ export function UsuariosConteudo() {
                   <p className="m-0">{textoDaConfirmacaoDoVinculo(escolhido)}</p>
                 ) : (
                   <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
-                    <legend className="mb-2 p-0 text-[14px] font-normal text-ink">Escolha o vendedor provisório que é {vinculo.real.nome}.</legend>
+                    <legend className="mb-2 p-0 text-[15px] font-normal text-ink">Escolha o vendedor provisório que é {vinculo.real.nome}.</legend>
                     {opcoes.map((x) => (
-                      <label key={x.id} className={`flex min-h-[56px] items-center gap-3 rounded-xl border px-3 text-[14px] ${vinculo.escolhido === x.id ? 'border-2 border-accent' : 'border-line'}`}>
+                      <label key={x.id} className={`flex min-h-[56px] items-center gap-3 rounded-xl border px-3 text-[15px] ${vinculo.escolhido === x.id ? 'border-2 border-accent' : 'border-line'}`}>
                         <input type="radio" name="provisorio" className="h-5 w-5 accent-accent" checked={vinculo.escolhido === x.id} onChange={() => setVinculo({ ...vinculo, escolhido: x.id })} data-testid={`usuarios.vincular-opcao.${x.id}`} />
                         <span className="flex flex-col">
                           <span className="font-semibold text-ink">{x.nome}</span>

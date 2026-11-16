@@ -1048,3 +1048,123 @@ pg_temp`, só tenants `ativo` e vivos):
 | `trabalho_reservar(p_processo text, p_trava_s integer)` → `table(id, tenant_id, modulo, nome, alvo_id, tentativas, fatias)` | 0 ou 1 linha: o vencido mais antigo (`pendente` com `proxima_em <= now()` ou `em_execucao` com trava vencida), `for update skip locked`; marca `em_execucao`, `travado_ate = now() + p_trava_s`, `travado_por`. p_processo 1..200, p_trava_s 1..3600 (senão 22023) |
 | `trabalho_devolver(p_id uuid, p_processo text, p_resultado text, p_erro text, p_espera_s integer)` → boolean | só com a trava do processo (false = perdeu a trava; nada muda). `continua` → `pendente` agora, `fatias + 1`; `concluido` → `concluido`, `fatias + 1`; `adiar` → `pendente` daqui a `p_espera_s`, sem contar tentativa (licença inativa); `erro` (com `p_erro`) → `tentativas + 1`, `ultimo_erro`, `pendente` daqui a `p_espera_s` ou, com `p_espera_s` nulo, `falhou` (definitivo). Solta a trava |
 | `trabalho_renovar(p_id uuid, p_processo text, p_trava_s integer)` → boolean | estende a trava entre os itens; false = não é mais deste processo |
+## Frases da carga (0081, T-0181) — `frase_carga`. Global, só por função, fora do sync por linha
+Migração `0081_plataforma_frase_carga` (volta: `.down.sql`, APAGA as frases, inclusive as incluídas e editadas no portal; a
+auditoria fica). Spec aprovada: `docs/design/carga-aviso-frases/spec.md` §2 a §4 e `frases.md` (commit `3cdb384`). Drizzle:
+`fraseCarga` em `db/esquema/plataforma.ts`. Teste: `db/testes/t0181-frase-carga.db.test.ts`.
+
+**Tabela global, sem `tenant_id`** (exceção declarada em `db/src/excecoes.ts`: `TABELAS_SEM_TENANT_ID` e `TABELAS_SO_POR_FUNCAO`,
+e em `db/scripts/conferir-rls.sql`): as frases valem para todas as empresas e só o super-admin (time Macuxi) cadastra; frase por
+empresa não foi pedida (spec §4). Mesmo precedente das tabelas globais da 0035/0039 (`super_admin`, `portal_sessao`...): RLS
+ligado e forçado, só a política `manutencao`, **nenhum grant de tabela** para `macuxi_app`, `macuxi_worker` ou `macuxi_portal`.
+Sem dado de tenant e sem dado pessoal.
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| id | uuid pk | as 30 iniciais: `uuid_de_chave` pela fórmula do cabeçalho de `packages/platform-sdk/src/frase-carga.ts`; as incluídas: `gen_random_uuid()` |
+| numero | integer not null | o "Nº" do portal; >= 1; único (`frase_carga_numero_uk`); na inclusão = `max(numero) + 1`; nunca reusado (não há exclusão) |
+| texto | text not null | 1..90 caracteres depois do `btrim` (`FRASE_CARGA_MAX`), gravado sem espaços nas pontas; único entre as vivas sem diferenciar maiúsculas nem espaços nas pontas (`frase_carga_texto_uk`, `lower(btrim(texto)) where deleted_at is null`) |
+| ativa | boolean not null default true | inativa sai do sorteio do app no próximo sync e continua no portal |
+| ordem | integer not null | >= 1; ordem de leitura do app; a incluída recebe `max(ordem) + 1` |
+| created_at, updated_at, deleted_at, external_id | | comuns (regra 5); `updated_at` pelo gatilho `frase_carga_updated_at`; `deleted_at` e `external_id` sem uso hoje |
+
+Índices: `frase_carga_numero_uk (numero)`, `frase_carga_texto_uk` (acima) e `frase_carga_ativa_ix (ordem, numero) where ativa and
+deleted_at is null` (leitura do app). Volume: dezenas de linhas.
+
+**Carga inicial** (na própria migração): as 30 do `frases.md`, texto literal, Nº e ordem 1..30, todas ativas;
+`on conflict do nothing` **sem alvo** (idempotente: id, Nº ou texto vivo já existentes ficam como estão). O teste do banco
+(`t0181-frase-carga.db.test.ts`) confere o seed (texto, Nº e id) contra o `FRASES_CARGA_INICIAIS` do SDK.
+
+**Funções** (SECURITY DEFINER, `search_path = pg_catalog, plataforma, pg_temp`, padrão da 0058; assinaturas alinhadas com a
+API na tabela da seção 3, "Banco — funções que a API chama", de `docs/desenho/T-0181.md`):
+- `plataforma.sa_listar_frases_carga(p_sid uuid) returns jsonb` → `{ itens: [{ id, numero, texto, ativa, ordem }] }`: as vivas,
+  ativas primeiro e depois as inativas, cada grupo pelo `numero`. Audita `sa.frase_carga.listar` com a contagem.
+- `plataforma.sa_incluir_frase_carga(p_sid uuid, p_id uuid, p_texto text) returns jsonb` → `{ id, numero, texto, ativa, ordem }`:
+  `p_id` gerado pela API (nulo = o banco gera); nasce ativa, `numero = max(numero) + 1` e `ordem = max(ordem) + 1` (tabela
+  travada na transação). Reenvio com o mesmo `p_id` e o mesmo texto (sem diferenciar maiúsculas nem espaços nas pontas) devolve
+  a frase já gravada, sem nova auditoria; o mesmo `p_id` com outro texto = 23505. Audita `sa.frase_carga.incluir` com
+  `frase_id` e `numero` (nunca o texto).
+- `plataforma.sa_editar_frase_carga(p_sid uuid, p_id uuid, p_texto text, p_ativa boolean) returns jsonb` → a frase depois. Nulo =
+  não muda; ativar/desativar = `p_ativa` com `p_texto` nulo; só grava quando algo muda. Audita `sa.frase_carga.editar` com
+  `frase_id`, `numero`, `texto_mudou` e `ativa`.
+- As 3: EXECUTE só ao `macuxi_portal`. Erros para a API traduzir (pelo código): sessão inválida ou vencida **28000**; admin do
+  cliente **42501**; id não achado ou apagado **P0002**; texto vazio ou acima de 90 **23514** (do CHECK
+  `frase_carga_texto_tamanho`; a API recusa antes, com 422 pelo SDK); repetida entre as vivas **23505** (do índice
+  `frase_carga_texto_uk`; também o mesmo `p_id` com outro texto na inclusão). O limite e a repetida são decididos só pela
+  tabela (RD-0523): as funções não repetem a checagem e propagam o erro do banco. Sem exclusão (desativar basta).
+- `plataforma.frases_carga_ativas() returns jsonb` → `{ frases: [{ id, texto, ordem }] }` (`language sql stable`): as ativas e
+  vivas, por `ordem, numero`. EXECUTE só ao `macuxi_app` (`GET /v1/sync/frases-carga`, dentro do `comTenant` da requisição;
+  nada de tenant entra nem sai). O aparelho guarda a lista e sorteia offline.
+
+As 3 `sa_*` entram nas listas de conformidade (`db/testes/funcoes-sa.ts` `FUNCOES_SA_CARGA`; `FUNCOES_SA_ATUAIS` = 34: as 27
+até a 0080, `FUNCOES_SA_ATE_0080`, mais as 3 da carga e as 4 da logo, `FUNCOES_SA_LOGO`). Fora deste caminho, a cargo dos donos:
+`apps/api/test/funcoes-sa.ts` e `scripts/deploy/producao/banco-dbaas.sh` (engenheiro-software) e
+`DEFINER_REVISADAS`/`DEFINER_REVISADAS_PORTAL` de `tests/integracao/banco/conformidade.test.ts` (testes). A conferência do fim da
+0081 não fixa o total de `sa_*` (fica em `db/testes/funcoes-sa.ts`): confere as 3 novas no portal e nenhuma `sa_*` no app, no
+worker ou em PUBLIC.
+
+Consultas da API (referência):
+```sql
+-- portal (macuxi_portal, sessão do super-admin)
+select plataforma.sa_listar_frases_carga($1) as r;                       -- GET /v1/plataforma/frases-carga
+select plataforma.sa_incluir_frase_carga($1, $2, $3) as r;               -- POST (sid, id, texto)
+select plataforma.sa_editar_frase_carga($1, $2, $3, $4) as r;            -- PATCH /:id (texto e/ou ativa; ausente = null)
+-- app (macuxi_app)
+select plataforma.frases_carga_ativas() as r;                            -- GET /v1/sync/frases-carga
+```
+
+## Logo e nome fantasia da empresa (0083, T-0182) — colunas em `tenant`. Fora do sync
+Migração `0083_plataforma_tenant_logo` (aditiva; volta: `.down.sql`, que APAGA o nome fantasia e os metadados das logos — os
+objetos ficam órfãos no armazenamento, apagáveis pela chave `<tenant_id>/plataforma/...`; antes do down, volte a API sem as
+rotas da marca). Desenho `docs/desenho/T-0182-logo-cliente.md` §1.2; spec `docs/design/telas/logo-cliente.md`; contrato
+`MarcaEmpresaSchema` em `packages/platform-sdk/src/empresa-logo.ts`. Decisão do gerente (T-0182): **só o super-admin grava**
+(RN-CORE-33; a logo e o nome fantasia são cadastrados só no portal `config.`). Drizzle: colunas novas do `tenant` em
+`db/esquema/plataforma.ts`. Teste: `db/testes/tenant-logo.db.test.ts`.
+
+### tenant — colunas da marca
+Os **bytes** da logo ficam no armazenamento de arquivos da plataforma (disco em dev/CI, S3 em produção); aqui só os metadados.
+Nenhum índice novo (lida sempre pela PK).
+
+| Coluna | Tipo | Regra (CHECK) |
+|---|---|---|
+| nome_fantasia | text | sem espaço nas pontas, não vazio, até 80 (`tenant_nome_fantasia_valido`); null = a tela usa a razão social (`nome`) |
+| logo_id | uuid | gerado pela API a cada envio |
+| logo_tipo | text | `image/png` ou `image/jpeg` (`tenant_logo_tipo_valido`) |
+| logo_sha256 | text | `^[0-9a-f]{64}$` (`tenant_logo_sha256_hex`); idempotência e `ETag` |
+| logo_tamanho_bytes | integer | 1 a 1048576 (`tenant_logo_tamanho_faixa`) |
+| logo_largura_px | integer | 1 a 4096 (`tenant_logo_largura_faixa`) |
+| logo_altura_px | integer | 200 a 4096 (`tenant_logo_altura_faixa`) |
+| logo_chave | text | `<id do tenant>/plataforma/<aaaa-mm>/<logo_id>.png` ou `.jpg`, com a extensão do `logo_tipo` (`tenant_logo_chave_formato`): só a chave do próprio tenant e da própria logo |
+| logo_atualizada_em | timestamptz | quando a logo atual foi gravada |
+
+CHECK `tenant_logo_completa`: as 8 `logo_*` todas nulas ou todas preenchidas.
+Leitura pelo app: o `macuxi_app` já lê a linha do **próprio** tenant (`select` da 0001 com a política `isolamento_tenant`); a
+API lê as colunas novas junto com o fuso, sem grant novo. Ninguém da aplicação grava direto (sem `update`); o portal não lê a
+tabela (só pelas funções).
+**macuxi_leitura** (0078): o SELECT de tabela vira SELECT por coluna, sem `logo_sha256` e `logo_chave` (sensíveis pelo nome,
+regra 8; padrão da 0079 em `catalogo.produto_midia`); a política `leitura` fica. O down devolve o SELECT de tabela.
+
+### Funções do portal (SECURITY DEFINER; EXECUTE só ao `macuxi_portal`; mais 4 `sa_*`)
+Todas: sessão inválida = 28000; tenant nulo = 22023; tenant inexistente ou apagado = P0002 (`hint` `TENANT_NAO_ENCONTRADO`),
+conferido **depois** do perfil (o admin de outra empresa não descobre se ela existe). Retorno `MarcaEmpresa` + `logo.chave`
+(só a API usa; a rota tira antes de responder):
+`{ tenant_id, razao_social, nome_fantasia, logo: null | { sha256, tipo, tamanho_bytes, largura_px, altura_px, atualizada_em, chave } }`.
+
+| Função | Quem | Retorno e regra | Erros |
+|---|---|---|---|
+| `sa_marca_da_empresa(p_sid uuid, p_tenant uuid) returns jsonb` | super-admin (qualquer empresa) ou admin do cliente só na empresa atual da sessão | a marca | 42501 (outra empresa) |
+| `sa_gravar_nome_fantasia(p_sid uuid, p_tenant uuid, p_nome text) returns jsonb` | **só super-admin** | a marca; `null` apaga; igual = nada muda nem audita; novo audita `sa.empresa.nome_fantasia` `{ antes, depois }`; `for update` | 42501; 23514 (CHECK) |
+| `sa_gravar_logo(p_sid uuid, p_tenant uuid, p jsonb) returns jsonb` | **só super-admin** | a marca + `chave_anterior` (texto ou null). `p` com exatamente `id, tipo, sha256, tamanho_bytes, largura_px, altura_px, chave`. Mesmo `sha256` do gravado = nada muda nem audita (a `logo.chave` da resposta é a gravada: se for outra, a API apaga o objeto que acabou de enviar). Senão grava, `logo_atualizada_em = now()`, audita `sa.empresa.logo.gravar` `{ sha256_antes, sha256_depois }` (sem bytes) | 42501; 22023 (forma: chave a mais/a menos, tipo JSON errado, `id` fora de UUID minúsculo, número não inteiro ou com mais de 9 dígitos); 23514 (CHECKs) |
+| `sa_remover_logo(p_sid uuid, p_tenant uuid) returns jsonb` | **só super-admin** | a marca (`logo: null`) + `chave_anterior`; já sem logo = nada muda nem audita; senão audita `sa.empresa.logo.remover` `{ sha256_antes }` | 42501 |
+
+Interna (SECURITY INVOKER; só o dono): `marca_da_empresa_json(p_tenant uuid)` monta o jsonb num lugar só.
+
+Consultas da API (referência):
+```sql
+select plataforma.sa_marca_da_empresa($1, $2) as r;              -- GET …/marca e GET …/logo (chave e tipo)
+select plataforma.sa_gravar_nome_fantasia($1, $2, $3) as r;      -- PUT …/marca
+select plataforma.sa_gravar_logo($1, $2, $3::jsonb) as r;        -- PUT …/logo, depois de gravar o objeto
+select plataforma.sa_remover_logo($1, $2) as r;                  -- DELETE …/logo, depois apaga chave_anterior
+select nome, nome_fantasia, logo_sha256, logo_tipo, logo_largura_px, logo_altura_px, logo_chave
+  from plataforma.tenant where id = $1;                           -- macuxi_app, contexto do tenant (lerTenant)
+```

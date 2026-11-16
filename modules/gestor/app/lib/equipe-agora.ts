@@ -3,6 +3,7 @@
  * do dia que está no cache e ordena como o desenho manda (parado, sem check-in, em rota, em visita, rota concluída; por
  * nome dentro de cada status). Só apresentação: a regra mora no domain (`statusAgora`).
  */
+import { duracaoCurta } from '@macuxi/core/contracts';
 import type { TomEstado } from '@macuxi/ui/mobile/puro';
 import type { MembroComPainel, VisaoEquipe } from '../../contracts';
 import { ORDEM_STATUS_AGORA, statusAgora, type StatusAgora } from '../../domain/agora-status';
@@ -18,13 +19,6 @@ export const STATUS_AGORA_ROTULO: Readonly<Record<StatusAgora, { label: string; 
   rota_concluida: { label: 'Rota concluída', tom: 'sucesso' },
 };
 
-/** 45 → "45 min"; 100 → "1h40"; 120 → "2h". */
-export function duracaoCurta(min: number): string {
-  if (min < 60) return `${min} min`;
-  const h = Math.floor(min / 60);
-  const r = min % 60;
-  return r === 0 ? `${h}h` : `${h}h${String(r).padStart(2, '0')}`;
-}
 
 export interface LinhaAgora {
   m: MembroComPainel;
@@ -46,7 +40,7 @@ export function linhasAgora(visao: Pick<VisaoEquipe, 'membros' | 'parado_min'>, 
       agora,
     });
     const rot = STATUS_AGORA_ROTULO[r.status];
-    // RD-0208: o tempo vai na tag ("Parado 1h40"); sem 3ª linha repetindo "Sem check-in"
+    // RD-0208: o tempo vai na tag ("Parado 1 h 40 min", `duracaoCurta` do Core, RD-1862); sem 3ª linha repetindo "Sem check-in"
     const label = r.status === 'parado' && r.minutos_sem_atividade !== null ? `${rot.label} ${duracaoCurta(r.minutos_sem_atividade)}` : rot.label;
     return { m, status: r.status, label, tom: rot.tom };
   });
