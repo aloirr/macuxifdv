@@ -9,7 +9,7 @@ import { itensParaSobrepor } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
 import { useEffect, useMemo, useState } from 'react';
 
-import type { MetaSync, ParametroSync, RotaParadaSync, RotaSync, VisitaSync } from '../../../contracts';
+import type { MetaSync, ParametroSync, RotaParadaSync, RotaSync, UsuarioSync, VisitaSync } from '../../../contracts';
 import { PerformanceSchema, type DeslocamentoDia, type MetaProdutividade, type Performance } from '../../../contracts/performance';
 import { tolerante } from '../../lib/leitor-tolerante';
 import { caminhoDaPerformance, chaveDaCopiaPerformance, ENTIDADES_PERFORMANCE, montarPerformance, visaoDoServidor, type LinhasPerformance, type VisaoPerformance } from './performance-local';
@@ -48,7 +48,7 @@ export function usePerformance(intervalo: Intervalo, o: { fuso: string; hoje: st
     void (async () => {
       const e = ENTIDADES_PERFORMANCE;
       const armazem = motor.armazenamentoDoModulo('core');
-      const [visitas, rotas, paradas, metas, parametros, metasProdutividade, deslocamentos, esteMes, mesPassado] = await Promise.all([
+      const [visitas, rotas, paradas, metas, parametros, metasProdutividade, deslocamentos, usuarios, esteMes, mesPassado] = await Promise.all([
         motor.linhas<VisitaSync>(e.visita),
         motor.linhas<RotaSync>(e.rota),
         motor.linhas<RotaParadaSync>(e.paradas),
@@ -56,11 +56,12 @@ export function usePerformance(intervalo: Intervalo, o: { fuso: string; hoje: st
         motor.linhas<ParametroSync>(e.parametros),
         motor.linhas<MetaProdutividade>(e.metasProdutividade),
         motor.linhas<DeslocamentoDia>(e.deslocamentos),
+        motor.linhas<UsuarioSync>(e.usuarios),
         armazem.ler<Performance>(chaveDaCopiaPerformance('este_mes')),
         armazem.ler<Performance>(chaveDaCopiaPerformance('mes_passado')),
       ]);
       if (!ativo) return;
-      setLinhas({ visitas, rotas, paradas, metas, parametros, metasProdutividade, deslocamentos });
+      setLinhas({ visitas, rotas, paradas, metas, parametros, metasProdutividade, deslocamentos, usuarios });
       setCopias({ este_mes: esteMes, mes_passado: mesPassado });
     })();
     return () => {
