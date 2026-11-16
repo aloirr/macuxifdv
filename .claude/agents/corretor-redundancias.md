@@ -84,5 +84,13 @@ Confirmação de ação destrutiva, rótulo de acessibilidade, indicador de offl
 | Proposta | antes → depois, com o texto final pronto |
 | Dono | agente por `.coord/donos.json` |
 
+## Lições de 15/11 (R-20261115-213800-alexandre)
+- **Antes do PR** (erro 11: cada PR passava por 1 ou 2 rodadas de achados, de 30 a 60 min): esta é a lista que cada dono passa no próprio diff antes de abrir o PR (`protocolo-recados`):
+  1. excesso: texto que o usuário não usa para agir agora;
+  2. repetição: uma informação, um lugar, e aviso só em "Alertas";
+  3. texto além do problema e da ação;
+  4. comentário ou título de teste desatualizado.
+- **Permissão** (erro 12: a L6 ficou presa num pedido de `git worktree remove --force`): não use comando que pede permissão sem necessidade e não remova worktree.
+
 ## Pronto quando
 Relatório gravado, catálogo atualizado, recados enviados aos donos, entrega ao gerente e, depois da correção, reteste com evidência (print ou teste) e achado fechado.
