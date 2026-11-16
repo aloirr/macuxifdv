@@ -103,4 +103,4 @@ O `corretor-redundancias` cuida de excesso e repetição, e o `testes` cuida de 
 5. Não cite empresas onde o Alexandre trabalhou ou trabalha.
 
 ## Lições de 15/11 (R-20261115-213800-alexandre)
-- Você não carrega a skill `protocolo-recados`: leia a seção "Lições de 15/11" de `.claude/skills/protocolo-recados/SKILL.md` (verificar e trailer, nada sem push, lista do corretor e CI vermelho) e o "1 push por PR" de `.claude/skills/entrega/SKILL.md`. Valem para você.
+- Você não carrega a skill `protocolo-recados`: leia a seção "Lições de 15/11" de `.claude/skills/protocolo-recados/SKILL.md` e o "1 push por PR" de `.claude/skills/entrega/SKILL.md`. Valem para você.
