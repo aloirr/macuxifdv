@@ -5,7 +5,7 @@
  * Visual só com tokens e componentes de `@macuxi/ui/mobile` (marca v1 pelos tokens). Alvos de toque ≥ 48 dp.
  * A aba na barra e a rota são do shell (engenheiro-apps); esta tela é o componente que a rota monta.
  */
-import { BotaoFiltro, Cartao, colors, Empty, fonte, FolhaPeriodo, formatHHMM, layout, ProgressBar, Screen, Segmentado, space, type as t, useAtualizacaoAutomatica, type TextosFolhaPeriodo } from '@macuxi/ui/mobile';
+import { BotaoFiltro, Cartao, colors, Empty, EtiquetaFiltro, fonte, FolhaPeriodo, formatHHMM, layout, ProgressBar, Screen, Segmentado, space, type as t, useAtualizacaoAutomatica, type TextosFolhaPeriodo } from '@macuxi/ui/mobile';
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -25,6 +25,7 @@ import {
   mensagemDoServidor,
   rotuloDoPeriodo,
   SELECAO_PADRAO,
+  selecaoDaEscolha,
   type SelecaoPeriodo,
 } from './periodo-performance';
 import { usePerformance } from './usar-performance';
@@ -81,16 +82,28 @@ export function TelaPerformance() {
         perf.tentarDeNovo();
         auto.puxar();
       }}>
-      <View style={s.filtro}>
+      {/* filtro padrão (R-20261115-072200): o filtro na linha de Resultados · Produtividade */}
+      <View style={s.linhaVisao}>
+        <View style={{ flex: 1 }}>
+          <Segmentado testID="performance-visao" opcoes={OPCOES_VISAO} valor={visao} onChange={setVisao} rotuloAcessivel="Visão da Performance" />
+        </View>
         <BotaoFiltro testID="performance-filtro" contagem={contarFiltros(selecao)} rotulo="Filtrar" onPress={() => setFolhaAberta(true)} />
       </View>
 
-      <Segmentado testID="performance-visao" opcoes={OPCOES_VISAO} valor={visao} onChange={setVisao} rotuloAcessivel="Visão da Performance" />
-
       <View style={s.linhaPeriodo}>
-        <Text style={t.sub} testID="performance-periodo">
-          {rotuloDoPeriodo(selecao, hoje)}
-        </Text>
+        {/* o período num lugar só: texto no padrão; fora dele, a etiqueta removível */}
+        {contarFiltros(selecao) === 0 ? (
+          <Text style={t.sub} testID="performance-periodo">
+            {rotuloDoPeriodo(selecao, hoje)}
+          </Text>
+        ) : (
+          <EtiquetaFiltro
+            testID="performance-periodo"
+            texto={rotuloDoPeriodo(selecao, hoje)}
+            rotuloRemover={`Remover filtro ${rotuloDoPeriodo(selecao, hoje)}`}
+            onRemover={() => setSelecao(SELECAO_PADRAO)}
+          />
+        )}
         {v ? (
           <Text style={t.sub} testID="performance-dias-uteis">
             {textoDosDiasUteis(v.calendario, intervalo, hoje)}
@@ -130,7 +143,7 @@ export function TelaPerformance() {
         atalhoAtivo={atalhoEmVigor(selecao)}
         onAtalho={(id) => setSelecao({ tipo: 'atalho', id: ehAtalhoPerformance(id) ? id : ATALHO_PADRAO })}
         escolha={escolhaEmVigor(selecao)}
-        onEscolher={(escolha) => setSelecao({ tipo: 'escolha', escolha })}
+        onEscolher={(escolha) => setSelecao(selecaoDaEscolha(escolha, hoje))}
         onLimpar={() => setSelecao(SELECAO_PADRAO)}
         limparDesligado={contarFiltros(selecao) === 0}
         hoje={hoje}
@@ -194,7 +207,7 @@ function CartaoProdutividade({ c }: { c: CardProdutividade }) {
 }
 
 const s = StyleSheet.create({
-  filtro: { flexDirection: 'row', justifyContent: 'flex-end' },
+  linhaVisao: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   linhaPeriodo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
   real: { ...t.number, fontSize: 28 },
   meta: { ...fonte.body, fontSize: 22, color: colors.ink2 },
