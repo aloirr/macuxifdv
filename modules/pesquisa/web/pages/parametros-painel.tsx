@@ -1,6 +1,7 @@
 import { useParametros } from '@macuxi/platform-sdk/react';
 import type { ReactElement } from 'react';
-import { numeroPtBr, valorDoParametro, type ValorParametro } from '../lib/parametros-valor';
+import { formatInt } from '@macuxi/ui/web';
+import { valorDoParametro, type ValorParametro } from '../lib/parametros-valor';
 
 interface Linha {
   rotulo: string;
@@ -15,7 +16,7 @@ function Lista({ id, linhas }: { id: string; linhas: readonly Linha[] }): ReactE
           <dt className="font-semibold text-ink">{l.rotulo}</dt>
           <dd className="m-0 text-right tabular-nums">
             {l.valor.texto}
-            {l.valor.padrao !== null ? <span className="block text-[13px] text-ink-3">Padrão: {l.valor.padrao}</span> : null}
+            {l.valor.padrao !== null ? <span className="block text-[13px] text-ink-2">Padrão: {l.valor.padrao}</span> : null}
           </dd>
         </div>
       ))}
@@ -23,7 +24,7 @@ function Lista({ id, linhas }: { id: string; linhas: readonly Linha[] }): ReactE
   );
 }
 
-const unidade = (u: string) => (v: number) => `${numeroPtBr(v)} ${u}`;
+const unidade = (u: string) => (v: number) => `${formatInt(v)} ${u}`;
 
 /** Parâmetros › Pesquisa › Vigência (RN-PES-04). Só leitura; valor do tenant com fallback ao padrão. */
 export function ParametrosVigencia(): ReactElement {
