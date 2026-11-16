@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EquipeOpcao, UsuarioItem } from '../../contracts';
-import { permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, opcoesDeChefia, pessoasDaLista, resultadoDeCriar, resultadoDeRedefinir, seloDoUsuario, textoAcessoEnviado, textoDoSuperiorDaEquipe, provisoriosParaVincular, podeVincularErp, corpoDeVinculoErp, textoDoVinculoErp, tituloDaConfirmacaoDoVinculo, textoDaOpcaoDoProvisorio, textoDaConfirmacaoDoVinculo, emailParaLista, codigoFdvParaLista } from './usuarios';
+import { almocoPadraoDoTenant, formularioNovo, permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, opcoesDeChefia, pessoasDaLista, resultadoDeCriar, resultadoDeRedefinir, seloDoUsuario, textoAcessoEnviado, textoDoSuperiorDaEquipe, provisoriosParaVincular, podeVincularErp, corpoDeVinculoErp, textoDoVinculoErp, tituloDaConfirmacaoDoVinculo, textoDaOpcaoDoProvisorio, textoDaConfirmacaoDoVinculo, emailParaLista, codigoFdvParaLista } from './usuarios';
 import { senhaServe } from '../../domain';
 
 const u = (extra: Partial<UsuarioItem> = {}): UsuarioItem => ({
@@ -216,5 +216,32 @@ describe('RN-CORE-58/59: Vincular vendedor do ERP e Código FDV no BKO (spec erp
     expect(codigoFdvParaLista({ codigo_fdv: '00007' })).toBe('00007');
     expect(codigoFdvParaLista({ codigo_fdv: null })).toBe('—');
     expect(codigoFdvParaLista({})).toBe('—');
+  });
+});
+
+describe('RN-CORE-44 (D5): seção Jornada na gaveta Editar usuário', () => {
+  const padrao = { inicio_min: 720, fim_min: 780 };
+  it('RN-CORE-44: usuário sem horário próprio vem marcado "Padrão da empresa" com início e fim já preenchidos (12:00 e 13:00)', () => {
+    expect(formularioDoUsuario(u(), padrao)).toMatchObject({ almoco_padrao: true, almoco_inicio: '12:00', almoco_fim: '13:00' });
+    expect(formularioNovo(padrao)).toMatchObject({ almoco_padrao: true, almoco_inicio: '12:00', almoco_fim: '13:00' });
+    expect(almocoPadraoDoTenant(undefined)).toEqual(padrao);
+    expect(almocoPadraoDoTenant({ almoco_padrao: { inicio_min: 690, fim_min: 750 } }).inicio_min).toBe(690);
+  });
+  it('RN-CORE-44: usuário com horário próprio vem desmarcado com o horário dele', () => {
+    expect(formularioDoUsuario(u({ almoco_inicio_min: 690, almoco_fim_min: 750 }), padrao)).toMatchObject({ almoco_padrao: false, almoco_inicio: '11:30', almoco_fim: '12:30' });
+  });
+  it('RN-CORE-44: marcado envia os dois nulos (padrão); desmarcado envia os minutos', () => {
+    const f = formularioDoUsuario(u(), padrao);
+    expect(corpoDeEdicao(f)).toMatchObject({ almoco_inicio_min: null, almoco_fim_min: null });
+    expect(corpoDeEdicao({ ...f, almoco_padrao: false, almoco_inicio: '11:30', almoco_fim: '12:30' })).toMatchObject({ almoco_inicio_min: 690, almoco_fim_min: 750 });
+  });
+  it('RN-CORE-44: o erro vem só ao salvar, no campo certo; marcado "padrão" não valida; na criação não valida', () => {
+    const f = { ...formularioDoUsuario(u(), padrao), almoco_padrao: false };
+    expect(errosDoFormulario({ ...f, almoco_inicio: '13:00', almoco_fim: '12:00' }, 'editar').find((e) => e.campo === 'almoco_fim')?.mensagem).toBe('O fim do almoço deve ser depois do início.');
+    expect(errosDoFormulario({ ...f, almoco_inicio: 'x', almoco_fim: '13:00' }, 'editar').find((e) => e.campo === 'almoco_inicio')?.mensagem).toBe('Use o horário em hh:mm.');
+    expect(errosDoFormulario({ ...f, almoco_inicio: '12:00', almoco_fim: '12:10' }, 'editar').some((e) => e.campo === 'almoco_fim')).toBe(true);
+    expect(errosDoFormulario({ ...f, almoco_inicio: '12:00', almoco_fim: '13:00' }, 'editar').some((e) => e.campo.startsWith('almoco'))).toBe(false);
+    expect(errosDoFormulario({ ...f, almoco_padrao: true, almoco_inicio: '13:00', almoco_fim: '12:00' }, 'editar').some((e) => e.campo.startsWith('almoco'))).toBe(false);
+    expect(errosDoFormulario({ ...f, almoco_inicio: '13:00', almoco_fim: '12:00', senha: 'Abcdefg1!' }, 'criar').some((e) => e.campo.startsWith('almoco'))).toBe(false);
   });
 });
