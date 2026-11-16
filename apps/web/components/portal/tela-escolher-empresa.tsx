@@ -21,6 +21,7 @@ import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 import {
   apagarRetornoPortal,
   caminhoDaEmpresa,
+  avisoDaEmpresaIndisponivel,
   consumirAvisoPortal,
   consumirEmpresaIndisponivel,
   destinoDaSessao,
@@ -70,7 +71,7 @@ export function TelaEscolherEmpresa() {
     const a = consumirAvisoPortal();
     if (e) {
       setFora([e.id]);
-      setAviso(mensagemDaEmpresaIndisponivel(e.nome));
+      setAviso(avisoDaEmpresaIndisponivel(e));
     } else if (a) setAviso(a);
     setPronto(true);
   }, []);

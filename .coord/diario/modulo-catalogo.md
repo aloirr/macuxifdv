@@ -91,3 +91,4 @@
 2026-11-15 — T-0174 — fotos-lote-page: linha principal da área de envio em 15/600 (MC-1201)
 2026-11-15 — T-0174 — merge do main; testes de banco alinhados ao desenho §180 (a trava do POST protege o reenvio com o mesmo id; o lote novo aguardando_envio não ocupa vaga) e ao SDK (o tipo da imagem é lido ao ligar ao produto: o falso PNG vira A1_5.png); timer-permitido nas consultas de 2 s do lote; o resto do vermelho (Progresso e KpiCard com onClick) depende do #366
 2026-11-15 — T-0174 (#382) — RD-1223 (comProduto), RD-1243 (timer-permitido sem o valor do intervalo), RD-1244 (LOTE no teste da trava)
+2026-11-15 — catálogo onda 1 (#387) — RD-1238 (MENSAGEM_SEM_PRECO_CLIENTE), RD-1239 (modoCarga === 'sem_sinal'), RD-0697 (tipo ModoDaCarga), RD-1241 (regras.md remete à RN-CAT-05 do doc 03; sai a proposta antiga da §9)
