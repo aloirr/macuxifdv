@@ -3,7 +3,7 @@
  * Só tokens e componentes de `@macuxi/ui/mobile` (marca v1 pelos tokens). Quem decide o estado de cada peça é
  * `linhas-recados-e-tarefas.ts` (puro, testado).
  */
-import { ALVO_TOQUE, colors, fonts, Icon, Pressionavel, radius, space, type as t, type IconName } from '@macuxi/ui/mobile';
+import { ALVO_TOQUE, colors, fonte, Icon, Pressionavel, radius, space, type as t, type IconName } from '@macuxi/ui/mobile';
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { CaixaTarefa, IconeDoBalao, IconeLinha } from './linhas-recados-e-tarefas';
@@ -74,5 +74,5 @@ const s = StyleSheet.create({
   caixaBloqueada: { backgroundColor: colors.lineSoft, borderColor: colors.line },
   tag: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   pontoTag: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
-  tagDestaque: { fontFamily: fonts.semibold, fontSize: 12, color: colors.accentInk },
+  tagDestaque: { ...fonte.semibold, fontSize: 12, color: colors.accentInk },
 });

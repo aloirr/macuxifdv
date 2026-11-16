@@ -300,6 +300,12 @@ export const ROTAS_CATALOGO = {
   precosTabela: 'tabelas-preco/:id/precos',
   escalonada: 'escalonada',
   faixa: 'escalonada/:id',
+  fotosLote: 'fotos-lote',
+  fotoLoteLimites: 'fotos-lote/limites',
+  fotoLote: 'fotos-lote/:id',
+  fotoLoteEnfileirar: 'fotos-lote/:id/enfileirar',
+  fotoLoteItens: 'fotos-lote/:id/itens',
+  fotoLoteRelatorio: 'fotos-lote/:id/relatorio.csv',
 } as const;
 
 /** Caminho HTTP completo de uma rota do Catálogo (`/v1/catalogo/...`) com os parâmetros trocados. */

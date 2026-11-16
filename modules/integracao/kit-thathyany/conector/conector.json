@@ -163,7 +163,7 @@
     "prazo_pagamento": {
       "ativa": true,
       "periodicidadeSegundos": 120,
-      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, forma_external_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ordem FROM dbo.vw_macuxi_prazo_pagamento WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
+      "consulta": "SELECT TOP (:limite) * FROM dbo.vw_macuxi_prazo_pagamento WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
       "campos": {
         "external_id": "external_id",
         "alterado_em": "alterado_em",
@@ -181,6 +181,10 @@
         "prazo_medio_dias": {
           "coluna": "prazo_medio_dias",
           "transformar": "inteiro"
+        },
+        "percentual_ajuste": {
+          "coluna": "percentual_ajuste",
+          "transformar": "numero"
         },
         "ordem": {
           "coluna": "ordem",
@@ -581,7 +585,7 @@
     "statusSegundos": 60,
     "maxTentativasGravacao": 3,
     "gravacao": {
-      "cabecalho": "EXEC dbo.sp_macuxi_pedido_inserir @pedido_uuid = :pedido_uuid, @cliente = :cliente_external_id, @vendedor = :vendedor_external_id, @condicao = :condicao_pagamento_erp, @criado_em = :criado_em, @aprovado_em = :aprovado_em, @observacao = :observacao, @desconto_total_cents = :desconto_total_cents, @total_cents = :total_cents, @filial_codigo = :filial_codigo, @filial_external_id = :filial_external_id, @frete_modalidade = :frete_modalidade, @frete_transportadora_tipo = :frete_transportadora_tipo, @frete_transportadora_id = :frete_transportadora_id, @frete_transportadora_external_id = :frete_transportadora_external_id, @frete_transportadora_nome = :frete_transportadora_nome, @frete_transportadora_cnpj = :frete_transportadora_cnpj, @frete_transportadora_telefone = :frete_transportadora_telefone, @entrega_origem = :entrega_origem, @entrega_external_id = :entrega_external_id, @entrega_logradouro = :entrega_logradouro, @entrega_numero = :entrega_numero, @entrega_complemento = :entrega_complemento, @entrega_bairro = :entrega_bairro, @entrega_cidade = :entrega_cidade, @entrega_uf = :entrega_uf, @entrega_cep = :entrega_cep, @entrega_principal = :entrega_principal, @pagamento_forma_codigo = :pagamento_forma_codigo, @pagamento_forma_external_id = :pagamento_forma_external_id, @pagamento_prazo_codigo = :pagamento_prazo_codigo, @pagamento_prazo_external_id = :pagamento_prazo_external_id, @pagamento_parcelas_dias = :pagamento_parcelas_dias, @pagamento_prazo_medio_dias = :pagamento_prazo_medio_dias",
+      "cabecalho": "EXEC dbo.sp_macuxi_pedido_inserir @pedido_uuid = :pedido_uuid, @cliente = :cliente_external_id, @vendedor = :vendedor_external_id, @condicao = :condicao_pagamento_erp, @criado_em = :criado_em, @aprovado_em = :aprovado_em, @observacao = :observacao, @desconto_total_cents = :desconto_total_cents, @total_cents = :total_cents, @filial_codigo = :filial_codigo, @filial_external_id = :filial_external_id, @frete_modalidade = :frete_modalidade, @frete_transportadora_tipo = :frete_transportadora_tipo, @frete_transportadora_id = :frete_transportadora_id, @frete_transportadora_external_id = :frete_transportadora_external_id, @frete_transportadora_nome = :frete_transportadora_nome, @frete_transportadora_cnpj = :frete_transportadora_cnpj, @frete_transportadora_telefone = :frete_transportadora_telefone, @entrega_origem = :entrega_origem, @entrega_external_id = :entrega_external_id, @entrega_logradouro = :entrega_logradouro, @entrega_numero = :entrega_numero, @entrega_complemento = :entrega_complemento, @entrega_bairro = :entrega_bairro, @entrega_cidade = :entrega_cidade, @entrega_uf = :entrega_uf, @entrega_cep = :entrega_cep, @entrega_principal = :entrega_principal, @pagamento_forma_codigo = :pagamento_forma_codigo, @pagamento_forma_external_id = :pagamento_forma_external_id, @pagamento_prazo_codigo = :pagamento_prazo_codigo, @pagamento_prazo_external_id = :pagamento_prazo_external_id, @pagamento_parcelas_dias = :pagamento_parcelas_dias, @pagamento_prazo_medio_dias = :pagamento_prazo_medio_dias, @pagamento_percentual_ajuste = :pagamento_percentual_ajuste",
       "itens": "EXEC dbo.sp_macuxi_pedido_item_inserir @pedido_uuid = :pedido_uuid, @sequencia = :sequencia, @produto = :produto_external_id, @quantidade = :quantidade, @preco_unitario_cents = :preco_unitario_cents, @desconto_cents = :desconto_cents, @total_cents = :total_cents",
       "numeroErp": "SELECT numero_pedido AS numero_erp FROM dbo.macuxi_pedido_entrada WHERE pedido_uuid = :pedido_uuid"
     },

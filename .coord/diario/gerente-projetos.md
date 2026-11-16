@@ -424,3 +424,8 @@
 2026-11-13 — v1.0.6 — lote do PC (31db50d7) + PRs da nuvem; main vermelho por testes desatualizados do lote (erro do gerente) e consertado pela nuvem; push do gerente sobre o #157 desfeito (1387e788); BUILD PRONTO Campo/Gestao-Demo-v1.0.6 (a592299d, ~0h50 de 14/11).
 2026-11-14 — Oficial — reteste dos RD antigos, RN-CORE-52 (curvas ABC) no doc 03, versão 1.0.7 (8cec9a07); correções do Oficial na nuvem pela ponte; Actions parado por cobrança 6h37–6h51; PC desligado às 7h45 com a árvore limpa (stash oficial-local-14-11); EAS do Oficial depende do PC por ~10 min ou de EXPO_TOKEN + workflow (R-20261114-070137).
 2026-11-14 — migração 100% nuvem — CLAUDE.md, doc 07 (seções 1 a 5) e .coord/README para o time só na nuvem: PR por dono e lote, gerente em sessão fixa com rondas de 15–20 min, economia do Actions (um commit por PR, um rerun só para infraestrutura), build pelo eas-build.yml (so_conferir) e deploy pelos producao-*; pendência: GraphQL barrada na nuvem impede o coord.mjs de ler e gravar recados.
+
+## 2026-11-15 16h25 (Manaus) — conta nova assume a v1.0.14
+- Ordem do Alexandre no chat (R-20261115-161600-gerente-projetos; confirmação R-20261115-161700-alexandre): conta nova toca os 7 itens da v1.0.14; conta antiga fecha a v1.0.12 e a v1.0.13.
+- Sessões por dono abertas (N1 banco, N2 engenheiro-software, N3 vendedor+integração, N4 core+gestor, N5 apps+designer, N6 catálogo+pesquisa+promotor+treinamento); N7 testes e N8 corretor+marca abrem quando houver PRs de código. Registro no quadro (Conta nova — v1.0.14).
+- 16h30: o Alexandre mandou tocar tudo pela conta nova (R-20261115-161800-alexandre; chat literal em R-20261115-163500-gerente-projetos). Sessões L1–L6 abertas para o lote v1.0.12/v1.0.13; quadro atualizado.
