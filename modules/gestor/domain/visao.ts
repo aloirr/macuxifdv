@@ -3,9 +3,10 @@
  * (RN-CORE-04), visão da equipe (RF-GES-01), ficha (RF-GES-02/05/10), alertas no escopo e dispensa (RF-GES-07) e
  * ajuste de regra de alerta (BKO). Funções puras: rodam na API, no app (offline, sobre o cache) e no BKO.
  */
+import type { HorarioAlmoco, ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
 import { PERFIS } from '@macuxi/platform-sdk';
 import { AjusteRegraAlerta, type AjustesRegras, type Alerta, type FichaMembro, type MembroComPainel, type MembroEquipe, type StatusAlerta, type TipoAlerta, type VisaoEquipe } from '../contracts';
-import { avaliarAlertas, MODULO_DO_ALERTA, reconciliarAlertas, resolverRegras, tiposAtivos, type OperacoesAlerta } from './alertas';
+import { avaliarAlertas, ehTipoProdutividade, MODULO_DO_ALERTA, reconciliarAlertas, resolverRegras, tiposAtivos, type OperacoesAlerta } from './alertas';
 import { equipesAbaixo, podeVer, resumirEquipe, type EscopoGestor } from './equipe';
 import { diaLocal, montarPainelDia } from './painel';
 import { compararTexto } from './numeros';
@@ -137,6 +138,8 @@ export function dispensarAlerta(alerta: Alerta | null | undefined, escopo: Escop
 
 /** RF-GES-07 (BKO): aplica o ajuste de UM tipo sobre os ajustes do tenant, validado no contrato (mensagens em português). */
 export function ajustarRegraAlerta(atuais: AjustesRegras, tipo: TipoAlerta, ajuste: unknown): { ok: true; ajustes: AjustesRegras } | { ok: false; erros: string[] } {
+  // T-0180 / D4: os alertas de produtividade ligam e desligam no parâmetro do core, não em `alerta_regra`
+  if (ehTipoProdutividade(tipo)) return { ok: false, erros: ['Este alerta liga e desliga em Parâmetros › Alertas › Produtividade do dia.'] };
   const r = AjusteRegraAlerta.safeParse(ajuste);
   if (!r.success) return { ok: false, erros: r.error.issues.map((i) => `${i.path.join('.') || 'regra'}: ${i.message}`) };
   const ajustes: AjustesRegras = { ...atuais, [tipo]: { ...(atuais[tipo] ?? {}), ...r.data } };
@@ -161,14 +164,14 @@ function doModulo(tipo: TipoAlerta, modulos: ReadonlySet<string>): boolean {
  */
 export function reconciliarParaViewer(
   existentes: readonly Alerta[],
-  e: { estado: EstadoProjecao; membros: readonly MembroEquipe[]; agora: string; modulos: ReadonlySet<string>; ajustes: AjustesRegras; params?: Partial<ParametrosGestor> },
+  e: { estado: EstadoProjecao; membros: readonly MembroEquipe[]; agora: string; modulos: ReadonlySet<string>; ajustes: AjustesRegras; params?: Partial<ParametrosGestor>; produtividade?: ParametrosAlertasProdutividade; ultimo_contato_em?: Readonly<Record<string, string | null>>; almoco?: Readonly<Record<string, HorarioAlmoco>> },
 ): OperacoesAlerta {
   const regras = resolverRegras(e.ajustes);
-  const condicoes = avaliarAlertas({ estado: e.estado, membros: e.membros, agora: e.agora, modulos: e.modulos, regras, params: e.params });
+  const condicoes = avaliarAlertas({ estado: e.estado, membros: e.membros, agora: e.agora, modulos: e.modulos, regras, params: e.params, produtividade: e.produtividade, ultimo_contato_em: e.ultimo_contato_em, almoco: e.almoco });
   return reconciliarAlertas(
     existentes.filter((a) => doModulo(a.tipo, e.modulos)),
     condicoes,
-    { agora: e.agora, tipos_ativos: tiposAtivos(regras, e.modulos) },
+    { agora: e.agora, tipos_ativos: tiposAtivos(regras, e.modulos, e.produtividade) },
   );
 }
 
