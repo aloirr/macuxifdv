@@ -52,3 +52,4 @@
 2026-11-16 — v1.0.14 — LIBERADOS #411 d80045ce e #406 1dfcd904.
 2026-11-16 — v1.0.14 — #457 6cb6e678: RD-2011..2014 e MC-1700 fechados; novas RD-2110..2113, MC-1730, MC-1731.
 2026-11-16 — v1.0.14 — #457 8ca5977c LIBERADO.
+2026-11-16 — #471 96b8d6d8: notas de tom MC-1740..1742 (não seguram).
