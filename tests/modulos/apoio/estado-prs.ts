@@ -22,3 +22,6 @@ export const CHECKIN_NA_FICHA = existe('modules/core/domain/checkin-rota.ts');
 
 /** 0069 (banco-dados, R-20261114-153500): um perfil por usuário (exclusão adiada `usuario_perfil_um_vivo`). */
 export const UM_PERFIL = existe('db/migrations/0069_core_cargo_hierarquia.up.sql');
+
+/** PR #448 (modulo-core, T-0173): `core.credencial_conferir@1` e `core.usuarios_com_acao@1` (senha do autorizador, RN-INT-16). */
+export const CREDENCIAL_T0173 = existe('modules/core/api/credencial.ts');
