@@ -158,3 +158,7 @@
 2026-11-16 — v1.0.14 parametros — #408: RD-1871 (o parado sai de Parâmetros › Início: painel Dias úteis, sem o campo; spec e PNG 04 refeitos).
 2026-11-16 — v1.0.14 parametros — #408: RD-1842 (seção Integração com o de-para; Alertas com os dois painéis da T-0180, gestor + core; Sistema › Integração ERP no sai de → vai para; PNGs 02 a 07 refeitos).
 2026-11-16 — v1.0.14 parametros — #408: achado do RD-2100 (Integração ERP fica só com os lotes; a Carga por arquivo já é item à parte).
+2026-11-15 — R-20261115-104500 — Simulação "Trocar senha" (Perfil do Campo e do Gestão): spec, telas.html, 7 telas em PNG e gerador em docs/design/trocar-senha/; RN-CORE-32/34 sem regra nova; implementação depois da v1.0.12.
+2026-11-15 — Trocar senha — merge do main no nuvem/trocar-senha-designer-ux e nota da fonte do sistema no topo da spec (como as specs antigas, RD-0958); só docs, o app já entrou no #370
+2026-11-16 — Trocar senha (#426) — RD-1844: spec e prancha dizem que a tela já foi implementada na T-0178 (#357 e #370); saem as pendências de implementação; 00-prancha.png regerado
+2026-11-16 — Trocar senha (#426) — título sem '(simulação)', §8 'Textos novos' e premissa 3 no presente
