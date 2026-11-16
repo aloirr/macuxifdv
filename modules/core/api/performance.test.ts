@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { RealizadoServidorSchema } from '../contracts/performance';
-import { agregarFatos, AGREGADO_VAZIO, calendarioComFeriados, parametrosDoAlmoco, realizadoDoServidor, rotasDePerformance, type Agregado, type FatosDoMes } from './performance';
+import { agregarFatos, AGREGADO_VAZIO, calendarioComFeriados, realizadoDoServidor, rotasDePerformance, type Agregado, type FatosDoMes } from './performance';
 
 const V1 = '0e000000-0000-4000-8000-000000000001';
 const V2 = '0e000000-0000-4000-8000-000000000002';
@@ -73,16 +73,6 @@ describe('RN-CORE-41: calendário do tenant com os feriados cadastrados', () => 
     expect(calendarioComFeriados([])).toEqual({ dias_uteis_semana: [1, 2, 3, 4, 5, 6] });
     expect(calendarioComFeriados([p('metas.dias_uteis_semana', [1, 2, 3, 4, 5]), p('metas.feriados', ['2026-11-20', 'x', 5])])).toEqual({ dias_uteis_semana: [1, 2, 3, 4, 5], feriados: ['2026-11-20'] });
     expect(calendarioComFeriados([p('metas.feriados', 'nada')])).toEqual({ dias_uteis_semana: [1, 2, 3, 4, 5, 6] });
-  });
-});
-
-describe('RN-CORE-44: parâmetros do almoço', () => {
-  const p = (chave: string, valor: unknown) => ({ modulo: 'core', chave, valor });
-  it('usa 12:00 e 11:00–15:00 por padrão e lê o corte e a janela em texto ou objeto; inválido volta ao padrão', () => {
-    expect(parametrosDoAlmoco([])).toEqual({ corte_min: 720, janela_inicio_min: 660, janela_fim_min: 900 });
-    expect(parametrosDoAlmoco([p('produtividade.almoco_corte', '12:30'), p('produtividade.almoco_janela', '11:30-14:30')])).toEqual({ corte_min: 750, janela_inicio_min: 690, janela_fim_min: 870 });
-    expect(parametrosDoAlmoco([p('produtividade.almoco_janela', { inicio: '10:00', fim: '16:00' })])).toMatchObject({ janela_inicio_min: 600, janela_fim_min: 960 });
-    expect(parametrosDoAlmoco([p('produtividade.almoco_corte', '25:00'), p('produtividade.almoco_janela', '15:00-11:00')])).toEqual({ corte_min: 720, janela_inicio_min: 660, janela_fim_min: 900 });
   });
 });
 

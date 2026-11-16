@@ -160,11 +160,14 @@ export interface UsuarioAuditavel {
   desconto_limita_item?: boolean;
   desconto_limita_pedido?: boolean;
   desconto_maximo_pedido_permil?: number | null;
+  /** T-0180 (D5): horário de almoço próprio; nulo = padrão da empresa. */
+  almoco_inicio_min?: number | null;
+  almoco_fim_min?: number | null;
 }
 
 /** Campos pessoais: a auditoria diz que mudaram, mas não guarda o valor (nome, nome curto, e-mail). */
 const PESSOAIS = ['nome', 'nome_curto', 'email'] as const;
-const NAO_PESSOAIS = ['perfil', 'equipe_id', 'ativo', 'external_id', 'desconto_limita_item', 'desconto_limita_pedido', 'desconto_maximo_pedido_permil'] as const;
+const NAO_PESSOAIS = ['perfil', 'equipe_id', 'ativo', 'external_id', 'desconto_limita_item', 'desconto_limita_pedido', 'desconto_maximo_pedido_permil', 'almoco_inicio_min', 'almoco_fim_min'] as const;
 
 /** RN-AUD-01: antes/depois só do que mudou. Valores só dos campos não pessoais; senha e hash nunca entram. */
 export function diffAuditavelDeUsuario(antes: UsuarioAuditavel, depois: UsuarioAuditavel): { campos_alterados: string[]; antes: Record<string, unknown>; depois: Record<string, unknown> } {

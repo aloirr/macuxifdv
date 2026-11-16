@@ -15,7 +15,7 @@
  *   para TODO perfil de fábrica (ninguém autoriza o reprocessamento, RN-INT-16).
  * - N8-06 (Postgres) login real sem linha = com linha (analista e vendedor de A, 3 apps); a consulta com a RLS real lista o sem linha e
  *   nunca cruza tenant (A × B).
- * Matriz: docs/testes/T-0173.md (seção N8). Sem o #448 no branch, os casos que dependem dele pulam.
+ * Matriz: docs/testes/T-0173.md (seção N8).
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -45,7 +45,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { appsDosPerfis } from '../../../modules/core/api/email';
 import { perfisDoUsuarioNoLogin } from '../../../modules/core/api/perfis-do-usuario';
 import { perfisDeFabrica, podeUsarApp } from '../../../modules/core/domain';
-import { CREDENCIAL_T0173 } from '../../modulos/apoio/estado-prs';
 import { A, B, subirApi, type ApiDeTeste } from '../apoio/api';
 import { criarUsuarioNoTenant } from '../apoio/portal';
 
@@ -132,7 +131,7 @@ describe('T-0173 N8 — login do usuário sem linha de perfil não regride (RN-C
   });
 });
 
-describe.skipIf(!CREDENCIAL_T0173)('T-0173 N8 — ações dos módulos para quem não tem linha de perfil (RN-CORE-35, RN-CORE-39, RN-INT-16)', () => {
+describe('T-0173 N8 — ações dos módulos para quem não tem linha de perfil (RN-CORE-35, RN-CORE-39, RN-INT-16)', () => {
   let cred: ModCredencial;
   let perfis: ModPerfis;
   beforeAll(async () => {
@@ -203,7 +202,7 @@ describe.skipIf(!CREDENCIAL_T0173)('T-0173 N8 — ações dos módulos para quem
   });
 });
 
-describe.skipIf(semBanco() || !CREDENCIAL_T0173)('T-0173 N8-06 — sem linha de perfil com Postgres real (login, RLS, A × B)', () => {
+describe.skipIf(semBanco())('T-0173 N8-06 — sem linha de perfil com Postgres real (login, RLS, A × B)', () => {
   let api: ApiDeTeste;
   const u = { semAnalista: '', comAnalista: '', semVendedor: '', comVendedor: '' };
   const email = (k: keyof typeof u) => `${k.toLowerCase()}.n8@exemplo.com.br`;

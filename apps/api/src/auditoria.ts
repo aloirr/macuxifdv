@@ -43,7 +43,7 @@ async function nomesDosAutores(p: Plataforma, db: ClienteBanco, ctx: ContextoBas
   const impl = p.modulos.flatMap((m) => m.consultas ?? []).find((c) => c.consulta.nome === CONSULTA_CADASTRO_RESUMO.nome);
   if (!impl || ids.length === 0 || !ctx.usuario.modulos.includes('core')) return new Map();
   const r = await executarConsulta(CONSULTA_CADASTRO_RESUMO, { usuario_ids: ids }, (e) =>
-    impl.executar(e, { db, usuario: ctx.usuario, requestId: ctx.requestId, agora: ctx.agora, parametros: () => ctx.parametros(), fuso: () => ctx.fuso(), log: ctx.log }),
+    impl.executar(e, { db, usuario: ctx.usuario, requestId: ctx.requestId, agora: ctx.agora, parametros: () => ctx.parametros(), fuso: () => ctx.fuso(), log: ctx.log, permissoes: ctx.permissoes }),
   );
   return new Map(r.usuarios.map((u) => [u.id.toLowerCase(), u.nome]));
 }

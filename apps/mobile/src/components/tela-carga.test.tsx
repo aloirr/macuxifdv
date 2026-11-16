@@ -77,6 +77,7 @@ vi.mock('@/components/area-segura', () => ({ useFaixaSuperior: () => 24, useCorD
 vi.mock('expo-router', () => ({
   Redirect: ({ href }: { href: string }) => createElement('a', { 'data-redirect': href }),
   router: { replace: () => undefined },
+  useLocalSearchParams: () => sim.params,
 }));
 /** Kit simulado. O resto do kit (usado pelas telas do Core, carregadas junto com o `@macuxi/core/app`) vira um vazio. */
 vi.mock('@macuxi/ui/mobile', () => {
@@ -126,6 +127,7 @@ const sim = vi.hoisted(() => ({
   offline: false,
   sincronizacoes: 0,
   ultimoInicio: null as number | null,
+  params: {} as { detalhe?: string },
 }));
 
 /** Mesma regra do shell (`state/plataforma.tsx`): decide pelo estado do motor com `deveSincronizar`. */
@@ -191,6 +193,7 @@ beforeEach(() => {
   sim.offline = false;
   sim.sincronizacoes = 0;
   sim.ultimoInicio = null;
+  sim.params = {};
 });
 
 describe('Carga na tela de entrada — navegação pelo estado (R-20261102-091336, T-0172)', () => {
@@ -237,6 +240,30 @@ describe('Carga na tela de entrada — navegação pelo estado (R-20261102-09133
     const html = montar();
     expect(redireciona(html)).toBe(true);
     semNomeTecnico(html);
+  });
+});
+
+describe('Carga na tela de entrada — entrada enquanto carrega (ADR 0054, solução 5)', () => {
+  const LIBERADO = '2026-11-02T13:05:00.000Z';
+
+  it('essenciais feitos (`liberado_em`) → entra na hora, com a carga ainda rodando', () => {
+    sim.estado = { ...sim.estado, sincronizando: true, progresso: 0.42, carga: { ...CARGA_VAZIA, entidade: 'pedido', modulo: 'vendedor', total: 10, concluidas: 4 } };
+    expect(redireciona(montar())).toBe(false);
+    sim.estado = { ...sim.estado, liberado_em: LIBERADO, pendentes: ['produto'] };
+    expect(redireciona(montar())).toBe(true);
+  });
+
+  it('motor sem `liberado_em` (sem a peça): como antes, só a carga completa libera', () => {
+    sim.estado = { ...sim.estado, sincronizando: true, progresso: 0.8 };
+    expect(redireciona(montar())).toBe(false);
+  });
+
+  it('aberta pelo indicador das abas (detalhe): mostra a carga e não volta sozinha', () => {
+    sim.params = { detalhe: '1' };
+    sim.estado = { ...sim.estado, sincronizando: true, progresso: 0.63, liberado_em: LIBERADO, pendentes: ['produto'], carga: { ...CARGA_VAZIA, entidade: 'produto', modulo: 'catalogo', total: 10, concluidas: 6 } };
+    const html = montar();
+    expect(redireciona(html)).toBe(false);
+    expect(html).toContain('entrada-etapa-5-atual');
   });
 });
 

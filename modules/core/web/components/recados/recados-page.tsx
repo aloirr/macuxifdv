@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, SelectField } from '@macuxi/ui/web';
+import { Badge, Button, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, SelectField } from '@macuxi/ui/web';
 import { EnviarNotificacaoRespostaSchema, HierarquiaEquipeSchema, NotificacaoSyncSchema, RecadoDoDiaDesmarcadoSchema, RecadoDoDiaMarcadoSchema, RecadosEnviadosRespostaSchema, type NotificacaoSync } from '../../../contracts';
 import { useMe } from '../../lib/queries';
 import { ACAO_RECADO_DO_DIA, agruparPorEnvio, mensagemDoRecadoDoDia, podeMarcarRecadoDoDia } from '../../lib/recado-do-dia';
@@ -159,8 +159,8 @@ export function RecadosPage() {
                     <td className="py-1 pr-2">
                       {e.titulo}{' '}
                       {e.recado_do_dia_hoje && (
-                        <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[12px] font-semibold text-accent-ink" data-testid={`recados.chip-recado-do-dia.${e.envio_id}`}>
-                          Recado do dia · hoje
+                        <span data-testid={`recados.chip-recado-do-dia.${e.envio_id}`}>
+                          <Badge tone="pending">Recado do dia · hoje</Badge>
                         </span>
                       )}
                     </td>

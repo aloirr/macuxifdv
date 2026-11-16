@@ -123,6 +123,8 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 ## 5. Tipografia
 Decisão do Alexandre de 15/11/2026 (R-20261115-110600, meta v1.0.13): a marca usa a **fonte do sistema** em todas as superfícies (BKO, portal `config.`, app Campo e app Gestão), no texto e nos títulos. Saem a Archivo e a IBM Plex, inclusive a Plex Mono. **O logo não muda:** a escrita "Macuxi" continua desenhada em Archivo ExtraBold e está em contorno nos arquivos de `ativos/` (§2.1), por isso não depende de fonte instalada.
 
+As regras de detalhe foram aprovadas pelo Alexandre em 15/11/2026 (R-20261115-155500) e valem igual em Campo, Gestão, BKO, portal `config.`, PDFs e e-mails: famílias, reserva do e-mail e o que é código em §5.1; pesos em §5.2; tamanho pelo papel do texto em §5.3.
+
 ### 5.1 Famílias
 | Uso | Pilha |
 |---|---|
