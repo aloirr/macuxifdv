@@ -3,12 +3,12 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, ErrorBlock, LoadingBlock, Notice, Panel } from '@macuxi/ui/web';
+import { Button, ErrorBlock, LoadingBlock, Notice } from '@macuxi/ui/web';
 import { textoDoMinuto } from '../../../contracts';
 import { lerHorarioAlmocoTexto, type ErrosAlmocoTexto } from '../../../domain';
 import { CHAVE_JORNADA, criarApiJornada, type ApiJornada } from './almoco-padrao';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
-import { ErroCampo } from './erro-campo';
+import { ErroCampo } from '../campo';
 
 const CAMPO_DA_API: Readonly<Record<string, keyof ErrosAlmocoTexto>> = { almoco_inicio: 'inicio', almoco_fim: 'fim' };
 
@@ -53,7 +53,7 @@ export function AlmocoPadraoPanel({ cliente }: { cliente?: ApiJornada }) {
     gravar.mutate({ almoco_padrao: { inicio_min: r.inicio_min, fim_min: r.fim_min } });
   };
   return (
-    <Panel title="Almoço">
+    <>
       {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
       {q.isPending && <LoadingBlock label="Carregando o horário de almoço…" />}
       {aviso && (
@@ -78,6 +78,6 @@ export function AlmocoPadraoPanel({ cliente }: { cliente?: ApiJornada }) {
           </Button>
         </div>
       )}
-    </Panel>
+    </>
   );
 }

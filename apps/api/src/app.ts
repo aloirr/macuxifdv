@@ -44,8 +44,6 @@ import {
   corpoDoErroModulo,
   retryAfterDoErroModulo,
   criarPermissoes,
-  catalogoDePermissoes,
-  matrizDeFabrica,
   perfilDeFabrica,
   type PerfilDeAcesso,
   resolverPerfil,
@@ -107,7 +105,7 @@ import { prepararSessaoWeb, SESSAO_WEB_PADRAO, type OpcoesSessaoWeb } from './se
 import { registrarConector, ehRotaConector } from './conector';
 import { licencasDoBanco, licencasDoTenantNoBanco, type FonteLicencas, type FonteLicencasTenant } from './licencas';
 import { MODULOS_API } from './modulos';
-import { registroDeConsultas, transacaoTenant } from './outbox';
+import { motorPermissoesDe, registroDeConsultas, transacaoTenant } from './outbox';
 import { registrarArquivos, type ArmazenamentoArquivos } from './arquivos';
 import { registrarAuditoria } from './auditoria';
 import { registrarDiagnosticos } from './diagnosticos';
@@ -302,8 +300,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   if (problemas.length > 0) throw new Error(`Módulos instalados inconsistentes: ${problemas.join('; ')}`);
   const permissoes = criarPermissoes(manifestos);
   // ADR 0033 (T-0111): padrão de fábrica dos perfis de acesso (plataforma + `perfis` das ações dos manifestos instalados)
-  const matriz = matrizDeFabrica(manifestos);
-  const motorPermissoes = { catalogo: catalogoDePermissoes(manifestos), matriz };
+  const motorPermissoes = motorPermissoesDe(manifestos);
+  const matriz = motorPermissoes.matriz;
   const dependencias = dependenciasDosManifestos(manifestos);
   const porId = new Map(modulos.map((m) => [m.manifesto.id, m] as const));
   const consultas = registroDeConsultas(modulos);

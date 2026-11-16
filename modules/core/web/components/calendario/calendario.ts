@@ -19,7 +19,8 @@ export interface LinhaFeriado {
 /** Feriados do ano em ordem de data: os nacionais (que contam sempre) e os do tenant. */
 export function feriadosDoAno(ano: number, doTenant: readonly FeriadoDoTenant[]): LinhaFeriado[] {
   const nacionais = feriadosNacionaisDoAno(ano).map((f) => ({ data: f.data, nome: f.nome, nacional: true }));
-  const proprios = doTenant.filter((f) => f.data.startsWith(`${ano}-`)).map((f) => ({ ...f, nacional: false }));
+  const datasNacionais = new Set(nacionais.map((f) => f.data));
+  const proprios = doTenant.filter((f) => f.data.startsWith(`${ano}-`) && !datasNacionais.has(f.data)).map((f) => ({ ...f, nacional: false }));
   return [...nacionais, ...proprios].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0));
 }
 
