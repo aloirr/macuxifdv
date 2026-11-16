@@ -65,3 +65,13 @@ export const RegistroBase = z.object({
   /** `false` inativa o registro no Macuxi (nunca apaga). Ausente = ativo. */
   ativo: z.boolean().default(true),
 });
+
+/**
+ * RN-INT-15 (aditivo no v1, RN-INT-09): "% Acres.Fin." do ERP. Negativo = desconto (à vista = -1,71). De -99,99 a +99,99, 2 casas.
+ * Ausente ou nulo = 0 (sem ajuste). Fonte única da faixa para o prazo (Hub -> Macuxi) e para o pagamento do pedido (Macuxi -> ERP).
+ */
+export const PercentualAjuste = z
+  .number()
+  .min(-99.99, 'percentual_ajuste deve ficar entre -99,99 e 99,99')
+  .max(99.99, 'percentual_ajuste deve ficar entre -99,99 e 99,99')
+  .refine((v) => Math.abs(v * 100 - Math.round(v * 100)) < 1e-6, 'percentual_ajuste aceita no máximo 2 casas decimais');

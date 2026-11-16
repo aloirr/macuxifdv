@@ -11,7 +11,7 @@
   Engenheiro de      Engenheiro de      Designer UX        Desenvolvedor de   Testes Sênior
   Software Sênior    Aplicativos        (packages/ui,      Banco Sênior       (e2e, integração,
   (arquitetura, API, (shells mobile/web,docs/design,       (schemas, migra-   carga, regressão)
-  plataforma,        transições, EAS,   visual, textos,    ções, RLS,
+  plataforma,        transições, APK,   visual, textos,    ções, RLS,
   revisão final)     revisão técnica)   3 toques)          Conector)
                                                                              │
                                                                   Corretor de Redundâncias
@@ -29,7 +29,7 @@
 |---|---|---|
 | **gerente-projetos** | Comanda o time: quebra demandas em tarefas `T-nnnn`, delega, acompanha recados e bloqueios, mantém quadro, roadmap e docs de produto, fecha sprints e reporta ao Alexandre | Não escreve código |
 | **engenheiro-software** | Arquitetura e plataforma: `apps/api`, `platform-sdk`, `packages/comum` e `config`, contratos entre módulos, regras de fronteira, ADRs, desenhos de tarefa, CI (`.github/`), `scripts/`, raiz e lockfile; **revisão final de arquitetura** de toda tarefa | Não implementa regra de módulo |
-| **engenheiro-apps** | Shells: `apps/mobile` (variantes campo/gestao, EAS), `apps/web` (shell do BKO), navegação, transições do shell, login e seleção de servidor, builds EAS; **revisão técnica das telas** dos módulos (offline, navegação, desempenho, bundle) | Não mexe em `packages/ui` (é do designer-ux); não corrige código alheio (recado 🔴/🟡/🟢 ao dono); não mexe em API, SDK, CI nem raiz (recado ao engenheiro-software) |
+| **engenheiro-apps** | Shells: `apps/mobile` (variantes campo/gestao), `apps/web` (shell do BKO), navegação, transições do shell, login e seleção de servidor, build Android (`android-build.yml`); **revisão técnica das telas** dos módulos (offline, navegação, desempenho, bundle) | Não mexe em `packages/ui` (é do designer-ux); não corrige código alheio (recado 🔴/🟡/🟢 ao dono); não mexe em API, SDK, CI nem raiz (recado ao engenheiro-software) |
 | **designer-ux** | Visual e UX (R-20261103-161508): `packages/ui` (tokens, componentes base, movimento) e `docs/design/` (especificações e referências); **revisão de visual, hierarquia, textos e "3 toques"** das telas dos módulos antes do merge | Não escreve regra nem tela de módulo (recado ao dono); não mexe nos shells (recado ao engenheiro-apps) |
 | **banco-dados** | Todos os schemas (nuvem e SQLite), migrações, RLS, índices, seeds, desempenho, views-modelo do Conector | Não escreve tela nem regra |
 | **testes** | Plano de testes, e2e (Playwright), integração entre módulos, sync offline, multi-tenant, carga; relatório critério → teste → resultado. **Defeito funcional é dele**, inclusive valor exibido × regra: todo indicador e todo número de tela é conferido contra a fórmula da RN (ex.: RN-CORE-21/22/26) e o rótulo tem de bater com o valor ("Meta de hoje" mostra a meta do dia, nunca o realizado do mês). *(Dono do produto, 08/11/2026: o "META DE HOJE R$ 553" tinha de ter sido pego pelo testes.)* | Não corrige código de produção — abre recado com o defeito |
@@ -114,10 +114,10 @@ criado_em: 2026-10-31T14:05:12-04:00
 **1. Uma frente só: a nuvem**
 - **Todo o time roda em sessões do claude.ai/code** sobre o GitHub `aloirr/macuxifdv` (Linux, bash). O PC do Alexandre (VS Code, Windows, `C:\macuxifdv`) não roda mais agentes, commits nem pushes.
 - Cada sessão trabalha num branch `nuvem/*`, `alexandre/*` ou `agente/*` e entrega **por PR**; o merge acontece depois do CI do PR verde (regra de "Quem faz o merge", abaixo).
-- **Sem Docker** (decisão do Alexandre, R-20261105-053835; vale também na nuvem): nenhum agente roda `docker` nem depende de Postgres local; testes de banco e o stack isolado rodam no CI do GitHub (CI do PR e `stack-isolado.yml`), e o CI verde é o critério.
+- **Sem Docker** (decisão do Alexandre, R-20261105-053835): nenhum agente roda `docker`. Os testes de banco rodam na sessão, com Postgres local (seção 3, "Testes na sessão e CI do PR enxuto").
 - **Horário de Manaus** (R-20261114-195100-alexandre): horários em texto para pessoas (recados, docs, relatórios) no fuso de Manaus (UTC−4); carimbos técnicos e banco em UTC.
 - **Fase M** (`C:\Users\domon\dev\forca-vendas`, no PC do Alexandre): continua **só para consulta e cópia**, nunca alterada. Como a nuvem não alcança o PC, o que for preciso dela o Alexandre anexa à tarefa ou ao recado.
-- **Aparelho Android**: o build sai pelo `eas-build.yml` (seção 5); o teste no aparelho continua com o Alexandre.
+- **Aparelho Android**: o build sai pelo `android-build.yml` (seção 5); o teste no aparelho continua com o Alexandre.
 
 **2. Trava de arquivos entre sessões**
 - O quadro mantém a coluna **Onde** (agora a sessão: `nuvem/<branch>`) e a seção **Travado pela nuvem** com os caminhos de cada sessão aberta.
@@ -202,6 +202,7 @@ Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-
 - **Gerente = sessão fixa com rondas agendadas** a cada 15–20 min: lê as caixas e cobra recados não lidos, varre os PRs `[PRONTO PARA MERGE]` e o CI, faz os merges pela regra A, atualiza quadro e diário, destrava caminhos e abre as próximas sessões para manter as 7 vagas ocupadas.
 - **Vermelho no PR**: sem merge; o dono corrige no mesmo branch (um commit novo só se o PR já foi enviado; ver "Economia do Actions"). Rerun só para falha de infraestrutura, uma vez.
 - **Conflito com o `main`**: o dono do branch mescla o `main` no próprio branch e resolve só arquivos dele; arquivo de outro dono → recado ao dono. O Alexandre é avisado por recado só se o conflito durar mais de uma ronda.
+- **Testes na sessão e CI do PR enxuto** (Alexandre, R-20261115-213600; PR de governança #443): o dono sobe o Postgres local **sem Docker** (pacote do sistema, script único do banco-dados) e roda, antes do push, os `*.db.test.ts` dos pacotes afetados e os testes de `tests/` (comando único do testes); o resumo do resultado vai no corpo do PR. O CI do PR roda só escopo, governança, verificar (lint, fronteiras, typecheck) e o build do que mudou; as suítes completas com Postgres rodam **uma vez no push ao `main`**. Se o CI do `main` ficar vermelho, nenhum merge sai até a correção. Build do Android só no fechamento da versão.
 - **Proibido**: force push, rebase do `main`, push direto ao `main`, merge com CI vermelho, apagar histórico.
 - **Permissão de push**: a regra do `.claude/settings.json` permite push para `nuvem/*`, `alexandre/*` e `agente/*` (e `main`, que deixa de ser usado) e nega force e delete.
 - **Governança** (`.claude/**`, `.coord/donos.json`, `scripts/coord*.mjs`, `.github/**`): PR próprio com `Agente: alexandre`, merge só pelo rito de autorização (acima).
@@ -225,7 +226,7 @@ Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-
 - **Status diário:** recado do gerente ao dono do produto às 18h, com o percentual de cada dia do cronograma (doc 05) e o risco para a entrega.
 
 **5. Nome e versão dos builds** (dono do produto, R-20261107-151653)
-- **Nome no Expo** (`eas build --message`), nos recados e no WhatsApp:
+- **Nome do build**, nos recados e no WhatsApp:
   - preview/demo: `Campo-Demo-vX.Y.Z` e `Gestao-Demo-vX.Y.Z`;
   - produção: `Campo-Oficial-vX.Y.Z` e `Gestao-Oficial-vX.Y.Z`.
 - **Versão semântica no app**:
@@ -235,9 +236,8 @@ Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-
   - a produção começa em Oficial-v1.0.0, com numeração própria;
   - Campo e Gestão sobem juntos quando saem no mesmo lote.
 - **Versão visível**: a versão aparece em Perfil → linha da versão, igual ao nome do build.
-- **Arquivo legível**: além do link do expo.dev, o APK sai como `Campo-Demo-vX.Y.Z.apk`, com link temporário de um bucket privado.
 - **Assunto do recado**: `BUILD PRONTO Campo-Demo-vX.Y.Z / Gestao-Demo-vX.Y.Z (<sha curto>)`.
-- **Onde sai o build** (time 100% na nuvem, 14/11/2026): pelo workflow `eas-build.yml` ("eas build", `workflow_dispatch`, inputs `variante`, `perfil` e `so_conferir`), disparado a partir do `main` depois do merge do lote. Antes do primeiro build de cada ciclo, um run com **`so_conferir=true`** testa o `EXPO_TOKEN` (`eas whoami`) sem gastar build do EAS. O `EXPO_TOKEN` fica só nos segredos do Actions.
+- **Onde sai o build** (sem conta da Expo desde 15/11/2026, R-20261115-091000-alexandre): pelo workflow `android-build.yml`, disparado a partir do `main` depois do merge do lote. Passo a passo: `apps/mobile/docs/build-android.md`.
 - **Deploy**: só pelos workflows de produção (`producao-publicar.yml` "producao — publicar" e, quando preciso, `producao-tenant.yml`, `producao-super-admin.yml` e `producao-ensaio-restauracao.yml`), com a tag `v*` e o recado "aprovo deploy vX.Y.Z" do Alexandre citado na mensagem da tag. A demo foi desligada em 14/11/2026 (ADR 0051).
 
 ## Contratos entre módulos

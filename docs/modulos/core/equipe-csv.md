@@ -12,7 +12,7 @@ Saíram em 07/11 (T-0094): `GET equipe/convites`, `POST equipe/convites/:usuario
 e o CSV de convites. A tabela `core.usuario_convite` fica (histórico); a migração 0040 revoga os pendentes. Quem tinha convite pendente aparece em
 Usuários como **"Sem senha"** e recebe o acesso por **"Enviar acesso"** (ou usa "Esqueci a senha").
 
-Colunas do CSV: `nome`, `email`, `telefone`, `perfil` (gerente|supervisor|vendedor|promotor|analista|assistente|admin), `email_superior`, `codigo_erp`, `modulos`
+Colunas do CSV: `nome`, `email`, `telefone`, `perfil` (gerente|supervisor|vendedor|promotor|analista|assistente|admin), `email_superior`, `codigo_erp`, `modulos`, `filial`
 (lista separada por `;`, só módulos licenciados ao tenant). Validações no `domain` (função pura, teste antes): e-mail único no arquivo e no tenant,
 superior existente no arquivo ou no tenant e de perfil compatível (sem ciclo), `codigo_erp` único, ordem interna gerentes → supervisores → campo,
 módulo licenciado. Idempotente pelo e-mail (existente: atualiza nome, telefone, superior, `codigo_erp`; não troca perfil nem senha). O CSV nunca traz senha
@@ -32,6 +32,7 @@ módulo licenciado. Idempotente pelo e-mail (existente: atualiza nome, telefone,
 - **Erros**: não há `GET importacoes/:id/erros.csv` (o CSV não é guardado e não há tabela de importação). A resposta de `importacoes` traz `erros` (linha, coluna, mensagem) e `erros_csv` pronto para o botão "Baixar erros (.csv)" (`text/csv`, sem o dado da célula). `gravar` com qualquer erro não grava nada.
 - **Árvore**: cada superior ganha a equipe que ele responde ("Equipe de <nome>", filha da equipe dele) e o subordinado entra nela; o superior vem do arquivo ou do tenant; perfis compatíveis: supervisor→gerente; vendedor/promotor→supervisor ou gerente; os demais sem superior.
 - **Módulos**: coluna `modulos` lista os que a pessoa MANTÉM (só entre os do perfil e do tenant); o que o perfil libera e não foi listado vira exceção "remover" (`plataforma.usuario_modulo`) com `core.usuario.modulos_alterados@1`.
+- **Filial (RN-CORE-39, T-0176)**: quem é criado precisa de filial de cadastro. A coluna `filial` traz o `external_id` ou o código da filial; sem a coluna e com uma filial só na empresa, vale essa; senão é erro da linha. A de cadastro entra na de venda. Quem já existe não troca de filial pelo arquivo.
 - **Existente**: atualiza nome, telefone, `codigo_erp` (`external_id`), superior e módulos; perfil diferente vira aviso (não troca); não reativa nem mexe na senha.
 - **Quem chama**: `usuario.criar` (e `usuario.editar` para atualizar quem já existe; chaves do motor de permissões, ADR 0033; fábrica = admin) ou super-admin com `x-macuxi-tenant`.
 - **Troca de superior (RN-CORE-04)**: quem responde por equipe leva a equipe junto (`equipe_pai_id` passa a ser a equipe do novo superior), com auditoria `equipe.mover`.

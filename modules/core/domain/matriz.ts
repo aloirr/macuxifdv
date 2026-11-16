@@ -13,6 +13,7 @@ import {
   type Perfil,
   type PerfilDaRequisicao,
 } from '@macuxi/platform-sdk';
+import { manifest } from '../manifest';
 
 export type Acesso = 'total' | 'leitura' | 'negado';
 export type EscopoMatriz = 'proprio' | 'carteira' | 'equipe' | 'tenant' | 'em_nome' | 'alcada' | 'acima_da_alcada';
@@ -83,9 +84,10 @@ export function podeVer(perfil: Perfil, acao: string): boolean {
 
 /**
  * ADR 0033: perfil de fábrica resolvido (sem sobreposição do tenant) para quem ainda não tem os perfis da requisição: rotas públicas
- * (login, esqueci a senha) e tarefas de fundo. As chaves `acesso.*` são da plataforma, então a matriz sem manifestos basta.
+ * (login, esqueci a senha) e tarefas de fundo. A matriz leva as ações do próprio Core (ex.: `usuario.filial_editar`, RN-CORE-39), senão
+ * o admin de fábrica não passaria na checagem da filial ao criar usuário.
  */
-const MATRIZ_DE_ACESSO = matrizDeFabrica([]);
+const MATRIZ_DE_ACESSO = matrizDeFabrica([manifest]);
 export const perfisDeFabrica = (perfil: Perfil): PerfilDaRequisicao[] => [resolverPerfil(perfilDeFabrica(perfil), MATRIZ_DE_ACESSO)];
 
 /** Lugar de acesso (`acesso.*`) de cada app do login: o BKO entra como `web` no login e `bko` no motor. */

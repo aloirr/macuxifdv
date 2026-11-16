@@ -23,8 +23,8 @@ body { width: 1200px; }
 .menu-lista .op .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .menu-lista .op .mot { font-size:12px; line-height: 16px; color: var(--ink2); }
 .menu-lista .op.off { background: var(--ground); padding-top: 8px; padding-bottom: 8px; }
-.menu-lista .op.off .rot { color: #8A949C; }
-.menu-lista .op.marcada .rot { font-weight: 700; }
+.menu-lista .op.off .rot { color: #5B6673; }
+.menu-lista .op.marcada .rot { font-weight: 600; }
 .menu-lista .op .ic { flex: none; width: 16px; display: flex; justify-content: center; }
 
 /* Catálogo em grade (T-0173, docs/design/catalogo-grade.md) no aparelho de 360 dp */
@@ -42,10 +42,10 @@ body { width: 1200px; }
 .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 10px 10px 12px; display: flex; flex-direction: column; min-width: 0; }
 .foto { height: 112px; border-radius: 12px; background: var(--neutralBg); display: flex; align-items: center; justify-content: center; margin-bottom: 10px; overflow: hidden; }
-.foto.img { background: #F1F2EE; }
+.foto.img { background: #ECEEF1; }
 .card .n { font-weight: 600; font-size:16px; line-height: 20px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .card .m { font-size:14px; line-height: 18px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
-.card .p { align-self: flex-start; font-family:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif; font-weight: 700; font-size:18px; line-height: 24px; font-variant-numeric: tabular-nums; margin-top: auto; padding-top: 6px; }
+.card .p { align-self: flex-start; font-family:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif; font-weight: 600; font-size:18px; line-height: 24px; font-variant-numeric: tabular-nums; margin-top: auto; padding-top: 6px; }
 .card .p.novo { padding: 0 2px; margin-top: 8px; }
 .card .tg { margin-top: 8px; }
 .ce { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; font-size:12px; font-weight: 600; white-space: nowrap; }

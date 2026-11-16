@@ -73,7 +73,7 @@ export function TarefaDetalhe({ cliente, id, fuso, onClose }: { cliente: ApiTare
               onChange={(e) => setMotivo(e.target.value)}
               aria-invalid={erro ? true : undefined}
               aria-describedby={erro ? 'tarefa.cancelar.erro' : undefined}
-              className="rounded-xl border border-field bg-surface p-3 text-[14px] font-normal text-ink"
+              className="rounded-xl border border-field bg-surface p-3 text-[15px] font-normal text-ink"
               data-testid="tarefa.cancelar.motivo"
             />
             {erro && (

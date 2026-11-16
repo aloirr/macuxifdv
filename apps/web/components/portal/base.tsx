@@ -54,7 +54,7 @@ export function LinkBotao({ href, children, primario, testId, className }: { hre
       href={href}
       data-testid={testId}
       className={cx(
-        'inline-flex h-[42px] items-center justify-center gap-1.5 rounded-xl px-4 text-[14px] font-semibold no-underline transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+        'inline-flex h-[42px] items-center justify-center gap-1.5 rounded-xl px-4 text-[15px] font-semibold no-underline transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
         primario ? 'bg-ink text-white hover:bg-[#0b1218]' : 'border border-field bg-surface text-ink hover:bg-ground',
         className,
       )}
@@ -341,7 +341,7 @@ export function MolduraPortal({ children, titulo, voltar }: { children: ReactNod
                       aria-current={ativo === i.href ? 'page' : undefined}
                       onClick={navegar(i.href)}
                       className={cx(
-                        '-mb-3 flex min-h-11 items-center border-b-2 px-3 pb-3 text-[14px] font-semibold no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                        '-mb-3 flex min-h-11 items-center border-b-2 px-3 pb-3 text-[15px] font-semibold no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
                         ativo === i.href ? 'border-accent text-ink' : 'border-transparent text-ink-2 hover:text-ink',
                       )}
                     >

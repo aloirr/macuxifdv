@@ -50,8 +50,7 @@ Imagens de 1366 × 768 (PNG em 2×), com Cadastros aberto no menu lateral e o it
 - `bko-2-edicao.png`: gaveta "Editar prazo" de um prazo do ERP, com o campo só leitura.
 
 ### 3.0 Menu e trilha (R-20261115-122000)
-- O item sai de Comercial e entra em **Cadastros**, com o mesmo rótulo, "Formas de pagamento e prazos", em ordem alfabética: Carteira · Clientes · Coordenadas sugeridas · Filiais · **Formas de pagamento e prazos** · Transportadoras. Nada vai para um grupo Financeiro.
-- O menu é o da árvore final do menu Parâmetros (`docs/design/menu-parametros/spec.md` §2, D1, D4, D9 e D11): Acesso · Análise · Cadastros · Comunicação · Operação · Pesquisa · Produtos · Trade · Treinamento · Parâmetros · Sistema.
+- O item sai de Comercial e entra em **Cadastros**, com o mesmo rótulo e na ordem do menu (`docs/design/menu-parametros/spec.md` §2, D11).
 - O item ativo tem o fundo e a barra laranja de sempre. Se o nome não couber nos 240 px do menu, quebra em duas linhas, sem reticências.
 - No título, "Cadastros ›" fica acima (o `eyebrow` do `PageHeader`) e "Formas de pagamento e prazos" no título. A trilha se lê **Cadastros › Formas de pagamento e prazos**.
 
