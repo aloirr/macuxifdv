@@ -9,16 +9,22 @@
  * tenant"; desenho T-0016 §7). `tenant_modulo.parametros` é legado e não é lido (decisão da onda 1 da Sprint 1).
  *
  * Fuso do tenant (`plataforma.tenant.fuso`): lido aqui também e entregue às rotas como `ctx.fuso()` (T-0035).
+ * Nome e logo da empresa (T-0182, desenho §3.1): da mesma linha do tenant, entram nos parâmetros do Core como as chaves
+ * reservadas `empresa_nome` e `empresa_logo` (`parametrosDaEmpresa` do SDK; sobrescrevem uma linha de `plataforma.parametro`
+ * com o mesmo nome). Assim chegam ao aparelho pelo `GET /v1/me/modulos` e pelo `GET /v1/sync/novidades`, e trocar a logo ou
+ * o nome muda o `versao_licencas`.
  * Rotas de Conector (ADR 0013): `licencasDoTenantNoBanco`, só a parte do tenant (não há usuário nem perfil).
  */
 import {
   ehModulo,
   NIVEIS_ALCADA,
+  parametrosDaEmpresa,
   NIVEIS_ESCOPO,
   PERFIS,
   uniaoDosModulosDosPerfis,
   type AcessoBanco,
   type ClienteBanco,
+  type LinhaMarcaTenant,
   type ModuloId,
   type NivelPermissao,
   type Perfil,
@@ -76,10 +82,21 @@ async function lerTenant(db: ClienteBanco): Promise<LicencasTenant> {
   const params = await db.query<{ modulo: string; chave: string; valor: unknown }>(
     'select modulo, chave, valor from plataforma.parametro where deleted_at is null order by modulo, chave',
   );
-  // fuso do tenant para ctx.fuso() (T-0035): o módulo não lê plataforma.tenant (regra 1, S0-014)
-  const fuso = await db.query<{ fuso: string }>('select fuso from plataforma.tenant where id = plataforma.tenant_atual()');
+  // fuso (T-0035), nome e logo (T-0182) do tenant: o módulo não lê plataforma.tenant (regra 1, S0-014)
+  const linha = (
+    await db.query<LinhaMarcaTenant & { fuso: string }>(
+      `select fuso, nome, nome_fantasia, logo_sha256, logo_tipo, logo_largura_px, logo_altura_px
+         from plataforma.tenant where id = plataforma.tenant_atual()`,
+    )
+  ).rows[0];
   const ativosNoTenant = modulos(tenant.rows);
-  return { ativosNoTenant, parametros: parametrosPorModulo(params.rows, ativosNoTenant), fuso: fuso.rows[0]?.fuso ?? null };
+  return { ativosNoTenant, parametros: comEmpresa(parametrosPorModulo(params.rows, ativosNoTenant), linha), fuso: linha?.fuso ?? null };
+}
+
+/** Chaves reservadas `empresa_nome`/`empresa_logo` nos parâmetros do Core (T-0182); sem a linha do tenant ou sem o Core, nada muda. */
+export function comEmpresa(parametros: LicencasUsuario['parametros'], linha: LinhaMarcaTenant | undefined): LicencasUsuario['parametros'] {
+  if (!linha || !parametros.core) return parametros;
+  return { ...parametros, core: { ...parametros.core, ...parametrosDaEmpresa(linha) } };
 }
 
 /** Linha de `plataforma.perfis_do_usuario` (0041; ADR 0033). */

@@ -5,7 +5,7 @@
  * módulo só são apagados depois que o usuário confirma (RN-CORE-02, Q4).
  * T-0059 (R-20261102-090915): o cartão de sincronização não mostra nome de entidade nem etapa; o detalhe técnico da
  * última falha (etapa e mensagem) e as entidades ainda sem provedor ficam na área "Diagnóstico", fechada por padrão.
- * RN-CORE-23 (T-0065): botão Sincronizar do kit (última sincronização · N na fila, proteção de 30 s) e puxar para baixo.
+ * RN-CORE-23 (T-0065): botão Sincronizar do kit (última sincronização · N na fila, no máximo 1 vez a cada 30 s — R-20261115-125500) e puxar para baixo.
  * ADR 0017: o Diagnóstico mostra também a "Última sincronização em segundo plano" (resultado, duração e mensagem).
  * T-0088: e o armazenamento ativo (SQLite do usuário e tenant com o marcador da passagem, ou AsyncStorage de reserva).
  * T-0178 (spec docs/design/trocar-senha/spec.md §2 e §7): seção "Conta" com a linha "Trocar senha" (só na API real) e, na
@@ -21,12 +21,11 @@ import {
   Card,
   colors,
   dateTimeLabel,
-  fonts,
+  fonte,
   Icon,
   initials,
   Pressionavel,
   ProgressBar,
-  radius,
   rotuloDoPerfil,
   Screen,
   SectionHeader,
@@ -42,6 +41,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AvisoAoVoltar } from '@/components/aviso-pos-login';
 import { EnviarDiagnostico } from '@/components/enviar-diagnostico';
 import { ItensDoMenu } from '@/components/extensoes-shell';
+import { ENDERECO_SERVIDOR, ENTRADA_SERVIDOR } from '@/components/servidor';
 import { normalizeApiUrl } from '@/lib/api-url';
 import { linhasDoArmazenamento } from '@/lib/armazenamento-aparelho';
 import { criarContadorToques, diagnosticoDisponivel } from '@/lib/diagnostico-carga';
@@ -107,7 +107,7 @@ function Perfil() {
   // T-0008 P7: 7 toques seguidos na versão abrem o diagnóstico de carga (só no bundle de desenvolvimento)
   const toques = useRef(criarContadorToques());
   const comDiagnostico = diagnosticoDisponivel(perfilBuildAtual());
-  // T-0109: a linha da versão é o nome do build (Campo-Oficial-v1.0.0), o mesmo da mensagem do build no EAS e do APK
+  // T-0109: a linha da versão é o nome do build (Campo-Oficial-v1.0.0), o mesmo nome do artefato do APK
   const versaoDoBuild = textoDaVersao(varianteAtual(), perfilBuildAtual(), Constants.expoConfig?.version);
 
   if (!sessao) return <Redirect href="/login" />;
@@ -259,7 +259,7 @@ function Perfil() {
               </View>
               {it.situacao === 'falhou' ? (
                 <Pressable accessibilityRole="button" testID={`descartar-${it.id}`} onPress={() => void motor?.descartar(it.id)} hitSlop={8} style={styles.discard}>
-                  <Text style={[t.smallStrong, { color: colors.danger }]}>Descartar</Text>
+                  <Text style={[t.label, { color: colors.danger }]}>Descartar</Text>
                 </Pressable>
               ) : (
                 <SeloDaFila situacao={it.situacao} />
@@ -280,7 +280,7 @@ function Perfil() {
                 </View>
                 {a.situacao === 'falhou' ? (
                   <Pressable accessibilityRole="button" testID={`descartar-foto-${a.id}`} onPress={() => void motor?.descartarArquivo(a.id)} hitSlop={8} style={styles.discard}>
-                    <Text style={[t.smallStrong, { color: colors.danger }]}>Descartar</Text>
+                    <Text style={[t.label, { color: colors.danger }]}>Descartar</Text>
                   </Pressable>
                 ) : (
                   <SeloDaFila situacao={a.situacao} />
@@ -295,14 +295,14 @@ function Perfil() {
         <SectionHeader title="Servidor" />
         {!app.servidorEditavel ? (
           <Card style={{ padding: 14, gap: 6 }}>
-            <Text testID="profile-server-fixo" selectable style={[t.body, { fontFamily: fonts.mono, fontSize: 13 }]}>
+            <Text testID="profile-server-fixo" selectable style={ENDERECO_SERVIDOR}>
               {apiUrl}
             </Text>
             <Text style={t.small}>Endereço definido nesta versão do aplicativo.</Text>
           </Card>
         ) : (
           <Card style={{ padding: 14, gap: 10 }}>
-            <TextInput testID="profile-server" value={url} onChangeText={setUrl} autoCapitalize="none" autoCorrect={false} keyboardType="url" style={styles.input} />
+            <TextInput testID="profile-server" value={url} onChangeText={setUrl} autoCapitalize="none" autoCorrect={false} keyboardType="url" style={ENTRADA_SERVIDOR} />
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <Button label="Testar e salvar" variant="dark" style={{ flex: 1 }} onPress={() => void saveUrl()} />
               <Button
@@ -402,12 +402,11 @@ function Perfil() {
 const styles = StyleSheet.create({
   who: { flexDirection: 'row', gap: 14, alignItems: 'center' },
   avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontFamily: fonts.displayBold, fontSize: 19, color: '#FFFFFF' },
+  avatarText: { ...fonte.bold, fontSize: 18, color: '#FFFFFF' },
   qRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11, paddingHorizontal: 14 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   discard: { height: 44, justifyContent: 'center' },
   versao: { alignSelf: 'center', paddingVertical: 8 },
   linhaConta: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14 },
-  mono: { fontFamily: fonts.mono, fontSize: 12, color: colors.ink2 },
-  input: { height: 46, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, fontFamily: fonts.mono, fontSize: 13, color: colors.ink, backgroundColor: colors.surface },
+  mono: { ...fonte.mono, fontSize: 12, color: colors.ink2 },
 });

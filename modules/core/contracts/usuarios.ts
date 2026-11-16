@@ -15,6 +15,8 @@
  */
 import { z } from 'zod';
 import { PerfilSchema } from './auth';
+import { FilialVendaIdsSchema } from './filial-usuario';
+import { HorarioAlmocoSchema, MinutoDoDiaSchema } from './jornada';
 import { CargoSchema } from '@macuxi/platform-sdk';
 
 const Uuid = z.string().uuid();
@@ -66,6 +68,12 @@ export const UsuarioItemSchema = z
     superior_nome: z.string().nullable(),
     ativo: z.boolean(),
     external_id: z.string().nullable(),
+    /** RN-CORE-59: Código FDV (`00001`), gerado pelo sistema e só de leitura; `null` ou ausente até a migração entrar. */
+    codigo_fdv: z.string().nullable().optional(),
+    /** RN-CORE-58: criado pela carga do ERP sem e-mail (`@sem-email.invalid`); candidato a "Vincular vendedor do ERP". */
+    provisorio: z.boolean().optional(),
+    /** Clientes distintos na carteira do usuário; só vem para provisórios (escolha do "Vincular vendedor do ERP"). */
+    clientes_carteira: z.number().int().nonnegative().optional(),
     ultimo_login_em: z.string().datetime().nullable(),
     /** T-0094: a senha atual é temporária; a pessoa troca no próximo acesso (etiqueta "Troca de senha pendente"). */
     trocar_senha: z.boolean(),
@@ -81,6 +89,13 @@ export const UsuarioItemSchema = z
     bloqueio: BloqueioDoUsuarioSchema.nullable().optional(),
     /** Fim do bloqueio por tentativas (UTC, ISO); nulo fora dele. A tela mostra no fuso do tenant. */
     bloqueio_ate: z.string().datetime().nullable().optional(),
+    /** T-0176 / RN-CORE-39 (aditivo): filial de cadastro (nula = bloqueado), filiais de venda (inclui a de cadastro) e `sem_filial`. Ausente = emissor antigo. */
+    filial_cadastro_id: z.string().uuid().nullable().optional(),
+    filial_venda_ids: FilialVendaIdsSchema.optional(),
+    sem_filial: z.boolean().optional(),
+    /** T-0180 (D5): horário de almoço próprio em minutos do dia; nulo nos dois = padrão da empresa. */
+    almoco_inicio_min: MinutoDoDiaSchema.nullable().optional(),
+    almoco_fim_min: MinutoDoDiaSchema.nullable().optional(),
   })
   .strict();
 export type UsuarioItem = z.infer<typeof UsuarioItemSchema>;
@@ -96,6 +111,8 @@ export const UsuarioListaQuerySchema = z
     perfil: CodigoPerfil.optional(),
     equipe_id: Uuid.optional(),
     ativo: z.enum(['true', 'false']).optional(),
+    /** `true` = só os usuários provisórios da carga do ERP (RN-CORE-58). A busca `q` também casa o Código no ERP. */
+    provisorio: z.enum(['true']).optional(),
   })
   .strict();
 export type UsuarioListaQuery = z.infer<typeof UsuarioListaQuerySchema>;
@@ -104,7 +121,8 @@ export type UsuarioListaQuery = z.infer<typeof UsuarioListaQuerySchema>;
 export const EmailAcessoSchema = z.enum(['enfileirado', 'indisponivel']);
 export type EmailAcesso = z.infer<typeof EmailAcessoSchema>;
 
-export const UsuarioListaRespostaSchema = z.object({ itens: z.array(UsuarioItemSchema) }).strict();
+/** `almoco_padrao` (T-0180, D5; RN-CORE-44): padrão real da empresa, para o rótulo da gaveta de quem edita usuário sem `parametro.inicio`. Ausente = servidor antigo. */
+export const UsuarioListaRespostaSchema = z.object({ itens: z.array(UsuarioItemSchema), almoco_padrao: HorarioAlmocoSchema.optional() }).strict();
 export type UsuarioListaResposta = z.infer<typeof UsuarioListaRespostaSchema>;
 
 export const EquipeOpcaoSchema = z
@@ -149,6 +167,8 @@ export const CriarUsuarioRequestSchema = z
     /** Supervisor (obrigatório) e gerente (opcional): nome da equipe que ele chefia. */
     equipe_nome: Texto(80).nullable().default(null),
     external_id: CamposEditaveis.external_id.default(null),
+    /** RN-CORE-59: só de leitura. Aceito no schema só para a API recusar com 422 `CODIGO_FDV_SOMENTE_LEITURA` (o `.strict()` daria 400). */
+    codigo_fdv: z.unknown().optional(),
     ativo: z.boolean().default(true),
     /** RN-VEN-11a (T-0168): ausente = padrão. */
     desconto_limita_item: z.boolean().default(true),
@@ -156,6 +176,9 @@ export const CriarUsuarioRequestSchema = z
     desconto_maximo_pedido_permil: LimiteDescontoSchema.shape.desconto_maximo_pedido_permil.default(null),
     /** Senha inicial definida pelo admin (nunca registrada em log nem na auditoria). */
     senha: z.string().min(1).max(200),
+    /** T-0176 / RN-CORE-39: só admin e analista informam (403 aos demais). Cadastro obrigatória em qualquer perfil (422); a API inclui a de cadastro na lista de venda. */
+    filial_cadastro_id: z.string().uuid().optional(),
+    filial_venda_ids: FilialVendaIdsSchema.optional(),
   })
   .strict();
 /** "Por pedido" ligada sem o número é recusada pela API (422 `USUARIO_DADOS_INVALIDOS`, `limiteDescontoCompleto`), não pelo schema. */
@@ -177,10 +200,18 @@ export const EditarUsuarioRequestSchema = z
     gerente_id: Uuid.nullable().optional(),
     equipe_nome: Texto(80).nullable().optional(),
     external_id: CamposEditaveis.external_id.optional(),
+    /** RN-CORE-59: só de leitura; a API recusa com 422 `CODIGO_FDV_SOMENTE_LEITURA`. */
+    codigo_fdv: z.unknown().optional(),
     /** RN-VEN-11a (T-0168): ausente = mantém. O servidor junta com o gravado e confere `limiteDescontoCompleto`. */
     desconto_limita_item: z.boolean().optional(),
     desconto_limita_pedido: z.boolean().optional(),
     desconto_maximo_pedido_permil: LimiteDescontoSchema.shape.desconto_maximo_pedido_permil.optional(),
+    /** T-0176 / RN-CORE-39: ausente = mantém; presente troca (só admin e analista). `filial_venda_ids` presente troca a lista inteira; a de cadastro sempre fica nela. */
+    filial_cadastro_id: z.string().uuid().optional(),
+    filial_venda_ids: FilialVendaIdsSchema.optional(),
+    /** T-0180 (D5): os dois nulos = padrão da empresa; os dois com valor = horário próprio (`validarHorarioAlmoco`). Ausente = mantém. */
+    almoco_inicio_min: MinutoDoDiaSchema.nullable().optional(),
+    almoco_fim_min: MinutoDoDiaSchema.nullable().optional(),
   })
   .strict();
 export type EditarUsuarioRequest = z.infer<typeof EditarUsuarioRequestSchema>;
@@ -192,10 +223,30 @@ export type RedefinirSenhaRequest = z.infer<typeof RedefinirSenhaRequestSchema>;
 export const RedefinirSenhaRespostaSchema = z.object({ ok: z.literal(true), email_acesso: EmailAcessoSchema }).strict();
 export type RedefinirSenhaResposta = z.infer<typeof RedefinirSenhaRespostaSchema>;
 
+/**
+ * `POST /core/usuarios/:id/vincular-erp` (RN-CORE-58, T-0175; admin, `usuario.editar`): `:id` é o vendedor/promotor PROVISÓRIO da carga do ERP;
+ * `usuario_id` é o usuário real que passa a ter o Código no ERP e a carteira. Uma transação; idempotente (repetir devolve `ja_vinculado`).
+ * Erros: 404 usuário; 422 `VINCULO_*` (não provisório, sem código, real com outro código, perfis incompatíveis, mesmo usuário, outro tenant).
+ */
+export const VincularErpRequestSchema = z.object({ usuario_id: Uuid }).strict();
+export type VincularErpRequest = z.infer<typeof VincularErpRequestSchema>;
+export const VincularErpRespostaSchema = z
+  .object({
+    provisorio_id: Uuid,
+    usuario_id: Uuid,
+    external_id: z.string(),
+    clientes_movidos: z.number().int().min(0),
+    ja_vinculado: z.boolean(),
+  })
+  .strict();
+export type VincularErpResposta = z.infer<typeof VincularErpRespostaSchema>;
+
 export const CODIGOS_USUARIO = {
   emailDuplicado: 'USUARIO_EMAIL_DUPLICADO',
   externalIdDuplicado: 'USUARIO_EXTERNAL_ID_DUPLICADO',
   dadosInvalidos: 'USUARIO_DADOS_INVALIDOS',
+  /** 422 — `codigo_fdv` no corpo de criar/editar (RN-CORE-59). */
+  codigoFdvSomenteLeitura: 'CODIGO_FDV_SOMENTE_LEITURA',
   senhaFraca: 'USUARIO_SENHA_FRACA',
   equipeInvalida: 'EQUIPE_INVALIDA',
   /** 422 — redefinição recusada (própria conta, admin, usuário inativo; `podeRedefinirSenha`). */

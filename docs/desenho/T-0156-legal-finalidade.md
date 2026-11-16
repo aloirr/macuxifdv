@@ -1,7 +1,7 @@
 # Rastreamento de localização no expediente — finalidade e base legal
 
 > **RASCUNHO PARA REVISÃO DE ADVOGADO.** Não vale como contrato nem como parecer antes da revisão de um advogado (LGPD e
-> trabalhista) e da aprovação do dono do produto. Valores entre [colchetes] são propostas. Desenho técnico:
+> trabalhista). Valores e base legal aprovados pelo dono do produto em 16/11/2026 (R-20261116-110200). Desenho técnico:
 > [`tracking.md`](tracking.md); decisão: [ADR 0061](../decisoes/0061-rastreamento-continuo-de-localizacao.md).
 
 ## 1. Quem é quem
@@ -24,7 +24,7 @@ A localização registrada no expediente serve **só** para:
 - vender, ceder ou cruzar com dados de outras empresas;
 - treinar modelos de inteligência artificial.
 
-## 3. Base legal (proposta)
+## 3. Base legal (a confirmar pelo advogado)
 - **Legítimo interesse** da empresa (art. 7º, IX), com o teste do item 6, e **execução do contrato** de trabalho ou de
   representação (art. 7º, V) para a comprovação de visita.
 - **Não** usar consentimento: na relação de trabalho ele não é livre, e a revogação desligaria a comprovação de visita.

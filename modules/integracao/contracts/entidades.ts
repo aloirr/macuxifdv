@@ -14,6 +14,7 @@ import {
   DataHoraUtc,
   ExternalId,
   PARADAS_MAX,
+  PercentualAjuste,
   Quantidade,
   RegistroBase,
   Texto,
@@ -352,6 +353,8 @@ export const PrazoPagamentoPayload = RegistroBase.extend({
   parcelas_dias: ParcelasDias,
   /** Informativo: o Macuxi CALCULA o prazo médio (RN-VEN-24); valor divergente vira o aviso `prazo_medio_divergente`. */
   prazo_medio_dias: z.number().int().min(0).max(365).nullish(),
+  /** RN-INT-15: "% Acres.Fin." do ERP; ausente = 0. O Vendedor ajusta a tabela de cada produto por ele (RN-VEN-43). */
+  percentual_ajuste: PercentualAjuste.nullish(),
   ordem: z.number().int().default(0),
 }).superRefine((r, ctx) => {
   for (let i = 1; i < r.parcelas_dias.length; i++) {

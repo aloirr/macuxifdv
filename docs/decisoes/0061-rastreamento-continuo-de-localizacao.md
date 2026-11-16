@@ -1,6 +1,6 @@
 # ADR 0061 — Rastreamento contínuo de localização no expediente
 
-- **Status**: proposta em 2026-11-15 (branch `nuvem/T-0156-tracking-lgpd-engenheiro-software`).
+- **Status**: aceita em 2026-11-16 (R-20261116-110200-alexandre: as 7 decisões de negócio do desenho §12 aprovadas). Execução na v1.0.15.
 - **Data**: 2026-11-15 (Manaus)
 - **Autor**: engenheiro-software
 - **Origem**: T-0156 (R-20261110-085951-alexandre, item 5); RF-CORE-17, RN-CORE-13, RN-CORE-37, RN-CORE-46.
@@ -56,6 +56,6 @@
 - Tabelas novas no Core (desenho §5.1), 4 chaves de permissão novas, 3 entidades de sync só de envio, 1 contrato de consulta e
   1 job de expurgo; tudo aditivo, sem versão nova de contrato existente.
 - Os cards de km da Performance passam a ter dado para quem aceitou o termo.
-- O tracking **não liga em produção** antes da revisão de advogado, das decisões do Alexandre (desenho §12) e do cadastro de
-  ausências (desenho §10).
+- O tracking **não liga em produção** antes da revisão de advogado (inclusive da base legal) e do cadastro de ausências
+  (desenho §10).
 - Custo de bateria a medir no ensaio; ajuste por parâmetro, sem build.

@@ -6,7 +6,8 @@
   [`T-0145-lgpd-tracking.md`](T-0145-lgpd-tracking.md), que segue como fonte do aviso curto da tela de permissões (§6 dele).
 - **Consumidor já pronto**: a Performance lê só o resumo `core.deslocamento_dia` e usa `metrosDoTrajeto`
   ([performance-produtividade.md §5](performance-produtividade.md#5-km-e-o-rastreamento-de-localização)).
-- Valores entre [colchetes] são parâmetros propostos; os marcados **(decisão)** dependem do Alexandre (§12).
+- Valores entre [colchetes] são parâmetros ajustáveis. As decisões de negócio do §12 foram aprovadas pelo Alexandre em 16/11/2026
+  (R-20261116-110200-alexandre). Execução na v1.0.15.
 
 ## 1. O que já existe
 | Peça | Onde | Estado |
@@ -27,7 +28,7 @@ O app grava ponto **só** quando todas valem; o servidor revalida as que depende
 | 2 | Usuário de campo (cargo vendedor ou promotor, ADR 0049), logado no app **Campo** | app e API |
 | 3 | Aceite da **versão vigente** do termo de ciência (§6) | app e API |
 | 4 | Dentro do **expediente** (§4.1), fora de feriado do calendário do tenant e fora de ausência cadastrada (§4.2) | app e API |
-| 5 | Sem pausa pessoal em curso (§4.3) **(decisão)** | app |
+| 5 | Sem pausa pessoal em curso (§4.3) | app |
 | 6 | Permissão "o tempo todo" concedida (RN-CORE-37) | app |
 
 Faltou qualquer uma: o app **não grava nem guarda** ponto para mandar depois. Check-in e checkout seguem gravando o GPS do
@@ -74,7 +75,7 @@ momento, como hoje (RN-CORE-13).
 - Parâmetro do tenant `rastreamento.expediente`: por dia da semana, de 0 a 2 faixas `{ inicio, fim }` no **fuso do tenant**.
   Proposta: seg–sex 08:00–18:00, sáb 08:00–12:00, dom sem expediente.
 - Sem expediente cadastrado, o tracking não liga, mesmo com `rastreamento.ativo`.
-- Expediente por usuário ou por turno **(decisão)**: na v1 há um só por empresa.
+- Um expediente só por empresa (§12).
 
 ### 4.2 Feriados e ausências
 - **Feriado**: o calendário do tenant (`core.calendario_metas@1`, que já devolve `feriados`) vale aqui: feriado = sem expediente.
@@ -82,7 +83,7 @@ momento, como hoje (RN-CORE-13).
   feito pelo admin ou pelo supervisor da equipe, sem motivo (minimização). Chega ao aparelho do próprio usuário no pull.
 - O termo promete que nada é registrado em folga, férias ou afastamento: **sem este cadastro, o tracking não liga em produção** (§10).
 
-### 4.3 Pausa pessoal **(decisão)**
+### 4.3 Pausa pessoal
 Botão "Pausar localização" no Perfil do Campo: para por até [60] min ou até "Retomar". Registra só o início e o fim da pausa
 (sem motivo) e envia junto dos pontos, para o gestor não ler o buraco do trajeto como falha.
 
@@ -146,8 +147,8 @@ de [5] anos. O log leva só o tenant e a contagem.
 |---|---|---|
 | Pontos e pausas | servidor | [90] dias, depois apagados (§5.4) |
 | Pontos | aparelho | os de hoje (enviados) ou até o envio; nunca mais de [90] dias |
-| Resumo diário (km, pontos, 1º e último instante) | servidor e aparelho | [5] anos (metas e RV) **(decisão)** |
-| Aceite do termo | servidor | enquanto o usuário existir + [5] anos **(decisão)** |
+| Resumo diário (km, pontos, 1º e último instante) | servidor e aparelho | [5] anos (metas e RV) |
+| Aceite do termo | servidor | enquanto o usuário existir + [5] anos |
 
 ## 9. Privacidade técnica
 - **Nenhuma coordenada** em log, mensagem de erro, Diagnóstico, Sentry ou telemetria: só id do usuário, contagem e tempo.
@@ -157,7 +158,7 @@ de [5] anos. O log leva só o tenant e a contagem.
 - Isolamento por tenant (RLS), como toda tabela.
 
 ## 10. Antes de ligar em produção
-1. Revisão de advogado dos textos `T-0156-legal-*.md` e aprovação do Alexandre nos valores entre colchetes (§12).
+1. Revisão de advogado dos textos `T-0156-legal-*.md`, inclusive da base legal (§12).
 2. Cadastro de ausências (§4.2) no ar.
 3. Ensaio de bateria (§3.3) e de offline (3 dias sem rede, envio sem duplicar).
 4. Teste "sem coordenada em log" verde no CI.
@@ -174,14 +175,14 @@ de [5] anos. O log leva só o tenant e a contagem.
 | 6 | testes e corretor-redundancias | cada condição do §2 desliga sozinha, offline, multi-tenant, permissões do §7, sem coordenada em log, bateria | 2 a 5 |
 
 ## 12. Decisões
-**Do Alexandre** (negócio e jurídico; até lá os valores valem como proposta):
-1. **Base legal**: legítimo interesse e execução do contrato, **sem** consentimento (o termo é de ciência). Confirmar com o advogado.
+**Do Alexandre**, aprovadas em 16/11/2026 (R-20261116-110200-alexandre):
+1. **Base legal**: legítimo interesse e execução do contrato, **sem** consentimento (o termo é de ciência), a confirmar com o advogado.
 2. **Retenção**: pontos [90] dias; resumo [5] anos; aceite enquanto o usuário existir + [5] anos.
-3. **Expediente**: um por empresa na v1; por usuário ou turno depois?
-4. **Pausa pessoal** (§4.3): entra? Com limite de [60] min?
-5. **Ausências** (§4.2): cadastradas pelo admin e pelo supervisor (proposto).
+3. **Expediente**: um por empresa.
+4. **Pausa pessoal** (§4.3): entra, com limite de [60] min.
+5. **Ausências** (§4.2): cadastradas pelo admin e pelo supervisor.
 6. **Representante autônomo**: só com o contrato de representação prevendo a comprovação de visita.
-7. **Admin vê os pontos?** Proposto: sim, por responder pela empresa.
+7. **Admin vê os pontos**: sim.
 
 **Técnicas** (decididas pelo engenheiro, na ADR 0061, "Decisões técnicas"): frequência [200 m] / [5 min] com entrega em lote e
 meta de bateria ≤ [8%], ajustáveis por parâmetro; lotes de envio de [500] pontos; sem partição na v1; correção do 1º ponto em

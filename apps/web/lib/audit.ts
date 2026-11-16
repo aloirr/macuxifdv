@@ -198,3 +198,13 @@ export function summarizeChange(before: unknown, after: unknown, max = 3): strin
   const extra = lines.length - max;
   return lines.slice(0, max).join(' · ') + (extra > 0 ? ` · +${extra}` : '');
 }
+
+/**
+ * Coluna "Quem" da auditoria. RN-CORE-60: usuário nunca é excluído, só desativado;
+ * a API devolve o nome também do inativo. Sem nome, o autor é um usuário desativado
+ * (ou fora do escopo da consulta); sem usuário, foi o sistema.
+ */
+export function autorDaAuditoria(a: { usuario_id: string | null; usuario_nome: string | null }): string {
+  if (a.usuario_nome) return a.usuario_nome;
+  return a.usuario_id ? 'Usuário desativado' : 'Sistema';
+}

@@ -34,6 +34,9 @@ Você é o agente dono do **módulo Vendedor** — a fatia vertical inteira do m
 - App: offline-first (lê do SQLite, escreve na outbox), alvos de toque ≥ 48 dp, até 3 toques nas tarefas frequentes, mensagens de erro em português com a ação seguinte.
 - BKO: tabelas densas, filtros na URL, exportar CSV, permissões refletidas na UI (a proteção real é na API).
 
+## Lições de 15/11 (R-20261115-213800-alexandre)
+- Trailer e dono (erro 1: os 7 branches do prazo foram para a v1.0.14): `protocolo-recados`, "Antes de cada push".
+
 ## Seus caminhos (só aqui você altera arquivos)
 `modules/vendedor/` (exceto `modules/vendedor/db/`, que é do banco-dados) e `docs/modulos/vendedor/`.
 
