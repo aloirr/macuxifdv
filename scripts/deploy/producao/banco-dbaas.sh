@@ -101,16 +101,18 @@ esperado=$'macuxi_app|t|f|f|f\nmacuxi_portal|t|f|f|f\nmacuxi_worker|t|f|f|f'
 # (o começo da linha é o que o stack-isolado.yml procura: não mudar)
 log "papéis: macuxi_app e macuxi_worker com LOGIN, sem SUPERUSER/BYPASSRLS, fora do macuxi_manutencao; macuxi_portal também (T-0091)"
 # T-0091 (condição da ADR 0029): a sessão do super-admin só abre pelo macuxi_portal, e ele não lê tabela nenhuma
-# As sa_* por classe: a lista é UMA só, a de db/testes/funcoes-sa.ts (FUNCOES_SA_ATUAIS e SA_INTERNA, do banco-dados; RD-0910),
-# lida na imagem da versão que acabou de migrar. SA_PORTAL só o macuxi_portal executa; SA_INTERNAS sem EXECUTE para ninguém
-# além do dono. O apps/api/test/funcoes-sa.test.ts roda este mesmo LISTAS_SA_JS e confere a saída.
-LISTAS_SA_JS='import("./db/testes/funcoes-sa.ts").then((m) => { const q = (xs) => xs.map((f) => `\x27${f}\x27`).join(", "); console.log(q(m.FUNCOES_SA_ATUAIS)); console.log(q([m.SA_INTERNA])); })'
+# As sa_* por classe: a lista é UMA só, a de db/testes/funcoes-sa.ts (do banco-dados; RD-0910), lida na imagem da versão que
+# acabou de migrar: FUNCOES_SA_ATUAIS e a interna (SA_INTERNA). SA_PORTAL só o macuxi_portal executa; SA_INTERNAS sem EXECUTE para ninguém além
+# do dono. O apps/api/test/funcoes-sa.test.ts roda este mesmo LISTAS_SA_JS e confere a saída.
+LISTAS_SA_JS='import("./db/testes/funcoes-sa.ts").then((m) => { const q = (xs) => xs.map((f) => `\x27${f}\x27`).join(", "); for (const xs of [m.FUNCOES_SA_ATUAIS, [m.SA_INTERNA]]) console.log(q(xs)); })'
 listas_sa="$(dc run --rm --no-deps -T --entrypoint node banco --import tsx -e "$LISTAS_SA_JS")" || erro 1 "lista das plataforma.sa_* (db/testes/funcoes-sa.ts) não lida na imagem"
 SA_PORTAL="$(printf '%s\n' "$listas_sa" | sed -n 1p)"
 SA_INTERNAS="$(printf '%s\n' "$listas_sa" | sed -n 2p)"
 # só assinaturas entre aspas simples (o texto entra no SQL abaixo)
 ASSINATURAS_SA_RE="^'plataforma\.sa_[a-z_]+\([][a-z, ]*\)'(, 'plataforma\.sa_[a-z_]+\([][a-z, ]*\)')*$"
-[[ "$SA_PORTAL" =~ $ASSINATURAS_SA_RE && "$SA_INTERNAS" =~ $ASSINATURAS_SA_RE ]] || erro 1 "lista das plataforma.sa_* fora do formato: $(printf '%s' "$listas_sa" | tr '\n' ' ')"
+for lista_sa in "$SA_PORTAL" "$SA_INTERNAS"; do
+  [[ "$lista_sa" =~ $ASSINATURAS_SA_RE ]] || erro 1 "lista das plataforma.sa_* fora do formato: $(printf '%s' "$listas_sa" | tr '\n' ' ')"
+done
 sa_fora="$(psqlc -d "$BANCO" -c "with sa as (
     select n.nspname || '.' || p.proname || '(' || oidvectortypes(p.proargtypes) || ')' as f,
            has_function_privilege('macuxi_app', p.oid, 'EXECUTE')

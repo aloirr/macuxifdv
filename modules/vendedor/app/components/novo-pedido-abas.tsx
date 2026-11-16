@@ -10,8 +10,9 @@ import {
   Cartao,
   CartaoLeveMais,
   colors,
-  fonts,
+  fonte,
   VALOR_SEM_DADO,
+  CampoTexto,
   Icon,
   ListaSuspensa,
   RotuloSecao,
@@ -219,18 +220,14 @@ export function CartaoFrete({
           />
           {digitando && frete.transportadora_digitada ? (
             <View style={{ gap: 8 }} testID="transp-digitada">
-              <CampoTexto rotulo="Nome" valor={frete.transportadora_digitada.nome} testID="transp-nome" onChange={(v) => setFrete({ ...frete, transportadora_digitada: { ...frete.transportadora_digitada!, nome: v } })} />
-              <CampoTexto rotulo="CNPJ" valor={frete.transportadora_digitada.cnpj} testID="transp-cnpj" teclado="number-pad" onChange={(v) => setFrete({ ...frete, transportadora_digitada: { ...frete.transportadora_digitada!, cnpj: v.replace(/\D/g, '').slice(0, 14) } })} />
+              <CampoTexto rotulo="Nome" valor={frete.transportadora_digitada.nome} testID="transp-nome" aoMudar={(v) => setFrete({ ...frete, transportadora_digitada: { ...frete.transportadora_digitada!, nome: v } })} />
+              <CampoTexto rotulo="CNPJ" valor={frete.transportadora_digitada.cnpj} testID="transp-cnpj" keyboardType="number-pad" aoMudar={(v) => setFrete({ ...frete, transportadora_digitada: { ...frete.transportadora_digitada!, cnpj: v.replace(/\D/g, '').slice(0, 14) } })} />
             </View>
           ) : null}
         </View>
       ) : null}
     </View>
   );
-}
-
-function CampoTexto({ rotulo, valor, onChange, testID, teclado }: { rotulo: string; valor: string; onChange: (v: string) => void; testID: string; teclado?: 'number-pad' | 'phone-pad' }) {
-  return <TextInput testID={testID} value={valor} onChangeText={onChange} keyboardType={teclado} placeholder={rotulo} placeholderTextColor={colors.ink3} accessibilityLabel={rotulo} style={s.texto} autoCorrect={false} />;
 }
 
 // ---------- aba 3 · Entrega ----------
@@ -567,9 +564,9 @@ const s = StyleSheet.create({
   linhaDupla: { flexDirection: 'row', gap: 8 },
   colunaSecundarios: { gap: 8 },
   cancelar: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  cancelarTexto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink2 },
+  cancelarTexto: { ...fonte.semibold, fontSize: 14, color: colors.ink2 },
   sugestao: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 6 },
   sugestaoPressionada: { backgroundColor: colors.ground },
   sugestaoBotao: { width: 48, height: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center' },
-  texto: { minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, paddingHorizontal: 12, fontFamily: fonts.body, fontSize: 15, color: colors.ink },
+  texto: { minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, paddingHorizontal: 12, ...fonte.body, fontSize: 16, color: colors.ink },
 });

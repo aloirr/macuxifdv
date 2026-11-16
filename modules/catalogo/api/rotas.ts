@@ -22,6 +22,7 @@
  * GET  hierarquia               produto.consultar    nível atual da hierarquia sistema › grupo › linha com a contagem de produtos ativos (RF-CAT-09, T-0142)
  * GET  exportacao               produto.enriquecer  cadastro do catálogo para PDF/Excel do BKO, página única até 20 mil (RF-CAT-09)
  * GET  termos-sem-resultado       busca.ver_sem_resultado
+ * POST fotos-lote, fotos-lote/:id/enfileirar; GET fotos-lote, fotos-lote/limites, fotos-lote/:id, /itens, /relatorio.csv   produto.enriquecer  fotos em lote por ZIP (RN-CAT-14, T-0174; `fotos-lote.ts`)
  */
 import {
   ErroHttpModulo,
@@ -97,6 +98,7 @@ import { chaveDeTermo, type SinonimoDoTenant } from '../domain/texto';
 import { podeVerPrecoEstoque } from '../domain/visibilidade';
 import { candidatosDaBusca, cortarCandidatos, TETO_CANDIDATOS } from '../domain/indice-busca';
 import { buscarProdutos, itemDaVitrine, listarVitrine, vocabularioDe, type ContextoVitrine, type ProdutoCatalogo } from '../domain/vitrine';
+import { criarRotasFotosLote } from './fotos-lote';
 import { interpretarComMedicao } from './ia/buscar';
 import type { FabricaRepositorio, RepositorioCatalogo } from './repositorio';
 
@@ -765,5 +767,5 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     },
   };
 
-  return [busca, vitrine, hierarquia, ficha, filtros, listarSinonimos, salvarSinonimo, removerSinonimo, destaque, conteudo, fotoPrincipal, cadastroCatalogo, marcasConcorrentes, listarMarcas, criarMarca, alterarMarca, exportacao, termos, tabelasPreco, precosTabela, listarEscalonada, salvarFaixa, removerFaixa];
+  return [...criarRotasFotosLote(), busca, vitrine, hierarquia, ficha, filtros, listarSinonimos, salvarSinonimo, removerSinonimo, destaque, conteudo, fotoPrincipal, cadastroCatalogo, marcasConcorrentes, listarMarcas, criarMarca, alterarMarca, exportacao, termos, tabelasPreco, precosTabela, listarEscalonada, salvarFaixa, removerFaixa];
 }

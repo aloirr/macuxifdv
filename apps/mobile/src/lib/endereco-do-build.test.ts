@@ -90,7 +90,7 @@ describe('servidor fora do ar: "Servidor indisponível — tente mais tarde"', (
   });
 });
 
-describe('perfis EAS (apps/mobile/eas.json)', () => {
+describe('perfis do build (apps/mobile/eas.json)', () => {
   const eas = JSON.parse(readFileSync(fileURLToPath(new URL('../../eas.json', import.meta.url)), 'utf8')) as {
     build: Record<string, { env?: Record<string, string>; developmentClient?: boolean }>;
   };

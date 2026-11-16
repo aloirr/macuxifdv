@@ -32,7 +32,7 @@ export default function Mais() {
             <Card style={{ padding: 14, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <Icon name={aba.icon} size={20} color={colors.ink2} />
               <View style={{ flex: 1 }}>
-                <Text style={t.title16}>{aba.label}</Text>
+                <Text style={t.bodyStrong}>{aba.label}</Text>
               </View>
               <Icon name="chevron" size={18} color={colors.ink3} />
             </Card>

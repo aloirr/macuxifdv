@@ -17,6 +17,7 @@ import { criarRepositorioPostgres, esquecerRetratoCatalogo } from './repositorio
 import { criarRotasCatalogo, type DependenciasRotas } from './rotas';
 import { consultaSugestoesPedido } from './sugestoes';
 import { provedoresSyncCatalogo } from './sync';
+import { trabalhoProcessarFotoLote } from './trabalho-fotos-lote';
 
 export { criarRotasCatalogo, type DependenciasRotas } from './rotas';
 export { criarRepositorioMemoria, type DadosTenantMemoria, type FabricaRepositorio, type RepositorioCatalogo } from './repositorio';
@@ -30,7 +31,7 @@ export function portaIaDoAmbiente(env: Readonly<Record<string, string | undefine
 }
 
 export function criarModuloApiCatalogo(dep: DependenciasRotas): ModuloApi {
-  return definirModuloApi({ manifesto: manifest, rotas: criarRotasCatalogo(dep), sync: provedoresSyncCatalogo, consumidores: consumidoresDoErp, consultas: [consultaPrecosCliente, consultaSugestoesPedido, consultaTextosProduto, consultaBuscaProdutos, consultaFotoProduto, consultaMarcas, consultaEstoqueFilial] });
+  return definirModuloApi({ manifesto: manifest, rotas: criarRotasCatalogo(dep), sync: provedoresSyncCatalogo, consumidores: consumidoresDoErp, consultas: [consultaPrecosCliente, consultaSugestoesPedido, consultaTextosProduto, consultaBuscaProdutos, consultaFotoProduto, consultaMarcas, consultaEstoqueFilial], trabalhos: [trabalhoProcessarFotoLote] });
 }
 
 export const moduloApi: ModuloApi = criarModuloApiCatalogo({ repositorio: criarRepositorioPostgres(), portaIa: portaIaDoAmbiente(), aposGravar: esquecerRetratoCatalogo });

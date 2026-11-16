@@ -11,14 +11,14 @@ import { textosDosParametros, validarFormularioDoFarol, type TextosDosParametros
 
 const CAMINHO = '/core/parametros/farol';
 export const CHAVE_PARAMETROS_FAROL = ['core', 'parametros', 'farol'] as const;
-const CAMPO = 'h-[44px] w-full rounded-xl border bg-surface px-3 pr-12 text-[14px] font-normal text-ink';
+const CAMPO = 'h-[44px] w-full rounded-xl border bg-surface px-3 pr-12 text-[15px] font-normal text-ink';
 
 type Erros = Partial<Record<ErroParametroFarol['campo'], string>>;
 
 function CampoNumerico({ id, rotulo, ajuda, unidade, valor, erro, onChange }: { id: keyof TextosDosParametros; rotulo: string; ajuda: string; unidade: string; valor: string; erro?: string; onChange: (v: string) => void }) {
   const idErro = `farol-params.${id}.erro`;
   return (
-    <label className="flex max-w-[280px] flex-col gap-1 text-[14px] font-semibold text-ink">
+    <label className="flex max-w-[280px] flex-col gap-1 text-[15px] font-semibold text-ink">
       {rotulo}
       <span className="text-[13px] font-normal text-ink-2">{ajuda}</span>
       {erro && (

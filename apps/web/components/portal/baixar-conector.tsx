@@ -59,7 +59,7 @@ export function BaixarConector({ tenant, inicial = null }: { tenant: string; ini
           </a>
           {pacote && <span className="text-ink-2">{pacote}</span>}
           <span className="text-[12px] text-ink-2">{textoDaValidade(link, hora)}</span>
-          {link.sha256 && <span className="break-all font-mono text-[11px] text-ink-2">SHA-256 {link.sha256}</span>}
+          {link.sha256 && <span className="break-all font-mono text-[12px] text-ink-2">SHA-256 {link.sha256}</span>}
         </div>
       )}
     </div>

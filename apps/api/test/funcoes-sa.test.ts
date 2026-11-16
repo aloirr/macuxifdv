@@ -39,9 +39,10 @@ const eventos: Evento[] = ups.flatMap(({ arquivo, sql }) => {
 });
 
 describe('plataforma.sa_*: SA_PORTAL e SA_INTERNAS (T-0091; T-0093)', () => {
-  it('as listas não se cruzam nem repetem', () => {
+  it('as listas não se cruzam nem repetem; a interna de 7 argumentos', () => {
     const todas = [...SA_PORTAL, ...SA_INTERNAS];
     expect(new Set(todas).size).toBe(todas.length);
+    expect(SA_INTERNAS).toEqual(['plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)']);
   });
 
   it('as sa_* que existem depois de todas as migrações (criadas menos apagadas) são exatamente as das duas listas', () => {
@@ -70,7 +71,7 @@ describe('plataforma.sa_*: SA_PORTAL e SA_INTERNAS (T-0091; T-0093)', () => {
     expect(nasInternas).toEqual([]);
   });
 
-  it('o banco-dbaas.sh (passo 6) lê a mesma lista, sem cópia: o LISTAS_SA_JS dele devolve SA_PORTAL e SA_INTERNAS', () => {
+  it('o banco-dbaas.sh (passo 6) lê a mesma lista, sem cópia: o LISTAS_SA_JS dele devolve a SA_PORTAL e as internas', () => {
     const sh = ler(new URL('scripts/deploy/producao/banco-dbaas.sh', RAIZ));
     expect(sh).not.toMatch(/'plataforma\.sa_\w+\(/);
     const js = /^LISTAS_SA_JS='([^']*)'$/m.exec(sh)?.[1];
