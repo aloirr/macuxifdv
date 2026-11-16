@@ -294,7 +294,7 @@ describe('BotaoSincronizar, Dialogo e BarraProgresso (fonte)', () => {
     expect(barra).toContain('export const TRECHO_SEM_MEDIDA = 30;');
     expect(barra).toContain("duracaoMovimento('barra', false)");
     expect(barra).toContain('accessibilityRole="progressbar"');
-    expect(barra).toContain("rotuloAcessivel = 'Sincronização'");
+    expect(barra).toContain('rotuloAcessivel: string;');
     expect(barra).toContain('{ min: 0, max: 100, now: pct }');
     expect(barra).not.toMatch(/#[0-9A-Fa-f]{6}/);
   });

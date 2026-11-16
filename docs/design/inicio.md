@@ -112,8 +112,7 @@ O realizado de hoje sai do Início (está em Metas).
 ### 1.5 Sincronizar (kit: `BotaoSincronizar`, `packages/ui/src/mobile/sincronizacao.tsx`)
 - Botão 52 na largura toda, `variant="dark"` (grafite `ink`, texto branco), ícone `sync`, rótulo "Sincronizar".
 - Abaixo, **centralizado**, `small` `ink2`: "Última sincronização 16:25 · 0 na fila" (RN-CORE-23); nunca sincronizado:
-  "Ainda não sincronizado · 2 na fila". Toque, puxar e segurar 10 s disparam no máximo 1 vez a cada 30 s por aparelho;
-  toque repetido é ignorado em silêncio, sem texto nem botão desabilitado (R-20261115-125500).
+  "Ainda não sincronizado · 2 na fila". Intervalo mínimo entre sincronizações: `sync-completa/spec.md` §5.
 - Sincronizando: o botão mostra o indicador de carregamento e fica sem toque.
 - Modo sem sinal ligado: botão desabilitado "Sem sinal" e, acima da linha de situação, centralizado em `warningInk`,
   "Desligue o modo sem sinal para sincronizar".

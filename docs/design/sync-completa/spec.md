@@ -37,7 +37,7 @@
 - Sem sinal: o botão já está desabilitado (`Sem sinal`, `../inicio.md` §1.5); segurar não faz nada.
 
 ## 4. Popup da sincronização completa (`04`)
-- É o `Dialogo` do kit, sem botões e `bloqueado`, com a `BarraProgresso` nas cores `CORES_BARRA_DIALOGO` (tema pérola), RD-0635.
+- É o `Dialogo` do kit, sem botões e `bloqueado`, com a `BarraProgresso` nas cores `TEMAS_ENTRADA.perola`, RD-0635.
   Título 22/700, mensagem 16 e raio 20: o padrão único de diálogo (parecer da marca), na escala da fonte do sistema (manual da marca §5).
 - Janela no meio da tela, sobre o fundo escurecido (`scrim`), margem de 24 dp. A tela não apaga enquanto ele está aberto.
 - Texto (R-20261115-100000): título `Realizando a sincronização completa` e, embaixo,

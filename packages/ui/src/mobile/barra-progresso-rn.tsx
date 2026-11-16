@@ -2,8 +2,7 @@
  * Barra de progresso do total (R-20261115-100000, RD-0635): a mesma da tela de entrada (docs/design/entrada-sync.md §2),
  * reaproveitada no popup da sincronização completa (`Dialogo` sem botões). Linha "rótulo · N%" e trilho de 6 dp; o
  * preenchimento anda em 240 ms (na hora com "reduzir movimento"). `pct` nulo = sem medida: sem número e com um trecho fixo.
- * Cores do tema da entrada (`TEMAS_ENTRADA` / `temaDaEntrada`). Com `mostrarRotulo` falso (a lista de etapas já está na
- * tela), o rótulo fica só para o leitor de tela, na região viva (RD-0239).
+ * Cores do tema da entrada (`TEMAS_ENTRADA` / `temaDaEntrada`).
  */
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
@@ -19,8 +18,7 @@ export function BarraProgresso({
   pct: pctBruto,
   cores,
   reduzirMovimento = false,
-  mostrarRotulo = true,
-  rotuloAcessivel = 'Sincronização',
+  rotuloAcessivel,
   testID = 'entrada',
 }: {
   /** "Etapa 3 de 5 · Catálogo e preços"; o leitor anuncia só a troca dele (o percentual não é lido a cada passo). */
@@ -29,10 +27,8 @@ export function BarraProgresso({
   pct: number | null;
   cores: { texto: string; trilho: string; preenchimento: string };
   reduzirMovimento?: boolean;
-  /** Falso: o rótulo não aparece, só o leitor de tela o anuncia. */
-  mostrarRotulo?: boolean;
   /** Nome da barra para o leitor de tela. */
-  rotuloAcessivel?: string;
+  rotuloAcessivel: string;
   /** Prefixo dos testIDs `${testID}-etapa` e `${testID}-pct`. */
   testID?: string;
 }) {
@@ -58,7 +54,7 @@ export function BarraProgresso({
           accessibilityLabel={rotulo}
           numberOfLines={1}
         >
-          {mostrarRotulo ? rotulo : ''}
+          {rotulo}
         </Text>
         {pct === null ? null : (
           <Text

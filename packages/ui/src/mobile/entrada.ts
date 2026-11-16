@@ -66,16 +66,6 @@ export const TEMAS_ENTRADA: Record<'faixa' | 'perola', TemaEntrada> = {
   },
 };
 
-/**
- * Cores da `BarraProgresso` no diálogo da sincronização completa (R-20261115-100000): sempre o tema Pérola, nos dois apps
- * (o diálogo é claro). Derivadas de `TEMAS_ENTRADA.perola`, sem repetir hex.
- */
-export const CORES_BARRA_DIALOGO: { texto: string; trilho: string; preenchimento: string } = {
-  texto: TEMAS_ENTRADA.perola.texto,
-  trilho: TEMAS_ENTRADA.perola.trilho,
-  preenchimento: TEMAS_ENTRADA.perola.preenchimento,
-};
-
 /** Tema pela variante do app: o Gestão no Pérola (splash dele), o Campo na faixa Azul noite. */
 export function temaDaEntrada(variante: 'campo' | 'gestao'): TemaEntrada {
   return variante === 'gestao' ? TEMAS_ENTRADA.perola : TEMAS_ENTRADA.faixa;
