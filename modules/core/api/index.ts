@@ -31,6 +31,7 @@ import { consultaFiliais, consultaFiliaisDoUsuario, rotasDeFiliais } from './fil
 import { rotasDeFilialDoProprioUsuario } from './filiais-usuario-rotas';
 import { rotasDeFotosPdv } from './fotos-pdv';
 import { consultaMedidas, rotasDeMedidas } from './medidas';
+import { consultaCredencialConferir, consultaUsuariosComAcao } from './credencial';
 import { rotasDeFarol } from './farol';
 import { rotasDePlanoRv } from './plano-rv';
 import { rotasDeInicio } from './inicio';
@@ -72,7 +73,7 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
     consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorBaixaPorResposta, consumidorMetaDefinida, ...consumidoresDoErp],
     // ADR 0022: varredura do alerta de pendência de etapa do checkout (RN-CORE-12); período múltiplo de 15 min (RN-CORE-23).
     tarefas: [definirTarefa({ nome: 'alerta_pendencia_checkout', cadaMin: 60, executar: (ctx) => alertarPendenciasVencidas(ctx) })],
-    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaFinanceiroCliente, consultaMedidas, consultaFiliais, consultaFiliaisDoUsuario, consultaPromotorVePedidos, consultaUsuariosResumo, consultaCalendarioMetas, consultaProdutosPorSku, consultaProdutividadeEquipe],
+    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaFinanceiroCliente, consultaMedidas, consultaFiliais, consultaFiliaisDoUsuario, consultaPromotorVePedidos, consultaUsuariosResumo, consultaCalendarioMetas, consultaProdutosPorSku, consultaProdutividadeEquipe, consultaCredencialConferir, consultaUsuariosComAcao],
     // T-0180 (ADR 0059 §5): último contato do aparelho, chamado pela API depois do novidades e do push (melhor esforço)
     contatoDoAparelho: registrarContatoDoAparelho,
     rotasPublicas: [
