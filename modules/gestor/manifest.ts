@@ -71,7 +71,7 @@ export const manifest = defineModule({
     'alerta_regra.gerenciar': { perfis: [...PERFIS_TENANT], descricao: 'Ligar, desligar e ajustar as regras de alerta do tenant (BKO)' },
   },
   // T-0055: nomes e perfis da equipe pelo cadastro do Core (ADR 0012), na mesma transação da rota.
-  usaConsultas: ['core.cadastro_resumo@1', 'core.calendario_metas@1'],
+  usaConsultas: ['core.cadastro_resumo@1', 'core.calendario_metas@1', 'core.produtividade_equipe@1'],
   // Pedido em nome: extensão opcional do Vendedor; some sem erro se o Vendedor estiver inativo.
   usaExtensoes: ['pedido.criar_em_nome', 'cliente.abas', 'cliente.avisos', 'inicio.cards'],
 });

@@ -1,5 +1,5 @@
 /**
- * Visão da tela de licenças (BKO "Usuários e módulos"): funções puras sobre o estado devolvido por
+ * Visão da tela de licenças (BKO, Parâmetros › Acesso › Módulos): funções puras sobre o estado devolvido por
  * `GET /v1/core/licencas`. Sem React e sem rede — testadas em Node. Regras: RN-CORE-01 (tenant ∩ perfil − exceções,
  * exceção do usuário só remove, core sempre ativo) e RN-CORE-03 (desligar um módulo desliga os dependentes).
  */

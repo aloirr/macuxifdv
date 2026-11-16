@@ -10,17 +10,20 @@
     filtro: '<path d="M4 6h16"/><path d="M7 12h10"/><path d="M10 18h4"/>',
     check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
     alerta: '<path d="M12 4l9 16H3z"/><path d="M12 10v4"/><circle cx="12" cy="17" r=".6"/>',
-    // barra de abas: os mesmos traços do `Icon` do kit (home, pin, users, clipboard, menu), como o shell monta
+    // barra de abas: os mesmos traços do `Icon` do kit (home, pin, users, clipboard, target, menu), como o shell monta
     home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
     rota: '<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
     users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.8c1.6.8 2.6 2.6 3 5.2"/>',
     clipboard: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/>',
     linhas: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+    alvo: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
     fechar: '<path d="M6 6l12 12M18 6L6 18"/>',
     arquivo: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',
     copiar: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
     enviar: '<path d="M12 19V5"/><path d="M6 11l6-6 6 6"/>',
     menu: '<circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/>',
+    // pacote: o mesmo desenho do `pacote` do kit (packages/ui/src/mobile/icon.tsx), estoque por filial (R-20261115-084600)
+    pacote: '<path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5"/><path d="M12 12v9"/><path d="M8 5.25l8 4.5"/>',
     caixa: '<path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8l8 4 8-4"/><path d="M12 12v8"/>',
     seta: '<path d="M6 9l6 6 6-6"/>',
     pin: '<path d="M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/>',
@@ -40,9 +43,10 @@
     bug: '<rect x="7" y="7" width="10" height="13" rx="5"/><path d="M12 11v9M4 12h3M17 12h3M5 18l2.5-1.5M19 18l-2.5-1.5M5 6l2.5 2M19 6l-2.5 2M9 7a3 3 0 0 1 6 0"/>',
     abrir: '<path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
   };
-  // Barra de abas do Campo (vendedor): 5 abas, Início · Rota · Clientes · Pedidos · Mais (lib/abas.ts do shell; a Rota fica,
-  // decisão do dono do produto, R-20261109-121700). Uso: <div class="barra-abas" data-ativa="pedidos"></div>.
-  const ABAS = [['inicio', 'home', 'Início'], ['rota', 'rota', 'Rota'], ['clientes', 'users', 'Clientes'], ['pedidos', 'clipboard', 'Pedidos'], ['mais', 'linhas', 'Mais']];
+  // Barra de abas do Campo (vendedor): 6 abas, Início · Rota · Clientes · Pedidos · Performance · Mais (apps/mobile lib/abas.ts,
+  // MAX_ABAS_POR_VARIANTE.campo = 6 desde a T-0170; ordem das páginas: Rota 20, Clientes 30, Pedidos 40, Performance 50;
+  // a Performance fica na barra, R-20261115-084500). Uso: <div class="barra-abas" data-ativa="pedidos"></div>.
+  const ABAS = [['inicio', 'home', 'Início'], ['rota', 'rota', 'Rota'], ['clientes', 'users', 'Clientes'], ['pedidos', 'clipboard', 'Pedidos'], ['performance', 'alvo', 'Performance'], ['mais', 'linhas', 'Mais']];
   document.querySelectorAll('.barra-abas[data-ativa]').forEach((el) => {
     const ativa = el.getAttribute('data-ativa');
     el.innerHTML = ABAS.map(([id, ic, rot]) => {

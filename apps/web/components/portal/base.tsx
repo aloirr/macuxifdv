@@ -9,7 +9,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from 'react';
-import { Button, cx, Dialog, LoadingBlock } from '@macuxi/ui/web';
+import { Button, cx, Dialog, LoadingBlock, Panel } from '@macuxi/ui/web';
 
 import { MarcaNaFaixa } from '@/components/marca-faixa';
 import { houveUsoRecente, MODO_PORTAL_FALSO, registrarUso, renovarSessaoPortal, sairDoPortal } from '@/lib/portal-api';
@@ -37,6 +37,7 @@ import {
   podeTrocarDeEmpresa,
   retirarDesvioPortal,
   retirarSaidaPedida,
+  SEM_ACESSO_TIME_MACUXI,
   versaoDaSessaoPortal,
   type DesvioPortal,
   type SessaoPortal,
@@ -61,6 +62,23 @@ export function LinkBotao({ href, children, primario, testId, className }: { hre
     >
       {children}
     </Link>
+  );
+}
+
+/** "Sem acesso" das áreas só do time Macuxi (Diagnósticos, Frases da carga): o admin do cliente volta para a empresa dele. */
+export function SemAcessoTimeMacuxi({ testId }: { testId: string }) {
+  const sessao = useSessaoPortal();
+  return (
+    <Panel>
+      <div data-testid={testId} className="flex flex-col items-start gap-3 py-4">
+        <span className="text-[15px] font-semibold">{SEM_ACESSO_TIME_MACUXI}</span>
+        {sessao && (
+          <LinkBotao href={destinoDaSessao(sessao)} primario>
+            Ir para a sua empresa
+          </LinkBotao>
+        )}
+      </div>
+    </Panel>
   );
 }
 
@@ -100,6 +118,13 @@ export function useSessaoPortal(): SessaoPortal | null | undefined {
 /** Desvio pedido por um 403/409 de empresa (admin do cliente): a guarda leva à "Escolha a empresa". */
 function useDesvioPortal(): DesvioPortal | null {
   return useSyncExternalStore(assinarSessaoPortal, lerDesvioPortal, () => null);
+}
+
+/** Só o time Macuxi: `null` = ainda lendo a sessão; `false` = admin do cliente (mostra o "sem acesso"). */
+export function useTimeMacuxi(): boolean | null {
+  const sessao = useSessaoPortal();
+  if (sessao === undefined || sessao === null) return null;
+  return ehTimeMacuxi(sessao);
 }
 
 /** O que aparece uma vez e ainda não foi baixado (links dos convites): `lib/portal-saida`. */
@@ -263,10 +288,14 @@ export function GuardaPortal({ children }: { children: ReactNode }) {
   );
 }
 
-/** Itens do cabeçalho do time da Macuxi (T-0158: "Diagnósticos" ao lado de "Empresas"); o admin do cliente não vê nenhum. */
+/**
+ * Itens do cabeçalho do time da Macuxi (T-0158: "Diagnósticos" ao lado de "Empresas"; T-0181: "Frases da carga" depois);
+ * o admin do cliente não vê nenhum.
+ */
 export const MENU_TIME_MACUXI = [
   { href: '/empresas', rotulo: 'Empresas', testId: 'portal.menu.empresas' },
   { href: '/diagnosticos', rotulo: 'Diagnósticos', testId: 'portal.menu.diagnosticos' },
+  { href: '/frases-carga', rotulo: 'Frases da carga', testId: 'portal.menu.frases-carga' },
 ] as const;
 
 /** Item ativo pelo caminho (no host `config.` o navegador vê `/diagnosticos`; no PC sem o host, `/config/diagnosticos`). */
