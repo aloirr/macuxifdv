@@ -125,3 +125,4 @@
 2026-11-16 — #472 72e70196 LIBERADO (testes depois do #457).
 2026-11-16 — #475 6529b88c LIBERADO (trechos idênticos ao #420).
 2026-11-16 — #448 26aac73e LIBERADO (só merge do main).
+2026-11-16 — #476 3c352a68 LIBERADO (= #410 58a84ea0 + ciclo-erp do #466).
