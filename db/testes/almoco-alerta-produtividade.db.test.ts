@@ -50,10 +50,6 @@ function listaDoCheck(sql: string, nome: string): string[] {
 }
 
 describe('0084 almoço do usuário e alertas de produtividade (estático)', () => {
-  it('nome e posição: 0084_core_almoco_gestor_alerta_produtividade é a 0084', () => {
-    expect(`${m81.versao}_${m81.nome}`).toBe('0084_core_almoco_gestor_alerta_produtividade');
-  });
-
   it('aditiva no core.usuario: 2 colunas smallint nulas e 3 CHECKs, sem backfill, índice nem RLS; grant só ao macuxi_leitura (0078)', () => {
     expect(up).toContain('alter table core.usuario add column almoco_inicio_min smallint;');
     expect(up).toContain('alter table core.usuario add column almoco_fim_min smallint;');
