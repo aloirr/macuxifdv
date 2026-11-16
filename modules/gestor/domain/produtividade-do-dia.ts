@@ -9,7 +9,7 @@
 import {
   ERRO_HORA_HHMM,
   FAIXAS_ALERTAS_PRODUTIVIDADE as FAIXAS,
-  MinutoDoDiaSchema,
+  FAIXA_MINUTO_DO_DIA,
   minutoDoTextoHora,
   PARADO_MIN_MAX,
   PARADO_MIN_MIN,
@@ -35,7 +35,7 @@ export interface CampoProdutividade {
   origem: 'produtividade' | 'core_parado_min';
 }
 const num = (id: string, rotulo: string, unidade: string, f: { min: number; max: number }, padrao: number): CampoProdutividade => ({ id, rotulo, unidade, tipo: 'numero', min: f.min, max: f.max, padrao, origem: 'produtividade' });
-const hora = (id: string, rotulo: string, padrao: number): CampoProdutividade => ({ id, rotulo, unidade: '', tipo: 'hora', min: MinutoDoDiaSchema.minValue ?? 0, max: MinutoDoDiaSchema.maxValue ?? 1439, padrao, origem: 'produtividade' });
+const hora = (id: string, rotulo: string, padrao: number): CampoProdutividade => ({ id, rotulo, unidade: '', tipo: 'hora', ...FAIXA_MINUTO_DO_DIA, padrao, origem: 'produtividade' });
 
 export const CAMPOS_PRODUTIVIDADE: Readonly<Record<ChaveRegraProdutividade, readonly CampoProdutividade[]>> = {
   fim_almoco: [num('antecedencia_min', 'Antes do fim', 'min', FAIXAS.antecedencia_min, PADRAO.fim_almoco.antecedencia_min)],
