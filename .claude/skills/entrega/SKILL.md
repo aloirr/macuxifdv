@@ -12,9 +12,6 @@ disable-model-invocation: true
 6. Atualize `.coord/quadro.md`, `docs/backlog.md` e `docs/status/AAAA-MM-DD.md` (o que entrou, testes por pacote, pendências, riscos, próximo passo).
 7. Envie recado `entrega` para `alexandre` com um roteiro de demonstração de 5 a 8 passos.
 
-**1 push por PR** (R-20261115-215000-alexandre, R-20261115-213600-alexandre):
-- lint, typecheck e os testes de banco rodam na sessão antes do push;
-- a correção sai junta, num push só;
-- rerun só para falha de infraestrutura.
+**1 push por PR** e testes de banco na sessão antes do push: doc 07, seção 3, e `CLAUDE.md` (R-20261115-215000-alexandre).
 
 Responda com um resumo de até 15 linhas.
