@@ -14,7 +14,7 @@ import { PERFIS, type Perfil } from '@macuxi/platform-sdk';
 import { EXTERNAL_ID_MAX, NOME_USUARIO_MAX, normalizarEmail } from './usuarios';
 
 export const MAX_LINHAS_EQUIPE_CSV = 5000;
-export const COLUNAS_EQUIPE_CSV = ['nome', 'email', 'telefone', 'perfil', 'email_superior', 'codigo_erp', 'modulos'] as const;
+export const COLUNAS_EQUIPE_CSV = ['nome', 'email', 'telefone', 'perfil', 'email_superior', 'codigo_erp', 'modulos', 'filial'] as const;
 const OBRIGATORIAS = ['nome', 'email', 'perfil'] as const;
 
 export interface LinhaCsvEquipe {
@@ -27,6 +27,8 @@ export interface LinhaCsvEquipe {
   email_superior: string;
   codigo_erp: string;
   modulos: string;
+  /** Filial de cadastro: `external_id` ou código da filial (RN-CORE-39). */
+  filial: string;
 }
 
 export type LeituraCsvEquipe = { ok: true; linhas: LinhaCsvEquipe[] } | { ok: false; mensagem: string };
@@ -72,7 +74,7 @@ const normalizarColuna = (c: string): string =>
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/[\s-]+/g, '_');
-const ALIAS: Record<string, string> = { e_mail: 'email', 'e_mail_superior': 'email_superior', superior: 'email_superior', codigo: 'codigo_erp', perfil_de_acesso: 'perfil', modulo: 'modulos' };
+const ALIAS: Record<string, string> = { e_mail: 'email', 'e_mail_superior': 'email_superior', superior: 'email_superior', codigo: 'codigo_erp', perfil_de_acesso: 'perfil', modulo: 'modulos', filial_cadastro: 'filial', codigo_filial: 'filial', filial_codigo: 'filial', filial_external_id: 'filial' };
 
 export function lerCsvDeEquipe(texto: string): LeituraCsvEquipe {
   const limpo = texto.replace(/^\uFEFF/, '');
@@ -109,6 +111,7 @@ export function lerCsvDeEquipe(texto: string): LeituraCsvEquipe {
       email_superior: col(r, 'email_superior'),
       codigo_erp: col(r, 'codigo_erp'),
       modulos: col(r, 'modulos'),
+      filial: col(r, 'filial'),
     })),
   };
 }
@@ -116,8 +119,8 @@ export function lerCsvDeEquipe(texto: string): LeituraCsvEquipe {
 export function modeloCsvDeEquipe(): string {
   return [
     COLUNAS_EQUIPE_CSV.join(','),
-    'Ana Souza,ana.souza@empresa.com.br,95991112222,supervisor,carlos.lima@empresa.com.br,,',
-    'Bruno Dias,bruno.dias@empresa.com.br,,vendedor,ana.souza@empresa.com.br,V0042,"vendedor"',
+    'Ana Souza,ana.souza@empresa.com.br,95991112222,supervisor,carlos.lima@empresa.com.br,,,0001',
+    'Bruno Dias,bruno.dias@empresa.com.br,,vendedor,ana.souza@empresa.com.br,V0042,"vendedor",0001',
   ].join('\n') + '\n';
 }
 
@@ -147,6 +150,14 @@ export interface ContextoImportacao {
   limites: Readonly<Record<string, number>>;
   /** Usuários ativos que já usam cada módulo. */
   emUso: Readonly<Record<string, number>>;
+  /** Filiais vivas da empresa (RN-CORE-39): a coluna `filial` casa com `external_id` ou `codigo`. */
+  filiais: readonly FilialDaImportacao[];
+}
+
+export interface FilialDaImportacao {
+  id: string;
+  codigo: string;
+  external_id: string | null;
 }
 
 export interface ErroLinhaEquipe {
@@ -166,6 +177,8 @@ export interface PlanoUsuarioEquipe {
   superior_email: string | null;
   external_id: string | null;
   modulos_removidos: string[];
+  /** Filial de cadastro de quem é criado (RN-CORE-39); nula para quem já existe. */
+  filial_id: string | null;
 }
 
 export interface ResultadoConferencia {
@@ -207,7 +220,7 @@ export function conferirImportacaoDeEquipe(linhas: readonly LinhaCsvEquipe[], ct
 
   const codigosNoArquivo = new Map<string, number>();
   const codigosDoTenant = new Map(ctx.existentes.filter((u) => u.external_id).map((u) => [u.external_id as string, u.email.toLowerCase()]));
-  const candidatos: { l: LinhaCsvEquipe; e: string; perfil: Perfil; existente: UsuarioExistente | undefined; wanted: string[]; removidos: string[]; superior: string | null; codigo: string | null }[] = [];
+  const candidatos: { l: LinhaCsvEquipe; e: string; perfil: Perfil; existente: UsuarioExistente | undefined; wanted: string[]; removidos: string[]; superior: string | null; codigo: string | null; filial_id: string | null }[] = [];
 
   for (const l of linhas) {
     const antes = erros.length;
@@ -240,6 +253,16 @@ export function conferirImportacaoDeEquipe(linhas: readonly LinhaCsvEquipe[], ct
         else codigo = l.codigo_erp;
       }
     }
+    // filial (RN-CORE-39): quem é criado precisa de filial de cadastro; sem a coluna, vale a única filial da empresa
+    let filialId: string | null = null;
+    if (!existente) {
+      if (l.filial) {
+        const f = ctx.filiais.find((x) => x.external_id === l.filial || x.codigo === l.filial);
+        if (f) filialId = f.id;
+        else erro(l.numero, 'filial', 'Filial não encontrada. Use o código ou o código do ERP de uma filial cadastrada na empresa.');
+      } else if (ctx.filiais.length === 1) filialId = ctx.filiais[0]!.id;
+      else erro(l.numero, 'filial', 'Informe a filial de cadastro da pessoa (código ou código do ERP da filial).');
+    }
     // superior
     let superior: string | null = null;
     if (l.email_superior && perfil) {
@@ -271,7 +294,7 @@ export function conferirImportacaoDeEquipe(linhas: readonly LinhaCsvEquipe[], ct
       }
       removidos = [...grants].filter((m) => !wanted.includes(m)).sort();
     }
-    if (erros.length === antes && perfil) candidatos.push({ l, e: email, perfil, existente, wanted, removidos, superior, codigo });
+    if (erros.length === antes && perfil) candidatos.push({ l, e: email, perfil, existente, wanted, removidos, superior, codigo, filial_id: filialId });
   }
 
   // ordem de gravação: gerentes → supervisores → campo (estável pela ordem do arquivo)
@@ -302,6 +325,7 @@ export function conferirImportacaoDeEquipe(linhas: readonly LinhaCsvEquipe[], ct
       superior_email: c.superior ?? ex?.superior_email ?? null,
       external_id: c.codigo ?? ex?.external_id ?? null,
       modulos_removidos: c.removidos,
+      filial_id: ex ? null : c.filial_id,
     };
     if (!ex) return { ...base, acao: 'criar' as const };
     const igual =
