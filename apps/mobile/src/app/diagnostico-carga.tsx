@@ -13,7 +13,7 @@
  * quadros (`requestAnimationFrame` da thread JS) e o compartilhar (o Android oferece "Copiar" na folha).
  */
 import { FUSO_PADRAO_TENANT } from '@macuxi/platform-sdk';
-import { Button, Card, ChipEstado, colors, fonts, ProgressBar, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
+import { Button, Card, ChipEstado, colors, fonte, ProgressBar, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { Redirect } from 'expo-router';
@@ -219,6 +219,6 @@ ${estado.mensagem}`)} />
 }
 
 const styles = StyleSheet.create({
-  mono: { fontFamily: fonts.mono, fontSize: 12, color: colors.ink2, lineHeight: 18 },
+  mono: { ...fonte.mono, fontSize: 12, color: colors.ink2, lineHeight: 18 },
   linhaVeredito: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 });

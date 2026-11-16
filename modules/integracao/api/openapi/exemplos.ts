@@ -176,6 +176,7 @@ export const EXEMPLO_REGISTRO: RegistroEntrada = {
     descricao: '30/60/90 dias',
     parcelas_dias: [30, 60, 90],
     prazo_medio_dias: 60,
+    percentual_ajuste: 0,
     ordem: 2,
   },
   tabela_escalonada: {

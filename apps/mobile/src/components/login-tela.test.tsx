@@ -6,8 +6,11 @@
  * - contraste do laranja (docs/design/componentes.md §1.1, R-20261108-103740): o texto laranja do shell (marca da
  *   demonstração e link "Avançado") usa `accentInk`, nunca o `accent` cru; o `accent` fica só em ícone e spinner;
  * - faixa do login (T-0172, quadro 3 de docs/marca/propostas/2026-11-12-entrada-sync): a faixa Azul noite com o logo fica
- *   no topo das três etapas (Entrar, Esqueci a senha e Crie sua senha) e não entra na demonstração.
+ *   no topo das três etapas (Entrar, Esqueci a senha e Crie sua senha) e não entra na demonstração;
+ * - T-0176 (tela 13): conta sem filial de cadastro — o aviso aprovado vai na prop `aviso` da `TelaLogin` (no lugar do erro), o
+ *   "Entrar" não lança (a senha fica no campo) e quem saiu pelo 403 volta com o e-mail preenchido.
  */
+import { MENSAGEM_USUARIO_SEM_FILIAL } from '@macuxi/platform-sdk';
 import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -39,7 +42,7 @@ vi.mock('expo-router', () => ({ router: { replace: () => undefined } }));
 vi.mock('@macuxi/ui/mobile', () => ({
   // a cor vira o nome do token: o teste lê qual token cada texto usa
   colors: new Proxy({}, { get: (_, k) => String(k) }),
-  fonts: new Proxy({}, { get: () => 'f' }),
+  fonte: new Proxy({}, { get: () => ({}) }),
   radius: new Proxy({}, { get: () => 8 }),
   type: new Proxy({}, { get: () => ({}) }),
   initials: (n: string) => n.slice(0, 2),
@@ -55,6 +58,8 @@ const sim = vi.hoisted(() => ({
   perfilBuild: 'development',
   telaLogin: [] as Record<string, unknown>[],
   etapa: null as Record<string, unknown> | null,
+  semFilial: null as { email: string | null } | null,
+  login: (async () => undefined) as (c: unknown) => Promise<void>,
 }));
 vi.mock('@macuxi/core/app', () => ({
   AVISO_SENHA_CRIADA: 'Senha criada.',
@@ -69,6 +74,7 @@ vi.mock('@macuxi/core/app', () => ({
 }));
 vi.mock('@/components/area-segura', () => ({ useFaixaSuperior: () => 0 }));
 vi.mock('@/components/faixa-login', () => ({ FaixaDoLogin: () => createElement('header', { 'data-testid': 'login.faixa' }) }));
+vi.mock('@/components/servidor', () => ({ ENTRADA_SERVIDOR: {}, ENDERECO_SERVIDOR: {} }));
 // a etapa em que o login abre (`null` = a de verdade, Entrar): o teste da faixa abre direto em Esqueci e em Crie sua senha
 vi.mock('@/lib/etapa-login', async (original) => {
   const real = await original<typeof import('@/lib/etapa-login')>();
@@ -95,10 +101,11 @@ vi.mock('@/state/plataforma', () => ({
     perfilBuild: sim.perfilBuild,
     codigoSalvo: 'DIST01',
     avisoLogin: null,
+    semFilial: sim.semFilial,
     offline: false,
     apiUrl: 'http://api/v1',
     apiOverride: null,
-    loginComSenha: async () => undefined,
+    loginComSenha: (c: unknown) => sim.login(c),
     pedirSenha: async () => undefined,
     trocarSenha: async () => undefined,
     loginDemo: async () => undefined,
@@ -120,6 +127,8 @@ beforeEach(() => {
   sim.perfilBuild = 'development';
   sim.telaLogin = [];
   sim.etapa = null;
+  sim.semFilial = null;
+  sim.login = async () => undefined;
 });
 
 describe('T-0172: faixa Azul noite com o logo no topo do login (quadro 3, entrada-sync)', () => {
@@ -188,5 +197,47 @@ describe('contraste do laranja no shell (accentInk em texto)', () => {
       sim.modo = modo;
       expect(html()).not.toMatch(/<span data-cor="accent">/);
     }
+  });
+});
+
+describe('T-0176: login sem filial de cadastro (tela 13, spec filial-cadastro-venda §4)', () => {
+  const AVISO = MENSAGEM_USUARIO_SEM_FILIAL;
+
+  it('sem filial: o aviso aprovado vai na prop `aviso` da TelaLogin (Banner danger, no lugar do erro)', () => {
+    sim.semFilial = { email: null };
+    html();
+    expect(sim.telaLogin.at(-1)!.aviso).toBe(AVISO);
+  });
+
+  it('o "Entrar" com 403 USUARIO_SEM_FILIAL não lança: a TelaLogin não troca o aviso por erro nem limpa a senha', async () => {
+    const { ErroHttp } = await import('@macuxi/platform-sdk');
+    sim.login = async () => {
+      throw new ErroHttp(403, 'USUARIO_SEM_FILIAL', AVISO);
+    };
+    html();
+    const entrar = sim.telaLogin.at(-1)!.onEntrar as (c: unknown) => Promise<void>;
+    await expect(entrar({ codigo_empresa: 'DISTNORTE', email: 'carla@distnorte.com.br', senha: '12345678' })).resolves.toBeUndefined();
+  });
+
+  it('outro erro continua subindo para a TelaLogin mostrar', async () => {
+    sim.login = async () => {
+      throw new Error('Senha incorreta.');
+    };
+    html();
+    const entrar = sim.telaLogin.at(-1)!.onEntrar as (c: unknown) => Promise<void>;
+    await expect(entrar({ codigo_empresa: 'X', email: 'a@b.c', senha: 'x' })).rejects.toThrow('Senha incorreta.');
+  });
+
+  it('saiu da sessão pelo 403: o login volta com o código salvo e o e-mail de quem saiu', () => {
+    sim.semFilial = { email: 'carla@distnorte.com.br' };
+    html();
+    const props = sim.telaLogin.at(-1)!;
+    expect(props.codigoSalvo).toBe('DIST01');
+    expect(props.emailInicial).toBe('carla@distnorte.com.br');
+  });
+
+  it('com filial, nenhum aviso', () => {
+    html();
+    expect(sim.telaLogin.at(-1)!.aviso).toBeNull();
   });
 });

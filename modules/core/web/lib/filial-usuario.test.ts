@@ -28,6 +28,12 @@ describe('RN-CORE-39: filial de cadastro e filiais de venda na gaveta', () => {
     const nomes = filiaisEmOrdem([{ id: '1', nome: 'Santarém' }, { id: '2', nome: 'Belém' }, { id: '3', nome: 'Boa Vista' }, { id: '4', nome: 'Macapá' }]).map((x) => x.nome);
     expect(nomes).toEqual(['Belém', 'Boa Vista', 'Macapá', 'Santarém']);
   });
+  it('RN-CORE-39: nomes iguais (inclusive só na caixa ou no acento) desempatam pelo id, sem depender da ordem de chegada', () => {
+    const ids = (l: { id: string; nome: string }[]) => filiaisEmOrdem(l).map((x) => x.id);
+    const l = [{ id: 'b', nome: 'Manaus' }, { id: 'a', nome: 'manaus' }, { id: 'c', nome: 'Belém' }];
+    expect(ids(l)).toEqual(['c', 'a', 'b']);
+    expect(ids([...l].reverse())).toEqual(['c', 'a', 'b']);
+  });
   it('RN-CORE-39: o leitor de tela ouve "Boa Vista, filial de cadastro, marcada, indisponível"', () => {
     const f = escolherCadastro(vazio, BV);
     expect(descricaoParaLeitor('Boa Vista', f, BV)).toBe('Boa Vista, filial de cadastro, marcada, indisponível');

@@ -52,7 +52,7 @@ import { CurvasAbcParametrosPanel } from './curvas-abc-parametros-panel';
 import { FarolParametrosPanel } from './farol-parametros-panel';
 
 const CAMPO =
-  'h-[38px] rounded-[10px] border border-field bg-surface px-2.5 text-[14px] font-medium text-ink';
+  'h-[38px] rounded-[10px] border border-field bg-surface px-2.5 text-[15px] font-medium text-ink';
 
 function Cor({ cor }: { cor: CorFarol | null }) {
   return <Badge tone={tomDaCor(cor)}>{rotuloDaCor(cor)}</Badge>;

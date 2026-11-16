@@ -12,20 +12,21 @@
  * 2. ao voltar ao primeiro plano, se a última sincronização tem 30 min ou mais (leve);
  * 3. a cada `sync_auto_min` (padrão 30, mínimo 15) com o app em uso e com sinal (leve);
  * 4. aviso do servidor (push, com ou sem a lista de entidades): leve, só das entidades indicadas;
- * 5. puxar para baixo e botão "Sincronizar": envio da fila + pull na hora (completa), com proteção de 30 s.
+ * 5. toque no botão "Sincronizar", puxar para baixo ou selo: parcial (envio da fila + pedidos e clientes), com proteção
+ *    de 30 s; a completa é o segurar 10 s no botão (sincronizacao-completa.ts; R-20261115-100000).
  * Nada roda com o app em segundo plano (a tarefa do ADR 0017 é outra, de 15 min). Uma sincronização que falha espera o
  * intervalo inteiro antes da próxima automática (nada de repetir em laço sem sinal).
  */
-import { dentroDaProtecao, PROTECAO_PUXAR_MS, VOLTA_PRIMEIRO_PLANO_MS } from '../comum/sincronizacao';
+import { dentroDoIntervaloManual, VOLTA_PRIMEIRO_PLANO_MS } from '../comum/sincronizacao';
 import { formatHHMM } from './time';
 
 export * from '../comum/sincronizacao';
 
-/** Por que o app sincroniza (RN-CORE-23). `manual` = puxar para baixo ou botão Sincronizar. */
+/** Por que o app sincroniza (RN-CORE-23). `manual` = toque no botão Sincronizar, puxar para baixo ou selo (parcial). */
 export type MotivoSync = 'abertura' | 'volta' | 'periodico' | 'aviso' | 'manual';
 
-/** `recente` = caiu na proteção de 30 s (nada foi feito); `falhou` = a sincronização terminou com erro. */
-export type ResultadoPuxar = 'sincronizou' | 'recente' | 'falhou';
+/** `ignorado` = caiu no intervalo mínimo entre disparos manuais (nada foi feito nem mostrado); `falhou` = terminou com erro. */
+export type ResultadoPuxar = 'sincronizou' | 'ignorado' | 'falhou';
 
 type Temporizador = unknown;
 
@@ -33,7 +34,7 @@ export interface OpcoesAgendadorSync {
   /** Intervalo da automática (ms), lido a cada agendamento: o parâmetro do tenant pode mudar numa sincronização. */
   intervaloMs: () => number;
   /**
-   * Dispara o motor. `manual` = completa (fila + pull); os outros = leve (novidades; `entidades` no aviso do servidor).
+   * Dispara o motor. `manual` = parcial (fila + pedidos e clientes); os outros = leve (novidades; `entidades` no aviso do servidor).
    * Devolve `false` quando falhou (o motor guarda o erro no estado).
    */
   sincronizar: (motivo: MotivoSync, entidades?: readonly string[]) => Promise<unknown>;
@@ -52,8 +53,8 @@ export interface OpcoesAgendadorSync {
 export interface EstadoAgendadorSync {
   /** true durante a sincronização pedida pelo puxar/botão (liga o indicador do topo). A automática é silenciosa. */
   puxando: boolean;
-  /** O último toque caiu na proteção de 30 s: a tela mostra "Atualizado há instantes". */
-  recente: boolean;
+  /** @deprecated R-20261115-125500: ignorado; sai quando plataforma.tsx e minha-rv.ts pararem de passar. */
+  recente?: boolean;
 }
 
 export interface AgendadorSync {
@@ -61,8 +62,13 @@ export interface AgendadorSync {
   primeiroPlano(): void;
   /** App em segundo plano: cancela o próximo disparo (nenhuma consulta até voltar). */
   segundoPlano(): void;
-  /** Puxar para baixo / botão Sincronizar (proteção de 30 s). */
+  /** Puxar para baixo / botão Sincronizar / selo. Dentro do intervalo mínimo (R-20261115-125500): `ignorado`, em silêncio. */
   puxar(): Promise<ResultadoPuxar>;
+  /**
+   * Completa (segurar 10 s): confere o mesmo intervalo mínimo do `puxar`. `true` = livre, e o disparo fica registrado (conta
+   * para o próximo toque); `false` = dentro do intervalo, quem chamou não faz nada. Não muda o estado.
+   */
+  liberarManual(): boolean;
   /** Aviso do servidor (push): leve, só das entidades indicadas (sem lista = novidades). Ignorado sem sinal. */
   aviso(entidades?: readonly string[]): Promise<void>;
   /** Recalcula o próximo disparo (ex.: o parâmetro mudou, ou o sinal voltou). */
@@ -80,17 +86,15 @@ export function criarAgendadorSync(op: OpcoesAgendadorSync): AgendadorSync {
   let parado = false;
   let aberto = false;
   let timer: Temporizador | null = null;
-  /** Só apaga o "Atualizado há instantes" quando a proteção acaba (único disparo, sem consulta ao servidor). */
-  let timerRecente: Temporizador | null = null;
   let emCurso: Promise<boolean> | null = null;
   /** Início da última tentativa (automática ou manual): base do próximo disparo quando a sincronização falha. */
   let ultimaTentativa: number | null = null;
   let ultimoManual: number | null = null;
-  let st: EstadoAgendadorSync = { puxando: false, recente: false };
+  let st: EstadoAgendadorSync = { puxando: false };
 
   const mudar = (parcial: Partial<EstadoAgendadorSync>) => {
     const novo = { ...st, ...parcial };
-    if (novo.puxando === st.puxando && novo.recente === st.recente) return;
+    if (novo.puxando === st.puxando) return;
     st = novo;
     op.aoMudar?.(st);
   };
@@ -113,6 +117,12 @@ export function criarAgendadorSync(op: OpcoesAgendadorSync): AgendadorSync {
         programar();
       }
     }, falta);
+  };
+  const liberarManual = (): boolean => {
+    const t = agora();
+    if (parado || dentroDoIntervaloManual(ultimoManual, t)) return false;
+    ultimoManual = t;
+    return true;
   };
   const rodar = (motivo: MotivoSync, entidades?: readonly string[]): Promise<boolean> => {
     if (parado) return Promise.resolve(false);
@@ -160,24 +170,15 @@ export function criarAgendadorSync(op: OpcoesAgendadorSync): AgendadorSync {
       limpar();
     },
     async puxar() {
-      const t = agora();
-      if (dentroDaProtecao(ultimoManual, t)) {
-        mudar({ recente: true });
-        if (timerRecente !== null) cancelar(timerRecente);
-        timerRecente = agendar(() => {
-          timerRecente = null;
-          mudar({ recente: false });
-        }, Math.max(0, (ultimoManual ?? t) + PROTECAO_PUXAR_MS - t));
-        return 'recente';
-      }
-      ultimoManual = t;
-      mudar({ puxando: true, recente: false });
+      if (!liberarManual()) return 'ignorado';
+      mudar({ puxando: true });
       try {
         return (await rodar('manual')) ? 'sincronizou' : 'falhou';
       } finally {
         mudar({ puxando: false });
       }
     },
+    liberarManual,
     async aviso(entidades) {
       if (parado || !op.podeSincronizar()) return;
       await rodar('aviso', entidades);
@@ -189,8 +190,6 @@ export function criarAgendadorSync(op: OpcoesAgendadorSync): AgendadorSync {
       parado = true;
       ativo = false;
       limpar();
-      if (timerRecente !== null) cancelar(timerRecente);
-      timerRecente = null;
     },
     estado() {
       return st;
@@ -212,39 +211,34 @@ export function textoUltimaSincronizacao(sincronizadoEm: number | string | Date 
  *
  * RD-0008 (T-0124, R-20261108-164227-engenheiro-apps): `avisoDados` é o ÚNICO aviso de dado antigo da tela ("Dados de 06/11,
  * 6h28", "Sincronize para ver as vendas"; o shell passa o texto pronto, no fuso do tenant). Com ele, a linha de situação vira
- * "{aviso} · N na fila" em tom de atenção, no lugar de "Última sincronização…" e também de "Atualizado há instantes" (se a
- * cópia continua velha depois do toque, o aviso continua). O "· N na fila" fica: é a redundância útil da RN-CORE-23. Não
+ * "{aviso} · N na fila" em tom de atenção, no lugar de "Última sincronização…". O "· N na fila" fica: é a redundância útil da RN-CORE-23. Não
  * repete "Sincronizar": o botão logo acima já diz.
  */
 export function desenhoBotaoSincronizar(s: {
   semSinal: boolean;
-  recente: boolean;
   sincronizadoEm: number | string | Date | null | undefined;
   naFila: number;
   tz?: string;
   avisoDados?: string | null;
+  /** @deprecated R-20261115-125500: ignorado; sai quando plataforma.tsx e minha-rv.ts pararem de passar. */
+  recente?: boolean;
 }): { rotulo: string; situacao: string; tom: 'neutro' | 'atencao'; aviso: string | null } {
   const avisoDados = s.avisoDados?.trim();
   return {
     rotulo: s.semSinal ? 'Sem sinal' : 'Sincronizar',
-    situacao: avisoDados
-      ? `${avisoDados} · ${s.naFila} na fila`
-      : s.recente
-        ? 'Atualizado há instantes'
-        : textoUltimaSincronizacao(s.sincronizadoEm, s.naFila, s.tz),
+    situacao: avisoDados ? `${avisoDados} · ${s.naFila} na fila` : textoUltimaSincronizacao(s.sincronizadoEm, s.naFila, s.tz),
     tom: avisoDados ? 'atencao' : 'neutro',
     aviso: s.semSinal ? 'Desligue o modo sem sinal para sincronizar' : null,
   };
 }
 
 /**
- * Rodapé das listas: "Atualizado às hh:mm · puxe para sincronizar"; depois de um toque dentro da proteção, "Atualizado há instantes".
+ * Rodapé das listas: "Atualizado às hh:mm · puxe para sincronizar" (toque dentro do intervalo mínimo não muda nada, R-20261115-125500).
  * Modo sem sinal (T-0071, revisão de UX): só a hora, sem o convite a puxar (o puxar não sincroniza; a tela mostra o motivo).
  */
-export function rodapeAtualizacao(atualizadoEm: number | string | Date | null | undefined, tz?: string, opcoes: { recente?: boolean; semSinal?: boolean } = {}): string {
+export function rodapeAtualizacao(atualizadoEm: number | string | Date | null | undefined, tz?: string, opcoes: { semSinal?: boolean } = {}): string {
   const semHora = atualizadoEm === null || atualizadoEm === undefined || atualizadoEm === '';
   if (opcoes.semSinal) return semHora ? 'Ainda não sincronizado' : `Atualizado às ${formatHHMM(atualizadoEm, tz)}`;
-  if (opcoes.recente) return 'Atualizado há instantes';
   if (semHora) return 'Puxe para sincronizar';
   return `Atualizado às ${formatHHMM(atualizadoEm, tz)} · puxe para sincronizar`;
 }

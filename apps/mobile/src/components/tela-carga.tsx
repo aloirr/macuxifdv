@@ -24,6 +24,7 @@ import {
   criarMemoriaDaEntrada,
   erroDeSinal,
   ESPERA_PRONTO_MS,
+  ROTULO_TENTAR_DE_NOVO,
   rotuloDaBarra,
   textoDoErro,
 } from '@/lib/entrada';
@@ -106,7 +107,7 @@ export function TelaCarga() {
                   variante={variante}
                   tipo="principal"
                   testID="tentar-de-novo"
-                  rotulo="Tentar de novo"
+                  rotulo={ROTULO_TENTAR_DE_NOVO}
                   onPress={() => void sincronizar()}
                 />
                 {offline ? (
