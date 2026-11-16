@@ -57,6 +57,7 @@ import { auditar } from './auditoria';
 import { appsDosPerfis, emailDisponivel, empresaDoTenant, enviarEmail } from './email';
 import { erroHttp } from './erros';
 import { perfisDoUsuarioNoLogin } from './perfis-do-usuario';
+import { filiaisDoUsuario } from './filiais-usuario';
 import { chaveDeLogin, criarLimiteDeFalhas, type LimiteDeFalhas } from './limite-login';
 import { fabricaSql, type FabricaRepositorios, type RepositorioTenant, type UsuarioLogin } from './repositorio';
 import { assinarAcesso, exigirSegredo, gastarTempoDeSenha, hashSenha, lerRefresh, novoRefresh, SegredoInvalido, tokenDoCabecalho, verificarJwtAcesso, verificarSenha } from './seguranca';
@@ -247,7 +248,7 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
 
   async function login(ctx: ContextoPublico<LoginSenhaRequest>): Promise<SessaoResposta> {
     const { senha, email, app, dispositivo_id, dispositivo_nome } = ctx.corpo;
-    const { resultado, tenantId, codigo } = await entrar(ctx, { codigo: ctx.corpo.codigo_empresa, email, senha, app, dispositivo_id, dispositivo_nome }, async (r, u, s, _db, tid, agoraData) => {
+    const { resultado, tenantId, codigo } = await entrar(ctx, { codigo: ctx.corpo.codigo_empresa, email, senha, app, dispositivo_id, dispositivo_nome }, async (r, u, s, db, tid, agoraData) => {
       // senha temporária a trocar: nenhuma sessão, nenhum `ultimo_login_em`; a tela "Crie sua senha" segue
       if (s.tipo === 'trocar') return { tipo: 'trocar', motivo: s.motivo, expiraEm: s.expiraEm };
       await r.registrarLoginOk(u.id, agoraData);
@@ -255,7 +256,7 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
       if (u.senha_temporaria_hash) await r.descartarSenhaTemporaria(u.id);
       if (dispositivo_id) await r.upsertDispositivo(u.id, dispositivo_id, dispositivo_nome ?? null, agoraData);
       const tokens = await emitir(r, tid, u, randomUUID(), dispositivo_id ?? null, agoraData, u.sessao_versao);
-      return { tipo: 'ok', tenantId: tid, sessao: { ...tokens, usuario: { id: u.id, nome: u.nome, nome_curto: u.nome_curto, email: u.email, perfil: u.perfil } } };
+      return { tipo: 'ok', tenantId: tid, sessao: { ...tokens, usuario: { id: u.id, nome: u.nome, nome_curto: u.nome_curto, email: u.email, perfil: u.perfil, ...(await filiaisDoUsuario(db, u.id)) } } };
     });
     const { sessao } = lancarOuSessao(resultado);
     return comDadosDoTenant(ctx, codigo, tenantId, sessao);
@@ -286,7 +287,7 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
           antes: null,
           depois: { motivo: s.tipo === 'ok' ? 'voluntaria' : s.motivo, sessoes_revogadas: true },
         });
-        return { tipo: 'ok', tenantId: tid, sessao: { ...tokens, usuario: { id: u.id, nome: u.nome, nome_curto: u.nome_curto, email: u.email, perfil: u.perfil } } };
+        return { tipo: 'ok', tenantId: tid, sessao: { ...tokens, usuario: { id: u.id, nome: u.nome, nome_curto: u.nome_curto, email: u.email, perfil: u.perfil, ...(await filiaisDoUsuario(db, u.id)) } } };
       },
     );
     if (resultado.tipo === 'senha_nova') {
@@ -416,7 +417,7 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
     // T-0094: troca/redefinição/desativação sobe a sessao_versao — o token com versão antiga cai na próxima requisição (token antigo, sem `sv`, vale 0)
     if ((claims.sv ?? 0) !== u.sessao_versao) return null;
     if (aparelhoBloqueado) throw erroHttp(423, CODIGO_DISPOSITIVO_BLOQUEADO, MENSAGEM_APARELHO_BLOQUEADO);
-    return { id: u.id, tenant_id: claims.tid, perfil: u.perfil };
+    return { id: u.id, tenant_id: claims.tid, perfil: u.perfil, ...(u.sem_filial ? { sem_filial: true } : {}) };
   }
 
   return { login, trocarSenha, esqueciSenha, refresh, logout, autenticar };

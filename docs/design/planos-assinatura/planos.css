@@ -1,5 +1,5 @@
-/* Simulações "Planos e assinatura" em 1366 × 768 (designer-ux, 2026-11-15). Estilos e fontes: os do portal aprovado
-   (../telas/portal-config-enxuto/portal.css, fontes do BKO em apps/web/app/fonts); aqui só a largura da tela.
+/* Simulações "Planos e assinatura" em 1366 × 768 (designer-ux, 2026-11-15). Estilos: os do portal aprovado
+   (../telas/portal-config-enxuto/portal.css, fonte do sistema); aqui só a largura da tela.
    Principal desabilitado: o .btn.off do portal.css (MC-0041), sem estilo próprio. */
 @import url('../telas/portal-config-enxuto/portal.css');
 body { width: 1366px; min-height: 768px; }

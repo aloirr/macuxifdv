@@ -140,7 +140,7 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
                 data-testid={`empresa-pagina.aba-${a.id}`}
                 onClick={() => mudar(a.id)}
                 className={cx(
-                  '-mb-px border-b-2 px-3 py-2 text-[14px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-accent',
+                  '-mb-px border-b-2 px-3 py-2 text-[15px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-accent',
                   aba === a.id ? 'border-accent text-ink' : 'border-transparent text-ink-2 hover:text-ink',
                 )}
               >

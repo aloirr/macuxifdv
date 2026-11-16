@@ -63,4 +63,3 @@ Aprovadas: estas substituem `depois-03b`, `depois-06b`, `depois-06c` e `depois-0
 
 ## 5. Premissas
 - **Recados:** o repositório `aloirr/macuxifdv-recados` respondeu HTTP 403 nesta sessão; a caixa do designer-ux não foi lida. Valem as decisões do §11 do `portal-config-enxuto.md` e da ADR 0047.
-- **Fonte (R-20261115-110600):** fonte do sistema (manual da marca §5), sem fonte baixada; as 6 telas foram geradas de novo assim. As simulações antigas do `portal-config-enxuto` (`depois-*`) ficam como registro.

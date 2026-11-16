@@ -112,7 +112,7 @@ export function CopyDayDialog({ sellerId, sellerName, date, stops, today, onClos
             {all.map((d) => {
               const ex = byDate.get(d);
               return (
-                <label key={d} className="flex min-h-[40px] items-center gap-2.5 rounded-lg px-1 text-[14px] hover:bg-ground">
+                <label key={d} className="flex min-h-[40px] items-center gap-2.5 rounded-lg px-1 text-[15px] hover:bg-ground">
                   <input type="checkbox" className="h-4 w-4 accent-accent" checked={selected.includes(d)} onChange={() => toggle(d)} />
                   <span className="w-[86px] font-semibold tabular-nums">{dayShortLabel(d)}</span>
                   <span className={cx('text-[12px]', ex ? 'font-semibold text-accent-ink' : 'text-ink-2')}>
@@ -131,7 +131,7 @@ export function CopyDayDialog({ sellerId, sellerName, date, stops, today, onClos
                 min={today}
                 max={addDays(date, MAX_AHEAD_DAYS)}
                 onChange={(e) => setCustom(e.target.value)}
-                className="h-[38px] rounded-[10px] border border-field bg-surface px-2.5 text-[14px] text-ink"
+                className="h-[38px] rounded-[10px] border border-field bg-surface px-2.5 text-[15px] text-ink"
               />
             </label>
             <Button size="sm" onClick={addCustom} disabled={!isIsoDate(custom) || custom === date || busy}>

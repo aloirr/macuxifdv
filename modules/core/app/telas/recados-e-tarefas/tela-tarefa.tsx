@@ -6,7 +6,7 @@
  * - o cliente abre o Cliente 360 só se estiver na carteira (RN-CORE-TAR-04).
  * A rota é do shell; ele passa `tarefaId` e, quando houver, `responderPesquisa` (consulta da Pesquisa, N-H).
  */
-import { Botao, Cartao, colors, EstadoVazio, fonts, Icon, Pressionavel, radius, Screen, space, type as t } from '@macuxi/ui/mobile';
+import { Botao, Cartao, colors, EstadoVazio, fonte, Icon, Pressionavel, radius, Screen, space, type as t } from '@macuxi/ui/mobile';
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -138,8 +138,8 @@ const s = StyleSheet.create({
     backgroundColor: colors.surface,
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
-    fontFamily: fonts.body,
-    fontSize: 15,
+    ...fonte.body,
+    fontSize: 16,
     color: colors.ink,
     textAlignVertical: 'top',
   },
