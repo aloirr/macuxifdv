@@ -10,7 +10,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
 import { criarBancoApp, criarBancoPortal, ErroPapelBanco } from '../src/banco';
-import { SA_INTERNAS, SA_PORTAL, SA_PORTAL_CARGA, SA_PORTAL_LOGO } from './funcoes-sa';
+import { SA_INTERNAS, SA_PORTAL } from './funcoes-sa';
 
 const SEM_PERMISSAO = '42501';
 const UM = '00000000-0000-4000-8000-000000000001';
@@ -49,18 +49,7 @@ describe.skipIf(semBanco())('API × Postgres: papel macuxi_portal (T-0091)', () 
 
   it('toda sa_* do catálogo está em SA_PORTAL ou SA_INTERNAS (sa_* nova sem classe = vermelho)', async () => {
     const fs = await funcoesSa();
-    // por item (RD-1628): sem a migração do item no banco, só as sa_* dele podem faltar; com ela, conferência exata
-    // carga (T-0181, 0081): a tabela plataforma.frase_carga; logo (T-0182, 0083): a coluna plataforma.tenant.logo_sha256
-    const itens = (
-      await admin.query<{ carga: boolean; logo: boolean }>(
-        `select to_regclass('plataforma.frase_carga') is not null as carga,
-                exists (select 1 from pg_attribute where attrelid = 'plataforma.tenant'::regclass
-                         and attname = 'logo_sha256' and not attisdropped) as logo`,
-      )
-    ).rows[0];
-    const ausentes = [...(itens?.carga ? [] : SA_PORTAL_CARGA), ...(itens?.logo ? [] : SA_PORTAL_LOGO)];
-    const vigentes = SA_PORTAL.filter((f) => !ausentes.includes(f));
-    expect(fs.map((f) => f.assinatura).sort()).toEqual([...vigentes, ...SA_INTERNAS].sort());
+    expect(fs.map((f) => f.assinatura).sort()).toEqual([...SA_PORTAL, ...SA_INTERNAS].sort());
   });
 
   it('nenhuma sa_* executa como macuxi_app, macuxi_worker ou PUBLIC; as com grant executam como macuxi_portal; as internas, ninguém', async () => {

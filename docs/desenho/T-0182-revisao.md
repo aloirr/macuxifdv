@@ -2,9 +2,7 @@
 
 > 2026-11-15 · engenheiro-software · contra o desenho `docs/desenho/T-0182-logo-cliente.md`, a tarefa `.coord/tarefas/T-0182.md`
 > (branch `nuvem/logo-cliente-gerente-projetos`) e o CLAUDE.md. Legenda: 🔴 bloqueia · 🟡 corrigir (lote seguinte) · 🟢 ok/sugestão.
-> **Numeração final (lote das migrações da v1.0.14, 15/11):** o `main` vai até a 0080 (#352); 0081 = frases da carga (T-0181),
-> 0082 = prazo com ajuste e a migração da logo é a **0083**. As citações abaixo já usam 0083 para a logo; o 🔴 1 fica resolvido
-> por esta ordem.
+> Numeração: o `main` vai até a 0080; 0081 = frases da carga (T-0181), 0082 = prazo com ajuste, 0083 = logo (T-0182).
 > Registro em `docs/desenho/` (caminho do engenheiro-software; `docs/revisoes/` é do gerente-projetos).
 
 ## Branches revisados (diff contra `origin/main` 19d2371a)
@@ -28,27 +26,17 @@ Na sessão, com o mesmo script do CI:
 - testes: platform-sdk 889, comum 139, ui 428, mobile 566, web 239 (+10 do `cartao-logo` depois do 9cffd4dd),
   vendedor 1372, api 556 (`empresa-logo.test.ts` 20/20, `funcoes-sa.test.ts` 4/4). Única falha no `api`:
   `cli-super-admin.test.ts`, por ambiente (o Node da sessão não tem `crypto.argon2Sync`); já falhava antes do lote.
-- **`@macuxi/db`: todos os arquivos caem** com `Numeração de migração com buraco: esperado 0075, achei 0083` (na revisão, o `main` ia até a 0074)
-  (`db/src/migrador.ts:62`), inclusive o `estatico.test.ts`, que roda sem banco. Veja o 🔴 1.
+- `@macuxi/db`: a 0083 sozinha sobre o `main` (até a 0080) derruba todos os arquivos com
+  `Numeração de migração com buraco: esperado 0081, achei 0083` (`db/src/migrador.ts:62`). Veja o 🔴 1.
 - Testes de banco (`*.db.test.ts`) e `tests/integracao` com banco: só no CI (sem Docker).
 
 ## 🔴 Bloqueia
 
-1. **Merge da 0083 (logo) sem a 0075–0080 no `main` deixa o `main` vermelho.** Dono: **banco-dados**, com a ordem decidida pelo
-   gerente-projetos. Arquivos: `db/migrations/0083_plataforma_tenant_logo.{up,down}.sql` e `db/testes/estatico.test.ts:206`
-   (`nomes[80]`). O `main` vai até a 0074. O migrador não aceita buraco (`db/src/migrador.ts:59-62`), então o branch
-   `nuvem/logo-cliente-banco-dados` derruba sozinho toda a suíte do `@macuxi/db`, e com ela o CI do PR. Hoje a 0075–0080
-   estão em outros branches, com números repetidos:
-   - 0075: `catalogo_referencia_marca_opcional` e `plataforma_frase_carga`;
-   - 0080: `core_usuario_codigo_fdv` e `catalogo_foto_lote`;
-
-   Saídas possíveis: (a) a 0083 só entra depois da 0075–0080 no `main`; ou (b) o gerente renumera a logo para o próximo
-   número livre no momento do merge. Na saída (b), o banco-dados troca o nome do arquivo e todas as citações do número:
-   `db/testes/estatico.test.ts`, `db/testes/funcoes-sa.ts` (`FUNCOES_SA_LOGO`, `MARCA_INTERNA_LOGO`),
-   `db/testes/tenant-logo.db.test.ts`, `db/testes/portal-admin-multiperfil.test.ts`, `db/esquema/plataforma.ts` e
-   `docs/banco/*`. Nos outros donos o número aparece só em comentários: `apps/api/src/empresa-logo.ts`,
-   `apps/api/test/funcoes-sa.ts`, `packages/platform-sdk/src/empresa-logo.ts` e
-   `tests/integracao/banco/conformidade.test.ts`.
+1. **A 0083 (logo) só entra no mesmo PR da 0081 (carga) e da 0082 (prazo).** Dono: **banco-dados**. Arquivos:
+   `db/migrations/0083_plataforma_tenant_logo.{up,down}.sql` e `db/testes/estatico.test.ts`. O migrador não aceita buraco
+   (`db/src/migrador.ts:59-62`): sem a 0081 e a 0082, a 0083 derruba toda a suíte do `@macuxi/db` e o CI do PR. A lista das
+   `sa_*` (`db/testes/funcoes-sa.ts`, `FUNCOES_SA_ATUAIS` = 34) conta as três migrações aplicadas, e a conferência dela
+   (`apps/api/test/funcoes-sa.test.ts`, `apps/api/test/portal.banco.test.ts`, `scripts/deploy/producao/banco-dbaas.sh`) é exata.
 
    **O código do lote não tem 🔴.** Este bloqueio é de ordem de merge: nenhum PR do lote entra antes da migração, porque as
    rotas leem as colunas novas em `lerTenant`, `apps/api/src/licencas.ts:87`, e sem elas toda rota autenticada cai.
@@ -126,9 +114,7 @@ Teste de merge local sobre a integração: conflitos em 3 arquivos, todos mecân
 
 ## Ordem de merge recomendada
 
-0. Pré-requisito (🔴 1): a 0075–0080 no `main`, com o gerente desfazendo as repetições de 0075 e 0080. Se não for
-   possível, a logo é renumerada para o próximo número livre.
-1. **PR único autorizado** (lição da 0070): `banco-dados` + `engenheiro-software`. A 0083, a lista das 34 `sa_*`
+1. **PR único das migrações** (🔴 1; lição da 0070): `banco-dados` + `engenheiro-software`. A 0081, a 0082, a 0083, a lista das 34 `sa_*`
    (`db/testes/funcoes-sa.ts`, `apps/api/test/funcoes-sa.ts`, `scripts/deploy/producao/banco-dbaas.sh`) e o `lerTenant` com
    as colunas novas precisam entrar juntos.
 2. `designer-ux-ui` (placa em `packages/ui`), sem dependência do item 1.
@@ -139,5 +125,5 @@ Teste de merge local sobre a integração: conflitos em 3 arquivos, todos mecân
 
 ## Veredito
 
-**Código sem 🔴: aprovado.** O merge está **bloqueado só pela ordem das migrações** (🔴 1). Os dois 🟡 vão para o lote
+**Código sem 🔴: aprovado.** O merge depende só de a 0083 entrar no PR único das migrações (🔴 1). Os dois 🟡 vão para o lote
 seguinte; o 🟡 1 pode ir no commit pendente do engenheiro-apps.

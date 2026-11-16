@@ -7,18 +7,7 @@
  * O `scripts/deploy/producao/banco-dbaas.sh` (passo 6) lê a mesma lista na imagem da versão; o funcoes-sa.test.ts confere a
  * lista contra as migrações e o comando do script, e o portal.banco.test.ts contra o catálogo do Postgres no CI.
  */
-import { FUNCOES_SA_ATE_0080, FUNCOES_SA_ATUAIS, FUNCOES_SA_CARGA, FUNCOES_SA_LOGO, SA_INTERNA } from '../../../db/testes/funcoes-sa';
-
-/** As 27 do `main` antes deste lote (até a 0080; db/testes `FUNCOES_SA_ATE_0080`). */
-export const SA_PORTAL_ATE_MAIN: readonly string[] = FUNCOES_SA_ATE_0080;
-/**
- * Uma constante por item do lote (RD-1628; db/testes `FUNCOES_SA_CARGA` e `FUNCOES_SA_LOGO`). Sem a migração do item no banco,
- * os testes e o banco-dbaas.sh toleram a ausência das sa_* DELE, e só dele; com ela aplicada, a conferência é exata.
- *  - CARGA: as 3 da 0081 (T-0181, Portal › Frases da carga, só super-admin);
- *  - LOGO: as 4 da 0083 (T-0182, marca da empresa; a interna `plataforma.marca_da_empresa_json(uuid)` não tem o prefixo `sa_`).
- */
-export const SA_PORTAL_CARGA: readonly string[] = FUNCOES_SA_CARGA;
-export const SA_PORTAL_LOGO: readonly string[] = FUNCOES_SA_LOGO;
+import { FUNCOES_SA_ATUAIS, SA_INTERNA } from '../../../db/testes/funcoes-sa';
 
 export const SA_PORTAL: readonly string[] = FUNCOES_SA_ATUAIS;
 export const SA_INTERNAS: readonly string[] = [SA_INTERNA];

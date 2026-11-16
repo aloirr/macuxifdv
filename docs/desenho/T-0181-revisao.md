@@ -2,7 +2,7 @@
 
 > 2026-11-15 · engenheiro-software. Revisão feita de manhã sobre o merge local, no `origin/main`, dos branches da carga
 > (banco-dados, engenheiro-software, testes, designer-ux e engenheiro-apps; os 5 sem conflito). Conferida de novo à tarde
-> nos heads que vão ao PR conjunto #428: `nuvem/carga-frases-banco-dados-v6`, `nuvem/carga-frases-engenheiro-software-v7` e
+> nos heads `nuvem/carga-frases-banco-dados-v6`, `nuvem/carga-frases-engenheiro-software-v7` e
 > `nuvem/carga-frases-testes-v5`. Spec: `docs/design/carga-aviso-frases/spec.md` (§1 e §1.1 do ajuste R-20261115-080500).
 
 ## Resultado na sessão (Node 22, sem Docker)
