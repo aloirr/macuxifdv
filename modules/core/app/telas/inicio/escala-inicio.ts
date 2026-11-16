@@ -2,7 +2,7 @@
  * Escala do Início do Campo (R-20261114-153500: "no celular pequeno, grande, o app deve ser responsivo e ajustar a tela").
  * Função pura: dado o tamanho da janela, a área segura e a fonte do sistema, devolve os tamanhos de letra, os espaços e as
  * alturas do painel, dos cartões e do Sincronizar, no maior fator (<= 1) em que o Início inteiro cabe sem rolar. Letra e
- * espaço escalam juntos; a letra nunca fica abaixo de 11 dp já com a fonte do sistema (piso), e os alvos de toque seguem >= 48 dp.
+ * espaço escalam juntos; a letra nunca fica abaixo de 12 dp já com a fonte do sistema (piso), e os alvos de toque seguem >= 48 dp.
  * Se nem no menor fator couber (fonte do sistema muito grande), `cabe` vem falso e o meio rola, como antes.
  *
  * A altura é estimada com 1,3 de entrelinha por linha de texto; o RN já multiplica a letra pela fonte do sistema, então aqui
@@ -13,14 +13,14 @@
 import { ALTURA, ALVO_TOQUE, CABECALHO, space } from '@macuxi/ui/mobile/puro';
 
 export const FATOR_MINIMO = 0.6;
-export const PISO_LETRA_DP = 11;
+export const PISO_LETRA_DP = 12;
 const ENTRELINHA = 1.3;
 const MARGEM = 6;
 /** Piso da foto do painel (variação C, 72 dp na escala cheia): nunca menor que isto. */
 const AVATAR_PISO = 56;
 /** Texto típico da data · DU ("Sábado, 14 de novembro · DU 11 de 23"), para estimar 1 ou 2 linhas. */
 const CARACTERES_DATA = 36;
-/** Largura média de um caractere em fração do corpo da letra (IBM Plex Sans), para estimar as linhas da frase. */
+/** Largura média de um caractere em fração do corpo da letra (fonte do sistema), para estimar as linhas da frase. */
 const LARGURA_CARACTERE = 0.46;
 
 export interface EntradaEscalaInicio {
@@ -35,11 +35,11 @@ export interface EntradaEscalaInicio {
   frase?: string;
   /** Altura da barra de abas sem a área segura (padrão `ALTURA.barraAbas` do kit). */
   alturaAbas?: number;
-  /** Corpos do kit (`type.h2/label/sub/small` de `@macuxi/ui/mobile`) que o Início usa como base: a tela passa os `fontSize` deles. */
+  /** Corpos do kit (`type.saudacao/h2/label/sub/small` de `@macuxi/ui/mobile`) que o Início usa como base: a tela passa os `fontSize` deles. */
   kit: FontesDoKit;
 }
 
-export interface FontesDoKit { h2: number; label: number; sub: number; ultima: number }
+export interface FontesDoKit { h2: number; label: number; sub: number; ultima: number; saudacao: number }
 
 export interface EscalaInicio {
   fator: number;
@@ -58,7 +58,7 @@ export interface EscalaInicio {
 }
 
 const BASE = {
-  fonte: { data: 13, saudacao: 22, frase: 13, iniciais: 24, percentual: 14, real: 18, meta: 14, valorRodape: 14, valorIndicador: 18 },
+  fonte: { data: 14, frase: 14, iniciais: 22, percentual: 14, real: 18, meta: 14, valorRodape: 14, valorIndicador: 18 },
   painel: { paddingBottom: space.lg, gap: space.xxs, avatar: 72 },
   meio: { paddingTop: space.sm, paddingBottom: space.sm, gap: space.sm, linhaTitulo: 32 },
   cartao: { preenchimento: space.md, gap: space.xs, barra: 6, alturaMaxima: 132 },
@@ -74,7 +74,7 @@ export function fonteDoSistemaValida(fontScale: number): number {
   return limita(Number.isFinite(fontScale) && fontScale > 0 ? fontScale : 1, 0.5, 3);
 }
 
-/** Tamanhos para um fator; `fs` já validado por {@link fonteDoSistemaValida}. A letra respeita o piso de 11 dp com a fonte do sistema, o espaço o mínimo de 2 dp. */
+/** Tamanhos para um fator; `fs` já validado por {@link fonteDoSistemaValida}. A letra respeita o piso de 12 dp com a fonte do sistema, o espaço o mínimo de 2 dp. */
 export function tamanhosParaFator(fator: number, fs: number, kit: FontesDoKit): Omit<EscalaInicio, 'fator' | 'cabe' | 'estimada' | 'disponivel'> {
   const piso = Math.ceil(PISO_LETRA_DP / fs);
   const letra = (b: number): number => Math.min(b, Math.max(piso, arredonda(b * fator)));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { actionLabel, entityLabel, summarizeChange } from './audit';
+import { actionLabel, autorDaAuditoria, entityLabel, summarizeChange } from './audit';
 
 describe('resumo da auditoria', () => {
   it('mostra só o que mudou, com rótulos', () => {
@@ -41,5 +41,13 @@ describe('resumo da auditoria', () => {
     expect(actionLabel('cliente.aprovar_coordenada')).toBe('aprovou a coordenada');
     expect(actionLabel('x.desconhecida')).toBe('x.desconhecida');
     expect(entityLabel('dispositivo')).toBe('Aparelho');
+  });
+
+  it('RN-CORE-60: autor inativo mostra o nome; sem nome, "Usuário desativado"; sem usuário, "Sistema"', () => {
+    const id = '00000000-0000-4000-8000-000000000001';
+    expect(autorDaAuditoria({ usuario_id: id, usuario_nome: 'Vera' })).toBe('Vera');
+    expect(autorDaAuditoria({ usuario_id: id, usuario_nome: null })).toBe('Usuário desativado');
+    expect(autorDaAuditoria({ usuario_id: null, usuario_nome: null })).toBe('Sistema');
+    expect(autorDaAuditoria({ usuario_id: id, usuario_nome: null })).not.toMatch(/removid|exclu/i);
   });
 });

@@ -13,6 +13,8 @@
  *   catálogo, não por lista fixa); o macuxi_portal não tem grant de tabela, não herda papel, não é dono de nada e só tem
  *   USAGE no schema plataforma.
  * - T-0094 (0042): mais 2 sa_* do portal (sa_admins_da_empresa e sa_redefinir_senha_admin), 14 no total.
+ * - T-0181 (0081): mais 3 sa_* do portal (frases da tela de carga), 30 no total, e a plataforma.frases_carga_ativas() do app.
+ * - T-0182 (0083): mais 4 sa_* do portal (marca da empresa: logo e nome fantasia), 34 no total.
  * - T-0093 (0039, ADR 0031): as 12 sa_* do portal só com e-mail e senha substituem as 20 da 0035 (as 14 do convite/TOTP/
  *   desafio não existem mais); criar_super_admin e provisionar_tenant (deploy) são SECURITY INVOKER sem EXECUTE para app,
  *   worker ou portal; as 3 tabelas novas do portal entram na varredura "nenhum privilégio efetivo em tabela" do portal.
@@ -50,13 +52,43 @@ const DEFINER_REVISADAS: Record<string, string> = {
   // 0073 (rodapé legal; R-20261114-221000-alexandre): rota pública GET /v1/publico/dados-legais, sem sessão nem tenant
   'plataforma.dados_legais_publicos()':
     'rodapé da tela Entrar: só razao_social, cnpj e site da Macuxi (dado de pessoa jurídica); sem a linha = padrão; STABLE; nem worker nem portal',
+  // T-0181 (0081; desenho docs/desenho/T-0181.md §3): GET /v1/sync/frases-carga; tabela global, sem tenant (padrão dados_legais_publicos)
+  'plataforma.frases_carga_ativas()':
+    'tela de carga: só as frases ativas e vivas da plataforma (id, texto, ordem); sem tenant, sem dado pessoal, sem as inativas; stable',
+};
+
+/** T-0181, 0081_plataforma_frase_carga (desenho docs/desenho/T-0181.md §3): frases da tela de carga, cadastro global do
+ * super-admin; sem exclusão. As 3 sa_* que a migração cria, e só elas. */
+const SA_PORTAL_CARGA: Record<string, string> = {
+  'plataforma.sa_listar_frases_carga(p_sid uuid)':
+    `${SA}; só super-admin (admin do cliente 42501, sessão inválida 28000); as vivas (ativas pelo Nº, inativas no fim); audita só a contagem`,
+  'plataforma.sa_incluir_frase_carga(p_sid uuid, p_id uuid, p_texto text)':
+    `${SA}; só super-admin; nasce ativa, Nº e ordem = max + 1 (tabela travada); idempotente pelo id; repetida 23505 (índice frase_carga_texto_uk) e fora de 1..90 23514 (CHECK frase_carga_texto_tamanho), sem validação repetida na função; audita id e Nº, nunca o texto`,
+  'plataforma.sa_editar_frase_carga(p_sid uuid, p_id uuid, p_texto text, p_ativa boolean)':
+    `${SA}; só super-admin; texto e/ou ativa (nulo = não muda); P0002 se não achar; repetida 23505 e fora de 1..90 23514 pelo índice e pelo CHECK; audita id, Nº, texto_mudou e ativa`,
+};
+
+/** T-0182, 0083_plataforma_tenant_logo (logo do cliente e nome fantasia em plataforma.tenant; RN-CORE-33): leitura super-admin
+ * ou admin da própria empresa; escrita só super-admin (admin do cliente 42501, sessão inválida 28000, tenant inexistente P0002).
+ * As 4 sa_* que a migração cria, e só elas; a interna plataforma.marca_da_empresa_json é SECURITY INVOKER (fora das listas). */
+const SA_PORTAL_LOGO: Record<string, string> = {
+  'plataforma.sa_marca_da_empresa(p_sid uuid, p_tenant uuid)':
+    `${SA}; super-admin em qualquer empresa, admin do cliente só na da sessão (42501); MarcaEmpresa + logo.chave (a API tira); sem auditoria`,
+  'plataforma.sa_gravar_nome_fantasia(p_sid uuid, p_tenant uuid, p_nome text)':
+    `${SA}; só super-admin; null apaga; CHECK 23514; idempotente (igual não muda nem audita); for update; audita antes e depois (pessoa jurídica)`,
+  'plataforma.sa_gravar_logo(p_sid uuid, p_tenant uuid, p jsonb)':
+    `${SA}; só super-admin; exatamente id, tipo, sha256, tamanho_bytes, largura_px, altura_px e chave (22023); CHECKs (23514, chave do próprio tenant); ` +
+    'idempotente pelo sha256; audita só os sha256 (sem bytes); devolve chave_anterior',
+  'plataforma.sa_remover_logo(p_sid uuid, p_tenant uuid)':
+    `${SA}; só super-admin; zera as 8 logo_*; idempotente (sem logo não muda nem audita); audita o sha256 antes; devolve chave_anterior`,
 };
 
 /**
- * Funções SECURITY DEFINER que o papel do portal (macuxi_portal, 0038, T-0091) pode chamar: as 14 plataforma.sa_* — as 12 da 0039
- * (T-0093, ADR 0031: portal só com e-mail e senha; contrato R-20261107-150432-banco-dados) e as 2 da 0042 (T-0094: o super-admin
- * redefine a senha do admin do cliente; R-20261108-001804-banco-dados) — e NADA mais. As 14 do convite,
- * do TOTP e do desafio (0035) saíram na 0039. Igualdade exata: se o macuxi_app ou o macuxi_worker voltar a executar alguma,
+ * Funções SECURITY DEFINER que o papel do portal (macuxi_portal, 0038, T-0091) pode chamar: as 34 plataforma.sa_* — as 12 da 0039
+ * (T-0093, ADR 0031: portal só com e-mail e senha; contrato R-20261107-150432-banco-dados), as 2 da 0042 (T-0094: o super-admin
+ * redefine a senha do admin do cliente; R-20261108-001804-banco-dados), as 2 da 0058 (T-0158), a 1 da 0070 (ADR 0047), as 8 da 0072
+ * (ADR 0052), as 2 da 0073 (rodapé legal), as 3 da 0081 (T-0181, SA_PORTAL_CARGA) e as 4 da 0083 (T-0182, SA_PORTAL_LOGO) — e NADA
+ * mais. As 14 do convite, do TOTP e do desafio (0035) saíram na 0039. Igualdade exata: se o macuxi_app ou o macuxi_worker voltar a executar alguma,
  * o caso do papel deles reprova; se sair ou entrar uma sa_* sem revisão, este reprova.
  */
 const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
@@ -110,8 +142,11 @@ const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
   'plataforma.sa_dados_legais(p_sid uuid)': `${SA}; só super-admin; o mesmo jsonb da dados_legais_publicos (razao_social, cnpj, site)`,
   'plataforma.sa_gravar_dados_legais(p_sid uuid, p jsonb)':
     `${SA}; só super-admin; exatamente razao_social, cnpj e site (22023), CHECKs (23514); idempotente (igual não muda nem audita); for update; audita antes e depois`,
-  // ADR 0047 (0084; planos e licenças, telas 2 a 6 do portal; R-20261115-123000, item 1). A licencas_do_tenant() é SECURITY
-  // INVOKER (só o macuxi_app, sob RLS): não entra aqui; se virar DEFINER, o caso do papel da aplicação reprova.
+  ...SA_PORTAL_CARGA,
+  ...SA_PORTAL_LOGO,
+  // ADR 0047 (0086_plataforma_planos_troca_licencas; planos e licenças, telas 2 a 6 do portal; R-20261115-123000, item 1).
+  // A licencas_do_tenant() é SECURITY INVOKER (só o macuxi_app, sob RLS): não entra aqui; se virar DEFINER, o caso do papel
+  // da aplicação reprova.
   'plataforma.sa_listar_planos(p_sid uuid)': `${SA}; super-admin e admin do cliente; todos os planos vivos (ativos e inativos), por ordem e código; sem auditoria`,
   'plataforma.sa_assinatura_da_empresa(p_sid uuid, p_tenant uuid)':
     `${SA}; super-admin qualquer empresa; admin do cliente só a da sessão (outra = 42501, antes do P0002); ficha sem o valor; sem assinatura P0002`,
@@ -160,7 +195,7 @@ const DEFINER_REVISADAS_WORKER: Record<string, string> = {
     'etapa banco: reconfere a exclusao_bloqueada (RN-PLA-09), excluir_tenant, empresa_excluida (código nunca reaproveitado, RN-PLA-10), backup guardado 90 dias; idempotente',
   'plataforma.fechar_exclusao(p_exclusao uuid, p_resultado jsonb)':
     'concluida só na etapa arquivos (backup guardado 90 dias a contar daqui); falhou só na etapa banco (empresa intacta); idempotente',
-  // 0079 (T-0174, ADR 0054; fotos em lote): laço de trabalhos sob demanda; NÃO entram em DEFINER_REVISADAS (o app só lê e insere)
+  // 0079 (T-0174, ADR 0058; fotos em lote): laço de trabalhos sob demanda; NÃO entram em DEFINER_REVISADAS (o app só lê e insere)
   'plataforma.trabalho_reservar(p_processo text, p_trava_s integer)':
     'reserva o próximo trabalho pendente de tenant ativo (skip locked) com trava de p_trava_s; devolve só id, tenant, módulo, nome, alvo, tentativas e fatias',
   'plataforma.trabalho_devolver(p_id uuid, p_processo text, p_resultado text, p_erro text, p_espera_s integer)':

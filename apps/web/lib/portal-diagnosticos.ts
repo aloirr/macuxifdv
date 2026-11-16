@@ -30,7 +30,6 @@ export const TEXTOS_PORTAL_DIAGNOSTICOS = {
   vazio: 'Nenhum diagnóstico recebido.',
   limpar: 'Limpar filtros',
   mais: 'Mostrar mais 50',
-  semAcesso: 'Esta área é só do time Macuxi.',
   semRelato: 'Sem relato.',
   semPrint: 'Não anexado.',
   abrirPrint: 'Abrir em tamanho real',

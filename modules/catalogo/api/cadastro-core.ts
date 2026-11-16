@@ -15,6 +15,7 @@ export interface ProdutoDoCore {
   marca?: string | null;
   categoria?: string | null;
   ean?: string | null;
+  external_id?: string | null;
 }
 
 const texto = (v: string | null | undefined): string => (v ?? '').trim();
@@ -25,6 +26,7 @@ export function produtoDoCadastroCore(p: ProdutoDoCore): ProdutoCatalogo {
     id: p.id,
     sku: p.sku,
     ean: ean === '' ? null : ean,
+    external_id: texto(p.external_id) || null,
     nome: p.nome,
     marca: texto(p.marca),
     categoria: texto(p.categoria),

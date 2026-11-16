@@ -205,7 +205,8 @@ describe.skipIf(semBanco())('0043 up/down com dados (banco efêmero)', () => {
       const depois = await retratoDoCatalogo(c);
       expect(depois).toContain('col integracao.conector.aceita_cancelamento boolean nn=true');
       expect(depois).toContain('col integracao.pedido_fila_erp.cancelamento_tentativas integer nn=true');
-      expect(depois.filter((l) => l.startsWith('pol ') && l.includes('integracao.pedido_fila_erp'))).toEqual(
+      // a política leitura (0078, macuxi_leitura) entra depois da 0043 e fica fora da comparação
+      expect(depois.filter((l) => l.startsWith('pol ') && l.includes('integracao.pedido_fila_erp') && !l.startsWith('pol integracao.pedido_fila_erp.leitura '))).toEqual(
         antes.filter((l) => l.startsWith('pol ') && l.includes('integracao.pedido_fila_erp')),
       );
       expect((await c.query('select aceita_cancelamento from integracao.conector where id = $1', [C])).rows).toEqual([{ aceita_cancelamento: false }]);

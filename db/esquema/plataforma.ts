@@ -6,8 +6,10 @@
  * 0041_plataforma_perfis_de_acesso.up.sql (perfis de acesso, ADR 0033; cargo e um perfil por usuário desde a
  * 0069_core_cargo_hierarquia.up.sql), 0070_plataforma_plano_assinatura.up.sql (planos e assinatura, ADR 0047),
  * 0072_plataforma_empresa_acoes.up.sql (inativar, backup e excluir a empresa, ADR 0052; só por função),
- * 0073_plataforma_dados_legais.up.sql (dados legais do rodapé, só por função) e 0074_plataforma_sync_pacote.up.sql (pacote da
- * primeira carga, ADR 0054), para consultas da API.
+ * 0073_plataforma_dados_legais.up.sql (dados legais do rodapé, só por função), 0074_plataforma_sync_pacote.up.sql (pacote da
+ * primeira carga, ADR 0054), 0079_catalogo_foto_lote.up.sql (tipos de arquivo e trabalho sob demanda, ADR 0058) e
+ * 0081_plataforma_frase_carga.up.sql (frases da tela de carga, globais, só por função) e 0083_plataforma_tenant_logo.up.sql
+ * (logo e nome fantasia em plataforma.tenant), para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -52,6 +54,20 @@ export const tenant = plataforma.table('tenant', {
   inativada_em: timestamp('inativada_em', { withTimezone: true }),
   /** 0072: motivo da inativação, opcional (MOTIVOS_INATIVACAO do SDK; sem texto livre; null = sem motivo). */
   motivo_inativacao: text('motivo_inativacao', { enum: MOTIVOS_INATIVACAO }),
+  /**
+   * 0083 (T-0182, logo do cliente): nome fantasia (sem espaço nas pontas, 1..80; null = usa a razão social, `nome`) e os
+   * metadados da logo; os bytes ficam no armazenamento de arquivos, na `logo_chave`. As 8 `logo_*` todas nulas ou todas
+   * preenchidas (CHECK tenant_logo_completa). Gravadas só pelas sa_* do portal (super-admin); o app só lê a própria linha.
+   */
+  nome_fantasia: text('nome_fantasia'),
+  logo_id: uuid('logo_id'),
+  logo_tipo: text('logo_tipo', { enum: ['image/png', 'image/jpeg'] }),
+  logo_sha256: text('logo_sha256'),
+  logo_tamanho_bytes: integer('logo_tamanho_bytes'),
+  logo_largura_px: integer('logo_largura_px'),
+  logo_altura_px: integer('logo_altura_px'),
+  logo_chave: text('logo_chave'),
+  logo_atualizada_em: timestamp('logo_atualizada_em', { withTimezone: true }),
   ...auditaveis(),
 });
 
@@ -182,6 +198,9 @@ export const auditoria = plataforma.table('auditoria', {
   ocorrido_em: timestamp('ocorrido_em', { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** Tipos aceitos em plataforma.arquivo (CHECK arquivo_tipo_valido, 0079); o TIPOS_ARQUIVO do platform-sdk fica contido aqui. */
+export const TIPOS_ARQUIVO_BANCO = ['image/jpeg', 'image/png', 'image/webp', 'application/zip'] as const;
+
 /**
  * Metadados de arquivo enviado pelo aparelho (0005, ADR 0010). id = UUID do aparelho. O módulo cria a linha
  * 'aguardando' na transação do comando que referencia o arquivo; a rota PUT /v1/arquivos/:id completa
@@ -195,7 +214,8 @@ export const arquivo = plataforma.table('arquivo', {
   entidade_id: uuid('entidade_id').notNull(),
   cliente_id: uuid('cliente_id'),
   enviado_por: uuid('enviado_por').notNull(),
-  tipo: text('tipo', { enum: ['image/jpeg'] }).notNull().default('image/jpeg'),
+  /** 0079 (T-0174, ADR 0058): imagens até 8 MiB e o ZIP do lote de fotos até 500 MiB (CHECK arquivo_tamanho_faixa, por tipo). */
+  tipo: text('tipo', { enum: TIPOS_ARQUIVO_BANCO }).notNull().default('image/jpeg'),
   tamanho_bytes: integer('tamanho_bytes'),
   sha256: text('sha256'),
   largura_px: integer('largura_px'),
@@ -583,4 +603,49 @@ export const syncPacotePedido = plataforma.table('sync_pacote_pedido', {
   /** Só código curto (sem dado pessoal). */
   ultimo_erro: text('ultimo_erro'),
   atendido_em: timestamp('atendido_em', { withTimezone: true }),
+});
+
+/** Situações de plataforma.trabalho (CHECK trabalho_situacao_valida, 0079). */
+export const SITUACOES_TRABALHO_BANCO = ['pendente', 'em_execucao', 'concluido', 'falhou'] as const;
+
+/**
+ * Trabalho sob demanda de um módulo (0079, T-0174, ADR 0058): disparado por evento da outbox, executado em fatias pelo worker.
+ * Um vivo por (tenant, modulo, nome, alvo_id) (trabalho_alvo_uk: o consumidor grava com insert ... on conflict do nothing).
+ * O macuxi_app só lê e insere no próprio tenant; a situação, a trava e os contadores mudam só pelas funções do worker
+ * plataforma.trabalho_reservar / trabalho_devolver / trabalho_renovar (SECURITY DEFINER, só tenants ativos). Fora do sync.
+ */
+export const trabalho = plataforma.table('trabalho', {
+  ...comuns(),
+  modulo: text('modulo').notNull(),
+  nome: text('nome').notNull(),
+  /** Entidade do módulo que o trabalho processa (ex.: catalogo.foto_lote.id); sem FK. */
+  alvo_id: uuid('alvo_id').notNull(),
+  /** Evento da outbox que disparou o trabalho; sem FK (a outbox tem retenção). */
+  evento_id: uuid('evento_id'),
+  situacao: text('situacao', { enum: SITUACOES_TRABALHO_BANCO }).notNull().default('pendente'),
+  tentativas: integer('tentativas').notNull().default(0),
+  fatias: integer('fatias').notNull().default(0),
+  proxima_em: timestamp('proxima_em', { withTimezone: true }).notNull().defaultNow(),
+  travado_ate: timestamp('travado_ate', { withTimezone: true }),
+  travado_por: text('travado_por'),
+  /** Só código (^[A-Za-z0-9_.:-]{1,100}$): nunca mensagem nem dado pessoal. */
+  ultimo_erro: text('ultimo_erro'),
+  /** Fim em 'concluido' ou 'falhou' (CHECK trabalho_concluido_coerente). */
+  concluido_em: timestamp('concluido_em', { withTimezone: true }),
+});
+
+/**
+ * Frases da tela de carga (0081, T-0181): cadastro GLOBAL do super-admin (sem tenant_id), vale para todas as empresas. Só por
+ * função: o portal usa sa_listar_frases_carga / sa_incluir_frase_carga / sa_editar_frase_carga e o app a
+ * frases_carga_ativas(); nenhum papel da aplicação lê a tabela direto. numero = Nº do portal (único, max + 1 na inclusão);
+ * texto 1..90 depois do trim, único entre as vivas sem diferenciar maiúsculas; as 30 iniciais com id
+ * uuid_de_chave('plataforma:frase_carga:NN'). Fora do sync por linha.
+ */
+export const fraseCarga = plataforma.table('frase_carga', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  numero: integer('numero').notNull(),
+  texto: text('texto').notNull(),
+  ativa: boolean('ativa').notNull().default(true),
+  ordem: integer('ordem').notNull(),
+  ...auditaveis(),
 });

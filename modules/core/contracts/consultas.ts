@@ -6,6 +6,8 @@
 import { definirConsulta } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import { LimiteDescontoSchema } from './usuarios';
+import { ParametrosAlertasProdutividadeSchema } from './alertas-produtividade';
+import { MinutoDoDiaSchema } from './jornada';
 
 const Ids = z.array(z.string().uuid()).max(500).default([]);
 
@@ -195,3 +197,42 @@ export const FinanceiroClienteSaidaSchema = z.object({
 });
 export type FinanceiroClienteSaida = z.infer<typeof FinanceiroClienteSaidaSchema>;
 export const CONSULTA_FINANCEIRO_CLIENTE = definirConsulta({ nome: 'core.financeiro_cliente@1', entrada: FinanceiroClienteEntradaSchema, saida: FinanceiroClienteSaidaSchema });
+
+/**
+ * `core.produtos_por_sku@1` (T-0174, R-20261115-074500): o Catálogo casa o nome do arquivo de foto com o produto. Devolve os produtos
+ * do tenant não removidos (ativos ou não) cujo `sku` bate exato, sem diferença de maiúsculas, ou cujo `ean` bate exato com algum código.
+ * O desempate (exato → sem maiúsculas → EAN → ambíguo) é do Catálogo. Leitura apenas.
+ */
+export const ProdutosPorSkuEntradaSchema = z.object({ codigos: z.array(z.string().min(1).max(100)).min(1).max(500) }).strict();
+export type ProdutosPorSkuEntrada = z.infer<typeof ProdutosPorSkuEntradaSchema>;
+export const ProdutosPorSkuSaidaSchema = z.object({ produtos: z.array(z.object({ id: z.string().uuid(), sku: z.string(), ean: z.string().nullable(), ativo: z.boolean() })) });
+export type ProdutosPorSkuSaida = z.infer<typeof ProdutosPorSkuSaidaSchema>;
+export const CONSULTA_PRODUTOS_POR_SKU = definirConsulta({ nome: 'core.produtos_por_sku@1', entrada: ProdutosPorSkuEntradaSchema, saida: ProdutosPorSkuSaidaSchema });
+
+/**
+ * `core.produtividade_equipe@1` (T-0180, ADR 0059 §4; RN-CORE-26, RN-CORE-44): o que o Gestor precisa para abrir os alertas de
+ * produtividade, no escopo dos `usuario_ids` pedidos (1 a 500): `inicio.parado_min`, o parâmetro `alertas.produtividade` e, por
+ * usuário, o último contato do aparelho e o almoço já resolvido (o próprio ou `jornada.almoco_padrao`). Id inexistente, removido
+ * ou de outro tenant some (não é erro). Só leitura, na transação de quem consulta.
+ */
+export const ProdutividadeEquipeEntradaSchema = z.object({ usuario_ids: z.array(z.string().uuid()).min(1).max(500) }).strict();
+export type ProdutividadeEquipeEntrada = z.infer<typeof ProdutividadeEquipeEntradaSchema>;
+export const ProdutividadeEquipeSaidaSchema = z
+  .object({
+    parado_min: z.number().int(),
+    alertas: ParametrosAlertasProdutividadeSchema,
+    usuarios: z.array(
+      z
+        .object({
+          id: z.string().uuid(),
+          /** Último `GET /sync/novidades` ou `POST /sync/push` do usuário (UTC, ISO); nulo = nunca sincronizou. */
+          ultimo_contato_em: z.string().datetime().nullable(),
+          almoco_inicio_min: MinutoDoDiaSchema,
+          almoco_fim_min: MinutoDoDiaSchema,
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+export type ProdutividadeEquipeSaida = z.infer<typeof ProdutividadeEquipeSaidaSchema>;
+export const CONSULTA_PRODUTIVIDADE_EQUIPE = definirConsulta({ nome: 'core.produtividade_equipe@1', entrada: ProdutividadeEquipeEntradaSchema, saida: ProdutividadeEquipeSaidaSchema });

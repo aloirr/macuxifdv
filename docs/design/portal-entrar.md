@@ -11,7 +11,7 @@
 > **Revisto em 14/11/2026:** onde conflitar, vale `docs/design/telas/portal-config-enxuto.md` §1 (RD-0264: senha a trocar = só "Crie a sua senha no backoffice antes de entrar aqui.").
 
 De cima para baixo, na `MolduraEstreita` de hoje:
-1. Título **"Entrar"** (28/800, Archivo).
+1. Título **"Entrar"** (24/700).
 2. ~~Subtítulo "Portal de implantação Macuxi"~~ — **sai** (revisão da fatia W, 07/11): a marca logo acima do cartão já diz
    "Portal de implantação · Macuxi FDV"; repetir é ruído.
 3. Aviso de sessão terminada, quando a guarda mandou para cá (`Notice tone="info"`): **"Sua sessão terminou. Entre de novo."**

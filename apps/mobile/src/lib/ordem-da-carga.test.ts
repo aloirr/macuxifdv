@@ -18,9 +18,11 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
+import { essencialDaEntrada } from '@macuxi/core/app';
+
 import { criarMemoriaDaEntrada } from './entrada';
 import { MANIFESTOS_INSTALADOS } from './instalados';
-import { ordemDaCargaDoUsuario } from './ordem-da-carga';
+import { essenciaisDoUsuario, ordemDaCargaDoUsuario } from './ordem-da-carga';
 
 // o índice de `@macuxi/core/app` (API pública do Core) puxa telas: os módulos nativos viram vazios e a regra pura é a real
 vi.mock('react-native', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
@@ -159,18 +161,39 @@ describe('ordemDaCargaDoUsuario', () => {
       tipo: 'entidade',
     });
     expect(ordem(item('cliente', 'core'))).toBe(2);
-    expect(ordem(item('produto', 'catalogo'))).toBe(3);
-    expect(ordem(item('pedido', 'vendedor'))).toBe(4);
-    expect(ordem(item('carteira', 'vendedor'))).toBe(4);
-    expect(ordem(item('questionario', 'pesquisa'))).toBe(5);
-    // sem o Catálogo, o Campo tem 4 etapas e "Pedidos e metas" passa a ser a 3
+    expect(ordem(item('pedido', 'vendedor'))).toBe(3);
+    expect(ordem(item('carteira', 'vendedor'))).toBe(3);
+    expect(ordem(item('questionario', 'pesquisa'))).toBe(4);
+    // RN-CORE-48 revista (ADR 0054): o catálogo é a última etapa
+    expect(ordem(item('produto', 'catalogo'))).toBe(5);
+    // sem o Catálogo, o Campo tem 4 etapas e "Pedidos e metas" continua a 3
     modulos = ['core', 'vendedor', 'promotor'];
     expect(ordem(item('pedido', 'vendedor'))).toBe(3);
+    expect(ordem(item('questionario', 'pesquisa'))).toBe(4);
     perfil = 'supervisor';
     modulos = ['core', 'catalogo', 'vendedor', 'gestor'];
     expect(ordem(item('painel_vendedor_dia', 'gestor'))).toBe(2);
-    expect(ordem(item('pedido', 'vendedor'))).toBe(3);
-    expect(ordem(item('meta', 'core'))).toBe(4);
-    expect(ordem(item('alerta', 'gestor'))).toBe(5);
+    expect(ordem(item('meta', 'core'))).toBe(3);
+    expect(ordem(item('alerta', 'gestor'))).toBe(4);
+    // Aprovações (contém o catálogo) por último
+    expect(ordem(item('pedido', 'vendedor'))).toBe(5);
+  });
+});
+
+describe('essenciaisDoUsuario (ADR 0054, entrada enquanto carrega)', () => {
+  // a regra (o que é essencial por perfil) é testada no Core (`entrada-sync.test.ts`); aqui só o repasse
+  it('repassa ao Core o perfil e os módulos lidos a cada chamada, com a chave do item como entidade', () => {
+    let perfil: string | null = 'vendedor';
+    const modulos = ['core', 'catalogo', 'vendedor', 'gestor'];
+    const essencial = essenciaisDoUsuario(
+      () => perfil,
+      () => modulos,
+    );
+    const item: ItemDaCarga = { chave: 'painel_vendedor_dia', modulo: 'gestor', tipo: 'entidade' };
+    const doCore = () => essencialDaEntrada(perfil, modulos)({ entidade: item.chave, modulo: item.modulo });
+    expect(essencial(item)).toBe(doCore());
+    perfil = 'supervisor';
+    expect(essencial(item)).toBe(doCore());
+    expect(essencial(item)).not.toBe(essencialDaEntrada('vendedor', modulos)({ entidade: item.chave, modulo: item.modulo }));
   });
 });

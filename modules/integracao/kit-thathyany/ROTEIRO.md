@@ -33,6 +33,7 @@ Cada fase vai do pedido no app até o número do ERP voltar ao app.
    py carga_csv.py --pasta csv
    ```
    No `vendedor.csv`, `filial_external_id` é a filial do vendedor (uma só, a mesma do `filial.csv`); sem ela o vendedor fica bloqueado no Macuxi até a filial ser informada. No `produto.csv`, `marca_codigo` leva o código da marca no ERP (ex.: 980). `referencia_1` a `referencia_3` levam até 3 códigos da concorrência; de cada um, o código da marca no ERP (`marca_referencia_codigo_1` a `_3`) e o nome (`marca_referencia_1` a `_3`), os dois opcionais. Com as três vazias, o Macuxi mantém as referências do cadastro (para tirar uma, use o Backoffice).
+   O Macuxi recebe a filial primeiro; filial do `vendedor.csv` que não esteja no `filial.csv` chega como `referencia_ausente`, e você reprocessa a linha no Monitor. Vendedor que sai do CSV fica inativo, nunca é excluído. O código FDV (5 dígitos) é gerado pelo Macuxi; não preencha.
    O relatório mostra, por tabela, as linhas lidas, inseridas, atualizadas, sem mudança e recusadas, com a linha e o motivo da recusa. Corrija o CSV e rode de novo.
 5. **Confira a carga:** em 2 a 5 minutos, os vendedores, clientes e produtos aparecem no Backoffice. O Monitor da integração mostra o Conector `thathyany-conector` em dia, versão 1.4.0.
 6. **Pedido no app:** o vendedor sincroniza, faz um pedido para um cliente da carga e o envia.
@@ -63,6 +64,10 @@ Cada fase vai do pedido no app até o número do ERP voltar ao app.
 8. **Faturamento (opcional):** o mesmo `UPDATE` do passo 9 da fase 1.
 
 Para voltar à fase 1: peça ao gerente-projetos para reativar o `thathyany-conector` e desativar o `thathyany-api`, e rode `.\Instalar-Thathyany.ps1 -Fase Conector`.
+
+## Atenção: % Acres.Fin. do ERP (RN-INT-15)
+Os preços do pedido já chegam **ajustados** pelo "% Acres.Fin." do prazo (à vista = -1,71). O ERP deve gravar os preços como vêm e **não reaplicar** o "% Acres.Fin.": o percentual vai na coluna `pagamento_percentual_ajuste` só como informação. Confira o total do ERP com o total do app no primeiro pedido; se for diferente, o ERP está aplicando o percentual duas vezes.
+No `prazo_pagamento.csv`, a coluna `percentual_ajuste` leva o "% Acres.Fin." (ponto decimal, de -99.99 a 99.99; vazio = 0).
 
 ## Se der errado
 - **O serviço do Conector não inicia** (ou você trocou a senha do Windows): rode a fase 1 de novo e digite a senha atual.

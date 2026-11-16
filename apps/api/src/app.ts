@@ -3,7 +3,7 @@
  *
  * Monta, para cada módulo instalado (`MODULOS_API`), as rotas declaradas em `definirModuloApi` sob
  * `/v1/<modulo>/<caminho>`; as rotas públicas do Core sob `/v1/<caminho>`; e as rotas da plataforma:
- * `GET /v1/saude`, `GET /v1/me/modulos`, `GET /v1/sync/novidades` (RN-CORE-23), `GET /v1/sync/pull`, `POST /v1/sync/push`, `PUT|GET /v1/arquivos/:id` (ADR 0010) e `GET /v1/auditoria` (RN-AUD-01).
+ * `GET /v1/saude`, `GET /v1/me/modulos`, `GET /v1/sync/novidades` (RN-CORE-23), `GET /v1/sync/pull`, `POST /v1/sync/push`, `GET /v1/sync/pacotes` (ADR 0054), `PUT|GET /v1/arquivos/:id` (ADR 0010) e `GET /v1/auditoria` (RN-AUD-01).
  *
  * Toda rota autenticada passa por `prepararRequisicao` (401 → sem a filial de cadastro 403 USUARIO_SEM_FILIAL, RN-CORE-39 e ADR 0056,
  * salvo rota do Core `liberadaSemFilial` e o sync restrito → licença 403 MODULO_INATIVO → perfil/ação
@@ -76,6 +76,7 @@ import {
   verificarAcesso,
   verificarCarteira,
   type AcessoBanco,
+  type ClienteBanco,
   type ContextoBase,
   type EntradaRota,
   type ErroApi,
@@ -112,10 +113,13 @@ import { registrarAuditoria } from './auditoria';
 import { registrarDiagnosticos } from './diagnosticos';
 import { registrarRotasDiagnosticosPortal, type FonteDiagnosticosPortal } from './diagnosticos-portal';
 import { registrarRotasDadosLegais, type FonteDadosLegais } from './dados-legais';
+import { registrarRotasFrasesCarga, type FonteFrasesCarga } from './frases-carga';
+import { registrarRotasMarcaEmpresa, type FonteMarcaEmpresa } from './empresa-logo';
 import { consultaCnpjPadrao, registrarRotaConsultaCnpj, type ConsultaCnpj } from './consulta-cnpj';
 import { registrarRotasPlanosPortal, type FontePlanosPortal } from './planos-portal';
 import { acoesDasEmpresas, registrarRotasAcoesEmpresa, type FonteAcoesEmpresa } from './empresa-acoes-portal';
 import { registrarSync } from './sync';
+import { registrarSyncPacotes, syncPacotesDoAmbiente, type OpcoesSyncPacotes } from './sync-pacotes';
 import { MAX_TENTATIVAS_PADRAO, nomesConsumidos } from './despachante';
 import { avaliarAlertas, comPrazo, criarMetricasApi, type EstadoBanco, type MetricasApi, type ResumoOutbox } from './observabilidade';
 import { respostaMeusModulos } from './me-modulos';
@@ -124,6 +128,7 @@ import type { Plataforma } from './tipos';
 import { ErroHttp, semBanco } from './erros';
 import { SERVICO_EMAIL_DESLIGADO } from './email/servico';
 import { dentroDaTransacao, transacaoAberta } from './transacao-corrente';
+import { exigirParametrosValidos, gravarParametrosDoModulo } from './parametros-modulo';
 
 export { ErroHttp } from './erros';
 
@@ -142,6 +147,8 @@ export interface OpcoesApp {
   usuariosVisiveis?: ServicosCore['usuariosVisiveis'];
   /** Bytes dos arquivos (ADR 0010). `null`/ausente = upload/download respondem 503. */
   arquivos?: ArmazenamentoArquivos | null;
+  /** ADR 0058: URL assinada de envio das partes (`MACUXI_ENVIO_URL_ASSINADA=1`; só vale com o driver S3). Padrão: desligada. */
+  envioUrlAssinada?: boolean;
   relogio?: () => Date;
   logger?: FastifyServerOptions['logger'];
   /**
@@ -222,6 +229,15 @@ export interface OpcoesApp {
   backupEmpresaDisponivel?: boolean;
   /** Rodapé legal (docs/design/telas/rodape-legal.md §3.4): fonte das funções dos dados legais (padrão: `fonteDadosLegaisNoBanco`). Testes injetam a sua. */
   fonteDadosLegais?: FonteDadosLegais;
+  /** T-0181: fonte das funções das frases da carga (0081; padrão: `fonteFrasesCargaNoBanco`). Testes injetam a sua. */
+  fonteFrasesCarga?: FonteFrasesCarga;
+  /**
+   * ADR 0054: pacote pronto da primeira carga (`GET /v1/sync/pacotes` e, no disco, `/:id/arquivo`; `sync-pacotes.ts`). `null` =
+   * desligado (manifesto vazio). Ausente = pelo ambiente (`MACUXI_SYNC_PACOTES=1` liga; padrão DESLIGADO; `syncPacotesDoAmbiente`).
+   */
+  syncPacotes?: OpcoesSyncPacotes | null;
+  /** T-0182: fonte das funções da logo e do nome fantasia (padrão: `fonteMarcaNoBanco`). Testes injetam a sua. */
+  fonteMarca?: FonteMarcaEmpresa;
 }
 
 /** Cache da sonda de dependências do `/v1/saude` (a rota é pública: não vira amplificador de consultas no banco). */
@@ -494,10 +510,31 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     const modulosDoTenant = modulosEfetivos({ manifestos, ativosNoTenant: licencas.ativosNoTenant, doPerfil: manifestos.map((x) => x.id) });
     let carteira: Promise<ReadonlySet<string> | 'tenant'> | null = null;
     let usuariosVisiveis: Promise<ReadonlySet<string> | 'tenant'> | null = null;
-    // parâmetros do tenant (`plataforma.parametro`) lidos junto com as licenças, por requisição (T-0029 E3)
-    const parametros = (m: ModuloId): Readonly<Record<string, unknown>> => licencas.parametros[m] ?? {};
+    // parâmetros do tenant (`plataforma.parametro`) lidos junto com as licenças, por requisição (T-0029 E3); o que a rota gravou
+    // nesta requisição (`ctx.gravarParametros`, T-0180) vale por cima, sem mexer no objeto da fonte de licenças
+    const gravadosNaRequisicao: Partial<Record<ModuloId, Record<string, unknown>>> = {};
+    const parametros = (m: ModuloId): Readonly<Record<string, unknown>> => {
+      const g = gravadosNaRequisicao[m];
+      return g ? { ...(licencas.parametros[m] ?? {}), ...g } : (licencas.parametros[m] ?? {});
+    };
     // fuso do tenant (RN-CORE-11; T-0035): lido com as licenças; ausente ou inválido = America/Manaus
     const fuso = fusoDoTenantOuPadrao(licencas.fuso);
+    const txDe = (m: ModuloId | null, db: ClienteBanco) =>
+      transacaoTenant(db, {
+        manifestos,
+        modulo: m,
+        tenantId: usuario.tenant_id,
+        usuarioId: usuario.id,
+        requestId: req.id,
+        agora: relogio,
+        usuario,
+        modulosDoTenant,
+        escrita,
+        consultas,
+        parametros,
+        fuso: () => fuso,
+        log: req.log.child({ tenant_id: usuario.tenant_id, request_id: req.id }),
+      });
     const contexto = (m: ModuloId | null): ContextoBase => ({
       usuario,
       dependencias,
@@ -505,26 +542,16 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       requestId: req.id,
       agora: relogio,
       comTenant: (fn) =>
-        acesso.comTenant(usuario.tenant_id, (db) =>
-          dentroDaTransacao(acesso, db, usuario.tenant_id, () => fn(
-            db,
-            transacaoTenant(db, {
-              manifestos,
-              modulo: m,
-              tenantId: usuario.tenant_id,
-              usuarioId: usuario.id,
-              requestId: req.id,
-              agora: relogio,
-              usuario,
-              modulosDoTenant,
-              escrita,
-              consultas,
-              parametros,
-              fuso: () => fuso,
-              log: req.log.child({ tenant_id: usuario.tenant_id, request_id: req.id }),
-            }),
-          )),
-        ),
+        acesso.comTenant(usuario.tenant_id, (db) => dentroDaTransacao(acesso, db, usuario.tenant_id, () => fn(db, txDe(m, db)))),
+      // T-0180 (ADR 0059 §8): só o módulo da rota; dentro do comTenant, na mesma transação (acessoDaRequisicao); depois, o
+      // ctx.parametros() desta requisição já enxerga o valor novo
+      gravarParametros: async (valores, opcoes) => {
+        exigirParametrosValidos(m, valores);
+        const { alteradas } = await acessoDaRequisicao.comTenant(usuario.tenant_id, (db) =>
+          gravarParametrosDoModulo(db, m, valores, (r) => txDe(m, db).auditar(r), opcoes),
+        );
+        if (m && alteradas.length > 0) gravadosNaRequisicao[m] = { ...gravadosNaRequisicao[m], ...Object.fromEntries(alteradas.map((c) => [c, valores[c]])) };
+      },
       // memo por requisição; rejeitada (ex.: transação abortada) não fica guardada
       // T-0176: o usuário sem filial (restrito) não vê cliente nem equipe; só o próprio
       carteira: () =>
@@ -605,7 +632,10 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   });
 
   registrarSync(app, plataforma);
-  registrarArquivos(app, plataforma, op.arquivos ?? null);
+  const syncPacotes = op.syncPacotes !== undefined ? op.syncPacotes : syncPacotesDoAmbiente(process.env);
+  registrarSyncPacotes(app, plataforma, syncPacotes);
+  if (syncPacotes) app.log.info({ sync_pacotes: syncPacotes.armazenamento.driver }, 'pacote da primeira carga ligado (ADR 0054)');
+  registrarArquivos(app, plataforma, op.arquivos ?? null, { envioUrlAssinada: op.envioUrlAssinada ?? false });
   registrarAuditoria(app, plataforma);
   // T-0158 (ADR 0043): diagnóstico do aparelho (sessão do app, sem licença de módulo)
   registrarDiagnosticos(app, plataforma);
@@ -666,6 +696,25 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     autenticar: autenticarDoPortal,
     validar,
     relogio,
+  });
+
+  // T-0181: frases da tela de carga (docs/desenho/T-0181.md §2)
+  registrarRotasFrasesCarga(app, plataforma, {
+    acessoPortal,
+    ...(op.fonteFrasesCarga ? { fonte: op.fonteFrasesCarga } : {}),
+    autenticar: autenticarDoPortal,
+    validar,
+  });
+
+  // T-0182: logo do cliente e nome fantasia (portal: grava só o super-admin; `GET /v1/me/empresa/logo/:sha256` para o app e o BKO)
+  registrarRotasMarcaEmpresa(app, {
+    acessoPortal,
+    ...(op.fonteMarca ? { fonte: op.fonteMarca } : {}),
+    autenticar: autenticarDoPortal,
+    validar,
+    armazenamento: op.arquivos ?? null,
+    relogio,
+    plataforma,
   });
 
   // ADR 0048: consulta de CNPJ na base pública da Receita (passo Empresa do portal), super-admin ou admin do cliente

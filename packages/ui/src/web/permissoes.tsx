@@ -5,7 +5,8 @@
  *
  * - `Cadeado`: ícone de cadeado que mostra a regra ao passar o mouse, ao focar com o teclado ou ao tocar (o toque liga o :hover
  *   no iOS e o foco no Android); o texto também vai como descrição para o leitor de tela.
- * - `Interruptor`: liga/desliga com "Sim"/"Não" escrito ao lado (cor nunca sozinha), `role="switch"`, alvo de 44 px.
+ * - `Interruptor`: liga/desliga com "Sim"/"Não" escrito ao lado (cor nunca sozinha), `role="switch"`, alvo de 44 px. Com
+ *   `estadoEscrito="so-desligada"` (liga/desliga geral da regra, T-0180): ligado sem texto; desligado com o selo neutro "Desligada".
  * - `SeletorDeNivel`: escolha de um nível em botões lado a lado (rádios nativos: as setas do teclado andam entre eles). Opção
  *   desabilitada leva o motivo, falado na própria opção e escrito embaixo do grupo com o cadeado.
  * - `LinhaDePermissao`: rótulo, ajuda, cadeado e o controle à direita; "Padrão: X" quando o valor difere do de fábrica.
@@ -26,7 +27,7 @@ import {
   textoFaladoDaMudanca,
   type MudancaDePermissao,
 } from './perfis';
-import { cx } from './ui';
+import { Badge, cx } from './ui';
 
 export * from './perfis';
 
@@ -80,6 +81,7 @@ export function Interruptor({
   desabilitado = false,
   id,
   testId = 'interruptor',
+  estadoEscrito = 'sim-nao',
 }: {
   ligado: boolean;
   onChange: (ligado: boolean) => void;
@@ -93,9 +95,16 @@ export function Interruptor({
   desabilitado?: boolean;
   id?: string;
   testId?: string;
+  /**
+   * O que fica escrito ao lado do trilho. `sim-nao` (padrão): "Sim"/"Não". `so-desligada` (liga/desliga geral de uma regra,
+   * Parâmetros › Alertas, T-0180): ligado não escreve nada; desligado mostra o selo neutro "Desligada". O estado continua no
+   * `aria-checked` para o leitor de tela.
+   */
+  estadoEscrito?: 'sim-nao' | 'so-desligada';
 }) {
   const marcado = ligado && !misto;
   const texto = misto ? TEXTO_INTERRUPTOR.misto : ligado ? TEXTO_INTERRUPTOR.sim : TEXTO_INTERRUPTOR.nao;
+  const soDesligada = estadoEscrito === 'so-desligada' && !misto;
   return (
     <button
       type="button"
@@ -126,9 +135,17 @@ export function Interruptor({
           )}
         />
       </span>
-      <span aria-hidden="true" className={cx('min-w-[52px] text-left text-[13px] font-semibold', desabilitado ? 'text-ink-2' : 'text-ink')}>
-        {texto}
-      </span>
+      {soDesligada ? (
+        marcado ? null : (
+          <span aria-hidden="true" data-testid={`${testId}.desligada`}>
+            <Badge tone="neutral">{TEXTO_INTERRUPTOR.desligada}</Badge>
+          </span>
+        )
+      ) : (
+        <span aria-hidden="true" className={cx('min-w-[52px] text-left text-[13px] font-semibold', desabilitado ? 'text-ink-2' : 'text-ink')}>
+          {texto}
+        </span>
+      )}
     </button>
   );
 }
@@ -196,7 +213,7 @@ export function SeletorDeNivel({
               />
               <span
                 className={cx(
-                  'inline-flex min-h-[40px] items-center gap-1 rounded-[10px] px-3 text-[13px] font-semibold whitespace-nowrap text-ink-3',
+                  'inline-flex min-h-[40px] items-center gap-1 rounded-[10px] px-3 text-[15px] font-semibold whitespace-nowrap text-ink-3',
                   'peer-checked:bg-ink peer-checked:text-white peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-accent',
                   o.desabilitada && 'text-disabled',
                   !off && 'hover:bg-ground peer-checked:hover:bg-ink',
@@ -256,7 +273,7 @@ export function LinhaDePermissao({
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-[220px] flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-1">
-            <span id={ids.rotulo} className="text-[14px] font-semibold text-ink">
+            <span id={ids.rotulo} className="text-[15px] font-semibold text-ink">
               {rotulo}
             </span>
             {trava && <Cadeado id={ids.trava} mensagem={trava.mensagem} testId={`${tid}.cadeado`} />}
@@ -342,9 +359,9 @@ export function SeletorDePerfis({
           data-testid={`${testId}.${valor === ALVO_TODOS_PERFIS ? 'todos' : valor}`}
         />
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className={cx('flex flex-wrap items-center gap-1.5 text-[14px]', off ? 'text-ink-2' : 'text-ink')}>
+          <span className={cx('flex flex-wrap items-center gap-1.5 text-[15px]', off ? 'text-ink-2' : 'text-ink')}>
             {rotulo}
-            {extra?.selo && <span className="rounded-lg bg-neutral-soft px-2 py-[2px] text-[11px] font-bold text-ink-3">{extra.selo}</span>}
+            {extra?.selo && <span className="rounded-lg bg-neutral-soft px-2 py-[2px] text-[12px] font-medium text-ink-3">{extra.selo}</span>}
           </span>
           {extra?.detalhe && <span className="text-[12px] text-ink-2">{extra.detalhe}</span>}
           {extra?.motivo && (
@@ -400,18 +417,18 @@ export function ResumoDasMudancas({
   const total = grupos.reduce((n, g) => n + g.itens.length, 0);
   return (
     <div className="flex flex-col gap-3" data-testid={testId}>
-      <p className="m-0 text-[14px] font-semibold text-ink" data-testid={`${testId}.contagem`}>
+      <p className="m-0 text-[15px] font-semibold text-ink" data-testid={`${testId}.contagem`}>
         {contagemDeMudancas(total)}
         {afetados !== undefined && total > 0 && <span className="font-normal text-ink-2">{` · ${textoDosAfetados(afetados)}`}</span>}
       </p>
       {grupos.map((g) => (
         <section key={g.secao} aria-labelledby={`${testId}-${g.secao}`} className="flex flex-col gap-1" data-testid={`${testId}.${g.secao}`}>
-          <h3 id={`${testId}-${g.secao}`} className="m-0 text-[12px] font-bold tracking-wide text-ink-2 uppercase">
+          <h3 id={`${testId}-${g.secao}`} className="m-0 text-[12px] font-semibold tracking-wide text-ink-2 uppercase">
             {g.titulo}
           </h3>
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
             {g.itens.map((m, i) => (
-              <li key={`${m.rotulo}-${i}`} className="text-[13px] text-ink">
+              <li key={`${m.rotulo}-${i}`} className="text-[15px] text-ink">
                 <span aria-hidden="true">
                   {m.rotulo}: <span className="text-ink-2">{m.antes}</span> → <span className="font-semibold">{m.depois}</span>
                 </span>

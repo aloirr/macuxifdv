@@ -26,7 +26,7 @@ export { useInicio } from './lib/usar-inicio';
 export { TelaInicioCampo, useInicioCampo, ENTIDADE_FRASE_DIA, definirResolvedorFotoPerfil, type ResolvedorFotoPerfil, type PropsTelaInicioCampo, type VisaoInicioCampo } from './telas/inicio';
 export { ENTIDADE_USUARIO_AVATAR } from './telas/inicio/foto-perfil';
 export { useNotificacoes } from './lib/usar-notificacoes';
-export { chaveDeOrdemDaCarga, progressoDaEntrada } from '../domain/entrada-sync';
+export { chaveDeOrdemDaCarga, essencialDaEntrada, etapaQueLibera, progressoDaEntrada } from '../domain/entrada-sync';
 export { OpenVisitBar } from './components/open-visit-bar';
 export { VisitSheetsProvider, useVisitSheets } from './components/visit-sheets';
 
@@ -70,6 +70,8 @@ export const moduloApp = definirModuloShell<ComponentType>({
 export { TelaLogin, type PropsTelaLogin } from './components/tela-login';
 export { TelaCrieSuaSenha, type PropsTelaCrieSuaSenha } from './components/tela-crie-sua-senha';
 export { TelaEsqueciSenha, type PropsTelaEsqueciSenha } from './components/tela-esqueci-senha';
+export { TelaTrocarSenha, type PropsTelaTrocarSenha } from './components/tela-trocar-senha';
+export { erroDaTrocaVoluntaria, precheckDaTrocaVoluntaria, trocarMinhaSenha } from './lib/trocar-senha';
 export { entrarComSenha, mensagemDeErroDeLogin, validarLogin, type CamposLogin } from './lib/login';
 export { AVISO_SENHA_CRIADA, detalhesDaTroca, ehSenhaATrocar, pedirSenhaTemporaria, trocarSenhaPeloApp, type CamposEsqueci, type DadosDaTroca } from './lib/senha';
 export { ehAparelhoBloqueado, tratarAparelhoBloqueado, type AcoesAparelhoBloqueado } from './lib/aparelho-bloqueado';

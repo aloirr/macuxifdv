@@ -220,6 +220,24 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > tenant da linha) e `plataforma.sync_pacote_pedido` (pedido de geração idempotente por partição), fora do sync; app lê e pede,
 > worker gera; índice `catalogo.tabela_preco_item_filial_sync_ix (tenant_id, filial_id, updated_at, id)`. Detalhes no
 > [sync-pacote.md](sync-pacote.md); teste `db/testes/sync-pacote.db.test.ts`.
+>
+> **2026-11-15 (decisão do dono do produto, R-20261115-073000-alexandre, item 3):** `0075_catalogo_referencia_marca_opcional`:
+> `catalogo.produto_referencia.marca_id` aceita nulo (referência só com o código) e o único vivo passa a ser
+> `produto_referencia_produto_codigo_uk (tenant_id, produto_id, codigo_compacto)`; as vivas que repetiam o código no produto ficam
+> só na de menor ordem. Detalhes no [catalogo.md](catalogo.md); teste `db/testes/referencia-marca-opcional.db.test.ts`.
+>
+> **2026-11-15 (T-0176, R-20261115-093000 e R-20261115-094500):** `0077_core_usuario_filial` (0070–0073 no main; 0074–0076 de outros lotes):
+> `core.usuario.filial_cadastro_id` (nula = bloqueado) e `core.usuario_filial` (filiais de venda); a de cadastro está entre as
+> de venda (gatilho adiado `usuario_filial_inclui_cadastro`, 23514, hint RN-CORE-39). Backfill: na empresa com uma filial viva,
+> todo usuário vivo recebe a filial (cadastro e venda); os demais ficam bloqueados. A `provisionar_tenant` (CLI, seeds e portal)
+> cria o admin inicial com a filial padrão (cadastro e venda). Detalhes no [core.md](core.md); teste `db/testes/usuario-filial.db.test.ts`.
+>
+> **2026-11-15 (T-0174, RN-CAT-14, ADR 0058; R-20261115-074500):** `0079_catalogo_foto_lote` (número 0079, correção da sessão principal em 15/11):
+> `plataforma.arquivo` aceita PNG, WEBP (imagens até 8 MiB) e ZIP (até 500 MiB); `plataforma.trabalho` com
+> `trabalho_reservar`/`trabalho_devolver`/`trabalho_renovar` (só ao worker); `catalogo.foto_lote` (idempotência pelo SHA-256 do
+> ZIP) e `catalogo.foto_lote_item` (checkpoint por índice); `catalogo.produto_midia.hash_conteudo` (repetido) e a principal
+> sempre na ordem 1 (dados antigos sem andar o `updated_at`); `core.produto_sku_lower_ix`. Detalhes no [catalogo.md](catalogo.md)
+> e no [plataforma.md](plataforma.md); teste `db/testes/foto-lote.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
@@ -486,6 +504,37 @@ Todas aceitam `--banco <nome>` (padrão: `MACUXI_PG_BANCO` ou `macuxi`).
 - **Timeouts:** `db/vitest.config.ts` usa `testTimeout` e `hookTimeout` de 300 s (o caso do aparelho SQLite tem 600 s
   próprios). Tempo de caso não mede desempenho (quem mede é o EXPLAIN): up/down/up (S0-021), seeds e `--recriar`
   levam segundos sozinhos, mas passam de 60 s com o `pnpm test` da raiz carregando todos os pacotes no mesmo Postgres.
+
+## Testes de banco na sessão da nuvem
+Sem Docker (R-20261115-213600-alexandre: só nas sessões da nuvem, Linux root). `db/scripts/pg-local.sh` sobe com o
+PostgreSQL 16.15 do Ubuntu os dois servidores do CI: **5432** (superusuário `postgres`/`postgres`) e **5433** (servidor limpo
+para o admin sem superusuário). TZ UTC, UTF8, locale `en_US.UTF-8` e pgvector (0.6.0 do apt; o CI tem 0.8.2), dados em
+`/var/lib/postgresql/macuxi` (fora do repositório; `MACUXI_PG_LOCAL_DIR` muda), fsync desligado. Nunca atualiza o
+`postgresql-16` (o CI trava a 16.15). Sem pgvector, o `--env` inclui `MACUXI_PG_SEM_VECTOR=1`.
+
+**Node 24.7 ou mais** (engines; o seed usa `crypto.argon2Sync`): com o Node 22 da sessão a suíte falha no globalSetup. O
+`--env` põe `/opt/node24/bin` no PATH quando ele existe (`MACUXI_NODE24_DIR` muda). Para instalar, baixe
+`node-v24.x-linux-x64.tar.xz` de `nodejs.org/dist/latest-v24.x/`, confira o `SHASUMS256.txt` e extraia com
+`tar -xJf <arquivo> -C /opt/node24 --strip-components=1`.
+
+| Quero | Comando |
+|---|---|
+| Subir (instala o que faltar; idempotente) | `bash db/scripts/pg-local.sh` (ou `--subir`) |
+| Ver as variáveis do CI e o `PATH` | `bash db/scripts/pg-local.sh --env` |
+| Ver se estão de pé | `bash db/scripts/pg-local.sh --status` |
+| Parar (os dados ficam) | `bash db/scripts/pg-local.sh --parar` |
+| Recriar a 5433 limpa (repetir o admin sem superusuário) | `bash db/scripts/pg-local.sh --limpar-5433` |
+
+Suítes, como no CI:
+```bash
+eval "$(bash db/scripts/pg-local.sh --env)"
+pnpm --filter @macuxi/db test                                  # 5432, superusuário
+MACUXI_PG_PORTA=5433 pnpm --filter @macuxi/db admin-sem-superusuario
+MACUXI_PG_PORTA=5433 MACUXI_PG_ADMIN_USUARIO=macuxi_admin_sem_super MACUXI_PG_ADMIN_SENHA=macuxi_admin_sem_super_ci \
+  MACUXI_PG_ADMIN_SEM_SUPER=1 pnpm --filter @macuxi/db test   # 5433, sem superusuário
+```
+O `admin-sem-superusuario` recusa servidor com banco modelo/teste de uma rodada anterior: rode `--limpar-5433` antes de
+repetir. Tempos medidos: [docs/testes/antes-do-push.md](../testes/antes-do-push.md).
 
 ## Para o agente `testes` (tests/)
 

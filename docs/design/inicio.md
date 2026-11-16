@@ -51,7 +51,7 @@ Ordem: **boas-vindas → Recados → Meta do mês → Orçamentos e A faturar �
 | Peça | Estilo | Texto |
 |---|---|---|
 | Data | `type.sub` (13, `ink2`) | "Quarta, 4 de novembro" |
-| Saudação | `type.saudacao` (Archivo 26/800, `ink`), 1 linha | "Bom dia, Lucas" (5h–11h59) · "Boa tarde, Lucas" (12h–17h59) · "Boa noite, Lucas" (18h–4h59), fuso do tenant, só o primeiro nome |
+| Saudação | `type.saudacao` (22/700, `ink`), 1 linha | "Bom dia, Lucas" (5h–11h59) · "Boa tarde, Lucas" (12h–17h59) · "Boa noite, Lucas" (18h–4h59), fuso do tenant, só o primeiro nome |
 | Visitas | `type.sub` | "6 visitas hoje · 3 feitas" · 1: "1 visita hoje · 1 feita" · sem paradas em dia útil: "Sem rota hoje" · sem paradas e `dia_util` falso: "Sem rota hoje · não é dia útil" (RD-0006: o "não é dia útil" fica só aqui; o cartão de meta não repete) |
 - O bloco inteiro abre o Perfil (alvo ≥ 48; leitor: "Boa tarde, Lucas. Abrir perfil"). Sem sino e sem hora no topo.
 - Começa abaixo da barra de status (área segura do shell; no Android o piso é `StatusBar.currentHeight`).
@@ -76,7 +76,7 @@ Ordem: **boas-vindas → Recados → Meta do mês → Orçamentos e A faturar �
 O realizado de hoje sai do Início (está em Metas).
 - Topo: `type.rotulo` **"META DO MÊS"** · à direita `sub` o % do mês, uma vez: "40%"; abaixo de 1%, com 1 casa ("0,3%");
   sem "mês" (o título já diz).
-- Linha do valor: `title16`/Archivo 22 tabular **"R$ 553 de R$ 180.000"** (realizado do mês **de** meta do mês, numa linha só,
+- Linha do valor: `t.number` tabular **"R$ 553 de R$ 180.000"** (realizado do mês **de** meta do mês, numa linha só,
   sem "no mês").
 - Barra 6 dp (`accent` sobre `lineSoft`, limitada a 100%) — a **única** barra do cartão.
 - Última linha `sub`, uma das duas:
@@ -112,14 +112,13 @@ O realizado de hoje sai do Início (está em Metas).
 ### 1.5 Sincronizar (kit: `BotaoSincronizar`, `packages/ui/src/mobile/sincronizacao.tsx`)
 - Botão 52 na largura toda, `variant="dark"` (grafite `ink`, texto branco), ícone `sync`, rótulo "Sincronizar".
 - Abaixo, **centralizado**, `small` `ink2`: "Última sincronização 16:25 · 0 na fila" (RN-CORE-23); nunca sincronizado:
-  "Ainda não sincronizado · 2 na fila"; logo depois de um toque: "Atualizado há instantes".
+  "Ainda não sincronizado · 2 na fila". Intervalo mínimo entre sincronizações: `sync-completa/spec.md` §5.
 - Sincronizando: o botão mostra o indicador de carregamento e fica sem toque.
 - Modo sem sinal ligado: botão desabilitado "Sem sinal" e, acima da linha de situação, centralizado em `warningInk`,
   "Desligue o modo sem sinal para sincronizar".
 - **Aviso único de dado antigo (RD-0008)**: prop `avisoDados` do `BotaoSincronizar` (texto pronto do shell, fuso do tenant).
   Com ela, a linha de situação vira **"⟳ Dados de 06/11, 6h28 · 0 na fila"** (ícone `sync` 14 + `small` semibold, `warningInk`,
-  centralizada, testID `<testID>-aviso-dados`; a linha continua `<testID>-situacao`), no lugar de "Última sincronização…" e
-  também de "Atualizado há instantes" (se a cópia continua velha depois do toque, o aviso continua). Textos:
+  centralizada, testID `<testID>-aviso-dados`; a linha continua `<testID>-situacao`), no lugar de "Última sincronização…". Textos:
   base defasada (`base.defasado`) **"Dados de 06/11, 6h28"**; sem cópia de vendas (`sem_realizado`) **"Sincronize para ver as
   vendas"**. O "· N na fila" fica (redundância útil, RN-CORE-23). Não repete "Sincronizar": o botão logo acima já diz.
   Vale para A faturar, Positivação e Meta ao mesmo tempo, por isso não fica em cartão nenhum.
@@ -171,14 +170,14 @@ Meta do mês da equipe · {pct}% · R$ {realizado} de R$ {meta} · Meta de hoje 
 R$ {valor} por dia útil ({n} dias) · Meta de hoje batida · Meta do mês batida · {x} de {y} clientes · {x} de {y} ·
 {x}% de {y}% · Nenhuma meta cadastrada. · Orçamentos · A faturar · nenhum · {n} · R$ {valor} ({n} vence(m) amanhã) ·
 ({n} aguardando aprovação) · Pedidos para aprovar · Equipe agora · Sincronizar · Última sincronização {hh:mm} · {n} na fila ·
-Ainda não sincronizado · Atualizado há instantes · Dados de {dd/mm}, {h}h{mm} · Sincronize para ver as vendas · Sem sinal ·
+Ainda não sincronizado · Dados de {dd/mm}, {h}h{mm} · Sincronize para ver as vendas · Sem sinal ·
 Desligue o modo sem sinal para sincronizar.
 Saíram (RD-0002 a RD-0011): "Recados de hoje", "Meta de hoje" como título, "mês {pct}%", "Faltam {valor} hoje", "Hoje não é dia
 útil" no cartão, "Nenhuma visita na rota de hoje", "Acumulado do mês", "meta {pct}%", "{x} clientes de {y} clientes",
 "Vendas até {data} às {hora}. Sincronize para atualizar.".
 
 ## 6. Cliente 360 (mesma referência, tela do Core)
-- Topo abaixo da barra de status: "‹ Rota de hoje" (de onde veio) · nome Archivo · endereço · "cliente desde 2026" · chips
+- Topo abaixo da barra de status: "‹ Rota de hoje" (de onde veio) · nome em `t.h1Small` · endereço · "cliente desde 2026" · chips
   (Curva, segmento, "Positivado em nov").
 - Ligar · WhatsApp · Mapa (3 botões de 48 na mesma linha).
 - Grade de indicadores 2 colunas, nesta ordem: Compra média/mês · Última compra · Limite disponível · Títulos vencidos ·

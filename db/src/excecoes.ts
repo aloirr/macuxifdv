@@ -33,6 +33,8 @@ export const TABELAS_SEM_TENANT_ID = {
   'plataforma.empresa_excluida': 'registro da empresa excluída, código nunca reaproveitado (ADR 0052, RN-PLA-10); só por função',
   /** Dados legais da Macuxi (0073, rodapé legal): dado da PLATAFORMA, uma linha só; só pelas funções plataforma.sa_* e dados_legais_publicos. */
   'plataforma.dados_legais': 'razão social, CNPJ e site da Macuxi, fora dos tenants (rodape-legal.md §3.2); só por função',
+  /** Frases da tela de carga (0081, T-0181): cadastro GLOBAL do super-admin, vale para todas as empresas; só por função. */
+  'plataforma.frase_carga': 'frases da tela de carga, globais (T-0181); portal pelas sa_*_frase_carga, app pela frases_carga_ativas()',
 } as const;
 
 /**
@@ -58,6 +60,8 @@ export const TABELAS_SO_POR_FUNCAO = [
   'plataforma.empresa_excluida',
   /** 0073 (rodapé legal): lida pela dados_legais_publicos (app) e pelas sa_* do portal; gravada só pela sa_gravar_dados_legais. */
   'plataforma.dados_legais',
+  /** 0081 (T-0181): frases da tela de carga; o app lê pela plataforma.frases_carga_ativas(), o portal pelas sa_*_frase_carga. */
+  'plataforma.frase_carga',
 ] as const;
 
 /** Tabelas sem o índice de sync (tenant_id, updated_at, id): não são puxadas pelo app. */
@@ -88,8 +92,17 @@ export const TABELAS_FORA_DO_SYNC = [
   /** Pacote da primeira carga (0074, ADR 0054): o aparelho baixa o arquivo pelo manifesto GET /v1/sync/pacotes; as linhas nunca são puxadas. */
   'plataforma.sync_pacote',
   'plataforma.sync_pacote_pedido',
+  /** Trabalho sob demanda (0079, T-0174, ADR 0058): só a API e o worker usam. */
+  'plataforma.trabalho',
+  /** Lote de fotos por ZIP e o relatório por arquivo (0079, T-0174, RN-CAT-14): só o BKO lê; a foto ligada vai ao aparelho pela produto_midia. */
+  'catalogo.foto_lote',
+  'catalogo.foto_lote_item',
+  /** Último contato do aparelho (0084, T-0180, ADR 0059 §5): o Core grava no sync e só a consulta core.produtividade_equipe@1 lê. */
+  'core.usuario_contato',
   /** Contador do número legível do pedido (0009, T-0029): uma linha por tenant, só o servidor usa. */
   'vendedor.numeracao_pedido',
+  /** Contador do Código FDV (0080, T-0175, RN-CORE-59): uma linha por tenant, só o gatilho de core.usuario grava; o código vai no usuário. */
+  'core.usuario_codigo_fdv_contador',
   /** Cota de IA por usuário/dia (0013, RN-CAT-03): só o servidor usa (catalogo.debitar_cota_ia). */
   'catalogo.uso_ia',
   /** Log de busca (0013, RF-CAT-07): só o BKO lê (termos sem resultado). */

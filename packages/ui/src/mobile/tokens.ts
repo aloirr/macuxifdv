@@ -4,7 +4,7 @@
  * Referência: docs/design/referencia-2026-11-03/Componentes.dc.html · especificação: docs/design/componentes.md.
  * Marca v1 (T-0172, manual docs/marca/manual.md §3 e §4): ação em Azul noite #1E3350 (`accent`, `accentInk`), fundo Pérola
  * #F8F6F1, chip em destaque no Azul suave #DFE2E6, laranja #C2540A só em gráfico (`grafico`), cabeçalho na faixa Azul noite
- * (`faixa*`); grafite #16202A no texto. Archivo nos títulos e números, IBM Plex Sans no texto. Pares e razões em
+ * (`faixa*`); grafite #16202A no texto. Fonte do sistema (Roboto no Android), hierarquia por peso; escala em `ESCALA_FONTE`. Pares e razões em
  * `../comum/contraste.ts` e docs/design/componentes.md §1.1.
  */
 
@@ -76,6 +76,14 @@ export const colors = {
   scrim: 'rgba(15,20,25,0.45)',
 } as const;
 
+/**
+ * Escala de fonte do app por papel (R-20261115-110600; manual da marca §5.3): 12 legenda e rótulo pequeno · 14 secundário ·
+ * 16 texto, campo e botão · 18 título de seção e valor · 22 título de tela, folha, diálogo e saudação · 28 número grande.
+ * Nada abaixo de 12. Os estilos de texto (`type` em theme.ts) e os componentes usam só estes tamanhos.
+ */
+export const ESCALA_FONTE = { minimo: 12, apoio: 14, base: 16, secao: 18, titulo: 22, destaque: 28 } as const;
+export const TAMANHOS_FONTE: readonly number[] = Object.values(ESCALA_FONTE);
+
 /** Escala de espaçamento (dp). Use estes valores em gap, padding e margin. */
 export const space = { xxs: 2, xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24, xxxl: 32 } as const;
 
@@ -96,7 +104,7 @@ export const layout = {
 
 /**
  * Raios. `sm`…`xxl` são os antigos (continuam valendo); os nomes em português dizem onde usar.
- * Botão 52 → 14; botão 44 → 12; cartão 14; seção 18; folha 22; pílula (chip de estado) 999.
+ * Botão 52 → 14; botão 44 → 12; cartão 14; seção 18; diálogo 20; folha 22; pílula (chip de estado) 999.
  */
 export const radius = {
   sm: 8,
@@ -109,6 +117,8 @@ export const radius = {
   cartao: 14,
   secao: 18,
   folha: 22,
+  /** diálogo central (`Dialogo`, folha.tsx) */
+  dialogo: 20,
   pilula: 999,
 } as const;
 

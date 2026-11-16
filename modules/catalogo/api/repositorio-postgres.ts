@@ -70,8 +70,8 @@ async function enriquecer(db: ClienteBanco, produtos: ProdutoCatalogo[], marcas:
     `select produto_id, nome, valor from catalogo.produto_atributo where produto_id = any($1::uuid[]) and deleted_at is null order by ordem, nome`,
     [ids],
   );
-  const co = await db.query<{ produto_id: string; campanha: boolean; aplicacao: string | null }>(
-    `select produto_id, (campanha or destaque) as campanha, aplicacoes as aplicacao from catalogo.produto_conteudo where produto_id = any($1::uuid[]) and deleted_at is null`,
+  const co = await db.query<{ produto_id: string; campanha: boolean; aplicacao: string | null; descricao: string | null }>(
+    `select produto_id, (campanha or destaque) as campanha, aplicacoes as aplicacao, descricao from catalogo.produto_conteudo where produto_id = any($1::uuid[]) and deleted_at is null`,
     [ids],
   );
   const rf = await db.query<{ produto_id: string; marca_id: string; codigo: string; marca_nome: string | null }>(
@@ -90,6 +90,7 @@ async function enriquecer(db: ClienteBanco, produtos: ProdutoCatalogo[], marcas:
   }
   const campanha = new Map(co.rows.map((r) => [r.produto_id, r.campanha]));
   const aplicacao = new Map(co.rows.map((r) => [r.produto_id, r.aplicacao ?? '']));
+  const descricao = new Map(co.rows.map((r) => [r.produto_id, r.descricao ?? '']));
   const referencias = new Map<string, Referencia[]>();
   for (const r of rf.rows) {
     // cadastro de marcas disponível: manda (marca inativa/ausente esconde); vazio: retrato marca_nome (RN-CAT-09)
@@ -102,6 +103,7 @@ async function enriquecer(db: ClienteBanco, produtos: ProdutoCatalogo[], marcas:
     ...p,
     atributos: atributos.get(p.id) ?? [],
     aplicacao: aplicacao.get(p.id) ?? '',
+    descricao: descricao.get(p.id) ?? '',
     referencias: referencias.get(p.id) ?? [],
     campanha: campanha.get(p.id) ?? false,
     thumbnail_url: thumb.get(p.id) ?? null,
@@ -628,7 +630,7 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       );
       if (atual.rows[0]?.arquivo_id === arquivoId) return { alterou: false };
       esquecerRetratoCatalogo(ctx.usuario.tenant_id);
-      await definirFotoPrincipal(db, ctx.usuario.tenant_id, produtoId, { id: randomUUID(), arquivoId, titulo: titulo ?? null });
+      await definirFotoPrincipal({ db, publicar: tx.publicar }, ctx.usuario.tenant_id, produtoId, { id: randomUUID(), arquivoId, titulo: titulo ?? null }, ctx.agora());
       return { alterou: true };
     },
     async salvarConteudo(produtoId, c, em) {

@@ -33,7 +33,7 @@ import { alturaMaximaDaFolha, ALVO_TOQUE, coberturaDoTeclado, rolagemAteCampo } 
 import { Icon, type IconName } from './icon';
 import { deslocamentoDaFolha, duracaoMovimento } from './movimento';
 import { curvaPadrao, Pressionavel, useReduzirMovimento } from './movimento-rn';
-import { colors, fonts, radius, shadow } from './theme';
+import { colors, fonte, radius, shadow } from './theme';
 
 /** Mantém montado durante a saída e devolve o progresso 0 → 1 da entrada (0 = fechado). */
 function useEntradaSaida(visivel: boolean, duracao: number) {
@@ -283,6 +283,8 @@ export function Dialogo({
   confirmar,
   perigo,
   onFechar,
+  bloqueado,
+  children,
   testID = 'dialogo',
 }: {
   visivel: boolean;
@@ -290,16 +292,20 @@ export function Dialogo({
   titulo: string;
   /** Linha opcional abaixo do título (use só quando o título não basta). */
   mensagem?: string;
-  /** Botão da esquerda (ex.: "Voltar"); também é o que o botão Voltar do Android faz quando não há `onFechar`. */
-  cancelar: AcaoTexto;
-  /** Botão da direita (ex.: "Descartar"). */
-  confirmar: AcaoTexto & { ocupado?: boolean };
+  /** Botão da esquerda, neutro (ex.: "Voltar"); também é o que o botão Voltar do Android faz quando não há `onFechar`. */
+  cancelar?: AcaoTexto;
+  /** Botão da direita, principal (ex.: "Descartar"). Sem `cancelar` e sem `confirmar`, o diálogo não tem linha de botões. */
+  confirmar?: AcaoTexto & { ocupado?: boolean };
   /** Confirmar em vermelho (ação destrutiva). */
   perigo?: boolean;
   onFechar?: () => void;
+  /** O Voltar do Android não faz nada (ex.: progresso da sincronização completa, R-20261115-100000). O toque fora nunca fecha. */
+  bloqueado?: boolean;
+  /** Conteúdo entre a mensagem e os botões (ex.: `BarraProgresso`). */
+  children?: ReactNode;
   testID?: string;
 }) {
-  const fechar = onFechar ?? cancelar.onPress;
+  const fechar = bloqueado ? semAcao : (onFechar ?? cancelar?.onPress ?? semAcao);
   const reduzir = useReduzirMovimento();
   const { montado, progresso } = useEntradaSaida(visivel, duracaoMovimento('dialogo', reduzir));
   return (
@@ -310,30 +316,40 @@ export function Dialogo({
             {titulo}
           </Text>
           {mensagem ? <Text style={s.dialogoMsg}>{mensagem}</Text> : null}
-          <View style={s.dialogoBotoes}>
-            <Pressionavel testID={cancelar.testID ?? `${testID}-cancelar`} accessibilityRole="button" onPress={cancelar.onPress} style={[s.dialogoBotao, s.dialogoBotaoFora]}>
-              <Text style={[s.dialogoBotaoTexto, { color: colors.ink }]} numberOfLines={1}>
-                {cancelar.rotulo}
-              </Text>
-            </Pressionavel>
-            <Pressionavel
-              testID={confirmar.testID ?? `${testID}-confirmar`}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: Boolean(confirmar.ocupado), busy: Boolean(confirmar.ocupado) }}
-              disabled={confirmar.ocupado}
-              onPress={confirmar.onPress}
-              vibrar
-              style={[s.dialogoBotao, { backgroundColor: perigo ? colors.danger : colors.accent }, confirmar.ocupado && s.desligado]}>
-              <Text style={[s.dialogoBotaoTexto, { color: perigo ? colors.surface : colors.onAccent }]} numberOfLines={1}>
-                {confirmar.rotulo}
-              </Text>
-            </Pressionavel>
-          </View>
+          {children ? <View style={s.dialogoConteudo}>{children}</View> : null}
+          {cancelar || confirmar ? (
+            <View style={s.dialogoBotoes}>
+              {cancelar ? (
+                <Pressionavel testID={cancelar.testID ?? `${testID}-cancelar`} accessibilityRole="button" onPress={cancelar.onPress} style={[s.dialogoBotao, s.dialogoBotaoFora]}>
+                  <Text style={[s.dialogoBotaoTexto, { color: colors.ink }]} numberOfLines={1}>
+                    {cancelar.rotulo}
+                  </Text>
+                </Pressionavel>
+              ) : null}
+              {confirmar ? (
+                <Pressionavel
+                  testID={confirmar.testID ?? `${testID}-confirmar`}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: Boolean(confirmar.ocupado), busy: Boolean(confirmar.ocupado) }}
+                  disabled={confirmar.ocupado}
+                  onPress={confirmar.onPress}
+                  vibrar
+                  style={[s.dialogoBotao, { backgroundColor: perigo ? colors.danger : colors.accent }, confirmar.ocupado && s.desligado]}>
+                  <Text style={[s.dialogoBotaoTexto, { color: perigo ? colors.surface : colors.onAccent }]} numberOfLines={1}>
+                    {confirmar.rotulo}
+                  </Text>
+                </Pressionavel>
+              ) : null}
+            </View>
+          ) : null}
         </View>
       </Animated.View>
     </Modal>
   );
 }
+
+/** Voltar do Android sem efeito (diálogo `bloqueado` ou sem botão de saída). */
+function semAcao(): void {}
 
 const FUNDO = colors.scrim;
 
@@ -345,7 +361,7 @@ const s = StyleSheet.create({
   folha: { position: 'absolute', left: 0, right: 0, bottom: 0, alignSelf: 'center', width: '100%', maxWidth: 560, backgroundColor: colors.surface, borderTopLeftRadius: radius.folha, borderTopRightRadius: radius.folha, paddingTop: 8, paddingHorizontal: 16, gap: 9, ...shadow.folha },
   /** alça visual no topo (indica que a folha desce) */
   alca: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.lineStrong, marginBottom: 6 },
-  titulo: { fontFamily: fonts.display, fontSize: 19, color: colors.ink, marginBottom: 0 },
+  titulo: { ...fonte.bold, fontSize: 22, color: colors.ink, marginBottom: 0 },
   /** título + ✕ (T-0141): o ✕ ocupa o alvo inteiro de 48 dp, com o ícone de 20 alinhado à direita do conteúdo */
   cabecalho: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: ALVO_TOQUE },
   tituloComFechar: { flex: 1, minWidth: 0 },
@@ -354,21 +370,23 @@ const s = StyleSheet.create({
   rolagem: { flexGrow: 0, flexShrink: 1 },
   rolagemConteudo: { gap: 9 },
   rodape: { minHeight: ALVO_TOQUE, alignItems: 'center', justifyContent: 'center', marginTop: 5 },
-  rodapeTexto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink2 },
+  rodapeTexto: { ...fonte.semibold, fontSize: 14, color: colors.ink2 },
   // .opt / .ic
   opcao: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, minHeight: 56, paddingVertical: 11, paddingHorizontal: 12, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   icone: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   opcaoTextos: { flex: 1, minWidth: 0, gap: 2 },
-  opcaoTitulo: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
-  opcaoSub: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink2 },
+  opcaoTitulo: { ...fonte.semibold, fontSize: 14, color: colors.ink },
+  opcaoSub: { ...fonte.body, fontSize: 12, color: colors.ink2 },
   // diálogo central
   dialogoFundo: { flex: 1, backgroundColor: FUNDO, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  dialogo: { width: '100%', maxWidth: 420, backgroundColor: colors.surface, borderRadius: radius.xxl, padding: 18, gap: 8 },
-  dialogoTitulo: { fontFamily: fonts.display, fontSize: 18, color: colors.ink },
-  dialogoMsg: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.ink2 },
+  // padrão único de diálogo (simulação aprovada: docs/design/sync-completa/sync.css)
+  dialogo: { width: '100%', maxWidth: 420, backgroundColor: colors.surface, borderRadius: radius.dialogo, padding: 20, paddingTop: 22, paddingBottom: 24, gap: 10 },
+  dialogoTitulo: { ...fonte.bold, fontSize: 22, color: colors.ink },
+  dialogoMsg: { ...fonte.body, fontSize: 16, lineHeight: 22, color: colors.ink2 },
+  dialogoConteudo: { marginTop: 10 },
   dialogoBotoes: { flexDirection: 'row', gap: 9, marginTop: 8 },
   dialogoBotao: { flex: 1, minHeight: ALVO_TOQUE, borderRadius: radius.botaoMedio, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   /** nível neutro do guia (Cancelar) */
   dialogoBotaoFora: { backgroundColor: colors.lineSoft },
-  dialogoBotaoTexto: { fontFamily: fonts.semibold, fontSize: 14 },
+  dialogoBotaoTexto: { ...fonte.semibold, fontSize: 14 },
 });
