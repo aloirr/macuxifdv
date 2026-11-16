@@ -102,3 +102,4 @@
 2026-11-16 — v1.0.14 — #457 8ca5977c LIBERADO.
 2026-11-16 — v1.0.14 — #465 2af065b5 LIBERADO.
 2026-11-16 — v1.0.14 — #466 409e5c11 LIBERADO (ciclo-erp no monitor novo).
+2026-11-16 — v1.0.14 — #470 e29e0411 (0085 filial matriz): regra correta; RD-2120, RD-2121 (baixas, seguram), RD-2122 (não segura).
