@@ -201,7 +201,7 @@ describe('detalhe', () => {
 
 describe('cabeçalho do portal', () => {
   it('Empresas e Diagnósticos; o item ativo pelo caminho, com ou sem o prefixo /config', () => {
-    expect(MENU_TIME_MACUXI.map((i) => i.rotulo)).toEqual(['Empresas', 'Diagnósticos']);
+    expect(MENU_TIME_MACUXI.map((i) => i.rotulo)).toEqual(['Empresas', 'Diagnósticos', 'Frases da carga']);
     expect(itemAtivoDoMenu('/diagnosticos')).toBe('/diagnosticos');
     expect(itemAtivoDoMenu(`/config/diagnosticos/${ID}`)).toBe('/diagnosticos');
     expect(itemAtivoDoMenu('/empresas/nova')).toBe('/empresas');
