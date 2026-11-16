@@ -7,6 +7,8 @@
  * tela que abre para substituir o topo da pilha); o foco da
  * rota `m/[...caminho]` diz quando a próxima tela vem de fora (Início, Mais, Perfil) e recomeça a pilha da aba dela; o
  * foco do Início e do "Mais" diz de onde ela veio (o voltar na raiz devolve para lá, e a barra acende essa aba).
+ * ADR 0054 (solução 5): a entrada libera com a carga completa ou com os essenciais feitos (`liberado_em`); o resto da carga
+ * segue com o indicador discreto colado em cima da barra de abas (`CargaEmFundo`).
  */
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import * as kit from '@macuxi/ui/mobile';
@@ -14,9 +16,11 @@ import { Redirect } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
 import type { Provider, ReactNode } from 'react';
 
+import { CargaEmFundo } from '@/components/carga-fundo';
 import { ProvedorContagemSino, Sino } from '@/components/sino';
 import { abasDoShell, TabBar } from '@/components/tab-bar';
 import { MAX_ABAS_POR_VARIANTE } from '@/lib/abas';
+import { entradaLiberadaPeloMotor } from '@/lib/carga-fundo';
 import { comHistoricoDoShell, marcarOrigemFora, marcarSaidaDoModulo, marcarVoltaAoModulo, ROTA_MODULO } from '@/lib/historico-telas';
 import { varianteAtual } from '@/lib/variante';
 import { usePlataforma } from '@/state/plataforma';
@@ -33,12 +37,17 @@ export default function TabsLayout() {
   // o `router.replace` de uma tela de módulo para outra substitui o topo da pilha da aba (o editor sai da pilha): o
   // roteador do shell marca a tela que abre (`PARAM_SUBSTITUIR`, ADR 0026), sem evento interno nem janela de tempo
   if (!sessao) return <Redirect href="/login" />;
-  if (!estado.sincronizado_em) return <Redirect href="/sync" />;
+  if (!entradaLiberadaPeloMotor(estado)) return <Redirect href="/sync" />;
   const abas = (
     <Tabs
       backBehavior="history"
       UNSTABLE_router={(original) => comHistoricoDoShell(original)}
-      tabBar={() => <TabBar abas={abasDoShell(visao.navegacao, MAX_ABAS_POR_VARIANTE[varianteAtual()])} />}
+      tabBar={() => (
+        <>
+          <CargaEmFundo />
+          <TabBar abas={abasDoShell(visao.navegacao, MAX_ABAS_POR_VARIANTE[varianteAtual()])} />
+        </>
+      )}
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: kit.colors.ground } }}>
       <Tabs.Screen name="index" options={{ title: 'Início' }} listeners={{ focus: () => marcarOrigemFora('inicio') }} />
       <Tabs.Screen name={ROTA_MODULO} options={{ title: 'Módulo' }} listeners={{ focus: marcarVoltaAoModulo, blur: marcarSaidaDoModulo }} />
