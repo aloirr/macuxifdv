@@ -86,3 +86,4 @@
 2026-11-16 — v1.0.14 — #456 9a1fd369: marca liberada (MC-1610 fechada); corretor RD-1860..1870 fechados na parte do core, novas RD-1980..1983 (RD-1984 não segura); pendências no #390 e no engenheiro-apps.
 2026-11-16 — v1.0.14 — LIBERADOS #448 10d1d0ee, #419 481041fd, #413 29efc2db, #398 1e271131.
 2026-11-16 — v1.0.14 — #420 b72873ae LIBERADO (RD-1575/1576 fechados); depende do #410 exportar VerificadorSenha.
+2026-11-16 — v1.0.14 — #421 c14b1ead: RD-1580/1581 fechados; RD-2000 (alta: 127 .js compilados no SDK) e RD-2001.
