@@ -67,11 +67,11 @@ vi.mock('@macuxi/ui/mobile', () => {
       useReduzirMovimento: () => true,
       Botao: ({ rotulo, testID }: { rotulo: string; testID?: string }) => createElement('button', { 'data-testid': testID }, rotulo),
       // RD-0635: a barra do kit (mesmo contrato: `${testID}-etapa` com o rótulo ao leitor e `${testID}-pct`)
-      BarraProgresso: ({ rotulo, pct, mostrarRotulo = true, testID = 'entrada' }: { rotulo: string; pct: number | null; mostrarRotulo?: boolean; testID?: string }) =>
+      BarraProgresso: ({ rotulo, pct, testID = 'entrada' }: { rotulo: string; pct: number | null; testID?: string }) =>
         createElement(
           'div',
           null,
-          createElement(TextoHost, { testID: `${testID}-etapa`, accessibilityLabel: rotulo }, mostrarRotulo ? rotulo : ''),
+          createElement(TextoHost, { testID: `${testID}-etapa`, accessibilityLabel: rotulo }, rotulo),
           pct === null ? null : createElement(TextoHost, { testID: `${testID}-pct` }, `${pct}%`),
         ),
     } as Record<string | symbol, unknown>,

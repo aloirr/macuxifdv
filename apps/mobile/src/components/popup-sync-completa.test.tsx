@@ -1,6 +1,6 @@
 /**
  * R-20261115-100000: popup da sincronização completa no shell. O `Dialogo` do kit fica bloqueado (Voltar sem efeito) e sem
- * botões enquanto roda, com a `BarraProgresso` nas `CORES_BARRA_DIALOGO` do kit; com erro, "Fechar" e "Tentar de novo". A tela fica acesa
+ * botões enquanto roda, com a `BarraProgresso` nas cores do tema Pérola (`TEMAS_ENTRADA.perola`); com erro, "Fechar" e "Tentar de novo". A tela fica acesa
  * (`useKeepAwake`) só enquanto roda.
  */
 import { CARGA_VAZIA, type EstadoMotorSync } from '@macuxi/platform-sdk';
@@ -33,8 +33,7 @@ vi.mock('@macuxi/ui/mobile', () => {
     get: (_alvo, chave) => (chave === 'then' ? undefined : vazio),
   });
   const simulado: Record<string | symbol, unknown> = {
-    CORES_BARRA_DIALOGO: { texto: '#perola-texto', trilho: '#perola-trilho', preenchimento: '#perola-barra' },
-    TEMAS_ENTRADA: { perola: { erro: '#erro' } },
+    TEMAS_ENTRADA: { perola: { texto: '#perola-texto', trilho: '#perola-trilho', preenchimento: '#perola-barra', erro: '#erro' } },
     TEXTOS_SYNC_COMPLETA: {
       titulo: 'Realizando a sincronização completa',
       texto: 'Aguarde e não saia desta tela.',
