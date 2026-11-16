@@ -5,7 +5,7 @@
  * A regra de "em aberto" é do domain (`orcamentosEmAberto`).
  */
 import { localIsoDate } from '@macuxi/comum/fuso';
-import { colors, EstadoVazio, fonts, Pressionavel, radius, Screen } from '@macuxi/ui/mobile';
+import { colors, EstadoVazio, fonte, Pressionavel, radius, Screen } from '@macuxi/ui/mobile';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -86,12 +86,12 @@ export default function AdicionarAoOrcamentoScreen() {
 
 const s = StyleSheet.create({
   raiz: { flex: 1 },
-  produto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink2 },
-  erro: { fontFamily: fonts.body, fontSize: 13, color: colors.danger },
+  produto: { ...fonte.semibold, fontSize: 14, color: colors.ink2 },
+  erro: { ...fonte.body, fontSize: 14, color: colors.danger },
   cartao: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, overflow: 'hidden' },
   linha: { minHeight: 64, paddingVertical: 12, paddingHorizontal: 14, gap: 3, justifyContent: 'center' },
   traco: { borderTopWidth: 1, borderTopColor: colors.lineSoft },
   apagada: { opacity: 0.5 },
-  cliente: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
-  detalhe: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2, fontVariant: ['tabular-nums'] },
+  cliente: { ...fonte.semibold, fontSize: 16, color: colors.ink },
+  detalhe: { ...fonte.body, fontSize: 14, color: colors.ink2, fontVariant: ['tabular-nums'] },
 });

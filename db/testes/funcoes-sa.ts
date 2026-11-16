@@ -128,13 +128,6 @@ export const FUNCOES_SA_0073 = ['plataforma.sa_dados_legais(uuid)', 'plataforma.
 export const DADOS_LEGAIS_PUBLICOS = 'plataforma.dados_legais_publicos()';
 
 /**
- * As sa_* públicas do banco migrado até a ÚLTIMA (0073): as 25 até a 0072 (FUNCOES_SA_ATE_0072) + as 2 da 0073 = 27. Use esta
- * lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040
- * ou 0041.
- */
-export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0072, ...FUNCOES_SA_0073] as const;
-
-/**
  * Funções do worker da 0072 (ADR 0052): SECURITY DEFINER, EXECUTE só ao macuxi_worker (o tenant sai da linha do job).
  */
 export const FUNCOES_WORKER_0072 = [
@@ -150,6 +143,45 @@ export const FUNCOES_WORKER_0072 = [
   'plataforma.executar_exclusao(uuid)',
   'plataforma.fechar_exclusao(uuid, jsonb)',
 ] as const;
+
+/**
+ * As 27 sa_* públicas do banco até a 0080 (o main antes dos lotes da v1.0.14): as 25 até a 0072 (FUNCOES_SA_ATE_0072) + as 2
+ * da 0073. As 0074 a 0080 não trazem sa_* nova (a 0077 recria a sa_sessao_valida com a mesma assinatura).
+ */
+export const FUNCOES_SA_ATE_0080 = [...FUNCOES_SA_ATE_0072, ...FUNCOES_SA_0073] as const;
+
+/**
+ * As 3 sa_* das frases da tela de carga (T-0181, migração plataforma_frase_carga): o super-admin lista, inclui e edita (texto
+ * e/ou ativa) as frases. EXECUTE só ao macuxi_portal; admin do cliente = 42501. A leitura das ativas pelo app
+ * (plataforma.frases_carga_ativas(), do macuxi_app) não é sa_*.
+ */
+export const FUNCOES_SA_CARGA = [
+  'plataforma.sa_listar_frases_carga(uuid)',
+  'plataforma.sa_incluir_frase_carga(uuid, uuid, text)',
+  'plataforma.sa_editar_frase_carga(uuid, uuid, text, boolean)',
+] as const;
+
+/**
+ * As 4 sa_* da logo do cliente (T-0182, migração plataforma_tenant_logo; desenho docs/desenho/T-0182-logo-cliente.md §1.2): ler a
+ * marca da empresa (super-admin em qualquer uma; admin do cliente só na empresa atual da sessão) e gravar o nome fantasia, gravar
+ * e remover a logo (SÓ super-admin; admin do cliente = 42501). EXECUTE só ao macuxi_portal. A interna que monta o jsonb fica em
+ * MARCA_INTERNA_LOGO.
+ */
+export const FUNCOES_SA_LOGO = [
+  'plataforma.sa_marca_da_empresa(uuid, uuid)',
+  'plataforma.sa_gravar_nome_fantasia(uuid, uuid, text)',
+  'plataforma.sa_gravar_logo(uuid, uuid, jsonb)',
+  'plataforma.sa_remover_logo(uuid, uuid)',
+] as const;
+/** Interna da logo (SECURITY INVOKER, chamada de dentro das sa_* da marca): sem EXECUTE para ninguém além do dono. */
+export const MARCA_INTERNA_LOGO = 'plataforma.marca_da_empresa_json(uuid)';
+
+/**
+ * As sa_* públicas do banco migrado até a ÚLTIMA: as 27 até a 0080 (FUNCOES_SA_ATE_0080) + as de cada lote da v1.0.14, uma
+ * constante por lote (FUNCOES_SA_CARGA, 3; FUNCOES_SA_LOGO, 4) = 34. Use esta lista nas conferências pelo catálogo do banco
+ * migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040 ou 0041.
+ */
+export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0080, ...FUNCOES_SA_CARGA, ...FUNCOES_SA_LOGO] as const;
 
 /** Interna (SECURITY INVOKER, sem EXECUTE para ninguém além do dono), chamada de dentro das sa_*: assinatura da 0039. */
 export const SA_INTERNA = 'plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)';

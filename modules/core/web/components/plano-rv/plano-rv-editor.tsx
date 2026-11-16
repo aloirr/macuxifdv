@@ -20,13 +20,12 @@ import {
   type FormPlano,
   type FormRegra,
 } from '../../lib/plano-rv';
-
-const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
-const CAMPO_CURTO = `${CAMPO} w-[96px] text-right`;
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
+const CAMPO_CURTO = `${CLASSE_CAMPO_BKO} w-[96px] text-right`;
 
 function Rotulado({ rotulo, children, ajuda }: { rotulo: string; children: React.ReactNode; ajuda?: string }) {
   return (
-    <label className="flex flex-col gap-1 text-[14px] font-semibold text-ink">
+    <label className="flex flex-col gap-1 text-[15px] font-semibold text-ink">
       {rotulo}
       {ajuda && <span className="text-[13px] font-normal text-ink-2">{ajuda}</span>}
       {children}
@@ -39,15 +38,15 @@ function RegraEditor({ regra, onChange }: { regra: FormRegra; onChange: (r: Form
   const mudarFaixa = (i: number, patch: Partial<FormFaixa>) => onChange({ ...regra, faixas: regra.faixas.map((f, j) => (j === i ? { ...f, ...patch } : f)) });
   return (
     <fieldset className="m-0 flex min-w-0 flex-col gap-3 rounded-xl border border-line p-3" data-testid={`plano-rv.regra.${id}`}>
-      <legend className="px-1 text-[14px] font-semibold text-ink">{ROTULO_INDICADOR_RV[id]}</legend>
-      <label className="flex min-h-[44px] items-center gap-2 text-[14px] font-semibold text-ink">
+      <legend className="px-1 text-[15px] font-semibold text-ink">{ROTULO_INDICADOR_RV[id]}</legend>
+      <label className="flex min-h-[44px] items-center gap-2 text-[15px] font-semibold text-ink">
         <input type="checkbox" className="h-5 w-5" checked={regra.ativo} onChange={(e) => onChange({ ...regra, ativo: e.target.checked })} data-testid={`plano-rv.${id}.ativo`} />
         Usar {ROTULO_INDICADOR_RV[id]} no plano
       </label>
       {regra.ativo && (
         <>
           <div className="flex flex-wrap items-end gap-4">
-            <label className="flex min-h-[44px] items-center gap-2 text-[14px] text-ink">
+            <label className="flex min-h-[44px] items-center gap-2 text-[15px] text-ink">
               <input type="checkbox" className="h-5 w-5" checked={regra.gatilho} onChange={(e) => onChange({ ...regra, gatilho: e.target.checked })} data-testid={`plano-rv.${id}.gatilho`} />
               É gatilho: abaixo da meta, a RV do mês zera
             </label>
@@ -66,7 +65,7 @@ function RegraEditor({ regra, onChange }: { regra: FormRegra; onChange: (r: Form
                       <input className={CAMPO_CURTO} inputMode="numeric" value={f.de} onChange={(e) => mudarFaixa(i, { de: e.target.value.replace(/\D/g, '') })} />
                     </Rotulado>
                     <Rotulado rotulo={`Faixa ${i + 1}: paga`}>
-                      <select className={`${CAMPO} w-[240px]`} value={f.modo} onChange={(e) => mudarFaixa(i, { modo: e.target.value as FormFaixa['modo'] })}>
+                      <select className={`${CLASSE_CAMPO_BKO} w-[240px]`} value={f.modo} onChange={(e) => mudarFaixa(i, { modo: e.target.value as FormFaixa['modo'] })}>
                         {(Object.keys(ROTULO_MODO) as Array<FormFaixa['modo']>).map((m) => (
                           <option key={m} value={m}>
                             {ROTULO_MODO[m]}
@@ -231,19 +230,19 @@ export function PlanoRvEditor({
           <h3 className="m-0 text-[15px] font-semibold text-ink">Dados do plano</h3>
           <div className="flex flex-wrap gap-6">
             <Rotulado rotulo="Nome do plano">
-              <input ref={nome} className={`${CAMPO} w-[280px]`} maxLength={80} value={form.nome} onChange={(e) => mudar({ nome: e.target.value })} data-testid="plano-rv.nome" />
+              <input ref={nome} className={`${CLASSE_CAMPO_BKO} w-[280px]`} maxLength={80} value={form.nome} onChange={(e) => mudar({ nome: e.target.value })} data-testid="plano-rv.nome" />
             </Rotulado>
             <Rotulado rotulo="Vale a partir de" ajuda="Vale até o mês anterior ao início do próximo plano.">
-              <input type="month" className={`${CAMPO} w-[180px]`} value={form.vigencia_inicio} onChange={(e) => mudar({ vigencia_inicio: e.target.value })} data-testid="plano-rv.vigencia" />
+              <input type="month" className={`${CLASSE_CAMPO_BKO} w-[180px]`} value={form.vigencia_inicio} onChange={(e) => mudar({ vigencia_inicio: e.target.value })} data-testid="plano-rv.vigencia" />
             </Rotulado>
             <Rotulado rotulo="Valor da RV com 100% em tudo (R$)" ajuda="Cada indicador paga a parte do seu peso. Faixas acima de 100% pagam mais que este valor.">
-              <input className={`${CAMPO} w-[180px] text-right`} inputMode="decimal" placeholder="2.000,00" value={form.valor_maximo} onChange={(e) => mudar({ valor_maximo: e.target.value.replace(/[^\d,.]/g, '') })} data-testid="plano-rv.valor" />
+              <input className={`${CLASSE_CAMPO_BKO} w-[180px] text-right`} inputMode="decimal" placeholder="2.000,00" value={form.valor_maximo} onChange={(e) => mudar({ valor_maximo: e.target.value.replace(/[^\d,.]/g, '') })} data-testid="plano-rv.valor" />
             </Rotulado>
           </div>
           <div className="flex flex-wrap items-center gap-5">
-            <span className="text-[14px] font-semibold text-ink">Vale para</span>
+            <span className="text-[15px] font-semibold text-ink">Vale para</span>
             {(['vendedor', 'promotor'] as const).map((p) => (
-              <label key={p} className="flex min-h-[44px] items-center gap-2 text-[14px] text-ink">
+              <label key={p} className="flex min-h-[44px] items-center gap-2 text-[15px] text-ink">
                 <input type="checkbox" className="h-5 w-5" checked={form.perfis[p]} onChange={(e) => mudar({ perfis: { ...form.perfis, [p]: e.target.checked } })} data-testid={`plano-rv.perfil.${p}`} />
                 {rotuloDoPerfil(p)}
               </label>
@@ -256,7 +255,7 @@ export function PlanoRvEditor({
               return <RegraEditor key={ind} regra={regra} onChange={(r) => mudar({ regras: form.regras.map((x) => (x.indicador === ind ? r : x)) })} />;
             })}
           </div>
-          <p className={`m-0 text-[14px] font-semibold ${somaDosPesos(form) === 100 ? 'text-ink' : 'text-danger'}`} data-testid="plano-rv.pesos" role="status">
+          <p className={`m-0 text-[15px] font-semibold ${somaDosPesos(form) === 100 ? 'text-ink' : 'text-danger'}`} data-testid="plano-rv.pesos" role="status">
             {textoDosPesos(form)}
           </p>
           {mensagens.length > 0 && (

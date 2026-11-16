@@ -14,7 +14,7 @@
  * Curvas ABC (RN-CORE-49), visitas, prazo médio e últimos itens (RN-CORE-50) ficam só na Performance.
  */
 import { useExtensoes, usePode } from '@macuxi/platform-sdk/react';
-import { Abas, BackLink, Badge, Banner, Button, CabecalhoTela, Folha, Strong, useSincronizacao, colors, daysAgoLabel, fonts, formatHHMM, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
+import { Abas, BackLink, Badge, Banner, Button, CabecalhoTela, Folha, Strong, useSincronizacao, colors, daysAgoLabel, fonte, formatHHMM, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -337,7 +337,7 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ground },
   action: { flex: 1, height: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  actionText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.ink },
+  actionText: { ...fonte.semibold, fontSize: 14, color: colors.ink },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   stat: { flexBasis: '48%', flexGrow: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: 12, gap: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingRight: 10, paddingLeft: 14 },

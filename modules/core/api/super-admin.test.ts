@@ -24,6 +24,7 @@ function repositorioEmMemoria() {
   const tentativas = new Map<string, { falhas: number; bloqueadoAte: Date | null }>();
   const sessoes = new Map<string, { tipo: 'super_admin' | 'admin_cliente'; sa: string | null; empresas: { tenant_id: string; usuario_id: string }[]; atual: string | null; teto: Date; revogada: boolean; ativo: boolean }>();
   const auditoria: LinhaAuditoriaAuth[] = [];
+  const semFilial = new Set<string>();
   const consultas: string[] = [];
   const empresasDe = (sid: string): EmpresaDaSessao[] => {
     const s = sessoes.get(sid);
@@ -70,7 +71,7 @@ function repositorioEmMemoria() {
       const s = sessoes.get(sid);
       if (!s || s.revogada || !s.ativo || s.teto.getTime() <= relogio().getTime()) return null;
       const usuario = s.atual ? (s.empresas.find((e) => e.tenant_id === s.atual)?.usuario_id ?? null) : null;
-      return { tipo: s.tipo, super_admin_id: s.sa, tenant_id: s.atual, usuario_id: usuario, expira_em: s.teto };
+      return { tipo: s.tipo, super_admin_id: s.sa, tenant_id: s.atual, usuario_id: usuario, expira_em: s.teto, sem_filial: usuario !== null && semFilial.has(usuario) };
     },
     async listarEmpresas(sid) {
       return empresasDe(sid);
@@ -83,7 +84,7 @@ function repositorioEmMemoria() {
       auditoria.push(l);
     },
   };
-  return { repo, contas, tentativas, sessoes, auditoria, consultas };
+  return { repo, contas, tentativas, sessoes, auditoria, consultas, semFilial };
 }
 
 let mem: ReturnType<typeof repositorioEmMemoria>;
@@ -303,6 +304,22 @@ describe('ADR 0031: sessão, renovar, sair e autenticarPortal', () => {
     const antigo = `${cab}.${corpo}.${createHmac('sha256', SEGREDO).update(`${cab}.${corpo}`).digest('base64url')}`;
     expect(verificarTokenPlataforma(antigo, t0, SEGREDO)).toBeNull();
     expect(await sa().autenticarPortal(bearer(antigo), banco, t0)).toBeNull();
+  });
+
+  it('RN-CORE-39: admin sem filial de cadastro que entra pelo portal vem com empresa.sem_filial = true (ADR 0056)', async () => {
+    mem.contas.push(contaAdmin(TENANT_A, USU_A, 'Alfa'));
+    mem.semFilial.add(USU_A);
+    const r = await sa().login(ctx({ email: EMAIL, senha: SENHA }));
+    const quem = await sa().autenticarPortal(bearer(r.token), banco, t0);
+    expect(quem).toMatchObject({ tipo: 'admin_cliente', empresa: { tenant_id: TENANT_A, usuario_id: USU_A, sem_filial: true } });
+  });
+
+  it('RN-CORE-39: admin com filial de cadastro entra pelo portal sem a marca sem_filial', async () => {
+    mem.contas.push(contaAdmin(TENANT_A, USU_A, 'Alfa'));
+    const r = await sa().login(ctx({ email: EMAIL, senha: SENHA }));
+    const quem = await sa().autenticarPortal(bearer(r.token), banco, t0);
+    expect(quem).toMatchObject({ empresa: { tenant_id: TENANT_A } });
+    expect(quem && 'empresa' in quem ? quem.empresa?.sem_filial : 'x').toBeUndefined();
   });
 
   it('ADR 0031: token com tipo trocado (typ sa para sub de admin) não passa da sessão', async () => {

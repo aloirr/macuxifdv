@@ -33,6 +33,7 @@ import {
   type UsuarioExistente,
 } from '../domain';
 import { appsDoPerfil, emailDisponivel, empresaDoTenant, enviarEmail } from './email';
+import { gravarFiliaisDoUsuario } from './filiais-usuario';
 import { hashSenha } from './seguranca';
 import { erroDaHierarquiaNoBanco } from './hierarquia-cadastro';
 
@@ -80,7 +81,8 @@ async function lerEstado(db: ClienteBanco): Promise<Estado> {
   for (const u of existentes) if (u.ativo) for (const m of u.modulos) emUso[m] = (emUso[m] ?? 0) + 1;
   const limites: Record<string, number> = {};
   for (const t of tenantRows) if (t.licencas !== null && t.modulo !== 'core') limites[t.modulo] = t.licencas;
-  return { existentes, removidos, grants, contexto: { existentes, modulosDoTenant: [...tenant], modulosDoPerfil, limites, emUso } };
+  const filiais = (await db.query<{ id: string; codigo: string; external_id: string | null }>('select id, codigo, external_id from core.filial where deleted_at is null order by padrao desc, codigo, id')).rows;
+  return { existentes, removidos, grants, contexto: { existentes, modulosDoTenant: [...tenant], modulosDoPerfil, limites, emUso, filiais } };
 }
 
 /** Equipe que o superior responde: reaproveita a que existe; senão cria "Equipe de <nome>" sob a equipe dele. */
@@ -203,6 +205,9 @@ export const rotasDeEquipeCsv: readonly RotaModulo[] = [
                 )
               ).rows[0]!.id;
               idPorEmail.set(p.email, id);
+              // RN-CORE-39: a conferência já exigiu a filial; cadastro e venda gravados juntos (a de cadastro entra na de venda)
+              await gravarFiliaisDoUsuario(db, id as string, p.filial_id as string, [p.filial_id as string]);
+              await tx.auditar({ acao: 'usuario.filial_cadastro', entidade: 'usuario', entidade_id: id, antes: null, depois: { filial_cadastro_id: p.filial_id, origem: 'csv' } });
               const envio = await enviarEmail(ctx, db, {
                 modelo: 'acesso_inicial',
                 usuario_id: id,

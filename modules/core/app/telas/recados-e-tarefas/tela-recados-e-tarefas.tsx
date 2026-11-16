@@ -7,7 +7,7 @@
  */
 import { linkInternoNavegavel } from '@macuxi/platform-sdk';
 import { useVisaoShell } from '@macuxi/platform-sdk/react';
-import { colors, EstadoVazio, fonts, Pressionavel, radius, Screen, Segmentado, space } from '@macuxi/ui/mobile';
+import { colors, EstadoVazio, fonte, Pressionavel, radius, Screen, Segmentado, space } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -86,8 +86,8 @@ const s = StyleSheet.create({
   linha: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.lg, minHeight: 56 },
   divisor: { borderTopWidth: 1, borderTopColor: colors.line },
   textos: { flex: 1, gap: space.xxs },
-  tituloForte: { fontFamily: fonts.semibold, fontSize: 16, color: colors.ink },
-  tituloNormal: { fontFamily: fonts.body, fontSize: 16, color: colors.ink },
+  tituloForte: { ...fonte.semibold, fontSize: 16, color: colors.ink },
+  tituloNormal: { ...fonte.body, fontSize: 16, color: colors.ink },
   riscado: { textDecorationLine: 'line-through', color: colors.ink3 },
-  apoio: { fontFamily: fonts.body, fontSize: 14 },
+  apoio: { ...fonte.body, fontSize: 14 },
 });
