@@ -10,7 +10,8 @@ import { ProdutosPrecoListaSchema, type ProdutoPreco } from '../../../contracts'
 import { rotuloMedidaDoProduto } from '../../lib/medidas';
 import { useMedidas } from './medidas-panel';
 import { ProdutoMedidasDialog } from './produto-medidas-dialog';
-import { descontoMaximoAplicavel, lucroCents, margemNoMinimoPct, margemPct, markupPct, precoMinimoCents } from '../../../domain';
+import { DESCONTO_MAXIMO_PRODUTO_PADRAO_PCT, descontoMaximoAplicavel, lucroCents, margemNoMinimoPct, margemPct, markupPct, precoMinimoCents } from '../../../domain';
+import { paraPct } from '../../lib/percentual';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
 const pct = (v: number | null) => (v === null ? '—' : formatPct(v, 2));
@@ -21,12 +22,6 @@ const paraCentavos = (t: string): number | null | undefined => {
   if (s === '') return null;
   const n = Number(s);
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : undefined;
-};
-const paraPct = (t: string): number | null | undefined => {
-  const s = t.trim().replace(',', '.');
-  if (s === '') return null;
-  const n = Number(s);
-  return Number.isFinite(n) && n >= 0 && n <= 100 ? n : undefined;
 };
 const emReais = (c: number | null) => (c === null ? '' : (c / 100).toFixed(2).replace('.', ','));
 
@@ -57,7 +52,7 @@ export function ProdutosPage() {
     queryKey: ['core', 'produtos', busca],
     queryFn: async ({ signal }) => ProdutosPrecoListaSchema.parse(await api<unknown>('/core/produtos', { query: busca ? { q: busca } : {}, signal })),
   });
-  const padrao = lista.data?.padrao_desconto_pct ?? 15;
+  const padrao = lista.data?.padrao_desconto_pct ?? DESCONTO_MAXIMO_PRODUTO_PADRAO_PCT;
 
   const salvar = useMutation({
     mutationFn: (r: { id: string; custo: number | null; preco: number | null; desconto: number | null }) =>

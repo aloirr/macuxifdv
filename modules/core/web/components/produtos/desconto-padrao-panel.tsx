@@ -6,14 +6,9 @@ import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, LoadingBlock, Notice } from '@macuxi/ui/web';
 import { ProdutoParametrosSchema, ProdutosPrecoListaSchema } from '../../../contracts';
+import { DESCONTO_MAXIMO_PRODUTO_PADRAO_PCT } from '../../../domain';
+import { paraPct } from '../../lib/percentual';
 import { Moldura } from '../moldura';
-
-const paraPct = (t: string): number | null | undefined => {
-  const s = t.trim().replace(',', '.');
-  if (s === '') return null;
-  const n = Number(s);
-  return Number.isFinite(n) && n >= 0 && n <= 100 ? n : undefined;
-};
 
 /**
  * Desconto máximo padrão do tenant (parâmetro `desconto_maximo_produto_pct`; ação `produto.parametros`, analista e admin).
@@ -40,7 +35,7 @@ export function DescontoPadraoPanel({ semMoldura }: { semMoldura?: boolean } = {
     onError: (e) => setAviso({ tom: 'danger', texto: errorMessage(e) }),
   });
   if (!pode) return null;
-  const padrao = lista.data?.padrao_desconto_pct ?? 15;
+  const padrao = lista.data?.padrao_desconto_pct ?? DESCONTO_MAXIMO_PRODUTO_PADRAO_PCT;
   const valor = texto ?? String(padrao).replace('.', ',');
   const novo = paraPct(valor);
   return (
@@ -54,9 +49,9 @@ export function DescontoPadraoPanel({ semMoldura }: { semMoldura?: boolean } = {
           </Notice>
         )}
         <label className="flex max-w-[260px] flex-col gap-1">
-          Percentual
           <span className="relative block">
           <input
+            aria-label="Desconto máximo padrão (%)"
             inputMode="decimal"
             value={valor}
             onChange={(e) => setTexto(e.target.value)}
@@ -66,8 +61,8 @@ export function DescontoPadraoPanel({ semMoldura }: { semMoldura?: boolean } = {
           <span aria-hidden className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] font-normal text-ink-2">%</span>
           </span>
         </label>
-        <p className="font-normal text-ink-2">Vale para todo produto sem desconto máximo próprio. Define o preço mínimo de venda.</p>
-        {novo === undefined && <p className="font-normal text-danger">Informe um valor entre 0 e 100.</p>}
+        <p className="m-0 text-[13px] font-normal text-ink-2">Vale para o produto sem desconto próprio.</p>
+        {novo === undefined && <p className="m-0 text-[13px] font-normal text-danger">Informe um valor entre 0 e 100.</p>}
         <div>
           <Button variant="primary" disabled={salvar.isPending || novo === undefined || novo === null || novo === padrao} onClick={() => novo != null && salvar.mutate(novo)} data-testid="produtos.parametro-salvar">
             Salvar desconto

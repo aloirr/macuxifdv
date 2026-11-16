@@ -154,8 +154,8 @@ export function FrasesDoDiaPanel({ cliente, hoje, semMoldura }: { cliente?: ApiF
                       <span className={`min-w-[240px] flex-1 text-[15px] ${f.ativa ? 'text-ink' : 'text-ink-2'}`}>{f.texto}</span>
                       {!f.ativa && <Badge tone="neutral">Desativada</Badge>}
                       {deHoje?.id === f.id && (
-                        <span className="rounded-full bg-accent px-2.5 py-0.5 text-[12px] font-semibold text-white" data-testid="frases.hoje">
-                          Hoje
+                        <span data-testid="frases.hoje">
+                          <Badge tone="pending">Hoje</Badge>
                         </span>
                       )}
                       <MenuAcoes

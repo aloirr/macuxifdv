@@ -64,7 +64,7 @@ export function MedidasPanel({ onAviso, semMoldura }: { onAviso: (texto: string)
   const apagar = useMutation({
     mutationFn: (m: Medida) => api<unknown>(`/core/medidas/${m.id}`, { method: 'DELETE' }),
     onSuccess: async (_r, m) => {
-      onAviso(`Medida ${m.sigla} apagada.`);
+      onAviso(`Medida ${m.sigla} removida.`);
       await atualizar();
     },
     onError: (e) => onAviso(errorMessage(e)),
@@ -118,7 +118,7 @@ export function MedidasPanel({ onAviso, semMoldura }: { onAviso: (texto: string)
                         acoes={[
                           { id: 'editar', rotulo: 'Editar', desligada: !pode, aoEscolher: () => setRascunho({ id: m.id, existente: true, sigla: m.sigla, descricao: m.descricao, siglaTravada: m.em_uso > 0 }), testId: `medidas.editar.${m.sigla}` },
                           { id: 'alternar', rotulo: m.ativo ? 'Inativar' : 'Reativar', desligada: !pode || alternar.isPending, aoEscolher: () => alternar.mutate(m), testId: `medidas.alternar.${m.sigla}` },
-                          { id: 'apagar', rotulo: m.em_uso > 0 ? 'Apagar (em uso: inative)' : 'Apagar', perigo: true, desligada: !pode || apagar.isPending || m.em_uso > 0, aoEscolher: () => apagar.mutate(m), testId: `medidas.apagar.${m.sigla}` },
+                          { id: 'apagar', rotulo: m.em_uso > 0 ? 'Remover (em uso: inative)' : 'Remover', perigo: true, desligada: !pode || apagar.isPending || m.em_uso > 0, aoEscolher: () => apagar.mutate(m), testId: `medidas.apagar.${m.sigla}` },
                         ]}
                       />
                     </td>

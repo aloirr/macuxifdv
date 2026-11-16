@@ -35,7 +35,7 @@ function caminhoDaAlteracao(a: Alteracao): string {
  * ação `modulo.gerir_licencas` e a API revalida. Filtros (nível, perfil, usuário) ficam na URL. Desligar módulo com
  * dependentes mostra o aviso antes de confirmar; o `core` não desliga. testIDs: docs/modulos/core/test-ids.md.
  */
-function LicencasConteudo({ emPainel }: { emPainel?: boolean }) {
+function LicencasConteudo({ semMoldura }: { semMoldura?: boolean }) {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -59,7 +59,7 @@ function LicencasConteudo({ emPainel }: { emPainel?: boolean }) {
     mutationFn: async (a: Alteracao) => api(caminhoDaAlteracao(a), { method: 'PUT', body: { ativo: a.ativo } }),
     onSuccess: async (_r, a) => {
       setPendente(null);
-      setAviso(`${a.ativo ? 'Ativado' : 'Desativado'}: ${rotuloDoModulo(a.modulo)}. Vale para os aparelhos no próximo sync.`);
+      setAviso(`${a.ativo ? 'Ativado' : 'Desativado'}: ${rotuloDoModulo(a.modulo)}.`);
       await qc.invalidateQueries({ queryKey: CHAVE });
     },
     onError: (e) => {
@@ -93,18 +93,14 @@ function LicencasConteudo({ emPainel }: { emPainel?: boolean }) {
     setPendente({ nivel, modulo, ativo, perfil: nivel === 'perfil' ? perfil : null, usuarioId: nivel === 'usuario' ? usuarioId : null, tambemDesligam: ativo ? [] : modulosQueTambemDesligam(estado, modulo, ligados) });
   };
 
+  const exportarCsv = (
+    <Button onClick={exportar} disabled={!estado} data-testid="licencas.exportar-csv">
+      Exportar CSV
+    </Button>
+  );
   return (
-    <div className={`flex w-full flex-col gap-5 ${emPainel ? '' : 'max-w-[1180px]'}`} data-testid="licencas.tela">
-      {!emPainel && (
-        <PageHeader
-          title="Módulos"
-          actions={
-            <Button onClick={exportar} disabled={!estado} data-testid="licencas.exportar-csv">
-              Exportar CSV
-            </Button>
-          }
-        />
-      )}
+    <div className={`flex w-full flex-col gap-5 ${semMoldura ? '' : 'max-w-[1180px]'}`} data-testid="licencas.tela">
+      {!semMoldura && <PageHeader title="Módulos" actions={exportarCsv} />}
 
       {!pode && <Notice tone="info">Só o administrador altera licenças. Você pode consultar.</Notice>}
       {aviso && (
@@ -129,11 +125,7 @@ function LicencasConteudo({ emPainel }: { emPainel?: boolean }) {
           </button>
         ))}
       </div>
-      {emPainel && (
-        <Button onClick={exportar} disabled={!estado} data-testid="licencas.exportar-csv">
-          Exportar CSV
-        </Button>
-      )}
+      {semMoldura && exportarCsv}
       </div>
 
       <FilterBar>
@@ -161,7 +153,7 @@ function LicencasConteudo({ emPainel }: { emPainel?: boolean }) {
       {q.isPending && <LoadingBlock label="Carregando as licenças…" />}
 
       {estado && (
-        <Moldura sem={emPainel} title={nivel === 'usuario' ? 'Exceções do usuário (só removem módulo)' : `Módulos — ${ROTULO_NIVEL[nivel]}`}>
+        <Moldura sem={semMoldura} title={nivel === 'usuario' ? 'Exceções do usuário (só removem módulo)' : `Módulos — ${ROTULO_NIVEL[nivel]}`}>
           <TableScroll minWidth={560}>
             <table className="w-full border-collapse text-[13px]">
               <thead>
@@ -251,10 +243,10 @@ function LicencasConteudo({ emPainel }: { emPainel?: boolean }) {
 }
 
 /** `useSearchParams` exige Suspense no Next. */
-export function LicencasPage({ emPainel }: { emPainel?: boolean }) {
+export function LicencasPage({ semMoldura }: { semMoldura?: boolean }) {
   return (
     <Suspense fallback={<LoadingBlock label="Carregando…" />}>
-      <LicencasConteudo emPainel={emPainel} />
+      <LicencasConteudo semMoldura={semMoldura} />
     </Suspense>
   );
 }

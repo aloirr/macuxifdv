@@ -29,7 +29,7 @@ const slug = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,
  * Cadastro de motivos (RN-CORE-14): motivos de não venda do tenant. Os de sistema (loja fechada e acesso negado, que exigem
  * a foto da fachada) aparecem travados. Só analista e admin editam (ação `motivo.editar`); a API revalida e audita.
  */
-export function MotivosPage({ emPainel }: { emPainel?: boolean }) {
+export function MotivosPage({ semMoldura }: { semMoldura?: boolean }) {
   const qc = useQueryClient();
   const pode = usePode('motivo.editar');
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
@@ -58,26 +58,14 @@ export function MotivosPage({ emPainel }: { emPainel?: boolean }) {
 
   const itens = lista.data ?? [];
   const novo = (): Rascunho => ({ id: novoId(), existente: false, tipo: 'nao_venda', codigo: '', descricao: '', ativo: true, ordem: (itens.at(-1)?.ordem ?? 0) + 10 });
+  const acao = (
+    <Button variant="primary" disabled={!pode} onClick={() => setRascunho(novo())} data-testid="motivos.novo">
+      Novo motivo
+    </Button>
+  );
   return (
-    <div className={`flex w-full flex-col ${emPainel ? 'gap-4' : 'max-w-[960px] gap-5'}`} data-testid="motivos.tela">
-      {emPainel ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="m-0 text-[13px] text-ink-2">Lista que o vendedor vê no checkout quando não há pedido.</p>
-          <Button variant="primary" disabled={!pode} onClick={() => setRascunho(novo())} data-testid="motivos.novo">
-            Novo motivo
-          </Button>
-        </div>
-      ) : (
-        <PageHeader
-          title="Motivos de não venda"
-          subtitle="Lista que o vendedor vê no checkout quando não há pedido."
-          actions={
-            <Button variant="primary" disabled={!pode} onClick={() => setRascunho(novo())} data-testid="motivos.novo">
-              Novo motivo
-            </Button>
-          }
-        />
-      )}
+    <div className={`flex w-full flex-col ${semMoldura ? 'gap-4' : 'max-w-[960px] gap-5'}`} data-testid="motivos.tela">
+      {semMoldura ? <div className="flex justify-end">{acao}</div> : <PageHeader title="Motivos de não venda" subtitle="Lista que o vendedor vê no checkout quando não há pedido." actions={acao} />}
       {!pode && <Notice tone="info">Só analista e administrador editam motivos. Você pode consultar.</Notice>}
       {aviso && (
         <Notice tone="info" onClose={() => setAviso(null)}>
@@ -87,7 +75,7 @@ export function MotivosPage({ emPainel }: { emPainel?: boolean }) {
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando os motivos…" />}
       {lista.data && (
-        <Moldura sem={emPainel} title={`${itens.length} motivos`}>
+        <Moldura sem={semMoldura} title={`${itens.length} motivos`}>
           <TableScroll minWidth={640}>
             <table className="w-full border-collapse text-[13px]">
               <thead>

@@ -1,13 +1,12 @@
 /**
- * RN-CORE-44: almoço do dia (T-0170 §3.2). Função pura sobre as visitas de UM dia trabalhado do usuário.
+ * RN-CORE-44: almoço do dia (T-0170 §3.2; T-0180, D5). Função pura sobre as visitas de UM dia trabalhado do usuário.
  *
  * 1. Intervalos: do check-out REAL da visita i ao check-in da visita i + 1 (ordem de check-in). Visita sem check-out real
  *    (aberta, ou fechada na virada do dia, RN-CORE-11) não abre intervalo.
- * 2. Caso normal: o almoço é o intervalo que contém o corte (padrão 12:00): o "último check-out da manhã → primeiro check-in
- *    da tarde".
- * 3. Visita que atravessa o corte: o maior intervalo que começa dentro da janela (padrão 11:00 a 15:00, inclusive).
- * 4. Nenhum intervalo na janela, ou dia que termina antes do corte (meio expediente): sem almoço identificado.
+ * 2. Todo usuário tem horário de almoço: o próprio ou o padrão da empresa. O almoço do dia é o intervalo que mais se sobrepõe a
+ *    esse horário (empate: o mais longo); sem sobreposição (inclusive meio expediente que acaba antes), sem almoço identificado.
  */
+import { ALMOCO_PADRAO_EMPRESA, type HorarioAlmoco } from '../../contracts/jornada';
 import { emMs, msDoDia } from './tempo';
 
 /** O mínimo da visita (`core.visita` ou a fila local) que a Produtividade lê. Instantes em UTC. */
@@ -25,18 +24,6 @@ export interface VisitaProdutividade {
   distancia_m?: number | null;
   deleted_at?: string | null;
 }
-
-/** Parâmetros `produtividade.almoco_corte` e `produtividade.almoco_janela`, em minutos do dia. */
-export interface ParametrosAlmoco {
-  corte_min: number;
-  janela_inicio_min: number;
-  janela_fim_min: number;
-}
-export const ALMOCO_PADRAO: ParametrosAlmoco = {
-  corte_min: 12 * 60,
-  janela_inicio_min: 11 * 60,
-  janela_fim_min: 15 * 60,
-};
 
 export interface Intervalo {
   inicio_ms: number;
@@ -74,41 +61,30 @@ export function intervalosDoDia(visitas: readonly VisitaProdutividade[]): Interv
 }
 
 /** RN-CORE-44: o intervalo do almoço do dia, ou nulo quando não há almoço identificado. */
-export function intervaloDoAlmoco(
-  visitas: readonly VisitaProdutividade[],
-  fuso: string,
-  p: ParametrosAlmoco = ALMOCO_PADRAO,
-): Intervalo | null {
-  const corte = p.corte_min * 60_000;
-  const intervalos = intervalosDoDia(visitas);
-  const normal = intervalos.find(
-    (i) => msDoDia(i.inicio_ms, fuso) < corte && msDoDia(i.fim_ms, fuso) > corte,
-  );
-  if (normal) return normal;
-  // Caso 5: o dia não passou do corte (meio expediente): sem almoço.
-  const vivas = ordenarPorCheckin(visitas);
-  const passouDoCorte = vivas.some(
-    (v) =>
-      msDoDia(v.checkin_em, fuso) > corte || (temCheckoutReal(v) && msDoDia(v.checkout_em, fuso) > corte),
-  );
-  if (!passouDoCorte) return null;
-  const [ini, fim] = [p.janela_inicio_min * 60_000, p.janela_fim_min * 60_000];
-  let maior: Intervalo | null = null;
-  for (const i of intervalos) {
-    const m = msDoDia(i.inicio_ms, fuso);
-    if (m >= ini && m <= fim && (maior === null || i.fim_ms - i.inicio_ms > maior.fim_ms - maior.inicio_ms))
-      maior = i;
+export function intervaloDoAlmoco(visitas: readonly VisitaProdutividade[], fuso: string, horario: HorarioAlmoco = ALMOCO_PADRAO_EMPRESA): Intervalo | null {
+  const [hi, hf] = [horario.inicio_min * 60_000, horario.fim_min * 60_000];
+  let melhor: Intervalo | null = null;
+  let melhorSobreposicao = 0;
+  for (const i of intervalosDoDia(visitas)) {
+    const [a, b] = [msDoDia(i.inicio_ms, fuso), msDoDia(i.fim_ms, fuso)];
+    if (b < a) continue; // atravessa a virada do dia: não é almoço
+    const sobreposicao = Math.min(b, hf) - Math.max(a, hi);
+    if (sobreposicao <= 0) continue;
+    if (sobreposicao > melhorSobreposicao || (sobreposicao === melhorSobreposicao && melhor !== null && i.fim_ms - i.inicio_ms > melhor.fim_ms - melhor.inicio_ms)) {
+      melhor = i;
+      melhorSobreposicao = sobreposicao;
+    }
   }
-  return maior;
+  return melhor;
 }
 
 /** RN-CORE-44: almoço do dia (instantes UTC e duração em minutos, meio para cima), ou nulo sem almoço identificado. */
 export function almocoDoDia(
   visitas: readonly VisitaProdutividade[],
   fuso: string,
-  p: ParametrosAlmoco = ALMOCO_PADRAO,
+  horario: HorarioAlmoco = ALMOCO_PADRAO_EMPRESA,
 ): Almoco | null {
-  const i = intervaloDoAlmoco(visitas, fuso, p);
+  const i = intervaloDoAlmoco(visitas, fuso, horario);
   if (!i) return null;
   return {
     inicio_em: new Date(i.inicio_ms).toISOString(),

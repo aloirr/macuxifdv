@@ -26,12 +26,14 @@ export function paradoMinDasLinhas(linhas: readonly { modulo: string; chave: str
   return paradoMinValido(l?.valor) ? l.valor : PARADO_MIN_PADRAO;
 }
 
-/** Forma do parâmetro (só o formato; a regra de faixa é do domain: `validarParametrosInicio`). */
+/**
+ * Corpo do `PUT parametros/inicio` (só o formato; a regra é do domain: `validarParametrosInicio`). T-0180 (RD-0334): o `parado_min` não
+ * é mais gravado aqui, só por `PUT parametros/parado-min` (um valor, um lugar); o GET continua devolvendo-o (o Gestão lê).
+ */
 export const ParametrosInicioPutSchema = z
   .object({
     /** 0 = domingo … 6 = sábado. */
     dias_uteis_semana: z.array(z.number()),
-    parado_min: z.number(),
   })
   .strict();
 export type ParametrosInicioPut = z.infer<typeof ParametrosInicioPutSchema>;
@@ -46,7 +48,7 @@ export const ParametrosInicioSchema = z
 export type ParametrosInicio = z.infer<typeof ParametrosInicioSchema>;
 
 /** Campo do formulário a que um erro de validação pertence (RN-CORE-26); a tela liga a mensagem ao campo por esta chave. */
-export const CAMPOS_PARAMETROS_INICIO = ['dias_uteis_semana', 'parado_min'] as const;
+export const CAMPOS_PARAMETROS_INICIO = ['dias_uteis_semana'] as const;
 export const ErroParametroInicioSchema = z.object({ campo: z.enum(CAMPOS_PARAMETROS_INICIO), mensagem: z.string().min(1) }).strict();
 export type ErroParametroInicio = z.infer<typeof ErroParametroInicioSchema>;
 

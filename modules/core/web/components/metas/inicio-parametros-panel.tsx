@@ -11,11 +11,7 @@ import {
   ParametrosInicioSchema,
   type ErroParametroInicio,
 } from '../../../contracts';
-import {
-  PARADO_MIN_MAX,
-  PARADO_MIN_MIN,
-  validarParametrosInicio,
-} from '../../../domain';
+import { validarParametrosInicio } from '../../../domain';
 
 const CHAVE = ['core', 'parametros', 'inicio'] as const;
 const CAMINHO = '/core/parametros/inicio';
@@ -28,13 +24,11 @@ const DIAS = [
   [5, 'Sex', 'Sexta-feira'],
   [6, 'Sáb', 'Sábado'],
 ] as const;
-const CAMPO = 'h-[44px] w-full rounded-xl border bg-surface px-3 text-[15px] font-normal text-ink';
 
-type CampoParam = 'dias' | 'parado';
+type CampoParam = 'dias';
 type ErrosCampo = Partial<Record<CampoParam, string>>;
 const CAMPO_DA_CHAVE: Record<ErroParametroInicio['campo'], CampoParam> = {
   dias_uteis_semana: 'dias',
-  parado_min: 'parado',
 };
 
 /** Liga cada erro (local ou 422 da API) ao campo pela CHAVE `campo`; sem campo, vai para o aviso do topo. */
@@ -59,17 +53,16 @@ function MensagemErro({ id, texto }: { id: string; texto?: string }) {
 }
 
 /**
- * Parâmetros do Início por empresa (RN-CORE-26; T-0073 passo 7): dias úteis da semana (base da meta do dia) e
- * minutos para a equipe aparecer como "parada". Só quem tem `parametro.inicio` (analista e admin) vê; a API revalida e
+ * Parâmetros do Início por empresa (RN-CORE-26; T-0073 passo 7): dias úteis da semana (base da meta do dia).
+ * O "parado" saiu daqui em T-0180 (D1): vive em Parâmetros › Alertas, no mesmo valor `inicio.parado_min`. Só quem tem `parametro.inicio` (analista e admin) vê; a API revalida e
  * audita antes/depois. Vale nos aparelhos no próximo sync. Erros aparecem no campo (aria-invalid + aria-describedby); o aviso do topo
  * fica só para erro sem campo (rede, 403).
- * testIDs: `inicio-params.painel` · `.dia.<0-6>` · `.parado` · `.<campo>.erro` · `.salvar`.
+ * testIDs: `inicio-params.painel` · `.dia.<0-6>` · `.<campo>.erro` · `.salvar`.
  */
 export function InicioParametrosPanel({ semMoldura }: { semMoldura?: boolean } = {}) {
   const pode = usePode('parametro.inicio');
   const qc = useQueryClient();
   const [dias, setDias] = useState<number[]>([]);
-  const [parado, setParado] = useState('60');
   const [aviso, setAviso] = useState<string | null>(null);
   const [salvo, setSalvo] = useState(false);
   const [erros, setErros] = useState<ErrosCampo>({});
@@ -81,13 +74,11 @@ export function InicioParametrosPanel({ semMoldura }: { semMoldura?: boolean } =
   useEffect(() => {
     if (!q.data) return;
     setDias(q.data.dias_uteis_semana);
-    setParado(String(q.data.parado_min));
   }, [q.data]);
 
   const gravar = useMutation({
     mutationFn: async (corpo: {
       dias_uteis_semana: number[];
-      parado_min: number;
     }) => {
       await api<unknown>(CAMINHO, { method: 'PUT', body: corpo });
     },
@@ -114,10 +105,10 @@ export function InicioParametrosPanel({ semMoldura }: { semMoldura?: boolean } =
   });
 
   if (!pode) return null;
-  const alterado = !!q.data && (parado !== String(q.data.parado_min) || JSON.stringify([...dias].sort()) !== JSON.stringify([...q.data.dias_uteis_semana].sort()));
+  const alterado = !!q.data && JSON.stringify([...dias].sort()) !== JSON.stringify([...q.data.dias_uteis_semana].sort());
   const salvar = () => {
-    const corpo = { dias_uteis_semana: dias, parado_min: Number(parado) };
-    const v = validarParametrosInicio(corpo);
+    // RN-CORE-26 (T-0180, D1 e RD-0334): o "parado" mora em Parâmetros › Alertas e só o PUT dele o grava; aqui vão só os dias
+    const v = validarParametrosInicio({ dias_uteis_semana: dias });
     setSalvo(false);
     const m = v.ok ? { campos: {} as ErrosCampo, soltos: [] as string[] } : mapearErros(v.erros);
     if (!v.ok) {
@@ -136,7 +127,7 @@ export function InicioParametrosPanel({ semMoldura }: { semMoldura?: boolean } =
   };
 
   return (
-    <Moldura sem={semMoldura} title="Dias úteis e equipe parada">
+    <Moldura sem={semMoldura} title="Dias úteis">
       <div className="flex flex-col gap-4" data-testid="inicio-params.painel">
         {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
         {q.isPending && <LoadingBlock label="Carregando os parâmetros…" />}
@@ -172,41 +163,13 @@ export function InicioParametrosPanel({ semMoldura }: { semMoldura?: boolean } =
                 ))}
               </div>
             </fieldset>
-            <label className="flex max-w-[260px] flex-col gap-1 text-[15px] font-semibold text-ink">
-              Minutos para considerar "parado"
-              <span className="text-[13px] font-normal text-ink-2">
-                Sem check-in após o último checkout, com paradas pendentes. De {PARADO_MIN_MIN} a{' '}
-                {PARADO_MIN_MAX} minutos.
-              </span>
-              <MensagemErro id="inicio-params.parado.erro" texto={erros.parado} />
-              <span className="relative block">
-                <input
-                  className={`${CAMPO} pr-12 ${erros.parado ? 'border-danger' : 'border-field'}`}
-                  inputMode="numeric"
-                  value={parado}
-                  onChange={(e) => {
-                    setSalvo(false);
-                    setParado(e.target.value.replace(/\D/g, ''));
-                  }}
-                  aria-invalid={erros.parado ? true : undefined}
-                  aria-describedby={erros.parado ? 'inicio-params.parado.erro' : undefined}
-                  data-testid="inicio-params.parado"
-                />
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] font-normal text-ink-2"
-                >
-                  min
-                </span>
-              </span>
-            </label>
             <div className="flex flex-wrap items-center gap-3">
               <Button variant="primary" onClick={salvar} disabled={gravar.isPending || !alterado} data-testid="inicio-params.salvar">
                 {gravar.isPending ? 'Salvando…' : 'Salvar dias úteis'}
               </Button>
               {salvo && (
                 <Notice tone="success" onClose={() => setSalvo(false)}>
-                  Parâmetros salvos. Os aparelhos recebem no próximo sync.
+                  Dias úteis salvos.
                 </Notice>
               )}
             </div>

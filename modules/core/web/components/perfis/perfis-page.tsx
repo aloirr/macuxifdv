@@ -82,7 +82,7 @@ const ehSemConexao = (e: unknown) => e instanceof TypeError || (e instanceof Api
 
 // ---------------------------------------------------------------- lista
 
-function ListaDePerfis({ emPainel }: { emPainel?: boolean }) {
+function ListaDePerfis({ semMoldura }: { semMoldura?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const qc = useQueryClient();
@@ -120,25 +120,15 @@ function ListaDePerfis({ emPainel }: { emPainel?: boolean }) {
     return <ErrorBlock message={ehSemConexao(lista.error) ? SEM_CONEXAO : errorMessage(lista.error)} onRetry={() => void lista.refetch()} />;
   }
 
+  const botaoNovo = (
+    <Button variant="primary" onClick={() => router.push(`${pathname}?novo=1`)} data-testid="perfis.novo">
+      Novo perfil
+    </Button>
+  );
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-4" data-testid="perfis.lista">
-      {emPainel ? (
-        <div className="flex justify-end">
-          <Button variant="primary" onClick={() => router.push(`${pathname}?novo=1`)} data-testid="perfis.novo">
-            Novo perfil
-          </Button>
-        </div>
-      ) : (
-        <PageHeader
-          title="Perfis de acesso"
-          actions={
-            <Button variant="primary" onClick={() => router.push(`${pathname}?novo=1`)} data-testid="perfis.novo">
-              Novo perfil
-            </Button>
-          }
-        />
-      )}
-      <Moldura sem={emPainel} title="">
+      {semMoldura ? <div className="flex justify-end">{botaoNovo}</div> : <PageHeader title="Perfis de acesso" actions={botaoNovo} />}
+      <Moldura sem={semMoldura} title="">
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr>
@@ -697,19 +687,19 @@ function HistoricoDoPerfil({ codigo, nome, detalhe, onClose }: { codigo: string;
 
 // ---------------------------------------------------------------- página
 
-function PerfisConteudo({ emPainel }: { emPainel?: boolean }) {
+function PerfisConteudo({ semMoldura }: { semMoldura?: boolean }) {
   const params = useSearchParams();
   const podeGerir = usePode('perfil.gerir');
   const codigo = perfilEmEdicao(params);
   if (!podeGerir) return <Notice tone="info">{SEM_PERMISSAO}</Notice>;
   if (params.get('novo')) return <NovoPerfil />;
-  return codigo ? <EdicaoDoPerfil key={codigo} codigo={codigo} /> : <ListaDePerfis emPainel={emPainel} />;
+  return codigo ? <EdicaoDoPerfil key={codigo} codigo={codigo} /> : <ListaDePerfis semMoldura={semMoldura} />;
 }
 
-export function PerfisPage({ emPainel }: { emPainel?: boolean }) {
+export function PerfisPage({ semMoldura }: { semMoldura?: boolean }) {
   return (
     <Suspense fallback={<LoadingBlock label="Carregando perfis…" />}>
-      <PerfisConteudo emPainel={emPainel} />
+      <PerfisConteudo semMoldura={semMoldura} />
     </Suspense>
   );
 }

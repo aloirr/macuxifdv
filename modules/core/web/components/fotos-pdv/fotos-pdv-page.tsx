@@ -27,7 +27,7 @@ const vazio = (): Rascunho => ({ id: novoId(), existente: false, fachada: false,
  * obrigatórios e quais são documentos sensíveis (só admin, analista, gerente e supervisor da carteira abrem). A Fachada já nasce
  * cadastrada: não se apaga, não se inativa e nunca é sensível. Só o admin edita (`foto_tipo.editar`); a API revalida e audita.
  */
-export function FotosPdvPage({ emPainel }: { emPainel?: boolean }) {
+export function FotosPdvPage({ semMoldura }: { semMoldura?: boolean }) {
   const qc = useQueryClient();
   const pode = usePode('foto_tipo.editar');
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
@@ -59,26 +59,14 @@ export function FotosPdvPage({ emPainel }: { emPainel?: boolean }) {
   });
 
   const itens = lista.data ?? [];
+  const acao = (
+    <Button variant="primary" disabled={!pode} onClick={() => setRascunho(vazio())} data-testid="fotos-pdv.novo">
+      Novo tipo
+    </Button>
+  );
   return (
-    <div className={`flex w-full flex-col ${emPainel ? 'gap-4' : 'max-w-[960px] gap-5'}`} data-testid="fotos-pdv.tela">
-      {emPainel ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="m-0 text-[13px] text-ink-2">Tipos de foto da ficha do cliente.</p>
-          <Button variant="primary" disabled={!pode} onClick={() => setRascunho(vazio())} data-testid="fotos-pdv.novo">
-            Novo tipo
-          </Button>
-        </div>
-      ) : (
-        <PageHeader
-          title="Fotos do PDV"
-          subtitle="Tipos de foto da ficha do cliente."
-          actions={
-            <Button variant="primary" disabled={!pode} onClick={() => setRascunho(vazio())} data-testid="fotos-pdv.novo">
-              Novo tipo
-            </Button>
-          }
-        />
-      )}
+    <div className={`flex w-full flex-col ${semMoldura ? 'gap-4' : 'max-w-[960px] gap-5'}`} data-testid="fotos-pdv.tela">
+      {semMoldura ? <div className="flex justify-end">{acao}</div> : <PageHeader title="Fotos do PDV" subtitle="Tipos de foto da ficha do cliente." actions={acao} />}
       {!pode && <Notice tone="info">Só o administrador edita os tipos de foto. Você pode consultar.</Notice>}
       {aviso && (
         <Notice tone="info" onClose={() => setAviso(null)}>
@@ -88,7 +76,7 @@ export function FotosPdvPage({ emPainel }: { emPainel?: boolean }) {
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando os tipos de foto…" />}
       {lista.data && (
-        <Moldura sem={emPainel} title={`${itens.length} ${itens.length === 1 ? 'tipo' : 'tipos'}`}>
+        <Moldura sem={semMoldura} title={`${itens.length} ${itens.length === 1 ? 'tipo' : 'tipos'}`}>
           <TableScroll minWidth={640}>
             <table className="w-full border-collapse text-[13px]">
               <thead>

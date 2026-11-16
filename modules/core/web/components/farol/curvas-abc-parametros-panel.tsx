@@ -122,7 +122,7 @@ export function CurvasAbcParametrosPanel({ semMoldura }: { semMoldura?: boolean 
             <div className="overflow-x-auto">
               <table className="border-separate border-spacing-x-4 border-spacing-y-2 text-left" data-testid="curvas-abc-params.grade">
                 <thead>
-                  <tr className="text-[13px] font-semibold text-ink">
+                  <tr className="text-[12px] font-semibold text-ink-2">
                     <th scope="col" className="w-[200px]" />
                     {DIMENSOES_CURVA_ABC.map((d) => (
                       <th key={d} scope="col" className="w-[160px] font-semibold">

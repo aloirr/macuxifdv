@@ -21,6 +21,7 @@ import { PerfisPage } from './components/perfis/perfis-page';
 import { MetasPage } from './components/metas/metas-page';
 import { IndicadoresPage } from './components/indicadores/indicadores-page';
 import { RecadosPage } from './components/recados/recados-page';
+import { AlmocoPadraoPanel } from './components/calendario/almoco-padrao-panel';
 import { CalendarioPage } from './components/calendario/calendario-page';
 import { CurvasAbcParametrosPanel } from './components/farol/curvas-abc-parametros-panel';
 import { FarolParametrosPanel } from './components/farol/farol-parametros-panel';
@@ -44,11 +45,12 @@ const PainelEtapaPendente = painel(CheckoutPendenciaPanel);
 const PainelDesconto = painel(DescontoPadraoPanel);
 const PainelMedidas = painel(MedidasParametrosPanel);
 const PainelPromotorPedidos = painel(PromotorPedidosPanel);
-const PainelPerfis: ComponentType = () => createElement(PerfisPage, { emPainel: true });
-const PainelModulos: ComponentType = () => createElement(LicencasPage, { emPainel: true });
-const PainelMotivos: ComponentType = () => createElement(MotivosPage, { emPainel: true });
-const PainelFotosPdv: ComponentType = () => createElement(FotosPdvPage, { emPainel: true });
-const PainelCalendario: ComponentType = () => createElement(CalendarioPage, { embutido: true });
+const PainelPerfis = painel(PerfisPage);
+const PainelModulos = painel(LicencasPage);
+const PainelMotivos = painel(MotivosPage);
+const PainelFotosPdv = painel(FotosPdvPage);
+const PainelFeriados = painel(CalendarioPage);
+const PainelAlmoco = painel(AlmocoPadraoPanel);
 
 /**
  * Páginas do Core no BKO (ADR 0003; desenho T-0001 §5 e §14). Os rótulos de `navegacao` são os de
@@ -66,10 +68,11 @@ export const moduloWeb = definirModuloShell<ComponentType>({
     { id: 'fotos-pdv', secao: 'visitas', titulo: 'Fotos do PDV', ordem: 20, acao: 'foto_tipo.editar', caminhosAntigos: ['fotos-pdv'], componente: PainelFotosPdv },
     { id: 'farol', secao: 'clientes', titulo: 'Farol', ordem: 10, acao: 'parametro.farol', componente: PainelFarol },
     { id: 'curvas-abc', secao: 'clientes', titulo: 'Curvas ABC', ordem: 20, acao: 'parametro.curva_abc', componente: PainelCurvasAbc },
-    { id: 'inicio', secao: 'inicio', titulo: 'Dias úteis e equipe parada', ordem: 10, acao: 'parametro.inicio', componente: PainelInicio },
+    { id: 'inicio', secao: 'inicio', titulo: 'Dias úteis', ordem: 10, acao: 'parametro.inicio', componente: PainelInicio },
     { id: 'frases-do-dia', secao: 'inicio', titulo: 'Frases do dia', ordem: 20, acao: 'frase_dia.editar', componente: PainelFrases },
     { id: 'etapa-pendente', secao: 'visitas', titulo: 'Etapa pendente', ordem: 50, acao: 'parametro.checkout_pendencia', componente: PainelEtapaPendente },
-    { id: 'calendario', secao: 'calendario', titulo: 'Calendário', ordem: 10, acao: 'parametro.inicio', componente: PainelCalendario },
+    { id: 'calendario', secao: 'calendario', titulo: 'Feriados', ordem: 10, acao: 'parametro.inicio', componente: PainelFeriados },
+    { id: 'almoco', secao: 'calendario', titulo: 'Almoço', ordem: 20, acao: 'parametro.inicio', componente: PainelAlmoco },
     { id: 'desconto', secao: 'produtos', titulo: 'Desconto máximo padrão', ordem: 10, acao: 'produto.parametros', componente: PainelDesconto },
     { id: 'medidas', secao: 'produtos', titulo: 'Medidas', ordem: 20, acao: 'medida.gerenciar', componente: PainelMedidas },
     { id: 'promotor-pedidos', secao: 'acesso', titulo: 'Promotor vê pedidos', ordem: 50, acao: 'parametro.promotor_ve_pedidos', componente: PainelPromotorPedidos },
