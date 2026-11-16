@@ -1,4 +1,4 @@
-# Trocar senha — Perfil do Campo e do Gestão (simulação)
+# Trocar senha — Perfil do Campo e do Gestão
 
 > **Tipografia substituída** pela fonte do sistema (R-20261115-110600, 15/11/2026): ver o [manual da marca §5](../../marca/manual.md#5-tipografia).
 
@@ -94,7 +94,7 @@ Depois, a senha temporária do e-mail entra no **"Senha atual"**: o `POST /v1/au
 Volta ao Perfil e mostra o `AvisoRodape` tom `sucesso`: **"Senha trocada."** (sem Desfazer), com vibração leve de confirmação. A
 pessoa continua no app, neste aparelho. Nenhum texto sobre outros aparelhos ou sessões.
 
-## 8. Textos novos (todos em português, para os contratos do Core)
+## 8. Textos novos
 "Trocar senha" (título e linha do Perfil) · "Senha atual" · "Salvar senha" · "Salvando…" · "A senha atual está errada. Digite de
 novo." · "A senha nova precisa ser diferente da atual." · "Conecte-se à internet para trocar a senha." · "Não foi possível trocar
 agora. Tente de novo em alguns minutos." · "Senha trocada." · "Você vai receber uma senha temporária em alguns minutos. Ela vale
@@ -114,7 +114,7 @@ senha precisa ter", as quatro regras, "Esqueci a senha" (link do login e a tela 
    `modules/core/contracts/senha-regra.ts` e `modules/core/domain/acesso-senha.ts`.
 2. **Texto da RN-CORE-34, um só**: **"A senha nova precisa ser diferente da atual."**. Vale também quando a "Senha atual"
    digitada é a temporária, porque nesse caso a atual é a temporária.
-3. **API**: a troca pode usar o `POST /v1/auth/senha/trocar` de hoje (código da empresa e e-mail da sessão, senha atual e nova;
+3. **API**: a troca usa o `POST /v1/auth/senha/trocar` (código da empresa e e-mail da sessão, senha atual e nova;
    já audita `motivo: 'voluntaria'`) e devolve a sessão nova, que o app passa a usar. Por isso a pessoa continua no app depois
    de trocar.
 4. **Senha atual errada conta como tentativa de login** (a rota é a do login): depois de várias, vale o bloqueio do login (423/429),
