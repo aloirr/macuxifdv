@@ -4,16 +4,7 @@
  * que as telas dos módulos usam (`@macuxi/platform-sdk/react`). As folhas de visita da Fase M voltam
  * como telas/extensões do core na B2.
  */
-import { Archivo_600SemiBold } from '@expo-google-fonts/archivo/600SemiBold';
-import { Archivo_700Bold } from '@expo-google-fonts/archivo/700Bold';
-import { Archivo_800ExtraBold } from '@expo-google-fonts/archivo/800ExtraBold';
-import { IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono/500Medium';
-import { IBMPlexSans_400Regular } from '@expo-google-fonts/ibm-plex-sans/400Regular';
-import { IBMPlexSans_500Medium } from '@expo-google-fonts/ibm-plex-sans/500Medium';
-import { IBMPlexSans_600SemiBold } from '@expo-google-fonts/ibm-plex-sans/600SemiBold';
-import { IBMPlexSans_700Bold } from '@expo-google-fonts/ibm-plex-sans/700Bold';
 import Constants from 'expo-constants';
-import { useFonts } from 'expo-font';
 import { DefaultTheme, router, Stack, ThemeProvider, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -57,34 +48,24 @@ const theme = {
 export const ErrorBoundary = TelaDeErroDaRaiz;
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
-    Archivo_600SemiBold,
-    Archivo_700Bold,
-    Archivo_800ExtraBold,
-    IBMPlexSans_400Regular,
-    IBMPlexSans_500Medium,
-    IBMPlexSans_600SemiBold,
-    IBMPlexSans_700Bold,
-    IBMPlexMono_500Medium,
-  });
-  const fontsReady = fontsLoaded || Boolean(fontError);
   return (
     <ThemeProvider value={theme}>
       <PlataformaProvider>
         <StatusBar style="dark" />
-        <Gate fontsReady={fontsReady} />
+        <Gate />
       </PlataformaProvider>
     </ThemeProvider>
   );
 }
 
 /**
- * Só renderiza as rotas depois de carregar fontes, sessão e fila do aparelho. Até lá, a tela de entrada (T-0172): o mesmo
- * fundo e o mesmo logo da splash nativa, que some assim que o logo do JS está desenhado (sem corte). T-0088: a passagem
- * do AsyncStorage para o SQLite ("Atualizando o app", na tela de entrada) e a tela de erro do armazenamento ficam POR
- * CIMA, sem desmontar o roteador (o login que está esperando a abertura continua montado).
+ * Só renderiza as rotas depois de carregar sessão e fila do aparelho (fonte do sistema, nada a carregar: R-20261115-110600).
+ * Até lá, a tela de entrada (T-0172): o mesmo fundo e o mesmo logo da splash nativa, que some assim que o logo do JS está
+ * desenhado (sem corte). T-0088: a passagem do AsyncStorage para o SQLite ("Atualizando o app", na tela de entrada) e a
+ * tela de erro do armazenamento ficam POR CIMA, sem desmontar o roteador (o login que está esperando a abertura continua
+ * montado).
  */
-function Gate({ fontsReady }: { fontsReady: boolean }) {
+function Gate() {
   const {
     ready,
     visao,
@@ -108,9 +89,9 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
   // T-0072: vibração leve do kit (principal, confirmar e Desfazer); desligada com "reduzir movimento" (R-20261104-231036)
   useVibracaoDoShell(reduzir);
   // T-0145: sem as permissões obrigatórias, só a tela de permissões (nada de login, carga ou abas por baixo)
-  const semPermissao = fontsReady && permissoesLidas ? telaPermissoes : null;
-  const show = fontsReady && ready && permissoesLidas;
-  const sobre = !fontsReady || !permissoesLidas ? null : preparo ? (
+  const semPermissao = permissoesLidas ? telaPermissoes : null;
+  const show = ready && permissoesLidas;
+  const sobre = !permissoesLidas ? null : preparo ? (
     <TelaEntrada
       variante={variante}
       sobreposta

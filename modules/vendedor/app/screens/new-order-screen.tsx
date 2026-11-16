@@ -11,7 +11,7 @@
 import { formatarDocumento } from '@macuxi/comum';
 import { localIsoDate } from '@macuxi/comum/fuso';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
-import { Abas, AvisoRodape, CABECALHO, CabecalhoTela, Dialogo, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonts, Icon, Loading, radius, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
+import { Abas, AvisoRodape, CABECALHO, CabecalhoTela, Dialogo, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonte, Icon, Loading, radius, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -937,19 +937,19 @@ const styles = StyleSheet.create({
   pickRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 14, minHeight: 56 },
   prod: { gap: 6, paddingVertical: 12, paddingHorizontal: 14 },
   qtyBtn: { width: 48, height: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  qty: { width: 44, height: 48, textAlign: 'center', fontFamily: fonts.bold, fontSize: 15, color: colors.ink, fontVariant: ['tabular-nums'], padding: 0 },
+  qty: { width: 44, height: 48, textAlign: 'center', ...fonte.semibold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'], padding: 0 },
   step: { width: 44, height: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   pctBox: { flex: 1, height: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
-  pctInput: { flex: 1, minWidth: 0, height: 42, textAlign: 'right', fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink, padding: 0 },
-  pctSuffix: { flex: 1, fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink2, marginLeft: 2 },
+  pctInput: { flex: 1, minWidth: 0, height: 42, textAlign: 'right', ...fonte.semibold, fontSize: 18, color: colors.ink, padding: 0 },
+  pctSuffix: { flex: 1, ...fonte.semibold, fontSize: 18, color: colors.ink2, marginLeft: 2 },
   segment: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   segItem: { flexGrow: 1, minWidth: 72, paddingHorizontal: 10, height: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   segOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  segText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.ink },
+  segText: { ...fonte.semibold, fontSize: 14, color: colors.ink },
   sent: { backgroundColor: colors.successBg, borderRadius: radius.lg, padding: 12, gap: 8 },
   footer: { backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 14, paddingHorizontal: 20, gap: 10 },
   sumRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  sumLabel: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
-  sumValue: { fontFamily: fonts.body, fontSize: 13, color: colors.ink, fontVariant: ['tabular-nums'] },
-  total: { fontFamily: fonts.display, fontSize: 20, color: colors.ink, fontVariant: ['tabular-nums'] },
+  sumLabel: { ...fonte.body, fontSize: 14, color: colors.ink2 },
+  sumValue: { ...fonte.body, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
+  total: { ...fonte.semibold, fontSize: 22, color: colors.ink, fontVariant: ['tabular-nums'] },
 });

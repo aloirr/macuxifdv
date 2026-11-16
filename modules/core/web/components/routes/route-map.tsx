@@ -46,7 +46,7 @@ function StopPopup({ stop, route, sellerName }: { stop: MapStop; route: MapRoute
   const c = stop.customer;
   return (
     <div className="flex min-w-[200px] flex-col gap-0.5 text-[13px] text-ink">
-      <strong className="text-[14px]">
+      <strong className="text-[15px]">
         {stop.seq}. {c.trade_name}
       </strong>
       <span className="text-ink-2">
