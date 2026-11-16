@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { createApp } from '../src/app';
 import type { BancoApp } from '../src/banco';
 import type { LicencasUsuario } from '../src/licencas';
-import { gravarParametrosDoModulo } from '../src/parametros-modulo';
+import { exigirParametrosValidos } from '../src/parametros-modulo';
 import { LICENCAS_PADRAO, modulosDeTeste, opcoesDeTeste, TENANT, usuarios } from './apoio';
 
 const TENANT_B = '0a000000-0000-4000-8000-0000000000b2';
@@ -198,7 +198,6 @@ describe('ctx.gravarParametros (T-0180, ADR 0059 §8)', () => {
   });
 
   it('rota da plataforma (sem módulo) não grava parâmetro de módulo', async () => {
-    const db: ClienteBanco = { query: async () => ({ rows: [], rowCount: 0 }) };
-    await expect(gravarParametrosDoModulo(db, null, { a: 1 }, async () => undefined)).rejects.toThrow(/rota da plataforma/);
+    expect(() => exigirParametrosValidos(null, { a: 1 })).toThrow(/rota da plataforma/);
   });
 });

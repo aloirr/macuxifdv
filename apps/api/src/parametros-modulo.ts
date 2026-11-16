@@ -18,7 +18,7 @@ export function exigirParametrosValidos(modulo: ModuloId | null, valores: Readon
 
 /**
  * Grava `valores` do `modulo` na transação `db` (já com o tenant). `auditar` = `tx.auditar` da mesma transação (módulo da rota).
- * Valores inválidos = erro de programação (lança antes de tocar no banco).
+ * Os `valores` chegam já conferidos por `exigirParametrosValidos` (no `app.ts`, antes de abrir a transação).
  */
 export async function gravarParametrosDoModulo(
   db: ClienteBanco,
@@ -27,7 +27,6 @@ export async function gravarParametrosDoModulo(
   auditar: (r: RegistroAuditoria) => Promise<void>,
   opcoes: OpcoesGravarParametros = {},
 ): Promise<ResultadoGravarParametros> {
-  exigirParametrosValidos(modulo, valores);
   const acao = opcoes.acao?.trim() || ACAO_AUDITORIA_PARAMETROS;
   const chaves = Object.keys(valores);
   const antes = await db.query<{ chave: string; valor: unknown }>(
