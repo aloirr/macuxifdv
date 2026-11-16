@@ -55,7 +55,8 @@ sem_tenant_id (nome) as (
          ('plataforma.backup_empresa_parte'),
          ('plataforma.exclusao_empresa'),
          ('plataforma.empresa_excluida'),
-         ('plataforma.dados_legais')
+         ('plataforma.dados_legais'),
+         ('plataforma.frase_carga')
 ),
 so_por_funcao (nome) as (
   values ('plataforma.super_admin'),
@@ -70,7 +71,8 @@ so_por_funcao (nome) as (
          ('plataforma.backup_empresa_parte'),
          ('plataforma.exclusao_empresa'),
          ('plataforma.empresa_excluida'),
-         ('plataforma.dados_legais')
+         ('plataforma.dados_legais'),
+         ('plataforma.frase_carga')
 ),
 problemas as (
   select t.nome, 'RLS desligado' as problema from tabelas t where not t.rls

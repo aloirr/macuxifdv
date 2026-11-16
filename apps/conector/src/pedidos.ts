@@ -108,7 +108,7 @@ export async function gravarPedidos(ctx: Contexto, cfg: PedidosConfig, r: Result
  *  - entrega (RN-VEN-17): `entrega_origem` (erp|editado|nulo), `entrega_external_id` (NULO = usar os textos), `entrega_logradouro`,
  *    `_numero`, `_complemento`, `_bairro`, `_cidade`, `_uf`, `_cep`, `entrega_principal`;
  *  - pagamento (RN-VEN-24): `pagamento_forma_codigo`, `_forma_external_id`, `_prazo_codigo`, `_prazo_external_id`,
- *    `pagamento_parcelas_dias` (texto "30,60,90") e `pagamento_prazo_medio_dias`.
+ *    `pagamento_parcelas_dias` (texto "30,60,90") e `pagamento_prazo_medio_dias` e, desde o 1.5.0 (RN-INT-15), `pagamento_percentual_ajuste` (só informativo).
  * Pedido antigo, sem esses blocos, grava tudo nulo e o SQL antigo (que nao os cita) segue igual.
  */
 export function parametrosCabecalho(pedido: PedidoParaErp): Record<string, unknown> {
@@ -154,6 +154,8 @@ export function parametrosCabecalho(pedido: PedidoParaErp): Record<string, unkno
     pagamento_prazo_external_id: pg?.prazo_external_id ?? null,
     pagamento_parcelas_dias: pg ? pg.parcelas_dias.join(',') : null,
     pagamento_prazo_medio_dias: pg?.prazo_medio_dias ?? null,
+    // RN-INT-15 (Conector 1.5.0): % de ajuste do prazo, só informativo; preço e total já vêm ajustados do Hub e não são recalculados
+    pagamento_percentual_ajuste: pg?.percentual_ajuste ?? null,
   };
 }
 

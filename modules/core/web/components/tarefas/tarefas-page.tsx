@@ -21,7 +21,8 @@ import {
 } from './api';
 import { NovaTarefa } from './nova-tarefa';
 import { TarefaDetalhe } from './tarefa-detalhe';
-import { CAMPO_TAREFA, FILTROS_SITUACAO, pctNoPrazo, ROTULO_TIPO, rotuloDestino } from './tarefas';
+import { FILTROS_SITUACAO, pctNoPrazo, ROTULO_TIPO, rotuloDestino } from './tarefas';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
 type Visao = 'tarefas' | 'consultores';
 
@@ -149,11 +150,11 @@ export function FiltrosDasTarefas({
       )}
       <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
         Prazo de
-        <input type="date" value={filtros.de ?? ''} onChange={(e) => set({ de: vazio(e.target.value) })} className={CAMPO_TAREFA} data-testid="tarefas.filtro.de" />
+        <input type="date" value={filtros.de ?? ''} onChange={(e) => set({ de: vazio(e.target.value) })} className={CLASSE_CAMPO_BKO} data-testid="tarefas.filtro.de" />
       </label>
       <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
         até
-        <input type="date" value={filtros.ate ?? ''} min={filtros.de} onChange={(e) => set({ ate: vazio(e.target.value) })} className={CAMPO_TAREFA} data-testid="tarefas.filtro.ate" />
+        <input type="date" value={filtros.ate ?? ''} min={filtros.de} onChange={(e) => set({ ate: vazio(e.target.value) })} className={CLASSE_CAMPO_BKO} data-testid="tarefas.filtro.ate" />
       </label>
     </FilterBar>
   );

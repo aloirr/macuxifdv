@@ -40,9 +40,17 @@
   --color-nav-grupo: #f59a52;
   --color-disabled: #8b96a3;
 
-  --font-sans: var(--font-plex-sans), 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-display: var(--font-archivo), 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+  /* fonte do sistema no texto e nos títulos; códigos em mono com tabular-nums (R-20261115-110600) */
+  --font-sans: system-ui, 'Segoe UI', Roboto, -apple-system, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', 'Roboto Mono', monospace;
+
+  /* escala do texto pensada para 1366×768: 12 (mínimo) · 13 · 15 (base) · 17 · 20 · 24 (R-20261115-110600) */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
 }
 
 @layer base {
@@ -59,6 +67,7 @@
   body {
     margin: 0;
     font-family: var(--font-sans);
+    font-size: var(--text-base);
     -webkit-font-smoothing: antialiased;
   }
 
@@ -68,6 +77,7 @@
 
   /* números financeiros sempre alinhados */
   .tabular-nums,
+  .font-mono,
   td,
   th {
     font-variant-numeric: tabular-nums;
@@ -106,7 +116,7 @@
   box-sizing: border-box;
   border: 2.5px solid;
   border-radius: 999px;
-  font: 700 11px/1 var(--font-sans);
+  font: 700 12px/1 var(--font-sans);
   font-variant-numeric: tabular-nums;
 }
 
@@ -125,7 +135,7 @@
   border-radius: 9px;
   background: var(--color-ink);
   color: #ffffff;
-  font: 800 12px/1 var(--font-display);
+  font: 700 12px/1 var(--font-sans);
   box-shadow: 0 1px 4px rgb(22 32 42 / 0.45);
 }
 

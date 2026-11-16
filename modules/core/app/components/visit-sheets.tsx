@@ -9,7 +9,7 @@
  * obrigatória pendente de módulo ativo (RN-CORE-12).
  */
 import { useExtensoes, useMotorSync } from '@macuxi/platform-sdk/react';
-import { Botao, ChipEstado, colors, Folha, fonts, formatHHMM, Icon, radius, space, type as t } from '@macuxi/ui/mobile';
+import { Botao, ChipEstado, colors, Folha, fonte, formatHHMM, Icon, radius, space, type as t } from '@macuxi/ui/mobile';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -289,7 +289,7 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
           Check-in desde {since} · duração {checkoutDuration(open.checkin_at, new Date())}
         </Text>
       </View>
-      <Text style={[t.bodyStrong, { fontSize: 13 }]}>Como terminou a visita?</Text>
+      <Text style={t.bodyStrong}>Como terminou a visita?</Text>
       {vendedorEfetivo ? (
         <>
           <Pressable
@@ -370,21 +370,21 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
 
 const styles = StyleSheet.create({
   lockTile: { width: 48, height: 48, borderRadius: radius.cartao, backgroundColor: colors.warningBg, alignItems: 'center', justifyContent: 'center' },
-  title: { fontFamily: fonts.display, fontSize: 20, color: colors.ink },
-  overline: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.7, color: colors.ink2 },
-  para: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.ink2 },
-  strong: { fontFamily: fonts.semibold, color: colors.ink },
-  free: { fontFamily: fonts.semibold, fontSize: 13, color: colors.success },
+  title: t.h1Small,
+  overline: t.rotulo,
+  para: { ...fonte.body, fontSize: 14, lineHeight: 20, color: colors.ink2 },
+  strong: { ...fonte.semibold, color: colors.ink },
+  free: { ...fonte.semibold, fontSize: 14, color: colors.success },
   option: { borderRadius: radius.cartao, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, paddingVertical: 10, paddingHorizontal: 12 },
   optionOrderOn: { borderWidth: 2, borderColor: colors.success, backgroundColor: colors.successBg },
   optionNoOrderOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.ground },
-  optionTitle: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
+  optionTitle: { ...fonte.semibold, fontSize: 16, color: colors.ink },
   reasons: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   reason: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pilula, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  reasonText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.ink },
+  reasonText: { ...fonte.semibold, fontSize: 14, color: colors.ink },
   etapa: { borderRadius: radius.cartao, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, padding: 12, gap: 8 },
   etapaTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  pendencia: { fontFamily: fonts.semibold, fontSize: 13, color: colors.danger },
+  pendencia: { ...fonte.semibold, fontSize: 14, color: colors.danger },
   toast: { position: 'absolute', left: 14, right: 14, borderRadius: radius.md, paddingVertical: 10, paddingHorizontal: 12, shadowColor: colors.ink, shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 8 }, elevation: 6 },
-  toastText: { fontFamily: fonts.body, fontSize: 13, lineHeight: 17.5, color: colors.surface },
+  toastText: { ...fonte.body, fontSize: 14, lineHeight: 17.5, color: colors.surface },
 });
