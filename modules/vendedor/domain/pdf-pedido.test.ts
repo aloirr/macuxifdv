@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { COR_CABECALHO_TABELA, buildOrderPdfHtml, equivaleAHtml, formatTelefone, itensEmOrdemDoCodigo, linhasDaFilial, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido, quantidadePorEmbalagem, statusText, type DetalheParaPdf, type OrderPdfContext } from './pdf-pedido';
+import { LOGO_PADRAO_DATA_URI } from './logo-padrao';
+import { COR_CABECALHO_TABELA, buildOrderPdfHtml, equivaleAHtml, formatTelefone, itensEmOrdemDoCodigo, linhasDaFilial, orderPdfFileName, pdfDoPedido, quantidadePorEmbalagem, statusText, type DetalheParaPdf, type OrderPdfContext } from './pdf-pedido';
 
 const ctx: OrderPdfContext = { tenant_name: 'Distribuidora Exemplo Norte', product_name: 'Macuxi FDV', tz: 'America/Manaus', generated_at: '2026-11-01T18:00:00.000Z' };
 
@@ -58,11 +59,6 @@ describe('pdfDoPedido (RF-VEN-06)', () => {
       expect(html).not.toContain('Macuxi');
       expect(html).not.toContain('Gerado');
     }
-  });
-  it('T-0064: nome da distribuidora vem do login, depois de parametros.core.tenant_nome, depois Macuxi', () => {
-    expect(nomeDaDistribuidora('Norte Bebidas', { tenant_nome: 'X' })).toBe('Norte Bebidas');
-    expect(nomeDaDistribuidora('', { tenant_nome: 'Norte Bebidas' })).toBe('Norte Bebidas');
-    expect(nomeDaDistribuidora(undefined, {})).toBe('Macuxi');
   });
   it('T-0064: CNPJ do cliente formatado nos dois PDFs', () => {
     for (const v of ['customer', 'bko'] as const) expect(buildOrderPdfHtml(pdfDoPedido(detalhe()), v, ctx)).toContain('12.345.678/0001-90');
@@ -419,6 +415,28 @@ describe('T-0159: PDF final (proposta 2) com filial de faturamento, Marca, Emb. 
           const d = detalhe({ ...(tipo === 'orcamento' ? { tipo } : {}) });
           expect(buildOrderPdfHtml(pdfDoPedido(d), v, ctx)).toMatch(/<img class="logo" src="data:image\/png;base64,[A-Za-z0-9+/=]{100,}"/);
           expect(buildOrderPdfHtml(pdfDoPedido(d), v, { ...ctx, logo_src: 'https://x.test/logo.png' })).toContain('<img class="logo" src="https://x.test/logo.png"');
+        }
+    });
+    it('MC-0404: sem nome da empresa o cabeçalho não escreve nome nenhum, nem "Macuxi"', () => {
+    for (const v of ['customer', 'bko'] as const) {
+      for (const tenant_name of ['', '   ']) {
+        const html = buildOrderPdfHtml(pdfDoPedido(detalhe()), v, { ...ctx, tenant_name });
+        expect(html).not.toContain('class="empresa"');
+        expect(html).not.toContain('Macuxi');
+      }
+    }
+  });
+  it('T-0182: caixa da logo com altura de 16mm e largura até 48mm, à esquerda e sem raio, nas 4 versões (logo larga, quadrada, padrão)', () => {
+      const larga = 'data:image/png;base64,' + 'A'.repeat(200);
+      const quadrada = 'https://x.test/quadrada.png';
+      for (const tipo of ['pedido', 'orcamento'] as const)
+        for (const v of ['customer', 'bko'] as const) {
+          const d = detalhe({ ...(tipo === 'orcamento' ? { tipo } : {}) });
+          for (const logo_src of [undefined, null, '  ', larga, quadrada]) {
+            const html = buildOrderPdfHtml(pdfDoPedido(d), v, { ...ctx, logo_src });
+            expect(html).toContain('.logo { width: auto; max-width: 48mm; height: 16mm; object-fit: contain; object-position: left center; border-radius: 0; }');
+            expect(html).toContain(`<img class="logo" src="${logo_src?.trim() || LOGO_PADRAO_DATA_URI}"`);
+          }
         }
     });
     it('T-0165: Valor final em caixa; com desconto, Valor de tabela, Desconto (%) e Desconto (R$) ficam dentro da caixa, acima do Valor final (cliente e escritório), e o Histórico ao lado', () => {

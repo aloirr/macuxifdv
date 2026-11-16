@@ -133,3 +133,5 @@
 2026-11-16 — sincronização completa (#425) — RD-1297 (sai mostrarRotulo da BarraProgresso), RD-1298 (sai CORES_BARRA_DIALOGO: cores={TEMAS_ENTRADA.perola}), RD-1299 (rotuloAcessivel obrigatório, sem padrão), RD-1300 (inicio.md aponta para a §5 da spec)
 2026-11-15 — RD-1283 — spec do filtro padrão do Campo no main (título 'Rota' com outra data, a data só na etiqueta, RD-1235; nota da fonte do sistema; sem o html, que dependia do CSS do catálogo v2 fora do main)
 2026-11-15 — RD-1283 (#437) — MC-0156 (rótulo t.label 12/600), RD-1291 (sai o aviso de simulação para aprovação), RD-1292 (sai a linha de pareceres), RD-1293 (etiqueta para o removível; chip só os de marcar)
+2026-11-15 — catálogo onda 1 — CargaFundo no kit (indicador de carga em segundo plano e catálogo carregando, ADR 0054 solução 5); branch novo nuvem/v1013-catalogo-carregando-designer-ux a partir do -b (o mais novo)
+2026-11-16 — catálogo onda 1 (#424) — RD-1294 (sai 'substituem o texto provisório'), RD-1295 (comentário do carga-fundo-rn só aponta para a spec e as constantes), RD-1296 (sai o teste dos textos fechados, repetido), MC-0157 (spec na fonte do sistema 600/12, nota da tipografia)
