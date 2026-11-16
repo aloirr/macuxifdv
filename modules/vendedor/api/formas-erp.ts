@@ -30,6 +30,8 @@ export interface PrazoDoErp {
   prazo_medio_dias?: number | null;
   ordem?: number | null;
   ativo?: boolean | null;
+  /** RN-VEN-46: Desc./Acrésc. (%) do prazo vindo do ERP (2 casas, negativo = desconto); ausente = 0 */
+  percentual_ajuste?: number | null;
 }
 
 export type AcaoDaLinha = 'inserida' | 'atualizada' | 'adotada';
@@ -72,19 +74,20 @@ export async function aplicarPrazoDoErp(db: ClienteBanco, p: PrazoDoErp): Promis
   const medio = prazoMedioDias(p.parcelas_dias);
   const descricao = p.descricao?.trim() || descricaoPrazo(p.parcelas_dias);
   const ativo = p.ativo ?? true;
+  const percentual = p.percentual_ajuste ?? 0;
   const achada = await achar(db, 'prazo_pagamento', p.external_id, codigo);
   if (achada) {
     await db.query(
       `update vendedor.prazo_pagamento set external_id = $2, forma_pagamento_id = $3, codigo = $4, descricao = $5, parcelas_dias = $6::int[],
-          prazo_medio_dias = $7, ativo = $8, ordem = coalesce($9, ordem) where id = $1`,
-      [achada.id, p.external_id, forma.id, codigo, descricao, p.parcelas_dias, medio, ativo, p.ordem ?? null],
+          prazo_medio_dias = $7, ativo = $8, ordem = coalesce($9, ordem), percentual_ajuste = $10 where id = $1`,
+      [achada.id, p.external_id, forma.id, codigo, descricao, p.parcelas_dias, medio, ativo, p.ordem ?? null, percentual],
     );
     return { id: achada.id, acao: achada.adotar ? 'adotada' : 'atualizada', prazo_medio_dias: medio };
   }
   const r = await db.query<{ id: string }>(
-    `insert into vendedor.prazo_pagamento (tenant_id, external_id, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ativo, ordem)
-     values (plataforma.tenant_atual(), $1, $2, $3, $4, $5::int[], $6, $7, $8) returning id`,
-    [p.external_id, forma.id, codigo, descricao, p.parcelas_dias, medio, ativo, p.ordem ?? 0],
+    `insert into vendedor.prazo_pagamento (tenant_id, external_id, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ativo, ordem, percentual_ajuste)
+     values (plataforma.tenant_atual(), $1, $2, $3, $4, $5::int[], $6, $7, $8, $9) returning id`,
+    [p.external_id, forma.id, codigo, descricao, p.parcelas_dias, medio, ativo, p.ordem ?? 0, percentual],
   );
   return { id: r.rows[0]!.id, acao: 'inserida', prazo_medio_dias: medio };
 }
@@ -126,6 +129,7 @@ export function criarConsumidorPrazoPagamentoDoErp(): ConsumidorEvento {
         prazo_medio_dias: r.data.prazo_medio_dias,
         ordem: r.data.ordem,
         ativo: r.data.ativo,
+        percentual_ajuste: r.data.percentual_ajuste ?? 0,
       });
     },
   });

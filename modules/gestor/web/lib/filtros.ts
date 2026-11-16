@@ -38,6 +38,11 @@ export function lerFiltrosAlertas(p: Busca): FiltrosAlertas {
   return { status: ou(StatusAlerta.safeParse(p.get('status')), null) };
 }
 
+/** Query da lista de alertas: os filtros da URL mais `produtividade=1`, para os alertas de produtividade (T-0180) aparecerem. */
+export function queryAlertas(f: FiltrosAlertas): Record<string, string> {
+  return { ...paraQuery(f), produtividade: '1' };
+}
+
 /** Query string sem os vazios (para `router.replace` e para a chamada da API). */
 export function paraQuery(f: object): Record<string, string> {
   return Object.fromEntries(Object.entries(f).filter(([, v]) => v !== null && v !== undefined && v !== '').map(([k, v]) => [k, String(v)]));
