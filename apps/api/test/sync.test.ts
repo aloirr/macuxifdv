@@ -444,3 +444,46 @@ describe('T-0121 N3: variacaoEscopo do provedor entra na versao_escopo e no curs
     expect(decodificarCursorNovidades(mudou.cursor)!.escopo).not.toBe(decodificarCursorNovidades(igual.cursor)!.escopo);
   });
 });
+
+describe('T-0180 (ADR 0059): contato do aparelho no novidades e no push, só core, melhor esforço', () => {
+  function montarContato(falha = false) {
+    const contatos: { usuario: string; tenant: string }[] = [];
+    const modulos = opcoesDeTeste().modulos!.map((m) =>
+      m.manifesto.id === 'core'
+        ? definirModuloApi({
+            ...m,
+            contatoDoAparelho: async (ctx) => {
+              if (falha) throw new Error('banco fora');
+              contatos.push({ usuario: ctx.usuario.id, tenant: ctx.usuario.tenant_id });
+            },
+          })
+        : m,
+    );
+    const { banco } = bancoFalso(() => new Date(AGORA.getTime() - 2000));
+    const app = createApp({ ...opcoesDeTeste(structuredClone(LICENCAS_PADRAO), { banco, relogio: () => AGORA }), modulos });
+    return { app, contatos };
+  }
+
+  it('novidades e push autenticados registram o contato do usuário da requisição', async () => {
+    const { app, contatos } = montarContato();
+    expect((await app.inject({ method: 'GET', url: '/v1/sync/novidades', headers: cab('vendedor') })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: '/v1/sync/push', headers: cab('promotor'), payload: { itens: [{ id: U(1), entidade: 'nao_existe', payload: {} }] } })).statusCode).toBe(200);
+    expect(contatos).toEqual([
+      { usuario: usuarios.vendedor!.id, tenant: usuarios.vendedor!.tenant_id },
+      { usuario: usuarios.promotor!.id, tenant: usuarios.promotor!.tenant_id },
+    ]);
+  });
+
+  it('sem login, nada; o pull não conta; falha do core não derruba a sincronização', async () => {
+    const { app, contatos } = montarContato();
+    expect((await app.inject({ method: 'GET', url: '/v1/sync/novidades' })).statusCode).toBe(401);
+    await app.inject({ method: 'GET', url: '/v1/sync/pull?entidade=pedido', headers: cab('vendedor') });
+    expect(contatos).toEqual([]);
+    const comFalha = montarContato(true);
+    expect((await comFalha.app.inject({ method: 'GET', url: '/v1/sync/novidades', headers: cab('vendedor') })).statusCode).toBe(200);
+  });
+
+  it('outro módulo não pode declarar o contato do aparelho', () => {
+    expect(() => definirModuloApi({ ...vendedorApi, contatoDoAparelho: async () => undefined })).toThrow(/só o core registra o contato do aparelho/);
+  });
+});

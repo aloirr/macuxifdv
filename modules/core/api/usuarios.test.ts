@@ -1,6 +1,6 @@
 import { criarPermissoes, verificarAcao, PERFIS, type ClienteBanco, type ContextoBase, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { CriarUsuarioRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioItemSchema } from '../contracts';
+import { CriarUsuarioRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioItemSchema, UsuarioListaRespostaSchema } from '../contracts';
 import type { MensagemEmail, ServicoEmail } from './email';
 import { manifest } from '../manifest';
 import { perfisDeFabrica } from '../domain';
@@ -330,10 +330,32 @@ describe('RN-VEN-11a: limite de desconto do usuário (T-0168)', () => {
     const r = await executar(rota('PUT', 'usuarios/:id'), contexto(db), { params: { id: ALVO }, corpo: { desconto_limita_pedido: true, desconto_maximo_pedido_permil: 80 } });
     expect(r).toMatchObject({ desconto_limita_pedido: true, desconto_maximo_pedido_permil: 80 });
     const up = chamadas.find((c) => /update core.usuario set nome/.test(c.sql))!;
-    expect(up.valores.slice(-3)).toEqual([true, true, 80]);
+    expect(up.valores.slice(-5, -2)).toEqual([true, true, 80]);
     const a = jsonDaAuditoria(chamadas);
     expect(a).toContain('desconto_limita_pedido');
     expect(a).toContain('desconto_maximo_pedido_permil');
+  });
+  it('RN-CORE-44 (D5): grava o horário de almoço próprio (11:30 às 12:30), audita antes e depois e devolve no item', async () => {
+    const { db, chamadas } = fakeDb([estado, ...cargaPadrao, [/for update/, [bruto()]], [/from core.usuario u left join/, [linhaItem({ almoco_inicio_min: 690, almoco_fim_min: 750 })]]]);
+    const r = await executar(rota('PUT', 'usuarios/:id'), contexto(db), { params: { id: ALVO }, corpo: { almoco_inicio_min: 690, almoco_fim_min: 750 } });
+    expect(r).toMatchObject({ almoco_inicio_min: 690, almoco_fim_min: 750 });
+    const up = chamadas.find((c) => /update core.usuario set nome/.test(c.sql))!;
+    expect(up.valores.slice(-2)).toEqual([690, 750]);
+    const a = jsonDaAuditoria(chamadas);
+    expect(a).toContain('almoco_inicio_min');
+    expect(a).toContain('almoco_fim_min');
+  });
+  it('RN-CORE-44 (D5): fim antes do início, duração fora de 15 min a 3 h ou um campo só é 422 USUARIO_DADOS_INVALIDOS e nada é gravado', async () => {
+    for (const corpo of [{ almoco_inicio_min: 780, almoco_fim_min: 720 }, { almoco_inicio_min: 720, almoco_fim_min: 730 }, { almoco_inicio_min: 690, almoco_fim_min: null }]) {
+      const { db, chamadas } = fakeDb([estado, ...cargaPadrao, [/for update/, [bruto()]]]);
+      await expect(executar(rota('PUT', 'usuarios/:id'), contexto(db), { params: { id: ALVO }, corpo })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_DADOS_INVALIDOS', detalhes: { regra: 'RN-CORE-44' } });
+      expect(chamadas.find((c) => /update core.usuario set nome/.test(c.sql))).toBeUndefined();
+    }
+  });
+  it('RN-CORE-44 (D5): voltar ao padrão da empresa grava os dois como nulos', async () => {
+    const { db, chamadas } = fakeDb([estado, ...cargaPadrao, [/for update/, [bruto({ almoco_inicio_min: 690, almoco_fim_min: 750 })]], [/from core.usuario u left join/, [linhaItem()]]]);
+    await executar(rota('PUT', 'usuarios/:id'), contexto(db), { params: { id: ALVO }, corpo: { almoco_inicio_min: null, almoco_fim_min: null } });
+    expect(chamadas.find((c) => /update core.usuario set nome/.test(c.sql))!.valores.slice(-2)).toEqual([null, null]);
   });
   it('RN-VEN-11a: criar com "por pedido" sem o número é recusado; sem os campos nasce no padrão', async () => {
     const corpo = { nome: 'Nova Pessoa', email: 'Nova@Exemplo.com.br', perfil: 'vendedor', equipe_id: EQUIPE, external_id: 'V-100', senha: SENHA, filial_cadastro_id: FIL };
@@ -569,5 +591,18 @@ describe('usuario-bloqueio §6: bloqueio do login na lista e Desbloquear (BKO)',
   it('§6.2: usuário de outro tenant ou apagado: 404', async () => {
     const { db } = fakeDb([]);
     await expect(executar(rota('DELETE', 'usuarios/:id/bloqueio'), contexto(db), { params: { id: ALVO } })).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe('RN-CORE-44 (D5): a lista leva o padrão de almoço da empresa para quem edita usuário', () => {
+  it('RN-CORE-44: sem parâmetro salvo, a resposta traz 12:00 às 13:00; com parâmetro, o da empresa (quem tem só usuario.editar não precisa de parametro.inicio)', async () => {
+    const base: Resposta[] = [[/from core.usuario u left join/, [linhaItem()]]];
+    const semParam = fakeDb(base);
+    const r1 = (await executar(rota('GET', 'usuarios'), contexto(semParam.db), { query: {} })) as { almoco_padrao: unknown };
+    expect(r1.almoco_padrao).toEqual({ inicio_min: 720, fim_min: 780 });
+    const comParam = fakeDb([[/jornada\.almoco_padrao|from plataforma\.parametro/, (v) => ((v[0] as string[]).includes('jornada.almoco_padrao') ? [{ modulo: 'core', chave: 'jornada.almoco_padrao', valor: { inicio_min: 690, fim_min: 750 } }] : [])], ...base]);
+    const r2 = (await executar(rota('GET', 'usuarios'), contexto(comParam.db), { query: {} })) as { almoco_padrao: unknown };
+    expect(r2.almoco_padrao).toEqual({ inicio_min: 690, fim_min: 750 });
+    expect(UsuarioListaRespostaSchema.safeParse(r2).success).toBe(true);
   });
 });

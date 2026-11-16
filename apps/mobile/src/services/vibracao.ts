@@ -7,7 +7,7 @@ import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
 import { definirVibracao } from '@macuxi/ui/mobile';
-import { montarVibracao, type MotorTatil } from '@/lib/vibracao';
+import { impactoDoSegurar, montarVibracao, type MotorTatil } from '@/lib/vibracao';
 
 const motorExpo: MotorTatil = {
   android: (tipo) => Haptics.performAndroidHapticsAsync(tipo === 'confirmar' ? Haptics.AndroidHaptics.Confirm : Haptics.AndroidHaptics.Virtual_Key),
@@ -20,4 +20,13 @@ export function useVibracaoDoShell(reduzirMovimento: boolean): void {
     definirVibracao(montarVibracao(Platform.OS, reduzirMovimento, motorExpo, Platform.Version));
     return () => definirVibracao(null);
   }, [reduzirMovimento]);
+}
+
+/** R-20261115-100000: vibração do segurar o Sincronizar (leve = Light, media = Medium); muda com "reduzir movimento". */
+export function vibrarSegurar(forca: 'leve' | 'media', reduzirMovimento: boolean): void {
+  const impacto = impactoDoSegurar(forca, Platform.OS, reduzirMovimento);
+  if (!impacto) return;
+  void Haptics.impactAsync(
+    impacto === 'media' ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light,
+  ).catch(() => undefined);
 }
