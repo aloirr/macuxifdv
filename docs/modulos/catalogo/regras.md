@@ -16,7 +16,7 @@ Convenções: dinheiro em **centavos inteiros** (ADR 0002); instantes em **ISO 8
 | RN-CAT-02 | "Pergunte ao catálogo" só com conteúdo cadastrado e fonte; sem base → "não encontrei" | `pergunte.ts` |
 | RN-CAT-03 | Limite de consultas de IA por usuário/dia [200]; só consulta respondida pelo provedor conta (falha e tempo esgotado não) | `limite-ia.ts` (`verificarConsultaIa`, `registrarDesfechoIa`), `ia.ts` (`desfecho`) |
 | RN-CAT-04 | Acesso: consulta para todos os perfis; conteúdo, sinônimos, destaques e termos sem resultado só analista/admin | `manifest.ts` (`acoes`) |
-| RN-CAT-05 | Promotor vê ficha e fotos sem preço de tabela e sem estoque [`promotor_ve_preco_estoque` = não]; ligado, vê como o vendedor | `visibilidade.ts`, `manifest.ts` (`produto.ver_preco_estoque`) |
+| RN-CAT-05 | Ver RN-CAT-05 (doc 03) | `visibilidade.ts`, `manifest.ts` (`produto.ver_preco_estoque`) |
 | RN-CAT-06 | Item fora da tabela do cliente: "Sem preço para este cliente.", não vendável, sem cair na tabela padrão. Desde a T-0149 o preço é o da **filial do cliente** (RN-CORE-39) | `preco.ts`, `preco-filial.ts` |
 | RN-CAT-07 | Estoque: "baixo" até [10], número exato [visível], "desatualizado" depois de [24 h]; sempre com o instante da atualização. Desde a T-0149 o saldo é **por filial** (soma dos depósitos dela; com cliente no contexto, só a filial dele; sem registro = 0) | `estoque.ts` (`filiaisDoEstoque`) |
 | RN-CAT-08 | Ranking e cache: pesos e cache com os padrões atuais, parametrizáveis; calibração no critério da Sprint 3 | `ranking.ts`, `limite-ia.ts` (cache), `parametros.ts` |
@@ -116,14 +116,13 @@ O esquema e os padrões vêm de `ParametrosCatalogo` (contracts), para app, web 
 | `produto.ver_preco_estoque` (preço de tabela e estoque na vitrine, busca e ficha) | vendedor, supervisor, gerente, analista, assistente, admin; **promotor só com `promotor_ve_preco_estoque` = sim** |
 | `produto.enriquecer`, `sinonimo.gerenciar`, `destaque.gerenciar`, `busca.ver_sem_resultado` | analista, admin |
 
-- **RN-CAT-05 no domínio**: `podeVerPrecoEstoque(perfil, parametros)` decide; `itemVitrineParaPerfil` devolve a ficha e as fotos com `price` e `availability` nulos e `price_stock_visible: false` (o contrato `ItemVitrine` não aceita só um dos dois); `filtrosParaPerfil` tira filtro e ordenação por preço/estoque (a ordem da lista não pode revelar o preço). Com o parâmetro ligado o promotor recebe exatamente o que o vendedor recebe. A API aplica antes de responder e o app de novo na tela.
+- **RN-CAT-05 no domínio**: ver RN-CAT-05 (doc 03).
 - O Catálogo **não** declara ação de pedido; "Adicionar ao pedido" é do Vendedor via extensão `produto.acoes` (RN-PRO-01 vale pelo perfil). Sync: `tabela_preco`, `tabela_preco_item`, `deposito`, `estoque_saldo` (preço/estoque), `categoria`, `marca`, `produto_atributo`, `produto_midia`, `produto_conteudo`, `sinonimo` (conteúdo e busca); **`produto` não** (é do Core). Consome só `integracao.preco.atualizado@1` e `integracao.estoque.atualizado@1`.
 - **Sync do promotor**: com `promotor_ve_preco_estoque` = não, o aparelho do promotor não deveria nem receber `tabela_preco_item` e `estoque_saldo` (o filtro de escopo do sync é da API/Core; ver pendência na entrega).
 
 ## 9. Texto das RN-CAT para o doc 03 (proposta ao gerente-projetos)
 - **RN-CAT-03** Limite de consultas de IA por usuário/dia [200] para controle de custo; só consulta respondida pelo provedor conta. Falha do provedor (erro ou tempo esgotado), resposta do cache, busca offline e busca simples não consomem. O dia vira no fuso do tenant.
 - **RN-CAT-04** Consulta do catálogo (busca, ficha, fotos, "pergunte ao catálogo") para todos os perfis; conteúdo, sinônimos, destaques e termos sem resultado só analista e admin.
-- **RN-CAT-05** O promotor vê a ficha e as fotos, mas não vê preço de tabela nem estoque, nem filtra/ordena por eles [`promotor_ve_preco_estoque` = não]; com o parâmetro ligado, vê como o vendedor.
 - **RN-CAT-06** Item fora da tabela de preço do cliente em contexto aparece como "Sem preço para este cliente" e não é vendável; nunca cai na tabela padrão do tenant.
 - **RN-CAT-07** Estoque: "baixo" de 1 até [10] unidades, número exato visível [sim], "desatualizado" depois de [24 h] sem atualização; a tela sempre mostra "atualizado às hh:mm" (fuso do tenant).
 - **RN-CAT-08** Ranking da busca: pesos [semântico 0,4; estoque 0,10; mais vendido 0,10; campanha 0,05] e cache [10 min, a partir da 2ª repetição] são parâmetros do tenant; serão calibrados no critério de aceite da Sprint 3.

@@ -16,6 +16,8 @@ import { normalizarTexto } from '../domain/texto';
 import { anoCivilNoFuso } from '../domain/ano-civil';
 import { parametrosDoTenant } from '../domain/parametros';
 import type { ProdutoCatalogo } from '../domain/vitrine';
+import { cargaOnlineDoShell } from './lib/carga-online';
+import { buscaProdutosOnline, portaDaCarga, textosProdutoOnline } from './lib/consultas-online';
 import { comAplicacao, contextoLocal, preselecionar, produtosLocais, sinonimosLocais, vocabularioMemorizado, type LeitorLocal } from './lib/local';
 
 const vivas = <L extends { deleted_at: string | null }>(l: L[]) => l.filter((x) => !x.deleted_at);
@@ -71,6 +73,9 @@ export async function referenciasDoRetrato(ctx: ContextoConsultaAparelho, ids?: 
 }
 
 export const consultaTextosProdutoAparelho = implementarConsultaAparelho(CONSULTA_TEXTOS_PRODUTO, async (entrada, ctx) => {
+  // ADR 0054: catálogo ainda carregando = API; depois da carga, aparelho
+  const online = portaDaCarga('catalogo.textos_produto@1', cargaOnlineDoShell());
+  if (online) return textosProdutoOnline(online, entrada);
   const aplicacao = await aplicacoesDosProdutos(ctx, entrada.produto_ids);
   const referencias = await referenciasDoRetrato(ctx, new Set(entrada.produto_ids));
   const produtos = entrada.produto_ids.map((id): ProdutoCatalogo => ({
@@ -121,6 +126,9 @@ async function soVendaveisDoCliente(ctx: ContextoConsultaAparelho, clienteId: st
 export const consultaBuscaProdutosAparelho = implementarConsultaAparelho(CONSULTA_BUSCA_PRODUTOS, async (entrada, ctx) => {
   // RF-CAT-01 (T-0167): abaixo de 3 caracteres a consulta não roda
   if (!buscaPodeRodar(entrada.q)) return { itens: [], total: 0, sugestao: null };
+  // ADR 0054: catálogo ainda carregando = API (com o preço do cliente); depois da carga, aparelho
+  const online = portaDaCarga('catalogo.busca_produtos@1', cargaOnlineDoShell());
+  if (online) return buscaProdutosOnline(online, entrada);
   // dependência inativa lança ConsultaIndisponivel (o Vendedor cai no plano B do seletor); Error de programação sobe
   const leitor: LeitorLocal = ctx;
   const todos = await produtosLocais(leitor, { lerConcorrente: false });

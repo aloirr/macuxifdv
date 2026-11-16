@@ -6,15 +6,17 @@ import { ApiRequestError } from '@macuxi/platform-sdk/web';
 import { ToastProvider } from '@macuxi/ui/web';
 
 import { avisarSePerfilSemBko } from '@/lib/ciclo-senha';
+import { avisarSeSemFilial } from '@/lib/sem-filial';
 
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(
     () =>
       new QueryClient({
         // RN-CORE-33 (T-0094): 403 PERFIL_SEM_BKO em qualquer consulta ou gravação = o perfil perdeu o backoffice durante o uso;
-        // o shell (app-shell) encerra a sessão e volta ao Entrar com o aviso
-        queryCache: new QueryCache({ onError: (e) => void avisarSePerfilSemBko(e) }),
-        mutationCache: new MutationCache({ onError: (e) => void avisarSePerfilSemBko(e) }),
+        // o shell (app-shell) encerra a sessão e volta ao Entrar com o aviso. T-0176 (RN-CORE-39): 403 USUARIO_SEM_FILIAL = o
+        // shell troca o miolo pelo aviso da conta sem filial (a sessão fica, para o destravamento)
+        queryCache: new QueryCache({ onError: (e) => void (avisarSePerfilSemBko(e) || avisarSeSemFilial(e)) }),
+        mutationCache: new MutationCache({ onError: (e) => void (avisarSePerfilSemBko(e) || avisarSeSemFilial(e)) }),
         defaultOptions: {
           queries: {
             staleTime: 5_000,
