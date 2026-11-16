@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO, type ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
-import { TIPOS_ALERTA, TIPOS_ALERTA_PRODUTIVIDADE, TIPOS_REGRA_EQUIPE, type MembroEquipe } from '../contracts';
+import { TIPOS_ALERTA, TIPOS_ALERTA_PRODUTIVIDADE, type MembroEquipe } from '../contracts';
 import { avaliarAlertas, reconciliarAlertas, REGRAS_PADRAO, resolverRegras, tiposAtivos, type AlertaExistente } from './alertas';
 import { CLIENTE_A, CLIENTE_B, CLIENTE_C, checkin, checkout, ev, maisMin, u, VENDEDOR } from './fixtures';
 import { aplicarEventos, estadoInicial, type EventoRecebido } from './projecao';
