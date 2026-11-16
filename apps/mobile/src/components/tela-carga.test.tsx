@@ -60,7 +60,7 @@ vi.mock('@macuxi/ui/mobile', () => {
   const vazio: unknown = new Proxy(() => null, { get: (_alvo, chave) => (chave === 'then' ? undefined : vazio) });
   return new Proxy(
     {
-      fonts: new Proxy({}, { get: () => 'fonte' }),
+      fonte: new Proxy({}, { get: () => ({}) }),
       temaDaEntrada: () => new Proxy({}, { get: () => '#000' }),
       firstName: (n: string) => n.split(' ')[0],
       Icon: () => createElement('i'),

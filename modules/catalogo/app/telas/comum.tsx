@@ -3,7 +3,7 @@
  * outros módulos (ex.: Vendedor) chegam só pela extensão; o shell já esconde do promotor o que é de pedido (RN-PRO-01, regra 7).
  */
 import { useExtensoes } from '@macuxi/platform-sdk/react';
-import { ALTURA, BotaoIcone, Button, Cartao, ChipEstado, colors, fonts, Icon, type IconName } from '@macuxi/ui/mobile';
+import { ALTURA, BotaoIcone, Button, Cartao, ChipEstado, colors, fonte, Icon, type IconName, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Clipboard, Platform, Pressable, StyleSheet, Text, ToastAndroid, View } from 'react-native';
 import type { AcaoProduto, ContextoProduto, ItemVitrine, MiniaturaProduto as Miniatura } from '../../contracts';
@@ -155,12 +155,12 @@ export function CartaoGrade({ item, clienteId, miniatura = null, onPress }: { it
 
 const g = StyleSheet.create({
   cartao: { flex: 1, borderRadius: 16 },
-  nome: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
-  marca: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2, minHeight: 18 },
+  nome: { ...fonte.semibold, fontSize: 16, color: colors.ink },
+  marca: { ...fonte.body, fontSize: 14, color: colors.ink2, minHeight: 18 },
   precoLinha: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  preco: { fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink, fontVariant: ['tabular-nums'] },
-  semPreco: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink3 },
-  riscado: { fontFamily: fonts.body, fontSize: 12, color: colors.ink2, textDecorationLine: 'line-through' },
+  preco: t.number,
+  semPreco: { ...fonte.semibold, fontSize: 16, color: colors.ink3 },
+  riscado: { ...fonte.body, fontSize: 12, color: colors.ink2, textDecorationLine: 'line-through' },
   acoes: { flexDirection: 'row', gap: 6, marginLeft: 'auto' },
   rodape: { flexDirection: 'row', alignItems: 'center' },
   // 28 dp de caixa + 10 de folga em cada lado = alvo de 48 dp, sem empurrar o rodapé para fora da coluna de 360 dp

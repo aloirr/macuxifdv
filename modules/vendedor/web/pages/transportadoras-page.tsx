@@ -103,7 +103,7 @@ export function TransportadorasPage() {
   const acoesDaPagina: AcaoDoMenu[] = [{ id: 'csv', rotulo: 'Exportar CSV', aoEscolher: exportar, desligada: itens.length === 0, testId: 'transportadoras.exportar-csv' }];
   const colunas: ColunaDaTabela<Transportadora>[] = [
     { id: 'nome', titulo: 'Nome', celula: (t) => nomeLegivel(t.nome), texto: (t) => t.nome, largura: '38%' },
-    { id: 'cnpj', titulo: 'CNPJ', celula: (t) => <span className="font-mono">{t.documento ? formatarDocumento(t.documento) : '—'}</span>, texto: (t) => (t.documento ? formatarDocumento(t.documento) : ''), prioridade: 2 },
+    { id: 'cnpj', titulo: 'CNPJ', celula: (t) => <span className="tabular-nums">{t.documento ? formatarDocumento(t.documento) : '—'}</span>, texto: (t) => (t.documento ? formatarDocumento(t.documento) : ''), prioridade: 2 },
     { id: 'telefone', titulo: 'Telefone', celula: (t) => t.telefone ?? '—', texto: (t) => t.telefone ?? '', prioridade: 3 },
     { id: 'situacao', titulo: 'Situação', celula: (t) => <SeloSituacao selos={[t.ativo ? { tom: 'success', texto: 'Ativa' } : { tom: 'neutral', texto: 'Inativa' }]} />, largura: '110px' },
     { id: 'origem', titulo: 'Origem', celula: (t) => (t.external_id ? 'ERP' : 'BKO'), prioridade: 3, largura: '80px' },
@@ -117,7 +117,7 @@ export function TransportadorasPage() {
   );
   const colunasDigitadas: ColunaDaTabela<Digitada>[] = [
     { id: 'nome', titulo: 'Nome', celula: (d) => nomeLegivel(d.nome), texto: (d) => d.nome, largura: '40%' },
-    { id: 'cnpj', titulo: 'CNPJ', celula: (d) => <span className="font-mono">{formatarDocumento(d.documento)}</span>, texto: (d) => formatarDocumento(d.documento), prioridade: 2 },
+    { id: 'cnpj', titulo: 'CNPJ', celula: (d) => <span className="tabular-nums">{formatarDocumento(d.documento)}</span>, texto: (d) => formatarDocumento(d.documento), prioridade: 2 },
     { id: 'telefone', titulo: 'Telefone', celula: (d) => d.telefone ?? '—', texto: (d) => d.telefone ?? '', prioridade: 3 },
     { id: 'pedidos', titulo: 'Pedidos', celula: (d) => d.pedidos, numero: true, largura: '90px' },
   ];
