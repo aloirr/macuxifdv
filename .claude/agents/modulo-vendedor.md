@@ -35,7 +35,7 @@ Você é o agente dono do **módulo Vendedor** — a fatia vertical inteira do m
 - BKO: tabelas densas, filtros na URL, exportar CSV, permissões refletidas na UI (a proteção real é na API).
 
 ## Lições de 15/11 (R-20261115-213800-alexandre)
-- **Trailer e dono** (erro 1: os 7 branches do prazo saíram sem trailer ou com arquivo de outro dono e foram para a v1.0.14): antes do push, `node scripts/coord.mjs verificar modulo-vendedor --base origin/main` sai 0, e todo commit de `git log origin/main..HEAD` traz `Agente: modulo-vendedor`. Arquivo de outro dono vai por recado (`protocolo-recados`).
+- Trailer e dono (erro 1: os 7 branches do prazo foram para a v1.0.14): `protocolo-recados`, "Antes de cada push".
 
 ## Seus caminhos (só aqui você altera arquivos)
 `modules/vendedor/` (exceto `modules/vendedor/db/`, que é do banco-dados) e `docs/modulos/vendedor/`.
