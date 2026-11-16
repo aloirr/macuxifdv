@@ -7,7 +7,7 @@ import { ROTULO_PERFIL, type ModuloId } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, CampoSenha, IconeModulo, IconUser, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, useToast, rotuloDoPerfil, type AcaoDoMenu, type IdDoModulo } from '@macuxi/ui/web';
-import { FiliaisListaSchema, CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, VincularErpRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type LicencasEstado, type UsuarioItem } from '../../../contracts';
+import { FiliaisListaSchema, CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, VincularErpRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type HorarioAlmoco, type LicencasEstado, type UsuarioItem } from '../../../contracts';
 import { efetivosPelasDependencias } from '../../../domain/licencas';
 import {
   acaoDeSenha,
@@ -20,6 +20,7 @@ import {
   textoDaConfirmacaoDoVinculo,
   textoDoVinculoErp,
   tituloDaConfirmacaoDoVinculo,
+  almocoPadraoDoTenant,
   corpoDeRedefinicao,
   faltasDaSenhaDigitada,
   gerarSenhaNoNavegador,
@@ -34,6 +35,7 @@ import {
   errosDoFormulario,
   FORMULARIO_VAZIO,
   formularioDoUsuario,
+  formularioNovo,
   type FormularioUsuario,
   ERRO_SEM_PERFIL,
   opcoesDeChefia,
@@ -47,6 +49,7 @@ import { modulosExibiveis, removidosDoFormulario } from '../../lib/acesso';
 import { efetivosDoUsuario } from '../../lib/licencas';
 import { useMe } from '../../lib/queries';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
+import { rotuloDoAlmoco } from '../../../domain/jornada';
 const BOTAO_LINHA = 'h-[44px] min-w-[88px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled';
 
 type Modal = { tipo: 'form'; usuario: UsuarioItem | null } | { tipo: 'ativo'; usuario: UsuarioItem } | { tipo: 'senha'; usuario: UsuarioItem } | null;
@@ -97,6 +100,9 @@ export function UsuariosConteudo() {
   const [modal, setModal] = useState<Modal>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [form, setForm] = useState<FormularioUsuario>(FORMULARIO_VAZIO);
+  // T-0180 (D5; RN-CORE-44): o padrão da empresa vem na própria lista de usuários (quem edita usuário não precisa de `parametro.inicio`)
+  const [padraoDaLista, setPadraoDaLista] = useState<HorarioAlmoco | undefined>(undefined);
+  const padraoAlmoco = almocoPadraoDoTenant(padraoDaLista ? { almoco_padrao: padraoDaLista } : undefined);
   const [desmarcados, setDesmarcados] = useState<ReadonlySet<string>>(new Set());
   const [tentou, setTentou] = useState(false);
   const [erroApi, setErroApi] = useState<string | null>(null);
@@ -137,7 +143,9 @@ export function UsuariosConteudo() {
       if (perfil) qs.set('perfil', perfil);
       if (situacao) qs.set('ativo', situacao === 'ativo' ? 'true' : 'false');
       if (provisorios) qs.set('provisorio', 'true');
-      return UsuarioListaRespostaSchema.parse(await api(`/core/usuarios${qs.size ? `?${qs.toString()}` : ''}`)).itens;
+      const resposta = UsuarioListaRespostaSchema.parse(await api(`/core/usuarios${qs.size ? `?${qs.toString()}` : ''}`));
+      if (resposta.almoco_padrao) setPadraoDaLista(resposta.almoco_padrao);
+      return resposta.itens;
     },
   });
   // §2: o selo "Bloqueado até" some sozinho, na hora em que o bloqueio vence (um único aviso do relógio, sem rede)
@@ -306,7 +314,7 @@ export function UsuariosConteudo() {
     setSemEmail(null);
     setErroApi(null);
     setTentou(false);
-    setForm(u ? formularioDoUsuario(u) : { ...FORMULARIO_VAZIO, perfil: 'vendedor', perfis: [] });
+    setForm(u ? formularioDoUsuario(u, padraoAlmoco) : formularioNovo(padraoAlmoco));
     setDesmarcados(new Set(u ? (licencas?.usuarios.find((x) => x.id === u.id)?.removidos ?? []) : []));
     setModal({ tipo: 'form', usuario: u });
   };
@@ -668,6 +676,25 @@ export function UsuariosConteudo() {
                 <IconUser size={18} /> Vincular vendedor do ERP
               </Button>
             </div>
+          )}
+          {editando && (
+            <fieldset className="m-0 flex flex-col gap-2 border-0 p-0" data-testid="usuarios.jornada">
+              <legend className="mb-1 p-0 text-[13px] font-semibold text-ink">Horário de almoço</legend>
+              <label className="flex min-h-[48px] items-center gap-3 rounded-xl border border-line bg-surface px-3 text-[15px] font-semibold text-ink">
+                <input type="checkbox" className="h-5 w-5 accent-accent" checked={form.almoco_padrao} onChange={(e) => upd({ almoco_padrao: e.target.checked })} data-testid="usuarios.campo-almoco-padrao" />
+                Padrão da empresa ({rotuloDoAlmoco(padraoAlmoco)})
+              </label>
+              {!form.almoco_padrao && (
+                <div className="flex flex-wrap items-start gap-3">
+                  <Campo rotulo="Início" erro={erroDe('almoco_inicio')}>
+                    <input value={form.almoco_inicio} inputMode="numeric" aria-invalid={erroDe('almoco_inicio') ? true : undefined} onChange={(e) => upd({ almoco_inicio: e.target.value })} className={`${CLASSE_CAMPO_BKO} w-[120px]`} data-testid="usuarios.campo-almoco-inicio" />
+                  </Campo>
+                  <Campo rotulo="Fim" erro={erroDe('almoco_fim')}>
+                    <input value={form.almoco_fim} inputMode="numeric" aria-invalid={erroDe('almoco_fim') ? true : undefined} onChange={(e) => upd({ almoco_fim: e.target.value })} className={`${CLASSE_CAMPO_BKO} w-[120px]`} data-testid="usuarios.campo-almoco-fim" />
+                  </Campo>
+                </div>
+              )}
+            </fieldset>
           )}
           {licencas && (
             <fieldset className="m-0 flex flex-col gap-1 border-0 p-0" data-testid="usuarios.modulos-campo">
