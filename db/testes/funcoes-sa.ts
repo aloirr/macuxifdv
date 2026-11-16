@@ -177,11 +177,22 @@ export const FUNCOES_SA_LOGO = [
 export const MARCA_INTERNA_LOGO = 'plataforma.marca_da_empresa_json(uuid)';
 
 /**
+ * As 3 sa_* dos planos (ADR 0047, migração plataforma_planos_troca_licencas; apps/api/src/planos-portal.ts): o catálogo
+ * (super-admin e admin do cliente), a ficha da empresa (admin do cliente só a da sessão) e a troca de plano (só super-admin).
+ * EXECUTE só ao macuxi_portal.
+ */
+export const FUNCOES_SA_PLANOS = [
+  'plataforma.sa_listar_planos(uuid)',
+  'plataforma.sa_assinatura_da_empresa(uuid, uuid)',
+  'plataforma.sa_trocar_plano(uuid, uuid, jsonb)',
+] as const;
+
+/**
  * As sa_* públicas do banco migrado até a ÚLTIMA: as 27 até a 0080 (FUNCOES_SA_ATE_0080) + as de cada lote da v1.0.14, uma
- * constante por lote (FUNCOES_SA_CARGA, 3; FUNCOES_SA_LOGO, 4) = 34. Use esta lista nas conferências pelo catálogo do banco
+ * constante por lote (FUNCOES_SA_CARGA, 3; FUNCOES_SA_LOGO, 4; FUNCOES_SA_PLANOS, 3) = 37. Use esta lista nas conferências pelo catálogo do banco
  * migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040 ou 0041.
  */
-export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0080, ...FUNCOES_SA_CARGA, ...FUNCOES_SA_LOGO] as const;
+export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0080, ...FUNCOES_SA_CARGA, ...FUNCOES_SA_LOGO, ...FUNCOES_SA_PLANOS] as const;
 
 /** Interna (SECURITY INVOKER, sem EXECUTE para ninguém além do dono), chamada de dentro das sa_*: assinatura da 0039. */
 export const SA_INTERNA = 'plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)';
