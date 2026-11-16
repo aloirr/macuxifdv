@@ -10,6 +10,7 @@ import { AlmocoPadraoPanel } from './almoco-padrao-panel';
 import { CHAVE_CALENDARIO, criarApiCalendario, type ApiCalendario, type ParametrosCalendario } from './api';
 import { FERIADO_NOME_MAX, feriadosDoAno, incluirFeriado, type ErroFeriado, type LinhaFeriado } from './calendario';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
+import { ErroCampo } from './erro-campo';
 
 /**
  * Parâmetros › Calendário (desenho `docs/desenho/performance-produtividade.md` §1.3, §3.2 e §6.5): os feriados do ano, com os
@@ -118,13 +119,6 @@ export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoj
   );
 }
 
-function ErroCampo({ id, texto }: { id: string; texto?: string }) {
-  return texto ? (
-    <span id={id} className="text-[13px] font-normal text-danger" data-testid={id}>
-      {texto}
-    </span>
-  ) : null;
-}
 
 /** Feriados do ano, nacionais (só leitura) e do tenant (com Remover); renderizável no teste. */
 export function TabelaFeriados({ linhas, ocupado, onRemover }: { linhas: readonly LinhaFeriado[]; ocupado: boolean; onRemover: (data: string) => void }) {

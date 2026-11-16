@@ -8,6 +8,7 @@ import { textoDoMinuto } from '../../../contracts';
 import { lerHorarioAlmocoTexto, type ErrosAlmocoTexto } from '../../../domain';
 import { CHAVE_JORNADA, criarApiJornada, type ApiJornada } from './almoco-padrao';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
+import { ErroCampo } from './erro-campo';
 
 const CAMPO_DA_API: Readonly<Record<string, keyof ErrosAlmocoTexto>> = { almoco_inicio: 'inicio', almoco_fim: 'fim' };
 
@@ -65,20 +66,12 @@ export function AlmocoPadraoPanel({ cliente }: { cliente?: ApiJornada }) {
           <label className="flex flex-col gap-1 font-semibold text-ink">
             Início
             <input value={atual.inicio} inputMode="numeric" aria-invalid={erros.inicio ? true : undefined} aria-describedby={erros.inicio ? 'calendario.almoco-padrao.erro.inicio' : undefined} onChange={(e) => setTexto({ ...texto, inicio: e.target.value })} className={`${CLASSE_CAMPO_BKO} w-[96px]`} data-testid="calendario.almoco-padrao.inicio" />
-            {erros.inicio && (
-              <span id="calendario.almoco-padrao.erro.inicio" className="text-[13px] font-normal text-danger" data-testid="calendario.almoco-padrao.erro.inicio">
-                {erros.inicio}
-              </span>
-            )}
+            <ErroCampo id="calendario.almoco-padrao.erro.inicio" texto={erros.inicio} />
           </label>
           <label className="flex flex-col gap-1 font-semibold text-ink">
             Fim
             <input value={atual.fim} inputMode="numeric" aria-invalid={erros.fim ? true : undefined} aria-describedby={erros.fim ? 'calendario.almoco-padrao.erro.fim' : undefined} onChange={(e) => setTexto({ ...texto, fim: e.target.value })} className={`${CLASSE_CAMPO_BKO} w-[96px]`} data-testid="calendario.almoco-padrao.fim" />
-            {erros.fim && (
-              <span id="calendario.almoco-padrao.erro.fim" className="text-[13px] font-normal text-danger" data-testid="calendario.almoco-padrao.erro.fim">
-                {erros.fim}
-              </span>
-            )}
+            <ErroCampo id="calendario.almoco-padrao.erro.fim" texto={erros.fim} />
           </label>
           <Button variant="primary" className="mt-[21px]" disabled={gravar.isPending || Object.keys(texto).length === 0} onClick={salvar} data-testid="calendario.almoco-padrao.salvar">
             Salvar

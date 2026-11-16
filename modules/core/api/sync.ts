@@ -12,6 +12,7 @@
 import { sqlCodigoFdv } from './codigo-fdv';
 import { definirEntidadeSync, type ContextoBase, type LinhaSync, type PedidoPull, type ProvedorSync } from '@macuxi/platform-sdk';
 import {
+  PARAMETRO_FERIADOS,
   CarteiraSyncSchema,
   ClienteContatoSyncSchema,
   ClienteFinanceiroSyncSchema,
@@ -157,7 +158,7 @@ export const TABELAS_SYNC = {
     tabela: 'plataforma.parametro',
     colunas: 'modulo, chave, valor',
     colunaCliente: null,
-    onde: "modulo = 'core' and chave in ('checkin.raio_m', 'promotor_ve_pedidos', 'metas.dias_uteis_semana', 'inicio.parado_min', 'metas.feriados', 'jornada.almoco_padrao', 'alertas.produtividade')",
+    onde: `modulo = 'core' and chave in ('checkin.raio_m', 'promotor_ve_pedidos', 'metas.dias_uteis_semana', 'inicio.parado_min', '${PARAMETRO_FERIADOS}', 'jornada.almoco_padrao', 'alertas.produtividade')`,
   },
   rota: {
     tabela: 'core.rota',

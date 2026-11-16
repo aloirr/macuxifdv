@@ -10,7 +10,7 @@ import type { ItemSobreposicao } from '@macuxi/platform-sdk';
 import type { MetaSync, ParametroSync, RotaParadaSync, RotaSync, UsuarioSync, VisitaSync } from '../../../contracts';
 import type { CalendarioPeriodo, Performance, ProdutividadeIndicador, RealizadoServidor, ResultadoIndicador } from '../../../contracts/performance';
 import { almocoDoUsuario, almocoPadraoDasLinhas, aplicarPendentesVisita, calendarioDoTenant, dataLocal, type CalendarioTenant } from '../../../domain';
-import type { HorarioAlmoco } from '../../../contracts';
+import { PARAMETRO_FERIADOS, type HorarioAlmoco } from '../../../contracts';
 import { calendarioDoPeriodo } from '../../../domain/performance/calendario';
 import { metasProdutividadeVigentes, type EquipeArvore, type LinhaMetaProdutividade } from '../../../domain/performance/metas-produtividade';
 import { produtividadeDoPeriodo, type DeslocamentoResumo } from '../../../domain/performance/produtividade';
@@ -76,7 +76,7 @@ const parametro = (ps: readonly ParametroSync[], chave: string): unknown =>
 /** RN-CORE-41: semana útil do Core e os feriados do tenant (`metas.feriados`); os nacionais o domain soma sempre (D4). */
 export function calendarioDoAparelho(ps: readonly ParametroSync[]): CalendarioTenant {
   const base = calendarioDoTenant(ps.map((p) => ({ ...p, valor: p.valor })));
-  const feriados = parametro(ps, 'metas.feriados');
+  const feriados = parametro(ps, PARAMETRO_FERIADOS);
   const validos = Array.isArray(feriados) ? feriados.filter((f): f is string => typeof f === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(f)) : [];
   return validos.length > 0 ? { ...base, feriados: validos } : base;
 }
