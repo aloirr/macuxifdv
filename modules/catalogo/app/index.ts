@@ -29,6 +29,7 @@ export const moduloApp = definirModuloShell<ComponentType>({
   migracoesAparelho,
   indicesBusca: [INDICE_BUSCA_CATALOGO],
 });
+export { definirCargaOnline, type PortaCargaOnline } from './lib/carga-online';
 export { definirCopiadorTexto, type CopiadorTexto } from './lib/copiar-codigo';
 export { definirResolvedorMiniatura, type ResolvedorMiniatura } from './lib/miniatura-resolvedor';
 export default moduloApp;

@@ -53,7 +53,7 @@ export const CHAVE_BUILD_ABERTO = 'fv:app:build_aberto';
 /** Trava única do processo entre o app com tela e a tarefa sem tela (`lib/trava-sync.ts`). */
 export const travaSync = criarTravaSync();
 
-/** Versão do app + versionCode do EAS (sobe a cada build: a instalação por cima sempre muda). */
+/** Versão do app + versionCode (sobe a cada build: a instalação por cima sempre muda). */
 export function idDoBuildAtual(): string {
   const android = (Constants.platform as { android?: { versionCode?: number | string } } | undefined)?.android;
   return idDoBuild(Constants.expoConfig?.version, android?.versionCode);
@@ -203,6 +203,8 @@ async function abrirMotorSemInterface(
     online,
     ambiente,
     perfil: () => s?.user?.perfil ?? null,
+    // sem tela: a busca online do Catálogo continua ligada ao motor do app (ADR 0054)
+    cargaOnline: false,
   });
   motorRef.m = m;
   await m.carregar();

@@ -11,4 +11,9 @@ disable-model-invocation: true
 5. Confira os critérios de pronto da sprint em `docs/produto/05-roadmap.md`.
 6. Atualize `.coord/quadro.md`, `docs/backlog.md` e `docs/status/AAAA-MM-DD.md` (o que entrou, testes por pacote, pendências, riscos, próximo passo).
 7. Envie recado `entrega` para `alexandre` com um roteiro de demonstração de 5 a 8 passos.
+
+**1 push por PR** e testes de banco na sessão antes do push: doc 07, seção 3, e `CLAUDE.md` (R-20261115-215000-alexandre).
+
+**Antes do push** (R-20261115-213600-alexandre; caso `bc26a241`, 15/11 22h30: o #386 e o #385 quebraram dependentes): `bash tests/scripts/rodar-antes-do-push.sh` (afetados e dependentes, banco e `tests/`; cole o bloco no PR). Uso: `docs/testes/antes-do-push.md`.
+
 Responda com um resumo de até 15 linhas.

@@ -18,7 +18,7 @@
 --   para ele; e nenhum SELECT dele em coluna sensível (nome com hash, token, senha, segredo, chave, carga ou cifrad, tipo que
 --   não seja boolean), em tabela ou view: a saída da consulta vai para o log do Actions (regra 8). E o papel: membro de
 --   qualquer papel, EXECUTE em alguma plataforma.sa_* ou em função SECURITY DEFINER além de plataforma.tenant_por_codigo(text)
---   aparece como "(papel) macuxi_leitura".
+--   aparece como "(papel) macuxi_leitura". Função que retorna event_trigger (a do pgaudit do DBaaS) fica fora: SQL não a chama.
 -- Resultado esperado: ZERO linhas. Exceções (iguais a db/src/excecoes.ts, TABELAS_SEM_TENANT_ID): plataforma.tenant não tem
 -- tenant_id (o id é o tenant; RLS por id) e public.macuxi_migracao fica fora (schema public, sem acesso do macuxi_app).
 -- Super-admin, portal, catálogo de planos, ações da empresa e dados legais (0035, ADR 0029; 0039, ADR 0031; 0070, ADR 0047; 0072, ADR 0052; 0073, rodapé legal; TABELAS_SO_POR_FUNCAO): sem tenant_id e SEM política para o macuxi_app (só por função
@@ -55,7 +55,8 @@ sem_tenant_id (nome) as (
          ('plataforma.backup_empresa_parte'),
          ('plataforma.exclusao_empresa'),
          ('plataforma.empresa_excluida'),
-         ('plataforma.dados_legais')
+         ('plataforma.dados_legais'),
+         ('plataforma.frase_carga')
 ),
 so_por_funcao (nome) as (
   values ('plataforma.super_admin'),
@@ -70,7 +71,8 @@ so_por_funcao (nome) as (
          ('plataforma.backup_empresa_parte'),
          ('plataforma.exclusao_empresa'),
          ('plataforma.empresa_excluida'),
-         ('plataforma.dados_legais')
+         ('plataforma.dados_legais'),
+         ('plataforma.frase_carga')
 ),
 problemas as (
   select t.nome, 'RLS desligado' as problema from tabelas t where not t.rls
@@ -152,6 +154,7 @@ problemas as (
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace join pg_roles r on r.rolname = 'macuxi_leitura'
    where n.nspname not in ('pg_catalog', 'information_schema') and n.nspname not like 'pg\_%'
      and ((n.nspname = 'plataforma' and p.proname like 'sa\_%') or p.prosecdef)
+     and p.prorettype <> 'event_trigger'::regtype
      and p.oid <> 'plataforma.tenant_por_codigo(text)'::regprocedure
      and has_function_privilege(r.oid, p.oid, 'execute')
   union all
