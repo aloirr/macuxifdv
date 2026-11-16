@@ -511,6 +511,8 @@ PostgreSQL 16.15 do Ubuntu os dois servidores do CI: **5432** (superusuário `po
 para o admin sem superusuário). TZ UTC, UTF8, locale `en_US.UTF-8` e pgvector (0.6.0 do apt; o CI tem 0.8.2), dados em
 `/var/lib/postgresql/macuxi` (fora do repositório; `MACUXI_PG_LOCAL_DIR` muda), fsync desligado. Nunca atualiza o
 `postgresql-16` (o CI trava a 16.15). Sem pgvector, o `--env` inclui `MACUXI_PG_SEM_VECTOR=1`.
+Dados em `/tmp` são recusados e vão para o padrão (a nuvem restaura `/tmp/claude-0` e derruba o servidor); sem o usuário
+`postgres`, o script cria o `pgrun` sem privilégio para rodar o servidor; pode ser chamado de qualquer diretório.
 
 **Node 24.7 ou mais** (engines; o seed usa `crypto.argon2Sync`): com o Node 22 da sessão a suíte falha no globalSetup. O
 `--env` põe `/opt/node24/bin` no PATH quando ele existe (`MACUXI_NODE24_DIR` muda). Para instalar, baixe
