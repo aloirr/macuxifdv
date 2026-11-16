@@ -99,7 +99,7 @@ export function BotoesDeDecisao({ pedido, onFeito, tamanho = 'sm' }: { pedido: P
               rows={3}
               data-testid="pedido.rejeitar.motivo"
               placeholder="Ex.: desconto acima da política para este cliente"
-              className="rounded-[10px] border border-field bg-surface px-3 py-2 text-[14px] font-normal text-ink"
+              className="rounded-[10px] border border-field bg-surface px-3 py-2 text-[15px] font-normal text-ink"
             />
           </label>
           {!motivoOk && motivo.length > 0 && <span className="text-[12px] text-danger">Escreva ao menos {MOTIVO_REJEICAO_MIN} caracteres.</span>}

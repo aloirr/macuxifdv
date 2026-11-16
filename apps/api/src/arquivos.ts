@@ -231,7 +231,8 @@ export const TETO_ENVIO_EM_PARTES: ReadonlyMap<string, { bytes: number; codigo: 
 /** Validade da URL assinada de envio (15 min). */
 export const VALIDADE_URL_ENVIO_S = 900;
 
-const indisponivel = () =>
+/** 503 quando o armazenamento de arquivos não está configurado (rotas de arquivos e da logo do cliente, RD-0702). */
+export const erroArmazenamentoIndisponivel = (): ErroHttp =>
   new ErroHttp(503, 'ARMAZENAMENTO_INDISPONIVEL', 'Armazenamento de arquivos indisponível. Tente de novo em instantes.');
 
 function idDaRota(req: FastifyRequest): string {
@@ -313,7 +314,7 @@ export function registrarArquivos(
           throw new ErroHttp(415, 'TIPO_NAO_ACEITO', 'Envie a foto como image/jpeg.');
         const bytes = corpo ? new Uint8Array(corpo) : new Uint8Array();
         if (bytes.length === 0 || !ehJpeg(bytes)) throw new ErroHttp(400, CODIGOS_ARQUIVO.invalido, 'O arquivo enviado não é uma foto JPEG.');
-        if (!armazenamento) throw indisponivel();
+        if (!armazenamento) throw erroArmazenamentoIndisponivel();
         const sha256 = createHash('sha256').update(bytes).digest('hex');
         const u = ctx.usuario;
         const r = await ctx.comTenant(async (db) => {
@@ -401,7 +402,7 @@ export function registrarArquivos(
         if (tipoDoPedido(req) !== 'application/octet-stream') throw new ErroHttp(415, 'TIPO_NAO_ACEITO', 'Envie a parte como application/octet-stream.');
         const corpo = req.body;
         if (!Buffer.isBuffer(corpo) || corpo.length === 0) throw new ErroHttp(400, CODIGOS_ARQUIVO.parteInvalida, 'A parte veio vazia.');
-        if (!armazenamento) throw indisponivel();
+        if (!armazenamento) throw erroArmazenamentoIndisponivel();
         const { chave1, ctx } = await linhaDoEnvio(req, id);
         // fora da transação (T-0121): reenviar a mesma parte sobrescreve a mesma chave
         await armazenamento.gravar(chaveDaParte(chave1, n), new Uint8Array(corpo));
@@ -429,7 +430,7 @@ export function registrarArquivos(
       if (!c.success || partesDoEnvio(c.data.tamanho_bytes) !== c.data.partes)
         throw new ErroHttp(400, 'VALIDACAO', 'Informe partes (1 a 63) e tamanho_bytes coerentes com partes de 8 MB.');
       const { partes, tamanho_bytes: total } = c.data;
-      if (!armazenamento) throw indisponivel();
+      if (!armazenamento) throw erroArmazenamentoIndisponivel();
       const linha = await ctx.comTenant(async (db) =>
         (
           await db.query<LinhaEnvio>(
@@ -526,7 +527,7 @@ export function registrarArquivos(
         const visiveis = await ctx.usuariosVisiveis();
         if (visiveis !== 'tenant' && !visiveis.has(linha.enviado_por)) throw naoEncontrado();
       }
-      if (!armazenamento) throw indisponivel();
+      if (!armazenamento) throw erroArmazenamentoIndisponivel();
       // restrito: o navegador e proxies não guardam cópia (a imagem fica só na memória de quem abriu)
       const cache = restrito ? 'private, no-store' : 'private, max-age=86400';
       return { id, ctx, linha, chave: linha.chave_armazenamento, naoEncontrado, armazenamento, cache };

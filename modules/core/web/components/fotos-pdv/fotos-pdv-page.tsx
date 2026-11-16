@@ -7,6 +7,7 @@ import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, td, th, TableScroll } from '@macuxi/ui/web';
 import { FotoTipoCriarSchema, FotoTipoEditarSchema, FotoTiposListaSchema } from '../../../contracts';
 import { novoId } from '../../lib/visitas';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
 interface Rascunho {
   id: string;
@@ -57,7 +58,6 @@ export function FotosPdvPage() {
   });
 
   const itens = lista.data ?? [];
-  const campo = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal';
   return (
     <div className="flex w-full max-w-[960px] flex-col gap-5" data-testid="fotos-pdv.tela">
       <PageHeader
@@ -139,7 +139,7 @@ export function FotosPdvPage() {
           <div className="flex flex-col gap-3 text-[13px] font-semibold text-ink">
             <label className="flex flex-col gap-1">
               Nome (o que o vendedor lê)
-              <input value={rascunho.nome} maxLength={60} onChange={(e) => setRascunho({ ...rascunho, nome: e.target.value })} data-testid="fotos-pdv.nome" className={campo} />
+              <input value={rascunho.nome} maxLength={60} onChange={(e) => setRascunho({ ...rascunho, nome: e.target.value })} data-testid="fotos-pdv.nome" className={CLASSE_CAMPO_BKO} />
             </label>
             <label className="flex items-center gap-2 font-normal">
               <input type="checkbox" checked={rascunho.obrigatorio} onChange={(e) => setRascunho({ ...rascunho, obrigatorio: e.target.checked })} className="h-5 w-5" data-testid="fotos-pdv.obrigatorio" />

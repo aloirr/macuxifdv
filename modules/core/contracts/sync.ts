@@ -61,9 +61,15 @@ export type ClienteSync = z.infer<typeof ClienteSyncSchema>;
 export const UsuarioSyncSchema = z
   .object({
     ...Base,
+    /** RN-CORE-59: Código FDV, só de leitura; nulo até a migração entrar. */
+    codigo_fdv: z.string().nullable().default(null),
     desconto_limita_item: z.boolean().default(true),
     desconto_limita_pedido: z.boolean().default(false),
     desconto_maximo_pedido_permil: z.number().int().min(0).max(1000).nullable().default(null),
+    /** T-0176 / RN-CORE-39 (aditivo): filial de cadastro (nula = bloqueado), filiais de VENDA (inclui a de cadastro) e o indicador `sem_filial`. Ausente = emissor antigo. */
+    filial_cadastro_id: z.string().uuid().nullable().optional(),
+    filial_venda_ids: z.array(z.string().uuid()).optional(),
+    sem_filial: z.boolean().optional(),
   })
   .strict();
 export type UsuarioSync = z.infer<typeof UsuarioSyncSchema>;

@@ -1233,12 +1233,12 @@
                   },
                   {
                     "key": "Idempotency-Key",
-                    "value": "2c3ebca7dd0c14cc57b8268140d96a1797ed9da5f34a64b4c1846193a32348ed"
+                    "value": "1fc7873fddb0721b9959e1db1ff9701cfcdea680aa2f295314f28883c2e48f82"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"prazo_pagamento\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"PZ-30-60-90\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"PZ-30-60-90\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"forma_external_id\": \"FP-BOL\",\n      \"codigo\": \"306090\",\n      \"descricao\": \"30/60/90 dias\",\n      \"parcelas_dias\": [\n        30,\n        60,\n        90\n      ],\n      \"prazo_medio_dias\": 60,\n      \"ordem\": 2\n    }\n  ]\n}",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"prazo_pagamento\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"PZ-30-60-90\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"PZ-30-60-90\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"forma_external_id\": \"FP-BOL\",\n      \"codigo\": \"306090\",\n      \"descricao\": \"30/60/90 dias\",\n      \"parcelas_dias\": [\n        30,\n        60,\n        90\n      ],\n      \"prazo_medio_dias\": 60,\n      \"percentual_ajuste\": 0,\n      \"ordem\": 2\n    }\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"

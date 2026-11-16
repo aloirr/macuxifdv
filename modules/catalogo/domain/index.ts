@@ -32,3 +32,4 @@ export * from './busca-consulta';
 export * from './marcas';
 export * from './marcas-cadastro';
 export * from './codigo-busca';
+export * from './fotos-lote';
