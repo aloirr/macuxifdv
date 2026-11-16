@@ -46,7 +46,7 @@ export const FAIXAS_ALERTAS_PRODUTIVIDADE = {
   envio_pendente_h: { min: 1, max: 48 },
   teto_lembretes_dia: { min: 1, max: 10 },
 } as const;
-/** Só o formato: as faixas ficam no domain (RD-1868), senão o Zod recusa antes e a mensagem da regra não chega a quem salva. */
+/** Só o formato; as faixas são do domain. */
 const Inteiro = z.number().int();
 
 export const ParametrosAlertasProdutividadeSchema = z

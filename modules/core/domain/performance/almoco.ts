@@ -6,7 +6,7 @@
  * 2. Todo usuário tem horário de almoço: o próprio ou o padrão da empresa. O almoço do dia é o intervalo que mais se sobrepõe a
  *    esse horário (empate: o mais longo); sem sobreposição (inclusive meio expediente que acaba antes), sem almoço identificado.
  */
-import { ALMOCO_PADRAO_EMPRESA, type HorarioAlmoco } from '../../contracts/jornada';
+import { ALMOCO_PADRAO_EMPRESA, almocoEmMs, type HorarioAlmoco } from '../../contracts/jornada';
 import { emMs, msDoDia } from './tempo';
 
 /** O mínimo da visita (`core.visita` ou a fila local) que a Produtividade lê. Instantes em UTC. */
@@ -62,7 +62,7 @@ export function intervalosDoDia(visitas: readonly VisitaProdutividade[]): Interv
 
 /** RN-CORE-44: o intervalo do almoço do dia, ou nulo quando não há almoço identificado. */
 export function intervaloDoAlmoco(visitas: readonly VisitaProdutividade[], fuso: string, horario: HorarioAlmoco = ALMOCO_PADRAO_EMPRESA): Intervalo | null {
-  const [hi, hf] = [horario.inicio_min * 60_000, horario.fim_min * 60_000];
+  const { inicio: hi, fim: hf } = almocoEmMs(0, horario);
   let melhor: Intervalo | null = null;
   let melhorSobreposicao = 0;
   for (const i of intervalosDoDia(visitas)) {

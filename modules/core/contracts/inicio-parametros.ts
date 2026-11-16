@@ -7,6 +7,8 @@ import { definirConsulta } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 
 export const PARAMETRO_DIAS_UTEIS = 'metas.dias_uteis_semana';
+/** Feriados do tenant (datas AAAA-MM-DD). */
+export const PARAMETRO_FERIADOS = 'metas.feriados';
 export const PARAMETRO_PARADO_MIN = 'inicio.parado_min';
 
 /** Faixa e padrão de `inicio.parado_min` em minutos (RN-CORE-26). Única fonte: o domain, o BKO e o Gestão leem daqui. */

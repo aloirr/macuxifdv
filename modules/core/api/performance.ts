@@ -12,7 +12,7 @@ import { ConsultaIndisponivel, definirConsulta, ErroNaoEncontrado, ErroRegraNego
 import { localDate, yearMonthOf } from '@macuxi/comum';
 import { somarDiasCivis } from '@macuxi/comum/relogio';
 import { z } from 'zod';
-import { Cents, Id, IsoDateTime, PARAMETRO_ALMOCO_PADRAO, PARAMETRO_DIAS_UTEIS } from '../contracts';
+import { Cents, Id, IsoDateTime, PARAMETRO_ALMOCO_PADRAO, PARAMETRO_DIAS_UTEIS, PARAMETRO_FERIADOS } from '../contracts';
 import { PerformanceQuerySchema, PerformanceSchema, type Performance, type RealizadoServidor } from '../contracts/performance';
 import { almocoDoUsuario, almocoPadraoDasLinhas, dataLocal } from '../domain';
 import { realizadoPorTipo, STATUS_APROVADOS, type FaturamentoApuravel, type PedidoDaMeta, type TipoMeta } from '../domain/apuracao';
@@ -103,7 +103,7 @@ export function agregarFatos(fatos: FatosDoMes, o: { usuario_id: string; tipo: T
 /** Calendário do tenant com os feriados cadastrados (`metas.feriados`, datas AAAA-MM-DD); inválido ou ausente = sem feriado do tenant. */
 export function calendarioComFeriados(parametros: ReadonlyArray<{ modulo: string; chave: string; valor: unknown; deleted_at?: string | null }>): CalendarioTenant {
   const base = calendarioDoTenant(parametros);
-  const f = parametros.find((x) => x.modulo === 'core' && x.chave === 'metas.feriados' && !x.deleted_at)?.valor;
+  const f = parametros.find((x) => x.modulo === 'core' && x.chave === PARAMETRO_FERIADOS && !x.deleted_at)?.valor;
   const feriados = Array.isArray(f) ? f.filter((d): d is string => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) : [];
   return feriados.length > 0 ? { ...base, feriados } : { ...CALENDARIO_PADRAO, ...base };
 }
@@ -245,7 +245,7 @@ export async function calcularPerformance(
     throw new ErroRegraNegocio('PERFORMANCE_USUARIO_INVALIDO', 'A Performance é de vendedor ou promotor. Escolha um deles.');
   }
   const perfil = u.perfil;
-  const parametros = await lerParametrosCore(db, [PARAMETRO_DIAS_UTEIS, 'metas.feriados', PARAMETRO_ALMOCO_PADRAO]);
+  const parametros = await lerParametrosCore(db, [PARAMETRO_DIAS_UTEIS, PARAMETRO_FERIADOS, PARAMETRO_ALMOCO_PADRAO]);
   const calendario = calendarioComFeriados(parametros);
   const meses = [...new Set([...mesesDoIntervalo(e.de, e.ate), mesHoje])];
 

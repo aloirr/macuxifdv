@@ -10,6 +10,7 @@ import { CHAVE_CALENDARIO, criarApiCalendario, type ApiCalendario, type Parametr
 import { FERIADO_NOME_MAX, feriadosDoAno, incluirFeriado, type ErroFeriado, type LinhaFeriado } from './calendario';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 import { Moldura } from '../moldura';
+import { ErroCampo } from './erro-campo';
 
 /**
  * Parâmetros › Calendário, painel Feriados (desenho `docs/desenho/performance-produtividade.md` §1.3, §3.2 e §6.5): os feriados do ano,
@@ -117,13 +118,6 @@ export function CalendarioPage({ cliente, hoje, semMoldura }: { cliente?: ApiCal
   );
 }
 
-function ErroCampo({ id, texto }: { id: string; texto?: string }) {
-  return texto ? (
-    <span id={id} className="text-[13px] font-normal text-danger" data-testid={id}>
-      {texto}
-    </span>
-  ) : null;
-}
 
 /** Feriados do ano, nacionais (só leitura) e do tenant (com Remover); renderizável no teste. */
 export function TabelaFeriados({ linhas, ocupado, onRemover }: { linhas: readonly LinhaFeriado[]; ocupado: boolean; onRemover: (data: string) => void }) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { minutoDoTextoHora, textoDoMinuto } from '../contracts/jornada';
-import { almocoDoUsuario, almocoPadraoDasLinhas, rotuloDoAlmoco, validarAlmocoDoUsuario, validarHorarioAlmoco } from './jornada';
+import { almocoDoUsuario, almocoPadraoDasLinhas, lerHorarioAlmocoTexto, rotuloDoAlmoco, validarAlmocoDoUsuario, validarHorarioAlmoco } from './jornada';
 
 const PADRAO = { inicio_min: 720, fim_min: 780 };
 
@@ -43,5 +43,20 @@ describe('RN-CORE-44 (D5): horário de almoço', () => {
     expect(minutoDoTextoHora('7:05')).toBe(425);
     expect(minutoDoTextoHora('24:00')).toBeNull();
     expect(rotuloDoAlmoco(PADRAO)).toBe('12:00 às 13:00');
+  });
+});
+
+describe('RN-CORE-44 (D5): horário de almoço digitado (hh:mm)', () => {
+  it('RN-CORE-44: 12:00 às 13:00 vira 720 e 780', () => {
+    expect(lerHorarioAlmocoTexto('12:00', '13:00')).toEqual({ ok: true, inicio_min: 720, fim_min: 780 });
+  });
+  it('RN-CORE-44: o erro vem só ao salvar, no campo certo e em português', () => {
+    expect(lerHorarioAlmocoTexto('abc', '13:00')).toEqual({ ok: false, erros: { inicio: 'Use o horário em hh:mm.' } });
+    const fimAntes = lerHorarioAlmocoTexto('13:00', '12:00');
+    expect(fimAntes.ok).toBe(false);
+    if (!fimAntes.ok) expect(fimAntes.erros.fim).toBe('O fim do almoço deve ser depois do início.');
+    const curto = lerHorarioAlmocoTexto('12:00', '12:10');
+    if (!curto.ok) expect(curto.erros.fim).toContain('15 minutos a 3 horas');
+    expect(lerHorarioAlmocoTexto('12:00', '15:30').ok).toBe(false);
   });
 });
