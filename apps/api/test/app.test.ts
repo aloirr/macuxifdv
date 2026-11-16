@@ -580,8 +580,12 @@ describe('ADR 0019 — usaConsultasOpcionais no createApp (core ↔ vendedor sem
   const coreOpcional = coreCom(defineModule({ ...core, usaConsultas: core.usaConsultas.filter((c) => c !== META.nome), usaConsultasOpcionais: [META.nome] }));
   const vendedorComMeta = definirModuloApi({
     ...vendedorApi,
-    manifesto: defineModule({ ...vendedorApi.manifesto, ofereceConsultas: [META.nome] }),
-    consultas: [implementarConsulta(META, async (e, ctx) => ({ pedidos: e.usuario_ids.map((id) => ({ id })), quem: ctx.usuario.perfil }))],
+    // Mantém as demais consultas reais do Vendedor (ex.: vendedor.formas_pagamento@1, que a Integração usa); troca só a da meta.
+    manifesto: defineModule({ ...vendedorApi.manifesto, ofereceConsultas: [...new Set([...vendedorApi.manifesto.ofereceConsultas, META.nome])] }),
+    consultas: [
+      ...(vendedorApi.consultas ?? []).filter((c) => c.consulta.nome !== META.nome),
+      implementarConsulta(META, async (e, ctx) => ({ pedidos: e.usuario_ids.map((id) => ({ id })), quem: ctx.usuario.perfil })),
+    ],
   });
   const op = (l: Licencas = LICENCAS_PADRAO, vendedorTambem = true) =>
     opcoesDeTeste(l, {

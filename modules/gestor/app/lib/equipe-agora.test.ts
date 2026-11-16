@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MembroComPainel } from '../../contracts';
-import { contarParados, duracaoCurta, linhasAgora } from './equipe-agora';
+import { contarParados, linhasAgora } from './equipe-agora';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const AGORA = '2026-11-04T18:00:00.000Z';
@@ -17,7 +17,7 @@ function membro(n: number, nome: string, painel: Record<string, unknown>): Membr
 describe('T-0073 / RN-CORE-26: Equipe agora na aba Equipe do Gestão', () => {
   it('RN-CORE-26: 60 min sem check-in depois do último checkout, com paradas pendentes → "Parado" com o tempo', () => {
     const [l] = linhasAgora({ membros: [membro(1, 'Lucas', { paradas_planejadas: 6, paradas_pendentes: 4, ultimo_checkout_em: ha(100) })] }, AGORA);
-    expect(l).toMatchObject({ status: 'parado', label: 'Parado 1h40', tom: 'aviso' });
+    expect(l).toMatchObject({ status: 'parado', label: 'Parado 1 h 40 min', tom: 'aviso' });
   });
 
   it('RN-CORE-26: 59 min ainda é "Em rota"; o limite vem de inicio.parado_min da visão', () => {
@@ -44,9 +44,5 @@ describe('T-0073 / RN-CORE-26: Equipe agora na aba Equipe do Gestão', () => {
     const [l] = linhasAgora({ membros: [membro(1, 'Bia', { status_dia: 'sem_checkin' })] }, '2026-11-04T23:00:00.000Z');
     expect(l).toMatchObject({ status: 'sem_checkin', label: 'Sem check-in' });
     expect(l).not.toHaveProperty('detalhe');
-  });
-
-  it('duração curta: minutos, horas cheias e horas com minutos', () => {
-    expect([45, 60, 100, 120].map(duracaoCurta)).toEqual(['45 min', '1h', '1h40', '2h']);
   });
 });

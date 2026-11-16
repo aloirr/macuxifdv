@@ -30,7 +30,10 @@
       "Bash(git push origin alexandre/*)",
       "Bash(git push -u origin alexandre/*)",
       "Bash(git push origin agente/*)",
-      "Bash(git push -u origin agente/*)"
+      "Bash(git push -u origin agente/*)",
+      "mcp__claude-code-remote__send_message",
+      "Bash(bash db/scripts/pg-local.sh*)",
+      "Bash(bash tests/scripts/rodar-antes-do-push.sh*)"
     ],
     "deny": [
       "Read(./.env)",

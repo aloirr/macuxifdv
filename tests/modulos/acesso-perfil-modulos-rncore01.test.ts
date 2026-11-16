@@ -7,7 +7,7 @@
  *   core nunca sai.
  * - Contagem por perfil: oráculo que conta a lista da tela Usuários pelo `perfis[].codigo`. Com `modules/core/web/lib/acesso.ts`
  *   (estado novo), `contagemPorPerfil` tem de bater com o oráculo e as telas têm de usá-la (fonte).
- * - "Usuários e módulos": a página segue registrada (rota por URL); no estado novo, fora do menu.
+ * - "Usuários e módulos": o painel "Módulos" de Parâmetros recebe o link antigo (ADR 0060); fora do menu.
  * Sem banco. A conferência pela API real fica em tests/integracao/demo/demo-matriz.test.ts (CI).
  */
 import { existsSync, readFileSync } from 'node:fs';
@@ -144,13 +144,15 @@ describe('Perfis de acesso — contagem de usuários por perfil × lista de Usu�
 
 // ------------------------------------------------------------------------------------------------ rota por URL
 
-describe('"Usuários e módulos" — a rota segue por URL; no estado novo, fora do menu', () => {
+describe('"Usuários e módulos" — o link antigo segue por URL (vai para Parâmetros, ADR 0060); fora do menu', () => {
   const web = ler('modules/core/web/index.ts');
   const bloco = /\{\s*id: 'usuarios-e-modulos',[\s\S]*?componente: \w+,?\s*\}/.exec(web)?.[0] ?? '';
 
-  it('a página segue registrada (id e caminho `usuarios-e-modulos`, ação modulo.gerir_licencas)', () => {
-    expect(bloco, 'modules/core/web/index.ts: página usuarios-e-modulos').not.toBe('');
-    expect(bloco).toMatch(/caminho: 'usuarios-e-modulos'/);
+  // ADR 0060 (#457): a página virou o painel "Módulos" de /parametros/acesso; o shell redireciona /usuarios-e-modulos pelos `caminhosAntigos`
+  it('o painel segue registrado (id `usuarios-e-modulos`, seção acesso, caminho antigo `usuarios-e-modulos`, ação modulo.gerir_licencas)', () => {
+    expect(bloco, 'modules/core/web/index.ts: painel usuarios-e-modulos').not.toBe('');
+    expect(bloco).toMatch(/secao: 'acesso'/);
+    expect(bloco).toMatch(/caminhosAntigos: \[[^\]]*'usuarios-e-modulos'[^\]]*\]/);
     expect(bloco).toMatch(/acao: 'modulo\.gerir_licencas'/);
   });
 
