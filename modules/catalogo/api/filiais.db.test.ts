@@ -162,10 +162,10 @@ describe.skipIf(semBanco())('Catálogo × Postgres: preço e estoque por filial 
       const repo = criarRepositorioPostgres({ marcas: SEM_MARCAS })(ctx, c as unknown as ClienteBanco, tx);
       const saldos = (await repo.saldos([P1])).get(P1) ?? [];
       const ver = async (cliente: string | null) =>
-        estoqueVisivel(P1, saldos, { filiais: await repo.filiaisDoUsuario(cliente), agora: AGORA.toISOString(), parametros: resolverParametros({}) });
+        estoqueVisivel(P1, saldos, { filiais: cliente === null ? null : [await repo.filialDoCliente(cliente)], agora: AGORA.toISOString(), parametros: resolverParametros({}) });
       expect(await ver(CL_BVB)).toMatchObject({ quantity: 12, by_branch: [{ branch_id: F_BVB, branch_name: 'Boa Vista', quantity: 12 }] });
       expect(await ver(CL_MAO)).toMatchObject({ quantity: 20 });
-      expect(await ver(CL_STM)).toMatchObject({ quantity: 0, band: 'sem_estoque', by_branch: [] });
+      expect(await ver(CL_STM)).toMatchObject({ quantity: 0, band: 'sem_estoque', by_branch: [{ branch_id: F_STM, quantity: 0 }] });
       expect((await ver(null)).by_branch.map((b) => b.quantity).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([12, 20]);
     });
   });

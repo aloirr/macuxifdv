@@ -93,9 +93,8 @@ export function estoqueVisivel(produtoId: string, saldos: readonly StockByBranch
   };
 }
 
-// Transição até a parte 2 do Catálogo v2 (depois do #382, #387 e #427): `rotuloAtualizacaoEstoque` (apresentacao.ts) e
-// `filiaisDoEstoque` (repositorio-postgres.ts) saem quando rotas.ts, repositorio-postgres.ts, comum.tsx e produto.tsx passarem a
-// `estoque-campo.ts`.
+// Transição até as telas do Catálogo v2 (catalogo.tsx e produto.tsx, depois do #387): `rotuloAtualizacaoEstoque` e
+// `AVISO_ESTOQUE_DESATUALIZADO` (apresentacao.ts) saem quando as telas passarem a `rotuloCargaEstoque` (`estoque-campo.ts`).
 /**
  * RN-CAT-07: "Atualizado às hh:mm" no fuso do tenant; se a atualização foi em outro dia (no fuso do tenant),
  * "Atualizado em dd/mm às hh:mm". Sem hora conhecida: "Sem hora de atualização".
@@ -109,22 +108,4 @@ export function rotuloAtualizacaoEstoque(estoque: Pick<EstoqueVisivel, 'updated_
   if (localDate(t, fuso) === localDate(a, fuso)) return `Atualizado às ${hora}`;
   const dia = new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, day: '2-digit', month: '2-digit' }).format(t);
   return `Atualizado em ${dia} às ${hora}`;
-}
-
-export interface EntradaFiliaisDoEstoque {
-  /** Filial efetiva do cliente do contexto (Novo pedido, ficha do cliente); nula = sem cliente no contexto. */
-  filialDoCliente: string | null;
-  /** Vendedor/supervisor veem a carteira; analista, assistente e admin veem o tenant (RN-CORE-04). */
-  escopo: 'carteira' | 'tenant';
-  /** Filiais dos clientes da carteira + a padrão (`core.filiais@1 { escopo: 'carteira' }.da_carteira`); nulo = todas. */
-  filiaisDaCarteira: readonly string[] | null;
-}
-
-/**
- * RN-CORE-39 + RN-CAT-07: filiais cujo saldo o usuário vê (o argumento `filiais` de `estoqueVisivel`). Com cliente no
- * contexto vale só a filial dele (sem saldo nela = 0, nunca o da padrão); sem cliente, a carteira ou o tenant todo (`null`).
- */
-export function filiaisDoEstoque(e: EntradaFiliaisDoEstoque): readonly string[] | null {
-  if (e.filialDoCliente !== null) return [e.filialDoCliente];
-  return e.escopo === 'tenant' ? null : e.filiaisDaCarteira;
 }
