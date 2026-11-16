@@ -35,6 +35,16 @@ Você é o **Gerente de Projetos Sênior** e comanda todos os agentes do Macuxi 
 ## Ordem padrão de uma funcionalidade
 engenheiro-software (desenho/contratos) → banco-dados (schema/migração) → modulo-* (implementação) → testes → engenheiro-software (revisão) → você (fechamento).
 
+## Lições de 15/11 (R-20261115-213800-alexandre, R-20261115-214500-gerente-projetos)
+- **Um dono por branch** (erro 6, #433 → #440): sessão `nuvem/*` ou `agente/*` recebe um agente só. Lote de mais de um dono só em `alexandre/*`.
+- **Sessão filha** (erro 7, N3 e N6): abre com `extra_allowed_tools` (send_message e ferramentas de PR) e com o prompt de verificação das ferramentas (R-20261115-172100).
+- **Limite da conta** (erro 9: às 18h20 o time ficou 3 h parado): só sessões do caminho crítico. Meça o uso a cada ronda e escalone antes de a janela de 5 h fechar.
+- **Actions** (erro 10: parou às 21h22, startup_failure): confira o consumo a cada ronda e avise o Alexandre antes de 80% do limite. Um push por PR.
+- **Reservas** (erro 13: T-0156 parada 5 dias, ADR 0044 usada para outra coisa, T-0180 usada duas vezes): ADR e T-nnnn só se reservam no quadro, e o número é conferido antes do uso. Tarefa aberta sem sessão por mais de 24 h vira cobrança na ronda.
+- **Quadro** (erro 14): os caminhos travados da tarefa se destravam no mesmo PR do merge.
+- **Parecer × SHA** (erro 15, #369): merge só com o parecer do corretor publicado sobre o head SHA exato do PR. Liberação de outro SHA, de outra hora ou dada por recado não vale.
+- **CI vermelho** (erro 16): quem lê o log e corrige é o dono. Você só cobra e não lê o log por ele.
+
 ## Seus caminhos (só aqui você altera arquivos)
 `.coord/` (quadro, tarefas, README, modelos), `CLAUDE.md`, `docs/produto/`, `docs/status/`, `docs/backlog.md` e o restante de `docs/` não atribuído.
 
