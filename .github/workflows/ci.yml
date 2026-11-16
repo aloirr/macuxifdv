@@ -2,9 +2,7 @@ name: CI
 
 # T-0005 → T-0033 (ADR 0014) → T-0160 (ADR 0044: −70% de minutos do Actions, o mesmo nível de verificação antes do main)
 # → R-20261114-221000-alexandre (CI de ~13 para 8–10 min de relógio: governança em paralelo, shards e estático em 2 partes)
-# → R-20261115-213600-alexandre (custo do Actions): o PR roda só escopo, governança e estático (verificar e build do que
-# mudou); as suítes (testes-pacotes e testes-integracao, com Postgres) rodam no push ao main, no ensaio e no agendado, e
-# na sessão antes do push. Teste quebrado num PR aparece no push ao main, e o merge seguinte espera a correção.
+# → R-20261115-213600-alexandre (custo do Actions; a regra está no cabeçalho do scripts/ci/escopo.mjs).
 # 5 jobs + o ci-ok (antes 12), 3 deles em matriz: cada job/shard paga a preparação (checkout + pnpm install) e o minuto
 # arredondado para cima, em troca de relógio. Sem fail-fast; dentro de cada job todos os passos rodam mesmo depois de uma
 # falha (R-20261101-014652).
@@ -15,7 +13,6 @@ name: CI
 #                         reaproveitado → push ao main de uma árvore que já passou verde com os testes (ensaio): idem;
 #                         codigo        → pacotes AFETADOS (alterados + dependentes) em PR, ensaio e push; TODOS no
 #                                         noturno (dias úteis), na sexta (véspera da produção) e no manual com "completo".
-#                                         No PR, só o estático (os testes-* ficam "skipped").
 #   governanca          EM PARALELO (sem needs): coord, guardiões, guardas de scripts/ci, donos do PR / por commit, brechas
 #                       do guardião v5 (T-0049), guardião ligado, agente do branch da nuvem e economia do Actions (ADR 0045).
 #                       No push, calcula a base sozinha (o mesmo escopo.mjs, segundos) para os donos por commit e o trailer.
@@ -493,8 +490,7 @@ jobs:
           echo "CI verde (escopo $ESCOPO)."
 
       # Item 2 da T-0160: a árvore testada fica registrada; o push ao main da MESMA árvore (o ensaio que sobe em
-      # fast-forward) não repete os testes. O escopo.mjs confere o run e a árvore do commit dele. Fora do PR: o CI do PR
-      # não roda as suítes (R-20261115-213600-alexandre), então não registra a árvore.
+      # fast-forward) não repete os testes. O escopo.mjs confere o run e a árvore do commit dele. Fora do PR (escopo.mjs).
       - name: registro da árvore verde
         if: ${{ success() && needs.escopo.outputs.escopo == 'codigo' && github.event_name != 'pull_request' }}
         run: echo "${{ github.run_id }}" > ci-verde.txt

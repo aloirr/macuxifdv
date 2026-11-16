@@ -12,7 +12,9 @@
  *                       trailer) e os testes não se repetem.
  *   - "codigo"        → o resto. Lista vazia, erro de git e evento sem lista caem aqui, com TODOS os pacotes.
  *                       No PR, só o job estatico (R-20261115-213600-alexandre): testes-pacotes e testes-integracao rodam
- *                       no push ao main, no ensaio (manual) e no agendado. O PR não grava o artefato ci-verde-* (ci.yml).
+ *                       no push ao main, no ensaio (manual) e no agendado, e na sessão antes do merge. O PR não grava o
+ *                       artefato ci-verde-* (ci.yml). Teste quebrado num PR aparece no push ao main, e o merge seguinte
+ *                       espera a correção.
  * matriz:
  *   - "completa" → agendado (noturno, dias úteis), sexta-feira em Manaus (véspera da produção) e manual com `completo`:
  *                  todos os pacotes.
@@ -200,7 +202,7 @@ export function decidir({
   const sel = (t) => (af.todos ? todosOsPacotes : af.porTarefa[t]);
   const testes = sel('test');
   const estatico = new Set([...sel('lint'), ...sel('typecheck')]);
-  // R-20261115-213600-alexandre: no PR só o estático; as suítes (Postgres) rodam no push ao main, no ensaio e no agendado.
+  // No PR, só o estático (cabeçalho).
   const comTestes = evento !== 'pull_request';
   return {
     ...vazio,
@@ -275,7 +277,7 @@ async function verificacaoDaArvore(arvore, exigeCompleta, env) {
         if (art.expired || !art.workflow_run?.id) continue;
         const run = await api(`actions/runs/${art.workflow_run.id}`, env);
         if (run?.conclusion !== 'success' || run?.path !== '.github/workflows/ci.yml') continue;
-        // R-20261115-213600-alexandre: o CI do PR não roda as suítes; o artefato de um run de PR não dispensa os testes.
+        // Run de PR não dispensa os testes (cabeçalho).
         if (run?.event === 'pull_request') continue;
         // Mesma árvore no commit do run = o ci.yml que rodou é o desta árvore: um branch com outro ci.yml não forja o artefato.
         if (tenta(() => git('cat-file', '-e', `${run.head_sha}^{commit}`)) === null)
