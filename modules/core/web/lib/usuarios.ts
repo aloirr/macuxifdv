@@ -4,11 +4,11 @@
  */
 import { formatDateTime, formatTime } from '@macuxi/ui/web';
 import { temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
-import { ALMOCO_PADRAO_EMPRESA, DESCONTO_PEDIDO_PERMIL_MAX, type CriarUsuarioRequest, type EditarUsuarioRequest, type EmailAcesso, type EquipeOpcao, type HorarioAlmoco, type UsuarioItem, type VincularErpRequest } from '../../contracts';
+import { ALMOCO_PADRAO_EMPRESA, DESCONTO_PEDIDO_PERMIL_MAX, textoDoMinuto, type CriarUsuarioRequest, type EditarUsuarioRequest, type EmailAcesso, type EquipeOpcao, type HorarioAlmoco, type UsuarioItem, type VincularErpRequest } from '../../contracts';
 import { filiaisDoUsuario, corpoDaFilial } from './filial-usuario';
 import { erroDoCodigoErp, errosDaHierarquia, hierarquiaDoCargo, type PessoaDaHierarquia } from '../../domain/cargos';
 import type { Cargo } from '@macuxi/platform-sdk';
-import { ERRO_SEM_PERFIL, lerHorarioAlmocoTexto, textoDoMinuto, faltasNaSenha, gerarSenhaTemporaria, validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo, type FaltaNaSenha } from '../../domain';
+import { ERRO_SEM_PERFIL, lerHorarioAlmocoTexto, faltasNaSenha, gerarSenhaTemporaria, validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo, type FaltaNaSenha } from '../../domain';
 
 export interface FormularioUsuario {
   nome: string;

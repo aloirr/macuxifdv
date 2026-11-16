@@ -24,11 +24,11 @@ import { gravarParametroCore, lerParametroCore } from './parametro-tenant';
 export const ACAO_ALERTAS_PRODUTIVIDADE = 'parametro.alertas_produtividade';
 
 /** Valor efetivo do tenant da transação (RLS). Sem cache. */
-export async function lerParametrosAlertasProdutividade(db: ClienteBanco): Promise<ParametrosAlertasProdutividade> {
+async function lerParametrosAlertasProdutividade(db: ClienteBanco): Promise<ParametrosAlertasProdutividade> {
   return parametrosAlertasDasLinhas(await lerParametroCore(db, PARAMETRO_ALERTAS_PRODUTIVIDADE));
 }
 
-export async function lerParadoMin(db: ClienteBanco): Promise<number> {
+async function lerParadoMin(db: ClienteBanco): Promise<number> {
   return paradoMinDasLinhas(await lerParametroCore(db, PARAMETRO_PARADO_MIN));
 }
 

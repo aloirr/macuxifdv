@@ -19,7 +19,7 @@ type Linha = { modulo: string; chave: string; valor?: unknown; deleted_at?: stri
 export function parametrosAlertasDasLinhas(linhas: readonly Linha[]): ParametrosAlertasProdutividade {
   const v = linhas.find((x) => x.modulo === 'core' && x.chave === PARAMETRO_ALERTAS_PRODUTIVIDADE && !x.deleted_at)?.valor;
   const r = ParametrosAlertasProdutividadeSchema.safeParse(v);
-  return structuredClone(r.success ? r.data : PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO);
+  return structuredClone(r.success && validarParametrosAlertasProdutividade(r.data).ok ? r.data : PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO);
 }
 
 const faixa = (n: unknown, f: { min: number; max: number }) => typeof n === 'number' && Number.isInteger(n) && n >= f.min && n <= f.max;

@@ -5,12 +5,9 @@
  */
 import { api } from '@macuxi/platform-sdk/web';
 import { ParametrosJornadaSchema, type ParametrosJornada } from '../../../contracts';
-import { lerHorarioAlmocoTexto, type ErrosAlmocoTexto } from '../../../domain';
 
 export const CHAVE_JORNADA = ['core', 'parametros', 'jornada'] as const;
 const CAMINHO = '/core/parametros/jornada';
-
-export { lerHorarioAlmocoTexto as lerHorarioAlmoco, type ErrosAlmocoTexto };
 
 export function criarApiJornada(chamar: typeof api = api) {
   return {

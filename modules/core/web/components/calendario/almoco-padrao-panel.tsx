@@ -4,8 +4,9 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, LoadingBlock, Notice, Panel } from '@macuxi/ui/web';
-import { textoDoMinuto } from '../../../domain';
-import { CHAVE_JORNADA, criarApiJornada, lerHorarioAlmoco, type ApiJornada, type ErrosAlmocoTexto } from './almoco-padrao';
+import { textoDoMinuto } from '../../../contracts';
+import { lerHorarioAlmocoTexto, type ErrosAlmocoTexto } from '../../../domain';
+import { CHAVE_JORNADA, criarApiJornada, type ApiJornada } from './almoco-padrao';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
 const CAMPO_DA_API: Readonly<Record<string, keyof ErrosAlmocoTexto>> = { almoco_inicio: 'inicio', almoco_fim: 'fim' };
@@ -44,7 +45,7 @@ export function AlmocoPadraoPanel({ cliente }: { cliente?: ApiJornada }) {
   const p = q.data?.almoco_padrao;
   const atual = { inicio: texto.inicio ?? (p ? textoDoMinuto(p.inicio_min) : ''), fim: texto.fim ?? (p ? textoDoMinuto(p.fim_min) : '') };
   const salvar = () => {
-    const r = lerHorarioAlmoco(atual.inicio, atual.fim);
+    const r = lerHorarioAlmocoTexto(atual.inicio, atual.fim);
     if (!r.ok) return setErros(r.erros);
     setErros({});
     setAviso(null);
@@ -65,7 +66,7 @@ export function AlmocoPadraoPanel({ cliente }: { cliente?: ApiJornada }) {
             Início
             <input value={atual.inicio} inputMode="numeric" aria-invalid={erros.inicio ? true : undefined} aria-describedby={erros.inicio ? 'calendario.almoco-padrao.erro.inicio' : undefined} onChange={(e) => setTexto({ ...texto, inicio: e.target.value })} className={`${CLASSE_CAMPO_BKO} w-[96px]`} data-testid="calendario.almoco-padrao.inicio" />
             {erros.inicio && (
-              <span id="calendario.almoco-padrao.erro.inicio" className="font-normal text-danger" data-testid="calendario.almoco-padrao.erro.inicio">
+              <span id="calendario.almoco-padrao.erro.inicio" className="text-[13px] font-normal text-danger" data-testid="calendario.almoco-padrao.erro.inicio">
                 {erros.inicio}
               </span>
             )}
@@ -74,7 +75,7 @@ export function AlmocoPadraoPanel({ cliente }: { cliente?: ApiJornada }) {
             Fim
             <input value={atual.fim} inputMode="numeric" aria-invalid={erros.fim ? true : undefined} aria-describedby={erros.fim ? 'calendario.almoco-padrao.erro.fim' : undefined} onChange={(e) => setTexto({ ...texto, fim: e.target.value })} className={`${CLASSE_CAMPO_BKO} w-[96px]`} data-testid="calendario.almoco-padrao.fim" />
             {erros.fim && (
-              <span id="calendario.almoco-padrao.erro.fim" className="font-normal text-danger" data-testid="calendario.almoco-padrao.erro.fim">
+              <span id="calendario.almoco-padrao.erro.fim" className="text-[13px] font-normal text-danger" data-testid="calendario.almoco-padrao.erro.fim">
                 {erros.fim}
               </span>
             )}

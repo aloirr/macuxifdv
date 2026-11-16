@@ -16,7 +16,7 @@ import {
   type MetasProdutividadePut,
   type OrigemMetaProdutividade,
 } from '../../../contracts/performance';
-import { minutoDoTextoHora, textoDoMinuto } from '../../../domain/jornada';
+import { ERRO_HORA_HHMM, minutoDoTextoHora, textoDoMinuto } from '../../../contracts';
 import type { EquipeArvore, ErroMetaProdutividade } from '../../../domain/performance/metas-produtividade';
 
 /** Ordem da §3.1. */
@@ -87,7 +87,7 @@ export function lerMeta(i: IndicadorProdutividade, texto: string): { ok: true; v
   const unidade = UNIDADES_PRODUTIVIDADE[i];
   if (unidade === 'minuto_do_dia') {
     const min = minutoDoTextoHora(t);
-    return min === null ? { ok: false, erro: 'Use o horário em hh:mm.' } : { ok: true, valor: min };
+    return min === null ? { ok: false, erro: ERRO_HORA_HHMM } : { ok: true, valor: min };
   }
   const n = parseDecimalInput(t);
   if (n === null || n < 0) return { ok: false, erro: 'Use um número.' };

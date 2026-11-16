@@ -5,10 +5,9 @@
  *   1 minuto no SQL. NÃO mexe em `core.usuario` (o `updated_at` andaria a cada sincronização e todo aparelho puxaria o usuário de novo).
  */
 import { implementarConsulta, type ContextoBase } from '@macuxi/platform-sdk';
-import { CONSULTA_PRODUTIVIDADE_EQUIPE, PARAMETRO_ALMOCO_PADRAO, type ProdutividadeEquipeSaida } from '../contracts';
-import { almocoDoUsuario, almocoPadraoDasLinhas } from '../domain';
-import { lerParametroCore } from './parametro-tenant';
-import { lerParadoMin, lerParametrosAlertasProdutividade } from './parametros-alertas';
+import { CONSULTA_PRODUTIVIDADE_EQUIPE, PARAMETRO_ALERTAS_PRODUTIVIDADE, PARAMETRO_ALMOCO_PADRAO, PARAMETRO_PARADO_MIN, paradoMinDasLinhas, type ProdutividadeEquipeSaida } from '../contracts';
+import { almocoDoUsuario, almocoPadraoDasLinhas, parametrosAlertasDasLinhas } from '../domain';
+import { lerParametrosCore } from './parametro-tenant';
 
 const ISO = `'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'`;
 
@@ -26,9 +25,11 @@ export async function registrarContatoDoAparelho(ctx: ContextoBase): Promise<voi
 }
 
 export const consultaProdutividadeEquipe = implementarConsulta(CONSULTA_PRODUTIVIDADE_EQUIPE, async (entrada, ctx): Promise<ProdutividadeEquipeSaida> => {
-  const padrao = almocoPadraoDasLinhas(await lerParametroCore(ctx.db, PARAMETRO_ALMOCO_PADRAO));
-  const alertas = await lerParametrosAlertasProdutividade(ctx.db);
-  const parado_min = await lerParadoMin(ctx.db);
+  // uma leitura só das 3 chaves (RD-1869)
+  const parametros = await lerParametrosCore(ctx.db, [PARAMETRO_ALMOCO_PADRAO, PARAMETRO_ALERTAS_PRODUTIVIDADE, PARAMETRO_PARADO_MIN]);
+  const padrao = almocoPadraoDasLinhas(parametros);
+  const alertas = parametrosAlertasDasLinhas(parametros);
+  const parado_min = paradoMinDasLinhas(parametros);
   const linhas = (
     await ctx.db.query<{ id: string; almoco_inicio_min: number | null; almoco_fim_min: number | null; ultimo_contato_em: string | null }>(
       `select u.id, u.almoco_inicio_min, u.almoco_fim_min, to_char(c.contato_em at time zone 'UTC', ${ISO}) as ultimo_contato_em

@@ -12,7 +12,7 @@ import { ConsultaIndisponivel, definirConsulta, ErroNaoEncontrado, ErroRegraNego
 import { localDate, yearMonthOf } from '@macuxi/comum';
 import { somarDiasCivis } from '@macuxi/comum/relogio';
 import { z } from 'zod';
-import { Cents, Id, IsoDateTime } from '../contracts';
+import { Cents, Id, IsoDateTime, PARAMETRO_ALMOCO_PADRAO, PARAMETRO_DIAS_UTEIS } from '../contracts';
 import { PerformanceQuerySchema, PerformanceSchema, type Performance, type RealizadoServidor } from '../contracts/performance';
 import { almocoDoUsuario, almocoPadraoDasLinhas, dataLocal } from '../domain';
 import { realizadoPorTipo, STATUS_APROVADOS, type FaturamentoApuravel, type PedidoDaMeta, type TipoMeta } from '../domain/apuracao';
@@ -23,6 +23,7 @@ import { metasProdutividadeVigentes, type EquipeArvore, type LinhaMetaProdutivid
 import { produtividadeDoPeriodo } from '../domain/performance/produtividade';
 import { resultadosDoPeriodo } from '../domain/performance/resultados';
 import { mesesDoIntervalo, menorData, ultimoDiaDoMes } from '../domain/performance/tempo';
+import { lerParametrosCore } from './parametro-tenant';
 import { licencaDoTenant, type LicencaDoTenant } from './licenca-tenant';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
@@ -244,11 +245,7 @@ export async function calcularPerformance(
     throw new ErroRegraNegocio('PERFORMANCE_USUARIO_INVALIDO', 'A Performance é de vendedor ou promotor. Escolha um deles.');
   }
   const perfil = u.perfil;
-  const parametros = (
-    await db.query<{ modulo: string; chave: string; valor: unknown; deleted_at: string | null }>(
-      "select modulo, chave, valor, null::text as deleted_at from plataforma.parametro where modulo = 'core' and chave in ('metas.dias_uteis_semana', 'metas.feriados', 'jornada.almoco_padrao') and deleted_at is null",
-    )
-  ).rows;
+  const parametros = await lerParametrosCore(db, [PARAMETRO_DIAS_UTEIS, 'metas.feriados', PARAMETRO_ALMOCO_PADRAO]);
   const calendario = calendarioComFeriados(parametros);
   const meses = [...new Set([...mesesDoIntervalo(e.de, e.ate), mesHoje])];
 

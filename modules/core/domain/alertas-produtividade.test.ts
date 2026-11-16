@@ -44,4 +44,8 @@ describe('RN-CORE-26 (spec §1.3): nomes das regras', () => {
     const r = validarParametrosAlertasProdutividade({ ...PADRAO, visita_aberta: { ...PADRAO.visita_aberta, apos_min: 5 } });
     expect(r.ok ? [] : r.erros.map((e) => e.mensagem)).toEqual([expect.stringContaining('Visita aberta:')]);
   });
+  it('RN-CORE-26: valor salvo com faixa fora do limite (formato certo) vale o padrão D6', () => {
+    const fora = { ...PADRAO, teto_lembretes_dia: 99 };
+    expect(parametrosAlertasDasLinhas([{ modulo: 'core', chave: 'alertas.produtividade', valor: fora }])).toEqual(PADRAO);
+  });
 });

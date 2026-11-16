@@ -679,17 +679,17 @@ export function UsuariosConteudo() {
           )}
           {editando && (
             <fieldset className="m-0 flex flex-col gap-2 border-0 p-0" data-testid="usuarios.jornada">
-              <legend className="mb-1 p-0 text-[13px] font-semibold text-ink">Jornada</legend>
+              <legend className="mb-1 p-0 text-[13px] font-semibold text-ink">Horário de almoço</legend>
               <label className="flex min-h-[48px] items-center gap-3 rounded-xl border border-line bg-surface px-3 text-[15px] font-semibold text-ink">
                 <input type="checkbox" className="h-5 w-5 accent-accent" checked={form.almoco_padrao} onChange={(e) => upd({ almoco_padrao: e.target.checked })} data-testid="usuarios.campo-almoco-padrao" />
                 Padrão da empresa ({rotuloDoAlmoco(padraoAlmoco)})
               </label>
               {!form.almoco_padrao && (
                 <div className="flex flex-wrap items-start gap-3">
-                  <Campo rotulo="Início do almoço" erro={erroDe('almoco_inicio')}>
+                  <Campo rotulo="Início" erro={erroDe('almoco_inicio')}>
                     <input value={form.almoco_inicio} inputMode="numeric" aria-invalid={erroDe('almoco_inicio') ? true : undefined} onChange={(e) => upd({ almoco_inicio: e.target.value })} className={`${CLASSE_CAMPO_BKO} w-[120px]`} data-testid="usuarios.campo-almoco-inicio" />
                   </Campo>
-                  <Campo rotulo="Fim do almoço" erro={erroDe('almoco_fim')}>
+                  <Campo rotulo="Fim" erro={erroDe('almoco_fim')}>
                     <input value={form.almoco_fim} inputMode="numeric" aria-invalid={erroDe('almoco_fim') ? true : undefined} onChange={(e) => upd({ almoco_fim: e.target.value })} className={`${CLASSE_CAMPO_BKO} w-[120px]`} data-testid="usuarios.campo-almoco-fim" />
                   </Campo>
                 </div>

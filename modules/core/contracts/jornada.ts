@@ -11,10 +11,13 @@ export const PARAMETRO_ALMOCO_PADRAO = 'jornada.almoco_padrao';
 export const ALMOCO_DURACAO_MIN = 15;
 export const ALMOCO_DURACAO_MAX = 180;
 
-const MinutoDoDia = z.number().int().min(0).max(1439);
+/** Minuto do dia (0 a 1439) no fuso do tenant: o único formato de horário dos contratos (RD-1863). */
+export const MinutoDoDiaSchema = z.number().int().min(0).max(1439);
+/** Erro de horário digitado fora de hh:mm (telas do Core e do Gestor). */
+export const ERRO_HORA_HHMM = 'Use o horário em hh:mm.';
 
 /** Horário de almoço em minutos do dia (só o formato; a regra de duração é do domain: `validarHorarioAlmoco`). */
-export const HorarioAlmocoSchema = z.object({ inicio_min: MinutoDoDia, fim_min: MinutoDoDia }).strict();
+export const HorarioAlmocoSchema = z.object({ inicio_min: MinutoDoDiaSchema, fim_min: MinutoDoDiaSchema }).strict();
 export type HorarioAlmoco = z.infer<typeof HorarioAlmocoSchema>;
 
 /** Padrão da empresa quando o parâmetro não existe: 12:00 às 13:00. */
@@ -42,6 +45,17 @@ export function minutoDoTextoHora(t: string): number | null {
 const MIN_MS = 60_000;
 /** Janela do almoço em milissegundos (instantes absolutos do dia). */
 export type AlmocoEmMs = { inicio: number; fim: number };
+
+/** O almoço do dia em instantes absolutos, a partir do início do dia local (00:00) em ms. */
+export const almocoEmMs = (inicioDoDiaMs: number, h: HorarioAlmoco): AlmocoEmMs => ({ inicio: inicioDoDiaMs + h.inicio_min * MIN_MS, fim: inicioDoDiaMs + h.fim_min * MIN_MS });
+
+/** Duração curta para texto de tela e de lembrete: "45 min", "1 h", "1 h 30 min". */
+export function duracaoCurta(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h === 0) return `${m} min`;
+  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
 
 /** Soma `minutos` a `refMs` sem contar o tempo de almoço (RN-CORE-44: o horário cadastrado). Única implementação do desconto. */
 export function somarSemAlmoco(refMs: number, minutos: number, almocoMs: AlmocoEmMs): number {

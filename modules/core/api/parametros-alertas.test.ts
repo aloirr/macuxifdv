@@ -83,9 +83,12 @@ describe('RN-CORE-26 (D6): GET e PUT alertas-produtividade', () => {
     expect(b.chamadas.filter(ehEscrita)).toHaveLength(0);
     expect(b.chamadas.filter(ehAuditoria)).toHaveLength(0);
   });
-  it('RN-CORE-26: faixa fora do limite é recusada na entrada (schema) e nada é gravado', () => {
+  it('RN-CORE-26: faixa fora do limite é recusada pela regra (com a mensagem dela, no campo certo) e nada é gravado', async () => {
     const { db, chamadas } = fakeDb([]);
-    expect(() => chamar(alertasPut, db, { ...PADRAO, envio_pendente: { ...PADRAO.envio_pendente, apos_h: 99 } })).toThrow();
+    await expect(chamar(alertasPut, db, { ...PADRAO, envio_pendente: { ...PADRAO.envio_pendente, apos_h: 99 } })).rejects.toMatchObject({
+      codigo: 'RN-CORE-26',
+      detalhes: { erros: [{ campo: 'envio_pendente', mensagem: 'Envio pendente: informe de 1 a 48 horas.' }] },
+    });
     expect(chamadas).toHaveLength(0);
   });
   it('RN-CORE-26: corpo com campo extra (o parado não mora aqui) é recusado pelo schema', () => {

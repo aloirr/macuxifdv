@@ -13,11 +13,11 @@
  *   (`apos_h`, padrão 4 h) já vencido ao abrir o app, inclusive item de ontem, sai 1 min depois de agora (ou na abertura, se ainda não abriu), dentro do teto e da prioridade.
  * Textos: título curto e o corpo "Próxima visita: <cliente>." igual em todos (sem próxima visita, só o título). Vai só para a bandeja do aparelho.
  */
-import { HORARIO_COMERCIAL_PADRAO, type ParametrosAlertasProdutividade } from '../contracts/alertas-produtividade';
-import type { HorarioAlmoco } from '../contracts/jornada';
-import { somarSemAlmoco, textoDoMinuto } from '../contracts/jornada';
+import { HORARIO_COMERCIAL_PADRAO, type ChaveRegraProdutividade, type ParametrosAlertasProdutividade } from '../contracts/alertas-produtividade';
+import { almocoEmMs, duracaoCurta, somarSemAlmoco, textoDoMinuto, type HorarioAlmoco } from '../contracts/jornada';
 
-export type TipoLembrete = 'sem_checkin_inicio' | 'fim_almoco' | 'parado_entre_visitas' | 'rota_incompleta' | 'visita_aberta' | 'envio_pendente';
+/** Um lembrete por regra de produtividade. */
+export type TipoLembrete = ChaveRegraProdutividade;
 
 /** Ordem de prioridade para o teto. */
 export const PRIORIDADE_LEMBRETES: readonly TipoLembrete[] = ['sem_checkin_inicio', 'fim_almoco', 'parado_entre_visitas', 'rota_incompleta', 'visita_aberta', 'envio_pendente'];
@@ -68,14 +68,6 @@ export interface EntradaLembretes {
 const MIN = 60_000;
 const ms = (iso: string) => new Date(iso).getTime();
 
-/** "1 h", "45 min", "1 h 30 min". */
-export function duracaoCurta(min: number): string {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  if (h === 0) return `${m} min`;
-  return m === 0 ? `${h} h` : `${h} h ${m} min`;
-}
-
 type Candidato = LembreteDoDia & { emMs: number };
 
 /** A agenda de lembretes do dia, em ordem de horário; vazia para quem não é de campo, fora de dia útil ou com tudo desligado. */
@@ -97,7 +89,7 @@ export function agendaDeLembretes(e: EntradaLembretes): LembreteDoDia[] {
     const prox = pendentes.find((x) => x.cliente_id !== excluir);
     return prox ? `Próxima visita: ${prox.cliente_nome}.` : undefined;
   };
-  const almoco = { inicio: noDia(e.almoco.inicio_min), fim: noDia(e.almoco.fim_min) };
+  const almoco = almocoEmMs(base, e.almoco);
 
   const candidatos: Candidato[] = [];
   const add = (tipo: TipoLembrete, id: string, emMs: number, titulo: string, corpo?: string) =>

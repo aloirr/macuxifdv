@@ -74,7 +74,7 @@ export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoj
               </SelectField>
             }
           >
-            <div className="flex flex-col gap-4 text-[13px]">
+            <div className="flex flex-col gap-4 text-[15px]">
               <div className="flex flex-wrap items-start gap-2">
                 <label className="flex flex-col gap-1 font-semibold text-ink">
                   Data
@@ -120,7 +120,7 @@ export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoj
 
 function ErroCampo({ id, texto }: { id: string; texto?: string }) {
   return texto ? (
-    <span id={id} className="font-normal text-danger" data-testid={id}>
+    <span id={id} className="text-[13px] font-normal text-danger" data-testid={id}>
       {texto}
     </span>
   ) : null;

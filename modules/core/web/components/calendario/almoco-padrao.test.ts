@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { criarApiJornada, lerHorarioAlmoco } from './almoco-padrao';
+import { lerHorarioAlmocoTexto as lerHorarioAlmoco } from '../../../domain';
+import { criarApiJornada } from './almoco-padrao';
 
 describe('RN-CORE-44 (D5): horário de almoço padrão no Calendário', () => {
   it('RN-CORE-44: 12:00 às 13:00 vira 720 e 780', () => {

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO as PADRAO, type ParametrosAlertasProdutividade } from '../contracts';
 import { minutosSemAlmoco, somarSemAlmoco } from '../contracts/jornada';
-import { agendaDeLembretes, duracaoCurta, type EntradaLembretes } from './lembretes-produtividade';
+import { duracaoCurta } from '../contracts/jornada';
+import { agendaDeLembretes, type EntradaLembretes } from './lembretes-produtividade';
 
 // segunda, 16/11/2026, fuso de Manaus (UTC-4): 00:00 local = 04:00Z
 const DIA = '2026-11-16T04:00:00.000Z';

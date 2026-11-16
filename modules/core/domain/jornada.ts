@@ -6,6 +6,8 @@ import {
   ALMOCO_DURACAO_MAX,
   ALMOCO_DURACAO_MIN,
   ALMOCO_PADRAO_EMPRESA,
+  ERRO_HORA_HHMM,
+  MinutoDoDiaSchema,
   PARAMETRO_ALMOCO_PADRAO,
   minutoDoTextoHora,
   textoDoMinuto,
@@ -13,9 +15,7 @@ import {
   type HorarioAlmoco,
 } from '../contracts/jornada';
 
-export { ALMOCO_DURACAO_MAX, ALMOCO_DURACAO_MIN, ALMOCO_PADRAO_EMPRESA, minutoDoTextoHora, textoDoMinuto };
-
-const minutoValido = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n < 1440;
+const minutoValido = (n: unknown): n is number => MinutoDoDiaSchema.safeParse(n).success;
 
 /** Rótulo "12:00 às 13:00". */
 export const rotuloDoAlmoco = (h: HorarioAlmoco): string => `${textoDoMinuto(h.inicio_min)} às ${textoDoMinuto(h.fim_min)}`;
@@ -67,8 +67,8 @@ export function lerHorarioAlmocoTexto(inicio: string, fim: string): { ok: true; 
   const i = minutoDoTextoHora(inicio);
   const f = minutoDoTextoHora(fim);
   const erros: ErrosAlmocoTexto = {};
-  if (i === null) erros.inicio = 'Use o horário em hh:mm.';
-  if (f === null) erros.fim = 'Use o horário em hh:mm.';
+  if (i === null) erros.inicio = ERRO_HORA_HHMM;
+  if (f === null) erros.fim = ERRO_HORA_HHMM;
   if (i !== null && f !== null) {
     const r = validarHorarioAlmoco({ inicio_min: i, fim_min: f });
     if (r.ok) return { ok: true, inicio_min: i, fim_min: f };

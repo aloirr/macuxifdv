@@ -6,6 +6,7 @@
  * `PUT /v1/core/parametros/parado-min` (`CAMINHO_PARAMETRO_PARADO_MIN`). Horários ("10:00", "16:00") são minutos do dia no fuso do tenant.
  */
 import { z } from 'zod';
+import { MinutoDoDiaSchema } from './jornada';
 
 export const PARAMETRO_ALERTAS_PRODUTIVIDADE = 'alertas.produtividade';
 /** Caminho (sem `/v1/core/`) das rotas dos parâmetros dos alertas de produtividade. */
@@ -36,9 +37,8 @@ export const NOME_REGRA_PRODUTIVIDADE: Readonly<Record<ChaveRegraProdutividade, 
 /** Horário comercial do Campo e do Gestão (minutos do dia, 08:00 às 18:00): o lembrete só sai dentro dele. Uma definição só (RD-0338). */
 export const HORARIO_COMERCIAL_PADRAO = { inicio_min: 8 * 60, fim_min: 18 * 60 } as const;
 
-const Minuto = z.number().int().min(0).max(1439);
 
-/** Faixas aceitas (a tela e a API leem daqui). */
+/** Faixas aceitas (a tela lê daqui; quem confere é o domain, `validarParametrosAlertasProdutividade`, com a mensagem de cada regra). */
 export const FAIXAS_ALERTAS_PRODUTIVIDADE = {
   antecedencia_min: { min: 5, max: 30 },
   gestor_depois_min: { min: 5, max: 240 },
@@ -46,19 +46,20 @@ export const FAIXAS_ALERTAS_PRODUTIVIDADE = {
   envio_pendente_h: { min: 1, max: 48 },
   teto_lembretes_dia: { min: 1, max: 10 },
 } as const;
-const Faixa = (f: { min: number; max: number }) => z.number().int().min(f.min).max(f.max);
+/** Só o formato: as faixas ficam no domain (RD-1868), senão o Zod recusa antes e a mensagem da regra não chega a quem salva. */
+const Inteiro = z.number().int();
 
 export const ParametrosAlertasProdutividadeSchema = z
   .object({
-    fim_almoco: z.object({ ativa: z.boolean(), antecedencia_min: Faixa(FAIXAS_ALERTAS_PRODUTIVIDADE.antecedencia_min), vendedor: z.boolean() }).strict(),
+    fim_almoco: z.object({ ativa: z.boolean(), antecedencia_min: Inteiro, vendedor: z.boolean() }).strict(),
     parado_entre_visitas: z
-      .object({ ativa: z.boolean(), vendedor: z.boolean(), gestor: z.boolean(), gestor_depois_min: Faixa(FAIXAS_ALERTAS_PRODUTIVIDADE.gestor_depois_min) })
+      .object({ ativa: z.boolean(), vendedor: z.boolean(), gestor: z.boolean(), gestor_depois_min: Inteiro })
       .strict(),
-    sem_checkin_inicio: z.object({ ativa: z.boolean(), ate_min: Minuto, vendedor: z.boolean(), gestor: z.boolean() }).strict(),
-    rota_incompleta: z.object({ ativa: z.boolean(), as_min: Minuto, vendedor: z.boolean() }).strict(),
-    visita_aberta: z.object({ ativa: z.boolean(), apos_min: Faixa(FAIXAS_ALERTAS_PRODUTIVIDADE.visita_aberta_min), vendedor: z.boolean() }).strict(),
-    envio_pendente: z.object({ ativa: z.boolean(), apos_h: Faixa(FAIXAS_ALERTAS_PRODUTIVIDADE.envio_pendente_h), vendedor: z.boolean() }).strict(),
-    teto_lembretes_dia: Faixa(FAIXAS_ALERTAS_PRODUTIVIDADE.teto_lembretes_dia),
+    sem_checkin_inicio: z.object({ ativa: z.boolean(), ate_min: MinutoDoDiaSchema, vendedor: z.boolean(), gestor: z.boolean() }).strict(),
+    rota_incompleta: z.object({ ativa: z.boolean(), as_min: MinutoDoDiaSchema, vendedor: z.boolean() }).strict(),
+    visita_aberta: z.object({ ativa: z.boolean(), apos_min: Inteiro, vendedor: z.boolean() }).strict(),
+    envio_pendente: z.object({ ativa: z.boolean(), apos_h: Inteiro, vendedor: z.boolean() }).strict(),
+    teto_lembretes_dia: Inteiro,
   })
   .strict();
 export type ParametrosAlertasProdutividade = z.infer<typeof ParametrosAlertasProdutividadeSchema>;

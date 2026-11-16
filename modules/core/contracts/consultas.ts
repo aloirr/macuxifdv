@@ -7,6 +7,7 @@ import { definirConsulta } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import { LimiteDescontoSchema } from './usuarios';
 import { ParametrosAlertasProdutividadeSchema } from './alertas-produtividade';
+import { MinutoDoDiaSchema } from './jornada';
 
 const Ids = z.array(z.string().uuid()).max(500).default([]);
 
@@ -226,8 +227,8 @@ export const ProdutividadeEquipeSaidaSchema = z
           id: z.string().uuid(),
           /** Último `GET /sync/novidades` ou `POST /sync/push` do usuário (UTC, ISO); nulo = nunca sincronizou. */
           ultimo_contato_em: z.string().datetime().nullable(),
-          almoco_inicio_min: z.number().int().min(0).max(1439),
-          almoco_fim_min: z.number().int().min(0).max(1439),
+          almoco_inicio_min: MinutoDoDiaSchema,
+          almoco_fim_min: MinutoDoDiaSchema,
         })
         .strict(),
     ),

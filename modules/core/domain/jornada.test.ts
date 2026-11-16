@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { almocoDoUsuario, almocoPadraoDasLinhas, minutoDoTextoHora, rotuloDoAlmoco, textoDoMinuto, validarAlmocoDoUsuario, validarHorarioAlmoco } from './jornada';
+import { minutoDoTextoHora, textoDoMinuto } from '../contracts/jornada';
+import { almocoDoUsuario, almocoPadraoDasLinhas, rotuloDoAlmoco, validarAlmocoDoUsuario, validarHorarioAlmoco } from './jornada';
 
 const PADRAO = { inicio_min: 720, fim_min: 780 };
 
