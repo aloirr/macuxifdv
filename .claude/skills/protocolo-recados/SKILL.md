@@ -25,3 +25,13 @@ description: Protocolo de recados e donos do time Macuxi FDV — como ler a caix
 Corpo com 3 partes separadas por `|` vira as seções Contexto / O que preciso / Pronto quando. Para textos longos, escreva num arquivo temporário fora do repo e use `--arquivo`.
 
 Boas práticas: um assunto por recado; cite arquivos, contratos (`modulo.entidade.fato@vN`), extensões e regras (`RN-...`); diga o critério de pronto; responda rápido, mesmo que seja "recebido, entrego até o fim da tarefa".
+
+## Lições de 15/11 (R-20261115-213800-alexandre, R-20261115-214500-gerente-projetos)
+- **Antes de cada push** (erro 1: prazo, Integração ERP e Parâmetros refeitos):
+  - `node scripts/coord.mjs verificar <eu> --base origin/main` sai 0;
+  - todo commit de `git log origin/main..HEAD` traz `Agente: <eu>`.
+
+  Arquivo de outro dono vai por recado, nunca no seu branch.
+- **Nada só na máquina** (erro 8: o diff do #361 e o N4 ficaram só na máquina): nunca termine o turno com commit sem push (`git status -sb` sem `ahead`). Antes do lote pronto, o push vai para o PR em rascunho, que não roda CI. Fora do rascunho vale o "1 push por PR" da skill `entrega`.
+- **Lista do corretor antes do PR** (erro 11): passe no seu diff a lista "Antes do PR" de `.claude/agents/corretor-redundancias.md`.
+- **CI vermelho no seu PR** (erro 16): leia o log, corrija no mesmo branch e escreva no PR o teste que caiu e a correção. "Pronto" só com o CI verde no head SHA.
