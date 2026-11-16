@@ -1,9 +1,8 @@
 # T-0181 — revisão final do engenheiro-software (frases da carga)
 
-> 2026-11-15 · engenheiro-software. Revisão feita de manhã sobre o merge local, no `origin/main`, dos branches da carga
-> (banco-dados, engenheiro-software, testes, designer-ux e engenheiro-apps; os 5 sem conflito). Conferida de novo à tarde
-> nos heads `nuvem/carga-frases-banco-dados-v6`, `nuvem/carga-frases-engenheiro-software-v7` e
-> `nuvem/carga-frases-testes-v5`. Spec: `docs/design/carga-aviso-frases/spec.md` (§1 e §1.1 do ajuste R-20261115-080500).
+> 2026-11-15 · engenheiro-software. Revisão das entregas da carga (banco-dados, engenheiro-software, testes, designer-ux e
+> engenheiro-apps; as 5 sem conflito entre si). Spec: `docs/design/carga-aviso-frases/spec.md` (§1 e §1.1 do ajuste
+> R-20261115-080500).
 
 ## Resultado na sessão (Node 22, sem Docker)
 - `lint` e `typecheck` (turbo) de `@macuxi/db`, `api`, `mobile`, `web`, `@macuxi/platform-sdk` e `@macuxi/ui`: 12/12 verdes.
@@ -11,8 +10,7 @@
   `fronteiras`: 0 erros (11 avisos de ciclo antigos, nenhum nos arquivos da T-0181).
 - Testes: platform-sdk 884, ui 424, mobile 564 (+1 todo), web 224, todos verdes. db 1065 e api 548 verdes, com 1 falha cada,
   ambas do `crypto.argon2Sync` (Node 22; conhecida). Integração (`tests/integracao/api/frases-carga-t0181.test.ts`, 28 casos,
-  e `conformidade.test.ts`): pulados sem banco; o resultado vale no CI. Migrações 0070–0074 vazias e provisórias só na
-  sessão (sem commit), para o migrador não recusar o buraco.
+  e `conformidade.test.ts`): pulados sem banco; o resultado vale no CI.
 - `node scripts/coord.mjs verificar --por-commit origin/main..HEAD`: 5 commits, nenhuma violação.
 
 ## Achados
