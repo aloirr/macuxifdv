@@ -26,7 +26,7 @@ export { useInicio } from './lib/usar-inicio';
 export { TelaInicioCampo, useInicioCampo, ENTIDADE_FRASE_DIA, definirResolvedorFotoPerfil, type ResolvedorFotoPerfil, type PropsTelaInicioCampo, type VisaoInicioCampo } from './telas/inicio';
 export { ENTIDADE_USUARIO_AVATAR } from './telas/inicio/foto-perfil';
 export { useNotificacoes } from './lib/usar-notificacoes';
-export { chaveDeOrdemDaCarga, progressoDaEntrada } from '../domain/entrada-sync';
+export { chaveDeOrdemDaCarga, essencialDaEntrada, etapaQueLibera, progressoDaEntrada } from '../domain/entrada-sync';
 export { OpenVisitBar } from './components/open-visit-bar';
 export { VisitSheetsProvider, useVisitSheets } from './components/visit-sheets';
 
