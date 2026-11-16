@@ -2,14 +2,14 @@
 
 > **RASCUNHO PARA REVISÃO DE ADVOGADO.** Não vale como contrato nem como parecer antes da revisão de um advogado (LGPD e
 > trabalhista) e da aprovação do dono do produto. Valores entre [colchetes] são propostas. Desenho técnico:
-> [`tracking.md`](../tracking.md); decisão: [ADR 0061](../../decisoes/0061-rastreamento-continuo-de-localizacao.md).
+> [`tracking.md`](tracking.md); decisão: [ADR 0061](../decisoes/0061-rastreamento-continuo-de-localizacao.md).
 
 ## 1. Quem é quem
 - **Empresa cliente — controladora.** Decide ligar o rastreamento e responde ao vendedor. Indica o encarregado (DPO) e o canal de
   atendimento que aparecem no aviso e no termo.
 - **Macuxi — operador.** Trata a localização só por ordem da empresa e só para as finalidades do item 2 (LGPD, art. 39).
 - **Titular.** Quem usa o app Macuxi Campo: vendedor e promotor, empregado ou representante comercial.
-- **Suboperadores.** Os mesmos do [termo de uso dos dados do ERP](../../seguranca/termo-dado-erp.md) (nuvem e armazenamento no
+- **Suboperadores.** Os mesmos do [termo de uso dos dados do ERP](../seguranca/termo-dado-erp.md) (nuvem e armazenamento no
   Brasil). Nenhum provedor de mapa recebe o trajeto.
 
 ## 2. Finalidade (lista fechada)

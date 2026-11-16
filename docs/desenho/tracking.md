@@ -2,7 +2,7 @@
 
 - **Autor**: engenheiro-software, 15/11/2026 (Manaus). **Decisão de arquitetura**: [ADR 0061](../decisoes/0061-rastreamento-continuo-de-localizacao.md).
 - **Regras**: RF-CORE-17, RN-CORE-13 (localização e tracking), RN-CORE-37 (permissões), RN-CORE-46 (km do dia).
-- **Base LGPD**: [`tracking-legal/`](tracking-legal/) (finalidade, aviso e termo de ciência; **rascunho para revisão de advogado**). Parte de
+- **Base LGPD**: [finalidade](T-0156-legal-finalidade.md), [aviso](T-0156-legal-aviso-ao-vendedor.md) e [termo de ciência](T-0156-legal-termo-de-ciencia.md) (**rascunho para revisão de advogado**). Parte de
   [`T-0145-lgpd-tracking.md`](T-0145-lgpd-tracking.md), que segue como fonte do aviso curto da tela de permissões (§6 dele).
 - **Consumidor já pronto**: a Performance lê só o resumo `core.deslocamento_dia` e usa `metrosDoTrajeto`
   ([performance-produtividade.md §5](performance-produtividade.md#5-km-e-o-rastreamento-de-localização)).
@@ -109,7 +109,7 @@ Volume estimado: ~150 pontos por usuário por dia × 100 usuários × 90 dias �
 - **Consultas**: `GET /v1/core/trajeto?usuario_id&data` (pontos de um dia, até [90] dias atrás) e o pull de `deslocamento_dia`, que já
   existe. Contrato `core.trajeto_do_dia@1` para o Gestor (mapa da equipe), com o escopo conferido pelo Core.
 - **BKO**: Parâmetros › Rastreamento (ligar, expediente, frequência), publicação do termo (o admin preenche a empresa e o contato do
-  encarregado no modelo de [`tracking-legal/termo-de-ciencia.md`](tracking-legal/termo-de-ciencia.md)) e cadastro de ausências.
+  encarregado no modelo de [`T-0156-legal-termo-de-ciencia.md`](T-0156-legal-termo-de-ciencia.md)) e cadastro de ausências.
 
 ### 5.3 Resumo diário
 - A cada push com pontos de `(usuário, data)` (data no fuso do tenant), o Core recalcula **o dia inteiro** com `metrosDoTrajeto` e
@@ -122,7 +122,7 @@ Job diário do worker: apaga `ponto_trajeto` e `pausa_trajeto` com mais de [90] 
 de [5] anos. O log leva só o tenant e a contagem.
 
 ## 6. Termo de ciência
-- Texto-modelo: [`tracking-legal/termo-de-ciencia.md`](tracking-legal/termo-de-ciencia.md). A empresa publica a
+- Texto-modelo: [`T-0156-legal-termo-de-ciencia.md`](T-0156-legal-termo-de-ciencia.md). A empresa publica a
   versão dela no BKO (§5.2); cada publicação cria uma versão nova.
 - No Campo, depois do login e da carga, se o tracking está ligado e falta o aceite da versão vigente, abre a tela do termo com
   "Li e estou ciente". O app **segue usável** sem o aceite (o tracking não é condição para vender); só não grava trajeto.
@@ -157,7 +157,7 @@ de [5] anos. O log leva só o tenant e a contagem.
 - Isolamento por tenant (RLS), como toda tabela.
 
 ## 10. Antes de ligar em produção
-1. Revisão de advogado dos textos de `tracking-legal/` e aprovação do Alexandre nos valores entre colchetes (§12).
+1. Revisão de advogado dos textos `T-0156-legal-*.md` e aprovação do Alexandre nos valores entre colchetes (§12).
 2. Cadastro de ausências (§4.2) no ar.
 3. Ensaio de bateria (§3.3) e de offline (3 dias sem rede, envio sem duplicar).
 4. Teste "sem coordenada em log" verde no CI.
@@ -173,12 +173,16 @@ de [5] anos. O log leva só o tenant e a contagem.
 | 5 | designer-ux e design-de-marca | tela do termo, "Meu trajeto", pausa e notificação | em paralelo a 2 |
 | 6 | testes e corretor-redundancias | cada condição do §2 desliga sozinha, offline, multi-tenant, permissões do §7, sem coordenada em log, bateria | 2 a 5 |
 
-## 12. Decisões do Alexandre
+## 12. Decisões
+**Do Alexandre** (negócio e jurídico; até lá os valores valem como proposta):
 1. **Base legal**: legítimo interesse e execução do contrato, **sem** consentimento (o termo é de ciência). Confirmar com o advogado.
 2. **Retenção**: pontos [90] dias; resumo [5] anos; aceite enquanto o usuário existir + [5] anos.
 3. **Expediente**: um por empresa na v1; por usuário ou turno depois?
 4. **Pausa pessoal** (§4.3): entra? Com limite de [60] min?
 5. **Ausências** (§4.2): cadastradas pelo admin e pelo supervisor (proposto).
-6. **Frequência e bateria**: [200 m] / [5 min] e meta de [8%].
-7. **Representante autônomo**: só com o contrato de representação prevendo a comprovação de visita.
-8. **Admin vê os pontos?** Proposto: sim, por responder pela empresa.
+6. **Representante autônomo**: só com o contrato de representação prevendo a comprovação de visita.
+7. **Admin vê os pontos?** Proposto: sim, por responder pela empresa.
+
+**Técnicas** (decididas pelo engenheiro, na ADR 0061, "Decisões técnicas"): frequência [200 m] / [5 min] com entrega em lote e
+meta de bateria ≤ [8%], ajustáveis por parâmetro; lotes de envio de [500] pontos; sem partição na v1; correção do 1º ponto em
+`metrosDoTrajeto`.

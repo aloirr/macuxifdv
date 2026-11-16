@@ -1,11 +1,11 @@
 # Aviso ao vendedor — localização no expediente
 
 > **RASCUNHO PARA REVISÃO DE ADVOGADO.** Texto do aviso que o app mostra. [Empresa], [jornada], [contato do encarregado] e os
-> valores entre colchetes são preenchidos pela empresa cliente no BKO. Finalidade e base legal: [finalidade.md](finalidade.md).
+> valores entre colchetes são preenchidos pela empresa cliente no BKO. Finalidade e base legal: [T-0156-legal-finalidade.md](T-0156-legal-finalidade.md).
 
 ## 1. Aviso curto — tela de permissões (antes do pedido da localização)
 Exigido pelo Google Play antes de pedir a localização em segundo plano. É o texto do §6 de
-[`T-0145-lgpd-tracking.md`](../T-0145-lgpd-tracking.md), já no app (`apps/mobile/src/lib/permissoes.ts`); não muda.
+[`T-0145-lgpd-tracking.md`](T-0145-lgpd-tracking.md), já no app (`apps/mobile/src/lib/permissoes.ts`); não muda.
 
 ## 2. Aviso completo — Ajuda e Perfil do app Campo
 

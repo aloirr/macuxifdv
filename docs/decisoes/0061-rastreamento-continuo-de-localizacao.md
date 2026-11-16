@@ -4,7 +4,7 @@
 - **Data**: 2026-11-15 (Manaus)
 - **Autor**: engenheiro-software
 - **Origem**: T-0156 (R-20261110-085951-alexandre, item 5); RF-CORE-17, RN-CORE-13, RN-CORE-37, RN-CORE-46.
-- **Desenho**: [`docs/desenho/tracking.md`](../desenho/tracking.md). **Base LGPD**: [`docs/desenho/tracking-legal/`](../desenho/tracking-legal/) (rascunho para revisão de advogado).
+- **Desenho**: [`docs/desenho/tracking.md`](../desenho/tracking.md). **Base LGPD**: `docs/desenho/T-0156-legal-*.md` (rascunho para revisão de advogado).
 - **Quem implementa**: banco-dados, modulo-core, engenheiro-apps e modulo-gestor (desenho §11).
 
 ## Contexto
@@ -38,12 +38,19 @@
 ## Alternativas descartadas
 - **Gravar o tempo todo e filtrar no servidor**: coleta além da finalidade e notificação fixa fora do expediente. Descartada.
 - **Consentimento como base legal**: na relação de trabalho não é livre e a revogação desligaria a comprovação de visita. O termo
-  é de ciência (detalhes em `docs/desenho/tracking-legal/finalidade.md`).
+  é de ciência (detalhes em `docs/desenho/T-0156-legal-finalidade.md`).
 - **Só a tarefa periódica (WorkManager) lendo a posição a cada 15 min**: não mede km nem permanência e o Android adia a tarefa.
 - **Km estimado em linha reta entre check-ins**: rejeitado na T-0170 (fica de 20% a 40% abaixo do real).
 - **Biblioteca paga de rastreamento** (ex.: transistorsoft): dependência pesada e licença por aparelho; o `expo-location` já
   instalado cobre a v1. Reavaliar se o ensaio de bateria falhar.
 - **Mapa no servidor com provedor externo**: o trajeto sairia para um suboperador novo. O mapa desenha no aparelho.
+
+## Decisões técnicas
+- **Frequência e bateria**: `distanceInterval` [200 m], `timeInterval` [5 min], `deferredUpdatesInterval` [5 min], `accuracy: High`;
+  meta ≤ [8%] da bateria em 10 h de expediente, medida no ensaio em 2 aparelhos de entrada. Ajuste por parâmetro, sem build.
+- **Envio**: lotes de [500] pontos; o descarte de ponto pela API não trava a fila.
+- **Volume**: sem partição na v1 (~1,4 milhão de linhas por tenant grande em 90 dias); reavaliar acima de 10 milhões.
+- **Km**: em `metrosDoTrajeto`, o 1º ponto só vira referência se o 2º for compatível (achado baixo da T-0170).
 
 ## Consequências
 - Tabelas novas no Core (desenho §5.1), 4 chaves de permissão novas, 3 entidades de sync só de envio, 1 contrato de consulta e

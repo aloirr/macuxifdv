@@ -2,7 +2,7 @@
 
 > **RASCUNHO PARA REVISÃO DE ADVOGADO.** Modelo que a empresa cliente publica no BKO (Parâmetros › Rastreamento) e o app Campo
 > mostra uma vez por usuário e a cada versão nova, antes de o rastreamento ligar. [Empresa], [jornada], [contato do encarregado],
-> [versão] e [data] são preenchidos pela empresa. É termo de **ciência**, não de consentimento ([finalidade.md](finalidade.md), item 3).
+> [versão] e [data] são preenchidos pela empresa. É termo de **ciência**, não de consentimento ([T-0156-legal-finalidade.md](T-0156-legal-finalidade.md), item 3).
 
 ---
 
