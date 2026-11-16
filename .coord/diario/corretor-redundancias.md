@@ -80,3 +80,4 @@
 2026-11-16 — v1.0.14 rodadas 12 e 13 — #442 LIBERADO; #405 RD-1900, #408 RD-1901, #453 RD-1902/1903 (RD-1707, 1800 em parte); heads só com merge do main sem mudança de parecer; #456 RD-1860..1870, #457 RD-1871..1880 (RD-1871 alta: parado editável em 2 lugares).
 2026-11-16 — v1.0.14 rodada 14 — #401 e #399 LIBERADOS; #448 RD-1940/1941; #398 RD-1942; #419 RD-1508/1509 abertos; #414–#416 RD-1583/1584 abertos (dependem da ListaParametros no kit).
 2026-11-16 — v1.0.14 rodada 15 — #405 e #395 LIBERADOS; #408 RD-1871 aberta; #396 RD-1560 aberto (RD-1561 não segura); ordem: #395 antes do #396, #410 antes do #396.
+2026-11-16 — v1.0.14 rodada 16 — #453 5b384227 (RD-1902/1903 fechados; RD-1707, RD-1800 em parte); #406 e71e78c8 (RD-1505 fechado; RD-1502..1504, 1506 abertos).
