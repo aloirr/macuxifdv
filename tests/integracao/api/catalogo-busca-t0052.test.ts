@@ -15,8 +15,14 @@
  *  B-A2 multi-tenant (RN-CAT-01): cada tenant só acha e só abre a ficha dos próprios produtos;
  *  B-A3 licença (RN-CORE-01/03): Catálogo desligado no tenant ou no usuário = 403 MODULO_INATIVO na hora (o mesmo
  *       token), sem afetar o outro tenant/usuário; religado, volta;
- *  B-A4 promotor (RN-CAT-04/05, regra 7): sem o Catálogo no perfil, 403; com ele, busca/vitrine/ficha só leitura, sem
- *       preço nem estoque (nem no pull), e toda escrita do Catálogo = 403 PERFIL_SEM_ACESSO;
+ *  B-A4 promotor (RN-CAT-04, RN-CAT-05 revista, regra 7): sem o Catálogo no perfil, 403; com ele, busca/vitrine/ficha só
+ *       leitura, SEM preço (nem no pull) e COM o estoque das filiais de venda dele (R-20261115-104500 item 4, RN-CORE-39;
+ *       depósito e saldo chegam no pull), e toda escrita do Catálogo = 403 PERFIL_SEM_ACESSO;
+ *  B-A9 filiais de venda (RN-CAT-05 revista, RN-CORE-39, R-20261115-104500 item 4): o filtro de filial só aceita as de venda
+ *       do usuário (fora = 403 FILIAL_FORA_DAS_SUAS); o N soma as de venda; usuário sem filial de cadastro = 403
+ *       USUARIO_SEM_FILIAL, sem preço nem estoque;
+ *  T-0052-B5 corrigido no #453 (d64cc794, parte 2 da API): `contextoVitrine` entrega o estoque a quem não vê preço e
+ *       `filialDaBusca` valida o filtro pelas filiais de venda (403 FILIAL_FORA_DAS_SUAS); eram `it.fails`, viraram `it`;
  *  B-A5 aparelho real (motor × API): offline acha o produto do tenant, com o aviso, sem linhas do outro tenant;
  *  B-A6..B-A8 (DEFEITO T-0052-B3, corrigido pelo modulo-catalogo; R-20261105-131136-modulo-catalogo): sinônimos e
  *       estoque do Postgres na busca online e `sinonimo`/`produto_atributo` no pull. Antes rodavam como `it.fails`
@@ -27,6 +33,7 @@ import { semBanco } from '@macuxi/db/teste/estado';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buscarLocal } from '../../../modules/catalogo/app/lib/local';
 import { AVISO_BUSCA_OFFLINE } from '../../../modules/catalogo/domain/ia';
+import { FILIAIS_FIXTURE } from '../../../db/seeds/fixtures/dois-tenants';
 import { A, B, erroDe, ids, licenca, subirApi, type ApiDeTeste } from '../apoio/api';
 import { aparelhoCampo } from '../apoio/campo';
 
@@ -35,7 +42,7 @@ const PROD = { a1: A.produtos.p1, b1: '' };
 
 describe.skipIf(semBanco())('T-0052 — busca do Catálogo na API real (Postgres, RLS) e no aparelho', () => {
   let api: ApiDeTeste;
-  const token: Record<'vA' | 'v2A' | 'vB' | 'adminA' | 'promotorA', string> = { vA: '', v2A: '', vB: '', adminA: '', promotorA: '' };
+  const token: Record<'vA' | 'v2A' | 'vB' | 'adminA' | 'promotorA' | 'supA', string> = { vA: '', v2A: '', vB: '', adminA: '', promotorA: '', supA: '' };
 
   const buscar = async (t: string, q: string, extra = '') => {
     const r = await api.chamar(t, { method: 'GET', url: `/v1/catalogo/busca?q=${encodeURIComponent(q)}&limit=20${extra}` });
@@ -54,6 +61,7 @@ describe.skipIf(semBanco())('T-0052 — busca do Catálogo na API real (Postgres
     token.vB = (await api.sessao('vendedor@exemplo.com.br', B)).access_token;
     token.adminA = (await api.sessao('admin@exemplo.com.br')).access_token;
     token.promotorA = (await api.sessao('promotor@exemplo.com.br')).access_token;
+    token.supA = (await api.sessao('supervisor@exemplo.com.br')).access_token;
     const [linha] = (await api.admin.query<{ id: string }>("select id from core.produto where sku = 'BETA-001'")).rows;
     PROD.b1 = linha!.id;
     // A fixture acabou de entrar (banco novo por arquivo, updated_at = now()). O pull só devolve linhas abaixo do horizonte
@@ -148,7 +156,7 @@ describe.skipIf(semBanco())('T-0052 — busca do Catálogo na API real (Postgres
     expect(await skus(token.v2A, 'pastilha')).toContain(SKU.a1);
   });
 
-  describe('B-A4 promotor (RN-CAT-04/05, regra 7)', () => {
+  describe('B-A4 promotor (RN-CAT-04, RN-CAT-05 revista, regra 7)', () => {
     it('sem o Catálogo no perfil (fixture), a busca do promotor = 403 MODULO_INATIVO', async () => {
       expect(ids(await api.meusModulos(token.promotorA))).not.toContain('catalogo');
       const r = await buscar(token.promotorA, 'pastilha');
@@ -163,38 +171,80 @@ describe.skipIf(semBanco())('T-0052 — busca do Catálogo na API real (Postgres
         expect((await licenca(api, token.adminA, 'perfil', 'catalogo', false, 'promotor')).statusCode).toBe(200);
       });
 
-      it('busca, vitrine e ficha respondem 200 sem preço nem estoque, com e sem o cliente da carteira dele', async () => {
+      // RN-CAT-05 revista (R-20261115-104500 item 4, RN-CORE-39): o promotor VÊ o estoque das filiais de VENDA dele (na fixture, só a
+      // padrão, onde fica o CD Manaus com 15 da ALFA-001), nunca o preço (`promotor_ve_preco_estoque` = não)
+      it('(era DEFEITO T-0052-B5) busca, vitrine e ficha respondem 200 sem preço e COM o estoque das filiais de venda dele (15 da ALFA-001), com e sem o cliente da carteira', async () => {
         for (const extra of ['', `&customer_id=${A.clientes.c1}`]) {
           const r = await buscar(token.promotorA, 'pastilha de freio', extra);
           expect(r.statusCode, r.body).toBe(200);
           const b = RespostaBusca.parse(r.json());
           expect(b.items.map((i) => i.erp_code)).toContain(SKU.a1);
-          for (const i of b.items) expect(i, `busca${extra}`).toMatchObject({ price_stock_visible: false, price: null, availability: null });
+          for (const i of b.items) {
+            expect(i, `busca${extra}`).toMatchObject({ price_stock_visible: false, price: null });
+            expect(i.availability, `estoque de ${i.erp_code}${extra}`).not.toBeNull();
+          }
+          // valor × regra: N = soma dos saldos das filiais de venda (só a padrão: CD Manaus = 15), o mesmo que o vendedor vê
+          const a1 = b.items.find((i) => i.erp_code === SKU.a1)!;
+          expect(a1.availability?.quantity, `N da ALFA-001${extra}`).toBe(15);
+          const doVendedor = RespostaBusca.parse((await buscar(token.vA, 'pastilha de freio', extra)).json()).items.find((i) => i.erp_code === SKU.a1)!;
+          expect(a1.availability?.quantity, `promotor × vendedor${extra}`).toBe(doVendedor.availability?.quantity);
+          expect(a1.availability?.by_branch.map((f) => f.branch_id), `folha${extra}: só as de venda`).toEqual([FILIAIS_FIXTURE.A.padrao]);
         }
         const vitrine = await api.chamar(token.promotorA, { method: 'GET', url: `/v1/catalogo/produtos?limit=20&customer_id=${A.clientes.c1}` });
         expect(vitrine.statusCode, vitrine.body).toBe(200);
-        for (const i of PaginaVitrine.parse(vitrine.json()).items) expect(i).toMatchObject({ price_stock_visible: false, price: null, availability: null });
+        for (const i of PaginaVitrine.parse(vitrine.json()).items) {
+          expect(i).toMatchObject({ price_stock_visible: false, price: null });
+          expect(i.availability, `vitrine: estoque de ${i.erp_code}`).not.toBeNull();
+        }
         const ficha = await api.chamar(token.promotorA, { method: 'GET', url: `/v1/catalogo/produtos/${PROD.a1}?customer_id=${A.clientes.c1}` });
         expect(ficha.statusCode, ficha.body).toBe(200);
-        expect(FichaProduto.parse(ficha.json()).product).toMatchObject({ erp_code: SKU.a1, price_stock_visible: false, price: null, availability: null });
+        const produto = FichaProduto.parse(ficha.json()).product;
+        expect(produto).toMatchObject({ erp_code: SKU.a1, price_stock_visible: false, price: null });
+        expect(produto.availability?.quantity, 'ficha: N da ALFA-001').toBe(15);
         // o cliente fora da carteira do promotor continua barrado
         const fora = await buscar(token.promotorA, 'pastilha', `&customer_id=${A.clientes.c2}`);
         expect([fora.statusCode, erroDe(fora).codigo]).toEqual([403, 'FORA_DA_CARTEIRA']);
       });
 
-      it('o preço e o estoque nem chegam ao aparelho dele: pull de tabela_preco_item, cliente_tabela_preco e estoque_saldo vem vazio', async () => {
-        for (const entidade of ['tabela_preco_item', 'cliente_tabela_preco', 'estoque_saldo']) {
+      it('(era DEFEITO T-0052-B5) filial fora das de venda dele no filtro = 403 FILIAL_FORA_DAS_SUAS; a de venda (padrão) e "todas" = 200 com o N 15', async () => {
+        const fora = await buscar(token.promotorA, 'pastilha', `&filial=${FILIAIS_FIXTURE.A.boaVista}`);
+        expect([fora.statusCode, erroDe(fora).codigo], fora.body).toEqual([403, 'FILIAL_FORA_DAS_SUAS']);
+        for (const filtro of [FILIAIS_FIXTURE.A.padrao, 'todas']) {
+          const r = await buscar(token.promotorA, 'pastilha', `&filial=${filtro}`);
+          expect(r.statusCode, `${filtro}: ${r.body}`).toBe(200);
+          const a1 = RespostaBusca.parse(r.json()).items.find((i) => i.erp_code === SKU.a1)!;
+          expect(a1, filtro).toMatchObject({ price_stock_visible: false, price: null });
+          expect(a1.availability?.quantity, filtro).toBe(15);
+        }
+      });
+
+      it('o preço não chega ao aparelho dele (tabela_preco_item e cliente_tabela_preco vazios), o estoque sim (deposito e estoque_saldo só da filial de venda)', async () => {
+        for (const entidade of ['tabela_preco_item', 'cliente_tabela_preco']) {
           const r = await api.chamar(token.promotorA, { method: 'GET', url: `/v1/sync/pull?entidade=${entidade}` });
           expect(r.statusCode, `${entidade}: ${r.body}`).toBe(200);
           expect(r.json().itens, entidade).toEqual([]);
         }
-        // contraprova (RN-CAT-05): o vendedor do mesmo tenant recebe as três pelo mesmo pull — senão o vazio acima seria o
+        // contraprova (RN-CAT-05): o vendedor do mesmo tenant recebe as duas pelo mesmo pull — senão o vazio acima seria o
         // horizonte, não a regra
-        for (const entidade of ['tabela_preco_item', 'cliente_tabela_preco', 'estoque_saldo']) {
+        for (const entidade of ['tabela_preco_item', 'cliente_tabela_preco']) {
           const v = await api.chamar(token.vA, { method: 'GET', url: `/v1/sync/pull?entidade=${entidade}` });
           expect(v.statusCode, `${entidade}: ${v.body}`).toBe(200);
           expect((v.json().itens as unknown[]).length, `vendedor: ${entidade}`).toBeGreaterThan(0);
         }
+        // RN-CAT-05 revista: depósito e saldo chegam ao promotor, só das filiais de venda dele (core.filiais_do_usuario@1)
+        const dep = await api.chamar(token.promotorA, { method: 'GET', url: '/v1/sync/pull?entidade=deposito' });
+        expect(dep.statusCode, dep.body).toBe(200);
+        const depositos = dep.json().itens as { id: string; filial_id: string }[];
+        expect(depositos.length, 'deposito do promotor').toBeGreaterThan(0);
+        for (const d of depositos) expect(d.filial_id, `depósito ${d.id}`).toBe(FILIAIS_FIXTURE.A.padrao);
+        const saldo = await api.chamar(token.promotorA, { method: 'GET', url: '/v1/sync/pull?entidade=estoque_saldo' });
+        expect(saldo.statusCode, saldo.body).toBe(200);
+        const saldos = saldo.json().itens as { id: string; produto_id: string; deposito_id: string; quantidade: number }[];
+        expect(saldos.find((x) => x.produto_id === PROD.a1)?.quantidade, 'saldo da ALFA-001 no aparelho do promotor').toBe(15);
+        for (const x of saldos) expect(depositos.map((d) => d.id), `saldo ${x.id} de depósito fora das filiais de venda`).toContain(x.deposito_id);
+        // valor × regra: as mesmas linhas de saldo que o vendedor (mesma filial de venda: a padrão)
+        const doVendedor = (await api.chamar(token.vA, { method: 'GET', url: '/v1/sync/pull?entidade=estoque_saldo' })).json().itens as { id: string }[];
+        expect(saldos.map((x) => x.id).sort()).toEqual(doVendedor.map((x) => x.id).sort());
       });
 
       it('toda rota de ESCRITA do Catálogo dá 403 PERFIL_SEM_ACESSO ao promotor (o Catálogo não tem rota de pedido)', async () => {
@@ -260,4 +310,43 @@ describe.skipIf(semBanco())('T-0052 — busca do Catálogo na API real (Postgres
       expect(item.availability?.updated_at).not.toBeNull();
     },
   );
+
+  describe('B-A9 filiais de venda (RN-CAT-05 revista, RN-CORE-39, R-20261115-104500 item 4)', () => {
+    it('vendedor: filial de outro tenant no filtro = 422 FILIAL_INEXISTENTE, sem estoque de B', async () => {
+      // o 403 FILIAL_FORA_DAS_SUAS e a padrão = 200 com N 15 estão no B-A4
+      const deB = await buscar(token.vA, 'pastilha', `&filial=${FILIAIS_FIXTURE.B.padrao}`);
+      expect([deB.statusCode, erroDe(deB).codigo], deB.body).toEqual([422, 'FILIAL_INEXISTENTE']);
+    });
+
+    it('(era DEFEITO T-0052-B5) supervisor (venda: padrão e Boa Vista) filtra pela Boa Vista, que é dele (200, N 0, sem saldo nela)', async () => {
+      const bv = await buscar(token.supA, 'pastilha', `&filial=${FILIAIS_FIXTURE.A.boaVista}`);
+      expect(bv.statusCode, bv.body).toBe(200);
+      expect(RespostaBusca.parse(bv.json()).items.find((i) => i.erp_code === SKU.a1)?.availability?.quantity ?? 0, 'Boa Vista sem saldo = 0').toBe(0);
+    });
+
+    it('supervisor sem filtro: N da ALFA-001 = 15 (padrão 15 + Boa Vista 0), com preço, e a folha só traz filiais de venda', async () => {
+      const todas = await buscar(token.supA, 'pastilha');
+      expect(todas.statusCode, todas.body).toBe(200);
+      const a1 = RespostaBusca.parse(todas.json()).items.find((i) => i.erp_code === SKU.a1)!;
+      expect(a1.price_stock_visible, 'supervisor vê o preço').toBe(true);
+      expect(a1.availability?.quantity, 'N = 15 (padrão) + 0 (Boa Vista)').toBe(15);
+      const venda: string[] = [FILIAIS_FIXTURE.A.padrao, FILIAIS_FIXTURE.A.boaVista];
+      for (const f of a1.availability?.by_branch ?? []) expect(venda, `folha: ${f.branch_id}`).toContain(f.branch_id);
+    });
+
+    it('usuário sem filial de cadastro = 403 USUARIO_SEM_FILIAL na busca, na vitrine e na ficha (nada de preço nem estoque); com a filial de volta, 200', async () => {
+      await api.admin.query('update core.usuario set filial_cadastro_id = null where id = $1', [A.usuarios.vendedor2]);
+      try {
+        for (const url of ['/v1/catalogo/busca?q=pastilha&limit=20', '/v1/catalogo/produtos?limit=20', `/v1/catalogo/produtos/${PROD.a1}`]) {
+          const r = await api.chamar(token.v2A, { method: 'GET', url });
+          expect([r.statusCode, erroDe(r).codigo], `${url}: ${r.body}`).toEqual([403, 'USUARIO_SEM_FILIAL']);
+          expect(r.body, url).not.toContain('availability');
+        }
+        expect(await skus(token.vA, 'pastilha'), 'o vendedor 1 (com filial) continua').toContain(SKU.a1);
+      } finally {
+        await api.admin.query('update core.usuario set filial_cadastro_id = $2 where id = $1', [A.usuarios.vendedor2, FILIAIS_FIXTURE.A.padrao]);
+      }
+      expect(await skus(token.v2A, 'pastilha')).toContain(SKU.a1);
+    });
+  });
 });

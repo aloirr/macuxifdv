@@ -18,8 +18,9 @@
  *     nenhuma chamada ao servidor (RF-CAT-02);
  *  O2 a pré-seleção do FTS5 não perde resultado: mesmos itens, na mesma ordem, que a varredura completa do domain;
  *  O3 sinônimo removido e produto inativado no servidor saem do aparelho no próximo sync (índice e resultado; RN-CAT-01);
- *  O4 promotor: a mesma busca offline acha o produto, sem preço nem estoque, mesmo com o preço gravado no aparelho
- *     (RN-CAT-05; regra 7: o Catálogo não oferece nada de pedido — isso é do slot `produto.acoes` do Vendedor);
+ *  O4 promotor: a mesma busca offline acha o produto, sem preço mesmo com o preço gravado no aparelho, e COM o mesmo estoque
+ *     do vendedor (RN-CAT-05 revista, R-20261115-104500; regra 7: o Catálogo não oferece nada de pedido — isso é do slot
+ *     `produto.acoes` do Vendedor);
  *  O5 Catálogo desligado (RN-CORE-02): a FTS e os sinônimos somem do aparelho; religado, o índice volta e a busca também.
  * Defeitos corrigidos pelo modulo-catalogo (eram `it.fails`; R-20261105-131136-modulo-catalogo, viraram `it`):
  *  O2b T-0052-B2 a pré-seleção do FTS5 é a UNIÃO dos termos (antes AND): o catálogo grande dá o mesmo que o pequeno;
@@ -243,17 +244,25 @@ describe('T-0052 — busca offline do Catálogo no aparelho com o FTS5 real (mot
       expect(skus(await busca(ap.leitor, 'pasdia150'))[0]).toBe('PAS-DIA-150');
     });
 
-    it('B-O4 (RN-CAT-05, regra 7): o promotor acha o mesmo produto offline, sem preço nem estoque, mesmo com o preço gravado no aparelho', async () => {
-      // pior caso: o aparelho TEM as linhas de preço e estoque (o pull do servidor real nem as manda ao promotor)
+    it('B-O4 (RN-CAT-05 revista, R-20261115-104500, regra 7): o promotor acha o mesmo produto offline, sem preço mesmo com o preço gravado no aparelho, e com o mesmo estoque do vendedor', async () => {
+      // pior caso: o aparelho TEM as linhas de preço (o pull do servidor real não as manda ao promotor; o estoque, sim)
       expect((await ap.motor.linhas('tabela_preco_item')).length).toBe(ENCHIMENTO + 4);
       for (const clienteId of [CLIENTE, null]) {
         const r = await busca(ap.leitor, 'sapata', 'promotor', clienteId);
         expect(skus(r)).toEqual(['PAS-DIA-150']);
-        for (const i of r.items) expect(i, `cliente ${clienteId}`).toMatchObject({ price_stock_visible: false, price: null, availability: null });
+        // valor × regra: o estoque do promotor é o que a regra dá ao vendedor no mesmo contexto (mesmas filiais), só o preço some
+        const doVendedor = (await busca(ap.leitor, 'sapata', 'vendedor', clienteId)).items[0]!;
+        expect(doVendedor.availability, `vendedor, cliente ${clienteId}`).not.toBeNull();
+        for (const i of r.items) {
+          expect(i, `cliente ${clienteId}`).toMatchObject({ price_stock_visible: false, price: null });
+          expect(i.availability, `estoque do promotor, cliente ${clienteId}`).toEqual(doVendedor.availability);
+        }
       }
-      // sem usuário no aparelho (sessão perdida) a regra falha fechada: trata como quem não vê
-      const semUsuario = await busca(ap.leitor, 'sapata', null);
-      expect(semUsuario.items[0]).toMatchObject({ price_stock_visible: false, price: null, availability: null });
+      // sem usuário no aparelho (sessão perdida) a regra falha fechada (RN-CAT-05, RN-CORE-39): sem preço e estoque VAZIO
+      // (availability nula, sem tag), nunca "0" (Catálogo Campo v8, fe2d0402e)
+      const semUsuario = (await busca(ap.leitor, 'sapata', null)).items[0]!;
+      expect(semUsuario).toMatchObject({ price_stock_visible: false, price: null });
+      expect(semUsuario.availability, 'sem usuário: estoque vazio, não 0').toBeNull();
     });
   });
 
