@@ -5,13 +5,13 @@
  * (`/v1/integracao`, JWT; a plataforma confere licença do módulo e o perfil da ação):
  *  - `POST cargas-arquivo`   (`carga.arquivo`, admin/analista) → 202 `CargaArquivoAceita`;
  *  - `GET  cargas-arquivo/sessoes/:sessao_id` (`monitor.ver`) → `ProgressoSessaoArquivo` (arquivo enviado em partes da mesma sessão);
- *  - `GET  lotes/:id`        (`monitor.ver`) → `LoteResultado` (contagens, erros com "Linha N do arquivo", inativação);
+ *  - `GET  lotes/:id`        (`monitor.ver`) → `LoteResultadoBko` (contagens, erros com "Linha N do arquivo", inativação);
  *  - `GET  lotes/:id/erros`  (`monitor.ver`) → `ErrosLoteResposta` paginado (a gaveta de erros do monitor já consome).
  * Nada do conteúdo do arquivo vai para log ou auditoria; o staging guarda só o que o lote do Conector guardaria.
  */
 import { ErroHttpModulo, ErroNaoEncontrado, type ClienteBanco, type ContextoRota, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
-import { CargaArquivoEntrada, ConferenciaArquivo, ConferirArquivoEntrada, Entidade, type OrdemCargaResposta, ErrosLoteQuery, ModoCarga, ParamsLote, ParamsSessaoArquivo, ProgressoSessaoArquivo, QueryConsultaLote, type CargaArquivoAceita, type ErrosLoteResposta, type EstadoLote, type LinhaErro, type LoteResultado } from '../contracts';
+import { CargaArquivoEntrada, ConferenciaArquivo, ConferirArquivoEntrada, Entidade, type OrdemCargaResposta, ErrosLoteQuery, ModoCarga, ParamsLote, ParamsSessaoArquivo, ProgressoSessaoArquivo, QueryConsultaLote, type CargaArquivoAceita, type ErrosLoteResposta, type EstadoLoteBko, type LinhaErro, type LoteResultadoBko } from '../contracts';
 import {
   autorizarAcaoIntegracao,
   chaveDaParte,
@@ -233,7 +233,7 @@ interface LinhaParteSessao {
   conector_id: string;
   entidade: Entidade;
   modo: 'completo' | 'delta';
-  status: EstadoLote;
+  status: EstadoLoteBko;
   recebidas: number;
   com_erro: number;
   novas: number;
@@ -319,7 +319,7 @@ export const rotaLote: RotaModulo = {
   carteira: 'nao_se_aplica',
   params: ParamsLote,
   query: QueryConsultaLote,
-  executar: async (ctx: ContextoRota<unknown, z.infer<typeof QueryConsultaLote>, z.infer<typeof ParamsLote>>): Promise<LoteResultado> =>
+  executar: async (ctx: ContextoRota<unknown, z.infer<typeof QueryConsultaLote>, z.infer<typeof ParamsLote>>): Promise<LoteResultadoBko> =>
     ctx.comTenant(async (db) => {
       const r = await lerResultadoLote(db, ctx.usuario.tenant_id, ctx.params.id, { limiteErros: ctx.query.limite_erros });
       if (!r) throw new ErroNaoEncontrado('LOTE_NAO_ENCONTRADO', 'Lote não encontrado. Atualize a lista em Integração ERP > Lotes.');

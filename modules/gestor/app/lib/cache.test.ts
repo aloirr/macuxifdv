@@ -10,7 +10,7 @@ const resumo = { gestor_id: '00000000-0000-4000-8000-000000000300', membros: 0, 
 const RESPOSTAS: Record<string, unknown> = {
   [ROTAS_GESTOR.equipe]: { data: relogio.hoje(), resumo, equipes: [], gestores: [], membros: [], calculado_em: agora },
   [ROTAS_GESTOR.aprovacoes]: { itens: [], resumo: { total: 0, vencidos: 0, vencendo: 0, para_mim: 0 }, calculado_em: agora },
-  [ROTAS_GESTOR.alertas]: { itens: [], calculado_em: agora },
+  [ROTAS_GESTOR.alertasComProdutividade]: { itens: [], calculado_em: agora },
 };
 const http = (f: (caminho: string) => unknown): ClienteHttp => ({
   get: async <T,>(c: string) => f(c) as T,
@@ -50,7 +50,7 @@ describe('cache offline do Gestor (offline-first, RN-CORE-02)', () => {
     const r = await atualizarCache(
       http((c) => {
         if (c === ROTAS_GESTOR.equipe) return { lixo: true };
-        if (c === ROTAS_GESTOR.alertas) throw new ErroHttp(403, 'MODULO_INATIVO', 'x');
+        if (c === ROTAS_GESTOR.alertasComProdutividade) throw new ErroHttp(403, 'MODULO_INATIVO', 'x');
         return RESPOSTAS[c];
       }),
       cache,

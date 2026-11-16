@@ -36,7 +36,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
 import { PEPPER_HUB_FIXTURE } from '@macuxi/db/teste';
 import { semBanco } from '@macuxi/db/teste/estado';
-import { LoteAceito, LoteResultado, MonitorResumo, PedidosPendentes, VERSAO_CONTRATO, type PedidoParaErp } from '@macuxi/integracao/contracts';
+import { ConectorResumo, LoteAceito, LoteResultado, MonitorResumo, PedidosPendentes, VERSAO_CONTRATO, type PedidoParaErp } from '@macuxi/integracao/contracts';
 import { OrderDetail } from '@macuxi/vendedor/contracts';
 import type { LightMyRequestResponse } from 'fastify';
 import pg from 'pg';
@@ -153,9 +153,6 @@ describe.skipIf(semBanco())('T-0032 — ciclo com o ERP simulado: carga → pedi
     );
     return r;
   };
-
-  /** Alertas de saúde do Conector (sem sinal, nunca conectou, parado por versão): Conector no ar = nenhum deles. */
-  const SAUDE_CONECTOR = ['conector_sem_sinal', 'conector_nunca_conectou', 'conector_parado_por_versao'];
 
   beforeAll(async () => {
     process.env.MACUXI_HUB_CHAVE_PEPPER = PEPPER_HUB_FIXTURE;
@@ -488,19 +485,25 @@ describe.skipIf(semBanco())('T-0032 — ciclo com o ERP simulado: carga → pedi
         expect(m.lotes_recentes.find((l) => l.lote_id === lotes[e]), e).toMatchObject({ status: 'concluido', conector_id: A.integracao.identificador });
       }
       expect(m.resumo_pedidos).toEqual(await resumoDaFila(A.tenantId));
-      // Conector de A no ar (sinal no C1): nenhum alerta de saúde dele; e só Conectores de A aparecem nos alertas
-      expect(m.alertas.filter((a) => a.conector_id === A.integracao.identificador && SAUDE_CONECTOR.includes(a.codigo))).toEqual([]);
-      expect(m.alertas.filter((a) => a.conector_id !== null && a.conector_id !== A.integracao.identificador)).toEqual([]);
+      // Conector de A no ar (sinal no C1): a lista de Conectores (mesma ação monitor.ver) só tem o de A, ativo e com sinal
+      const c = await api.chamar(tk.analistaA, { method: 'GET', url: '/v1/integracao/conectores' });
+      expect(c.statusCode, c.body).toBe(200);
+      const conectores = (c.json() as { itens: unknown[] }).itens.map((x) => ConectorResumo.parse(x));
+      expect(conectores.map((x) => x.conector_id)).toEqual([A.integracao.identificador]);
+      expect(conectores[0]).toMatchObject({ ativo: true });
+      expect(conectores[0]?.ultimo_sinal_em).not.toBeNull();
     });
   });
 
   // ------------------------------------------------------------------------------------------------ C6 multi-tenant
   describe('C6. Multi-tenant: B não vê o pedido, a fila nem a carga de A', () => {
-    it('monitor do admin de B: alertas só do Conector de B, nenhum lote de A, a fila de B (fixture) e nada do pedido de A', async () => {
+    it('monitor do admin de B: só o Conector de B, nenhum lote de A, a fila de B (fixture) e nada do pedido de A', async () => {
       const r = await api.chamar(tk.adminB, { method: 'GET', url: '/v1/integracao/monitor' });
       expect(r.statusCode, r.body).toBe(200);
       const m = MonitorResumo.parse(r.json());
-      expect(m.alertas.filter((a) => a.conector_id !== null && a.conector_id !== B.integracao.identificador)).toEqual([]);
+      const c = await api.chamar(tk.adminB, { method: 'GET', url: '/v1/integracao/conectores' });
+      expect(c.statusCode, c.body).toBe(200);
+      expect((c.json() as { itens: unknown[] }).itens.map((x) => ConectorResumo.parse(x).conector_id)).toEqual([B.integracao.identificador]);
       const idsLotesA = Object.values(lotes);
       expect(m.lotes_recentes.filter((l) => idsLotesA.includes(l.lote_id))).toEqual([]);
       expect(JSON.stringify(m)).not.toContain(pedidoId);

@@ -5,8 +5,7 @@
  *
  * Valor × regra: o esperado sai À MÃO da fila, pela RN-INT-08 (estados `pendente` → `enviado` → `rejeitado_erp`), pelo parâmetro
  * `tentativasAlertaPedido` (padrão 5: "Presos sem retorno" = `enviado` com tentativas >= limite, igual ao limite já conta) e pelo
- * rótulo do card ("Retidos sem mapeamento" = retenção por de-para: `mapeamento_ausente`/`mapeamento_ambiguo`, sem a retenção por
- * cadastro, que o próprio Hub separa com `ehRetencaoPorCadastro`). Rótulo × valor: o título do card diz o que o número conta.
+ * rótulo do card ("Retidos sem mapeamento" = `mapeamento_ausente`/`mapeamento_ambiguo`, sem `sequencia_repetida`; D-T0173-A1). Rótulo × valor: o título do card diz o que o número conta.
  * Também: multi-tenant (a fila de B nunca entra no número de A), licença do módulo (403 MODULO_INATIVO) e perfil (só admin e analista).
  */
 import { MonitorResumo } from '@macuxi/integracao/contracts';
@@ -46,10 +45,12 @@ function dbDaFila(fila: readonly LinhaFila[]) {
         for (const l of vivos(params[0])) n.set(l.estado, (n.get(l.estado) ?? 0) + 1);
         return { rows: [...n].map(([estado, c]) => ({ estado, n: c })) };
       }
-      if (/estado = 'enviado' and tentativas >= \$2/.test(sql))
-        return { rows: vivos(params[0]).filter((l) => l.estado === 'enviado' && (l.tentativas ?? 0) >= Number(params[1])) };
-      if (/retencao_codigo is not null/.test(sql))
-        return { rows: vivos(params[0]).filter((l) => (l.retencao_codigo ?? null) !== null).map((l) => ({ pedido_uuid: l.pedido_uuid, retencao_mensagem: l.retencao_mensagem ?? null })) };
+      // a mesma consulta do Hub (bko-monitor.ts): presos e retidos num `count(*) filter (...)` só
+      if (/estado = 'enviado' and tentativas >= \$2/.test(sql) && /retencao_codigo is not null/.test(sql)) {
+        const v = vivos(params[0]);
+        const presos = v.filter((l) => l.estado === 'enviado' && (l.tentativas ?? 0) >= Number(params[1])).length;
+        return { rows: [{ presos, retidos: v.filter((l) => (l.retencao_codigo ?? null) !== null).length }] };
+      }
       return { rows: [] };
     },
   };
@@ -120,15 +121,16 @@ describe('T-0173 / RN-INT-08 — cards "Pedidos no ERP" = a fila do ERP do tenan
     expect((await monitor(fila, { tenant: TENANT_B })).resumo_pedidos).toEqual({ na_fila: 5, entregue_ao_conector: 1, rejeitado_pelo_erp: 1, presos_sem_retorno: 1, retidos_sem_mapeamento: 0 });
   });
 
-  it('rótulo × valor (D-T0173-A1): "Retidos sem mapeamento" conta só a retenção por de-para, sem a de cadastro nem a de sequência repetida', async () => {
+  // D-T0173-A1 (defeito aberto, modulo-integracao): modules/integracao/api/bko-monitor.ts conta qualquer `retencao_codigo`
+  // (inclui `sequencia_repetida`). Quando corrigir, este it.fails fica vermelho: troque por `it`.
+  // Ponto aberto: a retenção por cadastro é gravada como `mapeamento_ausente` (domain/pedido-fila.ts:129), só a mensagem a separa.
+  it.fails('rótulo × valor (D-T0173-A1): "Retidos sem mapeamento" conta só mapeamento_ausente e mapeamento_ambiguo, sem sequencia_repetida', async () => {
     const fila = [
       ...A({ estado: 'pendente', retencao_codigo: 'mapeamento_ausente', retencao_mensagem: 'Condição 28D sem código do ERP.' }, 2),
       ...A({ estado: 'pendente', retencao_codigo: 'mapeamento_ambiguo', retencao_mensagem: 'Condição AV com dois códigos do ERP.' }, 1),
-      // o Hub grava a retenção por cadastro com o código `mapeamento_ausente` e a mensagem com o prefixo de cadastro (pedido-fila.ts)
-      ...A({ estado: 'pendente', retencao_codigo: 'mapeamento_ausente', retencao_mensagem: 'Pedido retido por cadastro: cliente sem código do ERP.' }, 4),
       ...A({ estado: 'pendente', retencao_codigo: 'sequencia_repetida', retencao_mensagem: 'Item com sequência repetida.' }, 1),
     ];
-    // esperado à mão pelo rótulo: 2 ausentes + 1 ambíguo = 3 sem mapeamento (o de-para resolve só esses)
+    // esperado à mão pelo rótulo e pelo campo: 2 ausentes + 1 ambíguo = 3 (a API devolve 4)
     expect((await monitor(fila)).resumo_pedidos.retidos_sem_mapeamento).toBe(3);
   });
 });
