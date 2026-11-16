@@ -128,8 +128,6 @@ tr:last-child td{border-bottom:0}
 const pagina = (titulo, grupo, ativo, corpo, nota, extra = '') =>
   `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>${titulo}</title><style>${CSS}</style><body>${menu(grupo, ativo)}<main>${grupo === 'Parâmetros' ? `<div class="cab"><h1>Parâmetros</h1></div><div class="par">${secoes(ativo)}<div class="conteudo">${corpo}</div></div>` : corpo}</main>${extra}${nota ? `<div class="nota">${nota}</div>` : ''}</body></html>`;
 
-// RD-1680: o título é "Parâmetros"; o nome da seção fica só na lista de seções (como no menu-parametros).
-const cab = () => '';
 
 /** Interruptor geral da regra (`Interruptor` com estadoEscrito="so-desligada"): ligada sem texto; desligada com o selo neutro. */
 const chaveGeral = (ligada) =>
@@ -161,8 +159,7 @@ const html01 = pagina(
   'Parâmetros — Alertas',
   'Parâmetros',
   'Alertas',
-  `${cab('Alertas')}
-  <section class="quadro equipe"><div class="topo"><h2>Alertas da equipe</h2></div><div class="regras">${EQUIPE.map(linhaEquipe).join('')}</div></section>`,
+  `<section class="quadro equipe"><div class="topo"><h2>Alertas da equipe</h2></div><div class="regras">${EQUIPE.map(linhaEquipe).join('')}</div></section>`,
   '<b>Simulação.</b> Sai de Comunicação › Regras de alerta. Cada regra salva sozinha: Salvar só fica ativo na regra alterada (aqui, Ritmo abaixo da meta). Desligada, a regra mantém os valores em só leitura. Sem o Promotor licenciado, Ruptura recorrente, Visita curta e Fotos sem GPS não aparecem.',
 );
 
@@ -190,8 +187,7 @@ const html02 = pagina(
   'Parâmetros — Alertas (produtividade)',
   'Parâmetros',
   'Alertas',
-  `${cab('Alertas')}
-  <section class="quadro prod"><div class="topo"><h2>Produtividade do dia</h2>
+  `<section class="quadro prod"><div class="topo"><h2>Produtividade do dia</h2>
   <div class="campos" style="align-items:center;gap:10px"><span class="f" style="flex-direction:row;align-items:center;gap:10px">Lembretes por pessoa<span class="input">4<i>por dia, no máximo</i></span></span>${salvar(false)}</div></div>
   <div class="regras">${PROD.map(linhaProd).join('')}</div></section>`,
   '<b>Simulação aprovada (T-0180).</b> Seção abaixo de Alertas da equipe, na mesma página. Destinos só nas regras com dois; as outras lembram só o vendedor (vale também para o promotor). Parado entre visitas aparece desligada com o "Depois de" editável (D1); Envio pendente, desligada em só leitura.',
@@ -211,7 +207,7 @@ const caixa = (marcada) =>
   `<span style="width:22px;height:22px;border-radius:6px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;${marcada ? 'background:#16202A' : 'border:2px solid #4A5562;background:#fff'}">${marcada ? visto : ''}</span>`;
 const almoco = (padrao) =>
   `<div class="f" style="gap:8px">Horário de almoço
-  <label style="display:flex;align-items:center;gap:10px;min-height:48px;padding:0 12px;border:1px solid #DFE2E6;border-radius:12px;background:#fff;font-size:15px;font-weight:500">${caixa(padrao)}Padrão da empresa (12:00 às 13:00)</label>
+  <label style="display:flex;align-items:center;gap:10px;min-height:48px;padding:0 12px;border:1px solid #DFE2E6;border-radius:12px;background:#fff;font-size:15px;font-weight:600">${caixa(padrao)}Padrão da empresa (12:00 às 13:00)</label>
   ${padrao ? '' : `<div style="display:flex;gap:12px">${campo('Início', '12:00', '')}${campo('Fim', '13:00', '')}</div>`}</div>`;
 const gfield = (r, v, sel = false) => `<div class="f" style="font-size:13px">${r}<span class="input" style="font-weight:400">${v}${sel ? chevron : ''}</span></div>`;
 const gaveta = `<div style="position:absolute;inset:0;background:rgba(22,32,42,.35);z-index:5"></div>
@@ -221,7 +217,7 @@ const gaveta = `<div style="position:absolute;inset:0;background:rgba(22,32,42,.
     ${gfield('Nome', 'João Silva')}${gfield('E-mail', 'joao.silva@exemplo.com.br')}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">${gfield('Perfil', 'Vendedor', true)}${gfield('Supervisor', 'Maria Lima', true)}</div>
     ${gfield('Código no ERP', 'V-0142')}
-    <fieldset style="border:0;border-top:1px solid #DFE2E6;padding:14px 0 0;display:flex;flex-direction:column;gap:10px"><legend style="font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;font-weight:700;font-size:17px;padding:0 8px 0 0">Jornada</legend>${almoco(true)}</fieldset>
+    <fieldset style="border:0;border-top:1px solid #DFE2E6;padding:14px 0 0;display:flex;flex-direction:column;gap:10px"><legend style="font-weight:600;font-size:13px;padding:0 8px 0 0">Jornada</legend>${almoco(true)}</fieldset>
   </div>
   <div style="display:flex;justify-content:flex-end;gap:8px;background:#fff;border-top:1px solid #DFE2E6;padding:12px 20px"><span class="btn s">Cancelar</span><span class="btn p">Salvar</span></div>
 </aside>
