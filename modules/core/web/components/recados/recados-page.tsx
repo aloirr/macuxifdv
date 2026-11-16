@@ -8,6 +8,7 @@ import { Button, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, SelectFiel
 import { EnviarNotificacaoRespostaSchema, HierarquiaEquipeSchema, NotificacaoSyncSchema, RecadoDoDiaDesmarcadoSchema, RecadoDoDiaMarcadoSchema, RecadosEnviadosRespostaSchema, type NotificacaoSync } from '../../../contracts';
 import { useMe } from '../../lib/queries';
 import { ACAO_RECADO_DO_DIA, agruparPorEnvio, mensagemDoRecadoDoDia, podeMarcarRecadoDoDia } from '../../lib/recado-do-dia';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
 /**
  * Tela "Recados" do BKO (RF-CORE-09): envia um recado a pessoas do seu escopo (ação `notificacao.enviar`; a API
@@ -101,11 +102,11 @@ export function RecadosPage() {
           >
             <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
               Título
-              <input value={titulo} maxLength={120} onChange={(e) => setTitulo(e.target.value)} data-testid="recados.titulo" className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px]" />
+              <input value={titulo} maxLength={120} onChange={(e) => setTitulo(e.target.value)} data-testid="recados.titulo" className={CLASSE_CAMPO_BKO} />
             </label>
             <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
               Mensagem
-              <textarea value={corpo} maxLength={1000} rows={4} onChange={(e) => setCorpo(e.target.value)} data-testid="recados.corpo" className="rounded-xl border border-field bg-surface px-3 py-2 text-[14px]" />
+              <textarea value={corpo} maxLength={1000} rows={4} onChange={(e) => setCorpo(e.target.value)} data-testid="recados.corpo" className="rounded-xl border border-field bg-surface px-3 py-2 text-[15px]" />
             </label>
             <SelectField label="Prioridade" value={prioridade} onChange={(e) => setPrioridade(e.target.value as 'normal' | 'alta')} data-testid="recados.prioridade">
               <option value="normal">Normal</option>
@@ -118,7 +119,7 @@ export function RecadosPage() {
               {equipe.data && destinatarios.length === 0 && <p className="m-0 text-[13px]">Você não tem ninguém na equipe para receber recados.</p>}
               <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
                 {destinatarios.map((m) => (
-                  <label key={m.id} className="flex min-h-[44px] items-center gap-2 text-[14px]">
+                  <label key={m.id} className="flex min-h-[44px] items-center gap-2 text-[15px]">
                     <input type="checkbox" checked={escolhidos.has(m.id)} onChange={() => alternar(m.id)} data-testid={`recados.destino.${m.id}`} className="h-5 w-5" />
                     {m.nome} <span className="text-ink-2">({m.perfil})</span>
                   </label>

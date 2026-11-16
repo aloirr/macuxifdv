@@ -103,7 +103,7 @@ export function CartaoAdmins({ tenant, fuso }: { tenant: string; fuso: string })
             {q.data.map((a) => (
               <li key={a.usuario_id} data-testid={`empresa-admins.item-${a.usuario_id}`} className="flex flex-wrap items-center justify-between gap-2 border-b border-line-2 py-2 last:border-b-0">
                 <div className="flex min-w-0 flex-col gap-0.5">
-                  <span className="text-[14px] font-semibold">{a.nome}</span>
+                  <span className="text-[15px] font-semibold">{a.nome}</span>
                   <span className="break-all text-[13px] text-ink-2">{a.email}</span>
                   {etiquetasDoAdmin(a, Date.now(), fuso).length > 0 && (
                     <span className="flex flex-wrap gap-1">

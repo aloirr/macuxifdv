@@ -158,7 +158,7 @@ function CartaoResultado({ c }: { c: CardResultado }) {
   return (
     <Cartao testID={`performance-resultado-${c.indicador}`} preenchimento={layout.secao} gap={space.md}>
       <View style={{ gap: space.xxs }}>
-        <Text style={t.title16}>{c.titulo}</Text>
+        <Text style={t.bodyStrong}>{c.titulo}</Text>
         <Text style={s.real} testID={`performance-resultado-${c.indicador}-valor`}>
           {c.real}
           {c.meta ? <Text style={s.meta}> / {c.meta}</Text> : null}
