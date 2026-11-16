@@ -140,6 +140,11 @@
 2026-11-15 — v1.0.14 planos — spec e 6 telas de planos e assinatura no portal config. (nuvem/planos-assinatura-designer-ux, aprovadas em R-20261115-123000) e portal-config-enxuto §11 apontando para elas; portal.css e as 6 telas na fonte do sistema.
 2026-11-16 — v1.0.14 planos — #401: merge do main e RD-1620 a RD-1622, MC-1504 a MC-1507 (simulações citadas uma vez no §11.4; pilha só no body do portal.css; comentários sem fontes do BKO; pesos 600; th 12 e h2 20).
 2026-11-16 — v1.0.14 planos — #401: RD-1841 (sai a regra vazia do portal.css) e MC-1593 (depois-* e prancha-icones-adicionais refeitos na fonte do sistema).
+2026-11-15 — v1.0.14 prazo — simulação do Desc./Acrésc. (%) do prazo trazida de nuvem/prazo-ajuste-designer-ux: tabela de prazos com Código | Descrição | Forma | Parcelas (dias) | Prazo médio | Desc./Acrésc. (%) | Situação | Origem | ⋯ (R-20261115-121000), menu da árvore final do Parâmetros, fonte do sistema nas pranchas; sem linha nos totais nem % na lista de prazos.
+2026-11-16 — v1.0.14 prazo — #398: RD-1500 e MC-1500 a MC-1503 (menu por referência ao menu-parametros §2; telas.css sem Google Fonts e na fonte do sistema; pesos 600; neutros da paleta); merge do main.
+2026-11-16 — v1.0.14 prazo — #398: RD-1840 (pilha da fonte só no body do telas.css, campo.css e bko-1), MC-1590 (valores, aba ativa e erro em 600 no telas.css) e MC-1591 (nada abaixo de 12; 17→18 e 20→22 na escala do app).
+2026-11-16 — v1.0.14 prazo — #398: RD-1942 (estilo comum das duas simulações do BKO em prazo-ajuste/bko.css, pilha da fonte só no body).
+2026-11-16 — v1.0.14 prazo — #398: RD-1942 (sai a .total sem uso do bko.css).
 2026-11-15 — v1.0.14 alertas — T-0180: spec aprovada de Parâmetros › Alertas e Interruptor com estadoEscrito="so-desligada" no kit (nuvem/T-0180-alertas-designer-ux); simulações refeitas no menu final (Parâmetros com a lista de seções), na fonte do sistema e a 1366×768.
 2026-11-16 — v1.0.14 alertas — #405: merge do main e RD-1507, RD-1680, MC-1508, MC-1509 (fontes do conteúdo na spec; título Parâmetros e a seção só na lista; barra em Azul noite e item direto ativo em branco; Gestão na escala do app; legend 17/700).
 2026-11-16 — v1.0.14 alertas — #405: RD-1900 (sai a cab vazia e as 2 chamadas) e MC-1611 (legenda Jornada 13/600 e opção 15/600, como o formulário do código).
