@@ -104,10 +104,9 @@ Cada imagem mostra a tela sem logo e a tela com logo:
 |---|---|
 | ![Campo](logo-cliente/carga-campo.png) `carga-campo.png` | ![Gestão](logo-cliente/carga-gestao.png) `carga-gestao.png` |
 
-- **As duas telas de cada imagem mostram o mesmo momento** (depois do login, etapa 2 de 5): a única diferença entre
+- **As duas telas de cada imagem mostram o mesmo momento** (estado 4 da carga, etapa 2 de 5, 360 × 800): a única diferença entre
   elas é a logo do cliente.
-- **Sem logo:** igual a hoje (`docs/design/entrada-sync.md`): o logo empilhado da Macuxi a 170 dp de largura, no centro,
-  com "Olá, Lucas", a barra e as etapas.
+- **Sem logo:** a tela de hoje (`docs/design/entrada-sync.md` §2).
 - **Com logo:** a logo do cliente fica **ao lado** do logo Macuxi, na mesma linha, centralizada:
   - logo Macuxi (empilhado) com 124 dp de largura (~115 dp de altura);
   - filete de 1 × 64 dp com 24 dp de cada lado (a altura do "M", fora da área de proteção): `#3A4D68` no Campo e
@@ -116,7 +115,7 @@ Cada imagem mostra a tela sem logo e a tela com logo:
     com a borda `#DFE2E6`;
   - largura total: 124 + 24 + 1 + 24 + 112 = 285 dp, dentro dos 312 úteis.
 
-  O resto da tela não muda: "Olá, Lucas", a barra, as etapas e o erro.
+  O resto da tela segue a `entrada-sync.md` §2.
 - **A placa da carga (64 dp) é maior que a do Mais (52 dp, §5):** a carga é a tela da marca, e o logo Macuxi ali tem
   ~115 dp de altura, então a placa continua bem menor que ele.
 - **Quando aparece:** só quando o aparelho já tem a logo guardada da empresa do último login. Na primeira abertura, antes
