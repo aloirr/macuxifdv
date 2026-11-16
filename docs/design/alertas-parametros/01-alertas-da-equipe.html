@@ -1,0 +1,81 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Parâmetros — Alertas</title><style>
+*{box-sizing:border-box;margin:0}
+body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background:#F8F6F1;color:#16202A;width:1366px;min-height:768px;display:flex;position:relative}
+.menu{width:240px;min-height:768px;background:#16202A;color:#fff;display:flex;flex-direction:column;padding:20px 12px 16px;flex-shrink:0}
+.brand{display:flex;flex-direction:column;align-items:flex-start;padding:0 8px 16px}
+.brand img{display:block;height:28px;width:auto}
+.brand span{font-size:12px;line-height:16px;color:#C9CED5;margin-top:18px}
+.lista{display:flex;flex-direction:column;gap:2px}
+.titulo{display:flex;justify-content:space-between;align-items:center;height:30px;padding:0 10px;border-radius:8px;color:#F59A52;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase}
+.item{display:flex;align-items:center;height:32px;padding:0 10px 0 20px;border-radius:8px;font-size:15px;color:#C9CED5;white-space:nowrap;position:relative}
+.item.ativo{background:#2B3743;color:#fff;font-weight:600}
+.item.ativo:before{content:'';position:absolute;left:8px;top:8px;bottom:8px;width:3px;border-radius:2px;background:#F59A52}
+.rodape{margin-top:auto;border-top:1px solid #2B3743;padding:12px 8px 0;display:flex;flex-direction:column}
+.rodape b{font-size:15px}.rodape span{font-size:12px;color:#C9CED5}.sair{font-size:13px;font-weight:600;color:#C9CED5;margin-top:8px}
+main{flex:1;min-width:0;padding:28px 32px 120px;display:flex;flex-direction:column;gap:20px}
+.titulo.direto{text-decoration:none}
+.titulo.direto.ativo{background:#2B3743;color:#fff}
+.par{display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;align-items:start}
+.secoes{display:flex;flex-direction:column;gap:2px;position:sticky;top:0}
+.sec{display:flex;align-items:center;height:36px;padding:0 12px;border-radius:8px;font-size:15px;color:#34404D;position:relative}
+.sec.ativo{background:#fff;color:#16202A;font-weight:600;box-shadow:inset 0 0 0 1px #DFE2E6}
+.sec.ativo:before{content:'';position:absolute;left:4px;top:8px;bottom:8px;width:3px;border-radius:2px;background:#1E3350}
+.conteudo{display:flex;flex-direction:column;gap:20px;min-width:0}
+.cab{display:flex;flex-direction:column;gap:2px;min-height:42px;justify-content:center}
+.cab.linha{flex-direction:row;align-items:center;justify-content:space-between}
+.eyebrow{font-size:13px;color:#4A5562}
+h1{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;font-weight:700;font-size:24px;line-height:1.2}
+h2{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;font-weight:700;font-size:17px}
+.quadro{background:#fff;border:1px solid #DFE2E6;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.quadro .topo{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
+.btn{height:44px;border-radius:10px;padding:0 18px;font-size:15px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.btn.p{background:#1E3350;color:#fff}
+.btn.s{border:1px solid #C9CED5;background:#fff;color:#16202A}
+.btn.d{background:#8B96A3;color:#fff}
+.selo{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.ok{color:#1D6B4F;background:#E2F1EA}.ne{color:#34404D;background:#ECEEF1}.av{color:#7A4F00;background:#FFF1D6}.cr{color:#A8261B;background:#FDE8E6}
+/* regra: uma linha por regra */
+.regras{display:flex;flex-direction:column;gap:8px}
+.regra{display:grid;gap:14px;align-items:end;padding:10px 14px;border:1px solid #ECEEF1;border-radius:12px}
+.equipe .regra{grid-template-columns:minmax(0,1fr) 128px 84px;grid-template-areas:'cab cab cab' 'campos sev salvar'}
+.prod .regra{grid-template-columns:minmax(0,1fr) 84px;grid-template-areas:'cab cab' 'campos salvar'}
+.regra.off{background:#F8F6F1}
+.regra.alterada{border-color:#1E3350}
+.cabr{grid-area:cab;display:flex;align-items:center;gap:12px}
+.regra>.campos{grid-area:campos;flex-wrap:wrap;row-gap:10px}
+.regra>.f{grid-area:sev}
+.regra>.salvar{grid-area:salvar}
+.chave,.nome{align-self:center}
+.nome{display:flex;flex-direction:column;gap:2px;min-width:0}
+.nome b{font-size:15px;font-weight:600;line-height:20px}
+.nome small{font-size:13px;line-height:17px;color:#4A5562}
+.campos{display:flex;gap:12px;align-items:flex-end;min-width:0}
+.sep{width:1px;align-self:stretch;background:#ECEEF1;margin:0 2px}
+.f{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;white-space:nowrap;color:#16202A}
+.input{height:44px;min-width:104px;border:1px solid #C9CED5;border-radius:10px;background:#fff;font-size:15px;font-weight:500;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.input.editado{border:2px solid #1E3350}
+.input.leitura{background:#F8F6F1;border-color:#DFE2E6}
+.input i{font-style:normal;font-size:13px;font-weight:400;color:#4A5562}
+.input.sel{color:#16202A}
+.salvar{align-self:end}
+.salvar .btn{width:84px;padding:0}
+/* interruptor do kit (packages/ui/src/web/permissoes.tsx): trilho 40x24, ligado bg-ink, desligado bg-disabled */
+.sw{display:inline-flex;align-items:center;gap:8px;height:44px;font-size:13px;font-weight:600;white-space:nowrap}
+.trilho{position:relative;width:40px;height:24px;border-radius:999px;background:#8B96A3;flex-shrink:0}
+.trilho:after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(22,32,42,.3)}
+.sw.on .trilho{background:#16202A}.sw.on .trilho:after{left:19px}
+.sw.trava .trilho{opacity:.5}
+.nota{position:absolute;right:20px;bottom:16px;max-width:620px;font-size:12px;line-height:1.5;color:#34404D;background:#fff;border:1px solid #DFE2E6;border-left:4px solid #1D6B4F;border-radius:8px;padding:8px 12px;box-shadow:0 4px 12px rgba(22,32,42,.08);z-index:9}
+table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:15px}
+th{text-align:left;font-size:13px;font-weight:600;color:#4A5562;padding:8px 10px;border-bottom:1px solid #DFE2E6;white-space:nowrap}
+td{padding:0 10px;height:48px;border-bottom:1px solid #ECEEF1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+tr:last-child td{border-bottom:0}
+.ac{width:52px;text-align:center;padding:0}
+.dots{display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;border-radius:10px;color:#4A5562}
+</style><body><nav class="menu"><div class="brand"><img src="../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-grafite.svg" height="28" alt="Macuxi Força de Vendas"><span>Distribuidora Exemplo</span></div><div class="lista"><div class="grupo"><div class="titulo"><span>Acesso</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Análise</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Cadastros</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Comunicação</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Operação</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><a class="titulo direto"><span>Pesquisa</span></a></div><div class="grupo"><div class="titulo"><span>Produtos</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Trade</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><a class="titulo direto"><span>Treinamento</span></a></div><div class="grupo"><a class="titulo direto ativo" aria-current="page"><span>Parâmetros</span></a></div><div class="grupo"><div class="titulo"><span>Sistema</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div></div><div class="rodape"><b>Ana Souza</b><span>Administrador</span><div class="sair">↪ Trocar perfil</div></div></nav><main><div class="cab"><h1>Parâmetros</h1></div><div class="par"><nav class="secoes" aria-label="Seções de Parâmetros"><a class="sec">Acesso</a><a class="sec ativo" aria-current="page">Alertas</a><a class="sec">Calendário</a><a class="sec">Clientes</a><a class="sec">Início</a><a class="sec">Metas e RV</a><a class="sec">Pedidos</a><a class="sec">Pesquisa</a><a class="sec">Produtos</a><a class="sec">Trade</a><a class="sec">Treinamento</a><a class="sec">Visitas</a></nav><div class="conteudo"><section class="quadro equipe"><div class="topo"><h2>Alertas da equipe</h2></div><div class="regras"><div class="regra"><div class="cabr"><div class="chave"><span class="sw on" role="switch" aria-checked="true"><span class="trilho"></span></span></div><div class="nome"><b>Cliente sem visita</b><small>Avisa quando o cliente passa do prazo de visita.</small></div></div>
+  <div class="campos"><div class="f">Tolerância<span class="input ">50<i>% da frequência</i></span></div><div class="f">Sem frequência<span class="input ">30<i>dias</i></span></div><div class="f">Carência do cliente novo<span class="input ">15<i>dias</i></span></div></div><div class="f">Severidade<span class="input sel ">Atenção<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></div><div class="salvar"><span class="btn d">Salvar</span></div></div><div class="regra alterada"><div class="cabr"><div class="chave"><span class="sw on" role="switch" aria-checked="true"><span class="trilho"></span></span></div><div class="nome"><b>Ritmo abaixo da meta</b><small>Avisa quando o vendedor está abaixo do ritmo da meta.</small></div></div>
+  <div class="campos"><div class="f">Ritmo mínimo<span class="input editado">85<i>% da meta</i></span></div><div class="f">A partir do<span class="input ">3º<i>dia útil</i></span></div></div><div class="f">Severidade<span class="input sel ">Atenção<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></div><div class="salvar"><span class="btn p">Salvar</span></div></div><div class="regra"><div class="cabr"><div class="chave"><span class="sw on" role="switch" aria-checked="true"><span class="trilho"></span></span></div><div class="nome"><b>Pedido parado na aprovação</b><small>Avisa quando o pedido passa do prazo de aprovação.</small></div></div>
+  <div class="campos"><div class="f">Prazo<span class="input ">1<i>dia útil</i></span></div></div><div class="f">Severidade<span class="input sel ">Crítico<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></div><div class="salvar"><span class="btn d">Salvar</span></div></div><div class="regra"><div class="cabr"><div class="chave"><span class="sw on" role="switch" aria-checked="true"><span class="trilho"></span></span></div><div class="nome"><b>Ruptura recorrente</b><small>Avisa quando a loja repete ruptura em várias visitas.</small></div></div>
+  <div class="campos"><div class="f">Ruptura em<span class="input ">3<i>visitas</i></span></div><div class="f">No período de<span class="input ">14<i>dias</i></span></div></div><div class="f">Severidade<span class="input sel ">Atenção<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></div><div class="salvar"><span class="btn d">Salvar</span></div></div><div class="regra off"><div class="cabr"><div class="chave"><span class="sw" role="switch" aria-checked="false"><span class="trilho"></span><span class="selo ne">Desligada</span></span></div><div class="nome"><b>Visita curta</b><small>Avisa quando o promotor fica menos que o mínimo na loja.</small></div></div>
+  <div class="campos"><div class="f">Nos últimos<span class="input leitura">3<i>dias</i></span></div></div><div class="f">Severidade<span class="input sel leitura">Informativo<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></div><div class="salvar"><span class="btn d">Salvar</span></div></div><div class="regra"><div class="cabr"><div class="chave"><span class="sw on" role="switch" aria-checked="true"><span class="trilho"></span></span></div><div class="nome"><b>Fotos sem GPS</b><small>Avisa quando muitas fotos chegam sem localização.</small></div></div>
+  <div class="campos"><div class="f">Máximo sem GPS<span class="input ">20<i>%</i></span></div><div class="f">No período de<span class="input ">7<i>dias</i></span></div><div class="f">A partir de<span class="input ">10<i>fotos</i></span></div></div><div class="f">Severidade<span class="input sel ">Atenção<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></div><div class="salvar"><span class="btn d">Salvar</span></div></div></div></section></div></div></main><div class="nota"><b>Simulação.</b> Sai de Comunicação › Regras de alerta. Cada regra salva sozinha: Salvar só fica ativo na regra alterada (aqui, Ritmo abaixo da meta). Desligada, a regra mantém os valores em só leitura. Sem o Promotor licenciado, Ruptura recorrente, Visita curta e Fotos sem GPS não aparecem.</div></body></html>

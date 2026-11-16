@@ -69,6 +69,17 @@ describe('Interruptor', () => {
     expect(travado.props.disabled).toBe(true);
     expect(travado.props['aria-describedby']).toBe('l-trava');
   });
+  it('so-desligada (regra de Parâmetros › Alertas): ligado sem texto; desligado com o selo "Desligada"; o estado segue no aria-checked', () => {
+    const ligado = Interruptor({ ligado: true, onChange: nada, rotulo: 'Parado entre visitas', estadoEscrito: 'so-desligada' }) as unknown as No;
+    expect(ligado.props['aria-checked']).toBe(true);
+    expect(nos(ligado).some((n) => ['Sim', 'Não', 'Desligada'].includes(n.props.children as string))).toBe(false);
+    expect(porTestId(nos(ligado), 'interruptor.desligada')).toBeUndefined();
+    const desligado = Interruptor({ ligado: false, onChange: nada, rotulo: 'Parado entre visitas', estadoEscrito: 'so-desligada' }) as unknown as No;
+    expect(desligado.props['aria-checked']).toBe(false);
+    expect(porTestId(nos(desligado), 'interruptor.desligada')).toBeDefined();
+    expect(nos(desligado).some((n) => n.props.children === 'Desligada')).toBe(true);
+    expect(nos(desligado).some((n) => n.props.children === 'Não')).toBe(false);
+  });
 });
 
 describe('SeletorDeNivel', () => {
