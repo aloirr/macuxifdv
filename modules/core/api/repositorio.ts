@@ -48,6 +48,8 @@ export interface UsuarioAtual {
   bloqueado_em: Date | null;
   /** T-0094: o token só vale com esta versão (claim `sv`). */
   sessao_versao: number;
+  /** ADR 0056 / RN-CORE-39: sem filial de cadastro (qualquer perfil); ausente = não informado (livre). */
+  sem_filial?: boolean;
 }
 
 export interface SessaoRefresh {
@@ -145,9 +147,9 @@ export function repositorioTenantSql(db: ClienteBanco): RepositorioTenant {
       };
     },
     async usuarioAtual(id) {
-      const r = await db.query<Record<string, unknown>>('select id, perfil, ativo, bloqueado_em, sessao_versao from core.usuario where id = $1 and deleted_at is null', [id]);
+      const r = await db.query<Record<string, unknown>>('select id, perfil, ativo, bloqueado_em, sessao_versao, (filial_cadastro_id is null) as sem_filial from core.usuario where id = $1 and deleted_at is null', [id]);
       const l = r.rows[0];
-      return l ? { id: String(l.id), perfil: l.perfil as Perfil, ativo: Boolean(l.ativo), bloqueado_em: data(l.bloqueado_em), sessao_versao: Number(l.sessao_versao ?? 0) } : null;
+      return l ? { id: String(l.id), perfil: l.perfil as Perfil, ativo: Boolean(l.ativo), bloqueado_em: data(l.bloqueado_em), sessao_versao: Number(l.sessao_versao ?? 0), sem_filial: l.sem_filial === true } : null;
     },
     async gravarTentativas(usuarioId, falhas, bloqueioAte) {
       await db.query('update core.usuario set tentativas_falhas = $2, bloqueio_ate = $3 where id = $1', [usuarioId, falhas, bloqueioAte]);

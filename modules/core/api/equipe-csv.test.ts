@@ -22,7 +22,7 @@ function montar(disponivel: boolean) {
   const db: ClienteBanco = {
     query: async (sql, valores = []) => {
       consultas.push({ sql, valores });
-      const rows = /insert into core.usuario/.test(sql) ? [{ id: NOVO_ID }] : /from plataforma.tenant where id/.test(sql) ? [{ nome: 'Distribuidora Alfa', codigo: 'alfa' }] : [];
+      const rows = /insert into core.usuario/.test(sql) ? [{ id: NOVO_ID }] : /from plataforma.tenant where id/.test(sql) ? [{ nome: 'Distribuidora Alfa', codigo: 'alfa' }] : /from core.filial where deleted_at/.test(sql) ? [{ id: FILIAL_ID, codigo: '0001', external_id: null }] : [];
       return { rows: rows as never[], rowCount: rows.length };
     },
   };
@@ -48,6 +48,7 @@ function montar(disponivel: boolean) {
   return { ctx, consultas, auditorias, enviados, logs };
 }
 
+const FILIAL_ID = '0f000000-0000-4000-8000-000000000001';
 const rota = (): RotaModulo => rotasDeEquipeCsv.find((r) => r.caminho === 'equipe/importacoes')!;
 const importar = (ctx: ContextoBase, modo: 'conferir' | 'gravar') => rota().executar({ ...ctx, corpo: rota().corpo!.parse({ csv: CSV, modo }), query: {}, params: {} } as never);
 
@@ -73,6 +74,9 @@ describe('RN-CORE-34: Equipe por CSV sem convite', () => {
     const r = ImportarEquipeRespostaSchema.parse(await importar(m.ctx, 'gravar'));
     expect(r.gravado).toBe(true);
     expect(r.acessos_enviados).toBe(1);
+    // RN-CORE-39: a pessoa nova nasce com filial de cadastro (a única da empresa) e na lista de venda
+    expect(m.consultas.some((c) => /insert into core\.usuario_filial/.test(c.sql) && c.valores[1] === FILIAL_ID)).toBe(true);
+    expect(m.consultas.some((c) => /update core\.usuario set filial_cadastro_id/.test(c.sql) && c.valores[1] === FILIAL_ID)).toBe(true);
     expect(r.email_acesso).toBe('enfileirado');
     const ins = m.consultas.find((c) => /insert into core.usuario/.test(c.sql))!;
     expect(ins.sql).toContain('trocar_senha');

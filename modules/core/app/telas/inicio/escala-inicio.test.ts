@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { alturaDoPainel, escalaInicio, fonteDoSistemaValida, tamanhosParaFator, FATOR_MINIMO, linhasDeTexto, alturaDeLinha, PISO_LETRA_DP } from './escala-inicio';
 
-const KIT = { h2: 17, label: 12, sub: 13, ultima: 12 };
+const KIT = { h2: 17, label: 12, sub: 13, ultima: 12, saudacao: 22 };
 const FRASE = 'Cada cliente atendido é uma relação que cresce.';
 const TELAS: [number, number][] = [[360, 640], [360, 800], [393, 852], [412, 915]];
 
@@ -48,9 +48,9 @@ describe('R-20261114-153500: escala do Início', () => {
     for (const [largura, altura] of TELAS) expect(escalaInicio({ kit: KIT, largura, altura, fontScale: 1, topo: 24, base: 24, frase: FRASE }).painel.avatar).toBeGreaterThanOrEqual(56);
   });
 
-  it('variação C: saudação 22, data e frase 13 e iniciais 24 na escala cheia', () => {
+  it('variação C: saudação 22, data e frase 14 e iniciais 22 na escala cheia', () => {
     const e = escalaInicio({ kit: KIT, largura: 412, altura: 915, fontScale: 1, topo: 24, base: 24, frase: FRASE });
-    expect([e.fonte.saudacao, e.fonte.data, e.fonte.frase, e.fonte.iniciais]).toEqual([22, 13, 13, 24]);
+    expect([e.fonte.saudacao, e.fonte.data, e.fonte.frase, e.fonte.iniciais]).toEqual([22, 14, 14, 22]);
   });
 
   it('variação C: a altura do painel é max(foto, textos), cerca de 100 dp sem a barra de status (era 131)', () => {
