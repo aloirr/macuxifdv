@@ -6,7 +6,6 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; width: 1280px; min-height: 900px; background: var(--ground); color: var(--ink); font: 15px/1.45 system-ui,"Segoe UI",Roboto,-apple-system,sans-serif; }
-h1, h2, h3, .marca, .num { }
 /* MC-0023: o cabeçalho inteiro é a faixa Azul noite; MC-0022: logo a 104 px com 14 px de folga */
 .topo { background: var(--faixa); height: 72px; }
 .topo .in { width: 1088px; margin: 0 auto; height: 72px; display: flex; align-items: center; gap: 24px; }

@@ -137,3 +137,4 @@
 2026-11-16 — catálogo onda 1 (#424) — RD-1294 (sai 'substituem o texto provisório'), RD-1295 (comentário do carga-fundo-rn só aponta para a spec e as constantes), RD-1296 (sai o teste dos textos fechados, repetido), MC-0157 (spec na fonte do sistema 600/12, nota da tipografia)
 2026-11-15 — v1.0.14 planos — spec e 6 telas de planos e assinatura no portal config. (nuvem/planos-assinatura-designer-ux, aprovadas em R-20261115-123000) e portal-config-enxuto §11 apontando para elas; portal.css e as 6 telas na fonte do sistema.
 2026-11-16 — v1.0.14 planos — #401: merge do main e RD-1620 a RD-1622, MC-1504 a MC-1507 (simulações citadas uma vez no §11.4; pilha só no body do portal.css; comentários sem fontes do BKO; pesos 600; th 12 e h2 20).
+2026-11-16 — v1.0.14 planos — #401: RD-1841 (sai a regra vazia do portal.css) e MC-1593 (depois-* e prancha-icones-adicionais refeitos na fonte do sistema).

@@ -415,7 +415,7 @@ Conta das frases: 59 (placares anteriores, §14) + 3 frases curtas que ficavam n
 | MC-0048 | "✓" em texto sai em fonte de reserva (o IBM Plex não tem o glifo) | aceito: o SVG do `IconCheck` do kit em `#1D6B4F`, 16 px no CNPJ e 12 px na lista da senha (como `packages/ui/src/web/senha.tsx`) | `02-nova-empresa` (CNPJ e senha), `depois-03c` (estado 3) |
 | Fora | caixa marcada; "Sair" no celular | aceito: caixa branca com borda e ✓ em Azul noite; no celular, "Sair" na linha do logo, à direita | §11.3; §10.2; `depois-05b-integracao-celular` |
 
-**Simulações vigentes** (PNG em escala 2): `depois-01-entrar`, `depois-09-escolher`, `depois-02-empresas`, `depois-03c-cnpj-estados`, `depois-05b-integracao` (+ `-celular`, 390 px), `depois-07-diagnosticos`, `prancha-icones-adicionais` e, dos planos, `docs/design/planos-assinatura/01` a `06` (15/11). Substituídas: `depois-03b`, `depois-06b`, `depois-06c` e `depois-06d`.
+**Simulações vigentes** (PNG em escala 2, fonte do sistema; geradas de novo em 16/11): `depois-01-entrar`, `depois-09-escolher`, `depois-02-empresas`, `depois-03c-cnpj-estados`, `depois-05b-integracao` (+ `-celular`, 390 px), `depois-07-diagnosticos`, `prancha-icones-adicionais` e, dos planos, `docs/design/planos-assinatura/01` a `06` (15/11). Substituídas: `depois-03b`, `depois-06b`, `depois-06c` e `depois-06d`.
 
 ### 13.6 Terceira passada (corretor RD-a a RD-d; marca MC-0050 e lista da senha) — respostas
 | Id | Achado (curto) | Resposta | Onde ficou |
