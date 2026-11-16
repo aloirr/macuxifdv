@@ -35,7 +35,7 @@ vi.mock('expo-router', () => ({ router: { navigate: () => undefined, push: () =>
 vi.mock('@/components/area-segura', () => ({ useCorDaFaixaNoFoco: () => undefined }));
 vi.mock('@macuxi/ui/mobile', () => ({
   colors: new Proxy({}, { get: () => '#000' }),
-  fonts: new Proxy({}, { get: () => 'f' }),
+  fonte: new Proxy({}, { get: () => ({}) }),
   type: new Proxy({}, { get: () => ({}) }),
   firstName: (n: string) => n.split(' ')[0],
   initials: (n: string) => n.slice(0, 2),

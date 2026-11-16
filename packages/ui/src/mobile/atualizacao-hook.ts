@@ -1,7 +1,7 @@
 /**
  * `useAtualizacaoAutomatica` — RN-CORE-23 nas telas de lista (R-20261102-124413 item 2). A tela NÃO consulta o servidor
  * sozinha: o puxar para baixo dispara o MOTOR de sync pelo agendador único do app (`SincronizacaoProvider`, montado pelo
- * shell), com proteção de 30 s; a atualização automática (abrir o app, voltar depois de 30 min, a cada `sync_auto_min`,
+ * shell), no máximo 1 vez a cada 30 s (R-20261115-125500); a atualização automática (abrir o app, voltar depois de 30 min, a cada `sync_auto_min`,
  * aviso do servidor por push) é do agendador, não da tela.
  *
  *   const auto = useAtualizacaoAutomatica({ atualizar: relerDoAparelho, tz });
@@ -20,11 +20,11 @@ import { useSincronizacao } from './sincronizacao';
 export interface UsoAtualizacaoAutomatica {
   /** Para o `refreshing` do `Screen`: true só no puxar para baixo. */
   puxando: boolean;
-  /** Para o `onRefresh` do `Screen`: Sincronizar (fila + pull), com proteção de 30 s. */
+  /** Para o `onRefresh` do `Screen`: Sincronizar (fila + pull); dentro do intervalo mínimo, ignorado em silêncio. */
   puxar: () => void;
   /** Última sincronização concluída (ms) ou null. */
   atualizadoEm: number | null;
-  /** "Atualizado às hh:mm · puxe para sincronizar", "Atualizado há instantes" ou, sem sinal, só "Atualizado às hh:mm" ("Ainda não sincronizado" sem hora). */
+  /** "Atualizado às hh:mm · puxe para sincronizar" ou, sem sinal, só "Atualizado às hh:mm" ("Ainda não sincronizado" sem hora). */
   rodape: string;
 }
 
@@ -57,7 +57,7 @@ export function useAtualizacaoAutomatica({
   const puxar = useCallback(() => {
     if (sync) {
       void sync.agendador.puxar().then(async (r) => {
-        // falhou: relê mesmo assim (a fila local pode ter mudado); recente: nada mudou
+        // falhou: relê mesmo assim (a fila local pode ter mudado); ignorado: nada mudou
         if (r === 'falhou') await Promise.resolve(atualizarRef.current?.()).catch(() => undefined);
       });
       return;
@@ -73,6 +73,6 @@ export function useAtualizacaoAutomatica({
     puxando: sync ? sync.estado.puxando : puxandoLocal,
     puxar,
     atualizadoEm: atualizadoEm !== null && Number.isFinite(atualizadoEm) ? atualizadoEm : null,
-    rodape: rodapeAtualizacao(sincronizadoEm, tz ?? sync?.tz, { recente: sync?.estado.recente ?? false, semSinal: sync?.semSinal ?? false }),
+    rodape: rodapeAtualizacao(sincronizadoEm, tz ?? sync?.tz, { semSinal: sync?.semSinal ?? false }),
   };
 }

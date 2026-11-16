@@ -58,7 +58,7 @@ vi.mock('@macuxi/ui/mobile', async () => {
   const { createElement } = await import('react');
   return {
     colors: new Proxy({}, { get: () => '#000' }),
-    fonts: new Proxy({}, { get: () => 'f' }),
+    fonte: new Proxy({}, { get: () => ({}) }),
     Icon: ({ name }: { name: string }) => createElement('i', { 'data-icone': name }),
   };
 });

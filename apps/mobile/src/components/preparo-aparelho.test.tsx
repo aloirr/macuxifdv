@@ -39,7 +39,7 @@ vi.mock('react-native-safe-area-context', () => ({
 }));
 vi.mock('@macuxi/ui/mobile', () => ({
   colors: new Proxy({}, { get: () => '#000' }),
-  fonts: new Proxy({}, { get: () => 'mono' }),
+  fonte: new Proxy({}, { get: () => ({}) }),
   type: new Proxy({}, { get: () => ({}) }),
   Button: ({ label, testID, loading }: { label: string; testID?: string; loading?: boolean }) =>
     createElement('button', { 'data-testid': testID, 'data-carregando': String(Boolean(loading)) }, label),

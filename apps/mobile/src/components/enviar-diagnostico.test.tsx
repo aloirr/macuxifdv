@@ -25,7 +25,7 @@ vi.mock('react-native', () => ({
 vi.mock('@macuxi/platform-sdk/react', () => ({ useMotorSync: () => ({ motor: null, estado: null }) }));
 vi.mock('@macuxi/ui/mobile', () => ({
   colors: new Proxy({}, { get: () => '#000' }),
-  fonts: new Proxy({}, { get: () => 'f' }),
+  fonte: new Proxy({}, { get: () => ({}) }),
   radius: new Proxy({}, { get: () => 8 }),
   type: new Proxy({}, { get: () => ({}) }),
   dateTimeLabel: () => 'Hoje, 11:30',

@@ -71,7 +71,7 @@ import {
 import { contagemPorPerfil } from '../../lib/acesso';
 import { NovoPerfil } from './novo-perfil';
 
-const CAMPO = 'h-[44px] w-full rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink disabled:bg-ground disabled:text-ink-2';
+const CAMPO = 'h-[44px] w-full rounded-xl border border-field bg-surface px-3 text-[15px] font-normal text-ink disabled:bg-ground disabled:text-ink-2';
 const SEM_PERMISSAO = 'O seu perfil não gerencia perfis de acesso. Fale com o admin da sua empresa.';
 const SEM_CONEXAO = 'Sem conexão. Confira a internet e tente de novo.';
 
@@ -145,7 +145,7 @@ function ListaDePerfis() {
               <tr key={p.codigo} data-testid={`perfis.linha.${p.codigo}`}>
                 <td className={td}>
                   <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" className="min-h-[44px] text-left text-[14px] font-semibold text-ink hover:underline" onClick={() => abrir(p.codigo)}>
+                    <button type="button" className="min-h-[44px] text-left text-[15px] font-semibold text-ink hover:underline" onClick={() => abrir(p.codigo)}>
                       {rotuloDoPerfil(p.codigo, { nome: p.nome })}
                     </button>
                     {!p.ativo && <Badge tone="neutral">Inativo</Badge>}
@@ -204,7 +204,7 @@ function ListaDePerfis() {
             )
           }
         >
-          <p className="m-0 text-[14px]">
+          <p className="m-0 text-[15px]">
             {acao.tipo === 'reativar'
               ? `${acao.perfil.nome} volta a aparecer no cadastro de usuários.`
               : usuariosDe(acao.perfil) > 0
@@ -462,13 +462,13 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
             'Identificação',
             <>
               <LinhaDePermissao id="ident-nome" rotulo="Nome" erro={erroDoNome}>
-                {fab ? <span className="text-[14px]">{ident.nome}</span> : <input id="perfil-nome" className={CAMPO} value={ident.nome} maxLength={40} onChange={(e) => { setErroNome(null); setIdent({ ...ident, nome: e.target.value }); }} aria-label="Nome" aria-invalid={!!erroDoNome} />}
+                {fab ? <span className="text-[15px]">{ident.nome}</span> : <input id="perfil-nome" className={CAMPO} value={ident.nome} maxLength={40} onChange={(e) => { setErroNome(null); setIdent({ ...ident, nome: e.target.value }); }} aria-label="Nome" aria-invalid={!!erroDoNome} />}
               </LinhaDePermissao>
               <LinhaDePermissao id="ident-base" rotulo="Perfil base" trava={{ mensagem: CADEADO.baseImutavel }}>
-                <span className="text-[14px]">{ROTULO_PERFIL_BASE[base]}</span>
+                <span className="text-[15px]">{ROTULO_PERFIL_BASE[base]}</span>
               </LinhaDePermissao>
               <LinhaDePermissao id="ident-descricao" rotulo="Descrição">
-                <textarea className="min-h-[64px] w-full rounded-xl border border-field bg-surface px-3 py-2 text-[14px] text-ink" rows={2} maxLength={200} value={ident.descricao} onChange={(e) => setIdent({ ...ident, descricao: e.target.value })} aria-label="Descrição" />
+                <textarea className="min-h-[64px] w-full rounded-xl border border-field bg-surface px-3 py-2 text-[15px] text-ink" rows={2} maxLength={200} value={ident.descricao} onChange={(e) => setIdent({ ...ident, descricao: e.target.value })} aria-label="Descrição" />
               </LinhaDePermissao>
               <LinhaDePermissao
                 id="ident-ativo"
@@ -602,7 +602,7 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
             </>
           }
         >
-          <p className="m-0 text-[14px]">{mudancas.length === 1 ? 'A mudança não salva se perde.' : `As ${mudancas.length} mudanças não salvas se perdem.`}</p>
+          <p className="m-0 text-[15px]">{mudancas.length === 1 ? 'A mudança não salva se perde.' : `As ${mudancas.length} mudanças não salvas se perdem.`}</p>
         </Dialog>
       )}
       {restaurar && (
@@ -619,7 +619,7 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
             </>
           }
         >
-          <p className="m-0 text-[14px]">
+          <p className="m-0 text-[15px]">
             {fab ? `As permissões de ${d.perfil.nome} voltam a ser as que vêm prontas. Confira e salve para valer.` : `As permissões voltam a ser as do perfil base ${ROTULO_PERFIL_BASE[base]}. Confira e salve para valer.`}
           </p>
         </Dialog>
