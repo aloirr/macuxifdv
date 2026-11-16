@@ -40,7 +40,7 @@ const RotasPagina: ComponentType = () => createElement(Suspense, null, createEle
 /**
  * Páginas do Core no BKO (ADR 0003; desenho T-0001 §5 e §14). Os rótulos de `navegacao` são os de
  * `manifest.apps.web.menus`. O shell só mostra se o módulo estiver efetivo e o perfil puder.
- * "Usuários e módulos" (licenças por tenant, perfil e usuário, só admin) é a tela de licenças da T-0003.
+ * "Módulos" (licenças por tenant, perfil e usuário, só admin) é o painel de licenças da T-0003.
  * "Usuários" (T-0067) é a gestão de usuários: lista para supervisor/gerente/admin (recortada pelo escopo), escrita só do admin.
  */
 export const moduloWeb = definirModuloShell<ComponentType>({

@@ -74,49 +74,47 @@ export function FotosPdvPage() {
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando os tipos de foto…" />}
       {lista.data && (
-        <>
-          <TableScroll minWidth={640}>
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr>
-                  <th className={th}>Tipo</th>
-                  <th className={th}>Regras</th>
-                  <th className={th}>Situação</th>
-                  <th className={th}>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {itens.map((t) => (
-                  <tr key={t.id} data-testid={`fotos-pdv.linha.${t.id}`}>
-                    <td className={td}>{t.nome}</td>
-                    <td className={td}>
-                      <div className="flex flex-wrap gap-1">
-                        {t.fachada ? <Badge tone="neutral">Fachada</Badge> : null}
-                        {t.obrigatorio ? <Badge tone="warning">Obrigatório</Badge> : <Badge tone="neutral">Opcional</Badge>}
-                        {t.sensivel ? <Badge tone="danger">Sensível</Badge> : null}
-                      </div>
-                    </td>
-                    <td className={td}>
-                      <Badge tone={t.ativo ? 'success' : 'warning'}>{t.ativo ? 'Ativo' : 'Inativo'}</Badge>
-                    </td>
-                    <td className={td}>
-                      <div className="flex gap-2">
-                        <Button disabled={!pode} onClick={() => setRascunho({ id: t.id, existente: true, fachada: t.fachada, nome: t.nome, obrigatorio: t.obrigatorio, sensivel: t.sensivel, ativo: t.ativo })} data-testid={`fotos-pdv.editar.${t.id}`}>
-                          Editar
+        <TableScroll minWidth={640}>
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr>
+                <th className={th}>Tipo</th>
+                <th className={th}>Regras</th>
+                <th className={th}>Situação</th>
+                <th className={th}>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itens.map((t) => (
+                <tr key={t.id} data-testid={`fotos-pdv.linha.${t.id}`}>
+                  <td className={td}>{t.nome}</td>
+                  <td className={td}>
+                    <div className="flex flex-wrap gap-1">
+                      {t.fachada ? <Badge tone="neutral">Fachada</Badge> : null}
+                      {t.obrigatorio ? <Badge tone="warning">Obrigatório</Badge> : <Badge tone="neutral">Opcional</Badge>}
+                      {t.sensivel ? <Badge tone="danger">Sensível</Badge> : null}
+                    </div>
+                  </td>
+                  <td className={td}>
+                    <Badge tone={t.ativo ? 'success' : 'warning'}>{t.ativo ? 'Ativo' : 'Inativo'}</Badge>
+                  </td>
+                  <td className={td}>
+                    <div className="flex gap-2">
+                      <Button disabled={!pode} onClick={() => setRascunho({ id: t.id, existente: true, fachada: t.fachada, nome: t.nome, obrigatorio: t.obrigatorio, sensivel: t.sensivel, ativo: t.ativo })} data-testid={`fotos-pdv.editar.${t.id}`}>
+                        Editar
+                      </Button>
+                      {!t.fachada ? (
+                        <Button disabled={!pode || apagar.isPending} onClick={() => apagar.mutate(t.id)} data-testid={`fotos-pdv.apagar.${t.id}`}>
+                          Remover
                         </Button>
-                        {!t.fachada ? (
-                          <Button disabled={!pode || apagar.isPending} onClick={() => apagar.mutate(t.id)} data-testid={`fotos-pdv.apagar.${t.id}`}>
-                            Remover
-                          </Button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        </>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
       {rascunho && (
         <Dialog

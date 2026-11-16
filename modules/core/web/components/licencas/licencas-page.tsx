@@ -94,7 +94,6 @@ function LicencasConteudo() {
 
   return (
     <div className="flex w-full flex-col gap-5" data-testid="licencas.tela">
-
       {aviso && (
         <Notice tone="info" onClose={() => setAviso(null)}>
           {aviso}

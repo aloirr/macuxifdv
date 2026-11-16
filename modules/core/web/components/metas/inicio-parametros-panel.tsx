@@ -119,55 +119,53 @@ export function InicioParametrosPanel() {
   };
 
   return (
-    <>
-      <div className="flex flex-col gap-4" data-testid="inicio-params.painel">
-        {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
-        {q.isPending && <LoadingBlock label="Carregando os parâmetros…" />}
-        {aviso && (
-          <Notice tone="danger" onClose={() => setAviso(null)}>
-            {aviso}
-          </Notice>
-        )}
-        {q.data && (
-          <>
-            <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
-              <legend className="text-[15px] font-semibold text-ink">Dias úteis da semana</legend>
-              <span className="text-[13px] text-ink-2">
-                Os dias marcados contam para a meta do dia: a meta que falta no mês é dividida pelos dias
-                úteis que restam.
-              </span>
-              <ErroCampo id="inicio-params.dias.erro" texto={erros.dias} />
-              <div className="flex flex-wrap gap-2">
-                {DIAS.map(([n, rotulo, nomeCompleto]) => (
-                  <button
-                    key={n}
-                    type="button"
-                    role="switch"
-                    aria-checked={dias.includes(n)}
-                    aria-label={nomeCompleto}
-                    aria-describedby={erros.dias ? 'inicio-params.dias.erro' : undefined}
-                    data-testid={`inicio-params.dia.${n}`}
-                    onClick={() => alternar(n)}
-                    className={`h-[44px] min-w-[56px] rounded-xl border px-3 text-[13px] font-semibold ${dias.includes(n) ? 'border-accent bg-accent text-white' : 'border-field bg-surface text-ink hover:bg-ground'}`}
-                  >
-                    {rotulo}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button variant="primary" onClick={salvar} disabled={gravar.isPending || !alterado} data-testid="inicio-params.salvar">
-                {gravar.isPending ? 'Salvando…' : 'Salvar dias úteis'}
-              </Button>
-              {salvo && (
-                <Notice tone="success" onClose={() => setSalvo(false)}>
-                  Dias úteis salvos.
-                </Notice>
-              )}
+    <div className="flex flex-col gap-4" data-testid="inicio-params.painel">
+      {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
+      {q.isPending && <LoadingBlock label="Carregando os parâmetros…" />}
+      {aviso && (
+        <Notice tone="danger" onClose={() => setAviso(null)}>
+          {aviso}
+        </Notice>
+      )}
+      {q.data && (
+        <>
+          <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
+            <legend className="text-[15px] font-semibold text-ink">Dias úteis da semana</legend>
+            <span className="text-[13px] text-ink-2">
+              Os dias marcados contam para a meta do dia: a meta que falta no mês é dividida pelos dias
+              úteis que restam.
+            </span>
+            <ErroCampo id="inicio-params.dias.erro" texto={erros.dias} />
+            <div className="flex flex-wrap gap-2">
+              {DIAS.map(([n, rotulo, nomeCompleto]) => (
+                <button
+                  key={n}
+                  type="button"
+                  role="switch"
+                  aria-checked={dias.includes(n)}
+                  aria-label={nomeCompleto}
+                  aria-describedby={erros.dias ? 'inicio-params.dias.erro' : undefined}
+                  data-testid={`inicio-params.dia.${n}`}
+                  onClick={() => alternar(n)}
+                  className={`h-[44px] min-w-[56px] rounded-xl border px-3 text-[13px] font-semibold ${dias.includes(n) ? 'border-accent bg-accent text-white' : 'border-field bg-surface text-ink hover:bg-ground'}`}
+                >
+                  {rotulo}
+                </button>
+              ))}
             </div>
-          </>
-        )}
-      </div>
-    </>
+          </fieldset>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="primary" onClick={salvar} disabled={gravar.isPending || !alterado} data-testid="inicio-params.salvar">
+              {gravar.isPending ? 'Salvando…' : 'Salvar dias úteis'}
+            </Button>
+            {salvo && (
+              <Notice tone="success" onClose={() => setSalvo(false)}>
+                Dias úteis salvos.
+              </Notice>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 }

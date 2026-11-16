@@ -73,49 +73,47 @@ export function MotivosPage() {
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando os motivos…" />}
       {lista.data && (
-        <>
-          <TableScroll minWidth={640}>
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr>
-                  <th className={th}>Motivo</th>
-                  <th className={th}>Tipo</th>
-                  <th className={th}>Situação</th>
-                  <th className={th}>Ações</th>
+        <TableScroll minWidth={640}>
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr>
+                <th className={th}>Motivo</th>
+                <th className={th}>Tipo</th>
+                <th className={th}>Situação</th>
+                <th className={th}>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itens.map((m) => (
+                <tr key={m.id} data-testid={`motivos.linha.${m.codigo}`}>
+                  <td className={td}>
+                    {m.descricao}
+                    <span className="block font-mono text-[12px] text-ink-2">{m.codigo}</span>
+                  </td>
+                  <td className={td}>
+                    {TIPOS[m.tipo]}
+                    {m.exige_foto ? <span className="block text-ink-2">exige foto da fachada</span> : null}
+                  </td>
+                  <td className={td}>
+                    <Badge tone={m.sistema ? 'neutral' : m.ativo ? 'success' : 'warning'}>{m.sistema ? 'Sistema' : m.ativo ? 'Ativo' : 'Desativado'}</Badge>
+                  </td>
+                  <td className={td}>
+                    {m.sistema ? null : (
+                      <div className="flex gap-2">
+                        <Button disabled={!pode} onClick={() => setRascunho({ id: m.id, existente: true, tipo: m.tipo, codigo: m.codigo, descricao: m.descricao, ativo: m.ativo, ordem: m.ordem })} data-testid={`motivos.editar.${m.codigo}`}>
+                          Editar
+                        </Button>
+                        <Button disabled={!pode || remover.isPending} onClick={() => remover.mutate(m.id)} data-testid={`motivos.remover.${m.codigo}`}>
+                          Remover
+                        </Button>
+                      </div>
+                    )}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {itens.map((m) => (
-                  <tr key={m.id} data-testid={`motivos.linha.${m.codigo}`}>
-                    <td className={td}>
-                      {m.descricao}
-                      <span className="block font-mono text-[12px] text-ink-2">{m.codigo}</span>
-                    </td>
-                    <td className={td}>
-                      {TIPOS[m.tipo]}
-                      {m.exige_foto ? <span className="block text-ink-2">exige foto da fachada</span> : null}
-                    </td>
-                    <td className={td}>
-                      <Badge tone={m.sistema ? 'neutral' : m.ativo ? 'success' : 'warning'}>{m.sistema ? 'Sistema' : m.ativo ? 'Ativo' : 'Desativado'}</Badge>
-                    </td>
-                    <td className={td}>
-                      {m.sistema ? null : (
-                        <div className="flex gap-2">
-                          <Button disabled={!pode} onClick={() => setRascunho({ id: m.id, existente: true, tipo: m.tipo, codigo: m.codigo, descricao: m.descricao, ativo: m.ativo, ordem: m.ordem })} data-testid={`motivos.editar.${m.codigo}`}>
-                            Editar
-                          </Button>
-                          <Button disabled={!pode || remover.isPending} onClick={() => remover.mutate(m.id)} data-testid={`motivos.remover.${m.codigo}`}>
-                            Remover
-                          </Button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        </>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
       {rascunho && (
         <Dialog

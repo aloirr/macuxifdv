@@ -55,46 +55,44 @@ export function CheckoutPendenciaPanel() {
     if (v.ok) gravar.mutate(v.valor);
   };
   return (
-    <>
-      <div className="flex flex-col gap-3" data-testid="checkout-pendencia.painel">
-        {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
-        {q.isPending && <LoadingBlock label="Carregando o prazo…" />}
-        {aviso && (
-          <Notice tone="danger" onClose={() => setAviso(null)}>
-            {aviso}
-          </Notice>
-        )}
-        {q.data != null && (
-          <>
-            <label className="flex max-w-[260px] flex-col gap-1 text-[15px] font-semibold text-ink">
-              Prazo para avisar
-              <span className="text-[13px] font-normal text-ink-2">{AJUDA_ALERTA_H}</span>
-              <ErroCampo id="checkout-pendencia.erro" texto={erro ?? undefined} />
-              <CampoComUnidade
-                testId="checkout-pendencia.alerta"
-                unidade="h"
-                idErro={erro ? 'checkout-pendencia.erro' : undefined}
-                inputMode="numeric"
-                value={horas}
-                onChange={(e) => {
-                  setSalvo(false);
-                  setHoras(e.target.value.replace(/\D/g, ''));
-                }}
-              />
-            </label>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button variant="primary" onClick={salvar} disabled={gravar.isPending || !alterado} data-testid="checkout-pendencia.salvar">
-                {gravar.isPending ? 'Salvando…' : 'Salvar prazo'}
-              </Button>
-              {salvo && (
-                <Notice tone="success" onClose={() => setSalvo(false)}>
-                  Prazo salvo.
-                </Notice>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </>
+    <div className="flex flex-col gap-3" data-testid="checkout-pendencia.painel">
+      {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
+      {q.isPending && <LoadingBlock label="Carregando o prazo…" />}
+      {aviso && (
+        <Notice tone="danger" onClose={() => setAviso(null)}>
+          {aviso}
+        </Notice>
+      )}
+      {q.data != null && (
+        <>
+          <label className="flex max-w-[260px] flex-col gap-1 text-[15px] font-semibold text-ink">
+            Prazo para avisar
+            <span className="text-[13px] font-normal text-ink-2">{AJUDA_ALERTA_H}</span>
+            <ErroCampo id="checkout-pendencia.erro" texto={erro ?? undefined} />
+            <CampoComUnidade
+              testId="checkout-pendencia.alerta"
+              unidade="h"
+              idErro={erro ? 'checkout-pendencia.erro' : undefined}
+              inputMode="numeric"
+              value={horas}
+              onChange={(e) => {
+                setSalvo(false);
+                setHoras(e.target.value.replace(/\D/g, ''));
+              }}
+            />
+          </label>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="primary" onClick={salvar} disabled={gravar.isPending || !alterado} data-testid="checkout-pendencia.salvar">
+              {gravar.isPending ? 'Salvando…' : 'Salvar prazo'}
+            </Button>
+            {salvo && (
+              <Notice tone="success" onClose={() => setSalvo(false)}>
+                Prazo salvo.
+              </Notice>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 }

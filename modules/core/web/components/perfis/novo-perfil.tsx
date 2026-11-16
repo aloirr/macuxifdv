@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiRequestError } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, IconeModulo, LoadingBlock, Notice, useToast, type IdDoModulo } from '@macuxi/ui/web';
+import { ErroCampo } from '../campo';
 import { CabecalhoDoPerfil } from './cabecalho-perfil';
 import { LicencasEstadoSchema, MENSAGEM_NOME_OBRIGATORIO, MENSAGEM_PERFIL_REPETIDO, CODIGO_REPETIDO, PerfilDetalheSchema, PerfilListaRespostaSchema, type PerfilDetalhe } from '../../../contracts';
 import {
@@ -170,7 +171,7 @@ export function NovoPerfil() {
   if (lista.isError || catalogo.isError) return <ErrorBlock message="Não foi possível carregar as permissões. Confira a internet e tente de novo." onRetry={() => void lista.refetch()} />;
 
   return (
-    <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="perfil.novo">
+    <div className="flex w-full flex-col gap-5" data-testid="perfil.novo">
       <CabecalhoDoPerfil
         titulo="Novo perfil de acesso"
         acoes={
@@ -186,12 +187,12 @@ export function NovoPerfil() {
       />
       <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
         Nome
-        <input className={CAMPO} value={nome} maxLength={40} autoFocus onChange={(e) => setNome(e.target.value)} aria-invalid={tentou && nome.trim() === ''} data-testid="perfil.novo.nome" />
-        {tentou && nome.trim() === '' && <span className="text-[12px] font-medium text-danger">{MENSAGEM_NOME_OBRIGATORIO}</span>}
+        <input className={CAMPO} value={nome} maxLength={40} autoFocus onChange={(e) => setNome(e.target.value)} aria-invalid={tentou && nome.trim() === ''} aria-describedby={tentou && nome.trim() === '' ? 'perfil.novo.nome.erro' : undefined} data-testid="perfil.novo.nome" />
+        <ErroCampo id="perfil.novo.nome.erro" texto={tentou && nome.trim() === '' ? MENSAGEM_NOME_OBRIGATORIO : undefined} />
       </label>
       <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
         Cargo
-        <select className={CAMPO} value={cargo} onChange={(e) => setCargo(e.target.value as Cargo | '')} aria-invalid={tentou && cargo === ''} data-testid="perfil.novo.cargo">
+        <select className={CAMPO} value={cargo} onChange={(e) => setCargo(e.target.value as Cargo | '')} aria-invalid={tentou && cargo === ''} aria-describedby={tentou && cargo === '' ? 'perfil.novo.cargo.erro' : undefined} data-testid="perfil.novo.cargo">
           <option value="">Escolha…</option>
           {CARGOS.map((c) => (
             <option key={c} value={c}>
@@ -199,7 +200,7 @@ export function NovoPerfil() {
             </option>
           ))}
         </select>
-        {tentou && cargo === '' && <span className="text-[12px] font-medium text-danger">{MENSAGEM_CARGO_OBRIGATORIO}</span>}
+        <ErroCampo id="perfil.novo.cargo.erro" texto={tentou && cargo === '' ? MENSAGEM_CARGO_OBRIGATORIO : undefined} />
       </label>
       {erro.length > 0 && (
         <Notice tone="danger">

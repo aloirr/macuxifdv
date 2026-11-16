@@ -8,7 +8,7 @@ import { Button, ErrorBlock, LoadingBlock, Notice } from '@macuxi/ui/web';
 import { ProdutoParametrosSchema, ProdutosPrecoListaSchema } from '../../../contracts';
 import { DESCONTO_MAXIMO_PRODUTO_PADRAO_PCT } from '../../../domain';
 import { paraPct } from '../../lib/percentual';
-import { CampoComUnidade } from '../campo';
+import { CampoComUnidade, ErroCampo } from '../campo';
 
 /**
  * Desconto máximo padrão do tenant (parâmetro `desconto_maximo_produto_pct`; ação `produto.parametros`, analista e admin).
@@ -39,26 +39,24 @@ export function DescontoPadraoPanel() {
   const valor = texto ?? String(padrao).replace('.', ',');
   const novo = paraPct(valor);
   return (
-    <>
-      <div className="flex flex-col gap-3 text-[15px] font-semibold text-ink">
-        {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
-        {lista.isPending && <LoadingBlock label="Carregando o desconto…" />}
-        {aviso && (
-          <Notice tone={aviso.tom} onClose={() => setAviso(null)}>
-            {aviso.texto}
-          </Notice>
-        )}
-        <label className="flex max-w-[260px] flex-col gap-1">
-          <CampoComUnidade testId="produtos.parametro-desconto" unidade="%" aria-label="Desconto máximo padrão (%)" inputMode="decimal" value={valor} onChange={(e) => setTexto(e.target.value)} />
-        </label>
-        <p className="m-0 text-[13px] font-normal text-ink-2">Vale para o produto sem desconto próprio.</p>
-        {novo === undefined && <p className="m-0 text-[13px] font-normal text-danger">Informe um valor entre 0 e 100.</p>}
-        <div>
-          <Button variant="primary" disabled={salvar.isPending || novo === undefined || novo === null || novo === padrao} onClick={() => novo != null && salvar.mutate(novo)} data-testid="produtos.parametro-salvar">
-            Salvar desconto
-          </Button>
-        </div>
+    <div className="flex flex-col gap-3 text-[15px] font-semibold text-ink">
+      {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
+      {lista.isPending && <LoadingBlock label="Carregando o desconto…" />}
+      {aviso && (
+        <Notice tone={aviso.tom} onClose={() => setAviso(null)}>
+          {aviso.texto}
+        </Notice>
+      )}
+      <label className="flex max-w-[260px] flex-col gap-1">
+        <CampoComUnidade testId="produtos.parametro-desconto" unidade="%" idErro={novo === undefined ? 'produtos.parametro-desconto.erro' : undefined} aria-label="Desconto máximo padrão (%)" inputMode="decimal" value={valor} onChange={(e) => setTexto(e.target.value)} />
+      </label>
+      <p className="m-0 text-[13px] font-normal text-ink-2">Vale para o produto sem desconto próprio.</p>
+      <ErroCampo id="produtos.parametro-desconto.erro" texto={novo === undefined ? 'Informe um valor entre 0 e 100.' : undefined} />
+      <div>
+        <Button variant="primary" disabled={salvar.isPending || novo === undefined || novo === null || novo === padrao} onClick={() => novo != null && salvar.mutate(novo)} data-testid="produtos.parametro-salvar">
+          Salvar desconto
+        </Button>
       </div>
-    </>
+    </div>
   );
 }

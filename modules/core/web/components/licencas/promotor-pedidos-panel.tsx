@@ -33,36 +33,34 @@ export function PromotorPedidosPanel() {
   if (!pode) return null;
   const ligado = q.data?.ligado;
   return (
-    <>
-      <div className="flex flex-col gap-3" data-testid="promotor-pedidos.painel">
-        {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
-        {q.isPending && <LoadingBlock label="Carregando a opção…" />}
-        {aviso && (
-          <Notice tone="info" onClose={() => setAviso(null)}>
-            {aviso}
-          </Notice>
-        )}
-        {q.data && (
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex min-w-[240px] flex-1 flex-col gap-1">
-              <span className="text-[13px] text-ink-2">Mostra ao promotor, só para leitura, os pedidos dos clientes da carteira dele.</span>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={ligado}
-              aria-label={ligado ? 'Desligar: promotor não vê pedidos' : 'Ligar: promotor vê pedidos'}
-              disabled={gravar.isPending}
-              data-testid="promotor-pedidos.toggle"
-              data-estado={ligado ? 'ligado' : 'desligado'}
-              onClick={() => gravar.mutate(!ligado)}
-              className="h-[44px] min-w-[96px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled"
-            >
-              {gravar.isPending ? 'Salvando…' : ligado ? 'Desligar' : 'Ligar'}
-            </button>
+    <div className="flex flex-col gap-3" data-testid="promotor-pedidos.painel">
+      {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
+      {q.isPending && <LoadingBlock label="Carregando a opção…" />}
+      {aviso && (
+        <Notice tone="info" onClose={() => setAviso(null)}>
+          {aviso}
+        </Notice>
+      )}
+      {q.data && (
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex min-w-[240px] flex-1 flex-col gap-1">
+            <span className="text-[13px] text-ink-2">Mostra ao promotor, só para leitura, os pedidos dos clientes da carteira dele.</span>
           </div>
-        )}
-      </div>
-    </>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={ligado}
+            aria-label={ligado ? 'Desligar: promotor não vê pedidos' : 'Ligar: promotor vê pedidos'}
+            disabled={gravar.isPending}
+            data-testid="promotor-pedidos.toggle"
+            data-estado={ligado ? 'ligado' : 'desligado'}
+            onClick={() => gravar.mutate(!ligado)}
+            className="h-[44px] min-w-[96px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled"
+          >
+            {gravar.isPending ? 'Salvando…' : ligado ? 'Desligar' : 'Ligar'}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

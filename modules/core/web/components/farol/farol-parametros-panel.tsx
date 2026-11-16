@@ -84,38 +84,36 @@ export function FarolParametrosPanel({ aoSalvar }: { aoSalvar?: () => void }) {
   };
 
   return (
-    <>
-      <div className="flex flex-col gap-4" data-testid="farol-params.painel">
-        {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
-        {q.isPending && <LoadingBlock label="Carregando os parâmetros…" />}
-        {aviso && (
-          <Notice tone="danger" onClose={() => setAviso(null)}>
-            {aviso}
-          </Notice>
-        )}
-        {textos && (
-          <>
-            <div className="flex flex-wrap gap-6">
-              <CampoNumerico id="verde_ate_dias" rotulo="Cliente verde até" ajuda={`Dias sem compra até este limite ficam verdes. De 1 a ${FAROL_DIAS_MAX}.`} unidade="dias" valor={textos.verde_ate_dias} erro={erros.verde_ate_dias} onChange={mudar('verde_ate_dias')} />
-              <CampoNumerico id="amarelo_ate_dias" rotulo="Cliente amarelo até" ajuda="Acima do verde e até este limite fica amarelo; depois, vermelho. Deve ser maior que o verde." unidade="dias" valor={textos.amarelo_ate_dias} erro={erros.amarelo_ate_dias} onChange={mudar('amarelo_ate_dias')} />
-            </div>
-            <div className="flex flex-wrap gap-6">
-              <CampoNumerico id="positivacao_verde_pct" rotulo="Vendedor verde a partir de" ajuda="Positivação do mês (clientes positivados ÷ carteira) para o vendedor ficar verde." unidade="%" valor={textos.positivacao_verde_pct} erro={erros.positivacao_verde_pct} onChange={mudar('positivacao_verde_pct')} />
-              <CampoNumerico id="positivacao_amarelo_pct" rotulo="Vendedor amarelo a partir de" ajuda="Abaixo deste percentual o vendedor fica vermelho. Deve ser menor que o verde." unidade="%" valor={textos.positivacao_amarelo_pct} erro={erros.positivacao_amarelo_pct} onChange={mudar('positivacao_amarelo_pct')} />
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button variant="primary" onClick={salvar} disabled={gravar.isPending || !alterado} data-testid="farol-params.salvar">
-                {gravar.isPending ? 'Salvando…' : 'Salvar farol'}
-              </Button>
-              {salvo && (
-                <Notice tone="success" onClose={() => setSalvo(false)}>
-                  Parâmetros salvos. O farol já usa os novos limites.
-                </Notice>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </>
+    <div className="flex flex-col gap-4" data-testid="farol-params.painel">
+      {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
+      {q.isPending && <LoadingBlock label="Carregando os parâmetros…" />}
+      {aviso && (
+        <Notice tone="danger" onClose={() => setAviso(null)}>
+          {aviso}
+        </Notice>
+      )}
+      {textos && (
+        <>
+          <div className="flex flex-wrap gap-6">
+            <CampoNumerico id="verde_ate_dias" rotulo="Cliente verde até" ajuda={`Dias sem compra até este limite ficam verdes. De 1 a ${FAROL_DIAS_MAX}.`} unidade="dias" valor={textos.verde_ate_dias} erro={erros.verde_ate_dias} onChange={mudar('verde_ate_dias')} />
+            <CampoNumerico id="amarelo_ate_dias" rotulo="Cliente amarelo até" ajuda="Acima do verde e até este limite fica amarelo; depois, vermelho. Deve ser maior que o verde." unidade="dias" valor={textos.amarelo_ate_dias} erro={erros.amarelo_ate_dias} onChange={mudar('amarelo_ate_dias')} />
+          </div>
+          <div className="flex flex-wrap gap-6">
+            <CampoNumerico id="positivacao_verde_pct" rotulo="Vendedor verde a partir de" ajuda="Positivação do mês (clientes positivados ÷ carteira) para o vendedor ficar verde." unidade="%" valor={textos.positivacao_verde_pct} erro={erros.positivacao_verde_pct} onChange={mudar('positivacao_verde_pct')} />
+            <CampoNumerico id="positivacao_amarelo_pct" rotulo="Vendedor amarelo a partir de" ajuda="Abaixo deste percentual o vendedor fica vermelho. Deve ser menor que o verde." unidade="%" valor={textos.positivacao_amarelo_pct} erro={erros.positivacao_amarelo_pct} onChange={mudar('positivacao_amarelo_pct')} />
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="primary" onClick={salvar} disabled={gravar.isPending || !alterado} data-testid="farol-params.salvar">
+              {gravar.isPending ? 'Salvando…' : 'Salvar farol'}
+            </Button>
+            {salvo && (
+              <Notice tone="success" onClose={() => setSalvo(false)}>
+                Parâmetros salvos. O farol já usa os novos limites.
+              </Notice>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 }

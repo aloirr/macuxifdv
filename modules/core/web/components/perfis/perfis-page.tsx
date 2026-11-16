@@ -124,7 +124,7 @@ function ListaDePerfis() {
     </Button>
   );
   return (
-    <div className="flex w-full max-w-[1180px] flex-col gap-4" data-testid="perfis.lista">
+    <div className="flex w-full flex-col gap-4" data-testid="perfis.lista">
       <div className="flex justify-end">{botaoNovo}</div>
         <table className="w-full border-collapse text-[13px]">
           <thead>
@@ -317,8 +317,8 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
     const nao = q.error instanceof ApiRequestError && q.error.status === 404;
     return (
       <div className="flex flex-col gap-3">
-        <button type="button" className="min-h-[44px] self-start text-accent-ink hover:underline" onClick={voltar}>
-          ‹ Perfis de acesso
+        <button type="button" className="min-h-[44px] self-start text-[15px] text-accent-ink hover:underline" onClick={voltar}>
+          ‹ Voltar
         </button>
         <ErrorBlock message={ehSemConexao(q.error) ? SEM_CONEXAO : nao ? 'Este perfil não existe mais.' : ''} onRetry={nao ? undefined : () => void q.refetch()} />
       </div>
@@ -422,8 +422,8 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
     <div className="flex flex-col gap-4">
       <CabecalhoDoPerfil
         voltar={
-          <button type="button" className="self-start text-[13px] text-accent-ink hover:underline" onClick={() => (sujo ? setSair('voltar') : voltar())}>
-            ‹ Perfis de acesso
+          <button type="button" className="min-h-[44px] self-start text-[15px] text-accent-ink hover:underline" onClick={() => (sujo ? setSair('voltar') : voltar())}>
+            ‹ Voltar
           </button>
         }
         titulo={d.perfil.nome}
@@ -483,7 +483,7 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
                   'modulos',
                   'Módulos',
                   <>
-                    <p className="m-0 text-[13px] text-ink-2">Os módulos que quem tem este perfil usa. Só aparecem os contratados pela empresa. Para ligar ou desligar, use Usuários e módulos.</p>
+                    <p className="m-0 text-[13px] text-ink-2">Para ligar ou desligar, use Módulos.</p>
                     <div className="flex flex-wrap gap-2" data-testid="perfil.modulos">
                       {d.modulos.length === 0 && <span className="text-[13px] text-ink-2">Nenhum</span>}
                       {d.modulos.map((m) => (

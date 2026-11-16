@@ -90,59 +90,57 @@ export function CurvasAbcParametrosPanel() {
   };
 
   return (
-    <>
-      <div className="flex flex-col gap-4" data-testid="curvas-abc-params.painel">
-        {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
-        {q.isPending && <LoadingBlock label="Carregando as curvas…" />}
-        {aviso && (
-          <Notice tone="danger" onClose={() => setAviso(null)}>
-            {aviso}
-          </Notice>
-        )}
-        {textos && (
-          <>
-            <div className="overflow-x-auto">
-              <table className="border-separate border-spacing-x-4 border-spacing-y-2 text-left" data-testid="curvas-abc-params.grade">
-                <thead>
-                  <tr className="text-[12px] font-semibold text-ink-2">
-                    <th scope="col" className="w-[200px]" />
+    <div className="flex flex-col gap-4" data-testid="curvas-abc-params.painel">
+      {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
+      {q.isPending && <LoadingBlock label="Carregando as curvas…" />}
+      {aviso && (
+        <Notice tone="danger" onClose={() => setAviso(null)}>
+          {aviso}
+        </Notice>
+      )}
+      {textos && (
+        <>
+          <div className="overflow-x-auto">
+            <table className="border-separate border-spacing-x-4 border-spacing-y-2 text-left" data-testid="curvas-abc-params.grade">
+              <thead>
+                <tr className="text-[12px] font-semibold text-ink-2">
+                  <th scope="col" className="w-[200px]" />
+                  {DIMENSOES_CURVA_ABC.map((d) => (
+                    <th key={d} scope="col" className="w-[160px] font-semibold">
+                      {ROTULOS_DIMENSAO_CURVA[d]}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {LINHAS.map(([campo, titulo]) => (
+                  <tr key={campo} className="align-top">
+                    <th scope="row" className="pt-2 text-[15px] font-semibold text-ink">
+                      {titulo}
+                      <span className="block text-[13px] font-normal text-ink-2">a partir de</span>
+                    </th>
                     {DIMENSOES_CURVA_ABC.map((d) => (
-                      <th key={d} scope="col" className="w-[160px] font-semibold">
-                        {ROTULOS_DIMENSAO_CURVA[d]}
-                      </th>
+                      <td key={d}>
+                        <CampoPct dimensao={d} campo={campo} rotulo={`${titulo} · ${ROTULOS_DIMENSAO_CURVA[d]}`} valor={textos[d][campo]} erro={erros[`${d}.${campo}` as keyof Erros]} onChange={mudar(d, campo)} />
+                      </td>
                     ))}
                   </tr>
-                </thead>
-                <tbody>
-                  {LINHAS.map(([campo, titulo]) => (
-                    <tr key={campo} className="align-top">
-                      <th scope="row" className="pt-2 text-[15px] font-semibold text-ink">
-                        {titulo}
-                        <span className="block text-[13px] font-normal text-ink-2">a partir de</span>
-                      </th>
-                      {DIMENSOES_CURVA_ABC.map((d) => (
-                        <td key={d}>
-                          <CampoPct dimensao={d} campo={campo} rotulo={`${titulo} · ${ROTULOS_DIMENSAO_CURVA[d]}`} valor={textos[d][campo]} erro={erros[`${d}.${campo}` as keyof Erros]} onChange={mudar(d, campo)} />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button variant="primary" onClick={salvar} disabled={gravar.isPending || !alterado} data-testid="curvas-abc-params.salvar">
-                {gravar.isPending ? 'Salvando…' : 'Salvar curvas'}
-              </Button>
-              {salvo && (
-                <Notice tone="success" onClose={() => setSalvo(false)}>
-                  Curvas salvas.
-                </Notice>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="primary" onClick={salvar} disabled={gravar.isPending || !alterado} data-testid="curvas-abc-params.salvar">
+              {gravar.isPending ? 'Salvando…' : 'Salvar curvas'}
+            </Button>
+            {salvo && (
+              <Notice tone="success" onClose={() => setSalvo(false)}>
+                Curvas salvas.
+              </Notice>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 }

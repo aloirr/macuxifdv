@@ -10,6 +10,7 @@ import { fraseDoDia, validarFrase } from '../../../domain/frase-avatar/frase-do-
 import { useHojeDoTenant } from '../../lib/queries';
 import { CHAVE_FRASES, criarApiFrases, type ApiFrases } from './api';
 import { MENSAGEM_ERRO_FRASE, mensagemDoErroFrase, moverFrase } from './frases';
+import { ErroCampo } from '../campo';
 
 const CAMPO = 'h-[44px] w-full rounded-xl border border-field bg-surface px-3 text-[15px] font-normal text-ink';
 
@@ -114,11 +115,7 @@ export function FrasesDoDiaPanel({ cliente, hoje }: { cliente?: ApiFrases; hoje?
                   Adicionar
                 </Button>
               </div>
-              {erroNova && (
-                <span id="frases.nova.erro" className="text-danger" data-testid="frases.nova.erro">
-                  {erroNova}
-                </span>
-              )}
+              <ErroCampo id="frases.nova.erro" texto={erroNova ?? undefined} />
             </div>
             <ol className="m-0 flex list-none flex-col p-0">
               {frases.map((f, i) => (
@@ -142,11 +139,7 @@ export function FrasesDoDiaPanel({ cliente, hoje }: { cliente?: ApiFrases; hoje?
                         </Button>
                         <Button onClick={() => setEdicao(null)}>Cancelar</Button>
                       </div>
-                      {edicao.erro && (
-                        <span id="frases.editar.erro" className="text-danger" data-testid="frases.editar.erro">
-                          {edicao.erro}
-                        </span>
-                      )}
+                      <ErroCampo id="frases.editar.erro" texto={edicao.erro ?? undefined} />
                     </div>
                   ) : (
                     <>

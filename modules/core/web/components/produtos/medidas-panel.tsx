@@ -91,42 +91,40 @@ export function MedidasPanel({ onAviso }: { onAviso: (texto: string) => void }) 
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando as medidas…" />}
       {lista.data && (
-        <>
-          <TableScroll minWidth={640}>
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr>
-                  <th className={th}>Sigla</th>
-                  <th className={th}>Descrição</th>
-                  <th className={th}>Produtos</th>
-                  <th className={th}>Ações</th>
+        <TableScroll minWidth={640}>
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr>
+                <th className={th}>Sigla</th>
+                <th className={th}>Descrição</th>
+                <th className={th}>Produtos</th>
+                <th className={th}>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itens.map((m) => (
+                <tr key={m.id} data-testid={`medidas.linha.${m.sigla}`}>
+                  <td className={`${td} font-semibold`}>
+                    {m.sigla} {!m.ativo && <Badge tone="warning">Inativa</Badge>}
+                  </td>
+                  <td className={td}>{m.descricao}</td>
+                  <td className={td}>{m.em_uso === 0 ? <span className="text-ink-2">sem uso</span> : `${m.em_uso} em uso`}</td>
+                  <td className={td}>
+                    <MenuAcoes
+                      rotulo={`Ações da medida ${m.sigla}`}
+                      testId={`medidas.acoes.${m.sigla}`}
+                      acoes={[
+                        { id: 'editar', rotulo: 'Editar', desligada: !pode, aoEscolher: () => setRascunho({ id: m.id, existente: true, sigla: m.sigla, descricao: m.descricao, siglaTravada: m.em_uso > 0 }), testId: `medidas.editar.${m.sigla}` },
+                        { id: 'alternar', rotulo: m.ativo ? 'Inativar' : 'Reativar', desligada: !pode || alternar.isPending, aoEscolher: () => alternar.mutate(m), testId: `medidas.alternar.${m.sigla}` },
+                        { id: 'apagar', rotulo: m.em_uso > 0 ? 'Remover (em uso: inative)' : 'Remover', perigo: true, desligada: !pode || apagar.isPending || m.em_uso > 0, aoEscolher: () => apagar.mutate(m), testId: `medidas.apagar.${m.sigla}` },
+                      ]}
+                    />
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {itens.map((m) => (
-                  <tr key={m.id} data-testid={`medidas.linha.${m.sigla}`}>
-                    <td className={`${td} font-semibold`}>
-                      {m.sigla} {!m.ativo && <Badge tone="warning">Inativa</Badge>}
-                    </td>
-                    <td className={td}>{m.descricao}</td>
-                    <td className={td}>{m.em_uso === 0 ? <span className="text-ink-2">sem uso</span> : `${m.em_uso} em uso`}</td>
-                    <td className={td}>
-                      <MenuAcoes
-                        rotulo={`Ações da medida ${m.sigla}`}
-                        testId={`medidas.acoes.${m.sigla}`}
-                        acoes={[
-                          { id: 'editar', rotulo: 'Editar', desligada: !pode, aoEscolher: () => setRascunho({ id: m.id, existente: true, sigla: m.sigla, descricao: m.descricao, siglaTravada: m.em_uso > 0 }), testId: `medidas.editar.${m.sigla}` },
-                          { id: 'alternar', rotulo: m.ativo ? 'Inativar' : 'Reativar', desligada: !pode || alternar.isPending, aoEscolher: () => alternar.mutate(m), testId: `medidas.alternar.${m.sigla}` },
-                          { id: 'apagar', rotulo: m.em_uso > 0 ? 'Remover (em uso: inative)' : 'Remover', perigo: true, desligada: !pode || apagar.isPending || m.em_uso > 0, aoEscolher: () => apagar.mutate(m), testId: `medidas.apagar.${m.sigla}` },
-                        ]}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        </>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
       {rascunho && (
         <Dialog
