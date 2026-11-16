@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { formatBRL } from '@macuxi/comum';
 import { localIsoDate } from '@macuxi/comum/fuso';
+import { useAmbiente } from '@macuxi/platform-sdk/react';
 import { downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, CampoBusca, CLASSE_CAMPO_BASE, type ColunaDaTabela, ErrorBlock, EstadoVazio, FilterBar, formatDateTime, LoadingBlock, type AcaoDoMenu, MenuAcoes, nomeLegivel, PageHeader, rotuloComContagem, SelectField, SeloSituacao, TabelaDados, useToast } from '@macuxi/ui/web';
 import { ORDER_STATUS_LABEL, ORDER_STATUSES, type Order } from '../../../contracts';
@@ -32,6 +33,7 @@ function dataCurta(iso: string, tz: string): string {
  */
 export function OrdersPage() {
   const sessao = useSessaoDoBko();
+  const ambiente = useAmbiente();
   const toast = useToast();
   const [filtros, mudar] = useFiltrosNaUrl();
   const [aberto, setAberto] = useState<Order | null>(null);
@@ -65,7 +67,7 @@ export function OrdersPage() {
   const pdfDaLinha = async (o: Order, view: 'customer' | 'bko') => {
     try {
       const { pedido } = lerDetalheDoPedido(await api<unknown>(`/vendedor/pedidos/${o.id}`));
-      await exportarPdfDoPedido(pedido, view, { empresa: sessao.empresa, tz });
+      await exportarPdfDoPedido(pedido, view, { ambiente, tz });
     } catch (e) {
       toast('danger', ERRO_IMPRESSAO(errorMessage(e)));
     }
@@ -83,7 +85,7 @@ export function OrdersPage() {
 
   const colunas: ColunaDaTabela<Order>[] = [
     { id: 'cliente', titulo: 'Cliente', celula: (o) => nomeLegivel(o.customer_name), texto: (o) => o.customer_name, largura: '34%' },
-    { id: 'numero', titulo: 'Nº', celula: (o) => <span className="font-mono">{o.number || '—'}</span>, texto: (o) => o.number, prioridade: 2, largura: '92px' },
+    { id: 'numero', titulo: 'Nº', celula: (o) => <span className="tabular-nums">{o.number || '—'}</span>, texto: (o) => o.number, prioridade: 2, largura: '92px' },
     { id: 'vendedor', titulo: 'Vendedor', celula: (o) => o.seller_name, texto: (o) => o.seller_name, prioridade: 2 },
     { id: 'recebido', titulo: 'Recebido', celula: (o) => dataCurta(o.received_at, tz), texto: (o) => formatDateTime(o.received_at, tz), numero: true, prioridade: 3, largura: '116px' },
     { id: 'valor', titulo: 'Valor', celula: (o) => formatBRL(o.total_cents), numero: true, largura: '116px' },
@@ -98,7 +100,7 @@ export function OrdersPage() {
     <>
       <PageHeader
         title={titulo}
-        badge={soma !== null && quantidade > 0 ? <span className="font-display text-[18px] font-bold text-ink-2" data-testid="pedidos.total">{formatBRL(soma)}</span> : undefined}
+        badge={soma !== null && quantidade > 0 ? <span className="text-[17px] font-semibold text-ink-2" data-testid="pedidos.total">{formatBRL(soma)}</span> : undefined}
         actions={<MenuAcoes acoes={acoesDaPagina} rotulo="Mais ações" testId="pedidos.mais-acoes" />}
       />
 
@@ -131,9 +133,9 @@ export function OrdersPage() {
         <fieldset className="m-0 flex min-w-0 flex-col gap-[3px] border-0 p-0">
           <legend className="float-left mb-[3px] p-0 text-[12px] font-semibold text-ink-2">Período</legend>
           <div className={`${CLASSE_CAMPO_BASE} clear-both flex h-[38px] items-center gap-1 px-2`}>
-            <input type="date" aria-label="Período: de" className="w-[128px] bg-transparent text-[14px] outline-none" value={filtros.from} max={filtros.to || undefined} onChange={(e) => set('from', e.target.value)} data-testid="pedidos.filtro-de" />
+            <input type="date" aria-label="Período: de" className="w-[128px] bg-transparent text-[15px] outline-none" value={filtros.from} max={filtros.to || undefined} onChange={(e) => set('from', e.target.value)} data-testid="pedidos.filtro-de" />
             <span aria-hidden="true" className="text-ink-2">a</span>
-            <input type="date" aria-label="Período: até" className="w-[128px] bg-transparent text-[14px] outline-none" value={filtros.to} min={filtros.from || undefined} onChange={(e) => set('to', e.target.value)} data-testid="pedidos.filtro-ate" />
+            <input type="date" aria-label="Período: até" className="w-[128px] bg-transparent text-[15px] outline-none" value={filtros.to} min={filtros.from || undefined} onChange={(e) => set('to', e.target.value)} data-testid="pedidos.filtro-ate" />
           </div>
         </fieldset>
         {temFiltro(filtros) && (

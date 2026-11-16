@@ -90,7 +90,7 @@ clientes de Manaus — supermercado/atacarejo semanal, o resto quinzenal —, vi
 pedidos com a linha do tempo e as aprovações pendentes com o crédito do cliente). Alertas e regras não são semeados
 (reconciliação na leitura; regra sem ajuste = padrão). Upsert pelas chaves naturais (idempotente).
 
-## 0081 — tipos de alerta de produtividade (`0081_core_almoco_gestor_alerta_produtividade`; T-0180, D3/D4)
+## 0084 — tipos de alerta de produtividade (`0084_core_almoco_gestor_alerta_produtividade`; T-0180, D3/D4)
 `alerta_tipo_valido` (gestor.alerta) passa a aceitar também `parado_entre_visitas` e `sem_checkin_inicio`, os únicos alertas
 de produtividade que vão ao gestor (sem push; só a lista de Alertas). `alerta_regra_tipo_valido` **não muda**: as regras de
 produtividade ficam no parâmetro `alertas.produtividade` do Core (JSON validado por Zod), sem linha em `gestor.alerta_regra`.

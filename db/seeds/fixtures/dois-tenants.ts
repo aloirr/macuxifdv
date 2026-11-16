@@ -85,7 +85,7 @@
  * - 0074 (ADR 0054; SYNC_PACOTE_FIXTURE, grupos 0x68 e 0x69): pacotes da primeira carga — A com o 'catalogo' · 'tenant'
  *   pronto, o 'catalogo' · 'filial:<padrão>' pronto e um 'catalogo' · 'tenant' substituído; B com o 'core' · 'tenant' pronto.
  *   Pedidos de geração já atendidos (A: lote; B: manifesto): nenhum pendente (o teste grava o seu em transação desfeita).
- * - 0081 (T-0180, ADR 0059 §5; USUARIO_CONTATO_FIXTURE, grupo 0x6f): último contato do aparelho — A: vendedor-2; B: admin-B,
+ * - 0084 (T-0180, ADR 0059 §5; USUARIO_CONTATO_FIXTURE, grupo 0x6f): último contato do aparelho — A: vendedor-2; B: admin-B,
  *   ambos em DATA_FIXA_ACESSO. Fora dos usuários que almoco-alerta-produtividade.db.test.ts usa (vendedor-1 e promotor de A).
  */
 import { createHash, createHmac } from 'node:crypto';
@@ -219,7 +219,7 @@ const G = {
   trabalho: 0x6b,
   foto_lote: 0x6c,
   foto_lote_item: 0x6d,
-  // 0081 (T-0180, ADR 0059 §5): último contato do aparelho por usuário
+  // 0084 (T-0180, ADR 0059 §5): último contato do aparelho por usuário
   usuario_contato: 0x6f,
 } as const;
 
@@ -426,7 +426,7 @@ export const SYNC_PACOTE_FIXTURE = {
   B: { core: b('sync_pacote', 1), pedido: b('sync_pacote_pedido', 1) },
 } as const;
 
-/** 0081 (T-0180, ADR 0059 §5): último contato do aparelho, uma linha em A e uma em B (ver o cabeçalho). */
+/** 0084 (T-0180, ADR 0059 §5): último contato do aparelho, uma linha em A e uma em B (ver o cabeçalho). */
 export const USUARIO_CONTATO_FIXTURE = {
   A: { vendedor2: a('usuario_contato', 1) },
   B: { admin: b('usuario_contato', 1) },
@@ -766,7 +766,7 @@ export const ORDEM_TABELAS = [
   'catalogo.foto_lote',
   'catalogo.foto_lote_item',
   'plataforma.trabalho',
-  // 0081 (T-0180): último contato do aparelho (FK -> core.usuario)
+  // 0084 (T-0180): último contato do aparelho (FK -> core.usuario)
   'core.usuario_contato',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
   ...ORDEM_GESTOR,

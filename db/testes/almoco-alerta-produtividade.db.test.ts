@@ -1,6 +1,6 @@
 /**
- * 0081 — almoço do usuário e tipos de alerta de produtividade (T-0180, D3/D4/D5; RN-CORE-44, RF-GES-07).
- * Dicionário: docs/banco/core.md e docs/banco/gestor.md, "0081".
+ * 0084 — almoço do usuário e tipos de alerta de produtividade (T-0180, D3/D4/D5; RN-CORE-44, RF-GES-07).
+ * Dicionário: docs/banco/core.md e docs/banco/gestor.md, "0084".
  * - core.usuario ganha almoco_inicio_min e almoco_fim_min (smallint, minutos do dia; as duas nulas = padrão da empresa);
  *   CHECKs: as duas ou nenhuma, 0..1439, fim > início com duração de 15 a 180 min;
  * - gestor.alerta aceita parado_entre_visitas e sem_checkin_inicio; gestor.alerta_regra não;
@@ -49,9 +49,9 @@ function listaDoCheck(sql: string, nome: string): string[] {
   return [...m![1]!.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]!);
 }
 
-describe('0081 almoço do usuário e alertas de produtividade (estático)', () => {
-  it('nome e posição: 0081_core_almoco_gestor_alerta_produtividade é a 0081', () => {
-    expect(`${m81.versao}_${m81.nome}`).toBe('0081_core_almoco_gestor_alerta_produtividade');
+describe('0084 almoço do usuário e alertas de produtividade (estático)', () => {
+  it('nome e posição: 0084_core_almoco_gestor_alerta_produtividade é a 0084', () => {
+    expect(`${m81.versao}_${m81.nome}`).toBe('0084_core_almoco_gestor_alerta_produtividade');
   });
 
   it('aditiva no core.usuario: 2 colunas smallint nulas e 3 CHECKs, sem backfill, índice nem RLS; grant só ao macuxi_leitura (0078)', () => {
@@ -117,7 +117,7 @@ describe('0081 almoço do usuário e alertas de produtividade (estático)', () =
   });
 });
 
-describe.skipIf(semBanco())('0081 almoço do usuário e alertas de produtividade (banco, papel de aplicação)', () => {
+describe.skipIf(semBanco())('0084 almoço do usuário e alertas de produtividade (banco, papel de aplicação)', () => {
   let app: pg.Client;
   beforeAll(async () => {
     app = new pg.Client({ connectionString: banco().urlApp });
@@ -167,7 +167,7 @@ describe.skipIf(semBanco())('0081 almoço do usuário e alertas de produtividade
       for (const tipo of NOVOS) {
         const r = await q(
           `insert into gestor.alerta (tenant_id, chave, tipo, alvo_tipo, alvo_id, severidade, mensagem, aberto_em)
-           values ($1, $2, $3, 'usuario', $4, 'atencao', 'Teste 0081', now()) returning tipo`,
+           values ($1, $2, $3, 'usuario', $4, 'atencao', 'Teste 0084', now()) returning tipo`,
           [A.tenantId, `${tipo}:${A.usuarios.vendedor1}`, tipo, A.usuarios.vendedor1],
         );
         expect(r.rows).toEqual([{ tipo }]);
@@ -228,7 +228,7 @@ describe.skipIf(semBanco())('0081 almoço do usuário e alertas de produtividade
   });
 });
 
-describe.skipIf(semBanco())('0081 up/down (banco efêmero)', () => {
+describe.skipIf(semBanco())('0084 up/down (banco efêmero)', () => {
   let b: BancoDeTeste;
   const T = 'cccccccc-0000-4000-8000-000000000085';
   const U = 'cccccccc-0000-4000-8000-000000001085';
@@ -239,7 +239,7 @@ describe.skipIf(semBanco())('0081 up/down (banco efêmero)', () => {
     await b?.apagar();
   });
 
-  it('usuário existente fica no padrão com o mesmo updated_at; down apaga os alertas novos e volta ao catálogo da 0080; up de novo igual', async () => {
+  it('usuário existente fica no padrão com o mesmo updated_at; down apaga os alertas novos e volta ao catálogo da 0083; up de novo igual', async () => {
     await comAdmin(b.nome, async (c) => {
       await migrarUp(c, { ate: migracoes[migracoes.indexOf(m81) - 1]!.versao });
       const antes = await retratoDoCatalogo(c);
@@ -256,7 +256,7 @@ describe.skipIf(semBanco())('0081 up/down (banco efêmero)', () => {
       expect(u1).toEqual({ updated_at: u0.updated_at, almoco_inicio_min: null, almoco_fim_min: null });
       await c.query('update core.usuario set almoco_inicio_min = 720, almoco_fim_min = 780 where id = $1', [U]);
       await c.query(
-        "insert into gestor.alerta (tenant_id, chave, tipo, alvo_tipo, alvo_id, severidade, mensagem, aberto_em) values ($1, $2, 'parado_entre_visitas', 'usuario', $3, 'atencao', 'Teste 0081', now())",
+        "insert into gestor.alerta (tenant_id, chave, tipo, alvo_tipo, alvo_id, severidade, mensagem, aberto_em) values ($1, $2, 'parado_entre_visitas', 'usuario', $3, 'atencao', 'Teste 0084', now())",
         [T, `produtividade:${U}`, U],
       );
       expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual([`${m81.versao}_${m81.nome}`]);
