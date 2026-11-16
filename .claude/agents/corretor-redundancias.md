@@ -90,6 +90,7 @@ Confirmação de ação destrutiva, rótulo de acessibilidade, indicador de offl
   2. repetição: uma informação, um lugar, e aviso só em "Alertas";
   3. texto além do problema e da ação;
   4. comentário ou título de teste desatualizado.
+- **Regras comuns**: você não carrega a skill `protocolo-recados`. Leia a seção "Lições de 15/11" de `.claude/skills/protocolo-recados/SKILL.md` (verificar e trailer, nada sem push, CI vermelho) e o "1 push por PR" de `.claude/skills/entrega/SKILL.md`. Valem para você.
 - **Permissão** (erro 12: a L6 ficou presa num pedido de `git worktree remove --force`): não use comando que pede permissão sem necessidade e não remova worktree.
 
 ## Pronto quando
