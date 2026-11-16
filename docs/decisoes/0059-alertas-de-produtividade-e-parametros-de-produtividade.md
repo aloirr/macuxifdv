@@ -2,7 +2,7 @@
 
 - **Status**: proposta em 2026-11-15 (branch `nuvem/T-0180-alertas-engenheiro-software`); revista no mesmo dia (rodada 2) com as
   decisões do gerente-projetos tomadas depois da rodada 1: ação `parametro.alertas_produtividade`, rota própria do `parado_min`,
-  permanência mínima fora do Gestor na v1.0.13, tabela `core.usuario_contato` na 0085 e almoço descontado do "parado"; na rodada 5,
+  permanência mínima fora do Gestor na v1.0.13, tabela `core.usuario_contato` na migração dos alertas (#395) e almoço descontado do "parado"; na rodada 5,
   `ctx.gravarParametros` (§8).
 - **Data**: 2026-11-15 (Manaus)
 - **Autor**: engenheiro-software
@@ -10,7 +10,7 @@
   por delegação escrita do dono do produto). Desenho: `docs/desenho/T-0180.md`; proposta funcional do Gestor:
   `docs/modulos/gestor/alertas-produtividade.md` (branch `nuvem/T-0180-alertas-modulo-gestor`).
 - **Quem implementa**: modulo-core (parâmetro, consulta, contato do aparelho), modulo-gestor (avaliação e chave), banco-dados
-  (0085, com `core.usuario_contato`), engenheiro-software (gancho do contato no SDK e na API, `ctx.gravarParametros` da §8, esta
+  (a migração dos alertas (#395), com `core.usuario_contato`), engenheiro-software (gancho do contato no SDK e na API, `ctx.gravarParametros` da §8, esta
   ADR). A consulta da permanência
   no Promotor e a migração da cópia ficam para uma tarefa seguinte da esteira (§6).
 
@@ -34,7 +34,7 @@
      filtro vira padrão ligado numa revisão desta ADR (mesma versão de rota).
    - `alertas/regras` devolve só as 6 regras da equipe (`TIPOS_REGRA_EQUIPE`) e `PUT alertas/regras/:tipo` aceita só esses 6
      (`ParamsTipoAlerta` com `TIPOS_REGRA_EQUIPE`): os tipos de produtividade não têm linha em `gestor.alerta_regra` (o CHECK
-     `alerta_regra_tipo_valido` da 0085 continua recusando) e o 422/400 sai antes do banco.
+     `alerta_regra_tipo_valido` da migração dos alertas (#395) continua recusando) e o 422/400 sai antes do banco.
    - Daqui em diante, enum em resposta lida pelo app instalado é contrato: valor novo exige filtro por opção do cliente, como acima.
 2. **`alertas.produtividade` do Core é a fonte única** dos lembretes do Campo e da avaliação do Gestor.
    - Guardado em `plataforma.parametro` (módulo `core`, chave `alertas.produtividade`), JSON validado pelo Zod
@@ -63,7 +63,7 @@
    - Plataforma (feito nesta ADR): `ModuloApi.contatoDoAparelho?(ctx)`, só core (`definirModuloApi` recusa nos outros); a API
      chama depois do novidades e do push, com o contexto do core do usuário, em melhor esforço (erro vira `warn` sem dado
      pessoal; a sincronização responde normalmente). O pull não conta (cada página seria uma escrita).
-   - Core: grava na tabela própria `core.usuario_contato (tenant_id, usuario_id, contato_em, …)`, criada pela migração 0085 do
+   - Core: grava na tabela própria `core.usuario_contato (tenant_id, usuario_id, contato_em, …)`, criada pela migração dos alertas (#395) do
      banco-dados (b7af968) com RLS e as colunas obrigatórias, um registro por usuário (`usuario_contato_usuario_uk`), `insert … on conflict do update … where contato_em < excluded.contato_em - 1 min`
      (trava de frequência no SQL; idempotente). **Não** em `core.usuario`: o `updated_at` andaria a cada sincronização e todo
      aparelho puxaria o usuário de novo.
@@ -131,6 +131,6 @@
 - O Gestor depende de `core.produtividade_equipe@1`; sem o PR do Core, os alertas de produtividade não são avaliados (o
   `produtividade` ausente desliga os dois tipos, como já está no domain).
 - Uma escrita a mais por usuário e por minuto, no máximo, na sincronização (a trava fica no SQL do Core).
-- Os alertas novos precisam da 0085 no banco (tipos novos e `core.usuario_contato`) antes do código do Core e do Gestor que os
+- Os alertas novos precisam da migração dos alertas (#395) no banco (tipos novos e `core.usuario_contato`) antes do código do Core e do Gestor que os
   grava (ordem de merge: banco-dados, Core, Gestor).
 - Até a tarefa seguinte da §6, a "Visita curta" do Gestor segue com a cópia `gestor`/`permanencia_min_min`, sem tela para editá-la.
