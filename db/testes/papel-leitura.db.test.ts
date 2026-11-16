@@ -8,7 +8,8 @@
  * - EXECUTE em plataforma.tenant_por_codigo(text) e em nenhuma plataforma.sa_*; as só por função seguem 42501;
  * - SELECT por coluna onde há coluna sensível (hash, token, senha, segredo, chave, carga; regra 8: a saída vai ao log do
  *   Actions): senha_hash nunca é lida (42501); a view core.v_leitura_usuario_senha dá só tem_senha, do tenant da sessão;
- * - conferir-rls.sql acusa escrita, coluna sensível, EXECUTE indevido e tabela sem a leitura; up/down; config e B0.
+ * - conferir-rls.sql acusa escrita, coluna sensível, EXECUTE indevido (fora o de event_trigger) e tabela sem a leitura;
+ *   up/down; config e B0.
  * Estático (sempre) + banco (fixture dois-tenants com ROLLBACK; up/down num banco efêmero). Nada roda em base real.
  */
 import { readFileSync } from 'node:fs';
@@ -388,6 +389,24 @@ describe.skipIf(semBanco())('0078 papel de leitura (banco, fixture dois-tenants)
         expect.objectContaining({ tabela: '(papel) macuxi_leitura', problema: expect.stringMatching(/^EXECUTE em plataforma\.sa_/) }),
       ]));
       expect(r.rows).toHaveLength(5);
+    } finally {
+      await admin.query('rollback');
+    }
+  });
+
+  it('conferir-rls acusa o EXECUTE (via PUBLIC) em SECURITY DEFINER comum e ignora a que retorna event_trigger (pgaudit do DBaaS)', async () => {
+    await admin.query('begin');
+    try {
+      await admin.query("create function public.x0078_gatilho_ddl() returns event_trigger language plpgsql security definer as 'begin end'");
+      await admin.query('grant execute on function public.x0078_gatilho_ddl() to public');
+      const soGatilho = await admin.query<{ tabela: string; problema: string }>(SQL_CONFERIR_RLS);
+      expect(soGatilho.rows).toEqual([]);
+      await admin.query("create function public.x0078_definer() returns int language sql security definer as 'select 1'");
+      await admin.query('grant execute on function public.x0078_definer() to public');
+      const r = await admin.query<{ tabela: string; problema: string }>(SQL_CONFERIR_RLS);
+      expect(r.rows).toEqual([
+        { tabela: '(papel) macuxi_leitura', problema: 'EXECUTE em x0078_definer() (0078: só plataforma.tenant_por_codigo(text))' },
+      ]);
     } finally {
       await admin.query('rollback');
     }
