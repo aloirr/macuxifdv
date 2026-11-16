@@ -45,10 +45,10 @@ describe('copiar o código do produto', () => {
     const comum = fonte('telas/comum.tsx');
     const produto = fonte('telas/produto.tsx');
     expect(comum).toContain('BotaoCopiarCodigo');
-    expect(produto).toContain('<BotaoCopiarCodigo codigo={item.erp_code} variante="faixa"');
+    expect(produto).toContain('<BotaoCopiarCodigo');
     expect(comum).toContain("'copy'");
-    // Um aviso só, no ícone do cartão e no da faixa da ficha: toast no Android, anúncio do leitor de tela nos demais; o ✓ dura 2 s.
-    expect(comum).toContain("if (Platform.OS === 'android') ToastAndroid.show");
+    // Um aviso só: o toast é só do ícone da lista; a ficha confirma pelo rótulo e o leitor de tela anuncia quando não há toast.
+    expect(comum).toContain("if (variante === 'icone' && Platform.OS === 'android') ToastAndroid.show");
     expect(comum).toContain('else AccessibilityInfo.announceForAccessibility');
     for (const arq of [comum, produto, fonte('telas/catalogo.tsx')]) expect(arq).not.toMatch(/['"`>]\s*Adicionar ao pedido/);
   });

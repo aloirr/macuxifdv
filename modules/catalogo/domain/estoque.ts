@@ -5,8 +5,11 @@
  * O saldo é o do ERP; reservas de pedido são descontadas pelo Vendedor (RN-VEN-20), não aqui.
  */
 import type { EstoqueVisivel, FaixaEstoque, StockByBranch } from '../contracts';
+import { localDate } from '@macuxi/comum';
 import type { ParametrosCatalogo } from './parametros';
 
+/** RN-CAT-07: aviso discreto quando `stale` é true. Transição: sai na parte 2 do Catálogo v2 (comum.tsx/produto.tsx). */
+export const AVISO_ESTOQUE_DESATUALIZADO = 'Estoque desatualizado';
 export const ROTULO_SEM_HORA = 'Sem hora de atualização';
 
 export interface OpcoesEstoque {
@@ -85,4 +88,40 @@ export function estoqueVisivel(produtoId: string, saldos: readonly StockByBranch
     updated_at: maisAntiga === null ? null : new Date(maisAntiga).toISOString(),
     stale: doTotal.length > 0 && (algumSemHora || (maisAntiga !== null && agora - maisAntiga > horas * 3_600_000)),
   };
+}
+
+// Transição até a parte 2 do Catálogo v2 (depois do #382, #387 e #427): `rotuloAtualizacaoEstoque` (apresentacao.ts) e
+// `filiaisDoEstoque` (repositorio-postgres.ts) saem quando rotas.ts, repositorio-postgres.ts, comum.tsx e produto.tsx passarem a
+// `estoque-campo.ts`.
+/**
+ * RN-CAT-07: "Atualizado às hh:mm" no fuso do tenant; se a atualização foi em outro dia (no fuso do tenant),
+ * "Atualizado em dd/mm às hh:mm". Sem hora conhecida: "Sem hora de atualização".
+ */
+export function rotuloAtualizacaoEstoque(estoque: Pick<EstoqueVisivel, 'updated_at'>, agora: string, fuso: string): string {
+  if (estoque.updated_at === null) return ROTULO_SEM_HORA;
+  const t = new Date(estoque.updated_at);
+  const a = new Date(agora);
+  if (Number.isNaN(t.getTime()) || Number.isNaN(a.getTime())) throw new RangeError('Informe os instantes em ISO 8601 UTC.');
+  const hora = new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(t);
+  if (localDate(t, fuso) === localDate(a, fuso)) return `Atualizado às ${hora}`;
+  const dia = new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, day: '2-digit', month: '2-digit' }).format(t);
+  return `Atualizado em ${dia} às ${hora}`;
+}
+
+export interface EntradaFiliaisDoEstoque {
+  /** Filial efetiva do cliente do contexto (Novo pedido, ficha do cliente); nula = sem cliente no contexto. */
+  filialDoCliente: string | null;
+  /** Vendedor/supervisor veem a carteira; analista, assistente e admin veem o tenant (RN-CORE-04). */
+  escopo: 'carteira' | 'tenant';
+  /** Filiais dos clientes da carteira + a padrão (`core.filiais@1 { escopo: 'carteira' }.da_carteira`); nulo = todas. */
+  filiaisDaCarteira: readonly string[] | null;
+}
+
+/**
+ * RN-CORE-39 + RN-CAT-07: filiais cujo saldo o usuário vê (o argumento `filiais` de `estoqueVisivel`). Com cliente no
+ * contexto vale só a filial dele (sem saldo nela = 0, nunca o da padrão); sem cliente, a carteira ou o tenant todo (`null`).
+ */
+export function filiaisDoEstoque(e: EntradaFiliaisDoEstoque): readonly string[] | null {
+  if (e.filialDoCliente !== null) return [e.filialDoCliente];
+  return e.escopo === 'tenant' ? null : e.filiaisDaCarteira;
 }

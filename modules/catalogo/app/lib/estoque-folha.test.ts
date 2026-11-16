@@ -15,29 +15,28 @@ const disp = (por: { id: string; nome: string; q: number | null }[], o: Partial<
 const AGORA = '2026-11-15T16:00:00Z';
 
 describe('folha "Estoque por filial" (catalogo-campo-v2 §2.1)', () => {
-  it('spec §2.1: linha "código · Atualizado às hh:mm" no fuso do tenant; a filial de cadastro primeiro, "sua filial", as outras em ordem alfabética', () => {
+  it('spec §2.1: linha "Atualizado às hh:mm" (sem o código, RD-1704) no fuso do tenant; a filial de cadastro primeiro, "sua filial", as outras em ordem alfabética', () => {
     const d = dadosDaFolha({
-      codigo: 'PAF.1434',
       availability: disp([{ id: 'v', nome: 'Boa Vista', q: 0 }, { id: 'b', nome: 'Belém', q: -2 }, { id: 'm', nome: 'Manaus', q: 12 }]),
       cargaEm: '2026-11-15T10:12:00Z',
       filialCadastro: 'v',
       agora: AGORA,
       fuso: 'America/Manaus',
     });
-    expect(d.apoio).toBe('PAF.1434 · Atualizado às 06:12');
+    expect(d.apoio).toBe('Atualizado às 06:12');
     expect(d.linhas.map((l) => [l.nome, l.valor, l.propria])).toEqual([['Boa Vista', '0', true], ['Belém', '−2', false], ['Manaus', '12', false]]);
     expect(d.leitura.map((l) => l.texto)).toEqual(['Boa Vista, sua filial, estoque 0', 'Belém, estoque menos 2', 'Manaus, estoque 12']);
   });
 
   it('decisão 3 do R-20261115-100000: a folha lista só as filiais de venda, sem linha "Total"', () => {
-    const d = dadosDaFolha({ codigo: 'C', availability: disp([{ id: 'w', nome: 'W', q: 2 }, { id: 'v', nome: 'V', q: 1 }]), cargaEm: AGORA, filialCadastro: 'w', agora: AGORA, fuso: 'America/Manaus' });
+    const d = dadosDaFolha({ availability: disp([{ id: 'w', nome: 'W', q: 2 }, { id: 'v', nome: 'V', q: 1 }]), cargaEm: AGORA, filialCadastro: 'w', agora: AGORA, fuso: 'America/Manaus' });
     expect(d.linhas.map((l) => l.nome)).toEqual(['W', 'V']);
     expect(d.leitura.some((l) => /total/i.test(l.texto))).toBe(false);
   });
 
   it('RN-CAT-07: estoque desatualizado mostra só a hora da carga, sem repetir a idade na linha', () => {
-    const velho = dadosDaFolha({ codigo: 'C', availability: disp([{ id: 'v', nome: 'V', q: 1 }], { stale: true }), cargaEm: '2026-11-15T10:12:00Z', filialCadastro: null, agora: AGORA, fuso: 'America/Manaus' });
-    expect(velho.apoio).toBe('C · Atualizado às 06:12');
+    const velho = dadosDaFolha({ availability: disp([{ id: 'v', nome: 'V', q: 1 }], { stale: true }), cargaEm: '2026-11-15T10:12:00Z', filialCadastro: null, agora: AGORA, fuso: 'America/Manaus' });
+    expect(velho.apoio).toBe('Atualizado às 06:12');
   });
 });
 

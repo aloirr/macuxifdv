@@ -44,11 +44,13 @@ describe('RN-CORE-39: pull de preço e estoque só das filiais da carteira (T-01
   const provedores = provedoresSyncCatalogo.filter((p) => POR_FILIAL.includes(nome(p)));
   const pedido = { ate: '2026-11-10T12:00:00Z', desde: null, limite: 500 } as never;
 
-  it('RN-CORE-39: a variacaoEscopo das 4 entidades por filial muda quando a lista de filiais da carteira muda', async () => {
+  it('RN-CORE-39: a variacaoEscopo das 4 entidades por filial muda com a lista: carteira no preço, filiais de venda do usuário no estoque (RD-1708)', async () => {
     for (const p of provedores) {
-      const so = await p.variacaoEscopo!(ctxDe('vendedor', {}, [MAO]));
-      const duas = await p.variacaoEscopo!(ctxDe('vendedor', {}, [MAO, BVB]));
-      const igual = await p.variacaoEscopo!(ctxDe('vendedor', {}, [BVB, MAO]));
+      const doEstoque = ['deposito', 'estoque_saldo'].includes(nome(p));
+      const ctx = (ids: string[]) => (doEstoque ? ctxDe('vendedor', {}, [MAO], ids) : ctxDe('vendedor', {}, ids));
+      const so = await p.variacaoEscopo!(ctx([MAO]));
+      const duas = await p.variacaoEscopo!(ctx([MAO, BVB]));
+      const igual = await p.variacaoEscopo!(ctx([BVB, MAO]));
       expect(so, nome(p)).toContain(';filiais=');
       expect(so, nome(p)).not.toBe(duas);
       expect(duas, nome(p)).toBe(igual);

@@ -11,7 +11,6 @@ import type { ItemTabelaPreco, MidiaProduto, OfereceJunto, Promocao, SalvarCadas
 import type { NoCatalogo, VinculoProdutoNo } from '../domain/arvore';
 import { agruparTermosSemResultado, type ConteudoGuardado, type RegistroBusca } from '../domain/conteudo';
 import type { LinhaEscalonada } from '../domain/escalonada';
-import type { FiliaisDoUsuario } from '../domain/estoque-campo';
 import { precosDaFilialSemCliente } from '../domain/preco-filial';
 import type { UsoIa } from '../domain/limite-ia';
 import type { ProdutoCatalogo } from '../domain/vitrine';
@@ -45,10 +44,11 @@ export interface RepositorioCatalogo {
   promocoes(produtoIds: readonly string[]): Promise<Promocao[]>;
   /** Saldos por produto em todas as filiais (o domínio filtra pelas do usuário). */
   saldos(produtoIds: readonly string[]): Promise<Map<string, StockByBranch[]>>;
-  /** Filial efetiva do cliente (RN-CORE-39; sem informação, a padrão). Quais filiais o usuário vê é de `domain/estoque-campo.ts`. */
-  filialDoCliente(clienteId: string): Promise<string>;
-  /** Filiais de VENDA do PRÓPRIO usuário (`core.filiais_do_usuario@1`, T-0176, RN-CORE-39): base de preço, estoque, filtro e folha de todo perfil. */
-  filiaisDeVenda(): Promise<FiliaisDoUsuario>;
+  /**
+   * Filiais cujo saldo o usuário vê (RN-CORE-39, RN-CAT-07). Com cliente no contexto: só a filial efetiva dele (sem saldo = 0);
+   * sem cliente: as da carteira (vendedor, supervisor) ou `null` = todas (analista, assistente, admin).
+   */
+  filiaisDoUsuario(clienteId?: string | null): Promise<string[] | null>;
   conteudo(produtoId: string): Promise<{ conteudo: ConteudoGuardado | null; midias: MidiaProduto[] }>;
   /** RN-CAT-03: uso de IA do usuário no dia do tenant; `'indisponivel'` = sem onde guardar a cota (IA não é chamada). */
   usoIa(dia: string): Promise<UsoIa | null | 'indisponivel'>;
@@ -160,10 +160,8 @@ export interface DadosTenantMemoria {
   /** cliente_id → tabela_preco_id. */
   tabelaDoCliente?: Record<string, string>;
   saldos?: Map<string, StockByBranch[]>;
-  /** cliente_id → filial efetiva (ausente = a primeira filial de venda do usuário, ou a padrão). */
-  filialDoCliente?: Record<string, string>;
-  /** usuario_id → filiais de venda do próprio usuário (`core.filiais_do_usuario@1`); ausente = a filial padrão (como o banco de teste); lista vazia = sem filial (bloqueado). */
-  filiaisDeVenda?: Record<string, string[]>;
+  /** usuario_id → filiais (ausente = todas). */
+  filiaisDoUsuario?: Record<string, string[]>;
   conteudos?: Map<string, ConteudoGuardado>;
   midias?: Map<string, MidiaProduto[]>;
   /** Sem onde guardar a cota (simula banco sem a 0013). */
@@ -225,12 +223,8 @@ export function criarRepositorioMemoria(porTenant: Record<string, DadosTenantMem
         const ids = new Set(produtoIds);
         return new Map([...(d.saldos ?? new Map<string, StockByBranch[]>()).entries()].filter(([k]) => ids.has(k)).map(([k, v]) => [k, copia(v)]));
       },
-      async filialDoCliente(clienteId) {
-        return d.filialDoCliente?.[clienteId] ?? d.filiaisDeVenda?.[usuario]?.[0] ?? d.filiaisDaTela?.padraoId ?? FILIAL_PADRAO_MEMORIA;
-      },
-      async filiaisDeVenda() {
-        const ids = [...(d.filiaisDeVenda?.[usuario] ?? [d.filiaisDaTela?.padraoId ?? FILIAL_PADRAO_MEMORIA])];
-        return { filiaisVenda: ids, filialCadastro: ids[0] ?? null, semFilial: ids.length === 0 };
+      async filiaisDoUsuario() {
+        return d.filiaisDoUsuario?.[usuario] ? [...d.filiaisDoUsuario[usuario]] : null;
       },
       async conteudo(produtoId) {
         return { conteudo: copia(d.conteudos?.get(produtoId) ?? null), midias: copia(d.midias?.get(produtoId) ?? []) };

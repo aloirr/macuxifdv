@@ -3,7 +3,7 @@
  * "Estoque por filial" (tabela Filial | Estoque) e a folha "Filtrar" do Catálogo (filial e itens sem estoque). Só desenho: as
  * regras (quem vê quais filiais, texto, cor e ordem) vêm de `domain/estoque-campo.ts` e `lib/estoque-folha.ts`.
  */
-import { Botao, Button, colors, fonts, Folha, Icon } from '@macuxi/ui/mobile';
+import { Botao, Button, colors, Folha, fonte, Icon, type } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { TITULO_FOLHA_ESTOQUE, type DadosDaFolha, type OpcaoFiltroFilial } from '../lib/estoque-folha';
 
@@ -107,16 +107,16 @@ function Opcao({ divisor, rotulo, apoio, marcada, onPress, testID }: { divisor: 
 
 const e = StyleSheet.create({
   botao: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong },
-  apoio: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2, marginBottom: 8 },
+  apoio: { ...type.sub, marginBottom: 8 },
   cabecalho: { height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, backgroundColor: colors.neutralBg },
-  cabecalhoTexto: { fontFamily: fonts.semibold, fontSize: 13, color: colors.ink2 },
+  cabecalhoTexto: { ...fonte.semibold, fontSize: 14, color: colors.ink2 },
   linha: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
-  nome: { fontFamily: fonts.body, fontSize: 15, color: colors.ink },
-  sua: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
-  valor: { fontFamily: fonts.displayBold, fontSize: 16, fontVariant: ['tabular-nums'], textAlign: 'right' },
-  grupo: { fontFamily: fonts.semibold, fontSize: 13, color: colors.ink2, marginTop: 8, marginBottom: 4 },
+  nome: type.bodyStrong,
+  sua: type.sub,
+  valor: { ...fonte.semibold, fontSize: 16, fontVariant: ['tabular-nums'], textAlign: 'right' },
+  grupo: { ...fonte.semibold, fontSize: 14, color: colors.ink2, marginTop: 8, marginBottom: 4 },
   opcao: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4 },
-  opcaoTexto: { fontFamily: fonts.body, fontSize: 15, color: colors.ink },
-  opcaoTextoOn: { fontFamily: fonts.bold },
+  opcaoTexto: type.body,
+  opcaoTextoOn: fonte.semibold,
   divisor: { borderTopWidth: 1, borderTopColor: colors.line },
 });

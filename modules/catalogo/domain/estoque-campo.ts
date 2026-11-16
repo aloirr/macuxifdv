@@ -3,7 +3,6 @@
  * por perfil e filtro, quem vê quais filiais, texto e cor do "Estoque: N" e as linhas da folha "Estoque por filial".
  * O promotor VÊ o estoque (só o preço segue `promotor_ve_preco_estoque`); todo perfil vê só as filiais de VENDA dele (`filial_venda_ids`).
  */
-import type { Perfil } from '@macuxi/platform-sdk';
 import { localDate } from '@macuxi/comum';
 import { FilialDoUsuarioSchema } from '@macuxi/core/contracts';
 import type { FaixaEstoque } from '../contracts';
@@ -11,11 +10,6 @@ import { ROTULO_SEM_HORA } from './estoque';
 
 /** Filtro de filial escolhido na tela: `null` = o padrão do perfil; `'todas'` = "Todas as filiais"; senão o id da filial. */
 export type FiltroFilial = string | 'todas' | null;
-
-const SO_SUAS_FILIAIS: readonly Perfil[] = ['promotor', 'supervisor', 'gerente'];
-
-/** Perfis cujo pull de estoque já vem restrito às filiais do usuário (sync da v4, inalterado). */
-export const veSoSuasFiliais = (perfil: Perfil): boolean => SO_SUAS_FILIAIS.includes(perfil);
 
 /** Filiais do usuário como o Catálogo as lê (`core.filiais_do_usuario@1`, RN-CORE-39). */
 export interface FiliaisDoUsuario {
@@ -60,9 +54,7 @@ export function filiaisDoEstoque(usuario: FiliaisDoUsuario, e: FiltroDoEstoque):
 }
 
 /** spec §4: filiais da folha "Estoque por filial" = as de venda do usuário (todos os perfis); `sem_filial` = nenhuma. */
-export function filiaisDaFolha(usuario: FiliaisDoUsuario): readonly string[] {
-  return usuario.semFilial ? [] : [...usuario.filiaisVenda];
-}
+export const filiaisDaFolha = (usuario: FiliaisDoUsuario): readonly string[] => filiaisDoEstoque(usuario, { filialDoCliente: null, filtro: null });
 
 const MENOS = '−';
 const LIMITE_CARTAO = 999;
@@ -73,11 +65,27 @@ const LIMITE_CARTAO = 999;
  */
 export function textoEstoqueCartao(quantidade: number | null, noCartao: boolean, mostrarQuantidade = true): string {
   const n = quantidade ?? 0;
-  if (!mostrarQuantidade) return n > 0 ? 'Em estoque' : 'Sem estoque';
+  if (!mostrarQuantidade) return n > 0 ? EM_ESTOQUE : SEM_ESTOQUE;
   return `Estoque: ${numeroDoEstoque(n, noCartao)}`;
 }
 
-export function numeroDoEstoque(n: number, noCartao: boolean): string {
+const EM_ESTOQUE = 'Em estoque';
+const SEM_ESTOQUE = 'Sem estoque';
+
+/** Quantidade que decide texto e cor: o número do ERP; tenant que esconde a quantidade manda só a faixa (com estoque = 1, sem = 0). */
+export function quantidadeDoEstoque(quantity: number | null, band?: FaixaEstoque | null): number {
+  return quantity ?? (band && band !== 'sem_estoque' ? 1 : 0);
+}
+
+/** Frase do TalkBack para um valor de estoque: "estoque menos 3" (o sinal − lido como "menos"); sem quantidade, "em estoque"/"sem estoque". */
+export function leituraDoEstoque(valor: string, mostrarQuantidade: boolean): string {
+  return mostrarQuantidade ? `estoque ${valor.replace(MENOS, 'menos ')}` : valor.toLowerCase();
+}
+
+/** spec §4: rótulo do padrão do filtro de filial, no chip e na folha "Filtrar". */
+export const rotuloSuasFiliais = (n: number): string => `Suas filiais (${n})`;
+
+function numeroDoEstoque(n: number, noCartao: boolean): string {
   if (noCartao && n > LIMITE_CARTAO) return `${LIMITE_CARTAO}+`;
   if (noCartao && n < -LIMITE_CARTAO) return `${MENOS}${LIMITE_CARTAO}+`;
   return n < 0 ? `${MENOS}${Math.abs(n).toLocaleString('pt-BR')}` : n.toLocaleString('pt-BR');
@@ -100,7 +108,7 @@ export interface RotuloChipFiliais {
  */
 export function rotuloChipFiliais(e: { nomesProprias: readonly string[]; escolhida: string | null }): RotuloChipFiliais {
   if (e.escolhida !== null && e.escolhida !== 'todas') return { texto: `Filial ${e.escolhida}`, removivel: true };
-  return { texto: `Suas filiais (${e.nomesProprias.length})`, removivel: false };
+  return { texto: rotuloSuasFiliais(e.nomesProprias.length), removivel: false };
 }
 
 export interface LinhaFolhaEstoque {
@@ -118,7 +126,7 @@ export function linhasDaFolhaEstoque(
   o: { filialCadastro: string | null; mostrarQuantidade: boolean },
 ): LinhaFolhaEstoque[] {
   const linhas = porFilial.map((b) => {
-    const q = b.quantity ?? (b.band && b.band !== 'sem_estoque' ? 1 : 0);
+    const q = quantidadeDoEstoque(b.quantity, b.band);
     return {
       id: b.branch_id,
       nome: b.branch_name,

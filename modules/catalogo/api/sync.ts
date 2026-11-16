@@ -10,7 +10,6 @@ import type { ContextoBase, LinhaSync, PedidoPull, ProvedorSync } from '@macuxi/
 import { entidadeCatalogoNo, entidadeClienteTabelaPreco, entidadeDeposito, entidadeEstoqueSaldo, entidadeMarcaConcorrente, entidadeProdutoAtributo, entidadeProdutoConteudo, entidadeProdutoNo, entidadeProdutoReferencia, entidadeProdutoRelacao, entidadeSinonimo, entidadeTabelaEscalonada, entidadeTabelaPreco, entidadeTabelaPrecoItem } from '../contracts';
 import { SQL_MINIATURA_DO_CONTEUDO } from './miniatura';
 import { variacaoEscopoPrecoEstoque, verPrecoDoPerfil } from '../domain/visibilidade';
-import { veSoSuasFiliais } from '../domain/estoque-campo';
 import { filiaisDaCarteiraNoCore, filiaisDeVendaDoProprioUsuario } from './filiais-core';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
@@ -119,8 +118,8 @@ const DO_ESTOQUE: ReadonlySet<string> = new Set(['deposito', 'estoque_saldo']);
  * O aparelho só recebe preço e estoque delas, então a carga não cresce com o número de filiais da empresa.
  */
 async function filiaisDoPull(ctx: ContextoBase, doEstoque = false): Promise<readonly string[] | null> {
-  // catalogo-campo-v2 §4: promotor, supervisor e gerente recebem o estoque só das filiais de venda deles (`core.filiais_do_usuario@1`, T-0176; inalterado)
-  if (doEstoque && veSoSuasFiliais(ctx.usuario.perfil)) return ctx.comTenant(async (_db, tx) => (await filiaisDeVendaDoProprioUsuario(tx.consultar, ctx.usuario.id)).filiaisVenda);
+  // catalogo-campo-v2 §4 (RD-1708): todo perfil recebe o estoque só das filiais de venda dele (`core.filiais_do_usuario@1`, T-0176), as mesmas de `filiaisDoEstoque`
+  if (doEstoque) return ctx.comTenant(async (_db, tx) => (await filiaisDeVendaDoProprioUsuario(tx.consultar, ctx.usuario.id)).filiaisVenda);
   return ctx.comTenant(async (_db, tx) => (await filiaisDaCarteiraNoCore(tx.consultar)).daCarteira);
 }
 

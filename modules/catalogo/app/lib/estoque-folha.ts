@@ -4,27 +4,27 @@
  */
 import type { ItemVitrine } from '../../contracts';
 import { ordemPorNome } from '../../domain/estoque';
-import { linhasDaFolhaEstoque, rotuloCargaEstoque, type LinhaFolhaEstoque } from '../../domain/estoque-campo';
+import { leituraDoEstoque, linhasDaFolhaEstoque, rotuloCargaEstoque, rotuloSuasFiliais, type LinhaFolhaEstoque } from '../../domain/estoque-campo';
 
 export const TITULO_FOLHA_ESTOQUE = 'Estoque por filial';
 
 export interface DadosDaFolha {
-  /** "PAF.1434 · Atualizado às 06:12": hora da carga do estoque no aparelho (decisão 5 do R-20261115-100000). */
+  /** "Atualizado às 06:12" (o código já está no cartão e na ficha, RD-1704): hora da carga do estoque no aparelho (decisão 5 do R-20261115-100000). */
   apoio: string;
   linhas: LinhaFolhaEstoque[];
   /** Uma frase por filial para o TalkBack: "Boa Vista, sua filial, estoque 0". */
   leitura: { id: string; texto: string }[];
 }
 
-export function dadosDaFolha(e: { codigo: string; availability: NonNullable<ItemVitrine['availability']>; /** Carimbo da carga do estoque no aparelho (UTC). */ cargaEm: string | null; /** Id da filial de CADASTRO (primeira, "sua filial", spec §2.1). */ filialCadastro: string | null; agora: string; fuso: string }): DadosDaFolha {
+export function dadosDaFolha(e: { availability: NonNullable<ItemVitrine['availability']>; /** Carimbo da carga do estoque no aparelho (UTC). */ cargaEm: string | null; /** Id da filial de CADASTRO (primeira, "sua filial", spec §2.1). */ filialCadastro: string | null; agora: string; fuso: string }): DadosDaFolha {
   const a = e.availability;
   const hora = rotuloCargaEstoque(e.cargaEm, e.agora, e.fuso);
   const mostrar = a.quantity !== null || a.by_branch.some((b) => b.quantity !== null);
   const linhas = linhasDaFolhaEstoque(a.by_branch, { filialCadastro: e.filialCadastro, mostrarQuantidade: mostrar });
   return {
-    apoio: `${e.codigo} · ${hora}`,
+    apoio: hora,
     linhas,
-    leitura: linhas.map((l) => ({ id: l.id, texto: `${l.nome}${l.propria ? ', sua filial' : ''}, ${mostrar ? `estoque ${l.valor.replace('−', 'menos ')}` : l.valor.toLowerCase()}` })),
+    leitura: linhas.map((l) => ({ id: l.id, texto: `${l.nome}${l.propria ? ', sua filial' : ''}, ${leituraDoEstoque(l.valor, mostrar)}` })),
   };
 }
 
@@ -42,5 +42,5 @@ export interface OpcaoFiltroFilial {
 export function opcoesDoFiltroFilial(e: { proprias: readonly string[]; filiais: readonly { id: string; nome: string }[] }): OpcaoFiltroFilial[] {
   const minhas = e.filiais.filter((f) => e.proprias.includes(f.id)).sort(ordemPorNome);
   if (minhas.length <= 1) return [];
-  return [{ valor: 'todas', rotulo: `Suas filiais (${minhas.length})`, apoio: null }, ...minhas.map((f) => ({ valor: f.id, rotulo: f.nome, apoio: null }))];
+  return [{ valor: 'todas', rotulo: rotuloSuasFiliais(minhas.length), apoio: null }, ...minhas.map((f) => ({ valor: f.id, rotulo: f.nome, apoio: null }))];
 }

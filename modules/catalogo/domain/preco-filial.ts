@@ -124,3 +124,7 @@ export function precosDaTabelaSemCliente(tabelaId: string | null, itensDaFilial:
     .map((i) => ({ price_table_id: null, product_id: i.produto_id, price_cents: i.preco_cents, valid_from: i.vigencia_inicio, valid_to: i.vigencia_fim }));
 }
 
+/** RN-CORE-04: a filial escolhida está entre as filiais da carteira do usuário? (`daCarteira` nulo = todas). */
+export function filialNaCarteira(filialId: string, daCarteira: readonly string[] | null): boolean {
+  return daCarteira === null || daCarteira.includes(filialId);
+}

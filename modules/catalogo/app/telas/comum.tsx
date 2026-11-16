@@ -8,9 +8,8 @@ import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Clipboard, Platform, Pressable, StyleSheet, Text, ToastAndroid, View } from 'react-native';
 import type { AcaoProduto, ContextoProduto, ItemVitrine, MiniaturaProduto as Miniatura } from '../../contracts';
 import { rotuloPreco } from '../lib/apresentacao';
-import { AVISO_CODIGO_COPIADO, copiarCodigo, rotuloAcessivelCopiar } from '../lib/copiar-codigo';
-import { codigosDoCartao, leituraDoEstoque, precoDoCartao, rotuloAcessivelDoCartao, tagDeEstoque } from '../lib/grade';
-import { BotaoEstoquePorFilial } from './estoque-filial';
+import { AVISO_CODIGO_COPIADO, copiarCodigo, ROTULO_COPIAR_CODIGO, rotuloAcessivelCopiar } from '../lib/copiar-codigo';
+import { linhaDaMarca, precoDoCartao, rotuloAcessivelDoCartao, tagDeEstoque } from '../lib/grade';
 import { MiniaturaProduto } from './miniatura';
 
 /** Itens do slot `produto.acoes` visíveis ao usuário (módulo efetivo, perfil e ação). */
@@ -23,24 +22,36 @@ export function contextoDoProduto(item: ItemVitrine, clienteId: string | null): 
 }
 
 /**
- * "Copiar código" (`erp_code`), só o ícone, alvo 48x48 (sem disparar o toque do cartão). `icone`: dentro do cartão da lista;
- * `faixa`: ao lado do código na faixa Azul noite da ficha (borda `faixaTrilho`, ícone claro; spec catalogo-campo-v2 §2).
- * Um aviso só: ✓ por 2 s e o toast no Android; sem toast, o leitor de tela anuncia.
+ * "Copiar código" (`erp_code`). `ficha`: botão com ícone e rótulo (48 dp); `icone`: só o ícone, alvo 48x48, dentro do cartão
+ * da lista (sem disparar o toque do cartão). Um aviso só: na ficha, o rótulo vira "Código copiado" com ✓ por 2 s; no ícone, ✓ por
+ * 2 s e o toast no Android. Sem toast, o leitor de tela anuncia.
  */
-export function BotaoCopiarCodigo({ codigo, variante = 'icone' }: { codigo: string; variante?: 'faixa' | 'icone' }) {
+export function BotaoCopiarCodigo({ codigo, variante = 'ficha' }: { codigo: string; variante?: 'ficha' | 'icone' }) {
   const [copiado, setCopiado] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const copiar = async () => {
     const r = await copiarCodigo(codigo, (t) => Clipboard.setString(t));
-    if (Platform.OS === 'android') ToastAndroid.show(r.aviso, ToastAndroid.SHORT);
+    if (variante === 'icone' && Platform.OS === 'android') ToastAndroid.show(r.aviso, ToastAndroid.SHORT);
     else AccessibilityInfo.announceForAccessibility(r.aviso);
     setCopiado(r.ok);
     if (timer.current) clearTimeout(timer.current);
     if (r.ok) timer.current = setTimeout(() => setCopiado(false), 2000);
   };
   const rotuloAcessivel = copiado ? AVISO_CODIGO_COPIADO : rotuloAcessivelCopiar(codigo);
-  const naFaixa = variante === 'faixa';
+  if (variante === 'ficha') {
+    return (
+      <Button
+        testID={`catalogo-copiar-codigo-${codigo}`}
+        label={copiado ? AVISO_CODIGO_COPIADO : ROTULO_COPIAR_CODIGO}
+        accessibilityLabel={rotuloAcessivel}
+        icon={copiado ? 'check' : 'copy'}
+        variant="outline"
+        height={ALTURA.toque}
+        onPress={() => void copiar()}
+      />
+    );
+  }
   return (
     <Pressable
       testID={`catalogo-copiar-codigo-${codigo}`}
@@ -48,9 +59,9 @@ export function BotaoCopiarCodigo({ codigo, variante = 'icone' }: { codigo: stri
       accessibilityLabel={rotuloAcessivel}
       onPress={() => void copiar()}
       hitSlop={10}
-      style={({ pressed }) => [g.copiar, naFaixa && g.copiarFaixa, pressed && { backgroundColor: naFaixa ? colors.faixaTrilho : colors.ground }]}
+      style={({ pressed }) => [g.copiar, pressed && { backgroundColor: colors.ground }]}
     >
-      <Icon name={copiado ? 'check' : 'copy'} size={20} color={copiado ? (naFaixa ? colors.faixaTitulo : colors.success) : naFaixa ? colors.faixaTitulo : colors.ink2} />
+      <Icon name={copiado ? 'check' : 'copy'} size={20} color={copiado ? colors.success : colors.ink2} />
     </Pressable>
   );
 }
@@ -101,33 +112,27 @@ function BotoesAcaoDoCartao({ item, clienteId, acoes }: { item: ItemVitrine; cli
 }
 
 /**
- * Cartão da grade de 2 colunas (T-0173, docs/design/catalogo-grade.md §2): foto (sem foto, a caixa `neutralBg` vazia; RD-0242), nome em até 3 linhas,
- * marca, preço e, na última linha, "Estoque: N" com o botão do estoque por filial (catalogo-campo-v2 §3). Códigos em duas linhas (marca em cima; código do produto com o copiar embaixo; o copiar leva só o código do produto, catalogo-grade §2). O cartão inteiro
- * abre a ficha; o botão da extensão `produto.acoes` (de outro módulo, só dentro do fluxo dele) fica ao lado do preço.
+ * Cartão da grade de 2 colunas (T-0173, docs/design/catalogo-grade.md §2): foto (sem foto, a caixa `neutralBg` vazia; RD-0242), nome em até 2 linhas,
+ * marca, preço e uma tag de estoque. Uma informação por linha: sem código, hora nem etiquetas (ficam na ficha). O cartão inteiro
+ * abre a ficha; o botão da extensão `produto.acoes` (de outro módulo, só dentro do fluxo dele) fica ao lado do preço. No rodapé,
+ * o ícone de copiar o código (alvo 48 dp; o código em si só aparece na ficha).
  */
-export function CartaoGrade({ item, clienteId, miniatura = null, onPress, onEstoque }: { item: ItemVitrine; clienteId: string | null; miniatura?: Miniatura | null; onPress: () => void; onEstoque: () => void }) {
+export function CartaoGrade({ item, clienteId, miniatura = null, onPress }: { item: ItemVitrine; clienteId: string | null; miniatura?: Miniatura | null; onPress: () => void }) {
   const preco = rotuloPreco(item);
-  const tag = tagDeEstoque(item);
-  const codigos = codigosDoCartao(item);
-  const linhaMarca = codigos.marca;
+  const tag = tagDeEstoque(item, { filialDoCliente: clienteId !== null });
+  const linhaMarca = linhaDaMarca(item);
   const precoTexto = precoDoCartao(preco);
   const acoes = useAcoesProduto();
-  const rotulo = rotuloAcessivelDoCartao([item.description, linhaMarca, precoTexto, leituraDoEstoque(item)]);
+  const rotulo = rotuloAcessivelDoCartao([item.description, linhaMarca, precoTexto, tag?.texto]);
   return (
     <Cartao testID={`catalogo-item-${item.erp_code}`} onPress={onPress} rotuloAcessivel={rotulo} preenchimento={10} gap={6} style={g.cartao}>
-      <MiniaturaProduto produtoId={item.id} miniatura={miniatura} altura={96} />
-      <Text style={g.nome} numberOfLines={3}>
+      <MiniaturaProduto produtoId={item.id} miniatura={miniatura} altura={112} />
+      <Text style={g.nome} numberOfLines={2}>
         {item.description}
       </Text>
       <Text style={g.marca} numberOfLines={1}>
         {linhaMarca}
       </Text>
-      <View style={g.codigoLinha}>
-        <Text style={g.codigo} numberOfLines={1}>
-          {codigos.codigo}
-        </Text>
-        <BotaoCopiarCodigo codigo={codigos.codigo} variante="icone" />
-      </View>
       <View style={{ flex: 1 }} />
       {preco ? (
         <View style={g.precoLinha}>
@@ -138,30 +143,27 @@ export function CartaoGrade({ item, clienteId, miniatura = null, onPress, onEsto
           {acoes.length > 0 ? <BotoesAcaoDoCartao item={item} clienteId={clienteId} acoes={acoes} /> : null}
         </View>
       ) : null}
-      {tag ? (
-        <View style={g.rodape}>
-          <ChipEstado texto={tag.texto} tom={tag.tom} pequeno rotuloAcessivel={leituraDoEstoque(item) ?? tag.texto} testID={`catalogo-estoque-${item.erp_code}`} />
-          <BotaoEstoquePorFilial onPress={onEstoque} testID={`catalogo-estoque-filial-${item.erp_code}`} />
+      <View style={g.rodape}>
+        {tag ? <ChipEstado texto={tag.texto} tom={tag.tom} pequeno testID={`catalogo-estoque-${item.erp_code}`} /> : null}
+        <View style={{ marginLeft: 'auto' }}>
+          <BotaoCopiarCodigo codigo={item.erp_code} variante="icone" />
         </View>
-      ) : null}
+      </View>
     </Cartao>
   );
 }
 
 const g = StyleSheet.create({
   cartao: { flex: 1, borderRadius: 16 },
-  nome: { fontFamily: fonts.displayBold, fontSize: 16, lineHeight: 20, minHeight: 60, color: colors.ink },
+  nome: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
   marca: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2, minHeight: 18 },
   precoLinha: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   preco: { fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink, fontVariant: ['tabular-nums'] },
   semPreco: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink3 },
   riscado: { fontFamily: fonts.body, fontSize: 12, color: colors.ink2, textDecorationLine: 'line-through' },
   acoes: { flexDirection: 'row', gap: 6, marginLeft: 'auto' },
-  codigoLinha: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  codigo: { fontFamily: fonts.bold, fontSize: 13, lineHeight: 18, color: colors.ink, fontVariant: ['tabular-nums'] },
-  rodape: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
+  rodape: { flexDirection: 'row', alignItems: 'center' },
   // 28 dp de caixa + 10 de folga em cada lado = alvo de 48 dp, sem empurrar o rodapé para fora da coluna de 360 dp
-  copiarFaixa: { borderWidth: 1, borderColor: colors.faixaTrilho, borderRadius: 10 },
   copiar: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
 });
 

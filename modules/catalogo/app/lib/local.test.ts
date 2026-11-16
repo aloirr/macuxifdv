@@ -140,10 +140,6 @@ describe('estoque por filial no aparelho (catalogo-campo-v2 §3 e §4; RN-CAT-05
     }
   });
 
-  it('RN-CAT-05 / RN-CORE-39: ninguém escolhe filial que não é de venda dele, nem pelo filtro', async () => {
-    for (const perfil of ['vendedor', 'promotor'] as const) expect((await cafe(perfil, [F1], { filtroFilial: F2 })).quantity, perfil).toBe(0);
-  });
-
   it('RN-CAT-05 / RN-CORE-39: sem_filial = preço e estoque VAZIOS no aparelho (availability nula, não 0)', async () => {
     const r = await buscarLocal(leitor(comFiliais([])), { ...entrada, perfil: 'vendedor', usuarioId: U, clienteId: null, q: 'café', limit: 20, offset: 0, offline: true });
     expect(r.items[0]!.availability).toBeNull();
@@ -157,16 +153,12 @@ describe('estoque por filial no aparelho (catalogo-campo-v2 §3 e §4; RN-CAT-05
     expect(r.items[0]!.availability!.quantity).toBe(7);
   });
 
-  it('decisão 4 do R-20261115-100000: na busca online o estoque vem do aparelho (mesma regra do N: soma das filiais de venda; filtro; cliente)', async () => {
+  it('decisão 4 do R-20261115-100000: na busca online o estoque vem do aparelho (a mesma regra do N, já conferida acima)', async () => {
     const id = idProdutoDemo('CAF-500');
     const dos = (l: ReturnType<typeof comFiliais>, extra: Record<string, unknown> = {}) => estoqueLocalDosProdutos(leitor(l), { ...entrada, perfil: 'vendedor', usuarioId: U, clienteId: null, ...extra }, [id, 'fora-do-aparelho']);
     const r = await dos(comFiliais([F1, F2]));
     expect(r.get(id)!.quantity).toBe(17);
     expect(r.has('fora-do-aparelho')).toBe(false);
-    expect((await dos(comFiliais([F1, F2]), { filtroFilial: F2 })).get(id)!.quantity).toBe(7);
-    const l = comFiliais([F1, F2]);
-    l.cliente = [base(CLIENTE_VAREJO, { filial_id: F2 })];
-    expect((await dos(l, { clienteId: CLIENTE_VAREJO, filtroFilial: F1 })).get(id)!.quantity).toBe(7);
   });
 
   it('decisão 2 do R-20261115-100000: a faixa mostra a filial de CADASTRO (id do adaptador, nome da linha filial), sem mudar o N', async () => {
