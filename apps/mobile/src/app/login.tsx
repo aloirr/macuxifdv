@@ -29,7 +29,7 @@ import {
 } from '@macuxi/core/app';
 import type { FakeUser } from '@macuxi/core/contracts';
 import { entraEm, ErroHttp, PERFIS, type Perfil } from '@macuxi/platform-sdk';
-import { Banner, Button, Card, colors, fonts, Icon, initials, radius, rotuloDoPerfil, Screen, type as t } from '@macuxi/ui/mobile';
+import { Banner, Button, Card, colors, fonte, Icon, initials, rotuloDoPerfil, Screen, type as t } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -37,6 +37,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AcimaDoTeclado } from '@/components/acima-do-teclado';
 import { FaixaDoLogin } from '@/components/faixa-login';
+import { ENDERECO_SERVIDOR, ENTRADA_SERVIDOR } from '@/components/servidor';
 import { TelaEntrada } from '@/components/tela-entrada';
 import { ondeOPerfilEntra } from '@/lib/acesso';
 import { EXEMPLO_ENDERECO, normalizeApiUrl as normalize } from '@/lib/api-url';
@@ -315,7 +316,7 @@ function CartaoServidor() {
             returnKeyType="go"
             onSubmitEditing={() => void saveUrl()}
             accessibilityLabel="Endereço do servidor"
-            style={styles.input}
+            style={ENTRADA_SERVIDOR}
             placeholder={EXEMPLO_ENDERECO}
             placeholderTextColor={colors.ink3}
           />
@@ -335,7 +336,7 @@ function CartaoServidor() {
           </View>
         </>
       ) : (
-        <Text testID="server-url" style={[t.body, { fontFamily: fonts.mono, fontSize: 13 }]} selectable>
+        <Text testID="server-url" style={ENDERECO_SERVIDOR} selectable>
           {apiUrl}
           {apiOverride ? '' : '  (padrão)'}
         </Text>
@@ -409,7 +410,7 @@ function LoginDemo() {
         ) : null}
 
         <View style={{ gap: 8 }}>
-          <Text style={styles.group}>{variante === 'gestao' ? 'Supervisores e gerentes' : 'Vendedores e promotores'}</Text>
+          <Text style={t.rotulo}>{variante === 'gestao' ? 'Supervisores e gerentes' : 'Vendedores e promotores'}</Text>
           {users === null ? (
             <ActivityIndicator color={colors.accent} style={{ paddingVertical: 20 }} />
           ) : (
@@ -427,7 +428,7 @@ function LoginDemo() {
                     <Text style={styles.avatarText}>{initials(u.name)}</Text>
                   </View>
                   <View style={{ flex: 1, gap: 1 }}>
-                    <Text style={t.title16}>{u.name}</Text>
+                    <Text style={t.bodyStrong}>{u.name}</Text>
                     <Text style={t.small}>
                       {rotulo(u.perfil)}
                       {u.team_name ? ` · ${u.team_name}` : ''}
@@ -442,7 +443,7 @@ function LoginDemo() {
 
         {others.length > 0 ? (
           <View style={{ gap: 8 }}>
-            <Text style={styles.group}>Outros perfis</Text>
+            <Text style={t.rotulo}>Outros perfis</Text>
             <Card>
               {others.map((u, i) => (
                 <View key={u.id} style={[styles.userRow, styles.muted, i < others.length - 1 && styles.divider]}>
@@ -468,16 +469,14 @@ function LoginDemo() {
 
 const styles = StyleSheet.create({
   // texto laranja sobre claro: accentInk (contraste >= 4,5:1; docs/design/componentes.md §1.1)
-  brand: { fontFamily: fonts.displayBold, fontSize: 12, letterSpacing: 1.2, color: colors.accentInk },
-  group: { fontFamily: fonts.semibold, fontSize: 12, color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.6 },
+  brand: { ...fonte.bold, fontSize: 12, letterSpacing: 1.2, color: colors.accentInk },
   userRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 11, minHeight: 60 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   muted: { opacity: 0.75 },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontFamily: fonts.displayBold, fontSize: 14, color: '#FFFFFF' },
-  link: { fontFamily: fonts.semibold, fontSize: 13, color: colors.accentInk },
+  avatarText: { ...fonte.bold, fontSize: 14, color: '#FFFFFF' },
+  link: { ...fonte.semibold, fontSize: 14, color: colors.accentInk },
   // alvo de toque >= 48 dp
   avancado: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 48 },
   rodape: { gap: 10, paddingHorizontal: 16, paddingBottom: 16 },
-  input: { minHeight: 46, paddingVertical: 10, textAlignVertical: 'center', borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, fontFamily: fonts.mono, fontSize: 13, color: colors.ink, backgroundColor: colors.surface },
 });

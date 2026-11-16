@@ -9,6 +9,7 @@ import { MedidasListaSchema, type Medida } from '../../../contracts';
 import { DESCRICAO_MEDIDA_MAX, normalizarSigla } from '../../../domain';
 import { erroDoFormularioDeMedida } from '../../lib/medidas';
 import { novoId } from '../../lib/visitas';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
 interface Rascunho {
   id: string;
@@ -80,7 +81,7 @@ export function MedidasPanel({ onAviso }: { onAviso: (texto: string) => void }) 
           placeholder="Buscar por sigla ou descrição"
           aria-label="Buscar medida"
           data-testid="medidas.busca"
-          className="h-[44px] max-w-[360px] flex-1 rounded-xl border border-field bg-surface px-3 text-[14px]"
+          className="h-[44px] max-w-[360px] flex-1 rounded-xl border border-field bg-surface px-3 text-[15px]"
         />
         <Button variant="primary" disabled={!pode} onClick={() => setRascunho({ id: novoId(), existente: false, sigla: '', descricao: '', siglaTravada: false })} data-testid="medidas.nova">
           Nova medida
@@ -105,7 +106,7 @@ export function MedidasPanel({ onAviso }: { onAviso: (texto: string) => void }) 
               <tbody>
                 {itens.map((m) => (
                   <tr key={m.id} data-testid={`medidas.linha.${m.sigla}`}>
-                    <td className={`${td} font-mono font-semibold`}>{m.sigla}</td>
+                    <td className={`${td} font-semibold`}>{m.sigla}</td>
                     <td className={td}>{m.descricao}</td>
                     <td className={td}>
                       <Badge tone={m.ativo ? 'success' : 'warning'}>{m.ativo ? 'Ativa' : 'Inativa'}</Badge>
@@ -159,7 +160,7 @@ export function MedidasPanel({ onAviso }: { onAviso: (texto: string) => void }) 
                 disabled={rascunho.siglaTravada}
                 onChange={(e) => setRascunho({ ...rascunho, sigla: e.target.value.toUpperCase() })}
                 data-testid="medidas.sigla"
-                className="h-[44px] max-w-[160px] rounded-xl border border-field bg-surface px-3 font-mono text-[14px] font-normal uppercase"
+                className={`${CLASSE_CAMPO_BKO} max-w-[160px] uppercase`}
               />
             </label>
             {rascunho.siglaTravada && <p className="font-normal text-ink-2">A sigla não muda enquanto algum produto usa a medida. Altere só a descrição ou crie outra medida e inative esta.</p>}
@@ -170,7 +171,7 @@ export function MedidasPanel({ onAviso }: { onAviso: (texto: string) => void }) 
                 maxLength={DESCRICAO_MEDIDA_MAX}
                 onChange={(e) => setRascunho({ ...rascunho, descricao: e.target.value })}
                 data-testid="medidas.descricao"
-                className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal"
+                className={CLASSE_CAMPO_BKO}
               />
             </label>
             {erroForm && (rascunho.sigla !== '' || rascunho.descricao !== '') && <p className="font-normal text-danger">{erroForm}</p>}

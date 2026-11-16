@@ -6,7 +6,7 @@
  */
 import { ehSemConexao, type ModuloId } from '@macuxi/platform-sdk';
 import { useHttp, useMotorSync } from '@macuxi/platform-sdk/react';
-import { Banner, Botao, Cartao, ChipEstado, colors, fonts, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
+import { Banner, Botao, Cartao, ChipEstado, colors, fonte, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -107,6 +107,6 @@ export function TelaMeusModulos() {
 const styles = StyleSheet.create({
   linha: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, gap: 8 },
   divisor: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
-  nome: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink, textTransform: 'capitalize' },
-  versao: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
+  nome: { ...fonte.semibold, fontSize: 16, color: colors.ink, textTransform: 'capitalize' },
+  versao: { ...fonte.body, fontSize: 14, color: colors.ink2 },
 });

@@ -95,7 +95,7 @@ export function criarCorteDaPassada(): CorteDaPassada {
 }
 
 /**
- * Identidade do build instalado (versão do app + versionCode do EAS, que sobe a cada build). A tarefa sem tela não roda
+ * Identidade do build instalado (versão do app + versionCode, que sobe a cada build). A tarefa sem tela não roda
  * num build que ainda não abriu com tela: a 1ª abertura depois da atualização (passagem de dados, reindexação da busca,
  * carga) é sempre do app, com o vendedor vendo.
  */

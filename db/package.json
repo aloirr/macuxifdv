@@ -11,6 +11,7 @@
     "./teste/aviso-pulos": "./testes/aviso-pulos.ts",
     "./teste/estado": "./testes/estado.ts",
     "./teste/util": "./testes/util.ts",
+    "./teste/funcoes-sa": "./testes/funcoes-sa.ts",
     "./esquema/plataforma": "./esquema/plataforma.ts"
   },
   "scripts": {
