@@ -8,7 +8,6 @@
  * Funções sobre o banco (`ClienteBanco`), testadas com banco de mentira; os consumidores de `integracao.forma_pagamento.atualizado@1`
  * e `integracao.prazo_pagamento.atualizado@1` (leitura tolerante) ficam no fim e são registrados em `apiVendedor`.
  */
-import { PercentualAjusteBase } from '../contracts';
 import { definirConsumidor, eventoTolerante, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { EVENTO_ERP_FORMA_PAGAMENTO_ATUALIZADO, EVENTO_ERP_PRAZO_PAGAMENTO_ATUALIZADO, FormaPagamentoPayload, PrazoPagamentoPayload } from '../../integracao/contracts';
 import { descricaoPrazo, prazoMedioDias } from '../domain/pagamento';
@@ -33,15 +32,6 @@ export interface PrazoDoErp {
   ativo?: boolean | null;
   /** RN-VEN-46: Desc./Acrésc. (%) do prazo vindo do ERP (2 casas, negativo = desconto); ausente = 0 */
   percentual_ajuste?: number | null;
-}
-
-/** RN-VEN-46: leitura tolerante do `percentual_ajuste` do registro do Hub. Inválido ou fora de -99,99 a +99,99 = 0 (nunca derruba o evento). */
-export function percentualDoRegistro(registro: unknown): number {
-  const bruto = (registro as { percentual_ajuste?: unknown } | null | undefined)?.percentual_ajuste;
-  const n = typeof bruto === 'string' && bruto.trim() !== '' ? Number(bruto) : bruto;
-  if (typeof n !== 'number') return 0;
-  const r = PercentualAjusteBase.safeParse(Math.round(n * 100) / 100);
-  return r.success ? r.data : 0;
 }
 
 export type AcaoDaLinha = 'inserida' | 'atualizada' | 'adotada';
@@ -84,7 +74,7 @@ export async function aplicarPrazoDoErp(db: ClienteBanco, p: PrazoDoErp): Promis
   const medio = prazoMedioDias(p.parcelas_dias);
   const descricao = p.descricao?.trim() || descricaoPrazo(p.parcelas_dias);
   const ativo = p.ativo ?? true;
-  const percentual = percentualDoRegistro(p);
+  const percentual = p.percentual_ajuste ?? 0;
   const achada = await achar(db, 'prazo_pagamento', p.external_id, codigo);
   if (achada) {
     await db.query(
@@ -139,7 +129,7 @@ export function criarConsumidorPrazoPagamentoDoErp(): ConsumidorEvento {
         prazo_medio_dias: r.data.prazo_medio_dias,
         ordem: r.data.ordem,
         ativo: r.data.ativo,
-        percentual_ajuste: percentualDoRegistro(p.registro),
+        percentual_ajuste: r.data.percentual_ajuste ?? 0,
       });
     },
   });

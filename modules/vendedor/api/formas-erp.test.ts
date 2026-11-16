@@ -1,6 +1,6 @@
 import type { ClienteBanco } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { aplicarFormaDoErp, aplicarPrazoDoErp, percentualDoRegistro, ReferenciaAusente } from './formas-erp';
+import { aplicarFormaDoErp, aplicarPrazoDoErp, ReferenciaAusente } from './formas-erp';
 
 interface Linha {
   id: string;
@@ -87,13 +87,5 @@ describe('P7 (T-0089): o consumidor adota pelo código a AVISTA semeada', () => 
     await aplicarPrazoDoErp(db, { external_id: 'PZ-1', forma_external_id: 'FP-BOL', codigo: 'A', parcelas_dias: [0], percentual_ajuste: 3.5 });
     expect(gravado[0]!.sql).toBe('update');
     expect(gravado[0]!.params).toContain(3.5);
-  });
-  it('RN-VEN-46: leitura tolerante do registro: número válido passa; texto, fora da faixa ou ausente viram 0', () => {
-    expect(percentualDoRegistro({ percentual_ajuste: -2.5 })).toBe(-2.5);
-    expect(percentualDoRegistro({ percentual_ajuste: '1.5' })).toBe(1.5);
-    expect(percentualDoRegistro({ percentual_ajuste: 'x' })).toBe(0);
-    expect(percentualDoRegistro({ percentual_ajuste: 120 })).toBe(0);
-    expect(percentualDoRegistro({})).toBe(0);
-    expect(percentualDoRegistro(undefined)).toBe(0);
   });
 });

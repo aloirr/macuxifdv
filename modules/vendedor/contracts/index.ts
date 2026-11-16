@@ -21,7 +21,7 @@ import {
 import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
 import { SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '../domain/orcamento';
 import { ORDER_STATUSES } from '../domain/order';
-import { PercentualAjusteBase } from './sync';
+import { PercentualAjuste } from '@macuxi/integracao/contracts';
 import { EnderecoEditadoPedido, EnderecoEntregaPedido, Frete, FreteDoPedido, ItemPush } from './frete';
 export * from './formas-pagamento';
 export * from './prazo-ajuste';
@@ -289,7 +289,7 @@ export const PedidoPush = CreateOrderRequest.extend({
    * RN-VEN-45 (v1.0.13, aditivo): "Desc./Acrésc. (%)" do prazo no momento do pedido (congelado). A API recalcula os preços por ele
    * e o revalida (aceita o vigente, ou o antigo se o cadastro mudou depois do `created_offline_at`). Ausente = 0.
    */
-  prazo_percentual_ajuste: PercentualAjusteBase.optional(),
+  prazo_percentual_ajuste: PercentualAjuste.optional(),
   observacao: z.string().max(500).nullable().optional(),
   visita_id: z.string().uuid().nullable().optional(),
   /**

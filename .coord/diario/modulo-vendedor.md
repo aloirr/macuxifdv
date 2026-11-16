@@ -148,3 +148,4 @@
 2026-11-15 — fonte do sistema v1.0.13 — MC-0059 total do pedido no BKO em font-semibold; MC-0066 número do pedido no app sem mono (tabular-nums) em orders-screen e ficha-cliente; teste T-0101 ajustado
 2026-11-15 — fonte do sistema (#404) — pareceres v1.0.13: RD-1253 (t.h1Small, t.rotulo, t.number do kit), MC-0147 (valores em destaque 600 no app e no BKO), MC-0148 (PDF: .r, th, .doc .t small e linha do Total em 600), RD-1254 (título do teste: 600).
 2026-11-15 — fonte do sistema (#404) — MC-0152 (qtd, %, R$ e nome do item em 600) e MC-0153 (número do card = t.number).
+2026-11-16 — v1.0.14 prazo (#406) — RD-1505: a faixa do % vem só de PercentualAjuste (contrato da integração); saem PercentualAjusteBase e percentualDoRegistro; o consumidor usa r.data.percentual_ajuste ?? 0 e aplicarPrazoDoErp, p.percentual_ajuste ?? 0.
