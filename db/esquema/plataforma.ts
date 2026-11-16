@@ -8,7 +8,9 @@
  * 0072_plataforma_empresa_acoes.up.sql (inativar, backup e excluir a empresa, ADR 0052; só por função),
  * 0073_plataforma_dados_legais.up.sql (dados legais do rodapé, só por função), 0074_plataforma_sync_pacote.up.sql (pacote da
  * primeira carga, ADR 0054), 0079_catalogo_foto_lote.up.sql (tipos de arquivo e trabalho sob demanda, ADR 0058) e
- * 0081_plataforma_planos_troca_licencas.up.sql (histórico das trocas de plano, ADR 0047), para consultas da API.
+ * 0081_plataforma_frase_carga.up.sql (frases da tela de carga, globais, só por função), 0083_plataforma_tenant_logo.up.sql
+ * (logo e nome fantasia em plataforma.tenant) e 0084_plataforma_planos_troca_licencas.up.sql (histórico das trocas de plano,
+ * ADR 0047), para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -53,6 +55,20 @@ export const tenant = plataforma.table('tenant', {
   inativada_em: timestamp('inativada_em', { withTimezone: true }),
   /** 0072: motivo da inativação, opcional (MOTIVOS_INATIVACAO do SDK; sem texto livre; null = sem motivo). */
   motivo_inativacao: text('motivo_inativacao', { enum: MOTIVOS_INATIVACAO }),
+  /**
+   * 0083 (T-0182, logo do cliente): nome fantasia (sem espaço nas pontas, 1..80; null = usa a razão social, `nome`) e os
+   * metadados da logo; os bytes ficam no armazenamento de arquivos, na `logo_chave`. As 8 `logo_*` todas nulas ou todas
+   * preenchidas (CHECK tenant_logo_completa). Gravadas só pelas sa_* do portal (super-admin); o app só lê a própria linha.
+   */
+  nome_fantasia: text('nome_fantasia'),
+  logo_id: uuid('logo_id'),
+  logo_tipo: text('logo_tipo', { enum: ['image/png', 'image/jpeg'] }),
+  logo_sha256: text('logo_sha256'),
+  logo_tamanho_bytes: integer('logo_tamanho_bytes'),
+  logo_largura_px: integer('logo_largura_px'),
+  logo_altura_px: integer('logo_altura_px'),
+  logo_chave: text('logo_chave'),
+  logo_atualizada_em: timestamp('logo_atualizada_em', { withTimezone: true }),
   ...auditaveis(),
 });
 
@@ -405,9 +421,9 @@ export interface AdicionalDoPlanoLinha {
 
 /**
  * Catálogo de planos (0070, ADR 0047 §1): DADO da plataforma, fora dos tenants (exceção à regra 5, como a super_admin). Gravado só
- * pelas funções do dono; desde a 0081 o macuxi_app lê só o plano da assinatura viva do próprio tenant. Versão nova do plano =
+ * pelas funções do dono; desde a 0084 o macuxi_app lê só o plano da assinatura viva do próprio tenant. Versão nova do plano =
  * linha nova; a antiga ganha deleted_at e as assinaturas continuam apontando para ela. Código único entre os vivos. Licenças
- * por tipo: null = sem limite. Os 4 planos de venda (light, pme, enterprise, corporate) vêm da 0081.
+ * por tipo: null = sem limite. Os 4 planos de venda (light, pme, enterprise, corporate) vêm da 0084.
  */
 export const plano = plataforma.table('plano', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -446,7 +462,7 @@ export const assinatura = plataforma.table('assinatura', {
 });
 
 /**
- * Histórico das trocas de plano (0081, ADR 0047 §6, RN-PLA-05): uma linha por troca, gravada só pela plataforma.sa_trocar_plano
+ * Histórico das trocas de plano (0084, ADR 0047 §6, RN-PLA-05): uma linha por troca, gravada só pela plataforma.sa_trocar_plano
  * (portal, super-admin); o macuxi_app lê só as do próprio tenant. pedido_id = chave de idempotência do portal, única por tenant.
  * Fora do sync.
  */
@@ -639,4 +655,20 @@ export const trabalho = plataforma.table('trabalho', {
   ultimo_erro: text('ultimo_erro'),
   /** Fim em 'concluido' ou 'falhou' (CHECK trabalho_concluido_coerente). */
   concluido_em: timestamp('concluido_em', { withTimezone: true }),
+});
+
+/**
+ * Frases da tela de carga (0081, T-0181): cadastro GLOBAL do super-admin (sem tenant_id), vale para todas as empresas. Só por
+ * função: o portal usa sa_listar_frases_carga / sa_incluir_frase_carga / sa_editar_frase_carga e o app a
+ * frases_carga_ativas(); nenhum papel da aplicação lê a tabela direto. numero = Nº do portal (único, max + 1 na inclusão);
+ * texto 1..90 depois do trim, único entre as vivas sem diferenciar maiúsculas; as 30 iniciais com id
+ * uuid_de_chave('plataforma:frase_carga:NN'). Fora do sync por linha.
+ */
+export const fraseCarga = plataforma.table('frase_carga', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  numero: integer('numero').notNull(),
+  texto: text('texto').notNull(),
+  ativa: boolean('ativa').notNull().default(true),
+  ordem: integer('ordem').notNull(),
+  ...auditaveis(),
 });

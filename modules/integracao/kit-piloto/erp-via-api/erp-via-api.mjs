@@ -137,6 +137,7 @@ export function parametrosDoPedido(p) {
     pagamento_prazo_external_id: pg?.prazo_external_id ?? null,
     pagamento_parcelas_dias: pg?.parcelas_dias ? pg.parcelas_dias.join(',') : null,
     pagamento_prazo_medio_dias: pg?.prazo_medio_dias ?? null,
+    pagamento_percentual_ajuste: pg?.percentual_ajuste ?? null, // RN-INT-15 (só informativo)
   };
 }
 

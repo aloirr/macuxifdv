@@ -2,7 +2,7 @@
 /**
  * Plano do build Android no GitHub Actions (.github/workflows/android-build.yml; R-20261114-224500-alexandre). Sem
  * dependência: node:fs e as regras de nome de apps/mobile/src/lib/nome-build.ts (importadas com remoção de tipos do
- * Node, como apps/mobile/scripts/eas/comum.mjs), para o nome do APK seguir a mesma regra dos builds anteriores.
+ * Node), para o nome do APK seguir a mesma regra dos builds anteriores.
  *
  * Reproduz o perfil do eas.json (`<variante>-<perfil>`): o `env` do perfil (APP_VARIANT, EXPO_PUBLIC_*), o Node do
  * perfil e o tipo do build (só APK). Versão do input (X.Y.Z) e versionCode:

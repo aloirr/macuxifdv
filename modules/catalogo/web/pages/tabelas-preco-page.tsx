@@ -332,7 +332,7 @@ function Escalonada({ filtros, mudar, tabelas }: { filtros: FiltrosTabelas; muda
           {erroTopo && <Notice tone="danger">{erroTopo}</Notice>}
           <CampoFormulario rotulo="Produto">
             {produtoDaFaixa ? (
-              <span className="flex min-h-[42px] items-center gap-2 text-[14px] font-normal text-ink" data-testid="escalonada.produto">
+              <span className="flex min-h-[42px] items-center gap-2 text-[15px] font-normal text-ink" data-testid="escalonada.produto">
                 {produtoRotulo}
                 <Button size="sm" variant="link" onClick={() => setForm({ ...form, produto_id: '' })}>
                   Trocar
@@ -391,7 +391,7 @@ function Escalonada({ filtros, mudar, tabelas }: { filtros: FiltrosTabelas; muda
               ))}
             </select>
           </CampoFormulario>
-          <label className="inline-flex min-h-[42px] items-center gap-2 text-[14px] font-semibold">
+          <label className="inline-flex min-h-[42px] items-center gap-2 text-[15px] font-semibold">
             <input type="checkbox" checked={form.ativo} onChange={(e) => setForm({ ...form, ativo: e.target.checked })} /> Ativa
           </label>
         </div>

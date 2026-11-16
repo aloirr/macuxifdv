@@ -211,7 +211,7 @@ export function CartaoBase({ item, tenant, rotuloDepende }: { item: ItemOrdemCar
         <div className="flex min-w-0 flex-col gap-0.5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-[12px] font-bold text-white tabular-nums">{item.posicao}</span>
-            <h3 className="m-0 font-display text-[17px] font-bold">{cartao.titulo}</h3>
+            <h3 className="m-0 text-[17px] font-bold">{cartao.titulo}</h3>
             {item.opcional && <Badge tone="neutral">opcional</Badge>}
             {statusFinal && <Badge tone={statusFinal === 'concluido' ? 'success' : statusFinal === 'falhou' ? 'danger' : statusFinal === 'concluido_com_erros' ? 'warning' : 'pending'}>{ROTULO_STATUS_LOTE[statusFinal]}</Badge>}
           </div>
@@ -238,7 +238,7 @@ export function CartaoBase({ item, tenant, rotuloDepende }: { item: ItemOrdemCar
           <legend className="mb-1 text-[13px] font-semibold">Modo</legend>
           <div className="flex gap-3">
             {(['delta', 'completo'] as const).map((m) => (
-              <label key={m} className="flex items-center gap-1.5 text-[14px]" title={ROTULO_MODO[m].ajuda}>
+              <label key={m} className="flex items-center gap-1.5 text-[15px]" title={ROTULO_MODO[m].ajuda}>
                 <input type="radio" name={`modo-${entidade}`} data-testid={`base-${entidade}.modo-${m}`} className="accent-accent" checked={modo === m} disabled={ocupado === 'importando'} onChange={() => {
                     setModo(m);
                     setConferencia(null);

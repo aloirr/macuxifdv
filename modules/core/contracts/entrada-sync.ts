@@ -53,3 +53,9 @@ export const ParadaDiagnosticoSchema = z.object({
   nome: z.string(),
 });
 export type ParadaDiagnostico = z.infer<typeof ParadaDiagnosticoSchema>;
+
+/**
+ * Entidades do Core que pertencem à etapa "Catálogo e preços" da entrada do Campo (RN-CORE-48), na ordem da carga.
+ * O Catálogo usa esta lista em vez de repeti-la.
+ */
+export const ENTIDADES_CORE_CATALOGO_PRECOS = ['produto', 'produto_unidade', 'medida'] as const;

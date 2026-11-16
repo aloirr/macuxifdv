@@ -23,9 +23,9 @@ export const TABELAS_SEM_TENANT_ID = {
   'plataforma.portal_sessao_empresa': 'empresas conferidas no login do portal (ADR 0031); só por função',
   /**
    * Catálogo de planos (0070, ADR 0047 §1): dado da PLATAFORMA, igual para todos os tenants; gravado só pelas funções do dono.
-   * Desde a 0081 o macuxi_app LÊ só a linha do plano da assinatura viva do próprio tenant (política isolamento_tenant pelo id).
+   * Desde a 0084 o macuxi_app LÊ só a linha do plano da assinatura viva do próprio tenant (política isolamento_tenant pelo id).
    */
-  'plataforma.plano': 'catálogo de planos da plataforma, fora dos tenants (ADR 0047); o app lê só o plano do próprio tenant (0081)',
+  'plataforma.plano': 'catálogo de planos da plataforma, fora dos tenants (ADR 0047); o app lê só o plano do próprio tenant (0084)',
   /**
    * Ações da empresa (0072, ADR 0052): empresa_id SEM FK no lugar de tenant_id, de propósito, como a auditoria_plataforma: o
    * backup, a exclusão e o registro da empresa excluída sobrevivem à plataforma.excluir_tenant. Só pelas funções sa_* e do worker.
@@ -36,6 +36,8 @@ export const TABELAS_SEM_TENANT_ID = {
   'plataforma.empresa_excluida': 'registro da empresa excluída, código nunca reaproveitado (ADR 0052, RN-PLA-10); só por função',
   /** Dados legais da Macuxi (0073, rodapé legal): dado da PLATAFORMA, uma linha só; só pelas funções plataforma.sa_* e dados_legais_publicos. */
   'plataforma.dados_legais': 'razão social, CNPJ e site da Macuxi, fora dos tenants (rodape-legal.md §3.2); só por função',
+  /** Frases da tela de carga (0081, T-0181): cadastro GLOBAL do super-admin, vale para todas as empresas; só por função. */
+  'plataforma.frase_carga': 'frases da tela de carga, globais (T-0181); portal pelas sa_*_frase_carga, app pela frases_carga_ativas()',
 } as const;
 
 /**
@@ -59,6 +61,8 @@ export const TABELAS_SO_POR_FUNCAO = [
   'plataforma.empresa_excluida',
   /** 0073 (rodapé legal): lida pela dados_legais_publicos (app) e pelas sa_* do portal; gravada só pela sa_gravar_dados_legais. */
   'plataforma.dados_legais',
+  /** 0081 (T-0181): frases da tela de carga; o app lê pela plataforma.frases_carga_ativas(), o portal pelas sa_*_frase_carga. */
+  'plataforma.frase_carga',
 ] as const;
 
 /** Tabelas sem o índice de sync (tenant_id, updated_at, id): não são puxadas pelo app. */
@@ -86,7 +90,7 @@ export const TABELAS_FORA_DO_SYNC = [
   'plataforma.diagnostico',
   /** Assinatura do tenant (0070, ADR 0047 §2): uma por tenant; o portal grava (sa_gravar_assinatura) e a API lê; nunca vai ao aparelho. */
   'plataforma.assinatura',
-  /** Histórico das trocas de plano (0081, ADR 0047 §6): só a sa_trocar_plano grava; nunca vai ao aparelho. */
+  /** Histórico das trocas de plano (0084, ADR 0047 §6): só a sa_trocar_plano grava; nunca vai ao aparelho. */
   'plataforma.assinatura_historico',
   /** Pacote da primeira carga (0074, ADR 0054): o aparelho baixa o arquivo pelo manifesto GET /v1/sync/pacotes; as linhas nunca são puxadas. */
   'plataforma.sync_pacote',
