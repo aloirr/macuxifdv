@@ -2,8 +2,7 @@
 
 > **Tipografia substituída** pela fonte do sistema (R-20261115-110600, 15/11/2026): ver o [manual da marca §5](../../marca/manual.md#5-tipografia).
 
-> 2026-11-15 · designer-ux · pedido aprovado pelo dono do produto (R-20261115-104500). **Simulação para aprovação**; a implementação
-> (modulo-core na tela, engenheiro-apps na rota do shell) fica para depois da v1.0.12.
+> 2026-11-15 · designer-ux · pedido aprovado pelo dono do produto (R-20261115-104500). Implementada na T-0178 (#357 e #370).
 > Telas: [`telas.html`](telas.html) · PNGs em [`png/`](png/) (gerados por [`gerar-png.cjs`](gerar-png.cjs)).
 > Decisão R-20261115-115500 (dono do produto): a tela tem o link **"Esqueci a senha"**, que leva ao fluxo que já existe no Core (§6).
 > Regras: RN-CORE-32 e RN-CORE-34, sem regra nova (funções no §10 item 1). Base: [`ciclo-de-senha.md`](../ciclo-de-senha.md) §2 ("Crie sua senha") e
@@ -109,16 +108,15 @@ senha precisa ter", as quatro regras, "Esqueci a senha" (link do login e a tela 
 - Ordem do leitor: alerta → Senha atual → olho → Esqueci a senha → Senha nova → olho → Repita a senha → olho → regras → Salvar senha.
 - Movimento: avanço lateral 240 ms; escala 0,97 no toque; tudo respeita "reduzir movimento".
 
-## 10. Premissas (para o dono do produto e o modulo-core)
+## 10. Premissas
 1. **Regras** (as do cabeçalho): as funções da RN-CORE-32 (`faltasNaSenha`, `mensagemDaSenha`, `validarSenhaInicial` com
    "≠ e-mail") e da RN-CORE-34 (`validarSenhaNova`, "não repetir a senha usada para entrar"), em
    `modules/core/contracts/senha-regra.ts` e `modules/core/domain/acesso-senha.ts`.
 2. **Texto da RN-CORE-34, um só**: **"A senha nova precisa ser diferente da atual."**. Vale também quando a "Senha atual"
-   digitada é a temporária, porque nesse caso a atual é a temporária. O modulo-core troca o texto de hoje ("A senha nova não pode
-   ser igual à senha temporária.", `validarSenhaNova` em `modules/core/domain/acesso-senha.ts:62`) por esse, na implementação.
+   digitada é a temporária, porque nesse caso a atual é a temporária.
 3. **API**: a troca pode usar o `POST /v1/auth/senha/trocar` de hoje (código da empresa e e-mail da sessão, senha atual e nova;
    já audita `motivo: 'voluntaria'`) e devolve a sessão nova, que o app passa a usar. Por isso a pessoa continua no app depois
-   de trocar. Decisão final da rota: modulo-core / engenheiro-software.
+   de trocar.
 4. **Senha atual errada conta como tentativa de login** (a rota é a do login): depois de várias, vale o bloqueio do login (423/429),
    com o texto dele.
 5. **Três olhos independentes**, como pedido. Na "Crie sua senha" um olho mostra os dois campos novos; aqui cada campo tem o seu.
@@ -129,6 +127,5 @@ senha precisa ter", as quatro regras, "Esqueci a senha" (link do login e a tela 
    rota: (a) o título vai para a faixa e a volta "Voltar ao login" (`TEXTOS_ESQUECI.voltar`) não aparece no pedido nem na
    confirmação, porque a faixa já tem o voltar; (b) dentro do app, sem
    `instrucao`, sem o campo "Código da empresa" (o código vem da sessão e vai no pedido) e com o e-mail da sessão como texto
-   fixo, sem edição; a confirmação usa o texto do app (§6 e §8) e mantém o `naoChegou`. O engenheiro-apps liga a rota no shell
-   (Campo e Gestão).
+   fixo, sem edição; a confirmação usa o texto do app (§6 e §8) e mantém o `naoChegou`.
 9. **Só online**: sem fila offline; a senha nunca vai para storage, fila, URL ou log.

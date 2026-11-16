@@ -139,3 +139,4 @@
 2026-11-16 — v1.0.14 integracao — #442: RD-1780 a RD-1785, MC-1550 a MC-1558 e MC-1560 (Alertas com title; horasEMinutos único; regra das duas funções de data; testes em format.test.ts; códigos mono 15/400; pesos e tamanhos do kit); merge do main.
 2026-11-15 — R-20261115-104500 — Simulação "Trocar senha" (Perfil do Campo e do Gestão): spec, telas.html, 7 telas em PNG e gerador em docs/design/trocar-senha/; RN-CORE-32/34 sem regra nova; implementação depois da v1.0.12.
 2026-11-15 — Trocar senha — merge do main no nuvem/trocar-senha-designer-ux e nota da fonte do sistema no topo da spec (como as specs antigas, RD-0958); só docs, o app já entrou no #370
+2026-11-16 — Trocar senha (#426) — RD-1844: spec e prancha dizem que a tela já foi implementada na T-0178 (#357 e #370); saem as pendências de implementação; 00-prancha.png regerado
