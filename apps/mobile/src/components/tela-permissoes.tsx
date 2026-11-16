@@ -5,7 +5,7 @@
  * situação), o cartão dos 2 passos da localização, o link "Como usamos a localização" (só no Campo) e UM botão no pé.
  * Regras e textos em `lib/permissoes.ts`. O Voltar do Android fecha o app (não há "Agora não").
  */
-import { Button, Card, colors, Folha, fonts, Icon, TOUCH, type IconName } from '@macuxi/ui/mobile';
+import { Button, Card, colors, Folha, fonte, Icon, TOUCH, type as t, type IconName } from '@macuxi/ui/mobile';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -156,24 +156,24 @@ export function TelaPermissoes({
 const styles = StyleSheet.create({
   root: { backgroundColor: colors.ground, zIndex: 11 },
   conteudo: { flexGrow: 1, paddingHorizontal: 20, gap: 18, paddingBottom: 24 },
-  marca: { fontFamily: fonts.display, fontSize: 14, color: colors.accentInk },
-  titulo: { fontFamily: fonts.display, fontSize: 26, letterSpacing: -0.3, color: colors.ink },
-  subtitulo: { fontFamily: fonts.body, fontSize: 15, color: colors.ink2 },
+  marca: { ...fonte.bold, fontSize: 14, color: colors.accentInk },
+  titulo: t.h1,
+  subtitulo: { ...fonte.body, fontSize: 16, color: colors.ink2 },
   cartao: { padding: 0 },
   linha: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, minHeight: 68, paddingVertical: 10 },
   divisoria: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   circulo: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.neutralBg, alignItems: 'center', justifyContent: 'center' },
-  nome: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
-  motivo: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
+  nome: { ...fonte.semibold, fontSize: 16, color: colors.ink },
+  motivo: { ...fonte.body, fontSize: 14, color: colors.ink2 },
   situacao: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  situacaoTexto: { fontFamily: fonts.semibold, fontSize: 13 },
+  situacaoTexto: { ...fonte.semibold, fontSize: 14 },
   passo: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
   numero: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  numeroTexto: { fontFamily: fonts.bold, fontSize: 12, color: colors.surface },
-  passoTexto: { flex: 1, fontFamily: fonts.body, fontSize: 14, color: colors.ink },
-  forte: { fontFamily: fonts.bold },
+  numeroTexto: { ...fonte.bold, fontSize: 12, color: colors.surface },
+  passoTexto: { flex: 1, ...fonte.body, fontSize: 14, color: colors.ink },
+  forte: { ...fonte.bold },
   link: { alignSelf: 'flex-start', minHeight: TOUCH, justifyContent: 'center' },
-  linkTexto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.accentInk },
+  linkTexto: { ...fonte.semibold, fontSize: 14, color: colors.accentInk },
   pe: { paddingHorizontal: 20, paddingTop: 8 },
-  avisoTexto: { fontFamily: fonts.body, fontSize: 15, lineHeight: 22, color: colors.ink },
+  avisoTexto: { ...fonte.body, fontSize: 16, lineHeight: 22, color: colors.ink },
 });

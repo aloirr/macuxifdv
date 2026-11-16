@@ -1,8 +1,8 @@
 # Parâmetros › Alertas e alertas de produtividade (spec aprovada, T-0180)
 
 **Aprovada.** Pedido do Alexandre R-20261115-112500; decisões D1 a D6 e correções do corretor e da marca tomadas pelo gerente-projetos por delegação escrita do dono do produto (R-20261115-123000 e R-20261115-120632, 15/11/2026, manhã, Manaus). Tarefa: `.coord/tarefas/T-0180.md` (v1.0.13).
-Conteúdo (gatilhos, cadência, offline): `docs/modulos/gestor/alertas-produtividade.md`. Onde a proposta e esta spec divergem, valem as decisões da T-0180 e esta spec. Esta spec diz **o que cada tela mostra e como**.
-Base visual: árvore final do menu de `docs/design/menu-parametros/spec.md` §2 (menu de 240 px; **Parâmetros** é item direto e a página tem a lista de seções à esquerda, 200 px, D3/D10; `PageHeader` com "Parâmetros" acima do título, seções em `Panel`, um Salvar por unidade salva). Fonte do sistema (manual da marca §5). Validada a 1366×768: em cada regra, o nome e a frase ficam numa linha com o interruptor e os campos embaixo, quebrando linha se não couberem.
+Gatilhos e cadência dos lembretes: `docs/modulos/core/jornada-e-alertas-produtividade.md`. O que o servidor avalia: `docs/modulos/gestor/alertas-produtividade.md`. Esta spec diz **o que cada tela mostra e como**.
+Base visual: árvore final do menu de `docs/design/menu-parametros/spec.md` §2 (menu de 240 px; **Parâmetros** é item direto e a página tem a lista de seções à esquerda, 200 px, D3/D10; `PageHeader` com o título "Parâmetros" e a seção só na lista (marcada em Azul noite), seções em `Panel`, um Salvar por unidade salva). Fonte do sistema (manual da marca §5). Validada a 1366×768: em cada regra, o nome e a frase ficam numa linha com o interruptor e os campos embaixo, quebrando linha se não couberem.
 
 ## 1. Página Parâmetros › Alertas (`/parametros/alertas`)
 

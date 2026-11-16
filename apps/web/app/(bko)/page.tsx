@@ -19,7 +19,7 @@ export default function Inicio() {
             Nenhuma página de módulo registrada ainda (as telas de Core e Vendedor entram na Fase B2 da T-0001).
           </span>
         ) : (
-          <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5 text-[14px] text-ink-3">
+          <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5 text-[15px] text-ink-3">
             {visao.navegacao.map((n) => (
               <li key={n.testID}>
                 <Link href={`/${n.caminho}`} className="font-semibold text-accent-ink no-underline hover:underline">

@@ -50,7 +50,7 @@ import { useHojeDoTenant, useMe, useSellersDeCampo } from '../../lib/queries';
 import { PlanoRvEditor } from './plano-rv-editor';
 
 const CAMPO =
-  'h-[38px] rounded-[10px] border border-field bg-surface px-2.5 text-[14px] font-medium text-ink';
+  'h-[38px] rounded-[10px] border border-field bg-surface px-2.5 text-[15px] font-medium text-ink';
 const CHAVE_PLANOS = ['core', 'plano-rv'] as const;
 const TEXTO_DESCARTAR = 'Há alterações não salvas neste plano. Sair e descartar?';
 
@@ -287,7 +287,7 @@ function PainelDeRv() {
               </Notice>
             ) : (
               <>
-                <p className="m-0 text-[14px] font-semibold text-ink" data-testid="plano-rv.rv.total">
+                <p className="m-0 text-[15px] font-semibold text-ink" data-testid="plano-rv.rv.total">
                   {d.pessoas.length} {d.pessoas.length === 1 ? 'pessoa' : 'pessoas'} · RV total{' '}
                   {formatBRL(total)}
                 </p>

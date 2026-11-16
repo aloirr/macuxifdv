@@ -43,13 +43,12 @@ function useAuthed() {
 export interface SessaoDoBko {
   perfil: string;
   fuso: string;
-  empresa: string;
 }
 
-/** Perfil, fuso do tenant e nome da empresa do login real (sem `GET /me` da Fase M). */
+/** Perfil e fuso do tenant do login real (sem `GET /me` da Fase M). */
 export function useSessaoDoBko(): SessaoDoBko {
-  const s = useSession<{ perfil?: string | null; fuso?: string; empresa?: string }>();
-  return { perfil: s.user?.perfil ?? '', fuso: s.user?.fuso ?? DEFAULT_TZ, empresa: s.user?.empresa ?? '' };
+  const s = useSession<{ perfil?: string | null; fuso?: string }>();
+  return { perfil: s.user?.perfil ?? '', fuso: s.user?.fuso ?? DEFAULT_TZ };
 }
 
 /** Lista de pedidos com os filtros da URL, paginada por cursor ("Carregar mais"). */

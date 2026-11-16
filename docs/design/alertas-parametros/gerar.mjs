@@ -65,12 +65,12 @@ body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background
 .rodape b{font-size:15px}.rodape span{font-size:12px;color:#C9CED5}.sair{font-size:13px;font-weight:600;color:#C9CED5;margin-top:8px}
 main{flex:1;min-width:0;padding:28px 32px 120px;display:flex;flex-direction:column;gap:20px}
 .titulo.direto{text-decoration:none}
-.titulo.direto.ativo{background:#2B3743}
+.titulo.direto.ativo{background:#2B3743;color:#fff}
 .par{display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;align-items:start}
 .secoes{display:flex;flex-direction:column;gap:2px;position:sticky;top:0}
 .sec{display:flex;align-items:center;height:36px;padding:0 12px;border-radius:8px;font-size:15px;color:#34404D;position:relative}
 .sec.ativo{background:#fff;color:#16202A;font-weight:600;box-shadow:inset 0 0 0 1px #DFE2E6}
-.sec.ativo:before{content:'';position:absolute;left:4px;top:8px;bottom:8px;width:3px;border-radius:2px;background:#F59A52}
+.sec.ativo:before{content:'';position:absolute;left:4px;top:8px;bottom:8px;width:3px;border-radius:2px;background:#1E3350}
 .conteudo{display:flex;flex-direction:column;gap:20px;min-width:0}
 .cab{display:flex;flex-direction:column;gap:2px;min-height:42px;justify-content:center}
 .cab.linha{flex-direction:row;align-items:center;justify-content:space-between}
@@ -126,9 +126,10 @@ tr:last-child td{border-bottom:0}
 `;
 
 const pagina = (titulo, grupo, ativo, corpo, nota, extra = '') =>
-  `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>${titulo}</title><style>${CSS}</style><body>${menu(grupo, ativo)}<main>${grupo === 'Parâmetros' ? `<div class="par">${secoes(ativo)}<div class="conteudo">${corpo}</div></div>` : corpo}</main>${extra}${nota ? `<div class="nota">${nota}</div>` : ''}</body></html>`;
+  `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>${titulo}</title><style>${CSS}</style><body>${menu(grupo, ativo)}<main>${grupo === 'Parâmetros' ? `<div class="cab"><h1>Parâmetros</h1></div><div class="par">${secoes(ativo)}<div class="conteudo">${corpo}</div></div>` : corpo}</main>${extra}${nota ? `<div class="nota">${nota}</div>` : ''}</body></html>`;
 
-const cab = (t) => `<div class="cab"><span class="eyebrow">Parâmetros</span><h1>${t}</h1></div>`;
+// RD-1680: o título é "Parâmetros"; o nome da seção fica só na lista de seções (como no menu-parametros).
+const cab = () => '';
 
 /** Interruptor geral da regra (`Interruptor` com estadoEscrito="so-desligada"): ligada sem texto; desligada com o selo neutro. */
 const chaveGeral = (ligada) =>
@@ -220,7 +221,7 @@ const gaveta = `<div style="position:absolute;inset:0;background:rgba(22,32,42,.
     ${gfield('Nome', 'João Silva')}${gfield('E-mail', 'joao.silva@exemplo.com.br')}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">${gfield('Perfil', 'Vendedor', true)}${gfield('Supervisor', 'Maria Lima', true)}</div>
     ${gfield('Código no ERP', 'V-0142')}
-    <fieldset style="border:0;border-top:1px solid #DFE2E6;padding:14px 0 0;display:flex;flex-direction:column;gap:10px"><legend style="font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;font-weight:700;font-size:15px;padding:0 8px 0 0">Jornada</legend>${almoco(true)}</fieldset>
+    <fieldset style="border:0;border-top:1px solid #DFE2E6;padding:14px 0 0;display:flex;flex-direction:column;gap:10px"><legend style="font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;font-weight:700;font-size:17px;padding:0 8px 0 0">Jornada</legend>${almoco(true)}</fieldset>
   </div>
   <div style="display:flex;justify-content:flex-end;gap:8px;background:#fff;border-top:1px solid #DFE2E6;padding:12px 20px"><span class="btn s">Cancelar</span><span class="btn p">Salvar</span></div>
 </aside>
@@ -261,13 +262,13 @@ const campoTela = `<div class="fone" style="background:#16202A">
   </div></div>`;
 const alerta = (titulo, msg, desde) =>
   `<div style="display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-bottom:1px solid #ECEEF1">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:15px;font-weight:600">${titulo}</b><span class="selo av">Atenção</span></div>
-    <span style="font-size:15px;line-height:21px">${msg}</span><span style="font-size:13px;color:#4A5562">desde ${desde}</span>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:16px;font-weight:600">${titulo}</b><span class="selo av">Atenção</span></div>
+    <span style="font-size:16px;line-height:22px">${msg}</span><span style="font-size:14px;color:#4A5562">desde ${desde}</span>
     <span class="btn s" style="align-self:flex-start;height:44px;margin-top:4px">Dispensar</span></div>`;
 const aba = (nome, ativa, d) =>
   `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding-top:8px;border-top:3px solid ${ativa ? '#1E3350' : 'transparent'};color:${ativa ? '#1E3350' : '#4A5562'};font-size:12px;font-weight:${ativa ? 600 : 500}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>${nome}</div>`;
 const gestaoTela = `<div class="fone" style="background:#F8F6F1">
-  <div style="background:#1E3350">${sb('11:42', true)}<div style="padding:10px 20px 18px;font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;font-weight:700;font-size:24px;color:#fff">Alertas</div></div>
+  <div style="background:#1E3350">${sb('11:42', true)}<div style="padding:10px 20px 18px;font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;font-weight:700;font-size:22px;color:#fff">Alertas</div></div>
   <div style="padding:16px"><div style="background:#fff;border:1px solid #DFE2E6;border-radius:16px;overflow:hidden">
     ${alerta('Parado', 'João Silva: último checkout às 10:12.', '11:42')}
     ${alerta('Sem check-in', 'Carla Mendes', '10:00')}
