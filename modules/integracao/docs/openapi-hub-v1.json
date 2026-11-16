@@ -494,6 +494,7 @@
                           90
                         ],
                         "prazo_medio_dias": 60,
+                        "percentual_ajuste": 0,
                         "ordem": 2
                       }
                     ]
@@ -4755,6 +4756,18 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 365
+          },
+          "percentual_ajuste": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": -99.99,
+                "maximum": 99.99
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -5058,6 +5071,18 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 365
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "percentual_ajuste": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": -99.99,
+                "maximum": 99.99
               },
               {
                 "type": "null"

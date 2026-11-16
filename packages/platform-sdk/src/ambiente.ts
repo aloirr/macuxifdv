@@ -107,6 +107,12 @@ export interface AmbienteAparelho {
   usuario(): UsuarioAmbiente | null;
   consultar?: FuncaoConsultar;
   parametros?: (modulo: ModuloId) => Readonly<Record<string, unknown>>;
+  /**
+   * T-0182: logo da empresa do usuário logado como data URI (`data:image/png;base64,…`) para o PDF; `null` = sem logo.
+   * O shell mobile lê a cópia guardada no aparelho (offline); o web busca `rotaLogoDoAparelho(sha256)` com a sessão.
+   * Ausente = shell sem suporte (o módulo trata como `null`).
+   */
+  logoDaEmpresa?: () => Promise<string | null>;
 }
 
 /**

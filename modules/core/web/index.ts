@@ -2,6 +2,7 @@ import { createElement, Suspense, type ComponentType } from 'react';
 import { definirModuloShell } from '@macuxi/platform-sdk';
 export { entrarComSenha, mensagemDeErroDeLogin } from '../app/lib/login';
 export { validarLogin } from '../contracts';
+export { filiaisEmOrdem, type FilialOpcao } from './lib/filial-usuario';
 import { manifest } from '../manifest';
 import { CarteiraPage } from './components/carteira/carteira-page';
 import { Cliente360Page } from './components/cliente360/cliente360-page';
