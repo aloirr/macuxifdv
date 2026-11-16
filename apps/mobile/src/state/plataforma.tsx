@@ -34,7 +34,9 @@ import {
 } from '@macuxi/core/app';
 import type { FakeUser, Me } from '@macuxi/core/contracts';
 import {
+  CODIGO_USUARIO_SEM_FILIAL,
   ErroHttp,
+  MENSAGEM_USUARIO_SEM_FILIAL,
   mensagemPerfilForaDoApp,
   perfilDaFaseM,
   type AberturaArmazenamento,
@@ -71,6 +73,7 @@ import { router } from 'expo-router';
 import { AppState } from 'react-native';
 
 import { criarTratadorAparelhoBloqueado } from '@/lib/aparelho-bloqueado';
+import { criarTratadorSemFilial } from '@/lib/sem-filial';
 import {
   agendarSemPressa,
   ESPERA_TELA_PREPARO_MS,
@@ -226,6 +229,12 @@ function usePlataformaValor() {
   /** RN-CORE-15: aviso de aparelho bloqueado (dados apagados) que fica visível na tela de login. */
   const [avisoLogin, setAvisoLogin] = useState<string | null>(null);
   const aparelhoBloqueadoRef = useRef<((erro: unknown) => Promise<boolean>) | null>(null);
+  /**
+   * T-0176 (RN-CORE-39, tela 13): usuário sem filial de cadastro. O login fica aberto com o aviso no lugar do erro; `email` =
+   * de quem saiu da sessão pelo 403, para o login reabrir preenchido. Nada é apagado do aparelho.
+   */
+  const [semFilial, setSemFilial] = useState<{ email: string | null } | null>(null);
+  const semFilialRef = useRef<((erro: unknown) => Promise<boolean>) | null>(null);
   /** T-0059: sincronização do shell em curso (inclui a consulta dos módulos antes do motor) e quando começou. */
   const syncEmCursoRef = useRef<Promise<boolean> | null>(null);
   const ultimoInicioRef = useRef<number | null>(null);
@@ -297,7 +306,11 @@ function usePlataformaValor() {
         sessaoRef.current?.token ?? null,
         modo === 'v1' ? () => renovarRef.current?.() ?? Promise.resolve(null) : undefined,
         // qualquer chamada (fila, pull, etapas, telas) que receba 423 DISPOSITIVO_BLOQUEADO limpa o aparelho
-        (e) => void aparelhoBloqueadoRef.current?.(e).catch(() => undefined),
+        (e) => {
+          void aparelhoBloqueadoRef.current?.(e).catch(() => undefined);
+          // T-0176: 403 USUARIO_SEM_FILIAL em qualquer chamada (rota, módulos, sync) volta ao login sem apagar nada
+          void semFilialRef.current?.(e).catch(() => undefined);
+        },
       ),
     [modo],
   );
@@ -589,6 +602,7 @@ function usePlataformaValor() {
     async (s: Sessao, refresh: string | null) => {
       await gravarTokens({ access: s.token, refresh });
       setAvisoLogin(null);
+      setSemFilial(null);
       const { token: _token, ...semToken } = s;
       await writeJson(keys.session, semToken);
       sessaoRef.current = s;
@@ -654,6 +668,14 @@ function usePlataformaValor() {
         await post('/auth/logout', { refresh_token: r.refresh_token }).catch(() => undefined);
         throw new ErroHttp(403, 'PERFIL_FORA_DO_APP', fora);
       }
+      // T-0176 (RN-CORE-39): a senha está certa, mas a conta não tem filial de cadastro. O app não entra: encerra a sessão
+      // recém-criada e o login mostra o aviso da tela 13; depois que o admin informa a filial, o mesmo "Entrar" funciona
+      // `sem_filial` do `UsuarioSessao` do Core (T-0176); ausente = emissor antigo = livre
+      if (r.usuario.sem_filial === true) {
+        await post('/auth/logout', { refresh_token: r.refresh_token }).catch(() => undefined);
+        setSemFilial({ email: r.usuario.email });
+        throw new ErroHttp(403, CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL);
+      }
       const user: UsuarioSessao = {
         id: r.usuario.id,
         name: r.usuario.nome,
@@ -678,6 +700,8 @@ function usePlataformaValor() {
    */
   const loginComSenha = useCallback(
     async (campos: CamposLogin) => {
+      // nova tentativa: o aviso de sem filial só volta se a API ainda disser que falta a filial
+      setSemFilial(null);
       const { endereco, post } = await postSemSessao();
       // o servidor acabou de responder: é a hora de mandar as saídas que ficaram na fila (logout sem sinal)
       void reenviarSaidasPendentes(endereco).catch(() => undefined);
@@ -816,6 +840,9 @@ function usePlataformaValor() {
     // e o próximo login do mesmo usuário e tenant reabre o mesmo arquivo, com a fila offline que ficou
     await fecharArmazenamentoDoUsuario(aberto?.arquivo ?? null).catch(() => undefined);
   }, [modo, fecharSessaoLocal]);
+  // o tratador do sem filial é criado uma vez: lê o `logout` atual por ref
+  const logoutRef = useRef(logout);
+  logoutRef.current = logout;
 
   /** T-0088: "Tentar de novo" da tela de erro do armazenamento (arquivo do SQLite que não abriu). */
   const tentarAbrirDeNovo = useCallback(async () => {
@@ -860,6 +887,25 @@ function usePlataformaValor() {
     tratarAparelhoBloqueado,
     ehAparelhoBloqueado,
   );
+
+  /**
+   * T-0176 (RN-CORE-39; ADR 0056): 403 `USUARIO_SEM_FILIAL` com o usuário logado. Espera a sincronização em curso, sai como no
+   * "Sair" (fecha o banco do usuário SEM apagar dados nem a fila offline) e volta ao login com o aviso da tela 13.
+   */
+  semFilialRef.current ??= criarTratadorSemFilial({
+    temSessao: () => sessaoRef.current !== null,
+    email: () => sessaoRef.current?.user.email ?? null,
+    esperarSync: () => syncEmCursoRef.current ?? Promise.resolve(),
+    sair: () => logoutRef.current(),
+    avisar: (email) => setSemFilial({ email }),
+    irParaLogin: () => {
+      try {
+        router.replace('/login');
+      } catch {
+        // navegação ainda não montada: sem sessão, as abas já redirecionam ao login
+      }
+    },
+  });
 
   /** 401 na API real: troca o refresh por um par novo (uma troca por vez). Refresh recusado = sessão encerrada. */
   const renovando = useRef<Promise<string | null> | null>(null);
@@ -1139,6 +1185,7 @@ function usePlataformaValor() {
     perfil,
     me,
     avisoLogin,
+    semFilial,
     offline,
     motor,
     ambiente: ambienteTela,
