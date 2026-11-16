@@ -10,6 +10,7 @@ import { filtrarPorEtapas, filtroEtapasDaUrl, rotuloAcessivelSelo, rotuloSeloEta
 import { EtapasDialog } from './etapas-dialog';
 import { useHojeDoTenant, useSellersDeCampo } from '../../lib/queries';
 import { csvDeVisitas, permanenciaMin, quando, rotuloResultado, sinais } from '../../lib/visitas';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
 const FUSO_PADRAO = 'America/Manaus';
 const somar = (iso: string, n: number) => new Date(Date.parse(`${iso}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
@@ -97,11 +98,11 @@ function VisitasConteudo() {
       <FilterBar>
         <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
           De
-          <input type="date" value={de} max={ate} onChange={(e) => e.target.value && set({ de: e.target.value })} data-testid="visitas.filtro-de" className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px]" />
+          <input type="date" value={de} max={ate} onChange={(e) => e.target.value && set({ de: e.target.value })} data-testid="visitas.filtro-de" className={CLASSE_CAMPO_BKO} />
         </label>
         <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
           Até
-          <input type="date" value={ate} min={de} onChange={(e) => e.target.value && set({ ate: e.target.value })} data-testid="visitas.filtro-ate" className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px]" />
+          <input type="date" value={ate} min={de} onChange={(e) => e.target.value && set({ ate: e.target.value })} data-testid="visitas.filtro-ate" className={CLASSE_CAMPO_BKO} />
         </label>
         <SelectField label="Vendedor ou promotor" value={usuario} onChange={(e) => set({ usuario: e.target.value })} data-testid="visitas.filtro-usuario">
           <option value="">Toda a equipe</option>

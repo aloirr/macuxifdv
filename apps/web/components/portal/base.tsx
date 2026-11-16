@@ -9,7 +9,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from 'react';
-import { Button, cx, Dialog, LoadingBlock } from '@macuxi/ui/web';
+import { Button, cx, Dialog, LoadingBlock, Panel } from '@macuxi/ui/web';
 
 import { MarcaNaFaixa } from '@/components/marca-faixa';
 import { houveUsoRecente, MODO_PORTAL_FALSO, registrarUso, renovarSessaoPortal, sairDoPortal } from '@/lib/portal-api';
@@ -37,6 +37,7 @@ import {
   podeTrocarDeEmpresa,
   retirarDesvioPortal,
   retirarSaidaPedida,
+  SEM_ACESSO_TIME_MACUXI,
   versaoDaSessaoPortal,
   type DesvioPortal,
   type SessaoPortal,
@@ -54,13 +55,30 @@ export function LinkBotao({ href, children, primario, testId, className }: { hre
       href={href}
       data-testid={testId}
       className={cx(
-        'inline-flex h-[42px] items-center justify-center gap-1.5 rounded-xl px-4 text-[14px] font-semibold no-underline transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+        'inline-flex h-[42px] items-center justify-center gap-1.5 rounded-xl px-4 text-[15px] font-semibold no-underline transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
         primario ? 'bg-ink text-white hover:bg-[#0b1218]' : 'border border-field bg-surface text-ink hover:bg-ground',
         className,
       )}
     >
       {children}
     </Link>
+  );
+}
+
+/** "Sem acesso" das áreas só do time Macuxi (Diagnósticos, Frases da carga): o admin do cliente volta para a empresa dele. */
+export function SemAcessoTimeMacuxi({ testId }: { testId: string }) {
+  const sessao = useSessaoPortal();
+  return (
+    <Panel>
+      <div data-testid={testId} className="flex flex-col items-start gap-3 py-4">
+        <span className="text-[15px] font-semibold">{SEM_ACESSO_TIME_MACUXI}</span>
+        {sessao && (
+          <LinkBotao href={destinoDaSessao(sessao)} primario>
+            Ir para a sua empresa
+          </LinkBotao>
+        )}
+      </div>
+    </Panel>
   );
 }
 
@@ -100,6 +118,13 @@ export function useSessaoPortal(): SessaoPortal | null | undefined {
 /** Desvio pedido por um 403/409 de empresa (admin do cliente): a guarda leva à "Escolha a empresa". */
 function useDesvioPortal(): DesvioPortal | null {
   return useSyncExternalStore(assinarSessaoPortal, lerDesvioPortal, () => null);
+}
+
+/** Só o time Macuxi: `null` = ainda lendo a sessão; `false` = admin do cliente (mostra o "sem acesso"). */
+export function useTimeMacuxi(): boolean | null {
+  const sessao = useSessaoPortal();
+  if (sessao === undefined || sessao === null) return null;
+  return ehTimeMacuxi(sessao);
 }
 
 /** O que aparece uma vez e ainda não foi baixado (links dos convites): `lib/portal-saida`. */
@@ -263,10 +288,14 @@ export function GuardaPortal({ children }: { children: ReactNode }) {
   );
 }
 
-/** Itens do cabeçalho do time da Macuxi (T-0158: "Diagnósticos" ao lado de "Empresas"); o admin do cliente não vê nenhum. */
+/**
+ * Itens do cabeçalho do time da Macuxi (T-0158: "Diagnósticos" ao lado de "Empresas"; T-0181: "Frases da carga" depois);
+ * o admin do cliente não vê nenhum.
+ */
 export const MENU_TIME_MACUXI = [
   { href: '/empresas', rotulo: 'Empresas', testId: 'portal.menu.empresas' },
   { href: '/diagnosticos', rotulo: 'Diagnósticos', testId: 'portal.menu.diagnosticos' },
+  { href: '/frases-carga', rotulo: 'Frases da carga', testId: 'portal.menu.frases-carga' },
 ] as const;
 
 /** Item ativo pelo caminho (no host `config.` o navegador vê `/diagnosticos`; no PC sem o host, `/config/diagnosticos`). */
@@ -341,7 +370,7 @@ export function MolduraPortal({ children, titulo, voltar }: { children: ReactNod
                       aria-current={ativo === i.href ? 'page' : undefined}
                       onClick={navegar(i.href)}
                       className={cx(
-                        '-mb-3 flex min-h-11 items-center border-b-2 px-3 pb-3 text-[14px] font-semibold no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                        '-mb-3 flex min-h-11 items-center border-b-2 px-3 pb-3 text-[15px] font-semibold no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
                         ativo === i.href ? 'border-accent text-ink' : 'border-transparent text-ink-2 hover:text-ink',
                       )}
                     >

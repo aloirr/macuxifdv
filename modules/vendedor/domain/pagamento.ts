@@ -19,6 +19,8 @@ export interface PrazoDePagamento {
   /** dias de cada parcela, sem decrescer; `[0]` = à vista */
   parcelas_dias: readonly number[];
   prazo_medio_dias: number;
+  /** RN-VEN-43: "Desc./Acrésc. (%)" do prazo, vindo do ERP (-99,99 a +99,99); ausente = 0 */
+  percentual_ajuste?: number;
   ordem: number;
   ativo: boolean;
 }
@@ -115,6 +117,23 @@ export function validarPagamento(i: {
     return { ok: false, codigo: 'RN-VEN-25', motivo: 'prazo_acima_medio', mensagem: 'Prazo acima do prazo médio permitido ao cliente. Escolha um prazo menor.' };
   }
   return { ok: true };
+}
+
+export const MSG_PERCENTUAL_DO_PRAZO_MUDOU = 'Este prazo de pagamento mudou. Atualize o app e refaça o pedido.';
+
+/**
+ * RN-VEN-45: o percentual do pedido é congelado e revalidado no envio. `push` = o do aparelho (ausente = 0); `vigente` = o do
+ * cadastro agora. Igual: aceita. Diferente e o cadastro do prazo mudou DEPOIS do `criado_em` do pedido: aceita o do push
+ * (`mudou_depois`); o chamador registra o aviso na linha do tempo, fora da alçada. Diferente sem mudança posterior: recusa (RN-VEN-40). Devolve o percentual a usar no cálculo.
+ */
+export type ResultadoPercentualDoPrazo = { ok: true; percentual: number; mudou_depois: boolean } | { ok: false; codigo: 'RN-VEN-45'; mensagem: string };
+export function revalidarPercentualDoPrazo(i: { push: number | null | undefined; vigente: number | null | undefined; cadastro_atualizado_em: string | null | undefined; criado_em: string }): ResultadoPercentualDoPrazo {
+  const push = i.push ?? 0;
+  const vigente = i.vigente ?? 0;
+  if (Math.round(push * 100) === Math.round(vigente * 100)) return { ok: true, percentual: push, mudou_depois: false };
+  const mudouDepois = !!i.cadastro_atualizado_em && Date.parse(i.cadastro_atualizado_em) > Date.parse(i.criado_em);
+  if (mudouDepois) return { ok: true, percentual: push, mudou_depois: true };
+  return { ok: false, codigo: 'RN-VEN-45', mensagem: MSG_PERCENTUAL_DO_PRAZO_MUDOU };
 }
 
 /** RN-VEN-13: título vencido há mais que o limite e prazo a prazo (prazo médio > 0) → aprovação. À vista segue sem aprovação. */

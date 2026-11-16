@@ -76,6 +76,10 @@ export function paresDaEntrada(t: TemaEntrada): ParContraste[] {
   return [
     { uso: 'etapa e percentual', fg: t.texto, bg: t.fundo, tipo: 'texto' },
     { uso: 'Olá, etapas que faltam, Trocar usuário', fg: t.textoClaro, bg: t.fundo, tipo: 'texto' },
+    { uso: 'Você sabia?', fg: t.texto, bg: t.fundo, tipo: 'texto' },
+    { uso: 'frase da carga', fg: t.textoClaro, bg: t.fundo, tipo: 'texto' },
+    { uso: 'aviso da carga', fg: t.textoClaro, bg: t.fundo, tipo: 'texto' },
+    { uso: 'lâmpada do Você sabia?', fg: t.preenchimento, bg: t.fundo, tipo: 'grafico' },
     { uso: 'preenchimento da barra no fundo', fg: t.preenchimento, bg: t.fundo, tipo: 'grafico' },
     { uso: 'preenchimento da barra no trilho', fg: t.preenchimento, bg: t.trilho, tipo: 'grafico' },
     { uso: '✓ da etapa feita', fg: t.feita, bg: t.fundo, tipo: 'texto' },
@@ -86,3 +90,47 @@ export function paresDaEntrada(t: TemaEntrada): ParContraste[] {
     { uso: 'Continuar sem sincronizar (texto)', fg: t.contornoTexto, bg: t.fundo, tipo: 'texto' },
   ];
 }
+
+/**
+ * Medidas do título "Você sabia?", da frase sorteada e do aviso da tela de carga (estados 4 e 5; T-0181,
+ * docs/design/carga-aviso-frases/spec.md §1 e §1.1, ajuste R-20261115-080500). Em dp; `fonte` é a chave de `fonte` (theme.ts, fonte do sistema: só o peso).
+ * Cores do tema: título em `texto`; lâmpada (`<Icon name="lampada">`) em `preenchimento` (gráfico); frase e aviso em
+ * `textoClaro`. O aviso não tem destaque: sem caixa, sem borda, sem fundo, sem negrito, 1 linha na escala 1,0, nunca cortado (sem tokens de aviso; MC-0078 caiu).
+ * Bloco "Você sabia?": 86 dp com a frase em 2 linhas, 66 dp com 1. Em tela baixa, a frase cai para 1 linha (só se couber
+ * inteira) ou o bloco inteiro sai; o título nunca aparece sozinho (`cabeFrase`, no shell).
+ */
+export const MEDIDAS_FRASE_CARGA = {
+  titulo: {
+    /** Do pé do "Olá" ao topo do título. */
+    abaixoDoOla: 20,
+    /** Lâmpada à esquerda do texto, centralizada com ele; o par fica centralizado na tela. */
+    lampada: 16,
+    lampadaAoTexto: 6,
+    fonte: 'semibold',
+    tamanho: 14,
+    linha: 20,
+    /** Do pé do título ao topo da frase. */
+    ateFrase: 6,
+  },
+  frase: {
+    larguraMax: 280,
+    linhasMax: 2,
+    /** Livre entre o pé da frase e o topo do aviso; sem isso, 1 linha ou nada (spec §1.1). */
+    livreAteAviso: 24,
+    fonte: 'body',
+    tamanho: 14,
+    linha: 20,
+  },
+  aviso: {
+    fonte: 'body',
+    tamanho: 14,
+    linha: 20,
+    /** Do pé do aviso à linha da barra. */
+    acimaDaBarra: 10,
+    /**
+     * Linhas na escala de fonte 1,0. Nunca é cortado: com fonte grande pode quebrar em 2 (`linhasDoAviso`, no shell, conta as 2).
+     * Não muda com a altura da tela.
+     */
+    linhas: 1,
+  },
+} as const;

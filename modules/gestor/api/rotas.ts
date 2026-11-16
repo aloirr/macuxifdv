@@ -5,7 +5,7 @@
  * domain em toda resposta; fora do escopo = 404 sem revelar existência. Leitura do tenant (analista/admin) é só
  * leitura (RN-GES-07). Nenhuma rota de pedido aqui (RN-PRO-01): aprovar/rejeitar e o pedido em nome são do Vendedor.
  */
-import { CONSULTA_CADASTRO_RESUMO, CONSULTA_CALENDARIO_METAS } from '@macuxi/core/contracts';
+import { CONSULTA_CADASTRO_RESUMO, CONSULTA_CALENDARIO_METAS, CONSULTA_PRODUTIVIDADE_EQUIPE, type HorarioAlmoco, type ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
 import { ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, uuidPadrao, type ClienteBanco, type ContextoBase, type Perfil, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { exigirDataCivil } from '@macuxi/comum';
 import type { z } from 'zod';
@@ -19,7 +19,7 @@ import {
   ParamsTipoAlerta,
   ParamsUsuario,
   RankingQuery,
-  TIPOS_ALERTA,
+  TIPOS_REGRA_EQUIPE,
   type FichaMembro,
   type FilaAprovacao,
   type ListaAlertas,
@@ -34,6 +34,7 @@ import {
   dataDaConsulta,
   disponibilidadePedidoEmNome,
   dispensarAlerta,
+  ehTipoProdutividade,
   equipeDoEscopo,
   escopoDosVisiveis,
   fichaDoMembro,
@@ -50,6 +51,7 @@ import {
   type EstadoProjecao,
   type ParametrosGestor,
 } from '../domain';
+import { rotasDeParametrosAlertas } from './parametros-alertas';
 import type { AcessoTenant, RepositorioGestor } from './repositorio';
 
 /** Quem LÊ os painéis: a equipe (painel_equipe.ver) e o tenant em leitura (painel_tenant.ver, RN-GES-07). */
@@ -130,11 +132,44 @@ const base = (g: ContextoGestor, data?: string) => ({
   data: dataDaConsulta(data, g.agora, g.params.fuso),
 });
 
+const LOTE_PRODUTIVIDADE = 500;
+
+/**
+ * T-0180, ADR 0059 §4: o que o Core sabe da produtividade da equipe de campo (`core.produtividade_equipe@1`): o limite do "parado"
+ * (`inicio.parado_min`), o parâmetro `alertas.produtividade` e o último contato do aparelho de cada pessoa. Sem gente de campo, `undefined`.
+ */
+async function produtividadeDaEquipe(g: ContextoGestor): Promise<{ parado_min: number; alertas: ParametrosAlertasProdutividade; ultimo_contato_em: Record<string, string | null>; almoco: Record<string, HorarioAlmoco> } | undefined> {
+  const ids = g.membros.filter((m) => (m.perfil === 'vendedor' || m.perfil === 'promotor') && m.ativo).map((m) => m.id);
+  let base: { parado_min: number; alertas: ParametrosAlertasProdutividade } | undefined;
+  const ultimo_contato_em: Record<string, string | null> = {};
+  const almoco: Record<string, HorarioAlmoco> = {};
+  for (let i = 0; i < ids.length; i += LOTE_PRODUTIVIDADE) {
+    const r = await g.tx.consultar(CONSULTA_PRODUTIVIDADE_EQUIPE, { usuario_ids: ids.slice(i, i + LOTE_PRODUTIVIDADE) });
+    base ??= { parado_min: r.parado_min, alertas: r.alertas };
+    for (const u of r.usuarios) {
+      ultimo_contato_em[u.id] = u.ultimo_contato_em;
+      almoco[u.id] = { inicio_min: u.almoco_inicio_min, fim_min: u.almoco_fim_min };
+    }
+  }
+  return base && { ...base, ultimo_contato_em, almoco };
+}
+
 /** Reconcilia os alertas (tipos do viewer) e devolve a lista atualizada do tenant. */
 async function alertasAtualizados(g: ContextoGestor, repo: RepositorioGestor) {
   const existentes = await repo.alertas(g.acesso);
   const ajustes = await repo.ajustesRegras(g.acesso);
-  const ops = reconciliarParaViewer(existentes, { estado: g.estado, membros: g.membros, agora: g.agora, modulos: g.modulos, ajustes, params: g.params });
+  const prod = await produtividadeDaEquipe(g);
+  const ops = reconciliarParaViewer(existentes, {
+    estado: g.estado,
+    membros: g.membros,
+    agora: g.agora,
+    modulos: g.modulos,
+    ajustes,
+    params: prod ? { ...g.params, parado_min: prod.parado_min } : g.params,
+    produtividade: prod?.alertas,
+    ultimo_contato_em: prod?.ultimo_contato_em,
+    almoco: prod?.almoco,
+  });
   if (ops.abrir.length + ops.atualizar.length + ops.encerrar.length === 0) return existentes;
   await repo.aplicarOperacoesAlerta(g.acesso, ops, { agora: g.agora, novoId: uuidPadrao });
   return repo.alertas(g.acesso);
@@ -203,7 +238,10 @@ export function criarRotasGestor(repo: RepositorioGestor): RotaModulo[] {
       }),
   };
 
-  /** GET /v1/gestor/alertas?status= — RF-GES-07: reconcilia e lista os alertas do escopo (padrão: abertos e dispensados). */
+  /**
+   * GET /v1/gestor/alertas?status=&produtividade=1 — RF-GES-07: reconcilia e lista os alertas do escopo (padrão: abertos e dispensados).
+   * Os de produtividade só vêm com `produtividade=1` (ADR 0059 §1): o Gestão anterior à v1.0.13 rejeita o tipo novo.
+   */
   const alertas: RotaModulo = {
     metodo: 'GET',
     caminho: 'alertas',
@@ -213,7 +251,7 @@ export function criarRotasGestor(repo: RepositorioGestor): RotaModulo[] {
     executar: (ctx) =>
       comGestor(ctx, repo, async (g): Promise<ListaAlertas> => {
         const q = ctx.query as AlertasQuery;
-        const todos = await alertasAtualizados(g, repo);
+        const todos = (await alertasAtualizados(g, repo)).filter((a) => q.produtividade === '1' || !ehTipoProdutividade(a.tipo));
         return { itens: alertasDoEscopo(todos, g.escopo, { status: q.status, ativos: !q.status, modulos: g.modulos }), calculado_em: g.agora };
       }),
   };
@@ -248,7 +286,7 @@ export function criarRotasGestor(repo: RepositorioGestor): RotaModulo[] {
     executar: (ctx) =>
       ctx.comTenant(async (db): Promise<RegrasAlertaResposta> => {
         const r = resolverRegras(await repo.ajustesRegras({ db, tenant_id: ctx.usuario.tenant_id }));
-        return { regras: TIPOS_ALERTA.map((t) => r[t]) };
+        return { regras: TIPOS_REGRA_EQUIPE.map((t) => r[t]) };
       }),
   };
 
@@ -289,5 +327,5 @@ export function criarRotasGestor(repo: RepositorioGestor): RotaModulo[] {
       ),
   };
 
-  return [equipe, ficha, ranking, aprovacoes, alertas, dispensar, regras, ajustarRegra, emNome];
+  return [equipe, ficha, ranking, aprovacoes, alertas, dispensar, regras, ajustarRegra, ...rotasDeParametrosAlertas, emNome];
 }

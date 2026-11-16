@@ -11,7 +11,7 @@
 import { formatarDocumento } from '@macuxi/comum';
 import { localIsoDate } from '@macuxi/comum/fuso';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
-import { Abas, AvisoRodape, CABECALHO, CabecalhoTela, Dialogo, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonts, Icon, Loading, radius, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
+import { Abas, AvisoRodape, CABECALHO, CabecalhoTela, Dialogo, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonte, Icon, Loading, radius, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -23,7 +23,7 @@ import { aplicarGeralNasLinhas, completarComGeral, linhasComOutroAjuste, linhasD
 import { podeEnviarPedido } from '../../domain/quantidade';
 import { buscaPodeComecar, codigoExatoPrimeiro, paginaDaBusca, resolverBusca, type TrechoServeEm } from '../../domain/busca-seletor';
 import { rotuloVoltarNovoPedido } from '../../domain/pedido-em-nome';
-import { modalidadePadraoDosParametros } from '../../domain/preco-pedido';
+import { modalidadePadraoDosParametros, percentualAjusteParaBp } from '../../domain/preco-pedido';
 import { AcimaDoTeclado, useCampoAcimaDoTeclado } from '../components/acima-do-teclado';
 import { AbaEntrega, AbaResumo, AbaVenda, CardPagamento, FimDaAbaItens, linhasDoLeveMais } from '../components/novo-pedido-abas';
 import type { ModeloDoCredito } from '../lib/credito-cliente';
@@ -290,12 +290,13 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   // RN-VEN-10: em nome, a alçada é a do gestor (supervisor/gerente), como na API
   const politica = dados.politica && vendedorEmNomeId ? politicaParaAutor(dados.politica, app.perfil) : dados.politica;
   const vendedorId = vendedorEmNomeId ?? dados.me?.seller?.id ?? '';
+  const percentualAjusteBp = percentualAjusteParaBp(draft.prazo_percentual_ajuste);
   const calculoAtual = useMemo(
     () =>
       politica
-        ? calcularPedido({ lines: draft.lines, ajustes: draft.ajustes ?? {}, desconto_pct: draft.discount_pct, acrescimo_pct: draft.acrescimo_pct ?? 0, desconto_valor_cents: draft.desconto_valor_cents, acrescimo_valor_cents: draft.acrescimo_valor_cents, ajuste_em: draft.ajuste_em, catalogo: catalog, unidades: app.unidades, faixas: dados.produtos[tableKey]?.faixas, ...(draft.precos_congelados ? { congelados: draft.precos_congelados } : {}), aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosVendedor), max: aplicacaoMaxOrcamento(parametrosVendedor) }, politica, vendedor_id: vendedorId, limite: app.limiteDesconto })
+        ? calcularPedido({ lines: draft.lines, percentual_ajuste_bp: percentualAjusteBp, ajustes: draft.ajustes ?? {}, desconto_pct: draft.discount_pct, acrescimo_pct: draft.acrescimo_pct ?? 0, desconto_valor_cents: draft.desconto_valor_cents, acrescimo_valor_cents: draft.acrescimo_valor_cents, ajuste_em: draft.ajuste_em, catalogo: catalog, unidades: app.unidades, faixas: dados.produtos[tableKey]?.faixas, ...(draft.precos_congelados ? { congelados: draft.precos_congelados } : {}), aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosVendedor), max: aplicacaoMaxOrcamento(parametrosVendedor) }, politica, vendedor_id: vendedorId, limite: app.limiteDesconto })
         : null,
-    [parametrosVendedor, draft.lines, draft.ajustes, draft.discount_pct, draft.acrescimo_pct, draft.desconto_valor_cents, draft.acrescimo_valor_cents, draft.ajuste_em, catalog, app.unidades, dados.produtos, tableKey, politica, vendedorId],
+    [parametrosVendedor, percentualAjusteBp, draft.lines, draft.ajustes, draft.discount_pct, draft.acrescimo_pct, draft.desconto_valor_cents, draft.acrescimo_valor_cents, draft.ajuste_em, catalog, app.unidades, dados.produtos, tableKey, politica, vendedorId],
   );
   const calculoBase = sent ? sent.snapshot.calculo : calculoAtual;
   const calculoRef = useRef(calculoBase);
@@ -858,9 +859,10 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
             lines={draft.lines}
             ajustes={draft.ajustes ?? {}}
             geral={geralAplicado}
+            percentualAjusteBp={percentualAjusteBp}
             previa={(lines, ajustes) =>
               politica
-                ? calcularPedido({ lines, ajustes, desconto_pct: 0, acrescimo_pct: 0, catalogo: catalog, unidades: app.unidades, faixas: dados.produtos[tableKey]?.faixas, ...(draft.precos_congelados ? { congelados: draft.precos_congelados } : {}), aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosVendedor), max: aplicacaoMaxOrcamento(parametrosVendedor) }, politica, vendedor_id: vendedorId, limite: app.limiteDesconto })
+                ? calcularPedido({ lines, percentual_ajuste_bp: percentualAjusteBp, ajustes, desconto_pct: 0, acrescimo_pct: 0, catalogo: catalog, unidades: app.unidades, faixas: dados.produtos[tableKey]?.faixas, ...(draft.precos_congelados ? { congelados: draft.precos_congelados } : {}), aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosVendedor), max: aplicacaoMaxOrcamento(parametrosVendedor) }, politica, vendedor_id: vendedorId, limite: app.limiteDesconto })
                 : null
             }
             onConfirmar={(estado) => {
@@ -937,19 +939,19 @@ const styles = StyleSheet.create({
   pickRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 14, minHeight: 56 },
   prod: { gap: 6, paddingVertical: 12, paddingHorizontal: 14 },
   qtyBtn: { width: 48, height: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  qty: { width: 44, height: 48, textAlign: 'center', fontFamily: fonts.bold, fontSize: 15, color: colors.ink, fontVariant: ['tabular-nums'], padding: 0 },
+  qty: { width: 44, height: 48, textAlign: 'center', ...fonte.semibold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'], padding: 0 },
   step: { width: 44, height: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   pctBox: { flex: 1, height: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
-  pctInput: { flex: 1, minWidth: 0, height: 42, textAlign: 'right', fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink, padding: 0 },
-  pctSuffix: { flex: 1, fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink2, marginLeft: 2 },
+  pctInput: { flex: 1, minWidth: 0, height: 42, textAlign: 'right', ...fonte.semibold, fontSize: 18, color: colors.ink, padding: 0 },
+  pctSuffix: { flex: 1, ...fonte.semibold, fontSize: 18, color: colors.ink2, marginLeft: 2 },
   segment: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   segItem: { flexGrow: 1, minWidth: 72, paddingHorizontal: 10, height: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   segOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  segText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.ink },
+  segText: { ...fonte.semibold, fontSize: 14, color: colors.ink },
   sent: { backgroundColor: colors.successBg, borderRadius: radius.lg, padding: 12, gap: 8 },
   footer: { backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 14, paddingHorizontal: 20, gap: 10 },
   sumRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  sumLabel: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
-  sumValue: { fontFamily: fonts.body, fontSize: 13, color: colors.ink, fontVariant: ['tabular-nums'] },
-  total: { fontFamily: fonts.display, fontSize: 20, color: colors.ink, fontVariant: ['tabular-nums'] },
+  sumLabel: { ...fonte.body, fontSize: 14, color: colors.ink2 },
+  sumValue: { ...fonte.body, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
+  total: { ...fonte.semibold, fontSize: 22, color: colors.ink, fontVariant: ['tabular-nums'] },
 });

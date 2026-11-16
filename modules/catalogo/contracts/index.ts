@@ -66,3 +66,4 @@ export * from './sync-conteudo';
 export * from './eventos';
 export * from './marcas';
 export * from './estoque-filial';
+export * from './fotos-lote';

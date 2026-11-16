@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EquipeOpcao, UsuarioItem } from '../../contracts';
-import { permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, opcoesDeChefia, pessoasDaLista, resultadoDeCriar, resultadoDeRedefinir, seloDoUsuario, textoAcessoEnviado, textoDoSuperiorDaEquipe } from './usuarios';
+import { almocoPadraoDoTenant, formularioNovo, permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, opcoesDeChefia, pessoasDaLista, resultadoDeCriar, resultadoDeRedefinir, seloDoUsuario, textoAcessoEnviado, textoDoSuperiorDaEquipe, provisoriosParaVincular, podeVincularErp, corpoDeVinculoErp, textoDoVinculoErp, tituloDaConfirmacaoDoVinculo, textoDaOpcaoDoProvisorio, textoDaConfirmacaoDoVinculo, emailParaLista, codigoFdvParaLista } from './usuarios';
 import { senhaServe } from '../../domain';
 
 const u = (extra: Partial<UsuarioItem> = {}): UsuarioItem => ({
@@ -180,5 +180,68 @@ describe('usuario-bloqueio §2: seloDoUsuario (um selo por linha, hora no fuso d
   it('sem bloqueio (0 a 4 senhas erradas não aparecem): sem selo', () => {
     expect(seloDoUsuario(u({ bloqueio: null, bloqueio_ate: null }), AGORA, M)).toBeNull();
     expect(seloDoUsuario(u({}), AGORA, M)).toBeNull();
+  });
+});
+
+describe('RN-CORE-58/59: Vincular vendedor do ERP e Código FDV no BKO (spec erp-vinculo)', () => {
+  const real = u({ id: '5d000000-0000-4000-8000-0000000000a1', nome: 'Carla Souza', external_id: null });
+  const prov = (n: string, extra: Partial<UsuarioItem> = {}) => u({ id: `5d000000-0000-4000-8000-0000000000b${n}`, nome: `PROV ${n}`, provisorio: true, external_id: `V-0${n}`, email: 'erp-1@sem-email.invalid', ...extra });
+  it('RN-CORE-58: só são opções os provisórios ativos, com código, do mesmo perfil', () => {
+    const itens = [real, prov('2'), prov('1'), prov('3', { perfil: 'promotor' }), prov('4', { ativo: false }), prov('5', { external_id: null }), u({ id: '5d000000-0000-4000-8000-0000000000c1', external_id: 'V-9' })];
+    expect(provisoriosParaVincular(itens, real).map((x) => x.nome)).toEqual(['PROV 1', 'PROV 2']);
+  });
+  it('RN-CORE-58: o botão só aparece para vendedor ou promotor real, sem Código no ERP e com provisório do mesmo perfil', () => {
+    const itens = [real, prov('1')];
+    expect(podeVincularErp(itens, real)).toBe(true);
+    expect(podeVincularErp([real], real)).toBe(false);
+    expect(podeVincularErp(itens, { ...real, external_id: 'V-7' })).toBe(false);
+    expect(podeVincularErp(itens, { ...real, perfil: 'supervisor' })).toBe(false);
+    expect(podeVincularErp(itens, { ...real, provisorio: true })).toBe(false);
+  });
+  it('RN-CORE-58: corpo, título e aviso do vínculo', () => {
+    expect(corpoDeVinculoErp(real.id)).toEqual({ usuario_id: real.id });
+    expect(tituloDaConfirmacaoDoVinculo(prov('1'), real)).toBe('Vincular o provisório V-01 a Carla Souza?');
+    expect(textoDoVinculoErp({ clientes_movidos: 38, ja_vinculado: false }, 'Carla Souza')).toBe('Vínculo feito: 38 clientes passaram para Carla Souza.');
+    expect(textoDoVinculoErp({ clientes_movidos: 1, ja_vinculado: false }, 'Carla Souza')).toBe('Vínculo feito: 1 cliente passou para Carla Souza.');
+    expect(textoDoVinculoErp({ clientes_movidos: 0, ja_vinculado: true }, 'Carla Souza')).toBe('Carla Souza já estava vinculado.');
+  });
+  it('RN-CORE-58: a opção mostra o código e a contagem de clientes; a confirmação não repete o nome', () => {
+    expect(textoDaOpcaoDoProvisorio({ external_id: 'V-01', clientes_carteira: 38 })).toBe('V-01 · 38 clientes');
+    expect(textoDaOpcaoDoProvisorio({ external_id: 'V-01', clientes_carteira: 1 })).toBe('V-01 · 1 cliente');
+    expect(textoDaConfirmacaoDoVinculo({ clientes_carteira: 38 })).toBe('Recebe os 38 clientes da carteira e o provisório sai da lista.');
+  });
+  it('RN-CORE-59: a lista mostra o Código FDV e "—" no e-mail do provisório', () => {
+    expect(emailParaLista(prov('1'))).toBe('—');
+    expect(emailParaLista(real)).toBe('vera@exemplo.com.br');
+    expect(codigoFdvParaLista({ codigo_fdv: '00007' })).toBe('00007');
+    expect(codigoFdvParaLista({ codigo_fdv: null })).toBe('—');
+    expect(codigoFdvParaLista({})).toBe('—');
+  });
+});
+
+describe('RN-CORE-44 (D5): seção Jornada na gaveta Editar usuário', () => {
+  const padrao = { inicio_min: 720, fim_min: 780 };
+  it('RN-CORE-44: usuário sem horário próprio vem marcado "Padrão da empresa" com início e fim já preenchidos (12:00 e 13:00)', () => {
+    expect(formularioDoUsuario(u(), padrao)).toMatchObject({ almoco_padrao: true, almoco_inicio: '12:00', almoco_fim: '13:00' });
+    expect(formularioNovo(padrao)).toMatchObject({ almoco_padrao: true, almoco_inicio: '12:00', almoco_fim: '13:00' });
+    expect(almocoPadraoDoTenant(undefined)).toEqual(padrao);
+    expect(almocoPadraoDoTenant({ almoco_padrao: { inicio_min: 690, fim_min: 750 } }).inicio_min).toBe(690);
+  });
+  it('RN-CORE-44: usuário com horário próprio vem desmarcado com o horário dele', () => {
+    expect(formularioDoUsuario(u({ almoco_inicio_min: 690, almoco_fim_min: 750 }), padrao)).toMatchObject({ almoco_padrao: false, almoco_inicio: '11:30', almoco_fim: '12:30' });
+  });
+  it('RN-CORE-44: marcado envia os dois nulos (padrão); desmarcado envia os minutos', () => {
+    const f = formularioDoUsuario(u(), padrao);
+    expect(corpoDeEdicao(f)).toMatchObject({ almoco_inicio_min: null, almoco_fim_min: null });
+    expect(corpoDeEdicao({ ...f, almoco_padrao: false, almoco_inicio: '11:30', almoco_fim: '12:30' })).toMatchObject({ almoco_inicio_min: 690, almoco_fim_min: 750 });
+  });
+  it('RN-CORE-44: o erro vem só ao salvar, no campo certo; marcado "padrão" não valida; na criação não valida', () => {
+    const f = { ...formularioDoUsuario(u(), padrao), almoco_padrao: false };
+    expect(errosDoFormulario({ ...f, almoco_inicio: '13:00', almoco_fim: '12:00' }, 'editar').find((e) => e.campo === 'almoco_fim')?.mensagem).toBe('O fim do almoço deve ser depois do início.');
+    expect(errosDoFormulario({ ...f, almoco_inicio: 'x', almoco_fim: '13:00' }, 'editar').find((e) => e.campo === 'almoco_inicio')?.mensagem).toBe('Use o horário em hh:mm.');
+    expect(errosDoFormulario({ ...f, almoco_inicio: '12:00', almoco_fim: '12:10' }, 'editar').some((e) => e.campo === 'almoco_fim')).toBe(true);
+    expect(errosDoFormulario({ ...f, almoco_inicio: '12:00', almoco_fim: '13:00' }, 'editar').some((e) => e.campo.startsWith('almoco'))).toBe(false);
+    expect(errosDoFormulario({ ...f, almoco_padrao: true, almoco_inicio: '13:00', almoco_fim: '12:00' }, 'editar').some((e) => e.campo.startsWith('almoco'))).toBe(false);
+    expect(errosDoFormulario({ ...f, almoco_inicio: '13:00', almoco_fim: '12:00', senha: 'Abcdefg1!' }, 'criar').some((e) => e.campo.startsWith('almoco'))).toBe(false);
   });
 });
