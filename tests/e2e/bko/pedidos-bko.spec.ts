@@ -60,15 +60,17 @@ async function entrar(page: Page, email: string) {
   // no `next dev`, a hidratação ou um recarregamento do HMR pode limpar os campos entre o preencher e o clicar
   // (o formulário volta com "Informe..."): preenche, confere, clica e espera o menu; se não veio, repete
   await expect(async () => {
-    if (await page.getByTestId('nav-vendedor-pedidos').first().isVisible()) return;
+    if (await page.getByTestId('menu-bko').isVisible()) return;
     for (const [id, valor] of campos) await page.getByTestId(id).fill(valor);
     for (const [id, valor] of campos) await expect(page.getByTestId(id)).toHaveValue(valor, { timeout: 1_000 });
     await page.getByTestId('login.entrar').click();
-    await expect(page.getByTestId('nav-vendedor-pedidos').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('menu-bko')).toBeVisible({ timeout: 20_000 });
   }).toPass({ timeout: 90_000 });
 }
 
+/** ADR 0060: o menu é sanfona; Pedidos fica em Operação (abre o grupo quando o item não está à vista). */
 async function abrirPedidos(page: Page) {
+  if (!(await page.getByTestId('nav-vendedor-pedidos').first().isVisible())) await page.getByTestId('nav-grupo-operacao').click();
   await page.getByTestId('nav-vendedor-pedidos').first().click();
   await expect(page.getByTestId('pagina-vendedor-pedidos')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('pedidos.tabela')).toBeVisible({ timeout: 30_000 });
@@ -190,15 +192,21 @@ test.describe.serial('T-0029 — Pedidos no BKO (lista, filtro, detalhe, aprovar
     expect(((await d.json()) as { status: string }).status).toBe('approved');
   });
 
-  test('D-B28: Alçadas abre pelo menu com a política vigente (5/10/15%) pela API nova', async ({ page }) => {
+  test('D-B28 (ADR 0060): Alçadas abre por Parâmetros › Pedidos com a política vigente (5/10/15%); as decisões recentes ficam em Pedidos (D5)', async ({ page }) => {
     const a = vigiar(page);
     await entrar(page, 'analista@exemplo.com.br');
-    await page.getByTestId('nav-vendedor-alcadas').first().click();
+    await page.getByTestId('menu-bko').getByTestId('nav-plataforma-parametros').click();
+    await page.getByTestId('parametros-secao-pedidos').click();
+    await expect(page.getByTestId('parametros-vendedor-alcadas')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('alcadas.decisoes')).toHaveCount(0);
     await expect(page.getByTestId('alcadas.tela')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId('alcadas.tabela')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId('alcadas.tabela')).toContainText('5');
     await page.waitForTimeout(2_000);
     expect([...new Set(a.falhas)], 'rotas que responderam erro').toEqual([]);
     expect(a.chamadas.filter((c) => FASE_M.test(c.split(' ')[1]!)), 'chamadas a rotas da Fase M').toEqual([]);
+    // D5: o histórico de decisões fica no fim de Operação › Pedidos
+    await abrirPedidos(page);
+    await expect(page.getByTestId('alcadas.decisoes')).toBeVisible({ timeout: 30_000 });
   });
 });
