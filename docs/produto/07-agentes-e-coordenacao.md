@@ -114,7 +114,7 @@ criado_em: 2026-10-31T14:05:12-04:00
 **1. Uma frente só: a nuvem**
 - **Todo o time roda em sessões do claude.ai/code** sobre o GitHub `aloirr/macuxifdv` (Linux, bash). O PC do Alexandre (VS Code, Windows, `C:\macuxifdv`) não roda mais agentes, commits nem pushes.
 - Cada sessão trabalha num branch `nuvem/*`, `alexandre/*` ou `agente/*` e entrega **por PR**; o merge acontece depois do CI do PR verde (regra de "Quem faz o merge", abaixo).
-- **Sem Docker** (decisão do Alexandre, R-20261105-053835; vale também na nuvem): nenhum agente roda `docker` nem depende de Postgres local; testes de banco e o stack isolado rodam no CI do GitHub (CI do PR e `stack-isolado.yml`), e o CI verde é o critério.
+- **Sem Docker** (decisão do Alexandre, R-20261105-053835): nenhum agente roda `docker`. Os testes de banco rodam na sessão, com Postgres local (seção 3, "Testes na sessão e CI do PR enxuto").
 - **Horário de Manaus** (R-20261114-195100-alexandre): horários em texto para pessoas (recados, docs, relatórios) no fuso de Manaus (UTC−4); carimbos técnicos e banco em UTC.
 - **Fase M** (`C:\Users\domon\dev\forca-vendas`, no PC do Alexandre): continua **só para consulta e cópia**, nunca alterada. Como a nuvem não alcança o PC, o que for preciso dela o Alexandre anexa à tarefa ou ao recado.
 - **Aparelho Android**: o build sai pelo `android-build.yml` (seção 5); o teste no aparelho continua com o Alexandre.
@@ -202,6 +202,7 @@ Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-
 - **Gerente = sessão fixa com rondas agendadas** a cada 15–20 min: lê as caixas e cobra recados não lidos, varre os PRs `[PRONTO PARA MERGE]` e o CI, faz os merges pela regra A, atualiza quadro e diário, destrava caminhos e abre as próximas sessões para manter as 7 vagas ocupadas.
 - **Vermelho no PR**: sem merge; o dono corrige no mesmo branch (um commit novo só se o PR já foi enviado; ver "Economia do Actions"). Rerun só para falha de infraestrutura, uma vez.
 - **Conflito com o `main`**: o dono do branch mescla o `main` no próprio branch e resolve só arquivos dele; arquivo de outro dono → recado ao dono. O Alexandre é avisado por recado só se o conflito durar mais de uma ronda.
+- **Testes na sessão e CI do PR enxuto** (Alexandre, R-20261115-213600; PR de governança #443): o dono sobe o Postgres local **sem Docker** (pacote do sistema, script único do banco-dados) e roda, antes do push, os `*.db.test.ts` dos pacotes afetados e os testes de `tests/` (comando único do testes); o resumo do resultado vai no corpo do PR. O CI do PR roda só escopo, governança, verificar (lint, fronteiras, typecheck) e o build do que mudou; as suítes completas com Postgres rodam **uma vez no push ao `main`**. Se o CI do `main` ficar vermelho, nenhum merge sai até a correção. Build do Android só no fechamento da versão.
 - **Proibido**: force push, rebase do `main`, push direto ao `main`, merge com CI vermelho, apagar histórico.
 - **Permissão de push**: a regra do `.claude/settings.json` permite push para `nuvem/*`, `alexandre/*` e `agente/*` (e `main`, que deixa de ser usado) e nega force e delete.
 - **Governança** (`.claude/**`, `.coord/donos.json`, `scripts/coord*.mjs`, `.github/**`): PR próprio com `Agente: alexandre`, merge só pelo rito de autorização (acima).
