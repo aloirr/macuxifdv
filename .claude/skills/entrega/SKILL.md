@@ -14,9 +14,6 @@ disable-model-invocation: true
 
 **1 push por PR** e testes de banco na sessão antes do push: doc 07, seção 3, e `CLAUDE.md` (R-20261115-215000-alexandre).
 
-**Testes dos dependentes antes do push** (R-20261115-213600-alexandre; caso: o main ficou vermelho em `bc26a241`, às 22h30 de 15/11, porque o #386 do core quebrou testes do `apps/mobile` e o #385 quebrou `tests/modulos/t0140`, e a sessão do dono só rodou o próprio pacote):
-- rode os testes do pacote alterado e dos que dependem dele com `pnpm turbo run test --filter=...[origin/main]`, sem banco, mais os arquivos de `tests/` que tocam o que mudou;
-- com o Postgres local (`db/scripts/pg-local.sh`, PR #450), rode também os `*.db.test` e o `tests/` com banco;
-- ponha o resumo no corpo do PR.
+**Antes do push** (R-20261115-213600-alexandre; caso `bc26a241`, 15/11 22h30: o #386 e o #385 quebraram dependentes): `bash tests/scripts/rodar-antes-do-push.sh` (afetados e dependentes, banco e `tests/`; cole o bloco no PR). Uso: `docs/testes/antes-do-push.md`.
 
 Responda com um resumo de até 15 linhas.
