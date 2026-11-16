@@ -65,6 +65,8 @@ export const ROTULO_ATUALIZANDO = 'Atualizando o app';
 /** Antes do login: o teste do servidor (`/saude`). */
 export const ROTULO_SERVIDOR = 'Conferindo o servidor';
 export const ROTULO_PRONTO = 'Pronto';
+/** Botão do erro da carga e do popup da sincronização completa. */
+export const ROTULO_TENTAR_DE_NOVO = 'Tentar de novo';
 /** Com tudo feito, o Início abre sozinho depois disto (spec §1, estado 5: dá para ver o 100%). */
 export const ESPERA_PRONTO_MS = 600;
 /** Conferir o servidor só mostra a barra se passar disto (sem piscar quando a resposta é rápida). */
@@ -75,8 +77,8 @@ export const TEMPO_SERVIDOR_ABERTURA_MS = 5_000;
 export const servidorNaAbertura = { conferido: false };
 
 /**
- * "Etapa 2 de 5 · Clientes e rota"; com a carga pronta, "Pronto". Na tela só sem a lista de etapas (tela baixa); com a
- * lista visível, vai só ao leitor de tela (RD-0239: a lista já mostra a etapa em destaque).
+ * "Etapa 2 de 5 · Clientes e rota"; com a carga pronta, "Pronto". Sempre à vista em cima da barra, com ou sem a lista de
+ * etapas (RD-1105); é também a região viva do leitor de tela.
  */
 export function rotuloDaBarra(p: Pick<ProgressoEntrada, 'atual' | 'total' | 'pronta'>): string {
   return p.pronta ? ROTULO_PRONTO : `Etapa ${p.atual.numero} de ${p.total} · ${p.atual.nome}`;
