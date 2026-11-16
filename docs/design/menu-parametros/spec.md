@@ -70,10 +70,11 @@ Item único no menu; a página tem a lista de seções à esquerda (200 px, orde
 | Seção | Endereço | Painéis (na ordem) | Dono |
 |---|---|---|---|
 | Acesso | `/parametros/acesso` | Perfis de acesso · Módulos (D2) · Promotor vê pedidos | core |
-| Alertas | `/parametros/alertas` | Regras de alerta (desenho na spec da sessão `nuvem/alertas-designer-ux`, R-20261115-112500) | gestor |
+| Alertas | `/parametros/alertas` | Regras de alerta · Alertas de produtividade (T-0180, ADR 0059; `docs/design/alertas-parametros/spec.md`) | gestor + core |
 | Calendário | `/parametros/calendario` | Feriados · Janela do almoço | core |
 | Clientes | `/parametros/clientes` | Farol · Curvas ABC | core |
 | Início | `/parametros/inicio` | Dias úteis · Frases do dia | core |
+| Integração | `/parametros/integracao` | De-para (`docs/design/integracao-simples/README.md` §9) | integracao |
 | Metas e RV | `/parametros/metas-e-rv` | Plano de RV | core |
 | Pedidos | `/parametros/pedidos` | Alçadas (só os limites, D5) | vendedor |
 | Pesquisa 🔒 | `/parametros/pesquisa` | Vigência · Construtor · Fotos | pesquisa |
@@ -104,6 +105,7 @@ Item único no menu; a página tem a lista de seções à esquerda (200 px, orde
 | Produtos › Preço e custo | abas "Parâmetros" e "Medidas" | Parâmetros › Produtos | o item fica |
 | nenhum | Frases do dia; Calendário; limite da aplicação (D6) | Parâmetros › Início; › Calendário; › Produtos | ganham tela |
 | nenhum | parâmetros da Pesquisa, do Treinamento e 2 do Promotor | Parâmetros › Pesquisa; › Treinamento; › Trade | ganham tela |
+| Sistema › Integração ERP | painel do de-para | Parâmetros › Integração | o item fica (lotes e Carga por arquivo) |
 
 ## 3. Comportamento
 

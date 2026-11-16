@@ -29,7 +29,7 @@ const MENU = [
   { g: 'Sistema', itens: ['Auditoria', 'Carga por arquivo', 'Integração ERP'] },
 ];
 // Seções da página Parâmetros (/parametros/<secao>), em ordem alfabética.
-const SECOES = ['Acesso', 'Alertas', 'Calendário', 'Clientes', 'Início', 'Metas e RV', 'Pedidos', 'Pesquisa', 'Produtos', 'Trade', 'Treinamento', 'Visitas'];
+const SECOES = ['Acesso', 'Alertas', 'Calendário', 'Clientes', 'Início', 'Integração', 'Metas e RV', 'Pedidos', 'Pesquisa', 'Produtos', 'Trade', 'Treinamento', 'Visitas'];
 // Cenário único de todas as telas: empresa sem a licença de Pesquisa e de Treinamento; com Trade.
 const SEM = ['Pesquisa', 'Treinamento'];
 const DICA = 'Contrate o módulo para usar';

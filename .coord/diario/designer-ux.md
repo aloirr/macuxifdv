@@ -144,3 +144,4 @@
 2026-11-16 — v1.0.14 parametros — #408: merge do main e RD-1577 a RD-1579, MC-1510 (Salvar só nos painéis editáveis; quem implementa no desenho e ADR 0060; P3 sem repetir o §3; parâmetros só leitura no arranjo do código, valor em 400).
 2026-11-16 — v1.0.14 parametros — #408: RD-1901 (sai o parâmetro ajuda da leitura() e os 5 textos que não apareciam).
 2026-11-16 — v1.0.14 parametros — #408: RD-1871 (o parado sai de Parâmetros › Início: painel Dias úteis, sem o campo; spec e PNG 04 refeitos).
+2026-11-16 — v1.0.14 parametros — #408: RD-1842 (seção Integração com o de-para; Alertas com os dois painéis da T-0180, gestor + core; Sistema › Integração ERP no sai de → vai para; PNGs 02 a 07 refeitos).
