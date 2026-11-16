@@ -4,19 +4,33 @@
  * (`criarAgendadorSync`, atualizacao.ts) e o estado do motor; o botão e o `useAtualizacaoAutomatica` das telas leem daqui.
  * O kit não depende do platform-sdk: o shell traduz o estado do motor para `ValorSincronizacao`.
  */
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 
 import type { AgendadorSync, EstadoAgendadorSync } from './atualizacao';
 import { desenhoBotaoSincronizar, desenhoSeloAtualizacao } from './atualizacao';
 import { Icon } from './icon';
-import { Pressionavel } from './movimento-rn';
+import { Pressionavel, useReduzirMovimento } from './movimento-rn';
+import {
+  ACAO_LEITOR_SYNC_COMPLETA,
+  ANEL_SEGURAR,
+  criarAvisoIntervalo,
+  criarControleSegurar,
+  desenhoSegurar,
+  dicaDoSegurar,
+  modoDoSegurar,
+  ROTULO_ACESSIVEL_SYNC,
+  TEXTOS_SYNC_COMPLETA,
+  type ForcaVibracao,
+  type ModoSegurar,
+} from './sincronizacao-completa';
 import { ALTURA, colors, fonte, type as t } from './theme';
 import { Button } from './ui';
 
 export interface ValorSincronizacao {
   agendador: AgendadorSync;
-  /** Estado do agendador (puxando, "Atualizado há instantes"). */
+  /** Estado do agendador (puxando). */
   estado: EstadoAgendadorSync;
   /** `sincronizado_em` do motor (ISO) ou null. */
   sincronizadoEm: string | null;
@@ -28,6 +42,12 @@ export interface ValorSincronizacao {
   semSinal: boolean;
   /** Fuso do tenant (exibição da hora). */
   tz: string;
+  /** R-20261115-100000: segurar 10 s. Ausente = o botão não oferece o segurar (sem dica, sem ação do leitor). */
+  sincronizarCompleta?: () => void;
+  /** Vibração do segurar (o shell usa expo-haptics; o kit não depende dele). */
+  vibrar?: (forca: ForcaVibracao) => void;
+  /** Completa em andamento (popup aberto): o botão fica ocupado. */
+  completaEmCurso?: boolean;
 }
 
 const Ctx = createContext<ValorSincronizacao | null>(null);
@@ -42,7 +62,7 @@ export function useSincronizacao(): ValorSincronizacao | null {
 }
 
 /**
- * Botão "Sincronizar" + "Última sincronização hh:mm · N na fila" (envio da fila + pull na hora, proteção de 30 s).
+ * Botão "Sincronizar" + "Última sincronização hh:mm · N na fila" (envio da fila + pull na hora, no máximo 1 vez a cada 30 s).
  * T-0076 (referência do Início aprovada no R-20261104-164000): botão de 52 dp na largura toda (é o único botão do Início)
  * e a linha de situação CENTRALIZADA logo abaixo. Sem sinal, o botão fica "Sem sinal" desabilitado e o motivo vai numa
  * linha própria, acima da situação. Vale para o Início e para o Perfil (mesmo componente, mesmo desenho).
@@ -51,6 +71,17 @@ export function useSincronizacao(): ValorSincronizacao | null {
  * vendas"), texto pronto do shell. Com ele, a linha de situação fica `⟳ {aviso} · N na fila` em `warningInk` (ícone sync de
  * 14, mesma linha, centralizada), testID `{testID}-aviso-dados` no texto; a linha continua `{testID}-situacao`. Sem ele
  * (null/undefined/vazio), nada muda. O Perfil não passa.
+ *
+ * R-20261115-100000 (docs/design/sync-completa/spec.md): toque = parcial (`agendador.puxar()`, fila + pedidos e clientes).
+ * Com `sincronizarCompleta` no provider, segurar 10 s = completa: depois de 500 ms o anel de 22 dp toma o lugar do ícone e o
+ * rótulo conta "Continue segurando · N s"; vibra leve no início do anel e média aos 10 s, quando a completa dispara na hora
+ * (mesmo com o dedo no botão). Soltar antes = toque normal. A linha `{testID}-dica` (abaixo da situação) diz que dá para
+ * segurar. Leitor de tela: ação "Sincronização completa". Sem sinal ou ocupado: desabilitado, segurar nada faz.
+ *
+ * R-20261115-130000: a completa dentro do intervalo mínimo (`agendador.liberarManual()` = false) não abre o popup nem vibra
+ * média; mostra a linha `{testID}-aviso-intervalo` ("Dados atualizados agora há pouco…"), no mesmo padrão da linha
+ * `{testID}-sem-sinal` (`t.small`, `warningInk`, centralizada, logo abaixo do botão), anunciada pelo leitor de tela e que some
+ * sozinha em `AVISO_INTERVALO_MS` (5 s). O toque normal bloqueado segue em silêncio.
  */
 export function BotaoSincronizar({
   testID = 'sincronizar',
@@ -63,25 +94,67 @@ export function BotaoSincronizar({
   avisoDados?: string | null;
 }) {
   const s = useSincronizacao();
+  const reduzir = useReduzirMovimento();
+  const [segurandoMs, setSegurandoMs] = useState<number | null>(null);
+  const [avisoIntervalo, setAvisoIntervalo] = useState(false);
+  const aviso = useMemo(() => criarAvisoIntervalo({ aoMudar: setAvisoIntervalo }), []);
+  useEffect(() => () => aviso.desligar(), [aviso]);
+  const ocupado = Boolean(s && (s.estado.puxando || s.sincronizando || s.completaEmCurso));
+  const modo: ModoSegurar = s ? modoDoSegurar({ temCompleta: Boolean(s.sincronizarCompleta), semSinal: s.semSinal, ocupado }) : 'nenhum';
+  // o controle lê sempre o valor mais novo (o provider muda a cada passo do motor)
+  const atual = useRef({ s, modo });
+  atual.current = { s, modo };
+  const controle = useMemo(
+    () =>
+      criarControleSegurar({
+        modo: () => atual.current.modo,
+        parcial: () => void atual.current.s?.agendador.puxar(),
+        completa: () => atual.current.s?.sincronizarCompleta?.(),
+        liberar: () => atual.current.s?.agendador.liberarManual() ?? false,
+        bloqueada: () => aviso.mostrar(),
+        vibrar: (forca) => atual.current.s?.vibrar?.(forca),
+        aoMudar: setSegurandoMs,
+        passoMs: reduzir ? 250 : 50,
+      }),
+    [reduzir, aviso],
+  );
+  useEffect(() => () => controle.desligar(), [controle]);
+  useEffect(() => {
+    if (modo !== 'segurar') controle.desligar();
+  }, [modo, controle]);
+
   if (!s) return null;
-  const ocupado = s.estado.puxando || s.sincronizando;
-  const d = desenhoBotaoSincronizar({ semSinal: s.semSinal, recente: s.estado.recente, sincronizadoEm: s.sincronizadoEm, naFila: s.naFila, tz: s.tz, avisoDados });
+  const d = desenhoBotaoSincronizar({ semSinal: s.semSinal, sincronizadoEm: s.sincronizadoEm, naFila: s.naFila, tz: s.tz, avisoDados });
+  const g = desenhoSegurar(modo === 'segurar' ? segurandoMs : null, { reduzirMovimento: reduzir });
+  const dica = dicaDoSegurar({ modo, segurando: g.anel });
+  const oferece = modo === 'segurar';
+  const rotuloAcessivel = d.aviso ? `${d.rotulo}. ${d.aviso}` : oferece ? ROTULO_ACESSIVEL_SYNC : undefined;
   return (
     <View style={{ gap: 6 }} testID={`${testID}-bloco`}>
       <Button
         testID={testID}
-        label={d.rotulo}
-        accessibilityLabel={d.aviso ? `${d.rotulo}. ${d.aviso}` : undefined}
+        label={g.rotulo ?? d.rotulo}
+        accessibilityLabel={rotuloAcessivel}
         icon="sync"
+        desenharIcone={g.anel ? (cor) => <AnelSegurar cor={cor} progresso={g.progresso} /> : undefined}
         variant={variant}
         height={ALTURA.principal}
         loading={ocupado}
         disabled={s.semSinal}
-        onPress={() => void s.agendador.puxar()}
+        onPressIn={() => controle.pressionar()}
+        onPressOut={() => controle.soltar()}
+        onPress={() => controle.tocar()}
+        accessibilityActions={oferece ? [{ name: ACAO_LEITOR_SYNC_COMPLETA, label: TEXTOS_SYNC_COMPLETA.acao }] : undefined}
+        onAccessibilityAction={oferece ? (e) => (e.nativeEvent.actionName === ACAO_LEITOR_SYNC_COMPLETA ? controle.acaoDoLeitor() : undefined) : undefined}
       />
       {d.aviso ? (
         <Text style={[t.small, { color: colors.warningInk, textAlign: 'center' }]} testID={`${testID}-sem-sinal`}>
           {d.aviso}
+        </Text>
+      ) : null}
+      {avisoIntervalo ? (
+        <Text style={[t.small, { color: colors.warningInk, textAlign: 'center' }]} testID={`${testID}-aviso-intervalo`} accessibilityLiveRegion="polite" accessibilityRole="alert">
+          {TEXTOS_SYNC_COMPLETA.bloqueada}
         </Text>
       ) : null}
       {d.tom === 'atencao' ? (
@@ -96,7 +169,37 @@ export function BotaoSincronizar({
           {d.situacao}
         </Text>
       )}
+      {dica ? (
+        <Text style={[t.small, { color: colors.ink2, textAlign: 'center' }]} testID={`${testID}-dica`}>
+          {dica}
+        </Text>
+      ) : null}
     </View>
+  );
+}
+
+/** Anel do segurar (22 dp, traço 3): trilho na cor do texto do botão a 30% e o progresso na cor cheia, a partir do topo. */
+function AnelSegurar({ cor, progresso }: { cor: string; progresso: number }) {
+  const { tamanho, traco, opacidadeTrilho } = ANEL_SEGURAR;
+  const r = (tamanho - traco) / 2;
+  const volta = 2 * Math.PI * r;
+  const c = tamanho / 2;
+  return (
+    <Svg width={tamanho} height={tamanho} viewBox={`0 0 ${tamanho} ${tamanho}`} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Circle cx={c} cy={c} r={r} stroke={cor} strokeOpacity={opacidadeTrilho} strokeWidth={traco} fill="none" />
+      <Circle
+        cx={c}
+        cy={c}
+        r={r}
+        stroke={cor}
+        strokeWidth={traco}
+        fill="none"
+        strokeLinecap="round"
+        strokeDasharray={`${volta} ${volta}`}
+        strokeDashoffset={volta * (1 - progresso)}
+        transform={`rotate(-90 ${c} ${c})`}
+      />
+    </Svg>
   );
 }
 

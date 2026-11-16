@@ -53,7 +53,7 @@ export function CoordenadasPage() {
                 <span className="min-w-[200px] text-ink-2">
                   {quando(v.checkin_em, FUSO_PADRAO)} · {v.usuario_nome}
                 </span>
-                <span className="font-mono">
+                <span className="tabular-nums">
                   {v.lat.toFixed(6)}, {v.lng.toFixed(6)}
                 </span>
                 {v.precisao_m !== null ? <span className="text-ink-2">precisão {v.precisao_m} m</span> : null}
