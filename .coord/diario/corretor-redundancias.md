@@ -72,3 +72,4 @@
 2026-11-15 — v1.0.14 rodada 3 (catálogo v2) — #441 27887603 COM ACHADO (RD-1700..1703); branch nuvem/v1014-catalogo-modulo-catalogo f6c87089 COM ACHADO (RD-1704..1711; RD-1712 não segura).
 2026-11-15 — v1.0.14 rodada 4 (lote único das migrações a1b8b0fe, sem PR) — COM ACHADO: RD-1740..1744 novos, RD-1681 aberto (RD-1632 não segura); RD-1628, 1630, 1631, RD-0910 e os da carga (L6) fechados; RD-1745 fora do lote.
 2026-11-15 — v1.0.14 rodada 5 (#442 c50aae5b) — COM ACHADO RD-1780..1785 (RD-1780 é a origem da RD-1569 do #410).
+2026-11-15 — v1.0.14 rodada 6 — #441 97961dc4 LIBERADO (RD-1700..1703 fechados); lote a03a9f6f: RD-1740, 1741, 1744, 1681 fechados; RD-1742 e RD-1743 abertos em parte (doc).
