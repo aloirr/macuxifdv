@@ -5,7 +5,7 @@
  * (`cliente.abas`) são montadas pela tela da ficha, não aqui.
  */
 import { formatarDocumento, formatBRL0 } from '@macuxi/comum';
-import { Badge, Card, ObservacoesCliente, colors, fonts, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
+import { Badge, Card, ObservacoesCliente, colors, fonte, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
 import type { ReactNode } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -72,14 +72,14 @@ export function BlocoFotosPdv({ ficha, onAdicionar }: { ficha: Cliente360Local; 
           <View key={i.tipo_id} style={[styles.row, { minHeight: 52 }, n < todos.length - 1 && styles.divider]}>
             <Text style={[t.body, { flex: 1 }]}>{i.nome}</Text>
             {i.na_fila ? (
-              <Text style={[t.small, { color: colors.ink2, fontFamily: fonts.semibold }]}>Na fila</Text>
+              <Text style={[t.small, { color: colors.ink2, ...fonte.semibold }]}>Na fila</Text>
             ) : i.situacao === 'tem' ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Icon name="check" size={14} color={colors.success} strokeWidth={2.4} />
-                <Text style={[t.small, { color: colors.success, fontFamily: fonts.semibold }]}>Tem</Text>
+                <Text style={[t.small, { color: colors.success, ...fonte.semibold }]}>Tem</Text>
               </View>
             ) : (
-              <Text style={[t.small, { color: i.obrigatorio ? colors.danger : colors.ink2, fontFamily: fonts.semibold }]}>{i.obrigatorio ? 'Falta' : 'Opcional'}</Text>
+              <Text style={[t.small, { color: i.obrigatorio ? colors.danger : colors.ink2, ...fonte.semibold }]}>{i.obrigatorio ? 'Falta' : 'Opcional'}</Text>
             )}
             {i.situacao === 'falta' && onAdicionar ? (
               <Pressable
@@ -90,7 +90,7 @@ export function BlocoFotosPdv({ ficha, onAdicionar }: { ficha: Cliente360Local; 
                 testID={`cliente-foto-adicionar-${i.tipo_id}`}
               >
                 <Icon name="camera" size={16} color={colors.accent} />
-                <Text style={[t.small, { color: colors.accent, fontFamily: fonts.semibold }]}>Adicionar</Text>
+                <Text style={[t.small, { color: colors.accent, ...fonte.semibold }]}>Adicionar</Text>
               </Pressable>
             ) : null}
             {fotoPdvTrancada(i) ? <Icon name="lock" size={16} color={colors.ink2} /> : null}
@@ -346,7 +346,7 @@ function Stat({ label, value, aviso }: { label: string; value: string; aviso?: b
 const styles = StyleSheet.create({
   action: { flex: 1, height: 64, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 0 },
   actionOff: { backgroundColor: colors.neutralBg, borderWidth: 0 },
-  actionText: { fontFamily: fonts.semibold, fontSize: 12, color: colors.ink },
+  actionText: { ...fonte.semibold, fontSize: 12, color: colors.ink },
   mini: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   stat: { flexBasis: '48%', flexGrow: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: 12, gap: 2 },

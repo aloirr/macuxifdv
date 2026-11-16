@@ -194,12 +194,13 @@ export function leituraDoCardProdutividade(c: CardProdutividade): string {
 // ---------- linha de cima ----------
 
 /**
- * Dias úteis à direita da linha do período (RN-CORE-41, D1): "DU 9 de 20 · 12 restantes" com hoje dentro; "DU — de 20 · 11
- * restantes" em dia não útil; período encerrado ou futuro: "20 dias úteis".
+ * Dias úteis à direita da linha do período (RN-CORE-41, D1): "DU 9 de 20 · 12 restantes" com hoje dentro; "Não é dia útil · 11
+ * restantes" em dia não útil (RD-0502, filtro padrão do Campo); período encerrado ou futuro: "20 dias úteis".
  */
 export function textoDosDiasUteis(cal: CalendarioPeriodo, i: { de: string; ate: string }, hoje: string): string {
   const dentro = i.de <= hoje && hoje <= i.ate;
   if (!dentro) return cal.du_total === 1 ? '1 dia útil' : `${cal.du_total} dias úteis`;
   const restantes = cal.du_restantes === 1 ? '1 restante' : `${cal.du_restantes} restantes`;
-  return `DU ${cal.du_hoje ?? '—'} de ${cal.du_total} · ${restantes}`;
+  if (cal.du_hoje === null) return `Não é dia útil · ${restantes}`;
+  return `DU ${cal.du_hoje} de ${cal.du_total} · ${restantes}`;
 }

@@ -105,7 +105,7 @@
     "prazo_pagamento": {
       "ativa": true,
       "periodicidadeSegundos": 3600,
-      "consulta": "SELECT external_id, alterado_em, ativo, forma_external_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ordem FROM macuxi.vw_macuxi_prazo_pagamento WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND NLSSORT(external_id, 'NLS_SORT=BINARY') > NLSSORT(:cursor_external_id, 'NLS_SORT=BINARY')) ORDER BY alterado_em, NLSSORT(external_id, 'NLS_SORT=BINARY')",
+      "consulta": "SELECT * FROM macuxi.vw_macuxi_prazo_pagamento WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND NLSSORT(external_id, 'NLS_SORT=BINARY') > NLSSORT(:cursor_external_id, 'NLS_SORT=BINARY')) ORDER BY alterado_em, NLSSORT(external_id, 'NLS_SORT=BINARY')",
       "campos": {
         "external_id": "external_id",
         "alterado_em": "alterado_em",
@@ -123,6 +123,10 @@
         "prazo_medio_dias": {
           "coluna": "prazo_medio_dias",
           "transformar": "inteiro"
+        },
+        "percentual_ajuste": {
+          "coluna": "percentual_ajuste",
+          "transformar": "numero"
         },
         "ordem": {
           "coluna": "ordem",
@@ -176,7 +180,7 @@
     "statusSegundos": 120,
     "maxTentativasGravacao": 3,
     "gravacao": {
-      "cabecalho": "INSERT INTO macuxi.ped_entrada (pedido_uuid, cliente_codigo, vendedor_codigo, cond_pagto, criado_em, aprovado_em, observacao, desconto_total_cents, total_cents, filial_codigo, filial_external_id, frete_modalidade, frete_transportadora_tipo, frete_transportadora_id, frete_transportadora_external_id, frete_transportadora_nome, frete_transportadora_cnpj, frete_transportadora_telefone, entrega_origem, entrega_external_id, entrega_logradouro, entrega_numero, entrega_complemento, entrega_bairro, entrega_cidade, entrega_uf, entrega_cep, entrega_principal, pagamento_forma_codigo, pagamento_forma_external_id, pagamento_prazo_codigo, pagamento_prazo_external_id, pagamento_parcelas_dias, pagamento_prazo_medio_dias) SELECT :pedido_uuid, :cliente_external_id, :vendedor_external_id, :condicao_pagamento_erp, :criado_em, :aprovado_em, :observacao, :desconto_total_cents, :total_cents, :filial_codigo, :filial_external_id, :frete_modalidade, :frete_transportadora_tipo, :frete_transportadora_id, :frete_transportadora_external_id, :frete_transportadora_nome, :frete_transportadora_cnpj, :frete_transportadora_telefone, :entrega_origem, :entrega_external_id, :entrega_logradouro, :entrega_numero, :entrega_complemento, :entrega_bairro, :entrega_cidade, :entrega_uf, :entrega_cep, :entrega_principal, :pagamento_forma_codigo, :pagamento_forma_external_id, :pagamento_prazo_codigo, :pagamento_prazo_external_id, :pagamento_parcelas_dias, :pagamento_prazo_medio_dias FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM macuxi.ped_entrada WHERE pedido_uuid = :pedido_uuid)",
+      "cabecalho": "INSERT INTO macuxi.ped_entrada (pedido_uuid, cliente_codigo, vendedor_codigo, cond_pagto, criado_em, aprovado_em, observacao, desconto_total_cents, total_cents, filial_codigo, filial_external_id, frete_modalidade, frete_transportadora_tipo, frete_transportadora_id, frete_transportadora_external_id, frete_transportadora_nome, frete_transportadora_cnpj, frete_transportadora_telefone, entrega_origem, entrega_external_id, entrega_logradouro, entrega_numero, entrega_complemento, entrega_bairro, entrega_cidade, entrega_uf, entrega_cep, entrega_principal, pagamento_forma_codigo, pagamento_forma_external_id, pagamento_prazo_codigo, pagamento_prazo_external_id, pagamento_parcelas_dias, pagamento_prazo_medio_dias, pagamento_percentual_ajuste) SELECT :pedido_uuid, :cliente_external_id, :vendedor_external_id, :condicao_pagamento_erp, :criado_em, :aprovado_em, :observacao, :desconto_total_cents, :total_cents, :filial_codigo, :filial_external_id, :frete_modalidade, :frete_transportadora_tipo, :frete_transportadora_id, :frete_transportadora_external_id, :frete_transportadora_nome, :frete_transportadora_cnpj, :frete_transportadora_telefone, :entrega_origem, :entrega_external_id, :entrega_logradouro, :entrega_numero, :entrega_complemento, :entrega_bairro, :entrega_cidade, :entrega_uf, :entrega_cep, :entrega_principal, :pagamento_forma_codigo, :pagamento_forma_external_id, :pagamento_prazo_codigo, :pagamento_prazo_external_id, :pagamento_parcelas_dias, :pagamento_prazo_medio_dias, :pagamento_percentual_ajuste FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM macuxi.ped_entrada WHERE pedido_uuid = :pedido_uuid)",
       "itens": "INSERT INTO macuxi.ped_item (pedido_uuid, sequencia, produto_codigo, quantidade, preco_unitario_cents, desconto_cents, total_cents) SELECT :pedido_uuid, :sequencia, :produto_external_id, :quantidade, :preco_unitario_cents, :desconto_cents, :total_cents FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM macuxi.ped_item WHERE pedido_uuid = :pedido_uuid AND sequencia = :sequencia)",
       "numeroErp": "SELECT TO_CHAR(numero_pedido) AS numero_erp FROM macuxi.ped_entrada WHERE pedido_uuid = :pedido_uuid"
     },

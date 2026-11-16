@@ -7,9 +7,14 @@
  *                       código lê (as dos inputs `$TURBO_ROOT$/docs/...` do turbo.json, ex.: docs/modulos/, que o teste da
  *                       Integração lê). Roda só a governança e o ci-ok. A guarda R4 (grafo-turbo.mjs) prova que nenhum
  *                       código lê documentação fora dessas pastas.
- *   - "reaproveitado" → push ao main de uma árvore (tree SHA) que já passou VERDE no CI (ensaio da verificação ou PR em dia
- *                       com o main): a governança roda (donos por commit, trailer) e os testes não se repetem.
+ *   - "reaproveitado" → push ao main de uma árvore (tree SHA) que já passou VERDE no CI com os testes (ensaio da
+ *                       verificação; run de PR não conta, porque não roda as suítes): a governança roda (donos por commit,
+ *                       trailer) e os testes não se repetem.
  *   - "codigo"        → o resto. Lista vazia, erro de git e evento sem lista caem aqui, com TODOS os pacotes.
+ *                       No PR, só o job estatico (R-20261115-213600-alexandre): testes-pacotes e testes-integracao rodam
+ *                       no push ao main, no ensaio (manual) e no agendado, e na sessão antes do merge. O PR não grava o
+ *                       artefato ci-verde-* (ci.yml). Teste quebrado num PR aparece no push ao main, e o merge seguinte
+ *                       espera a correção.
  * matriz:
  *   - "completa" → agendado (noturno, dias úteis), sexta-feira em Manaus (véspera da produção) e manual com `completo`:
  *                  todos os pacotes.
@@ -197,10 +202,16 @@ export function decidir({
   const sel = (t) => (af.todos ? todosOsPacotes : af.porTarefa[t]);
   const testes = sel('test');
   const estatico = new Set([...sel('lint'), ...sel('typecheck')]);
+  // No PR, só o estático (cabeçalho).
+  const comTestes = evento !== 'pull_request';
   return {
     ...vazio,
     escopo: 'codigo',
-    jobs: ['estatico', ...(testes.size > 0 ? ['testes-pacotes'] : []), 'testes-integracao'],
+    jobs: [
+      'estatico',
+      ...(comTestes && testes.size > 0 ? ['testes-pacotes'] : []),
+      ...(comTestes ? ['testes-integracao'] : []),
+    ],
     filtro_lint: af.todos ? '' : filtro(sel('lint'), true),
     filtro_typecheck: af.todos ? '' : filtro(sel('typecheck'), true),
     filtro_test: af.todos ? '' : filtro(testes, false),
@@ -266,6 +277,8 @@ async function verificacaoDaArvore(arvore, exigeCompleta, env) {
         if (art.expired || !art.workflow_run?.id) continue;
         const run = await api(`actions/runs/${art.workflow_run.id}`, env);
         if (run?.conclusion !== 'success' || run?.path !== '.github/workflows/ci.yml') continue;
+        // Run de PR não dispensa os testes (cabeçalho).
+        if (run?.event === 'pull_request') continue;
         // Mesma árvore no commit do run = o ci.yml que rodou é o desta árvore: um branch com outro ci.yml não forja o artefato.
         if (tenta(() => git('cat-file', '-e', `${run.head_sha}^{commit}`)) === null)
           tenta(() => git('fetch', '-q', '--depth=1', 'origin', run.head_sha));
