@@ -76,3 +76,4 @@
 2026-11-15 — v1.0.14 rodada 7 — lote c76d3700 LIBERADO (RD-1742, RD-1743 fechados; RD-1632 não segura).
 2026-11-15 — v1.0.14 rodada 8 — catálogo c7db7a90 COM ACHADO: RD-1704 em parte, RD-1707, novos RD-1800 e RD-1801; fechados RD-1705, 1706, 1708–1711; RD-1712/1802 não seguram.
 2026-11-16 — v1.0.14 rodadas 9 e 10 — #453 849e5141 COM ACHADO (RD-1707, RD-1800 abertos; 1704, 1801, 1802 fechados; 1712 não segura); #448 b1ac10cd COM ACHADO (RD-1820..1827; nota ao testes: matriz de fábrica sem as ações do core).
+2026-11-16 — v1.0.14 rodada 11 (heads novos) — #399 LIBERADO; #398 RD-1840; #401 RD-1841; #396 RD-1560/1562 abertos; #395 RD-1842; #403 liberado; #414–#416 sem mudança (achados seguem).
