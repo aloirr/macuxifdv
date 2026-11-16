@@ -31,7 +31,7 @@ const DIAS = [
   [5, 'Sex', 'Sexta-feira'],
   [6, 'Sáb', 'Sábado'],
 ] as const;
-const CAMPO = 'h-[44px] w-full rounded-xl border bg-surface px-3 text-[14px] font-normal text-ink';
+const CAMPO = 'h-[44px] w-full rounded-xl border bg-surface px-3 text-[15px] font-normal text-ink';
 
 type CampoParam = 'dias' | 'parado' | 'alerta';
 type ErrosCampo = Partial<Record<CampoParam, string>>;
@@ -172,7 +172,7 @@ export function InicioParametrosPanel() {
         {q.data && (
           <>
             <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
-              <legend className="text-[14px] font-semibold text-ink">Dias úteis da semana</legend>
+              <legend className="text-[15px] font-semibold text-ink">Dias úteis da semana</legend>
               <span className="text-[13px] text-ink-2">
                 Os dias marcados contam para a meta do dia: a meta que falta no mês é dividida pelos dias
                 úteis que restam.
@@ -196,7 +196,7 @@ export function InicioParametrosPanel() {
                 ))}
               </div>
             </fieldset>
-            <label className="flex max-w-[260px] flex-col gap-1 text-[14px] font-semibold text-ink">
+            <label className="flex max-w-[260px] flex-col gap-1 text-[15px] font-semibold text-ink">
               Minutos para considerar "parado"
               <span className="text-[13px] font-normal text-ink-2">
                 Sem check-in após o último checkout, com paradas pendentes. De {PARADO_MIN_MIN} a{' '}
@@ -225,7 +225,7 @@ export function InicioParametrosPanel() {
               </span>
             </label>
             {temAlerta && (
-              <label className="flex max-w-[260px] flex-col gap-1 text-[14px] font-semibold text-ink">
+              <label className="flex max-w-[260px] flex-col gap-1 text-[15px] font-semibold text-ink">
                 Prazo para avisar etapa pendente (horas)
                 <span className="text-[13px] font-normal text-ink-2">{AJUDA_ALERTA_H}</span>
                 <MensagemErro id="inicio-params.alerta.erro" texto={erros.alerta} />

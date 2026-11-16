@@ -37,6 +37,7 @@ export const manifest = defineModule({
     'filial.ver': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'], descricao: 'Ver as filiais do tenant e a filial do cliente (RN-CORE-39); o promotor só lê' },
     'filial.editar': { perfis: ['analista', 'admin'], descricao: 'Cadastrar, editar, inativar e apagar filiais e marcar a filial padrão, em Cadastros › Filiais; auditado (RN-CORE-39)' },
     'cliente.filial_editar': { perfis: ['analista', 'admin'], descricao: 'Trocar no BKO a filial de cliente que não veio do ERP; cliente do ERP recusa com 422 (RN-CORE-39); auditado' },
+    'usuario.filial_editar': { perfis: ['admin', 'analista'], descricao: 'Informar ou trocar a filial de cadastro e as filiais de venda de um usuário e destravar a própria filial quando estiver sem ela (RN-CORE-39); auditado' },
     'medida.gerenciar': { perfis: ['analista', 'admin'], descricao: 'Cadastrar, editar, inativar e apagar (só sem uso) medidas do tenant e definir a medida da unidade e a embalagem do produto, em Parâmetros → Produtos (RN-CORE-19)' },
     'parametro.promotor_ve_pedidos': { perfis: ['admin'], descricao: 'Ligar/desligar a leitura de pedidos pelo perfil Promotor no tenant, parâmetro promotor_ve_pedidos (padrão ligado; RN-CORE-01, RN-PRO-01). A escrita de pedido pelo promotor segue sempre negada' },
     'cliente.aprovar_coordenada': { perfis: ['analista', 'admin'], descricao: 'Aprovar a coordenada sugerida no 1º check-in de cliente sem coordenada (RN-CORE-10)' },
@@ -69,6 +70,6 @@ export const manifest = defineModule({
   // ADR 0019: consulta opcional não cria aresta de dependência (sem ciclo core ↔ vendedor); sem o dono, cai no indicador_diario
   usaConsultasOpcionais: ['vendedor.pedidos_da_meta@1', 'pesquisa.etapas_checkout@1', 'vendedor.formas_pagamento@1'],
   // 'pesquisa.questionarios_para_tarefa@1' entra junto com o ofereceConsultas da Pesquisa (pedido ao modulo-pesquisa, T-0170)
-  ofereceConsultas: ['core.cadastro_resumo@1', 'core.financeiro_cliente@1', 'core.cadastro_cliente@1', 'core.medidas@1', 'core.promotor_ve_pedidos@1', 'core.usuarios_resumo@1', 'core.calendario_metas@1', 'core.filiais@1', 'core.produtos_por_sku@1'],
+  ofereceConsultas: ['core.cadastro_resumo@1', 'core.financeiro_cliente@1', 'core.cadastro_cliente@1', 'core.medidas@1', 'core.promotor_ve_pedidos@1', 'core.usuarios_resumo@1', 'core.calendario_metas@1', 'core.filiais@1', 'core.filiais_do_usuario@1', 'core.produtos_por_sku@1'],
   ofereceExtensoes: ['cliente.abas', 'cliente.acoes', 'cliente.avisos', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'],
 });

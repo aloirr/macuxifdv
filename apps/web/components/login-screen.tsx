@@ -226,7 +226,7 @@ function LoginReal() {
     <Moldura>
       <form data-testid="login.tela" onSubmit={(e) => void entrar(e)} noValidate className="flex flex-col gap-5">
         <div className="flex flex-col gap-1">
-          <h1 className="m-0 font-display text-[28px] font-extrabold">Entrar</h1>
+          <h1 className="m-0 text-[24px] font-bold">Entrar</h1>
           <span className="text-[13px] text-ink-2">Use o código da sua empresa, o seu e-mail e a sua senha.</span>
         </div>
         {aviso && !erro && (
@@ -259,7 +259,7 @@ function LoginReal() {
           <Button
             data-testid="login.esqueci"
             variant="link"
-            className="min-h-[44px] self-start text-[14px]"
+            className="min-h-[44px] self-start text-[15px]"
             onClick={() => {
               setErro(null);
               setAviso(null);
@@ -315,7 +315,7 @@ function LoginDemo() {
       <div className="flex w-full max-w-[1060px] flex-col gap-6">
         <Marca />
         <div className="flex flex-col gap-1">
-          <h1 className="m-0 font-display text-[28px] font-extrabold">Escolha um perfil para entrar</h1>
+          <h1 className="m-0 text-[24px] font-bold">Escolha um perfil para entrar</h1>
           <span className="text-[13px] text-ink-2">Ambiente de demonstração: sem senha e com dados fictícios. Cada perfil vê o que pode fazer.</span>
         </div>
 
@@ -338,8 +338,8 @@ function LoginDemo() {
                 }}
                 className="group flex min-h-[132px] flex-col gap-1.5 rounded-2xl border border-line bg-surface p-4 text-left transition-colors hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-70"
               >
-                <span className="text-[11px] font-semibold tracking-[0.06em] text-accent-ink uppercase">{rotuloDoPerfil(u.perfil)}</span>
-                <span className="flex items-center justify-between gap-2 font-display text-[18px] font-bold">
+                <span className="text-[12px] font-semibold tracking-[0.06em] text-accent-ink uppercase">{rotuloDoPerfil(u.perfil)}</span>
+                <span className="flex items-center justify-between gap-2 text-[17px] font-bold">
                   {u.name}
                   <IconChevronRight size={18} className="text-ink-2 transition-transform group-hover:translate-x-0.5" />
                 </span>

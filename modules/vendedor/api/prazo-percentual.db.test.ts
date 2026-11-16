@@ -1,5 +1,5 @@
 /**
- * Retrato do percentual do prazo no pedido × Postgres real (RN-VEN-45, 0081): o INSERT do `receber` grava
+ * Retrato do percentual do prazo no pedido × Postgres real (RN-VEN-45, 0082): o INSERT do `receber` grava
  * `prazo_percentual_ajuste` NULL sem prazo (condição legada, RN-VEN-14) e o percentual com prazo, sem violar o CHECK
  * `pedido_prazo_percentual_com_prazo`. Consultas entre módulos simuladas como em `pedido.db.test.ts`. Pula sem Postgres.
  */
@@ -117,7 +117,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retrato do percentual do praz
 
   const receber = (...itens: ItemPush[]) => provedoresSyncVendedor[0]!.receber!(contexto(), itens);
 
-  it('RN-VEN-45: pedido sem prazo (condição legada) grava prazo_percentual_ajuste NULL e não viola o CHECK da 0081', async () => {
+  it('RN-VEN-45: pedido sem prazo (condição legada) grava prazo_percentual_ajuste NULL e não viola o CHECK da 0082', async () => {
     const [r] = await receber(push(id(1), {}));
     expect(r).toMatchObject({ id: id(1), status: 'aceito' });
     expect(await lerPercentual(id(1))).toEqual({ prazo_pagamento_id: null, pct: null });
