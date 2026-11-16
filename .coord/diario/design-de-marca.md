@@ -40,3 +40,4 @@
 2026-11-16 — v1.0.14 — #456 556ccc40 (marca liberada; RD-2010); #457 a3bc1121 (RD-1871..1880 fechados; RD-2011..2014; MC-1700).
 2026-11-16 — v1.0.14 — #410 09d029ce (marca liberada; RD-1567 em parte, RD-2050); #406 1fdcb8eb (RD-2051..2053; MC-1720).
 2026-11-16 — v1.0.14 — LIBERADOS #411 d80045ce e #406 1dfcd904.
+2026-11-16 — v1.0.14 — #457 6cb6e678: RD-2011..2014 e MC-1700 fechados; novas RD-2110..2113, MC-1730, MC-1731.
