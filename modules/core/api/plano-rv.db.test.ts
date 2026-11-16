@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { rotasDeMetas } from './metas';
 import { rotasDePlanoRv } from './plano-rv';
 import { usuariosVisiveisDoUsuario } from './usuarios-visiveis';
+import { idsDoOutroTenant } from './apoio-teste-banco';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
@@ -173,7 +174,8 @@ describe.skipIf(semBanco())('Core T-0082 x Postgres: plano de RV (RN-CORE-29/30)
 
   it('RN-CORE-05: a RV do tenant B não traz usuário do A', async () => {
     const rv = await chamar('GET', 'rv', adminB, 'req-rv-16', { query: { periodo: PERIODO } });
-    const idsB = new Set<string>(Object.values(B.usuarios) as string[]);
-    expect(rv.pessoas.every((p: { usuario_id: string }) => idsB.has(p.usuario_id))).toBe(true);
+    const ids = rv.pessoas.map((p: { usuario_id: string }) => p.usuario_id);
+    expect(ids).toContain(B.usuarios.vendedor);
+    expect(idsDoOutroTenant(ids, A.usuarios)).toEqual([]);
   });
 });
