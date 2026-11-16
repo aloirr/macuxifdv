@@ -3,24 +3,28 @@
  * o fundo e o logo da splash, parados no centro, e embaixo só a área que muda (barra, etapas, erro). Usada:
  * - na abertura do app (só o logo e o nome do app no rodapé), em `app/_layout.tsx`, no lugar da splash nativa;
  * - antes do login: "Atualizando o app" (passagem dos dados do aparelho) e "Conferindo o servidor";
- * - depois do login, na rota `/sync` (`components/tela-carga.tsx`): "Olá", a barra do total, as etapas e o erro.
+ * - depois do login, na rota `/sync` (`components/tela-carga.tsx`): "Olá", a barra do total, as etapas e o erro; na carga,
+ *   o bloco "Você sabia?" abaixo do "Olá" e o aviso acima da barra (T-0181, `cabeFrase`).
  * Cores do kit (`temaDaEntrada`, designer-ux); posição do logo e textos em `lib/entrada.ts`.
  */
 import type { EtapaEntrada } from '@macuxi/core/contracts';
 import { BarraProgresso, Botao, fonte, Icon, temaDaEntrada, useReduzirMovimento, type TemaEntrada } from '@macuxi/ui/mobile';
+import { MEDIDAS_FRASE_CARGA } from '@macuxi/ui/mobile/puro';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCorDaFaixa, useFaixaSuperior } from '@/components/area-segura';
 import {
+  cabeFrase,
   cabeLista,
   LARGURA_LOGO_ENTRADA,
   MARGEM_ENTRADA,
   posicaoDoLogo,
   ROTULO_BARRA_ENTRADA,
+  type LinhasNaTela,
 } from '@/lib/entrada';
 import { LOGO_EMPILHADO_NEGATIVO, LOGO_EMPILHADO_POSITIVO, svgParaDesenho } from '@/lib/logo-marca';
 import type { Variante } from '@/lib/variante-tipo';
@@ -49,6 +53,13 @@ interface Props {
   aoDesenhar?: () => void;
   /** Nome do app no rodapé, só com a área de baixo vazia (abertura). */
   nomeDoApp?: string;
+  /**
+   * Carga (T-0181): o bloco "Você sabia?" abaixo do "Olá". Entra com 2 linhas, 1 linha ou não entra, pela altura da tela
+   * (`cabeFrase`); a lista de etapas sai antes dele.
+   */
+  frase?: { texto: string; desenhar: (linhas: LinhasNaTela) => ReactNode } | null;
+  /** Carga (T-0181): o aviso, acima da linha da barra (só com a barra na tela). */
+  aviso?: ReactNode;
 }
 
 /** Duração do esmaecer da área de baixo (spec §6; a da barra é a do kit). */
@@ -64,9 +75,12 @@ export function TelaEntrada({
   children,
   aoDesenhar,
   nomeDoApp,
+  frase,
+  aviso,
 }: Props) {
   const tema = temaDaEntrada(variante);
   const insets = useSafeAreaInsets();
+  const { fontScale: escala } = useWindowDimensions();
   const reduzir = useReduzirMovimento();
   // dentro do roteador, a faixa da barra de status é do shell (AreaSeguraSuperior): ela ganha o fundo da entrada e o logo
   // conta com ela, para ficar no centro da janela, onde a splash o desenha
@@ -80,11 +94,19 @@ export function TelaEntrada({
     if (desenhou) aoDesenhar?.();
   }, [desenhou, aoDesenhar]);
   const logo = posicaoDoLogo(janela);
+  const comAviso = Boolean(barra && aviso);
+  // T-0181: o bloco "Você sabia?" só depois de medir a tela (prioridade: logo, "Olá", aviso e barra; spec §1.1)
+  const linhasFrase = frase && saudacao && desenhou ? cabeFrase(janela, insets.bottom, frase.texto, escala) : 0;
   // antes de medir a tela, a lista entra (o logo ainda não aparece): na tela baixa ela sai assim que a altura chega
   const mostrarEtapas = Boolean(
     etapas &&
     etapas.length > 0 &&
-    (altura === 0 || cabeLista(janela, etapas.length, insets.bottom, Boolean(saudacao), Boolean(children))),
+    (altura === 0 ||
+      cabeLista(janela, etapas.length, insets.bottom, Boolean(saudacao), Boolean(children), {
+        aviso: comAviso,
+        linhasFrase,
+        escala,
+      })),
   );
   const vazia = !barra && !mostrarEtapas && !children;
   const opacidade = useEsmaecer(!vazia, reduzir);
@@ -110,6 +132,7 @@ export function TelaEntrada({
             {saudacao}
           </Text>
         ) : null}
+        {frase && linhasFrase !== 0 ? <Fragment key={linhasFrase}>{frase.desenhar(linhasFrase)}</Fragment> : null}
       </View>
       <View style={[styles.baixo, { paddingBottom: MARGEM_ENTRADA + insets.bottom }]}>
         {vazia ? (
@@ -121,16 +144,20 @@ export function TelaEntrada({
         ) : (
           <Animated.View style={{ gap: 18, opacity: opacidade }}>
             {/* RD-0635: a barra do kit (a mesma do popup da sincronização completa); o rótulo ("Etapa n de N · nome")
-                fica sempre à vista, também com a lista, como na entrada aprovada (MC-0088, manual da marca §4) */}
+                fica sempre à vista, também com a lista, como na entrada aprovada (MC-0088, manual da marca §4). T-0181: o
+                aviso da carga acima da barra */}
             {barra ? (
-              <BarraProgresso
-                rotulo={barra.rotulo}
-                pct={barra.pct}
-                cores={tema}
-                reduzirMovimento={reduzir}
-                rotuloAcessivel={ROTULO_BARRA_ENTRADA}
-                testID="entrada"
-              />
+              <View style={styles.avisoEBarra}>
+                {comAviso ? aviso : null}
+                <BarraProgresso
+                  rotulo={barra.rotulo}
+                  pct={barra.pct}
+                  cores={tema}
+                  reduzirMovimento={reduzir}
+                  rotuloAcessivel={ROTULO_BARRA_ENTRADA}
+                  testID="entrada"
+                />
+              </View>
             ) : null}
             {mostrarEtapas && etapas ? <ListaEtapas tema={tema} etapas={etapas} /> : null}
             {typeof children === 'function' ? children(mostrarEtapas) : children}
@@ -270,6 +297,7 @@ const styles = StyleSheet.create({
   raiz: { flex: 1 },
   logo: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   saudacao: { ...fonte.body, fontSize: 16, marginTop: 28, textAlign: 'center' },
+  avisoEBarra: { gap: MEDIDAS_FRASE_CARGA.aviso.acimaDaBarra },
   baixo: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: MARGEM_ENTRADA },
   nomeDoApp: { ...fonte.body, fontSize: 14, textAlign: 'center' },
   etapa: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 32 },

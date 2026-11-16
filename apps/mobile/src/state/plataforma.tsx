@@ -131,6 +131,7 @@ import {
   travaSync,
 } from '@/services/segundo-plano';
 import { gravarErro } from '@/services/erros';
+import { atualizarFrasesDaCarga } from '@/services/frase-carga';
 import {
   atualizarDiagnosticoRemoto,
   ligarEnvioDeDiagnosticos,
@@ -565,8 +566,13 @@ function usePlataformaValor() {
           if (motorRef.current !== m) return false;
           await m.carregar();
         }
-        // a completa pedida durante uma parcial ou leve espera a em curso antes do envio e dos módulos
-        return rodarSync(pedido, m, { modo, offline: offlineRef.current, atualizarModulos, emCurso });
+        // a completa pedida durante uma parcial ou leve espera a em curso antes do envio e dos módulos.
+        // T-0181: com os módulos (só na completa), as frases da carga, sem segurar a carga; a falha mantém a lista anterior
+        const modulosEFrases = async () => {
+          if (modo === 'v1') void atualizarFrasesDaCarga(api());
+          await atualizarModulos();
+        };
+        return rodarSync(pedido, m, { modo, offline: offlineRef.current, atualizarModulos: modulosEFrases, emCurso });
       })().finally(() => {
         travaSync.sair('sincronizacao');
         if (syncEmCursoRef.current === p) {
@@ -578,7 +584,7 @@ function usePlataformaValor() {
       tipoEmCursoRef.current = pedido.tipo;
       return p;
     },
-    [atualizarModulos, modo],
+    [api, atualizarModulos, modo],
   );
 
   /** Sincronização completa (segurar 10 s no Sincronizar, tela de carga, modo sem sinal desligado): envia a fila e puxa tudo. */

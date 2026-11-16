@@ -11,6 +11,10 @@
 import { CARGA_VAZIA, type EstadoMotorSync, type ModuloId, type Perfil } from '@macuxi/platform-sdk';
 import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { deveSincronizar, type MotivoSync } from '@/lib/carga';
@@ -20,14 +24,32 @@ import { MANIFESTOS_INSTALADOS } from '@/lib/instalados';
 const AGORA = Date.parse('2026-11-02T13:10:00.000Z');
 
 // ---------- simulações ----------
-type Props = { children?: ReactNode; testID?: string };
+type Props = { children?: ReactNode; testID?: string; accessibilityElementsHidden?: boolean };
 const host = (tag: string) =>
-  function Host({ children, testID }: Props) {
-    return createElement(tag, testID ? { 'data-testid': testID } : {}, children);
+  function Host({ children, testID, accessibilityElementsHidden }: Props) {
+    return createElement(tag, { ...(testID ? { 'data-testid': testID } : {}), ...(accessibilityElementsHidden ? { 'aria-hidden': 'true' } : {}) }, children);
   };
-/** Text com `accessibilityLabel` (o rótulo da barra para o leitor de tela): fica em `aria-label` no HTML. */
-function TextoHost({ children, testID, accessibilityLabel }: Props & { accessibilityLabel?: string }) {
-  return createElement('span', { ...(testID ? { 'data-testid': testID } : {}), ...(accessibilityLabel ? { 'aria-label': accessibilityLabel } : {}) }, children);
+/**
+ * Text com `accessibilityLabel` (o rótulo da barra para o leitor de tela): fica em `aria-label` no HTML. `numberOfLines`
+ * (corte com reticências) fica em `data-linhas`; `onTextLayout` (a tela mede as linhas), em `data-mede`.
+ */
+function TextoHost({
+  children,
+  testID,
+  accessibilityLabel,
+  numberOfLines,
+  onTextLayout,
+}: Props & { accessibilityLabel?: string; numberOfLines?: number; onTextLayout?: unknown }) {
+  return createElement(
+    'span',
+    {
+      ...(testID ? { 'data-testid': testID } : {}),
+      ...(accessibilityLabel ? { 'aria-label': accessibilityLabel } : {}),
+      ...(numberOfLines ? { 'data-linhas': numberOfLines } : {}),
+      ...(onTextLayout ? { 'data-mede': 'sim' } : {}),
+    },
+    children,
+  );
 }
 
 vi.mock('react-native', () => ({
@@ -45,6 +67,7 @@ vi.mock('react-native', () => ({
   },
   Pressable: ({ children, testID }: Props) => createElement('button', testID ? { 'data-testid': testID } : {}, children),
   StyleSheet: { create: <T,>(s: T) => s, absoluteFill: {} },
+  useWindowDimensions: () => ({ width: 360, height: 800, scale: 3, fontScale: 1 }),
   AppState: { currentState: 'active', addEventListener: () => ({ remove: () => undefined }) },
 }));
 vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 48, left: 0, right: 0 }) }));
@@ -132,7 +155,13 @@ vi.mock('@/state/plataforma', () => ({
   }),
 }));
 
+// T-0181: a frase é sorteada no aparelho (efeito da montagem, que não roda no render estático)
+vi.mock('@/services/storage', () => ({ readJson: () => Promise.resolve(null), writeJson: () => Promise.resolve() }));
+
 const { TelaCarga } = await import('./tela-carga');
+const { FraseCarga } = await import('./frase-carga');
+const { TelaEntrada } = await import('./tela-entrada');
+const { ROTULO_ATUALIZANDO, ROTULO_SERVIDOR } = await import('@/lib/entrada');
 
 // ---------- utilitários ----------
 const montar = () => renderToStaticMarkup(createElement(TelaCarga));
@@ -328,5 +357,90 @@ describe('Carga na tela de entrada — parou (T-0172)', () => {
     const modo = montar();
     expect(modo).toContain('data-testid="desligar-sem-sinal"');
     expect(modo).toContain('data-testid="tentar-de-novo"');
+  });
+});
+
+describe('Carga na tela de entrada — aviso e "Você sabia?" (T-0181, spec carga-aviso-frases §1)', () => {
+  const AVISO = 'Baixando os dados do servidor. Não desligue.';
+
+  it('aviso com o texto literal durante a carga (estado 4) e no 100% (estado 5)', () => {
+    sim.estado = { ...ESTADO_INICIAL, sincronizando: true, progresso: 0.4 };
+    const durante = montar();
+    expect(durante).toContain('data-testid="carga-aviso"');
+    expect(texto(durante)).toContain(AVISO);
+    // acima da barra, na ordem da tela
+    expect(durante.indexOf('carga-aviso')).toBeLessThan(durante.indexOf('entrada-etapa"'));
+    sim.estado = { ...ESTADO_INICIAL, sincronizando: false, etapa: 'Pronto', progresso: 1, sincronizado_em: '2026-11-02T13:09:00.000Z' };
+    expect(texto(montar())).toContain(AVISO);
+  });
+
+  it('no erro (estado 6) o aviso e o "Você sabia?" saem', () => {
+    sim.estado = { ...ESTADO_INICIAL, erro: 'HTTP 500' };
+    const html = montar();
+    expect(html).not.toContain('carga-aviso');
+    expect(html).not.toContain('carga-frase');
+    expect(texto(html)).not.toContain('Não desligue');
+  });
+
+  it('"Você sabia?" com a lâmpada e a frase; título e frase lidos juntos; a fonte não aparece', () => {
+    const html = renderToStaticMarkup(createElement(FraseCarga, { variante: 'campo', texto: 'O lavrado é a savana de Roraima.', linhas: 2 }));
+    expect(texto(html)).toBe('Você sabia? O lavrado é a savana de Roraima.');
+    expect(html).toContain('<i>');
+    expect(html).not.toMatch(/https?:|Fonte|ISA|IBGE/);
+  });
+
+  it('frase sem reticências: desenhada sem corte, medida na tela e escondida até a medida confirmar que coube', () => {
+    for (const linhas of [1, 2] as const) {
+      const html = renderToStaticMarkup(createElement(FraseCarga, { variante: 'gestao', texto: 'O lavrado é a savana de Roraima.', linhas }));
+      expect(html).not.toContain('data-linhas');
+      expect(html).toMatch(/data-testid="carga-frase-texto" data-mede="sim"/);
+      expect(html).toMatch(/data-testid="carga-frase" aria-hidden="true"/);
+    }
+  });
+
+  it('aviso nunca cortado: sem limite de linhas (com fonte grande quebra em 2)', () => {
+    sim.estado = { ...ESTADO_INICIAL, sincronizando: true, progresso: 0.4 };
+    expect(montar()).toMatch(/<span data-testid="carga-aviso">/);
+  });
+});
+
+describe('Antes do login, aviso e "Você sabia?" não aparecem (T-0181, estados 1 a 3 da entrada-sync)', () => {
+  const SRC = fileURLToPath(new URL('..', import.meta.url));
+  /** Os .tsx de produção do shell (sem os testes). */
+  function arquivosTsx(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? arquivosTsx(join(dir, e.name)) : e.name.endsWith('.tsx') && !e.name.endsWith('.test.tsx') ? [join(dir, e.name)] : [],
+    );
+  }
+  const semCarga = (html: string) => {
+    expect(html).not.toContain('carga-aviso');
+    expect(html).not.toContain('carga-frase');
+    expect(texto(html)).not.toMatch(/Não desligue|Você sabia/);
+  };
+
+  it('estado 1 (abertura sem nada a fazer): só o nome do app no rodapé', () => {
+    for (const variante of ['campo', 'gestao'] as const) {
+      const html = renderToStaticMarkup(createElement(TelaEntrada, { variante, sobreposta: true, nomeDoApp: 'Macuxi Campo' }));
+      expect(html).toContain('entrada-nome-do-app');
+      semCarga(html);
+    }
+  });
+
+  it('estado 2 (antes do login, com o que fazer): "Atualizando o app" e "Conferindo o servidor" só com a barra', () => {
+    for (const barra of [
+      { rotulo: ROTULO_ATUALIZANDO, pct: 30 },
+      { rotulo: ROTULO_SERVIDOR, pct: null },
+    ]) {
+      const html = renderToStaticMarkup(createElement(TelaEntrada, { variante: 'campo', sobreposta: true, barra }));
+      expect(texto(html)).toContain(barra.rotulo);
+      semCarga(html);
+    }
+  });
+
+  it('só a carga depois do login (tela-carga.tsx) monta o aviso e o "Você sabia?": abertura e login (estados 1 a 3) não', () => {
+    const usam = arquivosTsx(SRC)
+      .filter((f) => /<(AvisoCarga|FraseCarga)\b/.test(readFileSync(f, 'utf8')))
+      .map((f) => f.slice(SRC.length).replaceAll('\\', '/'));
+    expect(usam).toEqual(['components/tela-carga.tsx']);
   });
 });
