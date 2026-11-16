@@ -139,3 +139,4 @@
 2026-11-16 — v1.0.14 prazo — #398: RD-1500 e MC-1500 a MC-1503 (menu por referência ao menu-parametros §2; telas.css sem Google Fonts e na fonte do sistema; pesos 600; neutros da paleta); merge do main.
 2026-11-16 — v1.0.14 prazo — #398: RD-1840 (pilha da fonte só no body do telas.css, campo.css e bko-1), MC-1590 (valores, aba ativa e erro em 600 no telas.css) e MC-1591 (nada abaixo de 12; 17→18 e 20→22 na escala do app).
 2026-11-16 — v1.0.14 prazo — #398: RD-1942 (estilo comum das duas simulações do BKO em prazo-ajuste/bko.css, pilha da fonte só no body).
+2026-11-16 — v1.0.14 prazo — #398: RD-1942 (sai a .total sem uso do bko.css).
