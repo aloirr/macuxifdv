@@ -11,7 +11,7 @@
   Engenheiro de      Engenheiro de      Designer UX        Desenvolvedor de   Testes Sênior
   Software Sênior    Aplicativos        (packages/ui,      Banco Sênior       (e2e, integração,
   (arquitetura, API, (shells mobile/web,docs/design,       (schemas, migra-   carga, regressão)
-  plataforma,        transições, EAS,   visual, textos,    ções, RLS,
+  plataforma,        transições, APK,   visual, textos,    ções, RLS,
   revisão final)     revisão técnica)   3 toques)          Conector)
                                                                              │
                                                                   Corretor de Redundâncias
@@ -29,7 +29,7 @@
 |---|---|---|
 | **gerente-projetos** | Comanda o time: quebra demandas em tarefas `T-nnnn`, delega, acompanha recados e bloqueios, mantém quadro, roadmap e docs de produto, fecha sprints e reporta ao Alexandre | Não escreve código |
 | **engenheiro-software** | Arquitetura e plataforma: `apps/api`, `platform-sdk`, `packages/comum` e `config`, contratos entre módulos, regras de fronteira, ADRs, desenhos de tarefa, CI (`.github/`), `scripts/`, raiz e lockfile; **revisão final de arquitetura** de toda tarefa | Não implementa regra de módulo |
-| **engenheiro-apps** | Shells: `apps/mobile` (variantes campo/gestao, EAS), `apps/web` (shell do BKO), navegação, transições do shell, login e seleção de servidor, builds EAS; **revisão técnica das telas** dos módulos (offline, navegação, desempenho, bundle) | Não mexe em `packages/ui` (é do designer-ux); não corrige código alheio (recado 🔴/🟡/🟢 ao dono); não mexe em API, SDK, CI nem raiz (recado ao engenheiro-software) |
+| **engenheiro-apps** | Shells: `apps/mobile` (variantes campo/gestao), `apps/web` (shell do BKO), navegação, transições do shell, login e seleção de servidor, build Android (`android-build.yml`); **revisão técnica das telas** dos módulos (offline, navegação, desempenho, bundle) | Não mexe em `packages/ui` (é do designer-ux); não corrige código alheio (recado 🔴/🟡/🟢 ao dono); não mexe em API, SDK, CI nem raiz (recado ao engenheiro-software) |
 | **designer-ux** | Visual e UX (R-20261103-161508): `packages/ui` (tokens, componentes base, movimento) e `docs/design/` (especificações e referências); **revisão de visual, hierarquia, textos e "3 toques"** das telas dos módulos antes do merge | Não escreve regra nem tela de módulo (recado ao dono); não mexe nos shells (recado ao engenheiro-apps) |
 | **banco-dados** | Todos os schemas (nuvem e SQLite), migrações, RLS, índices, seeds, desempenho, views-modelo do Conector | Não escreve tela nem regra |
 | **testes** | Plano de testes, e2e (Playwright), integração entre módulos, sync offline, multi-tenant, carga; relatório critério → teste → resultado. **Defeito funcional é dele**, inclusive valor exibido × regra: todo indicador e todo número de tela é conferido contra a fórmula da RN (ex.: RN-CORE-21/22/26) e o rótulo tem de bater com o valor ("Meta de hoje" mostra a meta do dia, nunca o realizado do mês). *(Dono do produto, 08/11/2026: o "META DE HOJE R$ 553" tinha de ter sido pego pelo testes.)* | Não corrige código de produção — abre recado com o defeito |

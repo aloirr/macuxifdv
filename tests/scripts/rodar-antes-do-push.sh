@@ -1,28 +1,5 @@
 #!/usr/bin/env bash
-# Comando único "antes do push" (agente testes; R-20261115-213600-alexandre: testes de banco na sessão, CI do PR enxuto).
-#
-# Faz na sessão o que o CI do PR fazia nos jobs testes-pacotes e testes-integracao (.github/workflows/ci.yml):
-#   1. sobe o Postgres local sem Docker (db/scripts/pg-local.sh, do banco-dados: 5432 superusuário e 5433 limpo) e
-#      carrega o env do CI (MACUXI_PG_*, Node >= 24.7 no PATH);
-#   2. descobre os pacotes afetados contra o merge-base com origin/main com a MESMA regra do CI (decidir() de
-#      scripts/ci/escopo.mjs, via tests/scripts/escopo-local.mjs), contando também o que ainda não foi commitado;
-#   3. turbo run test --continue nos afetados;
-#   4. se o @macuxi/db foi afetado: a suíte dele com o admin SEM superusuário na 5433 (como o DBaaS);
-#   5. pnpm test:tests inteiro (sempre que há código; pula se só docs/.coord mudaram);
-#   6. imprime um bloco Markdown para colar no corpo do PR. Sai com código != 0 se alguma etapa falhar.
-#
-# Uso (raiz do repositório):
-#   bash tests/scripts/rodar-antes-do-push.sh                 afetados contra origin/main (o padrão; o que vai no PR)
-#   bash tests/scripts/rodar-antes-do-push.sh --tudo          todos os pacotes + sem superusuário + tests/
-#   bash tests/scripts/rodar-antes-do-push.sh --pacote @macuxi/db [--pacote api]   só esses pacotes (+ tests/)
-#   bash tests/scripts/rodar-antes-do-push.sh --so-tests      só pnpm test:tests
-#   bash tests/scripts/rodar-antes-do-push.sh --arquivo tests/integracao/banco/conformidade.test.ts   (repetível)
-#   --sem-tests            não roda tests/ (prova parcial; o bloco do PR marca "parcial")
-#   --base <ref>           base da comparação (padrão origin/main; o script tenta git fetch origin main antes)
-#   --pg-local-de <ref>    enquanto o db/scripts/pg-local.sh não está no main: executa o script desse ref do git
-#                          (ex.: origin/nuvem/pg-local-banco-dados) sem gravar arquivo em db/
-#   --saida <arquivo>      grava também o bloco Markdown nesse arquivo
-# Logs completos: pasta temporária impressa no fim (MACUXI_ANTES_DO_PUSH_LOGS para fixar).
+# Comando único "antes do push" (agente testes). Passos, opções e o bloco do PR: docs/testes/antes-do-push.md.
 set -uo pipefail
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -30,7 +7,6 @@ cd "${RAIZ}" || exit 2
 
 PG_LOCAL="db/scripts/pg-local.sh"
 MODO=afetados
-BASE_REF=origin/main
 PG_LOCAL_REF=""
 SAIDA=""
 SEM_TESTS=0
@@ -43,7 +19,19 @@ erro() {
   msg "ERRO: $*"
   exit 2
 }
-uso() { sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; }
+uso() {
+  cat <<'USO'
+Uso (raiz do repositório): bash tests/scripts/rodar-antes-do-push.sh [opções]   (detalhes: docs/testes/antes-do-push.md)
+  (nenhuma)              afetados contra origin/main (o que vai no PR)
+  --tudo                 todos os pacotes, o passo sem superusuário e tests/
+  --pacote <nome>        só esses pacotes, mais tests/ (repetível)
+  --so-tests             só pnpm test:tests
+  --arquivo <caminho>    só esses arquivos de tests/ (repetível)
+  --sem-tests            não roda tests/
+  --pg-local-de <ref>    executa o db/scripts/pg-local.sh desse ref do git
+  --saida <arquivo>      grava também o bloco Markdown nesse arquivo
+USO
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -62,11 +50,6 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --sem-tests) SEM_TESTS=1 ;;
-    --base)
-      [[ -n "${2:-}" ]] || erro "--base exige um ref"
-      BASE_REF="$2"
-      shift
-      ;;
     --pg-local-de)
       [[ -n "${2:-}" ]] || erro "--pg-local-de exige um ref do git"
       PG_LOCAL_REF="$2"
@@ -121,14 +104,26 @@ PG_VERSAO="$(PGPASSWORD="${MACUXI_PG_ADMIN_SENHA}" psql -h "${MACUXI_PG_HOST}" -
 
 # ---------- escopo ----------
 
-if [[ "${BASE_REF}" == origin/main ]]; then
-  timeout 60 git fetch -q origin main 2>/dev/null || msg "aviso: git fetch origin main falhou; uso o origin/main local"
-fi
-ESCOPO_SAIDA="$(node tests/scripts/escopo-local.mjs --base "${BASE_REF}")" || erro "escopo-local.mjs falhou"
+# A decisão é a do CI, pelo próprio CLI (scripts/ci/escopo.mjs no modo workflow_dispatch: merge-base de HEAD com
+# origin/main, só o que está commitado). Data fixa numa segunda-feira: a matriz de sexta é do push ao main.
+timeout 60 git fetch -q origin main 2>/dev/null || msg "aviso: git fetch origin main falhou; uso o origin/main local"
+ESCOPO_SAIDA="$(GITHUB_EVENT_NAME=workflow_dispatch GITHUB_OUTPUT='' MACUXI_CI_AGORA=2026-11-16T15:00:00Z \
+  node scripts/ci/escopo.mjs)" || erro "scripts/ci/escopo.mjs falhou"
 campo() { printf '%s\n' "${ESCOPO_SAIDA}" | sed -n "s/^$1=//p"; }
 BASE_SHA="$(campo base)"
-N_ARQUIVOS="$(campo arquivos)"
+[[ -n "${BASE_SHA}" ]] || erro "sem merge-base de HEAD com origin/main"
+N_ARQUIVOS="$(git diff --name-only --no-renames "${BASE_SHA}" HEAD | grep -c .)"
 ESCOPO="$(campo escopo)"
+# Nada commitado contra a base: o CI trataria a lista vazia como "todos os pacotes"; aqui não roda nada.
+[[ "${N_ARQUIVOS}" -eq 0 ]] && ESCOPO=vazio
+# Sem o job testes-pacotes = nenhum pacote (só tests/ mudou); com ele e filtro vazio = todos (lockfile, turbo.json...).
+if [[ "$(campo jobs)" != *'"testes-pacotes"'* ]]; then
+  PACOTES_CI=nenhum
+elif [[ -n "$(campo filtro_test)" ]]; then
+  PACOTES_CI=filtro
+else
+  PACOTES_CI=todos
+fi
 
 FILTRO=""          # filtro do turbo (vazio + RODAR_PACOTES=1 = todos)
 RODAR_PACOTES=0
@@ -140,7 +135,7 @@ case "${MODO}" in
     case "${ESCOPO}" in
       vazio | documentacao) RODAR_TESTS=0 ;;
       codigo)
-        case "$(campo pacotes)" in
+        case "${PACOTES_CI}" in
           filtro)
             RODAR_PACOTES=1
             FILTRO="$(campo filtro_test)"
@@ -251,7 +246,7 @@ BLOCO="$(
 
 - **Status geral:** ${GERAL}
 - **HEAD:** \`${HEAD_SHA}\`${SUJO:+ (com mudanças não commitadas: rode de novo depois do commit)}
-- **Base:** \`${BASE_REF}\` (merge-base \`${BASE_SHA}\`), ${N_ARQUIVOS} arquivo(s) alterado(s), escopo \`${ESCOPO}\`, modo \`${MODO}\`
+- **Base:** \`origin/main\` (merge-base \`${BASE_SHA}\`), ${N_ARQUIVOS} arquivo(s) alterado(s), escopo \`${ESCOPO}\`, modo \`${MODO}\`
 - **Ambiente:** Node $(node -v), PostgreSQL ${PG_VERSAO} local sem Docker (5432 superusuário, 5433 sem superusuário)${MACUXI_PG_SEM_VECTOR:+, sem pgvector}
 - **Comando:** \`bash tests/scripts/rodar-antes-do-push.sh${ORIGINAIS[*]:+$(printf ' %q' "${ORIGINAIS[@]}")}\`
 - **Tempo total:** $((TOTAL / 60))min$(printf '%02d' $((TOTAL % 60)))s

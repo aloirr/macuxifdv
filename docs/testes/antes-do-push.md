@@ -1,9 +1,6 @@
 # Testes antes do push (comando único, Postgres local sem Docker)
 
-Origem: R-20261115-213600-alexandre ("Corte o consumo sem perder velocidade, testes de banco na sessão") e doc 07, seção 3
-("Testes na sessão e CI do PR enxuto"). O CI do PR deixa de rodar os testes: o dono roda na sessão, antes do push, o que
-os jobs `testes-pacotes` e `testes-integracao` do `.github/workflows/ci.yml` rodavam, e cola o resumo no corpo do PR.
-As suítes completas com Postgres rodam uma vez no push ao `main`.
+Origem: R-20261115-213600-alexandre e doc 07, seção 3.
 
 Dono do comando: `testes`. Dono do Postgres local (`db/scripts/pg-local.sh`): `banco-dados`.
 
@@ -19,15 +16,12 @@ O comando:
 
 1. sobe o Postgres local (`bash db/scripts/pg-local.sh`: 5432 com superusuário e 5433 limpo, postgres/postgres,
    pgvector) e carrega o env do CI (`MACUXI_PG_*` e o Node 24 de `/opt/node24` no PATH: os testes exigem Node >= 24.7);
-2. descobre os pacotes afetados contra o merge-base com `origin/main` com a mesma regra do CI (`decidir()` de
-   `scripts/ci/escopo.mjs`, chamado por `tests/scripts/escopo-local.mjs`). A lista de arquivos inclui também o que ainda
-   não foi commitado, para o comando servir antes e depois do amend;
+2. descobre os pacotes afetados contra o merge-base com `origin/main` pelo próprio `scripts/ci/escopo.mjs` (modo
+   `workflow_dispatch`). Só conta o que está commitado: rode depois do amend;
 3. `pnpm exec turbo run test --continue <filtro>` nos pacotes afetados (todos, se mudou arquivo fora de pacote, como
    lockfile, `turbo.json` ou `scripts/`);
-4. se o `@macuxi/db` foi afetado, repete o passo do CI com o admin **sem superusuário**: recria a 5433
-   (`pg-local.sh --limpar-5433`), roda `pnpm --filter @macuxi/db admin-sem-superusuario` nela e a suíte do `@macuxi/db`
-   com `MACUXI_PG_ADMIN_USUARIO=macuxi_admin_sem_super`, `MACUXI_PG_ADMIN_SENHA=macuxi_admin_sem_super_ci`,
-   `MACUXI_PG_ADMIN_SEM_SUPER=1` e `MACUXI_PG_PORTA=5433`;
+4. se o `@macuxi/db` foi afetado, repete o passo do CI com o admin **sem superusuário** na 5433 (variáveis e passos:
+   `docs/banco/README.md`, seção "Testes de banco na sessão da nuvem");
 5. `pnpm test:tests` inteiro, sempre que há código (como o CI). Se só `docs/**`, `.coord/**` ou `*.md` da raiz mudaram,
    não roda nada (escopo `documentacao`);
 6. imprime o bloco Markdown "Testes na sessão (antes do push)" entre as linhas `----- cole no corpo do PR -----`.
@@ -45,7 +39,6 @@ Código de saída: 0 = tudo verde; 1 = alguma etapa vermelha; 2 = erro de prepar
 | `--so-tests` | só `pnpm test:tests` |
 | `--arquivo <caminho>` (repetível) | só esses arquivos de `tests/` (ex.: `tests/integracao/banco/conformidade.test.ts`) |
 | `--sem-tests` | não roda `tests/` |
-| `--base <ref>` | outra base de comparação (padrão `origin/main`; o comando tenta `git fetch origin main` antes) |
 | `--pg-local-de <ref>` | executa o `db/scripts/pg-local.sh` de um ref do git, sem gravar arquivo em `db/`; serve só enquanto o script do banco-dados não está no `main` (ex.: `--pg-local-de origin/nuvem/pg-local-banco-dados`) |
 | `--saida <arquivo>` | grava também o bloco Markdown nesse arquivo |
 
