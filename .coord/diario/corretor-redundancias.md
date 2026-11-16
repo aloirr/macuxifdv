@@ -78,3 +78,4 @@
 2026-11-16 — v1.0.14 rodadas 9 e 10 — #453 849e5141 COM ACHADO (RD-1707, RD-1800 abertos; 1704, 1801, 1802 fechados; 1712 não segura); #448 b1ac10cd COM ACHADO (RD-1820..1827; nota ao testes: matriz de fábrica sem as ações do core).
 2026-11-16 — v1.0.14 rodada 11 (heads novos) — #399 LIBERADO; #398 RD-1840; #401 RD-1841; #396 RD-1560/1562 abertos; #395 RD-1842; #403 liberado; #414–#416 sem mudança (achados seguem).
 2026-11-16 — v1.0.14 rodadas 12 e 13 — #442 LIBERADO; #405 RD-1900, #408 RD-1901, #453 RD-1902/1903 (RD-1707, 1800 em parte); heads só com merge do main sem mudança de parecer; #456 RD-1860..1870, #457 RD-1871..1880 (RD-1871 alta: parado editável em 2 lugares).
+2026-11-16 — v1.0.14 rodada 14 — #401 e #399 LIBERADOS; #448 RD-1940/1941; #398 RD-1942; #419 RD-1508/1509 abertos; #414–#416 RD-1583/1584 abertos (dependem da ListaParametros no kit).
