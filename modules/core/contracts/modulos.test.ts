@@ -27,6 +27,12 @@ describe('contrato GET /v1/me/modulos', () => {
     expect(MeusModulosRespostaSchema.safeParse({ ...ok, modulos: [{ id: 'core', versao: '1' }] }).success).toBe(false);
   });
 
+  it('RN-CORE-01: modulos_contratados é opcional e só aceita módulos conhecidos (ADR 0058)', () => {
+    expect(MeusModulosRespostaSchema.parse(ok).modulos_contratados).toBeUndefined();
+    expect(MeusModulosRespostaSchema.parse({ ...ok, modulos_contratados: ['core', 'vendedor', 'pesquisa'] }).modulos_contratados).toEqual(['core', 'vendedor', 'pesquisa']);
+    expect(MeusModulosRespostaSchema.safeParse({ ...ok, modulos_contratados: ['teste_x'] }).success).toBe(false);
+  });
+
   it('RN-CORE-01: exige versao_licencas para o app detectar mudança no sync', () => {
     const { versao_licencas: _v, ...sem } = ok;
     expect(MeusModulosRespostaSchema.safeParse(sem).success).toBe(false);

@@ -53,9 +53,10 @@ export function percentualDaCarga(estado: EstadoCarga, situacao: SituacaoCarga):
  * - `abertura`: o app abriu com sessão e carga gravada (vai direto ao Início; sincroniza em segundo plano);
  * - `periodico`: o relógio de 15 min com o app aberto;
  * - `volta`: o app voltou do segundo plano (AppState background → active);
- * - `tela-carga`: a tela de carga montou (primeiro acesso, ou remontou no meio da carga).
+ * - `tela-carga`: a tela de carga montou (primeiro acesso, ou remontou no meio da carga);
+ * - `carga-fundo`: as abas abriram com a carga inicial pela metade e parada (ADR 0054: entrada liberada antes do fim).
  */
-export type MotivoSync = 'abertura' | 'periodico' | 'volta' | 'tela-carga';
+export type MotivoSync = 'abertura' | 'periodico' | 'volta' | 'tela-carga' | 'carga-fundo';
 
 export interface ContextoDecisaoSync {
   estado: Pick<EstadoMotorSync, 'sincronizando' | 'sincronizado_em'>;

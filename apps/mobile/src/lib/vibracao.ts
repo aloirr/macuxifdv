@@ -45,3 +45,16 @@ export function montarVibracao(
   if (plataforma === 'ios') return () => motor.impactoLeve();
   return null;
 }
+
+/**
+ * R-20261115-100000 (spec sync-completa §3): vibração do segurar o Sincronizar, leve no início do anel e média aos 10 s
+ * (`impactAsync` Light / Medium). Com "reduzir movimento", não vibra (mesma janela de cima); na web, também não.
+ */
+export function impactoDoSegurar(
+  forca: 'leve' | 'media',
+  plataforma: Plataforma,
+  reduzirMovimento: boolean,
+): 'leve' | 'media' | null {
+  if (reduzirMovimento || plataforma === 'web') return null;
+  return forca;
+}

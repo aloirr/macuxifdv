@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Logo do cliente · carga</title>
+<link rel="stylesheet" href="logo-cliente.css">
+<!--
+  Simulação da spec docs/design/telas/logo-cliente.md §3 (MC-0066). Uso: carga.html?v=campo|gestao.
+  PNG (Playwright, deviceScaleFactor 2): carga-campo.png e carga-gestao.png.
+  Com logo: a logo do cliente ao lado do logo Macuxi (124 dp).
+  Empresa e logo FICTÍCIAS: "Distribuidora Exemplo Norte", logo-ficticia-exemplo-norte.svg, código AM4821, Lucas.
+-->
+<style>
+  .entrada{flex:1;display:flex;flex-direction:column;align-items:center}
+  .entrada .meio{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding-top:20px}
+  /* Carga com logo (MC-0066): ao lado, placa 64 × até 112, logo 48 × até 96, filete 1 × 64 a 24 dp de cada lado */
+  .par{display:flex;align-items:center}
+  .par .div{width:1px;height:64px;margin:0 24px;flex:none}
+  .placa.carga{height:64px;max-width:112px;padding:8px}
+  .placa.carga img{height:48px;max-width:96px}
+  .ola{font-size:16px}
+  .baixo{width:100%;padding:0 32px 36px;display:flex;flex-direction:column;gap:10px;justify-content:flex-end}
+  .linha{display:flex;justify-content:space-between;font-size:14px}
+  .linha b{font-weight:600}
+  .trilho{height:6px;border-radius:3px;overflow:hidden}
+  .trilho i{display:block;height:100%;border-radius:3px}
+  .phone{height:800px}
+  /* Estado 4 da carga (docs/design/carga-aviso-frases/spec.md §1): "Você sabia?" com a frase e o aviso acima da barra */
+  .sabia{margin-top:2px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;line-height:20px;font-weight:600}
+  .frase{margin-top:-12px;max-width:280px;text-align:center;font-size:14px;line-height:20px}
+  .aviso{font-size:14px;line-height:20px}
+</style>
+</head>
+<body>
+<div class="board" id="board"></div>
+<script>
+const q = new URLSearchParams(location.search);
+const v = q.get('v') || 'campo';
+const A = '../../../marca/ativos/2026-11-12-v1/';
+const campo = v === 'campo';
+const T = campo
+  ? { fundo:'#1E3350', texto:'#FFFFFF', claro:'#C9CED5', trilho:'#3A4D68', preench:'#F59A52', feita:'#7FD1A8', div:'#3A4D68', logo:A+'macuxi-logo-empilhado-negativo.svg', placaBorda:'none', classe:'escuro', nome:'Macuxi Campo',
+      etapas:['Envio do que ficou no aparelho','Clientes e rota','Catálogo e preços','Pedidos e metas','Fotos e materiais'] }
+  : { fundo:'#F8F6F1', texto:'#1E3350', claro:'#4A5562', trilho:'#DFE2E6', preench:'#C2540A', feita:'#1D6B4F', div:'#DFE2E6', logo:A+'macuxi-logo-empilhado-positivo.svg', placaBorda:'1px solid #DFE2E6', classe:'', nome:'Macuxi Gestão',
+      etapas:['Envio do que ficou no aparelho','Equipe','Aprovações','Metas','Alertas'] };
+const st = '<div class="st"><span>06:30</span><span>4G ▮▮▮ 90%</span></div>';
+const LOGO_CLI = 'logo-ficticia-exemplo-norte.svg';
+
+function marca(comLogo) {
+  const m = `<img src="${T.logo}" alt="Macuxi Força de Vendas" style="width:${comLogo ? 124 : 170}px;display:block">`;
+  if (!comLogo) return m;
+  const placa = `<span class="placa carga" style="border:${T.placaBorda}"><img src="${LOGO_CLI}" alt="Logo da Exemplo Norte"></span>`;
+  return `<div class="par">${m}<span class="div" style="background:${T.div}"></span>${placa}</div>`;
+}
+function carga(comLogo) {
+  // As duas telas no mesmo momento (depois do login): a única diferença é a logo do cliente.
+  const lampada = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${T.preench}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.6 1.1-2.1A6 6 0 0 0 12 3z"/></svg>`;
+  const sabia = `<div class="sabia" style="color:${T.texto}">${lampada}Você sabia?</div>
+       <div class="frase" style="color:${T.claro}">O Monte Roraima fica na fronteira do Brasil com a Venezuela e a Guiana.</div>`;
+  const baixo = `<div class="aviso" style="color:${T.claro}">Baixando os dados do servidor. Não desligue.</div>
+       <div class="linha" style="color:${T.texto}"><span>Etapa 2 de 5 · ${T.etapas[1]}</span><b>38%</b></div>
+       <div class="trilho" style="background:${T.trilho}"><i style="width:38%;background:${T.preench}"></i></div>`;
+  return `<div class="phone ${T.classe}" style="background:${T.fundo}">${st}
+    <div class="entrada"><div class="meio">${marca(comLogo)}<div class="ola" style="color:${T.claro}">Olá, Lucas</div>${sabia}</div>
+    <div class="baixo">${baixo}</div></div></div>`;
+}
+const telas = [
+  ['Carga, sem logo', carga(false)],
+  ['Carga, com logo', carga(true)],
+];
+document.getElementById('board').innerHTML = telas.map(([l, h]) => `<div class="tela"><div class="leg">${T.nome} · ${l}</div>${h}</div>`).join('');
+</script>
+</body>
+</html>
