@@ -128,3 +128,4 @@
 2026-11-16 — #476 3c352a68 LIBERADO (= #410 58a84ea0 + ciclo-erp do #466).
 2026-11-16 — #435 e2bfaefe: RD-1623..1628 fechados; RD-2150..2153 (baixos, seguram), RD-2154 (não segura).
 2026-11-16 — #435 37871b4d LIBERADO (RD-2150..2153 fechados).
+2026-11-16 — #477 e6167d93 LIBERADO.
