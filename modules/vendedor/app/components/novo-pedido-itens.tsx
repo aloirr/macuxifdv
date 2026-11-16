@@ -8,7 +8,7 @@
  *  de `lib/novo-pedido` (domain), nada é calculado aqui. Alvos de toque ≥ 44 dp (os do kit já garantem).
  */
 import type { Product } from '@macuxi/catalogo/contracts';
-import { DescontoCompacto, colors, fonts, sanearDecimal, type as t } from '@macuxi/ui/mobile';
+import { DescontoCompacto, colors, fonte, sanearDecimal, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
@@ -64,7 +64,7 @@ export function ServeEm({ trecho, codigo }: { trecho: TrechoServeEm; codigo: str
   const partes = partirTrecho(trecho.texto, trecho.marcas);
   return (
     <Text style={s.aplicacao} numberOfLines={2} testID={`serve-em-${codigo}`}>
-      <Text style={t.smallStrong}>Serve em:</Text> {partes.map((x, i) => (x.marcado ? <Text key={i} style={t.smallStrong}>{x.texto}</Text> : x.texto))}
+      <Text style={t.label}>Serve em:</Text> {partes.map((x, i) => (x.marcado ? <Text key={i} style={t.label}>{x.texto}</Text> : x.texto))}
       {trecho.inclui_ano ? ` · inclui ${trecho.inclui_ano}` : ''}
     </Text>
   );
@@ -74,13 +74,13 @@ const s = StyleSheet.create({
   item: { paddingVertical: 12, paddingHorizontal: 14, gap: 8 },
   divisor: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   medida: { gap: 4 },
-  titulo: { fontFamily: fonts.body, fontSize: 14, color: colors.ink },
-  nome: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
-  separador: { fontFamily: fonts.body, fontSize: 12, color: colors.ink3 },
-  embalagem: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink2 },
-  aplicacao: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
+  titulo: { ...fonte.body, fontSize: 14, color: colors.ink },
+  nome: { ...fonte.semibold, fontSize: 14, color: colors.ink },
+  separador: { ...fonte.body, fontSize: 12, color: colors.ink3 },
+  embalagem: { ...fonte.body, fontSize: 12, color: colors.ink2 },
+  aplicacao: { ...fonte.body, fontSize: 14, color: colors.ink2 },
   controles: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 0 },
   total: { flexDirection: 'row', alignSelf: 'flex-end', alignItems: 'baseline', gap: 6, minHeight: 24 },
-  totalRotulo: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink2 },
-  totalValor: { fontFamily: fonts.displayBold, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
+  totalRotulo: { ...fonte.body, fontSize: 12, color: colors.ink2 },
+  totalValor: { ...fonte.semibold, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
 });

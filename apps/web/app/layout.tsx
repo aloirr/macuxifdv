@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { Providers } from '@/components/providers';
-import { archivo, plexMono, plexSans } from './fonts';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -13,7 +12,7 @@ export const viewport: Viewport = { width: 'device-width', initialScale: 1, them
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="pt-BR" className={`${archivo.variable} ${plexSans.variable} ${plexMono.variable}`}>
+    <html lang="pt-BR">
       <body>
         <Providers>{children}</Providers>
       </body>

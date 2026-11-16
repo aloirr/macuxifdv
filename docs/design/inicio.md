@@ -112,14 +112,13 @@ O realizado de hoje sai do Início (está em Metas).
 ### 1.5 Sincronizar (kit: `BotaoSincronizar`, `packages/ui/src/mobile/sincronizacao.tsx`)
 - Botão 52 na largura toda, `variant="dark"` (grafite `ink`, texto branco), ícone `sync`, rótulo "Sincronizar".
 - Abaixo, **centralizado**, `small` `ink2`: "Última sincronização 16:25 · 0 na fila" (RN-CORE-23); nunca sincronizado:
-  "Ainda não sincronizado · 2 na fila"; logo depois de um toque: "Atualizado há instantes".
+  "Ainda não sincronizado · 2 na fila". Intervalo mínimo entre sincronizações: `sync-completa/spec.md` §5.
 - Sincronizando: o botão mostra o indicador de carregamento e fica sem toque.
 - Modo sem sinal ligado: botão desabilitado "Sem sinal" e, acima da linha de situação, centralizado em `warningInk`,
   "Desligue o modo sem sinal para sincronizar".
 - **Aviso único de dado antigo (RD-0008)**: prop `avisoDados` do `BotaoSincronizar` (texto pronto do shell, fuso do tenant).
   Com ela, a linha de situação vira **"⟳ Dados de 06/11, 6h28 · 0 na fila"** (ícone `sync` 14 + `small` semibold, `warningInk`,
-  centralizada, testID `<testID>-aviso-dados`; a linha continua `<testID>-situacao`), no lugar de "Última sincronização…" e
-  também de "Atualizado há instantes" (se a cópia continua velha depois do toque, o aviso continua). Textos:
+  centralizada, testID `<testID>-aviso-dados`; a linha continua `<testID>-situacao`), no lugar de "Última sincronização…". Textos:
   base defasada (`base.defasado`) **"Dados de 06/11, 6h28"**; sem cópia de vendas (`sem_realizado`) **"Sincronize para ver as
   vendas"**. O "· N na fila" fica (redundância útil, RN-CORE-23). Não repete "Sincronizar": o botão logo acima já diz.
   Vale para A faturar, Positivação e Meta ao mesmo tempo, por isso não fica em cartão nenhum.
@@ -171,7 +170,7 @@ Meta do mês da equipe · {pct}% · R$ {realizado} de R$ {meta} · Meta de hoje 
 R$ {valor} por dia útil ({n} dias) · Meta de hoje batida · Meta do mês batida · {x} de {y} clientes · {x} de {y} ·
 {x}% de {y}% · Nenhuma meta cadastrada. · Orçamentos · A faturar · nenhum · {n} · R$ {valor} ({n} vence(m) amanhã) ·
 ({n} aguardando aprovação) · Pedidos para aprovar · Equipe agora · Sincronizar · Última sincronização {hh:mm} · {n} na fila ·
-Ainda não sincronizado · Atualizado há instantes · Dados de {dd/mm}, {h}h{mm} · Sincronize para ver as vendas · Sem sinal ·
+Ainda não sincronizado · Dados de {dd/mm}, {h}h{mm} · Sincronize para ver as vendas · Sem sinal ·
 Desligue o modo sem sinal para sincronizar.
 Saíram (RD-0002 a RD-0011): "Recados de hoje", "Meta de hoje" como título, "mês {pct}%", "Faltam {valor} hoje", "Hoje não é dia
 útil" no cartão, "Nenhuma visita na rota de hoje", "Acumulado do mês", "meta {pct}%", "{x} clientes de {y} clientes",

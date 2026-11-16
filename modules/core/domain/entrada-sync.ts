@@ -3,6 +3,7 @@
  * (`EstadoMotorSync.carga`, `progresso`, `erro`) e devolve nome, número, total e percentual, por perfil e módulos efetivos.
  * A etapa 1 é sempre o envio do que ficou no aparelho; as demais agrupam as entidades puxadas.
  */
+import { ENTIDADES_CORE_CATALOGO_PRECOS } from '../contracts/entrada-sync';
 import type { EtapaEntrada, EtapaEntradaId, ParadaDiagnostico, ProgressoEntrada } from '../contracts/entrada-sync';
 
 interface DefEtapa {
@@ -15,17 +16,19 @@ interface DefEtapa {
 const CAMPO: readonly DefEtapa[] = [
   { id: 'envio', nome: 'Envio do que ficou no aparelho' },
   { id: 'clientes_rota', nome: 'Clientes e rota' },
-  { id: 'catalogo_precos', nome: 'Catálogo e preços', modulo: 'catalogo' },
   { id: 'pedidos_metas', nome: 'Pedidos e metas' },
   { id: 'fotos_materiais', nome: 'Fotos e materiais' },
+  // RN-CORE-48 revista (ADR 0054): o catálogo é a única etapa grande e carrega por último
+  { id: 'catalogo_precos', nome: 'Catálogo e preços', modulo: 'catalogo' },
 ];
 
 const GESTAO: readonly DefEtapa[] = [
   { id: 'envio', nome: 'Envio do que ficou no aparelho' },
   { id: 'equipe', nome: 'Equipe' },
-  { id: 'aprovacoes', nome: 'Aprovações', modulo: 'vendedor' },
   { id: 'metas', nome: 'Metas' },
   { id: 'alertas', nome: 'Alertas' },
+  // RN-CORE-48 revista (ADR 0054): Aprovações contém o catálogo e carrega por último
+  { id: 'aprovacoes', nome: 'Aprovações', modulo: 'vendedor' },
 ];
 
 const PERFIS_GESTAO: ReadonlySet<string> = new Set(['supervisor', 'gerente']);
@@ -39,9 +42,7 @@ const ENTIDADE_CAMPO: Record<string, EtapaEntradaId> = {
   parametro: 'pedidos_metas',
   notificacao: 'pedidos_metas',
   notificacao_leitura: 'pedidos_metas',
-  produto: 'catalogo_precos',
-  produto_unidade: 'catalogo_precos',
-  medida: 'catalogo_precos',
+  ...Object.fromEntries(ENTIDADES_CORE_CATALOGO_PRECOS.map((e) => [e, 'catalogo_precos' as const])),
   foto_tipo: 'fotos_materiais',
   cliente_foto: 'fotos_materiais',
   metas: 'pedidos_metas',
@@ -179,4 +180,24 @@ export function progressoDaEntrada(e: EntradaProgresso): ProgressoEntrada {
 /** RN-CORE-48: a etapa em que a carga parou, para o Diagnóstico; `null` se não parou. */
 export function paradaParaDiagnostico(p: ProgressoEntrada): ParadaDiagnostico | null {
   return p.parou_em ? { numero: p.parou_em.numero, total: p.total, nome: p.parou_em.nome } : null;
+}
+
+/**
+ * RN-CORE-48 (entrada antecipada, ADR 0054): etapa que, ao terminar, libera a entrada no app. "Clientes e rota" no Campo;
+ * "Equipe" na Gestão. O shell usa esta função para saber a etapa que libera.
+ */
+export function etapaQueLibera(perfil: string | null | undefined): EtapaEntradaId {
+  return ehGestao(perfil) ? 'equipe' : 'clientes_rota';
+}
+
+/**
+ * RN nova da entrada antecipada (ADR 0054): predicado que o shell passa ao motor (`OpcoesMotorSync.essenciais`). Item
+ * essencial = do envio ou da etapa de liberação do perfil; quando todos concluem, o motor grava `sync:liberado_em`.
+ */
+export function essencialDaEntrada(perfil: string | null | undefined, modulos: readonly string[]): (item: ItemDaCarga) => boolean {
+  const libera = etapaQueLibera(perfil);
+  return (item) => {
+    const id = etapaDaEntidade(perfil, modulos, item);
+    return id === 'envio' || id === libera;
+  };
 }

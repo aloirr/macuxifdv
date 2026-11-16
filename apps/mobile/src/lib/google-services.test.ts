@@ -8,7 +8,7 @@ import configDoApp, { arquivoGoogleServices, GOOGLE_SERVICES_PADRAO } from '../.
 const RAIZ = '/projeto/apps/mobile';
 
 describe('arquivoGoogleServices', () => {
-  it('usa o caminho de GOOGLE_SERVICES_JSON (Actions e EAS) quando o arquivo existe', () => {
+  it('usa o caminho de GOOGLE_SERVICES_JSON (Actions) quando o arquivo existe', () => {
     const existe = (c: string) => c === '/tmp/runner/google-services.json';
     expect(arquivoGoogleServices(RAIZ, { GOOGLE_SERVICES_JSON: '/tmp/runner/google-services.json' }, existe)).toEqual({
       googleServicesFile: '/tmp/runner/google-services.json',

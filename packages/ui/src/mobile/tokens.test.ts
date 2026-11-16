@@ -154,6 +154,7 @@ describe('movimento (T-0072): durações do guia e "reduzir movimento"', () => {
   it('avançar 240 ms, folha 280 ms, toque 120 ms com escala 0,97, aviso 2,5 s', () => {
     expect(MOVIMENTO.avancar.duracaoMs).toBe(240);
     expect(MOVIMENTO.folha.duracaoMs).toBe(280);
+    expect(MOVIMENTO.barra.duracaoMs).toBe(240);
     expect(MOVIMENTO.toque.duracaoMs).toBe(120);
     expect(MOVIMENTO.toque.escala).toBe(0.97);
     expect(MOVIMENTO.aviso.visivelMs).toBe(2500);
