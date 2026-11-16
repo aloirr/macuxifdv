@@ -1,7 +1,8 @@
 name: CI
 
 # T-0005 → T-0033 (ADR 0014) → T-0160 (ADR 0044: −70% de minutos do Actions, o mesmo nível de verificação antes do main)
-# → R-20261114-221000-alexandre (CI de ~13 para 8–10 min de relógio: governança em paralelo, shards e estático em 2 partes).
+# → R-20261114-221000-alexandre (CI de ~13 para 8–10 min de relógio: governança em paralelo, shards e estático em 2 partes)
+# → R-20261115-213600-alexandre (custo do Actions; a regra está no cabeçalho do scripts/ci/escopo.mjs).
 # 5 jobs + o ci-ok (antes 12), 3 deles em matriz: cada job/shard paga a preparação (checkout + pnpm install) e o minuto
 # arredondado para cima, em troca de relógio. Sem fail-fast; dentro de cada job todos os passos rodam mesmo depois de uma
 # falha (R-20261101-014652).
@@ -9,7 +10,7 @@ name: CI
 #                       único job de que os testes dependem (needs: escopo):
 #                         documentacao  → só .coord/**, docs/** e *.md da raiz (menos a docs/modulos/, que o código lê):
 #                                         só escopo, governança e ci-ok (a guarda R4 prova que nenhum código lê documentação);
-#                         reaproveitado → push ao main de uma árvore que já passou verde (ensaio ou PR): idem;
+#                         reaproveitado → push ao main de uma árvore que já passou verde com os testes (ensaio): idem;
 #                         codigo        → pacotes AFETADOS (alterados + dependentes) em PR, ensaio e push; TODOS no
 #                                         noturno (dias úteis), na sexta (véspera da produção) e no manual com "completo".
 #   governanca          EM PARALELO (sem needs): coord, guardiões, guardas de scripts/ci, donos do PR / por commit, brechas
@@ -17,11 +18,11 @@ name: CI
 #                       No push, calcula a base sozinha (o mesmo escopo.mjs, segundos) para os donos por commit e o trailer.
 #   estatico            matriz parte: verificar (lint, fronteiras, timers, typecheck) | build (se web ou mobile foram
 #                       afetados: build do BKO e bundle do app, com cache do .next e do Metro; senão termina em segundos)
-#   testes-pacotes      matriz shard 1..3 (scripts/ci/shards.mjs, divisão por peso dos pacotes afetados): testes (Postgres)
+#   testes-pacotes      fora do PR. Matriz shard 1..3 (scripts/ci/shards.mjs, divisão por peso dos pacotes afetados): testes (Postgres)
 #                       e, no shard que recebe o item, a suíte do @macuxi/db com admin sem superusuário (simula o DBaaS,
 #                       T-0075) num segundo Postgres do mesmo job
-#   testes-integracao   matriz shard 1..3 (vitest --shard): tests/ inteiro (Postgres) sempre que há código
-#   ci-ok               agrega: é o check a olhar. Verde com código grava o artefato ci-verde-<matriz>-<árvore> (item 2).
+#   testes-integracao   fora do PR. Matriz shard 1..3 (vitest --shard): tests/ inteiro (Postgres) sempre que há código
+#   ci-ok               agrega: é o check a olhar. Verde com código, fora do PR, grava o artefato ci-verde-<matriz>-<árvore>.
 # Cache do Turborepo (.turbo/cache): no PR lê o do main; fora do PR (push, ensaio, agendado) não lê (TURBO_FORCE) e grava.
 
 on:
@@ -489,13 +490,13 @@ jobs:
           echo "CI verde (escopo $ESCOPO)."
 
       # Item 2 da T-0160: a árvore testada fica registrada; o push ao main da MESMA árvore (o ensaio que sobe em
-      # fast-forward, ou o PR em dia com o main) não repete os testes. O escopo.mjs confere o run e a árvore do commit dele.
+      # fast-forward) não repete os testes. O escopo.mjs confere o run e a árvore do commit dele. Fora do PR (escopo.mjs).
       - name: registro da árvore verde
-        if: ${{ success() && needs.escopo.outputs.escopo == 'codigo' }}
+        if: ${{ success() && needs.escopo.outputs.escopo == 'codigo' && github.event_name != 'pull_request' }}
         run: echo "${{ github.run_id }}" > ci-verde.txt
 
       - uses: actions/upload-artifact@v4
-        if: ${{ success() && needs.escopo.outputs.escopo == 'codigo' }}
+        if: ${{ success() && needs.escopo.outputs.escopo == 'codigo' && github.event_name != 'pull_request' }}
         with:
           name: ci-verde-${{ needs.escopo.outputs.matriz }}-${{ needs.escopo.outputs.arvore }}
           path: ci-verde.txt
