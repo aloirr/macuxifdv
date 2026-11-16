@@ -23,7 +23,7 @@ function colunas(tz: string, agora: Date): ReadonlyArray<ColunaDaTabela<LoteList
       prioridade: 2,
       largura: '11%',
       celula: (l) => (
-        <span className="font-mono text-[12px]" title={l.lote_id}>
+        <span className="font-mono tabular-nums" title={l.lote_id}>
           {l.lote_id.slice(0, 8)}
         </span>
       ),
@@ -177,7 +177,7 @@ export function LotesPanel({
         }
       >
         {cancelando && (
-          <p className="m-0 text-[14px]">
+          <p className="m-0 text-[15px]">
             {ROTULO_ENTIDADE[cancelando.entidade]} · lote {cancelando.lote_id.slice(0, 8)}
           </p>
         )}

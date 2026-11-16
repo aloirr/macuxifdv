@@ -86,7 +86,7 @@ export function AutorizarReprocessamento({ loteId, onClose, onAutorizado }: { lo
         >
           <div className="flex items-center gap-2 text-[13px] font-semibold text-ink-2">
             <label htmlFor="integracao-autorizar-quem">Senha de</label>
-            <select id="integracao-autorizar-quem" className="h-11 rounded-xl border border-field bg-surface px-3 text-[14px] font-semibold text-ink" value={quem} onChange={(e) => setQuem(e.target.value)} data-testid="integracao.autorizar.quem">
+            <select id="integracao-autorizar-quem" className="h-11 rounded-xl border border-field bg-surface px-3 text-[15px] text-ink" value={quem} onChange={(e) => setQuem(e.target.value)} data-testid="integracao.autorizar.quem">
               {itens.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.nome}

@@ -8,7 +8,7 @@ import { ROTULO_TIPO_MAPEAMENTO, mostrarFiltrosDePara, podeExecutar } from '../l
 import { useApagarMapeamento, useCodigosMacuxi, useGravarMapeamento, useMapeamentos, useSessaoDoBko } from '../lib/queries';
 
 const VAZIO: Mapeamento = { tipo: 'condicao_pagamento', codigo_erp: '', codigo_macuxi: '', descricao: '', ativo: true };
-const campo = 'h-11 w-full rounded-xl border border-field bg-surface px-3 text-[14px] text-ink';
+const campo = 'h-11 w-full rounded-xl border border-field bg-surface px-3 text-[15px] text-ink';
 
 /** `código · nome` (o nome só quando existe). */
 const rotuloMacuxi = (codigo: string, nome: string | null | undefined) => (nome ? `${codigo} · ${nome}` : codigo);
@@ -61,13 +61,13 @@ export function DeParaPage() {
       largura: '30%',
       celula: (m) => (
         <>
-          <span className="font-mono text-[12px]">{m.codigo_macuxi}</span>
+          <span className="font-mono tabular-nums">{m.codigo_macuxi}</span>
           {nomeMacuxi(m) ? ` · ${nomeMacuxi(m)}` : ''}
         </>
       ),
       texto: (m) => rotuloMacuxi(m.codigo_macuxi, nomeMacuxi(m)),
     },
-    { id: 'erp', titulo: 'No ERP', largura: '20%', celula: (m) => <span className="font-mono text-[12px]">{m.codigo_erp}</span>, texto: (m) => m.codigo_erp },
+    { id: 'erp', titulo: 'No ERP', largura: '20%', celula: (m) => <span className="font-mono tabular-nums">{m.codigo_erp}</span>, texto: (m) => m.codigo_erp },
     { id: 'situacao', titulo: 'Situação', largura: '14%', celula: (m) => (m.ativo ? <Badge tone="success">Ativo</Badge> : <Badge tone="neutral">Inativo</Badge>) },
   ];
 
@@ -113,9 +113,9 @@ export function DeParaPage() {
             <Panel label="Alertas" title="Alertas">
               <ul className="m-0 flex list-none flex-col gap-2 p-0" data-testid="integracao.mapeamento.faltando">
                 {retidos.map((f) => (
-                  <li key={f.codigo_macuxi} className="flex items-center justify-between gap-3 text-[14px]">
+                  <li key={f.codigo_macuxi} className="flex items-center justify-between gap-3 text-[15px]">
                     <span>
-                      {f.pedidos} {f.pedidos === 1 ? 'pedido retido' : 'pedidos retidos'}: condição <strong className="font-mono">{f.codigo_macuxi}</strong> sem código do ERP
+                      {f.pedidos} {f.pedidos === 1 ? 'pedido retido' : 'pedidos retidos'}: condição <span className="font-mono">{f.codigo_macuxi}</span> sem código do ERP
                     </span>
                     {pode && (
                       <Button onClick={() => abrirNovo({ tipo: 'condicao_pagamento', codigo_macuxi: f.codigo_macuxi })} data-testid={`integracao.mapeamento.preencher.${f.codigo_macuxi}`}>
@@ -198,7 +198,7 @@ export function DeParaPage() {
         }
       >
         {apagando && (
-          <p className="m-0 text-[14px]">
+          <p className="m-0 text-[15px]">
             {ROTULO_TIPO_MAPEAMENTO[apagando.tipo]} · {apagando.codigo_macuxi} → {apagando.codigo_erp}
           </p>
         )}
@@ -276,9 +276,9 @@ function FormularioDePara({ editando, inicial, retidos, existentes, salvando, on
                   const n = retidos.find((r) => r.codigo_macuxi === i.codigo)?.pedidos;
                   return (
                     <li key={i.codigo}>
-                      <button type="button" role="option" aria-selected={false} disabled={!!outro} onClick={() => setV({ ...v, codigo_macuxi: i.codigo })} className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg px-3 text-left text-[14px] hover:bg-ground disabled:text-disabled disabled:hover:bg-transparent">
+                      <button type="button" role="option" aria-selected={false} disabled={!!outro} onClick={() => setV({ ...v, codigo_macuxi: i.codigo })} className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg px-3 text-left text-[15px] hover:bg-ground disabled:text-disabled disabled:hover:bg-transparent">
                         <span>
-                          <span className="font-mono text-[12px]">{i.codigo}</span>
+                          <span className="font-mono tabular-nums">{i.codigo}</span>
                           {i.nome ? ` · ${i.nome}` : ''}
                         </span>
                         {outro ? <span className="text-[12px]">{`já tem: ERP ${outro.codigo_erp}`}</span> : n ? <Badge tone="warning">{`${n} retidos`}</Badge> : null}
