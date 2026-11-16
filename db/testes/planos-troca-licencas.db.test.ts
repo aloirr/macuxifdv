@@ -1,7 +1,7 @@
 /**
- * 0086 — planos e licenças no portal e a trava do cadastro de usuários (ADR 0047 §3 a §6 e §8, revista pela ADR 0049; desenho
+ * 0085 — planos e licenças no portal e a trava do cadastro de usuários (ADR 0047 §3 a §6 e §8, revista pela ADR 0049; desenho
  * docs/desenho/planos-e-licencas.md §3; spec docs/design/telas/portal-config-enxuto.md §11.3; R-20261115-123000, item 1).
- * Dicionário: docs/banco/plataforma.md ("Troca de plano e licenças (0086)"). O que o BANCO garante:
+ * Dicionário: docs/banco/plataforma.md ("Troca de plano e licenças (0085)"). O que o BANCO garante:
  * - seed: os 4 planos do §11.3 (light, pme, enterprise, corporate) com os números da spec, promotor 0, adicionais Promotor 8000,
  *   Pesquisa 1000 e Treinamento 1000 centavos com incluidos 0, 2 meses grátis no anual e 14 dias de teste (PlanoSchema);
  * - sa_listar_planos: o catálogo (ListaPlanosSchema) para o super-admin e o admin do cliente; sessão inválida = 28000;
@@ -92,9 +92,9 @@ const B = DOIS_TENANTS.B.tenantId;
 const ADMIN_A = DOIS_TENANTS.A.usuarios.admin;
 const ADMIN_B = DOIS_TENANTS.B.usuarios.admin;
 
-describe('0086 planos, troca e licenças (estático)', () => {
+describe('0085 planos, troca e licenças (estático)', () => {
   it('a migração existe com up e down, depois da 0074', () => {
-    expect(m81, '0086_plataforma_planos_troca_licencas').toBeDefined();
+    expect(m81, '0085_plataforma_planos_troca_licencas').toBeDefined();
     expect(m81.versao > '0074').toBe(true);
   });
 
@@ -220,8 +220,8 @@ describe('0086 planos, troca e licenças (estático)', () => {
     const aud = t.split('\n').filter((l) => /sa_registrar_auditoria|jsonb_build_object\('plano'/.test(l)).join('\n');
     expect(aud).toContain("'sa.assinatura.trocar'");
     expect(aud).not.toMatch(/nome|email|cnpj|documento/);
-    // conferência pela diferença (as 0075 a 0085 de outros lotes também acrescentam sa_*)
-    expect(up).toContain("select set_config('macuxi.sa_portal_antes_0086', (");
+    // conferência pela diferença (as 0075 a 0084 de outros lotes também acrescentam sa_*)
+    expect(up).toContain("select set_config('macuxi.sa_portal_antes_0085', (");
     expect(up).toContain('if v_antes is null or v_n <> v_antes + 3 then');
   });
 
@@ -287,7 +287,7 @@ describe('0086 planos, troca e licenças (estático)', () => {
   });
 });
 
-describe.skipIf(semBanco())('0086 planos, troca e licenças (banco, fixture dois-tenants)', () => {
+describe.skipIf(semBanco())('0085 planos, troca e licenças (banco, fixture dois-tenants)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });
@@ -316,7 +316,7 @@ describe.skipIf(semBanco())('0086 planos, troca e licenças (banco, fixture dois
   const portal = <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => como<T>('macuxi_portal', sql, params).then((r) => r.rows);
   const abrir = async (p: unknown) => (await portal<{ sessao_id: string }>('select * from plataforma.sa_abrir_sessao_portal($1::jsonb)', [JSON.stringify(p)]))[0]!.sessao_id;
   async function sessaoSuperAdmin() {
-    const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.troca@macuxi.exemplo', nome: 'Operador 0086', senha_hash: HASH_TESTE })]))[0]!.r;
+    const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.troca@macuxi.exemplo', nome: 'Operador 0085', senha_hash: HASH_TESTE })]))[0]!.r;
     return abrir({ tipo: 'super_admin', super_admin_id: sa.super_admin_id });
   }
   const listar = async (sid: string | null) => (await portal<{ r: unknown }>('select plataforma.sa_listar_planos($1) as r', [sid]))[0]!.r;
@@ -413,7 +413,7 @@ describe.skipIf(semBanco())('0086 planos, troca e licenças (banco, fixture dois
       // travar a linha é permitido (é o que a licencas_do_tenant faz)
       expect((await como('macuxi_app', 'select id from plataforma.assinatura for no key update', [], A)).rowCount).toBe(1);
       // papel que herda o macuxi_app também só trava; o dono (admin/migrador) grava
-      const herdeiro = `macuxi_t0086_${randomBytes(4).toString('hex')}`;
+      const herdeiro = `macuxi_t0085_${randomBytes(4).toString('hex')}`;
       await q(`create role ${herdeiro} nologin nosuperuser nobypassrls`);
       await q(`grant macuxi_app to ${herdeiro} with inherit true`);
       const set = await q<{ precisa: boolean }>(SQL_PRECISA_SET_ROLE, [herdeiro]);
@@ -464,7 +464,7 @@ describe.skipIf(semBanco())('0086 planos, troca e licenças (banco, fixture dois
       expect(depois.emUso.pesquisa).toBe(comPesquisa.emUso.pesquisa - 1);
 
       expect(await linhasDaTrava('')).toEqual([]);
-      const semPlano = await novoTenant('t0086-sem-plano');
+      const semPlano = await novoTenant('t0085-sem-plano');
       expect(await linhasDaTrava(semPlano)).toEqual([]);
       // a trava do SDK: com a situação do banco, a próxima vaga de vendedor da fixture (3 contratadas)
       const s = usoPorItem(depois.linhas.map(({ item, contratadas: c, em_uso }) => ({ item, contratadas: c, em_uso })));
@@ -492,7 +492,7 @@ describe.skipIf(semBanco())('0086 planos, troca e licenças (banco, fixture dois
       // a outra empresa que nem existe: 42501 antes de dizer que não existe
       expect((await erroDe(ficha(cliA, '00830000-ffff-4000-8000-000000000000')))?.code).toBe('42501');
 
-      const semPlano = await novoTenant('t0086-ficha');
+      const semPlano = await novoTenant('t0085-ficha');
       expect((await erroDe(ficha(sid, semPlano)))?.code).toBe('P0002');
       expect((await erroDe(ficha(sid, '00830000-ffff-4000-8000-000000000000')))?.code).toBe('P0002');
       expect((await erroDe(ficha(null, A)))?.code).toBe('28000');
@@ -646,14 +646,14 @@ describe.skipIf(semBanco())('0086 planos, troca e licenças (banco, fixture dois
       for (const papel of ['macuxi_app', 'macuxi_worker']) {
         expect((await erroDe(como(papel, 'select plataforma.sa_trocar_plano(null, null, null)')))?.code, papel).toBe('42501');
       }
-      const semPlano = await novoTenant('t0086-troca');
+      const semPlano = await novoTenant('t0085-troca');
       expect((await erroDe(trocar(sid, semPlano, entrada(pme))))?.code).toBe('P0002');
       expect((await erroDe(trocar(sid, '00830000-ffff-4000-8000-000000000000', entrada(pme))))?.code).toBe('P0002');
     });
   });
 });
 
-describe.skipIf(semBanco())('0086 corrida e up/down (banco efêmero, COMMIT de verdade)', () => {
+describe.skipIf(semBanco())('0085 corrida e up/down (banco efêmero, COMMIT de verdade)', () => {
   let b: BancoDeTeste;
   beforeAll(async () => {
     b = await criarBancoDeTeste();
@@ -665,10 +665,10 @@ describe.skipIf(semBanco())('0086 corrida e up/down (banco efêmero, COMMIT de v
 
   it('corrida da última vaga: o 2º cadastro espera a trava do 1º e já conta o vendedor dele (LICENCAS_ESGOTADAS)', async () => {
     const T = await comAdmin(b.nome, async (c) => {
-      const t = (await c.query<{ id: string }>("insert into plataforma.tenant (codigo, nome) values ('t0086-corrida', 'Empresa da corrida') returning id")).rows[0]!.id;
+      const t = (await c.query<{ id: string }>("insert into plataforma.tenant (codigo, nome) values ('t0085-corrida', 'Empresa da corrida') returning id")).rows[0]!.id;
       await c.query('insert into plataforma.assinatura (tenant_id, plano_id, pedido_id, paga) values ($1, $2, gen_random_uuid(), true)', [t, LIGHT.id]);
       for (let i = 1; i < LIGHT.licencas.vendedor!; i += 1) {
-        await c.query("insert into core.usuario (tenant_id, nome, email, perfil) values ($1, $2, $3, 'vendedor')", [t, `Vendedor ${i}`, `v${i}@t0086.exemplo`]);
+        await c.query("insert into core.usuario (tenant_id, nome, email, perfil) values ($1, $2, $3, 'vendedor')", [t, `Vendedor ${i}`, `v${i}@t0085.exemplo`]);
       }
       return t;
     });
@@ -696,7 +696,7 @@ describe.skipIf(semBanco())('0086 corrida e up/down (banco efêmero, COMMIT de v
         if (!parado) await new Promise((r) => setTimeout(r, 50));
       }
       expect(parado).toBe(true);
-      await c1.query("insert into core.usuario (tenant_id, nome, email, perfil) values ($1, 'Vendedor 10', 'v10@t0086.exemplo', 'vendedor')", [T]);
+      await c1.query("insert into core.usuario (tenant_id, nome, email, perfil) values ($1, 'Vendedor 10', 'v10@t0085.exemplo', 'vendedor')", [T]);
       await c1.query('commit');
 
       const s2 = (await p2).rows;

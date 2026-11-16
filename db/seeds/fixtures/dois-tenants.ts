@@ -85,7 +85,9 @@
  * - 0074 (ADR 0054; SYNC_PACOTE_FIXTURE, grupos 0x68 e 0x69): pacotes da primeira carga — A com o 'catalogo' · 'tenant'
  *   pronto, o 'catalogo' · 'filial:<padrão>' pronto e um 'catalogo' · 'tenant' substituído; B com o 'core' · 'tenant' pronto.
  *   Pedidos de geração já atendidos (A: lote; B: manifesto): nenhum pendente (o teste grava o seu em transação desfeita).
- * - 0086 (ADR 0047; ASSINATURAS_FIXTURE.*.historico, grupo 0x6e): uma troca de plano já gravada em cada tenant — A ficou no
+ * - 0084 (T-0180, ADR 0059 §5; USUARIO_CONTATO_FIXTURE, grupo 0x6f): último contato do aparelho — A: vendedor-2; B: admin-B,
+ *   ambos em DATA_FIXA_ACESSO. Fora dos usuários que almoco-alerta-produtividade.db.test.ts usa (vendedor-1 e promotor de A).
+ * - 0085 (ADR 0047; ASSINATURAS_FIXTURE.*.historico, grupo 0x6e): uma troca de plano já gravada em cada tenant — A ficou no
  *   fixture_pme e ganhou 2 licenças de promotor (mensal); B saiu do fixture_antigo para o fixture_pme e passou a anual. Os
  *   pedido_id delas (seq 21 e 22 do catálogo) repetidos na sa_trocar_plano dão 'existente'.
  */
@@ -220,7 +222,9 @@ const G = {
   trabalho: 0x6b,
   foto_lote: 0x6c,
   foto_lote_item: 0x6d,
-  // 0086 (ADR 0047): histórico das trocas de plano
+  // 0084 (T-0180, ADR 0059 §5): último contato do aparelho por usuário
+  usuario_contato: 0x6f,
+  // 0085 (ADR 0047): histórico das trocas de plano
   assinatura_historico: 0x6e,
 } as const;
 
@@ -431,6 +435,12 @@ export function planosDaFixture(): Linha[] {
 export const SYNC_PACOTE_FIXTURE = {
   A: { catalogo: a('sync_pacote', 1), filialPadrao: a('sync_pacote', 2), substituido: a('sync_pacote', 3), pedido: a('sync_pacote_pedido', 1) },
   B: { core: b('sync_pacote', 1), pedido: b('sync_pacote_pedido', 1) },
+} as const;
+
+/** 0084 (T-0180, ADR 0059 §5): último contato do aparelho, uma linha em A e uma em B (ver o cabeçalho). */
+export const USUARIO_CONTATO_FIXTURE = {
+  A: { vendedor2: a('usuario_contato', 1) },
+  B: { admin: b('usuario_contato', 1) },
 } as const;
 
 /** 0064–0066 (T-0170): uma linha de cada tabela nova em A e em B (ver o cabeçalho). */
@@ -693,7 +703,7 @@ export const ORDEM_TABELAS = [
   'plataforma.tenant_modulo',
   // 0070 (ADR 0047): assinatura (FK -> plataforma.plano, gravado antes por carregarDoisTenants: planosDaFixture)
   'plataforma.assinatura',
-  // 0086 (ADR 0047): histórico das trocas (FK -> plataforma.assinatura e plataforma.plano)
+  // 0085 (ADR 0047): histórico das trocas (FK -> plataforma.assinatura e plataforma.plano)
   'plataforma.assinatura_historico',
   // 0041 (T-0111): perfis personalizados e sobreposições (os 7 de fábrica vêm do gatilho do tenant), antes da FK de perfil_modulo
   'plataforma.perfil',
@@ -769,6 +779,8 @@ export const ORDEM_TABELAS = [
   'catalogo.foto_lote',
   'catalogo.foto_lote_item',
   'plataforma.trabalho',
+  // 0084 (T-0180): último contato do aparelho (FK -> core.usuario)
+  'core.usuario_contato',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
   ...ORDEM_GESTOR,
   // 0015 (T-0056): schema promotor — linhas de A e B em ./promotor.ts
@@ -1220,6 +1232,10 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     ...dadosT0170(hojeA, hojeB),
     'core.usuario_filial': dadosUsuarioFilial(),
     ...dadosFotoLote(),
+    'core.usuario_contato': [
+      { id: USUARIO_CONTATO_FIXTURE.A.vendedor2, tenant_id: tA, usuario_id: A.usuarios.vendedor2, contato_em: DATA_FIXA_ACESSO, deleted_at: null, external_id: null },
+      { id: USUARIO_CONTATO_FIXTURE.B.admin, tenant_id: tB, usuario_id: B.usuarios.admin, contato_em: DATA_FIXA_ACESSO, deleted_at: null, external_id: null },
+    ],
     ...dadosGestor({ tenant: tA, vendedor: A.usuarios.vendedor1, cliente: A.clientes.c1 }, { tenant: tB, vendedor: B.usuarios.vendedor, cliente: B.clientes.c1 }),
     ...dadosPromotorFixture(
       {
