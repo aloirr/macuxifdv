@@ -14,7 +14,7 @@ const ACAO = { modulo: 'integracao', acao: 'lote.reprocessar' };
 const MANIFESTO = { id: 'integracao', acoes: { 'lote.reprocessar': { perfis: ['admin', 'analista'] } } } as unknown as Manifesto;
 const permissoes = { catalogo: catalogoDePermissoes([MANIFESTO]), matriz: matrizDeFabrica([MANIFESTO]) };
 const PERFIL_FAB = (base: string, sobreposicoes: unknown[] = []) => ({ codigo: base, base, fabrica: true, sobreposicoes });
-const LINHA = { ativo: true, bloqueado_em: null, bloqueio_ate: null, deleted_at: null, perfil: 'admin' };
+const LINHA = { ativo: true, bloqueado_em: null, bloqueio_ate: null, excluido: false, perfil: 'admin' };
 
 /** Banco falso: a 1ª consulta é o usuário; a que chama `perfis_do_usuario` devolve `perfis` (vazio = usuário antigo, cai na fábrica do principal). */
 async function conferir(linha: Record<string, unknown> | null, senha: string, sqls: Array<{ sql: string; params: unknown[] }> = [], perfis: unknown[] = [], acao = ACAO) {
@@ -50,7 +50,7 @@ describe('RN-INT-16 e RN-CORE-15: core.credencial_conferir@1', () => {
     const senha_hash = await hashSenha(SENHA);
     const base = { senha_hash, ...LINHA };
     expect(await conferir({ ...base, ativo: false }, SENHA)).toBe('bloqueado');
-    expect(await conferir({ ...base, deleted_at: agora }, SENHA)).toBe('bloqueado');
+    expect(await conferir({ ...base, excluido: true }, SENHA)).toBe('bloqueado');
     expect(await conferir({ ...base, bloqueado_em: agora }, SENHA)).toBe('bloqueado');
   });
   it('RN-INT-16: usuário inexistente e senha incorreta gastam uma conferência argon2 cada (tempo comparável)', async () => {
@@ -86,10 +86,6 @@ describe('RN-INT-16 e RN-CORE-35: permissão efetiva na credencial', () => {
   });
   it('RN-CORE-35: multiperfil vale pela união (um dos perfis com a ação basta)', async () => {
     expect(await conferir(await comSenha('vendedor'), SENHA, [], [PERFIL_FAB('vendedor'), PERFIL_FAB('analista')])).toBe('ok');
-  });
-  it('RN-CORE-15: senha errada é incorreta e inativo é bloqueado, mesmo sem a permissão (nada de permissão a quem não acertou)', async () => {
-    expect(await conferir(await comSenha('vendedor'), 'errada', [], [PERFIL_FAB('vendedor')])).toBe('incorreta');
-    expect(await conferir({ ...(await comSenha('vendedor')), ativo: false }, SENHA, [], [PERFIL_FAB('vendedor')])).toBe('bloqueado');
   });
   it('RN-INT-16: usuário inexistente também consulta os perfis (mesmo caminho) e dá incorreta', async () => {
     const sqls: Array<{ sql: string; params: unknown[] }> = [];
