@@ -245,16 +245,20 @@ const TRANSICAO_ANTERIOR: Readonly<Record<string, { de: GrupoDeclarado; para: Gr
   'integracao/monitor': { de: 'administracao', para: 'sistema' },
 };
 
-function grupoAnterior(modulo: string, id: string, declarado: GrupoDeclarado): GrupoMenu {
-  const t = TRANSICAO_ANTERIOR[`${modulo}/${id}`];
-  if (t && t.de === declarado) return t.para;
+/** 'administracao' (deprecado) cai em Sistema; os demais grupos ficam como declarados (menu de antes e abas do app). */
+function semAdministracao(declarado: GrupoDeclarado): GrupoMenu {
   return declarado === 'administracao' ? 'sistema' : declarado;
 }
 
+function grupoAnterior(modulo: string, id: string, declarado: GrupoDeclarado): GrupoMenu {
+  const t = TRANSICAO_ANTERIOR[`${modulo}/${id}`];
+  if (t && t.de === declarado) return t.para;
+  return semAdministracao(declarado);
+}
+
 function semTransicao(declarado: GrupoDeclarado): GrupoMenu {
-  if (declarado === 'administracao') return 'sistema';
   if (declarado === 'comercial' || declarado === 'conteudo_campo') return 'cadastros';
-  return declarado;
+  return semAdministracao(declarado);
 }
 
 /**
@@ -693,7 +697,7 @@ function montarVisao<C>(
         continue;
       }
       visiveis.set(p.caminho, { ...p, modulo: id });
-      if (p.navegacao) navegacao.push(itemNavegacao(id, p, menuNovo ? grupoResolvido(id, p.id, grupo) : app === 'web' ? grupoAnterior(id, p.id, grupo) : grupo === 'administracao' ? 'sistema' : grupo, t?.rotulo ?? p.navegacao, false));
+      if (p.navegacao) navegacao.push(itemNavegacao(id, p, menuNovo ? grupoResolvido(id, p.id, grupo) : app === 'web' ? grupoAnterior(id, p.id, grupo) : semAdministracao(grupo), t?.rotulo ?? p.navegacao, false));
     }
     for (const pp of menuNovo ? (m.paineisParametros ?? []) : []) {
       if (pp.perfis && !pp.perfis.includes(ctx.perfil)) continue;
