@@ -93,3 +93,4 @@
 2026-11-16 — v1.0.14 — #410 09d029ce (marca liberada; RD-1567 em parte, RD-2050); #406 1fdcb8eb (RD-2051..2053; MC-1720).
 2026-11-16 — v1.0.14 — #464 b5af4db8 LIBERADO (RD-2101 fechado no código; frase do JSDoc para o lote seguinte).
 2026-11-16 — v1.0.14 — #456 8435f201 LIBERADO; #405 59eaebaa LIBERADO.
+2026-11-16 — v1.0.14 — LIBERADOS #411 d80045ce e #406 1dfcd904.
