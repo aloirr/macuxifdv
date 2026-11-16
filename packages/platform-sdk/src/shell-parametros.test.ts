@@ -53,7 +53,7 @@ const shell = criarShell('web', [core, catalogo, promotor, pesquisa]);
 const TODOS = ['core', 'catalogo', 'promotor', 'pesquisa'] as const;
 
 describe('página Parâmetros (ADR 0060)', () => {
-  const visao = shell.montar({ perfil: 'admin', modulosAtivos: [...TODOS], modulosContratados: [...TODOS] });
+  const visao = shell.montar({ menuParametros: true, perfil: 'admin', modulosAtivos: [...TODOS], modulosContratados: [...TODOS] });
   const secao = (s: string) => visao.parametros.find((x) => x.secao === s);
 
   it('seções com painel visível, em ordem alfabética do rótulo; caminho parametros/<secao>', () => {
@@ -100,8 +100,8 @@ describe('página Parâmetros (ADR 0060)', () => {
       paineisParametros: [{ id: 'perfis', secao: 'acesso', titulo: 'Perfis de acesso', acao: 'acesso.gerir_perfis', componente: 'PainelPerfis' }],
     });
     const s = criarShell('web', [m]);
-    expect(s.montar({ perfil: 'admin', modulosAtivos: ['core'] }).destinoParametros('perfis')).toBe('/parametros/acesso#core-perfis');
-    const sup = s.montar({ perfil: 'supervisor', modulosAtivos: ['core'] });
+    expect(s.montar({ menuParametros: true, perfil: 'admin', modulosAtivos: ['core'] }).destinoParametros('perfis')).toBe('/parametros/acesso#core-perfis');
+    const sup = s.montar({ menuParametros: true, perfil: 'supervisor', modulosAtivos: ['core'] });
     expect(sup.destinoParametros('perfis')).toBeNull();
     expect(sup.pagina('perfis')).toBeNull();
   });
@@ -115,7 +115,7 @@ describe('página Parâmetros (ADR 0060)', () => {
         { id: 'motivos', secao: 'visitas', titulo: 'Motivos de não venda', ordem: 10, caminhosAntigos: ['motivos'], componente: 'PainelMotivos' },
       ],
     });
-    const v = criarShell('web', [m]).montar({ perfil: 'admin', modulosAtivos: ['core'] });
+    const v = criarShell('web', [m]).montar({ menuParametros: true, perfil: 'admin', modulosAtivos: ['core'] });
     expect(v.destinoParametros('/perfis')).toBe('/parametros/acesso#core-perfis');
     expect(v.destinoParametros('motivos')).toBe('/parametros/visitas#core-motivos');
     expect(v.pagina('perfis')).toBeNull();
@@ -124,7 +124,7 @@ describe('página Parâmetros (ADR 0060)', () => {
   });
 
   it('painel e página respeitam a ação do perfil; seção sem painel visível some', () => {
-    const sup = shell.montar({ perfil: 'supervisor', modulosAtivos: ['core'], modulosContratados: ['core'] });
+    const sup = shell.montar({ menuParametros: true, perfil: 'supervisor', modulosAtivos: ['core'], modulosContratados: ['core'] });
     expect(sup.parametros.find((s) => s.secao === 'clientes')?.paineis.map((p) => p.titulo)).toEqual(['Curvas ABC']);
     expect(sup.parametros.some((s) => s.secao === 'acesso')).toBe(false);
     expect(sup.destinoParametros('perfis')).toBeNull();
@@ -137,12 +137,12 @@ describe('página Parâmetros (ADR 0060)', () => {
 
   it('o app ignora os painéis de Parâmetros', () => {
     const app = criarShell('campo', [definirModuloShell({ ...core, manifesto: defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor'], apps: { campo: { abas: [] } } }), paginas: [] })]);
-    expect(app.montar({ perfil: 'vendedor', modulosAtivos: ['core'] }).parametros).toEqual([]);
+    expect(app.montar({ menuParametros: true, perfil: 'vendedor', modulosAtivos: ['core'] }).parametros).toEqual([]);
   });
 });
 
 describe('módulo de vitrine sem a licença da empresa (ADR 0060)', () => {
-  const semTrade = shell.montar({ perfil: 'admin', modulosAtivos: ['core', 'catalogo'], modulosContratados: ['core', 'catalogo'] });
+  const semTrade = shell.montar({ menuParametros: true, perfil: 'admin', modulosAtivos: ['core', 'catalogo'], modulosContratados: ['core', 'catalogo'] });
 
   it('itens aparecem bloqueados, no grupo final, e a página não abre', () => {
     const bloqueados = semTrade.navegacao.filter((n) => n.bloqueado).map((n) => `${n.rotuloGrupo}:${n.rotulo}`);
@@ -158,26 +158,44 @@ describe('módulo de vitrine sem a licença da empresa (ADR 0060)', () => {
   });
 
   it('empresa contratou e o perfil não tem o módulo: some, como antes (RN-CORE-01)', () => {
-    const v = shell.montar({ perfil: 'admin', modulosAtivos: ['core'], modulosContratados: [...TODOS] });
+    const v = shell.montar({ menuParametros: true, perfil: 'admin', modulosAtivos: ['core'], modulosContratados: [...TODOS] });
     expect(v.navegacao.some((n) => n.modulo === 'promotor' || n.modulo === 'pesquisa')).toBe(false);
     expect(v.parametros.some((s) => s.secao === 'trade' || s.secao === 'pesquisa')).toBe(false);
   });
 
   it('módulo fora da vitrine (catálogo) some sem licença, como antes', () => {
-    const v = shell.montar({ perfil: 'admin', modulosAtivos: ['core'], modulosContratados: ['core'] });
+    const v = shell.montar({ menuParametros: true, perfil: 'admin', modulosAtivos: ['core'], modulosContratados: ['core'] });
     expect(v.parametros.find((s) => s.secao === 'produtos')?.paineis.map((p) => p.modulo)).toEqual(['core']);
   });
 
   it('perfil que o módulo não atende não vê o cadeado', () => {
-    const v = shell.montar({ perfil: 'supervisor', modulosAtivos: ['core'], modulosContratados: ['core'] });
+    const v = shell.montar({ menuParametros: true, perfil: 'supervisor', modulosAtivos: ['core'], modulosContratados: ['core'] });
     expect(v.navegacao.some((n) => n.bloqueado)).toBe(false);
     expect(v.parametros.some((s) => s.bloqueado)).toBe(false);
   });
 
   it('sem modulosContratados nada fica bloqueado (compatível)', () => {
-    const v = shell.montar({ perfil: 'admin', modulosAtivos: ['core'] });
+    const v = shell.montar({ menuParametros: true, perfil: 'admin', modulosAtivos: ['core'] });
     expect(v.navegacao.some((n) => n.bloqueado)).toBe(false);
     expect(v.parametros.some((s) => s.bloqueado)).toBe(false);
+  });
+});
+
+describe('shell web sem menuParametros: menu de antes (ADR 0050), compatível com o shell em produção', () => {
+  const v = shell.montar({ perfil: 'admin', modulosAtivos: [...TODOS], modulosContratados: ['core'] });
+  const item = (id: string) => v.navegacao.find((n) => n.id === id);
+
+  it('páginas em transição seguem no menu e abrem; nada em Parâmetros nem desativado', () => {
+    expect(item('perfis')?.grupoMenu).toBe('acesso');
+    expect(item('plano-rv')?.grupoMenu).toBe('comercial');
+    expect(v.pagina('perfis')).not.toBeNull();
+    expect(v.parametros).toEqual([]);
+    expect(v.destinoParametros('perfis')).toBeNull();
+    expect(v.navegacao.some((n) => n.bloqueado)).toBe(false);
+  });
+
+  it('grupos de antes: Trade em Conteúdo de campo', () => {
+    expect(item('cadastros')?.grupoMenu).toBe('conteudo_campo');
   });
 });
 

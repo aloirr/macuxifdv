@@ -17,13 +17,29 @@ import {
 } from './shell';
 
 describe('GRUPOS_MENU e rótulos (ADR 0050 revista pela 0060)', () => {
-  it('11 grupos, cada um com o rótulo; saem Comercial e Conteúdo de campo', () => {
-    expect(GRUPOS_MENU).toEqual(['acesso', 'analise', 'cadastros', 'comunicacao', 'operacao', 'parametros', 'pesquisa', 'produtos', 'sistema', 'trade', 'treinamento']);
+  it('13 grupos, cada um com o rótulo; Comercial e Conteúdo de campo deprecados até o shell migrar', () => {
+    expect(GRUPOS_MENU).toEqual([
+      'acesso',
+      'analise',
+      'cadastros',
+      'comercial',
+      'comunicacao',
+      'conteudo_campo',
+      'operacao',
+      'parametros',
+      'pesquisa',
+      'produtos',
+      'sistema',
+      'trade',
+      'treinamento',
+    ]);
     expect(GRUPOS_MENU.map((g) => ROTULO_GRUPO_MENU[g])).toEqual([
       'Acesso',
       'Análise',
       'Cadastros',
+      'Comercial',
       'Comunicação',
+      'Conteúdo de campo',
       'Operação',
       'Parâmetros',
       'Pesquisa',
@@ -40,7 +56,9 @@ describe('GRUPOS_MENU e rótulos (ADR 0050 revista pela 0060)', () => {
       'Acesso',
       'Análise',
       'Cadastros',
+      'Comercial',
       'Comunicação',
+      'Conteúdo de campo',
       'Mais',
       'Operação',
       'Pesquisa',

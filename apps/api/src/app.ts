@@ -628,7 +628,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
 
   app.get(ROTA_ME_MODULOS, async (req) => {
     const { ctx, licencas } = await preparar(req, 'core');
-    return respostaMeusModulos(manifestos, ctx.usuario.modulos, licencas.parametros, relogio(), licencas.ativosNoTenant);
+    return respostaMeusModulos(manifestos, ctx.usuario.modulos, licencas.parametros, relogio());
   });
 
   registrarSync(app, plataforma);

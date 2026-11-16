@@ -11,7 +11,6 @@ import { describe, expect, it } from 'vitest';
 import { createApp, VERSAO_API } from '../src/app';
 import { MODULOS_API } from '../src/modulos';
 import { parametrosPorModulo } from '../src/licencas';
-import { modulosContratados } from '../src/me-modulos';
 import {
   bancoFalso,
   cab,
@@ -255,20 +254,6 @@ describe('GET /v1/me/modulos (contrato do Core)', () => {
     expect(corpo.modulos[0]!.parametros).toEqual({ raio_checkin_m: 150, sync_auto_min: 30 }); // RN-CORE-23: padrão da plataforma
     const outra = MeusModulosRespostaSchema.parse((await app.inject({ method: 'GET', url: '/v1/me/modulos', headers: cab('promotor') })).json());
     expect(outra.versao_licencas).not.toBe(corpo.versao_licencas);
-  });
-
-  it('ADR 0060: modulos_contratados = tenant_modulo ativo com o core, sem perfil nem exceção, fora da versao_licencas', async () => {
-    const app = createApp(opcoesDeTeste({ ...LICENCAS_PADRAO, tenant: ['promotor', 'catalogo', 'vendedor', 'core'], removidos: { '0b000000-0000-4000-8000-000000000001': ['vendedor'] } }));
-    const corpo = MeusModulosRespostaSchema.parse((await app.inject({ method: 'GET', url: '/v1/me/modulos', headers: cab('vendedor') })).json());
-    expect(corpo.modulos.map((m) => m.id)).not.toContain('vendedor'); // exceção do usuário tira dos efetivos...
-    expect(corpo.modulos_contratados).toEqual(['core', 'catalogo', 'vendedor', 'promotor']); // ...mas não dos contratados
-    const base = MeusModulosRespostaSchema.parse((await createApp(opcoesDeTeste()).inject({ method: 'GET', url: '/v1/me/modulos', headers: cab('promotor') })).json());
-    const outroTenant = MeusModulosRespostaSchema.parse(
-      (await createApp(opcoesDeTeste({ ...LICENCAS_PADRAO, tenant: [...LICENCAS_PADRAO.tenant, 'pesquisa'] })).inject({ method: 'GET', url: '/v1/me/modulos', headers: cab('promotor') })).json(),
-    );
-    expect(outroTenant.modulos_contratados).toContain('pesquisa');
-    expect(outroTenant.versao_licencas).toBe(base.versao_licencas); // contratar módulo fora do perfil não muda a versão
-    expect(modulosContratados(['pesquisa'])).toEqual(['core', 'pesquisa']); // o core vai sempre
   });
 });
 

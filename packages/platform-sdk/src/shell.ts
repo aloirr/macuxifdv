@@ -54,7 +54,11 @@ export const GRUPOS_MENU = [
   'acesso',
   'analise',
   'cadastros',
+  /** @deprecated ADR 0060: nenhuma página cai aqui (a transição leva a 'cadastros'); sai quando o shell web migrar o menu. */
+  'comercial',
   'comunicacao',
+  /** @deprecated ADR 0060: idem 'comercial'. */
+  'conteudo_campo',
   'operacao',
   'parametros',
   'pesquisa',
@@ -69,7 +73,9 @@ export const ROTULO_GRUPO_MENU: Record<GrupoMenu, string> = {
   acesso: 'Acesso',
   analise: 'Análise',
   cadastros: 'Cadastros',
+  comercial: 'Comercial',
   comunicacao: 'Comunicação',
+  conteudo_campo: 'Conteúdo de campo',
   operacao: 'Operação',
   parametros: 'Parâmetros',
   pesquisa: 'Pesquisa',
@@ -211,6 +217,40 @@ function grupoResolvido(modulo: string, id: string, declarado: GrupoDeclarado): 
   return semTransicao(declarado);
 }
 
+/**
+ * Menu do BKO de antes da ADR 0060 (ADR 0050), usado enquanto o shell web não liga `ContextoShell.menuParametros`:
+ * mesmos grupos e mesmas páginas do menu em produção.
+ */
+const TRANSICAO_ANTERIOR: Readonly<Record<string, { de: GrupoDeclarado; para: GrupoMenu }>> = {
+  'core/aparelhos': { de: 'administracao', para: 'acesso' },
+  'core/perfis': { de: 'administracao', para: 'acesso' },
+  'core/usuarios': { de: 'administracao', para: 'acesso' },
+  'core/usuarios-e-modulos': { de: 'administracao', para: 'acesso' },
+  'core/clientes': { de: 'operacao', para: 'cadastros' },
+  'core/plano-rv': { de: 'cadastros', para: 'comercial' },
+  'vendedor/alcadas': { de: 'cadastros', para: 'comercial' },
+  'vendedor/formas-pagamento': { de: 'administracao', para: 'comercial' },
+  'vendedor/transportadoras': { de: 'cadastros', para: 'comercial' },
+  'core/recados': { de: 'operacao', para: 'comunicacao' },
+  'gestor/alertas': { de: 'operacao', para: 'comunicacao' },
+  'gestor/regras-alerta': { de: 'administracao', para: 'comunicacao' },
+  'pesquisa/pesquisas': { de: 'cadastros', para: 'conteudo_campo' },
+  'promotor/cadastros': { de: 'cadastros', para: 'conteudo_campo' },
+  'treinamento/trilhas': { de: 'cadastros', para: 'conteudo_campo' },
+  'catalogo/catalogo': { de: 'cadastros', para: 'produtos' },
+  'catalogo/marcas': { de: 'cadastros', para: 'produtos' },
+  'catalogo/tabelas-preco': { de: 'cadastros', para: 'produtos' },
+  'core/produtos': { de: 'cadastros', para: 'produtos' },
+  'integracao/carga-arquivo': { de: 'administracao', para: 'sistema' },
+  'integracao/monitor': { de: 'administracao', para: 'sistema' },
+};
+
+function grupoAnterior(modulo: string, id: string, declarado: GrupoDeclarado): GrupoMenu {
+  const t = TRANSICAO_ANTERIOR[`${modulo}/${id}`];
+  if (t && t.de === declarado) return t.para;
+  return declarado === 'administracao' ? 'sistema' : declarado;
+}
+
 function semTransicao(declarado: GrupoDeclarado): GrupoMenu {
   if (declarado === 'administracao') return 'sistema';
   if (declarado === 'comercial' || declarado === 'conteudo_campo') return 'cadastros';
@@ -328,6 +368,11 @@ export interface ContextoShell {
    * Ausente: nada aparece desativado (como antes). Só exibição: a API revalida a licença (RN-CORE-01).
    */
   modulosContratados?: readonly ModuloId[];
+  /**
+   * ADR 0060: o shell web liga o menu novo (Parâmetros, grupos de módulo, vitrine) quando já tem a rota `/parametros`.
+   * Ausente: o menu do BKO fica como antes (ADR 0050, `TRANSICAO_ANTERIOR`), sem painéis nem destino de Parâmetros.
+   */
+  menuParametros?: boolean;
 }
 
 export interface ItemNavegacao<C> {
@@ -579,6 +624,8 @@ function montarVisao<C>(
   ctx: Omit<ContextoShell, 'app'>,
 ): VisaoShell<C> {
   const ativos = ctx.modulosAtivos;
+  // ADR 0060 só com o shell web que tem Parâmetros; sem ele, o menu de antes (ADR 0050)
+  const menuNovo = app === 'web' && ctx.menuParametros === true;
   const pode = (acao: string) => permissoes.pode(acao, { perfil: ctx.perfil, modulosAtivos: ativos, ...(ctx.perfis ? { perfis: ctx.perfis } : {}) });
   const visiveis = new Map<string, PaginaShell<C> & { modulo: ModuloId }>();
   const navegacao: ItemNavegacao<C>[] = [];
@@ -614,7 +661,7 @@ function montarVisao<C>(
       // ADR 0060: módulo de vitrine que a EMPRESA não contratou aparece desativado (só web, só para o perfil que o módulo atende)
       const vitrine = VITRINE_SEM_LICENCA[id];
       const contratado = !ctx.modulosContratados || ctx.modulosContratados.includes(id);
-      if (app !== 'web' || !vitrine || contratado || !m.manifesto.perfis.includes(ctx.perfil)) continue;
+      if (!menuNovo || !vitrine || contratado || !m.manifesto.perfis.includes(ctx.perfil)) continue;
       secoesBloqueadas.add(vitrine.secao);
       for (const p of m.paginas ?? []) {
         if (!p.navegacao || (p.apps && !p.apps.includes(app)) || (p.perfis && !p.perfis.includes(ctx.perfil))) continue;
@@ -626,14 +673,14 @@ function montarVisao<C>(
     }
     // o perfil já entrou no cálculo dos efetivos (RN-CORE-01); `manifesto.perfis` é só o padrão do perfil
     if (app !== 'web' && !m.manifesto.apps[app]) continue;
-    const declarados = new Set(app === 'web' ? (m.paineisParametros ?? []).map((pp) => pp.id) : []);
+    const declarados = new Set(menuNovo ? (m.paineisParametros ?? []).map((pp) => pp.id) : []);
     // endereço da página em transição cujo painel declarado (mesmo id) a substitui: vira caminho antigo do painel
     const antigosDaPagina = new Map<string, string>();
     for (const p of m.paginas ?? []) {
       if (p.apps && !p.apps.includes(app)) continue;
       const grupo = p.grupo ?? 'operacao';
       // a tabela de transição é do menu do BKO: no app os ids coincidem (core/clientes, gestor/alertas…) e a ordem das abas não muda
-      const t = app === 'web' ? transicaoDa(id, p.id, grupo) : null;
+      const t = menuNovo ? transicaoDa(id, p.id, grupo) : null;
       // transição (ADR 0060): a página vai para Parâmetros, sai do menu e não abre mais pelo endereço (só `destinoParametros`)
       if (t?.secao && declarados.has(p.id)) {
         antigosDaPagina.set(p.id, p.caminho);
@@ -646,9 +693,9 @@ function montarVisao<C>(
         continue;
       }
       visiveis.set(p.caminho, { ...p, modulo: id });
-      if (p.navegacao) navegacao.push(itemNavegacao(id, p, app === 'web' ? grupoResolvido(id, p.id, grupo) : semTransicao(grupo), t?.rotulo ?? p.navegacao, false));
+      if (p.navegacao) navegacao.push(itemNavegacao(id, p, menuNovo ? grupoResolvido(id, p.id, grupo) : app === 'web' ? grupoAnterior(id, p.id, grupo) : grupo === 'administracao' ? 'sistema' : grupo, t?.rotulo ?? p.navegacao, false));
     }
-    for (const pp of app === 'web' ? (m.paineisParametros ?? []) : []) {
+    for (const pp of menuNovo ? (m.paineisParametros ?? []) : []) {
       if (pp.perfis && !pp.perfis.includes(ctx.perfil)) continue;
       if (pp.acao && !pode(pp.acao)) continue;
       const antigos = [...(pp.caminhosAntigos ?? []), ...(antigosDaPagina.has(pp.id) ? [antigosDaPagina.get(pp.id) as string] : [])];

@@ -7,11 +7,12 @@ Contrato: ADR 0060, Decisão 1 a 5.
 
 ## 2. O que cada dono faz
 
-### engenheiro-apps (`apps/web`) — base: este branch (`nuvem/menu-parametros-engenheiro-software`)
+### engenheiro-apps (`apps/web`) — depois do merge deste SDK
+- `SHELL_WEB.montar({ ..., menuParametros: true })` junto com a rota `/parametros` (ADR 0060, item 8): sem o campo, o menu fica o de antes.
 - `lib/menu-bko.ts`: ordenar grupos com `compararGrupoMenu`; D9: grupo com 1 item vira item direto (rótulo do grupo, `href` do item); grupo com todos os itens `bloqueado` vira entrada bloqueada (cadeado `IconLock` 14 px no lugar da seta, `aria-disabled="true"`, `tabindex="0"`, `aria-describedby`, balão "Contrate o módulo para usar" no hover, foco e clique; não abre nem navega); item "Parâmetros" (item direto, testID `nav-plataforma-parametros`) quando `visao.parametros` não for vazio, `href` `/parametros`.
 - `components/app-shell.tsx`: `SHELL_WEB.montar({ ..., modulosContratados })` com `modulos_contratados` de `/v1/me/modulos` (ausente: não passar); antes de procurar a página, `visao.destinoParametros(caminho)` → `router.replace` (links antigos: `/perfis`, `/motivos`, `/fotos-pdv`, `/plano-rv`, `/alcadas`, `/regras-alerta`, `/usuarios-e-modulos`).
 - Rota `/parametros/[secao]` (e `/parametros` → primeira seção não bloqueada): título "Parâmetros"; lista de seções à esquerda (200 px, `visao.parametros` na ordem dada; selecionada com a barra `accent`; bloqueada em `#5B6673` com cadeado); à direita os `paineis` empilhados: `origem: 'painel'` dentro de `Panel` com `titulo` e `id={ancora}`; `origem: 'pagina'` renderiza o componente como está (sem `Panel` nem título). Seção bloqueada: só o cadeado e "Contrate o módulo para usar", sem balão.
-- Testes: `lib/menu-bko.test.ts` e `lib/menu-formas-pagamento.test.ts` (Formas de pagamento agora em Cadastros) mudam junto com este SDK (quebram sem a mudança).
+- Testes: `lib/menu-bko.test.ts` e `lib/menu-formas-pagamento.test.ts` (Formas de pagamento em Cadastros) mudam no mesmo PR que liga o `menuParametros`.
 
 ### modulo-core (`modules/core`)
 - Contrato: `modulos_contratados` em `MeusModulosRespostaSchema` (ADR 0060, item 7).
@@ -54,4 +55,4 @@ Contrato: ADR 0060, Decisão 1 a 5.
 ADR 0060, item 7.
 
 ## 4. Ordem de merge
-SDK (este branch) → shell (engenheiro-apps, empilhado sobre este, no mesmo lote) → módulos em qualquer ordem → contrato do Core → API.
+SDK (este PR) → shell com `menuParametros: true` (engenheiro-apps) → módulos em qualquer ordem → contrato do Core → API (`modulos_contratados`, PR seguinte do engenheiro-software).
