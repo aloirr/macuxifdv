@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { Botao, ChipEstado, colors, Folha, fonts, Icon, radius, space, type as t } from '@macuxi/ui/mobile';
+import { Botao, ChipEstado, colors, Folha, fonte, Icon, radius, space, type as t } from '@macuxi/ui/mobile';
 
 export type CheckinPhase =
   | { kind: 'locating' }
@@ -68,6 +68,6 @@ export function CheckinSheet({ phase, customerName, onClose, onJustificar }: { p
 }
 
 const styles = StyleSheet.create({
-  input: { minHeight: 72, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, padding: space.md, fontFamily: fonts.body, fontSize: 15, color: colors.ink, textAlignVertical: 'top' },
+  input: { minHeight: 72, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, padding: space.md, ...fonte.body, fontSize: 16, color: colors.ink, textAlignVertical: 'top' },
   ok: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: colors.successBg, alignItems: 'center', justifyContent: 'center' },
 });

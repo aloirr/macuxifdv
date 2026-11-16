@@ -4,7 +4,7 @@
  * Mesmo componente no Campo e no Gestão (D6). Orçamentos e Pedidos abrem a lista filtrada (alvo >= 48 dp); Total não navega.
  * `titulo` (longo) é o rótulo acessível e o do chip da tela; `rotulo` é o texto curto do cartão.
  */
-import { colors, fonts, Icon, Pressionavel, type as t } from '@macuxi/ui/mobile';
+import { colors, Icon, Pressionavel, type as t } from '@macuxi/ui/mobile';
 import { Text, View } from 'react-native';
 import type { QuantidadeEValor, ResumoDePedidos } from '../../domain/resumo-pedidos';
 import { quantidadeDoCard, textoDoCard, valorDoCard } from '../lib/cards-pedidos';
@@ -17,7 +17,7 @@ function Card({ testID, titulo, rotulo, q, onPress }: { testID: string; titulo: 
     <>
       <Text style={t.small} numberOfLines={1}>{rotulo}</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text style={{ fontFamily: fonts.display, fontSize: 22, lineHeight: 28, fontVariant: ['tabular-nums'], color: colors.ink }}>{quantidadeDoCard(q)}</Text>
+        <Text style={t.number}>{quantidadeDoCard(q)}</Text>
         {onPress ? <Icon name="chevron" size={16} color={colors.ink3} strokeWidth={2.4} /> : null}
       </View>
       {valor ? <Text style={[t.small, { fontVariant: ['tabular-nums'] }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{valor}</Text> : null}

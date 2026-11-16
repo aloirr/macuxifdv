@@ -602,6 +602,22 @@
           }
         },
         {
+          "campo": "percentual_ajuste",
+          "obrigatorio": false,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "número de -99.99 a 99.99",
+          "exemplo": "-1.71",
+          "observacao": "Coluna \"% Acres.Fin.\" do ERP (negativo = desconto; à vista = -1.71), 2 casas, ponto decimal. Vazio = 0 (RN-INT-15).",
+          "coluna": "percentual_ajuste",
+          "tipo_sql": "DECIMAL(18, 6) NULL",
+          "regra": {
+            "inteiro": false,
+            "min": -99.99,
+            "max": 99.99
+          }
+        },
+        {
           "campo": "ordem",
           "obrigatorio": false,
           "tipo": "número",

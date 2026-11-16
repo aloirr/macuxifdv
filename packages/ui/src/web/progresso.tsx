@@ -36,8 +36,11 @@ export type PropsProgresso = {
   rotulo: string;
   /** Texto do valor (à direita e no `aria-valuetext`); padrão "40%". */
   textoValor?: string;
-  /** `false` esconde a linha de rótulo e valor (a barra continua com nome e valor para o leitor de tela). */
-  mostrarRotulo?: boolean;
+  /**
+   * `false` esconde a linha de rótulo e valor; `'valor'` mostra só o valor, quando o selo ou o título da tela já dizem
+   * a fase (RD-0615). Em todos os casos a barra continua com nome e valor para o leitor de tela.
+   */
+  mostrarRotulo?: boolean | 'valor';
   tom?: TomProgresso;
   testid?: string;
   className?: string;
@@ -58,8 +61,8 @@ export function Progresso({ valor, maximo = 100, rotulo, textoValor, mostrarRotu
       className={juntar('flex min-w-0 flex-col gap-1.5', className)}
     >
       {mostrarRotulo && (
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="min-w-0 truncate text-[13px] text-ink-2">{rotulo}</span>
+        <div className={juntar('flex items-baseline gap-3', mostrarRotulo === 'valor' ? 'justify-end' : 'justify-between')}>
+          {mostrarRotulo !== 'valor' && <span className="min-w-0 truncate text-[13px] text-ink-2">{rotulo}</span>}
           <span className="shrink-0 text-[13px] font-semibold text-ink tabular-nums">{texto}</span>
         </div>
       )}

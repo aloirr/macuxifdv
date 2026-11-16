@@ -630,7 +630,7 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       );
       if (atual.rows[0]?.arquivo_id === arquivoId) return { alterou: false };
       esquecerRetratoCatalogo(ctx.usuario.tenant_id);
-      await definirFotoPrincipal(db, ctx.usuario.tenant_id, produtoId, { id: randomUUID(), arquivoId, titulo: titulo ?? null });
+      await definirFotoPrincipal({ db, publicar: tx.publicar }, ctx.usuario.tenant_id, produtoId, { id: randomUUID(), arquivoId, titulo: titulo ?? null }, ctx.agora());
       return { alterou: true };
     },
     async salvarConteudo(produtoId, c, em) {
