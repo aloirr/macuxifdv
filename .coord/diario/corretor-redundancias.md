@@ -107,3 +107,4 @@
 2026-11-16 — #471 96b8d6d8 (T-0156 docs): COM ACHADO RD-2130..2138 (RD-2130 alta: base LGPD em T-0145 e T-0156).
 2026-11-16 — #471 56049e51 LIBERADO (RD-2131 aberta nos docs do gerente).
 2026-11-16 — #472 72e70196 LIBERADO (testes depois do #457).
+2026-11-16 — #475 6529b88c LIBERADO (trechos idênticos ao #420).
