@@ -78,7 +78,7 @@ export function MetaDoMes({ metas, pronto, equipe, semVendas = false }: { metas:
     <Cartao gap={8} testID="inicio.meta" tom={d.verde ? 'sucesso' : 'padrao'}>
       <TopoDoCartao rotulo={rotuloDaMeta(equipe, principal.indicador)} direita={d.mes ? <Text style={t.sub} testID="inicio.meta.mes">{d.mes}</Text> : undefined} />
       <View style={{ flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 6 }}>
-        <Text style={{ ...fonte.bold, fontSize: 28, color: d.verde ? colors.success : colors.ink, fontVariant: ['tabular-nums'] }} numberOfLines={1} testID="inicio.meta.valor">
+        <Text style={{ ...t.number, fontSize: 28, color: d.verde ? colors.success : colors.ink }} numberOfLines={1} testID="inicio.meta.valor">
           {d.valor}
         </Text>
         <Text style={t.sub} numberOfLines={1}>
