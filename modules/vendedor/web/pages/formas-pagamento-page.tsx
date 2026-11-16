@@ -152,17 +152,17 @@ export function FormasPagamentoPage() {
   };
   const acoesDaPagina: AcaoDoMenu[] = [{ id: 'csv', rotulo: 'Exportar CSV', aoEscolher: exportar, desligada: total === 0, testId: 'formas-pagamento.exportar-csv' }];
   const colunasPrazo: ColunaDaTabela<LinhaPrazo>[] = [
-    { id: 'codigo', titulo: 'Código', celula: (l) => <span className="font-mono text-[12px]" data-testid={`formas-pagamento.prazo-${l.prazo.codigo}`}>{l.prazo.codigo}</span>, texto: (l) => l.prazo.codigo, largura: '12%' },
+    { id: 'codigo', titulo: 'Código', celula: (l) => <span className="font-mono" data-testid={`formas-pagamento.prazo-${l.prazo.codigo}`}>{l.prazo.codigo}</span>, texto: (l) => l.prazo.codigo, largura: '12%' },
     { id: 'descricao', titulo: 'Descrição', celula: (l) => l.prazo.descricao, texto: (l) => l.prazo.descricao },
     { id: 'forma', titulo: 'Forma', celula: (l) => l.formaNome, largura: '14%' },
     { id: 'parcelas', titulo: 'Parcelas (dias)', celula: (l) => textoDasParcelas(l.prazo.parcelas_dias), prioridade: 2, largura: '120px' },
     { id: 'medio', titulo: 'Prazo médio', numero: true, celula: (l) => `${l.prazo.prazo_medio_dias} ${l.prazo.prazo_medio_dias === 1 ? 'dia' : 'dias'}`, prioridade: 2, largura: '110px' },
-    { id: 'ajuste', titulo: 'Desc./Acrésc. (%)', numero: true, celula: (l) => <span data-testid={`formas-pagamento.ajuste-${l.prazo.codigo}`}>{formatarPercentualPrazo(percentualDoPrazo(l.prazo))}</span>, texto: (l) => formatarPercentualPrazo(percentualDoPrazo(l.prazo)), prioridade: 2, largura: '200px' },
+    { id: 'ajuste', titulo: 'Desc./Acrésc. (%)', numero: true, celula: (l) => <span data-testid={`formas-pagamento.ajuste-${l.prazo.codigo}`}>{formatarPercentualPrazo(percentualDoPrazo(l.prazo))}</span>, texto: (l) => formatarPercentualPrazo(percentualDoPrazo(l.prazo)), prioridade: 2, largura: '140px' },
     { id: 'situacao', titulo: 'Situação', celula: (l) => <SeloSituacao selos={[prazoEfetivamenteAtivo(l) ? { tom: 'success', texto: 'Ativo' } : { tom: 'neutral', texto: 'Inativo' }]} />, largura: '100px' },
     { id: 'origem', titulo: 'Origem', celula: (l) => (l.prazo.external_id ? 'ERP' : 'BKO'), prioridade: 3, largura: '70px' },
   ];
   const colunasForma: ColunaDaTabela<FormaPagamento>[] = [
-    { id: 'codigo', titulo: 'Código', celula: (f) => <span className="font-mono text-[12px]" data-testid={`formas-pagamento.forma-${f.codigo}`}>{f.codigo}</span>, texto: (f) => f.codigo, largura: '20%' },
+    { id: 'codigo', titulo: 'Código', celula: (f) => <span className="font-mono" data-testid={`formas-pagamento.forma-${f.codigo}`}>{f.codigo}</span>, texto: (f) => f.codigo, largura: '20%' },
     { id: 'nome', titulo: 'Forma', celula: (f) => f.nome },
     { id: 'ordem', titulo: 'Ordem', numero: true, celula: (f) => f.ordem, prioridade: 2, largura: '90px' },
     { id: 'situacao', titulo: 'Situação', celula: (f) => <SeloSituacao selos={[f.ativo ? { tom: 'success', texto: 'Ativa' } : { tom: 'neutral', texto: 'Inativa' }]} />, largura: '100px' },
@@ -313,6 +313,11 @@ export function FormasPagamentoPage() {
         {prazoEmEdicao && (
           <div className="flex flex-col gap-4" data-testid="formas-pagamento.form-prazo">
             {erroForm && <Notice tone="danger">{erroForm}</Notice>}
+            {prazoDoErp && (
+              <p className="m-0 text-[13px] text-ink-2" data-testid="formas-pagamento.prazo-do-erp">
+                {TEXTO_VEM_DO_ERP}: código, parcelas e Desc./Acrésc. (%).
+              </p>
+            )}
             <CampoFormulario rotulo="Forma" erro={tentou ? errosPrazo.forma_pagamento_id : undefined}>
               <select className={CLASSE_CAMPO} value={prazoEmEdicao.form.forma_pagamento_id} aria-invalid={tentou && !!errosPrazo.forma_pagamento_id} onChange={(e) => setP('forma_pagamento_id', e.target.value)} data-testid="formas-pagamento.prazo-forma">
                 <option value="">Escolha a forma</option>
@@ -324,18 +329,18 @@ export function FormasPagamentoPage() {
               </select>
             </CampoFormulario>
             <div className="grid grid-cols-2 gap-4">
-              <CampoFormulario rotulo={prazoDoErp ? `Código · ${TEXTO_VEM_DO_ERP}` : 'Código'} erro={tentou ? errosPrazo.codigo : undefined}>
+              <CampoFormulario rotulo="Código" erro={tentou ? errosPrazo.codigo : undefined}>
                 <input className={CLASSE_CAMPO} value={prazoEmEdicao.form.codigo} maxLength={20} readOnly={prazoDoErp} aria-readonly={prazoDoErp} aria-invalid={tentou && !!errosPrazo.codigo} onChange={(e) => setP('codigo', e.target.value)} data-testid="formas-pagamento.prazo-codigo" />
               </CampoFormulario>
               <CampoFormulario rotulo="Ordem na lista" erro={tentou ? errosPrazo.ordem : undefined}>
                 <input className={CLASSE_CAMPO} value={prazoEmEdicao.form.ordem} inputMode="numeric" maxLength={4} aria-invalid={tentou && !!errosPrazo.ordem} onChange={(e) => setP('ordem', e.target.value)} data-testid="formas-pagamento.prazo-ordem" />
               </CampoFormulario>
             </div>
-            <CampoFormulario rotulo={prazoDoErp ? `Dias das parcelas · ${TEXTO_VEM_DO_ERP}` : 'Dias das parcelas (ex.: 28/56 ou à vista)'} erro={tentou ? errosPrazo.parcelas : undefined}>
+            <CampoFormulario rotulo={prazoDoErp ? 'Dias das parcelas' : 'Dias das parcelas (ex.: 28/56 ou à vista)'} erro={tentou ? errosPrazo.parcelas : undefined}>
               <input className={CLASSE_CAMPO} value={prazoEmEdicao.form.parcelas} maxLength={120} readOnly={prazoDoErp} aria-readonly={prazoDoErp} aria-invalid={tentou && !!errosPrazo.parcelas} onChange={(e) => setP('parcelas', e.target.value)} data-testid="formas-pagamento.prazo-parcelas" />
             </CampoFormulario>
             {prazoDoErp && prazoEmEdicao && (
-              <CampoFormulario rotulo={`Desc./Acrésc. (%) · ${TEXTO_VEM_DO_ERP}`}>
+              <CampoFormulario rotulo="Desc./Acrésc. (%)">
                 <input className={CLASSE_CAMPO} value={formatarPercentualPrazo(percentualDoPrazo(prazos.find((p) => p.id === prazoEmEdicao.id) ?? {}))} readOnly aria-readonly data-testid="formas-pagamento.prazo-ajuste" />
               </CampoFormulario>
             )}

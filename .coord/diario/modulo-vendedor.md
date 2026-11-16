@@ -150,3 +150,4 @@
 2026-11-15 — fonte do sistema (#404) — MC-0152 (qtd, %, R$ e nome do item em 600) e MC-0153 (número do card = t.number).
 2026-11-16 — v1.0.14 prazo (#406) — RD-1505: a faixa do % vem só de PercentualAjuste (contrato da integração); saem PercentualAjusteBase e percentualDoRegistro; o consumidor usa r.data.percentual_ajuste ?? 0 e aplicarPrazoDoErp, p.percentual_ajuste ?? 0.
 2026-11-16 — v1.0.14 prazo (#406) — RD-1502 (recebimento com motivo próprio "Prazo de pagamento mudou", sem o %), RD-1503 (título Desc./Acrésc. (%), célula e CSV sem %, "Vem do ERP" só na gaveta do prazo do ERP), RD-1504 (bpDoItem no domain) e RD-1506 (testes repetidos fora).
+2026-11-16 — v1.0.14 prazo (#406) — RD-2051 (sai o teste que comparava o preço com ele mesmo), RD-2052 ("Vem do ERP" numa linha só no topo da gaveta do prazo do ERP), RD-2053 (coluna do % com 140px) e MC-1720 (código das tabelas em mono sem 12px).

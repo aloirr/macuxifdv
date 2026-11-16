@@ -66,14 +66,6 @@ describe('RN-VEN-43: precoDoItem com o prazo', () => {
   });
 });
 
-describe('RN-VEN-44: troca de prazo parte sempre da tabela original', () => {
-  it('RN-VEN-44: -1,71 → +2,50 → -1,71 devolve os mesmos centavos', () => {
-    const base = { preco_tabela_unidade_cents: 1_235, quantidade: 3 };
-    const a = precoDoItem(item({ ...base, percentual_ajuste_bp: -171 })).total_cents;
-    expect(precoDoItem(item({ ...base, percentual_ajuste_bp: -171 })).total_cents).toBe(a);
-  });
-});
-
 describe('RN-VEN-43/18: bpDoItem', () => {
   it('RN-VEN-18: o preço congelado do orçamento não ajusta de novo (0); os outros itens usam o bp do pedido', () => {
     expect(bpDoItem(true, -171)).toBe(0);
