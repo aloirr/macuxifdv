@@ -136,7 +136,7 @@ Não mostram a logo do cliente (decisão R-20261114-234500-alexandre) e ficam co
 ![Mais](logo-cliente/mais.png)
 
 - **O bloco:** é o último da tela "Mais" (`apps/mobile/src/app/(tabs)/mais.tsx`), depois da lista "Outras telas":
-  1. **"Licenciado para <nome fantasia>"**: `type.small` 13/18, `#4A5562` (7,03:1 no Pérola), centralizado;
+  1. **"Licenciado para <nome fantasia>"**: `type.small`, `#4A5562` (7,03:1 no Pérola), centralizado;
   2. 10 dp abaixo, a **placa** (MC-0067), com borda `#DFE2E6`: 52 dp de altura, até 176 dp de largura (8 dp de folga
      em cima e embaixo e 12 dp dos lados); logo com 36 dp de altura e até 152 dp de largura.
 - **Posição:** com espaço sobrando, o bloco vai para o pé da área de rolagem, logo acima da barra de abas (`marginTop:

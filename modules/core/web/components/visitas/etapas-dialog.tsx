@@ -150,7 +150,7 @@ export function EtapasDialog({
             className="flex flex-col gap-2 rounded-xl border border-field p-3"
             data-testid="visitas.etapas.dispensa"
           >
-            <label className="flex flex-col gap-1 text-[14px] font-semibold text-ink">
+            <label className="flex flex-col gap-1 text-[15px] font-semibold text-ink">
               Justificativa para dispensar "{alvo.rotulo ?? alvo.etapa}"
               <span className="text-[13px] font-normal text-ink-2">
                 Fica registrada na auditoria, com o seu nome. De 3 a {JUSTIFICATIVA_MAX} caracteres
@@ -174,7 +174,7 @@ export function EtapasDialog({
                 aria-invalid={erro ? true : undefined}
                 aria-describedby={erro ? idErro : undefined}
                 data-testid="visitas.etapas.justificativa"
-                className={`w-full rounded-xl border bg-surface px-3 py-2 text-[14px] font-normal text-ink ${erro ? 'border-danger' : 'border-field'}`}
+                className={`w-full rounded-xl border bg-surface px-3 py-2 text-[15px] font-normal text-ink ${erro ? 'border-danger' : 'border-field'}`}
               />
               {texto.trim().length >= 250 && (
                 <span
