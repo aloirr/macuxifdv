@@ -85,3 +85,12 @@
 2026-11-16 — v1.0.14 catalogo — catálogo v2 (estoque pelas filiais de venda, folha por filial, códigos em 2 linhas) sem os 10 arquivos do #382/#387; rascunho até eles e o ícone do kit entrarem
 2026-11-16 — v1.0.14 catalogo — parte 1 compilando (sem comum/grade/apresentacao/repositorio da parte 2); RD-1704/1705/1706/1708/1709/1711 e MC-1524/1525 corrigidos
 2026-11-16 — v1.0.14 catalogo — RD-1704 (botão só com mais de uma filial), RD-1801 e RD-1802; parte 2 segue esperando #382/#387/#427
+2026-11-15 — fonte do sistema v1.0.13 — app com ...fonte.x e escala 12/14/16/18/22, PDF em pilha do sistema com 12px mínimo
+2026-11-15 — fonte rodada 3 — catálogo: web na escala por papel (15), PDF com PILHA_SISTEMA, th 600 e neutros do manual (MC-0058/0062, RD-0949/0943)
+2026-11-15 — fonte do sistema (#427) — RD-1258 (preço do cartão = t.number), MC-0149 (preço em 600 no cartão e na ficha), MC-0150 (h2 do PDF em 17)
+2026-11-15 — T-0174 — fotos dos produtos em lote por ZIP: domain, contratos (situação em lista, rótulos da spec), API, trabalho, teste de banco e tela do BKO (/catalogo/fotos-lote, lote em ?lote=); pendência: rota /:id exige rota dinâmica no shell (engenheiro-apps)
+2026-11-15 — T-0174 — correções da marca e do corretor (MC-0089..0091, RD-0615..0618, RD-0620, RD-0621) e limites efetivos do tenant na tela de Fotos em lote (GET fotos-lote/limites)
+2026-11-15 — T-0174 — TEXTO_LOTE_DIVERGENTE em contracts (texto da spec §6.1), usado pela API; a tela já mostra a mensagem da API
+2026-11-15 — T-0174 — fotos-lote-page: linha principal da área de envio em 15/600 (MC-1201)
+2026-11-15 — T-0174 — merge do main; testes de banco alinhados ao desenho §180 (a trava do POST protege o reenvio com o mesmo id; o lote novo aguardando_envio não ocupa vaga) e ao SDK (o tipo da imagem é lido ao ligar ao produto: o falso PNG vira A1_5.png); timer-permitido nas consultas de 2 s do lote; o resto do vermelho (Progresso e KpiCard com onClick) depende do #366
+2026-11-15 — T-0174 (#382) — RD-1223 (comProduto), RD-1243 (timer-permitido sem o valor do intervalo), RD-1244 (LOTE no teste da trava)
