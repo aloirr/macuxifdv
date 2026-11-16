@@ -358,8 +358,8 @@ export const ResumoPedidosErp = z.object({
   retidos_sem_mapeamento: z.number().int().nonnegative(),
 });
 export type ResumoPedidosErp = z.infer<typeof ResumoPedidosErp>;
-/** Rota (relativa a `/v1`) que traz os 5 números dentro de `MonitorResumo.resumo_pedidos`. */
-export const ROTA_RESUMO_PEDIDOS_ERP = '/integracao/monitor';
+/** `GET /v1/integracao/monitor` (relativa a `/v1`): o `MonitorResumo`, com os lotes da tela e o `resumo_pedidos` dos cards do Vendedor. */
+export const ROTA_MONITOR = '/integracao/monitor';
 
 /** Pedido na fila do ERP, para o monitor (sem itens nem dado do cliente). */
 export const PedidoFilaItem = z.object({
@@ -408,31 +408,10 @@ export type AlertaMonitor = z.infer<typeof AlertaMonitor>;
 /** `GET /v1/integracao/monitor`: o que a tela inicial do monitor mostra (RF-INT-04, RF-INT-06). */
 export const MonitorResumo = z.object({
   gerado_em: DataHoraUtc,
-  conectores: z.array(ConectorResumo),
+  /** Alertas com a causa e a ação seguinte (RF-INT-06). */
   alertas: z.array(AlertaMonitor),
   lotes_recentes: z.array(LoteListagemItem),
-  /** Estado da carga por entidade, na ordem de dependência (carga inicial). */
-  cargas: z.array(
-    z.object({
-      entidade: Entidade,
-      estado: z.enum(['sem_lotes', 'pendente', 'em_andamento', 'concluida', 'concluida_com_erros', 'falhou']),
-      lotes: z.number().int().nonnegative(),
-      com_erro: z.number().int().nonnegative(),
-      aguardando: z.array(Entidade),
-    }),
-  ),
-  pendencias_inativacao: z.array(PendenciaInativacao),
-  reconciliacoes: z.array(
-    z.object({
-      entidade: Entidade,
-      data_referencia: z.string(),
-      divergente: z.boolean(),
-      motivos: z.array(z.string()),
-      contagem_erp: z.number(),
-      contagem_macuxi: z.number(),
-    }),
-  ),
-  /** Os 5 números dos cards de BKO > Pedidos, já calculados pela API (T-0173); o Vendedor só exibe. Aditivo. */
+  /** Os 5 números dos cards de BKO > Pedidos, já calculados pela API (T-0173); o Vendedor só exibe. */
   resumo_pedidos: ResumoPedidosErp,
 });
 export type MonitorResumo = z.infer<typeof MonitorResumo>;

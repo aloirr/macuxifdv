@@ -3,7 +3,7 @@
  * (`EstadoLoteBko`, RN-INT-08); ações válidas por status; duração e linhas integradas; autorização do reprocessamento.
  * Funções puras: a API grava/lê, a tela só compõe o texto.
  */
-import type { EstadoLote, EstadoLoteBko } from '../contracts';
+import { ESTADOS_LOTE_BKO, type EstadoLote, type EstadoLoteBko } from '../contracts';
 
 /** RN-INT-15: os 5 status que a pessoa vê (Em andamento, Concluído, Concluído com avisos, Com falha, Cancelado). */
 export const STATUS_LOTE = ['em_andamento', 'concluido', 'concluido_com_avisos', 'com_falha', 'cancelado'] as const;
@@ -31,21 +31,8 @@ export function statusDoLote(estado: EstadoLoteBko): StatusLote {
  */
 export const estadoLoteNoHubV1 = (estado: EstadoLoteBko): EstadoLote => (estado === 'cancelado' ? 'falhou' : estado);
 
-/** Estados técnicos que formam cada status (o filtro Status da tela e da API usam isto). */
-export function estadosDoStatus(status: StatusLote): EstadoLoteBko[] {
-  switch (status) {
-    case 'em_andamento':
-      return ['recebido', 'processando'];
-    case 'concluido':
-      return ['concluido'];
-    case 'concluido_com_avisos':
-      return ['concluido_com_erros'];
-    case 'com_falha':
-      return ['falhou'];
-    case 'cancelado':
-      return ['cancelado'];
-  }
-}
+/** Estados técnicos que formam cada status (o filtro Status da tela e da API usam isto): o inverso de `statusDoLote`. */
+export const estadosDoStatus = (status: StatusLote): EstadoLoteBko[] => ESTADOS_LOTE_BKO.filter((e) => statusDoLote(e) === status);
 
 export type AcaoLote = 'cancelar' | 'reprocessar';
 
@@ -98,6 +85,9 @@ export function autorizacaoReprocessar(p: { solicitantePode: boolean; solicitant
   if (!p.autorizadorPode) return { ok: false, codigo: 'autorizador_sem_permissao', mensagem: 'A pessoa escolhida não pode autorizar o reprocessamento. Escolha outra pessoa.' };
   return { ok: true, via: 'autorizado' };
 }
+
+/** RN-INT-16: recusa da senha do autorizador (a API responde 422 com esta frase; a tela mostra a frase da API). */
+export const MSG_SENHA_INCORRETA = 'Senha incorreta.';
 
 /** RN-INT-16: tentativas de senha erradas por autorizador na janela. */
 export const MAX_TENTATIVAS_AUTORIZACAO = 5;

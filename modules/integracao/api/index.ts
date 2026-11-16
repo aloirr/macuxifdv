@@ -29,6 +29,7 @@ import { pedidosPendentes, retornoPedido, sinalDeVida } from './rotas-pedidos';
 
 export { gerarOpenApiHub, openApiHub, type DocumentoOpenApi } from './openapi/gerar';
 export { documentoOpenApiPublico } from './openapi/publico';
+export type { VerificadorSenha } from './bko-lotes-acoes';
 
 const LIMITE_CORPO_LOTE = 8 * 1024 * 1024;
 const MAX_ELEMENTOS_LOTE = 1_000_000;

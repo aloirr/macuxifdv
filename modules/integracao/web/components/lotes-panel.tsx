@@ -11,7 +11,7 @@ import { FILTROS_VAZIOS, type FiltrosMonitor, temFiltro } from '../lib/filtros-u
 import { precisaAutorizador, useCancelarLote, useReprocessarLote } from '../lib/queries';
 import { AutorizarReprocessamento } from './autorizar-reprocessamento';
 
-const numero = formatInt;
+const TOAST_REPROCESSANDO = 'Reprocessamento iniciado.';
 
 /** Colunas da spec docs/design/integracao-simples §3: sem travessão, Conclusão vazia em andamento, número à direita. */
 function colunas(tz: string, agora: Date): ReadonlyArray<ColunaDaTabela<LoteListagemItem>> {
@@ -51,7 +51,7 @@ function colunas(tz: string, agora: Date): ReadonlyArray<ColunaDaTabela<LoteList
       largura: '14%',
       celula: (l) => {
         const r = linhasIntegradas(l.recebidas, l.com_erro);
-        return r.comErro ? `${numero(r.integradas)} de ${numero(r.total)}` : numero(r.integradas);
+        return r.comErro ? `${formatInt(r.integradas)} de ${formatInt(r.total)}` : formatInt(r.integradas);
       },
     },
   ];
@@ -89,7 +89,7 @@ export function LotesPanel({
     reprocessar.mutate(
       { loteId },
       {
-        onSuccess: () => toast('success', 'Reprocessamento iniciado.'),
+        onSuccess: () => toast('success', TOAST_REPROCESSANDO),
         onError: (e) => (precisaAutorizador(e) ? setAutorizando(loteId) : toast('danger', errorMessage(e))),
       },
     );
@@ -188,7 +188,7 @@ export function LotesPanel({
         onClose={() => setAutorizando(null)}
         onAutorizado={() => {
           setAutorizando(null);
-          toast('success', 'Reprocessamento iniciado.');
+          toast('success', TOAST_REPROCESSANDO);
         }}
       />
     </>

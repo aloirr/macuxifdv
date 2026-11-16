@@ -10,8 +10,17 @@ import { useApagarMapeamento, useCodigosMacuxi, useGravarMapeamento, useMapeamen
 const VAZIO: Mapeamento = { tipo: 'condicao_pagamento', codigo_erp: '', codigo_macuxi: '', descricao: '', ativo: true };
 const campo = 'h-11 w-full rounded-xl border border-field bg-surface px-3 text-[15px] text-ink';
 
+/** ` · nome` depois do código (vazio sem nome): a mesma montagem no texto e na célula. */
+const sufixoNome = (nome: string | null | undefined) => (nome ? ` · ${nome}` : '');
 /** `código · nome` (o nome só quando existe). */
-const rotuloMacuxi = (codigo: string, nome: string | null | undefined) => (nome ? `${codigo} · ${nome}` : codigo);
+const rotuloMacuxi = (codigo: string, nome: string | null | undefined) => `${codigo}${sufixoNome(nome)}`;
+/** O mesmo rótulo na tela, com o código em mono. */
+const CodigoENome = ({ codigo, nome }: { codigo: string; nome: string | null | undefined }) => (
+  <>
+    <span className="font-mono tabular-nums">{codigo}</span>
+    {sufixoNome(nome)}
+  </>
+);
 
 export function filtrarMapeamentos(itens: readonly MapeamentoItem[], entidade: string, busca: string): MapeamentoItem[] {
   const b = busca.trim().toLowerCase();
@@ -59,12 +68,7 @@ export function DeParaPage() {
       id: 'macuxi',
       titulo: 'No Macuxi',
       largura: '30%',
-      celula: (m) => (
-        <>
-          <span className="font-mono tabular-nums">{m.codigo_macuxi}</span>
-          {nomeMacuxi(m) ? ` · ${nomeMacuxi(m)}` : ''}
-        </>
-      ),
+      celula: (m) => <CodigoENome codigo={m.codigo_macuxi} nome={nomeMacuxi(m)} />,
       texto: (m) => rotuloMacuxi(m.codigo_macuxi, nomeMacuxi(m)),
     },
     { id: 'erp', titulo: 'No ERP', largura: '20%', celula: (m) => <span className="font-mono tabular-nums">{m.codigo_erp}</span>, texto: (m) => m.codigo_erp },
@@ -110,7 +114,7 @@ export function DeParaPage() {
       {q.data && (
         <div className="flex flex-col gap-4" data-testid="pagina-integracao-de-para">
           {retidos.length > 0 && (
-            <Panel label="Alertas" title="Alertas">
+            <Panel title="Alertas">
               <ul className="m-0 flex list-none flex-col gap-2 p-0" data-testid="integracao.mapeamento.faltando">
                 {retidos.map((f) => (
                   <li key={f.codigo_macuxi} className="flex items-center justify-between gap-3 text-[15px]">
@@ -142,7 +146,7 @@ export function DeParaPage() {
           </FilterBar>
           )}
 
-          <Panel label="De-para de códigos">
+          <Panel>
           <TabelaDados
             colunas={colunas}
             linhas={itens}
@@ -278,8 +282,7 @@ function FormularioDePara({ editando, inicial, retidos, existentes, salvando, on
                     <li key={i.codigo}>
                       <button type="button" role="option" aria-selected={false} disabled={!!outro} onClick={() => setV({ ...v, codigo_macuxi: i.codigo })} className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg px-3 text-left text-[15px] hover:bg-ground disabled:text-disabled disabled:hover:bg-transparent">
                         <span>
-                          <span className="font-mono tabular-nums">{i.codigo}</span>
-                          {i.nome ? ` · ${i.nome}` : ''}
+                          <CodigoENome codigo={i.codigo} nome={i.nome} />
                         </span>
                         {outro ? <span className="text-[12px]">{`já tem: ERP ${outro.codigo_erp}`}</span> : n ? <Badge tone="warning">{`${n} retidos`}</Badge> : null}
                       </button>

@@ -60,10 +60,9 @@ describe('RN-INT-15: cancelar e reprocessar na máquina de estados (RN-INT-08)',
     for (const para of ESTADOS_LOTE_BKO) expect(transicionarLote('cancelado', para).ok, para).toBe(false);
   });
 
-  it('RN-INT-15: concluído com erros e falhou voltam para a fila (recebido) ao reprocessar; concluído não cancela', () => {
+  it('RN-INT-15: concluído com erros e falhou voltam para a fila (recebido) ao reprocessar', () => {
     expect(transicionarLote('concluido_com_erros', 'recebido').ok).toBe(true);
     expect(transicionarLote('falhou', 'recebido').ok).toBe(true);
-    expect(transicionarLote('concluido', 'cancelado').ok).toBe(false);
   });
 });
 

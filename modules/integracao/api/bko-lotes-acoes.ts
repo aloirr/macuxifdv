@@ -21,7 +21,7 @@ import {
   limiteTentativasAutorizacao,
   podeCancelarLote,
   podeReprocessarLote,
-  transicionarLote,
+  MSG_SENHA_INCORRETA,
 } from '../domain';
 import { EVENTO_LOTE_RECEBIDO } from './eventos';
 
@@ -91,9 +91,8 @@ export const rotaCancelarLote: RotaModulo = {
     const tenantId = ctx.usuario.tenant_id;
     return ctx.comTenant(async (db, tx) => {
       const l = await lerLoteTravado(db, tenantId, ctx.params.id);
-      const t = podeCancelarLote(l.status) ? transicionarLote(l.status, 'cancelado') : null;
       if (l.status === 'cancelado') return { lote_id: l.id, status: 'cancelado' as const };
-      if (!t?.ok) throw new ErroHttpModulo(409, 'lote_nao_esta_em_andamento', 'Este lote já terminou e não pode ser cancelado. Atualize a lista em Integração ERP.');
+      if (!podeCancelarLote(l.status)) throw new ErroHttpModulo(409, 'lote_nao_esta_em_andamento', 'Este lote já terminou e não pode ser cancelado. Atualize a lista em Integração ERP.');
       await db.query("update integracao.lote set status = 'cancelado', concluido_em = $3::timestamptz where tenant_id = $1 and id = $2", [tenantId, l.id, ctx.agora().toISOString()]);
       await tx.auditar({ acao: 'lote.cancelar', entidade: 'lote', entidade_id: l.id, antes: { status: l.status }, depois: { status: 'cancelado', entidade_lote: l.entidade } });
       return { lote_id: l.id, status: 'cancelado' as const };
@@ -136,34 +135,31 @@ export function criarRotaReprocessarLote(o: { verificarSenha: VerificadorSenha; 
 
         let autorizadoPor: string | null = null;
         if (!solicitantePode) {
-          if (!autorizador_id || !senha) {
-            throw new ErroHttpModulo(403, 'autorizador_necessario', 'Escolha quem autoriza o reprocessamento e digite a senha dessa pessoa.');
-          }
+          // RN-INT-16 (domain): sem autorizador ou senha, autorizador = solicitante ou fora da lista (sem a ação, inativo ou de outro
+          // tenant) = recusa com a frase do domain, sem conferir a senha
+          const autorizadorId = autorizador_id && senha ? autorizador_id : null;
+          const alvo = autorizadorId ? (await lerAutorizadores(tx)).find((a) => a.id === autorizadorId) : undefined;
+          const decisao = autorizacaoReprocessar({ solicitantePode: false, solicitanteId: ctx.usuario.id, autorizadorId, autorizadorPode: !!alvo });
+          if (!decisao.ok) throw new ErroHttpModulo(decisao.codigo === 'autorizador_invalido' ? 422 : 403, decisao.codigo, decisao.mensagem);
           const agora = ctx.agora().getTime();
           // RN-INT-16: o limite é por autorizador (tenant + autorizador_id), não por quem pede
-          const chaveLimite = `${tenantId}:${autorizador_id}`;
+          const chaveLimite = `${tenantId}:${autorizadorId}`;
           const bloqueio = limiteTentativasAutorizacao(o.limite.falhas(chaveLimite, agora));
           if (bloqueio.bloqueado) throw new ErroHttpModulo(429, 'muitas_tentativas', bloqueio.mensagem);
-          // fora da lista (sem a ação, inativo ou de outro tenant) = sem permissão para autorizar; o próprio solicitante nunca autoriza
-          const alvo = (await lerAutorizadores(tx)).find((a) => a.id === autorizador_id);
-          const decisao = autorizacaoReprocessar({ solicitantePode: false, solicitanteId: ctx.usuario.id, autorizadorId: autorizador_id, autorizadorPode: !!alvo });
-          if (!decisao.ok) throw new ErroHttpModulo(decisao.codigo === 'autorizador_invalido' ? 422 : 403, decisao.codigo, decisao.mensagem);
-          const r = await o.verificarSenha({ tenant_id: tenantId, usuario_id: autorizador_id, senha, acao: ACAO_REPROCESSAR }, tx);
+          const r = await o.verificarSenha({ tenant_id: tenantId, usuario_id: autorizadorId!, senha: senha!, acao: ACAO_REPROCESSAR }, tx);
           if (r === 'indisponivel') throw new ErroHttpModulo(503, 'autorizacao_indisponivel', 'Não deu para autorizar agora. Peça a um administrador ou analista para reprocessar.');
           if (r === 'incorreta') {
             o.limite.registrarFalha(chaveLimite, agora);
-            throw new ErroHttpModulo(422, 'senha_incorreta', 'Senha incorreta.');
+            throw new ErroHttpModulo(422, 'senha_incorreta', MSG_SENHA_INCORRETA);
           }
           o.limite.limpar(chaveLimite);
-          autorizadoPor = autorizador_id;
+          autorizadoPor = autorizadorId;
         }
 
         const { rows: st } = await db.query<{ tem: boolean }>('select corpo is not null as tem from integracao.lote_staging where tenant_id = $1 and lote_id = $2', [tenantId, l.id]);
         if (!st[0]?.tem) {
           throw new ErroHttpModulo(409, 'conteudo_expirado', 'O conteúdo deste lote já foi apagado. Peça ao Conector para reenviar a carga.');
         }
-        const t = transicionarLote(l.status, 'recebido');
-        if (!t.ok) throw new ErroHttpModulo(409, 'lote_nao_pode_reprocessar', t.mensagem);
         const agoraIso = ctx.agora().toISOString();
         await db.query("update integracao.lote set status = 'recebido', concluido_em = null, iniciado_em = null, ultimo_erro = null where tenant_id = $1 and id = $2", [tenantId, l.id]);
         // o reprocesso regera os erros do zero: sem apagar os antigos, o log e o "x de y" não batem

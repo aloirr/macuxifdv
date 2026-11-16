@@ -23,6 +23,7 @@ import {
   GravarMapeamentoResposta,
   MapeamentosResposta,
   MonitorResumo,
+  ROTA_MONITOR,
   ReprocessarLoteResposta,
   type LinhaErro,
   type Mapeamento,
@@ -98,7 +99,7 @@ export function useMonitor() {
   const intervalo = useIntervaloSyncAutoMs();
   return useQuery({
     queryKey: qk.monitor,
-    queryFn: async ({ signal }) => MonitorResumo.parse(await api<unknown>('/integracao/monitor', { signal })),
+    queryFn: async ({ signal }) => MonitorResumo.parse(await api<unknown>(ROTA_MONITOR, { signal })),
     enabled,
     // timer-permitido: sync_auto_min do tenant passado por intervaloSyncAutoMs (nunca abaixo de 15 min)
     refetchInterval: intervalo,
@@ -213,9 +214,7 @@ export function useCodigosMacuxi(tipo: TipoMapeamento, ativo: boolean) {
 }
 
 /** O erro é a recusa de quem não tem `lote.reprocessar` (a tela abre a autorização por senha)? */
-export function precisaAutorizador(e: unknown): boolean {
-  return e instanceof Error && 'code' in e && (e as { code?: unknown }).code === 'autorizador_necessario';
-}
+export const precisaAutorizador = (e: unknown): boolean => codigoDoErro(e) === 'autorizador_necessario';
 
 /** Código do erro da API (`senha_incorreta`, `muitas_tentativas`…) ou vazio. */
 export function codigoDoErro(e: unknown): string {

@@ -1,11 +1,11 @@
 /**
- * `GET /v1/integracao/monitor` (ação `monitor.ver`; RF-INT-04, RF-INT-06): saúde dos Conectores, alertas com a causa e a ação
- * seguinte, lotes recentes, carga por entidade, inativações aguardando, reconciliações e a fila de pedidos do ERP. Janelas em
- * relação a `ctx.agora()` (nunca uma data fixa contra o relógio do banco).
+ * `GET /v1/integracao/monitor` (ação `monitor.ver`; RF-INT-04, RF-INT-06, T-0173): alertas com a causa e a ação seguinte, os lotes
+ * recentes da tela e o resumo dos pedidos no ERP (cards do Vendedor). Janelas em relação a `ctx.agora()` (nunca uma data fixa
+ * contra o relógio do banco).
  */
 import type { ContextoRota, RotaModulo } from '@macuxi/platform-sdk';
 import { ESTADOS_PEDIDO_ERP, type Entidade, type LoteListagemItem, type MonitorResumo, type PendenciaInativacao } from '../contracts';
-import { ehRetencaoPorCadastro, montarAlertasMonitor, pedidosAguardandoConector, resumoPedidosErp, resumirCargaPorEntidade, type EstadoCargaEntidade } from '../domain';
+import { ehRetencaoPorCadastro, montarAlertasMonitor, pedidosAguardandoConector, resumoPedidosErp } from '../domain';
 import { COLUNAS_CONECTOR, iso, lerChaves, lerPolitica, montarResumo, type LinhaConector } from './bko-comum';
 import { lerParametrosHub } from './parametros';
 
@@ -56,13 +56,6 @@ export const rotaMonitor: RotaModulo = {
           where l.tenant_id = $1 and l.deleted_at is null order by l.recebido_em desc limit 100`,
         [tenantId],
       );
-      // carga por entidade: os 1.000 lotes mais recentes bastam para o estado de cada entidade
-      const { rows: paraCarga } = await db.query<LinhaLote>(
-        `select ${COLUNAS_LOTE} from integracao.lote l join integracao.conector c on c.tenant_id = l.tenant_id and c.id = l.conector_id
-          where l.tenant_id = $1 and l.deleted_at is null and l.status <> 'cancelado' order by l.recebido_em desc limit 1000`,
-        [tenantId],
-      );
-      const cargas = resumirCargaPorEntidade(paraCarga.map((l) => ({ entidade: l.entidade, status: l.status, contagens: { recebidas: l.recebidas, com_erro: l.com_erro, novas: l.novas, atualizadas: l.atualizadas, inalteradas: l.inalteradas } })));
 
       const { rows: pend } = await db.query<{
         id: string; sessao_id: string; entidade: Entidade; conector_id: string; lote_id: string; estado: PendenciaInativacao['estado']; candidatos: number; total_ativos: number;
@@ -159,14 +152,10 @@ export const rotaMonitor: RotaModulo = {
       const pedidosResumo = { por_estado: contagem, presos: presos.length, retidos: retidos.length };
       return {
         gerado_em: agoraIso,
-        conectores: resumos,
         alertas,
         lotes_recentes: recentes.map(paraItem),
-        cargas: cargas.map((c) => ({ entidade: c.entidade, estado: c.estado as EstadoCargaEntidade, lotes: c.lotes, com_erro: c.com_erro, aguardando: c.aguardando })),
-        pendencias_inativacao: pendencias,
-        reconciliacoes: reconc.map((r) => ({ entidade: r.entidade, data_referencia: r.data_referencia, divergente: r.divergente, motivos: r.motivos, contagem_erp: Number(r.contagem_erp), contagem_macuxi: Number(r.contagem_macuxi) })),
         resumo_pedidos: resumoPedidosErp(pedidosResumo),
-      } as MonitorResumo;
+      };
     });
   },
 };

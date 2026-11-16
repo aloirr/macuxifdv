@@ -3,15 +3,7 @@
 import { useEffect, useState } from 'react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, CampoSenha, Dialog, ErrorBlock, LoadingBlock } from '@macuxi/ui/web';
-import { codigoDoErro, useAutorizadores, useReprocessarLote } from '../lib/queries';
-
-/** Frase de cada recusa (RN-INT-16), embaixo da senha, com a ação seguinte. */
-export function mensagemDaAutorizacao(codigo: string): string {
-  if (codigo === 'senha_incorreta') return 'Senha incorreta.';
-  if (codigo === 'autorizador_invalido') return 'Escolha outra pessoa para autorizar.';
-  if (codigo === 'muitas_tentativas') return 'Muitas tentativas. Tente de novo em alguns minutos.';
-  return 'Não deu para autorizar agora. Tente de novo.';
-}
+import { useAutorizadores, useReprocessarLote } from '../lib/queries';
 
 /**
  * Popup de autorização (RN-INT-16; spec docs/design/integracao-simples §6): quem não tem `lote.reprocessar` escolhe quem autoriza
@@ -51,7 +43,7 @@ export function AutorizarReprocessamento({ loteId, onClose, onAutorizado }: { lo
         },
         onError: (e) => {
           setSenha('');
-          setErro(mensagemDaAutorizacao(codigoDoErro(e)));
+          setErro(errorMessage(e));
           document.getElementById('integracao-autorizar-senha')?.focus();
         },
       },
@@ -84,7 +76,7 @@ export function AutorizarReprocessamento({ loteId, onClose, onAutorizado }: { lo
             autorizar();
           }}
         >
-          <div className="flex items-center gap-2 text-[13px] font-semibold text-ink-2">
+          <div className="flex items-center gap-2 text-[12px] font-semibold text-ink-2">
             <label htmlFor="integracao-autorizar-quem">Senha de</label>
             <select id="integracao-autorizar-quem" className="h-11 rounded-xl border border-field bg-surface px-3 text-[15px] text-ink" value={quem} onChange={(e) => setQuem(e.target.value)} data-testid="integracao.autorizar.quem">
               {itens.map((a) => (

@@ -1,12 +1,12 @@
 /**
- * Aplicação dos lotes do staging em ordem de dependência (RN-INT-04) e resumo da carga por entidade (monitor).
+ * Aplicação dos lotes do staging em ordem de dependência (RN-INT-04).
  *
  * O worker pega o próximo lote com `ordenarFilaAplicacao`: vendedor antes de cliente, cliente antes de rota/título/nota, produto
  * antes de preço/estoque, para que quase nenhuma linha caia em `referencia_ausente`. A espera é limitada: dependência travada
  * não prende o dependente para sempre (a linha vira `referencia_ausente`, reprocessável). Um lote por vez por (Conector, entidade),
  * na ordem de chegada, para o cursor (RN-INT-05) e o comparador de hash (RN-INT-02) não competirem.
  */
-import { ENTIDADES, type ContagensLote, type Entidade, type EstadoLoteBko } from '../contracts';
+import { ENTIDADES, type Entidade, type EstadoLoteBko } from '../contracts';
 import { DEPENDENCIAS, ordenarCarga } from './ordem';
 import { PARAMETROS_PADRAO } from './parametros';
 
@@ -74,43 +74,4 @@ export function ordenarFilaAplicacao(fila: readonly LoteNaFila[], agora: string,
 /** Entidades que referenciam `entidade` (direto): ao concluir um lote dela, reprocessam-se as linhas `referencia_ausente` delas. */
 export function dependentesDe(entidade: Entidade): Entidade[] {
   return ORDEM_ENTIDADES.filter((e) => DEPENDENCIAS[e].includes(entidade));
-}
-
-export type EstadoCargaEntidade = 'sem_lotes' | 'pendente' | 'em_andamento' | 'concluida' | 'concluida_com_erros' | 'falhou';
-
-export interface LoteParaResumo {
-  entidade: Entidade;
-  status: EstadoLoteBko;
-  contagens: Pick<ContagensLote, 'recebidas' | 'com_erro' | 'novas' | 'atualizadas' | 'inalteradas'>;
-}
-
-export interface ResumoCargaEntidade {
-  entidade: Entidade;
-  estado: EstadoCargaEntidade;
-  lotes: number;
-  recebidas: number;
-  com_erro: number;
-  novas: number;
-  atualizadas: number;
-  inalteradas: number;
-  /** Dependências que ainda não terminaram (pendentes ou em andamento). */
-  aguardando: Entidade[];
-}
-
-/** As 8 entidades na ordem de dependência, com o estado agregado dos lotes de cada uma (tela "carga inicial" do monitor). */
-export function resumirCargaPorEntidade(lotes: readonly LoteParaResumo[]): ResumoCargaEntidade[] {
-  const base = ORDEM_ENTIDADES.map((entidade): ResumoCargaEntidade => {
-    const meus = lotes.filter((l) => l.entidade === entidade);
-    const soma = (k: keyof LoteParaResumo['contagens']) => meus.reduce((a, l) => a + l.contagens[k], 0);
-    let estado: EstadoCargaEntidade;
-    if (meus.length === 0) estado = 'sem_lotes';
-    else if (meus.some((l) => l.status === 'processando')) estado = 'em_andamento';
-    else if (meus.some((l) => l.status === 'recebido')) estado = 'pendente';
-    else if (meus.every((l) => l.status === 'falhou')) estado = 'falhou';
-    else if (meus.some((l) => l.status === 'falhou' || l.status === 'concluido_com_erros' || l.contagens.com_erro > 0)) estado = 'concluida_com_erros';
-    else estado = 'concluida';
-    return { entidade, estado, lotes: meus.length, recebidas: soma('recebidas'), com_erro: soma('com_erro'), novas: soma('novas'), atualizadas: soma('atualizadas'), inalteradas: soma('inalteradas'), aguardando: [] };
-  });
-  const emAberto = new Set(base.filter((b) => b.estado === 'pendente' || b.estado === 'em_andamento').map((b) => b.entidade));
-  return base.map((b) => ({ ...b, aguardando: DEPENDENCIAS[b.entidade].filter((d) => emAberto.has(d)) }));
 }
