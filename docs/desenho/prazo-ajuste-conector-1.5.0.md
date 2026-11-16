@@ -8,7 +8,7 @@ Origem: proposta aprovada `docs/modulos/vendedor/prazo-desconto-acrescimo.md` (b
 
 ## Dependências
 - Contrato: `PercentualAjuste` em `contracts/base.ts`, `PrazoPagamentoPayload.percentual_ajuste` e `PagamentoErp.percentual_ajuste` (branch `nuvem/prazo-ajuste-modulo-integracao`). A validação do arquivo de configuração do Conector recusa campo fora do contrato (`config/esquema.ts`), e o teste 1 para 1 dos exemplos (`test/exemplos-views-modelo.test.ts`) também. Por isso o mapeamento nos exemplos **depende do merge do PR do modulo-integracao**.
-- Banco: `db/conector/entrada-pedido-modelo.sql` e `views-modelo.sql` (branch `nuvem/prazo-ajuste-banco-dados`, 0ffa290, migração 0081).
+- Banco: `db/conector/entrada-pedido-modelo.sql` e `views-modelo.sql` (branch `nuvem/prazo-ajuste-banco-dados`, 0ffa290, migração 0082).
 
 ## 1. Leitura do prazo (ERP → Hub)
 - **Não há mudança no mapeador.** `mapearLinha` já omite o campo quando a coluna não vem na linha, e também quando vem NULL (modo `omite`). O Hub trata ausente como 0 (RN-INT-15).
@@ -46,4 +46,4 @@ Decisão: **manter `.strict()`** e acrescentar o campo `percentual_ajuste` (núm
 
 ## Riscos
 - **Dupla aplicação no ERP:** a procedure grava as linhas como vêm. A conferência no ensaio é total no ERP = total no app.
-- **Ordem dos PRs:** banco-dados (0081) → engenheiro-software (este desenho) → modulo-vendedor → modulo-integracao (contrato e Conector 1.5.0) → testes.
+- **Ordem dos PRs:** revisão final (`prazo-ajuste-revisao-final.md`), "Ordem final de merge".
