@@ -4,20 +4,19 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, SelectField, TableScroll, formatDayMonthLong, td, th } from '@macuxi/ui/web';
+import { Badge, Button, ErrorBlock, LoadingBlock, Notice, SelectField, TableScroll, formatDayMonthLong, td, th } from '@macuxi/ui/web';
 import { useHojeDoTenant } from '../../lib/queries';
-import { AlmocoPadraoPanel } from './almoco-padrao-panel';
 import { CHAVE_CALENDARIO, criarApiCalendario, type ApiCalendario, type ParametrosCalendario } from './api';
 import { FERIADO_NOME_MAX, feriadosDoAno, incluirFeriado, type ErroFeriado, type LinhaFeriado } from './calendario';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
-import { ErroCampo } from './erro-campo';
+import { ErroCampo } from '../campo';
 
 /**
- * Parâmetros › Calendário (desenho `docs/desenho/performance-produtividade.md` §1.3, §3.2 e §6.5): os feriados do ano, com os
- * nacionais em leitura e os do tenant com incluir e remover (cada mudança grava na hora), e o painel do almoço padrão da empresa
- * (RN-CORE-44, D5). Ação `parametro.inicio` (analista e admin); a API revalida e audita.
+ * Parâmetros › Calendário, painel Feriados (desenho `docs/desenho/performance-produtividade.md` §1.3, §3.2 e §6.5): os feriados do ano,
+ * com os nacionais em leitura e os do tenant com incluir e remover (cada mudança grava na hora). O almoço é o painel próprio
+ * (`almoco-padrao-panel.tsx`). Ação `parametro.inicio` (analista e admin); a API revalida e audita.
  * testIDs: `calendario.tela` · `.ano` · `.feriado.data|nome` · `.feriado.<data|nome>.erro` · `.incluir` · `.linha.<data>` ·
- * `.remover.<data>` · `.aviso`; o almoço está em `almoco-padrao-panel.tsx`.
+ * `.remover.<data>` · `.aviso`.
  */
 export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoje?: string }) {
   const apiCalendario = useMemo(() => cliente ?? criarApiCalendario(), [cliente]);
@@ -52,8 +51,7 @@ export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoj
   };
   const remover = (data: string) => p && gravar.mutate({ ...p, feriados: p.feriados.filter((f) => f.data !== data) });
   return (
-    <div className="flex w-full max-w-[860px] flex-col gap-5" data-testid="calendario.tela">
-      <PageHeader title="Calendário" />
+    <div className="flex w-full flex-col gap-5" data-testid="calendario.tela">
       {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
       {q.isPending && <LoadingBlock label="Carregando o calendário…" />}
       {aviso && (
@@ -63,18 +61,15 @@ export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoj
       )}
       {p && (
         <>
-          <Panel
-            title="Feriados"
-            aside={
-              <SelectField label="Ano" value={String(ano)} onChange={(e) => setAno(Number(e.target.value))} data-testid="calendario.ano">
-                {[anoHoje, anoHoje + 1].map((a) => (
-                  <option key={a} value={a}>
-                    {a}
-                  </option>
-                ))}
-              </SelectField>
-            }
-          >
+          <div className="flex justify-end">
+            <SelectField label="Ano" value={String(ano)} onChange={(e) => setAno(Number(e.target.value))} data-testid="calendario.ano">
+              {[anoHoje, anoHoje + 1].map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </SelectField>
+          </div>
             <div className="flex flex-col gap-4 text-[15px]">
               <div className="flex flex-wrap items-start gap-2">
                 <label className="flex flex-col gap-1 font-semibold text-ink">
@@ -111,10 +106,8 @@ export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoj
               </div>
               <TabelaFeriados linhas={feriadosDoAno(ano, p.feriados)} ocupado={gravar.isPending} onRemover={remover} />
             </div>
-          </Panel>
         </>
       )}
-      <AlmocoPadraoPanel />
     </div>
   );
 }
