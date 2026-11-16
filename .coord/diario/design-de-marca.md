@@ -33,3 +33,4 @@
 2026-11-16 — v1.0.14 rodada 12 — #398, #399, #401, #414, #415, #416 liberados (MC-1590..1593, MC-1515 fechadas).
 2026-11-16 — v1.0.14 rodada 13 — #405 (MC-1611 fechada) e #408 liberados; geradores conferidos byte a byte.
 2026-11-16 — v1.0.14 — #410 77babb6c: marca MC-1513/1514/1559 fechadas, nova MC-1680 (baixa); corretor RD-1563..1572 abertos.
+2026-11-16 — v1.0.14 — #408 e #401 liberados; #453 d64cc794 (RD-1800 fechado; RD-1707 aberto); #398 be06e09a (RD-1942 em parte: .total sem uso).
