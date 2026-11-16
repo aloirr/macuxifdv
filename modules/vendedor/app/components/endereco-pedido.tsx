@@ -8,11 +8,13 @@ import {
   Botao,
   colors,
   Dialogo,
+  ESTILO_CAMPO,
   Folha,
-  fonts,
+  fonte,
   Icon,
   ListaSuspensa,
   Pressionavel,
+  RotuloCampo,
   RotuloSecao,
   Selo,
   type as t,
@@ -167,7 +169,7 @@ export function FormularioEndereco({
 
   const campo = (c: Exclude<CampoDoEndereco, 'uf'>, rotulo: string, extra?: { teclado?: 'number-pad'; capitaliza?: 'words' | 'characters' | 'none'; max: number; meia?: boolean; onChange?: (x: string) => void }) => (
     <View style={extra?.meia && !empilhar ? { width: '50%', gap: 4 } : { flex: 1, gap: 4 }}>
-      <Text style={s.rotulo}>{rotulo}</Text>
+      <RotuloCampo>{rotulo}</RotuloCampo>
       <TextInput
         ref={(r) => {
           refs.current[c] = r;
@@ -182,7 +184,7 @@ export function FormularioEndereco({
         accessibilityLabel={rotulo}
         onFocus={() => setFoco(c)}
         onBlur={() => setFoco((f) => (f === c ? null : f))}
-        style={[s.campo, foco === c ? s.campoFoco : null, erros[c] ? s.campoErro : null]}
+        style={[ESTILO_CAMPO.entrada, foco === c ? s.campoFoco : null, erros[c] ? s.campoErro : null]}
       />
       {erros[c] ? (
         <Text style={s.erro} accessibilityLiveRegion="polite" testID={`endereco-${c}-erro`}>
@@ -253,18 +255,16 @@ const s = StyleSheet.create({
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   radioMarcado: { borderColor: colors.accent },
   radioPonto: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.accent },
-  opcaoTitulo: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
-  opcaoSub: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: colors.ink2 },
+  opcaoTitulo: { ...fonte.semibold, fontSize: 16, color: colors.ink },
+  opcaoSub: { ...fonte.body, fontSize: 14, lineHeight: 18, color: colors.ink2 },
   editarLinha: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  editarTexto: { flex: 1, fontFamily: fonts.semibold, fontSize: 15, color: colors.accentInk },
+  editarTexto: { flex: 1, ...fonte.semibold, fontSize: 16, color: colors.accentInk },
   cartao: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 14, padding: 14, gap: 4 },
-  linhaEndereco: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.ink },
+  linhaEndereco: { ...fonte.body, fontSize: 14, lineHeight: 20, color: colors.ink },
   divisor: { height: 1, backgroundColor: colors.lineSoft },
-  rotulo: { fontFamily: fonts.semibold, fontSize: 12, color: colors.ink2 },
-  campo: { minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, paddingHorizontal: 12, fontFamily: fonts.body, fontSize: 15, color: colors.ink },
   campoFoco: { borderColor: colors.accent, borderWidth: 2 },
   campoErro: { borderColor: colors.danger, borderWidth: 2 },
-  erro: { fontFamily: fonts.body, fontSize: 12, color: colors.danger },
+  erro: { ...fonte.body, fontSize: 12, color: colors.danger },
   par: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   voltar: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
 });

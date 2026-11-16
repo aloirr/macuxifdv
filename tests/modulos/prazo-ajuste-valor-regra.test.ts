@@ -13,7 +13,7 @@ import { calcularPedido, type EntradaCalculo, type ProdutoComMinimo } from '../.
 import { politicaApi } from '../../modules/vendedor/app/lib/pull';
 import { alertasDoPedido } from '../../modules/vendedor/domain/alertas-pedido';
 import { alertasDaVenda, tomDoAlerta } from '../../modules/vendedor/domain/alertas-venda';
-import { MOTIVO_PERCENTUAL_DO_PRAZO_MUDOU, politicaDosParametros, revalidarPedido, type RevalidarEntrada } from '../../modules/vendedor/domain/aprovacao';
+import { MOTIVO_PRAZO_MUDOU, politicaDosParametros, revalidarPedido, type RevalidarEntrada } from '../../modules/vendedor/domain/aprovacao';
 import { creditoDoCartao, MSG_PERCENTUAL_DO_PRAZO_MUDOU, revalidarPercentualDoPrazo } from '../../modules/vendedor/domain/pagamento';
 import { buildOrderPdfHtml } from '../../modules/vendedor/domain/pdf-pedido';
 import { percentualAjusteParaBp, precoMinimoBaseCents, tabelaAjustadaCents, valorMantendoPercentualCents } from '../../modules/vendedor/domain/preco-pedido';
@@ -225,9 +225,9 @@ describe('RN-VEN-45: percentual congelado e revalidado no envio', () => {
     const r = revalidarPedido(entrada(-171, { a: 5 }, { percentual_mudou: true }));
     if (!r.ok) return expect.fail('pedido do ensaio deveria passar');
     expect([r.status, r.motivos, r.aprovacao_automatica]).toEqual(['approved', [], true]);
-    expect(r.pending_reason).not.toContain(MOTIVO_PERCENTUAL_DO_PRAZO_MUDOU);
+    expect(r.pending_reason).not.toContain(MOTIVO_PRAZO_MUDOU);
     expect(r.historico.map((h) => h.para)).toEqual(['received', 'approved']);
-    expect(r.historico[0]).toMatchObject({ de: null, para: 'received', motivo: `Recebido pelo servidor · ${MOTIVO_PERCENTUAL_DO_PRAZO_MUDOU}` });
+    expect(r.historico[0]).toMatchObject({ de: null, para: 'received', motivo: MOTIVO_PRAZO_MUDOU });
     expect(r.total_cents).toBe(esperado(-171, { a: 5 }).total); // o % congelado no pedido continua valendo no cálculo
     // mesmo pedido sem divergência: mesmos valores e mesma decisão, sem o aviso
     const igual = revalidarPedido(entrada(-171, { a: 5 }));
@@ -241,9 +241,9 @@ describe('RN-VEN-45: percentual congelado e revalidado no envio', () => {
     const r = revalidarPedido({ ...base, itens: [base.itens[2]!] });
     if (!r.ok) return expect.fail('pedido do ensaio deveria passar');
     expect([r.status, r.nivel, r.motivos]).toEqual(['pending_approval', 'supervisor', ['desconto']]);
-    expect(r.pending_reason).not.toContain(MOTIVO_PERCENTUAL_DO_PRAZO_MUDOU);
-    expect(r.historico[0]!.motivo).toContain(MOTIVO_PERCENTUAL_DO_PRAZO_MUDOU);
-    expect(r.historico.filter((h) => h.motivo.includes(MOTIVO_PERCENTUAL_DO_PRAZO_MUDOU))).toHaveLength(1);
+    expect(r.pending_reason).not.toContain(MOTIVO_PRAZO_MUDOU);
+    expect(r.historico[0]!.motivo).toBe(MOTIVO_PRAZO_MUDOU);
+    expect(r.historico.filter((h) => h.motivo.includes(MOTIVO_PRAZO_MUDOU))).toHaveLength(1);
   });
 });
 

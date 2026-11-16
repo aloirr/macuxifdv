@@ -30,7 +30,7 @@ Arquivo: `tests/modulos/prazo-ajuste-valor-regra.test.ts` (unitário, sem banco)
 | PZ-08 | App (`calcularPedido`) × API (`revalidarPedido`) nos mesmos 4 pedidos | tela = API = regra (tabela, total e tabela de cada linha) |
 | PZ-09 | R$ digitado na troca de prazo (varredura) | domain = fórmula; R$ 5,00 de −1,71% para +2,50% = R$ 5,21; zero e tabela anterior 0 mantêm o valor |
 | PZ-10 | Revalidação do % no envio | igual aceita; mudou depois do `criado_em` aceita o do pedido; mesmo instante ou sem mudança = 422 `RN-VEN-45` "Este prazo de pagamento mudou. Atualize o app e refaça o pedido."; app antigo sem % recusado só se o prazo tiver % |
-| PZ-11 | % divergente aceito, desconto dentro da alçada | segue aprovado, sem motivo; aviso "Percentual do prazo mudou" só no recebimento da linha do tempo; valores pelo % do pedido |
+| PZ-11 | % divergente aceito, desconto dentro da alçada | segue aprovado, sem motivo; o recebimento da linha do tempo mostra "Prazo de pagamento mudou" (sem citar o %); valores pelo % do pedido |
 | PZ-12 | % divergente aceito, desconto acima da alçada | aprovação só pelo desconto; o aviso aparece uma vez, no recebimento |
 | PZ-13 | P-6: total ajustado estoura o crédito (+2,50%); à vista cabe; tabela pura no limite exato | o app mostra "Limite de crédito excedido" como aviso (não impede, não vira só orçamento); a API decide igual nos três (aprovado, sem motivo `credito`) |
 | PZ-14 | PDF do cliente e do BKO | valores ajustados (314,78), nenhum "1,71" |
@@ -51,6 +51,6 @@ Arquivo: `tests/modulos/prazo-ajuste-valor-regra.test.ts` (unitário, sem banco)
 3. Trocar para o prazo de +2,50% → preços sobem, o desconto continua 5%; voltar → mesmos centavos.
 4. Dar desconto em R$ num item e trocar de prazo → o R$ muda na proporção da tabela.
 5. Com o crédito do cliente perto do limite, o +2,50% estoura: "Limite de crédito excedido" em Alertas, e o pedido envia.
-6. Montar o pedido offline, mudar o % no ERP, sincronizar e enviar → pedido aceito; na linha do tempo, "Recebido pelo servidor ·
-   Percentual do prazo mudou"; sem ir para aprovação se o desconto couber na alçada.
+6. Montar o pedido offline, mudar o % no ERP, sincronizar e enviar → pedido aceito; na linha do tempo, o recebimento mostra "Prazo de
+   pagamento mudou"; sem ir para aprovação se o desconto couber na alçada.
 7. PDF do pedido (cliente e BKO) sem o percentual em lugar nenhum.

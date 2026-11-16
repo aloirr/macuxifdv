@@ -5,7 +5,8 @@
  *
  * - `Cadeado`: ícone de cadeado que mostra a regra ao passar o mouse, ao focar com o teclado ou ao tocar (o toque liga o :hover
  *   no iOS e o foco no Android); o texto também vai como descrição para o leitor de tela.
- * - `Interruptor`: liga/desliga com "Sim"/"Não" escrito ao lado (cor nunca sozinha), `role="switch"`, alvo de 44 px.
+ * - `Interruptor`: liga/desliga com "Sim"/"Não" escrito ao lado (cor nunca sozinha), `role="switch"`, alvo de 44 px. Com
+ *   `estadoEscrito="so-desligada"` (liga/desliga geral da regra, T-0180): ligado sem texto; desligado com o selo neutro "Desligada".
  * - `SeletorDeNivel`: escolha de um nível em botões lado a lado (rádios nativos: as setas do teclado andam entre eles). Opção
  *   desabilitada leva o motivo, falado na própria opção e escrito embaixo do grupo com o cadeado.
  * - `LinhaDePermissao`: rótulo, ajuda, cadeado e o controle à direita; "Padrão: X" quando o valor difere do de fábrica.
@@ -26,7 +27,7 @@ import {
   textoFaladoDaMudanca,
   type MudancaDePermissao,
 } from './perfis';
-import { cx } from './ui';
+import { Badge, cx } from './ui';
 
 export * from './perfis';
 
@@ -80,6 +81,7 @@ export function Interruptor({
   desabilitado = false,
   id,
   testId = 'interruptor',
+  estadoEscrito = 'sim-nao',
 }: {
   ligado: boolean;
   onChange: (ligado: boolean) => void;
@@ -93,9 +95,16 @@ export function Interruptor({
   desabilitado?: boolean;
   id?: string;
   testId?: string;
+  /**
+   * O que fica escrito ao lado do trilho. `sim-nao` (padrão): "Sim"/"Não". `so-desligada` (liga/desliga geral de uma regra,
+   * Parâmetros › Alertas, T-0180): ligado não escreve nada; desligado mostra o selo neutro "Desligada". O estado continua no
+   * `aria-checked` para o leitor de tela.
+   */
+  estadoEscrito?: 'sim-nao' | 'so-desligada';
 }) {
   const marcado = ligado && !misto;
   const texto = misto ? TEXTO_INTERRUPTOR.misto : ligado ? TEXTO_INTERRUPTOR.sim : TEXTO_INTERRUPTOR.nao;
+  const soDesligada = estadoEscrito === 'so-desligada' && !misto;
   return (
     <button
       type="button"
@@ -126,9 +135,17 @@ export function Interruptor({
           )}
         />
       </span>
-      <span aria-hidden="true" className={cx('min-w-[52px] text-left text-[13px] font-semibold', desabilitado ? 'text-ink-2' : 'text-ink')}>
-        {texto}
-      </span>
+      {soDesligada ? (
+        marcado ? null : (
+          <span aria-hidden="true" data-testid={`${testId}.desligada`}>
+            <Badge tone="neutral">{TEXTO_INTERRUPTOR.desligada}</Badge>
+          </span>
+        )
+      ) : (
+        <span aria-hidden="true" className={cx('min-w-[52px] text-left text-[13px] font-semibold', desabilitado ? 'text-ink-2' : 'text-ink')}>
+          {texto}
+        </span>
+      )}
     </button>
   );
 }
