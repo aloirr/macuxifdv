@@ -1,17 +1,17 @@
 /**
  * Parâmetros › Calendário (T-0170; desenho `docs/desenho/performance-produtividade.md` §1.3, §3.2 e §6.5), com a API simulada:
- * os feriados nacionais do ano em leitura (D4: contam sempre), os do tenant com incluir e remover, e o almoço (corte dentro
- * da janela), cada erro no seu campo.
+ * os feriados nacionais do ano em leitura (D4: contam sempre), os do tenant com incluir e remover, cada erro no seu campo.
+ * O almoço (RN-CORE-44, D5) tem teste próprio em `almoco-padrao.test.ts`.
  */
 import { createElement } from 'react';
 import { describe, expect, it } from 'vitest';
 import { criarApiSimulada, novoQueryClient, renderizar, trecho } from '../tarefas/api-simulada';
 import { CHAVE_CALENDARIO, criarApiCalendario, type ParametrosCalendario } from './api';
 import { CalendarioPage } from './calendario-page';
-import { feriadosDoAno, incluirFeriado, lerAlmoco } from './calendario';
+import { feriadosDoAno, incluirFeriado } from './calendario';
 
 const HOJE = '2026-11-13';
-const PARAMETROS: ParametrosCalendario = { feriados: [{ data: '2026-09-05', nome: 'Elevação do Amazonas' }], almoco_corte: 720, almoco_janela: [660, 900] };
+const PARAMETROS: ParametrosCalendario = { feriados: [{ data: '2026-09-05', nome: 'Elevação do Amazonas' }] };
 
 describe('feriados do ano', () => {
   it('2026: os nacionais (Finados e Consciência Negra inclusive) e o do tenant, em ordem de data', () => {
@@ -41,15 +41,6 @@ describe('feriados do ano', () => {
   });
 });
 
-describe('almoço (§3.2)', () => {
-  it('padrão 12:00 na janela 11:00–15:00; o corte fora da janela e a janela invertida dão erro no campo', () => {
-    expect(lerAlmoco('12:00', '11:00', '15:00')).toEqual({ ok: true, corte: 720, janela: [660, 900] });
-    expect(lerAlmoco('16:00', '11:00', '15:00')).toEqual({ ok: false, erros: { corte: 'O corte fica dentro da janela.' } });
-    expect(lerAlmoco('12:00', '15:00', '11:00')).toEqual({ ok: false, erros: { janela: 'O início vem antes do fim.' } });
-    expect(lerAlmoco('meio-dia', '11:00', '15:00')).toEqual({ ok: false, erros: { corte: 'Use o horário em hh:mm.' } });
-  });
-});
-
 describe('página com a API simulada', () => {
   async function tela(acoes: string[]) {
     const sim = criarApiSimulada({ 'GET /core/parametros/calendario': PARAMETROS, 'PUT /core/parametros/calendario': { ok: true } });
@@ -59,19 +50,18 @@ describe('página com a API simulada', () => {
     return { sim, api, html: renderizar(createElement(CalendarioPage, { cliente: api, hoje: HOJE }), acoes, qc) };
   }
 
-  it('nacional em leitura, o do tenant com Remover; almoço com os horários gravados', async () => {
+  it('nacional em leitura, o do tenant com Remover; o painel de almoço aparece uma vez só', async () => {
     const { html } = await tela(['parametro.inicio']);
     const finados = trecho(html, 'calendario.linha.2026-11-02');
     expect(finados).toContain('2 de novembro');
     expect(finados).toContain('Nacional');
     expect(finados).not.toContain('calendario.remover');
     expect(trecho(html, 'calendario.linha.2026-09-05')).toContain('data-testid="calendario.remover.2026-09-05"');
-    expect(trecho(html, 'calendario.almoco.corte', '/>')).toContain('value="12:00"');
-    expect(trecho(html, 'calendario.almoco.inicio', '/>')).toContain('value="11:00"');
-    expect(trecho(html, 'calendario.almoco.fim', '/>')).toContain('value="15:00"');
+    expect(html.match(/>Almoço</g)).toHaveLength(1);
+    expect(html).not.toContain('calendario.almoco.corte');
   });
 
-  it('o PUT leva os feriados e o almoço no formato do desenho', async () => {
+  it('o PUT leva os feriados', async () => {
     const { sim, api } = await tela(['parametro.inicio']);
     const r = incluirFeriado(PARAMETROS.feriados, { data: '2026-12-08', nome: 'Conceição' });
     if (!r.ok) throw new Error('feriado recusado');

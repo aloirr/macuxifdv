@@ -12,11 +12,7 @@ import {
   type ErroParametroInicio,
 } from '../../../contracts';
 import { AJUDA_ALERTA_H, ALERTA_H_PADRAO, validarAlertaH } from '../../lib/etapas-visita';
-import {
-  PARADO_MIN_MAX,
-  PARADO_MIN_MIN,
-  validarParametrosInicio,
-} from '../../../domain';
+import { validarParametrosInicio } from '../../../domain';
 
 const CHAVE = ['core', 'parametros', 'inicio'] as const;
 const CAMINHO = '/core/parametros/inicio';
@@ -33,11 +29,10 @@ const DIAS = [
 ] as const;
 const CAMPO = 'h-[44px] w-full rounded-xl border bg-surface px-3 text-[15px] font-normal text-ink';
 
-type CampoParam = 'dias' | 'parado' | 'alerta';
+type CampoParam = 'dias' | 'alerta';
 type ErrosCampo = Partial<Record<CampoParam, string>>;
 const CAMPO_DA_CHAVE: Record<ErroParametroInicio['campo'], CampoParam> = {
   dias_uteis_semana: 'dias',
-  parado_min: 'parado',
 };
 
 /** Liga cada erro (local ou 422 da API) ao campo pela CHAVE `campo`; sem campo, vai para o aviso do topo. */
@@ -62,17 +57,16 @@ function MensagemErro({ id, texto }: { id: string; texto?: string }) {
 }
 
 /**
- * Parâmetros do Início por empresa (RN-CORE-26; T-0073 passo 7): dias úteis da semana (base da meta do dia) e
- * minutos para a equipe aparecer como "parada". Só quem tem `parametro.inicio` (analista e admin) vê; a API revalida e
+ * Parâmetros do Início por empresa (RN-CORE-26; T-0073 passo 7): dias úteis da semana (base da meta do dia).
+ * O "parado" saiu daqui em T-0180 (D1): vive em Parâmetros › Alertas, no mesmo valor `inicio.parado_min`. Só quem tem `parametro.inicio` (analista e admin) vê; a API revalida e
  * audita antes/depois. Vale nos aparelhos no próximo sync. Erros aparecem no campo (aria-invalid + aria-describedby); o aviso do topo
  * fica só para erro sem campo (rede, 403).
- * testIDs: `inicio-params.painel` · `.dia.<0-6>` · `.parado` · `.<campo>.erro` · `.salvar`.
+ * testIDs: `inicio-params.painel` · `.dia.<0-6>` · `.<campo>.erro` · `.salvar`.
  */
 export function InicioParametrosPanel() {
   const pode = usePode('parametro.inicio');
   const qc = useQueryClient();
   const [dias, setDias] = useState<number[]>([]);
-  const [parado, setParado] = useState('60');
   const [alertaH, setAlertaH] = useState(String(ALERTA_H_PADRAO));
   const [aviso, setAviso] = useState<string | null>(null);
   const [salvo, setSalvo] = useState(false);
@@ -99,13 +93,11 @@ export function InicioParametrosPanel() {
   useEffect(() => {
     if (!q.data) return;
     setDias(q.data.dias_uteis_semana);
-    setParado(String(q.data.parado_min));
   }, [q.data]);
 
   const gravar = useMutation({
     mutationFn: async (corpo: {
       dias_uteis_semana: number[];
-      parado_min: number;
       prazo?: number;
     }) => {
       const { prazo, ...inicio } = corpo;
@@ -138,8 +130,8 @@ export function InicioParametrosPanel() {
 
   if (!pode) return null;
   const salvar = () => {
-    const corpo = { dias_uteis_semana: dias, parado_min: Number(parado) };
-    const v = validarParametrosInicio(corpo);
+    // RN-CORE-26 (T-0180, D1 e RD-0334): o "parado" mora em Parâmetros › Alertas e só o PUT dele o grava; aqui vão só os dias
+    const v = validarParametrosInicio({ dias_uteis_semana: dias });
     setSalvo(false);
     const a = temAlerta ? validarAlertaH(alertaH) : ({ ok: true, valor: ALERTA_H_PADRAO } as const);
     const m = v.ok ? { campos: {} as ErrosCampo, soltos: [] as string[] } : mapearErros(v.erros);
@@ -196,34 +188,6 @@ export function InicioParametrosPanel() {
                 ))}
               </div>
             </fieldset>
-            <label className="flex max-w-[260px] flex-col gap-1 text-[15px] font-semibold text-ink">
-              Minutos para considerar "parado"
-              <span className="text-[13px] font-normal text-ink-2">
-                Sem check-in após o último checkout, com paradas pendentes. De {PARADO_MIN_MIN} a{' '}
-                {PARADO_MIN_MAX} minutos.
-              </span>
-              <MensagemErro id="inicio-params.parado.erro" texto={erros.parado} />
-              <span className="relative block">
-                <input
-                  className={`${CAMPO} pr-12 ${erros.parado ? 'border-danger' : 'border-field'}`}
-                  inputMode="numeric"
-                  value={parado}
-                  onChange={(e) => {
-                    setSalvo(false);
-                    setParado(e.target.value.replace(/\D/g, ''));
-                  }}
-                  aria-invalid={erros.parado ? true : undefined}
-                  aria-describedby={erros.parado ? 'inicio-params.parado.erro' : undefined}
-                  data-testid="inicio-params.parado"
-                />
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] font-normal text-ink-2"
-                >
-                  min
-                </span>
-              </span>
-            </label>
             {temAlerta && (
               <label className="flex max-w-[260px] flex-col gap-1 text-[15px] font-semibold text-ink">
                 Prazo para avisar etapa pendente (horas)

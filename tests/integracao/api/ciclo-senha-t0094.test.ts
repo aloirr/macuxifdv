@@ -53,7 +53,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { opcoesLogger } from '../../../apps/api/src/config';
-import { camposDeFilial, filiaisDoTenant } from '../apoio/filial-usuario';
+import { camposDeFilial, codigoDaFilialPadrao } from '../apoio/filial-usuario';
 import { A, B, comToken, erroDe, novoIp, SEGREDO_JWT, SENHA, subirApi, type ApiDeTeste, type Tenant } from '../apoio/api';
 import {
   assuntoDoEml,
@@ -976,10 +976,9 @@ describe.skipIf(semBanco())('T-0094 acesso por perfil e ciclo de senha (critéri
 
   // ---------------------------------------------------------------------------------------------------------------- CS-08
   describe('CS-08 Equipe por CSV sem convite (critério 8; P3)', () => {
-    // RN-CORE-39 (#361): A tem 2 filiais, então quem é criado pelo CSV precisa da coluna `filial`; o main antes do #361 a ignora
     let CSV = '';
     beforeAll(async () => {
-      const filial = (await filiaisDoTenant(api.admin, A.tenantId))[0]!.codigo;
+      const filial = await codigoDaFilialPadrao(api.admin, A.tenantId);
       CSV = [
         'nome,email,telefone,perfil,email_superior,codigo_erp,modulos,filial',
         `Gina Gerente T94,${EM('gina.csv')},,gerente,,,,${filial}`,
