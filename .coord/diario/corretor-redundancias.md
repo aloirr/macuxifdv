@@ -85,3 +85,4 @@
 2026-11-16 — v1.0.14 — #408 e #401 liberados; #453 d64cc794 (RD-1800 fechado; RD-1707 aberto); #398 be06e09a (RD-1942 em parte: .total sem uso).
 2026-11-16 — v1.0.14 — #456 9a1fd369: marca liberada (MC-1610 fechada); corretor RD-1860..1870 fechados na parte do core, novas RD-1980..1983 (RD-1984 não segura); pendências no #390 e no engenheiro-apps.
 2026-11-16 — v1.0.14 — LIBERADOS #448 10d1d0ee, #419 481041fd, #413 29efc2db, #398 1e271131.
+2026-11-16 — v1.0.14 — #420 b72873ae LIBERADO (RD-1575/1576 fechados); depende do #410 exportar VerificadorSenha.
