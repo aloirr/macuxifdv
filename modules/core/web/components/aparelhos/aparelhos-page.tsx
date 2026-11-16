@@ -8,6 +8,7 @@ import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
 import { DispositivoItemSchema, type DispositivoItem } from '../../../contracts';
 import { csvDeAparelhos, quandoEmPortugues } from '../../lib/aparelhos';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
 const FUSO_PADRAO = 'America/Manaus';
 
@@ -95,7 +96,7 @@ function AparelhosConteudo() {
             onKeyDown={(e) => e.key === 'Enter' && set({ q: e.currentTarget.value })}
             onBlur={(e) => set({ q: e.currentTarget.value })}
             data-testid="aparelhos.busca"
-            className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px]"
+            className={CLASSE_CAMPO_BKO}
           />
         </label>
       </FilterBar>
