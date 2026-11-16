@@ -134,6 +134,29 @@ describe.skipIf(semBanco())('T-0032 — ciclo com o ERP simulado: carga → pedi
   const filaErp = async (id: string) =>
     (await linhas<{ tenant_id: string; estado: string; numero_erp: string | null; tentativas: number; retencao_codigo: string | null }>('select tenant_id, estado, numero_erp, tentativas, retencao_codigo from integracao.pedido_fila_erp where pedido_uuid = $1', [id]))[0];
 
+  /**
+   * Os 5 números de `resumo_pedidos` calculados À MÃO da fila do tenant, pela regra (RN-INT-08 / T-0173, `resumoPedidosErp`):
+   * Na fila = `pendente`; Entregue = `enviado`; Rejeitado = `rejeitado_erp`; Presos = `enviado` com tentativas >= 5 (padrão de
+   * `tentativasAlertaPedido`, nenhum tenant da fixture muda); Retidos sem mapeamento = retenção por de-para (`mapeamento_ausente`/
+   * `mapeamento_ambiguo`), sem a de cadastro (mensagem "Pedido retido por cadastro…") nem a de sequência repetida (rótulo × valor).
+   */
+  const resumoDaFila = async (tenantId: string) => {
+    const [r] = await linhas<Record<string, number>>(
+      `select count(*) filter (where estado = 'pendente')::int as na_fila,
+              count(*) filter (where estado = 'enviado')::int as entregue_ao_conector,
+              count(*) filter (where estado = 'rejeitado_erp')::int as rejeitado_pelo_erp,
+              count(*) filter (where estado = 'enviado' and tentativas >= 5)::int as presos_sem_retorno,
+              count(*) filter (where retencao_codigo in ('mapeamento_ausente', 'mapeamento_ambiguo')
+                                 and coalesce(retencao_mensagem, '') not like 'Pedido retido por cadastro%')::int as retidos_sem_mapeamento
+         from integracao.pedido_fila_erp where tenant_id = $1 and deleted_at is null`,
+      [tenantId],
+    );
+    return r;
+  };
+
+  /** Alertas de saúde do Conector (sem sinal, nunca conectou, parado por versão): Conector no ar = nenhum deles. */
+  const SAUDE_CONECTOR = ['conector_sem_sinal', 'conector_nunca_conectou', 'conector_parado_por_versao'];
+
   beforeAll(async () => {
     process.env.MACUXI_HUB_CHAVE_PEPPER = PEPPER_HUB_FIXTURE;
     api = await subirApi();
@@ -457,31 +480,32 @@ describe.skipIf(semBanco())('T-0032 — ciclo com o ERP simulado: carga → pedi
       expect(itens).toContain(pedidoId);
     });
 
-    it('BKO monitor do Hub (analista de A): os 4 lotes da carga concluídos e a fila com o pedido em faturado_total; Conector de A no ar', async () => {
+    it('BKO monitor do Hub (analista de A): os 4 lotes da carga concluídos, os 5 números de pedidos = a fila pela RN-INT-08; Conector de A no ar', async () => {
       const r = await api.chamar(tk.analistaA, { method: 'GET', url: '/v1/integracao/monitor' });
       expect(r.statusCode, r.body).toBe(200);
       const m = MonitorResumo.parse(r.json());
       for (const e of ['vendedor', 'cliente', 'produto', 'preco'] as const) {
         expect(m.lotes_recentes.find((l) => l.lote_id === lotes[e]), e).toMatchObject({ status: 'concluido', conector_id: A.integracao.identificador });
       }
-      expect(m.pedidos.por_estado.faturado_total ?? 0).toBeGreaterThanOrEqual(1);
-      expect(m.conectores.map((c) => c.conector_id)).toEqual([A.integracao.identificador]);
+      expect(m.resumo_pedidos).toEqual(await resumoDaFila(A.tenantId));
+      // Conector de A no ar (sinal no C1): nenhum alerta de saúde dele; e só Conectores de A aparecem nos alertas
+      expect(m.alertas.filter((a) => a.conector_id === A.integracao.identificador && SAUDE_CONECTOR.includes(a.codigo))).toEqual([]);
+      expect(m.alertas.filter((a) => a.conector_id !== null && a.conector_id !== A.integracao.identificador)).toEqual([]);
     });
   });
 
   // ------------------------------------------------------------------------------------------------ C6 multi-tenant
   describe('C6. Multi-tenant: B não vê o pedido, a fila nem a carga de A', () => {
-    it('monitor do admin de B: só o Conector de B, nenhum lote de A, a fila de B (fixture) e nada do pedido de A', async () => {
+    it('monitor do admin de B: alertas só do Conector de B, nenhum lote de A, a fila de B (fixture) e nada do pedido de A', async () => {
       const r = await api.chamar(tk.adminB, { method: 'GET', url: '/v1/integracao/monitor' });
       expect(r.statusCode, r.body).toBe(200);
       const m = MonitorResumo.parse(r.json());
-      expect(m.conectores.map((c) => c.conector_id)).toEqual([B.integracao.identificador]);
+      expect(m.alertas.filter((a) => a.conector_id !== null && a.conector_id !== B.integracao.identificador)).toEqual([]);
       const idsLotesA = Object.values(lotes);
       expect(m.lotes_recentes.filter((l) => idsLotesA.includes(l.lote_id))).toEqual([]);
       expect(JSON.stringify(m)).not.toContain(pedidoId);
-      const porEstadoB = await linhas<{ estado: string; n: number }>('select estado, count(*)::int as n from integracao.pedido_fila_erp where tenant_id = $1 and deleted_at is null group by estado', [B.tenantId]);
-      // os contadores do monitor de B são os da fila de B (estados sem pedido saem com 0)
-      expect(Object.fromEntries(Object.entries(m.pedidos.por_estado).filter(([, n]) => (n ?? 0) > 0))).toEqual(Object.fromEntries(porEstadoB.map((x) => [x.estado, x.n])));
+      // os números do monitor de B são os da fila de B (estado sem pedido conta 0)
+      expect(m.resumo_pedidos).toEqual(await resumoDaFila(B.tenantId));
     });
 
     it('o Conector de B: lote de A não existe para ele (404) e a fila dele continua sem o pedido de A', async () => {
