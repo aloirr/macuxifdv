@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { atingeContraste, contraste, MINIMO_CONTRASTE } from '../comum/contraste';
-import { paresDaEntrada, TEMAS_ENTRADA, temaDaEntrada } from './entrada';
+import { MEDIDAS_FRASE_CARGA, paresDaEntrada, TEMAS_ENTRADA, temaDaEntrada } from './entrada';
 
 describe('tela de entrada (T-0172, docs/design/entrada-sync.md §4)', () => {
   it('Campo na faixa Azul noite com as cores da proposta entrada-sync §2', () => {
@@ -44,6 +44,25 @@ describe('tela de entrada (T-0172, docs/design/entrada-sync.md §4)', () => {
         expect(contraste(par.fg, par.bg), `${nome}: ${par.uso}`).toBeGreaterThanOrEqual(MINIMO_CONTRASTE[par.tipo]);
         expect(atingeContraste(par), `${nome}: ${par.uso}`).toBe(true);
       }
+    }
+  });
+
+  it('título "Você sabia?", frase e aviso da carga: medidas da spec carga-aviso-frases §1 e §1.1 (T-0181, R-20261115-080500)', () => {
+    expect(MEDIDAS_FRASE_CARGA).toEqual({
+      titulo: { abaixoDoOla: 20, lampada: 16, lampadaAoTexto: 6, fonte: 'semibold', tamanho: 14, linha: 20, ateFrase: 6 },
+      frase: { larguraMax: 280, linhasMax: 2, livreAteAviso: 24, fonte: 'body', tamanho: 14, linha: 20 },
+      aviso: { fonte: 'body', tamanho: 14, linha: 20, acimaDaBarra: 10, linhas: 1 },
+    });
+  });
+
+  it('título em texto, frase e aviso em textoClaro, lâmpada em preenchimento, com contraste nos dois temas (spec §1)', () => {
+    for (const tema of Object.values(TEMAS_ENTRADA)) {
+      const pares = paresDaEntrada(tema);
+      const achar = (uso: string) => pares.find((p) => p.uso === uso);
+      expect(achar('Você sabia?')).toMatchObject({ fg: tema.texto, bg: tema.fundo, tipo: 'texto' });
+      expect(achar('frase da carga')).toMatchObject({ fg: tema.textoClaro, bg: tema.fundo, tipo: 'texto' });
+      expect(achar('aviso da carga')).toMatchObject({ fg: tema.textoClaro, bg: tema.fundo, tipo: 'texto' });
+      expect(achar('lâmpada do Você sabia?')).toMatchObject({ fg: tema.preenchimento, bg: tema.fundo, tipo: 'grafico' });
     }
   });
 });
