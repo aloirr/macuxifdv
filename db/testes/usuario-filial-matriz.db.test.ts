@@ -1,6 +1,6 @@
 /**
- * 0087 (provisória) — filial MATRIZ para o usuário sem filial de cadastro (v1.0.14, RN-CORE-39; R-20261116-093600-alexandre).
- * Dicionário: docs/banco/core.md, "0087". Critério da matriz no cabeçalho da migração: viva e ativa; CNPJ /0001 primeiro; empate e
+ * 0085 — filial MATRIZ para o usuário sem filial de cadastro (v1.0.14, RN-CORE-39; R-20261116-093600-alexandre).
+ * Dicionário: docs/banco/core.md, "0085". Critério da matriz no cabeçalho da migração: viva e ativa; CNPJ /0001 primeiro; empate e
  * tenant sem /0001 = menor código (numérico antes, depois texto, depois id); tenant sem filial viva e ativa = nada muda.
  * Estático sempre; up, idempotência, isolamento e down num banco efêmero.
  */
@@ -17,10 +17,10 @@ const umaLinha = (s: string) => s.replace(/\s+/g, ' ').trim();
 const up = umaLinha(semComentarios(m.up));
 const down = umaLinha(semComentarios(m.down));
 
-describe('0087 filial matriz do usuário sem filial (estático)', () => {
+describe('0085 filial matriz do usuário sem filial (estático)', () => {
   it('existe, depois da 0084 e com caminho de volta', () => {
     expect(m).toBeTruthy();
-    expect(Number(m.versao)).toBeGreaterThan(84);
+    expect(m.versao).toBe('0085');
     expect(m.up).toContain('R-20261116-093600-alexandre');
   });
 
@@ -49,7 +49,7 @@ describe('0087 filial matriz do usuário sem filial (estático)', () => {
   });
 });
 
-describe.skipIf(semBanco())('0087 filial matriz (banco efêmero)', () => {
+describe.skipIf(semBanco())('0085 filial matriz (banco efêmero)', () => {
   let b: BancoDeTeste;
   const id = (n: number) => `dddddddd-0000-4000-8000-${String(n).padStart(12, '0')}`;
   // tenants
@@ -113,7 +113,7 @@ describe.skipIf(semBanco())('0087 filial matriz (banco efêmero)', () => {
       await q('update core.filial set padrao = false, ativo = false where tenant_id = $1', [T3]);
 
       const usuario = (u: string, t: string, email: string, ativo = true) =>
-        q("insert into core.usuario (id, tenant_id, nome, email, perfil, ativo) values ($1, $2, 'Teste 0087', $3, 'vendedor', $4)", [u, t, email, ativo]);
+        q("insert into core.usuario (id, tenant_id, nome, email, perfil, ativo) values ($1, $2, 'Teste 0085', $3, 'vendedor', $4)", [u, t, email, ativo]);
       await usuario(U1_COM, T1, 'com87@exemplo.com.br');
       await usuario(U1_SEM, T1, 'sem87@exemplo.com.br');
       await usuario(U1_SEM_COM_VENDA, T1, 'venda87@exemplo.com.br');

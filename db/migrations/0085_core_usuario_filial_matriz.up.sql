@@ -1,8 +1,8 @@
--- 0087_core_usuario_filial_matriz (up) — v1.0.14, RN-CORE-39. Decisão do dono do produto R-20261116-093600-alexandre (16/11/2026,
+-- 0085_core_usuario_filial_matriz (up) — v1.0.14, RN-CORE-39. Decisão do dono do produto R-20261116-093600-alexandre (16/11/2026,
 -- 9h36 Manaus): "Bote a filial da matriz que é Manaus para todos". Desde a v1.0.13 o usuário sem filial de cadastro recebe 403
--- USUARIO_SEM_FILIAL; aqui todo usuário vivo SEM filial de cadastro recebe a filial MATRIZ do tenant. Número 0087 PROVISÓRIO (0085
--- reservada aos planos, PR #435; 0086 à integração, PR #396): o gerente confirma na ordem de merge. Correção só de DADOS: nenhuma
--- tabela, coluna, índice, RLS, grant ou função muda. Dicionário: docs/banco/core.md ("0087"). Teste:
+-- USUARIO_SEM_FILIAL; aqui todo usuário vivo SEM filial de cadastro recebe a filial MATRIZ do tenant. Número 0085 pela ordem de
+-- merge (R-20261115-140000). Correção só de DADOS: nenhuma tabela, coluna, índice, RLS, grant ou função muda. Dicionário:
+-- docs/banco/core.md ("0085"). Teste:
 -- db/testes/usuario-filial-matriz.db.test.ts.
 --
 -- MATRIZ do tenant (por tenant, entre as filiais VIVAS e ATIVAS: core.filial.deleted_at nulo e ativo), nesta ordem:
@@ -27,7 +27,7 @@
 -- AUDITORIA: não grava em plataforma.auditoria — nenhuma correção de dados em migração tem esse padrão (o backfill da 0077 e o
 --   da 0080 também não gravam); o rastro é este arquivo e public.macuxi_migracao.
 -- Volume: dezenas a centenas de usuários por tenant; um update e um insert por usuário sem filial.
--- Caminho de volta: 0087_core_usuario_filial_matriz.down.sql é no-op documentado (não desfaz dados: não se distingue a filial
+-- Caminho de volta: 0085_core_usuario_filial_matriz.down.sql é no-op documentado (não desfaz dados: não se distingue a filial
 --   gravada aqui da gravada depois pelo BKO; tirar a filial bloquearia o usuário de novo).
 
 with filial_viva as (
