@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
 
+import { RotuloCampo } from './campo-texto-rn';
 import { ALVO_TOQUE } from './componentes';
 import { bordaDaFalta, TextoDaFalta } from './falta-rn';
 import { Icon } from './icon';
@@ -34,7 +35,7 @@ import {
   type OpcaoLista,
   type PosicaoMenu,
 } from './selecao';
-import { colors, fonts, radius, shadow } from './theme';
+import { colors, fonte, radius, shadow } from './theme';
 
 /** Altura visual (moldura) e alvo do campo do ajuste: os mesmos do `Passo compacto` da linha 3 do item. */
 const ALTURA_AJUSTE = PASSO_COMPACTO.altura;
@@ -165,7 +166,7 @@ export function ListaSuspensa<T extends string>({
   style,
   testID = 'lista',
 }: {
-  /** Rótulo em cima, em maiúsculas ("Forma de pagamento", "Prazo"); opcional. */
+  /** Rótulo de campo em cima (`RotuloCampo`: "Forma de pagamento", "Prazo"); opcional. */
   rotulo?: string;
   /** Nome do campo para o leitor de tela; sem ele, usa o rótulo. */
   rotuloAcessivel?: string;
@@ -192,9 +193,7 @@ export function ListaSuspensa<T extends string>({
   return (
     <View style={[s.campoBloco, style]}>
       {rotulo ? (
-        <Text style={s.rotulo} numberOfLines={2}>
-          {rotulo}
-        </Text>
+        <RotuloCampo numberOfLines={2}>{rotulo}</RotuloCampo>
       ) : null}
       <View>
         <View ref={ancora} collapsable={false}>
@@ -330,13 +329,12 @@ export function CampoAjuste<T extends string>({
 const s = StyleSheet.create({
   // rótulo + campo (.lbl / .sel)
   campoBloco: { gap: 4, minWidth: 0 },
-  rotulo: { fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.ink2 },
   campo: { minHeight: ALVO_TOQUE, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface },
   campoAberto: { borderColor: colors.ink, borderWidth: 1.5 },
   campoErro: { borderColor: colors.danger, borderWidth: 1.5 },
   campoDesligado: { backgroundColor: colors.lineSoft, borderColor: colors.line },
-  campoTexto: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
-  campoTextoVazio: { fontFamily: fonts.body, color: colors.ink3 },
+  campoTexto: { flexShrink: 1, ...fonte.semibold, fontSize: 16, color: colors.ink },
+  campoTextoVazio: { ...fonte.body, color: colors.ink3 },
   campoTextoDesligado: { color: colors.ink3 },
   setaAberta: { transform: [{ rotate: '180deg' }] },
   // .menu
@@ -346,16 +344,16 @@ const s = StyleSheet.create({
   opcaoComMotivo: { paddingVertical: RESPIRO_OPCAO_COM_MOTIVO },
   opcaoDesligada: { backgroundColor: MOTIVO_OPCAO.fundo },
   opcaoTextos: { flexShrink: 1, gap: 2 },
-  opcaoTexto: { fontFamily: fonts.body, fontSize: 15, lineHeight: 20, color: colors.ink },
-  opcaoTextoMarcada: { fontFamily: fonts.bold },
+  opcaoTexto: { ...fonte.body, fontSize: 16, lineHeight: 20, color: colors.ink },
+  opcaoTextoMarcada: { ...fonte.semibold },
   opcaoTextoDesligada: { color: colors.inkDisabled },
-  opcaoMotivo: { fontFamily: fonts.body, fontSize: MOTIVO_OPCAO.tamanhoFonte, lineHeight: MOTIVO_OPCAO.alturaLinha, color: MOTIVO_OPCAO.cor },
+  opcaoMotivo: { ...fonte.body, fontSize: MOTIVO_OPCAO.tamanhoFonte, lineHeight: MOTIVO_OPCAO.alturaLinha, color: MOTIVO_OPCAO.cor },
   // .desc (ajuste com o tipo ao lado): contêiner de 44 dp com os alvos dentro; moldura de 30 dp atrás
   ajuste: { flexDirection: 'row', alignItems: 'center', height: ALVO_AJUSTE, minWidth: 112 },
   ajusteMoldura: { position: 'absolute', left: 0, right: 0, top: (ALVO_AJUSTE - ALTURA_AJUSTE) / 2, height: ALTURA_AJUSTE, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface },
   ajusteTipoAlvo: { height: ALVO_AJUSTE, justifyContent: 'center', paddingLeft: 1 },
   ajusteTipo: { flexDirection: 'row', alignItems: 'center', gap: 3, height: ALTURA_AJUSTE - 2, paddingHorizontal: 8, borderRightWidth: 1, borderRightColor: colors.line, backgroundColor: colors.ground, borderTopLeftRadius: radius.sm - 1, borderBottomLeftRadius: radius.sm - 1 },
   ajusteTipoAberto: { backgroundColor: colors.lineSoft },
-  ajusteTipoTexto: { fontFamily: fonts.bold, fontSize: 12, color: colors.ink2 },
-  ajusteValor: { flex: 1, minWidth: 44, height: ALVO_AJUSTE, paddingVertical: 0, paddingHorizontal: 8, textAlign: 'right', textAlignVertical: 'center', fontFamily: fonts.bold, fontSize: 15, color: colors.ink, fontVariant: ['tabular-nums'] },
+  ajusteTipoTexto: { ...fonte.semibold, fontSize: 12, color: colors.ink2 },
+  ajusteValor: { flex: 1, minWidth: 44, height: ALVO_AJUSTE, paddingVertical: 0, paddingHorizontal: 8, textAlign: 'right', textAlignVertical: 'center', ...fonte.semibold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
 });

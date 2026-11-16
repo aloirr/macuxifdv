@@ -31,7 +31,7 @@ Pedido 000014 de 10/11/2026 (arquivo `PED-0014-10112026.pdf`, RN-VEN-41), Atacad
 
 ## O que o código precisa para a escolhida (para o modulo-vendedor, depois da escolha)
 - **Dados novos do tenant** (hoje o PDF só tem `tenant_name`): logo (imagem), CNPJ, endereço e telefone da distribuidora. Sem logo, sai só o nome; sem CNPJ/endereço/telefone, a linha não sai. O dono do dado é o modulo-core (parâmetros do tenant).
-- **Fontes:** Archivo e IBM Plex Sans embutidas no HTML (`@font-face` com os arquivos do app em base64), porque o PDF é gerado sem internet. Sem isso, cai para a fonte do sistema.
+- **Fontes:** a fonte do sistema (`PILHA_SISTEMA` e `PILHA_MONO` de `@macuxi/comum/fonte`; [manual da marca §5](../marca/manual.md#5-tipografia)), sem fonte embutida.
 - **Tabela de itens** em `<table>` com `<thead>` (repete o cabeçalho em cada página) e larguras fixas em mm.
 - **Alertas** vêm da mesma lista da tela (RN-VEN-42); o PDF não calcula alerta.
 - Desconto/acréscimo do pedido: uma linha só, "Desconto x,x%  − R$ y" ou "Acréscimo x,x%  + R$ y", com o % de `descontoDoPedidoPct` (corrige o D-T0150-1).

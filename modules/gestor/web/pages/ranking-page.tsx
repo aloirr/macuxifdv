@@ -24,7 +24,7 @@ function Conteudo() {
     <div className="flex flex-col gap-4" data-testid="gestor.ranking">
       <PageHeader
         title={rotuloComContagem('Ranking da equipe', r?.linhas.length ?? 0)}
-        badge={r ? <span className="text-[14px] font-semibold text-ink-2">{r.inicio === r.fim ? r.inicio : `${r.inicio} a ${r.fim}`}</span> : undefined}
+        badge={r ? <span className="text-[13px] font-medium text-ink-2">{r.inicio === r.fim ? r.inicio : `${r.inicio} a ${r.fim}`}</span> : undefined}
         actions={
           <MenuAcoes
             acoes={[

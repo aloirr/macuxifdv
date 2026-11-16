@@ -37,7 +37,7 @@ export function PageHeader({
       <div className="flex min-w-0 flex-col gap-0.5">
         {eyebrow && <span className="text-[13px] text-ink-2">{eyebrow}</span>}
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="m-0 font-display text-[24px] leading-tight font-extrabold">{title}</h1>
+          <h1 className="m-0 text-[24px] leading-tight font-bold">{title}</h1>
           {badge}
         </div>
         {subtitle && <span className="text-[13px] text-ink-2">{subtitle}</span>}
@@ -56,7 +56,7 @@ export function FilterBar({ children }: { children: ReactNode }) {
  * a largura e o respiro.
  */
 export const CLASSE_CAMPO_BASE = cx(
-  'rounded-[10px] border border-field bg-surface text-[14px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2 disabled:opacity-60',
+  'rounded-[10px] border border-field bg-surface text-[15px] text-ink placeholder:text-ink-2 disabled:opacity-60',
   CLASSES_DESTAQUE.foco,
 );
 
@@ -151,15 +151,47 @@ export function rotuloComContagem(rotulo: string, quantidade: number, haMais = f
 
 /* ---------- cartões ---------- */
 
-export function KpiCard({ label, value, sub, valueClass, dark, extra }: { label: string; value: ReactNode; sub?: ReactNode; valueClass?: string; dark?: boolean; extra?: ReactNode }) {
-  return (
-    <div className={cx('flex flex-col gap-1 rounded-[14px] px-4 py-3.5', dark ? 'bg-ink text-white' : 'border border-line bg-surface')}>
-      <span className={cx('text-[13px]', dark ? 'text-nav-text' : 'text-ink-2')}>{label}</span>
-      <span className={cx('font-display text-[26px] leading-tight font-extrabold tabular-nums', valueClass)}>
+export type PropsKpiCard = {
+  label: string;
+  value: ReactNode;
+  sub?: ReactNode;
+  valueClass?: string;
+  dark?: boolean;
+  extra?: ReactNode;
+  /** Cartão-filtro (revisão do BKO §P4.6): com `onClick`, o cartão inteiro é um `<button aria-pressed>`. */
+  onClick?: () => void;
+  /** Cartão-filtro marcado (MC-0090): fundo `bg-accent-soft` e borda de 2 px `border-accent`; vence o `dark`. */
+  selecionado?: boolean;
+  testid?: string;
+};
+
+export function KpiCard({ label, value, sub, valueClass, dark, extra, onClick, selecionado, testid }: PropsKpiCard) {
+  const escuro = dark && !selecionado;
+  const classe = cx(
+    'flex flex-col gap-1 rounded-[14px] px-4 py-3.5',
+    escuro ? 'bg-ink text-white' : selecionado ? 'border border-accent ring-1 ring-inset ring-accent bg-accent-soft' : 'border border-line bg-surface',
+    onClick && cx('min-h-11 w-full cursor-pointer text-left text-ink', CLASSES_DESTAQUE.foco),
+  );
+  const miolo = (
+    <>
+      <span className={cx('text-[13px]', escuro ? 'text-nav-text' : 'text-ink-2')}>{label}</span>
+      <span className={cx('text-[24px] leading-tight font-semibold tabular-nums', valueClass)}>
         {value}
         {extra}
       </span>
-      {sub !== undefined && <span className={cx('text-[12px]', dark ? 'text-nav-text' : 'text-ink-2')}>{sub}</span>}
+      {sub !== undefined && <span className={cx('text-[12px]', escuro ? 'text-nav-text' : 'text-ink-2')}>{sub}</span>}
+    </>
+  );
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} aria-pressed={!!selecionado} data-testid={testid} className={classe}>
+        {miolo}
+      </button>
+    );
+  }
+  return (
+    <div data-testid={testid} className={classe}>
+      {miolo}
     </div>
   );
 }
@@ -177,7 +209,7 @@ export function Panel({ title, aside, children, className, label }: { title?: Re
     <section aria-label={label} className={cx('flex min-w-0 flex-col gap-3 rounded-2xl border border-line bg-surface p-4', className)}>
       {(title || aside) && (
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          {title && <h2 className="m-0 font-display text-[18px] font-bold">{title}</h2>}
+          {title && <h2 className="m-0 text-[17px] font-bold">{title}</h2>}
           {aside}
         </div>
       )}
@@ -197,7 +229,7 @@ export function TableScroll({ children, minWidth }: { children: ReactNode; minWi
       {pronta ? (
         cloneElement(pronta, { style: estiloDaTabela(minWidth, pronta.props.style) })
       ) : (
-        <table className="w-full border-collapse text-[13px]" style={{ minWidth }}>
+        <table className="w-full border-collapse text-[15px]" style={{ minWidth }}>
           {children}
         </table>
       )}
@@ -205,9 +237,9 @@ export function TableScroll({ children, minWidth }: { children: ReactNode; minWi
   );
 }
 
-export const th = 'border-b border-line px-2.5 py-2 text-left font-semibold whitespace-nowrap text-ink-2';
+export const th = 'border-b border-line px-2.5 py-2 text-left text-[12px] font-semibold whitespace-nowrap text-ink-2';
 export const thNum = `${th} text-right`;
-export const td = 'border-b border-line-2 p-2.5 align-middle';
+export const td = 'border-b border-line-2 p-2.5 align-middle text-[15px]';
 export const tdNum = `${td} text-right tabular-nums`;
 
 /* ---------- badges e barras ---------- */
@@ -223,7 +255,7 @@ const BADGE: Record<BadgeTone, string> = {
 };
 
 export function Badge({ tone, children, className }: { tone: BadgeTone; children: ReactNode; className?: string }) {
-  return <span className={cx('inline-block rounded-lg px-2 py-[3px] text-[11px] font-bold whitespace-nowrap', BADGE[tone], className)}>{children}</span>;
+  return <span className={cx('inline-block rounded-lg px-2 py-[3px] text-[12px] font-medium whitespace-nowrap', BADGE[tone], className)}>{children}</span>;
 }
 
 /** Um selo da Situação. A tela monta a lista do mais importante para o menos. */
@@ -250,7 +282,7 @@ export function SeloSituacao({ selos }: { selos: ReadonlyArray<Selo | null | und
 export function EstadoVazio({ titulo, acao, testId }: { titulo: string; acao?: ReactNode; testId?: string }) {
   return (
     <div data-testid={testId} className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-field px-6 py-10 text-center">
-      <span className="text-[14px] font-semibold text-ink-2">{titulo}</span>
+      <span className="text-[15px] font-semibold text-ink-2">{titulo}</span>
       {acao}
     </div>
   );
@@ -271,7 +303,7 @@ type Variant = 'primary' | 'secondary' | 'link' | 'danger';
 
 export function Button({ variant = 'secondary', className, size = 'md', ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' }) {
   const base = 'inline-flex items-center justify-center gap-1.5 font-semibold transition-colors disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
-  const sizes = size === 'sm' ? 'h-[38px] rounded-[10px] px-3 text-[13px]' : 'h-[42px] rounded-xl px-4 text-[14px]';
+  const sizes = size === 'sm' ? 'h-[38px] rounded-[10px] px-3 text-[15px]' : 'h-[42px] rounded-xl px-4 text-[15px]';
   const variants: Record<Variant, string> = {
     // T-0172 (marca v1): o principal é Azul noite (accent), texto branco 12,77:1
     primary: 'bg-accent text-white hover:bg-accent/90 disabled:bg-disabled',
@@ -280,7 +312,7 @@ export function Button({ variant = 'secondary', className, size = 'md', ...rest 
     // Link em accent-ink (Azul noite, 11,82:1 no Pérola). Hover: sublinhado.
     link: 'h-auto px-0 text-accent-ink underline-offset-2 hover:underline disabled:text-disabled disabled:no-underline',
   };
-  return <button type="button" className={cx(base, variant === 'link' ? 'text-[13px]' : sizes, variants[variant], className)} {...rest} />;
+  return <button type="button" className={cx(base, variant === 'link' ? 'text-[15px]' : sizes, variants[variant], className)} {...rest} />;
 }
 
 /* ---------- avisos ---------- */
@@ -297,7 +329,7 @@ const NOTICE: Record<NoticeTone, string> = {
 export function Notice({ tone, children, onClose, className }: { tone: NoticeTone; children: ReactNode; onClose?: () => void; className?: string }) {
   const Icon = tone === 'success' ? IconCheck : tone === 'info' ? IconInfo : IconAlert;
   return (
-    <div role={tone === 'danger' || tone === 'warning' ? 'alert' : 'status'} className={cx('flex items-start gap-2 rounded-[10px] px-3 py-2.5 text-[13px]', NOTICE[tone], className)}>
+    <div role={tone === 'danger' || tone === 'warning' ? 'alert' : 'status'} className={cx('flex items-start gap-2 rounded-[10px] px-3 py-2.5 text-[15px]', NOTICE[tone], className)}>
       <Icon size={15} className="mt-[2px] shrink-0" />
       <span className="min-w-0 flex-1">{children}</span>
       {onClose && (

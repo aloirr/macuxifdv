@@ -60,3 +60,5 @@ export * from './botao-folha-rn';
 // R-20261115-071000: CampoSenha, o campo de senha único (olho em ícone, props de teclado de senha)
 export * from './campo-senha';
 export * from './campo-senha-rn';
+// RD-0951: CampoTexto (rótulo, entrada e erro) e RotuloCampo, o mesmo rótulo e a mesma entrada do CampoSenha
+export * from './campo-texto-rn';

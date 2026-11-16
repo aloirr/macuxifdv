@@ -36,7 +36,7 @@ function GraficoPergunta({ p, indice }: { p: ResultadoPergunta; indice: number }
   const barras = barrasDaPergunta(p);
   return (
     <div className="flex flex-col gap-2 border-b border-line-2 pb-4" data-testid={`resultado.pergunta-${indice + 1}`}>
-      <strong className="text-[14px]">
+      <strong className="text-[15px]">
         {indice + 1}. {p.enunciado}
       </strong>
       <span className="text-[12px] text-ink-3">{resumoDaPergunta(p)}</span>
@@ -143,11 +143,11 @@ export function ResultadosPage() {
       <FilterBar>
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
           De
-          <input type="date" className="h-[38px] rounded-[10px] border border-field px-3 text-[14px]" value={f.de ?? ''} onChange={(e) => mudar({ de: e.target.value || undefined })} data-testid="resultado.de" />
+          <input type="date" className="h-[38px] rounded-[10px] border border-field px-3 text-[15px]" value={f.de ?? ''} onChange={(e) => mudar({ de: e.target.value || undefined })} data-testid="resultado.de" />
         </label>
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
           Até
-          <input type="date" className="h-[38px] rounded-[10px] border border-field px-3 text-[14px]" value={f.ate ?? ''} min={f.de} onChange={(e) => mudar({ ate: e.target.value || undefined })} data-testid="resultado.ate" />
+          <input type="date" className="h-[38px] rounded-[10px] border border-field px-3 text-[15px]" value={f.ate ?? ''} min={f.de} onChange={(e) => mudar({ ate: e.target.value || undefined })} data-testid="resultado.ate" />
         </label>
         <SelectField label="Versão" value={f.versao ?? ''} onChange={(e) => mudar({ versao: e.target.value || undefined })} data-testid="resultado.versao">
           <option value="">Todas (consolidado)</option>
@@ -194,7 +194,7 @@ export function ResultadosPage() {
                 {fotos.slice(0, 60).map((g) => (
                   <figure key={g.foto_id} className="flex w-[140px] flex-col gap-1">
                     <Foto id={g.foto_id} />
-                    <figcaption className="text-[11px] text-ink-3">
+                    <figcaption className="text-[12px] text-ink-3">
                       {g.enunciado} · {formatDateTime(g.capturada_em, fuso)}
                     </figcaption>
                   </figure>

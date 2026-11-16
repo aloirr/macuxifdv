@@ -89,9 +89,10 @@ describe('AreaSeguraSuperior', () => {
     expect(dentro).toContain('</Stack>');
   });
 
-  it('o login (KeyboardAvoidingView com padding) desconta a faixa ao medir o teclado', () => {
-    const src = readFileSync(new URL('../app/login.tsx', import.meta.url), 'utf8');
-    expect(src).toMatch(/behavior="padding" keyboardVerticalOffset=\{faixaSuperior\}/);
+  it('o login e as telas de senha (KeyboardAvoidingView com padding) descontam a faixa ao medir o teclado', () => {
+    // T-0178: o `AcimaDoTeclado` saiu do login para `components/acima-do-teclado.tsx` (login, trocar-senha e esqueci-senha)
+    const src = readFileSync(new URL('./acima-do-teclado.tsx', import.meta.url), 'utf8');
+    expect(src).toMatch(/behavior="padding"\s+keyboardVerticalOffset=\{faixaSuperior\}/);
   });
 });
 

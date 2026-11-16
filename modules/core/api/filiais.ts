@@ -10,6 +10,8 @@ import { z } from 'zod';
 import {
   CAMPOS_FISCAIS_FILIAL,
   CONSULTA_FILIAIS,
+  CONSULTA_FILIAIS_DO_USUARIO,
+  type FiliaisDoUsuarioSaida,
   ClienteFilialPutSchema,
   ERROS_FILIAL,
   EVENTO_CLIENTE_ATUALIZADO,
@@ -23,6 +25,7 @@ import {
 } from '../contracts';
 import { decidirApagarFilial, faltasNoCadastroDaFilial, filialEfetiva, podeEditarFilialDoCliente, validarFilial } from '../domain';
 import { auditar } from './auditoria';
+import { filiaisDoUsuario } from './filiais-usuario';
 import { carteiraNoBanco } from './carteira';
 
 const COLUNAS = 'f.id, f.codigo, f.nome, f.cidade, f.uf, f.padrao, f.ativo, f.external_id, f.cnpj, f.logradouro, f.numero, f.complemento, f.bairro, f.cep, f.telefone';
@@ -57,6 +60,11 @@ export const consultaFiliais = implementarConsulta(CONSULTA_FILIAIS, async (entr
     }
   }
   return { padrao_id: padrao.id, filiais, clientes, por_external_id, da_carteira };
+});
+
+/** `core.filiais_do_usuario@1` (T-0176): filial de cadastro e filiais de venda do usuário (RLS do tenant de quem chama; usuário apagado ou de outro tenant = vazio). */
+export const consultaFiliaisDoUsuario = implementarConsulta(CONSULTA_FILIAIS_DO_USUARIO, async (entrada, ctx): Promise<FiliaisDoUsuarioSaida> => {
+  return filiaisDoUsuario(ctx.db, entrada.usuario_id);
 });
 
 const IdParam = FilialIdParamSchema;
