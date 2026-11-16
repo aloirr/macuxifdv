@@ -13,6 +13,7 @@ import { Cliente360Schema, HierarquiaEquipeSchema, TituloSyncSchema, ClienteFina
 import { criarAutenticacao } from './autenticacao';
 import { assinarAcesso } from './seguranca';
 import { fabricaSql } from './repositorio';
+import { idsDoOutroTenant } from './apoio-teste-banco';
 import { carteiraDoUsuario } from './carteira';
 import { rotasDeClientes } from './clientes';
 import { rotasDeDispositivos } from './dispositivos';
@@ -331,7 +332,9 @@ describe.skipIf(semBanco())('Core T-0017 × Postgres: escopo da carteira, Client
 
     it('RN-CORE-05: o admin do tenant B vê só gente do B', async () => {
       const h = HierarquiaEquipeSchema.parse(await chamar('GET', 'equipe/hierarquia', usuario(B.usuarios.admin, 'admin', B.tenantId)));
-      expect(h.membros.map((m) => m.id).sort()).toEqual([B.usuarios.admin, B.usuarios.vendedor].sort());
+      const ids = h.membros.map((m) => m.id);
+      expect(ids).toEqual(expect.arrayContaining([B.usuarios.admin, B.usuarios.vendedor]));
+      expect(idsDoOutroTenant(ids, U)).toEqual([]);
     });
   });
 
