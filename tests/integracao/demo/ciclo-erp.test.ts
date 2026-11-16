@@ -134,6 +134,12 @@ describe.skipIf(semBanco())('T-0032 — ciclo com o ERP simulado: carga → pedi
   const filaErp = async (id: string) =>
     (await linhas<{ tenant_id: string; estado: string; numero_erp: string | null; tentativas: number; retencao_codigo: string | null }>('select tenant_id, estado, numero_erp, tentativas, retencao_codigo from integracao.pedido_fila_erp where pedido_uuid = $1', [id]))[0];
 
+  /** Os 3 números de `resumo_pedidos` que saem direto da contagem por estado da fila do tenant (RN da T-0173, `resumoPedidosErp`). */
+  const resumoDaFila = async (tenantId: string) => {
+    const n = new Map((await linhas<{ estado: string; n: number }>('select estado, count(*)::int as n from integracao.pedido_fila_erp where tenant_id = $1 and deleted_at is null group by estado', [tenantId])).map((x) => [x.estado, x.n]));
+    return { na_fila: n.get('pendente') ?? 0, entregue_ao_conector: n.get('enviado') ?? 0, rejeitado_pelo_erp: n.get('rejeitado_erp') ?? 0 };
+  };
+
   beforeAll(async () => {
     process.env.MACUXI_HUB_CHAVE_PEPPER = PEPPER_HUB_FIXTURE;
     api = await subirApi();
@@ -457,14 +463,14 @@ describe.skipIf(semBanco())('T-0032 — ciclo com o ERP simulado: carga → pedi
       expect(itens).toContain(pedidoId);
     });
 
-    it('BKO monitor do Hub (analista de A): os 4 lotes da carga concluídos e a fila com o pedido em faturado_total; Conector de A no ar', async () => {
+    it('BKO monitor do Hub (analista de A): os 4 lotes da carga concluídos, os números de pedidos iguais aos da fila; Conector de A no ar', async () => {
       const r = await api.chamar(tk.analistaA, { method: 'GET', url: '/v1/integracao/monitor' });
       expect(r.statusCode, r.body).toBe(200);
       const m = MonitorResumo.parse(r.json());
       for (const e of ['vendedor', 'cliente', 'produto', 'preco'] as const) {
         expect(m.lotes_recentes.find((l) => l.lote_id === lotes[e]), e).toMatchObject({ status: 'concluido', conector_id: A.integracao.identificador });
       }
-      expect(m.pedidos.por_estado.faturado_total ?? 0).toBeGreaterThanOrEqual(1);
+      expect(m.resumo_pedidos).toMatchObject(await resumoDaFila(A.tenantId));
       expect(m.conectores.map((c) => c.conector_id)).toEqual([A.integracao.identificador]);
     });
   });
@@ -479,9 +485,8 @@ describe.skipIf(semBanco())('T-0032 — ciclo com o ERP simulado: carga → pedi
       const idsLotesA = Object.values(lotes);
       expect(m.lotes_recentes.filter((l) => idsLotesA.includes(l.lote_id))).toEqual([]);
       expect(JSON.stringify(m)).not.toContain(pedidoId);
-      const porEstadoB = await linhas<{ estado: string; n: number }>('select estado, count(*)::int as n from integracao.pedido_fila_erp where tenant_id = $1 and deleted_at is null group by estado', [B.tenantId]);
-      // os contadores do monitor de B são os da fila de B (estados sem pedido saem com 0)
-      expect(Object.fromEntries(Object.entries(m.pedidos.por_estado).filter(([, n]) => (n ?? 0) > 0))).toEqual(Object.fromEntries(porEstadoB.map((x) => [x.estado, x.n])));
+      // os números do monitor de B são os da fila de B (estado sem pedido conta 0)
+      expect(m.resumo_pedidos).toMatchObject(await resumoDaFila(B.tenantId));
     });
 
     it('o Conector de B: lote de A não existe para ele (404) e a fila dele continua sem o pedido de A', async () => {
