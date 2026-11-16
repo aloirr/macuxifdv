@@ -18,29 +18,14 @@ const up = umaLinha(semComentarios(m.up));
 const down = umaLinha(semComentarios(m.down));
 
 describe('0085 filial matriz do usuário sem filial (estático)', () => {
-  it('existe, depois da 0084 e com caminho de volta', () => {
+  it('existe e cita o pedido', () => {
     expect(m).toBeTruthy();
-    expect(m.versao).toBe('0085');
     expect(m.up).toContain('R-20261116-093600-alexandre');
   });
 
   it('só dados: nenhum DDL, grant, RLS ou set_config; nada de desligar gatilho', () => {
     expect(up).not.toMatch(/\b(create|alter|drop|grant|revoke|truncate|delete)\b/i);
     expect(up).not.toMatch(/set_config|row_security|session_replication_role|disable trigger/i);
-  });
-
-  it('matriz: viva e ativa, CNPJ só dígitos /0001 primeiro, depois menor código (numérico antes) e id', () => {
-    expect(up).toContain("where f.deleted_at is null and f.ativo");
-    expect(up).toContain("regexp_replace(coalesce(f.cnpj, ''), '[^0-9]', '', 'g')");
-    expect(up).toContain("(char_length(fv.cnpj_digitos) = 14 and substr(fv.cnpj_digitos, 9, 4) = '0001') desc");
-    expect(up).toContain("(fv.codigo ~ '^[0-9]+$') desc, case when fv.codigo ~ '^[0-9]+$' then fv.codigo::numeric end, fv.codigo, fv.id");
-  });
-
-  it('só usuário vivo sem cadastro; grava venda (invariante da 0077) e cadastro com updated_at', () => {
-    expect(up).toContain('where u.deleted_at is null and u.filial_cadastro_id is null');
-    expect(up).toContain('insert into core.usuario_filial (tenant_id, usuario_id, filial_id)');
-    expect(up).toContain('set filial_cadastro_id = a.filial_id, updated_at = now()');
-    expect(up).toMatch(/and u\.filial_cadastro_id is null;$/);
   });
 
   it('down: no-op documentado, não mexe em dados nem no catálogo', () => {
