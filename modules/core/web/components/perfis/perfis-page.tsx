@@ -36,6 +36,8 @@ import {
   textoDoPadrao,
   CADEADO,
   td,
+  tdNum,
+  thNum,
   th,
   useToast,
   type SecaoDoPerfil,
@@ -132,7 +134,7 @@ function ListaDePerfis() {
             <tr>
               <th className={th}>Perfil</th>
               <th className={th}>Cargo</th>
-              <th className={`${th} text-right`}>Usuários</th>
+              <th className={thNum}>Usuários</th>
               <th className={`${th} w-[56px]`}>
                 <span className="sr-only">Ações</span>
               </th>
@@ -150,11 +152,11 @@ function ListaDePerfis() {
                   </div>
                 </td>
                 <td className={td}>{ROTULO_CARGO[p.cargo]}</td>
-                <td className={`${td} text-right`}>
+                <td className={tdNum}>
                   {usuariosDe(p) === 0 ? (
                     <span className="text-ink-2">0</span>
                   ) : (
-                    <button type="button" className="min-h-[44px] min-w-[44px] font-semibold text-accent-ink hover:underline" onClick={() => router.push(`/usuarios?perfil=${encodeURIComponent(p.codigo)}`)}>
+                    <button type="button" className="min-h-[44px] min-w-[44px] text-right font-semibold text-accent-ink hover:underline" onClick={() => router.push(`/usuarios?perfil=${encodeURIComponent(p.codigo)}`)}>
                       {usuariosDe(p)}
                     </button>
                   )}

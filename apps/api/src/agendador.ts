@@ -24,6 +24,7 @@ import {
   type ResultadoTarefa,
   type TarefaPeriodica,
 } from '@macuxi/platform-sdk';
+import { iniciarLaco } from './laco';
 import { licencasDoTenantNoBanco, type LicencasTenant } from './licencas';
 import { mensagemSegura } from './log-seguro';
 import { registroDeConsultas, transacaoTenant } from './outbox';
@@ -175,29 +176,14 @@ export function criarAgendador(op: OpcoesAgendador) {
      * Erro do ciclo (banco fora) é logado e o laço continua.
      */
     iniciar(): { parar(): Promise<void> } {
-      let ativo = agendadas.length > 0;
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      let atual: Promise<void> = Promise.resolve();
-      const passo = async (): Promise<void> => {
-        try {
+      return iniciarLaco({
+        ciclo: async () => {
           await ciclo();
-        } catch (e) {
-          log.error({ erro: mensagemSegura(e) }, 'ciclo do agendador falhou');
-        }
-        if (ativo) {
-          timer = setTimeout(() => (atual = passo()), INTERVALO_MS);
-          // Sob a lib DOM (tests/tsconfig) o retorno é number; em Node é Timeout com unref (não segura o processo).
-          (timer as unknown as { unref?: () => void }).unref?.();
-        }
-      };
-      if (ativo) atual = passo();
-      return {
-        async parar() {
-          ativo = false;
-          if (timer) clearTimeout(timer);
-          await atual;
         },
-      };
+        intervaloMs: INTERVALO_MS,
+        aoFalhar: (e) => log.error({ erro: mensagemSegura(e) }, 'ciclo do agendador falhou'),
+        ligado: agendadas.length > 0,
+      });
     },
   };
 }

@@ -403,7 +403,7 @@ Decisão do dono do produto (15/11/2026): na referência cruzada, a marca do con
   `produto_referencia_codigo_uk` e o NOT NULL.
 Teste: `db/testes/referencia-marca-opcional.db.test.ts` (estático na sessão; banco e up/down no CI).
 
-## 0079 — fotos dos produtos em lote por ZIP (`0079_catalogo_foto_lote`; T-0174, RN-CAT-14, ADR 0054)
+## 0079 — fotos dos produtos em lote por ZIP (`0079_catalogo_foto_lote`; T-0174, RN-CAT-14, ADR 0058)
 Desenho `docs/desenho/T-0174.md` §2; formatos JPEG, PNG e WEBP (R-20261115-074500). A parte da plataforma (tipos de
 `plataforma.arquivo` e `plataforma.trabalho`) está em [plataforma.md](plataforma.md), "0079". Volta: `.down.sql` (APAGA lotes,
 itens e trabalhos; tira `hash_conteudo`; as fotos ligadas ficam). Drizzle: `fotoLote`, `fotoLoteItem` e as listas

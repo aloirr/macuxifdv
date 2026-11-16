@@ -53,6 +53,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { opcoesLogger } from '../../../apps/api/src/config';
+import { camposDeFilial, filiaisDoTenant } from '../apoio/filial-usuario';
 import { A, B, comToken, erroDe, novoIp, SEGREDO_JWT, SENHA, subirApi, type ApiDeTeste, type Tenant } from '../apoio/api';
 import {
   assuntoDoEml,
@@ -130,7 +131,7 @@ describe.skipIf(semBanco())('T-0094 acesso por perfil e ciclo de senha (critéri
   const sessoesDe = async (id: string) => (await api.admin.query<{ n: number }>('select count(*)::int as n from core.sessao where usuario_id = $1', [id])).rows[0]!.n;
   /** Cria pela rota do BKO (admin de A por padrão) e devolve o id; a senha do e-mail fica anotada no espião. */
   const criarPeloBko = async (e: string, perfil: Perfil, senha = SENHA_INICIAL, token = tokenAdminA, nome = 'Pessoa Fictícia T0094') => {
-    const r = await api.chamar(token, { method: 'POST', url: '/v1/core/usuarios', payload: { nome, email: e, perfil, senha } });
+    const r = await api.chamar(token, { method: 'POST', url: '/v1/core/usuarios', payload: { nome, email: e, perfil, senha, ...(await camposDeFilial(api.admin, A.tenantId)) } });
     expect(r.statusCode, r.body).toBe(201);
     emailsPessoais.push(e);
     segredos.push(senha);
@@ -318,7 +319,7 @@ describe.skipIf(semBanco())('T-0094 acesso por perfil e ciclo de senha (critéri
 
     it('mesma transação: se o enfileirar falha depois do insert, nem o usuário nem o e-mail ficam (criou ⇔ enfileirou)', async () => {
       email.falharNaProxima();
-      const r = await api.chamar(tokenAdminA, { method: 'POST', url: '/v1/core/usuarios', payload: { nome: 'Pessoa Desfeita', email: EM('desfeita'), perfil: 'vendedor', senha: SENHA_INICIAL } });
+      const r = await api.chamar(tokenAdminA, { method: 'POST', url: '/v1/core/usuarios', payload: { nome: 'Pessoa Desfeita', email: EM('desfeita'), perfil: 'vendedor', senha: SENHA_INICIAL, ...(await camposDeFilial(api.admin, A.tenantId)) } });
       expect(r.statusCode, r.body).toBe(500);
       expect((await api.admin.query('select 1 from core.usuario where email = $1', [EM('desfeita')])).rowCount).toBe(0);
       const anotada = email.anotados.find((a) => a.para === EM('desfeita'));
@@ -975,12 +976,17 @@ describe.skipIf(semBanco())('T-0094 acesso por perfil e ciclo de senha (critéri
 
   // ---------------------------------------------------------------------------------------------------------------- CS-08
   describe('CS-08 Equipe por CSV sem convite (critério 8; P3)', () => {
-    const CSV = [
-      'nome,email,telefone,perfil,email_superior,codigo_erp,modulos',
-      `Gina Gerente T94,${EM('gina.csv')},,gerente,,,`,
-      `Saulo Sup T94,${EM('saulo.csv')},95991112222,supervisor,${EM('gina.csv')},,`,
-      `Vera Campo T94,${EM('vera.csv')},,vendedor,${EM('saulo.csv')},CSV94-V1,`,
-    ].join('\n');
+    // RN-CORE-39 (#361): A tem 2 filiais, então quem é criado pelo CSV precisa da coluna `filial`; o main antes do #361 a ignora
+    let CSV = '';
+    beforeAll(async () => {
+      const filial = (await filiaisDoTenant(api.admin, A.tenantId))[0]!.codigo;
+      CSV = [
+        'nome,email,telefone,perfil,email_superior,codigo_erp,modulos,filial',
+        `Gina Gerente T94,${EM('gina.csv')},,gerente,,,,${filial}`,
+        `Saulo Sup T94,${EM('saulo.csv')},95991112222,supervisor,${EM('gina.csv')},,,${filial}`,
+        `Vera Campo T94,${EM('vera.csv')},,vendedor,${EM('saulo.csv')},CSV94-V1,,${filial}`,
+      ].join('\n');
+    });
     const importar = (modo: 'conferir' | 'gravar', token = tokenAdminA) => api.chamar(token, { method: 'POST', url: '/v1/core/equipe/importacoes', payload: { csv: CSV, modo } });
 
     it('sem e-mail configurado: gravar = 503 EMAIL_INDISPONIVEL sem gravar ninguém; conferir funciona', async () => {

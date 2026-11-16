@@ -16,14 +16,14 @@
 ### 1.1 Linha "Serve em" (RN-CAT-12)
 Aparece no cartão do resultado quando a busca casou na aplicação (`serve_em` presente), logo abaixo do nome.
 - Texto: **`Serve em: <texto>`** e, se houver ano incluído, o sufixo **` · inclui 2012`** (fora dos 90 caracteres).
-- Rótulo "Serve em:" em `t.smallStrong`; o texto em 13 px (`t.sub`, `ink2`); os termos achados em negrito `ink`.
+- Rótulo "Serve em:" em `t.label`; o texto em 14 (`t.sub`, `ink2`); os termos achados em negrito `ink`.
 - Até **2 linhas**, com reticências no fim. O sufixo "· inclui 2012" vem logo depois do texto (pode ser cortado junto: a
   ficha mostra tudo).
 - As marcas (`[inicio, fim]`) são posições no texto **sem** o rótulo: a tela soma 10 ("Serve em: ").
 
 ### 1.2 Linha "Equivale a" (RN-CAT-09)
 Quando a busca casou num código de concorrente: **`Equivale a: <marca> <código>`** (ex.: `Equivale a: Freiomax CB 3401`),
-o trecho achado em negrito. Rótulo em `t.smallStrong`, texto em `t.sub`. 1 linha. As marcas somam 12 ("Equivale a: ").
+o trecho achado em negrito. Rótulo em `t.label`, texto em `t.sub`. 1 linha. As marcas somam 12 ("Equivale a: ").
 Com "Serve em" e "Equivale a" juntos, "Serve em" vem primeiro.
 
 ### 1.3 Lista do seletor do Novo pedido

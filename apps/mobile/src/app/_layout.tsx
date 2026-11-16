@@ -179,6 +179,9 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
                 <Stack.Screen name="login" options={{ animation: 'none' }} />
                 <Stack.Screen name="sync" options={{ animation: 'none' }} />
                 <Stack.Screen name="profile" />
+                {/* T-0178: "Trocar senha" e "Esqueci a senha" do Perfil, empilhadas (avanço lateral, sem barra de abas) */}
+                <Stack.Screen name="trocar-senha" />
+                <Stack.Screen name="esqueci-senha" />
                 {/* T-0147 / RD-0088: o visor de foto comum (foto do PDV, do produto) abre por cima, sem deslizar */}
                 <Stack.Screen name="foto" options={{ animation: 'fade' }} />
               </Stack>

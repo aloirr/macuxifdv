@@ -28,7 +28,7 @@ export function TagHistorico({ tag, testId }: { tag: TagDoHistorico; testId?: st
   return (
     <li data-testid={id} className={cx('flex min-w-0 flex-col gap-0.5', tag.motivo ? 'basis-full' : 'max-w-full')}>
       <span className="sr-only">{tag.leitura}</span>
-      <span aria-hidden className={cx('inline-block max-w-full self-start truncate rounded-lg px-2 py-[3px] text-[12px] font-bold whitespace-nowrap', CLASSE_TOM[TOM_TAG_WEB[tag.tom]])}>
+      <span aria-hidden className={cx('inline-block max-w-full self-start truncate rounded-lg px-2 py-[3px] text-[12px] font-medium whitespace-nowrap', CLASSE_TOM[TOM_TAG_WEB[tag.tom]])}>
         {tag.texto}
       </span>
       {tag.motivo ? (
