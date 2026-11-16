@@ -26,3 +26,4 @@
 2026-11-15 — v1.0.14 rodada 4 (lote único das migrações a1b8b0fe) — liberado (PDF .logo como no #409).
 2026-11-15 — v1.0.14 rodada 5 (#442 c50aae5b) — com achado MC-1550..1558 (MC-1560 não segura); #410 ganha MC-1559.
 2026-11-15 — v1.0.14 rodada 6 — #441 97961dc4 liberado (MC-1520..1523 fechadas); lote a03a9f6f liberado.
+2026-11-15 — v1.0.14 rodada 8 — catálogo c7db7a90 liberado (MC-1524, MC-1525 fechadas; condição para a parte 2).
