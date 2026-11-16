@@ -34,12 +34,17 @@ export async function bancoTemFilialDeUsuario(db: Consulta): Promise<boolean> {
   return (r.rowCount ?? r.rows.length) > 0;
 }
 
-/** Filial padrão viva do tenant (gatilho `tenant_semear_filial` da 0056). Use a conexão de administração (sem RLS). */
+/** Id e código da filial padrão viva do tenant (gatilho `tenant_semear_filial` da 0056). Conexão de administração (sem RLS). */
+async function lerFilialPadrao(db: Consulta, tenantId: string): Promise<{ id: string; codigo: string }> {
+  const r = await db.query('select id::text as id, codigo from core.filial where tenant_id = $1 and padrao and deleted_at is null', [tenantId]);
+  const filial = r.rows[0] as { id: string; codigo: string } | undefined;
+  if (!filial) throw new Error(`tenant ${tenantId} sem filial padrão viva`);
+  return filial;
+}
+
+/** Id da filial padrão viva do tenant. Conexão de administração. */
 export async function filialPadrao(db: Consulta, tenantId: string): Promise<string> {
-  const r = await db.query('select id::text as id from core.filial where tenant_id = $1 and padrao and deleted_at is null', [tenantId]);
-  const id = (r.rows[0] as { id: string } | undefined)?.id;
-  if (!id) throw new Error(`tenant ${tenantId} sem filial padrão viva`);
-  return id;
+  return (await lerFilialPadrao(db, tenantId)).id;
 }
 
 /**
@@ -47,10 +52,7 @@ export async function filialPadrao(db: Consulta, tenantId: string): Promise<stri
  * 2 filiais, então quem é criado pelo CSV precisa da coluna `filial`; o main antes do #361 a ignora. Conexão de administração.
  */
 export async function codigoDaFilialPadrao(db: Consulta, tenantId: string): Promise<string> {
-  const r = await db.query('select codigo from core.filial where tenant_id = $1 and padrao and deleted_at is null', [tenantId]);
-  const codigo = (r.rows[0] as { codigo: string } | undefined)?.codigo;
-  if (!codigo) throw new Error(`tenant ${tenantId} sem filial padrão viva`);
-  return codigo;
+  return (await lerFilialPadrao(db, tenantId)).codigo;
 }
 
 /** Filiais vivas do tenant, a padrão primeiro (id, código e `external_id`). Conexão de administração. */
