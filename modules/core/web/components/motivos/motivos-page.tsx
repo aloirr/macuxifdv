@@ -4,8 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Moldura } from '../moldura';
-import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, PageHeader, td, th, TableScroll } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, td, th, TableScroll } from '@macuxi/ui/web';
 import { MotivoSyncSchema, type MotivoPut, type MotivoSync } from '../../../contracts';
 import { novoId } from '../../lib/visitas';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
@@ -29,7 +28,7 @@ const slug = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,
  * Cadastro de motivos (RN-CORE-14): motivos de não venda do tenant. Os de sistema (loja fechada e acesso negado, que exigem
  * a foto da fachada) aparecem travados. Só analista e admin editam (ação `motivo.editar`); a API revalida e audita.
  */
-export function MotivosPage({ semMoldura }: { semMoldura?: boolean }) {
+export function MotivosPage() {
   const qc = useQueryClient();
   const pode = usePode('motivo.editar');
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
@@ -64,9 +63,8 @@ export function MotivosPage({ semMoldura }: { semMoldura?: boolean }) {
     </Button>
   );
   return (
-    <div className={`flex w-full flex-col ${semMoldura ? 'gap-4' : 'max-w-[960px] gap-5'}`} data-testid="motivos.tela">
-      {semMoldura ? <div className="flex justify-end">{acao}</div> : <PageHeader title="Motivos de não venda" subtitle="Lista que o vendedor vê no checkout quando não há pedido." actions={acao} />}
-      {!pode && <Notice tone="info">Só analista e administrador editam motivos. Você pode consultar.</Notice>}
+    <div className="flex w-full flex-col gap-4" data-testid="motivos.tela">
+      <div className="flex justify-end">{acao}</div>
       {aviso && (
         <Notice tone="info" onClose={() => setAviso(null)}>
           {aviso}
@@ -75,7 +73,7 @@ export function MotivosPage({ semMoldura }: { semMoldura?: boolean }) {
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando os motivos…" />}
       {lista.data && (
-        <Moldura sem={semMoldura} title={`${itens.length} motivos`}>
+        <>
           <TableScroll minWidth={640}>
             <table className="w-full border-collapse text-[13px]">
               <thead>
@@ -117,7 +115,7 @@ export function MotivosPage({ semMoldura }: { semMoldura?: boolean }) {
               </tbody>
             </table>
           </TableScroll>
-        </Moldura>
+        </>
       )}
       {rascunho && (
         <Dialog

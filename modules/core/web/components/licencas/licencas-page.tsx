@@ -6,10 +6,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PERFIS, ROTULO_PERFIL, type ModuloId, type Perfil } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
 import { LicencasEstadoSchema, NIVEIS_LICENCA, type LicencasEstado, type NivelLicenca } from '../../../contracts';
 import { rotuloDoModulo } from '../../lib/perfis';
-import { Moldura } from '../moldura';
 import { csvDeLicencas, efetivosDoUsuario, linhasDoNivel, modulosQueTambemDesligam, ROTULO_NIVEL } from '../../lib/licencas';
 import { PARAM_MODULOS_PERFIL, perfilDosModulos } from '../../lib/parametros-url';
 
@@ -35,7 +34,7 @@ function caminhoDaAlteracao(a: Alteracao): string {
  * ação `modulo.gerir_licencas` e a API revalida. Filtros (nível, perfil, usuário) ficam na URL. Desligar módulo com
  * dependentes mostra o aviso antes de confirmar; o `core` não desliga. testIDs: docs/modulos/core/test-ids.md.
  */
-function LicencasConteudo({ semMoldura }: { semMoldura?: boolean }) {
+function LicencasConteudo() {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -93,16 +92,9 @@ function LicencasConteudo({ semMoldura }: { semMoldura?: boolean }) {
     setPendente({ nivel, modulo, ativo, perfil: nivel === 'perfil' ? perfil : null, usuarioId: nivel === 'usuario' ? usuarioId : null, tambemDesligam: ativo ? [] : modulosQueTambemDesligam(estado, modulo, ligados) });
   };
 
-  const exportarCsv = (
-    <Button onClick={exportar} disabled={!estado} data-testid="licencas.exportar-csv">
-      Exportar CSV
-    </Button>
-  );
   return (
-    <div className={`flex w-full flex-col gap-5 ${semMoldura ? '' : 'max-w-[1180px]'}`} data-testid="licencas.tela">
-      {!semMoldura && <PageHeader title="Módulos" actions={exportarCsv} />}
+    <div className="flex w-full flex-col gap-5" data-testid="licencas.tela">
 
-      {!pode && <Notice tone="info">Só o administrador altera licenças. Você pode consultar.</Notice>}
       {aviso && (
         <Notice tone="info" onClose={() => setAviso(null)}>
           {aviso}
@@ -125,7 +117,9 @@ function LicencasConteudo({ semMoldura }: { semMoldura?: boolean }) {
           </button>
         ))}
       </div>
-      {semMoldura && exportarCsv}
+      <Button onClick={exportar} disabled={!estado} data-testid="licencas.exportar-csv">
+        Exportar CSV
+      </Button>
       </div>
 
       <FilterBar>
@@ -153,51 +147,52 @@ function LicencasConteudo({ semMoldura }: { semMoldura?: boolean }) {
       {q.isPending && <LoadingBlock label="Carregando as licenças…" />}
 
       {estado && (
-        <Moldura sem={semMoldura} title={nivel === 'usuario' ? 'Exceções do usuário (só removem módulo)' : `Módulos — ${ROTULO_NIVEL[nivel]}`}>
-          <TableScroll minWidth={560}>
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr>
-                  <th className={th}>Módulo</th>
-                  <th className={th}>Ação</th>
+        <TableScroll minWidth={560}>
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr>
+                <th className={th}>Módulo</th>
+                <th className={th}>Ação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.map((l) => (
+                <tr key={l.modulo} data-testid={`licencas.modulo.${nivel}.${l.modulo}`}>
+                  <td className={td}>{rotuloDoModulo(l.modulo)}</td>
+                  <td className={td}>
+                    {l.travado ? (
+                      <span className="text-[13px] text-ink-2" data-testid={`licencas.estado.${nivel}.${l.modulo}`} data-estado="ativo">
+                        Sempre ativo
+                      </span>
+                    ) : (
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={l.ativo}
+                      data-estado={l.ativo ? 'ativo' : 'inativo'}
+                      aria-label={`${l.ativo ? 'Desativar' : 'Ativar'} ${rotuloDoModulo(l.modulo)}`}
+                      aria-disabled={!pode}
+                      disabled={!pode}
+                      data-testid={`licencas.toggle.${nivel}.${l.modulo}`}
+                      onClick={() => pedir(l.modulo, !l.ativo)}
+                      className="h-[44px] min-w-[96px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled"
+                    >
+                      {l.ativo ? 'Desativar' : 'Ativar'}
+                    </button>
+                    )}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {linhas.map((l) => (
-                  <tr key={l.modulo} data-testid={`licencas.modulo.${nivel}.${l.modulo}`}>
-                    <td className={td}>{rotuloDoModulo(l.modulo)}</td>
-                    <td className={td}>
-                      {l.travado ? (
-                        <span className="text-[13px] text-ink-2" data-testid={`licencas.estado.${nivel}.${l.modulo}`} data-estado="ativo">
-                          Sempre ativo
-                        </span>
-                      ) : (
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={l.ativo}
-                        data-estado={l.ativo ? 'ativo' : 'inativo'}
-                        aria-label={`${l.ativo ? 'Desativar' : 'Ativar'} ${rotuloDoModulo(l.modulo)}`}
-                        aria-disabled={!pode}
-                        disabled={!pode}
-                        data-testid={`licencas.toggle.${nivel}.${l.modulo}`}
-                        onClick={() => pedir(l.modulo, !l.ativo)}
-                        className="h-[44px] min-w-[96px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled"
-                      >
-                        {l.ativo ? 'Desativar' : 'Ativar'}
-                      </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        </Moldura>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
 
       {estado && nivel === 'usuario' && (
-        <Panel title="Módulos efetivos do usuário">
+        <section className="flex flex-col gap-2" aria-labelledby="licencas.efetivos.titulo">
+          <h3 id="licencas.efetivos.titulo" className="m-0 text-[15px] font-semibold text-ink">
+            Módulos efetivos do usuário
+          </h3>
           <ul className="m-0 flex list-none flex-wrap gap-2 p-0" data-testid="licencas.efetivos">
             {efetivos.map((m) => (
               <li key={m} data-testid={`licencas.efetivo.${m}`}>
@@ -205,7 +200,7 @@ function LicencasConteudo({ semMoldura }: { semMoldura?: boolean }) {
               </li>
             ))}
           </ul>
-        </Panel>
+        </section>
       )}
 
       <Dialog
@@ -243,10 +238,10 @@ function LicencasConteudo({ semMoldura }: { semMoldura?: boolean }) {
 }
 
 /** `useSearchParams` exige Suspense no Next. */
-export function LicencasPage({ semMoldura }: { semMoldura?: boolean }) {
+export function LicencasPage() {
   return (
     <Suspense fallback={<LoadingBlock label="Carregando…" />}>
-      <LicencasConteudo semMoldura={semMoldura} />
+      <LicencasConteudo />
     </Suspense>
   );
 }

@@ -5,14 +5,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { ApiRequestError, api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, LoadingBlock, Notice } from '@macuxi/ui/web';
-import { Moldura } from '../moldura';
 import { ErroParametroFarolSchema, ParametrosFarolSchema, type ErroParametroFarol } from '../../../contracts';
 import { FAROL_DIAS_MAX } from '../../../domain';
 import { textosDosParametros, validarFormularioDoFarol, type TextosDosParametros } from '../../lib/farol';
+import { CampoComUnidade, ErroCampo } from '../campo';
 
 const CAMINHO = '/core/parametros/farol';
 export const CHAVE_PARAMETROS_FAROL = ['core', 'parametros', 'farol'] as const;
-const CAMPO = 'h-[44px] w-full rounded-xl border bg-surface px-3 pr-12 text-[15px] font-normal text-ink';
 
 type Erros = Partial<Record<ErroParametroFarol['campo'], string>>;
 
@@ -22,25 +21,8 @@ function CampoNumerico({ id, rotulo, ajuda, unidade, valor, erro, onChange }: { 
     <label className="flex max-w-[280px] flex-col gap-1 text-[15px] font-semibold text-ink">
       {rotulo}
       <span className="text-[13px] font-normal text-ink-2">{ajuda}</span>
-      {erro && (
-        <span id={idErro} className="text-[13px] font-normal text-danger" data-testid={idErro}>
-          {erro}
-        </span>
-      )}
-      <span className="relative block">
-        <input
-          className={`${CAMPO} ${erro ? 'border-danger' : 'border-field'}`}
-          inputMode="numeric"
-          value={valor}
-          onChange={(e) => onChange(e.target.value.replace(/\D/g, ''))}
-          aria-invalid={erro ? true : undefined}
-          aria-describedby={erro ? idErro : undefined}
-          data-testid={`farol-params.${id}`}
-        />
-        <span aria-hidden className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] font-normal text-ink-2">
-          {unidade}
-        </span>
-      </span>
+      <ErroCampo id={idErro} texto={erro} />
+      <CampoComUnidade testId={`farol-params.${id}`} unidade={unidade} idErro={erro ? idErro : undefined} inputMode="numeric" value={valor} onChange={(e) => onChange(e.target.value.replace(/\D/g, ''))} />
     </label>
   );
 }
@@ -50,7 +32,7 @@ function CampoNumerico({ id, rotulo, ajuda, unidade, valor, erro, onChange }: { 
  * Só quem tem `parametro.farol` (analista e admin) vê; a API revalida e audita antes/depois. Erros aparecem no campo.
  * testIDs: `farol-params.painel` · `.<campo>` · `.<campo>.erro` · `.salvar`.
  */
-export function FarolParametrosPanel({ aoSalvar, semMoldura }: { aoSalvar?: () => void; semMoldura?: boolean }) {
+export function FarolParametrosPanel({ aoSalvar }: { aoSalvar?: () => void }) {
   const pode = usePode('parametro.farol');
   const qc = useQueryClient();
   const [textos, setTextos] = useState<TextosDosParametros | null>(null);
@@ -102,7 +84,7 @@ export function FarolParametrosPanel({ aoSalvar, semMoldura }: { aoSalvar?: () =
   };
 
   return (
-    <Moldura sem={semMoldura} title="Parâmetros do farol">
+    <>
       <div className="flex flex-col gap-4" data-testid="farol-params.painel">
         {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
         {q.isPending && <LoadingBlock label="Carregando os parâmetros…" />}
@@ -134,6 +116,6 @@ export function FarolParametrosPanel({ aoSalvar, semMoldura }: { aoSalvar?: () =
           </>
         )}
       </div>
-    </Moldura>
+    </>
   );
 }

@@ -7,7 +7,7 @@ import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, LoadingBlock, Notice } from '@macuxi/ui/web';
 import { ParametroCheckoutPendenciaSchema } from '../../../contracts';
 import { AJUDA_ALERTA_H, ALERTA_H_PADRAO, validarAlertaH } from '../../lib/etapas-visita';
-import { Moldura } from '../moldura';
+import { CampoComUnidade, ErroCampo } from '../campo';
 
 const CHAVE = ['core', 'parametros', 'checkout-pendencia'] as const;
 const CAMINHO = '/core/parametros/checkout-pendencia';
@@ -17,7 +17,7 @@ const CAMINHO = '/core/parametros/checkout-pendencia';
  * no painel do Início; na página Parâmetros fica na seção Visitas. A API revalida e audita.
  * testIDs: `checkout-pendencia.alerta` · `.erro` · `.salvar`.
  */
-export function CheckoutPendenciaPanel({ semMoldura }: { semMoldura?: boolean } = {}) {
+export function CheckoutPendenciaPanel() {
   const pode = usePode('parametro.checkout_pendencia');
   const qc = useQueryClient();
   const [horas, setHoras] = useState(String(ALERTA_H_PADRAO));
@@ -55,7 +55,7 @@ export function CheckoutPendenciaPanel({ semMoldura }: { semMoldura?: boolean } 
     if (v.ok) gravar.mutate(v.valor);
   };
   return (
-    <Moldura sem={semMoldura} title="Etapa pendente">
+    <>
       <div className="flex flex-col gap-3" data-testid="checkout-pendencia.painel">
         {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
         {q.isPending && <LoadingBlock label="Carregando o prazo…" />}
@@ -69,26 +69,18 @@ export function CheckoutPendenciaPanel({ semMoldura }: { semMoldura?: boolean } 
             <label className="flex max-w-[260px] flex-col gap-1 text-[15px] font-semibold text-ink">
               Prazo para avisar
               <span className="text-[13px] font-normal text-ink-2">{AJUDA_ALERTA_H}</span>
-              {erro && (
-                <span id="checkout-pendencia.erro" className="text-[13px] font-normal text-danger" data-testid="checkout-pendencia.erro">
-                  {erro}
-                </span>
-              )}
-              <span className="relative block">
-              <input
-                className={`h-[44px] w-full rounded-xl border bg-surface px-3 pr-8 text-[15px] font-normal text-ink ${erro ? 'border-danger' : 'border-field'}`}
+              <ErroCampo id="checkout-pendencia.erro" texto={erro ?? undefined} />
+              <CampoComUnidade
+                testId="checkout-pendencia.alerta"
+                unidade="h"
+                idErro={erro ? 'checkout-pendencia.erro' : undefined}
                 inputMode="numeric"
                 value={horas}
                 onChange={(e) => {
                   setSalvo(false);
                   setHoras(e.target.value.replace(/\D/g, ''));
                 }}
-                aria-invalid={erro ? true : undefined}
-                aria-describedby={erro ? 'checkout-pendencia.erro' : undefined}
-                data-testid="checkout-pendencia.alerta"
               />
-              <span aria-hidden className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] font-normal text-ink-2">h</span>
-              </span>
             </label>
             <div className="flex flex-wrap items-center gap-3">
               <Button variant="primary" onClick={salvar} disabled={gravar.isPending || !alterado} data-testid="checkout-pendencia.salvar">
@@ -103,6 +95,6 @@ export function CheckoutPendenciaPanel({ semMoldura }: { semMoldura?: boolean } 
           </>
         )}
       </div>
-    </Moldura>
+    </>
   );
 }

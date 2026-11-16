@@ -9,8 +9,7 @@ import { useHojeDoTenant } from '../../lib/queries';
 import { CHAVE_CALENDARIO, criarApiCalendario, type ApiCalendario, type ParametrosCalendario } from './api';
 import { FERIADO_NOME_MAX, feriadosDoAno, incluirFeriado, type ErroFeriado, type LinhaFeriado } from './calendario';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
-import { Moldura } from '../moldura';
-import { ErroCampo } from './erro-campo';
+import { ErroCampo } from '../campo';
 
 /**
  * Parâmetros › Calendário, painel Feriados (desenho `docs/desenho/performance-produtividade.md` §1.3, §3.2 e §6.5): os feriados do ano,
@@ -19,7 +18,7 @@ import { ErroCampo } from './erro-campo';
  * testIDs: `calendario.tela` · `.ano` · `.feriado.data|nome` · `.feriado.<data|nome>.erro` · `.incluir` · `.linha.<data>` ·
  * `.remover.<data>` · `.aviso`.
  */
-export function CalendarioPage({ cliente, hoje, semMoldura }: { cliente?: ApiCalendario; hoje?: string; semMoldura?: boolean }) {
+export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoje?: string }) {
   const apiCalendario = useMemo(() => cliente ?? criarApiCalendario(), [cliente]);
   const pode = usePode('parametro.inicio');
   const hojeDoTenant = useHojeDoTenant();
@@ -62,19 +61,15 @@ export function CalendarioPage({ cliente, hoje, semMoldura }: { cliente?: ApiCal
       )}
       {p && (
         <>
-          <Moldura
-            sem={semMoldura}
-            title="Feriados"
-            aside={
-              <SelectField label="Ano" value={String(ano)} onChange={(e) => setAno(Number(e.target.value))} data-testid="calendario.ano">
-                {[anoHoje, anoHoje + 1].map((a) => (
-                  <option key={a} value={a}>
-                    {a}
-                  </option>
-                ))}
-              </SelectField>
-            }
-          >
+          <div className="flex justify-end">
+            <SelectField label="Ano" value={String(ano)} onChange={(e) => setAno(Number(e.target.value))} data-testid="calendario.ano">
+              {[anoHoje, anoHoje + 1].map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </SelectField>
+          </div>
             <div className="flex flex-col gap-4 text-[15px]">
               <div className="flex flex-wrap items-start gap-2">
                 <label className="flex flex-col gap-1 font-semibold text-ink">
@@ -111,7 +106,6 @@ export function CalendarioPage({ cliente, hoje, semMoldura }: { cliente?: ApiCal
               </div>
               <TabelaFeriados linhas={feriadosDoAno(ano, p.feriados)} ocupado={gravar.isPending} onRemover={remover} />
             </div>
-          </Moldura>
         </>
       )}
     </div>

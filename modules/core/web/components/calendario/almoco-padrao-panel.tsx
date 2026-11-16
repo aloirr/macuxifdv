@@ -8,8 +8,7 @@ import { textoDoMinuto } from '../../../contracts';
 import { lerHorarioAlmocoTexto, type ErrosAlmocoTexto } from '../../../domain';
 import { CHAVE_JORNADA, criarApiJornada, type ApiJornada } from './almoco-padrao';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
-import { Moldura } from '../moldura';
-import { ErroCampo } from './erro-campo';
+import { ErroCampo } from '../campo';
 
 const CAMPO_DA_API: Readonly<Record<string, keyof ErrosAlmocoTexto>> = { almoco_inicio: 'inicio', almoco_fim: 'fim' };
 
@@ -18,7 +17,7 @@ const CAMPO_DA_API: Readonly<Record<string, keyof ErrosAlmocoTexto>> = { almoco_
  * Quem não pode editar parâmetros não chega aqui (a página já esconde); a API revalida e audita.
  * testIDs: `calendario.almoco-padrao.inicio|fim|salvar` · `.erro.inicio|fim` · `.aviso`.
  */
-export function AlmocoPadraoPanel({ cliente, semMoldura }: { cliente?: ApiJornada; semMoldura?: boolean }) {
+export function AlmocoPadraoPanel({ cliente }: { cliente?: ApiJornada }) {
   const apiJornada = useMemo(() => cliente ?? criarApiJornada(), [cliente]);
   const qc = useQueryClient();
   const q = useQuery({ queryKey: CHAVE_JORNADA, queryFn: apiJornada.ler });
@@ -54,7 +53,7 @@ export function AlmocoPadraoPanel({ cliente, semMoldura }: { cliente?: ApiJornad
     gravar.mutate({ almoco_padrao: { inicio_min: r.inicio_min, fim_min: r.fim_min } });
   };
   return (
-    <Moldura sem={semMoldura} title="Almoço">
+    <>
       {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
       {q.isPending && <LoadingBlock label="Carregando o horário de almoço…" />}
       {aviso && (
@@ -79,6 +78,6 @@ export function AlmocoPadraoPanel({ cliente, semMoldura }: { cliente?: ApiJornad
           </Button>
         </div>
       )}
-    </Moldura>
+    </>
   );
 }

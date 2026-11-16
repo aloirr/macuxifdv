@@ -5,7 +5,7 @@ import { Notice } from '@macuxi/ui/web';
 import { MedidasPanel } from './medidas-panel';
 
 /** Medidas na página Parâmetros (ADR 0058): o `MedidasPanel` com o aviso das ações que antes ficava no topo da página de preço e custo. */
-export function MedidasParametrosPanel({ semMoldura }: { semMoldura?: boolean } = {}) {
+export function MedidasParametrosPanel() {
   const [aviso, setAviso] = useState<string | null>(null);
   return (
     <div className="flex flex-col gap-4">
@@ -14,7 +14,7 @@ export function MedidasParametrosPanel({ semMoldura }: { semMoldura?: boolean } 
           {aviso}
         </Notice>
       )}
-      <MedidasPanel onAviso={setAviso} semMoldura={semMoldura} />
+      <MedidasPanel onAviso={setAviso} />
     </div>
   );
 }

@@ -5,13 +5,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { ApiRequestError, api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, LoadingBlock, Notice } from '@macuxi/ui/web';
-import { Moldura } from '../moldura';
 import {
   ErroParametroInicioSchema,
   ParametrosInicioSchema,
   type ErroParametroInicio,
 } from '../../../contracts';
 import { validarParametrosInicio } from '../../../domain';
+import { ErroCampo } from '../campo';
 
 const CHAVE = ['core', 'parametros', 'inicio'] as const;
 const CAMINHO = '/core/parametros/inicio';
@@ -43,14 +43,6 @@ function mapearErros(erros: readonly ErroParametroInicio[]): { campos: ErrosCamp
   return { campos, soltos };
 }
 
-function MensagemErro({ id, texto }: { id: string; texto?: string }) {
-  if (!texto) return null;
-  return (
-    <span id={id} className="text-[13px] font-normal text-danger" data-testid={id}>
-      {texto}
-    </span>
-  );
-}
 
 /**
  * Parâmetros do Início por empresa (RN-CORE-26; T-0073 passo 7): dias úteis da semana (base da meta do dia).
@@ -59,7 +51,7 @@ function MensagemErro({ id, texto }: { id: string; texto?: string }) {
  * fica só para erro sem campo (rede, 403).
  * testIDs: `inicio-params.painel` · `.dia.<0-6>` · `.<campo>.erro` · `.salvar`.
  */
-export function InicioParametrosPanel({ semMoldura }: { semMoldura?: boolean } = {}) {
+export function InicioParametrosPanel() {
   const pode = usePode('parametro.inicio');
   const qc = useQueryClient();
   const [dias, setDias] = useState<number[]>([]);
@@ -127,7 +119,7 @@ export function InicioParametrosPanel({ semMoldura }: { semMoldura?: boolean } =
   };
 
   return (
-    <Moldura sem={semMoldura} title="Dias úteis">
+    <>
       <div className="flex flex-col gap-4" data-testid="inicio-params.painel">
         {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
         {q.isPending && <LoadingBlock label="Carregando os parâmetros…" />}
@@ -144,7 +136,7 @@ export function InicioParametrosPanel({ semMoldura }: { semMoldura?: boolean } =
                 Os dias marcados contam para a meta do dia: a meta que falta no mês é dividida pelos dias
                 úteis que restam.
               </span>
-              <MensagemErro id="inicio-params.dias.erro" texto={erros.dias} />
+              <ErroCampo id="inicio-params.dias.erro" texto={erros.dias} />
               <div className="flex flex-wrap gap-2">
                 {DIAS.map(([n, rotulo, nomeCompleto]) => (
                   <button
@@ -176,6 +168,6 @@ export function InicioParametrosPanel({ semMoldura }: { semMoldura?: boolean } =
           </>
         )}
       </div>
-    </Moldura>
+    </>
   );
 }

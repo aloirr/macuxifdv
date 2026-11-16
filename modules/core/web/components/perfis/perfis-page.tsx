@@ -7,7 +7,6 @@ import { usePode } from '@macuxi/platform-sdk/react';
 import { useMe } from '../../lib/queries';
 import { api, ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
 import { ROTULO_CARGO } from '../../../contracts/cargos';
-import { Moldura } from '../moldura';
 import {
   alternarMarcado,
   Badge,
@@ -25,8 +24,6 @@ import {
   NOTA_DO_RESUMO,
   MenuAcoes,
   Notice,
-  PageHeader,
-  Panel,
   ResumoDasMudancas,
   ROTULO_ALVO_TODOS,
   ROTULO_PERFIL_BASE,
@@ -72,6 +69,7 @@ import {
 import { contagemPorPerfil } from '../../lib/acesso';
 import { NovoPerfil } from './novo-perfil';
 import { PARAM_EDITAR_PERFIL, perfilEmEdicao } from '../../lib/parametros-url';
+import { CabecalhoDoPerfil } from './cabecalho-perfil';
 
 const CAMPO = 'h-[44px] w-full rounded-xl border border-field bg-surface px-3 text-[15px] font-normal text-ink disabled:bg-ground disabled:text-ink-2';
 const SEM_PERMISSAO = 'O seu perfil não gerencia perfis de acesso. Fale com o admin da sua empresa.';
@@ -82,7 +80,7 @@ const ehSemConexao = (e: unknown) => e instanceof TypeError || (e instanceof Api
 
 // ---------------------------------------------------------------- lista
 
-function ListaDePerfis({ semMoldura }: { semMoldura?: boolean }) {
+function ListaDePerfis() {
   const router = useRouter();
   const pathname = usePathname();
   const qc = useQueryClient();
@@ -127,8 +125,7 @@ function ListaDePerfis({ semMoldura }: { semMoldura?: boolean }) {
   );
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-4" data-testid="perfis.lista">
-      {semMoldura ? <div className="flex justify-end">{botaoNovo}</div> : <PageHeader title="Perfis de acesso" actions={botaoNovo} />}
-      <Moldura sem={semMoldura} title="">
+      <div className="flex justify-end">{botaoNovo}</div>
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr>
@@ -176,7 +173,6 @@ function ListaDePerfis({ semMoldura }: { semMoldura?: boolean }) {
             ))}
           </tbody>
         </table>
-      </Moldura>
       {acao && (
         <Dialog
           open
@@ -408,11 +404,12 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
   };
 
   const secao = (id: SecaoDoPerfil, titulo: string, corpo: ReactNode) => (
-    <Panel key={id} title={titulo} label={titulo}>
+    <section key={id} aria-label={titulo} className="flex flex-col gap-3 border-t border-line-2 pt-4 first:border-t-0 first:pt-0">
+      <h3 className="m-0 text-[15px] font-semibold text-ink">{titulo}</h3>
       <div data-testid={`perfil.secao.${id}`} id={`secao-${id}`} className="flex flex-col gap-3">
         {corpo}
       </div>
-    </Panel>
+    </section>
   );
 
   const restaurarPadrao = () => {
@@ -423,15 +420,15 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        eyebrow={
-          <button type="button" className="text-accent-ink hover:underline" onClick={() => (sujo ? setSair('voltar') : voltar())}>
+      <CabecalhoDoPerfil
+        voltar={
+          <button type="button" className="self-start text-[13px] text-accent-ink hover:underline" onClick={() => (sujo ? setSair('voltar') : voltar())}>
             ‹ Perfis de acesso
           </button>
         }
-        title={d.perfil.nome}
-        badge={d.perfil.ativo ? undefined : <Badge tone="neutral">Inativo</Badge>}
-                actions={
+        titulo={d.perfil.nome}
+        selo={d.perfil.ativo ? undefined : <Badge tone="neutral">Inativo</Badge>}
+        acoes={
           <>
             <Button size="sm" onClick={() => setHistorico(true)} data-testid="perfil.historico">
               Histórico
@@ -687,19 +684,19 @@ function HistoricoDoPerfil({ codigo, nome, detalhe, onClose }: { codigo: string;
 
 // ---------------------------------------------------------------- página
 
-function PerfisConteudo({ semMoldura }: { semMoldura?: boolean }) {
+function PerfisConteudo() {
   const params = useSearchParams();
   const podeGerir = usePode('perfil.gerir');
   const codigo = perfilEmEdicao(params);
   if (!podeGerir) return <Notice tone="info">{SEM_PERMISSAO}</Notice>;
   if (params.get('novo')) return <NovoPerfil />;
-  return codigo ? <EdicaoDoPerfil key={codigo} codigo={codigo} /> : <ListaDePerfis semMoldura={semMoldura} />;
+  return codigo ? <EdicaoDoPerfil key={codigo} codigo={codigo} /> : <ListaDePerfis />;
 }
 
-export function PerfisPage({ semMoldura }: { semMoldura?: boolean }) {
+export function PerfisPage() {
   return (
     <Suspense fallback={<LoadingBlock label="Carregando perfis…" />}>
-      <PerfisConteudo semMoldura={semMoldura} />
+      <PerfisConteudo />
     </Suspense>
   );
 }

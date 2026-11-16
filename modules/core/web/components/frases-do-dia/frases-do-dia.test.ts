@@ -118,7 +118,7 @@ describe('adicionar, editar, desativar, reordenar e remover pelas rotas da N-B',
     const html = await tela(apiComFrases().api);
     expect(html).toContain(`frases.acoes.${id(1)}`);
     expect(html).not.toContain(`frases.editar.${id(1)}"`);
-    expect(html).toContain('Frases do dia · 30');
+    expect(html).not.toContain('Frases do dia'); // o título do painel é do shell (RD-2013)
   });
 });
 

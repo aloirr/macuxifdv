@@ -5,13 +5,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { ApiRequestError, api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, LoadingBlock, Notice } from '@macuxi/ui/web';
-import { Moldura } from '../moldura';
 import { DIMENSOES_CURVA_ABC, ErroParametroCurvaAbcSchema, ParametrosCurvaAbcSchema, type DimensaoCurvaAbc, type ErroParametroCurvaAbc, type ParametrosCurvaAbc } from '../../../contracts';
 import { ROTULOS_DIMENSAO_CURVA, validarParametrosCurvaAbc } from '../../../domain';
+import { CampoComUnidade, ErroCampo } from '../campo';
 
 const CAMINHO = '/core/parametros/curvas-abc';
 export const CHAVE_PARAMETROS_CURVAS_ABC = ['core', 'parametros', 'curvas-abc'] as const;
-const CAMPO = 'h-[44px] w-full rounded-xl border bg-surface px-3 pr-10 text-[15px] font-normal text-ink';
 
 const LINHAS = [['a_min_pct', 'Curva A'], ['b_min_pct', 'Curva B']] as const;
 type Campo = 'a_min_pct' | 'b_min_pct';
@@ -29,25 +28,8 @@ function CampoPct({ dimensao, campo, rotulo, valor, erro, onChange }: { dimensao
   return (
     <label className="flex flex-col gap-1">
       <span className="sr-only">{rotulo}</span>
-      {erro && (
-        <span id={`${id}.erro`} className="text-[13px] font-normal text-danger" data-testid={`${id}.erro`}>
-          {erro}
-        </span>
-      )}
-      <span className="relative block">
-        <input
-          className={`${CAMPO} ${erro ? 'border-danger' : 'border-field'}`}
-          inputMode="decimal"
-          value={valor}
-          onChange={(e) => onChange(e.target.value.replace(/[^\d,.-]/g, ''))}
-          aria-invalid={erro ? true : undefined}
-          aria-describedby={erro ? `${id}.erro` : undefined}
-          data-testid={id}
-        />
-        <span aria-hidden className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] font-normal text-ink-2">
-          %
-        </span>
-      </span>
+      <ErroCampo id={`${id}.erro`} texto={erro} />
+      <CampoComUnidade testId={id} unidade="%" idErro={erro ? `${id}.erro` : undefined} inputMode="decimal" value={valor} onChange={(e) => onChange(e.target.value.replace(/[^\d,.-]/g, ''))} />
     </label>
   );
 }
@@ -57,7 +39,7 @@ function CampoPct({ dimensao, campo, rotulo, valor, erro, onChange }: { dimensao
  * "B a partir de" (C é o que fica abaixo). Só quem tem `parametro.curva_abc` (analista e admin) vê; a API revalida e audita.
  * testIDs: `curvas-abc-params.painel` · `.<dimensao>.<a_min_pct|b_min_pct>` · `.<campo>.erro` · `.salvar`.
  */
-export function CurvasAbcParametrosPanel({ semMoldura }: { semMoldura?: boolean } = {}) {
+export function CurvasAbcParametrosPanel() {
   const pode = usePode('parametro.curva_abc');
   const qc = useQueryClient();
   const [textos, setTextos] = useState<Textos | null>(null);
@@ -108,7 +90,7 @@ export function CurvasAbcParametrosPanel({ semMoldura }: { semMoldura?: boolean 
   };
 
   return (
-    <Moldura sem={semMoldura} title="Curvas ABC do cliente">
+    <>
       <div className="flex flex-col gap-4" data-testid="curvas-abc-params.painel">
         {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
         {q.isPending && <LoadingBlock label="Carregando as curvas…" />}
@@ -161,6 +143,6 @@ export function CurvasAbcParametrosPanel({ semMoldura }: { semMoldura?: boolean 
           </>
         )}
       </div>
-    </Moldura>
+    </>
   );
 }

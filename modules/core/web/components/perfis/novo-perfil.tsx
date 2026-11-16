@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiRequestError } from '@macuxi/platform-sdk/web';
-import { Button, ErrorBlock, IconeModulo, LoadingBlock, Notice, PageHeader, useToast, type IdDoModulo } from '@macuxi/ui/web';
+import { Button, ErrorBlock, IconeModulo, LoadingBlock, Notice, useToast, type IdDoModulo } from '@macuxi/ui/web';
+import { CabecalhoDoPerfil } from './cabecalho-perfil';
 import { LicencasEstadoSchema, MENSAGEM_NOME_OBRIGATORIO, MENSAGEM_PERFIL_REPETIDO, CODIGO_REPETIDO, PerfilDetalheSchema, PerfilListaRespostaSchema, type PerfilDetalhe } from '../../../contracts';
 import {
   alternarLinha,
@@ -170,9 +171,9 @@ export function NovoPerfil() {
 
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="perfil.novo">
-      <PageHeader
-        title="Novo perfil de acesso"
-        actions={
+      <CabecalhoDoPerfil
+        titulo="Novo perfil de acesso"
+        acoes={
           <>
             <Button onClick={voltar} data-testid="perfil.novo.cancelar">
               Cancelar

@@ -36,21 +36,6 @@ import { RoutesPage } from './components/routes/routes-page';
 /** A página de rotas lê filtros da URL (`useSearchParams`), que no Next exige Suspense. */
 const RotasPagina: ComponentType = () => createElement(Suspense, null, createElement(RoutesPage));
 
-const painel = (C: ComponentType<{ semMoldura?: boolean }>): ComponentType => () => createElement(C, { semMoldura: true });
-const PainelFarol = painel(FarolParametrosPanel);
-const PainelCurvasAbc = painel(CurvasAbcParametrosPanel);
-const PainelInicio = painel(InicioParametrosPanel);
-const PainelFrases = painel(FrasesDoDiaPanel);
-const PainelEtapaPendente = painel(CheckoutPendenciaPanel);
-const PainelDesconto = painel(DescontoPadraoPanel);
-const PainelMedidas = painel(MedidasParametrosPanel);
-const PainelPromotorPedidos = painel(PromotorPedidosPanel);
-const PainelPerfis = painel(PerfisPage);
-const PainelModulos = painel(LicencasPage);
-const PainelMotivos = painel(MotivosPage);
-const PainelFotosPdv = painel(FotosPdvPage);
-const PainelFeriados = painel(CalendarioPage);
-const PainelAlmoco = painel(AlmocoPadraoPanel);
 
 /**
  * Páginas do Core no BKO (ADR 0003; desenho T-0001 §5 e §14). Os rótulos de `navegacao` são os de
@@ -60,22 +45,22 @@ const PainelAlmoco = painel(AlmocoPadraoPanel);
  */
 export const moduloWeb = definirModuloShell<ComponentType>({
   manifesto: manifest,
-  // ADR 0058: página única de Parâmetros; cada painel mantém a ação de antes (a API revalida)
+  // ADR 0058: página única de Parâmetros; o shell dá a caixa e o título de cada painel; cada painel mantém a ação de antes (a API revalida)
   paineisParametros: [
-    { id: 'perfis', secao: 'acesso', titulo: 'Perfis de acesso', ordem: 10, acao: 'perfil.gerir', caminhosAntigos: ['perfis'], componente: PainelPerfis },
-    { id: 'usuarios-e-modulos', secao: 'acesso', titulo: 'Módulos', ordem: 20, acao: 'modulo.gerir_licencas', caminhosAntigos: ['usuarios-e-modulos'], componente: PainelModulos },
-    { id: 'motivos', secao: 'visitas', titulo: 'Motivos de não venda', ordem: 10, acao: 'motivo.editar', caminhosAntigos: ['motivos'], componente: PainelMotivos },
-    { id: 'fotos-pdv', secao: 'visitas', titulo: 'Fotos do PDV', ordem: 20, acao: 'foto_tipo.editar', caminhosAntigos: ['fotos-pdv'], componente: PainelFotosPdv },
-    { id: 'farol', secao: 'clientes', titulo: 'Farol', ordem: 10, acao: 'parametro.farol', componente: PainelFarol },
-    { id: 'curvas-abc', secao: 'clientes', titulo: 'Curvas ABC', ordem: 20, acao: 'parametro.curva_abc', componente: PainelCurvasAbc },
-    { id: 'inicio', secao: 'inicio', titulo: 'Dias úteis', ordem: 10, acao: 'parametro.inicio', componente: PainelInicio },
-    { id: 'frases-do-dia', secao: 'inicio', titulo: 'Frases do dia', ordem: 20, acao: 'frase_dia.editar', componente: PainelFrases },
-    { id: 'etapa-pendente', secao: 'visitas', titulo: 'Etapa pendente', ordem: 50, acao: 'parametro.checkout_pendencia', componente: PainelEtapaPendente },
-    { id: 'calendario', secao: 'calendario', titulo: 'Feriados', ordem: 10, acao: 'parametro.inicio', componente: PainelFeriados },
-    { id: 'almoco', secao: 'calendario', titulo: 'Almoço', ordem: 20, acao: 'parametro.inicio', componente: PainelAlmoco },
-    { id: 'desconto', secao: 'produtos', titulo: 'Desconto máximo padrão', ordem: 10, acao: 'produto.parametros', componente: PainelDesconto },
-    { id: 'medidas', secao: 'produtos', titulo: 'Medidas', ordem: 20, acao: 'medida.gerenciar', componente: PainelMedidas },
-    { id: 'promotor-pedidos', secao: 'acesso', titulo: 'Promotor vê pedidos', ordem: 50, acao: 'parametro.promotor_ve_pedidos', componente: PainelPromotorPedidos },
+    { id: 'perfis', secao: 'acesso', titulo: 'Perfis de acesso', ordem: 10, acao: 'perfil.gerir', caminhosAntigos: ['perfis'], componente: PerfisPage },
+    { id: 'usuarios-e-modulos', secao: 'acesso', titulo: 'Módulos', ordem: 20, acao: 'modulo.gerir_licencas', caminhosAntigos: ['usuarios-e-modulos'], componente: LicencasPage },
+    { id: 'motivos', secao: 'visitas', titulo: 'Motivos de não venda', ordem: 10, acao: 'motivo.editar', caminhosAntigos: ['motivos'], componente: MotivosPage },
+    { id: 'fotos-pdv', secao: 'visitas', titulo: 'Fotos do PDV', ordem: 20, acao: 'foto_tipo.editar', caminhosAntigos: ['fotos-pdv'], componente: FotosPdvPage },
+    { id: 'farol', secao: 'clientes', titulo: 'Farol', ordem: 10, acao: 'parametro.farol', componente: FarolParametrosPanel },
+    { id: 'curvas-abc', secao: 'clientes', titulo: 'Curvas ABC', ordem: 20, acao: 'parametro.curva_abc', componente: CurvasAbcParametrosPanel },
+    { id: 'inicio', secao: 'inicio', titulo: 'Dias úteis', ordem: 10, acao: 'parametro.inicio', componente: InicioParametrosPanel },
+    { id: 'frases-do-dia', secao: 'inicio', titulo: 'Frases do dia', ordem: 20, acao: 'frase_dia.editar', componente: FrasesDoDiaPanel },
+    { id: 'etapa-pendente', secao: 'visitas', titulo: 'Etapa pendente', ordem: 50, acao: 'parametro.checkout_pendencia', componente: CheckoutPendenciaPanel },
+    { id: 'calendario', secao: 'calendario', titulo: 'Feriados', ordem: 10, acao: 'parametro.inicio', componente: CalendarioPage },
+    { id: 'almoco', secao: 'calendario', titulo: 'Almoço', ordem: 20, acao: 'parametro.inicio', componente: AlmocoPadraoPanel },
+    { id: 'desconto', secao: 'produtos', titulo: 'Desconto máximo padrão', ordem: 10, acao: 'produto.parametros', componente: DescontoPadraoPanel },
+    { id: 'medidas', secao: 'produtos', titulo: 'Medidas', ordem: 20, acao: 'produto.editar_preco', componente: MedidasParametrosPanel },
+    { id: 'promotor-pedidos', secao: 'acesso', titulo: 'Promotor vê pedidos', ordem: 50, acao: 'parametro.promotor_ve_pedidos', componente: PromotorPedidosPanel },
   ],
   // Perfis, Módulos, Motivos e Fotos do PDV vivem só nos painéis (ADR 0058); edição de perfil: ?editar_perfil=<codigo>, novo: ?novo=1; Módulos filtra por ?modulos_perfil=
   paginas: [

@@ -4,8 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Moldura } from '../moldura';
-import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, PageHeader, td, th, TableScroll } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, td, th, TableScroll } from '@macuxi/ui/web';
 import { FotoTipoCriarSchema, FotoTipoEditarSchema, FotoTiposListaSchema } from '../../../contracts';
 import { novoId } from '../../lib/visitas';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
@@ -27,7 +26,7 @@ const vazio = (): Rascunho => ({ id: novoId(), existente: false, fachada: false,
  * obrigatórios e quais são documentos sensíveis (só admin, analista, gerente e supervisor da carteira abrem). A Fachada já nasce
  * cadastrada: não se apaga, não se inativa e nunca é sensível. Só o admin edita (`foto_tipo.editar`); a API revalida e audita.
  */
-export function FotosPdvPage({ semMoldura }: { semMoldura?: boolean }) {
+export function FotosPdvPage() {
   const qc = useQueryClient();
   const pode = usePode('foto_tipo.editar');
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
@@ -65,9 +64,8 @@ export function FotosPdvPage({ semMoldura }: { semMoldura?: boolean }) {
     </Button>
   );
   return (
-    <div className={`flex w-full flex-col ${semMoldura ? 'gap-4' : 'max-w-[960px] gap-5'}`} data-testid="fotos-pdv.tela">
-      {semMoldura ? <div className="flex justify-end">{acao}</div> : <PageHeader title="Fotos do PDV" subtitle="Tipos de foto da ficha do cliente." actions={acao} />}
-      {!pode && <Notice tone="info">Só o administrador edita os tipos de foto. Você pode consultar.</Notice>}
+    <div className="flex w-full flex-col gap-4" data-testid="fotos-pdv.tela">
+      <div className="flex justify-end">{acao}</div>
       {aviso && (
         <Notice tone="info" onClose={() => setAviso(null)}>
           {aviso}
@@ -76,7 +74,7 @@ export function FotosPdvPage({ semMoldura }: { semMoldura?: boolean }) {
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando os tipos de foto…" />}
       {lista.data && (
-        <Moldura sem={semMoldura} title={`${itens.length} ${itens.length === 1 ? 'tipo' : 'tipos'}`}>
+        <>
           <TableScroll minWidth={640}>
             <table className="w-full border-collapse text-[13px]">
               <thead>
@@ -118,7 +116,7 @@ export function FotosPdvPage({ semMoldura }: { semMoldura?: boolean }) {
               </tbody>
             </table>
           </TableScroll>
-        </Moldura>
+        </>
       )}
       {rascunho && (
         <Dialog

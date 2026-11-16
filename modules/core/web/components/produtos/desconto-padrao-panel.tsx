@@ -8,14 +8,14 @@ import { Button, ErrorBlock, LoadingBlock, Notice } from '@macuxi/ui/web';
 import { ProdutoParametrosSchema, ProdutosPrecoListaSchema } from '../../../contracts';
 import { DESCONTO_MAXIMO_PRODUTO_PADRAO_PCT } from '../../../domain';
 import { paraPct } from '../../lib/percentual';
-import { Moldura } from '../moldura';
+import { CampoComUnidade } from '../campo';
 
 /**
  * Desconto máximo padrão do tenant (parâmetro `desconto_maximo_produto_pct`; ação `produto.parametros`, analista e admin).
  * Vale para todo produto sem desconto próprio e define o preço mínimo de venda. Antes era a aba Parâmetros da página de preço e custo.
  * testIDs: `produtos.parametro-desconto` · `produtos.parametro-salvar`.
  */
-export function DescontoPadraoPanel({ semMoldura }: { semMoldura?: boolean } = {}) {
+export function DescontoPadraoPanel() {
   const pode = usePode('produto.parametros');
   const qc = useQueryClient();
   const [texto, setTexto] = useState<string | null>(null);
@@ -39,7 +39,7 @@ export function DescontoPadraoPanel({ semMoldura }: { semMoldura?: boolean } = {
   const valor = texto ?? String(padrao).replace('.', ',');
   const novo = paraPct(valor);
   return (
-    <Moldura sem={semMoldura} title="Desconto máximo padrão">
+    <>
       <div className="flex flex-col gap-3 text-[15px] font-semibold text-ink">
         {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
         {lista.isPending && <LoadingBlock label="Carregando o desconto…" />}
@@ -49,17 +49,7 @@ export function DescontoPadraoPanel({ semMoldura }: { semMoldura?: boolean } = {
           </Notice>
         )}
         <label className="flex max-w-[260px] flex-col gap-1">
-          <span className="relative block">
-          <input
-            aria-label="Desconto máximo padrão (%)"
-            inputMode="decimal"
-            value={valor}
-            onChange={(e) => setTexto(e.target.value)}
-            data-testid="produtos.parametro-desconto"
-            className="h-[44px] w-full rounded-xl border border-field bg-surface px-3 pr-8 text-[15px] font-normal"
-          />
-          <span aria-hidden className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] font-normal text-ink-2">%</span>
-          </span>
+          <CampoComUnidade testId="produtos.parametro-desconto" unidade="%" aria-label="Desconto máximo padrão (%)" inputMode="decimal" value={valor} onChange={(e) => setTexto(e.target.value)} />
         </label>
         <p className="m-0 text-[13px] font-normal text-ink-2">Vale para o produto sem desconto próprio.</p>
         {novo === undefined && <p className="m-0 text-[13px] font-normal text-danger">Informe um valor entre 0 e 100.</p>}
@@ -69,6 +59,6 @@ export function DescontoPadraoPanel({ semMoldura }: { semMoldura?: boolean } = {
           </Button>
         </div>
       </div>
-    </Moldura>
+    </>
   );
 }
