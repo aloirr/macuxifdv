@@ -9,13 +9,16 @@ import {
   type UsuarioExistente,
 } from './equipe-importacao';
 
-const CAB = 'nome,email,telefone,perfil,email_superior,codigo_erp,modulos';
+const CAB = 'nome,email,telefone,perfil,email_superior,codigo_erp,modulos,filial';
+const F1 = { id: '0f000000-0000-4000-8000-000000000001', codigo: '0001', external_id: 'FIL-1' };
+const F2 = { id: '0f000000-0000-4000-8000-000000000002', codigo: '0002', external_id: null };
 const ctxBase = (over: Partial<ContextoImportacao> = {}): ContextoImportacao => ({
   existentes: [],
   modulosDoTenant: ['core', 'vendedor', 'promotor', 'gestor'],
   modulosDoPerfil: { gerente: ['core', 'gestor'], supervisor: ['core', 'gestor'], vendedor: ['core', 'vendedor'], promotor: ['core', 'promotor'], admin: ['core'], analista: ['core'], assistente: ['core'] },
   limites: {},
   emUso: {},
+  filiais: [F1],
   ...over,
 });
 const ler = (linhas: string[]) => {
@@ -44,6 +47,38 @@ describe('RN-CORE-31 / RF-CORE-02: leitura do CSV da Equipe', () => {
   });
   it('RN-CORE-31: nunca aceita coluna de senha', () => {
     expect(lerCsvDeEquipe('nome,email,perfil,senha\nA,a@x.com,vendedor,123').ok).toBe(false);
+  });
+});
+
+describe('RN-CORE-39: filial de cadastro na importação da equipe', () => {
+  it('RN-CORE-39: sem a coluna e com uma filial só na empresa, o usuário novo entra nessa filial', () => {
+    const lido = lerCsvDeEquipe('nome,email,perfil\nAna,ana@x.com,vendedor');
+    if (!lido.ok) throw new Error(lido.mensagem);
+    const r = conferirImportacaoDeEquipe(lido.linhas, ctxBase());
+    expect(r.erros).toEqual([]);
+    expect(r.plano[0]).toMatchObject({ acao: 'criar', filial_id: F1.id });
+  });
+  it('RN-CORE-39: a coluna casa pelo external_id ou pelo código da filial', () => {
+    const r = conferir(['Ana,ana@x.com,,vendedor,,,,0002', 'Bia,bia@x.com,,vendedor,,,,FIL-1'], ctxBase({ filiais: [F1, F2] }));
+    expect(r.erros).toEqual([]);
+    expect(r.plano.map((p) => p.filial_id)).toEqual([F2.id, F1.id]);
+  });
+  it('RN-CORE-39: filial que não existe é erro da linha, na coluna filial', () => {
+    const r = conferir(['Ana,ana@x.com,,vendedor,,,,XYZ']);
+    expect(r.erros).toEqual([expect.objectContaining({ linha: 2, coluna: 'filial' })]);
+    expect(r.plano).toEqual([]);
+  });
+  it('RN-CORE-39: sem a coluna e com várias filiais (ou nenhuma), a linha nova é erro', () => {
+    for (const filiais of [[F1, F2], []]) {
+      const r = conferir(['Ana,ana@x.com,,vendedor,,,,'], ctxBase({ filiais }));
+      expect(r.erros).toEqual([expect.objectContaining({ linha: 2, coluna: 'filial' })]);
+    }
+  });
+  it('RN-CORE-39: quem já existe não troca de filial pelo arquivo e não exige a coluna', () => {
+    const ex: UsuarioExistente = { id: 'u1', email: 'ana@x.com', perfil: 'vendedor', nome: 'Ana', external_id: null, ativo: true, modulos: ['core', 'vendedor'], superior_email: null };
+    const r = conferir(['Ana,ana@x.com,,vendedor,,,,'], ctxBase({ existentes: [ex], filiais: [F1, F2] }));
+    expect(r.erros).toEqual([]);
+    expect(r.plano[0]).toMatchObject({ acao: 'sem_mudanca', filial_id: null });
   });
 });
 

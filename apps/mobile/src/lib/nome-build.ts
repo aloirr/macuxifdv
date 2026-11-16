@@ -1,6 +1,6 @@
 /**
  * Nome e versão dos builds (T-0109). Puro, sem Expo: usado pelo app (linha da versão no Perfil), pelo `app.config.ts`
- * e pelos scripts do EAS (`scripts/eas/build.mjs` e `scripts/eas/baixar-apk.mjs`, que o importam pelo Node com
+ * e pelos scripts de build (`scripts/eas/build.mjs` e `scripts/ci/android-build.mjs` da raiz, que o importam pelo Node com
  * remoção de tipos — por isso aqui só entra TypeScript "apagável": nada de enum, namespace ou import de valor).
  *
  * Nome do build = `<Variante>-<Canal>-v<versão>`:
