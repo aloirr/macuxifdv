@@ -17,7 +17,7 @@ Contrato: ADR 0060, Decisão 1 a 5.
 - Contrato: `modulos_contratados` em `MeusModulosRespostaSchema` (ADR 0060, item 7).
 - `web/index.ts`: `paineisParametros` com:
   - `acesso`: Perfis de acesso (id `perfis`, `acao` de hoje, `caminhosAntigos: ['perfis']`), Módulos (id `usuarios-e-modulos`, `caminhosAntigos: ['usuarios-e-modulos']`), Promotor vê pedidos;
-  - `calendario`: Feriados, Janela do almoço;
+  - `calendario`: Feriados, Almoço;
   - `clientes`: Farol, Curvas ABC (saem da página Clientes);
   - `inicio`: Dias úteis, Frases do dia (saem da página Metas);
   - `metas-e-rv`: Plano de RV (id `plano-rv`);
