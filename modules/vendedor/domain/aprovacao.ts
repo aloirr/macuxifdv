@@ -118,6 +118,9 @@ export const MOTIVO_TITULO_VENCIDO = 'Título vencido';
 
 type RecebimentoAceito = Extract<ResultadoRecebimento, { aceito: true }>;
 
+/** RN-VEN-45: motivo do recebimento quando o prazo do pedido mudou no cadastro depois do pedido (sem citar o %). */
+export const MOTIVO_PRAZO_MUDOU = 'Prazo de pagamento mudou';
+
 /** RN-VEN-13: título vencido com prazo a prazo manda para aprovação (nível supervisor) ou soma o motivo `credito` a uma aprovação por desconto. */
 export function comTituloVencido(r: Omit<RecebimentoAceito, 'aceito'>): Omit<RecebimentoAceito, 'aceito'> {
   if (r.status === 'pending_approval') {
@@ -135,6 +138,14 @@ export function comTituloVencido(r: Omit<RecebimentoAceito, 'aceito'>): Omit<Rec
     pending_reason: MOTIVO_TITULO_VENCIDO,
     historico: [...entrada, { de: 'received', para: 'pending_approval', motivo: MOTIVO_TITULO_VENCIDO }],
   };
+}
+
+/**
+ * RN-VEN-45 (R-20261115-124833): o % divergente aceito (cadastro mudou depois do pedido) fica FORA da alçada: o status não muda;
+ * o recebimento ganha o motivo próprio `MOTIVO_PRAZO_MUDOU`, que aparece na linha do tempo do pedido.
+ */
+export function comAvisoDoPrazoMudou(r: Omit<RecebimentoAceito, 'aceito'>): Omit<RecebimentoAceito, 'aceito'> {
+  return { ...r, historico: r.historico.map((h) => (h.de === null && h.para === 'received' ? { ...h, motivo: MOTIVO_PRAZO_MUDOU } : h)) };
 }
 
 export type ResultadoRecebimento =
@@ -201,6 +212,8 @@ export interface ItemRevalidar {
   acrescimo_unitario_cents?: number;
   /** T-0061 (RN-VEN-11): mínimo por unidade base; ausente = sem trava */
   preco_minimo_base_cents?: number | null;
+  /** RN-VEN-43/18: bp do prazo só deste item; `0` para o preço congelado do orçamento (já gravado ajustado, nunca ajusta duas vezes). Ausente = o do pedido. */
+  percentual_ajuste_bp?: number;
   /** T-0084 (RN-VEN-19): retrato da aplicação vindo do aparelho; nulo/ausente = sem aplicação. A API corta de novo e nunca troca pelo cadastro */
   aplicacao?: string | null;
 }
@@ -224,6 +237,8 @@ export interface RevalidarEntrada {
   desconto_valor_cents?: number;
   acrescimo_valor_cents?: number;
   itens: ItemRevalidar[];
+  /** RN-VEN-43: % do prazo do pedido em bp (centésimos de ponto percentual); a tabela de cada item é ajustada por ele. Ausente = 0. */
+  percentual_ajuste_bp?: number;
   /** preço da UNIDADE BASE na tabela do cliente na data do pedido (centavos); `null`/ausente = sem preço (RN-CAT-06) */
   precos: Record<string, number | null | undefined>;
   /** T-0089 (RN-VEN-23): faixas vigentes da tabela escalonada por produto (do Catálogo); ausente = sem faixa. A faixa vira a base do item e NÃO entra na alçada. */
@@ -239,6 +254,8 @@ export interface RevalidarEntrada {
    * motivos da 0009; o texto diz "título vencido"). Ausente = sem restrição (consulta indisponível não bloqueia).
    */
   titulo_vencido?: boolean;
+  /** RN-VEN-45: o percentual do push difere do vigente (cadastro mudou depois da data declarada pelo aparelho): aviso na linha do tempo, fora da alçada. */
+  percentual_mudou?: boolean;
 }
 
 export interface ItemRevalidado {
@@ -355,6 +372,7 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
       }).base_unidade_cents,
       quantidade: i.quantity,
       fator: i.fator ?? 1,
+      percentual_ajuste_bp: i.percentual_ajuste_bp ?? e.percentual_ajuste_bp ?? 0,
       desconto_pct: pct2(i.desconto_pct ?? 0),
       acrescimo_pct: pct2(i.acrescimo_pct ?? 0),
       ...(ajuste ? { ajuste } : {}),
@@ -397,7 +415,8 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
   if (!r0.aceito) return { ok: false, codigo: r0.codigo, http: r0.http, mensagem: r0.mensagem };
   const { aceito: _aceito, ...resto0 } = r0;
   void _aceito;
-  const resto = e.titulo_vencido ? comTituloVencido(resto0) : resto0;
+  const comVencido = e.titulo_vencido ? comTituloVencido(resto0) : resto0;
+  const resto = e.percentual_mudou ? comAvisoDoPrazoMudou(comVencido) : comVencido;
   return {
     ok: true,
     ...resto,

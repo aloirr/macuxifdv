@@ -8,7 +8,7 @@ import { SePode } from '@macuxi/platform-sdk/react';
 import { AvisoRodape, Banner, Botao, Cartao, ChipEstado, colors, EstadoVazio, Loading, relativeWhen, Screen, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type { Alerta } from '../../contracts';
+import { ROTULO_SEVERIDADE, type Alerta } from '../../contracts';
 import { SeloFaixa } from '../components/selo-faixa';
 import { SEVERIDADE_TOM, TIPO_ALERTA_ROTULO, TOM_PARA_CHIP } from '../lib/apresentacao';
 import { irParaCliente } from '../rotas';
@@ -72,7 +72,7 @@ export default function AlertasScreen() {
                 <Text style={[t.bodyStrong, { flex: 1 }]}>{TIPO_ALERTA_ROTULO[a.tipo]}</Text>
                 <ChipEstado
                   pequeno
-                  texto={a.status === 'dispensado' ? 'Dispensado' : a.severidade === 'critica' ? 'Crítico' : a.severidade === 'atencao' ? 'Atenção' : 'Info'}
+                  texto={a.status === 'dispensado' ? 'Dispensado' : ROTULO_SEVERIDADE[a.severidade]}
                   tom={TOM_PARA_CHIP[a.status === 'dispensado' ? 'neutral' : SEVERIDADE_TOM[a.severidade]]}
                 />
               </View>
