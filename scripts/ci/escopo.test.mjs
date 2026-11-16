@@ -137,6 +137,19 @@ test('decidir: só documentação → documentacao (PR, push, ensaio e sexta); a
   }
 });
 
+test('decidir: PR só com o estático (R-20261115-213600-alexandre); push, ensaio e agendado com as suítes', () => {
+  for (const arquivos of [['modules/core/domain/a.ts'], ['db/migrations/0060.sql'], ['tests/a.test.ts'], null]) {
+    const pr = decidir({ evento: 'pull_request', arquivos, agora: QUARTA, workspace: WS });
+    assert.deepEqual([pr.escopo, pr.jobs], ['codigo', ['estatico']], String(arquivos));
+    const sexta = decidir({ evento: 'pull_request', arquivos, agora: SEXTA, workspace: WS });
+    assert.deepEqual(sexta.jobs, ['estatico'], `sexta ${arquivos}`);
+  }
+  for (const evento of ['push', 'workflow_dispatch', 'schedule']) {
+    const d = decidir({ evento, arquivos: ['modules/core/domain/a.ts'], agora: QUARTA, workspace: WS });
+    assert.deepEqual(d.jobs, ['estatico', 'testes-pacotes', 'testes-integracao'], evento);
+  }
+});
+
 test('decidir: PR, ensaio e push = pacotes afetados com o tests/ da raiz; build só se web ou mobile; db sem superusuário só se o db', () => {
   const d = decidir({
     evento: 'pull_request',
@@ -283,6 +296,10 @@ test('CLI num repositório git: PR só de .coord → documentacao; push → afet
     git('merge', '-q', '--no-ff', 'pr', '-m', 'merge'); // como o refs/pull/N/merge
     let r = rodar({ GITHUB_EVENT_NAME: 'pull_request' });
     assert.deepEqual([r.escopo, r.jobs], ['documentacao', '[]']);
+    git('checkout', '-q', andou); // PR de código: só o estático
+    r = rodar({ GITHUB_EVENT_NAME: 'pull_request' });
+    assert.deepEqual([r.escopo, r.jobs], ['codigo', '["estatico"]']);
+    git('checkout', '-q', '-');
     assert.match(r.arvore, /^[0-9a-f]{40}$/);
     r = rodar({ GITHUB_EVENT_NAME: 'push', ANTES: base, DEPOIS: recado });
     assert.deepEqual([r.escopo, r.base], ['documentacao', base]);
