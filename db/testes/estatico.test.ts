@@ -217,7 +217,7 @@ describe('migrações (estático)', () => {
     expect(nomes[80]).toBe('0081_plataforma_frase_carga'); // T-0181: plataforma.frase_carga global (sem tenant_id, só por função), as 30 frases iniciais, 3 sa_* do portal e frases_carga_ativas() do app (t0181-frase-carga.db.test.ts)
     expect(nomes[81]).toBe('0082_vendedor_prazo_percentual_ajuste'); // v1.0.14 (RN-VEN-43 a 46, RN-INT-15): vendedor.prazo_pagamento.percentual_ajuste numeric(5,2) not null default 0 e o retrato vendedor.pedido.prazo_percentual_ajuste, com CHECKs de faixa −99,99..99,99
     expect(nomes[82]).toBe('0083_plataforma_tenant_logo'); // T-0182 (logo do cliente): plataforma.tenant ganha nome_fantasia e as 8 logo_* (tudo ou nada), sa_marca_da_empresa, sa_gravar_nome_fantasia, sa_gravar_logo e sa_remover_logo (tenant-logo.db.test.ts)
-    expect(nomes[83]).toBe('0084_integracao_lote_cancelado'); // T-0173 (RN-INT-15): CHECK lote_status_valido com 'cancelado' e integracao.expurgar_retencao com o lote cancelado na retenção do lote final (lote-cancelado.db.test.ts)
+    expect(nomes[84]).toBe('0085_integracao_lote_cancelado'); // T-0173 (RN-INT-15): CHECK lote_status_valido com 'cancelado' e integracao.expurgar_retencao com o lote cancelado na retenção do lote final (lote-cancelado.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
@@ -700,8 +700,8 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     expect(criadas.get('integracao.conector')).toContain(`default array[${nuvemIntegracao.ENTIDADES_ORIGINAIS.map((e) => `'${e}'`).join(', ')}]::text[]`);
     expect(valoresDoCheck('integracao.conector', 'tipo')).toEqual([...TIPOS_CONECTOR]);
     expect(valoresDoCheck('integracao.lote', 'modo')).toEqual([...ModoCarga.options]);
-    // corpo da 0010 = os 5 originais; a 0084 recria o CHECK com 'cancelado' (= ESTADOS_LOTE_BANCO; lote-cancelado.db.test.ts)
-    expect(valoresDoCheck('integracao.lote', 'status')).toEqual([...nuvemIntegracao.ESTADOS_LOTE_ORIGINAIS]);
+    // corpo da 0010 = os 5 do contrato; a 0085 recria o CHECK com 'cancelado' (= ESTADOS_LOTE_BANCO; lote-cancelado.db.test.ts)
+    expect(valoresDoCheck('integracao.lote', 'status')).toEqual([...ESTADOS_LOTE]);
     expect(valoresDoCheck('integracao.lote_linha_erro', 'codigo')).toEqual([...CODIGOS_ERRO_LINHA]);
     expect(valoresDoCheck('integracao.pendencia_inativacao', 'estado')).toEqual([...ESTADOS_PENDENCIA_INATIVACAO]);
     expect(valoresDoCheck('integracao.pendencia_inativacao', 'decidida_por_perfil')).toEqual(['admin', 'analista']);
