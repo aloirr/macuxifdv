@@ -1,3 +1,4 @@
+import { formatInt } from '@macuxi/ui/web';
 import { PARAMETROS_PADRAO, type ParametrosPromotor } from '../../domain/parametros';
 
 /**
@@ -13,36 +14,28 @@ export interface CampoParametroTrade {
   padrao?: string;
 }
 
-export interface PainelParametroTrade {
-  id: 'validade' | 'visita-coleta' | 'gondola';
-  titulo: string;
-  campos: CampoParametroTrade[];
-}
+/** Painéis de Parâmetros › Trade (o título de cada um está em `web/index.ts`). */
+export type PainelParametroTrade = 'validade' | 'visita-coleta' | 'gondola';
 
 type Formato = (n: number) => string;
-const num = (n: number) => n.toLocaleString('pt-BR');
-const dias: Formato = (n) => `${num(n)} ${n === 1 ? 'dia' : 'dias'}`;
-const min: Formato = (n) => `${num(n)} min`;
-const pct: Formato = (n) => `${num(n)}%`;
+const dias: Formato = (n) => `${formatInt(n)} ${n === 1 ? 'dia' : 'dias'}`;
+const min: Formato = (n) => `${formatInt(n)} min`;
+const pct: Formato = (n) => `${formatInt(n)}%`;
 /** Peso de 0 a 1 mostrado como percentual ("0%", "50%"). */
 const pesoPct: Formato = (n) => pct(Math.round(n * 100));
 
-const DEFINICAO: readonly { painel: PainelParametroTrade['id']; titulo: string; chave: keyof ParametrosPromotor; rotulo: string; formato: Formato }[] = [
-  { painel: 'validade', titulo: 'Validade', chave: 'validade_critica_dias', rotulo: 'Crítica até', formato: dias },
-  { painel: 'validade', titulo: 'Validade', chave: 'validade_proxima_dias', rotulo: 'Em atenção até', formato: dias },
-  { painel: 'visita-coleta', titulo: 'Visita e coleta', chave: 'permanencia_min_min', rotulo: 'Permanência mínima', formato: min },
-  { painel: 'visita-coleta', titulo: 'Visita e coleta', chave: 'variacao_preco_max_pct', rotulo: 'Variação de preço sem confirmar', formato: pct },
-  { painel: 'gondola', titulo: 'Gôndola', chave: 'peso_parcial_conformidade', rotulo: 'Peso do parcial na conformidade', formato: pesoPct },
+const DEFINICAO: readonly { painel: PainelParametroTrade; chave: keyof ParametrosPromotor; rotulo: string; formato: Formato }[] = [
+  { painel: 'validade', chave: 'validade_critica_dias', rotulo: 'Crítica até', formato: dias },
+  { painel: 'validade', chave: 'validade_proxima_dias', rotulo: 'Em atenção até', formato: dias },
+  { painel: 'visita-coleta', chave: 'permanencia_min_min', rotulo: 'Permanência mínima', formato: min },
+  { painel: 'visita-coleta', chave: 'variacao_preco_max_pct', rotulo: 'Variação de preço sem confirmar', formato: pct },
+  { painel: 'gondola', chave: 'peso_parcial_conformidade', rotulo: 'Peso do parcial na conformidade', formato: pesoPct },
 ];
 
-/** Monta os painéis na ordem do desenho; `padrao` só aparece quando o valor do tenant difere do padrão (RN-PRO-04/07/08/11). */
-export function painelDeParametrosTrade(atual: ParametrosPromotor): PainelParametroTrade[] {
-  const paineis: PainelParametroTrade[] = [];
-  for (const d of DEFINICAO) {
-    let p = paineis.find((x) => x.id === d.painel);
-    if (!p) paineis.push((p = { id: d.painel, titulo: d.titulo, campos: [] }));
+/** Campos de um painel, na ordem do desenho; `padrao` só aparece quando o valor do tenant difere do padrão (RN-PRO-04/07/08/11). */
+export function camposDoPainel(painel: PainelParametroTrade, atual: ParametrosPromotor): CampoParametroTrade[] {
+  return DEFINICAO.filter((d) => d.painel === painel).map((d) => {
     const padrao = PARAMETROS_PADRAO[d.chave];
-    p.campos.push({ chave: d.chave, rotulo: d.rotulo, valor: d.formato(atual[d.chave]), ...(atual[d.chave] !== padrao ? { padrao: `Padrão: ${d.formato(padrao)}` } : {}) });
-  }
-  return paineis;
+    return { chave: d.chave, rotulo: d.rotulo, valor: d.formato(atual[d.chave]), ...(atual[d.chave] !== padrao ? { padrao: `Padrão: ${d.formato(padrao)}` } : {}) };
+  });
 }

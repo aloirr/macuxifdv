@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PARAMETROS_PADRAO } from '../../domain/parametros';
-import { painelDeParametrosTrade } from './parametros-trade';
+import { camposDoPainel, type PainelParametroTrade } from './parametros-trade';
 import { CSV_BOM, csvCelula, rupturaCsv, shareCsv } from './csv';
 import { lerFiltrosTrade, paraBuscaTrade, paraQueryTrade } from './filtros';
 
@@ -50,7 +50,7 @@ describe('CSV do BKO de trade', () => {
 
 describe('Parâmetros › Trade (ADR 0058, só leitura)', () => {
   it('RN-PRO-08/RN-PRO-07/RN-PRO-04/RN-PRO-11: 3 painéis com os 5 parâmetros e sem "Padrão" quando o valor é o padrão', () => {
-    const paineis = painelDeParametrosTrade({ ...PARAMETROS_PADRAO });
+    const paineis = (['validade', 'visita-coleta', 'gondola'] as PainelParametroTrade[]).map((id) => ({ id, campos: camposDoPainel(id, { ...PARAMETROS_PADRAO }) }));
     expect(paineis.map((p) => [p.id, p.campos.map((c) => c.rotulo)])).toEqual([
       ['validade', ['Crítica até', 'Em atenção até']],
       ['visita-coleta', ['Permanência mínima', 'Variação de preço sem confirmar']],
@@ -60,7 +60,8 @@ describe('Parâmetros › Trade (ADR 0058, só leitura)', () => {
     expect(paineis.flatMap((p) => p.campos).some((c) => c.padrao)).toBe(false);
   });
   it('RN-PRO-08: "Padrão: X" só no parâmetro que difere (em atenção 45 dias)', () => {
-    const campos = painelDeParametrosTrade({ ...PARAMETROS_PADRAO, validade_proxima_dias: 45, peso_parcial_conformidade: 0.5 }).flatMap((p) => p.campos);
+    const atual = { ...PARAMETROS_PADRAO, validade_proxima_dias: 45, peso_parcial_conformidade: 0.5 };
+    const campos = [...camposDoPainel('validade', atual), ...camposDoPainel('gondola', atual)];
     expect(campos.filter((c) => c.padrao).map((c) => [c.chave, c.valor, c.padrao])).toEqual([
       ['validade_proxima_dias', '45 dias', 'Padrão: 30 dias'],
       ['peso_parcial_conformidade', '50%', 'Padrão: 0%'],
