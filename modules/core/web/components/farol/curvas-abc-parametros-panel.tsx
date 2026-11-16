@@ -10,7 +10,7 @@ import { ROTULOS_DIMENSAO_CURVA, validarParametrosCurvaAbc } from '../../../doma
 
 const CAMINHO = '/core/parametros/curvas-abc';
 export const CHAVE_PARAMETROS_CURVAS_ABC = ['core', 'parametros', 'curvas-abc'] as const;
-const CAMPO = 'h-[44px] w-full rounded-xl border bg-surface px-3 pr-10 text-[14px] font-normal text-ink';
+const CAMPO = 'h-[44px] w-full rounded-xl border bg-surface px-3 pr-10 text-[15px] font-normal text-ink';
 
 type Campo = 'a_min_pct' | 'b_min_pct';
 type Textos = Record<DimensaoCurvaAbc, Record<Campo, string>>;
@@ -118,7 +118,7 @@ export function CurvasAbcParametrosPanel() {
           <>
             {DIMENSOES_CURVA_ABC.map((d) => (
               <fieldset key={d} className="m-0 flex flex-col gap-2 border-0 p-0">
-                <legend className="text-[14px] font-semibold text-ink">{ROTULOS_DIMENSAO_CURVA[d]}</legend>
+                <legend className="text-[15px] font-semibold text-ink">{ROTULOS_DIMENSAO_CURVA[d]}</legend>
                 <div className="flex flex-wrap items-start gap-6">
                   <CampoPct dimensao={d} campo="a_min_pct" rotulo="Curva A a partir de (%)" valor={textos[d].a_min_pct} erro={erros[`${d}.a_min_pct`]} onChange={mudar(d, 'a_min_pct')} />
                   <CampoPct dimensao={d} campo="b_min_pct" rotulo="Curva B a partir de (%)" valor={textos[d].b_min_pct} erro={erros[`${d}.b_min_pct`]} onChange={mudar(d, 'b_min_pct')} />

@@ -431,7 +431,7 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
                     onChange={(e) => setModulo(m, { marcado: e.target.checked })}
                   />
                   <span className="flex flex-col">
-                    <span className="text-[14px] font-semibold">
+                    <span className="text-[15px] font-semibold">
                       {ROTULO_MODULO[m].nome} {sempre && <Badge tone="neutral">sempre</Badge>} {ja && !sempre && <Badge tone="success">licenciado</Badge>}
                     </span>
                     <span className="text-[12px] text-ink-2">{ROTULO_MODULO[m].ajuda}</span>
@@ -465,7 +465,7 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
             <Campo rotulo="Alçada do supervisor (%)" testId="empresa.alcada-supervisor" inputMode="decimal" value={f.alcada_supervisor_pct} onChange={(e) => set('alcada_supervisor_pct', e.target.value)} erro={erros['parametros.alcada_supervisor_pct']} />
             <Campo rotulo="Alçada do gerente (%)" testId="empresa.alcada-gerente" inputMode="decimal" value={f.alcada_gerente_pct} onChange={(e) => set('alcada_gerente_pct', e.target.value)} erro={erros['parametros.alcada_gerente_pct']} />
             <Campo rotulo="Validade do orçamento (dias)" testId="empresa.validade-orcamento" inputMode="numeric" value={f.validade_orcamento_dias} onChange={(e) => set('validade_orcamento_dias', e.target.value.replace(/\D/g, '').slice(0, 2))} erro={erros['parametros.validade_orcamento_dias']} />
-            <label className="flex items-center gap-2.5 self-end pb-2.5 text-[14px] sm:col-span-2">
+            <label className="flex items-center gap-2.5 self-end pb-2.5 text-[15px] sm:col-span-2">
               <input type="checkbox" data-testid="empresa.aplicacao-orcamento" className="h-4 w-4 accent-accent" checked={f.aplicacao_no_orcamento_padrao} onChange={(e) => set('aplicacao_no_orcamento_padrao', e.target.checked)} />
               Mostrar a aplicação do produto no orçamento (padrão)
             </label>

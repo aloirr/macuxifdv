@@ -7,7 +7,7 @@
  * Leitor de tela (revisão de UX da T-0088): o título é anunciado quando a tela aparece (`accessibilityViewIsModal` só vale
  * no iOS; no Android o shell esconde o que está por baixo com `importantForAccessibility`, em `app/_layout.tsx`).
  */
-import { Button, colors, fonts, type as t } from '@macuxi/ui/mobile';
+import { Button, colors, fonte, type as t } from '@macuxi/ui/mobile';
 import { useEffect } from 'react';
 import { AccessibilityInfo, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -100,5 +100,5 @@ export function TelaErroArmazenamento({
 const styles = StyleSheet.create({
   root: { backgroundColor: colors.ground, zIndex: 10 },
   conteudo: { flexGrow: 1, paddingHorizontal: 20, gap: 22 },
-  mono: { fontFamily: fonts.mono, fontSize: 12, color: colors.ink2, lineHeight: 18 },
+  mono: { ...fonte.mono, fontSize: 12, color: colors.ink2, lineHeight: 18 },
 });

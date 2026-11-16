@@ -39,7 +39,7 @@ vi.mock('expo-router', () => ({ router: { replace: () => undefined } }));
 vi.mock('@macuxi/ui/mobile', () => ({
   // a cor vira o nome do token: o teste lê qual token cada texto usa
   colors: new Proxy({}, { get: (_, k) => String(k) }),
-  fonts: new Proxy({}, { get: () => 'f' }),
+  fonte: new Proxy({}, { get: () => ({}) }),
   radius: new Proxy({}, { get: () => 8 }),
   type: new Proxy({}, { get: () => ({}) }),
   initials: (n: string) => n.slice(0, 2),
@@ -69,6 +69,7 @@ vi.mock('@macuxi/core/app', () => ({
 }));
 vi.mock('@/components/area-segura', () => ({ useFaixaSuperior: () => 0 }));
 vi.mock('@/components/faixa-login', () => ({ FaixaDoLogin: () => createElement('header', { 'data-testid': 'login.faixa' }) }));
+vi.mock('@/components/servidor', () => ({ ENTRADA_SERVIDOR: {}, ENDERECO_SERVIDOR: {} }));
 // a etapa em que o login abre (`null` = a de verdade, Entrar): o teste da faixa abre direto em Esqueci e em Crie sua senha
 vi.mock('@/lib/etapa-login', async (original) => {
   const real = await original<typeof import('@/lib/etapa-login')>();
