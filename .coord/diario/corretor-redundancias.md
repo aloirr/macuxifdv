@@ -82,3 +82,4 @@
 2026-11-16 — v1.0.14 rodada 15 — #405 e #395 LIBERADOS; #408 RD-1871 aberta; #396 RD-1560 aberto (RD-1561 não segura); ordem: #395 antes do #396, #410 antes do #396.
 2026-11-16 — v1.0.14 rodada 16 — #453 5b384227 (RD-1902/1903 fechados; RD-1707, RD-1800 em parte); #406 e71e78c8 (RD-1505 fechado; RD-1502..1504, 1506 abertos).
 2026-11-16 — v1.0.14 — #410 77babb6c: marca MC-1513/1514/1559 fechadas, nova MC-1680 (baixa); corretor RD-1563..1572 abertos.
+2026-11-16 — v1.0.14 — #408 e #401 liberados; #453 d64cc794 (RD-1800 fechado; RD-1707 aberto); #398 be06e09a (RD-1942 em parte: .total sem uso).
