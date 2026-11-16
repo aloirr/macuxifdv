@@ -52,13 +52,14 @@ describe('GRUPOS_MENU e rótulos (ADR 0050 revista pela 0060)', () => {
     ]);
   });
 
-  it('12 seções de Parâmetros com os rótulos da spec', () => {
+  it('13 seções de Parâmetros com os rótulos da spec e a Integração (De-para, R-20261115-110600)', () => {
     expect(SECOES_PARAMETROS.map((s) => ROTULO_SECAO_PARAMETROS[s])).toEqual([
       'Acesso',
       'Alertas',
       'Calendário',
       'Clientes',
       'Início',
+      'Integração',
       'Metas e RV',
       'Pedidos',
       'Pesquisa',

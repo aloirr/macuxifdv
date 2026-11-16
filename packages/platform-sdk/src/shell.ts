@@ -103,6 +103,7 @@ export const SECOES_PARAMETROS = [
   'calendario',
   'clientes',
   'inicio',
+  'integracao',
   'metas-e-rv',
   'pedidos',
   'pesquisa',
@@ -119,6 +120,7 @@ export const ROTULO_SECAO_PARAMETROS: Record<SecaoParametros, string> = {
   calendario: 'Calendário',
   clientes: 'Clientes',
   inicio: 'Início',
+  integracao: 'Integração',
   'metas-e-rv': 'Metas e RV',
   pedidos: 'Pedidos',
   pesquisa: 'Pesquisa',
@@ -370,6 +372,15 @@ export interface PainelParametrosVisivel<C> {
   componente: C;
 }
 
+/** Painel visível com a âncora `<modulo>-<id>` e o testID `parametros-<modulo>-<id>` (ADR 0060). */
+function painelVisivel<C>(modulo: ModuloId, id: string, titulo: string, origem: 'painel' | 'pagina', componente: C): PainelParametrosVisivel<C> {
+  const ancora = `${modulo}-${id}`;
+  return { modulo, id, titulo, ancora, testID: `parametros-${ancora}`, origem, componente };
+}
+
+/** Caminho sem as barras do começo (`/perfis` = `perfis`). */
+const semBarra = (caminho: string): string => caminho.replace(/^\/+/, '');
+
 /** Seção da página Parâmetros na visão do usuário (ADR 0060). */
 export interface SecaoParametrosVisivel<C> {
   secao: SecaoParametros;
@@ -435,7 +446,7 @@ export function criarShell<C>(app: AppShell, modulos: readonly ModuloShell<C>[])
     const destinoAntigo = new Map<string, string>();
     const paginaViva = new Map<string, string>();
     const marcar = (caminho: string, destino: string) => {
-      const c = caminho.replace(/^\/+/, '');
+      const c = semBarra(caminho);
       const outro = destinoAntigo.get(c);
       if (outro && outro !== destino) problemas.push(`caminho antigo ${c} leva a ${outro} e a ${destino}`);
       destinoAntigo.set(c, destino);
@@ -581,7 +592,7 @@ function montarVisao<C>(
     const lista = paineis.get(secao) ?? [];
     lista.push({ painel, ordem, pos: posicaoModulo.get(painel.modulo) ?? 0, seq: seq++ });
     paineis.set(secao, lista);
-    for (const c of antigos) destinos.set(c.replace(/^\/+/, ''), `/parametros/${secao}#${painel.ancora}`);
+    for (const c of antigos) destinos.set(semBarra(c), `/parametros/${secao}#${painel.ancora}`);
   };
   const itemNavegacao = (id: ModuloId, p: PaginaShell<C>, grupoMenu: GrupoMenu, rotulo: string, bloqueado: boolean): ItemNavegacao<C> => ({
     modulo: id,
@@ -631,8 +642,7 @@ function montarVisao<C>(
       if (p.perfis && !p.perfis.includes(ctx.perfil)) continue;
       if (p.acao && !pode(p.acao)) continue;
       if (t?.secao) {
-        const ancora = `${id}-${p.id}`;
-        incluirPainel(t.secao, t.ordem ?? 100, { modulo: id, id: p.id, titulo: p.titulo, ancora, testID: `parametros-${ancora}`, origem: 'pagina', componente: p.componente }, [p.caminho]);
+        incluirPainel(t.secao, t.ordem ?? 100, painelVisivel(id, p.id, p.titulo, 'pagina', p.componente), [p.caminho]);
         continue;
       }
       visiveis.set(p.caminho, { ...p, modulo: id });
@@ -641,9 +651,8 @@ function montarVisao<C>(
     for (const pp of app === 'web' ? (m.paineisParametros ?? []) : []) {
       if (pp.perfis && !pp.perfis.includes(ctx.perfil)) continue;
       if (pp.acao && !pode(pp.acao)) continue;
-      const ancora = `${id}-${pp.id}`;
       const antigos = [...(pp.caminhosAntigos ?? []), ...(antigosDaPagina.has(pp.id) ? [antigosDaPagina.get(pp.id) as string] : [])];
-      incluirPainel(pp.secao, pp.ordem ?? 100, { modulo: id, id: pp.id, titulo: pp.titulo, ancora, testID: `parametros-${ancora}`, origem: 'painel', componente: pp.componente }, antigos);
+      incluirPainel(pp.secao, pp.ordem ?? 100, painelVisivel(id, pp.id, pp.titulo, 'painel', pp.componente), antigos);
     }
   }
   navegacao.sort(
@@ -671,8 +680,8 @@ function montarVisao<C>(
     modulosAtivos: ativos,
     navegacao,
     parametros,
-    destinoParametros: (caminho) => destinos.get(caminho.replace(/^\/+/, '')) ?? null,
-    pagina: (caminho) => visiveis.get(caminho.replace(/^\/+/, '')) ?? null,
+    destinoParametros: (caminho) => destinos.get(semBarra(caminho)) ?? null,
+    pagina: (caminho) => visiveis.get(semBarra(caminho)) ?? null,
     pode,
     extensoes: <P,>(slot: string) =>
       extensoes.listar(slot, { app, modulosAtivos: ativos, perfil: ctx.perfil ?? undefined, pode }) as ItemExtensao<P>[],
