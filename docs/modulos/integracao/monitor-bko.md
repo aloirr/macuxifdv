@@ -1,6 +1,6 @@
 # Integração ERP no BKO — página "Integração ERP" (T-0051, T-0173)
 
-> RF-INT-04 (monitor), RF-INT-06 (alertas); RN-INT-08 (pedidos no ERP), RN-INT-15 (status e ações do lote), RN-INT-16 (autorização do reprocessamento).
+> RF-INT-04 (monitor); RN-INT-08 (pedidos no ERP), RN-INT-15 (status e ações do lote), RN-INT-16 (autorização do reprocessamento).
 > Código: `modules/integracao/web/`.
 
 ## Onde fica
@@ -17,7 +17,7 @@
   - **Reprocessar** só em Com falha e Concluído com avisos (`POST /v1/integracao/lotes/:id/reprocessar`).
 - **Autorização do reprocessamento (RN-INT-16)**: sem `lote.reprocessar`, o corpo leva `autorizador_id` (de `GET /v1/integracao/lotes/autorizadores`, consulta `core.usuarios_com_acao@1`) e `senha`, conferida pelo Core (porta `VerificadorSenha`, `core.credencial_conferir@1`). As frases das recusas vêm do domain e a tela mostra a da API. 5 erros em 15 min bloqueiam o autorizador (429); a auditoria grava quem autorizou, nunca a senha.
 
-`GET /v1/integracao/monitor` devolve `gerado_em`, `alertas` (`montarAlertasMonitor`, causa e ação seguinte), `lotes_recentes` e `resumo_pedidos`. Toda resposta passa pelo schema Zod do contrato antes de chegar à tela.
+`GET /v1/integracao/monitor` devolve só o que alguma tela lê: `gerado_em`, `lotes_recentes` e `resumo_pedidos`. Os alertas da integração (`montarAlertasMonitor`, causa e ação seguinte) ficam no domain até uma tela da área "Alertas" ler. Toda resposta passa pelo schema Zod do contrato antes de chegar à tela.
 
 ## Fora desta página
 - **Cards "Pedidos no ERP"** (módulo Vendedor, início de BKO → Pedidos): leem `MonitorResumo.resumo_pedidos` (`resumoPedidosErp()` no domain, `ResumoPedidosErp` no contrato), sem cálculo no Vendedor.

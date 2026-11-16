@@ -1,16 +1,12 @@
 /**
- * `GET /v1/integracao/monitor` (ação `monitor.ver`; RF-INT-04, RF-INT-06, T-0173): alertas com a causa e a ação seguinte, os lotes
- * recentes da tela e o resumo dos pedidos no ERP (cards do Vendedor). Janelas em relação a `ctx.agora()` (nunca uma data fixa
- * contra o relógio do banco).
+ * `GET /v1/integracao/monitor` (ação `monitor.ver`; RF-INT-04, T-0173): os lotes recentes da tela Integração ERP e o resumo dos
+ * pedidos no ERP (cards do Vendedor). Só o que alguma tela lê.
  */
 import type { ContextoRota, RotaModulo } from '@macuxi/platform-sdk';
-import { ESTADOS_PEDIDO_ERP, type Entidade, type LoteListagemItem, type MonitorResumo, type PendenciaInativacao } from '../contracts';
-import { ehRetencaoPorCadastro, montarAlertasMonitor, pedidosAguardandoConector, resumoPedidosErp } from '../domain';
-import { COLUNAS_CONECTOR, iso, lerChaves, lerPolitica, montarResumo, type LinhaConector } from './bko-comum';
+import { ESTADOS_PEDIDO_ERP, type Entidade, type LoteListagemItem, type MonitorResumo } from '../contracts';
+import { resumoPedidosErp } from '../domain';
+import { iso } from './bko-comum';
 import { lerParametrosHub } from './parametros';
-
-const JANELA_24H_MS = 24 * 3_600_000;
-const DIAS_RECONCILIACAO = 7;
 
 interface LinhaLote {
   lote_id: string;
@@ -42,119 +38,32 @@ export const rotaMonitor: RotaModulo = {
   executar: async (ctx: ContextoRota): Promise<MonitorResumo> => {
     const tenantId = ctx.usuario.tenant_id;
     const parametros = lerParametrosHub(ctx.parametros(), ctx.log);
-    const agora = ctx.agora();
-    const agoraIso = agora.toISOString();
-    const desde24h = new Date(agora.getTime() - JANELA_24H_MS).toISOString();
+    const agoraIso = ctx.agora().toISOString();
     return ctx.comTenant(async (db) => {
-      const { rows: conectores } = await db.query<LinhaConector>(`select ${COLUNAS_CONECTOR} from integracao.conector where tenant_id = $1 and deleted_at is null order by identificador`, [tenantId]);
-      const chaves = await lerChaves(db, tenantId, conectores.map((c) => c.id));
-      const politica = await lerPolitica(db, tenantId);
-      const resumos = conectores.map((c) => montarResumo(c, chaves.get(c.id), politica, agoraIso));
-
       const { rows: recentes } = await db.query<LinhaLote>(
         `select ${COLUNAS_LOTE} from integracao.lote l join integracao.conector c on c.tenant_id = l.tenant_id and c.id = l.conector_id
           where l.tenant_id = $1 and l.deleted_at is null order by l.recebido_em desc limit 100`,
         [tenantId],
       );
-
-      const { rows: pend } = await db.query<{
-        id: string; sessao_id: string; entidade: Entidade; conector_id: string; lote_id: string; estado: PendenciaInativacao['estado']; candidatos: number; total_ativos: number;
-        percentual: string; limite_pct: string; amostra: string[]; created_at: Date; expira_em: Date;
-      }>(
-        `select p.id, p.sessao_id, p.entidade, c.identificador as conector_id, p.lote_id, p.estado, p.candidatos, p.total_ativos, p.percentual::text, p.limite_pct::text,
-                p.amostra, p.created_at, p.expira_em
-           from integracao.pendencia_inativacao p join integracao.conector c on c.tenant_id = p.tenant_id and c.id = p.conector_id
-          where p.tenant_id = $1 and p.estado = 'aguardando' and p.deleted_at is null order by p.created_at desc limit 100`,
-        [tenantId],
-      );
-      const pendencias: PendenciaInativacao[] = pend.map((p) => ({
-        id: p.id, sessao_id: p.sessao_id, entidade: p.entidade, conector_id: p.conector_id, lote_id: p.lote_id, estado: p.estado, candidatos: p.candidatos,
-        total_ativos: p.total_ativos, percentual: Number(p.percentual), limite_pct: Number(p.limite_pct), amostra: p.amostra, criada_em: iso(p.created_at) as string,
-        expira_em: iso(p.expira_em) as string, decidida_em: null, decidida_por: null, decidida_por_perfil: null, motivo_decisao: null,
-      }));
-
-      const { rows: reconc } = await db.query<{ entidade: Entidade; data_referencia: string; divergente: boolean; motivos: string[]; contagem_erp: string; contagem_macuxi: string }>(
-        `select entidade, to_char(data_referencia, 'YYYY-MM-DD') as data_referencia, divergente, motivos, contagem_erp::text, contagem_macuxi::text
-           from integracao.reconciliacao
-          where tenant_id = $1 and deleted_at is null and data_referencia >= ($2::timestamptz)::date - $3::int
-          order by data_referencia desc, entidade limit 100`,
-        [tenantId, agoraIso, DIAS_RECONCILIACAO],
-      );
-
+      // RN-INT-08: contagem por estado da fila, presos (enviados com tentativas no limite) e retidos sem mapeamento
       const { rows: porEstado } = await db.query<{ estado: string; n: number }>(
         'select estado, count(*)::int as n from integracao.pedido_fila_erp where tenant_id = $1 and deleted_at is null group by estado',
         [tenantId],
       );
-      const { rows: presos } = await db.query<{ pedido_uuid: string }>(
-        `select pedido_uuid from integracao.pedido_fila_erp where tenant_id = $1 and deleted_at is null and estado = 'enviado' and tentativas >= $2 limit 1000`,
+      const { rows: extras } = await db.query<{ presos: number; retidos: number }>(
+        `select count(*) filter (where estado = 'enviado' and tentativas >= $2)::int as presos,
+                count(*) filter (where retencao_codigo is not null)::int as retidos
+           from integracao.pedido_fila_erp where tenant_id = $1 and deleted_at is null`,
         [tenantId, parametros.tentativasAlertaPedido],
       );
-      const { rows: retidos } = await db.query<{ pedido_uuid: string; retencao_mensagem: string | null }>(
-        'select pedido_uuid, retencao_mensagem from integracao.pedido_fila_erp where tenant_id = $1 and deleted_at is null and retencao_codigo is not null limit 1000',
-        [tenantId],
-      );
-
-      // ADR 0016: pedidos que exigem Conector mais novo que o que recebe os pedidos (versão do último sinal)
-      const { rows: esperandoConector } = await db.query<{ pedido_uuid: string; exige_conector: string }>(
-        `select pedido_uuid, exige_conector from integracao.pedido_fila_erp
-          where tenant_id = $1 and deleted_at is null and exige_conector is not null and estado in ('pendente', 'enviado') limit 1000`,
-        [tenantId],
-      );
-      const { rows: recebedor } = await db.query<{ versao_conector: string | null }>(
-        'select versao_conector from integracao.conector where tenant_id = $1 and ativo and recebe_pedidos and deleted_at is null limit 1',
-        [tenantId],
-      );
-
-      // T-0114: cancelamento recusado pelo ERP e ainda sem desfecho (o `cancelado` posterior confirma e tira o pedido daqui)
-      const { rows: recusados } = await db.query<{ pedido_uuid: string; numero_erp: string | null; cancelamento_recusa_motivo: string }>(
-        `select pedido_uuid, numero_erp, cancelamento_recusa_motivo from integracao.pedido_fila_erp
-          where tenant_id = $1 and deleted_at is null and cancelamento_estado = 'recusado' and estado <> 'cancelado'
-          order by cancelamento_recusado_em desc limit 1000`,
-        [tenantId],
-      );
-
-      const { rows: falhos } = await db.query<{ entidade: Entidade; conector_id: string }>(
-        `select l.entidade, c.identificador as conector_id from integracao.lote l join integracao.conector c on c.tenant_id = l.tenant_id and c.id = l.conector_id
-          where l.tenant_id = $1 and l.status = 'falhou' and l.recebido_em > $2::timestamptz and l.deleted_at is null`,
-        [tenantId, desde24h],
-      );
-      const { rows: descartes } = await db.query<{ pedido_uuid: string; produto_external_id: string }>(
-        'select pedido_uuid, produto_external_id from integracao.pedido_retorno_erro where tenant_id = $1 and created_at > $2::timestamptz and resolvido_em is null and deleted_at is null',
-        [tenantId, desde24h],
-      );
-
-      const alertas = montarAlertasMonitor({
-        agora: agoraIso,
-        conectores: resumos.map((r) => ({
-          conector_id: r.conector_id,
-          ativo: r.ativo,
-          ultimo_sinal_em: r.ultimo_sinal_em,
-          parado_por_versao: conectores.find((c) => c.id === r.id)?.parado_por_versao ?? false,
-          situacao_versao: r.situacao_versao,
-          chave_anterior_em_uso: r.chave?.anterior_prefixo != null && r.chave.anterior_valida_ate != null && Date.parse(r.chave.anterior_valida_ate) > agora.getTime(),
-        })),
-        lotesFalhosUltimas24h: falhos,
-        pendenciasInativacao: pendencias,
-        reconciliacoesDivergentes: reconc.filter((r) => r.divergente),
-        pedidos: {
-          presos: presos.map((p) => p.pedido_uuid),
-          retidos: retidos.map((p) => p.pedido_uuid),
-          retidosPorCadastro: retidos.filter((p) => ehRetencaoPorCadastro(p.retencao_mensagem)).map((p) => p.pedido_uuid),
-        },
-        retornosComItensDescartados24h: descartes,
-        pedidosAguardandoConector: pedidosAguardandoConector(esperandoConector, recebedor[0]?.versao_conector ?? null),
-        cancelamentosRecusados: recusados.map((r) => ({ pedido_uuid: r.pedido_uuid, numero_erp: r.numero_erp, motivo: r.cancelamento_recusa_motivo })),
-      });
 
       const contagem = Object.fromEntries(ESTADOS_PEDIDO_ERP.map((e) => [e, 0])) as Record<(typeof ESTADOS_PEDIDO_ERP)[number], number>;
       for (const r of porEstado) if (r.estado in contagem) contagem[r.estado as keyof typeof contagem] = r.n;
 
-      const pedidosResumo = { por_estado: contagem, presos: presos.length, retidos: retidos.length };
       return {
         gerado_em: agoraIso,
-        alertas,
         lotes_recentes: recentes.map(paraItem),
-        resumo_pedidos: resumoPedidosErp(pedidosResumo),
+        resumo_pedidos: resumoPedidosErp({ por_estado: contagem, presos: extras[0]?.presos ?? 0, retidos: extras[0]?.retidos ?? 0 }),
       };
     });
   },

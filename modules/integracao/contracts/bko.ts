@@ -408,8 +408,6 @@ export type AlertaMonitor = z.infer<typeof AlertaMonitor>;
 /** `GET /v1/integracao/monitor`: o que a tela inicial do monitor mostra (RF-INT-04, RF-INT-06). */
 export const MonitorResumo = z.object({
   gerado_em: DataHoraUtc,
-  /** Alertas com a causa e a ação seguinte (RF-INT-06). */
-  alertas: z.array(AlertaMonitor),
   lotes_recentes: z.array(LoteListagemItem),
   /** Os 5 números dos cards de BKO > Pedidos, já calculados pela API (T-0173); o Vendedor só exibe. */
   resumo_pedidos: ResumoPedidosErp,

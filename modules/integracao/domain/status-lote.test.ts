@@ -12,7 +12,6 @@ import {
   statusDoLote,
   STATUS_LOTE,
   estadoLoteNoHubV1,
-  transicionarLote,
 } from '.';
 
 describe('RN-INT-15: os 5 status do lote na tela', () => {
@@ -50,19 +49,6 @@ describe('RN-INT-15: ações válidas por status', () => {
     expect(acoesDoLote('processando')).toEqual(['cancelar']);
     expect(acoesDoLote('falhou')).toEqual(['reprocessar']);
     expect(acoesDoLote('concluido_com_erros')).toEqual(['reprocessar']);
-  });
-});
-
-describe('RN-INT-15: cancelar e reprocessar na máquina de estados (RN-INT-08)', () => {
-  it('RN-INT-15: recebido e processando podem ser cancelados; cancelado é final', () => {
-    expect(transicionarLote('recebido', 'cancelado').ok).toBe(true);
-    expect(transicionarLote('processando', 'cancelado').ok).toBe(true);
-    for (const para of ESTADOS_LOTE_BKO) expect(transicionarLote('cancelado', para).ok, para).toBe(false);
-  });
-
-  it('RN-INT-15: concluído com erros e falhou voltam para a fila (recebido) ao reprocessar', () => {
-    expect(transicionarLote('concluido_com_erros', 'recebido').ok).toBe(true);
-    expect(transicionarLote('falhou', 'recebido').ok).toBe(true);
   });
 });
 

@@ -4,6 +4,7 @@
  * Funções puras: a API grava/lê, a tela só compõe o texto.
  */
 import { ESTADOS_LOTE_BKO, type EstadoLote, type EstadoLoteBko } from '../contracts';
+import { transicionarLote } from './estados';
 
 /** RN-INT-15: os 5 status que a pessoa vê (Em andamento, Concluído, Concluído com avisos, Com falha, Cancelado). */
 export const STATUS_LOTE = ['em_andamento', 'concluido', 'concluido_com_avisos', 'com_falha', 'cancelado'] as const;
@@ -36,14 +37,11 @@ export const estadosDoStatus = (status: StatusLote): EstadoLoteBko[] => ESTADOS_
 
 export type AcaoLote = 'cancelar' | 'reprocessar';
 
-/** RN-INT-15: Cancelar só em andamento. */
-export const podeCancelarLote = (estado: EstadoLoteBko): boolean => statusDoLote(estado) === 'em_andamento';
+/** RN-INT-15: Cancelar só em andamento — a regra é a aresta `→ cancelado` de `TRANSICOES_LOTE`. */
+export const podeCancelarLote = (estado: EstadoLoteBko): boolean => transicionarLote(estado, 'cancelado').ok;
 
-/** RN-INT-15: Reprocessar só em Com falha e Concluído com avisos. */
-export const podeReprocessarLote = (estado: EstadoLoteBko): boolean => {
-  const s = statusDoLote(estado);
-  return s === 'com_falha' || s === 'concluido_com_avisos';
-};
+/** RN-INT-15: Reprocessar só em Com falha e Concluído com avisos — a aresta `→ recebido` de `TRANSICOES_LOTE`. */
+export const podeReprocessarLote = (estado: EstadoLoteBko): boolean => transicionarLote(estado, 'recebido').ok;
 
 /** RN-INT-15: ações do menu "⋯" da linha; a que não vale não aparece. Vazio = a linha não tem "⋯". */
 export function acoesDoLote(estado: EstadoLoteBko): AcaoLote[] {

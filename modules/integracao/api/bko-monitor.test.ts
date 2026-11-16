@@ -7,8 +7,7 @@ function montarCtx() {
   const db = {
     query: async (sql: string) => {
       if (/group by estado/.test(sql)) return { rows: [{ estado: 'pendente', n: 4 }, { estado: 'enviado', n: 2 }, { estado: 'rejeitado_erp', n: 1 }, { estado: 'integrado', n: 50 }] };
-      if (/estado = 'enviado' and tentativas/.test(sql)) return { rows: [{ pedido_uuid: 'a' }, { pedido_uuid: 'b' }, { pedido_uuid: 'c' }] };
-      if (/retencao_codigo is not null/.test(sql)) return { rows: Array.from({ length: 5 }, (_, i) => ({ pedido_uuid: `r${i}`, retencao_mensagem: null })) };
+      if (/as presos/.test(sql)) return { rows: [{ presos: 3, retidos: 5 }] };
       return { rows: [] };
     },
   };
@@ -29,9 +28,9 @@ describe('GET /integracao/monitor: resumo_pedidos (T-0173)', () => {
     expect(MonitorResumo.safeParse(r).success).toBe(true);
   });
 
-  it('RD-0963: os 5 números só existem em resumo_pedidos (sem o bloco repetido `pedidos`)', async () => {
+  it('RD-0963, RD-1567: o monitor devolve só o que alguma tela lê (lotes da tela e os 5 números dos cards)', async () => {
     const r = (await rotaMonitor.executar(montarCtx() as never)) as unknown as Record<string, unknown>;
-    expect(r).not.toHaveProperty('pedidos');
-    expect(Object.keys(MonitorResumo.shape)).not.toContain('pedidos');
+    expect(Object.keys(r).sort()).toEqual(['gerado_em', 'lotes_recentes', 'resumo_pedidos']);
+    expect(Object.keys(MonitorResumo.shape).sort()).toEqual(['gerado_em', 'lotes_recentes', 'resumo_pedidos']);
   });
 });
