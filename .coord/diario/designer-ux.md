@@ -137,3 +137,4 @@
 2026-11-16 — catálogo onda 1 (#424) — RD-1294 (sai 'substituem o texto provisório'), RD-1295 (comentário do carga-fundo-rn só aponta para a spec e as constantes), RD-1296 (sai o teste dos textos fechados, repetido), MC-0157 (spec na fonte do sistema 600/12, nota da tipografia)
 2026-11-15 — v1.0.14 parametros — simulação final do menu Parâmetros (D1–D11) trazida de nuvem/menu-parametros-designer-ux, refeita na fonte do sistema e a 1366×768 (item longo do menu quebra linha; a página pode rolar).
 2026-11-16 — v1.0.14 parametros — #408: merge do main e RD-1577 a RD-1579, MC-1510 (Salvar só nos painéis editáveis; quem implementa no desenho e ADR 0060; P3 sem repetir o §3; parâmetros só leitura no arranjo do código, valor em 400).
+2026-11-16 — v1.0.14 parametros — #408: RD-1901 (sai o parâmetro ajuda da leitura() e os 5 textos que não apareciam).

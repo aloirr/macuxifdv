@@ -260,21 +260,21 @@ const html05 = parametros(
 
 // ---------- 06: Trade (com licença; só leitura até existir a rota de gravação, P4/RD-P07) ----------
 // "Padrão: X" só quando o valor difere do padrão (RD-P05): aqui, Em atenção até (45; padrão 30).
-// MC-1510: o mesmo arranjo do código (rótulo à esquerda em 600, valor à direita em 400, "Padrão: X" embaixo); sem ajuda.
-const leitura = (rotulo, ajuda, valor, unidade, padrao = '') =>
+// O mesmo arranjo do código: rótulo à esquerda em 600, valor à direita em 400, "Padrão: X" embaixo.
+const leitura = (rotulo, valor, unidade, padrao = '') =>
   `<div class="campo leitura"><span>${rotulo}</span><span class="valor">${valor}${unidade === '%' ? '%' : unidade ? ` ${unidade}` : ''}${padrao ? `<i>Padrão: ${padrao}</i>` : ''}</span></div>`;
 const html06 = parametros(
   'Trade',
   `<section class="quadro"><h2>Validade</h2><div class="grade">
-  ${leitura('Crítica até', 'Dias para vencer.', '7', 'dias')}
-  ${leitura('Em atenção até', 'Acima disso, ok.', '45', 'dias', '30 dias')}
+  ${leitura('Crítica até', '7', 'dias')}
+  ${leitura('Em atenção até', '45', 'dias', '30 dias')}
   </div></section>
   <section class="quadro"><h2>Visita e coleta</h2><div class="grade">
-  ${leitura('Permanência mínima', 'Para contar nos indicadores.', '10', 'min')}
-  ${leitura('Variação de preço sem confirmar', 'Sobre a última coleta.', '50', '%')}
+  ${leitura('Permanência mínima', '10', 'min')}
+  ${leitura('Variação de preço sem confirmar', '50', '%')}
   </div></section>
   <section class="quadro"><h2>Gôndola</h2><div class="grade">
-  ${leitura('Peso do parcial na conformidade', 'De 0 a 1.', '0', '')}
+  ${leitura('Peso do parcial na conformidade', '0', '')}
   </div></section>`,
   '<b>Simulação.</b> Os 5 parâmetros do Promotor: 3 da gaveta de Trade › Cadastros e 2 sem tela hoje. Só leitura: a rota de gravação é lote futuro.',
 );
