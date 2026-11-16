@@ -29,8 +29,10 @@ export interface ConjuntosFinanceiros {
   comVencidos?: ReadonlySet<string>;
 }
 
-const norm = (s: string | null | undefined): string =>
-  (s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+/** Busca tolerante: minúsculas, sem acento e sem espaço nas pontas. A única normalização de busca do Core (RD-1229). */
+export const normalizarBusca = (s: string | null | undefined): string =>
+  (s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
 const soDigitos = (s: string | null | undefined): string => (s ?? '').replace(/\D/g, '');
 const rotulo = (c: ClienteLista): string => c.nome_fantasia?.trim() || c.razao_social;
 
@@ -43,17 +45,17 @@ export function listarClientes<C extends ClienteLista>(
   fin: ConjuntosFinanceiros = {},
 ): C[] {
   const visiveis = clientesVisiveis(perfil, conjuntos);
-  const q = norm(filtro.q);
+  const q = normalizarBusca(filtro.q);
   const qDigitos = soDigitos(filtro.q);
   return clientes
     .filter((c) => clienteNoEscopo(c.id, visiveis))
-    .filter((c) => !filtro.cidade || norm(c.cidade) === norm(filtro.cidade))
-    .filter((c) => !filtro.segmento || norm(c.segmento) === norm(filtro.segmento))
+    .filter((c) => !filtro.cidade || normalizarBusca(c.cidade) === normalizarBusca(filtro.cidade))
+    .filter((c) => !filtro.segmento || normalizarBusca(c.segmento) === normalizarBusca(filtro.segmento))
     .filter((c) => !filtro.bloqueado || (fin.bloqueados?.has(c.id) ?? false))
     .filter((c) => !filtro.comVencidos || (fin.comVencidos?.has(c.id) ?? false))
     .filter((c) => {
       if (!q) return true;
-      if ([c.razao_social, c.nome_fantasia, c.cidade].some((t) => norm(t).includes(q))) return true;
+      if ([c.razao_social, c.nome_fantasia, c.cidade].some((t) => normalizarBusca(t).includes(q))) return true;
       return qDigitos.length >= 3 && soDigitos(c.documento).includes(qDigitos);
     })
     .sort((a, b) => rotulo(a).localeCompare(rotulo(b), 'pt-BR', { sensitivity: 'base' }));

@@ -60,7 +60,7 @@ function NavLink({ item, active, variante = 'lateral', recuo = true, onNavegar }
       className={cx(
         'flex shrink-0 items-center rounded-lg whitespace-nowrap no-underline transition-colors',
         FOCO,
-        lateral ? cx('relative h-8 pr-2.5 text-[14px]', recuo ? 'pl-5' : 'pl-2.5') : 'h-9 px-3 text-[13px]',
+        lateral ? cx('relative h-8 pr-2.5 text-[15px]', recuo ? 'pl-5' : 'pl-2.5') : 'h-9 px-3 text-[13px]',
         active ? 'bg-nav-active font-semibold text-white' : 'text-nav-text hover:bg-nav-active hover:text-white',
         active && lateral && "before:absolute before:top-2 before:bottom-2 before:left-2 before:w-[3px] before:rounded-sm before:bg-nav-grupo before:content-['']",
       )}
@@ -83,7 +83,7 @@ function Brand({ company }: { company: string }) {
   );
 }
 
-const TITULO_GRUPO = 'text-[11.5px] font-semibold tracking-[0.07em] text-nav-grupo uppercase';
+const TITULO_GRUPO = 'text-[12px] font-semibold tracking-[0.07em] text-nav-grupo uppercase';
 
 interface Painel {
   grupo: string;
@@ -352,7 +352,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <MenuLateral grupos={grupos} ativo={ativo} />
         <div className="mt-1 flex shrink-0 flex-col gap-0.5 border-t border-nav-active px-2 pt-3">
           <div className="flex flex-col">
-            <span className="truncate text-[14px] leading-5 font-semibold">{user?.name ?? '—'}</span>
+            <span className="truncate text-[15px] leading-5 font-semibold">{user?.name ?? '—'}</span>
             <span className="text-[12px] leading-4 text-nav-text">{roleLabel}</span>
           </div>
           <button type="button" data-testid="trocar-perfil" onClick={switchProfile} className={cx('flex h-8 items-center gap-2 rounded-lg px-0 text-[13px] font-semibold text-nav-text hover:text-white', FOCO)}>
