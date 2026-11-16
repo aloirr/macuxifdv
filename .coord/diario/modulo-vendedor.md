@@ -149,3 +149,4 @@
 2026-11-15 — fonte do sistema (#404) — pareceres v1.0.13: RD-1253 (t.h1Small, t.rotulo, t.number do kit), MC-0147 (valores em destaque 600 no app e no BKO), MC-0148 (PDF: .r, th, .doc .t small e linha do Total em 600), RD-1254 (título do teste: 600).
 2026-11-15 — fonte do sistema (#404) — MC-0152 (qtd, %, R$ e nome do item em 600) e MC-0153 (número do card = t.number).
 2026-11-16 — v1.0.14 integracao (#411) — os cards leem ROTA_MONITOR, a constante única do contrato da Integração (RD-1568 no #410).
+2026-11-16 — v1.0.14 integracao (#411) — RD-1574: saem os 2 testes dos cards que repetiam asserções.
