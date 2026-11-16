@@ -1228,8 +1228,8 @@ API na tabela da seção 3, "Banco — funções que a API chama", de `docs/dese
   vivas, por `ordem, numero`. EXECUTE só ao `macuxi_app` (`GET /v1/sync/frases-carga`, dentro do `comTenant` da requisição;
   nada de tenant entra nem sai). O aparelho guarda a lista e sorteia offline.
 
-As 3 `sa_*` entram nas listas de conformidade (`db/testes/funcoes-sa.ts` `FUNCOES_SA_CARGA`; `FUNCOES_SA_ATUAIS` = 34: as 27
-até a 0080, `FUNCOES_SA_ATE_0080`, mais as 3 da carga e as 4 da logo, `FUNCOES_SA_LOGO`). Fora deste caminho, a cargo dos donos:
+As 3 `sa_*` entram nas listas de conformidade (`db/testes/funcoes-sa.ts` `FUNCOES_SA_CARGA`; em `FUNCOES_SA_ATUAIS`, uma
+constante por lote da v1.0.14). Fora deste caminho, a cargo dos donos:
 `apps/api/test/funcoes-sa.ts` e `scripts/deploy/producao/banco-dbaas.sh` (engenheiro-software) e
 `DEFINER_REVISADAS`/`DEFINER_REVISADAS_PORTAL` de `tests/integracao/banco/conformidade.test.ts` (testes). A conferência do fim da
 0081 não fixa o total de `sa_*` (fica em `db/testes/funcoes-sa.ts`): confere as 3 novas no portal e nenhuma `sa_*` no app, no
