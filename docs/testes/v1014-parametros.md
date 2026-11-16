@@ -1,6 +1,6 @@
 # v1.0.14 — Menu Parâmetros do BKO (ADR 0060): matriz de cenários
 
-Origem: R-20261115-113500, -121000 (D1 a D10), -122000 (D11); notas N8 do corretor sobre o #457. Desenho: `docs/desenho/menu-parametros.md` (#421). PRs conferidos (heads): #421 `869f007b` (SDK e `/v1/me/modulos`), #457 `a3bc1121` (painéis do Core e coluna Usuários; contém o #456, alertas), #412 `93721007` (Alçadas), #414 `81d307d6` (Pesquisa), #415 `afdf5677` (Trade), #416 `9d21e395` (Treinamento). Shell web (`apps/web`: menu, `/parametros/[secao]`, redirecionamento): **sem PR v1.0.14 aberto** (ver "Dependências").
+Origem: R-20261115-113500, -121000 (D1 a D10), -122000 (D11); notas N8 do corretor sobre o #457. Desenho: `docs/desenho/menu-parametros.md` (#421). PRs conferidos (heads, 16/11): #421 e #457 já no `main` (`3e1beb48`, squash; o #457 final `84542c4c`), #412 `93721007` (Alçadas), #414 `81d307d6` (Pesquisa), #415 `afdf5677` (Trade), #416 `9d21e395` (Treinamento). Shell web (`apps/web`: menu, `/parametros/[secao]`, redirecionamento): **sem PR v1.0.14 aberto** (ver "Dependências").
 
 Arquivos: e2e `tests/e2e/bko/menu-parametros.spec.ts` (API simulada), `tests/e2e/bko/demo-bko.spec.ts` e `pedidos-bko.spec.ts` (demo real); valor × regra `tests/modulos/parametros-valor-regra-v1014.test.ts`; painéis do Core (visão do shell e contrato) `tests/modulos/parametros-core-n8-v1014.test.ts`; API com banco `tests/integracao/api/parametros-core-v1014.test.ts`; acesso `tests/modulos/acesso-perfil-modulos-rncore01.test.ts`. Unitários do SDK (`shell-parametros.test.ts`, `shell-grupos.test.ts`) e da API (`apps/api/test/app.test.ts`) são do engenheiro-software (#421).
 
@@ -45,7 +45,7 @@ Arquivos: e2e `tests/e2e/bko/menu-parametros.spec.ts` (API simulada), `tests/e2e
 | V4 | Treinamento | RN-TRE | Mesmo valor de `parametrosDoTenant` | unit Treinamento; e2e "com licença" (padrão) e D-PAR-04 (`test.fail`) |
 | V5 | Fuso do tenant | RN-CORE-11 | O fuso não muda os limites exibidos | unit D-PAR-03 (`it.fails`) |
 
-| V6 | Frases do dia (título) | RN-CORE-41 | "Frases do dia · N", N = frases da lista de `GET /v1/core/frases` (ativas e desativadas, só do tenant) | API: contagem × banco e tenant B; unit e e2e N8-PAR-1 (`it.fails`/`test.fail`) |
+| V6 | Frases do dia (título) | RN-CORE-41 | "Frases do dia · N", N = frases da lista de `GET /v1/core/frases` (ativas e desativadas, só do tenant) | API: contagem × banco e tenant B; título "Frases do dia" sem número (N8-PAR-1 corrigido: o #457 final tirou o contador) |
 | V7 | Parado entre visitas | RN-CORE-26 | Um valor, um lugar: `inicio.parado_min` gravado só por Parâmetros › Alertas; o GET do Início (lido pelo Gestão) mostra o mesmo valor | API "GET/PUT do parado" |
 
 Dia útil, dia não útil, virada de mês: não se aplicam (painéis de configuração, sem número calculado por data).
@@ -55,8 +55,8 @@ Dia útil, dia não útil, virada de mês: não se aplicam (painéis de configur
 | # | Cenário | Esperado | Teste |
 |---|---|---|---|
 | C1 | Frases do dia por perfil | Analista e admin (`frase_dia.editar`) veem o painel em Início; gerente não (a API nega o GET: 403) | unit "analista e admin…"; API "gerente recebe 403"; e2e "Frases do dia: gerente…" |
-| C2 | Contador das Frases | Título "Frases do dia · N" com o número real | N8-PAR-1 (`it.fails`, `test.fail`) |
-| C3 | Perfil só consulta (P4) | Vê o painel em modo leitura, sem salvar (Medidas: gerente, `GET /v1/core/medidas` com `produto.editar_preco`) | N8-PAR-2 (`it.fails`, `test.fail`); analista e admin veem: unit |
+| C2 | Título das Frases | "Frases do dia", sem contador e uma vez só (rótulo × valor: nenhum número que possa divergir) | N8-PAR-1 corrigido (unit e e2e) |
+| C3 | Perfil só consulta (P4) | Vê o painel em modo leitura, sem salvar (Medidas: gerente, `GET /v1/core/medidas` com `produto.editar_preco`) | N8-PAR-2 corrigido (unit e e2e); analista e admin veem: unit |
 | C4 | Perfil só consulta não ganha edição | Gerente sem `medida.gerenciar`, `frase_dia.editar`, `parametro.inicio`, `parametro.alertas_produtividade` | unit "gerente não ganha ação de edição" |
 | C5 | Perfil sem o módulo | Sem Vendedor: sem painel do Vendedor em Pedidos; sem Promotor: sem a seção Trade | unit "perfil sem o Vendedor…" |
 | C6 | Empresa sem licença | Seção da vitrine bloqueada e sem painéis; API 403 `MODULO_INATIVO` (Vendedor desligado: `GET /v1/vendedor/alcadas`); o Core segue respondendo (RN-CORE-03) | unit "empresa sem Pesquisa"; API "Vendedor desligado no tenant" |
@@ -76,15 +76,17 @@ Dia útil, dia não útil, virada de mês: não se aplicam (painéis de configur
 | A8 | Tela do Início | Dias úteis sem campo do parado nem do almoço | e2e "Início: Dias úteis sem o campo do parado" |
 
 ## Defeitos abertos (casos `it.fails` / `test.fail`)
-- **N8-PAR-1** (média, modulo-core, `modules/core/web/index.ts` e `modules/core/web/components/frases-do-dia/frases-do-dia-panel.tsx`): o contador "· N" das Frases do dia não aparece na página Parâmetros. O componente põe o número no `title` da `Moldura`, mas chega com `semMoldura` e o shell desenha o `Panel` com o `titulo` fixo "Frases do dia". Reproduzir: admin em `/parametros/inicio` com 3 frases; o título mostra "Frases do dia". Pronto quando o título exibido trouxer "Frases do dia · 3".
-- **N8-PAR-2** (média, modulo-core, `modules/core/web/index.ts`, painel `medidas`): o gerente (só consulta) perdeu Medidas. Antes ele consultava pela aba da página Preço e custo (`produto.editar_preco`; o `GET /v1/core/medidas` segue com essa ação e o `MedidasPanel` tem modo consulta). O painel novo exige `medida.gerenciar` (analista e admin). Reproduzir: gerente em `/parametros/produtos`; não há painel Medidas. Pronto quando o gerente vir a lista com "Você pode consultar" e "Nova medida" desligado.
 - **D-PAR-05** (baixa, modulo-core, `modules/core/web/components/calendario/almoco-padrao-panel.tsx`): o botão do Almoço diz só "Salvar" (P8: "Salvar almoço", como "Salvar dias úteis" e "Salvar prazo"). Reproduzir: admin em `/parametros/calendario`.
 - **D-PAR-04** (alta, engenheiro-apps, `apps/web/lib/ambiente.ts`): o ambiente do BKO não tem `parametros`; o `useParametros` dos painéis de Pesquisa e Treinamento devolve `{}` e a tela mostra sempre o padrão (50 perguntas, nota mínima 70%) mesmo com o tenant em 30 e 80%, que é o que a API aplica. Reproduzir: e2e `D-PAR-04` (tenant com `max_perguntas: 30` em `/v1/me/modulos`; `/parametros/pesquisa` mostra 50). Pronto quando o shell passar ao `ShellProvider` os `modulos[].parametros` de `/v1/me/modulos`.
 - **D-PAR-02** (média, modulo-treinamento, `modules/treinamento/web/lib/parametros-valor.ts`): com um valor inválido no cadastro (ex.: `xp_licao: -1`), a API e o app aplicam o padrão em todos os parâmetros; o painel valida chave a chave e mostra "Nota mínima 80%" quando a regra usa 70%. Também `nota_minima_pct: 150` aparece como valor em uso.
 - **D-PAR-03** (baixa, modulo-pesquisa, `modules/pesquisa/web/lib/parametros-valor.ts`): fuso inválido no cadastro faz o painel mostrar o padrão de todos os limites; a API troca o fuso pelo do tenant e aplica os limites do cadastro.
 
+## Corrigidos no #457 final (no `main`)
+- **N8-PAR-1**: o contador saiu com a `Moldura`; o título é o `titulo` do painel ("Frases do dia"). Casos viraram `it`/`test`.
+- **N8-PAR-2**: o painel `medidas` usa `produto.editar_preco`; o gerente consulta ("Você pode consultar", "Nova medida" desligado). Casos viraram `it`/`test`.
+
 ## Dependências para rodar o e2e
-Shell web do ADR 0060 (`apps/web`, engenheiro-apps: `nav-plataforma-parametros`, `pagina-parametros`, `parametros-secao-*`, `parametros-sem-licenca`, `parametros-conteudo-*`, cadeado) não tem PR v1.0.14; o e2e só passa com ele, com o #457 (painéis `parametros-core-*`) e com `modulos_contratados` no contrato do Core. Os casos unitários e de API dos painéis do Core pulam sozinhos sem o #421 e o #457.
+Shell web do ADR 0060 (`apps/web`, engenheiro-apps: `nav-plataforma-parametros`, `pagina-parametros`, `parametros-secao-*`, `parametros-sem-licenca`, `parametros-conteudo-*`, cadeado) não tem PR v1.0.14; o e2e só passa com ele, com o #457 (painéis `parametros-core-*`) e com `modulos_contratados` no contrato do Core. Os casos unitários dos painéis do Core montam a visão com `menuParametros: true` (o shell web do `main` ainda não liga o menu novo); os de Trade, Pesquisa e Treinamento pulam sozinhos sem o #415, #414 e #416.
 
 ## Teste manual
 Leitor de tela (NVDA) na entrada com cadeado: anuncia "indisponível" e o balão; teclado (Tab até a entrada, Enter não navega).

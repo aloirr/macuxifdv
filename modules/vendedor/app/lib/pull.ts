@@ -174,6 +174,8 @@ export function produtoComPreco(p: ProdutoSync, precoCents: number | null, saldo
   const minimo = x.preco_venda_cents != null && x.desconto_maximo_pct != null ? precoMinimoBaseCents({ preco_venda_cents: x.preco_venda_cents, desconto_maximo_pct: x.desconto_maximo_pct }) : null;
   return {
     ...(minimo !== null ? { preco_minimo_base_cents: minimo } : {}),
+    // RN-VEN-43: o mínimo é refeito sobre a tabela ajustada quando o prazo tem percentual (`minimoDoProdutoNoPrazo`)
+    ...(x.preco_venda_cents != null && x.desconto_maximo_pct != null ? { preco_venda_cents: x.preco_venda_cents, desconto_maximo_pct: x.desconto_maximo_pct } : {}),
     id: p.id,
     erp_code: p.sku,
     description: p.nome,
@@ -264,7 +266,7 @@ export function formasDaTela(l: LinhasVendedor): FormaDePagamento[] {
   return (l.formas ?? []).map((f) => ({ id: f.id, codigo: f.codigo, nome: f.nome, ativo: f.ativo, ordem: f.ordem }));
 }
 export function prazosDaTela(l: LinhasVendedor): PrazoDePagamento[] {
-  return (l.prazos ?? []).map((p) => ({ id: p.id, forma_pagamento_id: p.forma_pagamento_id, codigo: p.codigo, descricao: p.descricao, parcelas_dias: p.parcelas_dias, prazo_medio_dias: p.prazo_medio_dias, ordem: p.ordem, ativo: p.ativo }));
+  return (l.prazos ?? []).map((p) => ({ id: p.id, forma_pagamento_id: p.forma_pagamento_id, codigo: p.codigo, descricao: p.descricao, parcelas_dias: p.parcelas_dias, prazo_medio_dias: p.prazo_medio_dias, percentual_ajuste: p.percentual_ajuste ?? 0, ordem: p.ordem, ativo: p.ativo }));
 }
 
 // ---------- medidas, endereços e transportadoras (T-0061) ----------

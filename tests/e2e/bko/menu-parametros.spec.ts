@@ -658,14 +658,15 @@ test.describe('ADR 0060 — menu do BKO (API simulada)', () => {
     await expect(inicio).not.toContainText(/almo[cç]o/i);
   });
 
-  // N8-PAR-1 (modulo-core, média; modules/core/web/index.ts + frases-do-dia-panel.tsx): com `semMoldura` o título do componente
-  // ("Frases do dia · N") some e o shell mostra só o `titulo` fixo do painel. Valor × regra: N = 3 frases da lista (2 ativas, 1 desativada).
-  test.fail('N8-PAR-1: título das Frases do dia mostra o número real de frases ("Frases do dia · 3")', async ({ page }) => {
+  // N8-PAR-1 (modulo-core, corrigido no #457 final): o contador "· N" só existia no título da moldura e sumia na página; o #457
+  // tirou o contador. Rótulo × valor: o título é "Frases do dia", sem número, uma vez só.
+  test('N8-PAR-1 corrigido: título das Frases do dia sem contador, uma vez só', async ({ page }) => {
     await entrarSimulado(page);
     await page.goto('/parametros/inicio');
     const frases = page.getByTestId('parametros-core-frases-do-dia');
     await expect(frases.getByTestId('frases.painel')).toBeVisible({ timeout: 60_000 });
-    await expect(frases.getByRole('heading', { name: 'Frases do dia · 3', exact: true })).toHaveCount(1);
+    await expect(frases.getByText('Frases do dia', { exact: true })).toHaveCount(1);
+    await expect(frases).not.toContainText(/Frases do dia ·/);
   });
 
   test('Frases do dia: gerente (sem frase_dia.editar; a API nega o GET) não vê o painel; analista vê', async ({ page }) => {
@@ -678,9 +679,9 @@ test.describe('ADR 0060 — menu do BKO (API simulada)', () => {
     await expect(page.getByTestId('parametros-core-frases-do-dia')).toHaveCount(0);
   });
 
-  // N8-PAR-2 (modulo-core, média; modules/core/web/index.ts, painel `medidas` com `acao: 'medida.gerenciar'`): o gerente consultava
-  // Medidas na página de Preço e custo (GET /v1/core/medidas com `produto.editar_preco`) e perde a tela no painel novo.
-  test.fail('N8-PAR-2: gerente (só consulta) vê Medidas em modo leitura, sem salvar', async ({ page }) => {
+  // N8-PAR-2 (modulo-core, corrigido no #457 final): o painel `medidas` usa `produto.editar_preco` (a ação do GET /v1/core/medidas);
+  // o gerente consulta e não salva (`MedidasPanel` trava por `medida.gerenciar`).
+  test('N8-PAR-2 corrigido: gerente (só consulta) vê Medidas em modo leitura, sem salvar', async ({ page }) => {
     await entrarSimulado(page, { perfil: 'gerente' });
     await page.goto('/parametros/produtos');
     const medidas = page.getByTestId('parametros-core-medidas');

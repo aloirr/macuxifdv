@@ -1,45 +1,37 @@
-# Monitor do Hub no BKO — página "Integração ERP" (T-0051)
+# Integração ERP no BKO — página "Integração ERP" (T-0051, T-0173)
 
-> RF-INT-04 (monitor), RF-INT-06 (reconciliação); RN-INT-06 (inativação em massa, P-3), RN-INT-08 (pedidos no ERP, P-4).
-> Especificação dos blocos: [`hub-api.md` §13](hub-api.md). Código: `modules/integracao/web/`.
+> RF-INT-04 (monitor); RN-INT-08 (pedidos no ERP), RN-INT-15 (status e ações do lote), RN-INT-16 (autorização do reprocessamento).
+> Código: `modules/integracao/web/`.
 
 ## Onde fica
-- Menu **Integração ERP** (grupo Administração), caminho `/integracao`, página `monitor` (`nav-integracao-monitor`, `pagina-integracao-monitor`).
-- O shell (`apps/web/lib/modulos.ts`) já registra `@macuxi/integracao/web`: a página aparece sozinha quando o módulo está **efetivo** (licença no tenant e no perfil, RN-CORE-01/03), o perfil é do módulo (**admin**, **analista**) e a ação **`monitor.ver`** permite. Nada a montar no shell.
-- A tela confere de novo o perfil (`podeExecutar('monitor.ver', perfil)`) e mostra a mensagem do domain se não puder; a proteção real é a API (licença, perfil por ação, tenant do token).
+- Menu **Sistema → Integração ERP**, caminho `/integracao`, página `monitor` (`nav-integracao-monitor`, `pagina-integracao-monitor`).
+- O shell (`apps/web/lib/modulos.ts`) registra `@macuxi/integracao/web`: a página aparece quando o módulo está **efetivo** (licença no tenant e no perfil, RN-CORE-01/03), o perfil é do módulo (**admin**, **analista**) e a ação **`monitor.ver`** permite.
+- A tela confere de novo o perfil (`podeExecutar('monitor.ver', perfil)`); a proteção real é a API (licença, perfil por ação, tenant do token).
 
-## O que a tela mostra
-| Bloco | Fonte | Observações |
-|---|---|---|
-| KPIs | `MonitorResumo` | Conectores no ar, lotes com erro (entre os recentes), inativações aguardando, pedidos presos + retidos |
-| Alertas | `MonitorResumo.alertas` (`montarAlertasMonitor`) | críticos primeiro; texto com causa e ação seguinte |
-| Conectores | `MonitorResumo.conectores` | saúde (`avaliarSaudeConector`, na API), "há N min" desde o último sinal contra o relógio da tela (`relogioReal`, renovado a cada 30 s), versão × política, entidades, prefixo da chave e convivência da anterior |
-| Inativação em massa | `MonitorResumo.pendencias_inativacao` + `POST /v1/integracao/inativacoes/{id}/decidir` | Confirmar/Recusar com motivo opcional (≤ 300). Botões só para **admin/analista** (P-3, `autorizarAcaoIntegracao`) e só dentro da validade (`situacaoPendencia`, RN-INT-06). CSV com o resumo e a amostra (≤ 50 códigos do ERP) |
-| Carga por entidade | `MonitorResumo.cargas` | ordem de dependência, estado, lotes, erros, o que espera |
-| Lotes recentes | `MonitorResumo.lotes_recentes` (20 mais recentes) | filtros **na URL** (`conector`, `entidade`, `status`, `com_erro=1`), CSV do que está filtrado; clique abre a gaveta (`?lote=<uuid>`) |
-| Erros por linha (gaveta) | `GET /v1/integracao/lotes/{id}/erros` (`ErrosLoteQuery` → `ErrosLoteResposta`) | filtro por código, "Carregar mais" (100 por página), CSV com todos os erros do filtro (páginas de 500, teto 20.000) |
-| Pedidos no ERP | `MonitorResumo.pedidos` + alertas `pedido_preso`, `pedido_retido_sem_mapeamento`, `retorno_com_itens_descartados`, `cancelamento_recusado` (T-0114) | contagem por estado, presos, retidos, os erros de retorno das últimas 24 h e os cancelamentos que o ERP recusou (pedido e motivo; some quando o ERP informa o cancelamento) |
+## O que a tela mostra (T-0173)
+- Cabeçalho com **Atualizar**, filtros **Entidade** e **Status** (na URL) e a **tabela de lotes**: Entidade, Lote, Início, Duração, Conclusão, Status, Linhas integradas. Fonte: `MonitorResumo.lotes_recentes` (`GET /v1/integracao/monitor`, `ROTA_MONITOR`). Atualiza pelo `sync_auto_min` do tenant (RN-CORE-23).
+- Clique na linha abre o **log do lote** (gaveta, `?lote=<uuid>`): `GET /v1/integracao/lotes/{id}/erros` (`ErrosLoteQuery` → `ErrosLoteResposta`), filtro por código, "Carregar mais" e CSV dos erros do filtro. O aviso `marca_concorrente_desconhecida` (T-0103) aparece aqui: é aviso, nunca erro; até 200 por lote, depois "e mais N".
+- "⋯" só na linha que tem ação:
+  - **5 status (RN-INT-15, `domain/status-lote.ts`)**: Em andamento (recebido, processando), Concluído, Concluído com avisos (`concluido_com_erros`), Com falha (`falhou`), Cancelado.
+  - **Cancelar** só em andamento (`POST /v1/integracao/lotes/:id/cancelar`, ação `lote.cancelar`; 409 `lote_nao_esta_em_andamento`).
+  - **Reprocessar** só em Com falha e Concluído com avisos (`POST /v1/integracao/lotes/:id/reprocessar`).
+- **Autorização do reprocessamento (RN-INT-16)**: sem `lote.reprocessar`, o corpo leva `autorizador_id` (de `GET /v1/integracao/lotes/autorizadores`, consulta `core.usuarios_com_acao@1`) e `senha`, conferida pelo Core (porta `VerificadorSenha`, `core.credencial_conferir@1`). As frases das recusas vêm do domain e a tela mostra a da API. 5 erros em 15 min bloqueiam o autorizador (429); a auditoria grava quem autorizou, nunca a senha.
 
-Atualização automática a cada 30 s (o sinal do Conector é a cada 1 min). Toda resposta passa pelo schema Zod do contrato antes de chegar à tela.
+`GET /v1/integracao/monitor` devolve só o que alguma tela lê: `gerado_em`, `lotes_recentes` e `resumo_pedidos`. Os alertas da integração (`montarAlertasMonitor`, causa e ação seguinte) ficam no domain até uma tela da área "Alertas" ler. Toda resposta passa pelo schema Zod do contrato antes de chegar à tela.
+
+## Fora desta página
+- **Cards "Pedidos no ERP"** (módulo Vendedor, início de BKO → Pedidos): leem `MonitorResumo.resumo_pedidos` (`resumoPedidosErp()` no domain, `ResumoPedidosErp` no contrato), sem cálculo no Vendedor.
+- **De-para de códigos**: página `de-para` em **Parâmetros → Integração** (`parametros/integracao`). Lista com filtro por tipo e busca, "Novo de-para" em folha, código do Macuxi escolhido numa lista (`GET /v1/integracao/mapeamentos/codigos-macuxi?tipo=`). Lê com `monitor.ver`; grava, inativa e apaga com `mapeamento.editar` (admin ou analista). Regra (RN-INT-08): um correspondente **ativo** por código do Macuxi. Ao salvar uma condição de pagamento, os pedidos retidos por falta de de-para seguem para a fila na mesma transação; a área "Alertas" da página diz quais condições faltam e quantos pedidos esperam.
 
 ## CSV
 Padrão do BKO (BOM, `;`, CRLF). Só códigos do ERP (`external_id`), contagens e mensagens do Hub — nunca valor de linha (o payload pode ter CPF/CNPJ, §14 do hub-api). Texto que começa com `=`, `+`, `-` ou `@` ganha apóstrofo (o Excel não executa como fórmula).
 
 ## Arquivos
-- `web/index.ts` — `moduloWeb` (página `monitor`).
-- `web/components/` — `monitor-page`, `alertas-panel`, `conectores-panel`, `inativacoes-panel`, `lotes-panel`, `lote-drawer`, `pedidos-panel`.
-- `web/lib/` — `apresentacao` (rótulos, tons, `tempoDesde`, `podeExecutar`, `decisaoDaPendencia`), `filtros-url`, `use-filtros`, `csv`, `queries`.
-- Testes: `web/lib/*.test.ts` (puros, relógio de `@macuxi/comum/relogio`, sem hora fixa) e `web/components/paineis.render.test.ts` (renderização no servidor: botões de decisão por perfil e validade, sinal de vida).
+- `web/index.ts` — `moduloWeb` (páginas `monitor`, `de-para` e carga por arquivo).
+- `web/components/` — `monitor-page`, `lotes-panel`, `lote-drawer`, `autorizar-reprocessamento`, `de-para-page`, `carga-arquivo-page`.
+- `web/lib/` — `apresentacao` (rótulos, tons, `podeExecutar`), `filtros-url`, `use-filtros`, `csv`, `queries`.
+- Testes: `web/lib/*.test.ts` e `web/components/*.test.ts` (puros, relógio de `@macuxi/comum/relogio`, sem hora fixa).
 
-## Pendências (fora da T-0051 nuvem)
-1. **Rota `GET /v1/integracao/lotes/{id}/erros`** — implementada em `modules/integracao/api/bko-carga-arquivo.ts` (T-0032, carga por arquivo): `ErrosLoteQuery` → `ErrosLoteResposta`, paginada, filtro por `codigo`/`reprocessavel`; a gaveta já a consome. Junto veio `GET /v1/integracao/lotes/{id}` (`LoteResultado`).
-2. **Rota `GET /v1/integracao/lotes`** (`LoteListagemQuery` → `LoteListagem`) — a tela filtra os 20 lotes recentes do monitor; com a rota, a lista passa a paginar no servidor (`paraQueryLotes` já monta a query do contrato).
-3. **Lista "Erros de retorno"** (`pedido_retorno_erro`: pedido, nota, sequência, `external_id` do produto, motivo; CSV) — falta contrato Zod público (hoje `ErroRetornoMonitor` é interface do domain) e rota (proposta: `GET /v1/integracao/pedidos/erros-retorno`). A tela mostra o alerta agregado.
-4. **CSV completo dos candidatos da inativação** (hoje: amostra de 50) — rota que recalcula a lista (hub-api.md, `pendencia_inativacao`).
-5. **Reprocessar lote** (`POST /v1/integracao/lotes/{id}/reprocessar`, `lote.reprocessar`), **Conectores/chave/política** (telas de `conector.gerenciar`) e **mapeamento** — próximas telas.
-6. **e2e** (Playwright) da página com a base demo — agente `testes`, local.
-7. **Vitest do módulo com JSX automático** (`esbuild: { jsx: 'automatic' }`) — hoje o teste de renderização define `React` global.
-
-## De-para de códigos e aviso de marca desconhecida (T-0120, T-0103)
-- **Painel "De-para de códigos"** (rodapé da página): lista condição de pagamento, depósito e status ERP ↔ Macuxi. Lê com `monitor.ver` (`GET /v1/integracao/mapeamentos`); salva, inativa, apaga e reprocessa com `mapeamento.editar` (admin ou analista; `PUT/DELETE /v1/integracao/mapeamentos`, `POST /v1/integracao/pedidos/reprocessar-retidos`). Regra (RN-INT-08): um correspondente **ativo** por condição do Macuxi; a API recusa o segundo com a ação seguinte. Ao salvar uma condição de pagamento, os pedidos **retidos por falta de de-para** são reavaliados na mesma transação e seguem para a fila. Quando há pedidos retidos, o painel avisa quais condições faltam e quantos pedidos esperam, com botão "Preencher".
-- **Aviso `marca_concorrente_desconhecida`** na gaveta do lote: o Hub consome `catalogo.referencia.marca_desconhecida@1` e acrescenta o aviso ao lote que originou a linha ("Produto ABC: marca "X" não cadastrada; a referência foi carregada sem marca resolvida"). É aviso, nunca erro; limite de 200 avisos por lote, depois "e mais N" (`avisos_omitidos`).
+## Pendências
+1. **Rota `GET /v1/integracao/lotes`** (`LoteListagemQuery` → `LoteListagem`): hoje a tela filtra os lotes recentes do monitor; com a rota, a lista passa a paginar no servidor.
+2. **e2e** (Playwright) da página — agente `testes`.

@@ -263,10 +263,10 @@ describe('T-0147 critério 4/5 — quem abre o quê (RN-CORE-38)', () => {
     for (const p of LEITURA_SENSIVEL_RN) expect(podeAbrirFoto(p, INTERIOR), p).toBe(true);
   });
 
-  it('D-T0147-2 corrigido (R-20261110-142903): textos alinhados ao D-1 — o BKO não contradiz a regra (no máximo uma vez "O vendedor vê só a fachada"; o painel de Parâmetros tirou a frase, R-20261110-192153) e a ficha tranca todo tipo que não é a fachada', () => {
+  it('D-T0147-2 corrigido (R-20261110-142903): textos alinhados ao D-1 — o BKO não descreve o que o vendedor vê (RD-1880/RD-2013) e a ficha tranca todo tipo que não é a fachada', () => {
     const bko = ler('modules/core/web/components/fotos-pdv/fotos-pdv-page.tsx');
-    expect(bko).not.toContain('o vendedor não reabre');
-    expect((bko.match(/O vendedor vê só a fachada/g) ?? []).length).toBeLessThanOrEqual(1);
+    // #457: o painel de Parâmetros saiu sem a frase de funcionamento (R-20261110-192153); a RN-CORE-38 fica no domain (caso D-1)
+    expect(bko).not.toMatch(/vendedor (vê|abre|não reabre)/i);
     const ficha = ler('modules/core/app/components/cliente360.tsx');
     expect(ficha).not.toMatch(/i\.sensivel \? <Icon name="lock"/);
     expect(ficha).toContain('fotoPdvTrancada(i) ? <Icon name="lock"');

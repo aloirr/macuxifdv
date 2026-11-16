@@ -2,18 +2,16 @@
  * v1.0.14 — painéis do Core no menu Parâmetros (#457, ADR 0060) e o "parado" só em Parâmetros › Alertas (#456 dentro do #457):
  * notas N8 do corretor. Matriz: docs/testes/v1014-parametros.md (seções "Core" e "Início × Alertas").
  * - Visão real do BKO: `SHELL_WEB.montar` (apps/web/lib/modulos.ts) com os manifestos e os `paineisParametros` reais, por perfil e
- *   por licença. O shell desenha o `Panel` com o `titulo` do painel e o componente chega com `semMoldura` (`Moldura` do Core).
+ *   por licença. O shell desenha o `Panel` com o `titulo` do painel; o componente não repete o título.
  * - Contrato: `ParametrosInicioPutSchema` (corpo do PUT do Início) e `ParametroParadoMinSchema` (PUT de Parâmetros › Alertas).
  * A API real (400 do PUT do Início com `parado_min`, faixa e idempotência do `parado-min`, contagem das frases, 403) está em
  * tests/integracao/api/parametros-core-v1014.test.ts (banco). O e2e da tela está em tests/e2e/bko/menu-parametros.spec.ts.
- * Antes do #421 (SDK com `parametros` na visão) e do #457 (`moldura.tsx`, rota do parado) os blocos pulam: os tipos novos são
- * declarados aqui, sem importar símbolo que só existe nos PRs (o typecheck:tests passa no main com e sem eles).
+ * Sem o #457 (rota do parado no contrato e painéis do Core em `paineisParametros`) os blocos pulam; o #457 entrou no main
+ * (squash) e os blocos rodam. Os símbolos novos seguem lidos em tempo de execução (o typecheck:tests não depende deles).
  * Convenção: `it` = vale hoje; `it.fails` = defeito aberto com ID (quando corrigir, fica vermelho e vira `it`).
  */
-import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createElement, type ComponentType, type ReactNode } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
 import type { ZodObject, ZodRawShape, ZodTypeAny } from 'zod';
 import { describe, expect, it } from 'vitest';
 import type { ModuloId, Perfil } from '@macuxi/platform-sdk';
@@ -21,9 +19,10 @@ import { SHELL_WEB } from '../../apps/web/lib/modulos';
 import * as contratos from '../../modules/core/contracts';
 
 const RAIZ = join(__dirname, '..', '..');
-const MOLDURA = 'modules/core/web/components/moldura.tsx';
-/** #457 no código: a moldura dos painéis do Core e a rota própria do parado no contrato. */
-const TEM_457 = existsSync(join(RAIZ, MOLDURA)) && (contratos as unknown as Record<string, unknown>).CAMINHO_PARAMETRO_PARADO_MIN === 'parametros/parado-min';
+const ler = (p: string) => readFileSync(join(RAIZ, p), 'utf8');
+const WEB_CORE = ler('modules/core/web/index.ts');
+/** #457 no código: os painéis do Core em `paineisParametros` e a rota própria do parado no contrato. */
+const TEM_457 = /\bpaineisParametros\b/.test(WEB_CORE) && (contratos as unknown as Record<string, unknown>).CAMINHO_PARAMETRO_PARADO_MIN === 'parametros/parado-min';
 
 interface PainelVisivel {
   modulo: ModuloId;
@@ -41,16 +40,19 @@ interface VisaoComParametros {
   pode(acao: string): boolean;
 }
 const TODOS: ModuloId[] = ['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao'];
-const montar = SHELL_WEB.montar as unknown as (ctx: { perfil: Perfil; modulosAtivos: readonly ModuloId[]; modulosContratados?: readonly ModuloId[] }) => VisaoComParametros;
+const montar = SHELL_WEB.montar as unknown as (ctx: {
+  perfil: Perfil;
+  modulosAtivos: readonly ModuloId[];
+  modulosContratados?: readonly ModuloId[];
+  menuParametros?: boolean;
+}) => VisaoComParametros;
+/** `menuParametros: true`: o shell web com a rota `/parametros` (ADR 0060); sem ele o SDK monta o menu de antes, sem painéis. */
 const visao = (perfil: Perfil, modulosAtivos: readonly ModuloId[] = TODOS, modulosContratados?: readonly ModuloId[]) => {
-  const v = montar({ perfil, modulosAtivos, ...(modulosContratados ? { modulosContratados } : {}) });
+  const v = montar({ perfil, modulosAtivos, menuParametros: true, ...(modulosContratados ? { modulosContratados } : {}) });
   return { ...v, pode: (a: string) => v.pode(a), parametros: v.parametros ?? [] };
 };
 const painel = (perfil: Perfil, secao: string, id: string, ativos?: readonly ModuloId[]) =>
   visao(perfil, ativos).parametros.find((s) => s.secao === secao)?.paineis.find((p) => p.id === id) ?? null;
-
-type PropsMoldura = { sem?: boolean; title?: ReactNode; children: ReactNode };
-const carregarMoldura = async () => ((await import(join(RAIZ, MOLDURA))) as { Moldura: ComponentType<PropsMoldura> }).Moldura;
 
 /** Símbolos do contrato do Core que só existem com o #457 (lidos em tempo de execução). */
 type Objeto = ZodObject<ZodRawShape>;
@@ -73,42 +75,29 @@ describe.runIf(TEM_457)('Parâmetros › Início › Frases do dia (RN-CORE-41):
     expect(painel('gerente', 'inicio', 'frases-do-dia')).toBeNull();
   });
 
-  // N8-PAR-1 (modulo-core, média; modules/core/web/index.ts e components/frases-do-dia/frases-do-dia-panel.tsx): o contador vive
-  // no `title` da `Moldura` (`Frases do dia · ${q.data.length}`), mas na página Parâmetros o painel chega com `semMoldura` e o shell
-  // desenha o `Panel` com o `titulo` fixo "Frases do dia". O "· N" (número de frases cadastradas, ativas e desativadas, o que
-  // GET /v1/core/frases devolve) não aparece. Pronto quando o título exibido na página trouxer o número real.
-  it.fails('N8-PAR-1: na página Parâmetros o título mostra "Frases do dia · N" com N = número de frases da lista', async () => {
-    const Moldura = await carregarMoldura();
-    const frases = ['a', 'b', 'c'];
-    const p = painel('admin', 'inicio', 'frases-do-dia');
-    expect(p).not.toBeNull();
-    // o que a página desenha: o título do Panel do shell + o que o componente desenha com semMoldura
-    const doComponente = renderToStaticMarkup(createElement(Moldura, { sem: true, title: `Frases do dia · ${frases.length}`, children: 'lista' }));
-    const exibido = `${p!.titulo} ${doComponente}`;
-    expect(exibido).toContain(`Frases do dia · ${frases.length}`);
-  });
-
-  it('fora da página Parâmetros (com moldura) o componente leva o contador no título', async () => {
-    const Moldura = await carregarMoldura();
-    const html = renderToStaticMarkup(createElement(Moldura, { title: 'Frases do dia · 3', children: 'lista' }));
-    expect(html).toContain('Frases do dia · 3');
+  // N8-PAR-1 (modulo-core, corrigido no #457 final): o contador "· N" vivia só no título da `Moldura` e sumia na página. O #457
+  // tirou a `Moldura` e o contador: o título é o `titulo` do painel, sem número, e o componente não desenha outro título com
+  // número. Rótulo × valor: nenhum número no título, logo nenhum número que possa divergir da lista.
+  it('N8-PAR-1 corrigido: o título é "Frases do dia", sem contador, e o componente não desenha outro título com número', () => {
+    expect(painel('admin', 'inicio', 'frases-do-dia')?.titulo).toBe('Frases do dia');
+    const comp = ler('modules/core/web/components/frases-do-dia/frases-do-dia-panel.tsx');
+    expect(comp).not.toMatch(/Frases do dia ·/);
+    expect(comp).not.toMatch(/\bMoldura\b|semMoldura/);
   });
 });
 
 // ------------------------------------------------------------------------------------------------ N8 nota 1: só consulta
 
 describe.runIf(TEM_457)('Perfil só consulta (P4): vê o painel em modo leitura, sem salvar', () => {
-  it('analista e admin (medida.gerenciar) veem Medidas em Parâmetros › Produtos', () => {
+  it('analista e admin veem Medidas em Parâmetros › Produtos', () => {
     for (const p of ['analista', 'admin'] as const) expect(painel(p, 'produtos', 'medidas'), p).not.toBeNull();
   });
 
-  // N8-PAR-2 (modulo-core, média; modules/core/web/index.ts, painel `medidas`): antes do #457 o gerente abria Medidas na aba de
-  // Preço e custo (página com `produto.editar_preco`) e via a lista em modo consulta ("Você pode consultar", botões desligados);
-  // `GET /v1/core/medidas` segue com `produto.editar_preco` (gerente, analista, admin). O painel novo exige `medida.gerenciar`
-  // (analista, admin) e o gerente perde a tela. Pronto quando o painel usar a ação de leitura (o `MedidasPanel` já trava a edição
-  // por `usePode('medida.gerenciar')`).
-  it.fails('N8-PAR-2: gerente (só consulta) vê o painel Medidas em Parâmetros › Produtos', () => {
+  // N8-PAR-2 (modulo-core, corrigido no #457 final): o painel usa `produto.editar_preco` (a mesma ação do GET /v1/core/medidas),
+  // e o `MedidasPanel` trava a edição por `usePode('medida.gerenciar')` (gerente consulta, não salva).
+  it('N8-PAR-2 corrigido: gerente (só consulta) vê o painel Medidas em Parâmetros › Produtos', () => {
     expect(painel('gerente', 'produtos', 'medidas')).not.toBeNull();
+    expect(ler('modules/core/web/components/produtos/medidas-panel.tsx')).toMatch(/usePode\('medida\.gerenciar'\)/);
   });
 
   it('gerente não ganha ação de edição: medida.gerenciar, frase_dia.editar e parametro.inicio seguem fora do perfil', () => {
