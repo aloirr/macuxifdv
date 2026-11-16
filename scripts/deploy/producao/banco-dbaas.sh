@@ -101,20 +101,22 @@ esperado=$'macuxi_app|t|f|f|f\nmacuxi_portal|t|f|f|f\nmacuxi_worker|t|f|f|f'
 # (o começo da linha é o que o stack-isolado.yml procura: não mudar)
 log "papéis: macuxi_app e macuxi_worker com LOGIN, sem SUPERUSER/BYPASSRLS, fora do macuxi_manutencao; macuxi_portal também (T-0091)"
 # T-0091 (condição da ADR 0029): a sessão do super-admin só abre pelo macuxi_portal, e ele não lê tabela nenhuma
-# As sa_* por classe (espelho de apps/api/test/funcoes-sa.ts; o funcoes-sa.test.ts confere que as listas batem): SA_PORTAL só o macuxi_portal executa; SA_INTERNAS sem EXECUTE para ninguém além do dono.
-SA_PORTAL="'plataforma.sa_tentativa_estado(text)', 'plataforma.sa_tentativa_falha(text)', 'plataforma.sa_tentativa_sucesso(text)',
-  'plataforma.sa_contas_para_login(text)', 'plataforma.sa_abrir_sessao_portal(jsonb)', 'plataforma.sa_escolher_empresa(uuid, uuid)',
-  'plataforma.sa_sessao_valida(uuid)', 'plataforma.sa_revogar(uuid)', 'plataforma.sa_auditar(jsonb)',
-  'plataforma.sa_listar_tenants(uuid)', 'plataforma.sa_tenant_ativo(uuid, uuid)', 'plataforma.sa_provisionar_tenant(uuid, jsonb)',
-  'plataforma.sa_admins_da_empresa(uuid, uuid)', 'plataforma.sa_redefinir_senha_admin(uuid, uuid, uuid, text, text, uuid, bytea)',
-  'plataforma.sa_listar_diagnosticos(uuid, jsonb)', 'plataforma.sa_diagnostico(uuid, uuid)',
-  'plataforma.sa_gravar_assinatura(uuid, uuid, jsonb)',
-  'plataforma.sa_inativar_tenant(uuid, uuid, text)', 'plataforma.sa_reativar_tenant(uuid, uuid)',
-  'plataforma.sa_pedir_backup(uuid, uuid, uuid)', 'plataforma.sa_listar_backups(uuid, uuid, uuid)',
-  'plataforma.sa_pedir_exclusao(uuid, uuid, uuid, uuid, text)', 'plataforma.sa_ler_exclusao(uuid, uuid)',
-  'plataforma.sa_reautenticar(uuid)', 'plataforma.sa_acoes_das_empresas(uuid)',
-  'plataforma.sa_dados_legais(uuid)', 'plataforma.sa_gravar_dados_legais(uuid, jsonb)'"
-SA_INTERNAS="'plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)'"
+# As sa_* por classe: a lista é UMA só, a de db/testes/funcoes-sa.ts (do banco-dados; RD-0910), lida na imagem da versão que
+# acabou de migrar: até o main (FUNCOES_SA_ATE_0080), uma constante por item do lote (FUNCOES_SA_CARGA da 0081, FUNCOES_SA_LOGO
+# da 0083; RD-1628) e a interna (SA_INTERNA). SA_PORTAL só o macuxi_portal executa; SA_INTERNAS sem EXECUTE para ninguém além
+# do dono. O apps/api/test/funcoes-sa.test.ts roda este mesmo LISTAS_SA_JS e confere a saída.
+LISTAS_SA_JS='import("./db/testes/funcoes-sa.ts").then((m) => { const q = (xs) => xs.map((f) => `\x27${f}\x27`).join(", "); for (const xs of [m.FUNCOES_SA_ATE_0080, m.FUNCOES_SA_CARGA, m.FUNCOES_SA_LOGO, [m.SA_INTERNA]]) console.log(q(xs)); })'
+listas_sa="$(dc run --rm --no-deps -T --entrypoint node banco --import tsx -e "$LISTAS_SA_JS")" || erro 1 "lista das plataforma.sa_* (db/testes/funcoes-sa.ts) não lida na imagem"
+SA_PORTAL_ATE_MAIN="$(printf '%s\n' "$listas_sa" | sed -n 1p)"
+SA_PORTAL_CARGA="$(printf '%s\n' "$listas_sa" | sed -n 2p)"
+SA_PORTAL_LOGO="$(printf '%s\n' "$listas_sa" | sed -n 3p)"
+SA_INTERNAS="$(printf '%s\n' "$listas_sa" | sed -n 4p)"
+# só assinaturas entre aspas simples (o texto entra no SQL abaixo)
+ASSINATURAS_SA_RE="^'plataforma\.sa_[a-z_]+\([][a-z, ]*\)'(, 'plataforma\.sa_[a-z_]+\([][a-z, ]*\)')*$"
+for lista_sa in "$SA_PORTAL_ATE_MAIN" "$SA_PORTAL_CARGA" "$SA_PORTAL_LOGO" "$SA_INTERNAS"; do
+  [[ "$lista_sa" =~ $ASSINATURAS_SA_RE ]] || erro 1 "lista das plataforma.sa_* fora do formato: $(printf '%s' "$listas_sa" | tr '\n' ' ')"
+done
+SA_PORTAL="$SA_PORTAL_ATE_MAIN, $SA_PORTAL_CARGA, $SA_PORTAL_LOGO"
 sa_fora="$(psqlc -d "$BANCO" -c "with sa as (
     select n.nspname || '.' || p.proname || '(' || oidvectortypes(p.proargtypes) || ')' as f,
            has_function_privilege('macuxi_app', p.oid, 'EXECUTE')
@@ -130,6 +132,12 @@ sa_fora="$(psqlc -d "$BANCO" -c "with sa as (
     union all select f || ' (interna com EXECUTE do portal)' from sa where f = any (array[$SA_INTERNAS]) and portal
     union all select f || ' (fora de SA_PORTAL e SA_INTERNAS)' from sa where not f = any (array[$SA_PORTAL, $SA_INTERNAS])
     union all select e || ' (falta no banco)' from unnest(array[$SA_PORTAL, $SA_INTERNAS]) e where e not in (select f from sa)
+      -- por item (RD-1628): sem a migração do item, só as sa_* dele podem faltar; com ela, conferência exata
+      -- carga (T-0181, 0081): a tabela plataforma.frase_carga
+      and not (e = any (array[$SA_PORTAL_CARGA]) and to_regclass('plataforma.frase_carga') is null)
+      -- logo (T-0182, 0083): a coluna plataforma.tenant.logo_sha256
+      and not (e = any (array[$SA_PORTAL_LOGO]) and not exists (select 1 from pg_attribute
+                 where attrelid = 'plataforma.tenant'::regclass and attname = 'logo_sha256' and not attisdropped))
   ) t")"
 [ -z "$sa_fora" ] || erro 1 "funções plataforma.sa_* fora da regra do T-0091: $sa_fora"
 grants_portal="$(psqlc -d "$BANCO" -c "select count(*) from pg_class c, aclexplode(c.relacl) a where a.grantee = 'macuxi_portal'::regrole")"

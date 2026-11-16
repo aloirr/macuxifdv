@@ -1,14 +1,16 @@
 /**
- * T-0091 (condição da ADR 0029), sem banco: as listas de funcoes-sa.ts batem com as migrações e com o espelho do
- * scripts/deploy/producao/banco-dbaas.sh. Uma sa_* nova criada numa migração sem entrar numa das duas listas, um grant
- * do portal fora da SA_PORTAL ou o script divergindo deixam este teste vermelho (o portal.banco.test.ts confere o
- * catálogo do Postgres no CI).
+ * T-0091 (condição da ADR 0029), sem banco: a lista das sa_* (db/testes/funcoes-sa.ts, via funcoes-sa.ts) bate com as
+ * migrações, e o scripts/deploy/producao/banco-dbaas.sh lê essa mesma lista (RD-0910: uma fonte só). Uma sa_* nova criada
+ * numa migração sem entrar na lista ou um grant do portal fora da SA_PORTAL deixam este teste vermelho (o
+ * portal.banco.test.ts confere o catálogo do Postgres no CI).
  * T-0093 (0039): as migrações são aplicadas EM ORDEM, com os `drop function` e os `revoke ... from macuxi_portal`: a 0039 apaga
  * 14 sa_* da 0035 e troca a assinatura da interna sa_registrar_auditoria.
  */
+import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { SA_INTERNAS, SA_PORTAL } from './funcoes-sa';
+import { SA_INTERNAS, SA_PORTAL, SA_PORTAL_ATE_MAIN, SA_PORTAL_CARGA, SA_PORTAL_LOGO } from './funcoes-sa';
 
 const RAIZ = new URL('../../../', import.meta.url);
 const MIGRACOES = new URL('db/migrations/', RAIZ);
@@ -17,6 +19,16 @@ const ups = readdirSync(MIGRACOES)
   .filter((f) => f.endsWith('.up.sql'))
   .sort()
   .map((f) => ({ arquivo: f, sql: ler(new URL(f, MIGRACOES)) }));
+/**
+ * Tolerância por item (RD-1628): sem a migração que cria as sa_* de um item (carga = 0081, logo = 0083), as dele saem do
+ * esperado, e só as dele; com ela, conferência exata.
+ */
+const criada = (funcao: string): boolean => ups.some(({ sql }) => new RegExp(`function\\s+plataforma\\.${funcao}\\s*\\(`, 'i').test(sql));
+const AUSENTES: readonly string[] = [
+  ...(criada('sa_listar_frases_carga') ? [] : SA_PORTAL_CARGA),
+  ...(criada('sa_marca_da_empresa') ? [] : SA_PORTAL_LOGO),
+];
+const SA_PORTAL_VIGENTES: readonly string[] = SA_PORTAL.filter((f) => !AUSENTES.includes(f));
 const nome = (assinatura: string): string => assinatura.replace(/^plataforma\./, '').replace(/\(.*$/, '');
 const ordenado = (xs: Iterable<string>): string[] => [...xs].sort();
 /** Assinatura normalizada como a de oidvectortypes: "tipo, tipo". */
@@ -37,10 +49,13 @@ const eventos: Evento[] = ups.flatMap(({ arquivo, sql }) => {
 });
 
 describe('plataforma.sa_*: SA_PORTAL e SA_INTERNAS (T-0091; T-0093)', () => {
-  it('as listas não se cruzam nem repetem; 27 com grant e a interna sa_registrar_auditoria de 7 argumentos', () => {
+  it('as listas não se cruzam nem repetem; SA_PORTAL = até o main (27) + carga (3, 0081) + logo (4, 0083); a interna de 7 argumentos', () => {
     const todas = [...SA_PORTAL, ...SA_INTERNAS];
     expect(new Set(todas).size).toBe(todas.length);
-    expect(SA_PORTAL).toHaveLength(27);
+    expect(SA_PORTAL_ATE_MAIN).toHaveLength(27);
+    expect(SA_PORTAL_CARGA).toHaveLength(3);
+    expect(SA_PORTAL_LOGO).toHaveLength(4);
+    expect([...SA_PORTAL]).toEqual([...SA_PORTAL_ATE_MAIN, ...SA_PORTAL_CARGA, ...SA_PORTAL_LOGO]);
     expect(SA_INTERNAS).toEqual(['plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)']);
   });
 
@@ -51,7 +66,7 @@ describe('plataforma.sa_*: SA_PORTAL e SA_INTERNAS (T-0091; T-0093)', () => {
       // drop de uma assinatura: some o nome (uma sa_* não tem sobrecarga; a recriação vem depois, noutro evento)
       if (e.tipo === 'apaga') existem.delete(e.nome);
     }
-    expect(ordenado(existem)).toEqual(ordenado(new Set([...SA_PORTAL, ...SA_INTERNAS].map(nome))));
+    expect(ordenado(existem)).toEqual(ordenado(new Set([...SA_PORTAL_VIGENTES, ...SA_INTERNAS].map(nome))));
   });
 
   it('os grants vivos ao macuxi_portal são exatamente a SA_PORTAL; nenhuma migração dá EXECUTE a uma interna', () => {
@@ -66,18 +81,18 @@ describe('plataforma.sa_*: SA_PORTAL e SA_INTERNAS (T-0091; T-0093)', () => {
       // função apagada leva os grants junto
       if (e.tipo === 'apaga' && e.assinatura) doPortal.delete(e.assinatura);
     }
-    expect(ordenado(doPortal)).toEqual(ordenado(SA_PORTAL));
+    expect(ordenado(doPortal)).toEqual(ordenado(SA_PORTAL_VIGENTES));
     expect(nasInternas).toEqual([]);
   });
 
-  it('o espelho do banco-dbaas.sh (passo 6) tem as mesmas listas', () => {
+  it('o banco-dbaas.sh (passo 6) lê a mesma lista, sem cópia: o LISTAS_SA_JS dele devolve até o main, carga, logo e internas', () => {
     const sh = ler(new URL('scripts/deploy/producao/banco-dbaas.sh', RAIZ));
-    const lista = (variavel: string): string[] => {
-      const m = new RegExp(`^${variavel}="([^"]*)"`, 'm').exec(sh);
-      expect(m, `${variavel}= no banco-dbaas.sh`).not.toBeNull();
-      return [...m![1]!.matchAll(/'([^']+)'/g)].map((x) => x[1]!);
-    };
-    expect(lista('SA_PORTAL')).toEqual([...SA_PORTAL]);
-    expect(lista('SA_INTERNAS')).toEqual([...SA_INTERNAS]);
+    expect(sh).not.toMatch(/'plataforma\.sa_\w+\(/);
+    const js = /^LISTAS_SA_JS='([^']*)'$/m.exec(sh)?.[1];
+    expect(js, 'LISTAS_SA_JS= no banco-dbaas.sh').toBeDefined();
+    // como na imagem: node --import tsx na raiz do repositório
+    const saida = execFileSync(process.execPath, ['--import', 'tsx', '-e', js!], { cwd: fileURLToPath(RAIZ), encoding: 'utf8' });
+    const aspas = (xs: readonly string[]) => xs.map((f) => `'${f}'`).join(', ');
+    expect(saida.trimEnd().split('\n')).toEqual([aspas(SA_PORTAL_ATE_MAIN), aspas(SA_PORTAL_CARGA), aspas(SA_PORTAL_LOGO), aspas(SA_INTERNAS)]);
   });
 });
