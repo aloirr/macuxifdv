@@ -12,12 +12,14 @@
  */
 import {
   CODIGOS_ARQUIVO,
+  catalogoDePermissoes,
   ConsultaIndisponivel,
   consultasDeclaradas,
   criarBarramento,
   ErroHttpModulo,
   executarConsulta,
   fusoDoTenantOuPadrao,
+  matrizDeFabrica,
   problemasPerfisLeitura,
   validarNovoArquivo,
   type ClienteBanco,
@@ -31,6 +33,7 @@ import {
   type LogRota,
   type Manifesto,
   type ModuloId,
+  type MotorPermissoes,
   type OpcoesConsulta,
   type RegistroConsumo,
   type TransacaoTenant,
@@ -161,6 +164,21 @@ export function publicadorTenant(db: ClienteBanco, o: OrigemPublicacao): Transac
   };
 }
 
+const motorPorManifestos = new WeakMap<readonly Manifesto[], MotorPermissoes>();
+
+/**
+ * ADR 0033 (T-0111; T-0173): catálogo das chaves e padrão de fábrica dos manifestos instalados, o MESMO objeto para a rota
+ * (`ContextoBase.permissoes`) e para a consulta (`ContextoConsulta.permissoes`). Calculado uma vez por lista de manifestos.
+ */
+export function motorPermissoesDe(manifestos: readonly Manifesto[]): MotorPermissoes {
+  let m = motorPorManifestos.get(manifestos);
+  if (!m) {
+    m = { catalogo: catalogoDePermissoes(manifestos), matriz: matrizDeFabrica(manifestos) };
+    motorPorManifestos.set(manifestos, m);
+  }
+  return m;
+}
+
 /** Profundidade máxima da cadeia de consultas (consulta que chama consulta, T-0149): guarda contra laço por engano. */
 export const PROFUNDIDADE_MAXIMA_CONSULTAS = 4;
 
@@ -222,6 +240,8 @@ async function consultarComo<E extends z.ZodTypeAny, S extends z.ZodTypeAny>(
     parametros: () => o.parametros?.(def.modulo) ?? {},
     fuso: () => fusoDoTenantOuPadrao(o.fuso?.()),
     log,
+    // T-0173: matriz de fábrica dos módulos instalados (ex.: core.credencial_conferir@1 confere a permissão efetiva)
+    permissoes: motorPermissoesDe(o.manifestos),
     // T-0149: a consulta chama outra como o módulo DONO (usaConsultas dele), na mesma transação e com o mesmo usuário
     consultar: (d, e, op) => consultarComo(db, o, def.modulo, abaixo, protegida, d, e, op),
   };
