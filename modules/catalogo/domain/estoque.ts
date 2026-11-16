@@ -5,10 +5,9 @@
  * O saldo é o do ERP; reservas de pedido são descontadas pelo Vendedor (RN-VEN-20), não aqui.
  */
 import type { EstoqueVisivel, FaixaEstoque, StockByBranch } from '../contracts';
-import { localDate } from '@macuxi/comum';
 import type { ParametrosCatalogo } from './parametros';
 
-/** RN-CAT-07: aviso discreto quando `stale` é true. Transição: sai na parte 2 do Catálogo v2 (comum.tsx/produto.tsx). */
+/** RN-CAT-07: aviso discreto quando `stale` é true. */
 export const AVISO_ESTOQUE_DESATUALIZADO = 'Estoque desatualizado';
 /** Nome da filial no estoque; sem nome conhecido, o código curto do id ("Filial 0f000000"). */
 export const nomeDaFilialOuCodigo = (id: string, nome?: string | null): string => nome || `Filial ${id.slice(0, 8)}`;
@@ -91,21 +90,4 @@ export function estoqueVisivel(produtoId: string, saldos: readonly StockByBranch
     updated_at: maisAntiga === null ? null : new Date(maisAntiga).toISOString(),
     stale: doTotal.length > 0 && (algumSemHora || (maisAntiga !== null && agora - maisAntiga > horas * 3_600_000)),
   };
-}
-
-// Transição até as telas do Catálogo v2 (catalogo.tsx e produto.tsx, depois do #387): `rotuloAtualizacaoEstoque` e
-// `AVISO_ESTOQUE_DESATUALIZADO` (apresentacao.ts) saem quando as telas passarem a `rotuloCargaEstoque` (`estoque-campo.ts`).
-/**
- * RN-CAT-07: "Atualizado às hh:mm" no fuso do tenant; se a atualização foi em outro dia (no fuso do tenant),
- * "Atualizado em dd/mm às hh:mm". Sem hora conhecida: "Sem hora de atualização".
- */
-export function rotuloAtualizacaoEstoque(estoque: Pick<EstoqueVisivel, 'updated_at'>, agora: string, fuso: string): string {
-  if (estoque.updated_at === null) return ROTULO_SEM_HORA;
-  const t = new Date(estoque.updated_at);
-  const a = new Date(agora);
-  if (Number.isNaN(t.getTime()) || Number.isNaN(a.getTime())) throw new RangeError('Informe os instantes em ISO 8601 UTC.');
-  const hora = new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(t);
-  if (localDate(t, fuso) === localDate(a, fuso)) return `Atualizado às ${hora}`;
-  const dia = new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, day: '2-digit', month: '2-digit' }).format(t);
-  return `Atualizado em ${dia} às ${hora}`;
 }

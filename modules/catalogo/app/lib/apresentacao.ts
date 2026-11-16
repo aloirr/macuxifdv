@@ -4,7 +4,8 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import type { ItemVitrine } from '../../contracts';
-import { AVISO_ESTOQUE_DESATUALIZADO, ROTULO_FAIXA_ESTOQUE, rotuloAtualizacaoEstoque } from '../../domain/estoque';
+import { AVISO_ESTOQUE_DESATUALIZADO, ROTULO_FAIXA_ESTOQUE } from '../../domain/estoque';
+import { rotuloCargaEstoque } from '../../domain/estoque-campo';
 import { MENSAGEM_SEM_PRECO_CATALOGO } from '../../domain/vitrine';
 
 export type TomCatalogo = 'success' | 'warning' | 'danger' | 'neutral';
@@ -58,7 +59,7 @@ export function rotuloEstoque(item: ItemVitrine, agora: string, fuso: string, op
   if (a.by_branch.length === 0) return { texto: 'Estoque sem informação', tom: 'neutral', detalhe: '', desatualizado: true };
   const f = FAIXA[a.band];
   const texto = a.quantity !== null && a.band !== 'sem_estoque' ? `${f.texto} · ${a.quantity} ${item.unit.toLowerCase()}` : f.texto;
-  const hora = rotuloAtualizacaoEstoque(a, agora, fuso);
+  const hora = rotuloCargaEstoque(a.updated_at, agora, fuso);
   return { texto, tom: f.tom, detalhe: a.stale ? `${AVISO_ESTOQUE_DESATUALIZADO} · ${hora}` : hora, desatualizado: a.stale };
 }
 
