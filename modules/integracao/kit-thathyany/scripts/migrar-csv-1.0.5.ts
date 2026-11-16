@@ -1,16 +1,6 @@
 /**
- * Conversor dos CSVs do kit da thathyany 1.0.5 para o modelo atual (marca do produto e de cada referência cruzada; R-20261115-094000-alexandre).
- * Para cada `<entidade>.csv` da pasta de entrada:
- *  - as colunas que existem nos dois modelos são copiadas sem mudar o valor; coluna nova do modelo atual sai vazia (= o Macuxi não altera);
- *  - coluna da entrada que o modelo atual não tem, ou arquivo sem modelo, é erro (nada some calado);
- *  - no produto.csv, `marca_referencia_codigo_N` vazio com `marca_referencia_N` preenchido recebe o código pela regra de
- *    `domain/marca-referencia-codigo.ts` (código do ERP da mesma marca, se a base tiver; senão gerado pelo nome).
- * O cabeçalho de destino é lido de `modelos/<entidade>.csv` (gerado do contrato por `gerar.ts`), nunca de lista manual.
- * Saída: UTF-8 com BOM, `;`, CRLF (o formato dos modelos). Com `--zip`, também `macuxi-kit-thathyany-<versao>.zip` (o kit inteiro
- * + `csv/<entidade>.csv` com os dados) e o `.sha256`.
- *
- * Uso: pnpm --filter @macuxi/integracao exec tsx kit-thathyany/scripts/migrar-csv-1.0.5.ts --entrada <pasta 1.0.5> --saida <pasta> [--zip]
- * Os CSVs da empresa têm dados reais: entrada e saída ficam FORA do repositório; o script só imprime contagens.
+ * Conversor dos CSVs do kit da thathyany 1.0.5 para o modelo atual (R-20261115-094000-alexandre).
+ * Uso, regras de cópia e saída: `kit-thathyany/README.md`. Código da marca da referência: `domain/marca-referencia-codigo.ts`.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';

@@ -5,23 +5,21 @@ type Linha = Record<string, string>;
 const produto = (p: Linha): Linha => ({ marca: '', marca_codigo: '', referencia_1: '', marca_referencia_codigo_1: '', marca_referencia_1: '', referencia_2: '', marca_referencia_codigo_2: '', marca_referencia_2: '', ...p });
 
 describe('código da marca da referência gerado pelo nome (RN-CAT-09, R-20261115-094000-alexandre item 6)', () => {
-  it('RN-CAT-09: o mesmo nome dá sempre o mesmo código; caixa, acento e espaços não mudam o código', () => {
+  it('RN-CAT-09: o mesmo nome dá sempre o mesmo código; nome diferente, código diferente', () => {
     const c = codigoMarcaPeloNome('Marca Beta');
     expect(c).toMatch(new RegExp(`^${PREFIXO_CODIGO_MARCA_GERADO}[0-9A-F]{8}$`));
-    expect(codigoMarcaPeloNome('  marca   beta ')).toBe(c);
-    expect(codigoMarcaPeloNome('MARCA BETA')).toBe(c);
-    expect(codigoMarcaPeloNome('Fréio Ão')).toBe(codigoMarcaPeloNome('FREIO AO'));
+    expect(codigoMarcaPeloNome('Marca Beta')).toBe(c);
     expect(codigoMarcaPeloNome('Marca Gama')).not.toBe(c);
   });
 
   it('RN-CAT-09: o código gerado cabe no campo do código da marca (30) e não tem cara de código do ERP', () => {
     const c = codigoMarcaPeloNome('x'.repeat(500));
     expect(c.length).toBeLessThanOrEqual(30);
-    expect(c.startsWith(PREFIXO_CODIGO_MARCA_GERADO)).toBe(true);
   });
 
-  it('RN-CAT-09: o nome normalizado tira acento, junta espaços e põe em maiúsculas; nome vazio não tem código', () => {
+  it('RN-CAT-09: o nome normalizado tira acento, junta espaços e põe em maiúsculas (o mesmo código); nome vazio não tem código', () => {
     expect(nomeMarcaNormalizado(' Cobréq  Freios ')).toBe('COBREQ FREIOS');
+    expect(codigoMarcaPeloNome(' Cobréq  Freios ')).toBe(codigoMarcaPeloNome('COBREQ FREIOS'));
     expect(nomeMarcaNormalizado('   ')).toBe('');
     expect(() => codigoMarcaPeloNome('  ')).toThrow();
   });

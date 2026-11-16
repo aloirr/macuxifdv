@@ -17,13 +17,6 @@ pnpm --filter @macuxi/integracao exec tsx kit-thathyany/scripts/migrar-csv-1.0.5
 
 ### Código da marca da referência que a base não traz
 
-A regra é `domain/marca-referencia-codigo.ts` (RN-CAT-09). Ela vale para cada referência que tem o nome da marca (`marca_referencia_N`) e não tem o código (`marca_referencia_codigo_N`):
-
-1. **O ERP já tem o código dessa marca na base.** Pode estar no `marca_codigo` de um produto ou no código de outra referência com o mesmo nome. Nesse caso, a referência usa esse código. Se houver mais de um, usa o menor, e o resultado não depende da ordem das linhas.
-2. **Nenhum código na base.** O código é gerado a partir do nome: `MXN-` mais os 8 primeiros caracteres hexadecimais, em maiúsculas, do SHA-256 do nome normalizado. O mesmo nome sempre gera o mesmo código.
-
-O nome normalizado fica sem acentos, em maiúsculas e sem espaços nas pontas, e cada sequência de espaços vira um espaço só. Por isso "Marca Beta", " marca  beta " e "MARCA BETA" geram o mesmo código.
+Quando a referência tem o nome da marca (`marca_referencia_N`) e não tem o código (`marca_referencia_codigo_N`), o conversor preenche o código pela regra de `domain/marca-referencia-codigo.ts` (RN-CAT-09). A regra está descrita no cabeçalho desse arquivo.
 
 O prefixo `MXN-` separa o código gerado dos códigos do ERP. Se o ERP passar a mandar o código da marca, troque o `MXN-...` da marca pelo código do ERP no BKO (Catálogo → Marcas).
-
-Uma referência sem o nome da marca fica só com o código dela.
