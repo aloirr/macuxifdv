@@ -23,7 +23,7 @@ import { aplicarGeralNasLinhas, completarComGeral, linhasComOutroAjuste, linhasD
 import { podeEnviarPedido } from '../../domain/quantidade';
 import { buscaPodeComecar, codigoExatoPrimeiro, paginaDaBusca, resolverBusca, type TrechoServeEm } from '../../domain/busca-seletor';
 import { rotuloVoltarNovoPedido } from '../../domain/pedido-em-nome';
-import { modalidadePadraoDosParametros } from '../../domain/preco-pedido';
+import { modalidadePadraoDosParametros, percentualAjusteParaBp } from '../../domain/preco-pedido';
 import { AcimaDoTeclado, useCampoAcimaDoTeclado } from '../components/acima-do-teclado';
 import { AbaEntrega, AbaResumo, AbaVenda, CardPagamento, FimDaAbaItens, linhasDoLeveMais } from '../components/novo-pedido-abas';
 import type { ModeloDoCredito } from '../lib/credito-cliente';
@@ -290,12 +290,13 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   // RN-VEN-10: em nome, a alçada é a do gestor (supervisor/gerente), como na API
   const politica = dados.politica && vendedorEmNomeId ? politicaParaAutor(dados.politica, app.perfil) : dados.politica;
   const vendedorId = vendedorEmNomeId ?? dados.me?.seller?.id ?? '';
+  const percentualAjusteBp = percentualAjusteParaBp(draft.prazo_percentual_ajuste);
   const calculoAtual = useMemo(
     () =>
       politica
-        ? calcularPedido({ lines: draft.lines, ajustes: draft.ajustes ?? {}, desconto_pct: draft.discount_pct, acrescimo_pct: draft.acrescimo_pct ?? 0, desconto_valor_cents: draft.desconto_valor_cents, acrescimo_valor_cents: draft.acrescimo_valor_cents, ajuste_em: draft.ajuste_em, catalogo: catalog, unidades: app.unidades, faixas: dados.produtos[tableKey]?.faixas, ...(draft.precos_congelados ? { congelados: draft.precos_congelados } : {}), aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosVendedor), max: aplicacaoMaxOrcamento(parametrosVendedor) }, politica, vendedor_id: vendedorId, limite: app.limiteDesconto })
+        ? calcularPedido({ lines: draft.lines, percentual_ajuste_bp: percentualAjusteBp, ajustes: draft.ajustes ?? {}, desconto_pct: draft.discount_pct, acrescimo_pct: draft.acrescimo_pct ?? 0, desconto_valor_cents: draft.desconto_valor_cents, acrescimo_valor_cents: draft.acrescimo_valor_cents, ajuste_em: draft.ajuste_em, catalogo: catalog, unidades: app.unidades, faixas: dados.produtos[tableKey]?.faixas, ...(draft.precos_congelados ? { congelados: draft.precos_congelados } : {}), aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosVendedor), max: aplicacaoMaxOrcamento(parametrosVendedor) }, politica, vendedor_id: vendedorId, limite: app.limiteDesconto })
         : null,
-    [parametrosVendedor, draft.lines, draft.ajustes, draft.discount_pct, draft.acrescimo_pct, draft.desconto_valor_cents, draft.acrescimo_valor_cents, draft.ajuste_em, catalog, app.unidades, dados.produtos, tableKey, politica, vendedorId],
+    [parametrosVendedor, percentualAjusteBp, draft.lines, draft.ajustes, draft.discount_pct, draft.acrescimo_pct, draft.desconto_valor_cents, draft.acrescimo_valor_cents, draft.ajuste_em, catalog, app.unidades, dados.produtos, tableKey, politica, vendedorId],
   );
   const calculoBase = sent ? sent.snapshot.calculo : calculoAtual;
   const calculoRef = useRef(calculoBase);
@@ -858,9 +859,10 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
             lines={draft.lines}
             ajustes={draft.ajustes ?? {}}
             geral={geralAplicado}
+            percentualAjusteBp={percentualAjusteBp}
             previa={(lines, ajustes) =>
               politica
-                ? calcularPedido({ lines, ajustes, desconto_pct: 0, acrescimo_pct: 0, catalogo: catalog, unidades: app.unidades, faixas: dados.produtos[tableKey]?.faixas, ...(draft.precos_congelados ? { congelados: draft.precos_congelados } : {}), aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosVendedor), max: aplicacaoMaxOrcamento(parametrosVendedor) }, politica, vendedor_id: vendedorId, limite: app.limiteDesconto })
+                ? calcularPedido({ lines, percentual_ajuste_bp: percentualAjusteBp, ajustes, desconto_pct: 0, acrescimo_pct: 0, catalogo: catalog, unidades: app.unidades, faixas: dados.produtos[tableKey]?.faixas, ...(draft.precos_congelados ? { congelados: draft.precos_congelados } : {}), aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosVendedor), max: aplicacaoMaxOrcamento(parametrosVendedor) }, politica, vendedor_id: vendedorId, limite: app.limiteDesconto })
                 : null
             }
             onConfirmar={(estado) => {

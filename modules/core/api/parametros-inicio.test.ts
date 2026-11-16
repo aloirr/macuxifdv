@@ -31,7 +31,7 @@ const chamar = (metodo: 'GET' | 'PUT', db: ClienteBanco, corpo?: unknown) => {
   } as unknown as ContextoBase;
   return r.executar(ctx as never) as Promise<unknown>;
 };
-const valido = { dias_uteis_semana: [1, 2, 3, 4, 5], parado_min: 45 };
+const valido = { dias_uteis_semana: [1, 2, 3, 4, 5] };
 const ehAuditoria = (c: { sql: string }) => c.sql.includes('plataforma.auditoria');
 const ehEscrita = (c: { sql: string }) => c.sql.includes('plataforma.parametro (tenant_id');
 
@@ -59,38 +59,38 @@ describe('RN-CORE-26: GET parametros/inicio', () => {
       { modulo: 'core', chave: 'metas.dias_uteis_semana', valor: [1, 2, 3, 4, 5] },
       { modulo: 'core', chave: 'inicio.parado_min', valor: 45 },
     ]);
-    expect(await chamar('GET', db)).toEqual(valido);
+    expect(await chamar('GET', db)).toEqual({ ...valido, parado_min: 45 });
   });
 });
 
 describe('RN-CORE-26 / RN-AUD-01: PUT parametros/inicio', () => {
-  it('RN-AUD-01: grava as duas chaves e audita antes/depois quando algo muda', async () => {
-    const { db, chamadas } = fakeDb([]);
-    expect(await chamar('PUT', db, { ...valido, dias_uteis_semana: [5, 1, 2, 3, 4] })).toEqual(valido);
-    expect(chamadas.filter(ehEscrita)).toHaveLength(2);
-    expect(chamadas.filter(ehEscrita).every((c) => c.sql.includes('plataforma.tenant_atual()'))).toBe(true);
+  it('RN-AUD-01: grava só os dias úteis, audita antes/depois e devolve o parado já salvo (RD-0334)', async () => {
+    const { db, chamadas } = fakeDb([{ modulo: 'core', chave: 'inicio.parado_min', valor: 45 }]);
+    expect(await chamar('PUT', db, { dias_uteis_semana: [5, 1, 2, 3, 4] })).toEqual({ ...valido, parado_min: 45 });
+    const escritas = chamadas.filter(ehEscrita);
+    expect(escritas).toHaveLength(1);
+    expect(escritas[0]!.valores[0]).toBe('metas.dias_uteis_semana');
+    expect(escritas[0]!.sql).toContain('plataforma.tenant_atual()');
     const aud = chamadas.filter(ehAuditoria);
     expect(aud).toHaveLength(1);
     expect(aud[0]!.valores[1]).toBe('parametro.inicio');
-    expect(JSON.parse(aud[0]!.valores[4] as string)).toMatchObject({ parado_min: 60 });
+    expect(JSON.parse(aud[0]!.valores[4] as string)).toEqual({ dias_uteis_semana: [1, 2, 3, 4, 5, 6] });
     expect(JSON.parse(aud[0]!.valores[5] as string)).toEqual(valido);
   });
-  it('RN-AUD-01: repetir o mesmo valor não audita de novo (idempotente)', async () => {
-    const { db, chamadas } = fakeDb([
-      { modulo: 'core', chave: 'metas.dias_uteis_semana', valor: [1, 2, 3, 4, 5] },
-      { modulo: 'core', chave: 'inicio.parado_min', valor: 45 },
-    ]);
+  it('RN-AUD-01: repetir o mesmo valor não grava nem audita de novo (idempotente)', async () => {
+    const { db, chamadas } = fakeDb([{ modulo: 'core', chave: 'metas.dias_uteis_semana', valor: [1, 2, 3, 4, 5] }]);
     await chamar('PUT', db, valido);
+    expect(chamadas.filter(ehEscrita)).toHaveLength(0);
     expect(chamadas.filter(ehAuditoria)).toHaveLength(0);
   });
-  it('RN-CORE-26: a API revalida: valor fora da faixa vira 422 em português e nada é gravado', async () => {
+  it('RN-CORE-26: a API revalida: dia fora de 0 a 6 vira 422 em português e nada é gravado', async () => {
     const { db, chamadas } = fakeDb([]);
-    await expect(chamar('PUT', db, { ...valido, parado_min: 5 })).rejects.toMatchObject({ status: 422, codigo: 'RN-CORE-26', detalhes: { erros: [{ campo: 'parado_min', mensagem: expect.stringContaining('15 a 480') }] } });
-    await expect(chamar('PUT', db, { ...valido, dias_uteis_semana: [] })).rejects.toMatchObject({ status: 422 });
+    await expect(chamar('PUT', db, { dias_uteis_semana: [] })).rejects.toMatchObject({ status: 422, codigo: 'RN-CORE-26', detalhes: { erros: [{ campo: 'dias_uteis_semana' }] } });
     expect(chamadas).toHaveLength(0);
   });
-  it('RN-CORE-26: corpo com campo extra é recusado pelo schema', () => {
+  it('RN-CORE-26 (RD-0334): o parado_min não é mais aceito aqui (só em PUT parametros/parado-min); campo extra também é recusado', () => {
     const { db } = fakeDb([]);
+    expect(() => chamar('PUT', db, { ...valido, parado_min: 45 })).toThrow();
     expect(() => chamar('PUT', db, { ...valido, extra: 1 })).toThrow();
   });
   it('RN-CORE-26 (D2, 13/11): a frase padrão do recado do dia saiu; o campo recado_do_dia_padrao é recusado', () => {

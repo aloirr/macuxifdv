@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0173 · Parâmetros → Integração · de-para (simulação)</title>
+<link rel="stylesheet" href="base.css">
+</head>
+<body>
+<nav>
+  <div class="marca"><img src="../../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-grafite.svg" alt="Macuxi Força de Vendas" height="28"><span class="empresa">Distribuidora Exemplo</span></div>
+  <div class="g">Operação</div>
+  <div class="i">Início</div><div class="i">Pedidos</div><div class="i">Clientes</div><div class="i">Catálogo</div>
+  <div class="g">Sistema</div>
+  <div class="i">Usuários</div><div class="i">Integração ERP</div><div class="i on">Parâmetros</div>
+</nav>
+<main>
+  <div class="ph"><h1>De-para de códigos</h1><span class="btn pri">Novo de-para</span></div>
+  <section class="alertas" aria-labelledby="titulo-alertas" data-estado="retidos">
+    <h2 id="titulo-alertas">Alertas</h2>
+    <div class="al"><span>3 pedidos retidos: condição <span class="mono">28DD</span> sem código do ERP</span><span class="btn">Cadastrar</span></div>
+  </section>
+  <div class="fb">
+    <label class="sf">Entidade<span class="ctl">Todas <span class="ch">▼</span></span></label>
+    <label class="sf">Buscar<span class="ctl busca">⌕&nbsp; Código ou nome</span></label>
+  </div>
+  <table aria-label="De-para">
+    <colgroup><col style="width:22%"><col style="width:34%"><col style="width:18%"><col style="width:16%"><col style="width:56px"></colgroup>
+    <thead><tr><th>Entidade</th><th>No Macuxi</th><th>No ERP</th><th>Situação</th><th><span style="position:absolute;left:-9999px">Ações</span></th></tr></thead>
+    <tbody>
+      <tr><td>Condição de pagamento</td><td><span class="mono">30</span> · 30 dias</td><td class="mono">001</td><td><span class="bd success">Ativo</span></td><td class="ac"><div class="kebab">⋯</div></td></tr>
+      <tr><td>Condição de pagamento</td><td><span class="mono">30-60</span> · 30/60 dias</td><td class="mono">002</td><td><span class="bd success">Ativo</span></td><td class="ac"><div class="kebab">⋯</div></td></tr>
+      <tr><td>Condição de pagamento</td><td><span class="mono">AV</span> · À vista</td><td class="mono">000</td><td><span class="bd success">Ativo</span></td><td class="ac"><div class="kebab">⋯</div></td></tr>
+      <tr class="hov"><td>Condição de pagamento</td><td><span class="mono">14</span> · 14 dias</td><td class="mono">009</td><td><span class="bd neutral">Inativo</span></td><td class="ac"><div class="kebab on">⋯</div></td></tr>
+      <tr><td>Depósito</td><td><span class="mono">CD-MAO</span> · CD Manaus</td><td class="mono">01</td><td><span class="bd success">Ativo</span></td><td class="ac"><div class="kebab">⋯</div></td></tr>
+      <tr><td>Depósito</td><td><span class="mono">CD-BVB</span> · CD Boa Vista</td><td class="mono">02</td><td><span class="bd success">Ativo</span></td><td class="ac"><div class="kebab">⋯</div></td></tr>
+      <tr><td>Status</td><td><span class="mono">faturado</span> · Faturado</td><td class="mono">F</td><td><span class="bd success">Ativo</span></td><td class="ac"><div class="kebab">⋯</div></td></tr>
+      <tr><td>Canal do cliente</td><td><span class="mono">VAR</span> · Varejo</td><td class="mono">V1</td><td><span class="bd success">Ativo</span></td><td class="ac"><div class="kebab">⋯</div></td></tr>
+    </tbody>
+  </table>
+  <div class="menu" style="right:30px;top:502px"><div class="h">Editar</div><div>Ativar</div><div class="dng">Apagar</div></div>
+</main>
+<script>
+  if (location.search.includes('limpo')) {
+    document.querySelector('.menu').remove();
+    document.querySelectorAll('.on,.hov').forEach((e) => e.classList.remove('on', 'hov'));
+  }
+</script>
+</body>
+</html>

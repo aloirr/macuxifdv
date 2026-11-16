@@ -20,11 +20,13 @@ import {
   type LoteAceito,
   type LoteEnvelopeValido,
   type LoteResultado,
+  type LoteResultadoBko,
   type RespostaReconciliacao,
 } from '../contracts';
 import {
   conteudoCanonicoLote,
   decidirIdempotenciaLote,
+  estadoLoteNoHubV1,
   erroEntidadeDeOutroConector,
   reconciliar,
   validarChaveIdempotencia,
@@ -225,7 +227,7 @@ interface LinhaLote {
   id: string;
   entidade: string;
   modo: 'completo' | 'delta';
-  status: LoteResultado['status'];
+  status: LoteResultadoBko['status'];
   recebidas: number;
   duplicadas_no_lote: number;
   com_erro: number;
@@ -247,7 +249,7 @@ interface LinhaLote {
  * Resultado de um lote com os erros por linha. `conectorId` limita ao lote do próprio Conector (Hub: 404 para outro Conector);
  * sem ele vale o tenant inteiro (BKO). Em lote de arquivo, mensagens e avisos já levam "Linha N do arquivo:".
  */
-export async function lerResultadoLote(db: DbTenant, tenantId: string, loteId: string, opcoes: { conectorId?: string; limiteErros: number }): Promise<LoteResultado | null> {
+export async function lerResultadoLote(db: DbTenant, tenantId: string, loteId: string, opcoes: { conectorId?: string; limiteErros: number }): Promise<LoteResultadoBko | null> {
   const { rows } = await db.query<LinhaLote>(
     `select id, entidade, modo, status, recebidas, duplicadas_no_lote, com_erro, novas, atualizadas, inalteradas, obsoletas, inativadas,
             invalidas_omitidas, cursor_resultante, avisos, recebido_em, concluido_em, sessao_id, sessao_ultimo
@@ -288,14 +290,15 @@ export async function lerResultadoLote(db: DbTenant, tenantId: string, loteId: s
     inativadas: l.inativadas,
     recebido_em: iso(l.recebido_em) as string,
     concluido_em: iso(l.concluido_em),
-  } as LoteResultado;
+  } as LoteResultadoBko;
 }
 
 export async function consultarLote(ctx: Ctx<unknown, ReturnType<typeof QueryConsultaLote.parse>, ReturnType<typeof ParamsLote.parse>>): Promise<LoteResultado> {
   return ctx.comTenant(async (db) => {
     const r = await lerResultadoLote(db, ctx.tenantId, ctx.params.id, { conectorId: ctx.conector.id, limiteErros: ctx.query.limite_erros });
     if (!r) throw new ErroConector(404, { codigo: 'lote_nao_encontrado', mensagem: 'Lote não encontrado para este Conector. Se o envio foi interrompido, reenvie o lote com a mesma Idempotency-Key.' });
-    return r;
+    // Hub v1 compatível: o Conector instalado valida com `LoteResultado`, que não tem `cancelado` (só o BKO expõe)
+    return { ...r, status: estadoLoteNoHubV1(r.status) };
   });
 }
 

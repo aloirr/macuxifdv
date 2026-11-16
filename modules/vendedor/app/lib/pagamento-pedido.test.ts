@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { descricaoPrazo, prazoMedioDias, type FormaDePagamento, type PrazoDePagamento } from '../../domain/pagamento';
-import { comForma, comPrazo, opcoesDeForma, opcoesDePrazo, rascunhoComPagamentoPadrao, situacaoDoPagamento } from './pagamento-pedido';
+import { comForma, comValoresMantendoPercentual, comPrazo, opcoesDeForma, opcoesDePrazo, rascunhoComPagamentoPadrao, situacaoDoPagamento } from './pagamento-pedido';
 import { rascunhoVazio } from './pedidos';
 
 const f = (id: string, codigo: string, ordem: number): FormaDePagamento => ({ id, codigo, nome: codigo === 'PIX' ? 'Pix' : 'Boleto', ativo: true, ordem });
@@ -82,5 +82,16 @@ describe('RN-VEN-24: padrão, troca de forma e pendências', () => {
   });
   it('RN-VEN-24: todas as formas desativadas pede o cadastro no BKO', () => {
     expect(situacaoDoPagamento(r0, [{ ...formas[0]!, ativo: false }], prazos, cliente).tipo).toBe('sem_forma_permitida');
+  });
+});
+
+describe('RN-VEN-46: troca de prazo mantém o % do desconto digitado em R$', () => {
+  it('RN-VEN-46: R$ do item e do pedido são refeitos sobre a nova tabela ao trocar o prazo', () => {
+    const base = { ...rascunhoVazio('c1'), prazo_percentual_ajuste: 0, ajustes: { p1: { em: 'valor' as const, desconto_cents: 500 }, p2: { em: 'pct' as const, desconto_pct: 5 } }, ajuste_em: 'valor' as const, desconto_valor_cents: 1_000 };
+    const r = comValoresMantendoPercentual(base, -1.71);
+    expect(r.ajustes!.p1!.desconto_cents).toBe(491);
+    expect(r.ajustes!.p2).toEqual({ em: 'pct', desconto_pct: 5 });
+    expect(r.desconto_valor_cents).toBe(983);
+    expect(comValoresMantendoPercentual(base, 0)).toBe(base);
   });
 });
