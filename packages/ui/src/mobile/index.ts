@@ -68,3 +68,6 @@ export * from './campo-texto-rn';
 // Onda 1 do catálogo (solução 5): IndicadorCargaFundo ("Catálogo 63%") e CatalogoCarregando, o catálogo sem sinal na carga
 export * from './carga-fundo';
 export * from './carga-fundo-rn';
+// T-0182: PlacaLogoCliente, a logo da empresa numa placa branca (carga 64/48 e fim do Mais 52/36)
+export * from './placa-logo';
+export * from './placa-logo-rn';
