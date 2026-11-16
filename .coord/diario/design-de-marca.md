@@ -23,3 +23,4 @@
 2026-11-15 — v1.0.14 rodada 1 — parecer 2026-11-15-v1014.md: com achado #398, #401, #405, #408, #399, #410, #414–#416 (MC-1500..1515, todas seguram); liberados #403, #421, #417, #390, #406, #409, #411, #412; #414–#416 com o peso rótulo 600/valor 400 conforme à R-20261115-155500 (só a cor do "Padrão", MC-1515). Manual sem mudança. Sem recados (CLI 403).
 2026-11-15 — v1.0.14 rodada 2 — #434 liberado; #435 e #436 não se aplica.
 2026-11-15 — v1.0.14 rodada 3 (catálogo v2) — #441 com achado (MC-1520..1523); branch do modulo-catalogo f6c87089 com achado (MC-1524, MC-1525); ícone pacote conforme.
+2026-11-15 — v1.0.14 rodada 4 (lote único das migrações a1b8b0fe) — liberado (PDF .logo como no #409).
