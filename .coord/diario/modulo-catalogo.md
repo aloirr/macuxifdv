@@ -95,3 +95,4 @@
 2026-11-15 — T-0174 — merge do main; testes de banco alinhados ao desenho §180 (a trava do POST protege o reenvio com o mesmo id; o lote novo aguardando_envio não ocupa vaga) e ao SDK (o tipo da imagem é lido ao ligar ao produto: o falso PNG vira A1_5.png); timer-permitido nas consultas de 2 s do lote; o resto do vermelho (Progresso e KpiCard com onClick) depende do #366
 2026-11-15 — T-0174 (#382) — RD-1223 (comProduto), RD-1243 (timer-permitido sem o valor do intervalo), RD-1244 (LOTE no teste da trava)
 2026-11-16 — v1.0.14 catalogo — merge do main (#382/#427 dentro); parte 2 da API (rotas, repositório, contratos, manifesto com core.filiais_do_usuario@1): uma regra de filiais, a de venda; testes de banco na sessão
+2026-11-16 — v1.0.14 catalogo — RD-1902 (contextoVitrine com um retorno só, sem escolhida nem ctx), RD-1903 (sem filial em it.each; FILIAL_FORA_DAS_SUAS num caso) e 'Sem estoque' do ROTULO_FAIXA_ESTOQUE

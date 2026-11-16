@@ -6,7 +6,7 @@
 import { localDate } from '@macuxi/comum';
 import { FilialDoUsuarioSchema } from '@macuxi/core/contracts';
 import type { FaixaEstoque } from '../contracts';
-import { ROTULO_SEM_HORA } from './estoque';
+import { ROTULO_FAIXA_ESTOQUE, ROTULO_SEM_HORA } from './estoque';
 
 /** Filtro de filial escolhido na tela: `null` = o padrão do perfil; `'todas'` = "Todas as filiais"; senão o id da filial. */
 export type FiltroFilial = string | 'todas' | null;
@@ -70,7 +70,7 @@ export function textoEstoqueCartao(quantidade: number | null, noCartao: boolean,
 }
 
 const EM_ESTOQUE = 'Em estoque';
-const SEM_ESTOQUE = 'Sem estoque';
+const SEM_ESTOQUE = ROTULO_FAIXA_ESTOQUE.sem_estoque;
 
 /** Quantidade que decide texto e cor: o número do ERP; tenant que esconde a quantidade manda só a faixa (com estoque = 1, sem = 0). */
 function quantidadeDoEstoque(quantity: number | null, band?: FaixaEstoque | null): number {
