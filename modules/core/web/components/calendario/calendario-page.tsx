@@ -9,8 +9,7 @@ import { textoDaHora } from '../metas-produtividade/formato';
 import { useHojeDoTenant } from '../../lib/queries';
 import { CHAVE_CALENDARIO, criarApiCalendario, type ApiCalendario, type ParametrosCalendario } from './api';
 import { FERIADO_NOME_MAX, feriadosDoAno, incluirFeriado, lerAlmoco, type ErroFeriado, type ErrosAlmoco, type LinhaFeriado } from './calendario';
-
-const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
+import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
 /** Campo do 422 da API → campo da tela. */
 const CAMPO_DA_API: Readonly<Record<string, keyof ErrosAlmoco>> = { almoco_corte: 'corte', almoco_janela: 'janela' };
@@ -115,7 +114,7 @@ export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoj
                     aria-invalid={erroFeriado?.campo === 'data' ? true : undefined}
                     aria-describedby={erroFeriado?.campo === 'data' ? 'calendario.feriado.data.erro' : undefined}
                     onChange={(e) => setNovo({ ...novo, data: e.target.value })}
-                    className={CAMPO}
+                    className={CLASSE_CAMPO_BKO}
                     data-testid="calendario.feriado.data"
                   />
                   <ErroCampo id="calendario.feriado.data.erro" texto={erroFeriado?.campo === 'data' ? erroFeriado.erro : undefined} />
@@ -128,7 +127,7 @@ export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoj
                     aria-invalid={erroFeriado?.campo === 'nome' ? true : undefined}
                     aria-describedby={erroFeriado?.campo === 'nome' ? 'calendario.feriado.nome.erro' : undefined}
                     onChange={(e) => setNovo({ ...novo, nome: e.target.value })}
-                    className={CAMPO}
+                    className={CLASSE_CAMPO_BKO}
                     data-testid="calendario.feriado.nome"
                   />
                   <ErroCampo id="calendario.feriado.nome.erro" texto={erroFeriado?.campo === 'nome' ? erroFeriado.erro : undefined} />
@@ -150,7 +149,7 @@ export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoj
                   aria-invalid={errosAlmoco.corte ? true : undefined}
                   aria-describedby={errosAlmoco.corte ? 'calendario.almoco.corte.erro' : undefined}
                   onChange={(e) => setAlmoco({ ...almoco, corte: e.target.value })}
-                  className={`${CAMPO} w-[96px]`}
+                  className={`${CLASSE_CAMPO_BKO} w-[96px]`}
                   data-testid="calendario.almoco.corte"
                 />
                 <ErroCampo id="calendario.almoco.corte.erro" texto={errosAlmoco.corte} />
@@ -158,9 +157,9 @@ export function CalendarioPage({ cliente, hoje }: { cliente?: ApiCalendario; hoj
               <fieldset className="m-0 flex flex-col gap-1 border-0 p-0" aria-describedby={errosAlmoco.janela ? 'calendario.almoco.janela.erro' : undefined}>
                 <legend className="mb-1 font-semibold text-ink">Janela</legend>
                 <div className="flex items-center gap-2">
-                  <input value={textoAlmoco.inicio} inputMode="numeric" aria-label="Início da janela" aria-invalid={errosAlmoco.janela ? true : undefined} onChange={(e) => setAlmoco({ ...almoco, inicio: e.target.value })} className={`${CAMPO} w-[96px]`} data-testid="calendario.almoco.inicio" />
+                  <input value={textoAlmoco.inicio} inputMode="numeric" aria-label="Início da janela" aria-invalid={errosAlmoco.janela ? true : undefined} onChange={(e) => setAlmoco({ ...almoco, inicio: e.target.value })} className={`${CLASSE_CAMPO_BKO} w-[96px]`} data-testid="calendario.almoco.inicio" />
                   até
-                  <input value={textoAlmoco.fim} inputMode="numeric" aria-label="Fim da janela" aria-invalid={errosAlmoco.janela ? true : undefined} onChange={(e) => setAlmoco({ ...almoco, fim: e.target.value })} className={`${CAMPO} w-[96px]`} data-testid="calendario.almoco.fim" />
+                  <input value={textoAlmoco.fim} inputMode="numeric" aria-label="Fim da janela" aria-invalid={errosAlmoco.janela ? true : undefined} onChange={(e) => setAlmoco({ ...almoco, fim: e.target.value })} className={`${CLASSE_CAMPO_BKO} w-[96px]`} data-testid="calendario.almoco.fim" />
                 </div>
                 <ErroCampo id="calendario.almoco.janela.erro" texto={errosAlmoco.janela} />
               </fieldset>

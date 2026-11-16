@@ -1,13 +1,13 @@
 /**
  * T-0150 (spec docs/design/pedido-v4.md §1 e §2): tabelas do detalhe do pedido/orçamento e do Resumo do Novo pedido.
- *  - `TabelaRotuloValor`: Pagamento/Entrega (Cliente, Venda) em cartão, rótulo 13 ink2 numa coluna de 92 dp;
+ *  - `TabelaRotuloValor`: Pagamento/Entrega (Cliente, Venda) em cartão, rótulo 14 ink2 numa coluna de 92 dp;
  *  - `TabelaDeItens`: Código · Emb. · Qtd · Valor tabela · Desc./Acrésc. · Total, números sem "R$". Larguras: o Código pelo conteúdo
  *    (`larguraDoCodigo`, 48 a 96 dp); as colunas numéricas dividem o resto por peso (30/26/48/40/54), flexBasis 0, à direita,
  *    com `adjustsFontSizeToFit` (valor grande encolhe em vez de quebrar); gap 4 e padding 8, iguais no cabeçalho e nas linhas;
  *  - `CartaoDeTotais`: Tabela · linha líquida (% sobre a tabela) · Total. Sem texto de regra: tudo vem de funções puras.
- * Números em IBM Plex Sans tabular (abaixo de 15 px o 6 do Archivo parece 8).
+ * Números em fonte do sistema com algarismos tabulares.
  */
-import { Balao, BotaoEditar, colors, fonts } from '@macuxi/ui/mobile';
+import { Balao, BotaoEditar, colors, fonte } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ROTULO_VALOR_FINAL } from '../../domain/apresentacao-totais';
@@ -129,12 +129,12 @@ const s = StyleSheet.create({
   traco: { borderTopWidth: 1, borderTopColor: colors.lineSoft },
   tracoForte: { borderTopWidth: 1, borderTopColor: colors.line },
   linhaRV: { flexDirection: 'row', gap: 12, paddingHorizontal: 12, paddingVertical: 10, minHeight: 44 },
-  rotulo: { width: 92, fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
-  complemento: { fontFamily: fonts.body, fontSize: 12, lineHeight: 16, color: colors.ink2 },
-  valor: { fontFamily: fonts.body, fontSize: 14, lineHeight: 19, color: colors.ink },
+  rotulo: { width: 92, ...fonte.body, fontSize: 14, color: colors.ink2 },
+  complemento: { ...fonte.body, fontSize: 12, lineHeight: 16, color: colors.ink2 },
+  valor: { ...fonte.body, fontSize: 14, lineHeight: 19, color: colors.ink },
   cabecalho: { flexDirection: 'row', gap: 4, paddingHorizontal: 8, paddingTop: 10, paddingBottom: 6, alignItems: 'flex-end' },
   restoDoCabecalho: { flex: 1, flexDirection: 'row', gap: 4, alignItems: 'flex-end' },
-  cab: { fontFamily: fonts.semibold, fontSize: 11, color: colors.ink2 },
+  cab: { ...fonte.semibold, fontSize: 12, color: colors.ink2 },
   linhaItem: { flexDirection: 'row', gap: 4, paddingHorizontal: 8, alignItems: 'center', minHeight: 44 },
   restoDaLinha: { flex: 1, flexDirection: 'row', gap: 4, alignItems: 'center', minHeight: 44, paddingVertical: 8 },
   colCodigo: { minHeight: 44, justifyContent: 'center' },
@@ -145,14 +145,14 @@ const s = StyleSheet.create({
   colTotal: { flexGrow: 54, flexShrink: 1, flexBasis: 0, minWidth: 0 },
   colLapis: { width: 32 },
   dir: { textAlign: 'right' },
-  codigoLink: { fontFamily: fonts.mono, fontSize: 12, color: colors.accentInk, textDecorationLine: 'underline' },
-  emb: { fontFamily: fonts.body, fontSize: 12, color: colors.ink },
-  fator: { fontFamily: fonts.body, fontSize: 10.5, color: colors.ink2 },
-  num: { fontFamily: fonts.body, fontSize: 12, color: colors.ink, fontVariant: ['tabular-nums'] },
-  total: { fontFamily: fonts.bold, fontSize: 13 },
+  codigoLink: { ...fonte.mono, fontSize: 12, color: colors.accentInk, textDecorationLine: 'underline' },
+  emb: { ...fonte.body, fontSize: 12, color: colors.ink },
+  fator: { ...fonte.body, fontSize: 12, color: colors.ink2 },
+  num: { ...fonte.body, fontSize: 12, color: colors.ink, fontVariant: ['tabular-nums'] },
+  total: { ...fonte.semibold, fontSize: 14 },
   linhaTot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, minHeight: 48 },
-  rotuloTot: { fontFamily: fonts.body, fontSize: 14, color: colors.ink2 },
-  valorTot: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink, fontVariant: ['tabular-nums'] },
-  rotuloTotal: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
-  valorTotal: { fontFamily: fonts.displayBold, fontSize: 20, color: colors.ink, fontVariant: ['tabular-nums'] },
+  rotuloTot: { ...fonte.body, fontSize: 14, color: colors.ink2 },
+  valorTot: { ...fonte.semibold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
+  rotuloTotal: { ...fonte.semibold, fontSize: 16, color: colors.ink },
+  valorTotal: { ...fonte.semibold, fontSize: 22, color: colors.ink, fontVariant: ['tabular-nums'] },
 });

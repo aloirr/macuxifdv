@@ -8,7 +8,7 @@ import configDoApp, { arquivoGoogleServices, GOOGLE_SERVICES_PADRAO } from '../.
 const RAIZ = '/projeto/apps/mobile';
 
 describe('arquivoGoogleServices', () => {
-  it('usa o caminho de GOOGLE_SERVICES_JSON (Actions e EAS) quando o arquivo existe', () => {
+  it('usa o caminho de GOOGLE_SERVICES_JSON (Actions) quando o arquivo existe', () => {
     const existe = (c: string) => c === '/tmp/runner/google-services.json';
     expect(arquivoGoogleServices(RAIZ, { GOOGLE_SERVICES_JSON: '/tmp/runner/google-services.json' }, existe)).toEqual({
       googleServicesFile: '/tmp/runner/google-services.json',
@@ -27,14 +27,16 @@ describe('arquivoGoogleServices', () => {
 
 describe('app.config.ts com e sem o google-services.json', () => {
   const contexto = (projectRoot: string) => ({ projectRoot, staticConfigPath: null, packageJsonPath: null, config: {} });
-  it('sem o arquivo: sem googleServicesFile; o projeto da Expo continua (projectId e owner)', () => {
+  it('sem o arquivo: sem googleServicesFile; sem conta da Expo (sem projectId, owner, updates e runtimeVersion)', () => {
     const anterior = process.env.GOOGLE_SERVICES_JSON;
     delete process.env.GOOGLE_SERVICES_JSON;
     try {
       const c = configDoApp(contexto('/caminho/que/nao/existe'));
       expect(c.android).not.toHaveProperty('googleServicesFile');
-      expect(c.owner).toBe('macuxifdv');
-      expect((c.extra as { eas?: { projectId?: string } }).eas?.projectId).toBeTruthy();
+      expect(c).not.toHaveProperty('owner');
+      expect(c.extra).not.toHaveProperty('eas');
+      expect(c).not.toHaveProperty('updates');
+      expect(c).not.toHaveProperty('runtimeVersion');
     } finally {
       if (anterior !== undefined) process.env.GOOGLE_SERVICES_JSON = anterior;
     }

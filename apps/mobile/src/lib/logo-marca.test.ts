@@ -4,7 +4,16 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { LOGO_HORIZONTAL_NEGATIVO, PROPORCAO_LOGO_HORIZONTAL } from './logo-marca';
+import { LOGO_EMPILHADO_NEGATIVO, LOGO_HORIZONTAL_NEGATIVO, PROPORCAO_LOGO_HORIZONTAL, svgParaDesenho } from './logo-marca';
+
+describe('svgParaDesenho (SvgXml sem prop ARIA no Expo web)', () => {
+  it('tira role e aria-label só da raiz e mantém o resto do desenho', () => {
+    const desenho = svgParaDesenho(LOGO_EMPILHADO_NEGATIVO);
+    expect(desenho).not.toMatch(/aria-|role=/);
+    expect(desenho.startsWith('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 353.40 327.90">')).toBe(true);
+    expect(desenho.length).toBe(LOGO_EMPILHADO_NEGATIVO.length - ' role="img" aria-label="Macuxi Força de Vendas"'.length);
+  });
+});
 
 describe('logo horizontal negativo (faixa do login)', () => {
   it('é um SVG com o viewBox e o rótulo da marca', () => {
