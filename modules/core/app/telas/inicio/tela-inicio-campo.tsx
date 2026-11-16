@@ -5,7 +5,7 @@
  * saem de `inicio-campo.ts` (puro, testado). O sino (com o balão), a barra de abas e as rotas são do shell: o sino vem do
  * `ProvedorSinoCabecalho` (o mesmo das outras telas); a prop `sino` só vale sem provedor. Alvos de toque >= 48 dp (`ALVO_TOQUE`).
  */
-import { ALVO_TOQUE, Button, Cartao, colors, fonts, Icon, initials, layout, layoutCabecalho, Pressionavel, ProgressBar, radius, Screen, space, type as t, useAtualizacaoAutomatica, useSinoCabecalho } from '@macuxi/ui/mobile';
+import { ALVO_TOQUE, Button, Cartao, colors, fonte, Icon, initials, layout, layoutCabecalho, Pressionavel, ProgressBar, radius, Screen, space, type as t, useAtualizacaoAutomatica, useSinoCabecalho } from '@macuxi/ui/mobile';
 import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { Image, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -16,7 +16,7 @@ import { type EscalaInicio, escalaInicio } from './escala-inicio';
 import type { CardMetaInicio, IndicadorInicio } from './inicio-campo';
 import { useInicioCampo } from './usar-inicio-campo';
 
-const FONTES_DO_KIT = { h2: t.h2.fontSize, label: t.label.fontSize, sub: t.sub.fontSize, ultima: t.small.fontSize };
+const FONTES_DO_KIT = { saudacao: t.saudacao.fontSize, h2: t.h2.fontSize, label: t.label.fontSize, sub: t.sub.fontSize, ultima: t.small.fontSize };
 
 export interface PropsTelaInicioCampo {
   /** Só para quem não tem o `ProvedorSinoCabecalho`: o sino com o balão (recebe `useInicioCampo().sino.total`). */
@@ -189,12 +189,12 @@ function estilos(e: EscalaInicio) {
     saudacaoBox: { flex: 1, minWidth: 0 },
     sinoBox: { marginVertical: -10 },
     dataEFrase: { gap: e.painel.gap },
-    data: { fontFamily: fonts.body, fontSize: f.data, color: colors.faixaSub },
-    saudacao: { fontFamily: fonts.display, fontSize: f.saudacao, color: colors.faixaTitulo },
-    frase: { fontFamily: fonts.body, fontSize: f.frase, fontStyle: 'italic', color: colors.faixaSub },
+    data: { ...fonte.body, fontSize: f.data, color: colors.faixaSub },
+    saudacao: { ...fonte.bold, fontSize: f.saudacao, color: colors.faixaTitulo },
+    frase: { ...fonte.body, fontSize: f.frase, fontStyle: 'italic', color: colors.faixaSub },
     avatar: { width: e.painel.avatar, height: e.painel.avatar, borderRadius: radius.xl, overflow: 'hidden', backgroundColor: colors.neutralBg, alignItems: 'center', justifyContent: 'center' },
     foto: { width: e.painel.avatar, height: e.painel.avatar },
-    iniciais: { fontFamily: fonts.display, fontSize: f.iniciais, color: colors.accentInk },
+    iniciais: { ...fonte.bold, fontSize: f.iniciais, color: colors.accentInk },
     meio: { paddingTop: e.meio.paddingTop, paddingBottom: e.meio.paddingBottom, flexGrow: 1 },
     h2: { ...t.h2, fontSize: f.h2 },
     linhaTitulo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: e.meio.linhaTitulo, gap: space.md },
@@ -204,19 +204,19 @@ function estilos(e: EscalaInicio) {
     // Realizado e meta quebram em 2 linhas quando não cabem na largura do cartão (nunca cortam o valor)
     valores: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: space.xs },
     rotuloMeta: { ...t.label, flex: 1, fontSize: f.label },
-    real: { fontFamily: fonts.display, fontSize: f.real, color: colors.ink, fontVariant: ['tabular-nums'] },
-    meta: { fontFamily: fonts.body, fontSize: f.meta, color: colors.ink2 },
+    real: { ...t.number, fontSize: f.real },
+    meta: { ...fonte.body, fontSize: f.meta, color: colors.ink2 },
     linhaBarra: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-    percentual: { fontFamily: fonts.bold, fontSize: f.percentual, fontVariant: ['tabular-nums'] },
+    percentual: { ...fonte.semibold, fontSize: f.percentual, fontVariant: ['tabular-nums'] },
     rodape: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     sub: { ...t.sub, fontSize: f.sub },
-    valorRodape: { fontFamily: fonts.semibold, fontSize: f.valorRodape, color: colors.ink, fontVariant: ['tabular-nums'] },
+    valorRodape: { ...fonte.semibold, fontSize: f.valorRodape, color: colors.ink, fontVariant: ['tabular-nums'] },
     gradeProd: { flexDirection: 'row', flexWrap: 'wrap', rowGap: e.produtividade.gapLinhas },
     indicador: { width: '33.333%', paddingHorizontal: space.xs, gap: space.xxs },
     indicadorComDivisor: { borderLeftWidth: 1, borderLeftColor: colors.line },
     linhaValor: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
     ponto: { width: 8, height: 8, borderRadius: 4 },
-    valorIndicador: { fontFamily: fonts.displayBold, fontSize: f.valorIndicador, color: colors.ink, fontVariant: ['tabular-nums'] },
+    valorIndicador: { ...t.number, fontSize: f.valorIndicador },
     linhaSinc: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: layout.telaLateral, paddingTop: e.rodape.paddingTop, paddingBottom: e.rodape.paddingBottom, backgroundColor: colors.ground },
     // "Últ. sincronização" em cima e a hora embaixo, na largura do texto (sem largura fixa: não quebra com a fonte do sistema)
     ultima: { ...t.small, flexShrink: 0, fontSize: f.ultima },

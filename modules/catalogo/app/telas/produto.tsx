@@ -6,7 +6,7 @@
  */
 import { relogioReal } from '@macuxi/comum/relogio';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
-import { Badge, CatalogoCarregando, Card, colors, DEFAULT_TZ, Empty, fonts, Icon, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
+import { Badge, CatalogoCarregando, Card, colors, DEFAULT_TZ, Empty, fonte, Icon, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -231,11 +231,11 @@ export default function TelaProduto() {
 const s = StyleSheet.create({
   card: { padding: 14, gap: 10 },
   linha: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  preco: { fontFamily: fonts.display, fontSize: 24, color: colors.ink },
-  semPreco: { fontFamily: fonts.medium, fontSize: 14, color: colors.ink2 },
-  riscado: { fontFamily: fonts.body, fontSize: 14, color: colors.ink3, textDecorationLine: 'line-through' },
+  preco: { ...fonte.semibold, fontSize: 22, color: colors.ink },
+  semPreco: { ...fonte.medium, fontSize: 14, color: colors.ink2 },
+  riscado: { ...fonte.body, fontSize: 14, color: colors.ink3, textDecorationLine: 'line-through' },
   verMais: { minHeight: 48, justifyContent: 'center' },
-  verMaisTexto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.accentInk },
+  verMaisTexto: { ...fonte.semibold, fontSize: 14, color: colors.accentInk },
   ofereceJunto: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   etiquetas: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   atributo: { flexDirection: 'row', gap: 12, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
