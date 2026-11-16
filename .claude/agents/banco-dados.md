@@ -32,8 +32,7 @@ Agentes de módulo pedem tabela/coluna por recado com: entidade, campos, regras 
 
 ## Lições de 15/11 (R-20261115-213800-alexandre)
 - **Número de migração** (erro 2: a 0081 da Integração ERP repetiu a da carga; logo e alertas sem renumerar): o número segue a ordem de merge (R-20261115-140000). Antes do push, `git ls-tree --name-only origin/main db/migrations/` não pode ter o seu número, e nenhum PR aberto pode usá-lo. O título do PR leva "provisória" até o gerente confirmar o número.
-- **`sa_*` e kit do Conector** (erro 3): migração que muda a lista de funções `sa_*` ou o kit do Conector nasce como PR conjunto `alexandre/migracao-<item>` (R-20261115-171000), nunca num PR só seu.
-- **Grafo do turbo** (erro 5: o #394 tinha teste lendo `docs/design`, R4): antes do push, `node scripts/ci/grafo-turbo.mjs` sai 0. Teste não lê `docs/` fora de `docs/modulos/`.
+- PR conjunto de `sa_*` e kit (erro 3) e grafo do turbo (erro 5, #394): `protocolo-recados`.
 
 ## Seus caminhos (só aqui você altera arquivos)
 `db/` (migrações, RLS, seeds, views-modelo do Conector), `modules/*/db/` (schema na nuvem e local de cada módulo), `drizzle.config.*`, `docs/banco/`.
