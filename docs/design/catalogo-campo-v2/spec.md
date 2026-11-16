@@ -10,7 +10,7 @@
 
 | PNG | O que mostra |
 |---|---|
-| `01-grade.png` | usuário com **uma** filial de venda: filial de cadastro na faixa, sem selo e sem chip, N da filial |
+| `01-grade.png` | usuário com **uma** filial de venda: filial de cadastro na faixa, sem selo e sem chip, N da filial, sem o botão de estoque por filial |
 | `02-grade-filtrada-filial.png` | **como abre** com três filiais de venda: selo 1, chip `Suas filiais (3)` sem ✕, `Estoque: 17` (0 + 12 + 5) |
 | `03-ficha-referencia-cruzada.png` | ficha: `Estoque: 17` no cartão de preço com `Por filial` à direita; copiar ao lado do código; "Referência cruzada" |
 | `04-busca-referencia-cruzada.png` | "cb3401" acha a pastilha pelo código do concorrente |
@@ -25,10 +25,10 @@ O login sem filial e o BKO (Usuários): `../filial-cadastro-venda/spec.md`.
 ## 1. Cartão da grade (de cima para baixo)
 A ordem continua a de hoje, foto e depois nome (R-20261115-074500).
 1. **Foto** 96 dp (antes 112, para o cartão não crescer).
-2. **Nome grande**: 16/20 em 700 (fonte do sistema), até 3 linhas (antes 15/600, 2 linhas). Os dois cartões de uma linha reservam a mesma
+2. **Nome grande**: 16/20 em 600 (`type.bodyStrong`, título de linha), até 3 linhas (antes 15/600, 2 linhas). Os dois cartões de uma linha reservam a mesma
    altura para o nome, para a linha dos códigos ficar alinhada.
 3. **Códigos em duas linhas, logo embaixo do nome** (R-20261115-082500): em cima `980 · Travex` (código da marca · marca,
-   13 `ink2`) e embaixo `PAF.1434 [copiar]` (código do produto, 13/700 `ink`; o botão é um quadro de 28 dp com o ícone
+   14 `ink2`, `type.sub`) e embaixo `PAF.1434 [copiar]` (código do produto, 14/600 `ink`; o botão é um quadro de 28 dp com o ícone
    `copiar`, alvo de 44 dp). Na ficha, uma linha só. Sem marca, a linha fica só com o código do produto e o copiar.
 4. Busca que achou pela referência cruzada: `Equivale a Freiomax CB 3401`, com o código destacado (`accentSoft`), como já previa o RN-CAT-09.
 5. **Preço** (sem mudança) e, na última linha, **`Estoque: N`** com o botão `Estoque por filial` à direita (§3).
@@ -42,14 +42,14 @@ no copiar só copia (`Código copiado`).
 - **Sai** o botão `Copiar código` na caixa própria (`BotaoCopiarCodigo variante="ficha"`): fica só a variante ícone, ao lado do código do produto.
 - O copiar da ficha também **copia só o código do produto** (`PAF.1434`), igual ao do cartão (R-20261115-084500).
 - Cartão de preço (R-20261115-083600, substitui o botão sozinho de R-20261115-083000): `Preço` e o valor; uma divisória
-  `lineSoft`; embaixo, numa linha, **`Estoque: N`** à esquerda (`ChipEstado`, 28 dp, 13/600; cor e valor de N no §3) e o botão
+  `lineSoft`; embaixo, numa linha, **`Estoque: N`** à esquerda (`ChipEstado`, 28 dp, 14/600; cor e valor de N no §3) e o botão
   **`Por filial`** à direita. As linhas por filial e o `Atualizado às` ficam só na folha (§2.1).
   - Botão: `Button variant="outline"` (secundário claro, borda `lineStrong`), `height={48}`, largura do texto, ícone `pacote`
     em grafite (`Icon name="pacote"` do kit, cor `ink` do secundário; o `home` sai: é o ícone da aba Início, R-20261115-084600). O principal da tela continua só o `Adicionar ao orçamento`.
-  - Leitor de tela: o chip lê `Estoque 0` e o botão `Estoque por filial, botão`. Aparece com qualquer número de filiais (com
-    uma só, a tabela tem uma linha).
+  - Leitor de tela: o chip lê `Estoque 0` e o botão `Estoque por filial, botão`.
+  - O botão aparece só com mais de uma filial de venda; com uma, o `Estoque: N` já é o dela (vale no cartão, na busca e na ficha).
 - `Adicionar ao orçamento` (extensão `produto.acoes`, sem mudança).
-- **Referência cruzada** (era "Equivale a"): até 3 linhas `marca` (`ink2`) e `código` (700), na ordem do cadastro. A marca é
+- **Referência cruzada** (era "Equivale a"): até 3 linhas `marca` (`ink2`) e `código` (600), na ordem do cadastro. A marca é
   opcional (R-20261115-073000): sem ela, a linha mostra só o código. Sem referência, a seção não aparece.
 
 ### 2.1 Folha "Estoque por filial" (`07-estoque-por-filial.png`)
@@ -58,20 +58,20 @@ O toque no botão abre a **`Folha`** do kit, que sobe de baixo (decisão do dono
 - Props: `titulo="Estoque por filial"`, `fechar={{ rotulo: 'Fechar' }}` (✕ de 48 dp), `rotuloFechar="Fechar estoque por filial"`
   (toque fora), `rolavel` (muitas filiais rolam dentro da folha). O Voltar do Android fecha (`onRequestClose`), e o foco volta
   ao botão `Estoque por filial`. Movimento: folha de 280 ms de baixo; com "reduzir movimento", só aparece.
-- Abaixo do título, 13 `ink2`: `PAF.1434 · Atualizado às 07:28` (hora da última carga de estoque no fuso do tenant; de outro
+- Abaixo do título, 14 `ink2`: `Atualizado às 07:28` (hora da última carga de estoque no fuso do tenant; de outro
   dia, `Atualizado em 14/11 às 18:10`). Sem sinal, a folha mostra o que está no aparelho, com essa mesma linha.
 - **Tabela** de duas colunas:
-  - cabeçalho `Filial` (à esquerda) e `Estoque` (à direita), 13/600 `ink2` sobre `neutralBg`, 36 dp. Fica por pedido do dono do
+  - cabeçalho `Filial` (à esquerda) e `Estoque` (à direita), 14/600 `ink2` sobre `neutralBg`, 36 dp. Fica por pedido do dono do
     produto ("tabelado: Coluna Filial… Coluna Estoque", R-20261115-083000), que fecha o RD-0574 por decisão;
-  - uma linha por filial, 48 dp, divisória `lineSoft`: nome 15 `ink`; quantidade 16 em 600, alinhada à direita, números tabulares;
+  - uma linha por filial, 48 dp, divisória `lineSoft`: nome 16 `ink` (`type.body`); quantidade 16 em 600, alinhada à direita, números tabulares;
   - **quais e em que ordem** (R-20261115-093000): só as filiais de venda do usuário (§4); a de cadastro primeiro, com a marca
-    `sua filial` (13 `ink2`, como no `Filtrar`), e as outras em ordem alfabética. Sem linha de total: o
+    `sua filial` (14 `ink2`, como no `Filtrar`), e as outras em ordem alfabética. Sem linha de total: o
     `Estoque: N` do cartão e da ficha já é a soma (§3);
   - **cor da quantidade**: a do §3, só no texto, sobre branco (`success` #1D6B4F, 6,4:1; `danger` #A8261B, 7,1:1). O número
     sempre aparece, e a cor nunca está sozinha. Negativo com o sinal de menos (`−2`).
 - Tenant que não mostra a quantidade (`estoque_mostrar_quantidade` = não): a coluna `Estoque` mostra `Em estoque` (verde) ou
   `Sem estoque` (vermelho).
-- **Leitor de tela**, na ordem: título (cabeçalho), ✕ `Fechar`, a linha `PAF.1434, atualizado às 07:28`, e cada filial como um
+- **Leitor de tela**, na ordem: título (cabeçalho), ✕ `Fechar`, a linha `Atualizado às 07:28`, e cada filial como um
   item só: `Boa Vista, sua filial, estoque 0` · `Belém, estoque menos 2` · `Manaus, estoque 12`. O cabeçalho da tabela não é lido
   (cada linha já diz "estoque").
 
@@ -84,7 +84,7 @@ Rótulo `Estoque: N` no cartão da grade, na busca e na ficha, sem toque nenhum.
 - **Cor:** a do `../catalogo-grade.md` §4, no chip e na tabela da folha (§2.1). O "Risco de ruptura" da folha do item do pedido não muda.
 - **Botão no cartão** (grade e busca), à direita do chip, na mesma linha: só ícone `pacote` 18 em grafite (`ink`, a cor do secundário no kit; validação da marca), quadro de 32 dp (borda
   `lineStrong`, raio 10), `hitSlop` 8 (alvo de 48 dp, dentro do respiro do cartão); `accessibilityLabel="Estoque por filial"`.
-  O toque abre a folha (§2.1) e não abre a ficha.
+  O toque abre a folha (§2.1) e não abre a ficha. Só com mais de uma filial de venda (§2): com uma, o cartão fica só com o `Estoque: N`.
 - **Cabe no aparelho de 360 dp** (medido na simulação): o cartão tem 136 dp por dentro; chip (respiro 8) + 6 + botão 32.
   Cabe até `Estoque: 999` e `Estoque: −999`. **Acima de 999, o cartão mostra `Estoque: 999+`**, obrigatório (com `Estoque: 999` sobra 1 dp; validação da marca). O
   número exato fica na ficha e na folha. Abaixo de −999 não cabe: **a confirmar** com o modulo-catalogo se o ERP manda saldo assim.
@@ -115,7 +115,7 @@ Rótulo `Estoque: N` no cartão da grade, na busca e na ficha, sem toque nenhum.
 
 ## 5. Busca
 - Placeholder: `Código, marca, descrição…` (o que cabe nos 222 dp do campo).
-- **Dica**, só com o campo em foco e vazio, 13 `ink2`: `Também acha por aplicação e referência cruzada.` (RD-0496: diz só o que o
+- **Dica**, só com o campo em foco e vazio, 14 `ink2`: `Também acha por aplicação e referência cruzada.` (RD-0496: diz só o que o
   placeholder não diz). Some ao digitar.
 - Acha por código (da marca e do produto), marca, descrição, aplicação e referência cruzada, online e offline (FTS5), ignorando
   espaço, hífen, ponto e maiúscula (RN-CAT-09).

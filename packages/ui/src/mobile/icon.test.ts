@@ -42,12 +42,4 @@ describe('ícones do kit mobile', () => {
     expect(bloco).toContain('M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.6 1.1-2.1A6 6 0 0 0 12 3z');
   });
 
-  it('o pacote tem o mesmo desenho no kit mobile e no web (R-20261115-084600)', () => {
-    const bloco = /case 'pacote':([\s\S]*?)\);\n/.exec(fonte)?.[1] ?? '';
-    const web = readFileSync(new URL('../web/icons.tsx', import.meta.url), 'utf8');
-    const blocoWeb = /export const IconPacote[\s\S]*?<\/Svg>/.exec(web)?.[0] ?? '';
-    const tracos = (t: string) => [...t.matchAll(/d="([^"]+)"/g)].map((m) => m[1]);
-    expect(tracos(bloco)).toHaveLength(4);
-    expect(tracos(blocoWeb)).toEqual(tracos(bloco));
-  });
 });

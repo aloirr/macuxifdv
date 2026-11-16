@@ -31,37 +31,22 @@ Com busca, os chips continuam e filtram o resultado. Trocar de sistema volta a c
 
 **Saem:** a linha "Abra pela ficha do cliente para ver o preço da tabela dele." (e a "Preços da tabela do cliente
 selecionado."), a lista de "Sistemas" como entrada, a trilha, o título do nível, "40 produtos ativos", "Atualizado às… · puxe
-para sincronizar" e os chips de marca e "Com estoque" (a busca acha pela marca; o estoque está em cada cartão).
+para sincronizar" e os chips de marca (a busca acha pela marca). Filial e itens sem estoque ficam no filtro (`catalogo-campo-v2/spec.md` §4).
 
 ## 2. Cartão do produto
-`Cartao` branco (borda `line`, raio 16, respiro 10 em cima e dos lados e 12 embaixo), 180 dp de largura no aparelho de 412 dp
-(colunas iguais, 12 dp entre elas e entre as linhas). Os dois cartões de uma linha têm a altura do maior; preço e tag ficam
-embaixo, alinhados. O cartão inteiro é o alvo e abre a ficha.
-
-| Ordem | O que aparece | Como |
-|---|---|---|
-| 1 | foto | 112 dp de altura, raio 12, `cover`. Sem foto: a caixa `neutralBg` vazia, do mesmo tamanho (sem a inicial, que repetia a 1ª letra do nome; RD-0242) |
-| 2 | nome | 15/600, até 2 linhas com reticências |
-| 3 | marca | 13 `ink2`, 1 linha. Sem marca no cadastro, a linha fica vazia |
-| 4 | preço | `t.number` (18/600), números tabulares (§3) |
-| 5 | estoque | `ChipEstado pequeno` (24 dp), §4 |
-
-- Uma informação por linha (RD-0207): sem código, sem hora do estoque e sem etiquetas no cartão. Código e etiquetas ficam na
-  ficha; o estoque por filial, na folha `Estoque por filial` (`catalogo-campo-v2/spec.md` §2.1).
+Cartão: `catalogo-campo-v2/spec.md` §1 (fonte única: foto, nome, códigos, preço, `Estoque: N` e o botão de estoque por filial, com o
+leitor de tela e o promotor). Aqui fica só o que o v2 não muda:
+- `Cartao` branco (borda `line`, raio 16), duas colunas iguais com 12 dp entre elas e entre as linhas; o cartão inteiro abre a ficha.
 - Promoção: o preço de tabela riscado ao lado do preço, 12/400 `ink2` (`R$ 8,99 R$ 9,90`). É o mesmo fato (preço).
-- Busca que achou pelo código do concorrente (RN-CAT-09): a linha da marca vira `Equivale a Freiomax CB 3401`, com o trecho
-  destacado.
 - Com o slot `produto.acoes` (dentro do pedido): botão `+` 44 dp com borda à direita do preço, TalkBack `Adicionar <produto>
   ao pedido`. Fora do pedido não aparece.
-- TalkBack do cartão: `"<nome>, <marca>, <preço>, estoque <N>"` (ex.: "Açúcar cristal 1 kg, Doce Vale, R$ 4,95, estoque 6"); depois, o botão `Estoque por filial`.
-- Promotor (RN-CAT-05, `promotor_ve_preco_estoque` = não): sem preço; a tag e o botão de estoque aparecem (`catalogo-campo-v2/spec.md` §3).
 
 ## 3. Preço (RN-VEN-01)
 | Como abriu | Preço do cartão |
 |---|---|
-| pelo menu (sem cliente) | o da tabela da **filial padrão** do vendedor |
+| pelo menu (sem cliente) | o da tabela da filial de cadastro do vendedor, ou da filial escolhida no filtro (`catalogo-campo-v2/spec.md` §4) |
 | pela ficha do cliente | o da tabela do cliente |
-| produto sem preço nessa tabela | `Sem preço` (15/600 `ink3`), nunca o valor de outra tabela |
+| produto sem preço nessa tabela | `Sem preço` (16/600 `ink3`), nunca o valor de outra tabela |
 
 Nada na tela explica de qual tabela é o preço: com cliente, o voltar na faixa já diz o nome dele.
 
