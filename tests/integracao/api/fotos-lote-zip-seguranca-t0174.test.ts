@@ -7,15 +7,10 @@
  * GIF/PDF), JPEG com extensão .png aceito pela assinatura, a bomba com razão exatamente no teto e acima, o teto de 8 MiB
  * exato e +1 e a soma de 1 GiB, e que nada é escrito no disco a partir do nome da entrada.
  * Convenção: `it` = vale hoje; `it.fails` = defeito/achado aberto (fica vermelho quando corrigir e vira `it`).
- * Tolerante ao main sem o Catálogo do T-0174 (PR #382): o domínio `fotos-lote` e o trabalho `trabalho-fotos-lote` do módulo
- * são carregados em tempo de execução só se existirem (`CATALOGO_TEM_FOTOS_LOTE`); sem eles, os casos só da plataforma
- * rodam e os que dependem do módulo pulam. Os tipos abaixo espelham os do módulo (o typecheck não depende do #382).
  */
-import { existsSync } from 'node:fs';
 import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { deflateRawSync } from 'node:zlib';
 import { classificarEntradaZip, ENTRADAS_BRUTAS_MAX, FOLGA_COMPACTADO_BYTES, LIMITES_ZIP_TETO, type EntradaZip, type LimitesZip, type TipoImagem } from '@macuxi/platform-sdk';
 import { encode } from 'jpeg-js';
@@ -23,43 +18,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { abrirZipLocal } from '../../../apps/api/src/leitor-zip';
 import { IMAGENS_TESTE } from '../../../apps/api/test/imagens-teste';
 import { montarZip, type EntradaTeste } from '../../../apps/api/test/zip-teste';
-
-interface ProdutoParaCasar {
-  id: string;
-  sku: string;
-  ean: string | null;
-  ativo: boolean;
-}
-interface InterpretacaoNome {
-  codigo: string;
-  ordem: number;
-}
-interface DominioFotosLote {
-  interpretarNome: (nomeBase: string) => { ok: true; interpretacoes: InterpretacaoNome[] } | { ok: false; motivo: 'nome_invalido' };
-  resolverItem: (
-    interpretacoes: readonly InterpretacaoNome[],
-    produtos: readonly ProdutoParaCasar[],
-  ) => { situacao: 'ligar'; produto: ProdutoParaCasar; ordem: number } | { situacao: 'sem_produto' } | { situacao: 'ambiguo'; codigos: string[] };
-}
-interface ItemNovo {
-  indice: number;
-  caminho: string;
-  situacao: 'pendente' | 'recusado';
-  motivo: string | null;
-  codigo: string | null;
-}
-interface TrabalhoFotosLote {
-  itensDaConferencia: (entradas: readonly EntradaZip[], limites: LimitesZip) => ItemNovo[];
-  nomeBaseDoCaminho: (caminho: string) => string;
-}
-
-const DOMINIO_URL = new URL('../../../modules/catalogo/domain/fotos-lote.ts', import.meta.url);
-const TRABALHO_URL = new URL('../../../modules/catalogo/api/trabalho-fotos-lote.ts', import.meta.url);
-/** true quando o Catálogo do T-0174 (PR #382) está no código: liga os casos que passam pelo módulo. */
-const CATALOGO_TEM_FOTOS_LOTE = existsSync(fileURLToPath(DOMINIO_URL)) && existsSync(fileURLToPath(TRABALHO_URL));
-const importar = async <T>(u: URL): Promise<T> => (await import(/* @vite-ignore */ u.href)) as T;
-const dominio = CATALOGO_TEM_FOTOS_LOTE ? await importar<DominioFotosLote>(DOMINIO_URL) : null;
-const trabalho = CATALOGO_TEM_FOTOS_LOTE ? await importar<TrabalhoFotosLote>(TRABALHO_URL) : null;
+import { itensDaConferencia, nomeBaseDoCaminho } from '../../../modules/catalogo/api/trabalho-fotos-lote';
+import { interpretarNome, resolverItem, type ProdutoParaCasar } from '../../../modules/catalogo/domain/fotos-lote';
 
 const TODOS: readonly TipoImagem[] = ['image/jpeg', 'image/png', 'image/webp'];
 const MIB = 1024 * 1024;
@@ -105,30 +65,28 @@ describe('T-0174 critério 4 — path traversal: só o nome-base vale, caminho p
     for (let i = 0; i < perigosos.length; i += 1) {
       expect(await zip.ler(i, { tipos: TODOS }), JSON.stringify(perigosos[i])).toEqual({ ok: false, motivo: 'caminho_invalido', tipo_detectado: null });
     }
-    // na conferência todas viram item recusado (aparecem no relatório), nenhuma vira pendente (só com o Catálogo do #382)
-    if (trabalho) {
-      const itens = trabalho.itensDaConferencia(zip.entradas, LIMITES_ZIP_TETO);
-      expect(itens).toHaveLength(perigosos.length);
-      expect(itens.every((x) => x.situacao === 'recusado' && x.motivo === 'caminho_invalido' && x.codigo === null)).toBe(true);
-    }
+    // na conferência todas viram item recusado (aparecem no relatório), nenhuma vira pendente
+    const itens = itensDaConferencia(zip.entradas, LIMITES_ZIP_TETO);
+    expect(itens).toHaveLength(perigosos.length);
+    expect(itens.every((x) => x.situacao === 'recusado' && x.motivo === 'caminho_invalido' && x.codigo === null)).toBe(true);
     await zip.fechar();
   });
 
-  it.skipIf(!CATALOGO_TEM_FOTOS_LOTE)('ZS-02: pasta funda e barra invertida de Windows usam só o nome-base; "A..4.jpg" não é traversal; "..A3.jpg" é oculto (ignorado)', async () => {
+  it('ZS-02: pasta funda e barra invertida de Windows usam só o nome-base; "A..4.jpg" não é traversal; "..A3.jpg" é oculto (ignorado)', async () => {
     const zip = await aberto([
       { nome: 'catalogo/2026/novembro/A1.jpg', dados: JPEG },
       { nome: 'fotos\\A1_2.jpg', dados: JPEG2 },
       { nome: '..A3.jpg', dados: JPEG3 },
       { nome: 'A..4.jpg', dados: JPEG3 },
     ]);
-    const itens = trabalho!.itensDaConferencia(zip.entradas, LIMITES_ZIP_TETO);
+    const itens = itensDaConferencia(zip.entradas, LIMITES_ZIP_TETO);
     expect(itens.map((x) => [x.situacao, x.codigo])).toEqual([
       ['pendente', 'A1'],
       ['pendente', 'A1_2'],
       ['pendente', 'A..4'],
     ]);
     expect(itens.map((x) => x.indice)).toEqual([0, 1, 3]);
-    expect(trabalho!.nomeBaseDoCaminho('fotos\\A1_2.jpg')).toBe('A1_2.jpg');
+    expect(nomeBaseDoCaminho('fotos\\A1_2.jpg')).toBe('A1_2.jpg');
     expect(await zip.ler(0, { tipos: TODOS })).toMatchObject({ ok: true, tipo: 'image/jpeg' });
     await zip.fechar();
   });
@@ -145,7 +103,7 @@ describe('T-0174 critério 4 — path traversal: só o nome-base vale, caminho p
       { nome: 'fotos/', dados: new Uint8Array() },
       { nome: 'fotos/A1.jpg', dados: JPEG },
     ]);
-    if (trabalho) expect(trabalho.itensDaConferencia(zip.entradas, LIMITES_ZIP_TETO).map((x) => x.indice)).toEqual([8]);
+    expect(itensDaConferencia(zip.entradas, LIMITES_ZIP_TETO).map((x) => x.indice)).toEqual([8]);
     await zip.fechar();
     // contam fora do teto de arquivos: 9 entradas com teto 1 não recusam o ZIP
     const teto1 = await aberto([{ nome: '__MACOSX/._A1.jpg', dados: JPEG }, { nome: '.DS_Store', dados: txt('x') }, { nome: 'A1.jpg', dados: JPEG }], { arquivosMax: 1 });
@@ -233,7 +191,7 @@ describe('T-0174 critério 6 — 10 mil arquivos com o teto REAL (sem baixar o l
   it('ZS-15: 10.000 fotos + 500 ignoradas (__MACOSX) abrem; 10.001 fotos → muitos_arquivos (o lote inteiro, antes de ler qualquer entrada)', async () => {
     const ok = await aberto([...fotos(10_000), ...fotos(500, '__MACOSX/._')]);
     expect(ok.entradas.filter((e) => classificarEntradaZip(e, LIMITES_ZIP_TETO).acao === 'aceitar')).toHaveLength(10_000);
-    if (trabalho) expect(trabalho.itensDaConferencia(ok.entradas, LIMITES_ZIP_TETO)).toHaveLength(10_000);
+    expect(itensDaConferencia(ok.entradas, LIMITES_ZIP_TETO)).toHaveLength(10_000);
     await ok.fechar();
     expect(await abrir(fotos(10_001))).toEqual({ ok: false, motivo: 'muitos_arquivos' });
   });
@@ -278,7 +236,7 @@ describe('T-0174 critérios 2, 3 e 4 — do ZIP ao casamento (plataforma → mó
     { id: 'p-cx12', sku: 'CX_12', ean: null, ativo: false },
   ];
 
-  it.skipIf(!CATALOGO_TEM_FOTOS_LOTE)('ZS-13: A1.jpg, A1_2.jpg, a1_3.jpg → A1 nas ordens 1-2-3; Ab.jpg ambíguo (ab, AB); EAN do A2 liga; CX_12 ambíguo; Z9 sem produto; bytes lidos são os do arquivo', async () => {
+  it('ZS-13: A1.jpg, A1_2.jpg, a1_3.jpg → A1 nas ordens 1-2-3; Ab.jpg ambíguo (ab, AB); EAN do A2 liga; CX_12 ambíguo; Z9 sem produto; bytes lidos são os do arquivo', async () => {
     const zip = await aberto([
       { nome: 'A1.jpg', dados: JPEG },
       { nome: 'fotos/A1_2.jpg', dados: JPEG2 },
@@ -289,10 +247,10 @@ describe('T-0174 critérios 2, 3 e 4 — do ZIP ao casamento (plataforma → mó
       { nome: 'Z9.jpg', dados: JPEG },
       { nome: 'A1_2.gif.jpg', dados: DISFARCADOS['gif.jpg']! },
     ]);
-    const itens = trabalho!.itensDaConferencia(zip.entradas, LIMITES_ZIP_TETO);
+    const itens = itensDaConferencia(zip.entradas, LIMITES_ZIP_TETO);
     const resolucao = itens.map((it) => {
-      const nome = dominio!.interpretarNome(trabalho!.nomeBaseDoCaminho(it.caminho));
-      return nome.ok ? dominio!.resolverItem(nome.interpretacoes, produtos) : null;
+      const nome = interpretarNome(nomeBaseDoCaminho(it.caminho));
+      return nome.ok ? resolverItem(nome.interpretacoes, produtos) : null;
     });
     expect(resolucao.slice(0, 3)).toEqual([
       { situacao: 'ligar', produto: produtos[0], ordem: 1 },

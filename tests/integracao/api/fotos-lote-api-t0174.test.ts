@@ -6,10 +6,8 @@
  * teto do ZIP antes de qualquer SQL (422 RN-CAT-14), idempotência do POST, evento `catalogo.foto_lote.enfileirado@1` na
  * outbox validado pelo Zod `@1`, e o CSV do relatório neutralizado contra fórmula, com cabeçalhos de download.
  * RLS de verdade (outro tenant) fica no CI: modules/catalogo/api/fotos-lote.db.test.ts e db/testes/foto-lote.db.test.ts.
- * Tolerante ao main sem o Catálogo do T-0174 (PR #382): rotas e schemas do lote são lidos do contrato em tempo de execução
- * (`CATALOGO_TEM_FOTOS_LOTE`); sem eles, a suíte pula; com eles, liga sozinha. O typecheck não depende do #382.
  */
-import * as contratosCatalogo from '@macuxi/catalogo/contracts';
+import { FotoLoteCriadoSchema, FotoLoteEnfileiradoSchema, ROTAS_CATALOGO } from '@macuxi/catalogo/contracts';
 import { ErroApiSchema, LIMITES_ZIP_TETO, PARTE_ENVIO_BYTES, type ClienteBanco, type UsuarioAutenticado } from '@macuxi/platform-sdk';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -21,33 +19,6 @@ const LOTE = '0ca00000-0000-4000-8000-000000000174';
 const ARQ = '0ca00000-0000-4000-8000-0000000001a4';
 const MIB = 1024 * 1024;
 const BASE = '/v1/catalogo/';
-
-interface Parser<T> {
-  parse: (dado: unknown) => T;
-}
-interface FotoLoteCriado {
-  lote: { id: string };
-  envio: { arquivo_id: string; parte_bytes: number; partes: number };
-}
-interface FotoLoteEnfileirado {
-  lote_id: string;
-  arquivo_id: string;
-  enviado_por: string;
-}
-const CONTRATO = contratosCatalogo as unknown as Readonly<Record<string, unknown>>;
-const ROTAS_CAT = contratosCatalogo.ROTAS_CATALOGO as unknown as Readonly<Record<string, string | undefined>>;
-const FotoLoteCriadoSchema = CONTRATO.FotoLoteCriadoSchema as Parser<FotoLoteCriado> | undefined;
-const FotoLoteEnfileiradoSchema = CONTRATO.FotoLoteEnfileiradoSchema as Parser<FotoLoteEnfileirado> | undefined;
-/** true quando o contrato do Catálogo do T-0174 (PR #382) está no código: rotas e schemas do lote existem. */
-const CATALOGO_TEM_FOTOS_LOTE = ['fotosLote', 'fotoLote', 'fotoLoteEnfileirar', 'fotoLoteItens', 'fotoLoteRelatorio'].every((k) => typeof ROTAS_CAT[k] === 'string') && !!FotoLoteCriadoSchema && !!FotoLoteEnfileiradoSchema;
-const ROTAS_CATALOGO = {
-  fotosLote: ROTAS_CAT.fotosLote ?? 'fotos-lote',
-  fotoLote: ROTAS_CAT.fotoLote ?? 'fotos-lote/:id',
-  fotoLoteEnfileirar: ROTAS_CAT.fotoLoteEnfileirar ?? 'fotos-lote/:id/enfileirar',
-  fotoLoteItens: ROTAS_CAT.fotoLoteItens ?? 'fotos-lote/:id/itens',
-  fotoLoteRelatorio: ROTAS_CAT.fotoLoteRelatorio ?? 'fotos-lote/:id/relatorio.csv',
-};
-const descrever = describe.skipIf(!CATALOGO_TEM_FOTOS_LOTE);
 
 const QUEM: Record<string, UsuarioAutenticado> = {
   ...usuarios,
@@ -188,7 +159,7 @@ const ROTAS: { metodo: 'GET' | 'POST'; caminho: string }[] = [
 const chamar = (a: FastifyInstance, r: (typeof ROTAS)[number], quem: string) =>
   a.inject({ method: r.metodo, url: url(r.caminho), headers: cab(quem), ...(r.metodo === 'POST' && r.caminho === ROTAS_CATALOGO.fotosLote ? { payload: corpo() } : {}) });
 
-descrever('T-0174 critério 9 — permissão e licença na fronteira HTTP (createApp real, sem banco)', () => {
+describe('T-0174 critério 9 — permissão e licença na fronteira HTTP (createApp real, sem banco)', () => {
   it('FL-API-01: vendedor, promotor e supervisor (sem produto.enriquecer) → 403 nas 6 rotas, sem abrir transação', async () => {
     const m = montar();
     for (const quem of ['vendedor', 'promotor', 'supervisor']) {
@@ -236,7 +207,7 @@ descrever('T-0174 critério 9 — permissão e licença na fronteira HTTP (creat
   });
 });
 
-descrever('T-0174 critério 6 — teto do ZIP antes de processar (RN-CAT-14)', () => {
+describe('T-0174 critério 6 — teto do ZIP antes de processar (RN-CAT-14)', () => {
   it('FL-API-06: 500 MiB + 1 byte → 422 RN-CAT-14 (zip_grande) com mensagem, sem nenhuma transação nem lote; 500 MiB exatos → 201', async () => {
     const m = montar();
     const acima = await m.app.inject({ method: 'POST', url: url(ROTAS_CATALOGO.fotosLote), headers: cab('analista'), payload: corpo(LIMITES_ZIP_TETO.bytesZipMax + 1) });
@@ -248,7 +219,7 @@ descrever('T-0174 critério 6 — teto do ZIP antes de processar (RN-CAT-14)', (
     expect(m.lotes.size).toBe(0);
     const no = await m.app.inject({ method: 'POST', url: url(ROTAS_CATALOGO.fotosLote), headers: cab('analista'), payload: corpo(LIMITES_ZIP_TETO.bytesZipMax) });
     expect(no.statusCode).toBe(201);
-    const r = FotoLoteCriadoSchema!.parse(no.json());
+    const r = FotoLoteCriadoSchema.parse(no.json());
     // 500 MiB em partes de 8 MiB = 63 partes (62,5 arredondado para cima)
     expect(r.envio).toEqual({ arquivo_id: ARQ, parte_bytes: PARTE_ENVIO_BYTES, partes: Math.ceil(LIMITES_ZIP_TETO.bytesZipMax / PARTE_ENVIO_BYTES) });
   });
@@ -267,14 +238,14 @@ descrever('T-0174 critério 6 — teto do ZIP antes de processar (RN-CAT-14)', (
   });
 });
 
-descrever('T-0174 critérios 5 e 10 — idempotência do POST e evento na outbox', () => {
+describe('T-0174 critérios 5 e 10 — idempotência do POST e evento na outbox', () => {
   it('FL-API-08: o mesmo POST (mesmo id) devolve o mesmo lote, sem segunda linha nem segundo arquivo; o ZIP é registrado como application/zip do Catálogo', async () => {
     const m = montar();
     const a = await m.app.inject({ method: 'POST', url: url(ROTAS_CATALOGO.fotosLote), headers: cab('analista'), payload: corpo() });
     const b = await m.app.inject({ method: 'POST', url: url(ROTAS_CATALOGO.fotosLote), headers: cab('analista'), payload: corpo() });
     expect(a.statusCode).toBe(201);
     expect(b.statusCode).toBe(201);
-    expect(FotoLoteCriadoSchema!.parse(b.json()).lote.id).toBe(FotoLoteCriadoSchema!.parse(a.json()).lote.id);
+    expect(FotoLoteCriadoSchema.parse(b.json()).lote.id).toBe(FotoLoteCriadoSchema.parse(a.json()).lote.id);
     expect(m.lotes.size).toBe(1);
     expect(m.arquivos.size).toBe(1);
     expect(m.arquivos.get(ARQ)).toMatchObject({ modulo: 'catalogo', tipo: 'application/zip', entidade: 'foto_lote', entidade_id: LOTE, enviado_por: usuarios.analista!.id });
@@ -300,7 +271,7 @@ descrever('T-0174 critérios 5 e 10 — idempotência do POST e evento na outbox
     const r2 = await m.app.inject({ method: 'POST', url: url(ROTAS_CATALOGO.fotoLoteEnfileirar), headers: cab('analista') });
     expect(r2.statusCode).toBe(200);
     expect(m.eventos.map((e) => e.nome)).toEqual(['catalogo.foto_lote.enfileirado@1']);
-    const p = FotoLoteEnfileiradoSchema!.parse(m.eventos[0]!.payload);
+    const p = FotoLoteEnfileiradoSchema.parse(m.eventos[0]!.payload);
     expect(p).toMatchObject({ lote_id: LOTE, arquivo_id: ARQ, enviado_por: usuarios.analista!.id });
   });
 
@@ -314,7 +285,7 @@ descrever('T-0174 critérios 5 e 10 — idempotência do POST e evento na outbox
   });
 });
 
-descrever('T-0174 critério 8 — CSV do relatório pela rota (anti-injeção de fórmula)', () => {
+describe('T-0174 critério 8 — CSV do relatório pela rota (anti-injeção de fórmula)', () => {
   it('FL-API-12: o download sai como text/csv com nosniff e nome sem dado pessoal; célula que começa com = + - @ tab CR ganha apóstrofo, inclusive o código lido do nome', async () => {
     const m = montar();
     await m.app.inject({ method: 'POST', url: url(ROTAS_CATALOGO.fotosLote), headers: cab('analista'), payload: corpo() });
