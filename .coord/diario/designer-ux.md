@@ -137,3 +137,4 @@
 2026-11-16 — catálogo onda 1 (#424) — RD-1294 (sai 'substituem o texto provisório'), RD-1295 (comentário do carga-fundo-rn só aponta para a spec e as constantes), RD-1296 (sai o teste dos textos fechados, repetido), MC-0157 (spec na fonte do sistema 600/12, nota da tipografia)
 2026-11-15 — v1.0.14 logo — T-0182: placa da logo do cliente (PlacaLogoCliente) e spec docs/design/telas/logo-cliente.md trazidas de nuvem/logo-cliente-designer-ux-v13 (pareceres do corretor e da marca liberados); pranchas na fonte do sistema. Rascunho até o @macuxi/comum/marca (engenheiro-software) entrar no main.
 2026-11-16 — v1.0.14 logo — #399: merge do main (com @macuxi/comum/marca) e RD-1629, MC-1511, MC-1512 (Licenciado para no type.small; pesos 600 nos PDFs, aba ativa e carga).
+2026-11-16 — v1.0.14 logo — #399: MC-1592 (neutros dos 3 PDFs simulados na paleta: #F8F6F1 e #ECEEF1).
