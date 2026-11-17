@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { defineModule } from './manifesto';
 import { definirModuloApi, problemasConexaoRotaPublica, type RotaModulo, type RotaPublica } from './api';
-import { CriarEmpresaSchema, linhasDosParametrosIniciais, ParametrosIniciaisSchema } from './plataforma';
+import { CriarEmpresaSchema, EmpresaDoBancoSchema, EmpresaResumoSchema, empresaEmTeste, linhasDosParametrosIniciais, ParametrosIniciaisSchema } from './plataforma';
 
 describe('CriarEmpresaSchema (passo Empresa; RN-CORE-31)', () => {
   const base = { codigo: 'Distribuidora-X', razao_social: 'Distribuidora X Ltda', cnpj: '11.222.333/0001-81', modulos: [{ modulo: 'vendedor' }] };
@@ -69,5 +69,27 @@ describe('RotaPublica.conexao portal (T-0091; condição da ADR 0029)', () => {
     expect(problemasConexaoRotaPublica('vendedor', publica('plataforma/auth/login', 'portal'))).toEqual([expect.stringMatching(/só no manifesto core/)]);
     expect(problemasConexaoRotaPublica('core', { ...publica('plataforma/auth/login'), conexao: 'app' as never })).toEqual([expect.stringMatching(/só aceita 'portal'/)]);
     expect(() => definirModuloApi({ manifesto: core, rotasPublicas: [publica('auth/entrar', 'portal')] })).toThrow(/só em caminho plataforma/);
+  });
+});
+
+describe('lista de empresas: plano e teste grátis (0071; RN-PLA-04)', () => {
+  const item = { id: '0a000000-0000-4000-8000-000000000001', codigo: 'am4821', razao_social: 'Alfa', cnpj: null, fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-01T00:00:00Z', modulos: [] };
+
+  it('em teste até o último dia (inclusive), se não paga; sem teste_ate (ou sem os campos) = fora', () => {
+    expect(empresaEmTeste({ teste_ate: '2026-11-15', paga: false }, '2026-11-15')).toBe(true);
+    expect(empresaEmTeste({ teste_ate: '2026-11-15', paga: false }, '2026-11-16')).toBe(false);
+    expect(empresaEmTeste({ teste_ate: '2026-11-30', paga: true }, '2026-11-15')).toBe(false);
+    expect(empresaEmTeste({ teste_ate: null, paga: false }, '2026-11-15')).toBe(false);
+    expect(empresaEmTeste({}, '2026-11-15')).toBe(false);
+  });
+
+  it('os campos são opcionais (banco sem a 0071); o paga do banco não entra no resumo do portal', () => {
+    expect(EmpresaResumoSchema.safeParse(item).success).toBe(true);
+    const doBanco = EmpresaDoBancoSchema.parse({ ...item, plano: 'PME', teste_ate: '2026-11-30', paga: false });
+    expect(doBanco).toMatchObject({ plano: 'PME', teste_ate: '2026-11-30', paga: false });
+    const resumo = EmpresaResumoSchema.parse({ ...doBanco, em_teste: true });
+    expect(resumo).toMatchObject({ plano: 'PME', teste_ate: '2026-11-30', em_teste: true });
+    expect(resumo).not.toHaveProperty('paga');
+    expect(EmpresaResumoSchema.safeParse({ ...item, teste_ate: '30/11/2026' }).success).toBe(false);
   });
 });

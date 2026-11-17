@@ -24,8 +24,6 @@ import {
   NOTA_DO_RESUMO,
   MenuAcoes,
   Notice,
-  PageHeader,
-  Panel,
   ResumoDasMudancas,
   ROTULO_ALVO_TODOS,
   ROTULO_PERFIL_BASE,
@@ -70,6 +68,8 @@ import {
 } from '../../lib/perfis';
 import { contagemPorPerfil } from '../../lib/acesso';
 import { NovoPerfil } from './novo-perfil';
+import { PARAM_EDITAR_PERFIL, perfilEmEdicao } from '../../lib/parametros-url';
+import { CabecalhoDoPerfil } from './cabecalho-perfil';
 
 const CAMPO = 'h-[44px] w-full rounded-xl border border-field bg-surface px-3 text-[15px] font-normal text-ink disabled:bg-ground disabled:text-ink-2';
 const SEM_PERMISSAO = 'O seu perfil não gerencia perfis de acesso. Fale com o admin da sua empresa.';
@@ -96,7 +96,7 @@ function ListaDePerfis() {
   const contagem = usuariosQ.data ? contagemPorPerfil(usuariosQ.data) : null;
   const usuariosDe = (p: PerfilResumo): number => (contagem ? (contagem[p.codigo] ?? 0) : p.usuarios);
 
-  const abrir = (codigo: string) => router.push(`${pathname}?perfil=${encodeURIComponent(codigo)}`);
+  const abrir = (codigo: string) => router.push(`${pathname}?${PARAM_EDITAR_PERFIL}=${encodeURIComponent(codigo)}`);
 
   const mudarSituacao = useMutation({
     mutationFn: async ({ perfil, ativo }: { perfil: PerfilResumo; ativo: boolean }) => {
@@ -118,17 +118,14 @@ function ListaDePerfis() {
     return <ErrorBlock message={ehSemConexao(lista.error) ? SEM_CONEXAO : errorMessage(lista.error)} onRetry={() => void lista.refetch()} />;
   }
 
+  const botaoNovo = (
+    <Button variant="primary" onClick={() => router.push(`${pathname}?novo=1`)} data-testid="perfis.novo">
+      Novo perfil
+    </Button>
+  );
   return (
-    <div className="flex w-full max-w-[1180px] flex-col gap-4" data-testid="perfis.lista">
-      <PageHeader
-        title="Perfis de acesso"
-        actions={
-          <Button variant="primary" onClick={() => router.push(`${pathname}?novo=1`)} data-testid="perfis.novo">
-            Novo perfil
-          </Button>
-        }
-      />
-      <Panel label="Perfis de acesso">
+    <div className="flex w-full flex-col gap-4" data-testid="perfis.lista">
+      <div className="flex justify-end">{botaoNovo}</div>
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr>
@@ -154,9 +151,9 @@ function ListaDePerfis() {
                 <td className={td}>{ROTULO_CARGO[p.cargo]}</td>
                 <td className={tdNum}>
                   {usuariosDe(p) === 0 ? (
-                    <span className="text-ink-2">0</span>
+                    <span className="tabular-nums text-ink-2">0</span>
                   ) : (
-                    <button type="button" className="min-h-[44px] min-w-[44px] text-right font-semibold text-accent-ink hover:underline" onClick={() => router.push(`/usuarios?perfil=${encodeURIComponent(p.codigo)}`)}>
+                    <button type="button" className="min-h-[44px] min-w-[44px] text-right font-semibold tabular-nums text-accent-ink hover:underline" onClick={() => router.push(`/usuarios?perfil=${encodeURIComponent(p.codigo)}`)}>
                       {usuariosDe(p)}
                     </button>
                   )}
@@ -176,7 +173,6 @@ function ListaDePerfis() {
             ))}
           </tbody>
         </table>
-      </Panel>
       {acao && (
         <Dialog
           open
@@ -321,8 +317,8 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
     const nao = q.error instanceof ApiRequestError && q.error.status === 404;
     return (
       <div className="flex flex-col gap-3">
-        <button type="button" className="min-h-[44px] self-start text-accent-ink hover:underline" onClick={voltar}>
-          ‹ Perfis de acesso
+        <button type="button" className="min-h-[44px] self-start text-[15px] text-accent-ink hover:underline" onClick={voltar}>
+          ‹ Voltar
         </button>
         <ErrorBlock message={ehSemConexao(q.error) ? SEM_CONEXAO : nao ? 'Este perfil não existe mais.' : ''} onRetry={nao ? undefined : () => void q.refetch()} />
       </div>
@@ -408,11 +404,12 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
   };
 
   const secao = (id: SecaoDoPerfil, titulo: string, corpo: ReactNode) => (
-    <Panel key={id} title={titulo} label={titulo}>
+    <section key={id} aria-label={titulo} className="flex flex-col gap-3 border-t border-line-2 pt-4 first:border-t-0 first:pt-0">
+      <h3 className="m-0 text-[15px] font-semibold text-ink">{titulo}</h3>
       <div data-testid={`perfil.secao.${id}`} id={`secao-${id}`} className="flex flex-col gap-3">
         {corpo}
       </div>
-    </Panel>
+    </section>
   );
 
   const restaurarPadrao = () => {
@@ -423,15 +420,15 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        eyebrow={
-          <button type="button" className="text-accent-ink hover:underline" onClick={() => (sujo ? setSair('voltar') : voltar())}>
-            ‹ Perfis de acesso
+      <CabecalhoDoPerfil
+        voltar={
+          <button type="button" className="min-h-[44px] self-start text-[15px] text-accent-ink hover:underline" onClick={() => (sujo ? setSair('voltar') : voltar())}>
+            ‹ Voltar
           </button>
         }
-        title={d.perfil.nome}
-        badge={d.perfil.ativo ? undefined : <Badge tone="neutral">Inativo</Badge>}
-                actions={
+        titulo={d.perfil.nome}
+        selo={d.perfil.ativo ? undefined : <Badge tone="neutral">Inativo</Badge>}
+        acoes={
           <>
             <Button size="sm" onClick={() => setHistorico(true)} data-testid="perfil.historico">
               Histórico
@@ -486,7 +483,7 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
                   'modulos',
                   'Módulos',
                   <>
-                    <p className="m-0 text-[13px] text-ink-2">Os módulos que quem tem este perfil usa. Só aparecem os contratados pela empresa. Para ligar ou desligar, use Usuários e módulos.</p>
+                    <p className="m-0 text-[13px] text-ink-2">Para ligar ou desligar, use Módulos.</p>
                     <div className="flex flex-wrap gap-2" data-testid="perfil.modulos">
                       {d.modulos.length === 0 && <span className="text-[13px] text-ink-2">Nenhum</span>}
                       {d.modulos.map((m) => (
@@ -690,7 +687,7 @@ function HistoricoDoPerfil({ codigo, nome, detalhe, onClose }: { codigo: string;
 function PerfisConteudo() {
   const params = useSearchParams();
   const podeGerir = usePode('perfil.gerir');
-  const codigo = params.get('perfil');
+  const codigo = perfilEmEdicao(params);
   if (!podeGerir) return <Notice tone="info">{SEM_PERMISSAO}</Notice>;
   if (params.get('novo')) return <NovoPerfil />;
   return codigo ? <EdicaoDoPerfil key={codigo} codigo={codigo} /> : <ListaDePerfis />;

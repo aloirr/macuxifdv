@@ -70,7 +70,7 @@ export function formatTime(iso: string | null | undefined, tz = DEFAULT_TZ): str
   return `${p.hh}:${p.mm}`;
 }
 
-/** '02/10 às 14:31' */
+/** '02/10 às 14:31': data e hora dentro de frase (sem data, '—'). Célula de tabela do BKO: `formatDataHoraCurta`. */
 export function formatDateTime(iso: string | null | undefined, tz = DEFAULT_TZ): string {
   if (!iso) return '—';
   const p = parts(iso, tz);
@@ -82,6 +82,31 @@ export function formatDateTimeFull(iso: string | null | undefined, tz = DEFAULT_
   if (!iso) return '';
   const p = parts(iso, tz);
   return `${p.dd}/${p.mo}/${p.date.slice(0, 4)} ${p.hh}:${p.mm}`;
+}
+
+/** '2026-11-15T18:31:00Z' → '15/11 14:31': célula de tabela do BKO (24 h, sem ano, sem "às", fuso do tenant); sem data → vazio.
+ * Data dentro de frase: `formatDateTime`. */
+export function formatDataHoraCurta(iso: string | null | undefined, tz = DEFAULT_TZ): string {
+  if (!iso) return '';
+  const p = parts(iso, tz);
+  return `${p.dd}/${p.mo} ${p.hh}:${p.mm}`;
+}
+
+/** Horas e minutos, o mesmo formato da duração e da idade: '1 h' · '1 h 5 min'. */
+function horasEMinutos(minutos: number): string {
+  const h = Math.floor(minutos / 60);
+  const r = minutos % 60;
+  return r ? `${h} h ${r} min` : `${h} h`;
+}
+
+/** Segundos → '45 s' · '2 min 10 s' · '3 min' (segundos zerados somem) · '1 h 5 min'; nulo → texto vazio. */
+export function formatDuracao(segundos: number | null): string {
+  if (segundos === null) return '';
+  const s = Math.max(0, Math.floor(segundos));
+  if (s < 60) return `${s} s`;
+  const min = Math.floor(s / 60);
+  if (s < 3600) return s % 60 === 0 ? `${min} min` : `${min} min ${s % 60} s`;
+  return horasEMinutos(min);
 }
 
 /** Coluna "Recebido": hora se for hoje, "ontem" ou dd/mm. */
@@ -98,11 +123,7 @@ export function formatReceived(iso: string, today: string, tz = DEFAULT_TZ): str
 export function formatAge(minutes: number): string {
   const m = Math.max(0, Math.round(minutes));
   if (m < 60) return `${m} min`;
-  if (m < 24 * 60) {
-    const h = Math.floor(m / 60);
-    const r = m % 60;
-    return r ? `${h} h ${r} min` : `${h} h`;
-  }
+  if (m < 24 * 60) return horasEMinutos(m);
   const d = Math.floor(m / (24 * 60));
   return d === 1 ? '1 dia' : `${d} dias`;
 }

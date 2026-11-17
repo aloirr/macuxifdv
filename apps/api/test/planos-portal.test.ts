@@ -202,7 +202,7 @@ describe('Portal › Planos e licenças (ADR 0047)', () => {
     const { app, trocas } = montar({ emUso: { vendedor: 4 } });
     const r = await app.inject({ method: 'PUT', url: `/v1/plataforma/empresas/${EMPRESA}/assinatura`, headers: sa, payload: { plano: 'light', pedido_id: PEDIDO } });
     expect([r.statusCode, r.json().codigo]).toEqual([422, 'PLANO_ABAIXO_DO_USO']);
-    expect(r.json().mensagem).toBe('O plano Light tem 2 licenças de vendedor e a empresa usa 4.');
+    expect(r.json().mensagem).toBe('Vendedores: 4 em uso. Inative 2 antes de trocar.');
     expect(trocas).toEqual([]);
   });
 

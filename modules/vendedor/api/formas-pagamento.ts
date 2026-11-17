@@ -9,10 +9,11 @@ import { ErroNaoEncontrado, ErroRegraNegocio, implementarConsulta, type ClienteB
 import { z } from 'zod';
 import { CONSULTA_FORMAS_PAGAMENTO, SalvarFormaRequest, SalvarPrazoRequest, type FormaPagamento, type PrazoPagamento } from '../contracts';
 import { descricaoPrazo, prazoMedioDias } from '../domain';
+import { COLUNA_PERCENTUAL_AJUSTE } from './pagamento';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 const COLUNAS_FORMA = `id, codigo, nome, ativo, ordem, external_id, to_char(updated_at at time zone 'UTC', ${UTC}) as updated_at`;
-const COLUNAS_PRAZO = `id, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ativo, ordem, external_id, to_char(updated_at at time zone 'UTC', ${UTC}) as updated_at`;
+const COLUNAS_PRAZO = `id, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ${COLUNA_PERCENTUAL_AJUSTE}, ativo, ordem, external_id, to_char(updated_at at time zone 'UTC', ${UTC}) as updated_at`;
 const ParamsId = z.object({ id: z.string().uuid() });
 
 async function lerForma(db: ClienteBanco, id: string): Promise<FormaPagamento | null> {

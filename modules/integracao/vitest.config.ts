@@ -7,6 +7,7 @@ import { defineConfig } from 'vitest/config';
  * Arquivos em série: os de banco compartilham o mesmo banco efêmero.
  */
 export default defineConfig({
+  esbuild: { jsx: 'automatic' },
   test: {
     include: ['**/*.test.{ts,tsx}'],
     exclude: ['**/node_modules/**'],

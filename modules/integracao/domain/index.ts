@@ -37,3 +37,5 @@ export * from './modelos-csv';
 export * from './carga-arquivo-partes';
 export * from './portal-carga';
 export * from './mapeamento';
+export * from './status-lote';
+export * from './resumo-pedidos-erp';
