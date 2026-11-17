@@ -4,16 +4,19 @@
  * abrir `/pedidos` direto pela URL (F5, link) com a rede lenta dava 404 de vez. Por isso o conteúdo só é montado com os
  * módulos efetivos já carregados (RN-CORE-01/03); até lá, "Carregando…".
  */
-export type EstadoConteudo = 'erro_me' | 'perfil_fora_do_bko' | 'erro_modulos' | 'carregando_modulos' | 'pronto';
+export type EstadoConteudo = 'erro_me' | 'perfil_fora_do_bko' | 'sem_filial' | 'erro_modulos' | 'carregando_modulos' | 'pronto';
 
 export function estadoDoConteudo(e: {
   /** Só na demonstração (mock-api) o `GET /me` é usado. */
   erroMe: boolean;
   perfilUsaWeb: boolean;
   modulos: { isError: boolean; data: readonly string[] | undefined };
+  /** T-0176 (RN-CORE-39): a API respondeu 403 `USUARIO_SEM_FILIAL` (nos módulos ou numa página): o aviso, não o erro genérico. */
+  semFilial?: boolean;
 }): EstadoConteudo {
   if (e.erroMe) return 'erro_me';
   if (!e.perfilUsaWeb) return 'perfil_fora_do_bko';
+  if (e.semFilial) return 'sem_filial';
   if (e.modulos.isError) return 'erro_modulos';
   if (!e.modulos.data) return 'carregando_modulos';
   return 'pronto';

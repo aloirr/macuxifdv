@@ -17,7 +17,7 @@ export function DecisoesAlcada() {
   ];
   if (decisoes.data && decisoes.data.length === 0) return null;
   return (
-    <Panel label="Decisões recentes" title="Decisões de alçada">
+    <Panel title="Decisões de alçada">
       {decisoes.isError && <ErrorBlock message={errorMessage(decisoes.error)} onRetry={() => void decisoes.refetch()} />}
       {decisoes.data && (
         <TabelaDados

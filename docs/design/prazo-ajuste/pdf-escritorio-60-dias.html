@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PED-0215-15112026</title>
+<style>
+@page { size: A4 landscape; margin: 10mm 10mm 12mm 10mm; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #FFFFFF; }
+body { font-family:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif; color: #16202A; font-size: 15px; line-height: 1.35; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.cab { display: flex; justify-content: space-between; align-items: center; gap: 8mm; padding-bottom: 3mm; }
+.marca { display: flex; align-items: center; gap: 4mm; }
+.logo { width: 16mm; height: 16mm; object-fit: contain; border-radius: 2mm; }
+.empresa { font-weight:700; font-size: 20px; line-height: 1.15; }
+.emit { font-size: 12px; color: #4A5562; }
+.doc { text-align: right; }
+.doc .t { font-weight:700; font-size: 24px; line-height: 1.1; }
+.doc .t small { font-weight: 600; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #1E3350; margin-right: 2mm; vertical-align: 3px; }
+.doc .d { font-size: 13px; color: #4A5562; }
+.ficha { display: grid; grid-template-columns: 49fr 29fr 22fr; border: 1px solid #16202A; border-radius: 1.5mm; overflow: hidden; background: #F8F6F1; }
+.c { padding: 1.6mm 2.6mm 1.8mm; border-right: 1px solid #C9CED5; border-bottom: 1px solid #C9CED5; }
+.c.fim { border-right: 0; }
+.c.base { border-bottom: 0; }
+.ficha.esc { grid-template-columns: 42fr 29fr 29fr; }
+.s2 { grid-column: span 2; }
+.duo { display: flex; gap: 8mm; }
+.r { font-weight: 600; font-size:12px; letter-spacing: .08em; text-transform: uppercase; color: #5B6673; margin-bottom: .6mm; }
+.forte { font-weight: 600; }
+.sec { color: #4A5562; }
+.faixa { display: grid; grid-template-columns: 26mm 1fr; border: 1px solid #C9CED5; border-radius: 1.5mm; break-inside: avoid; page-break-inside: avoid; }
+.faixa > div { padding: 1.8mm 2.6mm; }
+.faixa .r { margin: 0; align-self: center; }
+.lado .faixa { margin-top: 4.5mm; }
+.etapas > span + span::before { content: "→"; color: #5B6673; margin: 0 2mm; }
+.etapas .q { color: #4A5562; font-variant-numeric: tabular-nums; margin-right: 1mm; }
+.etapas .ultima { font-weight: 600; }
+table { width: 277mm; border-collapse: collapse; table-layout: fixed; margin-top: 28px; }
+thead { display: table-header-group; }
+th { font-weight: 600; font-size:12px; letter-spacing: .07em; text-transform: uppercase; color: #fff; background: #00843D; text-align: left; padding: 1.8mm 2mm; }
+td { padding: 1.6mm 2mm; vertical-align: baseline; font-size: 15px; }
+tbody tr:last-child td { border-bottom: 1.5px solid #16202A; }
+tbody tr:nth-child(even) td { background: #F8F6F1; }
+tr { break-inside: avoid; page-break-inside: avoid; }
+.v { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+td.cod { font-family:ui-monospace,"Cascadia Mono","Roboto Mono",monospace; font-size: 14px; color: #4A5562; }
+td.emb { white-space: nowrap; }
+th.n, td.n { padding-right: 3.2mm; }
+td.tot { font-weight: 600; }
+.apl { display: block; margin-top: 1px; font-size: 12px; color: #4A5562; overflow-wrap: anywhere; }
+.rodape { display: flex; align-items: flex-start; justify-content: space-between; gap: 6mm; margin-top: 24px; break-inside: avoid; page-break-inside: avoid; }
+.rodape .lado { flex: 1; }
+.totalbox { min-width: 78mm; border: 2px solid #16202A; border-radius: 2mm; background: #ECEEF1; padding: 2.4mm 4mm; margin-left: auto; }
+.totalbox .lin { display: flex; justify-content: space-between; gap: 6mm; padding: .6mm 0; }
+.totalbox .lin .v { font-weight: 600; }
+.totalbox .total { align-items: baseline; border-top: 1px solid #C9CED5; margin-top: 1mm; padding-top: 1.6mm; font-weight: 600; }
+.totalbox .total:first-child { border-top: 0; margin-top: 0; padding-top: .6mm; }
+.totalbox .lin .vt { font-weight: 600; font-size: 26px; }
+.nota { font-size: 12px; color: #4A5562; margin-top: 1mm; }
+.obs { margin: 0 0 3.5mm; }
+.obs .r { display: block; margin: 0 0 1mm; }
+.obs b { display: block; min-height: 1.35em; font-weight: 600; white-space: pre-wrap; }
+@media screen { body { padding: 10mm 10mm 12mm; } }
+</style>
+</head>
+<body>
+
+<div class="cab">
+  <div class="marca">
+    <img class="logo" src="data:image/png;base64,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" alt="">
+    <div>
+      <div class="empresa">Distribuidora Exemplo Norte</div>
+      <div class="emit">Matriz Manaus · CNPJ 12.345.678/0001-90 · (92) 3333-4444</div><div class="emit">Av. Torquato Tapajós, 1500 · Flores · Manaus/AM · CEP 69058-830</div>
+    </div>
+  </div>
+  <div class="doc">
+    <div class="t"><small>Pedido · uso interno</small>000215</div>
+    <div class="d">15/11/2026</div>
+  </div>
+</div>
+<div class="ficha esc">
+  <div class="c s2"><div class="r">Cliente</div><span class="forte">Padaria Trigo Fino Ltda</span> <span class="sec">· Padaria Trigo Fino</span></div>
+  <div class="c fim"><div class="r">CNPJ · código</div>23.456.789/0001-07 · C5008</div>
+  <div class="c base"><div class="r">Entrega</div>CIF · Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM · CEP 69020-170</div>
+  <div class="c base"><div class="r">Pagamento</div>Boleto · 60 dias</div>
+  <div class="c base fim"><div class="duo"><div><div class="r">Vendedor</div>Lucas Andrade</div><div><div class="r">Tabela</div>Tabela Varejo</div></div></div>
+</div>
+
+<table>
+  <colgroup><col style="width:15mm"><col style="width:24mm"><col><col style="width:30mm"><col style="width:24mm"><col style="width:15mm"><col style="width:22mm"><col style="width:27mm"><col style="width:22mm"><col style="width:22mm"></colgroup>
+  <thead><tr><th class="v n">Item</th><th>Código</th><th>Descrição</th><th>Marca</th><th>Emb.</th><th class="v">Qtd</th><th class="v tb">Tabela</th><th class="v">Desc./Acr.</th><th class="v">Líquido</th><th class="v">Total</th></tr></thead>
+  <tbody>
+    <tr><td class="v n">1</td><td class="cod">CAF-500</td><td>Café torrado 500 g</td><td>Serra Alta</td><td class="emb">UN</td><td class="v">30</td><td class="v tb">13,74</td><td class="v">0,0%</td><td class="v">13,74</td><td class="v tot">412,20</td></tr>
+    <tr><td class="v n">2</td><td class="cod">DET-500</td><td>Detergente neutro 500 ml</td><td>Brilho Limpo</td><td class="emb">UN</td><td class="v">10</td><td class="v tb">4,41</td><td class="v">0,0%</td><td class="v">4,41</td><td class="v tot">44,10</td></tr>
+    <tr><td class="v n">3</td><td class="cod">FIL-5548</td><td>Filtro de óleo PH 5548</td><td>Freiomax</td><td class="emb">UN</td><td class="v">1</td><td class="v tb">102,50</td><td class="v">0,0%</td><td class="v">102,50</td><td class="v tot">102,50</td></tr>
+    <tr><td class="v n">4</td><td class="cod">LPO-400</td><td>Leite em pó integral 400 g</td><td>Vale Verde</td><td class="emb">UN</td><td class="v">20</td><td class="v tb">18,19</td><td class="v">−5,0%</td><td class="v">17,28</td><td class="v tot">345,60</td></tr>
+  </tbody>
+</table>
+<div class="rodape"><div class="lado"><div class="obs"><div class="r">Observação do pedido</div><b>Entregar até sexta-feira.</b></div><div class="obs"><div class="r">Observação da entrega</div><b>Descarregar pela Rua Ipixuna, portão lateral.</b></div><div class="faixa"><div class="r">Histórico</div><div class="etapas"><span><span class="q">15/11 10:20</span>Recebido (Lucas A.)</span><span><span class="q">15/11 10:21</span><span class="ultima">Enviado ao ERP (sistema)</span></span></div></div></div><div class="totalbox"><div class="lin"><span>Valor de tabela</span><span class="v">R$ 922,60</span></div><div class="lin"><span>Desconto (%)</span><span class="v">2,0%</span></div><div class="lin"><span>Desconto (R$)</span><span class="v">− R$ 18,20</span></div><div class="lin total"><span>Valor final</span><span class="v vt">R$ 904,40</span></div></div></div>
+<script>
+// só na prancha: contorno da coluna Tabela, a que muda com o prazo (não sai no PDF)
+const c = document.querySelectorAll('.tb'), a = c[0].getBoundingClientRect(), z = c[c.length - 1].getBoundingClientRect();
+const d = document.createElement('div');
+Object.assign(d.style, { position: 'absolute', left: (a.left + scrollX + 2) + 'px', top: (a.top + scrollY + 2) + 'px', width: (a.width - 4) + 'px', height: (z.bottom - a.top - 4) + 'px', outline: '2px dashed #C2540A', borderRadius: '4px', pointerEvents: 'none' });
+document.body.appendChild(d);
+</script>
+</body>
+</html>

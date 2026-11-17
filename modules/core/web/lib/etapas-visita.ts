@@ -81,7 +81,7 @@ export const ALERTA_H_MIN = 1;
 export const ALERTA_H_MAX = 168;
 export const ALERTA_H_PADRAO = 24;
 export const ERRO_ALERTA_H = 'Use um número de 1 a 168';
-export const AJUDA_ALERTA_H = 'De 1 a 168. Depois desse prazo, o vendedor e o supervisor recebem um aviso';
+export const AJUDA_ALERTA_H = 'De 1 a 168. Depois desse prazo, o vendedor e o supervisor recebem um aviso.';
 export function validarAlertaH(texto: string): { ok: true; valor: number } | { ok: false; erro: string } {
   const n = Number(texto);
   return texto.trim() !== '' && Number.isInteger(n) && n >= ALERTA_H_MIN && n <= ALERTA_H_MAX ? { ok: true, valor: n } : { ok: false, erro: ERRO_ALERTA_H };

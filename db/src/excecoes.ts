@@ -21,8 +21,11 @@ export const TABELAS_SEM_TENANT_ID = {
   'plataforma.portal_sessao': 'sessão do portal, super-admin ou admin do cliente (ADR 0031); só por função',
   /** tenant_alvo_id (sem FK) no lugar de tenant_id, como na auditoria_plataforma: não é tabela de tenant. */
   'plataforma.portal_sessao_empresa': 'empresas conferidas no login do portal (ADR 0031); só por função',
-  /** Catálogo de planos (0070, ADR 0047 §1): dado da PLATAFORMA, igual para todos os tenants; só pelas funções plataforma.sa_*. */
-  'plataforma.plano': 'catálogo de planos da plataforma, fora dos tenants (ADR 0047); só por função',
+  /**
+   * Catálogo de planos (0070, ADR 0047 §1): dado da PLATAFORMA, igual para todos os tenants; gravado só pelas funções do dono.
+   * Desde a 0086 o macuxi_app LÊ só a linha do plano da assinatura viva do próprio tenant (política isolamento_tenant pelo id).
+   */
+  'plataforma.plano': 'catálogo de planos da plataforma, fora dos tenants (ADR 0047); o app lê só o plano do próprio tenant (0086)',
   /**
    * Ações da empresa (0072, ADR 0052): empresa_id SEM FK no lugar de tenant_id, de propósito, como a auditoria_plataforma: o
    * backup, a exclusão e o registro da empresa excluída sobrevivem à plataforma.excluir_tenant. Só pelas funções sa_* e do worker.
@@ -51,8 +54,6 @@ export const TABELAS_SO_POR_FUNCAO = [
   'plataforma.portal_tentativa',
   'plataforma.portal_sessao',
   'plataforma.portal_sessao_empresa',
-  /** 0070 (ADR 0047): catálogo de planos; lido e gravado só pelas sa_* do portal. */
-  'plataforma.plano',
   /** 0072 (ADR 0052): backup, exclusão e empresa excluída; lidos e gravados só pelas sa_* do portal e pelas funções do worker. */
   'plataforma.backup_empresa',
   'plataforma.backup_empresa_parte',
@@ -89,6 +90,8 @@ export const TABELAS_FORA_DO_SYNC = [
   'plataforma.diagnostico',
   /** Assinatura do tenant (0070, ADR 0047 §2): uma por tenant; o portal grava (sa_gravar_assinatura) e a API lê; nunca vai ao aparelho. */
   'plataforma.assinatura',
+  /** Histórico das trocas de plano (0086, ADR 0047 §6): só a sa_trocar_plano grava; nunca vai ao aparelho. */
+  'plataforma.assinatura_historico',
   /** Pacote da primeira carga (0074, ADR 0054): o aparelho baixa o arquivo pelo manifesto GET /v1/sync/pacotes; as linhas nunca são puxadas. */
   'plataforma.sync_pacote',
   'plataforma.sync_pacote_pedido',
@@ -97,6 +100,8 @@ export const TABELAS_FORA_DO_SYNC = [
   /** Lote de fotos por ZIP e o relatório por arquivo (0079, T-0174, RN-CAT-14): só o BKO lê; a foto ligada vai ao aparelho pela produto_midia. */
   'catalogo.foto_lote',
   'catalogo.foto_lote_item',
+  /** Último contato do aparelho (0084, T-0180, ADR 0059 §5): o Core grava no sync e só a consulta core.produtividade_equipe@1 lê. */
+  'core.usuario_contato',
   /** Contador do número legível do pedido (0009, T-0029): uma linha por tenant, só o servidor usa. */
   'vendedor.numeracao_pedido',
   /** Contador do Código FDV (0080, T-0175, RN-CORE-59): uma linha por tenant, só o gatilho de core.usuario grava; o código vai no usuário. */
