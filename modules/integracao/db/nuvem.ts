@@ -22,6 +22,7 @@ import {
   CODIGOS_ERRO_LINHA,
   ENTIDADES,
   ESTADOS_LOTE,
+  ESTADOS_LOTE_BKO,
   ESTADOS_PEDIDO_ERP,
   ESTADOS_PENDENCIA_INATIVACAO,
   ModoCarga,
@@ -49,6 +50,8 @@ export const ENTIDADES_0013 = [...ENTIDADES_ORIGINAIS, 'catalogo_no', 'produto_u
 export const ENTIDADES_0037 = [...ENTIDADES_0013, 'forma_pagamento', 'prazo_pagamento', 'tabela_escalonada'] as const;
 /** 0056 (T-0149, R-20261110-074414): + `filial` (16). */
 export const ENTIDADES_BANCO = [...ENTIDADES_0037, 'filial'] as const;
+/** `lote.status` no banco = ESTADOS_LOTE_BKO do contrato (os 5 da 0010 + `cancelado` da 0087; T-0173, RN-INT-15). */
+export const ESTADOS_LOTE_BANCO = ESTADOS_LOTE_BKO;
 /** Retenção do pedido na fila (montarPedidoParaErp / decidirEntradaNaFila em domain/pedido-fila.ts). */
 export const RETENCOES_PEDIDO_ERP = ['mapeamento_ausente', 'mapeamento_ambiguo', 'sequencia_repetida'] as const;
 export const PERFIS_DECISAO_INATIVACAO = ['admin', 'analista'] as const;
