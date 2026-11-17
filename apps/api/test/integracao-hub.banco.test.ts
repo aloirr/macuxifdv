@@ -7,13 +7,13 @@
  * ligam sozinhos quando os handlers chegam. Cobertura (desenho §9): RN-INT-12 (Idempotency-Key, replay, 409), RN-INT-01/P-1
  * (lote só de inválidas aceito), RN-INT-11 (426 como pausa; sinal liberado), A5/P-4 (retorno com parte dos itens inválida =
  * 200 + `itens_descartados` + `pedido_retorno_erro`), A9/P-3 (decidir inativação: admin e analista sim, supervisor e vendedor
- * 403, autor da sessão, auditoria), RN-INT-13 (409 `topologia_conflitante` com a mensagem do domain), monitor com o alerta
- * `retorno_com_itens_descartados`, e multi-tenant em tudo. Nenhuma data fixa contra o now() do banco (relogio-varredura.md).
+ * 403, autor da sessão, auditoria), RN-INT-13 (409 `topologia_conflitante` com a mensagem do domain), monitor no formato do
+ * contrato e só para quem tem `monitor.ver`, e multi-tenant em tudo. Nenhuma data fixa contra o now() do banco (relogio-varredura.md).
  * Pula sem Docker/Postgres (aviso no fim); com MACUXI_PG_EXIGIR=1 (CI) falha.
  */
 import { randomUUID } from 'node:crypto';
 import * as apiIntegracao from '@macuxi/integracao/api';
-import { VERSAO_CONTRATO } from '@macuxi/integracao/contracts';
+import { MonitorResumo, VERSAO_CONTRATO } from '@macuxi/integracao/contracts';
 import { DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import type { ModuloApi, ModuloId, UsuarioAutenticado } from '@macuxi/platform-sdk';
@@ -204,10 +204,19 @@ describe.skipIf(semBanco() || !real)(`Hub da Integração × Postgres — handle
       expect(r.json()).not.toHaveProperty('itens_descartados');
     });
 
-    it.skipIf(!temRota('GET', 'monitor'))('monitor: alerta retorno_com_itens_descartados nas últimas 24 h; supervisor não vê o monitor', async () => {
+    // #476: o monitor devolve só o que a tela lê (lotes e resumo dos pedidos); o alerta `retorno_com_itens_descartados` saiu da
+    // resposta e a regra fica no domain (`montarAlertasMonitor`, com teste lá) até uma tela da área "Alertas" ler. Aqui fica a
+    // fonte do alerta (erro do item descartado nas últimas 24 h) e a permissão do monitor.
+    it.skipIf(!temRota('GET', 'monitor'))('monitor no formato novo; erro do item descartado nas últimas 24 h; supervisor não vê o monitor', async () => {
       const a = await app.inject({ method: 'GET', url: '/v1/integracao/monitor', headers: { 'x-teste-usuario': 'analistaA' } });
       expect(a.statusCode, a.body).toBe(200);
-      expect(a.json().alertas.map((x: { codigo: string }) => x.codigo)).toContain('retorno_com_itens_descartados');
+      expect(MonitorResumo.safeParse(a.json()).success, a.body).toBe(true);
+      expect(a.json()).not.toHaveProperty('alertas');
+      const erros = await admin.query(
+        "select 1 from integracao.pedido_retorno_erro where tenant_id = $1 and pedido_uuid = $2 and created_at > now() - interval '24 hours'",
+        [A.tenantId, pedido],
+      );
+      expect(erros.rowCount).toBeGreaterThan(0);
       const s = await app.inject({ method: 'GET', url: '/v1/integracao/monitor', headers: { 'x-teste-usuario': 'supervisorA' } });
       expect(s.statusCode, s.body).toBe(403);
     });
