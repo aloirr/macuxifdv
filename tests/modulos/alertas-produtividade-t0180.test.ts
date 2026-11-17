@@ -1,0 +1,297 @@
+/**
+ * T-0180 / v1.0.14 (alertas de produtividade e Parâmetros › Alertas): costura entre o Core e o Gestor, valor × regra (D1, D5, D6,
+ * RN-CORE-26, RN-GES-01/02/03), licença do módulo (RN-CORE-02), permissão, multi-tenant, dia útil, expediente e fuso do tenant.
+ * Os testes de unidade de cada regra ficam nos módulos; aqui fica o que só aparece quando os PRs se encontram: o Gestor monta a tela e
+ * grava no parâmetro do Core, a lista de alertas do Gestor abre o alerta com o que a consulta REAL `core.produtividade_equipe@1`
+ * devolve, e `GET|PUT /v1/gestor/parametros/alertas` grava pelo SDK (`ctx.gravarParametros`).
+ */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import {
+  CAMINHO_PARAMETRO_PARADO_MIN,
+  PARAMETRO_PARADO_MIN,
+  PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO as PADRAO,
+  ParametroParadoMinSchema,
+  ParametrosInicioPutSchema,
+  type ParametrosAlertasProdutividade,
+} from '@macuxi/core/contracts';
+import { criarPermissoes, verificarAcao, PERFIS, type ContextoRota, type ModuloId, type Perfil, type RotaModulo } from '@macuxi/platform-sdk';
+import { describe, expect, it } from 'vitest';
+import { consultaProdutividadeEquipe } from '../../modules/core/api/produtividade-equipe';
+import { rotasDeParametrosAlertas as rotasCoreAlertas } from '../../modules/core/api/parametros-alertas';
+import { rotasDeParametrosInicio } from '../../modules/core/api/parametros-inicio';
+import { rotasDeParametrosJornada } from '../../modules/core/api/parametros-jornada';
+import { manifest as core } from '../../modules/core/manifest';
+import { criarApiGestor, criarRepositorioEmMemoria } from '../../modules/gestor/api';
+import { CLIENTE_A, checkin, checkout, PROMOTOR, SUPERVISOR, u, VENDEDOR, VENDEDOR_2 } from '../../modules/gestor/domain/fixtures';
+import { manifest as gestor } from '../../modules/gestor/manifest';
+
+const RAIZ = join(__dirname, '..', '..');
+const ler = (p: string) => readFileSync(join(RAIZ, p), 'utf8');
+const TENANT = '0a000000-0000-4000-8000-0000000000aa';
+const TENANT_B = '0b000000-0000-4000-8000-0000000000bb';
+type Alerta = { tipo: string; chave: string; alvo_id: string; valor: number | null; status: string };
+const quemPode = (manifestos: Parameters<typeof criarPermissoes>[0], acao: string, modulos: ModuloId[]) => {
+  const p = criarPermissoes(manifestos);
+  return PERFIS.filter((perfil) => verificarAcao({ id: 'x', tenant_id: TENANT, perfil, modulos }, p, acao).ok);
+};
+
+describe('T-0180 — D1: o "parado" num lugar só (os padrões D6 estão nos testes de unidade do Core e do Gestor)', () => {
+  it('D1: o campo do "parado" sumiu do painel Parâmetros › Início do BKO', () => {
+    expect(ler('modules/core/web/components/metas/inicio-parametros-panel.tsx')).not.toContain('data-testid="inicio-params.parado"');
+  });
+});
+
+describe('T-0180 — o Gestor grava no contrato do Core (alertas.produtividade e parado-min)', () => {
+  it('D1: a tela grava o "parado" pela rota própria do Core (PUT /core/parametros/parado-min, corpo { parado_min }), não pelo PUT do Início', () => {
+    expect(CAMINHO_PARAMETRO_PARADO_MIN).toBe('parametros/parado-min');
+    const web = ler('modules/gestor/web/lib/parametros-alertas.ts');
+    expect(web).toContain('`/core/${CAMINHO_PARAMETRO_PARADO_MIN}`');
+    expect(web).toContain("method: 'PUT', body: { parado_min }");
+    expect(web).not.toMatch(/body: \{ dias_uteis_semana/);
+    expect(ParametroParadoMinSchema.safeParse({ parado_min: 45 }).success).toBe(true);
+    expect(ParametroParadoMinSchema.safeParse({ parado_min: 45, dias_uteis_semana: [1] }).success).toBe(false);
+    // o PUT do Início recusa o "parado" (corpo estrito → 400 no SDK): o valor mora só em parametros/parado-min
+    const putInicio = rotasDeParametrosInicio.find((r) => r.metodo === 'PUT' && r.caminho === 'parametros/inicio');
+    expect(putInicio?.corpo).toBe(ParametrosInicioPutSchema);
+    expect(ParametrosInicioPutSchema.safeParse({ dias_uteis_semana: [1, 2, 3, 4, 5] }).success).toBe(true);
+    expect(ParametrosInicioPutSchema.safeParse({ dias_uteis_semana: [1, 2, 3, 4, 5], parado_min: 45 }).success).toBe(false);
+  });
+
+  it('o Gestor usa o tipo e o padrão do contrato do Core (sem espelho local)', () => {
+    const fonte = ler('modules/gestor/domain/produtividade-do-dia.ts');
+    expect(fonte).not.toContain('PARAMETROS_PRODUTIVIDADE_PADRAO =');
+    expect(fonte).not.toContain('export interface ParametrosAlertasProdutividade');
+    expect(fonte).toContain("from '@macuxi/core/contracts'");
+  });
+});
+
+describe('T-0180 — permissão e licença nas rotas novas (RN-CORE-02; perfis e licença por rota estão nos testes do Core e do Gestor)', () => {
+  it('Core: as rotas novas existem, são do BKO e usam a ação certa', () => {
+    const rotas = [...rotasCoreAlertas, ...rotasDeParametrosJornada] as Array<RotaModulo & { superficie?: string }>;
+    expect(rotas.map((r) => `${r.metodo} ${r.caminho} ${r.acao} ${r.superficie}`)).toEqual([
+      'GET parametros/alertas-produtividade parametro.alertas_produtividade bko',
+      'PUT parametros/alertas-produtividade parametro.alertas_produtividade bko',
+      'GET parametros/parado-min parametro.alertas_produtividade bko',
+      'PUT parametros/parado-min parametro.alertas_produtividade bko',
+      'GET parametros/jornada parametro.inicio bko',
+      'PUT parametros/jornada parametro.inicio bko',
+    ]);
+  });
+
+  it('Parâmetros › Alertas tem o mesmo público nas duas metades da tela (alerta_regra.gerenciar = parametro.alertas_produtividade)', () => {
+    const modulos: ModuloId[] = ['core', 'gestor'];
+    expect(quemPode([core, gestor], 'alerta_regra.gerenciar', modulos)).toEqual(quemPode([core, gestor], 'parametro.alertas_produtividade', modulos));
+  });
+
+  it('sem o Gestor licenciado, a Produtividade do dia continua com o Core (RN-CORE-02/03)', () => {
+    expect(quemPode([core, gestor], 'parametro.alertas_produtividade', ['core'])).toEqual(['analista', 'admin']);
+  });
+});
+
+describe('T-0180 — GET|PUT /v1/gestor/parametros/alertas (RN-GES-01/02/03; um valor, um lugar)', () => {
+  const rota = (metodo: string) => criarApiGestor(criarRepositorioEmMemoria()).rotas!.find((r) => r.metodo === metodo && r.caminho === 'parametros/alertas')!;
+  const chamar = async (metodo: string, o: { tenant?: Record<string, unknown>; corpo?: unknown } = {}) => {
+    const gravados: Array<{ valores: unknown; opcoes: unknown }> = [];
+    const r = rota(metodo);
+    const ctx = {
+      usuario: { id: u(9001), tenant_id: TENANT, perfil: 'analista' as Perfil, modulos: ['core', 'gestor'] },
+      agora: () => new Date('2026-11-03T15:00:00Z'),
+      parametros: () => o.tenant ?? {},
+      fuso: () => 'America/Manaus',
+      comTenant: async <T,>(fn: (db: never, tx: never) => Promise<T>) => fn({} as never, {} as never),
+      gravarParametros: async (valores: unknown, opcoes: unknown) => void gravados.push({ valores, opcoes }),
+      log: { info: () => {}, warn: () => {}, error: () => {} },
+      corpo: r.corpo ? r.corpo.parse(o.corpo) : undefined,
+    } as unknown as ContextoRota;
+    return { resposta: await r.executar(ctx), gravados };
+  };
+  const NOVO = { pct_tolerancia_frequencia: 50, dias_sem_visita_padrao: 30, dias_carencia_cliente_novo: 15, prazo_aprovacao_dias_uteis: 1 };
+
+  it('valor salvo fora da faixa vale o padrão, chave por chave (o resto do que está salvo continua)', async () => {
+    const { resposta } = await chamar('GET', { tenant: { pct_tolerancia_frequencia: 900, dias_sem_visita_padrao: 20 } });
+    expect(resposta).toEqual({ ...NOVO, dias_sem_visita_padrao: 20 });
+  });
+
+  it('RN-GES-03: prazo que deixa o aviso da fila (horas úteis) maior que o prazo é 422 e nada é gravado; com prazo maior, grava', async () => {
+    // aviso de 12 h úteis no tenant: 1 dia útil = 10 h (08:00–18:00) não comporta; 2 dias = 20 h comporta
+    const erro = await chamar('PUT', { tenant: { aprovacao_aviso_horas: 12 }, corpo: NOVO }).catch((e: unknown) => e);
+    expect(erro).toMatchObject({ status: 422, codigo: 'RN-GES-03' });
+    const ok = await chamar('PUT', { tenant: { aprovacao_aviso_horas: 12 }, corpo: { ...NOVO, prazo_aprovacao_dias_uteis: 2 } });
+    expect(ok.gravados).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// Core → Gestor: a lista de alertas do Gestor com a consulta REAL do Core (`core.produtividade_equipe@1`) sobre um banco falso
+// por tenant (o RLS vira "cada tenant lê só o próprio mapa"). Terça 03/11/2026, 11:00 em Manaus (15:00 UTC), dia útil.
+// ---------------------------------------------------------------------------------------------------------------------------
+const AGORA = '2026-11-03T15:00:00Z';
+type DadosCore = { parametros: { chave: string; valor: unknown }[]; usuarios: Record<string, { almoco_inicio_min: number | null; almoco_fim_min: number | null; ultimo_contato_em: string | null }> };
+const CADASTRO = [
+  { id: SUPERVISOR, nome: 'Sara', perfil: 'supervisor' },
+  { id: VENDEDOR, nome: 'Vera', perfil: 'vendedor' },
+  { id: VENDEDOR_2, nome: 'Vitor', perfil: 'vendedor' },
+  { id: PROMOTOR, nome: 'Paula', perfil: 'promotor' },
+];
+const VISIVEIS = new Set(CADASTRO.map((c) => c.id));
+
+/** Banco falso do Core por tenant: só as duas leituras da consulta (parâmetro do tenant e usuários com contato e almoço). */
+const dbDoCore = (d: DadosCore) => ({
+  query: async (sql: string, params: unknown[]) => {
+    const lista = params[0] as string[];
+    if (sql.includes('plataforma.parametro')) return { rows: d.parametros.filter((p) => lista.includes(p.chave)).map((p) => ({ modulo: 'core', ...p })), rowCount: 0 };
+    if (sql.includes('core.usuario u')) return { rows: lista.filter((id) => d.usuarios[id]).map((id) => ({ id, ...d.usuarios[id]! })), rowCount: 0 };
+    throw new Error(`SQL inesperado: ${sql}`);
+  },
+});
+const executarCore = consultaProdutividadeEquipe as unknown as {
+  consulta: { entrada: { parse: (v: unknown) => unknown }; saida: { parse: (v: unknown) => unknown } };
+  executar: (e: unknown, ctx: unknown) => Promise<unknown>;
+};
+
+function cenarioCoreGestor(dados: Record<string, DadosCore>) {
+  const pedidosAoCore: { tenant: string; usuario_ids: string[] }[] = [];
+  const api = criarApiGestor(criarRepositorioEmMemoria());
+  const chamar = async (metodo: string, caminho: string, o: { tenant?: string; quem?: string; query?: unknown; params?: unknown; modulos?: ModuloId[]; agora?: string } = {}) => {
+    const r = api.rotas!.find((x) => x.metodo === metodo && x.caminho === caminho) as RotaModulo;
+    const tenant = o.tenant ?? TENANT;
+    const quem = o.quem ?? SUPERVISOR;
+    const agora = o.agora ?? AGORA;
+    const tx = {
+      publicar: async () => {},
+      registrarArquivo: async () => {},
+      auditar: async () => {},
+      consultar: async (def: { nome: string }, entrada: { usuario_ids: string[] }) => {
+        if (def.nome === 'core.calendario_metas@1') return { dias_uteis_semana: [1, 2, 3, 4, 5, 6], feriados: [] };
+        if (def.nome === 'core.produtividade_equipe@1') {
+          pedidosAoCore.push({ tenant, usuario_ids: [...entrada.usuario_ids].sort() });
+          const e = executarCore.consulta.entrada.parse(entrada);
+          return executarCore.consulta.saida.parse(await executarCore.executar(e, { db: dbDoCore(dados[tenant]!), usuario: { id: quem, tenant_id: tenant } }));
+        }
+        return { clientes: [], produtos: [], usuarios: CADASTRO.filter((c) => entrada.usuario_ids.includes(c.id)).map((c) => ({ ...c, external_id: null })) };
+      },
+    };
+    const ctx = {
+      usuario: { id: quem, tenant_id: tenant, perfil: CADASTRO.find((c) => c.id === quem)!.perfil as Perfil, modulos: o.modulos ?? ['core', 'gestor', 'vendedor', 'promotor'] },
+      dependencias: {},
+      requestId: 'req-t0180',
+      agora: () => new Date(agora),
+      comTenant: async <T,>(fn: (db: never, tx: never) => Promise<T>) => fn({ query: async () => ({ rows: [], rowCount: 0 }) } as never, tx as never),
+      carteira: async () => 'tenant' as const,
+      usuariosVisiveis: async () => VISIVEIS,
+      parametros: () => ({}),
+      fuso: () => 'America/Manaus',
+      log: { info: () => {}, warn: () => {}, error: () => {} },
+      query: r.query ? r.query.parse(o.query ?? {}) : undefined,
+      params: r.params ? r.params.parse(o.params ?? {}) : undefined,
+      corpo: undefined,
+    } as unknown as ContextoRota;
+    return r.executar(ctx);
+  };
+  /** Entrega eventos do Core aos consumidores do Gestor, como a plataforma faz (envelope com o tenant). */
+  const publicar = async (eventos: { evento_id: string; nome: string; ocorrido_em: string; payload: unknown }[], tenant = TENANT) => {
+    for (const e of eventos) {
+      const c = api.consumidores!.find((x) => x.evento.nome === e.nome)!;
+      const ctx = { envelope: { evento_id: e.evento_id, nome: e.nome, origem: 'core', tenant_id: tenant, usuario_id: null, request_id: null, ocorrido_em: e.ocorrido_em, payload: e.payload }, db: {}, publicar: async () => {}, agora: () => new Date(AGORA), log: { info: () => {}, warn: () => {}, error: () => {} } };
+      await c.executar(c.evento.schema.parse(e.payload), ctx as never);
+    }
+  };
+  const alertas = async (o: { tenant?: string; produtividade?: boolean; agora?: string } = {}) =>
+    ((await chamar('GET', 'alertas', { tenant: o.tenant, agora: o.agora, query: o.produtividade ? { produtividade: '1' } : {} })) as { itens: Alerta[] }).itens.filter((a) => ['sem_checkin_inicio', 'parado_entre_visitas'].includes(a.tipo));
+  return { chamar, alertas, publicar, pedidosAoCore };
+}
+const usuario = (ultimo_contato_em: string | null, almoco: [number, number] | null = null) => ({ ultimo_contato_em, almoco_inicio_min: almoco?.[0] ?? null, almoco_fim_min: almoco?.[1] ?? null });
+
+describe('T-0180 — Core → Gestor: o alerta de produtividade abre com o que o Core devolve (D4, ADR 0059 §1, §5 e §7)', () => {
+  it('sem check-in até 10:00: abre com `produtividade` e `ultimo_contato_em` do Core, só com `?produtividade=1`, um por pessoa', async () => {
+    const c = cenarioCoreGestor({
+      [TENANT]: { parametros: [], usuarios: { [VENDEDOR]: usuario('2026-11-03T14:30:00Z'), [VENDEDOR_2]: usuario('2026-11-03T13:30:00Z'), [PROMOTOR]: usuario(null) } },
+    });
+    const com = await c.alertas({ produtividade: true });
+    // Vera sincronizou às 10:30 (depois do "até" 10:00); Vitor às 09:30 (pode estar sem sinal); Paula nunca: só Vera
+    expect(com.map((a) => [a.tipo, a.alvo_id, a.chave])).toEqual([['sem_checkin_inicio', VENDEDOR, `produtividade:${VENDEDOR}`]]);
+    // escopo: o Gestor só pergunta ao Core pela gente de campo que ele vê (supervisor fica fora)
+    expect(c.pedidosAoCore[0]).toEqual({ tenant: TENANT, usuario_ids: [VENDEDOR, VENDEDOR_2, PROMOTOR].sort() });
+  });
+
+  it('valor × regra: o "até" e o liga/desliga vêm do parâmetro `alertas.produtividade` salvo no Core do tenant', async () => {
+    const contato = { [VENDEDOR]: usuario('2026-11-03T14:30:00Z') }; // 10:30 em Manaus
+    const ate1045: ParametrosAlertasProdutividade = { ...PADRAO, sem_checkin_inicio: { ...PADRAO.sem_checkin_inicio, ate_min: 645 } }; // contato 10:30 é antes
+    const semGestor: ParametrosAlertasProdutividade = { ...PADRAO, sem_checkin_inicio: { ...PADRAO.sem_checkin_inicio, gestor: false } };
+    const desligada: ParametrosAlertasProdutividade = { ...PADRAO, sem_checkin_inicio: { ...PADRAO.sem_checkin_inicio, ativa: false } };
+    const c = cenarioCoreGestor({
+      [TENANT]: { parametros: [{ chave: 'alertas.produtividade', valor: ate1045 }], usuarios: contato },
+      [TENANT_B]: { parametros: [{ chave: 'alertas.produtividade', valor: semGestor }], usuarios: contato },
+    });
+    expect(await c.alertas({ produtividade: true })).toEqual([]);
+    expect(await c.alertas({ tenant: TENANT_B, produtividade: true })).toEqual([]);
+    const d = cenarioCoreGestor({ [TENANT]: { parametros: [{ chave: 'alertas.produtividade', valor: desligada }], usuarios: contato } });
+    expect(await d.alertas({ produtividade: true })).toEqual([]);
+  });
+
+  it('fuso do tenant: o "até 10:00" é 10:00 em Manaus (14:00 UTC); contato às 09:59 não abre, às 10:01 abre', async () => {
+    const antes = cenarioCoreGestor({ [TENANT]: { parametros: [], usuarios: { [VENDEDOR]: usuario('2026-11-03T13:59:00Z') } } });
+    expect(await antes.alertas({ produtividade: true, agora: '2026-11-03T14:05:00Z' })).toEqual([]);
+    const depois = cenarioCoreGestor({ [TENANT]: { parametros: [], usuarios: { [VENDEDOR]: usuario('2026-11-03T14:01:00Z') } } });
+    expect((await depois.alertas({ produtividade: true, agora: '2026-11-03T14:05:00Z' })).map((a) => a.tipo)).toEqual(['sem_checkin_inicio']);
+    // antes das 10:00 em Manaus (09:50 = 13:50 UTC), mesmo com contato, ainda não vale
+    const cedo = cenarioCoreGestor({ [TENANT]: { parametros: [], usuarios: { [VENDEDOR]: usuario('2026-11-03T13:45:00Z') } } });
+    expect(await cedo.alertas({ produtividade: true, agora: '2026-11-03T13:50:00Z' })).toEqual([]);
+  });
+
+  it('dia não útil e fora do expediente: domingo 08/11 às 11:00 e terça 03/11 às 18:30 (Manaus) não abrem, com contato depois do "até"', async () => {
+    const domingo = cenarioCoreGestor({ [TENANT]: { parametros: [], usuarios: { [VENDEDOR]: usuario('2026-11-08T14:30:00Z') } } });
+    expect(await domingo.alertas({ produtividade: true, agora: '2026-11-08T15:00:00Z' })).toEqual([]);
+    const noite = cenarioCoreGestor({ [TENANT]: { parametros: [], usuarios: { [VENDEDOR]: usuario('2026-11-03T22:20:00Z') } } });
+    expect(await noite.alertas({ produtividade: true, agora: '2026-11-03T22:30:00Z' })).toEqual([]);
+  });
+
+  it('virada de dia no fuso: 04/11 03:30 UTC ainda é 03/11 23:30 em Manaus, fora do expediente: não abre', async () => {
+    // 03/11 23:30 local = 04/11 03:30 UTC: em UTC já é outro dia, mas o dia civil do tenant é 03/11 e está fora do horário comercial
+    const c = cenarioCoreGestor({ [TENANT]: { parametros: [], usuarios: { [VENDEDOR]: usuario('2026-11-04T03:20:00Z') } } });
+    expect(await c.alertas({ produtividade: true, agora: '2026-11-04T03:30:00Z' })).toEqual([]);
+  });
+
+  it('multi-tenant: o alerta do tenant A não aparece no B, e cada tenant usa o próprio Core', async () => {
+    const c = cenarioCoreGestor({
+      [TENANT]: { parametros: [], usuarios: { [VENDEDOR]: usuario('2026-11-03T14:30:00Z') } },
+      [TENANT_B]: { parametros: [], usuarios: { [VENDEDOR]: usuario(null) } },
+    });
+    expect((await c.alertas({ produtividade: true })).map((a) => a.alvo_id)).toEqual([VENDEDOR]);
+    expect(await c.alertas({ tenant: TENANT_B, produtividade: true })).toEqual([]);
+    expect(c.pedidosAoCore.map((p) => p.tenant)).toEqual([TENANT, TENANT_B]);
+  });
+});
+
+describe('T-0180 — Parado ao gestor pela API: almoço da pessoa (Core) descontado e o "parado" do tenant (RN-CORE-26, D5)', () => {
+  it('pela API, sem rota do dia (o Core não publica `core.rota.dia_planejado@1`): o "Parado" abre ao gestor com o almoço do Core descontado', async () => {
+    // checkout 08:30, agora 11:00 em Manaus: 150 min corridos; com o almoço da pessoa no Core (09:00–10:00), 90 min = 60 + 30
+    const V2 = u(2181);
+    const dia = [checkin({ visita: V2, cliente: CLIENTE_A, em: '2026-11-03T12:00:00Z' }), checkout({ visita: V2, cliente: CLIENTE_A, em: '2026-11-03T12:30:00Z' })];
+    expect(gestor.consome).not.toContain('core.rota.dia_planejado@1');
+    const semAlmoco = cenarioCoreGestor({ [TENANT]: { parametros: [], usuarios: { [VENDEDOR]: usuario('2026-11-03T14:59:00Z') } } });
+    await semAlmoco.publicar(dia);
+    expect((await semAlmoco.alertas({ produtividade: true })).map((a) => [a.tipo, a.alvo_id, a.valor])).toEqual([['parado_entre_visitas', VENDEDOR, 150]]);
+    const comAlmoco = cenarioCoreGestor({ [TENANT]: { parametros: [], usuarios: { [VENDEDOR]: usuario('2026-11-03T14:59:00Z', [540, 600]) } } });
+    await comAlmoco.publicar(dia);
+    expect((await comAlmoco.alertas({ produtividade: true })).map((a) => [a.tipo, a.valor])).toEqual([['parado_entre_visitas', 90]]);
+    // sem sinal depois do checkout (último contato 08:00): não acusa
+    const semSinal = cenarioCoreGestor({ [TENANT]: { parametros: [], usuarios: { [VENDEDOR]: usuario('2026-11-03T12:00:00Z') } } });
+    await semSinal.publicar(dia);
+    expect(await semSinal.alertas({ produtividade: true })).toEqual([]);
+  });
+
+  it('o "parado" salvo no tenant (inicio.parado_min = 45) muda o limiar do gestor para 75 (45 + 30)', async () => {
+    const V3 = u(2182);
+    const dia = [checkin({ visita: V3, cliente: CLIENTE_A, em: '2026-11-03T12:00:00Z' }), checkout({ visita: V3, cliente: CLIENTE_A, em: '2026-11-03T12:30:00Z' })];
+    // 08:30 → 09:45 = 75 min (abre no limite); 09:44 = 74 min (não abre)
+    const abre = cenarioCoreGestor({ [TENANT]: { parametros: [{ chave: PARAMETRO_PARADO_MIN, valor: 45 }], usuarios: { [VENDEDOR]: usuario('2026-11-03T13:44:30Z') } } });
+    await abre.publicar(dia);
+    expect((await abre.alertas({ produtividade: true, agora: '2026-11-03T13:45:00Z' })).map((a) => [a.tipo, a.valor])).toEqual([['parado_entre_visitas', 75]]);
+    const naoAbre = cenarioCoreGestor({ [TENANT]: { parametros: [{ chave: PARAMETRO_PARADO_MIN, valor: 45 }], usuarios: { [VENDEDOR]: usuario('2026-11-03T13:43:30Z') } } });
+    await naoAbre.publicar(dia);
+    expect((await naoAbre.alertas({ produtividade: true, agora: '2026-11-03T13:44:00Z' })).filter((a) => a.tipo === 'parado_entre_visitas')).toEqual([]);
+  });
+});
