@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MixSuggestion } from '@macuxi/catalogo/contracts';
 import type { CustomerDetail, EditarOrcamentoRequest, Order, OrderDetail, PedidoPush, UpdateOrderRequest } from '../../contracts';
 import { orderActions, type OrderStatus } from '../../domain/order';
-import type { NivelDePreco } from '../../domain/preco-pedido';
+import { percentualAjusteParaBp, type NivelDePreco } from '../../domain/preco-pedido';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
 import { copiaDoDetalhe, copiaDoPayload, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from '../lib/documento';
 import { precoDoOrcamentoVale, type MudancaNaConversao } from '../../domain/orcamento';
@@ -202,7 +202,7 @@ export function useVendedor() {
         const tabela = dados.produtos[cli?.price_table_id ?? 'default'];
         if (!cli || !tabela || !dados.politica) return null;
         try {
-          return calcularPedido({ lines: r.lines, ajustes: r.ajustes ?? {}, desconto_pct: r.discount_pct, acrescimo_pct: r.acrescimo_pct ?? 0, desconto_valor_cents: r.desconto_valor_cents, acrescimo_valor_cents: r.acrescimo_valor_cents, ajuste_em: r.ajuste_em, catalogo: tabela.items, unidades: unidadesDaTela(linhasRef.current), faixas: tabela.faixas, ...(r.precos_congelados ? { congelados: r.precos_congelados } : {}), politica: politicaApi(parametrosRef.current), vendedor_id: eu }).total_cents;
+          return calcularPedido({ percentual_ajuste_bp: percentualAjusteParaBp(r.prazo_percentual_ajuste), lines: r.lines, ajustes: r.ajustes ?? {}, desconto_pct: r.discount_pct, acrescimo_pct: r.acrescimo_pct ?? 0, desconto_valor_cents: r.desconto_valor_cents, acrescimo_valor_cents: r.acrescimo_valor_cents, ajuste_em: r.ajuste_em, catalogo: tabela.items, unidades: unidadesDaTela(linhasRef.current), faixas: tabela.faixas, ...(r.precos_congelados ? { congelados: r.precos_congelados } : {}), politica: politicaApi(parametrosRef.current), vendedor_id: eu }).total_cents;
         } catch {
           return null;
         }
@@ -748,6 +748,8 @@ export function useVendedor() {
         cliente: situacaoDoClienteSync(linhasRef.current.clientes.find((c) => c.id === cliente.id), (linhasRef.current.financeiros ?? []).find((f) => f.cliente_id === cliente.id)),
         policy: toDomainPolicy(politicaApi(parametrosRef.current)),
         estoque_bloqueia: false,
+        // RN-VEN-46: o % do prazo do orçamento ajusta a tabela de hoje (o orçamento guarda a tabela já ajustada)
+        percentual_ajuste_bp: percentualAjusteParaBp(d.prazo_pagamento_id ? prazos.find((p) => p.id === d.prazo_pagamento_id)?.percentual_ajuste : 0),
         // RN-VEN-18 (09/11): passados os 7 dias do preço, Transformar usa a tabela do dia e mostra a diferença
         preco_vale: precoDoOrcamentoVale(d.validade_ate, new Date()),
       });
@@ -761,7 +763,7 @@ export function useVendedor() {
       };
       return { mudancas: total ? [...frases, total] : frases, mudancas_brutas: r.mudancas, bloqueio: r.bloqueio, pode_enviar: r.pode_enviar, nivel: r.calculo.nivel, total_cents: r.calculo.totais.total_cents, precos };
     },
-    [perfil, clientes, garantirProdutos],
+    [perfil, clientes, garantirProdutos, prazos],
   );
   /**
    * T-0071 (RF-CAT-03): "Combina com o pedido" e "Leve mais" da aba Detalhes. A consulta `catalogo.sugestoes_pedido@1` roda no

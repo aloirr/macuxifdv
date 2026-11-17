@@ -5,6 +5,7 @@
  */
 import { descricaoPrazo, formasDaLista, formasDoCliente, pagamentoPadrao, prazosDaForma, validarPagamento, type FormaDePagamento, type PrazoDePagamento } from '../../domain/pagamento';
 import type { EntradaPendencias } from '../../domain/pendencias-preenchimento';
+import { percentualAjusteParaBp, valorMantendoPercentualCents } from '../../domain/preco-pedido';
 import type { Rascunho } from './pedidos';
 
 export interface OpcaoDaLista {
@@ -50,15 +51,29 @@ export function rascunhoComPagamentoPadrao(r: Rascunho, formas: readonly FormaDe
   return r;
 }
 
-export function comPagamento(r: Rascunho, forma: FormaDePagamento, prazo: PrazoDePagamento): Rascunho {
-  return { ...r, forma_pagamento_id: forma.id, prazo_pagamento_id: prazo.id, payment_terms: `${forma.nome} · ${prazo.descricao}`, condicao_pagamento_id: null };
+/**
+ * RN-VEN-46: na troca de prazo, o desconto/acréscimo digitado em R$ (itens e pedido) mantém o % sobre a tabela e o R$ é refeito
+ * sobre a nova tabela. Sem o catálogo aqui, a razão das tabelas é `10 000 + bp` de cada prazo.
+ */
+export function comValoresMantendoPercentual(r: Rascunho, pctNovo: number): Rascunho {
+  const antes = 10_000 + percentualAjusteParaBp(r.prazo_percentual_ajuste);
+  const depois = 10_000 + percentualAjusteParaBp(pctNovo);
+  if (antes === depois) return r;
+  const f = (v: number | undefined) => (v ? valorMantendoPercentualCents(v, antes, depois) : v);
+  const ajustes = r.ajustes && Object.fromEntries(Object.entries(r.ajustes).map(([k, a]) => [k, a.em === 'valor' ? { ...a, desconto_cents: f(a.desconto_cents), acrescimo_cents: f(a.acrescimo_cents) } : a]));
+  return { ...r, ...(ajustes ? { ajustes } : {}), desconto_valor_cents: f(r.desconto_valor_cents), acrescimo_valor_cents: f(r.acrescimo_valor_cents) };
+}
+
+export function comPagamento(r0: Rascunho, forma: FormaDePagamento, prazo: PrazoDePagamento): Rascunho {
+  const r = comValoresMantendoPercentual(r0, prazo.percentual_ajuste ?? 0);
+  return { ...r, forma_pagamento_id: forma.id, prazo_pagamento_id: prazo.id, prazo_percentual_ajuste: prazo.percentual_ajuste ?? 0, payment_terms: `${forma.nome} · ${prazo.descricao}`, condicao_pagamento_id: null };
 }
 
 /** Trocar a forma: o prazo atual só fica se ele for dessa forma e estiver habilitado; senão volta ao placeholder (o campo fica com erro até escolher). */
 export function comForma(r: Rascunho, forma: FormaDePagamento, prazos: readonly PrazoDePagamento[], cliente: LimitesDoCliente): Rascunho {
   const prazo = prazosDaForma(prazos, forma.id, cliente.prazo_medio_max_dias).find((x) => x.prazo.id === r.prazo_pagamento_id && x.habilitado)?.prazo;
   if (prazo) return comPagamento(r, forma, prazo);
-  return { ...r, forma_pagamento_id: forma.id, prazo_pagamento_id: null, payment_terms: forma.nome, condicao_pagamento_id: null };
+  return { ...comValoresMantendoPercentual(r, 0), forma_pagamento_id: forma.id, prazo_pagamento_id: null, prazo_percentual_ajuste: 0, payment_terms: forma.nome, condicao_pagamento_id: null };
 }
 
 export function comPrazo(r: Rascunho, prazoId: string, formas: readonly FormaDePagamento[], prazos: readonly PrazoDePagamento[]): Rascunho {

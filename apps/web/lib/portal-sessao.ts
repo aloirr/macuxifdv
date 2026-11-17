@@ -18,6 +18,9 @@ export type SessaoPortal = ReturnType<typeof SessaoPortalSchema.parse>;
 export type EmpresaDaSessaoPortal = SessaoPortal['empresas'][number];
 
 export const CHAVE_SESSAO_PORTAL = 'macuxi.portal.sessao';
+
+/** O admin do cliente numa área só do time Macuxi (Diagnósticos, Frases da carga): um texto só para todas. */
+export const SEM_ACESSO_TIME_MACUXI = 'Esta área é só do time Macuxi.';
 /** Renova quando faltam menos de 3 min para o fim do token (15 min). */
 export const RENOVAR_ANTES_MS = 3 * 60_000;
 /** "Há uso": houve interação nos últimos 10 min (sem uso, o token vence e o portal pede login). */

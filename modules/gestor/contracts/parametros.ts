@@ -1,4 +1,5 @@
 /** Parâmetros do tenant do Gestor (padrões = doc 03, tabela de parâmetros; ver docs/modulos/gestor/regras.md). */
+import { HORARIO_COMERCIAL_PADRAO as HORARIO_COMERCIAL_CORE, textoDoMinuto } from '@macuxi/core/contracts';
 import { z } from 'zod';
 import { IsoDate } from './base';
 
@@ -47,7 +48,7 @@ export function jornadaHoras(h: Pick<HorarioComercial, 'inicio' | 'fim'>): numbe
   return (minutosDaHora(h.fim) - minutosDaHora(h.inicio)) / 60;
 }
 
-export const HORARIO_COMERCIAL_PADRAO: Readonly<HorarioComercial> = { dias_semana: [1, 2, 3, 4, 5], inicio: '08:00', fim: '18:00' };
+export const HORARIO_COMERCIAL_PADRAO: Readonly<HorarioComercial> = { dias_semana: [1, 2, 3, 4, 5], inicio: textoDoMinuto(HORARIO_COMERCIAL_CORE.inicio_min), fim: textoDoMinuto(HORARIO_COMERCIAL_CORE.fim_min) }; // horas do Core (RD-0338)
 
 export const ParametrosGestorSchema = z
   .object({

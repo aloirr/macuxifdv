@@ -84,6 +84,13 @@ import { limparHistoricoDoShell } from '@/lib/historico-telas';
 import { deveSincronizar, type MotivoSync } from '@/lib/carga';
 import { proximaEsperaFila } from '@/lib/fila-reenvio';
 import {
+  decidirPedidoSync,
+  pedidoDoAgendador,
+  rodarSync,
+  type PedidoSync,
+  type TipoSync,
+} from '@/lib/sync-completa';
+import {
   mesmoEstadoDePermissoes,
   permissoesLiberadas,
   telaDePermissoes,
@@ -124,7 +131,12 @@ import {
   travaSync,
 } from '@/services/segundo-plano';
 import { gravarErro } from '@/services/erros';
-import { atualizarDiagnosticoRemoto, ligarEnvioDeDiagnosticos, useDiagnosticoNuvem } from '@/services/diagnostico';
+import { atualizarFrasesDaCarga } from '@/services/frase-carga';
+import {
+  atualizarDiagnosticoRemoto,
+  ligarEnvioDeDiagnosticos,
+  useDiagnosticoNuvem,
+} from '@/services/diagnostico';
 import { registrarSaidaAnterior } from '@/services/saida-android';
 import { apiDoAndroid, executarAcaoDePermissao, lerPermissoes } from '@/services/permissoes';
 import { keys, readJson, writeJson } from '@/services/storage';
@@ -237,6 +249,8 @@ function usePlataformaValor() {
   const semFilialRef = useRef<((erro: unknown) => Promise<boolean>) | null>(null);
   /** T-0059: sincronização do shell em curso (inclui a consulta dos módulos antes do motor) e quando começou. */
   const syncEmCursoRef = useRef<Promise<boolean> | null>(null);
+  /** Tipo da sincronização em curso (R-20261115-100000: a completa pedida durante a parcial não se junta a ela). */
+  const tipoEmCursoRef = useRef<TipoSync | null>(null);
   const ultimoInicioRef = useRef<number | null>(null);
   /** Abriu o app com sessão e carga gravada: vai direto ao Início e sincroniza em segundo plano (R-20261102-091336). */
   const sincronizarAoAbrirRef = useRef(false);
@@ -245,10 +259,7 @@ function usePlataformaValor() {
   const [segundoPlano, setSegundoPlano] = useState<ResultadoSegundoPlano | null>(null);
   /** RN-CORE-23: agendador único do app (abrir, voltar depois de 30 min, `sync_auto_min`, push, puxar/botão). */
   const [agendador, setAgendador] = useState<AgendadorSync | null>(null);
-  const [estadoAgendador, setEstadoAgendador] = useState<EstadoAgendadorSync>({
-    puxando: false,
-    recente: false,
-  });
+  const [estadoAgendador, setEstadoAgendador] = useState<EstadoAgendadorSync>({ puxando: false });
   /**
    * T-0088: armazenamento aberto da sessão (SQLite do usuário e tenant ou o AsyncStorage de reserva). O motor e a
    * tarefa em segundo plano usam a MESMA instância; o logout fecha sem apagar.
@@ -341,7 +352,10 @@ function usePlataformaValor() {
 
   // T-0097 (a): a miniatura do catálogo que está no armazenamento da plataforma (`/v1/arquivos/<id>`) é baixada pelo shell com
   // o token da sessão (lê a sessão e o sinal por ref) e aberta do cache do app; sem sessão ou sem sinal fica vazia
-  useEffect(() => ligarResolvedorMiniatura(api, () => !offlineRef.current && sessaoRef.current !== null), [api]);
+  useEffect(
+    () => ligarResolvedorMiniatura(api, () => !offlineRef.current && sessaoRef.current !== null),
+    [api],
+  );
   // T-0147: o visualizador da foto do PDV baixa com o mesmo token e o mesmo sinal (só em memória)
   useEffect(() => ligarFonteFotoPdv(api, () => !offlineRef.current && sessaoRef.current !== null), [api]);
 
@@ -526,15 +540,20 @@ function usePlataformaValor() {
   }, [api, modo]);
 
   /**
-   * Sincronização completa. Uma por vez (T-0059): quem chama durante uma em curso recebe a mesma promessa, sem
-   * consultar os módulos de novo nem reiniciar a carga. Telas navegam pelo ESTADO do motor, não por esta promessa.
+   * Sincronização do app (R-20261115-100000, `lib/sync-completa.ts`): parcial (botão, puxar para baixo e selo: fila + pedidos e
+   * clientes), completa (segurar 10 s, tela de carga: fila + módulos + tudo) ou leve (automática e aviso: novidades). Uma por
+   * vez (T-0059): quem chama durante uma em curso recebe a mesma promessa, sem consultar os módulos de novo nem reiniciar a
+   * carga; só a completa pedida durante uma parcial ou leve roda, depois da em curso (`rodarSync` espera ela; o motor, ADR 0057). Telas
+   * navegam pelo ESTADO do motor, não por esta promessa.
    */
   const executarSync = useCallback(
-    (leve: { entidades?: readonly string[] } | null): Promise<boolean> => {
+    (pedido: PedidoSync): Promise<boolean> => {
       const m = motorRef.current;
       // T-0145: sem as permissões obrigatórias nada sincroniza (nem a carga, nem o agendador, nem o botão)
       if (!m || !permissoesOkRef.current) return Promise.resolve(false);
-      if (syncEmCursoRef.current) return syncEmCursoRef.current;
+      const emCurso = syncEmCursoRef.current;
+      const decisao = decidirPedidoSync(pedido.tipo, emCurso ? tipoEmCursoRef.current : null);
+      if (emCurso && decisao === 'juntar') return emCurso;
       ultimoInicioRef.current = Date.now();
       // T-0140: a sincronização do app (inclui a carga inicial) segura a trava única: a tarefa sem tela não começa junto
       travaSync.entrar('sincronizacao');
@@ -547,32 +566,29 @@ function usePlataformaValor() {
           if (motorRef.current !== m) return false;
           await m.carregar();
         }
-        if (offlineRef.current) return m.sincronizar();
-        // leve com o motor novo: a própria chamada de novidades traz os módulos efetivos (1 requisição sem mudança)
-        // (T-0065: `motor.sincronizarNovidades` + `transporteV1.novidades`). Demonstração (Fase M, sem novidades): completa
-        if (leve && modo === 'v1')
-          return m.sincronizarNovidades(leve.entidades ? { entidades: leve.entidades } : {});
-        // spec rota-catalogo-perfil §4: a completa (botão Sincronizar, puxar para baixo) reenvia também os itens que falharam;
-        // o "Enviar agora" do Perfil saiu
-        await m.enviar({ incluirFalhos: true });
-        try {
+        // a completa pedida durante uma parcial ou leve espera a em curso antes do envio e dos módulos.
+        // T-0181: com os módulos (só na completa), as frases da carga, sem segurar a carga; a falha mantém a lista anterior
+        const modulosEFrases = async () => {
+          if (modo === 'v1') void atualizarFrasesDaCarga(api());
           await atualizarModulos();
-        } catch {
-          // sem rede: o motor registra o erro na sincronização abaixo
-        }
-        return m.sincronizar();
+        };
+        return rodarSync(pedido, m, { modo, offline: offlineRef.current, atualizarModulos: modulosEFrases, emCurso });
       })().finally(() => {
         travaSync.sair('sincronizacao');
-        if (syncEmCursoRef.current === p) syncEmCursoRef.current = null;
+        if (syncEmCursoRef.current === p) {
+          syncEmCursoRef.current = null;
+          tipoEmCursoRef.current = null;
+        }
       });
       syncEmCursoRef.current = p;
+      tipoEmCursoRef.current = pedido.tipo;
       return p;
     },
-    [atualizarModulos, modo],
+    [api, atualizarModulos, modo],
   );
 
-  /** Sincronização completa (botão Sincronizar, puxar para baixo, tela de carga): envia a fila e puxa na hora. */
-  const sincronizar = useCallback((): Promise<boolean> => executarSync(null), [executarSync]);
+  /** Sincronização completa (segurar 10 s no Sincronizar, tela de carga, modo sem sinal desligado): envia a fila e puxa tudo. */
+  const sincronizar = useCallback((): Promise<boolean> => executarSync({ tipo: 'completa' }), [executarSync]);
 
   /** Sincroniza só se faz sentido agora (`deveSincronizar`): não reinicia a carga em andamento nem a que acabou de terminar. */
   const sincronizarSeNecessario = useCallback(
@@ -658,7 +674,10 @@ function usePlataformaValor() {
 
   /** Sessão recebida do login ou da troca de senha: salva o código da empresa, confere o perfil da variante e abre o app. */
   const concluirLogin = useCallback(
-    async (r: Awaited<ReturnType<typeof entrarComSenha>>, post: (caminho: string, corpo: unknown) => Promise<unknown>) => {
+    async (
+      r: Awaited<ReturnType<typeof entrarComSenha>>,
+      post: (caminho: string, corpo: unknown) => Promise<unknown>,
+    ) => {
       const codigo = r.tenant.codigo;
       setCodigoSalvo(codigo);
       await writeJson(CHAVE_CODIGO_EMPRESA, codigo);
@@ -783,6 +802,7 @@ function usePlataformaValor() {
     desassinarRef.current?.();
     desassinarRef.current = null;
     syncEmCursoRef.current = null;
+    tipoEmCursoRef.current = null;
     ultimoInicioRef.current = null;
     sincronizarAoAbrirRef.current = false;
     const usuarioId = sessaoRef.current?.user.id;
@@ -981,8 +1001,9 @@ function usePlataformaValor() {
     const m = motor;
     const ag = criarAgendadorSync({
       intervaloMs: () => intervaloSyncAutoMs(m.parametros('core')[PARAMETRO_SYNC_AUTO]),
+      // R-20261115-100000: `manual` (botão, puxar para baixo, selo) = parcial; os outros = leve
       sincronizar: (motivo: MotivoAgendador, entidades?: readonly string[]) =>
-        motivo === 'manual' ? executarSync(null) : executarSync(entidades ? { entidades } : {}),
+        executarSync(pedidoDoAgendador(motivo, entidades)),
       ultimaSincronizacao: () => {
         const em = m.estado().sincronizado_em;
         const ms = em ? Date.parse(em) : NaN;
@@ -1095,15 +1116,13 @@ function usePlataformaValor() {
   useEffect(() => {
     if (!motor) return;
     // com o app vivo neste processo, a tarefa usa ESTE motor (mesma promessa de `sincronizar`, nada em paralelo)
-    const semApp = registrarAppAberto(
-      {
-        sincronizadoEm: () => motor.estado().sincronizado_em,
-        prepararSessao: async () => 'ok',
-        // ADR 0018 item 8: a passada é a atualização leve (novidades), como a automática do app
-        sincronizar: () => executarSync({}),
-        erro: () => motor.estado().erro,
-      },
-    );
+    const semApp = registrarAppAberto({
+      sincronizadoEm: () => motor.estado().sincronizado_em,
+      prepararSessao: async () => 'ok',
+      // ADR 0018 item 8: a passada é a atualização leve (novidades), como a automática do app
+      sincronizar: () => executarSync({ tipo: 'leve' }),
+      erro: () => motor.estado().erro,
+    });
     // T-0140: a tarefa não mexe em estado de React; o Diagnóstico relê o resultado dela quando o app volta ao primeiro plano
     const semVolta = AppState.addEventListener('change', (st) => {
       if (st !== 'active') return;

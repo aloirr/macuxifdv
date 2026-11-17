@@ -4,9 +4,9 @@
  * A execução na API (mesma transação, RLS do tenant) é provada com Postgres em `apps/api/test/consultas.banco.test.ts`.
  */
 import { z } from 'zod';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { ambienteIndisponivel } from './ambiente';
-import { consultasSemImplementacao, definirModuloApi, implementarConsulta } from './api';
+import { consultasSemImplementacao, definirModuloApi, implementarConsulta, type ContextoConsulta, type MotorPermissoes } from './api';
 import {
   CODIGO_CONSULTA_INDISPONIVEL,
   completarAmbiente,
@@ -17,6 +17,7 @@ import {
   type ContextoConsultaAparelho,
 } from './consultas';
 import { consultasDeclaradas, defineModule, ordenarPorDependencia, validarConjunto, type ManifestoEntrada } from './manifesto';
+import { catalogoDePermissoes, matrizDeFabrica } from './permissoes-perfil';
 import { criarArmazenamentoEmMemoria, criarMotorSync } from './motor-sync';
 import { criarShell, definirModuloShell } from './shell';
 import { definirEntidadeSync, type LinhaSync } from './sync';
@@ -107,6 +108,21 @@ describe('E1 — montagem na API (definirModuloApi)', () => {
       'é de catalogo, implementada por core',
     );
     expect(() => definirModuloApi({ manifesto: mCatalogo(), consultas: [impl, impl] })).toThrow('implementação repetida');
+  });
+
+  it('T-0173: a implementação lê ctx.permissoes (catálogo e matriz de fábrica dos manifestos instalados), sem cast', async () => {
+    expectTypeOf<ContextoConsulta['permissoes']>().toEqualTypeOf<MotorPermissoes | undefined>();
+    const instalados = [mCore(), mCatalogo()];
+    const permissoes: MotorPermissoes = { catalogo: catalogoDePermissoes(instalados), matriz: matrizDeFabrica(instalados) };
+    let visto: MotorPermissoes | undefined;
+    const lendo = implementarConsulta(PRECOS, async (_e, ctx) => {
+      visto = ctx.permissoes;
+      return { itens: [] };
+    });
+    await lendo.executar({ produto_ids: [] } as never, { permissoes } as unknown as ContextoConsulta);
+    expect(visto).toBe(permissoes);
+    await lendo.executar({ produto_ids: [] } as never, {} as ContextoConsulta);
+    expect(visto).toBeUndefined();
   });
 });
 

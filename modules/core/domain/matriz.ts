@@ -10,6 +10,7 @@ import {
   resolverPerfil,
   type AppComLogin,
   type LugarDeAcesso,
+  type MatrizFabrica,
   type Perfil,
   type PerfilDaRequisicao,
 } from '@macuxi/platform-sdk';
@@ -88,7 +89,7 @@ export function podeVer(perfil: Perfil, acao: string): boolean {
  * o admin de fábrica não passaria na checagem da filial ao criar usuário.
  */
 const MATRIZ_DE_ACESSO = matrizDeFabrica([manifest]);
-export const perfisDeFabrica = (perfil: Perfil): PerfilDaRequisicao[] => [resolverPerfil(perfilDeFabrica(perfil), MATRIZ_DE_ACESSO)];
+export const perfisDeFabrica = (perfil: Perfil, matriz: MatrizFabrica = MATRIZ_DE_ACESSO): PerfilDaRequisicao[] => [resolverPerfil(perfilDeFabrica(perfil), matriz)];
 
 /** Lugar de acesso (`acesso.*`) de cada app do login: o BKO entra como `web` no login e `bko` no motor. */
 export const lugarDoApp = (app: AppComLogin): LugarDeAcesso => (app === 'web' ? 'bko' : app);

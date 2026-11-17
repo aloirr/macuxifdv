@@ -97,3 +97,5 @@
 2026-11-16 — v1.0.14 catalogo — merge do main (#382/#427 dentro); parte 2 da API (rotas, repositório, contratos, manifesto com core.filiais_do_usuario@1): uma regra de filiais, a de venda; testes de banco na sessão
 2026-11-16 — v1.0.14 catalogo — RD-1902 (contextoVitrine com um retorno só, sem escolhida nem ctx), RD-1903 (sem filial em it.each; FILIAL_FORA_DAS_SUAS num caso) e 'Sem estoque' do ROTULO_FAIXA_ESTOQUE
 2026-11-16 — v1.0.14 catalogo — RD-1800: um montador só de "Atualizado às" (rotuloCargaEstoque); sai rotuloAtualizacaoEstoque
+2026-11-15 — catálogo onda 1 (#387) — RD-1238 (MENSAGEM_SEM_PRECO_CLIENTE), RD-1239 (modoCarga === 'sem_sinal'), RD-0697 (tipo ModoDaCarga), RD-1241 (regras.md remete à RN-CAT-05 do doc 03; sai a proposta antiga da §9)
+2026-11-17 — v1.0.14 catalogo (#453) — merge do main fa2de750 (conflito só no diário, com as linhas dos dois lados); refeito no Cline. A RD-1707 (exports da folha por filial sem uso até a parte 2 das telas) continua aberta: catalogo.tsx e produto.tsx ainda não estão neste lote.
