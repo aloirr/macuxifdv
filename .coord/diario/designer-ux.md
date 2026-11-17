@@ -164,3 +164,4 @@
 2026-11-16 — Trocar senha (#426) — título sem '(simulação)', §8 'Textos novos' e premissa 3 no presente
 2026-11-15 — v1.0.14 catalogo — ícone pacote (caixa) no kit mobile e web (R-20261115-084600) e spec do Catálogo v2 com Estoque: N e a folha Estoque por filial (nuvem/catalogo-campo-designer-ux); pranchas na fonte do sistema.
 2026-11-16 — v1.0.14 catalogo — #441: RD-1700 a RD-1703 e MC-1520 a MC-1523 (cartão com fonte única no v2, IconPacote web saiu, botão de estoque por filial só com mais de uma filial, apoio da folha sem o código, pesos 600 e escala do app, título da folha 22/700).
+2026-11-17 — v1.0.14 parametros — ListaParametros, valorComPadrao e formatarParametro (min, pct, dias, unidade) no kit web (packages/ui/src/web/lista-parametros.tsx, 8 testes), para Pesquisa, Trade e Treinamento fecharem a RD-1583 e a RD-1584; mesmo visual de hoje (rótulo 15/600, Padrão 13 em ink-2, MC-1515); refeito no Cline.
