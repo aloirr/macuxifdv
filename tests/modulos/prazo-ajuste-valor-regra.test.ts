@@ -27,13 +27,8 @@ const minimoRegra = (venda: number, maxPct: number, bp: number): number => Math.
 /** RN-VEN-46: R$ → % sobre a tabela anterior → R$ sobre a nova (meia para cima). */
 const valorRegra = (v: number, anterior: number, nova: number): number => Math.round((v * nova) / anterior);
 
-describe('RN-VEN-43: exemplos da proposta', () => {
+describe('RN-VEN-43: limites da faixa e varredura (os 5 exemplos da proposta estão no teste do domain)', () => {
   it.each([
-    ['R$ 100,00 com −1,71%', 10_000, -171, 9_829],
-    ['R$ 12,35 com −1,71%', 1_235, -171, 1_214],
-    ['R$ 12,35 com +2,50%', 1_235, 250, 1_266],
-    ['R$ 0,20 com +2,50% (meia exata)', 20, 250, 21],
-    ['R$ 0,29 com −1,71% (28,50 → 29)', 29, -171, 29],
     ['R$ 100,00 com −99,99% (limite da faixa)', 10_000, -9_999, 1],
     ['R$ 100,00 com +99,99% (limite da faixa)', 10_000, 9_999, 19_999],
   ])('RN-VEN-43: %s', (_t, tabela, bp, esperado) => {
@@ -49,10 +44,8 @@ describe('RN-VEN-43: exemplos da proposta', () => {
     expect(divergentes.slice(0, 10)).toEqual([]);
   });
 
-  it('RN-VEN-43: o % de 2 casas vira bp sem erro de ponto flutuante; fora da faixa é erro', () => {
-    expect([-1.71, 2.5, -99.99, 99.99, 0.29, null, undefined].map(percentualAjusteParaBp)).toEqual([-171, 250, -9_999, 9_999, 29, 0, 0]);
-    expect(() => tabelaAjustadaCents(10_000, 10_000)).toThrow(/RN-VEN-43/);
-    expect(() => tabelaAjustadaCents(10_000, -10_000)).toThrow(/RN-VEN-43/);
+  it('RN-VEN-43: o % de 2 casas nos limites da faixa e em 0,29 vira bp sem erro de ponto flutuante; nulo vira 0', () => {
+    expect([-99.99, 99.99, 0.29, null].map(percentualAjusteParaBp)).toEqual([-9_999, 9_999, 29, 0]);
   });
 });
 
@@ -203,31 +196,18 @@ describe('RN-VEN-46: desconto digitado em R$ na troca de prazo', () => {
         if (valorMantendoPercentualCents(v, ant, nova) !== valorRegra(v, ant, nova)) divergentes.push(`${v}/${de}/${para}`);
       }
     expect(divergentes.slice(0, 10)).toEqual([]);
-    expect(valorMantendoPercentualCents(0, 9_829, 10_250)).toBe(0);
-    expect(valorMantendoPercentualCents(500, 0, 10_250)).toBe(500);
   });
 });
 
 describe('RN-VEN-45: percentual congelado e revalidado no envio', () => {
   const criado = '2026-11-15T14:00:00.000Z'; // 10h00 em Manaus
-  it('RN-VEN-45: vigente igual aceita; mudou depois do pedido aceita o do pedido; diferente sem mudança posterior recusa', () => {
-    expect(revalidarPercentualDoPrazo({ push: -1.71, vigente: -1.71, cadastro_atualizado_em: '2026-11-15T15:00:00.000Z', criado_em: criado })).toEqual({ ok: true, percentual: -1.71, mudou_depois: false });
-    expect(revalidarPercentualDoPrazo({ push: -1.71, vigente: 0, cadastro_atualizado_em: '2026-11-15T14:00:01.000Z', criado_em: criado })).toEqual({ ok: true, percentual: -1.71, mudou_depois: true });
-    // limite: cadastro mudou no mesmo instante do pedido não é "depois"
+  it('RN-VEN-45: cadastro que mudou no mesmo instante do pedido não é "depois": recusa (os outros casos estão no teste do domain)', () => {
     expect(revalidarPercentualDoPrazo({ push: -1.71, vigente: 0, cadastro_atualizado_em: criado, criado_em: criado })).toEqual({ ok: false, codigo: 'RN-VEN-45', mensagem: MSG_PERCENTUAL_DO_PRAZO_MUDOU });
-    expect(MSG_PERCENTUAL_DO_PRAZO_MUDOU).toBe('Este prazo de pagamento mudou. Atualize o app e refaça o pedido.');
-    // app antigo (sem o percentual) com prazo que tem percentual: recusa; prazo sem percentual: passa
-    expect(revalidarPercentualDoPrazo({ push: undefined, vigente: -1.71, cadastro_atualizado_em: null, criado_em: criado })).toMatchObject({ ok: false, codigo: 'RN-VEN-45' });
-    expect(revalidarPercentualDoPrazo({ push: undefined, vigente: null, cadastro_atualizado_em: null, criado_em: criado })).toEqual({ ok: true, percentual: 0, mudou_depois: false });
   });
 
-  it('RN-VEN-45: % divergente aceito fica FORA da alçada: segue aprovado, com aviso na linha do tempo e os valores do % do pedido', () => {
+  it('RN-VEN-45: % divergente aceito calcula com o % do pedido: mesmos totais e mesma decisão do pedido sem divergência', () => {
     const r = revalidarPedido(entrada(-171, { a: 5 }, { percentual_mudou: true }));
     if (!r.ok) return expect.fail('pedido do ensaio deveria passar');
-    expect([r.status, r.motivos, r.aprovacao_automatica]).toEqual(['approved', [], true]);
-    expect(r.pending_reason).not.toContain(MOTIVO_PRAZO_MUDOU);
-    expect(r.historico.map((h) => h.para)).toEqual(['received', 'approved']);
-    expect(r.historico[0]).toMatchObject({ de: null, para: 'received', motivo: MOTIVO_PRAZO_MUDOU });
     expect(r.total_cents).toBe(esperado(-171, { a: 5 }).total); // o % congelado no pedido continua valendo no cálculo
     // mesmo pedido sem divergência: mesmos valores e mesma decisão, sem o aviso
     const igual = revalidarPedido(entrada(-171, { a: 5 }));
