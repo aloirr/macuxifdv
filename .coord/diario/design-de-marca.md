@@ -53,3 +53,5 @@
 2026-11-16 — v1.0.14 — #457 6cb6e678: RD-2011..2014 e MC-1700 fechados; novas RD-2110..2113, MC-1730, MC-1731.
 2026-11-16 — v1.0.14 — #457 8ca5977c LIBERADO.
 2026-11-16 — #471 96b8d6d8: notas de tom MC-1740..1742 (não seguram).
+2026-11-15 — T-0174 Fotos em lote (BKO), antes do lote: liberado com ajustes. Cor só por token, tipografia e selos do kit; abertas MC-0089 e MC-0091 (modulo-catalogo) e MC-0090 (designer-ux · modulo-catalogo), baixas. Simulação aprovada não abriu (HTTP 403): conferência pendente. CLI de coordenação com HTTP 403.
+2026-11-15 — T-0174 reconferência: MC-0089, MC-0090 e MC-0091 fechados (designer-ux 0a68fdea, modulo-catalogo 5dbd3449); parecer **liberado**; pendentes a simulação (403) e o print de 1366×768.
