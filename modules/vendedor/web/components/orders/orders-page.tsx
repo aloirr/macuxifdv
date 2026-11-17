@@ -11,7 +11,9 @@ import { ordersToCsv } from '../../lib/csv';
 import { type FiltrosPedidos, temFiltro } from '../../lib/filtros-url';
 import { usePedidos, usePendentes, useSessaoDoBko } from '../../lib/queries';
 import { useFiltrosNaUrl } from '../../lib/use-filtros';
+import { CardsPedidosErp } from './cards-pedidos-erp';
 import { ApprovalsPanel } from './approvals-panel';
+import { DecisoesAlcada } from './decisoes-alcada';
 import { useAtualizarPedidos } from './decisao';
 import { ERRO_IMPRESSAO, exportarPdfDoPedido } from './exportar-pdf';
 import { OrderDrawer } from './order-drawer';
@@ -104,6 +106,8 @@ export function OrdersPage() {
         actions={<MenuAcoes acoes={acoesDaPagina} rotulo="Mais ações" testId="pedidos.mais-acoes" />}
       />
 
+      <CardsPedidosErp />
+
       <FilterBar>
         <CampoBusca rotulo="Buscar cliente ou nº do pedido" value={filtros.q} maxLength={100} onChange={(e) => set('q', e.target.value)} data-testid="pedidos.filtro-busca" />
         <SelectField label="Situação" value={filtros.status} onChange={(e) => set('status', e.target.value)} data-testid="pedidos.filtro-status">
@@ -176,6 +180,8 @@ export function OrdersPage() {
               </div>
             )}
           </section>
+
+          <DecisoesAlcada />
         </>
       )}
 

@@ -238,6 +238,14 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > ZIP) e `catalogo.foto_lote_item` (checkpoint por índice); `catalogo.produto_midia.hash_conteudo` (repetido) e a principal
 > sempre na ordem 1 (dados antigos sem andar o `updated_at`); `core.produto_sku_lower_ix`. Detalhes no [catalogo.md](catalogo.md)
 > e no [plataforma.md](plataforma.md); teste `db/testes/foto-lote.db.test.ts`.
+>
+> **2026-11-15 (ADR 0047, planos e licenças, telas 2 a 6 do portal; R-20261115-123000, item 1):**
+> `0086_plataforma_planos_troca_licencas` (em cima da 0085; aditiva): os 4 planos de venda no
+> catálogo (Light, PME, Enterprise e Corporate, números do §11.3 da spec do portal); `plataforma.assinatura_historico` (uma linha
+> por troca, idempotente por `pedido_id`); 3 `sa_*` do portal (`sa_listar_planos`, `sa_assinatura_da_empresa` e
+> `sa_trocar_plano`); a trava do cadastro de usuários `plataforma.licencas_do_tenant()`; o app passa a ler o plano do
+> próprio tenant. Detalhes no [plataforma.md](plataforma.md);
+> teste `db/testes/planos-troca-licencas.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
@@ -511,6 +519,8 @@ PostgreSQL 16.15 do Ubuntu os dois servidores do CI: **5432** (superusuário `po
 para o admin sem superusuário). TZ UTC, UTF8, locale `en_US.UTF-8` e pgvector (0.6.0 do apt; o CI tem 0.8.2), dados em
 `/var/lib/postgresql/macuxi` (fora do repositório; `MACUXI_PG_LOCAL_DIR` muda), fsync desligado. Nunca atualiza o
 `postgresql-16` (o CI trava a 16.15). Sem pgvector, o `--env` inclui `MACUXI_PG_SEM_VECTOR=1`.
+Dados em `/tmp` são recusados e vão para o padrão (a nuvem restaura `/tmp/claude-0` e derruba o servidor); sem o usuário
+`postgres`, o script cria o `pgrun` sem privilégio para rodar o servidor; pode ser chamado de qualquer diretório.
 
 **Node 24.7 ou mais** (engines; o seed usa `crypto.argon2Sync`): com o Node 22 da sessão a suíte falha no globalSetup. O
 `--env` põe `/opt/node24/bin` no PATH quando ele existe (`MACUXI_NODE24_DIR` muda). Para instalar, baixe

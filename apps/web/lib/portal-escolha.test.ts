@@ -264,8 +264,10 @@ describe('fluxo no modo falso (mesmos schemas da API)', () => {
     const s = await sessaoDe(await login('time@macuxi.com.br'));
     expect(s.tipo).toBe('super_admin');
     expect(destinoDaSessao(s)).toBe('/empresas');
-    const lista = (await (await responderFalso('GET', ROTAS_PORTAL.empresas, undefined, com(s))).json()) as { itens: unknown[] };
+    const lista = (await (await responderFalso('GET', ROTAS_PORTAL.empresas, undefined, com(s))).json()) as { itens: Record<string, unknown>[] };
     expect(lista.itens.length).toBeGreaterThanOrEqual(3);
+    // Coluna Plano (§11.5): a tela usa só `plano` e `em_teste`; o modo falso não traz `teste_ate` (RD-0959).
+    expect(lista.itens.every((i) => 'em_teste' in i && !('teste_ate' in i))).toBe(true);
   });
 
   it('1 empresa: entra direto (empresa já escolhida)', async () => {

@@ -16,6 +16,7 @@ import {
   TEXTOS_ADMIN,
   textoDoAdminNoResultado,
 } from '@/components/portal/passo-empresa';
+import { celulaDoPlano } from '@/components/portal/tela-empresas';
 import { rotuloDoStatus } from '@/lib/portal-empresa-acoes';
 import { mensagemDoLoginPortal, TEXTOS_ENTRAR } from '@/components/portal/tela-entrar';
 import { ErroPortal, MENSAGEM_PORTAL_SEM_SEGREDOS, MENSAGEM_SEM_CONEXAO } from './portal-api';
@@ -143,6 +144,13 @@ describe('textos do portal (revisão de UX R-20261106-023316)', () => {
     expect(rotuloDoStatus('suspenso')).toBe('Inativa');
     expect(rotuloDoStatus('encerrado')).toBe('Em exclusão');
     expect(rotuloDoStatus('novo')).toBe('Novo');
+  });
+  it('coluna Plano da lista de empresas (§11.5): nome, selo "teste" só em teste e "—" sem plano', () => {
+    expect(celulaDoPlano({ plano: 'PME', em_teste: false })).toEqual({ nome: 'PME', teste: false });
+    expect(celulaDoPlano({ plano: 'Enterprise', em_teste: true })).toEqual({ nome: 'Enterprise', teste: true });
+    expect(celulaDoPlano({ plano: null, em_teste: true })).toEqual({ nome: '—', teste: false });
+    expect(celulaDoPlano({})).toEqual({ nome: '—', teste: false });
+    expect(celulaDoPlano({ plano: '  ' })).toEqual({ nome: '—', teste: false });
   });
   it('modo completo: arquivo e tamanho no diálogo; linhas com erro não inativam (RN-INT-06, R-20261106-030101)', () => {
     expect(resumoDoArquivo('produtos.csv', 20000, 4)).toBe('produtos.csv, 20.000 linhas em 4 partes');

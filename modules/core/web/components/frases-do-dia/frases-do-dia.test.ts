@@ -60,7 +60,8 @@ describe('as 30 padrão e a frase de hoje', () => {
     const { api } = apiComFrases();
     const html = await tela(api);
     for (let n = 1; n <= 30; n++) expect(html).toContain(`data-testid="frases.linha.${id(n)}"`);
-    expect(trecho(html, 'frases.hoje', '</p>')).toContain(FRASES_PADRAO[9]!.texto);
+    expect(trecho(html, `frases.linha.${id(10)}`, '</li>')).toContain('frases.hoje');
+    expect(html.match(/data-testid="frases\.hoje"/g)).toHaveLength(1);
   });
 
   it('sem frase_dia.editar o painel não aparece', async () => {
@@ -88,41 +89,36 @@ describe('adicionar, editar, desativar, reordenar e remover pelas rotas da N-B',
 
   it('"Frase de hoje" depois de salvar: desativar a 1ª muda a conta (29 ativas → 20769 mod 29 = 5, a nº 7)', async () => {
     const { api } = apiComFrases();
-    expect(trecho(await tela(api), 'frases.hoje', '</p>')).toContain(FRASES_PADRAO[9]!.texto);
+    expect(trecho(await tela(api), `frases.linha.${id(10)}`, '</li>')).toContain('frases.hoje');
     await api.editar(id(1), { ativa: false });
     const depois = await tela(api);
-    expect(trecho(depois, 'frases.hoje', '</p>')).toContain(FRASES_PADRAO[6]!.texto);
+    expect(trecho(depois, `frases.linha.${id(7)}`, '</li>')).toContain('frases.hoje');
     const primeira = trecho(depois, `frases.linha.${id(1)}`, '</li>');
     expect(primeira).toContain('Desativada');
-    expect(primeira).toContain('Ativar');
+    expect(primeira).toContain(`frases.acoes.${id(1)}`);
   });
 
   it('reordenar e remover também mudam a frase de hoje; a removida sai da lista', async () => {
     const { api } = apiComFrases();
     await api.reordenar(moverFrase(Array.from({ length: 30 }, (_, i) => id(i + 1)), id(10), -1)!);
-    expect(trecho(await tela(api), 'frases.hoje', '</p>')).toContain(FRASES_PADRAO[8]!.texto);
+    expect(trecho(await tela(api), `frases.linha.${id(9)}`, '</li>')).toContain('frases.hoje');
     await api.remover(id(9));
     const html = await tela(api);
     expect(html).not.toContain(`frases.linha.${id(9)}`);
-    expect(trecho(html, 'frases.hoje', '</p>')).not.toContain(FRASES_PADRAO[8]!.texto);
+    expect(html.match(/data-testid="frases\.hoje"/g)).toHaveLength(1);
   });
 
-  it('sem frase ativa, a linha diz que não há frase', async () => {
+  it('sem frase ativa, nenhuma linha leva o selo Hoje', async () => {
     const { api } = apiComFrases();
     for (let n = 1; n <= 30; n++) await api.editar(id(n), { ativa: false });
-    expect(trecho(await tela(api), 'frases.hoje', '</p>')).toContain('Nenhuma frase ativa.');
+    expect(await tela(api)).not.toContain('frases.hoje"');
   });
 
-  it('a 1ª não sobe e a última não desce', async () => {
+  it('cada linha tem o menu "⋯" no lugar dos botões soltos; só Adicionar fica como botão', async () => {
     const html = await tela(apiComFrases().api);
-    /** A tag `<button …>` inteira do testid (o `disabled` vem antes do `data-testid`). */
-    const botao = (testid: string) => {
-      const i = html.indexOf(`data-testid="${testid}"`);
-      return html.slice(html.lastIndexOf('<button', i), html.indexOf('>', i));
-    };
-    expect(botao(`frases.subir.${id(1)}`)).toContain('disabled=""');
-    expect(botao(`frases.descer.${id(30)}`)).toContain('disabled=""');
-    expect(botao(`frases.subir.${id(2)}`)).not.toContain('disabled=""');
+    expect(html).toContain(`frases.acoes.${id(1)}`);
+    expect(html).not.toContain(`frases.editar.${id(1)}"`);
+    expect(html).not.toContain('Frases do dia'); // o título do painel é do shell (RD-2013)
   });
 });
 

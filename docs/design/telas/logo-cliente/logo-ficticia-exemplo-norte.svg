@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 100">
+  <!-- Logo FICTÍCIA da "Distribuidora Exemplo Norte", só para as simulações (docs/design/telas/logo-cliente.md). Não vai para código, seed nem teste. -->
+  <circle cx="50" cy="50" r="42" fill="#0F7A3E"/>
+  <path d="M18 60 Q34 44 50 58 T82 56 L82 70 Q66 80 50 72 T18 74 Z" fill="#FFFFFF"/>
+  <path d="M30 40 L50 20 L70 40 Z" fill="#F2B705"/>
+  <text x="104" y="50" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" font-size="34" fill="#0F7A3E">EXEMPLO</text>
+  <text x="105" y="82" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400" font-size="24" letter-spacing="6" fill="#3B3B3B">NORTE</text>
+</svg>

@@ -18,3 +18,6 @@ export function criarApiJornada(chamar: typeof api = api) {
   };
 }
 export type ApiJornada = ReturnType<typeof criarApiJornada>;
+
+/** Rótulo do botão do painel (D-PAR-05): a ação concreta, como nos outros painéis de Parâmetros ("Salvar prazo", "Salvar farol"). */
+export const rotuloSalvarAlmoco = (gravando: boolean): string => (gravando ? 'Salvando…' : 'Salvar almoço');

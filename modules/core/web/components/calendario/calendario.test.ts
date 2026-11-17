@@ -57,7 +57,7 @@ describe('página com a API simulada', () => {
     expect(finados).toContain('Nacional');
     expect(finados).not.toContain('calendario.remover');
     expect(trecho(html, 'calendario.linha.2026-09-05')).toContain('data-testid="calendario.remover.2026-09-05"');
-    expect(html.match(/>Almoço</g)).toHaveLength(1);
+    expect(html).not.toContain('calendario.almoco-padrao.inicio'); // o almoço é o painel próprio (RD-1872)
     expect(html).not.toContain('calendario.almoco.corte');
   });
 

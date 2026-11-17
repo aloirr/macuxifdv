@@ -289,6 +289,12 @@ export interface ContextoConsulta {
   fuso(): string;
   log: LogRota;
   /**
+   * T-0173 (aditivo à ADR 0033): o MESMO `ContextoBase.permissoes` da rota (catálogo das chaves e padrão de fábrica com as ações de
+   * todos os manifestos instalados), para a consulta que confere a permissão efetiva de um usuário (ex.: `core.credencial_conferir@1`)
+   * sem importar o manifesto de outro módulo. A API sempre preenche; é opcional só para os contextos falsos dos testes dos módulos.
+   */
+  permissoes?: MotorPermissoes;
+  /**
    * T-0149 (complemento da ADR 0012): a consulta chama OUTRA consulta pública (ex.: `catalogo.precos_cliente@1` lê
    * `core.filiais@1`). O consumidor é o módulo DONO desta consulta: a outra precisa estar em `usaConsultas` (ou
    * `usaConsultasOpcionais`) do manifesto dele. Mesma semântica de `tx.consultar`: mesmo `db` (transação, tenant, RLS), mesmo
