@@ -71,6 +71,6 @@ export const manifest = defineModule({
   // ADR 0019: consulta opcional não cria aresta de dependência (sem ciclo core ↔ vendedor); sem o dono, cai no indicador_diario
   usaConsultasOpcionais: ['vendedor.pedidos_da_meta@1', 'pesquisa.etapas_checkout@1', 'vendedor.formas_pagamento@1'],
   // 'pesquisa.questionarios_para_tarefa@1' entra junto com o ofereceConsultas da Pesquisa (pedido ao modulo-pesquisa, T-0170)
-  ofereceConsultas: ['core.cadastro_resumo@1', 'core.financeiro_cliente@1', 'core.cadastro_cliente@1', 'core.medidas@1', 'core.promotor_ve_pedidos@1', 'core.usuarios_resumo@1', 'core.calendario_metas@1', 'core.filiais@1', 'core.filiais_do_usuario@1', 'core.produtos_por_sku@1', 'core.produtividade_equipe@1'],
+  ofereceConsultas: ['core.cadastro_resumo@1', 'core.financeiro_cliente@1', 'core.cadastro_cliente@1', 'core.medidas@1', 'core.promotor_ve_pedidos@1', 'core.usuarios_resumo@1', 'core.calendario_metas@1', 'core.filiais@1', 'core.filiais_do_usuario@1', 'core.produtos_por_sku@1', 'core.produtividade_equipe@1', 'core.credencial_conferir@1', 'core.usuarios_com_acao@1'],
   ofereceExtensoes: ['cliente.abas', 'cliente.acoes', 'cliente.avisos', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'],
 });

@@ -68,6 +68,8 @@ export const MAX_EMPRESAS_LOGIN_PORTAL = 20;
 
 const Uuid = z.string().uuid();
 const Instante = z.string().datetime({ offset: true });
+/** Data civil `AAAA-MM-DD` (sem hora). */
+export const Dia = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use AAAA-MM-DD.');
 const Email = z.string().trim().toLowerCase().email().max(254);
 // ---------- acesso ao portal só com e-mail e senha (T-0093; ADR 0031) ----------
 /** `POST /v1/plataforma/auth/login`. Senha só `min(1)`: senhas já gravadas continuam valendo (RN-CORE-32 vale na criação e na troca). */
@@ -150,10 +152,30 @@ export const EmpresaResumoSchema = z.object({
   status: z.string(),
   criada_em: Instante,
   modulos: z.array(z.object({ modulo: ModuloId, licencas: z.number().int().min(0).nullable() })),
+  /**
+   * Planos (0071; aditivos e opcionais: o banco sem a 0071 não manda): nome do plano da assinatura viva (`null` = empresa sem
+   * assinatura, legado), último dia do teste grátis (AAAA-MM-DD no fuso da empresa; `null` = sem teste) e `em_teste`, que a API
+   * calcula (`empresaEmTeste`). O `paga` do banco não vem ao portal: a tela só usa o `em_teste`.
+   */
+  plano: z.string().nullable().optional(),
+  teste_ate: Dia.nullable().optional(),
+  em_teste: z.boolean().optional(),
   /** ADR 0052 (aditivo, opcional): situação, último backup e exclusão para os botões da lista (só com `MACUXI_EMPRESA_ACOES=1`). */
   acoes: AcoesDaEmpresaSchema.optional(),
 });
 export const ListaEmpresasSchema = z.object({ itens: z.array(EmpresaResumoSchema) });
+
+/** Item como a `sa_listar_tenants` devolve (0071): o resumo sem `em_teste` e com `paga` (só a API lê; opcional pelo down). */
+export const EmpresaDoBancoSchema = EmpresaResumoSchema.omit({ em_teste: true, acoes: true }).extend({ paga: z.boolean().optional() });
+export const ListaEmpresasDoBancoSchema = z.object({ itens: z.array(EmpresaDoBancoSchema) });
+
+/**
+ * RN-PLA-04 (teste grátis): a empresa está em teste se tem `teste_ate`, a assinatura não está paga e `hoje` (AAAA-MM-DD, no
+ * fuso da empresa) não passou do último dia do teste. Sem os campos (banco sem a 0071) = fora do teste.
+ */
+export function empresaEmTeste(e: { teste_ate?: string | null; paga?: boolean }, hoje: string): boolean {
+  return e.teste_ate != null && e.paga !== true && hoje <= e.teste_ate;
+}
 
 /**
  * Parâmetros iniciais do passo Empresa (padrões do doc 03; chaves do Vendedor: `alcada.vendedor_pct`, `alcada.supervisor_pct`,

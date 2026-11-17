@@ -1,4 +1,4 @@
-import type { ClienteBanco } from '@macuxi/platform-sdk';
+import { pode, type ClienteBanco } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { podeAcessarBko, podeUsarApp } from '../domain';
 import { perfisDoUsuarioNoLogin } from './perfis-do-usuario';
@@ -24,5 +24,9 @@ describe('RN-CORE-35: o login lê o perfil real do usuário (personalizado, com 
     const perfis = await perfisDoUsuarioNoLogin(dbCom([]), 'u1', 'gerente');
     expect(podeAcessarBko(perfis)).toBe(true);
     expect(podeUsarApp(perfis, 'gestao')).toBe(true);
+  });
+
+  it('RN-CORE-39: sem nenhuma linha, o login cai na fábrica do principal com as ações do Core', async () => {
+    expect(pode(await perfisDoUsuarioNoLogin(dbCom([]), 'u1', 'admin'), 'usuario.filial_editar')).toBe(true);
   });
 });
