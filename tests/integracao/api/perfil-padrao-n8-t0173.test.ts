@@ -1,25 +1,9 @@
 /**
- * T-0173 / nota N8 do corretor sobre o PR #448 (modulo-core): usuário SEM linha em `plataforma.perfis_do_usuario` (0041).
- * Risco apontado: quem não tem linha cai em `matrizDeFabrica([])` e perde as ações dos módulos (ex.: `usuario.filial_editar`, RN-CORE-39),
- * com regressão no login. Regra: RN-CORE-01 (o usuário tem um ou mais perfis e nunca fica sem perfil; o banco confere no COMMIT) e
- * RN-CORE-35 (permissão efetiva = fábrica + sobreposições + travas; multiperfil = união). Sem linha é dado antigo ou fora da regra:
- * o comportamento esperado é o da fábrica do perfil principal, IGUAL ao de quem tem a linha de fábrica.
- *
- * - N8-01 (sem banco) login: sem linha × linha de fábrica × fábrica do main antes do #448 (`perfisDeFabrica`), em todo perfil e app:
- *   mesmo `podeUsarApp` e mesmos apps do e-mail (`appsDosPerfis`). O login só decide `acesso.*` (chaves da plataforma).
- * - N8-02 (sem banco, fonte) os perfis do login (matriz sem manifestos) só alimentam `podeUsarApp`/`appsDosPerfis`: nunca decidem ação de módulo.
- * - N8-03 (sem banco) `core.usuarios_com_acao@1` com a matriz da API (todos os manifestos): em toda ação de todo módulo, sem linha = com
- *   linha = fórmula do manifesto (`acoes[a].perfis`). `usuario.filial_editar`: admin e analista, com ou sem linha.
- * - N8-04 (sem banco) `core.credencial_conferir@1`: admin sem linha autoriza `usuario.filial_editar` e `lote.reprocessar`; vendedor sem linha não.
- * - N8-05 (fonte) a consulta recebe a matriz da API (`ContextoConsulta.permissoes`, PR do engenheiro-software): sem ela o #448 falha fechado
- *   para TODO perfil de fábrica (ninguém autoriza o reprocessamento, RN-INT-16).
- * - N8-06 (Postgres) login real sem linha = com linha (analista e vendedor de A, 3 apps); a consulta com a RLS real lista o sem linha e
- *   nunca cruza tenant (A × B).
- * Matriz: docs/testes/T-0173.md (seção N8).
+ * T-0173 / nota N8: usuário SEM linha de perfil (RN-CORE-01, RN-CORE-35) tem as mesmas ações de quem tem a linha de fábrica.
+ * Risco, regra e casos N8-01 a N8-06: docs/testes/T-0173.md (seção N8).
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { comTenant, hashSenha } from '@macuxi/db';
 import { estadoBanco, semBanco } from '@macuxi/db/teste/estado';
 import { manifest as catalogo } from '@macuxi/catalogo/manifest';
@@ -33,23 +17,22 @@ import { manifest as vendedor } from '@macuxi/vendedor/manifest';
 import {
   catalogoDePermissoes,
   matrizDeFabrica,
+  pode,
   PERFIS,
   type ClienteBanco,
   type Manifesto,
-  type MatrizFabrica,
   type Perfil,
-  type PerfilDaRequisicao,
 } from '@macuxi/platform-sdk';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { consultaCredencialConferir, consultaUsuariosComAcao } from '../../../modules/core/api/credencial';
 import { appsDosPerfis } from '../../../modules/core/api/email';
-import { perfisDoUsuarioNoLogin } from '../../../modules/core/api/perfis-do-usuario';
+import { perfisDoUsuarioNoLogin, perfisEfetivosDoUsuario } from '../../../modules/core/api/perfis-do-usuario';
 import { perfisDeFabrica, podeUsarApp } from '../../../modules/core/domain';
 import { A, B, subirApi, type ApiDeTeste } from '../apoio/api';
 import { criarUsuarioNoTenant } from '../apoio/portal';
 
 const RAIZ = join(__dirname, '..', '..', '..');
-const ler = (rel: string) => readFileSync(join(RAIZ, rel), 'utf8');
 const MANIFESTOS: readonly Manifesto[] = [core, catalogo, vendedor, promotor, gestor, pesquisa, treinamento, integracao];
 /** O mesmo motor que a API monta em createApp (catálogo + matriz de fábrica dos manifestos instalados). */
 const MOTOR = { catalogo: catalogoDePermissoes(MANIFESTOS), matriz: matrizDeFabrica(MANIFESTOS) };
@@ -60,18 +43,12 @@ type Linha = { codigo: string; base: string; fabrica: boolean; sobreposicoes: un
 const linhaDeFabrica = (p: Perfil): Linha => ({ codigo: p, base: p, fabrica: true, sobreposicoes: [] });
 const dbCom = (linhas: Linha[]): ClienteBanco => ({ query: async () => ({ rows: linhas as never[], rowCount: linhas.length }) });
 
-/** Exports do #448 (lidos por import dinâmico: no main sem o #448 eles não existem e os casos pulam). */
-interface Consulta<E, S> {
-  executar(entrada: E, ctx: unknown): Promise<S>;
-}
-interface ModCredencial {
-  consultaUsuariosComAcao: Consulta<{ modulo: string; acao: string }, { usuarios: { id: string; nome: string }[] }>;
-  consultaCredencialConferir: Consulta<{ usuario_id: string; senha: string; acao: { modulo: string; acao: string } }, { resultado: string }>;
-}
-interface ModPerfis {
-  perfisEfetivosDoUsuario?: (db: ClienteBanco, id: string, principal: Perfil, matriz: MatrizFabrica) => Promise<PerfilDaRequisicao[]>;
-}
-const importar = async <T>(rel: string): Promise<T> => (await import(pathToFileURL(join(RAIZ, rel)).href)) as T;
+/** As duas consultas do Core com o contexto parcial do teste (o executar real recebe o ContextoConsulta completo da API). */
+type Executar<E, S> = { executar(entrada: E, ctx: unknown): Promise<S> };
+const cred = {
+  consultaUsuariosComAcao: consultaUsuariosComAcao as unknown as Executar<{ modulo: string; acao: string }, { usuarios: { id: string; nome: string }[] }>,
+  consultaCredencialConferir: consultaCredencialConferir as unknown as Executar<{ usuario_id: string; senha: string; acao: { modulo: string; acao: string } }, { resultado: string }>,
+};
 
 const ctxDe = (db: ClienteBanco, tenantId: string, permissoes: typeof MOTOR | null = MOTOR) => ({
   db,
@@ -132,13 +109,6 @@ describe('T-0173 N8 — login do usuário sem linha de perfil não regride (RN-C
 });
 
 describe('T-0173 N8 — ações dos módulos para quem não tem linha de perfil (RN-CORE-35, RN-CORE-39, RN-INT-16)', () => {
-  let cred: ModCredencial;
-  let perfis: ModPerfis;
-  beforeAll(async () => {
-    cred = await importar<ModCredencial>('modules/core/api/credencial.ts');
-    perfis = await importar<ModPerfis>('modules/core/api/perfis-do-usuario.ts');
-  });
-
   /** Um usuário sem linha e um com a linha de fábrica, por perfil; a consulta faz o left join (linha nula = sem perfil). */
   const TENANT = '0e000000-0000-4000-8000-0000000000a8';
   const id = (tipo: 'sem' | 'com', p: Perfil) => `0e000000-0000-4000-8${tipo === 'sem' ? '0' : '1'}00-${String(PERFIS.indexOf(p)).padStart(12, '0')}`;
@@ -159,14 +129,10 @@ describe('T-0173 N8 — ações dos módulos para quem não tem linha de perfil 
     expect(divergencias).toEqual([]);
   });
 
-  it('N8-03b: usuario.filial_editar (RN-CORE-39) — admin e analista, com e sem linha; perfisEfetivosDoUsuario idem', async () => {
-    const { usuarios } = await cred.consultaUsuariosComAcao.executar({ modulo: 'core', acao: 'usuario.filial_editar' }, ctxDe(dbCom(linhasDaConsulta as never), TENANT));
-    expect(usuarios.map((u) => u.nome).sort()).toEqual(['com admin', 'com analista', 'sem admin', 'sem analista']);
-    const efetivos = perfis.perfisEfetivosDoUsuario!;
-    const { pode } = await import('@macuxi/platform-sdk');
+  it('N8-03b: usuario.filial_editar (RN-CORE-39) — perfisEfetivosDoUsuario dá admin e analista, com e sem linha', async () => {
     for (const p of PERFIS) {
-      const sem = await efetivos(dbCom([]), 'u', p, MOTOR.matriz);
-      const com = await efetivos(dbCom([linhaDeFabrica(p)]), 'u', p, MOTOR.matriz);
+      const sem = await perfisEfetivosDoUsuario(dbCom([]), 'u', p, MOTOR.matriz);
+      const com = await perfisEfetivosDoUsuario(dbCom([linhaDeFabrica(p)]), 'u', p, MOTOR.matriz);
       expect(pode(sem, 'usuario.filial_editar'), p).toBe(pode(com, 'usuario.filial_editar'));
       expect(pode(sem, 'usuario.filial_editar'), p).toBe(p === 'admin' || p === 'analista');
     }
@@ -188,12 +154,8 @@ describe('T-0173 N8 — ações dos módulos para quem não tem linha de perfil 
     expect(await conferir('vendedor', { modulo: 'integracao', acao: 'lote.reprocessar' })).toBe('sem_permissao');
   });
 
-  it('N8-05: a API entrega a matriz dos módulos à consulta (ContextoConsulta.permissoes); sem ela, nenhum perfil de fábrica autoriza', async () => {
-    const sdk = ler('packages/platform-sdk/src/api.ts');
-    const corpoConsulta = /export interface ContextoConsulta \{([\s\S]*?)\n\}/.exec(sdk)?.[1] ?? '';
-    expect(corpoConsulta, 'ContextoConsulta sem permissoes: o #448 depende do PR do engenheiro-software (T-0173)').toMatch(/\bpermissoes\?:/);
-    expect(ler('apps/api/src/outbox.ts')).toMatch(/permissoes:\s*motorPermissoesDe\(/);
-    // o efeito que a dependência evita: sem a matriz, só as chaves da plataforma valem (falha fechada para todos)
+  it('N8-05: sem a matriz dos módulos (ContextoConsulta.permissoes), nenhum perfil de fábrica autoriza (falha fechada)', async () => {
+    // só as chaves da plataforma valem sem a matriz; a API entregar a matriz está provado em apps/api/test/consultas.test.ts
     const { usuarios } = await cred.consultaUsuariosComAcao.executar(
       { modulo: 'integracao', acao: 'lote.reprocessar' },
       ctxDe(dbCom(linhasDaConsulta as never), TENANT, null),
@@ -206,12 +168,10 @@ describe.skipIf(semBanco())('T-0173 N8-06 — sem linha de perfil com Postgres r
   let api: ApiDeTeste;
   const u = { semAnalista: '', comAnalista: '', semVendedor: '', comVendedor: '' };
   const email = (k: keyof typeof u) => `${k.toLowerCase()}.n8@exemplo.com.br`;
-  let cred: ModCredencial;
 
   beforeAll(async () => {
     expect(estadoBanco().disponivel).toBe(true);
     api = await subirApi();
-    cred = await importar<ModCredencial>('modules/core/api/credencial.ts');
     for (const k of Object.keys(u) as (keyof typeof u)[]) {
       u[k] = await criarUsuarioNoTenant(api.admin, { tenantId: A.tenantId, email: email(k), nome: `N8 ${k}`, senha: SENHA_N8, perfil: k.endsWith('Analista') ? 'analista' : 'vendedor' });
     }
