@@ -1,4 +1,4 @@
-import { formatInt } from '@macuxi/ui/web';
+import { formatarParametro, valorComPadrao } from '@macuxi/ui/web';
 import { PARAMETROS_PADRAO, type ParametrosPromotor } from '../../domain/parametros';
 
 /**
@@ -18,9 +18,7 @@ export interface CampoParametroTrade {
 export type PainelParametroTrade = 'validade' | 'visita-coleta' | 'gondola';
 
 type Formato = (n: number) => string;
-const dias: Formato = (n) => `${formatInt(n)} ${n === 1 ? 'dia' : 'dias'}`;
-const min: Formato = (n) => `${formatInt(n)} min`;
-const pct: Formato = (n) => `${formatInt(n)}%`;
+const { dias, min, pct } = formatarParametro;
 /** Peso de 0 a 1 mostrado como percentual ("0%", "50%"). */
 const pesoPct: Formato = (n) => pct(Math.round(n * 100));
 
@@ -35,7 +33,7 @@ const DEFINICAO: readonly { painel: PainelParametroTrade; chave: keyof Parametro
 /** Campos de um painel, na ordem do desenho; `padrao` só aparece quando o valor do tenant difere do padrão (RN-PRO-04/07/08/11). */
 export function camposDoPainel(painel: PainelParametroTrade, atual: ParametrosPromotor): CampoParametroTrade[] {
   return DEFINICAO.filter((d) => d.painel === painel).map((d) => {
-    const padrao = PARAMETROS_PADRAO[d.chave];
-    return { chave: d.chave, rotulo: d.rotulo, valor: d.formato(atual[d.chave]), ...(atual[d.chave] !== padrao ? { padrao: `Padrão: ${d.formato(padrao)}` } : {}) };
+    const { valor, padrao } = valorComPadrao(atual[d.chave], PARAMETROS_PADRAO[d.chave], d.formato);
+    return { chave: d.chave, rotulo: d.rotulo, valor, ...(padrao ? { padrao } : {}) };
   });
 }

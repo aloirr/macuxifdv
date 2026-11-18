@@ -1,5 +1,5 @@
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { ErrorBlock, LoadingBlock } from '@macuxi/ui/web';
+import { ErrorBlock, ListaParametros, LoadingBlock } from '@macuxi/ui/web';
 import { camposDoPainel, type PainelParametroTrade } from '../lib/parametros-trade';
 import { useParametrosTrade } from '../lib/queries-cadastros';
 
@@ -12,19 +12,7 @@ function PainelTrade({ id }: { id: PainelParametroTrade }) {
   const q = useParametrosTrade();
   if (q.isError) return <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />;
   if (q.isPending) return <LoadingBlock label="Carregando os parâmetros…" />;
-  return (
-    <dl className="m-0 grid grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-2 text-[15px]" data-testid={`promotor.parametros.${id}`}>
-      {camposDoPainel(id, q.data).map((c) => (
-        <div key={c.chave} className="contents">
-          <dt className="font-semibold text-ink">{c.rotulo}</dt>
-          <dd className="m-0 text-right tabular-nums" data-testid={`promotor.parametro.${c.chave}`}>
-            {c.valor}
-            {c.padrao && <span className="block text-[13px] text-ink-2">{c.padrao}</span>}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
+  return <ListaParametros testId={`promotor.parametros.${id}`} linhas={camposDoPainel(id, q.data).map((c) => ({ ...c, testId: `promotor.parametro.${c.chave}` }))} />;
 }
 
 export const PainelValidade = () => <PainelTrade id="validade" />;
