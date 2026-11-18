@@ -5,7 +5,8 @@
  * perfil por ação do manifesto e o tenant do token). A resposta é validada pelo contrato (Zod) antes de chegar à tela.
  *  - `GET  /v1/integracao/monitor` (`monitor.ver`) → `MonitorResumo`
  *  - `GET  /v1/integracao/lotes/{id}/erros` (`monitor.ver`) → `ErrosLoteResposta` (contrato em `contracts/bko.ts`)
- *  - `POST /v1/integracao/inativacoes/{id}/decidir` (`inativacao.decidir`, P-3) → `DecidirInativacaoResposta`
+ *  - `POST /v1/integracao/lotes/{id}/cancelar` (`lote.cancelar`) e `POST /v1/integracao/lotes/{id}/reprocessar` (RN-INT-15/16)
+ *  - `GET  /v1/integracao/lotes/autorizadores` e `GET /v1/integracao/mapeamentos/codigos-macuxi` (`monitor.ver`)
  */
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -14,7 +15,20 @@ import { relogioReal } from '@macuxi/comum/relogio';
 import type { Perfil } from '@macuxi/platform-sdk';
 import { api, useSession } from '@macuxi/platform-sdk/web';
 import { DEFAULT_TZ, intervaloSyncAutoMs, PARAMETRO_SYNC_AUTO, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
-import { DecidirInativacaoResposta, ErrosLoteResposta, GravarMapeamentoResposta, MapeamentosResposta, MonitorResumo, type DecidirInativacaoEntrada, type LinhaErro, type Mapeamento } from '../../contracts';
+import {
+  AutorizadoresResposta,
+  CancelarLoteResposta,
+  CodigosMacuxiResposta,
+  ErrosLoteResposta,
+  GravarMapeamentoResposta,
+  MapeamentosResposta,
+  MonitorResumo,
+  ROTA_MONITOR,
+  ReprocessarLoteResposta,
+  type LinhaErro,
+  type Mapeamento,
+  type TipoMapeamento,
+} from '../../contracts';
 import { perfilDaSessao } from './apresentacao';
 
 /**
@@ -29,6 +43,8 @@ export const CSV_ERROS_MAX = 20_000;
 export const qk = {
   monitor: ['integracao', 'monitor'] as const,
   mapeamentos: ['integracao', 'mapeamentos'] as const,
+  autorizadores: ['integracao', 'autorizadores'] as const,
+  codigosMacuxi: (tipo: string) => ['integracao', 'codigos-macuxi', tipo] as const,
   erros: (loteId: string, codigo: string) => ['integracao', 'lote', loteId, 'erros', codigo] as const,
 };
 
@@ -83,7 +99,7 @@ export function useMonitor() {
   const intervalo = useIntervaloSyncAutoMs();
   return useQuery({
     queryKey: qk.monitor,
-    queryFn: async ({ signal }) => MonitorResumo.parse(await api<unknown>('/integracao/monitor', { signal })),
+    queryFn: async ({ signal }) => MonitorResumo.parse(await api<unknown>(ROTA_MONITOR, { signal })),
     enabled,
     // timer-permitido: sync_auto_min do tenant passado por intervaloSyncAutoMs (nunca abaixo de 15 min)
     refetchInterval: intervalo,
@@ -119,16 +135,6 @@ export async function buscarTodosErros(loteId: string, codigo: string): Promise<
   return { itens, total, truncado: itens.length < total };
 }
 
-/** Confirmar ou recusar a inativação em massa (RN-INT-06, P-3). Atualiza o monitor ao terminar. */
-export function useDecidirInativacao() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, entrada }: { id: string; entrada: DecidirInativacaoEntrada }) =>
-      DecidirInativacaoResposta.parse(await api<unknown>(`/integracao/inativacoes/${encodeURIComponent(id)}/decidir`, { method: 'POST', body: entrada })),
-    onSettled: () => qc.invalidateQueries({ queryKey: qk.monitor }),
-  });
-}
-
 /** De-para de códigos (T-0120): lista e condições do Macuxi sem correspondente. */
 export function useMapeamentos() {
   const enabled = useAutenticado();
@@ -157,4 +163,60 @@ export function useApagarMapeamento() {
     },
     onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: qk.mapeamentos }), qc.invalidateQueries({ queryKey: qk.monitor })]),
   });
+}
+
+const encerrarAcaoDeLote = (qc: ReturnType<typeof useQueryClient>) => qc.invalidateQueries({ queryKey: qk.monitor });
+
+/** Cancelar lote em andamento (RN-INT-15): 409 se ele já terminou. */
+export function useCancelarLote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (loteId: string) => CancelarLoteResposta.parse(await api<unknown>(`/integracao/lotes/${encodeURIComponent(loteId)}/cancelar`, { method: 'POST', body: {} })),
+    onSettled: () => encerrarAcaoDeLote(qc),
+  });
+}
+
+/** Reprocessar lote (RN-INT-15). Sem `lote.reprocessar`, leva o autorizador e a senha dele (RN-INT-16); a senha só vai no corpo da chamada. */
+export function useReprocessarLote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ loteId, autorizadorId, senha }: { loteId: string; autorizadorId?: string; senha?: string }) =>
+      ReprocessarLoteResposta.parse(
+        await api<unknown>(`/integracao/lotes/${encodeURIComponent(loteId)}/reprocessar`, {
+          method: 'POST',
+          body: autorizadorId && senha ? { autorizador_id: autorizadorId, senha } : {},
+        }),
+      ),
+    onSettled: () => encerrarAcaoDeLote(qc),
+  });
+}
+
+/** Quem pode autorizar o reprocessamento (admin e analista ativos); só carrega quando o popup abre. */
+export function useAutorizadores(ativo: boolean) {
+  const enabled = useAutenticado() && ativo;
+  return useQuery({
+    queryKey: qk.autorizadores,
+    queryFn: async ({ signal }) => AutorizadoresResposta.parse(await api<unknown>('/integracao/lotes/autorizadores', { signal })),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+/** Códigos do Macuxi da entidade do De-para (condição de pagamento vem do Vendedor). */
+export function useCodigosMacuxi(tipo: TipoMapeamento, ativo: boolean) {
+  const enabled = useAutenticado() && ativo;
+  return useQuery({
+    queryKey: qk.codigosMacuxi(tipo),
+    queryFn: async ({ signal }) => CodigosMacuxiResposta.parse(await api<unknown>('/integracao/mapeamentos/codigos-macuxi', { query: { tipo }, signal })),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+/** O erro é a recusa de quem não tem `lote.reprocessar` (a tela abre a autorização por senha)? */
+export const precisaAutorizador = (e: unknown): boolean => codigoDoErro(e) === 'autorizador_necessario';
+
+/** Código do erro da API (`senha_incorreta`, `muitas_tentativas`…) ou vazio. */
+export function codigoDoErro(e: unknown): string {
+  return e instanceof Error && 'code' in e && typeof (e as { code?: unknown }).code === 'string' ? (e as { code: string }).code : '';
 }

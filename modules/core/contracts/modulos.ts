@@ -31,6 +31,11 @@ export const MeusModulosRespostaSchema = z
     calculado_em: z.string(),
     /** T-0111 (aditivo): perfis de acesso do usuário já resolvidos (fábrica + o que a empresa mudou), para o shell decidir telas e ações. Ausente = fábrica. */
     perfis: z.array(PerfilDaRequisicaoSchema).optional(),
+    /**
+     * ADR 0058 (aditivo): módulos que o tenant contratou (`tenant_modulo` ativo, com o core), sem perfil nem exceção de usuário.
+     * Fora da `versao_licencas`. O BKO usa para mostrar a seção de Parâmetros de módulo de vitrine como cadeado. Ausente = não informado.
+     */
+    modulos_contratados: z.array(ModuloIdSchema).optional(),
   })
   .strict()
   .superRefine((r, ctx) => {

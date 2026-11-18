@@ -5,13 +5,24 @@
  *   Android acorda o app fechado.
  * Ficam aqui para os dois montarem o motor e conferirem módulos e sessão do mesmo jeito.
  */
+import { definirCargaOnline, type PortaCargaOnline } from '@macuxi/catalogo/app';
 import { MeusModulosRespostaSchema, RefreshRespostaSchema } from '@macuxi/core/contracts';
-import { criarMotorSync, type AmbienteAparelho, type ArmazenamentoSync, type EtapaSync, type ModuloId, type MotorSync, type ParametrosModulos, type Perfil } from '@macuxi/platform-sdk';
+import {
+  criarMotorSync,
+  type AmbienteAparelho,
+  type ArmazenamentoSync,
+  type EtapaSync,
+  type ModuloId,
+  type MotorSync,
+  type OpcoesMotorSync,
+  type ParametrosModulos,
+  type Perfil,
+} from '@macuxi/platform-sdk';
 
 import { efetivosSemServidor } from '@/lib/efetivos-locais';
 import type { ModoApi } from '@/lib/modo-api';
 import type { shellDaVariante } from '@/lib/modulos';
-import { ordemDaCargaDoUsuario } from '@/lib/ordem-da-carga';
+import { essenciaisDoUsuario, ordemDaCargaDoUsuario } from '@/lib/ordem-da-carga';
 
 import { ApiClient, errorMessage, HttpError } from './api';
 import { arquivosLocais } from './arquivos';
@@ -65,12 +76,30 @@ export interface OpcoesMotorDoUsuario {
   etapasExtras?: readonly EtapaSync[];
   /** Perfil do usuário logado, lido a cada carga (RN-CORE-48: ordem das etapas da entrada). Sem ele, a ordem do Campo. */
   perfil?: () => string | null | undefined;
+  /**
+   * ADR 0054 (solução 5): liga a busca online do Catálogo enquanto ele carrega (`definirCargaOnline`) a este motor. Só o app
+   * aberto (padrão); a tarefa em segundo plano passa `false` para não trocar a porta do app por um motor sem tela.
+   */
+  cargaOnline?: boolean;
+}
+
+/**
+ * ADR 0054 (solução 5; desenho T-catalogo-pacote §2.2): porta da busca online do Catálogo durante a carga inicial. Com o
+ * Catálogo em `pendentes`, a tela do catálogo, a ficha e as consultas vão à API pelo `ambiente.http` (sessão e modo sem
+ * sinal do shell); motor sem `pendentes` = tudo local, como antes.
+ */
+export function portaCargaOnline(motor: Pick<MotorSync, 'estado'>, ambiente: Pick<AmbienteAparelho, 'http' | 'online'>): PortaCargaOnline {
+  return {
+    pendentes: () => motor.estado().pendentes,
+    online: () => ambiente.online(),
+    get: (caminho, query) => ambiente.http.get(caminho, query),
+  };
 }
 
 /** Motor de sync do usuário (armazenamento isolado por usuário e tenant, já aberto), sem `carregar()`. */
 export function criarMotorDoUsuario(o: OpcoesMotorDoUsuario): MotorSync {
   const ref: { m: MotorSync | null } = { m: null };
-  ref.m = criarMotorSync({
+  const opcoes: OpcoesMotorSync = {
     registro: o.shell.registroSync,
     armazenamento: o.armazenamento,
     transporte: modoSync(o.modo) === 'v1' ? transporteV1(o.api) : transporteFaseM(o.api),
@@ -83,7 +112,11 @@ export function criarMotorDoUsuario(o: OpcoesMotorDoUsuario): MotorSync {
     // ADR 0012: `ambiente.consultar` (ex.: preço do Catálogo para o Vendedor, offline) sobre as linhas locais do dono
     consultas: o.shell.consultas,
     ordemDaCarga: ordemDaCargaDoUsuario(o.perfil ?? (() => null), () => ref.m?.estado().modulosAtivos ?? []),
-  });
+    // ADR 0054 (solução 5): o envio e "Clientes e rota" (Campo) ou "Equipe" (Gestão) liberam a entrada (`liberado_em`)
+    essenciais: essenciaisDoUsuario(o.perfil ?? (() => null), () => ref.m?.estado().modulosAtivos ?? []),
+  };
+  ref.m = criarMotorSync(opcoes);
+  if (o.cargaOnline !== false) definirCargaOnline(portaCargaOnline(ref.m, o.ambiente));
   return ref.m;
 }
 

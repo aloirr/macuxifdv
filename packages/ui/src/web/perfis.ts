@@ -70,7 +70,7 @@ export const CADEADO = {
 export const ROTULO_CADEADO = 'Travado';
 
 /** Texto do interruptor (cor nunca sozinha). */
-export const TEXTO_INTERRUPTOR = { sim: 'Sim', nao: 'Não', misto: 'Em parte' } as const;
+export const TEXTO_INTERRUPTOR = { sim: 'Sim', nao: 'Não', misto: 'Em parte', desligada: 'Desligada' } as const;
 
 /** Opção "todos" da lista de perfis-alvo da redefinição de senha (valor `*` do motor). */
 export const ALVO_TODOS_PERFIS = '*';

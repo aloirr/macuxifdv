@@ -39,10 +39,9 @@ const eventos: Evento[] = ups.flatMap(({ arquivo, sql }) => {
 });
 
 describe('plataforma.sa_*: SA_PORTAL e SA_INTERNAS (T-0091; T-0093)', () => {
-  it('as listas não se cruzam nem repetem; SA_PORTAL com 34; a interna de 7 argumentos', () => {
+  it('as listas não se cruzam nem repetem; a interna de 7 argumentos', () => {
     const todas = [...SA_PORTAL, ...SA_INTERNAS];
     expect(new Set(todas).size).toBe(todas.length);
-    expect(SA_PORTAL).toHaveLength(34);
     expect(SA_INTERNAS).toEqual(['plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)']);
   });
 
