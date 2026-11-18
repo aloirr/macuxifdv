@@ -1,34 +1,11 @@
 'use client';
 
-import type { ReactNode } from 'react';
 import { useParametros } from '@macuxi/platform-sdk/react';
-import { formatInt, rotuloDoPerfil } from '@macuxi/ui/web';
+import { formatarParametro, formatInt, ListaParametros, rotuloDoPerfil, valorComPadrao, type LinhaListaParametros } from '@macuxi/ui/web';
 import { PARAMETROS_PADRAO as P, type ParametrosTreinamento } from '../../domain/parametros';
-import { valorComPadrao, valorParametro } from '../lib/parametros-valor';
+import { valorParametro } from '../lib/parametros-valor';
 
-/** Só leitura (ADR 0058): mostra o valor do tenant (parâmetros do ambiente), com o padrão do contrato como reserva. */
-interface Linha {
-  rotulo: string;
-  valor: ReactNode;
-  padrao?: string | null;
-}
-
-function Lista({ linhas, testID }: { linhas: readonly Linha[]; testID: string }) {
-  return (
-    <dl data-testid={testID} className="m-0 grid grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-2 text-[15px]">
-      {linhas.map((l) => (
-        <div key={l.rotulo} className="contents">
-          <dt className="font-semibold text-ink">{l.rotulo}</dt>
-          <dd className="m-0 text-right tabular-nums">
-            {l.valor}
-            {l.padrao ? <span className="block text-[13px] text-ink-2">{l.padrao}</span> : null}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
+/** Só leitura (ADR 0058): o valor do tenant, com o padrão do contrato como reserva. Lista e "Padrão: X" do kit (RD-1583, RD-1584). */
 type Params = Readonly<Record<string, unknown>>;
 
 function linha<K extends keyof ParametrosTreinamento>(
@@ -36,17 +13,14 @@ function linha<K extends keyof ParametrosTreinamento>(
   rotulo: string,
   chave: K,
   formatar: (v: ParametrosTreinamento[K]) => string = (v) => String(v),
-): Linha {
-  const r = valorComPadrao(valorParametro(params, chave), P[chave], formatar);
-  return { rotulo, valor: r.texto, padrao: r.padrao };
+): LinhaListaParametros {
+  return { rotulo, ...valorComPadrao(valorParametro(params, chave), P[chave], formatar) };
 }
 
-const pct = (n: number) => `${formatInt(n)}%`;
-const min = (n: number) => `${formatInt(n)} min`;
-const seg = (n: number) => `${formatInt(n)} s`;
-const dias = (n: number) => `${formatInt(n)} dias`;
+const { pct, min, dias } = formatarParametro;
+const seg = formatarParametro.unidade('s');
 
-export const linhasQuizLicao = (p: Params): readonly Linha[] => [
+export const linhasQuizLicao = (p: Params): readonly LinhaListaParametros[] => [
   linha(p, 'Nota mínima', 'nota_minima_pct', pct),
   linha(p, 'Tentativas por dia', 'tentativas_max_dia', formatInt),
   linha(p, 'Intervalo entre tentativas', 'intervalo_min_tentativas_min', min),
@@ -55,7 +29,7 @@ export const linhasQuizLicao = (p: Params): readonly Linha[] => [
   linha(p, 'Parte da duração', 'pct_minimo_duracao_licao', pct),
 ];
 
-export const linhasXp = (p: Params): readonly Linha[] => [
+export const linhasXp = (p: Params): readonly LinhaListaParametros[] => [
   linha(p, 'Lição concluída', 'xp_licao', formatInt),
   linha(p, 'Acerto no quiz', 'xp_acerto_questao', formatInt),
   linha(p, 'Trilha concluída', 'xp_trilha', formatInt),
@@ -65,12 +39,12 @@ export const linhasXp = (p: Params): readonly Linha[] => [
   linha(p, 'Teto por desafio', 'xp_max_por_desafio', formatInt),
 ];
 
-export const linhasNiveis = (p: Params): readonly Linha[] => [
+export const linhasNiveis = (p: Params): readonly LinhaListaParametros[] => [
   linha(p, 'XP de cada nível', 'niveis_xp_min', (v) => v.map(formatInt).join(' · ')),
   linha(p, 'Medalha de sequência', 'streak_medalha_dias', dias),
   linha(p, 'Perfis no ranking', 'perfis_ranking', (v) => v.map((c) => rotuloDoPerfil(c, { forma: 'longo' })).join(', ')),
 ];
 
-export const PainelQuizLicao = () => <Lista testID="treinamento-quiz-licao" linhas={linhasQuizLicao(useParametros('treinamento'))} />;
-export const PainelXp = () => <Lista testID="treinamento-xp" linhas={linhasXp(useParametros('treinamento'))} />;
-export const PainelNiveis = () => <Lista testID="treinamento-niveis" linhas={linhasNiveis(useParametros('treinamento'))} />;
+export const PainelQuizLicao = () => <ListaParametros testId="treinamento-quiz-licao" linhas={linhasQuizLicao(useParametros('treinamento'))} />;
+export const PainelXp = () => <ListaParametros testId="treinamento-xp" linhas={linhasXp(useParametros('treinamento'))} />;
+export const PainelNiveis = () => <ListaParametros testId="treinamento-niveis" linhas={linhasNiveis(useParametros('treinamento'))} />;

@@ -18,8 +18,3 @@ export function valorParametro<K extends keyof ParametrosTreinamento>(
   return escolhido as ParametrosTreinamento[K];
 }
 
-/** Valor em uso e, só quando o tenant mudou o padrão, o texto "Padrão: X". */
-export function valorComPadrao<T>(emUso: T, padrao: T, formatar: (v: T) => string): { texto: string; padrao: string | null } {
-  const igual = JSON.stringify(emUso) === JSON.stringify(padrao);
-  return { texto: formatar(emUso), padrao: igual ? null : `Padrão: ${formatar(padrao)}` };
-}
