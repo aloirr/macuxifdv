@@ -58,7 +58,7 @@ import {
   type EtapaForm,
   type FormCadastro,
 } from '../lib/cadastros';
-import { useDesativarCadastro, useGravarCadastro, useListaCadastro, useParametrosTrade, type LinhaDoCadastro } from '../lib/queries-cadastros';
+import { useDesativarCadastro, useGravarCadastro, useListaCadastro, type LinhaDoCadastro } from '../lib/queries-cadastros';
 
 const novoId = () => crypto.randomUUID();
 const hojeIso = () => new Date().toISOString().slice(0, 10);
@@ -104,7 +104,6 @@ export function CadastrosTradePage() {
   const nomeConcorrentes = useMemo(() => new Map((concorrentes.data ?? []).map((l) => [l.id, String(l.nome)] as const)), [concorrentes.data]);
   const [editando, setEditando] = useState<{ id: string; nova: boolean; form: FormCadastro } | null>(null);
   const [confirmar, setConfirmar] = useState<LinhaDoCadastro | null>(null);
-  const [verParametros, setVerParametros] = useState(false);
   const desativar = useDesativarCadastro(cadastro);
 
   useEffect(() => {
@@ -127,7 +126,6 @@ export function CadastrosTradePage() {
       ? [{ id: 'csv', rotulo: 'Exportar CSV', testId: `cadastros-trade.${cadastro}.csv`, aoEscolher: () => downloadBlob(new Blob([cadastroCsv(cadastro, itens, nomesParaCsv)], { type: 'text/csv;charset=utf-8' }), `${cadastro}.csv`) }]
       : []),
     { id: 'atualizar', rotulo: 'Atualizar', aoEscolher: () => void lista.refetch() },
-    { id: 'parametros', rotulo: 'Parâmetros de trade', testId: 'cadastros-trade.parametros-abrir', aoEscolher: () => setVerParametros(true) },
   ];
 
   const colunas = colunasDoCadastro(cadastro, { fuso, categorias: nomeCategorias, concorrentes: nomeConcorrentes, comSituacao: desativados });
@@ -227,35 +225,6 @@ export function CadastrosTradePage() {
         }>
         O cadastro deixa de valer para a promotora.
       </Dialog>
-      {verParametros && <ParametrosDrawer aoFechar={() => setVerParametros(false)} />}
-    </div>
-  );
-}
-
-/** Faixas de validade (RN-PRO-08) e peso do parcial (RN-PRO-11): parâmetros do tenant, somente leitura. */
-function ParametrosDrawer({ aoFechar }: { aoFechar: () => void }) {
-  const q = useParametrosTrade();
-  return (
-    <Drawer open title="Parâmetros de trade" onClose={aoFechar}>
-      {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
-      {q.isPending && <LoadingBlock label="Carregando os parâmetros…" />}
-      {q.data && (
-        <dl className="m-0 flex flex-col gap-4 text-[13px]" data-testid="cadastros-trade.parametros">
-          <Parametro rotulo="Validade crítica (até)" valor={`${q.data.validade_critica_dias} dias`} testid="critica" />
-          <Parametro rotulo="Validade em atenção (até)" valor={`${q.data.validade_proxima_dias} dias`} testid="atencao" />
-          <Parametro rotulo="Peso do parcial na conformidade" valor={String(q.data.peso_parcial_conformidade).replace('.', ',')} testid="peso-parcial" />
-        </dl>
-      )}
-    </Drawer>
-  );
-}
-function Parametro({ rotulo, valor, testid }: { rotulo: string; valor: string; testid: string }) {
-  return (
-    <div>
-      <dt className="text-[12px] font-semibold text-ink-2">{rotulo}</dt>
-      <dd className="m-0 text-[17px] font-semibold" data-testid={`cadastros-trade.parametro-${testid}`}>
-        {valor}
-      </dd>
     </div>
   );
 }
