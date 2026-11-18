@@ -31,54 +31,35 @@ Com busca, os chips continuam e filtram o resultado. Trocar de sistema volta a c
 
 **Saem:** a linha "Abra pela ficha do cliente para ver o preço da tabela dele." (e a "Preços da tabela do cliente
 selecionado."), a lista de "Sistemas" como entrada, a trilha, o título do nível, "40 produtos ativos", "Atualizado às… · puxe
-para sincronizar" e os chips de marca e "Com estoque" (a busca acha pela marca; o estoque está em cada cartão).
+para sincronizar" e os chips de marca (a busca acha pela marca). Filial e itens sem estoque ficam no filtro (`catalogo-campo-v2/spec.md` §4).
 
 ## 2. Cartão do produto
-`Cartao` branco (borda `line`, raio 16, respiro 10 em cima e dos lados e 12 embaixo), 180 dp de largura no aparelho de 412 dp
-(colunas iguais, 12 dp entre elas e entre as linhas). Os dois cartões de uma linha têm a altura do maior; preço e tag ficam
-embaixo, alinhados. O cartão inteiro é o alvo e abre a ficha.
-
-| Ordem | O que aparece | Como |
-|---|---|---|
-| 1 | foto | 112 dp de altura, raio 12, `cover`. Sem foto: a caixa `neutralBg` vazia, do mesmo tamanho (sem a inicial, que repetia a 1ª letra do nome; RD-0242) |
-| 2 | nome | 15/600, até 2 linhas com reticências |
-| 3 | marca | 13 `ink2`, 1 linha. Sem marca no cadastro, a linha fica vazia |
-| 4 | preço | `t.number` (18/600), números tabulares (§3) |
-| 5 | estoque | `ChipEstado pequeno` (24 dp), §4 |
-
-- Uma informação por linha (RD-0207): sem código, sem hora do estoque e sem etiquetas no cartão. Código, etiquetas e
-  estoque por filial ficam na ficha.
+Cartão: `catalogo-campo-v2/spec.md` §1 (fonte única: foto, nome, códigos, preço, `Estoque: N` e o botão de estoque por filial, com o
+leitor de tela e o promotor). Aqui fica só o que o v2 não muda:
+- `Cartao` branco (borda `line`, raio 16), duas colunas iguais com 12 dp entre elas e entre as linhas; o cartão inteiro abre a ficha.
 - Promoção: o preço de tabela riscado ao lado do preço, 12/400 `ink2` (`R$ 8,99 R$ 9,90`). É o mesmo fato (preço).
-- Busca que achou pelo código do concorrente (RN-CAT-09): a linha da marca vira `Equivale a Freiomax CB 3401`, com o trecho
-  destacado.
 - Com o slot `produto.acoes` (dentro do pedido): botão `+` 44 dp com borda à direita do preço, TalkBack `Adicionar <produto>
   ao pedido`. Fora do pedido não aparece.
-- TalkBack do cartão: `"<nome>, <marca>, <preço>, <estoque>"` (ex.: "Açúcar cristal 1 kg, Doce Vale, R$ 4,95, 6 em
-  estoque").
-- Promotor (RN-CAT-05, `promotor_ve_preco_estoque` = não): sem preço e sem tag; o cartão fica com foto, nome e marca.
 
 ## 3. Preço (RN-VEN-01)
 | Como abriu | Preço do cartão |
 |---|---|
-| pelo menu (sem cliente) | o da tabela da **filial padrão** do vendedor |
+| pelo menu (sem cliente) | o da tabela da filial de cadastro do vendedor, ou da filial escolhida no filtro (`catalogo-campo-v2/spec.md` §4) |
 | pela ficha do cliente | o da tabela do cliente |
-| produto sem preço nessa tabela | `Sem preço` (15/600 `ink3`), nunca o valor de outra tabela |
+| produto sem preço nessa tabela | `Sem preço` (16/600 `ink3`), nunca o valor de outra tabela |
 
 Nada na tela explica de qual tabela é o preço: com cliente, o voltar na faixa já diz o nome dele.
 
 ## 4. Tag de estoque (uma só)
+Desde R-20261115-083600, só duas cores, no cartão, na busca e na ficha (o laranja de 1 a 9 saiu):
+
 | Estoque | Texto | Tom do `ChipEstado` |
 |---|---|---|
-| 10 ou mais | `84 em estoque` | `sucesso` (`success` sobre `successBg`, 5,5:1) |
-| de 1 a 9 | `6 em estoque` | `aviso`, o laranja da simulação (`warning` #7A4F00 sobre `warningBg` #FFF1D6, 6,4:1) |
-| 0 | `Sem estoque` | `erro` (`danger` sobre `dangerBg`, 6,0:1) |
-| nenhum saldo recebido | `Estoque sem informação` | `neutro` (8,6:1) |
+| acima de 0 | `Estoque: 84` | `sucesso` (`success` sobre `successBg`, 5,5:1) |
+| 0, negativo ou nenhum saldo recebido | `Estoque: 0` | `erro` (`danger` sobre `dangerBg`, 6,0:1) |
 
-- Tenant que não mostra a quantidade (`estoque_mostrar_quantidade` = não): `Em estoque`, `Pouco estoque`, `Sem estoque`.
-- O número é inteiro, na unidade base, das filiais que valem para o estoque (RN-CAT-07; com cliente, a filial dele,
-  RN-CORE-39). Sem hora no cartão.
-- **A conferir pelo modulo-catalogo:** o parâmetro `estoque_baixo_ate` tem padrão 10 (doc 03, tabela de parâmetros); a regra
-  pedida é de 1 a 9, a mesma do "Risco de ruptura" da folha do item (`pedido-v4.md` §5.2).
+- Tenant que não mostra a quantidade (`estoque_mostrar_quantidade` = não): `Em estoque` ou `Sem estoque`.
+- O número é inteiro, na unidade base. Valor de N, o botão `Estoque por filial` e o `999+`: `catalogo-campo-v2/spec.md` §3. Sem hora no cartão.
 
 ## 5. Estados
 - Carregando a 1ª vez: `Loading` no lugar da grade; a faixa e a busca já aparecem.

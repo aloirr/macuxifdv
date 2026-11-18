@@ -117,7 +117,7 @@ const RECEITA_ATIVA: ConsultaCnpjResposta = {
 
 function montar(
   licTenant: Partial<Record<string, LicencasTenant>> = {},
-  op: { semPortal?: boolean; erroProvisionar?: unknown; adminResposta?: string; semEmail?: boolean; erroRedefinir?: unknown; receita?: SituacaoCadastral | 'nao_encontrado' | 'fora' } = {},
+  op: { semPortal?: boolean; erroProvisionar?: unknown; adminResposta?: string; semEmail?: boolean; erroRedefinir?: unknown; receita?: SituacaoCadastral | 'nao_encontrado' | 'fora'; extrasEmpresa?: Record<string, unknown>; relogio?: () => Date } = {},
 ) {
   const auditoria: LinhaAuditoriaPlataforma[] = [];
   const redefinicoes: EntradaRedefinirSenhaAdmin[] = [];
@@ -148,7 +148,7 @@ function montar(
     listarEmpresas: async (_sa, b) => {
       await usar('listarEmpresas', b);
       return {
-        itens: [{ id: TENANT, codigo: 'cliente-x', razao_social: 'Cliente X Ltda', cnpj: null, fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-01T00:00:00Z', modulos: [] }],
+        itens: [{ id: TENANT, codigo: 'cliente-x', razao_social: 'Cliente X Ltda', cnpj: null, fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-01T00:00:00Z', modulos: [], ...op.extrasEmpresa }],
       };
     },
     adminsDaEmpresa: async (_sa, t, b) => {
@@ -200,6 +200,7 @@ function montar(
       senhaPortal,
       consultaCnpj,
       plataforma: fonte,
+      ...(op.relogio ? { relogio: op.relogio } : {}),
       ...(op.semEmail ? {} : { email: criarServicoEmail({ cifra, log: { info: () => undefined, warn: () => undefined, error: () => undefined } }) }),
       licencasTenant: async (t, b) => {
         usos.push({ onde: 'licencasTenant', banco: b });
@@ -496,6 +497,30 @@ describe('T-0093: admin inicial no passo Empresa (RN-CORE-34) com a senha na RN-
     // outro 22023 do banco segue como erro interno (não vira regra de negócio)
     const { app: app2 } = montar({}, { erroProvisionar: Object.assign(new Error('x'), { code: '22023' }) });
     expect((await app2.inject({ method: 'POST', url: '/v1/plataforma/empresas', headers: comSA(null), payload: corpo })).statusCode).toBe(500);
+  });
+});
+
+describe('GET /v1/plataforma/empresas: plano e teste grátis (0071; RN-PLA-04)', () => {
+  // 15/11/2026 01:00 UTC = 14/11 21:00 em Manaus (UTC−4): o "hoje" é o da empresa, não o UTC
+  const relogio = () => new Date('2026-11-15T01:00:00Z');
+  const primeira = async (extrasEmpresa?: Record<string, unknown>) =>
+    (await montar({}, { relogio, ...(extrasEmpresa ? { extrasEmpresa } : {}) }).app.inject({ method: 'GET', url: '/v1/plataforma/empresas', headers: comSA(null) })).json().itens[0];
+
+  it('em_teste até o último dia do teste no fuso da empresa; paga ou vencido = fora; o paga não vai ao portal', async () => {
+    const noUltimoDia = await primeira({ plano: 'PME', teste_ate: '2026-11-14', paga: false });
+    expect(noUltimoDia).toMatchObject({ plano: 'PME', teste_ate: '2026-11-14', em_teste: true });
+    expect(noUltimoDia).not.toHaveProperty('paga');
+    expect((await primeira({ plano: 'PME', teste_ate: '2026-11-13', paga: false })).em_teste).toBe(false);
+    expect((await primeira({ plano: 'PME', teste_ate: '2026-11-30', paga: true })).em_teste).toBe(false);
+    expect(await primeira({ plano: 'PME', teste_ate: null, paga: true })).toMatchObject({ plano: 'PME', teste_ate: null, em_teste: false });
+    expect(await primeira({ plano: null, teste_ate: null, paga: false })).toMatchObject({ plano: null, em_teste: false });
+  });
+
+  it('banco sem a 0071 (down): a lista sai sem plano, teste_ate e em_teste', async () => {
+    const e = await primeira();
+    expect(e).not.toHaveProperty('plano');
+    expect(e).not.toHaveProperty('teste_ate');
+    expect(e).not.toHaveProperty('em_teste');
   });
 });
 

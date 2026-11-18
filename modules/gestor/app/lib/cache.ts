@@ -48,7 +48,7 @@ export interface ResultadoAtualizacao {
 const RECURSOS = [
   { chave: 'visao', caminho: ROTAS_GESTOR.equipe, schema: VisaoEquipe },
   { chave: 'fila', caminho: ROTAS_GESTOR.aprovacoes, schema: FilaAprovacao },
-  { chave: 'alertas', caminho: ROTAS_GESTOR.alertas, schema: ListaAlertas },
+  { chave: 'alertas', caminho: ROTAS_GESTOR.alertasComProdutividade, schema: ListaAlertas },
 ] as const;
 
 /**

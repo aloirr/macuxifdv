@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, td, th, TableScroll } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, td, th, TableScroll } from '@macuxi/ui/web';
 import { MotivoSyncSchema, type MotivoPut, type MotivoSync } from '../../../contracts';
 import { novoId } from '../../lib/visitas';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
@@ -57,18 +57,14 @@ export function MotivosPage() {
 
   const itens = lista.data ?? [];
   const novo = (): Rascunho => ({ id: novoId(), existente: false, tipo: 'nao_venda', codigo: '', descricao: '', ativo: true, ordem: (itens.at(-1)?.ordem ?? 0) + 10 });
+  const acao = (
+    <Button variant="primary" disabled={!pode} onClick={() => setRascunho(novo())} data-testid="motivos.novo">
+      Novo motivo
+    </Button>
+  );
   return (
-    <div className="flex w-full max-w-[960px] flex-col gap-5" data-testid="motivos.tela">
-      <PageHeader
-        title="Motivos de não venda"
-        subtitle="Lista que o vendedor vê no checkout quando não há pedido. Loja fechada e acesso negado são do sistema e exigem a foto da fachada."
-        actions={
-          <Button variant="primary" disabled={!pode} onClick={() => setRascunho(novo())} data-testid="motivos.novo">
-            Novo motivo
-          </Button>
-        }
-      />
-      {!pode && <Notice tone="info">Só analista e administrador editam motivos. Você pode consultar.</Notice>}
+    <div className="flex w-full flex-col gap-4" data-testid="motivos.tela">
+      <div className="flex justify-end">{acao}</div>
       {aviso && (
         <Notice tone="info" onClose={() => setAviso(null)}>
           {aviso}
@@ -77,51 +73,47 @@ export function MotivosPage() {
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando os motivos…" />}
       {lista.data && (
-        <Panel title={`${itens.length} motivos`}>
-          <TableScroll minWidth={640}>
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr>
-                  <th className={th}>Motivo</th>
-                  <th className={th}>Tipo</th>
-                  <th className={th}>Situação</th>
-                  <th className={th}>Ações</th>
+        <TableScroll minWidth={640}>
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr>
+                <th className={th}>Motivo</th>
+                <th className={th}>Tipo</th>
+                <th className={th}>Situação</th>
+                <th className={th}>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itens.map((m) => (
+                <tr key={m.id} data-testid={`motivos.linha.${m.codigo}`}>
+                  <td className={td}>
+                    {m.descricao}
+                    <span className="block font-mono text-[12px] text-ink-2">{m.codigo}</span>
+                  </td>
+                  <td className={td}>
+                    {TIPOS[m.tipo]}
+                    {m.exige_foto ? <span className="block text-ink-2">exige foto da fachada</span> : null}
+                  </td>
+                  <td className={td}>
+                    <Badge tone={m.sistema ? 'neutral' : m.ativo ? 'success' : 'warning'}>{m.sistema ? 'Sistema' : m.ativo ? 'Ativo' : 'Desativado'}</Badge>
+                  </td>
+                  <td className={td}>
+                    {m.sistema ? null : (
+                      <div className="flex gap-2">
+                        <Button disabled={!pode} onClick={() => setRascunho({ id: m.id, existente: true, tipo: m.tipo, codigo: m.codigo, descricao: m.descricao, ativo: m.ativo, ordem: m.ordem })} data-testid={`motivos.editar.${m.codigo}`}>
+                          Editar
+                        </Button>
+                        <Button disabled={!pode || remover.isPending} onClick={() => remover.mutate(m.id)} data-testid={`motivos.remover.${m.codigo}`}>
+                          Remover
+                        </Button>
+                      </div>
+                    )}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {itens.map((m) => (
-                  <tr key={m.id} data-testid={`motivos.linha.${m.codigo}`}>
-                    <td className={td}>
-                      {m.descricao}
-                      <span className="block font-mono text-[12px] text-ink-2">{m.codigo}</span>
-                    </td>
-                    <td className={td}>
-                      {TIPOS[m.tipo]}
-                      {m.exige_foto ? <span className="block text-ink-2">exige foto da fachada</span> : null}
-                    </td>
-                    <td className={td}>
-                      <Badge tone={m.sistema ? 'neutral' : m.ativo ? 'success' : 'warning'}>{m.sistema ? 'Sistema' : m.ativo ? 'Ativo' : 'Desativado'}</Badge>
-                    </td>
-                    <td className={td}>
-                      {m.sistema ? (
-                        <span className="text-ink-2">Não editável</span>
-                      ) : (
-                        <div className="flex gap-2">
-                          <Button disabled={!pode} onClick={() => setRascunho({ id: m.id, existente: true, tipo: m.tipo, codigo: m.codigo, descricao: m.descricao, ativo: m.ativo, ordem: m.ordem })} data-testid={`motivos.editar.${m.codigo}`}>
-                            Editar
-                          </Button>
-                          <Button disabled={!pode || remover.isPending} onClick={() => remover.mutate(m.id)} data-testid={`motivos.remover.${m.codigo}`}>
-                            Remover
-                          </Button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        </Panel>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
       {rascunho && (
         <Dialog

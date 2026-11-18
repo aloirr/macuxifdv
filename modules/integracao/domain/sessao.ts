@@ -3,7 +3,7 @@
  * sessão — todas as partes 1..n concluídas — os registros ausentes da carga são inativados
  * (`deleted_at`), nunca apagados. Sessão incompleta ou expirada não inativa nada.
  */
-import type { EstadoLote } from '../contracts';
+import type { EstadoLoteBko } from '../contracts';
 import { externalIdDoErro } from './erros';
 import { PARAMETROS_PADRAO } from './parametros';
 
@@ -12,7 +12,7 @@ export interface SessaoCargaEstado {
   entidade: string;
   iniciadaEm: string;
   /** Último estado conhecido de cada parte. */
-  partes: Readonly<Record<number, EstadoLote>>;
+  partes: Readonly<Record<number, EstadoLoteBko>>;
   /** Número da parte marcada como `ultimo`; `null` enquanto não chegou. */
   ultimaParte: number | null;
 }
@@ -24,7 +24,7 @@ export function novaSessao(id: string, entidade: string, iniciadaEm: string): Se
 }
 
 /** Registra (ou atualiza, no reenvio) o estado de uma parte. Não altera a sessão original. */
-export function registrarParte(sessao: SessaoCargaEstado, parte: { parte: number; ultimo: boolean; status: EstadoLote }): SessaoCargaEstado {
+export function registrarParte(sessao: SessaoCargaEstado, parte: { parte: number; ultimo: boolean; status: EstadoLoteBko }): SessaoCargaEstado {
   return {
     ...sessao,
     partes: { ...sessao.partes, [parte.parte]: parte.status },
@@ -37,7 +37,7 @@ export function registrarParte(sessao: SessaoCargaEstado, parte: { parte: number
  * `falhou` e a sessão não fecha. O reprocessamento do lote recalcula o resultado e a API chama `registrarParte` de novo com o
  * estado novo da parte (que então vale `concluido_com_erros`); só então a sessão fecha e a inativação é avaliada.
  */
-const CONCLUIDAS: ReadonlySet<EstadoLote> = new Set<EstadoLote>(['concluido', 'concluido_com_erros']);
+const CONCLUIDAS: ReadonlySet<EstadoLoteBko> = new Set<EstadoLoteBko>(['concluido', 'concluido_com_erros']);
 
 function completa(s: SessaoCargaEstado): boolean {
   if (s.ultimaParte === null) return false;

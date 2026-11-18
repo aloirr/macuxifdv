@@ -112,6 +112,13 @@ describe('visibilidade da lista (RN-CORE-04)', () => {
 
 describe('auditoria da alteração (RN-AUD-01)', () => {
   const base = { nome: 'Ana', nome_curto: null, email: 'ana@x.com', perfil: 'vendedor', equipe_id: 'e1', ativo: true, external_id: null };
+  it('RN-AUD-01 (D5): mudar o horário de almoço entra na auditoria com antes e depois (nulo = padrão da empresa)', () => {
+    const d = diffAuditavelDeUsuario({ ...base, almoco_inicio_min: null, almoco_fim_min: null }, { ...base, almoco_inicio_min: 690, almoco_fim_min: 750 });
+    expect(d.campos_alterados.sort()).toEqual(['almoco_fim_min', 'almoco_inicio_min']);
+    expect(d.antes).toEqual({ almoco_inicio_min: null, almoco_fim_min: null });
+    expect(d.depois).toEqual({ almoco_inicio_min: 690, almoco_fim_min: 750 });
+    expect(diffAuditavelDeUsuario({ ...base, almoco_inicio_min: 690, almoco_fim_min: 750 }, { ...base, almoco_inicio_min: 690, almoco_fim_min: 750 }).campos_alterados).toEqual([]);
+  });
   it('RN-AUD-01: registra só o que mudou, sem nome e e-mail em claro', () => {
     const d = diffAuditavelDeUsuario(base, { ...base, nome: 'Ana Maria', email: 'nova@x.com', perfil: 'supervisor' });
     expect(d.campos_alterados.sort()).toEqual(['email', 'nome', 'perfil']);

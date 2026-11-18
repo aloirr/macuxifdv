@@ -6,17 +6,18 @@
  */
 import { relogioReal } from '@macuxi/comum/relogio';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
-import { Badge, Card, colors, DEFAULT_TZ, Empty, fonte, Icon, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
+import { Badge, CatalogoCarregando, Card, colors, DEFAULT_TZ, Empty, fonte, Icon, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { caminhoCatalogo, type FichaProduto } from '../../contracts';
+import { modoDaCarga } from '../lib/carga-online';
 import { aplicacaoPrecisaRecolher, estadoOfereceJunto, LINHAS_APLICACAO_RECOLHIDA, rotuloEstoque, rotuloEstoqueFilial, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
 import { fichaLocal } from '../lib/local';
 import { hrefCatalogo, irParaProduto } from '../rotas';
 import { BotaoCopiarCodigo, BotoesAcao } from './comum';
 
-type Estado = { fase: 'carregando' } | { fase: 'pronta'; ficha: FichaProduto; noAparelho: boolean } | { fase: 'nao_encontrado' };
+type Estado = { fase: 'carregando' } | { fase: 'pronta'; ficha: FichaProduto; noAparelho: boolean } | { fase: 'nao_encontrado' } | { fase: 'catalogo_carregando' };
 
 export default function TelaProduto() {
   const params = useLocalSearchParams<{ id?: string; cliente?: string }>();
@@ -27,27 +28,37 @@ export default function TelaProduto() {
   const parametros = useParametros('catalogo');
   const usuario = ambiente.usuario();
   const fuso = usuario?.fuso ?? DEFAULT_TZ;
+  const modo = modoDaCarga(sync, ambiente.online());
   const [estado, setEstado] = useState<Estado>({ fase: 'carregando' });
   const [aplicacaoAberta, setAplicacaoAberta] = useState(false);
 
   useEffect(() => {
     let vivo = true;
     const carregar = async (): Promise<Estado> => {
+      // ADR 0054: catálogo ainda carregando = ficha e preço do cliente pela API; sem sinal, só o que já chegou ao aparelho
+      const daApi = async (): Promise<Estado | null> => {
+        try {
+          const ficha = await ambiente.http.get<FichaProduto>(caminhoCatalogo('produto', { id }), { customer_id: clienteId });
+          return { fase: 'pronta', ficha, noAparelho: false };
+        } catch {
+          return null;
+        }
+      };
+      if (modo === 'api' && id) {
+        const r = await daApi();
+        if (r) return r;
+      }
       const local = motor ? await fichaLocal(motor, { perfil: usuario?.perfil ?? null, parametros, agora: relogioReal().agora().toISOString(), clienteId, produtoId: id }) : null;
       if (local) return { fase: 'pronta', ficha: local, noAparelho: true };
+      if (modo === 'sem_sinal') return { fase: 'catalogo_carregando' };
       if (!ambiente.online() || !id) return { fase: 'nao_encontrado' };
-      try {
-        const ficha = await ambiente.http.get<FichaProduto>(caminhoCatalogo('produto', { id }), { customer_id: clienteId });
-        return { fase: 'pronta', ficha, noAparelho: false };
-      } catch {
-        return { fase: 'nao_encontrado' };
-      }
+      return modo === 'api' ? { fase: 'nao_encontrado' } : ((await daApi()) ?? { fase: 'nao_encontrado' });
     };
     void carregar().then((e) => vivo && setEstado(e));
     return () => {
       vivo = false;
     };
-  }, [motor, id, clienteId, parametros, ambiente, usuario?.perfil, sync.sincronizado_em]);
+  }, [motor, id, clienteId, parametros, ambiente, usuario?.perfil, sync.sincronizado_em, modo]);
 
   // T-0172: título, subtítulo e voltar na faixa Azul noite do kit (docs/design/componentes.md §5.2)
   const voltar = { label: 'Catálogo', fallback: hrefCatalogo(clienteId) };
@@ -55,6 +66,13 @@ export default function TelaProduto() {
     return (
       <Screen testID="pagina-catalogo-produto" cabecalho={{ titulo: 'Produto', voltar }}>
         <ActivityIndicator color={colors.accent} />
+      </Screen>
+    );
+  }
+  if (estado.fase === 'catalogo_carregando') {
+    return (
+      <Screen testID="pagina-catalogo-produto" cabecalho={{ titulo: 'Produto', voltar }}>
+        <CatalogoCarregando comTitulo />
       </Screen>
     );
   }

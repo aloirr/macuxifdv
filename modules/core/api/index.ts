@@ -20,6 +20,7 @@ import { rotasDeClientes } from './clientes';
 import { rotasDeDispositivos } from './dispositivos';
 import { provedoresDeNotificacao, rotasDeNotificacoes } from './notificacoes';
 import { consultaCadastroCliente, consultaCadastroResumo, consultaCalendarioMetas, consultaFinanceiroCliente, consultaProdutosPorSku, consultaPromotorVePedidos, consultaUsuariosResumo } from './consultas';
+import { consultaProdutividadeEquipe, registrarContatoDoAparelho } from './produtividade-equipe';
 import { consumidorPushNotificacao } from './consumidores';
 import { consumidoresDoErp } from './consumidores-erp';
 import { consumidoresDePedido } from './consumidores-pedido';
@@ -30,6 +31,7 @@ import { consultaFiliais, consultaFiliaisDoUsuario, rotasDeFiliais } from './fil
 import { rotasDeFilialDoProprioUsuario } from './filiais-usuario-rotas';
 import { rotasDeFotosPdv } from './fotos-pdv';
 import { consultaMedidas, rotasDeMedidas } from './medidas';
+import { consultaCredencialConferir, consultaUsuariosComAcao } from './credencial';
 import { rotasDeFarol } from './farol';
 import { rotasDePlanoRv } from './plano-rv';
 import { rotasDeInicio } from './inicio';
@@ -37,6 +39,8 @@ import { rotasDeMetas } from './metas';
 import { rotasDeProdutos } from './produtos';
 import { rotasDePromotorPedidos } from './promotor-pedidos';
 import { rotasDeParametrosInicio } from './parametros-inicio';
+import { rotasDeParametrosAlertas } from './parametros-alertas';
+import { rotasDeParametrosJornada } from './parametros-jornada';
 import { rotasDeParametrosCurvaAbc } from './parametros-curvas-abc';
 import { rotasDeAvatar } from './avatar';
 import { rotasDeFrases } from './frases';
@@ -64,12 +68,14 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
   const sa = criarSuperAdmin(plataforma);
   return definirModuloApi({
     manifesto: manifest,
-    rotas: [...rotasDeFilialDoProprioUsuario, ...rotasDeLicencas, ...rotasDeUsuarios, ...rotasDeVinculoErp, ...rotasDePerfis, ...rotasDeEquipeCsv, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDeFiliais, ...rotasDeFotosPdv, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeParametrosCurvaAbc, ...rotasDeFarol, ...rotasDePlanoRv, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes, ...rotasDeTarefas, ...rotasDeFrases, ...rotasDeAvatar, ...rotasDeMetasProdutividade, ...rotasDePerformance],
+    rotas: [...rotasDeFilialDoProprioUsuario, ...rotasDeLicencas, ...rotasDeUsuarios, ...rotasDeVinculoErp, ...rotasDePerfis, ...rotasDeEquipeCsv, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDeFiliais, ...rotasDeFotosPdv, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeParametrosAlertas, ...rotasDeParametrosJornada, ...rotasDeParametrosCurvaAbc, ...rotasDeFarol, ...rotasDePlanoRv, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes, ...rotasDeTarefas, ...rotasDeFrases, ...rotasDeAvatar, ...rotasDeMetasProdutividade, ...rotasDePerformance],
     sync: [...provedoresSyncCore, ...provedoresDeNotificacao, ...provedoresSyncT0170],
     consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorBaixaPorResposta, consumidorMetaDefinida, ...consumidoresDoErp],
     // ADR 0022: varredura do alerta de pendência de etapa do checkout (RN-CORE-12); período múltiplo de 15 min (RN-CORE-23).
     tarefas: [definirTarefa({ nome: 'alerta_pendencia_checkout', cadaMin: 60, executar: (ctx) => alertarPendenciasVencidas(ctx) })],
-    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaFinanceiroCliente, consultaMedidas, consultaFiliais, consultaFiliaisDoUsuario, consultaPromotorVePedidos, consultaUsuariosResumo, consultaCalendarioMetas, consultaProdutosPorSku],
+    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaFinanceiroCliente, consultaMedidas, consultaFiliais, consultaFiliaisDoUsuario, consultaPromotorVePedidos, consultaUsuariosResumo, consultaCalendarioMetas, consultaProdutosPorSku, consultaProdutividadeEquipe, consultaCredencialConferir, consultaUsuariosComAcao],
+    // T-0180 (ADR 0059 §5): último contato do aparelho, chamado pela API depois do novidades e do push (melhor esforço)
+    contatoDoAparelho: registrarContatoDoAparelho,
     rotasPublicas: [
       {
         metodo: 'POST',

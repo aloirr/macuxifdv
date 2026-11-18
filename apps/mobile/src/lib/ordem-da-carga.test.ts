@@ -18,9 +18,11 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
+import { essencialDaEntrada } from '@macuxi/core/app';
+
 import { criarMemoriaDaEntrada } from './entrada';
 import { MANIFESTOS_INSTALADOS } from './instalados';
-import { ordemDaCargaDoUsuario } from './ordem-da-carga';
+import { essenciaisDoUsuario, ordemDaCargaDoUsuario } from './ordem-da-carga';
 
 // o índice de `@macuxi/core/app` (API pública do Core) puxa telas: os módulos nativos viram vazios e a regra pura é a real
 vi.mock('react-native', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
@@ -175,5 +177,23 @@ describe('ordemDaCargaDoUsuario', () => {
     expect(ordem(item('alerta', 'gestor'))).toBe(4);
     // Aprovações (contém o catálogo) por último
     expect(ordem(item('pedido', 'vendedor'))).toBe(5);
+  });
+});
+
+describe('essenciaisDoUsuario (ADR 0054, entrada enquanto carrega)', () => {
+  // a regra (o que é essencial por perfil) é testada no Core (`entrada-sync.test.ts`); aqui só o repasse
+  it('repassa ao Core o perfil e os módulos lidos a cada chamada, com a chave do item como entidade', () => {
+    let perfil: string | null = 'vendedor';
+    const modulos = ['core', 'catalogo', 'vendedor', 'gestor'];
+    const essencial = essenciaisDoUsuario(
+      () => perfil,
+      () => modulos,
+    );
+    const item: ItemDaCarga = { chave: 'painel_vendedor_dia', modulo: 'gestor', tipo: 'entidade' };
+    const doCore = () => essencialDaEntrada(perfil, modulos)({ entidade: item.chave, modulo: item.modulo });
+    expect(essencial(item)).toBe(doCore());
+    perfil = 'supervisor';
+    expect(essencial(item)).toBe(doCore());
+    expect(essencial(item)).not.toBe(essencialDaEntrada('vendedor', modulos)({ entidade: item.chave, modulo: item.modulo }));
   });
 });
