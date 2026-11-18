@@ -1,4 +1,4 @@
-import { formatInt } from '@macuxi/ui/web';
+import { formatInt, valorComPadrao, type ValorComPadrao } from '@macuxi/ui/web';
 import { ParametrosPesquisaSchema } from '../../contracts';
 
 type Brutos = Readonly<Record<string, unknown>>;
@@ -13,15 +13,7 @@ export function parametrosEmUso(brutos: Brutos): Parametros {
   return r.success ? r.data : PADRAO;
 }
 
-export interface ValorParametro {
-  texto: string;
-  /** Texto do padrão, só quando o valor do tenant difere dele. */
-  padrao: string | null;
-}
-
-/** Texto do valor de um parâmetro e, se o tenant mudou, o padrão ("Padrão: X"). */
-export function valorDoParametro(brutos: Brutos, chave: keyof Parametros, formatar: (v: number) => string = formatInt): ValorParametro {
-  const atual = parametrosEmUso(brutos)[chave] as number;
-  const padrao = PADRAO[chave] as number;
-  return { texto: formatar(atual), padrao: atual === padrao ? null : formatar(padrao) };
+/** Valor em uso de um parâmetro e, se o tenant mudou, "Padrão: X" (`valorComPadrao` do kit, RD-1584). */
+export function valorDoParametro(brutos: Brutos, chave: keyof Parametros, formatar: (v: number) => string = formatInt): ValorComPadrao {
+  return valorComPadrao(parametrosEmUso(brutos)[chave] as number, PADRAO[chave] as number, formatar);
 }

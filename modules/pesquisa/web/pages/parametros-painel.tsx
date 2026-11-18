@@ -1,30 +1,14 @@
 import { useParametros } from '@macuxi/platform-sdk/react';
 import type { ReactElement } from 'react';
-import { formatInt } from '@macuxi/ui/web';
-import { valorDoParametro, type ValorParametro } from '../lib/parametros-valor';
+import { formatarParametro, ListaParametros } from '@macuxi/ui/web';
+import { valorDoParametro } from '../lib/parametros-valor';
 
-interface Linha {
-  rotulo: string;
-  valor: ValorParametro;
-}
+/** A lista do kit (RD-1583) com o testId que os testes da tela já usam. */
+const Lista = ({ id, linhas }: { id: string; linhas: { rotulo: string; valor: ReturnType<typeof valorDoParametro> }[] }): ReactElement => (
+  <ListaParametros testId={`parametros-pesquisa-${id}-valores`} linhas={linhas.map((l) => ({ rotulo: l.rotulo, ...l.valor }))} />
+);
 
-function Lista({ id, linhas }: { id: string; linhas: readonly Linha[] }): ReactElement {
-  return (
-    <dl data-testid={`parametros-pesquisa-${id}-valores`} className="m-0 grid grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-2 text-[15px]">
-      {linhas.map((l) => (
-        <div key={l.rotulo} className="contents">
-          <dt className="font-semibold text-ink">{l.rotulo}</dt>
-          <dd className="m-0 text-right tabular-nums">
-            {l.valor.texto}
-            {l.valor.padrao !== null ? <span className="block text-[13px] text-ink-2">Padrão: {l.valor.padrao}</span> : null}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-const unidade = (u: string) => (v: number) => `${formatInt(v)} ${u}`;
+const unidade = formatarParametro.unidade;
 
 /** Parâmetros › Pesquisa › Vigência (RN-PES-04). Só leitura; valor do tenant com fallback ao padrão. */
 export function ParametrosVigencia(): ReactElement {
