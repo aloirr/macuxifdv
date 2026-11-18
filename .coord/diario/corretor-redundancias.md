@@ -124,3 +124,9 @@
 2026-11-16 — #471 56049e51 LIBERADO (RD-2131 aberta nos docs do gerente).
 2026-11-16 — #472 72e70196 LIBERADO (testes depois do #457).
 2026-11-16 — #475 6529b88c LIBERADO (trechos idênticos ao #420).
+2026-11-16 — #448 26aac73e LIBERADO (só merge do main).
+2026-11-16 — #476 3c352a68 LIBERADO (= #410 58a84ea0 + ciclo-erp do #466).
+2026-11-16 — #435 e2bfaefe: RD-1623..1628 fechados; RD-2150..2153 (baixos, seguram), RD-2154 (não segura).
+2026-11-16 — #435 37871b4d LIBERADO (RD-2150..2153 fechados).
+2026-11-16 — #477 e6167d93 LIBERADO.
+2026-11-16 — #420 8d465f37 e #396 e4b64ccd LIBERADOS (RD-1560 fechado).

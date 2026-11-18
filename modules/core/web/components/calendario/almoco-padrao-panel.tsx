@@ -6,7 +6,7 @@ import { ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, LoadingBlock, Notice } from '@macuxi/ui/web';
 import { textoDoMinuto } from '../../../contracts';
 import { lerHorarioAlmocoTexto, type ErrosAlmocoTexto } from '../../../domain';
-import { CHAVE_JORNADA, criarApiJornada, type ApiJornada } from './almoco-padrao';
+import { CHAVE_JORNADA, criarApiJornada, rotuloSalvarAlmoco, type ApiJornada } from './almoco-padrao';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 import { ErroCampo } from '../campo';
 
@@ -74,7 +74,7 @@ export function AlmocoPadraoPanel({ cliente }: { cliente?: ApiJornada }) {
             <ErroCampo id="calendario.almoco-padrao.erro.fim" texto={erros.fim} />
           </label>
           <Button variant="primary" className="mt-[21px]" disabled={gravar.isPending || Object.keys(texto).length === 0} onClick={salvar} data-testid="calendario.almoco-padrao.salvar">
-            Salvar
+            {rotuloSalvarAlmoco(gravar.isPending)}
           </Button>
         </div>
       )}

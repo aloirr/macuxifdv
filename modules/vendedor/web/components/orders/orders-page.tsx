@@ -13,6 +13,7 @@ import { usePedidos, usePendentes, useSessaoDoBko } from '../../lib/queries';
 import { useFiltrosNaUrl } from '../../lib/use-filtros';
 import { CardsPedidosErp } from './cards-pedidos-erp';
 import { ApprovalsPanel } from './approvals-panel';
+import { DecisoesAlcada } from './decisoes-alcada';
 import { useAtualizarPedidos } from './decisao';
 import { ERRO_IMPRESSAO, exportarPdfDoPedido } from './exportar-pdf';
 import { OrderDrawer } from './order-drawer';
@@ -179,6 +180,8 @@ export function OrdersPage() {
               </div>
             )}
           </section>
+
+          <DecisoesAlcada />
         </>
       )}
 
