@@ -180,3 +180,4 @@
 2026-11-15 — fonte do sistema v1.0.13 — CNPJ (filiais) e coordenadas (lat/lng) saem do mono para tabular-nums; mono fica só em código/sigla/SKU/senha
 2026-11-15 — fonte do sistema v1.0.13 — rodada 5 — RD-0956 removido font-display (3 arquivos web); RD-0957 Início do Campo já em 22/700 = type.saudacao
 2026-11-15 — filtro padrão Campo (v1.0.13) — Rota (cliente, cidade, bairro, data), Clientes (situação na folha, carteira vazia) e Performance (filtro na linha das abas, "Não é dia útil"); regras em domain/filtro-padrao.ts; branch nuvem/filtro-padrao-modulo-core
+2026-11-16 — v1.0.14 D-PAR-05 — botão do painel Almoço (Parâmetros › Calendário) diz "Salvar almoço" e "Salvando…" ao gravar (rotuloSalvarAlmoco, com teste); refeito no Cline a partir de 853c8af8 (branch agente/v1014-almoco-modulo-core).

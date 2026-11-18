@@ -18,6 +18,7 @@ import { criarAutenticacaoHub, type ConectorHub } from './autenticacao';
 import { rotaCargaArquivo, rotaConferirArquivo, rotaErrosLote, rotaErrosLoteCsv, rotaLote, rotaOrdemCarga, rotaProgressoSessaoArquivo } from './bko-carga-arquivo';
 import { rotaModeloCsv, rotaModeloDicionario } from './bko-modelos';
 import { rotaDecidirInativacao } from './bko-inativacao';
+import { criarLimiteTentativas, criarRotaReprocessarLote, rotaCancelarLote, rotaCodigosMacuxi, rotaListarAutorizadores, verificadorSenhaIndisponivel, type VerificadorSenha } from './bko-lotes-acoes';
 import { criarRotasConectores } from './bko-conectores';
 import { rotaDownloadConector } from './conector-download';
 import { rotaMonitor } from './bko-monitor';
@@ -28,6 +29,7 @@ import { pedidosPendentes, retornoPedido, sinalDeVida } from './rotas-pedidos';
 
 export { gerarOpenApiHub, openApiHub, type DocumentoOpenApi } from './openapi/gerar';
 export { documentoOpenApiPublico } from './openapi/publico';
+export type { VerificadorSenha } from './bko-lotes-acoes';
 
 const LIMITE_CORPO_LOTE = 8 * 1024 * 1024;
 const MAX_ELEMENTOS_LOTE = 1_000_000;
@@ -42,7 +44,8 @@ function doContrato(id: string): { id: string; metodo: 'GET' | 'POST'; caminho: 
 // as rotas têm tipos de corpo/query/params próprios; o array é homogêneo para a plataforma
 const rota = (r: unknown) => r as RotaConector<ConectorHub>;
 
-export function criarModuloApiIntegracao(o: { pepper: () => string | undefined }): ModuloApi {
+/** `verificarSenha`: conferência da senha do autorizador do reprocessamento (RN-INT-16); sem ela, a autorização por senha responde 503. */
+export function criarModuloApiIntegracao(o: { pepper: () => string | undefined; verificarSenha?: VerificadorSenha }): ModuloApi {
   const auth = criarAutenticacaoHub(o);
   const rotasConector: RotaConector<ConectorHub>[] = [
     // sem `corpo` e com cabeçalhos base: o envelope e a Idempotency-Key são validados no módulo (400 chave_idempotencia_invalida /
@@ -62,7 +65,7 @@ export function criarModuloApiIntegracao(o: { pepper: () => string | undefined }
     // A7 (aplica o lote recebido) e A8 (pedido aprovado entra na fila do ERP; saída de aprovado a retira): ADR 0007, hub-api.md §7/§11
     consumidores: [consumidorLoteRecebido, consumidorPedidoAprovado, consumidorPedidoStatusAlterado, consumidorPedidoCancelado, consumidorMarcaDesconhecida],
     consultas: [consultaCancelamentoErp],
-    rotas: [rotaMonitor, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaListarMapeamentos, rotaGravarMapeamento, rotaApagarMapeamento, rotaReprocessarRetidos, rotaCargaArquivo, rotaProgressoSessaoArquivo, rotaLote, rotaErrosLote, rotaErrosLoteCsv, rotaOrdemCarga, rotaConferirArquivo, rotaModeloCsv, rotaModeloDicionario, rotaDownloadConector],
+    rotas: [rotaMonitor, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaListarMapeamentos, rotaGravarMapeamento, rotaApagarMapeamento, rotaReprocessarRetidos, rotaCodigosMacuxi, rotaListarAutorizadores, rotaCancelarLote, criarRotaReprocessarLote({ verificarSenha: o.verificarSenha ?? verificadorSenhaIndisponivel, limite: criarLimiteTentativas() }), rotaCargaArquivo, rotaProgressoSessaoArquivo, rotaLote, rotaErrosLote, rotaErrosLoteCsv, rotaOrdemCarga, rotaConferirArquivo, rotaModeloCsv, rotaModeloDicionario, rotaDownloadConector],
     // T-0092: especificação pública (sem token); ETag, 304 e Cache-Control são da plataforma
     rotasPublicas: [{ metodo: 'GET', caminho: 'openapi.json', limite: { max: 60, janelaMs: 60_000 }, cache: { maxAgeSegundos: 3600 }, executar: async () => documentoOpenApiPublico() }],
     conector: definirApiConector<ConectorHub>({ autenticar: auth.autenticar, antes: auth.antes, rotas: rotasConector }),

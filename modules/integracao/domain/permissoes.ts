@@ -12,6 +12,7 @@ import type { Perfil } from '@macuxi/platform-sdk';
 export const PERFIS_ACAO_INTEGRACAO = {
   'monitor.ver': ['admin', 'analista'],
   'lote.reprocessar': ['admin', 'analista'],
+  'lote.cancelar': ['admin', 'analista'],
   'mapeamento.editar': ['admin', 'analista'],
   'conector.gerenciar': ['admin'],
   'inativacao.decidir': ['admin', 'analista'],
@@ -26,6 +27,7 @@ export type ResultadoPermissao = { ok: true } | { ok: false; status: 403; codigo
 const MENSAGENS: Record<AcaoIntegracao, string> = {
   'monitor.ver': 'Seu perfil não acessa o monitor da Integração ERP. Peça acesso ao administrador do Macuxi.',
   'lote.reprocessar': 'Só administrador ou analista reprocessa lotes. Peça a um deles em Integração ERP > Lotes.',
+  'lote.cancelar': 'Só administrador ou analista cancela lotes. Peça a um deles em Integração ERP.',
   'mapeamento.editar': 'Só administrador ou analista edita o mapeamento de códigos. Peça a um deles em Integração ERP > Mapeamento.',
   'conector.gerenciar': 'Só o administrador gerencia Conectores e chaves de API. Peça ao administrador do Macuxi em Integração ERP > Conectores.',
   'inativacao.decidir': 'Só administrador ou analista confirma ou recusa a inativação em massa. Peça a um deles em Integração ERP > Inativações.',

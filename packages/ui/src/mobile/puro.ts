@@ -36,3 +36,5 @@ export * from './campo-senha';
 export * from './sincronizacao-completa';
 // Onda 1 do catálogo (solução 5): textos e medidas do indicador de carga em segundo plano
 export * from './carga-fundo';
+// T-0182: PlacaLogoCliente (medidas, caixa pela proporção e leitura do TalkBack)
+export * from './placa-logo';

@@ -7,7 +7,7 @@
  *  - progresso da sessão (`progressoSessaoArquivo`): partes recebidas/aplicadas/faltando, expiração (TTL) e aviso ao operador.
  * Só quando a ÚLTIMA parte é aplicada e todas as anteriores concluíram a sessão fecha e o que sumiu é inativado (`sessao.ts`).
  */
-import type { Entidade, EstadoLote, InativacaoLote } from '../contracts';
+import type { Entidade, EstadoLoteBko, InativacaoLote } from '../contracts';
 import { lerCsvComPosicoes, type ParteArquivo } from './carga-arquivo';
 import { PARAMETROS_PADRAO } from './parametros';
 import { novaSessao, registrarParte, situacaoSessao, type SituacaoSessao } from './sessao';
@@ -185,13 +185,13 @@ export function conferirParteDaSessao(e: { nova: ParteDaSessao; existentes: read
 
 // ---------------------------------------------------------------------------------------------------------------- progresso
 
-const APLICADAS: ReadonlySet<EstadoLote> = new Set<EstadoLote>(['concluido', 'concluido_com_erros']);
+const APLICADAS: ReadonlySet<EstadoLoteBko> = new Set<EstadoLoteBko>(['concluido', 'concluido_com_erros']);
 
 export interface ParteLida {
   parte: number;
   totalPartes: number;
   lote_id: string;
-  status: EstadoLote;
+  status: EstadoLoteBko;
   recebidas: number;
   com_erro: number;
   novas: number;
@@ -212,7 +212,7 @@ export interface ProgressoSessao {
   partes_aplicadas: number;
   partes_com_falha: number;
   partes_faltando: number[];
-  partes: { parte: number; lote_id: string; status: EstadoLote; recebidas: number; com_erro: number; novas: number; atualizadas: number; inalteradas: number; obsoletas: number }[];
+  partes: { parte: number; lote_id: string; status: EstadoLoteBko; recebidas: number; com_erro: number; novas: number; atualizadas: number; inalteradas: number; obsoletas: number }[];
   contagens: { recebidas: number; com_erro: number; novas: number; atualizadas: number; inalteradas: number; obsoletas: number };
   erros_total: number;
   inativacao?: InativacaoLote;

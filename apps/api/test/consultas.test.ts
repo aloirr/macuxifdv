@@ -14,18 +14,20 @@ import {
   definirEntidadeSync,
   definirModuloApi,
   implementarConsulta,
+  matrizDeFabrica,
   USUARIO_SISTEMA_ID,
   type ClienteBanco,
   type ContextoBase,
   type LinhaSync,
   type ModuloApi,
   type ModuloId,
+  type MotorPermissoes,
 } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createApp } from '../src/app';
 import { MODULOS_API } from '../src/modulos';
-import { registroDeConsultas, transacaoTenant } from '../src/outbox';
+import { motorPermissoesDe, registroDeConsultas, transacaoTenant } from '../src/outbox';
 import { bancoFalso, cab, LICENCAS_PADRAO, modulosDeTeste, opcoesDeTeste, TENANT, usuarios } from './apoio';
 
 const PRECOS = definirConsulta({
@@ -38,6 +40,9 @@ const NAO_DECLARADA = definirConsulta({ nome: 'catalogo.outra@1', entrada: z.obj
 const CLIENTE = '0c000000-0000-4000-8000-000000000001';
 let dbDaConsulta: ClienteBanco | null = null;
 let fusoDaConsulta: string | null = null;
+let permissoesDaConsulta: MotorPermissoes | undefined;
+/** Leitura por função: o TypeScript não estreita a variável que a consulta muda dentro do callback. */
+const permissoesVistas = (): MotorPermissoes | undefined => permissoesDaConsulta;
 
 /** Catálogo de teste: oferece e implementa a consulta (lê os parâmetros do PRÓPRIO módulo e o usuário da requisição). */
 const catalogoApi = definirModuloApi({
@@ -46,6 +51,7 @@ const catalogoApi = definirModuloApi({
     implementarConsulta(PRECOS, async (e, ctx) => {
       dbDaConsulta = ctx.db;
       fusoDaConsulta = ctx.fuso();
+      permissoesDaConsulta = ctx.permissoes;
       const fator = Number(ctx.parametros().fator_teste ?? 1);
       return { itens: e.produto_ids.map((p) => ({ produto_id: p, preco_cents: p === 'sem' ? null : 1000 * fator })), quem: ctx.usuario.perfil, fator };
     }),
@@ -115,6 +121,14 @@ describe('E1 — tx.consultar no createApp (ADR 0012)', () => {
       expect(r.statusCode, r.body).toBe(200);
       expect(fusoDaConsulta).toBe(esperado);
     }
+  });
+
+  it('T-0173: na rota, a consulta recebe o MESMO ctx.permissoes da rota (matriz de fábrica dos módulos instalados)', async () => {
+    permissoesDaConsulta = undefined;
+    const r = await app().inject({ method: 'GET', url: '/v1/vendedor/teste-precos', headers: cab('vendedor') });
+    expect(r.statusCode, r.body).toBe(200);
+    const manifestos = modulosDeTeste({ catalogo: catalogoApi, vendedor: vendedorApi, promotor: promotorApi }).map((m) => m.manifesto);
+    expect(permissoesVistas()?.matriz).toEqual(matrizDeFabrica(manifestos));
   });
 
   it('dono opcional inativo para o usuário → ConsultaIndisponivel, 503 CONSULTA_INDISPONIVEL se a rota não tratar', async () => {
@@ -319,6 +333,15 @@ describe('ADR 0025 — transacaoTenant (executor) fora da rota de usuário', () 
     const sistema = { id: USUARIO_SISTEMA_ID, tenant_id: TENANT, perfil: 'admin' as const, modulos: efetivos };
     const tx = transacaoTenant(db, { ...origem, usuario: sistema, modulosDoTenant: efetivos });
     expect(await tx.consultar(PRECOS, entrada, { licenca: 'tenant' })).toEqual(await tx.consultar(PRECOS, entrada));
+  });
+
+  it('T-0173: a consulta recebe ctx.permissoes com a matriz de fábrica dos manifestos instalados (consumidor, tarefa e Conector usam esta via)', async () => {
+    const sistema = { id: USUARIO_SISTEMA_ID, tenant_id: TENANT, perfil: 'admin' as const, modulos: efetivos };
+    permissoesDaConsulta = undefined;
+    await transacaoTenant(db, { ...origem, usuario: sistema, modulosDoTenant: efetivos }).consultar(PRECOS, entrada);
+    expect(permissoesVistas()).toBe(motorPermissoesDe(manifestos));
+    expect(permissoesVistas()?.matriz).toEqual(matrizDeFabrica(manifestos));
+    expect(permissoesVistas()?.catalogo.length).toBeGreaterThan(0);
   });
 
   it("licença fora de 'usuario' | 'tenant' = erro de programação", async () => {

@@ -113,7 +113,7 @@ const ROTULO_DA_CHAVE: Readonly<Record<string, string>> = {
   'painel_tenant.ver': 'Ver os painéis da empresa (só leitura)',
   'alerta_regra.gerenciar': 'Ajustar as regras de alerta',
   'rota.editar': 'Montar a rota da semana',
-  'modulo.gerir_licencas': 'Ligar e desligar módulos (Usuários e módulos)',
+  'modulo.gerir_licencas': 'Ligar e desligar módulos (Módulos)',
   'dispositivo.bloquear': 'Bloquear aparelho',
   'motivo.editar': 'Cadastrar motivos de não venda',
   'produto.editar_preco': 'Ver custo e editar preço do produto',

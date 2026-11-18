@@ -1,5 +1,5 @@
 /**
- * Administração de licenças de módulo (RF-CORE-02; tela "Usuários e módulos" do BKO). Só `admin`
+ * Administração de licenças de módulo (RF-CORE-02; painel Módulos do BKO). Só `admin`
  * (ação `modulo.gerir_licencas`); a API revalida. Três níveis: tenant → perfil → usuário (RN-CORE-01).
  *
  * - `GET /v1/core/licencas` — estado completo (módulos, tenant, perfis, usuários com exceções).

@@ -101,3 +101,6 @@ O `corretor-redundancias` cuida de excesso e repetição, e o `testes` cuida de 
 3. Consistência antes de novidade: não proponha mudança de marca sem motivo de negócio claro.
 4. Nada de marca de terceiros (logos, nomes ou cores registradas) nas telas, nos PDFs ou nos materiais, salvo a marca do próprio cliente (tenant).
 5. Não cite empresas onde o Alexandre trabalhou ou trabalha.
+
+## Lições de 15/11 (R-20261115-213800-alexandre)
+- Você não carrega a skill `protocolo-recados`: leia a seção "Lições de 15/11" de `.claude/skills/protocolo-recados/SKILL.md` e o "1 push por PR" de `.claude/skills/entrega/SKILL.md`. Valem para você.

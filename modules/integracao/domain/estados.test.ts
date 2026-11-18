@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ESTADOS_LOTE, ESTADOS_PEDIDO_ERP, type EstadoLote, type EstadoPedidoErp } from '../contracts';
+import { ESTADOS_LOTE_BKO, ESTADOS_PEDIDO_ERP, type EstadoLoteBko, type EstadoPedidoErp } from '../contracts';
 import { aplicarTimeoutEnvio, chaveNotaRetorno, podeEntrarNaFila, transicionarLote, transicionarPedidoErp, transicionarRetornoPedidoErp } from './estados';
 
 describe('RN-INT-08: máquina de estados do lote', () => {
@@ -12,14 +12,14 @@ describe('RN-INT-08: máquina de estados do lote', () => {
   it('RN-INT-08/03: reprocessar volta de concluido_com_erros e falhou para processando; concluído é final', () => {
     expect(transicionarLote('concluido_com_erros', 'processando').ok).toBe(true);
     expect(transicionarLote('falhou', 'processando').ok).toBe(true);
-    for (const para of ESTADOS_LOTE) expect(transicionarLote('concluido', para).ok).toBe(false);
+    for (const para of ESTADOS_LOTE_BKO) expect(transicionarLote('concluido', para).ok).toBe(false);
   });
 
   it('RN-INT-08: transições inválidas são rejeitadas com mensagem em português', () => {
     const r = transicionarLote('recebido', 'concluido');
     expect(r).toMatchObject({ ok: false, codigo: 'transicao_invalida', de: 'recebido', para: 'concluido' });
     if (!r.ok) expect(r.mensagem).toMatch(/recebido.*concluido/);
-    const invalidas: [EstadoLote, EstadoLote][] = [
+    const invalidas: [EstadoLoteBko, EstadoLoteBko][] = [
       ['processando', 'recebido'],
       ['processando', 'processando'],
       ['concluido_com_erros', 'concluido'],
