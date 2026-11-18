@@ -13,6 +13,17 @@ Só fica neste arquivo o que o dono do produto autorizou por escrito. **Autoriza
 
 **Autorizado em 09/11 (R-20261109-125750, "Backlog (autorizo)"):** todo o **Telegram** do repositório de recados — aviso de recado, resumo de hora em hora e resposta pelo Telegram (incluindo o intervalo do passo 4a e o `telegram-recado.yml`), sem data. Estado ao sair da esteira: o Telegram recusa com HTTP 403 (bot sem permissão no chat: falta `/start` ou o `TELEGRAM_CHAT_ID` está errado); a correção do aviso (mensagem de erro clara, 429 com nova tentativa, carga em lote numa mensagem) está pronta em `docs/desenho/T-0139-repo-recados/` e não foi publicada. Não mexer nos workflows de Telegram até ele tirar do backlog.
 
+**Autorizado em 15/11 (R-20261115-114000, "coloque no backlog"):** **T-0183, Padronização do BKO** (o T-0180 é dos alertas). Começa logo depois da entrega da v1.0.12. Revisar todas as telas do BKO e do portal para padronizar:
+- os botões: posição, quais ficam visíveis, quais vão no "⋯" e opções iguais entre telas;
+- os filtros, os cartões numéricos, as barras de busca, as tabelas e os estados vazios.
+
+Quem faz o quê:
+- **designer-ux:** escreve o padrão em `docs/design` e faz os componentes em `packages/ui`;
+- **corretor-redundancias:** faz o inventário das telas;
+- **donos de cada tela:** aplicam o padrão;
+- **design-de-marca:** valida;
+- **testes:** testam em 1366×768.
+
 **Trazidos para a esteira em 07/11 17h** (tarefas com dono e ordem no quadro):
 - **Itens da lista "Futuro":**
   - T-0095: ERP, guarda de ordem e reativação;

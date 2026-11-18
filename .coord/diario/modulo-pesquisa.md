@@ -21,3 +21,5 @@
 2026-11-12 — T-0166 — RD-0184: saem chips de progresso/salvo, faixa repetida e subtítulo da folha Enviar na resposta da pesquisa
 2026-11-14 — RD-0051 — exportacao.ts usa BOM_CSV do comum (celulaCsv segue local, comentado); teste fixa a saída byte a byte, idêntica antes e depois.
 2026-11-15 — fonte do sistema v1.0.13 — fonts.body→fonte.body; fontes 15→16 (app), 11→12 e 14→15 (web)
+2026-11-15 — v1.0.14 parametros — Parâmetros › Pesquisa (Vigência, Construtor, Fotos) só leitura e item direto no menu; RD-S02/R06; fonte do sistema; rascunho até o SDK de Parâmetros
+2026-11-16 — v1.0.14 parametros — RD-1585 (formatInt do kit) e MC-1515 (Padrão em text-ink-2); RD-1583/1584 esperam a ListaParametros do designer-ux
