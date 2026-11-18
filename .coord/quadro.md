@@ -2,6 +2,33 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
+> **v1.0.14 = cenário A** (R-20261117-063420-alexandre). Sessão do Cline de 16 a 18/11, no lugar da nuvem até sexta (20/11). Horários de Manaus.
+> - **No main:** #420, #486, #403, #396 (0087), #483, #412, #484, #478, #479, #480, #481, #482, #414, #416, #415, #488 e #489 (último: 555c719a, 17/11 às 23h44).
+> - **Falta:**
+>   - #485 (testes da T-0173): head 2878f90b, esperando a frase nova;
+>   - main verde (o run 44232491470 caiu por infraestrutura: job morto, código 137);
+>   - reteste do corretor e da marca sobre o main e o recado "PRONTO PARA LIBERAR v1.0.14".
+> - **Fechados sem merge:** #487 e #384 (a reconferência de marca da v1.0.13 os substitui) e #345 (substituído pelo #488).
+> - **v1.0.15:**
+>   - #453 (catálogo v2), em rascunho até a parte 2 das telas (RD-1707), que precisa de aparelho;
+>   - [T-0185](tarefas/T-0185.md): login e e-mails de senha refeitos sobre o main (os #285, #302 e #288 ficam congelados);
+>   - [T-0184](tarefas/T-0184.md): P-6, pedido com crédito estourado vai para aprovação (R-20261117-234127 e R-20261117-234437);
+>   - preço do Catálogo no prazo padrão do cliente, junto com o #453.
+> - **RN-VEN-43 com dois sentidos** (R-20261117-201110, ponto 3): o doc 03 vai só até a RN-VEN-42, e nenhuma das duas está lá. **Proposta revista:**
+>   - a tabela ajustada pelo prazo fica com a **RN-VEN-43 a 46** (53 arquivos citam, código inclusive);
+>   - os **cards de Pedidos** (T-0170, só em `docs/desenho/inicio-frase-avatar-pedidos.md` e afins) ganham um número novo;
+>   - o doc 03 recebe as duas no PR de documentação da v1.0.15.
+>   - Isso inverte o que o gerente propôs às 20h11. Está avisado no recado da madrugada de 18/11.
+> - **Economia do Actions** (R-20261117-065555), vale para todas as sessões:
+>   - PR só quando é obrigatório;
+>   - um push por PR (o ajuste antes vai em rascunho);
+>   - não juntar o main sem conflito;
+>   - pareceres só como comentário no PR;
+>   - documentação e diários num PR só, por dono, no fechamento da versão;
+>   - um build do Android por versão;
+>   - rerun só uma vez e só para falha de infraestrutura.
+> - **Merges em sequência** (blocos 2 e 3, R-20261117-065959 e R-20261117-184956): sem esperar o CI do main entre um merge e outro, mas cada PR com a sua frase, o CI do head verde, `clean` e o parecer no SHA. Se o CI do main ficar vermelho, nenhum merge novo sai.
+
 > **Manhã de 10/11 — teste da v1.0.2 (dono do produto, 05h32–06h02; 11 recados às 06h22 + regra do corretor às 06h25; "tudo na esteira já"):**
 > - **Build v1.0.2 pronto** (f25bbe88, R-20261109-204045).
 > - **Tarefas novas:**
