@@ -7,9 +7,9 @@ import { Badge, Botao, BotaoFiltro, CampoBusca, CampoTexto, Chip, EtiquetaFiltro
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
-import type { LinhaHistoricoNfContrato } from '../../contracts';
-import { rotuloStatusNf, STATUS_NF, tomStatusNf, type StatusNf } from '../../domain';
-import { abrirDocumentoRegistrado } from '../lib/ficha-online';
+import { STATUS_NF, type LinhaHistoricoNfContrato, type StatusNf } from '../../contracts';
+import { filtrarNotas, rotuloStatusNf, statusDaParcela, tomStatusNf } from '../../domain';
+import { abrirArquivoRegistrado } from '../lib/abrir-arquivo';
 import {
   agruparNotasPorMes,
   chipsDoFiltro,
@@ -28,13 +28,11 @@ import {
   removerChip,
   resumoDosItens,
   rotuloPeriodo,
-  statusDaParcela,
   subtituloDaNota,
   textoContagemNotas,
   valorSemMoeda,
   type FiltroDaFicha,
 } from '../lib/ficha-v2';
-import { filtrarNotas } from '../../domain';
 import type { DetalheDaNota, NotasDoCliente } from '../lib/usar-ficha-online';
 import { ErroOnline } from './erro-online';
 import { CelulaTexto, TabelaFicha, TabelaRotuloValor, type LinhaFicha } from './tabelas-ficha';
@@ -206,7 +204,7 @@ function FolhaFiltrar({ visivel, onFechar, filtro, onAplicar, base, formas, hoje
 function FolhaDaNota({ detalhe }: { detalhe: DetalheDaNota }) {
   const [itens, setItens] = useState(false);
   const { linha, estado, falha, nota } = detalhe;
-  const visualizador = abrirDocumentoRegistrado();
+  const visualizador = abrirArquivoRegistrado();
   const fechar = () => {
     setItens(false);
     detalhe.fechar();

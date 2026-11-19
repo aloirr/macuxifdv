@@ -5,20 +5,13 @@
  * - "Em atraso" é só o fato: a tela não mostra a data de vencimento (R-20261119-0530).
  * - Limite, Saldo disponível e Prazo médio são o cartão do Resumo (sem "Em aberto" nem "Crédito disponível").
  */
-import { situacaoTitulo } from './cliente360';
+import type { StatusNf } from '../contracts/cliente360-v2';
+import { situacaoTitulo, type TituloLike } from './cliente360';
 
-export type StatusNf = 'em_atraso' | 'em_aberto' | 'pago' | 'devolvido' | 'devolvido_parcial';
-export const STATUS_NF: readonly StatusNf[] = ['em_atraso', 'em_aberto', 'pago', 'devolvido', 'devolvido_parcial'];
 export type TomStatusNf = 'danger' | 'warning' | 'success' | 'neutral' | 'accent';
 
 /** P8/P17: o aparelho guarda 90 dias de linhas; além disso só se consulta o servidor. */
 export const JANELA_APARELHO_DIAS = 90;
-
-export interface ParcelaNf {
-  vencimento: string;
-  saldo_cents: number;
-  situacao: 'aberto' | 'liquidado' | 'cancelado';
-}
 
 const ROTULOS: Record<StatusNf, string> = {
   em_atraso: 'Em atraso',
@@ -34,20 +27,43 @@ export const rotuloStatusNf = (s: StatusNf): string => ROTULOS[s];
 export const tomStatusNf = (s: StatusNf): TomStatusNf => TONS[s];
 
 /** Parcela aberta, com saldo e vencida (vence hoje ainda não está vencida). */
-const parcelaVencida = (p: ParcelaNf, hoje: string) => p.saldo_cents > 0 && situacaoTitulo(p, hoje).situacao === 'vencido';
+const parcelaVencida = (p: TituloLike, hoje: string) => p.saldo_cents > 0 && situacaoTitulo(p, hoje).situacao === 'vencido';
 
 /** R-20261119-0530: a NF está em atraso se alguma parcela aberta, com saldo, venceu. Só o fato, sem a data. */
-export const nfEmAtraso = (parcelas: readonly ParcelaNf[], hoje: string): boolean => parcelas.some((p) => parcelaVencida(p, hoje));
+export const nfEmAtraso = (parcelas: readonly TituloLike[], hoje: string): boolean => parcelas.some((p) => parcelaVencida(p, hoje));
 
 /**
  * RN-CORE-40 / P3: enquanto houver saldo em parcela aberta, o status é "Em atraso" (alguma vencida) ou "Em aberto". Sem saldo:
  * devolvido ≥ valor da nota = "Devolvido"; devolvido > 0 = "Devolvido parcial"; senão "Pago" (nota sem parcela no ERP = à vista, paga).
  */
-export function statusDaNf(nota: { valor_cents: number; devolvido_cents: number }, parcelas: readonly ParcelaNf[], hoje: string): StatusNf {
+export function statusDaNf(nota: { valor_cents: number; devolvido_cents: number }, parcelas: readonly TituloLike[], hoje: string): StatusNf {
   const comSaldo = parcelas.filter((p) => p.situacao === 'aberto' && p.saldo_cents > 0);
   if (comSaldo.length > 0) return nfEmAtraso(comSaldo, hoje) ? 'em_atraso' : 'em_aberto';
   if (nota.devolvido_cents > 0) return nota.devolvido_cents >= nota.valor_cents ? 'devolvido' : 'devolvido_parcial';
   return 'pago';
+}
+
+/**
+ * A forma de pagamento da NF chega do ERP pelo CÓDIGO ("BOL"); a tela mostra a DESCRIÇÃO ("Boleto"). Casa o código sem diferenciar
+ * maiúsculas e sem espaços nas pontas; código sem forma cadastrada fica como veio (nunca some). Sem forma = `null`.
+ */
+export function descricaoDaFormaPagamento(valor: string | null, formas: ReadonlyArray<{ codigo: string; nome: string }>): string | null {
+  const v = valor?.trim();
+  if (!v) return null;
+  const chave = v.toLocaleLowerCase('pt-BR');
+  return formas.find((f) => f.codigo.trim().toLocaleLowerCase('pt-BR') === chave)?.nome ?? v;
+}
+
+export interface StatusDaParcela {
+  rotulo: string;
+  tom: 'danger' | 'warning' | 'success' | 'neutral';
+}
+
+/** Parcela da NF: "Em atraso" (mesmo destaque da linha da nota), "Em aberto", "Paga" ou "Cancelada". Sem data de atraso. */
+export function statusDaParcela(p: Pick<TituloLike, 'situacao'> & { em_atraso: boolean }): StatusDaParcela {
+  if (p.situacao === 'liquidado') return { rotulo: 'Paga', tom: 'success' };
+  if (p.situacao === 'cancelado') return { rotulo: 'Cancelada', tom: 'neutral' };
+  return p.em_atraso ? { rotulo: 'Em atraso', tom: 'danger' } : { rotulo: 'Em aberto', tom: 'warning' };
 }
 
 /** P4: valor devolvido da NF = soma das devoluções vivas (não canceladas) cuja NF original é esta, por número E série (série ausente = vazia, como nas parcelas). */

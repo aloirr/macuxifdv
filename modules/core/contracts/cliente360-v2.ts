@@ -35,9 +35,9 @@ export const ERROS_CLIENTE360_V2 = {
 } as const;
 
 /** Status da NF (spec §4). O rótulo e o tom saem de `rotuloStatusNf` e `tomStatusNf` (domain). */
-export const STATUS_NF_VALORES = ['em_atraso', 'em_aberto', 'pago', 'devolvido', 'devolvido_parcial'] as const;
-export const StatusNfSchema = z.enum(STATUS_NF_VALORES);
-export type StatusNfContrato = z.infer<typeof StatusNfSchema>;
+export const STATUS_NF = ['em_atraso', 'em_aberto', 'pago', 'devolvido', 'devolvido_parcial'] as const;
+export const StatusNfSchema = z.enum(STATUS_NF);
+export type StatusNf = z.infer<typeof StatusNfSchema>;
 
 /** Linha da tabela do Histórico: **Data · Nº NF (e a forma de pagamento) · Valor · Status**. */
 export const LinhaHistoricoNfSchema = z.object({

@@ -18,7 +18,6 @@ import {
   perfilDeGestao,
   removerChip,
   segundaLinhaDoDocumento,
-  statusDaParcela,
   textoContagemNotas,
   valorSemMoeda,
   faixaDoMes,
@@ -60,9 +59,8 @@ describe('T-0186 / spec §3: Resumo', () => {
     expect(linhasCartaoCredito({ ...base, bloqueado: true, motivo_bloqueio: 'Limite excedido' })?.at(-1)).toMatchObject({ valor: 'Limite excedido', perigo: true });
     expect(linhasCartaoCredito(null)).toBeNull();
   });
-  it('RN-VEN-12: saldo disponível zerado ou negativo sai em vermelho', () => {
+  it('spec §3.2: sem prazo médio o cartão mostra "—"', () => {
     const c = { limite_cents: 100, saldo_disponivel_cents: -50, prazo_medio_dias: null, bloqueado: false, motivo_bloqueio: null };
-    expect(linhasCartaoCredito(c)?.[1]?.perigo).toBe(true);
     expect(linhasCartaoCredito(c)?.[2]?.valor).toBe('—');
   });
   it('RN-VEN-12: aprovados e enviados ao ERP reduzem o saldo; integrado só quando o ERP não informou o crédito', () => {
@@ -172,10 +170,6 @@ describe('T-0186 / P17: detalhe da NF', () => {
   });
   it('spec §4: sem atraso nem devolução só "Valor da nota"', () => {
     expect(linhasDoDetalheDaNota({ ...nota, em_atraso: false, devolvido_cents: 0, parcelas: [] }).map((x) => x.rotulo)).toEqual(['Valor da nota']);
-  });
-  it('R-20261119-0530: a parcela em atraso é só "Em atraso", sem a data', () => {
-    expect(statusDaParcela(nota.parcelas[1]!)).toEqual({ rotulo: 'Em atraso', tom: 'danger' });
-    expect(statusDaParcela(nota.parcelas[0]!).rotulo).toBe('Paga');
   });
 });
 

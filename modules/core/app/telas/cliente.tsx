@@ -11,7 +11,7 @@
  *
  * Pontos de extensão que o Core oferece aqui (contracts/extensoes.ts):
  *  - `cliente.abas`  → "pesquisas" abre numa folha pelo botão "Pesquisa" do rodapé (RN-CORE-51); as demais (loja...) ficam no Resumo,
- *    cada uma com seu cabeçalho. "ultimos-pedidos" e "mix" não têm mais lugar na ficha (P6, R-20261119-0440);
+ *    cada uma com seu cabeçalho.
  *  - `cliente.acoes` → botões do rodapé (ex.: "Novo pedido", do Vendedor, já escondido do promotor — RN-PRO-01).
  * A tela só lê os itens; quem registra decide o conteúdo. Sem o módulo ativo, o item some (RN-CORE-03).
  */
@@ -26,8 +26,9 @@ import { acoesDoRodapeCliente, botoesDoRodapeCliente, checkinPermitido, curvasAb
 import { AbaDocumentacao } from '../components/aba-documentacao';
 import { AbaHistorico } from '../components/aba-historico';
 import { AbaResumo, type ItemCompradoLinha } from '../components/aba-resumo';
+import { pessoasDaCarteira } from '../lib/carteira-ficha';
 import { nomeDoCliente, subtituloDaFicha } from '../components/cliente360';
-import { abrirDocumentoRegistrado } from '../lib/ficha-online';
+import { abrirArquivoRegistrado } from '../lib/abrir-arquivo';
 import { aprovadosNaoFaturadosCents, abasDoApp, FILTRO_PADRAO, perfilDeGestao, type FiltroDaFicha } from '../lib/ficha-v2';
 import { useAbrirDocumento, useDetalheDaNota, useDocumentosDoCliente, useNotasDoCliente } from '../lib/usar-ficha-online';
 import { montarFichaLocal, useClientesLocais } from '../lib/usar-clientes-locais';
@@ -35,7 +36,7 @@ import { CheckinSheet, type CheckinPhase } from '../components/checkin-sheet';
 import { OpenVisitBar } from '../components/open-visit-bar';
 import { useVisitSheets } from '../components/visit-sheets';
 import { enviarFotoPdv } from '../lib/enviar-foto-pdv';
-import { abrirFotoPdvRegistrado, capturaFotoPdvRegistrada, pedidoDaFachada } from '../lib/foto-fachada';
+import { capturaFotoPdvRegistrada, pedidoDaFachada } from '../lib/foto-fachada';
 import { tentarCheckin } from '../lib/acoes-visita';
 import { avisoDeEtapaPendente, visitaComEtapaPendente } from '../lib/etapa-pendente';
 import type { PosicaoGps } from '../lib/visita-payload';
@@ -61,9 +62,9 @@ export function TelaCliente() {
   // Cliente 360 e resumo do check-in montados só com as linhas do aparelho (offline)
   const ficha = montarFichaLocal(locais, id, hoje);
   // T-0147: "Foto do PDV" abre pelo visualizador do shell; sem ele ou sem fachada enviada, o botão fica desligado
-  const abrirFoto = abrirFotoPdvRegistrado();
+  const abrirArquivo = abrirArquivoRegistrado();
   const pedidoFoto = ficha ? pedidoDaFachada(ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social, ficha.fotos_pdv?.fachada_foto, tz) : null;
-  const verFotoPdv = abrirFoto && pedidoFoto ? () => abrirFoto(pedidoFoto) : undefined;
+  const verFotoPdv = abrirArquivo && pedidoFoto ? () => abrirArquivo(pedidoFoto) : undefined;
   // T-0147: "Adicionar" no tipo que falta: o shell abre a folha (câmera ou galeria); o envio é offline (fila de itens + de arquivos)
   const [avisoFoto, setAvisoFoto] = useState<string | null>(null);
   const adicionarFotoPdv = capturaFotoPdvRegistrada() && ficha && motor
@@ -91,8 +92,7 @@ export function TelaCliente() {
   const notas = useNotasDoCliente(id, filtroNotas, hoje, aba === 'historico');
   const detalheNota = useDetalheDaNota(id);
   const documentos = useDocumentosDoCliente(id, aba === 'documentacao');
-  const abrirDoc = abrirDocumentoRegistrado();
-  const aberturaDoc = useAbrirDocumento(id, abrirDoc);
+  const aberturaDoc = useAbrirDocumento(id, abrirArquivo);
   const [pesquisaAberta, setPesquisaAberta] = useState(false);
 
   // T-0039 (checkout-pendencia.md §1.2): etapa obrigatória da visita ainda não chegou ao Macuxi; vem do pull, lida do aparelho
@@ -164,8 +164,8 @@ export function TelaCliente() {
   const subtitulo = ficha ? subtituloDaFicha(ficha.cliente) : `${customer?.district ?? ''}`;
   // RN-CORE-49: curvas do mês atual contra a média dos 3 meses anteriores; só com pedidos visíveis (RN-PRO-01)
   const curvas = ficha && ficha.pedidos_visiveis ? curvasAbcDoCliente(ficha.historico, hoje, locais.faixasCurva) : [];
-  // Seções de outros módulos ficam no Resumo; "pesquisas" abre na folha do botão "Pesquisa"; "ultimos-pedidos" e "mix" saíram da ficha (P6)
-  const abasResumo = abas.filter((a) => !['ultimos-pedidos', 'mix', 'pesquisas'].includes(a.id));
+  // Seções de outros módulos ficam no Resumo; "pesquisas" abre na folha do botão "Pesquisa"
+  const abasResumo = abas.filter((a) => a.id !== 'pesquisas');
 
   // RN-CORE-50: Performance só com linhas do aparelho; pedidos só se o perfil os vê (RN-PRO-01)
   const visitasDoCliente = locais.visitasSync.filter((v) => v.cliente_id === id);
@@ -232,6 +232,7 @@ export function TelaCliente() {
               gestao={gestao}
               clienteDesde={customer?.customer_since ?? null}
               itens={itensComprados}
+              carteira={gestao ? pessoasDaCarteira(id, locais.carteiras, locais.usuarios, hoje) : undefined}
               atendimento={openHere && openVisit ? `Em atendimento · desde ${formatHHMM(openVisit.checkin_at, tz)}` : null}
               secoes={abasResumo.map((a) => {
                 const Aba = a.payload.componente;

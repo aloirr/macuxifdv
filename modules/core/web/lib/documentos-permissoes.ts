@@ -42,8 +42,6 @@ export function colunasDePerfil(perfis: readonly { codigo: string; nome: string;
     });
 }
 
-export const nivelDaCelula = (matriz: readonly PermissaoTipoDocumento[], tipo: Pick<TipoDaMatriz, 'id' | 'permite_envio'>, perfil: string): NivelDocumento => nivelDoTipo(matriz, tipo, perfil);
-
 /** Troca o nível de uma célula; a linha "Não vê" fica explícita (a API recebe o estado inteiro). */
 export function aplicarNivel(matriz: readonly PermissaoTipoDocumento[], tipoId: string, perfil: string, nivel: NivelDocumento): PermissaoTipoDocumento[] {
   return [...matriz.filter((m) => !(m.tipo_id === tipoId && m.perfil === perfil)), { tipo_id: tipoId, perfil, nivel }];
@@ -68,21 +66,6 @@ export function matrizParaSalvar(atual: readonly PermissaoTipoDocumento[], tipos
 export function erroDaMatriz(tipos: readonly TipoDaMatriz[], linhas: readonly PermissaoTipoDocumento[]): string | null {
   const r = validarMatrizDocumentos(tipos, linhas);
   return r.ok ? null : r.mensagem;
-}
-
-const MENSAGENS: Readonly<Record<string, string>> = {
-  DOCUMENTO_TIPO_DESCONHECIDO: 'Esse tipo de documento mudou. Atualize a página e tente de novo.',
-  DOCUMENTO_PERFIL_FIXO: 'Administrador e Analista veem todos os documentos. Tire esse perfil da lista e salve de novo.',
-  DOCUMENTO_NIVEL_INVALIDO: 'Esse tipo de documento não é enviado pelo app. Escolha "Vê" ou "Não vê" e salve de novo.',
-  DOCUMENTO_NAO_ENCONTRADO: 'Esse documento não existe mais. Atualize a página e tente de novo.',
-};
-
-/** Erro da API (código, status ou mensagem) em português, com a ação seguinte. */
-export function mensagemDeErroDocumentos(e: { codigo?: string; status?: number; mensagem?: string }): string {
-  if (e.codigo && MENSAGENS[e.codigo]) return MENSAGENS[e.codigo]!;
-  if (e.status === 403) return 'Só o administrador muda quem vê os documentos. Peça a ele ou troque de perfil.';
-  if (e.mensagem) return e.mensagem;
-  return 'Não foi possível salvar. Confira a conexão e tente de novo.';
 }
 
 // ---------------------------------------------------------------- exceções por documento (P11: só tira acesso)

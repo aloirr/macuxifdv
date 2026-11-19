@@ -56,9 +56,9 @@ export const consumidorNotaDoErp: ConsumidorEvento = definirConsumidor({
     // RN-CORE-27 (T-0080): vendedor da nota. Ausente/desconhecido NÃO é erro: usuario_id fica nulo e o consumidor do vendedor completa depois.
     const vendedorExt = r.vendedor_external_id?.trim() || null;
     const usuarioId = vendedorExt ? await usuarioPorExternalId(ctx.db, vendedorExt) : null;
-    // T-0186 (0090, aditivo): forma de pagamento (DESCRIÇÃO em texto, até 120 caracteres, como o ERP manda) e NF original (só devolução; série só com o número). Ausente = não altera.
-    const novos = r as typeof r & { forma_pagamento?: string | null; nf_origem_numero?: string | null; nf_origem_serie?: string | null };
-    const forma = novos.forma_pagamento?.trim().slice(0, 120) || null;
+    // T-0186 (0090, aditivo): forma de pagamento (o CÓDIGO do ERP em `forma_pagamento_codigo`; a descrição vem do cadastro de formas no aparelho) e NF original (só devolução; série só com o número). Ausente = não altera.
+    const novos = r as typeof r & { forma_pagamento_codigo?: string | null; nf_origem_numero?: string | null; nf_origem_serie?: string | null };
+    const forma = novos.forma_pagamento_codigo?.trim().slice(0, 120) || null;
     const origemNumero = r.tipo === 'devolucao' ? novos.nf_origem_numero?.trim() || null : null;
     const origemSerie = origemNumero ? novos.nf_origem_serie?.trim() || null : null;
     await ctx.db.query(

@@ -1,0 +1,23 @@
+/**
+ * Porta única do visualizador de arquivos (T-0186, RD-2356). O shell registra `definirAbrirArquivo` uma vez e o Core a usa para a foto
+ * de fachada do PDV, os documentos do cliente e o PDF da NF: só ver, nada é baixado nem guardado. Sem o registro, "Foto do PDV",
+ * "Ver PDF" e a seta do documento ficam desligados.
+ */
+export interface PedidoAbrirArquivo {
+  arquivo_id: string;
+  titulo: string;
+  subtitulo?: string;
+  /** "pdf", "jpg"...; ausente = o visualizador decide pelo arquivo. */
+  formato?: string | null;
+}
+export type AbrirArquivo = (p: PedidoAbrirArquivo) => void;
+
+let abrirArquivo: AbrirArquivo | null = null;
+
+export function definirAbrirArquivo(fn: AbrirArquivo | null): void {
+  abrirArquivo = fn;
+}
+
+export function abrirArquivoRegistrado(): AbrirArquivo | null {
+  return abrirArquivo;
+}

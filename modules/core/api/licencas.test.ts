@@ -197,10 +197,10 @@ describe('T-0004 §5: provedores de pull do Core', () => {
     expect(sqlDoPull(TABELAS_SYNC.produto, pedido, vis).sql).not.toMatch(/any\(/);
   });
 
-  it('RN-VEN-11a, RN-CORE-39 e T-0180 (D5): a entidade usuario só expõe o Código FDV, as 3 colunas de limite, a filial do vendedor e as 2 do almoço (sem nome, e-mail nem código do ERP) e filtra pelos usuários visíveis', () => {
+  it('RN-VEN-11a, RN-CORE-39, T-0180 (D5) e T-0186: a entidade usuario só expõe o Código FDV, as 3 colunas de limite, a filial do vendedor, as 2 do almoço e o nome e telefone da tabela Carteira (sem e-mail nem código do ERP) e filtra pelos usuários visíveis', () => {
     const t = TABELAS_SYNC.usuario;
-    expect(t.colunas).toBe('codigo_fdv, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil, filial_cadastro_id, filial_venda_ids, sem_filial, almoco_inicio_min, almoco_fim_min');
-    expect(t.tabela).not.toMatch(/nome|email|senha/);
+    expect(t.colunas).toBe('codigo_fdv, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil, filial_cadastro_id, filial_venda_ids, sem_filial, almoco_inicio_min, almoco_fim_min, nome, telefone');
+    expect(t.tabela).not.toMatch(/email|senha/);
     const { sql } = sqlDoPull(t, pedido, new Set(['u1']));
     expect(sql).toContain('and usuario_id = any($5::uuid[])');
   });

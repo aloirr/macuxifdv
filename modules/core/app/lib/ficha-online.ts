@@ -53,23 +53,3 @@ export async function buscarDocumentos(http: ClienteHttp, clienteId: string): Pr
 export async function buscarDocumento(http: ClienteHttp, clienteId: string, documentoId: string): Promise<DocumentoAbrirResposta> {
   return DocumentoAbrirRespostaSchema.parse(await http.get<unknown>(rota(ROTAS_CLIENTE360_V2.documento, { id: clienteId, documento_id: documentoId })));
 }
-
-// ---------- visualizador (o shell registra; nada é baixado nem guardado) ----------
-
-export interface PedidoAbrirDocumento {
-  arquivo_id: string;
-  titulo: string;
-  formato: string | null;
-}
-export type AbrirDocumento = (p: PedidoAbrirDocumento) => void;
-
-let abrirDocumento: AbrirDocumento | null = null;
-
-/** O shell registra o visualizador de documentos e de PDF (só ver, sem "Baixar"). Sem ele, "Ver PDF" e a seta ficam desligados. */
-export function definirAbrirDocumento(fn: AbrirDocumento | null): void {
-  abrirDocumento = fn;
-}
-
-export function abrirDocumentoRegistrado(): AbrirDocumento | null {
-  return abrirDocumento;
-}

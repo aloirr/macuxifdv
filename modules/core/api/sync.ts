@@ -97,17 +97,17 @@ export const TABELAS_SYNC = {
     janela: "(fim is null or fim >= {{hoje}} - 40)",
   },
   produto: { tabela: 'core.produto', colunas: 'sku, ean, nome, marca, categoria, unidade, embalagem_medida, embalagem_quantidade, preco_venda_cents::float8 as preco_venda_cents, desconto_maximo_pct::float8 as desconto_maximo_pct, ativo', colunaCliente: null },
-  // RN-VEN-11a (T-0168): a linha do próprio usuário (e da equipe visível) com só as 3 colunas de limite de desconto; sem e-mail, nome nem código do ERP
+  // RN-VEN-11a (T-0168): a linha do próprio usuário (e da equipe visível) com as colunas de limite de desconto; sem e-mail. T-0186: `nome` e `telefone` (tabela Carteira da ficha no Gestão), só das pessoas visíveis
   usuario: {
     // T-0176 / RN-CORE-39: `filial_cadastro_id`, `filial_venda_ids` e `sem_filial` (sem cadastro, qualquer perfil); o `updated_at` acompanha a troca de filiais (cadastro ou venda)
     tabela: `(select u.id as usuario_id, u.id, greatest(u.updated_at, coalesce(f.alterado_em, u.updated_at)) as updated_at, u.deleted_at, null::text as external_id, ${sqlCodigoFdv('u')} as codigo_fdv,
         u.desconto_limita_item, u.desconto_limita_pedido, u.desconto_maximo_pedido_permil, u.filial_cadastro_id, coalesce(f.filial_venda_ids, '{}'::uuid[]) as filial_venda_ids,
-        (u.filial_cadastro_id is null) as sem_filial, u.almoco_inicio_min, u.almoco_fim_min
+        (u.filial_cadastro_id is null) as sem_filial, u.almoco_inicio_min, u.almoco_fim_min, u.nome, u.telefone
       from core.usuario u
       left join lateral (select max(uf.updated_at) as alterado_em,
                                   array_agg(uf.filial_id order by uf.created_at, uf.filial_id) filter (where uf.deleted_at is null) as filial_venda_ids
                            from core.usuario_filial uf where uf.usuario_id = u.id) f on true) as usuario`,
-    colunas: 'codigo_fdv, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil, filial_cadastro_id, filial_venda_ids, sem_filial, almoco_inicio_min, almoco_fim_min',
+    colunas: 'codigo_fdv, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil, filial_cadastro_id, filial_venda_ids, sem_filial, almoco_inicio_min, almoco_fim_min, nome, telefone',
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
   },

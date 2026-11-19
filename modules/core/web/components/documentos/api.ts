@@ -7,7 +7,7 @@ import {
   ClienteListaRespostaSchema, DocumentoPermissoesRespostaSchema, DocumentosRespostaSchema, PerfilListaRespostaSchema,
   type DocumentoExcecaoPut, type DocumentoPermissoesPut, type DocumentoPermissoesResposta,
 } from '../../../contracts';
-import { colunasDePerfil, mensagemDeErroDocumentos, type ColunaPerfil } from '../../lib/documentos-permissoes';
+import { colunasDePerfil, type ColunaPerfil } from '../../lib/documentos-permissoes';
 
 export const CHAVE_DOCUMENTOS = ['core', 'documentos', 'permissoes'] as const;
 
@@ -25,8 +25,8 @@ export function criarApiDocumentos(chamar: typeof api = api) {
   };
 }
 
-/** O erro da chamada em português, com a ação seguinte. */
+/** O texto do erro é o da API (já em português, com a ação seguinte); sem resposta dela, só a falha de conexão. */
 export function textoDoErro(e: unknown): string {
-  if (e instanceof ApiRequestError) return mensagemDeErroDocumentos({ codigo: e.code, status: e.status, mensagem: e.status < 500 ? e.message : undefined });
-  return mensagemDeErroDocumentos({});
+  if (e instanceof ApiRequestError) return e.message;
+  return 'Não foi possível salvar. Confira a conexão e tente de novo.';
 }

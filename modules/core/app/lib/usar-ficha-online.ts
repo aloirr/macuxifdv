@@ -6,10 +6,29 @@ import { useMotorSync } from '@macuxi/platform-sdk/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { DocumentoLinhaContrato, HistoricoNfResposta, LinhaHistoricoNfContrato, NotaDetalhe } from '../../contracts';
-import { filtrarNotas, inicioDoPeriodoNf } from '../../domain';
+import type { FormaPagamentoSync } from '../../../vendedor/contracts';
+import { descricaoDaFormaPagamento, filtrarNotas, inicioDoPeriodoNf } from '../../domain';
+import type { AbrirArquivo } from './abrir-arquivo';
 import { buscarDocumento, buscarNota, buscarNotas, buscarDocumentos, falhaDaConsulta, type FalhaOnline } from './ficha-online';
 import { filtroDeNotas, filtroPrecisaDoServidor, intervaloDoFiltro, type EstadoDaConsulta, type FiltroDaFicha } from './ficha-v2';
 import { httpDe } from './http';
+
+/** Formas de pagamento do aparelho (pull do Vendedor): o código que o ERP manda na NF vira a descrição na tela. Sem o pull, o código fica. */
+function useFormasDoAparelho(): readonly FormaPagamentoSync[] {
+  const { motor } = useMotorSync();
+  const [formas, setFormas] = useState<readonly FormaPagamentoSync[]>([]);
+  useEffect(() => {
+    if (!motor) return;
+    let ativo = true;
+    void motor.linhas<FormaPagamentoSync>('forma_pagamento').then((l) => {
+      if (ativo) setFormas(l.filter((f) => f.deleted_at === null));
+    });
+    return () => {
+      ativo = false;
+    };
+  }, [motor]);
+  return formas;
+}
 
 export interface NotasDoCliente {
   estado: EstadoDaConsulta;
@@ -62,9 +81,13 @@ export function useNotasDoCliente(clienteId: string, filtro: FiltroDaFicha, hoje
     };
   }, [ligado, chave, motor, clienteId, de, ate]);
 
-  const linhas = useMemo(() => (resposta ? filtrarNotas(resposta.itens, filtroDeNotas(filtro, hoje)) : []), [resposta, filtro, hoje]);
+  const formasCadastradas = useFormasDoAparelho();
+  // a descrição entra aqui, antes do filtro: chips, linhas e filtro por forma falam todos da descrição
+  const itens = useMemo(() => (resposta ? resposta.itens.map((i) => ({ ...i, forma_pagamento: descricaoDaFormaPagamento(i.forma_pagamento, formasCadastradas) })) : []), [resposta, formasCadastradas]);
+  const formas = useMemo(() => [...new Set(itens.map((i) => i.forma_pagamento).filter((f): f is string => f !== null))].sort((a, b) => a.localeCompare(b, 'pt-BR')), [itens]);
+  const linhas = useMemo(() => filtrarNotas(itens, filtroDeNotas(filtro, hoje)), [itens, filtro, hoje]);
   const recarregar = useCallback(() => setTentativa((n) => n + 1), []);
-  return { estado, falha, linhas, formas: resposta?.formas_pagamento ?? [], recarregar };
+  return { estado, falha, linhas, formas, recarregar };
 }
 
 export interface DetalheDaNota {
@@ -84,8 +107,10 @@ export interface DetalheDaNota {
 /** P17: ao tocar na linha a folha pede a autorização; "Baixar" busca a NF online; fechar descarta tudo. */
 export function useDetalheDaNota(clienteId: string): DetalheDaNota {
   const { motor } = useMotorSync();
+  const formasCadastradas = useFormasDoAparelho();
   const [linha, setLinha] = useState<LinhaHistoricoNfContrato | null>(null);
-  const [nota, setNota] = useState<NotaDetalhe | null>(null);
+  const [notaBruta, setNota] = useState<NotaDetalhe | null>(null);
+  const nota = useMemo(() => (notaBruta ? { ...notaBruta, forma_pagamento: descricaoDaFormaPagamento(notaBruta.forma_pagamento, formasCadastradas) } : null), [notaBruta, formasCadastradas]);
   const [estado, setEstado] = useState<EstadoDaConsulta>('ocioso');
   const [falha, setFalha] = useState<FalhaOnline | null>(null);
   const atual = useRef<string | null>(null);
@@ -201,7 +226,7 @@ export interface AberturaDeDocumento {
 }
 
 /** P15: o toque pede o arquivo ao servidor (que revalida) e entrega ao visualizador do shell; nada é baixado nem guardado. */
-export function useAbrirDocumento(clienteId: string, visualizador: ((p: { arquivo_id: string; titulo: string; formato: string | null }) => void) | null): AberturaDeDocumento {
+export function useAbrirDocumento(clienteId: string, visualizador: AbrirArquivo | null): AberturaDeDocumento {
   const { motor } = useMotorSync();
   const [abrindo, setAbrindo] = useState<string | null>(null);
   const [falhou, setFalhou] = useState<AberturaDeDocumento['falhou']>(null);

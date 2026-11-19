@@ -5,8 +5,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, LoadingBlock, Notice, TableScroll, td, th } from '@macuxi/ui/web';
-import type { NivelDocumento, PermissaoTipoDocumento } from '../../../domain/documentos-cliente';
-import { aplicarNivel, celulaEditada, erroDaMatriz, matrizParaSalvar, nivelDaCelula, niveisDoTipo, rotuloDaOrigem, rotuloDoNivel, temMudanca } from '../../lib/documentos-permissoes';
+import { nivelDoTipo, type NivelDocumento, type PermissaoTipoDocumento } from '../../../domain/documentos-cliente';
+import { aplicarNivel, celulaEditada, erroDaMatriz, matrizParaSalvar, niveisDoTipo, rotuloDaOrigem, rotuloDoNivel, temMudanca } from '../../lib/documentos-permissoes';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 import { CHAVE_DOCUMENTOS, criarApiDocumentos, textoDoErro } from './api';
 
@@ -48,7 +48,7 @@ export function DocumentosPermissoesPanel() {
       setAtual(r.matriz);
       setAviso({ tom: 'success', texto: 'Permissões salvas. Valem na próxima sincronização.' });
     },
-    onError: (e) => setAviso({ tom: 'danger', texto: e instanceof Error && !('code' in e) ? e.message : textoDoErro(e) }),
+    onError: (e) => setAviso({ tom: 'danger', texto: textoDoErro(e) }),
   });
 
   if (!pode) return null;
@@ -86,7 +86,7 @@ export function DocumentosPermissoesPanel() {
                   <small className="block text-[13px] text-ink-2">Origem: {rotuloDaOrigem(t.origem)}</small>
                 </td>
                 {colunas.map((c) => {
-                  const nivel = nivelDaCelula(corrente, t, c.codigo);
+                  const nivel = nivelDoTipo(corrente, t, c.codigo);
                   const editada = celulaEditada(salva, corrente, t, c.codigo);
                   return (
                     <td key={c.codigo} className={`${td} px-1.5`}>

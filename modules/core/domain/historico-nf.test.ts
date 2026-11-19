@@ -4,20 +4,22 @@ import {
   filtrarNotas,
   inicioDoPeriodoNf,
   JANELA_APARELHO_DIAS,
+  descricaoDaFormaPagamento,
   limiteEDisponivelDoResumo,
   nfEmAtraso,
   periodoPrecisaDoServidor,
   rotuloStatusNf,
   saldoDisponivelCents,
   statusDaNf,
+  statusDaParcela,
   tomStatusNf,
   type LinhaHistoricoNf,
-  type ParcelaNf,
-  type StatusNf,
 } from './historico-nf';
+import type { StatusNf } from '../contracts/cliente360-v2';
+import type { TituloLike } from './cliente360';
 
 const HOJE = '2026-11-19';
-const parcela = (vencimento: string, saldo_cents: number, situacao: ParcelaNf['situacao'] = 'aberto'): ParcelaNf => ({ vencimento, saldo_cents, situacao });
+const parcela = (vencimento: string, saldo_cents: number, situacao: TituloLike['situacao'] = 'aberto'): TituloLike => ({ vencimento, saldo_cents, situacao });
 const nota = (valor_cents = 128_000, devolvido_cents = 0) => ({ valor_cents, devolvido_cents });
 const TODOS: StatusNf[] = ['em_atraso', 'em_aberto', 'pago', 'devolvido', 'devolvido_parcial'];
 
@@ -153,5 +155,27 @@ describe('RN-CORE-40 / P14: filtros do Histórico (período, status, forma e Nº
   });
   it('período inclui as duas pontas', () => {
     expect(filtrarNotas(linhas, { de: '2026-09-30', ate: '2026-10-10' }).map((x) => x.numero_nf)).toEqual(['004655', '004702']);
+  });
+});
+
+describe('R-20261119-0530: status da parcela no detalhe da NF', () => {
+  it('a parcela em atraso é só "Em atraso", sem a data; liquidada é "Paga"', () => {
+    expect(statusDaParcela({ situacao: 'aberto', em_atraso: true })).toEqual({ rotulo: 'Em atraso', tom: 'danger' });
+    expect(statusDaParcela({ situacao: 'aberto', em_atraso: false })).toEqual({ rotulo: 'Em aberto', tom: 'warning' });
+    expect(statusDaParcela({ situacao: 'liquidado', em_atraso: false }).rotulo).toBe('Paga');
+    expect(statusDaParcela({ situacao: 'cancelado', em_atraso: false })).toEqual({ rotulo: 'Cancelada', tom: 'neutral' });
+  });
+});
+
+describe('T-0186: forma de pagamento da NF aparece como descrição, nunca como código', () => {
+  const formas = [{ codigo: 'BOL', nome: 'Boleto' }, { codigo: 'PIX', nome: 'Pix' }];
+  it('o código do ERP vira a descrição, sem diferenciar maiúsculas nem espaços', () => {
+    expect(descricaoDaFormaPagamento('BOL', formas)).toBe('Boleto');
+    expect(descricaoDaFormaPagamento(' pix ', formas)).toBe('Pix');
+  });
+  it('código sem forma cadastrada fica como veio, e sem forma é nulo', () => {
+    expect(descricaoDaFormaPagamento('Boleto 28 dias', formas)).toBe('Boleto 28 dias');
+    expect(descricaoDaFormaPagamento('  ', formas)).toBeNull();
+    expect(descricaoDaFormaPagamento(null, formas)).toBeNull();
   });
 });

@@ -10,6 +10,7 @@ import { Linking, Pressable, Text, View } from 'react-native';
 import type { CartaoCredito } from '../../contracts';
 import { observacaoComCadastro, type PerformanceCalculada } from '../../domain';
 import type { Cliente360Local } from '../lib/cliente360-local';
+import type { PessoaDaCarteira } from '../lib/carteira-ficha';
 import { dataCurta, linhasCartaoCredito, linhasDadosCadastrais, linhasPerformance, tituloDaCarteira, valorSemMoeda } from '../lib/ficha-v2';
 import { mapsUrl } from '../lib/route';
 import { BotaoCelula, CelulaTexto, TabelaFicha, TabelaRotuloValor, type LinhaFicha } from './tabelas-ficha';
@@ -25,13 +26,6 @@ export interface ItemCompradoLinha {
   total_cents: number;
   /** SKU do produto (2ª linha do Produto). */
   codigo: string | null;
-}
-
-export interface PessoaDaCarteira {
-  id: string;
-  nome: string;
-  tel: string | null;
-  whatsapp_url: string | null;
 }
 
 /** RN-CORE-50: os 3 últimos e "Ver os 20 itens ›". */

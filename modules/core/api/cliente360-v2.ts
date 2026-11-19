@@ -42,7 +42,7 @@ import {
   type DocumentoLinha,
   type ExcecaoDocumento,
   type LinhaHistoricoNf,
-  type ParcelaNf,
+  type TituloLike,
   type PermissaoTipoDocumento,
   type TipoDocumento,
 } from '../domain';
@@ -69,7 +69,7 @@ export interface DevolucaoBruta {
   cancelada: boolean;
   data: string;
 }
-export interface ParcelaBruta extends ParcelaNf {
+export interface ParcelaBruta extends TituloLike {
   cliente_id: string;
   nota_numero: string | null;
   nota_serie: string | null;

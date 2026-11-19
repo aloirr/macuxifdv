@@ -14,11 +14,8 @@ import {
   type FiltroHistoricoNf,
   type PerformanceCalculada,
   type PeriodoNf,
-  type StatusNf,
 } from '../../domain';
-import type { CartaoCredito, DocumentoLinhaContrato, LinhaHistoricoNfContrato, NotaDetalhe } from '../../contracts';
-
-type ParcelaNfContrato = NotaDetalhe['parcelas'][number];
+import type { CartaoCredito, DocumentoLinhaContrato, LinhaHistoricoNfContrato, NotaDetalhe, StatusNf } from '../../contracts';
 
 // ---------- formatos ----------
 
@@ -82,7 +79,7 @@ export function linhasCartaoCredito(c: CartaoCredito | null | undefined): LinhaR
   if (!c) return null;
   const linhas: LinhaRotuloValor[] = [
     { rotulo: 'Limite', valor: formatBRL(c.limite_cents), testID: 'cliente-limite' },
-    { rotulo: 'Saldo disponível', valor: formatBRL(c.saldo_disponivel_cents), testID: 'cliente-saldo-disponivel', perigo: c.saldo_disponivel_cents <= 0 },
+    { rotulo: 'Saldo disponível', valor: formatBRL(c.saldo_disponivel_cents), testID: 'cliente-saldo-disponivel' },
     { rotulo: 'Prazo médio', valor: c.prazo_medio_dias === null ? '—' : `${c.prazo_medio_dias} dias`, testID: 'cliente-prazo-medio' },
   ];
   if (c.bloqueado && c.motivo_bloqueio) linhas.push({ rotulo: 'Bloqueado por', valor: c.motivo_bloqueio, testID: 'cliente-motivo-bloqueio', perigo: true });
@@ -285,18 +282,6 @@ export function leituraDoDocumento(d: Pick<DocumentoLinhaContrato, 'nome' | 'ace
 }
 
 // ---------- detalhe da NF (consulta online, P17) ----------
-
-export interface StatusDaParcela {
-  rotulo: string;
-  tom: 'danger' | 'warning' | 'success' | 'neutral';
-}
-
-/** Parcela da NF: "Em atraso" (mesmo destaque da linha da nota), "Em aberto", "Paga" ou "Cancelada". Sem data de atraso. */
-export function statusDaParcela(p: Pick<ParcelaNfContrato, 'situacao' | 'em_atraso'>): StatusDaParcela {
-  if (p.situacao === 'liquidado') return { rotulo: 'Paga', tom: 'success' };
-  if (p.situacao === 'cancelado') return { rotulo: 'Cancelada', tom: 'neutral' };
-  return p.em_atraso ? { rotulo: 'Em atraso', tom: 'danger' } : { rotulo: 'Em aberto', tom: 'warning' };
-}
 
 /** "10/10/2026 · Boleto 14/21 dias": a data e a forma, embaixo do título da folha. */
 export const subtituloDaNota = (n: Pick<NotaDetalhe, 'data' | 'forma_pagamento'>): string => [dataBr(n.data), n.forma_pagamento].filter(Boolean).join(' · ');

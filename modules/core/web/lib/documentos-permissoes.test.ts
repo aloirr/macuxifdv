@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  aplicarNivel, celulaEditada, colunasDePerfil, erroDaMatriz, mensagemDeErroDocumentos, nivelDaCelula, niveisDoTipo, perfisQueVeem, perfisSemAcesso, quemVeDaExcecao,
+  aplicarNivel, celulaEditada, colunasDePerfil, erroDaMatriz, niveisDoTipo, perfisQueVeem, perfisSemAcesso, quemVeDaExcecao,
   rotuloDoNivel, rotuloDaOrigem, matrizParaSalvar, temMudanca, alternarQuemVe, type ColunaPerfil,
 } from './documentos-permissoes';
+import { nivelDoTipo } from '../../domain/documentos-cliente';
 
 const T1 = '11111111-1111-4111-8111-111111111111';
 const T2 = '22222222-2222-4222-8222-222222222222';
@@ -34,8 +35,8 @@ describe('RN-CORE-40: matriz de documentos no BKO', () => {
 
   it('RN-CORE-40: sem linha na matriz o nível é "Não vê"; editar marca a célula e liga o Salvar; voltar ao valor salvo desliga', () => {
     const base = [{ tipo_id: T1, perfil: 'vendedor', nivel: 've' as const }];
-    expect(nivelDaCelula(base, tipos[0]!, 'vendedor')).toBe('ve');
-    expect(nivelDaCelula(base, tipos[0]!, 'promotor')).toBe('nao_ve');
+    expect(nivelDoTipo(base, tipos[0]!, 'vendedor')).toBe('ve');
+    expect(nivelDoTipo(base, tipos[0]!, 'promotor')).toBe('nao_ve');
     expect(temMudanca(base, base, tipos, colunas)).toBe(false);
     const atual = aplicarNivel(base, T1, 'promotor', 've');
     expect(celulaEditada(base, atual, tipos[0]!, 'promotor')).toBe(true);
@@ -58,15 +59,6 @@ describe('RN-CORE-40: matriz de documentos no BKO', () => {
     const atual = aplicarNivel([], T1, 'vendedor', 've_e_envia');
     expect(erroDaMatriz(tipos, atual)).toBe('O tipo Alvará não é enviado pelo app. Escolha "Vê" ou "Não vê".');
     expect(erroDaMatriz(tipos, aplicarNivel([], T2, 'vendedor', 've_e_envia'))).toBeNull();
-    expect(mensagemDeErroDocumentos({ codigo: 'DOCUMENTO_NIVEL_INVALIDO' })).toContain('Escolha');
-  });
-
-  it('RN-CORE-40: mensagens de erro em português, com a ação seguinte', () => {
-    expect(mensagemDeErroDocumentos({ codigo: 'DOCUMENTO_TIPO_DESCONHECIDO' })).toBe('Esse tipo de documento mudou. Atualize a página e tente de novo.');
-    expect(mensagemDeErroDocumentos({ codigo: 'DOCUMENTO_PERFIL_FIXO' })).toContain('Administrador e Analista');
-    expect(mensagemDeErroDocumentos({ status: 403 })).toBe('Só o administrador muda quem vê os documentos. Peça a ele ou troque de perfil.');
-    expect(mensagemDeErroDocumentos({ mensagem: 'Texto da API.' })).toBe('Texto da API.');
-    expect(mensagemDeErroDocumentos({})).toBe('Não foi possível salvar. Confira a conexão e tente de novo.');
   });
 
   it('RN-CORE-40/P11: a exceção só tira acesso; "Quem vê" é o que sobra das colunas depois de tirar os perfis da exceção', () => {

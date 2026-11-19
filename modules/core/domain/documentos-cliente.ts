@@ -122,7 +122,7 @@ export function validarMatrizDocumentos(
   for (const l of linhas) {
     const t = tipos.find((x) => x.id === l.tipo_id);
     if (!t) return { ok: false, codigo: 'DOCUMENTO_TIPO_DESCONHECIDO', mensagem: 'Tipo de documento não encontrado. Atualize a página e tente de novo.' };
-    if (veTudo(l.perfil)) return { ok: false, codigo: 'DOCUMENTO_PERFIL_FIXO', mensagem: 'Administrador e Analista veem todos os documentos; não há o que configurar para eles.' };
+    if (veTudo(l.perfil)) return { ok: false, codigo: 'DOCUMENTO_PERFIL_FIXO', mensagem: 'Administrador e Analista veem todos os documentos. Tire esse perfil da lista e salve de novo.' };
     if (l.nivel === 've_e_envia' && !t.permite_envio) return { ok: false, codigo: 'DOCUMENTO_NIVEL_INVALIDO', mensagem: `O tipo ${t.nome} não é enviado pelo app. Escolha "Vê" ou "Não vê".` };
   }
   return { ok: true };
