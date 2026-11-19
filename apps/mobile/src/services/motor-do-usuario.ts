@@ -6,6 +6,7 @@
  * Ficam aqui para os dois montarem o motor e conferirem módulos e sessão do mesmo jeito.
  */
 import { definirCargaOnline, type PortaCargaOnline } from '@macuxi/catalogo/app';
+import type { BancoDoTrajeto } from '@macuxi/core/app';
 import { MeusModulosRespostaSchema, RefreshRespostaSchema } from '@macuxi/core/contracts';
 import {
   criarMotorSync,
@@ -20,6 +21,7 @@ import {
 } from '@macuxi/platform-sdk';
 
 import { efetivosSemServidor } from '@/lib/efetivos-locais';
+import { comPontosDoTrajeto } from '@/lib/envio-do-trajeto';
 import type { ModoApi } from '@/lib/modo-api';
 import type { shellDaVariante } from '@/lib/modulos';
 import { essenciaisDoUsuario, ordemDaCargaDoUsuario } from '@/lib/ordem-da-carga';
@@ -28,6 +30,7 @@ import { ApiClient, errorMessage, HttpError } from './api';
 import { arquivosLocais } from './arquivos';
 import { gravarTokens, lerTokens } from './credenciais';
 import { uuid } from './device';
+import { gravarErro } from './erros';
 import { readJson, writeJson } from './storage';
 import { modoSync, transporteFaseM, transporteV1 } from './transporte';
 
@@ -81,7 +84,16 @@ export interface OpcoesMotorDoUsuario {
    * aberto (padrão); a tarefa em segundo plano passa `false` para não trocar a porta do app por um motor sem tela.
    */
   cargaOnline?: boolean;
+  /**
+   * T-0156 (RN-CORE-13): SQLite do usuário em que a tarefa `macuxi-trajeto` grava os pontos (`driverDoArquivo`). Depois de
+   * cada envio os pontos vão ao servidor pelo `push` do transporte do motor (`lib/envio-do-trajeto.ts`). Sem ele, ou `null`,
+   * nada a enviar.
+   */
+  bancoDoTrajeto?: () => BancoDoTrajeto | null;
 }
+
+/** Falha do envio do trajeto: só contagens, no Diagnóstico do Perfil (nenhuma coordenada nem id). */
+const registrarEnvioDoTrajeto = (mensagem: string) => void gravarErro(new Error(mensagem), 'nao-fatal', 'envio do trajeto');
 
 /**
  * ADR 0054 (solução 5; desenho T-catalogo-pacote §2.2): porta da busca online do Catálogo durante a carga inicial. Com o
@@ -99,10 +111,11 @@ export function portaCargaOnline(motor: Pick<MotorSync, 'estado'>, ambiente: Pic
 /** Motor de sync do usuário (armazenamento isolado por usuário e tenant, já aberto), sem `carregar()`. */
 export function criarMotorDoUsuario(o: OpcoesMotorDoUsuario): MotorSync {
   const ref: { m: MotorSync | null } = { m: null };
+  const transporte = modoSync(o.modo) === 'v1' ? transporteV1(o.api) : transporteFaseM(o.api);
   const opcoes: OpcoesMotorSync = {
     registro: o.shell.registroSync,
     armazenamento: o.armazenamento,
-    transporte: modoSync(o.modo) === 'v1' ? transporteV1(o.api) : transporteFaseM(o.api),
+    transporte,
     online: o.online,
     ambiente: o.ambiente,
     etapas: [...(o.etapasExtras ?? []), ...o.shell.etapasSync],
@@ -115,7 +128,13 @@ export function criarMotorDoUsuario(o: OpcoesMotorDoUsuario): MotorSync {
     // ADR 0054 (solução 5): o envio e "Clientes e rota" (Campo) ou "Equipe" (Gestão) liberam a entrada (`liberado_em`)
     essenciais: essenciaisDoUsuario(o.perfil ?? (() => null), () => ref.m?.estado().modulosAtivos ?? []),
   };
-  ref.m = criarMotorSync(opcoes);
+  // T-0156: os pontos do trajeto vão pelo mesmo transporte depois de cada envio (app aberto e tarefa em segundo plano)
+  ref.m = comPontosDoTrajeto(criarMotorSync(opcoes), {
+    banco: o.bancoDoTrajeto ?? (() => null),
+    push: (itens) => transporte.push(itens),
+    online: o.online,
+    registrar: registrarEnvioDoTrajeto,
+  });
   if (o.cargaOnline !== false) definirCargaOnline(portaCargaOnline(ref.m, o.ambiente));
   return ref.m;
 }

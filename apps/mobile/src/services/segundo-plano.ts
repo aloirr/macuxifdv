@@ -35,7 +35,7 @@ import { varianteAtual } from '@/lib/variante';
 
 import { criarAmbienteDoAparelho } from './ambiente';
 import { ApiClient, HttpError, NetworkError } from './api';
-import { apagarBancosDoAparelho } from './armazenamento';
+import { apagarBancosDoAparelho, driverDoArquivo } from './armazenamento';
 import { apagarFotosLocais } from './arquivos';
 import { gravarTokens, lerTokens } from './credenciais';
 import { modoApi, perfilBuildAtual, platformDefaultApiUrl } from './device';
@@ -108,15 +108,21 @@ export function lerUltimoSegundoPlano(): Promise<ResultadoSegundoPlano | null> {
 
 // ---------- motor sem interface (app fechado) ----------
 /** Com o espelho gravado e o arquivo sem abrir (`erro`), a tarefa desiste: o app mostra "Tentar de novo". */
-async function armazenamentoSemInterface(usuarioId: string): Promise<ArmazenamentoSync> {
+async function armazenamentoSemInterface(usuarioId: string): Promise<ArmazenamentoSemInterface> {
   const r = await abrirArmazenamentoDaSessao(usuarioId);
   if (r.tipo === 'erro') throw new Error(`banco local do usuário não abriu: ${r.detalhe}`);
-  return r.armazenamento;
+  return { armazenamento: r.armazenamento, arquivo: r.tipo === 'sqlite' ? r.arquivo : null };
+}
+
+/** O armazenamento do motor e o arquivo SQLite dele (`null` na reserva do AsyncStorage), onde ficam os pontos do trajeto. */
+interface ArmazenamentoSemInterface {
+  armazenamento: ArmazenamentoSync;
+  arquivo: string | null;
 }
 
 async function abrirMotorSemInterface(
   usuarioId: string,
-  armazenamento: Promise<ArmazenamentoSync>,
+  aberto: Promise<ArmazenamentoSemInterface>,
   corte: CorteDaPassada,
 ): Promise<MotorSegundoPlano> {
   const modo = modoApi();
@@ -179,9 +185,10 @@ async function abrirMotorSemInterface(
       ...(s?.tenant?.fuso ? { fuso: s.tenant.fuso } : {}),
     }),
   });
+  const { armazenamento, arquivo } = await aberto;
   const m = criarMotorDoUsuario({
     usuarioId,
-    armazenamento: await armazenamento,
+    armazenamento,
     shell: shellDaVariante(varianteAtual()),
     modo,
     api,
@@ -190,6 +197,8 @@ async function abrirMotorSemInterface(
     perfil: () => s?.user?.perfil ?? null,
     // sem tela: a busca online do Catálogo continua ligada ao motor do app (ADR 0054)
     cargaOnline: false,
+    // T-0156: os pontos do trajeto vão ao servidor antes do envio da passada
+    bancoDoTrajeto: () => (arquivo ? driverDoArquivo(arquivo) : null),
   });
   motorRef.m = m;
   await m.carregar();

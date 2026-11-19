@@ -112,6 +112,7 @@ import { ApiClient, HttpError, NetworkError } from '@/services/api';
 import {
   abrirArmazenamentoDoUsuario,
   apagarBancosDoAparelho,
+  driverDoArquivo,
   fecharArmazenamentoDoUsuario,
 } from '@/services/armazenamento';
 import { gravarSaidasPendentes, gravarTokens, lerSaidasPendentes, lerTokens } from '@/services/credenciais';
@@ -436,6 +437,8 @@ function usePlataformaValor() {
         etapasExtras: modo === 'demo' ? [etapaMe] : [],
         // RN-CORE-48: ordem da carga pelo perfil de quem está logado agora
         perfil: () => sessaoRef.current?.user.perfil ?? s.user.perfil,
+        // T-0156: o banco em que a tarefa `macuxi-trajeto` grava os pontos (eles vão ao servidor depois de cada envio)
+        bancoDoTrajeto: () => (abertura.tipo === 'sqlite' ? driverDoArquivo(abertura.arquivo) : null),
       });
       await m.carregar();
       setMe(await m.armazenamentoDoModulo('core').ler<Me>('me'));
