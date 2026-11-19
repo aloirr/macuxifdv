@@ -15,6 +15,7 @@ const sim = vi.hoisted(() => ({
   essenciais: () => false,
   perfilDosEssenciais: null as (() => string | null | undefined) | null,
   passos: [] as string[],
+  pushes: 0,
   erros: [] as { mensagem: string; onde: string | null }[],
 }));
 
@@ -35,7 +36,11 @@ vi.mock('./storage', () => ({ readJson: async () => null, writeJson: async () =>
 vi.mock('./erros', () => ({
   gravarErro: async (e: Error, _origem: string, onde: string | null) => void sim.erros.push({ mensagem: e.message, onde }),
 }));
-vi.mock('./transporte', () => ({ modoSync: () => 'v1', transporteV1: () => ({}), transporteFaseM: () => ({}) }));
+vi.mock('./transporte', () => {
+  // o transporte do motor recusa (sem rede no meio do envio): a mensagem dele leva coordenada, que não pode chegar ao Diagnóstico
+  const transporte = { push: async () => (sim.pushes++, Promise.reject(new Error('sem rede em -3.119027'))) };
+  return { modoSync: () => 'v1', transporteV1: () => transporte, transporteFaseM: () => transporte };
+});
 vi.mock('@macuxi/platform-sdk', async (original) => ({
   ...(await original<typeof import('@macuxi/platform-sdk')>()),
   criarMotorSync: (o: OpcoesMotorSync) => {
@@ -77,6 +82,7 @@ beforeEach(() => {
   sim.pendentes = undefined;
   pedidos.length = 0;
   sim.passos = [];
+  sim.pushes = 0;
   sim.erros = [];
 });
 
@@ -96,16 +102,20 @@ describe('motor do usuário — entrada enquanto carrega (ADR 0054)', () => {
 });
 
 describe('motor do usuário — pontos do trajeto antes de cada envio (T-0156, RN-CORE-13)', () => {
-  const linha = { id: '0b9a4c1e-7f3d-4a2b-9c8d-1e2f3a4b5c6d', latitude: -3.119027 };
-  const bancoComFalha = {
-    todas: async () => {
-      throw new Error(`disco cheio em ${linha.latitude}`);
-    },
-  } as unknown as BancoDoTrajeto;
+  const linha = {
+    id: '0b9a4c1e-7f3d-4a2b-9c8d-1e2f3a4b5c6d',
+    capturado_em: '2026-11-19T13:00:00.000Z',
+    latitude: -3.119027,
+    longitude: -60.021731,
+    precisao_m: 12,
+    velocidade_ms: null,
+  };
+  const banco = { todas: async () => [linha], rodar: async () => ({ alteradas: 0 }) } as unknown as BancoDoTrajeto;
 
-  it('falha da rotina: o sync segue e o Diagnóstico recebe só contagens', async () => {
-    const m = montar({ bancoDoTrajeto: () => bancoComFalha });
+  it('usa o push do transporte do motor; a falha não para o sync e o Diagnóstico recebe só contagens', async () => {
+    const m = montar({ bancoDoTrajeto: () => banco });
     expect(await m.sincronizar()).toBe(true);
+    expect(sim.pushes).toBe(1);
     expect(sim.passos).toEqual(['sincronizar']);
     expect(sim.erros).toHaveLength(1);
     expect(sim.erros[0]?.onde).toBe('envio do trajeto');

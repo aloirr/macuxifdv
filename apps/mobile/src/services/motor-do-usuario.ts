@@ -86,7 +86,8 @@ export interface OpcoesMotorDoUsuario {
   cargaOnline?: boolean;
   /**
    * T-0156 (RN-CORE-13): SQLite do usuário em que a tarefa `macuxi-trajeto` grava os pontos (`driverDoArquivo`). Antes de
-   * cada envio da fila os pontos entram nela (`lib/envio-do-trajeto.ts`). Sem ele, ou `null`, nada a enfileirar.
+   * cada envio os pontos vão ao servidor pelo `push` do transporte do motor (`lib/envio-do-trajeto.ts`). Sem ele, ou `null`,
+   * nada a enviar.
    */
   bancoDoTrajeto?: () => BancoDoTrajeto | null;
 }
@@ -110,10 +111,11 @@ export function portaCargaOnline(motor: Pick<MotorSync, 'estado'>, ambiente: Pic
 /** Motor de sync do usuário (armazenamento isolado por usuário e tenant, já aberto), sem `carregar()`. */
 export function criarMotorDoUsuario(o: OpcoesMotorDoUsuario): MotorSync {
   const ref: { m: MotorSync | null } = { m: null };
+  const transporte = modoSync(o.modo) === 'v1' ? transporteV1(o.api) : transporteFaseM(o.api);
   const opcoes: OpcoesMotorSync = {
     registro: o.shell.registroSync,
     armazenamento: o.armazenamento,
-    transporte: modoSync(o.modo) === 'v1' ? transporteV1(o.api) : transporteFaseM(o.api),
+    transporte,
     online: o.online,
     ambiente: o.ambiente,
     etapas: [...(o.etapasExtras ?? []), ...o.shell.etapasSync],
@@ -126,8 +128,13 @@ export function criarMotorDoUsuario(o: OpcoesMotorDoUsuario): MotorSync {
     // ADR 0054 (solução 5): o envio e "Clientes e rota" (Campo) ou "Equipe" (Gestão) liberam a entrada (`liberado_em`)
     essenciais: essenciaisDoUsuario(o.perfil ?? (() => null), () => ref.m?.estado().modulosAtivos ?? []),
   };
-  // T-0156: os pontos do trajeto entram na fila antes de cada envio (app aberto e tarefa em segundo plano)
-  ref.m = comPontosDoTrajeto(criarMotorSync(opcoes), { banco: o.bancoDoTrajeto ?? (() => null), registrar: registrarEnvioDoTrajeto });
+  // T-0156: os pontos do trajeto vão pelo mesmo transporte antes de cada envio (app aberto e tarefa em segundo plano)
+  ref.m = comPontosDoTrajeto(criarMotorSync(opcoes), {
+    banco: o.bancoDoTrajeto ?? (() => null),
+    push: (itens) => transporte.push(itens),
+    online: o.online,
+    registrar: registrarEnvioDoTrajeto,
+  });
   if (o.cargaOnline !== false) definirCargaOnline(portaCargaOnline(ref.m, o.ambiente));
   return ref.m;
 }

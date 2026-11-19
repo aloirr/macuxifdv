@@ -4,13 +4,13 @@
  * leve; a falha da rotina não impede o sync; nenhuma coordenada (nem id) vai para o `registrar`.
  * Motor real do SDK com transporte falso, SQLite real (`node:sqlite`) e a rotina real do Core.
  */
-import { ENTIDADE_PONTO_TRAJETO, PontoTrajetoSchema, type PontoTrajeto } from '@macuxi/core/contracts';
+import { ENTIDADE_PONTO_TRAJETO, type PontoTrajeto } from '@macuxi/core/contracts';
 import {
   criarArmazenamentoEmMemoria,
   criarMotorSync,
   criarRegistroSync,
   defineModule,
-  definirEntidadeSync,
+  MAX_ITENS_PUSH,
   type DriverSqlite,
   type ItemPush,
   type ResultadoItemPush,
@@ -59,45 +59,50 @@ const ponto = (n: number): PontoTrajeto => ({
   velocidade_ms: null,
 });
 
-async function montar(o: { registrarPonto?: boolean; banco?: () => DriverSqlite | null; db?: DriverSqlite } = {}) {
-  const db = o.db ?? (await driverNode());
-  const registro = criarRegistroSync([defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor'], sync: [ENTIDADE_PONTO_TRAJETO] })]);
-  if (o.registrarPonto !== false)
-    registro.registrar(
-      definirEntidadeSync({ nome: ENTIDADE_PONTO_TRAJETO, modulo: 'core', direcao: 'push', conflito: 'somente_insercao', schema: PontoTrajetoSchema }),
-    );
-  const enviados: ItemPush[] = [];
+async function montar(o: { banco?: () => DriverSqlite | null } = {}) {
+  const db = await driverNode();
+  const registro = criarRegistroSync([defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor'] })]);
+  /** Um lote por chamada do `push`. */
+  const lotes: ItemPush[][] = [];
   const transporte: TransporteSync = {
     async push(itens): Promise<ResultadoItemPush[]> {
-      enviados.push(...itens);
+      lotes.push(itens);
       return itens.map((i) => ({ id: i.id, status: 'aceito' as const }));
     },
     pull: async () => ({ itens: [], proximo_cursor: null }),
     novidades: async () => ({ entidades: [], cursor: 'c1', horizonte: '2026-11-19T13:00:00.000Z', modulos_mudaram: false }),
   };
+  const sinal = { online: true };
+  const online = () => sinal.online;
   const registrar = vi.fn<(mensagem: string) => void>();
-  const motor = comPontosDoTrajeto(criarMotorSync({ registro, armazenamento: criarArmazenamentoEmMemoria(), transporte, online: () => true }), {
+  const motor = comPontosDoTrajeto(criarMotorSync({ registro, armazenamento: criarArmazenamentoEmMemoria(), transporte, online }), {
     banco: o.banco ?? (() => db),
+    push: (itens) => transporte.push(itens),
+    online,
     registrar,
     agora: () => new Date('2026-11-19T15:00:00.000Z'),
   });
   await motor.carregar();
   await motor.aplicarModulosAtivos(['core']);
-  return { db, motor, enviados, registrar };
+  const enviados = () => lotes.flat();
+  return { db, motor, lotes, enviados, sinal, registrar };
 }
 
 const pendentes = (db: DriverSqlite) => db.todas<{ id: string }>('SELECT id FROM core__ponto_trajeto WHERE enviado_em IS NULL');
+const naFila = (motor: { estado(): { fila: readonly { entidade: string }[] } }) =>
+  motor.estado().fila.filter((i) => i.entidade === ENTIDADE_PONTO_TRAJETO);
 
 describe('envio dos pontos do trajeto (RN-CORE-13: o ponto gravado chega ao servidor)', () => {
-  it('sincronização completa: os pontos gravados viram itens ponto_trajeto enviados e saem dos pendentes', async () => {
-    const { db, motor, enviados } = await montar();
-    await gravarPontosDoTrajeto(db, [ponto(2), ponto(1)]);
+  it('sincronização completa: milhares de pontos saem pelo push em lotes de até 500, fora da fila do motor', async () => {
+    const { db, motor, lotes, enviados } = await montar();
+    const total = 2 * MAX_ITENS_PUSH + 201;
+    await gravarPontosDoTrajeto(db, Array.from({ length: total }, (_, n) => ponto(total - n)));
     expect(await motor.sincronizar()).toBe(true);
-    expect(enviados.map((i) => [i.entidade, i.id])).toEqual([
-      [ENTIDADE_PONTO_TRAJETO, U(1)],
-      [ENTIDADE_PONTO_TRAJETO, U(2)],
-    ]);
-    expect(enviados[0]?.payload).toEqual(ponto(1));
+    expect(lotes.map((l) => l.length)).toEqual([MAX_ITENS_PUSH, MAX_ITENS_PUSH, 201]);
+    expect(enviados().every((i) => i.entidade === ENTIDADE_PONTO_TRAJETO && i.operacao === 'upsert')).toBe(true);
+    expect(enviados()[0]?.payload).toEqual(ponto(1));
+    expect(new Set(enviados().map((i) => i.id)).size).toBe(total);
+    expect(naFila(motor)).toEqual([]);
     expect(await pendentes(db)).toEqual([]);
   });
 
@@ -106,26 +111,37 @@ describe('envio dos pontos do trajeto (RN-CORE-13: o ponto gravado chega ao serv
     expect(await motor.sincronizar()).toBe(true);
     await gravarPontosDoTrajeto(db, [ponto(3)]);
     expect(await motor.sincronizarNovidades()).toBe(true);
-    expect(enviados.map((i) => [i.entidade, i.id])).toEqual([[ENTIDADE_PONTO_TRAJETO, U(3)]]);
+    expect(enviados().map((i) => [i.entidade, i.id])).toEqual([[ENTIDADE_PONTO_TRAJETO, U(3)]]);
+    expect(naFila(motor)).toEqual([]);
     expect(await pendentes(db)).toEqual([]);
   });
 
-  it('envio da fila (`enviar`): o ponto entra antes do envio, uma vez só', async () => {
+  it('envio da fila (`enviar`): o ponto sai antes do envio, uma vez só', async () => {
     const { db, motor, enviados } = await montar();
     await gravarPontosDoTrajeto(db, [ponto(4)]);
     await Promise.all([motor.enviar(), motor.enviar()]);
     await motor.enviar();
-    expect(enviados.map((i) => i.id)).toEqual([U(4)]);
+    expect(enviados().map((i) => i.id)).toEqual([U(4)]);
   });
 
-  it('sem banco aberto (reserva no AsyncStorage): o sync segue sem nada a enfileirar', async () => {
-    const { motor, enviados, registrar } = await montar({ banco: () => null });
-    expect(await motor.sincronizar()).toBe(true);
-    expect(enviados).toEqual([]);
-    expect(registrar).not.toHaveBeenCalled();
+  it('sem sinal nada sai e o ponto espera; sem banco aberto (reserva no AsyncStorage) o sync segue', async () => {
+    const semSinal = await montar();
+    await gravarPontosDoTrajeto(semSinal.db, [ponto(6)]);
+    semSinal.sinal.online = false;
+    await semSinal.motor.enviar();
+    expect(semSinal.lotes).toEqual([]);
+    expect(await pendentes(semSinal.db)).toEqual([{ id: U(6) }]);
+    semSinal.sinal.online = true;
+    await semSinal.motor.enviar();
+    expect(semSinal.enviados().map((i) => i.id)).toEqual([U(6)]);
+
+    const semBanco = await montar({ banco: () => null });
+    expect(await semBanco.motor.sincronizar()).toBe(true);
+    expect(semBanco.lotes).toEqual([]);
+    expect([...semSinal.registrar.mock.calls, ...semBanco.registrar.mock.calls]).toEqual([]);
   });
 
-  it('falha da rotina (banco que falha ou fila que recusa) não impede o sync e não leva coordenada nem id ao registrar', async () => {
+  it('falha da rotina (banco que falha ou não abre) não impede o sync e não leva coordenada nem id ao registrar', async () => {
     const quebrado = { todas: async () => Promise.reject(new Error(`disco: ${LAT},${LON} ${U(9)}`)), rodar: async () => ({ alteradas: 0 }) };
     const lendo = await montar({ banco: () => quebrado as unknown as DriverSqlite });
     expect(await lendo.motor.sincronizar()).toBe(true);
@@ -138,14 +154,7 @@ describe('envio dos pontos do trajeto (RN-CORE-13: o ponto gravado chega ao serv
     });
     expect(await semBanco.motor.sincronizar()).toBe(true);
 
-    // a fila recusa o ponto (entidade sem registro): o ponto fica para o próximo sync
-    const recusa = await montar({ registrarPonto: false });
-    await gravarPontosDoTrajeto(recusa.db, [ponto(5)]);
-    expect(await recusa.motor.sincronizar()).toBe(true);
-    expect(recusa.enviados).toEqual([]);
-    expect(await pendentes(recusa.db)).toEqual([{ id: U(5) }]);
-
-    const mensagens = [lendo, semBanco, recusa].flatMap((m) => m.registrar.mock.calls.map(([t]) => t));
+    const mensagens = [lendo, semBanco].flatMap((m) => m.registrar.mock.calls.map(([t]) => t));
     expect(mensagens.length).toBeGreaterThanOrEqual(3);
     for (const t of mensagens) {
       expect(t).not.toMatch(/-?\d+\.\d{3,}/);

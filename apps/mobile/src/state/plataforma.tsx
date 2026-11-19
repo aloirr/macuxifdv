@@ -437,7 +437,7 @@ function usePlataformaValor() {
         etapasExtras: modo === 'demo' ? [etapaMe] : [],
         // RN-CORE-48: ordem da carga pelo perfil de quem está logado agora
         perfil: () => sessaoRef.current?.user.perfil ?? s.user.perfil,
-        // T-0156: o banco em que a tarefa `macuxi-trajeto` grava os pontos (eles entram na fila antes de cada envio)
+        // T-0156: o banco em que a tarefa `macuxi-trajeto` grava os pontos (eles vão ao servidor antes de cada envio)
         bancoDoTrajeto: () => (abertura.tipo === 'sqlite' ? driverDoArquivo(abertura.arquivo) : null),
       });
       await m.carregar();
