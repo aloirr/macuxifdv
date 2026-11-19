@@ -15,12 +15,14 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { formatBRL } from '@macuxi/comum';
 import { describe, expect, it } from 'vitest';
 
 import type { ClienteSync, HistoricoCompraSync } from '../../modules/core/contracts';
 import { montarCliente360Local } from '../../modules/core/app/lib/cliente360-local';
 import { resumoDoCliente } from '../../modules/core/app/lib/rota-local';
-import { dataLocal } from '../../modules/core/domain';
+import { abasDoApp, linhasCartaoCredito, linhasPerformance } from '../../modules/core/app/lib/ficha-v2';
+import { dataLocal, performanceDoCliente } from '../../modules/core/domain';
 
 const RAIZ = join(__dirname, '..', '..');
 const ler = (p: string) => readFileSync(join(RAIZ, p), 'utf8');
@@ -90,7 +92,12 @@ function esperado(historico: HistoricoCompraSync[], hoje: string) {
     dias_sem_compra: ultima ? diasCivis(ultima, hoje) : null,
   };
 }
-const textoFrequencia = (f: number | null) => (f === null ? '—' : `a cada ${Math.round(f)} dias`); // mesmo texto do cartão (cliente360.tsx)
+const textoFrequencia = (f: number | null) => (f === null ? '—' : `a cada ${Math.round(f)} dias`); // mesmo texto do bloco Performance (ficha-v2.ts)
+
+/** T-0186: o bloco Performance da aba Resumo (Campo e Gestão), montado como a tela monta (`telas/cliente.tsx`). */
+const performance = (historico: HistoricoCompraSync[], hoje: string, comAcessoACompras = true) =>
+  linhasPerformance(performanceDoCliente({ historico, curvas: [], visitas: { total: 3, ultima_data: '2026-11-04' }, hoje, comAcessoACompras, visitadaPor: null }), { gestao: false });
+const valorDe = (p: ReturnType<typeof performance>, rotulo: string) => p.linhas.find((l) => l.rotulo === rotulo)?.valor;
 
 // Atacadinho: 4 pedidos em 3 meses da janela
 const HIST = () => [mes('2026-11', 120_000, 1, '2026-11-05'), mes('2026-09', 300_000, 2, '2026-09-20'), mes('2026-03', 80_000, 1, '2026-03-10')];
@@ -140,28 +147,29 @@ describe('T-0146 — valor × regra dos indicadores de compra do topo', () => {
     expect(f.resumo_compras).toMatchObject({ ticket_medio_cents: 0, frequencia_media_dias: null, ultima_compra_em: null, dias_sem_compra: null, total_12m_cents: 0 });
   });
 
-  it('RN-CORE-40 (D-1 corrigido): sem compra na janela, o topo mostra "Sem compras em 12 meses" no lugar dos 4 indicadores, sem zeros', () => {
-    const topo = ler('modules/core/app/telas/cliente.tsx') + ler('modules/core/app/components/cliente360.tsx');
-    expect(topo).toContain('Sem compras em 12 meses');
+  it('RN-CORE-40 (D-1 corrigido; T-0186): sem compra na janela, o bloco Performance mostra "Sem compras em 12 meses" no lugar dos indicadores, sem zeros', () => {
+    const p = performance([mes('2025-11', 1_000_000, 1, '2025-11-20')], '2026-11-10');
+    expect(p.semCompras).toBe(true);
+    expect(p.linhas.map((l) => l.rotulo)).toEqual(['Visitas', 'Última visita']);
+    expect(p.linhas.some((l) => /R\$ 0/.test(l.valor))).toBe(false);
+    expect(ler('modules/core/app/components/aba-resumo.tsx')).toMatch(/\{perf\.semCompras \? \(\s*<Text[^>]*testID="cliente-sem-compras">\s*Sem compras em 12 meses/);
   });
 
   it('promotor sem ver pedidos (RN-PRO-01): nada de compra chega à ficha; o topo esconde média e última compra', () => {
     const f = ficha(HIST(), '2026-11-10', false);
     expect(f.historico).toEqual([]);
     expect(f.resumo_compras.total_12m_cents).toBe(0);
+    // T-0186 (P12): o bloco vira "Visitas" (sem curvas nem compras), a aba Histórico some e a tela liga tudo a pedidos_visiveis
+    const p = performance(HIST(), '2026-11-10', f.pedidos_visiveis);
+    expect(f.pedidos_visiveis).toBe(false);
+    expect(p.titulo).toBe('Visitas');
+    expect(p.linhas.map((l) => l.rotulo)).toEqual(['Visitas', 'Última visita']);
+    expect(abasDoApp('promotor', false).map((a) => a.id)).toEqual(['resumo', 'documentacao']);
     const tela = ler('modules/core/app/telas/cliente.tsx');
-    if (tela.includes('<IndicadoresResumo')) {
-      // ficha do #217: média e última compra nas peças do Cliente 360, que não mostram nada sem pedidos_visiveis
-      const c360 = ler('modules/core/app/components/cliente360.tsx');
-      for (const peca of ['IndicadoresResumo', 'AbaCompras']) {
-        expect(c360, peca).toMatch(new RegExp(`export function ${peca}\\([^)]*\\) \\{\\s*if \\(!ficha\\.pedidos_visiveis\\) return null;`));
-      }
-      expect(c360).toMatch(/export function AbaCompras[\s\S]*?<Stat label="Compra média\/mês"/);
-      expect(tela).toMatch(/\{locais\.verPedidos \? \(\s*<View[^>]*>\s*<Stat\s+label="Última compra"/);
-    } else {
-      expect(tela).toMatch(/\{locais\.verPedidos \? <Stat label="Compra média\/mês"/);
-      expect(tela).toMatch(/\{locais\.verPedidos \? \(\s*<Stat\s+label="Última compra"/);
-    }
+    expect(tela).toContain('comAcessoACompras: ficha.pedidos_visiveis');
+    expect(tela).toMatch(/const cartao = ficha && ficha\.pedidos_visiveis && fin/);
+    expect(tela).toMatch(/const itensComprados: ItemCompradoLinha\[\] = ficha && ficha\.pedidos_visiveis/);
+    expect(tela).toContain('const itensAbas = abasDoApp(locais.perfil, locais.verPedidos);');
   });
 
   it('RN-CORE-40 (D-1 corrigido): Compra média/mês (topo do Campo) = total da janela ÷ 12; R$ 5.000 ÷ 12 = R$ 416,67', () => {
@@ -201,30 +209,35 @@ describe('T-0146 — o 13º mês que o sync traz (janela do aparelho ≥ hoje �
 
 describe('T-0146 — rótulo × valor e topo sem limite/vencidos (fonte das telas)', () => {
   const tela = ler('modules/core/app/telas/cliente.tsx');
-  const c360 = ler('modules/core/app/components/cliente360.tsx');
+  const resumo = ler('modules/core/app/components/aba-resumo.tsx');
   const web = ler('modules/core/web/components/cliente360/cliente360-page.tsx');
 
-  it('Campo/Gestão: cada rótulo do topo mostra o campo da regra', () => {
-    // até o #217 a média vinha do resumo da rota (tela); depois, da aba Compras (cliente360), com a conta do domínio
-    expect([
-      tela.includes('<Stat label="Compra média/mês" value={formatBRL0(customer.avg_monthly_cents)} />'),
-      c360.includes('<Stat label="Compra média/mês" value={formatBRL0(compraMediaMesCents(ficha.historico, hoje))} />'),
-    ]).toContain(true);
-    expect(c360).toContain('<Stat label="Ticket médio" value={formatBRL0(compras.ticket_medio_cents)} />');
-    expect(c360).toContain("<Stat label=\"Frequência média\" value={compras.frequencia_media_dias === null ? '—' : `a cada ${Math.round(compras.frequencia_media_dias)} dias`} />");
-    expect(c360).toContain('<Stat label="Compras em 12 meses" value={formatBRL0(compras.total_12m_cents)} />');
-    // Última compra do topo vem da mesma janela da ficha (resumo_compras), não do resumo da rota
-    if (!tela.includes('const diasUltimaCompra = ficha ? ficha.resumo_compras.dias_sem_compra : customer.days_since_purchase;')) {
-      expect(c360).toMatch(/export function IndicadoresResumo[\s\S]*?const compras = ficha\.resumo_compras;[\s\S]*?<Stat label="Última compra" value=\{ultimaCompraDaFicha\(compras\.dias_sem_compra\)\}/);
+  it('Campo/Gestão (T-0186, bloco Performance): cada rótulo mostra o valor da regra (oráculo da RN-CORE-40); sem "Última compra" nem "Compras em 12 meses" (R-20261119-0440)', () => {
+    for (const hoje of ['2026-11-10', '2026-11-15']) {
+      const e = esperado(HIST(), hoje);
+      const p = performance(HIST(), hoje);
+      expect(p.titulo, hoje).toBe('Performance');
+      expect(valorDe(p, 'Compra média/mês'), hoje).toBe(formatBRL(e.media_mes_cents));
+      expect(valorDe(p, 'Ticket médio'), hoje).toBe(formatBRL(e.ticket_medio_cents));
+      expect(valorDe(p, 'Frequência'), hoje).toBe(e.frequencia_texto);
+      expect(p.linhas.map((l) => l.rotulo), hoje).not.toContain('Última compra');
+      expect(p.linhas.map((l) => l.rotulo), hoje).not.toContain('Compras em 12 meses');
     }
+    expect(formatBRL(esperado(HIST(), '2026-11-10').media_mes_cents)).toBe(formatBRL(41_667));
+    // a aba mostra as linhas que a função monta, sem outra conta
+    expect(resumo).toContain('const perf = linhasPerformance(performance, { gestao });');
+    expect(resumo).toContain('<TabelaRotuloValor linhas={perf.linhas} />');
   });
 
-  it('Campo/Gestão: a grade do topo não tem limite, crédito nem vencidos; o Financeiro tem cada um uma vez', () => {
-    const topo = c360.slice(c360.indexOf('testID="cliente-360"'), c360.indexOf('<SectionHeader title="Contatos" />'));
-    expect(topo).not.toMatch(/Limite|Crédito|Vencidos|vencidos/);
-    expect(tela).not.toMatch(/available_credit_cents|overdue_count|overdue_cents/);
-    const financeiro = c360.slice(c360.indexOf('testID="cliente-financeiro"'));
-    for (const r of ['Limite', 'Crédito disponível', 'Vencidos']) expect(financeiro.match(new RegExp(`label="${r}"`, 'g'))).toHaveLength(1);
+  it('Campo/Gestão (T-0186): o bloco Performance não tem limite, crédito nem vencidos; o cartão de crédito tem Limite, Saldo disponível e Prazo médio uma vez cada', () => {
+    const p = performance(HIST(), '2026-11-10');
+    expect(p.linhas.map((l) => l.rotulo).join(' ')).not.toMatch(/Limite|Crédito|Saldo|Vencid/);
+    const cartao = linhasCartaoCredito({ limite_cents: 5_000_000, saldo_disponivel_cents: 3_800_000, prazo_medio_dias: 42, bloqueado: false, motivo_bloqueio: null })!;
+    expect(cartao.map((l) => l.rotulo)).toEqual(['Limite', 'Saldo disponível', 'Prazo médio']);
+    expect(cartao.map((l) => l.valor)).toEqual([formatBRL(5_000_000), formatBRL(3_800_000), '42 dias']);
+    // nenhum alerta financeiro na ficha (R-20261119-0440): sem vencidos na tela nem no Resumo
+    expect(tela + resumo).not.toMatch(/Vencidos|vencidos|overdue_count|overdue_cents|available_credit_cents/);
+    expect(resumo.match(/linhasCartaoCredito\(/g)).toHaveLength(1);
   });
 
   it('BKO: o topo (primeiro KpiGrid) só tem Última compra, Ticket médio (com a frequência) e Compras em 12 meses; Financeiro no painel', () => {
@@ -245,11 +258,13 @@ describe('T-0146 — RD-0075: o selo "Cadastro incompleto" saiu da ficha, a info
   const LINHA = 'Cadastro incompleto: falta CNPJ/CPF, CEP.';
 
   it('ficha (Campo/Gestão e BKO): sem o selo, com a linha automática das Observações montada de cadastro_campos_faltantes', () => {
-    for (const p of ['modules/core/app/components/cliente360.tsx', 'modules/core/web/components/cliente360/cliente360-page.tsx']) {
+    // T-0186: no app, as Observações ficam no fim da aba Resumo (`c` = ficha.cliente)
+    for (const p of ['modules/core/app/components/aba-resumo.tsx', 'modules/core/web/components/cliente360/cliente360-page.tsx']) {
       const src = ler(p);
       expect(src, p).not.toContain('EtiquetaCadastroIncompleto');
-      expect(src.match(/automatica=\{observacaoComCadastro\(null, (ficha\.)?cliente\.cadastro_campos_faltantes \?\? \[\]\)\}/g), p).toHaveLength(1);
+      expect(src.match(/automatica=\{observacaoComCadastro\(null, (?:(?:ficha\.)?cliente|c)\.cadastro_campos_faltantes \?\? \[\]\)\}/g), p).toHaveLength(1);
     }
+    expect(ler('modules/core/app/components/aba-resumo.tsx')).toContain('const c = ficha.cliente;');
   });
 
   it('valor × regra: a linha que a ficha mostra é a da RN-CORE-17 e some com o cadastro completo', async () => {

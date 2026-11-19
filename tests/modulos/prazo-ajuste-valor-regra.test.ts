@@ -14,7 +14,8 @@ import { politicaApi } from '../../modules/vendedor/app/lib/pull';
 import { alertasDoPedido } from '../../modules/vendedor/domain/alertas-pedido';
 import { alertasDaVenda, tomDoAlerta } from '../../modules/vendedor/domain/alertas-venda';
 import { MOTIVO_PRAZO_MUDOU, politicaDosParametros, revalidarPedido, type RevalidarEntrada } from '../../modules/vendedor/domain/aprovacao';
-import { creditoDoCartao, MSG_PERCENTUAL_DO_PRAZO_MUDOU, revalidarPercentualDoPrazo } from '../../modules/vendedor/domain/pagamento';
+import { creditoDisponivel } from '../../modules/vendedor/contracts';
+import { MSG_PERCENTUAL_DO_PRAZO_MUDOU, revalidarPercentualDoPrazo } from '../../modules/vendedor/domain/pagamento';
 import { buildOrderPdfHtml } from '../../modules/vendedor/domain/pdf-pedido';
 import { percentualAjusteParaBp, precoMinimoBaseCents, tabelaAjustadaCents, valorMantendoPercentualCents } from '../../modules/vendedor/domain/preco-pedido';
 
@@ -230,7 +231,7 @@ describe('RN-VEN-45: percentual congelado e revalidado no envio', () => {
 describe('P-6: a API não confere crédito no pedido com prazo', () => {
   it('RN-VEN-12/43: o total ajustado estoura o disponível; o app avisa (Alertas) e a API não muda a decisão por crédito', () => {
     // RN-VEN-12: disponível = limite − saldo em aberto − pedidos aprovados não faturados; 500,00 − 150,00 − 23,60 = 326,40
-    const { disponivel_cents } = creditoDoCartao({ limite_cents: 50_000, saldo_aberto_cents: 15_000, credito_disponivel_erp_cents: null }, [{ total_cents: 2_360, integrado: false }]);
+    const { disponivel_cents } = creditoDisponivel({ financeiro: { limite_cents: 50_000, saldo_aberto_cents: 15_000, credito_disponivel_erp_cents: null }, pedidos: [{ status: 'approved', total_cents: 2_360 }] });
     expect(disponivel_cents).toBe(50_000 - 15_000 - 2_360);
     const pura = revalidarPedido(entrada(0));
     const vista = revalidarPedido(entrada(-171));
