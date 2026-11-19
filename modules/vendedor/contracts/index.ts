@@ -328,7 +328,7 @@ export const CODIGOS_RECUSA_PEDIDO = [
   'unidade_invalida', 'endereco_invalido', 'transportadora_obrigatoria', 'transportadora_invalida', 'desconto_e_acrescimo', 'preco_abaixo_minimo',
   // T-0071: orçamento vencido/convertido/cancelado (RN-VEN-18), ajuste em % e R$ juntos ou acima do limite, edição concorrente
   'RN-VEN-18', 'ajuste_invalido', 'ORCAMENTO_ALTERADO',
-  // T-0089: forma/prazo inexistente, inativo ou de outra forma (RN-VEN-24); forma não permitida ou prazo acima do prazo médio do cliente (RN-VEN-25)
+  // T-0089: forma/prazo inexistente, inativo ou de outra forma (RN-VEN-24); forma não aceita pelo cliente (RN-VEN-25; o prazo médio máximo não trava mais)
   'RN-VEN-24', 'RN-VEN-25',
   // T-0168 (RN-VEN-11a): desconto efetivo do pedido acima do limite do usuário
   'desconto_pedido_acima_limite',

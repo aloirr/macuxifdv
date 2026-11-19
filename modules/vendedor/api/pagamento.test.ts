@@ -47,8 +47,8 @@ describe('API: forma e prazo do pedido (RN-VEN-24/25, RN-VEN-13)', () => {
   it('RN-VEN-24: prazo de outra forma é 422 RN-VEN-24', async () => {
     expect(await resolverPagamento(ctx(), db, tx(null), { ...base, forma_pagamento_id: 'f-pix', prazo_pagamento_id: 'p-28' }, cli, 'pedido')).toMatchObject({ ok: false, codigo: 'RN-VEN-24' });
   });
-  it('RN-VEN-25: prazo médio acima do máximo do cliente é 422 RN-VEN-25', async () => {
-    expect(await resolverPagamento(ctx(), db, tx(null), { ...base, forma_pagamento_id: 'f-bol', prazo_pagamento_id: 'p-60' }, cli, 'pedido')).toMatchObject({ ok: false, codigo: 'RN-VEN-25' });
+  it('RN-VEN-25: prazo médio acima do máximo do cliente é aceito pela API (a trava saiu do pedido)', async () => {
+    expect(await resolverPagamento(ctx(), db, tx(null), { ...base, forma_pagamento_id: 'f-bol', prazo_pagamento_id: 'p-60' }, cli, 'pedido')).toMatchObject({ ok: true });
   });
   it('RN-VEN-25: forma fora da lista do cliente é 422 RN-VEN-25', async () => {
     expect(await resolverPagamento(ctx(), db, tx(null), { ...base, forma_pagamento_id: 'f-bol', prazo_pagamento_id: 'p-28' }, { ...cli, formas_pagamento: ['PIX'] }, 'pedido')).toMatchObject({ ok: false, codigo: 'RN-VEN-25' });

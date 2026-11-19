@@ -752,7 +752,6 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
             ]}
             pagamento={<CardPagamento rascunho={draft} formas={formas} prazos={prazos} cliente={limites} legado={opcoesLegado} onRascunho={emRascunho} faltaForma={faltaDoCampo('forma')} faltaPrazo={faltaDoCampo('prazo')} />}
             credito={credito}
-            prazoMedioDias={limites.prazo_medio_max_dias}
             sincronizadoEm={app.sincronizadoEm}
             agora={new Date()}
             tz={tz}

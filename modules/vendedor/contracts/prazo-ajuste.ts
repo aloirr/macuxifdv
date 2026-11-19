@@ -18,7 +18,7 @@ export function percentualDoPrazoPadraoBp(i: {
   prazos: readonly PrazoDePagamento[];
 }): number {
   if (!i.cliente) return 0;
-  const padrao = pagamentoPadrao(formasDoCliente(i.formas, i.cliente.formas_pagamento), i.prazos, i.cliente.prazo_medio_max_dias);
+  const padrao = pagamentoPadrao(formasDoCliente(i.formas, i.cliente.formas_pagamento), i.prazos);
   if (!padrao) return 0;
   return percentualAjusteParaBp(i.prazos.find((p) => p.id === padrao.prazo.id)?.percentual_ajuste);
 }

@@ -31,7 +31,6 @@ export interface LimitePagamentoDoCliente {
   formas_pagamento: readonly string[] | null | undefined;
 }
 
-export type MotivoPrazoDesabilitado = 'acima_prazo_medio_cliente';
 
 /** RN-VEN-24: média das parcelas, arredondada PARA CIMA (28/56 = 42; 30/45 = 38; premissa P2). Lista vazia é erro de programação. */
 export function prazoMedioDias(parcelas: readonly number[]): number {
@@ -61,32 +60,26 @@ export function formasDoCliente(formas: readonly FormaDePagamento[], codigosDoCl
 export interface PrazoDaForma {
   prazo: PrazoDePagamento;
   habilitado: boolean;
-  motivo?: MotivoPrazoDesabilitado;
 }
 
 /**
- * RN-VEN-24/25: os prazos ativos da forma, por ordem. Prazo com `prazo_medio_dias` acima do máximo do cliente aparece
- * desabilitado; máximo nulo = todos habilitados (P1). Igual ao máximo é permitido.
+ * RN-VEN-24/25: os prazos ativos da forma, por ordem, todos habilitados. Sem trava pelo prazo médio máximo do cliente
+ * (`prazo_medio_max_dias`; decisão do dono do produto R-20261118-2250: o prazo médio saiu do pedido).
  */
-export function prazosDaForma(prazos: readonly PrazoDePagamento[], formaId: string, prazoMedioMaxCliente: number | null | undefined): PrazoDaForma[] {
+export function prazosDaForma(prazos: readonly PrazoDePagamento[], formaId: string): PrazoDaForma[] {
   return prazos
     .filter((p) => p.ativo && p.forma_pagamento_id === formaId)
     .sort(porOrdem)
-    .map((prazo) =>
-      prazoMedioMaxCliente != null && prazo.prazo_medio_dias > prazoMedioMaxCliente
-        ? { prazo, habilitado: false, motivo: 'acima_prazo_medio_cliente' as const }
-        : { prazo, habilitado: true },
-    );
+    .map((prazo) => ({ prazo, habilitado: true }));
 }
 
 /** RN-VEN-24: a primeira forma permitida que tenha um prazo habilitado, com o primeiro prazo habilitado dela; ou `null`. */
 export function pagamentoPadrao(
   formasPermitidas: readonly FormaDePagamento[],
   prazos: readonly PrazoDePagamento[],
-  prazoMedioMaxCliente: number | null | undefined,
 ): { forma: FormaDePagamento; prazo: PrazoDePagamento } | null {
   for (const forma of formasPermitidas) {
-    const prazo = prazosDaForma(prazos, forma.id, prazoMedioMaxCliente).find((x) => x.habilitado);
+    const prazo = prazosDaForma(prazos, forma.id).find((x) => x.habilitado);
     if (prazo) return { forma, prazo: prazo.prazo };
   }
   return null;
@@ -94,10 +87,10 @@ export function pagamentoPadrao(
 
 export type CodigoRecusaPagamento = 'RN-VEN-24' | 'RN-VEN-25';
 /** `motivo` (RD-0037): código estável da recusa; a tela decide a pendência por ele, nunca pela mensagem. */
-export type MotivoRecusaPagamento = 'forma_indisponivel' | 'prazo_indisponivel' | 'forma_nao_aceita' | 'prazo_acima_medio';
+export type MotivoRecusaPagamento = 'forma_indisponivel' | 'prazo_indisponivel' | 'forma_nao_aceita';
 export type ResultadoPagamento = { ok: true } | { ok: false; codigo: CodigoRecusaPagamento; motivo: MotivoRecusaPagamento; mensagem: string };
 
-/** RN-VEN-24 (forma/prazo existem, ativos, prazo da forma) e RN-VEN-25 (forma aceita pelo cliente e prazo médio dentro do máximo). */
+/** RN-VEN-24 (forma/prazo existem, ativos, prazo da forma) e RN-VEN-25 (forma aceita pelo cliente). */
 export function validarPagamento(i: {
   forma: FormaDePagamento | undefined | null;
   prazo: PrazoDePagamento | undefined | null;
@@ -111,10 +104,6 @@ export function validarPagamento(i: {
   const lista = cliente.formas_pagamento;
   if (lista && lista.length > 0 && !lista.includes(forma.codigo)) {
     return { ok: false, codigo: 'RN-VEN-25', motivo: 'forma_nao_aceita', mensagem: 'Este cliente não aceita esta forma de pagamento. Escolha outra forma.' };
-  }
-  const max = cliente.prazo_medio_max_dias;
-  if (max != null && prazo.prazo_medio_dias > max) {
-    return { ok: false, codigo: 'RN-VEN-25', motivo: 'prazo_acima_medio', mensagem: 'Prazo acima do prazo médio permitido ao cliente. Escolha um prazo menor.' };
   }
   return { ok: true };
 }
