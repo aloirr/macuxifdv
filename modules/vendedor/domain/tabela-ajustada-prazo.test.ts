@@ -145,9 +145,14 @@ describe('RN-VEN-45: percentual congelado e revalidado no envio', () => {
     const r = revalidarPercentualDoPrazo({ ...base, push: -1.71, vigente: 2.5, cadastro_atualizado_em: '2026-11-15T13:00:00.000Z' });
     expect(r).toMatchObject({ ok: false, codigo: 'RN-VEN-45', mensagem: 'Este prazo de pagamento mudou. Atualize o app e refaça o pedido.' });
   });
-  it('RN-VEN-45: app antigo (sem percentual) com prazo que tem percentual é recusado; sem percentual no cadastro passa', () => {
-    expect(revalidarPercentualDoPrazo({ ...base, push: undefined, vigente: -1.71, cadastro_atualizado_em: null }).ok).toBe(false);
-    expect(revalidarPercentualDoPrazo({ ...base, push: undefined, vigente: 0, cadastro_atualizado_em: null }).ok).toBe(true);
+  it('RN-VEN-45: app antigo (campo ausente ou null) usa o % vigente do prazo, sem aviso', () => {
+    expect(revalidarPercentualDoPrazo({ ...base, push: undefined, vigente: -1.71, cadastro_atualizado_em: null })).toEqual({ ok: true, percentual: -1.71, mudou_depois: false });
+    expect(revalidarPercentualDoPrazo({ ...base, push: null, vigente: -1.71, cadastro_atualizado_em: null })).toEqual({ ok: true, percentual: -1.71, mudou_depois: false });
+    expect(revalidarPercentualDoPrazo({ ...base, push: null, vigente: 2.5, cadastro_atualizado_em: '2026-11-15T15:00:00.000Z' })).toEqual({ ok: true, percentual: 2.5, mudou_depois: false });
+    expect(revalidarPercentualDoPrazo({ ...base, push: undefined, vigente: 0, cadastro_atualizado_em: null })).toEqual({ ok: true, percentual: 0, mudou_depois: false });
+  });
+  it('RN-VEN-45: push 0 explícito com vigente -1,71 e cadastro anterior ao pedido é recusado', () => {
+    expect(revalidarPercentualDoPrazo({ ...base, push: 0, vigente: -1.71, cadastro_atualizado_em: '2026-11-15T13:00:00.000Z' })).toMatchObject({ ok: false, codigo: 'RN-VEN-45' });
   });
 });
 

@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type { Product } from '@macuxi/catalogo/contracts';
 import { comPagamento } from './pagamento-pedido';
 import { calcularPedido, type EntradaCalculo, type ProdutoComMinimo } from './novo-pedido';
+import { montarPedido, rascunhoVazio } from './pedidos';
 import { politicaApi, prazosDaTela } from './pull';
 
 const P = (id: string, preco: number, extra: Partial<ProdutoComMinimo> = {}): ProdutoComMinimo =>
@@ -61,5 +62,22 @@ describe('RN-VEN-43: o rascunho congela o percentual do prazo escolhido e o pull
     const base = { id: 'z1', updated_at: '2026-11-15T10:00:00.000Z', forma_pagamento_id: 'f1', codigo: 'AV', descricao: 'À vista', parcelas_dias: [0], prazo_medio_dias: 0, ativo: true, ordem: 1 };
     const tela = prazosDaTela({ prazos: [{ ...base, percentual_ajuste: -1.71 }, base] } as never);
     expect(tela.map((p) => p.percentual_ajuste)).toEqual([-1.71, 0]);
+  });
+});
+
+describe('RN-VEN-45: montarPedido manda o percentual do prazo', () => {
+  const cliente = { id: 'c1' } as never;
+  const monta = (r: Record<string, unknown>) =>
+    montarPedido({ id: 'p1', cliente, rascunho: { ...rascunhoVazio("c1"), ...r } as never, v: { totals: { total_cents: 0, lines: [] } } as never, semSinal: false, agora: '2026-11-04T12:00:00.000Z' });
+  const prazo = { forma_pagamento_id: 'f1', prazo_pagamento_id: 'z1' };
+  it('RN-VEN-45: com forma e prazo leva -1,71 e também 0', () => {
+    expect(monta({ ...prazo, prazo_percentual_ajuste: -1.71 }).prazo_percentual_ajuste).toBe(-1.71);
+    expect(monta({ ...prazo, prazo_percentual_ajuste: 0 }).prazo_percentual_ajuste).toBe(0);
+  });
+  it('RN-VEN-45: rascunho antigo sem o número não manda a propriedade', () => {
+    expect('prazo_percentual_ajuste' in monta({ ...prazo })).toBe(false);
+  });
+  it('RN-VEN-45: sem forma e prazo nunca manda a propriedade', () => {
+    expect('prazo_percentual_ajuste' in monta({ prazo_percentual_ajuste: -1.71 })).toBe(false);
   });
 });

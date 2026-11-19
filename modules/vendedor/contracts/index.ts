@@ -287,7 +287,7 @@ export const PedidoPush = CreateOrderRequest.extend({
   prazo_pagamento_id: z.string().uuid().nullable().optional(),
   /**
    * RN-VEN-45 (v1.0.13, aditivo): "Desc./Acrésc. (%)" do prazo no momento do pedido (congelado). A API recalcula os preços por ele
-   * e o revalida (aceita o vigente, ou o antigo se o cadastro mudou depois do `created_offline_at`). Ausente = 0.
+   * e o revalida (aceita o vigente, ou o antigo se o cadastro mudou depois do `created_offline_at`). Ausente = app anterior: a API usa o % vigente do prazo.
    */
   prazo_percentual_ajuste: PercentualAjuste.optional(),
   observacao: z.string().max(500).nullable().optional(),

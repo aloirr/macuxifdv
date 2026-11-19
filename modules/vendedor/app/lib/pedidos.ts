@@ -274,7 +274,7 @@ export function montarPedido(args: { id: string; cliente: CustomerSummary; rascu
     items: calculo ? linhasParaPush(calculo.linhas) : args.v.totals.lines.map((l) => ({ product_id: l.product_id, quantity: l.quantity })),
     // T-0089: com forma e prazo, a condição legada fica nula; sem eles (APK anterior, tenant sem formas) vale a condição
     condicao_pagamento_id: args.rascunho.forma_pagamento_id && args.rascunho.prazo_pagamento_id ? null : (args.rascunho.condicao_pagamento_id ?? null),
-    ...(args.rascunho.forma_pagamento_id && args.rascunho.prazo_pagamento_id ? { forma_pagamento_id: args.rascunho.forma_pagamento_id, prazo_pagamento_id: args.rascunho.prazo_pagamento_id, ...(args.rascunho.prazo_percentual_ajuste ? { prazo_percentual_ajuste: args.rascunho.prazo_percentual_ajuste } : {}) } : {}),
+    ...(args.rascunho.forma_pagamento_id && args.rascunho.prazo_pagamento_id ? { forma_pagamento_id: args.rascunho.forma_pagamento_id, prazo_pagamento_id: args.rascunho.prazo_pagamento_id, ...(args.rascunho.prazo_percentual_ajuste != null ? { prazo_percentual_ajuste: args.rascunho.prazo_percentual_ajuste } : {}) } : {}),
     observacao: observacaoDoPush(args.rascunho),
     visita_id: args.rascunho.visit_id ?? null,
     // T-0053: só o orçamento leva `tipo` (o payload do pedido fica igual ao dos APKs anteriores)
