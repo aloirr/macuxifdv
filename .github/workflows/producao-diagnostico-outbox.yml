@@ -16,17 +16,7 @@ name: producao — diagnóstico da outbox (só leitura)
 # - O total de parados de TODAS as empresas sai antes pelo GET /v1/saude público (dependencias.outbox), para conferir se
 #   as empresas consultadas somam o número do alerta.
 #
-# O que o log mostra, por empresa (nada mais):
-#   resumo: parados (tentativas >= 10), em nova tentativa (1 a 9) e o horário do primeiro parado;
-#   parados por nome do evento, entidade e status do lote do Hub (coluna de integracao.lote, pelo agregado_id; o payload
-#   não é lido), quantidade, tentativas mín.–máx., primeiro e último horário em Manaus e os 80 primeiros caracteres do
-#   ultimo_erro, com e-mail, sequência longa de dígitos (CPF, CNPJ, telefone) e coordenada trocados por marcadores;
-#   fila de lotes do Hub em "recebido"/"processando": entidade, status, quantidade, conectores e horários em Manaus.
-# Nunca: payload, id de evento, tenant_id, e-mail, CPF, nome ou coordenada.
-#
-# Antes da 1ª rodada (o Alexandre, uma vez; SQL no relatório, §6): dar LOGIN e senha ao macuxi_leitura na produção
-# (alter role ... login password, pelo pgcliente da VM como o admin) e gravar a mesma senha no secret PROD_PG_LEITURA_SENHA
-# do environment PRODUCAO. Nenhum workflow cria papel nem muda grant.
+# O que o log mostra e a preparação (uma vez): docs/desenho/outbox-parada-v1014.md, §6.
 
 on:
   workflow_dispatch:
@@ -53,7 +43,7 @@ jobs:
     timeout-minutes: 10
     environment: PRODUCAO
     steps:
-      - name: entradas e secret
+      - name: entradas e consulta
         env:
           EMPRESAS: ${{ inputs.empresas }}
           SENHA: ${{ secrets.PROD_PG_LEITURA_SENHA }}
@@ -61,23 +51,6 @@ jobs:
           [ -n "$SENHA" ] || { echo "::error::falta o secret PROD_PG_LEITURA_SENHA (environment PRODUCAO): veja o §6 do docs/desenho/outbox-parada-v1014.md"; exit 1; }
           IFS=',' read -ra lista <<< "${EMPRESAS// /}"
           [ "${#lista[@]}" -ge 1 ] && [ "${#lista[@]}" -le 10 ] || { echo "::error::informe de 1 a 10 códigos de empresa"; exit 1; }
-          for c in "${lista[@]}"; do
-            [[ "$c" =~ ^[a-z0-9][a-z0-9-]{1,39}$ || "$c" =~ ^[A-Z]{2}[0-9]{4}$ ]] || { echo "::error::código de empresa inválido: $c"; exit 1; }
-          done
-
-      - name: total do alerta (GET /v1/saude público)
-        run: |
-          corpo="$(curl -fsS -m 15 https://api.macuxifdv.com.br/v1/saude 2>/dev/null || true)"
-          total="$(printf '%s' "$corpo" | jq -c '.dependencias.outbox // empty' 2>/dev/null || true)"
-          if [ -n "$total" ]; then linha="todas as empresas (saude): $total"; else linha="todas as empresas: /v1/saude sem o resumo da outbox"; fi
-          echo "$linha"
-          { echo "## Diagnóstico da outbox (só leitura)"; echo; echo "- $linha"; } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: montar a consulta
-        env:
-          EMPRESAS: ${{ inputs.empresas }}
-        run: |
-          IFS=',' read -ra lista <<< "${EMPRESAS// /}"
           sql="$RUNNER_TEMP/consulta.sql"
           cat > "$sql" <<'SQL'
           \set ON_ERROR_STOP on
@@ -96,6 +69,7 @@ jobs:
           \echo papel macuxi_leitura, transação só leitura
           SQL
           for c in "${lista[@]}"; do
+            [[ "$c" =~ ^[a-z0-9][a-z0-9-]{1,39}$ || "$c" =~ ^[A-Z]{2}[0-9]{4}$ ]] || { echo "::error::código de empresa inválido: $c"; exit 1; }
             sed "s/__CODIGO__/$c/" <<'SQL' >> "$sql"
           \echo
           \echo '### empresa __CODIGO__'
@@ -108,7 +82,7 @@ jobs:
                  to_char(min(e.ocorrido_em) filter (where e.tentativas >= :max) at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as primeiro_parado_manaus
             from plataforma.evento e
            where e.publicado_em is null and e.deleted_at is null;
-          \echo 'parados por evento, entidade do lote e erro (do mais antigo para o mais novo; a 1a linha costuma ser a raiz)'
+          \echo 'parados por evento, entidade do lote e classe do erro (do mais antigo para o mais novo; a 1a linha costuma ser a raiz)'
           select e.nome as evento,
                  l.entidade as entidade_lote,
                  l.status as status_lote,
@@ -116,14 +90,23 @@ jobs:
                  min(e.tentativas) || '-' || max(e.tentativas) as tentativas,
                  to_char(min(e.ocorrido_em) at time zone 'America/Manaus', 'DD/MM HH24:MI') as primeiro_manaus,
                  to_char(max(e.ocorrido_em) at time zone 'America/Manaus', 'DD/MM HH24:MI') as ultimo_manaus,
-                 left(regexp_replace(regexp_replace(regexp_replace(regexp_replace(coalesce(e.ultimo_erro, '(sem erro)'),
-                        '[^[:space:]@]+@[^[:space:]@]*\.[^[:space:]@]+', '[e-mail]', 'g'),
-                        '-?[0-9]{1,3}\.[0-9]{4,}', '[coord]', 'g'),
-                        '[0-9][0-9./-]{6,}[0-9]', '[número]', 'g'),
-                        '[[:space:]]+', ' ', 'g'), 80) as erro_80
+                 c.classe_erro
             from plataforma.evento e
             left join integracao.lote l
               on e.nome = 'integracao.lote.recebido@1' and l.tenant_id = e.tenant_id and l.id = e.agregado_id
+            -- classe do erro sem texto livre: só o módulo e um rótulo fixo, um código (SQLSTATE, HTTP) ou o nome da classe
+            -- do erro; o resto da mensagem nunca sai (ultimo_erro = "<módulo>: <Nome>: <mensagem>", 1a falha antes de " | ")
+            cross join lateral (select split_part(coalesce(e.ultimo_erro, ''), ' | ', 1) as x) u
+            cross join lateral (select case when u.x = '' then '(sem erro)' else
+                   case when split_part(u.x, ':', 1) ~ '^[a-z_]{1,20}$' then split_part(u.x, ':', 1) else '?' end || ': ' ||
+                   case when u.x like '%Lote aguardando o lote anterior da mesma entidade%' then 'espera da mesma entidade'
+                        when u.x like '%Lote aguardando a carga de%' then 'espera de dependência'
+                        when u.x like '%: efeito depois do commit: %' then 'efeito ' ||
+                             coalesce(substring(u.x from 'HTTP [0-9]{3}'), substring(u.x from 'SQLSTATE [0-9A-Z]{5}'), 'outro')
+                        when u.x ~ 'SQLSTATE [0-9A-Z]{5}' then substring(u.x from 'SQLSTATE [0-9A-Z]{5}')
+                        when btrim(split_part(u.x, ':', 2)) ~ '^(Erro[A-Z][A-Za-z]{0,40}|[A-Z][A-Za-z]{0,40}Error)$'
+                             then btrim(split_part(u.x, ':', 2))
+                        else 'outro' end end as classe_erro) c
            where e.publicado_em is null and e.deleted_at is null and e.tentativas >= :max
            group by 1, 2, 3, 8
            order by min(e.ocorrido_em), 1;
@@ -141,6 +124,14 @@ jobs:
           SQL
           done
           echo 'rollback;' >> "$sql"
+
+      - name: total do alerta (GET /v1/saude público)
+        run: |
+          corpo="$(curl -fsS -m 15 https://api.macuxifdv.com.br/v1/saude 2>/dev/null || true)"
+          total="$(printf '%s' "$corpo" | jq -c '.dependencias.outbox // empty' 2>/dev/null || true)"
+          if [ -n "$total" ]; then linha="todas as empresas (saude): $total"; else linha="todas as empresas: /v1/saude sem o resumo da outbox"; fi
+          echo "$linha"
+          { echo "## Diagnóstico da outbox (só leitura)"; echo; echo "- $linha"; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: chave SSH
         env:
@@ -188,7 +179,7 @@ jobs:
             echo '```'
             cat "$RUNNER_TEMP/saida.txt"
             echo '```'
-            echo "saída: $status (0 ok · 2 sem conexão · 3 erro no SQL, ex. sem LOGIN, sem grant ou trava · 8 VM sem banco.env)"
+            echo "saída: $status (0 ok · 2 sem conexão · 3 erro no SQL, ex. sem LOGIN, sem grant ou trava · 8 VM sem banco.env · 255 falha do SSH)"
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
 

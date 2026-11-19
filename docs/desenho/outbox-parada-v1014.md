@@ -27,52 +27,31 @@
   o reprocessar e o cancelar lote (#396, #448, migração 0087). A falha na raiz não aparece no código: está no `ultimo_erro` do
   **primeiro** evento parado. Os candidatos são uma consulta do Core no lote (`core.filiais@1`, `core.medidas@1`,
   `core.cadastro_cliente@1`) ou o conteúdo do staging.
-- O grau de certeza é médio porque o mecanismo é certo e explica o número, mas eu não vi os dados. A consulta do §4 confirma ou
-  derruba esta hipótese em um minuto.
+- O grau de certeza é médio porque o mecanismo é certo e explica o número, mas eu não vi os dados. O workflow do §6, lido como
+  no §4, confirma ou derruba esta hipótese em um minuto.
 
 ## 3. Outras hipóteses (certeza baixa)
 - **Push (`core.notificacao.criada@1`)**: se o push pelo FCM foi ligado nesse deploy (`push.env` com `MACUXI_PUSH_ATIVO=1`), um 403
   ou 401 de configuração, ou uma falha de rede, faz o efeito depois do commit lançar erro, e o evento volta até parar
-  (`modules/core/api/push.ts:174-181`). Sinal na consulta: `ultimo_erro` começando por `core: efeito depois do commit: Push com`.
+  (`modules/core/api/push.ts:174-181`). Sinal na consulta: `classe_erro` `core: efeito HTTP 403` (ou 401).
 - **Payload que o consumidor não aceita**: quando o `schema.parse` falha no despachante, a falha é a mesma nas 10 tentativas.
-  Sinal: `ultimo_erro` com texto de validação do Zod.
+  Sinal: `ultimo_erro` com `ZodError: dados inválidos` depois do módulo (`classe_erro` `<módulo>: ZodError`).
 
 ## 4. Como confirmar (só leitura; o Alexandre roda)
-Rode com o usuário administrador do banco de produção. A transação é só de leitura e termina em `rollback`. A consulta não lê o
-payload, só a entidade do lote.
-
-```sql
-begin transaction read only;
-select e.nome,
-       e.modulo,
-       case when e.nome = 'integracao.lote.recebido@1' then e.payload->>'entidade' end as entidade_do_lote,
-       count(*)                                               as parados,
-       count(distinct e.tenant_id)                            as empresas,
-       min(e.ocorrido_em) at time zone 'America/Manaus'       as primeiro_manaus,
-       max(e.ocorrido_em) at time zone 'America/Manaus'       as ultimo_manaus,
-       left(e.ultimo_erro, 200)                               as erro
-  from plataforma.evento e
- where e.publicado_em is null
-   and e.tentativas >= 10
-   and e.deleted_at is null
- group by 1, 2, 3, 8
- order by primeiro_manaus;
-rollback;
-```
+Rode o workflow do §6.
 
 Como ler o resultado:
-- A hipótese do §2 se confirma com quase tudo em `integracao.lote.recebido@1`, numa só entidade, e o `erro` "Lote aguardando o
-  lote anterior da mesma entidade…". A **primeira** linha, a mais antiga e com outro `erro`, é a raiz.
-- Se o grosso estiver em `core.notificacao.criada@1` com erro de push, vale o §3 (configuração do FCM).
-- Qualquer outro nome: o `erro` diz qual consumidor falhou. Mande o resultado para o engenheiro-software, que encaminha ao dono.
+- A hipótese do §2 se confirma com quase tudo em `integracao.lote.recebido@1`, numa só `entidade_lote`, e a `classe_erro`
+  `integracao: espera da mesma entidade`. A **primeira** linha, a mais antiga e com outra `classe_erro`, é a raiz.
+- Se o grosso estiver em `core.notificacao.criada@1` com a `classe_erro` `core: efeito HTTP …`, vale o §3 (configuração do FCM).
+- Qualquer outro nome: a `classe_erro` diz qual consumidor falhou. Mande o resultado para o engenheiro-software, que encaminha ao dono.
 
 ## 5. Correção proposta
-**Agora, operação, só com o sim do Alexandre:**
-1. Corrigir a causa da raiz, pelo `erro` da primeira linha. Na fila do Hub, outra saída é cancelar o lote raiz pelo monitor
+**Agora, operação:**
+1. Corrigir a causa da raiz, pela `classe_erro` da primeira linha. Na fila do Hub, outra saída é cancelar o lote raiz pelo monitor
    (Cancelar lote, RN-INT-15).
 2. Só depois, voltar os eventos parados a zero tentativas, **começando pelo mais antigo** (o despachante segue a ordem de
-   `ocorrido_em`). Nada se reprocessa sem o sim do Alexandre. Pushes antigos (§3) não valem a reentrega, e o Alexandre decide
-   se eles ficam parados.
+   `ocorrido_em`). Pushes antigos (§3) não valem a reentrega, e o Alexandre decide se eles ficam parados.
 
 **No código (próxima versão, por recado a cada dono):**
 - **modulo-integracao** (`aplicar-lote.ts`): a espera `mesma_entidade_em_andamento` não pode gastar tentativas sem teto. Proposta:
@@ -84,28 +63,18 @@ Como ler o resultado:
 - **Se for o push**: conferir os secrets `PROD_FCM_*`. Ver também se um erro de configuração (403) deve parar o evento logo, sem
   repetir 10 vezes.
 
-## 6. Rodar a leitura do §4 pelo GitHub (workflow só leitura)
+## 6. Diagnóstico pelo GitHub (workflow só leitura)
 O que já existe não basta: o `/v1/saude` e a linha `tipo: metricas` do worker só dão os totais (`pendentes`, `parados`,
 `mais_antigo_s`), sem o nome do evento nem o `ultimo_erro`. Por isso há o workflow
 **`producao — diagnóstico da outbox (só leitura)`** (`.github/workflows/producao-diagnostico-outbox.yml`). Ele é manual, roda no
-environment `PRODUCAO` (com a sua aprovação) e só lê. Nada se corrige, cancela ou reprocessa por ele.
+environment `PRODUCAO` (com a sua aprovação) e só lê.
 
-**Por que não com o admin nem com um usuário novo.** O banco já tem o papel **`macuxi_leitura`** (migração 0078, ADR 0055, na
-produção desde a v1.0.12). Ele não é superusuário, não ignora a RLS, não herda outro papel e só tem SELECT. A política `leitura`
-mostra uma empresa por vez (`tenant_id = app.tenant_id`), e a sessão já nasce só de leitura, com 15 s de limite por consulta.
-Falta só o LOGIN, porque sem a senha a migração o deixa `NOLOGIN`. Um `CREATE ROLE` novo pediria políticas novas em
-`plataforma.evento` e `integracao.lote` fora das migrações, que a conferência de RLS do deploy não cobre.
-
-**Ajustes ao §4.** A consulta roda com o `macuxi_leitura`, empresa por empresa, numa transação `read only` que termina em
-`rollback`. A entidade do lote vem da coluna `integracao.lote.entidade`, ligada pelo `agregado_id` (que é o id do lote), e o
-payload não é lido. O erro sai com 80 caracteres, e e-mail, sequências longas de dígitos (CPF, CNPJ, telefone) e coordenadas são
-trocados por marcadores. O total de todas as empresas sai antes, pelo `/v1/saude` público, para conferir se as empresas
-consultadas somam os 36 do alerta.
+Usa o papel `macuxi_leitura`, que já existe na produção e só lê; falta só o LOGIN.
 
 **O que você faz, uma vez:**
 1. **Senha e LOGIN no `macuxi_leitura`.** Na VM, como o admin (`cd /opt/macuxi`):
    `docker compose --env-file .env --env-file imagens.env --profile ferramentas run --rm pgcliente psql -d macuxi`
-   e, no psql (a senha não aparece na tela; o `\password` grava só o verificador SCRAM):
+   e, no psql:
    ```sql
    -- confere o papel antes: login falso, sem super, sem bypassrls
    select rolname, rolcanlogin, rolsuper, rolbypassrls from pg_roles where rolname = 'macuxi_leitura';
@@ -115,20 +84,18 @@ consultadas somam os 36 do alerta.
    select setconfig from pg_db_role_setting where setrole = 'macuxi_leitura'::regrole;
    ```
    O resultado esperado do último `select` é `default_transaction_read_only=on`, `statement_timeout=15s` e
-   `idle_in_transaction_session_timeout=60s`. Os deploys seguintes não tiram o LOGIN, porque o passo de papéis só cria o
-   papel quando ele falta. Para desligar depois: `alter role macuxi_leitura nologin;`. Se o `alter role` der
+   `idle_in_transaction_session_timeout=60s`. Para desligar depois: `alter role macuxi_leitura nologin;`. Se o `alter role` der
    `permission denied` (42501), o admin não criou o papel: pare e mande o erro ao engenheiro-software, sem usar outro usuário.
-2. **Secret.** Grave a mesma senha em `PROD_PG_LEITURA_SENHA`, no environment `PRODUCAO` do repositório. O endereço, a porta e o
-   TLS são os da VM (`banco.env`, `imagens.env`).
+2. **Secret.** Grave a mesma senha em `PROD_PG_LEITURA_SENHA`, no environment `PRODUCAO` do repositório.
 3. **PR de governança.** O arquivo está em `.github/`: o merge depende da sua autorização, com o número do PR e o SHA.
 4. **Disparar.** Actions › `producao — diagnóstico da outbox (só leitura)` › Run workflow, com os códigos das empresas separados
    por vírgula. Depois, aprove o environment `PRODUCAO`.
 
 **O que o log e o resumo mostram, por empresa:**
 - o resumo, com os parados (10 tentativas ou mais), os que estão em nova tentativa (1 a 9) e o horário do primeiro parado;
-- os parados agrupados por nome do evento, entidade e status do lote, erro, quantidade, tentativas mínimas e máximas e o
-  primeiro e o último horário em Manaus. A 1ª linha é a mais antiga e costuma ser a raiz (§4);
+- os parados agrupados por nome do evento, entidade e status do lote, classe do erro (`classe_erro`: módulo e rótulo
+  fixo, código ou nome do erro, sem o texto da mensagem), quantidade, tentativas mínimas e máximas e o primeiro e o último
+  horário em Manaus. A 1ª linha é a mais antiga e costuma ser a raiz (§4);
 - a fila de lotes do Hub em `recebido` ou `processando`, com entidade, status, quantidade, conectores e horários em Manaus.
 
-Nunca aparecem o payload, o id do evento, o `tenant_id`, e-mail, CPF, nome ou coordenada. O código de saída é 0 quando tudo
-deu certo, 2 sem conexão, 3 com erro no SQL (por exemplo, papel sem LOGIN ou trava do papel) e 8 se a VM não tiver o `banco.env`.
+Nunca aparecem o payload, o id do evento, o `tenant_id`, e-mail, CPF, nome ou coordenada.
