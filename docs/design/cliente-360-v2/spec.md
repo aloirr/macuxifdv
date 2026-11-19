@@ -10,14 +10,20 @@ Pedido do dono do produto: R-20261119-030234. É uma simulação, sem código. O
 
 A prancha 05 (BKO) não mudou.
 
+**Decisões de 19/11 (R-20261119-0458):** E1 = sim (o ERP manda a forma de pagamento por NF). P1 a P17 ficam como recomendado (§10), com quatro mudanças:
+- **P7:** o bloco Visitas sai; visitas e a última visita entram no bloco Compras do Resumo. No Gestão, "Visitada por" vai junto (pranchas 01 e 04);
+- **P14:** sai o campo de busca da aba Financeiro. O "Nº da NF" passa para o topo da folha Filtrar (prancha 02);
+- **P15:** a Documentação é só para ver: o arquivo abre do servidor, sem baixar e sem cópia no aparelho (prancha 03);
+- **P17:** a NF (detalhe, parcelas, itens e PDF) vem do servidor ao tocar, só com a autorização do vendedor, e não fica guardada. Não há pull de 12 meses (prancha 02).
+
 Pranchas desta pasta (gere com `node docs/design/cliente-360-v2/gerar.mjs`, a partir da raiz do repositório):
 
 | Prancha | O que mostra |
 |---|---|
-| `01-campo-resumo.png` | Resumo no Campo: topo (cadastro e endereços), Endereços e Contatos, Compras e Visitas, fim da rolagem |
-| `02-campo-financeiro.png` | Financeiro: filtros fechados (padrão), tabela rolada com os cinco status, folha de filtros com "Em atraso", filtro "Em atraso" aplicado, detalhe da nota com as parcelas e itens da nota |
-| `03-campo-documentacao.png` | Documentação: tabela por tipo, documento sem permissão, estado vazio e arquivo sem internet |
-| `04-gestao.png` | O mesmo Cliente 360 no Gestão (supervisora): Resumo e Documentação |
+| `01-campo-resumo.png` | Resumo no Campo: topo (cadastro e endereços), Endereços e Contatos, Compras (com as visitas), fim da rolagem |
+| `02-campo-financeiro.png` | Financeiro: filtros fechados (padrão), tabela rolada com os cinco status, folha Filtrar com o Nº da NF no topo e "Em atraso", filtro "Em atraso" aplicado, autorização para baixar a NF, detalhe da nota (do servidor) com as parcelas, itens da nota e baixar sem internet |
+| `03-campo-documentacao.png` | Documentação: tabela por tipo, documento sem permissão, estado vazio e abrir sem internet |
+| `04-gestao.png` | O mesmo Cliente 360 no Gestão (supervisora): Resumo (Carteira e Compras com "Visitada por") e Documentação |
 | `05-bko-parametros-documentos.png` | BKO › Parâmetros › Documentos: quem vê cada tipo de documento, por perfil, e as exceções por documento (opção A) |
 
 Aparelhos em 360×760 dp, com `deviceScaleFactor` 2. O BKO está em 1366×768. O gerador falha nestes casos:
@@ -75,7 +81,7 @@ O que **sai** de vez, porque já aparece em outro lugar ou não serve para agir:
 
 ## 3. Aba Resumo (ordem dos blocos)
 
-Tabelas (todas as listas da ficha): no padrão da `TabelaDeItens` do Novo pedido (`tabelas-pedido.tsx`, print `15-pedido-resumo`), num cartão: cabeçalho 12/600 em #4A5562, alinhado como a coluna; linhas de no mínimo 44 dp com fio entre elas; espaço de 4 dp entre colunas e 8 dp nas bordas; texto principal 14/600, segunda linha da célula 12 em #4A5562; números tabulares, alinhados à direita, sem "R$" na célula (a moeda vai no cabeçalho, "Valor (R$)"); código de produto e número da NF em mono 12, sublinhado, em Azul noite (abre o detalhe). Nenhuma célula corta com reticências em 360 dp: o texto longo quebra em duas linhas. Os pares rótulo-valor (Dados cadastrais, Compras, Visitas) usam a `TabelaRotuloValor` do Novo pedido: rótulo 14 em #4A5562 à esquerda, valor 16 à direita.
+Tabelas (todas as listas da ficha): no padrão da `TabelaDeItens` do Novo pedido (`tabelas-pedido.tsx`, print `15-pedido-resumo`), num cartão: cabeçalho 12/600 em #4A5562, alinhado como a coluna; linhas de no mínimo 44 dp com fio entre elas; espaço de 4 dp entre colunas e 8 dp nas bordas; texto principal 14/600, segunda linha da célula 12 em #4A5562; números tabulares, alinhados à direita, sem "R$" na célula (a moeda vai no cabeçalho, "Valor (R$)"); código de produto e número da NF em mono 12, sublinhado, em Azul noite (abre o detalhe). Nenhuma célula corta com reticências em 360 dp: o texto longo quebra em duas linhas. Os pares rótulo-valor (Dados cadastrais, Compras) usam a `TabelaRotuloValor` do Novo pedido: rótulo 14 em #4A5562 à esquerda, valor 16 à direita.
 
 1. **Dados cadastrais** (rótulo-valor): "Razão social", "CNPJ", "Filial", "Segmento" e "Cliente desde".
 2. **Endereços** (tabela): **Local · Endereço · Mapa**. Local com "Padrão" na 2ª linha do principal; Endereço com a rua e o número e, na 2ª linha, o bairro e o CEP; Mapa é o botão de 44 dp que abre o mapa.
@@ -83,40 +89,36 @@ Tabelas (todas as listas da ficha): no padrão da `TabelaDeItens` do Novo pedido
 4. **Gestão, só lá: Carteira** (tabela): **Vendedora · Ligar · WhatsApp**, com "Carla Lima" e os rótulos "Ligar para Carla Lima" e "WhatsApp de Carla Lima". Com mais de uma pessoa na carteira, uma linha por pessoa e a coluna passa a "Pessoa".
 5. **Compras** (título de seção, 18/700):
    - as tags de curva (RN-CORE-49): "Faturamento A", "Volume B" e "Frequência A", em chips no tom de destaque;
-   - rótulo-valor: "Compra média/mês" (R$ 5.210,00), "Ticket médio" (R$ 2.605,00) e "Frequência" (a cada 14 dias). "Última compra" sai (R-20261119-0440).
+   - rótulo-valor: "Compra média/mês" (R$ 5.210,00), "Ticket médio" (R$ 2.605,00), "Frequência" (a cada 14 dias), "Visitas" (46) e "Última visita" (12/11/2026). No Gestão entra "Visitada por" (Carla Lima), depois da última visita. "Última compra" sai (R-20261119-0440). O bloco Visitas acabou: as visitas vêm para cá (P7, R-20261119-0458).
 
-   Sem compra na janela, o bloco mostra só "Sem compras em 12 meses" (RN-CORE-40).
-6. **Visitas** (rótulo-valor): "Visitas" (46) e "Última visita" (12/11/2026). No Gestão entra "Visitada por" (Carla Lima).
-7. **Últimos itens comprados** (tabela): **Produto · Qtd · Data · Total (R$)**. Produto com o nome e o código na 2ª linha; Qtd com a unidade ("10 CX"); Data em dd/mm. Os 3 últimos e, embaixo da tabela, "Ver os 20 itens ›", que abre a lista completa na mesma tabela (RN-CORE-50).
-8. **Observações:** o texto do ERP, como hoje (RN-CORE-17).
+   Sem compra na janela, os indicadores de compra dão lugar a "Sem compras em 12 meses" (RN-CORE-40); as linhas de visita continuam.
+6. **Últimos itens comprados** (tabela): **Produto · Qtd · Data · Total (R$)**. Produto com o nome e o código na 2ª linha; Qtd com a unidade ("10 CX"); Data em dd/mm. Os 3 últimos e, embaixo da tabela, "Ver os 20 itens ›", que abre a lista completa na mesma tabela (RN-CORE-50).
+7. **Observações:** o texto do ERP, como hoje (RN-CORE-17).
 
 "Sugestão de mix" sai do Resumo (R-20261119-0440).
 
-Para o promotor sem `promotor_ve_pedidos` (RN-PRO-01), ficam fora os blocos 5 e 7 e o prazo médio. Fica o resto.
+Para o promotor sem `promotor_ve_pedidos` (RN-PRO-01), ficam fora os indicadores de compra e as curvas do bloco 5, o bloco 6 e o prazo médio; as linhas de visita ficam, sob o título "Visitas". Fica o resto.
 
 ## 4. Aba Financeiro
 
 É o único lugar da ficha onde o atraso aparece (R-20261119-0440).
 
 1. **Bloco de crédito:** uma tabela compacta 2×2 num cartão, como o bloco de crédito do Novo pedido (RF-VEN, `novo-pedido-itens.md` §2.1). Os valores ficam em destaque, 16/600, com algarismos tabulares: "Limite" R$ 8.000,00 · "Crédito disponível" R$ 1.880,00 · "Em aberto" R$ 6.120,00 (inclui o saldo em atraso) · "Prazo médio" 24 dias. Com o cliente bloqueado por crédito, entra embaixo a linha do motivo, como hoje.
-2. **Busca e filtro:**
-   - o campo "Nº da NF", que busca pelo número;
-   - o botão de filtro, de 48 dp. Quando há filtro fora do padrão, ele mostra a contagem num círculo laranja (gráfico). O padrão não conta.
-3. **Filtros aplicados:** um chip para cada filtro fora do padrão, com "×" para tirar ("Em atraso ×").
-4. **Contagem:** "8 notas · últimos 90 dias". Com o filtro de status, fica "1 nota em atraso · últimos 90 dias".
-5. **Tabela de notas**, da mais recente para a mais antiga (§3, padrão das tabelas). Colunas escolhidas para caber em 360 dp sem reticências:
+2. **Contagem e filtro** (uma linha): à esquerda, a contagem "8 notas · últimos 90 dias" (com o filtro de status, "1 nota em atraso · últimos 90 dias"); à direita, o botão de filtro, de 48 dp. Quando há filtro fora do padrão, ele mostra a contagem num círculo laranja (gráfico). O padrão não conta. Não há campo de busca na aba: a busca pelo Nº da NF fica na folha Filtrar (P14, R-20261119-0458).
+3. **Filtros aplicados:** um chip para cada filtro fora do padrão, com "×" para tirar ("Em atraso ×"; com busca, "NF 004655 ×").
+4. **Tabela de notas**, da mais recente para a mais antiga (§3, padrão das tabelas). Colunas escolhidas para caber em 360 dp sem reticências:
 
 | Coluna | Largura | Conteúdo |
 |---|---|---|
 | Data | 36 dp | dd/mm ("07/11"); o ano está na faixa do mês |
-| Nº NF | o que sobra (~104 dp) | o número em mono 12, sublinhado; **2ª linha: a forma de pagamento** ("Boleto 28 dias"; depende de D2, §9). "Boleto 14/21 dias" quebra em duas linhas |
+| Nº NF | o que sobra (~104 dp) | o número em mono 12, sublinhado; **2ª linha: a forma de pagamento** ("Boleto 28 dias"; vem do ERP, D2 confirmado, §9). "Boleto 14/21 dias" quebra em duas linhas |
 | Valor (R$) | 64 dp | o valor da nota em 14/600; 2ª linha, só quando houver: a devolução ("− 330,00"; depende de D3) |
 | Status | 92 dp, 8 dp de afastamento | o chip de status; 2ª linha, só no atraso: "desde 31/10", em vermelho |
 
-   A forma de pagamento ficou como 2ª linha do Nº NF, e não como coluna: como coluna, ela tiraria uns 90 dp e o Status não caberia. Uma faixa por mês ("NOVEMBRO DE 2026", 12/600 em maiúsculas) separa as notas. A linha inteira é tocável e abre o detalhe.
+   A forma de pagamento ficou como 2ª linha do Nº NF, e não como coluna: como coluna, ela tiraria uns 90 dp e o Status não caberia. Uma faixa por mês ("NOVEMBRO DE 2026", 12/600 em maiúsculas) separa as notas. A linha inteira é tocável e pede para baixar a NF (P17, abaixo).
 
    **NF em atraso:** status "Em atraso" (`danger`), a linha com fundo #FDF1EF e fio vermelho de 3 dp à esquerda, e "desde 31/10" embaixo do chip. É a nota que tem parcela vencida e não paga.
-6. **Chips de status**, nos tons do sistema e sempre com texto:
+5. **Chips de status**, nos tons do sistema e sempre com texto:
 
 | Status | Tom |
 |---|---|
@@ -131,39 +133,44 @@ Dentro da tabela, o chip quebra em duas linhas quando não cabe ("Devolvido parc
 "Em aberto", "Em atraso" e "Pago" saem do título de hoje (`TituloSync`: aberto com vencimento futuro, aberto com vencimento passado, baixado). "Devolvido" e "Devolvido parcial" dependem do vínculo título → NF → devolução (D3, §9). Uma NF com saldo vencido fica "Em atraso" mesmo com outra parcela a vencer.
 
 **Folha "Filtrar"**, que sobe de baixo:
-- "Período": "30 dias", "90 dias" (padrão), "12 meses" e "Escolher datas". Hoje o aparelho tem só 90 dias de títulos: "12 meses" e datas além de 90 dias seguem o P17;
+- **"Nº da NF"**, no topo (P14, R-20261119-0458): o campo de busca, com a lupa e o texto de exemplo "Buscar pelo número". Busca nas notas da lista;
+- "Período": "30 dias", "90 dias" (padrão), "12 meses" e "Escolher datas". O aparelho tem só 90 dias de notas: "12 meses" e datas além de 90 dias consultam o servidor e só ficam ligadas com internet (P17);
 - "Status": "Em atraso" (primeiro), "Em aberto", "Pago", "Devolvido" e "Devolvido parcial", de múltipla escolha. O padrão é nenhum marcado, que vale como todos;
-- "Forma de pagamento": as formas que aparecem nas notas do cliente (depende de D2; sem ela, o grupo não aparece);
+- "Forma de pagamento": as formas que aparecem nas notas do cliente (vem do ERP, D2; nota sem a forma não entra no grupo);
 - botões "Limpar" e "Ver 1 nota" (principal), com a contagem ao vivo. Nenhum resultado dá "Nenhuma nota" e o botão fica desligado.
 
-**Detalhe da nota** (folha), aberto ao tocar na linha:
+**Baixar a NF** (P17, R-20261119-0458): a NF não fica no aparelho. Ao tocar na linha, sobe uma folha curta com o título "Baixar a NF 004655?" e os botões "Agora não" (secundário) e "Baixar" (principal). Sem texto de explicação. "Baixar" busca no servidor o detalhe, as parcelas, os itens e o PDF; enquanto busca, o botão mostra "Baixando…" e fica desligado. Ao fechar a folha, nada fica guardado: o próximo toque pergunta de novo.
+
+**Sem internet ao baixar:** folha com o título "NF 004655", o ícone sem rede e "Sem internet", e o botão principal "Tentar de novo". Sem internet, o toque na linha abre direto esta folha, sem a pergunta.
+
+**Detalhe da nota** (folha), aberto depois de "Baixar":
 - título "NF 004655" e, embaixo, "10/10/2026 · Boleto 14/21 dias", com o chip de status;
 - rótulo-valor: "Valor da nota" e, só quando houver, "Em atraso" (em vermelho) ou "Devolvido em 29/10" ("− R$ 330,00") e "Valor final";
 - "Parcelas" (tabela): **Parcela · Vencimento · Valor (R$) · Status**; a parcela paga leva "paga em 23/10" na 2ª linha do vencimento; a parcela em atraso tem o mesmo destaque da linha da nota;
-- botão secundário "Ver itens da nota (4)".
+- dois botões secundários, lado a lado: "Ver itens (4)" e "Ver PDF". O PDF abre no visualizador do shell, só para ver, sem salvar.
 
-**Itens da nota** (folha, R-20261119-0440): título "Itens da NF 004655" e "4 itens · R$ 1.280,00"; tabela **Produto · Emb. · Qtd · Total (R$)**, como a de itens do Novo pedido: Produto com o nome e o código (mono, sublinhado) na 2ª linha; Emb. com a unidade e o fator na 2ª linha ("CX / c/ 6"); Qtd; Total em 14/600.
+**Itens da nota** (folha, R-20261119-0440; dados vindos do servidor junto com o detalhe): título "Itens da NF 004655" e "4 itens · R$ 1.280,00"; tabela **Produto · Emb. · Qtd · Total (R$)**, como a de itens do Novo pedido: Produto com o nome e o código (mono, sublinhado) na 2ª linha; Emb. com a unidade e o fator na 2ª linha ("CX / c/ 6"); Qtd; Total em 14/600.
 
 **Estados:**
-- sem notas na janela: "Nenhuma nota nos últimos 90 dias" e o botão "Ver 12 meses" (segue o P17: na opção B, só com sinal);
+- sem notas na janela: "Nenhuma nota nos últimos 90 dias" e o botão "Ver 12 meses", que consulta o servidor e fica desligado sem internet (P17);
 - sem dados financeiros: "Sem dados financeiros", como hoje;
-- sem internet: a tabela sai do aparelho e não muda.
+- sem internet: o bloco de crédito e a tabela dos 90 dias saem do aparelho e não mudam; o detalhe da nota mostra "Sem internet" e "Tentar de novo" (acima).
 
 ## 5. Aba Documentação
 
 1. **Tabela de documentos** (§3, padrão das tabelas): **Documento · Data · Abrir**, com uma faixa por tipo ("FOTOS DO PDV", "CADASTRO", "CONTRATOS"), como a faixa do mês no Financeiro:
    - Documento: o nome em 14/600; na 2ª linha, o formato e, quando houver, a validade ("PDF · válido até 03/2027"). A validade ficou na 2ª linha, e não como coluna, para o nome caber em uma ou duas linhas;
    - Data: dd/mm/aaaa, 76 dp;
-   - Abrir: 44 dp, com a seta (abre o arquivo no visualizador do shell), o cadeado (sem permissão) ou a câmera (foto que falta, quando o perfil "vê e envia").
+   - Abrir: 44 dp, com a seta (abre o arquivo do servidor no visualizador do shell, só para ver: sem "Baixar", sem salvar e sem cópia no aparelho, P15), o cadeado (sem permissão) ou a câmera (foto que falta, quando o perfil "vê e envia").
 
    Os grupos: "Fotos do PDV", o que é hoje Anexos (RN-CORE-38; "Fachada" com "Foto" e a data; "Gôndola" com "Falta" em vermelho e a câmera); "Cadastro" (Alvará de funcionamento, Cartão CNPJ, Comprovante de endereço); "Contratos" (Contrato de comodato, Contrato social). Os grupos e a ordem vêm do cadastro de tipos (§7).
 2. **Documento vencido:** a 2ª linha do documento ganha "Vencido em 10/2026" em vermelho, no lugar do "válido até". Sem aviso fora da tabela (P16).
 3. **Sem permissão por exceção** (§7): o nome em #4A5562, "Sem permissão para abrir" na 2ª linha, data "—" e o cadeado na coluna Abrir. A linha não abre e não dá aviso ao tocar, porque ela mesma já diz o porquê. A acessibilidade lê "…, sem permissão para abrir".
 4. **Tipo que o perfil não vê:** não aparece. Na prancha, a vendedora não vê "Contrato social" e a supervisora vê.
 5. **Estado vazio:** o ícone e "Nenhum documento deste cliente". Fica sem texto de explicação.
-6. **Sem internet, com o arquivo ainda fora do aparelho:**
+6. **Abrir sem internet** (P15, R-20261119-0458: o arquivo nunca fica no aparelho):
    - folha com o título do documento;
-   - o texto "Sem internet. Este arquivo ainda não está no aparelho.";
+   - o ícone sem rede e o texto "Sem internet";
    - o botão principal "Tentar de novo".
 
 ## 6. Gestão
@@ -171,7 +178,7 @@ Dentro da tabela, o chip quebra em duas linhas quando não cabe ("Devolvido parc
 É o mesmo componente, com estas diferenças:
 - o voltar leva à tela de origem;
 - a tabela "Carteira" no Resumo, depois de Contatos;
-- "Visitada por" em Visitas;
+- "Visitada por" no bloco Compras, depois da última visita (P7);
 - sem rodapé (o pedido em nome sai da ficha da vendedora, RF-GES-05);
 - sem a câmera nas fotos;
 - na Documentação, o que o perfil Supervisor ou Gerente vê;
@@ -194,18 +201,18 @@ O Financeiro é igual ao do Campo.
   - a exceção **só tira acesso** do que o tipo libera (P11): "A exceção só tira acesso do que o tipo libera.";
   - no app, quem perde acesso vê a linha com cadeado (§5.3);
   - "Adicionar exceção" é secundário.
-- **A API sempre revalida:** a lista e o download do arquivo checam o perfil, a carteira e a licença do módulo. O app nunca recebe o arquivo de um documento sem permissão.
+- **A API sempre revalida:** a lista e a abertura do arquivo checam o perfil, a carteira e a licença do módulo. O app nunca recebe o arquivo de um documento sem permissão.
 
 ## 8. Offline (o que fica no aparelho)
 
 - **Resumo:** tudo vem das linhas do sync de hoje (cliente, contatos, endereços, histórico, visitas, itens) e funciona em modo avião.
-- **Financeiro:** hoje o pull traz só 90 dias de títulos (`TituloSync`), e a NF não vem ao aparelho (D1). Na recomendação do P17 (A), o aparelho passa a guardar as notas dos últimos 12 meses de cada cliente da carteira, com as parcelas e a devolução; filtro e busca rodam no aparelho e o que passa de 12 meses só aparece com internet. Na opção B, o aparelho fica com 90 dias e o resto só com sinal.
-- **Documentação:**
+- **Financeiro** (P17, R-20261119-0458): a janela do aparelho continua de 90 dias. Ficam no aparelho só o bloco de crédito e as linhas da tabela (data, número, valor, forma de pagamento e status de cada nota); filtro e busca rodam nelas. A NF em si (detalhe, parcelas, itens e PDF) **não fica no aparelho**: vem do servidor ao tocar, com a autorização do vendedor ("Baixar a NF …?"), e é descartada ao fechar. "12 meses", "Escolher datas" além de 90 dias e "Ver 12 meses" consultam o servidor e só ficam ligados com internet. Não há pull de 12 meses.
+- **Documentação** (P15, R-20261119-0458):
   - a lista (tipo, nome, data, validade, permissão) fica no aparelho;
-  - o arquivo baixa no primeiro toque e fica guardado (P15);
-  - sem internet e sem o arquivo, aparece a folha do §5.6;
+  - o arquivo só abre para ver, vindo do servidor; não baixa e não fica guardado;
+  - sem internet, aparece a folha do §5.6 ("Sem internet" e "Tentar de novo");
   - as fotos tiradas sem internet entram na fila, como hoje ("Na fila").
-- **Permissões:** a matriz e as exceções vêm no sync. Ao perder o acesso, o app apaga o arquivo guardado na sincronização seguinte.
+- **Permissões:** a matriz e as exceções vêm no sync. Como nenhum arquivo fica no aparelho, perder o acesso vale no próximo toque (a API revalida).
 
 ## 9. Dependências (ERP e contratos)
 
@@ -213,33 +220,34 @@ Levantamento do `modulo-integracao` (19/11). O desenho não define contrato; cad
 
 | # | O que falta | Hoje | Dono |
 |---|---|---|---|
-| D1 | NF no aparelho | A NF existe no servidor (`core.nota_erp`: número, série, data, total, faturamento ou devolução), mas não vai ao aparelho | `modulo-core` (contrato do sync), `banco-dados` (sync e RLS) |
-| D2 | Forma de pagamento por NF | Não existe no contrato | `modulo-integracao` (carga do ERP), `modulo-core` (contrato) |
+| D1 | Linhas das notas no aparelho (90 dias: data, número, valor, forma e status) e consulta online da NF (detalhe, parcelas, itens e PDF) ao tocar, sem guardar (P17, R-20261119-0458) | A NF existe no servidor (`core.nota_erp`: número, série, data, total, faturamento ou devolução), mas não vai ao aparelho | `modulo-core` (contrato do sync e da consulta), `banco-dados` (sync e RLS) |
+| D2 | Forma de pagamento por NF. **Confirmado pelo ERP em 19/11 (E1, R-20261119-0458):** o ERP manda a forma por NF; falta pôr no contrato e na carga | Não existe no contrato | `modulo-integracao` (carga do ERP), `modulo-core` (contrato) |
 | D3 | Vínculo título → NF → devolução (status "Devolvido" e "Devolvido parcial", valor devolvido, parcelas no detalhe) | `TituloSync` tem só aberto, baixado ou cancelado, sem a NF | `modulo-integracao` (carga do ERP), `modulo-core` (contrato), `banco-dados` (tabela e chave) |
-| D4 | 12 meses de notas e títulos no aparelho (P17) | Pull de 90 dias | `modulo-core` (janela do sync), `banco-dados` (volume e índice) |
+| D4 | ~~12 meses de notas e títulos no aparelho~~ **Deixou de existir em 19/11 (P17, R-20261119-0458):** sem pull de 12 meses; o período além de 90 dias vira consulta online ao servidor | Pull de 90 dias (fica) | `modulo-core` (consulta online por período), `banco-dados` (índice da consulta) |
 | D5 | Documento do cliente e tipo de documento, com a matriz de permissão e as exceções | Não existe entidade; a aba Anexos mostra só a foto do PDV | `modulo-core` (entidades novas, ADR e contrato), `banco-dados` (tabelas e RLS) |
 | D6 | Documento com origem no ERP (P1) | Não há carga | `modulo-integracao` (entidade e carga novas no Hub e no Conector) |
 
 O upload no BKO (Cadastros › Clientes › ficha do cliente) aproveita o `plataforma.arquivo`, que já existe; a tela fica fora desta simulação.
 
-## 10. Pontos em aberto (A/B, com recomendação)
+## 10. Pontos em aberto (A/B, com recomendação) e decisões de 19/11
 
-| # | Ponto | A | B | Recomendo |
-|---|---|---|---|---|
-| P1 | Origem dos documentos | Só do ERP (depende do ERP: D6) | Só upload no BKO (usa o `plataforma.arquivo`, que já existe; precisa de D5) | **Os dois (A+B)**, com a origem por tipo (ERP, Escritório, App), como na prancha 05, e cada tipo com uma origem só. A **primeira entrega pode ser só B** (upload no BKO); a origem ERP entra quando houver a entidade e a carga novas (D6) |
-| P2 | Notas e títulos | **Juntos**: a linha é a NF e as parcelas (títulos) ficam no detalhe (depende do ERP: D1 e D3) | Separados: duas listas, "Notas" e "Títulos" | **Decidido em 19/11 (R-20261119-0440), substitui a recomendação "o vencido fica nos Alertas":** juntos (A), e o atraso aparece só no Financeiro, com o status "Em atraso", a linha em destaque e o filtro (§4). Nenhum alerta financeiro na ficha |
-| P3 | NF com devolução parcial e saldo em aberto (as duas opções dependem do ERP: D3) | "Em atraso" ou "Em aberto" prevalece enquanto houver saldo; "Devolvido parcial" só depois de quitada | "Devolvido parcial" prevalece e a 2ª linha do Status mostra o saldo | **A**. O vendedor age sobre o saldo |
-| P4 | "Devolvido parcial" mostra o valor devolvido? (as duas opções dependem do ERP: D3) | Sim, na 2ª linha do Valor ("− 330,00") e no detalhe | Só no detalhe | **A**. Explica a diferença do valor sem precisar abrir |
-| P5 | Onde fica Documentos em Parâmetros | **Seção nova "Documentos"** (prancha 05) | Dentro de Parâmetros › Clientes | **A**. O quadro é grande e vai crescer (tipos e exceções); em Clientes, empurraria os parâmetros de cliente para baixo |
-| P6 | Pedidos e itens que estavam em Compras | O pedido não faturado fica só na aba Pedidos do app, com o filtro do cliente; os itens ficam em "Últimos itens comprados" (Resumo) e em "Ver itens da nota" | Um bloco "Últimos pedidos" no Resumo | **A**. O faturado já está no Financeiro e o resto na aba Pedidos |
-| P7 | Indicadores de compra | Os 4 da RN-CORE-40; "Compras no mês" e "Compras em 12 meses" saem | Mantém os 6 | **A**, e em 19/11 "Última compra" também saiu (R-20261119-0440): ficam 3. A RN-CORE-40 segue valendo no cálculo; a mudança de texto da regra é do `modulo-core` |
-| P8 | Filtro padrão do Financeiro | Últimos 90 dias, todos os status | Últimos 12 meses, todos os status | **A**. A lista é curta. O filtro abre mais meses conforme o P17 |
-| P9 | Fotos do PDV (hoje em Anexos) | Grupo "Fotos do PDV" dentro de Documentação | Volta a ser uma aba (quatro abas) | **A**. O pedido foi de três abas |
-| P10 | Documento sem permissão | Aparece com cadeado e "Sem permissão para abrir" | Some | **A** na exceção por documento (o vendedor sabe que existe e pede ao escritório). O **tipo** sem permissão some |
-| P11 | Exceção por documento | Só tira acesso | Também libera | **A**, como a exceção de licença por usuário (RF-CORE-03) |
-| P12 | Promotor sem `promotor_ve_pedidos` | A aba Financeiro some | A aba aparece só com o crédito, sem notas | **A**. Sem o pedido, a nota também não aparece (RN-PRO-01) |
-| P13 | Rodapé no Gestão | Sem rodapé | "Novo pedido" em nome da vendedora | **A**. O pedido em nome já sai da ficha da vendedora (RF-GES-05) |
-| P14 | Busca no Financeiro | Campo "Nº da NF" sempre visível | Só a lupa, que abre o campo | **A**. É um toque a menos |
-| P15 | Download dos arquivos | No primeiro toque, e o arquivo fica guardado | Todos na sincronização (só no Wi-Fi) | **A**. Poupa dados e espaço; os tipos marcados como "levar para a rua" podem baixar na sincronização numa versão seguinte |
-| P16 | Documento vencido nos Alertas | Sim, para os tipos marcados no BKO | Não, só na Documentação | **Decidido em 19/11 (R-20261119-0440), substitui a recomendação anterior:** B. O vencido aparece só na linha do documento ("Vencido em …", em vermelho), sem aviso nas outras abas |
-| P17 | Janela de "12 meses" no Financeiro (hoje o aparelho tem 90 dias) | Estender o pull das notas e títulos para 12 meses (D4) | "12 meses", "Escolher datas" além de 90 dias e "Ver 12 meses" só com sinal, consultando o servidor; sem sinal, a opção fica desligada | **A**. O vendedor consulta o histórico na rua, sem sinal; B entra só se o volume de 12 meses pesar no aparelho |
+| # | Ponto | A | B | Recomendo | Decisão (19/11, R-20261119-0458) |
+|---|---|---|---|---|---|
+| P1 | Origem dos documentos | Só do ERP (depende do ERP: D6) | Só upload no BKO (usa o `plataforma.arquivo`, que já existe; precisa de D5) | **Os dois (A+B)**, com a origem por tipo (ERP, Escritório, App), como na prancha 05, e cada tipo com uma origem só. A **primeira entrega pode ser só B** (upload no BKO); a origem ERP entra quando houver a entidade e a carga novas (D6) | Como recomendado (A+B; primeira entrega pode ser só B) |
+| P2 | Notas e títulos | **Juntos**: a linha é a NF e as parcelas (títulos) ficam no detalhe (depende do ERP: D1 e D3) | Separados: duas listas, "Notas" e "Títulos" | **Decidido em 19/11 (R-20261119-0440), substitui a recomendação "o vencido fica nos Alertas":** juntos (A), e o atraso aparece só no Financeiro, com o status "Em atraso", a linha em destaque e o filtro (§4). Nenhum alerta financeiro na ficha | Como recomendado (A, já decidido em R-20261119-0440) |
+| P3 | NF com devolução parcial e saldo em aberto (as duas opções dependem do ERP: D3) | "Em atraso" ou "Em aberto" prevalece enquanto houver saldo; "Devolvido parcial" só depois de quitada | "Devolvido parcial" prevalece e a 2ª linha do Status mostra o saldo | **A**. O vendedor age sobre o saldo | Como recomendado (A) |
+| P4 | "Devolvido parcial" mostra o valor devolvido? (as duas opções dependem do ERP: D3) | Sim, na 2ª linha do Valor ("− 330,00") e no detalhe | Só no detalhe | **A**. Explica a diferença do valor sem precisar abrir | Como recomendado (A) |
+| P5 | Onde fica Documentos em Parâmetros | **Seção nova "Documentos"** (prancha 05) | Dentro de Parâmetros › Clientes | **A**. O quadro é grande e vai crescer (tipos e exceções); em Clientes, empurraria os parâmetros de cliente para baixo | Como recomendado (A) |
+| P6 | Pedidos e itens que estavam em Compras | O pedido não faturado fica só na aba Pedidos do app, com o filtro do cliente; os itens ficam em "Últimos itens comprados" (Resumo) e em "Ver itens da nota" | Um bloco "Últimos pedidos" no Resumo | **A**. O faturado já está no Financeiro e o resto na aba Pedidos | Como recomendado (A) |
+| P7 | Indicadores de compra | Os 4 da RN-CORE-40; "Compras no mês" e "Compras em 12 meses" saem | Mantém os 6 | **A**, e em 19/11 "Última compra" também saiu (R-20261119-0440): ficam 3. A RN-CORE-40 segue valendo no cálculo; a mudança de texto da regra é do `modulo-core` | A, **com mudança:** o bloco Visitas acaba; "Visitas" e "Última visita" (e, no Gestão, "Visitada por") entram no bloco Compras do Resumo (§3, pranchas 01 e 04) |
+| P8 | Filtro padrão do Financeiro | Últimos 90 dias, todos os status | Últimos 12 meses, todos os status | **A**. A lista é curta. O filtro abre mais meses conforme o P17 | Como recomendado (A) |
+| P9 | Fotos do PDV (hoje em Anexos) | Grupo "Fotos do PDV" dentro de Documentação | Volta a ser uma aba (quatro abas) | **A**. O pedido foi de três abas | Como recomendado (A) |
+| P10 | Documento sem permissão | Aparece com cadeado e "Sem permissão para abrir" | Some | **A** na exceção por documento (o vendedor sabe que existe e pede ao escritório). O **tipo** sem permissão some | Como recomendado (A) |
+| P11 | Exceção por documento | Só tira acesso | Também libera | **A**, como a exceção de licença por usuário (RF-CORE-03) | Como recomendado (A) |
+| P12 | Promotor sem `promotor_ve_pedidos` | A aba Financeiro some | A aba aparece só com o crédito, sem notas | **A**. Sem o pedido, a nota também não aparece (RN-PRO-01) | Como recomendado (A) |
+| P13 | Rodapé no Gestão | Sem rodapé | "Novo pedido" em nome da vendedora | **A**. O pedido em nome já sai da ficha da vendedora (RF-GES-05) | Como recomendado (A) |
+| P14 | Busca no Financeiro | Campo "Nº da NF" sempre visível | Só a lupa, que abre o campo | **A**. É um toque a menos | **Mudou:** sem campo nem lupa na aba; a busca "Nº da NF" fica no topo da folha Filtrar, dentro do botão de filtro (§4, prancha 02) |
+| P15 | Download dos arquivos | No primeiro toque, e o arquivo fica guardado | Todos na sincronização (só no Wi-Fi) | **A**. Poupa dados e espaço; os tipos marcados como "levar para a rua" podem baixar na sincronização numa versão seguinte | **Mudou:** nem A nem B: só visualizar, do servidor, sem baixar e sem guardar no aparelho; sem internet, "Sem internet" e "Tentar de novo" (§5, §8, prancha 03) |
+| P16 | Documento vencido nos Alertas | Sim, para os tipos marcados no BKO | Não, só na Documentação | **Decidido em 19/11 (R-20261119-0440), substitui a recomendação anterior:** B. O vencido aparece só na linha do documento ("Vencido em …", em vermelho), sem aviso nas outras abas | Como recomendado (B, já decidido em R-20261119-0440) |
+| P17 | Janela de "12 meses" no Financeiro (hoje o aparelho tem 90 dias) | Estender o pull das notas e títulos para 12 meses (D4) | "12 meses", "Escolher datas" além de 90 dias e "Ver 12 meses" só com sinal, consultando o servidor; sem sinal, a opção fica desligada | **A**. O vendedor consulta o histórico na rua, sem sinal; B entra só se o volume de 12 meses pesar no aparelho | **Mudou:** sem pull de 12 meses (D4 deixa de existir); a NF (detalhe, parcelas, itens e PDF) vem do servidor ao tocar, só com a autorização "Baixar a NF …?", e não fica guardada; além de 90 dias, só online (§4, §8, prancha 02) |
+| E1 | O ERP manda a forma de pagamento por NF? (D2) | — | — | — | **Sim.** D2 confirmado pelo ERP; a forma fica na 2ª linha do Nº NF e no filtro (§4, §9) |

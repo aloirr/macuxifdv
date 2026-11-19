@@ -108,6 +108,8 @@ function barraGestao() {
 const rodapeCampo = `<div class="rodape"><span class="btn sec"><span>Check-in</span></span><span class="btn sec"><span>Pesquisa</span></span><span class="btn pri"><span>Novo pedido</span></span></div>`;
 
 // Resumo (R-20261119-0440): cadastro e endereços no topo; sem alerta financeiro, sem Última compra e sem Sugestão de mix.
+// Decisão de 19/11 (R-20261119-0458, P7): sem o bloco Visitas; visitas, última visita e, no Gestão, "Visitada por" vão
+// para o bloco Compras.
 function resumo({ gestao = false } = {}) {
   return `${secao('Dados cadastrais')}
   ${rotuloValor([['Razão social', 'Bom Preço Comércio de Alimentos Ltda'], ['CNPJ', '14.382.906/0001-27'], ['Filial', 'Boa Vista · Matriz'], ['Segmento', 'Supermercado'], ['Cliente desde', '03/2019']])}
@@ -125,9 +127,7 @@ function resumo({ gestao = false } = {}) {
   ${tabela([['Vendedora', 'f', 'e'], ['Ligar', 44, 'm'], ['WhatsApp', 60, 'm']], [['<b>Carla Lima</b>', btIc('phone', 'Ligar para Carla Lima'), btIc('chat', 'WhatsApp de Carla Lima')]])}` : ''}
   ${secao('Compras')}
   <div class="chips linha">${chip('Faturamento A', 'accent')}${chip('Volume B', 'accent')}${chip('Frequência A', 'accent')}</div>
-  ${rotuloValor([['Compra média/mês', 'R$ 5.210,00'], ['Ticket médio', 'R$ 2.605,00'], ['Frequência', 'a cada 14 dias']])}
-  ${secao('Visitas')}
-  ${rotuloValor([['Visitas', '46'], ['Última visita', '12/11/2026'], ...(gestao ? [['Visitada por', 'Carla Lima']] : [])])}
+  ${rotuloValor([['Compra média/mês', 'R$ 5.210,00'], ['Ticket médio', 'R$ 2.605,00'], ['Frequência', 'a cada 14 dias'], ['Visitas', '46'], ['Última visita', '12/11/2026'], ...(gestao ? [['Visitada por', 'Carla Lima']] : [])])}
   ${secao('Últimos itens comprados')}
   ${tabela([['Produto', 'f', 'e'], ['Qtd', 44, 'd'], ['Data', 40, 'd'], ['Total (R$)', 68, 'd']], [
     [duas('Arroz tipo 1 5 kg', cod('10231')), '10 CX', '07/11', '<b>1.290,00</b>'],
@@ -142,8 +142,10 @@ function resumo({ gestao = false } = {}) {
 // Bloco de crédito como no Novo pedido (RF-VEN, novo-pedido-itens.md §2.1): uma tabela compacta 2×2, valores em destaque.
 const celula = (r, v) => `<div class="cel"><span class="rot">${r}</span><b>${v}</b></div>`;
 const resumoFin = `<div class="card credito">${celula('Limite', 'R$ 8.000,00')}${celula('Crédito disponível', 'R$ 1.880,00')}${celula('Em aberto', 'R$ 6.120,00')}${celula('Prazo médio', '24 dias')}</div>`;
-function barraFiltro(qtd = 0) {
-  return `<div class="ferramentas linha" data-ancora="filtro"><span class="busca">${ic('busca', 20)}<span>Nº da NF</span></span><span class="bt-filtro" aria-label="Filtrar${qtd ? `, ${qtd} filtro aplicado` : ''}">${ic('filtro', 22, 2.2)}${qtd ? `<i>${qtd}</i>` : ''}</span></div>`;
+// Decisão de 19/11 (P14): sem o campo de busca na aba; a contagem fica à esquerda do botão de filtro e a busca pelo
+// Nº da NF fica no topo da folha Filtrar.
+function barraFiltro(qtd = 0, contagem = '') {
+  return `<div class="ferramentas linha" data-ancora="filtro"><span class="contagem">${contagem}</span><span class="bt-filtro" role="button" aria-label="Filtrar${qtd ? `, ${qtd} filtro aplicado` : ''}">${ic('filtro', 22, 2.2)}${qtd ? `<i>${qtd}</i>` : ''}</span></div>`;
 }
 // Notas: Data · Nº NF · Valor (R$) · Status. A forma de pagamento é a 2ª linha da célula Nº NF; a devolução, a 2ª linha do
 // Valor; o "desde" do atraso, a 2ª linha do Status. A linha em atraso leva o destaque (fundo e fio vermelhos à esquerda).
@@ -165,21 +167,27 @@ function financeiro({ filtrado = false } = {}) {
     vistos.add(mes);
     return r;
   });
-  return `${resumoFin}${barraFiltro(filtrado ? 1 : 0)}
+  return `${resumoFin}${barraFiltro(filtrado ? 1 : 0, filtrado ? '1 nota em atraso · últimos 90 dias' : '8 notas · últimos 90 dias')}
   ${filtrado ? `<div class="chips linha"><span class="chip-ap">Em atraso ${ic('x', 14, 2.4)}</span></div>` : ''}
-  <div class="contagem">${filtrado ? '1 nota em atraso · últimos 90 dias' : '8 notas · últimos 90 dias'}</div>
   ${tabela(COLS_NF, linhas)}`;
 }
 
 function folhaFiltro() {
   const grupo = (t, ops, on) => `<div class="fgrupo"><span class="rot-f">${t}</span><div class="chips linha wrap">${ops.map((o) => `<span class="op${on.includes(o) ? ' on' : ''}">${on.includes(o) ? ic('check', 14, 2.6) : ''}${o}</span>`).join('')}</div></div>`;
   return `<div class="scrim"></div><div class="folha"><span class="pega"></span><div class="linha entre"><h2>Filtrar</h2>${ic('x', 24, 2)}</div>
+  <div class="fgrupo"><span class="rot-f">Nº da NF</span><span class="busca">${ic('busca', 20)}<span>Buscar pelo número</span></span></div>
   ${grupo('Período', ['30 dias', '90 dias', '12 meses', 'Escolher datas'], ['90 dias'])}
   ${grupo('Status', ['Em atraso', 'Em aberto', 'Pago', 'Devolvido', 'Devolvido parcial'], ['Em atraso'])}
   ${grupo('Forma de pagamento', ['Boleto', 'PIX', 'Cartão', 'Dinheiro'], [])}
   <div class="linha g8 botoes"><span class="btn sec f1">Limpar</span><span class="btn pri f2">Ver 1 nota</span></div></div>`;
 }
-// Detalhe da NF em atraso: os valores, as parcelas em tabela e o acesso aos itens.
+// Decisão de 19/11 (P17): a NF vem do servidor ao tocar, só com a autorização do vendedor, e não fica no aparelho.
+const folhaBaixarNF = `<div class="scrim"></div><div class="folha"><span class="pega"></span><h2>Baixar a NF 004655?</h2>
+  <div class="linha g8 botoes"><span class="btn sec f1">Agora não</span><span class="btn pri f1">Baixar</span></div></div>`;
+const semInternet = (titulo) => `<div class="scrim"></div><div class="folha"><span class="pega"></span><div class="linha entre"><h2>${titulo}</h2>${ic('x', 24, 2)}</div>
+  <div class="linha g8 aviso-rede">${ic('semRede', 22, 2)}<span class="corpo">Sem internet</span></div>
+  <span class="btn pri cheio">Tentar de novo</span></div>`;
+// Detalhe da NF em atraso (do servidor): os valores, as parcelas em tabela, os itens e o PDF.
 function folhaNF() {
   return `<div class="scrim"></div><div class="folha"><span class="pega"></span><div class="linha entre"><div class="col"><h2>NF 004655</h2><span class="sub">10/10/2026 · Boleto 14/21 dias</span></div>${ic('x', 24, 2)}</div>
   <div>${chip('Em atraso', 'danger')}</div>
@@ -189,7 +197,7 @@ function folhaNF() {
     ['1/2', '24/10<small>paga em 23/10</small>', '<b>640,00</b>', chip('Pago', 'success')],
     { cls: 'atraso', celulas: ['2/2', '31/10', '<b>640,00</b>', chip('Em atraso', 'danger')] },
   ])}
-  <span class="btn sec cheio">Ver itens da nota (4)</span></div>`;
+  <div class="linha g8"><span class="btn sec f1">Ver itens (4)</span><span class="btn sec f1">Ver PDF</span></div></div>`;
 }
 // Itens comprados (detalhe da nota): Produto (nome e código) · Emb. · Qtd · Total, como a TabelaDeItens.
 // 645,00 + 371,00 + 144,00 + 120,00 = 1.280,00 (o valor da NF 004655).
@@ -224,9 +232,8 @@ function documentacao({ perfil = 'vendedora' } = {}) {
   ]);
 }
 const docVazio = `<div class="vazio">${ic('doc', 40, 1.6)}<b>Nenhum documento deste cliente</b></div>`;
-const folhaSemRede = `<div class="scrim"></div><div class="folha"><span class="pega"></span><div class="linha entre"><h2>Comprovante de endereço</h2>${ic('x', 24, 2)}</div>
-  <div class="linha g8 aviso-rede">${ic('semRede', 22, 2)}<span class="corpo">Sem internet. Este arquivo ainda não está no aparelho.</span></div>
-  <span class="btn pri cheio">Tentar de novo</span></div>`;
+// Decisão de 19/11 (P15): o documento só abre para ver, do servidor; não baixa nem fica no aparelho.
+const folhaSemRede = semInternet('Comprovante de endereço');
 
 // tela: um aparelho. `rolar`: posição de rolagem do conteúdo ('fim' = até o fim).
 function tela({ legenda, voltar = 'Clientes', aba, conteudo, rodape = rodapeCampo, barra = barraCampo(), sobre = '', rolar = 0, hora }) {
@@ -322,7 +329,8 @@ h3{font-size:18px;font-weight:700;line-height:22px}
 .bt-filtro{width:48px;height:48px;border:1.5px solid #16202A;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0}
 .bt-filtro i{position:absolute;top:-7px;right:-7px;min-width:20px;height:20px;border-radius:10px;background:#C2540A;color:#fff;font-size:12px;font-weight:700;font-style:normal;display:flex;align-items:center;justify-content:center}
 .chip-ap{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:999px;background:#DFE2E6;color:#1E3350;font-size:14px;font-weight:600}
-.contagem{font-size:14px;color:#4A5562;margin-top:-2px}
+.contagem{flex:1;min-width:0;font-size:14px;line-height:18px;color:#4A5562}
+.fgrupo .busca{flex:none}
 .credito{display:grid;grid-template-columns:1fr 1fr}
 .cel{padding:8px 14px;display:flex;flex-direction:column;gap:1px;border-bottom:1px solid #ECEEF1}
 .cel:nth-child(odd){border-right:1px solid #ECEEF1}
@@ -372,11 +380,11 @@ function prancha(titulo, nota, telas) {
 // ---------- 01: Campo · Resumo ----------
 const p01 = prancha(
   'Cliente 360 v2 · Campo · Resumo',
-  '<b>Simulação, sem código (R-20261119-030234; refeita pelo comentário de 19/11, R-20261119-0440).</b> Campo, aba Resumo, nesta ordem: Dados cadastrais, Endereços, Contatos, Compras (curvas e 3 indicadores), Visitas, Últimos itens comprados e Observações. As listas são tabelas com cabeçalho, como a de itens do Novo pedido. Sem alerta financeiro na ficha (o atraso fica no Financeiro); saem Última compra e Sugestão de mix. Dados fictícios.',
+  '<b>Simulação, sem código (R-20261119-030234; refeita pelo comentário de 19/11, R-20261119-0440; decisões de 19/11, R-20261119-0458).</b> Campo, aba Resumo, nesta ordem: Dados cadastrais, Endereços, Contatos, Compras (curvas, 3 indicadores, visitas e última visita; o bloco Visitas saiu, P7), Últimos itens comprados e Observações. As listas são tabelas com cabeçalho, como a de itens do Novo pedido. Sem alerta financeiro na ficha (o atraso fica no Financeiro); saem Última compra e Sugestão de mix. Dados fictícios.',
   [
     tela({ legenda: 'Resumo · topo: cadastro e endereços', aba: 'Resumo', conteudo: resumo() }),
     tela({ legenda: 'Rolado: Endereços e Contatos', aba: 'Resumo', conteudo: resumo(), rolar: '#Endereços' }),
-    tela({ legenda: 'Rolado: Compras e Visitas', aba: 'Resumo', conteudo: resumo(), rolar: '#Compras' }),
+    tela({ legenda: 'Rolado: Compras, com as visitas', aba: 'Resumo', conteudo: resumo(), rolar: '#Compras' }),
     tela({ legenda: 'Fim do Resumo', aba: 'Resumo', conteudo: resumo(), rolar: 'fim' }),
   ],
 );
@@ -384,36 +392,38 @@ const p01 = prancha(
 // ---------- 02: Campo · Financeiro ----------
 const p02 = prancha(
   'Cliente 360 v2 · Campo · Financeiro',
-  '<b>Simulação.</b> Aba Financeiro: limite, crédito, em aberto e prazo médio; depois a tabela de notas (Data · Nº NF · Valor · Status; a forma de pagamento é a 2ª linha do Nº NF), da mais recente para a mais antiga. A nota em atraso fica em destaque na tabela e tem o status e o filtro "Em atraso": é aqui, e só aqui, que o atraso aparece. Padrão: últimos 90 dias, todos os status (o padrão não conta no número do filtro). A linha abre a nota, com as parcelas e os itens em tabela.',
+  '<b>Simulação.</b> Aba Financeiro: limite, crédito, em aberto e prazo médio; depois a tabela de notas (Data · Nº NF · Valor · Status; a forma de pagamento é a 2ª linha do Nº NF), da mais recente para a mais antiga. A nota em atraso fica em destaque na tabela e tem o status e o filtro "Em atraso": é aqui, e só aqui, que o atraso aparece. Padrão: últimos 90 dias, todos os status (o padrão não conta no número do filtro). Decisões de 19/11 (R-20261119-0458): a busca pelo Nº da NF fica no topo da folha Filtrar (P14); ao tocar na linha, o app pergunta se baixa a NF, busca no servidor a nota, as parcelas, os itens e o PDF, e não guarda nada no aparelho (P17).',
   [
     tela({ legenda: 'Filtros fechados (padrão)', aba: 'Financeiro', conteudo: financeiro() }),
     tela({ legenda: 'Rolado: os cinco status', aba: 'Financeiro', conteudo: financeiro(), rolar: 'fim' }),
-    tela({ legenda: 'Filtros abertos: Em atraso', aba: 'Financeiro', conteudo: financeiro(), sobre: folhaFiltro() }),
+    tela({ legenda: 'Filtrar: Nº da NF no topo', aba: 'Financeiro', conteudo: financeiro(), sobre: folhaFiltro() }),
     tela({ legenda: 'Filtro aplicado: Em atraso', aba: 'Financeiro', conteudo: financeiro({ filtrado: true }), rolar: '#filtro' }),
-    tela({ legenda: 'Toque na linha: a nota', aba: 'Financeiro', conteudo: financeiro({ filtrado: true }), sobre: folhaNF() }),
-    tela({ legenda: 'Ver itens da nota', aba: 'Financeiro', conteudo: financeiro({ filtrado: true }), sobre: folhaItens() }),
+    tela({ legenda: 'Toque na linha: autorização', aba: 'Financeiro', conteudo: financeiro({ filtrado: true }), sobre: folhaBaixarNF }),
+    tela({ legenda: 'Baixar: a nota, do servidor', aba: 'Financeiro', conteudo: financeiro({ filtrado: true }), sobre: folhaNF() }),
+    tela({ legenda: 'Ver itens (do servidor)', aba: 'Financeiro', conteudo: financeiro({ filtrado: true }), sobre: folhaItens() }),
+    tela({ legenda: 'Baixar sem internet', aba: 'Financeiro', conteudo: financeiro({ filtrado: true }), sobre: semInternet('NF 004655'), hora: '09:05' }),
   ],
 );
 
 // ---------- 03: Campo · Documentação ----------
 const p03 = prancha(
   'Cliente 360 v2 · Campo · Documentação',
-  '<b>Simulação.</b> Aba Documentação, no lugar de Compras: uma tabela (Documento · Data · Abrir; o formato e a validade na 2ª linha do Documento) com a faixa de cada tipo (Fotos do PDV, Cadastro, Contratos). O tipo que o perfil não vê não aparece (aqui, Contrato social); o documento com exceção aparece com cadeado e não abre (a linha já diz o porquê; sem aviso extra). Estado vazio e arquivo ainda não baixado sem internet.',
+  '<b>Simulação.</b> Aba Documentação, no lugar de Compras: uma tabela (Documento · Data · Abrir; o formato e a validade na 2ª linha do Documento) com a faixa de cada tipo (Fotos do PDV, Cadastro, Contratos). O tipo que o perfil não vê não aparece (aqui, Contrato social); o documento com exceção aparece com cadeado e não abre (a linha já diz o porquê; sem aviso extra). Decisão de 19/11 (R-20261119-0458, P15): o documento só abre para ver, vindo do servidor; não há baixar nem cópia no aparelho, e sem internet a folha mostra "Sem internet" e "Tentar de novo". Estado vazio e sem internet.',
   [
     tela({ legenda: 'Tabela por tipo (vendedora)', aba: 'Documentação', conteudo: documentacao() }),
     tela({ legenda: 'Rolado: documento sem permissão', aba: 'Documentação', conteudo: documentacao(), rolar: 'fim' }),
     tela({ legenda: 'Estado vazio', aba: 'Documentação', conteudo: docVazio }),
-    tela({ legenda: 'Sem internet, arquivo não baixado', aba: 'Documentação', conteudo: documentacao(), sobre: folhaSemRede, hora: '09:05' }),
+    tela({ legenda: 'Abrir sem internet', aba: 'Documentação', conteudo: documentacao(), sobre: folhaSemRede, hora: '09:05' }),
   ],
 );
 
 // ---------- 04: Gestão ----------
 const p04 = prancha(
   'Cliente 360 v2 · Gestão',
-  '<b>Simulação.</b> O mesmo Cliente 360 no Gestão (supervisora, vinda de Equipe › Carla Lima). Muda: a tabela Carteira no Resumo (ligar e WhatsApp para a vendedora), a última visita com o nome de quem visitou e sem rodapé (sem check-in; o pedido em nome sai da ficha da vendedora, RF-GES-05). Na Documentação, o que o perfil Supervisor vê, sem a câmera. O Financeiro é igual ao do Campo.',
+  '<b>Simulação.</b> O mesmo Cliente 360 no Gestão (supervisora, vinda de Equipe › Carla Lima). Muda: a tabela Carteira no Resumo (ligar e WhatsApp para a vendedora), "Visitada por" no bloco Compras, junto da última visita (P7, R-20261119-0458), e sem rodapé (sem check-in; o pedido em nome sai da ficha da vendedora, RF-GES-05). Na Documentação, o que o perfil Supervisor vê, sem a câmera. O Financeiro é igual ao do Campo.',
   [
     tela({ legenda: 'Resumo · topo', voltar: 'Carla Lima', aba: 'Resumo', conteudo: resumo({ gestao: true }), rodape: '', barra: barraGestao() }),
-    tela({ legenda: 'Resumo · rolado: Carteira', voltar: 'Carla Lima', aba: 'Resumo', conteudo: resumo({ gestao: true }), rodape: '', barra: barraGestao(), rolar: '#Carteira' }),
+    tela({ legenda: 'Resumo · rolado: Carteira e Compras', voltar: 'Carla Lima', aba: 'Resumo', conteudo: resumo({ gestao: true }), rodape: '', barra: barraGestao(), rolar: '#Carteira' }),
     tela({ legenda: 'Documentação (supervisora)', voltar: 'Carla Lima', aba: 'Documentação', conteudo: documentacao({ perfil: 'supervisor' }), rodape: '', barra: barraGestao() }),
   ],
 );
