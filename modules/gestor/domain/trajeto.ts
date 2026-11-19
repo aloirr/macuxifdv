@@ -4,7 +4,10 @@
  * RN-CORE-13: sem pontos (tracking desligado de fábrica, sem termo ou fora do expediente) o resultado é `vazio`.
  * A coordenada nunca vai para log nem para mensagem de erro (§9): este módulo não registra nada.
  */
-import type { PontoDoTrajeto } from '@macuxi/core/contracts';
+import { formatarHoraDoTrajeto, projetarPontos, trechosDoTrajeto, type PausaDoDia, type PontoDoTrajeto } from '@macuxi/core/contracts';
+
+/** RN-CORE-13: texto do app e do BKO quando o dia não tem pontos (tracking desligado, sem termo ou fora do expediente). */
+export const TEXTO_SEM_TRAJETO = 'Sem trajeto';
 
 export interface PontoDesenhado {
   x: number;
@@ -19,6 +22,9 @@ export interface TrajetoDesenhado {
   primeiro: PontoDesenhado | null;
   ultimo: PontoDesenhado | null;
   total: number;
+  /** Trechos contínuos em coordenadas de tela; os tracejados cruzam uma pausa. */
+  solidos: { x: number; y: number }[][];
+  tracejados: { x: number; y: number }[][];
 }
 export interface OpcoesDesenho {
   largura: number;
@@ -26,31 +32,23 @@ export interface OpcoesDesenho {
   margem: number;
   /** Fuso IANA do tenant, só para a hora exibida. */
   fuso: string;
+  /** Pausas do dia (`core.trajeto_do_dia@1`); sem elas, nenhum trecho tracejado. */
+  pausas?: readonly PausaDoDia[];
 }
 
-const hora = (iso: string, fuso: string): string =>
-  new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
+type Xy = { x: number; y: number };
 
 /**
- * Ordena por `capturado_em`, projeta (equiretangular com a longitude corrigida pelo cosseno da latitude média, norte em cima) e
- * ajusta à área com margem, mantendo a proporção e centralizando.
+ * Ordena por `capturado_em`, projeta e marca as horas com as funções do Core (`projetarPontos`, `formatarHoraDoTrajeto`,
+ * `trechosDoTrajeto`): o mesmo desenho e a mesma hora do "Meu trajeto" do Campo. O trecho que cruza uma pausa vai tracejado.
  */
 export function desenharTrajeto(pontos: readonly PontoDoTrajeto[], o: OpcoesDesenho): TrajetoDesenhado {
-  if (pontos.length === 0) return { vazio: true, linha: [], primeiro: null, ultimo: null, total: 0 };
+  if (pontos.length === 0) return { vazio: true, linha: [], primeiro: null, ultimo: null, total: 0, solidos: [], tracejados: [] };
   const ordem = [...pontos].sort((a, b) => Date.parse(a.capturado_em) - Date.parse(b.capturado_em));
-  const latMedia = ordem.reduce((s, q) => s + q.latitude, 0) / ordem.length;
-  const k = Math.cos((latMedia * Math.PI) / 180);
-  const xs = ordem.map((q) => q.longitude * k);
-  const ys = ordem.map((q) => -q.latitude);
-  const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-  const livreX = Math.max(o.largura - 2 * o.margem, 0);
-  const livreY = Math.max(o.altura - 2 * o.margem, 0);
-  const dx = maxX - minX;
-  const dy = maxY - minY;
-  const escala = dx === 0 && dy === 0 ? 0 : Math.min(dx === 0 ? Infinity : livreX / dx, dy === 0 ? Infinity : livreY / dy);
-  const sobraX = livreX - dx * escala;
-  const sobraY = livreY - dy * escala;
-  const linha = ordem.map((_, i) => ({ x: o.margem + sobraX / 2 + (xs[i]! - minX) * escala, y: o.margem + sobraY / 2 + (ys[i]! - minY) * escala }));
-  const marca = (i: number): PontoDesenhado => ({ ...linha[i]!, hora: hora(ordem[i]!.capturado_em, o.fuso) });
-  return { vazio: false, linha, primeiro: marca(0), ultimo: marca(ordem.length - 1), total: ordem.length };
+  const linha = projetarPontos(ordem, o.largura, o.altura, o.margem);
+  const xy = new Map<PontoDoTrajeto, Xy>(ordem.map((q, i) => [q, linha[i]!]));
+  const trechos = trechosDoTrajeto(ordem, o.pausas ?? []);
+  const naTela = (t: PontoDoTrajeto[][]): Xy[][] => t.map((l) => l.map((q) => xy.get(q)!));
+  const marca = (i: number): PontoDesenhado => ({ ...linha[i]!, hora: formatarHoraDoTrajeto(ordem[i]!.capturado_em, o.fuso) });
+  return { vazio: false, linha, primeiro: marca(0), ultimo: marca(ordem.length - 1), total: ordem.length, solidos: naTela(trechos.solidos), tracejados: naTela(trechos.tracejados) };
 }
