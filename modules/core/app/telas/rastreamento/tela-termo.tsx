@@ -5,7 +5,7 @@
  * "Meu trajeto" como link. O texto é o documento legal da empresa: não se corta, resume nem reescreve.
  * testIDs: `termo-rastreamento.tela|texto|aceitar|agora-nao|link-trajeto`.
  */
-import { zonedParts } from '@macuxi/comum/fuso';
+import { formatHHMM, zonedParts } from '@macuxi/comum/fuso';
 import { Botao, colors, EstadoVazio, fonte, Loading, Screen, type as t } from '@macuxi/ui/mobile';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -19,7 +19,7 @@ const dataBr = (iso: string, fuso: string) => {
   const p = zonedParts(iso, fuso);
   return `${dd(p.day)}/${dd(p.month)}/${p.year}`;
 };
-const dataHoraBr = (iso: string, fuso: string) => `${dataBr(iso, fuso)} ${dd(zonedParts(iso, fuso).hour)}:${dd(zonedParts(iso, fuso).minute)}`;
+const dataHoraBr = (iso: string, fuso: string) => `${dataBr(iso, fuso)} ${formatHHMM(iso, fuso)}`;
 
 function Partes({ partes, leitura }: { partes: readonly ParteDoTermo[]; leitura: boolean }) {
   return (

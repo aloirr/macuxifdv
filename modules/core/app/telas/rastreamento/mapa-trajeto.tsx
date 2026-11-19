@@ -8,8 +8,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Polyline } from 'react-native-svg';
 
-import type { PontoDoTrajeto } from '../../../contracts';
-import { projetarPontos, trechosDoTrajeto, type PausaDoDia } from '../../lib/rastreamento-local';
+import { projetarPontos, trechosDoTrajeto, type PausaDoDia, type PontoDoTrajeto } from '../../../contracts';
 
 const ALTURA = 220;
 const MARGEM = 16;

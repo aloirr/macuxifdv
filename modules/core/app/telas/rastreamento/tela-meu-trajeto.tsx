@@ -3,18 +3,18 @@
  * (`core.trajeto.ver_proprio`). Hoje lê os pontos do aparelho (funciona sem sinal) e, sem eles, o servidor; dias anteriores vêm do servidor
  * (`GET /v1/core/trajeto`, até 90 dias). Km pelo `metrosDoTrajeto`, o mesmo número do `core.deslocamento_dia`. Horas no fuso do tenant.
  * O botão "Contestar este dia" fica de fora: depende de entidade nova e de decisão do dono do produto (P1 do spec).
- * testIDs: `meu-trajeto.tela|dia|dia-anterior|dia-proximo|mapa|km|linha.<n>|vazio|sem-sinal|erro`.
+ * testIDs: `meu-trajeto.tela|dia|dia-anterior|dia-proximo|mapa|km|linha.<n>|vazio|sem-sinal|erro|tentar-de-novo`.
  */
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useHttp, useMotorSync } from '@macuxi/platform-sdk/react';
-import { Botao, Cartao, colors, EstadoVazio, fonte, Icon, Loading, Screen, type as t } from '@macuxi/ui/mobile';
+import { Cartao, colors, EstadoVazio, fonte, Icon, Loading, Screen, type as t } from '@macuxi/ui/mobile';
 import { localIsoDate } from '@macuxi/comum/fuso';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { TrajetoRespostaSchema, ENTIDADE_PAUSA_TRAJETO, type PontoDoTrajeto } from '../../../contracts';
+import { TrajetoRespostaSchema, ENTIDADE_PAUSA_TRAJETO, type PausaDoDia, type PontoDoTrajeto } from '../../../contracts';
 import { pontosLocaisDoDia } from '../../lib/pontos-locais';
-import { deslocarDia, diaAnteriorPermitido, resumoDoDia, rotuloDoDia, type PausaDoDia } from '../../lib/rastreamento-local';
+import { deslocarDia, diaAnteriorPermitido, resumoDoDia, rotuloDoDia } from '../../lib/rastreamento-local';
 import { useRastreamento } from '../../lib/usar-rastreamento';
 import { MapaTrajeto } from './mapa-trajeto';
 
@@ -89,7 +89,7 @@ export function TelaMeuTrajeto() {
       </View>
 
       {visao.tipo === 'carregando' ? <Loading embutido testID="meu-trajeto.carregando" /> : null}
-      {visao.tipo === 'sem_sinal' ? <EstadoVazio icone="wifiOff" titulo="Sem sinal" texto="Os dias anteriores aparecem com sinal. O de hoje está no aparelho." testID="meu-trajeto.sem-sinal" /> : null}
+      {visao.tipo === 'sem_sinal' ? <EstadoVazio icone="wifiOff" titulo="Sem sinal" acao={{ rotulo: 'Tentar de novo', onPress: () => void carregar(), testID: 'meu-trajeto.tentar-de-novo' }} testID="meu-trajeto.sem-sinal" /> : null}
       {visao.tipo === 'erro' ? <EstadoVazio icone="alert" titulo="Não deu para carregar o dia" acao={{ rotulo: 'Tentar de novo', onPress: () => void carregar(), testID: 'meu-trajeto.tentar-de-novo' }} testID="meu-trajeto.erro" /> : null}
       {visao.tipo === 'dia' && !resumo ? <EstadoVazio icone="pin" titulo="Nada registrado neste dia" testID="meu-trajeto.vazio" /> : null}
 
@@ -115,7 +115,6 @@ export function TelaMeuTrajeto() {
           </Cartao>
         </>
       ) : null}
-      {visao.tipo === 'erro' || visao.tipo === 'sem_sinal' ? <Botao rotulo="Atualizar" onPress={() => void carregar()} testID="meu-trajeto.atualizar" /> : null}
     </Screen>
   );
 }
@@ -128,7 +127,7 @@ function partirLinha(texto: string): { rotulo: string; hora: string } {
 }
 
 function MapaDoDia({ pontos, pausas, ehHoje, km, titulo, linhas }: { pontos: PontoDoTrajeto[]; pausas: PausaDoDia[]; ehHoje: boolean; km: string; titulo: string; linhas: string[] }) {
-  const falado = `${ehHoje ? 'Trajeto de hoje' : 'Trajeto do dia'}: ${km}${titulo === 'Km até agora' ? ' até agora' : ''}${linhas.length > 0 ? `, ${linhas.map((l) => l.toLowerCase().replace('–', ' a ')).join(', ')}` : ''}`;
+  const falado = `${ehHoje ? 'Trajeto de hoje' : 'Trajeto do dia'}: ${km}${titulo === 'Até agora' ? ' até agora' : ''}${linhas.length > 0 ? `, ${linhas.map((l) => l.toLowerCase().replace('–', ' a ')).join(', ')}` : ''}`;
   return <MapaTrajeto pontos={pontos} pausas={pausas} ultimoDeHoje={ehHoje} leitura={falado} />;
 }
 

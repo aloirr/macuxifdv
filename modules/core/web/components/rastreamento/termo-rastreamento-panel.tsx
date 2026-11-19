@@ -42,9 +42,11 @@ export function TermoRastreamentoPanel({ cliente }: { cliente?: ApiRastreamento 
       )}
       {q.data && (
         <>
-          <p className="text-[15px] font-semibold text-ink" data-testid={`${P}.vigente`}>
-            {vigente ? `Versão ${vigente.versao}, publicada em ${dataCivilBr(vigente.publicado_em.slice(0, 10))}` : 'Nenhum termo publicado'}
-          </p>
+          {!vigente && (
+            <p className="text-[15px] font-semibold text-ink" data-testid={`${P}.vigente`}>
+              Nenhum termo publicado
+            </p>
+          )}
           <label className="flex flex-col gap-1 text-[15px] font-semibold text-ink">
             {vigente ? 'Texto da nova versão' : 'Texto do termo'}
             <textarea
@@ -63,11 +65,11 @@ export function TermoRastreamentoPanel({ cliente }: { cliente?: ApiRastreamento 
           </div>
           {q.data.termos.length > 0 && (
             <ul className="flex flex-col gap-2 text-[15px] text-ink">
-              {q.data.termos.map((t) => (
+              {q.data.termos.map((t, i) => (
                 <li key={t.id} data-testid={`${P}.versao.${t.versao}`}>
                   <details>
                     <summary className="min-h-[44px] cursor-pointer py-2 font-semibold">
-                      Versão {t.versao} · {dataCivilBr(t.publicado_em.slice(0, 10))}
+                      Versão {t.versao} · {dataCivilBr(t.publicado_em.slice(0, 10))}{i === 0 ? ' · vigente' : ''}
                     </summary>
                     <p className="whitespace-pre-wrap pb-2 text-ink-2">{t.texto}</p>
                   </details>

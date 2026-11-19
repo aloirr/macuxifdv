@@ -4,15 +4,12 @@ import {
   diaAnteriorPermitido,
   deslocarDia,
   estadoDaLocalizacao,
-  formatarKm,
   leituraDaLocalizacao,
-  projetarPontos,
   pausaVencida,
   resumoDoDia,
   rotuloDoDia,
   situacaoDoTermo,
   termoVigenteDe,
-  trechosDoTrajeto,
   type EntradaLocalizacao,
 } from './rastreamento-local';
 
@@ -61,11 +58,11 @@ describe('RN-CORE-13: termo de ciência no Campo', () => {
 
 describe('RN-CORE-13: estado da seção Localização do Perfil', () => {
   it('RN-CORE-13: ativa no expediente, com as faixas do dia e a ação Pausar', () => {
-    expect(estadoDaLocalizacao(base)).toEqual({ estado: 'ativa', apoio: 'Expediente hoje 08:00–18:00', acao: 'pausar' });
+    expect(estadoDaLocalizacao(base)).toEqual({ estado: 'ativa', apoio: 'Hoje 08:00–18:00', acao: 'pausar' });
   });
   it('RN-CORE-13: duas faixas no dia aparecem juntas', () => {
     const exp = { ...PARAMETROS_RASTREAMENTO_PADRAO.expediente, '4': [{ inicio_min: 480, fim_min: 720 }, { inicio_min: 840, fim_min: 1080 }] };
-    expect(estadoDaLocalizacao(com({ parametros: { ...base.parametros, expediente: exp } }))).toMatchObject({ apoio: 'Expediente hoje 08:00–12:00 e 14:00–18:00' });
+    expect(estadoDaLocalizacao(com({ parametros: { ...base.parametros, expediente: exp } }))).toMatchObject({ apoio: 'Hoje 08:00–12:00 e 14:00–18:00' });
   });
   it('RN-CORE-13: pausada mostra quanto falta e a ação Retomar; abaixo de 1 min, "menos de 1 min"', () => {
     expect(estadoDaLocalizacao(com({ pausa: { id: 'p', inicio: '2026-11-19T13:42:00.000Z' } }))).toEqual({ estado: 'pausada', apoio: 'Volta em 42 min', acao: 'retomar' });
@@ -76,7 +73,7 @@ describe('RN-CORE-13: estado da seção Localização do Perfil', () => {
     expect(e).toEqual({ estado: 'pausada', apoio: 'Volta em 20 min', acao: 'retomar' });
   });
   it('RN-CORE-13: fora do expediente mantém as faixas e não tem ação; sem expediente hoje (domingo, feriado, ausência) some a linha de apoio', () => {
-    expect(estadoDaLocalizacao(com({ agora: '2026-11-19T23:00:00.000Z' }))).toEqual({ estado: 'fora', apoio: 'Expediente hoje 08:00–18:00', acao: null });
+    expect(estadoDaLocalizacao(com({ agora: '2026-11-19T23:00:00.000Z' }))).toEqual({ estado: 'fora', apoio: 'Hoje 08:00–18:00', acao: null });
     expect(estadoDaLocalizacao(com({ agora: '2026-11-22T14:00:00.000Z' }))).toEqual({ estado: 'sem_expediente', apoio: null, acao: null });
     expect(estadoDaLocalizacao(com({ feriados: ['2026-11-19'] }))).toEqual({ estado: 'sem_expediente', apoio: null, acao: null });
     const ausencia: AusenciaUsuario = { id: 'x', usuario_id: EU, de: '2026-11-18', ate: '2026-11-20', updated_at: T, deleted_at: null };
@@ -94,11 +91,6 @@ describe('RN-CORE-13: estado da seção Localização do Perfil', () => {
 });
 
 describe('RN-CORE-46: "Meu trajeto"', () => {
-  it('RN-CORE-46: km com vírgula e uma casa; abaixo de 1 km, em metros', () => {
-    expect(formatarKm(18_600)).toBe('18,6 km');
-    expect(formatarKm(850)).toBe('850 m');
-    expect(formatarKm(0)).toBe('0 m');
-  });
   it('rótulo do dia: Hoje, Ontem e os demais com dia da semana', () => {
     expect(rotuloDoDia('2026-11-19', '2026-11-19')).toBe('Hoje · qui 19/11');
     expect(rotuloDoDia('2026-11-18', '2026-11-19')).toBe('Ontem · qua 18/11');
@@ -118,7 +110,7 @@ describe('RN-CORE-46: "Meu trajeto"', () => {
   ];
   it('RN-CORE-46: hoje mostra início, pausa e último ponto, no fuso do tenant; km pelo metrosDoTrajeto', () => {
     const r = resumoDoDia({ pontos, pausas: [{ inicio: '2026-11-19T13:12:00.000Z', fim: '2026-11-19T13:40:00.000Z' }], hoje: true, agora: AGORA, fuso: 'America/Manaus' });
-    expect(r.titulo).toBe('Km até agora');
+    expect(r.titulo).toBe('Até agora');
     expect(r.km).toMatch(/^\d+,\d km$/);
     expect(r.linhas).toEqual([
       { tipo: 'inicio', texto: 'Início 08:04' },
@@ -128,33 +120,15 @@ describe('RN-CORE-46: "Meu trajeto"', () => {
   });
   it('RN-CORE-46: dia anterior usa "Km do dia" e "Fim"; pausa em curso hoje mostra "agora"', () => {
     const r = resumoDoDia({ pontos, pausas: [], hoje: false, agora: AGORA, fuso: 'America/Manaus' });
-    expect(r.titulo).toBe('Km do dia');
+    expect(r.titulo).toBe('Distância');
     expect(r.linhas.at(-1)).toEqual({ tipo: 'fim', texto: 'Fim 10:12' });
     const hoje = resumoDoDia({ pontos, pausas: [{ inicio: '2026-11-19T13:59:00.000Z', fim: null }], hoje: true, agora: AGORA, fuso: 'America/Manaus' });
     expect(hoje.linhas.find((l) => l.tipo === 'pausa')!.texto).toBe('Pausa 09:59–agora');
   });
-  it('RN-CORE-13: o trecho que cruza uma pausa é tracejado; o resto é sólido', () => {
-    const t = trechosDoTrajeto(pontos, [{ inicio: '2026-11-19T13:15:00.000Z', fim: '2026-11-19T13:40:00.000Z' }]);
-    expect(t.solidos.map((s) => s.length)).toEqual([2, 2]);
-    expect(t.tracejados).toHaveLength(1);
-    expect(t.tracejados[0]).toHaveLength(2);
-  });
-  it('o mapa enquadra o trajeto dentro da caixa, com a margem', () => {
-    const xy = projetarPontos(pontos, 350, 220, 16);
-    expect(xy).toHaveLength(4);
-    for (const p of xy) {
-      expect(p.x).toBeGreaterThanOrEqual(16 - 1e-6);
-      expect(p.x).toBeLessThanOrEqual(350 - 16 + 1e-6);
-      expect(p.y).toBeGreaterThanOrEqual(16 - 1e-6);
-      expect(p.y).toBeLessThanOrEqual(220 - 16 + 1e-6);
-    }
-    expect(projetarPontos([], 350, 220, 16)).toEqual([]);
-    expect(projetarPontos([pontos[0]!], 350, 220, 16)).toHaveLength(1);
-  });
   it('RN-CORE-13: o leitor de tela lê o estado inteiro', () => {
-    expect(leituraDaLocalizacao({ estado: 'ativa', apoio: 'Expediente hoje 08:00–18:00', acao: 'pausar' })).toBe('Localização, ativa, expediente hoje das 8 às 18');
+    expect(leituraDaLocalizacao({ estado: 'ativa', apoio: 'Hoje 08:00–18:00', acao: 'pausar' })).toBe('Localização, ativa, hoje das 8 às 18');
     expect(leituraDaLocalizacao({ estado: 'pausada', apoio: 'Volta em 42 min', acao: 'retomar' })).toBe('Localização, pausada, volta em 42 min');
     expect(leituraDaLocalizacao({ estado: 'sem_expediente', apoio: null, acao: null })).toBe('Localização, sem expediente hoje');
-    expect(leituraDaLocalizacao({ estado: 'ativa', apoio: 'Expediente hoje 08:30–12:00 e 14:00–18:00', acao: 'pausar' })).toBe('Localização, ativa, expediente hoje das 8:30 às 12 e das 14 às 18');
+    expect(leituraDaLocalizacao({ estado: 'ativa', apoio: 'Hoje 08:30–12:00 e 14:00–18:00', acao: 'pausar' })).toBe('Localização, ativa, hoje das 8:30 às 12 e das 14 às 18');
   });
 });
