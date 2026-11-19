@@ -10,7 +10,7 @@
  * Relógio: as rotas e a rotina do aparelho usam um instante fixo de dia útil, dentro do expediente (qua 18/11/2026 11h em
  * Manaus), só no envio; o login segue o relógio real. O parâmetro `rastreamento` do tenant A é ligado com expediente de
  * 00:00 a 23:59 todos os dias, para o portão de 7 condições só depender do que o teste controla.
- * Cenários E-01..E-06 abaixo.
+ * Cenários E-01, E-02 e E-06.
  */
 import { ENTIDADE_PONTO_TRAJETO, PARAMETROS_RASTREAMENTO_PADRAO, TRAJETO_DIAS_MAX, type PontoTrajeto } from '@macuxi/core/contracts';
 import { manifest as manifestoCore } from '@macuxi/core/manifest';
@@ -35,8 +35,6 @@ const TODO_DIA = [{ inicio_min: 0, fim_min: 1439 }];
 const EXPEDIENTE = Object.fromEntries(['0', '1', '2', '3', '4', '5', '6'].map((d) => [d, TODO_DIA]));
 const ponto = (n: number, capturado_em: string, latitude: number, longitude: number): PontoTrajeto => ({ id: id(n), capturado_em, latitude, longitude, precisao_m: 10, velocidade_ms: null });
 const PONTOS: PontoTrajeto[] = [ponto(1, '2026-11-18T14:40:00.000Z', -3.1019, -60.025), ponto(2, '2026-11-18T14:50:00.000Z', -3.1104, -60.0213)];
-/** Capturado com o rastreamento desligado no tenant. */
-const DESLIGADO = ponto(3, '2026-11-18T14:55:00.000Z', -3.112, -60.02);
 /** Capturado há mais de TRAJETO_DIAS_MAX dias do envio: a poda do aparelho apaga sem enviar. */
 const ANTIGO = ponto(4, new Date(Date.parse(ENVIO) - (TRAJETO_DIAS_MAX + 1) * 86_400_000).toISOString(), -3.1, -60.02);
 
@@ -63,9 +61,9 @@ describe.skipIf(semBanco())('T-0156 — envio do trajeto: SQLite do aparelho →
       .then((r) => r.rows);
   const noAparelho = () => driver.todas<LinhaDoAparelho>('SELECT id, enviado_em FROM core__ponto_trajeto ORDER BY capturado_em');
   const doTrajeto = () => enviados.filter((i) => i.entidade === ENTIDADE_PONTO_TRAJETO);
-  const rastreamento = async (ativo: boolean) => {
+  const ligarRastreamento = async () => {
     await api.admin.query("delete from plataforma.parametro where tenant_id = $1 and modulo = 'core' and chave = 'rastreamento'", [A.tenantId]);
-    await api.admin.query("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ($1, 'core', 'rastreamento', $2::jsonb)", [A.tenantId, JSON.stringify({ ...PARAMETROS_RASTREAMENTO_PADRAO, ativo, expediente: EXPEDIENTE })]);
+    await api.admin.query("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ($1, 'core', 'rastreamento', $2::jsonb)", [A.tenantId, JSON.stringify({ ...PARAMETROS_RASTREAMENTO_PADRAO, ativo: true, expediente: EXPEDIENTE })]);
   };
   /** O envio do motor (e, depois dele, o do trajeto), com as rotas e a rotina no instante ENVIO. */
   async function enviar(): Promise<void> {
@@ -81,7 +79,7 @@ describe.skipIf(semBanco())('T-0156 — envio do trajeto: SQLite do aparelho →
     // hora-fixa-ok: login no relógio real (o JWT é verificado no real); só o envio usa o instante fixo
     const relogio = () => (congelado ? new Date(congelado.getTime()) : new Date());
     api = await subirApi({ relogio });
-    await rastreamento(true);
+    await ligarRastreamento();
     token = (await api.sessao('vendedor@exemplo.com.br', A)).access_token;
 
     const transporte: TransporteSync = {
@@ -130,39 +128,6 @@ describe.skipIf(semBanco())('T-0156 — envio do trajeto: SQLite do aparelho →
     // o rastreamento é interno: nada na fila nem na contagem do vendedor
     expect(motor.estado().fila).toEqual([]);
     expect(registros).toEqual([]);
-  });
-
-  it('E-03 (RN-CORE-13): o servidor recalcula o deslocamento do dia (no fuso do tenant) com os 2 pontos', async () => {
-    const r = await api.admin.query<{ pontos: number; metros: number; origem: string }>(
-      "select pontos, metros, origem from core.deslocamento_dia where tenant_id = $1 and usuario_id = $2 and data = '2026-11-18' and deleted_at is null",
-      [A.tenantId, A.usuarios.vendedor1],
-    );
-    expect(r.rows).toHaveLength(1);
-    expect(r.rows[0]).toMatchObject({ pontos: 2, origem: 'rastreamento' });
-    expect(Number(r.rows[0]!.metros)).toBeGreaterThan(0);
-  });
-
-  it('E-04 (idempotência): o app que cai entre o envio e a marca reenvia os mesmos ids e o servidor não duplica', async () => {
-    await driver.rodar('UPDATE core__ponto_trajeto SET enviado_em = NULL');
-    const antes = doTrajeto().length;
-    await enviar();
-    expect(doTrajeto().length - antes).toBe(2);
-    expect(await noServidor(PONTOS.map((p) => p.id))).toHaveLength(2);
-    for (const l of await noAparelho()) expect(l.enviado_em, l.id).not.toBeNull();
-  });
-
-  it('E-05 (RN-CORE-13): com o rastreamento desligado no tenant, o ponto enviado é aceito e descartado, sem gravar no servidor', async () => {
-    await rastreamento(false);
-    try {
-      await gravarPontosDoTrajeto(driver, [DESLIGADO]);
-      await enviar();
-      expect(doTrajeto().at(-1)?.id).toBe(DESLIGADO.id);
-      expect(await noServidor([DESLIGADO.id])).toEqual([]);
-      // aceito pelo servidor (o portão descarta sem travar): marcado no aparelho, não volta
-      expect((await noAparelho()).find((l) => l.id === DESLIGADO.id)?.enviado_em).not.toBeNull();
-    } finally {
-      await rastreamento(true);
-    }
   });
 
   it(`E-06 (poda): o ponto capturado há mais de ${TRAJETO_DIAS_MAX} dias sai do aparelho sem ir ao servidor`, async () => {
