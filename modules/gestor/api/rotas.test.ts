@@ -22,7 +22,7 @@ import {
   type RotaModulo,
 } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
-import { FichaMembro, FilaAprovacao, ListaAlertas, RankingEquipe, RegraAlerta, TrajetoEquipe, VisaoEquipe } from '../contracts';
+import { ACAO_VER_TRAJETO, FichaMembro, FilaAprovacao, ListaAlertas, RankingEquipe, RegraAlerta, TrajetoEquipe, VisaoEquipe } from '../contracts';
 import { CLIENTE_A, checkin, GERENTE, pedidoCriado, PROMOTOR, statusAlterado, SUPERVISOR, u, VENDEDOR, VENDEDOR_2 } from '../domain/fixtures';
 import type { EventoRecebido } from '../domain';
 import { dataDoUsuario } from './rotas';
@@ -186,7 +186,7 @@ describe('API do Gestor: declaração, licença e perfis (regra 6)', () => {
     expect([...PERFIS_LEITURA].sort()).toEqual(['admin', 'analista', 'gerente', 'supervisor']);
     const perm = criarPermissoes([manifest]);
     const como = (perfil: Perfil) => ({ id: u(1), tenant_id: TENANT, perfil, modulos: TODOS });
-    const pode = (perfil: Perfil, r: RotaModulo) => (r.acao ? verificarAcao(como(perfil), perm, r.acao) : verificarAcesso(como(perfil), { modulo: 'gestor', perfis: r.perfis! })).ok;
+    const pode = (perfil: Perfil, r: RotaModulo) => (r.acao ? verificarAcao(como(perfil), perm, r.acao) : verificarAcesso(como(perfil), { modulo: 'gestor', perfis: r.perfis ?? manifest.perfis })).ok;
     const rotas = Object.fromEntries(apiGestor.rotas!.map((r) => [`${r.metodo} ${r.caminho}`, r]));
     for (const perfil of ['vendedor', 'promotor', 'assistente'] as const) for (const r of apiGestor.rotas!) expect(pode(perfil, r)).toBe(false);
     for (const perfil of ['supervisor', 'gerente'] as const) {
@@ -237,15 +237,15 @@ describe('API do Gestor: trajeto do dia da equipe (T-0156, tracking §7)', () =>
     expect(c.chamadasTrajeto).toEqual([]);
   });
 
-  it('§7: vendedor, promotor e assistente são barrados pela rota (perfil) e sem a licença do Gestor é MODULO_INATIVO', () => {
+  it('RN-CORE-37 / §7: a rota não traz lista de perfis própria; quem decide é `core.trajeto.ver_equipe` (motor de permissões), por perfil e por licença', async () => {
     const c = cenario();
     const r = c.api.rotas!.find((x) => x.caminho === 'equipe/:usuario_id/trajeto')!;
-    const perm = criarPermissoes([manifest]);
-    const como = (perfil: Perfil, modulos: ModuloId[] = TODOS) => ({ id: u(1), tenant_id: TENANT, perfil, modulos });
-    for (const perfil of ['vendedor', 'promotor', 'assistente', 'analista'] as const) expect(verificarAcesso(como(perfil), { modulo: 'gestor', perfis: r.perfis! }).ok).toBe(false);
-    for (const perfil of ['supervisor', 'gerente', 'admin'] as const) expect(verificarAcesso(como(perfil), { modulo: 'gestor', perfis: r.perfis! }).ok).toBe(true);
-    expect(verificarAcesso(como('supervisor', ['core']), { modulo: 'gestor', perfis: r.perfis! })).toMatchObject({ ok: false, codigo: 'MODULO_INATIVO' });
-    expect(perm).toBeTruthy();
+    expect(r.perfis).toBeUndefined();
+    expect(r.acao).toBeUndefined();
+    expect(ACAO_VER_TRAJETO).toBe('trajeto.ver_equipe');
+    for (const perfil of [VENDEDOR, ANALISTA] as const) await expect(c.chamar('GET', 'equipe/:usuario_id/trajeto', perfil, { params: { usuario_id: VENDEDOR } })).rejects.toMatchObject({ status: 403 });
+    for (const perfil of [SUPERVISOR, GERENTE] as const) await expect(c.chamar('GET', 'equipe/:usuario_id/trajeto', perfil, { params: { usuario_id: VENDEDOR } })).resolves.toBeTruthy();
+    expect(c.chamadasTrajeto).toHaveLength(2);
   });
 
   it('§7: nenhuma exportação de pontos brutos (só leitura de um dia, uma pessoa) e nenhuma coordenada no erro', async () => {

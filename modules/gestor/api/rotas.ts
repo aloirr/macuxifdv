@@ -11,6 +11,7 @@ import { exigirDataCivil } from '@macuxi/comum';
 import type { z } from 'zod';
 import manifest from '../manifest';
 import {
+  ACAO_VER_TRAJETO,
   AjusteRegraAlerta,
   AlertasQuery,
   DataQuery,
@@ -57,9 +58,6 @@ import type { AcessoTenant, RepositorioGestor } from './repositorio';
 
 /** Quem LÊ os painéis: a equipe (painel_equipe.ver) e o tenant em leitura (painel_tenant.ver, RN-GES-07). */
 export const PERFIS_LEITURA: readonly Perfil[] = [...new Set([...manifest.acoes['painel_equipe.ver']!.perfis, ...manifest.acoes['painel_tenant.ver']!.perfis])];
-
-/** Quem pode pedir o trajeto: o padrão de fábrica de `core.trajeto.ver_equipe` (tracking §7); a permissão em si é conferida na rota e no Core. */
-const PERFIS_TRAJETO: readonly Perfil[] = ['supervisor', 'gerente', 'admin'];
 
 const LOTE_CADASTRO = 500;
 
@@ -221,12 +219,11 @@ export function criarRotasGestor(repo: RepositorioGestor): RotaModulo[] {
   const trajeto: RotaModulo = {
     metodo: 'GET',
     caminho: 'equipe/:usuario_id/trajeto',
-    perfis: PERFIS_TRAJETO,
     carteira: 'filtrar_no_dominio',
     params: ParamsUsuario,
     query: DataQuery,
     executar: (ctx) => {
-      exigirPermissao(ctx.usuario, 'trajeto.ver_equipe');
+      exigirPermissao(ctx.usuario, ACAO_VER_TRAJETO);
       const data = dataDoUsuario((ctx.query as DataQuery).data);
       const { usuario_id } = ctx.params as z.infer<typeof ParamsUsuario>;
       return comGestor(ctx, repo, async (g): Promise<TrajetoEquipe> => {

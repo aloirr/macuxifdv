@@ -36,7 +36,7 @@ export const manifest = defineModule({
   depende: ['core'],
   opcionais: ['vendedor', 'promotor', 'pesquisa', 'treinamento'],
   perfis: ['supervisor', 'gerente', 'analista', 'admin'],
-  apps: { gestao: { abas: ['Equipe', 'Aprovações', 'Alertas'] }, web: { menus: ['Painel da equipe', 'Ranking', 'Aprovações', 'Alertas', 'Regras de alerta'] } },
+  apps: { gestao: { abas: ['Equipe', 'Aprovações', 'Alertas'] }, web: { menus: ['Painel da equipe', 'Trajeto do dia', 'Ranking', 'Aprovações', 'Alertas', 'Regras de alerta'] } },
   sync: ['painel_vendedor_dia', 'alerta'],
   consome: [
     'core.cliente.atualizado@1',

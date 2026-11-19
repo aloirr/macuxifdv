@@ -1,45 +1,46 @@
 'use client';
 
 /**
- * Trajeto do dia no painel da equipe (T-0156, tracking §7 e §9). A pessoa fica na URL (`?pessoa=`); o dia é o do filtro "Dia".
- * Os pontos são desenhados no navegador com `desenharTrajeto`: nenhum provedor de mapa recebe o trajeto. Só para quem tem
- * `core.trajeto.ver_equipe` (supervisor, gerente, admin); a proteção real é na API. Sem exportação de pontos e sem coordenada
- * em texto, log ou erro.
+ * Trajeto do dia da equipe no BKO (T-0156, tracking §7 e §9). A pessoa e o dia ficam na URL (`?pessoa=`, `?data=`).
+ * Os pontos são desenhados no navegador com `desenharTrajeto`: nenhum provedor de mapa recebe o trajeto. A página só aparece no
+ * menu para quem tem `core.trajeto.ver_equipe` (`acao` da página, motor de permissões do SDK); a proteção real é na API. Sem
+ * exportação de pontos e sem coordenada em texto, log ou erro.
  */
-import { useMemo } from 'react';
+import { Suspense, useMemo } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { errorMessage, useSession } from '@macuxi/platform-sdk/web';
-import { DEFAULT_TZ, DESTAQUE, FUNDOS, MARCA, ErrorBlock, EstadoVazio, LoadingBlock, Panel, SelectField } from '@macuxi/ui/web';
-import type { MembroComPainel } from '../../contracts';
+import { DEFAULT_TZ, DESTAQUE, FUNDOS, MARCA, ErrorBlock, EstadoVazio, FilterBar, LoadingBlock, PageHeader, Panel, SelectField, TextField } from '@macuxi/ui/web';
 import { desenharTrajeto } from '../../domain/trajeto';
-import { lerPessoaDoTrajeto } from '../lib/filtros';
-import { useTrajeto } from '../lib/queries';
+import { lerFiltrosPainel, lerPessoaDoTrajeto } from '../lib/filtros';
+import { useTrajeto, useVisaoEquipe } from '../lib/queries';
 
 const LARGURA = 640;
 const ALTURA = 320;
-/** Quem vê o trajeto da equipe de fábrica (`core.trajeto.ver_equipe`); o analista vê só o resumo. */
-const PERFIS_TRAJETO: readonly string[] = ['supervisor', 'gerente', 'admin'];
 
-export function TrajetoDoDia({ membros, dia }: { membros: readonly MembroComPainel[]; dia: string | null }) {
+function Conteudo() {
   const sessao = useSession<{ perfil?: string | null; fuso?: string }>();
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
   const pessoa = lerPessoaDoTrajeto(params);
+  const dia = lerFiltrosPainel(params).data;
+  const equipe = useVisaoEquipe({ data: dia });
+  const membros = equipe.data?.membros ?? [];
   const q = useTrajeto(pessoa, dia);
   const tz = sessao.user?.fuso ?? DEFAULT_TZ;
   const d = useMemo(() => (q.data ? desenharTrajeto(q.data.trajeto.pontos, { largura: LARGURA, altura: ALTURA, margem: 24, fuso: tz }) : null), [q.data, tz]);
 
-  if (!PERFIS_TRAJETO.includes(sessao.user?.perfil ?? '')) return null;
-  const escolher = (id: string) => {
+  const ir = (mudar: (n: URLSearchParams) => void) => {
     const novo = new URLSearchParams(params.toString());
-    if (id) novo.set('pessoa', id);
-    else novo.delete('pessoa');
+    mudar(novo);
     router.replace(`${pathname}?${novo}`);
   };
+  const escolher = (id: string) => ir((n) => (id ? n.set('pessoa', id) : n.delete('pessoa')));
   return (
-    <Panel title="Trajeto do dia">
-      <div className="flex flex-col gap-3" data-testid="gestor.trajeto">
+    <div className="flex flex-col gap-4" data-testid="gestor.trajeto">
+      <PageHeader title="Trajeto do dia" />
+      <FilterBar>
+        <TextField label="Dia" type="date" value={dia ?? equipe.data?.data ?? ''} onChange={(e) => ir((n) => (e.target.value ? n.set('data', e.target.value) : n.delete('data')))} />
         <SelectField label="Pessoa" value={pessoa ?? ''} onChange={(e) => escolher(e.target.value)}>
           <option value="">Escolha uma pessoa</option>
           {membros.map(({ membro }) => (
@@ -48,9 +49,13 @@ export function TrajetoDoDia({ membros, dia }: { membros: readonly MembroComPain
             </option>
           ))}
         </SelectField>
+      </FilterBar>
+      {pessoa || equipe.isError ? (
+      <Panel>
+        {equipe.isError ? <ErrorBlock message={errorMessage(equipe.error)} onRetry={() => void equipe.refetch()} /> : null}
         {q.isLoading ? <LoadingBlock label="Carregando o trajeto…" /> : null}
         {q.isError ? <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} /> : null}
-        {d?.vazio ? <EstadoVazio titulo="Sem trajeto neste dia." testId="gestor.trajeto.vazio" /> : null}
+        {d?.vazio ? <EstadoVazio titulo="Sem trajeto" testId="gestor.trajeto.vazio" /> : null}
         {d && !d.vazio && q.data ? (
           <>
             <svg viewBox={`0 0 ${LARGURA} ${ALTURA}`} role="img" aria-label={`Trajeto do dia com ${d.total} pontos, de ${d.primeiro!.hora} a ${d.ultimo!.hora}`} className="h-auto w-full rounded-[18px] border" style={{ backgroundColor: MARCA.nevoa, borderColor: MARCA.claroNaFaixa }}>
@@ -63,7 +68,16 @@ export function TrajetoDoDia({ membros, dia }: { membros: readonly MembroComPain
             </p>
           </>
         ) : null}
-      </div>
-    </Panel>
+      </Panel>
+      ) : null}
+    </div>
+  );
+}
+
+export function TrajetoDoDiaPage() {
+  return (
+    <Suspense fallback={<LoadingBlock label="Carregando o trajeto…" />}>
+      <Conteudo />
+    </Suspense>
   );
 }

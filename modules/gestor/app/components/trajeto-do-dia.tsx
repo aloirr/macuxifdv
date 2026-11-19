@@ -29,7 +29,7 @@ export function TrajetoDoDia({ usuarioId, tz, buscar }: { usuarioId: string; tz:
     <Cartao preenchimento={14} gap={8} testID="gestor-trajeto">
       <Text style={t.h2}>Trajeto do dia</Text>
       {r.erro ? <Text style={t.small}>{r.erro}</Text> : null}
-      {d?.vazio ? <Text style={t.body}>Sem trajeto neste dia.</Text> : null}
+      {d?.vazio ? <Text style={t.body}>Sem trajeto</Text> : null}
       {d && !d.vazio && r.trajeto ? (
         <>
           <View accessible accessibilityLabel={`Trajeto do dia com ${d.total} pontos, de ${d.primeiro!.hora} a ${d.ultimo!.hora}`} style={{ borderRadius: radius.secao, overflow: 'hidden', backgroundColor: colors.mapBg, borderWidth: 1, borderColor: colors.mapBorder }}>

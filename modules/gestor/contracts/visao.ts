@@ -13,6 +13,9 @@ import { PainelDia, ResumoEquipe } from './painel';
 import { DisponibilidadeEmNome } from './pedido-em-nome';
 import { IndicadorRanking } from './ranking';
 
+/** Permissão do Core (`core.trajeto.ver_equipe`) que decide, na API e no BKO, quem vê o trajeto do dia da equipe (RN-CORE-37). */
+export const ACAO_VER_TRAJETO = 'trajeto.ver_equipe';
+
 /** Caminhos das rotas (relativos a `/v1`), usados pelo app e pelo BKO. */
 export const ROTAS_GESTOR = {
   equipe: '/gestor/equipe',
