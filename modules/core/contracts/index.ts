@@ -513,3 +513,4 @@ export * from './avatar';
 export * from './cargos';
 export * from './performance';
 export * from './filial-usuario';
+export * from './trajeto';
