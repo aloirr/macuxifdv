@@ -127,7 +127,7 @@ body{font-family:Roboto,system-ui,'Segoe UI',-apple-system,sans-serif;color:${CO
 .chips{display:flex;gap:6px;margin:0 -20px;padding:0 20px;overflow:hidden}
 .chip{height:36px;padding:0 12px;border-radius:18px;border:1px solid ${COR.lineStrong};background:#fff;display:flex;align-items:center;font-size:14px;font-weight:600;white-space:nowrap;flex:none}
 .chip.on{background:${COR.accentSoft};border-color:${COR.accentSoft};color:${COR.accentInk}}
-.badge{display:inline-flex;align-self:flex-start;align-items:center;min-height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;flex:none}
+.badge{display:inline-flex;align-self:flex-start;align-items:center;gap:4px;min-height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;flex:none}
 .t-suc{color:${COR.success};background:${COR.successBg}}.t-av{color:${COR.warning};background:${COR.warningBg}}
 .t-err{color:${COR.danger};background:${COR.dangerBg}}.t-neu{color:${COR.neutralInk};background:${COR.neutralBg}}
 .t-des{color:${COR.accentInk};background:${COR.accentSoft}}
@@ -142,7 +142,6 @@ body{font-family:Roboto,system-ui,'Segoe UI',-apple-system,sans-serif;color:${CO
 .barra{height:64px;flex:none;display:flex;background:#fff;border-top:1px solid ${COR.line}}
 .barra div{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:12px;font-weight:600;color:${COR.ink2};white-space:nowrap;position:relative}
 .barra div.on{color:${COR.accentInk}}
-.barra .cont{position:absolute;top:8px;left:calc(50% + 6px);min-width:16px;height:16px;border-radius:8px;padding:0 4px;background:${COR.grafico};color:#fff;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;border:1px solid #fff}
 /* Dialogo e Folha (folha.tsx) */
 .scrim{position:absolute;inset:0;background:rgba(15,20,25,.45);z-index:10}
 .dlg{position:absolute;left:24px;right:24px;top:50%;transform:translateY(-50%);background:#fff;border-radius:20px;padding:24px 20px 16px;display:flex;flex-direction:column;gap:12px;z-index:11;box-shadow:0 4px 10px rgba(15,20,25,.2)}
@@ -195,9 +194,10 @@ const ABAS = {
   // promotor no Campo: sem Pedidos (RN-PRO-01), com a Loja do Promotor (ordem 40)
   promotor: [['inicio', 'home', 'Início'], ['rota', 'pin', 'Rota'], ['clientes', 'users', 'Clientes'], ['loja', 'check', 'Loja'], ['performance', 'target', 'Performance'], ['mais', 'menu', 'Mais']],
 };
-export const barraAbas = (variante, ativa, contadores = {}) =>
+// Sem contador nas abas (apps/mobile/src/components/tab-bar.tsx, RD-0078).
+export const barraAbas = (variante, ativa) =>
   `<div class="barra">${ABAS[variante]
-    .map(([id, icone, rot]) => `<div${id === ativa ? ' class="on"' : ''}>${ic(icone, 22, id === ativa ? COR.accent : COR.ink2, id === ativa ? 2.2 : 1.8)}${contadores[id] ? `<span class="cont">${contadores[id]}</span>` : ''}${rot}</div>`)
+    .map(([id, icone, rot]) => `<div${id === ativa ? ' class="on"' : ''}>${ic(icone, 22, id === ativa ? COR.accent : COR.ink2, id === ativa ? 2.2 : 1.8)}${rot}</div>`)
     .join('')}</div>`;
 
 /** Uma tela inteira: barra de status, o miolo e (opcional) a barra de abas. `extra` vai por cima (folha, diálogo). */

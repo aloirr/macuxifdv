@@ -59,7 +59,7 @@ function inicio() {
     `<div class="cm"><div class="lb"><span>${t}</span><b style="color:${cor}">${pct}</b></div><div class="vl"><b>${real}</b><span>/ ${meta}</span></div><div class="barra-m"><i style="width:${barra}%"></i></div><div class="rd"><span>${rot}</span><b>${val}</b></div></div>`;
   const prod = [['Jornada', '0h12', null], ['1º check-in', '—', null], ['Almoço', '—', null], ['Últ. check-in', '—', null], ['Fora de rota', '0', COR.success], ['TMA', '—', null]];
   return pagina(`<div class="tel">${barraDeStatus('08:14')}
-<div class="painel"><div class="av">CL</div><div class="tx"><div class="ls"><b>Bom dia, ${VENDEDORA.primeiro}</b>${sino()}</div><span class="d">Quinta, 19 de novembro · DU 14 de 21</span><i>“Cliente bem atendido volta e indica.”</i></div></div>
+<div class="painel"><div class="av">CL</div><div class="tx"><div class="ls"><b>Bom dia, ${VENDEDORA.primeiro}</b>${sino()}</div><span class="d">Quinta, 19 de novembro · DU&nbsp;14&nbsp;de&nbsp;21</span><i>“Cliente bem atendido volta e indica.”</i></div></div>
 <div class="corpo ini"><div class="h2">Metas do mês</div><div class="grade">
 <div class="par">${meta('Vendas', '71%', 'R$ 84,6 k', 'R$ 120 k', COR.danger, 'Meta/dia', 'R$ 5,1 k', 71)}${meta('Positivação', '77%', '46', '60', COR.danger, 'Meta/dia', '2', 77)}</div>
 <div class="par">${meta('Visitas', '74%', '118', '160', COR.danger, 'Meta/dia', '6', 74)}${meta('Itens/pedido', '93%', '8,40', '9,00', COR.danger, 'Meta/pedido', '9,00', 93)}</div></div>
@@ -143,7 +143,7 @@ export function clientes({ variante = 'campo', hora = '08:55', total = 38, sync 
     estilo: css,
     cab: cabecalho({ titulo: 'Clientes', subtitulo: `${total} na carteira`, direita: seloSync(sync) }) + `<div class="topo">${busca('Nome, documento ou cidade')}<span class="fbtn">${ic('filtro', 20, COR.ink)}</span></div>`,
     classeCorpo: 'cl',
-    corpo: `<div class="lc">${lista.map(([n, v, s, t]) => `<div class="r"><div class="c"><b>${n}</b><span class="v">${v}</span></div>${badge(s, t)}${ic('chevron', 16, COR.ink3)}</div>`).join('')}</div>`,
+    corpo: `<div class="lc">${lista.map(([n, v, s, t]) => `<div class="r"><div class="c"><b>${n}</b><span class="v">${v}</span></div>${badge(s === 'Bloqueado' ? `${ic('lock', 14, COR.danger)}${s}` : s, t)}${ic('chevron', 16, COR.ink3)}</div>`).join('')}</div>`,
     barra: barraAbas(variante, 'clientes'),
   });
 }

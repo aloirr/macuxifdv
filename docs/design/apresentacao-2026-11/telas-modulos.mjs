@@ -48,7 +48,7 @@ function treinamento() {
 .kpis small{font-size:12px;color:${COR.ink2}}.kpis label{font-size:12px;font-weight:600;color:${COR.ink2}}
 .kpis b{font-size:18px;font-weight:600}
 .med{display:flex;flex-wrap:wrap;gap:6px}
-.med .badge{gap:4px}
+
 .tr{background:#fff;border:1px solid ${COR.line};border-radius:14px;overflow:hidden}
 .tr>div{padding:14px;display:flex;flex-direction:column;gap:10px}
 .tr>div+div{border-top:1px solid ${COR.lineSoft}}
@@ -81,7 +81,7 @@ function promotor() {
 .duas{display:flex;gap:10px}.duas>div{flex:1;display:flex;flex-direction:column;gap:4px}
 .duas label{font-size:12px;font-weight:600;color:${COR.ink2}}
 .duas .ent{min-height:48px;display:flex;align-items:center;padding:0 12px;border:1px solid ${COR.lineStrong};border-radius:12px;font-size:16px;background:#fff}`;
-  const feito = `<span class="badge t-suc" style="gap:4px">${ic('check', 14, COR.success, 2.4)}Feito</span>`;
+  const feito = `<span class="badge t-suc">${ic('check', 14, COR.success, 2.4)}Feito</span>`;
   return tela({
     hora: '10:20',
     estilo: css,

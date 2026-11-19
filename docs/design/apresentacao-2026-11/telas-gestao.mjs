@@ -87,7 +87,7 @@ function aprovacoes() {
       '<span class="res">3 para você · 0 vencidos · 2 vencendo</span>',
       `<div class="fila">${itens.map(([n, v, m, c]) => `<div class="it"><div class="ln"><b>${n}</b><b class="tn">${v}</b></div><small>${m}</small><div class="ln">${c}<span class="dec">Decidir</span></div></div>`).join('')}</div>`,
     ].join(''),
-    barra: barraAbas('gestao', 'aprovacoes', { aprovacoes: 3 }),
+    barra: barraAbas('gestao', 'aprovacoes'),
   });
 }
 
