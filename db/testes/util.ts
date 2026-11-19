@@ -164,3 +164,37 @@ export async function vivos(c: pg.ClientBase, usuario: string): Promise<string[]
   );
   return r.rows.map((x) => x.codigo);
 }
+
+/**
+ * 0088 (T-0184, RN-VEN-30): confere as aprovações dos pedidos de um tenant de seed. Devolve os desvios (vazio = ok): pedido
+ * vivo em `pending_approval` sem a linha `pendente` do ciclo 1 de cada motivo (vazio = `desconto`) com o nível do pedido, e
+ * pedido fora de `pending_approval` com alguma linha `pendente`. Também devolve as contagens (pedidos em aprovação e linhas).
+ */
+export async function conferirAprovacoesDoSeed(admin: pg.ClientBase, tenantId: string): Promise<{ desvios: string[]; emAprovacao: number; linhas: number }> {
+  const r = await admin.query<{ id: string; status: string; nivel: string | null; motivos: string[]; aprovacoes: Array<{ ciclo: number; motivo: string; nivel: string; estado: string }> }>(
+    `select p.id::text as id, p.status, p.nivel_aprovacao as nivel, p.motivos_aprovacao as motivos,
+            coalesce(json_agg(json_build_object('ciclo', a.ciclo, 'motivo', a.motivo, 'nivel', a.nivel, 'estado', a.estado)) filter (where a.id is not null), '[]') as aprovacoes
+       from vendedor.pedido p
+       left join vendedor.pedido_aprovacao a on a.tenant_id = p.tenant_id and a.pedido_id = p.id and a.deleted_at is null
+      where p.tenant_id = $1 and p.deleted_at is null
+      group by p.id`,
+    [tenantId],
+  );
+  const desvios: string[] = [];
+  let emAprovacao = 0;
+  let linhas = 0;
+  for (const p of r.rows) {
+    linhas += p.aprovacoes.length;
+    if (p.status !== 'pending_approval') {
+      if (p.aprovacoes.some((a) => a.estado === 'pendente')) desvios.push(`${p.id} (${p.status}) com aprovação pendente`);
+      continue;
+    }
+    emAprovacao += 1;
+    for (const motivo of p.motivos.length > 0 ? p.motivos : ['desconto']) {
+      if (!p.aprovacoes.some((a) => a.ciclo === 1 && a.estado === 'pendente' && a.motivo === motivo && a.nivel === p.nivel)) {
+        desvios.push(`${p.id} sem a aprovação pendente de ${motivo} (${String(p.nivel)}) no ciclo 1`);
+      }
+    }
+  }
+  return { desvios, emAprovacao, linhas };
+}

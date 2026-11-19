@@ -33,7 +33,7 @@ import { idDeterministico } from '../src/ids';
 import { anoMes, hojeNoFuso, somarDias } from '../src/datas';
 import { verificarSenha } from '../src/senha';
 import { semBanco } from './estado';
-import { semMarcaDeAmbiente, tabelasComTenant } from './util';
+import { conferirAprovacoesDoSeed, semMarcaDeAmbiente, tabelasComTenant } from './util';
 
 const SENHA = 'senha-do-teste-demo';
 /** Módulos ativos no tenant demo depois da carga: os do demo.ts + os dos seeds próprios ligados no carregarDemo (0014 Gestor, 0016 Pesquisa, 0017 Treinamento, T-0051 Integração). */
@@ -1129,6 +1129,33 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
     expect(await contarDemo()).toEqual(antes);
     expect((await hash()).rows).toEqual(hashAntes);
+  });
+
+  it('0088 (T-0184, RN-VEN-30): pedido em aprovação com a pendente de cada motivo no ciclo 1 e o nível dele; nenhum outro com pendente; a recarga desfaz a decisão e o ciclo do ensaio', async () => {
+    const antes = await comAdmin(b.nome, (c) => conferirAprovacoesDoSeed(c, TENANT_DEMO));
+    expect(antes.desvios).toEqual([]);
+    expect(antes.emAprovacao).toBe(dadosDemo(HASH_FALSO, { hoje: hojeCarga })['vendedor.pedido'].filter((p) => p.status === 'pending_approval').length);
+    expect(antes.emAprovacao).toBeGreaterThan(0);
+    expect(antes.linhas).toBeGreaterThanOrEqual(antes.emAprovacao);
+    // o ensaio aprova um pedido do seed pela regra nova e devolve outro para um 2º ciclo
+    await comAdmin(b.nome, async (c) => {
+      const pend = (await c.query<{ id: string; pedido_id: string; nivel: string }>(
+        "select id, pedido_id, nivel from vendedor.pedido_aprovacao where tenant_id = $1 and estado = 'pendente' order by id", [TENANT_DEMO])).rows;
+      // hora-fixa-ok: instante da decisão do ensaio, nunca comparado
+      await c.query("update vendedor.pedido_aprovacao set estado = 'aprovada', decidida_em = now(), decidida_por = $2 where id = $1", [pend[0]!.id, idUsuarioDemo('gerente')]);
+      await c.query("update vendedor.pedido set status = 'approved' where id = $1", [pend[0]!.pedido_id]);
+      const outro = pend.find((x) => x.pedido_id !== pend[0]!.pedido_id)!;
+      await c.query('update vendedor.pedido set aprovacao_ciclo = 2 where id = $1', [outro.pedido_id]);
+      await c.query("insert into vendedor.pedido_aprovacao (tenant_id, pedido_id, ciclo, motivo, nivel) values ($1, $2, 2, 'desconto', $3)", [TENANT_DEMO, outro.pedido_id, outro.nivel]);
+    });
+    await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
+    expect(await comAdmin(b.nome, (c) => conferirAprovacoesDoSeed(c, TENANT_DEMO))).toEqual(antes);
+    const ciclos = await comAdmin(b.nome, (c) =>
+      c.query<{ n: number }>('select count(*)::int as n from vendedor.pedido where tenant_id = $1 and aprovacao_ciclo <> 1', [TENANT_DEMO]));
+    expect(ciclos.rows[0]!.n).toBe(0);
+    // rodar de novo não muda nada
+    await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
+    expect(await comAdmin(b.nome, (c) => conferirAprovacoesDoSeed(c, TENANT_DEMO))).toEqual(antes);
   });
 
   it('recarga -Manter com meta do ensaio no mesmo (usuário, mês anterior, indicador) do seed: mantém a do ensaio sem violar meta_uk', async () => {

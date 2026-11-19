@@ -427,5 +427,8 @@ Uma aprovação por motivo e por ciclo do pedido. **Aditiva** no pedido (o defau
 - Backfill: cada pedido vivo em `pending_approval` ganha uma linha `pendente` no ciclo 1 por motivo de `motivos_aprovacao`
   (vazio = `desconto`), com `nivel = nivel_aprovacao` e id `plataforma.uuid_de_chave('<tenant>:vendedor.pedido_aprovacao:<pedido>:1:<motivo>')`
   (gêmea `idAprovacaoDoBackfill`, usada pela fixture). Volume: 0 a 5 linhas por pedido em aprovação.
+- Seeds da demo e da Fase M (`db/seeds/aprovacoes-pedido.ts`): a mesma regra e o mesmo id do backfill para os pedidos do seed
+  em `pending_approval`. A recarga apaga as aprovações de outro id desses pedidos, volta `aprovacao_ciclo` a 1 e regrava as
+  do seed como `pendente`. Banco sem a 0088 = nada.
 - **Volta** (`.down.sql`): apaga a tabela (as decisões se perdem) e a coluna; tira `inadimplencia` dos arrays antes de recriar
   o CHECK da 0009. Volte antes Vendedor e Gestor. Testes: `db/testes/pedido-aprovacao.db.test.ts`.
