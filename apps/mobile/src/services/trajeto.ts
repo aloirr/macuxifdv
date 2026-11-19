@@ -10,12 +10,10 @@
  * - desligada de fábrica: a condição é o `podeRastrear` do Core por `condicaoDoTrajeto` (ponto único, `lib/trajeto.ts`), com a
  *   `EntradaRastreio` do banco do usuário (parâmetro, feriados, ausências), da sessão guardada (cargo e fuso do tenant), da
  *   variante e da permissão "o tempo todo" lida agora. Rastreamento interno: sem termo, aceite nem pausa;
- * - os pontos de hoje voltam ao Core pelo leitor de `leitorDePontosLocais` (`definirPontosLocaisDoDia`, §3.4).
  * Notificação fixa: o expo-location 57 cria o canal próprio `<appId>:macuxi-trajeto` com IMPORTANCE_LOW, sem som
- * (`LocationTaskService.kt`); nada a criar aqui.
+ * (`LocationTaskService.kt`); o nome do canal ("Serviço do app") e a cor do ícone vêm do `plugins/notificacao-trajeto.ts` (MC-1780).
  * Só Android na v1. Build sem os módulos nativos: tudo vira no-op, sem quebrar o app.
  */
-import type { LeitorDePontosLocais } from '@macuxi/core/app';
 import { PARAMETROS_RASTREAMENTO_PADRAO, type FrequenciaRastreamento } from '@macuxi/core/contracts';
 import { requireOptionalNativeModule } from 'expo';
 import { Platform } from 'react-native';
@@ -30,7 +28,6 @@ import {
   gravarPontosDoTrajeto,
   lerContextoDoRastreio,
   lerFrequenciaDoTrajeto,
-  lerPontosDoDia,
   TAREFA_TRAJETO,
   type CapturaDoAparelho,
   type ContextoDoRastreio,
@@ -161,15 +158,4 @@ export async function atualizarTrajeto(): Promise<void> {
 /** Logout e aparelho bloqueado (§3.4): para a captura antes de fechar ou apagar os bancos do usuário. Nunca lança. */
 export function pararTrajeto(): Promise<void> {
   return trajeto.parar();
-}
-
-/**
- * Leitor dos pontos do dia no banco aberto pelo motor (`arquivo`), entregue ao Core por `definirPontosLocaisDoDia` na abertura
- * da sessão e retirado no logout e no aparelho bloqueado (`state/plataforma.tsx`). Banco já fechado: vazio (a tela vai ao servidor).
- */
-export function leitorDePontosLocais(arquivo: string): LeitorDePontosLocais {
-  return async (data, fuso) => {
-    const db = driverDoArquivo(arquivo);
-    return db ? lerPontosDoDia(db, data, fuso) : [];
-  };
 }

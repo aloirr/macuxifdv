@@ -7,7 +7,7 @@
  * Do contrato do Core (`@macuxi/core/contracts`): `podeRastrear`, `ROTULO_ESTADO_RASTREAMENTO` e `PontoTrajeto` (validado pelo
  * `PontoTrajetoSchema`); a hora vem do `formatHHMM` (`@macuxi/comum/fuso`), o mesmo que o Core usa.
  */
-import { formatHHMM, localIsoDate } from '@macuxi/comum/fuso';
+import { formatHHMM } from '@macuxi/comum/fuso';
 import {
   ENTIDADE_AUSENCIA_USUARIO,
   PARAMETRO_FERIADOS,
@@ -15,13 +15,11 @@ import {
   PARAMETROS_RASTREAMENTO_PADRAO,
   ParametrosRastreamentoSchema,
   podeRastrear,
-  PontoDoTrajetoSchema,
   PontoTrajetoSchema,
   ROTULO_ESTADO_RASTREAMENTO,
   type EntradaRastreio,
   type FrequenciaRastreamento,
   type ParametrosRastreamento,
-  type PontoDoTrajeto,
   type PontoTrajeto,
   type ResultadoRastreio,
 } from '@macuxi/core/contracts';
@@ -451,31 +449,4 @@ export async function gravarPontosDoTrajeto(db: Pick<DriverSqlite, 'rodar'>, pon
     throw e;
   }
   return inseridos;
-}
-
-const SELECIONAR_PONTOS_DO_DIA =
-  'SELECT capturado_em, latitude, longitude, precisao_m FROM core__ponto_trajeto WHERE capturado_em >= ? AND capturado_em < ? ORDER BY capturado_em';
-
-const diaUtc = (data: string, dias: number): string => new Date(Date.parse(`${data}T00:00:00.000Z`) + dias * 86_400_000).toISOString();
-
-/**
- * Pontos de `data` (AAAA-MM-DD no fuso do tenant) gravados neste aparelho, em ordem de captura, para "Meu trajeto" de hoje e o
- * km parcial sem sinal (`definirPontosLocaisDoDia` do Core; §3.4). Lê uma janela UTC de três dias (qualquer fuso cabe) e
- * fica com os do dia civil no fuso. Sem a tabela, vazio. Só o que a tela usa (sem velocidade); nada vai a log.
- */
-export async function lerPontosDoDia(db: Pick<DriverSqlite, 'todas'>, data: string, fuso: string): Promise<PontoDoTrajeto[]> {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || !Number.isFinite(Date.parse(`${data}T00:00:00.000Z`))) return [];
-  let linhas: unknown[];
-  try {
-    linhas = await db.todas<unknown>(SELECIONAR_PONTOS_DO_DIA, [diaUtc(data, -1), diaUtc(data, 2)]);
-  } catch (e) {
-    if (/no such table/i.test(e instanceof Error ? e.message : String(e))) return [];
-    throw erroSemCoordenada(e);
-  }
-  const pontos: PontoDoTrajeto[] = [];
-  for (const l of linhas) {
-    const p = PontoDoTrajetoSchema.safeParse(l);
-    if (p.success && localIsoDate(p.data.capturado_em, fuso) === data) pontos.push(p.data);
-  }
-  return pontos;
 }

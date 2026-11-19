@@ -22,7 +22,6 @@
  * de todos os usuários.
  */
 import {
-  definirPontosLocaisDoDia,
   ehAparelhoBloqueado,
   entrarComSenha,
   pedirSenhaTemporaria,
@@ -131,7 +130,7 @@ import {
   registrarAppAberto,
   travaSync,
 } from '@/services/segundo-plano';
-import { atualizarTrajeto, leitorDePontosLocais, pararTrajeto } from '@/services/trajeto';
+import { atualizarTrajeto, pararTrajeto } from '@/services/trajeto';
 import { gravarErro } from '@/services/erros';
 import { atualizarFrasesDaCarga } from '@/services/frase-carga';
 import {
@@ -460,8 +459,6 @@ function usePlataformaValor() {
         semFalhas();
       };
       motorRef.current = m;
-      // T-0156 (tracking §3.4): "Meu trajeto" de hoje lê os pontos deste banco, sem sinal; na reserva do AsyncStorage não há pontos
-      definirPontosLocaisDoDia(abertura.tipo === 'sqlite' ? leitorDePontosLocais(abertura.arquivo) : null);
       sincronizarAoAbrirRef.current = Boolean(opcoes.abertura && m.estado().sincronizado_em);
       setMotor(m);
       // desenho T-0088 §5: o `rebuild` e a reindexação pendentes (L-1, versão) andam quando a tela fica livre, antes da 1ª
@@ -813,8 +810,6 @@ function usePlataformaValor() {
     if (usuarioId) void esquecerRegistroPush(usuarioId);
     sessaoRef.current = null;
     motorRef.current = null;
-    // T-0156: sem sessão (logout ou aparelho bloqueado), o Core não lê mais os pontos do banco que vai fechar
-    definirPontosLocaisDoDia(null);
     // T-0088: quem fecha o arquivo é o logout (sem apagar) ou o bloqueio do aparelho (apaga os de todos)
     armazenamentoRef.current = null;
     // R-20261104-042956 🟢 3: a 1ª tela do próximo login não anima como "voltar"

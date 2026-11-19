@@ -16,7 +16,6 @@ import {
   gravarPontosDoTrajeto,
   lerContextoDoRastreio,
   lerFrequenciaDoTrajeto,
-  lerPontosDoDia,
   opcoesDoTrajeto,
   portaoDoTrajeto,
   type CapturaDoAparelho,
@@ -456,42 +455,6 @@ describe('gravar no SQLite do usuário (§3.4; core__ponto_trajeto)', () => {
   });
 });
 
-describe('pontos de hoje para "Meu trajeto" (§3.4; definirPontosLocaisDoDia do Core)', () => {
-  it('só os do dia civil no fuso do tenant, em ordem, sem velocidade', async () => {
-    const db = await driverNode();
-    await db.executar(DDL);
-    const ids = (n: number) => `0b9a4c1e-7f3d-4a2b-9c8d-${String(n).padStart(12, '0')}`;
-    await gravarPontosDoTrajeto(db, [
-      // 19/11 em Manaus (UTC−4) vai de 19/11 04:00Z a 20/11 04:00Z
-      ponto(ids(1), { capturado_em: '2026-11-19T03:59:00.000Z' }),
-      ponto(ids(2), { capturado_em: '2026-11-20T01:00:00.000Z', velocidade_ms: 3 }),
-      ponto(ids(3), { capturado_em: '2026-11-19T04:00:00.000Z' }),
-      ponto(ids(4), { capturado_em: '2026-11-20T04:00:00.000Z' }),
-    ]);
-    expect(await lerPontosDoDia(db, '2026-11-19', 'America/Manaus')).toEqual([
-      { capturado_em: '2026-11-19T04:00:00.000Z', latitude: LAT, longitude: LON, precisao_m: 12 },
-      { capturado_em: '2026-11-20T01:00:00.000Z', latitude: LAT, longitude: LON, precisao_m: 12 },
-    ]);
-    expect(await lerPontosDoDia(db, '2026-11-18', 'America/Manaus')).toEqual([{ capturado_em: '2026-11-19T03:59:00.000Z', latitude: LAT, longitude: LON, precisao_m: 12 }]);
-    await db.fechar();
-  });
-
-  it('sem a tabela ou com data inválida: vazio', async () => {
-    const db = await driverNode();
-    expect(await lerPontosDoDia(db, '2026-11-19', 'America/Manaus')).toEqual([]);
-    await db.executar(DDL);
-    expect(await lerPontosDoDia(db, '19/11/2026', 'America/Manaus')).toEqual([]);
-    await db.fechar();
-  });
-
-  it('erro do banco sai sem coordenada', async () => {
-    const db: Pick<DriverSqlite, 'todas'> = { todas: async () => Promise.reject(new Error(`falhou em ${LAT}, ${LON}`)) };
-    const e = await lerPontosDoDia(db, '2026-11-19', 'America/Manaus').catch((x: unknown) => x as Error);
-    expect(e).toBeInstanceOf(Error);
-    expect(`${(e as Error).message}\n${(e as Error).stack ?? ''}`).not.toMatch(/3\.119|60\.021/);
-  });
-});
-
 describe('ligação no shell (§3.2): três gatilhos, logout e aparelho bloqueado', () => {
   const fonte = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
   const entrada = fonte('../../index.ts');
@@ -527,13 +490,6 @@ describe('ligação no shell (§3.2): três gatilhos, logout e aparelho bloquead
     expect(servico).toMatch(/cargo: s\?\.user\?\.perfil \?\? null, app: varianteAtual\(\), fuso: s\?\.tenant\?\.fuso \|\| DEFAULT_TZ, permissao/);
     expect(servico).toMatch(/getBackgroundPermissionsAsync\(\)\s*\.then\(\(r\) => r\.granted\)\s*\.catch\(\(\) => false\)/);
     expect(servico).toMatch(/condicao: \(\) => condicaoDoTrajeto\(contextoDaSessao\)/);
-  });
-
-  it('os pontos de hoje vão ao Core na abertura da sessão e saem no logout e no aparelho bloqueado', () => {
-    const abrir = plataforma.slice(plataforma.indexOf('motorRef.current = m;'), plataforma.indexOf('setMotor(m);'));
-    expect(abrir).toMatch(/definirPontosLocaisDoDia\(abertura\.tipo === 'sqlite' \? leitorDePontosLocais\(abertura\.arquivo\) : null\);/);
-    const fechar = plataforma.slice(plataforma.indexOf('const fecharSessaoLocal = useCallback('), plataforma.indexOf('const logout = useCallback('));
-    expect(fechar).toMatch(/definirPontosLocaisDoDia\(null\);/);
   });
 });
 
