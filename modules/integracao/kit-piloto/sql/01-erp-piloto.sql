@@ -152,6 +152,7 @@ SELECT CAST(t.codigo AS VARCHAR(200)) AS external_id, t.alterado_em, CASE WHEN t
        CONVERT(CHAR(10), t.emissao, 23) AS emissao, CONVERT(CHAR(10), t.vencimento, 23) AS vencimento,
        CAST(ROUND(t.valor * 100, 0) AS DECIMAL(19, 0)) AS valor_cents, CAST(ROUND(t.saldo * 100, 0) AS DECIMAL(19, 0)) AS saldo_cents,
        CASE WHEN t.cancelado = 'S' THEN 'cancelado' WHEN t.saldo = 0 THEN 'baixado' ELSE 'aberto' END AS situacao,
-       CAST(CAST(t.baixado_em AS DATETIME2(3)) AT TIME ZONE 'SA Western Standard Time' AT TIME ZONE 'UTC' AS DATETIME2(3)) AS baixado_em
+       CAST(CAST(t.baixado_em AS DATETIME2(3)) AT TIME ZONE 'SA Western Standard Time' AT TIME ZONE 'UTC' AS DATETIME2(3)) AS baixado_em,
+       CAST(NULL AS NVARCHAR(40)) AS nf_numero, CAST(NULL AS NVARCHAR(10)) AS nf_serie, CAST(NULL AS NVARCHAR(120)) AS forma_pagamento -- T-0186: o ERP piloto não guarda NF nem forma de pagamento do título
 FROM dbo.piloto_titulo t;
 GO

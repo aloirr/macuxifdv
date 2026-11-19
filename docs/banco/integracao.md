@@ -378,6 +378,9 @@ troca pelas do ERP dele. Formato:
   v2) e com coluna repetida; `external_id` sem CPF/CNPJ; os aliases das alternativas comentadas existem na view. Campo
   **opcional** do contrato sem coluna **não falha** (o contrato v1 cresce de forma aditiva e é do `modulo-integracao`): vira
   `console.warn` com a lista. Campo novo no contrato da integração = recado ao `banco-dados` para a view acompanhar.
+- **Cliente 360 v2 (T-0186, 0090)**: `vw_macuxi_titulo` devolve `forma_pagamento` (até 120), `nf_numero` (até 40) e `nf_serie` (até
+  10); `vw_macuxi_nota`, `forma_pagamento`, `nf_origem_numero` (até 40) e `nf_origem_serie` (até 10, só na devolução). Opcionais, `CAST(NULL
+  ...)` no modelo, com os nomes das colunas de `core.titulo` e `core.nota_erp` e os tamanhos do contrato do Hub.
 - **Retorno do pedido (T-0162)**: no fim do arquivo, fora das entidades de carga, `vw_macuxi_pedido_status` (16) e
   `vw_macuxi_pedido_nota_item` (17), as views que o `conector.exemplo.json` lê em `pedidos.status`. Status: `pedido_uuid`,
   `situacao` (código do `mapaStatus`: I, R, P, F, C), `numero_pedido`, `motivo`, `nota_numero`, `nota_serie`, `nota_emitida_em`,

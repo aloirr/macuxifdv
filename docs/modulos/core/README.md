@@ -26,3 +26,4 @@
 - BKO: Cadastros › Fotos do PDV. Ficha do app: seção "Fotos do PDV" (tem/falta, cadeado) e botão "Foto do PDV" (desligado até o shell registrar o visualizador).
 - Pendente: push `cliente_foto` e captura (dependem de `perfis_leitura` no SDK e da galeria no shell).
 - [Performance e Pesquisa na ficha do cliente](performance-cliente.md) (RN-CORE-50 e 51)
+- [Cliente 360 v2: Resumo, Histórico e Documentação](cliente360-v2.md) (T-0186, RN-CORE-40)

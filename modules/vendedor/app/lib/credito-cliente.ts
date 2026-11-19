@@ -1,10 +1,10 @@
 /**
  * Cartão "Crédito do cliente" da aba Detalhes (T-0089; RN-VEN-12 e RN-VEN-13). A consulta `core.financeiro_cliente@1` responde
  * no aparelho com as linhas locais do Core (vale offline); aqui só se monta o que o cartão mostra: limite total, limite
- * disponível (domain `creditoDoCartao`) e o alerta de título vencido. Sem a linha "Após este pedido" (decisão de 06/11).
+ * disponível (contracts `creditoDisponivel`) e o alerta de título vencido. Sem a linha "Após este pedido" (decisão de 06/11).
  */
-import { creditoDoCartao } from '../../domain/pagamento';
-import { limiteInformadoPeloErp, STATUS_QUE_PESAM_NO_CREDITO } from '../../domain/credito-pedido';
+import { creditoDisponivel } from '../../contracts/credito-disponivel';
+import { limiteInformadoPeloErp } from '../../domain/credito-pedido';
 
 /** Subconjunto estrutural de `FinanceiroClienteSaida['financeiro']` (o Vendedor não importa o domain do Core). */
 export interface FinanceiroDaConsulta {
@@ -38,10 +38,10 @@ export type ModeloDoCredito =
 
 export function modeloDoCredito(f: FinanceiroDaConsulta | null, pedidos: readonly PedidoParaCredito[]): ModeloDoCredito {
   if (!f) return { tipo: 'vazio' };
-  const c = creditoDoCartao(
-    f,
-    pedidos.filter((p) => STATUS_QUE_PESAM_NO_CREDITO.has(p.status)).map((p) => ({ total_cents: p.total_cents, integrado: p.status === 'integrated' })),
-  );
+  const c = creditoDisponivel({
+    financeiro: f,
+    pedidos,
+  });
   return {
     tipo: 'dados',
     limite_cents: c.limite_cents,

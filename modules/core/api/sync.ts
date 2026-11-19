@@ -97,7 +97,7 @@ export const TABELAS_SYNC = {
     janela: "(fim is null or fim >= {{hoje}} - 40)",
   },
   produto: { tabela: 'core.produto', colunas: 'sku, ean, nome, marca, categoria, unidade, embalagem_medida, embalagem_quantidade, preco_venda_cents::float8 as preco_venda_cents, desconto_maximo_pct::float8 as desconto_maximo_pct, ativo', colunaCliente: null },
-  // RN-VEN-11a (T-0168): a linha do próprio usuário (e da equipe visível) com só as 3 colunas de limite de desconto; sem e-mail, nome nem código do ERP
+  // RN-VEN-11a (T-0168): a linha do próprio usuário (e da equipe visível) com as colunas de limite de desconto; sem nome, e-mail nem telefone.
   usuario: {
     // T-0176 / RN-CORE-39: `filial_cadastro_id`, `filial_venda_ids` e `sem_filial` (sem cadastro, qualquer perfil); o `updated_at` acompanha a troca de filiais (cadastro ou venda)
     tabela: `(select u.id as usuario_id, u.id, greatest(u.updated_at, coalesce(f.alterado_em, u.updated_at)) as updated_at, u.deleted_at, null::text as external_id, ${sqlCodigoFdv('u')} as codigo_fdv,

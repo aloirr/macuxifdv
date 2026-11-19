@@ -73,11 +73,11 @@ cliente** (esta tabela) → linha de atualização.
 | Consulta indisponível (`credito === null`, erro de leitura) | a tabela não aparece; no lugar, 12 `ink2`: "Crédito indisponível agora. Sincronize o aparelho." |
 | Offline | igual, com os dados do aparelho; o ícone da atualização vira `wifiOff` e o texto continua ("Atualizado hoje às 05:38") |
 
-### A.3 Componente do kit: `TabelaValores` (novo, `@macuxi/ui/mobile`, arquivo `valores.tsx`)
+### A.3 Componente do kit: `TabelaRotuloValor` (`@macuxi/ui/mobile`, `tabela-ficha-rn.tsx`)
 Tabela rótulo ··· valor genérica (serve ao crédito e a outros blocos de consulta). Sem texto fixo e sem cálculo.
 ```tsx
 <RotuloSecao texto="Crédito do cliente" />
-<TabelaValores
+<TabelaRotuloValor
   testID="venda-credito"
   linhas={[
     { id: 'limite', rotulo: 'Limite', valor: formatBRL(c.limite_cents) },
@@ -89,7 +89,7 @@ Tabela rótulo ··· valor genérica (serve ao crédito e a outros blocos de co
 />
 ```
 `linhas[].valor === '—'` sai em `ink3`. A aba Venda usa a
-`TabelaValores`. O `LinhaValor` "Limite · R$ x · disponível R$ y" **sai** da aba Venda.
+`TabelaRotuloValor`. O `LinhaValor` "Limite · R$ x · disponível R$ y" **sai** da aba Venda.
 
 ## B. Aba Entrega: frete sem frase
 ```
@@ -294,7 +294,7 @@ Açúcar 1 kg · 6 UN          R$ 4,29 → R$ 4,49
 [  Transformar com os preços de hoje  ]          ← principal
                 Voltar
 ```
-  - Totais em `TabelaValores` (Diferença: aumento `ink` com "+", queda `success` com "−"); itens que mudaram em `LinhaValor`
+  - Totais em `TabelaRotuloValor` (Diferença: aumento `ink` com "+", queda `success` com "−"); itens que mudaram em `LinhaValor`
     ("nome · qtd medida" ··· "R$ antes → R$ hoje"), até 8 e "Ver os 12 itens".
   - Total igual: transforma direto, sem folha. Item que saiu da tabela de hoje: linha em `danger` "Sem preço hoje" e o principal
     vira **Transformar sem este item** (premissa, §P).
@@ -317,12 +317,12 @@ Açúcar 1 kg · 6 UN          R$ 4,29 → R$ 4,49
 ## K. Componentes do kit
 | Peça | Componente | Situação |
 |---|---|---|
-| tabela do crédito, totais da folha "Preços de hoje" | **`TabelaValores`** (novo, `valores.tsx`) | designer-ux entrega no kit |
+| tabela do crédito, totais da folha "Preços de hoje" | **`TabelaRotuloValor`** (`tabela-ficha-rn.tsx`) | no kit |
 | selos Principal, Editado neste pedido, Some em 2 h, Orçamento · preço de | `Selo` (tons neutro, destaque, aviso, roxo) | já existe |
 | entrada Rascunhos | `LinhaAtalho` (ícone `edit`) + `rotuloComContador` | já existe |
 | folha do endereço, formulário | `Folha`, `ListaSuspensa` (UF), `Botao`; rádio desenhado no módulo (o `OpcaoFolha` não tem rádio) | já existe |
 | ✕ das folhas (endereço, formulário, Preços de hoje) | `Folha` com `titulo` e `fechar={{ rotulo: 'Fechar' }}` (48 dp, fixo, fora da rolagem) | entregue na revisão T-0141 |
-| "Editado neste pedido" na linha ENTREGA do Resumo | `LinhaResumo` com `marca` | entregue na revisão T-0141 |
+| "Editado neste pedido" na linha ENTREGA do Resumo | `TabelaRotuloValor`, no valor do Endereço | entregue na revisão T-0141 |
 | aviso de saída | `AvisoRodape` com ação | já existe |
 | vazio de Itens e de Rascunhos | `EstadoVazio` | já existe |
 

@@ -51,7 +51,12 @@ const SQL_REFERENCIAS = `CASE WHEN ${NUMEROS_REFERENCIA.map((n) => `referencia_$
 const COLUNAS_DERIVADAS: Record<string, Record<string, string>> = { produto: { referencias: SQL_REFERENCIAS } };
 
 /** Campos do Hub acrescentados depois da 1.0.4: o banco já criado ganha a coluna por `ALTER TABLE` (a tabela só nasce uma vez). */
-const COLUNAS_ACRESCENTADAS: Record<string, string[]> = { produto: ['marca_codigo'], vendedor: ['filial_external_id'] };
+const COLUNAS_ACRESCENTADAS: Record<string, string[]> = {
+  produto: ['marca_codigo'],
+  vendedor: ['filial_external_id'],
+  titulo: ['nf_numero', 'nf_serie', 'forma_pagamento'],
+  nota: ['forma_pagamento', 'nf_origem_numero', 'nf_origem_serie'],
+};
 
 /** Referência a outra entidade (campo `*_external_id`): o carga_csv.py confere antes de gravar. Tabela e depósito não são entidades. */
 const REFERENCIAS: Record<string, string> = {

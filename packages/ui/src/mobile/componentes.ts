@@ -4,6 +4,8 @@
  * `@macuxi/ui/mobile/puro`. Nenhum texto de tela mora aqui: rótulos chegam por props.
  */
 
+import { radius } from './tokens';
+
 /** Alvo de toque mínimo dos componentes (48 dp, Material). */
 export const ALVO_TOQUE = 48;
 
@@ -139,16 +141,16 @@ export function leituraDoAtalho(rotulo: string, apoio?: string | null): string {
   return a ? `${r}. ${a}` : r;
 }
 
-/** Valor sem dado na `TabelaValores` (T-0141, crédito do cliente): travessão, nunca um "R$ 0,00" falso. */
+/** Valor sem dado na `TabelaRotuloValor` (T-0141, crédito do cliente; RD-2370): travessão, nunca um "R$ 0,00" falso. */
 export const VALOR_SEM_DADO = '—';
 
-/** Vazio ou travessão: a `TabelaValores` desenha em `ink3` e o leitor de tela lê "sem dado". */
+/** Vazio ou travessão: a `TabelaRotuloValor` desenha em `ink3` e o leitor de tela lê "sem dado". */
 export function ehSemDado(valor: string | null | undefined): boolean {
   const v = (valor ?? '').trim();
   return v === '' || v === VALOR_SEM_DADO;
 }
 
-/** Leitura de uma linha da `TabelaValores`: "Limite: R$ 20.000,00"; sem dado: "Limite: sem dado". */
+/** Leitura de uma linha da `TabelaRotuloValor`: "Limite: R$ 20.000,00"; sem dado: "Limite: sem dado". */
 export function leituraDaLinhaDeValor(rotulo: string, valor: string | null | undefined): string {
   return `${rotulo.trim()}: ${ehSemDado(valor) ? 'sem dado' : (valor ?? '').trim()}`;
 }
@@ -184,4 +186,22 @@ export function rolagemAteAba(
   if (inicio < rolagemAtual) return Math.max(0, inicio);
   if (fim > rolagemAtual + larguraVisivel) return Math.max(0, Math.min(inicio, fim - larguraVisivel));
   return rolagemAtual;
+}
+
+/** Linhas que o `Badge` aceita: 1 (padrão, pílula) ou 2 (coluna estreita de tabela; MC-1790, T-0186). */
+export type LinhasBadge = 1 | 2;
+
+/**
+ * Forma do `Badge` pelo número de linhas (MC-1790, T-0186). Com 1 linha nada muda (pílula, texto cortado com "…").
+ * Com 2 linhas o texto quebra centralizado e o raio vira `radius.sm` (8): pílula em 2 linhas vira um ovo.
+ */
+export function formaDoBadge(linhas: LinhasBadge = 1): {
+  numberOfLines: LinhasBadge;
+  borderRadius: number;
+  paddingVertical?: number;
+  lineHeight?: number;
+  textAlign?: 'center';
+} {
+  if (linhas === 2) return { numberOfLines: 2, borderRadius: radius.sm, paddingVertical: 3, lineHeight: 16, textAlign: 'center' };
+  return { numberOfLines: 1, borderRadius: radius.pilula };
 }

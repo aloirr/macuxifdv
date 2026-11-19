@@ -145,16 +145,3 @@ export interface PagamentoEvento {
   parcelas_dias: number[];
   prazo_medio_dias: number;
 }
-
-/**
- * RN-VEN-12: limite e disponível do cartão. Disponível = (valor do ERP ?? limite − saldo) − pedidos aprovados ainda não
- * faturados. Com o valor do ERP só descontam os não integrados (o ERP já descontou os integrados). Pode ficar negativo.
- */
-export function creditoDoCartao(
-  f: { limite_cents: number; saldo_aberto_cents: number; credito_disponivel_erp_cents: number | null },
-  pedidosAprovados: readonly { total_cents: number; integrado: boolean }[],
-): { limite_cents: number; disponivel_cents: number } {
-  const base = f.credito_disponivel_erp_cents ?? f.limite_cents - f.saldo_aberto_cents;
-  const descontar = pedidosAprovados.filter((p) => f.credito_disponivel_erp_cents == null || !p.integrado).reduce((s, p) => s + p.total_cents, 0);
-  return { limite_cents: f.limite_cents, disponivel_cents: base - descontar };
-}

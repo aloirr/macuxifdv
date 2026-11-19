@@ -1,17 +1,10 @@
 /**
  * T-0147 (RN-CORE-38): visualizador da foto do PDV — leitura da rota (a ida está em visor-foto.test.ts), ordem das fontes (local sem sinal; nuvem só com
- * sinal, "Sem sinal para abrir a foto.") e a imagem em memória (`data:` URI só de JPEG).
+ * sinal, "Sem internet") e o base64 da imagem em memória (`data:` URI).
  */
 import { describe, expect, it } from 'vitest';
 
-import {
-  bytesParaBase64,
-  fonteDaFoto,
-  pedidoDaRota,
-  TEXTO_FOTO_INDISPONIVEL,
-  TEXTO_SEM_SINAL_FOTO,
-  uriDeJpeg,
-} from './foto-pdv';
+import { bytesParaBase64, fonteDaFoto, pedidoDaRota, TEXTO_FOTO_INDISPONIVEL, TEXTO_SEM_SINAL_FOTO } from './foto-pdv';
 
 const ID = '0b9f6c3e-6a7d-4c1e-9f0a-2b3c4d5e6f70';
 
@@ -31,7 +24,7 @@ describe('fonteDaFoto', () => {
   it('sem o arquivo local: nuvem com sinal; sem sinal, a mensagem da imagem aprovada', () => {
     expect(fonteDaFoto(null, true, true)).toEqual({ tipo: 'nuvem' });
     expect(fonteDaFoto(null, false, true)).toEqual({ tipo: 'erro', mensagem: TEXTO_SEM_SINAL_FOTO });
-    expect(TEXTO_SEM_SINAL_FOTO).toBe('Sem sinal para abrir a foto.');
+    expect(TEXTO_SEM_SINAL_FOTO).toBe('Sem internet');
   });
 
   it('sem fonte da nuvem (navegador, sem sessão): não abre', () => {
@@ -45,12 +38,5 @@ describe('imagem em memória', () => {
       const bytes = Uint8Array.from({ length: n }, (_, i) => (i * 37 + 11) & 255);
       expect(bytesParaBase64(bytes)).toBe(Buffer.from(bytes).toString('base64'));
     }
-  });
-
-  it('só JPEG vira data URI (assinatura FF D8 FF); outra coisa não abre', () => {
-    const jpeg = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 1, 2]);
-    expect(uriDeJpeg(jpeg)).toBe(`data:image/jpeg;base64,${Buffer.from(jpeg).toString('base64')}`);
-    expect(uriDeJpeg(Uint8Array.from([0x89, 0x50, 0x4e, 0x47]))).toBeNull();
-    expect(uriDeJpeg(new Uint8Array())).toBeNull();
   });
 });

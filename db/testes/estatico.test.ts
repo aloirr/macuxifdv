@@ -138,6 +138,8 @@ const TABELAS_0086 = ['plataforma.assinatura_historico'] as const;
 const TABELAS_0088_P6 = ['vendedor.pedido_aprovacao'] as const;
 /** Tabelas novas da 0089 (T-0156, ADR 0061: rastreamento interno no expediente; sem macuxi_leitura; rastreamento.db.test.ts). */
 const TABELAS_0089 = ['core.ponto_trajeto', 'core.ausencia_usuario'] as const;
+/** Tabelas novas da 0090 (T-0186, D5 e P15: Documentação do cliente só online, consultada pela API ao abrir, com a permissão revalidada; fora do sync; cliente360-documentos.db.test.ts). */
+const TABELAS_0090 = ['core.documento_tipo', 'core.documento_cliente', 'core.documento_permissao', 'core.documento_excecao'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -231,6 +233,7 @@ describe('migrações (estático)', () => {
     expect(nomes[86]).toBe('0087_integracao_lote_cancelado'); // T-0173 (RN-INT-15): CHECK lote_status_valido com 'cancelado' e integracao.expurgar_retencao com o lote cancelado na retenção do lote final (lote-cancelado.db.test.ts)
     expect(nomes[87]).toBe('0088_vendedor_pedido_aprovacao'); // T-0184 (P-6): vendedor.pedido_aprovacao (uma por motivo e ciclo, fora do sync, backfill dos pending_approval), vendedor.pedido.aprovacao_ciclo e 'inadimplencia' no CHECK pedido_motivos_validos (pedido-aprovacao.db.test.ts)
     expect(nomes[88]).toBe('0089_core_rastreamento'); // T-0156 (ADR 0061): ponto_trajeto e ausencia_usuario, sem macuxi_leitura, e core.expurgar_rastreamento (90 dias e 5 anos) só do worker (rastreamento.db.test.ts)
+    expect(nomes[89]).toBe('0090_core_cliente360_documentos'); // T-0186 (Cliente 360 v2, D2–D5): forma_pagamento e NF original em core.nota_erp, forma_pagamento e NF em core.titulo, 3 índices e core.documento_tipo, documento_cliente, documento_permissao e documento_excecao (cliente360-documentos.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
@@ -297,6 +300,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0086,
         ...TABELAS_0088_P6,
         ...TABELAS_0089,
+        ...TABELAS_0090,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,

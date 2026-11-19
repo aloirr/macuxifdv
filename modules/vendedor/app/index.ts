@@ -4,9 +4,8 @@ import { ENTIDADES_VENDEDOR } from '../contracts/entidades';
 import { manifest } from '../manifest';
 import type { AcaoPedidoEmNome } from '../contracts/extensoes';
 import type { AcaoProduto } from '@macuxi/catalogo/contracts';
-import type { AbaCliente, AcaoCliente, CardInicio, ContextoCliente } from '@macuxi/core/contracts';
+import type { AcaoCliente, CardInicio } from '@macuxi/core/contracts';
 import { CardsPedidosInicio } from './components/cards-inicio';
-import { AbaMix, AbaUltimosPedidos } from './components/ficha-cliente';
 import { consultaPrecoPrazoPadraoAparelho } from './consulta-preco-prazo-padrao';
 import { etapasVendedor } from './etapas';
 import { irParaAdicionarAoOrcamento, irParaNovoPedido } from './rotas';
@@ -40,21 +39,7 @@ export const moduloApp = definirModuloShell<ComponentType>({
   etapasSync: etapasVendedor,
   consultas: [consultaPrecoPrazoPadraoAparelho],
   extensoes: [
-    // Ficha do cliente (slots do Core, B2). RN-PRO-01: `acao: 'pedido.criar'` esconde os itens do promotor.
-    {
-      slot: 'cliente.abas',
-      id: 'mix',
-      acao: 'pedido.criar',
-      apps: ['campo'],
-      payload: { rotulo: 'Sugestão de mix', testID: 'ficha-mix', componente: AbaMix } satisfies AbaCliente<ComponentType<{ contexto: ContextoCliente }>>,
-    },
-    {
-      slot: 'cliente.abas',
-      id: 'ultimos-pedidos',
-      acao: 'pedido.criar',
-      apps: ['campo'],
-      payload: { rotulo: 'Últimos pedidos', testID: 'ficha-ultimos-pedidos', componente: AbaUltimosPedidos } satisfies AbaCliente<ComponentType<{ contexto: ContextoCliente }>>,
-    },
+    // Ficha do cliente (slot do Core, B2). RN-PRO-01: `acao: 'pedido.criar'` esconde o item do promotor.
     {
       slot: 'cliente.acoes',
       id: 'novo-pedido',

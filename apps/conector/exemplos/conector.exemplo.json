@@ -500,7 +500,7 @@
     "titulo": {
       "ativa": true,
       "periodicidadeSegundos": 3600,
-      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, cliente_external_id, numero, parcela, emissao, vencimento, valor_cents, saldo_cents, situacao, baixado_em FROM dbo.vw_macuxi_titulo WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, cliente_external_id, numero, parcela, emissao, vencimento, valor_cents, saldo_cents, situacao, baixado_em, nf_numero, nf_serie, forma_pagamento FROM dbo.vw_macuxi_titulo WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
       "campos": {
         "external_id": "external_id",
         "alterado_em": "alterado_em",
@@ -534,7 +534,10 @@
         "baixado_em": {
           "coluna": "baixado_em",
           "transformar": "data_hora_utc"
-        }
+        },
+        "nf_numero": "nf_numero",
+        "nf_serie": "nf_serie",
+        "forma_pagamento": "forma_pagamento"
       },
       "reconciliacao": {
         "consulta": "SELECT COUNT(*) AS contagem, CAST(SUM(saldo_cents) AS bigint) AS soma FROM dbo.vw_macuxi_titulo WHERE ativo = 1"
@@ -543,7 +546,7 @@
     "nota": {
       "ativa": true,
       "periodicidadeSegundos": 900,
-      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, cliente_external_id, vendedor_external_id, tipo, numero, serie, emitida_em, total_cents, quantidade_itens, pedido_uuid, cancelada FROM dbo.vw_macuxi_nota WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, cliente_external_id, vendedor_external_id, tipo, numero, serie, emitida_em, total_cents, quantidade_itens, pedido_uuid, cancelada, forma_pagamento, nf_origem_numero, nf_origem_serie FROM dbo.vw_macuxi_nota WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
       "campos": {
         "external_id": "external_id",
         "alterado_em": "alterado_em",
@@ -572,7 +575,10 @@
         "cancelada": {
           "coluna": "cancelada",
           "transformar": "booleano"
-        }
+        },
+        "forma_pagamento": "forma_pagamento",
+        "nf_origem_numero": "nf_origem_numero",
+        "nf_origem_serie": "nf_origem_serie"
       },
       "reconciliacao": {
         "consulta": "SELECT COUNT(*) AS contagem, CAST(SUM(total_cents) AS bigint) AS soma FROM dbo.vw_macuxi_nota WHERE ativo = 1"

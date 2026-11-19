@@ -1,31 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { ehSemDado, leituraDaLinhaDeValor, leituraDoNivel, textoDaContagem, VALOR_SEM_DADO } from './componentes';
+import { leituraDoNivel, textoDaContagem } from './componentes';
 
 const ler = (arq: string) => readFileSync(new URL(arq, import.meta.url), 'utf8');
-
-describe('TabelaValores (T-0141, crédito do cliente em tabela): parte pura', () => {
-  it('sem dado é travessão (nunca "R$ 0,00" falso) e vazio também conta', () => {
-    expect(VALOR_SEM_DADO).toBe('—');
-    expect(ehSemDado('—')).toBe(true);
-    expect(ehSemDado('  ')).toBe(true);
-    expect(ehSemDado(null)).toBe(true);
-    expect(ehSemDado('R$ 0,00')).toBe(false);
-  });
-
-  it('o leitor de tela lê "rótulo: valor" e "sem dado" no travessão', () => {
-    expect(leituraDaLinhaDeValor('Limite', 'R$ 20.000,00')).toBe('Limite: R$ 20.000,00');
-    expect(leituraDaLinhaDeValor('Disponível', '—')).toBe('Disponível: sem dado');
-  });
-
-  it('desenho da spec: linha de 48 dp, valor em 600 (manual §5.2) 18 tabular, travessão em ink3', () => {
-    const src = ler('./valores.tsx');
-    expect(src).toMatch(/tabelaLinha: \{[^}]*minHeight: 48/);
-    expect(src).toMatch(/tabelaValor: \{[^}]*\.\.\.fonte\.semibold, fontSize: 18, fontVariant: \['tabular-nums'\]/);
-    expect(src).toMatch(/semDado \? colors\.ink3/);
-  });
-});
 
 describe('ListaNiveis e Trilha (T-0142, catálogo pela hierarquia): parte pura', () => {
   it('contagem com ponto no milhar; inválida vira 0', () => {

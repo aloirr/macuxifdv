@@ -1038,6 +1038,24 @@ export interface ModuloApi {
    * `warn` sem dado pessoal e a sincronização responde normalmente.
    */
   contatoDoAparelho?: (ctx: ContextoBase) => Promise<void>;
+  /**
+   * T-0186 (ADR 0010, RN-CORE-40): guarda extra de leitura do `GET /v1/arquivos/:id` (e da miniatura), para arquivo cuja
+   * permissão é do módulo (ex.: documento da ficha do cliente: matriz por tipo e exceção por documento). A API chama a guarda
+   * de cada módulo instalado DEPOIS das regras da plataforma (licença, perfil, `perfis_leitura`, carteira), na transação do
+   * tenant: `null` = o módulo não governa este arquivo; `'negado'` = 404 sem motivo; `'liberado'` = segue, com `no-store`.
+   * Erro na guarda fecha (404). Sem dado pessoal no retorno nem no log.
+   */
+  guardaArquivo?: (e: GuardaArquivoEntrada) => Promise<'liberado' | 'negado' | null>;
+}
+
+/** Entrada da `ModuloApi.guardaArquivo`. */
+export interface GuardaArquivoEntrada {
+  db: ClienteBanco;
+  usuario: UsuarioDaRequisicao;
+  arquivoId: string;
+  modulo: string;
+  finalidade: string;
+  clienteId: string | null;
 }
 
 /**

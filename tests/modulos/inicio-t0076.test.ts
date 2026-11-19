@@ -219,19 +219,15 @@ describe('Critério 5 — Cliente 360 sem "Ver catálogo" no rodapé', () => {
     }
   });
 
-  it('"Última compra" uma vez só: a tela passa os cartões à grade do Cliente 360, que então não repete o seu', () => {
+  it('"Última compra" fora da ficha (T-0186, R-20261119-0440): nem a tela nem a aba Resumo nem o bloco Performance repetem o que o Histórico mostra', () => {
     const tela = ler('modules/core/app/telas/cliente.tsx');
-    expect(tela.match(/label="Última compra"/g)).toHaveLength(1);
-    const c360 = ler('modules/core/app/components/cliente360.tsx');
-    expect(c360.match(/label="Última compra"/g)).toHaveLength(1);
-    if (tela.includes('<SecoesCliente360')) {
-      expect(tela).toMatch(/<SecoesCliente360 ficha=\{ficha\} indicadoresIniciais=\{indicadoresDoCliente\} \/>/);
-      expect(c360).toMatch(/\{indicadoresIniciais \? null : <Stat label="Última compra"/);
-    } else {
-      // ficha do #217: com a ficha, o Resumo usa IndicadoresResumo; o cartão da tela só aparece sem ficha (ramo `customer`)
-      expect(tela).toMatch(/\{ficha \? \([\s\S]*?<IndicadoresResumo ficha=\{ficha\} hoje=\{hoje\} \/>[\s\S]*?\) : customer \? \([\s\S]*?label="Última compra"/);
-      expect(c360).toMatch(/export function IndicadoresResumo[\s\S]*?<Stat label="Última compra"/);
+    const resumo = ler('modules/core/app/components/aba-resumo.tsx');
+    const linhas = ler('modules/core/app/lib/ficha-v2.ts');
+    for (const [nome, src] of [['tela', tela], ['aba-resumo', resumo], ['ficha-v2', linhas]] as const) {
+      expect(src.match(/label="Última compra"|rotulo: 'Última compra'/g), nome).toBeNull();
     }
+    // a aba Resumo monta o bloco pela função (uma vez)
+    expect(resumo.match(/linhasPerformance\(/g)).toHaveLength(1);
   });
 });
 
