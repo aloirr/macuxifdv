@@ -27,10 +27,8 @@ export interface PrazoDePagamento {
 
 /** O que o cadastro do cliente (Core) limita (RN-VEN-25). Nulo = sem restrição (premissa P1). */
 export interface LimitePagamentoDoCliente {
-  prazo_medio_max_dias: number | null | undefined;
   formas_pagamento: readonly string[] | null | undefined;
 }
-
 
 /** RN-VEN-24: média das parcelas, arredondada PARA CIMA (28/56 = 42; 30/45 = 38; premissa P2). Lista vazia é erro de programação. */
 export function prazoMedioDias(parcelas: readonly number[]): number {
@@ -57,30 +55,19 @@ export function formasDoCliente(formas: readonly FormaDePagamento[], codigosDoCl
   return todas.filter((f) => permitidos.has(f.codigo));
 }
 
-export interface PrazoDaForma {
-  prazo: PrazoDePagamento;
-  habilitado: boolean;
+/** RN-VEN-24/25: os prazos ativos da forma, por ordem (o prazo médio do cliente não limita; R-20261118-2250). */
+export function prazosDaForma(prazos: readonly PrazoDePagamento[], formaId: string): PrazoDePagamento[] {
+  return prazos.filter((p) => p.ativo && p.forma_pagamento_id === formaId).sort(porOrdem);
 }
 
-/**
- * RN-VEN-24/25: os prazos ativos da forma, por ordem, todos habilitados. Sem trava pelo prazo médio máximo do cliente
- * (`prazo_medio_max_dias`; decisão do dono do produto R-20261118-2250: o prazo médio saiu do pedido).
- */
-export function prazosDaForma(prazos: readonly PrazoDePagamento[], formaId: string): PrazoDaForma[] {
-  return prazos
-    .filter((p) => p.ativo && p.forma_pagamento_id === formaId)
-    .sort(porOrdem)
-    .map((prazo) => ({ prazo, habilitado: true }));
-}
-
-/** RN-VEN-24: a primeira forma permitida que tenha um prazo habilitado, com o primeiro prazo habilitado dela; ou `null`. */
+/** RN-VEN-24: a primeira forma permitida que tenha prazo ativo, com o primeiro prazo dela; ou `null`. */
 export function pagamentoPadrao(
   formasPermitidas: readonly FormaDePagamento[],
   prazos: readonly PrazoDePagamento[],
 ): { forma: FormaDePagamento; prazo: PrazoDePagamento } | null {
   for (const forma of formasPermitidas) {
-    const prazo = prazosDaForma(prazos, forma.id).find((x) => x.habilitado);
-    if (prazo) return { forma, prazo: prazo.prazo };
+    const prazo = prazosDaForma(prazos, forma.id)[0];
+    if (prazo) return { forma, prazo };
   }
   return null;
 }

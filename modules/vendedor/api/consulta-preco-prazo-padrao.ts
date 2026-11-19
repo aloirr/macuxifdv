@@ -10,7 +10,7 @@ import type { FormaDePagamento, PrazoDePagamento } from '../domain';
 import { COLUNA_PERCENTUAL_AJUSTE } from './pagamento';
 
 export interface ConsultaCadastro {
-  (entrada: { cliente_ids: string[] }): Promise<{ clientes: { id: string; prazo_medio_max_dias?: number | null; formas_pagamento?: string[] | null }[] }>;
+  (entrada: { cliente_ids: string[] }): Promise<{ clientes: { id: string; formas_pagamento?: string[] | null }[] }>;
 }
 
 /** Núcleo testável: recebe o banco e a busca do cadastro (sem a consulta do Core). */
@@ -25,7 +25,7 @@ export async function precoPrazoPadrao(db: ClienteBanco, cadastro: ConsultaCadas
       `select id, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ${COLUNA_PERCENTUAL_AJUSTE}, ativo, ordem from vendedor.prazo_pagamento where deleted_at is null`,
     )
   ).rows;
-  return ajustarCentsPeloPrazoPadrao(cents, { cliente: { prazo_medio_max_dias: cliente.prazo_medio_max_dias ?? null, formas_pagamento: cliente.formas_pagamento ?? null }, formas, prazos });
+  return ajustarCentsPeloPrazoPadrao(cents, { cliente: { formas_pagamento: cliente.formas_pagamento ?? null }, formas, prazos });
 }
 
 export const consultaPrecoPrazoPadrao = implementarConsulta(CONSULTA_PRECO_PRAZO_PADRAO, async (entrada, ctx) => {

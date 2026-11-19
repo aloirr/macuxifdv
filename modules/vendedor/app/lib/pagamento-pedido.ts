@@ -16,7 +16,6 @@ export interface OpcaoDaLista {
 }
 
 export interface LimitesDoCliente {
-  prazo_medio_max_dias: number | null | undefined;
   formas_pagamento: readonly string[] | null | undefined;
 }
 
@@ -27,12 +26,12 @@ export function opcoesDeForma(formas: readonly FormaDePagamento[], cliente: Limi
   return formasDaLista(formas, cliente.formas_pagamento).map((x) => ({ id: x.forma.id, rotulo: x.forma.nome, ...(x.habilitada ? {} : { desabilitada: true, motivo: x.motivo }) }));
 }
 
-/** Prazos da forma escolhida: só o texto do prazo, todos habilitados (RN-VEN-25). */
+/** Prazos ativos da forma escolhida: só o texto do prazo (RN-VEN-25). */
 export function opcoesDePrazo(prazos: readonly PrazoDePagamento[], formaId: string | null): OpcaoDaLista[] {
   if (!formaId) return [];
   return prazosDaForma(prazos, formaId).map((x) => ({
-    id: x.prazo.id,
-    rotulo: x.prazo.descricao || descricaoPrazo(x.prazo.parcelas_dias),
+    id: x.id,
+    rotulo: x.descricao || descricaoPrazo(x.parcelas_dias),
   }));
 }
 
@@ -67,9 +66,9 @@ export function comPagamento(r0: Rascunho, forma: FormaDePagamento, prazo: Prazo
   return { ...r, forma_pagamento_id: forma.id, prazo_pagamento_id: prazo.id, prazo_percentual_ajuste: prazo.percentual_ajuste ?? 0, payment_terms: `${forma.nome} · ${prazo.descricao}`, condicao_pagamento_id: null };
 }
 
-/** Trocar a forma: o prazo atual só fica se ele for dessa forma e estiver habilitado; senão volta ao placeholder (o campo fica com erro até escolher). */
+/** Trocar a forma: o prazo atual só fica se ele for dessa forma e estiver ativo; senão volta ao placeholder (o campo fica com erro até escolher). */
 export function comForma(r: Rascunho, forma: FormaDePagamento, prazos: readonly PrazoDePagamento[]): Rascunho {
-  const prazo = prazosDaForma(prazos, forma.id).find((x) => x.prazo.id === r.prazo_pagamento_id && x.habilitado)?.prazo;
+  const prazo = prazosDaForma(prazos, forma.id).find((x) => x.id === r.prazo_pagamento_id);
   if (prazo) return comPagamento(r, forma, prazo);
   return { ...comValoresMantendoPercentual(r, 0), forma_pagamento_id: forma.id, prazo_pagamento_id: null, prazo_percentual_ajuste: 0, payment_terms: forma.nome, condicao_pagamento_id: null };
 }

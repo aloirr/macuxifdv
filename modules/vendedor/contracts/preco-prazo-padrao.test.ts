@@ -3,7 +3,7 @@ import { ajustarCentsPeloPrazoPadrao, CONSULTA_PRECO_PRAZO_PADRAO, type FormaDeP
 
 const forma: FormaDePagamento = { id: 'f1', codigo: 'BOL', nome: 'Boleto', ativo: true, ordem: 1 };
 const prazo = (pct: number): PrazoDePagamento => ({ id: 'p1', forma_pagamento_id: 'f1', codigo: 'P1', descricao: '28 dias', parcelas_dias: [28], prazo_medio_dias: 28, percentual_ajuste: pct, ordem: 1, ativo: true });
-const cliente = { prazo_medio_max_dias: null, formas_pagamento: null };
+const cliente = { formas_pagamento: null };
 
 describe('RN-VEN-43: vendedor.preco_prazo_padrao@1', () => {
   it('RN-VEN-43: o contrato bate com o que o Catálogo espera (nome, entrada até 1000 e saída)', () => {

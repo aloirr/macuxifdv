@@ -14,7 +14,7 @@ function banco(pct: number): ClienteBanco {
   } as unknown as ClienteBanco;
 }
 // o cadastro do Core só devolve cliente da carteira de quem consulta
-const cadastro = async (e: { cliente_ids: string[] }) => ({ clientes: e.cliente_ids.filter((i) => i === C1).map((id) => ({ id, prazo_medio_max_dias: null, formas_pagamento: null })) });
+const cadastro = async (e: { cliente_ids: string[] }) => ({ clientes: e.cliente_ids.filter((i) => i === C1).map((id) => ({ id, formas_pagamento: null })) });
 
 describe('RN-VEN-43: vendedor.preco_prazo_padrao@1 na API', () => {
   it('RN-VEN-43: ajusta pelo prazo padrão (-1,71% e +2,5%), mesmo tamanho e ordem', async () => {

@@ -16,11 +16,6 @@ describe('textos da aba Venda (RF-VEN-11, RN-VEN-12, RN-VEN-13)', () => {
     expect(t.linhas[1]!.valor).toMatch(/^−R\$\s1\.200,00$/);
     expect(t.linhas.every((l) => !('tom' in l))).toBe(true);
   });
-  it('RN-VEN-25: o prazo médio não aparece mais na tabela de crédito da aba Venda', () => {
-    const t = tabelaDoCredito({ tipo: 'dados', limite_cents: 100, disponivel_cents: 100, alerta: null });
-    expect(t.linhas).toHaveLength(2);
-    expect(t.linhas.some((l) => l.id === 'prazo' || /prazo/i.test(l.rotulo))).toBe(false);
-  });
   it('RN-VEN-12: cliente sem dados de crédito mostra travessão em Limite e Disponível e sem frase (RD-0178)', () => {
     const t = tabelaDoCredito({ tipo: 'vazio' });
     expect(t.estado).toBe('tabela');
