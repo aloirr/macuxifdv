@@ -25,8 +25,8 @@ Sete condições, todas obrigatórias, na função pura `podeRastrear` (domain d
 | # | Condição | Motivo quando falta |
 |---|---|---|
 | 1 | Parâmetro da empresa `rastreamento.ativo = true` (padrão **desligado**) | `desligado` |
-| 2 | Cargo de campo: vendedor ou promotor (ADR 0049; `CARGOS_RASTREADOS`) | `cargo` |
-| 3 | App **Campo** (o Gestão não rastreia; a API passa `campo`) | `app` |
+| 2 | Cargo rastreado: vendedor, promotor ou supervisor; o gerente não (ADR 0049 e ADR 0063; `CARGOS_RASTREADOS`) | `cargo` |
+| 3 | App do cargo: Campo para vendedor e promotor, Gestão para supervisor (ADR 0063; `APP_RASTREADO_DO_CARGO`; a API usa o app do cargo) | `app` |
 | 4 | Fora de feriado do calendário do tenant | `feriado` |
 | 5 | Fora de ausência cadastrada (§4.2) | `ausencia` |
 | 6 | Dentro do **expediente** do tenant (§4.1) | `fora_do_expediente` |
