@@ -262,7 +262,7 @@ function FolhaDaNota({ detalhe }: { detalhe: DetalheDaNota }) {
           <TabelaRotuloValor linhas={linhasDoDetalheDaNota(nota)} larguraRotulo={136} />
           {nota.parcelas.length > 0 ? (
             <View style={{ gap: 6 }}>
-              <Text style={[t.bodyStrong, { fontSize: 18 }]}>Parcelas</Text>
+              <Text style={t.h2}>Parcelas</Text>
               <TabelaFicha
                 testID="tabela-parcelas"
                 colunas={[

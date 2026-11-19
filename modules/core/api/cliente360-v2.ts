@@ -33,7 +33,9 @@ import {
   filtrarNotas,
   inicioDoPeriodoNf,
   nfEmAtraso,
+  excecaoTiraAcesso,
   nivelDoTipo,
+  nivelDoUsuario,
   PERFIS_DOCUMENTO_VEEM_TUDO,
   statusDaNf,
   validarMatrizDocumentos,
@@ -62,6 +64,7 @@ export interface NotaBruta {
 export interface DevolucaoBruta {
   cliente_id: string;
   nf_original: string | null;
+  nf_original_serie: string | null;
   total_cents: number;
   cancelada: boolean;
   data: string;
@@ -106,7 +109,7 @@ const notaNaoEncontrada = () => new ErroNaoEncontrado(ERROS_CLIENTE360_V2.notaNa
 const parcelasDaNota = (n: NotaBruta, todas: readonly ParcelaBruta[]) => todas.filter((p) => p.nota_numero === n.numero && (p.nota_serie ?? '') === (n.serie ?? ''));
 
 function linhaDaNota(n: NotaBruta, parcelas: readonly ParcelaBruta[], devolucoes: readonly DevolucaoBruta[], hoje: string): LinhaHistoricoNf & { id: string; devolvido_cents: number } {
-  const devolvido = devolvidoDaNota(n.numero, devolucoes.map((d) => ({ nf_original: d.nf_original, total_cents: d.total_cents, cancelada: d.cancelada })));
+  const devolvido = devolvidoDaNota(n.numero, n.serie, devolucoes.map((d) => ({ nf_original: d.nf_original, nf_original_serie: d.nf_original_serie, total_cents: d.total_cents, cancelada: d.cancelada })));
   return { id: n.id, data: n.data, numero_nf: n.numero, valor_cents: n.total_cents, forma_pagamento: n.forma_pagamento, status: statusDaNf({ valor_cents: n.total_cents, devolvido_cents: devolvido }, parcelasDaNota(n, parcelas), hoje), devolvido_cents: devolvido };
 }
 
@@ -147,7 +150,7 @@ export async function detalheDaNota(repo: RepositorioNotas, e: { clienteId: stri
   const [devolucoes, todas, itens, pdf] = await Promise.all([repo.devolucoes(e.clienteId), repo.parcelas(e.clienteId), repo.itens(n.id), repo.pdf(n.id)]);
   const parcelas = parcelasDaNota(n, todas);
   const linha = linhaDaNota(n, todas, devolucoes, e.hoje);
-  const devolucoesDaNota = devolucoes.filter((d) => !d.cancelada && d.nf_original === n.numero);
+  const devolucoesDaNota = devolucoes.filter((d) => !d.cancelada && d.nf_original === n.numero && (d.nf_original_serie ?? '') === (n.serie ?? ''));
   return NotaDetalheSchema.parse({
     id: n.id,
     numero_nf: n.numero,
@@ -193,11 +196,11 @@ export interface RepositorioDocumentos {
 const documentoNaoEncontrado = () => new ErroNaoEncontrado(ERROS_CLIENTE360_V2.documentoNaoEncontrado, 'Documento não encontrado. Atualize a Documentação e tente de novo.');
 
 /** `GET clientes/:id/documentos`: só os tipos que o perfil vê; exceção por documento volta com acesso `bloqueado` (cadeado). Sem o id do arquivo. */
-export async function listarDocumentos(repo: RepositorioDocumentos, e: { perfil: string; clienteId: string; hoje: string }): Promise<DocumentosResposta> {
+export async function listarDocumentos(repo: RepositorioDocumentos, e: { perfis: readonly string[]; clienteId: string; hoje: string }): Promise<DocumentosResposta> {
   const [tipos, docs, matriz] = await Promise.all([repo.tipos(), repo.documentosDoCliente(e.clienteId), repo.matriz()]);
   const excecoes = await repo.excecoes(docs.map((d) => d.id));
   const nomeDoTipo = new Map(tipos.map((t) => [t.id, t.nome]));
-  const itens = documentosDaFicha(e.perfil, tipos, docs, matriz, excecoes, e.hoje).map((d) => {
+  const itens = documentosDaFicha(e.perfis, tipos, docs, matriz, excecoes, e.hoje).map((d) => {
     const bloqueado = d.acesso === 'bloqueado';
     return {
       id: d.id,
@@ -217,13 +220,13 @@ export async function listarDocumentos(repo: RepositorioDocumentos, e: { perfil:
 }
 
 /** `GET clientes/:id/documentos/:documento_id`: revalida o tipo e a exceção; devolve o arquivo para ver, nunca para guardar. */
-export async function abrirDocumento(repo: RepositorioDocumentos, e: { perfil: string; clienteId: string; documentoId: string }) {
+export async function abrirDocumento(repo: RepositorioDocumentos, e: { perfis: readonly string[]; clienteId: string; documentoId: string }) {
   const doc = await repo.documento(e.clienteId, e.documentoId);
   if (!doc || doc.cliente_id !== e.clienteId || !doc.arquivo_id) throw documentoNaoEncontrado();
   const [tipos, matriz, excecoes] = await Promise.all([repo.tipos(), repo.matriz(), repo.excecoes([doc.id])]);
   const tipo = tipos.find((t) => t.id === doc.tipo_id && t.ativo);
-  if (!tipo || nivelDoTipo(matriz, tipo, e.perfil) === 'nao_ve') throw documentoNaoEncontrado();
-  if (!(PERFIS_DOCUMENTO_VEEM_TUDO as readonly string[]).includes(e.perfil) && excecoes.some((x) => x.documento_id === doc.id && x.perfil === e.perfil))
+  if (!tipo || nivelDoUsuario(matriz, tipo, e.perfis) === 'nao_ve') throw documentoNaoEncontrado();
+  if (excecaoTiraAcesso(excecoes, doc.id, e.perfis))
     throw new ErroHttpModulo(403, ERROS_CLIENTE360_V2.documentoSemPermissao, 'Sem permissão para abrir este documento. Peça ao escritório.');
   return DocumentoAbrirRespostaSchema.parse({ id: doc.id, nome: doc.nome, formato: doc.formato, arquivo_id: doc.arquivo_id });
 }
@@ -273,13 +276,14 @@ export async function gravarExcecaoDocumento(repo: RepositorioDocumentos, e: { d
 const UTC_DIA = 'YYYY-MM-DD';
 
 export function repositorioNotasSql(db: ClienteBanco, fuso: string): RepositorioNotas {
-  const dia = `to_char(n.emitida_em at time zone '${fuso.replace(/[^A-Za-z0-9_/+-]/g, '')}', '${UTC_DIA}')`;
+  // O fuso vai sempre como parâmetro ($1 de cada consulta), nunca interpolado no SQL.
+  const dia = `to_char(n.emitida_em at time zone $1::text, '${UTC_DIA}')`;
   const colunas = `n.id, n.cliente_id, n.numero, n.serie, ${dia} as data, n.total_cents::float8 as total_cents, n.forma_pagamento`;
   return {
     notas: async (c, de, ate) =>
-      (await db.query<NotaBruta>(`select ${colunas} from core.nota_erp n where n.cliente_id = $1 and n.deleted_at is null and not n.cancelada and n.tipo = 'faturamento' and ${dia} between $2 and $3 order by n.emitida_em desc, n.id`, [c, de, ate])).rows,
-    nota: async (c, id) => (await db.query<NotaBruta>(`select ${colunas} from core.nota_erp n where n.id = $2 and n.cliente_id = $1 and n.deleted_at is null and not n.cancelada and n.tipo = 'faturamento'`, [c, id])).rows[0],
-    devolucoes: async (c) => (await db.query<DevolucaoBruta>(`select n.cliente_id, n.nf_origem_numero as nf_original, n.total_cents::float8 as total_cents, n.cancelada, ${dia} as data from core.nota_erp n where n.cliente_id = $1 and n.deleted_at is null and n.tipo = 'devolucao'`, [c])).rows,
+      (await db.query<NotaBruta>(`select ${colunas} from core.nota_erp n where n.cliente_id = $2 and n.deleted_at is null and not n.cancelada and n.tipo = 'faturamento' and ${dia} between $3 and $4 order by n.emitida_em desc, n.id`, [fuso, c, de, ate])).rows,
+    nota: async (c, id) => (await db.query<NotaBruta>(`select ${colunas} from core.nota_erp n where n.id = $3 and n.cliente_id = $2 and n.deleted_at is null and not n.cancelada and n.tipo = 'faturamento'`, [fuso, c, id])).rows[0],
+    devolucoes: async (c) => (await db.query<DevolucaoBruta>(`select n.cliente_id, n.nf_origem_numero as nf_original, n.nf_origem_serie as nf_original_serie, n.total_cents::float8 as total_cents, n.cancelada, ${dia} as data from core.nota_erp n where n.cliente_id = $2 and n.deleted_at is null and n.tipo = 'devolucao'`, [fuso, c])).rows,
     parcelas: async (c) =>
       (
         await db.query<ParcelaBruta>(
@@ -370,6 +374,15 @@ const ClienteParam = z.object({ id: z.string().uuid() });
 const NotaParam = z.object({ id: z.string().uuid(), nota_id: z.string().uuid() });
 const DocumentoParam = z.object({ id: z.string().uuid(), documento_id: z.string().uuid() });
 
+/**
+ * Códigos dos perfis do usuário (`plataforma.perfil.codigo`), os que a matriz e as exceções de documento guardam. A base fixa
+ * (`usuario.perfil`) não serve: num perfil personalizado o código é outro. Sem `perfis` resolvidos, cai na base (código de fábrica).
+ */
+export function codigosDePerfil(usuario: { perfil: string; perfis?: readonly { codigo: string }[] }): string[] {
+  const codigos = (usuario.perfis ?? []).map((p) => p.codigo);
+  return codigos.length > 0 ? [...new Set(codigos)] : [usuario.perfil];
+}
+
 async function exigirCarteira(ctx: { carteira(): Promise<ReadonlySet<string> | 'tenant'> }, clienteId: string): Promise<void> {
   const v = await ctx.carteira();
   if (v !== 'tenant' && !v.has(clienteId)) throw new ErroNaoEncontrado('CLIENTE_NAO_ENCONTRADO', 'Cliente não encontrado na sua carteira. Atualize a lista e tente de novo.');
@@ -416,7 +429,7 @@ export const rotasDeCliente360V2: RotaModulo[] = [
     executar: async (ctx) => {
       const { id } = ctx.params as z.infer<typeof ClienteParam>;
       await exigirCarteira(ctx, id);
-      return ctx.comTenant((db) => listarDocumentos(repositorioDocumentosSql(db), { perfil: ctx.usuario.perfil, clienteId: id, hoje: dataLocal(ctx.agora(), ctx.fuso()) }));
+      return ctx.comTenant((db) => listarDocumentos(repositorioDocumentosSql(db), { perfis: codigosDePerfil(ctx.usuario), clienteId: id, hoje: dataLocal(ctx.agora(), ctx.fuso()) }));
     },
   },
   {
@@ -429,7 +442,7 @@ export const rotasDeCliente360V2: RotaModulo[] = [
     executar: async (ctx) => {
       const { id, documento_id } = ctx.params as z.infer<typeof DocumentoParam>;
       await exigirCarteira(ctx, id);
-      return ctx.comTenant((db) => abrirDocumento(repositorioDocumentosSql(db), { perfil: ctx.usuario.perfil, clienteId: id, documentoId: documento_id }));
+      return ctx.comTenant((db) => abrirDocumento(repositorioDocumentosSql(db), { perfis: codigosDePerfil(ctx.usuario), clienteId: id, documentoId: documento_id }));
     },
   },
   {

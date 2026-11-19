@@ -27,6 +27,8 @@ const NF_OUTRO = ID(7);
 const TIT = ID(8);
 const ARQ = ID(9);
 const ARQ2 = ID(10);
+const PERFIL_REP = ID(11);
+const PERFIL_REP2 = ID(12);
 
 describe.skipIf(semBanco())('Core T-0186 × Postgres: Cliente 360 v2 (notas, documentos e permissões)', () => {
   let pool: pg.Pool;
@@ -59,6 +61,7 @@ describe.skipIf(semBanco())('Core T-0186 × Postgres: Cliente 360 v2 (notas, doc
     try {
       await adm.query('delete from core.documento_excecao where documento_id = any($1::uuid[])', [[D_CAD, D_CTR]]);
       await adm.query('delete from core.documento_permissao where tipo_id = any($1::uuid[])', [[T_CAD, T_CTR]]);
+      await adm.query('delete from plataforma.perfil where id = any($1::uuid[])', [[PERFIL_REP, PERFIL_REP2]]);
       await adm.query('delete from core.documento_cliente where id = any($1::uuid[])', [[D_CAD, D_CTR]]);
       await adm.query('delete from core.documento_tipo where id = any($1::uuid[])', [[T_CAD, T_CTR]]);
       await adm.query('delete from core.nota_erp where id = any($1::uuid[])', [[NF_FAT, NF_DEV, NF_OUTRO]]);
@@ -80,12 +83,12 @@ describe.skipIf(semBanco())('Core T-0186 × Postgres: Cliente 360 v2 (notas, doc
            values ($1, $2, $3, $4, $5, '1', now() - interval '10 days', to_char(now() - interval '10 days', 'YYYY-MM'), $6, $7, $8, $9, $10)`,
           [id, A.tenantId, cli, tipo, numero, total, ext, ...extra],
         );
-      await nota(NF_FAT, C.c1, 'faturamento', '9001', 10000, 'T0186-NF-1', ['BOL', null, null]);
+      await nota(NF_FAT, C.c1, 'faturamento', '9001', 10000, 'T0186-NF-1', ['Boleto 28 dias', null, null]);
       await nota(NF_DEV, C.c1, 'devolucao', '9002', 2500, 'T0186-NF-2', [null, '9001', '1']);
       await nota(NF_OUTRO, C.c2, 'faturamento', '9003', 5000, 'T0186-NF-3', ['PIX', null, null]);
       await c.query(
         `insert into core.titulo (id, tenant_id, cliente_id, documento, parcela, emissao, vencimento, valor_cents, saldo_cents, situacao, nf_numero, nf_serie, forma_pagamento)
-         values ($1, $2, $3, '9001', '1', current_date - 10, current_date - 2, 10000, 10000, 'aberto', '9001', '1', 'BOL')`,
+         values ($1, $2, $3, '9001', '1', current_date - 10, current_date - 2, 10000, 10000, 'aberto', '9001', '1', 'Boleto 28 dias')`,
         [TIT, A.tenantId, C.c1],
       );
       const vend = await perfilId(c, 'vendedor');
@@ -109,9 +112,9 @@ describe.skipIf(semBanco())('Core T-0186 × Postgres: Cliente 360 v2 (notas, doc
     it('RN-CORE-40: a lista traz a NF com a forma de pagamento, o status pelas parcelas (nf_numero/nf_serie) e a devolução parcial (nf_origem_numero)', async () => {
       const r = await chamar('GET', 'clientes/:id/notas', vendedor1, { params: { id: C.c1 } });
       const nf = r.itens.find((i: { numero_nf: string }) => i.numero_nf === '9001');
-      expect(nf).toMatchObject({ valor_cents: 10000, forma_pagamento: 'BOL', status: 'em_atraso' });
+      expect(nf).toMatchObject({ valor_cents: 10000, forma_pagamento: 'Boleto 28 dias', status: 'em_atraso' });
       expect(r.itens.map((i: { numero_nf: string }) => i.numero_nf)).not.toContain('9002');
-      expect(r.formas_pagamento).toContain('BOL');
+      expect(r.formas_pagamento).toContain('Boleto 28 dias');
     });
     it('RN-CORE-40: a NF ao tocar devolve o detalhe com o devolvido', async () => {
       const d = await chamar('GET', 'clientes/:id/notas/:nota_id', vendedor1, { params: { id: C.c1, nota_id: NF_FAT } });
@@ -154,6 +157,43 @@ describe.skipIf(semBanco())('Core T-0186 × Postgres: Cliente 360 v2 (notas, doc
       expect((await ver(admin)).find((i) => i.id === D_CAD)).toMatchObject({ acesso: 'abrir' });
       await chamar('PUT', 'documentos/excecoes', admin, { corpo: { documento_id: D_CAD, perfis: [] } });
       expect((await ver(vendedor1)).find((i) => i.id === D_CAD)).toMatchObject({ acesso: 'abrir' });
+    });
+  });
+
+  describe('🔴 vazamento: perfil personalizado (a matriz e as exceções guardam plataforma.perfil.codigo)', () => {
+    const perfilDe = (codigo: string, base: UsuarioAutenticado['perfil'] = 'vendedor') => ({ codigo, base, permissoes: {} });
+    const comPerfis = (...codigos: string[]): UsuarioAutenticado => ({ ...vendedor1, perfis: codigos.map((c) => perfilDe(c)) }) as UsuarioAutenticado;
+    const ver = async (u: UsuarioAutenticado) => (await chamar('GET', 'clientes/:id/documentos', u, { params: { id: C.c1 } })).itens as Array<{ id: string; acesso: string }>;
+    const abrir = (u: UsuarioAutenticado) => chamar('GET', 'clientes/:id/documentos/:documento_id', u, { params: { id: C.c1, documento_id: D_CAD } });
+    beforeAll(async () => {
+      await comTenant(pool, A.tenantId, async (c) => {
+        for (const [id, codigo] of [[PERFIL_REP, 'rep_t0186'], [PERFIL_REP2, 'rep2_t0186']] as const) {
+          await c.query(`insert into plataforma.perfil (id, tenant_id, codigo, nome, base, fabrica, ativo, cargo) values ($1, plataforma.tenant_atual(), $2, $2, 'vendedor', false, true, 'vendedor')`, [id, codigo]);
+        }
+        await c.query(`insert into core.documento_permissao (tenant_id, tipo_id, perfil_id, nivel) values ($1, $2, $3, 'nao_ve'), ($1, $2, $4, 've')`, [A.tenantId, T_CAD, PERFIL_REP, PERFIL_REP2]);
+      });
+    });
+    it('P10: usuário de perfil personalizado com "Não vê" no tipo NÃO vê nem abre, mesmo com a base vendedor liberada na matriz (vazamento fechado)', async () => {
+      const u = comPerfis('rep_t0186');
+      expect((await ver(u)).map((i) => i.id)).not.toContain(D_CAD);
+      await expect(abrir(u)).rejects.toBeInstanceOf(ErroNaoEncontrado);
+      expect((await ver(vendedor1)).map((i) => i.id)).toContain(D_CAD);
+    });
+    it('P10: com dois perfis, um "Não vê" e outro "Vê", o usuário vê e abre', async () => {
+      const u = comPerfis('rep_t0186', 'rep2_t0186');
+      expect((await ver(u)).find((i) => i.id === D_CAD)).toMatchObject({ acesso: 'abrir' });
+      expect(await abrir(u)).toMatchObject({ id: D_CAD, arquivo_id: ARQ });
+    });
+    it('P11: a exceção gravada no perfil personalizado tira o acesso (cadeado e 403) de quem tem esse perfil entre os dele', async () => {
+      await chamar('PUT', 'documentos/excecoes', admin, { corpo: { documento_id: D_CAD, perfis: ['rep2_t0186'] } });
+      try {
+        const u = comPerfis('rep_t0186', 'rep2_t0186');
+        expect((await ver(u)).find((i) => i.id === D_CAD)).toMatchObject({ acesso: 'bloqueado' });
+        await expect(abrir(u)).rejects.toMatchObject({ status: 403 });
+        expect((await ver(vendedor1)).find((i) => i.id === D_CAD)).toMatchObject({ acesso: 'abrir' });
+      } finally {
+        await chamar('PUT', 'documentos/excecoes', admin, { corpo: { documento_id: D_CAD, perfis: [] } });
+      }
     });
   });
 

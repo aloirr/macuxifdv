@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { abasDaFicha, acessoAoDocumento, documentosDaFicha, nivelDoTipo, situacaoValidadeDocumento, validarMatrizDocumentos, type DocumentoLinha, type TipoDocumento } from './documentos-cliente';
+import { abasDaFicha, acessoAoDocumento, documentosDaFicha, excecaoTiraAcesso, nivelDoUsuario, nivelDoTipo, situacaoValidadeDocumento, validarMatrizDocumentos, type DocumentoLinha, type TipoDocumento } from './documentos-cliente';
 
 const tipo = (id: string, extra: Partial<TipoDocumento> = {}): TipoDocumento => ({ id, nome: id, grupo: 'Cadastro', ordem: 1, permite_envio: false, ativo: true, ...extra });
 const doc = (id: string, tipo_id: string, extra: Partial<DocumentoLinha> = {}): DocumentoLinha => ({ id, tipo_id, nome: id, formato: 'PDF', data: '2026-10-01', validade: null, ...extra });
@@ -12,24 +12,24 @@ const matriz = [
 
 describe('T-0186 / P5 e P10: permissão de documento por tipo, perfil e documento', () => {
   it('P10: tipo sem permissão para o perfil não aparece na lista', () => {
-    const r = documentosDaFicha('vendedor', [tipo('alvara'), tipo('social')], [doc('d1', 'alvara'), doc('d2', 'social')], matriz, [], '2026-11-19');
+    const r = documentosDaFicha(['vendedor'], [tipo('alvara'), tipo('social')], [doc('d1', 'alvara'), doc('d2', 'social')], matriz, [], '2026-11-19');
     expect(r.map((x) => x.id)).toEqual(['d1']);
   });
   it('P10: o mesmo tipo aparece para o supervisor que tem permissão', () => {
-    const r = documentosDaFicha('supervisor', [tipo('alvara'), tipo('social')], [doc('d1', 'alvara'), doc('d2', 'social')], matriz, [], '2026-11-19');
+    const r = documentosDaFicha(['supervisor'], [tipo('alvara'), tipo('social')], [doc('d1', 'alvara'), doc('d2', 'social')], matriz, [], '2026-11-19');
     expect(r.map((x) => x.id)).toEqual(['d1', 'd2']);
   });
   it('P10/P11: exceção por documento deixa a linha com cadeado, sem permissão para abrir', () => {
-    const r = documentosDaFicha('vendedor', [tipo('alvara')], [doc('d1', 'alvara')], matriz, [{ documento_id: 'd1', perfil: 'vendedor' }], '2026-11-19');
+    const r = documentosDaFicha(['vendedor'], [tipo('alvara')], [doc('d1', 'alvara')], matriz, [{ documento_id: 'd1', perfil: 'vendedor' }], '2026-11-19');
     expect(r[0]).toMatchObject({ id: 'd1', acesso: 'bloqueado' });
   });
   it('P11: a exceção só tira acesso; não libera tipo que o perfil não vê', () => {
-    const r = documentosDaFicha('vendedor', [tipo('social')], [doc('d2', 'social')], matriz, [{ documento_id: 'd2', perfil: 'supervisor' }], '2026-11-19');
+    const r = documentosDaFicha(['vendedor'], [tipo('social')], [doc('d2', 'social')], matriz, [{ documento_id: 'd2', perfil: 'supervisor' }], '2026-11-19');
     expect(r).toEqual([]);
   });
   it('spec §7: admin e analista veem tudo e a exceção não os atinge', () => {
     for (const perfil of ['admin', 'analista']) {
-      const r = documentosDaFicha(perfil, [tipo('social')], [doc('d2', 'social')], [], [{ documento_id: 'd2', perfil }], '2026-11-19');
+      const r = documentosDaFicha([perfil], [tipo('social')], [doc('d2', 'social')], [], [{ documento_id: 'd2', perfil }], '2026-11-19');
       expect(r[0]).toMatchObject({ acesso: 'abrir' });
     }
   });
@@ -46,7 +46,7 @@ describe('T-0186 / P5 e P10: permissão de documento por tipo, perfil e document
   it('tipo inativo não aparece e a lista sai por grupo e ordem do cadastro de tipos', () => {
     const tipos = [tipo('alvara', { ordem: 2, grupo: 'Cadastro' }), tipo('contrato', { ordem: 1, grupo: 'Contratos' }), tipo('velho', { ativo: false })];
     const m = ['alvara', 'contrato', 'velho'].map((tipo_id) => ({ tipo_id, perfil: 'vendedor', nivel: 've' as const }));
-    const r = documentosDaFicha('vendedor', tipos, [doc('a', 'alvara'), doc('c', 'contrato'), doc('v', 'velho')], m, [], '2026-11-19');
+    const r = documentosDaFicha(['vendedor'], tipos, [doc('a', 'alvara'), doc('c', 'contrato'), doc('v', 'velho')], m, [], '2026-11-19');
     expect(r.map((x) => x.id)).toEqual(['c', 'a']);
   });
 });
@@ -81,5 +81,40 @@ describe('T-0186 / P12: abas da ficha', () => {
   it('promotor com promotor_ve_pedidos e os demais perfis têm as três abas', () => {
     expect(abasDaFicha('promotor', true)).toEqual(['resumo', 'historico', 'documentacao']);
     expect(abasDaFicha('vendedor', false)).toEqual(['resumo', 'historico', 'documentacao']);
+  });
+});
+
+describe('T-0186 / 🔴 vazamento: a permissão vale pelos códigos de TODOS os perfis do usuário (perfil personalizado incluso)', () => {
+  const m = [
+    { tipo_id: 'alvara', perfil: 'vendedor', nivel: 've' as const },
+    { tipo_id: 'alvara', perfil: 'rep_norte', nivel: 'nao_ve' as const },
+    { tipo_id: 'fachada', perfil: 'vendedor', nivel: 've_e_envia' as const },
+  ];
+  it('P10: perfil personalizado com "Não vê" não vê o tipo', () => {
+    expect(documentosDaFicha(['rep_norte'], [tipo('alvara')], [doc('d1', 'alvara')], m, [], '2026-11-19')).toEqual([]);
+    expect(nivelDoUsuario(m, tipo('alvara'), ['rep_norte'])).toBe('nao_ve');
+  });
+  it('P10: perfil personalizado sem linha na matriz não vê (padrão é "Não vê")', () => {
+    expect(documentosDaFicha(['rep_sul'], [tipo('alvara')], [doc('d1', 'alvara')], m, [], '2026-11-19')).toEqual([]);
+  });
+  it('P10: com dois perfis, um que vê e outro que não, o usuário vê', () => {
+    const r = documentosDaFicha(['rep_norte', 'vendedor'], [tipo('alvara')], [doc('d1', 'alvara')], m, [], '2026-11-19');
+    expect(r.map((x) => x.id)).toEqual(['d1']);
+  });
+  it('P5: "vê e envia" também basta em um perfil (o maior nível entre os perfis)', () => {
+    expect(nivelDoUsuario(m, tipo('fachada', { permite_envio: true }), ['rep_norte', 'vendedor'])).toBe('ve_e_envia');
+    expect(nivelDoUsuario(m, tipo('alvara'), ['rep_norte', 'vendedor'])).toBe('ve');
+    expect(nivelDoUsuario(m, tipo('alvara'), [])).toBe('nao_ve');
+  });
+  it('P11: a exceção que pega QUALQUER um dos perfis tira o acesso (cadeado)', () => {
+    const r = documentosDaFicha(['rep_norte', 'vendedor'], [tipo('alvara')], [doc('d1', 'alvara')], m, [{ documento_id: 'd1', perfil: 'vendedor' }], '2026-11-19');
+    expect(r[0]).toMatchObject({ id: 'd1', acesso: 'bloqueado', pode_enviar: false });
+    expect(excecaoTiraAcesso([{ documento_id: 'd1', perfil: 'vendedor' }], 'd1', ['rep_norte', 'vendedor'])).toBe(true);
+    expect(excecaoTiraAcesso([{ documento_id: 'd1', perfil: 'vendedor' }], 'd2', ['vendedor'])).toBe(false);
+    expect(excecaoTiraAcesso([{ documento_id: 'd1', perfil: 'vendedor' }], 'd1', ['rep_norte'])).toBe(false);
+  });
+  it('spec §7: se um dos perfis é admin ou analista, vê tudo e a exceção não o atinge', () => {
+    const r = documentosDaFicha(['rep_norte', 'analista'], [tipo('social')], [doc('d2', 'social')], [], [{ documento_id: 'd2', perfil: 'rep_norte' }], '2026-11-19');
+    expect(r[0]).toMatchObject({ acesso: 'abrir' });
   });
 });

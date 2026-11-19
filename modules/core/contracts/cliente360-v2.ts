@@ -45,8 +45,8 @@ export const LinhaHistoricoNfSchema = z.object({
   data: Data,
   numero_nf: z.string(),
   valor_cents: Centavos,
-  /** Vem do ERP (E1); nulo = a nota veio sem a forma. */
-  forma_pagamento: z.string().nullable(),
+  /** DESCRIÇÃO em texto como o ERP manda (E1; até 120 caracteres), nunca o código; nulo = a nota veio sem a forma. */
+  forma_pagamento: z.string().max(120).nullable(),
   status: StatusNfSchema,
   /** P4: valor devolvido, na 2ª linha do Valor; ausente ou 0 = sem devolução. */
   devolvido_cents: Centavos.optional(),
@@ -102,7 +102,8 @@ export const NotaDetalheSchema = z.object({
   numero_nf: z.string(),
   serie: z.string().nullable(),
   data: Data,
-  forma_pagamento: z.string().nullable(),
+  /** Descrição em texto do ERP (até 120 caracteres). */
+  forma_pagamento: z.string().max(120).nullable(),
   status: StatusNfSchema,
   valor_cents: Centavos,
   devolvido_cents: Centavos,

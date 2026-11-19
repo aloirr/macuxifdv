@@ -94,7 +94,7 @@ export function CelulaTexto({ principal, segunda, perigoSegunda, segundaCodigo, 
       <Text style={[s.principal, dir && s.num, mono && s.mono, sublinhado && s.link, mudo && { color: colors.ink2 }]} testID={testID}>
         {principal}
       </Text>
-      {segunda ? <Text style={[s.segunda, dir && { textAlign: 'right' }, perigoSegunda && { color: colors.danger }, segundaCodigo && [s.mono, s.link]]}>{segunda}</Text> : null}
+      {segunda ? <Text style={[s.segunda, dir && s.num, dir && { textAlign: 'right' }, perigoSegunda && { color: colors.danger }, segundaCodigo && [s.mono, s.link]]}>{segunda}</Text> : null}
     </View>
   );
 }

@@ -78,12 +78,19 @@ describe('R-20261119-0530 / T-0186: "Em atraso" vai sem data, só o fato', () =>
 });
 
 describe('RN-CORE-40 / P4: valor devolvido da NF vem das devoluções vivas ligadas à NF original', () => {
-  const dev = (nf_original: string | null, total_cents: number, cancelada = false) => ({ nf_original, total_cents, cancelada });
+  const dev = (nf_original: string | null, total_cents: number, cancelada = false, nf_original_serie: string | null = null) => ({ nf_original, nf_original_serie, total_cents, cancelada });
   it('P4: soma só as devoluções não canceladas da mesma NF original', () => {
-    expect(devolvidoDaNota('004655', [dev('004655', 20_000), dev('004655', 13_000), dev('004655', 5_000, true), dev('004700', 9_999), dev(null, 1)])).toBe(33_000);
+    expect(devolvidoDaNota('004655', null, [dev('004655', 20_000), dev('004655', 13_000), dev('004655', 5_000, true), dev('004700', 9_999), dev(null, 1)])).toBe(33_000);
+  });
+  it('P4: NF de mesmo número e série diferente não recebe a devolução da outra (casa por número E série)', () => {
+    const ds = [dev('004655', 20_000, false, '1'), dev('004655', 7_000, false, '2')];
+    expect(devolvidoDaNota('004655', '1', ds)).toBe(20_000);
+    expect(devolvidoDaNota('004655', '2', ds)).toBe(7_000);
+    expect(devolvidoDaNota('004655', '3', ds)).toBe(0);
+    expect(devolvidoDaNota('004655', null, [dev('004655', 5_000)])).toBe(5_000);
   });
   it('P4: sem devolução = 0', () => {
-    expect(devolvidoDaNota('004655', [])).toBe(0);
+    expect(devolvidoDaNota('004655', null, [])).toBe(0);
   });
 });
 

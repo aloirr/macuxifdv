@@ -182,3 +182,4 @@
 2026-11-15 — filtro padrão Campo (v1.0.13) — Rota (cliente, cidade, bairro, data), Clientes (situação na folha, carteira vazia) e Performance (filtro na linha das abas, "Não é dia útil"); regras em domain/filtro-padrao.ts; branch nuvem/filtro-padrao-modulo-core
 2026-11-16 — v1.0.14 D-PAR-05 — botão do painel Almoço (Parâmetros › Calendário) diz "Salvar almoço" e "Salvando…" ao gravar (rotuloSalvarAlmoco, com teste); refeito no Cline a partir de 853c8af8 (branch agente/v1014-almoco-modulo-core).
 2026-11-19 — T-0186 parte 1 — Cliente 360 v2: domain (status da NF, documentos, Performance), contratos aditivos e API (notas online, documentos, permissões BKO); banco pendente (S5)
+2026-11-19 — T-0186 — #513: perfis personalizados no documento (vazamento fechado), devolução por número e série, fuso por parâmetro, forma de pagamento em texto, MC-1792/1793; MC-1790 pendente (sem prop no Badge)

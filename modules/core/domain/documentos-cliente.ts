@@ -52,6 +52,22 @@ export function nivelDoTipo(matriz: readonly PermissaoTipoDocumento[], tipo: Pic
   return n === 've_e_envia' && !tipo.permite_envio ? 've' : n;
 }
 
+const ORDEM_NIVEL: Record<NivelDocumento, number> = { nao_ve: 0, ve: 1, ve_e_envia: 2 };
+
+/**
+ * Nível do USUÁRIO no tipo: o maior entre os perfis dele (basta um perfil ver; basta um enviar). `perfis` são os CÓDIGOS
+ * (`plataforma.perfil.codigo`), os mesmos que a matriz guarda, inclusive de perfil personalizado. Sem perfil = "Não vê".
+ */
+export function nivelDoUsuario(matriz: readonly PermissaoTipoDocumento[], tipo: Pick<TipoDocumento, 'id' | 'permite_envio'>, perfis: readonly string[]): NivelDocumento {
+  return perfis.map((p) => nivelDoTipo(matriz, tipo, p)).reduce<NivelDocumento>((a, n) => (ORDEM_NIVEL[n] > ORDEM_NIVEL[a] ? n : a), 'nao_ve');
+}
+
+/** P11: a exceção do documento que pega QUALQUER perfil do usuário tira o acesso. Admin/analista (qualquer um dos perfis) não sofrem exceção. */
+export function excecaoTiraAcesso(excecoes: readonly ExcecaoDocumento[], documentoId: string, perfis: readonly string[]): boolean {
+  if (perfis.some(veTudo)) return false;
+  return excecoes.some((e) => e.documento_id === documentoId && perfis.includes(e.perfil));
+}
+
 /** P10/P11: tipo "Não vê" = oculto; exceção por documento = bloqueado (cadeado); senão abre. */
 export function acessoAoDocumento(nivelDoTipoNoPerfil: NivelDocumento, comExcecao: boolean): AcessoDocumento {
   if (nivelDoTipoNoPerfil === 'nao_ve') return 'oculto';
@@ -73,9 +89,9 @@ export interface DocumentoDaFicha extends DocumentoLinha {
   pode_enviar: boolean;
 }
 
-/** Lista da aba Documentação para o perfil: só tipos ativos que ele vê, por grupo e ordem do cadastro de tipos, depois por data (mais nova primeiro). */
+/** Lista da aba Documentação para os perfis do usuário: só tipos ativos que ele vê, por grupo e ordem do cadastro de tipos, depois por data (mais nova primeiro). */
 export function documentosDaFicha(
-  perfil: string,
+  perfis: readonly string[],
   tipos: readonly TipoDocumento[],
   documentos: readonly DocumentoLinha[],
   matriz: readonly PermissaoTipoDocumento[],
@@ -87,8 +103,8 @@ export function documentosDaFicha(
   for (const d of documentos) {
     const t = porTipo.get(d.tipo_id);
     if (!t) continue;
-    const nivel = nivelDoTipo(matriz, t, perfil);
-    const comExcecao = !veTudo(perfil) && excecoes.some((e) => e.documento_id === d.id && e.perfil === perfil);
+    const nivel = nivelDoUsuario(matriz, t, perfis);
+    const comExcecao = excecaoTiraAcesso(excecoes, d.id, perfis);
     const acesso = acessoAoDocumento(nivel, comExcecao);
     if (acesso === 'oculto') continue;
     saida.push({ ...d, grupo: t.grupo, acesso, validade_situacao: situacaoValidadeDocumento(d.validade, hoje), pode_enviar: nivel === 've_e_envia', _ordem: t.ordem });

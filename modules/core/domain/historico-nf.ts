@@ -50,9 +50,13 @@ export function statusDaNf(nota: { valor_cents: number; devolvido_cents: number 
   return 'pago';
 }
 
-/** P4: valor devolvido da NF = soma das devoluções vivas (não canceladas) cuja NF original é esta. */
-export function devolvidoDaNota(numeroNf: string, devolucoes: ReadonlyArray<{ nf_original: string | null; total_cents: number; cancelada: boolean }>): number {
-  return devolucoes.filter((d) => !d.cancelada && d.nf_original === numeroNf).reduce((s, d) => s + d.total_cents, 0);
+/** P4: valor devolvido da NF = soma das devoluções vivas (não canceladas) cuja NF original é esta, por número E série (série ausente = vazia, como nas parcelas). */
+export function devolvidoDaNota(
+  numeroNf: string,
+  serieNf: string | null,
+  devolucoes: ReadonlyArray<{ nf_original: string | null; nf_original_serie: string | null; total_cents: number; cancelada: boolean }>,
+): number {
+  return devolucoes.filter((d) => !d.cancelada && d.nf_original === numeroNf && (d.nf_original_serie ?? '') === (serieNf ?? '')).reduce((s, d) => s + d.total_cents, 0);
 }
 
 export interface FinanceiroDoResumo {

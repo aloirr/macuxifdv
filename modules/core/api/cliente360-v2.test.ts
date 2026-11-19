@@ -24,7 +24,7 @@ const dadosNotas: DadosNotas = {
     { id: N_ANTIGA, cliente_id: C1, numero: '003000', serie: '1', data: '2026-03-01', total_cents: 10_000, forma_pagamento: 'PIX' },
     { id: '0ea00000-0000-4000-8000-0000000000ff', cliente_id: 'outro', numero: '009999', serie: '1', data: '2026-11-01', total_cents: 1, forma_pagamento: null },
   ],
-  devolucoes: [{ cliente_id: C1, nf_original: '004702', total_cents: 20_000, cancelada: false, data: '2026-10-05' }],
+  devolucoes: [{ cliente_id: C1, nf_original: '004702', nf_original_serie: '1', total_cents: 20_000, cancelada: false, data: '2026-10-05' }],
   parcelas: [
     { cliente_id: C1, nota_numero: '004655', nota_serie: '1', parcela: '1/2', vencimento: '2026-10-24', valor_cents: 64_000, saldo_cents: 0, situacao: 'liquidado', liquidado_em: '2026-10-23' },
     { cliente_id: C1, nota_numero: '004655', nota_serie: '1', parcela: '2/2', vencimento: '2026-10-31', valor_cents: 64_000, saldo_cents: 64_000, situacao: 'aberto', liquidado_em: null },
@@ -93,6 +93,18 @@ describe('T-0186 / P17: Histórico de NF e consulta online da NF', () => {
     const d = await detalheDaNota(repoNotas(), { clienteId: C1, notaId: N3, hoje: HOJE, podeVerHistorico: true });
     expect(d).toMatchObject({ status: 'devolvido_parcial', devolvido_cents: 20_000, devolvido_em: '2026-10-05', valor_final_cents: 30_000 });
   });
+  it('P4: duas NFs de mesmo número e série diferente: a devolução vai só para a da série dela', async () => {
+    const N_S2 = '0ea00000-0000-4000-8000-0000000000a2';
+    const base = repoNotas();
+    const repo: RepositorioNotas = {
+      ...base,
+      nota: async (c, id) => (id === N_S2 ? { id: N_S2, cliente_id: c, numero: '004702', serie: '2', data: '2026-09-30', total_cents: 50_000, forma_pagamento: null } : base.nota(c, id)),
+    };
+    const s1 = await detalheDaNota(repo, { clienteId: C1, notaId: N3, hoje: HOJE, podeVerHistorico: true });
+    const s2 = await detalheDaNota(repo, { clienteId: C1, notaId: N_S2, hoje: HOJE, podeVerHistorico: true });
+    expect([s1.devolvido_cents, s1.status]).toEqual([20_000, 'devolvido_parcial']);
+    expect([s2.devolvido_cents, s2.status, s2.devolvido_em]).toEqual([0, 'pago', null]);
+  });
   it('RN-CORE-04: nota de outro cliente ou inexistente = 404, sem revelar', async () => {
     await expect(detalheDaNota(repoNotas(), { clienteId: C1, notaId: '0ea00000-0000-4000-8000-0000000000ff', hoje: HOJE, podeVerHistorico: true })).rejects.toBeInstanceOf(ErroNaoEncontrado);
   });
@@ -137,31 +149,31 @@ function memoria(): { repo: RepositorioDocumentos; estado: DadosDocumentos } {
 describe('T-0186 / P15: Documentação, só visualizar, com a permissão revalidada na API', () => {
   it('P10: o vendedor não vê o tipo sem permissão; vencido sai na linha (P16)', async () => {
     const { repo } = memoria();
-    const r = DocumentosRespostaSchema.parse(await listarDocumentos(repo, { perfil: 'vendedor', clienteId: C1, hoje: HOJE }));
+    const r = DocumentosRespostaSchema.parse(await listarDocumentos(repo, { perfis: ['vendedor'], clienteId: C1, hoje: HOJE }));
     expect(r.itens.map((i) => [i.nome, i.validade_situacao, i.acesso])).toEqual([['Alvará 2026', 'vencido', 'abrir']]);
   });
   it('a lista nunca leva o id do arquivo (só a abertura devolve)', async () => {
     const { repo } = memoria();
-    const r = await listarDocumentos(repo, { perfil: 'supervisor', clienteId: C1, hoje: HOJE });
+    const r = await listarDocumentos(repo, { perfis: ['supervisor'], clienteId: C1, hoje: HOJE });
     expect(JSON.stringify(r)).not.toContain(ARQ);
   });
   it('P10/P11: exceção por documento deixa o cadeado na lista e recusa abrir com 403', async () => {
     const { repo, estado } = memoria();
     estado.excecoes = [{ documento_id: D1, perfil: 'vendedor' }];
-    expect((await listarDocumentos(repo, { perfil: 'vendedor', clienteId: C1, hoje: HOJE })).itens[0]).toMatchObject({ acesso: 'bloqueado' });
-    await expect(abrirDocumento(repo, { perfil: 'vendedor', clienteId: C1, documentoId: D1 })).rejects.toMatchObject({ status: 403, codigo: 'DOCUMENTO_SEM_PERMISSAO' });
+    expect((await listarDocumentos(repo, { perfis: ['vendedor'], clienteId: C1, hoje: HOJE })).itens[0]).toMatchObject({ acesso: 'bloqueado' });
+    await expect(abrirDocumento(repo, { perfis: ['vendedor'], clienteId: C1, documentoId: D1 })).rejects.toMatchObject({ status: 403, codigo: 'DOCUMENTO_SEM_PERMISSAO' });
   });
   it('P10: tipo que o perfil não vê abre como 404 (não revela que existe)', async () => {
     const { repo } = memoria();
-    await expect(abrirDocumento(repo, { perfil: 'vendedor', clienteId: C1, documentoId: D2 })).rejects.toBeInstanceOf(ErroNaoEncontrado);
+    await expect(abrirDocumento(repo, { perfis: ['vendedor'], clienteId: C1, documentoId: D2 })).rejects.toBeInstanceOf(ErroNaoEncontrado);
   });
   it('abrir com permissão devolve o arquivo para o visualizador (sem baixar)', async () => {
     const { repo } = memoria();
-    expect(DocumentoAbrirRespostaSchema.parse(await abrirDocumento(repo, { perfil: 'supervisor', clienteId: C1, documentoId: D2 }))).toMatchObject({ id: D2, arquivo_id: ARQ });
+    expect(DocumentoAbrirRespostaSchema.parse(await abrirDocumento(repo, { perfis: ['supervisor'], clienteId: C1, documentoId: D2 }))).toMatchObject({ id: D2, arquivo_id: ARQ });
   });
   it('documento de outro cliente = 404', async () => {
     const { repo } = memoria();
-    await expect(abrirDocumento(repo, { perfil: 'supervisor', clienteId: '0ea00000-0000-4000-8000-0000000000ee', documentoId: D2 })).rejects.toBeInstanceOf(ErroNaoEncontrado);
+    await expect(abrirDocumento(repo, { perfis: ['supervisor'], clienteId: '0ea00000-0000-4000-8000-0000000000ee', documentoId: D2 })).rejects.toBeInstanceOf(ErroNaoEncontrado);
   });
 });
 
