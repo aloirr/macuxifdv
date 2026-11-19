@@ -5,10 +5,10 @@
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { DocumentoLinhaContrato, HistoricoNfResposta, LinhaHistoricoNfContrato, NotaDetalhe } from '../../contracts';
+import type { CarteiraClienteResposta, DocumentoLinhaContrato, HistoricoNfResposta, LinhaHistoricoNfContrato, NotaDetalhe } from '../../contracts';
 import { filtrarNotas, inicioDoPeriodoNf } from '../../domain';
 import type { AbrirArquivo } from './abrir-arquivo';
-import { buscarDocumento, buscarNota, buscarNotas, buscarDocumentos, falhaDaConsulta, FALHA_SEM_INTERNET, type FalhaOnline } from './ficha-online';
+import { buscarCarteiraDoCliente, buscarDocumento, buscarNota, buscarNotas, buscarDocumentos, falhaDaConsulta, FALHA_SEM_INTERNET, type FalhaOnline } from './ficha-online';
 import { filtroDeNotas, filtroPrecisaDoServidor, intervaloDoFiltro, type EstadoDaConsulta, type FiltroDaFicha } from './ficha-v2';
 import { httpDe } from './http';
 
@@ -235,4 +235,51 @@ export function useAbrirDocumento(clienteId: string, visualizador: AbrirArquivo 
   }, [abrir]);
   const fechar = useCallback(() => setFalhou(null), []);
   return { falhou, abrindo, abrir, tentarDeNovo, fechar };
+}
+
+export interface CarteiraDoClienteOnline {
+  estado: EstadoDaConsulta;
+  falha: FalhaOnline | null;
+  resposta: CarteiraClienteResposta | null;
+  recarregar: () => void;
+}
+
+/** Tabela "Carteira" do Gestão: consulta online ao abrir a ficha; sem cópia no aparelho. */
+export function useCarteiraDoCliente(clienteId: string, ligado: boolean): CarteiraDoClienteOnline {
+  const { motor } = useMotorSync();
+  const [resposta, setResposta] = useState<CarteiraClienteResposta | null>(null);
+  const [estado, setEstado] = useState<EstadoDaConsulta>('ocioso');
+  const [falha, setFalha] = useState<FalhaOnline | null>(null);
+  const [tentativa, setTentativa] = useState(0);
+
+  useEffect(() => {
+    if (!ligado) return;
+    const http = httpDe(motor);
+    if (!http) {
+      setEstado('erro');
+      setFalha(FALHA_SEM_INTERNET);
+      return;
+    }
+    let ativo = true;
+    setEstado('carregando');
+    setFalha(null);
+    buscarCarteiraDoCliente(http, clienteId)
+      .then((r) => {
+        if (!ativo) return;
+        setResposta(r);
+        setEstado('ok');
+      })
+      .catch((e: unknown) => {
+        if (!ativo) return;
+        setFalha(falhaDaConsulta(e));
+        setEstado('erro');
+      });
+    return () => {
+      ativo = false;
+      setResposta(null);
+    };
+  }, [ligado, motor, clienteId, tentativa]);
+
+  const recarregar = useCallback(() => setTentativa((n) => n + 1), []);
+  return { estado, falha, resposta, recarregar };
 }

@@ -69,3 +69,4 @@ export * from './filtro-padrao';
 export * from './rastreamento';
 export * from './trajeto-ponto';
 export * from './rastreamento-parametros';
+export * from './carteira-cliente';

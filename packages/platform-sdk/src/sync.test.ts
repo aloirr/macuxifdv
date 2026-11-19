@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { defineModule } from './manifesto';
 import {
   codificarCursor,
+  CODIGOS_RETENTAVEIS,
   compararCursor,
   criarRegistroSync,
   decodificarCursor,
@@ -161,6 +162,13 @@ describe('push idempotente por UUID do aparelho', () => {
     expect(codigos(['core', 'vendedor'], 'promotor')).toEqual(['RN-PRO-01', 'RN-PRO-01']);
     expect(codigos(['core'], 'promotor')).toEqual(['MODULO_INATIVO', 'MODULO_INATIVO']);
     expect(codigos(['core', 'vendedor'], 'vendedor')).toEqual(['SYNC_NAO_IMPLEMENTADO']); // pedido_item sem definição (ADR 0009 §7)
+  });
+});
+
+describe('CODIGOS_RETENTAVEIS: rejeições que não são culpa do item', () => {
+  it('lista SYNC_NAO_IMPLEMENTADO, SEM_RESULTADO e MODULO_INATIVO (RN-CORE-02); recusa do próprio item fica de fora', () => {
+    expect([...CODIGOS_RETENTAVEIS].sort()).toEqual(['MODULO_INATIVO', 'SEM_RESULTADO', 'SYNC_NAO_IMPLEMENTADO']);
+    for (const c of ['PAYLOAD_INVALIDO', 'OPERACAO_NAO_SUPORTADA', 'ENTIDADE_DESCONHECIDA']) expect(CODIGOS_RETENTAVEIS).not.toContain(c);
   });
 });
 
