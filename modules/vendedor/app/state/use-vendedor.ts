@@ -17,7 +17,8 @@ import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
 import { DEFAULT_TZ, monthStart } from '@macuxi/ui/mobile/puro';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MixSuggestion } from '@macuxi/catalogo/contracts';
-import type { CustomerDetail, EditarOrcamentoRequest, Order, OrderDetail, PedidoPush, UpdateOrderRequest } from '../../contracts';
+import { aplicarDecisaoNoDetalhe, corpoDaDecisaoNoApp } from '../lib/decisao-pedido';
+import type { CustomerDetail, DecisaoAprovacaoResposta, EditarOrcamentoRequest, Order, OrderDetail, PedidoPush, UpdateOrderRequest } from '../../contracts';
 import { orderActions, type OrderStatus } from '../../domain/order';
 import { percentualAjusteParaBp, type NivelDePreco } from '../../domain/preco-pedido';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
@@ -696,20 +697,24 @@ export function useVendedor() {
   const decidirPedido = useCallback(
     async (orderId: string, decisao: 'aprovar' | 'rejeitar', texto: string): Promise<OrderDetail> => {
       if (!ambiente.online()) throw new Error('Sem sinal para decidir');
-      let order: OrderDetail;
+      let resposta: DecisaoAprovacaoResposta;
       try {
-        order = await ambiente.http.requisitar<OrderDetail>('POST', `/vendedor/pedidos/${encodeURIComponent(orderId)}/${decisao === 'aprovar' ? 'aprovar' : 'rejeitar'}`, {
-          body: decisao === 'aprovar' ? (texto.trim() ? { comentario: texto.trim() } : {}) : { motivo: texto.trim() },
+        resposta = await ambiente.http.requisitar<DecisaoAprovacaoResposta>('POST', `/vendedor/pedidos/${encodeURIComponent(orderId)}/${decisao === 'aprovar' ? 'aprovar' : 'rejeitar'}`, {
+          body: corpoDaDecisaoNoApp(decisao, texto),
         });
       } catch (e) {
         if (ehSemConexao(e)) throw new Error('Sem sinal para decidir');
         throw e;
       }
+      // T-0184: a resposta traz só o status e as aprovações; o resto do detalhe vem das linhas do aparelho
+      const local = detalheDoPedido(linhasRef.current, orderId, perfil, parametrosRef.current);
+      if (!local) throw new Error('Pedido ainda não sincronizado. Sincronize e tente de novo.');
+      const order = aplicarDecisaoNoDetalhe(local, resposta);
       setDecididos((d) => ({ ...d, [orderId]: order }));
       void motor?.sincronizar().then(() => recarregar());
       return order;
     },
-    [ambiente, motor, recarregar],
+    [ambiente, motor, recarregar, perfil],
   );
 
   /**

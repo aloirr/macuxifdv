@@ -6,6 +6,7 @@
  * - o autor só aparece quando não é o vendedor do pedido e é uma pessoa (não "aparelho", "ERP").
  */
 import type { OrderEvent } from '../contracts';
+import type { MotivoAprovacao } from './aprovacao';
 import type { SituacaoOrcamento } from './orcamento';
 
 /** Mesma forma do `EventoDoHistorico` do kit de UI (o domain não importa o kit). */
@@ -74,3 +75,18 @@ export function eventosDoOrcamento(
   return out;
 }
 
+
+const ROTULO_ETAPA_MOTIVO: Record<MotivoAprovacao, string> = { desconto: 'Desconto', credito: 'Crédito', inadimplencia: 'Inadimplente', estoque: 'Estoque', preco_minimo: 'Preço mínimo' };
+
+/**
+ * T-0184 (P3 B, prancha 02): com uma aprovação por motivo, a etapa "Em aprovação" do Histórico vira uma por motivo ainda pendente
+ * ("Em aprovação · Crédito"), cada motivo uma vez. As outras etapas ficam como estão. Sem motivos, nada muda.
+ */
+export function tagsPorMotivoPendente<T extends { id: string; rotulo: string; texto: string; leitura: string }>(tags: readonly T[], motivosPendentes: readonly MotivoAprovacao[]): T[] {
+  if (motivosPendentes.length === 0) return [...tags];
+  return tags.flatMap((t) =>
+    t.rotulo === 'Em aprovação'
+      ? motivosPendentes.map((m) => ({ ...t, id: `${t.id}-${m}`, rotulo: `${t.rotulo} · ${ROTULO_ETAPA_MOTIVO[m]}`, texto: t.texto.replace(t.rotulo, `${t.rotulo} · ${ROTULO_ETAPA_MOTIVO[m]}`), leitura: t.leitura.replace(t.rotulo, `${t.rotulo}, ${ROTULO_ETAPA_MOTIVO[m]}`) }))
+      : [t],
+  );
+}

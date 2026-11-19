@@ -52,7 +52,7 @@ import { pegarAvisoPendente } from '../lib/aviso-pendente';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
 import { estadoDasAcoes, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
 import { PERGUNTA_DA_ALCADA, perguntaDaAlcada } from '../../domain/botoes-resumo';
-import { acoesDoDetalhe, alertasDoDetalhe, clienteComCodigo, eventosDoOrcamento, eventosDoPedido, fonteDasLinhasDoDetalhe, itensVisiveis, linhaDeItemEmTabela, linhasDosTotais } from '../lib/detalhe-pedido';
+import { acoesDoDetalhe, alertasDoDetalhe, clienteComCodigo, eventosDoOrcamento, eventosDoPedido, fonteDasLinhasDoDetalhe, tagsPorMotivoPendente, itensVisiveis, linhaDeItemEmTabela, linhasDosTotais } from '../lib/detalhe-pedido';
 import { textoDoFrete } from '../lib/resumo-tabela';
 import { logoSrcDoPdf, nomeDaEmpresaParaPdf } from '../../domain/empresa-pdf';
 import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
@@ -465,7 +465,9 @@ export default function OrderDetailScreen() {
   // RN-VEN-42 (T-0150): o motivo do supervisor/cancelamento vai para os Alertas; a etapa do Histórico leva só o nome de quem fechou
   const motivoDoFechamento = [...eventosDoHistorico].reverse().find((e) => ['rejected', 'cancelled'].includes(e.status) && e.motivo)?.motivo ?? null;
   const eventosSemMotivo = eventosDoHistorico.map((e) => (['rejected', 'cancelled'].includes(e.status) ? { ...e, motivo: null } : e));
-  const tagsDoDetalhe = tagsDoHistorico(eventosSemMotivo, { tipo: ehOrc ? 'orcamento' : 'pedido', tz, agora: agoraTela });
+  // T-0184 (P3 B, prancha 02): uma etapa "Em aprovação" por motivo ainda pendente (os motivos vêm do pull, vale offline)
+  const motivosPendentes = !queued && !ehOrc && base?.status === 'pending_approval' ? (base.approval_reasons ?? []) : [];
+  const tagsDoDetalhe = tagsPorMotivoPendente(tagsDoHistorico(eventosSemMotivo, { tipo: ehOrc ? 'orcamento' : 'pedido', tz, agora: agoraTela }), motivosPendentes);
   const modalidade = queued ? (queued.payload.frete?.modalidade ?? null) : (base?.freight?.modality ?? null);
   const transportadora = (() => {
     if (queued) {
