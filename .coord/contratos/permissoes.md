@@ -29,3 +29,13 @@
 
 ## Ações dos módulos
 As do `acoes` de cada `modules/<m>/manifest.ts`, agrupadas por área (`areaDaAcao`). Níveis por ação (pedido, aprovar, metas) entram quando o desenho da página for aprovado.
+
+### Rastreamento (T-0156, ADR 0061, desenho `docs/desenho/tracking.md` §7; a declarar pelo modulo-core no manifesto)
+| Ação | Fábrica | Área |
+|---|---|---|
+| `trajeto.ver_proprio` | vendedor, promotor | usuarios |
+| `trajeto.ver_equipe` | supervisor, gerente, admin (só no escopo) | usuarios |
+| `rastreamento.configurar` | admin | administracao |
+| `ausencia.cadastrar` | supervisor, gerente, admin | usuarios |
+
+O analista não vê pontos (só o resumo `deslocamento_dia`); vendedor e promotor nunca veem o trajeto de colegas.

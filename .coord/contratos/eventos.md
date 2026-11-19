@@ -120,3 +120,7 @@
 > - `vendedor.pedido.aprovacao_solicitada@1`: formato do espelho do Gestor (`AprovacaoSolicitadaV1`); `credito` e `historico` nulos na fatia.
 > - `vendedor.pedido.aprovado@1` (novo): o `PedidoAprovadoParaFila` pedido pelo Hub (R-20261101-044224-3), publicado quando o pedido vira
 >   aprovado (automático dentro da alçada ou por decisão); chaves do ERP anuláveis.
+
+> **T-0156 (ADR 0061, 19/11)**: o rastreamento **não publica evento**. Pontos, pausas e aceites entram pelo push do sync
+> e o resumo é gravado pelo próprio Core; o Gestor lê pela consulta `core.trajeto_do_dia@1` (`modulos.md`). Coordenada
+> nunca vai em payload de evento.

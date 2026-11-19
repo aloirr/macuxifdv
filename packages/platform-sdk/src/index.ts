@@ -48,3 +48,4 @@ export * from './planos';
 export * from './empresa-acoes';
 export * from './frase-carga';
 export * from './empresa-logo';
+export * from './privacidade-localizacao';
