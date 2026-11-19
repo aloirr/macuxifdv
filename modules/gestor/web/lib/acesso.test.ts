@@ -15,4 +15,15 @@ describe('trajeto do dia no BKO: a decisão é da permissão `core.trajeto.ver_e
     for (const perfil of ['vendedor', 'promotor', 'analista', 'assistente'] as const)
       expect(pode(perfil)).toBe(false);
   });
+
+  it('RN-CORE-13: o menu "Trajeto do dia" do BKO e do manifesto pede só `trajeto.ver_equipe`; vendedor e promotor não o veem', async () => {
+    const { moduloWeb } = await import('../index');
+    const pagina = moduloWeb.paginas!.find((p) => p.navegacao === 'Trajeto do dia')!;
+    expect(pagina.acao).toBe('trajeto.ver_equipe');
+    expect(pagina.perfis).toBeUndefined();
+    expect(manifest.apps.web?.menus).toContain('Trajeto do dia');
+    expect(manifest.apps.gestao?.abas).not.toContain('Trajeto do dia');
+    for (const perfil of ['vendedor', 'promotor'] as const) expect(pode(perfil)).toBe(false);
+    expect(JSON.stringify(manifest)).not.toContain('ver_proprio');
+  });
 });

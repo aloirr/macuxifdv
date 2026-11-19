@@ -237,6 +237,16 @@ describe('API do Gestor: trajeto do dia da equipe (T-0156, tracking §7)', () =>
     expect(c.chamadasTrajeto).toEqual([]);
   });
 
+  it('RN-CORE-13 / ordem do dono (v1.0.15): vendedor e promotor recebem 403 na rota, mesmo com `trajeto.ver_proprio`, e a consulta do Core não roda', async () => {
+    const c = cenario();
+    for (const [perfil, base] of [[VENDEDOR, 'vendedor'], [PROMOTOR, 'promotor']] as const) {
+      for (const alvo of [perfil, VENDEDOR_2]) {
+        await expect(c.chamar('GET', 'equipe/:usuario_id/trajeto', perfil, { params: { usuario_id: alvo }, perfis: [{ codigo: base, base, permissoes: { 'trajeto.ver_proprio': {} } }] })).rejects.toMatchObject({ status: 403 });
+      }
+    }
+    expect(c.chamadasTrajeto).toEqual([]);
+  });
+
   it('RN-CORE-37 / §7: a rota não traz lista de perfis própria; quem decide é `core.trajeto.ver_equipe` (motor de permissões), por perfil e por licença', async () => {
     const c = cenario();
     const r = c.api.rotas!.find((x) => x.caminho === 'equipe/:usuario_id/trajeto')!;

@@ -4,7 +4,12 @@
  * RN-CORE-13: sem pontos (tracking desligado de fábrica, sem termo ou fora do expediente) o resultado é `vazio`.
  * A coordenada nunca vai para log nem para mensagem de erro (§9): este módulo não registra nada.
  */
-import { formatarHoraDoTrajeto, projetarPontos, trechosDoTrajeto, type PausaDoDia, type PontoDoTrajeto } from '@macuxi/core/contracts';
+import { projetarPontos, trechosDoTrajeto, type PausaDoDia, type PontoDoTrajeto } from '@macuxi/core/contracts';
+
+/** HH:mm de um instante UTC no fuso do tenant (o Core não exporta mais este formato). */
+export function formatarHoraDoTrajeto(iso: string, fuso: string): string {
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
+}
 
 /** RN-CORE-13: texto do app e do BKO quando o dia não tem pontos (tracking desligado, sem termo ou fora do expediente). */
 export const TEXTO_SEM_TRAJETO = 'Sem trajeto';
@@ -39,7 +44,7 @@ export interface OpcoesDesenho {
 type Xy = { x: number; y: number };
 
 /**
- * Ordena por `capturado_em`, projeta e marca as horas com as funções do Core (`projetarPontos`, `formatarHoraDoTrajeto`,
+ * Ordena por `capturado_em`, projeta e marca as horas com as funções do Core (`projetarPontos`,
  * `trechosDoTrajeto`): o mesmo desenho e a mesma hora do "Meu trajeto" do Campo. O trecho que cruza uma pausa vai tracejado.
  */
 export function desenharTrajeto(pontos: readonly PontoDoTrajeto[], o: OpcoesDesenho): TrajetoDesenhado {

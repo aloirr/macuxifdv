@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { formatarDistancia, formatarHoraDoTrajeto, projetarPontos } from '@macuxi/core/contracts';
+import { formatarDistancia, projetarPontos } from '@macuxi/core/contracts';
+import { formatarHoraDoTrajeto } from './trajeto';
 import { desenharTrajeto, TEXTO_SEM_TRAJETO } from './trajeto';
 
 const p = (capturado_em: string, latitude: number, longitude: number) => ({ capturado_em, latitude, longitude, precisao_m: 10 });
