@@ -448,10 +448,13 @@ describe('T-0159 PDF-8 — visual horizontal e observações (R-20261111-084832 
     }
   });
 
-  it('PDF-8: cabeçalho da tabela verde #00843D com texto branco; ficha com fundo #F1F2F0', () => {
+  it('PDF-8 (MC-0068, paleta da marca): cabeçalho da tabela verde #00843D com texto branco; ficha e linha par Pérola #F8F6F1; caixa do Total Névoa #ECEEF1', () => {
     for (const h of QUATRO()) {
       expect(css(h)).toMatch(/th\s*\{[^}]*color:\s*#fff[^}]*background:\s*#00843D/i);
-      expect(css(h)).toMatch(/\.ficha\s*\{[^}]*background:\s*#F1F2F0/i);
+      expect(css(h)).toMatch(/\.ficha\s*\{[^}]*background:\s*#F8F6F1/i);
+      expect(css(h)).toMatch(/tbody tr:nth-child\(even\) td\s*\{[^}]*background:\s*#F8F6F1/i);
+      expect(css(h)).toMatch(/\.totalbox\s*\{[^}]*background:\s*#ECEEF1/i);
+      expect(css(h)).not.toMatch(/#F1F2F0|#F3F4F1|#ECEEEA/i);
     }
   });
 
