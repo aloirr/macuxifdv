@@ -21,8 +21,11 @@ export const OFFSET_MAXIMO = 450;
 // ---------- busca (GET /v1/catalogo/busca) ----------
 /** Query de `GET /v1/catalogo/busca`: `ConsultaBusca` + paginação por deslocamento. */
 export const ConsultaBuscaQuery = ConsultaBusca.extend({
-  /** Sem `customer_id`: filial dos preços e do estoque (RN-VEN-01, RN-CORE-39); ausente = a filial padrão do tenant. */
-  filial: Id.optional(),
+  /**
+   * Sem `customer_id`: filial dos preços e do estoque (RN-VEN-01, RN-CORE-39); ausente = a filial padrão do tenant para o preço e a(s)
+   * filial(is) do usuário para o estoque. `todas` = "Suas filiais" (`filiaisDoEstoque`, `domain/estoque-campo.ts`).
+   */
+  filial: z.union([Id, z.literal('todas')]).optional(),
   only_in_stock: BooleanoQuery.optional(),
   offset: z.coerce.number().int().min(0).max(OFFSET_MAXIMO).default(0),
 });

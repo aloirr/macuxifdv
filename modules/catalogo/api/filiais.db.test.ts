@@ -51,11 +51,12 @@ describe.skipIf(semBanco())('Catálogo × Postgres: preço e estoque por filial 
       } as unknown as ContextoConsulta),
     ) as Promise<{ tabela_preco_id: string | null; filial_id?: string | null; filial_origem?: string; itens: Array<{ produto_id: string; preco_cents: number | null; motivo_sem_preco: string | null }> }>;
 
-  const ctxPull = (daCarteira: string[] | null): ContextoBase =>
+  /** `doUsuario` = filiais de venda do próprio usuário (estoque); por padrão, as mesmas da carteira. */
+  const ctxPull = (daCarteira: string[] | null, doUsuario: string[] | undefined = daCarteira ?? undefined): ContextoBase =>
     ({
       usuario: { perfil: 'vendedor', tenant_id: A.tenantId },
       comTenant: (fn: (db: pg.ClientBase, tx: unknown) => Promise<unknown>) =>
-        comTenant(pool, A.tenantId, (c) => fn(c, { consultar: consultarFiliaisDeTeste(c, { clientes: CLIENTES, outras: NOMES, daCarteira }) })),
+        comTenant(pool, A.tenantId, (c) => fn(c, { consultar: consultarFiliaisDeTeste(c, { clientes: CLIENTES, outras: NOMES, daCarteira, doUsuario }) })),
       carteira: async () => 'tenant',
       parametros: () => ({}),
     }) as unknown as ContextoBase;
@@ -133,7 +134,7 @@ describe.skipIf(semBanco())('Catálogo × Postgres: preço e estoque por filial 
     expect((await faixas(CL_MAO)).faixas?.map((f) => f.preco_unidade_cents)).toEqual([900]);
   });
 
-  it('RN-CORE-39: o pull manda preço, depósito, saldo e escalonada só das filiais da carteira (nula na escalonada = todas)', async () => {
+  it('RN-CORE-39: o pull manda preço e escalonada das filiais da carteira (nula na escalonada = todas) e depósito e saldo das filiais de venda do usuário', async () => {
     const meus = (l: Array<LinhaSync & { filial_id?: string }>) => l.filter((x) => IDS.includes(x.id));
     const soPadrao = ctxPull([padrao]);
     expect(meus(await puxar('tabela_preco_item', soPadrao)).map((x) => x.filial_id)).toEqual([padrao, padrao]);
@@ -161,10 +162,10 @@ describe.skipIf(semBanco())('Catálogo × Postgres: preço e estoque por filial 
       const repo = criarRepositorioPostgres({ marcas: SEM_MARCAS })(ctx, c as unknown as ClienteBanco, tx);
       const saldos = (await repo.saldos([P1])).get(P1) ?? [];
       const ver = async (cliente: string | null) =>
-        estoqueVisivel(P1, saldos, { filiais: await repo.filiaisDoUsuario(cliente), agora: AGORA.toISOString(), parametros: resolverParametros({}) });
+        estoqueVisivel(P1, saldos, { filiais: cliente === null ? null : [await repo.filialDoCliente(cliente)], agora: AGORA.toISOString(), parametros: resolverParametros({}) });
       expect(await ver(CL_BVB)).toMatchObject({ quantity: 12, by_branch: [{ branch_id: F_BVB, branch_name: 'Boa Vista', quantity: 12 }] });
       expect(await ver(CL_MAO)).toMatchObject({ quantity: 20 });
-      expect(await ver(CL_STM)).toMatchObject({ quantity: 0, band: 'sem_estoque', by_branch: [] });
+      expect(await ver(CL_STM)).toMatchObject({ quantity: 0, band: 'sem_estoque', by_branch: [{ branch_id: F_STM, quantity: 0 }] });
       expect((await ver(null)).by_branch.map((b) => b.quantity).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([12, 20]);
     });
   });

@@ -12,10 +12,16 @@ export interface FiliaisDeTeste {
   outras?: Record<string, string>;
   /** `da_carteira` devolvido para `escopo: 'carteira'`; `undefined` = a padrão + as filiais dos clientes de `clientes`; `null` = todas. */
   daCarteira?: string[] | null;
+  /** `core.filiais_do_usuario@1`: filiais do próprio usuário (T-0176); `undefined` = a padrão do tenant. */
+  doUsuario?: string[];
 }
 
 export function consultarFiliaisDeTeste(c: ClientBase, cfg: FiliaisDeTeste = {}) {
   return async (def: { nome: string }, entrada: { cliente_ids?: string[]; external_ids?: string[]; escopo?: 'tenant' | 'carteira' }) => {
+    if (def.nome === 'core.filiais_do_usuario@1') {
+      const ids = cfg.doUsuario ?? [(await c.query<{ id: string }>('select core.filial_padrao_id(plataforma.tenant_atual()) as id')).rows[0]!.id];
+      return { filial_cadastro_id: ids[0] ?? null, filial_venda_ids: ids, sem_filial: ids.length === 0 };
+    }
     if (def.nome !== 'core.filiais@1') throw new Error(`consulta não simulada no teste: ${def.nome}`);
     const padrao = (await c.query<{ id: string }>('select core.filial_padrao_id(plataforma.tenant_atual()) as id')).rows[0]!.id;
     const filial = (id: string, nome: string, padraoDoTenant: boolean) => ({ id, codigo: id.slice(-4), nome, cidade: null, uf: null, padrao: padraoDoTenant, ativo: true, external_id: null });
