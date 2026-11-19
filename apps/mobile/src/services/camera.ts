@@ -27,6 +27,7 @@ import { pedirOrigemFotoPdv, type OrigemFotoPdv } from '@/lib/folha-foto-pdv';
 import { FOTO_QUALIDADE_JPEG, nomeArquivoFoto, PASTA_FOTOS, redimensionamento } from '@/lib/foto';
 import { posicaoAgora, uuid } from './device';
 import { abrirFoto } from './visor-foto';
+import { abrirArquivo } from './visualizar-arquivo';
 
 export type CapturaFoto = () => Promise<string | null>;
 
@@ -111,12 +112,15 @@ interface PortasDoCore {
   definirCapturaFoto?: (fn: CapturaFoto | null) => void;
   definirCapturaFotoPdv?: (c: CapturaFotoPdv | null) => void;
   definirAbrirFotoPdv?: (fn: typeof abrirFoto | null) => void;
+  definirAbrirArquivo?: (fn: typeof abrirArquivo | null) => void;
+  /** Nome da mesma porta no Core antes de `definirAbrirArquivo` (branch do Core em d93a3b4b). */
+  definirAbrirDocumento?: (fn: typeof abrirArquivo | null) => void;
 }
 
 /**
- * Registra a captura no Core, no Promotor e na Pesquisa, e a captura e o visualizador das fotos do PDV no Core (T-0147).
- * Porta que o `@macuxi/core/app` ainda não exporta fica sem registro (a tela do Core a deixa desligada). Devolve se a
- * câmera da fachada foi registrada.
+ * Registra a captura no Core, no Promotor e na Pesquisa, a captura e o visualizador das fotos do PDV no Core (T-0147) e o
+ * visualizador dos documentos e do PDF da NF (T-0186, RD-2356). Porta que o `@macuxi/core/app` ainda não exporta fica sem
+ * registro (a tela do Core a deixa desligada). Devolve se a câmera da fachada foi registrada.
  */
 export function registrarCameraNosModulos(): boolean {
   const core = appCore as unknown as PortasDoCore;
@@ -125,6 +129,8 @@ export function registrarCameraNosModulos(): boolean {
   // a galeria só para as fotos do PDV (premissa do dono do produto, desenho T-0147 §5)
   if (typeof core.definirCapturaFotoPdv === 'function') core.definirCapturaFotoPdv({ escolher: escolherFotoPdv, camera: capturarFotoGravada, galeria: escolherFotoDaGaleria });
   if (typeof core.definirAbrirFotoPdv === 'function') core.definirAbrirFotoPdv(abrirFoto);
+  if (typeof core.definirAbrirArquivo === 'function') core.definirAbrirArquivo(abrirArquivo);
+  else if (typeof core.definirAbrirDocumento === 'function') core.definirAbrirDocumento(abrirArquivo);
   if (typeof core.definirCapturaFoto !== 'function') return false;
   core.definirCapturaFoto(capturarFoto);
   return true;

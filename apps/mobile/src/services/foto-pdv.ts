@@ -21,6 +21,11 @@ export function ligarFonteFotoPdv(api: () => ApiClient, online: () => boolean): 
   };
 }
 
+/** A mesma fonte (API da sessão e sinal) para o visualizador de arquivos da ficha (`services/visualizar-arquivo.ts`). */
+export function fonteDeArquivos(): { api: () => ApiClient; online: () => boolean } | null {
+  return fonte;
+}
+
 function arquivoLocal(arquivoId: string): string | null {
   if (Platform.OS === 'web') return null;
   const f = new File(new Directory(Paths.document, PASTA_FOTOS), nomeArquivoFoto(arquivoId));

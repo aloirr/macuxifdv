@@ -165,6 +165,8 @@ function Gate() {
                 <Stack.Screen name="esqueci-senha" />
                 {/* T-0147 / RD-0088: o visor de foto comum (foto do PDV, do produto) abre por cima, sem deslizar */}
                 <Stack.Screen name="foto" options={{ animation: 'fade' }} />
+                {/* T-0186: o visualizador dos documentos e do PDF da NF (Cliente 360), do mesmo jeito */}
+                <Stack.Screen name="arquivo" options={{ animation: 'fade' }} />
               </Stack>
             </AreaSeguraSuperior>
           </View>

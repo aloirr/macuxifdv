@@ -12,7 +12,8 @@ const sim = vi.hoisted(() => ({
   resize: [] as unknown[],
   save: [] as unknown[],
   movidos: [] as string[],
-  core: {} as Record<string, ReturnType<typeof vi.fn>>,
+  // o mock do módulo só deixa ler a porta que existe no objeto: as do T-0186 começam ausentes (undefined)
+  core: { definirAbrirArquivo: undefined, definirAbrirDocumento: undefined } as Record<string, ReturnType<typeof vi.fn> | undefined>,
   promotor: vi.fn(),
   pesquisa: vi.fn(),
   titulos: [] as string[],
@@ -69,6 +70,7 @@ vi.mock('expo-file-system', () => {
 });
 vi.mock('./device', () => ({ uuid: () => '0b9f6c3e-6a7d-4c1e-9f0a-2b3c4d5e6f70', posicaoAgora: async () => null }));
 vi.mock('./visor-foto', () => ({ abrirFoto: vi.fn() }));
+vi.mock('./visualizar-arquivo', () => ({ abrirArquivo: vi.fn() }));
 vi.mock('@/lib/folha-foto-pdv', () => ({ pedirOrigemFotoPdv: async (p: { titulo: string }) => (sim.titulos.push(p.titulo), sim.origem) }));
 vi.mock('@macuxi/core/app', () => sim.core);
 vi.mock('@macuxi/promotor/app', () => ({ definirCapturaFotoPromotor: sim.promotor }));
@@ -76,6 +78,7 @@ vi.mock('@macuxi/pesquisa/app', () => ({ definirCapturaFotoPesquisa: sim.pesquis
 
 import { capturarFotoGravada, escolherFotoDaGaleria, escolherFotoPdv, registrarCameraNosModulos } from './camera';
 import { abrirFoto } from './visor-foto';
+import { abrirArquivo } from './visualizar-arquivo';
 
 beforeEach(() => {
   sim.opcoesGaleria.length = 0;
@@ -148,5 +151,24 @@ describe('registrarCameraNosModulos', () => {
     expect(sim.core.definirAbrirFotoPdv).toHaveBeenCalledWith(abrirFoto);
     expect(sim.promotor.mock.calls[0]![0]).not.toBe(escolherFotoDaGaleria);
     expect(sim.pesquisa).toHaveBeenCalledWith(capturarFotoGravada);
+  });
+
+  it('T-0186: o visualizador dos documentos e do PDF da NF vai na porta definirAbrirArquivo, sem mexer na foto do PDV', () => {
+    sim.core.definirAbrirFotoPdv = vi.fn();
+    sim.core.definirAbrirArquivo = vi.fn();
+    sim.core.definirAbrirDocumento = vi.fn();
+    registrarCameraNosModulos();
+    expect(sim.core.definirAbrirArquivo).toHaveBeenCalledWith(abrirArquivo);
+    expect(sim.core.definirAbrirDocumento).not.toHaveBeenCalled();
+    expect(sim.core.definirAbrirFotoPdv).toHaveBeenCalledWith(abrirFoto);
+  });
+
+  it('T-0186: Core sem definirAbrirArquivo usa a porta com o nome antigo; sem nenhuma, nada é registrado e não quebra', () => {
+    sim.core.definirAbrirArquivo = undefined;
+    sim.core.definirAbrirDocumento = vi.fn();
+    registrarCameraNosModulos();
+    expect(sim.core.definirAbrirDocumento).toHaveBeenCalledWith(abrirArquivo);
+    sim.core.definirAbrirDocumento = undefined;
+    expect(() => registrarCameraNosModulos()).not.toThrow();
   });
 });
