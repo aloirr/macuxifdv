@@ -1,14 +1,20 @@
 /**
  * RD-0088: visor de foto comum do shell, renderizado com `react-dom/server` e `react-native`/kit simulados:
  * - estados: carregando, foto (com o rótulo acessível) e sem sinal ("Sem internet");
- * - fechar (X) com o rótulo "Fechar a foto" chama `aoFechar`;
+ * - fechar (X) com o rótulo "Fechar" chama `aoFechar`;
  * - zoom pelos gestos reais do `PanResponder`: pinça (2 dedos), arraste limitado à área e toque duplo (aproxima / volta).
  */
 import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-type Props = { children?: ReactNode; testID?: string; accessibilityLabel?: string; onPress?: () => void; onLayout?: (e: unknown) => void };
+type Props = {
+  children?: ReactNode;
+  testID?: string;
+  accessibilityLabel?: string;
+  onPress?: () => void;
+  onLayout?: (e: unknown) => void;
+};
 type Config = Record<string, (e: unknown) => unknown>;
 
 const sim = vi.hoisted(() => ({
@@ -24,7 +30,14 @@ vi.mock('react-native', async () => {
     function Host({ children, testID, accessibilityLabel, onPress, onLayout }: Props) {
       if (testID === 'visor-foto-fechar' && onPress) sim.fechar = onPress;
       if (testID === 'visor-foto-area' && onLayout) sim.layout = onLayout;
-      return createElement(tag, { ...(testID ? { 'data-testid': testID } : {}), ...(accessibilityLabel ? { 'aria-label': accessibilityLabel } : {}) }, children);
+      return createElement(
+        tag,
+        {
+          ...(testID ? { 'data-testid': testID } : {}),
+          ...(accessibilityLabel ? { 'aria-label': accessibilityLabel } : {}),
+        },
+        children,
+      );
     };
   class Value {
     atual: number;
@@ -40,9 +53,17 @@ vi.mock('react-native', async () => {
     View: host('div'),
     Text: host('span'),
     Pressable: host('button'),
-    Image: ({ testID, accessibilityLabel, source }: { testID: string; accessibilityLabel: string; source: { uri: string } }) =>
-      createElement('img', { 'data-testid': testID, alt: accessibilityLabel, src: source.uri }),
-    ActivityIndicator: ({ testID }: { testID: string }) => createElement('progress', { 'data-testid': testID }),
+    Image: ({
+      testID,
+      accessibilityLabel,
+      source,
+    }: {
+      testID: string;
+      accessibilityLabel: string;
+      source: { uri: string };
+    }) => createElement('img', { 'data-testid': testID, alt: accessibilityLabel, src: source.uri }),
+    ActivityIndicator: ({ testID }: { testID: string }) =>
+      createElement('progress', { 'data-testid': testID }),
     Animated: { Value, View: host('div') },
     PanResponder: {
       create: (c: Config) => {
@@ -53,7 +74,9 @@ vi.mock('react-native', async () => {
     StyleSheet: { create: <T,>(s: T) => s },
   };
 });
-vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
 vi.mock('@macuxi/ui/mobile', async () => {
   const { createElement } = await import('react');
   return {
@@ -68,12 +91,25 @@ import type { EstadoVisor } from '@/lib/visor-foto';
 import { VisorDeFoto } from './visor-foto';
 
 function render(estado: EstadoVisor, aoFechar = () => undefined): string {
-  return renderToStaticMarkup(createElement(VisorDeFoto, { titulo: 'Atacadinho Cachoeirinha', subtitulo: 'Fachada · 08/11/2026', estado, aoFechar }));
+  return renderToStaticMarkup(
+    createElement(VisorDeFoto, {
+      titulo: 'Atacadinho Cachoeirinha',
+      subtitulo: 'Fachada · 08/11/2026',
+      estado,
+      aoFechar,
+    }),
+  );
 }
 
 /** Evento de toque do RN com os dedos na tela (`touches`) e o ponto do dedo que saiu (`pageX/pageY`). */
 function ev(dedos: [number, number][], solto?: [number, number]): unknown {
-  return { nativeEvent: { touches: dedos.map(([x, y]) => ({ pageX: x, pageY: y })), pageX: solto?.[0] ?? 0, pageY: solto?.[1] ?? 0 } };
+  return {
+    nativeEvent: {
+      touches: dedos.map(([x, y]) => ({ pageX: x, pageY: y })),
+      pageX: solto?.[0] ?? 0,
+      pageY: solto?.[1] ?? 0,
+    },
+  };
 }
 
 /** escala, x e y aplicados (ordem de criação no componente: escala, tx, ty). */
@@ -92,7 +128,7 @@ beforeEach(() => {
 describe('VisorDeFoto — estados', () => {
   it('topo com fechar, título e subtítulo; carregando', () => {
     const html = render({ tipo: 'carregando' });
-    expect(html).toContain('aria-label="Fechar a foto"');
+    expect(html).toContain('aria-label="Fechar"');
     expect(html).toContain('data-icone="close"');
     expect(html).toContain('Atacadinho Cachoeirinha');
     expect(html).toContain('Fachada · 08/11/2026');
@@ -125,8 +161,18 @@ describe('VisorDeFoto — zoom', () => {
 
   it('pinça: dedos se afastando o dobro dobram a escala; soltar mantém', () => {
     const c = abrir();
-    c.onPanResponderGrant!(ev([[100, 300], [200, 300]]));
-    c.onPanResponderMove!(ev([[50, 300], [250, 300]]));
+    c.onPanResponderGrant!(
+      ev([
+        [100, 300],
+        [200, 300],
+      ]),
+    );
+    c.onPanResponderMove!(
+      ev([
+        [50, 300],
+        [250, 300],
+      ]),
+    );
     expect(zoom()).toEqual({ escala: 2, x: 0, y: 0 });
     c.onPanResponderRelease!(ev([], [250, 300]));
     expect(zoom().escala).toBe(2);
@@ -139,8 +185,18 @@ describe('VisorDeFoto — zoom', () => {
     expect(zoom()).toEqual({ escala: 1, x: 0, y: 0 });
     c.onPanResponderRelease!(ev([], [260, 340]));
     // pinça até 2x, depois arrasta muito para a direita: para em (2-1)*400/2 = 200
-    c.onPanResponderGrant!(ev([[100, 300], [200, 300]]));
-    c.onPanResponderMove!(ev([[50, 300], [250, 300]]));
+    c.onPanResponderGrant!(
+      ev([
+        [100, 300],
+        [200, 300],
+      ]),
+    );
+    c.onPanResponderMove!(
+      ev([
+        [50, 300],
+        [250, 300],
+      ]),
+    );
     c.onPanResponderRelease!(ev([], [250, 300]));
     c.onPanResponderGrant!(ev([[200, 300]]));
     c.onPanResponderMove!(ev([[900, 330]]));

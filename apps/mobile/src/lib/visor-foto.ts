@@ -1,6 +1,7 @@
 /**
  * Visor de foto comum do shell (RD-0088, v1.0.4): um só visor em tela cheia para os módulos (foto do PDV do Core, foto do
- * produto do Vendedor, e o que vier), com zoom (pinça e toque duplo), fechar e o estado sem sinal "Sem internet". Puro, para teste: o pedido do módulo, os parâmetros da rota e a matemática do zoom.
+ * produto do Vendedor, e o que vier), com zoom (pinça e toque duplo), fechar e o estado sem sinal "Sem internet".
+ * Puro, para teste: o pedido do módulo, os parâmetros da rota e a matemática do zoom.
  *
  * O módulo chama `ambiente.abrirFoto(pedido)` (porta que o shell põe no ambiente; tipo no platform-sdk, pedido ao
  * engenheiro-software) com UMA das fontes:
@@ -14,7 +15,10 @@ import { nomeArquivoFoto } from './foto';
 import { pedidoDaRota, TEXTO_SEM_SINAL_FOTO } from './foto-pdv';
 
 /** O que o módulo passa ao shell. Exatamente uma fonte: `arquivo_id` ou `uri`. */
-export type PedidoAbrirFoto = ({ arquivo_id: string; uri?: undefined } | { uri: string; arquivo_id?: undefined }) & {
+export type PedidoAbrirFoto = (
+  | { arquivo_id: string; uri?: undefined }
+  | { uri: string; arquivo_id?: undefined }
+) & {
   /** Ex.: nome do cliente ou descrição do produto. */
   titulo?: string;
   /** Ex.: "Fachada · 08/11/2026". */
@@ -32,15 +36,26 @@ const URI_REDE = /^https?:\/\//i;
 
 /** Endereço que o visor aceita: local (`file://`, `content://`) ou de rede (`http(s)://`), sem espaços, até o teto. */
 export function uriAceita(uri: string): boolean {
-  return uri.length > 0 && uri.length <= MAX_TAMANHO_URI && !/\s/.test(uri) && (URI_LOCAL.test(uri) || URI_REDE.test(uri));
+  return (
+    uri.length > 0 &&
+    uri.length <= MAX_TAMANHO_URI &&
+    !/\s/.test(uri) &&
+    (URI_LOCAL.test(uri) || URI_REDE.test(uri))
+  );
 }
 
-function extras(p: { titulo?: string | undefined; subtitulo?: string | undefined }): { titulo?: string; subtitulo?: string } {
+function extras(p: { titulo?: string | undefined; subtitulo?: string | undefined }): {
+  titulo?: string;
+  subtitulo?: string;
+} {
   return { ...(p.titulo ? { titulo: p.titulo } : {}), ...(p.subtitulo ? { subtitulo: p.subtitulo } : {}) };
 }
 
 /** Rota do visor para o pedido do módulo; lança se a fonte for inválida (arquivo que não é UUID, endereço recusado). */
-export function rotaDoVisor(p: PedidoAbrirFoto): { pathname: typeof ROTA_VISOR_FOTO; params: Record<string, string> } {
+export function rotaDoVisor(p: PedidoAbrirFoto): {
+  pathname: typeof ROTA_VISOR_FOTO;
+  params: Record<string, string>;
+} {
   if (p.arquivo_id !== undefined) {
     nomeArquivoFoto(p.arquivo_id); // lança se não for UUID
     return { pathname: ROTA_VISOR_FOTO, params: { arquivo: p.arquivo_id.toLowerCase(), ...extras(p) } };
@@ -61,7 +76,10 @@ export function pedidoDoVisor(params: Record<string, string | string[] | undefin
   return { uri, ...extras({ titulo: um(params.titulo), subtitulo: um(params.subtitulo) }) };
 }
 
-export type EstadoVisor = { tipo: 'carregando' } | { tipo: 'ok'; uri: string } | { tipo: 'erro'; mensagem: string };
+export type EstadoVisor =
+  | { tipo: 'carregando' }
+  | { tipo: 'ok'; uri: string }
+  | { tipo: 'erro'; mensagem: string };
 
 /** Endereço já resolvido: local abre sempre; de rede só com sinal. */
 export function estadoDoEndereco(uri: string, online: boolean): EstadoVisor {
@@ -101,7 +119,11 @@ export function distancia(a: Ponto, b: Ponto): number {
 }
 
 /** Escala durante a pinça: a de antes vezes a razão entre a distância atual e a inicial dos dedos, nos limites. */
-export function escalaDaPinca(escalaInicial: number, distanciaInicial: number, distanciaAtual: number): number {
+export function escalaDaPinca(
+  escalaInicial: number,
+  distanciaInicial: number,
+  distanciaAtual: number,
+): number {
   return limitarEscala((escalaInicial * distanciaAtual) / Math.max(distanciaInicial, 1));
 }
 

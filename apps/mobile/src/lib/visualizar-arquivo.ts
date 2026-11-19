@@ -1,24 +1,9 @@
 /**
  * Visualizador de arquivos da ficha (T-0186, RD-2356; P15 e P17): o Core chama a porta `abrirArquivo` com a foto de fachada
- * ou o documento do cliente, e o shell só MOSTRA, no visor de foto comum (RD-0088). Puro, para teste: os formatos do visor e o
- * tipo pelos bytes. Só JPEG e PNG, com os bytes em memória.
+ * ou o documento do cliente, e o shell só MOSTRA, no visor de foto comum (RD-0088). Puro, para teste: o tipo pelos bytes e a
+ * imagem em memória.
  */
 import { bytesParaBase64 } from './foto-pdv';
-
-/** Os formatos que o visor abre. */
-export const FORMATOS_DO_VISOR: readonly string[] = Object.freeze(['jpg', 'jpeg', 'png']);
-
-/** Formato que o visor abre ("jpg" ou "image/jpeg"). */
-export function ehImagem(formato: string | null | undefined): boolean {
-  if (typeof formato !== 'string') return false;
-  const f = formato.trim().toLowerCase().replace(/^image\//, '');
-  return FORMATOS_DO_VISOR.includes(f);
-}
-
-/** Sem formato, o visor decide pelos bytes; formato que o visor não abre (PDF de um Core antigo) não abre nada. */
-export function semFormato(formato: string | null | undefined): boolean {
-  return formato == null || formato.trim() === '';
-}
 
 export type TipoDosBytes = 'jpeg' | 'png' | null;
 
