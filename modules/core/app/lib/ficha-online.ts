@@ -24,6 +24,8 @@ export interface FalhaOnline {
   mensagem: string;
 }
 
+export const FALHA_SEM_INTERNET: FalhaOnline = { semInternet: true, mensagem: 'Sem internet' };
+
 /** Sem conexão: texto da folha ("Sem internet" + "Tentar de novo"). Resposta recusada pela API: a mensagem dela, em português. */
 export function falhaDaConsulta(e: unknown): FalhaOnline {
   const x = e as { status?: unknown; message?: unknown; code?: unknown } | null;
@@ -32,7 +34,7 @@ export function falhaDaConsulta(e: unknown): FalhaOnline {
     const msg = typeof x?.message === 'string' && x.message.trim() ? x.message : 'Sem permissão para ver este item.';
     return { semInternet: false, mensagem: msg };
   }
-  return { semInternet: true, mensagem: 'Sem internet' };
+  return FALHA_SEM_INTERNET;
 }
 
 export async function buscarNotas(http: ClienteHttp, clienteId: string, q: { de: string; ate: string; limite?: number }): Promise<HistoricoNfResposta> {

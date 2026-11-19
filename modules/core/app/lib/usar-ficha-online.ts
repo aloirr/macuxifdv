@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DocumentoLinhaContrato, HistoricoNfResposta, LinhaHistoricoNfContrato, NotaDetalhe } from '../../contracts';
 import { filtrarNotas, inicioDoPeriodoNf } from '../../domain';
 import type { AbrirArquivo } from './abrir-arquivo';
-import { buscarDocumento, buscarNota, buscarNotas, buscarDocumentos, falhaDaConsulta, type FalhaOnline } from './ficha-online';
+import { buscarDocumento, buscarNota, buscarNotas, buscarDocumentos, falhaDaConsulta, FALHA_SEM_INTERNET, type FalhaOnline } from './ficha-online';
 import { filtroDeNotas, filtroPrecisaDoServidor, intervaloDoFiltro, type EstadoDaConsulta, type FiltroDaFicha } from './ficha-v2';
 import { httpDe } from './http';
 
@@ -40,7 +40,7 @@ export function useNotasDoCliente(clienteId: string, filtro: FiltroDaFicha, hoje
     const http = httpDe(motor);
     if (!http) {
       setEstado('erro');
-      setFalha({ semInternet: true, mensagem: 'Sem internet' });
+      setFalha(FALHA_SEM_INTERNET);
       return;
     }
     let ativo = true;
@@ -99,7 +99,7 @@ export function useDetalheDaNota(clienteId: string): DetalheDaNota {
       setFalha(null);
       if (!http) {
         setEstado('erro');
-        setFalha({ semInternet: true, mensagem: 'Sem internet' });
+        setFalha(FALHA_SEM_INTERNET);
         return;
       }
       setEstado('carregando');
@@ -123,7 +123,7 @@ export function useDetalheDaNota(clienteId: string): DetalheDaNota {
     setNota(null);
     // spec §4: sem internet o toque abre direto "Sem internet" + "Tentar de novo", sem a pergunta
     if (!httpDe(motor)) {
-      setFalha({ semInternet: true, mensagem: 'Sem internet' });
+      setFalha(FALHA_SEM_INTERNET);
       setEstado('erro');
       return;
     }
@@ -166,7 +166,7 @@ export function useDocumentosDoCliente(clienteId: string, ligado: boolean): Docu
     const http = httpDe(motor);
     if (!http) {
       setEstado('erro');
-      setFalha({ semInternet: true, mensagem: 'Sem internet' });
+      setFalha(FALHA_SEM_INTERNET);
       return;
     }
     let ativo = true;
@@ -213,7 +213,7 @@ export function useAbrirDocumento(clienteId: string, visualizador: AbrirArquivo 
       ultimo.current = d;
       const http = httpDe(motor);
       if (!http || !visualizador) {
-        setFalhou({ id: d.id, nome: d.nome, falha: { semInternet: true, mensagem: 'Sem internet' } });
+        setFalhou({ id: d.id, nome: d.nome, falha: FALHA_SEM_INTERNET });
         return;
       }
       setAbrindo(d.id);

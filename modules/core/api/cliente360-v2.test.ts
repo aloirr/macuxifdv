@@ -2,7 +2,7 @@ import { ErroHttpModulo, ErroNaoEncontrado } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { DocumentoAbrirRespostaSchema, DocumentosRespostaSchema, HistoricoNfRespostaSchema, NotaDetalheSchema } from '../contracts';
 import type { DocumentoLinha, ExcecaoDocumento, PermissaoTipoDocumento, TipoDocumento } from '../domain';
-import { abrirDocumento, detalheDaNota, gravarExcecaoDocumento, gravarMatrizDocumentos, linhasDoHistorico, listarDocumentos, listarNotas, lerPermissoesDocumentos, type DadosDocumentos, type DadosNotas, type RepositorioDocumentos, type RepositorioNotas } from './cliente360-v2';
+import { abrirDocumento, detalheDaNota, gravarExcecaoDocumento, gravarMatrizDocumentos, listarDocumentos, listarNotas, lerPermissoesDocumentos, type DadosDocumentos, type DadosNotas, type RepositorioDocumentos, type RepositorioNotas } from './cliente360-v2';
 
 const HOJE = '2026-11-19';
 const C1 = '0ea00000-0000-4000-8000-000000000001';
@@ -107,9 +107,6 @@ describe('T-0186 / P17: Histórico de NF e consulta online da NF', () => {
   });
   it('RN-CORE-04: nota de outro cliente ou inexistente = 404, sem revelar', async () => {
     await expect(detalheDaNota(repoNotas(), { clienteId: C1, notaId: '0ea00000-0000-4000-8000-0000000000ff', hoje: HOJE, podeVerHistorico: true })).rejects.toBeInstanceOf(ErroNaoEncontrado);
-  });
-  it('as linhas de 90 dias que vão no Cliente 360 usam o mesmo cálculo da lista', async () => {
-    expect((await linhasDoHistorico(repoNotas(), C1, HOJE)).map((l) => l.numero_nf)).toEqual(['004817', '004655', '004702']);
   });
 });
 

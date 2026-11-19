@@ -7,7 +7,7 @@
  */
 import { localIsoDate } from '@macuxi/comum/fuso';
 import type { ClienteBanco, ContextoBase, ItemPush, ResultadoItemPush } from '@macuxi/platform-sdk';
-import { PARAMETRO_RASTREAMENTO, PontoTrajetoSchema, type PontoTrajeto as PontoPush } from '../contracts';
+import { PARAMETRO_RASTREAMENTO, PONTOS_POR_LOTE, PontoTrajetoSchema, type PontoTrajeto as PontoPush } from '../contracts';
 import { PARAMETRO_FERIADOS } from '../contracts/inicio-parametros';
 import { idDoPayloadConfere } from '../domain/idempotencia';
 import { metrosDoTrajeto } from '../domain/performance/trajeto';
@@ -70,6 +70,9 @@ export async function recalcularDeslocamentoDia(db: ClienteBanco, usuarioId: str
 }
 
 export async function receberPontosTrajeto(ctx: ContextoBase, itens: readonly ItemPush[]): Promise<ResultadoItemPush[]> {
+  if (itens.length > PONTOS_POR_LOTE) {
+    return itens.map((i) => rejeitado(i.id, 'LOTE_GRANDE_DEMAIS', `Envio com mais de ${PONTOS_POR_LOTE} pontos. Atualize o app e tente de novo.`));
+  }
   const saida = new Map<string, ResultadoItemPush>();
   const validos: PontoPush[] = [];
   for (const item of itens) {
