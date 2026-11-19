@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import type { PontoTrajeto } from '@macuxi/core/contracts';
+import { PARAMETROS_RASTREAMENTO_PADRAO, type FrequenciaRastreamento, type PontoTrajeto } from '@macuxi/core/contracts';
 import { comPrefixo, type ArmazenamentoSync, type DriverSqlite } from '@macuxi/platform-sdk';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -15,13 +15,17 @@ import {
   criarTrajeto,
   gravarPontosDoTrajeto,
   lerEstadoLocalDoRastreamento,
+  lerFrequenciaDoTrajeto,
   lerPontosDoDia,
+  opcoesDoTrajeto,
   PORTAO_DO_CORE,
   type CapturaDoAparelho,
   type CondicaoTrajeto,
   type DiagnosticoDoTrajeto,
   type EstadoLocalDoRastreamento,
+  type IntervalosDaCaptura,
   type LeituraDeLocalizacao,
+  type OpcoesDoTrajeto,
   type PortaoDoTrajeto,
 } from './trajeto';
 
@@ -32,26 +36,42 @@ const NAO_PODE: CondicaoTrajeto = { pode: false, motivo: 'fora_do_expediente' };
 const LAT = -3.119027;
 const LON = -60.021731;
 
-function montar(o: { ativa?: boolean; condicao?: CondicaoTrajeto; gravar?: (p: PontoTrajeto[]) => Promise<void>; semNativo?: boolean } = {}) {
+function montar(
+  o: {
+    ativa?: boolean;
+    condicao?: CondicaoTrajeto;
+    frequencia?: FrequenciaRastreamento;
+    emUso?: Partial<IntervalosDaCaptura> | null;
+    gravar?: (p: PontoTrajeto[]) => Promise<void>;
+    semNativo?: boolean;
+  } = {},
+) {
   const passos: string[] = [];
+  const ligadas: OpcoesDoTrajeto[] = [];
+  let emUso: Partial<IntervalosDaCaptura> | null = o.emUso !== undefined ? o.emUso : o.ativa ? opcoesDoTrajeto() : null;
   const erros: Error[] = [];
   const gravados: PontoTrajeto[] = [];
   let diag: Partial<DiagnosticoDoTrajeto> = {};
   let ativa = o.ativa ?? false;
   const captura: CapturaDoAparelho = {
     ativa: async () => ativa,
-    ligar: async () => {
+    ligar: async (opcoes) => {
       passos.push('ligar');
+      ligadas.push(opcoes);
+      emUso = opcoes;
       ativa = true;
     },
     parar: async () => {
       passos.push('parar');
+      emUso = null;
       ativa = false;
     },
+    intervalosEmUso: async () => emUso,
   };
   const trajeto = criarTrajeto({
     captura: o.semNativo ? null : captura,
     condicao: async () => () => o.condicao ?? PODE,
+    frequencia: async () => o.frequencia ?? PARAMETROS_RASTREAMENTO_PADRAO.frequencia,
     gravar:
       o.gravar ??
       (async (p) => {
@@ -64,7 +84,7 @@ function montar(o: { ativa?: boolean; condicao?: CondicaoTrajeto; gravar?: (p: P
     },
     registrarErro: (e) => erros.push(e),
   });
-  return { trajeto, passos, erros, gravados, diag: () => diag, ativa: () => ativa };
+  return { trajeto, passos, ligadas, erros, gravados, diag: () => diag, ativa: () => ativa };
 }
 
 const leitura = (ms: number): LeituraDeLocalizacao => ({ timestamp: ms, coords: { latitude: LAT, longitude: LON, accuracy: 10, speed: 1 } });
@@ -157,6 +177,26 @@ describe('aceite e pausa do Core no aparelho (§4.3 e §6; RN-CORE-13)', () => {
   });
 });
 
+describe('frequência do parâmetro rastreamento no banco do usuário (§3.1)', () => {
+  const valor = { ...PARAMETROS_RASTREAMENTO_PADRAO, frequencia: { distancia_m: 300, intervalo_min: 3, lote_min: 6 } };
+  const linha = { id: ID, updated_at: '2026-11-19T12:00:00.000Z', deleted_at: null, modulo: 'core', chave: 'rastreamento', valor };
+
+  it('lê pelas linhas da entidade parametro (SQLite)', async () => {
+    const base = memoria();
+    const listar = vi.fn(async () => [linha]);
+    const comLinhas = { ...base, linhas: { listar } } as unknown as ArmazenamentoSync;
+    expect(await lerFrequenciaDoTrajeto(comLinhas)).toEqual({ distancia_m: 300, intervalo_min: 3, lote_min: 6 });
+    expect(listar).toHaveBeenCalledWith('parametro');
+  });
+
+  it('sem linhas, pela chave ent:parametro; sem o parâmetro, a do padrão do contrato', async () => {
+    const base = memoria();
+    expect(await lerFrequenciaDoTrajeto(base)).toEqual(PARAMETROS_RASTREAMENTO_PADRAO.frequencia);
+    await base.gravar('ent:parametro', { [ID]: linha });
+    expect(await lerFrequenciaDoTrajeto(base)).toEqual({ distancia_m: 300, intervalo_min: 3, lote_min: 6 });
+  });
+});
+
 describe('ligar, desligar e manter (§3.2)', () => {
   it('liga se pode e não está ativa; mantém se já está; desliga se não pode mais', async () => {
     const liga = montar({ condicao: PODE });
@@ -175,6 +215,45 @@ describe('ligar, desligar e manter (§3.2)', () => {
     expect(desliga.diag()).toMatchObject({ estado: 'fora_do_expediente' });
   });
 
+  it('§3.1 e §3.3: liga com a frequência do parâmetro; ela mudou, reinicia (para e liga) na próxima atualização', async () => {
+    const f = { distancia_m: 500, intervalo_min: 10, lote_min: 15 };
+    const liga = montar({ condicao: PODE, frequencia: f });
+    expect(await liga.trajeto.atualizar()).toBe('ligar');
+    expect(liga.ligadas).toEqual([opcoesDoTrajeto(f)]);
+
+    const mudou = montar({ condicao: PODE, ativa: true, frequencia: f });
+    expect(await mudou.trajeto.atualizar()).toBe('reiniciar');
+    expect(mudou.passos).toEqual(['parar', 'ligar']);
+    expect(mudou.ligadas).toEqual([opcoesDoTrajeto(f)]);
+    expect(mudou.diag()).toMatchObject({ estado: 'ativa' });
+    // já com a nova: mantém
+    expect(await mudou.trajeto.atualizar()).toBe('manter');
+    expect(mudou.passos).toEqual(['parar', 'ligar']);
+
+    // a captura não diz com que intervalos foi ligada: reinicia uma vez com os do parâmetro
+    const semSaber = montar({ condicao: PODE, ativa: true, emUso: null });
+    expect(await semSaber.trajeto.atualizar()).toBe('reiniciar');
+    expect(semSaber.ligadas).toEqual([opcoesDoTrajeto()]);
+  });
+
+  it('sem poder rastrear, nem lê a frequência', async () => {
+    const frequencia = vi.fn(async () => PARAMETROS_RASTREAMENTO_PADRAO.frequencia);
+    const parar = vi.fn(async () => undefined);
+    const t = criarTrajeto({
+      captura: { ativa: async () => true, ligar: async () => undefined, parar, intervalosEmUso: async () => null },
+      condicao: async () => () => NAO_PODE,
+      frequencia,
+      gravar: async () => undefined,
+      novoId: () => ID,
+      agora: () => AGORA,
+      guardarDiagnostico: async () => undefined,
+      registrarErro: () => undefined,
+    });
+    expect(await t.atualizar()).toBe('desligar');
+    expect(frequencia).not.toHaveBeenCalled();
+    expect(parar).toHaveBeenCalledTimes(1);
+  });
+
   it('build sem os módulos nativos: nada a fazer, sem erro', async () => {
     const t = montar({ semNativo: true });
     expect(await t.trajeto.atualizar()).toBeNull();
@@ -186,8 +265,9 @@ describe('ligar, desligar e manter (§3.2)', () => {
   it('nunca lança: o erro da captura vai ao Diagnóstico', async () => {
     const t = montar({ condicao: PODE });
     const c = criarTrajeto({
-      captura: { ativa: async () => false, ligar: () => Promise.reject(new Error('serviço em primeiro plano recusado')), parar: async () => undefined },
+      captura: { ativa: async () => false, ligar: () => Promise.reject(new Error('serviço em primeiro plano recusado')), parar: async () => undefined, intervalosEmUso: async () => null },
       condicao: async () => () => PODE,
+      frequencia: async () => PARAMETROS_RASTREAMENTO_PADRAO.frequencia,
       gravar: async () => undefined,
       novoId: () => ID,
       agora: () => AGORA,

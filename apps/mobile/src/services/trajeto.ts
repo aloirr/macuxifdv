@@ -6,6 +6,7 @@
  *   fechado, não há React montado;
  * - a tarefa não toca em tela nem em estado de React, só grava no SQLite do usuário, e nenhum erro derruba o processo
  *   (vai ao Diagnóstico pelo `erroSemCoordenada`: nenhuma coordenada em log, erro, Diagnóstico ou telemetria, §9);
+ * - a captura usa a frequência do parâmetro `rastreamento` do pull (`lerFrequenciaDoTrajeto`) e reinicia quando ela muda;
  * - desligada de fábrica: a condição é a de `condicaoDoTrajeto` (ponto único, `lib/trajeto.ts`), sobre o aceite e a pausa que
  *   o Core grava nas chaves `rastreamento.aceite` e `rastreamento.pausa` do armazenamento dele no banco do usuário;
  * - os pontos de hoje voltam ao Core pelo leitor de `leitorDePontosLocais` (`definirPontosLocaisDoDia`, §3.4).
@@ -14,6 +15,7 @@
  * Só Android na v1. Build sem os módulos nativos: tudo vira no-op, sem quebrar o app.
  */
 import { CHAVE_ACEITE_LOCAL, CHAVE_PAUSA_LOCAL, type LeitorDePontosLocais } from '@macuxi/core/app';
+import { PARAMETROS_RASTREAMENTO_PADRAO, type FrequenciaRastreamento } from '@macuxi/core/contracts';
 import { requireOptionalNativeModule } from 'expo';
 import { Platform } from 'react-native';
 
@@ -24,12 +26,13 @@ import {
   erroSemCoordenada,
   gravarPontosDoTrajeto,
   lerEstadoLocalDoRastreamento,
+  lerFrequenciaDoTrajeto,
   lerPontosDoDia,
-  OPCOES_TRAJETO,
   TAREFA_TRAJETO,
   type CapturaDoAparelho,
   type DiagnosticoDoTrajeto,
   type EstadoLocalDoRastreamento,
+  type IntervalosDaCaptura,
   type LeituraDeLocalizacao,
 } from '@/lib/trajeto';
 
@@ -66,8 +69,10 @@ const nat = nativos();
 
 const captura: CapturaDoAparelho | null = nat && {
   ativa: () => nat.loc.hasStartedLocationUpdatesAsync(TAREFA_TRAJETO),
-  ligar: () => nat.loc.startLocationUpdatesAsync(TAREFA_TRAJETO, OPCOES_TRAJETO),
+  ligar: (opcoes) => nat.loc.startLocationUpdatesAsync(TAREFA_TRAJETO, opcoes),
   parar: () => nat.loc.stopLocationUpdatesAsync(TAREFA_TRAJETO),
+  // as opções com que a tarefa foi ligada (o expo-location guarda as do `startLocationUpdatesAsync`)
+  intervalosEmUso: () => nat.tm.getTaskOptionsAsync<Partial<IntervalosDaCaptura>>(TAREFA_TRAJETO).catch(() => null),
 };
 
 /**
@@ -93,9 +98,19 @@ async function estadoLocalDaSessao(): Promise<EstadoLocalDoRastreamento | null> 
   return lerEstadoLocalDoRastreamento(aberto.armazenamento, { aceite: CHAVE_ACEITE_LOCAL, pausa: CHAVE_PAUSA_LOCAL });
 }
 
+/** Frequência do parâmetro `rastreamento` no pull do banco do usuário da sessão; sem sessão ou sem banco, a do padrão do contrato. */
+async function frequenciaDaSessao(): Promise<FrequenciaRastreamento> {
+  const usuarioId = await usuarioDaSessao();
+  if (!usuarioId) return PARAMETROS_RASTREAMENTO_PADRAO.frequencia;
+  const aberto = await abrirArmazenamentoDaSessao(usuarioId);
+  if (aberto.tipo === 'erro') return PARAMETROS_RASTREAMENTO_PADRAO.frequencia;
+  return lerFrequenciaDoTrajeto(aberto.armazenamento);
+}
+
 const trajeto = criarTrajeto({
   captura,
   condicao: () => condicaoDoTrajeto(estadoLocalDaSessao),
+  frequencia: frequenciaDaSessao,
   gravar: gravarNoBancoDoUsuario,
   novoId: uuid,
   agora: () => Date.now(),

@@ -2,14 +2,16 @@
  * T-0156 (docs/desenho/tracking.md §3 e §9; RN-CORE-13 e RN-CORE-37): regras do shell para a tarefa `macuxi-trajeto`.
  * A condição de negócio (`podeRastrear`, §3.2) é do Core e entra pronta; aqui só o que o shell faz com ela.
  */
-import { MOTIVOS_SEM_RASTREIO, PontoTrajetoSchema } from '@macuxi/core/contracts';
+import { MOTIVOS_SEM_RASTREIO, PARAMETROS_RASTREAMENTO_PADRAO, PontoTrajetoSchema } from '@macuxi/core/contracts';
 import { describe, expect, it } from 'vitest';
 
 import {
   acaoDoTrajeto,
   erroSemCoordenada,
   estadoDoTrajeto,
-  OPCOES_TRAJETO,
+  frequenciaDasLinhas,
+  mesmosIntervalos,
+  opcoesDoTrajeto,
   pontoDaLeitura,
   pontosDoLote,
   TAREFA_TRAJETO,
@@ -22,9 +24,34 @@ const ID = '0b9a4c1e-7f3d-4a2b-9c8d-1e2f3a4b5c6d';
 describe('tarefa macuxi-trajeto: captura (§3.1)', () => {
   it('nome da tarefa, parâmetros e notificação fixa sem ação', () => {
     expect(TAREFA_TRAJETO).toBe('macuxi-trajeto');
-    expect(OPCOES_TRAJETO).toMatchObject({ distanceInterval: 200, timeInterval: 300_000, deferredUpdatesInterval: 300_000 });
-    expect(OPCOES_TRAJETO.foregroundService.notificationTitle).toBe('Localização ativa no expediente');
-    expect(OPCOES_TRAJETO.foregroundService.killServiceOnDestroy).toBe(false);
+    const opcoes = opcoesDoTrajeto();
+    expect(opcoes).toMatchObject({ accuracy: 4, distanceInterval: 200, timeInterval: 300_000, deferredUpdatesInterval: 300_000 });
+    expect(opcoes.foregroundService.notificationTitle).toBe('Localização ativa no expediente');
+    expect(opcoes.foregroundService.killServiceOnDestroy).toBe(false);
+  });
+
+  it('§3.1 e §3.3: a captura segue a frequência do parâmetro do BKO (metros e minutos)', () => {
+    expect(opcoesDoTrajeto({ distancia_m: 100, intervalo_min: 2, lote_min: 10 })).toMatchObject({ distanceInterval: 100, timeInterval: 120_000, deferredUpdatesInterval: 600_000 });
+    expect(opcoesDoTrajeto(PARAMETROS_RASTREAMENTO_PADRAO.frequencia)).toEqual(opcoesDoTrajeto());
+  });
+
+  it('frequência das linhas do pull parametro: a do core/rastreamento; ausente, removida, de outro módulo ou inválida, a do padrão', () => {
+    const valor = { ...PARAMETROS_RASTREAMENTO_PADRAO, ativo: true, frequencia: { distancia_m: 500, intervalo_min: 10, lote_min: 15 } };
+    const linha = { modulo: 'core', chave: 'rastreamento', valor, deleted_at: null };
+    const padrao = PARAMETROS_RASTREAMENTO_PADRAO.frequencia;
+    expect(frequenciaDasLinhas([{ modulo: 'core', chave: 'checkin.raio_m', valor: 150 }, linha])).toEqual({ distancia_m: 500, intervalo_min: 10, lote_min: 15 });
+    expect(frequenciaDasLinhas([])).toEqual(padrao);
+    expect(frequenciaDasLinhas([{ ...linha, deleted_at: '2026-11-19T12:00:00.000Z' }])).toEqual(padrao);
+    expect(frequenciaDasLinhas([{ ...linha, modulo: 'vendedor' }])).toEqual(padrao);
+    expect(frequenciaDasLinhas([{ ...linha, valor: { ...valor, frequencia: { distancia_m: 10, intervalo_min: 5, lote_min: 5 } } }])).toEqual(padrao);
+  });
+
+  it('mesmos intervalos: compara distância e intervalos; sem o que comparar, não', () => {
+    const o = opcoesDoTrajeto();
+    expect(mesmosIntervalos(o, { distanceInterval: 200, timeInterval: 300_000, deferredUpdatesInterval: 300_000 })).toBe(true);
+    expect(mesmosIntervalos(o, { distanceInterval: 100, timeInterval: 300_000, deferredUpdatesInterval: 300_000 })).toBe(false);
+    expect(mesmosIntervalos(o, {})).toBe(false);
+    expect(mesmosIntervalos(o, null)).toBe(false);
   });
 
   it('ponto só com os campos do §3.1: 6 casas, precisão e velocidade (nula se o aparelho não der)', () => {
@@ -54,6 +81,13 @@ describe('ligar e desligar (§3.2)', () => {
     expect(acaoDoTrajeto({ pode: true }, true)).toBe('manter');
     expect(acaoDoTrajeto({ pode: false, motivo: 'fora_do_expediente' }, true)).toBe('desligar');
     expect(acaoDoTrajeto({ pode: false, motivo: 'desligado' }, false)).toBe('manter');
+  });
+
+  it('reinicia se pode, está ativa e a frequência mudou; parada ou sem poder, a frequência não conta', () => {
+    expect(acaoDoTrajeto({ pode: true }, true, true)).toBe('reiniciar');
+    expect(acaoDoTrajeto({ pode: true }, false, true)).toBe('ligar');
+    expect(acaoDoTrajeto({ pode: false, motivo: 'pausa' }, true, true)).toBe('desligar');
+    expect(acaoDoTrajeto({ pode: false, motivo: 'pausa' }, false, true)).toBe('manter');
   });
 
   it('lote: descarta o ponto que a condição recusa no instante dele (o lote do Android cruza o fim do expediente)', () => {

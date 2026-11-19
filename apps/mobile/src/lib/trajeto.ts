@@ -7,7 +7,17 @@
  * Tipos do contrato do Core (`@macuxi/core/contracts`): `MotivoSemRastreio` e `PontoTrajeto` (validado pelo `PontoTrajetoSchema`).
  */
 import { formatHHMM, localIsoDate } from '@macuxi/comum/fuso';
-import { PontoDoTrajetoSchema, PontoTrajetoSchema, type MotivoSemRastreio, type PontoDoTrajeto, type PontoTrajeto } from '@macuxi/core/contracts';
+import {
+  PARAMETRO_RASTREAMENTO,
+  PARAMETROS_RASTREAMENTO_PADRAO,
+  ParametrosRastreamentoSchema,
+  PontoDoTrajetoSchema,
+  PontoTrajetoSchema,
+  type FrequenciaRastreamento,
+  type MotivoSemRastreio,
+  type PontoDoTrajeto,
+  type PontoTrajeto,
+} from '@macuxi/core/contracts';
 import { comPrefixo, type ArmazenamentoSync, type DriverSqlite } from '@macuxi/platform-sdk';
 
 import { semDerrubar } from './trava-sync';
@@ -31,24 +41,73 @@ export interface LeituraDeLocalizacao {
   };
 }
 
+/** O que da captura depende da frequência do parâmetro (§3.1): distância e intervalos, em metros e milissegundos. */
+export interface IntervalosDaCaptura {
+  distanceInterval: number;
+  timeInterval: number;
+  deferredUpdatesInterval: number;
+}
+
+/** Parâmetros do `startLocationUpdatesAsync` (§3.1). */
+export type OpcoesDoTrajeto = IntervalosDaCaptura & {
+  accuracy: 4;
+  foregroundService: { notificationTitle: string; notificationBody: string; killServiceOnDestroy: boolean };
+};
+
+const MINUTO_MS = 60_000;
+
 /**
- * Parâmetros do `startLocationUpdatesAsync` (§3.1). `accuracy: 4` é o `Accuracy.High` do expo-location (`Location.types`),
- * em número para este arquivo não importar o módulo nativo. A notificação fixa não tem ação nem texto além do título; o
- * expo-location 57 cria para ela o canal próprio `<appId>:macuxi-trajeto` com IMPORTANCE_LOW, sem som
- * (`LocationTaskService.kt`).
+ * Opções da captura pela frequência do parâmetro `rastreamento` do BKO (§3.1 e §3.3: sobe sem build novo). `accuracy: 4` é o
+ * `Accuracy.High` do expo-location (`Location.types`), em número para este arquivo não importar o módulo nativo. A notificação
+ * fixa não tem ação nem texto além do título; o expo-location 57 cria para ela o canal próprio `<appId>:macuxi-trajeto` com
+ * IMPORTANCE_LOW, sem som (`LocationTaskService.kt`).
  */
-export const OPCOES_TRAJETO = {
-  accuracy: 4,
-  distanceInterval: 200,
-  timeInterval: 300_000,
-  deferredUpdatesInterval: 300_000,
-  foregroundService: {
-    notificationTitle: 'Localização ativa no expediente',
-    // obrigatório no tipo do expo-location; vazio para a notificação mostrar só o título
-    notificationBody: '',
-    killServiceOnDestroy: false,
-  },
-} as const;
+export function opcoesDoTrajeto(frequencia: FrequenciaRastreamento = PARAMETROS_RASTREAMENTO_PADRAO.frequencia): OpcoesDoTrajeto {
+  return {
+    accuracy: 4,
+    distanceInterval: frequencia.distancia_m,
+    timeInterval: frequencia.intervalo_min * MINUTO_MS,
+    deferredUpdatesInterval: frequencia.lote_min * MINUTO_MS,
+    foregroundService: {
+      notificationTitle: 'Localização ativa no expediente',
+      // obrigatório no tipo do expo-location; vazio para a notificação mostrar só o título
+      notificationBody: '',
+      killServiceOnDestroy: false,
+    },
+  };
+}
+
+/** A captura em curso usa estes intervalos? Sem o que comparar (`null`), não: a próxima atualização reinicia. */
+export function mesmosIntervalos(a: IntervalosDaCaptura, b: Partial<IntervalosDaCaptura> | null): boolean {
+  return !!b && a.distanceInterval === b.distanceInterval && a.timeInterval === b.timeInterval && a.deferredUpdatesInterval === b.deferredUpdatesInterval;
+}
+
+/** Linha do pull `parametro` (`ParametroSync` do Core), só o que a leitura usa. */
+type LinhaDeParametro = Readonly<{ modulo?: unknown; chave?: unknown; valor?: unknown; deleted_at?: unknown }>;
+
+/**
+ * Frequência do parâmetro `rastreamento` do Core nas linhas do pull `parametro`. Ausente, removido ou fora do
+ * `ParametrosRastreamentoSchema`: a do padrão de fábrica do contrato.
+ */
+export function frequenciaDasLinhas(linhas: readonly LinhaDeParametro[]): FrequenciaRastreamento {
+  const valor = linhas.find((l) => l.modulo === 'core' && l.chave === PARAMETRO_RASTREAMENTO && !l.deleted_at)?.valor;
+  const p = ParametrosRastreamentoSchema.safeParse(valor);
+  return p.success ? p.data.frequencia : PARAMETROS_RASTREAMENTO_PADRAO.frequencia;
+}
+
+/** Entidade de pull dos parâmetros do tenant (o `motor.linhas('parametro')` do Core). */
+const ENTIDADE_PARAMETRO = 'parametro';
+
+/**
+ * Lê a frequência no banco do usuário sem motor: pelas linhas (`ent_parametro` no SQLite) ou, sem elas, pela chave `ent:parametro`
+ * (mapa id → linha), como o `motor.linhas` do SDK.
+ */
+export async function lerFrequenciaDoTrajeto(base: ArmazenamentoSync): Promise<FrequenciaRastreamento> {
+  const linhas: readonly LinhaDeParametro[] = base.linhas
+    ? await base.linhas.listar(ENTIDADE_PARAMETRO)
+    : Object.values((await base.ler<Record<string, LinhaDeParametro>>(`ent:${ENTIDADE_PARAMETRO}`)) ?? {});
+  return frequenciaDasLinhas(linhas);
+}
 
 const casas6 = (n: number): number => Number(n.toFixed(6));
 const numeroOuNulo = (n: number | null | undefined): number | null => (typeof n === 'number' && Number.isFinite(n) ? n : null);
@@ -98,11 +157,14 @@ export function pontosDoLote(
   return { pontos, parar };
 }
 
-export type AcaoDoTrajeto = 'ligar' | 'desligar' | 'manter';
+export type AcaoDoTrajeto = 'ligar' | 'desligar' | 'reiniciar' | 'manter';
 
-/** Liga só se pode e ainda não está ativa; desliga se está ativa e não pode mais; senão mantém (§3.2). */
-export function acaoDoTrajeto(condicao: CondicaoTrajeto, ativa: boolean): AcaoDoTrajeto {
-  if (condicao.pode) return ativa ? 'manter' : 'ligar';
+/**
+ * Liga só se pode e ainda não está ativa; desliga se está ativa e não pode mais; reinicia se pode, está ativa e a frequência do
+ * parâmetro mudou; senão mantém (§3.2).
+ */
+export function acaoDoTrajeto(condicao: CondicaoTrajeto, ativa: boolean, frequenciaMudou = false): AcaoDoTrajeto {
+  if (condicao.pode) return !ativa ? 'ligar' : frequenciaMudou ? 'reiniciar' : 'manter';
   return ativa ? 'desligar' : 'manter';
 }
 
@@ -226,8 +288,10 @@ export async function condicaoDoTrajeto(
 /** A captura do aparelho (`expo-location`, `services/trajeto.ts`). */
 export interface CapturaDoAparelho {
   ativa(): Promise<boolean>;
-  ligar(): Promise<void>;
+  ligar(opcoes: OpcoesDoTrajeto): Promise<void>;
   parar(): Promise<void>;
+  /** Intervalos com que a captura em curso foi ligada; `null` se não sabe (a próxima atualização reinicia). */
+  intervalosEmUso(): Promise<Partial<IntervalosDaCaptura> | null>;
 }
 
 /** O que o Diagnóstico do Perfil guarda (§9): o estado e a hora do último ponto, nunca a coordenada. */
@@ -240,6 +304,8 @@ export interface DepsDoTrajeto {
   /** `null` = build sem os módulos nativos (tudo vira nada). */
   captura: CapturaDoAparelho | null;
   condicao(): Promise<(instanteMs: number) => CondicaoTrajeto>;
+  /** Frequência do parâmetro `rastreamento` (`lerFrequenciaDoTrajeto`); o padrão do contrato quando falta. */
+  frequencia(): Promise<FrequenciaRastreamento>;
   gravar(pontos: PontoTrajeto[]): Promise<void>;
   novoId(): string;
   agora(): number;
@@ -271,10 +337,13 @@ export function criarTrajeto(d: DepsDoTrajeto) {
         async () => {
           const ativa = await c.ativa();
           const agora = (await d.condicao())(d.agora());
-          const acao = acaoDoTrajeto(agora, ativa);
-          if (acao === 'ligar') await c.ligar();
-          else if (acao === 'desligar') await c.parar();
-          await d.guardarDiagnostico({ estado: estadoDoTrajeto(agora, acao === 'manter' ? ativa : acao === 'ligar') });
+          // a frequência só importa se a captura vai ficar ligada
+          const opcoes = agora.pode ? opcoesDoTrajeto(await d.frequencia()) : null;
+          const mudou = !!opcoes && ativa && !mesmosIntervalos(opcoes, await c.intervalosEmUso());
+          const acao = acaoDoTrajeto(agora, ativa, mudou);
+          if (acao === 'desligar' || acao === 'reiniciar') await c.parar();
+          if ((acao === 'ligar' || acao === 'reiniciar') && opcoes) await c.ligar(opcoes);
+          await d.guardarDiagnostico({ estado: estadoDoTrajeto(agora, acao === 'manter' ? ativa : acao !== 'desligar') });
           return acao;
         },
         registrar,
