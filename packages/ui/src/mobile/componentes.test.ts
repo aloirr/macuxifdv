@@ -157,7 +157,7 @@ describe('LinhaAtalho (atalho para outra vista da mesma aba: Rascunhos em Pedido
   });
 });
 
-describe('Novo pedido v3 (T-0141): ✕ da Folha e marca da LinhaResumo', () => {
+describe('Novo pedido v3 (T-0141): ✕ da Folha', () => {
   it('Folha ganha o ✕ opcional à direita do título (48 dp, fora da rolagem, mesmo onFechar); sem a prop, o título de antes', () => {
     const f = ler('./folha.tsx');
     expect(f).toContain('fechar?: { rotulo: string; testID?: string };');
@@ -166,12 +166,6 @@ describe('Novo pedido v3 (T-0141): ✕ da Folha e marca da LinhaResumo', () => {
     // o cabeçalho vem antes da área rolável (o ✕ não rola com o conteúdo)
     expect(f.indexOf('<View style={s.cabecalho}>')).toBeLessThan(f.indexOf('ref={teclado.area}'));
     expect(f).toContain(') : titulo ? (');
-  });
-
-  it('LinhaResumo aceita a marca de 12/600 em accentInk ("Editado neste pedido"), sem texto fixo', () => {
-    const v = ler('./valores.tsx');
-    expect(v).toContain('marca?: string | null;');
-    expect(v).toMatch(/resumoMarca: \{ \.\.\.fonte\.semibold, fontSize: 12, color: colors\.accentInk \}/);
   });
 });
 

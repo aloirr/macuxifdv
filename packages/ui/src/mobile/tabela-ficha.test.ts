@@ -73,10 +73,10 @@ describe('Tabelas da ficha (RD-2355, T-0186): parte pura', () => {
     expect(leituraDoRotuloValor('Disponível', '—')).toBe('Disponível: sem dado');
   });
 
-  it('RD-2370: cor do valor pelo tom (erro, sucesso; perigo = erro); sem tom, "—" e vazio em semDado', () => {
+  it('RD-2370: cor do valor pelo tom (erro, sucesso); sem tom, "—" e vazio em semDado', () => {
     expect(aparenciaDoValor('−R$ 1.200,00', 'erro')).toBe('erro');
     expect(aparenciaDoValor('−R$ 4,20', 'sucesso')).toBe('sucesso');
-    expect(aparenciaDoValor('R$ 10,00', undefined, true)).toBe('erro');
+    expect(aparenciaDoValor('R$ 10,00', 'erro')).toBe('erro');
     expect(aparenciaDoValor('—')).toBe('semDado');
     expect(aparenciaDoValor('')).toBe('semDado');
     expect(aparenciaDoValor('R$ 10,00')).toBe('normal');
@@ -114,7 +114,7 @@ describe('Tabelas da ficha: desenho (tabela-ficha-rn.tsx)', () => {
 
   it('RD-2370: tons do valor (danger, success, ink3), carregando com barra lineSoft e ocupado, rodapé 12 ink2', () => {
     expect(src).toMatch(/COR_DO_VALOR = \{ erro: colors\.danger, sucesso: colors\.success, semDado: colors\.ink3, normal: colors\.ink \}/);
-    expect(src).toMatch(/aparenciaDoValor\(l\.valor, l\.tom, l\.perigo\)/);
+    expect(src).toMatch(/aparenciaDoValor\(l\.valor, l\.tom\)/);
     expect(src).toMatch(/ehSemDado\(l\.valor\) \? VALOR_SEM_DADO : l\.valor/);
     expect(src).toMatch(/esqueleto: \{ width: T\.esqueleto\.largura, height: T\.esqueleto\.altura, [^}]*backgroundColor: colors\.lineSoft \}/);
     expect(src).toMatch(/accessibilityLabel=\{ocupado \? l\.rotulo :/);

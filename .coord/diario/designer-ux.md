@@ -181,3 +181,4 @@
 2026-11-19 — T-0186 — Badge com linhas?: 1 | 2 no kit (MC-1790, chip "Devolvido parcial" na coluna Status).
 2026-11-19 — T-0186 — RD-2355: TabelaRotuloValor e TabelaDados (CelulaTexto, BotaoCelula) no kit mobile.
 2026-11-19 — T-0186 — RD-2370: TabelaValores removida; TabelaRotuloValor com tom, carregando e rodape cobre os usos.
+2026-11-19 — T-0186 — RD-2370 e RD-2377: sem perigo na TabelaRotuloValor (só tom), LinhaResumo removida, substituição citada só no §4.10.

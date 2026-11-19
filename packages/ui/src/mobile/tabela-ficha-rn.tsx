@@ -38,8 +38,6 @@ export interface LinhaRotuloValor {
   complemento?: ReactNode;
   /** `erro` (`danger`: disponível negativo, com o "−" no texto) ou `sucesso` (`success`: queda de preço). */
   tom?: TomDoValor;
-  /** Atalho do `tom: 'erro'`: valor em vermelho, sempre com o texto que diz o porquê. */
-  perigo?: boolean;
   /** testID do valor (padrão, com `id` e `testID` da tabela: `<testID>-<id>-valor`). */
   testID?: string;
   testIDComplemento?: string;
@@ -92,7 +90,7 @@ export function TabelaRotuloValor({
                   <View style={s.esqueleto} />
                 ) : (
                   <>
-                    <Text style={[s.valor, textoAlinhado, { color: COR_DO_VALOR[aparenciaDoValor(l.valor, l.tom, l.perigo)] }]} testID={l.testID ?? (base ? `${base}-valor` : undefined)}>
+                    <Text style={[s.valor, textoAlinhado, { color: COR_DO_VALOR[aparenciaDoValor(l.valor, l.tom)] }]} testID={l.testID ?? (base ? `${base}-valor` : undefined)}>
                       {ehSemDado(l.valor) ? VALOR_SEM_DADO : l.valor}
                     </Text>
                     {complementoTexto ? (

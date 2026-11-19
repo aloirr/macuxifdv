@@ -205,7 +205,7 @@ Vale para o app inteiro (Novo pedido; depois visita, pesquisa, cadastro). RN-COR
 
 ### 4.6 Novo pedido v2: abas, Resumo, desconto, detalhe e histórico (T-0133; spec `docs/design/pedido-v2.md`)
 RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em nome) e, nas tags, no BKO.
-- 4 abas **Venda · Itens (n) · Entrega · Resumo**; Resumo com `LinhaResumo` (rótulo de 64 dp à esquerda) e 4 botões: principal
+- 4 abas **Venda · Itens (n) · Entrega · Resumo**; Resumo com `TabelaRotuloValor` (§4.10) e 4 botões: principal
   "Salvar e enviar pedido" (largura total, destino embaixo), "Apenas salvar" e "Salvar como orçamento" (`Botao alto
   quebrarLinha`, metade cada), Cancelar em texto.
 - `DescontoCompacto`: o mesmo no item e no pedido; uma linha de 44 dp com o tipo (Desc %, Desc R$, Acrésc %, Acrésc R$), o
@@ -217,9 +217,8 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
 - `Faixa` ganhou `apoio` (2ª linha); alertas da aba Venda com `alertaInadimplencia` e `TEXTO_CLIENTE_LIBERADO`.
 
 ### 4.7 Novo pedido v3: crédito em tabela, Rascunhos, "preço de" (T-0141; spec `docs/design/pedido-v3.md`)
-- Crédito do cliente e totais da folha "Preços de hoje" em **`TabelaRotuloValor`** (§4.10), com `tom`, `carregando` e `rodape`;
-  a `TabelaValores` saiu do kit (RD-2370). Sem dado = `VALOR_SEM_DADO` ("—", em `ink3`); nunca frase corrida para Limite,
-  Disponível ou Prazo médio.
+- Crédito do cliente e totais da folha "Preços de hoje" em **`TabelaRotuloValor`** (§4.10), com `tom`, `carregando` e `rodape`.
+  Sem dado = `VALOR_SEM_DADO` ("—", em `ink3`); nunca frase corrida para Limite, Disponível ou Prazo médio.
 - Entrada **Rascunhos (n)** em Pedidos com o `LinhaAtalho`; selo "Some em 2 h" (aviso) nas últimas 3 h; selo do orçamento
   "Orçamento · preço de 09/11" (`destaque`, não vence).
 
@@ -262,16 +261,15 @@ fio `lineSoft` entre as linhas, linhas de no mínimo 48 dp. Só tokens do kit.
   numa coluna fixa e valor 16 tabular; vazio vira "—" em `ink3`.
   Substitui a `TabelaValores` (RD-2370): também é a tabela do crédito do cliente (aba Venda) e dos totais da folha "Preços de hoje".
   `{ linhas: LinhaRotuloValor[]; larguraRotulo?: number /* 136 */; alinharValor?: 'esq' | 'dir' /* 'dir' */; carregando?; rodape?: { icone?: IconName; texto } | null; testID? }`.
-  `LinhaRotuloValor = { id?; rotulo; valor; complemento?: ReactNode; tom?: 'erro' | 'sucesso'; perigo?; testID?; testIDComplemento?; rotuloAcessivel? }`.
+  `LinhaRotuloValor = { id?; rotulo; valor; complemento?: ReactNode; tom?: 'erro' | 'sucesso'; testID?; testIDComplemento?; rotuloAcessivel? }`.
   `id` = chave e testIDs (`<testID>-<id>` na linha, `<testID>-<id>-valor` no valor; sem `id`, a chave é o rótulo). `tom`:
-  `erro` em `danger` (disponível negativo, com "−R$" no texto), `sucesso` em `success` (queda de preço); `perigo` = `tom: 'erro'`
-  (`aparenciaDoValor`, puro). Vazio ou "—" sai "—" em `ink3` e o TalkBack lê "sem dado". `carregando`: barra `lineSoft` de
+  `erro` em `danger` (disponível negativo, com "−R$" no texto), `sucesso` em `success` (queda de preço), sempre com o texto que diz o
+  porquê (`aparenciaDoValor`, puro). Vazio ou "—" sai "—" em `ink3` e o TalkBack lê "sem dado". `carregando`: barra `lineSoft` de
   72 × 12 no lugar de cada valor (nada de "R$ 0,00" falso), TalkBack só com o rótulo e ocupado. `rodape`: linha 12 `ink2` abaixo
   do cartão (`<testID>-rodape`), ex.: ícone `sync` (sem sinal, `wifiOff`) + "Atualizado hoje às 05:38".
   `complemento` em **texto** = 2ª linha do valor (12 `ink2`, ex.: CNPJ abaixo do nome) e entra na leitura do TalkBack
-  ("Cliente: Mercado Sol. CNPJ …"); como **elemento** fica à direita do valor (ex.: `BotaoCelula` de ligar). `perigo` pinta o
-  valor de `danger` (sempre com texto que diz o porquê). Ficha: padrão (136, à direita); pedido: `larguraRotulo={92}` e
-  `alinharValor="esq"` (cliente e endereço longos).
+  ("Cliente: Mercado Sol. CNPJ …"); como **elemento** fica à direita do valor (ex.: `BotaoCelula` de ligar). Ficha:
+  padrão (136, à direita); pedido: `larguraRotulo={92}` e `alinharValor="esq"` (cliente e endereço longos).
 - **`TabelaDados`**: quando a seção é uma lista de **registros com as mesmas colunas** (títulos, notas, histórico, itens).
   `{ colunas: ColunaTabela[]; linhas: LinhaTabela[]; testID? }`. Cabeçalho 12/600 `ink2`, gap 4 e borda 8 iguais no cabeçalho
   e nas linhas.
