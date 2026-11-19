@@ -93,6 +93,15 @@ export const AusenciaUsuarioSchema = z
   .refine(deAteValido, { message: MENSAGEM_DE_ATE, path: ['ate'] });
 export type AusenciaUsuario = z.infer<typeof AusenciaUsuarioSchema>;
 
+/** `GET /v1/core/ausencias` (ação `ausencia.cadastrar`): as vivas dos usuários do escopo, a mais recente primeiro; `usuario_id` filtra um usuário. */
+export const AusenciaListaQuerySchema = z.object({ usuario_id: Id.optional() }).strict();
+export type AusenciaListaQuery = z.infer<typeof AusenciaListaQuerySchema>;
+export const AusenciaListaRespostaSchema = z.object({ ausencias: z.array(AusenciaUsuarioSchema) }).strict();
+export type AusenciaListaResposta = z.infer<typeof AusenciaListaRespostaSchema>;
+/** `GET /v1/core/rastreamento/termos` (ação `rastreamento.configurar`): as versões publicadas, a maior primeiro; `vigente` = a maior ou nulo. */
+export const TermosRastreamentoRespostaSchema = z.object({ vigente: z.number().int().min(1).nullable(), termos: z.array(TermoRastreamentoSchema) }).strict();
+export type TermosRastreamentoResposta = z.infer<typeof TermosRastreamentoRespostaSchema>;
+
 // ---- Parâmetro do tenant ----
 export const PARAMETRO_RASTREAMENTO = 'rastreamento';
 /** Faixa do expediente em minutos do dia, no fuso do tenant. */

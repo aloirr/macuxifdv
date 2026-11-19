@@ -155,10 +155,10 @@ describe.skipIf(semBanco())('Core T-0156 × Postgres: rastreamento no expediente
 
   it('RN-CORE-13/04: core.trajeto_do_dia@1 devolve só o escopo de quem consulta; id fora do escopo ou de outro tenant some', async () => {
     const sup = await consultarNoTenant(supervisor, [U.vendedor1, U.vendedor2]);
-    expect(sup.usuarios.map((x) => x.id)).toEqual([U.vendedor1]);
+    expect(sup.usuarios.map((x: { id: string }) => x.id)).toEqual([U.vendedor1]);
     expect(sup.usuarios[0]!.pontos.length).toBeGreaterThanOrEqual(4);
     const ger = await consultarNoTenant(gerente, [U.vendedor1, U.vendedor2]);
-    expect(ger.usuarios.map((x) => x.id).sort()).toEqual([U.vendedor1, U.vendedor2].sort());
+    expect(ger.usuarios.map((x: { id: string }) => x.id).sort()).toEqual([U.vendedor1, U.vendedor2].sort());
     expect((await consultarNoTenant(analista, [U.vendedor1])).usuarios).toEqual([]);
     expect((await consultarNoTenant(vendedor1, [U.vendedor1])).usuarios).toEqual([]);
     // o admin do tenant B pergunta por usuário do A: some (RLS)
