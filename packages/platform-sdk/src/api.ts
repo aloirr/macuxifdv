@@ -400,7 +400,61 @@ export interface RotaModulo<
    * destravamento (`eu/filial-cadastro`); as demais respondem 403 `USUARIO_SEM_FILIAL` a ele.
    */
   liberadaSemFilial?: true;
+  /**
+   * v1.0.16: `true` = a resposta da rota sai com `Cache-Control: no-store` (dado do tenant que não pode ficar em cache de
+   * navegador, proxy ou aparelho; ex.: carteira do cliente). Vale também nas respostas de erro da rota (401, 403, 400, 422, 500).
+   */
+  semCache?: boolean;
+  /**
+   * v1.0.16: cabeçalhos fixos da resposta, em sucesso e em erro da rota. Nome em minúsculas (`CABECALHO_ROTA_RE`); valor ASCII
+   * visível, sem quebra de linha, até 500. Os da `CABECALHOS_RESERVADOS_ROTA` (tipo, tamanho, anexo, cookie...) ficam com a
+   * API; `cache-control` aqui não combina com `semCache`. Use `semCache` para o caso comum.
+   */
+  cabecalhos?: Readonly<Record<string, string>>;
   executar(ctx: ContextoRota<z.output<C>, z.output<Q>, z.output<P>>): Promise<unknown>;
+}
+
+/** Valor do `Cache-Control` de rota com `semCache`. */
+export const CACHE_CONTROL_SEM_CACHE = 'no-store';
+/** Nome de cabeçalho aceito em `RotaModulo.cabecalhos` (minúsculas, dígitos e hífen; até 64). */
+export const CABECALHO_ROTA_RE = /^[a-z][a-z0-9-]{0,63}$/;
+const VALOR_CABECALHO_ROTA_RE = /^[\x20-\x7e]{1,500}$/;
+/** Cabeçalhos que a API controla e a rota não declara em `cabecalhos`. */
+export const CABECALHOS_RESERVADOS_ROTA = [
+  'content-type',
+  'content-length',
+  'content-disposition',
+  'content-encoding',
+  'transfer-encoding',
+  'connection',
+  'set-cookie',
+  'x-content-type-options',
+  'retry-after',
+  'etag',
+  'location',
+] as const;
+
+/** Problemas de `semCache`/`cabecalhos` de uma rota de módulo (vazio = ok). Usado por `definirModuloApi` e pela montagem da API. */
+export function problemasCabecalhosRota(rotulo: string, r: Pick<RotaModulo, 'semCache' | 'cabecalhos'>): string[] {
+  const p: string[] = [];
+  if (r.semCache !== undefined && typeof r.semCache !== 'boolean') p.push(`${rotulo}: semCache deve ser true ou false`);
+  if (r.cabecalhos === undefined) return p;
+  if (typeof r.cabecalhos !== 'object' || r.cabecalhos === null || Array.isArray(r.cabecalhos))
+    return [...p, `${rotulo}: cabecalhos deve ser um objeto nome → valor`];
+  for (const [nome, valor] of Object.entries(r.cabecalhos)) {
+    if (!CABECALHO_ROTA_RE.test(nome)) p.push(`${rotulo}: cabeçalho ${nome} inválido (minúsculas, dígitos e hífen)`);
+    else if ((CABECALHOS_RESERVADOS_ROTA as readonly string[]).includes(nome)) p.push(`${rotulo}: cabeçalho ${nome} é da API`);
+    if (typeof valor !== 'string' || !VALOR_CABECALHO_ROTA_RE.test(valor))
+      p.push(`${rotulo}: valor do cabeçalho ${nome} inválido (ASCII visível, sem quebra de linha, até 500)`);
+  }
+  if (r.semCache === true && Object.hasOwn(r.cabecalhos, 'cache-control'))
+    p.push(`${rotulo}: use semCache ou cabecalhos['cache-control'], não os dois`);
+  return p;
+}
+
+/** Cabeçalhos fixos da resposta da rota (`semCache` + `cabecalhos`); vazio = nenhum. */
+export function cabecalhosDaRota(r: Pick<RotaModulo, 'semCache' | 'cabecalhos'>): Record<string, string> {
+  return { ...(r.cabecalhos ?? {}), ...(r.semCache === true ? { 'cache-control': CACHE_CONTROL_SEM_CACHE } : {}) };
 }
 
 /**
@@ -1234,6 +1288,7 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
     if (r.carteira === undefined) problemas.push(`${rotulo}: declare o escopo de carteira (RN-CORE-04)`);
     problemas.push(...problemasLimiteCorpo(rotulo, r));
     problemas.push(...problemasConteudoRota(rotulo, r));
+    problemas.push(...problemasCabecalhosRota(rotulo, r));
     problemas.push(...problemasLiberadoSemFilial(id, rotulo, r.liberadaSemFilial));
     if (r.superAdmin !== undefined && !(MODOS_SUPER_ADMIN as readonly string[]).includes(r.superAdmin))
       problemas.push(`${rotulo}: superAdmin ${String(r.superAdmin)} inválido (${MODOS_SUPER_ADMIN.join(', ')})`);
