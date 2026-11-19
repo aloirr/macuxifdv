@@ -14,9 +14,8 @@
 | Quem | O que vê |
 |---|---|
 | Quem tem `core.trajeto.ver_equipe` (padrão: supervisor e gerente; o admin só com a permissão — [`docs/desenho/tracking.md`](../../desenho/tracking.md) §6 e §7), só na própria equipe | o trajeto do dia na Ficha (§2) e a página Trajeto do dia (§3) |
-| Vendedor e promotor | só a notificação fixa do Android (§4) |
+| Vendedor e promotor | só a notificação fixa do Android (§4); decisão do dono do produto de 19/11, 05h46 |
 
-- **Decisão do dono do produto (19/11/2026, 05h46)**: o rastreamento é **interno**; o vendedor e o promotor não têm tela dele.
 - Sem a permissão, a seção da Ficha some e a página não entra no menu; a API recusa (403).
 - Nenhuma tela exporta pontos nem mostra coordenada.
 
@@ -80,4 +79,3 @@ Valores de `apps/mobile/src/lib/trajeto.ts` e `apps/mobile/plugins/notificacao-t
 
 - Na v1.0.16, o resto da antiga prancha 01: tela própria de trajeto no Gestão, troca de dia no app, visitas e trechos sem
   registro no desenho, mapa com ruas, distância e "Ver trajeto" no Painel da equipe.
-- A linha `Localização no expediente` no Diagnóstico do Perfil do Campo sai (o engenheiro-apps tira do código).
