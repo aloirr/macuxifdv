@@ -23,7 +23,7 @@ export function TrajetoDoDia({ usuarioId, tz, buscar }: { usuarioId: string; tz:
       vivo = false;
     };
   }, [usuarioId, buscar]);
-  const d = useMemo(() => (r?.trajeto ? desenharTrajeto(r.trajeto.trajeto.pontos, { largura: LARGURA, altura: ALTURA, margem: 16, fuso: tz, pausas: r.trajeto.trajeto.pausas }) : null), [r, tz]);
+  const d = useMemo(() => (r?.trajeto ? desenharTrajeto(r.trajeto.trajeto.pontos, { largura: LARGURA, altura: ALTURA, margem: 16, fuso: tz }) : null), [r, tz]);
 
   if (!r || r.negado) return null;
   return (
@@ -35,14 +35,9 @@ export function TrajetoDoDia({ usuarioId, tz, buscar }: { usuarioId: string; tz:
         <>
           <View accessible accessibilityLabel={`Trajeto do dia com ${d.total} pontos, de ${d.primeiro!.hora} a ${d.ultimo!.hora}`} style={{ borderRadius: radius.secao, overflow: 'hidden', backgroundColor: colors.mapBg, borderWidth: 1, borderColor: colors.mapBorder }}>
             <Svg width="100%" height={ALTURA} viewBox={`0 0 ${LARGURA} ${ALTURA}`}>
-              {d.solidos.map((l, i) => (
-                <Polyline key={`s${i}`} points={l.map((p) => `${p.x},${p.y}`).join(' ')} stroke={colors.accent} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              ))}
-              {d.tracejados.map((l, i) => (
-                <Polyline key={`t${i}`} points={l.map((p) => `${p.x},${p.y}`).join(' ')} stroke={colors.accent} strokeWidth={3} strokeDasharray="6 6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              ))}
-              <Circle cx={d.primeiro!.x} cy={d.primeiro!.y} r={7} fill={colors.surface} stroke={colors.accent} strokeWidth={2} />
-              <Circle cx={d.ultimo!.x} cy={d.ultimo!.y} r={16} fill={colors.accent} />
+              <Polyline points={d.linha.map((p) => `${p.x},${p.y}`).join(' ')} stroke={colors.accent} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              <Circle cx={d.primeiro!.x} cy={d.primeiro!.y} r={7} fill={colors.surface} stroke={colors.accent} strokeWidth={3} />
+              <Circle cx={d.ultimo!.x} cy={d.ultimo!.y} r={8} fill={colors.accent} />
             </Svg>
           </View>
           <Linha rotulo="Primeiro ponto" valor={d.primeiro!.hora} />

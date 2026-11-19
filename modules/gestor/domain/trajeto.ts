@@ -5,7 +5,7 @@
  * A coordenada nunca vai para log nem para mensagem de erro (§9): este módulo não registra nada.
  */
 import { formatHHMM } from '@macuxi/comum/fuso';
-import { projetarPontos, trechosDoTrajeto, type PausaDoDia, type PontoDoTrajeto } from '@macuxi/core/contracts';
+import { projetarPontos, type PontoDoTrajeto } from '@macuxi/core/contracts';
 
 /** RN-CORE-13: texto do app e do BKO quando o dia não tem pontos (tracking desligado, sem termo ou fora do expediente). */
 export const TEXTO_SEM_TRAJETO = 'Sem trajeto';
@@ -23,9 +23,6 @@ export interface TrajetoDesenhado {
   primeiro: PontoDesenhado | null;
   ultimo: PontoDesenhado | null;
   total: number;
-  /** Trechos contínuos em coordenadas de tela; os tracejados cruzam uma pausa. */
-  solidos: { x: number; y: number }[][];
-  tracejados: { x: number; y: number }[][];
 }
 export interface OpcoesDesenho {
   largura: number;
@@ -33,23 +30,16 @@ export interface OpcoesDesenho {
   margem: number;
   /** Fuso IANA do tenant, só para a hora exibida. */
   fuso: string;
-  /** Pausas do dia (`core.trajeto_do_dia@1`); sem elas, nenhum trecho tracejado. */
-  pausas?: readonly PausaDoDia[];
 }
 
-type Xy = { x: number; y: number };
-
 /**
- * Ordena por `capturado_em`, projeta e marca as horas com as funções do Core (`projetarPontos`,
- * `trechosDoTrajeto`): o mesmo desenho e a mesma hora do "Meu trajeto" do Campo. O trecho que cruza uma pausa vai tracejado.
+ * Ordena por `capturado_em`, projeta e marca as horas com as funções do Core (`projetarPontos`): a mesma projeção
+ * do Core. Sem pausa (RN-CORE-13) não há trecho tracejado: a linha é uma só, sólida.
  */
 export function desenharTrajeto(pontos: readonly PontoDoTrajeto[], o: OpcoesDesenho): TrajetoDesenhado {
-  if (pontos.length === 0) return { vazio: true, linha: [], primeiro: null, ultimo: null, total: 0, solidos: [], tracejados: [] };
+  if (pontos.length === 0) return { vazio: true, linha: [], primeiro: null, ultimo: null, total: 0 };
   const ordem = [...pontos].sort((a, b) => Date.parse(a.capturado_em) - Date.parse(b.capturado_em));
   const linha = projetarPontos(ordem, o.largura, o.altura, o.margem);
-  const xy = new Map<PontoDoTrajeto, Xy>(ordem.map((q, i) => [q, linha[i]!]));
-  const trechos = trechosDoTrajeto(ordem, o.pausas ?? []);
-  const naTela = (t: PontoDoTrajeto[][]): Xy[][] => t.map((l) => l.map((q) => xy.get(q)!));
   const marca = (i: number): PontoDesenhado => ({ ...linha[i]!, hora: formatHHMM(ordem[i]!.capturado_em, o.fuso) });
-  return { vazio: false, linha, primeiro: marca(0), ultimo: marca(ordem.length - 1), total: ordem.length, solidos: naTela(trechos.solidos), tracejados: naTela(trechos.tracejados) };
+  return { vazio: false, linha, primeiro: marca(0), ultimo: marca(ordem.length - 1), total: ordem.length };
 }

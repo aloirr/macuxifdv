@@ -231,7 +231,7 @@ export function criarRotasGestor(repo: RepositorioGestor): RotaModulo[] {
         if (!alvo) throw new ErroNaoEncontrado('MEMBRO_NAO_ENCONTRADO', 'Pessoa não encontrada na sua equipe.');
         const dia = dataDaConsulta(data, g.agora, g.params.fuso);
         const r = await g.tx.consultar(CONSULTA_TRAJETO_DO_DIA, { usuario_ids: [alvo.id], data: dia });
-        return { data: r.data, trajeto: r.usuarios.find((u) => u.id === alvo.id) ?? { id: alvo.id, metros: 0, pontos: [], pausas: [] } };
+        return { data: r.data, trajeto: r.usuarios.find((u) => u.id === alvo.id) ?? { id: alvo.id, metros: 0, pontos: [] } };
       });
     },
   };

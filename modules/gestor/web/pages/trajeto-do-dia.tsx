@@ -29,7 +29,7 @@ function Conteudo() {
   const membros = equipe.data?.membros ?? [];
   const q = useTrajeto(pessoa, dia);
   const tz = sessao.user?.fuso ?? DEFAULT_TZ;
-  const d = useMemo(() => (q.data ? desenharTrajeto(q.data.trajeto.pontos, { largura: LARGURA, altura: ALTURA, margem: 24, fuso: tz, pausas: q.data.trajeto.pausas }) : null), [q.data, tz]);
+  const d = useMemo(() => (q.data ? desenharTrajeto(q.data.trajeto.pontos, { largura: LARGURA, altura: ALTURA, margem: 24, fuso: tz }) : null), [q.data, tz]);
 
   const ir = (mudar: (n: URLSearchParams) => void) => {
     const novo = new URLSearchParams(params.toString());
@@ -60,14 +60,9 @@ function Conteudo() {
         {d && !d.vazio && q.data ? (
           <>
             <svg viewBox={`0 0 ${LARGURA} ${ALTURA}`} role="img" aria-label={`Trajeto do dia com ${d.total} pontos, de ${d.primeiro!.hora} a ${d.ultimo!.hora}`} className="h-auto w-full rounded-[18px] border" style={{ backgroundColor: MARCA.nevoa, borderColor: MARCA.claroNaFaixa }}>
-              {d.solidos.map((l, i) => (
-                <polyline key={`s${i}`} points={l.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={DESTAQUE.accent} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-              ))}
-              {d.tracejados.map((l, i) => (
-                <polyline key={`t${i}`} points={l.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={DESTAQUE.accent} strokeWidth={3} strokeDasharray="6 6" strokeLinecap="round" strokeLinejoin="round" />
-              ))}
-              <circle cx={d.primeiro!.x} cy={d.primeiro!.y} r={7} fill={FUNDOS.surface} stroke={DESTAQUE.accent} strokeWidth={2} />
-              <circle cx={d.ultimo!.x} cy={d.ultimo!.y} r={16} fill={DESTAQUE.accent} />
+              <polyline points={d.linha.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={DESTAQUE.accent} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx={d.primeiro!.x} cy={d.primeiro!.y} r={7} fill={FUNDOS.surface} stroke={DESTAQUE.accent} strokeWidth={3} />
+              <circle cx={d.ultimo!.x} cy={d.ultimo!.y} r={8} fill={DESTAQUE.accent} />
             </svg>
             <p className="text-sm">
               Primeiro ponto {d.primeiro!.hora} · último {d.ultimo!.hora} · {formatarDistancia(q.data.trajeto.metros)}

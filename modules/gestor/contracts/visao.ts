@@ -56,7 +56,7 @@ export type DisponibilidadeEmNomeQuery = z.infer<typeof DisponibilidadeEmNomeQue
 
 // ---------- respostas ----------
 /**
- * `GET /v1/gestor/equipe/:usuario_id/trajeto?data=` (T-0156, tracking §5.2/§7): pontos e pausas do dia, do `core.trajeto_do_dia@1`.
+ * `GET /v1/gestor/equipe/:usuario_id/trajeto?data=` (T-0156, tracking §5.2/§7): pontos do dia, do `core.trajeto_do_dia@1`.
  * O desenho é no aparelho e no navegador; sem pontos, `pontos` vem vazio (o tracking vem desligado de fábrica).
  */
 export const TrajetoEquipe = z.object({ data: IsoDate, trajeto: TrajetoDoUsuarioSchema }).strict();

@@ -9,7 +9,7 @@ const TAM = { largura: 300, altura: 200, margem: 10, fuso: 'America/Manaus' };
 
 describe('desenharTrajeto: pontos do dia prontos para o desenho no aparelho (RN-CORE-13, tracking §9)', () => {
   it('RN-CORE-13: sem pontos devolve vazio (o tracking vem desligado de fábrica) e nenhum marcador', () => {
-    expect(desenharTrajeto([], TAM)).toEqual({ vazio: true, linha: [], primeiro: null, ultimo: null, total: 0, solidos: [], tracejados: [] });
+    expect(desenharTrajeto([], TAM)).toEqual({ vazio: true, linha: [], primeiro: null, ultimo: null, total: 0 });
   });
 
   it('ordena por capturado_em, mesmo que a lista chegue embaralhada', () => {
@@ -52,16 +52,6 @@ describe('desenharTrajeto: pontos do dia prontos para o desenho no aparelho (RN-
     const r = desenharTrajeto(pts, TAM);
     expect(r.linha).toEqual(projetarPontos(pts, TAM.largura, TAM.altura, TAM.margem));
     expect(r.primeiro?.hora).toBe(formatHHMM(pts[0]!.capturado_em, TAM.fuso));
-  });
-
-  it('RD-2299: o trecho que cruza uma pausa sai tracejado e os demais sólidos', () => {
-    const pts = [p('2026-11-03T12:00:00Z', -3.1, -60.02), p('2026-11-03T12:10:00Z', -3.11, -60.01), p('2026-11-03T14:00:00Z', -3.12, -60.0), p('2026-11-03T14:10:00Z', -3.13, -59.99)];
-    const pausas = [{ inicio: '2026-11-03T12:30:00Z', fim: '2026-11-03T13:30:00Z' }];
-    const r = desenharTrajeto(pts, { ...TAM, pausas });
-    expect(r.tracejados).toHaveLength(1);
-    expect(r.solidos).toHaveLength(2);
-    expect(r.tracejados[0]).toHaveLength(2);
-    expect(desenharTrajeto(pts, TAM).tracejados).toEqual([]);
   });
 
   it('RD-2299: o percorrido sai como no Campo ("850 m" abaixo de 1 km, "18,6 km" acima)', () => {

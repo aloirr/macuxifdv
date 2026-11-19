@@ -9,10 +9,10 @@ describe('trajeto do dia no BKO: a decisão é da permissão `core.trajeto.ver_e
   const pode = (perfil: Perfil) =>
     motor.pode(ACAO_VER_TRAJETO, { perfil, modulosAtivos: ['core', 'gestor'] });
 
-  it('RN-CORE-37: a ação é do Core, existe no motor e vale de fábrica só para supervisor, gerente e admin', () => {
+  it('RN-CORE-37: a ação é do Core, existe no motor e vale de fábrica só para supervisor e gerente (RN-CORE-13: o admin não vê)', () => {
     expect(motor.conhece(ACAO_VER_TRAJETO)).toBe(true);
-    for (const perfil of ['supervisor', 'gerente', 'admin'] as const) expect(pode(perfil)).toBe(true);
-    for (const perfil of ['vendedor', 'promotor', 'analista', 'assistente'] as const)
+    for (const perfil of ['supervisor', 'gerente'] as const) expect(pode(perfil)).toBe(true);
+    for (const perfil of ['admin', 'vendedor', 'promotor', 'analista', 'assistente'] as const)
       expect(pode(perfil)).toBe(false);
   });
 

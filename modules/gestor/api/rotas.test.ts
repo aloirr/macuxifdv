@@ -61,7 +61,7 @@ function cenario() {
   /** Último contato do aparelho por usuário, como a consulta `core.produtividade_equipe@1` do Core devolve (nulo = nunca sincronizou). */
   const contatos: Record<string, string | null> = {};
   /** Trajeto do dia como o Core devolve (`core.trajeto_do_dia@1`); o Core confere o escopo, aqui só devolve o que foi pedido. */
-  const trajetos: Record<string, { metros: number; pontos: { capturado_em: string; latitude: number; longitude: number; precisao_m: number }[]; pausas: { inicio: string; fim: string | null }[] }> = {};
+  const trajetos: Record<string, { metros: number; pontos: { capturado_em: string; latitude: number; longitude: number; precisao_m: number }[] }> = {};
   const chamadasTrajeto: { usuario_ids: string[]; data: string }[] = [];
   const relogio = criarRelogio({ agora: '2026-11-03T15:00:00Z' }); // terça, 11:00 em Manaus
   const repo = criarRepositorioEmMemoria();
@@ -210,7 +210,7 @@ describe('API do Gestor: trajeto do dia da equipe (T-0156, tracking §7)', () =>
 
   it('RN-CORE-13 / §7: o supervisor vê o trajeto do dia do vendedor da equipe, pela consulta do Core, com a data do tenant', async () => {
     const c = cenario();
-    c.trajetos[VENDEDOR] = { metros: 1200, pontos: [PONTO], pausas: [] };
+    c.trajetos[VENDEDOR] = { metros: 1200, pontos: [PONTO] };
     const r = TrajetoEquipe.parse(await c.chamar('GET', 'equipe/:usuario_id/trajeto', SUPERVISOR, { params: { usuario_id: VENDEDOR } }));
     expect(r.data).toBe(c.relogio.hoje());
     expect(r.trajeto).toMatchObject({ id: VENDEDOR, metros: 1200, pontos: [PONTO] });
@@ -220,7 +220,7 @@ describe('API do Gestor: trajeto do dia da equipe (T-0156, tracking §7)', () =>
   it('RN-CORE-13: sem pontos (tracking desligado de fábrica) a resposta traz o trajeto vazio, não erro', async () => {
     const c = cenario();
     const r = TrajetoEquipe.parse(await c.chamar('GET', 'equipe/:usuario_id/trajeto', GERENTE, { params: { usuario_id: PROMOTOR }, query: { data: '2026-11-02' } }));
-    expect(r).toEqual({ data: '2026-11-02', trajeto: { id: PROMOTOR, metros: 0, pontos: [], pausas: [] } });
+    expect(r).toEqual({ data: '2026-11-02', trajeto: { id: PROMOTOR, metros: 0, pontos: [] } });
   });
 
   it('RN-CORE-04: fora da equipe responde 404 e a consulta do Core nem é feita; o gerente alcança as equipes abaixo', async () => {
@@ -261,7 +261,7 @@ describe('API do Gestor: trajeto do dia da equipe (T-0156, tracking §7)', () =>
   it('§7: nenhuma exportação de pontos brutos (só leitura de um dia, uma pessoa) e nenhuma coordenada no erro', async () => {
     const c = cenario();
     expect(c.api.rotas!.filter((x) => /trajeto|csv|export/i.test(x.caminho)).map((x) => `${x.metodo} ${x.caminho}`)).toEqual(['GET equipe/:usuario_id/trajeto']);
-    c.trajetos[VENDEDOR] = { metros: 10, pontos: [PONTO], pausas: [] };
+    c.trajetos[VENDEDOR] = { metros: 10, pontos: [PONTO] };
     const erro = await c.chamar('GET', 'equipe/:usuario_id/trajeto', SUPERVISOR, { params: { usuario_id: VEND_3 } }).catch((e: Error) => e);
     expect(JSON.stringify({ m: (erro as Error).message, s: (erro as Error).stack })).not.toContain(SEGREDO);
   });
