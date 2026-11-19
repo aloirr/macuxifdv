@@ -6,8 +6,8 @@
 - **Base LGPD**: [finalidade](T-0156-legal-finalidade.md), [aviso](T-0156-legal-aviso-ao-vendedor.md) e [termo de ciência](T-0156-legal-termo-de-ciencia.md) (**rascunho para revisão de advogado**).
 - **Consumidor já pronto**: a Performance lê só o resumo `core.deslocamento_dia` e usa `metrosDoTrajeto`
   ([performance-produtividade.md §5](performance-produtividade.md#5-km-e-o-rastreamento-de-localização)).
-- Valores entre [colchetes] são parâmetros ajustáveis. As decisões de negócio do §12 foram aprovadas pelo Alexandre em 16/11/2026
-  (R-20261116-110200-alexandre). Execução na v1.0.15.
+- Valores entre [colchetes] são parâmetros ajustáveis. As 7 decisões de negócio do §12 foram aprovadas pelo dono do produto em
+  16/11/2026 (R-20261116-110200-alexandre); ADR 0061 aceita em 19/11/2026. Execução na v1.0.15.
 
 ## 1. O que já existe
 | Peça | Onde | Estado |
@@ -73,7 +73,7 @@ momento, como hoje (RN-CORE-13).
 
 ### 4.1 Expediente
 - Parâmetro do tenant `rastreamento.expediente`: por dia da semana, de 0 a 2 faixas `{ inicio, fim }` no **fuso do tenant**.
-  Proposta: seg–sex 08:00–18:00, sáb 08:00–12:00, dom sem expediente.
+  Padrão de fábrica (§12, item 3): seg–sex 08:00–18:00, sáb 08:00–12:00, dom sem expediente.
 - Sem expediente cadastrado, o tracking não liga, mesmo com `rastreamento.ativo`.
 - Um expediente só por empresa.
 
@@ -132,12 +132,14 @@ de [5] anos. O log leva só o tenant e a contagem.
 - Depois do aceite, o termo vigente fica no Perfil do Campo, só leitura, com o link "Meu trajeto".
 
 ## 7. Quem vê (motor de permissões, ADR 0033)
-| Ação | Chave | Padrão de fábrica |
-|---|---|---|
-| Ver o próprio trajeto ("Meu trajeto", Campo) | `core.trajeto.ver_proprio` | vendedor, promotor |
-| Ver o trajeto da equipe (Gestão e BKO, só no escopo) | `core.trajeto.ver_equipe` | supervisor, gerente, admin |
-| Ligar o tracking, expediente e termo | `core.rastreamento.configurar` | admin |
-| Cadastrar ausência da equipe | `core.ausencia.cadastrar` | supervisor, gerente, admin |
+Ações do `acoes` do manifesto do Core (nome global, sem prefixo do módulo; área na página de Perfis pelo `areaDaAcao`).
+
+| Ação | Chave | Padrão de fábrica | Área |
+|---|---|---|---|
+| Ver o próprio trajeto ("Meu trajeto", Campo) | `trajeto.ver_proprio` | vendedor, promotor | Usuários |
+| Ver o trajeto da equipe (Gestão e BKO, só no escopo) | `trajeto.ver_equipe` | supervisor, gerente, admin | Usuários |
+| Ligar o tracking, expediente e termo | `rastreamento.configurar` | admin | Administração |
+| Cadastrar ausência da equipe | `ausencia.cadastrar` | supervisor, gerente, admin | Usuários |
 
 - O administrativo (analista) vê só o resumo `deslocamento_dia` nos relatórios, nunca os pontos.
 - Nenhum endpoint exporta pontos brutos; a exportação leva só o resumo.
@@ -149,6 +151,8 @@ prazo dos pontos). Aparelho: §3.4.
 
 ## 9. Privacidade técnica
 - **Nenhuma coordenada** em log, mensagem de erro, Diagnóstico, Sentry ou telemetria: só id do usuário, contagem e tempo.
+  A API redige `latitude`, `longitude`, `lat`, `lng`, `lon` e `coords` no pino (`CAMINHOS_COORDENADA_LOG`); o shell e os módulos
+  passam pelo `semCoordenadas` do platform-sdk o que mandam ao Diagnóstico e ao envio de erro.
   O item G4 de `docs/seguranca/checklist.md` passa a cobrir o tracking do expediente, com prova por teste (pedido ao testes).
 - O Diagnóstico do Perfil mostra só o estado ("ativa", "fora do expediente", "pausada", "sem termo") e a hora do último ponto.
 - Nenhum provedor de mapa recebe o trajeto pelo servidor; o mapa do Gestão desenha os pontos no aparelho.
@@ -164,6 +168,7 @@ prazo dos pontos). Aparelho: §3.4.
 ## 11. Plano de execução (para o gerente)
 | Ordem | Agente | Entrega | Depende de |
 |---|---|---|---|
+| 0 | engenheiro-software | ADR aceita; `privacidade-localizacao` no platform-sdk e na API; registros em `.coord/contratos/` | — (feito em 19/11) |
 | 1 | banco-dados | tabelas do §5.1 (RLS, grants sem `macuxi_leitura`, espelho Drizzle, SQLite do aparelho) e o expurgo como função | ADR 0061 aceita |
 | 2 | modulo-core | contratos (`PontoTrajeto`, `PausaTrajeto`, `AceiteTermoRastreamento`, `AusenciaUsuario`, `TermoRastreamento`, `core.trajeto_do_dia@1`), `podeRastrear`, correção do 1º ponto, push e consultas, resumo diário, BKO (parâmetros, termo, ausências), permissões do §7, "Meu trajeto" e a tela do termo no Campo | 1 |
 | 3 | engenheiro-apps | tarefa `macuxi-trajeto`, ligar e desligar no shell (§3.2), notificação fixa e canal, Diagnóstico | 2 (contratos) |
@@ -172,7 +177,7 @@ prazo dos pontos). Aparelho: §3.4.
 | 6 | testes e corretor-redundancias | cada condição do §2 desliga sozinha, offline, multi-tenant, permissões do §7, sem coordenada em log, bateria | 2 a 5 |
 
 ## 12. Decisões
-**Do Alexandre**, aprovadas em 16/11/2026 (R-20261116-110200-alexandre):
+**Do dono do produto**, aprovadas em 16/11/2026 (R-20261116-110200-alexandre); nenhuma decisão de negócio em aberto:
 1. Base legal: finalidade §3 (a confirmar com o advogado).
 2. Retenção: finalidade §5.
 3. Expediente: §4.1.

@@ -7,6 +7,7 @@
  * - no ambiente local a API sobe com aviso e o login responde 503 `AUTENTICACAO_INDISPONIVEL` (ninguém autentica).
  */
 
+import { CAMINHOS_COORDENADA_LOG } from '@macuxi/platform-sdk';
 import { serializarErro, type ErroDeLog } from './log-seguro';
 
 /** Chave liga/desliga do ambiente: só `1`/`true`/`sim` liga; ausente ou outro valor = desligado. */
@@ -227,6 +228,8 @@ export const CAMINHOS_REDIGIDOS_LOG: readonly string[] = [
   '*.dados.senha',
   'dados.login',
   '*.dados.login',
+  // ADR 0061 decisão 8 (RN-CORE-13): nenhuma coordenada no log (`latitude`, `longitude`, `lat`, `lng`, `lon`, `coords`)
+  ...CAMINHOS_COORDENADA_LOG,
 ];
 
 export function opcoesLogger(nivel: string) {

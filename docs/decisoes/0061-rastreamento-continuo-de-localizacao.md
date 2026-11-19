@@ -1,6 +1,7 @@
 # ADR 0061 — Rastreamento contínuo de localização no expediente
 
-- **Status**: aceita em 2026-11-16 (R-20261116-110200-alexandre: as 7 decisões de negócio do desenho §12 aprovadas). Execução na v1.0.15.
+- **Status**: **Aceita** em 2026-11-19. As 7 decisões de negócio do desenho §12 foram aprovadas pelo dono do produto em 16/11/2026
+  (R-20261116-110200-alexandre). Execução na v1.0.15.
 - **Data**: 2026-11-15 (Manaus)
 - **Autor**: engenheiro-software
 - **Origem**: T-0156 (R-20261110-085951-alexandre, item 5); RF-CORE-17, RN-CORE-13, RN-CORE-37, RN-CORE-46 (proposta,
@@ -32,9 +33,11 @@
    `deleted_at`: a eliminação é obrigação da LGPD).
 6. **Termo versionado por tenant** (`core.termo_rastreamento`) e aceite por usuário e versão; versão nova suspende o tracking até
    o novo aceite. O app segue usável sem o aceite.
-7. **Acesso** pelo motor de permissões (ADR 0033): `core.trajeto.ver_proprio`, `core.trajeto.ver_equipe`,
-   `core.rastreamento.configurar` e `core.ausencia.cadastrar`. Nenhuma exportação de pontos brutos; sem grant ao `macuxi_leitura`.
-8. **Nenhuma coordenada em log**, erro, Diagnóstico ou telemetria, com prova por teste no CI.
+7. **Acesso** pelo motor de permissões (ADR 0033), ações do manifesto do Core: `trajeto.ver_proprio`, `trajeto.ver_equipe`,
+   `rastreamento.configurar` e `ausencia.cadastrar`. Nenhuma exportação de pontos brutos; sem grant ao `macuxi_leitura`.
+8. **Nenhuma coordenada em log**, erro, Diagnóstico ou telemetria, com prova por teste no CI. Contrato da plataforma:
+   `privacidade-localizacao.ts` do platform-sdk (`semCoordenadas`, `textoSemCoordenadas`, `CAMINHOS_COORDENADA_LOG`, este já
+   na redação do pino da API).
 
 ## Alternativas descartadas
 - **Gravar o tempo todo e filtrar no servidor**: coleta além da finalidade e notificação fixa fora do expediente. Descartada.
