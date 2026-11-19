@@ -8,7 +8,8 @@ R-20261116-143000 e R-20261118-212716 (tabela simples de Pedidos). Gerador: `nod
 | `01-bko-parametros-pedidos.png` | Parâmetros › Pedidos: Alçadas (#412, como está) e o quadro novo **Crédito e inadimplência** com o campo **Quem aprova** |
 | `02-campo-enviar-e-detalhe.png` | Campo: Novo pedido com os motivos em Alertas e a pergunta `Enviar para aprovação?`; o pedido em aprovação com o motivo no Histórico |
 | `03-gestao-aprovacoes.png` | Gestão: a fila de Aprovações com os motivos na linha de apoio |
-| `04-bko-pedidos-tabela.png` | BKO › Operação › Pedidos: tabela simples com Situação e Ações, sem o quadro "Aguardando aprovação" |
+| `04-bko-pedidos-tabela.png` | BKO › Operação › Pedidos em 1366×768: as 13 colunas de R-20261118-214740, rolagem horizontal com as pontas fixas |
+| `04b-bko-pedidos-tabela-larga.png` | A mesma tabela em 1920×1080: todas as colunas à vista, sem rolagem |
 
 ## 1. O que muda nas telas
 - **BKO, Parâmetros › Pedidos:** abaixo das Alçadas, o quadro `Crédito e inadimplência` com uma linha: `Quem aprova` + lista
@@ -24,10 +25,28 @@ R-20261116-143000 e R-20261118-212716 (tabela simples de Pedidos). Gerador: `nod
   engenheiro-software decide versão e ADR).
 - **Offline:** o app calcula com os dados da última sincronização e mostra os mesmos alertas; o servidor revalida ao receber
   (critério 4). Nenhuma tela nova.
-- **BKO › Pedidos (tabela simples):** colunas Cliente · Nº · Vendedor · Recebido · Valor · Situação · Ações. Situação só com os
-  status de `ORDER_STATUS_LABEL` (sem status novo). Ações só no pedido `Aguardando aprovação`: **Aprovar** (principal),
-  **Rejeitar**, **Devolver ao vendedor**. O motivo fica numa linha 13 `ink2` sob o nome do cliente, só no pendente. Sai o quadro
-  "Aguardando aprovação".
+- **BKO › Pedidos (tabela, R-20261118-214740):** colunas nesta ordem: Código do cliente · Cliente · UF · Cidade · Nº · Vendedor ·
+  Supervisor · Recebido · Valor · Motivo · Observação do pedido · Ações · Situação. Sai o quadro "Aguardando aprovação".
+  - **Motivo** vira coluna (`Crédito`, `Inadimplente`, `Desconto 12%`); vazio = `—`, como nas outras tabelas do BKO. A
+    **Observação** também usa `—` quando vazia e quebra em até 2 linhas; o Cliente também quebra. Nada com reticências (RD-2233).
+  - **Ações** só no pedido `Aguardando aprovação`: lista suspensa (Aprovar, Rejeitar, Devolver ao vendedor; vazia mostra
+    `Escolher ação`) e um botão ao lado. Rótulo do botão: A **Aplicar** (recomendado), B Confirmar, C Executar. Por quê:
+    "Aplicar" é o padrão de ação escolhida numa lista em BKO, verbo curto que não se confunde com "Aprovar".
+  - **Situação** por último, só com `ORDER_STATUS_LABEL`, no selo do sistema (`SeloSituacao`, MC-1743): Aguardando aprovação
+    `pending` (#1E3350 sobre #DFE2E6), Aprovado e Faturado `success`, Enviado ao ERP `neutral`, Rejeitado `danger`; peso 500.
+  - **Marca:** lista e botão de Ações em 15 px; rótulos dos filtros 12/600; cabeçalho 12; Código, Nº, Recebido e Valor com
+    `tabular-nums`.
+
+## Prancha 04: largura
+13 colunas não cabem nos ~1030 px de conteúdo de uma tela 1366×768.
+
+| Opção | Como fica | Recomendação |
+|---|---|---|
+| **A** | Rolagem horizontal: Código + Cliente fixos à esquerda, Ações + Situação fixas à direita (`position: sticky`), as do meio rolam; barra visível e sombra sutil na borda das fixas | **A**: funciona em 1366, o notebook comum do escritório, e deixa cliente e ação sempre à vista |
+| **B** | Abaixo de 1600 px somem, nesta ordem, UF, Cidade, Supervisor e Observação | — |
+| **C** | Exigir tela larga (1920) | — |
+
+Em 1920×1080 (`04b`) as 13 colunas cabem sem rolagem nas três opções.
 
 ## 2. Pontos para o dono do produto (opções A/B e recomendação)
 | Ponto | A | B | Recomendação |

@@ -24,25 +24,46 @@ const CSS_BKO = `<style>
 .linha{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:center;min-height:56px}
 .linha b{font-size:15px;font-weight:600}
 .filtros{display:flex;gap:12px;align-items:flex-end}
-.filtros .campo{font-size:13px;color:#4A5562}
+.filtros .campo{font-size:12px;font-weight:600;color:#4A5562}
 .busca{height:44px;border:1px solid #C9CED5;border-radius:10px;background:#fff;width:300px;display:flex;align-items:center;gap:8px;padding:0 12px;color:#5B6673;font-size:15px}
-.sit{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:600}
-.s-ap{background:#FFF1D6;color:#5C3B00}.s-ok{background:#E2F1EA;color:#1D6B4F}.s-ne{background:#ECEEF1;color:#34404D}.s-re{background:#FDE8E6;color:#A8261B}
-td.ac2{padding:0 4px;overflow:visible}
-td.dupla{white-space:normal}
-.acs{display:flex;gap:6px;justify-content:flex-end}
-.b{height:32px;border-radius:8px;padding:0 8px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;white-space:nowrap}
-.b.p{background:#1E3350;color:#fff}.b.s{border:1px solid #C9CED5;background:#fff;color:#16202A}
-.mot{font-size:13px;color:#4A5562;line-height:16px}
-td.dupla{height:64px;line-height:18px;padding-top:6px;padding-bottom:6px}
+/* Tabela de Pedidos (R-20261118-214740): 13 colunas; em 1366 rola na horizontal com Código + Cliente e Ações + Situação fixas. */
+.quadro.tab{padding:0;overflow:hidden}
+.rola{overflow-x:auto;scrollbar-width:none}
+/* Barra de rolagem desenhada: o Chromium sem janela esconde a nativa. Polegar = área visível ÷ largura da tabela. */
+.barra-rola{height:12px;background:#ECEEF1;border-top:1px solid #DFE2E6;padding:3px}
+.barra-rola i{display:block;height:6px;width:66%;border-radius:999px;background:#8B96A3}
+.larga .barra-rola{display:none}
+table.ped{table-layout:fixed;border-collapse:separate;border-spacing:0;width:1610px}
+table.ped th{font-size:12px;white-space:normal;line-height:16px;padding:10px 8px;vertical-align:bottom;background:#fff}
+table.ped td{height:56px;padding:8px;line-height:20px;background:#fff;overflow:visible;text-overflow:clip}
+table.ped td.qb{white-space:normal}
+table.ped .tn{font-variant-numeric:tabular-nums}
+table.ped .vz{color:#5B6673}
+.fe1,.fe2,.fd1,.fd2{position:sticky;z-index:1}
+.fe1{left:0}.fe2{left:76px}.fd1{right:172px}.fd2{right:0}
+.fe2:after,.fd1:before{content:'';position:absolute;top:0;bottom:0;width:8px;pointer-events:none}
+.fe2:after{right:-8px;background:linear-gradient(to right,rgba(22,32,42,.10),rgba(22,32,42,0))}
+.fd1:before{left:-8px;background:linear-gradient(to left,rgba(22,32,42,.10),rgba(22,32,42,0))}
+.larga .fe2:after,.larga .fd1:before{display:none}
+.sit{display:inline-block;border-radius:8px;padding:3px 8px;font-size:12px;line-height:16px;font-weight:500;white-space:nowrap}
+.s-pe{color:#1E3350;background:#DFE2E6}.s-ok{color:#1D6B4F;background:#E2F1EA}.s-ne{color:#34404D;background:#ECEEF1}.s-re{color:#A8261B;background:#FDE8E6}
+.acs{display:flex;gap:6px;align-items:center}
+.acs .sel{width:196px;height:36px;border-radius:8px;padding:0 10px}
+.acs .sel.vazia span{color:#5B6673}
+.b{height:36px;border-radius:8px;padding:0 14px;font-size:15px;font-weight:600;display:inline-flex;align-items:center;white-space:nowrap;border:1px solid #C9CED5;background:#fff;color:#16202A}
 </style>`;
 
 const chev = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
 const lupa = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>';
 
-function bko(conteudo, nota, { pedidos = false } = {}) {
+function bko(conteudo, nota, { pedidos = false, larga = false } = {}) {
   let h = BASE.slice(0, ini) + `<div class="conteudo">${conteudo}</div></div>` + BASE.slice(fim);
   h = h.replace('</style>', '</style>' + CSS_BKO);
+  if (larga) {
+    // Tela de 1920×1080: a mesma página, sem o teto de largura do conteúdo.
+    h = h.replace('</style>', 'body{width:1920px;min-height:1080px}.menu{min-height:1080px}main{max-width:none}</style>');
+    h = h.replace('<body>', '<body class="larga">');
+  }
   h = h.replace(/<div class="nota">[\s\S]*?<\/div><\/nav>/, `<div class="nota">${nota}</div></nav>`);
   if (pedidos) {
     // Operação › Pedidos aberto e ativo; a página não tem as seções de Parâmetros.
@@ -72,25 +93,30 @@ const TELA_PARAMETROS = bko(
 );
 
 const LINHAS = [
-  ['Mercado Bom Preço', '000021', 'Carla Lima', '18/11 09:12', 'R$ 2.480,00', ['s-ap', 'Aguardando aprovação'], 'Crédito · Inadimplente', true],
-  ['Supermercado Rio Branco', '000020', 'Carla Lima', '18/11 08:40', 'R$ 1.150,00', ['s-ap', 'Aguardando aprovação'], 'Desconto 12%', true],
-  ['Atacadão Norte', '000019', 'Paulo Reis', '17/11 16:05', 'R$ 6.900,00', ['s-ok', 'Aprovado'], '', false],
-  ['Mercearia São José', '000018', 'Paulo Reis', '17/11 11:20', 'R$ 820,00', ['s-ne', 'Enviado ao ERP'], '', false],
-  ['Empório Caxangá', '000017', 'Carla Lima', '16/11 15:47', 'R$ 3.310,00', ['s-ok', 'Faturado'], '', false],
-  ['Comercial Paricarana', '000016', 'Paulo Reis', '16/11 10:02', 'R$ 540,00', ['s-re', 'Rejeitado'], '', false],
+  // [código do cliente, cliente, UF, cidade, nº, vendedor, supervisor, recebido, valor, motivo, observação, ação escolhida (só no pendente), [tom, situação]]
+  ['C5007', 'Mercado Bom Preço', 'RR', 'Boa Vista', '000021', 'Carla Lima', 'Marcos Dias', '18/11 09:12', 'R$ 2.480,00', 'Crédito', 'Entregar pela manhã', 'Aprovar', ['s-pe', 'Aguardando aprovação']],
+  ['C5012', 'Supermercado Rio Branco', 'RR', 'Boa Vista', '000020', 'Carla Lima', 'Marcos Dias', '18/11 08:40', 'R$ 1.150,00', 'Desconto 12%', '', '', ['s-pe', 'Aguardando aprovação']],
+  ['C5003', 'Atacadão Norte', 'AM', 'Manaus', '000019', 'Paulo Reis', 'Ana Prado', '17/11 16:05', 'R$ 6.900,00', '', 'Usar a doca 2', null, ['s-ok', 'Aprovado']],
+  ['C5021', 'Mercearia São José', 'RR', 'Caracaraí', '000018', 'Paulo Reis', 'Ana Prado', '17/11 11:20', 'R$ 820,00', '', 'Ligar antes; portão lateral', null, ['s-ne', 'Enviado ao ERP']],
+  ['C5030', 'Comercial Paricarana', 'RR', 'Boa Vista', '000016', 'Carla Lima', 'Marcos Dias', '16/11 10:02', 'R$ 540,00', '', '', null, ['s-re', 'Rejeitado']],
+  ['C5009', 'Empório Caxangá', 'RR', 'Boa Vista', '000015', 'Carla Lima', 'Marcos Dias', '15/11 15:47', 'R$ 3.310,00', '', 'Nota com CNPJ da filial', null, ['s-ok', 'Faturado']],
 ];
+const vazio = (t) => t || '<span class="vz">—</span>';
+const acoes = (escolha) =>
+  escolha === null
+    ? ''
+    : `<div class="acs"><div class="sel${escolha ? ' editado' : ' vazia'}" role="combobox" aria-label="Ação do pedido"><span>${escolha || 'Escolher ação'}</span>${chev}</div><span class="b">Aplicar</span></div>`;
 const TABELA = `<div class="filtros"><div class="busca">${lupa}<span>Buscar cliente ou nº do pedido</span></div>
 <label class="campo">Situação<div class="sel" style="width:220px"><span>Todas</span>${chev}</div></label>
 <label class="campo">Vendedor<div class="sel" style="width:200px"><span>Todos</span>${chev}</div></label></div>
-<section class="quadro"><table><colgroup><col><col style="width:78px"><col style="width:90px"><col style="width:102px"><col style="width:124px"><col style="width:180px"><col style="width:296px"></colgroup>
-<thead><tr><th>Cliente</th><th>Nº</th><th>Vendedor</th><th>Recebido</th><th class="n">Valor</th><th>Situação</th><th style="text-align:right">Ações</th></tr></thead><tbody>
-${LINHAS.map(([c, n, v, r, val, [cl, s], m, pend]) => `<tr><td${m ? ' class="dupla"' : ''}>${c}${m ? `<div class="mot">${m}</div>` : ''}</td><td>${n}</td><td>${v}</td><td>${r}</td><td class="n">${val}</td><td><span class="sit ${cl}">${s}</span></td><td class="ac2">${pend ? '<div class="acs"><span class="b p">Aprovar</span><span class="b s">Rejeitar</span><span class="b s">Devolver ao vendedor</span></div>' : ''}</td></tr>`).join('\n')}
-</tbody></table></section>`;
-const TELA_PEDIDOS = bko(
-  TABELA,
-  '<b>Simulação.</b> Sem o quadro "Aguardando aprovação"; Situação só com os status do sistema; o motivo fica sob o cliente, só no pendente. P6 = A: Rejeitar encerra (Cancelado) e Devolver ao vendedor volta para corrigir (Rejeitado, "Corrigir pedido" no Campo).',
-  { pedidos: true },
-);
+<section class="quadro tab"><div class="rola"><table class="ped"><colgroup>${[76, 160, 44, 92, 72, 100, 104, 100, 104, 116, 170, 300, 172].map((w) => `<col style="width:${w}px">`).join('')}</colgroup>
+<thead><tr><th class="fe1">Código do cliente</th><th class="fe2">Cliente</th><th>UF</th><th>Cidade</th><th>Nº</th><th>Vendedor</th><th>Supervisor</th><th>Recebido</th><th class="n">Valor</th><th>Motivo</th><th>Observação do pedido</th><th class="fd1">Ações</th><th class="fd2">Situação</th></tr></thead><tbody>
+${LINHAS.map(([cod, c, uf, cid, n, v, sup, r, val, m, obs, esc, [cl, s]]) => `<tr><td class="fe1 tn">${cod}</td><td class="fe2 qb">${c}</td><td>${uf}</td><td>${cid}</td><td class="tn">${n}</td><td>${v}</td><td>${sup}</td><td class="tn">${r}</td><td class="n">${val}</td><td>${vazio(m)}</td><td class="qb">${vazio(obs)}</td><td class="fd1">${acoes(esc)}</td><td class="fd2"><span class="sit ${cl}">${s}</span></td></tr>`).join('\n')}
+</tbody></table></div><div class="barra-rola" aria-hidden="true"><i></i></div></section>`;
+const NOTA_PEDIDOS =
+  '<b>Simulação.</b> Colunas na ordem pedida (R-20261118-214740). Ações só no pendente: lista com Aprovar, Rejeitar e Devolver ao vendedor + Aplicar. Situação por último, só com os status do sistema. Largura: A rolagem com as pontas fixas (recomendado).';
+const TELA_PEDIDOS = bko(TABELA, NOTA_PEDIDOS, { pedidos: true });
+const TELA_PEDIDOS_LARGA = bko(TABELA, '<b>Simulação.</b> Em 1920×1080 as 13 colunas cabem sem rolagem; as pontas fixas não aparecem.', { pedidos: true, larga: true });
 
 // ---------- App (Campo e Gestão) ----------
 const CSS_APP = `<style>
@@ -185,6 +211,7 @@ const TELAS = {
     app([['Gestão · Aprovações: a linha de motivos ganha "Inadimplente há N dias"', GESTAO, 'P3 = A: um pedido, uma aprovação, todos os motivos na linha. O 1º item é o pedido 000021 do Campo.']]),
   ],
   '04-bko-pedidos-tabela': [TELA_PEDIDOS, 1366, 768],
+  '04b-bko-pedidos-tabela-larga': [TELA_PEDIDOS_LARGA, 1920, 1080],
 };
 
 async function abrir() {
