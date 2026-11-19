@@ -6,6 +6,7 @@
  *   os bytes: imagem fica em memória; PDF vai para um arquivo temporário em `<cache>/visualizar/`, apagado ao fechar.
  * Nada vai para os documentos do app nem para log (nem o id do arquivo).
  */
+import type { PedidoAbrirArquivo } from '@macuxi/core/app';
 import { Directory, File, Paths } from 'expo-file-system';
 import { router } from 'expo-router';
 import { Platform } from 'react-native';
@@ -17,10 +18,9 @@ import {
   rotaDoArquivo,
   TEXTO_ARQUIVO_INDISPONIVEL,
   TEXTO_PDF_SEM_VISOR,
-  TEXTO_SEM_SINAL_ARQUIVO,
+  TEXTO_SEM_INTERNET,
   tipoDosBytes,
   uriDaImagem,
-  type PedidoAbrirArquivo,
 } from '@/lib/visualizar-arquivo';
 import { NetworkError } from '@/services/api';
 import { uuid } from './device';
@@ -66,12 +66,12 @@ export function limparTemporarios(): void {
 export async function baixarArquivo(arquivoId: string, opcoes: { pdf: boolean }): Promise<ArquivoBaixado> {
   const fonte = fonteDeArquivos();
   if (!fonte || Platform.OS === 'web') return { tipo: 'erro', mensagem: TEXTO_ARQUIVO_INDISPONIVEL };
-  if (!fonte.online()) return { tipo: 'erro', mensagem: TEXTO_SEM_SINAL_ARQUIVO };
+  if (!fonte.online()) return { tipo: 'erro', mensagem: TEXTO_SEM_INTERNET };
   let bytes: Uint8Array | null;
   try {
     bytes = await fonte.api().bytes(`/v1/arquivos/${encodeURIComponent(arquivoId)}`, { maxBytes: MAX_BYTES_ARQUIVO, timeoutMs: 30_000 });
   } catch (e) {
-    return { tipo: 'erro', mensagem: e instanceof NetworkError ? TEXTO_SEM_SINAL_ARQUIVO : TEXTO_ARQUIVO_INDISPONIVEL };
+    return { tipo: 'erro', mensagem: e instanceof NetworkError ? TEXTO_SEM_INTERNET : TEXTO_ARQUIVO_INDISPONIVEL };
   }
   const tipo = bytes ? tipoDosBytes(bytes) : null;
   if (!bytes || !tipo) return { tipo: 'erro', mensagem: TEXTO_ARQUIVO_INDISPONIVEL };

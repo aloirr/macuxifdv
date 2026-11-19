@@ -74,7 +74,7 @@ vi.mock('./foto-pdv', () => ({
       : null,
 }));
 
-import { TEXTO_ARQUIVO_INDISPONIVEL, TEXTO_PDF_SEM_VISOR, TEXTO_SEM_SINAL_ARQUIVO } from '@/lib/visualizar-arquivo';
+import { TEXTO_ARQUIVO_INDISPONIVEL, TEXTO_PDF_SEM_VISOR, TEXTO_SEM_INTERNET } from '@/lib/visualizar-arquivo';
 import { NetworkError } from '@/services/api';
 import { abrirArquivo, baixarArquivo, limparTemporarios } from './visualizar-arquivo';
 
@@ -157,13 +157,14 @@ describe('baixarArquivo', () => {
     expect(sim.gravados).toEqual([]);
   });
 
-  it('sem sinal: mensagem curta, sem chamar a API; queda de rede no meio: a mesma mensagem', async () => {
+  it('sem internet: "Sem internet", como no Core, sem chamar a API; queda de rede no meio: a mesma mensagem', async () => {
+    expect(TEXTO_SEM_INTERNET).toBe('Sem internet');
     sim.online = false;
-    expect(await baixarArquivo(ID, { pdf: true })).toEqual({ tipo: 'erro', mensagem: TEXTO_SEM_SINAL_ARQUIVO });
+    expect(await baixarArquivo(ID, { pdf: true })).toEqual({ tipo: 'erro', mensagem: TEXTO_SEM_INTERNET });
     expect(sim.pedidos).toEqual([]);
     sim.online = true;
     sim.falha = new NetworkError('x');
-    expect(await baixarArquivo(ID, { pdf: true })).toEqual({ tipo: 'erro', mensagem: TEXTO_SEM_SINAL_ARQUIVO });
+    expect(await baixarArquivo(ID, { pdf: true })).toEqual({ tipo: 'erro', mensagem: TEXTO_SEM_INTERNET });
   });
 
   it('recusa da API, bytes que não são PDF nem imagem, ou sem sessão: não foi possível abrir, nada gravado', async () => {

@@ -13,9 +13,11 @@
  * as fotos do PDV no Core (`definirCapturaFotoPdv`); Promotor, Pesquisa e a fachada do checkout seguem só com a câmera.
  * O Core usa `escolher({ titulo })`: o shell abre a folha "Tirar foto / Escolher da galeria" (components/folha-foto-pdv.tsx,
  * imagem aprovada T-0147-fotos-pdv.png) e devolve a foto gravada com a origem, para o `ClienteFotoPush`.
- * O visor de foto comum do shell (`abrirFoto`, services/visor-foto.ts; RD-0088) também é registrado no Core, para a foto do PDV.
+ * O visualizador de arquivos do shell (`abrirArquivo`, services/visualizar-arquivo.ts) vai na porta única `definirAbrirArquivo` do Core
+ * (T-0186, RD-2374): fachada, documentos do cliente e PDF da NF.
  */
 import * as appCore from '@macuxi/core/app';
+import { definirAbrirArquivo } from '@macuxi/core/app';
 import { definirCapturaFotoPesquisa } from '@macuxi/pesquisa/app';
 import { definirCapturaFotoPromotor } from '@macuxi/promotor/app';
 import { Directory, File, Paths } from 'expo-file-system';
@@ -26,7 +28,6 @@ import { Platform } from 'react-native';
 import { pedirOrigemFotoPdv, type OrigemFotoPdv } from '@/lib/folha-foto-pdv';
 import { FOTO_QUALIDADE_JPEG, nomeArquivoFoto, PASTA_FOTOS, redimensionamento } from '@/lib/foto';
 import { posicaoAgora, uuid } from './device';
-import { abrirFoto } from './visor-foto';
 import { abrirArquivo } from './visualizar-arquivo';
 
 export type CapturaFoto = () => Promise<string | null>;
@@ -111,16 +112,12 @@ export interface CapturaFotoPdv {
 interface PortasDoCore {
   definirCapturaFoto?: (fn: CapturaFoto | null) => void;
   definirCapturaFotoPdv?: (c: CapturaFotoPdv | null) => void;
-  definirAbrirFotoPdv?: (fn: typeof abrirFoto | null) => void;
-  definirAbrirArquivo?: (fn: typeof abrirArquivo | null) => void;
-  /** Nome da mesma porta no Core antes de `definirAbrirArquivo` (branch do Core em d93a3b4b). */
-  definirAbrirDocumento?: (fn: typeof abrirArquivo | null) => void;
 }
 
 /**
- * Registra a captura no Core, no Promotor e na Pesquisa, a captura e o visualizador das fotos do PDV no Core (T-0147) e o
- * visualizador dos documentos e do PDF da NF (T-0186, RD-2356). Porta que o `@macuxi/core/app` ainda não exporta fica sem
- * registro (a tela do Core a deixa desligada). Devolve se a câmera da fachada foi registrada.
+ * Registra a captura no Core, no Promotor e na Pesquisa, a captura das fotos do PDV no Core (T-0147) e o visualizador de
+ * arquivos (T-0186). Porta de captura que o `@macuxi/core/app` ainda não exporta fica sem registro (a tela do Core a deixa
+ * desligada). Devolve se a câmera da fachada foi registrada.
  */
 export function registrarCameraNosModulos(): boolean {
   const core = appCore as unknown as PortasDoCore;
@@ -128,9 +125,7 @@ export function registrarCameraNosModulos(): boolean {
   definirCapturaFotoPesquisa(capturarFotoGravada);
   // a galeria só para as fotos do PDV (premissa do dono do produto, desenho T-0147 §5)
   if (typeof core.definirCapturaFotoPdv === 'function') core.definirCapturaFotoPdv({ escolher: escolherFotoPdv, camera: capturarFotoGravada, galeria: escolherFotoDaGaleria });
-  if (typeof core.definirAbrirFotoPdv === 'function') core.definirAbrirFotoPdv(abrirFoto);
-  if (typeof core.definirAbrirArquivo === 'function') core.definirAbrirArquivo(abrirArquivo);
-  else if (typeof core.definirAbrirDocumento === 'function') core.definirAbrirDocumento(abrirArquivo);
+  definirAbrirArquivo(abrirArquivo);
   if (typeof core.definirCapturaFoto !== 'function') return false;
   core.definirCapturaFoto(capturarFoto);
   return true;

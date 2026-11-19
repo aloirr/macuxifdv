@@ -4,22 +4,17 @@
  * - imagem: o visor de foto comum (RD-0088), com os bytes só em memória;
  * - PDF: baixado para um arquivo temporário no cache (`<cache>/visualizar/`), apagado ao fechar. Sem compartilhar nem salvar.
  */
+import type { PedidoAbrirArquivo } from '@macuxi/core/app';
+
 import { nomeArquivoFoto } from './foto';
 import { bytesParaBase64 } from './foto-pdv';
-
-/** O que o Core passa (título e subtítulo já formatados por ele; `formato` é a dica do documento, ex.: "pdf", "jpg"). */
-export interface PedidoAbrirArquivo {
-  arquivo_id: string;
-  titulo: string;
-  subtitulo?: string | undefined;
-  formato?: string | null | undefined;
-}
 
 export const ROTA_VISOR_ARQUIVO = '/arquivo';
 /** Pasta do arquivo temporário, dentro do cache do app. Esvaziada antes de cada download e ao fechar. */
 export const PASTA_VISUALIZAR = 'visualizar';
 export const MAX_BYTES_ARQUIVO = 20 * 1024 * 1024;
-export const TEXTO_SEM_SINAL_ARQUIVO = 'Sem sinal para abrir o arquivo.';
+/** O mesmo texto da ficha do Core ("Sem internet" + "Tentar de novo"). */
+export const TEXTO_SEM_INTERNET = 'Sem internet';
 export const TEXTO_ARQUIVO_INDISPONIVEL = 'Não foi possível abrir o arquivo.';
 export const TEXTO_PDF_SEM_VISOR = 'Este aparelho ainda não abre PDF.';
 
