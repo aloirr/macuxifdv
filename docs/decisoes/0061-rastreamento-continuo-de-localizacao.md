@@ -8,7 +8,7 @@
   `docs/desenho/performance-produtividade.md` §8).
 - **Desenho**: [`docs/desenho/tracking.md`](../desenho/tracking.md). **Finalidade**: `docs/desenho/T-0156-legal-finalidade.md`.
 - **Revisão**: 19/11/2026, decisão 6.
-- **Quem implementa**: banco-dados, modulo-core, engenheiro-apps e modulo-gestor (desenho §11).
+- **Quem implementa**: banco-dados, modulo-core, engenheiro-apps e modulo-gestor (T-0156).
 
 ## Contexto
 - Desde 10/11/2026 o Campo exige a localização "o tempo todo" (RN-CORE-37), mas não grava trajeto: só o GPS do check-in e do
@@ -21,14 +21,14 @@
 ## Decisão
 1. **Dono**: o módulo Core (rotas e visitas, carteira, km). O Gestor lê pelo contrato `core.trajeto_do_dia@1`; nenhum outro módulo
    lê as tabelas do trajeto.
-2. **Portão de sete condições** (desenho §2): parâmetro da empresa ligado (padrão desligado), fora de feriado, fora de ausência e
-   dentro do expediente, na mesma função pura `podeRastrear` no app e na API; mais o cargo de campo (conferido na API), o app Campo
-   e a permissão do aparelho. Fora do portão o app não grava nem guarda ponto, e a API descarta o que chegar.
+2. **Portão de sete condições** (desenho §2), todas na mesma função pura `podeRastrear`, no app e na API: parâmetro da empresa
+   ligado (padrão desligado), cargo de campo, app Campo, fora de feriado, fora de ausência, dentro do expediente e permissão do
+   aparelho (só o app confere). Fora do portão o app não grava nem guarda ponto, e a API descarta o que chegar.
 3. **Captura no Android** por `expo-location` com serviço em primeiro plano e notificação fixa "Macuxi Campo ativo", sem citar localização, no canal `macuxi-servico`
    (frequência em "Decisões técnicas"); a tarefa `macuxi-trajeto` só grava no SQLite, sem rede e sem derrubar o processo.
    Liga ao abrir, ao voltar ao primeiro plano e na `macuxi-sync-delta` (ADR 0017); desliga sozinha quando o portão fecha.
 4. **Envio pelo motor de sync** como entidade só de envio (`ponto_trajeto`), em lotes, idempotente pelo UUID do aparelho. O app
-   do vendedor não mostra nada do trajeto.
+   não mostra nada do trajeto (decisão 6).
 5. **Resumo diário** recalculado do dia inteiro a cada push em `core.deslocamento_dia` (upsert idempotente). No fim do prazo
    (`docs/desenho/T-0156-legal-finalidade.md` §5), os pontos saem por `delete` físico num expurgo diário (exceção consciente ao
    `deleted_at`: a eliminação é obrigação da LGPD).

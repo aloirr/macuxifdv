@@ -20,18 +20,17 @@
 | `metrosDoTrajeto` (haversine, precisão ≤ [50 m], salto ≤ [150 km/h]) | `modules/core/domain/performance/trajeto.ts` | pronto, com testes |
 
 ## 2. Quando o tracking grava (portão)
-Sete condições, todas obrigatórias. As quatro primeiras ficam na função pura `podeRastrear` (domain do Core), a mesma no app e na
-API; as outras três são conferidas fora dela.
+Sete condições, todas obrigatórias, na função pura `podeRastrear` (domain do Core), a mesma no app e na API:
 
-| # | Condição | Onde |
+| # | Condição | Motivo quando falta |
 |---|---|---|
-| 1 | Parâmetro da empresa `rastreamento.ativo = true` (padrão **desligado**) | `podeRastrear` (app e API) |
-| 2 | Fora de feriado do calendário do tenant | `podeRastrear` (app e API) |
-| 3 | Fora de ausência cadastrada (§4.2) | `podeRastrear` (app e API) |
-| 4 | Dentro do **expediente** do tenant (§4.1) | `podeRastrear` (app e API) |
-| 5 | Usuário de cargo de campo (vendedor ou promotor, ADR 0049; `CARGOS_RASTREADOS`) | API, no push (`triarPontoRecebido`) |
-| 6 | Logado no app **Campo** (o Gestão não rastreia) | app (shell) |
-| 7 | Permissão "o tempo todo" concedida no aparelho (RN-CORE-37) | app (sem ela o Android não entrega posição) |
+| 1 | Parâmetro da empresa `rastreamento.ativo = true` (padrão **desligado**) | `desligado` |
+| 2 | Cargo de campo: vendedor ou promotor (ADR 0049; `CARGOS_RASTREADOS`) | `cargo` |
+| 3 | App **Campo** (o Gestão não rastreia; a API passa `campo`) | `app` |
+| 4 | Fora de feriado do calendário do tenant | `feriado` |
+| 5 | Fora de ausência cadastrada (§4.2) | `ausencia` |
+| 6 | Dentro do **expediente** do tenant (§4.1) | `fora_do_expediente` |
+| 7 | Permissão "o tempo todo" concedida no aparelho (RN-CORE-37; só o app confere, a API não recebe) | `sem_permissao` |
 
 Faltou qualquer uma: o app **não grava nem guarda** ponto, e a API descarta o que chegar. Check-in e checkout seguem com o GPS
 do momento (RN-CORE-13).
@@ -53,8 +52,8 @@ do momento (RN-CORE-13).
 - **Desliga** pela própria tarefa, a cada lote, quando o §2 deixa de valer (fim do expediente, ausência, logout, parâmetro
   desligado): `stopLocationUpdatesAsync` e descarte do lote. A notificação some.
 - Ponto do lote com `capturado_em` fora do expediente é descartado no aparelho.
-- `podeRastrear({ ativo, expediente, feriados, ausencias, instante, fuso })` → `{ pode: true } | { pode: false, motivo }`, no domain
-  do Core, com as condições 1 a 4 do §2 e teste citando RN-CORE-13; as condições 5 a 7 ficam fora dela (§2).
+- `podeRastrear({ ativo, cargo, app, expediente, feriados, ausencias, permissao, instante, fuso })` → `{ pode: true } | { pode: false, motivo }`,
+  no domain do Core, com as 7 condições do §2 e teste citando RN-CORE-13.
 
 ### 3.3 Bateria
 - Meta: **≤ [8%] da bateria** num expediente de 10 h, medida no ensaio em 2 aparelhos de entrada. Se passar, sobem
@@ -132,14 +131,5 @@ Quem decide ligar é o dono do produto, pelo parâmetro da empresa no BKO. Antes
 2. Ensaio de bateria (§3.3) e de offline (3 dias sem rede, envio sem duplicar).
 3. Teste "sem coordenada em log" verde no CI.
 
-## 10. O que muda nos PRs em curso
-| Dono | O que sai |
-|---|---|
-| banco-dados (#498) | as tabelas de pausa, termo e aceite (§5.1) |
-| modulo-core (#499) | termo, aceite, pausa, "Meu trajeto", contestação e `trajeto.ver_proprio` |
-| engenheiro-apps (#501) | tela do termo e pausa; notificação do §3.1 |
-| modulo-gestor (#502) | só o padrão da permissão (§6) |
-| designer-ux e design-de-marca | telas do termo, "Meu trajeto" e pausa |
-
-## 11. Decisões
+## 10. Decisões
 Do dono do produto e técnicas: [ADR 0061](../decisoes/0061-rastreamento-continuo-de-localizacao.md).
