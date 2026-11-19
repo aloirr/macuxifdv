@@ -118,6 +118,9 @@ describe.skipIf(semBanco())('Core T-0156 × Postgres: rastreamento no expediente
     await expect(async () => chamarComPerfis(vendedor1, { data: DIA })).rejects.toBeDefined(); // sem usuario_id a consulta nem existe
     await expect(chamarComPerfis(supervisor, { data: DIA, usuario_id: U.vendedor2 })).rejects.toMatchObject({ status: 404 });
     await expect(chamarComPerfis(analista, { data: DIA, usuario_id: U.vendedor1 })).rejects.toMatchObject({ status: 403 });
+    // RN-CORE-13: o próprio trajeto nunca aparece, nem para quem tem a permissão
+    await expect(chamarComPerfis(supervisor, { data: DIA, usuario_id: U.supervisor })).rejects.toMatchObject({ status: 404 });
+    await expect(chamarComPerfis(gerente, { data: DIA, usuario_id: U.gerente })).rejects.toMatchObject({ status: 404 });
     await expect(chamarComPerfis(adminB, { data: DIA, usuario_id: B.usuarios.admin })).rejects.toMatchObject({ status: 403 });
     await expect(chamarComPerfis(gerente, { data: '2026-01-01', usuario_id: U.vendedor1 })).rejects.toMatchObject({ codigo: 'TRAJETO_FORA_DA_RETENCAO' });
   });
@@ -128,6 +131,9 @@ describe.skipIf(semBanco())('Core T-0156 × Postgres: rastreamento no expediente
     expect(sup.usuarios[0]!.pontos.length).toBeGreaterThanOrEqual(4);
     const ger = await consultarNoTenant(gerente, [U.vendedor1, U.vendedor2]);
     expect(ger.usuarios.map((x: { id: string }) => x.id).sort()).toEqual([U.vendedor1, U.vendedor2].sort());
+    // RN-CORE-13: o id da sessão sai da resposta
+    expect((await consultarNoTenant(supervisor, [U.supervisor, U.vendedor1])).usuarios.map((x: { id: string }) => x.id)).toEqual([U.vendedor1]);
+    expect((await consultarNoTenant(gerente, [U.gerente, U.vendedor1])).usuarios.map((x: { id: string }) => x.id)).toEqual([U.vendedor1]);
     expect((await consultarNoTenant(analista, [U.vendedor1])).usuarios).toEqual([]);
     expect((await consultarNoTenant(vendedor1, [U.vendedor1])).usuarios).toEqual([]);
     // o admin do tenant B pergunta por usuário do A: some (RLS)
