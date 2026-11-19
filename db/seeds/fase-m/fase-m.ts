@@ -12,6 +12,7 @@
  * (dadosSprint1FaseM; datas relativas a hoje em America/Manaus, opção `hoje` para fixar).
  * 0077 (T-0176, RN-CORE-39): todo usuário com a filial padrão (gatilho tenant_semear_filial) como cadastro e venda; sem ela
  * ficaria bloqueado (R-20261115-094500). Banco sem a 0077 = nada.
+ * 0088 (T-0184): o pedido em aprovação com a aprovação pendente por motivo (seeds/aprovacoes-pedido.ts). Banco sem a 0088 = nada.
  */
 import type { ClientBase } from 'pg';
 import { exigirBancoLocal, hostDoCliente } from '../../src/config';
@@ -19,6 +20,7 @@ import { anoMes, hojeNoFuso, menorData, somarDias } from '../../src/datas';
 import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
 import { idDeterministico, idFilialPadrao, idMedida } from '../../src/ids';
 import { hashSenha } from '../../src/senha';
+import { gravarAprovacoesDosPedidos } from '../aprovacoes-pedido';
 
 export const TENANT_FASE_M = '7d0c2f4e-1a2b-4c3d-8e9f-000000000001';
 const T = TENANT_FASE_M;
@@ -376,6 +378,8 @@ export async function carregarFaseM(admin: ClientBase, opcoes: { senha?: string 
       if (tabela === 'core.usuario') await gravarLinhas(admin, 'core.equipe', dados['core.equipe']);
     }
     await gravarFilialDosUsuarios(admin, dados['core.usuario']);
+    // 0088 (T-0184, RN-VEN-30): a aprovação pendente (desconto, gerente) do pedido em aprovação (banco sem a 0088 = nada)
+    await gravarAprovacoesDosPedidos(admin, T, dados['vendedor.pedido']);
     await admin.query('commit');
   } catch (e) {
     await admin.query('rollback');

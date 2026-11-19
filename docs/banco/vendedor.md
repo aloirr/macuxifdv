@@ -402,3 +402,33 @@ Conector: `pagamento_percentual_ajuste` DECIMAL(5,2) NULL na entrada de pedidos 
 **informativo** (preços já ajustados; o ERP não reaplica, RN-INT-15). Na `vw_macuxi_prazo_pagamento` a coluna `percentual_ajuste`
 fica comentada até o `PrazoPagamentoPayload` ter o campo. Aparelho: o prazo é linha JSON do sync (`ent_*`), sem DDL nova.
 **Volta** (`.down.sql`): apaga os 3 CHECKs e as 2 colunas (percentuais e retratos se perdem). Volte antes Vendedor e Integração.
+
+## 0088 — aprovação por motivo (`0088_vendedor_pedido_aprovacao`; T-0184, P-6, desenho docs/desenho/T-0184.md §2 e §7.3)
+Uma aprovação por motivo e por ciclo do pedido. **Aditiva** no pedido (o default preenche sem andar o `updated_at`).
+
+| Tabela.coluna | Tipo | Regra |
+|---|---|---|
+| pedido_aprovacao.pedido_id | uuid not null | FK composta `pedido_aprovacao_pedido_fk (tenant_id, pedido_id)` → `pedido (tenant_id, id)` |
+| pedido_aprovacao.ciclo | integer not null default 1 | ≥ 1; cresce a cada reenvio depois de uma devolução |
+| pedido_aprovacao.motivo | text not null | `desconto`, `credito`, `inadimplencia`, `estoque`, `preco_minimo` (`pedido_aprovacao_motivo_valido`) |
+| pedido_aprovacao.nivel | text not null | `supervisor`, `gerente`, `analista`: quem decide esta aprovação |
+| pedido_aprovacao.estado | text not null default `pendente` | `pendente`, `aprovada`, `rejeitada`, `devolvida`, `encerrada` |
+| pedido_aprovacao.texto_pendencia | text not null default `''` | o porquê da pendência, para o aprovador |
+| pedido_aprovacao.decidida_por / decidida_em | uuid / timestamptz, nulos | usuário do Core (sem FK); `decidida_em` nula se, e só se, pendente (`pedido_aprovacao_decisao_coerente`) |
+| pedido_aprovacao.texto_decisao | text null | até 500 caracteres |
+| pedido.aprovacao_ciclo | integer not null default 1 | ciclo atual das aprovações, ≥ 1 (`pedido_aprovacao_ciclo_positivo`) |
+
+- Únicos: `pedido_aprovacao_ciclo_uk (tenant_id, pedido_id, ciclo, motivo)` (não parcial: histórico) e o `external_uk` parcial.
+  Fila do aprovador: `pedido_aprovacao_fila_ix (tenant_id, nivel) where estado = 'pendente' and deleted_at is null`.
+- `pedido_motivos_validos` recriado com `inadimplencia`. Fora do sync (`TABELAS_FORA_DO_SYNC`): o app recebe as aprovações
+  no detalhe do pedido pela API; sem SQLite no aparelho.
+- RLS forçado, `isolamento_tenant` e `manutencao`; macuxi_app com select, insert e update (sem delete); macuxi_leitura com
+  select e a política `leitura` na tabela e `select (aprovacao_ciclo)` no pedido (a 0078 deu SELECT por coluna).
+- Backfill: cada pedido vivo em `pending_approval` ganha uma linha `pendente` no ciclo 1 por motivo de `motivos_aprovacao`
+  (vazio = `desconto`), com `nivel = nivel_aprovacao` e id `plataforma.uuid_de_chave('<tenant>:vendedor.pedido_aprovacao:<pedido>:1:<motivo>')`
+  (gêmea `idAprovacaoDoBackfill`, usada pela fixture). Volume: 0 a 5 linhas por pedido em aprovação.
+- Seeds da demo e da Fase M (`db/seeds/aprovacoes-pedido.ts`): a mesma regra e o mesmo id do backfill para os pedidos do seed
+  em `pending_approval`. A recarga apaga as aprovações de outro id desses pedidos, volta `aprovacao_ciclo` a 1 e regrava as
+  do seed como `pendente`. Banco sem a 0088 = nada.
+- **Volta** (`.down.sql`): apaga a tabela (as decisões se perdem) e a coluna; tira `inadimplencia` dos arrays antes de recriar
+  o CHECK da 0009. Volte antes Vendedor e Gestor. Testes: `db/testes/pedido-aprovacao.db.test.ts`.
