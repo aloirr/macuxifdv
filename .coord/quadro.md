@@ -2,6 +2,44 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
+> **v1.0.15 no ar, servidor e APK** (19/11; R-20261119-172300 e R-20261119-180100). Horários de Manaus.
+> - **No main:**
+>   - governança: #504;
+>   - P-6: #495, #494 e #507;
+>   - rastreamento: #498, #499 e #502;
+>   - prazo médio e Alertas: #506 e #508;
+>   - catálogo v2: #503;
+>   - login e e-mails: #501 e #510;
+>   - #509 e #492;
+>   - ficha do cliente v2 (T-0186): #514;
+>   - limpeza do reteste: #515;
+>   - envio do trajeto (T-0156): #516.
+>   - Fechados sem merge: #453, #493, #496, #497, #500, #505, #511, #512 e #513.
+> - **SHA** 53baf7c3fc854a4a1a00436c80fb585c48e55276 (CI do main, run 44616710113). Publicado às 17h37 (issue #517). APK Campo e Gestão v1.0.15 (run 44618378737).
+> - **Cortes para a v1.0.16:** PDF na ficha e tabela Carteira do Gestão ([T-0186](tarefas/T-0186.md), [T-0187](tarefas/T-0187.md)).
+> - **Trava RN-VEN-45 cancelada** (R-20261119-184441-alexandre): ninguém usa o app antigo. O Conector 1.5.0 sai no rito normal e o "% Acres.Fin." pode ser preenchido.
+> - **Pendências que não seguraram:** MC-1803 (logo do e-mail), RD-2379 e o comentário do teste do trajeto, o 🟢 do "Enviando…", os retentáveis no SDK e o OUTBOX_PARADA (36 eventos, desde a v1.0.14).
+
+> **v1.0.14 = cenário A, só servidor** (R-20261117-063420-alexandre e R-20261118-003807-alexandre). O Cline tocou de 16 a 18/11, e a nuvem voltou em 18/11 às 20h57 (R-20261118-205700). Horários de Manaus.
+> - **No main:** #420, #486, #403, #396 (0087), #483, #412, #484, #478, #479, #480, #481, #482, #414, #416, #415, #488 e #489 (último: 555c719a, 17/11 às 23h44).
+> - **#485** (testes da T-0173): no main em b52ca64d (18/11, 20h58), no SHA da frase 2878f90b (R-20261118-003807).
+> - **Main verde** em b52ca64dfc92dad5428921f9d1af2fe7910a5e97 (CI do push, run 44433316282, 18/11 às 21h08).
+> - **Reteste sobre o main b52ca64d** (18/11, 21h10):
+>   - corretor: LIBERADO. Fica a RD-2220 (baixa, linha velha em `docs/testes/T-0173.md:6`, dono `testes`), que vai para a v1.0.15, como decidiu a rodada 62;
+>   - marca: LIBERADO. A MC-0068 (cinzas do PDF do pedido, já em produção) vai para o `modulo-vendedor` na v1.0.15.
+> - **"PRONTO PARA LIBERAR v1.0.14 (só servidor)"** no SHA b52ca64d. Deploy pela ponte (R-20261118-003807).
+> - **Fechados sem merge:** #487 e #384 (a reconferência de marca da v1.0.13 os substitui) e #345 (substituído pelo #488).
+> - **Sem advogado** (R-20261119-0545, alexandre: "quem decide tudo sou eu"): nenhuma condição de "revisão de advogado". O rastreamento é interno e liga quando o dono do produto mandar, pelo parâmetro do BKO. Já corrigidos: T-0156 e doc 03 (RN-CORE-13). Para a v1.0.16 (engenheiro-software; o #500 fechou sem merge): ADR 0061, `docs/desenho/tracking.md` e os três `docs/desenho/T-0156-legal-*.md`.
+> - **Doc 03, pendente na v1.0.16:** as decisões P1 a P8 da P-6 (`docs/desenho/T-0184.md` §0) na RN-VEN-12, na RN-VEN-13 e na RN-VEN-30.
+> - **RN-VEN-43 com dois sentidos** (R-20261117-201110, ponto 3): a tabela ajustada pelo prazo fica com a RN-VEN-43 a 46, e os cards de Pedidos (T-0170) ganham um número novo. As duas entram no doc 03 na v1.0.16.
+> - **Economia do Actions** (R-20261117-065555), além do `CLAUDE.md`:
+>   - PR só quando é obrigatório;
+>   - não juntar o main sem conflito;
+>   - pareceres só como comentário no PR;
+>   - documentação e diários num PR só, por dono, no fechamento da versão;
+>   - um build do Android por versão.
+> - **Merges em sequência** (blocos 2 e 3, R-20261117-065959 e R-20261117-184956): sem esperar o CI do main entre um merge e outro, mas cada PR com a sua frase, o CI do head verde, `clean` e o parecer no SHA. Se o CI do main ficar vermelho, nenhum merge novo sai.
+
 > **Manhã de 10/11 — teste da v1.0.2 (dono do produto, 05h32–06h02; 11 recados às 06h22 + regra do corretor às 06h25; "tudo na esteira já"):**
 > - **Build v1.0.2 pronto** (f25bbe88, R-20261109-204045).
 > - **Tarefas novas:**
