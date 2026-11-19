@@ -119,11 +119,6 @@ async function linhasEntre(repo: RepositorioNotas, clienteId: string, de: string
   return notas.map((n) => linhaDaNota(n, parcelas, devolucoes, hoje));
 }
 
-/** As linhas dos últimos 90 dias, as que o aparelho guarda (P8/P17). */
-export async function linhasDoHistorico(repo: RepositorioNotas, clienteId: string, hoje: string) {
-  return filtrarNotas(await linhasEntre(repo, clienteId, inicioDoPeriodoNf('90d', hoje), hoje, hoje), {});
-}
-
 /** `GET clientes/:id/notas` (online, P17): o padrão é 90 dias; até 12 meses. */
 export async function listarNotas(repo: RepositorioNotas, e: { clienteId: string; query: HistoricoNfQuery; hoje: string; podeVerHistorico: boolean }): Promise<HistoricoNfResposta> {
   if (!e.podeVerHistorico) throw semAcessoAoHistorico();

@@ -32,8 +32,6 @@ const Longitude = z.number().min(-180).max(180).refine(seisCasas, 'Use no máxim
 // ---- Entidades de sync ----
 export const ENTIDADE_PONTO_TRAJETO = 'ponto_trajeto';
 export const ENTIDADE_AUSENCIA_USUARIO = 'ausencia_usuario';
-/** Pontos por lote de envio (§3.4). */
-export const PONTOS_POR_LOTE = 500;
 
 /** Push `ponto_trajeto` (§3.1). O aparelho vem do token (`did`); o usuário, da sessão. */
 export const PontoTrajetoSchema = z
@@ -145,7 +143,6 @@ export type TrajetoResposta = z.infer<typeof TrajetoRespostaSchema>;
  * (não é erro). Até `TRAJETO_DIAS_MAX` dias atrás. Só leitura, na transação de quem consulta.
  */
 export const TrajetoDoDiaEntradaSchema = z.object({ usuario_ids: z.array(Id).min(1).max(500), data: DataCivil }).strict();
-export type TrajetoDoDiaEntrada = z.infer<typeof TrajetoDoDiaEntradaSchema>;
 export const TrajetoDoDiaSaidaSchema = z.object({ data: DataCivil, usuarios: z.array(TrajetoDoUsuarioSchema) }).strict();
 export type TrajetoDoDiaSaida = z.infer<typeof TrajetoDoDiaSaidaSchema>;
 export const CONSULTA_TRAJETO_DO_DIA = definirConsulta({ nome: 'core.trajeto_do_dia@1', entrada: TrajetoDoDiaEntradaSchema, saida: TrajetoDoDiaSaidaSchema });

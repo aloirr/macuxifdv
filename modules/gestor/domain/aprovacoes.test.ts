@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ItemFilaAprovacao, type MembroEquipe } from '../contracts';
 import { escopoDoUsuario } from './equipe';
-import { filaDeAprovacoes, pedidoPendenteDeAprovacao, podeDecidir, resumirFila, situacaoDoPrazo } from './aprovacoes';
+import { filaDeAprovacoes, motivosPendentes, podeDecidir, resumirFila, situacaoDoPrazo } from './aprovacoes';
 import { CLIENTE_A, ev, statusAlterado, u } from './fixtures';
 import { aplicarEventos, estadoInicial, type EventoRecebido } from './projecao';
 
@@ -150,11 +150,11 @@ describe('RF-GES-04: fila de aprovações do gestor', () => {
 
   it('pedido já decidido (aprovado/rejeitado/cancelado depois da solicitação) sai da fila, mesmo se o status chegou antes', () => {
     expect(fila(s, { id: SUP, perfil: 'supervisor' }).some((i) => i.pedido_id === u(1007))).toBe(false);
-    expect(pedidoPendenteDeAprovacao(s, u(1007))).toBe(false);
-    expect(pedidoPendenteDeAprovacao(s, u(1001))).toBe(true);
+    expect(motivosPendentes(s, u(1007)).length > 0).toBe(false);
+    expect(motivosPendentes(s, u(1001)).length > 0).toBe(true);
     // fora de ordem: status 'rejeitado' chega antes da solicitação
     const fora = montar([statusAlterado({ pedido: u(1001), para: 'rejeitado', em: '2026-10-29T08:00:00Z' }), solicita(1, { em: '2026-10-29T06:00:00Z' })]);
-    expect(pedidoPendenteDeAprovacao(fora, u(1001))).toBe(false);
+    expect(motivosPendentes(fora, u(1001)).length > 0).toBe(false);
   });
 
   it('edição depois da aprovação gera nova solicitação: volta para a fila (RN-VEN-31)', () => {

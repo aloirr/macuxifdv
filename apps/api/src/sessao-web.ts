@@ -19,6 +19,7 @@ import {
   nomeDoCookieSessao,
   type CookieSessaoRota,
 } from '@macuxi/platform-sdk';
+import { CODIGOS_AUTH, MENSAGEM_SESSAO } from '@macuxi/core/contracts';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ErroHttp } from './erros';
 
@@ -33,13 +34,6 @@ export const SESSAO_WEB_PADRAO: OpcoesSessaoWeb = { seguro: true };
 
 export const CODIGO_CSRF_RECUSADO = 'CSRF_RECUSADO';
 const MENSAGEM_CSRF = 'Pedido recusado por segurança. Atualize a página e entre de novo.';
-/** Mesmo código do Core para refresh inválido (`CODIGOS_AUTH.sessao`): o BKO trata igual. */
-const CODIGO_SESSAO = 'SESSAO_INVALIDA';
-/**
- * Texto do 401 `SESSAO_INVALIDA` do modo cookie (exportado para os testes e o BKO conferirem). É o mesmo de
- * `modules/core/api/autenticacao.ts`; quando o PR #285 (core exporta o texto pelos `contracts`) entrar, passa a vir de lá.
- */
-export const MENSAGEM_SESSAO = 'Sua sessão expirou. Entre de novo com o código da empresa, o e-mail e a senha.';
 
 export interface SessaoWebDaRequisicao {
   /** Corpo a validar: o do pedido, com o token do cookie em `refresh_token` (`renovar`/`encerrar`). */
@@ -82,7 +76,7 @@ export function prepararSessaoWeb(req: FastifyRequest, reply: FastifyReply, rota
     const token = lerCookie(req.headers.cookie, nomeDoCookieSessao(opcoes.seguro));
     if (!token) {
       apagar();
-      if (rota.papel === 'renovar') throw new ErroHttp(401, CODIGO_SESSAO, MENSAGEM_SESSAO);
+      if (rota.papel === 'renovar') throw new ErroHttp(401, CODIGOS_AUTH.sessao, MENSAGEM_SESSAO);
       semCookie = true;
     }
     // o token do cookie substitui qualquer `refresh_token` do corpo: no modo cookie só vale o cookie
