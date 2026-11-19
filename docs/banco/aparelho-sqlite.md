@@ -418,3 +418,12 @@ Nada a mudar na DDL do `esquema.ts`: confere com §1–2. Pontos para o engenhei
 `pnpm --filter @macuxi/db test` (suíte inteira; os testes do aparelho não precisam de Postgres) ou só este arquivo:
 `pnpm --filter @macuxi/db exec vitest run testes/aparelho-sqlite.test.ts`. A linha `[aparelho] {...}` no console traz as
 medições da execução. Para afirmar a meta de 300 ms da busca (em vez do limite de regressão de 1.500 ms), use `MACUXI_PERF=1` (§8.1).
+
+## 11. Core: rastreamento (T-0156, `modules/core/db/aparelho.ts`)
+- `core__ponto_trajeto (id, capturado_em, latitude, longitude, precisao_m, velocidade_ms, enviado_em)`, `WITHOUT ROWID`; instantes
+  em ISO 8601 UTC com `Z`; `enviado_em` nulo = na fila. Índices `core__ponto_trajeto_fila` (parcial: não enviados, por
+  `capturado_em`; lotes de 500) e `core__ponto_trajeto_capturado` (km de hoje e poda: enviados fora de hoje e não enviados com
+  mais de 90 dias).
+- `core__pausa_trajeto (id, inicio, fim, enviado_em)`: a mesma fila e a mesma retenção.
+- Só o desenho §3.1: sem endereço, altitude, rumo, rede ou bateria. Logout ou bloqueio apagam o banco do usuário, como hoje.
+- Ligação: `definirModuloShell({ migracoesAparelho })` no manifesto do Core (modulo-core). Teste: `db/testes/aparelho-sqlite-core.test.ts`.

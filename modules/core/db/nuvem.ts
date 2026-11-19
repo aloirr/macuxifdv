@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador; 0076: marca_codigo do produto; 0077: usuario.filial_cadastro_id e usuario_filial; 0080: usuario.codigo_fdv e usuario_codigo_fdv_contador; 0084: almoço do usuário e usuario_contato), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador; 0076: marca_codigo do produto; 0077: usuario.filial_cadastro_id e usuario_filial; 0080: usuario.codigo_fdv e usuario_codigo_fdv_contador; 0084: almoço do usuário e usuario_contato; 0088: ponto_trajeto, pausa_trajeto, ausencia_usuario, termo_rastreamento e aceite_termo_rastreamento), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -811,4 +811,60 @@ export const usuarioContato = core.table('usuario_contato', {
   ...comuns(),
   usuario_id: uuid('usuario_id').notNull(),
   contato_em: timestamp('contato_em', { withTimezone: true }).notNull(),
+});
+
+/**
+ * Rastreamento no expediente (0088, T-0156, ADR 0061; desenho docs/desenho/tracking.md §5.1). Nenhuma das 5 tem grant ao
+ * macuxi_leitura (TABELAS_SEM_LEITURA). Nunca registre coordenada em log, erro ou telemetria (desenho §9).
+ *
+ * Ponto do trajeto: id = UUID do aparelho (push idempotente, on conflict (id) do nothing). latitude/longitude numeric(9,6) e
+ * velocidade_ms numeric(6,2) chegam como string no `pg`. Só select e insert para o app; o expurgo
+ * (core.expurgar_rastreamento, só o worker) apaga de fato com mais de 90 dias. Fora do sync.
+ */
+export const pontoTrajeto = core.table('ponto_trajeto', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  aparelho_id: uuid('aparelho_id'),
+  capturado_em: timestamp('capturado_em', { withTimezone: true }).notNull(),
+  latitude: numeric('latitude', { precision: 9, scale: 6 }).notNull(),
+  longitude: numeric('longitude', { precision: 9, scale: 6 }).notNull(),
+  precisao_m: integer('precisao_m'),
+  velocidade_ms: numeric('velocidade_ms', { precision: 6, scale: 2 }),
+});
+
+/** Pausa pessoal (§4.3): só início e fim (nulo = em curso; fim > início). Fora do sync; mesma retenção dos pontos. */
+export const pausaTrajeto = core.table('pausa_trajeto', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  inicio: timestamp('inicio', { withTimezone: true }).notNull(),
+  fim: timestamp('fim', { withTimezone: true }),
+});
+
+/** Ausência (férias, folga, afastamento; §4.2), sem motivo: dias no fuso do tenant, de <= ate. Pull do próprio usuário. */
+export const ausenciaUsuario = core.table('ausencia_usuario', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  de: date('de').notNull(),
+  ate: date('ate').notNull(),
+});
+
+/**
+ * Versão do termo de ciência (§6): versao >= 1, única por tenant mesmo excluída (termo_rastreamento_versao_uk, alvo da FK do
+ * aceite); vigente = a maior viva. Publicada não muda (app: só select e insert).
+ */
+export const termoRastreamento = core.table('termo_rastreamento', {
+  ...comuns(),
+  versao: integer('versao').notNull(),
+  texto: text('texto').notNull(),
+  publicado_em: timestamp('publicado_em', { withTimezone: true }).notNull().defaultNow(),
+  publicado_por: uuid('publicado_por').notNull(),
+});
+
+/** Aceite do termo (§6): único vivo por (tenant, usuário, versão); app só select e insert; fica até 5 anos depois da exclusão do usuário. */
+export const aceiteTermoRastreamento = core.table('aceite_termo_rastreamento', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  termo_versao: integer('termo_versao').notNull(),
+  aceito_em: timestamp('aceito_em', { withTimezone: true }).notNull(),
+  aparelho_id: uuid('aparelho_id'),
 });

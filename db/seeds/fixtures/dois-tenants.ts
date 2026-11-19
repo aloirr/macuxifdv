@@ -85,6 +85,9 @@
  * - 0074 (ADR 0054; SYNC_PACOTE_FIXTURE, grupos 0x68 e 0x69): pacotes da primeira carga — A com o 'catalogo' · 'tenant'
  *   pronto, o 'catalogo' · 'filial:<padrão>' pronto e um 'catalogo' · 'tenant' substituído; B com o 'core' · 'tenant' pronto.
  *   Pedidos de geração já atendidos (A: lote; B: manifesto): nenhum pendente (o teste grava o seu em transação desfeita).
+ * - 0088 (T-0156, ADR 0061; RASTREAMENTO_FIXTURE, grupos 0x74–0x78): termo publicado pelo admin (A: versão 1; B: versão 2), aceite, 1 ponto,
+ *   1 pausa encerrada e 1 ausência — A: vendedor-2; B: vendedor-B. Pontos e pausa em DATA_FIXA_ACESSO (o expurgo só roda no teste,
+ *   com p_agora próprio). rastreamento.db.test.ts usa o vendedor-1 de A e a versão 2 do termo.
  * - 0084 (T-0180, ADR 0059 §5; USUARIO_CONTATO_FIXTURE, grupo 0x6f): último contato do aparelho — A: vendedor-2; B: admin-B,
  *   ambos em DATA_FIXA_ACESSO. Fora dos usuários que almoco-alerta-produtividade.db.test.ts usa (vendedor-1 e promotor de A).
  * - 0086 (ADR 0047; ASSINATURAS_FIXTURE.*.historico, grupo 0x6e): uma troca de plano já gravada em cada tenant — A ficou no
@@ -226,6 +229,12 @@ const G = {
   usuario_contato: 0x6f,
   // 0086 (ADR 0047): histórico das trocas de plano
   assinatura_historico: 0x6e,
+  // 0088 (T-0156, ADR 0061): rastreamento no expediente (0x70–0x73 são do Gestor, 0x84–0x97 do Promotor)
+  ponto_trajeto: 0x74,
+  pausa_trajeto: 0x75,
+  ausencia_usuario: 0x76,
+  termo_rastreamento: 0x77,
+  aceite_termo_rastreamento: 0x78,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -441,6 +450,12 @@ export const SYNC_PACOTE_FIXTURE = {
 export const USUARIO_CONTATO_FIXTURE = {
   A: { vendedor2: a('usuario_contato', 1) },
   B: { admin: b('usuario_contato', 1) },
+} as const;
+
+/** 0088 (T-0156, ADR 0061): uma linha de cada tabela do rastreamento em A e em B (ver o cabeçalho). */
+export const RASTREAMENTO_FIXTURE = {
+  A: { ponto: a('ponto_trajeto', 1), pausa: a('pausa_trajeto', 1), ausencia: a('ausencia_usuario', 1), termo: a('termo_rastreamento', 1), aceite: a('aceite_termo_rastreamento', 1) },
+  B: { ponto: b('ponto_trajeto', 1), pausa: b('pausa_trajeto', 1), ausencia: b('ausencia_usuario', 1), termo: b('termo_rastreamento', 1), aceite: b('aceite_termo_rastreamento', 1) },
 } as const;
 
 /** 0064–0066 (T-0170): uma linha de cada tabela nova em A e em B (ver o cabeçalho). */
@@ -781,6 +796,12 @@ export const ORDEM_TABELAS = [
   'plataforma.trabalho',
   // 0084 (T-0180): último contato do aparelho (FK -> core.usuario)
   'core.usuario_contato',
+  // 0088 (T-0156): rastreamento (FKs -> core.usuario e core.dispositivo; o aceite -> o termo)
+  'core.ponto_trajeto',
+  'core.pausa_trajeto',
+  'core.ausencia_usuario',
+  'core.termo_rastreamento',
+  'core.aceite_termo_rastreamento',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
   ...ORDEM_GESTOR,
   // 0015 (T-0056): schema promotor — linhas de A e B em ./promotor.ts
@@ -1236,6 +1257,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       { id: USUARIO_CONTATO_FIXTURE.A.vendedor2, tenant_id: tA, usuario_id: A.usuarios.vendedor2, contato_em: DATA_FIXA_ACESSO, deleted_at: null, external_id: null },
       { id: USUARIO_CONTATO_FIXTURE.B.admin, tenant_id: tB, usuario_id: B.usuarios.admin, contato_em: DATA_FIXA_ACESSO, deleted_at: null, external_id: null },
     ],
+    ...dadosRastreamento(),
     ...dadosGestor({ tenant: tA, vendedor: A.usuarios.vendedor1, cliente: A.clientes.c1 }, { tenant: tB, vendedor: B.usuarios.vendedor, cliente: B.clientes.c1 }),
     ...dadosPromotorFixture(
       {
@@ -1246,6 +1268,25 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       hojeB,
     ),
     ...pesquisa,
+  };
+}
+
+/** 0088 (T-0156): uma linha de cada tabela do rastreamento em A (vendedor-2) e em B (vendedor-B) (RASTREAMENTO_FIXTURE). */
+function dadosRastreamento(): Pick<DadosFixture, 'core.ponto_trajeto' | 'core.pausa_trajeto' | 'core.ausencia_usuario' | 'core.termo_rastreamento' | 'core.aceite_termo_rastreamento'> {
+  const R = RASTREAMENTO_FIXTURE;
+  const comum = { deleted_at: null, external_id: null };
+  const lados = [
+    // versões diferentes em A e B: a FK composta (tenant_id, termo_versao) do aceite precisa, em B, de uma versão que A não tem
+    // (vazamento-escrita.test.ts aponta o aceite de A para o termo de B e espera 23503)
+    { r: R.A, t: DOIS_TENANTS.A.tenantId, u: DOIS_TENANTS.A.usuarios.vendedor2, adm: DOIS_TENANTS.A.usuarios.admin, ap: null, v: 1 },
+    { r: R.B, t: DOIS_TENANTS.B.tenantId, u: DOIS_TENANTS.B.usuarios.vendedor, adm: DOIS_TENANTS.B.usuarios.admin, ap: DOIS_TENANTS.B.dispositivos.vendedor, v: 2 },
+  ];
+  return {
+    'core.ponto_trajeto': lados.map((l) => ({ id: l.r.ponto, tenant_id: l.t, usuario_id: l.u, aparelho_id: l.ap, capturado_em: DATA_FIXA_ACESSO, latitude: '-3.100000', longitude: '-60.000000', precisao_m: 10, velocidade_ms: null, ...comum })),
+    'core.pausa_trajeto': lados.map((l) => ({ id: l.r.pausa, tenant_id: l.t, usuario_id: l.u, inicio: DATA_FIXA_ACESSO, fim: '2026-10-31T12:30:00Z', ...comum })),
+    'core.ausencia_usuario': lados.map((l) => ({ id: l.r.ausencia, tenant_id: l.t, usuario_id: l.u, de: '2026-12-24', ate: '2026-12-26', ...comum })),
+    'core.termo_rastreamento': lados.map((l) => ({ id: l.r.termo, tenant_id: l.t, versao: l.v, texto: 'Termo de ciência do rastreamento (fixture)', publicado_em: DATA_FIXA_ACESSO, publicado_por: l.adm, ...comum })),
+    'core.aceite_termo_rastreamento': lados.map((l) => ({ id: l.r.aceite, tenant_id: l.t, usuario_id: l.u, termo_versao: l.v, aceito_em: DATA_FIXA_ACESSO, aparelho_id: l.ap, ...comum })),
   };
 }
 
