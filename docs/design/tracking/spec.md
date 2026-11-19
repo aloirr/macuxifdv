@@ -6,7 +6,7 @@
 - **Simulação**: `node docs/design/tracking/gerar.mjs` gera `01-mapa-equipe` e `02-notificacao` (HTML e PNG, escala 2; aparelho
   360×760 e BKO 1366×768). O gerador falha se a legenda cobrir a tela ou se algo sair dela ou ficar cortado.
 - **Marca**: cores do kit (`packages/ui/src/comum/contraste.ts`); traço e marcadores em Azul noite #1E3350, fundo do mapa Névoa
-  #ECEEF1, borda #C9CED5. Validação do design-de-marca pendente.
+  #ECEEF1, borda #C9CED5.
 - Nomes de pessoas e valores nas pranchas são exemplo.
 
 ## 1. Quem vê
@@ -38,7 +38,7 @@ Vendas do dia, Mês, Trade) e antes do botão `Fazer pedido em nome de <nome>`.
 | Estado | Cartão |
 |---|---|
 | Dia com pontos | linhas 1 a 5 |
-| Dia sem pontos | título + `Sem trajeto` |
+| Dia sem pontos | título + `Nada registrado` |
 | Sem sinal | título + `Sem sinal para ver o trajeto. Conecte-se e abra a ficha de novo.` (`t.small`) |
 | Erro da API | título + a mensagem do erro (`t.small`) |
 | Ficha montada do cache (offline) ou sem a permissão | o cartão não aparece |
@@ -59,7 +59,7 @@ alfabética, depois de Ranking).
 | 4 | Resumo | `Primeiro ponto 08:04 · último 10:12 · 18,6 km` | texto 14 px |
 
 **Estados**: sem pessoa escolhida, só os blocos 1 e 2; carregando, `LoadingBlock` `Carregando o trajeto…`; dia sem pontos,
-`EstadoVazio` `Sem trajeto`; erro, `ErrorBlock` com `Tentar de novo`.
+`EstadoVazio` `Nada registrado`; erro, `ErrorBlock` com `Tentar de novo`.
 
 ## 4. Notificação fixa (Campo, prancha 02)
 

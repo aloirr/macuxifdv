@@ -115,7 +115,7 @@ const ficha = (hora, trajeto) =>
   `<div class="tel">${st(hora)}${fx('Carla Lima', 'Equipe', 'Vendedor')}<div class="corpo rola">${VISITAS}${VENDAS}${MES}${trajeto}${PEDIDO}<i class="rolagem"></i></div></div>`;
 
 const T_COM = `<div class="cx cxp t"><h2>Trajeto do dia</h2><div class="mapa">${desenho(320, 200, 16)}</div>${ln('Primeiro ponto', '08:04')}${ln('Último ponto', '10:12')}${ln('Percorrido', '18,6 km')}</div>`;
-const T_SEM = `<div class="cx cxp t"><h2>Trajeto do dia</h2><p>Sem trajeto</p></div>`;
+const T_SEM = `<div class="cx cxp t"><h2>Trajeto do dia</h2><p>Nada registrado</p></div>`;
 const G_COM = ficha('10:14', T_COM);
 const G_SEM = ficha('10:15', T_SEM);
 
@@ -144,7 +144,7 @@ const web = (painel) =>
   `<div class="web">${menu()}<main><div class="topo"><h1>Trajeto do dia</h1></div><div class="filtros">${campoW('Dia', '19/11/2026', I.cal)}${campoW('Pessoa', 'Carla Lima', I.baixo)}</div>${painel}</main></div>`;
 
 const W_COM = web(`<section class="painel"><div class="mapaw">${desenho(640, 320, 24)}</div><p>Primeiro ponto 08:04 · último 10:12 · 18,6 km</p></section>`);
-const W_SEM = web(`<section class="painel"><div class="vaziow"><span>Sem trajeto</span></div></section>`);
+const W_SEM = web(`<section class="painel"><div class="vaziow"><span>Nada registrado</span></div></section>`);
 
 // ---------- 02 · Notificação fixa (Campo) ----------
 const android = (hora, notif) => `<div class="tel"><div class="and"><div class="sb"><span>${hora}</span><span>4G</span></div>

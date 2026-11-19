@@ -176,3 +176,4 @@
 2026-11-19 — T-0156 — #492: MC-1781 (cores do kit na prancha do BKO do mapa da equipe).
 2026-11-19 — T-0156 — #492: spec e pranchas do rastreamento alinhadas ao #501 e #502 (o que ficou na v1.0.15); MC-1781 e RD-2332 a 2336.
 2026-11-19 — T-0156 — #492: RD-2332 a 2336, canal macuxi-servico e Diagnóstico sem a linha de localização.
+2026-11-19 — T-0156 — #492: "Nada registrado" no estado sem trajeto; marca liberada.
