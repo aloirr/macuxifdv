@@ -9,7 +9,7 @@ import { Banner, Botao, Cartao, CampoTexto, ChipEstado, colors, EstadoVazio, Fol
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SeloFaixa } from '../components/selo-faixa';
-import { linhaDoCartao, nomesDaVisao, rotuloDoPrazo, TOM_PARA_CHIP } from '../lib/apresentacao';
+import { linhaDoCartao, rotuloDoPrazo, TOM_PARA_CHIP } from '../lib/apresentacao';
 import { cartoesDaFila, erroDoMotivo, resumoDosCartoes, type AcaoDeDecisao, type CartaoDaFila } from '../lib/decisao';
 import { contagem, pct } from '../lib/formato';
 import { useGestor } from '../state/use-gestor';
@@ -18,7 +18,6 @@ export default function AprovacoesScreen() {
   const g = useGestor();
   const [aberto, setAberto] = useState<CartaoDaFila | null>(null);
   if (!g.carregado) return <Loading />;
-  const nomes = nomesDaVisao(g.visao);
   const fila = g.fila;
   const cartoes = cartoesDaFila(fila?.itens ?? []);
   const resumo = resumoDosCartoes(cartoes);
@@ -43,7 +42,7 @@ export default function AprovacoesScreen() {
           )
         ) : null}
         {cartoes.map((c, n) => (
-          <CartaoDoMotivo key={c.chave} c={c} nome={nomes.get(c.item.vendedor_id) ?? 'Vendedor'} ultimo={n === cartoes.length - 1} aoDecidir={() => setAberto(c)} />
+          <CartaoDoMotivo key={c.chave} c={c} ultimo={n === cartoes.length - 1} aoDecidir={() => setAberto(c)} />
         ))}
       </Cartao>
       <FolhaDecidir cartao={aberto} aoFechar={() => setAberto(null)} decidir={g.decidirAprovacao} />
@@ -51,8 +50,9 @@ export default function AprovacoesScreen() {
   );
 }
 
-function CartaoDoMotivo({ c, nome, ultimo, aoDecidir }: { c: CartaoDaFila; nome: string; ultimo: boolean; aoDecidir: () => void }) {
+function CartaoDoMotivo({ c, ultimo, aoDecidir }: { c: CartaoDaFila; ultimo: boolean; aoDecidir: () => void }) {
   const { item: i, aprovacao } = c;
+  const nome = i.cliente_nome ?? 'Cliente';
   const prazo = rotuloDoPrazo(i);
   const linha = linhaDoCartao(i, aprovacao.motivo, pct, formatBRL);
   return (
@@ -67,9 +67,9 @@ function CartaoDoMotivo({ c, nome, ultimo, aoDecidir }: { c: CartaoDaFila; nome:
         <Text style={[t.bodyStrong, { flex: 1 }]} numberOfLines={1}>
           {nome}
         </Text>
-        <Text style={t.bodyStrong}>{formatBRL(i.total_cents)}</Text>
+        <Text style={[t.bodyStrong, styles.valor]}>{formatBRL(i.total_cents)}</Text>
       </View>
-      <Text style={t.small} numberOfLines={2}>
+      <Text style={t.sub} numberOfLines={2}>
         {linha}
       </Text>
       <View style={styles.linha}>
@@ -134,6 +134,7 @@ function FolhaDecidir({ cartao, aoFechar, decidir }: { cartao: CartaoDaFila | nu
 const styles = StyleSheet.create({
   item: { gap: 4, minHeight: 56, paddingVertical: 11, paddingHorizontal: 14 },
   linha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  valor: { fontVariant: ['tabular-nums'] },
   folha: { gap: 10, paddingBottom: 8 },
   divisor: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
 });

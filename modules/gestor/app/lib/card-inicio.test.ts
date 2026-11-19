@@ -6,6 +6,7 @@ const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')
 const item = (n: number, o: Partial<ItemFilaAprovacao> = {}): ItemFilaAprovacao => ({
   pedido_id: id(n),
   vendedor_id: id(900 + n),
+  cliente_nome: null,
   cliente_id: id(800 + n),
   solicitada_em: '2026-11-04T12:00:00.000Z',
   nivel: 'supervisor',

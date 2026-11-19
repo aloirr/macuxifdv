@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { formatBRL } from '@macuxi/comum';
 import type { FilaAprovacao, ItemFilaAprovacao } from '../../contracts';
@@ -10,6 +12,7 @@ const item = (n: number, o: Partial<ItemFilaAprovacao> & Pick<ItemFilaAprovacao,
   pedido_id: id(n),
   vendedor_id: id(2),
   cliente_id: id(3),
+  cliente_nome: null,
   solicitada_em: '2026-10-30T19:00:00Z',
   nivel: 'gerente',
   motivos: o.aprovacoes.map((a) => a.motivo),
@@ -97,5 +100,16 @@ describe('T-0184 P7 A e P8 A: a fila do aparelho depois da decisão', () => {
   it('devolver e rejeitar tiram o pedido inteiro (encerram os outros motivos)', () => {
     expect(filaAposDecisao(FILA, id(21), 'devolver', 'credito').itens.map((i) => i.pedido_id)).toEqual([id(20)]);
     expect(filaAposDecisao(FILA, id(21), 'rejeitar', 'inadimplencia').itens.map((i) => i.pedido_id)).toEqual([id(20)]);
+  });
+});
+
+describe('T-0184 prancha 03: o cartão da fila destaca o cliente', () => {
+  const tela = readFileSync(join(__dirname, '..', 'screens', 'aprovacoes-screen.tsx'), 'utf8');
+  it('MC-1764/1765: título é o cliente, o valor usa tabular-nums e o motivo vai em 14 (t.sub), sem o vendedor', () => {
+    expect(tela).toContain('i.cliente_nome');
+    expect(tela).not.toContain('nomesDaVisao');
+    expect(tela).toMatch(/fontVariant: \['tabular-nums'\]/);
+    expect(tela).toMatch(/<Text style=\{t\.sub\} numberOfLines=\{2\}>\s*\{linha\}/);
+    expect(tela).not.toMatch(/<Text style=\{t\.small\} numberOfLines=\{2\}>/);
   });
 });

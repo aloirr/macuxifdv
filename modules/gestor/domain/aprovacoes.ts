@@ -148,6 +148,7 @@ export function filaDeAprovacoes(e: EntradaFila): ItemFilaAprovacao[] {
       motivos: visiveis.map((x) => x.motivo),
       aprovacoes: visiveis,
       inadimplencia: a.inadimplencia ?? null,
+      cliente_nome: null,
       pedido_numero: a.pedido_numero ?? null,
       total_cents: a.total_cents,
       desconto_efetivo_pct: arredondar(a.desconto_efetivo_pct),
