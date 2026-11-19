@@ -1,4 +1,4 @@
-// Simulação do Cliente 360 v2 (R-20261119-030234): três abas (Resumo, Financeiro, Documentação) no Campo e no Gestão,
+// Simulação do Cliente 360 v2 (R-20261119-030234; pranchas 01 a 04 refeitas em 19/11, R-20261119-0440): três abas (Resumo, Financeiro, Documentação) no Campo e no Gestão,
 // e a permissão de documentos em BKO › Parâmetros. Gera os HTMLs e os PNGs desta pasta. Sem código de produção.
 // Uso, a partir da raiz do repositório: node docs/design/cliente-360-v2/gerar.mjs
 // O gerador falha se: a nota de simulação cobrir um aparelho ou o conteúdo do BKO; um texto for cortado (largura maior que
@@ -48,23 +48,46 @@ const ic = (n, t = 20, w = 1.9, extra = '') =>
 
 // ---------- Dados de exemplo (coerentes entre as telas; hoje = 19/11/2026, fuso de Manaus) ----------
 // Em aberto = 2.380 + 1.560 + 1.540 + 640 = R$ 6.120 (saldo); limite R$ 8.000 → crédito disponível R$ 1.880.
-// Compras de novembro = 2.380 + 1.560 = R$ 3.940. Pedidos 000017, 000013 e 000009 viraram as NFs 004817, 004790 e 004702.
+// A NF 004655 tem a parcela 2/2 (R$ 640,00, vencimento 31/10) em atraso. Pedidos 000017, 000013 e 000009 viraram as
+// NFs 004817, 004790 e 004702.
 const NFS = [
-  { mes: 'Novembro de 2026', data: '07/11/2026', nf: '004817', valor: 'R$ 2.380,00', forma: 'Boleto 28 dias', st: 'Em aberto' },
-  { data: '03/11/2026', nf: '004790', valor: 'R$ 1.560,00', forma: 'Boleto 28 dias', st: 'Em aberto' },
-  { mes: 'Outubro de 2026', data: '31/10/2026', nf: '004744', valor: 'R$ 1.540,00', forma: 'Boleto 28 dias', st: 'Em aberto' },
-  { data: '24/10/2026', nf: '004702', valor: 'R$ 2.870,00', forma: 'Boleto 7/14 dias', st: 'Devolvido parcial', extra: 'Devolvido R$ 330,00' },
-  { data: '10/10/2026', nf: '004655', valor: 'R$ 1.280,00', forma: 'Boleto 14/21 dias', st: 'Em aberto', venc: 'R$ 640,00 vencido desde 01/11' },
-  { mes: 'Setembro de 2026', data: '26/09/2026', nf: '004530', valor: 'R$ 1.990,00', forma: 'PIX', st: 'Pago' },
-  { data: '12/09/2026', nf: '004471', valor: 'R$ 860,00', forma: 'Boleto 28 dias', st: 'Devolvido' },
-  { mes: 'Agosto de 2026', data: '29/08/2026', nf: '004402', valor: 'R$ 2.150,00', forma: 'Boleto 28 dias', st: 'Pago' },
+  { mes: 'Novembro de 2026', data: '07/11', nf: '004817', valor: '2.380,00', forma: 'Boleto 28 dias', st: 'Em aberto' },
+  { data: '03/11', nf: '004790', valor: '1.560,00', forma: 'Boleto 28 dias', st: 'Em aberto' },
+  { mes: 'Outubro de 2026', data: '31/10', nf: '004744', valor: '1.540,00', forma: 'Boleto 28 dias', st: 'Em aberto' },
+  { data: '24/10', nf: '004702', valor: '2.870,00', forma: 'Boleto 7/14 dias', st: 'Devolvido parcial', extra: '− 330,00' },
+  { data: '10/10', nf: '004655', valor: '1.280,00', forma: 'Boleto 14/21 dias', st: 'Em atraso', desde: 'desde 31/10' },
+  { mes: 'Setembro de 2026', data: '26/09', nf: '004530', valor: '1.990,00', forma: 'PIX', st: 'Pago' },
+  { data: '12/09', nf: '004471', valor: '860,00', forma: 'Boleto 28 dias', st: 'Devolvido' },
+  { mes: 'Agosto de 2026', data: '29/08', nf: '004402', valor: '2.150,00', forma: 'Boleto 28 dias', st: 'Pago' },
 ];
-const TOM = { 'Em aberto': 'warning', Pago: 'success', Devolvido: 'neutral', 'Devolvido parcial': 'accent' };
+const TOM = { 'Em aberto': 'warning', 'Em atraso': 'danger', Pago: 'success', Devolvido: 'neutral', 'Devolvido parcial': 'accent' };
 
 // ---------- Peças do aparelho (360×760) ----------
 const chip = (txt, tom = 'neutral') => `<span class="chip ${tom}">${txt}</span>`;
-const stat = (rot, val, sub = '') => `<div class="stat"><span class="rot">${rot}</span><span class="num">${val}</span>${sub ? `<span class="sub">${sub}</span>` : ''}</div>`;
 const secao = (t, dir = '') => `<div class="secao linha" data-ancora="${t}"><h3>${t}</h3>${dir}</div>`;
+
+// Tabela com cabeçalho, no padrão da TabelaDeItens do Novo pedido (print 15-pedido-resumo): cabeçalho 12/600 em #4A5562,
+// linhas de no mínimo 44 dp separadas por fio, números tabulares e alinhados à direita. `cols`: [título, largura em dp ou
+// 'f' (flexível), 'd' (direita), 'e' (esquerda), 's' (esquerda, afastada 8 dp da coluna anterior) ou 'm' (centro)]. Linha: lista de células (HTML), { grupo } para a faixa do mês ou do
+// tipo, ou { cls, celulas, rotulo } para destacar ou dar o rótulo de acessibilidade.
+function tabela(cols, linhas) {
+  const st = ([, w]) => (w === 'f' ? 'flex:1 1 0;min-width:0' : `width:${w}px;flex:none`);
+  const cel = (c, i, conteudo) => `<span class="c ${cols[i][2] === 'd' ? 'd' : cols[i][2] === 'm' ? 'm' : cols[i][2] === 's' ? 's' : ''}" style="${st(c)}">${conteudo}</span>`;
+  const cab = `<div class="cb" role="row">${cols.map((c, i) => cel(c, i, c[0])).join('')}</div>`;
+  const corpo = linhas
+    .map((l) => {
+      if (l.grupo) return `<div class="gr">${l.grupo}</div>`;
+      const { cls = '', celulas = l, rotulo } = Array.isArray(l) ? { celulas: l } : l;
+      return `<div class="li ${cls}" role="row"${rotulo ? ` aria-label="${rotulo}"` : ''}>${celulas.map((x, i) => cel(cols[i], i, x)).join('')}</div>`;
+    })
+    .join('');
+  return `<div class="card tb" role="table">${cab}${corpo}</div>`;
+}
+// Tabela rótulo-valor (TabelaRotuloValor do Novo pedido): rótulo à esquerda, valor à direita da coluna.
+const rotuloValor = (linhas) => `<div class="card">${linhas.map(([r, v]) => `<div class="rv"><span class="r">${r}</span><span class="v">${v}</span></div>`).join('')}</div>`;
+const duas = (a, b, cls = '') => `<b>${a}</b><small class="${cls}">${b}</small>`;
+const cod = (c) => `<a class="cod">${c}</a>`;
+const btIc = (n, rot) => `<span class="mini" role="button" aria-label="${rot}">${ic(n, 18)}</span>`;
 
 function cabecalho({ voltar, titulo = 'Mercado Bom Preço', sub = 'C5007 · Centro · Boa Vista/RR', hora = '09:02' }) {
   return `<div class="status"><span>${hora}</span><span class="st-ic">▾ ▮▮▮ ▭</span></div>
@@ -84,119 +107,123 @@ function barraGestao() {
 }
 const rodapeCampo = `<div class="rodape"><span class="btn sec"><span>Check-in</span></span><span class="btn sec"><span>Pesquisa</span></span><span class="btn pri"><span>Novo pedido</span></span></div>`;
 
-// Alertas (RN-VEN-42): área única no topo do conteúdo, em todas as abas.
-const ALERTA_TITULO = `<div class="alerta warning" role="alert">${ic('relogio', 20, 2)}<div class="al-txt"><b>1 título vencido</b><span>R$ 640,00 · venceu em 01/11</span></div><span class="link">Ver</span></div>`;
-
-const contato = `<div class="acoes linha">${[['phone', 'Ligar'], ['chat', 'WhatsApp'], ['mapa', 'Mapa']].map(([i, r]) => `<span class="acao">${ic(i, 20)}<b>${r}</b></span>`).join('')}</div>`;
-
+// Resumo (R-20261119-0440): cadastro e endereços no topo; sem alerta financeiro, sem Última compra e sem Sugestão de mix.
 function resumo({ gestao = false } = {}) {
-  const ultimaVisita = gestao ? 'Carla Lima' : 'Você';
-  return `${ALERTA_TITULO}
-  ${contato}
-  ${gestao ? `<div class="card"><div class="lin linha"><div class="col"><span class="rot">Vendedora da carteira</span><b>Carla Lima</b></div><span class="mini" aria-label="Ligar para Carla Lima">${ic('phone', 18)}</span><span class="mini" aria-label="WhatsApp de Carla Lima">${ic('chat', 18)}</span></div></div>` : ''}
+  return `${secao('Dados cadastrais')}
+  ${rotuloValor([['Razão social', 'Bom Preço Comércio de Alimentos Ltda'], ['CNPJ', '14.382.906/0001-27'], ['Filial', 'Boa Vista · Matriz'], ['Segmento', 'Supermercado'], ['Cliente desde', '03/2019']])}
+  ${secao('Endereços')}
+  ${tabela([['Local', 76, 'e'], ['Endereço', 'f', 'e'], ['Mapa', 44, 'm']], [
+    { celulas: [duas('Loja', 'Padrão'), duas('Av. Ville Roy, 1200', 'Centro · 69301-000'), btIc('mapa', 'Mapa da Loja')], rotulo: 'Loja, padrão, Av. Ville Roy, 1200, Centro' },
+    [duas('Depósito', ''), duas('R. Cecília Brasil, 455', 'São Francisco · 69305-080'), btIc('mapa', 'Mapa do Depósito')],
+  ])}
+  ${secao('Contatos')}
+  ${tabela([['Nome', 'f', 'e'], ['Cargo', 76, 'e'], ['Ligar', 44, 'm'], ['WhatsApp', 60, 'm']], [
+    [duas('Antônio Ferreira', 'Principal'), 'Comprador', btIc('phone', 'Ligar para Antônio Ferreira'), btIc('chat', 'WhatsApp de Antônio Ferreira')],
+    [duas('Luciana Souza', ''), 'Financeiro', btIc('phone', 'Ligar para Luciana Souza'), btIc('chat', 'WhatsApp de Luciana Souza')],
+  ])}
+  ${gestao ? `${secao('Carteira')}
+  ${tabela([['Vendedora', 'f', 'e'], ['Ligar', 44, 'm'], ['WhatsApp', 60, 'm']], [['<b>Carla Lima</b>', btIc('phone', 'Ligar para Carla Lima'), btIc('chat', 'WhatsApp de Carla Lima')]])}` : ''}
   ${secao('Compras')}
   <div class="chips linha">${chip('Faturamento A', 'accent')}${chip('Volume B', 'accent')}${chip('Frequência A', 'accent')}</div>
-  <div class="grade">${stat('Última compra', 'há 12 dias')}${stat('Compra média/mês', 'R$ 5.210')}${stat('Ticket médio', 'R$ 2.605')}${stat('Frequência', 'a cada 14 dias')}</div>
+  ${rotuloValor([['Compra média/mês', 'R$ 5.210,00'], ['Ticket médio', 'R$ 2.605,00'], ['Frequência', 'a cada 14 dias']])}
   ${secao('Visitas')}
-  <div class="grade">${stat('Visitas', '46')}${stat('Última visita', '12/11/2026', ultimaVisita)}</div>
+  ${rotuloValor([['Visitas', '46'], ['Última visita', '12/11/2026'], ...(gestao ? [['Visitada por', 'Carla Lima']] : [])])}
   ${secao('Últimos itens comprados')}
-  <div class="card">
-    ${[['Arroz tipo 1 5 kg', '10 CX · 07/11/2026', 'R$ 129,00'], ['Feijão carioca 1 kg', '6 FD · 07/11/2026', 'R$ 92,75'], ['Óleo de soja 900 ml', '3 CX · 03/11/2026', 'R$ 148,00']].map(([n, s, v]) => `<div class="lin linha"><div class="col"><b>${n}</b><span class="sub">${s}</span></div><b class="val">${v}</b></div>`).join('')}
-    <div class="lin linha mais-itens"><span class="link">Ver os 20 itens</span>${ic('seta', 18, 2)}</div>
-  </div>
-  ${gestao ? '' : `${secao('Sugestão de mix')}
-  <div class="card"><div class="lin linha"><div class="col"><b>Café torrado 500 g</b><span class="sub">Compra em clientes parecidos</span></div></div><div class="lin linha"><div class="col"><b>Açúcar cristal 5 kg</b><span class="sub">Compra em clientes parecidos</span></div></div></div>`}
-  ${secao('Dados cadastrais')}
-  <div class="card">
-    ${[['CNPJ', '14.382.906/0001-27'], ['Razão social', 'Bom Preço Comércio de Alimentos Ltda'], ['Filial', 'Boa Vista · Matriz'], ['Segmento', 'Supermercado'], ['Cliente desde', '03/2019']].map(([r, v]) => `<div class="lin dado"><span class="rot">${r}</span><b>${v}</b></div>`).join('')}
-  </div>
-  ${secao('Contatos')}
-  <div class="card">
-    <div class="lin linha"><div class="col"><b>Antônio Ferreira</b><span class="sub">Comprador · principal</span></div><span class="mini">${ic('phone', 18)}</span><span class="mini">${ic('chat', 18)}</span></div>
-    <div class="lin linha"><div class="col"><b>Luciana Souza</b><span class="sub">Financeiro</span></div><span class="mini">${ic('phone', 18)}</span><span class="mini">${ic('chat', 18)}</span></div>
-  </div>
-  ${secao('Endereços de entrega')}
-  <div class="card">
-    <div class="lin linha"><div class="col"><span class="linha g6"><b>Loja</b>${chip('Padrão', 'success')}</span><span class="sub">Av. Ville Roy, 1200 · Centro · 69301-000</span></div><span class="mini">${ic('mapa', 18)}</span></div>
-    <div class="lin linha"><div class="col"><b>Depósito</b><span class="sub">R. Cecília Brasil, 455 · São Francisco</span></div><span class="mini">${ic('mapa', 18)}</span></div>
-  </div>
+  ${tabela([['Produto', 'f', 'e'], ['Qtd', 44, 'd'], ['Data', 40, 'd'], ['Total (R$)', 68, 'd']], [
+    [duas('Arroz tipo 1 5 kg', cod('10231')), '10 CX', '07/11', '<b>1.290,00</b>'],
+    [duas('Feijão carioca 1 kg', cod('10418')), '6 FD', '07/11', '<b>556,50</b>'],
+    [duas('Óleo de soja 900 ml', cod('20480')), '3 CX', '03/11', '<b>444,00</b>'],
+  ])}
+  <div class="link-tab linha" role="button"><span class="link">Ver os 20 itens</span>${ic('seta', 18, 2)}</div>
   ${secao('Observações')}
   <div class="card"><div class="lin"><span class="corpo">Recebe das 7h às 11h. Descarga pela rua lateral.</span></div></div>`;
 }
 
-function linhaNF(n) {
-  return `${n.mes ? `<div class="mes">${n.mes}</div>` : ''}<div class="lin nf linha" role="button" aria-label="NF ${n.nf}, ${n.valor}, ${n.st}">
-    <div class="col"><span class="linha entre"><b>NF ${n.nf}</b><b class="val">${n.valor}</b></span>
-    <span class="linha entre"><span class="sub">${n.data.slice(0, 5)} · ${n.forma}</span>${chip(n.st, TOM[n.st])}</span>
-    ${n.venc ? `<span class="perigo">${n.venc}</span>` : ''}${n.extra ? `<span class="sub">${n.extra}</span>` : ''}</div>${ic('seta', 18, 2, ' style="color:#5B6673"')}</div>`;
-}
 // Bloco de crédito como no Novo pedido (RF-VEN, novo-pedido-itens.md §2.1): uma tabela compacta 2×2, valores em destaque.
 const celula = (r, v) => `<div class="cel"><span class="rot">${r}</span><b>${v}</b></div>`;
-const resumoFin = `<div class="card credito">${celula('Limite', 'R$ 8.000')}${celula('Crédito disponível', 'R$ 1.880')}${celula('Em aberto', 'R$ 6.120')}${celula('Prazo médio', '24 dias')}</div>`;
+const resumoFin = `<div class="card credito">${celula('Limite', 'R$ 8.000,00')}${celula('Crédito disponível', 'R$ 1.880,00')}${celula('Em aberto', 'R$ 6.120,00')}${celula('Prazo médio', '24 dias')}</div>`;
 function barraFiltro(qtd = 0) {
   return `<div class="ferramentas linha" data-ancora="filtro"><span class="busca">${ic('busca', 20)}<span>Nº da NF</span></span><span class="bt-filtro" aria-label="Filtrar${qtd ? `, ${qtd} filtro aplicado` : ''}">${ic('filtro', 22, 2.2)}${qtd ? `<i>${qtd}</i>` : ''}</span></div>`;
 }
+// Notas: Data · Nº NF · Valor (R$) · Status. A forma de pagamento é a 2ª linha da célula Nº NF; a devolução, a 2ª linha do
+// Valor; o "desde" do atraso, a 2ª linha do Status. A linha em atraso leva o destaque (fundo e fio vermelhos à esquerda).
+const COLS_NF = [['Data', 36, 'e'], ['Nº NF', 'f', 'e'], ['Valor (R$)', 64, 'd'], ['Status', 92, 's']];
+function linhaNF(n) {
+  return {
+    cls: n.st === 'Em atraso' ? 'atraso' : '',
+    rotulo: `NF ${n.nf}, ${n.data}, ${n.valor} reais, ${n.st}`,
+    celulas: [n.data, duas(cod(n.nf), n.forma), n.extra ? duas(n.valor, n.extra) : `<b>${n.valor}</b>`, `${chip(n.st, TOM[n.st])}${n.desde ? `<small class="perigo">${n.desde}</small>` : ''}`],
+  };
+}
 function financeiro({ filtrado = false } = {}) {
-  const lista = filtrado ? NFS.filter((n) => n.st === 'Em aberto') : NFS;
-  // o mês aparece na primeira nota de cada mês da lista filtrada
+  const lista = filtrado ? NFS.filter((n) => n.st === 'Em atraso') : NFS;
+  // o mês aparece antes da primeira nota de cada mês da lista filtrada
   const vistos = new Set();
-  const comMes = lista.map((n) => {
+  const linhas = lista.flatMap((n) => {
     const mes = NFS.slice(0, NFS.indexOf(n) + 1).reverse().find((x) => x.mes).mes;
-    const r = { ...n, mes: vistos.has(mes) ? undefined : mes };
+    const r = vistos.has(mes) ? [linhaNF(n)] : [{ grupo: mes }, linhaNF(n)];
     vistos.add(mes);
     return r;
   });
-  return `${ALERTA_TITULO}${resumoFin}${barraFiltro(filtrado ? 1 : 0)}
-  ${filtrado ? `<div class="chips linha"><span class="chip-ap">Em aberto ${ic('x', 14, 2.4)}</span></div>` : ''}
-  <div class="contagem">${filtrado ? '4 notas em aberto · últimos 90 dias' : '8 notas · últimos 90 dias'}</div>
-  <div class="card">${comMes.map(linhaNF).join('')}</div>`;
+  return `${resumoFin}${barraFiltro(filtrado ? 1 : 0)}
+  ${filtrado ? `<div class="chips linha"><span class="chip-ap">Em atraso ${ic('x', 14, 2.4)}</span></div>` : ''}
+  <div class="contagem">${filtrado ? '1 nota em atraso · últimos 90 dias' : '8 notas · últimos 90 dias'}</div>
+  ${tabela(COLS_NF, linhas)}`;
 }
 
 function folhaFiltro() {
   const grupo = (t, ops, on) => `<div class="fgrupo"><span class="rot-f">${t}</span><div class="chips linha wrap">${ops.map((o) => `<span class="op${on.includes(o) ? ' on' : ''}">${on.includes(o) ? ic('check', 14, 2.6) : ''}${o}</span>`).join('')}</div></div>`;
   return `<div class="scrim"></div><div class="folha"><span class="pega"></span><div class="linha entre"><h2>Filtrar</h2>${ic('x', 24, 2)}</div>
   ${grupo('Período', ['30 dias', '90 dias', '12 meses', 'Escolher datas'], ['90 dias'])}
-  ${grupo('Status', ['Em aberto', 'Pago', 'Devolvido', 'Devolvido parcial'], ['Em aberto'])}
+  ${grupo('Status', ['Em atraso', 'Em aberto', 'Pago', 'Devolvido', 'Devolvido parcial'], ['Em atraso'])}
   ${grupo('Forma de pagamento', ['Boleto', 'PIX', 'Cartão', 'Dinheiro'], [])}
-  <div class="linha g8 botoes"><span class="btn sec f1">Limpar</span><span class="btn pri f2">Ver 4 notas</span></div></div>`;
+  <div class="linha g8 botoes"><span class="btn sec f1">Limpar</span><span class="btn pri f2">Ver 1 nota</span></div></div>`;
 }
+// Detalhe da NF em atraso: os valores, as parcelas em tabela e o acesso aos itens.
 function folhaNF() {
-  const l = (r, v, cls = '') => `<div class="lin dado2 linha entre"><span class="rot2">${r}</span><b class="${cls}">${v}</b></div>`;
-  return `<div class="scrim"></div><div class="folha"><span class="pega"></span><div class="linha entre"><div class="col"><h2>NF 004702</h2><span class="sub">24/10/2026 · pedido 000009</span></div>${ic('x', 24, 2)}</div>
-  <div>${chip('Devolvido parcial', 'accent')}</div>
-  <div class="card">${l('Valor da nota', 'R$ 2.870,00', 'val')}${l('Devolvido em 29/10', '− R$ 330,00', 'val')}${l('Valor final', 'R$ 2.540,00', 'val')}${l('Forma de pagamento', 'Boleto 7/14 dias')}</div>
+  return `<div class="scrim"></div><div class="folha"><span class="pega"></span><div class="linha entre"><div class="col"><h2>NF 004655</h2><span class="sub">10/10/2026 · Boleto 14/21 dias</span></div>${ic('x', 24, 2)}</div>
+  <div>${chip('Em atraso', 'danger')}</div>
+  ${rotuloValor([['Valor da nota', 'R$ 1.280,00'], ['Em atraso', '<span class="perigo-v">R$ 640,00</span>']])}
   <span class="rot-f">Parcelas</span>
-  <div class="card">
-    <div class="lin linha entre"><div class="col"><b>1/2 · venceu 31/10</b><span class="sub">Paga em 31/10</span></div><span class="col dir"><b class="val">R$ 1.270,00</b>${chip('Pago', 'success')}</span></div>
-    <div class="lin linha entre"><div class="col"><b>2/2 · venceu 07/11</b><span class="sub">Paga em 06/11</span></div><span class="col dir"><b class="val">R$ 1.270,00</b>${chip('Pago', 'success')}</span></div>
-  </div>
-  <span class="btn sec cheio">Ver itens da nota (12)</span></div>`;
+  ${tabela([['Parcela', 48, 'e'], ['Vencimento', 'f', 'e'], ['Valor (R$)', 64, 'd'], ['Status', 84, 's']], [
+    ['1/2', '24/10<small>paga em 23/10</small>', '<b>640,00</b>', chip('Pago', 'success')],
+    { cls: 'atraso', celulas: ['2/2', '31/10', '<b>640,00</b>', chip('Em atraso', 'danger')] },
+  ])}
+  <span class="btn sec cheio">Ver itens da nota (4)</span></div>`;
+}
+// Itens comprados (detalhe da nota): Produto (nome e código) · Emb. · Qtd · Total, como a TabelaDeItens.
+// 645,00 + 371,00 + 144,00 + 120,00 = 1.280,00 (o valor da NF 004655).
+function folhaItens() {
+  return `<div class="scrim"></div><div class="folha"><span class="pega"></span><div class="linha entre"><div class="col"><h2>Itens da NF 004655</h2><span class="sub">4 itens · R$ 1.280,00</span></div>${ic('x', 24, 2)}</div>
+  ${tabela([['Produto', 'f', 'e'], ['Emb.', 44, 'd'], ['Qtd', 32, 'd'], ['Total (R$)', 68, 'd']], [
+    [duas('Arroz tipo 1 5 kg', cod('10231')), 'CX<small>c/ 6</small>', '5', '<b>645,00</b>'],
+    [duas('Feijão carioca 1 kg', cod('10418')), 'FD<small>c/ 10</small>', '4', '<b>371,00</b>'],
+    [duas('Açúcar cristal 2 kg', cod('41020')), 'FD<small>c/ 10</small>', '2', '<b>144,00</b>'],
+    [duas('Sal refinado 1 kg', cod('50210')), 'FD<small>c/ 10</small>', '3', '<b>120,00</b>'],
+  ])}</div>`;
 }
 
-// Documentação: documentos por tipo. `perfil`: 'vendedora' (Campo) ou 'supervisor' (Gestão).
+// Documentação: uma tabela com a faixa de cada tipo. `perfil`: 'vendedora' (Campo) ou 'supervisor' (Gestão).
+// Colunas: Documento (nome; 2ª linha: formato e, quando houver, a validade) · Data · Abrir (seta, cadeado ou câmera).
 function documentacao({ perfil = 'vendedora' } = {}) {
-  const doc = (nome, meta, tranca = false, tom = null, chipTxt = null) =>
-    `<div class="lin linha${tranca ? ' tranc' : ''}" ${tranca ? 'aria-disabled="true"' : 'role="button"'} aria-label="${nome}${tranca ? ', sem permissão para abrir' : ''}">${ic(tranca ? 'cadeado' : 'doc', 20, 1.9, ' style="color:' + (tranca ? '#5B6673' : '#1E3350') + '"')}<div class="col"><b>${nome}</b><span class="sub">${meta}</span></div>${chipTxt ? chip(chipTxt, tom) : ''}${tranca ? '' : ic('seta', 18, 2, ' style="color:#5B6673"')}</div>`;
   const sup = perfil === 'supervisor';
-  return `${ALERTA_TITULO}
-  ${secao('Fotos do PDV')}
-  <div class="card">
-    <div class="lin linha">${ic('foto', 20, 1.9, ' style="color:#1E3350"')}<div class="col"><b>Fachada</b><span class="sub">Foto · 12/11/2026</span></div>${ic('seta', 18, 2, ' style="color:#5B6673"')}</div>
-    <div class="lin linha">${ic('foto', 20, 1.9, ' style="color:#5B6673"')}<div class="col"><b>Gôndola</b><span class="sub perigo">Falta</span></div>${sup ? '' : `<span class="adicionar">${ic('camera', 16, 2)}Adicionar</span>`}</div>
-  </div>
-  ${secao('Cadastro')}
-  <div class="card">
-    ${doc('Alvará de funcionamento', 'PDF · válido até 03/2027')}
-    ${doc('Cartão CNPJ', 'PDF · 05/08/2026')}
-    ${doc('Comprovante de endereço', 'PDF · 05/08/2026')}
-  </div>
-  ${secao('Contratos')}
-  <div class="card">
-    ${doc('Contrato de comodato nº 112', sup ? 'PDF · 18/06/2025' : 'Sem permissão para abrir', !sup)}
-    ${sup ? doc('Contrato social', 'PDF · 22/03/2019') : ''}
-  </div>`;
+  const seta = `<span class="mini" aria-hidden="true">${ic('seta', 18, 2)}</span>`;
+  const doc = (nome, fmt, data) => ({ rotulo: `${nome}, ${fmt}, ${data}`, celulas: [duas(nome, fmt), data, seta] });
+  const tranc = (nome) => ({ cls: 'tranc', rotulo: `${nome}, sem permissão para abrir`, celulas: [duas(nome, 'Sem permissão para abrir'), '—', `<span class="mini" aria-hidden="true">${ic('cadeado', 18, 2)}</span>`] });
+  return tabela([['Documento', 'f', 'e'], ['Data', 76, 'd'], ['Abrir', 44, 'm']], [
+    { grupo: 'Fotos do PDV' },
+    doc('Fachada', 'Foto', '12/11/2026'),
+    { rotulo: 'Gôndola, falta a foto', celulas: [duas('Gôndola', 'Falta', 'perigo'), '—', sup ? '' : `<span class="mini cam" role="button" aria-label="Adicionar foto da gôndola">${ic('camera', 18, 2)}</span>`] },
+    { grupo: 'Cadastro' },
+    doc('Alvará de funcionamento', 'PDF · válido até 03/2027', '03/03/2026'),
+    doc('Cartão CNPJ', 'PDF', '05/08/2026'),
+    doc('Comprovante de endereço', 'PDF', '05/08/2026'),
+    { grupo: 'Contratos' },
+    sup ? doc('Contrato de comodato nº 112', 'PDF', '18/06/2025') : tranc('Contrato de comodato nº 112'),
+    ...(sup ? [doc('Contrato social', 'PDF', '22/03/2019')] : []),
+  ]);
 }
-const docVazio = `${ALERTA_TITULO}<div class="vazio">${ic('doc', 40, 1.6)}<b>Nenhum documento deste cliente</b></div>`;
+const docVazio = `<div class="vazio">${ic('doc', 40, 1.6)}<b>Nenhum documento deste cliente</b></div>`;
 const folhaSemRede = `<div class="scrim"></div><div class="folha"><span class="pega"></span><div class="linha entre"><h2>Comprovante de endereço</h2>${ic('x', 24, 2)}</div>
   <div class="linha g8 aviso-rede">${ic('semRede', 22, 2)}<span class="corpo">Sem internet. Este arquivo ainda não está no aparelho.</span></div>
   <span class="btn pri cheio">Tentar de novo</span></div>`;
@@ -218,7 +245,7 @@ figcaption{font-size:16px;font-weight:700;text-align:center;line-height:1.3;min-
 .tela{width:360px;height:760px;border-radius:28px;overflow:hidden;background:#F8F6F1;border:1px solid #C9CED5;box-shadow:0 10px 28px rgba(22,32,42,.14);display:flex;flex-direction:column;position:relative}
 .linha{display:flex;align-items:center}
 .entre{justify-content:space-between;gap:8px}
-.g6{gap:6px}.g8{gap:8px}.wrap{flex-wrap:wrap}
+.g8{gap:8px}.wrap{flex-wrap:wrap}
 .status{height:24px;flex-shrink:0;background:#1E3350;color:#fff;font-size:12px;font-weight:600;display:flex;justify-content:space-between;align-items:center;padding:0 20px}
 .st-ic{font-size:10px;letter-spacing:1px;color:#fff}
 .faixa{background:#1E3350;color:#fff;padding:4px 20px 14px;flex-shrink:0;display:flex;flex-direction:column;gap:4px}
@@ -237,38 +264,49 @@ figcaption{font-size:16px;font-weight:700;text-align:center;line-height:1.3;min-
 .conteudo::-webkit-scrollbar{display:none}
 .pilha{padding:14px 20px 18px;display:flex;flex-direction:column;gap:12px}
 .secao{margin-top:6px;justify-content:space-between}
+.pilha>.secao:first-child{margin-top:0}
 h3{font-size:18px;font-weight:700;line-height:22px}
-.alerta{display:flex;align-items:center;gap:10px;border-radius:14px;padding:6px 6px 6px 14px;min-height:60px}
-.alerta.warning{background:#FFF1D6;color:#5C3B00}
-.al-txt{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0}
-.al-txt b{font-size:16px;font-weight:600;line-height:20px}
-.al-txt span{font-size:14px;line-height:18px}
-.alerta .link{min-width:48px;height:48px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:#5C3B00;text-decoration:underline}
-.acoes{gap:8px}
-.acao{flex:1;height:64px;border-radius:12px;border:1px solid #C9CED5;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
-.acao b{font-size:12px;font-weight:600}
-.grade{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.stat{background:#fff;border:1px solid #DFE2E6;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
 .rot{font-size:12px;line-height:16px;color:#4A5562}
-.num{font-size:18px;line-height:24px;font-weight:600;white-space:nowrap;overflow:hidden}
 .chips{gap:6px}
 .chip{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;flex-shrink:0}
 .chip.success{color:#1D6B4F;background:#E2F1EA}.chip.warning{color:#7A4F00;background:#FFF1D6}.chip.danger{color:#A8261B;background:#FDE8E6}
 .chip.neutral{color:#34404D;background:#ECEEF1}.chip.accent{color:#1E3350;background:#DFE2E6}
 .card{background:#fff;border:1px solid #DFE2E6;border-radius:14px;overflow:hidden}
-.lin{min-height:52px;padding:8px 6px 8px 14px;gap:10px;border-bottom:1px solid #ECEEF1}
-.lin:last-child{border-bottom:0}
+.lin{min-height:52px;padding:8px 6px 8px 14px;display:flex;align-items:center}
 .col{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.col.dir{flex:0 0 auto;align-items:flex-end}
-.col b,.dado b{font-size:16px;font-weight:600;line-height:20px}
 .sub{font-size:14px;line-height:18px;color:#4A5562}
-.val{font-size:16px;font-weight:600;white-space:nowrap;padding-right:8px}
 .perigo{font-size:14px;line-height:18px;color:#A8261B;font-weight:600}
-.mini{width:48px;height:48px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.mais-itens{justify-content:space-between;color:#1E3350;padding-right:14px}
+.mini{width:48px;height:48px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#1E3350}
 .link{font-size:14px;font-weight:600;color:#1E3350}
-.dado{display:flex;flex-direction:column;justify-content:center;gap:2px;padding-right:14px}
 .corpo{font-size:16px;line-height:22px;padding-right:8px}
+/* TabelaRotuloValor (Novo pedido): rótulo 14 em #4A5562 à esquerda, valor 16 à direita da coluna */
+.rv{display:flex;gap:12px;align-items:center;min-height:48px;padding:10px 14px;border-bottom:1px solid #ECEEF1}
+.rv:last-child{border-bottom:0}
+.rv .r{width:104px;flex:none;font-size:14px;line-height:18px;color:#4A5562}
+.rv .v{flex:1;min-width:0;font-size:16px;line-height:21px}
+.perigo-v{color:#A8261B;font-weight:600}
+/* Tabela (TabelaDeItens do Novo pedido, print 15): cabeçalho 12/600, linhas ≥ 44 dp, gap 4, padding 8, números tabulares */
+.tb .cb,.tb .li{display:flex;gap:4px;padding:0 8px;align-items:center}
+.tb .cb{padding-top:10px;padding-bottom:6px;align-items:flex-end}
+.tb .cb .c{font-size:12px;font-weight:600;line-height:15px;color:#4A5562}
+.tb .li{min-height:44px;border-top:1px solid #ECEEF1;padding-top:6px;padding-bottom:6px}
+.tb .c{display:flex;flex-direction:column;align-items:flex-start;gap:2px;font-variant-numeric:tabular-nums}
+.tb .c.d{align-items:flex-end;text-align:right}
+.tb .c.m{align-items:center;text-align:center}
+.tb .c.s{padding-left:8px}
+.tb .li .c{font-size:12px;line-height:16px;color:#16202A}
+.tb .li .c b{font-size:14px;font-weight:600;line-height:18px}
+.tb .li .c small{font-size:12px;line-height:15px;color:#4A5562}
+.tb .li .c small.perigo{color:#A8261B;font-weight:600}
+.tb .gr{font-size:12px;font-weight:600;letter-spacing:.6px;line-height:15px;text-transform:uppercase;color:#4A5562;background:#F8F6F1;padding:7px 8px;border-top:1px solid #ECEEF1}
+.tb .cod{font-family:'Roboto Mono',ui-monospace,monospace;font-size:12px;line-height:15px;color:#1E3350;text-decoration:underline}
+.tb .li .c b .cod{font-size:12px}
+.tb .li.atraso{background:#FDF1EF;box-shadow:inset 3px 0 0 #A8261B}
+.tb .chip{height:auto;min-height:22px;padding:3px 8px;line-height:15px;white-space:normal}
+.tb .li.tranc .c b{color:#4A5562}
+.tb .li.tranc .mini{color:#5B6673}
+.tb .mini{width:44px;height:44px;margin:-6px 0}
+.link-tab{justify-content:flex-end;gap:2px;min-height:44px;margin-top:-8px;color:#1E3350}
 .rodape{flex-shrink:0;display:flex;gap:6px;padding:8px 20px;background:#F8F6F1;border-top:1px solid #DFE2E6}
 .btn{height:48px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:16px;font-weight:600;white-space:nowrap;padding:0 10px}
 .btn.sec{padding:0 8px;border:1.5px solid #16202A;background:#fff;color:#16202A}
@@ -285,17 +323,14 @@ h3{font-size:18px;font-weight:700;line-height:22px}
 .bt-filtro i{position:absolute;top:-7px;right:-7px;min-width:20px;height:20px;border-radius:10px;background:#C2540A;color:#fff;font-size:12px;font-weight:700;font-style:normal;display:flex;align-items:center;justify-content:center}
 .chip-ap{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:999px;background:#DFE2E6;color:#1E3350;font-size:14px;font-weight:600}
 .contagem{font-size:14px;color:#4A5562;margin-top:-2px}
-.mes{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:#4A5562;background:#F8F6F1;padding:8px 14px;border-bottom:1px solid #ECEEF1}
-.nf{min-height:64px}
 .credito{display:grid;grid-template-columns:1fr 1fr}
 .cel{padding:8px 14px;display:flex;flex-direction:column;gap:1px;border-bottom:1px solid #ECEEF1}
 .cel:nth-child(odd){border-right:1px solid #ECEEF1}
 .cel:nth-child(n+3){border-bottom:0}
 .cel b{font-size:16px;font-weight:600;line-height:20px}
-.nf .col{gap:3px}
-.nf .val{padding-right:0}
 .scrim{position:absolute;inset:0;background:rgba(15,20,25,.45)}
 .folha{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;padding:10px 20px 20px;display:flex;flex-direction:column;gap:14px;max-height:92%}
+.folha .tb{border-color:#DFE2E6}
 .pega{align-self:center;width:40px;height:4px;border-radius:2px;background:#C9CED5}
 .folha h2{font-size:22px;font-weight:700;line-height:28px}
 .fgrupo{display:flex;flex-direction:column;gap:8px}
@@ -303,13 +338,6 @@ h3{font-size:18px;font-weight:700;line-height:22px}
 .op{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 14px;border-radius:999px;border:1px solid #C9CED5;font-size:14px;font-weight:600;color:#16202A;background:#fff;white-space:nowrap}
 .op.on{background:#DFE2E6;border-color:#DFE2E6;color:#1E3350}
 .botoes{margin-top:4px}
-.dado2{min-height:44px;padding:6px 14px;border-bottom:1px solid #ECEEF1}
-.dado2:last-child{border-bottom:0}
-.rot2{font-size:14px;color:#4A5562}
-.dado2 b{font-size:16px;font-weight:600}
-.dado2 .val{padding-right:0}
-.tranc .col b{color:#4A5562}
-.adicionar{display:inline-flex;align-items:center;gap:4px;min-height:48px;padding:0 8px;font-size:14px;font-weight:600;color:#1E3350;flex-shrink:0}
 .vazio{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:80px 16px;color:#5B6673;text-align:center}
 .vazio b{font-size:16px;color:#16202A}
 .aviso-rede{color:#34404D;align-items:flex-start}
@@ -344,11 +372,11 @@ function prancha(titulo, nota, telas) {
 // ---------- 01: Campo · Resumo ----------
 const p01 = prancha(
   'Cliente 360 v2 · Campo · Resumo',
-  '<b>Simulação, sem código (R-20261119-030234).</b> Campo, aba Resumo: junta o Resumo, o Cadastro e a Performance de hoje, nesta ordem: Alertas, contato, Compras (curvas e 4 indicadores da RN-CORE-40), Visitas, últimos itens, sugestão de mix, dados cadastrais, contatos, endereços e observações. O endereço fica só em Endereços de entrega; o código, o bairro e a cidade, na faixa. Dados fictícios.',
+  '<b>Simulação, sem código (R-20261119-030234; refeita pelo comentário de 19/11, R-20261119-0440).</b> Campo, aba Resumo, nesta ordem: Dados cadastrais, Endereços, Contatos, Compras (curvas e 3 indicadores), Visitas, Últimos itens comprados e Observações. As listas são tabelas com cabeçalho, como a de itens do Novo pedido. Sem alerta financeiro na ficha (o atraso fica no Financeiro); saem Última compra e Sugestão de mix. Dados fictícios.',
   [
-    tela({ legenda: 'Resumo · topo', aba: 'Resumo', conteudo: resumo() }),
-    tela({ legenda: 'Rolado: Performance de hoje', aba: 'Resumo', conteudo: resumo(), rolar: '#Visitas' }),
-    tela({ legenda: 'Rolado: Cadastro de hoje', aba: 'Resumo', conteudo: resumo(), rolar: '#Dados cadastrais' }),
+    tela({ legenda: 'Resumo · topo: cadastro e endereços', aba: 'Resumo', conteudo: resumo() }),
+    tela({ legenda: 'Rolado: Endereços e Contatos', aba: 'Resumo', conteudo: resumo(), rolar: '#Endereços' }),
+    tela({ legenda: 'Rolado: Compras e Visitas', aba: 'Resumo', conteudo: resumo(), rolar: '#Compras' }),
     tela({ legenda: 'Fim do Resumo', aba: 'Resumo', conteudo: resumo(), rolar: 'fim' }),
   ],
 );
@@ -356,22 +384,23 @@ const p01 = prancha(
 // ---------- 02: Campo · Financeiro ----------
 const p02 = prancha(
   'Cliente 360 v2 · Campo · Financeiro',
-  '<b>Simulação.</b> Aba Financeiro: limite, crédito, em aberto e prazo médio; depois as notas por data (mais recente primeiro), com Data, Nº NF, Valor, Forma de pagamento e Status em chip. Padrão: últimos 90 dias, todos os status (o padrão não conta no número do filtro). Cada linha abre a nota com as parcelas. O vencido fica só nos Alertas.',
+  '<b>Simulação.</b> Aba Financeiro: limite, crédito, em aberto e prazo médio; depois a tabela de notas (Data · Nº NF · Valor · Status; a forma de pagamento é a 2ª linha do Nº NF), da mais recente para a mais antiga. A nota em atraso fica em destaque na tabela e tem o status e o filtro "Em atraso": é aqui, e só aqui, que o atraso aparece. Padrão: últimos 90 dias, todos os status (o padrão não conta no número do filtro). A linha abre a nota, com as parcelas e os itens em tabela.',
   [
     tela({ legenda: 'Filtros fechados (padrão)', aba: 'Financeiro', conteudo: financeiro() }),
-    tela({ legenda: 'Rolado: os quatro status', aba: 'Financeiro', conteudo: financeiro(), rolar: 'fim' }),
-    tela({ legenda: 'Filtros abertos', aba: 'Financeiro', conteudo: financeiro(), sobre: folhaFiltro() }),
-    tela({ legenda: 'Filtro aplicado: Em aberto', aba: 'Financeiro', conteudo: financeiro({ filtrado: true }), rolar: '#filtro' }),
-    tela({ legenda: 'Toque na linha: a nota', aba: 'Financeiro', conteudo: financeiro(), sobre: folhaNF() }),
+    tela({ legenda: 'Rolado: os cinco status', aba: 'Financeiro', conteudo: financeiro(), rolar: 'fim' }),
+    tela({ legenda: 'Filtros abertos: Em atraso', aba: 'Financeiro', conteudo: financeiro(), sobre: folhaFiltro() }),
+    tela({ legenda: 'Filtro aplicado: Em atraso', aba: 'Financeiro', conteudo: financeiro({ filtrado: true }), rolar: '#filtro' }),
+    tela({ legenda: 'Toque na linha: a nota', aba: 'Financeiro', conteudo: financeiro({ filtrado: true }), sobre: folhaNF() }),
+    tela({ legenda: 'Ver itens da nota', aba: 'Financeiro', conteudo: financeiro({ filtrado: true }), sobre: folhaItens() }),
   ],
 );
 
 // ---------- 03: Campo · Documentação ----------
 const p03 = prancha(
   'Cliente 360 v2 · Campo · Documentação',
-  '<b>Simulação.</b> Aba Documentação, no lugar de Compras: os documentos do cliente por tipo (Fotos do PDV, Cadastro, Contratos). O tipo que o perfil não vê não aparece (aqui, Contrato social); o documento com exceção aparece com cadeado e não abre (a linha já diz o porquê; sem aviso extra). Estado vazio e arquivo ainda não baixado sem internet.',
+  '<b>Simulação.</b> Aba Documentação, no lugar de Compras: uma tabela (Documento · Data · Abrir; o formato e a validade na 2ª linha do Documento) com a faixa de cada tipo (Fotos do PDV, Cadastro, Contratos). O tipo que o perfil não vê não aparece (aqui, Contrato social); o documento com exceção aparece com cadeado e não abre (a linha já diz o porquê; sem aviso extra). Estado vazio e arquivo ainda não baixado sem internet.',
   [
-    tela({ legenda: 'Lista por tipo (vendedora)', aba: 'Documentação', conteudo: documentacao() }),
+    tela({ legenda: 'Tabela por tipo (vendedora)', aba: 'Documentação', conteudo: documentacao() }),
     tela({ legenda: 'Rolado: documento sem permissão', aba: 'Documentação', conteudo: documentacao(), rolar: 'fim' }),
     tela({ legenda: 'Estado vazio', aba: 'Documentação', conteudo: docVazio }),
     tela({ legenda: 'Sem internet, arquivo não baixado', aba: 'Documentação', conteudo: documentacao(), sobre: folhaSemRede, hora: '09:05' }),
@@ -381,11 +410,11 @@ const p03 = prancha(
 // ---------- 04: Gestão ----------
 const p04 = prancha(
   'Cliente 360 v2 · Gestão',
-  '<b>Simulação.</b> O mesmo Cliente 360 no Gestão (supervisora, vinda de Equipe › Carla Lima). Muda: a vendedora da carteira no Resumo (ligar e WhatsApp para ela), a última visita com o nome de quem visitou, sem sugestão de mix e sem rodapé (sem check-in; o pedido em nome sai da ficha da vendedora, RF-GES-05). Na Documentação, o que o perfil Supervisor vê.',
+  '<b>Simulação.</b> O mesmo Cliente 360 no Gestão (supervisora, vinda de Equipe › Carla Lima). Muda: a tabela Carteira no Resumo (ligar e WhatsApp para a vendedora), a última visita com o nome de quem visitou e sem rodapé (sem check-in; o pedido em nome sai da ficha da vendedora, RF-GES-05). Na Documentação, o que o perfil Supervisor vê, sem a câmera. O Financeiro é igual ao do Campo.',
   [
     tela({ legenda: 'Resumo · topo', voltar: 'Carla Lima', aba: 'Resumo', conteudo: resumo({ gestao: true }), rodape: '', barra: barraGestao() }),
-    tela({ legenda: 'Resumo · rolado', voltar: 'Carla Lima', aba: 'Resumo', conteudo: resumo({ gestao: true }), rodape: '', barra: barraGestao(), rolar: '#Visitas' }),
-    tela({ legenda: 'Documentação (supervisora)', voltar: 'Carla Lima', aba: 'Documentação', conteudo: documentacao({ perfil: 'supervisor' }), rodape: '', barra: barraGestao(), rolar: 'fim' }),
+    tela({ legenda: 'Resumo · rolado: Carteira', voltar: 'Carla Lima', aba: 'Resumo', conteudo: resumo({ gestao: true }), rodape: '', barra: barraGestao(), rolar: '#Carteira' }),
+    tela({ legenda: 'Documentação (supervisora)', voltar: 'Carla Lima', aba: 'Documentação', conteudo: documentacao({ perfil: 'supervisor' }), rodape: '', barra: barraGestao() }),
   ],
 );
 

@@ -166,3 +166,4 @@
 2026-11-16 — v1.0.14 catalogo — #441: RD-1700 a RD-1703 e MC-1520 a MC-1523 (cartão com fonte única no v2, IconPacote web saiu, botão de estoque por filial só com mais de uma filial, apoio da folha sem o código, pesos 600 e escala do app, título da folha 22/700).
 2026-11-17 — v1.0.14 parametros — ListaParametros, valorComPadrao e formatarParametro (min, pct, dias, unidade) no kit web (packages/ui/src/web/lista-parametros.tsx, 8 testes), para Pesquisa, Trade e Treinamento fecharem a RD-1583 e a RD-1584; mesmo visual de hoje (rótulo 15/600, Padrão 13 em ink-2, MC-1515); refeito no Cline.
 2026-11-19 — Cliente 360 v2 — simulação (Resumo, Financeiro, Documentação; permissões de documentos no BKO) em docs/design/cliente-360-v2/ (R-20261119-030234).
+2026-11-19 — Cliente 360 v2 — pranchas 01 a 04 refeitas pelo comentário do dono do produto (cadastro no topo, sem alerta financeiro na ficha, listas em tabela).
