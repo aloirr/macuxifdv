@@ -4,6 +4,7 @@
  * admin, o tenant. O filtro é aplicado aqui (`filtrar_no_dominio`) com as funções do domain, antes de apurar.
  * Sem universo do público (o Core ainda não oferece a consulta): a taxa de resposta vem `null` e a tela explica.
  */
+import { CONSULTA_USUARIOS_RESUMO } from '@macuxi/core/contracts';
 import type { ContextoRota, RotaModulo } from '@macuxi/platform-sdk';
 import { ParamsQuestionario, ResultadoQuery, type ExportacaoResponse, type Galeria, type ListaRespostas, type QuestionarioVersao, type RespostaPesquisa, type ResultadoResponse } from '../contracts';
 import { agregarResultados, consolidarEntreVersoes, exportarRespostasCsv, nomeDoArquivoCsv, respostaDentroDoFiltro, respostasNoEscopo, versaoVigente } from '../domain';
@@ -41,6 +42,21 @@ async function recortar(ctx: Ctx, fabrica: FabricaRepositorio): Promise<Recorte>
   return { versoes, titulo: base?.titulo ?? 'pesquisa', respostas, filtro, versao, fuso };
 }
 
+/** "Respondida por <nome>" (T-0187): nomes pelo Core (`core.usuarios_resumo@1`); consulta fora do ar = sem nome, a lista segue. */
+async function nomesDosUsuarios(ctx: Ctx, fabrica: FabricaRepositorio, ids: string[]): Promise<Map<string, string>> {
+  const nomes = new Map<string, string>();
+  if (ids.length === 0) return nomes;
+  try {
+    await comRepositorio(ctx, fabrica, async (_repo, tx) => {
+      const r = await tx.consultar(CONSULTA_USUARIOS_RESUMO, { usuario_ids: ids, limite: 500 });
+      for (const u of r.usuarios) nomes.set(u.id, u.nome);
+    });
+  } catch (e) {
+    ctx.log.warn({ erro: e instanceof Error ? e.message : String(e) }, 'pesquisa: nomes de quem respondeu indisponíveis');
+  }
+  return nomes;
+}
+
 export function rotasDeResultados(fabrica: FabricaRepositorio): RotaModulo[] {
   /** RF-PES-06 / RN-PES-01: com `versao`, apuração da versão; sem, consolidado entre versões pelo id estável. */
   const resultado: RotaModulo = {
@@ -67,16 +83,16 @@ export function rotasDeResultados(fabrica: FabricaRepositorio): RotaModulo[] {
     query: ResultadoQuery,
     async executar(ctx: Ctx): Promise<ListaRespostas> {
       const r = await recortar(ctx, fabrica);
+      const ordenadas = r.respostas.slice().sort((a, b) => (a.respondida_em < b.respondida_em ? 1 : a.respondida_em > b.respondida_em ? -1 : 0)).slice(0, 500);
+      const nomes = await nomesDosUsuarios(ctx, fabrica, [...new Set(ordenadas.map((x) => x.usuario_id))]);
       const numero = new Map(r.versoes.map((v) => [v.id, v.numero] as const));
-      const itens = r.respostas
-        .slice()
-        .sort((a, b) => (a.respondida_em < b.respondida_em ? 1 : a.respondida_em > b.respondida_em ? -1 : 0))
-        .slice(0, 500)
+      const itens = ordenadas
         .map((x) => ({
           id: x.id,
           versao_id: x.versao_id,
           versao_numero: numero.get(x.versao_id) ?? 1,
           usuario_id: x.usuario_id,
+          usuario_nome: nomes.get(x.usuario_id) ?? null,
           equipe_id: x.equipe_id,
           cliente_id: x.cliente_id,
           visita_id: x.visita_id,

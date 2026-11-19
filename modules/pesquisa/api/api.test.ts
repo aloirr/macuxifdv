@@ -350,3 +350,52 @@ describe('ADR 0010: foto já usada por outra entidade', () => {
     expect(await amb.pull(v, 'resposta_pesquisa', horizonte())).toEqual([]);
   });
 });
+
+describe('T-0187: supervisor e gerente respondem pelo push da Pesquisa (P5 A)', () => {
+  const GERENTE = uu(22);
+  const CLIENTE_EQUIPE = uu(52);
+  const EQUIPE = new Set([CLIENTE, CLIENTE_EQUIPE]);
+  const semFoto = (versao: string, cliente: string, id: string) => envio(versao, { id, cliente_id: cliente, visita_id: null, itens: [{ pergunta_id: P1, tipo: 'sim_nao', valor: true }] });
+
+  it('RN-CORE-04: supervisor e gerente respondem cliente da carteira da equipe e o evento leva o usuario_id deles', async () => {
+    const pub = await publicarV1();
+    for (const [id, perfil, n] of [[SUPERVISOR, 'supervisor', 7701], [GERENTE, 'gerente', 7702]] as const) {
+      const [r] = await amb.push(ctx(id, perfil, { carteira: EQUIPE }), [item(semFoto(pub.versao.id, CLIENTE_EQUIPE, uu(n)))]);
+      expect(r).toMatchObject({ status: 'aceito' });
+      expect(amb.efeitos.eventos.at(-1)).toMatchObject({ nome: 'pesquisa.resposta.registrada@1', payload: expect.objectContaining({ usuario_id: id }) });
+    }
+  });
+
+  it('RN-CORE-04: supervisor não responde cliente fora da carteira da equipe (FORA_DA_CARTEIRA)', async () => {
+    const pub = await publicarV1();
+    const [r] = await amb.push(ctx(SUPERVISOR, 'supervisor', { carteira: EQUIPE }), [item(semFoto(pub.versao.id, CLIENTE_FORA, uu(7703)))]);
+    expect(r).toMatchObject({ status: 'rejeitado', codigo: 'FORA_DA_CARTEIRA' });
+    expect(amb.efeitos.eventos).toEqual([]);
+  });
+
+  it('doc 03 §2: analista, admin e assistente não respondem (PERFIL_SEM_ACESSO); vendedor e promotor seguem respondendo', async () => {
+    const pub = await publicarV1();
+    for (const p of ['analista', 'admin', 'assistente'] as const) {
+      const [r] = await amb.push(ctx(uu(60), p, { carteira: 'tenant' }), [item(semFoto(pub.versao.id, CLIENTE, uu(7704)))]);
+      expect(r, p).toMatchObject({ status: 'rejeitado', codigo: 'PERFIL_SEM_ACESSO' });
+    }
+    for (const [p, n] of [['vendedor', 7705], ['promotor', 7706]] as const) {
+      const [r] = await amb.push(ctx(uu(n), p, { carteira: EQUIPE }), [item(semFoto(pub.versao.id, CLIENTE, uu(n)))]);
+      expect(r, p).toMatchObject({ status: 'aceito' });
+    }
+  });
+
+  it('multi-tenant: o questionário de outro tenant não existe para quem responde (QUESTIONARIO_INEXISTENTE)', async () => {
+    const pub = await publicarV1();
+    const [r] = await amb.push(ctx(SUPERVISOR, 'supervisor', { carteira: EQUIPE, tenant: TENANT_B }), [item(semFoto(pub.versao.id, CLIENTE_EQUIPE, uu(7707)))]);
+    expect(r).toMatchObject({ status: 'rejeitado', codigo: 'QUESTIONARIO_INEXISTENTE' });
+  });
+
+  it('T-0187: "Respondida por" traz o nome de quem respondeu; consulta fora do ar deixa o nome nulo e a lista segue', async () => {
+    const pub = await publicarV1();
+    await amb.push(ctx(SUPERVISOR, 'supervisor', { carteira: EQUIPE }), [item(semFoto(pub.versao.id, CLIENTE_EQUIPE, uu(7708)))]);
+    const ler = (nomes?: Record<string, string>) => amb.chamar<{ itens: { usuario_id: string; usuario_nome: string | null }[] }>(ctx(ANALISTA, 'analista', nomes ? { nomes } : {}), 'GET', 'questionarios/:id/respostas', { params: { id: Q } });
+    expect((await ler({ [SUPERVISOR]: 'Marta Souza' })).itens).toEqual([expect.objectContaining({ usuario_id: SUPERVISOR, usuario_nome: 'Marta Souza' })]);
+    expect((await ler()).itens).toEqual([expect.objectContaining({ usuario_id: SUPERVISOR, usuario_nome: null })]);
+  });
+});
