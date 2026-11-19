@@ -16,12 +16,17 @@
  * A rota só existe com o branch `nuvem/v1016-carteira-modulo-core` (modulo-core). Sem ela no `main`, a suíte PULA (a constante
  * `ROTAS_CLIENTE360_V2.carteira` é lida sem depender do tipo do main), para o typecheck e o CI do `main` não quebrarem.
  */
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { ROTAS_CLIENTE360_V2 } from '@macuxi/core/contracts';
 import { manifest as manifestoCore } from '@macuxi/core/manifest';
 import { semBanco } from '@macuxi/db/teste/estado';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { A, B, erroDe, subirApi, type ApiDeTeste } from '../apoio/api';
 
+/** D-K06: liga quando a rota da Carteira declarar `semCache: true` (opção da `RotaModulo` do SDK, v1.0.16, engenheiro-software). */
+const ROTA_CARTEIRA_FONTE = join(__dirname, '..', '..', '..', 'modules', 'core', 'api', 'carteira-cliente.ts');
+const CARTEIRA_SEM_CACHE = existsSync(ROTA_CARTEIRA_FONTE) && /semCache:\s*true/.test(readFileSync(ROTA_CARTEIRA_FONTE, 'utf8'));
 const ROTA = (ROTAS_CLIENTE360_V2 as Readonly<Record<string, string>>).carteira;
 const url = (cliente: string) => `/v1/core/${(ROTA ?? '').replace(':id', cliente)}`;
 /** Telefone de teste do vendedor-1 (só neste banco efêmero): os dígitos não podem aparecer em nenhum pull. */
@@ -119,10 +124,9 @@ describe.skipIf(semBanco() || !ROTA)('v1.0.16 — Carteira na ficha do Gestão (
   });
 
   // K-06: o contrato (`CarteiraClienteRespostaSchema`, modules/core/contracts/cliente360-v2.ts) promete `Cache-Control: no-store`,
-  // mas a rota (modules/core/api/carteira-cliente.ts) não manda o cabeçalho e a `RotaModulo` do SDK não tem como mandar.
-  // Defeito D-K06 no relatório da v1.0.16 (dono: modulo-core; o SDK é do engenheiro-software). Fica pulado para não deixar o
-  // `main` vermelho: tirar o `.skip` quando o cabeçalho sair.
-  it.skip('K-06 (T-0168): a resposta sai com Cache-Control no-store (nada guardado no cache HTTP do aparelho)', async () => {
+  // mas a rota (modules/core/api/carteira-cliente.ts) não manda o cabeçalho. Defeito D-K06 (dono: modulo-core). O SDK já tem
+  // `semCache` na `RotaModulo`: o caso liga sozinho quando a rota declarar `semCache: true`, sem deixar o `main` vermelho antes.
+  it.runIf(CARTEIRA_SEM_CACHE)('K-06 (T-0168): a resposta sai com Cache-Control no-store (nada guardado no cache HTTP do aparelho)', async () => {
     const r = await ler(tk.gerente, A.clientes.c1);
     expect(r.statusCode, r.body).toBe(200);
     expect(String(r.headers['cache-control'] ?? '')).toContain('no-store');

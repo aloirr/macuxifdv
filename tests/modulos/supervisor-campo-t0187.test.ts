@@ -12,12 +12,44 @@ import { PARAMETROS_RASTREAMENTO_PADRAO, podeRastrear } from '@macuxi/core/contr
 import { manifest as manifestoCore } from '@macuxi/core/manifest';
 import { manifest as manifestoVendedor } from '@macuxi/vendedor/manifest';
 import { describe, expect, it } from 'vitest';
+import * as dominioCore from '../../modules/core/domain';
 import * as dominioVendedor from '../../modules/vendedor/domain';
 
 const TEM_PORTAO_NOVO = 'APP_RASTREADO_DO_CARGO' in contratosCore;
 const acoesCore = manifestoCore.acoes as Readonly<Record<string, { perfis: readonly string[] } | undefined>>;
 const TEM_ACAO_GESTAO = acoesCore['visita.registrar_gestao'] !== undefined;
 const nivelMinimoDoAutor = (dominioVendedor as Record<string, unknown>).nivelMinimoDoAutor as ((perfil: string) => string) | undefined;
+interface UsuarioEquipe { id: string; nome: string; ativo: boolean; perfil: string; grupo?: string | null }
+interface VinculoCarteira { usuario_id: string; cliente_id: string }
+type OpcaoEmNome = { id: string; nome: string; da_carteira: boolean; desligado: boolean; motivo: string | null; grupo: string | null };
+const vendedorPadraoEmNome = (dominioVendedor as Record<string, unknown>).vendedorPadraoEmNome as
+  | ((e: { clienteId: string; carteira: readonly VinculoCarteira[]; equipe: readonly UsuarioEquipe[] }) => string | null)
+  | undefined;
+const opcoesEmNome = (dominioVendedor as Record<string, unknown>).opcoesEmNome as
+  | ((e: { autor: { id: string; perfil: string }; clienteId: string; carteira: readonly VinculoCarteira[]; usuarios: readonly UsuarioEquipe[]; visiveis: ReadonlySet<string> | 'tenant' }) => OpcaoEmNome[])
+  | undefined;
+type EntradaRodape = { temPesquisa: boolean; atendimentoAqui: boolean; checkinPermitido: boolean; visitadoHoje: boolean; registraVisita?: boolean };
+const botoesDoRodapeCliente = dominioCore.botoesDoRodapeCliente as unknown as (e: EntradaRodape) => { checkin: boolean; checkout: boolean; pesquisa: boolean };
+const BASE_RODAPE: EntradaRodape = { temPesquisa: true, atendimentoAqui: false, checkinPermitido: true, visitadoHoje: false };
+/** O Core entregou o `registraVisita` (Gestão sem `visita.registrar_gestao` = sem Check-in e sem Checkout). */
+const TEM_RODAPE_GESTAO = botoesDoRodapeCliente({ ...BASE_RODAPE, registraVisita: false }).checkin === false;
+
+/** Massa: equipe do supervisor s1 (v1, v2 ativos; v3 inativo; p1 promotor), v9 de outra equipe; cliente c1 na carteira de v1 e p1. */
+const EQUIPE: UsuarioEquipe[] = [
+  { id: 's1', nome: 'Sara Supervisora', ativo: true, perfil: 'supervisor' },
+  { id: 'v2', nome: 'Bruno', ativo: true, perfil: 'vendedor', grupo: 'Equipe Norte' },
+  { id: 'v1', nome: 'Ana', ativo: true, perfil: 'vendedor', grupo: 'Equipe Norte' },
+  { id: 'v3', nome: 'Carla', ativo: false, perfil: 'vendedor', grupo: 'Equipe Norte' },
+  { id: 'p1', nome: 'Paulo Promotor', ativo: true, perfil: 'promotor', grupo: 'Equipe Norte' },
+  { id: 'v9', nome: 'Davi', ativo: true, perfil: 'vendedor', grupo: 'Equipe Sul' },
+];
+const CARTEIRA: VinculoCarteira[] = [
+  { usuario_id: 'v1', cliente_id: 'c1' },
+  { usuario_id: 'p1', cliente_id: 'c1' },
+  { usuario_id: 'v1', cliente_id: 'c2' },
+  { usuario_id: 'v2', cliente_id: 'c2' },
+  { usuario_id: 'v3', cliente_id: 'c3' },
+];
 
 const ligado = (cargo: string, app: string) =>
   podeRastrear({ ativo: true, cargo, app, expediente: PARAMETROS_RASTREAMENTO_PADRAO.expediente, feriados: [], ausencias: [], instante: '2026-11-18T15:00:00.000Z', fuso: 'America/Manaus' });
@@ -77,8 +109,32 @@ describe('T-0187 — funções puras do pedido em nome (modulo-vendedor)', () =>
     expect(['supervisor', 'vendedor']).not.toContain(f('gerente'));
     expect(f('gerente')).not.toBe('gerente');
   });
-  it.todo('13. vendedorPadraoEmNome: o único vendedor ativo da equipe com o cliente na carteira; 0 ou 2 vendedores = null (campo vazio, "Escolher") — aguardando modulo-vendedor (domain/pedido-em-nome.ts; assinatura final)');
-  it.todo('14. opcoesEmNome: só vendedores ativos da equipe, em ordem alfabética, sem o autor, sem promotor e sem outra equipe; "Saiu da equipe" desligado; o gerente agrupa por equipe — aguardando modulo-vendedor');
-  it.todo('12. rodapé da ficha no Gestão: Check-in, Pesquisa e Novo pedido; sem a licença da Pesquisa, dois botões; sem o Vendedor ou sem pedido.criar_em_nome, sem "Novo pedido" — aguardando modulo-core (cliente.tsx) e modulo-vendedor (item cliente.acoes)');
+  it.runIf(typeof vendedorPadraoEmNome === 'function')('13. vendedorPadraoEmNome (RN-VEN-35, RN-CORE-04): o único vendedor ativo da equipe com o cliente na carteira; 0 ou 2 vendedores = null (campo vazio, "Escolher"); o promotor da carteira não conta (RN-PRO-01)', () => {
+    const f = vendedorPadraoEmNome!;
+    expect(f({ clienteId: 'c1', carteira: CARTEIRA, equipe: EQUIPE })).toBe('v1');
+    expect(f({ clienteId: 'c2', carteira: CARTEIRA, equipe: EQUIPE })).toBeNull();
+    expect(f({ clienteId: 'c3', carteira: CARTEIRA, equipe: EQUIPE })).toBeNull();
+    expect(f({ clienteId: 'c4', carteira: CARTEIRA, equipe: EQUIPE })).toBeNull();
+  });
+  it.runIf(typeof opcoesEmNome === 'function')('14. opcoesEmNome (P3 A): só vendedores da equipe, em ordem alfabética, sem o autor, sem promotor e sem outra equipe; inativo desligado com "Saiu da equipe"; o gerente vê as equipes abaixo com o grupo', () => {
+    const f = opcoesEmNome!;
+    const sup = f({ autor: { id: 's1', perfil: 'supervisor' }, clienteId: 'c1', carteira: CARTEIRA, usuarios: EQUIPE, visiveis: new Set(['s1', 'v1', 'v2', 'v3', 'p1']) });
+    expect(sup.map((o) => o.nome)).toEqual(['Ana', 'Bruno', 'Carla']);
+    expect(sup.find((o) => o.id === 'v1')).toMatchObject({ da_carteira: true, desligado: false, motivo: null });
+    expect(sup.find((o) => o.id === 'v2')).toMatchObject({ da_carteira: false, desligado: false });
+    expect(sup.find((o) => o.id === 'v3')).toMatchObject({ desligado: true, motivo: 'Saiu da equipe' });
+    const ger = f({ autor: { id: 'g1', perfil: 'gerente' }, clienteId: 'c1', carteira: CARTEIRA, usuarios: EQUIPE, visiveis: new Set(['v1', 'v2', 'v3', 'v9', 'p1', 's1']) });
+    expect(ger.map((o) => o.id)).toEqual(['v1', 'v2', 'v3', 'v9']);
+    expect(ger.find((o) => o.id === 'v9')!.grupo).toBe('Equipe Sul');
+  });
+  it.runIf(TEM_RODAPE_GESTAO)('12 (parcial, domínio do Core). rodapé da ficha no Gestão: com visita.registrar_gestao, Check-in e Pesquisa; sem ela, só Pesquisa; sem a Pesquisa, sem o botão dela (RN-CORE-51/13)', () => {
+    expect(botoesDoRodapeCliente({ ...BASE_RODAPE, registraVisita: true })).toEqual({ checkin: true, checkout: false, pesquisa: true });
+    expect(botoesDoRodapeCliente({ ...BASE_RODAPE, registraVisita: false })).toEqual({ checkin: false, checkout: false, pesquisa: true });
+    expect(botoesDoRodapeCliente({ ...BASE_RODAPE, atendimentoAqui: true, registraVisita: false })).toEqual({ checkin: false, checkout: false, pesquisa: true });
+    expect(botoesDoRodapeCliente({ ...BASE_RODAPE, temPesquisa: false, registraVisita: true })).toEqual({ checkin: true, checkout: false, pesquisa: false });
+    // o Campo não passa registraVisita: segue como antes
+    expect(botoesDoRodapeCliente(BASE_RODAPE)).toEqual({ checkin: true, checkout: false, pesquisa: true });
+  });
+  it.todo('12 (tela). o "Novo pedido" do rodapé só aparece com o Vendedor licenciado e pedido.criar_em_nome (extensão cliente.acoes/novo-pedido-em-nome, só Gestão; leitura do fonte em promotor-sem-pedido.test.ts) — conferir no aparelho (roteiro manual)');
   it.todo('1. a aba Rota do Gestão mostra só as paradas do supervisor, nunca as dos vendedores que estão no aparelho pelo sync — aguardando modulo-core (app/index.ts, filtro por usuario_id)');
 });
