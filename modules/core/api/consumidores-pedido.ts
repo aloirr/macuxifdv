@@ -9,50 +9,37 @@
  */
 import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { EVENTO_NOTIFICACAO_CRIADA } from '../contracts';
-import { EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2, EVENTO_PEDIDO_STATUS_ALTERADO } from '../../vendedor/contracts';
+import { EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2, EVENTO_PEDIDO_STATUS_ALTERADO, NIVEIS_APROVACAO, ROTULO_MOTIVO_APROVACAO } from '../../vendedor/contracts';
 import { apurarPositivacaoDoStatus } from './consumidores-positivacao';
-import { notificacaoDePedido, notificacoesDeAprovacaoPorNivel, type NotificacaoDePedido, type EntradaNotificacaoPedido } from '../domain';
+import { notificacaoDePedido, notificacoesDeAprovacaoPorAprovador, type NotificacaoDePedido, type UsuarioAprovador, type EntradaNotificacaoPedido } from '../domain';
 
-/** Responsáveis (ativos) das equipes acima do vendedor; sem equipe/responsável, os perfis de alçada do tenant. */
-async function aprovadoresDe(ctx: ContextoConsumo, vendedorId: string): Promise<string[]> {
-  const r = await ctx.db.query<{ id: string }>(
+/** Responsáveis (ativos) das equipes acima do vendedor, com o perfil. Única cópia da consulta recursiva (@1 e @2). */
+async function responsaveisAcima(ctx: ContextoConsumo, vendedorId: string): Promise<UsuarioAprovador[]> {
+  const r = await ctx.db.query<UsuarioAprovador>(
     `with recursive acima as (
        select e.id, e.equipe_pai_id, e.responsavel_id from core.equipe e join core.usuario v on v.equipe_id = e.id
         where v.id = $1 and e.deleted_at is null
        union
        select p.id, p.equipe_pai_id, p.responsavel_id from core.equipe p join acima a on p.id = a.equipe_pai_id where p.deleted_at is null
      )
-     select u.id from core.usuario u join acima a on a.responsavel_id = u.id
+     select distinct u.id, u.perfil from core.usuario u join acima a on a.responsavel_id = u.id
       where u.deleted_at is null and u.ativo and u.id <> $1`,
     [vendedorId],
   );
-  if (r.rows.length > 0) return [...new Set(r.rows.map((l) => l.id))];
-  const f = await ctx.db.query<{ id: string }>("select id from core.usuario where perfil in ('gerente','analista','admin') and ativo and deleted_at is null and id <> $1", [vendedorId]);
-  return f.rows.map((l) => l.id);
+  return r.rows;
 }
 
-/**
- * Aprovadores de UM nível (RN-VEN-aprovação por motivo): responsáveis das equipes acima do vendedor com o perfil do nível
- * (supervisor, gerente) ou, para analista, os analistas do tenant. Sem ninguém no nível, os perfis de alçada do tenant.
- */
-async function aprovadoresDoNivel(ctx: ContextoConsumo, vendedorId: string, nivel: string): Promise<string[]> {
-  const r =
-    nivel === 'analista'
-      ? await ctx.db.query<{ id: string }>("select id from core.usuario where perfil = 'analista' and ativo and deleted_at is null and id <> $1", [vendedorId])
-      : await ctx.db.query<{ id: string }>(
-          `with recursive acima as (
-             select e.id, e.equipe_pai_id, e.responsavel_id from core.equipe e join core.usuario v on v.equipe_id = e.id
-              where v.id = $1 and e.deleted_at is null
-             union
-             select p.id, p.equipe_pai_id, p.responsavel_id from core.equipe p join acima a on p.id = a.equipe_pai_id where p.deleted_at is null
-           )
-           select u.id from core.usuario u join acima a on a.responsavel_id = u.id
-            where u.deleted_at is null and u.ativo and u.id <> $1 and u.perfil = $2`,
-          [vendedorId, nivel],
-        );
-  if (r.rows.length > 0) return [...new Set(r.rows.map((l) => l.id))];
-  const f = await ctx.db.query<{ id: string }>("select id from core.usuario where perfil in ('gerente','analista','admin') and ativo and deleted_at is null and id <> $1", [vendedorId]);
-  return f.rows.map((l) => l.id);
+/** Perfis de alçada do tenant (fallback de quem não tem responsável acima). */
+async function alcadaDoTenant(ctx: ContextoConsumo, vendedorId: string): Promise<UsuarioAprovador[]> {
+  const f = await ctx.db.query<UsuarioAprovador>("select id, perfil from core.usuario where perfil in ('gerente','analista','admin') and ativo and deleted_at is null and id <> $1", [vendedorId]);
+  return f.rows;
+}
+
+/** @1: responsáveis das equipes acima do vendedor; sem ninguém, os perfis de alçada do tenant. */
+async function aprovadoresDe(ctx: ContextoConsumo, vendedorId: string): Promise<string[]> {
+  const acima = await responsaveisAcima(ctx, vendedorId);
+  const lista = acima.length > 0 ? acima : await alcadaDoTenant(ctx, vendedorId);
+  return [...new Set(lista.map((u) => u.id))];
 }
 
 async function notificar(ctx: ContextoConsumo, vendedorId: string, entrada: EntradaNotificacaoPedido): Promise<void> {
@@ -90,18 +77,23 @@ export const consumidorPedidoParaAprovar: ConsumidorEvento = definirConsumidor({
 });
 
 /**
- * `@2` (T-0184): uma notificação por nível, com os motivos que ele decide. Quem é de dois níveis recebe uma só (o `envio_id`
- * é único por destinatário e o conjunto de destinatários é deduplicado entre níveis).
+ * `@2` (T-0184, RN-VEN-30): uma notificação por aprovador, com todos os motivos que ele decide (domínio puro). A reentrega
+ * não duplica: `envio_id` é único por destinatário.
  */
 export const consumidorPedidoParaAprovarV2: ConsumidorEvento = definirConsumidor({
   evento: eventoTolerante(EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2),
   executar: async (p, ctx) => {
-    const jaNotificados = new Set<string>([p.vendedor_id]);
-    for (const { nivel, notificacao } of notificacoesDeAprovacaoPorNivel({ pedidoId: p.pedido_id, numero: p.pedido_numero, aprovacoes: p.aprovacoes })) {
-      const novos = (await aprovadoresDoNivel(ctx, p.vendedor_id, nivel)).filter((id) => !jaNotificados.has(id));
-      novos.forEach((id) => jaNotificados.add(id));
-      await gravar(ctx, novos, notificacao);
-    }
+    const lista = notificacoesDeAprovacaoPorAprovador({
+      pedidoId: p.pedido_id,
+      numero: p.pedido_numero,
+      vendedorId: p.vendedor_id,
+      aprovacoes: p.aprovacoes,
+      acima: await responsaveisAcima(ctx, p.vendedor_id),
+      alcada: await alcadaDoTenant(ctx, p.vendedor_id),
+      ordemNiveis: NIVEIS_APROVACAO,
+      rotuloMotivo: ROTULO_MOTIVO_APROVACAO,
+    });
+    for (const { usuarioId, notificacao } of lista) await gravar(ctx, [usuarioId], notificacao);
   },
 });
 

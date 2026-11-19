@@ -182,8 +182,6 @@ export const FinanceiroClienteSaidaSchema = z.object({
   financeiro: z
     .object({
       limite_cents: z.number().int(),
-      /** T-0184 / RN-VEN-12 (aditivo e opcional, compatível com o @1): falso = o ERP não informou limite; ausente = emissor antigo (o consumidor trata como informado). */
-      limite_informado: z.boolean().optional(),
       saldo_aberto_cents: z.number().int(),
       /** Do ERP; nulo = o ERP não mandou (o Vendedor calcula limite − saldo, RN-VEN-12). */
       credito_disponivel_erp_cents: z.number().int().nullable(),

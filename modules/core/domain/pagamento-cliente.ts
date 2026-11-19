@@ -6,8 +6,6 @@ import { resumoFinanceiro, type FinanceiroLike, type TituloLike } from './client
 
 export interface FinanceiroClienteResultado {
   limite_cents: number;
-  /** RN-VEN-12 (P4): falso = sem limite do ERP. Hoje o banco grava 0 quando o ERP não manda, então 0 conta como não informado. */
-  limite_informado: boolean;
   saldo_aberto_cents: number;
   /** Do ERP; nulo = o ERP não mandou (o Vendedor calcula limite − saldo, RN-VEN-12). */
   credito_disponivel_erp_cents: number | null;
@@ -29,7 +27,6 @@ export function financeiroDoCliente(
   if (!r || !f) return null;
   return {
     limite_cents: r.limite_cents,
-    limite_informado: r.limite_cents > 0,
     saldo_aberto_cents: r.saldo_aberto_cents,
     credito_disponivel_erp_cents: f.credito_disponivel_cents ?? null,
     bloqueado: r.bloqueado,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { entidadesDoPush, notificacoesDeAprovacaoPorNivel, notificacaoDeMeta, notificacaoDePedido, notificacaoDeRotaDoDia } from './notificacao-pedido';
+import { entidadesDoPush, notificacoesDeAprovacaoPorAprovador, notificacaoDeMeta, notificacaoDePedido, notificacaoDeRotaDoDia } from './notificacao-pedido';
 
 const ID = '0e500000-0000-4000-8000-000000000001';
 
@@ -38,22 +38,64 @@ describe('RN-CORE-23 item 3: notificação de pedido', () => {
   });
 });
 
-describe('notificacoesDeAprovacaoPorNivel (T-0184, P3/P7, RN-VEN-10/12/13)', () => {
-  it('RN-VEN-12: uma notificação por nível, sem duplicar o nível', () => {
-    const r = notificacoesDeAprovacaoPorNivel({
-      pedidoId: ID,
-      numero: 10,
-      aprovacoes: [
-        { motivo: 'credito', nivel: 'gerente', texto: 'x' },
-        { motivo: 'inadimplencia', nivel: 'gerente', texto: 'y' },
-        { motivo: 'desconto', nivel: 'supervisor', texto: 'z' },
-      ],
-    });
-    expect(r.map((n) => n.nivel)).toEqual(['supervisor', 'gerente']);
-    expect(r[1]!.notificacao).toMatchObject({ destino: 'aprovador', titulo: 'Pedido 000010 para aprovar', corpo: 'Motivo: crédito, inadimplência', link: `/m/pedido?id=${ID}`, prioridade: 'alta' });
-    expect(r[0]!.notificacao.corpo).toBe('Motivo: desconto');
+describe('notificacoesDeAprovacaoPorAprovador (T-0184, RN-VEN-30, RN-CORE-23)', () => {
+  const NIVEIS = ['supervisor', 'gerente', 'analista'];
+  const ROTULO = { desconto: 'Desconto', credito: 'Crédito', inadimplencia: 'Inadimplente', estoque: 'Estoque', preco_minimo: 'Preço mínimo' };
+  const V = 'v';
+  const base = { pedidoId: ID, numero: 10, vendedorId: V, ordemNiveis: NIVEIS, rotuloMotivo: ROTULO };
+  const sup = { id: 's1', perfil: 'supervisor' };
+  const ger = { id: 'g1', perfil: 'gerente' };
+  const ana = { id: 'a1', perfil: 'analista' };
+  const adm = { id: 'ad1', perfil: 'admin' };
+  const aprov = (...l: Array<[string, string]>) => l.map(([motivo, nivel]) => ({ motivo, nivel }));
+  const corpo = (r: ReturnType<typeof notificacoesDeAprovacaoPorAprovador>, id: string) => r.find((n) => n.usuarioId === id)?.notificacao.corpo;
+
+  it('RN-VEN-30: cada aprovador recebe uma notificação, com os motivos do nível dele e dos abaixo (gerente decide supervisor)', () => {
+    const r = notificacoesDeAprovacaoPorAprovador({ ...base, aprovacoes: aprov(['credito', 'gerente'], ['desconto', 'supervisor']), acima: [sup, ger], alcada: [] });
+    expect(r).toHaveLength(2);
+    expect(corpo(r, 's1')).toBe('Motivo: Desconto');
+    expect(corpo(r, 'g1')).toBe('Motivo: Desconto, Crédito');
+    expect(r[0]!.notificacao).toMatchObject({ destino: 'aprovador', titulo: 'Pedido 000010 para aprovar', link: `/m/pedido?id=${ID}`, prioridade: 'alta' });
   });
-  it('RN-VEN-12: lista vazia não notifica ninguém', () => {
-    expect(notificacoesDeAprovacaoPorNivel({ pedidoId: ID, aprovacoes: [] })).toEqual([]);
+  it('RN-VEN-30: gerente sozinho recebe os motivos de supervisor e de gerente numa só notificação (fallback do supervisor)', () => {
+    const r = notificacoesDeAprovacaoPorAprovador({ ...base, aprovacoes: aprov(['desconto', 'supervisor'], ['credito', 'gerente']), acima: [ger], alcada: [ger] });
+    expect(r).toHaveLength(1);
+    expect(corpo(r, 'g1')).toBe('Motivo: Desconto, Crédito');
+  });
+  it('RN-VEN-30: nível sem ninguém cai no fallback, sem tirar os motivos de quem é do nível', () => {
+    const r = notificacoesDeAprovacaoPorAprovador({ ...base, aprovacoes: aprov(['desconto', 'supervisor'], ['credito', 'gerente']), acima: [ger], alcada: [ger, ana, adm] });
+    // supervisor sem ninguém: fallback = gerente, analista, admin; gerente continua com os dois motivos
+    expect(corpo(r, 'g1')).toBe('Motivo: Desconto, Crédito');
+    expect(corpo(r, 'a1')).toBe('Motivo: Desconto');
+    expect(corpo(r, 'ad1')).toBe('Motivo: Desconto');
+    expect(r).toHaveLength(3);
+  });
+  it('RN-VEN-30: analista é do tenant e só decide o nível analista; os motivos dele vêm só desse nível', () => {
+    const r = notificacoesDeAprovacaoPorAprovador({ ...base, aprovacoes: aprov(['estoque', 'analista'], ['desconto', 'supervisor']), acima: [sup], alcada: [ana, ger] });
+    expect(corpo(r, 'a1')).toBe('Motivo: Estoque');
+    expect(corpo(r, 's1')).toBe('Motivo: Desconto');
+    expect(r.map((n) => n.usuarioId)).not.toContain('g1');
+  });
+  it('RN-VEN-30: pessoa em dois papéis é uma só e os motivos se juntam sem repetir', () => {
+    const r = notificacoesDeAprovacaoPorAprovador({
+      ...base,
+      aprovacoes: aprov(['credito', 'gerente'], ['inadimplencia', 'gerente'], ['credito', 'supervisor']),
+      acima: [ger, ger],
+      alcada: [ger],
+    });
+    expect(r).toHaveLength(1);
+    expect(corpo(r, 'g1')).toBe('Motivo: Crédito, Inadimplente');
+  });
+  it('RN-VEN-30: o vendedor nunca recebe, mesmo sendo responsável da equipe ou do fallback', () => {
+    const eu = { id: V, perfil: 'gerente' };
+    const r = notificacoesDeAprovacaoPorAprovador({ ...base, aprovacoes: aprov(['credito', 'gerente']), acima: [eu], alcada: [eu, adm] });
+    expect(r.map((n) => n.usuarioId)).toEqual(['ad1']);
+  });
+  it('RN-VEN-30: é determinística (mesma entrada, mesma saída), o que sustenta a reentrega sem duplicar', () => {
+    const e = { ...base, aprovacoes: aprov(['credito', 'gerente'], ['desconto', 'supervisor']), acima: [sup, ger], alcada: [] };
+    expect(notificacoesDeAprovacaoPorAprovador(e)).toEqual(notificacoesDeAprovacaoPorAprovador(e));
+  });
+  it('RN-VEN-30: lista vazia não notifica ninguém', () => {
+    expect(notificacoesDeAprovacaoPorAprovador({ ...base, aprovacoes: [], acima: [ger], alcada: [ger] })).toEqual([]);
   });
 });

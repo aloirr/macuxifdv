@@ -15,10 +15,6 @@ describe('financeiroDoCliente (RN-VEN-12/13)', () => {
   it('RN-VEN-12: crédito do ERP, quando vem, é repassado', () => {
     expect(financeiroDoCliente({ ...fin, credito_disponivel_cents: 650_000 }, [], '2026-11-06')!.credito_disponivel_erp_cents).toBe(650_000);
   });
-  it('RN-VEN-12 (P4): limite_informado é falso com limite 0 (o banco grava 0 quando o ERP não manda) e verdadeiro com limite positivo', () => {
-    expect(financeiroDoCliente({ ...fin, limite_cents: 0 }, [], '2026-11-06')!.limite_informado).toBe(false);
-    expect(financeiroDoCliente(fin, [], '2026-11-06')!.limite_informado).toBe(true);
-  });
   it('RN-VEN-13: conta vencidos, soma o saldo e dá o maior atraso; vence hoje ainda não é vencido', () => {
     const r = financeiroDoCliente(fin, [aberto('2026-10-27', 10_000), aberto('2026-11-01', 5_000), aberto('2026-11-06', 7_000), { ...aberto('2026-09-01', 9_000), situacao: 'liquidado' }], '2026-11-06')!;
     expect(r).toMatchObject({ vencidos_qtd: 2, vencidos_cents: 15_000, maior_atraso_dias: 10 });

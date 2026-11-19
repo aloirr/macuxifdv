@@ -35,29 +35,53 @@ export function notificacaoDePedido(e: EntradaNotificacaoPedido): NotificacaoDeP
   return { destino: 'vendedor', titulo: n ? t.titulo.replace('Pedido', `Pedido ${n}`) : t.titulo, corpo, link, prioridade: t.prioridade };
 }
 
-const ORDEM_NIVEL = ['supervisor', 'gerente', 'analista'];
-const ROTULO_MOTIVO: Record<string, string> = { desconto: 'desconto', credito: 'crédito', inadimplencia: 'inadimplência', estoque: 'estoque', preco_minimo: 'preço mínimo' };
+/** Níveis que cada perfil decide (matriz RN-VEN-30, igual a `quemDecide` do Vendedor): gerente decide também o supervisor. */
+const NIVEIS_QUE_O_PERFIL_DECIDE: Record<string, readonly string[]> = { supervisor: ['supervisor'], gerente: ['supervisor', 'gerente'], analista: ['analista'] };
+
+export interface UsuarioAprovador {
+  id: string;
+  perfil: string;
+}
 
 /**
- * T-0184 (P3/P7): `vendedor.pedido.aprovacao_solicitada@2` traz uma aprovação por motivo. Cada nível recebe UMA notificação,
- * com os motivos que ele decide. Função pura sobre a lista do evento; a ligação do consumidor espera o contrato do Vendedor.
+ * T-0184, RN-VEN-30: `vendedor.pedido.aprovacao_solicitada@2` traz uma aprovação por motivo. Função pura: cada aprovador
+ * recebe UMA notificação, com todos os motivos que ele decide (os do nível dele e os dos níveis que o perfil decide).
+ * - `acima`: responsáveis das equipes acima do vendedor; `alcada`: gerentes, analistas e admins do tenant.
+ * - Por nível: supervisor e gerente = quem de `acima` tem esse perfil; analista = os analistas de `alcada`; nível sem ninguém
+ *   cai em `alcada`. O fallback de um nível não tira os motivos de quem já é do outro (os motivos se juntam por pessoa).
+ * - A ordem dos níveis e os rótulos dos motivos vêm do contrato do Vendedor (injetados pelo consumidor). O vendedor nunca recebe.
  */
-export function notificacoesDeAprovacaoPorNivel(e: {
+export function notificacoesDeAprovacaoPorAprovador(e: {
   pedidoId: string;
   numero?: number | string | null;
-  aprovacoes: ReadonlyArray<{ motivo: string; nivel: string; texto?: string }>;
-}): Array<{ nivel: string; notificacao: NotificacaoDePedido }> {
-  const porNivel = new Map<string, string[]>();
-  for (const a of e.aprovacoes) {
-    const motivos = porNivel.get(a.nivel) ?? [];
-    if (!motivos.includes(a.motivo)) motivos.push(a.motivo);
-    porNivel.set(a.nivel, motivos);
+  vendedorId: string;
+  aprovacoes: ReadonlyArray<{ motivo: string; nivel: string }>;
+  acima: readonly UsuarioAprovador[];
+  alcada: readonly UsuarioAprovador[];
+  ordemNiveis: readonly string[];
+  rotuloMotivo: Readonly<Record<string, string>>;
+}): Array<{ usuarioId: string; notificacao: NotificacaoDePedido }> {
+  const niveis = e.ordemNiveis.filter((n) => e.aprovacoes.some((a) => a.nivel === n));
+  const destinatarios = new Map<string, { perfil: string; niveis: Set<string> }>();
+  for (const nivel of niveis) {
+    const doNivel = nivel === 'analista' ? e.alcada.filter((u) => u.perfil === 'analista') : e.acima.filter((u) => u.perfil === nivel);
+    for (const u of doNivel.length > 0 ? doNivel : e.alcada) {
+      if (u.id === e.vendedorId) continue;
+      const d = destinatarios.get(u.id) ?? { perfil: u.perfil, niveis: new Set<string>() };
+      d.niveis.add(nivel);
+      destinatarios.set(u.id, d);
+    }
   }
   const base = notificacaoDePedido({ tipo: 'aprovacao_solicitada', pedidoId: e.pedidoId, numero: e.numero })!;
-  const pos = (n: string) => (ORDEM_NIVEL.includes(n) ? ORDEM_NIVEL.indexOf(n) : ORDEM_NIVEL.length);
-  return [...porNivel.entries()]
-    .sort(([a], [b]) => pos(a) - pos(b))
-    .map(([nivel, motivos]) => ({ nivel, notificacao: { ...base, corpo: 'Motivo: ' + motivos.map((m) => ROTULO_MOTIVO[m] ?? m).join(', ') } }));
+  return [...destinatarios.entries()].map(([usuarioId, d]) => {
+    const decide = new Set([...d.niveis, ...(NIVEIS_QUE_O_PERFIL_DECIDE[d.perfil] ?? [])]);
+    const motivos: string[] = [];
+    for (const nivel of niveis) {
+      if (!decide.has(nivel)) continue;
+      for (const a of e.aprovacoes) if (a.nivel === nivel && !motivos.includes(a.motivo)) motivos.push(a.motivo);
+    }
+    return { usuarioId, notificacao: { ...base, corpo: 'Motivo: ' + motivos.map((m) => e.rotuloMotivo[m] ?? m).join(', ') } };
+  });
 }
 
 /** Rotas internas do app que identificam notificações de sistema com entidades próprias. */
