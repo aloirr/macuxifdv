@@ -27,7 +27,7 @@ Promotor: 403 `RN-PRO-01` em toda escrita; leitura só da carteira. Vendedor e a
 ## Telas
 - **Campo**: Pedidos (lista, detalhe, novo pedido, Exportar PDF) sobre o pull; pedido na fila e aceito ainda não trazido pelo pull aparecem sobrepostos.
 - **Gestão**: aba Pedidos com a lista da equipe ("Para aprovar" primeiro), detalhe com decisão (Aprovar em 1 toque, Rejeitar com motivo; sem internet os botões ficam desabilitados) e PDF.
-- **BKO**: Pedidos (filtros na URL, cursor, atualização ao abrir, ao focar a janela, depois de decidir e pelo botão Atualizar, painel "Aguardando aprovação", gaveta com itens, histórico e PDF pelo diálogo de impressão) e Alçadas (limites em leitura e decisões recentes pela auditoria).
+- **BKO**: Pedidos (filtros na URL, cursor, atualização ao abrir, ao focar a janela, depois de decidir e pelo botão Atualizar, tabela simples de 13 colunas com o pendente na lista e as Ações (lista + Aplicar) só nele, gaveta com itens, histórico e PDF pelo diálogo de impressão) e Alçadas (limites em leitura e decisões recentes pela auditoria).
 - PDF: gerador único em `domain/pdf-pedido.ts` (versão cliente sem nenhum `%`; versão interna com tabela, desconto, alçada e histórico).
 
 ## Atualização das telas (RN-CORE-23, T-0054)

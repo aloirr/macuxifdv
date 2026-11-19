@@ -155,6 +155,14 @@ export const Order = z.object({
   /** T-0053: pedido nascido de orçamento / pedido em que o orçamento virou. */
   orcamento_origem_id: Id.nullable().optional(),
   convertido_pedido_id: Id.nullable().optional(),
+  /** R-20261118-214740 (tabela de Pedidos do BKO): do retrato do cliente no pedido, da observação e dos motivos de aprovação; ausente = pedido anterior. */
+  customer_code: z.string().optional(),
+  customer_uf: z.string().optional(),
+  customer_city: z.string().optional(),
+  order_note: z.string().optional(),
+  approval_reasons: z.array(z.enum(MOTIVOS_APROVACAO)).optional(),
+  /** Supervisor do vendedor (cadastro do Core). Ausente até o Core expor o nome numa consulta (pendência). */
+  supervisor_name: z.string().optional(),
   /** T-0138 (RN-VEN-31, T-0114): o conector aceita cancelar este pedido já enviado (vem no pull); ausente = não aceita. */
   erp_aceita_cancelamento: z.boolean().optional(),
   // --- T-0061: acréscimo do pedido, desconto efetivo (RN-VEN-03, sem frete), frete CIF/FOB e endereço de entrega ---

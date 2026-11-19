@@ -25,6 +25,8 @@ export interface LinhaPedido {
   nivel_aprovacao: NivelAprovacao | null;
   motivos_aprovacao: string[] | null;
   motivo_rejeicao: string | null;
+  /** observação do pedido (lista do BKO) */
+  observacao?: string | null;
   numero_erp: string | null;
   criado_no_aparelho_em: string | null;
   recebido_em: string | null;
@@ -183,6 +185,11 @@ export function paraOrder(l: LinhaPedido, parametros: Readonly<Record<string, un
     units: num(l.unidades),
     nivel_aprovacao: l.status === 'pending_approval' ? l.nivel_aprovacao : null,
     pode_decidir: l.status === 'pending_approval' && l.nivel_aprovacao ? quemDecide(perfil, l.nivel_aprovacao).pode : false,
+    ...(l.cliente_resumo?.codigo_erp ? { customer_code: l.cliente_resumo.codigo_erp } : {}),
+    ...(l.cliente_resumo?.uf ? { customer_uf: l.cliente_resumo.uf } : {}),
+    ...(l.cliente_resumo?.cidade ? { customer_city: l.cliente_resumo.cidade } : {}),
+    ...(l.observacao ? { order_note: l.observacao } : {}),
+    ...(l.status === 'pending_approval' && l.motivos_aprovacao?.length ? { approval_reasons: l.motivos_aprovacao as Order['approval_reasons'] } : {}),
     ...camposFaturamento(l),
     ...(l.acrescimo_pct !== undefined && l.acrescimo_pct !== null ? { surcharge_pct: num(l.acrescimo_pct) } : {}),
     ...(l.desconto_efetivo_pct !== undefined && l.desconto_efetivo_pct !== null ? { effective_discount_pct: num(l.desconto_efetivo_pct) } : {}),

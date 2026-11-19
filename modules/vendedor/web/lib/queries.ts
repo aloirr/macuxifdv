@@ -23,7 +23,6 @@ export const POR_PAGINA = 50;
 
 export const qk = {
   pedidos: (f: FiltrosPedidos) => ['vendedor', 'pedidos', f] as const,
-  pendentes: ['vendedor', 'pedidos', 'pendentes'] as const,
   pedido: (id: string) => ['vendedor', 'pedido', id] as const,
   alcadas: ['vendedor', 'alcadas'] as const,
   decisoes: ['vendedor', 'decisoes'] as const,
@@ -58,21 +57,11 @@ export function usePedidos(f: FiltrosPedidos) {
   return useInfiniteQuery({
     queryKey: qk.pedidos(f),
     queryFn: async ({ pageParam, signal }) =>
-      PedidosPage.parse(await api<unknown>('/vendedor/pedidos', { query: { ...paraQuery(f), limite: POR_PAGINA, sem_pendentes: '1', ...(pageParam ? { cursor: pageParam } : { totais: '1' }) }, signal })),
+      PedidosPage.parse(await api<unknown>('/vendedor/pedidos', { query: { ...paraQuery(f), limite: POR_PAGINA, ...(pageParam ? { cursor: pageParam } : { totais: '1' }) }, signal })),
     initialPageParam: '' as string,
     getNextPageParam: (ultima) => ultima.proximo_cursor ?? undefined,
     enabled,
     placeholderData: (prev) => prev,
-  });
-}
-
-/** Painel "Aguardando aprovação": os pendentes do escopo do usuário (independente dos filtros da tabela). */
-export function usePendentes() {
-  const enabled = useAuthed();
-  return useQuery({
-    queryKey: qk.pendentes,
-    queryFn: async ({ signal }) => PedidosPage.parse(await api<unknown>('/vendedor/pedidos', { query: { status: 'pending_approval', limite: 100 }, signal })).itens,
-    enabled,
   });
 }
 

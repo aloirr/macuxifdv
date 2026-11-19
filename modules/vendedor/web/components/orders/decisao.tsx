@@ -4,7 +4,7 @@
  * Aprovar e rejeitar pedido no BKO (RN-GES-08; ADR 0011): chama as rotas do Vendedor. Aprovar é 1 clique (comentário
  * opcional não é pedido); rejeitar abre um diálogo com o motivo obrigatório (3+ caracteres). A API revalida nível e escopo.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatBRL } from '@macuxi/comum';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
@@ -42,9 +42,7 @@ export function useDecidir(onFeito: (tom: NoticeTone, texto: string) => void) {
 export function BotoesDeDecisao({ pedido, onFeito, tamanho = 'sm' }: { pedido: PedidoDecidivel; onFeito: (tom: NoticeTone, texto: string) => void; tamanho?: 'sm' | 'md' }) {
   const { aprovar, rejeitar } = useDecidir(onFeito);
   const [rejeitando, setRejeitando] = useState(false);
-  const [motivo, setMotivo] = useState('');
   const ocupado = aprovar.isPending || rejeitar.isPending;
-  const motivoOk = motivo.trim().length >= MOTIVO_REJEICAO_MIN;
 
   return (
     <>
@@ -57,31 +55,49 @@ export function BotoesDeDecisao({ pedido, onFeito, tamanho = 'sm' }: { pedido: P
           className="flex-1"
           disabled={ocupado}
           data-testid={`pedido.rejeitar.${pedido.number}`}
-          onClick={() => {
-            setMotivo('');
-            setRejeitando(true);
-          }}
+          onClick={() => setRejeitando(true)}
         >
           Rejeitar
         </Button>
       </div>
+      <DialogoDeRejeicao
+        aberto={rejeitando}
+        pedido={pedido}
+        titulo={`Rejeitar pedido ${pedido.number}`}
+        rotuloConfirmar="Rejeitar pedido"
+        pendente={rejeitar.isPending}
+        onFechar={() => setRejeitando(false)}
+        onConfirmar={(motivo) => rejeitar.mutate({ p: pedido, motivo }, { onSettled: () => setRejeitando(false) })}
+      />
+    </>
+  );
+}
+
+/** Diálogo do motivo (RN-GES-08: 3+ caracteres), usado pelo quadro de decisão e pela tabela de Pedidos. */
+export function DialogoDeRejeicao({ aberto, pedido, titulo, rotuloConfirmar, pendente, onFechar, onConfirmar }: { aberto: boolean; pedido: PedidoDecidivel; titulo: string; rotuloConfirmar: string; pendente: boolean; onFechar: () => void; onConfirmar: (motivo: string) => void }) {
+  const [motivo, setMotivo] = useState('');
+  const motivoOk = motivo.trim().length >= MOTIVO_REJEICAO_MIN;
+  useEffect(() => {
+    if (aberto) setMotivo('');
+  }, [aberto]);
+  return (
       <Dialog
-        open={rejeitando}
-        title={`Rejeitar pedido ${pedido.number}`}
-        onClose={() => !rejeitar.isPending && setRejeitando(false)}
+        open={aberto}
+        title={titulo}
+        onClose={() => !pendente && onFechar()}
         footer={
           <>
-            <Button size="sm" onClick={() => setRejeitando(false)} disabled={rejeitar.isPending}>
+            <Button size="sm" onClick={onFechar} disabled={pendente}>
               Voltar
             </Button>
             <Button
               variant="danger"
               size="sm"
-              disabled={!motivoOk || rejeitar.isPending}
+              disabled={!motivoOk || pendente}
               data-testid="pedido.rejeitar.confirmar"
-              onClick={() => rejeitar.mutate({ p: pedido, motivo: motivo.trim() }, { onSettled: () => setRejeitando(false) })}
+              onClick={() => onConfirmar(motivo.trim())}
             >
-              {rejeitar.isPending ? 'Rejeitando…' : 'Rejeitar pedido'}
+              {pendente ? 'Enviando…' : rotuloConfirmar}
             </Button>
           </>
         }
@@ -105,7 +121,6 @@ export function BotoesDeDecisao({ pedido, onFeito, tamanho = 'sm' }: { pedido: P
           {!motivoOk && motivo.length > 0 && <span className="text-[12px] text-danger">Escreva ao menos {MOTIVO_REJEICAO_MIN} caracteres.</span>}
         </div>
       </Dialog>
-    </>
   );
 }
 
