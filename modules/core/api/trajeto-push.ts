@@ -1,16 +1,13 @@
 /**
  * Push do rastreamento (T-0156; ADR 0061; desenho `tracking.md` §5.2 e §5.3). RN-CORE-13, RN-CORE-37 e RN-CORE-46.
- * - `aceite_termo_rastreamento`: "Li e estou ciente" na versão vigente; idempotente pelo id (e pelo único vivo do usuário na versão);
- *   a versão tem de existir no tenant. O motor chama a entidade do aceite antes da dos pontos.
- * - `ponto_trajeto`: cada ponto passa pelo portão (`triarPontoRecebido`) e o que está fora dele é descartado sem gravar e sem travar a
+ *  * - `ponto_trajeto`: cada ponto passa pelo portão (`triarPontoRecebido`) e o que está fora dele é descartado sem gravar e sem travar a
  *   fila (a resposta é `aceito`: o aparelho apaga o lote inteiro). Depois de gravar, recalcula o dia inteiro de cada (usuário, data
  *   no fuso do tenant) e faz upsert em `core.deslocamento_dia` (`origem = 'rastreamento'`).
- * - `pausa_trajeto`: só início e fim (sem motivo); o fim chega depois, no mesmo id.
  * O usuário vem sempre da sessão. Nenhuma coordenada vai para log, erro ou resposta (§9): só ids e contagens.
  */
 import { localIsoDate } from '@macuxi/comum/fuso';
 import type { ClienteBanco, ContextoBase, ItemPush, ResultadoItemPush } from '@macuxi/platform-sdk';
-import { AceiteTermoRastreamentoSchema, PARAMETRO_RASTREAMENTO, PausaTrajetoSchema, PontoTrajetoSchema, TRAJETO_DIAS_MAX, type PontoTrajeto as PontoPush } from '../contracts';
+import { PARAMETRO_RASTREAMENTO, PontoTrajetoSchema, type PontoTrajeto as PontoPush } from '../contracts';
 import { PARAMETRO_FERIADOS } from '../contracts/inicio-parametros';
 import { idDoPayloadConfere } from '../domain/idempotencia';
 import { metrosDoTrajeto } from '../domain/performance/trajeto';
@@ -30,87 +27,18 @@ function conferir<T>(item: ItemPush, schema: { safeParse(v: unknown): { success:
   return { ok: true, dado: v.data };
 }
 
-// ---- Aceite do termo ----
-export async function receberAceitesTermo(ctx: ContextoBase, itens: readonly ItemPush[]): Promise<ResultadoItemPush[]> {
-  const saida: ResultadoItemPush[] = [];
-  for (const item of itens) {
-    const c = conferir(item, AceiteTermoRastreamentoSchema, 'Os dados do aceite do termo estão incompletos. Atualize o app e tente de novo.');
-    if (!c.ok) {
-      saida.push(c.resposta);
-      continue;
-    }
-    const a = c.dado;
-    const agora = ctx.agora();
-    // a hora do aparelho vale, sem passar do relógio do servidor (relógio adiantado não antecipa o aceite)
-    const aceitoEm = new Date(Math.min(Date.parse(a.aceito_em), agora.getTime())).toISOString();
-    saida.push(
-      await ctx.comTenant(async (db) => {
-        const existe = await db.query('select 1 from core.termo_rastreamento where versao = $1 and deleted_at is null', [a.termo_versao]);
-        if (existe.rows.length === 0) return rejeitado(item.id, 'TERMO_INEXISTENTE', 'Essa versão do termo não existe mais. Abra o app para atualizar e aceite a versão atual.');
-        await db.query(
-          `insert into core.aceite_termo_rastreamento (id, tenant_id, usuario_id, termo_versao, aceito_em)
-           values ($1, plataforma.tenant_atual(), $2, $3, $4::timestamptz) on conflict do nothing`,
-          [a.id, ctx.usuario.id, a.termo_versao, aceitoEm],
-        );
-        return aceito(item.id);
-      }),
-    );
-  }
-  return saida;
-}
-
-// ---- Pausa ----
-export async function receberPausasTrajeto(ctx: ContextoBase, itens: readonly ItemPush[]): Promise<ResultadoItemPush[]> {
-  const saida: ResultadoItemPush[] = [];
-  for (const item of itens) {
-    const c = conferir(item, PausaTrajetoSchema, 'Os dados da pausa estão incompletos. Atualize o app e tente de novo.');
-    if (!c.ok) {
-      saida.push(c.resposta);
-      continue;
-    }
-    const p = c.dado;
-    const limite = ctx.agora().getTime() - TRAJETO_DIAS_MAX * 86_400_000;
-    // pausa sem duração ou fora da retenção não vale registro (o CHECK do banco exige fim > início); não trava a fila
-    if (Date.parse(p.inicio) < limite || (p.fim !== null && Date.parse(p.fim) <= Date.parse(p.inicio))) {
-      saida.push(aceito(item.id));
-      continue;
-    }
-    await ctx.comTenant((db) =>
-      db.query(
-        `insert into core.pausa_trajeto (id, tenant_id, usuario_id, inicio, fim) values ($1, plataforma.tenant_atual(), $2, $3::timestamptz, $4::timestamptz)
-         on conflict (id) do update set fim = excluded.fim
-           where core.pausa_trajeto.usuario_id = excluded.usuario_id and core.pausa_trajeto.fim is null and excluded.fim is not null`,
-        [p.id, ctx.usuario.id, p.inicio, p.fim],
-      ),
-    );
-    saida.push(aceito(item.id));
-  }
-  return saida;
-}
-
 // ---- Pontos ----
 /** O cadastro de que o portão precisa para o usuário da sessão (uma leitura por lote). */
 async function baseDoPortao(db: ClienteBanco, usuarioId: string, perfil: string, fuso: string): Promise<BaseTriagem> {
   const linhas = await lerParametrosCore(db, [PARAMETRO_RASTREAMENTO, PARAMETRO_FERIADOS]);
   const param = parametrosRastreamentoDasLinhas(linhas);
-  const termo = (await db.query<{ versao: number | null }>('select max(versao)::int as versao from core.termo_rastreamento where deleted_at is null')).rows[0]?.versao ?? null;
-  const aceite =
-    termo === null
-      ? null
-      : ((
-          await db.query<{ versao: number; aceito_em: string }>(
-            `select termo_versao as versao, to_char(aceito_em at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as aceito_em
-               from core.aceite_termo_rastreamento where usuario_id = $1 and termo_versao = $2 and deleted_at is null`,
-            [usuarioId, termo],
-          )
-        ).rows[0] ?? null);
   const ausencias = (
     await db.query<{ de: string; ate: string }>(
       `select to_char(de, 'YYYY-MM-DD') as de, to_char(ate, 'YYYY-MM-DD') as ate from core.ausencia_usuario where usuario_id = $1 and deleted_at is null`,
       [usuarioId],
     )
   ).rows;
-  return { ativo: param.ativo, termoVigente: termo, cargo: perfil, aceite, expediente: param.expediente, feriados: feriadosDasLinhas(linhas), ausencias, fuso };
+  return { ativo: param.ativo, cargo: perfil, expediente: param.expediente, feriados: feriadosDasLinhas(linhas), ausencias, fuso };
 }
 
 /** Recalcula o dia inteiro do usuário (data no fuso do tenant) e grava o resumo; idempotente (§5.3). */

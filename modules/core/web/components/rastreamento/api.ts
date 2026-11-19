@@ -1,5 +1,5 @@
 /**
- * Chamadas do BKO do rastreamento (T-0156; RN-CORE-13): parâmetro, termo e ausências em `/v1/core`, com os contratos de `trajeto.ts`.
+ * Chamadas do BKO do rastreamento (T-0156; RN-CORE-13): parâmetro e ausências em `/v1/core`, com os contratos de `trajeto.ts`.
  * `chamar` é o `api` do platform-sdk; os testes passam a API simulada.
  */
 import { api } from '@macuxi/platform-sdk/web';
@@ -7,17 +7,12 @@ import {
   AusenciaListaRespostaSchema,
   AusenciaUsuarioSchema,
   ParametrosRastreamentoSchema,
-  TermoRastreamentoSchema,
-  TermosRastreamentoRespostaSchema,
   type AusenciaUsuario,
   type AusenciaUsuarioEntrada,
   type ParametrosRastreamento,
-  type TermoRastreamento,
-  type TermosRastreamentoResposta,
 } from '../../../contracts';
 
 export const CHAVE_RASTREAMENTO = ['core', 'parametros', 'rastreamento'] as const;
-export const CHAVE_TERMOS = ['core', 'rastreamento', 'termos'] as const;
 export const CHAVE_AUSENCIAS = ['core', 'ausencias'] as const;
 
 export function criarApiRastreamento(chamar: typeof api = api) {
@@ -26,8 +21,6 @@ export function criarApiRastreamento(chamar: typeof api = api) {
     gravar: async (p: ParametrosRastreamento): Promise<void> => {
       await chamar<unknown>('/core/parametros/rastreamento', { method: 'PUT', body: ParametrosRastreamentoSchema.parse(p) });
     },
-    termos: async (): Promise<TermosRastreamentoResposta> => TermosRastreamentoRespostaSchema.parse(await chamar<unknown>('/core/rastreamento/termos')),
-    publicar: async (texto: string): Promise<TermoRastreamento> => TermoRastreamentoSchema.parse(await chamar<unknown>('/core/rastreamento/termos', { method: 'POST', body: { texto } })),
     ausencias: async (usuarioId?: string): Promise<AusenciaUsuario[]> =>
       AusenciaListaRespostaSchema.parse(await chamar<unknown>('/core/ausencias', { query: usuarioId ? { usuario_id: usuarioId } : {} })).ausencias,
     cadastrarAusencia: async (e: AusenciaUsuarioEntrada): Promise<AusenciaUsuario> => AusenciaUsuarioSchema.parse(await chamar<unknown>('/core/ausencias', { method: 'POST', body: e })),

@@ -160,14 +160,5 @@ BKO, Parâmetros › Calendário (ações `rastreamento.configurar` e `ausencia.
 | `rastreamento.parametros.painel` · `.ativo` · `.salvar` · `.aviso` | painel "Rastreamento no expediente": ligar (padrão desligado), salvar e aviso |
 | `rastreamento.parametros.faixa.<dia 0-6>.<0\|1>.inicio` · `.fim` · `.erro` | expediente: 1ª e 2ª faixa por dia ('0' = domingo) |
 | `rastreamento.parametros.frequencia.distancia_m` · `.intervalo_min` · `.lote_min` (e `.erro`) | frequência da captura |
-| `rastreamento.termo.painel` · `.texto` · `.publicar` · `.aviso` · `.vigente` · `.versao.<n>` | termo de ciência: texto da nova versão, publicar e versões publicadas |
 | `rastreamento.ausencias.painel` · `.usuario` · `.de` · `.ate` · `.cadastrar` · `.aviso` · `.lista` · `.linha.<id>` · `.cancelar.<id>` | ausências: formulário e lista |
 
-Campo (telas `/m/termo-rastreamento` e `/m/meu-trajeto`; seção e alerta montados pelo Perfil do shell):
-
-| testID | Onde |
-|---|---|
-| `termo-rastreamento.tela` · `.texto` · `.aceitar` · `.agora-nao` · `.erro` · `.link-trajeto` · `.vazio` | termo: "Li e estou ciente", "Agora não" e, só leitura (`?leitura=1`), o link "Meu trajeto" |
-| `localizacao.secao` · `.estado` · `.pausar` · `.retomar` · `.desfazer` · `.meu-trajeto` · `.termo` | seção Localização do Perfil |
-| `localizacao.alerta-termo` · `.ler-termo` | linha na área Alertas quando falta o aceite |
-| `meu-trajeto.tela` · `.dia` · `.dia-anterior` · `.dia-proximo` · `.mapa` · `.km` · `.linha.<n>` · `.vazio` · `.sem-sinal` · `.erro` · `.tentar-de-novo` · `.atualizar` | Meu trajeto |

@@ -1,14 +1,7 @@
 /**
- * Formato do trajeto na tela (T-0156; spec `docs/design/tracking/spec.md` §3): o mesmo texto e o mesmo desenho no "Meu trajeto" do
- * Campo e no mapa da equipe do Gestão. Funções puras; sem coordenada em texto.
+ * Formato do trajeto na tela (T-0156; spec `docs/design/tracking/spec.md` §3): o texto e o desenho do mapa da equipe do Gestão. Funções puras; sem coordenada em texto.
  */
 import type { PontoDoTrajeto } from './trajeto';
-
-/** Pausa do dia para o desenho e a lista; `fim` nulo = em curso. */
-export interface PausaDoDia {
-  inicio: string;
-  fim: string | null;
-}
 
 /** "850 m" abaixo de 1 km; a partir de 1 km, uma casa com vírgula ("18,6 km"). */
 export function formatarDistancia(metros: number): string {
@@ -17,26 +10,6 @@ export function formatarDistancia(metros: number): string {
 
 /** "08:04" de um instante UTC, no fuso do tenant. */
 export { formatHHMM } from '@macuxi/comum/fuso';
-
-/** Trajeto em trechos de pontos: sólidos, e tracejado o trecho que cruza uma pausa (o gestor não lê o buraco como falha). */
-export function trechosDoTrajeto(pontos: readonly PontoDoTrajeto[], pausas: readonly PausaDoDia[]): { solidos: PontoDoTrajeto[][]; tracejados: PontoDoTrajeto[][] } {
-  const ordenados = [...pontos].sort((a, b) => Date.parse(a.capturado_em) - Date.parse(b.capturado_em));
-  const solidos: PontoDoTrajeto[][] = [];
-  const tracejados: PontoDoTrajeto[][] = [];
-  let atual: PontoDoTrajeto[] = [];
-  for (let i = 0; i < ordenados.length; i++) {
-    const p = ordenados[i]!;
-    const ant = ordenados[i - 1];
-    const cruza = ant ? pausas.some((x) => Date.parse(x.inicio) < Date.parse(p.capturado_em) && (x.fim === null || Date.parse(x.fim) > Date.parse(ant.capturado_em))) : false;
-    if (cruza && ant) {
-      if (atual.length > 1) solidos.push(atual);
-      tracejados.push([ant, p]);
-      atual = [p];
-    } else atual.push(p);
-  }
-  if (atual.length > 1) solidos.push(atual);
-  return { solidos, tracejados };
-}
 
 /** Projeta latitude e longitude na caixa do mapa (equiretangular com correção do cosseno da latitude), com margem. */
 export function projetarPontos(pontos: readonly Pick<PontoDoTrajeto, 'latitude' | 'longitude'>[], largura: number, altura: number, margem: number): Array<{ x: number; y: number }> {

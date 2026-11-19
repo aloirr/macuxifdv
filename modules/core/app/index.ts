@@ -18,8 +18,6 @@ import { TelaNotificacoes } from './telas/notificacoes';
 import { TelaMeusModulos } from './telas/meus-modulos';
 import { PaginaRecadosETarefas, PaginaTarefa } from './telas/paginas-recados-e-tarefas';
 import { TelaPerformance } from './telas/performance';
-import { TelaMeuTrajeto } from './telas/rastreamento/tela-meu-trajeto';
-import { TelaTermoRastreamento } from './telas/rastreamento/tela-termo';
 import { TelaRota } from './telas/rota';
 
 export { definirAbrirFotoPdv, definirCapturaFoto, definirCapturaFotoPdv, type AbrirFotoPdv, type CapturaFoto, type CapturaFotoPdv, type FotoPdvCapturada, type PedidoAbrirFotoPdv } from './lib/foto-fachada';
@@ -27,13 +25,6 @@ export { BalaoRecadosETarefas, ENTIDADE_TAREFA } from './telas/recados-e-tarefas
 export { abrirTarefaDoCore, ROTA_RECADOS_E_TAREFAS, rotaDaTarefa } from './telas/paginas-recados-e-tarefas';
 export { chaveDaCopiaPerformance, ENTIDADES_PERFORMANCE } from './telas/performance';
 export { useInicio } from './lib/usar-inicio';
-// Rastreamento no expediente (T-0156): o Perfil do shell monta a seção e a linha do Alerta; a raiz do shell chama `useAbrirTermoPendente`;
-// a tarefa `macuxi-trajeto` lê as chaves do armazenamento e a captura entrega os pontos de hoje por `definirPontosLocaisDoDia`
-export { SecaoLocalizacaoPerfil, AlertaTermoRastreamento } from './telas/rastreamento/secao-localizacao';
-export { useAbrirTermoPendente } from './telas/rastreamento/abrir-termo-pendente';
-export { useRastreamento, type UsoRastreamento } from './lib/usar-rastreamento';
-export { definirPontosLocaisDoDia, type LeitorDePontosLocais } from './lib/pontos-locais';
-export { CHAVE_ACEITE_LOCAL, CHAVE_PAUSA_LOCAL } from './lib/rastreamento-local';
 export { TelaInicioCampo, useInicioCampo, ENTIDADE_FRASE_DIA, definirResolvedorFotoPerfil, type ResolvedorFotoPerfil, type PropsTelaInicioCampo, type VisaoInicioCampo } from './telas/inicio';
 export { ENTIDADE_USUARIO_AVATAR } from './telas/inicio/foto-perfil';
 export { useNotificacoes } from './lib/usar-notificacoes';
@@ -55,8 +46,6 @@ export const moduloApp = definirModuloShell<ComponentType>({
     { id: 'clientes', caminho: 'clientes', titulo: 'Clientes', navegacao: 'Clientes', icone: 'users', apps: ['campo', 'gestao'], ordem: 30, componente: comVisitas(TelaClientes) },
     { id: 'metas', caminho: 'metas', titulo: 'Metas', apps: ['campo'], componente: TelaMetas },
     { id: 'meus-modulos', caminho: 'meus-modulos', titulo: 'Meus módulos', apps: ['campo', 'gestao'], componente: TelaMeusModulos },
-    { id: 'termo-rastreamento', caminho: 'termo-rastreamento', titulo: 'Localização no expediente', apps: ['campo'], componente: TelaTermoRastreamento },
-    { id: 'meu-trajeto', caminho: 'meu-trajeto', titulo: 'Meu trajeto', apps: ['campo'], componente: TelaMeuTrajeto },
     { id: 'notificacoes', caminho: 'notificacoes', titulo: 'Notificações', apps: ['campo', 'gestao'], componente: TelaNotificacoes },
     { id: 'cliente', caminho: 'cliente', titulo: 'Ficha do cliente', apps: ['campo', 'gestao'], componente: comVisitas(TelaCliente) },
     { id: 'performance', caminho: 'performance', titulo: 'Performance', navegacao: 'Performance', icone: 'target', ordem: 50, apps: ['campo'], componente: TelaPerformance },
@@ -74,7 +63,7 @@ export const moduloApp = definirModuloShell<ComponentType>({
     ...entidadesNotificacao,
     // Produto (T-0029): catálogo mestre para o Novo pedido do Vendedor
     ...entidadesProduto,
-    // Rastreamento no expediente (T-0156): aceite (antes dos pontos), ponto e pausa só de envio; termo e ausência do próprio usuário no pull
+    // Rastreamento no expediente (T-0156): ponto só de envio; ausência do próprio usuário no pull (interno, sem tela no Campo)
     ...entidadesRastreamento,
   ],
   // O card antigo de notificações saiu do slot `inicio.cards` (T-0073): o Início novo mostra as 3 últimas pelo `useInicio()`.

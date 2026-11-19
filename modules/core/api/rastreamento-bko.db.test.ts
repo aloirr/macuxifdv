@@ -1,6 +1,6 @@
 /**
  * T-0156 × Postgres real (fixture dois-tenants, RLS): BKO do rastreamento — parâmetro (padrão desligado, salvar idempotente e
- * auditado, expediente obrigatório para ligar), termo (cada publicação é uma versão nova, isolado por tenant) e ausências (só do
+ * auditado, expediente obrigatório para ligar), e ausências (só do
  * escopo, cancelar). RN-CORE-13, RN-AUD-01, RN-CORE-04. Pula sem Postgres.
  */
 import { semBanco } from '@macuxi/db/teste/estado';
@@ -21,7 +21,6 @@ describe.skipIf(semBanco())('Core T-0156 × Postgres: BKO do rastreamento', () =
   const limpar = async () => {
     await amb.limpar("delete from plataforma.parametro where tenant_id = $1 and modulo = 'core' and chave = 'rastreamento'", [A.tenantId]);
     await amb.limpar("delete from core.ausencia_usuario where usuario_id = any($1::uuid[]) and de >= '2027-03-01'", [[U.vendedor1, U.vendedor2]]);
-    await amb.limpar("delete from core.termo_rastreamento where tenant_id = $1 and versao > 2", [B.tenantId]);
   };
 
   beforeAll(async () => {
@@ -49,19 +48,6 @@ describe.skipIf(semBanco())('Core T-0156 × Postgres: BKO do rastreamento', () =
     expect((await chamar('GET', 'parametros/rastreamento')).ativo).toBe(true);
     // outro tenant não enxerga o parâmetro do A (RLS): segue desligado
     expect((await chamar('GET', 'parametros/rastreamento', adminB)).ativo).toBe(false);
-  });
-
-  it('RN-CORE-13: cada publicação do termo é uma versão nova (a maior é a vigente) e o outro tenant não vê o texto', async () => {
-    const antes = await chamar('GET', 'rastreamento/termos', adminB);
-    const base = antes.vigente as number;
-    const v1 = await chamar('POST', 'rastreamento/termos', adminB, { corpo: { texto: 'Primeira redação do termo.' } });
-    const v2 = await chamar('POST', 'rastreamento/termos', adminB, { corpo: { texto: 'Segunda redação do termo.' } });
-    expect([v1.versao, v2.versao]).toEqual([base + 1, base + 2]);
-    const lista = await chamar('GET', 'rastreamento/termos', adminB);
-    expect(lista.vigente).toBe(base + 2);
-    expect(lista.termos[0]).toMatchObject({ versao: base + 2, texto: 'Segunda redação do termo.' });
-    expect((await chamar('GET', 'rastreamento/termos', admin)).termos.every((t: { texto: string }) => !t.texto.includes('redação do termo'))).toBe(true);
-    await expect(chamar('POST', 'rastreamento/termos', adminB, { corpo: { texto: '   ' } })).rejects.toBeDefined();
   });
 
   it('RN-CORE-13/04: o supervisor cadastra ausência só de quem está na equipe dele; o admin, de qualquer um; cancelar tira da lista', async () => {

@@ -6,10 +6,7 @@ import type { MotivoSemRastreio } from './trajeto';
 
 export const ROTULO_ESTADO_RASTREAMENTO: Readonly<Record<'ativa' | MotivoSemRastreio, string>> = {
   ativa: 'Ativa',
-  pausa: 'Pausada',
   fora_do_expediente: 'Fora do expediente',
-  sem_termo: 'Sem termo',
-  sem_aceite: 'Sem aceite do termo',
   desligado: 'Desligado pela empresa',
   cargo: 'Cargo não rastreado',
   app: 'App não rastreado',

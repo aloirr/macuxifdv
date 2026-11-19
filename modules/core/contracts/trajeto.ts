@@ -1,11 +1,10 @@
 /**
- * Rastreamento de localização no expediente (T-0156; ADR 0061; desenho `docs/desenho/tracking.md`). RN-CORE-13 (tracking só com
- * finalidade, aviso e termo aceito), RN-CORE-37 (permissão "o tempo todo") e RN-CORE-46 (km do dia).
+ * Rastreamento de localização no expediente (T-0156; ADR 0061; desenho `docs/desenho/tracking.md`). RN-CORE-13 (tracking só dentro do portão:
+ * parâmetro, cargo, app, feriado, ausência, expediente e permissão; interno, o vendedor não vê), RN-CORE-37 (permissão "o tempo todo") e RN-CORE-46 (km do dia).
  *
- * - Push (motor de sync, entidades só de envio, ADR 0009): `ponto_trajeto`, `pausa_trajeto` e `aceite_termo_rastreamento`, idempotentes
- *   pelo UUID do aparelho; o aceite vai antes dos pontos. A API revalida o portão (`podeRastrear`) e descarta o ponto fora dele sem
+ * - Push (motor de sync, entidade só de envio, ADR 0009): `ponto_trajeto`, idempotente pelo UUID do aparelho. A API revalida o portão (`podeRastrear`) e descarta o ponto fora dele sem
  *   travar a fila.
- * - Pull: `termo_rastreamento` (versão vigente do tenant) e `ausencia_usuario` (só as do próprio usuário).
+ * - Pull: `ausencia_usuario` (só as do próprio usuário).
  * - Parâmetro do tenant `rastreamento` (padrão DESLIGADO): ligar, expediente por dia da semana e frequência da captura.
  * - Consulta `core.trajeto_do_dia@1`: o Gestor lê os pontos do dia da equipe, com o escopo conferido pelo Core. Nenhum outro
  *   módulo lê as tabelas do trajeto.
@@ -32,12 +31,7 @@ const Longitude = z.number().min(-180).max(180).refine(seisCasas, 'Use no máxim
 
 // ---- Entidades de sync ----
 export const ENTIDADE_PONTO_TRAJETO = 'ponto_trajeto';
-export const ENTIDADE_PAUSA_TRAJETO = 'pausa_trajeto';
-export const ENTIDADE_ACEITE_TERMO_RASTREAMENTO = 'aceite_termo_rastreamento';
-export const ENTIDADE_TERMO_RASTREAMENTO = 'termo_rastreamento';
 export const ENTIDADE_AUSENCIA_USUARIO = 'ausencia_usuario';
-/** Ordem do push: o aceite antes dos pontos (§3.4); a pausa junto dos pontos. */
-export const ORDEM_PUSH_TRAJETO = [ENTIDADE_ACEITE_TERMO_RASTREAMENTO, ENTIDADE_PONTO_TRAJETO, ENTIDADE_PAUSA_TRAJETO] as const;
 /** Pontos por lote de envio (§3.4). */
 export const PONTOS_POR_LOTE = 500;
 
@@ -54,37 +48,6 @@ export const PontoTrajetoSchema = z
   })
   .strict();
 export type PontoTrajeto = z.infer<typeof PontoTrajetoSchema>;
-
-/** Push `pausa_trajeto` (§4.3): só início e fim, sem motivo. `fim` nulo = pausa em curso (o aparelho reenvia com o fim; upsert pelo id). */
-export const PausaTrajetoSchema = z
-  .object({ id: Id, inicio: Instante, fim: Instante.nullable() })
-  .strict()
-  .refine((p) => p.fim === null || Date.parse(p.fim) >= Date.parse(p.inicio), { message: 'O fim da pausa vem depois do início.', path: ['fim'] });
-export type PausaTrajeto = z.infer<typeof PausaTrajetoSchema>;
-
-/** Push `aceite_termo_rastreamento` (§6): "Li e estou ciente" na versão vigente, com a hora do aparelho. A versão tem de existir no tenant. */
-export const AceiteTermoRastreamentoSchema = z.object({ id: Id, termo_versao: z.number().int().min(1), aceito_em: Instante }).strict();
-export type AceiteTermoRastreamento = z.infer<typeof AceiteTermoRastreamentoSchema>;
-
-/**
- * Pull `aceite_termo_rastreamento` (só os do próprio usuário): o aceite já feito volta ao aparelho depois de apagar os bancos locais, e o
- * termo não é pedido de novo (banco-dados, `docs/banco/core.md` 0089). A entidade fica `ambos`: envia `AceiteTermoRastreamentoSchema`, recebe esta linha.
- */
-export const AceiteTermoRastreamentoSyncSchema = z
-  .object({ id: Id, usuario_id: Id, termo_versao: z.number().int().min(1), aceito_em: Instante, updated_at: Instante, deleted_at: Instante.nullable(), external_id: z.string().nullable().optional() })
-  .strict();
-export type AceiteTermoRastreamentoSync = z.infer<typeof AceiteTermoRastreamentoSyncSchema>;
-
-/** Pull `termo_rastreamento` e resposta do BKO: cada publicação é uma versão nova; vigente = a maior versão publicada. */
-export const TermoRastreamentoSchema = z
-  .object({ id: Id, versao: z.number().int().min(1), texto: z.string().min(1), publicado_em: Instante, updated_at: Instante, deleted_at: Instante.nullable(), external_id: z.string().nullable().optional() })
-  .strict();
-export type TermoRastreamento = z.infer<typeof TermoRastreamentoSchema>;
-/** Tamanho máximo do texto do termo publicado no BKO. */
-export const TERMO_TEXTO_MAX = 20_000;
-/** `POST /v1/core/rastreamento/termos` (ação `rastreamento.configurar`): o admin manda o texto; a versão é a seguinte, dada pelo servidor. */
-export const TermoRastreamentoPublicarSchema = z.object({ texto: z.string().trim().min(1).max(TERMO_TEXTO_MAX) }).strict();
-export type TermoRastreamentoPublicar = z.infer<typeof TermoRastreamentoPublicarSchema>;
 
 const deAteValido = (a: { de: string; ate: string }): boolean => a.de <= a.ate;
 const MENSAGEM_DE_ATE = 'A data final vem no mesmo dia ou depois da inicial.';
@@ -107,10 +70,6 @@ export const AusenciaListaQuerySchema = z.object({ usuario_id: Id.optional() }).
 export type AusenciaListaQuery = z.infer<typeof AusenciaListaQuerySchema>;
 export const AusenciaListaRespostaSchema = z.object({ ausencias: z.array(AusenciaUsuarioSchema) }).strict();
 export type AusenciaListaResposta = z.infer<typeof AusenciaListaRespostaSchema>;
-/** `GET /v1/core/rastreamento/termos` (ação `rastreamento.configurar`): as versões publicadas, a maior primeiro; `vigente` = a maior ou nulo. */
-export const TermosRastreamentoRespostaSchema = z.object({ vigente: z.number().int().min(1).nullable(), termos: z.array(TermoRastreamentoSchema) }).strict();
-export type TermosRastreamentoResposta = z.infer<typeof TermosRastreamentoRespostaSchema>;
-
 // ---- Parâmetro do tenant ----
 export const PARAMETRO_RASTREAMENTO = 'rastreamento';
 /** Faixa do expediente em minutos do dia, no fuso do tenant. */
@@ -153,11 +112,11 @@ export const PARAMETROS_RASTREAMENTO_PADRAO: ParametrosRastreamento = {
 
 // ---- Portão (§2) ----
 /** Motivo de o portão estar fechado (`podeRastrear`); o Diagnóstico mostra só o estado, nunca a coordenada (§9). */
-export const MOTIVOS_SEM_RASTREIO = ['desligado', 'sem_termo', 'cargo', 'app', 'sem_aceite', 'fora_do_expediente', 'feriado', 'ausencia', 'pausa', 'sem_permissao'] as const;
+export const MOTIVOS_SEM_RASTREIO = ['desligado', 'cargo', 'app', 'fora_do_expediente', 'feriado', 'ausencia', 'sem_permissao'] as const;
 export type MotivoSemRastreio = (typeof MOTIVOS_SEM_RASTREIO)[number];
 
 // ---- Consultas ----
-/** Ponto como sai para a tela (mapa do Gestão, "Meu trajeto"): sem velocidade nem aparelho. */
+/** Ponto como sai para a tela (mapa do Gestão): sem velocidade nem aparelho. */
 export const PontoDoTrajetoSchema = z.object({ capturado_em: Instante, latitude: Latitude, longitude: Longitude, precisao_m: z.number().nonnegative() }).strict();
 export type PontoDoTrajeto = z.infer<typeof PontoDoTrajetoSchema>;
 export const TrajetoDoUsuarioSchema = z
@@ -167,7 +126,6 @@ export const TrajetoDoUsuarioSchema = z
     metros: z.number().int().nonnegative(),
     /** Em ordem de `capturado_em`. */
     pontos: z.array(PontoDoTrajetoSchema),
-    pausas: z.array(z.object({ inicio: Instante, fim: Instante.nullable() }).strict()),
   })
   .strict();
 export type TrajetoDoUsuario = z.infer<typeof TrajetoDoUsuarioSchema>;
@@ -175,14 +133,14 @@ export type TrajetoDoUsuario = z.infer<typeof TrajetoDoUsuarioSchema>;
 /** Dias para trás que a consulta alcança (retenção, §8). */
 export const TRAJETO_DIAS_MAX = 90;
 
-/** `GET /v1/core/trajeto?usuario_id&data` ("Meu trajeto" com `core.trajeto.ver_proprio`; a equipe com `core.trajeto.ver_equipe`, no escopo). */
-export const TrajetoQuerySchema = z.object({ usuario_id: Id.optional(), data: DataCivil }).strict();
+/** `GET /v1/core/trajeto?usuario_id&data` (`core.trajeto.ver_equipe`, só no escopo; o vendedor não consulta trajeto). */
+export const TrajetoQuerySchema = z.object({ usuario_id: Id, data: DataCivil }).strict();
 export type TrajetoQuery = z.infer<typeof TrajetoQuerySchema>;
 export const TrajetoRespostaSchema = z.object({ data: DataCivil, usuario: TrajetoDoUsuarioSchema }).strict();
 export type TrajetoResposta = z.infer<typeof TrajetoRespostaSchema>;
 
 /**
- * `core.trajeto_do_dia@1` (ADR 0061 §1): pontos e pausas do dia (data no fuso do tenant) dos `usuario_ids` pedidos (1 a 500), só
+ * `core.trajeto_do_dia@1` (ADR 0061 §1): pontos do dia (data no fuso do tenant) dos `usuario_ids` pedidos (1 a 500), só
  * os que estão no escopo de quem consulta e com `core.trajeto.ver_equipe`; id fora do escopo, removido ou de outro tenant some
  * (não é erro). Até `TRAJETO_DIAS_MAX` dias atrás. Só leitura, na transação de quem consulta.
  */

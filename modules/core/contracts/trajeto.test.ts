@@ -1,15 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-  AceiteTermoRastreamentoSchema,
   AusenciaUsuarioEntradaSchema,
   AusenciaUsuarioSchema,
   CONSULTA_TRAJETO_DO_DIA,
   ParametrosRastreamentoSchema,
   PARAMETROS_RASTREAMENTO_PADRAO,
-  PausaTrajetoSchema,
   PontoTrajetoSchema,
-  TermoRastreamentoPublicarSchema,
-  TermoRastreamentoSchema,
   TrajetoDoDiaEntradaSchema,
   TrajetoDoDiaSaidaSchema,
 } from './trajeto';
@@ -27,24 +23,6 @@ describe('RN-CORE-13: contratos do rastreamento (T-0156, desenho tracking §3.1 
     expect(PontoTrajetoSchema.safeParse({ ...ponto, longitude: -181 }).success).toBe(false);
     expect(PontoTrajetoSchema.safeParse({ ...ponto, latitude: -3.1190281 }).success).toBe(false);
     expect(PontoTrajetoSchema.safeParse({ ...ponto, precisao_m: -1 }).success).toBe(false);
-  });
-
-  it('RN-CORE-13: a pausa registra só o início e o fim (fim nulo = em curso), sem motivo; o fim não vem antes do início', () => {
-    expect(PausaTrajetoSchema.safeParse({ id: ID, inicio: '2026-11-19T13:00:00Z', fim: null }).success).toBe(true);
-    expect(PausaTrajetoSchema.safeParse({ id: ID, inicio: '2026-11-19T13:00:00Z', fim: '2026-11-19T13:30:00Z' }).success).toBe(true);
-    expect(PausaTrajetoSchema.safeParse({ id: ID, inicio: '2026-11-19T13:00:00Z', fim: '2026-11-19T12:59:00Z' }).success).toBe(false);
-    expect(PausaTrajetoSchema.safeParse({ id: ID, inicio: '2026-11-19T13:00:00Z', fim: null, motivo: 'almoço' }).success).toBe(false);
-  });
-
-  it('RN-CORE-13: aceite do termo pela versão (inteiro ≥ 1) e pela hora do aparelho', () => {
-    expect(AceiteTermoRastreamentoSchema.safeParse({ id: ID, termo_versao: 1, aceito_em: '2026-11-19T12:00:00Z' }).success).toBe(true);
-    expect(AceiteTermoRastreamentoSchema.safeParse({ id: ID, termo_versao: 0, aceito_em: '2026-11-19T12:00:00Z' }).success).toBe(false);
-  });
-
-  it('RN-CORE-13: termo publicado tem versão e texto; a publicação no BKO manda só o texto', () => {
-    expect(TermoRastreamentoSchema.safeParse({ id: ID, versao: 2, texto: 'Termo', publicado_em: '2026-11-19T12:00:00Z', updated_at: '2026-11-19T12:00:00Z', deleted_at: null }).success).toBe(true);
-    expect(TermoRastreamentoPublicarSchema.safeParse({ texto: '   ' }).success).toBe(false);
-    expect(TermoRastreamentoPublicarSchema.safeParse({ texto: 'Termo da empresa', versao: 3 }).success).toBe(false);
   });
 
   it('RN-CORE-13: ausência é por usuário, de ≤ até, em datas civis e sem motivo (minimização)', () => {
@@ -76,7 +54,7 @@ describe('RN-CORE-13: contratos do rastreamento (T-0156, desenho tracking §3.1 
     expect(CONSULTA_TRAJETO_DO_DIA.nome).toBe('core.trajeto_do_dia@1');
     expect(TrajetoDoDiaEntradaSchema.safeParse({ usuario_ids: [], data: '2026-11-19' }).success).toBe(false);
     expect(TrajetoDoDiaEntradaSchema.safeParse({ usuario_ids: [ID], data: '2026-11-19' }).success).toBe(true);
-    const saida = { data: '2026-11-19', usuarios: [{ id: ID, metros: 1200, pontos: [{ capturado_em: ponto.capturado_em, latitude: ponto.latitude, longitude: ponto.longitude, precisao_m: 12 }], pausas: [] }] };
+    const saida = { data: '2026-11-19', usuarios: [{ id: ID, metros: 1200, pontos: [{ capturado_em: ponto.capturado_em, latitude: ponto.latitude, longitude: ponto.longitude, precisao_m: 12 }] }] };
     expect(TrajetoDoDiaSaidaSchema.parse(saida)).toEqual(saida);
     const comVelocidade = { ...saida, usuarios: [{ ...saida.usuarios[0], pontos: [{ ...saida.usuarios[0]!.pontos[0], velocidade_ms: 3 }] }] };
     expect(TrajetoDoDiaSaidaSchema.safeParse(comVelocidade).success).toBe(false);

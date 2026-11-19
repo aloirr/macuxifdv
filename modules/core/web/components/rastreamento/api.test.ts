@@ -23,17 +23,13 @@ describe('RN-CORE-13: chamadas do BKO do rastreamento', () => {
     expect(log[1]!.opcoes).toMatchObject({ method: 'PUT', body: { ativo: true } });
     await expect(api.gravar({ ...PARAMETROS_RASTREAMENTO_PADRAO, frequencia: { distancia_m: 1, intervalo_min: 5, lote_min: 5 } })).rejects.toBeDefined();
   });
-  it('RN-CORE-13: publica o termo (versão nova) e lista as ausências do escopo', async () => {
-    const termo = { id: ID, versao: 3, texto: 'Texto', publicado_em: AGORA, updated_at: AGORA, deleted_at: null };
+  it('RN-CORE-13: lista, cadastra e cancela as ausências do escopo', async () => {
     const aus = { id: ID, usuario_id: U, de: '2026-12-01', ate: '2026-12-10', updated_at: AGORA, deleted_at: null };
     const { api, log } = chamadas({
-      'POST /core/rastreamento/termos': termo,
       'GET /core/ausencias': { ausencias: [aus] },
       'POST /core/ausencias': aus,
       'DELETE /core/ausencias/0e300000-0000-4000-8000-000000000002': { id: ID },
     });
-    expect((await api.publicar('Texto')).versao).toBe(3);
-    expect(log[0]!.opcoes).toMatchObject({ method: 'POST', body: { texto: 'Texto' } });
     expect(await api.ausencias()).toHaveLength(1);
     expect((await api.cadastrarAusencia({ usuario_id: U, de: '2026-12-01', ate: '2026-12-10' })).usuario_id).toBe(U);
     await api.cancelarAusencia(ID);

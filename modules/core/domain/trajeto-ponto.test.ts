@@ -5,10 +5,8 @@ import { parametrosRastreamentoDasLinhas, feriadosDasLinhas, triarPontoRecebido,
 const AGORA = '2026-11-19T14:30:00Z'; // quinta, 10h30 de Manaus
 const base: BaseTriagem = {
   ativo: true,
-  termoVigente: 1,
   cargo: 'vendedor',
   app: 'campo',
-  aceite: { versao: 1, aceito_em: '2026-11-19T12:00:00Z' },
   expediente: PARAMETROS_RASTREAMENTO_PADRAO.expediente,
   feriados: [],
   ausencias: [],
@@ -23,23 +21,16 @@ describe('RN-CORE-13: triagem do ponto que chega no push (a API sempre revalida)
   });
   it('RN-CORE-13: cada condição de cadastro descarta o ponto', () => {
     expect(motivo(ponto(), { ativo: false })).toBe('desligado');
-    expect(motivo(ponto(), { termoVigente: null })).toBe('sem_termo');
     expect(motivo(ponto(), { cargo: 'gerente' })).toBe('cargo');
-    expect(motivo(ponto(), { aceite: null })).toBe('sem_aceite');
-    expect(motivo(ponto(), { aceite: { versao: 1, aceito_em: '2026-11-19T14:10:00Z' } })).toBe('sem_aceite');
     expect(motivo(ponto(), { feriados: ['2026-11-19'] })).toBe('feriado');
     expect(motivo(ponto(), { ausencias: [{ de: '2026-11-18', ate: '2026-11-20' }] })).toBe('ausencia');
-    expect(motivo(ponto({ capturado_em: '2026-11-19T13:00:00Z' }), { aceite: { versao: 1, aceito_em: '2026-11-19T01:00:00Z' }, expediente: { ...base.expediente, '4': [{ inicio_min: 600, fim_min: 700 }] } })).toBe('fora_do_expediente');
-  });
-  it('RN-CORE-13: o aceite vale só da hora dele em diante', () => {
-    expect(motivo(ponto({ capturado_em: '2026-11-19T12:00:00Z' }))).toBeNull();
-    expect(motivo(ponto({ capturado_em: '2026-11-19T11:59:00Z' }), { aceite: { versao: 1, aceito_em: '2026-11-19T12:00:00Z' } })).toBe('sem_aceite');
+    expect(motivo(ponto({ capturado_em: '2026-11-19T13:00:00Z' }), { expediente: { ...base.expediente, '4': [{ inicio_min: 600, fim_min: 700 }] } })).toBe('fora_do_expediente');
   });
   it('RN-CORE-13: mais de 5 minutos no futuro ou mais de 90 dias atrás é descartado', () => {
     expect(motivo(ponto({ capturado_em: '2026-11-19T14:34:00Z' }))).toBeNull();
     expect(motivo(ponto({ capturado_em: '2026-11-19T14:36:00Z' }))).toBe('futuro');
-    expect(motivo(ponto({ capturado_em: '2026-08-21T15:00:00Z' }), { aceite: { versao: 1, aceito_em: '2026-01-01T00:00:00Z' } })).toBeNull();
-    expect(motivo(ponto({ capturado_em: '2026-08-21T14:00:00Z' }), { aceite: { versao: 1, aceito_em: '2026-01-01T00:00:00Z' } })).toBe('antigo');
+    expect(motivo(ponto({ capturado_em: '2026-08-21T15:00:00Z' }))).toBeNull();
+    expect(motivo(ponto({ capturado_em: '2026-08-21T14:00:00Z' }))).toBe('antigo');
   });
   it('RN-CORE-13: coordenada inválida é descartada', () => {
     expect(motivo(ponto({ latitude: Number.NaN }))).toBe('coordenada');

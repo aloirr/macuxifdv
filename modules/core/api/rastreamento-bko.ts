@@ -1,11 +1,10 @@
 /**
- * BKO do rastreamento (T-0156; desenho `tracking.md` §4.2, §5.2 e §6). RN-CORE-13, RN-AUD-01.
+ * BKO do rastreamento (T-0156; desenho `tracking.md` §4.2 e §5.2). RN-CORE-13, RN-AUD-01.
  * - `GET|PUT /v1/core/parametros/rastreamento` (ação `rastreamento.configurar`, só o admin): ligar, expediente e frequência. Padrão
  *   DESLIGADO. Escrita idempotente e auditada (só grava e audita o que mudou).
- * - `GET|POST /v1/core/rastreamento/termos` (mesma ação): cada publicação é uma versão NOVA (a maior = vigente); publicada não muda.
  * - `GET|POST|DELETE /v1/core/ausencias` (ação `ausencia.cadastrar`): férias, folga ou afastamento, sem motivo, só de usuário do
  *   escopo (fora dele = 404). Cancelar = `deleted_at`.
- * Sem coordenada e sem texto do termo em log ou auditoria (a auditoria leva só a versão).
+ * Sem coordenada em log ou auditoria.
  */
 import { ErroNaoEncontrado, ErroRegraNegocio, type ClienteBanco, type ContextoBase, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
@@ -16,17 +15,11 @@ import {
   AusenciaUsuarioSchema,
   PARAMETRO_RASTREAMENTO,
   ParametrosRastreamentoSchema,
-  TermoRastreamentoPublicarSchema,
-  TermoRastreamentoSchema,
-  TermosRastreamentoRespostaSchema,
   type AusenciaListaQuery,
   type AusenciaListaResposta,
   type AusenciaUsuario,
   type AusenciaUsuarioEntrada,
   type ParametrosRastreamento,
-  type TermoRastreamento,
-  type TermoRastreamentoPublicar,
-  type TermosRastreamentoResposta,
 } from '../contracts';
 import { parametrosRastreamentoDasLinhas } from '../domain/trajeto-ponto';
 import { validarParametrosRastreamento } from '../domain/rastreamento-parametros';
@@ -38,12 +31,6 @@ const IdParam = z.object({ id: z.string().uuid() }).strict();
 
 export async function lerParametrosRastreamento(db: ClienteBanco): Promise<ParametrosRastreamento> {
   return parametrosRastreamentoDasLinhas(await lerParametroCore(db, PARAMETRO_RASTREAMENTO));
-}
-
-const COLUNAS_TERMO = `id, versao, texto, to_char(publicado_em at time zone 'UTC', ${UTC}) as publicado_em, to_char(updated_at at time zone 'UTC', ${UTC}) as updated_at, null::text as deleted_at`;
-
-async function termosDoTenant(db: ClienteBanco): Promise<TermoRastreamento[]> {
-  return (await db.query<TermoRastreamento>(`select ${COLUNAS_TERMO} from core.termo_rastreamento where deleted_at is null order by versao desc`)).rows;
 }
 
 const COLUNAS_AUSENCIA = `id, usuario_id, to_char(de, 'YYYY-MM-DD') as de, to_char(ate, 'YYYY-MM-DD') as ate, to_char(updated_at at time zone 'UTC', ${UTC}) as updated_at, null::text as deleted_at`;
@@ -81,44 +68,6 @@ export const rotasDeRastreamento: RotaModulo[] = [
           await auditar(db, ctx, { acao: 'rastreamento.configurar', entidade: 'parametro', entidadeId: null, antes, depois: novo });
         }
         return novo;
-      });
-    },
-  },
-  // ---- Termo de ciência ----
-  {
-    metodo: 'GET',
-    caminho: 'rastreamento/termos',
-    superficie: 'bko',
-    acao: 'rastreamento.configurar',
-    carteira: 'nao_se_aplica',
-    executar: (ctx) =>
-      ctx.comTenant(async (db): Promise<TermosRastreamentoResposta> => {
-        const termos = await termosDoTenant(db);
-        return TermosRastreamentoRespostaSchema.parse({ vigente: termos[0]?.versao ?? null, termos });
-      }),
-  },
-  {
-    metodo: 'POST',
-    caminho: 'rastreamento/termos',
-    superficie: 'bko',
-    acao: 'rastreamento.configurar',
-    carteira: 'nao_se_aplica',
-    status: 201,
-    corpo: TermoRastreamentoPublicarSchema,
-    executar: async (ctx) => {
-      const { texto } = ctx.corpo as TermoRastreamentoPublicar;
-      return ctx.comTenant(async (db): Promise<TermoRastreamento> => {
-        // serializa as publicações do tenant: o número da versão nunca se repete (único não parcial, inclusive de versão excluída)
-        await db.query('select pg_advisory_xact_lock(hashtext($1))', [`termo_rastreamento:${ctx.usuario.tenant_id}`]);
-        const r = await db.query<TermoRastreamento>(
-          `insert into core.termo_rastreamento (tenant_id, versao, texto, publicado_por)
-           select plataforma.tenant_atual(), coalesce(max(versao), 0) + 1, $1, $2 from core.termo_rastreamento
-           returning ${COLUNAS_TERMO}`,
-          [texto, ctx.usuario.id],
-        );
-        const termo = TermoRastreamentoSchema.parse(r.rows[0]);
-        await auditar(db, ctx, { acao: 'rastreamento.configurar', entidade: 'termo_rastreamento', entidadeId: termo.id, antes: null, depois: { versao: termo.versao } });
-        return termo;
       });
     },
   },

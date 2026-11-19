@@ -1,14 +1,13 @@
 /**
- * Push do rastreamento sem banco (T-0156): o portão por ponto, o descarte que não trava a fila, o aceite só de versão que existe,
- * a ordem das entidades e o SQL do pull. O comportamento sobre dados reais está em `trajeto.db.test.ts`.
- * RN-CORE-13 (portão e termo), RN-CORE-37 (permissão), RN-CORE-46 (km do dia).
+ * Push do rastreamento sem banco (T-0156): o portão por ponto, o descarte que não trava a fila, a lista das entidades e o SQL do pull. O comportamento sobre dados reais está em `trajeto.db.test.ts`.
+ * RN-CORE-13 (portão), RN-CORE-37 (permissão), RN-CORE-46 (km do dia).
  */
 import type { ClienteBanco, ContextoBase, ItemPush } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { PARAMETROS_RASTREAMENTO_PADRAO } from '../contracts';
 import { sqlDoPull } from './sync';
 import { provedoresSyncTrajeto, TABELAS_SYNC_TRAJETO } from './sync-trajeto';
-import { receberAceitesTermo, receberPausasTrajeto, receberPontosTrajeto } from './trajeto-push';
+import { receberPontosTrajeto } from './trajeto-push';
 
 const U = '0e300000-0000-4000-8000-000000000001';
 const idn = (n: number) => `0e300000-0000-4000-8000-0000000001${String(n).padStart(2, '0')}`;
@@ -17,24 +16,17 @@ const AGORA = new Date('2026-11-19T14:30:00.000Z');
 
 interface Cenario {
   ativo?: boolean;
-  termo?: number | null;
-  aceite?: { versao: number; aceito_em: string } | null;
   ausencias?: Array<{ de: string; ate: string }>;
 }
 function ctxFalso(c: Cenario = {}, perfil = 'vendedor') {
   const sqls: Array<{ sql: string; valores: readonly unknown[] }> = [];
   const logs: unknown[] = [];
   const param = { ...PARAMETROS_RASTREAMENTO_PADRAO, ativo: c.ativo ?? true };
-  const termo = c.termo === undefined ? 1 : c.termo;
-  const aceite = c.aceite === undefined ? { versao: 1, aceito_em: '2026-11-19T12:00:00.000Z' } : c.aceite;
   const db = {
     query: async (sql: string, valores: readonly unknown[] = []) => {
       sqls.push({ sql, valores });
       if (/from plataforma\.parametro/.test(sql)) return { rows: [{ modulo: 'core', chave: 'rastreamento', valor: param }], rowCount: 1 };
-      if (/max\(versao\)/.test(sql)) return { rows: [{ versao: termo }], rowCount: 1 };
-      if (/from core\.aceite_termo_rastreamento where usuario_id/.test(sql)) return { rows: aceite ? [aceite] : [], rowCount: aceite ? 1 : 0 };
       if (/from core\.ausencia_usuario/.test(sql)) return { rows: c.ausencias ?? [], rowCount: (c.ausencias ?? []).length };
-      if (/select 1 from core\.termo_rastreamento/.test(sql)) return { rows: valores[0] === termo ? [{}] : [], rowCount: valores[0] === termo ? 1 : 0 };
       if (/from core\.ponto_trajeto/.test(sql)) return { rows: [], rowCount: 0 };
       return { rows: [], rowCount: 1 };
     },
@@ -71,10 +63,6 @@ describe('RN-CORE-13: push de ponto_trajeto', () => {
   it('RN-CORE-13: ponto fora do portão é descartado sem gravar e a fila segue (resposta aceito)', async () => {
     const casos: Array<[string, Cenario]> = [
       ['tracking desligado', { ativo: false }],
-      ['sem termo publicado', { termo: null }],
-      ['sem aceite', { aceite: null }],
-      ['aceite de versão antiga', { termo: 2 }],
-      ['aceite posterior ao ponto', { aceite: { versao: 1, aceito_em: '2026-11-19T14:05:00.000Z' } }],
       ['ausência cadastrada', { ausencias: [{ de: '2026-11-19', ate: '2026-11-19' }] }],
     ];
     for (const [nome, c] of casos) {
@@ -106,54 +94,16 @@ describe('RN-CORE-13: push de ponto_trajeto', () => {
   });
 });
 
-describe('RN-CORE-13: push do aceite do termo e da pausa', () => {
-  const aceite = (versao: number) => ({ id: idn(50), termo_versao: versao, aceito_em: '2026-11-19T14:00:00.000Z' });
-  it('RN-CORE-13: o aceite de versão que existe grava idempotente; de versão que não existe é rejeitado', async () => {
-    const s = ctxFalso({ termo: 1 });
-    expect(await receberAceitesTermo(s.ctx, [item(aceite(1))])).toEqual([{ id: idn(50), status: 'aceito' }]);
-    const ins = inserts(s, 'aceite_termo_rastreamento');
-    expect(ins).toHaveLength(1);
-    expect(ins[0]!.sql).toContain('on conflict do nothing');
-    const n = ctxFalso({ termo: 1 });
-    const r = await receberAceitesTermo(n.ctx, [item(aceite(7))]);
-    expect(r[0]).toMatchObject({ status: 'rejeitado', codigo: 'TERMO_INEXISTENTE' });
-    expect(inserts(n, 'aceite_termo_rastreamento')).toHaveLength(0);
-  });
-  it('RN-CORE-13: a hora do aceite não passa do relógio do servidor', async () => {
-    const s = ctxFalso();
-    await receberAceitesTermo(s.ctx, [item({ ...aceite(1), aceito_em: '2026-11-20T14:00:00.000Z' })]);
-    expect(inserts(s, 'aceite_termo_rastreamento')[0]!.valores[3]).toBe(AGORA.toISOString());
-  });
-  it('RN-CORE-13: a pausa grava início e fim sem motivo; pausa sem duração não trava a fila', async () => {
-    const s = ctxFalso();
-    const p = { id: idn(60), inicio: '2026-11-19T14:00:00.000Z', fim: null };
-    expect(await receberPausasTrajeto(s.ctx, [item(p), item({ id: idn(61), inicio: '2026-11-19T14:00:00.000Z', fim: '2026-11-19T14:00:00.000Z' })])).toEqual([
-      { id: idn(60), status: 'aceito' },
-      { id: idn(61), status: 'aceito' },
-    ]);
-    expect(inserts(s, 'pausa_trajeto')).toHaveLength(1);
-  });
-});
-
 describe('entidades e pull do rastreamento', () => {
   const por = (n: string) => provedoresSyncTrajeto.find((p) => p.entidade.nome === n)!;
-  it('aceite (ambos, antes dos pontos), ponto e pausa só de envio, termo e ausência só de leitura, no padrão do motor', () => {
-    expect(provedoresSyncTrajeto.map((p) => p.entidade.nome)).toEqual(['aceite_termo_rastreamento', 'ponto_trajeto', 'pausa_trajeto', 'termo_rastreamento', 'ausencia_usuario']);
-    expect(por('aceite_termo_rastreamento')).toMatchObject({ escopo: 'proprio', entidade: { direcao: 'ambos', modulo: 'core' } });
-    expect(por('aceite_termo_rastreamento').receber).toBeTypeOf('function');
-    for (const n of ['ponto_trajeto', 'pausa_trajeto']) {
-      expect(por(n).entidade).toMatchObject({ direcao: 'push', conflito: 'somente_insercao', modulo: 'core' });
-      expect(por(n).puxar).toBeUndefined();
-    }
-    expect(por('termo_rastreamento')).toMatchObject({ escopo: 'tenant', entidade: { direcao: 'pull' } });
+  it('RN-CORE-13: ponto só de envio e ausência só de leitura, no padrão do motor; não há aceite, pausa nem termo', () => {
+    expect(provedoresSyncTrajeto.map((p) => p.entidade.nome)).toEqual(['ponto_trajeto', 'ausencia_usuario']);
+    expect(por('ponto_trajeto').entidade).toMatchObject({ direcao: 'push', conflito: 'somente_insercao', modulo: 'core' });
+    expect(por('ponto_trajeto').puxar).toBeUndefined();
     expect(por('ausencia_usuario')).toMatchObject({ escopo: 'proprio', entidade: { direcao: 'pull' } });
   });
-  it('RN-CORE-13: o pull da ausência filtra o usuário; o do termo é do tenant, com as removidas', () => {
+  it('RN-CORE-13: o pull da ausência filtra o usuário', () => {
     const pedido = { desde: null, ate: '2026-11-19T15:00:00.000Z', limite: 100 };
     expect(sqlDoPull(TABELAS_SYNC_TRAJETO.ausencia_usuario, pedido, new Set([U]), '2026-11-19').sql).toContain('and usuario_id = any($5::uuid[])');
-    expect(sqlDoPull(TABELAS_SYNC_TRAJETO.aceite_termo_rastreamento, pedido, new Set([U]), '2026-11-19').sql).toContain('and usuario_id = any($5::uuid[])');
-    const t = sqlDoPull(TABELAS_SYNC_TRAJETO.termo_rastreamento, pedido, 'tenant', '2026-11-19');
-    expect(t.valores).toHaveLength(4);
-    expect(t.sql).not.toContain('deleted_at is null');
   });
 });

@@ -1,12 +1,12 @@
 /**
- * T-0156 × Postgres real (fixture dois-tenants, RLS): push do rastreamento (aceite, pontos, pausa), portão por ponto, resumo diário
- * `core.deslocamento_dia`, pull do termo e da ausência, leitura do trajeto (próprio, equipe no escopo, outro tenant) e a consulta
- * `core.trajeto_do_dia@1`. RN-CORE-13 (portão e termo), RN-CORE-04 (escopo), RN-CORE-46 (km do dia). Pula sem Postgres.
+ * T-0156 × Postgres real (fixture dois-tenants, RLS): push do rastreamento (pontos), portão por ponto, resumo diário
+ * `core.deslocamento_dia`, pull da ausência, leitura do trajeto (só a equipe no escopo, com `trajeto.ver_equipe`; outro tenant) e a consulta
+ * `core.trajeto_do_dia@1`. RN-CORE-13 (portão), RN-CORE-04 (escopo), RN-CORE-46 (km do dia). Pula sem Postgres.
  */
 import { semBanco } from '@macuxi/db/teste/estado';
 import type { ContextoConsulta, ItemPush, UsuarioAutenticado } from '@macuxi/platform-sdk';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AceiteTermoRastreamentoSyncSchema, DeslocamentoDiaSchema, PARAMETROS_RASTREAMENTO_PADRAO, TrajetoRespostaSchema, AusenciaUsuarioSchema, TermoRastreamentoSchema } from '../contracts';
+import { DeslocamentoDiaSchema, PARAMETROS_RASTREAMENTO_PADRAO, TrajetoRespostaSchema, AusenciaUsuarioSchema } from '../contracts';
 import { perfisDeFabrica } from '../domain';
 import { A, AmbienteBanco, B, idDe, U } from './apoio-teste-t0170';
 import { provedoresSyncTrajeto } from './sync-trajeto';
@@ -43,8 +43,6 @@ describe.skipIf(semBanco())('Core T-0156 × Postgres: rastreamento no expediente
 
   const limpar = async () => {
     await amb.limpar(`delete from core.ponto_trajeto where id::text like '${FAIXA}-%'`);
-    await amb.limpar(`delete from core.pausa_trajeto where id::text like '${FAIXA}-%'`);
-    await amb.limpar(`delete from core.aceite_termo_rastreamento where id::text like '${FAIXA}-%'`);
     await amb.limpar(`delete from core.ausencia_usuario where id::text like '${FAIXA}-%'`);
     await amb.limpar('delete from core.deslocamento_dia where usuario_id = any($1::uuid[]) and data = $2', [[U.vendedor1, U.vendedor2], DIA]);
     await amb.limpar(`delete from plataforma.parametro where tenant_id = $1 and modulo = 'core' and chave = 'rastreamento'`, [A.tenantId]);
@@ -61,33 +59,11 @@ describe.skipIf(semBanco())('Core T-0156 × Postgres: rastreamento no expediente
     await amb.fechar();
   });
 
-  it('RN-CORE-13: sem aceite o ponto é descartado e a fila segue; com o aceite da versão vigente grava, e reenviar não duplica', async () => {
-    expect(await envia('ponto_trajeto', vendedor1, [ponto(1, '14:00')])).toEqual([{ id: id(1), status: 'aceito' }]);
-    expect(await contar('ponto_trajeto', U.vendedor1)).toBe(0);
-    expect(await resumo(U.vendedor1)).toHaveLength(0);
-
-    const termo = (await amb.noTenant(A.tenantId, async (db) => (await db.query<{ versao: number }>('select max(versao)::int as versao from core.termo_rastreamento where deleted_at is null')).rows[0]!.versao));
-    const aceite = { id: id(50), termo_versao: termo, aceito_em: em('11:00') };
-    expect(await envia('aceite_termo_rastreamento', vendedor1, [aceite])).toEqual([{ id: id(50), status: 'aceito' }]);
-    expect(await envia('aceite_termo_rastreamento', vendedor1, [aceite])).toEqual([{ id: id(50), status: 'aceito' }]);
-    expect(await envia('aceite_termo_rastreamento', vendedor1, [{ ...aceite, id: id(51) }])).toEqual([{ id: id(51), status: 'aceito' }]);
-    expect(await contar('aceite_termo_rastreamento', U.vendedor1)).toBe(1);
-    // o aceite volta no pull do próprio usuário (e só dele)
-    const meus = (await amb.puxar(provedoresSyncTrajeto, 'aceite_termo_rastreamento', vendedor1)) as unknown as Array<Record<string, unknown>>;
-    const doTeste = meus.find((l) => l.id === id(50))!;
-    expect(AceiteTermoRastreamentoSyncSchema.parse(doTeste)).toMatchObject({ usuario_id: U.vendedor1, termo_versao: termo });
-    expect(meus.every((l) => l.usuario_id === U.vendedor1)).toBe(true);
-
+  it('RN-CORE-13: o ponto dentro do portão grava, e reenviar não duplica', async () => {
     const lote = [ponto(1, '14:00'), ponto(2, '14:10'), ponto(3, '14:20')];
     expect(await envia('ponto_trajeto', vendedor1, lote)).toHaveLength(3);
     expect(await envia('ponto_trajeto', vendedor1, lote)).toHaveLength(3);
     expect(await contar('ponto_trajeto', U.vendedor1)).toBe(3);
-  });
-
-  it('RN-CORE-13: o aceite só vale para versão que existe no tenant', async () => {
-    const r = await envia('aceite_termo_rastreamento', vendedor2, [{ id: id(52), termo_versao: 99, aceito_em: em('12:00') } as never]);
-    expect(r[0]).toMatchObject({ status: 'rejeitado', codigo: 'TERMO_INEXISTENTE' });
-    expect(await contar('aceite_termo_rastreamento', U.vendedor2)).toBe(0);
   });
 
   it('RN-CORE-46: o resumo do dia é recalculado (origem rastreamento), idempotente e confere com metrosDoTrajeto', async () => {
@@ -122,13 +98,7 @@ describe.skipIf(semBanco())('Core T-0156 × Postgres: rastreamento no expediente
     expect(await contar('ponto_trajeto', U.gerente)).toBe(0);
   });
 
-  it('RN-CORE-13: pausa grava início e depois o fim no mesmo id; pull entrega só a ausência do próprio usuário e o termo do tenant', async () => {
-    await envia('pausa_trajeto', vendedor1, [{ id: id(60), inicio: em('14:15'), fim: null } as never]);
-    await envia('pausa_trajeto', vendedor1, [{ id: id(60), inicio: em('14:15'), fim: em('14:25') } as never]);
-    const p = await amb.noTenant(A.tenantId, async (db) => (await db.query<{ fim: Date | null }>('select fim from core.pausa_trajeto where id = $1', [id(60)])).rows);
-    expect(p).toHaveLength(1);
-    expect(p[0]!.fim).not.toBeNull();
-
+  it('RN-CORE-13: o pull entrega só a ausência do próprio usuário', async () => {
     const minhas = (await amb.puxar(provedoresSyncTrajeto, 'ausencia_usuario', vendedor1)) as unknown as Array<Record<string, unknown>>;
     expect(minhas.map((l) => l.id)).toContain(id(70));
     expect(minhas.every((l) => l.usuario_id === U.vendedor1)).toBe(true);
@@ -136,26 +106,21 @@ describe.skipIf(semBanco())('Core T-0156 × Postgres: rastreamento no expediente
     const dele2 = (await amb.puxar(provedoresSyncTrajeto, 'ausencia_usuario', vendedor2)) as unknown as Array<Record<string, unknown>>;
     expect(dele2.map((l) => l.id)).not.toContain(id(70));
 
-    const termos = (await amb.puxar(provedoresSyncTrajeto, 'termo_rastreamento', vendedor1)) as unknown as Array<Record<string, unknown>>;
-    expect(termos.length).toBeGreaterThan(0);
-    for (const t of termos) TermoRastreamentoSchema.parse(t);
-    // o tenant B não vê os termos do A (RLS)
-    const deB = (await amb.puxar(provedoresSyncTrajeto, 'termo_rastreamento', adminB)) as unknown as Array<Record<string, unknown>>;
-    expect(deB.every((t) => !termos.some((x) => x.id === t.id))).toBe(true);
   });
 
-  it('RN-CORE-13/04: o vendedor vê o próprio trajeto; o de colega, não; o supervisor vê o da equipe, não o de fora dela; analista não vê pontos', async () => {
-    const meu = TrajetoRespostaSchema.parse(await chamarComPerfis(vendedor1, { data: DIA }));
-    expect(meu.usuario.id).toBe(U.vendedor1);
-    expect(meu.usuario.pontos.length).toBeGreaterThanOrEqual(4);
-    expect(meu.usuario.pausas).toHaveLength(1);
-    expect(meu.usuario.metros).toBeGreaterThan(0);
+  it('RN-CORE-13/04: o vendedor não vê trajeto (nem o próprio); o supervisor vê o da equipe, não o de fora dela; analista e admin sem a permissão não veem', async () => {
+    const daEquipe = TrajetoRespostaSchema.parse(await chamarComPerfis(supervisor, { data: DIA, usuario_id: U.vendedor1 }));
+    expect(daEquipe.usuario.id).toBe(U.vendedor1);
+    expect(daEquipe.usuario.pontos.length).toBeGreaterThanOrEqual(4);
+    expect(daEquipe.usuario.metros).toBeGreaterThan(0);
+    expect(daEquipe.usuario).not.toHaveProperty('pausas');
+    await expect(chamarComPerfis(vendedor1, { data: DIA, usuario_id: U.vendedor1 })).rejects.toMatchObject({ status: 403 });
     await expect(chamarComPerfis(vendedor1, { data: DIA, usuario_id: U.vendedor2 })).rejects.toMatchObject({ status: 403 });
-    const daEquipe = await chamarComPerfis(supervisor, { data: DIA, usuario_id: U.vendedor1 });
-    expect(daEquipe.usuario.pontos.length).toBe(meu.usuario.pontos.length);
+    await expect(chamarComPerfis(vendedor1, { data: DIA })).rejects.toBeDefined(); // sem usuario_id a consulta nem existe
     await expect(chamarComPerfis(supervisor, { data: DIA, usuario_id: U.vendedor2 })).rejects.toMatchObject({ status: 404 });
     await expect(chamarComPerfis(analista, { data: DIA, usuario_id: U.vendedor1 })).rejects.toMatchObject({ status: 403 });
-    await expect(chamarComPerfis(vendedor1, { data: '2026-01-01' })).rejects.toMatchObject({ codigo: 'TRAJETO_FORA_DA_RETENCAO' });
+    await expect(chamarComPerfis(adminB, { data: DIA, usuario_id: B.usuarios.admin })).rejects.toMatchObject({ status: 403 });
+    await expect(chamarComPerfis(gerente, { data: '2026-01-01', usuario_id: U.vendedor1 })).rejects.toMatchObject({ codigo: 'TRAJETO_FORA_DA_RETENCAO' });
   });
 
   it('RN-CORE-13/04: core.trajeto_do_dia@1 devolve só o escopo de quem consulta; id fora do escopo ou de outro tenant some', async () => {
