@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CARGOS_RASTREADOS, MOTIVOS_SEM_RASTREIO, PARAMETROS_RASTREAMENTO_PADRAO, ROTULO_ESTADO_RASTREAMENTO, podeRastrear, formatarDistancia, projetarPontos, type EntradaRastreio } from './index';
+import { CARGOS_RASTREADOS, PARAMETROS_RASTREAMENTO_PADRAO, podeRastrear, formatarDistancia, projetarPontos, type EntradaRastreio } from './index';
 
 const pontos = [
   { capturado_em: '2026-11-19T12:04:00.000Z', latitude: -3.1, longitude: -60.0, precisao_m: 10 },
@@ -27,7 +27,7 @@ describe('RN-CORE-46: formato do trajeto pelos contracts (Campo e Gestão)', () 
   });
 });
 
-describe('RN-CORE-13: portão e rótulos pelos contracts (shell)', () => {
+describe('RN-CORE-13: portão pelos contracts (shell)', () => {
   it('RN-CORE-13: podeRastrear e CARGOS_RASTREADOS saem pelos contracts', () => {
     const e: EntradaRastreio = {
       ativo: false,
@@ -41,8 +41,5 @@ describe('RN-CORE-13: portão e rótulos pelos contracts (shell)', () => {
     };
     expect(podeRastrear(e)).toEqual({ pode: false, motivo: 'desligado' });
     expect(CARGOS_RASTREADOS).toEqual(['vendedor', 'promotor']);
-  });
-  it('RN-CORE-13: há um rótulo para "ativa" e para cada motivo do portão', () => {
-    for (const m of ['ativa', ...MOTIVOS_SEM_RASTREIO] as const) expect(ROTULO_ESTADO_RASTREAMENTO[m].length).toBeGreaterThan(0);
   });
 });

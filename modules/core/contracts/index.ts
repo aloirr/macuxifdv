@@ -515,5 +515,4 @@ export * from './performance';
 export * from './filial-usuario';
 export * from './trajeto';
 export * from './trajeto-formato';
-export * from './rastreamento-rotulos';
 export * from './rastreamento-portao';

@@ -16,7 +16,7 @@ Desenho: `docs/desenho/tracking.md`; ADR 0061. Regras: RN-CORE-13 (portão do ra
 | pull `ausencia_usuario` | — | só a do próprio usuário |
 | pull `parametro` | — | leva a chave `rastreamento` |
 | `GET /trajeto?usuario_id&data` | `trajeto.ver_equipe` | `usuario_id` obrigatório; só no escopo (fora = 404); até 90 dias |
-| `core.trajeto_do_dia@1` | `trajeto.ver_equipe` | lote `usuario_ids` + `data`; escopo e permissão conferidos no Core; saída só com pontos e metros (sem `pausas`) |
+| `core.trajeto_do_dia@1` | `trajeto.ver_equipe` | lote `usuario_ids` + `data`; escopo e permissão conferidos no Core; saída só com pontos e metros |
 | `GET\|PUT /parametros/rastreamento` | `rastreamento.configurar` | auditado; salvar o mesmo valor não audita |
 | `GET\|POST\|DELETE /ausencias` | `ausencia.cadastrar` | só do escopo; cancelar = `deleted_at` |
 
