@@ -1,0 +1,197 @@
+name: producao — diagnóstico da outbox (só leitura)
+
+# Para o OUTBOX_PARADA (relatório docs/desenho/outbox-parada-v1014.md, §4 e §6). Só manual, só no environment PRODUCAO
+# (aprovação do Alexandre) e SÓ LEITURA: nada se corrige, cancela ou reprocessa aqui (isso continua dependendo do "sim" dele).
+#
+# Como funciona:
+# - O DBaaS só tem IP privado na VPC: a consulta roda na VM, pelo SSH, num contêiner descartável com o psql 16 (a mesma
+#   imagem do serviço pgcliente do compose), SEM o admin.env: conecta como o papel macuxi_leitura (migração 0078, ADR 0055),
+#   que já existe na produção desde a v1.0.12 e só lê:
+#     - NOSUPERUSER, NOBYPASSRLS, sem filiação, só SELECT (nenhum INSERT, UPDATE, DELETE, TRUNCATE) e a política `leitura`
+#       (tenant_id = app.tenant_id): vê uma empresa por vez, resolvida pelo código com plataforma.tenant_por_codigo(text);
+#     - sessão já nasce com default_transaction_read_only = on e statement_timeout = 15s (ALTER ROLE da 0078). Aqui vão de
+#       novo no PGOPTIONS e a consulta inteira roda em "begin transaction read only" e termina em rollback.
+# - A senha do macuxi_leitura sai do secret PROD_PG_LEITURA_SENHA e chega ao contêiner pelo stdin do SSH e pelo ambiente
+#   (docker run -e PGPASSWORD, sem valor no argv). Endereço, porta e modo do TLS são os da VM (banco.env e imagens.env).
+# - O total de parados de TODAS as empresas sai antes pelo GET /v1/saude público (dependencias.outbox), para conferir se
+#   as empresas consultadas somam o número do alerta.
+#
+# O que o log mostra, por empresa (nada mais):
+#   resumo: parados (tentativas >= 10), em nova tentativa (1 a 9) e o horário do primeiro parado;
+#   parados por nome do evento, entidade e status do lote do Hub (coluna de integracao.lote, pelo agregado_id; o payload
+#   não é lido), quantidade, tentativas mín.–máx., primeiro e último horário em Manaus e os 80 primeiros caracteres do
+#   ultimo_erro, com e-mail, sequência longa de dígitos (CPF, CNPJ, telefone) e coordenada trocados por marcadores;
+#   fila de lotes do Hub em "recebido"/"processando": entidade, status, quantidade, conectores e horários em Manaus.
+# Nunca: payload, id de evento, tenant_id, e-mail, CPF, nome ou coordenada.
+#
+# Antes da 1ª rodada (o Alexandre, uma vez; SQL no relatório, §6): dar LOGIN e senha ao macuxi_leitura na produção
+# (alter role ... login password, pelo pgcliente da VM como o admin) e gravar a mesma senha no secret PROD_PG_LEITURA_SENHA
+# do environment PRODUCAO. Nenhum workflow cria papel nem muda grant.
+
+on:
+  workflow_dispatch:
+    inputs:
+      empresas:
+        description: códigos das empresas, separados por vírgula (ex. thathyany ou AM1234,outra)
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: producao-vm
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  diagnostico:
+    name: outbox parada (só leitura)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: PRODUCAO
+    steps:
+      - name: entradas e secret
+        env:
+          EMPRESAS: ${{ inputs.empresas }}
+          SENHA: ${{ secrets.PROD_PG_LEITURA_SENHA }}
+        run: |
+          [ -n "$SENHA" ] || { echo "::error::falta o secret PROD_PG_LEITURA_SENHA (environment PRODUCAO): veja o §6 do docs/desenho/outbox-parada-v1014.md"; exit 1; }
+          IFS=',' read -ra lista <<< "${EMPRESAS// /}"
+          [ "${#lista[@]}" -ge 1 ] && [ "${#lista[@]}" -le 10 ] || { echo "::error::informe de 1 a 10 códigos de empresa"; exit 1; }
+          for c in "${lista[@]}"; do
+            [[ "$c" =~ ^[a-z0-9][a-z0-9-]{1,39}$ || "$c" =~ ^[A-Z]{2}[0-9]{4}$ ]] || { echo "::error::código de empresa inválido: $c"; exit 1; }
+          done
+
+      - name: total do alerta (GET /v1/saude público)
+        run: |
+          corpo="$(curl -fsS -m 15 https://api.macuxifdv.com.br/v1/saude 2>/dev/null || true)"
+          total="$(printf '%s' "$corpo" | jq -c '.dependencias.outbox // empty' 2>/dev/null || true)"
+          if [ -n "$total" ]; then linha="todas as empresas (saude): $total"; else linha="todas as empresas: /v1/saude sem o resumo da outbox"; fi
+          echo "$linha"
+          { echo "## Diagnóstico da outbox (só leitura)"; echo; echo "- $linha"; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: montar a consulta
+        env:
+          EMPRESAS: ${{ inputs.empresas }}
+        run: |
+          IFS=',' read -ra lista <<< "${EMPRESAS// /}"
+          sql="$RUNNER_TEMP/consulta.sql"
+          cat > "$sql" <<'SQL'
+          \set ON_ERROR_STOP on
+          \set QUIET on
+          \pset pager off
+          \pset null '-'
+          \pset footer off
+          \set max 10
+          begin transaction read only;
+          -- trava: só o papel de leitura e só transação de leitura (senão aborta antes de ler qualquer linha)
+          do $$ begin
+            if current_user <> 'macuxi_leitura' or current_setting('transaction_read_only') <> 'on' then
+              raise exception 'diagnóstico recusado: papel % ou transação que não é só leitura', current_user;
+            end if;
+          end $$;
+          \echo papel macuxi_leitura, transação só leitura
+          SQL
+          for c in "${lista[@]}"; do
+            sed "s/__CODIGO__/$c/" <<'SQL' >> "$sql"
+          \echo
+          \echo '### empresa __CODIGO__'
+          select count(*) = 1 as achou from plataforma.tenant_por_codigo('__CODIGO__') \gset
+          \if :achou
+          select set_config('app.tenant_id', id::text, true) <> '' as ok from plataforma.tenant_por_codigo('__CODIGO__') \gset
+          \echo 'resumo (eventos ainda não publicados)'
+          select count(*) filter (where e.tentativas >= :max) as parados,
+                 count(*) filter (where e.tentativas between 1 and :max - 1) as em_nova_tentativa,
+                 to_char(min(e.ocorrido_em) filter (where e.tentativas >= :max) at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as primeiro_parado_manaus
+            from plataforma.evento e
+           where e.publicado_em is null and e.deleted_at is null;
+          \echo 'parados por evento, entidade do lote e erro (do mais antigo para o mais novo; a 1a linha costuma ser a raiz)'
+          select e.nome as evento,
+                 l.entidade as entidade_lote,
+                 l.status as status_lote,
+                 count(*) as parados,
+                 min(e.tentativas) || '-' || max(e.tentativas) as tentativas,
+                 to_char(min(e.ocorrido_em) at time zone 'America/Manaus', 'DD/MM HH24:MI') as primeiro_manaus,
+                 to_char(max(e.ocorrido_em) at time zone 'America/Manaus', 'DD/MM HH24:MI') as ultimo_manaus,
+                 left(regexp_replace(regexp_replace(regexp_replace(regexp_replace(coalesce(e.ultimo_erro, '(sem erro)'),
+                        '[^[:space:]@]+@[^[:space:]@]*\.[^[:space:]@]+', '[e-mail]', 'g'),
+                        '-?[0-9]{1,3}\.[0-9]{4,}', '[coord]', 'g'),
+                        '[0-9][0-9./-]{6,}[0-9]', '[número]', 'g'),
+                        '[[:space:]]+', ' ', 'g'), 80) as erro_80
+            from plataforma.evento e
+            left join integracao.lote l
+              on e.nome = 'integracao.lote.recebido@1' and l.tenant_id = e.tenant_id and l.id = e.agregado_id
+           where e.publicado_em is null and e.deleted_at is null and e.tentativas >= :max
+           group by 1, 2, 3, 8
+           order by min(e.ocorrido_em), 1;
+          \echo 'fila de lotes do Hub (recebido ou processando)'
+          select l.entidade, l.status, count(*) as lotes, count(distinct l.conector_id) as conectores,
+                 to_char(min(l.recebido_em) at time zone 'America/Manaus', 'DD/MM HH24:MI') as primeiro_manaus,
+                 to_char(max(l.recebido_em) at time zone 'America/Manaus', 'DD/MM HH24:MI') as ultimo_manaus
+            from integracao.lote l
+           where l.status in ('recebido', 'processando') and l.deleted_at is null
+           group by 1, 2
+           order by min(l.recebido_em);
+          \else
+          \echo 'empresa não encontrada (código errado ou empresa excluída)'
+          \endif
+          SQL
+          done
+          echo 'rollback;' >> "$sql"
+
+      - name: chave SSH
+        env:
+          CHAVE: ${{ secrets.PROD_SSH_KEY }}
+          HOST: ${{ secrets.PROD_HOST }}
+          CONHECIDOS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$CHAVE" | tr -d '\r' > ~/.ssh/prod
+          chmod 600 ~/.ssh/prod
+          if [ -n "$CONHECIDOS" ]; then printf '%s\n' "$CONHECIDOS" | tr -d '\r' > ~/.ssh/known_hosts
+          else ssh-keyscan -T 15 -t ed25519 "$HOST" >> ~/.ssh/known_hosts 2>/dev/null; fi
+          printf 'Host prod\n  HostName %s\n  IdentityFile ~/.ssh/prod\n  IdentitiesOnly yes\n  BatchMode yes\n  StrictHostKeyChecking yes\n' "$HOST" > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: consulta só leitura na VM
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+          SENHA: ${{ secrets.PROD_PG_LEITURA_SENHA }}
+        run: |
+          # Na VM (sh POSIX): 1ª linha do stdin = senha (vai para o ambiente, nunca para o argv); o resto do stdin = o SQL.
+          remoto=$(cat <<'REMOTO'
+          set -eu
+          cd /opt/macuxi
+          IFS= read -r PGPASSWORD; export PGPASSWORD
+          host="$(sed -n 's/^MACUXI_PG_HOST=//p' banco.env)"
+          porta="$(sed -n 's/^MACUXI_PG_PORTA=//p' banco.env)"
+          ssl="$(sed -n 's/^MACUXI_PG_SSL_LIBPQ=//p' imagens.env 2>/dev/null || true)"
+          [ -n "$host" ] || { echo "banco.env sem MACUXI_PG_HOST" >&2; exit 8; }
+          certs=""; if [ -d certs ]; then certs="-v $(pwd)/certs:/certs:ro"; fi
+          exec docker run --rm -i $certs \
+            -e PGHOST="$host" -e PGPORT="${porta:-5432}" -e PGDATABASE=macuxi -e PGUSER=macuxi_leitura -e PGPASSWORD \
+            -e PGSSLMODE="${ssl:-require}" -e PGSSLROOTCERT=/certs/dbaas-ca.pem -e PGCONNECT_TIMEOUT=10 \
+            -e PGAPPNAME=macuxi-diagnostico-outbox -e TZ=UTC \
+            -e PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=15s' \
+            pgvector/pgvector:pg16 psql -X -f -
+          REMOTO
+          )
+          set +e
+          { printf '%s\n' "$SENHA"; cat "$RUNNER_TEMP/consulta.sql"; } | ssh -l "$USUARIO" prod "$remoto" 2>&1 | tee "$RUNNER_TEMP/saida.txt"
+          status=${PIPESTATUS[1]}
+          set -e
+          {
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/saida.txt"
+            echo '```'
+            echo "saída: $status (0 ok · 2 sem conexão · 3 erro no SQL, ex. sem LOGIN, sem grant ou trava · 8 VM sem banco.env)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: limpar o runner
+        if: ${{ always() }}
+        run: rm -f ~/.ssh/prod ~/.ssh/config ~/.ssh/known_hosts "$RUNNER_TEMP/consulta.sql" "$RUNNER_TEMP/saida.txt"
