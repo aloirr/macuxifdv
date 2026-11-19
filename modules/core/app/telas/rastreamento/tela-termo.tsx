@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
   marcador: { width: 12 },
   itemTexto: { flex: 1 },
   negrito: { ...fonte.bold },
-  link: { color: colors.accentInk, textDecorationLine: 'underline' },
+  link: { ...fonte.semibold, color: colors.accentInk, textDecorationLine: 'underline' },
   rodape: { gap: 8, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
   erro: { ...fonte.body, fontSize: 14, color: colors.danger },
 });

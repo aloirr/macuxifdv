@@ -4,7 +4,7 @@
  * Alertas (RN-VEN-42). O Perfil é do shell: ele monta esta seção depois do nome e antes de "Conta". Pausar e Retomar são um toque, sem
  * confirmação (Desfazer no rodapé). testIDs: `localizacao.secao|estado|pausar|retomar|meu-trajeto|termo`.
  */
-import { Botao, Cartao, ChipEstado, colors, fonte, Icon, AvisoRodape, LinhaAtalho, type TomEstado } from '@macuxi/ui/mobile';
+import { Botao, Cartao, ChipEstado, colors, fonte, Icon, AvisoRodape, LinhaAtalho, LinkTexto, type TomEstado } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -65,8 +65,9 @@ export function AlertaTermoRastreamento() {
   if (r.situacao !== 'pendente') return null;
   return (
     <View style={styles.alerta} testID="localizacao.alerta-termo">
+      <Icon name="alert" size={18} color={colors.danger} />
       <Text style={styles.alertaTexto}>Termo de localização para confirmar</Text>
-      <Botao rotulo="Ler" onPress={() => router.navigate('/m/termo-rastreamento' as never)} testID="localizacao.ler-termo" />
+      <LinkTexto rotulo="Ler" onPress={() => router.navigate('/m/termo-rastreamento' as never)} testID="localizacao.ler-termo" />
     </View>
   );
 }
@@ -77,6 +78,6 @@ const styles = StyleSheet.create({
   texto: { flex: 1 },
   rotulo: { ...fonte.semibold, fontSize: 16, color: colors.ink },
   apoio: { ...fonte.body, fontSize: 14, color: colors.ink2 },
-  alerta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  alertaTexto: { ...fonte.body, flex: 1, fontSize: 16, color: colors.ink },
+  alerta: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
+  alertaTexto: { ...fonte.body, flex: 1, fontSize: 14, lineHeight: 19, color: colors.ink },
 });

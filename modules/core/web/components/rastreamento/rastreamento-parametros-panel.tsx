@@ -74,7 +74,7 @@ export function RastreamentoParametrosPanel({ cliente }: { cliente?: ApiRastream
       {q.data && (
         <>
           <label className="flex min-h-[44px] items-center gap-3 text-[15px] font-semibold text-ink">
-            <input type="checkbox" className="h-5 w-5" checked={ativo} onChange={(e) => { setAviso(null); setAtivo(e.target.checked); }} data-testid={`${P}.ativo`} />
+            <input type="checkbox" className="h-5 w-5 accent-accent" checked={ativo} onChange={(e) => { setAviso(null); setAtivo(e.target.checked); }} data-testid={`${P}.ativo`} />
             Rastrear a localização no expediente
           </label>
           <div className="overflow-x-auto">

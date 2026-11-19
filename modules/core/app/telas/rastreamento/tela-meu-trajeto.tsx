@@ -75,16 +75,16 @@ export function TelaMeuTrajeto() {
   return (
     <Screen testID="meu-trajeto.tela" cabecalho={{ titulo: 'Meu trajeto', voltar: { label: 'Perfil', fallback: '/profile' } }}>
       <View style={styles.dia}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Dia anterior" disabled={!diaAnteriorPermitido(dia, hoje)} onPress={() => setData(deslocarDia(dia, -1))} style={[styles.seta, !diaAnteriorPermitido(dia, hoje) && styles.desligada]} testID="meu-trajeto.dia-anterior">
+        <Pressable accessibilityRole="button" accessibilityLabel="Dia anterior" disabled={!diaAnteriorPermitido(dia, hoje)} onPress={() => setData(deslocarDia(dia, -1))} style={styles.seta} testID="meu-trajeto.dia-anterior">
           <View style={styles.voltar}>
-            <Icon name="chevron" size={20} color={colors.ink} />
+            <Icon name="chevron" size={20} color={diaAnteriorPermitido(dia, hoje) ? colors.ink : colors.inkDisabled} />
           </View>
         </Pressable>
         <Text style={t.bodyStrong} accessibilityLiveRegion="polite" testID="meu-trajeto.dia">
           {rotuloDoDia(dia, hoje)}
         </Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Próximo dia" disabled={ehHoje} onPress={() => setData(deslocarDia(dia, 1))} style={[styles.seta, ehHoje && styles.desligada]} testID="meu-trajeto.dia-proximo">
-          <Icon name="chevron" size={20} color={colors.ink} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Próximo dia" disabled={ehHoje} onPress={() => setData(deslocarDia(dia, 1))} style={styles.seta} testID="meu-trajeto.dia-proximo">
+          <Icon name="chevron" size={20} color={ehHoje ? colors.inkDisabled : colors.ink} />
         </Pressable>
       </View>
 
@@ -105,8 +105,11 @@ export function TelaMeuTrajeto() {
             </View>
             {resumo.linhas.map((l, i) => (
               <View key={i} style={styles.linha} testID={`meu-trajeto.linha.${i}`}>
-                <View style={[styles.marca, l.tipo === 'inicio' ? styles.marcaVazia : l.tipo === 'pausa' ? styles.marcaPausa : styles.marcaCheia]} />
-                <Text style={t.body}>{l.texto}</Text>
+                <View style={l.tipo === 'fim' && ehHoje ? styles.halo : undefined}>
+                  <View style={[styles.marca, l.tipo === 'inicio' ? styles.marcaVazia : l.tipo === 'pausa' ? styles.marcaPausa : styles.marcaCheia]} />
+                </View>
+                <Text style={[t.body, styles.rotuloLinha]}>{partirLinha(l.texto).rotulo}</Text>
+                <Text style={[t.body, styles.hora]}>{partirLinha(l.texto).hora}</Text>
               </View>
             ))}
           </Cartao>
@@ -118,6 +121,12 @@ export function TelaMeuTrajeto() {
 }
 
 
+/** "Início 08:04" vira rótulo e hora; a hora (ou a faixa "09:12–09:40") vai à direita. */
+function partirLinha(texto: string): { rotulo: string; hora: string } {
+  const corte = texto.search(/ \d/);
+  return corte < 0 ? { rotulo: texto, hora: '' } : { rotulo: texto.slice(0, corte), hora: texto.slice(corte + 1) };
+}
+
 function MapaDoDia({ pontos, pausas, ehHoje, km, titulo, linhas }: { pontos: PontoDoTrajeto[]; pausas: PausaDoDia[]; ehHoje: boolean; km: string; titulo: string; linhas: string[] }) {
   const falado = `${ehHoje ? 'Trajeto de hoje' : 'Trajeto do dia'}: ${km}${titulo === 'Km até agora' ? ' até agora' : ''}${linhas.length > 0 ? `, ${linhas.map((l) => l.toLowerCase().replace('–', ' a ')).join(', ')}` : ''}`;
   return <MapaTrajeto pontos={pontos} pausas={pausas} ultimoDeHoje={ehHoje} leitura={falado} />;
@@ -126,13 +135,15 @@ function MapaDoDia({ pontos, pausas, ehHoje, km, titulo, linhas }: { pontos: Pon
 const styles = StyleSheet.create({
   dia: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   seta: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  desligada: { opacity: 0.35 },
-  voltar: { transform: [{ rotate: '180deg' }] },
+    voltar: { transform: [{ rotate: '180deg' }] },
   resumo: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
   km: { ...fonte.bold, fontSize: 28, color: colors.ink, fontVariant: ['tabular-nums'] },
   linha: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44, paddingHorizontal: 12 },
   marca: { width: 12, height: 12, borderRadius: 6 },
   marcaVazia: { borderWidth: 3, borderColor: colors.faixa, backgroundColor: colors.surface },
+  rotuloLinha: { flex: 1 },
+  hora: { ...fonte.semibold, fontVariant: ['tabular-nums'], textAlign: 'right' },
   marcaCheia: { backgroundColor: colors.faixa },
+  halo: { width: 20, height: 20, borderRadius: 10, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center', margin: -4 },
   marcaPausa: { borderWidth: 2, borderColor: colors.ink3, borderStyle: 'dashed', backgroundColor: colors.surface },
 });
