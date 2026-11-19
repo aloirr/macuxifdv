@@ -1,5 +1,8 @@
 # Termo de ciência — localização no expediente (modelo)
 
+> **NÃO SE APLICA (R-20261119-0546).** O rastreamento é interno: não há aviso nem termo para o vendedor. Ver
+> [tracking.md](tracking.md). O texto abaixo fica só como registro.
+
 > Modelo que a empresa publica no BKO (Parâmetros › Rastreamento); quando o app mostra:
 > [tracking.md](tracking.md) §6. É termo de **ciência**, não de consentimento ([finalidade](T-0156-legal-finalidade.md), item 3).
 

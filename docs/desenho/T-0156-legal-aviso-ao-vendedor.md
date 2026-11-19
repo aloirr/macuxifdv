@@ -1,5 +1,8 @@
 # Aviso ao vendedor — localização no expediente
 
+> **NÃO SE APLICA (R-20261119-0546).** O rastreamento é interno: não há aviso nem termo para o vendedor. Ver
+> [tracking.md](tracking.md). O texto abaixo fica só como registro.
+
 > Finalidade e base legal: [T-0156-legal-finalidade.md](T-0156-legal-finalidade.md).
 > O resto do que o vendedor precisa saber está no [termo de ciência](T-0156-legal-termo-de-ciencia.md).
 

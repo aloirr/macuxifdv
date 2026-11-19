@@ -30,5 +30,5 @@
 ## Ações dos módulos
 As do `acoes` de cada `modules/<m>/manifest.ts`, agrupadas por área (`areaDaAcao`). Níveis por ação (pedido, aprovar, metas) entram quando o desenho da página for aprovado.
 
-### Rastreamento (T-0156, ADR 0061, desenho `docs/desenho/tracking.md` §7; a declarar pelo modulo-core no manifesto)
-As 4 ações (`trajeto.ver_proprio`, `trajeto.ver_equipe`, `rastreamento.configurar` e `ausencia.cadastrar`), os perfis de fábrica e o que cada uma deixa ver estão no desenho, §7 (fonte única). A área de cada uma vem do `areaDaAcao` do platform-sdk.
+### Rastreamento (T-0156, ADR 0061, desenho `docs/desenho/tracking.md` §6; a declarar pelo modulo-core no manifesto)
+As 3 ações (`trajeto.ver_equipe`, `rastreamento.configurar` e `ausencia.cadastrar`; sem `trajeto.ver_proprio` desde 19/11/2026), os perfis de fábrica e o que cada uma deixa ver estão no desenho, §6 (fonte única). A área de cada uma vem do `areaDaAcao` do platform-sdk.

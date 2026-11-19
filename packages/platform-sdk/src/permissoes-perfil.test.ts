@@ -125,8 +125,7 @@ describe('padrão de fábrica (doc 03 §2; ADR 0033)', () => {
     expect(CATALOGO[0]?.area).toBe('acesso');
   });
 
-  it('ações do rastreamento (ADR 0061, desenho tracking §7): trajeto e ausência em Usuários, configurar em Administração', () => {
-    expect(areaDaAcao('core', 'trajeto.ver_proprio')).toBe('usuarios');
+  it('ações do rastreamento (ADR 0061, desenho tracking §6): trajeto e ausência em Usuários, configurar em Administração', () => {
     expect(areaDaAcao('core', 'trajeto.ver_equipe')).toBe('usuarios');
     expect(areaDaAcao('core', 'ausencia.cadastrar')).toBe('usuarios');
     expect(areaDaAcao('core', 'rastreamento.configurar')).toBe('administracao');
