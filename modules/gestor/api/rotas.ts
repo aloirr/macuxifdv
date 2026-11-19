@@ -223,8 +223,8 @@ export function criarRotasGestor(repo: RepositorioGestor): RotaModulo[] {
 
   /**
    * GET /v1/gestor/equipe/:usuario_id/trajeto?data= — T-0156, RN-CORE-13/RN-CORE-37, tracking §7: trajeto do dia de uma pessoa de campo,
-   * pelo `core.trajeto_do_dia@1` (o Core confere de novo escopo e permissão). Exige `core.trajeto.ver_equipe` (supervisor, gerente e
-   * admin de fábrica; nunca vendedor, promotor ou analista). Fora do escopo = 404. Só leitura: nada exporta pontos brutos, e nenhuma
+   * pelo `core.trajeto_do_dia@1` (o Core confere de novo escopo e permissão). Exige `core.trajeto.ver_equipe` (supervisor e gerente; o admin só
+   * se o perfil dele receber a permissão no BKO; nunca vendedor, promotor ou analista). Fora do escopo = 404. Só leitura: nada exporta pontos brutos, e nenhuma
    * coordenada vai para log ou erro (§9). Sem pontos, `pontos` vem vazio.
    */
   const trajeto: RotaModulo = {
