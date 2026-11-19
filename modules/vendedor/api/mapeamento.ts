@@ -11,6 +11,8 @@ export interface LinhaPedido {
   id: string;
   numero: string | null;
   vendedor_id: string;
+  /** quem digitou; `null` = o próprio vendedor (RN-VEN-10, T-0187 P4 A) */
+  autor_id?: string | null;
   vendedor_nome: string | null;
   cliente_id: string;
   cliente_nome: string | null;

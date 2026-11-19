@@ -157,3 +157,4 @@
 2026-11-16 — v1.0.14 prazo (#406) — RD-2051 (sai o teste que comparava o preço com ele mesmo), RD-2052 ("Vem do ERP" numa linha só no topo da gaveta do prazo do ERP), RD-2053 (coluna do % com 140px) e MC-1720 (código das tabelas em mono sem 12px).
 2026-11-16 — v1.0.14 parametros (#412) — merge do main fa2de750 (conflito só no diário, com as duas linhas) e RD-1582: o painel das decisões fica só com o título "Decisões de alçada" (sai o label "Decisões recentes"); refeito no Cline.
 2026-11-19 — T-0187 — contrato autor_id no aprovacao_solicitada@2 (dae238c); domain (vendedorPadraoEmNome, opcoesEmNome, nivelMinimoDoAutor, donoDaVenda), cliente.acoes do Gestão, Em nome de na aba Venda e bloco Venda no Resumo, nível do autor na API
+2026-11-19 — T-0187 (v1.0.16 S4) — decisorEhAutor e 422 APROVACAO_DO_PROPRIO_PEDIDO na decisão (RN-VEN-10, P4 A); D-187-01: VENDEDOR_INVALIDO antes de FORA_DA_EQUIPE

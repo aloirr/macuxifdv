@@ -5,7 +5,7 @@
 import { validateOrder, type DiscountPolicy, type DiscountRole, type OrderStatus, type OrderValidation } from './order';
 import { APLICACAO_MAX_ORCAMENTO_PADRAO, retratoAplicacao } from './aplicacao';
 import type { PagamentoEvento } from './pagamento';
-import { elevarAoNivelDoAutor } from './pedido-em-nome';
+import { decisorEhAutor, elevarAoNivelDoAutor, MSG_APROVACAO_DO_PROPRIO_PEDIDO } from './pedido-em-nome';
 import { aprovacoesFinanceiras, type FinanceiroParaAprovacao } from './credito-pedido';
 import type { PedidoAprovadoEvento } from '../contracts/eventos';
 import { medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from './preco-item';
@@ -548,6 +548,9 @@ export interface DecidirEntrada {
   texto?: string | null;
   /** `nivel_aprovacao` do pedido: vale para o pedido pendente sem nenhuma linha de aprovação (API antiga) */
   nivel_do_pedido?: NivelAprovacao | null;
+  /** quem decide e o pedido (autor e dono): o autor nunca decide o próprio pedido (RN-VEN-10, T-0187 P4 A) */
+  decisor_id?: string;
+  pedido?: { autor_id?: string | null; vendedor_id: string };
 }
 
 export interface MudancaDeAprovacao {
@@ -594,6 +597,9 @@ export function decidirAprovacao(e: DecidirEntrada): ResultadoDecisao {
   if (e.perfil === 'promotor') return { tipo: 'recusa', codigo: 'RN-PRO-01', http: 403, mensagem: 'RN-PRO-01: o promotor não decide pedidos.' };
   if (e.perfil !== 'supervisor' && e.perfil !== 'gerente' && e.perfil !== 'analista') {
     return { tipo: 'recusa', codigo: 'PERFIL_SEM_ACESSO', http: 403, mensagem: 'Seu perfil não aprova pedidos.' };
+  }
+  if (e.pedido && e.decisor_id && decisorEhAutor(e.pedido, e.decisor_id)) {
+    return { tipo: 'recusa', codigo: 'APROVACAO_DO_PROPRIO_PEDIDO', http: 422, mensagem: MSG_APROVACAO_DO_PROPRIO_PEDIDO };
   }
   if (e.status === DESTINO_DA_DECISAO[e.decisao]) return { tipo: 'repetida' };
   const aprovacoes = aprovacoesDoPedido(e.status, e.aprovacoes, e.nivel_do_pedido);

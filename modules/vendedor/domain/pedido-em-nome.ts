@@ -22,22 +22,23 @@ export interface EntradaPedidoEmNome {
   visiveis: ReadonlySet<string> | 'tenant';
 }
 
-/** `null` = pode. Ordem: promotor → perfil do autor → escopo → dono válido. */
+/** `null` = pode. Ordem: promotor → perfil do autor → dono válido → escopo (D-187-01). */
 export function verificarPedidoEmNome(e: EntradaPedidoEmNome): Recusa | null {
   if (e.autor.perfil === 'promotor') return { codigo: 'RN-PRO-01', http: 403, mensagem: 'RN-PRO-01: o promotor não cria nem altera pedido.' };
   if (!(PERFIS_EM_NOME as readonly string[]).includes(e.autor.perfil)) {
     return { codigo: 'PERFIL_SEM_ACESSO', http: 403, mensagem: 'Seu perfil não faz pedido em nome de vendedor.' };
   }
+  if (e.vendedor?.perfil === 'promotor') {
+    return { codigo: 'RN-PRO-01', http: 403, mensagem: 'RN-PRO-01: o promotor não faz pedido. Escolha um vendedor.' };
+  }
+  // D-187-01: o dono precisa existir (e ser vendedor) antes de se falar em equipe
+  if (!e.vendedor || e.vendedor.perfil !== 'vendedor') {
+    return { codigo: 'VENDEDOR_INVALIDO', http: 422, mensagem: 'Vendedor não encontrado ou inativo. Escolha outro vendedor da equipe.' };
+  }
   if (e.visiveis !== 'tenant' && !e.visiveis.has(e.vendedor_id)) {
     // T-0187: texto único da tela e da API ("Vendedor fora da sua equipe"); o rascunho fica no aparelho para escolher outro
     const lugar = e.autor.perfil === 'gerente' ? 'da sua área' : 'da sua equipe';
     return { codigo: 'FORA_DA_EQUIPE', http: 403, mensagem: `Vendedor fora ${lugar}` };
-  }
-  if (e.vendedor?.perfil === 'promotor') {
-    return { codigo: 'RN-PRO-01', http: 403, mensagem: 'RN-PRO-01: o promotor não faz pedido. Escolha um vendedor.' };
-  }
-  if (!e.vendedor || e.vendedor.perfil !== 'vendedor') {
-    return { codigo: 'VENDEDOR_INVALIDO', http: 422, mensagem: 'Vendedor não encontrado ou inativo. Escolha outro vendedor da equipe.' };
   }
   return null;
 }
@@ -120,6 +121,16 @@ export function elevarAoNivelDoAutor<T extends Pick<AprovacaoNova, 'nivel'>>(apr
   const minimo = nivelMinimoDoAutor(perfilDoAutor);
   if (!minimo) return [...aprovacoes];
   return aprovacoes.map((a) => (ORDEM_DO_NIVEL[a.nivel] < ORDEM_DO_NIVEL[minimo] ? { ...a, nivel: minimo } : a));
+}
+
+export const MSG_APROVACAO_DO_PROPRIO_PEDIDO = 'Você fez este pedido e não pode aprová-lo. Peça a decisão ao nível acima.';
+
+/**
+ * RN-VEN-10 e T-0187 P4 A: ninguém decide a aprovação do próprio pedido. O autor é `autor_id`; pedido sem ele
+ * (feito pelo próprio vendedor) tem o dono (`vendedor_id`) como autor.
+ */
+export function decisorEhAutor(pedido: { autor_id?: string | null; vendedor_id: string }, decisorId: string): boolean {
+  return (pedido.autor_id ?? pedido.vendedor_id) === decisorId;
 }
 
 /** RN-VEN-35 (P3 A): a venda (meta, comissão, ranking) conta para o vendedor de "Em nome de"; sem ele, para o autor. */

@@ -207,6 +207,13 @@ describe('quemDecide (P-3, RN-GES-04)', () => {
 describe('decidirAprovacao (uma aprovação por motivo, T-0184)', () => {
   const pend = (motivo: 'desconto' | 'credito' | 'inadimplencia', nivel: 'supervisor' | 'gerente' | 'analista') => ({ motivo, nivel, estado: 'pendente' as const });
   const base = { status: 'pending_approval' as const, aprovacoes: [pend('desconto', 'supervisor')], perfil: 'supervisor' };
+  it('RN-VEN-10 e T-0187 P4 A: o autor não decide o próprio pedido (422 APROVACAO_DO_PROPRIO_PEDIDO), em qualquer decisão', () => {
+    const proprio = { ...base, decisor_id: 'sup', pedido: { autor_id: 'sup', vendedor_id: 'v1' } };
+    for (const decisao of ['aprovar', 'devolver', 'recusar'] as const) {
+      expect(decidirAprovacao({ ...proprio, decisao, texto: 'motivo' })).toEqual({ tipo: 'recusa', codigo: 'APROVACAO_DO_PROPRIO_PEDIDO', http: 422, mensagem: 'Você fez este pedido e não pode aprová-lo. Peça a decisão ao nível acima.' });
+    }
+    expect(decidirAprovacao({ ...base, decisao: 'aprovar', decisor_id: 'sup', pedido: { autor_id: 'ger', vendedor_id: 'v1' } })).toMatchObject({ tipo: 'ok' });
+  });
   it('RN-GES-08: aprovar não exige comentário', () => {
     expect(decidirAprovacao({ ...base, decisao: 'aprovar' })).toMatchObject({ tipo: 'ok', para: 'approved', acima_do_nivel: false });
   });
