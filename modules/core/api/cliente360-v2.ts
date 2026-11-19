@@ -6,7 +6,7 @@
  * - Sem pull da NF e sem cópia de arquivo no aparelho: a NF vem ao tocar (P17); o documento só abre do servidor (P15).
  * - Banco: colunas e tabelas novas são do banco-dados (S5); os nomes usados abaixo estão no recado de T-0186.
  */
-import { ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, type ClienteBanco, type GuardaArquivoEntrada, type RotaModulo } from '@macuxi/platform-sdk';
+import { ErroHttpModulo, pode, ErroNaoEncontrado, ErroRegraNegocio, type ClienteBanco, type GuardaArquivoEntrada, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import {
   DocumentoAbrirRespostaSchema,
@@ -289,9 +289,9 @@ export function repositorioNotasSql(db: ClienteBanco, fuso: string): Repositorio
       (
         await db.query<ParcelaBruta>(
           `select t.cliente_id, t.nf_numero as nota_numero, t.nf_serie as nota_serie, t.parcela, to_char(t.vencimento, '${UTC_DIA}') as vencimento, t.valor_cents::float8 as valor_cents, t.saldo_cents::float8 as saldo_cents, t.situacao,
-                  to_char(t.liquidado_em at time zone 'UTC', 'YYYY-MM-DD') as liquidado_em
+                  to_char(t.liquidado_em at time zone $2::text, 'YYYY-MM-DD') as liquidado_em
              from core.titulo t where t.cliente_id = $1 and t.deleted_at is null and t.nf_numero is not null order by t.vencimento, t.id`,
-          [c],
+          [c, fuso],
         )
       ).rows,
     // O ERP ainda não manda as linhas da NF nem o PDF: sem tabela, a API devolve vazio (o desenho já prevê).
@@ -384,6 +384,10 @@ export function codigosDePerfil(usuario: { perfil: string; perfis?: readonly { c
   return codigos.length > 0 ? [...new Set(codigos)] : [usuario.perfil];
 }
 
+/** Ação que as rotas de documento declaram (`acao`) e que a guarda do arquivo confere com a mesma checagem. */
+export const ACAO_DOCUMENTO_VER = 'documento.ver';
+export const usuarioPodeVerDocumento = (usuario: Pick<GuardaArquivoEntrada['usuario'], 'perfis'>): boolean => pode(usuario.perfis, ACAO_DOCUMENTO_VER);
+
 /**
  * RN-CORE-40 (`ModuloApi.guardaArquivo`): quem tem o id do arquivo de um documento do cliente só o lê com a mesma regra da rota
  * (`decidirAbrirDocumento`: perfis, tipo, exceção) + carteira do cliente + licença do Core. Arquivo que não é de documento: `null`.
@@ -394,6 +398,7 @@ export async function guardaArquivoDocumento(e: GuardaArquivoEntrada): Promise<'
   if (!doc) return null;
   const d = await repo.documentoPorId(doc.id);
   if (!d) return null;
+  if (!usuarioPodeVerDocumento(e.usuario)) return 'negado';
   const [tipos, matriz, excecoes, carteira] = await Promise.all([repo.tipos(), repo.matriz(), repo.excecoes([d.id]), carteiraNoBanco(e.db, e.usuario)]);
   return decidirLeituraArquivoDocumento({
     ehDocumento: true,
@@ -447,7 +452,7 @@ export const rotasDeCliente360V2: RotaModulo[] = [
   {
     metodo: 'GET',
     caminho: ROTAS_CLIENTE360_V2.documentos,
-    acao: 'documento.ver',
+    acao: ACAO_DOCUMENTO_VER,
     carteira: 'filtrar_no_dominio',
     params: ClienteParam,
     executar: async (ctx) => {
@@ -460,7 +465,7 @@ export const rotasDeCliente360V2: RotaModulo[] = [
     // P15: só visualizar. Revalida licença, perfil, carteira, tipo e exceção; devolve o arquivo para o visualizador do shell
     metodo: 'GET',
     caminho: ROTAS_CLIENTE360_V2.documento,
-    acao: 'documento.ver',
+    acao: ACAO_DOCUMENTO_VER,
     carteira: 'filtrar_no_dominio',
     params: DocumentoParam,
     executar: async (ctx) => {

@@ -232,7 +232,7 @@ export function TelaCliente() {
               gestao={gestao}
               clienteDesde={customer?.customer_since ?? null}
               itens={itensComprados}
-              carteira={gestao ? pessoasDaCarteira(id, locais.carteiras, locais.usuarios, hoje) : undefined}
+              carteira={gestao ? pessoasDaCarteira(id, locais.carteiras, hoje) : undefined}
               atendimento={openHere && openVisit ? `Em atendimento · desde ${formatHHMM(openVisit.checkin_at, tz)}` : null}
               secoes={abasResumo.map((a) => {
                 const Aba = a.payload.componente;

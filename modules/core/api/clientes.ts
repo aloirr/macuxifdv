@@ -17,10 +17,8 @@ import {
   type ClienteListaResposta,
   type HierarquiaEquipe,
 } from '../contracts';
-import { abasDaFicha, curvasAbcDoCliente, dadosCadastraisDoCliente, dataLocal, enderecoPadrao, limiteEDisponivelDoResumo, performanceDoCliente, resumoDeVisitas, listarEnderecosDoCliente, montarHierarquia, papelCompativel, perfilRecebeHistoricoDeCompra, recortarHierarquia, resumoCompras, resumoFinanceiro, type EquipeLinha, type UsuarioLinha } from '../domain';
+import { dataLocal, enderecoPadrao, listarEnderecosDoCliente, montarHierarquia, papelCompativel, perfilRecebeHistoricoDeCompra, recortarHierarquia, resumoCompras, resumoFinanceiro, type EquipeLinha, type UsuarioLinha } from '../domain';
 import { auditar } from './auditoria';
-import { linhasDoHistorico, repositorioNotasSql } from './cliente360-v2';
-import { lerParametrosCurvaAbc } from './parametros-curvas-abc';
 import { lerPromotorVePedidos } from './promotor-pedidos';
 import { BASE, TABELAS_SYNC, comHoje } from './sync';
 
@@ -109,29 +107,7 @@ async function cliente360(ctx: ContextoBase, id: string): Promise<Cliente360> {
     const fin = financeiro as unknown as { limite_cents: number; saldo_aberto_cents: number; credito_disponivel_cents: number | null; bloqueado: boolean; motivo_bloqueio: string | null } | null;
     const tit = titulos as unknown as Array<{ vencimento: string; saldo_cents: number; situacao: 'aberto' | 'liquidado' | 'cancelado' }>;
     const his = historico as unknown as Array<{ ano_mes: string; valor_cents: number; pedidos: number; ultima_compra_em: string | null }>;
-    // T-0186 (Cliente 360 v2, aditivo): Resumo (dados cadastrais, cartão de crédito, Performance) e as linhas do Histórico dos últimos 90 dias.
-    // Sem nenhum alerta financeiro (R-20261119-0440). O desconto dos pedidos aprovados não faturados (RN-VEN-12) e o prazo médio saem dos pedidos,
-    // que são do Vendedor: o aparelho completa os dois; a API devolve sem eles (0 e nulo).
-    const abas = abasDaFicha(ctx.usuario.perfil, comHistorico);
-    const extra = (await db.query<{ created_at: string; filial_nome: string | null }>(
-      "select to_char(c.created_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') as created_at, f.nome as filial_nome from core.cliente c left join core.filial f on f.id = c.filial_id where c.id = $1",
-      [id],
-    )).rows[0];
-    const resumoServidor = (
-      await db.query<{ total_visitas: number; ultima_visita_em: string | null; ultima_visita_usuario_id: string | null; ultima_visita_usuario_nome: string | null }>(
-        "select total_visitas::int as total_visitas, to_char(ultima_visita_em at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') as ultima_visita_em, ultima_visita_usuario_id, ultima_visita_usuario_nome from core.v_cliente_visita_resumo where cliente_id = $1",
-        [id],
-      )
-    ).rows[0] ?? null;
-    const visitas = resumoDeVisitas([], ctx.fuso(), resumoServidor);
-    const curvas = comHistorico ? curvasAbcDoCliente(his as never, hoje, await lerParametrosCurvaAbc(db)) : [];
-    const notas = comHistorico ? (await linhasDoHistorico(repositorioNotasSql(db, ctx.fuso()), id, hoje)).map(({ devolvido_cents, ...l }) => ({ ...l, ...(devolvido_cents > 0 ? { devolvido_cents } : {}) })) : [];
     return Cliente360Schema.parse({
-      abas,
-      dados_cadastrais: extra ? dadosCadastraisDoCliente({ ...(cliente as { razao_social: string; documento: string | null; segmento: string | null }), created_at: extra.created_at }, extra.filial_nome, ctx.fuso()) : undefined,
-      cartao_credito: comHistorico ? limiteEDisponivelDoResumo(fin ? { ...fin, credito_disponivel_erp_cents: fin.credito_disponivel_cents } : null, [], null) : null,
-      performance: performanceDoCliente({ historico: his as never, curvas, visitas, hoje, comAcessoACompras: comHistorico, visitadaPor: visitas.ultimo_usuario_nome }),
-      notas,
       cliente,
       contatos,
       financeiro,

@@ -14,18 +14,6 @@ describe('T-0186: Cliente360Schema estendido de forma aditiva', () => {
     const r = Cliente360Schema.safeParse(base());
     expect(r.success ? [] : r.error.issues.map((i) => i.path.join('.'))).toEqual([]);
   });
-  it('aceita Resumo v2: cartão de crédito, Performance, dados cadastrais e as linhas do Histórico', () => {
-    const r = Cliente360Schema.safeParse(
-      base({
-        abas: ['resumo', 'historico', 'documentacao'],
-        dados_cadastrais: { razao_social: 'X', cnpj: null, filial_nome: 'Matriz', segmento: null, cliente_desde: '2025-03-01' },
-        cartao_credito: { limite_cents: 800_000, saldo_disponivel_cents: 188_000, prazo_medio_dias: 24, bloqueado: false, motivo_bloqueio: null },
-        performance: { curvas: [{ dimensao: 'volume', curva: 'B', rotulo: 'Curva Volume' }], compras: null, visitas_total: 46, ultima_visita_em: '2026-11-12', ultima_visita_por: null },
-        notas: [{ id: U, data: '2026-11-12', numero_nf: '004817', valor_cents: 1, forma_pagamento: 'Boleto 28 dias', status: 'em_atraso' }],
-      }),
-    );
-    expect(r.success).toBe(true);
-  });
   it('R-20261119-0440: o contrato não tem campo de alerta financeiro novo', () => {
     expect(Object.keys(Cliente360Schema.shape).filter((k) => /alerta|aviso/.test(k))).toEqual([]);
   });

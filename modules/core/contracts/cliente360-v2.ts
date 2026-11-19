@@ -167,16 +167,6 @@ export const PerformanceClienteSchema = z.object({
   ultima_visita_por: z.string().nullable(),
 });
 
-/** Campos novos do Cliente 360 (todos opcionais: APK antigo continua válido). */
-export const Cliente360V2CamposSchema = z.object({
-  abas: z.array(z.enum(['resumo', 'historico', 'documentacao'])).optional(),
-  dados_cadastrais: DadosCadastraisSchema.optional(),
-  cartao_credito: CartaoCreditoSchema.nullable().optional(),
-  performance: PerformanceClienteSchema.optional(),
-  /** Linhas do Histórico dos últimos 90 dias (as que ficam no aparelho); vazio para o promotor sem `promotor_ve_pedidos`. */
-  notas: z.array(LinhaHistoricoNfSchema).optional(),
-});
-
 // --- Documentação ---------------------------------------------------------------------------------------------------
 
 export const NIVEIS_DOCUMENTO = ['nao_ve', 've', 've_e_envia'] as const;

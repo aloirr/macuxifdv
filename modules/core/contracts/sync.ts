@@ -74,9 +74,6 @@ export const UsuarioSyncSchema = z
     /** T-0180 (D5): horário de almoço próprio, em minutos do dia; nulo = padrão da empresa (`jornada.almoco_padrao`). */
     almoco_inicio_min: MinutoDoDiaSchema.nullable().default(null),
     almoco_fim_min: MinutoDoDiaSchema.nullable().default(null),
-    /** T-0186 (aditivo): nome e telefone do usuário, para a tabela Carteira da ficha no Gestão (Ligar e WhatsApp). Ausente = emissor antigo; só chegam as pessoas que o usuário enxerga. */
-    nome: z.string().optional(),
-    telefone: z.string().nullable().optional(),
   })
   .strict();
 export type UsuarioSync = z.infer<typeof UsuarioSyncSchema>;

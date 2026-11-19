@@ -29,6 +29,8 @@ const ARQ = ID(9);
 const ARQ2 = ID(10);
 const PERFIL_REP = ID(11);
 const PERFIL_REP2 = ID(12);
+const TIT2 = ID(13);
+const PERFIL_SEM_VER = ID(14);
 
 describe.skipIf(semBanco())('Core T-0186 × Postgres: Cliente 360 v2 (notas, documentos e permissões)', () => {
   let pool: pg.Pool;
@@ -61,11 +63,11 @@ describe.skipIf(semBanco())('Core T-0186 × Postgres: Cliente 360 v2 (notas, doc
     try {
       await adm.query('delete from core.documento_excecao where documento_id = any($1::uuid[])', [[D_CAD, D_CTR]]);
       await adm.query('delete from core.documento_permissao where tipo_id = any($1::uuid[])', [[T_CAD, T_CTR]]);
-      await adm.query('delete from plataforma.perfil where id = any($1::uuid[])', [[PERFIL_REP, PERFIL_REP2]]);
+      await adm.query('delete from plataforma.perfil where id = any($1::uuid[])', [[PERFIL_REP, PERFIL_REP2, PERFIL_SEM_VER]]);
       await adm.query('delete from core.documento_cliente where id = any($1::uuid[])', [[D_CAD, D_CTR]]);
       await adm.query('delete from core.documento_tipo where id = any($1::uuid[])', [[T_CAD, T_CTR]]);
       await adm.query('delete from core.nota_erp where id = any($1::uuid[])', [[NF_FAT, NF_DEV, NF_OUTRO]]);
-      await adm.query('delete from core.titulo where id = $1', [TIT]);
+      await adm.query('delete from core.titulo where id = any($1::uuid[])', [[TIT, TIT2]]);
       await adm.query("delete from plataforma.auditoria where request_id = 'req-t0186'").catch(() => undefined);
     } finally {
       await adm.end();
@@ -90,6 +92,11 @@ describe.skipIf(semBanco())('Core T-0186 × Postgres: Cliente 360 v2 (notas, doc
         `insert into core.titulo (id, tenant_id, cliente_id, documento, parcela, emissao, vencimento, valor_cents, saldo_cents, situacao, nf_numero, nf_serie, forma_pagamento)
          values ($1, $2, $3, '9001', '1', current_date - 10, current_date - 2, 10000, 10000, 'aberto', '9001', '1', 'Boleto 28 dias')`,
         [TIT, A.tenantId, C.c1],
+      );
+      await c.query(
+        `insert into core.titulo (id, tenant_id, cliente_id, documento, parcela, emissao, vencimento, valor_cents, saldo_cents, situacao, nf_numero, nf_serie, forma_pagamento, liquidado_em)
+         values ($1, $2, $3, '9004', '1', '2026-11-01', '2026-11-09', 7000, 0, 'liquidado', '9004', '1', 'PIX', '2026-11-10T02:00:00Z')`,
+        [TIT2, A.tenantId, C.c1],
       );
       const vend = await perfilId(c, 'vendedor');
       await c.query(
@@ -135,6 +142,15 @@ describe.skipIf(semBanco())('Core T-0186 × Postgres: Cliente 360 v2 (notas, doc
         expect(await repositorioDocumentosSql(db).documentoPorId(D_CAD)).toBeUndefined();
         expect((await repositorioDocumentosSql(db).tipos()).map((t) => t.id)).not.toContain(T_CAD);
       });
+    });
+  });
+
+  describe('parcelas: fuso do tenant', () => {
+    it('RN-CORE-40: pagamento às 22h de Manaus (02h UTC do dia seguinte) cai no dia certo, como as notas', async () => {
+      const parcelas = await comTenant(pool, A.tenantId, (c) => repositorioNotasSql(c as unknown as ClienteBanco, 'America/Manaus').parcelas(C.c1));
+      expect(parcelas.find((p) => p.nota_numero === '9004')?.liquidado_em).toBe('2026-11-09');
+      const utc = await comTenant(pool, A.tenantId, (c) => repositorioNotasSql(c as unknown as ClienteBanco, 'UTC').parcelas(C.c1));
+      expect(utc.find((p) => p.nota_numero === '9004')?.liquidado_em).toBe('2026-11-10');
     });
   });
 
@@ -198,8 +214,9 @@ describe.skipIf(semBanco())('Core T-0186 × Postgres: Cliente 360 v2 (notas, doc
   });
 
   describe('RN-CORE-40: guarda do arquivo do documento (ModuloApi.guardaArquivo) × Postgres', () => {
-    const comModulos = (u: UsuarioAutenticado, modulos: string[] = ['core'], perfis?: string[]) =>
-      ({ ...u, modulos, ...(perfis ? { perfis: perfis.map((codigo) => ({ codigo, base: 'vendedor', permissoes: {} })) } : {}) }) as never;
+    // `perfis` resolvidos como a plataforma faz a cada requisição; `semVer` = perfil sem a ação documento.ver
+    const comModulos = (u: UsuarioAutenticado, modulos: string[] = ['core'], perfis?: string[], semVer: string[] = []) =>
+      ({ ...u, modulos, perfis: (perfis ?? [u.perfil]).map((codigo) => ({ codigo, base: perfis ? 'vendedor' : u.perfil, permissoes: semVer.includes(codigo) ? {} : { 'documento.ver': {} } })) }) as never;
     const guarda = (u: UsuarioAutenticado, arquivoId: string, tenant = u.tenant_id) =>
       comTenant(pool, tenant, (c) => guardaArquivoDocumento({ db: c as unknown as ClienteBanco, usuario: u as never, arquivoId, modulo: 'core', finalidade: 'documento', clienteId: C.c1 }));
     it('quem tem permissão no tipo, licença e o cliente na carteira recebe liberado', async () => {
@@ -211,6 +228,14 @@ describe.skipIf(semBanco())('Core T-0186 × Postgres: Cliente 360 v2 (notas, doc
     it('perfil personalizado com "Não vê" no tipo recebe negado; com outro perfil que vê, liberado', async () => {
       expect(await guarda(comModulos(vendedor1, ['core'], ['rep_t0186']), ARQ)).toBe('negado');
       expect(await guarda(comModulos(vendedor1, ['core'], ['rep_t0186', 'rep2_t0186']), ARQ)).toBe('liberado');
+    });
+    it('RN-CORE-40: perfil personalizado SEM a ação documento.ver recebe negado, mesmo com o tipo liberado na matriz (mesma checagem da rota)', async () => {
+      await comTenant(pool, A.tenantId, async (c) => {
+        await c.query(`insert into plataforma.perfil (id, tenant_id, codigo, nome, base, fabrica, ativo, cargo) values ($1, plataforma.tenant_atual(), 'sem_ver_t0186', 'sem_ver_t0186', 'vendedor', false, true, 'vendedor')`, [PERFIL_SEM_VER]);
+        await c.query(`insert into core.documento_permissao (tenant_id, tipo_id, perfil_id, nivel) values ($1, $2, $3, 've')`, [A.tenantId, T_CAD, PERFIL_SEM_VER]);
+      });
+      expect(await guarda(comModulos(vendedor1, ['core'], ['sem_ver_t0186'], ['sem_ver_t0186']), ARQ)).toBe('negado');
+      expect(await guarda(comModulos(vendedor1, ['core'], ['sem_ver_t0186', 'rep2_t0186']), ARQ)).toBe('liberado');
     });
     it('a exceção do documento recebe negado; admin segue liberado', async () => {
       await chamar('PUT', 'documentos/excecoes', admin, { corpo: { documento_id: D_CAD, perfis: ['vendedor'] } });
