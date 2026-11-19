@@ -49,8 +49,8 @@ describe('T-0034 — abas do shell mobile', () => {
     expect(sem.mais).toEqual([]);
   });
 
-  it('T-0170: o Campo tem 6 posições (4 abas de módulo e o "Mais"); o Gestão segue com 5', () => {
-    expect(MAX_ABAS_POR_VARIANTE).toEqual({ campo: 6, gestao: 5 });
+  it('T-0170: o Campo tem 6 posições (4 abas de módulo e o "Mais")', () => {
+    expect(MAX_ABAS_POR_VARIANTE.campo).toBe(6);
     const item = (id: string, rotulo: string) => ({ modulo: 'core', id, caminho: id, rotulo, icone: 'file' }) as unknown as ItemNavegacao<unknown>;
     const nav = [item('rota', 'Rota'), item('clientes', 'Clientes'), item('pedidos', 'Pedidos'), item('performance', 'Performance'), item('catalogo', 'Catálogo'), item('pesquisas', 'Pesquisas')];
     const { barra, mais } = abasDoShell(nav, MAX_ABAS_POR_VARIANTE.campo);
@@ -58,6 +58,20 @@ describe('T-0034 — abas do shell mobile', () => {
     expect(mais.map((a) => a.label)).toEqual(['Catálogo', 'Pesquisas']);
     // até 5 destinos de módulo cabem sem o "Mais"
     expect(abasDoShell(nav.slice(0, 5), MAX_ABAS_POR_VARIANTE.campo).mais).toEqual([]);
+  });
+
+  it('T-0187 (P6 A): o Gestão tem 6 posições: Início · Equipe · Rota · Aprovações · Clientes · Alertas', () => {
+    expect(MAX_ABAS_POR_VARIANTE).toEqual({ campo: 6, gestao: 6 });
+    // a ordem é a da navegação do shell (`ordem` das páginas: Equipe 10, Rota 20, Aprovações 20, Clientes 30, Alertas sem ordem)
+    const item = (modulo: string, id: string, rotulo: string) => ({ modulo, id, caminho: id, rotulo, icone: 'file' }) as unknown as ItemNavegacao<unknown>;
+    const nav = [item('gestor', 'equipe', 'Equipe'), item('core', 'rota', 'Rota'), item('gestor', 'aprovacoes', 'Aprovações'), item('core', 'clientes', 'Clientes'), item('gestor', 'alertas', 'Alertas')];
+    const { barra, mais } = abasDoShell(nav, MAX_ABAS_POR_VARIANTE.gestao);
+    expect(barra.map((a) => a.label)).toEqual(['Início', 'Equipe', 'Rota', 'Aprovações', 'Clientes', 'Alertas']);
+    expect(mais).toEqual([]);
+    // passando de 5 destinos de módulo, os 4 primeiros ficam e o resto vai para "Mais", como no Campo
+    const comPedidos = abasDoShell([...nav.slice(0, 4), item('vendedor', 'pedidos', 'Pedidos'), nav[4]!], MAX_ABAS_POR_VARIANTE.gestao);
+    expect(comPedidos.barra.map((a) => a.label)).toEqual(['Início', 'Equipe', 'Rota', 'Aprovações', 'Clientes', 'Mais']);
+    expect(comPedidos.mais.map((a) => a.label)).toEqual(['Pedidos', 'Alertas']);
   });
 
   it('nenhuma aba sem licença: o Gestor não licenciado não monta Equipe nem Aprovações', () => {

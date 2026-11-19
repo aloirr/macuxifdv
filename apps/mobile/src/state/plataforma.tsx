@@ -90,8 +90,10 @@ import {
   type PedidoSync,
   type TipoSync,
 } from '@/lib/sync-completa';
+import { APP_RASTREADO_DO_CARGO } from '@/lib/app-rastreado';
 import {
   mesmoEstadoDePermissoes,
+  permissoesExigidas,
   permissoesLiberadas,
   telaDePermissoes,
   type EstadosPermissoes,
@@ -302,7 +304,8 @@ function usePlataformaValor() {
     const antes = estadosPermissoesRef.current;
     const mudou = antes === null || !mesmoEstadoDePermissoes(antes, e);
     estadosPermissoesRef.current = e;
-    permissoesOkRef.current = permissoesLiberadas(variante, e);
+    // T-0187: as exigidas dependem do cargo da sessão (o supervisor no Gestão também precisa da localização "o tempo todo")
+    permissoesOkRef.current = permissoesLiberadas(variante, e, permissoesExigidas(variante, sessaoRef.current?.user.perfil ?? null, APP_RASTREADO_DO_CARGO));
     setEstadosPermissoes(e);
     if (mudou) setToquesSemEfeito(0);
     return mudou;
@@ -1167,13 +1170,21 @@ function usePlataformaValor() {
     return () => sub.remove();
   }, [conferirPermissoes]);
 
+  // T-0187 (RN-CORE-37): permissões exigidas pela variante e pelo cargo; no Gestão, o supervisor que entra passa a precisar da
+  // localização "o tempo todo" e a tela de permissões volta por cima do app, depois do login
+  const perfilDaSessao = sessao?.user.perfil ?? null;
+  const permissoesDoUsuario = useMemo(() => permissoesExigidas(variante, perfilDaSessao, APP_RASTREADO_DO_CARGO), [variante, perfilDaSessao]);
+  useEffect(() => {
+    if (estadosPermissoes) permissoesOkRef.current = permissoesLiberadas(variante, estadosPermissoes, permissoesDoUsuario);
+  }, [estadosPermissoes, variante, permissoesDoUsuario]);
+
   /** Tela de permissões (nula enquanto não leu ou com todas concedidas). */
   const telaPermissoes = useMemo<TelaDePermissoes | null>(
     () =>
-      estadosPermissoes && !permissoesLiberadas(variante, estadosPermissoes)
-        ? telaDePermissoes(variante, estadosPermissoes, apiDoAndroid(), toquesSemEfeito)
+      estadosPermissoes && !permissoesLiberadas(variante, estadosPermissoes, permissoesDoUsuario)
+        ? telaDePermissoes(variante, estadosPermissoes, apiDoAndroid(), toquesSemEfeito, permissoesDoUsuario)
         : null,
-    [estadosPermissoes, variante, toquesSemEfeito],
+    [estadosPermissoes, variante, toquesSemEfeito, permissoesDoUsuario],
   );
   const permissoesLidas = estadosPermissoes !== null;
 

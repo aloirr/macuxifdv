@@ -139,8 +139,9 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // encolhe, então as telas com campo embaixo usam KeyboardAvoidingView (login.tsx), que mede o quanto o teclado cobre
       softwareKeyboardLayoutMode: 'resize',
       // T-0145 (RN-CORE-37): o Campo exige notificações, localização o tempo todo, câmera e fotos/galeria (a tela de permissões
-      // confere a cada abertura); o Gestão exige só notificações. ACCESS_BACKGROUND_LOCATION vem do plugin do expo-location
-      // (só no Campo) e o READ_EXTERNAL_STORAGE até o Android 12, do expo-image-picker (no 13+ a galeria não pede permissão)
+      // confere a cada abertura); o Gestão exige notificações e, só do supervisor, a localização o tempo todo (T-0187).
+      // ACCESS_BACKGROUND_LOCATION vem do plugin do expo-location (nas duas variantes) e o READ_EXTERNAL_STORAGE até o
+      // Android 12, do expo-image-picker (no 13+ a galeria não pede permissão)
       permissions: [
         'android.permission.ACCESS_COARSE_LOCATION',
         'android.permission.ACCESS_FINE_LOCATION',
@@ -158,8 +159,9 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
         'expo-location',
         {
           locationWhenInUsePermission: `O ${v.nome} usa a localização para registrar o check-in na visita ao cliente.`,
-          // T-0145: "Permitir o tempo todo" no Campo (tracking no horário de trabalho, RN-CORE-37)
-          isAndroidBackgroundLocationEnabled: id === 'campo',
+          // T-0145 e T-0187: "Permitir o tempo todo" (tracking no horário de trabalho, RN-CORE-37) no Campo e no Gestão
+          // (supervisor); quem pede é a tela de permissões, pelo cargo
+          isAndroidBackgroundLocationEnabled: true,
         },
       ],
       // câmera e galeria (T-0145): fotos do PDV, da gôndola e da fachada (RN-CORE-14); sem microfone

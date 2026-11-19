@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { PARAMETROS_RASTREAMENTO_PADRAO, type FrequenciaRastreamento, type MotivoSemRastreio, type PontoTrajeto } from '@macuxi/core/contracts';
+import { CARGOS_RASTREADOS, PARAMETROS_RASTREAMENTO_PADRAO, type FrequenciaRastreamento, type MotivoSemRastreio, type PontoTrajeto } from '@macuxi/core/contracts';
 import type { ArmazenamentoSync, DriverSqlite } from '@macuxi/platform-sdk';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -124,7 +124,9 @@ describe('RN-CORE-13: o portão é o podeRastrear do Core (§2 e §3.2)', () => 
 
   const casos: Array<[string, Partial<ContextoDoRastreio>, number, MotivoSemRastreio]> = [
     ['1. parâmetro rastreamento desligado (padrão de fábrica)', { parametros: { ...LIGA.parametros, ativo: false } }, AGORA, 'desligado'],
-    ['RN-CORE-13, cargo pelo Core: fora do campo (supervisor)', { cargo: 'supervisor' }, AGORA, 'cargo'],
+    // T-0187: o gerente nunca é rastreado, em nenhum app
+    ['RN-CORE-13, cargo pelo Core: gerente no Campo', { cargo: 'gerente' }, AGORA, 'cargo'],
+    ['RN-CORE-13, cargo pelo Core: gerente no Gestão', { cargo: 'gerente', app: 'gestao' }, AGORA, 'cargo'],
     ['RN-CORE-13, cargo pelo Core: sem cargo na sessão', { cargo: '' }, AGORA, 'cargo'],
     ['RN-CORE-13, app pelo Core: app Gestão', { app: 'gestao' }, AGORA, 'app'],
     ['4. fora do expediente (19:00 em Manaus)', {}, Date.parse('2026-11-19T23:00:00.000Z'), 'fora_do_expediente'],
@@ -143,6 +145,30 @@ describe('RN-CORE-13: o portão é o podeRastrear do Core (§2 e §3.2)', () => 
       expect((await condicaoDoTrajeto(async () => c))(ms)).toEqual({ pode: false, motivo });
     });
   }
+
+  // T-0187 §1.2 (RN-CORE-13): o supervisor é rastreado só no Gestão. Os dois casos dependem do portão novo do modulo-core
+  // (`CARGOS_RASTREADOS` com o supervisor e `APP_RASTREADO_DO_CARGO`); até ele chegar ao main, ficam pulados.
+  const portaoComSupervisor = CARGOS_RASTREADOS.includes('supervisor');
+  it.skipIf(!portaoComSupervisor)('T-0187: supervisor no Gestão liga; no Campo, desliga por app', () => {
+    expect(portaoDoTrajeto({ ...LIGA, cargo: 'supervisor', app: 'gestao' }, AGORA)).toEqual({ pode: true });
+    expect(portaoDoTrajeto({ ...LIGA, cargo: 'supervisor', app: 'campo' }, AGORA)).toEqual({ pode: false, motivo: 'app' });
+  });
+
+  it('T-0187 (P7 A): a captura do Gestão liga com a notificação "Macuxi Gestão ativo"', async () => {
+    const ligadas: string[] = [];
+    const t = criarTrajeto({
+      captura: { ativa: async () => false, ligar: async (o) => void ligadas.push(o.foregroundService.notificationTitle), parar: async () => undefined, intervalosEmUso: async () => null },
+      condicao: async () => () => ({ pode: true }),
+      frequencia: async () => PARAMETROS_RASTREAMENTO_PADRAO.frequencia,
+      gravar: async () => undefined,
+      novoId: () => ID,
+      agora: () => AGORA,
+      registrarErro: () => undefined,
+      app: 'gestao',
+    });
+    expect(await t.atualizar()).toBe('ligar');
+    expect(ligadas).toEqual(['Macuxi Gestão ativo']);
+  });
 
   it('controles: o mesmo contexto liga nos instantes vizinhos; instante inválido desliga', () => {
     expect(portaoDoTrajeto(LIGA, Date.parse('2026-11-19T21:30:00.000Z'))).toEqual({ pode: true });
@@ -474,6 +500,11 @@ describe('ligação no shell (§3.2): três gatilhos, logout e aparelho bloquead
     expect(servico).toMatch(/cargo: s\?\.user\?\.perfil \?\? null, app: varianteAtual\(\), fuso: s\?\.tenant\?\.fuso \|\| DEFAULT_TZ, permissao/);
     expect(servico).toMatch(/getBackgroundPermissionsAsync\(\)\s*\.then\(\(r\) => r\.granted\)\s*\.catch\(\(\) => false\)/);
     expect(servico).toMatch(/condicao: \(\) => condicaoDoTrajeto\(contextoDaSessao\)/);
+  });
+
+  it('T-0187: a tarefa liga com a notificação da variante (Campo ou Gestão), sem trava de variante no shell', () => {
+    expect(servico).toMatch(/app: varianteAtual\(\),\n\}\);/);
+    expect(servico).not.toMatch(/varianteAtual\(\) === 'campo'/);
   });
 });
 

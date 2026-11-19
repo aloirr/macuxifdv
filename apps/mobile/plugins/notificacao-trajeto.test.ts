@@ -127,4 +127,13 @@ describe('MC-1780: notificação fixa do trajeto', () => {
       expect(appConfig({ config: {} } as Parameters<typeof appConfig>[0]).plugins).toContain('./plugins/notificacao-trajeto');
     }
   });
+
+  it('T-0187: a localização em segundo plano (serviço macuxi-trajeto) vale nas duas variantes, Campo e Gestão', () => {
+    for (const variante of ['campo', 'gestao']) {
+      process.env.APP_VARIANT = variante;
+      const plugins = appConfig({ config: {} } as Parameters<typeof appConfig>[0]).plugins ?? [];
+      const loc = plugins.find((p): p is [string, Record<string, unknown>] => Array.isArray(p) && p[0] === 'expo-location');
+      expect(loc?.[1]).toMatchObject({ isAndroidBackgroundLocationEnabled: true });
+    }
+  });
 });
