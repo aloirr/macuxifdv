@@ -80,7 +80,7 @@ export function linhasCartaoCredito(c: CartaoCredito | null | undefined): LinhaR
     { rotulo: 'Saldo disponível', valor: formatBRL(c.saldo_disponivel_cents), testID: 'cliente-saldo-disponivel' },
     { rotulo: 'Prazo médio', valor: c.prazo_medio_dias === null ? '—' : `${c.prazo_medio_dias} dias`, testID: 'cliente-prazo-medio' },
   ];
-  if (c.bloqueado && c.motivo_bloqueio) linhas.push({ rotulo: 'Bloqueado por', valor: c.motivo_bloqueio, testID: 'cliente-motivo-bloqueio', perigo: true });
+  if (c.bloqueado && c.motivo_bloqueio) linhas.push({ rotulo: 'Bloqueado por', valor: c.motivo_bloqueio, testID: 'cliente-motivo-bloqueio', tom: 'erro' });
   return linhas;
 }
 
@@ -294,7 +294,7 @@ export const subtituloDaNota = (n: Pick<NotaDetalhe, 'data' | 'forma_pagamento'>
 export function linhasDoDetalheDaNota(n: NotaDetalhe): LinhaRotuloValor[] {
   const linhas: LinhaRotuloValor[] = [{ rotulo: 'Valor da nota', valor: formatBRL(n.valor_cents) }];
   const atraso = n.parcelas.filter((p) => p.em_atraso).reduce((soma, p) => soma + p.saldo_cents, 0);
-  if (n.em_atraso && atraso > 0) linhas.push({ rotulo: 'Em atraso', valor: formatBRL(atraso), perigo: true });
+  if (n.em_atraso && atraso > 0) linhas.push({ rotulo: 'Em atraso', valor: formatBRL(atraso), tom: 'erro' });
   if (n.devolvido_cents > 0) {
     linhas.push({ rotulo: n.devolvido_em ? `Devolvido em ${dataCurta(n.devolvido_em)}` : 'Devolvido', valor: `− ${formatBRL(n.devolvido_cents)}` });
     linhas.push({ rotulo: 'Valor final', valor: formatBRL(n.valor_final_cents) });

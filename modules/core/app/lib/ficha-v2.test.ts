@@ -58,7 +58,7 @@ describe('T-0186 / spec §3: Resumo', () => {
     const base = { limite_cents: 800000, saldo_disponivel_cents: 188000, prazo_medio_dias: 24, bloqueado: false, motivo_bloqueio: null };
     expect(linhasCartaoCredito(base)?.map((x) => x.rotulo)).toEqual(['Limite', 'Saldo disponível', 'Prazo médio']);
     expect(linhasCartaoCredito(base)?.[1]?.valor).toBe('R$ 1.880,00');
-    expect(linhasCartaoCredito({ ...base, bloqueado: true, motivo_bloqueio: 'Limite excedido' })?.at(-1)).toMatchObject({ valor: 'Limite excedido', perigo: true });
+    expect(linhasCartaoCredito({ ...base, bloqueado: true, motivo_bloqueio: 'Limite excedido' })?.at(-1)).toMatchObject({ valor: 'Limite excedido', tom: 'erro' });
     expect(linhasCartaoCredito(null)).toBeNull();
   });
   it('spec §3.2: sem prazo médio o cartão mostra "—"', () => {
@@ -170,7 +170,7 @@ describe('T-0186 / P17: detalhe da NF', () => {
   it('spec §4: "Valor da nota", "Em atraso" (vermelho), "Devolvido em 29/10" e "Valor final"', () => {
     const l = linhasDoDetalheDaNota(nota);
     expect(l.map((x) => x.rotulo)).toEqual(['Valor da nota', 'Em atraso', 'Devolvido em 29/10', 'Valor final']);
-    expect(l[1]).toMatchObject({ valor: 'R$ 640,00', perigo: true });
+    expect(l[1]).toMatchObject({ valor: 'R$ 640,00', tom: 'erro' });
     expect(l[2]?.valor).toBe('− R$ 330,00');
   });
   it('spec §4: sem atraso nem devolução só "Valor da nota"', () => {
