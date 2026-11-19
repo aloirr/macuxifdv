@@ -1,5 +1,5 @@
 /**
- * Os 3 cards da tela Pedidos, no Campo e no Gestão (T-0170, RN-VEN-43; decisões D5 e D6): orçamentos em aberto, pedidos
+ * Os 3 cards da tela Pedidos, no Campo e no Gestão (T-0170, RN-VEN-47; decisões D5 e D6): orçamentos em aberto, pedidos
  * enviados e o total, cada um com quantidade e valor. Função pura, sem relógio: o período e o fuso chegam por parâmetro.
  * Dinheiro em centavos (`total_cents`, sem frete, RN-VEN-02).
  */
@@ -34,7 +34,7 @@ export interface ResumoDePedidos {
   total: QuantidadeEValor;
 }
 
-/** RN-VEN-43: do "Enviado" do histórico (RN-VEN-30) em diante. Fora: rascunho, na fila, recusado e cancelado. */
+/** RN-VEN-47: do "Enviado" do histórico (RN-VEN-30) em diante. Fora: rascunho, na fila, recusado e cancelado. */
 export const STATUS_ENVIADO = [
   'received',
   'pending_approval',
@@ -45,18 +45,18 @@ export const STATUS_ENVIADO = [
   'invoiced',
 ] as const satisfies readonly OrderStatus[];
 
-/** RN-VEN-43: pedido que chegou ao servidor e não foi recusado nem cancelado. Regra do card e do filtro vindo do card. */
+/** RN-VEN-47: pedido que chegou ao servidor e não foi recusado nem cancelado. Regra do card e do filtro vindo do card. */
 export function pedidoEnviado(d: Pick<DocumentoDoResumo, 'tipo' | 'status' | 'local'>): boolean {
   return d.tipo !== 'orcamento' && !d.local && (STATUS_ENVIADO as readonly string[]).includes(d.status);
 }
 
-/** RN-VEN-43: o card Total. Também soma o resumo que vem do servidor fora da janela do aparelho. */
+/** RN-VEN-47: o card Total. Também soma o resumo que vem do servidor fora da janela do aparelho. */
 export function totalDoResumo(orcamentos: QuantidadeEValor, enviados: QuantidadeEValor): QuantidadeEValor {
   return { quantidade: orcamentos.quantidade + enviados.quantidade, valor_cents: orcamentos.valor_cents + enviados.valor_cents };
 }
 
 /**
- * RN-VEN-43: os 3 cards do período, pela data de emissão no fuso do tenant (D5: a data da mudança de status não conta).
+ * RN-VEN-47: os 3 cards do período, pela data de emissão no fuso do tenant (D5: a data da mudança de status não conta).
  * `vendedorId` (Gestão, D6): ausente ou "todos" soma a equipe; senão, só o vendedor. Busca e chip de situação não entram.
  */
 export function resumoDePedidos(
