@@ -38,3 +38,5 @@ export * from './sincronizacao-completa';
 export * from './carga-fundo';
 // T-0182: PlacaLogoCliente (medidas, caixa pela proporção e leitura do TalkBack)
 export * from './placa-logo';
+// RD-2355 (T-0186): tabelas da ficha (medidas, largura e alinhamento das colunas, leitura do par rótulo-valor)
+export * from './tabela-ficha';
