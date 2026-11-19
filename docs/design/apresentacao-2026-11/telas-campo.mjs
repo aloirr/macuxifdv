@@ -1,6 +1,6 @@
 // Telas do Macuxi Campo (vendedora Carla Lima). Cada função segue o componente de hoje citado no comentário.
 import { alertas, badge, barraAbas, busca, cabecalho, COR, ic, rotulo, seloSync, suspensa, tabelaRotuloValor, tabelaValores, tela } from './base.mjs';
-import { CLIENTE, ENDERECO_UMA_LINHA, GERENTE, PEDIDO } from './dados.mjs';
+import { CLIENTE, GERENTE, PEDIDO } from './dados.mjs';
 
 const ALERTAS_DO_PEDIDO = ['Limite de crédito excedido', 'Título vencido'];
 
@@ -48,21 +48,20 @@ const CSS_PEDIDO = `
 .end p{font-size:14px;line-height:20px}
 `;
 
-const cabNovoPedido = (sub = '') => cabecalho({ titulo: 'Novo pedido', subtitulo: `${CLIENTE.fantasia} · cód. ${CLIENTE.codigo}${sub}`, voltar: 'Voltar' });
+const cabNovoPedido = () => cabecalho({ titulo: 'Novo pedido', subtitulo: `${CLIENTE.fantasia} · cód. ${CLIENTE.codigo}`, voltar: 'Voltar' });
 const abasPedido = (ativa, itens) =>
   `<div class="abas">${[['venda', 'Venda'], ['itens', `Itens (${itens})`], ['entrega', 'Entrega'], ['resumo', 'Resumo']].map(([id, r]) => `<div${id === ativa ? ' class="on"' : ''}>${r}</div>`).join('')}</div>`;
 const avancar = '<div class="bt pri">Avançar</div>';
 
 /** Aba Venda (AbaVenda + CardPagamento): Cliente, forma e prazo, Crédito do cliente sem o prazo médio (v1.0.15). */
-function venda({ subtitulo = '', comAlertas = false } = {}) {
+function venda() {
   return tela({
     hora: '09:31',
     estilo: CSS_PEDIDO,
-    cab: cabNovoPedido(subtitulo) + abasPedido('venda', comAlertas ? 4 : 0),
+    cab: cabNovoPedido() + abasPedido('venda', 0),
     classeCorpo: 'np',
     corpo: [
-      comAlertas ? alertas(ALERTAS_DO_PEDIDO) : '',
-      `<div class="bloco">${rotulo('Cliente')}${tabelaRotuloValor([['Endereço', ENDERECO_UMA_LINHA], ['CNPJ', CLIENTE.cnpj]])}</div>`,
+      `<div class="bloco">${rotulo('Cliente')}${tabelaRotuloValor([['Endereço', `${CLIENTE.rua} · ${CLIENTE.bairro} · ${CLIENTE.cidade}`], ['CNPJ', CLIENTE.cnpj]])}</div>`,
       `<div class="linha2">${suspensa('Forma de pagamento', PEDIDO.forma)}${suspensa('Prazo', PEDIDO.prazo)}</div>`,
       `<div class="bloco">${rotulo('Crédito do cliente')}${tabelaValores([['Limite', CLIENTE.limite], ['Disponível', CLIENTE.disponivel]])}<div class="tv-rod">${ic('sync', 14, COR.ink2)}Atualizado hoje às 09:05</div></div>`,
       avancar,
@@ -193,12 +192,12 @@ function pedidos() {
   const card = (rot, q, v, seta = true) => `<div><small>${rot}</small><span class="q"><b>${q}</b>${seta ? ic('chevron', 16, COR.ink3, 2.4) : ''}</span><small class="tn">${v}</small></div>`;
   const linhas = [
     [CLIENTE.fantasia, PEDIDO.total, 'hoje 09:42', badge('Aguardando aprovação', 'av')],
-    ['Supermercado Rio Branco', 'R$ 1.150,00', 'hoje 08:40', badge('Integrado', 'suc')],
+    ['Padaria Pão da Serra', 'R$ 640,00', 'hoje 08:41', badge('Integrado', 'suc')],
+    ['Supermercado Rio Branco', 'R$ 1.150,00', 'ontem 16:20', badge('Aguardando aprovação', 'av')],
     ['Empório Caxangá', 'R$ 3.310,00', 'ontem 15:47', badge('Faturado', 'suc')],
-    ['Padaria Pão da Serra', 'R$ 640,00', 'ontem 11:05', `<span class="selo t-des" style="border-radius:999px">Orçamento · preço de 18/11</span>`],
+    ['Mercearia Santa Luzia', 'R$ 860,00', 'ontem 11:05', `<span class="selo t-des" style="border-radius:999px">Orçamento · preço de 18/11</span>`],
     ['Comercial Paricarana', 'R$ 1.920,00', '17/11', badge('Faturado', 'suc')],
     ['Atacarejo São Vicente', 'R$ 4.624,73', '17/11', badge('Faturado', 'suc')],
-    ['Mercearia Caçari', 'R$ 820,00', '16/11', badge('Integrado', 'suc')],
   ];
   return tela({
     hora: '09:45',
@@ -206,7 +205,7 @@ function pedidos() {
     cab: cabecalho({ titulo: 'Pedidos', direita: seloSync('09:43') }),
     classeCorpo: 'pd',
     corpo: [
-      `<div class="cards">${card('Orçamentos', '1', 'R$ 640,00')}${card('Pedidos', '6', 'R$ 14.304,73')}${card('Total', '7', 'R$ 14.944,73', false)}</div>`,
+      `<div class="cards">${card('Orçamentos', '1', 'R$ 860,00')}${card('Pedidos', '6', 'R$ 14.124,73')}${card('Total', '7', 'R$ 14.984,73', false)}</div>`,
       `<div style="display:flex;gap:8px">${busca('Cliente ou nº')}<span class="fbtn">${ic('filtro', 20, COR.ink)}</span></div>`,
       `<div class="chips">${['Todos', 'Aguardando', 'Aprovados', 'Orçamentos'].map((c, i) => `<span class="chip${i === 0 ? ' on' : ''}">${c}</span>`).join('')}</div>`,
       `<div class="lp">${linhas.map(([n, v, q, b]) => `<div class="row"><div class="ln"><b>${n}</b><b class="tn">${v}</b></div><div class="ln"><span class="q">${q}</span>${b}</div></div>`).join('')}</div>`,
@@ -225,4 +224,3 @@ export const TELAS_CAMPO = {
   '18-pedidos': pedidos(),
 };
 
-export { venda as vendaDoPedido };
