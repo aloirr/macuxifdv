@@ -2,18 +2,27 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
-> **v1.0.14 = cenário A** (R-20261117-063420-alexandre). Sessão do Cline de 16 a 18/11, no lugar da nuvem até sexta (20/11). Horários de Manaus.
+> **v1.0.14 = cenário A, só servidor** (R-20261117-063420-alexandre e R-20261118-003807-alexandre). O Cline tocou de 16 a 18/11, e a nuvem voltou em 18/11 às 20h57 (R-20261118-205700). Horários de Manaus.
 > - **No main:** #420, #486, #403, #396 (0087), #483, #412, #484, #478, #479, #480, #481, #482, #414, #416, #415, #488 e #489 (último: 555c719a, 17/11 às 23h44).
-> - **Falta:**
->   - #485 (testes da T-0173): head 2878f90b, esperando a frase nova;
->   - main verde (o run 44232491470 caiu por infraestrutura: job morto, código 137);
->   - reteste do corretor e da marca sobre o main e o recado "PRONTO PARA LIBERAR v1.0.14".
+> - **#485** (testes da T-0173): no main em b52ca64d (18/11, 20h58), no SHA da frase 2878f90b (R-20261118-003807).
+> - **Main verde** em b52ca64dfc92dad5428921f9d1af2fe7910a5e97 (CI do push, run 44433316282, 18/11 às 21h08).
+> - **Reteste sobre o main b52ca64d** (18/11, 21h10):
+>   - corretor: LIBERADO. Fica a RD-2220 (baixa, linha velha em `docs/testes/T-0173.md:6`, dono `testes`), que vai para a v1.0.15, como decidiu a rodada 62;
+>   - marca: LIBERADO. A MC-0068 (cinzas do PDF do pedido, já em produção) vai para o `modulo-vendedor` na v1.0.15.
+> - **"PRONTO PARA LIBERAR v1.0.14 (só servidor)"** no SHA b52ca64d. Deploy pela ponte (R-20261118-003807).
+> - **⚠️ Trava de operação, RN-VEN-45 opção 1** (R-20261118-210200-alexandre), até o APK da v1.0.15:
+>   - **não publicar o Conector 1.5.0** (o 1.4.0 continua em produção);
+>   - **não preencher o "% Acres.Fin."** (`prazo_pagamento.percentual_ajuste`) na carga por arquivo nem no Conector.
+>   - O app v1.0.13 não manda o % do prazo, e o servidor recusa pedido com % diferente de 0. A trava só cai com um recado do dono do produto depois do APK da v1.0.15.
 > - **Fechados sem merge:** #487 e #384 (a reconferência de marca da v1.0.13 os substitui) e #345 (substituído pelo #488).
 > - **v1.0.15:**
 >   - #453 (catálogo v2), em rascunho até a parte 2 das telas (RD-1707), que precisa de aparelho;
 >   - [T-0185](tarefas/T-0185.md): login e e-mails de senha refeitos sobre o main (os #285, #302 e #288 ficam congelados);
 >   - [T-0184](tarefas/T-0184.md): P-6, pedido com crédito estourado vai para aprovação (R-20261117-234127 e R-20261117-234437);
->   - preço do Catálogo no prazo padrão do cliente, junto com o #453.
+>   - preço do Catálogo no prazo padrão do cliente, junto com o #453;
+>   - compatibilidade da RN-VEN-45 com o app antigo, junto com o APK (o % do prazo vai ao servidor);
+>   - marca (R-20261118-210515-alexandre): **MC-1503 = B**, texto desabilitado em `#5B6673` (`inkDisabled` de `packages/ui`; o `#8A949C` não entra na paleta); **MC-1522 = A**, nome do cartão do Catálogo v2 em 16/600;
+>   - RD-2220 (`testes`) e MC-0068 (`modulo-vendedor`), vindos do reteste.
 > - **RN-VEN-43 com dois sentidos** (R-20261117-201110, ponto 3): o doc 03 vai só até a RN-VEN-42, e nenhuma das duas está lá. **Proposta revista:**
 >   - a tabela ajustada pelo prazo fica com a **RN-VEN-43 a 46** (53 arquivos citam, código inclusive);
 >   - os **cards de Pedidos** (T-0170, só em `docs/desenho/inicio-frase-avatar-pedidos.md` e afins) ganham um número novo;
