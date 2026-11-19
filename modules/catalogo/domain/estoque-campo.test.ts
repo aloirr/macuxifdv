@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { corDoEstoque, filiaisDaFolha, filiaisDoEstoque, linhasDaFolhaEstoque, rotuloCargaEstoque, lerFiliaisDoUsuario, rotuloChipFiliais, textoEstoqueCartao, type FiliaisDoUsuario } from './estoque-campo';
+import { chipDoEstoque, corDoEstoque, filiaisDaFolha, filiaisDoEstoque, linhasDaFolhaEstoque, rotuloCargaEstoque, lerFiliaisDoUsuario, rotuloChipFiliais, textoEstoqueCartao, type FiliaisDoUsuario } from './estoque-campo';
 
 // docs/design/catalogo-campo-v2/spec.md §3 e §4 (estoque na hora, valor de N e quem vê); RN-CAT-05 (estoque do promotor), RN-CORE-39 (filial)
 const BV = 'f-boa-vista';
@@ -78,6 +78,19 @@ describe('Catálogo v2: texto e cor do estoque', () => {
   });
   it('catalogo-grade §4: verde acima de 0; vermelho em 0, negativo ou sem saldo; nunca laranja', () => {
     expect([corDoEstoque(84), corDoEstoque(1), corDoEstoque(0), corDoEstoque(-2), corDoEstoque(null)]).toEqual(['sucesso', 'sucesso', 'erro', 'erro', 'erro']);
+  });
+});
+
+describe('Catálogo v2: chipDoEstoque, texto e cor do "Estoque: N" (spec §3)', () => {
+  it('spec §3: número exato na ficha, "999+" no cartão, cor pelo número', () => {
+    expect(chipDoEstoque({ quantity: 1284, band: 'disponivel' }, true)).toEqual({ texto: 'Estoque: 999+', tom: 'sucesso' });
+    expect(chipDoEstoque({ quantity: 1284, band: 'disponivel' }, false)).toEqual({ texto: 'Estoque: 1.284', tom: 'sucesso' });
+    expect(chipDoEstoque({ quantity: -2, band: 'sem_estoque' }, true)).toEqual({ texto: 'Estoque: −2', tom: 'erro' });
+    expect(chipDoEstoque({ quantity: 0, band: 'sem_estoque' }, true)).toEqual({ texto: 'Estoque: 0', tom: 'erro' });
+  });
+  it('spec §3: tenant que esconde a quantidade decide pela faixa: "Em estoque" verde ou "Sem estoque" vermelho', () => {
+    expect(chipDoEstoque({ quantity: null, band: 'baixo' }, true)).toEqual({ texto: 'Em estoque', tom: 'sucesso' });
+    expect(chipDoEstoque({ quantity: null, band: 'sem_estoque' }, true)).toEqual({ texto: 'Sem estoque', tom: 'erro' });
   });
 });
 

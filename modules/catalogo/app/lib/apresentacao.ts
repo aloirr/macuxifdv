@@ -1,14 +1,10 @@
 /**
- * Textos e tons do cartão e da ficha no app (puro, testável em Node). A decisão (preço da tabela do cliente, faixa de
- * estoque, quem vê) é do domain; aqui só a forma de mostrar.
+ * Textos do cartão e da ficha no app (puro, testável em Node). A decisão (preço da tabela do cliente, quem vê) é do domain;
+ * aqui só a forma de mostrar. O estoque (`Estoque: N` e a folha por filial) fica em `grade.ts` e `estoque-folha.ts`.
  */
 import { formatBRL } from '@macuxi/comum';
 import type { ItemVitrine } from '../../contracts';
-import { AVISO_ESTOQUE_DESATUALIZADO, ROTULO_FAIXA_ESTOQUE } from '../../domain/estoque';
-import { rotuloCargaEstoque } from '../../domain/estoque-campo';
 import { MENSAGEM_SEM_PRECO_CATALOGO } from '../../domain/vitrine';
-
-export type TomCatalogo = 'success' | 'warning' | 'danger' | 'neutral';
 
 export interface RotuloPreco {
   texto: string;
@@ -23,44 +19,6 @@ export function rotuloPreco(item: ItemVitrine): RotuloPreco | null {
   const p = item.price;
   if (p.sellable && p.price_cents !== null) return { texto: formatBRL(p.price_cents), riscado: p.on_promotion && p.base_cents !== null ? formatBRL(p.base_cents) : null, vendavel: true };
   return { texto: p.notice ?? MENSAGEM_SEM_PRECO_CATALOGO, riscado: null, vendavel: false };
-}
-
-export interface RotuloEstoque {
-  texto: string;
-  tom: TomCatalogo;
-  /** "Atualizado às hh:mm" (RN-CAT-07) ou o aviso de desatualizado. */
-  detalhe: string;
-  desatualizado: boolean;
-}
-
-const FAIXA: Record<NonNullable<ItemVitrine['availability']>['band'], { texto: string; tom: TomCatalogo }> = {
-  disponivel: { texto: ROTULO_FAIXA_ESTOQUE.disponivel, tom: 'success' },
-  baixo: { texto: ROTULO_FAIXA_ESTOQUE.baixo, tom: 'warning' },
-  sem_estoque: { texto: ROTULO_FAIXA_ESTOQUE.sem_estoque, tom: 'danger' },
-};
-
-/** Texto legível da faixa de estoque (nunca o código cru): "Disponível", "Estoque baixo", "Sem estoque". */
-export function rotuloFaixa(band: keyof typeof FAIXA): string {
-  return FAIXA[band].texto;
-}
-
-/** Linha por filial na ficha: "Matriz: Disponível · 1.200" (número em pt-BR quando o tenant o mostra). */
-export function rotuloEstoqueFilial(b: { branch_name: string; band: keyof typeof FAIXA; quantity: number | null }): string {
-  const faixa = rotuloFaixa(b.band);
-  return `${b.branch_name}: ${b.quantity !== null && b.band !== 'sem_estoque' ? `${faixa} · ${b.quantity.toLocaleString('pt-BR')}` : faixa}`;
-}
-
-/** Estoque do cartão (RN-CAT-07); `null` = o perfil não vê estoque. Sem nenhum saldo recebido: "sem informação". */
-export function rotuloEstoque(item: ItemVitrine, agora: string, fuso: string, opcoes: { filialDoCliente?: boolean } = {}): RotuloEstoque | null {
-  const a = item.availability;
-  if (!item.price_stock_visible || !a) return null;
-  // RN-CORE-39: com cliente no contexto o estoque é o da filial dele; sem registro nela é 0, não "sem informação"
-  if (a.by_branch.length === 0 && opcoes.filialDoCliente) return { texto: FAIXA.sem_estoque.texto, tom: FAIXA.sem_estoque.tom, detalhe: '', desatualizado: false };
-  if (a.by_branch.length === 0) return { texto: 'Estoque sem informação', tom: 'neutral', detalhe: '', desatualizado: true };
-  const f = FAIXA[a.band];
-  const texto = a.quantity !== null && a.band !== 'sem_estoque' ? `${f.texto} · ${a.quantity} ${item.unit.toLowerCase()}` : f.texto;
-  const hora = rotuloCargaEstoque(a.updated_at, agora, fuso);
-  return { texto, tom: f.tom, detalhe: a.stale ? `${AVISO_ESTOQUE_DESATUALIZADO} · ${hora}` : hora, desatualizado: a.stale };
 }
 
 /** Linha secundária do cartão: marca · código. */

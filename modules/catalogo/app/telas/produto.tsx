@@ -6,16 +6,19 @@
  */
 import { relogioReal } from '@macuxi/comum/relogio';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
-import { Badge, CatalogoCarregando, Card, colors, DEFAULT_TZ, Empty, fonte, Icon, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
+import { Badge, CatalogoCarregando, Card, ChipEstado, colors, DEFAULT_TZ, Empty, fonte, Icon, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { caminhoCatalogo, type FichaProduto } from '../../contracts';
 import { modoDaCarga } from '../lib/carga-online';
-import { aplicacaoPrecisaRecolher, estadoOfereceJunto, LINHAS_APLICACAO_RECOLHIDA, rotuloEstoque, rotuloEstoqueFilial, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
-import { fichaLocal } from '../lib/local';
+import { aplicacaoPrecisaRecolher, estadoOfereceJunto, LINHAS_APLICACAO_RECOLHIDA, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
+import { dadosDaFolha } from '../lib/estoque-folha';
+import { chipDoEstoque } from '../../domain/estoque-campo';
+import { filialDeCadastroLocal, fichaLocal } from '../lib/local';
 import { hrefCatalogo, irParaProduto } from '../rotas';
 import { BotaoCopiarCodigo, BotoesAcao } from './comum';
+import { BotaoPorFilialDaFicha, FolhaEstoquePorFilial } from './estoque-filial';
 
 type Estado = { fase: 'carregando' } | { fase: 'pronta'; ficha: FichaProduto; noAparelho: boolean } | { fase: 'nao_encontrado' } | { fase: 'catalogo_carregando' };
 
@@ -31,6 +34,19 @@ export default function TelaProduto() {
   const modo = modoDaCarga(sync, ambiente.online());
   const [estado, setEstado] = useState<Estado>({ fase: 'carregando' });
   const [aplicacaoAberta, setAplicacaoAberta] = useState(false);
+  const [folhaAberta, setFolhaAberta] = useState(false);
+  // spec §2.1: a filial de CADASTRO abre a folha "Estoque por filial", com a marca "sua filial"
+  const [filialCadastro, setFilialCadastro] = useState<string | null>(null);
+  useEffect(() => {
+    if (!motor) return;
+    let vivo = true;
+    void filialDeCadastroLocal(motor, usuario?.id ?? null)
+      .then((f) => vivo && setFilialCadastro(f?.id ?? null))
+      .catch(() => vivo && setFilialCadastro(null));
+    return () => {
+      vivo = false;
+    };
+  }, [motor, usuario?.id, sync.sincronizado_em]);
 
   useEffect(() => {
     let vivo = true;
@@ -48,7 +64,7 @@ export default function TelaProduto() {
         const r = await daApi();
         if (r) return r;
       }
-      const local = motor ? await fichaLocal(motor, { perfil: usuario?.perfil ?? null, parametros, agora: relogioReal().agora().toISOString(), clienteId, produtoId: id }) : null;
+      const local = motor ? await fichaLocal(motor, { perfil: usuario?.perfil ?? null, usuarioId: usuario?.id ?? null, parametros, agora: relogioReal().agora().toISOString(), clienteId, produtoId: id }) : null;
       if (local) return { fase: 'pronta', ficha: local, noAparelho: true };
       if (modo === 'sem_sinal') return { fase: 'catalogo_carregando' };
       if (!ambiente.online() || !id) return { fase: 'nao_encontrado' };
@@ -58,7 +74,7 @@ export default function TelaProduto() {
     return () => {
       vivo = false;
     };
-  }, [motor, id, clienteId, parametros, ambiente, usuario?.perfil, sync.sincronizado_em, modo]);
+  }, [motor, id, clienteId, parametros, ambiente, usuario?.perfil, usuario?.id, sync.sincronizado_em, modo]);
 
   // T-0172: título, subtítulo e voltar na faixa Azul noite do kit (docs/design/componentes.md §5.2)
   const voltar = { label: 'Catálogo', fallback: hrefCatalogo(clienteId) };
@@ -88,7 +104,9 @@ export default function TelaProduto() {
   const aplicacao = catalogo?.aplicacao ?? null;
   const recolher = !!aplicacao && !aplicacaoAberta && aplicacaoPrecisaRecolher(aplicacao);
   const preco = rotuloPreco(item);
-  const estoque = rotuloEstoque(item, relogioReal().agora().toISOString(), fuso, { filialDoCliente: clienteId !== null });
+  // spec §2 e §3: `Estoque: N` exato (sem o "999+" do cartão); as linhas por filial e o "Atualizado às" ficam só na folha (§2.1)
+  const estoque = item.availability ? chipDoEstoque(item.availability, false) : null;
+  const folha = item.availability ? dadosDaFolha({ availability: item.availability, cargaEm: sync.sincronizado_em, filialCadastro, agora: relogioReal().agora().toISOString(), fuso }) : null;
   return (
     <Screen testID="pagina-catalogo-produto" cabecalho={{ titulo: item.description, subtitulo: `${subtituloProduto(item)} · ${item.unit}${item.ean ? ` · EAN ${item.ean}` : ''}`, voltar }}>
       {item.is_campaign || (catalogo && catalogo.etiquetas.length > 0) ? (
@@ -118,21 +136,15 @@ export default function TelaProduto() {
             </View>
           ) : null}
           {estoque ? (
-            <View style={{ gap: 6 }}>
-              <Text style={t.label}>{clienteId && item.availability?.by_branch.length === 1 ? `Estoque na filial ${item.availability.by_branch[0]!.branch_name}` : clienteId ? 'Estoque na filial do cliente' : 'Estoque'}</Text>
-              <Badge label={estoque.texto} tone={estoque.tom} style={{ alignSelf: 'flex-start' }} />
-              {estoque.detalhe ? <Text style={[t.small, estoque.desatualizado && { color: colors.warning }]}>{estoque.detalhe}</Text> : null}
-              {item.availability && item.availability.by_branch.length > 1
-                ? item.availability.by_branch.map((b) => (
-                    <Text key={b.branch_id} style={t.small}>
-                      {rotuloEstoqueFilial(b)}
-                    </Text>
-                  ))
-                : null}
+            <View style={[s.linhaEstoque, preco && s.divisoria]}>
+              <ChipEstado texto={estoque.texto} tom={estoque.tom} rotuloAcessivel={estoque.texto.replace(':', '')} testID="produto-estoque" />
+              <BotaoPorFilialDaFicha availability={item.availability} onPress={() => setFolhaAberta(true)} />
             </View>
           ) : null}
         </Card>
       ) : null}
+
+      <FolhaEstoquePorFilial visivel={folhaAberta} onFechar={() => setFolhaAberta(false)} dados={folha} />
 
       <BotaoCopiarCodigo codigo={item.erp_code} />
       <BotoesAcao item={item} clienteId={clienteId} />
@@ -231,6 +243,8 @@ export default function TelaProduto() {
 const s = StyleSheet.create({
   card: { padding: 14, gap: 10 },
   linha: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  linhaEstoque: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  divisoria: { borderTopWidth: 1, borderTopColor: colors.lineSoft, paddingTop: 10 },
   preco: { ...fonte.semibold, fontSize: 22, color: colors.ink },
   semPreco: { ...fonte.medium, fontSize: 14, color: colors.ink2 },
   riscado: { ...fonte.body, fontSize: 14, color: colors.ink3, textDecorationLine: 'line-through' },

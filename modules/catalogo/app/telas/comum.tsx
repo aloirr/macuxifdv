@@ -10,6 +10,7 @@ import type { AcaoProduto, ContextoProduto, ItemVitrine, MiniaturaProduto as Min
 import { rotuloPreco } from '../lib/apresentacao';
 import { AVISO_CODIGO_COPIADO, copiarCodigo, ROTULO_COPIAR_CODIGO, rotuloAcessivelCopiar } from '../lib/copiar-codigo';
 import { linhaDaMarca, precoDoCartao, rotuloAcessivelDoCartao, tagDeEstoque } from '../lib/grade';
+import { BotaoEstoquePorFilial } from './estoque-filial';
 import { MiniaturaProduto } from './miniatura';
 
 /** Itens do slot `produto.acoes` visíveis ao usuário (módulo efetivo, perfil e ação). */
@@ -112,27 +113,33 @@ function BotoesAcaoDoCartao({ item, clienteId, acoes }: { item: ItemVitrine; cli
 }
 
 /**
- * Cartão da grade de 2 colunas (T-0173, docs/design/catalogo-grade.md §2): foto (sem foto, a caixa `neutralBg` vazia; RD-0242), nome em até 2 linhas,
- * marca, preço e uma tag de estoque. Uma informação por linha: sem código, hora nem etiquetas (ficam na ficha). O cartão inteiro
- * abre a ficha; o botão da extensão `produto.acoes` (de outro módulo, só dentro do fluxo dele) fica ao lado do preço. No rodapé,
- * o ícone de copiar o código (alvo 48 dp; o código em si só aparece na ficha).
+ * Cartão da grade de 2 colunas (docs/design/catalogo-campo-v2/spec.md §1 e §3): foto de 96 dp, nome em até 3 linhas, marca, o código
+ * do produto com o copiar (copia só o código), preço e, na última linha, `Estoque: N` com o botão da folha "Estoque por filial" (só com
+ * mais de uma filial). O cartão inteiro abre a ficha; o copiar e o botão de estoque não abrem. O botão da extensão `produto.acoes`
+ * (de outro módulo, só dentro do fluxo dele) fica ao lado do preço.
  */
-export function CartaoGrade({ item, clienteId, miniatura = null, onPress }: { item: ItemVitrine; clienteId: string | null; miniatura?: Miniatura | null; onPress: () => void }) {
+export function CartaoGrade({ item, clienteId, miniatura = null, onPress, onEstoquePorFilial }: { item: ItemVitrine; clienteId: string | null; miniatura?: Miniatura | null; onPress: () => void; onEstoquePorFilial: () => void }) {
   const preco = rotuloPreco(item);
-  const tag = tagDeEstoque(item, { filialDoCliente: clienteId !== null });
+  const tag = tagDeEstoque(item);
   const linhaMarca = linhaDaMarca(item);
   const precoTexto = precoDoCartao(preco);
   const acoes = useAcoesProduto();
-  const rotulo = rotuloAcessivelDoCartao([item.description, linhaMarca, precoTexto, tag?.texto]);
+  const rotulo = rotuloAcessivelDoCartao([item.description, linhaMarca, item.erp_code, precoTexto, tag?.texto]);
   return (
     <Cartao testID={`catalogo-item-${item.erp_code}`} onPress={onPress} rotuloAcessivel={rotulo} preenchimento={10} gap={6} style={g.cartao}>
-      <MiniaturaProduto produtoId={item.id} miniatura={miniatura} altura={112} />
-      <Text style={g.nome} numberOfLines={2}>
+      <MiniaturaProduto produtoId={item.id} miniatura={miniatura} altura={96} />
+      <Text style={g.nome} numberOfLines={3}>
         {item.description}
       </Text>
       <Text style={g.marca} numberOfLines={1}>
         {linhaMarca}
       </Text>
+      <View style={g.codigo}>
+        <Text style={g.codigoTexto} numberOfLines={1}>
+          {item.erp_code}
+        </Text>
+        <BotaoCopiarCodigo codigo={item.erp_code} variante="icone" />
+      </View>
       <View style={{ flex: 1 }} />
       {preco ? (
         <View style={g.precoLinha}>
@@ -143,26 +150,28 @@ export function CartaoGrade({ item, clienteId, miniatura = null, onPress }: { it
           {acoes.length > 0 ? <BotoesAcaoDoCartao item={item} clienteId={clienteId} acoes={acoes} /> : null}
         </View>
       ) : null}
-      <View style={g.rodape}>
-        {tag ? <ChipEstado texto={tag.texto} tom={tag.tom} pequeno testID={`catalogo-estoque-${item.erp_code}`} /> : null}
-        <View style={{ marginLeft: 'auto' }}>
-          <BotaoCopiarCodigo codigo={item.erp_code} variante="icone" />
+      {tag ? (
+        <View style={g.rodape}>
+          <ChipEstado texto={tag.texto} tom={tag.tom} pequeno rotuloAcessivel={tag.texto.replace(':', '')} testID={`catalogo-estoque-${item.erp_code}`} />
+          <BotaoEstoquePorFilial availability={item.availability} onPress={onEstoquePorFilial} testID={`catalogo-estoque-filial-${item.erp_code}`} />
         </View>
-      </View>
+      ) : null}
     </Cartao>
   );
 }
 
 const g = StyleSheet.create({
   cartao: { flex: 1, borderRadius: 16 },
-  nome: { ...fonte.semibold, fontSize: 16, color: colors.ink },
+  nome: t.bodyStrong,
   marca: { ...fonte.body, fontSize: 14, color: colors.ink2, minHeight: 18 },
   precoLinha: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   preco: t.number,
   semPreco: { ...fonte.semibold, fontSize: 16, color: colors.ink3 },
   riscado: { ...fonte.body, fontSize: 12, color: colors.ink2, textDecorationLine: 'line-through' },
   acoes: { flexDirection: 'row', gap: 6, marginLeft: 'auto' },
-  rodape: { flexDirection: 'row', alignItems: 'center' },
+  rodape: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  codigo: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  codigoTexto: { ...fonte.semibold, fontSize: 14, color: colors.ink, flexShrink: 1 },
   // 28 dp de caixa + 10 de folga em cada lado = alvo de 48 dp, sem empurrar o rodapé para fora da coluna de 360 dp
   copiar: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
 });

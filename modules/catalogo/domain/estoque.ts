@@ -7,8 +7,6 @@
 import type { EstoqueVisivel, FaixaEstoque, StockByBranch } from '../contracts';
 import type { ParametrosCatalogo } from './parametros';
 
-/** RN-CAT-07: aviso discreto quando `stale` é true. */
-export const AVISO_ESTOQUE_DESATUALIZADO = 'Estoque desatualizado';
 /** Nome da filial no estoque; sem nome conhecido, o código curto do id ("Filial 0f000000"). */
 export const nomeDaFilialOuCodigo = (id: string, nome?: string | null): string => nome || `Filial ${id.slice(0, 8)}`;
 

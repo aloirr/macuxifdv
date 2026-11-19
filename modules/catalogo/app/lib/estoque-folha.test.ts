@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ItemVitrine } from '../../contracts';
-import { dadosDaFolha, mostraEstoquePorFilial, opcoesDoFiltroFilial } from './estoque-folha';
+import { dadosDaFolha, mostraEstoquePorFilial, opcoesDoFiltroFilial, resumoDoFiltro, subtituloComFilial } from './estoque-folha';
 
 type Disp = NonNullable<ItemVitrine['availability']>;
 const disp = (por: { id: string; nome: string; q: number | null }[], o: Partial<Disp> = {}): Disp => ({
@@ -56,5 +56,29 @@ describe('filtro de filial da folha "Filtrar" (catalogo-campo-v2 §4)', () => {
       { valor: 'm', rotulo: 'Manaus', apoio: null },
     ]);
     expect(opcoesDoFiltroFilial({ proprias: ['v'], filiais })).toEqual([]);
+  });
+});
+
+describe('resumo do filtro e subtítulo da faixa (catalogo-campo-v2 §3 e §4)', () => {
+  const opcoes = opcoesDoFiltroFilial({ proprias: ['v', 'm'], filiais: [{ id: 'v', nome: 'Boa Vista' }, { id: 'm', nome: 'Manaus' }, { id: 'x', nome: 'Outra' }] });
+
+  it('spec §4: padrão = "Suas filiais (2)" sem ✕ e nenhum filtro contado', () => {
+    expect(resumoDoFiltro({ opcoes, escolha: { filial: null, soComEstoque: false } })).toEqual({ contagem: 0, filial: { texto: 'Suas filiais (2)', removivel: false }, soComEstoque: false });
+    expect(resumoDoFiltro({ opcoes, escolha: { filial: 'todas', soComEstoque: false } }).contagem).toBe(0);
+  });
+
+  it('spec §4: filial escolhida = "Filial Manaus" com ✕ e conta 1; "Ocultar" soma mais 1', () => {
+    const r = resumoDoFiltro({ opcoes, escolha: { filial: 'm', soComEstoque: true } });
+    expect(r).toEqual({ contagem: 2, filial: { texto: 'Filial Manaus', removivel: true }, soComEstoque: true });
+  });
+
+  it('spec §4: com uma filial só o grupo não existe, e o chip de filial também não', () => {
+    const r = resumoDoFiltro({ opcoes: [], escolha: { filial: null, soComEstoque: true } });
+    expect(r).toEqual({ contagem: 1, filial: null, soComEstoque: true });
+  });
+
+  it('spec §3: subtítulo "Sua filial: Boa Vista · 1.284 produtos"; sem filial, só a contagem', () => {
+    expect(subtituloComFilial('Boa Vista', 1284)).toBe('Sua filial: Boa Vista · 1.284 produtos');
+    expect(subtituloComFilial(null, 1)).toBe('1 produto');
   });
 });
