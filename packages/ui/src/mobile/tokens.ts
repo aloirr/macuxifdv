@@ -19,8 +19,9 @@ export const colors = {
   ink: FUNDOS.ink,
   ink2: '#4A5562',
   ink3: '#5B6673',
-  /** texto de opção desabilitada (lista suspensa, dia futuro): 3:1 no branco, sempre com outro sinal (cadeado, sem toque) */
-  inkDisabled: '#8A949C',
+  /** texto de opção desabilitada (lista suspensa, dia futuro): o neutro de apoio da marca #5B6673 (MC-1503 B, R-20261118-210515;
+   * 5,84:1 no branco, 5,41:1 no Pérola), sempre com outro sinal (cadeado, sem toque) */
+  inkDisabled: '#5B6673',
   /** neutros da marca (MC-0004 B, manual §3): linha no Azul suave, linha suave na Névoa, linha forte no #C9CED5 */
   line: MARCA.azulSuave,
   lineSoft: MARCA.nevoa,
