@@ -54,9 +54,9 @@ export function TrajetoDoDia({ membros, dia }: { membros: readonly MembroComPain
         {d && !d.vazio && q.data ? (
           <>
             <svg viewBox={`0 0 ${LARGURA} ${ALTURA}`} role="img" aria-label={`Trajeto do dia com ${d.total} pontos, de ${d.primeiro!.hora} a ${d.ultimo!.hora}`} className="h-auto w-full rounded border">
-              <polyline points={d.linha.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-              <circle cx={d.primeiro!.x} cy={d.primeiro!.y} r={7} fill="green" stroke="white" strokeWidth={2} />
-              <circle cx={d.ultimo!.x} cy={d.ultimo!.y} r={7} fill="orange" stroke="white" strokeWidth={2} />
+              <polyline points={d.linha.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" className="stroke-accent" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx={d.primeiro!.x} cy={d.primeiro!.y} r={7} className="fill-success stroke-surface" strokeWidth={2} />
+              <circle cx={d.ultimo!.x} cy={d.ultimo!.y} r={7} className="fill-warning stroke-surface" strokeWidth={2} />
             </svg>
             <p className="text-sm">
               Primeiro ponto {d.primeiro!.hora} · último {d.ultimo!.hora} · {(q.data.trajeto.metros / 1000).toFixed(1).replace('.', ',')} km
