@@ -80,6 +80,9 @@ describe('T-0024: eventos do Vendedor no contracts', () => {
     expect(s.safeParse(v2).success).toBe(true);
     expect(s.safeParse({ ...v2, inadimplencia: null }).success).toBe(true);
     expect(s.safeParse({ ...v2, aprovacoes: [] }).success).toBe(false);
+    // T-0187 (P4): autor_id opcional e compatível
+    expect(s.safeParse({ ...v2, autor_id: base.vendedor_id }).success).toBe(true);
+    expect(s.safeParse({ ...v2, autor_id: null }).success).toBe(true);
     expect(s.safeParse({ ...v2, inadimplencia: { maior_atraso_dias: -1, vencidos_cents: 0 } }).success).toBe(false);
   });
 

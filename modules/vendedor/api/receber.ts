@@ -498,6 +498,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
         inadimplencia: v.motivos.includes('inadimplencia') && financeiro?.para_aprovacao ? { maior_atraso_dias: financeiro.para_aprovacao.maior_atraso_dias, vencidos_cents: financeiro.vencidos_cents } : null,
         historico: null,
         pedido_numero: numero,
+        autor_id: eu,
       },
       p.id,
     );

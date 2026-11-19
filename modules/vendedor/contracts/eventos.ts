@@ -112,6 +112,8 @@ export const AprovacaoSolicitadaEventoV2 = AprovacaoSolicitadaEvento.omit({ moti
   motivos: z.array(MotivoEvento).min(1),
   aprovacoes: z.array(z.object({ motivo: MotivoEvento, nivel: NivelEvento, texto: z.string() })).min(1),
   inadimplencia: z.object({ maior_atraso_dias: z.number().int().nonnegative(), vencidos_cents: CentsNaoNeg }).nullable(),
+  /** T-0187 (P4, RN-GES-04): quem digitou o pedido (em nome, é o gestor); o Gestor tira o autor da fila de quem decide. Opcional, compatível com o @2. */
+  autor_id: Id.nullable().optional(),
 });
 export type AprovacaoSolicitadaEventoV2 = z.infer<typeof AprovacaoSolicitadaEventoV2>;
 
