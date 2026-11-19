@@ -219,7 +219,7 @@ export async function listarDocumentos(repo: RepositorioDocumentos, e: { perfil:
 /** `GET clientes/:id/documentos/:documento_id`: revalida o tipo e a exceção; devolve o arquivo para ver, nunca para guardar. */
 export async function abrirDocumento(repo: RepositorioDocumentos, e: { perfil: string; clienteId: string; documentoId: string }) {
   const doc = await repo.documento(e.clienteId, e.documentoId);
-  if (!doc || doc.cliente_id !== e.clienteId) throw documentoNaoEncontrado();
+  if (!doc || doc.cliente_id !== e.clienteId || !doc.arquivo_id) throw documentoNaoEncontrado();
   const [tipos, matriz, excecoes] = await Promise.all([repo.tipos(), repo.matriz(), repo.excecoes([doc.id])]);
   const tipo = tipos.find((t) => t.id === doc.tipo_id && t.ativo);
   if (!tipo || nivelDoTipo(matriz, tipo, e.perfil) === 'nao_ve') throw documentoNaoEncontrado();
@@ -279,13 +279,13 @@ export function repositorioNotasSql(db: ClienteBanco, fuso: string): Repositorio
     notas: async (c, de, ate) =>
       (await db.query<NotaBruta>(`select ${colunas} from core.nota_erp n where n.cliente_id = $1 and n.deleted_at is null and not n.cancelada and n.tipo = 'faturamento' and ${dia} between $2 and $3 order by n.emitida_em desc, n.id`, [c, de, ate])).rows,
     nota: async (c, id) => (await db.query<NotaBruta>(`select ${colunas} from core.nota_erp n where n.id = $2 and n.cliente_id = $1 and n.deleted_at is null and not n.cancelada and n.tipo = 'faturamento'`, [c, id])).rows[0],
-    devolucoes: async (c) => (await db.query<DevolucaoBruta>(`select n.cliente_id, n.nf_original_numero as nf_original, n.total_cents::float8 as total_cents, n.cancelada, ${dia} as data from core.nota_erp n where n.cliente_id = $1 and n.deleted_at is null and n.tipo = 'devolucao'`, [c])).rows,
+    devolucoes: async (c) => (await db.query<DevolucaoBruta>(`select n.cliente_id, n.nf_origem_numero as nf_original, n.total_cents::float8 as total_cents, n.cancelada, ${dia} as data from core.nota_erp n where n.cliente_id = $1 and n.deleted_at is null and n.tipo = 'devolucao'`, [c])).rows,
     parcelas: async (c) =>
       (
         await db.query<ParcelaBruta>(
-          `select t.cliente_id, t.nota_numero, t.nota_serie, t.parcela, to_char(t.vencimento, '${UTC_DIA}') as vencimento, t.valor_cents::float8 as valor_cents, t.saldo_cents::float8 as saldo_cents, t.situacao,
+          `select t.cliente_id, t.nf_numero as nota_numero, t.nf_serie as nota_serie, t.parcela, to_char(t.vencimento, '${UTC_DIA}') as vencimento, t.valor_cents::float8 as valor_cents, t.saldo_cents::float8 as saldo_cents, t.situacao,
                   to_char(t.liquidado_em at time zone 'UTC', 'YYYY-MM-DD') as liquidado_em
-             from core.titulo t where t.cliente_id = $1 and t.deleted_at is null and t.nota_numero is not null order by t.vencimento, t.id`,
+             from core.titulo t where t.cliente_id = $1 and t.deleted_at is null and t.nf_numero is not null order by t.vencimento, t.id`,
           [c],
         )
       ).rows,
@@ -295,34 +295,60 @@ export function repositorioNotasSql(db: ClienteBanco, fuso: string): Repositorio
   };
 }
 
+/** Nível no banco (0090: `ve_envia`) ↔ nível do domain (`ve_e_envia`). */
+const NIVEL_DO_BANCO: Record<string, PermissaoTipoDocumento['nivel']> = { nao_ve: 'nao_ve', ve: 've', ve_envia: 've_e_envia' };
+const NIVEL_PARA_BANCO: Record<PermissaoTipoDocumento['nivel'], string> = { nao_ve: 'nao_ve', ve: 've', ve_e_envia: 've_envia' };
+
+/**
+ * 0090: `documento_cliente` (data_documento, valido_ate; o formato vem do tipo MIME em `plataforma.arquivo`), `documento_tipo`
+ * (`permite_envio` = origem `app`), `documento_permissao` e `documento_excecao` (perfil_id = `plataforma.perfil.id`, sem FK;
+ * o domain fala em código de perfil). RLS por `tenant_id` via `ctx.comTenant`. Documento sem arquivo (`arquivo_id` nulo) aparece na lista, mas não abre.
+ */
 export function repositorioDocumentosSql(db: ClienteBanco): RepositorioDocumentos {
-  const colDoc = `d.id, d.cliente_id, d.tipo_id, d.nome, d.formato, to_char(d.data, '${UTC_DIA}') as data, to_char(d.validade, '${UTC_DIA}') as validade, d.arquivo_id`;
+  const colDoc = `d.id, d.cliente_id, d.tipo_id, d.nome, to_char(d.data_documento, '${UTC_DIA}') as data, to_char(d.valido_ate, '${UTC_DIA}') as validade, d.arquivo_id,
+    case a.tipo when 'application/pdf' then 'PDF' when 'image/jpeg' then 'JPG' else nullif(upper(split_part(coalesce(a.tipo, ''), '/', 2)), '') end as formato`;
+  const deDoc = `from core.documento_cliente d join core.documento_tipo t on t.tenant_id = d.tenant_id and t.id = d.tipo_id left join plataforma.arquivo a on a.tenant_id = d.tenant_id and a.id = d.arquivo_id`;
+  const vivo = 'd.deleted_at is null';
   return {
-    tipos: async () => (await db.query<TipoDocumento & { origem: string }>('select id, nome, grupo, ordem, origem, permite_envio, ativo from core.documento_tipo where deleted_at is null order by ordem, nome, id')).rows,
-    documentosDoCliente: async (c) => (await db.query<DocumentoBruto>(`select ${colDoc} from core.documento d where d.cliente_id = $1 and d.deleted_at is null order by d.data desc, d.id`, [c])).rows,
-    documento: async (c, id) => (await db.query<DocumentoBruto>(`select ${colDoc} from core.documento d where d.id = $2 and d.cliente_id = $1 and d.deleted_at is null`, [c, id])).rows[0],
-    documentoPorId: async (id) => (await db.query<DocumentoBruto>(`select ${colDoc} from core.documento d where d.id = $1 and d.deleted_at is null`, [id])).rows[0],
-    matriz: async () => (await db.query<PermissaoTipoDocumento>('select tipo_id, perfil, nivel from core.documento_permissao where deleted_at is null order by tipo_id, perfil')).rows,
+    tipos: async () => (await db.query<TipoDocumento & { origem: string }>("select id, nome, grupo, ordem, origem, (origem = 'app') as permite_envio, ativo from core.documento_tipo where deleted_at is null order by ordem, nome, id")).rows,
+    documentosDoCliente: async (c) => (await db.query<DocumentoBruto>(`select ${colDoc} ${deDoc} where d.cliente_id = $1 and ${vivo} order by d.data_documento desc, d.id`, [c])).rows,
+    documento: async (c, id) => (await db.query<DocumentoBruto>(`select ${colDoc} ${deDoc} where d.id = $2 and d.cliente_id = $1 and ${vivo}`, [c, id])).rows[0],
+    documentoPorId: async (id) => (await db.query<DocumentoBruto>(`select ${colDoc} ${deDoc} where d.id = $1 and ${vivo}`, [id])).rows[0],
+    matriz: async () =>
+      (
+        await db.query<{ tipo_id: string; perfil: string; nivel: string }>(
+          `select m.tipo_id, p.codigo as perfil, m.nivel from core.documento_permissao m join plataforma.perfil p on p.id = m.perfil_id
+            where m.deleted_at is null order by m.tipo_id, p.codigo`,
+        )
+      ).rows.map((l) => ({ tipo_id: l.tipo_id, perfil: l.perfil, nivel: NIVEL_DO_BANCO[l.nivel] ?? 'nao_ve' })),
     excecoes: async (ids) =>
-      (await db.query<ExcecaoDocumento>(`select documento_id, perfil from core.documento_excecao where deleted_at is null ${ids ? 'and documento_id = any($1::uuid[])' : ''} order by documento_id, perfil`, ids ? [[...ids]] : [])).rows,
+      (
+        await db.query<ExcecaoDocumento>(
+          `select x.documento_id, p.codigo as perfil from core.documento_excecao x join plataforma.perfil p on p.id = x.perfil_id
+            where x.deleted_at is null ${ids ? 'and x.documento_id = any($1::uuid[])' : ''} order by x.documento_id, p.codigo`,
+          ids ? [[...ids]] : [],
+        )
+      ).rows,
     substituirMatriz: async (linhas) => {
       await db.query('update core.documento_permissao set deleted_at = now() where deleted_at is null');
       for (const l of linhas) {
-        await db.query(
-          `insert into core.documento_permissao (tenant_id, tipo_id, perfil, nivel) values (plataforma.tenant_atual(), $1, $2, $3)
-           on conflict (tenant_id, tipo_id, perfil) do update set nivel = excluded.nivel, deleted_at = null`,
-          [l.tipo_id, l.perfil, l.nivel],
+        const r = await db.query(
+          `insert into core.documento_permissao (tenant_id, tipo_id, perfil_id, nivel)
+           select plataforma.tenant_atual(), $1, p.id, $3 from plataforma.perfil p where p.codigo = $2 and p.deleted_at is null`,
+          [l.tipo_id, l.perfil, NIVEL_PARA_BANCO[l.nivel]],
         );
+        if (r.rowCount === 0) throw new ErroRegraNegocio('DOCUMENTO_PERFIL_INVALIDO', `Perfil "${l.perfil}" não existe. Atualize a tela e tente de novo.`);
       }
     },
     substituirExcecao: async (documentoId, perfis) => {
       await db.query('update core.documento_excecao set deleted_at = now() where documento_id = $1 and deleted_at is null', [documentoId]);
       for (const p of perfis) {
-        await db.query(
-          `insert into core.documento_excecao (tenant_id, documento_id, perfil) values (plataforma.tenant_atual(), $1, $2)
-           on conflict (tenant_id, documento_id, perfil) do update set deleted_at = null`,
+        const r = await db.query(
+          `insert into core.documento_excecao (tenant_id, documento_id, perfil_id)
+           select plataforma.tenant_atual(), $1, p.id from plataforma.perfil p where p.codigo = $2 and p.deleted_at is null`,
           [documentoId, p],
         );
+        if (r.rowCount === 0) throw new ErroRegraNegocio('DOCUMENTO_PERFIL_INVALIDO', `Perfil "${p}" não existe. Atualize a tela e tente de novo.`);
       }
     },
     nomesDeDocumentoECliente: async (ids) =>
@@ -331,7 +357,7 @@ export function repositorioDocumentosSql(db: ClienteBanco): RepositorioDocumento
         : (
             await db.query<{ documento_id: string; documento_nome: string; cliente_id: string; cliente_nome: string }>(
               `select d.id as documento_id, d.nome as documento_nome, c.id as cliente_id, coalesce(nullif(c.nome_fantasia, ''), c.razao_social) as cliente_nome
-                 from core.documento d join core.cliente c on c.id = d.cliente_id where d.id = any($1::uuid[]) order by c.razao_social, d.nome`,
+                 from core.documento_cliente d join core.cliente c on c.id = d.cliente_id where d.id = any($1::uuid[]) and d.deleted_at is null order by c.razao_social, d.nome`,
               [[...ids]],
             )
           ).rows,

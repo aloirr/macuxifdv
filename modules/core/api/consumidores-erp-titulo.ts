@@ -23,13 +23,21 @@ export const consumidorTituloDoErp: ConsumidorEvento = definirConsumidor({
     const clienteId = await clientePorExternalId(ctx.db, r.cliente_external_id);
     if (!clienteId) throw new ReferenciaAusenteErp('cliente');
 
+    // T-0186 (0090, aditivo): NF e forma de pagamento (código do ERP). Ausente = não informado = não altera; série só com o número.
+    const novos = r as typeof r & { nf_numero?: string | null; nf_serie?: string | null; forma_pagamento_codigo?: string | null };
+    const nfNumero = novos.nf_numero?.trim() || null;
+    const nfSerie = nfNumero ? novos.nf_serie?.trim() || null : null;
+    const forma = novos.forma_pagamento_codigo?.trim() || null;
     await ctx.db.query(
-      `insert into core.titulo (tenant_id, external_id, cliente_id, documento, parcela, emissao, vencimento, valor_cents, saldo_cents, situacao, liquidado_em)
-       values (plataforma.tenant_atual(), $1, $2, $3, $4, coalesce($5::date, $6::date), $6::date, $7, $8, $9, $10::timestamptz)
+      `insert into core.titulo (tenant_id, external_id, cliente_id, documento, parcela, emissao, vencimento, valor_cents, saldo_cents, situacao, liquidado_em, nf_numero, nf_serie, forma_pagamento)
+       values (plataforma.tenant_atual(), $1, $2, $3, $4, coalesce($5::date, $6::date), $6::date, $7, $8, $9, $10::timestamptz, $11, $12, $13)
        on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null
        do update set cliente_id = excluded.cliente_id, documento = excluded.documento, parcela = excluded.parcela, emissao = excluded.emissao,
                      vencimento = excluded.vencimento, valor_cents = excluded.valor_cents, saldo_cents = excluded.saldo_cents,
-                     situacao = excluded.situacao, liquidado_em = excluded.liquidado_em`,
+                     situacao = excluded.situacao, liquidado_em = excluded.liquidado_em,
+                     nf_numero = coalesce(excluded.nf_numero, core.titulo.nf_numero),
+                     nf_serie = case when excluded.nf_numero is null then core.titulo.nf_serie else excluded.nf_serie end,
+                     forma_pagamento = coalesce(excluded.forma_pagamento, core.titulo.forma_pagamento)`,
       [
         r.external_id,
         clienteId,
@@ -41,6 +49,9 @@ export const consumidorTituloDoErp: ConsumidorEvento = definirConsumidor({
         r.saldo_cents,
         situacaoTituloDoErp(r.situacao),
         r.baixado_em ?? null,
+        nfNumero,
+        nfSerie,
+        forma,
       ],
     );
     await recalcularSaldoFinanceiro(ctx.db, clienteId);

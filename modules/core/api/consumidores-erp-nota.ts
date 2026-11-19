@@ -56,15 +56,23 @@ export const consumidorNotaDoErp: ConsumidorEvento = definirConsumidor({
     // RN-CORE-27 (T-0080): vendedor da nota. Ausente/desconhecido NÃO é erro: usuario_id fica nulo e o consumidor do vendedor completa depois.
     const vendedorExt = r.vendedor_external_id?.trim() || null;
     const usuarioId = vendedorExt ? await usuarioPorExternalId(ctx.db, vendedorExt) : null;
+    // T-0186 (0090, aditivo): forma de pagamento (código do ERP) e NF original (só devolução; série só com o número). Ausente = não altera.
+    const novos = r as typeof r & { forma_pagamento_codigo?: string | null; nf_origem_numero?: string | null; nf_origem_serie?: string | null };
+    const forma = novos.forma_pagamento_codigo?.trim() || null;
+    const origemNumero = r.tipo === 'devolucao' ? novos.nf_origem_numero?.trim() || null : null;
+    const origemSerie = origemNumero ? novos.nf_origem_serie?.trim() || null : null;
     await ctx.db.query(
-      `insert into core.nota_erp (tenant_id, external_id, cliente_id, tipo, numero, serie, emitida_em, ano_mes, total_cents, quantidade_itens, pedido_uuid, cancelada, vendedor_external_id, usuario_id)
-       values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6::timestamptz, $7, $8, $9, $10, $11, $12, $13)
+      `insert into core.nota_erp (tenant_id, external_id, cliente_id, tipo, numero, serie, emitida_em, ano_mes, total_cents, quantidade_itens, pedido_uuid, cancelada, vendedor_external_id, usuario_id, forma_pagamento, nf_origem_numero, nf_origem_serie)
+       values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6::timestamptz, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        on conflict (tenant_id, external_id) where deleted_at is null
        do update set cliente_id = excluded.cliente_id, tipo = excluded.tipo, numero = excluded.numero, serie = excluded.serie, emitida_em = excluded.emitida_em,
                      ano_mes = excluded.ano_mes, total_cents = excluded.total_cents, quantidade_itens = excluded.quantidade_itens,
                      pedido_uuid = excluded.pedido_uuid, cancelada = excluded.cancelada,
-                     vendedor_external_id = excluded.vendedor_external_id, usuario_id = excluded.usuario_id`,
-      [r.external_id, clienteId, r.tipo, r.numero.trim(), r.serie?.trim() || null, r.emitida_em, anoMes, r.total_cents, r.quantidade_itens ?? 0, r.pedido_uuid ?? null, r.cancelada ?? false, vendedorExt, usuarioId],
+                     vendedor_external_id = excluded.vendedor_external_id, usuario_id = excluded.usuario_id,
+                     forma_pagamento = coalesce(excluded.forma_pagamento, core.nota_erp.forma_pagamento),
+                     nf_origem_numero = case when excluded.tipo = 'devolucao' then coalesce(excluded.nf_origem_numero, core.nota_erp.nf_origem_numero) end,
+                     nf_origem_serie = case when excluded.tipo <> 'devolucao' then null when excluded.nf_origem_numero is null then core.nota_erp.nf_origem_serie else excluded.nf_origem_serie end`,
+      [r.external_id, clienteId, r.tipo, r.numero.trim(), r.serie?.trim() || null, r.emitida_em, anoMes, r.total_cents, r.quantidade_itens ?? 0, r.pedido_uuid ?? null, r.cancelada ?? false, vendedorExt, usuarioId, forma, origemNumero, origemSerie],
     );
     await recalcularHistoricoCompra(ctx.db, clienteId, anoMes, fuso);
     if (anterior && (anterior.cliente_id !== clienteId || anterior.ano_mes !== anoMes)) await recalcularHistoricoCompra(ctx.db, anterior.cliente_id, anterior.ano_mes, fuso);
