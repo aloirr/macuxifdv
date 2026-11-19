@@ -1,6 +1,6 @@
 # Termo de ciência — localização no expediente (modelo)
 
-> **RASCUNHO PARA REVISÃO DE ADVOGADO.** Modelo que a empresa publica no BKO (Parâmetros › Rastreamento); quando o app mostra:
+> Modelo que a empresa publica no BKO (Parâmetros › Rastreamento); quando o app mostra:
 > [tracking.md](tracking.md) §6. É termo de **ciência**, não de consentimento ([finalidade](T-0156-legal-finalidade.md), item 3).
 
 ---

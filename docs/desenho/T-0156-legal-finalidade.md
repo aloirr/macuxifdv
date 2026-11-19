@@ -1,7 +1,6 @@
 # Rastreamento de localização no expediente — finalidade e base legal
 
-> **RASCUNHO PARA REVISÃO DE ADVOGADO.** Não vale como contrato nem como parecer antes da revisão de um advogado (LGPD e
-> trabalhista). Valores e base legal aprovados pelo dono do produto em 16/11/2026 (R-20261116-110200). Desenho técnico:
+> Valores e base legal aprovados pelo dono do produto em 16/11/2026 (R-20261116-110200). Desenho técnico:
 > [`tracking.md`](tracking.md); decisão: [ADR 0061](../decisoes/0061-rastreamento-continuo-de-localizacao.md).
 
 ## 1. Quem é quem
@@ -24,7 +23,7 @@ A localização registrada no expediente serve **só** para:
 - vender, ceder ou cruzar com dados de outras empresas;
 - treinar modelos de inteligência artificial.
 
-## 3. Base legal (a confirmar pelo advogado)
+## 3. Base legal
 - **Legítimo interesse** da empresa (art. 7º, IX), com o teste do item 6, e **execução do contrato** de trabalho ou de
   representação (art. 7º, V) para a comprovação de visita.
 - **Não** usar consentimento: na relação de trabalho ele não é livre, e a revogação desligaria a comprovação de visita.
@@ -65,10 +64,3 @@ O Relatório de Impacto (RIPD, art. 38) é da empresa controladora; este texto �
 - **Correção**: o usuário contesta um dia pelo app; o supervisor revisa.
 - **Informação e oposição**: pelo encarregado da empresa. Quem se opõe segue com a comprovação de visita pelo check-in e checkout.
 - **Eliminação**: no fim dos prazos do item 5, ou antes por decisão da empresa.
-
-## 8. Pontos para o advogado
-1. Legítimo interesse + execução do contrato, sem consentimento, para empregado CLT.
-2. Representante autônomo: cláusula necessária no contrato de representação.
-3. Prazos de retenção do item 5 (pontos, resumo, termo).
-4. Inclusão do administrador da empresa entre quem vê os pontos.
-5. Se a empresa precisa de política interna ou aditivo ao contrato de trabalho além do termo de ciência.

@@ -6,7 +6,7 @@
 - **Autor**: engenheiro-software
 - **Origem**: T-0156 (R-20261110-085951-alexandre, item 5); RF-CORE-17, RN-CORE-13, RN-CORE-37, RN-CORE-46 (proposta,
   `docs/desenho/performance-produtividade.md` §8).
-- **Desenho**: [`docs/desenho/tracking.md`](../desenho/tracking.md). **Base LGPD**: `docs/desenho/T-0156-legal-*.md` (rascunho para revisão de advogado).
+- **Desenho**: [`docs/desenho/tracking.md`](../desenho/tracking.md). **Base LGPD**: `docs/desenho/T-0156-legal-*.md`.
 - **Quem implementa**: banco-dados, modulo-core, engenheiro-apps e modulo-gestor (desenho §11).
 
 ## Contexto
@@ -60,5 +60,5 @@
 - Tabelas novas no Core (desenho §5.1), 4 chaves de permissão novas, 3 entidades de sync só de envio, 1 contrato de consulta e
   1 job de expurgo; tudo aditivo, sem versão nova de contrato existente.
 - Os cards de km da Performance passam a ter dado para quem aceitou o termo.
-- O tracking **não liga em produção** antes da revisão de advogado (inclusive da base legal) e do cadastro de ausências
-  (desenho §10).
+- O tracking liga em produção quando o dono do produto mandar, pelo parâmetro da empresa no BKO; antes, o cadastro de
+  ausências precisa estar no ar (desenho §10). Quem decide é o dono do produto (recado das 05h45 de 19/11/2026).

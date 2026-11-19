@@ -3,7 +3,7 @@
 - **Autor**: engenheiro-software, 15/11/2026 (Manaus). **Decisão de arquitetura**: [ADR 0061](../decisoes/0061-rastreamento-continuo-de-localizacao.md).
 - **Regras**: RF-CORE-17, RN-CORE-13 (localização e tracking), RN-CORE-37 (permissões), RN-CORE-46 (km do dia; proposta,
   [performance-produtividade.md §8](performance-produtividade.md#8-rn-propostas-texto-para-o-doc-03-numeração-a-confirmar-pelo-gerente)).
-- **Base LGPD**: [finalidade](T-0156-legal-finalidade.md), [aviso](T-0156-legal-aviso-ao-vendedor.md) e [termo de ciência](T-0156-legal-termo-de-ciencia.md) (**rascunho para revisão de advogado**).
+- **Base LGPD**: [finalidade](T-0156-legal-finalidade.md), [aviso](T-0156-legal-aviso-ao-vendedor.md) e [termo de ciência](T-0156-legal-termo-de-ciencia.md).
 - **Consumidor já pronto**: a Performance lê só o resumo `core.deslocamento_dia` e usa `metrosDoTrajeto`
   ([performance-produtividade.md §5](performance-produtividade.md#5-km-e-o-rastreamento-de-localização)).
 - Valores entre [colchetes] são parâmetros ajustáveis. As 7 decisões de negócio do §12 foram aprovadas pelo dono do produto em
@@ -159,11 +159,11 @@ prazo dos pontos). Aparelho: §3.4.
 - Isolamento por tenant (RLS), como toda tabela.
 
 ## 10. Antes de ligar em produção
-1. Revisão de advogado dos textos `T-0156-legal-*.md`, inclusive da base legal (§12).
-2. Cadastro de ausências (§4.2) no ar.
-3. Ensaio de bateria (§3.3) e de offline (3 dias sem rede, envio sem duplicar).
-4. Teste "sem coordenada em log" verde no CI.
-5. A empresa liga no BKO, publica o termo e os usuários aceitam.
+Quem decide ligar é o dono do produto, pelo parâmetro da empresa no BKO. Antes disso:
+1. Cadastro de ausências (§4.2) no ar.
+2. Ensaio de bateria (§3.3) e de offline (3 dias sem rede, envio sem duplicar).
+3. Teste "sem coordenada em log" verde no CI.
+4. A empresa publica o termo e os usuários aceitam.
 
 ## 11. Plano de execução (para o gerente)
 | Ordem | Agente | Entrega | Depende de |
@@ -178,7 +178,7 @@ prazo dos pontos). Aparelho: §3.4.
 
 ## 12. Decisões
 **Do dono do produto**, aprovadas em 16/11/2026 (R-20261116-110200-alexandre); nenhuma decisão de negócio em aberto:
-1. Base legal: finalidade §3 (a confirmar com o advogado).
+1. Base legal: finalidade §3.
 2. Retenção: finalidade §5.
 3. Expediente: §4.1.
 4. Pausa pessoal: §4.3.

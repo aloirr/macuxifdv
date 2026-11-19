@@ -1,6 +1,6 @@
 # Aviso ao vendedor — localização no expediente
 
-> **RASCUNHO PARA REVISÃO DE ADVOGADO.** Finalidade e base legal: [T-0156-legal-finalidade.md](T-0156-legal-finalidade.md).
+> Finalidade e base legal: [T-0156-legal-finalidade.md](T-0156-legal-finalidade.md).
 > O resto do que o vendedor precisa saber está no [termo de ciência](T-0156-legal-termo-de-ciencia.md).
 
 ## Aviso curto — tela de permissões (antes do pedido da localização)
