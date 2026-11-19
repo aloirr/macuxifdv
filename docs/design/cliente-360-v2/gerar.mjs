@@ -1,4 +1,4 @@
-// Simulação do Cliente 360 v2 (R-20261119-030234; pranchas 01 a 04 refeitas em 19/11, R-20261119-0440): três abas (Resumo, Financeiro, Documentação) no Campo e no Gestão,
+// Simulação do Cliente 360 v2 (R-20261119-030234; pranchas 01 a 04 refeitas em 19/11, R-20261119-0440 e R-20261119-0530): três abas (Resumo, Histórico, Documentação) no Campo e no Gestão,
 // e a permissão de documentos em BKO › Parâmetros. Gera os HTMLs e os PNGs desta pasta. Sem código de produção.
 // Uso, a partir da raiz do repositório: node docs/design/cliente-360-v2/gerar.mjs
 // O gerador falha se: a nota de simulação cobrir um aparelho ou o conteúdo do BKO; um texto for cortado (largura maior que
@@ -47,7 +47,8 @@ const ic = (n, t = 20, w = 1.9, extra = '') =>
   `<svg class="ic" width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra}>${P[n]}</svg>`;
 
 // ---------- Dados de exemplo (coerentes entre as telas; hoje = 19/11/2026, fuso de Manaus) ----------
-// Em aberto = 2.380 + 1.560 + 1.540 + 640 = R$ 6.120 (saldo); limite R$ 8.000 → crédito disponível R$ 1.880.
+// Em aberto = 2.380 + 1.560 + 1.540 + 640 = R$ 6.120 (saldo); limite R$ 8.000, sem pedido aprovado não faturado → saldo
+// disponível R$ 1.880 (RN-VEN-12).
 // A NF 004655 tem a parcela 2/2 (R$ 640,00, vencimento 31/10) em atraso. Pedidos 000017, 000013 e 000009 viraram as
 // NFs 004817, 004790 e 004702.
 const NFS = [
@@ -55,7 +56,7 @@ const NFS = [
   { data: '03/11', nf: '004790', valor: '1.560,00', forma: 'Boleto 28 dias', st: 'Em aberto' },
   { mes: 'Outubro de 2026', data: '31/10', nf: '004744', valor: '1.540,00', forma: 'Boleto 28 dias', st: 'Em aberto' },
   { data: '24/10', nf: '004702', valor: '2.870,00', forma: 'Boleto 7/14 dias', st: 'Devolvido parcial', extra: '− 330,00' },
-  { data: '10/10', nf: '004655', valor: '1.280,00', forma: 'Boleto 14/21 dias', st: 'Em atraso', desde: 'desde 31/10' },
+  { data: '10/10', nf: '004655', valor: '1.280,00', forma: 'Boleto 14/21 dias', st: 'Em atraso' },
   { mes: 'Setembro de 2026', data: '26/09', nf: '004530', valor: '1.990,00', forma: 'PIX', st: 'Pago' },
   { data: '12/09', nf: '004471', valor: '860,00', forma: 'Boleto 28 dias', st: 'Devolvido' },
   { mes: 'Agosto de 2026', data: '29/08', nf: '004402', valor: '2.150,00', forma: 'Boleto 28 dias', st: 'Pago' },
@@ -84,7 +85,7 @@ function tabela(cols, linhas) {
   return `<div class="card tb" role="table">${cab}${corpo}</div>`;
 }
 // Tabela rótulo-valor (TabelaRotuloValor do Novo pedido): rótulo à esquerda, valor à direita da coluna.
-const rotuloValor = (linhas) => `<div class="card">${linhas.map(([r, v]) => `<div class="rv"><span class="r">${r}</span><span class="v">${v}</span></div>`).join('')}</div>`;
+const rotuloValor = (linhas, ancora = '', cls = '') => `<div class="card${cls ? ` ${cls}` : ''}"${ancora ? ` data-ancora="${ancora}"` : ''}>${linhas.map(([r, v]) => `<div class="rv"><span class="r">${r}</span><span class="v">${v}</span></div>`).join('')}</div>`;
 const duas = (a, b, cls = '') => `<b>${a}</b><small class="${cls}">${b}</small>`;
 const cod = (c) => `<a class="cod">${c}</a>`;
 const btIc = (n, rot) => `<span class="mini" role="button" aria-label="${rot}">${ic(n, 18)}</span>`;
@@ -95,7 +96,7 @@ function cabecalho({ voltar, titulo = 'Mercado Bom Preço', sub = 'C5007 · Cent
   <div class="linha topo"><div class="tt"><h1>${titulo}</h1><p>${sub}</p></div><span class="sino" aria-label="Notificações">${ic('sino', 22)}<i></i></span></div></header>`;
 }
 function abas(ativa) {
-  return `<nav class="abas" role="tablist">${['Resumo', 'Financeiro', 'Documentação'].map((a) => `<span role="tab" class="aba${a === ativa ? ' on' : ''}" aria-selected="${a === ativa}"><span>${a}</span></span>`).join('')}</nav>`;
+  return `<nav class="abas" role="tablist">${['Resumo', 'Histórico', 'Documentação'].map((a) => `<span role="tab" class="aba${a === ativa ? ' on' : ''}" aria-selected="${a === ativa}"><span>${a}</span></span>`).join('')}</nav>`;
 }
 function barraCampo() {
   const it = [['inicio', 'Início'], ['rota', 'Rota'], ['clientes', 'Clientes'], ['pedidos', 'Pedidos'], ['alvo', 'Performance'], ['mais', 'Mais']];
@@ -109,10 +110,12 @@ const rodapeCampo = `<div class="rodape"><span class="btn sec"><span>Check-in</s
 
 // Resumo (R-20261119-0440): cadastro e endereços no topo; sem alerta financeiro, sem Última compra e sem Sugestão de mix.
 // Decisão de 19/11 (R-20261119-0458, P7): sem o bloco Visitas; visitas, última visita e, no Gestão, "Visitada por" vão
-// para o bloco Compras.
+// para o bloco de compras. Ajustes de 19/11 (R-20261119-0530): Limite, Saldo disponível e Prazo médio logo depois de Dados
+// cadastrais; o bloco de compras vira "Performance", com as três curvas em linhas da tabela rótulo-valor.
 function resumo({ gestao = false } = {}) {
   return `${secao('Dados cadastrais')}
   ${rotuloValor([['Razão social', 'Bom Preço Comércio de Alimentos Ltda'], ['CNPJ', '14.382.906/0001-27'], ['Filial', 'Boa Vista · Matriz'], ['Segmento', 'Supermercado'], ['Cliente desde', '03/2019']])}
+  ${rotuloValor([['Limite', 'R$ 8.000,00'], ['Saldo disponível', 'R$ 1.880,00'], ['Prazo médio', '24 dias']], 'Crédito', 'larga')}
   ${secao('Endereços')}
   ${tabela([['Local', 76, 'e'], ['Endereço', 'f', 'e'], ['Mapa', 44, 'm']], [
     { celulas: [duas('Loja', 'Padrão'), duas('Av. Ville Roy, 1200', 'Centro · 69301-000'), btIc('mapa', 'Mapa da Loja')], rotulo: 'Loja, padrão, Av. Ville Roy, 1200, Centro' },
@@ -125,9 +128,8 @@ function resumo({ gestao = false } = {}) {
   ])}
   ${gestao ? `${secao('Carteira')}
   ${tabela([['Vendedora', 'f', 'e'], ['Ligar', 44, 'm'], ['WhatsApp', 60, 'm']], [['<b>Carla Lima</b>', btIc('phone', 'Ligar para Carla Lima'), btIc('chat', 'WhatsApp de Carla Lima')]])}` : ''}
-  ${secao('Compras')}
-  <div class="chips linha">${chip('Faturamento A', 'accent')}${chip('Volume B', 'accent')}${chip('Frequência A', 'accent')}</div>
-  ${rotuloValor([['Compra média/mês', 'R$ 5.210,00'], ['Ticket médio', 'R$ 2.605,00'], ['Frequência', 'a cada 14 dias'], ['Visitas', '46'], ['Última visita', '12/11/2026'], ...(gestao ? [['Visitada por', 'Carla Lima']] : [])])}
+  ${secao('Performance')}
+  ${rotuloValor([['Curva Faturamento', 'A'], ['Curva Frequência', 'A'], ['Curva Volume', 'B'], ['Compra média/mês', 'R$ 5.210,00'], ['Ticket médio', 'R$ 2.605,00'], ['Frequência', 'a cada 14 dias'], ['Visitas', '46'], ['Última visita', '12/11/2026'], ...(gestao ? [['Visitada por', 'Carla Lima']] : [])], '', 'larga')}
   ${secao('Últimos itens comprados')}
   ${tabela([['Produto', 'f', 'e'], ['Qtd', 44, 'd'], ['Data', 40, 'd'], ['Total (R$)', 68, 'd']], [
     [duas('Arroz tipo 1 5 kg', cod('10231')), '10 CX', '07/11', '<b>1.290,00</b>'],
@@ -139,25 +141,23 @@ function resumo({ gestao = false } = {}) {
   <div class="card"><div class="lin"><span class="corpo">Recebe das 7h às 11h. Descarga pela rua lateral.</span></div></div>`;
 }
 
-// Bloco de crédito como no Novo pedido (RF-VEN, novo-pedido-itens.md §2.1): uma tabela compacta 2×2, valores em destaque.
-const celula = (r, v) => `<div class="cel"><span class="rot">${r}</span><b>${v}</b></div>`;
-const resumoFin = `<div class="card credito">${celula('Limite', 'R$ 8.000,00')}${celula('Crédito disponível', 'R$ 1.880,00')}${celula('Em aberto', 'R$ 6.120,00')}${celula('Prazo médio', '24 dias')}</div>`;
 // Decisão de 19/11 (P14): sem o campo de busca na aba; a contagem fica à esquerda do botão de filtro e a busca pelo
 // Nº da NF fica no topo da folha Filtrar.
 function barraFiltro(qtd = 0, contagem = '') {
   return `<div class="ferramentas linha" data-ancora="filtro"><span class="contagem">${contagem}</span><span class="bt-filtro" role="button" aria-label="Filtrar${qtd ? `, ${qtd} filtro aplicado` : ''}">${ic('filtro', 22, 2.2)}${qtd ? `<i>${qtd}</i>` : ''}</span></div>`;
 }
 // Notas: Data · Nº NF · Valor (R$) · Status. A forma de pagamento é a 2ª linha da célula Nº NF; a devolução, a 2ª linha do
-// Valor; o "desde" do atraso, a 2ª linha do Status. A linha em atraso leva o destaque (fundo e fio vermelhos à esquerda).
+// Valor. A linha em atraso leva o destaque (fundo e fio vermelhos à esquerda); "Em atraso" vai sem data (R-20261119-0530).
 const COLS_NF = [['Data', 36, 'e'], ['Nº NF', 'f', 'e'], ['Valor (R$)', 64, 'd'], ['Status', 92, 's']];
 function linhaNF(n) {
   return {
     cls: n.st === 'Em atraso' ? 'atraso' : '',
     rotulo: `NF ${n.nf}, ${n.data}, ${n.valor} reais, ${n.st}`,
-    celulas: [n.data, duas(cod(n.nf), n.forma), n.extra ? duas(n.valor, n.extra) : `<b>${n.valor}</b>`, `${chip(n.st, TOM[n.st])}${n.desde ? `<small class="perigo">${n.desde}</small>` : ''}`],
+    celulas: [n.data, duas(cod(n.nf), n.forma), n.extra ? duas(n.valor, n.extra) : `<b>${n.valor}</b>`, chip(n.st, TOM[n.st])],
   };
 }
-function financeiro({ filtrado = false } = {}) {
+// Aba Histórico (R-20261119-0530): só a contagem, o botão de filtro e a tabela; o crédito foi para o Resumo.
+function historico({ filtrado = false } = {}) {
   const lista = filtrado ? NFS.filter((n) => n.st === 'Em atraso') : NFS;
   // o mês aparece antes da primeira nota de cada mês da lista filtrada
   const vistos = new Set();
@@ -167,7 +167,7 @@ function financeiro({ filtrado = false } = {}) {
     vistos.add(mes);
     return r;
   });
-  return `${resumoFin}${barraFiltro(filtrado ? 1 : 0, filtrado ? '1 nota em atraso · últimos 90 dias' : '8 notas · últimos 90 dias')}
+  return `${barraFiltro(filtrado ? 1 : 0, filtrado ? '1 nota em atraso · últimos 90 dias' : '8 notas · últimos 90 dias')}
   ${filtrado ? `<div class="chips linha"><span class="chip-ap">Em atraso ${ic('x', 14, 2.4)}</span></div>` : ''}
   ${tabela(COLS_NF, linhas)}`;
 }
@@ -273,7 +273,6 @@ figcaption{font-size:16px;font-weight:700;text-align:center;line-height:1.3;min-
 .secao{margin-top:6px;justify-content:space-between}
 .pilha>.secao:first-child{margin-top:0}
 h3{font-size:18px;font-weight:700;line-height:22px}
-.rot{font-size:12px;line-height:16px;color:#4A5562}
 .chips{gap:6px}
 .chip{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;flex-shrink:0}
 .chip.success{color:#1D6B4F;background:#E2F1EA}.chip.warning{color:#7A4F00;background:#FFF1D6}.chip.danger{color:#A8261B;background:#FDE8E6}
@@ -289,6 +288,7 @@ h3{font-size:18px;font-weight:700;line-height:22px}
 /* TabelaRotuloValor (Novo pedido): rótulo 14 em #4A5562 à esquerda, valor 16 à direita da coluna */
 .rv{display:flex;gap:12px;align-items:center;min-height:48px;padding:10px 14px;border-bottom:1px solid #ECEEF1}
 .rv:last-child{border-bottom:0}
+.larga .rv .r{width:136px}
 .rv .r{width:104px;flex:none;font-size:14px;line-height:18px;color:#4A5562}
 .rv .v{flex:1;min-width:0;font-size:16px;line-height:21px}
 .perigo-v{color:#A8261B;font-weight:600}
@@ -331,11 +331,6 @@ h3{font-size:18px;font-weight:700;line-height:22px}
 .chip-ap{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:999px;background:#DFE2E6;color:#1E3350;font-size:14px;font-weight:600}
 .contagem{flex:1;min-width:0;font-size:14px;line-height:18px;color:#4A5562}
 .fgrupo .busca{flex:none}
-.credito{display:grid;grid-template-columns:1fr 1fr}
-.cel{padding:8px 14px;display:flex;flex-direction:column;gap:1px;border-bottom:1px solid #ECEEF1}
-.cel:nth-child(odd){border-right:1px solid #ECEEF1}
-.cel:nth-child(n+3){border-bottom:0}
-.cel b{font-size:16px;font-weight:600;line-height:20px}
 .scrim{position:absolute;inset:0;background:rgba(15,20,25,.45)}
 .folha{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;padding:10px 20px 20px;display:flex;flex-direction:column;gap:14px;max-height:92%}
 .folha .tb{border-color:#DFE2E6}
@@ -380,28 +375,28 @@ function prancha(titulo, nota, telas) {
 // ---------- 01: Campo · Resumo ----------
 const p01 = prancha(
   'Cliente 360 v2 · Campo · Resumo',
-  '<b>Simulação, sem código (R-20261119-030234; refeita pelo comentário de 19/11, R-20261119-0440; decisões de 19/11, R-20261119-0458).</b> Campo, aba Resumo, nesta ordem: Dados cadastrais, Endereços, Contatos, Compras (curvas, 3 indicadores, visitas e última visita; o bloco Visitas saiu, P7), Últimos itens comprados e Observações. As listas são tabelas com cabeçalho, como a de itens do Novo pedido. Sem alerta financeiro na ficha (o atraso fica no Financeiro); saem Última compra e Sugestão de mix. Dados fictícios.',
+  '<b>Simulação, sem código (R-20261119-030234; refeita pelo comentário de 19/11, R-20261119-0440; decisões de 19/11, R-20261119-0458).</b> Campo, aba Resumo, nesta ordem: Dados cadastrais, crédito (Limite, Saldo disponível e Prazo médio; ajustes de 05h30, R-20261119-0530), Endereços, Contatos, Performance (Curva Faturamento, Curva Frequência e Curva Volume, 3 indicadores, visitas e última visita), Últimos itens comprados e Observações. As listas são tabelas com cabeçalho, como a de itens do Novo pedido. Sem alerta financeiro na ficha (o atraso fica no Histórico); saem Última compra e Sugestão de mix. Dados fictícios.',
   [
-    tela({ legenda: 'Resumo · topo: cadastro e endereços', aba: 'Resumo', conteudo: resumo() }),
-    tela({ legenda: 'Rolado: Endereços e Contatos', aba: 'Resumo', conteudo: resumo(), rolar: '#Endereços' }),
-    tela({ legenda: 'Rolado: Compras, com as visitas', aba: 'Resumo', conteudo: resumo(), rolar: '#Compras' }),
+    tela({ legenda: 'Resumo · topo: Dados cadastrais', aba: 'Resumo', conteudo: resumo() }),
+    tela({ legenda: 'Rolado: crédito, Endereços e Contatos', aba: 'Resumo', conteudo: resumo(), rolar: '#Crédito' }),
+    tela({ legenda: 'Rolado: Performance, com as curvas', aba: 'Resumo', conteudo: resumo(), rolar: '#Performance' }),
     tela({ legenda: 'Fim do Resumo', aba: 'Resumo', conteudo: resumo(), rolar: 'fim' }),
   ],
 );
 
-// ---------- 02: Campo · Financeiro ----------
+// ---------- 02: Campo · Histórico ----------
 const p02 = prancha(
-  'Cliente 360 v2 · Campo · Financeiro',
-  '<b>Simulação.</b> Aba Financeiro: limite, crédito, em aberto e prazo médio; depois a tabela de notas (Data · Nº NF · Valor · Status; a forma de pagamento é a 2ª linha do Nº NF), da mais recente para a mais antiga. A nota em atraso fica em destaque na tabela e tem o status e o filtro "Em atraso": é aqui, e só aqui, que o atraso aparece. Padrão: últimos 90 dias, todos os status (o padrão não conta no número do filtro). Decisões de 19/11 (R-20261119-0458): a busca pelo Nº da NF fica no topo da folha Filtrar (P14); ao tocar na linha, o app pergunta se baixa a NF, busca no servidor a nota, as parcelas, os itens e o PDF, e não guarda nada no aparelho (P17).',
+  'Cliente 360 v2 · Campo · Histórico',
+  '<b>Simulação.</b> Aba Histórico (era Financeiro; R-20261119-0530): só a contagem, o filtro e a tabela de notas (Data · Nº NF · Valor · Status; a forma de pagamento é a 2ª linha do Nº NF), da mais recente para a mais antiga. A nota em atraso fica em destaque na tabela e tem o status "Em atraso", sem data, e o filtro: é aqui, e só aqui, que o atraso aparece. Padrão: últimos 90 dias, todos os status (o padrão não conta no número do filtro). Decisões de 19/11 (R-20261119-0458): a busca pelo Nº da NF fica no topo da folha Filtrar (P14); ao tocar na linha, o app pergunta se baixa a NF, busca no servidor a nota, as parcelas, os itens e o PDF, e não guarda nada no aparelho (P17).',
   [
-    tela({ legenda: 'Filtros fechados (padrão)', aba: 'Financeiro', conteudo: financeiro() }),
-    tela({ legenda: 'Rolado: os cinco status', aba: 'Financeiro', conteudo: financeiro(), rolar: 'fim' }),
-    tela({ legenda: 'Filtrar: Nº da NF no topo', aba: 'Financeiro', conteudo: financeiro(), sobre: folhaFiltro() }),
-    tela({ legenda: 'Filtro aplicado: Em atraso', aba: 'Financeiro', conteudo: financeiro({ filtrado: true }), rolar: '#filtro' }),
-    tela({ legenda: 'Toque na linha: autorização', aba: 'Financeiro', conteudo: financeiro({ filtrado: true }), sobre: folhaBaixarNF }),
-    tela({ legenda: 'Baixar: a nota, do servidor', aba: 'Financeiro', conteudo: financeiro({ filtrado: true }), sobre: folhaNF() }),
-    tela({ legenda: 'Ver itens (do servidor)', aba: 'Financeiro', conteudo: financeiro({ filtrado: true }), sobre: folhaItens() }),
-    tela({ legenda: 'Baixar sem internet', aba: 'Financeiro', conteudo: financeiro({ filtrado: true }), sobre: semInternet('NF 004655'), hora: '09:05' }),
+    tela({ legenda: 'Filtros fechados (padrão)', aba: 'Histórico', conteudo: historico() }),
+    tela({ legenda: 'Rolado: os cinco status', aba: 'Histórico', conteudo: historico(), rolar: 'fim' }),
+    tela({ legenda: 'Filtrar: Nº da NF no topo', aba: 'Histórico', conteudo: historico(), sobre: folhaFiltro() }),
+    tela({ legenda: 'Filtro aplicado: Em atraso', aba: 'Histórico', conteudo: historico({ filtrado: true }), rolar: '#filtro' }),
+    tela({ legenda: 'Toque na linha: autorização', aba: 'Histórico', conteudo: historico({ filtrado: true }), sobre: folhaBaixarNF }),
+    tela({ legenda: 'Baixar: a nota, do servidor', aba: 'Histórico', conteudo: historico({ filtrado: true }), sobre: folhaNF() }),
+    tela({ legenda: 'Ver itens (do servidor)', aba: 'Histórico', conteudo: historico({ filtrado: true }), sobre: folhaItens() }),
+    tela({ legenda: 'Baixar sem internet', aba: 'Histórico', conteudo: historico({ filtrado: true }), sobre: semInternet('NF 004655'), hora: '09:05' }),
   ],
 );
 
@@ -420,10 +415,11 @@ const p03 = prancha(
 // ---------- 04: Gestão ----------
 const p04 = prancha(
   'Cliente 360 v2 · Gestão',
-  '<b>Simulação.</b> O mesmo Cliente 360 no Gestão (supervisora, vinda de Equipe › Carla Lima). Muda: a tabela Carteira no Resumo (ligar e WhatsApp para a vendedora), "Visitada por" no bloco Compras, junto da última visita (P7, R-20261119-0458), e sem rodapé (sem check-in; o pedido em nome sai da ficha da vendedora, RF-GES-05). Na Documentação, o que o perfil Supervisor vê, sem a câmera. O Financeiro é igual ao do Campo.',
+  '<b>Simulação.</b> O mesmo Cliente 360 no Gestão (supervisora, vinda de Equipe › Carla Lima). Muda: a tabela Carteira no Resumo (ligar e WhatsApp para a vendedora), "Visitada por" no bloco Performance, junto da última visita (P7, R-20261119-0458). Como no Campo: crédito logo depois de Dados cadastrais e Performance com as três curvas (R-20261119-0530), e sem rodapé (sem check-in; o pedido em nome sai da ficha da vendedora, RF-GES-05). Na Documentação, o que o perfil Supervisor vê, sem a câmera. O Histórico é igual ao do Campo.',
   [
     tela({ legenda: 'Resumo · topo', voltar: 'Carla Lima', aba: 'Resumo', conteudo: resumo({ gestao: true }), rodape: '', barra: barraGestao() }),
-    tela({ legenda: 'Resumo · rolado: Carteira e Compras', voltar: 'Carla Lima', aba: 'Resumo', conteudo: resumo({ gestao: true }), rodape: '', barra: barraGestao(), rolar: '#Carteira' }),
+    tela({ legenda: 'Resumo · rolado: Contatos e Carteira', voltar: 'Carla Lima', aba: 'Resumo', conteudo: resumo({ gestao: true }), rodape: '', barra: barraGestao(), rolar: '#Contatos' }),
+    tela({ legenda: 'Resumo · rolado: Performance', voltar: 'Carla Lima', aba: 'Resumo', conteudo: resumo({ gestao: true }), rodape: '', barra: barraGestao(), rolar: '#Performance' }),
     tela({ legenda: 'Documentação (supervisora)', voltar: 'Carla Lima', aba: 'Documentação', conteudo: documentacao({ perfil: 'supervisor' }), rodape: '', barra: barraGestao() }),
   ],
 );
@@ -522,7 +518,7 @@ document.body.dataset.info=JSON.stringify(p);document.body.dataset.pronto='1';})
 
 const TELAS = [
   ['01-campo-resumo', p01.html, { width: p01.largura, height: 900 }],
-  ['02-campo-financeiro', p02.html, { width: p02.largura, height: 900 }],
+  ['02-campo-historico', p02.html, { width: p02.largura, height: 900 }],
   ['03-campo-documentacao', p03.html, { width: p03.largura, height: 900 }],
   ['04-gestao', p04.html, { width: p04.largura, height: 900 }],
   ['05-bko-parametros-documentos', html05(), { width: 1366, height: 768 }],
