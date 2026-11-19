@@ -18,6 +18,7 @@ import {
 } from '../../domain';
 import type { PedidoQuePesaNoCredito } from '../../../vendedor/contracts';
 import type { CartaoCredito, DocumentoLinhaContrato, LinhaHistoricoNfContrato, NotaDetalhe, StatusNf } from '../../contracts';
+import { podeAbrirFormato } from './abrir-arquivo';
 
 // ---------- formatos ----------
 
@@ -272,6 +273,12 @@ export function segundaLinhaDoDocumento(d: Pick<DocumentoLinhaContrato, 'formato
 
 /** Data da coluna: "—" na linha sem permissão. */
 export const dataDoDocumento = (d: Pick<DocumentoLinhaContrato, 'data' | 'acesso'>): string => (d.acesso === 'bloqueado' ? '—' : dataBr(d.data));
+
+/** Ação da última coluna: abrir, cadeado (sem permissão) ou nenhuma (o shell não abre o formato, ex.: PDF na v1.0.15). */
+export function acaoDoDocumento(d: Pick<DocumentoLinhaContrato, 'formato' | 'acesso'>): 'abrir' | 'cadeado' | 'nenhuma' {
+  if (d.acesso === 'bloqueado') return 'cadeado';
+  return podeAbrirFormato(d.formato) ? 'abrir' : 'nenhuma';
+}
 
 /** Leitura da linha: a sem permissão termina em "sem permissão para abrir". */
 export function leituraDoDocumento(d: Pick<DocumentoLinhaContrato, 'nome' | 'acesso'>): string {

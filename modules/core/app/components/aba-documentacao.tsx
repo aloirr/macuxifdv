@@ -9,7 +9,7 @@ import { Text, View } from 'react-native';
 
 import type { Cliente360Local } from '../lib/cliente360-local';
 import { fotoPdvTrancada } from '../lib/foto-fachada';
-import { agruparDocumentos, dataBr, dataDoDocumento, leituraDoDocumento, segundaLinhaDoDocumento } from '../lib/ficha-v2';
+import { acaoDoDocumento, agruparDocumentos, dataBr, dataDoDocumento, leituraDoDocumento, segundaLinhaDoDocumento } from '../lib/ficha-v2';
 import type { AberturaDeDocumento, DocumentosDoCliente } from '../lib/usar-ficha-online';
 import { ErroOnline } from './erro-online';
 
@@ -68,16 +68,17 @@ export function AbaDocumentacao({
     ...g.documentos.map<LinhaTabela>((d) => {
       const bloqueado = d.acesso === 'bloqueado';
       const seg = segundaLinhaDoDocumento(d);
+      const acao = acaoDoDocumento(d);
       return {
         tipo: 'linha',
         key: d.id,
         testID: `documento-${d.id}`,
-        rotulo: leituraDoDocumento(d),
-        onPress: bloqueado ? undefined : () => abertura.abrir(d),
+        rotulo: acao === 'nenhuma' ? d.nome : leituraDoDocumento(d),
+        onPress: acao === 'abrir' ? () => abertura.abrir(d) : undefined,
         celulas: [
           <CelulaTexto key="n" principal={d.nome} segunda={seg.texto} perigoSegunda={seg.perigo} mudo={bloqueado} />,
           <CelulaTexto key="d" principal={dataDoDocumento(d)} mudo />,
-          bloqueado ? <BotaoCelula key="a" icone="lock" rotulo={`${d.nome}: sem permissão para abrir`} desligado /> : <BotaoCelula key="a" icone="chevron" rotulo={`Abrir ${d.nome}`} desligado={abertura.abrindo === d.id} onPress={() => abertura.abrir(d)} />,
+          acao === 'nenhuma' ? <CelulaTexto key="a" principal="" /> : bloqueado ? <BotaoCelula key="a" icone="lock" rotulo={`${d.nome}: sem permissão para abrir`} desligado /> : <BotaoCelula key="a" icone="chevron" rotulo={`Abrir ${d.nome}`} desligado={abertura.abrindo === d.id} onPress={() => abertura.abrir(d)} />,
         ],
       };
     }),

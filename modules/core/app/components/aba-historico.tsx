@@ -9,7 +9,7 @@ import { Text, View } from 'react-native';
 
 import { STATUS_NF, type LinhaHistoricoNfContrato, type StatusNf } from '../../contracts';
 import { filtrarNotas, rotuloStatusNf, statusDaParcela, tomStatusNf } from '../../domain';
-import { abrirArquivoRegistrado } from '../lib/abrir-arquivo';
+import { abrirArquivoRegistrado, podeAbrirFormato } from '../lib/abrir-arquivo';
 import {
   agruparNotasPorMes,
   chipsDoFiltro,
@@ -289,16 +289,18 @@ function FolhaDaNota({ detalhe }: { detalhe: DetalheDaNota }) {
             <View style={{ flex: 1 }}>
               <Botao rotulo={`Ver itens (${nota.itens.length})`} nivel="secundario" alto desligado={nota.itens.length === 0} onPress={() => setItens(true)} testID="nota-ver-itens" />
             </View>
+            {nota.pdf_arquivo_id && podeAbrirFormato('pdf') ? (
             <View style={{ flex: 1 }}>
               <Botao
                 rotulo="Ver PDF"
                 nivel="secundario"
                 alto
-                desligado={!nota.pdf_arquivo_id || !visualizador}
+                desligado={!visualizador}
                 onPress={() => nota.pdf_arquivo_id && visualizador?.({ arquivo_id: nota.pdf_arquivo_id, titulo: `NF ${nota.numero_nf}`, formato: 'pdf' })}
                 testID="nota-ver-pdf"
               />
             </View>
+            ) : null}
           </View>
         </View>
       ) : null}

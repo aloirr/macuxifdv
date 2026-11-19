@@ -18,6 +18,6 @@ describe('T-0186: botões de ação da ficha v2 (spec §3 e §5)', () => {
   });
   it('P10: a exceção por documento mostra o cadeado e não abre', () => {
     expect(documentacao).toContain('icone="lock"');
-    expect(documentacao).toContain('onPress: bloqueado ? undefined');
+    expect(documentacao).toContain("onPress: acao === 'abrir'");
   });
 });

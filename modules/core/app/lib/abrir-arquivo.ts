@@ -14,8 +14,23 @@ export type AbrirArquivo = (p: PedidoAbrirArquivo) => void;
 
 let abrirArquivo: AbrirArquivo | null = null;
 
-export function definirAbrirArquivo(fn: AbrirArquivo | null): void {
+export type FormatoAbrivel = 'imagem' | 'pdf';
+export interface OpcoesAbrirArquivo {
+  /** Formatos que o shell sabe abrir; ausente = só imagem (o PDF fica para a v1.0.16). */
+  formatos?: readonly FormatoAbrivel[];
+}
+
+let formatosAbriveis: readonly FormatoAbrivel[] = ['imagem'];
+
+export function definirAbrirArquivo(fn: AbrirArquivo | null, opcoes?: OpcoesAbrirArquivo): void {
   abrirArquivo = fn;
+  formatosAbriveis = opcoes?.formatos ?? ['imagem'];
+}
+
+/** Decide pelo formato ("pdf" ou o resto, tratado como imagem); sem o shell informar `formatos`, só imagem abre. */
+export function podeAbrirFormato(formato: string | null | undefined): boolean {
+  const tipo: FormatoAbrivel = formato?.trim().toLowerCase() === 'pdf' ? 'pdf' : 'imagem';
+  return formatosAbriveis.includes(tipo);
 }
 
 export function abrirArquivoRegistrado(): AbrirArquivo | null {
