@@ -139,6 +139,10 @@ de cor (altura, raio, fonte e regras iguais). O Azul noite some no grafite (1,29
 - `ChipEstado`: **sempre com texto** (o componente não desenha nada sem texto). 28 dp; `pequeno` 24 dp dentro de cartão de lista.
   Tons e textos do pedido: `sucesso` Aprovado · `aviso` Aguardando aprovação (curto: "Aguardando") · `erro` Rejeitado ·
   `neutro` Na fila · `destaque` Orçamento (o tom `roxo` saiu do kit, RD-0235). `Badge` antigo virou pílula de 24 dp.
+- `Badge` com `linhas?: 1 | 2` (MC-1790, T-0186): padrão 1 (pílula, texto cortado com "…"; quem já usa não muda). Use
+  `linhas={2}` só em **coluna estreita de tabela** onde o estado não cabe numa linha, ex.: coluna Status (92 dp) do Histórico
+  do Cliente 360 com "Devolvido parcial". Com 2 linhas: texto centralizado, lineHeight 16, paddingVertical 3, minHeight 24 e
+  raio `radius.sm` (8), não pílula (pílula em 2 linhas vira um ovo). Regra pura em `formaDoBadge` (`componentes.ts`).
 - Linha de lista: título 16/600, linha de apoio 14 `ink2`, valor 16/700 tabular à direita, chip no alto à direita.
 - `LinhaAtalho` (T-0085): linha tocável que leva a **outra vista da mesma aba** ("Rascunhos (2)" em Pedidos, T-0141). Fundo
   `accentSoft` sem borda, raio 12, ícone e seta `accentInk`, rótulo 15/600 (até 24 caracteres), apoio 13 `ink2` (até 36);
@@ -250,6 +254,36 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
   - `padrao`: borda `accent` 1,5, fundo `accentSoft`, ícone `accentInk`. Padrão da `tabela`: no Resumo tudo está no pedido e o
     lápis só quer dizer "editar".
   Sem a prop, o tom sai do tamanho (`tomDoBotaoEditar`); o módulo não precisa passar nada.
+
+### 4.10 Tabelas da ficha (RD-2355, T-0186; `tabela-ficha.ts` puro e `tabela-ficha-rn.tsx`)
+Unificam a ficha do Cliente 360 e o detalhe do pedido/Resumo. Cartão `surface`, borda `line`, raio 12 (`TABELA_FICHA.raio`),
+fio `lineSoft` entre as linhas, linhas de no mínimo 48 dp. Só tokens do kit.
+- **`TabelaRotuloValor`**: quando a seção é uma lista de **pares** (Pagamento, Entrega, Crédito, Cadastro). Rótulo 14 `ink2`
+  numa coluna fixa e valor 16 tabular; vazio vira "—" em `ink3`.
+  `{ linhas: LinhaRotuloValor[]; larguraRotulo?: number /* 136 */; alinharValor?: 'esq' | 'dir' /* 'dir' */; testID? }`.
+  `LinhaRotuloValor = { rotulo; valor; complemento?: ReactNode; perigo?; testID?; testIDComplemento?; rotuloAcessivel? }`.
+  `complemento` em **texto** = 2ª linha do valor (12 `ink2`, ex.: CNPJ abaixo do nome) e entra na leitura do TalkBack
+  ("Cliente: Mercado Sol. CNPJ …"); como **elemento** fica à direita do valor (ex.: `BotaoCelula` de ligar). `perigo` pinta o
+  valor de `danger` (sempre com texto que diz o porquê). Ficha: padrão (136, à direita); pedido: `larguraRotulo={92}` e
+  `alinharValor="esq"` (cliente e endereço longos).
+- **`TabelaDados`**: quando a seção é uma lista de **registros com as mesmas colunas** (títulos, notas, histórico, itens).
+  `{ colunas: ColunaTabela[]; linhas: LinhaTabela[]; testID? }`. Cabeçalho 12/600 `ink2`, gap 4 e borda 8 iguais no cabeçalho
+  e nas linhas.
+  `ColunaTabela = { id; titulo; largura?: dp fixos; peso?: parte do resto (flexBasis 0, padrão 1); alinhar?: 'esq'|'dir'|'centro'; numerica? }`
+  (`numerica` = à direita por padrão; números sem "R$"). `LinhaTabela` = `{ tipo: 'faixa', key, texto }` (grupo, fundo `ground`)
+  ou `{ tipo: 'linha', key, celulas: ReactNode[] (uma por coluna), onPress?, perigo? (fundo `dangerBg` + fio vermelho 3 à
+  esquerda), rotulo? (TalkBack da linha), testID? }`.
+  - **`CelulaTexto`** `{ principal; segunda?; perigoSegunda?; segundaCodigo?; dir?; mono?; sublinhado?; mudo?; pequeno?; encolher?; testID? }`:
+    principal 14/600 (12/400 com `pequeno`, as colunas numéricas do pedido), 2ª linha 12 `ink2`; `dir` = número (à direita,
+    tabular); `encolher` = uma linha que encolhe até 80% em vez de quebrar; `mudo` = `ink2` (ajuste "0,0%"); texto longo quebra
+    em duas linhas, sem reticências.
+  - **`BotaoCelula`** `{ icone: IconName; rotulo; onPress?; desligado?; testID? }`: ícone 20 num alvo de 48 × 48 (ligar,
+    WhatsApp, mapa, abrir); desligado em `ink3`. Coluna de botão: `largura: 48`, `titulo: ''`.
+- **Migração** (cada dono no seu módulo): core troca `TabelaFicha`/`ColunaFicha`/`LinhaFicha` por `TabelaDados`/`ColunaTabela`/
+  `LinhaTabela` e importa `TabelaRotuloValor`, `CelulaTexto` e `BotaoCelula` do kit; vendedor troca o `TabelaRotuloValor` local
+  pelo do kit (`larguraRotulo={92} alinharValor="esq"`; o valor passa de 14 para 16) e pode montar a `TabelaDeItens` sobre a
+  `TabelaDados` (Código `largura` pelo `larguraDoCodigo`, demais `peso` 30/26/48/40/54 `numerica`, células `CelulaTexto pequeno
+  dir encolher`, lápis numa coluna de 32). O `CartaoDeTotais` fica no módulo.
 
 ## 5. Folha, diálogo, aviso, abas, estados
 - **Folha** (`Folha`, `OpcaoFolha`): sobe de baixo, fundo escurece (`colors.scrim`), alça no topo, raio 22. Toque fora ou Voltar do
