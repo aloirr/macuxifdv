@@ -1,14 +1,8 @@
 /**
- * Aprovar ou devolver pelo app (RN-GES-08, RN-VEN-30; T-0184): o corpo das rotas e o detalhe depois da resposta, que traz só o status e as
+ * Aprovar ou devolver pelo app (RN-GES-08, RN-VEN-30; T-0184): o detalhe depois da resposta (o corpo e a rota vêm de `contracts`: `corpoDaDecisao`, `ROTA_DA_DECISAO`), que traz só o status e as
  * aprovações do ciclo (`{ status, aprovacoes }`). Funções puras; a chamada e o sinal ficam em `use-vendedor.ts`.
  */
 import type { DecisaoAprovacaoResposta, OrderDetail } from '../../contracts';
-
-/** `rejeitar` é a rota que DEVOLVE o pedido ao vendedor (`rejected`): o corpo leva `texto`. */
-export function corpoDaDecisaoNoApp(decisao: 'aprovar' | 'rejeitar', texto: string): { comentario?: string; texto?: string } {
-  const t = texto.trim();
-  return decisao === 'aprovar' ? (t ? { comentario: t } : {}) : { texto: t };
-}
 
 export function aplicarDecisaoNoDetalhe(d: OrderDetail, r: DecisaoAprovacaoResposta): OrderDetail {
   const pendentes = r.aprovacoes.filter((a) => a.estado === 'pendente');

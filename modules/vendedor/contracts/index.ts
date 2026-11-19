@@ -18,7 +18,7 @@ import {
   Receivable,
 } from '@macuxi/core/contracts';
 
-import { ESTADOS_APROVACAO_MOTIVO, MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
+import { ESTADOS_APROVACAO_MOTIVO, type DecisaoAprovador, MOTIVO_REJEICAO_MIN, MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
 import { SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '../domain/orcamento';
 import { ORDER_STATUSES } from '../domain/order';
 import { PercentualAjuste } from '@macuxi/integracao/contracts';
@@ -30,7 +30,8 @@ export * from './prazo-ajuste';
 export const SITUACOES_DEVOLUCAO = ['nenhuma', 'parcial', 'total'] as const;
 
 export { ORDER_STATUSES, ORDER_STATUS_LABEL } from '../domain/order';
-export { DECISOES_APROVADOR, ESTADOS_APROVACAO_MOTIVO, MOTIVOS_APROVACAO, MOTIVO_REJEICAO_MIN, NIVEIS_APROVACAO, STATUS_CONTRATO } from '../domain/aprovacao';
+export type { DecisaoAprovador, EstadoAprovacaoMotivo } from '../domain/aprovacao';
+export { DECISOES_APROVADOR, ESTADOS_APROVACAO_MOTIVO, maiorNivel, MOTIVOS_APROVACAO, MOTIVO_REJEICAO_MIN, NIVEIS_APROVACAO, ROTULO_MOTIVO_APROVACAO, STATUS_CONTRATO } from '../domain/aprovacao';
 export { SITUACAO_ORCAMENTO_LABEL, SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '../domain/orcamento';
 // T-0077 (RF-VEN-05): busca e período da lista de Pedidos, reusados pelo Gestão (filtro de vendedor fica no Gestor)
 export {
@@ -401,15 +402,33 @@ export const OrderListQuery = z.object({
   sem_pendentes: z.enum(['0', '1']).optional(),
 });
 
-/** Aprovar: 1 toque, comentário opcional (RN-GES-08). Sem `motivo`, vale para todas as pendentes que o usuário decide (T-0184). */
-export const AprovarPedidoRequest = z.object({ comentario: z.string().max(500).optional(), motivo: MotivoAprovacao.optional() });
+/** Aprovar: 1 toque, comentário opcional (RN-GES-08). Sem `motivo_aprovacao`, vale para todas as pendentes que o usuário decide (T-0184 §3, ADR 0062). */
+export const AprovarPedidoRequest = z.object({ comentario: z.string().max(500).optional(), motivo_aprovacao: MotivoAprovacao.optional() });
 export type AprovarPedidoRequest = z.infer<typeof AprovarPedidoRequest>;
-/** Rejeitar = DEVOLVER ao vendedor (`rejected`; P6 A): `texto` de 3+ caracteres (RN-GES-08); o domínio revalida depois do trim. */
-export const RejeitarPedidoRequest = z.object({ texto: z.string().min(3).max(500), motivo: MotivoAprovacao.optional() });
+/**
+ * Rejeitar = DEVOLVER ao vendedor (`rejected`; P6 A). `motivo` é o texto livre do aprovador, de `MOTIVO_REJEICAO_MIN`+ caracteres
+ * (RN-GES-08; o app Gestão v1.0.13 já manda assim); o motivo da aprovação é `motivo_aprovacao`, nunca `motivo`. O domínio revalida depois do trim.
+ */
+export const RejeitarPedidoRequest = z.object({ motivo: z.string().min(MOTIVO_REJEICAO_MIN).max(500), motivo_aprovacao: MotivoAprovacao.optional() });
 export type RejeitarPedidoRequest = z.infer<typeof RejeitarPedidoRequest>;
-/** Recusar = rejeitar de vez (`cancelled`, final; P6 A). */
-export const RecusarPedidoRequest = z.object({ texto: z.string().min(3).max(500), motivo: MotivoAprovacao.optional() });
-export type RecusarPedidoRequest = z.infer<typeof RecusarPedidoRequest>;
+/** Recusar = rejeitar de vez (`cancelled`, final; P6 A): o mesmo corpo de `rejeitar`. */
+export const RecusarPedidoRequest = RejeitarPedidoRequest;
+export type RecusarPedidoRequest = RejeitarPedidoRequest;
+
+/** Decisão do aprovador → rota do Vendedor (`pedidos/:id/<rota>`): devolver usa a `rejeitar` de sempre; recusar é a rota nova. Gestor e BKO leem daqui. */
+export const ROTA_DA_DECISAO = { aprovar: 'aprovar', devolver: 'rejeitar', recusar: 'recusar' } as const satisfies Record<DecisaoAprovador, string>;
+/** Decisão → schema do corpo da rota. */
+export const CORPO_DA_DECISAO = { aprovar: AprovarPedidoRequest, devolver: RejeitarPedidoRequest, recusar: RecusarPedidoRequest } as const;
+
+/**
+ * Monta o corpo da rota da decisão (RN-GES-08): aprovar leva o comentário opcional; devolver e recusar levam o texto em `motivo`.
+ * `motivo_aprovacao` ausente = vale para todas as pendentes que o usuário decide.
+ */
+export function corpoDaDecisao(decisao: DecisaoAprovador, texto: string, motivoAprovacao?: MotivoAprovacao): AprovarPedidoRequest | RejeitarPedidoRequest {
+  const t = texto.trim();
+  const motivo = motivoAprovacao ? { motivo_aprovacao: motivoAprovacao } : {};
+  return decisao === 'aprovar' ? { ...(t ? { comentario: t } : {}), ...motivo } : { motivo: t, ...motivo };
+}
 /** Resposta das três rotas de decisão: o status do pedido e as aprovações do ciclo atual (T-0184). */
 export const DecisaoAprovacaoResposta = z.object({ status: OrderStatus, aprovacoes: z.array(AprovacaoMotivo) });
 export type DecisaoAprovacaoResposta = z.infer<typeof DecisaoAprovacaoResposta>;

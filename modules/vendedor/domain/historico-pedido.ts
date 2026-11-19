@@ -6,7 +6,7 @@
  * - o autor só aparece quando não é o vendedor do pedido e é uma pessoa (não "aparelho", "ERP").
  */
 import type { OrderEvent } from '../contracts';
-import type { MotivoAprovacao } from './aprovacao';
+import { ROTULO_MOTIVO_APROVACAO, type MotivoAprovacao } from './aprovacao';
 import type { SituacaoOrcamento } from './orcamento';
 
 /** Mesma forma do `EventoDoHistorico` do kit de UI (o domain não importa o kit). */
@@ -76,7 +76,6 @@ export function eventosDoOrcamento(
 }
 
 
-const ROTULO_ETAPA_MOTIVO: Record<MotivoAprovacao, string> = { desconto: 'Desconto', credito: 'Crédito', inadimplencia: 'Inadimplente', estoque: 'Estoque', preco_minimo: 'Preço mínimo' };
 
 /**
  * T-0184 (P3 B, prancha 02, MC-1760): a etapa "Em aprovação" do Histórico vira uma por motivo ainda pendente, SEM data
@@ -91,8 +90,8 @@ export function tagsPorMotivoPendente<T extends { id: string; rotulo: string; te
   if (motivosPendentes.length === 0) return [...tags];
   return tags.flatMap((t) => {
     if (t.rotulo !== 'Em aprovação') return [t];
-    const aprovadas = motivosAprovados.map((m) => ({ ...t, id: `${t.id}-aprovado-${m}`, rotulo: 'Aprovado', texto: `Aprovado · ${ROTULO_ETAPA_MOTIVO[m]}`, leitura: `Aprovado, ${ROTULO_ETAPA_MOTIVO[m]}`, tom: 'sucesso' }));
-    const pendentes = motivosPendentes.map((m) => ({ ...t, id: `${t.id}-${m}`, rotulo: `${t.rotulo} · ${ROTULO_ETAPA_MOTIVO[m]}`, texto: `${t.rotulo} · ${ROTULO_ETAPA_MOTIVO[m]}`, leitura: `${t.rotulo}, ${ROTULO_ETAPA_MOTIVO[m]}` }));
+    const aprovadas = motivosAprovados.map((m) => ({ ...t, id: `${t.id}-aprovado-${m}`, rotulo: 'Aprovado', texto: `Aprovado · ${ROTULO_MOTIVO_APROVACAO[m]}`, leitura: `Aprovado, ${ROTULO_MOTIVO_APROVACAO[m]}`, tom: 'sucesso' }));
+    const pendentes = motivosPendentes.map((m) => ({ ...t, id: `${t.id}-${m}`, rotulo: `${t.rotulo} · ${ROTULO_MOTIVO_APROVACAO[m]}`, texto: `${t.rotulo} · ${ROTULO_MOTIVO_APROVACAO[m]}`, leitura: `${t.rotulo}, ${ROTULO_MOTIVO_APROVACAO[m]}` }));
     return [...aprovadas, ...pendentes];
   });
 }

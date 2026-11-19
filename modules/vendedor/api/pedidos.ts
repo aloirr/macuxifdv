@@ -17,17 +17,17 @@ import {
   type TransacaoTenant,
 } from '@macuxi/platform-sdk';
 import {
-  AprovarPedidoRequest,
+  CORPO_DA_DECISAO,
   EVENTO_PEDIDO_APROVACAO_DECIDIDA,
   EVENTO_PEDIDO_APROVADO,
   EVENTO_PEDIDO_CANCELADO,
   EVENTO_PEDIDO_STATUS_ALTERADO,
   OrderListQuery,
-  RecusarPedidoRequest,
-  RejeitarPedidoRequest,
+  ROTA_DA_DECISAO,
+  type AprovarPedidoRequest,
   type DecisaoAprovacaoResposta,
+  type RejeitarPedidoRequest,
   type DiscountPolicy as AlcadaApi,
-  type MotivoAprovacao,
   type Order,
   type OrderDetail,
 } from '../contracts';
@@ -276,27 +276,26 @@ async function nomesEExternos(tx: TransacaoTenant, pedido: LinhaPedido, eu: stri
   return tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [pedido.cliente_id], produto_ids: [], usuario_ids: [...new Set([eu, pedido.vendedor_id])] });
 }
 
-const CAMINHO_DA_DECISAO = { aprovar: 'pedidos/:id/aprovar', devolver: 'pedidos/:id/rejeitar', recusar: 'pedidos/:id/recusar' } as const;
-const CORPO_DA_DECISAO = { aprovar: AprovarPedidoRequest, devolver: RejeitarPedidoRequest, recusar: RecusarPedidoRequest } as const;
 const AUDITORIA_DA_DECISAO = { aprovar: 'pedido.aprovar', devolver: 'pedido.rejeitar', recusar: 'pedido.recusar' } as const;
 const ESTADO_DECIDIDO_NO_EVENTO = { aprovada: 'aprovada', rejeitada: 'rejeitada', devolvida: 'devolvida', encerrada: 'encerrada' } as const;
 
 /**
  * POST pedidos/:id/aprovar | rejeitar | recusar (`pedido.aprovar`; T-0184 §3). `rejeitar` DEVOLVE ao vendedor (`rejected`) e `recusar`
  * cancela (`cancelled`, P6 A). Cada decisão trava a linha do pedido (`for update`): repetir a mesma decisão devolve o estado atual, sem efeito.
- * Sem `motivo` no corpo, a decisão vale para todas as aprovações pendentes que o perfil decide (P3 B); aprovar com sobra deixa o pedido pendente (P7).
+ * Corpo: aprovar `{ comentario?, motivo_aprovacao? }`; rejeitar e recusar `{ motivo (texto livre, RN-GES-08), motivo_aprovacao? }`.
+ * Sem `motivo_aprovacao` no corpo, a decisão vale para todas as aprovações pendentes que o perfil decide (P3 B); aprovar com sobra deixa o pedido pendente (P7).
  */
 function decidir(decisao: DecisaoAprovador): RotaModulo {
   return {
     metodo: 'POST',
-    caminho: CAMINHO_DA_DECISAO[decisao],
+    caminho: `pedidos/:id/${ROTA_DA_DECISAO[decisao]}`,
     acao: 'pedido.aprovar',
     carteira: 'filtrar_no_dominio',
     params: ParamsPedido,
     corpo: CORPO_DA_DECISAO[decisao],
     async executar(ctx): Promise<DecisaoAprovacaoResposta> {
       const { id } = ctx.params as z.infer<typeof ParamsPedido>;
-      const corpo = ctx.corpo as { comentario?: string; texto?: string; motivo?: MotivoAprovacao };
+      const corpo = ctx.corpo as AprovarPedidoRequest & Partial<RejeitarPedidoRequest>;
       const eu = ctx.usuario.id;
       const agora = ctx.agora().toISOString();
       return ctx.comTenant(async (db, tx) => {
@@ -307,7 +306,7 @@ function decidir(decisao: DecisaoAprovador): RotaModulo {
         const lidas = (await lerAprovacoes(db, [id])).get(id) ?? [];
         const resposta = async (status: OrderStatus): Promise<DecisaoAprovacaoResposta> => ({ status, aprovacoes: ((await lerAprovacoes(db, [id])).get(id) ?? []).map(paraAprovacaoMotivo) });
         // 2) regra pura (RN-GES-08, RN-GES-04, RN-VEN-10, RN-VEN-30)
-        const r = decidirAprovacao({ status: linha.status, aprovacoes: lidas, perfil: ctx.usuario.perfil, decisao, motivo: corpo.motivo, texto: decisao === 'aprovar' ? corpo.comentario : corpo.texto });
+        const r = decidirAprovacao({ status: linha.status, aprovacoes: lidas, perfil: ctx.usuario.perfil, decisao, motivo: corpo.motivo_aprovacao, texto: decisao === 'aprovar' ? corpo.comentario : corpo.motivo });
         if (r.tipo === 'recusa') throw new ErroHttpModulo(r.http === 403 ? 403 : 422, r.codigo, r.mensagem);
         if (r.tipo === 'repetida') return resposta(linha.status);
         const ciclo = lidas[0]?.ciclo ?? 1;

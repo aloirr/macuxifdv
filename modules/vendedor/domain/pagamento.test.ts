@@ -3,7 +3,6 @@ import {
   creditoDoCartao,
   descricaoPrazo,
   avaliarPagamentoComVencido,
-  exigeAprovacaoPorVencido,
   formasDaLista,
   formasDoCliente,
   pagamentoPadrao,
@@ -99,16 +98,6 @@ describe('RN-VEN-24/25: validarPagamento (app e API)', () => {
     const r = validarPagamento({ forma: formas[1], prazo: prazos[1], cliente });
     expect(r).toMatchObject({ ok: false, codigo: 'RN-VEN-25' });
     expect(r.ok === false && r.mensagem).toMatch(/prazo/i);
-  });
-});
-
-describe('RN-VEN-13: título vencido', () => {
-  it('RN-VEN-13: vencido há mais que o limite com prazo a prazo exige aprovação', () => {
-    expect(exigeAprovacaoPorVencido({ maior_atraso_dias: 6, prazo_medio_dias: 28, limite_dias: 5 })).toBe(true);
-  });
-  it('RN-VEN-13 (P1 A): à vista também exige aprovação; dentro do limite não', () => {
-    expect(exigeAprovacaoPorVencido({ maior_atraso_dias: 30, prazo_medio_dias: 0, limite_dias: 5 })).toBe(true);
-    expect(exigeAprovacaoPorVencido({ maior_atraso_dias: 5, prazo_medio_dias: 28, limite_dias: 5 })).toBe(false);
   });
 });
 

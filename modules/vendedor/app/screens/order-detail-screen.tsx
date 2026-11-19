@@ -37,7 +37,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { OrderEvent } from '../../contracts';
+import type { DecisaoAprovador, OrderEvent } from '../../contracts';
 import type { MudancaNaConversao } from '../../domain/orcamento';
 import type { NivelDePreco } from '../../domain/preco-pedido';
 import { referenciaNoOrcamento } from '../../domain/aplicacao';
@@ -339,7 +339,7 @@ export default function OrderDetailScreen() {
     }
   };
 
-  const decidir = async (decisao: 'aprovar' | 'rejeitar', texto: string) => {
+  const decidir = async (decisao: DecisaoAprovador, texto: string) => {
     setDeciding(true);
     setSheetError(null);
     try {
@@ -643,7 +643,7 @@ export default function OrderDetailScreen() {
         ) : null}
 
         <DeleteOrderSheet visible={sheet === 'delete'} title={title} queued={isQueued} ehOrcamento={ehOrc} solicitaAoErp={enviadoAoErp(status) && erpAceitaCancelamento} busy={deleting} error={sheetError} onClose={() => setSheet(null)} onConfirm={(r) => void confirmDelete(r)} />
-        <DecisionSheet visible={sheet === 'reject'} title={title} busy={deciding} error={sheetError} onClose={() => setSheet(null)} onConfirm={(motivo) => void decidir('rejeitar', motivo)} />
+        <DecisionSheet visible={sheet === 'reject'} title={title} busy={deciding} error={sheetError} onClose={() => setSheet(null)} onConfirm={(motivo) => void decidir('devolver', motivo)} />
         {precosDeHoje ? (
           <Folha visivel={transformarAberto} onFechar={() => setTransformarAberto(false)} rotuloFechar="Fechar" titulo={precosDeHoje.titulo} fechar={{ rotulo: 'Fechar', testID: 'precos-fechar' }} rolavel testID="folha-precos-de-hoje" rodape={{ rotulo: TEXTOS_PRECOS_DE_HOJE.voltar, onPress: () => setTransformarAberto(false), testID: 'precos-voltar' }}>
             <View style={{ gap: 12 }}>

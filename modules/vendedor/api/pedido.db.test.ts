@@ -394,10 +394,10 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
     it('RN-GES-08: rejeitar sem motivo (ou com menos de 3 caracteres) = 422; com motivo rejeita; aprovar depois = 422 RN-VEN-30', async () => {
       await pendente(id(35), 8);
       const s = contexto(supervisor, { visiveis: equipe1 });
-      await expect(chamar(rotaRejeitarPedido, s.ctx, { params: { id: id(35) }, corpo: { texto: '' } })).rejects.toMatchObject({ status: 422, codigo: 'RN-GES-08' });
-      await expect(chamar(rotaRejeitarPedido, s.ctx, { params: { id: id(35) }, corpo: { texto: ' a ' } })).rejects.toMatchObject({ codigo: 'RN-GES-08' });
+      await expect(chamar(rotaRejeitarPedido, s.ctx, { params: { id: id(35) }, corpo: { motivo: '' } })).rejects.toMatchObject({ status: 422, codigo: 'RN-GES-08' });
+      await expect(chamar(rotaRejeitarPedido, s.ctx, { params: { id: id(35) }, corpo: { motivo: ' a ' } })).rejects.toMatchObject({ codigo: 'RN-GES-08' });
       expect((await lerPedido(id(35))).p.status).toBe('pending_approval');
-      const d = await chamar(rotaRejeitarPedido, s.ctx, { params: { id: id(35) }, corpo: { texto: 'Desconto alto para este cliente' } });
+      const d = await chamar(rotaRejeitarPedido, s.ctx, { params: { id: id(35) }, corpo: { motivo: 'Desconto alto para este cliente' } });
       expect(d).toMatchObject({ status: 'rejected', aprovacoes: [{ motivo: 'desconto', estado: 'devolvida', texto_decisao: 'Desconto alto para este cliente' }] });
       expect((await lerPedido(id(35))).p).toMatchObject({ status: 'rejected', motivo_rejeicao: 'Desconto alto para este cliente' });
       await expect(chamar(rotaAprovarPedido, s.ctx, { params: { id: id(35) } })).rejects.toMatchObject({ status: 422, codigo: 'RN-VEN-30' });
@@ -471,7 +471,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       expect((await aprovacoesDe(id(47))).map((a) => [a.motivo, a.estado])).toEqual([['credito', 'pendente'], ['desconto', 'aprovada'], ['inadimplencia', 'pendente']]);
       expect(s.registro.eventos.map((e) => e.nome)).not.toContain('vendedor.pedido.aprovado@1');
       const g = contexto(gerente, { visiveis: gestao });
-      expect(await chamar(rotaAprovarPedido, g.ctx, { params: { id: id(47) }, corpo: { motivo: 'credito' } })).toMatchObject({ status: 'pending_approval' });
+      expect(await chamar(rotaAprovarPedido, g.ctx, { params: { id: id(47) }, corpo: { motivo_aprovacao: 'credito' } })).toMatchObject({ status: 'pending_approval' });
       expect(await chamar(rotaAprovarPedido, g.ctx, { params: { id: id(47) }, corpo: {} })).toMatchObject({ status: 'approved' });
       expect(g.registro.eventos.map((e) => e.nome)).toContain('vendedor.pedido.aprovado@1');
     });
@@ -479,12 +479,12 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
     it('P8 A e P6 A: recusar um motivo cancela o pedido e encerra as outras aprovações pendentes; repetir não tem efeito', async () => {
       await tresMotivos(id(48));
       const g = contexto(gerente, { visiveis: gestao });
-      const r = await chamar(rotaRecusarPedido, g.ctx, { params: { id: id(48) }, corpo: { texto: 'cliente bloqueado', motivo: 'credito' } });
+      const r = await chamar(rotaRecusarPedido, g.ctx, { params: { id: id(48) }, corpo: { motivo: 'cliente bloqueado', motivo_aprovacao: 'credito' } });
       expect(r).toMatchObject({ status: 'cancelled' });
       expect((await aprovacoesDe(id(48))).map((a) => [a.motivo, a.estado])).toEqual([['credito', 'rejeitada'], ['desconto', 'encerrada'], ['inadimplencia', 'encerrada']]);
       expect(g.registro.eventos.filter((e) => e.nome === 'vendedor.pedido.aprovacao_decidida@1').map((e) => [e.payload.motivo, e.payload.decisao])).toEqual([['credito', 'rejeitada'], ['desconto', 'encerrada'], ['inadimplencia', 'encerrada']]);
       const antes = g.registro.eventos.length;
-      expect(await chamar(rotaRecusarPedido, g.ctx, { params: { id: id(48) }, corpo: { texto: 'cliente bloqueado' } })).toMatchObject({ status: 'cancelled' });
+      expect(await chamar(rotaRecusarPedido, g.ctx, { params: { id: id(48) }, corpo: { motivo: 'cliente bloqueado' } })).toMatchObject({ status: 'cancelled' });
       expect(g.registro.eventos).toHaveLength(antes);
       expect((await lerPedido(id(48))).p).toMatchObject({ status: 'cancelled', motivo_rejeicao: 'cliente bloqueado' });
     });
@@ -492,8 +492,8 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
     it('P6 A e P8 A: devolver leva o pedido a rejected e encerra as pendentes; o supervisor não decide o motivo do gerente', async () => {
       await tresMotivos(id(49));
       const s = contexto(supervisor, { visiveis: new Set([A.usuarios.supervisor, A.usuarios.vendedor1]) });
-      await expect(chamar(rotaAprovarPedido, s.ctx, { params: { id: id(49) }, corpo: { motivo: 'credito' } })).rejects.toMatchObject({ status: 422, codigo: 'RN-VEN-10' });
-      expect(await chamar(rotaRejeitarPedido, s.ctx, { params: { id: id(49) }, corpo: { texto: 'baixe o desconto', motivo: 'desconto' } })).toMatchObject({ status: 'rejected' });
+      await expect(chamar(rotaAprovarPedido, s.ctx, { params: { id: id(49) }, corpo: { motivo_aprovacao: 'credito' } })).rejects.toMatchObject({ status: 422, codigo: 'RN-VEN-10' });
+      expect(await chamar(rotaRejeitarPedido, s.ctx, { params: { id: id(49) }, corpo: { motivo: 'baixe o desconto', motivo_aprovacao: 'desconto' } })).toMatchObject({ status: 'rejected' });
       expect((await aprovacoesDe(id(49))).map((a) => [a.motivo, a.estado])).toEqual([['credito', 'encerrada'], ['desconto', 'devolvida'], ['inadimplencia', 'encerrada']]);
     });
 
@@ -529,7 +529,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       const p = contexto(promotor, { visiveis: 'tenant' });
       await expect(chamar(rotaAprovarPedido, p.ctx, { params: { id: id(53) } })).rejects.toMatchObject({ status: 403 });
       const b = contexto({ ...analista, id: B.usuarios.admin, tenant_id: B.tenantId }, { visiveis: 'tenant' });
-      await expect(chamar(rotaRecusarPedido, b.ctx, { params: { id: id(53) }, corpo: { texto: 'xxx' } })).rejects.toMatchObject({ status: 404 });
+      await expect(chamar(rotaRecusarPedido, b.ctx, { params: { id: id(53) }, corpo: { motivo: 'xxx' } })).rejects.toMatchObject({ status: 404 });
       const a = contexto(analista, { visiveis: 'tenant', parametros: { 'aprovacao.credito_nivel': 'analista' } });
       expect(await chamar(rotaAlcadas, a.ctx)).toMatchObject({ aprovador_credito: 'analista', aprovador_inadimplencia: 'gerente' });
     });

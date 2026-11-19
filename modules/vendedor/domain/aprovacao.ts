@@ -36,10 +36,18 @@ export interface AprovacaoNova {
   texto: string;
 }
 
+/** Rótulo curto de cada motivo (tabela do BKO, histórico do Campo, Gestão): um lugar só. */
+export const ROTULO_MOTIVO_APROVACAO: Record<MotivoAprovacao, string> = { desconto: 'Desconto', credito: 'Crédito', inadimplencia: 'Inadimplente', estoque: 'Estoque', preco_minimo: 'Preço mínimo' };
+
 const ORDEM_NIVEL: Record<NivelAprovacao, number> = { supervisor: 0, gerente: 1, analista: 2 };
 /** O maior nível entre as aprovações (o `nivel` do pedido para quem só precisa de um número, T-0184 §1). */
 export function maiorNivel(niveis: readonly NivelAprovacao[]): NivelAprovacao | null {
   return niveis.reduce<NivelAprovacao | null>((m, n) => (m === null || ORDEM_NIVEL[n] > ORDEM_NIVEL[m] ? n : m), null);
+}
+
+/** RN-VEN-10, RN-VEN-12 e RN-VEN-13: o nível do pedido com as aprovações financeiras somadas à da alçada (o maior; `null` = sem aprovação). */
+export function nivelComAprovacoes(nivel: NivelAprovacao | null, aprovacoes: readonly { nivel: NivelAprovacao }[]): NivelAprovacao | null {
+  return maiorNivel([...(nivel ? [nivel] : []), ...aprovacoes.map((a) => a.nivel)]);
 }
 
 /** RN-VEN-12 e RN-VEN-13 (P2 B, P5 B): quem aprova crédito e inadimplência; padrão `gerente`, também com o parâmetro ausente ou inválido. */
@@ -510,9 +518,9 @@ export interface DecidirEntrada {
   aprovacoes: readonly AprovacaoDoCiclo[];
   perfil: string;
   decisao: DecisaoAprovador;
-  /** ausente = vale para todas as pendentes que o perfil decide (app antigo ou "aprovar tudo") */
+  /** `motivo_aprovacao` do corpo da rota; ausente = vale para todas as pendentes que o perfil decide (app antigo ou "aprovar tudo") */
   motivo?: MotivoAprovacao | null;
-  /** comentário (aprovar) ou motivo (devolver e recusar) */
+  /** `comentario` (aprovar) ou `motivo` em texto livre (devolver e recusar) do corpo da rota */
   texto?: string | null;
 }
 

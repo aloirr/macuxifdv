@@ -17,8 +17,9 @@ import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
 import { DEFAULT_TZ, monthStart } from '@macuxi/ui/mobile/puro';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MixSuggestion } from '@macuxi/catalogo/contracts';
-import { aplicarDecisaoNoDetalhe, corpoDaDecisaoNoApp } from '../lib/decisao-pedido';
-import type { CustomerDetail, DecisaoAprovacaoResposta, EditarOrcamentoRequest, Order, OrderDetail, PedidoPush, UpdateOrderRequest } from '../../contracts';
+import { aplicarDecisaoNoDetalhe } from '../lib/decisao-pedido';
+import { corpoDaDecisao, ROTA_DA_DECISAO } from '../../contracts';
+import type { CustomerDetail, DecisaoAprovacaoResposta, DecisaoAprovador, EditarOrcamentoRequest, Order, OrderDetail, PedidoPush, UpdateOrderRequest } from '../../contracts';
 import { orderActions, type OrderStatus } from '../../domain/order';
 import { percentualAjusteParaBp, type NivelDePreco } from '../../domain/preco-pedido';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
@@ -691,16 +692,16 @@ export function useVendedor() {
   );
 
   /**
-   * Aprovar ou rejeitar (RN-GES-08; ADR 0011 D-4): exige internet, porque outro gestor pode ter decidido antes. A resposta
+   * Aprovar ou devolver ao vendedor (`rejected`; RN-GES-08; ADR 0011 D-4): exige internet, porque outro gestor pode ter decidido antes. A resposta
    * da API vale na hora; depois uma sincronização traz o estado novo para o aparelho.
    */
   const decidirPedido = useCallback(
-    async (orderId: string, decisao: 'aprovar' | 'rejeitar', texto: string): Promise<OrderDetail> => {
+    async (orderId: string, decisao: DecisaoAprovador, texto: string): Promise<OrderDetail> => {
       if (!ambiente.online()) throw new Error('Sem sinal para decidir');
       let resposta: DecisaoAprovacaoResposta;
       try {
-        resposta = await ambiente.http.requisitar<DecisaoAprovacaoResposta>('POST', `/vendedor/pedidos/${encodeURIComponent(orderId)}/${decisao === 'aprovar' ? 'aprovar' : 'rejeitar'}`, {
-          body: corpoDaDecisaoNoApp(decisao, texto),
+        resposta = await ambiente.http.requisitar<DecisaoAprovacaoResposta>('POST', `/vendedor/pedidos/${encodeURIComponent(orderId)}/${ROTA_DA_DECISAO[decisao]}`, {
+          body: corpoDaDecisao(decisao, texto),
         });
       } catch (e) {
         if (ehSemConexao(e)) throw new Error('Sem sinal para decidir');

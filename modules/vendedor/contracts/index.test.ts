@@ -32,7 +32,7 @@ describe('contracts', () => {
   });
 });
 
-import { AprovacaoMotivo, AprovacaoSolicitadaEvento, AprovarPedidoRequest, RecusarPedidoRequest, DECISOES_APROVADOR, ESTADOS_APROVACAO_MOTIVO, MOTIVOS_APROVACAO, DiscountPolicy as AlcadaApiSchema, PedidoAprovadoEvento, PedidoEventoSyncSchema, PedidoPush, PedidoStatusAlteradoEvento, RejeitarPedidoRequest } from './index';
+import { CORPO_DA_DECISAO, MOTIVO_REJEICAO_MIN, ROTA_DA_DECISAO, ROTULO_MOTIVO_APROVACAO, corpoDaDecisao, maiorNivel, AprovacaoMotivo, AprovacaoSolicitadaEvento, AprovarPedidoRequest, RecusarPedidoRequest, DECISOES_APROVADOR, ESTADOS_APROVACAO_MOTIVO, MOTIVOS_APROVACAO, DiscountPolicy as AlcadaApiSchema, PedidoAprovadoEvento, PedidoEventoSyncSchema, PedidoPush, PedidoStatusAlteradoEvento, RejeitarPedidoRequest } from './index';
 
 describe('contracts do pedido no servidor (T-0029)', () => {
   const push = { id: '0b7f6c1e-3d2a-4c5b-9e8f-7a6b5c4d3e2f', customer_id: 'c1', discount_pct: 4, items: [{ product_id: 'p1', quantity: 2 }] };
@@ -47,9 +47,9 @@ describe('contracts do pedido no servidor (T-0029)', () => {
   });
   it('RN-GES-08: aprovar sem comentário é válido; o mínimo de 3 caracteres do motivo é do domínio (422)', () => {
     expect(AprovarPedidoRequest.safeParse({}).success).toBe(true);
-    expect(RejeitarPedidoRequest.safeParse({ texto: 'abc' }).success).toBe(true);
-    expect(RejeitarPedidoRequest.safeParse({ texto: 'ab' }).success).toBe(false);
-    expect(RejeitarPedidoRequest.safeParse({ texto: 'x'.repeat(501) }).success).toBe(false);
+    expect(RejeitarPedidoRequest.safeParse({ motivo: 'abc' }).success).toBe(true);
+    expect(RejeitarPedidoRequest.safeParse({ motivo: 'ab' }).success).toBe(false);
+    expect(RejeitarPedidoRequest.safeParse({ motivo: 'x'.repeat(501) }).success).toBe(false);
   });
   it('status_alterado@1 usa o vocabulário do doc 03 (RN-VEN-30)', () => {
     const base = { pedido_id: 'a', vendedor_id: 'b', de: null, alterado_em: '2026-11-01T14:00:00.000Z', autor_id: null, motivo: null };
@@ -87,12 +87,31 @@ describe('T-0184: contratos da aprovação por motivo', () => {
     expect(ESTADOS_APROVACAO_MOTIVO).toEqual(['pendente', 'aprovada', 'rejeitada', 'devolvida', 'encerrada']);
     expect(DECISOES_APROVADOR).toEqual(['aprovar', 'devolver', 'recusar']);
   });
-  it('rotas: aprovar aceita motivo opcional; rejeitar (devolver) e recusar exigem texto de 3+ e aceitam motivo', () => {
-    expect(AprovarPedidoRequest.safeParse({ motivo: 'credito' }).success).toBe(true);
-    expect(AprovarPedidoRequest.safeParse({ motivo: 'outro' }).success).toBe(false);
-    expect(RecusarPedidoRequest.safeParse({ texto: 'sem verba', motivo: 'inadimplencia' }).success).toBe(true);
-    expect(RecusarPedidoRequest.safeParse({ motivo: 'credito' }).success).toBe(false);
-    expect(RejeitarPedidoRequest.safeParse({ texto: 'abc', motivo: 'desconto' }).success).toBe(true);
+  it('RN-GES-08 e ADR 0062: aprovar aceita comentario e motivo_aprovacao; rejeitar e recusar exigem motivo (texto livre, 3+) e aceitam motivo_aprovacao', () => {
+    expect(AprovarPedidoRequest.safeParse({ comentario: 'ok', motivo_aprovacao: 'credito' }).success).toBe(true);
+    expect(AprovarPedidoRequest.safeParse({ motivo_aprovacao: 'outro' }).success).toBe(false);
+    expect(RecusarPedidoRequest.safeParse({ motivo: 'sem verba', motivo_aprovacao: 'inadimplencia' }).success).toBe(true);
+    expect(RecusarPedidoRequest.safeParse({ motivo_aprovacao: 'credito' }).success).toBe(false);
+    expect(RejeitarPedidoRequest.safeParse({ motivo: 'abc', motivo_aprovacao: 'desconto' }).success).toBe(true);
+    expect(RejeitarPedidoRequest.safeParse({ motivo: 'abc', motivo_aprovacao: 'x' }).success).toBe(false);
+  });
+  it('exports para o Gestor: rota da decisão, corpo de cada rota, mínimo do texto, estados, rótulos e maior nível', () => {
+    expect(ROTA_DA_DECISAO).toEqual({ aprovar: 'aprovar', devolver: 'rejeitar', recusar: 'recusar' });
+    expect(CORPO_DA_DECISAO.aprovar).toBe(AprovarPedidoRequest);
+    expect(CORPO_DA_DECISAO.devolver).toBe(RejeitarPedidoRequest);
+    expect(CORPO_DA_DECISAO.recusar).toBe(RecusarPedidoRequest);
+    expect(MOTIVO_REJEICAO_MIN).toBe(3);
+    expect(Object.keys(ROTULO_MOTIVO_APROVACAO)).toEqual([...MOTIVOS_APROVACAO]);
+    expect(ROTULO_MOTIVO_APROVACAO.inadimplencia).toBe('Inadimplente');
+    expect(maiorNivel(['supervisor', 'analista', 'gerente'])).toBe('analista');
+    expect(maiorNivel([])).toBeNull();
+  });
+  it('corpoDaDecisao monta o corpo que a rota aceita (RN-GES-08)', () => {
+    expect(corpoDaDecisao('aprovar', '')).toEqual({});
+    expect(corpoDaDecisao('aprovar', ' ok ', 'credito')).toEqual({ comentario: 'ok', motivo_aprovacao: 'credito' });
+    expect(corpoDaDecisao('devolver', ' sem verba ')).toEqual({ motivo: 'sem verba' });
+    expect(corpoDaDecisao('recusar', 'cliente bloqueado', 'inadimplencia')).toEqual({ motivo: 'cliente bloqueado', motivo_aprovacao: 'inadimplencia' });
+    for (const d of DECISOES_APROVADOR) expect(CORPO_DA_DECISAO[d].safeParse(corpoDaDecisao(d, 'texto ok')).success).toBe(true);
   });
   it('AprovacaoMotivo: estado, nível, texto e quem decidiu', () => {
     const ok = { motivo: 'credito', nivel: 'gerente', estado: 'aprovada', texto_pendencia: 'x', decidida_por_id: '0b7f6c1e-3d2a-4c5b-9e8f-7a6b5c4d3e2f', decidida_em: '2026-11-05T12:00:00.000Z', texto_decisao: null };
