@@ -200,7 +200,10 @@ function exemploDoKit(): ConectorExemplo {
   for (const [ent, extras] of Object.entries(COLUNAS_EXTRAS_VIEW)) {
     const e = ex.entidades[ent];
     if (!e) continue;
-    e.consulta = e.consulta.replace(/^(SELECT TOP \(:limite\) .*?) FROM dbo\.vw_macuxi_/, (_m, ini: string) => `${ini}, ${extras.filter((c) => !ini.includes(c)).join(', ')} FROM dbo.vw_macuxi_`);
+    e.consulta = e.consulta.replace(/^(SELECT TOP \(:limite\) .*?) FROM dbo\.vw_macuxi_/, (m, ini: string) => {
+      const faltam = extras.filter((c) => !ini.split(',').map((x) => x.trim()).includes(c)); // o exemplo do Conector já pode trazer a coluna
+      return faltam.length === 0 ? m : `${ini}, ${faltam.join(', ')} FROM dbo.vw_macuxi_`;
+    });
   }
   return ex;
 }

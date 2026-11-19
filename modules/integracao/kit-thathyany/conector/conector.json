@@ -534,7 +534,10 @@
         "baixado_em": {
           "coluna": "baixado_em",
           "transformar": "data_hora_utc"
-        }
+        },
+        "nf_numero": "nf_numero",
+        "nf_serie": "nf_serie",
+        "forma_pagamento": "forma_pagamento"
       },
       "reconciliacao": {
         "consulta": "SELECT COUNT(*) AS contagem, CAST(SUM(saldo_cents) AS bigint) AS soma FROM dbo.vw_macuxi_titulo WHERE ativo = 1"
@@ -572,7 +575,10 @@
         "cancelada": {
           "coluna": "cancelada",
           "transformar": "booleano"
-        }
+        },
+        "forma_pagamento": "forma_pagamento",
+        "nf_origem_numero": "nf_origem_numero",
+        "nf_origem_serie": "nf_origem_serie"
       },
       "reconciliacao": {
         "consulta": "SELECT COUNT(*) AS contagem, CAST(SUM(total_cents) AS bigint) AS soma FROM dbo.vw_macuxi_nota WHERE ativo = 1"
