@@ -187,9 +187,6 @@ export function periodoEscolhido(deTexto: string, ateTexto: string, hoje: string
   return { ok: true, de, ate };
 }
 
-/** Spec §3.5: a coluna da tabela Carteira é "Vendedor"; com mais de uma pessoa, "Pessoa". */
-export const tituloDaCarteira = (pessoas: number): string => (pessoas > 1 ? 'Pessoa' : 'Vendedor');
-
 /** O filtro na forma do `filtrarNotas` (domain). */
 export function filtroDeNotas(f: FiltroDaFicha, hoje: string): FiltroHistoricoNf {
   const { de, ate } = intervaloDoFiltro(f, hoje);

@@ -26,7 +26,6 @@ import {
   lerDataBr,
   mascararData,
   periodoEscolhido,
-  tituloDaCarteira,
 } from './ficha-v2';
 import type { NotaDetalhe } from '../../contracts';
 import type { PerformanceCalculada } from '../../domain';
@@ -219,9 +218,5 @@ describe('Cliente 360 v2: Escolher datas e Carteira (spec §3.5 e §4)', () => {
   it('spec §4 (P17): datas além dos 90 dias consultam o servidor', () => {
     expect(filtroPrecisaDoServidor({ ...FILTRO_PADRAO, periodo: 'datas', de: '2026-01-10', ate: '2026-02-10' }, HOJE)).toBe(true);
     expect(filtroPrecisaDoServidor({ ...FILTRO_PADRAO, periodo: 'datas', de: '2026-10-10', ate: '2026-11-10' }, HOJE)).toBe(false);
-  });
-  it('spec §3.5: a tabela Carteira chama a coluna de "Pessoa" com mais de uma pessoa', () => {
-    expect(tituloDaCarteira(1)).toBe('Vendedor');
-    expect(tituloDaCarteira(2)).toBe('Pessoa');
   });
 });

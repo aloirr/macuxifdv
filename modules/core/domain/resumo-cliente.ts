@@ -1,9 +1,8 @@
 /**
- * Resumo do Cliente 360 v2 (T-0186; spec §3): dados cadastrais e bloco Performance (curvas, indicadores de compra e visitas).
+ * Resumo do Cliente 360 v2 (T-0186; spec §3): bloco Performance (curvas, indicadores de compra e visitas).
  * Funções puras; as mesmas na API e no aparelho. Sem alerta financeiro na ficha (R-20261119-0440).
  */
 import { compraMediaMesCents, resumoCompras, resumoSemCompras, type HistoricoLike } from './cliente360';
-import { dataLocal } from './checkin';
 import type { CurvaDoCliente, DimensaoCurva } from './curvas-abc';
 import type { ResumoVisitas } from './performance-cliente';
 
@@ -42,13 +41,4 @@ export function performanceDoCliente(e: {
     ? [...e.curvas].sort((a, b) => ORDEM.indexOf(a.dimensao) - ORDEM.indexOf(b.dimensao)).map((c) => ({ dimensao: c.dimensao, curva: c.curva, rotulo: rotuloCurva(c.dimensao) }))
     : [];
   return { curvas, compras, visitas_total: e.visitas.total, ultima_visita_em: e.visitas.ultima_data, ultima_visita_por: e.visitadaPor };
-}
-
-/** Spec §3.1: Razão social, CNPJ, Filial, Segmento e Cliente desde (dia do cadastro no fuso do tenant). */
-export function dadosCadastraisDoCliente(
-  c: { razao_social: string; documento: string | null; segmento: string | null; created_at: string },
-  filialNome: string | null,
-  fuso: string,
-): { razao_social: string; cnpj: string | null; filial_nome: string | null; segmento: string | null; cliente_desde: string } {
-  return { razao_social: c.razao_social, cnpj: c.documento, filial_nome: filialNome, segmento: c.segmento, cliente_desde: dataLocal(c.created_at, fuso) };
 }

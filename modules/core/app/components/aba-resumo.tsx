@@ -10,8 +10,7 @@ import { Linking, Pressable, Text, View } from 'react-native';
 import type { CartaoCredito } from '../../contracts';
 import { observacaoComCadastro, type PerformanceCalculada } from '../../domain';
 import type { Cliente360Local } from '../lib/cliente360-local';
-import type { PessoaDaCarteira } from '../lib/carteira-ficha';
-import { dataCurta, linhasCartaoCredito, linhasDadosCadastrais, linhasPerformance, tituloDaCarteira, valorSemMoeda } from '../lib/ficha-v2';
+import { dataCurta, linhasCartaoCredito, linhasDadosCadastrais, linhasPerformance, valorSemMoeda } from '../lib/ficha-v2';
 import { mapsUrl } from '../lib/route';
 
 const num = (v: string | number | null): number | null => (v === null || v === '' ? null : Number(v));
@@ -39,7 +38,6 @@ export function AbaResumo({
   itens,
   secoes,
   atendimento,
-  carteira,
 }: {
   ficha: Cliente360Local;
   cartao: CartaoCredito | null;
@@ -51,8 +49,6 @@ export function AbaResumo({
   secoes?: ReactNode;
   /** "Em atendimento · desde 09:41" (aviso que não é financeiro). */
   atendimento?: string | null;
-  /** Gestão: quem tem o cliente na carteira (spec §3.5); sem a lista, a tabela não aparece. */
-  carteira?: readonly PessoaDaCarteira[];
 }) {
   const [todos, setTodos] = useState(false);
   const c = ficha.cliente;
@@ -125,28 +121,6 @@ export function AbaResumo({
           />
         )}
       </View>
-
-      {gestao && carteira && carteira.length > 0 ? (
-        <View style={{ gap: 8 }} testID="cliente-carteira">
-          <SectionHeader title="Carteira" />
-          <TabelaDados
-            colunas={[
-              { id: 'pessoa', titulo: tituloDaCarteira(carteira.length) },
-              { id: 'ligar', titulo: 'Ligar', largura: 48, alinhar: 'centro' },
-              { id: 'zap', titulo: 'WhatsApp', largura: 60, alinhar: 'centro' },
-            ]}
-            linhas={carteira.map<LinhaTabela>((p) => ({
-              tipo: 'linha',
-              key: p.id,
-              celulas: [
-                <CelulaTexto key="n" principal={p.nome} />,
-                <BotaoCelula key="t" icone="phone" rotulo={p.tel ? `Ligar para ${p.nome}` : `Ligar indisponível: ${p.nome} sem número`} desligado={!p.tel} onPress={() => p.tel && void Linking.openURL(p.tel)} testID={`carteira-ligar-${p.id}`} />,
-                <BotaoCelula key="w" icone="chat" rotulo={p.whatsapp_url ? `WhatsApp de ${p.nome}` : `WhatsApp indisponível: ${p.nome} sem número`} desligado={!p.whatsapp_url} onPress={() => p.whatsapp_url && void Linking.openURL(p.whatsapp_url)} testID={`carteira-whatsapp-${p.id}`} />,
-              ],
-            }))}
-          />
-        </View>
-      ) : null}
 
       <View style={{ gap: 8 }} testID="cliente-performance">
         <SectionHeader title={perf.titulo} />

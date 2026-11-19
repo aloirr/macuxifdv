@@ -385,8 +385,8 @@ export function codigosDePerfil(usuario: { perfil: string; perfis?: readonly { c
 }
 
 /** Ação que as rotas de documento declaram (`acao`) e que a guarda do arquivo confere com a mesma checagem. */
-export const ACAO_DOCUMENTO_VER = 'documento.ver';
-export const usuarioPodeVerDocumento = (usuario: Pick<GuardaArquivoEntrada['usuario'], 'perfis'>): boolean => pode(usuario.perfis, ACAO_DOCUMENTO_VER);
+const ACAO_DOCUMENTO_VER = 'documento.ver';
+const usuarioPodeVerDocumento = (usuario: Pick<GuardaArquivoEntrada['usuario'], 'perfis'>): boolean => pode(usuario.perfis, ACAO_DOCUMENTO_VER);
 
 /**
  * RN-CORE-40 (`ModuloApi.guardaArquivo`): quem tem o id do arquivo de um documento do cliente só o lê com a mesma regra da rota

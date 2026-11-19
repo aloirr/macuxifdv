@@ -2,7 +2,7 @@
  * Hook das telas Clientes e Ficha: lê as entidades de cliente que o sync deixou no aparelho (`motor.linhas`) e
  * recarrega quando uma sincronização termina. Sem rede, sem chamada ao servidor (offline-first, RF-CORE-04).
  */
-import type { CarteiraSync, UsuarioSync, ClienteContatoSync, ClienteEnderecoSync, ClienteVisitaResumoSync, ClienteFinanceiroSync, VisitaSync, ClienteFotoSync, ClienteSync, FilialSync, FotoTipoSync, HistoricoCompraSync, ParametroSync, TituloSync } from '../../contracts';
+import type { ClienteContatoSync, ClienteEnderecoSync, ClienteVisitaResumoSync, ClienteFinanceiroSync, VisitaSync, ClienteFotoSync, ClienteSync, FilialSync, FotoTipoSync, HistoricoCompraSync, ParametroSync, TituloSync } from '../../contracts';
 import type { LinhaSync } from '@macuxi/platform-sdk';
 import type { PedidoItemSync, PedidoSync } from '../../../vendedor/contracts';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
@@ -42,12 +42,9 @@ export interface ClientesLocais extends BaseLocal {
   visitasSync: readonly VisitaSync[];
   /** RN-CORE-50: total de visitas e quem visitou por último (servidor, qualquer usuário); vazio = vale o cálculo local. */
   resumosVisita: readonly ClienteVisitaResumoSync[];
-  /** Gestão (spec §3.5, tabela Carteira): vínculos cliente → usuário e os usuários visíveis, com nome e telefone. */
-  carteiras: readonly CarteiraSync[];
-  usuarios: readonly UsuarioSync[];
 }
 
-const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], filiais: [], fotoTipos: [], clienteFotos: [], fotosPendentes: [], pronto: false, carregado: false, verPedidos: true, perfil: 'vendedor', faixasCurva: PARAMETROS_CURVA_ABC_PADRAO, pedidos: [], pedidoItens: [], visitasSync: [], resumosVisita: [], carteiras: [], usuarios: [] };
+const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], filiais: [], fotoTipos: [], clienteFotos: [], fotosPendentes: [], pronto: false, carregado: false, verPedidos: true, perfil: 'vendedor', faixasCurva: PARAMETROS_CURVA_ABC_PADRAO, pedidos: [], pedidoItens: [], visitasSync: [], resumosVisita: [] };
 
 export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
   const { motor, estado } = useMotorSync();
@@ -59,7 +56,7 @@ export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
     if (!motor) return;
     let ativo = true;
     void (async () => {
-      const [clientes, contatos, financeiros, titulos, historico, enderecos, parametros, filiais, fotoTipos, clienteFotos, pedidos, pedidoItens, visitasSync, resumosVisita, carteiras, usuarios] = await Promise.all([
+      const [clientes, contatos, financeiros, titulos, historico, enderecos, parametros, filiais, fotoTipos, clienteFotos, pedidos, pedidoItens, visitasSync, resumosVisita] = await Promise.all([
         motor.linhas<ClienteSync>('cliente'),
         motor.linhas<ClienteContatoSync>('cliente_contato'),
         motor.linhas<ClienteFinanceiroSync>('cliente_financeiro'),
@@ -74,12 +71,10 @@ export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
         motor.linhas<PedidoItemSync>('pedido_item'),
         motor.linhas<VisitaSync>('visita'),
         motor.linhas<ClienteVisitaResumoSync>('cliente_visita_resumo'),
-        motor.linhas<CarteiraSync>('carteira'),
-        motor.linhas<UsuarioSync>('usuario'),
       ]);
       const perfil = motor.ambiente.usuario()?.perfil ?? 'vendedor';
       const verPedidos = pedidosVisiveisNoAparelho(perfil, parametros);
-      if (ativo) setDados({ clientes, contatos, financeiros, titulos, historico, enderecos, filiais, fotoTipos, clienteFotos, fotosPendentes: [], pronto: clientes.length > 0, carregado: true, verPedidos, perfil, faixasCurva: faixasCurvaAbcDasLinhas(parametros), pedidos: verPedidos ? pedidos.filter((p) => p.deleted_at === null) : [], pedidoItens: verPedidos ? pedidoItens.filter((i) => i.deleted_at === null) : [], visitasSync: visitasSync.filter((v) => v.deleted_at === null), resumosVisita: resumosVisita.filter((r) => r.deleted_at === null), carteiras: carteiras.filter((c) => c.deleted_at === null), usuarios: usuarios.filter((u) => u.deleted_at === null) });
+      if (ativo) setDados({ clientes, contatos, financeiros, titulos, historico, enderecos, filiais, fotoTipos, clienteFotos, fotosPendentes: [], pronto: clientes.length > 0, carregado: true, verPedidos, perfil, faixasCurva: faixasCurvaAbcDasLinhas(parametros), pedidos: verPedidos ? pedidos.filter((p) => p.deleted_at === null) : [], pedidoItens: verPedidos ? pedidoItens.filter((i) => i.deleted_at === null) : [], visitasSync: visitasSync.filter((v) => v.deleted_at === null), resumosVisita: resumosVisita.filter((r) => r.deleted_at === null) });
     })();
     return () => {
       ativo = false;

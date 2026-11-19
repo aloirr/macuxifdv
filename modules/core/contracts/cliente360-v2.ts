@@ -121,16 +121,6 @@ export type NotaDetalhe = z.infer<typeof NotaDetalheSchema>;
 
 // --- Resumo ---------------------------------------------------------------------------------------------------------
 
-/** Spec §3.1: Razão social, CNPJ, Filial, Segmento e Cliente desde. */
-export const DadosCadastraisSchema = z.object({
-  razao_social: z.string(),
-  cnpj: z.string().nullable(),
-  filial_nome: z.string().nullable(),
-  segmento: z.string().nullable(),
-  /** AAAA-MM-DD da criação do cadastro. */
-  cliente_desde: Data.nullable(),
-});
-
 /** Spec §3.2: o cartão tem só Limite, Saldo disponível e Prazo médio (+ o motivo, com o cliente bloqueado). `null` = sem dados financeiros ou perfil sem acesso (P12). */
 export const CartaoCreditoSchema = z.object({
   limite_cents: Centavos,
@@ -146,25 +136,6 @@ export const CurvaDoClienteSchema = z.object({
   curva: z.enum(['A', 'B', 'C']),
   /** "Curva Faturamento", "Curva Frequência" ou "Curva Volume". */
   rotulo: z.string(),
-});
-
-/** Spec §3.6 (bloco Performance): curvas, indicadores de compra (RN-CORE-40) e visitas (P7). */
-export const PerformanceClienteSchema = z.object({
-  /** Fora para o promotor sem `promotor_ve_pedidos` (as linhas de visita ficam). */
-  curvas: z.array(CurvaDoClienteSchema),
-  compras: z
-    .object({
-      compra_media_mes_cents: Centavos,
-      ticket_medio_cents: Centavos,
-      frequencia_media_dias: z.number().nullable(),
-      /** RN-CORE-40: "Sem compras em 12 meses" no lugar dos indicadores. */
-      sem_compras: z.boolean(),
-    })
-    .nullable(),
-  visitas_total: z.number().int().min(0),
-  ultima_visita_em: Data.nullable(),
-  /** "Visitada por": só o Gestão mostra. */
-  ultima_visita_por: z.string().nullable(),
 });
 
 // --- Documentação ---------------------------------------------------------------------------------------------------

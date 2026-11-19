@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dadosCadastraisDoCliente, performanceDoCliente, rotuloCurva } from './resumo-cliente';
+import { performanceDoCliente, rotuloCurva } from './resumo-cliente';
 
 const HOJE = '2026-11-19';
 const mes = (ano_mes: string, valor_cents: number, pedidos: number, itens = 1, ultima: string | null = null) => ({ ano_mes, valor_cents, pedidos, itens, ultima_compra_em: ultima });
@@ -37,17 +37,5 @@ describe('T-0186 / R-20261119-0530: bloco Performance do Resumo', () => {
     expect(p.curvas).toEqual([]);
     expect(p.compras).toBeNull();
     expect(p.visitas_total).toBe(46);
-  });
-});
-
-describe('T-0186 / spec §3.1: dados cadastrais do Resumo', () => {
-  it('Razão social, CNPJ, Filial, Segmento e Cliente desde (data civil do tenant)', () => {
-    expect(dadosCadastraisDoCliente({ razao_social: 'Bom Preço Ltda', documento: '12345678000190', segmento: 'Supermercado', created_at: '2025-03-02T02:00:00.000Z' }, 'Matriz', 'America/Manaus')).toEqual({
-      razao_social: 'Bom Preço Ltda',
-      cnpj: '12345678000190',
-      filial_nome: 'Matriz',
-      segmento: 'Supermercado',
-      cliente_desde: '2025-03-01',
-    });
   });
 });

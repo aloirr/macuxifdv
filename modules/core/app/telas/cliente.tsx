@@ -26,7 +26,6 @@ import { acoesDoRodapeCliente, botoesDoRodapeCliente, checkinPermitido, curvasAb
 import { AbaDocumentacao } from '../components/aba-documentacao';
 import { AbaHistorico } from '../components/aba-historico';
 import { AbaResumo, type ItemCompradoLinha } from '../components/aba-resumo';
-import { pessoasDaCarteira } from '../lib/carteira-ficha';
 import { nomeDoCliente, subtituloDaFicha } from '../components/cliente360';
 import { abrirArquivoRegistrado } from '../lib/abrir-arquivo';
 import { pedidosQuePesamNoCredito, abasDoApp, FILTRO_PADRAO, perfilDeGestao, type FiltroDaFicha } from '../lib/ficha-v2';
@@ -232,7 +231,6 @@ export function TelaCliente() {
               gestao={gestao}
               clienteDesde={customer?.customer_since ?? null}
               itens={itensComprados}
-              carteira={gestao ? pessoasDaCarteira(id, locais.carteiras, hoje) : undefined}
               atendimento={openHere && openVisit ? `Em atendimento · desde ${formatHHMM(openVisit.checkin_at, tz)}` : null}
               secoes={abasResumo.map((a) => {
                 const Aba = a.payload.componente;
