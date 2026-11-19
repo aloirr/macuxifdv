@@ -25,8 +25,14 @@ describe('tarefa macuxi-trajeto: captura (§3.1)', () => {
     expect(TAREFA_TRAJETO).toBe('macuxi-trajeto');
     const opcoes = opcoesDoTrajeto();
     expect(opcoes).toMatchObject({ accuracy: 4, distanceInterval: 200, timeInterval: 300_000, deferredUpdatesInterval: 300_000 });
-    expect(opcoes.foregroundService.notificationTitle).toBe('Localização ativa no expediente');
     expect(opcoes.foregroundService.killServiceOnDestroy).toBe(false);
+  });
+
+  it('rastreamento interno (dono do produto, 19/11): a notificação fixa só diz "Macuxi Campo ativo", sem corpo e sem citar localização', () => {
+    const { notificationTitle, notificationBody } = opcoesDoTrajeto().foregroundService;
+    expect(notificationTitle).toBe('Macuxi Campo ativo');
+    expect(notificationBody).toBe('');
+    expect(`${notificationTitle} ${notificationBody}`).not.toMatch(/locali|trajeto|rastre|gps|expediente/i);
   });
 
   it('§3.1 e §3.3: a captura segue a frequência do parâmetro do BKO (metros e minutos)', () => {
@@ -85,8 +91,8 @@ describe('ligar e desligar (§3.2)', () => {
   it('reinicia se pode, está ativa e a frequência mudou; parada ou sem poder, a frequência não conta', () => {
     expect(acaoDoTrajeto({ pode: true }, true, true)).toBe('reiniciar');
     expect(acaoDoTrajeto({ pode: true }, false, true)).toBe('ligar');
-    expect(acaoDoTrajeto({ pode: false, motivo: 'pausa' }, true, true)).toBe('desligar');
-    expect(acaoDoTrajeto({ pode: false, motivo: 'pausa' }, false, true)).toBe('manter');
+    expect(acaoDoTrajeto({ pode: false, motivo: 'ausencia' }, true, true)).toBe('desligar');
+    expect(acaoDoTrajeto({ pode: false, motivo: 'ausencia' }, false, true)).toBe('manter');
   });
 
   it('lote: descarta o ponto que a condição recusa no instante dele (o lote do Android cruza o fim do expediente)', () => {
@@ -117,9 +123,9 @@ describe('Diagnóstico sem coordenada (§9)', () => {
     expect(textoDoEstadoDoTrajeto('ativa', null, 'America/Manaus')).toBe(ROTULO_ESTADO_RASTREAMENTO.ativa);
   });
 
-  it('texto do Diagnóstico: o rótulo e a hora do último ponto no fuso do tenant (formatarHoraDoTrajeto); sem estado, nada', () => {
+  it('texto do Diagnóstico: o rótulo e a hora do último ponto no fuso do tenant (formatHHMM); sem estado, nada', () => {
     expect(textoDoEstadoDoTrajeto('ativa', '2026-11-19T13:05:00.000Z', 'America/Manaus')).toBe(`${ROTULO_ESTADO_RASTREAMENTO.ativa} · último ponto 09:05`);
-    expect(textoDoEstadoDoTrajeto('pausa', null, 'America/Manaus')).toBe(ROTULO_ESTADO_RASTREAMENTO.pausa);
+    expect(textoDoEstadoDoTrajeto('feriado', null, 'America/Manaus')).toBe(ROTULO_ESTADO_RASTREAMENTO.feriado);
     expect(textoDoEstadoDoTrajeto(null, '2026-11-19T13:05:00.000Z', 'America/Manaus')).toBeNull();
   });
 

@@ -10,11 +10,9 @@
  * T-0088: e o armazenamento ativo (SQLite do usuário e tenant com o marcador da passagem, ou AsyncStorage de reserva).
  * T-0178 (spec docs/design/trocar-senha/spec.md §2 e §7): seção "Conta" com a linha "Trocar senha" (só na API real) e, na
  * volta da troca, "Senha trocada." no rodapé.
- * T-0156 (tracking §4.3 e §6; spec docs/design/tracking/spec.md §2; RN-CORE-13): só no Campo, depois do nome, a área "Alertas" com
- * a linha do termo de localização pendente (`AlertaTermoRastreamento`) e a seção "Localização" do Core (`SecaoLocalizacaoPerfil`),
- * antes de "Conta". Quando cada uma aparece é o Core que decide (rastreamento ligado, termo, aceite).
+ * T-0156 (tracking §9; RN-CORE-13): rastreamento interno, sem nada para o vendedor; só no Campo, o Diagnóstico (suporte) mostra o
+ * estado da captura pelo rótulo do Core e a hora do último ponto.
  */
-import { AlertaTermoRastreamento, SecaoLocalizacaoPerfil, useRastreamento } from '@macuxi/core/app';
 import { TEXTOS_TROCAR_SENHA } from '@macuxi/core/contracts';
 import type { SituacaoArquivo } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
@@ -71,25 +69,6 @@ function SeloDaFila({ situacao }: { situacao: SituacaoArquivo }) {
   return situacao === 'pendente' ? <Badge label="Na fila" tone="accent" /> : null;
 }
 
-/**
- * Área "Alertas" do Perfil (RN-VEN-42: o único lugar do aviso; o padrão da `AreaAlertas`): hoje só a linha do termo de localização
- * pendente. Sem alerta, nada (nem o título).
- */
-function AlertasDoPerfil() {
-  const { situacao } = useRastreamento();
-  if (situacao !== 'pendente') return null;
-  return (
-    <View style={styles.alertas} testID="perfil.alertas">
-      <Text style={styles.alertasTitulo} accessibilityRole="header">
-        ALERTAS
-      </Text>
-      <View style={styles.alertasCartao}>
-        <AlertaTermoRastreamento />
-      </View>
-    </View>
-  );
-}
-
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   return (
@@ -117,7 +96,7 @@ function Perfil() {
   const [ultimoErro, setUltimoErro] = useState<ErroRegistrado | null>(null);
   // T-0144: as últimas saídas do processo segundo o Android (erro nativo, memória, travamento, fechado pelo usuário)
   const [saidas, setSaidas] = useState<SaidaAndroid[] | null>(null);
-  // T-0156 (tracking §9): só no Campo, a seção Localização e, no Diagnóstico, o rótulo do estado da captura e a hora do último ponto
+  // T-0156 (tracking §9): só no Campo, no Diagnóstico, o rótulo do estado da captura e a hora do último ponto
   const comTrajeto = varianteAtual() === 'campo';
   const [trajeto, setTrajeto] = useState<DiagnosticoDoTrajeto | null>(null);
   useEffect(() => {
@@ -180,13 +159,6 @@ function Perfil() {
           </Text>
         </View>
       </View>
-
-      {comTrajeto ? (
-        <>
-          <AlertasDoPerfil />
-          <SecaoLocalizacaoPerfil />
-        </>
-      ) : null}
 
       {contaDaSessao(sessao) ? (
         <View style={{ gap: 8 }}>
@@ -445,9 +417,6 @@ function Perfil() {
 }
 
 const styles = StyleSheet.create({
-  alertas: { gap: 6 },
-  alertasTitulo: { ...t.rotulo, color: colors.danger },
-  alertasCartao: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
   who: { flexDirection: 'row', gap: 14, alignItems: 'center' },
   avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   avatarText: { ...fonte.bold, fontSize: 18, color: '#FFFFFF' },

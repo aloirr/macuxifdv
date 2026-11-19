@@ -8,14 +8,14 @@
  *   (vai ao Diagnóstico pelo `erroSemCoordenada`: nenhuma coordenada em log, erro, Diagnóstico ou telemetria, §9);
  * - a captura usa a frequência do parâmetro `rastreamento` do pull (`lerFrequenciaDoTrajeto`) e reinicia quando ela muda;
  * - desligada de fábrica: a condição é o `podeRastrear` do Core por `condicaoDoTrajeto` (ponto único, `lib/trajeto.ts`), com a
- *   `EntradaRastreio` do banco do usuário (parâmetro, termo, aceite, feriados, ausências, pausa), da sessão guardada (cargo e
- *   fuso do tenant), da variante e da permissão "o tempo todo" lida agora;
+ *   `EntradaRastreio` do banco do usuário (parâmetro, feriados, ausências), da sessão guardada (cargo e fuso do tenant), da
+ *   variante e da permissão "o tempo todo" lida agora. Rastreamento interno: sem termo, aceite nem pausa;
  * - os pontos de hoje voltam ao Core pelo leitor de `leitorDePontosLocais` (`definirPontosLocaisDoDia`, §3.4).
  * Notificação fixa: o expo-location 57 cria o canal próprio `<appId>:macuxi-trajeto` com IMPORTANCE_LOW, sem som
  * (`LocationTaskService.kt`); nada a criar aqui.
  * Só Android na v1. Build sem os módulos nativos: tudo vira no-op, sem quebrar o app.
  */
-import { CHAVE_ACEITE_LOCAL, CHAVE_PAUSA_LOCAL, type LeitorDePontosLocais } from '@macuxi/core/app';
+import type { LeitorDePontosLocais } from '@macuxi/core/app';
 import { PARAMETROS_RASTREAMENTO_PADRAO, type FrequenciaRastreamento } from '@macuxi/core/contracts';
 import { requireOptionalNativeModule } from 'expo';
 import { Platform } from 'react-native';
@@ -103,7 +103,7 @@ async function permissaoTempoTodo(): Promise<boolean> {
 }
 
 /**
- * A `EntradaRastreio` do usuário da sessão, sem o instante: o banco dele (pulls e chaves do Core), o cargo e o fuso do tenant
+ * A `EntradaRastreio` do usuário da sessão, sem o instante: o banco dele (pulls do Core), o cargo e o fuso do tenant
  * da sessão guardada, a variante e a permissão. Sem sessão ou com o banco que não abriu, `null` (desligado).
  */
 async function contextoDaSessao(): Promise<ContextoDoRastreio | null> {
@@ -112,11 +112,7 @@ async function contextoDaSessao(): Promise<ContextoDoRastreio | null> {
   const aberto = await abrirArmazenamentoDaSessao(usuarioId);
   if (aberto.tipo === 'erro') return null;
   const [s, permissao] = await Promise.all([readJson<SessaoGuardada>(keys.session), permissaoTempoTodo()]);
-  return lerContextoDoRastreio(
-    aberto.armazenamento,
-    { aceite: CHAVE_ACEITE_LOCAL, pausa: CHAVE_PAUSA_LOCAL },
-    { usuarioId, cargo: s?.user?.perfil ?? null, app: varianteAtual(), fuso: s?.tenant?.fuso || DEFAULT_TZ, permissao },
-  );
+  return lerContextoDoRastreio(aberto.armazenamento, { usuarioId, cargo: s?.user?.perfil ?? null, app: varianteAtual(), fuso: s?.tenant?.fuso || DEFAULT_TZ, permissao });
 }
 
 /** Frequência do parâmetro `rastreamento` no pull do banco do usuário da sessão; sem sessão ou sem banco, a do padrão do contrato. */
