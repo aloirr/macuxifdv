@@ -138,7 +138,7 @@ const TABELAS_0086 = ['plataforma.assinatura_historico'] as const;
 const TABELAS_0088_P6 = ['vendedor.pedido_aprovacao'] as const;
 /** Tabelas novas da 0089 (T-0156, ADR 0061: rastreamento interno no expediente; sem macuxi_leitura; rastreamento.db.test.ts). */
 const TABELAS_0089 = ['core.ponto_trajeto', 'core.ausencia_usuario'] as const;
-/** Tabelas novas da 0090 (T-0186, D5: Documentação do cliente; vão ao aparelho; cliente360-documentos.db.test.ts). */
+/** Tabelas novas da 0090 (T-0186, D5 e P15: Documentação do cliente só online, consultada pela API ao abrir, com a permissão revalidada; fora do sync; cliente360-documentos.db.test.ts). */
 const TABELAS_0090 = ['core.documento_tipo', 'core.documento_cliente', 'core.documento_permissao', 'core.documento_excecao'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');

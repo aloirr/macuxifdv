@@ -129,6 +129,11 @@ export const TABELAS_FORA_DO_SYNC = [
   'vendedor.pedido_devolucao',
   /** Aprovação por motivo (0088, T-0184 §7.3): o app recebe as aprovações no detalhe do pedido pela API; o pull não muda. */
   'vendedor.pedido_aprovacao',
+  /** 0090 (T-0186, P15): Documentação só online; nada vai ao aparelho. */
+  'core.documento_tipo',
+  'core.documento_cliente',
+  'core.documento_permissao',
+  'core.documento_excecao',
   /** Hub de Integração (0010, T-0032): nada do schema integracao vai ao aparelho (o que o app vê chega pelos eventos). */
   'integracao.conector',
   'integracao.credencial',

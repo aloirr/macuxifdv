@@ -858,7 +858,7 @@ export const NIVEIS_DOCUMENTO_BANCO = ['nao_ve', 've', 've_envia'] as const;
 
 /**
  * Tipo de documento do cliente (0090, T-0186, D5): nome 1..80 único vivo sem diferenciar maiúsculas; grupo 1..60 (a faixa da
- * Documentação); origem erp|escritorio|app (P1: uma só por tipo); tem_validade. Pull escopo tenant.
+ * Documentação); origem erp|escritorio|app (P1: uma só por tipo); tem_validade. Só online (P15), fora do sync.
  */
 export const documentoTipo = core.table('documento_tipo', {
   ...comuns(),
@@ -872,7 +872,7 @@ export const documentoTipo = core.table('documento_tipo', {
 
 /**
  * Documento de um cliente (0090, T-0186, D5). arquivo_id = plataforma.arquivo.id SEM FK (ADR 0010), único vivo quando há; nulo
- * = ainda sem arquivo. valido_ate >= data_documento. Pull escopo carteira (a linha vai ao aparelho; o arquivo não, P15).
+ * = ainda sem arquivo. valido_ate >= data_documento. Só online (P15): nem a linha nem o arquivo vão ao aparelho.
  */
 export const documentoCliente = core.table('documento_cliente', {
   ...comuns(),
@@ -887,7 +887,7 @@ export const documentoCliente = core.table('documento_cliente', {
 
 /**
  * Matriz tipo × perfil da Documentação (0090, T-0186, §7). perfil_id = plataforma.perfil.id SEM FK (outro schema). Única viva
- * por (tipo, perfil). "ve_envia só nos tipos de origem app" é regra do domain e da API. Pull escopo tenant.
+ * por (tipo, perfil). "ve_envia só nos tipos de origem app" é regra do domain e da API. Só online (P15), fora do sync.
  */
 export const documentoPermissao = core.table('documento_permissao', {
   ...comuns(),
@@ -898,7 +898,7 @@ export const documentoPermissao = core.table('documento_permissao', {
 
 /**
  * Exceção por documento (0090, T-0186, P11): a linha quer dizer "este perfil NÃO vê este documento" (só tira acesso).
- * perfil_id SEM FK (outro schema). Única viva por (documento, perfil). Vai no sync com a matriz.
+ * perfil_id SEM FK (outro schema). Única viva por (documento, perfil). Só online (P15), fora do sync.
  */
 export const documentoExcecao = core.table('documento_excecao', {
   ...comuns(),

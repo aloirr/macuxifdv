@@ -523,6 +523,8 @@ FROM erp_rota r;
 -- ---------------------------------------------------------------------------------------------------------------------
 -- 15. titulo — títulos a receber (financeiro). Mapeamento: parcela inteiro; *_cents inteiro; emissao/vencimento
 --     data_civil; baixado_em data_hora_utc; situacao = aberto|baixado|cancelado.
+--     T-0186 (0090, Cliente 360 v2): forma_pagamento, nf_numero e nf_serie, opcionais (core.titulo; ainda fora do contrato
+--     v1 do Hub, que os ignora até o modulo-integracao incluí-los). ERP sem o dado: deixe o CAST(NULL ...).
 -- ---------------------------------------------------------------------------------------------------------------------
 CREATE VIEW vw_macuxi_titulo AS
 SELECT
@@ -547,13 +549,20 @@ SELECT
          ELSE 'aberto' END                                   AS situacao,
     -- [Oracle]     CAST(SYS_EXTRACT_UTC(FROM_TZ(CAST(t.dt_baixa AS TIMESTAMP), 'America/Manaus')) AS TIMESTAMP(3)) AS baixado_em,
     -- [SQL Server]
-    CAST(t.dt_baixa AT TIME ZONE 'SA Western Standard Time' AT TIME ZONE 'UTC' AS DATETIME2(3)) AS baixado_em
+    CAST(t.dt_baixa AT TIME ZONE 'SA Western Standard Time' AT TIME ZONE 'UTC' AS DATETIME2(3)) AS baixado_em,
+    -- descrição da forma de pagamento do título como o ERP mostra (boleto, cheque…), até 120; ex.: t.ds_forma_pagamento
+    CAST(NULL AS VARCHAR(120))                               AS forma_pagamento,
+    -- NF que gerou o título (junta as parcelas à nota), até 60; ex.: t.numero_nf e t.serie_nf. Série só com o número
+    CAST(NULL AS VARCHAR(60))                                AS nf_numero,
+    CAST(NULL AS VARCHAR(60))                                AS nf_serie
 FROM erp_titulo_receber t;
 
 
 -- ---------------------------------------------------------------------------------------------------------------------
 -- 16. nota — notas fiscais de faturamento e devolução (histórico). Mapeamento: emitida_em data_hora_utc; total_cents
 --     inteiro; quantidade_itens inteiro; cancelada booleano; pedido_uuid = UUID do pedido do Macuxi gravado no ERP.
+--     T-0186 (0090, Cliente 360 v2): forma_pagamento, nf_origem_numero e nf_origem_serie, opcionais (core.nota_erp; ainda
+--     fora do contrato v1 do Hub, que os ignora até o modulo-integracao incluí-los). ERP sem o dado: deixe o CAST(NULL ...).
 -- ---------------------------------------------------------------------------------------------------------------------
 CREATE VIEW vw_macuxi_nota AS
 SELECT
@@ -573,7 +582,13 @@ SELECT
     CAST(ROUND(n.valor_total * 100, 0) AS DECIMAL(19,0))     AS total_cents,
     n.qtd_itens                                              AS quantidade_itens,
     n.pedido_macuxi_uuid                                     AS pedido_uuid,     -- NULL se a nota não veio do Macuxi
-    CASE WHEN n.cancelada = 'S' THEN 1 ELSE 0 END            AS cancelada
+    CASE WHEN n.cancelada = 'S' THEN 1 ELSE 0 END            AS cancelada,
+    -- descrição da forma de pagamento da nota como o ERP mostra, até 120; ex.: n.ds_forma_pagamento
+    CAST(NULL AS VARCHAR(120))                               AS forma_pagamento,
+    -- NF original da DEVOLUÇÃO (só com tipo = 'devolucao'; NULL no faturamento), até 60; ex.: n.numero_nf_origem e
+    -- n.serie_nf_origem. Série só com o número
+    CAST(NULL AS VARCHAR(60))                                AS nf_origem_numero,
+    CAST(NULL AS VARCHAR(60))                                AS nf_origem_serie
 FROM erp_nota_fiscal n;
 
 

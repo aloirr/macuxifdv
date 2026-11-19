@@ -33,16 +33,16 @@
 -- 3. Documentação do cliente (D5; P1, P10, P11, P15, P16). Dono: Core. As 4 tabelas com os campos comuns, unique (tenant_id,
 --    id), external_uk parcial, gatilho updated_at, RLS ligado e forçado, isolamento_tenant (macuxi_app), manutencao (0031) e a
 --    regra da 0078 (grant select e política leitura ao macuxi_leitura; nenhuma coluna sensível). macuxi_app: select, insert,
---    update; SEM delete (soft delete por deleted_at). Todas vão ao aparelho (§8: a lista, a matriz e as exceções vêm no sync;
---    o ARQUIVO não vai): índice (tenant_id, updated_at, id) em todas. O contrato do pull é do modulo-core.
+--    update; SEM delete (soft delete por deleted_at). A Documentação é SÓ ONLINE (P15): nada vai ao aparelho, nem a linha nem o
+--    arquivo; o app consulta pela API ao abrir, que revalida a permissão (perfil, carteira e licença). As 4 tabelas ficam em
+--    TABELAS_FORA_DO_SYNC, sem índice (tenant_id, updated_at, id).
 --    core.documento_tipo: tipo de documento do tenant (BKO › Parâmetros › Documentos). nome 1..80, único vivo sem diferenciar
 --      maiúsculas; grupo 1..60 (a faixa da tabela: "Fotos do PDV", "Cadastro", "Contratos"); ordem; origem erp|escritorio|app
---      (P1: cada tipo tem UMA origem); tem_validade; ativo. Pull escopo tenant. Volume: dezenas por tenant.
+--      (P1: cada tipo tem UMA origem); tem_validade; ativo. Volume: dezenas por tenant.
 --    core.documento_cliente: o documento de um cliente. cliente_id, tipo_id e enviado_por com FK composta; nome 1..120;
 --      arquivo_id = plataforma.arquivo.id SEM FK (outro schema, ADR 0010; o padrão da 0057), único vivo no tenant quando há;
 --      nulo = documento sem arquivo ainda (a linha "Falta" com a câmera). data_documento; valido_ate >= data_documento quando
---      há ("Vencido em …" é cálculo do app, P16). Pull escopo carteira: (tenant_id, cliente_id) e (tenant_id, cliente_id,
---      updated_at, id). Volume: ~5–15 por cliente.
+--      há ("Vencido em …" é cálculo do app, P16). Consulta por cliente: (tenant_id, cliente_id). Volume: ~5–15 por cliente.
 --    core.documento_permissao: a matriz tipo × perfil (§7). tipo_id com FK composta; perfil_id = plataforma.perfil.id (0041)
 --      SEM FK (outro schema, ADR 0010: a API do Core confere o perfil); nivel nao_ve|ve|ve_envia; única viva por (tipo,
 --      perfil). Sem linha = o padrão que o domain do Core define. "ve_envia só nos tipos de origem app" é regra do domain e da
@@ -112,7 +112,6 @@ create table core.documento_tipo (
   constraint documento_tipo_origem_valida check (origem in ('erp', 'escritorio', 'app'))
 );
 create unique index documento_tipo_nome_uk on core.documento_tipo (tenant_id, lower(nome)) where deleted_at is null;
-create index documento_tipo_sync_ix on core.documento_tipo (tenant_id, updated_at, id);
 create unique index documento_tipo_external_uk on core.documento_tipo (tenant_id, external_id) where external_id is not null and deleted_at is null;
 create trigger documento_tipo_updated_at before update on core.documento_tipo
   for each row execute function plataforma.definir_updated_at();
@@ -153,8 +152,6 @@ create table core.documento_cliente (
 create unique index documento_cliente_arquivo_uk on core.documento_cliente (tenant_id, arquivo_id) where arquivo_id is not null and deleted_at is null;
 create index documento_cliente_cliente_ix on core.documento_cliente (tenant_id, cliente_id);
 create index documento_cliente_tipo_ix on core.documento_cliente (tenant_id, tipo_id);
-create index documento_cliente_sync_ix on core.documento_cliente (tenant_id, updated_at, id);
-create index documento_cliente_cliente_sync_ix on core.documento_cliente (tenant_id, cliente_id, updated_at, id);
 create unique index documento_cliente_external_uk on core.documento_cliente (tenant_id, external_id) where external_id is not null and deleted_at is null;
 create trigger documento_cliente_updated_at before update on core.documento_cliente
   for each row execute function plataforma.definir_updated_at();
@@ -186,7 +183,6 @@ create table core.documento_permissao (
   constraint documento_permissao_nivel_valido check (nivel in ('nao_ve', 've', 've_envia'))
 );
 create unique index documento_permissao_tipo_perfil_uk on core.documento_permissao (tenant_id, tipo_id, perfil_id) where deleted_at is null;
-create index documento_permissao_sync_ix on core.documento_permissao (tenant_id, updated_at, id);
 create unique index documento_permissao_external_uk on core.documento_permissao (tenant_id, external_id) where external_id is not null and deleted_at is null;
 create trigger documento_permissao_updated_at before update on core.documento_permissao
   for each row execute function plataforma.definir_updated_at();
@@ -216,7 +212,6 @@ create table core.documento_excecao (
   constraint documento_excecao_documento_fk foreign key (tenant_id, documento_id) references core.documento_cliente (tenant_id, id)
 );
 create unique index documento_excecao_documento_perfil_uk on core.documento_excecao (tenant_id, documento_id, perfil_id) where deleted_at is null;
-create index documento_excecao_sync_ix on core.documento_excecao (tenant_id, updated_at, id);
 create unique index documento_excecao_external_uk on core.documento_excecao (tenant_id, external_id) where external_id is not null and deleted_at is null;
 create trigger documento_excecao_updated_at before update on core.documento_excecao
   for each row execute function plataforma.definir_updated_at();

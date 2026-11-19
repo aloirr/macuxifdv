@@ -1230,8 +1230,8 @@ de pull do `modulo-core`; quando ele existir, uma migração nova cria `(tenant_
 Todas com os campos comuns (regra 5), `unique (tenant_id, id)`, `<tabela>_external_uk` parcial, gatilho `<tabela>_updated_at`,
 RLS ligado e forçado, `isolamento_tenant` (`macuxi_app`), `manutencao` (0031) e a regra da 0078 (`grant select` e política
 `leitura` ao `macuxi_leitura`; nenhuma coluna sensível). `macuxi_app`: select, insert, update, **sem delete** (soft delete por
-`deleted_at`). **Vão ao aparelho** (§8: a lista, a matriz e as exceções vêm no sync; o **arquivo não**, P15): índice
-`<tabela>_sync_ix (tenant_id, updated_at, id)` em todas. O contrato do pull é do `modulo-core`.
+`deleted_at`). **Só online** (P15): nada vai ao aparelho, nem a linha nem o arquivo; o app consulta pela API do Core ao abrir,
+que revalida a permissão. As 4 ficam em `TABELAS_FORA_DO_SYNC`, **sem** índice `(tenant_id, updated_at, id)`.
 
 | Tabela | Coluna | Tipo | Regra |
 |---|---|---|---|
@@ -1259,8 +1259,8 @@ RLS ligado e forçado, `isolamento_tenant` (`macuxi_app`), `manutencao` (0031) e
 - **Regras fora do banco** (domain e API do Core): "`ve_envia` só nos tipos de origem `app`" (o CHECK cruzado entre tabelas não
   cabe), o padrão de quem não tem linha na matriz, Administrador e Analista veem tudo, e a revalidação de perfil, carteira e
   licença ao listar e ao abrir o arquivo.
-- Índices de leitura: `documento_cliente_cliente_ix (tenant_id, cliente_id)` (a aba do cliente), `documento_cliente_tipo_ix`
-  e `documento_cliente_cliente_sync_ix (tenant_id, cliente_id, updated_at, id)` (pull por carteira).
+- Índices de leitura: `documento_cliente_cliente_ix (tenant_id, cliente_id)` (a aba do cliente, consultada online) e
+  `documento_cliente_tipo_ix`.
 - Volume: tipos, dezenas por tenant; documentos, ~5–15 por cliente; matriz, tipos × perfis; exceções, poucas.
 
 Volta: `0090_core_cliente360_documentos.down.sql` (apaga as 4 tabelas com os dados — os metadados em `plataforma.arquivo` e os

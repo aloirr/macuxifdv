@@ -4,7 +4,8 @@
  *   com número); índices da consulta online por período e das devoluções de uma NF;
  * - core.titulo: forma_pagamento, nf_numero e nf_serie (série só com número) e o índice que junta parcelas e NF;
  * - core.documento_tipo, documento_cliente, documento_permissao e documento_excecao: campos comuns, RLS forçado,
- *   isolamento_tenant, manutencao e leitura (0078); macuxi_app com select, insert e update (sem delete); vão ao sync.
+ *   isolamento_tenant, manutencao e leitura (0078); macuxi_app com select, insert e update (sem delete); só online (P15):
+ *   fora do sync, sem índice (tenant_id, updated_at, id).
  * Estático sempre; banco (papel de aplicação sobre a fixture, ROLLBACK) e up/down num banco efêmero.
  * Instantes: todos fixos e passados como parâmetro; nenhum relógio real no arquivo.
  */
@@ -60,7 +61,7 @@ describe('0090 Cliente 360 v2 (estático)', () => {
     expect(TABELAS_FORA_DO_SYNC as readonly string[]).toContain('core.nota_erp');
   });
 
-  it('4 tabelas: campos comuns, FKs compostas, CHECKs, únicos vivos, sync, gatilho, RLS forçado e políticas', () => {
+  it('4 tabelas: campos comuns, FKs compostas, CHECKs, únicos vivos, só online (fora do sync), gatilho, RLS forçado e políticas', () => {
     expect(bloco('core.documento_tipo')).toContain("constraint documento_tipo_nome_tamanho check (btrim(nome) <> '' and char_length(nome) <= 80)");
     expect(bloco('core.documento_tipo')).toContain("constraint documento_tipo_grupo_tamanho check (btrim(grupo) <> '' and char_length(grupo) <= 60)");
     expect(lista(/documento_tipo_origem_valida check \(origem in \(([^)]*)\)\)/.exec(umaLinha)?.[1] ?? '')).toEqual([...nuvemCore.ORIGENS_DOCUMENTO_BANCO]);
@@ -80,7 +81,6 @@ describe('0090 Cliente 360 v2 (estático)', () => {
       'create unique index documento_tipo_nome_uk on core.documento_tipo (tenant_id, lower(nome)) where deleted_at is null;',
       'create unique index documento_cliente_arquivo_uk on core.documento_cliente (tenant_id, arquivo_id) where arquivo_id is not null and deleted_at is null;',
       'create index documento_cliente_cliente_ix on core.documento_cliente (tenant_id, cliente_id);',
-      'create index documento_cliente_cliente_sync_ix on core.documento_cliente (tenant_id, cliente_id, updated_at, id);',
       'create unique index documento_permissao_tipo_perfil_uk on core.documento_permissao (tenant_id, tipo_id, perfil_id) where deleted_at is null;',
       'create unique index documento_excecao_documento_perfil_uk on core.documento_excecao (tenant_id, documento_id, perfil_id) where deleted_at is null;',
     ]) expect(umaLinha).toContain(c);
@@ -92,7 +92,6 @@ describe('0090 Cliente 360 v2 (estático)', () => {
         `constraint ${n}_tenant_id_uk unique (tenant_id, id)`,
       ]) expect(bloco(T), `${T}: ${c}`).toContain(c);
       for (const c of [
-        `create index ${n}_sync_ix on ${T} (tenant_id, updated_at, id);`,
         `create unique index ${n}_external_uk on ${T} (tenant_id, external_id) where external_id is not null and deleted_at is null;`,
         `create trigger ${n}_updated_at before update on ${T} for each row execute function plataforma.definir_updated_at();`,
         `alter table ${T} enable row level security;`,
@@ -101,7 +100,9 @@ describe('0090 Cliente 360 v2 (estático)', () => {
         `create policy manutencao on ${T} for all to macuxi_manutencao using (true) with check (true);`,
         `create policy leitura on ${T} for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual());`,
       ]) expect(umaLinha, `${T}: ${c}`).toContain(c);
-      expect(TABELAS_FORA_DO_SYNC as readonly string[]).not.toContain(T);
+      // P15: Documentação só online; nada vai ao aparelho (fora do sync e sem índice de pull)
+      expect(TABELAS_FORA_DO_SYNC as readonly string[]).toContain(T);
+      expect(umaLinha).not.toMatch(new RegExp(`on ${T.replace('.', '\\.')} \\(tenant_id, (cliente_id, )?updated_at, id\\)`));
     }
   });
 
