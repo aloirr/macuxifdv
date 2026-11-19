@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MembroEquipe } from '../contracts';
-import { autorDoPedido, decisorEhAutor, filaDeAprovacoes, verificarDecisor } from './aprovacoes';
+import { autorDoPedido, decisorEhAutor, filaDeAprovacoes } from './aprovacoes';
 import { escopoDoUsuario } from './equipe';
 import { CLIENTE_A, ev, pedidoCriado, u } from './fixtures';
 import { aplicarEventos, estadoInicial, type EstadoProjecao, type EventoRecebido } from './projecao';
@@ -58,12 +58,10 @@ describe('RN-VEN-10 / RN-GES-04 (T-0187, P4 A): quem decide nunca é o autor do 
     expect(r[0]!.pode_decidir).toBe(false);
   });
 
-  it('RN-VEN-10: decisorEhAutor e verificarDecisor devolvem APROVACAO_DO_PROPRIO_PEDIDO só quando o decisor é o autor', () => {
+  it('RN-VEN-10: decisorEhAutor é verdadeiro só quando o decisor é o autor do pedido', () => {
     const s = montar([solicita(), pedidoCriado({ pedido: PEDIDO, vendedor: V1, autor: SUP, total: 1 })]);
     expect(decisorEhAutor(s, PEDIDO, SUP)).toBe(true);
     expect(decisorEhAutor(s, PEDIDO, GER)).toBe(false);
-    expect(verificarDecisor(s, PEDIDO, SUP)).toEqual({ ok: false, status: 422, codigo: 'APROVACAO_DO_PROPRIO_PEDIDO', mensagem: expect.stringContaining('fez este pedido') });
-    expect(verificarDecisor(s, PEDIDO, GER)).toEqual({ ok: true });
-    expect(verificarDecisor(montar([solicita()]), PEDIDO, SUP)).toEqual({ ok: true });
+    expect(decisorEhAutor(montar([solicita()]), PEDIDO, SUP)).toBe(false);
   });
 });

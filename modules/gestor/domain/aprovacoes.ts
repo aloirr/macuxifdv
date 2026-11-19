@@ -72,15 +72,6 @@ export function decisorEhAutor(estado: EstadoProjecao, pedidoId: string, decisor
   return autorDoPedido(estado, pedidoId) === decisorId;
 }
 
-export type ResultadoDecisor = { ok: true } | { ok: false; status: 422; codigo: 'APROVACAO_DO_PROPRIO_PEDIDO'; mensagem: string };
-
-/** RN-VEN-10 / RN-GES-04: a decisão do autor é recusada com 422 `APROVACAO_DO_PROPRIO_PEDIDO` (o pedido sobe para o nível seguinte). */
-export function verificarDecisor(estado: EstadoProjecao, pedidoId: string, decisorId: string): ResultadoDecisor {
-  return decisorEhAutor(estado, pedidoId, decisorId)
-    ? { ok: false, status: 422, codigo: 'APROVACAO_DO_PROPRIO_PEDIDO', mensagem: 'Você fez este pedido e não pode aprová-lo. Peça a decisão ao nível acima.' }
-    : { ok: true };
-}
-
 export interface MotivoPendente {
   motivo: MotivoAprovacao;
   nivel: NivelAprovacao;
