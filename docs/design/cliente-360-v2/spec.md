@@ -99,8 +99,8 @@ Para o promotor sem `promotor_ve_pedidos` (RN-PRO-01), ficam fora os blocos 4 e 
 6. **Lista de notas**, da mais recente para a mais antiga, num cartão:
    - uma faixa por mês ("NOVEMBRO DE 2026", rótulo de 12/600 em maiúsculas);
    - linha 1 da nota: "NF 004817" à esquerda e o valor "R$ 2.380,00" à direita;
-   - linha 2: a data e a forma de pagamento ("07/11 · Boleto 28 dias") à esquerda e o chip de status à direita;
-   - linha 3, só quando houver: o vencido em vermelho, como "R$ 640,00 vencido desde 01/11", ou a devolução, como "Devolvido R$ 330,00";
+   - linha 2: a data e a forma de pagamento ("07/11 · Boleto 28 dias"; a forma por NF depende de D2, §9) à esquerda e o chip de status à direita;
+   - linha 3, só quando houver: o vencido em vermelho, como "R$ 640,00 vencido desde 01/11", ou a devolução, como "Devolvido R$ 330,00" (a devolução depende de D3, §9);
    - a seta "›" no fim. A linha inteira é tocável, com no mínimo 64 dp de altura.
 7. **Chips de status**, nos tons do sistema e sempre com texto:
 
@@ -111,12 +111,14 @@ Para o promotor sem `promotor_ve_pedidos` (RN-PRO-01), ficam fora os blocos 4 e 
 | Devolvido | `neutral` (#34404D sobre #ECEEF1) |
 | Devolvido parcial | `accent` (#1E3350 sobre #DFE2E6) |
 
+"Em aberto" e "Pago" saem do título de hoje (`TituloSync`: aberto, baixado ou cancelado). "Devolvido" e "Devolvido parcial" dependem do vínculo título → NF → devolução (D3, §9).
+
 O vencido não tem status próprio: a nota continua "Em aberto", a linha 3 aparece em vermelho e o aviso fica nos Alertas.
 
 **Folha "Filtrar"**, que sobe de baixo:
-- "Período": "30 dias", "90 dias" (padrão), "12 meses" e "Escolher datas";
+- "Período": "30 dias", "90 dias" (padrão), "12 meses" e "Escolher datas". Hoje o aparelho tem só 90 dias de títulos: "12 meses" e datas além de 90 dias seguem o P17;
 - "Status": "Em aberto", "Pago", "Devolvido" e "Devolvido parcial", de múltipla escolha. O padrão é nenhum marcado, que vale como todos;
-- "Forma de pagamento": as formas que aparecem nas notas do cliente;
+- "Forma de pagamento": as formas que aparecem nas notas do cliente (depende de D2; sem ela, o grupo não aparece);
 - botões "Limpar" e "Ver 4 notas" (principal), com a contagem ao vivo. Nenhum resultado dá "Nenhuma nota" e o botão fica desligado.
 
 **Detalhe da nota** (folha), aberto ao tocar na linha:
@@ -126,7 +128,7 @@ O vencido não tem status próprio: a nota continua "Em aberto", a linha 3 apare
 - botão secundário "Ver itens da nota (12)".
 
 **Estados:**
-- sem notas na janela: "Nenhuma nota nos últimos 90 dias" e o botão "Ver 12 meses";
+- sem notas na janela: "Nenhuma nota nos últimos 90 dias" e o botão "Ver 12 meses" (segue o P17: na opção B, só com sinal);
 - sem dados financeiros: "Sem dados financeiros", como hoje;
 - sem internet: a lista sai do aparelho e não muda.
 
@@ -185,7 +187,7 @@ O Financeiro é igual ao do Campo.
 ## 8. Offline (o que fica no aparelho)
 
 - **Resumo:** tudo vem das linhas do sync de hoje (cliente, contatos, endereços, histórico, visitas, itens) e funciona em modo avião.
-- **Financeiro:** as notas dos últimos 12 meses de cada cliente da carteira, com as parcelas e a devolução. Filtro e busca rodam no aparelho. O que for além de 12 meses só aparece com internet (P8).
+- **Financeiro:** hoje o pull traz só 90 dias de títulos (`TituloSync`), e a NF não vem ao aparelho (D1). Na recomendação do P17 (A), o aparelho passa a guardar as notas dos últimos 12 meses de cada cliente da carteira, com as parcelas e a devolução; filtro e busca rodam no aparelho e o que passa de 12 meses só aparece com internet. Na opção B, o aparelho fica com 90 dias e o resto só com sinal.
 - **Documentação:**
   - a lista (tipo, nome, data, validade, permissão) fica no aparelho;
   - o arquivo baixa no primeiro toque e fica guardado (P15);
@@ -193,24 +195,33 @@ O Financeiro é igual ao do Campo.
   - as fotos tiradas sem internet entram na fila, como hoje ("Na fila").
 - **Permissões:** a matriz e as exceções vêm no sync. Ao perder o acesso, o app apaga o arquivo guardado na sincronização seguinte.
 
-## 9. O que precisa existir por trás (para os donos, sem desenho de contrato aqui)
+## 9. Dependências (ERP e contratos)
 
-- **Notas fiscais do cliente**, com o número, a data, o valor, a forma, o status, o valor devolvido, o pedido de origem, as parcelas (o `TituloSync` de hoje, ligado pela NF) e os itens. Dono: `modulo-core` / `modulo-integracao`, com a origem no ERP.
-- **Documentos do cliente e tipos de documento**, com a matriz de permissão e as exceções: são entidades novas, que pedem ADR e contrato.
-- **Upload do documento no BKO:** Cadastros › Clientes › ficha do cliente. Fica fora desta simulação.
+Levantamento do `modulo-integracao` (19/11). O desenho não define contrato; cada item abaixo é do dono indicado.
+
+| # | O que falta | Hoje | Dono |
+|---|---|---|---|
+| D1 | NF no aparelho | A NF existe no servidor (`core.nota_erp`: número, série, data, total, faturamento ou devolução), mas não vai ao aparelho | `modulo-core` (contrato do sync), `banco-dados` (sync e RLS) |
+| D2 | Forma de pagamento por NF | Não existe no contrato | `modulo-integracao` (carga do ERP), `modulo-core` (contrato) |
+| D3 | Vínculo título → NF → devolução (status "Devolvido" e "Devolvido parcial", valor devolvido, parcelas no detalhe) | `TituloSync` tem só aberto, baixado ou cancelado, sem a NF | `modulo-integracao` (carga do ERP), `modulo-core` (contrato), `banco-dados` (tabela e chave) |
+| D4 | 12 meses de notas e títulos no aparelho (P17) | Pull de 90 dias | `modulo-core` (janela do sync), `banco-dados` (volume e índice) |
+| D5 | Documento do cliente e tipo de documento, com a matriz de permissão e as exceções | Não existe entidade; a aba Anexos mostra só a foto do PDV | `modulo-core` (entidades novas, ADR e contrato), `banco-dados` (tabelas e RLS) |
+| D6 | Documento com origem no ERP (P1) | Não há carga | `modulo-integracao` (entidade e carga novas no Hub e no Conector) |
+
+O upload no BKO (Cadastros › Clientes › ficha do cliente) aproveita o `plataforma.arquivo`, que já existe; a tela fica fora desta simulação.
 
 ## 10. Pontos em aberto (A/B, com recomendação)
 
 | # | Ponto | A | B | Recomendo |
 |---|---|---|---|---|
-| P1 | Origem dos documentos | Só do ERP | Só upload no BKO | **Os dois (A+B)**, com a origem por tipo (ERP, Escritório, App), como na prancha 05. Cada tipo tem uma origem só, para não haver dois arquivos do mesmo papel |
-| P2 | Notas e títulos | **Juntos**: a linha é a NF e as parcelas (títulos) ficam no detalhe | Separados: duas listas, "Notas" e "Títulos" | **A**. Uma informação, um lugar. O vencido fica nos Alertas |
-| P3 | NF com devolução parcial e saldo em aberto | "Em aberto" prevalece enquanto houver saldo; "Devolvido parcial" só depois de quitada | "Devolvido parcial" prevalece e a linha 3 mostra o saldo | **A**. O vendedor age sobre o saldo |
-| P4 | "Devolvido parcial" mostra o valor devolvido? | Sim, na linha ("Devolvido R$ 330,00") e no detalhe | Só no detalhe | **A**. Explica a diferença do valor sem precisar abrir |
+| P1 | Origem dos documentos | Só do ERP (depende do ERP: D6) | Só upload no BKO (usa o `plataforma.arquivo`, que já existe; precisa de D5) | **Os dois (A+B)**, com a origem por tipo (ERP, Escritório, App), como na prancha 05, e cada tipo com uma origem só. A **primeira entrega pode ser só B** (upload no BKO); a origem ERP entra quando houver a entidade e a carga novas (D6) |
+| P2 | Notas e títulos | **Juntos**: a linha é a NF e as parcelas (títulos) ficam no detalhe (depende do ERP: D1 e D3) | Separados: duas listas, "Notas" e "Títulos" | **A**. Uma informação, um lugar. O vencido fica nos Alertas |
+| P3 | NF com devolução parcial e saldo em aberto (as duas opções dependem do ERP: D3) | "Em aberto" prevalece enquanto houver saldo; "Devolvido parcial" só depois de quitada | "Devolvido parcial" prevalece e a linha 3 mostra o saldo | **A**. O vendedor age sobre o saldo |
+| P4 | "Devolvido parcial" mostra o valor devolvido? (as duas opções dependem do ERP: D3) | Sim, na linha ("Devolvido R$ 330,00") e no detalhe | Só no detalhe | **A**. Explica a diferença do valor sem precisar abrir |
 | P5 | Onde fica Documentos em Parâmetros | **Seção nova "Documentos"** (prancha 05) | Dentro de Parâmetros › Clientes | **A**. O quadro é grande e vai crescer (tipos e exceções); em Clientes, empurraria os parâmetros de cliente para baixo |
 | P6 | Pedidos e itens que estavam em Compras | O pedido não faturado fica só na aba Pedidos do app, com o filtro do cliente; os itens ficam em "Últimos itens comprados" (Resumo) e em "Ver itens da nota" | Um bloco "Últimos pedidos" no Resumo | **A**. O faturado já está no Financeiro e o resto na aba Pedidos |
 | P7 | Indicadores de compra | Os 4 da RN-CORE-40; "Compras no mês" e "Compras em 12 meses" saem | Mantém os 6 | **A**. É o que a RN-CORE-40 define, e o mês já está nas notas |
-| P8 | Filtro padrão do Financeiro | Últimos 90 dias, todos os status | Últimos 12 meses, todos os status | **A**. A lista é curta e o filtro abre os 12 meses do aparelho |
+| P8 | Filtro padrão do Financeiro | Últimos 90 dias, todos os status | Últimos 12 meses, todos os status | **A**. A lista é curta. O filtro abre mais meses conforme o P17 |
 | P9 | Fotos do PDV (hoje em Anexos) | Grupo "Fotos do PDV" dentro de Documentação | Volta a ser uma aba (quatro abas) | **A**. O pedido foi de três abas |
 | P10 | Documento sem permissão | Aparece com cadeado e "Sem permissão para abrir" | Some | **A** na exceção por documento (o vendedor sabe que existe e pede ao escritório). O **tipo** sem permissão some |
 | P11 | Exceção por documento | Só tira acesso | Também libera | **A**, como a exceção de licença por usuário (RF-CORE-03) |
@@ -219,3 +230,4 @@ O Financeiro é igual ao do Campo.
 | P14 | Busca no Financeiro | Campo "Nº da NF" sempre visível | Só a lupa, que abre o campo | **A**. É um toque a menos |
 | P15 | Download dos arquivos | No primeiro toque, e o arquivo fica guardado | Todos na sincronização (só no Wi-Fi) | **A**. Poupa dados e espaço; os tipos marcados como "levar para a rua" podem baixar na sincronização numa versão seguinte |
 | P16 | Documento vencido nos Alertas | Sim, para os tipos marcados no BKO | Não, só o chip "Vencido" na Documentação | **B** na primeira versão. Os Alertas ficam só para o que trava venda |
+| P17 | Janela de "12 meses" no Financeiro (hoje o aparelho tem 90 dias) | Estender o pull das notas e títulos para 12 meses (D4) | "12 meses", "Escolher datas" além de 90 dias e "Ver 12 meses" só com sinal, consultando o servidor; sem sinal, a opção fica desligada | **A**. O vendedor consulta o histórico na rua, sem sinal; B entra só se o volume de 12 meses pesar no aparelho |
