@@ -1,5 +1,5 @@
 /**
- * 0089 — Cliente 360 v2 (T-0186; spec §5, §7, §8 e §9, D2–D5). Dicionário: docs/banco/core.md, "0089".
+ * 0090 — Cliente 360 v2 (T-0186; spec §5, §7, §8 e §9, D2–D5). Dicionário: docs/banco/core.md, "0090".
  * - core.nota_erp: forma_pagamento (1..120) e a NF original da devolução (nf_origem_numero/serie: só em devolução; série só
  *   com número); índices da consulta online por período e das devoluções de uma NF;
  * - core.titulo: forma_pagamento, nf_numero e nf_serie (série só com número) e o índice que junta parcelas e NF;
@@ -23,20 +23,20 @@ import { emTransacao, erroDe, retratoDoCatalogo } from './util';
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 const migracoes = lerMigracoes();
-const m89 = migracoes.find((m) => m.nome === 'core_cliente360_documentos')!;
+const m90 = migracoes.find((m) => m.nome === 'core_cliente360_documentos')!;
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
-const umaLinha = semComentarios(m89.up).replace(/\s+/g, ' ');
-const down = semComentarios(m89.down).replace(/\s+/g, ' ');
+const umaLinha = semComentarios(m90.up).replace(/\s+/g, ' ');
+const down = semComentarios(m90.down).replace(/\s+/g, ' ');
 const TABELAS = ['core.documento_tipo', 'core.documento_cliente', 'core.documento_permissao', 'core.documento_excecao'] as const;
 /** Instante do teste (fixo; sempre passado como parâmetro). */
 const T0 = '2026-11-19T12:00:00Z'; // hora-fixa-ok: instante do teste, sempre passado como parâmetro
 const lista = (s: string) => [...s.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]!);
 const bloco = (t: string) => new RegExp(`create table ${t.replace('.', '\\.')} \\(([^;]*)\\);`).exec(umaLinha)?.[1] ?? '';
 
-describe('0089 Cliente 360 v2 (estático)', () => {
-  it('número e nome: a 0089 vem logo depois da 0088', () => {
-    expect(m89.versao).toBe('0089');
-    expect(migracoes[migracoes.indexOf(m89) - 1]!.versao).toBe('0088');
+describe('0090 Cliente 360 v2 (estático)', () => {
+  it('número e nome: a 0090 vem logo depois da 0089 (rastreamento)', () => {
+    expect(m90.versao).toBe('0090');
+    expect(migracoes[migracoes.indexOf(m90) - 1]!.versao).toBe('0089');
   });
 
   it('nota_erp e titulo: 6 colunas nulas sem default, CHECKs e 3 índices parciais', () => {
@@ -136,7 +136,7 @@ describe('0089 Cliente 360 v2 (estático)', () => {
   });
 });
 
-describe.skipIf(semBanco())('0089 Cliente 360 v2 (banco, papel de aplicação)', () => {
+describe.skipIf(semBanco())('0090 Cliente 360 v2 (banco, papel de aplicação)', () => {
   let app: pg.Client;
   beforeAll(async () => {
     app = new pg.Client({ connectionString: banco().urlApp });
@@ -215,7 +215,7 @@ describe.skipIf(semBanco())('0089 Cliente 360 v2 (banco, papel de aplicação)',
   it('únicos vivos: nome do tipo sem maiúsculas, arquivo, (tipo, perfil) e (documento, perfil); a linha apagada libera', async () => {
     const F = DOCUMENTOS_FIXTURE.A;
     const perfilA = idPerfilFabrica(A.tenantId, 'vendedor');
-    const ARQ = 'aaaaaaaa-0089-4000-8000-000000000001';
+    const ARQ = 'aaaaaaaa-0090-4000-8000-000000000001';
     await emTransacao(app, A.tenantId, async () => {
       expect(await noSavepoint(INS_TIPO, [A.tenantId, 'ALVARÁ DE FUNCIONAMENTO', 'Outro', 'app'])).toMatchObject({ code: '23505', message: expect.stringContaining('documento_tipo_nome_uk') });
       expect(await noSavepoint(INS_PERM, [A.tenantId, F.tipo, perfilA, 'nao_ve'])).toMatchObject({ code: '23505', message: expect.stringContaining('documento_permissao_tipo_perfil_uk') });
@@ -308,7 +308,7 @@ describe.skipIf(semBanco())('0089 Cliente 360 v2 (banco, papel de aplicação)',
   });
 });
 
-describe.skipIf(semBanco())('0089 up/down (banco efêmero)', () => {
+describe.skipIf(semBanco())('0090 up/down (banco efêmero)', () => {
   let b: BancoDeTeste;
   const TEN = 'cccccccc-0000-4000-8000-000000000890';
   const CLI = 'cccccccc-0000-4000-8000-000000001890';
@@ -321,12 +321,12 @@ describe.skipIf(semBanco())('0089 up/down (banco efêmero)', () => {
     await b?.apagar();
   });
 
-  it('up sobre a 0088 mantém notas e títulos (colunas novas nulas, updated_at igual), down volta ao catálogo da 0088 (idempotente) e up de novo igual', async () => {
+  it('up sobre a 0089 mantém notas e títulos (colunas novas nulas, updated_at igual), down volta ao catálogo da 0089 (idempotente) e up de novo igual', async () => {
     await comAdmin(b.nome, async (c) => {
-      await migrarUp(c, { ate: '0088' });
+      await migrarUp(c, { ate: '0089' });
       const antes = await retratoDoCatalogo(c);
-      await c.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 'c360', 'Cliente 360 0089')", [TEN]);
-      await c.query("insert into core.cliente (id, tenant_id, razao_social) values ($1, $2, 'Cliente 0089')", [CLI, TEN]);
+      await c.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 'c360', 'Cliente 360 0090')", [TEN]);
+      await c.query("insert into core.cliente (id, tenant_id, razao_social) values ($1, $2, 'Cliente 0090')", [CLI, TEN]);
       await c.query(
         `insert into core.nota_erp (id, tenant_id, cliente_id, tipo, numero, serie, emitida_em, ano_mes, total_cents, external_id, updated_at)
          values ($1, $2, $3, 'devolucao', '7001', '1', $4, '2026-11', 30000, 'ND-7001', $4)`,
@@ -344,7 +344,7 @@ describe.skipIf(semBanco())('0089 up/down (banco efêmero)', () => {
       expect(notaAntes[0]).toMatchObject({ ok: true });
       expect(titAntes[0]).toMatchObject({ ok: true });
 
-      expect((await migrarUp(c, { ate: m89.versao })).aplicadas).toEqual([`${m89.versao}_${m89.nome}`]);
+      expect((await migrarUp(c, { ate: m90.versao })).aplicadas).toEqual([`${m90.versao}_${m90.nome}`]);
       const depois = await retratoDoCatalogo(c);
       for (const item of [
         'col core.nota_erp.forma_pagamento text nn=false', 'col core.nota_erp.nf_origem_numero text nn=false', 'col core.titulo.nf_serie text nn=false',
@@ -362,12 +362,12 @@ describe.skipIf(semBanco())('0089 up/down (banco efêmero)', () => {
       const tipo = (await c.query("insert into core.documento_tipo (tenant_id, nome, grupo, origem) values ($1, 'Alvará', 'Cadastro', 'escritorio') returning id", [TEN])).rows[0]!.id as string;
       await c.query("insert into core.documento_cliente (tenant_id, cliente_id, tipo_id, nome, data_documento) values ($1, $2, $3, 'Alvará 2026', '2026-03-10')", [TEN, CLI, tipo]);
 
-      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual([`${m89.versao}_${m89.nome}`]);
+      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual([`${m90.versao}_${m90.nome}`]);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
       expect((await c.query(nota, [NOTA, T0])).rows).toHaveLength(1);
-      await c.query(m89.down);
+      await c.query(m90.down);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      await migrarUp(c, { ate: m89.versao });
+      await migrarUp(c, { ate: m90.versao });
       expect(await retratoDoCatalogo(c)).toEqual(depois);
     });
   });

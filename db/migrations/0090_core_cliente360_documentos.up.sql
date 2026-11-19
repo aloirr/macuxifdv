@@ -1,7 +1,7 @@
--- 0089_core_cliente360_documentos (up) — T-0186 (Cliente 360 v2: Histórico com NF e Documentação; v1.0.15). Spec da
+-- 0090_core_cliente360_documentos (up) — T-0186 (Cliente 360 v2: Histórico com NF e Documentação; v1.0.15). Spec da
 -- simulação §5, §7, §8 e §9 (D1–D6), decisões P1–P17 (R-20261119-045810-alexandre, R-20261119-0458 e R-20261119-0530).
--- Número provisório até o merge (segue a ordem de merge, R-20261115-140000). Dicionário:
--- docs/banco/core.md ("0089"). Teste: db/testes/cliente360-documentos.db.test.ts.
+-- Vem em cima da 0089_core_rastreamento (T-0156, PR #498); o número segue a ordem de merge (R-20261115-140000). Dicionário:
+-- docs/banco/core.md ("0090"). Teste: db/testes/cliente360-documentos.db.test.ts.
 --
 -- Migração ADITIVA: colunas novas opcionais (nulas, sem default, sem backfill, sem andar o updated_at), 4 tabelas novas e
 -- índices. Nenhuma coluna, CHECK, RLS ou grant existente muda. As colunas novas de nota_erp e titulo herdam RLS e grants da
@@ -51,7 +51,7 @@
 --      documento". documento_id com FK composta; perfil_id SEM FK (como acima); única viva por (documento, perfil). Apagar a
 --      exceção = deleted_at. Volume: poucas por tenant.
 --
--- Caminho de volta: 0089_core_cliente360_documentos.down.sql (APAGA as 4 tabelas com os dados — tipos, documentos, matriz e
+-- Caminho de volta: 0090_core_cliente360_documentos.down.sql (APAGA as 4 tabelas com os dados — tipos, documentos, matriz e
 -- exceções; os metadados em plataforma.arquivo e os bytes no armazenamento ficam — e as 6 colunas com os índices e CHECKs:
 -- forma de pagamento e o vínculo NF/devolução se perdem e voltam na próxima carga do ERP). Volte antes o código do Core e da
 -- Integração que lê ou grava. Idempotente.

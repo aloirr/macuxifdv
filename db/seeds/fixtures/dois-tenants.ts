@@ -50,7 +50,7 @@
  *   p3 (R$ 200,00) e a mesma nota apagada; B com uma viva no p1 (mesma chave de nota: o único é por tenant).
  * - T-0184 (0088): vendedor.pedido_aprovacao (grupo 0x79; APROVACOES_FIXTURE) — A pendente no p2 (desconto, gerente, ciclo 1);
  *   B aprovada no p1 (desconto, supervisor, decidida pelo admin).
- * - T-0186 (0089): Documentação do cliente (grupos 0x7a–0x7d; DOCUMENTOS_FIXTURE) — por tenant um tipo, um documento do c1, a
+ * - T-0186 (0090): Documentação do cliente (grupos 0x7a–0x7d; DOCUMENTOS_FIXTURE) — por tenant um tipo, um documento do c1, a
  *   permissão do perfil de fábrica "vendedor" no tipo e uma exceção que tira o documento dele (A: Alvará, válido; B: Contrato social).
  * - T-0087 (0036): convites de 1º acesso (core.usuario_convite, grupo 0x08; CONVITES_FIXTURE): A pendente + revogado do
  *   vendedor-2 e usado do promotor; B pendente do vendedor-B, gerado por um super-admin (id sem FK).
@@ -232,7 +232,7 @@ const G = {
   assinatura_historico: 0x6e,
   // 0088 (T-0184): aprovação por motivo do pedido
   pedido_aprovacao: 0x79,
-  // 0089 (T-0186): Documentação do cliente
+  // 0090 (T-0186): Documentação do cliente
   documento_tipo: 0x7a,
   documento_cliente: 0x7b,
   documento_permissao: 0x7c,
@@ -794,7 +794,7 @@ export const ORDEM_TABELAS = [
   'plataforma.trabalho',
   // 0084 (T-0180): último contato do aparelho (FK -> core.usuario)
   'core.usuario_contato',
-  // 0089 (T-0186): Documentação do cliente (FKs: documento -> cliente, tipo e usuario; permissão -> tipo; exceção -> documento)
+  // 0090 (T-0186): Documentação do cliente (FKs: documento -> cliente, tipo e usuario; permissão -> tipo; exceção -> documento)
   'core.documento_tipo',
   'core.documento_cliente',
   'core.documento_permissao',
@@ -987,7 +987,7 @@ function dadosPedidoAprovacao(hojeB: string): Linha[] {
 }
 
 /**
- * 0089 (T-0186): Documentação do cliente (grupos 0x7a–0x7d). Por tenant: um tipo, um documento do c1 sem arquivo (arquivo_id
+ * 0090 (T-0186): Documentação do cliente (grupos 0x7a–0x7d). Por tenant: um tipo, um documento do c1 sem arquivo (arquivo_id
  * nulo), a permissão "ve" do perfil de fábrica "vendedor" (idPerfilFabrica; perfil_id sem FK) e a exceção que tira o documento
  * desse perfil (P11). Ids diferentes em A e B: a linha-mãe de B não existe em A (vazamento por FK composta).
  */

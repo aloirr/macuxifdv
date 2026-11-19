@@ -1178,8 +1178,8 @@ o app sai do bloqueio). Idempotente. Roda como o migrador (políticas `manutenca
 backfill de migração grava lá). Volta: `0085_core_usuario_filial_matriz.down.sql` é no-op documentado (os dados ficam). Teste:
 `db/testes/usuario-filial-matriz.db.test.ts`.
 
-## 0089 — Cliente 360 v2: forma de pagamento, NF e Documentação do cliente (`0089_core_cliente360_documentos`; T-0186, D2–D5)
-Migração **aditiva** (número provisório até o merge): colunas novas **nulas**, sem default, sem backfill e sem andar o
+## 0090 — Cliente 360 v2: forma de pagamento, NF e Documentação do cliente (`0090_core_cliente360_documentos`; T-0186, D2–D5)
+Migração **aditiva**, em cima da 0089 (rastreamento, #498; o número segue a ordem de merge): colunas novas **nulas**, sem default, sem backfill e sem andar o
 `updated_at`; 4 tabelas novas e 3 índices. Nenhuma coluna, CHECK, RLS ou grant existente muda; as colunas novas herdam os da
 tabela (o `macuxi_leitura` tem SELECT de tabela em `core.nota_erp` e `core.titulo`).
 
@@ -1246,7 +1246,7 @@ RLS ligado e forçado, `isolamento_tenant` (`macuxi_app`), `manutencao` (0031) e
   e `documento_cliente_cliente_sync_ix (tenant_id, cliente_id, updated_at, id)` (pull por carteira).
 - Volume: tipos, dezenas por tenant; documentos, ~5–15 por cliente; matriz, tipos × perfis; exceções, poucas.
 
-Volta: `0089_core_cliente360_documentos.down.sql` (apaga as 4 tabelas com os dados — os metadados em `plataforma.arquivo` e os
+Volta: `0090_core_cliente360_documentos.down.sql` (apaga as 4 tabelas com os dados — os metadados em `plataforma.arquivo` e os
 bytes ficam — e as 6 colunas com índices e CHECKs; a forma de pagamento e o vínculo NF/devolução voltam na próxima carga do
 ERP). Idempotente. Volte antes o código do Core e da Integração que lê ou grava. Teste:
 `db/testes/cliente360-documentos.db.test.ts`.

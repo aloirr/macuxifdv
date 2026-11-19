@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador; 0076: marca_codigo do produto; 0077: usuario.filial_cadastro_id e usuario_filial; 0080: usuario.codigo_fdv e usuario_codigo_fdv_contador; 0084: almoço do usuário e usuario_contato; 0089: forma de pagamento e NF em nota_erp e titulo, documento_tipo, documento_cliente, documento_permissao e documento_excecao), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador; 0076: marca_codigo do produto; 0077: usuario.filial_cadastro_id e usuario_filial; 0080: usuario.codigo_fdv e usuario_codigo_fdv_contador; 0084: almoço do usuário e usuario_contato; 0090: forma de pagamento e NF em nota_erp e titulo, documento_tipo, documento_cliente, documento_permissao e documento_excecao), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -407,11 +407,11 @@ export const titulo = core.table('titulo', {
   liquidado_em: timestamp('liquidado_em', { withTimezone: true }),
   /** 0062 (T-0095): último `alterado_em` do ERP aplicado (timestamptz(3)); nulo = nunca veio do ERP. Mais antigo não grava (gatilho <tabela>_versao_erp). Fora do pull. */
   erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
-  /** 0089 (T-0186, D2): forma de pagamento como o ERP manda; 1..120; nula = não veio. */
+  /** 0090 (T-0186, D2): forma de pagamento como o ERP manda; 1..120; nula = não veio. */
   forma_pagamento: text('forma_pagamento'),
-  /** 0089 (T-0186, D3): NF do título (junta as parcelas à nota; índice titulo_nf_ix); 1..60. */
+  /** 0090 (T-0186, D3): NF do título (junta as parcelas à nota; índice titulo_nf_ix); 1..60. */
   nf_numero: text('nf_numero'),
-  /** 0089: série da NF; só com nf_numero (titulo_nf_serie_com_numero). */
+  /** 0090: série da NF; só com nf_numero (titulo_nf_serie_com_numero). */
   nf_serie: text('nf_serie'),
 });
 
@@ -453,11 +453,11 @@ export const notaErp = core.table('nota_erp', {
   usuario_id: uuid('usuario_id'),
   /** 0062 (T-0095): último `alterado_em` do ERP aplicado (timestamptz(3)); nulo = nunca veio do ERP. Mais antigo não grava (gatilho <tabela>_versao_erp). Fora do pull. */
   erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
-  /** 0089 (T-0186, D2/E1): forma de pagamento da NF como o ERP manda; 1..120; nula = não veio. */
+  /** 0090 (T-0186, D2/E1): forma de pagamento da NF como o ERP manda; 1..120; nula = não veio. */
   forma_pagamento: text('forma_pagamento'),
-  /** 0089 (T-0186, D3): NF original da devolução; só com tipo 'devolucao' (nota_erp_nf_origem_so_devolucao); 1..60. */
+  /** 0090 (T-0186, D3): NF original da devolução; só com tipo 'devolucao' (nota_erp_nf_origem_so_devolucao); 1..60. */
   nf_origem_numero: text('nf_origem_numero'),
-  /** 0089: série da NF original; só com nf_origem_numero (nota_erp_nf_origem_serie_com_numero). */
+  /** 0090: série da NF original; só com nf_origem_numero (nota_erp_nf_origem_serie_com_numero). */
   nf_origem_serie: text('nf_origem_serie'),
 });
 
@@ -829,7 +829,7 @@ export const ORIGENS_DOCUMENTO_BANCO = ['erp', 'escritorio', 'app'] as const;
 export const NIVEIS_DOCUMENTO_BANCO = ['nao_ve', 've', 've_envia'] as const;
 
 /**
- * Tipo de documento do cliente (0089, T-0186, D5): nome 1..80 único vivo sem diferenciar maiúsculas; grupo 1..60 (a faixa da
+ * Tipo de documento do cliente (0090, T-0186, D5): nome 1..80 único vivo sem diferenciar maiúsculas; grupo 1..60 (a faixa da
  * Documentação); origem erp|escritorio|app (P1: uma só por tipo); tem_validade. Pull escopo tenant.
  */
 export const documentoTipo = core.table('documento_tipo', {
@@ -843,7 +843,7 @@ export const documentoTipo = core.table('documento_tipo', {
 });
 
 /**
- * Documento de um cliente (0089, T-0186, D5). arquivo_id = plataforma.arquivo.id SEM FK (ADR 0010), único vivo quando há; nulo
+ * Documento de um cliente (0090, T-0186, D5). arquivo_id = plataforma.arquivo.id SEM FK (ADR 0010), único vivo quando há; nulo
  * = ainda sem arquivo. valido_ate >= data_documento. Pull escopo carteira (a linha vai ao aparelho; o arquivo não, P15).
  */
 export const documentoCliente = core.table('documento_cliente', {
@@ -858,7 +858,7 @@ export const documentoCliente = core.table('documento_cliente', {
 });
 
 /**
- * Matriz tipo × perfil da Documentação (0089, T-0186, §7). perfil_id = plataforma.perfil.id SEM FK (outro schema). Única viva
+ * Matriz tipo × perfil da Documentação (0090, T-0186, §7). perfil_id = plataforma.perfil.id SEM FK (outro schema). Única viva
  * por (tipo, perfil). "ve_envia só nos tipos de origem app" é regra do domain e da API. Pull escopo tenant.
  */
 export const documentoPermissao = core.table('documento_permissao', {
@@ -869,7 +869,7 @@ export const documentoPermissao = core.table('documento_permissao', {
 });
 
 /**
- * Exceção por documento (0089, T-0186, P11): a linha quer dizer "este perfil NÃO vê este documento" (só tira acesso).
+ * Exceção por documento (0090, T-0186, P11): a linha quer dizer "este perfil NÃO vê este documento" (só tira acesso).
  * perfil_id SEM FK (outro schema). Única viva por (documento, perfil). Vai no sync com a matriz.
  */
 export const documentoExcecao = core.table('documento_excecao', {

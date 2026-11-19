@@ -1,4 +1,4 @@
--- 0089_core_cliente360_documentos (down) — volta da 0089 (T-0186). APAGA core.documento_excecao, core.documento_permissao,
+-- 0090_core_cliente360_documentos (down) — volta da 0090 (T-0186). APAGA core.documento_excecao, core.documento_permissao,
 -- core.documento_cliente e core.documento_tipo com os dados (os metadados em plataforma.arquivo e os bytes no armazenamento
 -- ficam) e as colunas novas de core.nota_erp (forma_pagamento, nf_origem_numero, nf_origem_serie) e core.titulo
 -- (forma_pagamento, nf_numero, nf_serie), com os índices e CHECKs (drop column leva os que dependem da coluna). A forma de
