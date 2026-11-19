@@ -11,6 +11,7 @@ import { PERFIS_DO_APP } from './perfis';
 import { criarPermissoes, verificarAcao } from './permissoes';
 import {
   ALVO_TODOS,
+  areaDaAcao,
   catalogoDePermissoes,
   chavesPermitidas,
   combinarPerfis,
@@ -122,6 +123,12 @@ describe('padrão de fábrica (doc 03 §2; ADR 0033)', () => {
     expect(area('carteira.editar')).toBe('clientes');
     expect(area('motivo.editar')).toBe('administracao');
     expect(CATALOGO[0]?.area).toBe('acesso');
+  });
+
+  it('ações do rastreamento (ADR 0061, desenho tracking §6): trajeto e ausência em Usuários, configurar em Administração', () => {
+    expect(areaDaAcao('core', 'trajeto.ver_equipe')).toBe('usuarios');
+    expect(areaDaAcao('core', 'ausencia.cadastrar')).toBe('usuarios');
+    expect(areaDaAcao('core', 'rastreamento.configurar')).toBe('administracao');
   });
 });
 

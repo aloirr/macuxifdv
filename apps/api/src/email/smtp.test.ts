@@ -60,7 +60,7 @@ describe('cliente SMTP contra servidor falso (127.0.0.1)', () => {
     const recebida = servidor.mensagens[0]!;
     expect(recebida).toContain('Subject: Seu acesso ao Macuxi');
     expect(recebida).toContain('Date: Sat, 07 Nov 2026 12:00:00 +0000');
-    expect(decodificarPartes(recebida).texto).toContain('Senha temporária: Prov1sor1a-Xq7');
+    expect(decodificarPartes(recebida).texto).toContain('\nSenha temporária\nProv1sor1a-Xq7\n');
   });
 
   it('AUTH LOGIN quando o servidor só anuncia LOGIN', async () => {
@@ -181,7 +181,7 @@ describe('porta 465: TLS implícito desde a conexão (T-0094 fatia S)', () => {
     // sem STARTTLS: o canal já nasce cifrado
     expect(servidor.comandos).toEqual(['EHLO teste.local', 'AUTH PLAIN ***', 'MAIL FROM:<nao-responda@macuxifdv.com.br>', `RCPT TO:<${destinatario.email}>`, 'DATA', '<dados>', 'QUIT']);
     expect(servidor.auths).toEqual([{ usuario: USUARIO, senha: SENHA }]);
-    expect(decodificarPartes(servidor.mensagens[0]!).texto).toContain('Senha temporária: Prov1sor1a-Xq7');
+    expect(decodificarPartes(servidor.mensagens[0]!).texto).toContain('\nSenha temporária\nProv1sor1a-Xq7\n');
   });
 
   it('certificado não confiável: EMAIL_TLS_INDISPONIVEL antes de qualquer comando (credencial nunca sai)', async () => {

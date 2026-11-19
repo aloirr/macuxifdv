@@ -45,6 +45,7 @@ import { criarClienteRecadosGithub } from './recados-github';
 import { armazenamentoPacotesSyncDoAmbiente } from './sync-pacotes';
 import { criarGeradorPacotes, criarRepositorioPacotesSql } from './sync-pacotes-gerador';
 import { criarLacoTrabalhos } from './trabalhos';
+import { expurgarRastreamento, INTERVALO_EXPURGO_MS, SQL_EXISTE_EXPURGO } from './expurgo-rastreamento';
 
 const cfg = lerConfigApp(); // carrega o .env (raiz e db/); fora do local não exige a senha do admin
 const log = pino({ level: process.env.MACUXI_API_LOG ?? 'info', base: { processo: 'despachante' }, serializers: { err: serializarErro } });
@@ -85,7 +86,9 @@ async function principal(): Promise<void> {
   const diagnosticos = await iniciarDiagnosticos();
   const pacotesSync = await iniciarPacotesSync();
   const trabalhos = await iniciarTrabalhos();
+  const expurgo = await iniciarExpurgoRastreamento();
   const encerrar = async () => {
+    expurgo?.parar();
     if (timerMetricas) clearInterval(timerMetricas);
     await trabalhos?.parar();
     await agendamento?.parar();
@@ -111,7 +114,7 @@ function iniciarEmail(): { parar(): Promise<void> } | undefined {
   log.info({ tipo: 'email', ...descreverConfigEmail(config), avisos: config.avisos }, 'e-mail transacional');
   const transporte = criarTransporteDaConfig(config, { log: logEmail });
   if (!transporte) return undefined;
-  const despachante = criarDespachanteEmail({ worker: poolWorker, transporte, cifra: criarCifraEmail(config.chave), remetente: config.remetente, log: logEmail });
+  const despachante = criarDespachanteEmail({ worker: poolWorker, transporte, cifra: criarCifraEmail(config.chave), remetente: config.remetente, apresentacao: config.apresentacao, log: logEmail });
   return despachante.iniciar({ intervaloMs: Number(process.env.MACUXI_EMAIL_INTERVALO_MS ?? 5_000) });
 }
 
@@ -236,6 +239,31 @@ async function iniciarAgendador(): Promise<{ parar(): Promise<void> } | undefine
   }
   log.info({ tarefas: agendador.tarefas() }, 'agendador no ar');
   return agendador.iniciar();
+}
+
+/** ADR 0061 (tracking §5.4): expurgo diário do rastreamento; só liga com a função da 0089 no banco. Log só com contagens. */
+async function iniciarExpurgoRastreamento(): Promise<{ parar(): void } | undefined> {
+  const existe = await poolWorker.query<{ ok: boolean }>(SQL_EXISTE_EXPURGO);
+  if (!existe.rows[0]?.ok) {
+    log.info({}, 'expurgo do rastreamento desligado: falta core.expurgar_rastreamento no banco');
+    return undefined;
+  }
+  let rodando = false;
+  const rodar = async () => {
+    if (rodando) return;
+    rodando = true;
+    try {
+      log.info({ tipo: 'expurgo_rastreamento', ...(await expurgarRastreamento(poolWorker, new Date())) }, 'expurgo do rastreamento');
+    } catch (e) {
+      log.warn({ tipo: 'expurgo_rastreamento', erro: mensagemSegura(e) }, 'expurgo do rastreamento falhou; tenta no próximo dia');
+    } finally {
+      rodando = false;
+    }
+  };
+  void rodar();
+  const timer = setInterval(() => void rodar(), INTERVALO_EXPURGO_MS);
+  timer.unref();
+  return { parar: () => clearInterval(timer) };
 }
 
 principal().catch(async (e: unknown) => {

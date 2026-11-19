@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { derivarChaveEmail, descreverConfigEmail, lerConfigEmail, lerRemetente, REMETENTE_PADRAO } from './config';
+import { ARQUIVOS_LOGO_EMAIL, derivarChaveEmail, descreverConfigEmail, lerConfigEmail, lerRemetente, REMETENTE_PADRAO } from './config';
 import { ErroEmail } from './erros';
 
 const SEGREDO_JWT = 'j'.repeat(40);
@@ -131,6 +131,51 @@ describe('descreverConfigEmail / toJSON — nunca usuário, senha nem chave', ()
       expect(texto).not.toContain(chave.toString('hex'));
       expect(texto).not.toContain(SEGREDO_JWT);
     }
+  });
+});
+
+describe('endereços públicos do e-mail (MACUXI_EMAIL_URL_ATIVOS, MACUXI_EMAIL_URL_BKO; ADR 0032, adendo de 19/11/2026)', () => {
+  const ARQ = { MACUXI_EMAIL_ARQUIVO_DIR: '/tmp/caixa', MACUXI_JWT_SEGREDO: SEGREDO_JWT };
+
+  it('sem as duas: apresentação vazia (e-mail sem logo, só o texto alternativo, e sem botão) e aviso do logo', () => {
+    const c = lerConfigEmail(ARQ);
+    expect(c.apresentacao).toEqual({});
+    expect(c.avisos.join(' ')).toContain('MACUXI_EMAIL_URL_ATIVOS');
+    expect(lerConfigEmail({}).avisos.join(' ')).not.toContain('MACUXI_EMAIL_URL_ATIVOS');
+  });
+
+  it('base dos ativos (com ou sem barra no fim) vira as URLs dos dois PNG; o endereço do BKO vai como veio', () => {
+    expect(ARQUIVOS_LOGO_EMAIL).toEqual({ claro: 'macuxi-logo-positivo-email.png', escuro: 'macuxi-logo-negativo-email.png' });
+    for (const base of ['https://bko.exemplo.com.br/email', 'https://bko.exemplo.com.br/email/']) {
+      const c = lerConfigEmail({ ...ARQ, MACUXI_EMAIL_URL_ATIVOS: base, MACUXI_EMAIL_URL_BKO: 'https://bko.exemplo.com.br/' }, { producao: true });
+      expect(c.apresentacao).toEqual({
+        urlLogo: 'https://bko.exemplo.com.br/email/macuxi-logo-positivo-email.png',
+        urlLogoEscuro: 'https://bko.exemplo.com.br/email/macuxi-logo-negativo-email.png',
+        urlBackoffice: 'https://bko.exemplo.com.br/',
+      });
+      expect(c.avisos.join(' ')).not.toContain('MACUXI_EMAIL_URL_ATIVOS');
+      expect(descreverConfigEmail(c)).toMatchObject({ url_ativos: 'https://bko.exemplo.com.br/email', url_bko: 'https://bko.exemplo.com.br/' });
+    }
+  });
+
+  it('recusa endereço inválido, com credencial, fora de http(s) e http em produção', () => {
+    const casos: [Record<string, string>, boolean, string][] = [
+      [{ MACUXI_EMAIL_URL_ATIVOS: 'não é url' }, false, 'MACUXI_EMAIL_URL_ATIVOS'],
+      [{ MACUXI_EMAIL_URL_BKO: 'ftp://bko.exemplo.com.br/' }, false, 'MACUXI_EMAIL_URL_BKO'],
+      [{ MACUXI_EMAIL_URL_BKO: 'https://u:p@bko.exemplo.com.br/' }, false, 'MACUXI_EMAIL_URL_BKO'],
+      [{ MACUXI_EMAIL_URL_ATIVOS: 'http://bko.exemplo.com.br/email' }, true, 'MACUXI_EMAIL_URL_ATIVOS'],
+    ];
+    for (const [env, producao, nome] of casos) {
+      const e = erroDe(() => lerConfigEmail({ ...ARQ, ...env }, { producao }));
+      expect(e.message, JSON.stringify(env)).toContain(nome);
+      expect(e.message).not.toContain('u:p@');
+    }
+  });
+
+  it('http fora de produção: aceito com aviso (teste local)', () => {
+    const c = lerConfigEmail({ ...ARQ, MACUXI_EMAIL_URL_BKO: 'http://localhost:3000/' });
+    expect(c.apresentacao.urlBackoffice).toBe('http://localhost:3000/');
+    expect(c.avisos.join(' ')).toContain('MACUXI_EMAIL_URL_BKO sem https');
   });
 });
 

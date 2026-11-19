@@ -30,20 +30,19 @@ O evento `vendedor.pedido.aprovacao_solicitada@1` tem `motivos` como enum fechad
    - O pedido vai a `approved` quando todas as aprovações do ciclo estão aprovadas.
    - Rejeitar ou devolver encerra as pendentes.
    - Reenviar depois de uma devolução abre um ciclo novo.
-   - `vendedor.pedido.nivel_aprovacao` e `motivos_aprovacao` continuam como resumo, para compatibilidade com o app v1.0.13.
+   - `vendedor.pedido.nivel_aprovacao` e `motivos_aprovacao` continuam como resumo do pedido.
 5. **Rotas** (ação `pedido.aprovar`, a de hoje):
    - `rejeitar` mantém o efeito de hoje (`rejected`) e é o "Devolver ao vendedor";
    - `recusar` é nova e leva a `cancelled`;
-   - o corpo ganha `motivo_aprovacao`, opcional. O `motivo` dos corpos de hoje continua sendo o texto livre do aprovador, que o app v1.0.13 manda. Sem `motivo_aprovacao`, a decisão vale para todas as aprovações que o usuário pode decidir.
+   - o corpo ganha `motivo_aprovacao`, opcional. O `motivo` dos corpos continua sendo o texto livre do aprovador. Sem `motivo_aprovacao`, a decisão vale para todas as aprovações que o usuário pode decidir.
    - RN-VEN-30 ganha a passagem de `pending_approval` para `cancelled`.
 6. **Parâmetros:** `aprovacao.credito_nivel` e `aprovacao.inadimplencia_nivel`, no módulo `vendedor`, com padrão `gerente`.
 
 ## Consequências
-- O app Gestão v1.0.13 continua aprovando e rejeitando, com o sentido antigo de rejeitar (devolver), e enxerga só o maior nível.
 - Contratos e tabela exatos para cada dono estão no desenho, §7.
 - Os critérios de crédito e de inadimplência (RN-VEN-12 e RN-VEN-13) mudam no doc 03. Isso cabe ao gerente-projetos.
 
 ## Alternativas recusadas
 - **Acrescentar `inadimplencia` no `@1`:** quebra a leitura dos consumidores atuais.
 - **Manter uma aprovação só, com o maior nível:** contraria a P3 e a P7.
-- **Mudar o efeito da rota `rejeitar` para cancelar:** o app antigo cancelaria pedidos achando que devolvia.
+- **Mudar o efeito da rota `rejeitar` para cancelar:** a rota existente mudaria de sentido; a rota nova `recusar` deixa cada efeito com o seu nome.
