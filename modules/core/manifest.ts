@@ -66,6 +66,11 @@ export const manifest = defineModule({
     'usuario_avatar.trocar': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'], descricao: 'Trocar a própria foto ou avatar no app (push usuario_avatar; RN-CORE-42)' },
     'usuario_avatar.trocar_outro': { perfis: ['admin'], descricao: 'Trocar no BKO a foto ou o avatar de outro usuário do tenant (RN-CORE-42); auditado' },
     'meta_produtividade.editar': { perfis: ['gerente', 'analista', 'admin'], descricao: 'Definir as metas de produtividade por tenant, equipe ou usuário, com vigência (RN-CORE-45); auditado' },
+    // T-0156 (ADR 0061, desenho tracking §7): rastreamento no expediente; o analista vê só o resumo deslocamento_dia, nunca os pontos
+    'trajeto.ver_proprio': { perfis: ['vendedor', 'promotor'], descricao: 'Ver o próprio trajeto do dia em "Meu trajeto" no Campo (RN-CORE-13)' },
+    'trajeto.ver_equipe': { perfis: ['supervisor', 'gerente', 'admin'], descricao: 'Ver o trajeto do dia da equipe no Gestão e no BKO, só no próprio escopo; nenhuma exportação de pontos (RN-CORE-13, RN-CORE-04)' },
+    'rastreamento.configurar': { perfis: ['admin'], descricao: 'Ligar o rastreamento, definir o expediente e a frequência e publicar o termo de ciência (padrão desligado; RN-CORE-13); auditado' },
+    'ausencia.cadastrar': { perfis: ['supervisor', 'gerente', 'admin'], descricao: 'Cadastrar férias, folga ou afastamento de usuário do escopo, sem motivo; nesses dias nada é rastreado (RN-CORE-13); auditado' },
     'rv.ver': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'admin'], descricao: 'Ver a RV calculada, recortada pelo escopo: a própria (vendedor, promotor), equipe (supervisor), equipes abaixo (gerente), tenant (analista, admin); o assistente não vê (RN-CORE-29/30; T-0082 app)' },
   },
   // ADR 0019: consulta opcional não cria aresta de dependência (sem ciclo core ↔ vendedor); sem o dono, cai no indicador_diario
