@@ -55,6 +55,7 @@ import {
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ehPrintDeDiagnostico } from './diagnosticos';
 import { ErroHttp } from './erros';
+import { mensagemSegura } from './log-seguro';
 import { miniaturaDeImagem } from './decodificadores';
 import { chaveDaMiniatura, ErroMiniatura } from './miniatura';
 import type { Plataforma, RequisicaoPreparada } from './tipos';
@@ -275,6 +276,7 @@ export function registrarArquivos(
 ): void {
   const preparadas = new WeakMap<FastifyRequest, RequisicaoPreparada>();
   const porManifesto = new Map(p.manifestos.map((m) => [m.id as string, m] as const));
+  const guardas = p.modulos.flatMap((m) => (m.guardaArquivo ? [m.guardaArquivo] : []));
 
   void app.register(async (escopo) => {
     // só neste escopo: o corpo image/jpeg chega como Buffer (as rotas JSON não aceitam binário)
@@ -483,6 +485,25 @@ export function registrarArquivos(
       return reply.code(200).send(info('recebido'));
     });
 
+    /** Guardas dos módulos (`ModuloApi.guardaArquivo`): basta uma negar; erro em qualquer uma fecha como `negado`. */
+    async function guardaDosModulos(ctx: RequisicaoPreparada['ctx'], u: RequisicaoPreparada['ctx']['usuario'], id: string, linha: LinhaArquivo) {
+      if (guardas.length === 0) return null;
+      try {
+        return await ctx.comTenant(async (db) => {
+          let liberado = false;
+          for (const g of guardas) {
+            const r = await g({ db, usuario: u, arquivoId: id, modulo: linha.modulo, finalidade: linha.finalidade, clienteId: linha.cliente_id ?? null });
+            if (r === 'negado') return 'negado' as const;
+            if (r === 'liberado') liberado = true;
+          }
+          return liberado ? ('liberado' as const) : null;
+        });
+      } catch (e) {
+        ctx.log.warn({ arquivo_id: id, erro: mensagemSegura(e) }, 'guarda de arquivo falhou; leitura negada');
+        return 'negado' as const;
+      }
+    }
+
     /**
      * Linha do arquivo que o usuário da sessão pode ler: licença e perfil do módulo dono, carteira do cliente da foto ou
      * usuários visíveis (foto do tenant liberada pela licença). Fora disso, 404 sem revelar o motivo. Original e miniatura.
@@ -527,9 +548,12 @@ export function registrarArquivos(
         const visiveis = await ctx.usuariosVisiveis();
         if (visiveis !== 'tenant' && !visiveis.has(linha.enviado_por)) throw naoEncontrado();
       }
+      // T-0186 (RN-CORE-40): guarda do módulo dono (documento da ficha: matriz por tipo e exceção por documento); erro fecha
+      const guardado = await guardaDosModulos(ctx, u, id, linha);
+      if (guardado === 'negado') throw naoEncontrado();
       if (!armazenamento) throw erroArmazenamentoIndisponivel();
-      // restrito: o navegador e proxies não guardam cópia (a imagem fica só na memória de quem abriu)
-      const cache = restrito ? 'private, no-store' : 'private, max-age=86400';
+      // restrito ou guardado pelo módulo: o navegador e proxies não guardam cópia (a imagem fica só na memória de quem abriu)
+      const cache = restrito || guardado === 'liberado' ? 'private, no-store' : 'private, max-age=86400';
       return { id, ctx, linha, chave: linha.chave_armazenamento, naoEncontrado, armazenamento, cache };
     }
 

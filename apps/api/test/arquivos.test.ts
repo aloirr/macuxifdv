@@ -6,7 +6,8 @@
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { definirModuloApi, LIMITE_ARQUIVO_BYTES, type ClienteBanco, type UsuarioAutenticado } from '@macuxi/platform-sdk';
+import { definirModuloApi, LIMITE_ARQUIVO_BYTES, type ClienteBanco, type ModuloApi, type UsuarioAutenticado } from '@macuxi/platform-sdk';
+import { MODULOS_API } from '../src/modulos';
 import { manifest as vendedor } from '@macuxi/vendedor/manifest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -437,5 +438,78 @@ describe('T-0170: foto do perfil (core/avatar, RN-CORE-42) e foto de tarefa (cor
       expect((await get(fora, 'analista')).statusCode).toBe(200);
       await fora.close();
     });
+  });
+});
+
+describe('GET /v1/arquivos/:id — guarda do módulo dono (T-0186: documento da ficha; ADR 0010, RN-CORE-40)', () => {
+  const CHAVE = `${TENANT}/core/2026-11/${ID}.jpg`;
+  const linha = {
+    modulo: 'core',
+    finalidade: 'documento',
+    enviado_por: usuarios.vendedor!.id,
+    situacao: 'recebido',
+    sha256: 'c'.repeat(64),
+    tamanho_bytes: JPEG.length,
+    cliente_id: CLIENTE_DA_CARTEIRA,
+    chave_armazenamento: CHAVE,
+    perfis_leitura: null,
+  };
+  const core = MODULOS_API.find((m) => m.manifesto.id === 'core')!;
+
+  async function montarCom(guarda: ModuloApi['guardaArquivo']) {
+    const vistos: Array<{ arquivoId: string; perfil: string }> = [];
+    const db: ClienteBanco = {
+      query: async <R>(sql: string) => (/from plataforma.arquivo/.test(sql) ? { rows: [linha] as R[], rowCount: 1 } : { rows: [] as R[], rowCount: 0 }),
+    };
+    const banco: BancoApp = { ...bancoFalso().banco, comTenant: async (_t, fn) => fn(db), semTenant: async (fn) => fn(db) };
+    const arquivos = criarArmazenamentoEmMemoria();
+    await arquivos.gravar(CHAVE, JPEG);
+    const comGuarda: ModuloApi = {
+      ...core,
+      guardaArquivo: guarda
+        ? async (e) => {
+            vistos.push({ arquivoId: e.arquivoId, perfil: e.usuario.perfil });
+            return guarda(e);
+          }
+        : undefined,
+    };
+    const app = createApp(opcoesDeTeste(undefined, { banco, arquivos, modulos: modulosDeTeste({ core: comGuarda }) }));
+    return { app, vistos };
+  }
+  const get = (app: ReturnType<typeof createApp>, sufixo = '') =>
+    app.inject({ method: 'GET', url: `/v1/arquivos/${ID}${sufixo}`, headers: cab('vendedor') });
+
+  it('RN-CORE-40: a guarda nega (o perfil perdeu o tipo ou ganhou exceção) → 404 sem motivo, no original e na miniatura', async () => {
+    const { app, vistos } = await montarCom(async () => 'negado');
+    const r = await get(app);
+    expect(r.statusCode).toBe(404);
+    expect(r.json()).toMatchObject({ codigo: 'ARQUIVO_NAO_ENCONTRADO' });
+    expect((await get(app, '/miniatura')).statusCode).toBe(404);
+    expect(vistos[0]).toEqual({ arquivoId: ID, perfil: 'vendedor' });
+    await app.close();
+  });
+
+  it('RN-CORE-40: a guarda libera → 200 com no-store (o documento não fica em cache)', async () => {
+    const { app } = await montarCom(async () => 'liberado');
+    const r = await get(app);
+    expect(r.statusCode).toBe(200);
+    expect(r.headers['cache-control']).toBe('private, no-store');
+    await app.close();
+  });
+
+  it('RN-CORE-40: a guarda que falha fecha (404), sem expor o erro', async () => {
+    const { app } = await montarCom(async () => {
+      throw new Error('banco fora');
+    });
+    expect((await get(app)).statusCode).toBe(404);
+    await app.close();
+  });
+
+  it('arquivo que a guarda não governa (null) segue a regra de sempre, com o cache de 1 dia', async () => {
+    const { app } = await montarCom(async () => null);
+    const r = await get(app);
+    expect(r.statusCode).toBe(200);
+    expect(r.headers['cache-control']).toBe('private, max-age=86400');
+    await app.close();
   });
 });
