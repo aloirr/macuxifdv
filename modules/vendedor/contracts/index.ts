@@ -25,6 +25,7 @@ import { PercentualAjuste } from '@macuxi/integracao/contracts';
 import { EnderecoEditadoPedido, EnderecoEntregaPedido, Frete, FreteDoPedido, ItemPush } from './frete';
 export * from './formas-pagamento';
 export * from './prazo-ajuste';
+export * from './preco-prazo-padrao';
 
 /** T-0054 (RN-VEN-37, proposta): situação da devolução do pedido. */
 export const SITUACOES_DEVOLUCAO = ['nenhuma', 'parcial', 'total'] as const;

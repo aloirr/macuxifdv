@@ -11,6 +11,7 @@ import { definirModuloApi, type ModuloApi } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
 import { rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRejeitarPedido, rotaVerPedido } from './pedidos';
 import { consultaPedidosDaMeta } from './consulta-pedidos-da-meta';
+import { consultaPrecoPrazoPadrao } from './consulta-preco-prazo-padrao';
 import { rotaCancelarOrcamento, rotaEditarOrcamento } from './orcamentos';
 import { preVendaSql, usarPreVenda } from './pre-venda';
 import { consumidoresVendedor } from './retorno-erp';
@@ -34,7 +35,7 @@ export const apiVendedor: ModuloApi = definirModuloApi({
   rotas: [rotaListarPedidos, rotaVerPedido, rotaAlcadas, rotaAprovarPedido, rotaRejeitarPedido, rotaCancelarPedido, rotaEditarOrcamento, rotaCancelarOrcamento, ...rotasTransportadoras, ...rotasFormasPagamento],
   sync: provedoresSyncVendedor,
   consumidores: consumidoresVendedor,
-  consultas: [consultaPedidosDaMeta, consultaFormasPagamento],
+  consultas: [consultaPedidosDaMeta, consultaFormasPagamento, consultaPrecoPrazoPadrao],
 });
 /** Convenção do desenho T-0004 §3; o `default` também é aceito pela API. */
 export const moduloApi = apiVendedor;

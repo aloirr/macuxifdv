@@ -27,3 +27,9 @@ export function percentualDoPrazoPadraoBp(i: {
 export function precoDoCatalogoCents(tabelaCents: number, i: Parameters<typeof percentualDoPrazoPadraoBp>[0]): number {
   return tabelaAjustadaCents(tabelaCents, percentualDoPrazoPadraoBp(i));
 }
+
+/** RN-VEN-43: a lista de valores da tabela ajustada pelo prazo padrão do cliente, mesmo tamanho e ordem (`vendedor.preco_prazo_padrao@1`, app e API). */
+export function ajustarCentsPeloPrazoPadrao(cents: readonly number[], i: Parameters<typeof percentualDoPrazoPadraoBp>[0]): number[] {
+  const bp = percentualDoPrazoPadraoBp(i);
+  return cents.map((c) => tabelaAjustadaCents(c, bp));
+}
