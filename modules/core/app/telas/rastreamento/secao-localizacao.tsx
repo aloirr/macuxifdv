@@ -9,24 +9,18 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { PAUSA_MAX_MIN, ROTULO_ESTADO_RASTREAMENTO } from '../../../contracts';
-import { leituraDaLocalizacao } from '../../lib/rastreamento-local';
+import { PAUSA_MAX_MIN } from '../../../contracts';
+import { leituraDaLocalizacao, ROTULO_DO_ESTADO } from '../../lib/rastreamento-local';
 import { useRastreamento } from '../../lib/usar-rastreamento';
 
-const CHIP: Record<'ativa' | 'pausada' | 'fora' | 'sem_expediente', { texto: string; tom: TomEstado }> = {
-  ativa: { texto: ROTULO_ESTADO_RASTREAMENTO.ativa, tom: 'sucesso' },
-  pausada: { texto: ROTULO_ESTADO_RASTREAMENTO.pausa, tom: 'aviso' },
-  fora: { texto: ROTULO_ESTADO_RASTREAMENTO.fora_do_expediente, tom: 'neutro' },
-  sem_expediente: { texto: 'Sem expediente hoje', tom: 'neutro' },
-};
+const TOM: Record<'ativa' | 'pausada' | 'fora' | 'sem_expediente', TomEstado> = { ativa: 'sucesso', pausada: 'aviso', fora: 'neutro', sem_expediente: 'neutro' };
 
 export function SecaoLocalizacaoPerfil() {
   const r = useRastreamento();
-  const [aviso, setAviso] = useState<{ texto: string; desfazer: boolean } | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   const e = r.localizacao;
   if (e.estado === 'oculta') return null;
-  const chip = CHIP[e.estado];
-  return (
+    return (
     <View style={styles.secao} testID="localizacao.secao">
       <SectionHeader title="Localização" />
       <Cartao preenchimento={4}>
@@ -35,14 +29,14 @@ export function SecaoLocalizacaoPerfil() {
           <View style={styles.texto}>
             {e.apoio ? <Text style={styles.apoio}>{e.apoio}</Text> : null}
           </View>
-          <ChipEstado texto={chip.texto} tom={chip.tom} />
+          <ChipEstado texto={ROTULO_DO_ESTADO[e.estado]} tom={TOM[e.estado]} />
         </View>
       </Cartao>
       {e.acao === 'pausar' ? (
         <Botao
           rotulo={`Pausar por ${PAUSA_MAX_MIN} min`}
           rotuloAcessivel={`Pausar a localização por ${PAUSA_MAX_MIN} minutos`}
-          onPress={() => void r.pausar().then(() => setAviso({ texto: 'Localização pausada', desfazer: true }))}
+          onPress={() => void r.pausar().then(() => setAviso('Localização pausada'))}
           testID="localizacao.pausar"
         />
       ) : null}
@@ -51,8 +45,8 @@ export function SecaoLocalizacaoPerfil() {
       <LinhaAtalho rotulo="Termo de ciência" icone="file" onPress={() => router.navigate('/m/termo-rastreamento?leitura=1' as never)} testID="localizacao.termo" />
       <AvisoRodape
         visivel={aviso !== null}
-        texto={aviso?.texto ?? ''}
-        {...(aviso?.desfazer ? { acao: { rotulo: 'Desfazer', onPress: () => void r.desfazerPausa(), testID: 'localizacao.desfazer' } } : {})}
+        texto={aviso ?? ''}
+        acao={{ rotulo: 'Desfazer', onPress: () => void r.desfazerPausa(), testID: 'localizacao.desfazer' }}
         onFechar={() => setAviso(null)}
       />
     </View>

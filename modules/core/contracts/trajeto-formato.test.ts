@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CARGOS_RASTREADOS, MOTIVOS_SEM_RASTREIO, PAUSA_MAX_MIN, PARAMETROS_RASTREAMENTO_PADRAO, ROTULO_ESTADO_RASTREAMENTO, podeRastrear, formatarDistancia, formatarHoraDoTrajeto, projetarPontos, trechosDoTrajeto, type EntradaRastreio } from './index';
+import { CARGOS_RASTREADOS, MOTIVOS_SEM_RASTREIO, PAUSA_MAX_MIN, PARAMETROS_RASTREAMENTO_PADRAO, ROTULO_ESTADO_RASTREAMENTO, podeRastrear, formatarDistancia, formatHHMM, projetarPontos, trechosDoTrajeto, type EntradaRastreio } from './index';
 
 const pontos = [
   { capturado_em: '2026-11-19T12:04:00.000Z', latitude: -3.1, longitude: -60.0, precisao_m: 10 },
@@ -16,7 +16,7 @@ describe('RN-CORE-46: formato do trajeto pelos contracts (Campo e Gestão)', () 
     expect(formatarDistancia(1000)).toBe('1,0 km');
   });
   it('RN-CORE-46: a hora vem no fuso do tenant', () => {
-    expect(formatarHoraDoTrajeto('2026-11-19T12:04:00.000Z', 'America/Manaus')).toBe('08:04');
+    expect(formatHHMM('2026-11-19T12:04:00.000Z', 'America/Manaus')).toBe('08:04');
   });
   it('RN-CORE-13: o trecho que cruza uma pausa é tracejado; o resto é sólido', () => {
     const t = trechosDoTrajeto(pontos, [{ inicio: '2026-11-19T13:15:00.000Z', fim: '2026-11-19T13:40:00.000Z' }]);

@@ -6,7 +6,7 @@
  */
 import { formatHHMM, localIsoDate, zonedParts } from '@macuxi/comum/fuso';
 import type { AceiteTermoRastreamentoSync, AusenciaUsuario, Expediente, ParametrosRastreamento, PontoDoTrajeto, TermoRastreamento } from '../../contracts';
-import { formatarDistancia, TRAJETO_DIAS_MAX, type PausaDoDia } from '../../contracts';
+import { formatarDistancia, ROTULO_ESTADO_RASTREAMENTO, TRAJETO_DIAS_MAX, type PausaDoDia } from '../../contracts';
 import { CARGOS_RASTREADOS, PAUSA_MAX_MIN, podeRastrear } from '../../domain/rastreamento';
 import { metrosDoTrajeto } from '../../domain/performance/trajeto';
 
@@ -161,25 +161,34 @@ export const diaAnteriorPermitido = (data: string, hoje: string): boolean => des
 
 export interface LinhaDoResumo {
   tipo: 'inicio' | 'pausa' | 'fim';
-  texto: string;
+  rotulo: string;
+  hora: string;
 }
 
 /** Resumo do dia (spec §3): km pelo `metrosDoTrajeto` e as linhas Início, Pausa e Último ponto (hoje) ou Fim. Horas no fuso do tenant. */
-export function resumoDoDia(o: { pontos: readonly PontoDoTrajeto[]; pausas: readonly PausaDoDia[]; hoje: boolean; agora: string; fuso: string }): { titulo: string; km: string; linhas: LinhaDoResumo[] } {
+export function resumoDoDia(o: { pontos: readonly PontoDoTrajeto[]; pausas: readonly PausaDoDia[]; hoje: boolean; agora: string; fuso: string }): { titulo: string; hoje: boolean; km: string; linhas: LinhaDoResumo[] } {
   const ordenados = [...o.pontos].sort((a, b) => Date.parse(a.capturado_em) - Date.parse(b.capturado_em));
   const km = formatarDistancia(metrosDoTrajeto(ordenados).metros);
   const linhas: LinhaDoResumo[] = [];
-  if (ordenados.length > 0) linhas.push({ tipo: 'inicio', texto: `Início ${formatHHMM(ordenados[0]!.capturado_em, o.fuso)}` });
-  for (const p of o.pausas) linhas.push({ tipo: 'pausa', texto: `Pausa ${formatHHMM(p.inicio, o.fuso)}–${p.fim ? formatHHMM(p.fim, o.fuso) : 'agora'}` });
-  if (ordenados.length > 1) linhas.push({ tipo: 'fim', texto: `${o.hoje ? 'Último ponto' : 'Fim'} ${formatHHMM(ordenados.at(-1)!.capturado_em, o.fuso)}` });
-  return { titulo: o.hoje ? 'Até agora' : 'Distância', km, linhas };
+  if (ordenados.length > 0) linhas.push({ tipo: 'inicio', rotulo: 'Início', hora: formatHHMM(ordenados[0]!.capturado_em, o.fuso) });
+  for (const p of o.pausas) linhas.push({ tipo: 'pausa', rotulo: 'Pausa', hora: `${formatHHMM(p.inicio, o.fuso)}–${p.fim ? formatHHMM(p.fim, o.fuso) : 'agora'}` });
+  if (ordenados.length > 1) linhas.push({ tipo: 'fim', rotulo: o.hoje ? 'Último ponto' : 'Fim', hora: formatHHMM(ordenados.at(-1)!.capturado_em, o.fuso) });
+  return { titulo: o.hoje ? 'Até agora' : 'Distância', hoje: o.hoje, km, linhas };
 }
+
+/** Texto do estado: o chip do Perfil e a leitura falada usam o mesmo (rótulos dos contracts). */
+export const ROTULO_DO_ESTADO: Readonly<Record<'ativa' | 'pausada' | 'fora' | 'sem_expediente', string>> = {
+  ativa: ROTULO_ESTADO_RASTREAMENTO.ativa,
+  pausada: ROTULO_ESTADO_RASTREAMENTO.pausa,
+  fora: ROTULO_ESTADO_RASTREAMENTO.fora_do_expediente,
+  sem_expediente: 'Sem expediente hoje',
+};
 
 const horaFalada = (h: string, m: string) => `${Number(h)}${m === '00' ? '' : `:${m}`}`;
 
 /** Leitura da linha de estado para o leitor de tela (spec §2): "Localização, ativa, hoje das 8 às 18". */
 export function leituraDaLocalizacao(e: Exclude<EstadoLocalizacao, { estado: 'oculta' }>): string {
-  const rotulo = { ativa: 'ativa', pausada: 'pausada', fora: 'fora do expediente', sem_expediente: 'sem expediente hoje' }[e.estado];
+  const rotulo = ROTULO_DO_ESTADO[e.estado].toLowerCase();
   const apoio = e.apoio
     ?.replace(/(\d\d):(\d\d)–(\d\d):(\d\d)/g, (_m, h1: string, m1: string, h2: string, m2: string) => `das ${horaFalada(h1, m1)} às ${horaFalada(h2, m2)}`)
     .replace(/^Hoje/, 'hoje')

@@ -111,19 +111,21 @@ describe('RN-CORE-46: "Meu trajeto"', () => {
   it('RN-CORE-46: hoje mostra início, pausa e último ponto, no fuso do tenant; km pelo metrosDoTrajeto', () => {
     const r = resumoDoDia({ pontos, pausas: [{ inicio: '2026-11-19T13:12:00.000Z', fim: '2026-11-19T13:40:00.000Z' }], hoje: true, agora: AGORA, fuso: 'America/Manaus' });
     expect(r.titulo).toBe('Até agora');
+    expect(r.hoje).toBe(true);
     expect(r.km).toMatch(/^\d+,\d km$/);
     expect(r.linhas).toEqual([
-      { tipo: 'inicio', texto: 'Início 08:04' },
-      { tipo: 'pausa', texto: 'Pausa 09:12–09:40' },
-      { tipo: 'fim', texto: 'Último ponto 10:12' },
+      { tipo: 'inicio', rotulo: 'Início', hora: '08:04' },
+      { tipo: 'pausa', rotulo: 'Pausa', hora: '09:12–09:40' },
+      { tipo: 'fim', rotulo: 'Último ponto', hora: '10:12' },
     ]);
   });
   it('RN-CORE-46: dia anterior usa "Km do dia" e "Fim"; pausa em curso hoje mostra "agora"', () => {
     const r = resumoDoDia({ pontos, pausas: [], hoje: false, agora: AGORA, fuso: 'America/Manaus' });
     expect(r.titulo).toBe('Distância');
-    expect(r.linhas.at(-1)).toEqual({ tipo: 'fim', texto: 'Fim 10:12' });
+    expect(r.hoje).toBe(false);
+    expect(r.linhas.at(-1)).toEqual({ tipo: 'fim', rotulo: 'Fim', hora: '10:12' });
     const hoje = resumoDoDia({ pontos, pausas: [{ inicio: '2026-11-19T13:59:00.000Z', fim: null }], hoje: true, agora: AGORA, fuso: 'America/Manaus' });
-    expect(hoje.linhas.find((l) => l.tipo === 'pausa')!.texto).toBe('Pausa 09:59–agora');
+    expect(hoje.linhas.find((l) => l.tipo === 'pausa')).toMatchObject({ rotulo: 'Pausa', hora: '09:59–agora' });
   });
   it('RN-CORE-13: o leitor de tela lê o estado inteiro', () => {
     expect(leituraDaLocalizacao({ estado: 'ativa', apoio: 'Hoje 08:00–18:00', acao: 'pausar' })).toBe('Localização, ativa, hoje das 8 às 18');

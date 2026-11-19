@@ -95,7 +95,7 @@ export function TelaMeuTrajeto() {
 
       {visao.tipo === 'dia' && resumo ? (
         <>
-          <MapaDoDia pontos={visao.pontos} pausas={pausas} ehHoje={ehHoje} km={resumo.km} titulo={resumo.titulo} linhas={resumo.linhas.map((l) => l.texto)} />
+          <MapaDoDia pontos={visao.pontos} pausas={pausas} ehHoje={ehHoje} km={resumo.km} linhas={resumo.linhas.map((l) => `${l.rotulo} ${l.hora}`)} parcial={resumo.hoje} />
           <Cartao preenchimento={4}>
             <View style={styles.resumo}>
               <Text style={t.sub}>{resumo.titulo}</Text>
@@ -108,8 +108,8 @@ export function TelaMeuTrajeto() {
                 <View style={l.tipo === 'fim' && ehHoje ? styles.halo : undefined}>
                   <View style={[styles.marca, l.tipo === 'inicio' ? styles.marcaVazia : l.tipo === 'pausa' ? styles.marcaPausa : styles.marcaCheia]} />
                 </View>
-                <Text style={[t.body, styles.rotuloLinha]}>{partirLinha(l.texto).rotulo}</Text>
-                <Text style={[t.body, styles.hora]}>{partirLinha(l.texto).hora}</Text>
+                <Text style={[t.body, styles.rotuloLinha]}>{l.rotulo}</Text>
+                <Text style={[t.body, styles.hora]}>{l.hora}</Text>
               </View>
             ))}
           </Cartao>
@@ -120,14 +120,8 @@ export function TelaMeuTrajeto() {
 }
 
 
-/** "Início 08:04" vira rótulo e hora; a hora (ou a faixa "09:12–09:40") vai à direita. */
-function partirLinha(texto: string): { rotulo: string; hora: string } {
-  const corte = texto.search(/ \d/);
-  return corte < 0 ? { rotulo: texto, hora: '' } : { rotulo: texto.slice(0, corte), hora: texto.slice(corte + 1) };
-}
-
-function MapaDoDia({ pontos, pausas, ehHoje, km, titulo, linhas }: { pontos: PontoDoTrajeto[]; pausas: PausaDoDia[]; ehHoje: boolean; km: string; titulo: string; linhas: string[] }) {
-  const falado = `${ehHoje ? 'Trajeto de hoje' : 'Trajeto do dia'}: ${km}${titulo === 'Até agora' ? ' até agora' : ''}${linhas.length > 0 ? `, ${linhas.map((l) => l.toLowerCase().replace('–', ' a ')).join(', ')}` : ''}`;
+function MapaDoDia({ pontos, pausas, ehHoje, km, parcial, linhas }: { pontos: PontoDoTrajeto[]; pausas: PausaDoDia[]; ehHoje: boolean; km: string; parcial: boolean; linhas: string[] }) {
+  const falado = `${ehHoje ? 'Trajeto de hoje' : 'Trajeto do dia'}: ${km}${parcial ? ' até agora' : ''}${linhas.length > 0 ? `, ${linhas.map((l) => l.toLowerCase().replace('–', ' a ')).join(', ')}` : ''}`;
   return <MapaTrajeto pontos={pontos} pausas={pausas} ultimoDeHoje={ehHoje} leitura={falado} />;
 }
 

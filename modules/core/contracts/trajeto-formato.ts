@@ -2,7 +2,6 @@
  * Formato do trajeto na tela (T-0156; spec `docs/design/tracking/spec.md` §3): o mesmo texto e o mesmo desenho no "Meu trajeto" do
  * Campo e no mapa da equipe do Gestão. Funções puras; sem coordenada em texto.
  */
-import { formatHHMM } from '@macuxi/comum/fuso';
 import type { PontoDoTrajeto } from './trajeto';
 
 /** Pausa do dia para o desenho e a lista; `fim` nulo = em curso. */
@@ -17,9 +16,7 @@ export function formatarDistancia(metros: number): string {
 }
 
 /** "08:04" de um instante UTC, no fuso do tenant. */
-export function formatarHoraDoTrajeto(instante: string, fuso: string): string {
-  return formatHHMM(instante, fuso);
-}
+export { formatHHMM } from '@macuxi/comum/fuso';
 
 /** Trajeto em trechos de pontos: sólidos, e tracejado o trecho que cruza uma pausa (o gestor não lê o buraco como falha). */
 export function trechosDoTrajeto(pontos: readonly PontoDoTrajeto[], pausas: readonly PausaDoDia[]): { solidos: PontoDoTrajeto[][]; tracejados: PontoDoTrajeto[][] } {
