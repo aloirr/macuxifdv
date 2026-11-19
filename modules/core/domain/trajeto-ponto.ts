@@ -30,7 +30,7 @@ export function triarPontoRecebido(p: PontoRecebido, agora: string, base: BaseTr
   return r.pode ? null : r.motivo;
 }
 
-type Linha = Readonly<{ modulo: string; chave: string; valor: unknown; deleted_at?: string | null }>;
+type Linha = Readonly<{ modulo: string; chave: string; valor?: unknown; deleted_at?: string | null }>;
 
 /** `rastreamento` do tenant; ausente ou inválido = padrão de fábrica (DESLIGADO). */
 export function parametrosRastreamentoDasLinhas(linhas: readonly Linha[]): ParametrosRastreamento {

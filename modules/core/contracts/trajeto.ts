@@ -66,6 +66,15 @@ export type PausaTrajeto = z.infer<typeof PausaTrajetoSchema>;
 export const AceiteTermoRastreamentoSchema = z.object({ id: Id, termo_versao: z.number().int().min(1), aceito_em: Instante }).strict();
 export type AceiteTermoRastreamento = z.infer<typeof AceiteTermoRastreamentoSchema>;
 
+/**
+ * Pull `aceite_termo_rastreamento` (só os do próprio usuário): o aceite já feito volta ao aparelho depois de apagar os bancos locais, e o
+ * termo não é pedido de novo (banco-dados, `docs/banco/core.md` 0088). A entidade fica `ambos`: envia `AceiteTermoRastreamentoSchema`, recebe esta linha.
+ */
+export const AceiteTermoRastreamentoSyncSchema = z
+  .object({ id: Id, usuario_id: Id, termo_versao: z.number().int().min(1), aceito_em: Instante, updated_at: Instante, deleted_at: Instante.nullable(), external_id: z.string().nullable().optional() })
+  .strict();
+export type AceiteTermoRastreamentoSync = z.infer<typeof AceiteTermoRastreamentoSyncSchema>;
+
 /** Pull `termo_rastreamento` e resposta do BKO: cada publicação é uma versão nova; vigente = a maior versão publicada. */
 export const TermoRastreamentoSchema = z
   .object({ id: Id, versao: z.number().int().min(1), texto: z.string().min(1), publicado_em: Instante, updated_at: Instante, deleted_at: Instante.nullable(), external_id: z.string().nullable().optional() })

@@ -137,9 +137,11 @@ describe('RN-CORE-13: push do aceite do termo e da pausa', () => {
 
 describe('entidades e pull do rastreamento', () => {
   const por = (n: string) => provedoresSyncTrajeto.find((p) => p.entidade.nome === n)!;
-  it('3 de envio (aceite antes dos pontos) e 2 de leitura, no padrão do motor', () => {
+  it('aceite (ambos, antes dos pontos), ponto e pausa só de envio, termo e ausência só de leitura, no padrão do motor', () => {
     expect(provedoresSyncTrajeto.map((p) => p.entidade.nome)).toEqual(['aceite_termo_rastreamento', 'ponto_trajeto', 'pausa_trajeto', 'termo_rastreamento', 'ausencia_usuario']);
-    for (const n of ['aceite_termo_rastreamento', 'ponto_trajeto', 'pausa_trajeto']) {
+    expect(por('aceite_termo_rastreamento')).toMatchObject({ escopo: 'proprio', entidade: { direcao: 'ambos', modulo: 'core' } });
+    expect(por('aceite_termo_rastreamento').receber).toBeTypeOf('function');
+    for (const n of ['ponto_trajeto', 'pausa_trajeto']) {
       expect(por(n).entidade).toMatchObject({ direcao: 'push', conflito: 'somente_insercao', modulo: 'core' });
       expect(por(n).puxar).toBeUndefined();
     }
@@ -149,6 +151,7 @@ describe('entidades e pull do rastreamento', () => {
   it('RN-CORE-13: o pull da ausência filtra o usuário; o do termo é do tenant, com as removidas', () => {
     const pedido = { desde: null, ate: '2026-11-19T15:00:00.000Z', limite: 100 };
     expect(sqlDoPull(TABELAS_SYNC_TRAJETO.ausencia_usuario, pedido, new Set([U]), '2026-11-19').sql).toContain('and usuario_id = any($5::uuid[])');
+    expect(sqlDoPull(TABELAS_SYNC_TRAJETO.aceite_termo_rastreamento, pedido, new Set([U]), '2026-11-19').sql).toContain('and usuario_id = any($5::uuid[])');
     const t = sqlDoPull(TABELAS_SYNC_TRAJETO.termo_rastreamento, pedido, 'tenant', '2026-11-19');
     expect(t.valores).toHaveLength(4);
     expect(t.sql).not.toContain('deleted_at is null');

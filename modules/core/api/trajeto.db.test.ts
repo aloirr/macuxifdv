@@ -6,7 +6,7 @@
 import { semBanco } from '@macuxi/db/teste/estado';
 import type { ContextoConsulta, ItemPush, UsuarioAutenticado } from '@macuxi/platform-sdk';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DeslocamentoDiaSchema, PARAMETROS_RASTREAMENTO_PADRAO, TrajetoRespostaSchema, AusenciaUsuarioSchema, TermoRastreamentoSchema } from '../contracts';
+import { AceiteTermoRastreamentoSyncSchema, DeslocamentoDiaSchema, PARAMETROS_RASTREAMENTO_PADRAO, TrajetoRespostaSchema, AusenciaUsuarioSchema, TermoRastreamentoSchema } from '../contracts';
 import { perfisDeFabrica } from '../domain';
 import { A, AmbienteBanco, B, idDe, U } from './apoio-teste-t0170';
 import { provedoresSyncTrajeto } from './sync-trajeto';
@@ -72,6 +72,11 @@ describe.skipIf(semBanco())('Core T-0156 × Postgres: rastreamento no expediente
     expect(await envia('aceite_termo_rastreamento', vendedor1, [aceite])).toEqual([{ id: id(50), status: 'aceito' }]);
     expect(await envia('aceite_termo_rastreamento', vendedor1, [{ ...aceite, id: id(51) }])).toEqual([{ id: id(51), status: 'aceito' }]);
     expect(await contar('aceite_termo_rastreamento', U.vendedor1)).toBe(1);
+    // o aceite volta no pull do próprio usuário (e só dele)
+    const meus = (await amb.puxar(provedoresSyncTrajeto, 'aceite_termo_rastreamento', vendedor1)) as unknown as Array<Record<string, unknown>>;
+    const doTeste = meus.find((l) => l.id === id(50))!;
+    expect(AceiteTermoRastreamentoSyncSchema.parse(doTeste)).toMatchObject({ usuario_id: U.vendedor1, termo_versao: termo });
+    expect(meus.every((l) => l.usuario_id === U.vendedor1)).toBe(true);
 
     const lote = [ponto(1, '14:00'), ponto(2, '14:10'), ponto(3, '14:20')];
     expect(await envia('ponto_trajeto', vendedor1, lote)).toHaveLength(3);

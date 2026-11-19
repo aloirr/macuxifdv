@@ -1,6 +1,7 @@
 /**
  * Provedores de sync do rastreamento (T-0156; ADR 0061; desenho `tracking.md` §3.4 e §6). SEM dependência dos de `sync.ts`:
- * - push, só de envio (ADR 0009), `somente_insercao`: `aceite_termo_rastreamento` (antes dos pontos), `ponto_trajeto` e `pausa_trajeto`;
+ * - push, só de envio (ADR 0009), `somente_insercao`: `ponto_trajeto` e `pausa_trajeto`; o `aceite_termo_rastreamento` (antes dos pontos) é `ambos`:
+ *   envia o aceite e recebe de volta só os do próprio usuário (o aceite já feito não é pedido de novo depois de apagar os bancos do aparelho);
  * - pull `termo_rastreamento` (escopo tenant; vigente = a maior versão; as removidas vão junto) e `ausencia_usuario` (escopo `proprio`:
  *   só as do próprio usuário). O parâmetro `rastreamento` vai no pull `parametro` (lista em `sync.ts`).
  * Os pontos nunca voltam ao aparelho.
@@ -8,6 +9,7 @@
 import { definirEntidadeSync, type ContextoBase, type LinhaSync, type PedidoPull, type ProvedorSync } from '@macuxi/platform-sdk';
 import {
   AceiteTermoRastreamentoSchema,
+  AceiteTermoRastreamentoSyncSchema,
   AusenciaUsuarioSchema,
   ENTIDADE_ACEITE_TERMO_RASTREAMENTO,
   ENTIDADE_AUSENCIA_USUARIO,
@@ -25,6 +27,12 @@ import { receberAceitesTermo, receberPausasTrajeto, receberPontosTrajeto } from 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 
 export const TABELAS_SYNC_TRAJETO = {
+  aceite_termo_rastreamento: {
+    tabela: 'core.aceite_termo_rastreamento',
+    colunas: `usuario_id, termo_versao, to_char(aceito_em at time zone 'UTC', ${UTC}) as aceito_em`,
+    colunaCliente: null,
+    colunaUsuario: 'usuario_id',
+  },
   termo_rastreamento: {
     tabela: 'core.termo_rastreamento',
     colunas: `versao, texto, to_char(publicado_em at time zone 'UTC', ${UTC}) as publicado_em`,
@@ -49,14 +57,14 @@ function puxarDe(t: Tabela, soProprio: boolean) {
 const envio = (nome: string, schema: Parameters<typeof definirEntidadeSync>[0]['schema']) => definirEntidadeSync({ nome, modulo: 'core', direcao: 'push', conflito: 'somente_insercao', schema });
 const leitura = (nome: string, schema: Parameters<typeof definirEntidadeSync>[0]['schema']) => definirEntidadeSync({ nome, modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema });
 
-export const entidadeAceiteTermo = envio(ENTIDADE_ACEITE_TERMO_RASTREAMENTO, AceiteTermoRastreamentoSchema);
+export const entidadeAceiteTermo = definirEntidadeSync({ nome: ENTIDADE_ACEITE_TERMO_RASTREAMENTO, modulo: 'core', direcao: 'ambos', conflito: 'servidor_vence', schema: AceiteTermoRastreamentoSchema, schemaLinha: AceiteTermoRastreamentoSyncSchema });
 export const entidadePontoTrajeto = envio(ENTIDADE_PONTO_TRAJETO, PontoTrajetoSchema);
 export const entidadePausaTrajeto = envio(ENTIDADE_PAUSA_TRAJETO, PausaTrajetoSchema);
 export const entidadeTermoRastreamento = leitura(ENTIDADE_TERMO_RASTREAMENTO, TermoRastreamentoSchema);
 export const entidadeAusenciaUsuario = leitura(ENTIDADE_AUSENCIA_USUARIO, AusenciaUsuarioSchema);
 
 export const provedoresSyncTrajeto: readonly ProvedorSync[] = [
-  { entidade: entidadeAceiteTermo, receber: receberAceitesTermo },
+  { entidade: entidadeAceiteTermo, escopo: 'proprio', puxar: puxarDe(TABELAS_SYNC_TRAJETO.aceite_termo_rastreamento, true), receber: receberAceitesTermo },
   { entidade: entidadePontoTrajeto, receber: receberPontosTrajeto },
   { entidade: entidadePausaTrajeto, receber: receberPausasTrajeto },
   { entidade: entidadeTermoRastreamento, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC_TRAJETO.termo_rastreamento, false) },
