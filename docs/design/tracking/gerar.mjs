@@ -2,10 +2,9 @@
 // pausa no Perfil, "Meu trajeto" e notificação fixa do Android no Campo. Gera os HTMLs e os PNGs desta pasta.
 // Uso, a partir da raiz do repositório: node docs/design/tracking/gerar.mjs
 // Mesmo aparelho (360×760) e mesma conferência de sobreposição de docs/design/pedido-aprovacao/gerar.mjs.
-import { writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { abrirNavegador } from '../_comum/navegador.mjs';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { gerarPranchas } from '../_comum/navegador.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 
@@ -31,7 +30,7 @@ body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background
 .cx{background:#fff;border:1px solid #DFE2E6;border-radius:14px}
 .who{display:flex;gap:12px;align-items:center}
 .av{width:48px;height:48px;flex:none;border-radius:24px;background:#ECEEF1;color:#1E3350;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center}
-.who b{font-size:18px;font-weight:700;display:block}.who span{font-size:14px;color:#4A5562}
+.who b{font-size:22px;font-weight:700;line-height:28px;display:block}.who span{font-size:14px;color:#4A5562}
 .lin{display:flex;align-items:center;gap:12px;min-height:56px;padding:8px 12px;border-bottom:1px solid #ECEEF1}
 .lin:last-child{border-bottom:0}
 .lin .tx{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -54,10 +53,6 @@ body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background
 .termo p,.termo li{font-size:16px;line-height:24px}
 .termo ul{display:flex;flex-direction:column;gap:10px;padding-left:20px}
 .termo a{color:#1E3350;font-weight:600;text-decoration:underline}
-.aviso{position:absolute;left:12px;right:12px;bottom:12px;min-height:52px;background:#16202A;color:#fff;border-radius:14px;display:flex;align-items:center;gap:12px;padding:8px 8px 8px 14px;font-size:14px;box-shadow:0 4px 10px rgba(15,20,25,.2)}
-.aviso span{flex:1}
-.aviso svg{color:#7FD1A8;flex:none}
-.aviso .ac{color:#F59A52;font-weight:600;height:36px;padding:0 12px;display:flex;align-items:center}
 .dia{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .dia .seta{width:48px;height:48px;border-radius:12px;background:#fff;border:1px solid #DFE2E6;display:flex;align-items:center;justify-content:center;color:#1E3350}
 .dia .seta.off{color:#C9CED5;background:#F8F6F1}
@@ -116,7 +111,6 @@ const I = {
   dir: svg('<path d="M9 6l6 6-6 6"/>', 22),
   pausa: svg('<path d="M9 5v14M15 5v14"/>', 18),
   play: svg('<path d="M7 5l12 7-12 7z"/>', 18),
-  check: svg('<path d="M5 12l5 5 9-10"/>', 18),
   x: svg('<path d="M6 6l12 12M18 6L6 18"/>', 22),
   semSinal: svg('<path d="M2 8.5a15 15 0 0 1 20 0M5.5 12a10 10 0 0 1 13 0M9 15.5a5 5 0 0 1 6 0M12 19h.01"/><path d="M3 3l18 18"/>', 40),
   pinG: svg('<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>', 40),
@@ -140,7 +134,7 @@ const termo = (linkTrajeto) => `<div class="termo sec"><p>A Distribuidora Norte 
 <li>O trajeto fica 90 dias. O resumo do dia (km, visitas, tempo em cliente) fica 5 anos, para metas e remuneração variável.</li>
 <li>O trajeto não é usado sozinho para punição ou desligamento: sempre há revisão de uma pessoa.</li>
 <li>Em ${linkTrajeto ? '<a>Meu trajeto</a>' : '"Meu trajeto"'} você vê o seu trajeto e contesta um dia. Dúvidas: fale com a pessoa responsável pelos dados na Distribuidora Norte, privacidade@distnorte.com.br.</li>
-<li>A Distribuidora Norte é a responsável por estes dados. O Macuxi só os usa por ordem dela.</li></ul></div>`;
+<li>A Distribuidora Norte é a responsável por estes dados. O Macuxi FDV só os usa por ordem dela.</li></ul></div>`;
 const RODAPE_TERMO = '<div class="rod"><span class="bt">Li e estou ciente</span><span class="bn">Agora não</span></div>';
 const TERMO_TOPO = `<div class="tel">${st('08:02')}${fx('Localização no expediente', '', 'Termo de ciência · versão 1 · 16/11/2026')}
 <div class="corpo rola">${termo(false)}<i class="rolagem" style="top:6px"></i></div>${RODAPE_TERMO}</div>`;
@@ -152,17 +146,16 @@ const TERMO_LEITURA = `<div class="tel">${st('10:15')}${fx('Localização no exp
 // ---------- 02 · Perfil (seção Localização) ----------
 const quem = '<div class="who"><span class="av" aria-hidden="true">CL</span><div><b>Carla Lima</b><span>Vendedor de campo · Equipe Norte</span></div></div>';
 const atalhos = `<div class="lin at">${I.mapa}<span class="tx"><b>Meu trajeto</b></span>${I.chev}</div><div class="lin at">${I.arquivo}<span class="tx"><b>Termo de ciência</b></span>${I.chev}</div>`;
-const local = (estado, botao = '') => `<div class="sec"><span class="tit">Localização no expediente</span><div class="cx">${estado}${botao ? `<div class="bx">${botao}</div>` : ''}${atalhos}</div></div>`;
-const linhaEstado = (sub, chip) => `<div class="lin">${I.pin}<span class="tx"><b>Localização</b>${sub ? `<small>${sub}</small>` : ''}</span>${chip}</div>`;
+const local = (estado, botao = '') => `<div class="sec"><span class="tit">Localização</span><div class="cx">${estado}${botao ? `<div class="bx">${botao}</div>` : ''}${atalhos}</div></div>`;
+// A seção já se chama Localização: a linha mostra só o horário (ou a contagem da pausa) e o chip.
+const linhaEstado = (txt, chip) => `<div class="lin">${I.pin}<span class="tx">${txt ? `<b>${txt}</b>` : ''}</span>${chip}</div>`;
 const conta = `<div class="sec"><span class="tit">Conta</span><div class="cx"><div class="lin at"><span class="tx"><b>Trocar senha</b></span>${I.chev}</div></div></div>`;
 const sinc = `<div class="sec"><span class="tit">Sincronização</span><div class="cx"><div class="lin"><span class="tx"><small>Última sincronização</small></span><b style="font-size:16px">Hoje 09:40</b></div></div></div>`;
-const perfil = (hora, meio, aviso = '') => `<div class="tel">${st(hora)}${fx('Perfil', 'Início')}<div class="corpo">${quem}${meio}</div>${aviso}</div>`;
-const aviso = (txt, acao = '') => `<div class="aviso" role="status">${I.check}<span>${txt}</span>${acao ? `<span class="ac">${acao}</span>` : ''}</div>`;
+const perfil = (hora, meio) => `<div class="tel">${st(hora)}${fx('Perfil', 'Início')}<div class="corpo">${quem}${meio}</div></div>`;
 
 const P_SEM_ACEITE = perfil('08:30', `<div class="sec"><span class="tit al">Alertas</span><div class="cx"><div class="al-l">${I.alerta}<span>Termo de localização para confirmar</span><span class="acao" role="button">Ler</span></div></div></div>${conta}${sinc}`);
-const P_ATIVA = perfil('09:41', local(linhaEstado('Expediente hoje 08:00–18:00', '<span class="ce ok">Ativa</span>'), `<span class="b2">${I.pausa}Pausar por 60 min</span>`) + conta + sinc);
+const P_ATIVA = perfil('09:41', local(linhaEstado('Hoje 08:00–18:00', '<span class="ce ok">Ativa</span>'), `<span class="b2">${I.pausa}Pausar por 60 min</span>`) + conta + sinc);
 const P_PAUSADA = perfil('09:59', local(linhaEstado('Volta em 42 min', '<span class="ce pa">Pausada</span>'), `<span class="b2">${I.play}Retomar</span>`) + conta + sinc);
-const P_RETOMADA = perfil('10:05', local(linhaEstado('Expediente hoje 08:00–18:00', '<span class="ce ok">Ativa</span>'), `<span class="b2">${I.pausa}Pausar por 60 min</span>`) + conta + sinc, aviso('Localização retomada'));
 const P_SEM_EXP = perfil('09:10', local(linhaEstado('', '<span class="ce ne">Sem expediente hoje</span>')) + conta + sinc);
 
 // ---------- 03 · Meu trajeto ----------
@@ -178,7 +171,7 @@ const mk = (tipo, x, y) =>
   ({
     inicio: `<circle cx="${x}" cy="${y}" r="7" fill="#fff" stroke="#1E3350" stroke-width="3"/>`,
     fim: `<circle cx="${x}" cy="${y}" r="8" fill="#1E3350"/>`,
-    agora: `<circle cx="${x}" cy="${y}" r="12" fill="#1E3350" fill-opacity=".18"/><circle cx="${x}" cy="${y}" r="6" fill="#1E3350"/>`,
+    agora: `<circle cx="${x}" cy="${y}" r="12" fill="#DFE2E6"/><circle cx="${x}" cy="${y}" r="6" fill="#1E3350"/>`,
   })[tipo];
 const mapa = (rotulo, desenho) => `<div class="mapa" role="img" aria-label="${rotulo}"><svg width="320" height="220" viewBox="0 0 320 220" preserveAspectRatio="none">${RUAS}</svg><svg width="320" height="220" viewBox="0 0 320 220">${desenho}</svg></div>`;
 const dia = (txt, proximo = true) => `<div class="dia"><span class="seta" role="button" aria-label="Dia anterior">${I.esq}</span><b>${txt}</b><span class="seta${proximo ? '' : ' off'}" role="button" aria-label="Próximo dia">${I.dir}</span></div>`;
@@ -192,7 +185,7 @@ const T_HOJE = trajeto(
       'Trajeto de hoje: 18,6 km até agora, início 08:04, pausa de 09:12 a 09:40, último ponto 10:12',
       linha('38,190 60,150 52,118 96,92 140,78') + tracejado('140,78 178,96') + linha('178,96 214,72 236,40 262,58 284,110') + mk('inicio', 38, 190) + mk('agora', 284, 110),
     ) +
-    `<div class="cx"><div class="km"><span>Km até agora</span><b>18,6 km</b></div>${ev('inicio', 'Início', '08:04')}${ev('pausa', 'Pausa', '09:12–09:40')}${ev('agora', 'Último ponto', '10:12')}</div>`,
+    `<div class="cx"><div class="km"><span>Até agora</span><b>18,6 km</b></div>${ev('inicio', 'Início', '08:04')}${ev('pausa', 'Pausa', '09:12–09:40')}${ev('agora', 'Último ponto', '10:12')}</div>`,
 );
 const T_ONTEM = trajeto(
   '10:16',
@@ -201,7 +194,7 @@ const T_ONTEM = trajeto(
       'Trajeto de 18/11: 42,3 km, início 08:01, pausa de 12:02 a 12:58, fim 17:52',
       linha('30,60 70,40 120,70 150,120 120,170') + tracejado('120,170 168,182') + linha('168,182 220,160 256,120 290,150 300,196') + mk('inicio', 30, 60) + mk('fim', 300, 196),
     ) +
-    `<div class="cx"><div class="km"><span>Km do dia</span><b>42,3 km</b></div>${ev('inicio', 'Início', '08:01')}${ev('pausa', 'Pausa', '12:02–12:58')}${ev('fim', 'Fim', '17:52')}</div>` +
+    `<div class="cx"><div class="km"><span>Distância</span><b>42,3 km</b></div>${ev('inicio', 'Início', '08:01')}${ev('pausa', 'Pausa', '12:02–12:58')}${ev('fim', 'Fim', '17:52')}</div>` +
     '<span class="b2">Contestar este dia</span>',
 );
 const T_CONTESTAR = trajeto(
@@ -211,7 +204,7 @@ const T_CONTESTAR = trajeto(
 <label>O que não confere?<span class="area">Das 14:00 às 15:30 eu estava no Atacadão Norte, não na estrada.</span></label><span class="bt">Enviar</span><div class="teclado" aria-hidden="true">${'<i></i>'.repeat(30)}</div></div>`,
 );
 const T_NADA = trajeto('10:18', dia('dom 16/11') + `<div class="vazio">${I.pinG}<b>Nada registrado neste dia</b></div>`);
-const T_SEM_SINAL = trajeto('10:19', dia('Ontem · ter 18/11') + `<div class="vazio">${I.semSinal}<b>Sem sinal</b><span>Os dias anteriores aparecem com sinal. O de hoje está no aparelho.</span></div>`);
+const T_SEM_SINAL = trajeto('10:19', dia('Ontem · ter 18/11') + `<div class="vazio">${I.semSinal}<b>Sem sinal</b><span class="b2" style="align-self:stretch;margin-top:8px">Tentar de novo</span></div>`);
 
 // ---------- 04 · Notificação fixa ----------
 const ICONE_NOT = '../../marca/ativos/2026-11-12-v1/icone-notificacao-96.png';
@@ -238,7 +231,7 @@ if(rola){const c=rola.getBoundingClientRect();const top=Math.max(r.top,c.top),bo
 if(!r.width||!r.height)continue;const t=el.className.baseVal??el.className;const nome=t+': '+el.textContent.trim().slice(0,30);
 for(const [n,s] of sobre){if(r.left<s.right&&r.right>s.left&&r.top<s.bottom&&r.bottom>s.top)conflitos.push(n+' cobre '+nome);}
 if((r.left<tel.left-1||r.right>tel.right+1||r.top<tel.top-1||r.bottom>tel.bottom+1))conflitos.push('fora do aparelho: '+nome);
-const corpo=el.closest('.corpo');if(corpo&&!rola&&!el.closest('.aviso,.folha')){const c=corpo.getBoundingClientRect();if(r.bottom>c.bottom+1||r.right>c.right+1)conflitos.push('cortado no corpo: '+nome);}
+const corpo=el.closest('.corpo');if(corpo&&!rola&&!el.closest('.folha')){const c=corpo.getBoundingClientRect();if(r.bottom>c.bottom+1||r.right>c.right+1)conflitos.push('cortado no corpo: '+nome);}
 if(el.scrollWidth>el.clientWidth+1&&getComputedStyle(el).overflow!=='visible')conflitos.push('cortado: '+nome);}}
 document.body.dataset.info=JSON.stringify({conflitos});document.body.dataset.pronto='1';})</script>`;
 
@@ -254,14 +247,13 @@ const PRANCHAS = {
   ]),
   '02-perfil-pausa': prancha('Perfil e pausa', [
     ['Perfil · Sem aceite: só a linha em Alertas; a seção Localização não aparece', P_SEM_ACEITE],
-    ['Perfil · Ativa: estado, pausa de 60 min e os dois atalhos', P_ATIVA, 'Ao tocar "Pausar por 60 min": aviso no rodapé "Localização pausada" com Desfazer.'],
+    ['Perfil · Ativa: horário de hoje, pausa de 60 min e os dois atalhos', P_ATIVA, 'Ao tocar "Pausar por 60 min": aviso no rodapé "Localização pausada" com Desfazer. "Retomar" volta a esta tela.'],
     ['Perfil · Pausada: contagem até voltar sozinha e "Retomar"', P_PAUSADA],
-    ['Perfil · Retomada: volta ao estado ativo, com o aviso no rodapé', P_RETOMADA],
     ['Perfil · Sem expediente hoje (domingo, feriado ou ausência): sem pausa', P_SEM_EXP],
   ]),
   '03-meu-trajeto': prancha('Meu trajeto', [
-    ['Meu trajeto · Hoje: km até agora, com a pausa tracejada', T_HOJE],
-    ['Meu trajeto · Dia anterior: km do dia, início, pausa e fim (P1 A: Contestar)', T_ONTEM],
+    ['Meu trajeto · Hoje: distância até agora, com a pausa tracejada', T_HOJE],
+    ['Meu trajeto · Dia anterior: distância, início, pausa e fim (P1 A: Contestar)', T_ONTEM],
     ['Meu trajeto · Contestar (P1 A): folha com o texto livre', T_CONTESTAR],
     ['Meu trajeto · Dia sem registro', T_NADA],
     ['Meu trajeto · Sem sinal num dia anterior; hoje abre normal', T_SEM_SINAL],
@@ -272,19 +264,4 @@ const PRANCHAS = {
   ]),
 };
 
-const browser = await abrirNavegador();
-let falhou = false;
-for (const [nome, html] of Object.entries(PRANCHAS)) {
-  const arq = join(AQUI, `${nome}.html`);
-  writeFileSync(arq, html);
-  const page = await browser.newPage({ viewport: { width: 800, height: 900 }, deviceScaleFactor: 2 });
-  await page.goto(pathToFileURL(arq).href);
-  await page.waitForSelector('body[data-pronto="1"]');
-  const info = JSON.parse(await page.evaluate(() => document.body.dataset.info));
-  if (info.conflitos.length) falhou = true;
-  await page.screenshot({ path: join(AQUI, `${nome}.png`), fullPage: true });
-  console.log(nome, JSON.stringify({ conflitos: info.conflitos }));
-  await page.close();
-}
-await browser.close();
-if (falhou) process.exit(1);
+await gerarPranchas(AQUI, Object.fromEntries(Object.entries(PRANCHAS).map(([nome, html]) => [nome, [html]])));

@@ -3,10 +3,10 @@
 // Uso, a partir da raiz do repositório: node docs/design/pedido-aprovacao/gerar.mjs
 // As telas do BKO partem da prancha aprovada de Parâmetros › Pedidos (docs/design/menu-parametros/03-parametros-pedidos.html):
 // mesmo menu, mesmos estilos; muda só o conteúdo.
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { abrirNavegador } from '../_comum/navegador.mjs';
+import { fileURLToPath } from 'node:url';
+import { gerarPranchas } from '../_comum/navegador.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const BASE = readFileSync(join(AQUI, '../menu-parametros/03-parametros-pedidos.html'), 'utf8');
@@ -249,19 +249,4 @@ const TELAS = {
   '04b-bko-pedidos-tabela-larga': [TELA_PEDIDOS_LARGA, 1920, 1080],
 };
 
-const browser = await abrirNavegador();
-let falhou = false;
-for (const [nome, [html, w, h]] of Object.entries(TELAS)) {
-  const arq = join(AQUI, `${nome}.html`);
-  writeFileSync(arq, html);
-  const page = await browser.newPage({ viewport: { width: w || 800, height: h || 900 }, deviceScaleFactor: 2 });
-  await page.goto(pathToFileURL(arq).href);
-  await page.waitForSelector('body[data-pronto="1"]');
-  const info = JSON.parse(await page.evaluate(() => document.body.dataset.info));
-  if (info.conflitos.length) falhou = true;
-  await page.screenshot({ path: join(AQUI, `${nome}.png`), fullPage: true });
-  console.log(nome, JSON.stringify({ conflitos: info.conflitos }));
-  await page.close();
-}
-await browser.close();
-if (falhou) process.exit(1);
+await gerarPranchas(AQUI, TELAS);

@@ -170,3 +170,5 @@
 2026-11-19 — T-0184 — #492: simulações aprovadas (P7 A, P8 A, "Aplicar"); Situação antes de Ações na tabela de Pedidos do BKO.
 2026-11-19 — T-0156 — simulação do termo, "Meu trajeto", pausa e notificação fixa em docs/design/tracking/.
 2026-11-19 — T-0184 — #492: reteste no 4f8b68f (MC-1745, 1746, 1748, 1749; RD-2231, RD-2236 e Histórico da prancha 02).
+2026-11-19 — T-0156 — #492: MC-1750, MC-1751 e "Macuxi FDV" no termo.
+2026-11-19 — T-0156 — #492: RD-2240 a RD-2244 (textos do cartão de Localização, distância, sem texto de funcionamento, sem aviso de retomada, laço de captura comum).

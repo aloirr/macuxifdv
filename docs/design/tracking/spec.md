@@ -42,29 +42,31 @@ e sem rodapé. As palavras `Meu trajeto` do texto viram link (`LinkTexto`, Azul 
 
 **Acessibilidade**: o título é `header`; a lista é lida item a item; o foco abre no título. Botões com o próprio texto como rótulo.
 
-## 2. Perfil › seção "Localização no expediente" e pausa (prancha 02)
+## 2. Perfil › seção "Localização" e pausa (prancha 02)
 
 Posição: logo depois do nome (e de Alertas, quando há), antes de `Conta`. Aparece só com o tracking ligado pela empresa e o aceite
 da versão vigente. O resto do Perfil não muda (`docs/design/rota-catalogo-perfil.md` §4).
 
+Título da seção: `Localização` (o mesmo rótulo de seção do Perfil, como `Conta`). A palavra não se repete dentro do cartão.
+
 | Ordem | Linha | Texto | Componente |
 |---|---|---|---|
-| 1 | Estado | ícone `pin` · `Localização` · linha de apoio (tabela abaixo) · chip de estado | `Cartao` com linha 56 dp, `ChipEstado` |
+| 1 | Estado | ícone `pin` · texto do estado (tabela abaixo) · chip de estado | `Cartao` com linha 56 dp, `ChipEstado` |
 | 2 | Ação (quando cabe) | `Pausar por [60] min` ou `Retomar` | `Botao nivel="secundario"` (44), largura toda |
 | 3 | Atalho | ícone `map` · `Meu trajeto` · `chevron` | `LinhaAtalho` (48 dp) |
 | 4 | Atalho | ícone `file` · `Termo de ciência` · `chevron` | `LinhaAtalho` (48 dp) |
 
-| Estado | Linha de apoio | Chip (`ChipEstado`) | Ação |
+| Estado | Texto da linha | Chip (`ChipEstado`) | Ação |
 |---|---|---|---|
-| Ativa (no expediente) | `Expediente hoje 08:00–18:00` (as faixas do dia; duas faixas: `08:00–12:00 e 14:00–18:00`) | `Ativa` (sucesso) | `Pausar por [60] min` |
+| Ativa (no expediente) | `Hoje 08:00–18:00` (as faixas do dia; duas faixas: `Hoje 08:00–12:00 e 14:00–18:00`) | `Ativa` (sucesso) | `Pausar por [60] min` |
 | Pausada | `Volta em [42] min` (conta por minuto; abaixo de 1 min, `Volta em menos de 1 min`) | `Pausada` (aviso) | `Retomar` |
-| Fora do expediente (antes ou depois da faixa) | `Expediente hoje 08:00–18:00` | `Fora do expediente` (neutro) | nenhuma |
-| Sem expediente hoje (dia sem faixa, feriado ou ausência) | nenhuma | `Sem expediente hoje` (neutro) | nenhuma |
+| Fora do expediente (antes ou depois da faixa) | `Hoje 08:00–18:00` | `Fora do expediente` (neutro) | nenhuma |
+| Sem expediente hoje (dia sem faixa, feriado ou ausência) | nenhum (só o ícone e o chip) | `Sem expediente hoje` (neutro) | nenhuma |
 | Sem a permissão "o tempo todo" | — | — | o app já pede na abertura (RN-CORE-37); a seção segue o estado acima |
 
 - **Pausar por [60] min**: um toque, sem confirmação. Vibração leve; `AvisoRodape` `Localização pausada` com `Desfazer` (desfaz a
   pausa, como se não tivesse havido). A pausa volta sozinha no fim do prazo.
-- **Retomar**: um toque; `AvisoRodape` `Localização retomada` (sem ação).
+- **Retomar**: um toque, sem aviso: a linha volta ao estado Ativa (o chip já mostra a mudança).
 - Pausa no fim do expediente: termina no fim do expediente; a linha mostra o menor dos dois prazos.
 - Sem sinal: pausar e retomar funcionam igual (início e fim vão no próximo envio). Nada muda na tela.
 - **Sem aceite** (ou versão nova sem aceite): a seção não aparece; em `Alertas`, uma linha `Termo de localização para confirmar`
@@ -72,7 +74,7 @@ da versão vigente. O resto do Perfil não muda (`docs/design/rota-catalogo-perf
 - O estado aparece só aqui. Hoje o Diagnóstico também mostra o estado (desenho §9); como o Diagnóstico é tabela técnica fechada por
   padrão e serve ao suporte, fica como está, mas sem frase: o mesmo rótulo do chip (pedido ao engenheiro-apps no §6).
 
-**Acessibilidade**: a linha 1 é lida inteira: "Localização, ativa, expediente hoje das 8 às 18". O chip tem texto (a cor nunca fala
+**Acessibilidade**: a linha 1 é lida inteira, com o título da seção: "Localização, ativa, hoje das 8 às 18". O chip tem texto (a cor nunca fala
 sozinha). `Pausar por 60 min` tem rótulo "Pausar a localização por 60 minutos". A contagem não é anunciada a cada minuto; o
 `AvisoRodape` é `polite` (8 s com leitor de tela). Todos os alvos ≥ 44 dp; atalhos 48 dp.
 
@@ -86,7 +88,7 @@ no termo só leitura.
 | 1 | Cabeçalho | `‹ Perfil` · `Meu trajeto` | `Screen` com `cabecalho` |
 | 2 | Dia | `‹` · `Hoje · qua 19/11` / `Ontem · ter 18/11` / `dom 16/11` · `›` | 2 botões de 48 dp + texto 16/600; `›` desabilitado em hoje; `‹` desabilitado no dia mais antigo guardado ([90] dias) |
 | 3 | Mapa | trajeto desenhado no aparelho, 220 dp | o mesmo mapa em SVG da Rota de hoje (`modules/core/app/telas/rota.tsx`): fundo Névoa, ruas brancas, borda #C9CED5 (P2) |
-| 4 | Resumo | `Km até agora` (hoje) ou `Km do dia` · `18,6 km`; linhas `Início 08:04`, `Pausa 09:12–09:40` (uma por pausa), `Último ponto 10:12` (hoje) ou `Fim 17:52` | `Cartao`; número 28/700 tabular; linhas 44 dp com o marcador do mapa à esquerda |
+| 4 | Resumo | `Até agora` (hoje) ou `Distância` (dia anterior) · `18,6 km`; linhas `Início 08:04`, `Pausa 09:12–09:40` (uma por pausa), `Último ponto 10:12` (hoje) ou `Fim 17:52` | `Cartao`; número 28/700 tabular; linhas 44 dp com o marcador do mapa à esquerda |
 | 5 | Contestar (P1 A) | `Contestar este dia` | `Botao nivel="secundario"` (44) |
 
 - **Marcadores** (os mesmos no mapa e na lista; a lista é a legenda): início = círculo vazado Azul noite; fim = círculo cheio Azul
@@ -105,7 +107,7 @@ no termo só leitura.
 | Dia com trajeto | blocos 1 a 5 (5 só em dia anterior; hoje sem `Contestar`) |
 | Dia sem registro (fim de semana, feriado, ausência, sem aceite naquele dia) | blocos 1 e 2 + `EstadoVazio` ícone `pin`, `Nada registrado neste dia` |
 | Carregando dia anterior | blocos 1 e 2 + `Loading` no lugar do mapa |
-| Sem sinal, dia anterior | blocos 1 e 2 + `EstadoVazio` ícone `wifiOff`, `Sem sinal` / `Os dias anteriores aparecem com sinal. O de hoje está no aparelho.` |
+| Sem sinal, dia anterior | blocos 1 e 2 + `EstadoVazio` ícone `wifiOff`, `Sem sinal`, ação `Tentar de novo` (`Botao nivel="secundario"`) |
 | Sem sinal, hoje | normal (pontos do aparelho) |
 | Erro do servidor | `EstadoVazio` do padrão de erro do kit (`tela-de-erro`), com `Tentar de novo` |
 
