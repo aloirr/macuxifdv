@@ -489,6 +489,7 @@ export * from './produto-preco';
 export * from './medida';
 export * from './filial';
 export * from './fotos-pdv';
+export * from './cliente360-v2';
 export * from './promotor-pedidos';
 export * from './enderecos';
 export * from './usuarios';

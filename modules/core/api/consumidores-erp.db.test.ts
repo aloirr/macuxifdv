@@ -387,6 +387,17 @@ describe.skipIf(semBanco())('Core T-0066 × Postgres: consumidores do ERP', () =
       });
     });
 
+    it('T-0186: a forma de pagamento do título é a descrição em texto do ERP, guardada como veio; ausente não altera', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await preparar(t);
+        const forma = async () => (await t.q<{ forma_pagamento: string | null }>("select forma_pagamento from core.titulo where external_id = 'T-F1'"))[0]?.forma_pagamento;
+        await t.entregar('integracao.titulo.atualizado@1', titulo('T-F1', { forma_pagamento: ' Boleto 28 dias ' }));
+        expect(await forma()).toBe('Boleto 28 dias');
+        await t.entregar('integracao.titulo.atualizado@1', titulo('T-F1'));
+        expect(await forma()).toBe('Boleto 28 dias');
+      });
+    });
+
     it('RN-INT-02: título entra, reentrega não duplica, baixa vira liquidado e o saldo do financeiro acompanha; inativação remove', async () => {
       await emTransacao(A.tenantId, async (t) => {
         await preparar(t);

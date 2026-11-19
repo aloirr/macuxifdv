@@ -31,6 +31,8 @@ import { CheckoutPendenciaPanel } from './components/metas/checkout-pendencia-pa
 import { InicioParametrosPanel } from './components/metas/inicio-parametros-panel';
 import { DescontoPadraoPanel } from './components/produtos/desconto-padrao-panel';
 import { MedidasParametrosPanel } from './components/produtos/medidas-parametros-panel';
+import { DocumentosExcecoesPanel } from './components/documentos/excecoes-panel';
+import { DocumentosPermissoesPanel } from './components/documentos/permissoes-panel';
 import { AusenciasPanel } from './components/rastreamento/ausencias-panel';
 import { RastreamentoParametrosPanel } from './components/rastreamento/rastreamento-parametros-panel';
 import { RoutesPage } from './components/routes/routes-page';
@@ -55,6 +57,9 @@ export const moduloWeb = definirModuloShell<ComponentType>({
     { id: 'fotos-pdv', secao: 'visitas', titulo: 'Fotos do PDV', ordem: 20, acao: 'foto_tipo.editar', caminhosAntigos: ['fotos-pdv'], componente: FotosPdvPage },
     { id: 'farol', secao: 'clientes', titulo: 'Farol', ordem: 10, acao: 'parametro.farol', componente: FarolParametrosPanel },
     { id: 'curvas-abc', secao: 'clientes', titulo: 'Curvas ABC', ordem: 20, acao: 'parametro.curva_abc', componente: CurvasAbcParametrosPanel },
+    // Seção própria "Documentos" (prancha 05, opção A) pede ADR e `SECOES_PARAMETROS` (packages); até lá, opção B: dentro de Clientes
+    { id: 'documentos-permissoes', secao: 'clientes', titulo: 'Quem vê cada tipo de documento', ordem: 30, acao: 'documento.permissoes', componente: DocumentosPermissoesPanel },
+    { id: 'documentos-excecoes', secao: 'clientes', titulo: 'Exceções por documento', ordem: 40, acao: 'documento.permissoes', componente: DocumentosExcecoesPanel },
     { id: 'inicio', secao: 'inicio', titulo: 'Dias úteis', ordem: 10, acao: 'parametro.inicio', componente: InicioParametrosPanel },
     { id: 'frases-do-dia', secao: 'inicio', titulo: 'Frases do dia', ordem: 20, acao: 'frase_dia.editar', componente: FrasesDoDiaPanel },
     { id: 'etapa-pendente', secao: 'visitas', titulo: 'Etapa pendente', ordem: 50, acao: 'parametro.checkout_pendencia', componente: CheckoutPendenciaPanel },

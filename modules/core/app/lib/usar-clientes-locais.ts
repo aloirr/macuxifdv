@@ -32,6 +32,8 @@ export interface ClientesLocais extends BaseLocal {
    * Vendedor, gestor e demais perfis: sempre true. Offline: vem das linhas do aparelho.
    */
   verPedidos: boolean;
+  /** Perfil da sessão (abas da ficha, "Visitada por" no Gestão); sem sessão, `vendedor`. */
+  perfil: string;
   /** RN-CORE-49: faixas das curvas ABC do tenant (parâmetros `cliente.curva_abc.<dimensão>`; ausente = padrão por dimensão). */
   faixasCurva: FaixasPorDimensao;
   /** RN-CORE-50 (aba Performance): pedidos, itens e visitas já sincronizados no aparelho, para prazo médio, últimos itens e visitas. Contratos do Vendedor (só leitura). */
@@ -42,7 +44,7 @@ export interface ClientesLocais extends BaseLocal {
   resumosVisita: readonly ClienteVisitaResumoSync[];
 }
 
-const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], filiais: [], fotoTipos: [], clienteFotos: [], fotosPendentes: [], pronto: false, carregado: false, verPedidos: true, faixasCurva: PARAMETROS_CURVA_ABC_PADRAO, pedidos: [], pedidoItens: [], visitasSync: [], resumosVisita: [] };
+const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], filiais: [], fotoTipos: [], clienteFotos: [], fotosPendentes: [], pronto: false, carregado: false, verPedidos: true, perfil: 'vendedor', faixasCurva: PARAMETROS_CURVA_ABC_PADRAO, pedidos: [], pedidoItens: [], visitasSync: [], resumosVisita: [] };
 
 export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
   const { motor, estado } = useMotorSync();
@@ -70,8 +72,9 @@ export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
         motor.linhas<VisitaSync>('visita'),
         motor.linhas<ClienteVisitaResumoSync>('cliente_visita_resumo'),
       ]);
-      const verPedidos = pedidosVisiveisNoAparelho(motor.ambiente.usuario()?.perfil, parametros);
-      if (ativo) setDados({ clientes, contatos, financeiros, titulos, historico, enderecos, filiais, fotoTipos, clienteFotos, fotosPendentes: [], pronto: clientes.length > 0, carregado: true, verPedidos, faixasCurva: faixasCurvaAbcDasLinhas(parametros), pedidos: verPedidos ? pedidos.filter((p) => p.deleted_at === null) : [], pedidoItens: verPedidos ? pedidoItens.filter((i) => i.deleted_at === null) : [], visitasSync: visitasSync.filter((v) => v.deleted_at === null), resumosVisita: resumosVisita.filter((r) => r.deleted_at === null) });
+      const perfil = motor.ambiente.usuario()?.perfil ?? 'vendedor';
+      const verPedidos = pedidosVisiveisNoAparelho(perfil, parametros);
+      if (ativo) setDados({ clientes, contatos, financeiros, titulos, historico, enderecos, filiais, fotoTipos, clienteFotos, fotosPendentes: [], pronto: clientes.length > 0, carregado: true, verPedidos, perfil, faixasCurva: faixasCurvaAbcDasLinhas(parametros), pedidos: verPedidos ? pedidos.filter((p) => p.deleted_at === null) : [], pedidoItens: verPedidos ? pedidoItens.filter((i) => i.deleted_at === null) : [], visitasSync: visitasSync.filter((v) => v.deleted_at === null), resumosVisita: resumosVisita.filter((r) => r.deleted_at === null) });
     })();
     return () => {
       ativo = false;
