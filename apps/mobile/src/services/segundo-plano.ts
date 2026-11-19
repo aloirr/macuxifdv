@@ -13,7 +13,7 @@
  * nenhum erro da tarefa (nem da definição dela, na carga do bundle) derruba o processo: vai ao Diagnóstico.
  */
 import { ehAparelhoBloqueado, tratarAparelhoBloqueado } from '@macuxi/core/app';
-import type { ArmazenamentoSync, Perfil } from '@macuxi/platform-sdk';
+import type { ArmazenamentoSync } from '@macuxi/platform-sdk';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { requireOptionalNativeModule } from 'expo';
 import Constants from 'expo-constants';
@@ -35,14 +35,16 @@ import { varianteAtual } from '@/lib/variante';
 
 import { criarAmbienteDoAparelho } from './ambiente';
 import { ApiClient, HttpError, NetworkError } from './api';
-import { abrirArmazenamentoDoUsuario, apagarBancosDoAparelho } from './armazenamento';
+import { apagarBancosDoAparelho } from './armazenamento';
 import { apagarFotosLocais } from './arquivos';
 import { gravarTokens, lerTokens } from './credenciais';
 import { modoApi, perfilBuildAtual, platformDefaultApiUrl } from './device';
 import { lerPermissoes } from './permissoes';
 import { gravarErro } from './erros';
 import { consultarModulosEfetivos, criarMotorDoUsuario, trocarRefresh } from './motor-do-usuario';
+import { abrirArmazenamentoDaSessao, usuarioDaSessao, type SessaoGuardada } from './sessao-sem-tela';
 import { keys, readJson, writeJson } from './storage';
+import { atualizarTrajeto, pararTrajeto } from './trajeto';
 
 /** Última execução (Diagnóstico do Perfil: "Última sincronização em segundo plano"). */
 export const CHAVE_ULTIMO_SEGUNDO_PLANO = 'fv:diagnostico:segundo_plano';
@@ -105,27 +107,9 @@ export function lerUltimoSegundoPlano(): Promise<ResultadoSegundoPlano | null> {
 }
 
 // ---------- motor sem interface (app fechado) ----------
-interface SessaoGuardada {
-  user?: { id?: string; name?: string; perfil?: Perfil | null };
-  tenant?: { id?: string; fuso?: string } | null;
-  modo?: string;
-}
-
-async function usuarioDaSessao(): Promise<string | null> {
-  const [s, tokens] = await Promise.all([readJson<SessaoGuardada>(keys.session), lerTokens()]);
-  // mesma regra da abertura do app (`state/plataforma.tsx`): sessão do modo deste build e com token
-  if (!s?.user?.id || !tokens?.access || (s.modo ?? 'demo') !== modoApi()) return null;
-  return s.user.id;
-}
-
-/**
- * T-0088: o armazenamento do usuário e tenant da sessão guardada, pela MESMA abertura do app (uma instância por arquivo no
- * processo; a passagem do AsyncStorage roda uma vez só, aqui mesmo se o app ainda não abriu depois da atualização).
- * Com o espelho gravado e o arquivo sem abrir (`erro`), a tarefa desiste: o app mostra "Tentar de novo".
- */
+/** Com o espelho gravado e o arquivo sem abrir (`erro`), a tarefa desiste: o app mostra "Tentar de novo". */
 async function armazenamentoSemInterface(usuarioId: string): Promise<ArmazenamentoSync> {
-  const s = await readJson<SessaoGuardada>(keys.session);
-  const r = await abrirArmazenamentoDoUsuario({ usuarioId, tenantId: s?.tenant?.id ?? null, ...(s?.tenant?.fuso ? { fuso: s.tenant.fuso } : {}) });
+  const r = await abrirArmazenamentoDaSessao(usuarioId);
   if (r.tipo === 'erro') throw new Error(`banco local do usuário não abriu: ${r.detalhe}`);
   return r.armazenamento;
 }
@@ -147,6 +131,7 @@ async function abrirMotorSemInterface(
   const tratarBloqueio = criarTratadorAparelhoBloqueado(
     {
       motor: () => motorRef.m,
+      pararCaptura: pararTrajeto,
       apagarBancos: apagarBancosDoAparelho,
       chavesLocais: async () => [...(await AsyncStorage.getAllKeys())],
       removerChaves: async (chaves) => {
@@ -255,6 +240,8 @@ export function rodarPassadaEmSegundoPlano(): Promise<ResultadoSegundoPlano> {
     );
     await writeJson(CHAVE_ULTIMO_SEGUNDO_PLANO, r).catch(() => undefined);
     if (r.resultado === 'falhou' || r.resultado === 'parcial') console.warn(`[sync segundo plano] ${r.resultado}`);
+    // T-0156 (tracking §3.2): cada passada liga ou desliga a captura do trajeto (com o app fechado no início do expediente)
+    await atualizarTrajeto();
     return r;
   })().finally(() => {
     passada = null;

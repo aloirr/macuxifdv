@@ -1,0 +1,149 @@
+/**
+ * T-0156 (docs/desenho/tracking.md §3 e §9; RN-CORE-13 e RN-CORE-37): tarefa `macuxi-trajeto`, o lado do aparelho. As regras
+ * (ponto, lote, ligar e desligar, gravação) estão em `lib/trajeto.ts`; aqui fica o que depende do aparelho, no padrão
+ * da `macuxi-sync-delta` (`services/segundo-plano.ts`, T-0140):
+ * - `TaskManager.defineTask` no escopo global (importado pelo `index.ts`): quando o Android entrega um lote com o app
+ *   fechado, não há React montado;
+ * - a tarefa não toca em tela nem em estado de React, só grava no SQLite do usuário, e nenhum erro derruba o processo
+ *   (vai ao Diagnóstico pelo `erroSemCoordenada`: nenhuma coordenada em log, erro, Diagnóstico ou telemetria, §9);
+ * - a captura usa a frequência do parâmetro `rastreamento` do pull (`lerFrequenciaDoTrajeto`) e reinicia quando ela muda;
+ * - desligada de fábrica: a condição é o `podeRastrear` do Core por `condicaoDoTrajeto` (ponto único, `lib/trajeto.ts`), com a
+ *   `EntradaRastreio` do banco do usuário (parâmetro, feriados, ausências), da sessão guardada (cargo e fuso do tenant), da
+ *   variante e da permissão "o tempo todo" lida agora.
+ * Notificação fixa: canal `macuxi-servico` ("Serviço do app"), IMPORTANCE_LOW, sem som, e a cor do ícone, pelo
+ * `plugins/notificacao-trajeto.ts` (MC-1780) sobre o `LocationTaskService.kt` do expo-location 57.
+ * Só Android na v1. Build sem os módulos nativos: tudo vira no-op, sem quebrar o app.
+ */
+import { PARAMETROS_RASTREAMENTO_PADRAO, type FrequenciaRastreamento } from '@macuxi/core/contracts';
+import { requireOptionalNativeModule } from 'expo';
+import { Platform } from 'react-native';
+
+import { DEFAULT_TZ } from '@macuxi/comum/fuso';
+
+import { semDerrubarAgora } from '@/lib/trava-sync';
+import {
+  condicaoDoTrajeto,
+  criarTrajeto,
+  erroSemCoordenada,
+  gravarPontosDoTrajeto,
+  lerContextoDoRastreio,
+  lerFrequenciaDoTrajeto,
+  TAREFA_TRAJETO,
+  type CapturaDoAparelho,
+  type ContextoDoRastreio,
+  type IntervalosDaCaptura,
+  type LeituraDeLocalizacao,
+} from '@/lib/trajeto';
+import { varianteAtual } from '@/lib/variante';
+
+import { driverDoArquivo } from './armazenamento';
+import { uuid } from './device';
+import { gravarErro } from './erros';
+import { abrirArmazenamentoDaSessao, usuarioDaSessao, type SessaoGuardada } from './sessao-sem-tela';
+import { keys, readJson } from './storage';
+
+const registrarErro = (e: Error) => void gravarErro(e, 'nao-fatal', `tarefa ${TAREFA_TRAJETO}`);
+
+type ModLocation = typeof import('expo-location');
+type ModTaskManager = typeof import('expo-task-manager');
+
+/** Módulos nativos, só se o build os tem (o `require` do pacote lançaria sem eles). */
+function nativos(): { loc: ModLocation; tm: ModTaskManager } | null {
+  if (Platform.OS !== 'android') return null;
+  try {
+    if (!requireOptionalNativeModule('ExpoLocation') || !requireOptionalNativeModule('ExpoTaskManager')) return null;
+    return { loc: require('expo-location') as ModLocation, tm: require('expo-task-manager') as ModTaskManager };
+  } catch {
+    return null;
+  }
+}
+
+const nat = nativos();
+
+const captura: CapturaDoAparelho | null = nat && {
+  ativa: () => nat.loc.hasStartedLocationUpdatesAsync(TAREFA_TRAJETO),
+  ligar: (opcoes) => nat.loc.startLocationUpdatesAsync(TAREFA_TRAJETO, opcoes),
+  parar: () => nat.loc.stopLocationUpdatesAsync(TAREFA_TRAJETO),
+  // as opções com que a tarefa foi ligada (o expo-location guarda as do `startLocationUpdatesAsync`)
+  intervalosEmUso: () => nat.tm.getTaskOptionsAsync<Partial<IntervalosDaCaptura>>(TAREFA_TRAJETO).catch(() => null),
+};
+
+/**
+ * Os pontos vão ao SQLite do usuário da sessão guardada, aberto como na `macuxi-sync-delta` (a mesma instância do app).
+ * Sem sessão, na reserva do AsyncStorage ou com o arquivo que não abriu, o lote é descartado (§2: nada guardado para depois).
+ */
+async function gravarNoBancoDoUsuario(pontos: Parameters<typeof gravarPontosDoTrajeto>[1]): Promise<void> {
+  const usuarioId = await usuarioDaSessao();
+  if (!usuarioId) return;
+  const aberto = await abrirArmazenamentoDaSessao(usuarioId);
+  if (aberto.tipo !== 'sqlite') return;
+  await aberto.armazenamento.pronto;
+  const db = driverDoArquivo(aberto.arquivo);
+  if (db) await gravarPontosDoTrajeto(db, pontos);
+}
+
+/** RN-CORE-37: permissão "o tempo todo" lida agora (sem diálogo); sem o módulo nativo ou com erro, negada. */
+async function permissaoTempoTodo(): Promise<boolean> {
+  if (!nat) return false;
+  return nat.loc
+    .getBackgroundPermissionsAsync()
+    .then((r) => r.granted)
+    .catch(() => false);
+}
+
+/**
+ * A `EntradaRastreio` do usuário da sessão, sem o instante: o banco dele (pulls do Core), o cargo e o fuso do tenant
+ * da sessão guardada, a variante e a permissão. Sem sessão ou com o banco que não abriu, `null` (desligado).
+ */
+async function contextoDaSessao(): Promise<ContextoDoRastreio | null> {
+  const usuarioId = await usuarioDaSessao();
+  if (!usuarioId) return null;
+  const aberto = await abrirArmazenamentoDaSessao(usuarioId);
+  if (aberto.tipo === 'erro') return null;
+  const [s, permissao] = await Promise.all([readJson<SessaoGuardada>(keys.session), permissaoTempoTodo()]);
+  return lerContextoDoRastreio(aberto.armazenamento, { usuarioId, cargo: s?.user?.perfil ?? null, app: varianteAtual(), fuso: s?.tenant?.fuso || DEFAULT_TZ, permissao });
+}
+
+/** Frequência do parâmetro `rastreamento` no pull do banco do usuário da sessão; sem sessão ou sem banco, a do padrão do contrato. */
+async function frequenciaDaSessao(): Promise<FrequenciaRastreamento> {
+  const usuarioId = await usuarioDaSessao();
+  if (!usuarioId) return PARAMETROS_RASTREAMENTO_PADRAO.frequencia;
+  const aberto = await abrirArmazenamentoDaSessao(usuarioId);
+  if (aberto.tipo === 'erro') return PARAMETROS_RASTREAMENTO_PADRAO.frequencia;
+  return lerFrequenciaDoTrajeto(aberto.armazenamento);
+}
+
+const trajeto = criarTrajeto({
+  captura,
+  condicao: () => condicaoDoTrajeto(contextoDaSessao),
+  frequencia: frequenciaDaSessao,
+  gravar: gravarNoBancoDoUsuario,
+  novoId: uuid,
+  agora: () => Date.now(),
+  registrarErro,
+});
+
+// ---------- definição (escopo global) ----------
+// na carga do bundle (também quando o Android acorda o app sem tela): um erro aqui derrubaria o app a cada abertura
+semDerrubarAgora(
+  () => {
+    if (!nat || nat.tm.isTaskDefined(TAREFA_TRAJETO)) return;
+    nat.tm.defineTask<{ locations?: LeituraDeLocalizacao[] }>(TAREFA_TRAJETO, ({ data, error }) =>
+      trajeto.tratarLote(data?.locations ?? [], error),
+    );
+  },
+  (e) => registrarErro(erroSemCoordenada(e)),
+);
+
+/**
+ * Liga ou desliga a captura pela condição de agora (§3.2: abertura do app depois da carga, volta ao primeiro plano e cada
+ * passada da `macuxi-sync-delta`). Nunca lança.
+ */
+export async function atualizarTrajeto(): Promise<void> {
+  await trajeto.atualizar();
+}
+
+/** Logout e aparelho bloqueado (§3.4): para a captura antes de fechar ou apagar os bancos do usuário. Nunca lança. */
+export function pararTrajeto(): Promise<void> {
+  return trajeto.parar();
+}

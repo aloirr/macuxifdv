@@ -18,6 +18,7 @@ import {
   type AberturaArmazenamento,
   type ArmazenamentosDoAparelho,
   type ArmazenamentoSync,
+  type DriverSqlite,
   type EspelhoArmazenamento,
   type ProgressoPassagem,
 } from '@macuxi/platform-sdk';
@@ -55,10 +56,33 @@ const registrarErro = (mensagem: string) => console.warn(`[armazenamento] ${mens
 
 let aparelhoDoProcesso: ArmazenamentosDoAparelho | null = null;
 
+/**
+ * T-0156 (tracking §3.4): conexão aberta de cada arquivo, para a tarefa `macuxi-trajeto` gravar na tabela do Core
+ * (`core__ponto_trajeto`) do mesmo banco do motor. Sai quando o SDK fecha o arquivo (logout, bloqueio).
+ */
+const driversAbertos = new Map<string, DriverSqlite>();
+
+async function abrirDriverLembrado(arquivo: string): Promise<DriverSqlite> {
+  const driver = await abrirDriverExpo(arquivo);
+  driversAbertos.set(arquivo, driver);
+  return {
+    ...driver,
+    fechar: () => {
+      if (driversAbertos.get(arquivo) === driver) driversAbertos.delete(arquivo);
+      return driver.fechar();
+    },
+  };
+}
+
+/** A conexão do arquivo aberto pelo motor (ou `null`, se fechado). */
+export function driverDoArquivo(arquivo: string): DriverSqlite | null {
+  return driversAbertos.get(arquivo) ?? null;
+}
+
 /** Os armazenamentos SQLite deste processo (criados na 1ª abertura: o shell da variante já está montado). */
 function aparelho(): ArmazenamentosDoAparelho {
   aparelhoDoProcesso ??= criarArmazenamentosDoAparelho({
-    sistema: criarSistemaSqlite({ abrir: abrirDriverExpo, nomes: listarBancosExpo, apagar: apagarBancoExpoOuLancar }, registrarErro),
+    sistema: criarSistemaSqlite({ abrir: abrirDriverLembrado, nomes: listarBancosExpo, apagar: apagarBancoExpoOuLancar }, registrarErro),
     sqliteDisponivel: expoSqliteDisponivel(),
     forcarAsyncStorage: forcarAsyncStorage(process.env.EXPO_PUBLIC_ARMAZENAMENTO),
     opcoes: opcoesDoAdaptador(shellDaVariante(varianteAtual()), registrarErro),

@@ -9,7 +9,7 @@
  */
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
-import { CODIGOS_PORTAL } from '@macuxi/core/contracts';
+import { CODIGOS_PORTAL, mensagemBloqueioPorTentativas, mensagemMuitasTentativas } from '@macuxi/core/contracts';
 import { SessaoPortalSchema } from '@macuxi/platform-sdk';
 import { Button, CampoSenha, Notice } from '@macuxi/ui/web';
 
@@ -36,8 +36,6 @@ export const TEXTOS_ENTRAR = Object.freeze({
   esqueceu: 'Esqueceu a senha? Use "Esqueci a senha" no backoffice.',
   vazio: 'Informe o e-mail e a senha.',
   credenciais: 'E-mail ou senha incorretos.',
-  bloqueado: 'Muitas tentativas erradas. Espere 15 minutos e tente de novo.',
-  limiteIp: 'Muitas tentativas deste endereço. Espere alguns minutos e tente de novo.',
   /** T-0094 (RN-CORE-34; spec ciclo-de-senha §7): a senha conferiu, mas ainda é a temporária; a troca é no backoffice. */
   senhaATrocar: 'Crie a sua senha no backoffice antes de entrar aqui. Use o código da empresa, o e-mail e a senha que você recebeu.',
 });
@@ -50,8 +48,9 @@ export function mensagemDoLoginPortal(x: unknown): string {
   if (x instanceof ErroPortal) {
     if (x.status === 401) return TEXTOS_ENTRAR.credenciais;
     if (x.codigo === CODIGOS_PORTAL.senhaATrocar) return TEXTOS_ENTRAR.senhaATrocar;
-    if (x.status === 423 || x.codigo === CODIGOS_PORTAL.bloqueado) return TEXTOS_ENTRAR.bloqueado;
-    if (x.status === 429) return TEXTOS_ENTRAR.limiteIp;
+    // RN-CORE-01: textos do contrato do Core; sem `minutos_restantes`, os 15 min da regra; o 429 traz a espera real
+    if (x.status === 423 || x.codigo === CODIGOS_PORTAL.bloqueado) return mensagemBloqueioPorTentativas(x.detalhes?.minutos_restantes);
+    if (x.status === 429) return mensagemMuitasTentativas(x.detalhes?.retry_after_s);
     if (x.status === 503) return MENSAGEM_PORTAL_SEM_SEGREDOS;
     if (x.status === 0 && x.codigo === 'sem_conexao') return MENSAGEM_SEM_CONEXAO;
   }

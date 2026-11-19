@@ -2,7 +2,7 @@
  * Regras puras do login do BKO (T-0003 F2): mensagem a partir do erro da API, em português e com a ação seguinte. A
  * validação campo a campo é a `validarLoginNovo` da fonte única do Core (`@macuxi/core/contracts`, RD-0020), a mesma do app.
  */
-import { CODIGOS_AUTH, TEXTOS_LOGIN_SENHA } from '@macuxi/core/contracts';
+import { CODIGOS_AUTH, MENSAGEM_BLOQUEADO_ADMIN, MENSAGEM_CREDENCIAIS, mensagemBloqueioPorTentativas, mensagemMuitasTentativas, TEXTOS_LOGIN_SENHA } from '@macuxi/core/contracts';
 import { CODIGO_PERFIL_FORA_DO_APP } from '@macuxi/platform-sdk';
 
 /** Código da empresa lembrado no navegador depois do primeiro login (doc 03, esclarecimentos). */
@@ -14,17 +14,20 @@ function fraseDaApi(m: unknown): string | null {
   return t && !t.startsWith('{') && !t.startsWith('[') && !/\n\s+at\s/.test(t) ? t : null;
 }
 
-/** Erro da API (`ApiRequestError`: `status`, `code`) ou de rede (status 0) → mensagem para o usuário. */
+/**
+ * Erro da API (`ApiRequestError`: `status`, `code`, `details`) ou de rede (status 0) → mensagem para o usuário. RN-CORE-01: o 423
+ * por tentativas traz `details.minutos_restantes` e diz quanto falta; sem ele, o bloqueio é do administrador.
+ */
 export function mensagemDoLogin(e: unknown): string {
-  const x = (e ?? {}) as { status?: unknown; code?: unknown; message?: unknown };
+  const x = (e ?? {}) as { status?: unknown; code?: unknown; message?: unknown; details?: Record<string, unknown> };
   if (x.status === 0) return 'Sem conexão com o servidor. Confira a internet e tente de novo.';
   switch (x.code) {
     case CODIGOS_AUTH.credenciais:
-      return 'Código da empresa, e-mail ou senha incorretos. Confira os dados e tente de novo.';
+      return MENSAGEM_CREDENCIAIS;
     case CODIGOS_AUTH.bloqueado:
-      return 'Seu acesso está bloqueado. Fale com o administrador da sua empresa ou tente de novo mais tarde.';
+      return x.details?.minutos_restantes !== undefined ? mensagemBloqueioPorTentativas(x.details.minutos_restantes) : MENSAGEM_BLOQUEADO_ADMIN;
     case CODIGOS_AUTH.muitasTentativas:
-      return 'Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.';
+      return mensagemMuitasTentativas(x.details?.retry_after_s);
     // T-0094 (spec ciclo-de-senha §1): a temporária passou de 72 h; o link "Esqueci a senha" fica logo abaixo
     case CODIGOS_AUTH.senhaVencida:
       return TEXTOS_LOGIN_SENHA.senhaVencida;

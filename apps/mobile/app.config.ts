@@ -180,6 +180,9 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // ADR 0003 / T-0008 §3.1: SQLite do aparelho com FTS5 explícito (busca offline do Catálogo; tela de diagnóstico).
       // T-0088: obrigatório (o motor do usuário roda sobre ele): build sem o pacote FALHA, em vez de sair sem SQLite
       ['expo-sqlite', { enableFTS: true }],
+      // MC-1780: notificação fixa do trajeto com a cor da marca no ícone e canal "Serviço do app" (edita o .kt do
+      // expo-location no prebuild; o package.json compila o expo-location do código-fonte para a edição valer)
+      './plugins/notificacao-trajeto',
     ],
     experiments: { typedRoutes: true, reactCompiler: true },
     extra: {

@@ -4,6 +4,15 @@
   "version": "1.0.0",
   "description": "Shell Expo do app Android: variantes campo (Macuxi Campo) e gestao (Macuxi Gestão).",
   "private": true,
+  "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": [
+          "expo-location"
+        ]
+      }
+    }
+  },
   "scripts": {
     "start": "expo start",
     "dev": "expo start",

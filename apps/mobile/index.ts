@@ -8,5 +8,7 @@
 import './src/services/erros-globais';
 import 'expo-router/entry';
 import './src/services/segundo-plano';
+// T-0156: tarefa `macuxi-trajeto` (localização no expediente), também no escopo global; sem os módulos nativos, nada
+import './src/services/trajeto';
 // RN-CORE-23 item 3: push silencioso com o app fechado (tarefa `macuxi-push-sync`, também no escopo global)
 import './src/services/push';
