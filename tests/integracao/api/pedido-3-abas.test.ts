@@ -82,12 +82,16 @@ describe.skipIf(semBanco())('T-0061 — roteiro de 5 passos do novo pedido em 3 
 
   beforeAll(async () => {
     api = await subirApi();
+    // T-0184 (P1 A): o A.c1 da fixture tem título vencido há 10 dias e iria para aprovação por inadimplência (RN-VEN-13), com
+    // qualquer forma de pagamento; este arquivo não trata disso (tests/integracao/api/aprovacao-motivo-t0184.test.ts trata)
+    await api.admin.query("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ($1, 'vendedor', 'titulo_vencido_dias', '30')", [A.tenantId]);
     tk.vendedor = (await api.sessao('vendedor@exemplo.com.br')).access_token;
     tk.gerente = (await api.sessao('gerente@exemplo.com.br')).access_token;
     tk.promotor = (await api.sessao('promotor@exemplo.com.br')).access_token;
     tk.b = (await api.sessao('vendedor@exemplo.com.br', B)).access_token;
     await api.admin.query('delete from vendedor.pedido_evento where pedido_id = any($1::uuid[])', [Object.values(PED)]);
     await api.admin.query('delete from vendedor.pedido_item where pedido_id = any($1::uuid[])', [Object.values(PED)]);
+    await api.admin.query('delete from vendedor.pedido_aprovacao where pedido_id = any($1::uuid[])', [Object.values(PED)]).catch(() => undefined); // T-0184 (0088)
     await api.admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [Object.values(PED)]);
     prod1 = (await q<{ id: string }>("select id from core.produto where tenant_id = $1 and sku = 'ALFA-001'", [A.tenantId]))[0]!.id;
     prod2 = (await q<{ id: string }>("select id from core.produto where tenant_id = $1 and sku = 'ALFA-002'", [A.tenantId]))[0]!.id;
@@ -116,6 +120,7 @@ describe.skipIf(semBanco())('T-0061 — roteiro de 5 passos do novo pedido em 3 
     if (!api) return;
     await api.admin.query('delete from vendedor.pedido_evento where pedido_id = any($1::uuid[])', [Object.values(PED)]);
     await api.admin.query('delete from vendedor.pedido_item where pedido_id = any($1::uuid[])', [Object.values(PED)]);
+    await api.admin.query('delete from vendedor.pedido_aprovacao where pedido_id = any($1::uuid[])', [Object.values(PED)]).catch(() => undefined); // T-0184 (0088)
     await api.admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [Object.values(PED)]);
     if (precoProd2Id) await api.admin.query('delete from catalogo.tabela_preco_item where id = $1', [precoProd2Id]);
     await api.fechar();

@@ -372,7 +372,7 @@ describe('T-0150 — pedido recusado na fila: a nota "Aguardando envio" (R-20261
 });
 
 // ---------- T-0166 (RD-0176 e RD-0172) ----------
-describe('T-0166 — botões e folha de saída sem "aviso" (RD-0176); "Título vencido" só acima do limite da RN-VEN-13 e a prazo (RD-0172)', () => {
+describe('T-0166 — botões e folha de saída sem "aviso" (RD-0176); "Título vencido" só acima do limite da RN-VEN-13 (RD-0172; à vista também desde a T-0184)', () => {
   const ENTRADAS: Array<[string, EntradaDosBotoes]> = [
     ['liberado', BASE],
     ['cliente bloqueado', { ...BASE, cliente: { ...LIBERADO, bloqueado: true } }],
@@ -401,7 +401,8 @@ describe('T-0166 — botões e folha de saída sem "aviso" (RD-0176); "Título v
     }
   });
 
-  // RN-VEN-13: "Título vencido há mais de [5] dias → só à vista ou com aprovação". O alerta só aparece quando muda o resultado (RD-0172).
+  // RN-VEN-13: título vencido há mais de [5] dias → aprovação por inadimplência com qualquer forma de pagamento (T-0184, P1 A).
+  // O alerta só aparece quando muda o resultado (RD-0172): acima do limite, a prazo ou à vista.
   const V = (dias: number) => ({ titulos: 2, valor_cents: 50_000, dias });
   const tituloNosAlertas = (dias: number, prazo: number | undefined, limite = TITULO_VENCIDO_DIAS_PADRAO) =>
     alertasDoPedido({ cliente: LIBERADO, vencidos: vencidosComEfeito(V(dias), prazo, limite) }).filter((a) => a.tipo === 'titulo').map((a) => a.texto);
@@ -414,9 +415,10 @@ describe('T-0166 — botões e folha de saída sem "aviso" (RD-0176); "Título v
     expect(tituloNosAlertas(120, 45)).toEqual(['Título vencido']);
   });
 
-  it('RN-VEN-13: pagamento à vista (prazo médio 0) ou sem prazo escolhido não alerta, mesmo com atraso grande', () => {
-    expect(tituloNosAlertas(30, 0)).toEqual([]);
-    expect(tituloNosAlertas(30, undefined)).toEqual([]);
+  it('RN-VEN-13 (T-0184, P1 A): à vista (prazo médio 0) ou sem prazo escolhido também alerta acima do limite (o pedido vai para aprovação por inadimplência); até o limite, não', () => {
+    expect(tituloNosAlertas(30, 0)).toEqual(['Título vencido']);
+    expect(tituloNosAlertas(30, undefined)).toEqual(['Título vencido']);
+    expect(tituloNosAlertas(5, 0)).toEqual([]);
     expect(vencidosComEfeito(null, 30, 5)).toBeNull();
   });
 

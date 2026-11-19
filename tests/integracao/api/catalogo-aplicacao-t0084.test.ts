@@ -135,6 +135,9 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
   beforeAll(async () => {
     process.env.MACUXI_HUB_CHAVE_PEPPER = PEPPER_HUB_FIXTURE;
     api = await subirApi();
+    // T-0184 (P1 A): o A.c1 da fixture tem título vencido há 10 dias e iria para aprovação por inadimplência (RN-VEN-13), com
+    // qualquer forma de pagamento; este arquivo não trata disso (tests/integracao/api/aprovacao-motivo-t0184.test.ts trata)
+    await api.admin.query("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ($1, 'vendedor', 'titulo_vencido_dias', '30')", [A.tenantId]);
     if (!api.banco.urlWorker) throw new Error('banco de teste sem urlWorker (MACUXI_PG_WORKER_SENHA): o Hub precisa do despachante');
     worker = new pg.Pool({ connectionString: api.banco.urlWorker, max: 2 });
     tk.vA = (await api.sessao('vendedor@exemplo.com.br')).access_token;

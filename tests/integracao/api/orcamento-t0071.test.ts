@@ -59,11 +59,15 @@ describe.skipIf(semBanco())('T-0071 — orçamento fora do ERP, promotor barrado
     await api.admin.query('delete from vendedor.pedido_evento where pedido_id = any($1::uuid[])', [ids]);
     await api.admin.query('delete from vendedor.pedido_item where pedido_id = any($1::uuid[])', [ids]);
     await api.admin.query('update vendedor.pedido set orcamento_id = null where orcamento_id = any($1::uuid[])', [ids]);
+    await api.admin.query('delete from vendedor.pedido_aprovacao where pedido_id = any($1::uuid[])', [ids]).catch(() => undefined); // T-0184 (0088)
     await api.admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [ids]);
   };
 
   beforeAll(async () => {
     api = await subirApi();
+    // T-0184 (P1 A): o A.c1 da fixture tem título vencido há 10 dias e iria para aprovação por inadimplência (RN-VEN-13), com
+    // qualquer forma de pagamento; este arquivo não trata disso (tests/integracao/api/aprovacao-motivo-t0184.test.ts trata)
+    await api.admin.query("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ($1, 'vendedor', 'titulo_vencido_dias', '30')", [A.tenantId]);
     if (!api.banco.urlWorker) throw new Error('banco de teste sem urlWorker (MACUXI_PG_WORKER_SENHA): a regressão da fila do ERP precisa do despachante');
     worker = new pg.Pool({ connectionString: api.banco.urlWorker, max: 2 });
     tk.vendedor = (await api.sessao('vendedor@exemplo.com.br')).access_token;

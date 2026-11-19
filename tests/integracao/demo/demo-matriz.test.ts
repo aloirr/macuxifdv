@@ -445,7 +445,7 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
       const [p] = (await pedidosDoBanco('pending_approval')).filter((x) => x.nivel_aprovacao === 'supervisor');
       const r = await api.chamar(token.supervisor, { method: 'POST', url: `/v1/vendedor/pedidos/${p!.id}/aprovar`, payload: {} });
       expect(r.statusCode, r.body).toBe(200);
-      expect(r.json()).toMatchObject({ id: p!.id, status: 'approved' });
+      expect(r.json(), 'T-0184 (desenho §7.1): resposta { status, aprovacoes }').toMatchObject({ status: 'approved' });
       expect((await pedidosDoBanco()).find((x) => x.id === p!.id)!.status).toBe('approved');
       await esperarHorizonte();
       const c = await noCampo('supervisor');
@@ -461,7 +461,8 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
       expect([sem.statusCode, sem.json().codigo]).toEqual([422, 'RN-GES-08']);
       const r = await api.chamar(token.supervisor, { method: 'POST', url: `/v1/vendedor/pedidos/${p!.id}/rejeitar`, payload: { motivo: 'Desconto acima da política' } });
       expect(r.statusCode, r.body).toBe(200);
-      expect(r.json()).toMatchObject({ status: 'rejected', rejection_reason: 'Desconto acima da política' });
+      expect(r.json(), 'T-0184 (desenho §7.1): resposta { status, aprovacoes }').toMatchObject({ status: 'rejected' });
+      expect((await api.get(token.supervisor, `/v1/vendedor/pedidos/${p!.id}`)).corpo).toMatchObject({ status: 'rejected', rejection_reason: 'Desconto acima da política' });
     });
   });
 
