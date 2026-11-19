@@ -25,7 +25,7 @@ const CSS_BKO = `<style>
 .filtros{display:flex;gap:12px;align-items:flex-end}
 .filtros .campo{font-size:12px;font-weight:600;color:#4A5562}
 .busca{height:44px;border:1px solid #C9CED5;border-radius:10px;background:#fff;width:300px;display:flex;align-items:center;gap:8px;padding:0 12px;color:#5B6673;font-size:15px}
-/* Tabela de Pedidos (R-20261118-214740): 13 colunas; em 1366 rola na horizontal com Código + Cliente e Ações + Situação fixas. */
+/* Tabela de Pedidos (R-20261118-214740): 13 colunas; em 1366 rola na horizontal com Código + Cliente e Situação + Ações fixas. */
 .quadro.tab{padding:0;overflow:hidden}
 .rola{overflow-x:auto;scrollbar-width:none}
 /* Barra de rolagem desenhada: o Chromium sem janela esconde a nativa. Polegar = área visível ÷ largura da tabela. */
@@ -39,7 +39,7 @@ table.ped td.qb{white-space:normal}
 table.ped .tn{font-variant-numeric:tabular-nums}
 table.ped .vz{color:#5B6673}
 .fe1,.fe2,.fd1,.fd2{position:sticky;z-index:1}
-.fe1{left:0}.fe2{left:76px}.fd1{right:172px}.fd2{right:0}
+.fe1{left:0}.fe2{left:76px}.fd1{right:300px}.fd2{right:0}
 .fe2:after,.fd1:before{content:'';position:absolute;top:0;bottom:0;width:8px;pointer-events:none}
 .fe2:after{right:-8px;background:linear-gradient(to right,rgba(22,32,42,.10),rgba(22,32,42,0))}
 .fd1:before{left:-8px;background:linear-gradient(to left,rgba(22,32,42,.10),rgba(22,32,42,0))}
@@ -109,12 +109,12 @@ const acoes = (escolha) =>
 const TABELA = `<div class="filtros"><div class="busca">${lupa}<span>Buscar cliente ou nº do pedido</span></div>
 <label class="campo">Situação<div class="sel" style="width:220px"><span>Todas</span>${chev}</div></label>
 <label class="campo">Vendedor<div class="sel" style="width:200px"><span>Todos</span>${chev}</div></label></div>
-<section class="quadro tab"><div class="rola"><table class="ped"><colgroup>${[76, 160, 44, 92, 72, 100, 104, 100, 104, 116, 170, 300, 172].map((w) => `<col style="width:${w}px">`).join('')}</colgroup>
-<thead><tr><th class="fe1">Código do cliente</th><th class="fe2">Cliente</th><th>UF</th><th>Cidade</th><th>Nº</th><th>Vendedor</th><th>Supervisor</th><th>Recebido</th><th class="n">Valor</th><th>Motivo</th><th>Observação do pedido</th><th class="fd1">Ações</th><th class="fd2">Situação</th></tr></thead><tbody>
-${LINHAS.map(([cod, c, uf, cid, n, v, sup, r, val, m, obs, esc, [cl, s]]) => `<tr><td class="fe1 tn">${cod}</td><td class="fe2 qb">${c}</td><td>${uf}</td><td>${cid}</td><td class="tn">${n}</td><td>${v}</td><td>${sup}</td><td class="tn">${r}</td><td class="n">${val}</td><td>${vazio(m)}</td><td class="qb">${vazio(obs)}</td><td class="fd1">${acoes(esc)}</td><td class="fd2"><span class="sit ${cl}">${s}</span></td></tr>`).join('\n')}
+<section class="quadro tab"><div class="rola"><table class="ped"><colgroup>${[76, 160, 44, 92, 72, 100, 104, 100, 104, 116, 170, 172, 300].map((w) => `<col style="width:${w}px">`).join('')}</colgroup>
+<thead><tr><th class="fe1">Código do cliente</th><th class="fe2">Cliente</th><th>UF</th><th>Cidade</th><th>Nº</th><th>Vendedor</th><th>Supervisor</th><th>Recebido</th><th class="n">Valor</th><th>Motivo</th><th>Observação do pedido</th><th class="fd1">Situação</th><th class="fd2">Ações</th></tr></thead><tbody>
+${LINHAS.map(([cod, c, uf, cid, n, v, sup, r, val, m, obs, esc, [cl, s]]) => `<tr><td class="fe1 tn">${cod}</td><td class="fe2 qb">${c}</td><td>${uf}</td><td>${cid}</td><td class="tn">${n}</td><td>${v}</td><td>${sup}</td><td class="tn">${r}</td><td class="n">${val}</td><td>${vazio(m)}</td><td class="qb">${vazio(obs)}</td><td class="fd1"><span class="sit ${cl}">${s}</span></td><td class="fd2">${acoes(esc)}</td></tr>`).join('\n')}
 </tbody></table></div><div class="barra-rola" aria-hidden="true"><i></i></div></section>`;
 const NOTA_PEDIDOS =
-  '<b>Simulação.</b> Colunas na ordem pedida (R-20261118-214740). Ações só no pendente: lista com Aprovar, Rejeitar e Devolver ao vendedor + Aplicar. Situação por último, só com os status do sistema. Largura: A rolagem com as pontas fixas (recomendado).';
+  '<b>Simulação.</b> Colunas na ordem pedida (R-20261118-214740). Situação e Ações por último. Situação só com os status do sistema. Ações só no pendente: lista com Aprovar, Rejeitar e Devolver ao vendedor + Aplicar. Largura: A rolagem com as pontas fixas (recomendado).';
 const TELA_PEDIDOS = bko(TABELA, NOTA_PEDIDOS, { pedidos: true });
 const TELA_PEDIDOS_LARGA = bko(TABELA, '<b>Simulação.</b> Em 1920×1080 as 13 colunas cabem sem rolagem; as pontas fixas não aparecem.', { pedidos: true, larga: true });
 
@@ -185,7 +185,7 @@ const RESUMO = `<div class="tel">${st('09:12')}<div class="fx"><span class="v">�
 <div class="rod"><span class="bt">Salvar e enviar pedido</span><span class="bt t">Apenas salvar</span></div>
 <div class="scrim"><div class="dlg"><h2>Enviar para aprovação?</h2><div class="bts"><span class="bt t">Voltar</span><span class="bt">Enviar</span></div></div></div></div>`;
 
-// Pedido 000021 com dois motivos (P3 B): uma aprovação por motivo, ao mesmo tempo (P7 A, recomendado).
+// Pedido 000021 com dois motivos (P3 B): uma aprovação por motivo, ao mesmo tempo (P7 A, decidido em 18/11).
 const detalhe = (hora, hist, rodape, alertas = '') => `<div class="tel">${st(hora)}<div class="fx"><span class="v">‹ Pedidos</span><h1>Pedido 000021</h1><span class="s">Mercado Bom Preço · cód. C5007</span></div>
 <div class="corpo">${alertas}<div class="cx"><div class="tl"><span>Pagamento</span><span>Boleto · 28/56 dias</span></div><div class="tl"><span>Entrega</span><span>CIF · Av. Ville Roy, 1200</span></div></div>
 <span class="tit">Itens (12)</span><div class="cx"><div class="tl"><span>Arroz 5 kg · 10 CX</span><span>R$ 1.290,00</span></div><div class="tl"><span>Feijão 1 kg · 8 CX</span><span>R$ 742,00</span></div><div class="tl"><span>+ 10 itens</span><span></span></div></div>
@@ -198,7 +198,7 @@ const DETALHE = detalhe(
   '<span class="tag ok">Aprovado · Inadimplente · Rui Matos · 18/11 10:05</span><span class="tag at">Em aprovação · Crédito</span>',
   '<span class="bt t">PDF · Duplicar</span>',
 );
-// P8 A (recomendado): o Crédito devolvido encerra as outras aprovações; o pedido volta para o vendedor corrigir (P6 A).
+// P8 A (decidido em 18/11): o Crédito devolvido encerra as outras aprovações; o pedido volta para o vendedor corrigir (P6 A).
 const DEVOLVIDO = detalhe(
   '10:25',
   '<span class="tag er">Rejeitado · Crédito · Rui Matos · 18/11 10:20</span>',

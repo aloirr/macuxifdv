@@ -33,7 +33,7 @@ R-20261116-143000 e R-20261118-212716 (tabela simples de Pedidos). Gerador: `nod
 - **Offline:** o app calcula com os dados da última sincronização e mostra os mesmos alertas; o servidor revalida ao receber
   (critério 4). Nenhuma tela nova.
 - **BKO › Pedidos (tabela, R-20261118-214740):** colunas nesta ordem: Código do cliente · Cliente · UF · Cidade · Nº · Vendedor ·
-  Supervisor · Recebido · Valor · Motivo · Observação do pedido · Ações · Situação. Sai o quadro "Aguardando aprovação".
+  Supervisor · Recebido · Valor · Motivo · Observação do pedido · Situação · Ações. Sai o quadro "Aguardando aprovação".
   - **Substitui** (RD-2231), em `docs/design/telas/bko-revisao.md`, as linhas 246 a 250 (regras 5 e 6 e o "Texto final
     (Pedidos)": quadro "Aguardando aprovação" em cima; pendente fora da lista, da contagem e do total; select Situação sem
     "Aguardando aprovação") e as linhas 358 e 359 (decisão h, opções a e b). Vale agora: sem quadro de pendências; o pendente
@@ -42,9 +42,9 @@ R-20261116-143000 e R-20261118-212716 (tabela simples de Pedidos). Gerador: `nod
   - **Motivo** vira coluna (`Crédito`, `Inadimplente`, `Desconto 12%`); vazio = `—`, como nas outras tabelas do BKO. A
     **Observação** também usa `—` quando vazia e quebra em até 2 linhas; o Cliente também quebra. Nada com reticências (RD-2233).
   - **Ações** só no pedido `Aguardando aprovação`: lista suspensa (Aprovar, Rejeitar, Devolver ao vendedor; vazia mostra
-    `Escolher ação`) e um botão ao lado. Rótulo do botão: A **Aplicar** (recomendado), B Confirmar, C Executar. Por quê:
+    `Escolher ação`) e um botão ao lado. Rótulo do botão: A **Aplicar**, B Confirmar, C Executar. **Decidido: Aplicar** (18/11, R-20261118-220604). Por quê:
     "Aplicar" é o padrão de ação escolhida numa lista em BKO, verbo curto que não se confunde com "Aprovar".
-  - **Situação** por último, só com `ORDER_STATUS_LABEL`, no selo do sistema (`SeloSituacao`, MC-1743): Aguardando aprovação
+  - **Situação** antes de Ações (as duas por último), só com `ORDER_STATUS_LABEL`, no selo do sistema (`SeloSituacao`, MC-1743): Aguardando aprovação
     `pending` (#1E3350 sobre #DFE2E6), Aprovado e Faturado `success`, Enviado ao ERP `neutral`, Rejeitado `danger`; peso 500.
   - **Marca:** lista e botão de Ações em 15 px; rótulos dos filtros 12/600; cabeçalho 12; Código, Nº, Recebido e Valor com
     `tabular-nums`.
@@ -54,7 +54,7 @@ R-20261116-143000 e R-20261118-212716 (tabela simples de Pedidos). Gerador: `nod
 
 | Opção | Como fica | Recomendação |
 |---|---|---|
-| **A** | Rolagem horizontal: Código + Cliente fixos à esquerda, Ações + Situação fixas à direita (`position: sticky`), as do meio rolam; barra visível e sombra sutil na borda das fixas | **A**: funciona em 1366, o notebook comum do escritório, e deixa cliente e ação sempre à vista |
+| **A** | Rolagem horizontal: Código + Cliente fixos à esquerda, Situação + Ações fixas à direita (`position: sticky`), as do meio rolam; barra visível e sombra sutil na borda interna das fixas | **A**: funciona em 1366, o notebook comum do escritório, e deixa cliente e ação sempre à vista |
 | **B** | Abaixo de 1600 px somem, nesta ordem, UF, Cidade, Supervisor e Observação | — |
 | **C** | Exigir tela larga (1920) | — |
 
@@ -72,11 +72,13 @@ Em 1920×1080 (`04b`) as 13 colunas cabem sem rolagem nas três opções.
 
 Decisões do dono do produto em 18/11 (R-20261118-214740).
 
-## Pontos em aberto da P3 B
-| Ponto | A | B | Recomendação |
-|---|---|---|---|
-| **P7** As aprovações acontecem ao mesmo tempo ou em ordem? | ao mesmo tempo: cada aprovador decide quando quiser; o pedido sai quando todas aprovarem | em ordem: crédito → inadimplência → desconto | **A**: mais rápido; nenhum motivo depende do outro. A prancha 02 mostra a inadimplência aprovada antes do crédito |
-| **P8** A rejeição de um motivo devolve o pedido inteiro? | sim: uma rejeição encerra as outras aprovações pendentes e o pedido segue o P6 (Rejeitar = `Cancelado`; Devolver = `Rejeitado` com "Corrigir pedido") | não: as outras continuam e o vendedor só vê o resultado no fim | **A**: o vendedor corrige uma vez; ninguém aprova o que já caiu. A 3ª tela da prancha 02 mostra o crédito devolvido e a etapa pendente encerrada |
+## Pontos da P3 B
+| Ponto | A | B | Recomendação | Decisão (18/11) |
+|---|---|---|---|---|
+| **P7** As aprovações acontecem ao mesmo tempo ou em ordem? | ao mesmo tempo: cada aprovador decide quando quiser; o pedido sai quando todas aprovarem | em ordem: crédito → inadimplência → desconto | **A**: mais rápido; nenhum motivo depende do outro. A prancha 02 mostra a inadimplência aprovada antes do crédito | **A** |
+| **P8** A rejeição de um motivo devolve o pedido inteiro? | sim: uma rejeição encerra as outras aprovações pendentes e o pedido segue o P6 (Rejeitar = `Cancelado`; Devolver = `Rejeitado` com "Corrigir pedido") | não: as outras continuam e o vendedor só vê o resultado no fim | **A**: o vendedor corrige uma vez; ninguém aprova o que já caiu. A 3ª tela da prancha 02 mostra o crédito devolvido e a etapa pendente encerrada | **A** |
+
+Decisões do dono do produto em 18/11 (R-20261118-220604), sobre as simulações: P7 A, P8 A e o rótulo "Aplicar".
 
 ## 3. Depois da aprovação
 - gerente-projetos: RN-VEN-12 e RN-VEN-13 no doc 03 com a decisão.
