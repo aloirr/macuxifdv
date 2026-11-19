@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ALVO_TOQUE,
   folgaDeToque,
+  formaDoBadge,
   leituraDoAtalho,
   lerQuantidade,
   limitarPasso,
@@ -12,6 +13,7 @@ import {
   rolagemAteAba,
   rotuloComContador,
 } from './componentes';
+import { radius } from './tokens';
 
 const ler = (arq: string) => readFileSync(new URL(arq, import.meta.url), 'utf8');
 
@@ -170,5 +172,31 @@ describe('Novo pedido v3 (T-0141): ✕ da Folha e marca da LinhaResumo', () => {
     const v = ler('./valores.tsx');
     expect(v).toContain('marca?: string | null;');
     expect(v).toMatch(/resumoMarca: \{ \.\.\.fonte\.semibold, fontSize: 12, color: colors\.accentInk \}/);
+  });
+});
+
+describe('Badge com linhas?: 1 | 2 (MC-1790, T-0186)', () => {
+  it('padrão 1 linha inalterado: pílula, numberOfLines 1, sem lineHeight nem padding vertical', () => {
+    expect(formaDoBadge()).toEqual({ numberOfLines: 1, borderRadius: radius.pilula });
+    expect(formaDoBadge(1)).toEqual(formaDoBadge());
+  });
+
+  it('2 linhas: numberOfLines 2, texto centralizado, lineHeight 16, paddingVertical 3 e raio não-pílula (radius.sm)', () => {
+    const f = formaDoBadge(2);
+    expect(f.numberOfLines).toBe(2);
+    expect(f.textAlign).toBe('center');
+    expect(f.lineHeight).toBe(16);
+    expect(f.paddingVertical).toBe(3);
+    expect(f.borderRadius).toBe(radius.sm);
+    expect(f.borderRadius).not.toBe(radius.pilula);
+  });
+
+  it('o Badge usa formaDoBadge, tem linhas = 1 por padrão e mantém minHeight 24', () => {
+    const src = ler('./ui.tsx');
+    expect(src).toMatch(/export function Badge\(\{[^}]*linhas = 1[^}]*\}/);
+    expect(src).toMatch(/const f = formaDoBadge\(linhas\)/);
+    expect(src).toMatch(/numberOfLines=\{f\.numberOfLines\}/);
+    expect(src).not.toMatch(/badgeText[^\n]*numberOfLines=\{1\}/);
+    expect(src).toMatch(/badge: \{[^}]*minHeight: 24/);
   });
 });
