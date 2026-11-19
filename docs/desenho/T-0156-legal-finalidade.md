@@ -1,7 +1,6 @@
 # Rastreamento de localização no expediente — finalidade e base legal
 
-> Valores e base legal aprovados pelo dono do produto em 16/11/2026 (R-20261116-110200), revistos em 19/11/2026 (recado das
-> 05h46: rastreamento interno, sem termo nem tela para o vendedor; visão só de supervisor e gerente). Desenho técnico:
+> Valores e base legal aprovados pelo dono do produto em 16/11/2026 (R-20261116-110200); escopo e revisões na ADR 0061. Desenho técnico:
 > [`tracking.md`](tracking.md); decisão: [ADR 0061](../decisoes/0061-rastreamento-continuo-de-localizacao.md).
 
 ## 1. Quem é quem

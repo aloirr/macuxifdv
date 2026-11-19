@@ -213,4 +213,4 @@ Tudo aditivo; nenhuma versão nova de contrato existente; nenhum evento novo (`e
 | `core.trajeto_do_dia@1` | core | consulta nova (`definirConsulta`; forma proposta, o modulo-core fecha no `contracts`): entrada `{ usuario_id, data }` (AAAA-MM-DD no fuso do tenant, até [90] dias atrás); saída `{ pontos: [{ capturado_em, latitude, longitude, precisao_m }] }`; escopo conferido pelo Core (`trajeto.ver_equipe`); sem implementação no aparelho | a fazer (modulo-core); consumidor: gestor (`usaConsultas`) |
 | `deslocamento_dia` (`DeslocamentoDiaSchema`) | core | sem mudança de forma; passa a ser escrito com `origem = 'rastreamento'` | já existe (T-0170) |
 | parâmetro `core`/`rastreamento` | core | `{ ativo, expediente, frequencia }` validado por Zod, padrão desligado; chega no pull `parametro` | a fazer (modulo-core) |
-| `GET /v1/core/trajeto?usuario_id&data` | core | pontos de um dia; só `trajeto.ver_equipe` (escopo; sem `ver_proprio` desde 19/11/2026) | a fazer (modulo-core) |
+| `GET /v1/core/trajeto?usuario_id&data` | core | pontos de um dia; só `trajeto.ver_equipe` (escopo) | a fazer (modulo-core) |

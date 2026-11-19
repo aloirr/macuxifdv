@@ -4,9 +4,7 @@
 - **Regras**: RF-CORE-17, RN-CORE-13 (localização e tracking), RN-CORE-37 (permissões), RN-CORE-46 (km do dia; proposta,
   [performance-produtividade.md §8](performance-produtividade.md#8-rn-propostas-texto-para-o-doc-03-numeração-a-confirmar-pelo-gerente)).
 - **Finalidade e retenção**: [T-0156-legal-finalidade.md](T-0156-legal-finalidade.md).
-- **Escopo (dono do produto, recado das 05h46 de 19/11/2026)**: o rastreamento é **interno**. O vendedor não tem tela, termo,
-  aceite, pausa nem contestação. Só o supervisor e o gerente veem, com a permissão de equipe. Liga quando o dono do produto mandar,
-  pelo parâmetro da empresa no BKO.
+- **Escopo e decisões**: na [ADR 0061](../decisoes/0061-rastreamento-continuo-de-localizacao.md), que é a fonte única (rastreamento interno, quem vê, quando liga).
 - **Consumidor já pronto**: a Performance lê só o resumo `core.deslocamento_dia` e usa `metrosDoTrajeto`
   ([performance-produtividade.md §5](performance-produtividade.md#5-km-e-o-rastreamento-de-localização)).
 - Valores entre [colchetes] são parâmetros ajustáveis.
@@ -22,24 +20,28 @@
 | `metrosDoTrajeto` (haversine, precisão ≤ [50 m], salto ≤ [150 km/h]) | `modules/core/domain/performance/trajeto.ts` | pronto, com testes |
 
 ## 2. Quando o tracking grava (portão)
-Só no app **Campo**, para o usuário de campo logado (cargo vendedor ou promotor, ADR 0049). A função pura `podeRastrear` fica com
-três condições, todas obrigatórias, iguais no app e na API:
+Sete condições, todas obrigatórias. As quatro primeiras ficam na função pura `podeRastrear` (domain do Core), a mesma no app e na
+API; as outras três são conferidas fora dela.
 
-| # | Condição | Quem confere |
+| # | Condição | Onde |
 |---|---|---|
-| 1 | Parâmetro da empresa `rastreamento.ativo = true` (padrão **desligado**) | app e API |
-| 2 | Dentro do **expediente** do tenant (§4.1), fora de feriado | app e API |
-| 3 | Fora de **ausência** cadastrada (§4.2) | app e API |
+| 1 | Parâmetro da empresa `rastreamento.ativo = true` (padrão **desligado**) | `podeRastrear` (app e API) |
+| 2 | Fora de feriado do calendário do tenant | `podeRastrear` (app e API) |
+| 3 | Fora de ausência cadastrada (§4.2) | `podeRastrear` (app e API) |
+| 4 | Dentro do **expediente** do tenant (§4.1) | `podeRastrear` (app e API) |
+| 5 | Usuário de cargo de campo (vendedor ou promotor, ADR 0049; `CARGOS_RASTREADOS`) | API, no push (`triarPontoRecebido`) |
+| 6 | Logado no app **Campo** (o Gestão não rastreia) | app (shell) |
+| 7 | Permissão "o tempo todo" concedida no aparelho (RN-CORE-37) | app (sem ela o Android não entrega posição) |
 
-Sem a permissão "o tempo todo" (RN-CORE-37), o Android não entrega posição: não é condição da função, só não há o que gravar.
-Faltou qualquer condição: o app **não grava nem guarda** ponto. Check-in e checkout seguem com o GPS do momento (RN-CORE-13).
+Faltou qualquer uma: o app **não grava nem guarda** ponto, e a API descarta o que chegar. Check-in e checkout seguem com o GPS
+do momento (RN-CORE-13).
 
 ## 3. Coleta no aparelho (Campo, Android)
 
 ### 3.1 Captura
 - `Location.startLocationUpdatesAsync('macuxi-trajeto', …)` com **serviço em primeiro plano** (exigência do Android para localização
-  em segundo plano). Notificação fixa, sem ação, título **"Macuxi Campo ativo"**, sem citar localização; canal próprio de baixa
-  prioridade, sem som.
+  em segundo plano). Notificação fixa, sem ação, título **"Macuxi Campo ativo"**, sem citar localização, no canal `macuxi-servico`
+  ("Serviço do app", spec do #492), de baixa prioridade e sem som.
 - Parâmetros: `accuracy: High`, `distanceInterval: [200 m]`, `timeInterval: [5 min]`, `deferredUpdatesInterval: [5 min]`.
 - Cada ponto: `id` (UUID do aparelho), `capturado_em` (UTC), `latitude` e `longitude` (6 casas), `precisao_m`, `velocidade_ms`
   (nula se o aparelho não der). Nada mais.
@@ -52,7 +54,7 @@ Faltou qualquer condição: o app **não grava nem guarda** ponto. Check-in e ch
   desligado): `stopLocationUpdatesAsync` e descarte do lote. A notificação some.
 - Ponto do lote com `capturado_em` fora do expediente é descartado no aparelho.
 - `podeRastrear({ ativo, expediente, feriados, ausencias, instante, fuso })` → `{ pode: true } | { pode: false, motivo }`, no domain
-  do Core, com teste citando RN-CORE-13.
+  do Core, com as condições 1 a 4 do §2 e teste citando RN-CORE-13; as condições 5 a 7 ficam fora dela (§2).
 
 ### 3.3 Bateria
 - Meta: **≤ [8%] da bateria** num expediente de 10 h, medida no ensaio em 2 aparelhos de entrada. Se passar, sobem
@@ -86,8 +88,6 @@ Faltou qualquer condição: o app **não grava nem guarda** ponto. Check-in e ch
 | `core.ausencia_usuario` | `usuario_id`, `de`, `ate` | campos comuns e RLS; `de ≤ ate` |
 | `core.deslocamento_dia` | já existe | escrita por esta tarefa (§5.3) |
 
-Saem do escopo: `core.pausa_trajeto`, `core.termo_rastreamento` e `core.aceite_termo_rastreamento` (a migração 0089, se já as
-criou, fica com as tabelas sem uso até o banco-dados decidir removê-las).
 
 ### 5.2 API (`/v1/core`; revalida tudo)
 - **Push** de `ponto_trajeto` pelo motor de sync. Cada ponto é descartado, sem gravar, se: o usuário não é de campo; o tracking
@@ -112,7 +112,6 @@ Job diário do worker: apaga `ponto_trajeto` com mais de [90] dias. O log leva s
 | Ligar o tracking e o expediente | `rastreamento.configurar` | admin | Administração |
 | Cadastrar ausência da equipe | `ausencia.cadastrar` | supervisor, gerente, admin | Usuários |
 
-- Sem `trajeto.ver_proprio`: o vendedor e o promotor não veem trajeto nenhum.
 - O admin configura, mas não vê os pontos, a menos que o perfil dele receba `trajeto.ver_equipe`.
 - O analista vê só o resumo `deslocamento_dia` nos relatórios.
 - Nenhum endpoint exporta pontos brutos.
@@ -133,16 +132,14 @@ Quem decide ligar é o dono do produto, pelo parâmetro da empresa no BKO. Antes
 2. Ensaio de bateria (§3.3) e de offline (3 dias sem rede, envio sem duplicar).
 3. Teste "sem coordenada em log" verde no CI.
 
-## 10. O que muda nos PRs em curso (recado das 05h46 de 19/11/2026)
+## 10. O que muda nos PRs em curso
 | Dono | O que sai |
 |---|---|
 | banco-dados (#498) | as tabelas de pausa, termo e aceite (§5.1) |
-| modulo-core (#499) | termo, aceite, pausa, "Meu trajeto", contestação, `trajeto.ver_proprio`; `podeRastrear` com as 3 condições do §2 |
-| engenheiro-apps (#501) | tela do termo e pausa; notificação "Macuxi Campo ativo" |
-| modulo-gestor (#502) | nada além do padrão da permissão: só supervisor e gerente |
+| modulo-core (#499) | termo, aceite, pausa, "Meu trajeto", contestação e `trajeto.ver_proprio` |
+| engenheiro-apps (#501) | tela do termo e pausa; notificação do §3.1 |
+| modulo-gestor (#502) | só o padrão da permissão (§6) |
 | designer-ux e design-de-marca | telas do termo, "Meu trajeto" e pausa |
 
 ## 11. Decisões
-- Do dono do produto: 16/11/2026 (R-20261116-110200-alexandre), revistas em 19/11/2026 às 05h45 e 05h46 (sem condição externa;
-  rastreamento interno, sem termo, sem tela para o vendedor, visão só de supervisor e gerente).
-- Técnicas: ADR 0061, "Decisões técnicas".
+Do dono do produto e técnicas: [ADR 0061](../decisoes/0061-rastreamento-continuo-de-localizacao.md).
