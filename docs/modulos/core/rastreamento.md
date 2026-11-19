@@ -26,11 +26,13 @@ Nenhuma rota exporta pontos. Nenhuma coordenada vai para log (`ctx.log` leva só
 O app só envia o ponto (entidade `ponto_trajeto`) e recebe a própria ausência; a captura é da tarefa do shell.
 
 ### Envio dos pontos
-O shell grava os pontos em `core__ponto_trajeto` com `enviado_em` nulo; a rotina `enfileirarPontosDoTrajeto` (export de `modules/core/app`, RN-CORE-13) os põe na fila do motor. Não é etapa de sync: a etapa só roda na carga completa e o contexto dela não tem `enfileirar` nem o SQLite.
-- O shell chama `await enfileirarPontosDoTrajeto({ db, enfileirar: motor.enfileirar, agora: () => new Date(), registrar })` antes de cada envio da fila (início do sync e no ciclo de envio), com `db` = SQLite do usuário (o mesmo do `gravarPontosDoTrajeto`).
-- Laço de 500 em 500 (`PONTOS_POR_LEITURA`) por `capturado_em`: valida com `PontoTrajetoSchema`, enfileira (`ponto_trajeto`, `upsert`) e marca `enviado_em`. Ponto inválido é marcado sem enfileirar.
-- Idempotente: queda entre enfileirar e marcar repete o ponto; o servidor (`somente_insercao` pelo id) não duplica. Sem a tabela, não faz nada. Nunca lança; falha devolve `erro: true` e `registrar` recebe só contagens, nunca coordenada.
-- Retorno: `{ enfileirados, invalidos, erro }`.
+O shell grava os pontos em `core__ponto_trajeto` com `enviado_em` nulo; a rotina `enviarPontosDoTrajeto` (export de `modules/core/app`, RN-CORE-13) os envia direto pelo transporte do sync, sem passar pela fila do motor: o rastreamento é interno e não aparece na fila nem na contagem que o vendedor vê. Não é etapa de sync: a etapa só roda na carga completa e o contexto dela não tem o SQLite.
+- Assinatura: `enviarPontosDoTrajeto({ db, push, agora, registrar? })`. `db` = SQLite do usuário (o mesmo do `gravarPontosDoTrajeto`); `push` = `TransporteSync.push` do shell; `agora: () => new Date()`; `registrar` recebe só contagens, nunca coordenada.
+- O shell chama `await enviarPontosDoTrajeto(...)` com o aparelho online, antes de cada envio da fila (início do sync e no ciclo de envio), e registra o retorno (só contagens).
+- Laço de até `MAX_ITENS_PUSH` (500) por `capturado_em`: valida com `PontoTrajetoSchema`, monta `ItemPush` (`ponto_trajeto`, `upsert`, id = id do ponto) e chama `push`. `aceito`, `conflito` (o servidor já tinha o id) e `rejeitado` marcam `enviado_em`; rejeitado também entra em `rejeitados`, para não ficar em laço. Ponto inválido é marcado sem envio. Se `push` lançar, para, deixa o resto pendente e devolve `erro: true`.
+- Poda: no fim de cada passada, mesmo com `erro`, apaga os pontos com `enviado_em` há mais de 90 dias (`docs/banco/aparelho-sqlite.md` §11). Pendente nunca é apagado.
+- Idempotente: queda entre enviar e marcar repete o ponto; o servidor (`somente_insercao` pelo id) não duplica. Sem a tabela, não faz nada. Nunca lança.
+- Retorno: `{ enviados, rejeitados, invalidos, podados, erro }`.
 
 ## BKO (`modules/core/web`)
 Painéis Rastreamento (liga/desliga, expediente, frequência) e Ausências.

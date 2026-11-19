@@ -1,9 +1,12 @@
+import { MAX_ITENS_PUSH, type ItemPush, type ResultadoItemPush } from '@macuxi/platform-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { ENTIDADE_PONTO_TRAJETO, PontoTrajetoSchema } from '../../contracts';
-import { enfileirarPontosDoTrajeto, type BancoDoTrajeto } from './enviar-pontos-trajeto';
+import { enviarPontosDoTrajeto, type BancoDoTrajeto } from './enviar-pontos-trajeto';
 
 const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const AGORA = new Date('2026-11-19T15:00:00.000Z');
+const DIA = 86_400_000;
+const haDias = (d: number) => new Date(AGORA.getTime() - d * DIA).toISOString();
 
 interface Linha {
   id: string;
@@ -13,7 +16,6 @@ interface Linha {
   precisao_m: number | null;
   velocidade_ms: number | null;
   enviado_em: string | null;
-  extra?: string;
 }
 
 function ponto(n: number, o: Partial<Linha> = {}): Linha {
@@ -29,10 +31,19 @@ function ponto(n: number, o: Partial<Linha> = {}): Linha {
   };
 }
 
-/** SQLite falso: entende só os dois comandos da rotina. */
+/** SQLite falso: entende só os três comandos da rotina. */
 function bancoFalso(linhas: Linha[], semTabela = false) {
   const rodar = vi.fn(async (sql: string, params: readonly unknown[] = []) => {
     if (semTabela) throw new Error('no such table: core__ponto_trajeto');
+    if (/^DELETE FROM core__ponto_trajeto WHERE enviado_em IS NOT NULL AND enviado_em < \?/.test(sql)) {
+      const limite = params[0] as string;
+      const antes = linhas.length;
+      for (let i = linhas.length - 1; i >= 0; i--) {
+        const e = linhas[i]!.enviado_em;
+        if (e !== null && e < limite) linhas.splice(i, 1);
+      }
+      return { alteradas: antes - linhas.length };
+    }
     if (!/^UPDATE core__ponto_trajeto SET enviado_em = \? WHERE id IN/.test(sql)) throw new Error('sql inesperado');
     const [quando, ...ids] = params as string[];
     let alteradas = 0;
@@ -51,102 +62,133 @@ function bancoFalso(linhas: Linha[], semTabela = false) {
       .filter((l) => l.enviado_em === null)
       .sort((a, b) => a.capturado_em.localeCompare(b.capturado_em))
       .slice(0, limite)
-      .map(({ extra: _e, enviado_em: _x, ...resto }) => ({ ...resto, enviado_em: null }));
+      .map(({ enviado_em: _x, ...resto }) => resto);
   });
   return { db: { rodar, todas } as unknown as BancoDoTrajeto, rodar, todas };
 }
 
-function montar(linhas: Linha[], semTabela = false) {
+const aceitar = async (itens: ItemPush[]): Promise<ResultadoItemPush[]> =>
+  itens.map((i) => ({ id: i.id, status: 'aceito' as const }));
+
+function montar(linhas: Linha[], push: (i: ItemPush[]) => Promise<ResultadoItemPush[]> = aceitar, semTabela = false) {
   const b = bancoFalso(linhas, semTabela);
-  const enfileirar = vi.fn(async (_n: unknown) => ({}));
+  const p = vi.fn(push);
   const registrar = vi.fn();
-  const dep = { db: b.db, enfileirar, agora: () => AGORA, registrar };
-  return { ...b, enfileirar, registrar, dep };
+  return { ...b, push: p, registrar, dep: { db: b.db, push: p, agora: () => AGORA, registrar } };
 }
 
-describe('enfileirarPontosDoTrajeto (RN-CORE-13: o ponto capturado dentro do portão chega ao servidor)', () => {
-  it('RN-CORE-13: enfileira cada ponto pendente como ponto_trajeto e marca enviado_em', async () => {
+describe('enviarPontosDoTrajeto (RN-CORE-13: o ponto capturado dentro do portão chega ao servidor)', () => {
+  it('RN-CORE-13: ponto aceito é enviado como ponto_trajeto e marcado com enviado_em', async () => {
     const linhas = [ponto(2), ponto(1)];
     const m = montar(linhas);
-    const r = await enfileirarPontosDoTrajeto(m.dep);
-    expect(r).toMatchObject({ enfileirados: 2, invalidos: 0, erro: false });
-    expect(m.enfileirar).toHaveBeenCalledTimes(2);
-    expect((m.enfileirar.mock.calls[0]![0] as { id: string }).id).toBe(U(1));
-    expect(m.enfileirar.mock.calls[0]![0]).toMatchObject({ entidade: ENTIDADE_PONTO_TRAJETO, operacao: 'upsert' });
+    const r = await enviarPontosDoTrajeto(m.dep);
+    expect(r).toEqual({ enviados: 2, rejeitados: 0, invalidos: 0, podados: 0, erro: false });
+    const itens = m.push.mock.calls[0]![0];
+    expect(itens.map((i) => i.id)).toEqual([U(1), U(2)]);
+    expect(itens[0]).toMatchObject({ entidade: ENTIDADE_PONTO_TRAJETO, operacao: 'upsert' });
     expect(linhas.every((l) => l.enviado_em === AGORA.toISOString())).toBe(true);
   });
 
-  it('RN-CORE-13: idempotência, rodar duas vezes não enfileira de novo', async () => {
-    const m = montar([ponto(1), ponto(2)]);
-    await enfileirarPontosDoTrajeto(m.dep);
-    const r = await enfileirarPontosDoTrajeto(m.dep);
-    expect(r.enfileirados).toBe(0);
-    expect(m.enfileirar).toHaveBeenCalledTimes(2);
+  it('RN-CORE-13: ponto que o servidor já tinha (conflito pelo id) é marcado e não se repete', async () => {
+    const linhas = [ponto(1)];
+    const m = montar(linhas, async (i) => i.map((x) => ({ id: x.id, status: 'conflito' as const, mensagem: 'já existe' })));
+    const r = await enviarPontosDoTrajeto(m.dep);
+    expect(r).toMatchObject({ enviados: 1, rejeitados: 0, erro: false });
+    expect(linhas[0]!.enviado_em).not.toBeNull();
+    await enviarPontosDoTrajeto(m.dep);
+    expect(m.push).toHaveBeenCalledTimes(1);
   });
 
-  it('RN-CORE-13: mais de 500 pendentes saem em lotes de 500 até acabar', async () => {
+  it('RN-CORE-13: ponto rejeitado é marcado e contado, sem ficar em laço', async () => {
+    const linhas = [ponto(1), ponto(2)];
+    const m = montar(linhas, async (i) =>
+      i.map((x) =>
+        x.id === U(1)
+          ? { id: x.id, status: 'rejeitado' as const, codigo: 'PAYLOAD_INVALIDO', mensagem: 'não aceito' }
+          : { id: x.id, status: 'aceito' as const },
+      ),
+    );
+    const r = await enviarPontosDoTrajeto(m.dep);
+    expect(r).toMatchObject({ enviados: 1, rejeitados: 1, erro: false });
+    expect(linhas.every((l) => l.enviado_em !== null)).toBe(true);
+    expect(m.push).toHaveBeenCalledTimes(1);
+  });
+
+  it('RN-CORE-13: falha de transporte para, deixa pendentes, marca erro e não vaza coordenada', async () => {
+    const linhas = [ponto(1), ponto(2)];
+    const m = montar(linhas, async () => {
+      throw new Error('sem rede em -3.1,-60.02');
+    });
+    const r = await enviarPontosDoTrajeto(m.dep);
+    expect(r).toMatchObject({ enviados: 0, erro: true });
+    expect(linhas.every((l) => l.enviado_em === null)).toBe(true);
+    expect(m.push).toHaveBeenCalledTimes(1);
+    const logado = JSON.stringify(m.registrar.mock.calls);
+    expect(logado).not.toMatch(/-3\.1|-60\.02/);
+  });
+
+  it('RN-CORE-13: mais de 500 pendentes saem em várias chamadas de push com no máximo 500', async () => {
     const linhas = Array.from({ length: 1203 }, (_, i) => ponto(i + 1));
     const m = montar(linhas);
-    const r = await enfileirarPontosDoTrajeto(m.dep);
-    expect(r.enfileirados).toBe(1203);
-    expect(m.enfileirar).toHaveBeenCalledTimes(1203);
-    expect(m.todas).toHaveBeenCalledTimes(4);
-    expect(m.todas.mock.calls.every((c) => c[1]![0] === 500)).toBe(true);
+    const r = await enviarPontosDoTrajeto(m.dep);
+    expect(r.enviados).toBe(1203);
+    expect(m.push).toHaveBeenCalledTimes(3);
+    expect(m.push.mock.calls.every((c) => c[0].length <= MAX_ITENS_PUSH)).toBe(true);
+    expect(m.todas.mock.calls.every((c) => c[1]![0] === MAX_ITENS_PUSH)).toBe(true);
     expect(linhas.every((l) => l.enviado_em !== null)).toBe(true);
   });
 
-  it('RN-CORE-13: sem a tabela, não faz nada e não lança', async () => {
-    const m = montar([], true);
-    const r = await enfileirarPontosDoTrajeto(m.dep);
-    expect(r).toEqual({ enfileirados: 0, invalidos: 0, erro: false });
-    expect(m.enfileirar).not.toHaveBeenCalled();
-    expect(m.registrar).not.toHaveBeenCalled();
-  });
-
-  it('RN-CORE-13: sem ponto pendente (rastreamento desligado), nada é enfileirado', async () => {
-    const m = montar([ponto(1, { enviado_em: '2026-11-19T10:00:00.000Z' })]);
-    const r = await enfileirarPontosDoTrajeto(m.dep);
-    expect(r.enfileirados).toBe(0);
-    expect(m.enfileirar).not.toHaveBeenCalled();
-    expect(m.rodar).not.toHaveBeenCalled();
-  });
-
-  it('RN-CORE-13: o payload tem só os campos do PontoTrajetoSchema', async () => {
-    const m = montar([ponto(1, { velocidade_ms: 3.5 })]);
-    await enfileirarPontosDoTrajeto(m.dep);
-    const payload = (m.enfileirar.mock.calls[0]![0] as { payload: Record<string, unknown> }).payload;
-    expect(Object.keys(payload).sort()).toEqual(['capturado_em', 'id', 'latitude', 'longitude', 'precisao_m', 'velocidade_ms']);
-    expect(PontoTrajetoSchema.safeParse(payload).success).toBe(true);
-  });
-
-  it('RN-CORE-13: ponto inválido no schema é marcado e não é enfileirado', async () => {
+  it('RN-CORE-13: ponto inválido no schema é marcado e não é enviado', async () => {
     const linhas = [ponto(1, { precisao_m: null }), ponto(2)];
     const m = montar(linhas);
-    const r = await enfileirarPontosDoTrajeto(m.dep);
-    expect(r).toMatchObject({ enfileirados: 1, invalidos: 1 });
-    expect(m.enfileirar).toHaveBeenCalledTimes(1);
+    const r = await enviarPontosDoTrajeto(m.dep);
+    expect(r).toMatchObject({ enviados: 1, invalidos: 1, erro: false });
+    expect(m.push.mock.calls[0]![0]).toHaveLength(1);
     expect(linhas[0]!.enviado_em).not.toBeNull();
   });
 
-  it('RN-CORE-13: erro no enfileirar não derruba o sync, não marca o ponto e não vaza coordenada', async () => {
-    const linhas = [ponto(1), ponto(2)];
+  it('RN-CORE-13: poda apaga o enviado há mais de 90 dias e mantém o de 89 dias e o pendente', async () => {
+    const linhas = [
+      ponto(1, { enviado_em: haDias(91) }),
+      ponto(2, { enviado_em: haDias(89) }),
+      ponto(3),
+    ];
     const m = montar(linhas);
-    m.enfileirar.mockImplementationOnce(async () => ({})).mockImplementationOnce(async () => {
-      throw new Error('falhou em -3.1,-60.02');
+    const r = await enviarPontosDoTrajeto(m.dep);
+    expect(r.podados).toBe(1);
+    expect(linhas.map((l) => l.id)).toEqual([U(2), U(3)]);
+  });
+
+  it('RN-CORE-13: a poda roda mesmo com falha de transporte', async () => {
+    const linhas = [ponto(1, { enviado_em: haDias(120) }), ponto(2)];
+    const m = montar(linhas, async () => {
+      throw new Error('sem rede');
     });
-    const r = await enfileirarPontosDoTrajeto(m.dep);
-    expect(r).toMatchObject({ enfileirados: 1, erro: true });
-    expect(linhas[0]!.enviado_em).not.toBeNull();
-    expect(linhas[1]!.enviado_em).toBeNull();
-    const logado = JSON.stringify(m.registrar.mock.calls);
-    expect(logado).not.toMatch(/-3\.1|-60\.02/);
-    expect(logado).toContain('1');
+    const r = await enviarPontosDoTrajeto(m.dep);
+    expect(r).toMatchObject({ erro: true, podados: 1 });
+    expect(linhas).toHaveLength(1);
+  });
+
+  it('RN-CORE-13: sem a tabela, não faz nada e não lança', async () => {
+    const m = montar([], aceitar, true);
+    const r = await enviarPontosDoTrajeto(m.dep);
+    expect(r).toEqual({ enviados: 0, rejeitados: 0, invalidos: 0, podados: 0, erro: false });
+    expect(m.push).not.toHaveBeenCalled();
+    expect(m.registrar).not.toHaveBeenCalled();
   });
 
   it('RN-CORE-13: erro do banco que não seja tabela ausente também não lança', async () => {
     const m = montar([ponto(1)]);
     m.todas.mockRejectedValueOnce(new Error('disk I/O error'));
-    const r = await enfileirarPontosDoTrajeto(m.dep);
+    const r = await enviarPontosDoTrajeto(m.dep);
     expect(r.erro).toBe(true);
+  });
+
+  it('RN-CORE-13: o payload tem só os campos do PontoTrajetoSchema', async () => {
+    const m = montar([ponto(1, { velocidade_ms: 3.5 })]);
+    await enviarPontosDoTrajeto(m.dep);
+    const payload = m.push.mock.calls[0]![0][0]!.payload as Record<string, unknown>;
+    expect(Object.keys(payload).sort()).toEqual(['capturado_em', 'id', 'latitude', 'longitude', 'precisao_m', 'velocidade_ms']);
+    expect(PontoTrajetoSchema.safeParse(payload).success).toBe(true);
   });
 });
