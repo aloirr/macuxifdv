@@ -4,6 +4,7 @@
  * → entrada pelo Zod (400) → execução (erros de módulo com o status deles). O ponta a ponta com Fastify e Postgres é do
  * agente testes (pedido na entrega).
  */
+import { CODIGOS_FILIAL_USUARIO } from '@macuxi/core/contracts';
 import { criarRelogio } from '@macuxi/comum/relogio';
 import { criarPermissoes, ErroHttpModulo, verificarAcao, verificarAcesso, type ContextoRota, type ModuloId, type Perfil, type RotaModulo } from '@macuxi/platform-sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -187,16 +188,19 @@ describe('GET /v1/catalogo/busca — preço, estoque e perfil', () => {
     expect(atacado.corpo.items[0]!.price).toMatchObject({ price_cents: null, sellable: false, notice: MENSAGEM_SEM_PRECO_CLIENTE });
   });
 
-  it('RN-CAT-05: o promotor acha o produto sem preço nem estoque, e "com estoque" não filtra para ele', async () => {
+  it('RN-CAT-05 (revista): o promotor vê o ESTOQUE e não o preço; "com estoque" filtra para ele como para o vendedor', async () => {
     const { rota } = montar();
-    const r = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('promotor'), { query: { q: 'açaí com estoque', customer_id: CLIENTE_VAREJO } });
+    const r = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('promotor'), { query: { q: 'açaí', customer_id: CLIENTE_VAREJO } });
     expect(skus(r.corpo.items)).toEqual(['ACA-1K']);
-    expect(r.corpo.items[0]).toMatchObject({ price: null, availability: null, price_stock_visible: false });
+    expect(r.corpo.items[0]).toMatchObject({ price: null, price_stock_visible: false });
+    expect(r.corpo.items[0]!.availability).toMatchObject({ band: 'sem_estoque' });
+    expect((await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('promotor'), { query: { q: 'açaí com estoque', customer_id: CLIENTE_VAREJO } })).corpo.items).toEqual([]);
     const vendedor = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'açaí com estoque', customer_id: CLIENTE_VAREJO } });
     expect(vendedor.corpo.items).toEqual([]);
   });
 
   it('RN-CAT-07: estoque das filiais do usuário, com a hora da atualização', async () => {
+    memoria = criarRepositorioMemoria({ [TENANT_A]: { ...dadosA(), filiaisDeVenda: { [usuario('vendedor').id]: [FILIAL_DEMO] } }, [TENANT_B]: dadosB() });
     const { rota } = montar();
     const r = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'café', customer_id: CLIENTE_VAREJO } });
     expect(r.corpo.items[0]!.availability).toMatchObject({ band: 'disponivel', quantity: 80, stale: false });
@@ -252,12 +256,48 @@ describe('GET /v1/catalogo/busca — sem cliente: preço e estoque da filial (RN
     const cafeId = dadosA().produtos[0]!.id;
     comFiliais({
       saldos: new Map([[cafeId, [{ branch_id: FILIAL_BVB, branch_name: 'Boa Vista', quantity: 7, updated_at: em }, { branch_id: FILIAL_DEMO, branch_name: 'CD Manaus', quantity: 80, updated_at: em }]]]),
+      filiaisDeVenda: { [usuario('vendedor').id]: [FILIAL_BVB, FILIAL_DEMO] },
     });
     const { rota } = montar();
     const r = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'café', filial: FILIAL_BVB } }, { carteira: 'tenant' });
     const item = cafe(r.corpo);
     expect(item.price).toMatchObject({ price_cents: 1234, sellable: true });
-    expect(item.availability!.by_branch.map((b) => b.branch_id)).toEqual([FILIAL_BVB]);
+    // catalogo-campo-v2 §3 e §4: N é só da filial escolhida; a folha lista as filiais de venda
+    expect(item.availability).toMatchObject({ quantity: 7 });
+    expect(item.availability!.by_branch.map((b) => b.branch_id).sort()).toEqual([FILIAL_BVB, FILIAL_DEMO].sort());
+  });
+
+  it('catalogo-campo-v2 §3 / RN-CORE-39: o vendedor sem filtro soma as filiais de venda; `filial=todas` também; a folha lista só elas', async () => {
+    const em = relogio.relativo({ horas: -1 }).toISOString();
+    const cafeId = dadosA().produtos[0]!.id;
+    comFiliais({
+      saldos: new Map([[cafeId, [{ branch_id: FILIAL_BVB, branch_name: 'Boa Vista', quantity: 7, updated_at: em }, { branch_id: FILIAL_DEMO, branch_name: 'CD Manaus', quantity: 80, updated_at: em }]]]),
+      filiaisDeVenda: { [usuario('vendedor').id]: [FILIAL_BVB] },
+    });
+    const { rota } = montar();
+    const sem = cafe((await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'café' } }, { carteira: 'tenant' })).corpo).availability!;
+    expect(sem.quantity).toBe(7);
+    expect(sem.by_branch.map((b) => b.branch_id)).toEqual([FILIAL_BVB]);
+    expect(cafe((await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'café', filial: 'todas' } }, { carteira: 'tenant' })).corpo).availability!.quantity).toBe(7);
+  });
+
+  it.each(['vendedor', 'admin', 'analista'] as const)('RN-CORE-39: %s sem filial é recusado (403 USUARIO_SEM_FILIAL), como no Core; preço e estoque não saem', async (perfil) => {
+    comFiliais({ filiaisDeVenda: { [usuario(perfil).id]: [] } });
+    const { rota } = montar();
+    expect(await chamar(rota('GET', 'busca'), usuario(perfil), { query: { q: 'café' } })).toMatchObject({ status: 403, codigo: CODIGOS_FILIAL_USUARIO.semFilial });
+  });
+
+  it('RN-CAT-05 (revista) / spec §4: supervisor soma as filiais dele e a folha lista só as dele (a de venda sem saldo com 0, RN-CORE-39)', async () => {
+    const em = relogio.relativo({ horas: -1 }).toISOString();
+    const cafeId = dadosA().produtos[0]!.id;
+    comFiliais({
+      saldos: new Map([[cafeId, [{ branch_id: FILIAL_BVB, branch_name: 'Boa Vista', quantity: 7, updated_at: em }, { branch_id: FILIAL_DEMO, branch_name: 'CD Manaus', quantity: 80, updated_at: em }]]]),
+      filiaisDeVenda: { [usuario('supervisor').id]: [FILIAL_BVB, FILIAL_PADRAO_MEMORIA] },
+    });
+    const { rota } = montar();
+    const a = cafe((await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('supervisor'), { query: { q: 'café' } })).corpo).availability!;
+    expect(a.quantity).toBe(7);
+    expect(a.by_branch.map((b) => [b.branch_id, b.quantity])).toEqual([[FILIAL_BVB, 7], [FILIAL_PADRAO_MEMORIA, 0]]);
   });
 
   it('RN-CORE-39: filial que não é do tenant dá 422; a API revalida mesmo com a tela certa', async () => {
@@ -267,19 +307,20 @@ describe('GET /v1/catalogo/busca — sem cliente: preço e estoque da filial (RN
     expect(r).toMatchObject({ status: 422, codigo: 'FILIAL_INEXISTENTE' });
   });
 
-  it('RN-CORE-04: filial fora das filiais da carteira do usuário dá 403', async () => {
-    comFiliais({ filiaisDoUsuario: { [usuario('vendedor').id]: [FILIAL_PADRAO_MEMORIA] } });
+  it('RN-CORE-39: filial que não é de venda do usuário dá 403', async () => {
+    comFiliais({ filiaisDeVenda: { [usuario('vendedor').id]: [FILIAL_PADRAO_MEMORIA] } });
     const { rota } = montar();
     const r = await chamar(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'café', filial: FILIAL_BVB } });
-    expect(r).toMatchObject({ status: 403, codigo: 'FILIAL_FORA_DA_CARTEIRA' });
+    expect(r).toMatchObject({ status: 403, codigo: 'FILIAL_FORA_DAS_SUAS' });
   });
 
-  it('RN-CAT-05: o promotor continua sem preço nem estoque, mesmo com `filial`', async () => {
-    comFiliais();
+  it('RN-CAT-05 (revista): o promotor continua sem preço, mesmo com `filial`, e vê o estoque da filial dele', async () => {
+    comFiliais({ filiaisDeVenda: { [usuario('promotor').id]: [FILIAL_BVB] } });
     const { rota } = montar();
     const r = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('promotor'), { query: { q: 'café', filial: FILIAL_BVB } });
     expect(r.status).toBe(200);
-    expect(cafe(r.corpo)).toMatchObject({ price: null, availability: null });
+    expect(cafe(r.corpo)).toMatchObject({ price: null, price_stock_visible: false });
+    expect(cafe(r.corpo).availability).not.toBeNull();
   });
 
   it('RN-CAT-06: com customer_id a filial pedida é ignorada (vale a tabela e a filial do cliente)', async () => {

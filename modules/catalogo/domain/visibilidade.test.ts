@@ -53,11 +53,11 @@ describe('RN-CAT-05: quem vê preço de tabela e estoque', () => {
     }
   });
 
-  it('RN-CAT-05: promotor (padrão) recebe ficha e fotos, sem preço de tabela e sem estoque', () => {
+  it('RN-CAT-05: promotor (padrão) recebe ficha, fotos e estoque, sem preço de tabela', () => {
     const r = itemVitrineParaPerfil(item, 'promotor', PARAMETROS_PADRAO);
     expect(r).toMatchObject({ id: 'p1', description: 'Detergente neutro 5 L', brand: 'Limpex', thumbnail_url: 'https://cdn.exemplo/p1.jpg', is_campaign: true });
-    expect(r).toMatchObject({ price: null, availability: null, price_stock_visible: false });
-    expect(JSON.stringify(r)).not.toMatch(/1590|"quantity"|price_cents/);
+    expect(r).toMatchObject({ price: null, availability: estoque, price_stock_visible: false });
+    expect(JSON.stringify(r)).not.toMatch(/1590|price_cents/);
     expect(ItemVitrine.safeParse(r).success).toBe(true);
   });
 
@@ -65,9 +65,9 @@ describe('RN-CAT-05: quem vê preço de tabela e estoque', () => {
     expect(itemVitrineParaPerfil(item, 'vendedor', PARAMETROS_PADRAO)).toEqual(item);
   });
 
-  it('RN-CAT-05: promotor sem preço/estoque não filtra nem ordena por preço ou estoque (a ordem não pode revelar o preço)', () => {
+  it('RN-CAT-05: promotor sem preço não filtra nem ordena por preço (a ordem não pode revelar o preço); o filtro de estoque continua', () => {
     const f: FiltrosInterpretados = { text: 'detergente', brand: 'Limpex', line: null, min_price_cents: 500, max_price_cents: 1000, stock: 'com', code: null, measures: ['5000ml'], sort: 'preco_asc' };
-    expect(filtrosParaPerfil(f, 'promotor', PARAMETROS_PADRAO)).toEqual({ ...f, min_price_cents: null, max_price_cents: null, stock: null, sort: null });
+    expect(filtrosParaPerfil(f, 'promotor', PARAMETROS_PADRAO)).toEqual({ ...f, min_price_cents: null, max_price_cents: null, sort: null });
     expect(filtrosParaPerfil(f, 'promotor', COM_PARAMETRO)).toEqual(f);
     expect(filtrosParaPerfil(f, 'vendedor', PARAMETROS_PADRAO)).toEqual(f);
   });

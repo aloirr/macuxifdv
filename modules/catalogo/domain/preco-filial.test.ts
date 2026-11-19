@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filialDaTelaDePreco, filialNaCarteira, filialDoClienteLocal, filialDoPreco, precosDaFilialSemCliente, precosDaTabelaSemCliente, tabelaDaFilialSemCliente } from './preco-filial';
+import { filialDaTelaDePreco, filialDoClienteLocal, filialDoPreco, precosDaFilialSemCliente, precosDaTabelaSemCliente, tabelaDaFilialSemCliente } from './preco-filial';
 import { faixasDoProduto, type LinhaEscalonada } from './escalonada';
 import { precosDoCliente } from './precos-cliente';
 import { MENSAGEM_SEM_PRECO_CLIENTE } from './preco';
@@ -121,11 +121,6 @@ describe('RN-VEN-01: busca sem cliente usa a filial padrão ou a escolhida (mesm
   const item = (tabela: string, produto: string, preco: number) => ({ tabela_preco_id: tabela, produto_id: produto, preco_cents: preco, vigencia_inicio: null, vigencia_fim: null });
   it('RN-VEN-01: sem filial escolhida vale a padrão do tenant', () => {
     expect(filialDaTelaDePreco(undefined, MAO, [MAO, BVB])).toEqual({ ok: true, filialId: MAO });
-  });
-  it('RN-CORE-04: filial fora das filiais da carteira do usuário é recusada; carteira nula vale todas', () => {
-    expect(filialNaCarteira(BVB, [MAO])).toBe(false);
-    expect(filialNaCarteira(BVB, [MAO, BVB])).toBe(true);
-    expect(filialNaCarteira(BVB, null)).toBe(true);
   });
   it('RN-VEN-01: o preço sem cliente é o da tabela de mais itens na filial, sem tabela no item (vale a "padrão" do domain)', () => {
     const r = precosDaFilialSemCliente([t('A', '01'), t('B', '02')], [item('A', P1, 100), item('B', P1, 200), item('B', P2, 300)]);

@@ -53,11 +53,11 @@ describe('textos do cartão do catálogo', () => {
     expect(rotuloEstoque(vazio, AGORA, 'America/Manaus', { filialDoCliente: true })).toMatchObject({ texto: 'Sem estoque', desatualizado: false, detalhe: '' });
   });
 
-  it('RN-CAT-07: na virada do dia (23:59, 00:00, 00:03, 00:06 em Manaus) o rótulo troca para "em dd/mm" só quando a atualização foi no dia anterior', () => {
+  it('RN-CAT-07: na virada do dia (23:59, 00:00, 00:03, 00:06 em Manaus) o rótulo troca para "ontem" só quando a atualização foi no dia anterior (decisão 5 do R-20261115-100000)', () => {
     const casos: Array<[string, string, string]> = [
       ['2026-11-04T03:59:00Z', 'Atualizado às 23:54', 'mesmo dia'],
-      ['2026-11-04T04:00:00Z', 'Atualizado em 03/11 às 23:55', 'dia anterior'],
-      ['2026-11-04T04:03:00Z', 'Atualizado em 03/11 às 23:58', 'dia anterior'],
+      ['2026-11-04T04:00:00Z', 'Atualizado ontem às 23:55', 'dia anterior'],
+      ['2026-11-04T04:03:00Z', 'Atualizado ontem às 23:58', 'dia anterior'],
       ['2026-11-04T04:06:00Z', 'Atualizado às 00:01', 'mesmo dia'],
     ];
     for (const [agora, esperado, porque] of casos) {
