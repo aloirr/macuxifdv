@@ -217,9 +217,9 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
 - `Faixa` ganhou `apoio` (2ª linha); alertas da aba Venda com `alertaInadimplencia` e `TEXTO_CLIENTE_LIBERADO`.
 
 ### 4.7 Novo pedido v3: crédito em tabela, Rascunhos, "preço de" (T-0141; spec `docs/design/pedido-v3.md`)
-- `TabelaValores`: valor de consulta em tabela (rótulo 14 `ink2` ··· valor 18/700 tabular, linhas de 48 dp com traço);
-  sem dado = `VALOR_SEM_DADO` ("—", em `ink3`); `carregando` desenha barras cinza; `rodape` com a atualização. Nunca frase
-  corrida para Limite, Disponível ou Prazo médio.
+- Crédito do cliente e totais da folha "Preços de hoje" em **`TabelaRotuloValor`** (§4.10), com `tom`, `carregando` e `rodape`;
+  a `TabelaValores` saiu do kit (RD-2370). Sem dado = `VALOR_SEM_DADO` ("—", em `ink3`); nunca frase corrida para Limite,
+  Disponível ou Prazo médio.
 - Entrada **Rascunhos (n)** em Pedidos com o `LinhaAtalho`; selo "Some em 2 h" (aviso) nas últimas 3 h; selo do orçamento
   "Orçamento · preço de 09/11" (`destaque`, não vence).
 
@@ -260,8 +260,14 @@ Unificam a ficha do Cliente 360 e o detalhe do pedido/Resumo. Cartão `surface`,
 fio `lineSoft` entre as linhas, linhas de no mínimo 48 dp. Só tokens do kit.
 - **`TabelaRotuloValor`**: quando a seção é uma lista de **pares** (Pagamento, Entrega, Crédito, Cadastro). Rótulo 14 `ink2`
   numa coluna fixa e valor 16 tabular; vazio vira "—" em `ink3`.
-  `{ linhas: LinhaRotuloValor[]; larguraRotulo?: number /* 136 */; alinharValor?: 'esq' | 'dir' /* 'dir' */; testID? }`.
-  `LinhaRotuloValor = { rotulo; valor; complemento?: ReactNode; perigo?; testID?; testIDComplemento?; rotuloAcessivel? }`.
+  Substitui a `TabelaValores` (RD-2370): também é a tabela do crédito do cliente (aba Venda) e dos totais da folha "Preços de hoje".
+  `{ linhas: LinhaRotuloValor[]; larguraRotulo?: number /* 136 */; alinharValor?: 'esq' | 'dir' /* 'dir' */; carregando?; rodape?: { icone?: IconName; texto } | null; testID? }`.
+  `LinhaRotuloValor = { id?; rotulo; valor; complemento?: ReactNode; tom?: 'erro' | 'sucesso'; perigo?; testID?; testIDComplemento?; rotuloAcessivel? }`.
+  `id` = chave e testIDs (`<testID>-<id>` na linha, `<testID>-<id>-valor` no valor; sem `id`, a chave é o rótulo). `tom`:
+  `erro` em `danger` (disponível negativo, com "−R$" no texto), `sucesso` em `success` (queda de preço); `perigo` = `tom: 'erro'`
+  (`aparenciaDoValor`, puro). Vazio ou "—" sai "—" em `ink3` e o TalkBack lê "sem dado". `carregando`: barra `lineSoft` de
+  72 × 12 no lugar de cada valor (nada de "R$ 0,00" falso), TalkBack só com o rótulo e ocupado. `rodape`: linha 12 `ink2` abaixo
+  do cartão (`<testID>-rodape`), ex.: ícone `sync` (sem sinal, `wifiOff`) + "Atualizado hoje às 05:38".
   `complemento` em **texto** = 2ª linha do valor (12 `ink2`, ex.: CNPJ abaixo do nome) e entra na leitura do TalkBack
   ("Cliente: Mercado Sol. CNPJ …"); como **elemento** fica à direita do valor (ex.: `BotaoCelula` de ligar). `perigo` pinta o
   valor de `danger` (sempre com texto que diz o porquê). Ficha: padrão (136, à direita); pedido: `larguraRotulo={92}` e

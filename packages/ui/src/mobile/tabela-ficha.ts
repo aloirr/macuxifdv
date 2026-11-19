@@ -3,7 +3,7 @@
  * tabela da ficha do Cliente 360 (modulo-core) e as do detalhe do pedido e do Resumo (modulo-vendedor, pedido-v4.md §1, §2, §5.4).
  * Medidas, largura e alinhamento de cada coluna e a leitura do TalkBack. Sem react-native: roda em Node.
  */
-import { ALVO_TOQUE, folgaDeToque, leituraDaLinhaDeValor } from './componentes';
+import { ALVO_TOQUE, ehSemDado, folgaDeToque, leituraDaLinhaDeValor } from './componentes';
 import { radius } from './tokens';
 
 /** Medidas (dp e tamanhos de fonte) das duas tabelas. */
@@ -24,6 +24,8 @@ export const TABELA_FICHA = {
   botao: { lado: ALVO_TOQUE, icone: 20 },
   /** Fio vermelho à esquerda da linha em perigo (NF em atraso). */
   fioPerigo: 3,
+  /** `carregando` da `TabelaRotuloValor`: barra cinza no lugar do valor (nunca um "R$ 0,00" falso). */
+  esqueleto: { largura: 72, altura: 12 },
 } as const;
 
 export type AlinharColuna = 'esq' | 'dir' | 'centro';
@@ -79,6 +81,20 @@ export function leituraDoRotuloValor(rotulo: string, valor: string | null | unde
   const base = leituraDaLinhaDeValor(rotulo, valor);
   const extra = complemento?.trim();
   return extra ? `${base}. ${extra}` : base;
+}
+
+/** Tom do valor da `TabelaRotuloValor` (RD-2370, os da antiga `TabelaValores`): `erro` = disponível negativo, com o "−" no
+ * texto; `sucesso` = queda de preço. */
+export type TomDoValor = 'erro' | 'sucesso';
+
+/**
+ * Cor do valor da `TabelaRotuloValor`: o tom pedido vence (`perigo` = `erro`); sem tom, o vazio ou "—" é `semDado` (`ink3`);
+ * o resto, `normal` (`ink`).
+ */
+export function aparenciaDoValor(valor: string | null | undefined, tom?: TomDoValor, perigo?: boolean): TomDoValor | 'semDado' | 'normal' {
+  if (tom) return tom;
+  if (perigo) return 'erro';
+  return ehSemDado(valor) ? 'semDado' : 'normal';
 }
 
 /** Folga de toque do `BotaoCelula` (o visual já tem 48 dp: 0). */

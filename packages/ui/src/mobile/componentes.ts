@@ -141,16 +141,16 @@ export function leituraDoAtalho(rotulo: string, apoio?: string | null): string {
   return a ? `${r}. ${a}` : r;
 }
 
-/** Valor sem dado na `TabelaValores` (T-0141, crédito do cliente): travessão, nunca um "R$ 0,00" falso. */
+/** Valor sem dado na `TabelaRotuloValor` (T-0141, crédito do cliente; RD-2370): travessão, nunca um "R$ 0,00" falso. */
 export const VALOR_SEM_DADO = '—';
 
-/** Vazio ou travessão: a `TabelaValores` desenha em `ink3` e o leitor de tela lê "sem dado". */
+/** Vazio ou travessão: a `TabelaRotuloValor` desenha em `ink3` e o leitor de tela lê "sem dado". */
 export function ehSemDado(valor: string | null | undefined): boolean {
   const v = (valor ?? '').trim();
   return v === '' || v === VALOR_SEM_DADO;
 }
 
-/** Leitura de uma linha da `TabelaValores`: "Limite: R$ 20.000,00"; sem dado: "Limite: sem dado". */
+/** Leitura de uma linha da `TabelaRotuloValor`: "Limite: R$ 20.000,00"; sem dado: "Limite: sem dado". */
 export function leituraDaLinhaDeValor(rotulo: string, valor: string | null | undefined): string {
   return `${rotulo.trim()}: ${ehSemDado(valor) ? 'sem dado' : (valor ?? '').trim()}`;
 }

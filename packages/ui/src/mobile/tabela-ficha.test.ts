@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
+import { ehSemDado, leituraDaLinhaDeValor, VALOR_SEM_DADO } from './componentes';
 import {
   alinhamentoDaColuna,
+  aparenciaDoValor,
   alinharDaColuna,
   estiloDaColuna,
   folgaDoBotaoCelula,
@@ -61,7 +63,29 @@ describe('Tabelas da ficha (RD-2355, T-0186): parte pura', () => {
     expect(leituraDoRotuloValor('Cliente', 'Mercado Sol', '  ')).toBe('Cliente: Mercado Sol');
   });
 
+  it('RD-2370 (ex-TabelaValores, T-0141): sem dado é travessão (nunca "R$ 0,00" falso) e vazio também conta', () => {
+    expect(VALOR_SEM_DADO).toBe('—');
+    expect(ehSemDado('—')).toBe(true);
+    expect(ehSemDado('  ')).toBe(true);
+    expect(ehSemDado(null)).toBe(true);
+    expect(ehSemDado('R$ 0,00')).toBe(false);
+    expect(leituraDaLinhaDeValor('Limite', 'R$ 20.000,00')).toBe('Limite: R$ 20.000,00');
+    expect(leituraDoRotuloValor('Disponível', '—')).toBe('Disponível: sem dado');
+  });
+
+  it('RD-2370: cor do valor pelo tom (erro, sucesso; perigo = erro); sem tom, "—" e vazio em semDado', () => {
+    expect(aparenciaDoValor('−R$ 1.200,00', 'erro')).toBe('erro');
+    expect(aparenciaDoValor('−R$ 4,20', 'sucesso')).toBe('sucesso');
+    expect(aparenciaDoValor('R$ 10,00', undefined, true)).toBe('erro');
+    expect(aparenciaDoValor('—')).toBe('semDado');
+    expect(aparenciaDoValor('')).toBe('semDado');
+    expect(aparenciaDoValor('R$ 10,00')).toBe('normal');
+    expect(aparenciaDoValor('—', 'erro')).toBe('erro');
+    expect(TABELA_FICHA.esqueleto).toEqual({ largura: 72, altura: 12 });
+  });
+
   it('a parte pura sai pelo `@macuxi/ui/mobile/puro`', () => {
+    expect(puro.aparenciaDoValor).toBe(aparenciaDoValor);
     expect(puro.estiloDaColuna).toBe(estiloDaColuna);
     expect(puro.TABELA_FICHA).toBe(TABELA_FICHA);
   });
@@ -86,6 +110,21 @@ describe('Tabelas da ficha: desenho (tabela-ficha-rn.tsx)', () => {
     expect(src).toMatch(/linhaRV: \{[^}]*minHeight: T\.alturaLinha/);
     expect(src).toMatch(/linha: \{[^}]*minHeight: T\.alturaLinha/);
     expect(src).toMatch(/botao: \{ width: T\.botao\.lado, height: T\.botao\.lado/);
+  });
+
+  it('RD-2370: tons do valor (danger, success, ink3), carregando com barra lineSoft e ocupado, rodapé 12 ink2', () => {
+    expect(src).toMatch(/COR_DO_VALOR = \{ erro: colors\.danger, sucesso: colors\.success, semDado: colors\.ink3, normal: colors\.ink \}/);
+    expect(src).toMatch(/aparenciaDoValor\(l\.valor, l\.tom, l\.perigo\)/);
+    expect(src).toMatch(/ehSemDado\(l\.valor\) \? VALOR_SEM_DADO : l\.valor/);
+    expect(src).toMatch(/esqueleto: \{ width: T\.esqueleto\.largura, height: T\.esqueleto\.altura, [^}]*backgroundColor: colors\.lineSoft \}/);
+    expect(src).toMatch(/accessibilityLabel=\{ocupado \? l\.rotulo :/);
+    expect(src).toMatch(/accessibilityState=\{ocupado \? \{ busy: true \} : undefined\}/);
+    expect(src).toMatch(/rodapeTexto: \{ \.\.\.fonte\.body, fontSize: T\.fonte\.segunda, color: colors\.ink2 \}/);
+    expect(src).toMatch(/testID=\{testID \? `\$\{testID\}-rodape` : undefined\}/);
+  });
+
+  it('RD-2370: a TabelaValores saiu do kit', () => {
+    expect(ler('./valores.tsx')).not.toMatch(/TabelaValores/);
   });
 
   it('só tokens do kit: nenhuma cor escrita à mão', () => {
