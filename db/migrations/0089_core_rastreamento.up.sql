@@ -6,7 +6,7 @@
 -- Migração ADITIVA: 2 tabelas novas no Core (core.ponto_trajeto e core.ausencia_usuario), 1 índice novo em
 -- core.deslocamento_dia (0066), deslocamento_dia_expurgo_ix, e 1 função de expurgo. Nenhuma tabela, coluna, política ou grant
 -- que já existe muda. Nenhum contrato muda de versão. O rastreamento é interno (ordem do dono do produto, 19/11/2026 05h46):
--- o vendedor não vê nada e não há termo, aceite nem pausa, por isso essas tabelas saíram do desenho.
+-- o vendedor não vê nada e não há termo, aceite nem pausa.
 --
 -- Tabelas (dono: Core; todas com os campos comuns, RLS ligado e FORÇADO, isolamento_tenant ao macuxi_app e manutencao (0031)):
 -- 1. core.ponto_trajeto — ponto do trajeto capturado no aparelho (só de envio; nunca volta ao aparelho):

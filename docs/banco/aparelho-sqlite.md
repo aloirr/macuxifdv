@@ -422,7 +422,6 @@ medições da execução. Para afirmar a meta de 300 ms da busca (em vez do limi
 ## 11. Core: rastreamento (T-0156, `modules/core/db/aparelho.ts`)
 - `core__ponto_trajeto (id, capturado_em, latitude, longitude, precisao_m, velocidade_ms, enviado_em)`, `WITHOUT ROWID`; instantes
   em ISO 8601 UTC com `Z`; `enviado_em` nulo = na fila. Um índice só, `core__ponto_trajeto_capturado (capturado_em)`, para a
-  fila (não enviados do mais antigo, lotes de 500), o km de hoje e a poda (enviados fora de hoje e não enviados com mais de 90
-  dias).
+  fila (não enviados do mais antigo, lotes de 500) e a poda (enviados e não enviados com mais de 90 dias).
 - Só o desenho §3.1: sem endereço, altitude, rumo, rede ou bateria. Logout ou bloqueio apagam o banco do usuário, como hoje.
 - Ligação: `definirModuloShell({ migracoesAparelho })` no manifesto do Core (modulo-core). Teste: `db/testes/aparelho-sqlite-core.test.ts`.

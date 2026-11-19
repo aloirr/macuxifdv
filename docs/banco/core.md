@@ -1180,8 +1180,7 @@ backfill de migração grava lá). Volta: `0085_core_usuario_filial_matriz.down.
 
 ## 0089 — rastreamento no expediente (`0089_core_rastreamento`; T-0156, ADR 0061, RN-CORE-13)
 Desenho `docs/desenho/tracking.md` §5.1 e §5.4; retenção aprovada em 16/11 (R-20261116-110200, finalidade §5). Aditiva. Testes:
-`db/testes/rastreamento.db.test.ts` e, no aparelho, `db/testes/aparelho-sqlite-core.test.ts`. Rastreamento interno: o vendedor
-não vê nada e não há termo, aceite nem pausa (ordem do dono do produto, 19/11/2026 05h46).
+`db/testes/rastreamento.db.test.ts` e, no aparelho, `db/testes/aparelho-sqlite-core.test.ts`.
 
 | Tabela | Colunas próprias | Regras | App | Sync |
 |---|---|---|---|---|

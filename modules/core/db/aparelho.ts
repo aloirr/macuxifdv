@@ -11,11 +11,7 @@
  * - Caminho de volta: não há "down" no aparelho; downgrade do app ou logout apagam os bancos do usuário
  *   (`apagarBancosDoAparelho`), e ponto não enviado se perde (desenho §3.4).
  *
- * core__ponto_trajeto: um ponto por linha, gravado pela tarefa `macuxi-trajeto` (fora de tela). `id` = UUID gerado no
- * aparelho (o mesmo do push, idempotente no servidor); `capturado_em` = ISO 8601 UTC com `Z` (ordem de texto = ordem de
- * tempo); `enviado_em` nulo = na fila. Um índice só, core__ponto_trajeto_capturado, serve a fila (não enviados do mais
- * antigo, em lotes de [500]), a poda depois do envio confirmado (enviados que não são de hoje e, sem envio, os de mais de [90]
- * dias) e o km parcial de hoje (metrosDoTrajeto).
+ * core__ponto_trajeto: colunas, índice, fila e poda em docs/banco/aparelho-sqlite.md §11.
  */
 export const migracoesAparelho: { versao: number; sql: string }[] = [
   {
