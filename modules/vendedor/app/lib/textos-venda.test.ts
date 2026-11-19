@@ -4,7 +4,7 @@ import { linhaDaObsNoResumo, tabelaDoCredito, textoDoPrazoMedio } from './textos
 
 describe('textos da aba Venda (RF-VEN-11, RN-VEN-12, RN-VEN-13)', () => {
   it('RN-VEN-12: crédito em tabela, Limite, Disponível e Prazo médio, na ordem da prancha (T-0141 A)', () => {
-    const t = tabelaDoCredito({ tipo: 'dados', limite_cents: 2000000, disponivel_cents: 1790000, alerta: null }, 45);
+    const t = tabelaDoCredito({ tipo: 'dados', limite_informado: true, limite_cents: 2000000, disponivel_cents: 1790000, alerta: null }, 45);
     expect(t.estado).toBe('tabela');
     expect(t.linhas.map((l) => [l.id, l.rotulo])).toEqual([['limite', 'Limite'], ['disponivel', 'Disponível'], ['prazo', 'Prazo médio']]);
     expect(t.linhas[0]!.valor).toMatch(/^R\$\s20\.000,00$/);
@@ -13,12 +13,12 @@ describe('textos da aba Venda (RF-VEN-11, RN-VEN-12, RN-VEN-13)', () => {
     expect(t.linhas.every((l) => !('tom' in l))).toBe(true);
   });
   it('RN-VEN-42 (RD-0083): disponível negativo sai só com o sinal − (U+2212), sem vermelho: o alerta é o de crédito excedido', () => {
-    const t = tabelaDoCredito({ tipo: 'dados', limite_cents: 1000000, disponivel_cents: -120000, alerta: null }, 30);
+    const t = tabelaDoCredito({ tipo: 'dados', limite_informado: true, limite_cents: 1000000, disponivel_cents: -120000, alerta: null }, 30);
     expect(t.linhas[1]!.valor).toMatch(/^−R\$\s1\.200,00$/);
     expect(t.linhas.every((l) => !('tom' in l))).toBe(true);
   });
   it('RN-VEN-25: sem prazo médio a linha fica com travessão (a forma da tabela não muda)', () => {
-    const t = tabelaDoCredito({ tipo: 'dados', limite_cents: 100, disponivel_cents: 100, alerta: null }, null);
+    const t = tabelaDoCredito({ tipo: 'dados', limite_informado: true, limite_cents: 100, disponivel_cents: 100, alerta: null }, null);
     expect(t.linhas).toHaveLength(3);
     expect(t.linhas[2]).toMatchObject({ id: 'prazo', valor: '—' });
   });

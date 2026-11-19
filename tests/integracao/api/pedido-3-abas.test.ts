@@ -27,6 +27,8 @@ import { buildOrderPdfHtml, pdfDoPedido } from '../../../modules/vendedor/app/li
 import { A, B, subirApi, type ApiDeTeste } from '../apoio/api';
 import { garantirSaldoNaFilial, SALDO_REFERENCIA } from '../apoio/demo';
 
+// o `titulo_vencido_dias = 30` do tenant A vale só para este arquivo: o afterAll apaga (os outros arquivos contam com o padrão 5)
+const LIMPAR_VENCIDO_DIAS = "delete from plataforma.parametro where tenant_id = $1 and modulo = 'vendedor' and chave = 'titulo_vencido_dias'";
 
 const id = (n: number) => `0f610000-0000-4000-8000-a${String(n).padStart(11, '0')}`;
 const PED = { lixo1: id(90), lixo2: id(91), cx: id(1), efetivo5: id(2), item30pedido5: id(3), fobDigitada: id(4), fobRuim: id(5), endereco: id(6), enderecoRuim: id(7), promotor: id(8), cxFaixa: id(9) };
@@ -82,12 +84,17 @@ describe.skipIf(semBanco())('T-0061 — roteiro de 5 passos do novo pedido em 3 
 
   beforeAll(async () => {
     api = await subirApi();
+    // T-0184 (P1 A): o A.c1 da fixture tem título vencido há 10 dias e iria para aprovação por inadimplência (RN-VEN-13), com
+    // qualquer forma de pagamento; este arquivo não trata disso (tests/integracao/api/aprovacao-motivo-t0184.test.ts trata)
+    await api.admin.query(LIMPAR_VENCIDO_DIAS, [A.tenantId]); // sobra de uma rodada interrompida
+    await api.admin.query("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ($1, 'vendedor', 'titulo_vencido_dias', '30')", [A.tenantId]);
     tk.vendedor = (await api.sessao('vendedor@exemplo.com.br')).access_token;
     tk.gerente = (await api.sessao('gerente@exemplo.com.br')).access_token;
     tk.promotor = (await api.sessao('promotor@exemplo.com.br')).access_token;
     tk.b = (await api.sessao('vendedor@exemplo.com.br', B)).access_token;
     await api.admin.query('delete from vendedor.pedido_evento where pedido_id = any($1::uuid[])', [Object.values(PED)]);
     await api.admin.query('delete from vendedor.pedido_item where pedido_id = any($1::uuid[])', [Object.values(PED)]);
+    await api.admin.query('delete from vendedor.pedido_aprovacao where pedido_id = any($1::uuid[])', [Object.values(PED)]).catch(() => undefined); // T-0184 (0088)
     await api.admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [Object.values(PED)]);
     prod1 = (await q<{ id: string }>("select id from core.produto where tenant_id = $1 and sku = 'ALFA-001'", [A.tenantId]))[0]!.id;
     prod2 = (await q<{ id: string }>("select id from core.produto where tenant_id = $1 and sku = 'ALFA-002'", [A.tenantId]))[0]!.id;
@@ -114,8 +121,10 @@ describe.skipIf(semBanco())('T-0061 — roteiro de 5 passos do novo pedido em 3 
 
   afterAll(async () => {
     if (!api) return;
+    await api.admin.query(LIMPAR_VENCIDO_DIAS, [A.tenantId]).catch(() => undefined);
     await api.admin.query('delete from vendedor.pedido_evento where pedido_id = any($1::uuid[])', [Object.values(PED)]);
     await api.admin.query('delete from vendedor.pedido_item where pedido_id = any($1::uuid[])', [Object.values(PED)]);
+    await api.admin.query('delete from vendedor.pedido_aprovacao where pedido_id = any($1::uuid[])', [Object.values(PED)]).catch(() => undefined); // T-0184 (0088)
     await api.admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [Object.values(PED)]);
     if (precoProd2Id) await api.admin.query('delete from catalogo.tabela_preco_item where id = $1', [precoProd2Id]);
     await api.fechar();

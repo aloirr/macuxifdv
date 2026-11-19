@@ -134,7 +134,8 @@ describe('RN-VEN-17 (T-0141): Transformar herda o endereço do orçamento no ser
   const editado = { id: null, external_id: null, descricao: null, logradouro: 'Rua Pará', numero: '140', complemento: null, bairro: 'São Geraldo', cidade: 'Manaus', uf: 'AM', cep: '69053000', principal: false, origem: 'editado' };
   const retratoGravado = (sqls: Sql[]) => {
     const ins = sqls.find((x) => /insert into vendedor\.pedido \(/.test(x.sql))!;
-    return JSON.parse(String(ins.valores[33]));
+    const colunas = /insert into vendedor\.pedido \(([^)]*)\)/.exec(ins.sql)![1]!.split(', ').filter((c) => c !== 'tenant_id');
+    return JSON.parse(String(ins.valores[colunas.indexOf('endereco_entrega')]));
   };
 
   it('RN-VEN-17: sem endereço no corpo, o pedido nasce com o endereço editado do orçamento, ainda como editado', async () => {

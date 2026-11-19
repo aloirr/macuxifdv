@@ -26,6 +26,8 @@ export const manifest = defineModule({
     'vendedor.pedido.criado@1',
     'vendedor.pedido.status_alterado@1',
     'vendedor.pedido.aprovacao_solicitada@1',
+    'vendedor.pedido.aprovacao_solicitada@2',
+    'vendedor.pedido.aprovacao_decidida@1',
     'vendedor.pedido.aprovado@1',
     'vendedor.pedido.faturado@1',
     'vendedor.pedido.cancelado@1',
@@ -46,6 +48,8 @@ export const manifest = defineModule({
     'pedido.excluir': { perfis: [...PERFIS_PEDIDO] },
     'pedido.aprovar': { perfis: ['supervisor', 'gerente', 'analista'] },
     'pedido.criar_em_nome': { perfis: ['supervisor', 'gerente'] },
+    // T-0184 (P2 B): Parâmetros › Pedidos, quem aprova crédito e inadimplência; promotor nunca (regra 7)
+    'alcada.gerenciar': { perfis: ['admin', 'analista', 'gerente'] },
     // T-0061 (RN-VEN-16): transportadoras e padrão do frete no BKO
     'transportadora.ver': { perfis: ['admin', 'analista', 'gerente', 'supervisor', 'assistente'] },
     'transportadora.gerenciar': { perfis: ['admin', 'analista', 'gerente'] },

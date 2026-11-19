@@ -395,16 +395,26 @@ describe('T-0159: PDF final (proposta 2) com filial de faturamento, Marca, Emb. 
     expect(buildOrderPdfHtml(pdfDoPedido(dois), 'bko', ctx)).toContain('<div class="r">Histórico</div>');
   });
 
+  it('MC-0068: o PDF só usa cores da paleta da marca (manual §3) e o cabeçalho verde aprovado na T-0159', () => {
+    const paleta = new Set(['#1E3350', '#F8F6F1', '#FFFFFF', '#16202A', '#4A5562', '#5B6673', '#DFE2E6', '#ECEEF1', '#C9CED5', '#00843D']);
+    for (const v of ['customer', 'bko'] as const) {
+      const html = buildOrderPdfHtml(pdfDoPedido(detalhe()), v, ctx);
+      const css = html.slice(html.indexOf('<style'), html.indexOf('</style>'));
+      const cores = [...new Set((css.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).map((c) => (c.length === 4 ? `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}` : c).toUpperCase()))];
+      expect(cores.length).toBeGreaterThan(5);
+      expect(cores.filter((c) => !paleta.has(c))).toEqual([]);
+    }
+  });
   describe('T-0159: PDF horizontal (R-20261111-084832)', () => {
     const dois = detalhe({ history: [{ at: '2026-11-01T14:00:05.000Z', status: 'received', by: 'Renata Fictícia', note: '' }, { at: '2026-11-01T15:00:05.000Z', status: 'approved', by: 'Renata Fictícia', note: '' }] });
-    it('página A4 paisagem, itens 15 px, rótulos 12 px, total 26 px, ficha #F1F2F0 e cabeçalho da tabela verde com texto branco', () => {
+    it('página A4 paisagem, itens 15 px, rótulos 12 px, total 26 px, ficha Pérola #F8F6F1 e cabeçalho da tabela verde com texto branco', () => {
       for (const v of ['customer', 'bko'] as const) {
         const html = buildOrderPdfHtml(pdfDoPedido(detalhe()), v, ctx);
         expect(html).toContain('size: A4 landscape');
         expect(html).toContain('font-size: 15px');
         expect(html).toContain('font-size: 12px');
         expect(html).toContain('font-size: 26px');
-        expect(html).toContain('background: #F1F2F0');
+        expect(html).toContain('background: #F8F6F1');
         expect(html).toContain(`color: #fff; background: ${COR_CABECALHO_TABELA}`);
         expect(COR_CABECALHO_TABELA).toBe('#00843D');
       }

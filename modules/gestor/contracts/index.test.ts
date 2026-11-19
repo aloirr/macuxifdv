@@ -1,23 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { schemaOficialDe } from '@macuxi/platform-sdk';
 import { EVENTO_CLIENTE_ATUALIZADO, EVENTO_META_DEFINIDA, EVENTO_ROTA_DIA_PLANEJADO, EVENTO_VISITA_CHECKIN, EVENTO_VISITA_CHECKOUT, VisitaCheckoutSchema } from '@macuxi/core/contracts';
-import { EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_CRIADO, EVENTO_PEDIDO_FATURADO, EVENTO_PEDIDO_STATUS_ALTERADO } from '../../vendedor/contracts';
+import { EVENTO_PEDIDO_APROVACAO_DECIDIDA, EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2, EVENTO_PEDIDO_CRIADO, EVENTO_PEDIDO_FATURADO, EVENTO_PEDIDO_STATUS_ALTERADO, ESTADOS_APROVACAO_MOTIVO as ESTADOS_DO_VENDEDOR, MOTIVOS_APROVACAO as MOTIVOS_DO_VENDEDOR, NIVEIS_APROVACAO as NIVEIS_DO_VENDEDOR } from '../../vendedor/contracts';
 import { EVENTOS_PROMOTOR } from '../../promotor/contracts';
 import { DEF_RESPOSTA_REGISTRADA } from '../../pesquisa/contracts';
 import { DEFINICAO_LICAO_CONCLUIDA, DEFINICAO_MEDALHA_CONQUISTADA } from '../../treinamento/contracts';
 import {
   Alerta,
-  AvisoDecisaoAoSupervisor,
   ContextoPedidoEmNome,
-  DecisaoAprovacao,
+  ESTADOS_APROVACAO_MOTIVO,
+  EstadoAprovacaoMotivo,
   EVENTOS_CONSUMIDOS,
   LinhaRanking,
   MembroEquipe,
+  MOTIVOS_APROVACAO,
+  NIVEIS_APROVACAO,
   PainelDia,
   ParametrosGestorSchema,
   RankingEquipe,
   RegraAlerta,
-  RegistroDecisaoAprovacao,
 } from './index';
 
 const u = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -59,9 +60,9 @@ describe('eventos consumidos: schemas do dono, leitura tolerante (T-0024)', () =
   const C = EVENTOS_CONSUMIDOS;
   const pedidoCriado = { pedido_id: u(1), vendedor_id: u(2), autor_id: u(3), cliente_id: u(4), visita_id: null, tipo: 'pedido', total_cents: 10_000, total_tabela_cents: 10_000, criado_em: T0, itens: [{ produto_id: u(5), quantidade: 2, total_cents: 10_000 }], status: 'em_aprovacao' };
 
-  it('registro por nome cobre os 17 eventos do manifesto + 1 proposto, todos no formato <modulo>.<entidade>.<fato>@vN', () => {
+  it('registro por nome cobre os 19 eventos do manifesto + 1 proposto, todos no formato <modulo>.<entidade>.<fato>@vN', () => {
     const nomes = Object.keys(C);
-    expect(nomes).toHaveLength(18);
+    expect(nomes).toHaveLength(20);
     expect(nomes).toContain('vendedor.pedido.faturado@1');
     for (const n of nomes) expect(n).toMatch(/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*@[1-9]\d*$/);
   });
@@ -76,6 +77,8 @@ describe('eventos consumidos: schemas do dono, leitura tolerante (T-0024)', () =
       'vendedor.pedido.criado@1': EVENTO_PEDIDO_CRIADO.schema,
       'vendedor.pedido.status_alterado@1': EVENTO_PEDIDO_STATUS_ALTERADO.schema,
       'vendedor.pedido.aprovacao_solicitada@1': EVENTO_PEDIDO_APROVACAO_SOLICITADA.schema,
+      'vendedor.pedido.aprovacao_solicitada@2': EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2.schema,
+      'vendedor.pedido.aprovacao_decidida@1': EVENTO_PEDIDO_APROVACAO_DECIDIDA.schema,
       'vendedor.pedido.faturado@1': EVENTO_PEDIDO_FATURADO.schema,
       'promotor.visita_loja.concluida@1': EVENTOS_PROMOTOR['promotor.visita_loja.concluida@1'],
       'promotor.gondola.registrada@1': EVENTOS_PROMOTOR['promotor.gondola.registrada@1'],
@@ -214,20 +217,11 @@ describe('ranking, alerta, aprovação e pedido em nome', () => {
     expect(Alerta.safeParse({ ...a, motivo_encerramento: 'cansei' }).success).toBe(false);
   });
 
-  it('RN-GES-04: registro da decisão e aviso ao supervisor', () => {
-    const reg = { pedido_id: u(1), vendedor_id: u(2), decisao: 'aprovar', comentario: null, nivel_pedido: 'supervisor', decidido_por_id: u(3), decidido_por_perfil: 'gerente', acima_do_nivel: true, decidido_em: T0 };
-    expect(RegistroDecisaoAprovacao.safeParse(reg).success).toBe(true);
-    expect(RegistroDecisaoAprovacao.safeParse({ ...reg, decidido_por_perfil: 'analista' }).success).toBe(false);
-    expect(RegistroDecisaoAprovacao.safeParse({ ...reg, decisao: 'rejeitar' }).success).toBe(false); // RN-GES-08 também no registro
-    const aviso = { tipo: 'aprovacao_decidida_pelo_gerente', destinatario_id: u(4), pedido_id: u(1), vendedor_id: u(2), decisao: 'aprovar', decidido_por_id: u(3), decidido_em: T0 };
-    expect(AvisoDecisaoAoSupervisor.safeParse(aviso).success).toBe(true);
-    expect(AvisoDecisaoAoSupervisor.safeParse({ ...aviso, destinatario_id: 'x' }).success).toBe(false);
-  });
-
-  it('RN-GES-08 (antes RF-GES-04): rejeitar exige comentário; aprovar não', () => {
-    expect(DecisaoAprovacao.safeParse({ pedido_id: u(1), decisao: 'rejeitar' }).success).toBe(false);
-    expect(DecisaoAprovacao.safeParse({ pedido_id: u(1), decisao: 'rejeitar', comentario: 'Margem baixa' }).success).toBe(true);
-    expect(DecisaoAprovacao.safeParse({ pedido_id: u(1), decisao: 'aprovar' }).success).toBe(true);
+  it('RN-VEN-10/RN-GES-08: níveis, motivos e estados da aprovação são os do Vendedor, sem lista própria', () => {
+    expect(NIVEIS_APROVACAO).toBe(NIVEIS_DO_VENDEDOR);
+    expect(MOTIVOS_APROVACAO).toBe(MOTIVOS_DO_VENDEDOR);
+    expect(ESTADOS_APROVACAO_MOTIVO).toBe(ESTADOS_DO_VENDEDOR);
+    expect(EstadoAprovacaoMotivo.options).toEqual([...ESTADOS_DO_VENDEDOR]);
   });
 
   it('RN-VEN-35: contexto do pedido em nome leva vendedor_id e autor_id (gestor)', () => {
