@@ -68,7 +68,7 @@ export type AceiteTermoRastreamento = z.infer<typeof AceiteTermoRastreamentoSche
 
 /** Pull `termo_rastreamento` e resposta do BKO: cada publicação é uma versão nova; vigente = a maior versão publicada. */
 export const TermoRastreamentoSchema = z
-  .object({ id: Id, versao: z.number().int().min(1), texto: z.string().min(1), publicado_em: Instante, updated_at: Instante, deleted_at: Instante.nullable() })
+  .object({ id: Id, versao: z.number().int().min(1), texto: z.string().min(1), publicado_em: Instante, updated_at: Instante, deleted_at: Instante.nullable(), external_id: z.string().nullable().optional() })
   .strict();
 export type TermoRastreamento = z.infer<typeof TermoRastreamentoSchema>;
 /** Tamanho máximo do texto do termo publicado no BKO. */
@@ -88,7 +88,7 @@ export const AusenciaUsuarioEntradaSchema = z
 export type AusenciaUsuarioEntrada = z.infer<typeof AusenciaUsuarioEntradaSchema>;
 /** Pull `ausencia_usuario` (só as do próprio usuário) e linha da lista do BKO. */
 export const AusenciaUsuarioSchema = z
-  .object({ id: Id, usuario_id: Id, de: DataCivil, ate: DataCivil, updated_at: Instante, deleted_at: Instante.nullable() })
+  .object({ id: Id, usuario_id: Id, de: DataCivil, ate: DataCivil, updated_at: Instante, deleted_at: Instante.nullable(), external_id: z.string().nullable().optional() })
   .strict()
   .refine(deAteValido, { message: MENSAGEM_DE_ATE, path: ['ate'] });
 export type AusenciaUsuario = z.infer<typeof AusenciaUsuarioSchema>;
