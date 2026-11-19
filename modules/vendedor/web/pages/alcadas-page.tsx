@@ -1,9 +1,14 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { formatPct } from '@macuxi/comum';
-import { errorMessage } from '@macuxi/platform-sdk/web';
-import { type ColunaDaTabela, ErrorBlock, LoadingBlock, TabelaDados } from '@macuxi/ui/web';
-import { useAlcadas } from '../lib/queries';
+import { usePode } from '@macuxi/platform-sdk/react';
+import { api, errorMessage } from '@macuxi/platform-sdk/web';
+import { Button, type ColunaDaTabela, ErrorBlock, LoadingBlock, Panel, SelectField, TabelaDados, useToast } from '@macuxi/ui/web';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { NIVEIS_APROVACAO, type NivelAprovacao } from '../../contracts';
+import { corpoDosAprovadores, formDosAprovadores, houveMudanca, ROTULO_NIVEL, type FormAprovadores } from '../lib/aprovadores-form';
+import { qk, useAlcadas } from '../lib/queries';
 
 interface Faixa {
   id: string;
@@ -19,6 +24,22 @@ interface Faixa {
 export function AlcadasPage() {
   const alcadas = useAlcadas();
   const p = alcadas.data;
+  const toast = useToast();
+  const qc = useQueryClient();
+  const podeGerenciar = usePode('alcada.gerenciar');
+  const [form, setForm] = useState<FormAprovadores | null>(null);
+  const atual = p ? formDosAprovadores(p) : null;
+  useEffect(() => {
+    if (p) setForm(formDosAprovadores(p));
+  }, [p?.aprovador_credito, p?.aprovador_inadimplencia, Boolean(p)]);
+  const salvar = useMutation({
+    mutationFn: async (f: FormAprovadores) => api<unknown>('/vendedor/alcadas/aprovadores', { method: 'PUT', body: corpoDosAprovadores(f) }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: qk.alcadas });
+      toast('success', 'Quem aprova foi salvo.');
+    },
+    onError: (e) => toast('danger', errorMessage(e)),
+  });
 
   const faixas: Faixa[] = p
     ? [
@@ -39,6 +60,36 @@ export function AlcadasPage() {
       {alcadas.isPending && <LoadingBlock label="Carregando as alçadas…" />}
       {p && (
         <TabelaDados rotulo="Alçadas" colunas={colunasFaixas} linhas={faixas} chave={(f) => f.id} testId="alcadas.tabela" />
+      )}
+      {p && form && atual && (
+        <Panel title="Crédito e inadimplência" label="Crédito e inadimplência">
+          <div className="flex flex-wrap items-end gap-4" data-testid="alcadas.aprovadores">
+            {(
+              [
+                ['credito', 'Quem aprova crédito'],
+                ['inadimplencia', 'Quem aprova inadimplência'],
+              ] as const
+            ).map(([campo, rotulo]) => (
+              <SelectField key={campo} label={rotulo} value={form[campo]} disabled={!podeGerenciar} onChange={(e) => setForm({ ...form, [campo]: e.target.value as NivelAprovacao })} data-testid={`alcadas.aprovador-${campo}`}>
+                {NIVEIS_APROVACAO.map((n) => (
+                  <option key={n} value={n}>
+                    {ROTULO_NIVEL[n]}
+                  </option>
+                ))}
+              </SelectField>
+            ))}
+          </div>
+          {podeGerenciar && (
+            <div className="flex gap-2">
+              <Button variant="secondary" disabled={!houveMudanca(form, atual)} onClick={() => setForm(atual)} data-testid="alcadas.aprovadores-descartar">
+                Descartar
+              </Button>
+              <Button variant="primary" disabled={!houveMudanca(form, atual) || salvar.isPending} onClick={() => salvar.mutate(form)} data-testid="alcadas.aprovadores-salvar">
+                Salvar
+              </Button>
+            </div>
+          )}
+        </Panel>
       )}
     </div>
   );

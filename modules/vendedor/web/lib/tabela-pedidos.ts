@@ -40,32 +40,38 @@ export const COLUNAS_DA_TABELA: readonly ColunaPedido[] = [
 ];
 
 const ROTULO_MOTIVO: Record<MotivoAprovacao, string> = { desconto: 'Desconto', credito: 'Crédito', inadimplencia: 'Inadimplente', estoque: 'Estoque', preco_minimo: 'Preço mínimo' };
+const ROTULO_ESTADO = { pendente: '', aprovada: ' (aprovada)', rejeitada: ' (rejeitada)', devolvida: ' (devolvida)', encerrada: ' (encerrada)' } as const;
 
-/** Motivo curto da coluna: "Crédito", "Desconto 12%"; vazio = traço. Sem o motivo do servidor, nada é inventado. */
-export function motivoDoPedido(o: Pick<Order, 'approval_reasons' | 'effective_discount_pct'>): string {
-  const partes = (o.approval_reasons ?? []).map((m) => (m === 'desconto' && o.effective_discount_pct && o.effective_discount_pct > 0 ? `Desconto ${pct(o.effective_discount_pct)}` : ROTULO_MOTIVO[m]));
+/**
+ * Motivo curto da coluna: "Crédito", "Desconto 12%"; vazio = traço. Com uma aprovação por motivo (T-0184, P3 B) cada uma leva o seu
+ * estado depois de decidida: "Crédito, Inadimplente (aprovada)". Sem o motivo do servidor, nada é inventado.
+ */
+export function motivoDoPedido(o: Pick<Order, 'approval_reasons' | 'effective_discount_pct' | 'aprovacoes'>): string {
+  const nome = (m: MotivoAprovacao) => (m === 'desconto' && o.effective_discount_pct && o.effective_discount_pct > 0 ? `Desconto ${pct(o.effective_discount_pct)}` : ROTULO_MOTIVO[m]);
+  const partes = o.aprovacoes && o.aprovacoes.length > 0 ? o.aprovacoes.map((a) => `${nome(a.motivo)}${ROTULO_ESTADO[a.estado]}`) : (o.approval_reasons ?? []).map(nome);
   return partes.length > 0 ? partes.join(', ') : SEM_VALOR;
 }
 
-/**
- * P6 A: "Rejeitar" encerra o pedido como `cancelled` por decisão do aprovador. A decisão ainda NÃO existe no servidor
- * (aguarda o desenho do engenheiro-software, T-0184/P-6). Único ponto a religar: trocar `disponivel` para `true` e `rota`
- * pela rota nova. Enquanto isso a opção aparece desligada; nenhuma rota é inventada.
- */
-export const DECISAO_REJEITAR_ENCERRA: { disponivel: boolean; rota: string | null } = { disponivel: false, rota: null };
+/** P6 A (T-0184): "Rejeitar" encerra o pedido como `cancelled` pela rota `recusar`. Único ponto a mudar se a rota mudar. */
+export const DECISAO_REJEITAR_ENCERRA: { disponivel: boolean; rota: string | null } = { disponivel: true, rota: 'recusar' };
+
+/** Corpo da rota: aprovar vai vazio; devolver (`rejeitar`) e `recusar` levam o `texto` (RN-GES-08). */
+export function corpoDaDecisao(rota: 'aprovar' | 'rejeitar' | 'recusar', texto: string): { texto?: string } {
+  return rota === 'aprovar' ? {} : { texto: texto.trim() };
+}
 
 export interface AcaoDoPendente {
   id: 'aprovar' | 'rejeitar' | 'devolver';
   rotulo: string;
-  /** rota existente do servidor (`/pedidos/:id/<rota>`); `null` = decisão ainda sem rota */
-  rota: string | null;
+  /** rota do servidor (`/pedidos/:id/<rota>`) */
+  rota: 'aprovar' | 'rejeitar' | 'recusar' | null;
   /** RN-GES-08: devolver (rejeitar) exige motivo */
   exigeMotivo: boolean;
 }
 
 export const ACOES_DO_PENDENTE: readonly AcaoDoPendente[] = [
   { id: 'aprovar', rotulo: 'Aprovar', rota: 'aprovar', exigeMotivo: false },
-  { id: 'rejeitar', rotulo: 'Rejeitar', rota: DECISAO_REJEITAR_ENCERRA.rota, exigeMotivo: true },
+  { id: 'rejeitar', rotulo: 'Rejeitar', rota: DECISAO_REJEITAR_ENCERRA.rota as 'recusar' | null, exigeMotivo: true },
   // "Devolver ao vendedor" = status `rejected` pela rota que já existe (o pedido volta para o vendedor corrigir)
   { id: 'devolver', rotulo: 'Devolver ao vendedor', rota: 'rejeitar', exigeMotivo: true },
 ];

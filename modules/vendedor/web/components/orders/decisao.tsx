@@ -9,7 +9,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatBRL } from '@macuxi/comum';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, Dialog, Notice, type NoticeTone } from '@macuxi/ui/web';
-import { MOTIVO_REJEICAO_MIN, OrderDetail, type Order } from '../../../contracts';
+import { DecisaoAprovacaoResposta, MOTIVO_REJEICAO_MIN, type Order } from '../../../contracts';
+import { corpoDaDecisao } from '../../lib/tabela-pedidos';
 
 export type PedidoDecidivel = Pick<Order, 'id' | 'number' | 'customer_name' | 'seller_name' | 'total_cents'>;
 
@@ -24,15 +25,15 @@ export function useAtualizarPedidos() {
 export function useDecidir(onFeito: (tom: NoticeTone, texto: string) => void) {
   const atualizar = useAtualizarPedidos();
   const aprovar = useMutation({
-    mutationFn: async (p: PedidoDecidivel) => OrderDetail.parse(await api<unknown>(`/vendedor/pedidos/${p.id}/aprovar`, { method: 'POST', body: {} })),
+    mutationFn: async (p: PedidoDecidivel) => DecisaoAprovacaoResposta.parse(await api<unknown>(`/vendedor/pedidos/${p.id}/aprovar`, { method: 'POST', body: corpoDaDecisao('aprovar', '') })),
     onSuccess: (_r, p) => onFeito('success', `Pedido ${p.number} aprovado.`),
     onError: (e, p) => onFeito('danger', `Pedido ${p.number}: ${errorMessage(e)}`),
     onSettled: () => atualizar(),
   });
   const rejeitar = useMutation({
-    mutationFn: async ({ p, motivo }: { p: PedidoDecidivel; motivo: string }) =>
-      OrderDetail.parse(await api<unknown>(`/vendedor/pedidos/${p.id}/rejeitar`, { method: 'POST', body: { motivo } })),
-    onSuccess: (_r, { p }) => onFeito('success', `Pedido ${p.number} rejeitado.`),
+    mutationFn: async ({ p, motivo, rota = 'rejeitar' }: { p: PedidoDecidivel; motivo: string; rota?: 'rejeitar' | 'recusar' }) =>
+      DecisaoAprovacaoResposta.parse(await api<unknown>(`/vendedor/pedidos/${p.id}/${rota}`, { method: 'POST', body: corpoDaDecisao(rota, motivo) })),
+    onSuccess: (_r, { p, rota }) => onFeito('success', rota === 'recusar' ? `Pedido ${p.number} rejeitado.` : `Pedido ${p.number} devolvido ao vendedor.`),
     onError: (e, { p }) => onFeito('danger', `Pedido ${p.number}: ${errorMessage(e)}`),
     onSettled: () => atualizar(),
   });
@@ -67,7 +68,7 @@ export function BotoesDeDecisao({ pedido, onFeito, tamanho = 'sm' }: { pedido: P
         rotuloConfirmar="Rejeitar pedido"
         pendente={rejeitar.isPending}
         onFechar={() => setRejeitando(false)}
-        onConfirmar={(motivo) => rejeitar.mutate({ p: pedido, motivo }, { onSettled: () => setRejeitando(false) })}
+        onConfirmar={(motivo) => rejeitar.mutate({ p: pedido, motivo, rota: 'recusar' }, { onSettled: () => setRejeitando(false) })}
       />
     </>
   );

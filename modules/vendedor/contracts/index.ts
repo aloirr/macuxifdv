@@ -437,6 +437,9 @@ export const DiscountPolicy = z.object({
   aprovador_inadimplencia: z.enum(NIVEIS_APROVACAO).optional(),
 });
 export type DiscountPolicy = z.infer<typeof DiscountPolicy>;
+/** T-0184 (P2 B): quem aprova crédito e quem aprova inadimplência (Parâmetros › Pedidos). */
+export const PutAprovadoresRequest = z.object({ aprovador_credito: z.enum(NIVEIS_APROVACAO), aprovador_inadimplencia: z.enum(NIVEIS_APROVACAO) });
+export type PutAprovadoresRequest = z.infer<typeof PutAprovadoresRequest>;
 export const PutDiscountPolicyRequest = z.object({
   seller_pct: Pct.min(0).max(100),
   supervisor_pct: Pct.min(0).max(100),
