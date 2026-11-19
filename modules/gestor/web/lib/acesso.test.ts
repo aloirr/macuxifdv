@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { manifest as manifestCore } from '@macuxi/core/manifest';
-import { criarPermissoes, type Perfil } from '@macuxi/platform-sdk';
+import { criarPermissoes, type Manifesto, type Perfil } from '@macuxi/platform-sdk';
 import { ACAO_VER_TRAJETO } from '../../contracts';
 import manifest from '../../manifest';
+
+/** Core mínimo montado no teste (fronteira: o gestor não importa o manifesto do Core): só a ação que o gestor consome, com os perfis de fábrica da RN-CORE-37. */
+const manifestCore = {
+  id: 'core',
+  acoes: { [ACAO_VER_TRAJETO]: { perfis: ['supervisor', 'gerente'] } },
+} as unknown as Manifesto;
 
 describe('trajeto do dia no BKO: a decisão é da permissão `core.trajeto.ver_equipe`, não de uma lista de perfis', () => {
   const motor = criarPermissoes([manifestCore, manifest]);

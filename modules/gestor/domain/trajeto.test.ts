@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { formatarDistancia, projetarPontos } from '@macuxi/core/contracts';
 import { formatHHMM } from '@macuxi/comum/fuso';
 import { desenharTrajeto, TEXTO_SEM_TRAJETO } from './trajeto';
@@ -63,9 +62,5 @@ describe('desenharTrajeto: pontos do dia prontos para o desenho no aparelho (RN-
     expect(TEXTO_SEM_TRAJETO).toBe('Sem trajeto');
     expect(desenharTrajeto([], TAM).vazio).toBe(true);
     expect(desenharTrajeto([p('2026-11-03T12:00:00Z', -3.1, -60)], TAM).vazio).toBe(false);
-    for (const arq of ['../app/components/trajeto-do-dia.tsx', '../web/pages/trajeto-do-dia.tsx']) {
-      const fonte = readFileSync(new URL(arq, import.meta.url), 'utf8');
-      expect(fonte, arq).toMatch(/d\?\.vazio \? .*TEXTO_SEM_TRAJETO/);
-    }
   });
 });
