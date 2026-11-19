@@ -169,3 +169,4 @@
 2026-11-19 — Cliente 360 v2 — pranchas 01 a 04 refeitas pelo comentário do dono do produto (cadastro no topo, sem alerta financeiro na ficha, listas em tabela).
 2026-11-19 — Cliente 360 v2 — decisões do dono do produto (R-20261119-0458) nas pranchas e na spec: Visitas no bloco de Compras, busca no filtro, Documentação só visualização, NF sob demanda.
 2026-11-19 — Cliente 360 v2 — ajustes de 05h30 (R-20261119-0530): aba Histórico, crédito no Resumo, Performance com as três curvas, Em atraso sem data.
+2026-11-19 — Cliente 360 v2 — spec §8: Histórico e Documentação online, sem guardar no aparelho (P15, P17).

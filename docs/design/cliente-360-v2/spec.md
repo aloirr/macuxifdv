@@ -21,8 +21,8 @@ A prancha 05 (BKO) não mudou.
 **Decisões de 19/11 (R-20261119-0458):** E1 = sim (o ERP manda a forma de pagamento por NF). P1 a P17 ficam como recomendado (§10), com quatro mudanças:
 - **P7:** o bloco Visitas sai; visitas e a última visita entram no bloco de compras do Resumo (hoje "Performance"). No Gestão, "Visitada por" vai junto (pranchas 01 e 04);
 - **P14:** sai o campo de busca da aba Histórico. O "Nº da NF" passa para o topo da folha Filtrar (prancha 02);
-- **P15:** a Documentação é só para ver: o arquivo abre do servidor, sem baixar e sem cópia no aparelho (prancha 03);
-- **P17:** a NF (detalhe, parcelas, itens e PDF) vem do servidor ao tocar, só com a autorização do vendedor, e não fica guardada. Não há pull de 12 meses (prancha 02).
+- **P15:** a Documentação é só para ver: o arquivo abre do servidor, sem baixar e sem cópia no aparelho (§8, prancha 03);
+- **P17:** a NF (detalhe, parcelas, itens e PDF) vem do servidor ao tocar, só com a autorização do vendedor, e não fica guardada. Não há pull de 12 meses (§8, prancha 02).
 
 Pranchas desta pasta (gere com `node docs/design/cliente-360-v2/gerar.mjs`, a partir da raiz do repositório):
 
@@ -143,13 +143,13 @@ Dentro da tabela, o chip quebra em duas linhas quando não cabe ("Devolvido parc
 "Em aberto", "Em atraso" e "Pago" saem do título de hoje (`TituloSync`: aberto com vencimento futuro, aberto com vencimento passado, baixado). "Devolvido" e "Devolvido parcial" dependem do vínculo título → NF → devolução (D3, §9). Uma NF com saldo vencido fica "Em atraso" mesmo com outra parcela a vencer.
 
 **Folha "Filtrar"**, que sobe de baixo:
-- **"Nº da NF"**, no topo (P14, R-20261119-0458): o campo de busca, com a lupa e o texto de exemplo "Buscar pelo número". Busca nas notas da lista;
-- "Período": "30 dias", "90 dias" (padrão), "12 meses" e "Escolher datas". O aparelho tem só 90 dias de notas: "12 meses" e datas além de 90 dias consultam o servidor e só ficam ligadas com internet (P17);
+- **"Nº da NF"**, no topo (P14, R-20261119-0458): o campo de busca, com a lupa e o texto de exemplo "Buscar pelo número". Busca nas notas do período;
+- "Período": "30 dias", "90 dias" (padrão), "12 meses" e "Escolher datas". Todo período vem do servidor (§8);
 - "Status": "Em atraso" (primeiro), "Em aberto", "Pago", "Devolvido" e "Devolvido parcial", de múltipla escolha. O padrão é nenhum marcado, que vale como todos;
 - "Forma de pagamento": as formas que aparecem nas notas do cliente (vem do ERP, D2; nota sem a forma não entra no grupo);
 - botões "Limpar" e "Ver 1 nota" (principal), com a contagem ao vivo. Nenhum resultado dá "Nenhuma nota" e o botão fica desligado.
 
-**Baixar a NF** (P17, R-20261119-0458): a NF não fica no aparelho. Ao tocar na linha, sobe uma folha curta com o título "Baixar a NF 004655?" e os botões "Agora não" (secundário) e "Baixar" (principal). Sem texto de explicação. "Baixar" busca no servidor o detalhe, as parcelas, os itens e o PDF; enquanto busca, o botão mostra "Baixando…" e fica desligado. Ao fechar a folha, nada fica guardado: o próximo toque pergunta de novo.
+**Baixar a NF** (P17, R-20261119-0458; §8). Ao tocar na linha, sobe uma folha curta com o título "Baixar a NF 004655?" e os botões "Agora não" (secundário) e "Baixar" (principal). Sem texto de explicação. "Baixar" busca no servidor o detalhe, as parcelas, os itens e o PDF; enquanto busca, o botão mostra "Baixando…" e fica desligado. Ao fechar a folha, nada fica guardado: o próximo toque pergunta de novo.
 
 **Sem internet ao baixar:** folha com o título "NF 004655", o ícone sem rede e "Sem internet", e o botão principal "Tentar de novo". Sem internet, o toque na linha abre direto esta folha, sem a pergunta.
 
@@ -162,23 +162,25 @@ Dentro da tabela, o chip quebra em duas linhas quando não cabe ("Devolvido parc
 **Itens da nota** (folha, R-20261119-0440; dados vindos do servidor junto com o detalhe): título "Itens da NF 004655" e "4 itens · R$ 1.280,00"; tabela **Produto · Emb. · Qtd · Total (R$)**, como a de itens do Novo pedido: Produto com o nome e o código (mono, sublinhado) na 2ª linha; Emb. com a unidade e o fator na 2ª linha ("CX / c/ 6"); Qtd; Total em 14/600.
 
 **Estados:**
-- sem notas na janela: "Nenhuma nota nos últimos 90 dias" e o botão "Ver 12 meses", que consulta o servidor e fica desligado sem internet (P17);
+- sem notas na janela: "Nenhuma nota nos últimos 90 dias" e o botão "Ver 12 meses";
 - sem dados financeiros: "Sem dados financeiros", como hoje;
-- sem internet: a tabela dos 90 dias sai do aparelho e não mudam; o detalhe da nota mostra "Sem internet" e "Tentar de novo" (acima).
+- sem internet ao abrir a aba ou ao mudar o filtro (§8): no lugar da tabela, o ícone sem rede, "Sem internet" e o botão principal "Tentar de novo";
+- sem internet ao tocar numa nota: a folha "Sem internet" (acima).
 
 ## 5. Aba Documentação
 
 1. **Tabela de documentos** (§3, padrão das tabelas): **Documento · Data · Abrir**, com uma faixa por tipo ("FOTOS DO PDV", "CADASTRO", "CONTRATOS"), como a faixa do mês no Histórico:
    - Documento: o nome em 14/600; na 2ª linha, o formato e, quando houver, a validade ("PDF · válido até 03/2027"). A validade ficou na 2ª linha, e não como coluna, para o nome caber em uma ou duas linhas;
    - Data: dd/mm/aaaa, 76 dp;
-   - Abrir: 44 dp, com a seta (abre o arquivo do servidor no visualizador do shell, só para ver: sem "Baixar", sem salvar e sem cópia no aparelho, P15), o cadeado (sem permissão) ou a câmera (foto que falta, quando o perfil "vê e envia").
+   - Abrir: 44 dp, com a seta (abre o arquivo do servidor no visualizador do shell, só para ver: sem "Baixar" e sem salvar, P15, §8), o cadeado (sem permissão) ou a câmera (foto que falta, quando o perfil "vê e envia").
 
    Os grupos: "Fotos do PDV", o que é hoje Anexos (RN-CORE-38; "Fachada" com "Foto" e a data; "Gôndola" com "Falta" em vermelho e a câmera); "Cadastro" (Alvará de funcionamento, Cartão CNPJ, Comprovante de endereço); "Contratos" (Contrato de comodato, Contrato social). Os grupos e a ordem vêm do cadastro de tipos (§7).
 2. **Documento vencido:** a 2ª linha do documento ganha "Vencido em 10/2026" em vermelho, no lugar do "válido até". Sem aviso fora da tabela (P16).
 3. **Sem permissão por exceção** (§7): o nome em #4A5562, "Sem permissão para abrir" na 2ª linha, data "—" e o cadeado na coluna Abrir. A linha não abre e não dá aviso ao tocar, porque ela mesma já diz o porquê. A acessibilidade lê "…, sem permissão para abrir".
 4. **Tipo que o perfil não vê:** não aparece. Na prancha, a vendedora não vê "Contrato social" e a supervisora vê.
 5. **Estado vazio:** o ícone e "Nenhum documento deste cliente". Fica sem texto de explicação.
-6. **Abrir sem internet** (P15, R-20261119-0458: o arquivo nunca fica no aparelho):
+   **Sem internet ao abrir a aba** (§8): no lugar da tabela, o ícone sem rede, "Sem internet" e o botão principal "Tentar de novo".
+6. **Abrir sem internet** (P15, R-20261119-0458; §8):
    - folha com o título do documento;
    - o ícone sem rede e o texto "Sem internet";
    - o botão principal "Tentar de novo".
@@ -205,7 +207,7 @@ O Histórico é igual ao do Campo. O crédito e a Performance (com as três curv
   - Administrador e Analista do BKO veem tudo;
   - a origem do tipo (ERP, Escritório, App) aparece embaixo do nome;
   - "Salvar permissões" é o principal da página e só liga com alguma mudança. "Descartar" desfaz;
-  - toda mudança é auditada (RN-AUD-01) e vale na próxima sincronização.
+  - toda mudança é auditada (RN-AUD-01) e vale na próxima vez que o app abrir a aba (§8).
 - **Exceção por documento** (quadro "Exceções por documento"):
   - cada exceção tem o documento, o cliente e quem vê;
   - a exceção **só tira acesso** do que o tipo libera (P11): "A exceção só tira acesso do que o tipo libera.";
@@ -215,14 +217,19 @@ O Histórico é igual ao do Campo. O crédito e a Performance (com as três curv
 
 ## 8. Offline (o que fica no aparelho)
 
-- **Resumo:** tudo vem das linhas do sync de hoje (cliente, crédito, contatos, endereços, histórico, visitas, itens) e funciona em modo avião.
-- **Histórico** (P17, R-20261119-0458): a janela do aparelho continua de 90 dias. Ficam no aparelho só as linhas da tabela (data, número, valor, forma de pagamento e status de cada nota); filtro e busca rodam nelas. A NF em si (detalhe, parcelas, itens e PDF) **não fica no aparelho**: vem do servidor ao tocar, com a autorização do vendedor ("Baixar a NF …?"), e é descartada ao fechar. "12 meses", "Escolher datas" além de 90 dias e "Ver 12 meses" consultam o servidor e só ficam ligados com internet. Não há pull de 12 meses.
-- **Documentação** (P15, R-20261119-0458):
-  - a lista (tipo, nome, data, validade, permissão) fica no aparelho;
-  - o arquivo só abre para ver, vindo do servidor; não baixa e não fica guardado;
-  - sem internet, aparece a folha do §5.6 ("Sem internet" e "Tentar de novo");
+Uma regra para a ficha toda (P15 e P17, R-20261119-0458): só o Resumo fica no aparelho; o Histórico e a Documentação são online e nada deles fica guardado.
+
+- **Resumo (fica no aparelho):** Dados cadastrais, endereços, contatos, o cartão de crédito, a Performance e os últimos itens comprados vêm das linhas do sync de hoje e funcionam em modo avião.
+- **Histórico (online):**
+  - a tabela de notas vem do servidor ao abrir a aba e a cada mudança de período ou de filtro; não há pull de notas nem de 12 meses;
+  - a NF (detalhe, parcelas, itens e PDF) vem do servidor ao tocar, com a autorização do vendedor ("Baixar a NF …?"), e é descartada ao fechar;
+  - sem internet, a aba e a folha da NF mostram os estados do §4.
+- **Documentação (online):**
+  - a lista vem do servidor ao abrir a aba;
+  - o arquivo só abre para ver, vindo do servidor; não baixa;
+  - sem internet, a aba e a folha do arquivo mostram os estados do §5;
   - as fotos tiradas sem internet entram na fila, como hoje ("Na fila").
-- **Permissões:** a matriz e as exceções vêm no sync. Como nenhum arquivo fica no aparelho, perder o acesso vale no próximo toque (a API revalida).
+- **Permissões:** a API filtra a lista e o arquivo pelo perfil, pela carteira e pelas exceções a cada consulta; perder o acesso vale na próxima abertura.
 
 ## 9. Dependências (ERP e contratos)
 
@@ -230,10 +237,10 @@ Levantamento do `modulo-integracao` (19/11). O desenho não define contrato; cad
 
 | # | O que falta | Hoje | Dono |
 |---|---|---|---|
-| D1 | Linhas das notas no aparelho (90 dias: data, número, valor, forma e status) e consulta online da NF (detalhe, parcelas, itens e PDF) ao tocar, sem guardar (P17, R-20261119-0458) | A NF existe no servidor (`core.nota_erp`: número, série, data, total, faturamento ou devolução), mas não vai ao aparelho | `modulo-core` (contrato do sync e da consulta), `banco-dados` (sync e RLS) |
+| D1 | Consulta online das notas do cliente por período (data, número, valor, forma e status) ao abrir o Histórico e da NF (detalhe, parcelas, itens e PDF) ao tocar, sem guardar (P17, R-20261119-0458; §8) | A NF existe no servidor (`core.nota_erp`: número, série, data, total, faturamento ou devolução), mas não vai ao aparelho | `modulo-core` (contrato da consulta), `banco-dados` (índice e RLS) |
 | D2 | Forma de pagamento por NF. **Confirmado pelo ERP em 19/11 (E1, R-20261119-0458):** o ERP manda a forma por NF; falta pôr no contrato e na carga | Não existe no contrato | `modulo-integracao` (carga do ERP), `modulo-core` (contrato) |
 | D3 | Vínculo título → NF → devolução (status "Devolvido" e "Devolvido parcial", valor devolvido, parcelas no detalhe) | `TituloSync` tem só aberto, baixado ou cancelado, sem a NF | `modulo-integracao` (carga do ERP), `modulo-core` (contrato), `banco-dados` (tabela e chave) |
-| D4 | ~~12 meses de notas e títulos no aparelho~~ **Deixou de existir em 19/11 (P17, R-20261119-0458):** sem pull de 12 meses; o período além de 90 dias vira consulta online ao servidor | Pull de 90 dias (fica) | `modulo-core` (consulta online por período), `banco-dados` (índice da consulta) |
+| D4 | ~~12 meses de notas e títulos no aparelho~~ **Deixou de existir em 19/11 (P17, R-20261119-0458):** sem pull de 12 meses; o Histórico é consulta online (D1, §8) | Pull de 90 dias dos títulos (o Histórico não lê dele) | `modulo-core` (consulta online por período), `banco-dados` (índice da consulta) |
 | D5 | Documento do cliente e tipo de documento, com a matriz de permissão e as exceções | Não existe entidade; a aba Anexos mostra só a foto do PDV | `modulo-core` (entidades novas, ADR e contrato), `banco-dados` (tabelas e RLS) |
 | D6 | Documento com origem no ERP (P1) | Não há carga | `modulo-integracao` (entidade e carga novas no Hub e no Conector) |
 
@@ -259,5 +266,5 @@ O upload no BKO (Cadastros › Clientes › ficha do cliente) aproveita o `plata
 | P14 | Busca no Histórico | Campo "Nº da NF" sempre visível | Só a lupa, que abre o campo | **A**. É um toque a menos | **Mudou:** sem campo nem lupa na aba; a busca "Nº da NF" fica no topo da folha Filtrar, dentro do botão de filtro (§4, prancha 02) |
 | P15 | Download dos arquivos | No primeiro toque, e o arquivo fica guardado | Todos na sincronização (só no Wi-Fi) | **A**. Poupa dados e espaço; os tipos marcados como "levar para a rua" podem baixar na sincronização numa versão seguinte | **Mudou:** nem A nem B: só visualizar, do servidor, sem baixar e sem guardar no aparelho; sem internet, "Sem internet" e "Tentar de novo" (§5, §8, prancha 03) |
 | P16 | Documento vencido nos Alertas | Sim, para os tipos marcados no BKO | Não, só na Documentação | **Decidido em 19/11 (R-20261119-0440), substitui a recomendação anterior:** B. O vencido aparece só na linha do documento ("Vencido em …", em vermelho), sem aviso nas outras abas | Como recomendado (B, já decidido em R-20261119-0440) |
-| P17 | Janela de "12 meses" no Histórico (hoje o aparelho tem 90 dias) | Estender o pull das notas e títulos para 12 meses (D4) | "12 meses", "Escolher datas" além de 90 dias e "Ver 12 meses" só com sinal, consultando o servidor; sem sinal, a opção fica desligada | **A**. O vendedor consulta o histórico na rua, sem sinal; B entra só se o volume de 12 meses pesar no aparelho | **Mudou:** sem pull de 12 meses (D4 deixa de existir); a NF (detalhe, parcelas, itens e PDF) vem do servidor ao tocar, só com a autorização "Baixar a NF …?", e não fica guardada; além de 90 dias, só online (§4, §8, prancha 02) |
+| P17 | Janela de "12 meses" no Histórico (hoje o aparelho tem 90 dias) | Estender o pull das notas e títulos para 12 meses (D4) | "12 meses", "Escolher datas" além de 90 dias e "Ver 12 meses" só com sinal, consultando o servidor; sem sinal, a opção fica desligada | **A**. O vendedor consulta o histórico na rua, sem sinal; B entra só se o volume de 12 meses pesar no aparelho | **Mudou:** sem pull de 12 meses (D4 deixa de existir); a NF (detalhe, parcelas, itens e PDF) vem do servidor ao tocar, só com a autorização "Baixar a NF …?", e não fica guardada; o Histórico é online (§4, §8, prancha 02) |
 | E1 | O ERP manda a forma de pagamento por NF? (D2) | — | — | — | **Sim.** D2 confirmado pelo ERP; a forma fica na 2ª linha do Nº NF e no filtro (§4, §9) |
