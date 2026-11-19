@@ -10,8 +10,12 @@
 /** Marca que substitui a coordenada (mesma do `censor` do pino da API). */
 export const COORDENADA_OMITIDA = '[omitido]';
 
-const CHAVE_EXATA = /^(lat|lng|lon|latitude|longitude|coords)$/i;
-const CHAVE_SUFIXO = /_(lat|lng|lon|latitude|longitude)$/i;
+/** Chaves que guardam coordenada (fonte única: a regra das chaves e a redação do pino da API saem daqui). */
+export const CHAVES_COORDENADA = ['latitude', 'longitude', 'lat', 'lng', 'lon', 'coords'] as const;
+
+const CHAVE_EXATA = new RegExp(`^(${CHAVES_COORDENADA.join('|')})$`, 'i');
+/** Sufixo `_lat`, `_lng`... (`checkin_lat`); `coords` só vale como chave inteira. */
+const CHAVE_SUFIXO = new RegExp(`_(${CHAVES_COORDENADA.filter((c) => c !== 'coords').join('|')})$`, 'i');
 
 /** A chave guarda coordenada (`latitude`, `lng`, `coords`, `checkin_lat`...). */
 export function ehChaveDeCoordenada(chave: string): boolean {
@@ -47,13 +51,11 @@ export function semCoordenadas(valor: unknown): unknown {
   return limpar(valor);
 }
 
-const CHAVES_LOG = ['latitude', 'longitude', 'lat', 'lng', 'lon', 'coords'] as const;
-
 /**
  * Caminhos de redação do pino (fast-redact: `*` vale um nível): a chave solta, no 2º nível e dentro de `payload`
  * (item do push). Reforço: o código não registra corpo nem payload do trajeto.
  */
-export const CAMINHOS_COORDENADA_LOG: readonly string[] = CHAVES_LOG.flatMap((c) => [
+export const CAMINHOS_COORDENADA_LOG: readonly string[] = CHAVES_COORDENADA.flatMap((c) => [
   c,
   `*.${c}`,
   `payload.${c}`,

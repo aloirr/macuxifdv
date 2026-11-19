@@ -151,7 +151,7 @@ prazo dos pontos). Aparelho: §3.4.
 
 ## 9. Privacidade técnica
 - **Nenhuma coordenada** em log, mensagem de erro, Diagnóstico, Sentry ou telemetria: só id do usuário, contagem e tempo.
-  A API redige `latitude`, `longitude`, `lat`, `lng`, `lon` e `coords` no pino (`CAMINHOS_COORDENADA_LOG`); o shell e os módulos
+  A API redige no pino as chaves de `CHAVES_COORDENADA` (`packages/platform-sdk/src/privacidade-localizacao.ts`, pelo `CAMINHOS_COORDENADA_LOG`); o shell e os módulos
   passam pelo `semCoordenadas` do platform-sdk o que mandam ao Diagnóstico e ao envio de erro.
   O item G4 de `docs/seguranca/checklist.md` passa a cobrir o tracking do expediente, com prova por teste (pedido ao testes).
 - O Diagnóstico do Perfil mostra só o estado ("ativa", "fora do expediente", "pausada", "sem termo") e a hora do último ponto.
