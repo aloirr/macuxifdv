@@ -66,7 +66,7 @@ async function marcar(db: BancoDoTrajeto, ids: readonly string[], quando: string
   await db.rodar(`UPDATE core__ponto_trajeto SET enviado_em = ? WHERE id IN (${ids.map(() => '?').join(', ')})`, [quando, ...ids]);
 }
 
-/** Chame antes de cada envio da fila (ver docs/modulos/core/rastreamento.md, "Envio dos pontos"). Nunca lança. */
+/** Chame depois de cada envio do motor (ver docs/modulos/core/rastreamento.md, "Envio dos pontos"). Nunca lança. */
 export async function enviarPontosDoTrajeto(d: DependenciasEnvioDoTrajeto): Promise<ResultadoEnvioDoTrajeto> {
   const r: ResultadoEnvioDoTrajeto = { enviados: 0, rejeitados: 0, invalidos: 0, podados: 0, erro: false };
   const resumo = () =>
