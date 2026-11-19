@@ -36,8 +36,8 @@ export function opcoesDePrazo(prazos: readonly PrazoDePagamento[], formaId: stri
 }
 
 /**
- * Pagamento do rascunho para este cliente. Sem forma e sem prazo (rascunho novo): o padrão (primeira forma permitida e primeiro
- * prazo habilitado). Com escolha do vendedor nunca há troca silenciosa (T-0129): o rascunho fica como está e, se a forma ou o prazo
+ * Pagamento do rascunho para este cliente. Sem forma e sem prazo (rascunho novo): o padrão (primeira forma permitida e o primeiro
+ * prazo ativo dela, por ordem; RN-VEN-25: todos os prazos ativos da forma valem). Com escolha do vendedor nunca há troca silenciosa (T-0129): o rascunho fica como está e, se a forma ou o prazo
  * não servem ao cliente, `situacaoDoPagamento` diz o que corrigir.
  */
 export function rascunhoComPagamentoPadrao(r: Rascunho, formas: readonly FormaDePagamento[], prazos: readonly PrazoDePagamento[], cliente: LimitesDoCliente): Rascunho {

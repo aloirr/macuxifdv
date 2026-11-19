@@ -5,7 +5,6 @@ import {
   CARTEIRA_FORA,
   dataDoPreco,
   emitidoEm,
-  aprovacoesDoPedido,
   decidirAprovacao,
   niveisDosParametros,
   MOTIVO_REJEICAO_MIN,
@@ -292,15 +291,11 @@ describe('decidirAprovacao (uma aprovação por motivo, T-0184)', () => {
   });
   it('RN-VEN-30: pedido pendente sem linhas de aprovação (API antiga) vale como desconto no nível do pedido', () => {
     const sem = { status: 'pending_approval' as const, aprovacoes: [], perfil: 'supervisor', nivel_do_pedido: 'supervisor' as const };
-    expect(decidirAprovacao({ ...sem, decisao: 'aprovar' })).toMatchObject({ tipo: 'ok', para: 'approved', mudancas: [{ motivo: 'desconto', estado: 'aprovada' }] });
+    expect(decidirAprovacao({ ...sem, decisao: 'aprovar' })).toMatchObject({ tipo: 'ok', para: 'approved', mudancas: [{ motivo: 'desconto', estado: 'aprovada' }], sintetizada: true, aprovacoes: [{ motivo: 'desconto', nivel: 'supervisor', estado: 'pendente' }] });
+    expect(decidirAprovacao({ status: 'pending_approval', aprovacoes: tres, perfil: 'gerente', decisao: 'aprovar', nivel_do_pedido: 'gerente' })).toMatchObject({ sintetizada: false });
     expect(decidirAprovacao({ ...sem, nivel_do_pedido: 'gerente', decisao: 'aprovar' })).toMatchObject({ tipo: 'recusa', codigo: 'RN-VEN-10' });
     expect(decidirAprovacao({ ...sem, decisao: 'recusar', texto: 'não pode' })).toMatchObject({ tipo: 'ok', para: 'cancelled', mudancas: [{ motivo: 'desconto', estado: 'rejeitada' }] });
     expect(decidirAprovacao({ ...sem, nivel_do_pedido: undefined, decisao: 'aprovar' })).toMatchObject({ tipo: 'recusa', codigo: 'RN-VEN-30' });
-  });
-  it('RN-VEN-30: aprovacoesDoPedido devolve a linha de desconto só quando o pedido pendente não tem nenhuma', () => {
-    expect(aprovacoesDoPedido('pending_approval', [], 'gerente')).toEqual([{ motivo: 'desconto', nivel: 'gerente', estado: 'pendente' }]);
-    expect(aprovacoesDoPedido('pending_approval', tres, 'gerente')).toBe(tres);
-    expect(aprovacoesDoPedido('approved', [], 'gerente')).toEqual([]);
   });
 });
 

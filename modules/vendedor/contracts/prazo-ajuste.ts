@@ -9,7 +9,7 @@ export { tabelaAjustadaCents, percentualAjusteParaBp } from '../domain/preco-ped
 export type { FormaDePagamento, PrazoDePagamento, LimitePagamentoDoCliente } from '../domain/pagamento';
 
 /**
- * RN-VEN-43: o percentual (em bp) do prazo PADRÃO do cliente (primeira forma aceita, primeiro prazo habilitado, RN-VEN-24).
+ * RN-VEN-43: o percentual (em bp) do prazo PADRÃO do cliente (primeira forma aceita e o primeiro prazo ativo dela, RN-VEN-24/25).
  * Sem cliente em contexto (`cliente` nulo) ou cliente sem prazo padrão: 0 = tabela pura.
  */
 export function percentualDoPrazoPadraoBp(i: {

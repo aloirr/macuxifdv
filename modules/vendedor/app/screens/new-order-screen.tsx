@@ -220,7 +220,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   useEffect(() => {
     if (!v1 || sent) return;
     if (formas.length > 0) {
-      // sem pagamento (ou fora da lista do cliente): a primeira forma permitida e o primeiro prazo habilitado
+      // sem pagamento (ou fora da lista do cliente): a primeira forma permitida e o primeiro prazo ativo dela (RN-VEN-25: todos os prazos ativos valem)
       const novo = rascunhoComPagamentoPadrao(draft, formas, prazos, limites);
       if (novo !== draft) updateDraft(customerId, (d) => rascunhoComPagamentoPadrao(d, formas, prazos, limites));
       return;
