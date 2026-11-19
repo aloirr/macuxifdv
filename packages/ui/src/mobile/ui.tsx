@@ -24,7 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DentroDeCartao, useDentroDeCartao } from './base';
 import { CABECALHO, layoutCabecalho, respiroTopoDoConteudo } from './cabecalho';
-import { layoutCarregando, rotuloDoVoltar, tocarNoVoltar } from './componentes';
+import { formaDoBadge, layoutCarregando, type LinhasBadge, rotuloDoVoltar, tocarNoVoltar } from './componentes';
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
 import { formatHHMM } from './time';
@@ -253,11 +253,18 @@ const BUTTON: Record<ButtonVariant, { bg: string; fg: string; border: string; bo
   muted: { bg: colors.lineSoft, fg: colors.ink3, border: 'transparent', borderWidth: 0 },
 };
 
-export function Badge({ label, tone, fg, bg, style }: { label: string; tone?: Tone; fg?: string; bg?: string; style?: StyleProp<ViewStyle> }) {
+/**
+ * Chip de estado antigo (pílula de 24 dp). `linhas` (padrão 1) existe para a coluna estreita de tabela, ex.: Status do
+ * Histórico do Cliente 360 (92 dp), onde "Devolvido parcial" não cabe numa linha (MC-1790, T-0186): com `linhas={2}` o texto
+ * quebra em até 2 linhas, centralizado (lineHeight 16, paddingVertical 3), e o raio passa de pílula a `radius.sm` (8) para
+ * não virar um ovo. minHeight 24 continua. Regra pura em `formaDoBadge` (componentes.ts).
+ */
+export function Badge({ label, tone, fg, bg, style, linhas = 1 }: { label: string; tone?: Tone; fg?: string; bg?: string; style?: StyleProp<ViewStyle>; linhas?: LinhasBadge }) {
   const c = tone ? toneColors[tone] : { fg: fg ?? colors.neutralInk, bg: bg ?? colors.neutralBg };
+  const f = formaDoBadge(linhas);
   return (
-    <View style={[styles.badge, { backgroundColor: c.bg }, style]}>
-      <Text style={[styles.badgeText, { color: c.fg }]} numberOfLines={1}>
+    <View style={[styles.badge, { backgroundColor: c.bg, borderRadius: f.borderRadius, paddingVertical: f.paddingVertical }, style]}>
+      <Text style={[styles.badgeText, { color: c.fg, lineHeight: f.lineHeight, textAlign: f.textAlign }]} numberOfLines={f.numberOfLines}>
         {label}
       </Text>
     </View>

@@ -71,3 +71,6 @@ export * from './carga-fundo-rn';
 // T-0182: PlacaLogoCliente, a logo da empresa numa placa branca (carga 64/48 e fim do Mais 52/36)
 export * from './placa-logo';
 export * from './placa-logo-rn';
+// RD-2355 (T-0186): TabelaRotuloValor e TabelaDados (CelulaTexto, BotaoCelula), as tabelas da ficha do Cliente 360 e do pedido
+export * from './tabela-ficha';
+export * from './tabela-ficha-rn';

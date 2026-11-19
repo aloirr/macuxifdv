@@ -11,10 +11,9 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { ehSemDado, leituraDaLinhaDeValor, VALOR_SEM_DADO } from './componentes';
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
-import { ALTURA, BOTAO_DESABILITADO, colors, fonte, radius, TONS_ESTADO, type as t, type TomEstado } from './theme';
+import { ALTURA, BOTAO_DESABILITADO, colors, fonte, radius, TONS_ESTADO, type TomEstado } from './theme';
 
 // ---------- RodapeTotal ----------
 export function RodapeTotal({
@@ -97,121 +96,6 @@ export function LinhaValor({
       <Text style={[s.linhaValor, (forte || destaque) && s.linhaValorForte, destaque && s.linhaValorDestaque, { color: cor }]} numberOfLines={1} testID={testID ? `${testID}-valor` : undefined}>
         {valor}
       </Text>
-    </View>
-  );
-}
-
-// ---------- TabelaValores ----------
-export interface LinhaDaTabela {
-  id: string;
-  /** "Limite", "Disponível", "Prazo médio". */
-  rotulo: string;
-  /** Já formatado ("R$ 20.000,00", "45 dias"); sem dado: `VALOR_SEM_DADO` ("—"), desenhado em `ink3`. */
-  valor: string;
-  /** `erro`: disponível negativo (com o sinal "−" no texto); `sucesso`: queda de preço. */
-  tom?: 'erro' | 'sucesso';
-}
-
-/**
- * Tabela rótulo ··· valor para consulta (T-0141; spec docs/design/pedido-v3.md §A): cartão branco, linhas de 48 dp com traço
- * entre elas, rótulo 14 `ink2` à esquerda e valor em negrito (700) 18, tabular, à direita. Uso: crédito do cliente na aba
- * Venda (Limite, Disponível, Prazo médio) e os totais da folha "Preços de hoje". `carregando` troca os valores por barras
- * cinza (nada de "R$ 0,00" falso); `rodape` é a linha de atualização abaixo do cartão. Sem texto fixo e sem cálculo.
- */
-export function TabelaValores({
-  linhas,
-  carregando,
-  rodape,
-  testID = 'tabela-valores',
-}: {
-  linhas: readonly LinhaDaTabela[];
-  carregando?: boolean;
-  /** "Atualizado hoje às 05:38" com o ícone `sync` (sem sinal: `wifiOff`). */
-  rodape?: { icone?: IconName; texto: string } | null;
-  testID?: string;
-}) {
-  return (
-    <View style={s.tabelaBloco} testID={testID}>
-      <View style={s.tabela}>
-        {linhas.map((l, i) => {
-          const semDado = ehSemDado(l.valor);
-          const cor = l.tom === 'erro' ? colors.danger : l.tom === 'sucesso' ? colors.success : semDado ? colors.ink3 : colors.ink;
-          return (
-            <View
-              key={l.id}
-              style={[s.tabelaLinha, i > 0 && s.tabelaLinhaTraco]}
-              accessible
-              accessibilityLabel={carregando ? l.rotulo : leituraDaLinhaDeValor(l.rotulo, l.valor)}
-              accessibilityState={{ busy: Boolean(carregando) }}
-              testID={`${testID}-${l.id}`}>
-              <Text style={s.tabelaRotulo}>{l.rotulo}</Text>
-              {carregando ? (
-                <View style={s.tabelaEsqueleto} />
-              ) : (
-                <Text style={[s.tabelaValor, { color: cor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} testID={`${testID}-${l.id}-valor`}>
-                  {semDado ? VALOR_SEM_DADO : l.valor}
-                </Text>
-              )}
-            </View>
-          );
-        })}
-      </View>
-      {rodape?.texto ? (
-        <View style={s.tabelaRodape} testID={`${testID}-rodape`}>
-          {rodape.icone ? <Icon name={rodape.icone} size={13} color={colors.ink2} /> : null}
-          <Text style={s.tabelaRodapeTexto}>{rodape.texto}</Text>
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-// ---------- LinhaResumo ----------
-/**
- * Linha do Resumo (T-0133, RF-VEN-11): rótulo curto em maiúsculas numa coluna fixa à esquerda (VENDA, ITENS, ENTREGA, OBS.)
- * e o conteúdo à direita, quebrando em quantas linhas precisar; `alerta` é uma linha extra no tom de aviso ou erro
- * ("Vai para aprovação (título vencido)"). Só leitura.
- */
-export function LinhaResumo({
-  rotulo,
-  texto,
-  linhas,
-  alerta,
-  marca,
-  testID,
-}: {
-  /** "Venda", "Itens", "Entrega", "Obs." (mostrado em maiúsculas). */
-  rotulo: string;
-  /** Conteúdo numa linha lógica ("Boleto · 28/56 dias"); vazio = "—" passado pelo módulo. */
-  texto?: string;
-  /** Várias linhas rótulo ··· valor (itens compactos). */
-  linhas?: ReadonlyArray<{ id: string; rotulo: string; valor: string }>;
-  alerta?: { tom: 'aviso' | 'erro'; texto: string } | null;
-  /** 2ª linha curta em `accentInk` 12/600, sem ícone, abaixo do texto (T-0141: "Editado neste pedido" na linha ENTREGA). */
-  marca?: string | null;
-  testID?: string;
-}) {
-  const corAlerta = alerta?.tom === 'erro' ? colors.danger : colors.warningInk;
-  return (
-    <View style={s.resumo} testID={testID}>
-      <Text style={s.resumoRotulo} numberOfLines={1}>
-        {rotulo}
-      </Text>
-      <View style={s.resumoConteudo}>
-        {texto ? <Text style={s.resumoTexto}>{texto}</Text> : null}
-        {marca ? (
-          <Text style={s.resumoMarca} testID={testID ? `${testID}-marca` : undefined}>
-            {marca}
-          </Text>
-        ) : null}
-        {linhas?.map((l) => <LinhaValor key={l.id} rotulo={l.rotulo} valor={l.valor} testID={testID ? `${testID}-${l.id}` : undefined} />)}
-        {alerta ? (
-          <View style={s.resumoAlerta} accessibilityRole={alerta.tom === 'erro' ? 'alert' : 'text'}>
-            <Icon name="alert" size={14} color={corAlerta} strokeWidth={2.4} />
-            <Text style={[s.resumoAlertaTexto, { color: corAlerta }]}>{alerta.texto}</Text>
-          </View>
-        ) : null}
-      </View>
     </View>
   );
 }
@@ -348,24 +232,7 @@ const s = StyleSheet.create({
   linhaValor: { ...fonte.body, fontSize: 14, fontVariant: ['tabular-nums'] },
   linhaValorForte: { ...fonte.semibold },
   linhaValorDestaque: { ...fonte.semibold, fontSize: 18 },
-  // TabelaValores (T-0141): ink2 7,6:1 e ink 16,5:1 no branco; danger 7,1:1; success 6,4:1; ink3 5,8:1
-  tabelaBloco: { gap: 8 },
-  tabela: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, overflow: 'hidden' },
-  tabelaLinha: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 48, paddingHorizontal: 14, paddingVertical: 8 },
-  tabelaLinhaTraco: { borderTopWidth: 1, borderTopColor: colors.lineSoft },
-  tabelaRotulo: { flex: 1, minWidth: 0, ...fonte.body, fontSize: 14, color: colors.ink2 },
-  tabelaValor: { flexShrink: 0, maxWidth: '70%', textAlign: 'right', ...fonte.semibold, fontSize: 18, fontVariant: ['tabular-nums'] },
-  tabelaEsqueleto: { width: 72, height: 12, borderRadius: 6, backgroundColor: colors.lineSoft },
-  tabelaRodape: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  tabelaRodapeTexto: { ...fonte.body, fontSize: 12, color: colors.ink2 },
   // linha do Resumo: coluna do rótulo de 64 dp (cabe "ENTREGA" no `type.rotulo`)
-  resumo: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
-  resumoRotulo: { ...t.rotulo, width: 64, paddingTop: 2 },
-  resumoConteudo: { flex: 1, minWidth: 0, gap: 2 },
-  resumoMarca: { ...fonte.semibold, fontSize: 12, color: colors.accentInk },
-  resumoTexto: { ...fonte.body, fontSize: 14, lineHeight: 20, color: colors.ink },
-  resumoAlerta: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, paddingTop: 1 },
-  resumoAlertaTexto: { flex: 1, ...fonte.semibold, fontSize: 14, lineHeight: 18 },
   // card dos totais
   bloco: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, paddingVertical: 11, paddingHorizontal: 12 },
   blocoExtra: { marginTop: 7 },
