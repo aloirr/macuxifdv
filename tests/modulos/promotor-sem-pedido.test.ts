@@ -152,9 +152,8 @@ describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fon
     expect(itensVendedorApp.filter((i) => i.tipo === 'pagina').map((i) => i.id)).toEqual(['pedidos', 'pedido', 'rascunhos', ...(SO_ORCAMENTO ? ['adicionar-ao-orcamento'] : []), 'novo-pedido']);
     // T-0076: + card Orçamentos/A faturar no Início (inicio.cards/pedidos-resumo, também com acao pedido.criar)
     // T-0052: + "Adicionar ao pedido" no slot produto.acoes do Catálogo (acao pedido.criar, só Campo)
+    // T-0186 (RD-2354): a ficha v2 não tem mais as seções "Sugestão de mix" e "Últimos pedidos" do Vendedor (cliente.abas)
     expect(itensVendedorApp.filter((i) => i.tipo === 'extensao').map((i) => `${i.slot}/${i.id}`)).toEqual([
-      'cliente.abas/mix',
-      'cliente.abas/ultimos-pedidos',
       'cliente.acoes/novo-pedido',
       `produto.acoes/${ID_ACAO_CATALOGO}`,
       // T-0085 (RN-VEN-35): + "Fazer pedido em nome" no slot do próprio Vendedor, só Gestão, acao pedido.criar_em_nome

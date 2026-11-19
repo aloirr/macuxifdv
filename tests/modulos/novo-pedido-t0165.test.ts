@@ -532,11 +532,14 @@ describe('T-0165 E — lápis Editar no item do pedido: aba Itens e Resumo (§5.
   });
 
   it('E3 (Resumo): a 7ª coluna, sem título, traz o lápis "tabela" (32 dp) DEPOIS do Total; TalkBack "Editar AGU-1500"', () => {
+    // T-0186 (RD-2370): a tabela do Resumo passou a usar a TabelaDados do kit; a coluna do lápis é a última, sem título
     const tabela = ler('modules/vendedor/app/components/tabelas-pedido.tsx');
-    const linha = tabela.slice(tabela.indexOf('style={s.linhaItem}'));
-    expect(linha.indexOf('<BotaoEditar')).toBeGreaterThan(linha.indexOf('s.colTotal'));
-    expect(linha).toMatch(/<BotaoEditar [^>]*tamanho="tabela" onPress=\{\(\) => aoTocarLinha\(l\.key\)\}/);
-    expect(tabela).toContain('{aoTocarLinha ? <View style={s.colLapis} /> : null}'); // o cabeçalho reserva a coluna, sem título
+    const colunas = tabela.slice(tabela.indexOf('const colunas: ColunaTabela[]'), tabela.indexOf('const linhas: LinhaTabela[]'));
+    expect(colunas.indexOf("{ id: 'editar', titulo: '', largura: 48 }")).toBeGreaterThan(colunas.indexOf("{ id: 'total', titulo: 'Total'"));
+    expect(colunas).toContain("...(aoTocarLinha ? [{ id: 'editar', titulo: '', largura: 48 }] : [])");
+    const celulas = tabela.slice(tabela.indexOf('celulas: ['));
+    expect(celulas.indexOf('<BotaoEditar')).toBeGreaterThan(celulas.indexOf('key="total"'));
+    expect(celulas).toMatch(/<BotaoEditar [^>]*tamanho="tabela" onPress=\{\(\) => aoTocarLinha\(l\.key\)\}/);
     expect(BOTAO_EDITAR.tabela).toMatchObject({ lado: 32, raio: 9, icone: 16 });
     expect(leituraDoBotaoEditar('AGU-1500', 'tabela')).toBe('Editar AGU-1500');
   });
