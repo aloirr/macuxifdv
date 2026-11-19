@@ -8,7 +8,7 @@ import { formatHHMM } from '@macuxi/comum/fuso';
 import { projetarPontos, type PontoDoTrajeto } from '@macuxi/core/contracts';
 
 /** RN-CORE-13: texto do app e do BKO quando o dia não tem pontos (tracking desligado, sem termo ou fora do expediente). */
-export const TEXTO_SEM_TRAJETO = 'Sem trajeto';
+export const TEXTO_SEM_TRAJETO = 'Nada registrado';
 
 export interface PontoDesenhado {
   x: number;
@@ -34,7 +34,7 @@ export interface OpcoesDesenho {
 
 /**
  * Ordena por `capturado_em`, projeta e marca as horas com as funções do Core (`projetarPontos`): a mesma projeção
- * do Core. Sem pausa (RN-CORE-13) não há trecho tracejado: a linha é uma só, sólida.
+ * do Core.
  */
 export function desenharTrajeto(pontos: readonly PontoDoTrajeto[], o: OpcoesDesenho): TrajetoDesenhado {
   if (pontos.length === 0) return { vazio: true, linha: [], primeiro: null, ultimo: null, total: 0 };

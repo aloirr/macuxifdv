@@ -58,8 +58,8 @@ describe('desenharTrajeto: pontos do dia prontos para o desenho no aparelho (RN-
     expect(formatarDistancia(18600)).toBe('18,6 km');
   });
 
-  it('RD-2300: dia sem pontos mostra "Sem trajeto" no app e no BKO, e dia com pontos não mostra', () => {
-    expect(TEXTO_SEM_TRAJETO).toBe('Sem trajeto');
+  it('RD-2300: dia sem pontos mostra "Nada registrado" no app e no BKO, e dia com pontos não mostra', () => {
+    expect(TEXTO_SEM_TRAJETO).toBe('Nada registrado');
     expect(desenharTrajeto([], TAM).vazio).toBe(true);
     expect(desenharTrajeto([p('2026-11-03T12:00:00Z', -3.1, -60)], TAM).vazio).toBe(false);
   });
