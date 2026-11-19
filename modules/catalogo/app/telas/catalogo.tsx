@@ -23,6 +23,7 @@ import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo,
 import { subtituloDaGrade } from '../lib/grade';
 import { dadosDaFolha, opcoesDoFiltroFilial, resumoDoFiltro, subtituloComFilial } from '../lib/estoque-folha';
 import { modoDaCarga, paginasDaApi, soVendaveisNaCarga } from '../lib/carga-online';
+import { ajustarPeloPrazoPadrao } from '../lib/prazo-padrao';
 import { vazioDaBusca } from '../lib/vazio-busca';
 import { arvoreLocal, buscarLocal, estoqueLocalDosProdutos, filialDeCadastroLocal, filiaisDoUsuarioLocal, filiaisLocais, nomeDoClienteLocal, produtosDaNavegacao, produtosLocais, vitrineLocal } from '../lib/local';
 import { sugestaoDaBuscaLocal } from '../texto-consultas';
@@ -178,6 +179,8 @@ export default function TelaCatalogo() {
           r = await local(ehSemConexao(e) ? AVISO_BUSCA_OFFLINE : AVISO_BUSCA_FALHOU);
         }
       }
+      // RN-VEN-43: pela ficha do cliente o preço sai no prazo padrão dele; sem cliente, tabela pura
+      if (clienteId && r.itens.length > 0) r = { ...r, itens: await ajustarPeloPrazoPadrao(r.itens, clienteId, ambiente.consultar) };
       if (vivo) setLista({ ...r, carregando: false });
     };
     void carregar().catch(() => vivo && setLista({ carregando: false, itens: [], total: 0, aviso: 'Não foi possível abrir o catálogo agora. Puxe a tela para tentar de novo.' }));

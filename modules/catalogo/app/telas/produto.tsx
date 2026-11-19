@@ -11,6 +11,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { caminhoCatalogo, type FichaProduto } from '../../contracts';
+import { ajustarPeloPrazoPadrao } from '../lib/prazo-padrao';
 import { modoDaCarga } from '../lib/carga-online';
 import { aplicacaoPrecisaRecolher, estadoOfereceJunto, LINHAS_APLICACAO_RECOLHIDA, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
 import { dadosDaFolha } from '../lib/estoque-folha';
@@ -70,7 +71,14 @@ export default function TelaProduto() {
       if (!ambiente.online() || !id) return { fase: 'nao_encontrado' };
       return modo === 'api' ? { fase: 'nao_encontrado' } : ((await daApi()) ?? { fase: 'nao_encontrado' });
     };
-    void carregar().then((e) => vivo && setEstado(e));
+    // RN-VEN-43: com cliente, o preço da ficha sai no prazo padrão dele; sem cliente, tabela pura
+    const comPrazo = async (): Promise<Estado> => {
+      const e = await carregar();
+      if (e.fase !== 'pronta' || !clienteId) return e;
+      const [produto] = await ajustarPeloPrazoPadrao([e.ficha.product], clienteId, ambiente.consultar);
+      return produto ? { ...e, ficha: { ...e.ficha, product: produto } } : e;
+    };
+    void comPrazo().then((e) => vivo && setEstado(e));
     return () => {
       vivo = false;
     };
