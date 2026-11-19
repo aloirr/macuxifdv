@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador; 0076: marca_codigo do produto; 0077: usuario.filial_cadastro_id e usuario_filial; 0080: usuario.codigo_fdv e usuario_codigo_fdv_contador; 0084: almoço do usuário e usuario_contato; 0088: ponto_trajeto, pausa_trajeto, ausencia_usuario, termo_rastreamento e aceite_termo_rastreamento), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador; 0076: marca_codigo do produto; 0077: usuario.filial_cadastro_id e usuario_filial; 0080: usuario.codigo_fdv e usuario_codigo_fdv_contador; 0084: almoço do usuário e usuario_contato; 0089: ponto_trajeto, pausa_trajeto, ausencia_usuario, termo_rastreamento e aceite_termo_rastreamento), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -814,7 +814,7 @@ export const usuarioContato = core.table('usuario_contato', {
 });
 
 /**
- * Rastreamento no expediente (0088, T-0156, ADR 0061; desenho docs/desenho/tracking.md §5.1). Nenhuma das 5 tem grant ao
+ * Rastreamento no expediente (0089, T-0156, ADR 0061; desenho docs/desenho/tracking.md §5.1). Nenhuma das 5 tem grant ao
  * macuxi_leitura (TABELAS_SEM_LEITURA). Nunca registre coordenada em log, erro ou telemetria (desenho §9).
  *
  * Ponto do trajeto: id = UUID do aparelho (push idempotente, on conflict (id) do nothing). latitude/longitude numeric(9,6) e

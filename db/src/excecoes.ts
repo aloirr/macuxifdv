@@ -71,7 +71,7 @@ export const TABELAS_SO_POR_FUNCAO = [
  * exigem o contrário nelas: nenhuma política nem privilégio para o macuxi_leitura.
  */
 export const TABELAS_SEM_LEITURA = [
-  /** Rastreamento (0088, T-0156, ADR 0061 item 7): pontos, pausas, ausências, termos e aceites. */
+  /** Rastreamento (0089, T-0156, ADR 0061 item 7): pontos, pausas, ausências, termos e aceites. */
   'core.ponto_trajeto',
   'core.pausa_trajeto',
   'core.ausencia_usuario',
@@ -116,7 +116,7 @@ export const TABELAS_FORA_DO_SYNC = [
   'catalogo.foto_lote_item',
   /** Último contato do aparelho (0084, T-0180, ADR 0059 §5): o Core grava no sync e só a consulta core.produtividade_equipe@1 lê. */
   'core.usuario_contato',
-  /** Rastreamento (0088, T-0156, ADR 0061): pontos e pausas são só de envio; o trajeto chega ao Gestor por core.trajeto_do_dia@1. */
+  /** Rastreamento (0089, T-0156, ADR 0061): pontos e pausas são só de envio; o trajeto chega ao Gestor por core.trajeto_do_dia@1. */
   'core.ponto_trajeto',
   'core.pausa_trajeto',
   /** Contador do número legível do pedido (0009, T-0029): uma linha por tenant, só o servidor usa. */

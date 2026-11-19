@@ -134,8 +134,8 @@ const TABELAS_0081 = ['plataforma.frase_carga'] as const;
 const TABELAS_0084 = ['core.usuario_contato'] as const;
 /** Tabela nova da 0086 (ADR 0047: histórico das trocas de plano; fora do sync; planos-troca-licencas.db.test.ts). */
 const TABELAS_0086 = ['plataforma.assinatura_historico'] as const;
-/** Tabelas novas da 0088 (T-0156, ADR 0061: rastreamento no expediente; sem macuxi_leitura; rastreamento.db.test.ts). */
-const TABELAS_0088 = ['core.ponto_trajeto', 'core.pausa_trajeto', 'core.ausencia_usuario', 'core.termo_rastreamento', 'core.aceite_termo_rastreamento'] as const;
+/** Tabelas novas da 0089 (T-0156, ADR 0061: rastreamento no expediente; sem macuxi_leitura; rastreamento.db.test.ts). */
+const TABELAS_0089 = ['core.ponto_trajeto', 'core.pausa_trajeto', 'core.ausencia_usuario', 'core.termo_rastreamento', 'core.aceite_termo_rastreamento'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -226,8 +226,8 @@ describe('migrações (estático)', () => {
     expect(nomes[83]).toBe('0084_core_almoco_gestor_alerta_produtividade'); // T-0180 (D3–D5, RN-CORE-44): core.usuario.almoco_inicio_min/almoco_fim_min (nulas = padrão da empresa), parado_entre_visitas e sem_checkin_inicio no alerta_tipo_valido e core.usuario_contato (último contato do aparelho, fora do sync) (almoco-alerta-produtividade.db.test.ts)
     expect(nomes[84]).toBe('0085_core_usuario_filial_matriz'); // v1.0.14 (RN-CORE-39, R-20261116-093600-alexandre): só dados, todo usuário vivo sem filial de cadastro recebe a filial matriz do tenant (CNPJ /0001, senão menor código), também como filial de venda (usuario-filial-matriz.db.test.ts)
     expect(nomes[85]).toBe('0086_plataforma_planos_troca_licencas'); // ADR 0047 (R-20261115-120632): os 4 planos de venda semeados, plataforma.assinatura_historico, sa_listar_planos, sa_assinatura_da_empresa e sa_trocar_plano no portal, trava licencas_do_tenant do cadastro de usuários e o app lendo só o plano do próprio tenant (planos-troca-licencas.db.test.ts)
-    expect(nomes[87]).toBe('0088_core_rastreamento'); // T-0156 (ADR 0061): ponto_trajeto, pausa_trajeto, ausencia_usuario, termo_rastreamento e aceite_termo_rastreamento, sem macuxi_leitura, e core.expurgar_rastreamento (90 dias e 5 anos) só do worker (rastreamento.db.test.ts)
     expect(nomes[86]).toBe('0087_integracao_lote_cancelado'); // T-0173 (RN-INT-15): CHECK lote_status_valido com 'cancelado' e integracao.expurgar_retencao com o lote cancelado na retenção do lote final (lote-cancelado.db.test.ts)
+    expect(nomes[88]).toBe('0089_core_rastreamento'); // T-0156 (ADR 0061): ponto_trajeto, pausa_trajeto, ausencia_usuario, termo_rastreamento e aceite_termo_rastreamento, sem macuxi_leitura, e core.expurgar_rastreamento (90 dias e 5 anos) só do worker (rastreamento.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
@@ -292,7 +292,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0081,
         ...TABELAS_0084,
         ...TABELAS_0086,
-        ...TABELAS_0088,
+        ...TABELAS_0089,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,
@@ -384,7 +384,7 @@ describe('0003 macuxi_worker (estático, ADR 0007)', () => {
       'execute on function plataforma.trabalho_reservar(text, integer)',
       'execute on function plataforma.trabalho_devolver(uuid, text, text, text, integer)',
       'execute on function plataforma.trabalho_renovar(uuid, text, integer)',
-      // 0088 (T-0156, ADR 0061): expurgo do rastreamento (USAGE só para chamar a função; nenhuma tabela do core)
+      // 0089 (T-0156, ADR 0061): expurgo do rastreamento (USAGE só para chamar a função; nenhuma tabela do core)
       'usage on schema core',
       'execute on function core.expurgar_rastreamento(timestamptz, integer)',
     ]);

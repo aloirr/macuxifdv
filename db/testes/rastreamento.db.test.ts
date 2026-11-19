@@ -1,6 +1,6 @@
 /**
- * 0088 — rastreamento no expediente (T-0156, ADR 0061; desenho docs/desenho/tracking.md §5.1 e §5.4). Dicionário:
- * docs/banco/core.md, "0088".
+ * 0089 — rastreamento no expediente (T-0156, ADR 0061; desenho docs/desenho/tracking.md §5.1 e §5.4). Dicionário:
+ * docs/banco/core.md, "0089".
  * - 5 tabelas do Core (ponto_trajeto, pausa_trajeto, ausencia_usuario, termo_rastreamento, aceite_termo_rastreamento) com os
  *   campos comuns, RLS forçado, isolamento_tenant e manutencao; grants mínimos ao macuxi_app (nenhum DELETE);
  * - nenhum grant nem política para o macuxi_leitura (TABELAS_SEM_LEITURA), nada para o worker e o portal;
@@ -23,11 +23,11 @@ import { comoPapel, emTransacao, erroDe, retratoDoCatalogo } from './util';
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 const migracoes = lerMigracoes();
-const m88 = migracoes.find((m) => m.nome === 'core_rastreamento')!;
+const m89 = migracoes.find((m) => m.nome === 'core_rastreamento')!;
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
-const up = semComentarios(m88.up);
+const up = semComentarios(m89.up);
 const umaLinha = up.replace(/\s+/g, ' ');
-const down = semComentarios(m88.down);
+const down = semComentarios(m89.down);
 const TABELAS = ['core.ponto_trajeto', 'core.pausa_trajeto', 'core.ausencia_usuario', 'core.termo_rastreamento', 'core.aceite_termo_rastreamento'] as const;
 const GRANTS_APP: Record<(typeof TABELAS)[number], string> = {
   'core.ponto_trajeto': 'select, insert',
@@ -40,10 +40,10 @@ const FUNCAO = 'core.expurgar_rastreamento(timestamptz, integer)';
 /** Instante do teste (fixo; passado à função como p_agora). */
 const T0 = '2026-11-19T12:00:00Z'; // hora-fixa-ok: instante do teste, sempre passado como parâmetro
 
-describe('0088 rastreamento (estático)', () => {
-  it('número e nome: a 0088 vem logo depois da 0087', () => {
-    expect(m88.versao).toBe('0088');
-    expect(migracoes[migracoes.indexOf(m88) - 1]!.versao).toBe('0087');
+describe('0089 rastreamento (estático)', () => {
+  it('número e nome: a 0089 vem logo depois da 0088', () => {
+    expect(m89.versao).toBe('0089');
+    expect(migracoes[migracoes.indexOf(m89) - 1]!.versao).toBe('0088');
   });
 
   it('5 tabelas com campos comuns, RLS forçado, isolamento_tenant, manutencao e grants mínimos (sem DELETE)', () => {
@@ -113,7 +113,7 @@ describe('0088 rastreamento (estático)', () => {
   });
 });
 
-describe.skipIf(semBanco())('0088 rastreamento (banco, papel de aplicação)', () => {
+describe.skipIf(semBanco())('0089 rastreamento (banco, papel de aplicação)', () => {
   let app: pg.Client;
   beforeAll(async () => {
     app = new pg.Client({ connectionString: banco().urlApp });
@@ -237,7 +237,7 @@ describe.skipIf(semBanco())('0088 rastreamento (banco, papel de aplicação)', (
   });
 });
 
-describe.skipIf(semBanco())('0088 up/down e expurgo (banco efêmero)', () => {
+describe.skipIf(semBanco())('0089 up/down e expurgo (banco efêmero)', () => {
   let b: BancoDeTeste;
   const T1 = 'cccccccc-0000-4000-8000-000000000088';
   const T2 = 'cccccccc-0000-4000-8000-000000000188';
@@ -251,18 +251,18 @@ describe.skipIf(semBanco())('0088 up/down e expurgo (banco efêmero)', () => {
     await b?.apagar();
   });
 
-  it('up sobre a 0087, down volta ao catálogo da 0087 (idempotente) e up de novo igual', async () => {
+  it('up sobre a 0088, down volta ao catálogo da 0088 (idempotente) e up de novo igual', async () => {
     await comAdmin(b.nome, async (c) => {
-      await migrarUp(c, { ate: '0087' });
+      await migrarUp(c, { ate: '0088' });
       const antes = await retratoDoCatalogo(c);
-      expect((await migrarUp(c, { ate: m88.versao })).aplicadas).toEqual([`${m88.versao}_${m88.nome}`]);
+      expect((await migrarUp(c, { ate: m89.versao })).aplicadas).toEqual([`${m89.versao}_${m89.nome}`]);
       const depois = await retratoDoCatalogo(c);
       expect(depois).toContain('col core.ponto_trajeto.latitude numeric(9,6) nn=true');
-      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual([`${m88.versao}_${m88.nome}`]);
+      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual([`${m89.versao}_${m89.nome}`]);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      await c.query(m88.down);
+      await c.query(m89.down);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      await migrarUp(c, { ate: m88.versao });
+      await migrarUp(c, { ate: m89.versao });
       expect(await retratoDoCatalogo(c)).toEqual(depois);
     });
   });

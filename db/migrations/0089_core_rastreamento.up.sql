@@ -1,7 +1,7 @@
--- 0088_core_rastreamento (up) — T-0156 (rastreamento contínuo no expediente, v1.0.15). ADR 0061; desenho
+-- 0089_core_rastreamento (up) — T-0156 (rastreamento contínuo no expediente, v1.0.15). ADR 0061; desenho
 -- docs/desenho/tracking.md §5.1, §5.4, §8 e §11 (item 1); retenção aprovada em R-20261116-110200-alexandre
--- (docs/desenho/T-0156-legal-finalidade.md §5). Migração em cima da 0087 (o número segue a ordem de merge). Dicionário:
--- docs/banco/core.md ("0088"). Teste: db/testes/rastreamento.db.test.ts (estático sempre; banco e up/down com o Postgres local).
+-- (docs/desenho/T-0156-legal-finalidade.md §5). Migração em cima da 0088 (P-6, 0088_vendedor_pedido_aprovacao); o número segue a ordem de merge. Dicionário:
+-- docs/banco/core.md ("0089"). Teste: db/testes/rastreamento.db.test.ts (estático sempre; banco e up/down com o Postgres local).
 --
 -- Migração ADITIVA: 5 tabelas novas no Core, 1 índice novo em core.deslocamento_dia (0066) e 1 função de expurgo. Nenhuma
 -- tabela, coluna, política ou grant que já existe muda. Nenhum contrato muda de versão.
@@ -66,7 +66,7 @@
 --   p_agora nulo ou p_limite fora de 1..50000 = 22023. O macuxi_worker ganha USAGE no schema core só para chamar a função
 --   (como no integracao, 0010); continua sem grant de tabela no core.
 --
--- Caminho de volta: 0088_core_rastreamento.down.sql (APAGA as 5 tabelas com tudo o que tiverem — pontos, pausas, ausências,
+-- Caminho de volta: 0089_core_rastreamento.down.sql (APAGA as 5 tabelas com tudo o que tiverem — pontos, pausas, ausências,
 -- termos e aceites —, a função e o índice novo de deslocamento_dia; os resumos ficam). Volte antes o código do Core e do
 -- worker que lê, grava ou chama a função (senão 42P01 ou 42883).
 
@@ -320,7 +320,7 @@ begin
   if has_function_privilege('macuxi_app', 'core.expurgar_rastreamento(timestamptz, integer)', 'execute')
      or has_function_privilege('macuxi_portal', 'core.expurgar_rastreamento(timestamptz, integer)', 'execute')
      or has_function_privilege('macuxi_leitura', 'core.expurgar_rastreamento(timestamptz, integer)', 'execute') then
-    raise exception '0088: core.expurgar_rastreamento executável fora do macuxi_worker' using errcode = '42501';
+    raise exception '0089: core.expurgar_rastreamento executável fora do macuxi_worker' using errcode = '42501';
   end if;
   foreach v_t in array array['core.ponto_trajeto', 'core.pausa_trajeto', 'core.ausencia_usuario', 'core.termo_rastreamento',
                              'core.aceite_termo_rastreamento'] loop
@@ -328,7 +328,7 @@ begin
        or has_table_privilege('macuxi_worker', v_t, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
        or has_table_privilege('macuxi_portal', v_t, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
        or has_table_privilege('macuxi_app', v_t, 'DELETE, TRUNCATE') then
-      raise exception '0088: privilégio fora do desenho em %', v_t using errcode = '42501';
+      raise exception '0089: privilégio fora do desenho em %', v_t using errcode = '42501';
     end if;
   end loop;
 end

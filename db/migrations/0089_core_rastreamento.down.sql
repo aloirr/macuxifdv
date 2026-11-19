@@ -1,4 +1,4 @@
--- 0088_core_rastreamento (down) — volta da 0088 (T-0156). APAGA as 5 tabelas do rastreamento com tudo o que tiverem (pontos,
+-- 0089_core_rastreamento (down) — volta da 0089 (T-0156). APAGA as 5 tabelas do rastreamento com tudo o que tiverem (pontos,
 -- pausas, ausências, termos e aceites), a função de expurgo e o índice do expurgo em core.deslocamento_dia. Os resumos de
 -- core.deslocamento_dia (0066) ficam. Idempotente. Volte antes o código do Core e do worker que lê, grava ou chama a função.
 

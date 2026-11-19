@@ -19,7 +19,7 @@ describe('B1 conferência de RLS (estático)', () => {
     return [...bloco.matchAll(/\('([a-z_]+\.[a-z_]+)'\)/g)].map((m) => m[1]!);
   };
 
-  it('as exceções da consulta são as de db/src/excecoes.ts (sem tenant_id, 0035 só por função e 0088 sem leitura)', () => {
+  it('as exceções da consulta são as de db/src/excecoes.ts (sem tenant_id, 0035 só por função e 0089 sem leitura)', () => {
     expect(valoresDaCte('sem_tenant_id')).toEqual(Object.keys(TABELAS_SEM_TENANT_ID).filter((n) => !n.startsWith('public.')));
     expect(valoresDaCte('so_por_funcao')).toEqual([...TABELAS_SO_POR_FUNCAO]);
     expect(valoresDaCte('sem_leitura')).toEqual([...TABELAS_SEM_LEITURA]);

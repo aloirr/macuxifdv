@@ -89,7 +89,7 @@ describe('0078 papel de leitura (estático)', () => {
     for (const m of migracoes.filter((x) => x.versao > '0078')) {
       for (const [, tabela, corpo] of m.up.matchAll(/create table (?:if not exists )?([a-z_]+\.[a-z_]+) \(([\s\S]*?)\n\);/g)) {
         if (!/^\s+tenant_id\s/m.test(corpo!)) continue;
-        // exceção declarada (0088, ADR 0061): nem SELECT nem política leitura
+        // exceção declarada (0089, ADR 0061): nem SELECT nem política leitura
         if ((TABELAS_SEM_LEITURA as readonly string[]).includes(tabela!)) {
           expect(m.up, `${m.versao}: ${tabela} está em TABELAS_SEM_LEITURA`).not.toMatch(new RegExp(`on ${tabela!.replace('.', '\\.')} (for select )?to macuxi_leitura`));
           continue;

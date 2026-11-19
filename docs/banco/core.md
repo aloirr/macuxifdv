@@ -1178,7 +1178,7 @@ o app sai do bloqueio). Idempotente. Roda como o migrador (políticas `manutenca
 backfill de migração grava lá). Volta: `0085_core_usuario_filial_matriz.down.sql` é no-op documentado (os dados ficam). Teste:
 `db/testes/usuario-filial-matriz.db.test.ts`.
 
-## 0088 — rastreamento no expediente (`0088_core_rastreamento`; T-0156, ADR 0061, RN-CORE-13)
+## 0089 — rastreamento no expediente (`0089_core_rastreamento`; T-0156, ADR 0061, RN-CORE-13)
 Desenho `docs/desenho/tracking.md` §5.1 e §5.4; retenção aprovada em 16/11 (R-20261116-110200, finalidade §5). Aditiva. Testes:
 `db/testes/rastreamento.db.test.ts` e, no aparelho, `db/testes/aparelho-sqlite-core.test.ts`.
 
@@ -1197,4 +1197,4 @@ Desenho `docs/desenho/tracking.md` §5.1 e §5.4; retenção aprovada em 16/11 (
   resumos `deslocamento_dia` com mais de 5 anos e aceites de usuário excluído há mais de 5 anos. Devolve
   `(tenant_id, pontos, pausas, resumos, aceites)` por tenant, sem usuário nem coordenada; o worker repete enquanto alguma contagem
   for igual a `p_limite`. O agendamento diário é do worker (engenheiro-software).
-- Volta: `0088_core_rastreamento.down.sql` apaga as 5 tabelas com os dados, a função, o índice e o `USAGE` do worker.
+- Volta: `0089_core_rastreamento.down.sql` apaga as 5 tabelas com os dados, a função, o índice e o `USAGE` do worker.
