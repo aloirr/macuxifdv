@@ -174,3 +174,4 @@
 2026-11-19 — T-0156 — #492: RD-2240 a RD-2244 (textos do cartão de Localização, distância, sem texto de funcionamento, sem aviso de retomada, laço de captura comum).
 2026-11-19 — T-0156 — #492: rastreamento interno (decisão das 05h46): saem termo, Meu trajeto, pausa, Localização no Perfil e Contestar; ficam o mapa da equipe (Gestão e BKO) e a notificação "Macuxi Campo ativo".
 2026-11-19 — T-0156 — #492: MC-1781 (cores do kit na prancha do BKO do mapa da equipe).
+2026-11-19 — T-0156 — #492: spec e pranchas do rastreamento alinhadas ao #501 e #502 (o que ficou na v1.0.15); MC-1781 e RD-2332 a 2336.
