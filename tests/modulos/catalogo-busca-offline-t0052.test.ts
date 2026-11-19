@@ -243,13 +243,19 @@ describe('T-0052 — busca offline do Catálogo no aparelho com o FTS5 real (mot
       expect(skus(await busca(ap.leitor, 'pasdia150'))[0]).toBe('PAS-DIA-150');
     });
 
-    it('B-O4 (RN-CAT-05, regra 7): o promotor acha o mesmo produto offline, sem preço nem estoque, mesmo com o preço gravado no aparelho', async () => {
-      // pior caso: o aparelho TEM as linhas de preço e estoque (o pull do servidor real nem as manda ao promotor)
+    it('B-O4 (RN-CAT-05 revista, regra 7): o promotor acha o mesmo produto offline, sem preço e com o estoque do vendedor, mesmo com o preço gravado no aparelho', async () => {
+      // pior caso: o aparelho TEM as linhas de preço (o pull do servidor real nem as manda ao promotor; o estoque, sim)
       expect((await ap.motor.linhas('tabela_preco_item')).length).toBe(ENCHIMENTO + 4);
       for (const clienteId of [CLIENTE, null]) {
         const r = await busca(ap.leitor, 'sapata', 'promotor', clienteId);
         expect(skus(r)).toEqual(['PAS-DIA-150']);
-        for (const i of r.items) expect(i, `cliente ${clienteId}`).toMatchObject({ price_stock_visible: false, price: null, availability: null });
+        const doVendedor = (await busca(ap.leitor, 'sapata', 'vendedor', clienteId)).items[0]!;
+        for (const i of r.items) {
+          expect(i, `cliente ${clienteId}`).toMatchObject({ price_stock_visible: false, price: null });
+          // RN-CAT-05 revista (catálogo v2, #503): o estoque é de todos os perfis; no mesmo aparelho e cliente, o mesmo do vendedor
+          expect(i.availability, `cliente ${clienteId}`).not.toBeNull();
+          expect(i.availability, `cliente ${clienteId}`).toEqual(doVendedor.availability);
+        }
       }
       // sem usuário no aparelho (sessão perdida) a regra falha fechada: trata como quem não vê
       const semUsuario = await busca(ap.leitor, 'sapata', null);

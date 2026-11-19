@@ -59,6 +59,11 @@ export interface ContextoVitrine {
   saldos: ReadonlyMap<string, readonly StockByBranch[]>;
   /** Filiais/depósitos do usuário; `null` = todas (escopo do tenant, RN-CORE-04). */
   filiais: readonly string[] | null;
+  /** Filiais da folha "Estoque por filial" (`filiaisDaFolha`, `estoque-campo.ts`); ausente = as mesmas de `filiais`. */
+  filiaisFolha?: readonly string[] | null;
+  /** Filial de cadastro (primeira na folha, spec §2.1) e nomes das filiais (as de venda sem saldo aparecem com 0). */
+  filialCadastro?: string | null;
+  nomesFilial?: Readonly<Record<string, string>>;
 }
 
 /** RN-VEN-01 (T-0173): sem cliente vale a tabela da filial padrão; produto sem preço nela mostra só "Sem preço". */
@@ -85,11 +90,14 @@ function precoDoCartao(p: ProdutoCatalogo, ctx: ContextoVitrine): PrecoVisivel {
  */
 export function itemDaVitrine(p: ProdutoCatalogo, ctx: ContextoVitrine): ItemVitrine {
   const base = { id: p.id, erp_code: p.sku, description: p.nome, brand: p.marca, line: p.categoria, unit: p.unidade, ean: p.ean, thumbnail_url: p.thumbnail_url, is_campaign: p.campanha };
-  if (!podeVerPrecoEstoque(ctx.perfil, ctx.parametros)) return { ...base, price: null, availability: null, price_stock_visible: false };
+  // RN-CAT-05 / RN-CORE-39: sem filial de venda (sem_filial ou sem usuário) o estoque fica VAZIO (nulo), nunca "0"
+  const semFilialDeVenda = ctx.filiaisFolha !== undefined && ctx.filiaisFolha !== null && ctx.filiaisFolha.length === 0;
+  const availability = semFilialDeVenda ? null : estoqueVisivel(p.id, ctx.saldos.get(p.id) ?? [], { filiais: ctx.filiais, ...(ctx.filiaisFolha !== undefined ? { filiaisFolha: ctx.filiaisFolha } : {}), ...(ctx.filialCadastro !== undefined ? { filialCadastro: ctx.filialCadastro } : {}), ...(ctx.nomesFilial !== undefined ? { nomesFilial: ctx.nomesFilial } : {}), agora: ctx.agora, parametros: ctx.parametros });
+  if (!podeVerPrecoEstoque(ctx.perfil, ctx.parametros)) return { ...base, price: null, availability, price_stock_visible: false };
   const item: ItemVitrine = {
     ...base,
     price: precoDoCartao(p, ctx),
-    availability: estoqueVisivel(p.id, ctx.saldos.get(p.id) ?? [], { filiais: ctx.filiais, agora: ctx.agora, parametros: ctx.parametros }),
+    availability,
     price_stock_visible: true,
   };
   return itemVitrineParaPerfil(item, ctx.perfil, ctx.parametros);
@@ -131,10 +139,9 @@ export function estoqueDeBusca(item: ItemVitrine | null): number {
 
 /**
  * O produto tem estoque para o ranking (`estoque > 0` do `docDeBusca`) sem montar o cartão nem ordenar filiais: soma as filiais
- * do usuário (RN-CAT-07) e só diz se passa de zero. Quem não vê estoque (RN-CAT-05) nunca tem. O corte de candidatos usa só isto.
+ * do usuário (RN-CAT-07) e só diz se passa de zero. O corte de candidatos usa só isto.
  */
 export function temEstoqueParaBusca(p: ProdutoCatalogo, ctx: ContextoVitrine): boolean {
-  if (!podeVerPrecoEstoque(ctx.perfil, ctx.parametros)) return false;
   const filiais = ctx.filiais === null ? null : new Set(ctx.filiais);
   for (const s of ctx.saldos.get(p.id) ?? []) {
     if (filiais && !filiais.has(s.branch_id)) continue;

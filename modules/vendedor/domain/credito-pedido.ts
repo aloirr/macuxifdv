@@ -1,7 +1,7 @@
 /**
  * Crédito e inadimplência mandam o pedido para aprovação (T-0184, P-6; simulação aprovada em 18/11, P1 A, P3 B, P4 A).
  * Funções puras, usadas pelo app (offline, para avisar e mostrar a pergunta "Enviar para aprovação?"). O servidor revalida
- * ao receber (critério 4); a regra dele ainda é a anterior até o desenho do servidor (S3).
+ * ao receber (critério 4) com a mesma regra (`api/financeiro-aprovacao.ts`).
  *  - RN-VEN-12: a prazo, total acima do crédito disponível (limite − saldo em aberto − aprovados não faturados) vai para
  *    aprovação com o motivo `credito`; igual ao disponível não vai; à vista nunca vai por crédito; cliente sem limite
  *    informado pelo ERP, a prazo, vai (P4 A).

@@ -18,6 +18,9 @@ Fonte: `modules/core/{contracts,domain,api,app,web}`. Regras: RF-CORE-01/02, RN-
 - `autenticar` consulta `core.usuario` a cada requisição: bloqueio remoto, inativação e troca de perfil valem na hora.
 - Refresh opaco `<tenant_id>.<segredo>`; o banco guarda o sha256 do segredo (`core.sessao`).
 - Bloqueio: 5 falhas seguidas bloqueiam 15 min; senha certa zera. Bloqueio, inativo e aparelho bloqueado só são revelados (423 `USUARIO_BLOQUEADO`) a quem acertou a senha.
+- Mensagens do bloqueio (T-0185, RN-CORE-01): o bloqueio por tentativas responde 423 `USUARIO_BLOQUEADO` com `detalhes.minutos_restantes` e "Muitas tentativas. Tente de novo em N minutos."; o do administrador (ou inativo) vem sem `detalhes` e diz "Fale com o administrador da sua empresa.". O 429 diz o tempo pelo `retry_after_s`. O código é o mesmo nos dois bloqueios para o APK em uso seguir funcionando.
+- Auditoria da falha (T-0185, RN-CORE-34): toda falha com empresa ativa grava `usuario.login_falha` em `plataforma.auditoria`, na mesma transação, só com o usuário (quando há) e o motivo interno (`email_nao_encontrado`, `senha_nao_confere`, `bloqueio_tentativas`, `bloqueio_admin`, `aparelho_bloqueado`, `perfil_fora_do_app`, `senha_vencida`, `empresa_sem_dados`). Sem senha, e-mail ou IP. Empresa inexistente ou inativa não tem tenant: fica só o motivo no log.
+- Troca atômica (T-0185, RN-CORE-34): o "Crie sua senha" lê os dados da empresa pela transação corrente antes de gravar a senha nova; se não saem, nada muda e a senha temporária continua valendo.
 - Senha: argon2id PHC (Node >= 24.7, `crypto.argon2`). Log sem e-mail, senha ou token.
 
 ## Pendências de outros donos (T-0003 Fase 2)

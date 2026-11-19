@@ -3,8 +3,8 @@ import { defineModule } from '@macuxi/platform-sdk';
 /** RN-CAT-04: consulta (busca, ficha, fotos, "pergunte ao catálogo") para todos: campo (vendedor, promotor), gestão (supervisor, gerente) e BKO (analista, assistente, admin). */
 const PERFIS_CONSULTA = ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;
 /**
- * RN-CAT-05: preço de tabela e estoque — todos os perfis de consulta menos o promotor (padrão
- * `promotor_ve_preco_estoque = false`). Com o parâmetro ligado, o domínio (`podeVerPrecoEstoque`) libera o
+ * RN-CAT-05 (revista): preço de tabela — todos os perfis de consulta menos o promotor (padrão
+ * `promotor_ve_preco_estoque = false`); o estoque é de todos os perfis (filiais: `estoque-campo.ts`). Com o parâmetro ligado, o domínio (`podeVerPrecoEstoque`) libera o
  * promotor; mantenha igual a `PERFIS_PRECO_ESTOQUE` de domain/visibilidade.ts (o teste confere).
  */
 const PERFIS_PRECO_ESTOQUE = ['vendedor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;
@@ -68,13 +68,15 @@ export const manifest = defineModule({
   // T-0052 (ADR 0012): cadastro base do produto (sku, nome, unidade, ativo) para a busca na API, sem ler `core.produto`
   // T-0149 (RN-CORE-39): filial do cliente, filial padrão e filiais da carteira (preço e estoque por filial, pull do aparelho, consumidores do ERP)
   // T-0174 (RN-CAT-14): core.produtos_por_sku@1 casa o nome da foto com o código (sku ou EAN) do produto, sem ler `core.produto`
-  usaConsultas: ['core.cadastro_resumo@1', 'core.filiais@1', 'core.produtos_por_sku@1'],
+  usaConsultas: ['core.cadastro_resumo@1', 'core.filiais@1', 'core.filiais_do_usuario@1', 'core.produtos_por_sku@1'],
+  // RN-VEN-43: o preço no prazo padrão usa `vendedor.preco_prazo_padrao@1` (espelho em app/lib/prazo-padrao.ts); opcional, o app funciona sem o Vendedor.
+  usaConsultasOpcionais: ['vendedor.preco_prazo_padrao@1'],
   acoes: {
     // --- consulta (app Macuxi Campo e Gestão; BKO) ---
     'produto.consultar': { perfis: [...PERFIS_CONSULTA], descricao: 'Buscar, navegar, ver a ficha, favoritar e comparar produtos (RF-CAT-01..04, RF-CAT-06)' },
     'produto.ver_preco_estoque': {
       perfis: [...PERFIS_PRECO_ESTOQUE],
-      descricao: 'Ver preço de tabela e estoque na vitrine, na busca e na ficha; o promotor só com promotor_ve_preco_estoque = true (RN-CAT-05)',
+      descricao: 'Ver preço de tabela na vitrine, na busca e na ficha (o estoque é de todos os perfis); o promotor só com promotor_ve_preco_estoque = true (RN-CAT-05)',
     },
     'produto.perguntar': { perfis: [...PERFIS_CONSULTA], descricao: 'Pergunte ao catálogo: resposta só com conteúdo cadastrado e fonte citada (RF-CAT-05, RN-CAT-02)' },
     // --- conteúdo, sinônimos e destaques (BKO; RF-CAT-07) ---

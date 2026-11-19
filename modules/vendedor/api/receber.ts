@@ -67,6 +67,9 @@ import { preVenda } from './pre-venda';
 import { precosCongeladosDoDocumento } from './preco-congelado';
 import { faltaDeEstoqueNaFilial, provedorSaldoDaFilial } from './estoque-filial';
 
+/** Leitura do pedido já recebido, com trava de linha: dois reenvios iguais ao mesmo tempo não regravam itens nem eventos; o segundo espera e cai na idempotência (RN-VEN-33). */
+export const SQL_PEDIDO_EXISTENTE = 'select vendedor_id, autor_id, cliente_id, hash_envio, status, numero from vendedor.pedido where id = $1 for update';
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const aceito = (id: string, em?: string): ResultadoItemPush => (em ? { id, status: 'aceito', em } : { id, status: 'aceito' });
 const rejeitado = (id: string, codigo: string, mensagem: string): ResultadoItemPush => ({ id, status: 'rejeitado', codigo, mensagem });
@@ -304,7 +307,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
 
   // 2) idempotência (RN-VEN-33)
   const hash = createHash('sha256').update(conteudoDoEnvio(p as unknown as Record<string, unknown>)).digest('hex');
-  const ja = (await db.query<{ vendedor_id: string; autor_id: string | null; cliente_id: string; hash_envio: string | null; status: string; numero: string | null }>('select vendedor_id, autor_id, cliente_id, hash_envio, status, numero from vendedor.pedido where id = $1', [p.id])).rows[0];
+  const ja = (await db.query<{ vendedor_id: string; autor_id: string | null; cliente_id: string; hash_envio: string | null; status: string; numero: string | null }>(SQL_PEDIDO_EXISTENTE, [p.id])).rows[0];
   // em nome o pedido é do vendedor e quem enviou é o autor: o id só repete para quem o criou. O pedido devolvido (`rejected`) reenviado com
   // o conteúdo corrigido é reenvio: o servidor recalcula e abre o ciclo seguinte (T-0184 §2); o mesmo envio de novo é idempotente.
   const situacao = situacaoDoEnvio({ existente: ja ? { dono_id: ja.autor_id ?? ja.vendedor_id, status: ja.status, hash_envio: ja.hash_envio } : undefined, eu, hash });

@@ -70,14 +70,15 @@ export function metrosDoTrajeto(
     .sort((a, b) => a.ms - b.ms);
   if (l.length === 0) return { metros: 0, pontos: 0 };
   const maxMs = p.velocidade_max_kmh / 3.6 / 1000; // metros por milissegundo
+  const salto = (a: { ms: number } & PontoTrajeto, b: { ms: number } & PontoTrajeto): boolean => haversineM(a, b) > maxMs * (b.ms - a.ms);
+  // T-0156 §5.3: o 1º ponto só vira referência se o 2º ou o 3º for compatível com ele; se nenhum for, o errado é o 1º e ele sai
+  while (l.length >= 3 && salto(l[0]!, l[1]!) && salto(l[0]!, l[2]!)) l.shift();
   let ref = l[0]!;
   let metros = 0;
   let usados = 1;
   for (const x of l.slice(1)) {
-    const d = haversineM(ref, x);
-    const dt = x.ms - ref.ms;
-    if (d > maxMs * dt) continue; // salto (inclui deslocamento com dt = 0)
-    metros += d;
+    if (salto(ref, x)) continue; // inclui deslocamento com dt = 0
+    metros += haversineM(ref, x);
     ref = x;
     usados++;
   }

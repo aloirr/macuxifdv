@@ -61,6 +61,14 @@ describe('RN-CORE-46: km do dia pelos pontos do rastreamento (metrosDoTrajeto)',
     ];
     expect(metrosDoTrajeto([ponto(0, '12:00:00'), ...ruins])).toEqual({ metros: 0, pontos: 1 });
   });
+  it('RN-CORE-46 (T-0156 §5.3): 1º ponto errado com boa precisão não vira referência quando o 2º e o 3º não são compatíveis com ele', () => {
+    // 1º ponto 11 km longe; os seguintes andam 1,1 km entre si: o 1º sai e o trajeto começa no 2º
+    const t = metrosDoTrajeto([ponto(0.1, '12:00:00'), ponto(0, '12:01:00'), ponto(0.01, '12:03:00'), ponto(0.02, '12:05:00')]);
+    expect(t).toEqual({ metros: 2224, pontos: 3 });
+  });
+  it('RN-CORE-46 (T-0156 §5.3): o 1º ponto fica se o 3º for compatível com ele (o errado é o 2º)', () => {
+    expect(metrosDoTrajeto([ponto(0, '12:00:00'), ponto(0.1, '12:01:00'), ponto(0.01, '12:02:00')])).toEqual({ metros: 1112, pontos: 2 });
+  });
   it('RN-CORE-46: sem ponto, 0 m e 0 pontos (o resumo do dia sai "sem dado" na Performance)', () => {
     expect(metrosDoTrajeto([])).toEqual({ metros: 0, pontos: 0 });
   });

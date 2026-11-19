@@ -2,13 +2,11 @@
 // Uso, a partir da raiz do repositório: node docs/design/menu-parametros/gerar.mjs
 // O gerador falha se um balão ou uma nota de simulação cobrir conteúdo da tela, se o menu rolar em 1366×768 (a página pode rolar)
 // ou se o menu, com qualquer grupo aberto (pior caso), passar da lista visível.
-import { execSync } from 'node:child_process';
-import { createRequire } from 'node:module';
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { abrirNavegador } from '../_comum/navegador.mjs';
 
-const require = createRequire(import.meta.url);
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const LOGO = '../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-grafite.svg';
 
@@ -295,15 +293,6 @@ const TELAS = [
   ['07-parametros-pesquisa-sem-licenca', html07],
 ];
 
-// Playwright do repositório; se o navegador dele não estiver instalado, o Playwright global da sessão (sem instalar nada).
-async function abrirNavegador() {
-  try {
-    return await require('playwright').chromium.launch();
-  } catch {
-    const global = join(execSync('npm root -g').toString().trim(), 'playwright');
-    return await require(global).chromium.launch();
-  }
-}
 const browser = await abrirNavegador();
 const page = await browser.newPage({ viewport: { width: 1366, height: 768 }, deviceScaleFactor: 2 });
 let falhou = false;

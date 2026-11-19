@@ -40,24 +40,24 @@ describe('Catálogo em grade (T-0173)', () => {
     expect(filtroDoNo(arvore, 'x')).toEqual({ sistemaId: null, categoriaId: null });
   });
 
-  it('RN-CAT-07: tag única, verde com 10 ou mais, laranja de 1 a 9, vermelha em 0, cinza sem saldo recebido', () => {
-    expect(tagDeEstoque(disp('disponivel', 84))).toEqual({ texto: '84 em estoque', tom: 'sucesso' });
-    expect(tagDeEstoque(disp('baixo', 6))).toEqual({ texto: '6 em estoque', tom: 'aviso' });
-    expect(tagDeEstoque(disp('sem_estoque', 0))).toEqual({ texto: 'Sem estoque', tom: 'erro' });
-    expect(tagDeEstoque(disp('disponivel', 5, 0))).toEqual({ texto: 'Estoque sem informação', tom: 'neutro' });
+  it('spec §3 (catálogo v2): "Estoque: N" em duas cores, verde acima de 0 e vermelho em 0; sem saldo recebido = 0', () => {
+    expect(tagDeEstoque(disp('disponivel', 84))).toEqual({ texto: 'Estoque: 84', tom: 'sucesso', leitura: 'Estoque 84' });
+    expect(tagDeEstoque(disp('baixo', 6))).toEqual({ texto: 'Estoque: 6', tom: 'sucesso', leitura: 'Estoque 6' });
+    expect(tagDeEstoque(disp('sem_estoque', 0))).toEqual({ texto: 'Estoque: 0', tom: 'erro', leitura: 'Estoque 0' });
+    expect(tagDeEstoque(disp('disponivel', 1500))).toEqual({ texto: 'Estoque: 999+', tom: 'sucesso', leitura: 'Estoque 999+' });
   });
 
-  it('RN-CAT-07: tenant que não mostra a quantidade vê Em estoque e Pouco estoque', () => {
-    expect(tagDeEstoque(disp('disponivel', null))?.texto).toBe('Em estoque');
-    expect(tagDeEstoque(disp('baixo', null))).toEqual({ texto: 'Pouco estoque', tom: 'aviso' });
+  it('spec §3: tenant que não mostra a quantidade vê Em estoque ou Sem estoque', () => {
+    expect(tagDeEstoque(disp('disponivel', null))).toEqual({ texto: 'Em estoque', tom: 'sucesso', leitura: 'Em estoque' });
+    expect(tagDeEstoque(disp('sem_estoque', null))).toEqual({ texto: 'Sem estoque', tom: 'erro', leitura: 'Sem estoque' });
   });
 
-  it('RN-CORE-39: com cliente e sem saldo na filial dele é Sem estoque, não "sem informação"', () => {
-    expect(tagDeEstoque(disp('sem_estoque', 0, 0), { filialDoCliente: true })).toEqual({ texto: 'Sem estoque', tom: 'erro' });
+  it('spec §3: o promotor que não vê preço continua vendo o estoque', () => {
+    expect(tagDeEstoque(disp('disponivel', 12))).toEqual({ texto: 'Estoque: 12', tom: 'sucesso', leitura: 'Estoque 12' });
   });
 
-  it('RN-CAT-05: o perfil que não vê estoque não recebe tag', () => {
-    expect(tagDeEstoque({ price_stock_visible: false, availability: null })).toBeNull();
+  it('RN-CORE-39: sem filial de venda (estoque nulo) não há tag', () => {
+    expect(tagDeEstoque({ availability: null })).toBeNull();
   });
 
   it('T-0173: subtítulo no singular e no plural, grade em 2 colunas e TalkBack sem vazios', () => {

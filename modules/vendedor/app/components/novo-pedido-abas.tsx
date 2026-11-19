@@ -49,7 +49,7 @@ type OnRascunho = (fn: (r: Rascunho) => Rascunho) => void;
 export const TITULO_LEVE_MAIS_PAGUE_MENOS = 'Leve mais e pague menos';
 
 /**
- * Forma de pagamento e Prazo lado a lado em lista suspensa (RN-VEN-24/25), na aba Venda. O Prazo mostra só os prazos da forma, só o texto do prazo; o que passa do prazo médio do cliente fica desabilitado.
+ * Forma de pagamento e Prazo lado a lado em lista suspensa (RN-VEN-24/25), na aba Venda. O Prazo mostra só os prazos da forma, só o texto do prazo.
  * Sem formas no aparelho (antes do primeiro sync com a 0037) vale a lista de condições de antes.
  */
 export function CardPagamento({
@@ -75,7 +75,7 @@ export function CardPagamento({
 }) {
   const semFormas = formas.length === 0;
   const opcoesForma = opcoesDeForma(formas, cliente);
-  const opcoesPrazo = opcoesDePrazo(prazos, r.forma_pagamento_id ?? null, cliente);
+  const opcoesPrazo = opcoesDePrazo(prazos, r.forma_pagamento_id ?? null);
   return (
     <View style={{ gap: 10 }} testID="card-pagamento">
       {semFormas ? (
@@ -106,7 +106,7 @@ export function CardPagamento({
             rotuloFechar="Fechar a lista"
             onChange={(id) => {
               const forma = formas.find((f) => f.id === id);
-              if (forma) onRascunho((d) => comForma(d, forma, prazos, cliente));
+              if (forma) onRascunho((d) => comForma(d, forma, prazos));
             }}
           />
           <ListaSuspensa
@@ -128,15 +128,14 @@ export function CardPagamento({
 }
 
 /**
- * Aba Venda (RF-VEN-11): forma e prazo (RN-VEN-24/25), limite (os alertas de cliente, crédito e título vão para a área Alertas do topo, RN-VEN-42)
- * total e disponível e prazo médio do cliente, com a data da última sincronização. `credito`: `undefined` = lendo; `null` =
+ * Aba Venda (RF-VEN-11): forma e prazo (RN-VEN-24/25), limite (os alertas de cliente, crédito e título vão para a área Alertas, só no Resumo, RN-VEN-42)
+ * total e disponível do cliente, com a data da última sincronização. `credito`: `undefined` = lendo; `null` =
  * consulta indisponível (as linhas de crédito não aparecem). Tudo do aparelho (vale offline).
  */
 export function AbaVenda({
   clienteLinhas,
   pagamento,
   credito,
-  prazoMedioDias,
   sincronizadoEm,
   agora,
   tz,
@@ -147,13 +146,12 @@ export function AbaVenda({
   /** cartão de forma e prazo já montado pela tela (`CardPagamento`) */
   pagamento: ReactNode;
   credito: ModeloDoCredito | null | undefined;
-  prazoMedioDias: number | null | undefined;
   sincronizadoEm: string | null;
   agora: Date;
   tz: string;
   semSinal: boolean;
 }) {
-  const tabela = tabelaDoCredito(credito, prazoMedioDias);
+  const tabela = tabelaDoCredito(credito);
   return (
     <View style={{ gap: 12 }} testID="aba-venda-conteudo">
       {clienteLinhas.length > 0 ? (
@@ -438,7 +436,7 @@ export function AbaResumo({
     { rotulo: 'Endereço', valor: [endereco ?? TEXTO_ENDERECO_DO_CADASTRO, r.endereco_entrega_editado ? `(${TEXTOS_ENDERECO.editadoNestePedido})` : ''].filter(Boolean).join(' ') },
     ...(obsEntrega ? [{ rotulo: 'Observação', valor: obsEntrega }] : []),
   ];
-  // RN-VEN-42: os alertas ficam na área do topo da tela (todas as abas); o Resumo só lê e mostra, em tabela
+  // RN-VEN-42: os alertas ficam na área Alertas, só na aba Resumo; o Resumo só lê e mostra, em tabela
   return (
     <View style={{ gap: 12 }} testID="aba-resumo-conteudo">
       <View style={{ gap: 6 }} testID="resumo-pedido">

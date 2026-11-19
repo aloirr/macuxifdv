@@ -37,6 +37,8 @@ describe('tokens (T-0072): identidade e contraste', () => {
     expect(colors.ink).toBe('#16202A');
     expect(colors.ground).toBe('#F8F6F1');
     expect(colors.grafico).toBe('#C2540A');
+    // MC-1503 B (R-20261118-210515): texto desabilitado no neutro de apoio da paleta; o #8A949C não entra
+    expect(colors.inkDisabled).toBe('#5B6673');
     expect(colors.graficoEscuro).toBe('#F59A52');
     expect([colors.faixa, colors.faixaTitulo, colors.faixaSub]).toEqual(['#1E3350', '#FFFFFF', '#C9CED5']);
   });
@@ -53,6 +55,7 @@ describe('tokens (T-0072): identidade e contraste', () => {
       ['texto secundário no fundo', colors.ink2, colors.ground],
       ['texto secundário no cartão', colors.ink2, colors.surface],
       ['texto terciário no cartão', colors.ink3, colors.surface],
+      ['opção desabilitada no fundo', colors.inkDisabled, colors.ground],
       ['aba ativa', colors.accentInk, colors.surface],
       ['aba inativa', colors.ink2, colors.surface],
       ['link laranja no cartão', colors.accentInk, colors.surface],

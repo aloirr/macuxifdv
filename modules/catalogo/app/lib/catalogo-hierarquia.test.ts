@@ -31,9 +31,9 @@ describe('T-0173: Catálogo em grade no app', () => {
 describe('T-0173: cartão da grade', () => {
   const comum = readFileSync(join(__dirname, '..', 'telas', 'comum.tsx'), 'utf8');
   const indice = readFileSync(join(__dirname, '..', 'index.ts'), 'utf8');
-  it('T-0173: foto de 112 dp (sem foto, caixa vazia: RD-0242), nome, marca, preço "Sem preço" e uma tag de estoque; nenhuma tela lista-por-linha', () => {
+  it('T-0173: foto de 96 dp (spec v2 §1) (sem foto, caixa vazia: RD-0242), nome, marca, preço "Sem preço" e uma tag de estoque; nenhuma tela lista-por-linha', () => {
     expect(fonte).toContain('<CartaoGrade');
-    expect(comum).toContain('altura={112}');
+    expect(comum).toContain('altura={96}');
     expect(comum).not.toContain('reserva=');
     expect(comum).not.toContain('inicial');
     expect(comum).toContain('precoDoCartao(preco)');

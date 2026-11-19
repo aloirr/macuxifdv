@@ -2,7 +2,8 @@
  * Forma de pagamento e prazo do pedido na API (T-0089; RN-VEN-24, RN-VEN-25, RN-VEN-13). Usado pelo receber, pela edição
  * do orçamento e pela transformação. A regra mora em `domain/pagamento.ts`; aqui só se busca o dado:
  *  - forma e prazo do próprio Vendedor (`vendedor.forma_pagamento` e `vendedor.prazo_pagamento`);
- *  - limites do cliente (formas aceitas, prazo médio máximo) em `core.cadastro_resumo@1`;
+ *  - limites do cliente (formas aceitas) em `core.cadastro_resumo@1`;
+ *  - título vencido em `core.financeiro_cliente@1` (consulta indisponível NÃO bloqueia).
  * O push do APK anterior (sem forma e prazo) segue pela condição de pagamento legada.
  */
 import type { ClienteBanco, ContextoBase, TransacaoTenant } from '@macuxi/platform-sdk';
@@ -58,7 +59,7 @@ export async function resolverPagamento(
   db: ClienteBanco,
   tx: TransacaoTenant,
   p: { forma_pagamento_id?: string | null; prazo_pagamento_id?: string | null; customer_id: string; prazo_percentual_ajuste?: number | null; created_offline_at?: string | null },
-  cliente: { prazo_medio_max_dias?: number | null; formas_pagamento?: string[] | null },
+  cliente: { formas_pagamento?: string[] | null },
   _tipo: 'pedido' | 'orcamento',
 ): Promise<ResultadoPagamento> {
   const formaId = p.forma_pagamento_id ?? null;
@@ -71,7 +72,7 @@ export async function resolverPagamento(
   const r = validarPagamento({
     forma: forma as FormaDePagamento | undefined,
     prazo: prazo as PrazoDePagamento | undefined,
-    cliente: { prazo_medio_max_dias: cliente.prazo_medio_max_dias, formas_pagamento: cliente.formas_pagamento },
+    cliente: { formas_pagamento: cliente.formas_pagamento },
   });
   if (!r.ok) return r;
 

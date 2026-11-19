@@ -6,7 +6,6 @@ import {
   formasDoCliente,
   pagamentoPadrao,
   prazoMedioDias,
-  prazosDaForma,
   tituloVencidoDias,
   validarPagamento,
   type FormaDePagamento,
@@ -51,36 +50,21 @@ describe('RN-VEN-25: formas e prazos do cliente', () => {
     expect(formasDoCliente(formas, ['BOLETO', 'XXX']).map((x) => x.codigo)).toEqual(['BOLETO']);
   });
   const prazos = [p('p60', 'f2', [30, 60, 90], 3), p('p28', 'f2', [28], 1), p('p42', 'f2', [28, 56], 2), p('pi', 'f2', [10], 4, false)];
-  it('RN-VEN-25: prazo acima do prazo médio do cliente fica desabilitado', () => {
-    const r = prazosDaForma(prazos, 'f2', 45);
-    expect(r.map((x) => [x.prazo.id, x.habilitado])).toEqual([
-      ['p28', true],
-      ['p42', true],
-      ['p60', false],
-    ]);
-    expect(r[2]?.motivo).toBe('acima_prazo_medio_cliente');
-  });
-  it('RN-VEN-25 (P1): cliente sem prazo médio máximo não tem teto', () => {
-    expect(prazosDaForma(prazos, 'f2', null).every((x) => x.habilitado)).toBe(true);
-  });
-  it('RN-VEN-25: prazo médio igual ao máximo é permitido', () => {
-    expect(prazosDaForma(prazos, 'f2', 42).find((x) => x.prazo.id === 'p42')?.habilitado).toBe(true);
-  });
-  it('RN-VEN-24: o padrão é a primeira forma permitida com o primeiro prazo habilitado', () => {
-    const r = pagamentoPadrao(formasDoCliente(formas, ['BOLETO']), prazos, 30);
+  it('RN-VEN-24: o padrão é a primeira forma permitida com o primeiro prazo', () => {
+    const r = pagamentoPadrao(formasDoCliente(formas, ['BOLETO']), prazos);
     expect(r?.forma.codigo).toBe('BOLETO');
     expect(r?.prazo.id).toBe('p28');
   });
-  it('RN-VEN-24: sem forma ou sem prazo habilitado, não há padrão', () => {
-    expect(pagamentoPadrao([], prazos, null)).toBeNull();
-    expect(pagamentoPadrao([f('f2', 'BOLETO')], prazos, 10)).toBeNull();
+  it('RN-VEN-24: sem forma ou sem prazo, não há padrão', () => {
+    expect(pagamentoPadrao([], prazos)).toBeNull();
+    expect(pagamentoPadrao([f('f2', 'BOLETO')], [])).toBeNull();
   });
 });
 
 describe('RN-VEN-24/25: validarPagamento (app e API)', () => {
   const formas = [f('f1', 'PIX', 1), f('f2', 'BOLETO', 2)];
   const prazos = [p('pa', 'f1', [0]), p('p60', 'f2', [30, 60, 90]), p('p28', 'f2', [28])];
-  const cliente = { prazo_medio_max_dias: 45, formas_pagamento: null as string[] | null };
+  const cliente = { formas_pagamento: null as string[] | null };
   it('RN-VEN-24: forma e prazo coerentes e permitidos passam', () => {
     expect(validarPagamento({ forma: formas[1], prazo: prazos[2], cliente })).toEqual({ ok: true });
   });
@@ -92,11 +76,6 @@ describe('RN-VEN-24/25: validarPagamento (app e API)', () => {
   });
   it('RN-VEN-25: forma fora da lista do cliente é recusada', () => {
     expect(validarPagamento({ forma: formas[1], prazo: prazos[2], cliente: { ...cliente, formas_pagamento: ['PIX'] } })).toMatchObject({ ok: false, codigo: 'RN-VEN-25' });
-  });
-  it('RN-VEN-25: prazo médio acima do máximo do cliente é recusado, mensagem em português', () => {
-    const r = validarPagamento({ forma: formas[1], prazo: prazos[1], cliente });
-    expect(r).toMatchObject({ ok: false, codigo: 'RN-VEN-25' });
-    expect(r.ok === false && r.mensagem).toMatch(/prazo/i);
   });
 });
 

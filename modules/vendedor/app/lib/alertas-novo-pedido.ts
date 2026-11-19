@@ -16,6 +16,11 @@ export function idDaAba(nome: string): AbaDoPedido {
   return achada ?? 'resumo';
 }
 
+/** R-20261119-030234 (RN-VEN-42): a área "Alertas" só aparece na aba Resumo; Venda, Itens e Entrega não a desenham. Os alertas seguem os mesmos (e valem para a saída). */
+export function alertasNaAba<A>(aba: AbaDoPedido, alertas: readonly A[]): readonly A[] {
+  return aba === 'resumo' ? alertas : [];
+}
+
 /** "Transportadora do frete FOB" vira "Falta transportadora do frete FOB" (o "· aba X" a tela escreve). */
 export function textoDaFalta(texto: string): string {
   const t = texto.trim();

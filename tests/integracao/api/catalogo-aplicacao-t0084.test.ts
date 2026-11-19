@@ -325,11 +325,13 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
         expect((await licenca(api, tk.adminA, 'perfil', 'catalogo', false, 'promotor')).statusCode).toBe(200);
       });
 
-      it('P-3/R-1c (RN-CAT-05, T-0084 c8): o promotor vê a ficha com aplicação, referências, oferece junto e etiquetas, sem preço; acha por "cb3401"', async () => {
+      it('P-3/R-1c (RN-CAT-05 revista, T-0084 c8): o promotor vê a ficha com aplicação, referências, oferece junto, etiquetas e estoque, sem preço; acha por "cb3401"', async () => {
         const f = await ficha(tk.promotorA, alfa1);
         expect(f.statusCode, f.body).toBe(200);
         const fp = FichaProduto.parse(f.json());
-        expect(fp.product).toMatchObject({ price_stock_visible: false, price: null, availability: null });
+        expect(fp.product).toMatchObject({ price_stock_visible: false, price: null });
+        // RN-CAT-05 revista (catálogo v2, #503): o estoque é de todos os perfis
+        expect(fp.product.availability).not.toBeNull();
         expect(fp.catalogo).toMatchObject({ aplicacao: APL_UNO, oferece_junto: [{ produto_id: alfa2 }], etiquetas: ['Dianteira'] });
         expect(fp.catalogo!.referencias.map((r) => `${r.marca_nome} ${r.codigo}`)).toEqual(['Freios Rivais CB 3401', 'Freios Rivais FR-77.2']);
         const r = await itensDaBusca(tk.promotorA, 'cb3401');
