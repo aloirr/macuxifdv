@@ -9,9 +9,9 @@
  */
 import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { EVENTO_NOTIFICACAO_CRIADA } from '../contracts';
-import { EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_STATUS_ALTERADO } from '../../vendedor/contracts';
+import { EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2, EVENTO_PEDIDO_STATUS_ALTERADO } from '../../vendedor/contracts';
 import { apurarPositivacaoDoStatus } from './consumidores-positivacao';
-import { notificacaoDePedido, type EntradaNotificacaoPedido } from '../domain';
+import { notificacaoDePedido, notificacoesDeAprovacaoPorNivel, type NotificacaoDePedido, type EntradaNotificacaoPedido } from '../domain';
 
 /** Responsáveis (ativos) das equipes acima do vendedor; sem equipe/responsável, os perfis de alçada do tenant. */
 async function aprovadoresDe(ctx: ContextoConsumo, vendedorId: string): Promise<string[]> {
@@ -31,10 +31,38 @@ async function aprovadoresDe(ctx: ContextoConsumo, vendedorId: string): Promise<
   return f.rows.map((l) => l.id);
 }
 
+/**
+ * Aprovadores de UM nível (RN-VEN-aprovação por motivo): responsáveis das equipes acima do vendedor com o perfil do nível
+ * (supervisor, gerente) ou, para analista, os analistas do tenant. Sem ninguém no nível, os perfis de alçada do tenant.
+ */
+async function aprovadoresDoNivel(ctx: ContextoConsumo, vendedorId: string, nivel: string): Promise<string[]> {
+  const r =
+    nivel === 'analista'
+      ? await ctx.db.query<{ id: string }>("select id from core.usuario where perfil = 'analista' and ativo and deleted_at is null and id <> $1", [vendedorId])
+      : await ctx.db.query<{ id: string }>(
+          `with recursive acima as (
+             select e.id, e.equipe_pai_id, e.responsavel_id from core.equipe e join core.usuario v on v.equipe_id = e.id
+              where v.id = $1 and e.deleted_at is null
+             union
+             select p.id, p.equipe_pai_id, p.responsavel_id from core.equipe p join acima a on p.id = a.equipe_pai_id where p.deleted_at is null
+           )
+           select u.id from core.usuario u join acima a on a.responsavel_id = u.id
+            where u.deleted_at is null and u.ativo and u.id <> $1 and u.perfil = $2`,
+          [vendedorId, nivel],
+        );
+  if (r.rows.length > 0) return [...new Set(r.rows.map((l) => l.id))];
+  const f = await ctx.db.query<{ id: string }>("select id from core.usuario where perfil in ('gerente','analista','admin') and ativo and deleted_at is null and id <> $1", [vendedorId]);
+  return f.rows.map((l) => l.id);
+}
+
 async function notificar(ctx: ContextoConsumo, vendedorId: string, entrada: EntradaNotificacaoPedido): Promise<void> {
   const n = notificacaoDePedido(entrada);
   if (!n) return;
   const destinatarios = n.destino === 'vendedor' ? [vendedorId] : await aprovadoresDe(ctx, vendedorId);
+  await gravar(ctx, destinatarios, n);
+}
+
+async function gravar(ctx: ContextoConsumo, destinatarios: string[], n: NotificacaoDePedido): Promise<void> {
   for (const uid of destinatarios) {
     const r = await ctx.db.query<{ id: string }>(
       `insert into core.notificacao (tenant_id, usuario_id, tipo, titulo, corpo, link, origem_modulo, envio_id, prioridade)
@@ -61,4 +89,20 @@ export const consumidorPedidoParaAprovar: ConsumidorEvento = definirConsumidor({
   executar: (p, ctx) => notificar(ctx, p.vendedor_id, { tipo: 'aprovacao_solicitada', pedidoId: p.pedido_id, numero: p.pedido_numero }),
 });
 
-export const consumidoresDePedido: ConsumidorEvento[] = [consumidorPedidoStatus, consumidorPedidoParaAprovar];
+/**
+ * `@2` (T-0184): uma notificação por nível, com os motivos que ele decide. Quem é de dois níveis recebe uma só (o `envio_id`
+ * é único por destinatário e o conjunto de destinatários é deduplicado entre níveis).
+ */
+export const consumidorPedidoParaAprovarV2: ConsumidorEvento = definirConsumidor({
+  evento: eventoTolerante(EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2),
+  executar: async (p, ctx) => {
+    const jaNotificados = new Set<string>([p.vendedor_id]);
+    for (const { nivel, notificacao } of notificacoesDeAprovacaoPorNivel({ pedidoId: p.pedido_id, numero: p.pedido_numero, aprovacoes: p.aprovacoes })) {
+      const novos = (await aprovadoresDoNivel(ctx, p.vendedor_id, nivel)).filter((id) => !jaNotificados.has(id));
+      novos.forEach((id) => jaNotificados.add(id));
+      await gravar(ctx, novos, notificacao);
+    }
+  },
+});
+
+export const consumidoresDePedido: ConsumidorEvento[] = [consumidorPedidoStatus, consumidorPedidoParaAprovar, consumidorPedidoParaAprovarV2];
