@@ -1204,11 +1204,11 @@ tabela (o `macuxi_leitura` tem SELECT de tabela em `core.nota_erp` e `core.titul
 | Tabela | Coluna | Tipo | Regra |
 |---|---|---|---|
 | `nota_erp` | `forma_pagamento` | text null | como o ERP manda (E1); 1..120 depois do `btrim` (`nota_erp_forma_pagamento_tamanho`) |
-| `nota_erp` | `nf_origem_numero` | text null | NF original da devolução; **só com `tipo = 'devolucao'`** (`nota_erp_nf_origem_so_devolucao`); 1..60 |
-| `nota_erp` | `nf_origem_serie` | text null | série da NF original; **só com o número** (`nota_erp_nf_origem_serie_com_numero`); 1..60 |
+| `nota_erp` | `nf_origem_numero` | text null | NF original da devolução; **só com `tipo = 'devolucao'`** (`nota_erp_nf_origem_so_devolucao`); 1..40 |
+| `nota_erp` | `nf_origem_serie` | text null | série da NF original; **só com o número** (`nota_erp_nf_origem_serie_com_numero`); 1..10 |
 | `titulo` | `forma_pagamento` | text null | 1..120 (`titulo_forma_pagamento_tamanho`) |
-| `titulo` | `nf_numero` | text null | NF do título (junta as parcelas à nota); 1..60 (`titulo_nf_tamanho`) |
-| `titulo` | `nf_serie` | text null | série; **só com o número** (`titulo_nf_serie_com_numero`); 1..60 |
+| `titulo` | `nf_numero` | text null | NF do título (junta as parcelas à nota); 1..40 (`titulo_nf_tamanho`) |
+| `titulo` | `nf_serie` | text null | série; **só com o número** (`titulo_nf_serie_com_numero`); 1..10 |
 
 Índices (consultas do Histórico, D4/P17: além de 90 dias a consulta é online, ao tocar, sem pull de 12 meses):
 - `nota_erp_cliente_emitida_ix (tenant_id, cliente_id, emitida_em desc, id desc) where deleted_at is null` — a lista por

@@ -1,6 +1,6 @@
 /**
  * 0090 — Cliente 360 v2 (T-0186; spec §5, §7, §8 e §9, D2–D5). Dicionário: docs/banco/core.md, "0090".
- * - core.nota_erp: forma_pagamento (1..120) e a NF original da devolução (nf_origem_numero/serie: só em devolução; série só
+ * - core.nota_erp: forma_pagamento (1..120) e a NF original da devolução (nf_origem_numero 1..40/serie 1..10: só em devolução; série só
  *   com número); índices da consulta online por período e das devoluções de uma NF;
  * - core.titulo: forma_pagamento, nf_numero e nf_serie (série só com número) e o índice que junta parcelas e NF;
  * - core.documento_tipo, documento_cliente, documento_permissao e documento_excecao: campos comuns, RLS forçado,
@@ -51,8 +51,10 @@ describe('0090 Cliente 360 v2 (estático)', () => {
       "add constraint nota_erp_forma_pagamento_tamanho check (forma_pagamento is null or (btrim(forma_pagamento) <> '' and char_length(forma_pagamento) <= 120));",
       "add constraint nota_erp_nf_origem_so_devolucao check (nf_origem_numero is null or tipo = 'devolucao');",
       'add constraint nota_erp_nf_origem_serie_com_numero check (nf_origem_serie is null or nf_origem_numero is not null);',
+      "add constraint nota_erp_nf_origem_tamanho check ((nf_origem_numero is null or (btrim(nf_origem_numero) <> '' and char_length(nf_origem_numero) <= 40)) and (nf_origem_serie is null or (btrim(nf_origem_serie) <> '' and char_length(nf_origem_serie) <= 10)));",
       "add constraint titulo_forma_pagamento_tamanho check (forma_pagamento is null or (btrim(forma_pagamento) <> '' and char_length(forma_pagamento) <= 120));",
       'add constraint titulo_nf_serie_com_numero check (nf_serie is null or nf_numero is not null);',
+      "add constraint titulo_nf_tamanho check ((nf_numero is null or (btrim(nf_numero) <> '' and char_length(nf_numero) <= 40)) and (nf_serie is null or (btrim(nf_serie) <> '' and char_length(nf_serie) <= 10)));",
       'create index nota_erp_cliente_emitida_ix on core.nota_erp (tenant_id, cliente_id, emitida_em desc, id desc) where deleted_at is null;',
       'create index nota_erp_nf_origem_ix on core.nota_erp (tenant_id, cliente_id, nf_origem_numero, nf_origem_serie) where nf_origem_numero is not null and deleted_at is null;',
       'create index titulo_nf_ix on core.titulo (tenant_id, cliente_id, nf_numero, nf_serie) where nf_numero is not null and deleted_at is null;',
@@ -260,7 +262,12 @@ describe.skipIf(semBanco())('0090 Cliente 360 v2 (banco, papel de aplicação)',
       ]);
       // as devoluções de uma NF (status Devolvido / Devolvido parcial)
       expect((await q("select id from core.nota_erp where cliente_id = $1 and nf_origem_numero = '5001' and nf_origem_serie = '1' and deleted_at is null", [A.clientes.c1])).rows).toEqual([{ id: dev }]);
+      // limites do contrato do Hub: número até 40 e série até 10
+      await q('update core.nota_erp set nf_origem_numero = repeat($2, 40), nf_origem_serie = repeat($2, 10) where id = $1', [dev, '9']);
+      expect((await q('select char_length(nf_origem_numero) as n, char_length(nf_origem_serie) as s from core.nota_erp where id = $1', [dev])).rows).toEqual([{ n: 40, s: 10 }]);
       for (const [sql, p, nome] of [
+        ['update core.nota_erp set nf_origem_numero = repeat($2, 41) where id = $1', [dev, '9'], 'nota_erp_nf_origem_tamanho'],
+        ['update core.nota_erp set nf_origem_serie = repeat($2, 11) where id = $1', [dev, '9'], 'nota_erp_nf_origem_tamanho'],
         ["update core.nota_erp set nf_origem_numero = '4000' where id = $1", [fat], 'nota_erp_nf_origem_so_devolucao'],
         ["update core.nota_erp set nf_origem_numero = null, nf_origem_serie = '1' where id = $1", [dev], 'nota_erp_nf_origem_serie_com_numero'],
         ["update core.nota_erp set nf_origem_numero = '  ' where id = $1", [dev], 'nota_erp_nf_origem_tamanho'],
@@ -278,7 +285,12 @@ describe.skipIf(semBanco())('0090 Cliente 360 v2 (banco, papel de aplicação)',
       expect((await q('select forma_pagamento, nf_numero, nf_serie from core.titulo where id = $1', [id])).rows).toEqual([{ forma_pagamento: null, nf_numero: null, nf_serie: null }]);
       await q("update core.titulo set forma_pagamento = 'PIX', nf_numero = '5001', nf_serie = '1' where id = $1", [id]);
       expect((await q('select forma_pagamento, nf_numero, nf_serie from core.titulo where id = $1', [id])).rows).toEqual([{ forma_pagamento: 'PIX', nf_numero: '5001', nf_serie: '1' }]);
+      // limites do contrato do Hub: número até 40 e série até 10
+      await q("update core.titulo set nf_numero = repeat('9', 40), nf_serie = repeat('9', 10) where id = $1", [id]);
+      expect((await q('select char_length(nf_numero) as n, char_length(nf_serie) as s from core.titulo where id = $1', [id])).rows).toEqual([{ n: 40, s: 10 }]);
       for (const [sql, nome] of [
+        ["update core.titulo set nf_numero = repeat('9', 41) where id = $1", 'titulo_nf_tamanho'],
+        ["update core.titulo set nf_serie = repeat('9', 11) where id = $1", 'titulo_nf_tamanho'],
         ["update core.titulo set nf_numero = null, nf_serie = '1' where id = $1", 'titulo_nf_serie_com_numero'],
         ["update core.titulo set nf_numero = '' where id = $1", 'titulo_nf_tamanho'],
         ["update core.titulo set forma_pagamento = ' ' where id = $1", 'titulo_forma_pagamento_tamanho'],

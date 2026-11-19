@@ -11,7 +11,7 @@
 --      forma_pagamento   text null  forma de pagamento da NF, como o ERP manda (E1); CHECK 1..120 depois do btrim
 --      nf_origem_numero  text null  NF original da devolução: só quando tipo = 'devolucao' (nota_erp_nf_origem_so_devolucao)
 --      nf_origem_serie   text null  série da NF original: só com o número (nota_erp_nf_origem_serie_com_numero)
---    Número e série 1..60 depois do btrim (o CHECK de numero da 0019 só pede não vazio; 60 sobra para NF-e, 9 dígitos e série 3).
+--    Número 1..40 e série 1..10 depois do btrim, os limites do contrato do Hub (o CHECK de numero da 0019 só pede não vazio).
 --    Índices (D4/P17: a consulta online por período ao tocar, sem pull de 12 meses):
 --      nota_erp_cliente_emitida_ix (tenant_id, cliente_id, emitida_em desc, id desc) where deleted_at is null — a lista do
 --        Histórico além dos 90 dias: "where cliente_id = $1 and emitida_em >= $2 and emitida_em < $3 order by emitida_em desc,
@@ -26,8 +26,8 @@
 --    ele definir o pull, a migração seguinte cria o índice de sync e tira a tabela da lista.
 -- 2. core.titulo (0006) — D2 e D3:
 --      forma_pagamento  text null  mesmo CHECK 1..120 (titulo_forma_pagamento_tamanho)
---      nf_numero        text null  NF do título (junta as parcelas à nota); 1..60
---      nf_serie         text null  série da NF; só com o número (titulo_nf_serie_com_numero); 1..60
+--      nf_numero        text null  NF do título (junta as parcelas à nota); 1..40
+--      nf_serie         text null  série da NF; só com o número (titulo_nf_serie_com_numero); 1..10
 --    titulo_nf_ix (tenant_id, cliente_id, nf_numero, nf_serie) where nf_numero is not null and deleted_at is null — as parcelas
 --    do detalhe da NF ("Baixar a NF …?", P17) e o "Em aberto"/"Em atraso" de cada linha do Histórico.
 -- 3. Documentação do cliente (D5; P1, P10, P11, P15, P16). Dono: Core. As 4 tabelas com os campos comuns, unique (tenant_id,
@@ -65,8 +65,8 @@ alter table core.nota_erp add column nf_origem_serie text;
 alter table core.nota_erp add constraint nota_erp_forma_pagamento_tamanho
   check (forma_pagamento is null or (btrim(forma_pagamento) <> '' and char_length(forma_pagamento) <= 120));
 alter table core.nota_erp add constraint nota_erp_nf_origem_tamanho
-  check ((nf_origem_numero is null or (btrim(nf_origem_numero) <> '' and char_length(nf_origem_numero) <= 60))
-     and (nf_origem_serie is null or (btrim(nf_origem_serie) <> '' and char_length(nf_origem_serie) <= 60)));
+  check ((nf_origem_numero is null or (btrim(nf_origem_numero) <> '' and char_length(nf_origem_numero) <= 40))
+     and (nf_origem_serie is null or (btrim(nf_origem_serie) <> '' and char_length(nf_origem_serie) <= 10)));
 alter table core.nota_erp add constraint nota_erp_nf_origem_so_devolucao
   check (nf_origem_numero is null or tipo = 'devolucao');
 alter table core.nota_erp add constraint nota_erp_nf_origem_serie_com_numero
@@ -84,8 +84,8 @@ alter table core.titulo add column nf_serie text;
 alter table core.titulo add constraint titulo_forma_pagamento_tamanho
   check (forma_pagamento is null or (btrim(forma_pagamento) <> '' and char_length(forma_pagamento) <= 120));
 alter table core.titulo add constraint titulo_nf_tamanho
-  check ((nf_numero is null or (btrim(nf_numero) <> '' and char_length(nf_numero) <= 60))
-     and (nf_serie is null or (btrim(nf_serie) <> '' and char_length(nf_serie) <= 60)));
+  check ((nf_numero is null or (btrim(nf_numero) <> '' and char_length(nf_numero) <= 40))
+     and (nf_serie is null or (btrim(nf_serie) <> '' and char_length(nf_serie) <= 10)));
 alter table core.titulo add constraint titulo_nf_serie_com_numero
   check (nf_serie is null or nf_numero is not null);
 create index titulo_nf_ix on core.titulo (tenant_id, cliente_id, nf_numero, nf_serie) where nf_numero is not null and deleted_at is null;

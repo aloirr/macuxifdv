@@ -160,16 +160,6 @@ function obrigatoriasFaltando(view: View, schema: unknown): string[] {
   return colunasDoContrato(schema).filter((c) => c.obrigatorio && !tem.has(c.coluna)).map((c) => c.coluna);
 }
 
-/**
- * T-0186 (0090, Cliente 360 v2): colunas opcionais que a view já devolve com os nomes da 0090 (core.nota_erp e core.titulo)
- * e que o contrato v1 do Hub ainda não tem (o Zod do registro não é strict: o Hub as ignora). Saem daqui quando o
- * modulo-integracao as incluir no contrato (aí viram campos esperados; o aviso abaixo lembra).
- */
-const A_CAMINHO_DO_CONTRATO: Partial<Record<Entidade, readonly string[]>> = {
-  titulo: ['forma_pagamento', 'nf_numero', 'nf_serie'],
-  nota: ['forma_pagamento', 'nf_origem_numero', 'nf_origem_serie'],
-};
-
 /** T-0162: views do RETORNO do pedido (não são entidades de carga); o Conector as lê em `pedidos.status` do conector.json. */
 const VIEWS_RETORNO = ['pedido_status', 'pedido_nota_item'];
 const TODAS = lerViews(SQL);
@@ -204,10 +194,7 @@ describe('views-modelo do Conector (db/conector/views-modelo.sql)', () => {
       const aliases = view!.colunas.map((c) => c.alias);
       expect(new Set(aliases).size, 'coluna repetida').toBe(aliases.length);
       const esperadas = contrato.map((c) => c.coluna);
-      const aCaminho = A_CAMINHO_DO_CONTRATO[entidade] ?? [];
-      const jaNoContrato = aCaminho.filter((a) => esperadas.includes(a));
-      if (jaNoContrato.length > 0) console.warn(`vw_macuxi_${entidade}: já no contrato, tirar de A_CAMINHO_DO_CONTRATO: ${jaNoContrato.join(', ')}`);
-      expect(aliases.filter((a) => !esperadas.includes(a) && !aCaminho.includes(a)), 'coluna da view que não é campo do contrato').toEqual([]);
+      expect(aliases.filter((a) => !esperadas.includes(a)), 'coluna da view que não é campo do contrato').toEqual([]);
     });
 
     it('opcional do contrato sem coluna na view só avisa (contrato aditivo, outro dono)', () => {
@@ -254,8 +241,8 @@ describe('views-modelo do Conector (db/conector/views-modelo.sql)', () => {
   it('T-0186 (0090): nota e título devolvem forma de pagamento e NF com os nomes e tamanhos da 0090, opcionais (NULL no modelo)', () => {
     const col = (e: Entidade, a: string) => porEntidade.get(e)!.colunas.find((c) => c.alias === a)?.expressao;
     for (const [e, a, n] of [
-      ['titulo', 'forma_pagamento', 120], ['titulo', 'nf_numero', 60], ['titulo', 'nf_serie', 60],
-      ['nota', 'forma_pagamento', 120], ['nota', 'nf_origem_numero', 60], ['nota', 'nf_origem_serie', 60],
+      ['titulo', 'forma_pagamento', 120], ['titulo', 'nf_numero', 40], ['titulo', 'nf_serie', 10],
+      ['nota', 'forma_pagamento', 120], ['nota', 'nf_origem_numero', 40], ['nota', 'nf_origem_serie', 10],
     ] as const) {
       expect(col(e, a), `vw_macuxi_${e}.${a}`).toMatch(new RegExp(`^CAST\\(NULL AS VARCHAR\\(${n}\\)\\)\\s+AS ${a}$`));
     }
