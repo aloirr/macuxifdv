@@ -9,7 +9,10 @@
  * foco do Início e do "Mais" diz de onde ela veio (o voltar na raiz devolve para lá, e a barra acende essa aba).
  * ADR 0054 (solução 5): a entrada libera com a carga completa ou com os essenciais feitos (`liberado_em`); o resto da carga
  * segue com o indicador discreto colado em cima da barra de abas (`CargaEmFundo`).
+ * T-0156 (tracking §6; RN-CORE-13): no Campo, com a entrada liberada (depois do login e da carga), o termo de localização pendente
+ * abre uma vez por abertura do app (`useAbrirTermoPendente` do Core); o app segue usável sem o aceite.
  */
+import { useAbrirTermoPendente } from '@macuxi/core/app';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import * as kit from '@macuxi/ui/mobile';
 import { Redirect } from 'expo-router';
@@ -30,6 +33,12 @@ import { usePlataforma } from '@/state/plataforma';
  * (pedido ao designer-ux, R-20261113-173653). Lido de forma opcional até o kit exportar: sem ele, o sino fica só no Início.
  */
 const ProvedorSinoCabecalho = (kit as unknown as { ProvedorSinoCabecalho?: Provider<ReactNode> }).ProvedorSinoCabecalho;
+
+/** Só monta no Campo e depois da carga: o hook do Core decide se o termo abre (rastreamento ligado e sem aceite da versão vigente). */
+function AbrirTermoPendente() {
+  useAbrirTermoPendente();
+  return null;
+}
 
 export default function TabsLayout() {
   const { sessao, visao } = usePlataforma();
@@ -56,6 +65,7 @@ export default function TabsLayout() {
   );
   return (
     <ProvedorContagemSino>
+      {varianteAtual() === 'campo' ? <AbrirTermoPendente /> : null}
       {ProvedorSinoCabecalho ? <ProvedorSinoCabecalho value={<Sino sobreFaixa />}>{abas}</ProvedorSinoCabecalho> : abas}
     </ProvedorContagemSino>
   );

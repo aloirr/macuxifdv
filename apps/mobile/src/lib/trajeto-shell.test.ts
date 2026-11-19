@@ -7,17 +7,22 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import type { PontoTrajeto } from '@macuxi/core/contracts';
-import type { DriverSqlite } from '@macuxi/platform-sdk';
-import { describe, expect, it } from 'vitest';
+import { comPrefixo, type ArmazenamentoSync, type DriverSqlite } from '@macuxi/platform-sdk';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   condicaoDoTrajeto,
   criarTrajeto,
   gravarPontosDoTrajeto,
+  lerEstadoLocalDoRastreamento,
+  lerPontosDoDia,
+  PORTAO_DO_CORE,
   type CapturaDoAparelho,
   type CondicaoTrajeto,
   type DiagnosticoDoTrajeto,
+  type EstadoLocalDoRastreamento,
   type LeituraDeLocalizacao,
+  type PortaoDoTrajeto,
 } from './trajeto';
 
 const ID = '0b9a4c1e-7f3d-4a2b-9c8d-1e2f3a4b5c6d';
@@ -66,12 +71,89 @@ const leitura = (ms: number): LeituraDeLocalizacao => ({ timestamp: ms, coords: 
 
 describe('condição padrão (§2, condição 1: padrão desligado)', () => {
   it('sempre desligada, em qualquer instante: a tarefa nunca liga de fábrica', async () => {
+    expect(PORTAO_DO_CORE).toBeNull();
     const c = await condicaoDoTrajeto();
     for (const ms of [0, AGORA, Date.parse('2026-11-23T12:00:00.000Z')]) expect(c(ms)).toEqual({ pode: false, motivo: 'desligado' });
     const t = montar({ condicao: await condicaoDoTrajeto().then((f) => f(AGORA)) });
     expect(await t.trajeto.atualizar()).toBe('manter');
     expect(t.passos).toEqual([]);
     expect(t.diag()).toMatchObject({ estado: 'desligada' });
+  });
+
+  it('RN-CORE-13: sem o portão do Core, desligada mesmo com aceite e sem pausa (nem lê o aparelho)', async () => {
+    const lerLocal = vi.fn(async (): Promise<EstadoLocalDoRastreamento> => ({ aceite: { versao: 1, aceito_em: '2026-11-19T12:00:00.000Z' }, pausa: null }));
+    const c = await condicaoDoTrajeto(lerLocal);
+    expect(c(AGORA)).toEqual({ pode: false, motivo: 'desligado' });
+    expect(lerLocal).not.toHaveBeenCalled();
+  });
+});
+
+/** Armazenamento em memória com a mesma interface do banco do usuário (chaves completas, como o SQLite `kv`). */
+function memoria(): ArmazenamentoSync & { dados: Map<string, unknown> } {
+  const dados = new Map<string, unknown>();
+  return {
+    dados,
+    ler: async <T,>(c: string) => (dados.has(c) ? (dados.get(c) as T) : null),
+    gravar: async (c, v) => {
+      if (v === null || v === undefined) dados.delete(c);
+      else dados.set(c, v);
+    },
+    remover: async (c) => {
+      dados.delete(c);
+    },
+    chaves: async (p) => [...dados.keys()].filter((k) => k.startsWith(p)).sort(),
+  };
+}
+
+/** As chaves do Core (`CHAVE_ACEITE_LOCAL` e `CHAVE_PAUSA_LOCAL`, `@macuxi/core/app`). */
+const CHAVES = { aceite: 'rastreamento.aceite', pausa: 'rastreamento.pausa' };
+
+describe('aceite e pausa do Core no aparelho (§4.3 e §6; RN-CORE-13)', () => {
+  it('lê as chaves rastreamento.aceite e rastreamento.pausa do armazenamento do Core (mod:core:), no formato que o Core grava', async () => {
+    const base = memoria();
+    // como o `useRastreamento` grava: `motor.armazenamentoDoModulo('core')` = a base com o prefixo `mod:core:`
+    const core = comPrefixo(base, 'mod:core:');
+    await core.gravar('rastreamento.aceite', { id: ID, versao: 2, aceito_em: '2026-11-19T12:00:00.000Z' });
+    await core.gravar('rastreamento.pausa', { id: ID, inicio: '2026-11-19T12:30:00.000Z' });
+    expect([...base.dados.keys()].sort()).toEqual(['mod:core:rastreamento.aceite', 'mod:core:rastreamento.pausa']);
+    expect(await lerEstadoLocalDoRastreamento(base, CHAVES)).toEqual({ aceite: { versao: 2, aceito_em: '2026-11-19T12:00:00.000Z' }, pausa: { inicio: '2026-11-19T12:30:00.000Z' } });
+  });
+
+  it('sem as chaves, ou fora do formato: sem aceite e sem pausa', async () => {
+    const base = memoria();
+    expect(await lerEstadoLocalDoRastreamento(base, CHAVES)).toEqual({ aceite: null, pausa: null });
+    await base.gravar('mod:core:rastreamento.aceite', { versao: '2', aceito_em: 'ontem' });
+    await base.gravar('mod:core:rastreamento.pausa', { inicio: 7 });
+    // a chave de outro módulo não vale
+    await base.gravar('mod:vendedor:rastreamento.aceite', { versao: 1, aceito_em: '2026-11-19T12:00:00.000Z' });
+    expect(await lerEstadoLocalDoRastreamento(base, CHAVES)).toEqual({ aceite: null, pausa: null });
+  });
+
+  it('RN-CORE-13: com o portão, cada instante passa por ele com o aceite e a pausa lidos uma vez', async () => {
+    const local: EstadoLocalDoRastreamento = { aceite: { versao: 3, aceito_em: '2026-11-19T12:00:00.000Z' }, pausa: { inicio: '2026-11-19T13:30:00.000Z' } };
+    const lerLocal = vi.fn(async () => local);
+    const vistos: EstadoLocalDoRastreamento[] = [];
+    // portão de teste: sem aceite não rastreia; dentro da pausa (60 min) não rastreia
+    const portao: PortaoDoTrajeto = (l, ms) => {
+      vistos.push(l);
+      if (!l.aceite) return { pode: false, motivo: 'sem_aceite' };
+      const inicio = l.pausa ? Date.parse(l.pausa.inicio) : Number.POSITIVE_INFINITY;
+      return ms >= inicio && ms < inicio + 3_600_000 ? { pode: false, motivo: 'pausa' } : { pode: true };
+    };
+    const c = await condicaoDoTrajeto(lerLocal, portao);
+    expect(c(AGORA)).toEqual({ pode: true });
+    expect(c(Date.parse('2026-11-19T14:00:00.000Z'))).toEqual({ pode: false, motivo: 'pausa' });
+    expect(lerLocal).toHaveBeenCalledTimes(1);
+    expect(vistos.every((v) => v === local)).toBe(true);
+    const semAceite = await condicaoDoTrajeto(async () => ({ aceite: null, pausa: null }), portao);
+    expect(semAceite(AGORA)).toEqual({ pode: false, motivo: 'sem_aceite' });
+  });
+
+  it('com o portão, mas sem sessão ou sem banco: desligada', async () => {
+    const portao = vi.fn<PortaoDoTrajeto>(() => ({ pode: true }));
+    const c = await condicaoDoTrajeto(async () => null, portao);
+    expect(c(AGORA)).toEqual({ pode: false, motivo: 'desligado' });
+    expect(portao).not.toHaveBeenCalled();
   });
 });
 
@@ -215,11 +297,48 @@ describe('gravar no SQLite do usuário (§3.4; core__ponto_trajeto)', () => {
   });
 });
 
+describe('pontos de hoje para "Meu trajeto" (§3.4; definirPontosLocaisDoDia do Core)', () => {
+  it('só os do dia civil no fuso do tenant, em ordem, sem velocidade', async () => {
+    const db = await driverNode();
+    await db.executar(DDL);
+    const ids = (n: number) => `0b9a4c1e-7f3d-4a2b-9c8d-${String(n).padStart(12, '0')}`;
+    await gravarPontosDoTrajeto(db, [
+      // 19/11 em Manaus (UTC−4) vai de 19/11 04:00Z a 20/11 04:00Z
+      ponto(ids(1), { capturado_em: '2026-11-19T03:59:00.000Z' }),
+      ponto(ids(2), { capturado_em: '2026-11-20T01:00:00.000Z', velocidade_ms: 3 }),
+      ponto(ids(3), { capturado_em: '2026-11-19T04:00:00.000Z' }),
+      ponto(ids(4), { capturado_em: '2026-11-20T04:00:00.000Z' }),
+    ]);
+    expect(await lerPontosDoDia(db, '2026-11-19', 'America/Manaus')).toEqual([
+      { capturado_em: '2026-11-19T04:00:00.000Z', latitude: LAT, longitude: LON, precisao_m: 12 },
+      { capturado_em: '2026-11-20T01:00:00.000Z', latitude: LAT, longitude: LON, precisao_m: 12 },
+    ]);
+    expect(await lerPontosDoDia(db, '2026-11-18', 'America/Manaus')).toEqual([{ capturado_em: '2026-11-19T03:59:00.000Z', latitude: LAT, longitude: LON, precisao_m: 12 }]);
+    await db.fechar();
+  });
+
+  it('sem a tabela ou com data inválida: vazio', async () => {
+    const db = await driverNode();
+    expect(await lerPontosDoDia(db, '2026-11-19', 'America/Manaus')).toEqual([]);
+    await db.executar(DDL);
+    expect(await lerPontosDoDia(db, '19/11/2026', 'America/Manaus')).toEqual([]);
+    await db.fechar();
+  });
+
+  it('erro do banco sai sem coordenada', async () => {
+    const db: Pick<DriverSqlite, 'todas'> = { todas: async () => Promise.reject(new Error(`falhou em ${LAT}, ${LON}`)) };
+    const e = await lerPontosDoDia(db, '2026-11-19', 'America/Manaus').catch((x: unknown) => x as Error);
+    expect(e).toBeInstanceOf(Error);
+    expect(`${(e as Error).message}\n${(e as Error).stack ?? ''}`).not.toMatch(/3\.119|60\.021/);
+  });
+});
+
 describe('ligação no shell (§3.2): três gatilhos, logout e aparelho bloqueado', () => {
   const fonte = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
   const entrada = fonte('../../index.ts');
   const plataforma = fonte('../state/plataforma.tsx');
   const segundoPlano = fonte('../services/segundo-plano.ts');
+  const servico = fonte('../services/trajeto.ts');
 
   it('a tarefa é definida no escopo global, junto da macuxi-sync-delta', () => {
     expect(entrada).toMatch(/import '\.\/src\/services\/segundo-plano';\s*(\/\/[^\n]*\n\s*)*import '\.\/src\/services\/trajeto';/);
@@ -241,5 +360,52 @@ describe('ligação no shell (§3.2): três gatilhos, logout e aparelho bloquead
     expect(sair.indexOf('await pararTrajeto()')).toBeGreaterThan(-1);
     expect(sair.indexOf('await pararTrajeto()')).toBeLessThan(sair.indexOf('fecharArmazenamentoDoUsuario'));
     for (const t of [plataforma, segundoPlano]) expect(t).toMatch(/pararCaptura: pararTrajeto,(\s*\/\/[^\n]*)*\s*apagarBancos: apagarBancosDoAparelho/);
+  });
+
+  it('RN-CORE-13: a tarefa lê o aceite e a pausa nas chaves do Core, no banco do usuário da sessão', () => {
+    expect(servico).toMatch(/import \{ CHAVE_ACEITE_LOCAL, CHAVE_PAUSA_LOCAL[^}]*\} from '@macuxi\/core\/app';/);
+    expect(servico).toMatch(/lerEstadoLocalDoRastreamento\(aberto\.armazenamento, \{ aceite: CHAVE_ACEITE_LOCAL, pausa: CHAVE_PAUSA_LOCAL \}\)/);
+    expect(servico).toMatch(/condicao: \(\) => condicaoDoTrajeto\(estadoLocalDaSessao\)/);
+  });
+
+  it('os pontos de hoje vão ao Core na abertura da sessão e saem no logout e no aparelho bloqueado', () => {
+    const abrir = plataforma.slice(plataforma.indexOf('motorRef.current = m;'), plataforma.indexOf('setMotor(m);'));
+    expect(abrir).toMatch(/definirPontosLocaisDoDia\(abertura\.tipo === 'sqlite' \? leitorDePontosLocais\(abertura\.arquivo\) : null\);/);
+    const fechar = plataforma.slice(plataforma.indexOf('const fecharSessaoLocal = useCallback('), plataforma.indexOf('const logout = useCallback('));
+    expect(fechar).toMatch(/definirPontosLocaisDoDia\(null\);/);
+  });
+});
+
+describe('Perfil e abertura do Campo (spec do tracking §1 e §2; RN-CORE-13)', () => {
+  const fonte = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
+  const perfil = fonte('../app/profile.tsx');
+  const abas = fonte('../app/(tabs)/_layout.tsx');
+  const tela = perfil.slice(perfil.indexOf('function Perfil()'));
+  const blocoDoCampo = tela.indexOf('{comTrajeto ? (\n        <>');
+
+  it('a seção Localização aparece no Campo, depois do nome e antes de "Conta"', () => {
+    expect(tela).toMatch(/const comTrajeto = varianteAtual\(\) === 'campo';/);
+    const nome = tela.indexOf('style={styles.who}');
+    const secao = tela.indexOf('<SecaoLocalizacaoPerfil />');
+    const conta = tela.indexOf('<SectionHeader title="Conta" />');
+    expect(nome).toBeGreaterThan(-1);
+    expect(blocoDoCampo).toBeGreaterThan(nome);
+    expect(secao).toBeGreaterThan(blocoDoCampo);
+    expect(conta).toBeGreaterThan(secao);
+  });
+
+  it('o alerta do termo é montado na área Alertas do Perfil, antes da seção, só no Campo', () => {
+    const area = perfil.slice(perfil.indexOf('function AlertasDoPerfil()'), perfil.indexOf('export default function ProfileScreen'));
+    expect(area).toMatch(/if \(situacao !== 'pendente'\) return null;/);
+    expect(area).toMatch(/ALERTAS[\s\S]*<AlertaTermoRastreamento \/>/);
+    expect(tela.slice(blocoDoCampo, tela.indexOf('<SecaoLocalizacaoPerfil />'))).toMatch(/<AlertasDoPerfil \/>/);
+  });
+
+  it('o termo pendente abre depois da carga (layout das abas), só no Campo', () => {
+    expect(abas).toMatch(/function AbrirTermoPendente\(\) \{\s*useAbrirTermoPendente\(\);\s*return null;/);
+    const corpo = abas.slice(abas.indexOf('export default function TabsLayout'));
+    expect(corpo.indexOf('if (!entradaLiberadaPeloMotor(estado)) return <Redirect href="/sync" />;')).toBeGreaterThan(-1);
+    expect(corpo.indexOf('if (!entradaLiberadaPeloMotor(estado)) return <Redirect href="/sync" />;')).toBeLessThan(corpo.indexOf('<AbrirTermoPendente />'));
+    expect(corpo).toMatch(/\{varianteAtual\(\) === 'campo' \? <AbrirTermoPendente \/> : null\}/);
   });
 });

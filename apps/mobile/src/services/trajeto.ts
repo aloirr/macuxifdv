@@ -6,11 +6,14 @@
  *   fechado, não há React montado;
  * - a tarefa não toca em tela nem em estado de React, só grava no SQLite do usuário, e nenhum erro derruba o processo
  *   (vai ao Diagnóstico pelo `erroSemCoordenada`: nenhuma coordenada em log, erro, Diagnóstico ou telemetria, §9);
- * - desligada de fábrica: a condição é a de `condicaoDoTrajeto` (ponto único, `lib/trajeto.ts`).
+ * - desligada de fábrica: a condição é a de `condicaoDoTrajeto` (ponto único, `lib/trajeto.ts`), sobre o aceite e a pausa que
+ *   o Core grava nas chaves `rastreamento.aceite` e `rastreamento.pausa` do armazenamento dele no banco do usuário;
+ * - os pontos de hoje voltam ao Core pelo leitor de `leitorDePontosLocais` (`definirPontosLocaisDoDia`, §3.4).
  * Notificação fixa: o expo-location 57 cria o canal próprio `<appId>:macuxi-trajeto` com IMPORTANCE_LOW, sem som
  * (`LocationTaskService.kt`); nada a criar aqui.
  * Só Android na v1. Build sem os módulos nativos: tudo vira no-op, sem quebrar o app.
  */
+import { CHAVE_ACEITE_LOCAL, CHAVE_PAUSA_LOCAL, type LeitorDePontosLocais } from '@macuxi/core/app';
 import { requireOptionalNativeModule } from 'expo';
 import { Platform } from 'react-native';
 
@@ -20,10 +23,13 @@ import {
   criarTrajeto,
   erroSemCoordenada,
   gravarPontosDoTrajeto,
+  lerEstadoLocalDoRastreamento,
+  lerPontosDoDia,
   OPCOES_TRAJETO,
   TAREFA_TRAJETO,
   type CapturaDoAparelho,
   type DiagnosticoDoTrajeto,
+  type EstadoLocalDoRastreamento,
   type LeituraDeLocalizacao,
 } from '@/lib/trajeto';
 
@@ -78,9 +84,18 @@ async function gravarNoBancoDoUsuario(pontos: Parameters<typeof gravarPontosDoTr
   if (db) await gravarPontosDoTrajeto(db, pontos);
 }
 
+/** Aceite e pausa gravados pelo Core no banco do usuário da sessão; sem sessão ou com o banco que não abriu, `null` (desligado). */
+async function estadoLocalDaSessao(): Promise<EstadoLocalDoRastreamento | null> {
+  const usuarioId = await usuarioDaSessao();
+  if (!usuarioId) return null;
+  const aberto = await abrirArmazenamentoDaSessao(usuarioId);
+  if (aberto.tipo === 'erro') return null;
+  return lerEstadoLocalDoRastreamento(aberto.armazenamento, { aceite: CHAVE_ACEITE_LOCAL, pausa: CHAVE_PAUSA_LOCAL });
+}
+
 const trajeto = criarTrajeto({
   captura,
-  condicao: condicaoDoTrajeto,
+  condicao: () => condicaoDoTrajeto(estadoLocalDaSessao),
   gravar: gravarNoBancoDoUsuario,
   novoId: uuid,
   agora: () => Date.now(),
@@ -114,4 +129,15 @@ export async function atualizarTrajeto(): Promise<void> {
 /** Logout e aparelho bloqueado (§3.4): para a captura antes de fechar ou apagar os bancos do usuário. Nunca lança. */
 export function pararTrajeto(): Promise<void> {
   return trajeto.parar();
+}
+
+/**
+ * Leitor dos pontos do dia no banco aberto pelo motor (`arquivo`), entregue ao Core por `definirPontosLocaisDoDia` na abertura
+ * da sessão e retirado no logout e no aparelho bloqueado (`state/plataforma.tsx`). Banco já fechado: vazio (a tela vai ao servidor).
+ */
+export function leitorDePontosLocais(arquivo: string): LeitorDePontosLocais {
+  return async (data, fuso) => {
+    const db = driverDoArquivo(arquivo);
+    return db ? lerPontosDoDia(db, data, fuso) : [];
+  };
 }

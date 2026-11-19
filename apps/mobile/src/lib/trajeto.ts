@@ -6,9 +6,9 @@
  *
  * Tipos do contrato do Core (`@macuxi/core/contracts`): `MotivoSemRastreio` e `PontoTrajeto` (validado pelo `PontoTrajetoSchema`).
  */
-import { formatHHMM } from '@macuxi/comum/fuso';
-import { PontoTrajetoSchema, type MotivoSemRastreio, type PontoTrajeto } from '@macuxi/core/contracts';
-import type { DriverSqlite } from '@macuxi/platform-sdk';
+import { formatHHMM, localIsoDate } from '@macuxi/comum/fuso';
+import { PontoDoTrajetoSchema, PontoTrajetoSchema, type MotivoSemRastreio, type PontoDoTrajeto, type PontoTrajeto } from '@macuxi/core/contracts';
+import { comPrefixo, type ArmazenamentoSync, type DriverSqlite } from '@macuxi/platform-sdk';
 
 import { semDerrubar } from './trava-sync';
 
@@ -106,16 +106,18 @@ export function acaoDoTrajeto(condicao: CondicaoTrajeto, ativa: boolean): AcaoDo
   return ativa ? 'desligar' : 'manter';
 }
 
-export type EstadoDoTrajeto = 'ativa' | 'fora_do_expediente' | 'pausada' | 'sem_termo' | 'desligada';
+export type EstadoDoTrajeto = 'ativa' | 'fora_do_expediente' | 'sem_expediente' | 'pausada' | 'sem_termo' | 'desligada';
 
 /** Estado do Diagnóstico (§9), só pelo motivo: nunca o lugar. */
 export function estadoDoTrajeto(condicao: CondicaoTrajeto, ativa: boolean): EstadoDoTrajeto {
   if (condicao.pode) return ativa ? 'ativa' : 'desligada';
   switch (condicao.motivo) {
     case 'fora_do_expediente':
+      return 'fora_do_expediente';
+    // o chip da seção Localização do Core diz "Sem expediente hoje" no feriado e na ausência
     case 'feriado':
     case 'ausencia':
-      return 'fora_do_expediente';
+      return 'sem_expediente';
     case 'pausa':
       return 'pausada';
     case 'sem_aceite':
@@ -130,18 +132,23 @@ export function estadoDoTrajeto(condicao: CondicaoTrajeto, ativa: boolean): Esta
   }
 }
 
+/**
+ * Rótulos do Diagnóstico: os mesmos do chip da seção Localização do Perfil (spec do tracking §2, sem frase). Sem termo e
+ * Desligada só aqui: nesses estados a seção do Core não aparece.
+ */
 export const TEXTOS_TRAJETO: Record<EstadoDoTrajeto, string> = {
   ativa: 'Ativa',
   fora_do_expediente: 'Fora do expediente',
+  sem_expediente: 'Sem expediente hoje',
   pausada: 'Pausada',
   sem_termo: 'Sem termo',
   desligada: 'Desligada',
 };
 
-/** Linha do Diagnóstico: o estado e, se houver, a hora do último ponto no fuso do tenant (§9). */
+/** Linha do Diagnóstico: o rótulo do estado e, se houver, a hora do último ponto no fuso do tenant (§9). */
 export function textoDoEstadoDoTrajeto(estado: EstadoDoTrajeto, ultimoPontoIso: string | null, fuso: string): string {
   const texto = TEXTOS_TRAJETO[estado];
-  return ultimoPontoIso ? `${texto} · último ponto às ${formatHHMM(ultimoPontoIso, fuso)}` : texto;
+  return ultimoPontoIso ? `${texto} · último ponto ${formatHHMM(ultimoPontoIso, fuso)}` : texto;
 }
 
 /**
@@ -168,13 +175,52 @@ export function erroSemCoordenada(e: unknown): Error {
 const DESLIGADO: CondicaoTrajeto = { pode: false, motivo: 'desligado' };
 
 /**
- * PONTO ÚNICO da condição do §2 no shell (RN-CORE-13). Hoje devolve sempre "desligado": a tarefa NUNCA liga de fábrica.
- * TROCAR AQUI quando o Core expuser `podeRastrear` e os parâmetros `rastreamento` em `@macuxi/core/app`: ler uma vez os
- * parâmetros, o aceite, os feriados, as ausências, a pausa e a permissão, e devolver
- * `(instante) => podeRastrear({ ..., instante, fuso })`, com o app da variante no portão (o Gestão nunca rastreia).
+ * Prefixo do armazenamento do Core no banco do usuário: o mesmo do `motor.armazenamentoDoModulo('core')` do SDK (`mod:<m>:`,
+ * `sqlite/esquema.ts`). A tarefa roda sem motor, então lê pela base com o mesmo prefixo.
  */
-export function condicaoDoTrajeto(): Promise<(instanteMs: number) => CondicaoTrajeto> {
-  return Promise.resolve(() => DESLIGADO);
+export const PREFIXO_ARMAZENAMENTO_CORE = 'mod:core:';
+
+/** O que o Core grava no aparelho (`useRastreamento`): o aceite da versão vigente e a pausa em curso (§4.3 e §6). */
+export interface EstadoLocalDoRastreamento {
+  aceite: { versao: number; aceito_em: string } | null;
+  pausa: { inicio: string } | null;
+}
+
+const ehInstante = (v: unknown): v is string => typeof v === 'string' && Number.isFinite(Date.parse(v));
+
+/**
+ * Lê o aceite e a pausa nas chaves do Core (`CHAVE_ACEITE_LOCAL` = `rastreamento.aceite` e `CHAVE_PAUSA_LOCAL` =
+ * `rastreamento.pausa`, `@macuxi/core/app`). Valor fora do formato vale como ausente (aceite ausente = sem aceite).
+ */
+export async function lerEstadoLocalDoRastreamento(base: ArmazenamentoSync, chaves: { aceite: string; pausa: string }): Promise<EstadoLocalDoRastreamento> {
+  const core = comPrefixo(base, PREFIXO_ARMAZENAMENTO_CORE);
+  const [a, p] = await Promise.all([core.ler<Record<string, unknown>>(chaves.aceite), core.ler<Record<string, unknown>>(chaves.pausa)]);
+  const aceite = a && Number.isInteger(a.versao) && (a.versao as number) >= 1 && ehInstante(a.aceito_em) ? { versao: a.versao as number, aceito_em: a.aceito_em } : null;
+  const pausa = p && ehInstante(p.inicio) ? { inicio: p.inicio } : null;
+  return { aceite, pausa };
+}
+
+/** O portão do Core (`podeRastrear` com os parâmetros, o termo, as ausências e os feriados do aparelho) sobre o estado local. */
+export type PortaoDoTrajeto = (local: EstadoLocalDoRastreamento, instanteMs: number) => CondicaoTrajeto;
+
+/**
+ * O portão que o `@macuxi/core/app` entrega ao shell. HOJE `null`: o Core ainda não exporta `podeRastrear` nem os parâmetros
+ * `rastreamento` pelo app (pedido ao modulo-core), e a tarefa NUNCA liga de fábrica. Quando exportar, só esta linha muda.
+ */
+export const PORTAO_DO_CORE: PortaoDoTrajeto | null = null;
+
+/**
+ * PONTO ÚNICO da condição do §2 no shell (RN-CORE-13). Sem portão, "desligado" em qualquer instante (nem lê o aparelho);
+ * com ele, cada instante passa pelo portão com o aceite e a pausa lidos uma vez. Sem sessão ou sem banco, desligado.
+ */
+export async function condicaoDoTrajeto(
+  lerLocal: () => Promise<EstadoLocalDoRastreamento | null> = () => Promise.resolve(null),
+  portao: PortaoDoTrajeto | null = PORTAO_DO_CORE,
+): Promise<(instanteMs: number) => CondicaoTrajeto> {
+  if (!portao) return () => DESLIGADO;
+  const local = await lerLocal();
+  if (!local) return () => DESLIGADO;
+  return (instanteMs) => portao(local, instanteMs);
 }
 
 /** A captura do aparelho (`expo-location`, `services/trajeto.ts`). */
@@ -297,4 +343,31 @@ export async function gravarPontosDoTrajeto(db: Pick<DriverSqlite, 'rodar'>, pon
     throw e;
   }
   return inseridos;
+}
+
+const SELECIONAR_PONTOS_DO_DIA =
+  'SELECT capturado_em, latitude, longitude, precisao_m FROM core__ponto_trajeto WHERE capturado_em >= ? AND capturado_em < ? ORDER BY capturado_em';
+
+const diaUtc = (data: string, dias: number): string => new Date(Date.parse(`${data}T00:00:00.000Z`) + dias * 86_400_000).toISOString();
+
+/**
+ * Pontos de `data` (AAAA-MM-DD no fuso do tenant) gravados neste aparelho, em ordem de captura, para "Meu trajeto" de hoje e o
+ * km parcial sem sinal (`definirPontosLocaisDoDia` do Core; §3.4). Lê uma janela UTC de três dias (qualquer fuso cabe) e
+ * fica com os do dia civil no fuso. Sem a tabela, vazio. Só o que a tela usa (sem velocidade); nada vai a log.
+ */
+export async function lerPontosDoDia(db: Pick<DriverSqlite, 'todas'>, data: string, fuso: string): Promise<PontoDoTrajeto[]> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || !Number.isFinite(Date.parse(`${data}T00:00:00.000Z`))) return [];
+  let linhas: unknown[];
+  try {
+    linhas = await db.todas<unknown>(SELECIONAR_PONTOS_DO_DIA, [diaUtc(data, -1), diaUtc(data, 2)]);
+  } catch (e) {
+    if (/no such table/i.test(e instanceof Error ? e.message : String(e))) return [];
+    throw erroSemCoordenada(e);
+  }
+  const pontos: PontoDoTrajeto[] = [];
+  for (const l of linhas) {
+    const p = PontoDoTrajetoSchema.safeParse(l);
+    if (p.success && localIsoDate(p.data.capturado_em, fuso) === data) pontos.push(p.data);
+  }
+  return pontos;
 }

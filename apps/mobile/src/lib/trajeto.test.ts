@@ -77,8 +77,8 @@ describe('Diagnóstico sem coordenada (§9)', () => {
   it('estado pelo motivo, sem lugar nenhum', () => {
     expect(estadoDoTrajeto({ pode: true }, true)).toBe('ativa');
     expect(estadoDoTrajeto({ pode: false, motivo: 'fora_do_expediente' }, false)).toBe('fora_do_expediente');
-    expect(estadoDoTrajeto({ pode: false, motivo: 'feriado' }, false)).toBe('fora_do_expediente');
-    expect(estadoDoTrajeto({ pode: false, motivo: 'ausencia' }, false)).toBe('fora_do_expediente');
+    expect(estadoDoTrajeto({ pode: false, motivo: 'feriado' }, false)).toBe('sem_expediente');
+    expect(estadoDoTrajeto({ pode: false, motivo: 'ausencia' }, false)).toBe('sem_expediente');
     expect(estadoDoTrajeto({ pode: false, motivo: 'pausa' }, false)).toBe('pausada');
     expect(estadoDoTrajeto({ pode: false, motivo: 'sem_aceite' }, false)).toBe('sem_termo');
     expect(estadoDoTrajeto({ pode: false, motivo: 'desligado' }, false)).toBe('desligada');
@@ -94,8 +94,12 @@ describe('Diagnóstico sem coordenada (§9)', () => {
     for (const motivo of MOTIVOS_SEM_RASTREIO) expect(TEXTOS_TRAJETO[estadoDoTrajeto({ pode: false, motivo }, false)]).toEqual(expect.any(String));
   });
 
-  it('texto do Diagnóstico: o estado e a hora do último ponto no fuso do tenant', () => {
-    expect(textoDoEstadoDoTrajeto('ativa', '2026-11-19T13:05:00.000Z', 'America/Manaus')).toBe(`${TEXTOS_TRAJETO.ativa} · último ponto às 09:05`);
+  it('rótulos do Diagnóstico: os do chip da seção Localização do Core (spec §2); Sem termo e Desligada só aqui', () => {
+    expect(TEXTOS_TRAJETO).toEqual({ ativa: 'Ativa', fora_do_expediente: 'Fora do expediente', sem_expediente: 'Sem expediente hoje', pausada: 'Pausada', sem_termo: 'Sem termo', desligada: 'Desligada' });
+  });
+
+  it('texto do Diagnóstico: o rótulo e a hora do último ponto no fuso do tenant', () => {
+    expect(textoDoEstadoDoTrajeto('ativa', '2026-11-19T13:05:00.000Z', 'America/Manaus')).toBe('Ativa · último ponto 09:05');
     expect(textoDoEstadoDoTrajeto('pausada', null, 'America/Manaus')).toBe(TEXTOS_TRAJETO.pausada);
   });
 
