@@ -26,6 +26,8 @@ export const ItemFilaAprovacao = z
     cliente_id: Uuid,
     /** Nome do cliente para o cartão (nome fantasia, senão razão social, do cadastro do Core); `null` quando o cadastro não o tem. */
     cliente_nome: z.string().nullable().default(null),
+    /** Código do cliente (`external_id` do cadastro do Core), título do cartão quando não há nome; `null` quando o cadastro não o tem. */
+    cliente_codigo: z.string().nullable().default(null),
     solicitada_em: InstanteUtc,
     nivel: NivelAprovacao,
     /** Motivos pendentes que quem consulta vê (cada aprovador vê só os dele, P3 B). */

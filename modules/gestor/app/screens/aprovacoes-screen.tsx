@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SeloFaixa } from '../components/selo-faixa';
 import { linhaDoCartao, rotuloDoPrazo, TOM_PARA_CHIP } from '../lib/apresentacao';
-import { cartoesDaFila, erroDoMotivo, type AcaoDeDecisao, type CartaoDaFila } from '../lib/decisao';
+import { cartoesDaFila, erroDoMotivo, tituloDoCliente, type AcaoDeDecisao, type CartaoDaFila } from '../lib/decisao';
 import { contagem, pct } from '../lib/formato';
 import { useGestor } from '../state/use-gestor';
 
@@ -51,7 +51,7 @@ export default function AprovacoesScreen() {
 
 function CartaoDoMotivo({ c, ultimo, aoDecidir }: { c: CartaoDaFila; ultimo: boolean; aoDecidir: () => void }) {
   const { item: i, aprovacao } = c;
-  const nome = i.cliente_nome ?? 'Cliente';
+  const nome = tituloDoCliente(i);
   const prazo = rotuloDoPrazo(i);
   const linha = linhaDoCartao(i, aprovacao.motivo, pct, formatBRL);
   return (

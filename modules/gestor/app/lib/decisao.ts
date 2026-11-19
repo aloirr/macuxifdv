@@ -1,6 +1,6 @@
 /**
  * Decisão por motivo na Gestão (T-0184, P3 B): um cartão por aprovação pendente e as chamadas às rotas do Vendedor
- * (`aprovar`, `rejeitar` = devolver ao vendedor, `recusar` = rejeitar de vez; desenho §3 e §7.1). O Gestor nunca escreve
+ * (rota e corpo vêm do `contracts` do Vendedor: `ROTA_DA_DECISAO`, `corpoDaDecisao`). O Gestor nunca escreve
  * no pedido: só pede ao Vendedor, que revalida alçada, escopo e licença. Funções puras, sem React.
  */
 import { MOTIVO_REJEICAO_MIN, type AprovacaoDoItem, type DECISOES_APROVADOR, type FilaAprovacao, type ItemFilaAprovacao, type MotivoAprovacao } from '../../contracts';
@@ -33,14 +33,9 @@ export function erroDoMotivo(acao: AcaoDeDecisao, texto: string): string | null 
   return `Escreva o motivo com pelo menos ${MOTIVO_REJEICAO_MIN} letras para ${acao === 'devolver' ? 'devolver' : 'rejeitar'}.`;
 }
 
-/**
- * Rota e corpo do Vendedor (desenho §3 e §7.1, ADR 0062): `aprovar` → `/aprovar`, `devolver` → `/rejeitar`, `recusar` → `/recusar`.
- * `motivo` é o texto livre do aprovador; `motivo_aprovacao` é a aprovação decidida.
- */
-export function requisicaoDaDecisao(pedidoId: string, acao: AcaoDeDecisao, motivoAprovacao: MotivoAprovacao, texto: string): { caminho: string; corpo: { motivo?: string; motivo_aprovacao: MotivoAprovacao } } {
-  const base = `/vendedor/pedidos/${encodeURIComponent(pedidoId)}`;
-  if (acao === 'aprovar') return { caminho: `${base}/aprovar`, corpo: { motivo_aprovacao: motivoAprovacao } };
-  return { caminho: `${base}/${acao === 'devolver' ? 'rejeitar' : 'recusar'}`, corpo: { motivo: texto.trim(), motivo_aprovacao: motivoAprovacao } };
+/** Título do cartão: nome do cliente; sem nome no cadastro, o código dele; sem nenhum dos dois, "Cliente". */
+export function tituloDoCliente(item: Pick<ItemFilaAprovacao, 'cliente_nome' | 'cliente_codigo'>): string {
+  return item.cliente_nome?.trim() || item.cliente_codigo?.trim() || 'Cliente';
 }
 
 /**

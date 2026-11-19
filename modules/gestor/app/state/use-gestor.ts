@@ -11,9 +11,9 @@ import { DEFAULT_TZ } from '@macuxi/ui/mobile/puro';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { alertasDePendenciaCheckout, type NotificacaoPendencia } from '../../domain/alertas-pendencia-checkout';
-import { Alerta, FichaMembro, RankingEquipe, ROTAS_GESTOR, type IndicadorRanking, type MotivoAprovacao, type PeriodoRanking } from '../../contracts';
+import { corpoDaDecisao, ROTA_DA_DECISAO, Alerta, FichaMembro, RankingEquipe, ROTAS_GESTOR, type IndicadorRanking, type MotivoAprovacao, type PeriodoRanking } from '../../contracts';
 import { aplicarParadoMinDoTenant } from '../lib/parado-min';
-import { filaAposDecisao, requisicaoDaDecisao, type AcaoDeDecisao } from '../lib/decisao';
+import { filaAposDecisao, type AcaoDeDecisao } from '../lib/decisao';
 import { chaveRanking, criarCache, DADOS_VAZIOS, mensagemDeErro, type DadosGestor } from '../lib/cache';
 
 const relogio = relogioReal();
@@ -77,9 +77,8 @@ export function useGestor(opcoes: { pendencias?: boolean } = {}) {
     async (pedidoId: string, acao: AcaoDeDecisao, motivo: MotivoAprovacao, texto: string): Promise<{ ok: true } | { ok: false; mensagem: string }> => {
       if (!cache) return { ok: false, mensagem: 'Carregando…' };
       if (!ambiente.online()) return { ok: false, mensagem: 'Sem sinal para decidir. Conecte-se e toque de novo.' };
-      const r = requisicaoDaDecisao(pedidoId, acao, motivo, texto);
       try {
-        await ambiente.http.requisitar<unknown>('POST', r.caminho, { body: r.corpo });
+        await ambiente.http.requisitar<unknown>('POST', `/vendedor/pedidos/${encodeURIComponent(pedidoId)}/${ROTA_DA_DECISAO[acao]}`, { body: { ...corpoDaDecisao(acao, texto, motivo) } });
       } catch (e) {
         return { ok: false, mensagem: mensagemDeErro(e) };
       }

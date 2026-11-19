@@ -141,6 +141,7 @@ export function filaDeAprovacoes(e: EntradaFila): ItemFilaAprovacao[] {
       aprovacoes: visiveis,
       inadimplencia: a.inadimplencia ?? null,
       cliente_nome: null,
+      cliente_codigo: null,
       pedido_numero: a.pedido_numero ?? null,
       total_cents: a.total_cents,
       desconto_efetivo_pct: arredondar(a.desconto_efetivo_pct),

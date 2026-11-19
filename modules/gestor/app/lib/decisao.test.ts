@@ -2,10 +2,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { formatBRL } from '@macuxi/comum';
-import type { FilaAprovacao, ItemFilaAprovacao } from '../../contracts';
+import { corpoDaDecisao, ROTA_DA_DECISAO, type FilaAprovacao, type ItemFilaAprovacao } from '../../contracts';
 import { linhaDeMotivos, linhaDoCartao } from './apresentacao';
 import { resumirFila } from '../../domain/aprovacoes';
-import { cartoesDaFila, erroDoMotivo, filaAposDecisao, requisicaoDaDecisao } from './decisao';
+import { cartoesDaFila, erroDoMotivo, filaAposDecisao, tituloDoCliente } from './decisao';
 import { pct } from './formato';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -14,6 +14,7 @@ const item = (n: number, o: Partial<ItemFilaAprovacao> & Pick<ItemFilaAprovacao,
   vendedor_id: id(2),
   cliente_id: id(3),
   cliente_nome: null,
+  cliente_codigo: null,
   solicitada_em: '2026-10-30T19:00:00Z',
   nivel: 'gerente',
   motivos: o.aprovacoes.map((a) => a.motivo),
@@ -97,10 +98,18 @@ describe('RD-2269: um cálculo só do resumo, em pedidos pendentes', () => {
 });
 
 describe('T-0184 §3: as ações chamam as rotas do Vendedor', () => {
-  it('Aprovar chama `aprovar`; Devolver chama `rejeitar` e Rejeitar chama `recusar`; o corpo é `{ motivo: texto livre, motivo_aprovacao }` (ADR 0062, desenho §7.1)', () => {
-    expect(requisicaoDaDecisao(id(21), 'aprovar', 'credito', '')).toEqual({ caminho: `/vendedor/pedidos/${id(21)}/aprovar`, corpo: { motivo_aprovacao: 'credito' } });
-    expect(requisicaoDaDecisao(id(21), 'devolver', 'inadimplencia', '  Pagar o vencido ')).toEqual({ caminho: `/vendedor/pedidos/${id(21)}/rejeitar`, corpo: { motivo: 'Pagar o vencido', motivo_aprovacao: 'inadimplencia' } });
-    expect(requisicaoDaDecisao(id(21), 'recusar', 'inadimplencia', 'Cliente em cobrança')).toEqual({ caminho: `/vendedor/pedidos/${id(21)}/recusar`, corpo: { motivo: 'Cliente em cobrança', motivo_aprovacao: 'inadimplencia' } });
+  it('RN-GES-08: a rota e o corpo da decisão vêm do contrato do Vendedor (fonte única, sem montar à mão)', () => {
+    expect(ROTA_DA_DECISAO).toEqual({ aprovar: 'aprovar', devolver: 'rejeitar', recusar: 'recusar' });
+    expect(corpoDaDecisao('devolver', '  Pagar o vencido ', 'inadimplencia')).toEqual({ motivo: 'Pagar o vencido', motivo_aprovacao: 'inadimplencia' });
+    expect(corpoDaDecisao('aprovar', '', 'credito')).toEqual({ motivo_aprovacao: 'credito' });
+    expect(readFileSync(new URL('./decisao.ts', import.meta.url), 'utf8')).not.toContain('requisicaoDaDecisao');
+  });
+
+  it('RF-GES-04: o título do cartão usa o nome; sem nome, o código do cliente; sem nenhum, "Cliente"', () => {
+    expect(tituloDoCliente({ cliente_nome: 'Mercado Bom Preço', cliente_codigo: 'C-1' })).toBe('Mercado Bom Preço');
+    expect(tituloDoCliente({ cliente_nome: null, cliente_codigo: 'C-1042' })).toBe('C-1042');
+    expect(tituloDoCliente({ cliente_nome: '  ', cliente_codigo: ' C-7 ' })).toBe('C-7');
+    expect(tituloDoCliente({ cliente_nome: null, cliente_codigo: null })).toBe('Cliente');
   });
 
   it('RN-GES-08: devolver e rejeitar pedem o motivo com 3 letras ou mais, em português; aprovar não pede', () => {
@@ -129,7 +138,7 @@ describe('T-0184 P7 A e P8 A: a fila do aparelho depois da decisão', () => {
 describe('T-0184 prancha 03: o cartão da fila destaca o cliente', () => {
   const tela = readFileSync(join(__dirname, '..', 'screens', 'aprovacoes-screen.tsx'), 'utf8');
   it('MC-1764/1765: título é o cliente, o valor usa tabular-nums e o motivo vai em 14 (t.sub), sem o vendedor', () => {
-    expect(tela).toContain('i.cliente_nome');
+    expect(tela).toContain('tituloDoCliente(i)');
     expect(tela).not.toContain('nomesDaVisao');
     expect(tela).toMatch(/fontVariant: \['tabular-nums'\]/);
     expect(tela).toMatch(/<Text style=\{t\.sub\} numberOfLines=\{2\}>\s*\{linha\}/);

@@ -81,7 +81,7 @@ function cenario() {
         if (def.nome === 'core.produtividade_equipe@1') {
           return { parado_min: 60, alertas: PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO, usuarios: entrada.usuario_ids.map((id) => ({ id, ultimo_contato_em: contatos[id] ?? null, almoco_inicio_min: 720, almoco_fim_min: 780 })) };
         }
-        return { clientes: (entrada.cliente_ids ?? []).includes(u(505)) ? [{ id: u(505), razao_social: 'Bom Preço Ltda', nome_fantasia: 'Mercado Bom Preço' }] : [], produtos: [], usuarios: CADASTRO.filter((c) => entrada.usuario_ids.includes(c.id)).map((c) => ({ ...c, external_id: null })) };
+        return { clientes: (entrada.cliente_ids ?? []).includes(u(505)) ? [{ id: u(505), razao_social: 'Bom Preço Ltda', nome_fantasia: 'Mercado Bom Preço', external_id: 'C-505' }] : [], produtos: [], usuarios: CADASTRO.filter((c) => entrada.usuario_ids.includes(c.id)).map((c) => ({ ...c, external_id: null })) };
       },
       auditar: async (a: RegistroAuditoria) => {
         auditoria.push(a);
@@ -248,6 +248,7 @@ describe('API do Gestor: fluxo de ponta a ponta com eventos (RF-GES-01..07)', ()
     expect(sup.itens[0]!.prazo_em).toBe(iso(c.relogio, '10:31', 1)); // 1 dia útil depois, mesmo horário local
     expect(sup.resumo).toMatchObject({ total: 1, para_mim: 1 });
     expect(sup.itens[0]!.cliente_nome).toBe('Mercado Bom Preço'); // prancha 03: o cartão destaca o cliente (nome do Core)
+    expect(sup.itens[0]!.cliente_codigo).toBe('C-505'); // sem nome no cadastro, o título cai no código (external_id)
     expect(FilaAprovacao.parse(await c.chamar('GET', 'aprovacoes', SUP_2)).itens).toEqual([]);
     const ana = FilaAprovacao.parse(await c.chamar('GET', 'aprovacoes', ANALISTA));
     expect(ana.itens.map((i) => i.pode_decidir)).toEqual([false]);
