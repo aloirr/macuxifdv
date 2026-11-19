@@ -20,22 +20,38 @@ export const STATUS_DIA_ROTULO: Readonly<Record<StatusDia, { label: string; tom:
 export const MOTIVO_ROTULO: Readonly<Record<MotivoAprovacao, string>> = {
   desconto: 'Desconto',
   credito: 'Crédito do cliente',
+  inadimplencia: 'Inadimplente',
   estoque: 'Estoque',
   preco_minimo: 'Acima do desconto máximo',
 };
 
+/** `Inadimplente há 12 dias` (RN-VEN-13); sem o atraso, só o rótulo. */
+function rotuloInadimplente(dias: number | null | undefined): string {
+  return dias === null || dias === undefined ? MOTIVO_ROTULO.inadimplencia : `${MOTIVO_ROTULO.inadimplencia} há ${dias} ${dias === 1 ? 'dia' : 'dias'}`;
+}
+
 /**
  * Motivos da fila numa linha (RN-VEN-10/42: a alçada nunca aparece em tela; "uma informação, um lugar"). O desconto entra
  * uma vez só: na frente quando é motivo ("Desconto 8%"), depois dos motivos quando é só informação ("Crédito do cliente ·
- * desconto 3%"). Com motivo crédito e saldo conhecido, o saldo substitui o rótulo ("Crédito disponível R$ 1.200").
+ * desconto 3%"). Com motivo crédito e saldo conhecido, o saldo substitui o rótulo ("Crédito disponível R$ 1.200"); com
+ * motivo inadimplência e atraso conhecido, vira "Inadimplente há 12 dias" (T-0184, RN-VEN-13).
  */
-export function linhaDeMotivos(motivos: readonly MotivoAprovacao[], descontoPct: number, pct: (n: number) => string, creditoDisponivel?: string): string {
+export function linhaDeMotivos(motivos: readonly MotivoAprovacao[], descontoPct: number, pct: (n: number) => string, creditoDisponivel?: string, atrasoDias?: number | null): string {
   const partes = motivos
     .filter((m) => m !== 'desconto')
-    .map((m) => (m === 'credito' && creditoDisponivel ? `Crédito disponível ${creditoDisponivel}` : MOTIVO_ROTULO[m]));
+    .map((m) => (m === 'credito' && creditoDisponivel ? `Crédito disponível ${creditoDisponivel}` : m === 'inadimplencia' ? rotuloInadimplente(atrasoDias) : MOTIVO_ROTULO[m]));
   if (motivos.includes('desconto')) partes.unshift(`${MOTIVO_ROTULO.desconto} ${pct(descontoPct)}`);
   else if (descontoPct > 0) partes.push(`desconto ${pct(descontoPct)}`);
   return partes.join(' · ');
+}
+
+/**
+ * Texto do cartão de UM motivo da fila (P3 B): `Nº 000021 · Crédito disponível R$ 1.880,00`, `Nº 000021 · Inadimplente há 12
+ * dias`, `Nº 000020 · Desconto 12%`. O desconto só aparece no cartão do motivo desconto.
+ */
+export function linhaDoCartao(i: Pick<ItemFilaAprovacao, 'pedido_numero' | 'desconto_efetivo_pct' | 'credito' | 'inadimplencia'>, motivo: MotivoAprovacao, pct: (n: number) => string, brl: (cents: number) => string): string {
+  const motivoTexto = linhaDeMotivos([motivo], motivo === 'desconto' ? i.desconto_efetivo_pct : 0, pct, i.credito ? brl(i.credito.disponivel_cents) : undefined, i.inadimplencia?.maior_atraso_dias ?? null);
+  return i.pedido_numero ? `Nº ${i.pedido_numero} · ${motivoTexto}` : motivoTexto;
 }
 
 export const TIPO_ALERTA_ROTULO: Readonly<Record<TipoAlerta, string>> = {

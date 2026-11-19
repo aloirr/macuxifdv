@@ -1,27 +1,29 @@
 /**
- * Fila de aprovação do gestor (RF-GES-04). A regra de ALÇADA (RN-VEN-10..13: quem aprova qual desconto, crédito ou
- * estoque) é do Vendedor e NÃO é recalculada aqui: o Gestor consome `vendedor.pedido.aprovacao_solicitada@1`, que já
- * traz o nível exigido, e organiza prazo e escopo. A decisão (aprovar/rejeitar) é executada pela API pública do Vendedor
- * (`pedido.aprovar`); o Gestor só valida o comentário.
+ * Fila de aprovação do gestor (RF-GES-04, T-0184). A regra de ALÇADA (RN-VEN-10..13: quem aprova o desconto, o crédito
+ * e a inadimplência) é do Vendedor e NÃO é recalculada aqui: o Gestor consome `vendedor.pedido.aprovacao_solicitada@2`,
+ * que traz uma aprovação por motivo com o nível de cada uma (RN-VEN-12 crédito, RN-VEN-13 inadimplência, RN-VEN-10/11a
+ * desconto), e `aprovacao_decidida@1`, que tira o motivo decidido da fila. As aprovações correm em paralelo (P7 A) e a
+ * rejeição ou devolução de uma encerra as outras (P8 A, RN-VEN-30). Cada aprovador vê só os motivos que pode decidir.
+ * A decisão (aprovar, devolver, recusar) é uma chamada às rotas do Vendedor, que revalida alçada, escopo e motivo
+ * (RN-GES-08); o Gestor não registra nem valida decisão no servidor.
  */
 import {
-  DecisaoAprovacao,
-  type AvisoDecisaoAoSupervisor,
-  type CodigoRecusaDecisao,
+  maiorNivel,
+  type AprovacaoDoItem,
   type ItemFilaAprovacao,
   type MembroEquipe,
+  type MotivoAprovacao,
   type NivelAprovacao,
-  type RegistroDecisaoAprovacao,
   type ResumoFila,
   type SituacaoPrazo,
   type StatusPedido,
 } from '../contracts';
-import { escopoDoUsuario, podeVer, type EscopoGestor } from './equipe';
+import { podeVer, type EscopoGestor } from './equipe';
 import { horasUteisEntre, somarDiasUteis } from './horario-comercial';
 import { arredondar, instanteMs } from './numeros';
 import { resolverParametros, type ParametrosGestor } from './parametros';
 import { historicoOrdenado } from './apuracao';
-import type { EstadoProjecao } from './projecao';
+import { solicitacaoDaLinha, type EstadoProjecao } from './projecao';
 
 /** Status que encerram a pendência de aprovação (decisão tomada, ou pedido que saiu do fluxo). */
 const STATUS_DECISORIOS: ReadonlySet<StatusPedido> = new Set<StatusPedido>(['aprovado', 'rejeitado', 'cancelado', 'integrado_erp', 'faturado_parcial', 'faturado_total']);
@@ -54,17 +56,35 @@ export function situacaoDoPrazo(
   return { prazo_em, horas_restantes, situacao };
 }
 
+export interface MotivoPendente {
+  motivo: MotivoAprovacao;
+  nivel: NivelAprovacao;
+}
+
 /**
- * A solicitação MAIS RECENTE do pedido está pendente se nenhuma transição decisória aconteceu a partir dela.
- * Derivado do conjunto de transições, então funciona com eventos fora de ordem.
+ * Motivos ainda pendentes do pedido: os da solicitação MAIS RECENTE sem decisão (`aprovacao_decidida@1`) a partir dela.
+ * Se o pedido saiu do fluxo (aprovado, rejeitado, cancelado, integrado…) depois da solicitação, não sobra nenhum: a
+ * rejeição ou devolução de um motivo encerra os outros (RN-VEN-30, P8 A) mesmo que o evento `encerrada` ainda não tenha chegado.
+ * Derivado do conjunto de eventos, então funciona fora de ordem e repetido.
  */
-export function pedidoPendenteDeAprovacao(estado: EstadoProjecao, pedidoId: string): boolean {
-  const a = estado.aprovacoes[pedidoId];
-  if (!a) return false;
-  const desde = instanteMs(a.solicitada_em);
+export function motivosPendentes(estado: EstadoProjecao, pedidoId: string): MotivoPendente[] {
+  const linha = estado.aprovacoes[pedidoId];
+  const sol = solicitacaoDaLinha(linha);
+  if (!linha || !sol) return [];
+  const desde = instanteMs(sol.solicitada_em);
   const pedido = estado.pedidos[pedidoId];
-  if (!pedido) return true;
-  return !historicoOrdenado(pedido).some((h) => STATUS_DECISORIOS.has(h.para) && instanteMs(h.em) >= desde);
+  if (pedido && historicoOrdenado(pedido).some((h) => STATUS_DECISORIOS.has(h.para) && instanteMs(h.em) >= desde)) return [];
+  const decididos = new Set(
+    Object.values(linha.decisoes ?? {})
+      .filter((d) => instanteMs(d.decidida_em) >= desde)
+      .map((d) => d.motivo),
+  );
+  return sol.aprovacoes.filter((x) => !decididos.has(x.motivo)).map((x) => ({ motivo: x.motivo, nivel: x.nivel }));
+}
+
+/** O pedido tem algum motivo pendente de aprovação. */
+export function pedidoPendenteDeAprovacao(estado: EstadoProjecao, pedidoId: string): boolean {
+  return motivosPendentes(estado, pedidoId).length > 0;
 }
 
 /**
@@ -101,23 +121,35 @@ export function filaDeAprovacoes(e: EntradaFila): ItemFilaAprovacao[] {
   if (!e.modulos.has('vendedor')) return [];
   if (!PERFIS_COM_FILA.has(e.viewer.perfil)) return [];
   const itens: ItemFilaAprovacao[] = [];
-  for (const [pedidoId, a] of Object.entries(e.estado.aprovacoes)) {
-    if (!nivelDaFilaDoGestor(a.nivel) || !podeVer(e.escopo, a.vendedor_id) || !pedidoPendenteDeAprovacao(e.estado, pedidoId)) continue;
+  const decide = e.viewer.perfil === 'supervisor' || e.viewer.perfil === 'gerente';
+  for (const [pedidoId, linha] of Object.entries(e.estado.aprovacoes)) {
+    const a = solicitacaoDaLinha(linha);
+    if (!a || !podeVer(e.escopo, a.vendedor_id)) continue;
+    // P3 B: quem decide vê só os motivos que pode decidir; analista e admin leem todos os do Gestor (RN-GES-07)
+    const visiveis: AprovacaoDoItem[] = motivosPendentes(e.estado, pedidoId)
+      .filter((m) => nivelDaFilaDoGestor(m.nivel) && (!decide || podeDecidir(e.viewer.perfil, m.nivel)))
+      .map((m) => ({ motivo: m.motivo, nivel: m.nivel, estado: 'pendente' as const, pode_decidir: podeDecidir(e.viewer.perfil, m.nivel) }));
+    if (visiveis.length === 0) continue;
     const prazo = situacaoDoPrazo(a.solicitada_em, e.agora, e.params);
     itens.push({
       pedido_id: pedidoId,
       vendedor_id: a.vendedor_id,
       cliente_id: a.cliente_id,
       solicitada_em: a.solicitada_em,
-      nivel: a.nivel,
-      motivos: a.motivos,
+      nivel: maiorNivel(visiveis.map((x) => x.nivel)) ?? 'supervisor',
+      motivos: visiveis.map((x) => x.motivo),
+      aprovacoes: visiveis,
+      inadimplencia: a.inadimplencia ?? null,
+      cliente_nome: null,
+      cliente_codigo: null,
+      pedido_numero: a.pedido_numero ?? null,
       total_cents: a.total_cents,
       desconto_efetivo_pct: arredondar(a.desconto_efetivo_pct),
       credito: a.credito,
       historico: a.historico,
       ...prazo,
-      pode_decidir: podeDecidir(e.viewer.perfil, a.nivel),
-      acima_do_nivel: decideAcimaDoNivel(e.viewer.perfil, a.nivel),
+      pode_decidir: visiveis.some((x) => x.pode_decidir),
+      acima_do_nivel: visiveis.some((x) => x.pode_decidir && decideAcimaDoNivel(e.viewer.perfil, x.nivel)),
     });
   }
   return itens.sort((x, y) => instanteMs(x.prazo_em) - instanteMs(y.prazo_em) || (x.pedido_id < y.pedido_id ? -1 : 1));
@@ -130,78 +162,4 @@ export function resumirFila(itens: readonly ItemFilaAprovacao[]): ResumoFila {
     vencendo: itens.filter((i) => i.situacao === 'vencendo').length,
     para_mim: itens.filter((i) => i.pode_decidir).length,
   };
-}
-
-/** RN-GES-08: valida a decisão (só rejeitar exige comentário). Devolve a decisão normalizada ou os erros em português. */
-export function validarDecisao(entrada: unknown): { ok: true; decisao: DecisaoAprovacao } | { ok: false; erros: string[] } {
-  const r = DecisaoAprovacao.safeParse(entrada);
-  if (r.success) return { ok: true, decisao: r.data };
-  return { ok: false, erros: r.error.issues.map((i) => i.message) };
-}
-
-/** Primeiro superior com perfil supervisor acima do vendedor (sobe pela hierarquia do Core); `null` se não houver. */
-export function supervisorDoVendedor(membros: readonly MembroEquipe[], vendedorId: string): string | null {
-  const porId = new Map(membros.map((m) => [m.id, m]));
-  const vistos = new Set<string>();
-  let atual = porId.get(vendedorId)?.superior_id ?? null;
-  while (atual && !vistos.has(atual)) {
-    vistos.add(atual);
-    const m = porId.get(atual);
-    if (!m) return null;
-    if (m.perfil === 'supervisor') return m.id;
-    atual = m.superior_id;
-  }
-  return null;
-}
-
-export interface EntradaRegistroDecisao {
-  estado: EstadoProjecao;
-  viewer: { id: string; perfil: MembroEquipe['perfil'] };
-  /** Cadastro de usuários do Core (hierarquia): define o escopo e o supervisor a avisar. */
-  membros: readonly MembroEquipe[];
-  /** Instante UTC da decisão. */
-  agora: string;
-  /** Corpo recebido (`DecisaoAprovacao`). */
-  entrada: unknown;
-}
-
-export type ResultadoRegistroDecisao =
-  | { ok: true; registro: RegistroDecisaoAprovacao; avisos: AvisoDecisaoAoSupervisor[] }
-  | { ok: false; codigo: CodigoRecusaDecisao; erros: string[] };
-
-const recusa = (codigo: CodigoRecusaDecisao, mensagem: string): ResultadoRegistroDecisao => ({ ok: false, codigo, erros: [mensagem] });
-
-/**
- * RN-GES-04/07/08: valida e registra a decisão de quem está na fila. Analista e admin (e perfis de campo) só leem;
- * o pedido precisa estar pendente, no escopo de quem decide e no nível que ele pode decidir. Quando o gerente decide
- * um item do nível supervisor, o registro marca `acima_do_nivel` e sai um aviso ao supervisor do vendedor.
- * Quem EXECUTA a decisão (e revalida a alçada) continua sendo a API do Vendedor (`pedido.aprovar`).
- */
-export function registrarDecisao(e: EntradaRegistroDecisao): ResultadoRegistroDecisao {
-  const v = validarDecisao(e.entrada);
-  if (!v.ok) return { ok: false, codigo: 'DECISAO_INVALIDA', erros: v.erros };
-  const perfil = e.viewer.perfil;
-  if (perfil !== 'supervisor' && perfil !== 'gerente') return recusa('SOMENTE_LEITURA', 'RN-GES-07: este perfil vê a fila em modo leitura e não decide aprovações.');
-  const d = v.decisao;
-  const a = e.estado.aprovacoes[d.pedido_id];
-  if (!a || !pedidoPendenteDeAprovacao(e.estado, d.pedido_id)) return recusa('NAO_PENDENTE', 'Este pedido não está aguardando aprovação.');
-  if (!podeVer(escopoDoUsuario(e.viewer, e.membros), a.vendedor_id)) return recusa('FORA_DO_ESCOPO', 'O vendedor deste pedido não é da sua equipe.');
-  if (!podeDecidir(perfil, a.nivel)) return recusa('FORA_DA_ALCADA', `Este pedido precisa de aprovação do nível ${a.nivel}.`);
-  const acima = decideAcimaDoNivel(perfil, a.nivel);
-  const registro: RegistroDecisaoAprovacao = {
-    pedido_id: d.pedido_id,
-    vendedor_id: a.vendedor_id,
-    decisao: d.decisao,
-    comentario: d.comentario,
-    nivel_pedido: a.nivel,
-    decidido_por_id: e.viewer.id,
-    decidido_por_perfil: perfil,
-    acima_do_nivel: acima,
-    decidido_em: e.agora,
-  };
-  const supervisor = acima ? supervisorDoVendedor(e.membros, a.vendedor_id) : null;
-  const avisos: AvisoDecisaoAoSupervisor[] = supervisor
-    ? [{ tipo: 'aprovacao_decidida_pelo_gerente', destinatario_id: supervisor, pedido_id: d.pedido_id, vendedor_id: a.vendedor_id, decisao: d.decisao, decidido_por_id: e.viewer.id, decidido_em: e.agora }]
-    : [];
-  return { ok: true, registro, avisos };
 }
