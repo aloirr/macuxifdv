@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import { definirModuloShell } from '@macuxi/platform-sdk';
+import { migracoesAparelho } from '../db/aparelho';
 import { manifest } from '../manifest';
 import { comVisitas } from './components/visit-sheets';
 import { consultaFinanceiroClienteAparelho } from './consultas';
@@ -48,6 +49,7 @@ export { VisitSheetsProvider, useVisitSheets } from './components/visit-sheets';
  */
 export const moduloApp = definirModuloShell<ComponentType>({
   manifesto: manifest,
+  migracoesAparelho,
   paginas: [
     { id: 'rota', caminho: 'rota', titulo: 'Rota de hoje', navegacao: 'Rota', icone: 'pin', apps: ['campo'], ordem: 20, componente: comVisitas(TelaRota) },
     { id: 'clientes', caminho: 'clientes', titulo: 'Clientes', navegacao: 'Clientes', icone: 'users', apps: ['campo', 'gestao'], ordem: 30, componente: comVisitas(TelaClientes) },

@@ -68,7 +68,7 @@ export type AceiteTermoRastreamento = z.infer<typeof AceiteTermoRastreamentoSche
 
 /**
  * Pull `aceite_termo_rastreamento` (só os do próprio usuário): o aceite já feito volta ao aparelho depois de apagar os bancos locais, e o
- * termo não é pedido de novo (banco-dados, `docs/banco/core.md` 0088). A entidade fica `ambos`: envia `AceiteTermoRastreamentoSchema`, recebe esta linha.
+ * termo não é pedido de novo (banco-dados, `docs/banco/core.md` 0089). A entidade fica `ambos`: envia `AceiteTermoRastreamentoSchema`, recebe esta linha.
  */
 export const AceiteTermoRastreamentoSyncSchema = z
   .object({ id: Id, usuario_id: Id, termo_versao: z.number().int().min(1), aceito_em: Instante, updated_at: Instante, deleted_at: Instante.nullable(), external_id: z.string().nullable().optional() })
