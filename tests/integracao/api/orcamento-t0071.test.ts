@@ -23,6 +23,9 @@ import { consultaFiliais } from '../../../modules/core/api/filiais';
 import { A, B, licenca, subirApi, type ApiDeTeste } from '../apoio/api';
 import { esperarHorizonte } from '../apoio/campo';
 
+// o `titulo_vencido_dias = 30` do tenant A vale só para este arquivo: o afterAll apaga (os outros arquivos contam com o padrão 5)
+const LIMPAR_VENCIDO_DIAS = "delete from plataforma.parametro where tenant_id = $1 and modulo = 'vendedor' and chave = 'titulo_vencido_dias'";
+
 const id = (n: number) => `0f710000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const DOC = { orcamento: id(1), controle: id(2), promotor: id(3), orcamentoSoz: id(4) };
 
@@ -67,6 +70,7 @@ describe.skipIf(semBanco())('T-0071 — orçamento fora do ERP, promotor barrado
     api = await subirApi();
     // T-0184 (P1 A): o A.c1 da fixture tem título vencido há 10 dias e iria para aprovação por inadimplência (RN-VEN-13), com
     // qualquer forma de pagamento; este arquivo não trata disso (tests/integracao/api/aprovacao-motivo-t0184.test.ts trata)
+    await api.admin.query(LIMPAR_VENCIDO_DIAS, [A.tenantId]); // sobra de uma rodada interrompida
     await api.admin.query("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ($1, 'vendedor', 'titulo_vencido_dias', '30')", [A.tenantId]);
     if (!api.banco.urlWorker) throw new Error('banco de teste sem urlWorker (MACUXI_PG_WORKER_SENHA): a regressão da fila do ERP precisa do despachante');
     worker = new pg.Pool({ connectionString: api.banco.urlWorker, max: 2 });
@@ -84,6 +88,7 @@ describe.skipIf(semBanco())('T-0071 — orçamento fora do ERP, promotor barrado
 
   afterAll(async () => {
     if (!api) return;
+    await api.admin.query(LIMPAR_VENCIDO_DIAS, [A.tenantId]).catch(() => undefined);
     await limpar().catch(() => undefined);
     await worker?.end().catch(() => undefined);
     await api.fechar();

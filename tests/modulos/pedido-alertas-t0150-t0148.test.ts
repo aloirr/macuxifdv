@@ -404,41 +404,40 @@ describe('T-0166 — botões e folha de saída sem "aviso" (RD-0176); "Título v
   // RN-VEN-13: título vencido há mais de [5] dias → aprovação por inadimplência com qualquer forma de pagamento (T-0184, P1 A).
   // O alerta só aparece quando muda o resultado (RD-0172): acima do limite, a prazo ou à vista.
   const V = (dias: number) => ({ titulos: 2, valor_cents: 50_000, dias });
-  const tituloNosAlertas = (dias: number, prazo: number | undefined, limite = TITULO_VENCIDO_DIAS_PADRAO) =>
-    alertasDoPedido({ cliente: LIBERADO, vencidos: vencidosComEfeito(V(dias), prazo, limite) }).filter((a) => a.tipo === 'titulo').map((a) => a.texto);
+  const tituloNosAlertas = (dias: number, limite = TITULO_VENCIDO_DIAS_PADRAO) =>
+    alertasDoPedido({ cliente: LIBERADO, vencidos: vencidosComEfeito(V(dias), limite) }).filter((a) => a.tipo === 'titulo').map((a) => a.texto);
 
   it('RN-VEN-13 (limite): padrão 5 dias; atraso de 5 dias a prazo não alerta (igual ao limite não passa); 6 dias alerta "Título vencido"', () => {
     expect(TITULO_VENCIDO_DIAS_PADRAO).toBe(5);
     expect(tituloVencidoDias({})).toBe(5);
-    expect(tituloNosAlertas(5, 30)).toEqual([]);
-    expect(tituloNosAlertas(6, 30)).toEqual(['Título vencido']);
-    expect(tituloNosAlertas(120, 45)).toEqual(['Título vencido']);
+    expect(tituloNosAlertas(5)).toEqual([]);
+    expect(tituloNosAlertas(6)).toEqual(['Título vencido']);
+    expect(tituloNosAlertas(120)).toEqual(['Título vencido']);
   });
 
-  it('RN-VEN-13 (T-0184, P1 A): à vista (prazo médio 0) ou sem prazo escolhido também alerta acima do limite (o pedido vai para aprovação por inadimplência); até o limite, não', () => {
-    expect(tituloNosAlertas(30, 0)).toEqual(['Título vencido']);
-    expect(tituloNosAlertas(30, undefined)).toEqual(['Título vencido']);
-    expect(tituloNosAlertas(5, 0)).toEqual([]);
-    expect(vencidosComEfeito(null, 30, 5)).toBeNull();
+  it('RN-VEN-13 (T-0184, P1 A): o alerta não depende do prazo escolhido (à vista, a prazo ou sem prazo): só do atraso e do limite; sem vencidos, nada', () => {
+    expect(vencidosComEfeito).toHaveLength(2);
+    expect(tituloNosAlertas(30)).toEqual(['Título vencido']);
+    expect(vencidosComEfeito(null, 5)).toBeNull();
   });
 
   it('RN-VEN-13: o limite vem do parâmetro titulo_vencido_dias do tenant (10 dias: 10 não alerta, 11 alerta); parâmetro inválido volta ao padrão', () => {
     const limite = tituloVencidoDias({ titulo_vencido_dias: 10 });
     expect(limite).toBe(10);
-    expect(tituloNosAlertas(10, 30, limite)).toEqual([]);
-    expect(tituloNosAlertas(11, 30, limite)).toEqual(['Título vencido']);
+    expect(tituloNosAlertas(10, limite)).toEqual([]);
+    expect(tituloNosAlertas(11, limite)).toEqual(['Título vencido']);
     expect(tituloVencidoDias({ titulo_vencido_dias: '7' })).toBe(7);
     expect([tituloVencidoDias({ titulo_vencido_dias: -1 }), tituloVencidoDias({ titulo_vencido_dias: 2.5 }), tituloVencidoDias({ titulo_vencido_dias: '' })]).toEqual([5, 5, 5]);
   });
 
   it('RN-VEN-13: o título vencido não muda os botões (não é "só orçamento" nem impede enviar); o efeito é a aprovação', () => {
-    const a = alertasDoPedido({ cliente: LIBERADO, vencidos: vencidosComEfeito(V(12), 30, 5) });
+    const a = alertasDoPedido({ cliente: LIBERADO, vencidos: vencidosComEfeito(V(12), 5) });
     expect(a.map((x) => [x.tipo, x.texto, x.so_orcamento, x.impede_enviar])).toEqual([['titulo', 'Título vencido', false, false]]);
   });
 
-  it('tela: o Novo pedido passa à área Alertas os vencidos filtrados por vencidosComEfeito, com o prazo escolhido e o limite do tenant', () => {
+  it('tela: o Novo pedido passa à área Alertas os vencidos filtrados por vencidosComEfeito, com o limite do tenant', () => {
     const tela = ler('modules/vendedor/app/screens/new-order-screen.tsx');
-    expect(tela).toMatch(/vencidos: vencidosComEfeito\([^\n]*dias: credito\.alerta\.dias \} : null, prazoEscolhido\?\.prazo_medio_dias, tituloVencidoDias\(parametrosVendedor\)\)/);
+    expect(tela).toMatch(/vencidos: vencidosComEfeito\([^\n]*dias: credito\.alerta\.dias \} : null, tituloVencidoDias\(parametrosVendedor\)\)/);
     // a área Alertas não recebe os vencidos crus por outro caminho
     expect(tela.match(/vencidos:/g)).toHaveLength(1);
   });
