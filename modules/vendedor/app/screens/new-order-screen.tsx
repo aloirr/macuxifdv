@@ -37,7 +37,7 @@ import { calcularPedido, enderecosDoCliente, lerChaveDaLinha, situacaoDoFrete, p
 import { abaAnteriorDoPedido, abaInicialDoRascunho, AVISO_PEDIDO_SALVO, abasDoPedido, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, nomeDaSugestao, proximaAbaDoPedido, type AbaNovoPedido } from '../lib/textos-pedido';
 import { unidadesDoProduto } from '../lib/novo-pedido';
 import { MENSAGEM_ERRO_BUSCA } from '../lib/busca-catalogo';
-import { alertasDoNovoPedido, idDaAba, itensSemEstoque, pendenciasDasAbasTentadas, primeiraAbaComFalta } from '../lib/alertas-novo-pedido';
+import { alertasDoNovoPedido, alertasNaAba, idDaAba, itensSemEstoque, pendenciasDasAbasTentadas, primeiraAbaComFalta } from '../lib/alertas-novo-pedido';
 import { impedeEnviarPorAlertas, soOrcamentoPorAlertas, vencidosComEfeito } from '../../domain/alertas-pedido';
 import { AreaAlertas } from '../components/area-alertas';
 import { MostrarMais, ResultadosDaBusca, SemResultadoDaBusca, VisorDeFoto } from '../components/busca-itens';
@@ -220,7 +220,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   useEffect(() => {
     if (!v1 || sent) return;
     if (formas.length > 0) {
-      // sem pagamento (ou fora da lista do cliente): a primeira forma permitida e o primeiro prazo habilitado
+      // sem pagamento (ou fora da lista do cliente): a primeira forma permitida e o primeiro prazo ativo dela (RN-VEN-25: todos os prazos ativos valem)
       const novo = rascunhoComPagamentoPadrao(draft, formas, prazos, limites);
       if (novo !== draft) updateDraft(customerId, (d) => rascunhoComPagamentoPadrao(d, formas, prazos, limites));
       return;
@@ -230,7 +230,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
     if (draft.condicao_pagamento_id && condicoes.some((c) => c.id === draft.condicao_pagamento_id)) return;
     const padrao = condicoes[0]!;
     updateDraft(customerId, (d) => ({ ...d, payment_terms: padrao.descricao, condicao_pagamento_id: padrao.id }));
-  }, [v1, formas, prazos, limites.prazo_medio_max_dias, limites.formas_pagamento, condicoes, draft.forma_pagamento_id, draft.prazo_pagamento_id, draft.condicao_pagamento_id, sent, editId]);
+  }, [v1, formas, prazos, limites.formas_pagamento, condicoes, draft.forma_pagamento_id, draft.prazo_pagamento_id, draft.condicao_pagamento_id, sent, editId]);
 
   const ambiente = useAmbiente();
   const parametrosVendedor = ambiente.parametros('vendedor');
@@ -358,7 +358,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
 
   // RD-0170 (T-0166): a falta de preenchimento só entra em Alertas nas abas já tentadas; pedido recém-aberto: 0 alertas
   const [tentou, setTentou] = useState<ReadonlySet<AbaDoPedido>>(new Set());
-  // RN-VEN-42 (T-0150): a área única Alertas, no topo de todas as abas (cliente, faltante, máximo, estoque, crédito, título)
+  // RN-VEN-42 (T-0150): a área única Alertas, só na aba Resumo (R-20261119-030234; cliente, faltante, máximo, estoque, crédito, título)
   const codigos = useMemo(() => new Map(catalog.map((p) => [p.id, p.erp_code] as [string, string])), [catalog]);
   const marcas = useMemo(() => new Map(catalog.flatMap((p) => (p.brand?.trim() ? [[p.id, p.brand.trim()] as [string, string]] : []))), [catalog]);
   const semEstoque = !sent && calculoBase ? itensSemEstoque(calculoBase.linhas, (id) => byId.get(id)) : [];
@@ -736,7 +736,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
 
       <AcimaDoTeclado>
       <ScrollView ref={rolagem.ref} onScroll={rolagem.onScroll} onLayout={rolagem.onLayout} scrollEventThrottle={32} contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 12, paddingBottom: 16, gap: 12 }} keyboardShouldPersistTaps="handled" testID="new-order">
-        {!sent ? <AreaAlertas alertas={alertasDoTopo} aoTocar={(a) => {
+        {!sent ? <AreaAlertas alertas={alertasNaAba(aba, alertasDoTopo)} aoTocar={(a) => {
           const v = a.vai_para;
           irParaAba(v && 'aba' in v ? idDaAba(v.aba) : 'itens');
           if (v && 'item' in v) setPopupId(v.item);
@@ -758,7 +758,6 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
             ]}
             pagamento={<CardPagamento rascunho={draft} formas={formas} prazos={prazos} cliente={limites} legado={opcoesLegado} onRascunho={emRascunho} faltaForma={faltaDoCampo('forma')} faltaPrazo={faltaDoCampo('prazo')} />}
             credito={credito}
-            prazoMedioDias={limites.prazo_medio_max_dias}
             sincronizadoEm={app.sincronizadoEm}
             agora={new Date()}
             tz={tz}

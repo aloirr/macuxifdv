@@ -19,6 +19,7 @@
 --   não seja boolean), em tabela ou view: a saída da consulta vai para o log do Actions (regra 8). E o papel: membro de
 --   qualquer papel, EXECUTE em alguma plataforma.sa_* ou em função SECURITY DEFINER além de plataforma.tenant_por_codigo(text)
 --   aparece como "(papel) macuxi_leitura". Função que retorna event_trigger (a do pgaudit do DBaaS) fica fora: SQL não a chama.
+--   Exceção (0089, ADR 0061; TABELAS_SEM_LEITURA): as tabelas do rastreamento ficam SEM política e SEM grant para ele.
 -- Resultado esperado: ZERO linhas. Exceções (iguais a db/src/excecoes.ts, TABELAS_SEM_TENANT_ID): plataforma.tenant não tem
 -- tenant_id (o id é o tenant; RLS por id), plataforma.plano não tem tenant_id (catálogo; desde a 0086 o app lê só o plano da
 -- assinatura do próprio tenant, política pelo id) e public.macuxi_migracao fica fora (schema public, sem acesso do macuxi_app).
@@ -74,6 +75,10 @@ so_por_funcao (nome) as (
          ('plataforma.dados_legais'),
          ('plataforma.frase_carga')
 ),
+sem_leitura (nome) as (
+  values ('core.ponto_trajeto'),
+         ('core.ausencia_usuario')
+),
 problemas as (
   select t.nome, 'RLS desligado' as problema from tabelas t where not t.rls
   union all
@@ -113,7 +118,7 @@ problemas as (
                   where p.polrelid = t.oid and r.rolname = 'macuxi_worker')
   union all
   select t.nome, 'sem a política leitura ou o SELECT do macuxi_leitura (0078)' from tabelas t
-   where t.rls and t.nome not in (select f.nome from so_por_funcao f)
+   where t.rls and t.nome not in (select f.nome from so_por_funcao f) and t.nome not in (select l.nome from sem_leitura l)
      and (t.nome = 'plataforma.tenant' or exists (select 1 from pg_attribute a where a.attrelid = t.oid and a.attname = 'tenant_id' and a.attnum > 0 and not a.attisdropped))
      and (not exists (
             select 1 from pg_policy p join pg_roles r on r.oid = any (p.polroles)
@@ -123,8 +128,8 @@ problemas as (
                                                             else '(tenant_id = plataforma.tenant_atual())' end)
           or not exists (select 1 from pg_roles r where r.rolname = 'macuxi_leitura' and has_any_column_privilege(r.oid, t.oid, 'SELECT')))
   union all
-  select t.nome, 'só por função, mas com política ou grant para o macuxi_leitura (0078)' from tabelas t
-   where t.nome in (select f.nome from so_por_funcao f)
+  select t.nome, 'só por função ou sem leitura (0078; 0089, ADR 0061), mas com política ou grant para o macuxi_leitura' from tabelas t
+   where (t.nome in (select f.nome from so_por_funcao f) or t.nome in (select l.nome from sem_leitura l))
      and (exists (select 1 from pg_policy p join pg_roles r on r.oid = any (p.polroles)
                    where p.polrelid = t.oid and r.rolname = 'macuxi_leitura')
           or exists (select 1 from pg_roles r where r.rolname = 'macuxi_leitura'

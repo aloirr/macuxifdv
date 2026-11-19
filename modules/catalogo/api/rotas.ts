@@ -24,6 +24,7 @@
  * GET  termos-sem-resultado       busca.ver_sem_resultado
  * POST fotos-lote, fotos-lote/:id/enfileirar; GET fotos-lote, fotos-lote/limites, fotos-lote/:id, /itens, /relatorio.csv   produto.enriquecer  fotos em lote por ZIP (RN-CAT-14, T-0174; `fotos-lote.ts`)
  */
+import { CODIGOS_FILIAL_USUARIO, MENSAGEM_USUARIO_SEM_FILIAL } from '@macuxi/core/contracts';
 import {
   ErroHttpModulo,
   ErroNaoEncontrado,
@@ -86,7 +87,7 @@ import { resolverCodigosOfereceJunto, validarMarcasDaReferencia } from '../domai
 import { montarExportacao } from '../domain/exportacao';
 import { montarArvore, produtosDoNo } from '../domain/arvore';
 import { idsAtivos, navegarHierarquia } from '../domain/hierarquia';
-import { filialDaTelaDePreco, filialNaCarteira } from '../domain/preco-filial';
+import { filialDaTelaDePreco } from '../domain/preco-filial';
 import { textoPareceCodigo } from '../domain/codigo-busca';
 import { conflitoDeFaixa, dataCivilNoFuso, faixaMaisCaraQueATabela, faixaVigente, validarFaixa } from '../domain/escalonada';
 import { conflitoDeSinonimo, montarFicha, normalizarSinonimo, termoDeBusca } from '../domain/conteudo';
@@ -95,6 +96,7 @@ import { AVISO_BUSCA_FALHOU, type PortaInterpretacaoLlm } from '../domain/ia';
 import { diaDoTenant, verificarConsultaIa } from '../domain/limite-ia';
 import { parametrosDoTenant, timeoutIaDoTenant, type ParametrosCatalogo } from '../domain/parametros';
 import { chaveDeTermo, type SinonimoDoTenant } from '../domain/texto';
+import { filiaisDaFolha, filiaisDoEstoque, type FiltroFilial } from '../domain/estoque-campo';
 import { podeVerPrecoEstoque } from '../domain/visibilidade';
 import { candidatosDaBusca, cortarCandidatos, TETO_CANDIDATOS } from '../domain/indice-busca';
 import { buscarProdutos, itemDaVitrine, listarVitrine, vocabularioDe, type ContextoVitrine, type ProdutoCatalogo } from '../domain/vitrine';
@@ -124,6 +126,13 @@ function vocabularioEmCache(produtos: readonly ProdutoCatalogo[]): ReturnType<ty
   return v;
 }
 
+/** Uma leitura de `core.filiais@1` (filiaisDaTela) e de `filiais_do_usuario` (filiaisDeVenda) por requisição: o repositório guarda a promessa. */
+function umaLeituraPorRequisicao(repo: RepositorioCatalogo): RepositorioCatalogo {
+  let daTela: ReturnType<RepositorioCatalogo['filiaisDaTela']> | undefined;
+  let deVenda: ReturnType<RepositorioCatalogo['filiaisDeVenda']> | undefined;
+  return { ...repo, filiaisDaTela: () => (daTela ??= repo.filiaisDaTela()), filiaisDeVenda: () => (deVenda ??= repo.filiaisDeVenda()) };
+}
+
 type Ctx<C = unknown, Q = unknown, P = unknown> = ContextoRota<C, Q, P>;
 
 /** RN-CORE-39: filial dos preços na tela do BKO (a pedida ou a padrão); filial que não é do tenant dá 422. */
@@ -142,39 +151,52 @@ async function conferirCliente(ctx: ContextoBase, clienteId: string | undefined)
   return clienteId;
 }
 
-/** Filial da busca sem cliente: a que vale para o preço (a escolhida ou a padrão) e a escolhida de fato (nula = padrão, estoque da carteira). */
+/** Filial da busca sem cliente: a do preço (a pedida ou a padrão) e o filtro de estoque. */
 interface FilialDaBuscaSemCliente {
   filialId: string;
-  escolhida: string | null;
+  /** Filtro de estoque da tela (catalogo-campo-v2 §3): uma filial, `todas` ou nenhum (o padrão do perfil). */
+  filtro: FiltroFilial;
 }
 
 /**
- * RN-VEN-01: sem cliente, a busca usa a filial padrão do tenant (ou a pedida em `filial`), como o app pelo menu. Revalida tenant (filial do
- * core.filiais@1) e escopo (filiais da carteira). Com cliente em contexto a filial é a dele e `filial` é ignorada.
+ * RN-VEN-01: sem cliente, a busca usa a filial padrão do tenant (ou a pedida em `filial`), como o app pelo menu. Revalida o tenant (filial do
+ * core.filiais@1) e as filiais de venda do usuário. Com cliente em contexto a filial é a dele e `filial` é ignorada.
  */
 async function filialDaBusca(repo: RepositorioCatalogo, clienteId: string | null, pedida: string | undefined): Promise<FilialDaBuscaSemCliente | null> {
   if (clienteId !== null) return null;
+  if (pedida === 'todas') return { filialId: (await filialDaTela(repo, undefined)).filialId, filtro: 'todas' };
   const { filialId } = await filialDaTela(repo, pedida);
-  // RN-CORE-04: a filial escolhida precisa estar entre as da carteira (nulo = todas)
-  const daCarteira = pedida ? await repo.filiaisDoUsuario(null) : null;
-  if (pedida && !filialNaCarteira(pedida, daCarteira)) throw new ErroHttpModulo(403, 'FILIAL_FORA_DA_CARTEIRA', 'Você não tem acesso a essa filial. Escolha uma das suas filiais.');
-  return { filialId, escolhida: pedida ?? null };
+  // RN-CAT-05 / RN-CORE-39: todo perfil vê estoque só das filiais de VENDA dele (core.filiais_do_usuario@1)
+  if (pedida && !(await repo.filiaisDeVenda()).filiaisVenda.includes(pedida)) throw new ErroHttpModulo(403, 'FILIAL_FORA_DAS_SUAS', 'Você não tem acesso a essa filial. Escolha uma das suas filiais.');
+  return { filialId, filtro: pedida ?? null };
+}
+
+/**
+ * catalogo-campo-v2 §3 e §4: filiais do N (`filiais`) e da folha "Estoque por filial" (`filiaisFolha`). O N vem de `filiaisDoEstoque`
+ * (domain) e a folha de `filiaisDaFolha`; ambas partem das filiais de VENDA do usuário (RN-CORE-39), para todo perfil.
+ * `sem_filial`: como no Core (RN-CORE-39), vale para QUALQUER perfil, admin e analista inclusive (eles se destravam em
+ * `PUT /v1/core/eu/filial-cadastro`): a API recusa com 403 USUARIO_SEM_FILIAL e nada de preço ou estoque sai.
+ */
+async function filiaisDoEstoqueDoUsuario(repo: RepositorioCatalogo, clienteId: string | null, filial: FilialDaBuscaSemCliente | null): Promise<{ filiais: readonly string[]; filiaisFolha: readonly string[]; filialCadastro: string | null; nomesFilial: Readonly<Record<string, string>> }> {
+  const venda = await repo.filiaisDeVenda();
+  if (venda.semFilial) throw new ErroHttpModulo(403, CODIGOS_FILIAL_USUARIO.semFilial, MENSAGEM_USUARIO_SEM_FILIAL);
+  const filialDoCliente = clienteId !== null ? await repo.filialDoCliente(clienteId) : null;
+  const nomesFilial = Object.fromEntries((await repo.filiaisDaTela()).filiais.map((f) => [f.id, f.nome]));
+  return { filiais: filiaisDoEstoque(venda, { filialDoCliente, filtro: filial?.filtro ?? null }), filiaisFolha: filiaisDaFolha(venda), filialCadastro: venda.filialCadastro, nomesFilial };
 }
 
 /** Monta o contexto de preço/estoque do usuário. RN-CAT-05: para quem não vê, nada de preço/estoque é lido do banco. */
 async function contextoVitrine(ctx: ContextoBase, repo: RepositorioCatalogo, p: ParametrosCatalogo, clienteId: string | null, produtos: readonly ProdutoCatalogo[], soEstoque = false, filial: FilialDaBuscaSemCliente | null = null): Promise<ContextoVitrine> {
   const base = { perfil: ctx.usuario.perfil, parametros: p, agora: ctx.agora().toISOString(), clienteId };
-  if (!podeVerPrecoEstoque(ctx.usuario.perfil, p)) {
-    return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: new Map(), filiais: [] };
-  }
   const ids = produtos.filter((x) => x.ativo).map((x) => x.id);
-  // T-0119: o corte dos candidatos só precisa do estoque (a nota da busca não usa o preço)
-  if (soEstoque) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: await repo.saldos(ids), filiais: (filial?.escolhida ? [filial.escolhida] : await repo.filiaisDoUsuario(clienteId)) };
+  const { filiais, filiaisFolha, filialCadastro, nomesFilial } = await filiaisDoEstoqueDoUsuario(repo, clienteId, filial);
+  const saldos = await repo.saldos(ids);
+  // T-0119: o corte dos candidatos só precisa do estoque; RN-CAT-05 (revista): promotor sem `promotor_ve_preco_estoque` recebe o
+  // estoque, nunca o preço (nada de preço é lido do banco)
+  if (soEstoque || !podeVerPrecoEstoque(ctx.usuario.perfil, p)) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos, filiais, filiaisFolha, filialCadastro, nomesFilial };
   const precos = await repo.precos(clienteId, ids, filial?.filialId ?? null);
   const promocoes = await repo.promocoes(ids);
-  const saldos = await repo.saldos(ids);
-  const filiais = (filial?.escolhida ? [filial.escolhida] : await repo.filiaisDoUsuario(clienteId));
-  return { ...base, tabelaClienteId: precos.tabelaClienteId, itensPreco: precos.itens, promocoes, saldos, filiais };
+  return { ...base, tabelaClienteId: precos.tabelaClienteId, itensPreco: precos.itens, promocoes, saldos, filiais, filiaisFolha, filialCadastro, nomesFilial };
 }
 
 interface Interpretacao {
@@ -242,7 +264,7 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     const ids = r.tipo === 'produtos' ? new Set(r.produtoIds) : arvore.nos.has(no) ? produtosDoNo(arvore, vinculos, no) : ativos;
     return produtos.filter((p) => ids.has(p.id) && ativos.has(p.id));
   };
-  const comRepo = <T>(ctx: ContextoBase, fn: (repo: RepositorioCatalogo) => Promise<T>) => ctx.comTenant((db, tx) => fn(dep.repositorio(ctx, db, tx)));
+  const comRepo = <T>(ctx: ContextoBase, fn: (repo: RepositorioCatalogo) => Promise<T>) => ctx.comTenant((db, tx) => fn(umaLeituraPorRequisicao(dep.repositorio(ctx, db, tx))));
 
   const busca: RotaModulo = {
     metodo: 'GET',
@@ -257,7 +279,6 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
       // RN-CAT-03: modo básico e texto de código não usam IA (nem leem a cota)
       const semIa = q.mode === 'basica' || textoPareceCodigo(q.q);
       const dia = diaDoTenant(ctx.agora(), ctx.fuso());
-      const podeVer = podeVerPrecoEstoque(ctx.usuario.perfil, p);
       // 1) leitura curta: produtos, sinônimos e uso de IA do dia
       const leitura = await comRepo(ctx, async (repo) => ({ produtos: await (repo.produtosEmCache?.() ?? repo.produtos()), sinonimos: await repo.sinonimos(), uso: semIa ? null : await repo.usoIa(dia) }));
       const vocab = vocabularioEmCache(leitura.produtos);
@@ -265,7 +286,7 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
       const interp = await interpretar(ctx, dep, q, semIa, vocab, p, leitura.uso, dia);
       // 3) preço/estoque do usuário, ranking e registro da busca (RF-CAT-07)
       return comRepo(ctx, async (repo) => {
-        const filial = podeVer ? await filialDaBusca(repo, clienteId, q.filial) : null;
+        const filial = await filialDaBusca(repo, clienteId, q.filial);
         const sinonimos: readonly SinonimoDoTenant[] = leitura.sinonimos;
         const chips = { line: q.line, brand: q.brand, only_in_stock: q.only_in_stock };
         // T-0119 (D-T0107b): com catálogo grande o índice separa os candidatos; preço e estoque são lidos só deles

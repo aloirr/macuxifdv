@@ -113,11 +113,11 @@ describe('Relevância na base demo — 20+ consultas de referência (critério d
     expect(cafe.price?.price_cents).toBe(Math.round(1890 * 0.93));
   });
 
-  it('RN-CAT-05: o promotor acha os mesmos produtos (sem preço e sem estoque) e "mais barato" não ordena por preço', () => {
+  it('RN-CAT-05: o promotor acha os mesmos produtos (sem preço, com estoque) e "mais barato" não ordena por preço', () => {
     const promotor = contexto({ perfil: 'promotor' });
     expect(buscar('refri', promotor).skus.slice(0, 2).sort()).toEqual(['REF-2L', 'REF-350']);
     const r = buscar('limpeza mais barato', promotor);
-    expect(r.items.every((i) => i.price === null && i.availability === null)).toBe(true);
+    expect(r.items.every((i) => i.price === null && i.availability !== null)).toBe(true);
     expect(r.skus.sort()).toEqual(['DES-2L', 'DET-500', 'SAB-1K']);
   });
 

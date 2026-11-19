@@ -63,3 +63,6 @@ export * from './usuario-sem-exclusao';
 export * from './vinculo-por-nome';
 export * from './filial-usuario';
 export * from './filtro-padrao';
+export * from './rastreamento';
+export * from './trajeto-ponto';
+export * from './rastreamento-parametros';
