@@ -171,7 +171,7 @@ const g = StyleSheet.create({
   acoes: { flexDirection: 'row', gap: 6, marginLeft: 'auto' },
   rodape: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   codigo: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  codigoTexto: { ...fonte.semibold, fontSize: 14, color: colors.ink, flexShrink: 1 },
+  codigoTexto: { ...fonte.mono, fontSize: 14, color: colors.ink, flexShrink: 1 },
   // 28 dp de caixa + 10 de folga em cada lado = alvo de 48 dp, sem empurrar o rodapé para fora da coluna de 360 dp
   copiar: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
 });

@@ -114,7 +114,7 @@ const e = StyleSheet.create({
   cabecalho: { height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, backgroundColor: colors.neutralBg },
   cabecalhoTexto: { ...fonte.semibold, fontSize: 14, color: colors.ink2 },
   linha: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
-  nome: type.bodyStrong,
+  nome: type.body,
   sua: type.sub,
   valor: { ...fonte.semibold, fontSize: 16, fontVariant: ['tabular-nums'], textAlign: 'right' },
   grupo: { ...fonte.semibold, fontSize: 14, color: colors.ink2, marginTop: 8, marginBottom: 4 },
