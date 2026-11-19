@@ -139,6 +139,10 @@ de cor (altura, raio, fonte e regras iguais). O Azul noite some no grafite (1,29
 - `ChipEstado`: **sempre com texto** (o componente não desenha nada sem texto). 28 dp; `pequeno` 24 dp dentro de cartão de lista.
   Tons e textos do pedido: `sucesso` Aprovado · `aviso` Aguardando aprovação (curto: "Aguardando") · `erro` Rejeitado ·
   `neutro` Na fila · `destaque` Orçamento (o tom `roxo` saiu do kit, RD-0235). `Badge` antigo virou pílula de 24 dp.
+- `Badge` com `linhas?: 1 | 2` (MC-1790, T-0186): padrão 1 (pílula, texto cortado com "…"; quem já usa não muda). Use
+  `linhas={2}` só em **coluna estreita de tabela** onde o estado não cabe numa linha, ex.: coluna Status (92 dp) do Histórico
+  do Cliente 360 com "Devolvido parcial". Com 2 linhas: texto centralizado, lineHeight 16, paddingVertical 3, minHeight 24 e
+  raio `radius.sm` (8), não pílula (pílula em 2 linhas vira um ovo). Regra pura em `formaDoBadge` (`componentes.ts`).
 - Linha de lista: título 16/600, linha de apoio 14 `ink2`, valor 16/700 tabular à direita, chip no alto à direita.
 - `LinhaAtalho` (T-0085): linha tocável que leva a **outra vista da mesma aba** ("Rascunhos (2)" em Pedidos, T-0141). Fundo
   `accentSoft` sem borda, raio 12, ícone e seta `accentInk`, rótulo 15/600 (até 24 caracteres), apoio 13 `ink2` (até 36);
