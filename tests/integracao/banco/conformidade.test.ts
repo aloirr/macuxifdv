@@ -202,6 +202,9 @@ const DEFINER_REVISADAS_WORKER: Record<string, string> = {
     'devolve o trabalho do próprio processo (concluído, falhou ou de novo após p_espera_s); erro só como código; false se a trava não é mais dele',
   'plataforma.trabalho_renovar(p_id uuid, p_processo text, p_trava_s integer)':
     'estende a trava entre os itens só se o trabalho ainda é do processo; false = não é mais dele',
+  // 0089 (rastreamento; retenção de R-20261116-110200-alexandre): NÃO entra em DEFINER_REVISADAS (o app não executa)
+  'core.expurgar_rastreamento(p_agora timestamp with time zone DEFAULT now(), p_limite integer DEFAULT 10000)':
+    'retenção LGPD: apaga de fato ponto_trajeto com mais de 90 dias e deslocamento_dia com mais de 5 anos, em lote (skip locked); devolve só tenant e contagens; p_limite 1..50000',
 };
 
 /**
