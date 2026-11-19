@@ -15,12 +15,6 @@ export const ROTA_VISOR_PDF = '/pdf';
 /** Pasta dos temporários, dentro do cache do app. */
 export const PASTA_PDF_TEMPORARIO = 'visor-pdf';
 
-/** "pdf", ".PDF" e "application/pdf" são PDF; o resto (inclusive ausente) segue para o visor de foto. */
-export function ehFormatoPdf(formato: string | null | undefined): boolean {
-  const t = (formato ?? '').trim().toLowerCase();
-  return (t.includes('/') ? (t.split('/').pop() ?? '') : t).replace(/^\./, '') === 'pdf';
-}
-
 /** Rota do visor de PDF; lança se o arquivo não for UUID. */
 export function rotaDoVisorPdf(p: PedidoVerFoto): { pathname: typeof ROTA_VISOR_PDF; params: Record<string, string> } {
   return { ...rotaDoVisor(p), pathname: ROTA_VISOR_PDF };

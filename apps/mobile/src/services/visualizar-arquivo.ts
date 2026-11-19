@@ -4,17 +4,17 @@
  * (`/pdf`, `app/pdf.tsx`); o resto, o visor de foto comum (`abrirFoto`, RD-0088). Nada fica guardado no aparelho. Os
  * formatos vão no registro da porta (`{ formatos: ['imagem', 'pdf'] }`, services/camera.ts).
  */
-import type { PedidoAbrirArquivo } from '@macuxi/core/app';
+import { normalizarFormato, type PedidoAbrirArquivo } from '@macuxi/core/app';
 import { router } from 'expo-router';
 
-import { ehFormatoPdf, rotaDoVisorPdf } from '@/lib/visor-pdf';
+import { rotaDoVisorPdf } from '@/lib/visor-pdf';
 
 import { abrirFoto } from './visor-foto';
 
 /** A porta registrada no Core. Nunca lança (arquivo que não é UUID não abre nada). */
 export function abrirArquivo(p: PedidoAbrirArquivo): void {
   const pedido = { arquivo_id: p.arquivo_id, titulo: p.titulo, ...(p.subtitulo ? { subtitulo: p.subtitulo } : {}) };
-  if (!ehFormatoPdf(p.formato)) {
+  if (normalizarFormato(p.formato) !== 'pdf') {
     abrirFoto(pedido);
     return;
   }

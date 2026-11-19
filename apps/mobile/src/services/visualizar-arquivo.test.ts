@@ -5,6 +5,11 @@ const sim = vi.hoisted(() => ({ fotos: [] as unknown[], rotas: [] as unknown[] }
 
 vi.mock('./visor-foto', () => ({ abrirFoto: (p: unknown) => sim.fotos.push(p) }));
 vi.mock('expo-router', () => ({ router: { push: (r: unknown) => sim.rotas.push(r) } }));
+// o índice de `@macuxi/core/app` (de onde vem `normalizarFormato`) puxa telas: os módulos nativos viram vazios
+vi.mock('react-native', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('react-native-safe-area-context', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('react-native-svg', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('@macuxi/ui/mobile', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
 
 import { abrirArquivo } from './visualizar-arquivo';
 
