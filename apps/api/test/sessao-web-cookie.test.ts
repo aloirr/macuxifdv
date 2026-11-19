@@ -14,12 +14,12 @@ import {
   problemasRotaPublica,
   type RotaPublica,
 } from '@macuxi/platform-sdk';
+import { MENSAGEM_SESSAO } from '@macuxi/core/contracts';
 import { manifest as core } from '@macuxi/core/manifest';
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
 import { lerSessaoWeb, opcoesLogger } from '../src/config';
-import { MENSAGEM_SESSAO } from '../src/sessao-web';
 import { bancoFalso, LICENCAS_PADRAO, modulosDeTeste, opcoesDeTeste } from './apoio';
 
 const TENANT = '00000000-0000-4000-8000-000000000001';

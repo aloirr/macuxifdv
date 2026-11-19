@@ -82,11 +82,6 @@ export function motivosPendentes(estado: EstadoProjecao, pedidoId: string): Moti
   return sol.aprovacoes.filter((x) => !decididos.has(x.motivo)).map((x) => ({ motivo: x.motivo, nivel: x.nivel }));
 }
 
-/** O pedido tem algum motivo pendente de aprovação. */
-export function pedidoPendenteDeAprovacao(estado: EstadoProjecao, pedidoId: string): boolean {
-  return motivosPendentes(estado, pedidoId).length > 0;
-}
-
 /**
  * Quem decide: o perfil do nível pedido e, pela RN-GES-04, o gerente também decide o nível supervisor. Analista e
  * admin só leem (RN-GES-07). A alçada em si é do Vendedor (RN-VEN-10); a API do Vendedor revalida.

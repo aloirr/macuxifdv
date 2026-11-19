@@ -176,7 +176,6 @@ export const DocumentoTipoSchema = z.object({
   ativo: z.boolean(),
 });
 export const PermissaoTipoDocumentoSchema = z.object({ tipo_id: Id, perfil: z.string().min(1).max(40), nivel: NivelDocumentoSchema });
-export const ExcecaoDocumentoSchema = z.object({ documento_id: Id, perfil: z.string().min(1).max(40) });
 
 /** `GET documentos/permissoes` (ação `documento.permissoes`): a matriz tipo × perfil e as exceções por documento. */
 export const DocumentoPermissoesRespostaSchema = z.object({
