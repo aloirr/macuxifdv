@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { diagnosticarPapelApp } from '../src/papeis';
-import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
+import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_LEITURA, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
 import { banco, semBanco } from './estado';
 import { comCliente, tabelasDeDominio } from './util';
 
@@ -19,9 +19,10 @@ describe('B1 conferência de RLS (estático)', () => {
     return [...bloco.matchAll(/\('([a-z_]+\.[a-z_]+)'\)/g)].map((m) => m[1]!);
   };
 
-  it('as exceções da consulta são as de db/src/excecoes.ts (sem tenant_id e, 0035, só por função)', () => {
+  it('as exceções da consulta são as de db/src/excecoes.ts (sem tenant_id, 0035 só por função e 0089 sem leitura)', () => {
     expect(valoresDaCte('sem_tenant_id')).toEqual(Object.keys(TABELAS_SEM_TENANT_ID).filter((n) => !n.startsWith('public.')));
     expect(valoresDaCte('so_por_funcao')).toEqual([...TABELAS_SO_POR_FUNCAO]);
+    expect(valoresDaCte('sem_leitura')).toEqual([...TABELAS_SEM_LEITURA]);
   });
 });
 
