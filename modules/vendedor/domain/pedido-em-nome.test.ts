@@ -23,7 +23,7 @@ describe('RN-VEN-35: supervisor cria só para vendedor da própria equipe', () =
   it('vendedor fora da equipe é 403 FORA_DA_EQUIPE, com a ação seguinte', () => {
     const r = verificarPedidoEmNome({ autor: SUP, vendedor_id: 'v9', vendedor, visiveis: new Set(['sup', 'v1']) });
     expect(r).toMatchObject({ codigo: 'FORA_DA_EQUIPE', http: 403 });
-    expect(r?.mensagem).toMatch(/equipe/);
+    expect(r?.mensagem).toBe('Vendedor fora da sua equipe');
   });
 });
 

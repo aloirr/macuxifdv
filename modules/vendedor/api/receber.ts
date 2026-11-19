@@ -37,6 +37,7 @@ import {
   modalidadePadraoDosParametros,
   niveisDosParametros,
   MSG_RECUSA_FRETE,
+  donoDaVenda,
   politicaDoAutor,
   politicaDosParametros,
   precoMinimoBaseCents,
@@ -128,7 +129,7 @@ export async function calcularDocumento(
   const eu = ctx.usuario.id;
   const agora = ctx.agora();
   // RN-VEN-35: dono do pedido (o vendedor) × autor (o token). Orçamento nunca é em nome.
-  const donoId = tipo === 'pedido' && ehPedidoEmNome(eu, p.vendedor_id) ? p.vendedor_id! : eu;
+  const donoId = tipo === 'pedido' && ehPedidoEmNome(eu, p.vendedor_id) ? donoDaVenda({ autor_id: eu, vendedor_id: p.vendedor_id }) : eu;
   const emNome = donoId !== eu;
   const produtoIds = [...new Set(p.items.map((i) => i.product_id))];
   // 4) cadastro (core.cadastro_resumo@1): cliente e produtos existem e estão ativos
@@ -271,6 +272,8 @@ export async function calcularDocumento(
     // RN-VEN-10: o pedido do gestor usa a alçada do gestor
     policy: emNome ? politicaDoAutor(politicaDosParametros(ctx.parametros()), ctx.usuario.perfil) : politicaDosParametros(ctx.parametros()),
     total_aparelho_cents: p.total_cents,
+    // RN-GES-04 (T-0187, P4 A): no pedido em nome o autor não aprova o próprio pedido
+    ...(emNome ? { autor_perfil: ctx.usuario.perfil } : {}),
   });
   if (!rv.ok) return recusa(itemId, rv);
   // RN-VEN-20 (T-0149): sem estoque na FILIAL do cliente (saldo da filial − reservas da mesma filial) o pedido só sai como orçamento
