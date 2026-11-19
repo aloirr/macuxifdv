@@ -16,11 +16,10 @@
  * tempo); `enviado_em` nulo = na fila. Um índice só, core__ponto_trajeto_capturado, serve a fila (não enviados do mais
  * antigo, em lotes de [500]), a poda depois do envio confirmado (enviados que não são de hoje e, sem envio, os de mais de [90]
  * dias) e o km parcial de hoje (metrosDoTrajeto).
- * core__pausa_trajeto: pausa pessoal (§4.3), só início e fim (nulo = em curso); a mesma fila e a mesma retenção.
  */
 export const migracoesAparelho: { versao: number; sql: string }[] = [
   {
-    // v1 (T-0156): pontos e pausas do rastreamento, com a fila de envio
+    // v1 (T-0156): pontos do rastreamento, com a fila de envio
     versao: 1,
     sql: `
       CREATE TABLE core__ponto_trajeto (
@@ -33,13 +32,6 @@ export const migracoesAparelho: { versao: number; sql: string }[] = [
         enviado_em    TEXT
       ) WITHOUT ROWID;
       CREATE INDEX core__ponto_trajeto_capturado ON core__ponto_trajeto (capturado_em);
-      CREATE TABLE core__pausa_trajeto (
-        id          TEXT PRIMARY KEY,
-        inicio      TEXT NOT NULL,
-        fim         TEXT CHECK (fim IS NULL OR fim > inicio),
-        enviado_em  TEXT
-      ) WITHOUT ROWID;
-      CREATE INDEX core__pausa_trajeto_inicio ON core__pausa_trajeto (inicio);
     `,
   },
 ];

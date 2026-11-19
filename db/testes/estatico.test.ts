@@ -136,8 +136,8 @@ const TABELAS_0084 = ['core.usuario_contato'] as const;
 const TABELAS_0086 = ['plataforma.assinatura_historico'] as const;
 /** Tabela nova da 0088 (T-0184, P-6): aprovação por motivo do pedido (fora do sync; pedido-aprovacao.db.test.ts). */
 const TABELAS_0088_P6 = ['vendedor.pedido_aprovacao'] as const;
-/** Tabelas novas da 0089 (T-0156, ADR 0061: rastreamento no expediente; sem macuxi_leitura; rastreamento.db.test.ts). */
-const TABELAS_0089 = ['core.ponto_trajeto', 'core.pausa_trajeto', 'core.ausencia_usuario', 'core.termo_rastreamento', 'core.aceite_termo_rastreamento'] as const;
+/** Tabelas novas da 0089 (T-0156, ADR 0061: rastreamento interno no expediente; sem macuxi_leitura; rastreamento.db.test.ts). */
+const TABELAS_0089 = ['core.ponto_trajeto', 'core.ausencia_usuario'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -230,7 +230,7 @@ describe('migrações (estático)', () => {
     expect(nomes[85]).toBe('0086_plataforma_planos_troca_licencas'); // ADR 0047 (R-20261115-120632): os 4 planos de venda semeados, plataforma.assinatura_historico, sa_listar_planos, sa_assinatura_da_empresa e sa_trocar_plano no portal, trava licencas_do_tenant do cadastro de usuários e o app lendo só o plano do próprio tenant (planos-troca-licencas.db.test.ts)
     expect(nomes[86]).toBe('0087_integracao_lote_cancelado'); // T-0173 (RN-INT-15): CHECK lote_status_valido com 'cancelado' e integracao.expurgar_retencao com o lote cancelado na retenção do lote final (lote-cancelado.db.test.ts)
     expect(nomes[87]).toBe('0088_vendedor_pedido_aprovacao'); // T-0184 (P-6): vendedor.pedido_aprovacao (uma por motivo e ciclo, fora do sync, backfill dos pending_approval), vendedor.pedido.aprovacao_ciclo e 'inadimplencia' no CHECK pedido_motivos_validos (pedido-aprovacao.db.test.ts)
-    expect(nomes[88]).toBe('0089_core_rastreamento'); // T-0156 (ADR 0061): ponto_trajeto, pausa_trajeto, ausencia_usuario, termo_rastreamento e aceite_termo_rastreamento, sem macuxi_leitura, e core.expurgar_rastreamento (90 dias e 5 anos) só do worker (rastreamento.db.test.ts)
+    expect(nomes[88]).toBe('0089_core_rastreamento'); // T-0156 (ADR 0061): ponto_trajeto e ausencia_usuario, sem macuxi_leitura, e core.expurgar_rastreamento (90 dias e 5 anos) só do worker (rastreamento.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
@@ -618,7 +618,8 @@ describe('T-0029: 0008 preço do Catálogo e 0009 pedido completo do Vendedor (e
     expect(valoresDoCheck('vendedor.pedido_evento', 'para')).toEqual([...ORDER_STATUSES]);
     expect(valoresDoCheck('vendedor.pedido', 'nivel_aprovacao')).toEqual([...NIVEIS_APROVACAO]);
     expect(valoresDoCheck('vendedor.pedido_evento', 'nivel')).toEqual([...NIVEIS_APROVACAO]);
-    const motivos = /check \(motivos_aprovacao <@ array\[([^\]]*)\]::text\[\]\)/.exec(m9.up);
+    // o CHECK vigente é o da última migração que o redefine (0009; 0088 da P-6 com 'inadimplencia')
+    const motivos = [...sqlUp.matchAll(/check \(motivos_aprovacao <@ array\[([^\]]*)\]::text\[\]\)/g)].at(-1);
     expect(lista(motivos?.[1] ?? '')).toEqual([...MOTIVOS_APROVACAO]);
     // Drizzle com as mesmas listas
     expect([...(nuvemVendedor.pedido.nivel_aprovacao.enumValues ?? [])]).toEqual([...NIVEIS_APROVACAO]);

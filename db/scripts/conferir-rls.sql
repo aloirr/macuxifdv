@@ -77,10 +77,7 @@ so_por_funcao (nome) as (
 ),
 sem_leitura (nome) as (
   values ('core.ponto_trajeto'),
-         ('core.pausa_trajeto'),
-         ('core.ausencia_usuario'),
-         ('core.termo_rastreamento'),
-         ('core.aceite_termo_rastreamento')
+         ('core.ausencia_usuario')
 ),
 problemas as (
   select t.nome, 'RLS desligado' as problema from tabelas t where not t.rls

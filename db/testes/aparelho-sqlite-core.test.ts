@@ -41,10 +41,10 @@ describe('SQLite do aparelho — Core (rastreamento, T-0156)', () => {
     const d = await migrado();
     const cols = async (t: string) => (await d.todas<{ name: string }>(`select name from pragma_table_info('${t}')`)).map((c) => c.name);
     expect(await cols('core__ponto_trajeto')).toEqual(['id', 'capturado_em', 'latitude', 'longitude', 'precisao_m', 'velocidade_ms', 'enviado_em']);
-    expect(await cols('core__pausa_trajeto')).toEqual(['id', 'inicio', 'fim', 'enviado_em']);
+    expect((await d.todas<{ name: string }>("select name from sqlite_master where type = 'table' and name like 'core__%' order by name")).map((t) => t.name)).toEqual(['core__ponto_trajeto']);
   });
 
-  it('CHECKs: coordenada fora da faixa, precisão ou velocidade negativas e pausa com fim antes do início são recusadas', async () => {
+  it('CHECKs: coordenada fora da faixa, precisão ou velocidade negativas são recusadas', async () => {
     const d = await migrado();
     const ins = 'insert into core__ponto_trajeto (id, capturado_em, latitude, longitude, precisao_m, velocidade_ms) values (?, ?, ?, ?, ?, ?)';
     const quando = '2026-11-19T12:00:00.000Z'; // hora-fixa-ok: só texto gravado e comparado; sem relógio no arquivo
@@ -52,7 +52,6 @@ describe('SQLite do aparelho — Core (rastreamento, T-0156)', () => {
     for (const [i, vals] of [[90.1, 0, null, null], [0, 181, null, null], [0, 0, -1, null], [0, 0, null, -0.5]].entries()) {
       await expect(d.rodar(ins, [`x${i}`, quando, ...vals]), String(vals)).rejects.toThrow(/CHECK/i);
     }
-    await expect(d.rodar('insert into core__pausa_trajeto (id, inicio, fim) values (?, ?, ?)', ['p', quando, quando])).rejects.toThrow(/CHECK/i);
   });
 
   it('fila (não enviados do mais antigo) e poda por capturado_em usam índice', async () => {

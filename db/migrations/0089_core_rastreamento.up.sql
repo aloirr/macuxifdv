@@ -3,8 +3,10 @@
 -- (docs/desenho/T-0156-legal-finalidade.md §5). Migração em cima da 0088 (P-6, 0088_vendedor_pedido_aprovacao); o número segue a ordem de merge. Dicionário:
 -- docs/banco/core.md ("0089"). Teste: db/testes/rastreamento.db.test.ts (estático sempre; banco e up/down com o Postgres local).
 --
--- Migração ADITIVA: 5 tabelas novas no Core, 1 índice novo em core.deslocamento_dia (0066) e 1 função de expurgo. Nenhuma
--- tabela, coluna, política ou grant que já existe muda. Nenhum contrato muda de versão.
+-- Migração ADITIVA: 2 tabelas novas no Core (core.ponto_trajeto e core.ausencia_usuario), 1 índice novo em
+-- core.deslocamento_dia (0066), deslocamento_dia_expurgo_ix, e 1 função de expurgo. Nenhuma tabela, coluna, política ou grant
+-- que já existe muda. Nenhum contrato muda de versão. O rastreamento é interno (ordem do dono do produto, 19/11/2026 05h46):
+-- o vendedor não vê nada e não há termo, aceite nem pausa, por isso essas tabelas saíram do desenho.
 --
 -- Tabelas (dono: Core; todas com os campos comuns, RLS ligado e FORÇADO, isolamento_tenant ao macuxi_app e manutencao (0031)):
 -- 1. core.ponto_trajeto — ponto do trajeto capturado no aparelho (só de envio; nunca volta ao aparelho):
@@ -21,53 +23,33 @@
 --    macuxi_app: select e insert (sem update e sem delete: o ponto não muda; quem apaga é o expurgo, por DELETE FÍSICO —
 --    exceção consciente ao deleted_at, ADR 0061 item 5). Volume: ~150 por usuário por dia útil; ~1,4 milhão num tenant grande
 --    em 90 dias; sem partição na v1 (reavaliar acima de 10 milhões, ADR 0061).
--- 2. core.pausa_trajeto — pausa pessoal (§4.3), só início e fim, sem motivo (só de envio):
---      usuario_id uuid not null (FK composta core.usuario) · inicio timestamptz not null · fim timestamptz null (pausa em curso)
---    CHECK fim > inicio. Índice (tenant_id, usuario_id, inicio). Fora do sync. macuxi_app: select, insert e update (o fim
---    chega depois); sem delete. Retenção dos pontos (90 dias pelo inicio).
--- 3. core.ausencia_usuario — férias, folga ou afastamento (§4.2), sem motivo (minimização):
+-- 2. core.ausencia_usuario — férias, folga ou afastamento (§4.2), sem motivo (minimização):
 --      usuario_id uuid not null (FK composta core.usuario) · de date not null · ate date not null (dias no fuso do tenant)
 --    CHECK de <= ate. Cadastro do BKO (admin ou supervisor da equipe; a permissão core.ausencia.cadastrar é da API).
 --    Pull ao aparelho do próprio usuário: índices de sync (tenant_id, updated_at, id) e (tenant_id, usuario_id, updated_at, id).
 --    Cancelar = deleted_at. macuxi_app: select, insert e update (sem delete). Volume: poucas por usuário por ano.
--- 4. core.termo_rastreamento — versão do termo de ciência publicada pela empresa (§6):
---      versao integer not null (>= 1) · texto text not null (1..20000 caracteres) · publicado_em timestamptz not null default
---      now() · publicado_por uuid not null (FK composta core.usuario)
---    termo_rastreamento_versao_uk UNIQUE (tenant_id, versao), NÃO parcial: número de versão nunca se repete, nem depois de
---    excluída (é o alvo da FK do aceite). Vigente = a maior versão viva (quem resolve é o Core). Publicada não muda:
---    macuxi_app só select e insert. Pull ao aparelho: índice de sync (tenant_id, updated_at, id). Volume: poucas por tenant.
--- 5. core.aceite_termo_rastreamento — "Li e estou ciente" do usuário numa versão (§6):
---      usuario_id uuid not null (FK composta core.usuario) · termo_versao integer not null (FK (tenant_id, termo_versao) ->
---      core.termo_rastreamento (tenant_id, versao)) · aceito_em timestamptz not null · aparelho_id uuid null (FK composta
---      core.dispositivo)
---    Único vivo (tenant_id, usuario_id, termo_versao) where deleted_at is null (o push repetido com outro id cai no
---    on conflict do nothing do Core). Índices de sync (tenant_id, updated_at, id) e (tenant_id, usuario_id, updated_at, id):
---    o aceite sai do aparelho e pode voltar no pull do próprio usuário (depois de apagar os bancos do aparelho, o aceite já
---    feito não é pedido de novo). macuxi_app: select e insert. Registro de prova: fica enquanto o usuário existir + 5 anos.
 --
--- macuxi_leitura (0078, ADR 0055): NENHUM grant e NENHUMA política leitura nas 5 tabelas (ADR 0061 item 7: trajeto, pausa,
--- ausência e aceite são dado pessoal do trabalhador, e a saída da consulta vai para o log do Actions). Declaradas em
+-- macuxi_leitura (0078, ADR 0055): NENHUM grant e NENHUMA política leitura nas 2 tabelas (ADR 0061 item 7: trajeto e
+-- ausência são dado pessoal do trabalhador, e a saída da consulta vai para o log do Actions). Declaradas em
 -- TABELAS_SEM_LEITURA (db/src/excecoes.ts), lidas pelo conferir-rls.sql e pelos testes. macuxi_worker: nenhum grant de
 -- tabela, só o EXECUTE da função abaixo. macuxi_portal: nada.
 --
 -- core.deslocamento_dia (0066): + índice deslocamento_dia_expurgo_ix (data), para o expurgo dos resumos de mais de 5 anos.
 --
 -- Função core.expurgar_rastreamento(p_agora timestamptz default now(), p_limite integer default 10000)
---   returns table (tenant_id uuid, pontos integer, pausas integer, resumos integer, aceites integer)
+--   returns table (tenant_id uuid, pontos integer, resumos integer)
 --   SECURITY DEFINER (dono = migrador, que enxerga os tenants pela política manutencao), search_path fixo com pg_temp por
 --   último, EXECUTE só ao macuxi_worker (job diário do worker, desenho §5.4). Apaga DE FATO (DELETE físico), em lote de até
 --   p_limite linhas por tabela por chamada, do mais antigo para o mais novo, pulando linha travada (skip locked):
 --   - core.ponto_trajeto com capturado_em < p_agora - 90 dias;
---   - core.pausa_trajeto com inicio < p_agora - 90 dias;
---   - core.deslocamento_dia com data < (dia UTC de p_agora) - 5 anos (o resumo vale 5 anos);
---   - core.aceite_termo_rastreamento de usuário com deleted_at < p_agora - 5 anos.
+--   - core.deslocamento_dia com data < (dia UTC de p_agora) - 5 anos (o resumo vale 5 anos).
 --   Devolve uma linha por tenant com algo apagado (só o tenant e as contagens, sem usuário nem coordenada: desenho §5.4);
 --   nenhuma linha = nada a apagar. O worker chama de novo enquanto alguma contagem for igual a p_limite.
 --   p_agora nulo ou p_limite fora de 1..50000 = 22023. O macuxi_worker ganha USAGE no schema core só para chamar a função
 --   (como no integracao, 0010); continua sem grant de tabela no core.
 --
--- Caminho de volta: 0089_core_rastreamento.down.sql (APAGA as 5 tabelas com tudo o que tiverem — pontos, pausas, ausências,
--- termos e aceites —, a função e o índice novo de deslocamento_dia; os resumos ficam). Volte antes o código do Core e do
+-- Caminho de volta: 0089_core_rastreamento.down.sql (APAGA as 2 tabelas com tudo o que tiverem — pontos e ausências —, a
+-- função e o índice novo de deslocamento_dia; os resumos ficam). Volte antes o código do Core e do
 -- worker que lê, grava ou chama a função (senão 42P01 ou 42883).
 
 -- =============================================================================================
@@ -109,34 +91,6 @@ create policy manutencao on core.ponto_trajeto for all to macuxi_manutencao usin
 grant select, insert on core.ponto_trajeto to macuxi_app;
 
 -- =============================================================================================
--- core.pausa_trajeto — pausa pessoal (desenho §4.3)
--- =============================================================================================
-create table core.pausa_trajeto (
-  id           uuid primary key default gen_random_uuid(),
-  tenant_id    uuid not null references plataforma.tenant (id),
-  usuario_id   uuid not null,
-  inicio       timestamptz not null,
-  fim          timestamptz,
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now(),
-  deleted_at   timestamptz,
-  external_id  text,
-  constraint pausa_trajeto_tenant_id_uk unique (tenant_id, id),
-  constraint pausa_trajeto_usuario_fk foreign key (tenant_id, usuario_id) references core.usuario (tenant_id, id),
-  constraint pausa_trajeto_ordem check (fim is null or fim > inicio)
-);
-create index pausa_trajeto_usuario_inicio_ix on core.pausa_trajeto (tenant_id, usuario_id, inicio);
-create trigger pausa_trajeto_updated_at before update on core.pausa_trajeto
-  for each row execute function plataforma.definir_updated_at();
-alter table core.pausa_trajeto enable row level security;
-alter table core.pausa_trajeto force row level security;
-create policy isolamento_tenant on core.pausa_trajeto for all to macuxi_app
-  using (tenant_id = plataforma.tenant_atual())
-  with check (tenant_id = plataforma.tenant_atual());
-create policy manutencao on core.pausa_trajeto for all to macuxi_manutencao using (true) with check (true);
-grant select, insert, update on core.pausa_trajeto to macuxi_app;
-
--- =============================================================================================
 -- core.ausencia_usuario — férias, folga e afastamento (desenho §4.2)
 -- =============================================================================================
 create table core.ausencia_usuario (
@@ -167,72 +121,6 @@ create policy manutencao on core.ausencia_usuario for all to macuxi_manutencao u
 grant select, insert, update on core.ausencia_usuario to macuxi_app;
 
 -- =============================================================================================
--- core.termo_rastreamento — versões do termo de ciência (desenho §6)
--- =============================================================================================
-create table core.termo_rastreamento (
-  id             uuid primary key default gen_random_uuid(),
-  tenant_id      uuid not null references plataforma.tenant (id),
-  versao         integer not null,
-  texto          text not null,
-  publicado_em   timestamptz not null default now(),
-  publicado_por  uuid not null,
-  created_at     timestamptz not null default now(),
-  updated_at     timestamptz not null default now(),
-  deleted_at     timestamptz,
-  external_id    text,
-  constraint termo_rastreamento_tenant_id_uk unique (tenant_id, id),
-  constraint termo_rastreamento_versao_uk unique (tenant_id, versao),
-  constraint termo_rastreamento_publicado_por_fk foreign key (tenant_id, publicado_por) references core.usuario (tenant_id, id),
-  constraint termo_rastreamento_versao_positiva check (versao >= 1),
-  constraint termo_rastreamento_texto_tamanho check (char_length(texto) between 1 and 20000)
-);
-create index termo_rastreamento_sync_ix on core.termo_rastreamento (tenant_id, updated_at, id);
-create index termo_rastreamento_publicado_por_ix on core.termo_rastreamento (tenant_id, publicado_por);
-create trigger termo_rastreamento_updated_at before update on core.termo_rastreamento
-  for each row execute function plataforma.definir_updated_at();
-alter table core.termo_rastreamento enable row level security;
-alter table core.termo_rastreamento force row level security;
-create policy isolamento_tenant on core.termo_rastreamento for all to macuxi_app
-  using (tenant_id = plataforma.tenant_atual())
-  with check (tenant_id = plataforma.tenant_atual());
-create policy manutencao on core.termo_rastreamento for all to macuxi_manutencao using (true) with check (true);
-grant select, insert on core.termo_rastreamento to macuxi_app;
-
--- =============================================================================================
--- core.aceite_termo_rastreamento — aceite do termo por usuário e versão (desenho §6)
--- =============================================================================================
-create table core.aceite_termo_rastreamento (
-  id             uuid primary key default gen_random_uuid(),
-  tenant_id      uuid not null references plataforma.tenant (id),
-  usuario_id     uuid not null,
-  termo_versao   integer not null,
-  aceito_em      timestamptz not null,
-  aparelho_id    uuid,
-  created_at     timestamptz not null default now(),
-  updated_at     timestamptz not null default now(),
-  deleted_at     timestamptz,
-  external_id    text,
-  constraint aceite_termo_rastreamento_tenant_id_uk unique (tenant_id, id),
-  constraint aceite_termo_rastreamento_usuario_fk foreign key (tenant_id, usuario_id) references core.usuario (tenant_id, id),
-  constraint aceite_termo_rastreamento_termo_fk foreign key (tenant_id, termo_versao) references core.termo_rastreamento (tenant_id, versao),
-  constraint aceite_termo_rastreamento_aparelho_fk foreign key (tenant_id, aparelho_id) references core.dispositivo (tenant_id, id)
-);
-create unique index aceite_termo_rastreamento_uk on core.aceite_termo_rastreamento (tenant_id, usuario_id, termo_versao) where deleted_at is null;
-create index aceite_termo_rastreamento_sync_ix on core.aceite_termo_rastreamento (tenant_id, updated_at, id);
-create index aceite_termo_rastreamento_usuario_sync_ix on core.aceite_termo_rastreamento (tenant_id, usuario_id, updated_at, id);
-create index aceite_termo_rastreamento_termo_ix on core.aceite_termo_rastreamento (tenant_id, termo_versao);
-create index aceite_termo_rastreamento_aparelho_ix on core.aceite_termo_rastreamento (tenant_id, aparelho_id) where aparelho_id is not null;
-create trigger aceite_termo_rastreamento_updated_at before update on core.aceite_termo_rastreamento
-  for each row execute function plataforma.definir_updated_at();
-alter table core.aceite_termo_rastreamento enable row level security;
-alter table core.aceite_termo_rastreamento force row level security;
-create policy isolamento_tenant on core.aceite_termo_rastreamento for all to macuxi_app
-  using (tenant_id = plataforma.tenant_atual())
-  with check (tenant_id = plataforma.tenant_atual());
-create policy manutencao on core.aceite_termo_rastreamento for all to macuxi_manutencao using (true) with check (true);
-grant select, insert on core.aceite_termo_rastreamento to macuxi_app;
-
--- =============================================================================================
 -- core.deslocamento_dia (0066) — índice do expurgo dos resumos (5 anos)
 -- =============================================================================================
 create index deslocamento_dia_expurgo_ix on core.deslocamento_dia (data);
@@ -241,7 +129,7 @@ create index deslocamento_dia_expurgo_ix on core.deslocamento_dia (data);
 -- Expurgo (LGPD; retenção de R-20261116-110200-alexandre): só o worker
 -- =============================================================================================
 create function core.expurgar_rastreamento(p_agora timestamptz default now(), p_limite integer default 10000)
-  returns table (tenant_id uuid, pontos integer, pausas integer, resumos integer, aceites integer)
+  returns table (tenant_id uuid, pontos integer, resumos integer)
   language plpgsql volatile security definer
   set search_path = pg_catalog, core, pg_temp
   as $$
@@ -261,15 +149,6 @@ begin
                        for update skip locked)
     returning x.tenant_id
   ),
-  pas as (
-    delete from core.pausa_trajeto x
-     where x.id in (select y.id from core.pausa_trajeto y
-                     where y.inicio < p_agora - interval '90 days'
-                     order by y.inicio
-                     limit p_limite
-                       for update skip locked)
-    returning x.tenant_id
-  ),
   res as (
     delete from core.deslocamento_dia x
      where x.id in (select y.id from core.deslocamento_dia y
@@ -279,27 +158,13 @@ begin
                        for update skip locked)
     returning x.tenant_id
   ),
-  ace as (
-    delete from core.aceite_termo_rastreamento x
-     where x.id in (select y.id from core.aceite_termo_rastreamento y
-                      join core.usuario u on u.tenant_id = y.tenant_id and u.id = y.usuario_id
-                     where u.deleted_at < p_agora - interval '5 years'
-                     order by u.deleted_at, y.id
-                     limit p_limite
-                       for update of y skip locked)
-    returning x.tenant_id
-  ),
   todos (tenant_id, tipo) as (
     select t.tenant_id, 'p' from pts t
-    union all select t.tenant_id, 'z' from pas t
     union all select t.tenant_id, 'r' from res t
-    union all select t.tenant_id, 'a' from ace t
   )
   select t.tenant_id,
          (count(*) filter (where t.tipo = 'p'))::integer,
-         (count(*) filter (where t.tipo = 'z'))::integer,
-         (count(*) filter (where t.tipo = 'r'))::integer,
-         (count(*) filter (where t.tipo = 'a'))::integer
+         (count(*) filter (where t.tipo = 'r'))::integer
     from todos t
    group by t.tenant_id
    order by t.tenant_id;
@@ -322,8 +187,7 @@ begin
      or has_function_privilege('macuxi_leitura', 'core.expurgar_rastreamento(timestamptz, integer)', 'execute') then
     raise exception '0089: core.expurgar_rastreamento executável fora do macuxi_worker' using errcode = '42501';
   end if;
-  foreach v_t in array array['core.ponto_trajeto', 'core.pausa_trajeto', 'core.ausencia_usuario', 'core.termo_rastreamento',
-                             'core.aceite_termo_rastreamento'] loop
+  foreach v_t in array array['core.ponto_trajeto', 'core.ausencia_usuario'] loop
     if has_any_column_privilege('macuxi_leitura', v_t, 'SELECT, INSERT, UPDATE, REFERENCES')
        or has_table_privilege('macuxi_worker', v_t, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
        or has_table_privilege('macuxi_portal', v_t, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
