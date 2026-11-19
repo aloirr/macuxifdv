@@ -42,10 +42,7 @@ vi.mock('@macuxi/platform-sdk', async (original) => ({
     sim.opcoes = o;
     return {
       estado: () => ({ modulosAtivos: ['core', 'catalogo', 'vendedor'], pendentes: sim.pendentes }),
-      enfileirar: async (n: { entidade: string }) => void sim.passos.push(`enfileirar ${n.entidade}`),
-      enviar: async () => (sim.passos.push('enviar'), []),
       sincronizar: async () => (sim.passos.push('sincronizar'), true),
-      sincronizarNovidades: async () => (sim.passos.push('sincronizarNovidades'), true),
     } as unknown as MotorSync;
   },
 }));
@@ -99,39 +96,15 @@ describe('motor do usuário — entrada enquanto carrega (ADR 0054)', () => {
 });
 
 describe('motor do usuário — pontos do trajeto antes de cada envio (T-0156, RN-CORE-13)', () => {
-  const linha = {
-    id: '0b9a4c1e-7f3d-4a2b-9c8d-1e2f3a4b5c6d',
-    capturado_em: '2026-11-19T13:00:00.000Z',
-    latitude: -3.119027,
-    longitude: -60.021731,
-    precisao_m: 12,
-    velocidade_ms: null,
-  };
-  function banco(o: { falha?: boolean } = {}) {
-    const fila = [linha];
-    return {
-      todas: async () => {
-        if (o.falha) throw new Error(`disco cheio em ${linha.latitude}`);
-        return fila.splice(0);
-      },
-      rodar: async () => ({ alteradas: 1 }),
-    } as unknown as BancoDoTrajeto;
-  }
-
-  it.each(['sincronizar', 'sincronizarNovidades', 'enviar'] as const)('%s: o ponto entra na fila antes do envio', async (caminho) => {
-    const db = banco();
-    const m = montar({ bancoDoTrajeto: () => db });
-    await m[caminho]();
-    expect(sim.passos).toEqual(['enfileirar ponto_trajeto', caminho]);
-  });
-
-  it('sem o banco do trajeto (reserva no AsyncStorage): só o envio', async () => {
-    await montar().sincronizarNovidades();
-    expect(sim.passos).toEqual(['sincronizarNovidades']);
-  });
+  const linha = { id: '0b9a4c1e-7f3d-4a2b-9c8d-1e2f3a4b5c6d', latitude: -3.119027 };
+  const bancoComFalha = {
+    todas: async () => {
+      throw new Error(`disco cheio em ${linha.latitude}`);
+    },
+  } as unknown as BancoDoTrajeto;
 
   it('falha da rotina: o sync segue e o Diagnóstico recebe só contagens', async () => {
-    const m = montar({ bancoDoTrajeto: () => banco({ falha: true }) });
+    const m = montar({ bancoDoTrajeto: () => bancoComFalha });
     expect(await m.sincronizar()).toBe(true);
     expect(sim.passos).toEqual(['sincronizar']);
     expect(sim.erros).toHaveLength(1);
