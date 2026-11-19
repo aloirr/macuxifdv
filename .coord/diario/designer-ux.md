@@ -168,3 +168,4 @@
 2026-11-19 — T-0184 e MC-1503 — simulação do P-6 (Parâmetros › Pedidos com Quem aprova o crédito e a inadimplência, motivo no Histórico do Campo e na fila da Gestão) e da tabela simples de Pedidos do BKO em docs/design/pedido-aprovacao/; inkDisabled #5B6673 (MC-1503 B); MC-1522 A conferido (nome do cartão 16/600 em modules/catalogo/app/telas/comum.tsx:158 e na spec do Catálogo v2).
 2026-11-19 — T-0184 — #492: decisões P1-P6 do dono do produto nas pranchas (dois aprovadores, uma aprovação por motivo), P7 e P8 abertos; MC-1743 a 1747 e RD-2230 a 2235 corrigidos.
 2026-11-19 — T-0184 — #492: simulações aprovadas (P7 A, P8 A, "Aplicar"); Situação antes de Ações na tabela de Pedidos do BKO.
+2026-11-19 — T-0156 — simulação do termo, "Meu trajeto", pausa e notificação fixa em docs/design/tracking/.
