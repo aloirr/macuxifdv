@@ -1,6 +1,6 @@
 import { MAX_ITENS_PUSH, type ItemPush, type ResultadoItemPush } from '@macuxi/platform-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { ENTIDADE_PONTO_TRAJETO, PontoTrajetoSchema } from '../../contracts';
+import { ENTIDADE_PONTO_TRAJETO, PontoTrajetoSchema, TRAJETO_DIAS_MAX } from '../../contracts';
 import { enviarPontosDoTrajeto, type BancoDoTrajeto } from './enviar-pontos-trajeto';
 
 const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -35,12 +35,11 @@ function ponto(n: number, o: Partial<Linha> = {}): Linha {
 function bancoFalso(linhas: Linha[], semTabela = false) {
   const rodar = vi.fn(async (sql: string, params: readonly unknown[] = []) => {
     if (semTabela) throw new Error('no such table: core__ponto_trajeto');
-    if (/^DELETE FROM core__ponto_trajeto WHERE enviado_em IS NOT NULL AND enviado_em < \?/.test(sql)) {
+    if (/^DELETE FROM core__ponto_trajeto WHERE capturado_em < \?$/.test(sql)) {
       const limite = params[0] as string;
       const antes = linhas.length;
       for (let i = linhas.length - 1; i >= 0; i--) {
-        const e = linhas[i]!.enviado_em;
-        if (e !== null && e < limite) linhas.splice(i, 1);
+        if (linhas[i]!.capturado_em < limite) linhas.splice(i, 1);
       }
       return { alteradas: antes - linhas.length };
     }
@@ -114,6 +113,33 @@ describe('enviarPontosDoTrajeto (RN-CORE-13: o ponto capturado dentro do portão
     expect(m.push).toHaveBeenCalledTimes(1);
   });
 
+  it('RN-CORE-13: rejeição retentável (plataforma) deixa o ponto pendente, sem marcar nem contar', async () => {
+    const linhas = [ponto(1), ponto(2), ponto(3)];
+    const m = montar(linhas, async (i) =>
+      i.map((x) =>
+        x.id === U(1)
+          ? { id: x.id, status: 'rejeitado' as const, codigo: 'MODULO_INATIVO', mensagem: 'inativo' }
+          : x.id === U(2)
+            ? { id: x.id, status: 'rejeitado' as const, codigo: 'SYNC_NAO_IMPLEMENTADO', mensagem: 'x' }
+            : { id: x.id, status: 'aceito' as const },
+      ),
+    );
+    const r = await enviarPontosDoTrajeto({ ...m.dep });
+    expect(r).toMatchObject({ enviados: 1, rejeitados: 0 });
+    expect(linhas.map((l) => l.enviado_em !== null)).toEqual([false, false, true]);
+  });
+
+  it('RN-CORE-13: lote todo retentável para a passada com erro, com um push só', async () => {
+    const linhas = [ponto(1), ponto(2)];
+    const m = montar(linhas, async (i) =>
+      i.map((x) => ({ id: x.id, status: 'rejeitado' as const, codigo: 'SEM_RESULTADO', mensagem: 'x' })),
+    );
+    const r = await enviarPontosDoTrajeto(m.dep);
+    expect(r).toMatchObject({ enviados: 0, rejeitados: 0, erro: true });
+    expect(m.push).toHaveBeenCalledTimes(1);
+    expect(linhas.every((l) => l.enviado_em === null)).toBe(true);
+  });
+
   it('RN-CORE-13: falha de transporte para, deixa pendentes, marca erro e não vaza coordenada', async () => {
     const linhas = [ponto(1), ponto(2)];
     const m = montar(linhas, async () => {
@@ -147,20 +173,22 @@ describe('enviarPontosDoTrajeto (RN-CORE-13: o ponto capturado dentro do portão
     expect(linhas[0]!.enviado_em).not.toBeNull();
   });
 
-  it('RN-CORE-13: poda apaga o enviado há mais de 90 dias e mantém o de 89 dias e o pendente', async () => {
+  it('RN-CORE-13: poda apaga o ponto capturado há mais de TRAJETO_DIAS_MAX dias, enviado ou pendente, sem enviá-lo', async () => {
     const linhas = [
-      ponto(1, { enviado_em: haDias(91) }),
-      ponto(2, { enviado_em: haDias(89) }),
-      ponto(3),
+      ponto(1, { capturado_em: haDias(TRAJETO_DIAS_MAX + 1), enviado_em: haDias(TRAJETO_DIAS_MAX) }),
+      ponto(2, { capturado_em: haDias(TRAJETO_DIAS_MAX + 1) }),
+      ponto(3, { capturado_em: haDias(TRAJETO_DIAS_MAX - 1), enviado_em: haDias(1) }),
+      ponto(4, { capturado_em: haDias(TRAJETO_DIAS_MAX - 1) }),
     ];
     const m = montar(linhas);
     const r = await enviarPontosDoTrajeto(m.dep);
-    expect(r.podados).toBe(1);
-    expect(linhas.map((l) => l.id)).toEqual([U(2), U(3)]);
+    expect(r).toMatchObject({ podados: 2, enviados: 1 });
+    expect(linhas.map((l) => l.id)).toEqual([U(3), U(4)]);
+    expect(m.push.mock.calls[0]![0].map((i) => i.id)).toEqual([U(4)]);
   });
 
   it('RN-CORE-13: a poda roda mesmo com falha de transporte', async () => {
-    const linhas = [ponto(1, { enviado_em: haDias(120) }), ponto(2)];
+    const linhas = [ponto(1, { capturado_em: haDias(120), enviado_em: haDias(120) }), ponto(2)];
     const m = montar(linhas, async () => {
       throw new Error('sem rede');
     });

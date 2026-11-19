@@ -3,17 +3,25 @@
  * `core__ponto_trajeto` com `enviado_em` nulo; esta rotina os envia direto pelo transporte do sync (`push`), sem passar
  * pela fila do motor (o rastreamento é interno: não aparece na fila nem na contagem do vendedor) e marca `enviado_em`.
  * Se o app cair entre o envio e a marca, o ponto vai de novo e o servidor não duplica (id).
- * Depois de cada passada apaga os já enviados há mais de 90 dias (`docs/banco/aparelho-sqlite.md` §11).
+ * Antes de cada passada apaga todo ponto capturado há mais de `TRAJETO_DIAS_MAX` dias, enviado ou não, pois o servidor
+ * o recusaria como antigo (`docs/banco/aparelho-sqlite.md` §11).
  * Nenhuma coordenada vai para log nem para mensagem de erro (§9).
  */
-import { MAX_ITENS_PUSH, type DriverSqlite, type ItemPush, type ResultadoItemPush } from '@macuxi/platform-sdk';
-import { ENTIDADE_PONTO_TRAJETO, PontoTrajetoSchema } from '../../contracts';
+import { CODIGOS_RETENTAVEIS, MAX_ITENS_PUSH, type DriverSqlite, type ItemPush, type ResultadoItemPush } from '@macuxi/platform-sdk';
+import { ENTIDADE_PONTO_TRAJETO, PontoTrajetoSchema, TRAJETO_DIAS_MAX } from '../../contracts';
 
 export type BancoDoTrajeto = Pick<DriverSqlite, 'rodar' | 'todas'>;
 
-/** Quanto tempo o ponto já enviado fica no aparelho. */
-const DIAS_DE_RETENCAO = 90;
 const MS_POR_DIA = 86_400_000;
+
+/**
+ * Códigos de rejeição que não são defeito do ponto: `CODIGOS_RETENTAVEIS` do SDK (ex.: SYNC_NAO_IMPLEMENTADO) mais
+ * estes dois, que o SDK ainda não lista (`SEM_RESULTADO` da API de sync, `MODULO_INATIVO` da licença, RN-CORE-02).
+ * O ponto fica pendente. Só a recusa do próprio ponto (PAYLOAD_INVALIDO, OPERACAO_NAO_SUPORTADA) é marcada e contada.
+ */
+const RETENTAVEIS_LOCAIS: readonly string[] = ['SEM_RESULTADO', 'MODULO_INATIVO'];
+const ehRetentavel = (codigo: string): boolean =>
+  CODIGOS_RETENTAVEIS.includes(codigo) || RETENTAVEIS_LOCAIS.includes(codigo);
 
 export interface DependenciasEnvioDoTrajeto {
   /** SQLite do usuário (o mesmo em que o shell grava os pontos). */
@@ -32,7 +40,7 @@ export interface ResultadoEnvioDoTrajeto {
   rejeitados: number;
   /** Não passaram no schema: marcados sem envio. */
   invalidos: number;
-  /** Apagados do aparelho por terem sido enviados há mais de 90 dias. */
+  /** Apagados do aparelho por terem sido capturados há mais de `TRAJETO_DIAS_MAX` dias, enviados ou não. */
   podados: number;
   /** Houve falha (transporte ou banco): o restante fica para o próximo sync. */
   erro: boolean;
@@ -49,7 +57,7 @@ interface LinhaPonto {
 
 const LER_PENDENTES =
   'SELECT id, capturado_em, latitude, longitude, precisao_m, velocidade_ms FROM core__ponto_trajeto WHERE enviado_em IS NULL ORDER BY capturado_em LIMIT ?';
-const PODAR = 'DELETE FROM core__ponto_trajeto WHERE enviado_em IS NOT NULL AND enviado_em < ?';
+const PODAR = 'DELETE FROM core__ponto_trajeto WHERE capturado_em < ?';
 
 const semTabela = (e: unknown): boolean => /no such table/i.test(e instanceof Error ? e.message : String(e));
 
@@ -63,6 +71,16 @@ export async function enviarPontosDoTrajeto(d: DependenciasEnvioDoTrajeto): Prom
   const r: ResultadoEnvioDoTrajeto = { enviados: 0, rejeitados: 0, invalidos: 0, podados: 0, erro: false };
   const resumo = () =>
     `${r.enviados} enviados, ${r.rejeitados} rejeitados, ${r.invalidos} inválidos, ${r.podados} podados`;
+  // Poda antes do envio: o ponto velho (enviado ou não) nem chega ao servidor, que o recusaria como antigo.
+  try {
+    const limite = new Date(d.agora().getTime() - TRAJETO_DIAS_MAX * MS_POR_DIA).toISOString();
+    const { alteradas } = await d.db.rodar(PODAR, [limite]);
+    r.podados = alteradas;
+  } catch (e) {
+    if (semTabela(e)) return r;
+    r.erro = true;
+    d.registrar?.(`trajeto: falha ao apagar pontos antigos (${resumo()})`);
+  }
   try {
     for (;;) {
       const lote = await d.db.todas<LinhaPonto>(LER_PENDENTES, [MAX_ITENS_PUSH]);
@@ -101,15 +119,17 @@ export async function enviarPontosDoTrajeto(d: DependenciasEnvioDoTrajeto): Prom
       const tratados: string[] = [];
       for (const x of resposta) {
         if (!itens.some((i) => i.id === x.id)) continue;
+        // Recusa que vem da plataforma, não do ponto: fica pendente, sem marcar, para o próximo sync.
+        if (x.status === 'rejeitado' && ehRetentavel(x.codigo)) continue;
         tratados.push(x.id);
         if (x.status === 'rejeitado') r.rejeitados++;
         else r.enviados++; // 'aceito' ou 'conflito' (o servidor já tinha o ponto)
       }
       await marcar(d.db, tratados, quando);
       if (tratados.length === 0) {
-        // servidor não respondeu por nenhum item: parar evita laço
+        // nenhum item resolvido (sem resposta ou tudo retentável): parar evita laço
         r.erro = true;
-        d.registrar?.(`trajeto: servidor sem resposta para os pontos (${resumo()})`);
+        d.registrar?.(`trajeto: servidor não resolveu nenhum ponto, restante fica pendente (${resumo()})`);
         break;
       }
     }
@@ -117,16 +137,6 @@ export async function enviarPontosDoTrajeto(d: DependenciasEnvioDoTrajeto): Prom
     if (semTabela(e)) return { enviados: 0, rejeitados: 0, invalidos: 0, podados: 0, erro: false };
     r.erro = true;
     d.registrar?.(`trajeto: falha ao ler ou marcar pontos (${resumo()})`);
-  }
-  try {
-    const limite = new Date(d.agora().getTime() - DIAS_DE_RETENCAO * MS_POR_DIA).toISOString();
-    const { alteradas } = await d.db.rodar(PODAR, [limite]);
-    r.podados = alteradas;
-  } catch (e) {
-    if (!semTabela(e)) {
-      r.erro = true;
-      d.registrar?.(`trajeto: falha ao apagar pontos antigos (${resumo()})`);
-    }
   }
   return r;
 }
