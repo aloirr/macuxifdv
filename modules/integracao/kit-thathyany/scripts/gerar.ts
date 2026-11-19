@@ -58,10 +58,10 @@ const COLUNAS_ACRESCENTADAS: Record<string, string[]> = {
   nota: ['forma_pagamento', 'nf_origem_numero', 'nf_origem_serie'],
 };
 
-/** T-0186: colunas que as views do kit devolvem além das do conector.exemplo.json (do Conector, fora do escopo do módulo); entram também na consulta do conector.json do kit. */
+/** T-0186: uma lista só por entidade (COLUNAS_ACRESCENTADAS, RD-2375): colunas que as views do kit devolvem além das do conector.exemplo.json (do Conector, fora do escopo do módulo); entram também na consulta do conector.json do kit. */
 const COLUNAS_EXTRAS_VIEW: Record<string, string[]> = {
-  titulo: ['nf_numero', 'nf_serie', 'forma_pagamento'],
-  nota: ['forma_pagamento', 'nf_origem_numero', 'nf_origem_serie'],
+  titulo: COLUNAS_ACRESCENTADAS.titulo ?? [],
+  nota: COLUNAS_ACRESCENTADAS.nota ?? [],
 };
 
 /** Referência a outra entidade (campo `*_external_id`): o carga_csv.py confere antes de gravar. Tabela e depósito não são entidades. */

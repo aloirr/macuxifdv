@@ -80,3 +80,4 @@
 2026-11-19 — T-0186 — v1.0.15: forma_pagamento_codigo (nota e titulo), nf_numero/nf_serie (titulo) e nf_origem_numero/nf_origem_serie (nota) opcionais no Hub v1; OpenAPI, guia, modelos CSV e kit regerados
 2026-11-19 — T-0186 — revisão do #511: forma_pagamento em texto (até 120), colunas novas idempotentes e views/consulta do kit com os campos novos, nf_origem só na devolução (superRefine), roteiro avisa que o linha_hash muda e tudo é reenviado uma vez
 2026-11-19 — T-0186 — v1.0.15: guia sem os campos opcionais na ordem de carga (RD-2350); título do teste sem regra inventada (cita o CHECK nota_erp_nf_origem_so_devolucao)
+2026-11-19 — T-0186 — gerador do kit com uma lista de colunas por entidade (RD-2375); tamanhos da NF e forma_pagamento conferidos iguais ao Hub (sem divergência)
