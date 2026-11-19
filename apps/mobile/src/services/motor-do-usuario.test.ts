@@ -4,6 +4,7 @@
  * (`cargaOnline: false`) não troca a porta do app.
  */
 import { criarArmazenamentoEmMemoria, criarRegistroSync, type AmbienteAparelho, type MotorSync, type OpcoesMotorSync } from '@macuxi/platform-sdk';
+import type { BancoDoTrajeto } from '@macuxi/core/app';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 
@@ -13,6 +14,8 @@ const sim = vi.hoisted(() => ({
   pendentes: undefined as readonly string[] | undefined,
   essenciais: () => false,
   perfilDosEssenciais: null as (() => string | null | undefined) | null,
+  passos: [] as string[],
+  erros: [] as { mensagem: string; onde: string | null }[],
 }));
 
 vi.mock('react-native', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
@@ -29,12 +32,21 @@ vi.mock('./arquivos', () => ({ arquivosLocais: () => undefined }));
 vi.mock('./credenciais', () => ({ gravarTokens: async () => undefined, lerTokens: async () => null }));
 vi.mock('./device', () => ({ uuid: () => '00000000-0000-4000-8000-000000000000' }));
 vi.mock('./storage', () => ({ readJson: async () => null, writeJson: async () => undefined }));
+vi.mock('./erros', () => ({
+  gravarErro: async (e: Error, _origem: string, onde: string | null) => void sim.erros.push({ mensagem: e.message, onde }),
+}));
 vi.mock('./transporte', () => ({ modoSync: () => 'v1', transporteV1: () => ({}), transporteFaseM: () => ({}) }));
 vi.mock('@macuxi/platform-sdk', async (original) => ({
   ...(await original<typeof import('@macuxi/platform-sdk')>()),
   criarMotorSync: (o: OpcoesMotorSync) => {
     sim.opcoes = o;
-    return { estado: () => ({ modulosAtivos: ['core', 'catalogo', 'vendedor'], pendentes: sim.pendentes }) } as unknown as MotorSync;
+    return {
+      estado: () => ({ modulosAtivos: ['core', 'catalogo', 'vendedor'], pendentes: sim.pendentes }),
+      enfileirar: async (n: { entidade: string }) => void sim.passos.push(`enfileirar ${n.entidade}`),
+      enviar: async () => (sim.passos.push('enviar'), []),
+      sincronizar: async () => (sim.passos.push('sincronizar'), true),
+      sincronizarNovidades: async () => (sim.passos.push('sincronizarNovidades'), true),
+    } as unknown as MotorSync;
   },
 }));
 
@@ -46,7 +58,7 @@ const ambiente = {
   http: { get: async (caminho: string, query?: unknown) => (pedidos.push({ caminho, query }), { ok: true }) },
 } as unknown as AmbienteAparelho;
 
-function montar(o: { perfil?: string; cargaOnline?: boolean } = {}) {
+function montar(o: { perfil?: string; cargaOnline?: boolean; bancoDoTrajeto?: () => BancoDoTrajeto | null } = {}) {
   return criarMotorDoUsuario({
     usuarioId: 'u1',
     armazenamento: criarArmazenamentoEmMemoria(),
@@ -59,6 +71,7 @@ function montar(o: { perfil?: string; cargaOnline?: boolean } = {}) {
     ambiente,
     perfil: () => o.perfil ?? 'vendedor',
     ...(o.cargaOnline === undefined ? {} : { cargaOnline: o.cargaOnline }),
+    ...(o.bancoDoTrajeto ? { bancoDoTrajeto: o.bancoDoTrajeto } : {}),
   });
 }
 
@@ -66,6 +79,8 @@ beforeEach(() => {
   sim.definir = [];
   sim.pendentes = undefined;
   pedidos.length = 0;
+  sim.passos = [];
+  sim.erros = [];
 });
 
 describe('motor do usuário — entrada enquanto carrega (ADR 0054)', () => {
@@ -80,6 +95,48 @@ describe('motor do usuário — entrada enquanto carrega (ADR 0054)', () => {
     expect(sim.definir).toHaveLength(1);
     montar({ cargaOnline: false });
     expect(sim.definir).toHaveLength(1);
+  });
+});
+
+describe('motor do usuário — pontos do trajeto antes de cada envio (T-0156, RN-CORE-13)', () => {
+  const linha = {
+    id: '0b9a4c1e-7f3d-4a2b-9c8d-1e2f3a4b5c6d',
+    capturado_em: '2026-11-19T13:00:00.000Z',
+    latitude: -3.119027,
+    longitude: -60.021731,
+    precisao_m: 12,
+    velocidade_ms: null,
+  };
+  function banco(o: { falha?: boolean } = {}) {
+    const fila = [linha];
+    return {
+      todas: async () => {
+        if (o.falha) throw new Error(`disco cheio em ${linha.latitude}`);
+        return fila.splice(0);
+      },
+      rodar: async () => ({ alteradas: 1 }),
+    } as unknown as BancoDoTrajeto;
+  }
+
+  it.each(['sincronizar', 'sincronizarNovidades', 'enviar'] as const)('%s: o ponto entra na fila antes do envio', async (caminho) => {
+    const db = banco();
+    const m = montar({ bancoDoTrajeto: () => db });
+    await m[caminho]();
+    expect(sim.passos).toEqual(['enfileirar ponto_trajeto', caminho]);
+  });
+
+  it('sem o banco do trajeto (reserva no AsyncStorage): só o envio', async () => {
+    await montar().sincronizarNovidades();
+    expect(sim.passos).toEqual(['sincronizarNovidades']);
+  });
+
+  it('falha da rotina: o sync segue e o Diagnóstico recebe só contagens', async () => {
+    const m = montar({ bancoDoTrajeto: () => banco({ falha: true }) });
+    expect(await m.sincronizar()).toBe(true);
+    expect(sim.passos).toEqual(['sincronizar']);
+    expect(sim.erros).toHaveLength(1);
+    expect(sim.erros[0]?.onde).toBe('envio do trajeto');
+    expect(sim.erros[0]?.mensagem).not.toMatch(/-?\d+\.\d{3,}|0b9a4c1e/);
   });
 });
 
