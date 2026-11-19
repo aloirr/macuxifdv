@@ -20,3 +20,4 @@ export * from './visao';
 export * from './sincronizacao';
 export * from './alertas-pendencia-checkout';
 export * from './etapa-pendente-equipe';
+export * from './trajeto';

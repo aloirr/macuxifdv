@@ -9,7 +9,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, useSession } from '@macuxi/platform-sdk/web';
 import { DEFAULT_TZ, intervaloSyncAutoMs, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
-import { Alerta, FilaAprovacao, ListaAlertas, RankingEquipe, RegraAlerta, RegrasAlertaResposta, ROTAS_GESTOR, VisaoEquipe, type AjusteRegraAlerta, type TipoAlerta } from '../../contracts';
+import { Alerta, FilaAprovacao, ListaAlertas, RankingEquipe, RegraAlerta, RegrasAlertaResposta, ROTAS_GESTOR, TrajetoEquipe, VisaoEquipe, type AjusteRegraAlerta, type TipoAlerta } from '../../contracts';
 import { paraQuery, queryAlertas, type FiltrosAlertas, type FiltrosPainel, type FiltrosRanking } from './filtros';
 
 const qk = {
@@ -30,6 +30,17 @@ export function useFusoDoTenant(): string {
 
 export function useVisaoEquipe(f: FiltrosPainel) {
   return useQuery({ queryKey: qk.equipe(f), enabled: useLogado(), queryFn: async ({ signal }) => VisaoEquipe.parse(await api<unknown>(ROTAS_GESTOR.equipe, { query: paraQuery(f), signal })) });
+}
+
+/** T-0156: trajeto do dia de uma pessoa (`core.trajeto.ver_equipe`). Sem cache de longa vida e sem retentativa: 403/404 não melhoram tentando de novo. */
+export function useTrajeto(usuarioId: string | null, data: string | null) {
+  return useQuery({
+    queryKey: ['gestor', 'trajeto', usuarioId, data] as const,
+    enabled: useLogado() && usuarioId !== null,
+    retry: false,
+    gcTime: 0,
+    queryFn: async ({ signal }) => TrajetoEquipe.parse(await api<unknown>(ROTAS_GESTOR.trajeto(usuarioId!), { query: paraQuery({ data }), signal })),
+  });
 }
 
 export function useRanking(f: FiltrosRanking) {
