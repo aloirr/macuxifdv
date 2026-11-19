@@ -6,7 +6,6 @@ const AGORA = '2026-11-19T14:30:00Z'; // quinta, 10h30 de Manaus
 const base: BaseTriagem = {
   ativo: true,
   cargo: 'vendedor',
-  app: 'campo',
   expediente: PARAMETROS_RASTREAMENTO_PADRAO.expediente,
   feriados: [],
   ausencias: [],

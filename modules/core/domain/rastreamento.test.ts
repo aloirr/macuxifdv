@@ -5,12 +5,9 @@ import { podeRastrear, type EntradaRastreio } from './rastreamento';
 // quinta-feira, 19/11/2026, 10h de Manaus (UTC−4) = 14h UTC
 const base: EntradaRastreio = {
   ativo: true,
-  cargo: 'vendedor',
-  app: 'campo',
   expediente: PARAMETROS_RASTREAMENTO_PADRAO.expediente,
   feriados: [],
   ausencias: [],
-  permissao: true,
   instante: '2026-11-19T14:00:00Z',
   fuso: 'America/Manaus',
 };
@@ -20,18 +17,12 @@ const motivo = (o: Partial<EntradaRastreio>) => {
 };
 
 describe('RN-CORE-13: portão do rastreamento (podeRastrear, desenho tracking §2)', () => {
-  it('RN-CORE-13: com as sete condições valendo, rastreia', () => {
+  it('RN-CORE-13: com as três condições valendo, rastreia', () => {
     expect(podeRastrear(base)).toEqual({ pode: true });
-    expect(motivo({ cargo: 'promotor' })).toBe('pode');
   });
 
   it('RN-CORE-13: empresa com o rastreamento desligado (padrão de fábrica)não rastreia', () => {
     expect(motivo({ ativo: false })).toBe('desligado');
-  });
-
-  it('RN-CORE-13: só usuário de campo (vendedor ou promotor) no app Campo', () => {
-    for (const cargo of ['supervisor', 'gerente', 'analista', 'assistente', 'admin']) expect(motivo({ cargo })).toBe('cargo');
-    expect(motivo({ app: 'gestao' })).toBe('app');
   });
 
   it('RN-CORE-13: expediente no fuso do tenant: início entra, fim não; domingo sem expediente; sábado só de manhã', () => {
@@ -53,8 +44,8 @@ describe('RN-CORE-13: portão do rastreamento (podeRastrear, desenho tracking §
     expect(motivo({ ausencias: [{ de: '2026-11-20', ate: '2026-11-30' }] })).toBe('pode');
   });
 
-  it('RN-CORE-37: sem a permissão "o tempo todo" o app não rastreia; a API não sabe da permissão e não a confere', () => {
-    expect(motivo({ permissao: false })).toBe('sem_permissao');
-    expect(motivo({ permissao: undefined })).toBe('pode');
+  it('RN-CORE-13: o portão tem só 3 condições; cargo, app e permissão não são entrada', () => {
+    expect(Object.keys(base).sort()).toEqual(['ativo', 'ausencias', 'expediente', 'feriados', 'fuso', 'instante']);
+    expect(motivo({ ativo: false, feriados: ['2026-11-19'] })).toBe('desligado');
   });
 });

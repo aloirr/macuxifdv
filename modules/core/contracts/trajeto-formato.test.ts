@@ -34,8 +34,6 @@ describe('RN-CORE-13: portão e rótulos pelos contracts (shell)', () => {
   it('RN-CORE-13: podeRastrear e CARGOS_RASTREADOS saem pelos contracts', () => {
     const e: EntradaRastreio = {
       ativo: false,
-      cargo: 'vendedor',
-      app: 'campo',
       expediente: PARAMETROS_RASTREAMENTO_PADRAO.expediente,
       feriados: [],
       ausencias: [],

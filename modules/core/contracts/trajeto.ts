@@ -112,7 +112,7 @@ export const PARAMETROS_RASTREAMENTO_PADRAO: ParametrosRastreamento = {
 
 // ---- Portão (§2) ----
 /** Motivo de o portão estar fechado (`podeRastrear`); o Diagnóstico mostra só o estado, nunca a coordenada (§9). */
-export const MOTIVOS_SEM_RASTREIO = ['desligado', 'cargo', 'app', 'fora_do_expediente', 'feriado', 'ausencia', 'sem_permissao'] as const;
+export const MOTIVOS_SEM_RASTREIO = ['desligado', 'feriado', 'fora_do_expediente', 'ausencia'] as const;
 export type MotivoSemRastreio = (typeof MOTIVOS_SEM_RASTREIO)[number];
 
 // ---- Consultas ----

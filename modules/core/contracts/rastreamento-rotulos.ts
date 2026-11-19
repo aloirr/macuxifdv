@@ -8,9 +8,6 @@ export const ROTULO_ESTADO_RASTREAMENTO: Readonly<Record<'ativa' | MotivoSemRast
   ativa: 'Ativa',
   fora_do_expediente: 'Fora do expediente',
   desligado: 'Desligado pela empresa',
-  cargo: 'Cargo não rastreado',
-  app: 'App não rastreado',
   feriado: 'Feriado',
   ausencia: 'Ausência',
-  sem_permissao: 'Sem permissão de localização',
 };

@@ -7,23 +7,17 @@ import { ehFeriado } from '@macuxi/comum/calendar';
 import { localIsoDate, zonedParts } from '@macuxi/comum/fuso';
 import type { Expediente, MotivoSemRastreio } from '../contracts';
 
-/** Cargos de campo (ADR 0049): só eles são rastreados. */
+/** Cargos de campo (ADR 0049): só eles mandam ponto. Fora do `podeRastrear`: a API confere no push (`triarPontoRecebido`); o app Campo só tem usuário de campo. */
 export const CARGOS_RASTREADOS: readonly string[] = ['vendedor', 'promotor'];
 
 export interface EntradaRastreio {
   /** Parâmetro `rastreamento.ativo` do tenant (padrão desligado). */
   ativo: boolean;
-  /** Cargo do usuário (perfil base). */
-  cargo: string;
-  /** App que pede ('campo' | 'gestao'); a API passa 'campo' (só o push do Campo manda ponto). */
-  app: string;
   expediente: Expediente;
   /** Feriados do tenant (AAAA-MM-DD); os nacionais entram sempre. */
   feriados: readonly string[];
   /** Ausências do usuário (datas civis no fuso do tenant, `de` e `ate` inclusive). */
   ausencias: ReadonlyArray<{ de: string; ate: string }>;
-  /** Permissão "o tempo todo" (só o app sabe); `undefined` = não conferida (API). */
-  permissao?: boolean | undefined;
   /** Instante avaliado (UTC, ISO): agora no app, `capturado_em` na API. */
   instante: string;
   fuso: string;
@@ -40,15 +34,15 @@ function dentroDoExpediente(expediente: Expediente, instante: string, fuso: stri
   return expediente[dia].some((f) => f.inicio_min <= minuto && minuto < f.fim_min);
 }
 
-/** RN-CORE-13: rastreia só com as condições do §2: parâmetro, cargo, app, feriado, ausência, expediente e permissão; o primeiro motivo que falha volta (o Diagnóstico mostra o estado). */
+/**
+ * RN-CORE-13: três condições do §2, todas obrigatórias: parâmetro ligado, fora de feriado e de ausência, dentro do expediente.
+ * Pré-condições fora daqui: usuário de campo no app Campo; a permissão "o tempo todo" (RN-CORE-37) só decide se o Android entrega posição.
+ */
 export function podeRastrear(e: EntradaRastreio): ResultadoRastreio {
   if (!e.ativo) return nao('desligado');
-  if (!CARGOS_RASTREADOS.includes(e.cargo)) return nao('cargo');
-  if (e.app !== 'campo') return nao('app');
   const data = localIsoDate(e.instante, e.fuso);
   if (ehFeriado(data, e.feriados)) return nao('feriado');
   if (e.ausencias.some((a) => a.de <= data && data <= a.ate)) return nao('ausencia');
   if (!dentroDoExpediente(e.expediente, e.instante, e.fuso)) return nao('fora_do_expediente');
-  if (e.permissao === false) return nao('sem_permissao');
   return { pode: true };
 }

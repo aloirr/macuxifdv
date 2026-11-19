@@ -5,7 +5,7 @@ Desenho: `docs/desenho/tracking.md`; ADR 0061. Regras: RN-CORE-13 (portão do ra
 aceite, pausa nem "Meu trajeto"); só o supervisor e o gerente veem o trajeto da equipe, e o admin só se o perfil dele receber `trajeto.ver_equipe` no BKO.
 
 ## Domain (funções puras, teste citando a regra)
-- `podeRastrear` (`domain/rastreamento.ts`): parâmetro ligado, cargo de campo, app Campo, feriado, ausência, expediente e permissão do aparelho; a mesma no app, na tarefa e na API.
+- `podeRastrear` (`domain/rastreamento.ts`): três condições, todas obrigatórias: parâmetro ligado, dentro do expediente e fora de feriado, fora de ausência; a mesma no app, na tarefa e na API. Usuário de campo no app Campo é pré-condição fora dela; a permissão "o tempo todo" (RN-CORE-37) só decide se o Android entrega posição.
 - `triarPontoRecebido` (`domain/trajeto-ponto.ts`): o portão por ponto no push, mais futuro > 5 min, > 90 dias e coordenada inválida.
 - `validarParametrosRastreamento`: sem expediente em nenhum dia, não liga.
 - `metrosDoTrajeto` (`domain/performance/trajeto.ts`): km do dia; o mesmo número do `core.deslocamento_dia`.
