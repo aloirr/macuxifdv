@@ -1,176 +1,170 @@
-# Tracking no expediente — termo, pausa, "Meu trajeto" e notificação fixa (Campo) · T-0156
+# Rastreamento no expediente — mapa da equipe (Gestão e BKO) e notificação fixa (Campo) · T-0156
 
 - **Autor**: designer-ux, 19/11/2026 (Manaus). Item 5 do §11 de [`docs/desenho/tracking.md`](../../desenho/tracking.md); ADR 0061.
-- **Base**: desenho §3.1 (notificação), §4.3 (pausa), §6 (termo), §7 (quem vê), §9 (privacidade); modelo do termo em
-  [`T-0156-legal-termo-de-ciencia.md`](../../desenho/T-0156-legal-termo-de-ciencia.md) (rascunho para advogado).
-- **Simulação**: `node docs/design/tracking/gerar.mjs` gera `01-termo`, `02-perfil-pausa`, `03-meu-trajeto` e `04-notificacao`
-  (HTML e PNG, aparelho 360×760, escala 2). O gerador falha se legenda ou nota cobrir o aparelho, se algo sair dele ou ficar cortado.
-- **Marca**: Azul noite #1E3350 na faixa, na ação e no traço do trajeto; fundo Pérola; laranja nenhum (não há gráfico); fonte do
-  sistema, escala 12 · 14 · 16 · 18 · 22 · 28. Validação do design-de-marca pendente.
-- **Quem implementa**: telas do termo, do Perfil (seção) e "Meu trajeto": modulo-core (§11 item 2); notificação e canal:
-  engenheiro-apps (item 3). Componentes já existentes no kit (`packages/ui/src/mobile`); nenhum componente novo.
-- Valores entre [colchetes] vêm dos parâmetros do tenant. Os dados da empresa nas pranchas ("Distribuidora Norte") são exemplo.
+- **Decisão do dono do produto (19/11/2026, 05h46, recado do gerente)**: o rastreamento é **interno**. O vendedor e o promotor não
+  veem tela de rastreamento no Campo. Saem desta spec o termo no app, "Meu trajeto", a pausa, a seção Localização no Perfil e o
+  Contestar (e os pontos em aberto deles). Ficam o **mapa da equipe** (Gestão e BKO) e a **notificação fixa** do Android, que o
+  sistema exige para o serviço em primeiro plano e que não cita localização.
+- **Base**: desenho §5.2 (consulta e contrato `core.trajeto_do_dia@1`), §7 (quem vê), §9 (privacidade técnica).
+- **Simulação**: `node docs/design/tracking/gerar.mjs` gera `01-mapa-equipe` e `02-notificacao` (HTML e PNG, escala 2; aparelho
+  360×760 e BKO 1366×768 na base de `docs/design/menu-parametros/`). O gerador falha se legenda ou nota cobrir a tela, se algo sair
+  dela ou ficar cortado.
+- **Marca**: Azul noite #1E3350 na faixa, na ação e no traço; check-in concluído em verde #1D6B4F (o mesmo da Rota de hoje); fundo
+  Pérola; fonte do sistema, escala 12 · 14 · 16 · 18 · 22 · 28. Validação do design-de-marca pendente.
+- **Quem implementa**: mapa da equipe, modulo-gestor (§11 item 4), lendo o `core.trajeto_do_dia@1` do modulo-core; notificação e
+  canal, engenheiro-apps (item 3). Componentes já existentes no kit (`packages/ui`); nenhum componente novo.
+- Valores entre [colchetes] vêm dos parâmetros do tenant. Nomes de pessoas e clientes nas pranchas são exemplo.
 
-## 1. Tela do termo (prancha 01)
+## 1. Quem vê
 
-**Quando abre**: depois do login e da carga, se o tracking está ligado e falta o aceite da versão vigente (desenho §6). Volta a cada
-abertura do app até o aceite. Versão nova publicada: abre de novo na próxima abertura.
-
-| Ordem | Bloco | Texto | Componente |
-|---|---|---|---|
-| 1 | Cabeçalho (faixa), sem voltar | título `Localização no expediente`; subtítulo `Termo de ciência · versão [n] · [dd/mm/aaaa]` (data da publicação) | `Screen` com `cabecalho` (sem `voltar`) |
-| 2 | Texto do termo, com rolagem | o texto publicado pela empresa, como veio do pull: 1 parágrafo + lista; negrito onde o modelo tem negrito | `Text` 16/24 (`t.body`), lista com marcador |
-| 3 | Rodapé fixo | `Li e estou ciente` · `Agora não` | `Botao nivel="principal"` (52) · `Botao nivel="neutro"` (44) |
-
-- **Li e estou ciente**: grava o aceite no aparelho (funciona sem sinal; vai no próximo envio, antes dos pontos), fecha a tela e
-  volta para onde o app ia. Sem aviso de confirmação: a seção Localização do Perfil passa a aparecer.
-- **Agora não** e o voltar do sistema: fecham a tela; o app segue usável; nada é gravado.
-- O botão principal fica habilitado desde a abertura (P3).
-- O texto do termo é o documento legal da empresa: o app não corta, não resume e não reescreve. A regra "só o que o usuário usa
-  para agir" não se aplica a ele (o texto é revisado pelo advogado).
-
-**Só leitura (Perfil › Termo de ciência)**: mesma tela, com `voltar` `Perfil`, subtítulo `Versão [n] · ciente em [dd/mm/aaaa hh:mm]`
-e sem rodapé. As palavras `Meu trajeto` do texto viram link (`LinkTexto`, Azul noite, sublinhado) para a tela do §3.
-
-**Estados**
-
-| Estado | O que muda |
+| Quem | O que vê |
 |---|---|
-| Sem sinal | nada: o texto veio no pull e o aceite fica no aparelho |
-| Tracking desligado pela empresa | a tela não abre; a seção do Perfil some |
-| Versão nova | a tela volta; até o aceite, o Perfil mostra o alerta do §2 e não mostra a seção |
+| Supervisor, gerente e admin (`core.trajeto.ver_equipe`, só no escopo da carteira, RN-CORE-04) | o mapa do dia de cada pessoa de campo (§2 e §3) |
+| Analista | só a coluna Km do Painel da equipe (resumo `core.deslocamento_dia`); sem "Ver trajeto" |
+| Vendedor e promotor | nada do rastreamento; só a notificação fixa do Android (§4), que o sistema exige |
 
-**Acessibilidade**: o título é `header`; a lista é lida item a item; o foco abre no título. Botões com o próprio texto como rótulo.
+- Sem a permissão ou com o rastreamento desligado pela empresa: o cartão "Trajeto" da Ficha, a coluna Km e o "Ver trajeto" não
+  aparecem. A API revalida (desenho §5.2).
+- Nenhuma tela exporta pontos; o CSV do Painel leva só o km do dia.
 
-## 2. Perfil › seção "Localização" e pausa (prancha 02)
+## 2. Gestão (prancha 01, fila de cima)
 
-Posição: logo depois do nome (e de Alertas, quando há), antes de `Conta`. Aparece só com o tracking ligado pela empresa e o aceite
-da versão vigente. O resto do Perfil não muda (`docs/design/rota-catalogo-perfil.md` §4).
-
-Título da seção: `Localização` (o mesmo rótulo de seção do Perfil, como `Conta`). A palavra não se repete dentro do cartão.
+### 2.1 Ficha da pessoa › cartão "Trajeto"
+Na Ficha (`modules/gestor/app/screens/ficha-screen.tsx`), logo depois de **Visitas**, antes de **Vendas do dia**.
 
 | Ordem | Linha | Texto | Componente |
 |---|---|---|---|
-| 1 | Estado | ícone `pin` · texto do estado (tabela abaixo) · chip de estado | `Cartao` com linha 56 dp, `ChipEstado` |
-| 2 | Ação (quando cabe) | `Pausar por [60] min` ou `Retomar` | `Botao nivel="secundario"` (44), largura toda |
-| 3 | Atalho | ícone `map` · `Meu trajeto` · `chevron` | `LinhaAtalho` (48 dp) |
-| 4 | Atalho | ícone `file` · `Termo de ciência` · `chevron` | `LinhaAtalho` (48 dp) |
+| 1 | Título | `Trajeto` | `Cartao` com `Text t.h2`, como os outros cartões da Ficha |
+| 2 | Km | `Km até agora` · `18,6 km` (hoje) | a mesma `Linha` rótulo e valor da Ficha |
+| 3 | Ação | ícone `map` · `Ver no mapa` | `Botao nivel="secundario"` (44); o principal da Ficha segue sendo o pedido em nome |
 
-| Estado | Texto da linha | Chip (`ChipEstado`) | Ação |
-|---|---|---|---|
-| Ativa (no expediente) | `Hoje 08:00–18:00` (as faixas do dia; duas faixas: `Hoje 08:00–12:00 e 14:00–18:00`) | `Ativa` (sucesso) | `Pausar por [60] min` |
-| Pausada | `Volta em [42] min` (conta por minuto; abaixo de 1 min, `Volta em menos de 1 min`) | `Pausada` (aviso) | `Retomar` |
-| Fora do expediente (antes ou depois da faixa) | `Hoje 08:00–18:00` | `Fora do expediente` (neutro) | nenhuma |
-| Sem expediente hoje (dia sem faixa, feriado ou ausência) | nenhum (só o ícone e o chip) | `Sem expediente hoje` (neutro) | nenhuma |
-| Sem a permissão "o tempo todo" | — | — | o app já pede na abertura (RN-CORE-37); a seção segue o estado acima |
+- Dia sem registro: a linha 2 mostra `—` e o botão continua (o mapa mostra o vazio e deixa voltar dias).
 
-- **Pausar por [60] min**: um toque, sem confirmação. Vibração leve; `AvisoRodape` `Localização pausada` com `Desfazer` (desfaz a
-  pausa, como se não tivesse havido). A pausa volta sozinha no fim do prazo.
-- **Retomar**: um toque, sem aviso: a linha volta ao estado Ativa (o chip já mostra a mudança).
-- Pausa no fim do expediente: termina no fim do expediente; a linha mostra o menor dos dois prazos.
-- Sem sinal: pausar e retomar funcionam igual (início e fim vão no próximo envio). Nada muda na tela.
-- **Sem aceite** (ou versão nova sem aceite): a seção não aparece; em `Alertas`, uma linha `Termo de localização para confirmar`
-  com a ação `Ler` (44 dp), que abre a tela do §1. É o único lugar do aviso (RN-VEN-42).
-- O estado aparece só aqui. Hoje o Diagnóstico também mostra o estado (desenho §9); como o Diagnóstico é tabela técnica fechada por
-  padrão e serve ao suporte, fica como está, mas sem frase: o mesmo rótulo do chip (pedido ao engenheiro-apps no §6).
-
-**Acessibilidade**: a linha 1 é lida inteira, com o título da seção: "Localização, ativa, hoje das 8 às 18". O chip tem texto (a cor nunca fala
-sozinha). `Pausar por 60 min` tem rótulo "Pausar a localização por 60 minutos". A contagem não é anunciada a cada minuto; o
-`AvisoRodape` é `polite` (8 s com leitor de tela). Todos os alvos ≥ 44 dp; atalhos 48 dp.
-
-## 3. "Meu trajeto" (prancha 03)
-
-Só o dia do próprio vendedor ou promotor (`core.trajeto.ver_proprio`). Nunca mostra outra pessoa. Entrada: Perfil (atalho) e o link
-no termo só leitura.
+### 2.2 Tela "Trajeto"
 
 | Ordem | Bloco | Texto | Componente |
 |---|---|---|---|
-| 1 | Cabeçalho | `‹ Perfil` · `Meu trajeto` | `Screen` com `cabecalho` |
+| 1 | Cabeçalho | `‹ Carla Lima` (nome da Ficha) · `Trajeto` | `Screen` com `cabecalho` |
 | 2 | Dia | `‹` · `Hoje · qua 19/11` / `Ontem · ter 18/11` / `dom 16/11` · `›` | 2 botões de 48 dp + texto 16/600; `›` desabilitado em hoje; `‹` desabilitado no dia mais antigo guardado ([90] dias) |
-| 3 | Mapa | trajeto desenhado no aparelho, 220 dp | o mesmo mapa em SVG da Rota de hoje (`modules/core/app/telas/rota.tsx`): fundo Névoa, ruas brancas, borda #C9CED5 (P2) |
-| 4 | Resumo | `Até agora` (hoje) ou `Distância` (dia anterior) · `18,6 km`; linhas `Início 08:04`, `Pausa 09:12–09:40` (uma por pausa), `Último ponto 10:12` (hoje) ou `Fim 17:52` | `Cartao`; número 28/700 tabular; linhas 44 dp com o marcador do mapa à esquerda |
-| 5 | Contestar (P1 A) | `Contestar este dia` | `Botao nivel="secundario"` (44) |
+| 3 | Mapa | trajeto desenhado no aparelho, 236 dp | o mapa em SVG da Rota de hoje (`modules/core/app/telas/rota.tsx`): fundo Névoa, ruas brancas, borda #C9CED5 (P1 A) |
+| 4 | Resumo | `Até agora` (hoje) ou `Distância` (dia anterior) · `18,6 km`; depois os eventos em ordem de hora | `Cartao`; número 28/700 tabular; linhas de 44 dp com o marcador do mapa à esquerda; nome do cliente quebra em 2 linhas, nunca corta |
 
-- **Marcadores** (os mesmos no mapa e na lista; a lista é a legenda): início = círculo vazado Azul noite; fim = círculo cheio Azul
-  noite; último ponto de hoje = círculo cheio com halo Azul suave; pausa = trecho tracejado #5B6673 entre o último ponto antes e o
-  primeiro depois da pausa. Traço do trajeto: Azul noite 3 dp.
-- **Km**: `metrosDoTrajeto` dos pontos do dia (o mesmo número do `core.deslocamento_dia`); 1 casa decimal com vírgula (`42,3 km`);
-  abaixo de 1 km, em metros (`850 m`). Hoje sem sinal: calculado com os pontos do aparelho.
-- **Horas** no fuso do tenant.
-- Pausa em curso hoje: `Pausa 09:59–agora`.
-- O mapa enquadra o trajeto do dia com 16 dp de margem; sem arrastar nem zoom na v1.
+**Eventos do resumo** (a lista é a legenda do mapa; os marcadores são os mesmos):
+
+| Evento | Marcador | Texto | Hora |
+|---|---|---|---|
+| Primeiro ponto do dia | círculo vazado Azul noite | `Início` | `08:04` |
+| Visita concluída | círculo verde #1D6B4F com o número da visita | nome do cliente | `08:22–08:51` (check-in–checkout) |
+| Visita em andamento | círculo Azul noite com o número | nome do cliente | `desde 09:58` |
+| Intervalo sem pontos maior que [15] min dentro do expediente (P2 A) | traço tracejado #5B6673 | `Sem registro` (cinza) | `12:02–12:58` |
+| Hoje: último ponto recebido | círculo cheio com halo | `Último ponto` | `10:12` |
+| Dia anterior: último ponto do dia | círculo cheio Azul noite | `Fim` | `17:52` |
+
+- **Km**: o mesmo número do `core.deslocamento_dia` (`metrosDoTrajeto`); 1 casa decimal com vírgula (`42,3 km`); abaixo de
+  1 km, em metros (`850 m`). Horas no fuso do tenant.
+- **Check-ins**: as visitas do dia da pessoa, na ordem do check-in; a posição no mapa é o GPS do check-in (RN-CORE-13).
+- O mapa enquadra o dia com 16 dp de margem; sem arrastar nem zoom na v1. Toque num número não abre nada na v1.
 
 **Estados**
 
 | Estado | Tela |
 |---|---|
-| Dia com trajeto | blocos 1 a 5 (5 só em dia anterior; hoje sem `Contestar`) |
-| Dia sem registro (fim de semana, feriado, ausência, sem aceite naquele dia) | blocos 1 e 2 + `EstadoVazio` ícone `pin`, `Nada registrado neste dia` |
-| Carregando dia anterior | blocos 1 e 2 + `Loading` no lugar do mapa |
-| Sem sinal, dia anterior | blocos 1 e 2 + `EstadoVazio` ícone `wifiOff`, `Sem sinal`, ação `Tentar de novo` (`Botao nivel="secundario"`) |
-| Sem sinal, hoje | normal (pontos do aparelho) |
-| Erro do servidor | `EstadoVazio` do padrão de erro do kit (`tela-de-erro`), com `Tentar de novo` |
+| Dia com trajeto | blocos 1 a 4 |
+| Dia sem registro (fim de semana, feriado, ausência, rastreamento desligado) | blocos 1 e 2 + `EstadoVazio` ícone `pin`, `Nada registrado neste dia` |
+| Carregando | blocos 1 e 2 + `Loading` no lugar do mapa |
+| Sem sinal | blocos 1 e 2 + `EstadoVazio` ícone `wifiOff`, `Sem sinal`, ação `Tentar de novo` (`Botao nivel="secundario"`); o trajeto não fica no aparelho do gestor (P3 A) |
+| Erro do servidor | `EstadoVazio` do padrão de erro do kit, com `Tentar de novo` |
+| Pessoa fora do escopo | o mesmo da Ficha: `Esta pessoa não está na sua equipe` |
 
-**Contestar (P1 A)**: `Folha` `Contestar 18/11` com fechar (48 dp), campo `O que não confere?` (texto livre, até [500] caracteres,
-obrigatório) e `Enviar` (principal; desabilitado com o campo vazio). Enviado: a folha fecha e o `AvisoRodape` diz
-`Contestação enviada`. Sem sinal, vai na fila do aparelho como os outros envios.
+**Acessibilidade**: o mapa é um elemento só (`accessibilityRole="image"`) com o resumo falado: "Trajeto de hoje de Carla Lima:
+18,6 km até agora, início 8:04, 3 visitas, último ponto 10:12". As setas têm rótulo `Dia anterior` e `Próximo dia`; o dia é
+anunciado ao trocar (`accessibilityLiveRegion`). A linha do resumo é lida inteira ("2, Padaria Estrela, das 9:05 às 9:31"); o
+marcador é decorativo. Alvos ≥ 44 dp.
 
-**Acessibilidade**: o mapa é um elemento só (`accessibilityRole="image"`) com o resumo falado: "Trajeto de hoje: 18,6 km até agora,
-início 8:04, pausa de 9:12 a 9:40, último ponto 10:12". As setas do dia têm rótulo `Dia anterior` e `Próximo dia`; o dia é anunciado
-ao trocar (`accessibilityLiveRegion`). Os marcadores da lista são decorativos (a linha é lida como "Início, 8:04").
+## 3. BKO (prancha 01, filas de baixo)
 
-## 4. Notificação fixa (prancha 04)
+### 3.1 Análise › Painel da equipe
+Página que já existe (`modules/gestor/web/pages/painel-page.tsx`). Muda só a tabela de pessoas:
+- coluna nova **`Km`** (numérica, à direita, depois de `Visitas`): `18,6 km`; `—` sem registro no dia;
+- coluna de ações no fim da linha (`⋯`, menu da linha, o mesmo padrão das tabelas do BKO) com o item **`Ver trajeto`**, que abre
+  o §3.2 com a pessoa e o dia do filtro. Sem `core.trajeto.ver_equipe`, a coluna de ações não aparece.
+
+### 3.2 Página "Trajeto"
+Rota filha do Painel (`/gestor/painel/trajeto?usuario=…&data=…`); o menu lateral segue em Análise › Painel da equipe.
+
+| Ordem | Bloco | Texto | Componente |
+|---|---|---|---|
+| 1 | Volta | `‹ Painel da equipe` (mantém o dia) | link do `PageHeader` |
+| 2 | Título | `Trajeto de Carla Lima` | `PageHeader` |
+| 3 | Filtros | `Pessoa` (lista do escopo) · `Dia` (data) | `FilterBar` com `Select` e `TextField type="date"`; os dois vão na URL |
+| 4 | Mapa | o mesmo desenho do §2.2, na largura que sobra, altura até o fim da página | `Panel` |
+| 5 | Resumo | o mesmo do §2.2 (km e eventos), coluna de 340 px à direita, com rolagem própria | `Panel` |
+
+Estados: os do §2.2 com os blocos do BKO (`LoadingBlock`, `ErrorBlock` com `Tentar de novo`, `EstadoVazio`
+`Nada registrado neste dia`). Teclado: filtros, depois o mapa (um elemento com `role="img"` e o resumo no `aria-label`), depois a lista.
+
+## 4. Notificação fixa (Campo, prancha 02)
+
+O Android exige notificação enquanto o serviço em primeiro plano roda. Ela **não cita localização** em nenhum lugar.
 
 | Item | Valor |
 |---|---|
 | Cabeçalho (sistema) | nome do app `Macuxi Campo` + hora; ícone pequeno `icone-notificacao-96.png` (branco e transparente, o sistema pinta) |
-| Título | `Localização ativa no expediente` |
-| Texto | nenhum (P4) |
+| Título | `Macuxi Campo ativo` |
+| Texto | nenhum |
 | Cor (`color`) | Azul noite #1E3350 |
-| Canal | id `macuxi-trajeto`, nome `Localização no expediente`, importância baixa (`IMPORTANCE_LOW`): sem som, sem vibração, sem aparecer por cima; fica em "Silenciosas" |
+| Canal | id `macuxi-servico`, nome `Serviço do app`, sem descrição; importância baixa (`IMPORTANCE_LOW`): sem som, sem vibração, sem aparecer por cima; fica em "Silenciosas" |
 | Ações | nenhuma; não pode ser dispensada (serviço em primeiro plano) |
-| Toque | abre o Campo no Perfil, na seção Localização (onde fica a pausa) |
-| Quando some | pausa, fim do expediente, logout, termo novo sem aceite, tracking desligado pela empresa (desenho §3.2) |
+| Toque | abre o Campo onde ele estava (ou no Início) |
+| Quando aparece e some | aparece quando o serviço liga e some quando ele desliga (desenho §3.2): fora do expediente, feriado, ausência, logout, rastreamento desligado pela empresa |
 
-O texto do §3.1 ("Macuxi Campo — localização ativa no expediente") fica dividido entre o nome do app, que o Android já mostra no
-cabeçalho, e o título; assim o nome não aparece duas vezes.
+- O título repete o nome do app que o Android já mostra no cabeçalho; é o texto decidido pelo dono do produto e fica assim.
+- O ícone de localização que o próprio Android mostra na barra de status enquanto um app usa o GPS é do sistema; o app não o
+  controla nem o esconde.
+- Sem tela, aviso ou texto no app sobre o serviço (decisão de 19/11).
 
 ## 5. Fica fora
 
-- Mapa da equipe (Gestão e BKO, modulo-gestor) e Parâmetros › Rastreamento, termo e ausências no BKO (modulo-core).
-- Visitas e clientes no mapa de "Meu trajeto"; velocidade, precisão e lista de pontos; exportação.
-- Escolher a duração da pausa (é o parâmetro [60]); motivo da pausa (o desenho não guarda motivo).
-- Tela de permissões e o aviso curto do Google Play (já existem, `apps/mobile/src/lib/permissoes.ts`).
-- Gestão: o tracking é só do Campo.
+- Qualquer tela de rastreamento no Campo: termo, "Meu trajeto", pausa, seção Localização no Perfil, Contestar (decisão de 19/11).
+- Mapa com a posição de toda a equipe ao mesmo tempo (P4).
+- Velocidade, precisão e lista de pontos; exportação de pontos.
+- Parâmetros › Rastreamento e cadastro de ausências no BKO (modulo-core; spec à parte, quando pedida).
+- Tela de permissões do Campo (já existe, `apps/mobile/src/lib/permissoes.ts`).
 
 ## 6. Pedidos a outros donos (pelo gerente; esta sessão não envia recado)
 
-- **modulo-core**: telas dos §1 a §3 com os componentes citados; entidade da contestação, se P1 = A.
-- **engenheiro-apps**: canal e notificação do §4; toque abrindo o Perfil; no Diagnóstico, o estado com os rótulos do chip.
-- **design-de-marca**: validar as pranchas (cor do traço, marcadores, ícone da notificação).
+- **modulo-gestor**: cartão "Trajeto" na Ficha, tela "Trajeto" no Gestão, coluna Km, "Ver trajeto" e a página do §3.2 no BKO.
+- **modulo-core**: o `core.trajeto_do_dia@1` com os pontos, os intervalos sem registro (P2) e as visitas do dia (cliente, check-in,
+  checkout, posição), com o escopo conferido; o km na visão do Painel.
+- **engenheiro-apps**: canal `macuxi-servico` e a notificação do §4.
+- **design-de-marca**: validar as pranchas (traço, marcadores, ícone da notificação).
 
 ## 7. Pontos em aberto para o dono do produto
 
-**P1 — Contestar um dia** (o termo promete: "Em 'Meu trajeto' você vê o seu trajeto e contesta um dia").
-- **A** — botão `Contestar este dia` em "Meu trajeto" (dias anteriores), com folha de texto livre; a contestação chega ao supervisor
-  na Gestão como alerta. Pede entidade nova no Core e o alerta no Gestor.
-- **B** — sem botão na v1.0.15: o termo troca a frase por "fale com o seu supervisor" (texto novo para o advogado).
-- **Recomendo A**: cumpre o que o termo já diz e dá ao vendedor o direito de correção (LGPD, art. 18, III) no mesmo lugar onde ele
-  vê o dia. Se não couber na v1.0.15, B só até a próxima versão.
+**P1 — Fundo do mapa.**
+- **A** — o mapa em SVG da Rota de hoje (ruas desenhadas, sem provedor): sem dependência nova e sem mandar a posição a ninguém.
+- **B** — mapa real com ruas (biblioteca e provedor de mapa, chave de API): mais referência para o gestor, mas custo, dependência
+  nova e o provedor recebe a área do trajeto, o que o desenho §9 evita.
+- **Recomendo A** na v1.0.15; B só se o gestor precisar reconhecer a rua.
 
-**P2 — Fundo do mapa.**
-- **A** — o mapa em SVG da Rota de hoje (ruas desenhadas, sem provedor): funciona sem sinal, sem dependência nova e sem mandar a
-  posição a ninguém.
-- **B** — mapa real com ruas (biblioteca e provedor de mapa, chave de API): mais referência, mas dependência nova, custo e o
-  provedor recebe a área do trajeto, o que o desenho §9 evita.
-- **Recomendo A**, igual à Rota de hoje.
+**P2 — Intervalo sem pontos no expediente** (aparelho desligado, sem GPS, serviço parado).
+- **A** — trecho tracejado no mapa e a linha `Sem registro 12:02–12:58` no resumo, quando passar de [15] min.
+- **B** — linha contínua ligando os pontos, sem marcar o intervalo.
+- **Recomendo A**: sem a marca, o gestor lê uma reta de 56 min como deslocamento.
 
-**P3 — `Li e estou ciente` habilitado desde a abertura.**
-- **A** — habilitado sempre (é ciência, não consentimento; o texto cabe em pouco mais de uma tela).
-- **B** — só depois de rolar até o fim.
-- **Recomendo A**: B só atrasa quem já leu e não prova leitura.
+**P3 — Trajeto no aparelho do gestor sem sinal.**
+- **A** — não guarda: sem sinal, `Sem sinal` e `Tentar de novo`.
+- **B** — guarda o último dia aberto de cada pessoa.
+- **Recomendo A**: o trajeto é dado pessoal sensível; guardar no celular do gestor amplia a exposição (minimização).
 
-**P4 — Segunda linha da notificação.**
-- **A** — só o título `Localização ativa no expediente`.
-- **B** — título + `Até 18:00` (fim da faixa).
-- **Recomendo A**: a hora não muda nada do que o vendedor faz, e fica no Perfil.
+**P4 — Entrada do mapa.**
+- **A** — por pessoa: Ficha (Gestão) e "Ver trajeto" (BKO), um dia de cada vez.
+- **B** — um mapa com a última posição de toda a equipe agora.
+- **Recomendo A** na v1.0.15: cumpre o "trajeto do dia" do desenho §5.2; B é acompanhamento em tempo real, outra finalidade, e
+  pediria nova base no texto legal.
+
+## 8. Decisões
+
+| Data | Decisão |
+|---|---|
+| 19/11/2026, 05h46 (dono do produto) | Rastreamento interno: o vendedor não vê nada. Saem termo, "Meu trajeto", pausa, Localização no Perfil e Contestar; ficam o mapa da equipe e a notificação `Macuxi Campo ativo`, sem citar localização. |

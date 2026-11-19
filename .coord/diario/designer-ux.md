@@ -172,3 +172,4 @@
 2026-11-19 — T-0184 — #492: reteste no 4f8b68f (MC-1745, 1746, 1748, 1749; RD-2231, RD-2236 e Histórico da prancha 02).
 2026-11-19 — T-0156 — #492: MC-1750, MC-1751 e "Macuxi FDV" no termo.
 2026-11-19 — T-0156 — #492: RD-2240 a RD-2244 (textos do cartão de Localização, distância, sem texto de funcionamento, sem aviso de retomada, laço de captura comum).
+2026-11-19 — T-0156 — #492: rastreamento interno (decisão das 05h46): saem termo, Meu trajeto, pausa, Localização no Perfil e Contestar; ficam o mapa da equipe (Gestão e BKO) e a notificação "Macuxi Campo ativo".
