@@ -6,6 +6,7 @@ import type { CustomerSummary, LimiteDesconto, Me } from '@macuxi/core/contracts
 import type { DiscountPolicy, Order, OrderDetail, PedidoPush } from '../../contracts';
 import type { Product } from '@macuxi/catalogo/contracts';
 import type { EnderecoEditadoValido } from '../../domain/endereco-pedido';
+import { motivosFinanceirosDoPedido } from '../../domain/credito-pedido';
 import { validateOrder, type OrderIssue, type OrderTotals, type OrderValidation } from '../../domain/order';
 import type { FaixaEscalonada } from '../../domain/preco-item';
 import { mensagemAcimaDoMaximo, percentualAjusteParaBp } from '../../domain/preco-pedido';
@@ -150,6 +151,12 @@ export interface EntradaPrepararPedido {
   aplicacao?: { padrao: boolean; max: number };
   /** RN-VEN-11a (T-0168): limite do usuário da sessão (o gestor, em nome do vendedor) */
   limite?: Partial<LimiteDesconto> | null;
+  /**
+   * T-0184 (RN-VEN-12 e RN-VEN-13): dados financeiros do aparelho (`core.financeiro_cliente@1`, vale offline) e o prazo médio do
+   * pedido. Com eles, crédito estourado e título vencido mandam o pedido para aprovação em vez de seguir como "ok". `null` ou
+   * ausente = o Core não respondeu: o app não decide, o servidor decide ao receber.
+   */
+  financeiro?: { prazo_medio_dias: number | undefined; limite_informado: boolean; disponivel_cents: number; maior_atraso_dias: number; limite_dias: number } | null;
 }
 
 /** `OrderValidation` com o cálculo do novo pedido (medidas, ajustes, desconto efetivo) anexado. */
@@ -174,6 +181,17 @@ export function observacaoDoPush(r: Pick<Rascunho, 'observacao' | 'observacao_en
   const entrega = r.observacao_entrega?.trim() ?? '';
   const texto = [pedido, entrega ? `Entrega: ${entrega}` : ''].filter(Boolean).join('\n').slice(0, 500);
   return texto || null;
+}
+
+/** RN-VEN-12 e RN-VEN-13 (T-0184): os motivos financeiros viram avisos que mandam para aprovação, nunca bloqueiam. */
+export function avisosFinanceiros(f: EntradaPrepararPedido['financeiro'], total_cents: number): OrderIssue[] {
+  if (!f) return [];
+  const motivos = motivosFinanceirosDoPedido({ ...f, total_cents });
+  return motivos.map((m): OrderIssue =>
+    m === 'credito'
+      ? { code: 'credit_exceeded', message: 'Limite de crédito excedido', blocking: false, needs_approval: true }
+      : { code: 'overdue_receivables', message: 'Título vencido', blocking: false, needs_approval: true },
+  );
 }
 
 export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido; display: OrderDisplay } {
@@ -204,13 +222,14 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido
     discount_pct: Math.max(0, calculo.desconto_alcada_pct),
     lines: calculo.linhas.map((l) => ({ product_id: l.product_id, quantity: l.quantity, unit_price_cents: l.preco_tabela_cents })),
     policy: toDomainPolicy(politica),
-    // P-6 (T-0029): crédito fora da fatia, igual ao servidor — nenhum pedido vai para aprovação por crédito
+    // T-0184: o crédito entra abaixo (`avisosFinanceiros`), com as regras de prazo, limite não informado e à vista
     credit: null,
   });
   const issues: OrderIssue[] = [
     ...(calculo.linhas.length === 0 && calculo.erros.length === 0 ? [validado.issues.find((i) => i.code === 'empty_order')].filter((i): i is OrderIssue => Boolean(i)) : []),
     ...calculo.erros.map((message): OrderIssue => ({ code: /sem preço/i.test(message) ? 'price_not_found' : calculo.bloqueado && /acima do máximo/.test(message) ? 'discount_blocked' : 'invalid_item', message, blocking: true, needs_approval: false })),
     ...validado.issues.filter((i) => i.code === 'discount_above_limit'),
+    ...avisosFinanceiros(e.financeiro, calculo.total_cents),
     // RN-VEN-11 (T-0151): desconto acima do máximo do produto não passa nem com aprovação; só orçamento (RN-VEN-18)
     ...(calculo.acima_do_maximo.length > 0 && e.rascunho.tipo !== 'orcamento' ? [{ code: 'invalid_item' as const, message: mensagemAcimaDoMaximo(calculo.acima_do_maximo), blocking: true, needs_approval: false }] : []),
   ];

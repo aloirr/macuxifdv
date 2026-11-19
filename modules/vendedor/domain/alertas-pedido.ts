@@ -5,7 +5,7 @@
  * recusa (RN-VEN-40). Função pura, sem React. A tela só desenha; os efeitos no salvar vêm de `so_orcamento` e `impede_enviar`.
  */
 import { alertasDaVenda } from './alertas-venda';
-import { exigeAprovacaoPorVencido } from './pagamento';
+import { exigeAprovacaoPorInadimplencia } from './credito-pedido';
 import type { SituacaoCliente } from './orcamento';
 
 export type TipoDoAlerta = 'cliente' | 'faltante' | 'maximo' | 'estoque' | 'credito' | 'titulo' | 'alcada' | 'limite_pedido' | 'recusa' | 'copia' | 'sinal';
@@ -94,12 +94,12 @@ function textoDoEstoqueInsuficiente(i: ItemDoAlerta): string {
 }
 
 /**
- * RN-VEN-13 (RD-0172): o título vencido só é alerta quando muda o resultado: atraso ACIMA do limite (padrão 5 dias) com pagamento a prazo
- * (a mesma conta de `exigeAprovacaoPorVencido`). Fora disso devolve `null` e o Financeiro do cliente continua mostrando os vencidos.
+ * RN-VEN-13 (RD-0172, P1 A de T-0184): o título vencido só é alerta quando muda o resultado: atraso ACIMA do limite (padrão 5 dias),
+ * a prazo ou à vista (`exigeAprovacaoPorInadimplencia`; o prazo não entra na conta, o parâmetro fica só para as chamadas existentes). Fora disso devolve `null` e o Financeiro do cliente continua mostrando os vencidos.
  */
-export function vencidosComEfeito<T extends { dias: number }>(vencidos: T | null, prazo_medio_dias: number | undefined, limite_dias: number): T | null {
-  if (!vencidos || prazo_medio_dias === undefined) return null;
-  return exigeAprovacaoPorVencido({ maior_atraso_dias: vencidos.dias, prazo_medio_dias, limite_dias }) ? vencidos : null;
+export function vencidosComEfeito<T extends { dias: number }>(vencidos: T | null, _prazo_medio_dias: number | undefined, limite_dias: number): T | null {
+  if (!vencidos) return null;
+  return exigeAprovacaoPorInadimplencia({ maior_atraso_dias: vencidos.dias, limite_dias }) ? vencidos : null;
 }
 
 /** RN-VEN-42 §0.1: a lista de alertas na ordem da spec (cliente, faltante, máximo, estoque; depois crédito e título). A recusa abre a lista. */

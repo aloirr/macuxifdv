@@ -30,6 +30,8 @@ export type ModeloDoCredito =
       tipo: 'dados';
       limite_cents: number;
       disponivel_cents: number;
+      /** o ERP informou limite ou disponível (P4 A, T-0184: sem limite informado, a prazo, o pedido vai para aprovação) */
+      limite_informado: boolean;
       alerta: { titulos: number; valorCents: number; dias: number } | null;
     };
 
@@ -46,6 +48,17 @@ export function modeloDoCredito(f: FinanceiroDaConsulta | null, pedidos: readonl
     tipo: 'dados',
     limite_cents: c.limite_cents,
     disponivel_cents: c.disponivel_cents,
+    limite_informado: f.limite_cents > 0 || f.credito_disponivel_erp_cents != null,
     alerta: f.vencidos_qtd > 0 ? { titulos: f.vencidos_qtd, valorCents: f.vencidos_cents, dias: f.maior_atraso_dias } : null,
   };
+}
+
+/**
+ * RN-VEN-12 e RN-VEN-13 (T-0184): o que o pedido precisa saber do crédito para ir (ou não) para aprovação. `null` = o Core não
+ * respondeu (`modelo` nulo ou ainda carregando): o app não decide. Sem linha financeira (`vazio`), o limite não foi informado (P4 A).
+ */
+export function financeiroParaAprovacao(modelo: ModeloDoCredito | null | undefined, prazo_medio_dias: number | undefined, limite_dias: number) {
+  if (!modelo) return null;
+  if (modelo.tipo === 'vazio') return { prazo_medio_dias, limite_informado: false, disponivel_cents: 0, maior_atraso_dias: 0, limite_dias };
+  return { prazo_medio_dias, limite_informado: modelo.limite_informado, disponivel_cents: modelo.disponivel_cents, maior_atraso_dias: modelo.alerta?.dias ?? 0, limite_dias };
 }
