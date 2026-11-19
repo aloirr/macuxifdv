@@ -8,6 +8,9 @@
  */
 import { formatHHMM } from '@macuxi/comum/fuso';
 import { PontoTrajetoSchema, type MotivoSemRastreio, type PontoTrajeto } from '@macuxi/core/contracts';
+import type { DriverSqlite } from '@macuxi/platform-sdk';
+
+import { semDerrubar } from './trava-sync';
 
 export const TAREFA_TRAJETO = 'macuxi-trajeto';
 
@@ -95,8 +98,10 @@ export function pontosDoLote(
   return { pontos, parar };
 }
 
+export type AcaoDoTrajeto = 'ligar' | 'desligar' | 'manter';
+
 /** Liga só se pode e ainda não está ativa; desliga se está ativa e não pode mais; senão mantém (§3.2). */
-export function acaoDoTrajeto(condicao: CondicaoTrajeto, ativa: boolean): 'ligar' | 'desligar' | 'manter' {
+export function acaoDoTrajeto(condicao: CondicaoTrajeto, ativa: boolean): AcaoDoTrajeto {
   if (condicao.pode) return ativa ? 'manter' : 'ligar';
   return ativa ? 'desligar' : 'manter';
 }
@@ -157,4 +162,139 @@ export function erroSemCoordenada(e: unknown): Error {
     if (original.stack) limpo.stack = semCoordenada(original.stack);
   }
   return limpo;
+}
+
+/** §2, condição 1: o rastreamento vem desligado de fábrica. */
+const DESLIGADO: CondicaoTrajeto = { pode: false, motivo: 'desligado' };
+
+/**
+ * PONTO ÚNICO da condição do §2 no shell (RN-CORE-13). Hoje devolve sempre "desligado": a tarefa NUNCA liga de fábrica.
+ * TROCAR AQUI quando o Core expuser `podeRastrear` e os parâmetros `rastreamento` em `@macuxi/core/app`: ler uma vez os
+ * parâmetros, o aceite, os feriados, as ausências, a pausa e a permissão, e devolver
+ * `(instante) => podeRastrear({ ..., instante, fuso })`, com o app da variante no portão (o Gestão nunca rastreia).
+ */
+export function condicaoDoTrajeto(): Promise<(instanteMs: number) => CondicaoTrajeto> {
+  return Promise.resolve(() => DESLIGADO);
+}
+
+/** A captura do aparelho (`expo-location`, `services/trajeto.ts`). */
+export interface CapturaDoAparelho {
+  ativa(): Promise<boolean>;
+  ligar(): Promise<void>;
+  parar(): Promise<void>;
+}
+
+/** O que o Diagnóstico do Perfil guarda (§9): o estado e a hora do último ponto, nunca a coordenada. */
+export interface DiagnosticoDoTrajeto {
+  estado: EstadoDoTrajeto;
+  ultimo_ponto_em: string | null;
+}
+
+export interface DepsDoTrajeto {
+  /** `null` = build sem os módulos nativos (tudo vira nada). */
+  captura: CapturaDoAparelho | null;
+  condicao(): Promise<(instanteMs: number) => CondicaoTrajeto>;
+  gravar(pontos: PontoTrajeto[]): Promise<void>;
+  novoId(): string;
+  agora(): number;
+  guardarDiagnostico(d: Partial<DiagnosticoDoTrajeto>): Promise<void>;
+  /** Recebe o erro já sem coordenada (`erroSemCoordenada`). */
+  registrarErro(e: Error): void;
+}
+
+const instanteMaisRecente = (pontos: readonly PontoTrajeto[]): string =>
+  pontos.reduce((a, p) => (Date.parse(p.capturado_em) > Date.parse(a) ? p.capturado_em : a), pontos[0]!.capturado_em);
+
+/**
+ * A tarefa `macuxi-trajeto` sobre as dependências do aparelho. Nenhuma função lança: o erro vai ao `registrarErro` sem
+ * coordenada (§3.1 e §9).
+ * - `atualizar`: os três gatilhos do §3.2 (abertura depois da carga, volta ao primeiro plano, passada da `macuxi-sync-delta`);
+ * - `parar`: logout e aparelho bloqueado, antes de fechar ou apagar os bancos (§3.4);
+ * - `tratarLote`: o lote entregue pelo Android; o ponto recusado pela condição é descartado e a captura para.
+ */
+export function criarTrajeto(d: DepsDoTrajeto) {
+  const registrar = (e: unknown) => d.registrarErro(erroSemCoordenada(e));
+  const pararSeAtiva = async (c: CapturaDoAparelho) => {
+    if (await c.ativa()) await c.parar();
+  };
+  return {
+    atualizar(): Promise<AcaoDoTrajeto | null> {
+      const c = d.captura;
+      if (!c) return Promise.resolve(null);
+      return semDerrubar<AcaoDoTrajeto | null>(
+        async () => {
+          const ativa = await c.ativa();
+          const agora = (await d.condicao())(d.agora());
+          const acao = acaoDoTrajeto(agora, ativa);
+          if (acao === 'ligar') await c.ligar();
+          else if (acao === 'desligar') await c.parar();
+          await d.guardarDiagnostico({ estado: estadoDoTrajeto(agora, acao === 'manter' ? ativa : acao === 'ligar') });
+          return acao;
+        },
+        registrar,
+        null,
+      );
+    },
+    async parar(): Promise<void> {
+      const c = d.captura;
+      if (!c) return;
+      await semDerrubar(
+        async () => {
+          await pararSeAtiva(c);
+          await d.guardarDiagnostico({ estado: 'desligada', ultimo_ponto_em: null });
+        },
+        registrar,
+        undefined,
+      );
+    },
+    async tratarLote(leituras: readonly LeituraDeLocalizacao[], erro: { message: string } | null): Promise<void> {
+      const c = d.captura;
+      if (!c) return;
+      await semDerrubar(
+        async () => {
+          if (erro) throw new Error(`erro da captura: ${erro.message}`);
+          const condicao = await d.condicao();
+          const { pontos, parar } = pontosDoLote(leituras, condicao, d.novoId);
+          try {
+            if (pontos.length > 0) {
+              await d.gravar(pontos);
+              await d.guardarDiagnostico({ ultimo_ponto_em: instanteMaisRecente(pontos) });
+            }
+          } finally {
+            if (parar || !condicao(d.agora()).pode) await pararSeAtiva(c);
+          }
+        },
+        registrar,
+        undefined,
+      );
+    },
+  };
+}
+
+/** Linhas por comando: 6 parâmetros cada, longe do limite de parâmetros do SQLite. */
+const PONTOS_POR_COMANDO = 500;
+const INSERIR_PONTOS =
+  'INSERT OR IGNORE INTO core__ponto_trajeto (id, capturado_em, latitude, longitude, precisao_m, velocidade_ms, enviado_em) VALUES ';
+
+/**
+ * Grava os pontos em `core__ponto_trajeto` (SQLite do usuário; docs/banco/aparelho-sqlite.md §11) com `enviado_em` nulo
+ * (na fila), idempotente pelo id (§3.4). Sem a tabela (o Core ainda não declarou as migrações do aparelho), descarta e
+ * devolve 0. Devolve quantos pontos entraram.
+ */
+export async function gravarPontosDoTrajeto(db: Pick<DriverSqlite, 'rodar'>, pontos: readonly PontoTrajeto[]): Promise<number> {
+  let inseridos = 0;
+  try {
+    for (let i = 0; i < pontos.length; i += PONTOS_POR_COMANDO) {
+      const parte = pontos.slice(i, i + PONTOS_POR_COMANDO);
+      const r = await db.rodar(
+        INSERIR_PONTOS + parte.map(() => '(?, ?, ?, ?, ?, ?, NULL)').join(', '),
+        parte.flatMap((p) => [p.id, p.capturado_em, p.latitude, p.longitude, Math.round(p.precisao_m), p.velocidade_ms]),
+      );
+      inseridos += r.alteradas;
+    }
+  } catch (e) {
+    if (/no such table/i.test(e instanceof Error ? e.message : String(e))) return 0;
+    throw e;
+  }
+  return inseridos;
 }

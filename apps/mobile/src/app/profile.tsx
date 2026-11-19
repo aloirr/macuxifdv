@@ -50,6 +50,7 @@ import { linhasDasSaidas, type SaidaAndroid } from '@/lib/saida-android';
 import { mensagemDeErroDaCarga } from '@/lib/frases-carga';
 import { textoDaVersao } from '@/lib/nome-build';
 import { textoDoResultado } from '@/lib/segundo-plano';
+import { textoDoEstadoDoTrajeto, type DiagnosticoDoTrajeto } from '@/lib/trajeto';
 import { contaDaSessao } from '@/lib/trocar-senha-shell';
 import { varianteAtual } from '@/lib/variante';
 import { perfilBuildAtual } from '@/services/device';
@@ -57,6 +58,7 @@ import { useDiagnosticoNuvem } from '@/services/diagnostico';
 import { lerUltimoErro } from '@/services/erros';
 import { lerSaidasDoAndroid } from '@/services/saida-android';
 import { idDoBuildAtual } from '@/services/segundo-plano';
+import { lerDiagnosticoDoTrajeto } from '@/services/trajeto';
 import { usePlataforma } from '@/state/plataforma';
 
 /** Selo da fila (spec rota-catalogo-perfil §4): "Na fila" na espera; "Não enviado" no módulo desativado. */
@@ -92,6 +94,9 @@ function Perfil() {
   const [ultimoErro, setUltimoErro] = useState<ErroRegistrado | null>(null);
   // T-0144: as últimas saídas do processo segundo o Android (erro nativo, memória, travamento, fechado pelo usuário)
   const [saidas, setSaidas] = useState<SaidaAndroid[] | null>(null);
+  // T-0156 (tracking §9): estado da localização no expediente e hora do último ponto, sem coordenada (só no Campo)
+  const comTrajeto = varianteAtual() === 'campo';
+  const [trajeto, setTrajeto] = useState<DiagnosticoDoTrajeto | null>(null);
   useEffect(() => {
     if (!diagnosticoAberto) return;
     let vivo = true;
@@ -100,10 +105,14 @@ function Perfil() {
       setUltimoErro(r);
       setSaidas(lerSaidasDoAndroid());
     });
+    if (comTrajeto)
+      void lerDiagnosticoDoTrajeto()
+        .then((r) => vivo && setTrajeto(r))
+        .catch(() => undefined);
     return () => {
       vivo = false;
     };
-  }, [diagnosticoAberto]);
+  }, [diagnosticoAberto, comTrajeto]);
   // T-0008 P7: 7 toques seguidos na versão abrem o diagnóstico de carga (só no bundle de desenvolvimento)
   const toques = useRef(criarContadorToques());
   const comDiagnostico = diagnosticoDisponivel(perfilBuildAtual());
@@ -345,6 +354,11 @@ function Perfil() {
               {/* T-0140: versão + versionCode; a tarefa sem tela só roda depois de este build abrir com tela */}
               {`\nBuild instalado: ${idDoBuildAtual()}`}
             </Text>
+            {comTrajeto ? (
+              <Text selectable style={styles.mono} testID="diagnostico-trajeto">
+                {`Localização no expediente: ${textoDoEstadoDoTrajeto(trajeto?.estado ?? 'desligada', trajeto?.ultimo_ponto_em ?? null, tz)}`}
+              </Text>
+            ) : null}
             <Text selectable style={styles.mono} testID="diagnostico-ultimo-erro">
               {textoDoUltimoErro(ultimoErro, (iso) => dateTimeLabel(iso, new Date(), tz))}
             </Text>

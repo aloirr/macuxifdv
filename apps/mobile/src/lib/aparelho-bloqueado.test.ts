@@ -65,6 +65,10 @@ async function montar() {
   let aviso: string | null = null;
   const fontes: FontesAparelhoBloqueado = {
     motor: () => motorAberto,
+    // T-0156 (tracking §3.4): a captura do trajeto para antes de qualquer apagamento (nenhum ponto chega a banco apagado)
+    pararCaptura: async () => {
+      passos.push('captura');
+    },
     apagarBancos: async () => {
       // T-0088: depois da limpeza do motor (o motor ainda está aberto) e antes da varredura das chaves
       passos.push(motorAberto && disco.dados.size > 0 ? 'bancos' : 'bancos?');
@@ -110,7 +114,7 @@ describe('aparelho bloqueado no shell (RN-CORE-15)', () => {
     });
     expect(t.fotos.size).toBe(0);
     expect(t.estado()).toEqual({ tokens: null, aviso: AVISO_APARELHO_LIMPO, motorAberto: null });
-    expect(t.passos).toEqual(['bancos', 'fotos', 'tokens', 'sessao', 'aviso', 'login']);
+    expect(t.passos).toEqual(['captura', 'bancos', 'fotos', 'tokens', 'sessao', 'aviso', 'login']);
   });
 
   it('no login (sem motor aberto) também varre os dados de todos os usuários do aparelho', async () => {

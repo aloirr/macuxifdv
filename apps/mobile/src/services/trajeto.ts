@@ -1,53 +1,46 @@
 /**
  * T-0156 (docs/desenho/tracking.md §3 e §9; RN-CORE-13 e RN-CORE-37): tarefa `macuxi-trajeto`, o lado do aparelho. As regras
- * (ponto, lote, ligar e desligar, estado) estão em `lib/trajeto.ts`; aqui fica o que depende do aparelho, no padrão da
- * `macuxi-sync-delta` (`services/segundo-plano.ts`, T-0140):
- * - `TaskManager.defineTask` no escopo global: quando o Android entrega um lote com o app fechado, não há React montado;
- * - a tarefa não toca em tela nem em estado de React, só grava pelo `gravar` configurado, e nenhum erro derruba o processo
+ * (ponto, lote, ligar e desligar, estado, gravação) estão em `lib/trajeto.ts`; aqui fica o que depende do aparelho, no padrão
+ * da `macuxi-sync-delta` (`services/segundo-plano.ts`, T-0140):
+ * - `TaskManager.defineTask` no escopo global (importado pelo `index.ts`): quando o Android entrega um lote com o app
+ *   fechado, não há React montado;
+ * - a tarefa não toca em tela nem em estado de React, só grava no SQLite do usuário, e nenhum erro derruba o processo
  *   (vai ao Diagnóstico pelo `erroSemCoordenada`: nenhuma coordenada em log, erro, Diagnóstico ou telemetria, §9);
- * - desligado de fábrica: sem `configurarTrajeto`, a tarefa para a captura e descarta o lote.
+ * - desligada de fábrica: a condição é a de `condicaoDoTrajeto` (ponto único, `lib/trajeto.ts`).
  * Notificação fixa: o expo-location 57 cria o canal próprio `<appId>:macuxi-trajeto` com IMPORTANCE_LOW, sem som
  * (`LocationTaskService.kt`); nada a criar aqui.
  * Só Android na v1. Build sem os módulos nativos: tudo vira no-op, sem quebrar o app.
- *
- * ESQUELETO: este arquivo ainda não é importado pelo `index.ts` nem chamado em lugar nenhum; isso entra com a tabela local
- * `ponto_trajeto`, a entidade de envio e o `podeRastrear` do Core exposto ao app.
  */
-import type { PontoTrajeto } from '@macuxi/core/contracts';
 import { requireOptionalNativeModule } from 'expo';
 import { Platform } from 'react-native';
 
-import { semDerrubar, semDerrubarAgora } from '@/lib/trava-sync';
+import { semDerrubarAgora } from '@/lib/trava-sync';
 import {
-  acaoDoTrajeto,
+  condicaoDoTrajeto,
+  criarTrajeto,
   erroSemCoordenada,
+  gravarPontosDoTrajeto,
   OPCOES_TRAJETO,
-  pontosDoLote,
   TAREFA_TRAJETO,
-  type CondicaoTrajeto,
+  type CapturaDoAparelho,
+  type DiagnosticoDoTrajeto,
   type LeituraDeLocalizacao,
 } from '@/lib/trajeto';
 
+import { driverDoArquivo } from './armazenamento';
 import { uuid } from './device';
 import { gravarErro } from './erros';
+import { abrirArmazenamentoDaSessao, usuarioDaSessao } from './sessao-sem-tela';
+import { readJson, writeJson } from './storage';
 
-/**
- * Ponto de injeção. `condicao` carrega o estado do §2 (parâmetros, aceite, expediente, pausa, permissão) e devolve a
- * condição num instante; `gravar` guarda os pontos no SQLite do aparelho. Provisório até o `podeRastrear` do Core.
- */
-export interface ConfiguracaoTrajeto {
-  condicao: () => Promise<(instanteMs: number) => CondicaoTrajeto>;
-  gravar: (pontos: PontoTrajeto[]) => Promise<void>;
+/** Diagnóstico do Perfil: estado e hora do último ponto (`DiagnosticoDoTrajeto`, sem coordenada). */
+export const CHAVE_DIAGNOSTICO_TRAJETO = 'fv:diagnostico:trajeto';
+
+export function lerDiagnosticoDoTrajeto(): Promise<DiagnosticoDoTrajeto | null> {
+  return readJson<DiagnosticoDoTrajeto>(CHAVE_DIAGNOSTICO_TRAJETO);
 }
 
-let configuracao: ConfiguracaoTrajeto | null = null;
-
-/** Liga (ou, com `null`, desliga) a configuração da tarefa neste processo. */
-export function configurarTrajeto(c: ConfiguracaoTrajeto | null): void {
-  configuracao = c;
-}
-
-const registrarErro = (e: unknown) => void gravarErro(erroSemCoordenada(e), 'nao-fatal', `tarefa ${TAREFA_TRAJETO}`);
+const registrarErro = (e: Error) => void gravarErro(e, 'nao-fatal', `tarefa ${TAREFA_TRAJETO}`);
 
 type ModLocation = typeof import('expo-location');
 type ModTaskManager = typeof import('expo-task-manager');
@@ -65,64 +58,60 @@ function nativos(): { loc: ModLocation; tm: ModTaskManager } | null {
 
 const nat = nativos();
 
-async function captura(): Promise<boolean> {
-  if (!nat) return false;
-  return nat.loc.hasStartedLocationUpdatesAsync(TAREFA_TRAJETO);
+const captura: CapturaDoAparelho | null = nat && {
+  ativa: () => nat.loc.hasStartedLocationUpdatesAsync(TAREFA_TRAJETO),
+  ligar: () => nat.loc.startLocationUpdatesAsync(TAREFA_TRAJETO, OPCOES_TRAJETO),
+  parar: () => nat.loc.stopLocationUpdatesAsync(TAREFA_TRAJETO),
+};
+
+/**
+ * Os pontos vão ao SQLite do usuário da sessão guardada, aberto como na `macuxi-sync-delta` (a mesma instância do app).
+ * Sem sessão, na reserva do AsyncStorage ou com o arquivo que não abriu, o lote é descartado (§2: nada guardado para depois).
+ */
+async function gravarNoBancoDoUsuario(pontos: Parameters<typeof gravarPontosDoTrajeto>[1]): Promise<void> {
+  const usuarioId = await usuarioDaSessao();
+  if (!usuarioId) return;
+  const aberto = await abrirArmazenamentoDaSessao(usuarioId);
+  if (aberto.tipo !== 'sqlite') return;
+  await aberto.armazenamento.pronto;
+  const db = driverDoArquivo(aberto.arquivo);
+  if (db) await gravarPontosDoTrajeto(db, pontos);
 }
 
-async function pararCaptura(): Promise<void> {
-  if (nat && (await captura())) await nat.loc.stopLocationUpdatesAsync(TAREFA_TRAJETO);
-}
-
-/** Um lote entregue pelo Android. Não lança (o chamador envolve em `semDerrubar`). */
-async function tratarLote(leituras: readonly LeituraDeLocalizacao[]): Promise<void> {
-  const c = configuracao;
-  // desligado de fábrica: sem configuração, nada grava e a captura para
-  if (!c) {
-    await pararCaptura();
-    return;
-  }
-  const condicao = await c.condicao();
-  const { pontos, parar } = pontosDoLote(leituras, condicao, uuid);
-  try {
-    if (pontos.length > 0) await c.gravar(pontos);
-  } finally {
-    if (parar || !condicao(Date.now()).pode) await pararCaptura();
-  }
-}
+const trajeto = criarTrajeto({
+  captura,
+  condicao: condicaoDoTrajeto,
+  gravar: gravarNoBancoDoUsuario,
+  novoId: uuid,
+  agora: () => Date.now(),
+  guardarDiagnostico: async (d) => {
+    const atual = await readJson<DiagnosticoDoTrajeto>(CHAVE_DIAGNOSTICO_TRAJETO);
+    await writeJson(CHAVE_DIAGNOSTICO_TRAJETO, { estado: 'desligada', ultimo_ponto_em: null, ...atual, ...d });
+  },
+  registrarErro,
+});
 
 // ---------- definição (escopo global) ----------
 // na carga do bundle (também quando o Android acorda o app sem tela): um erro aqui derrubaria o app a cada abertura
-semDerrubarAgora(() => {
-  if (!nat || nat.tm.isTaskDefined(TAREFA_TRAJETO)) return;
-  nat.tm.defineTask<{ locations?: LeituraDeLocalizacao[] }>(TAREFA_TRAJETO, async ({ data, error }) => {
-    await semDerrubar(
-      async () => {
-        if (error) throw new Error(`erro da captura: ${error.message}`);
-        await tratarLote(data?.locations ?? []);
-      },
-      registrarErro,
-      undefined,
+semDerrubarAgora(
+  () => {
+    if (!nat || nat.tm.isTaskDefined(TAREFA_TRAJETO)) return;
+    nat.tm.defineTask<{ locations?: LeituraDeLocalizacao[] }>(TAREFA_TRAJETO, ({ data, error }) =>
+      trajeto.tratarLote(data?.locations ?? [], error),
     );
-  });
-}, registrarErro);
+  },
+  (e) => registrarErro(erroSemCoordenada(e)),
+);
 
 /**
- * Liga ou desliga a captura pela condição de agora (§3.2: abertura do app, volta ao primeiro plano e cada passada da
- * `macuxi-sync-delta`). Sem configuração, desliga. Nunca lança.
+ * Liga ou desliga a captura pela condição de agora (§3.2: abertura do app depois da carga, volta ao primeiro plano e cada
+ * passada da `macuxi-sync-delta`). Nunca lança.
  */
 export async function atualizarTrajeto(): Promise<void> {
-  if (!nat) return;
-  await semDerrubar(
-    async () => {
-      const c = configuracao;
-      const ativa = await captura();
-      const condicao: CondicaoTrajeto = c ? (await c.condicao())(Date.now()) : { pode: false, motivo: 'desligado' };
-      const acao = acaoDoTrajeto(condicao, ativa);
-      if (acao === 'ligar') await nat.loc.startLocationUpdatesAsync(TAREFA_TRAJETO, OPCOES_TRAJETO);
-      else if (acao === 'desligar') await nat.loc.stopLocationUpdatesAsync(TAREFA_TRAJETO);
-    },
-    registrarErro,
-    undefined,
-  );
+  await trajeto.atualizar();
+}
+
+/** Logout e aparelho bloqueado (§3.4): para a captura antes de fechar ou apagar os bancos do usuário. Nunca lança. */
+export function pararTrajeto(): Promise<void> {
+  return trajeto.parar();
 }
