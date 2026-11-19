@@ -111,7 +111,7 @@ function iniciarEmail(): { parar(): Promise<void> } | undefined {
   log.info({ tipo: 'email', ...descreverConfigEmail(config), avisos: config.avisos }, 'e-mail transacional');
   const transporte = criarTransporteDaConfig(config, { log: logEmail });
   if (!transporte) return undefined;
-  const despachante = criarDespachanteEmail({ worker: poolWorker, transporte, cifra: criarCifraEmail(config.chave), remetente: config.remetente, log: logEmail });
+  const despachante = criarDespachanteEmail({ worker: poolWorker, transporte, cifra: criarCifraEmail(config.chave), remetente: config.remetente, apresentacao: config.apresentacao, log: logEmail });
   return despachante.iniciar({ intervaloMs: Number(process.env.MACUXI_EMAIL_INTERVALO_MS ?? 5_000) });
 }
 

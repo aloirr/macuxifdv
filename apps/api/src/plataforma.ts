@@ -11,7 +11,7 @@
  * cliente) e cria o admin inicial do cliente (RN-CORE-34) com a senha na RN-CORE-32 (regra e hash do Core). A auditoria leva
  * `ator_tipo` e o `usuario_id` do admin do cliente.
  * T-0094 fatia S (R-20261107-220900; 0042): o super-admin lista os admins de uma empresa e redefine a senha de um deles (senha
- * temporária na RN-CORE-32, 72 h, `trocar_senha`, sessões encerradas, "Sua nova senha" na outbox de e-mail), tudo numa só
+ * temporária na RN-CORE-32, 72 h, `trocar_senha`, sessões encerradas, "Sua senha temporária" na outbox de e-mail), tudo numa só
  * `sa_redefinir_senha_admin`; a senha só existe na memória da requisição e, cifrada, na carga do e-mail.
  */
 import { randomBytes } from 'node:crypto';
@@ -112,7 +112,7 @@ export interface SenhaDoPortal {
   validar(senha: string, email: string): { mensagem: string; faltas: readonly string[] } | null;
   /** argon2id (PHC). */
   hash(senha: string): Promise<string>;
-  /** Senha temporária do Core (RN-CORE-32; T-0094): a do "Sua nova senha" quando o super-admin redefine a do admin. */
+  /** Senha temporária do Core (RN-CORE-32; T-0094): a do "Sua senha temporária" quando o super-admin redefine a do admin. */
   gerarTemporaria(): string;
 }
 
@@ -292,7 +292,7 @@ export interface DepsRotasPlataforma {
   /** Regra, e-mail e hash da senha do admin inicial (padrão: `senhaDoCore`). */
   senha?: SenhaDoPortal;
   /**
-   * T-0094: e-mail transacional para o "Sua nova senha" do admin (a carga vai cifrada à `sa_redefinir_senha_admin`, que grava a
+   * T-0094: e-mail transacional para o "Sua senha temporária" do admin (a carga vai cifrada à `sa_redefinir_senha_admin`, que grava a
    * outbox na mesma transação). `null` ou `disponivel() = false` = 503 `EMAIL_INDISPONIVEL` antes de mudar nada.
    */
   email?: EmailDoPortal | null;

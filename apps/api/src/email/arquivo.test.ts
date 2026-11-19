@@ -39,13 +39,13 @@ describe('transporte arquivo (caixa da demo)', () => {
     }
     const eml = await readFile(caminho, 'utf8');
     expect(eml).toContain('Subject: Seu acesso ao Macuxi');
-    expect(decodificarPartes(eml).texto).toContain('Senha temporária: Prov1sor1a-Xq7');
+    expect(decodificarPartes(eml).texto).toContain('\nSenha temporária\nProv1sor1a-Xq7\n');
 
     expect(cap.linhas).toHaveLength(1);
     const linha = cap.linhas[0]!;
     expect(linha.obj).toMatchObject({ email_id: ID_ENVIO, modelo: 'acesso_inicial', arquivo: caminho, transporte: 'arquivo' });
-    expect(String(linha.obj.corpo)).toContain('Senha temporária: ********');
-    expect(String(linha.obj.corpo)).toContain('E-mail: [e-mail]');
+    expect(String(linha.obj.corpo)).toContain('\nSenha temporária\n********\n');
+    expect(String(linha.obj.corpo)).toContain('\nE-mail\n[e-mail]\n');
     expect(vazamentos(cap.json())).toEqual([]);
   });
 
@@ -55,8 +55,8 @@ describe('transporte arquivo (caixa da demo)', () => {
     const [arquivo] = await readdir(pasta);
     const eml = await readFile(join(pasta, arquivo!), 'utf8');
     const { texto, html } = decodificarPartes(eml);
-    expect(texto).toContain('Senha temporária: ********');
-    expect(texto).toContain('E-mail: joaquina.teste@exemplo.com.br');
+    expect(texto).toContain('\nSenha temporária\n********\n');
+    expect(texto).toContain('\nE-mail\njoaquina.teste@exemplo.com.br\n');
     expect(texto + html + eml).not.toContain('Prov1sor1a-Xq7');
     expect(cap.linhas[0]!.obj.senha_mascarada_no_arquivo).toBe(true);
     expect(vazamentos(cap.json())).toEqual([]);

@@ -247,7 +247,7 @@ export const CriarEmpresaRespostaSchema = z.object({
  * T-0094 fatia S (padrão de fábrica da T-0111; R-20261107-220900): o super-admin redefine a senha do admin do cliente pelo portal.
  * `GET /v1/plataforma/empresas/:tenant_id/admins` lista os admins da empresa (`sa_admins_da_empresa`, 0042; nunca hash);
  * `POST /v1/plataforma/empresas/:tenant_id/admins/:usuario_id/redefinir-senha` gera a senha temporária (RN-CORE-32, 72 h,
- * `trocar_senha`), enfileira o "Sua nova senha" na outbox e encerra as sessões (`sessao_versao + 1`), auditado. Só o super-admin
+ * `trocar_senha`), enfileira o "Sua senha temporária" na outbox e encerra as sessões (`sessao_versao + 1`), auditado. Só o super-admin
  * (o admin do cliente recupera pelo "Esqueci a senha"); sem e-mail configurado, 503 `EMAIL_INDISPONIVEL` antes de mudar nada.
  */
 export const AdminDaEmpresaSchema = z.object({

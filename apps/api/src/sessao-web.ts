@@ -35,7 +35,11 @@ export const CODIGO_CSRF_RECUSADO = 'CSRF_RECUSADO';
 const MENSAGEM_CSRF = 'Pedido recusado por segurança. Atualize a página e entre de novo.';
 /** Mesmo código do Core para refresh inválido (`CODIGOS_AUTH.sessao`): o BKO trata igual. */
 const CODIGO_SESSAO = 'SESSAO_INVALIDA';
-const MENSAGEM_SESSAO = 'Sua sessão expirou. Entre de novo com o código da empresa, o e-mail e a senha.';
+/**
+ * Texto do 401 `SESSAO_INVALIDA` do modo cookie (exportado para os testes e o BKO conferirem). É o mesmo de
+ * `modules/core/api/autenticacao.ts`; quando o PR #285 (core exporta o texto pelos `contracts`) entrar, passa a vir de lá.
+ */
+export const MENSAGEM_SESSAO = 'Sua sessão expirou. Entre de novo com o código da empresa, o e-mail e a senha.';
 
 export interface SessaoWebDaRequisicao {
   /** Corpo a validar: o do pedido, com o token do cookie em `refresh_token` (`renovar`/`encerrar`). */
