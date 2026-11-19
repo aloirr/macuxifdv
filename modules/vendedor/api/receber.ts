@@ -62,6 +62,7 @@ import { payloadAprovado } from './aprovado-erp';
 import { financeiroDoCliente } from './financeiro-aprovacao';
 import { gravarAprovacoes } from './aprovacoes';
 import { resolverPagamento, valoresPagamento, valorPercentualPrazo } from './pagamento';
+import { montarInsertPedido, montarUpdatePedido, type ColunaPedido } from './colunas-pedido';
 import { preVenda } from './pre-venda';
 import { precosCongeladosDoDocumento } from './preco-congelado';
 import { faltaDeEstoqueNaFilial, provedorSaldoDaFilial } from './estoque-filial';
@@ -373,58 +374,34 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   };
   // T-0184 §2: o reenvio do pedido devolvido regrava o pedido e abre o ciclo seguinte (max(ciclo)+1); as aprovações do ciclo anterior ficam como histórico
   const ciclo = reenvio ? Number((await db.query<{ c: number }>('select coalesce(max(ciclo), 0)::int + 1 as c from vendedor.pedido_aprovacao where pedido_id = $1', [p.id])).rows[0]!.c) : 1;
+  // as colunas comuns ao insert e ao reenvio, montadas uma vez
+  const textoPagamento = pagamento?.texto ?? condicao?.descricao ?? null;
+  const [pgFormaId, pgPrazoId, pgFormaCodigo, pgFormaNome, pgPrazoCodigo, pgPrazoDescricao, pgParcelas, pgPrazoMedio] = valoresPagamento(pagamento);
+  const colunas: ColunaPedido[] = [
+    ['status', v.status], ['condicao_pagamento', textoPagamento], ['desconto_pct', v.desconto_pct], ['total_tabela_cents', v.total_tabela_cents],
+    ['total_cents', v.total_cents], ['observacao', p.observacao ?? null], ['visita_id', p.visita_id ?? null], ['rota_parada_id', p.route_stop_id ?? null],
+    ['criado_no_aparelho_em', p.created_offline_at ?? null], ['recebido_em', recebidoEm], ['hash_envio', hash], ['cliente_resumo', JSON.stringify(resumo), 'jsonb'],
+    ['cliente_nome', cliente.nome_fantasia || cliente.razao_social], ['vendedor_nome', vendedor?.nome ?? null], ['tabela_preco_id', precos.tabela_preco_id],
+    ['condicao_pagamento_id', condicao?.id ?? null], ['condicao_pagamento_descricao', textoPagamento], ['nivel_aprovacao', v.nivel],
+    ['motivos_aprovacao', v.motivos, 'text[]'], ['aprovacao_automatica', v.aprovacao_automatica], ['acrescimo_pct', v.acrescimo_pct],
+    ['desconto_efetivo_pct', v.desconto_efetivo_pct], ['frete_modalidade', frete.modalidade], ['transportadora_id', transportadora.id],
+    ['transportadora_digitada', transportadora.digitada], ['transportadora_nome', transportadora.nome], ['transportadora_documento', transportadora.documento],
+    ['transportadora_telefone', transportadora.telefone], ['endereco_entrega_id', alvo.endereco_id],
+    ['endereco_entrega', enderecoRetrato ? JSON.stringify(enderecoRetrato) : null, 'jsonb'], ['desconto_valor_cents', v.desconto_valor_cents],
+    ['acrescimo_valor_cents', v.acrescimo_valor_cents], ['ajuste_em', v.ajuste_em],
+    ['forma_pagamento_id', pgFormaId], ['prazo_pagamento_id', pgPrazoId], ['forma_pagamento_codigo', pgFormaCodigo], ['forma_pagamento_nome', pgFormaNome],
+    ['prazo_codigo', pgPrazoCodigo], ['prazo_descricao', pgPrazoDescricao], ['prazo_parcelas_dias', pgParcelas, 'int[]'], ['prazo_medio_dias', pgPrazoMedio],
+    ['filial_id', retratoFilial?.filial_id ?? null], ['filial', retratoFilial ? JSON.stringify(retratoFilial.filial) : null, 'jsonb'],
+    ['prazo_percentual_ajuste', valorPercentualPrazo(pagamento, percentualAjustePrazo)],
+  ];
   if (reenvio) {
-    await db.query(
-      `update vendedor.pedido set status = $2, condicao_pagamento = $3, desconto_pct = $4, total_tabela_cents = $5, total_cents = $6, observacao = $7,
-          visita_id = $8, rota_parada_id = $9, criado_no_aparelho_em = $10, recebido_em = $11, hash_envio = $12, cliente_resumo = $13::jsonb, cliente_nome = $14,
-          vendedor_nome = $15, tabela_preco_id = $16, condicao_pagamento_id = $17, condicao_pagamento_descricao = $18, nivel_aprovacao = $19,
-          motivos_aprovacao = $20::text[], aprovacao_automatica = $21, acrescimo_pct = $22, desconto_efetivo_pct = $23, frete_modalidade = $24,
-          transportadora_id = $25, transportadora_digitada = $26, transportadora_nome = $27, transportadora_documento = $28, transportadora_telefone = $29,
-          endereco_entrega_id = $30, endereco_entrega = $31::jsonb, desconto_valor_cents = $32, acrescimo_valor_cents = $33, ajuste_em = $34,
-          forma_pagamento_id = $35, prazo_pagamento_id = $36, forma_pagamento_codigo = $37, forma_pagamento_nome = $38, prazo_codigo = $39,
-          prazo_descricao = $40, prazo_parcelas_dias = $41::int[], prazo_medio_dias = $42, filial_id = $43, filial = $44::jsonb, prazo_percentual_ajuste = $45,
-          aprovacao_ciclo = $46, decidido_por_id = null, decidido_em = null, motivo_rejeicao = null
-        where id = $1`,
-      [
-        p.id, v.status, pagamento?.texto ?? condicao?.descricao ?? null, v.desconto_pct, v.total_tabela_cents, v.total_cents, p.observacao ?? null,
-        p.visita_id ?? null, p.route_stop_id ?? null, p.created_offline_at ?? null, recebidoEm, hash, JSON.stringify(resumo), cliente.nome_fantasia || cliente.razao_social,
-        vendedor?.nome ?? null, precos.tabela_preco_id, condicao?.id ?? null, pagamento?.texto ?? condicao?.descricao ?? null, v.nivel,
-        v.motivos, v.aprovacao_automatica, v.acrescimo_pct, v.desconto_efetivo_pct, frete.modalidade,
-        transportadora.id, transportadora.digitada, transportadora.nome, transportadora.documento, transportadora.telefone,
-        alvo.endereco_id, enderecoRetrato ? JSON.stringify(enderecoRetrato) : null, v.desconto_valor_cents, v.acrescimo_valor_cents, v.ajuste_em,
-        ...valoresPagamento(pagamento),
-        retratoFilial?.filial_id ?? null, retratoFilial ? JSON.stringify(retratoFilial.filial) : null, valorPercentualPrazo(pagamento, percentualAjustePrazo), ciclo,
-      ],
-    );
+    const up = montarUpdatePedido(p.id, colunas, ciclo);
+    await db.query(up.sql, up.valores);
     // itens: os antigos saem por exclusão lógica (o pull leva a remoção) e os novos entram depois da última sequência
     await db.query('update vendedor.pedido_item set deleted_at = now() where pedido_id = $1 and deleted_at is null', [p.id]);
   } else {
-    const ins = await db.query(
-      `insert into vendedor.pedido (id, tenant_id, cliente_id, vendedor_id, autor_id, status, condicao_pagamento, desconto_pct, total_tabela_cents, total_cents,
-          observacao, visita_id, rota_parada_id, criado_no_aparelho_em, recebido_em, numero, hash_envio, cliente_resumo, cliente_nome, vendedor_nome,
-          tabela_preco_id, condicao_pagamento_id, condicao_pagamento_descricao, nivel_aprovacao, motivos_aprovacao, aprovacao_automatica,
-          acrescimo_pct, desconto_efetivo_pct, frete_modalidade, transportadora_id, transportadora_digitada, transportadora_nome,
-          transportadora_documento, transportadora_telefone, endereco_entrega_id, endereco_entrega,
-          desconto_valor_cents, acrescimo_valor_cents, ajuste_em,
-          forma_pagamento_id, prazo_pagamento_id, forma_pagamento_codigo, forma_pagamento_nome, prazo_codigo, prazo_descricao, prazo_parcelas_dias, prazo_medio_dias,
-          filial_id, filial, prazo_percentual_ajuste)
-       values ($1, plataforma.tenant_atual(), $2, $3, $38, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19, $20, $21, $22, $23::text[], $24,
-          $25, $26, $27, $28, $29, $30, $31, $32, $33, $34::jsonb, $35, $36, $37,
-          $39, $40, $41, $42, $43, $44, $45::int[], $46, $47, $48::jsonb, $49)
-       on conflict (id) do nothing returning id`,
-      [
-        p.id, p.customer_id, donoId, v.status, pagamento?.texto ?? condicao?.descricao ?? null, v.desconto_pct, v.total_tabela_cents, v.total_cents,
-        p.observacao ?? null, p.visita_id ?? null, p.route_stop_id ?? null, p.created_offline_at ?? null, recebidoEm, numero, hash,
-        JSON.stringify(resumo), cliente.nome_fantasia || cliente.razao_social, vendedor?.nome ?? null,
-        precos.tabela_preco_id, condicao?.id ?? null, pagamento?.texto ?? condicao?.descricao ?? null, v.nivel, v.motivos, v.aprovacao_automatica,
-        v.acrescimo_pct, v.desconto_efetivo_pct, frete.modalidade, transportadora.id, transportadora.digitada, transportadora.nome,
-        transportadora.documento, transportadora.telefone, alvo.endereco_id, enderecoRetrato ? JSON.stringify(enderecoRetrato) : null,
-        v.desconto_valor_cents, v.acrescimo_valor_cents, v.ajuste_em, eu,
-        ...valoresPagamento(pagamento),
-        retratoFilial?.filial_id ?? null, retratoFilial ? JSON.stringify(retratoFilial.filial) : null,
-        valorPercentualPrazo(pagamento, percentualAjustePrazo),
-      ],
-    );
+    const novo = montarInsertPedido({ id: p.id, cliente_id: p.customer_id, vendedor_id: donoId, autor_id: eu, numero }, colunas);
+    const ins = await db.query(novo.sql, novo.valores);
     // outro tenant com o mesmo id (chave primária global): não revela, só recusa
     if (ins.rows.length === 0) return rejeitado(item.id, 'ID_EM_USO', 'Este identificador de pedido já pertence a outro registro.');
 

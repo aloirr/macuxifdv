@@ -91,6 +91,8 @@ const payload = (extra: Record<string, unknown> = {}) => ({
 });
 const item = (extra: Record<string, unknown> = {}): ItemPush => ({ entidade: 'pedido', id: PEDIDO, operacao: 'upsert', payload: payload(extra) }) as unknown as ItemPush;
 const insertDoPedido = (sqls: Sql[]) => sqls.find((s) => /insert into vendedor\.pedido \(/.test(s.sql));
+/** valor gravado numa coluna do insert (pelo nome, não pela posição) */
+const colunaDoInsert = (ins: Sql, coluna: string) => ins.valores[/insert into vendedor\.pedido \(([^)]*)\)/.exec(ins.sql)![1]!.split(', ').filter((c) => c !== 'tenant_id').indexOf(coluna)];
 
 describe('RN-VEN-35: contrato do push', () => {
   it('PedidoPush aceita vendedor_id opcional e a fila antiga (sem o campo) segue válida', () => {
@@ -106,9 +108,8 @@ describe('RF-GES-05 / RN-VEN-35: supervisor faz pedido em nome do vendedor da eq
     const r = await receberPedidos(ctx, [item({ vendedor_id: VEND })]);
     expect(r[0]).toMatchObject({ id: PEDIDO, status: 'aceito' });
     const ins = insertDoPedido(sqls)!;
-    expect(ins.sql).toMatch(/\$3, \$38/); // vendedor_id = $3 (dono), autor_id = $38 (token)
-    expect(ins.valores[2]).toBe(VEND);
-    expect(ins.valores[37]).toBe(SUP);
+    expect(colunaDoInsert(ins, 'vendedor_id')).toBe(VEND); // dono
+    expect(colunaDoInsert(ins, 'autor_id')).toBe(SUP); // token
     expect(ins.valores).toContain('Vera Vendedora'); // vendedor_nome
     const hist = sqls.find((s) => /insert into vendedor\.pedido_evento/.test(s.sql))!;
     expect(hist.valores).toContain(SUP);
@@ -147,7 +148,7 @@ describe('RF-GES-05 / RN-VEN-35: supervisor faz pedido em nome do vendedor da eq
     const { ctx, sqls } = montar('supervisor', SUP, new Set([SUP, VEND]));
     await receberPedidos(ctx, [item({ vendedor_id: VEND, discount_pct: 8 })]);
     const ins = insertDoPedido(sqls)!;
-    expect(ins.valores[3]).toBe('approved'); // status
+    expect(colunaDoInsert(ins, 'status')).toBe('approved');
   });
 
   it('RN-VEN-33: reenvio do mesmo id pelo mesmo autor é idempotente; outro autor recebe ID_EM_USO', async () => {
@@ -171,7 +172,7 @@ describe('RN-VEN-35: o servidor revalida equipe e área', () => {
     const { ctx, sqls } = montar('gerente', GER, new Set([GER, SUP, VEND]));
     const r = await receberPedidos(ctx, [item({ vendedor_id: VEND, discount_pct: 14 })]);
     expect(r[0]).toMatchObject({ status: 'aceito' });
-    expect(insertDoPedido(sqls)!.valores[3]).toBe('approved');
+    expect(colunaDoInsert(insertDoPedido(sqls)!, 'status')).toBe('approved');
   });
   it('gerente para vendedor de outra área: rejeitado, a mensagem fala em área', async () => {
     const { ctx } = montar('gerente', GER, new Set([GER, SUP, VEND]));
@@ -206,7 +207,7 @@ describe('RN-VEN-35: o servidor revalida equipe e área', () => {
     const r = await receberPedidos(ctx, [item({ vendedor_id: VEND })]);
     expect(r[0]).toMatchObject({ status: 'aceito' });
     const ins = insertDoPedido(sqls)!;
-    expect(ins.valores[2]).toBe(VEND);
-    expect(ins.valores[37]).toBe(VEND);
+    expect(colunaDoInsert(ins, 'vendedor_id')).toBe(VEND);
+    expect(colunaDoInsert(ins, 'autor_id')).toBe(VEND);
   });
 });
