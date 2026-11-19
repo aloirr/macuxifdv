@@ -129,7 +129,7 @@ async function cliente360(ctx: ContextoBase, id: string): Promise<Cliente360> {
     return Cliente360Schema.parse({
       abas,
       dados_cadastrais: extra ? dadosCadastraisDoCliente({ ...(cliente as { razao_social: string; documento: string | null; segmento: string | null }), created_at: extra.created_at }, extra.filial_nome, ctx.fuso()) : undefined,
-      cartao_credito: comHistorico ? limiteEDisponivelDoResumo(fin ? { ...fin, credito_disponivel_erp_cents: fin.credito_disponivel_cents } : null, 0, null) : null,
+      cartao_credito: comHistorico ? limiteEDisponivelDoResumo(fin ? { ...fin, credito_disponivel_erp_cents: fin.credito_disponivel_cents } : null, [], null) : null,
       performance: performanceDoCliente({ historico: his as never, curvas, visitas, hoje, comAcessoACompras: comHistorico, visitadaPor: visitas.ultimo_usuario_nome }),
       notas,
       cliente,

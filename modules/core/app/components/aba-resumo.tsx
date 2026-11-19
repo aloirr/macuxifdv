@@ -3,7 +3,7 @@
  * médio) · Endereços · Contatos · Performance · Últimos itens comprados · seções dos módulos · Observações. Tudo lido do aparelho
  * (modo avião). Sem alerta financeiro na ficha (R-20261119-0440).
  */
-import { Badge, ObservacoesCliente, SectionHeader, colors, type as t } from '@macuxi/ui/mobile';
+import { Badge, BotaoCelula, CelulaTexto, colors, ObservacoesCliente, SectionHeader, TabelaDados, TabelaRotuloValor, type as t, type LinhaTabela } from '@macuxi/ui/mobile';
 import { useState, type ReactNode } from 'react';
 import { Linking, Pressable, Text, View } from 'react-native';
 
@@ -13,7 +13,6 @@ import type { Cliente360Local } from '../lib/cliente360-local';
 import type { PessoaDaCarteira } from '../lib/carteira-ficha';
 import { dataCurta, linhasCartaoCredito, linhasDadosCadastrais, linhasPerformance, tituloDaCarteira, valorSemMoeda } from '../lib/ficha-v2';
 import { mapsUrl } from '../lib/route';
-import { BotaoCelula, CelulaTexto, TabelaFicha, TabelaRotuloValor, type LinhaFicha } from './tabelas-ficha';
 
 const num = (v: string | number | null): number | null => (v === null || v === '' ? null : Number(v));
 
@@ -81,13 +80,13 @@ export function AbaResumo({
         {ficha.enderecos.length === 0 ? (
           <Text style={t.sub}>Nenhum endereço cadastrado.</Text>
         ) : (
-          <TabelaFicha
+          <TabelaDados
             colunas={[
               { id: 'local', titulo: 'Local' },
               { id: 'endereco', titulo: 'Endereço' },
               { id: 'mapa', titulo: 'Mapa', largura: 48, alinhar: 'centro' },
             ]}
-            linhas={ficha.enderecos.map<LinhaFicha>((e) => ({
+            linhas={ficha.enderecos.map<LinhaTabela>((e) => ({
               tipo: 'linha',
               key: e.id,
               testID: e.padrao ? 'cliente-endereco-padrao' : 'cliente-endereco',
@@ -106,14 +105,14 @@ export function AbaResumo({
         {ficha.contatos.length === 0 ? (
           <Text style={t.sub}>Nenhum contato cadastrado.</Text>
         ) : (
-          <TabelaFicha
+          <TabelaDados
             colunas={[
               { id: 'nome', titulo: 'Nome' },
               { id: 'cargo', titulo: 'Cargo' },
               { id: 'ligar', titulo: 'Ligar', largura: 48, alinhar: 'centro' },
               { id: 'zap', titulo: 'WhatsApp', largura: 60, alinhar: 'centro' },
             ]}
-            linhas={ficha.contatos.map<LinhaFicha>((ct) => ({
+            linhas={ficha.contatos.map<LinhaTabela>((ct) => ({
               tipo: 'linha',
               key: ct.id,
               celulas: [
@@ -130,13 +129,13 @@ export function AbaResumo({
       {gestao && carteira && carteira.length > 0 ? (
         <View style={{ gap: 8 }} testID="cliente-carteira">
           <SectionHeader title="Carteira" />
-          <TabelaFicha
+          <TabelaDados
             colunas={[
               { id: 'pessoa', titulo: tituloDaCarteira(carteira.length) },
               { id: 'ligar', titulo: 'Ligar', largura: 48, alinhar: 'centro' },
               { id: 'zap', titulo: 'WhatsApp', largura: 60, alinhar: 'centro' },
             ]}
-            linhas={carteira.map<LinhaFicha>((p) => ({
+            linhas={carteira.map<LinhaTabela>((p) => ({
               tipo: 'linha',
               key: p.id,
               celulas: [
@@ -162,14 +161,14 @@ export function AbaResumo({
       {itens.length > 0 ? (
         <View style={{ gap: 8 }} testID="cliente-ultimos-itens">
           <SectionHeader title="Últimos itens comprados" />
-          <TabelaFicha
+          <TabelaDados
             colunas={[
               { id: 'produto', titulo: 'Produto' },
               { id: 'qtd', titulo: 'Qtd', largura: 52, alinhar: 'dir' },
               { id: 'data', titulo: 'Data', largura: 44 },
               { id: 'total', titulo: 'Total (R$)', largura: 72, alinhar: 'dir' },
             ]}
-            linhas={visiveis.map<LinhaFicha>((i) => ({
+            linhas={visiveis.map<LinhaTabela>((i) => ({
               tipo: 'linha',
               key: i.produto_id,
               celulas: [

@@ -29,7 +29,7 @@ import { AbaResumo, type ItemCompradoLinha } from '../components/aba-resumo';
 import { pessoasDaCarteira } from '../lib/carteira-ficha';
 import { nomeDoCliente, subtituloDaFicha } from '../components/cliente360';
 import { abrirArquivoRegistrado } from '../lib/abrir-arquivo';
-import { aprovadosNaoFaturadosCents, abasDoApp, FILTRO_PADRAO, perfilDeGestao, type FiltroDaFicha } from '../lib/ficha-v2';
+import { pedidosQuePesamNoCredito, abasDoApp, FILTRO_PADRAO, perfilDeGestao, type FiltroDaFicha } from '../lib/ficha-v2';
 import { useAbrirDocumento, useDetalheDaNota, useDocumentosDoCliente, useNotasDoCliente } from '../lib/usar-ficha-online';
 import { montarFichaLocal, useClientesLocais } from '../lib/usar-clientes-locais';
 import { CheckinSheet, type CheckinPhase } from '../components/checkin-sheet';
@@ -195,7 +195,7 @@ export function TelaCliente() {
   const cartao = ficha && ficha.pedidos_visiveis && fin
     ? limiteEDisponivelDoResumo(
         { limite_cents: fin.limite_cents, saldo_aberto_cents: fin.saldo_aberto_cents, credito_disponivel_erp_cents: fin.credito_disponivel_cents ?? null, bloqueado: fin.bloqueado, motivo_bloqueio: fin.motivo_bloqueio ?? null },
-        aprovadosNaoFaturadosCents(pedidosDoCliente, fin.credito_disponivel_cents != null),
+        pedidosQuePesamNoCredito(pedidosDoCliente),
         prazoMedioDoCliente(pedidosDoCliente),
       )
     : null;

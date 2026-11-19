@@ -4,6 +4,7 @@
  * Sem alerta financeiro na ficha (R-20261119-0440): o atraso aparece só na tabela do Histórico.
  */
 import { formatarDocumento, formatBRL } from '@macuxi/comum';
+import type { LinhaRotuloValor } from '@macuxi/ui/mobile';
 
 import {
   abasDaFicha,
@@ -15,6 +16,7 @@ import {
   type PerformanceCalculada,
   type PeriodoNf,
 } from '../../domain';
+import type { PedidoQuePesaNoCredito } from '../../../vendedor/contracts';
 import type { CartaoCredito, DocumentoLinhaContrato, LinhaHistoricoNfContrato, NotaDetalhe, StatusNf } from '../../contracts';
 
 // ---------- formatos ----------
@@ -48,14 +50,6 @@ export const perfilDeGestao = (perfil: string | null | undefined): boolean => pe
 
 // ---------- Resumo ----------
 
-export interface LinhaRotuloValor {
-  rotulo: string;
-  valor: string;
-  testID?: string;
-  /** Valor em vermelho (atraso, bloqueio). */
-  perigo?: boolean;
-}
-
 /** Spec §3.1: Razão social, CNPJ, Filial, Segmento e Cliente desde; a linha sem valor não aparece. */
 export function linhasDadosCadastrais(c: { razao_social: string; documento: string | null; segmento: string | null }, filial: string | null | undefined, clienteDesde: string | null): LinhaRotuloValor[] {
   const linhas: Array<LinhaRotuloValor | null> = [
@@ -68,11 +62,14 @@ export function linhasDadosCadastrais(c: { razao_social: string; documento: stri
   return linhas.filter((l): l is LinhaRotuloValor => l !== null);
 }
 
-/** Pedidos que reduzem o saldo (RN-VEN-12): aprovados e enviados ao ERP; os já integrados só contam quando o ERP não informou o crédito (já vêm no "em aberto" dele). */
-export function aprovadosNaoFaturadosCents(pedidos: ReadonlyArray<{ status: string; total_cents: number; deleted_at?: string | null }>, erpInformouCredito: boolean): number {
-  const contam = new Set(['approved', 'sent_to_erp', ...(erpInformouCredito ? [] : ['integrated'])]);
-  return pedidos.filter((p) => !p.deleted_at && contam.has(p.status)).reduce((soma, p) => soma + p.total_cents, 0);
+/**
+ * RN-VEN-12: pedidos que reduzem o saldo (aprovados, enviados e integrados ao ERP) no formato do `creditoDisponivel` do Vendedor;
+ * a conta (o integrado só pesa sem o crédito do ERP) é dele, não daqui.
+ */
+export function pedidosQuePesamNoCredito(pedidos: ReadonlyArray<{ status: string; total_cents: number; deleted_at?: string | null }>): PedidoQuePesaNoCredito[] {
+  return pedidos.filter((p) => !p.deleted_at && STATUS_QUE_PESAM.has(p.status)).map((p) => ({ total_cents: p.total_cents, integrado: p.status === 'integrated' }));
 }
+const STATUS_QUE_PESAM: ReadonlySet<string> = new Set(['approved', 'sent_to_erp', 'integrated']);
 
 /** Spec §3.2: Limite, Saldo disponível e Prazo médio; com o cliente bloqueado, o motivo entra no fim do cartão. `null` = sem cartão. */
 export function linhasCartaoCredito(c: CartaoCredito | null | undefined): LinhaRotuloValor[] | null {

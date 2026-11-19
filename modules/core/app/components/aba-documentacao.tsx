@@ -4,7 +4,7 @@
  * não vê não chega; a exceção por documento vem com cadeado e "Sem permissão para abrir" (P10). Vencido só na linha (P16).
  * "Fotos do PDV" (RN-CORE-38) lê as linhas do aparelho: "Falta" em vermelho com a câmera quando o perfil envia.
  */
-import { Folha, Icon, Loading, colors, type as t } from '@macuxi/ui/mobile';
+import { BotaoCelula, CelulaTexto, colors, Folha, Icon, Loading, TabelaDados, type as t, type LinhaTabela } from '@macuxi/ui/mobile';
 import { Text, View } from 'react-native';
 
 import type { Cliente360Local } from '../lib/cliente360-local';
@@ -12,7 +12,6 @@ import { fotoPdvTrancada } from '../lib/foto-fachada';
 import { agruparDocumentos, dataBr, dataDoDocumento, leituraDoDocumento, segundaLinhaDoDocumento } from '../lib/ficha-v2';
 import type { AberturaDeDocumento, DocumentosDoCliente } from '../lib/usar-ficha-online';
 import { ErroOnline } from './erro-online';
-import { BotaoCelula, CelulaTexto, TabelaFicha, type LinhaFicha } from './tabelas-ficha';
 
 const GRUPO_FOTOS = 'Fotos do PDV';
 
@@ -34,7 +33,7 @@ export function AbaDocumentacao({
   /** Data da fachada (AAAA-MM-DD, fuso do tenant). */
   tirada: string | null;
 }) {
-  const linhasFotos: LinhaFicha[] = (fotos?.itens ?? []).flatMap<LinhaFicha>((i) => {
+  const linhasFotos: LinhaTabela[] = (fotos?.itens ?? []).flatMap<LinhaTabela>((i) => {
     const tem = i.situacao === 'tem';
     const segunda = i.na_fila ? 'Na fila' : tem ? 'Foto' : i.obrigatorio ? 'Falta' : 'Opcional';
     const podeAbrir = tem && i.fachada && Boolean(verFotoPdv);
@@ -64,9 +63,9 @@ export function AbaDocumentacao({
 
   const docs = documentos.itens.filter((d) => d.grupo !== GRUPO_FOTOS);
   const grupos = agruparDocumentos(docs);
-  const linhasDocs: LinhaFicha[] = grupos.flatMap((g) => [
+  const linhasDocs: LinhaTabela[] = grupos.flatMap((g) => [
     { tipo: 'faixa' as const, key: `faixa-${g.grupo}`, texto: g.grupo.toUpperCase() },
-    ...g.documentos.map<LinhaFicha>((d) => {
+    ...g.documentos.map<LinhaTabela>((d) => {
       const bloqueado = d.acesso === 'bloqueado';
       const seg = segundaLinhaDoDocumento(d);
       return {
@@ -83,13 +82,13 @@ export function AbaDocumentacao({
       };
     }),
   ]);
-  const linhas: LinhaFicha[] = [...(linhasFotos.length > 0 ? [{ tipo: 'faixa' as const, key: 'faixa-fotos', texto: GRUPO_FOTOS.toUpperCase() }, ...linhasFotos] : []), ...linhasDocs];
+  const linhas: LinhaTabela[] = [...(linhasFotos.length > 0 ? [{ tipo: 'faixa' as const, key: 'faixa-fotos', texto: GRUPO_FOTOS.toUpperCase() }, ...linhasFotos] : []), ...linhasDocs];
   const vazio = documentos.estado === 'ok' && linhas.length === 0;
 
   return (
     <View style={{ gap: 12 }} testID="cliente-documentacao">
       {linhas.length > 0 ? (
-        <TabelaFicha
+        <TabelaDados
           testID="tabela-documentos"
           colunas={[
             { id: 'doc', titulo: 'Documento' },

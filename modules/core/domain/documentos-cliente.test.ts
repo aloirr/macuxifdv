@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { abasDaFicha, acessoAoDocumento, documentosDaFicha, excecaoTiraAcesso, nivelDoUsuario, nivelDoTipo, situacaoValidadeDocumento, validarMatrizDocumentos, type DocumentoLinha, type TipoDocumento } from './documentos-cliente';
+import { abasDaFicha, acessoAoDocumento, decidirAbrirDocumento, decidirLeituraArquivoDocumento, documentosDaFicha, excecaoTiraAcesso, nivelDoUsuario, nivelDoTipo, situacaoValidadeDocumento, validarMatrizDocumentos, type DocumentoLinha, type TipoDocumento } from './documentos-cliente';
 
 const tipo = (id: string, extra: Partial<TipoDocumento> = {}): TipoDocumento => ({ id, nome: id, grupo: 'Cadastro', ordem: 1, permite_envio: false, ativo: true, ...extra });
 const doc = (id: string, tipo_id: string, extra: Partial<DocumentoLinha> = {}): DocumentoLinha => ({ id, tipo_id, nome: id, formato: 'PDF', data: '2026-10-01', validade: null, ...extra });
@@ -116,5 +116,30 @@ describe('T-0186 / 🔴 vazamento: a permissão vale pelos códigos de TODOS os 
   it('spec §7: se um dos perfis é admin ou analista, vê tudo e a exceção não o atinge', () => {
     const r = documentosDaFicha(['rep_norte', 'analista'], [tipo('social')], [doc('d2', 'social')], [], [{ documento_id: 'd2', perfil: 'rep_norte' }], '2026-11-19');
     expect(r[0]).toMatchObject({ acesso: 'abrir' });
+  });
+});
+
+describe('RN-CORE-40: decisão de abrir o documento (a mesma da rota e da guarda do arquivo)', () => {
+  const ex = [{ documento_id: 'd1', perfil: 'vendedor' }];
+  it('RN-CORE-40: tipo "Não vê", sem linha na matriz ou inativo = oculto; exceção = sem permissão; senão liberado', () => {
+    expect(decidirAbrirDocumento({ tipo: tipo('alvara'), documentoId: 'd1', matriz, excecoes: [], perfis: ['vendedor'] })).toBe('liberado');
+    expect(decidirAbrirDocumento({ tipo: tipo('social'), documentoId: 'd1', matriz, excecoes: [], perfis: ['vendedor'] })).toBe('oculto');
+    expect(decidirAbrirDocumento({ tipo: undefined, documentoId: 'd1', matriz, excecoes: [], perfis: ['vendedor'] })).toBe('oculto');
+    expect(decidirAbrirDocumento({ tipo: tipo('alvara', { ativo: false }), documentoId: 'd1', matriz, excecoes: [], perfis: ['vendedor'] })).toBe('oculto');
+    expect(decidirAbrirDocumento({ tipo: tipo('alvara'), documentoId: 'd1', matriz, excecoes: ex, perfis: ['vendedor'] })).toBe('sem_permissao');
+    expect(decidirAbrirDocumento({ tipo: tipo('social'), documentoId: 'd1', matriz: [], excecoes: ex, perfis: ['admin'] })).toBe('liberado');
+  });
+  const base = { tipo: tipo('alvara'), documentoId: 'd1', matriz, excecoes: [], perfis: ['vendedor'], licenciado: true, naCarteira: true };
+  it('RN-CORE-40: arquivo que não é de documento = null (a guarda não governa)', () => {
+    expect(decidirLeituraArquivoDocumento({ ...base, ehDocumento: false })).toBeNull();
+  });
+  it('RN-CORE-40: documento com permissão, licença e carteira = liberado', () => {
+    expect(decidirLeituraArquivoDocumento({ ...base, ehDocumento: true })).toBe('liberado');
+  });
+  it('RN-CORE-40: sem licença, fora da carteira, tipo "Não vê" ou exceção = negado', () => {
+    expect(decidirLeituraArquivoDocumento({ ...base, ehDocumento: true, licenciado: false })).toBe('negado');
+    expect(decidirLeituraArquivoDocumento({ ...base, ehDocumento: true, naCarteira: false })).toBe('negado');
+    expect(decidirLeituraArquivoDocumento({ ...base, ehDocumento: true, perfis: ['rep_norte'] })).toBe('negado');
+    expect(decidirLeituraArquivoDocumento({ ...base, ehDocumento: true, excecoes: ex })).toBe('negado');
   });
 });

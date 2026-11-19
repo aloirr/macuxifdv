@@ -6,6 +6,7 @@
  * - Limite, Saldo disponível e Prazo médio são o cartão do Resumo (sem "Em aberto" nem "Crédito disponível").
  */
 import type { StatusNf } from '../contracts/cliente360-v2';
+import { creditoDisponivel, type PedidoQuePesaNoCredito } from '../../vendedor/contracts';
 import { situacaoTitulo, type TituloLike } from './cliente360';
 
 export type TomStatusNf = 'danger' | 'warning' | 'success' | 'neutral' | 'accent';
@@ -72,14 +73,6 @@ export interface FinanceiroDoResumo {
   motivo_bloqueio?: string | null;
 }
 
-/**
- * RN-VEN-12: Saldo disponível = (crédito do ERP, se vier, senão limite − em aberto) − pedidos aprovados ainda não faturados.
- * `aprovadosNaoFaturadosCents` já vem sem os pedidos integrados quando o ERP informou o crédito (conta do Vendedor). Pode ficar negativo.
- */
-export function saldoDisponivelCents(f: Pick<FinanceiroDoResumo, 'limite_cents' | 'saldo_aberto_cents' | 'credito_disponivel_erp_cents'>, aprovadosNaoFaturadosCents: number): number {
-  return (f.credito_disponivel_erp_cents ?? f.limite_cents - f.saldo_aberto_cents) - aprovadosNaoFaturadosCents;
-}
-
 export interface CartaoCreditoResumo {
   limite_cents: number;
   saldo_disponivel_cents: number;
@@ -88,13 +81,13 @@ export interface CartaoCreditoResumo {
   motivo_bloqueio: string | null;
 }
 
-/** Spec §3.2: o cartão do Resumo só tem Limite, Saldo disponível e Prazo médio; o motivo entra só com o cliente bloqueado. Sem linha financeira = `null`. */
-export function limiteEDisponivelDoResumo(f: FinanceiroDoResumo | null | undefined, aprovadosNaoFaturadosCents: number, prazoMedioDias: number | null): CartaoCreditoResumo | null {
+/** Spec §3.2 (conta do crédito: `creditoDisponivel` do Vendedor, RN-VEN-12): o cartão do Resumo só tem Limite, Saldo disponível e Prazo médio; o motivo entra só com o cliente bloqueado. Sem linha financeira = `null`. */
+export function limiteEDisponivelDoResumo(f: FinanceiroDoResumo | null | undefined, pedidosAprovados: readonly PedidoQuePesaNoCredito[], prazoMedioDias: number | null): CartaoCreditoResumo | null {
   if (!f) return null;
   const bloqueado = f.bloqueado ?? false;
   return {
     limite_cents: f.limite_cents,
-    saldo_disponivel_cents: saldoDisponivelCents(f, aprovadosNaoFaturadosCents),
+    saldo_disponivel_cents: creditoDisponivel({ financeiro: f, pedidos_aprovados: pedidosAprovados }).disponivel_cents,
     prazo_medio_dias: prazoMedioDias,
     bloqueado,
     motivo_bloqueio: bloqueado ? (f.motivo_bloqueio ?? null) : null,

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
+import { creditoDisponivel } from '../../../vendedor/contracts';
+
 import {
   abasDoApp,
   agruparDocumentos,
   agruparNotasPorMes,
-  aprovadosNaoFaturadosCents,
+  pedidosQuePesamNoCredito,
   chipsDoFiltro,
   contarFiltros,
   dataDoDocumento,
@@ -63,7 +65,7 @@ describe('T-0186 / spec §3: Resumo', () => {
     const c = { limite_cents: 100, saldo_disponivel_cents: -50, prazo_medio_dias: null, bloqueado: false, motivo_bloqueio: null };
     expect(linhasCartaoCredito(c)?.[2]?.valor).toBe('—');
   });
-  it('RN-VEN-12: aprovados e enviados ao ERP reduzem o saldo; integrado só quando o ERP não informou o crédito', () => {
+  it('RN-VEN-12: aprovados, enviados e integrados pesam no crédito; rascunho e apagado não; o integrado é marcado para o creditoDisponivel', () => {
     const ped = [
       { status: 'approved', total_cents: 1000 },
       { status: 'sent_to_erp', total_cents: 500 },
@@ -71,8 +73,11 @@ describe('T-0186 / spec §3: Resumo', () => {
       { status: 'draft', total_cents: 9999 },
       { status: 'approved', total_cents: 70, deleted_at: '2026-11-01T00:00:00Z' },
     ];
-    expect(aprovadosNaoFaturadosCents(ped, true)).toBe(1500);
-    expect(aprovadosNaoFaturadosCents(ped, false)).toBe(1700);
+    const r = pedidosQuePesamNoCredito(ped);
+    expect(r).toEqual([{ total_cents: 1000, integrado: false }, { total_cents: 500, integrado: false }, { total_cents: 200, integrado: true }]);
+    const fin = { limite_cents: 10_000, saldo_aberto_cents: 0, credito_disponivel_erp_cents: null };
+    expect(creditoDisponivel({ financeiro: fin, pedidos_aprovados: r }).disponivel_cents).toBe(8300);
+    expect(creditoDisponivel({ financeiro: { ...fin, credito_disponivel_erp_cents: 5000 }, pedidos_aprovados: r }).disponivel_cents).toBe(3500);
   });
   const perf: PerformanceCalculada = {
     curvas: [

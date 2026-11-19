@@ -3,7 +3,7 @@
  * (Data · Nº NF e forma de pagamento · Valor · Status). "Em atraso" sem data, a linha em destaque. O toque na linha pede a autorização
  * "Baixar a NF …?" e busca a NF no servidor (P17); a NF e o PDF não ficam guardados. Sem internet: "Sem internet" e "Tentar de novo".
  */
-import { Badge, Botao, BotaoFiltro, CampoBusca, CampoTexto, Chip, EtiquetaFiltro, Folha, Loading, colors, type as t } from '@macuxi/ui/mobile';
+import { Badge, Botao, BotaoFiltro, CampoBusca, CampoTexto, CelulaTexto, Chip, colors, EtiquetaFiltro, Folha, Loading, TabelaDados, TabelaRotuloValor, type as t, type LinhaTabela } from '@macuxi/ui/mobile';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
@@ -35,15 +35,14 @@ import {
 } from '../lib/ficha-v2';
 import type { DetalheDaNota, NotasDoCliente } from '../lib/usar-ficha-online';
 import { ErroOnline } from './erro-online';
-import { CelulaTexto, TabelaFicha, TabelaRotuloValor, type LinhaFicha } from './tabelas-ficha';
 
 export function AbaHistorico({ notas, filtro, onFiltro, detalhe, hoje }: { notas: NotasDoCliente; filtro: FiltroDaFicha; onFiltro: (f: FiltroDaFicha) => void; detalhe: DetalheDaNota; hoje: string }) {
   const [filtrando, setFiltrando] = useState(false);
   const chips = chipsDoFiltro(filtro);
   const grupos = agruparNotasPorMes(notas.linhas);
-  const linhas: LinhaFicha[] = grupos.flatMap((g) => [
+  const linhas: LinhaTabela[] = grupos.flatMap((g) => [
     { tipo: 'faixa' as const, key: `faixa-${g.faixa}`, texto: g.faixa },
-    ...g.notas.map<LinhaFicha>((n) => ({
+    ...g.notas.map<LinhaTabela>((n) => ({
       tipo: 'linha',
       key: n.id,
       testID: `nota-${n.numero_nf}`,
@@ -55,7 +54,7 @@ export function AbaHistorico({ notas, filtro, onFiltro, detalhe, hoje }: { notas
         <CelulaTexto key="n" principal={n.numero_nf} segunda={n.forma_pagamento} mono sublinhado />,
         <CelulaTexto key="v" principal={valorSemMoeda(n.valor_cents)} segunda={n.devolvido_cents ? devolucaoNaCelula(n.devolvido_cents) : null} dir />,
         <View key="s" style={{ alignItems: 'flex-start' }}>
-          <Badge label={rotuloStatusNf(n.status)} tone={tomStatusNf(n.status)} />
+          <Badge label={rotuloStatusNf(n.status)} tone={tomStatusNf(n.status)} linhas={2} />
         </View>,
       ],
     })),
@@ -87,7 +86,7 @@ export function AbaHistorico({ notas, filtro, onFiltro, detalhe, hoje }: { notas
         </View>
       ) : null}
       {notas.estado === 'ok' && linhas.length > 0 ? (
-        <TabelaFicha
+        <TabelaDados
           testID="tabela-notas"
           colunas={[
             { id: 'data', titulo: 'Data', largura: 36 },
@@ -215,14 +214,14 @@ function FolhaDaNota({ detalhe }: { detalhe: DetalheDaNota }) {
     return (
       <Folha visivel onFechar={() => setItens(false)} rotuloFechar="Voltar para a NF" titulo={`Itens da NF ${nota.numero_nf}`} fechar={{ rotulo: 'Voltar para a NF' }} rolavel testID="folha-itens-nf">
         <Text style={[t.sub, { marginBottom: 8 }]}>{resumoDosItens(nota.itens)}</Text>
-        <TabelaFicha
+        <TabelaDados
           colunas={[
             { id: 'produto', titulo: 'Produto' },
             { id: 'emb', titulo: 'Emb.', largura: 52, alinhar: 'dir' },
             { id: 'qtd', titulo: 'Qtd', largura: 40, alinhar: 'dir' },
             { id: 'total', titulo: 'Total (R$)', largura: 72, alinhar: 'dir' },
           ]}
-          linhas={nota.itens.map<LinhaFicha>((i, n) => ({
+          linhas={nota.itens.map<LinhaTabela>((i, n) => ({
             tipo: 'linha',
             key: `${i.produto_codigo}-${n}`,
             celulas: [
@@ -261,7 +260,7 @@ function FolhaDaNota({ detalhe }: { detalhe: DetalheDaNota }) {
           {nota.parcelas.length > 0 ? (
             <View style={{ gap: 6 }}>
               <Text style={t.h2}>Parcelas</Text>
-              <TabelaFicha
+              <TabelaDados
                 testID="tabela-parcelas"
                 colunas={[
                   { id: 'parcela', titulo: 'Parcela', largura: 56 },
@@ -269,7 +268,7 @@ function FolhaDaNota({ detalhe }: { detalhe: DetalheDaNota }) {
                   { id: 'valor', titulo: 'Valor (R$)', largura: 68, alinhar: 'dir' },
                   { id: 'status', titulo: 'Status', largura: 84 },
                 ]}
-                linhas={nota.parcelas.map<LinhaFicha>((p, i) => {
+                linhas={nota.parcelas.map<LinhaTabela>((p, i) => {
                   const st = statusDaParcela(p);
                   return {
                     tipo: 'linha',
@@ -279,7 +278,7 @@ function FolhaDaNota({ detalhe }: { detalhe: DetalheDaNota }) {
                       <CelulaTexto key="p" principal={p.parcela ?? String(i + 1)} />,
                       <CelulaTexto key="v" principal={dataCurta(p.vencimento)} segunda={p.situacao === 'liquidado' && p.liquidado_em ? `paga em ${dataCurta(p.liquidado_em.slice(0, 10))}` : null} />,
                       <CelulaTexto key="$" principal={valorSemMoeda(p.valor_cents)} dir />,
-                      <Badge key="s" label={st.rotulo} tone={st.tom} />,
+                      <Badge key="s" label={st.rotulo} tone={st.tom} linhas={2} />,
                     ],
                   };
                 })}

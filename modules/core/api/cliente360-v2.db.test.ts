@@ -10,7 +10,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { manifest } from '../manifest';
 import { carteiraDoUsuario } from './carteira';
-import { repositorioDocumentosSql, repositorioNotasSql, rotasDeCliente360V2 } from './cliente360-v2';
+import { guardaArquivoDocumento, repositorioDocumentosSql, repositorioNotasSql, rotasDeCliente360V2 } from './cliente360-v2';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
@@ -194,6 +194,42 @@ describe.skipIf(semBanco())('Core T-0186 × Postgres: Cliente 360 v2 (notas, doc
       } finally {
         await chamar('PUT', 'documentos/excecoes', admin, { corpo: { documento_id: D_CAD, perfis: [] } });
       }
+    });
+  });
+
+  describe('RN-CORE-40: guarda do arquivo do documento (ModuloApi.guardaArquivo) × Postgres', () => {
+    const comModulos = (u: UsuarioAutenticado, modulos: string[] = ['core'], perfis?: string[]) =>
+      ({ ...u, modulos, ...(perfis ? { perfis: perfis.map((codigo) => ({ codigo, base: 'vendedor', permissoes: {} })) } : {}) }) as never;
+    const guarda = (u: UsuarioAutenticado, arquivoId: string, tenant = u.tenant_id) =>
+      comTenant(pool, tenant, (c) => guardaArquivoDocumento({ db: c as unknown as ClienteBanco, usuario: u as never, arquivoId, modulo: 'core', finalidade: 'documento', clienteId: C.c1 }));
+    it('quem tem permissão no tipo, licença e o cliente na carteira recebe liberado', async () => {
+      expect(await guarda(comModulos(vendedor1), ARQ)).toBe('liberado');
+    });
+    it('quem tem o id mas não a permissão do tipo (vendedor sem linha na matriz) recebe negado', async () => {
+      expect(await guarda(comModulos(vendedor1), ARQ2)).toBe('negado');
+    });
+    it('perfil personalizado com "Não vê" no tipo recebe negado; com outro perfil que vê, liberado', async () => {
+      expect(await guarda(comModulos(vendedor1, ['core'], ['rep_t0186']), ARQ)).toBe('negado');
+      expect(await guarda(comModulos(vendedor1, ['core'], ['rep_t0186', 'rep2_t0186']), ARQ)).toBe('liberado');
+    });
+    it('a exceção do documento recebe negado; admin segue liberado', async () => {
+      await chamar('PUT', 'documentos/excecoes', admin, { corpo: { documento_id: D_CAD, perfis: ['vendedor'] } });
+      try {
+        expect(await guarda(comModulos(vendedor1), ARQ)).toBe('negado');
+        expect(await guarda(comModulos(admin), ARQ)).toBe('liberado');
+      } finally {
+        await chamar('PUT', 'documentos/excecoes', admin, { corpo: { documento_id: D_CAD, perfis: [] } });
+      }
+    });
+    it('cliente fora da carteira ou sem a licença do Core recebe negado', async () => {
+      expect(await guarda(comModulos(usuario(U.vendedor2, 'vendedor')), ARQ)).toBe('negado');
+      expect(await guarda(comModulos(vendedor1, ['vendedor']), ARQ)).toBe('negado');
+    });
+    it('RN-CORE-05: outro tenant não alcança o documento (RLS): null, nunca liberado', async () => {
+      expect(await guarda(comModulos(vendedorB), ARQ, B.tenantId)).toBeNull();
+    });
+    it('arquivo que não é de documento = null (a guarda não governa)', async () => {
+      expect(await guarda(comModulos(vendedor1), ID(99))).toBeNull();
     });
   });
 

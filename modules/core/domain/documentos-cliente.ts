@@ -68,6 +68,35 @@ export function excecaoTiraAcesso(excecoes: readonly ExcecaoDocumento[], documen
   return excecoes.some((e) => e.documento_id === documentoId && perfis.includes(e.perfil));
 }
 
+export type DecisaoAbrirDocumento = 'liberado' | 'oculto' | 'sem_permissao';
+
+/**
+ * RN-CORE-40: decisão única de abrir um documento, usada pela rota (`abrirDocumento`) e pela guarda do arquivo.
+ * Tipo ausente, inativo ou "Não vê" = oculto (404); exceção do documento = sem permissão (403); senão liberado.
+ */
+export function decidirAbrirDocumento(e: {
+  tipo: Pick<TipoDocumento, 'id' | 'permite_envio' | 'ativo'> | undefined;
+  documentoId: string;
+  matriz: readonly PermissaoTipoDocumento[];
+  excecoes: readonly ExcecaoDocumento[];
+  perfis: readonly string[];
+}): DecisaoAbrirDocumento {
+  if (!e.tipo || !e.tipo.ativo || nivelDoUsuario(e.matriz, e.tipo, e.perfis) === 'nao_ve') return 'oculto';
+  return excecaoTiraAcesso(e.excecoes, e.documentoId, e.perfis) ? 'sem_permissao' : 'liberado';
+}
+
+/**
+ * RN-CORE-40: guarda do arquivo (`GET /v1/arquivos/:id`). `ehDocumento` = o arquivo é de um `core.documento_cliente`; se não,
+ * `null` (não é do documento). Documento: precisa da licença do Core, do cliente na carteira e da decisão de abrir; senão `negado`.
+ */
+export function decidirLeituraArquivoDocumento(
+  e: Parameters<typeof decidirAbrirDocumento>[0] & { ehDocumento: boolean; licenciado: boolean; naCarteira: boolean },
+): 'liberado' | 'negado' | null {
+  if (!e.ehDocumento) return null;
+  if (!e.licenciado || !e.naCarteira) return 'negado';
+  return decidirAbrirDocumento(e) === 'liberado' ? 'liberado' : 'negado';
+}
+
 /** P10/P11: tipo "Não vê" = oculto; exceção por documento = bloqueado (cadeado); senão abre. */
 export function acessoAoDocumento(nivelDoTipoNoPerfil: NivelDocumento, comExcecao: boolean): AcessoDocumento {
   if (nivelDoTipoNoPerfil === 'nao_ve') return 'oculto';

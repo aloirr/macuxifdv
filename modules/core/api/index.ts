@@ -30,7 +30,7 @@ import { alertarPendenciasVencidas, consumidorBaixaPorResposta, rotasDePendencia
 import { consultaFiliais, consultaFiliaisDoUsuario, rotasDeFiliais } from './filiais';
 import { rotasDeFilialDoProprioUsuario } from './filiais-usuario-rotas';
 import { rotasDeFotosPdv } from './fotos-pdv';
-import { rotasDeCliente360V2 } from './cliente360-v2';
+import { guardaArquivoDocumento, rotasDeCliente360V2 } from './cliente360-v2';
 import { consultaMedidas, rotasDeMedidas } from './medidas';
 import { consultaCredencialConferir, consultaUsuariosComAcao } from './credencial';
 import { rotasDeFarol } from './farol';
@@ -72,6 +72,7 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
   const sa = criarSuperAdmin(plataforma);
   return definirModuloApi({
     manifesto: manifest,
+    guardaArquivo: guardaArquivoDocumento,
     rotas: [...rotasDeFilialDoProprioUsuario, ...rotasDeLicencas, ...rotasDeUsuarios, ...rotasDeVinculoErp, ...rotasDePerfis, ...rotasDeEquipeCsv, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDeFiliais, ...rotasDeFotosPdv, ...rotasDeCliente360V2, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeParametrosAlertas, ...rotasDeParametrosJornada, ...rotasDeParametrosCurvaAbc, ...rotasDeFarol, ...rotasDePlanoRv, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes, ...rotasDeTarefas, ...rotasDeFrases, ...rotasDeAvatar, ...rotasDeMetasProdutividade, ...rotasDePerformance, ...rotasDeTrajeto, ...rotasDeRastreamento],
     sync: [...provedoresSyncCore, ...provedoresDeNotificacao, ...provedoresSyncT0170, ...provedoresSyncTrajeto],
     consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorBaixaPorResposta, consumidorMetaDefinida, ...consumidoresDoErp],

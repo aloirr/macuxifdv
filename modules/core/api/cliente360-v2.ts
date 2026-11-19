@@ -6,7 +6,7 @@
  * - Sem pull da NF e sem cópia de arquivo no aparelho: a NF vem ao tocar (P17); o documento só abre do servidor (P15).
  * - Banco: colunas e tabelas novas são do banco-dados (S5); os nomes usados abaixo estão no recado de T-0186.
  */
-import { ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, type ClienteBanco, type RotaModulo } from '@macuxi/platform-sdk';
+import { ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, type ClienteBanco, type GuardaArquivoEntrada, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import {
   DocumentoAbrirRespostaSchema,
@@ -33,9 +33,9 @@ import {
   filtrarNotas,
   inicioDoPeriodoNf,
   nfEmAtraso,
-  excecaoTiraAcesso,
+  decidirAbrirDocumento,
+  decidirLeituraArquivoDocumento,
   nivelDoTipo,
-  nivelDoUsuario,
   PERFIS_DOCUMENTO_VEEM_TUDO,
   statusDaNf,
   validarMatrizDocumentos,
@@ -46,6 +46,7 @@ import {
   type PermissaoTipoDocumento,
   type TipoDocumento,
 } from '../domain';
+import { carteiraNoBanco } from './carteira';
 import { auditar, type RegistroAuditoria } from './auditoria';
 import { lerPromotorVePedidos } from './promotor-pedidos';
 
@@ -224,9 +225,9 @@ export async function abrirDocumento(repo: RepositorioDocumentos, e: { perfis: r
   const doc = await repo.documento(e.clienteId, e.documentoId);
   if (!doc || doc.cliente_id !== e.clienteId || !doc.arquivo_id) throw documentoNaoEncontrado();
   const [tipos, matriz, excecoes] = await Promise.all([repo.tipos(), repo.matriz(), repo.excecoes([doc.id])]);
-  const tipo = tipos.find((t) => t.id === doc.tipo_id && t.ativo);
-  if (!tipo || nivelDoUsuario(matriz, tipo, e.perfis) === 'nao_ve') throw documentoNaoEncontrado();
-  if (excecaoTiraAcesso(excecoes, doc.id, e.perfis))
+  const decisao = decidirAbrirDocumento({ tipo: tipos.find((t) => t.id === doc.tipo_id), documentoId: doc.id, matriz, excecoes, perfis: e.perfis });
+  if (decisao === 'oculto') throw documentoNaoEncontrado();
+  if (decisao === 'sem_permissao')
     throw new ErroHttpModulo(403, ERROS_CLIENTE360_V2.documentoSemPermissao, 'Sem permissão para abrir este documento. Peça ao escritório.');
   return DocumentoAbrirRespostaSchema.parse({ id: doc.id, nome: doc.nome, formato: doc.formato, arquivo_id: doc.arquivo_id });
 }
@@ -381,6 +382,29 @@ const DocumentoParam = z.object({ id: z.string().uuid(), documento_id: z.string(
 export function codigosDePerfil(usuario: { perfil: string; perfis?: readonly { codigo: string }[] }): string[] {
   const codigos = (usuario.perfis ?? []).map((p) => p.codigo);
   return codigos.length > 0 ? [...new Set(codigos)] : [usuario.perfil];
+}
+
+/**
+ * RN-CORE-40 (`ModuloApi.guardaArquivo`): quem tem o id do arquivo de um documento do cliente só o lê com a mesma regra da rota
+ * (`decidirAbrirDocumento`: perfis, tipo, exceção) + carteira do cliente + licença do Core. Arquivo que não é de documento: `null`.
+ */
+export async function guardaArquivoDocumento(e: GuardaArquivoEntrada): Promise<'liberado' | 'negado' | null> {
+  const repo = repositorioDocumentosSql(e.db);
+  const doc = (await e.db.query<{ id: string }>('select id from core.documento_cliente where arquivo_id = $1 and deleted_at is null limit 1', [e.arquivoId])).rows[0];
+  if (!doc) return null;
+  const d = await repo.documentoPorId(doc.id);
+  if (!d) return null;
+  const [tipos, matriz, excecoes, carteira] = await Promise.all([repo.tipos(), repo.matriz(), repo.excecoes([d.id]), carteiraNoBanco(e.db, e.usuario)]);
+  return decidirLeituraArquivoDocumento({
+    ehDocumento: true,
+    licenciado: e.usuario.modulos.includes('core'),
+    naCarteira: carteira === 'tenant' || carteira.has(d.cliente_id),
+    tipo: tipos.find((t) => t.id === d.tipo_id),
+    documentoId: d.id,
+    matriz,
+    excecoes,
+    perfis: codigosDePerfil(e.usuario),
+  });
 }
 
 async function exigirCarteira(ctx: { carteira(): Promise<ReadonlySet<string> | 'tenant'> }, clienteId: string): Promise<void> {

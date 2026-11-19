@@ -184,3 +184,4 @@
 2026-11-19 — T-0186 parte 1 — Cliente 360 v2: domain (status da NF, documentos, Performance), contratos aditivos e API (notas online, documentos, permissões BKO); banco pendente (S5)
 2026-11-19 — T-0186 — #513: perfis personalizados no documento (vazamento fechado), devolução por número e série, fuso por parâmetro, forma de pagamento em texto, MC-1792/1793; MC-1790 pendente (sem prop no Badge)
 2026-11-19 — T-0186 — #513 retido pelo corretor (RD-2352 a 2362): porta única definirAbrirArquivo, statusDaParcela e StatusNf no lugar certo, sem perigo no saldo, texto de erro da API no BKO; Carteira do Gestão preenchida, forma de pagamento por descrição (código do ERP resolvido no aparelho).
+2026-11-19 — T-0186 — #513: guardaArquivo do documento (decidirAbrirDocumento no domain), creditoDisponivel do Vendedor, tabelas do kit (@macuxi/ui), Badge linhas={2}; merges do kit, do vendedor e do arquivos

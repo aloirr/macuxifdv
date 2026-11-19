@@ -28,7 +28,7 @@ describe('T-0186: ficha do cliente v2 (Resumo, Histórico e Documentação)', ()
     expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
   });
   it('spec §3: toda lista é tabela com cabeçalho (notas, documentos, contatos, endereços e itens)', () => {
-    for (const f of ['aba-resumo', 'aba-historico', 'aba-documentacao']) expect(ler(`app/components/${f}.tsx`)).toContain('<TabelaFicha');
+    for (const f of ['aba-resumo', 'aba-historico', 'aba-documentacao']) expect(ler(`app/components/${f}.tsx`)).toContain('<TabelaDados');
     expect(ler('app/components/aba-historico.tsx')).toContain("titulo: 'Nº NF'");
   });
   it('P15 e P17: nada é baixado nem guardado (sem gravar em disco, SQLite ou fila)', () => {

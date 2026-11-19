@@ -8,19 +8,18 @@ import {
   nfEmAtraso,
   periodoPrecisaDoServidor,
   rotuloStatusNf,
-  saldoDisponivelCents,
   statusDaNf,
   statusDaParcela,
   tomStatusNf,
   type LinhaHistoricoNf,
 } from './historico-nf';
-import type { StatusNf } from '../contracts/cliente360-v2';
+import { STATUS_NF, type StatusNf } from '../contracts/cliente360-v2';
 import type { TituloLike } from './cliente360';
 
 const HOJE = '2026-11-19';
 const parcela = (vencimento: string, saldo_cents: number, situacao: TituloLike['situacao'] = 'aberto'): TituloLike => ({ vencimento, saldo_cents, situacao });
 const nota = (valor_cents = 128_000, devolvido_cents = 0) => ({ valor_cents, devolvido_cents });
-const TODOS: StatusNf[] = ['em_atraso', 'em_aberto', 'pago', 'devolvido', 'devolvido_parcial'];
+const TODOS = STATUS_NF;
 
 describe('RN-CORE-40 / T-0186: status da NF no Histórico do Cliente 360', () => {
   it('RN-CORE-40: parcela com saldo e vencimento futuro = Em aberto', () => {
@@ -97,18 +96,14 @@ describe('RN-CORE-40 / P4: valor devolvido da NF vem das devoluções vivas liga
 
 describe('RN-VEN-12 / R-20261119-0530: Limite, Saldo disponível e Prazo médio do Resumo', () => {
   const f = { limite_cents: 800_000, saldo_aberto_cents: 612_000, credito_disponivel_erp_cents: null };
-  it('RN-VEN-12: saldo disponível = limite − em aberto − pedidos aprovados não faturados', () => {
-    expect(saldoDisponivelCents(f, 0)).toBe(188_000);
-    expect(saldoDisponivelCents(f, 50_000)).toBe(138_000);
-  });
-  it('RN-VEN-12: o crédito do ERP prevalece sobre limite − saldo', () => {
-    expect(saldoDisponivelCents({ ...f, credito_disponivel_erp_cents: 100_000 }, 0)).toBe(100_000);
-  });
-  it('RN-VEN-12: pode ficar negativo (limite estourado)', () => {
-    expect(saldoDisponivelCents({ limite_cents: 100_000, saldo_aberto_cents: 150_000, credito_disponivel_erp_cents: null }, 0)).toBe(-50_000);
+  it('RN-VEN-12: o saldo do cartão é o creditoDisponivel do Vendedor (limite − em aberto − aprovados; ERP prevalece; pode ficar negativo)', () => {
+    expect(limiteEDisponivelDoResumo(f, [], null)?.saldo_disponivel_cents).toBe(188_000);
+    expect(limiteEDisponivelDoResumo(f, [{ total_cents: 50_000, integrado: false }], null)?.saldo_disponivel_cents).toBe(138_000);
+    expect(limiteEDisponivelDoResumo({ ...f, credito_disponivel_erp_cents: 100_000 }, [{ total_cents: 30_000, integrado: true }], null)?.saldo_disponivel_cents).toBe(100_000);
+    expect(limiteEDisponivelDoResumo({ limite_cents: 100_000, saldo_aberto_cents: 150_000, credito_disponivel_erp_cents: null }, [], null)?.saldo_disponivel_cents).toBe(-50_000);
   });
   it('R-20261119-0530: o cartão tem só Limite, Saldo disponível e Prazo médio (e o motivo do bloqueio)', () => {
-    expect(limiteEDisponivelDoResumo({ ...f, bloqueado: true, motivo_bloqueio: 'Crédito' }, 0, 24)).toEqual({
+    expect(limiteEDisponivelDoResumo({ ...f, bloqueado: true, motivo_bloqueio: 'Crédito' }, [], 24)).toEqual({
       limite_cents: 800_000,
       saldo_disponivel_cents: 188_000,
       prazo_medio_dias: 24,
@@ -117,7 +112,7 @@ describe('RN-VEN-12 / R-20261119-0530: Limite, Saldo disponível e Prazo médio 
     });
   });
   it('R-20261119-0530: sem linha financeira o cartão não existe', () => {
-    expect(limiteEDisponivelDoResumo(null, 0, 24)).toBeNull();
+    expect(limiteEDisponivelDoResumo(null, [], 24)).toBeNull();
   });
 });
 
