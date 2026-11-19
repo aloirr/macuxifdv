@@ -116,24 +116,24 @@ describe('RN-CORE-13: o portão é o podeRastrear do Core (§2 e §3.2)', () => 
     expect((await condicaoDoTrajeto(async () => LIGA))(AGORA)).toEqual({ pode: true });
   });
 
-  it('a EntradaRastreio leva só os campos do Core', () => {
+  it('a EntradaRastreio leva os campos do Core, com cargo, app e permissão para o podeRastrear decidir', () => {
     expect(Object.keys(entradaDoRastreio(LIGA, AGORA)).sort()).toEqual(
-      ['ausencias', 'ativo', 'expediente', 'feriados', 'fuso', 'instante'].sort(),
+      ['app', 'ausencias', 'ativo', 'cargo', 'expediente', 'feriados', 'fuso', 'instante', 'permissao'].sort(),
     );
   });
 
   const casos: Array<[string, Partial<ContextoDoRastreio>, number, MotivoSemRastreio]> = [
     ['1. parâmetro rastreamento desligado (padrão de fábrica)', { parametros: { ...LIGA.parametros, ativo: false } }, AGORA, 'desligado'],
-    ['pré-condição: cargo fora do campo (supervisor)', { cargo: 'supervisor' }, AGORA, 'desligado'],
-    ['pré-condição: sem cargo na sessão', { cargo: '' }, AGORA, 'desligado'],
-    ['pré-condição: app Gestão', { app: 'gestao' }, AGORA, 'desligado'],
+    ['RN-CORE-13, cargo pelo Core: fora do campo (supervisor)', { cargo: 'supervisor' }, AGORA, 'cargo'],
+    ['RN-CORE-13, cargo pelo Core: sem cargo na sessão', { cargo: '' }, AGORA, 'cargo'],
+    ['RN-CORE-13, app pelo Core: app Gestão', { app: 'gestao' }, AGORA, 'app'],
     ['4. fora do expediente (19:00 em Manaus)', {}, Date.parse('2026-11-19T23:00:00.000Z'), 'fora_do_expediente'],
     ['4. dia sem expediente (domingo)', {}, Date.parse('2026-11-22T13:00:00.000Z'), 'fora_do_expediente'],
     ['4. expediente vazio no parâmetro', { parametros: { ativo: true, expediente: { '0': [], '1': [], '2': [], '3': [], '4': [], '5': [], '6': [] } } }, AGORA, 'fora_do_expediente'],
     ['4. feriado do calendário do tenant', { feriados: ['2026-11-19'] }, AGORA, 'feriado'],
     ['4. feriado nacional (20/11), mesmo sem cadastro', {}, Date.parse('2026-11-20T13:00:00.000Z'), 'feriado'],
     ['4. ausência do usuário', { ausencias: [{ de: '2026-11-18', ate: '2026-11-19' }] }, AGORA, 'ausencia'],
-    ['pré-condição: sem a permissão "o tempo todo"', { permissao: false }, AGORA, 'desligado'],
+    ['RN-CORE-13, permissão pelo Core: sem a permissão "o tempo todo"', { permissao: false }, AGORA, 'sem_permissao'],
     ['fuso do tenant: 17:30 em Manaus é 18:30 em São Paulo', { fuso: 'America/Sao_Paulo' }, Date.parse('2026-11-19T21:30:00.000Z'), 'fora_do_expediente'],
   ];
   for (const [nome, mudanca, ms, motivo] of casos) {
@@ -230,7 +230,7 @@ describe('EntradaRastreio lida do aparelho (pulls do Core e sessão)', () => {
   it('sem cargo na sessão, cargo vazio', async () => {
     const c = await lerContextoDoRastreio(await bancoDoUsuario(), { ...SESSAO, cargo: null });
     expect(c.cargo).toBe('');
-    expect(portaoDoTrajeto(c, AGORA)).toEqual({ pode: false, motivo: 'desligado' });
+    expect(portaoDoTrajeto(c, AGORA)).toEqual({ pode: false, motivo: 'cargo' });
   });
 
   it('banco vazio (antes do 1º pull): padrão de fábrica, desligado', async () => {

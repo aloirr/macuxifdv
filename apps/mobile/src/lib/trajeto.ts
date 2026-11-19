@@ -4,10 +4,9 @@
  * mesmo da API; aqui só o que o shell faz com ela: ler do aparelho a `EntradaRastreio`, montar o ponto, filtrar o lote,
  * ligar ou desligar. Nenhuma coordenada sai daqui para log, erro, Diagnóstico ou telemetria (§9).
  *
- * Do contrato do Core (`@macuxi/core/contracts`): `podeRastrear`, `CARGOS_RASTREADOS` e `PontoTrajeto` (validado pelo `PontoTrajetoSchema`).
+ * Do contrato do Core (`@macuxi/core/contracts`): `podeRastrear` e `PontoTrajeto` (validado pelo `PontoTrajetoSchema`).
  */
 import {
-  CARGOS_RASTREADOS,
   ENTIDADE_AUSENCIA_USUARIO,
   PARAMETRO_FERIADOS,
   PARAMETRO_RASTREAMENTO,
@@ -198,9 +197,9 @@ export function erroSemCoordenada(e: unknown): Error {
 const DESLIGADO: CondicaoTrajeto = { pode: false, motivo: 'desligado' };
 
 /**
- * O que o portão pede, menos o instante (§2 e §3.2), lido do aparelho uma vez por atualização ou lote: as pré-condições do
- * shell (cargo de campo, app Campo e permissão "o tempo todo") e o que o `podeRastrear` do Core pede (o parâmetro
- * `rastreamento`, os feriados do tenant, as ausências do próprio usuário e o fuso do tenant).
+ * O que o `podeRastrear` do Core pede, menos o instante (§2 e §3.2), lido do aparelho uma vez por atualização ou lote: o
+ * parâmetro `rastreamento`, o cargo (perfil base da sessão), o app (variante atual), os feriados do tenant, as ausências do
+ * próprio usuário, a permissão "o tempo todo" e o fuso do tenant.
  */
 export interface ContextoDoRastreio {
   parametros: Pick<ParametrosRastreamento, 'ativo' | 'expediente'>;
@@ -217,20 +216,20 @@ export interface ContextoDoRastreio {
 export function entradaDoRastreio(c: ContextoDoRastreio, instanteMs: number): EntradaRastreio {
   return {
     ativo: c.parametros.ativo,
+    cargo: c.cargo,
+    app: c.app,
     expediente: c.parametros.expediente,
     feriados: c.feriados,
     ausencias: c.ausencias,
+    permissao: c.permissao,
     instante: new Date(instanteMs).toISOString(),
     fuso: c.fuso,
   };
 }
 
-/** Pré-condições que o Core deixa fora do `podeRastrear`: usuário de campo no app Campo, com a permissão "o tempo todo". */
-const preCondicoes = (c: ContextoDoRastreio): boolean => c.app === 'campo' && CARGOS_RASTREADOS.includes(c.cargo) && c.permissao;
-
-/** RN-CORE-13: as pré-condições do shell e o `podeRastrear` do Core, o mesmo da API; sem elas ou com instante inválido, desligado. */
+/** RN-CORE-13: o `podeRastrear` do Core, o mesmo da API, decide cargo, app e permissão; com instante inválido, desligado. */
 export function portaoDoTrajeto(c: ContextoDoRastreio, instanteMs: number): CondicaoTrajeto {
-  if (!Number.isFinite(instanteMs) || !preCondicoes(c)) return DESLIGADO;
+  if (!Number.isFinite(instanteMs)) return DESLIGADO;
   return podeRastrear(entradaDoRastreio(c, instanteMs));
 }
 
