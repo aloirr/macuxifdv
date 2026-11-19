@@ -2,7 +2,7 @@
  * T-0147 (RN-CORE-38): galeria só para as fotos do PDV. A foto escolhida passa pela mesma redução (1600 px) e regravação
  * JPEG 80 da câmera (a regravação descarta o EXIF, inclusive o GPS), vai para `fotos/<uuid>.jpg`; galeria cancelada = null.
  * O registro dá câmera + galeria só ao Core; Promotor e Pesquisa seguem só com a câmera. T-0186 (RD-2374): o visualizador vai na
- * porta única `definirAbrirArquivo`.
+ * porta única `definirAbrirArquivo`; os formatos do visor (só imagem) na porta opcional `definirFormatosDoVisor`.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -13,7 +13,7 @@ const sim = vi.hoisted(() => ({
   resize: [] as unknown[],
   save: [] as unknown[],
   movidos: [] as string[],
-  core: { definirAbrirArquivo: vi.fn() } as Record<string, ReturnType<typeof vi.fn>>,
+  core: { definirAbrirArquivo: vi.fn(), definirFormatosDoVisor: vi.fn() } as Record<string, ReturnType<typeof vi.fn> | undefined>,
   promotor: vi.fn(),
   pesquisa: vi.fn(),
   titulos: [] as string[],
@@ -157,5 +157,13 @@ describe('registrarCameraNosModulos', () => {
     expect(sim.core.definirAbrirArquivo).toHaveBeenCalledWith(abrirArquivo);
     expect(sim.core.definirAbrirFotoPdv).not.toHaveBeenCalled();
     expect(sim.core.definirAbrirDocumento).not.toHaveBeenCalled();
+  });
+
+  it('T-0186: os formatos registrados no Core são só os de imagem (porta opcional definirFormatosDoVisor)', () => {
+    sim.core.definirFormatosDoVisor = vi.fn();
+    registrarCameraNosModulos();
+    expect(sim.core.definirFormatosDoVisor).toHaveBeenCalledWith(['jpg', 'jpeg', 'png', 'webp', 'heic']);
+    sim.core.definirFormatosDoVisor = undefined; // Core sem a porta: nada quebra
+    expect(() => registrarCameraNosModulos()).not.toThrow();
   });
 });
