@@ -5,7 +5,8 @@
 > **v1.0.16 em andamento** (R-20261119-181423 "Acelere" e R-20261119-192029: P1 a P7 = A). Horários de Manaus.
 > - **Escopo:** [T-0187](tarefas/T-0187.md) (supervisor em campo no Gestão, desenho em `docs/desenho/T-0187.md`); o resto da [T-0186](tarefas/T-0186.md) (PDF na ficha e tabela Carteira do Gestão por rota online); o resto do trajeto no Gestão (T-0156); a investigação do OUTBOX_PARADA (só leitura; reprocessar exige o "sim" do dono do produto).
 > - **ADR 0063** reservada ao engenheiro-software (supervisor rastreado no Gestão; revisa a 0061).
-> - **Sessões:** S1 engenheiro-software, S2 engenheiro-apps, S3 modulo-core, S4 modulo-vendedor, S5 modulo-pesquisa, S6 modulo-gestor e S7 testes. Banco sem migração (P1 A).
+> - **Doc 03 (gerente-projetos):** RN-VEN-43 a 46 para a tabela ajustada pelo prazo, e número novo para os cards de Pedidos (T-0170), pela proposta de R-20261117-201110, ponto 3.
+> - **Sessões:** S1 engenheiro-software, S2 engenheiro-apps, S3 modulo-core, S4 modulo-vendedor, S5 modulo-pesquisa, S6 modulo-gestor e S7 testes. Banco sem migração (desenho da T-0187, §5).
 
 > **v1.0.15 no ar, servidor e APK** (19/11; R-20261119-172300 e R-20261119-180100). Horários de Manaus.
 > - **No main:**
@@ -34,8 +35,7 @@
 >   - marca: LIBERADO. A MC-0068 (cinzas do PDF do pedido, já em produção) vai para o `modulo-vendedor` na v1.0.15.
 > - **"PRONTO PARA LIBERAR v1.0.14 (só servidor)"** no SHA b52ca64d. Deploy pela ponte (R-20261118-003807).
 > - **Fechados sem merge:** #487 e #384 (a reconferência de marca da v1.0.13 os substitui) e #345 (substituído pelo #488).
-> - **Sem advogado** (R-20261119-0545, alexandre: "quem decide tudo sou eu"): nenhuma condição de "revisão de advogado". O rastreamento é interno e liga quando o dono do produto mandar, pelo parâmetro do BKO. Já corrigidos: T-0156 e doc 03 (RN-CORE-13). Para a v1.0.16 (engenheiro-software; o #500 fechou sem merge): ADR 0061, `docs/desenho/tracking.md` e os três `docs/desenho/T-0156-legal-*.md`.
-> - **RN-VEN-43 com dois sentidos** (R-20261117-201110, ponto 3): a tabela ajustada pelo prazo fica com a RN-VEN-43 a 46, e os cards de Pedidos (T-0170) ganham um número novo. As duas entram no doc 03 na v1.0.16.
+> - **Sem advogado** (R-20261119-0545, alexandre: "quem decide tudo sou eu"): nenhuma condição de "revisão de advogado". O rastreamento é interno e liga quando o dono do produto mandar, pelo parâmetro do BKO. Corrigidos: T-0156, doc 03 (RN-CORE-13), ADR 0061, `docs/desenho/tracking.md` e `T-0156-legal-finalidade.md` (#510).
 > - **Economia do Actions** (R-20261117-065555), além do `CLAUDE.md`:
 >   - PR só quando é obrigatório;
 >   - não juntar o main sem conflito;
