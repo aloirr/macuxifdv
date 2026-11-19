@@ -131,16 +131,8 @@ problemas as (
                                                             else '(tenant_id = plataforma.tenant_atual())' end)
           or not exists (select 1 from pg_roles r where r.rolname = 'macuxi_leitura' and has_any_column_privilege(r.oid, t.oid, 'SELECT')))
   union all
-  select t.nome, 'só por função, mas com política ou grant para o macuxi_leitura (0078)' from tabelas t
-   where t.nome in (select f.nome from so_por_funcao f)
-     and (exists (select 1 from pg_policy p join pg_roles r on r.oid = any (p.polroles)
-                   where p.polrelid = t.oid and r.rolname = 'macuxi_leitura')
-          or exists (select 1 from pg_roles r where r.rolname = 'macuxi_leitura'
-                       and (has_table_privilege(r.oid, t.oid, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
-                            or has_any_column_privilege(r.oid, t.oid, 'SELECT, INSERT, UPDATE, REFERENCES'))))
-  union all
-  select t.nome, 'sem leitura (0089, ADR 0061), mas com política ou grant para o macuxi_leitura' from tabelas t
-   where t.nome in (select l.nome from sem_leitura l)
+  select t.nome, 'só por função ou sem leitura (0078; 0089, ADR 0061), mas com política ou grant para o macuxi_leitura' from tabelas t
+   where (t.nome in (select f.nome from so_por_funcao f) or t.nome in (select l.nome from sem_leitura l))
      and (exists (select 1 from pg_policy p join pg_roles r on r.oid = any (p.polroles)
                    where p.polrelid = t.oid and r.rolname = 'macuxi_leitura')
           or exists (select 1 from pg_roles r where r.rolname = 'macuxi_leitura'

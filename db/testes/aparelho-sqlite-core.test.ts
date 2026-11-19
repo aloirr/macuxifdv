@@ -58,7 +58,7 @@ describe('SQLite do aparelho — Core (rastreamento, T-0156)', () => {
   it('fila (não enviados do mais antigo) e poda por capturado_em usam índice', async () => {
     const d = await migrado();
     const plano = async (sql: string) => (await d.todas<{ detail: string }>(`explain query plan ${sql}`)).map((l) => l.detail).join(' | ');
-    expect(await plano("select id from core__ponto_trajeto where enviado_em is null order by capturado_em limit 500")).toMatch(/core__ponto_trajeto_fila/);
+    expect(await plano("select id from core__ponto_trajeto where enviado_em is null order by capturado_em limit 500")).toMatch(/core__ponto_trajeto_capturado/);
     expect(await plano("delete from core__ponto_trajeto where capturado_em < '2026-08-21'")).toMatch(/core__ponto_trajeto_capturado/); // hora-fixa-ok: só o plano
   });
 });

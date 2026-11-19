@@ -13,9 +13,9 @@
  *
  * core__ponto_trajeto: um ponto por linha, gravado pela tarefa `macuxi-trajeto` (fora de tela). `id` = UUID gerado no
  * aparelho (o mesmo do push, idempotente no servidor); `capturado_em` = ISO 8601 UTC com `Z` (ordem de texto = ordem de
- * tempo); `enviado_em` nulo = na fila. Quem lê a fila pega os não enviados do mais antigo em lotes de [500]
- * (core__ponto_trajeto_fila). Depois do envio confirmado o aparelho apaga os enviados que não são de hoje e, sem envio, os de
- * mais de [90] dias (core__ponto_trajeto_capturado). O km parcial de hoje (metrosDoTrajeto) lê pelo mesmo índice.
+ * tempo); `enviado_em` nulo = na fila. Um índice só, core__ponto_trajeto_capturado, serve a fila (não enviados do mais
+ * antigo, em lotes de [500]), a poda depois do envio confirmado (enviados que não são de hoje e, sem envio, os de mais de [90]
+ * dias) e o km parcial de hoje (metrosDoTrajeto).
  * core__pausa_trajeto: pausa pessoal (§4.3), só início e fim (nulo = em curso); a mesma fila e a mesma retenção.
  */
 export const migracoesAparelho: { versao: number; sql: string }[] = [
@@ -33,7 +33,6 @@ export const migracoesAparelho: { versao: number; sql: string }[] = [
         enviado_em    TEXT
       ) WITHOUT ROWID;
       CREATE INDEX core__ponto_trajeto_capturado ON core__ponto_trajeto (capturado_em);
-      CREATE INDEX core__ponto_trajeto_fila ON core__ponto_trajeto (capturado_em) WHERE enviado_em IS NULL;
       CREATE TABLE core__pausa_trajeto (
         id          TEXT PRIMARY KEY,
         inicio      TEXT NOT NULL,
