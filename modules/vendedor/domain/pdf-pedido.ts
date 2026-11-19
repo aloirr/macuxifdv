@@ -198,7 +198,7 @@ body { font-family: ${PILHA_SISTEMA}; color: #16202A; font-size: 15px; line-heig
 .doc .t { font-weight: 700; font-size: 24px; line-height: 1.1; }
 .doc .t small { font-weight: 600; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #1E3350; margin-right: 2mm; vertical-align: 3px; }
 .doc .d { font-size: 13px; color: #4A5562; }
-.ficha { display: grid; grid-template-columns: 49fr 29fr 22fr; border: 1px solid #16202A; border-radius: 1.5mm; overflow: hidden; background: #F1F2F0; }
+.ficha { display: grid; grid-template-columns: 49fr 29fr 22fr; border: 1px solid #16202A; border-radius: 1.5mm; overflow: hidden; background: #F8F6F1; }
 .c { padding: 1.6mm 2.6mm 1.8mm; border-right: 1px solid #C9CED5; border-bottom: 1px solid #C9CED5; }
 .c.fim { border-right: 0; }
 .c.base { border-bottom: 0; }
@@ -220,7 +220,7 @@ thead { display: table-header-group; }
 th { font-weight: 600; font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: #fff; background: ${COR_CABECALHO_TABELA}; text-align: left; padding: 1.8mm 2mm; }
 td { padding: 1.6mm 2mm; vertical-align: baseline; font-size: 15px; }
 tbody tr:last-child td { border-bottom: 1.5px solid #16202A; }
-tbody tr:nth-child(even) td { background: #F3F4F1; }
+tbody tr:nth-child(even) td { background: #F8F6F1; }
 tr { break-inside: avoid; page-break-inside: avoid; }
 .v { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 td.cod { font-family: ${PILHA_MONO}; font-variant-numeric: tabular-nums; font-size: 13px; color: #4A5562; }
@@ -230,7 +230,7 @@ td.tot { font-weight: 600; }
 .apl { display: block; margin-top: 1px; font-size: 12px; color: #4A5562; overflow-wrap: anywhere; }
 .rodape { display: flex; align-items: flex-start; justify-content: space-between; gap: 6mm; margin-top: 24px; break-inside: avoid; page-break-inside: avoid; }
 .rodape .lado { flex: 1; }
-.totalbox { min-width: 78mm; border: 2px solid #16202A; border-radius: 2mm; background: #ECEEEA; padding: 2.4mm 4mm; margin-left: auto; }
+.totalbox { min-width: 78mm; border: 2px solid #16202A; border-radius: 2mm; background: #ECEEF1; padding: 2.4mm 4mm; margin-left: auto; }
 .totalbox .lin { display: flex; justify-content: space-between; gap: 6mm; padding: .6mm 0; }
 .totalbox .lin .v { font-weight: 600; }
 .totalbox .total { align-items: baseline; border-top: 1px solid #C9CED5; margin-top: 1mm; padding-top: 1.6mm; font-weight: 600; }

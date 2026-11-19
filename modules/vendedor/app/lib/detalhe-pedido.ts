@@ -17,7 +17,7 @@ import type { MudancaNaConversao, SituacaoCliente, SituacaoOrcamento } from '../
 // ---------- histórico em tags ----------
 // As funções puras do histórico (`eventosDoPedido`, `eventosDoOrcamento`, `autorEhOVendedor`, `motivoDoEvento`) vivem no domain
 // para o app e o BKO usarem as mesmas (RN-VEN-30).
-export { autorEhOVendedor, eventosDoOrcamento, eventosDoPedido, motivoDoEvento } from '../../domain/historico-pedido';
+export { autorEhOVendedor, eventosDoOrcamento, eventosDoPedido, motivoDoEvento, tagsPorMotivoPendente } from '../../domain/historico-pedido';
 
 // ---------- cabeçalho, itens e total ----------
 /** "Mercadinho São Jorge · cód. C5002" (sem código, só o nome). */

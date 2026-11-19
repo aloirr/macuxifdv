@@ -33,6 +33,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: vendedor.pedidos_da_meta@1 (R
 
   async function limpar() {
     await admin.query('delete from vendedor.pedido_faturamento where pedido_id = any($1::uuid[])', [IDS]);
+    await admin.query('delete from vendedor.pedido_aprovacao where pedido_id = any($1::uuid[])', [IDS]);
     await admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [IDS]);
   }
   // recebido_em = emissão: a emissão é LIMITADA a 7 dias antes do recebimento (T-0138); sem isso o pedido antigo entraria no mês do "agora".
