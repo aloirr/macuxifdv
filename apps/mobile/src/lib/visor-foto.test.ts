@@ -1,6 +1,6 @@
 /**
  * RD-0088: visor de foto comum do shell — o pedido do módulo (arquivo da plataforma OU endereço já resolvido), a ida e a
- * volta da rota, o estado sem sinal ("Sem sinal para abrir a foto.") e a matemática do zoom (pinça, arraste, toque duplo).
+ * volta da rota, o estado sem sinal ("Sem internet") e a matemática do zoom (pinça, arraste, toque duplo).
  */
 import { describe, expect, it } from 'vitest';
 
@@ -63,7 +63,7 @@ describe('estado do endereço', () => {
     expect(estadoDoEndereco('file:///a.jpg', false)).toEqual({ tipo: 'ok', uri: 'file:///a.jpg' });
     expect(estadoDoEndereco('https://x/a.jpg', true)).toEqual({ tipo: 'ok', uri: 'https://x/a.jpg' });
     expect(estadoDoEndereco('https://x/a.jpg', false)).toEqual({ tipo: 'erro', mensagem: TEXTO_SEM_SINAL_FOTO });
-    expect(TEXTO_SEM_SINAL_FOTO).toBe('Sem sinal para abrir a foto.');
+    expect(TEXTO_SEM_SINAL_FOTO).toBe('Sem internet');
   });
 });
 

@@ -130,48 +130,59 @@ function Gate() {
       />
     );
   }
-  if (!show) return sobre ?? <TelaEntrada variante={variante} sobreposta aoDesenhar={esconderSplash} nomeDoApp={Constants.expoConfig?.name} />;
+  if (!show)
+    return (
+      sobre ?? (
+        <TelaEntrada
+          variante={variante}
+          sobreposta
+          aoDesenhar={esconderSplash}
+          nomeDoApp={Constants.expoConfig?.name}
+        />
+      )
+    );
   return (
     <ShellProvider visao={visao as VisaoShell<unknown>} motor={motor} ambiente={ambiente}>
       {/* RN-VEN-38 (T-0128): formulário alterado segura a barra inferior e o Voltar do Android (useBloquearSaida do SDK) */}
       <ProvedorBloqueioDeSaida value={bloqueioDoShell}>
         {/* T-0128: o `BackLink` do kit (cabeçalho das telas de módulo e do shell) também passa por `tentarSair` */}
         <ProvedorSaidaDaTela value={bloqueioDoShell}>
-        {/* área segura superior para todas as telas, abas e empilhadas (R-20261102-111044, T-0064) */}
-        {/* RN-CORE-23: botão Sincronizar, puxar para baixo e push usam o agendador único do app */}
-        <SincronizacaoDoShell>
-          {/* T-0088: com a tela de preparo ou de erro por cima, o TalkBack não alcança o login nem as abas por baixo
+          {/* área segura superior para todas as telas, abas e empilhadas (R-20261102-111044, T-0064) */}
+          {/* RN-CORE-23: botão Sincronizar, puxar para baixo e push usam o agendador único do app */}
+          <SincronizacaoDoShell>
+            {/* T-0088: com a tela de preparo ou de erro por cima, o TalkBack não alcança o login nem as abas por baixo
               (`accessibilityViewIsModal` da tela só vale no iOS) */}
-          <View
-            style={{ flex: 1 }}
-            importantForAccessibility={sobre ? 'no-hide-descendants' : 'auto'}
-            accessibilityElementsHidden={sobre !== null}
-          >
-            <AreaSeguraSuperior rota={rota}>
-              {/* login, carga e abas trocam sem deslizar (não é "avançar"); o perfil entra pela direita */}
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: colors.ground },
-                  ...transicaoDeAvancar(reduzir),
-                }}
-              >
-                <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
-                <Stack.Screen name="login" options={{ animation: 'none' }} />
-                <Stack.Screen name="sync" options={{ animation: 'none' }} />
-                <Stack.Screen name="profile" />
-                {/* T-0178: "Trocar senha" e "Esqueci a senha" do Perfil, empilhadas (avanço lateral, sem barra de abas) */}
-                <Stack.Screen name="trocar-senha" />
-                <Stack.Screen name="esqueci-senha" />
-                {/* T-0147 / RD-0088: o visor de foto comum (foto do PDV, do produto) abre por cima, sem deslizar */}
-                <Stack.Screen name="foto" options={{ animation: 'fade' }} />
-              </Stack>
-            </AreaSeguraSuperior>
-          </View>
-          {/* T-0147: folha "Tirar foto / Escolher da galeria" que o Core pede pela porta da captura da foto do PDV */}
-          <FolhaFotoPdv />
-          {sobre}
-        </SincronizacaoDoShell>
+            <View
+              style={{ flex: 1 }}
+              importantForAccessibility={sobre ? 'no-hide-descendants' : 'auto'}
+              accessibilityElementsHidden={sobre !== null}
+            >
+              <AreaSeguraSuperior rota={rota}>
+                {/* login, carga e abas trocam sem deslizar (não é "avançar"); o perfil entra pela direita */}
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: colors.ground },
+                    ...transicaoDeAvancar(reduzir),
+                  }}
+                >
+                  <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
+                  <Stack.Screen name="login" options={{ animation: 'none' }} />
+                  <Stack.Screen name="sync" options={{ animation: 'none' }} />
+                  <Stack.Screen name="profile" />
+                  {/* T-0178: "Trocar senha" e "Esqueci a senha" do Perfil, empilhadas (avanço lateral, sem barra de abas) */}
+                  <Stack.Screen name="trocar-senha" />
+                  <Stack.Screen name="esqueci-senha" />
+                  {/* T-0147, RD-0088 e T-0186: o visor comum (foto do PDV, do produto, fachada e
+                      documentos do cliente) abre por cima, sem deslizar */}
+                  <Stack.Screen name="foto" options={{ animation: 'fade' }} />
+                </Stack>
+              </AreaSeguraSuperior>
+            </View>
+            {/* T-0147: folha "Tirar foto / Escolher da galeria" que o Core pede pela porta da captura da foto do PDV */}
+            <FolhaFotoPdv />
+            {sobre}
+          </SincronizacaoDoShell>
         </ProvedorSaidaDaTela>
       </ProvedorBloqueioDeSaida>
     </ShellProvider>
