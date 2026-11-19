@@ -32,7 +32,7 @@ describe('contracts', () => {
   });
 });
 
-import { AprovacaoSolicitadaEvento, AprovarPedidoRequest, PedidoAprovadoEvento, PedidoEventoSyncSchema, PedidoPush, PedidoStatusAlteradoEvento, RejeitarPedidoRequest } from './index';
+import { CORPO_DA_DECISAO, MOTIVO_REJEICAO_MIN, ROTA_DA_DECISAO, ROTULO_MOTIVO_APROVACAO, corpoDaDecisao, maiorNivel, quemDecide, AprovacaoMotivo, AprovacaoSolicitadaEvento, AprovarPedidoRequest, RecusarPedidoRequest, DECISOES_APROVADOR, ESTADOS_APROVACAO_MOTIVO, MOTIVOS_APROVACAO, DiscountPolicy as AlcadaApiSchema, PedidoAprovadoEvento, PedidoEventoSyncSchema, PedidoPush, PedidoStatusAlteradoEvento, RejeitarPedidoRequest } from './index';
 
 describe('contracts do pedido no servidor (T-0029)', () => {
   const push = { id: '0b7f6c1e-3d2a-4c5b-9e8f-7a6b5c4d3e2f', customer_id: 'c1', discount_pct: 4, items: [{ product_id: 'p1', quantity: 2 }] };
@@ -47,7 +47,9 @@ describe('contracts do pedido no servidor (T-0029)', () => {
   });
   it('RN-GES-08: aprovar sem comentário é válido; o mínimo de 3 caracteres do motivo é do domínio (422)', () => {
     expect(AprovarPedidoRequest.safeParse({}).success).toBe(true);
+    expect(RejeitarPedidoRequest.safeParse({ motivo: 'abc' }).success).toBe(true);
     expect(RejeitarPedidoRequest.safeParse({ motivo: 'ab' }).success).toBe(true);
+    expect(RejeitarPedidoRequest.safeParse({}).success).toBe(false);
     expect(RejeitarPedidoRequest.safeParse({ motivo: 'x'.repeat(501) }).success).toBe(false);
   });
   it('status_alterado@1 usa o vocabulário do doc 03 (RN-VEN-30)', () => {
@@ -77,5 +79,61 @@ describe('contracts do pedido no servidor (T-0029)', () => {
   });
   it('pedido_evento do pull exige os campos da linha do tempo', () => {
     expect(PedidoEventoSyncSchema.safeParse({ id: 'x' }).success).toBe(false);
+  });
+});
+
+describe('T-0184: contratos da aprovação por motivo', () => {
+  it('vocabulário: inadimplencia entra nos motivos; estados e decisões do aprovador', () => {
+    expect(MOTIVOS_APROVACAO).toEqual(['desconto', 'credito', 'inadimplencia', 'estoque', 'preco_minimo']);
+    expect(ESTADOS_APROVACAO_MOTIVO).toEqual(['pendente', 'aprovada', 'rejeitada', 'devolvida', 'encerrada']);
+    expect(DECISOES_APROVADOR).toEqual(['aprovar', 'devolver', 'recusar']);
+  });
+  it('RN-GES-08 e ADR 0062: aprovar aceita comentario e motivo_aprovacao; rejeitar e recusar exigem motivo (texto livre, 3+) e aceitam motivo_aprovacao', () => {
+    expect(AprovarPedidoRequest.safeParse({ comentario: 'ok', motivo_aprovacao: 'credito' }).success).toBe(true);
+    expect(AprovarPedidoRequest.safeParse({ motivo_aprovacao: 'outro' }).success).toBe(false);
+    expect(RecusarPedidoRequest.safeParse({ motivo: 'sem verba', motivo_aprovacao: 'inadimplencia' }).success).toBe(true);
+    expect(RecusarPedidoRequest.safeParse({ motivo_aprovacao: 'credito' }).success).toBe(false);
+    expect(RejeitarPedidoRequest.safeParse({ motivo: 'abc', motivo_aprovacao: 'desconto' }).success).toBe(true);
+    expect(RejeitarPedidoRequest.safeParse({ motivo: 'abc', motivo_aprovacao: 'x' }).success).toBe(false);
+  });
+  it('exports para o Gestor: rota da decisão, corpo de cada rota, mínimo do texto, estados, rótulos e maior nível', () => {
+    expect(ROTA_DA_DECISAO).toEqual({ aprovar: 'aprovar', devolver: 'rejeitar', recusar: 'recusar' });
+    expect(CORPO_DA_DECISAO.aprovar).toBe(AprovarPedidoRequest);
+    expect(CORPO_DA_DECISAO.devolver).toBe(RejeitarPedidoRequest);
+    expect(CORPO_DA_DECISAO.recusar).toBe(RecusarPedidoRequest);
+    expect(MOTIVO_REJEICAO_MIN).toBe(3);
+    expect(Object.keys(ROTULO_MOTIVO_APROVACAO)).toEqual([...MOTIVOS_APROVACAO]);
+    expect(ROTULO_MOTIVO_APROVACAO.inadimplencia).toBe('Inadimplente');
+    expect(maiorNivel(['supervisor', 'analista', 'gerente'])).toBe('analista');
+    expect(maiorNivel([])).toBeNull();
+  });
+  it('corpoDaDecisao monta o corpo que a rota aceita (RN-GES-08)', () => {
+    expect(corpoDaDecisao('aprovar', '')).toEqual({});
+    expect(corpoDaDecisao('aprovar', ' ok ', 'credito')).toEqual({ comentario: 'ok', motivo_aprovacao: 'credito' });
+    expect(corpoDaDecisao('devolver', ' sem verba ')).toEqual({ motivo: 'sem verba' });
+    expect(corpoDaDecisao('recusar', 'cliente bloqueado', 'inadimplencia')).toEqual({ motivo: 'cliente bloqueado', motivo_aprovacao: 'inadimplencia' });
+    for (const d of DECISOES_APROVADOR) expect(CORPO_DA_DECISAO[d].safeParse(corpoDaDecisao(d, 'texto ok')).success).toBe(true);
+  });
+  it('AprovacaoMotivo: estado, nível, texto e quem decidiu', () => {
+    const ok = { motivo: 'credito', nivel: 'gerente', estado: 'aprovada', texto_pendencia: 'x', decidida_por_id: '0b7f6c1e-3d2a-4c5b-9e8f-7a6b5c4d3e2f', decidida_em: '2026-11-05T12:00:00.000Z', texto_decisao: null };
+    expect(AprovacaoMotivo.safeParse(ok).success).toBe(true);
+    expect(AprovacaoMotivo.safeParse({ ...ok, estado: 'x' }).success).toBe(false);
+  });
+  it('AlcadaApi: aprovador_credito e aprovador_inadimplencia são aditivos (o app antigo, sem eles, segue válido)', () => {
+    const base = { seller_pct: 5, supervisor_pct: 10, manager_pct: 15, above_manager: 'director', exceptions: [] };
+    expect(AlcadaApiSchema.safeParse(base).success).toBe(true);
+    expect(AlcadaApiSchema.safeParse({ ...base, aprovador_credito: 'gerente', aprovador_inadimplencia: 'analista' }).success).toBe(true);
+    expect(AlcadaApiSchema.safeParse({ ...base, aprovador_credito: 'diretor' }).success).toBe(false);
+  });
+
+  it('RN-GES-04: quemDecide é público no contrato (gestor decide até a alçada; analista só o seu nível)', () => {
+    expect(quemDecide('gerente', 'supervisor')).toEqual({ pode: true, acima_do_nivel: true });
+    expect(quemDecide('supervisor', 'gerente').pode).toBe(false);
+    expect(quemDecide('vendedor', 'supervisor').pode).toBe(false);
+  });
+  it('T-0184: decidida_por_nome é aditivo no AprovacaoMotivo', () => {
+    const base = { motivo: 'credito', nivel: 'gerente', estado: 'aprovada', texto_pendencia: '', decidida_por_id: '0b7f6c1e-3d2a-4c5b-9e8f-7a6b5c4d3e2f', decidida_em: '2026-11-18T14:05:00.000Z', texto_decisao: null };
+    expect(AprovacaoMotivo.safeParse(base).success).toBe(true);
+    expect(AprovacaoMotivo.parse({ ...base, decidida_por_nome: 'Rui Matos' }).decidida_por_nome).toBe('Rui Matos');
   });
 });

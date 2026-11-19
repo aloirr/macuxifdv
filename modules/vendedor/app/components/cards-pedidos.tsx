@@ -1,5 +1,5 @@
 /**
- * Os 3 cartões do topo de Pedidos (T-0170, RN-VEN-43): Orçamentos, Pedidos e Total, lado a lado, de largura igual
+ * Os 3 cartões do topo de Pedidos (T-0170, RN-VEN-47): Orçamentos, Pedidos e Total, lado a lado, de largura igual
  * (rótulo curto em cima, quantidade em destaque, valor em R$ embaixo; mesmo desenho dos cartões de metas do Início).
  * Mesmo componente no Campo e no Gestão (D6). Orçamentos e Pedidos abrem a lista filtrada (alvo >= 48 dp); Total não navega.
  * `titulo` (longo) é o rótulo acessível e o do chip da tela; `rotulo` é o texto curto do cartão.

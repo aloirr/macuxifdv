@@ -94,6 +94,17 @@ async function carregarMembros(ctx: ContextoBase, tx: TransacaoTenant, escopo: E
   return membrosDoCadastro({ id: eu, perfil: ctx.usuario.perfil, nome }, cadastro);
 }
 
+/** Nome (fantasia, senão razão social) e código (`external_id`) do cliente para o cartão da fila, pelo cadastro do Core (`core.cadastro_resumo@1`). */
+async function nomesDosClientes(tx: TransacaoTenant, ids: readonly string[]): Promise<Map<string, { nome: string; codigo: string | null }>> {
+  const unicos = [...new Set(ids)];
+  const nomes = new Map<string, { nome: string; codigo: string | null }>();
+  for (let i = 0; i < unicos.length; i += LOTE_CADASTRO) {
+    const r = await tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: unicos.slice(i, i + LOTE_CADASTRO), produto_ids: [], usuario_ids: [] });
+    for (const c of r.clientes) nomes.set(c.id, { nome: c.nome_fantasia?.trim() || c.razao_social, codigo: c.external_id?.trim() || null });
+  }
+  return nomes;
+}
+
 export async function carregarContexto(ctx: ContextoBase, repo: RepositorioGestor, db: ClienteBanco, tx: TransacaoTenant): Promise<ContextoGestor> {
   const viewer = { id: ctx.usuario.id, perfil: ctx.usuario.perfil };
   const visiveis = await ctx.usuariosVisiveis();
@@ -262,7 +273,9 @@ export function criarRotasGestor(repo: RepositorioGestor): RotaModulo[] {
     executar: (ctx) =>
       comGestor(ctx, repo, async (g): Promise<FilaAprovacao> => {
         const itens = filaDeAprovacoes({ estado: g.estado, viewer: g.viewer, escopo: g.escopo, agora: g.agora, modulos: g.modulos, params: g.params });
-        return { itens, resumo: resumirFila(itens), calculado_em: g.agora };
+        const nomes = await nomesDosClientes(g.tx, itens.map((i) => i.cliente_id));
+        const comNome = itens.map((i) => ({ ...i, cliente_nome: nomes.get(i.cliente_id)?.nome || null, cliente_codigo: nomes.get(i.cliente_id)?.codigo ?? null }));
+        return { itens: comNome, resumo: resumirFila(comNome), calculado_em: g.agora };
       }),
   };
 

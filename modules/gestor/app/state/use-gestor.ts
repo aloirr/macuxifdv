@@ -11,8 +11,9 @@ import { DEFAULT_TZ } from '@macuxi/ui/mobile/puro';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { alertasDePendenciaCheckout, type NotificacaoPendencia } from '../../domain/alertas-pendencia-checkout';
-import { Alerta, FichaMembro, RankingEquipe, ROTAS_GESTOR, TrajetoEquipe, type IndicadorRanking, type PeriodoRanking } from '../../contracts';
+import { corpoDaDecisao, ROTA_DA_DECISAO, Alerta, FichaMembro, RankingEquipe, ROTAS_GESTOR, TrajetoEquipe, type IndicadorRanking, type MotivoAprovacao, type PeriodoRanking } from '../../contracts';
 import { aplicarParadoMinDoTenant } from '../lib/parado-min';
+import { filaAposDecisao, type AcaoDeDecisao } from '../lib/decisao';
 import { chaveRanking, criarCache, DADOS_VAZIOS, mensagemDeErro, type DadosGestor } from '../lib/cache';
 
 const relogio = relogioReal();
@@ -68,6 +69,28 @@ export function useGestor(opcoes: { pendencias?: boolean } = {}) {
     [ambiente, cache, recarregar],
   );
 
+  /**
+   * T-0184: decide UM motivo pelas rotas do Vendedor (nunca escrita direta). Exige internet: outro aprovador pode ter decidido
+   * antes e a resposta do servidor vale. Tira o cartão do cache na hora e a próxima sincronização traz o estado real.
+   */
+  const decidirAprovacao = useCallback(
+    async (pedidoId: string, acao: AcaoDeDecisao, motivo: MotivoAprovacao, texto: string): Promise<{ ok: true } | { ok: false; mensagem: string }> => {
+      if (!cache) return { ok: false, mensagem: 'Carregando…' };
+      if (!ambiente.online()) return { ok: false, mensagem: 'Sem sinal para decidir. Conecte-se e toque de novo.' };
+      try {
+        await ambiente.http.requisitar<unknown>('POST', `/vendedor/pedidos/${encodeURIComponent(pedidoId)}/${ROTA_DA_DECISAO[acao]}`, { body: { ...corpoDaDecisao(acao, texto, motivo) } });
+      } catch (e) {
+        return { ok: false, mensagem: mensagemDeErro(e) };
+      }
+      const atual = await cache.ler('fila');
+      if (atual) await cache.gravar('fila', filaAposDecisao(atual, pedidoId, acao, motivo));
+      await recarregar();
+      void motor?.sincronizar().then(() => recarregar());
+      return { ok: true };
+    },
+    [ambiente, cache, motor, recarregar],
+  );
+
   /** RF-GES-02: ficha pela API; sem sinal, monta do cache da visão (o pedido em nome some offline). */
   const ficha = useCallback(
     async (id: string): Promise<{ ficha: FichaMembro | null; doCache: boolean; erro: string | null }> => {
@@ -121,5 +144,5 @@ export function useGestor(opcoes: { pendencias?: boolean } = {}) {
 
   const pendencias = useMemo(() => alertasDePendenciaCheckout(notificacoes, { perfil: usuario?.perfil, agora: relogio.agora().toISOString() }), [notificacoes, usuario?.perfil, estado.sincronizado_em]);
 
-  return { ...dados, pendencias, usuarioId: usuario?.id ?? null, carregado, sincronizando: estado.sincronizando, erro: estado.erro, offline, tz, auto, dispensar, ficha, trajeto, ranking };
+  return { ...dados, pendencias, usuarioId: usuario?.id ?? null, carregado, sincronizando: estado.sincronizando, erro: estado.erro, offline, tz, auto, dispensar, decidirAprovacao, ficha, trajeto, ranking };
 }

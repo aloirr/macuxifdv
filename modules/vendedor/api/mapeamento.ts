@@ -2,8 +2,8 @@
  * Linhas do banco → respostas REST (`Order`, `OrderDetail`; T-0029 §3.3). Funções puras: o texto de pendência, o
  * `pode_decidir` e o histórico saem daqui, iguais para a lista, o detalhe e o PDF.
  */
-import type { AprovacaoDoPedido, ClienteDoPedido, FaturamentoDoPedido, Order, OrderDetail, OrderItem } from '../contracts';
-import { camposFaturamento, dadosFiscaisDaFilial, nomeDaFilialDoPedido, politicaDosParametros, quemDecide, situacaoDevolucao, textoPendencia, type NivelAprovacao } from '../domain';
+import type { AprovacaoDoPedido, AprovacaoMotivo, ClienteDoPedido, FaturamentoDoPedido, Order, OrderDetail, OrderItem } from '../contracts';
+import { camposFaturamento, dadosFiscaisDaFilial, maiorNivel, nomeDaFilialDoPedido, politicaDosParametros, quemDecide, situacaoDevolucao, textoPendencia, type NivelAprovacao } from '../domain';
 import type { OrderStatus } from '../domain/order';
 import { rotuloMedida } from '../domain/preco-pedido';
 
@@ -25,6 +25,8 @@ export interface LinhaPedido {
   nivel_aprovacao: NivelAprovacao | null;
   motivos_aprovacao: string[] | null;
   motivo_rejeicao: string | null;
+  /** observação do pedido (lista do BKO) */
+  observacao?: string | null;
   numero_erp: string | null;
   criado_no_aparelho_em: string | null;
   recebido_em: string | null;
@@ -151,8 +153,12 @@ export function enderecoDoPedido(l: LinhaPedido): Order['delivery_address'] {
   };
 }
 
-export function paraOrder(l: LinhaPedido, parametros: Readonly<Record<string, unknown>>, perfil = ''): Order {
+export function paraOrder(l: LinhaPedido, parametros: Readonly<Record<string, unknown>>, perfil = '', aprovacoes?: readonly AprovacaoMotivo[]): Order {
   const politica = politicaDosParametros({ ...parametros });
+  // T-0184: com uma aprovação por motivo, o texto, o nível e o "pode decidir" do pedido vêm das pendentes (as decididas saem da conta)
+  const pendentes = (aprovacoes ?? []).filter((a) => a.estado === 'pendente');
+  const aguardando = l.status === 'pending_approval' && pendentes.length > 0;
+  const nivelPendente = aguardando ? maiorNivel(pendentes.map((a) => a.nivel)) : l.nivel_aprovacao;
   const total = num(l.total_cents);
   const tabela = num(l.total_tabela_cents);
   return {
@@ -173,7 +179,7 @@ export function paraOrder(l: LinhaPedido, parametros: Readonly<Record<string, un
     total_cents: total,
     payment_terms: l.condicao_pagamento_descricao ?? l.condicao_pagamento ?? '',
     status: l.status,
-    pending_reason: l.status === 'pending_approval' && l.nivel_aprovacao ? textoPendencia(l.nivel_aprovacao, descontoParaAlcada(l), politica.seller_pct) : '',
+    pending_reason: aguardando ? pendentes.map((a) => a.texto_pendencia).join(' · ') : l.status === 'pending_approval' && l.nivel_aprovacao ? textoPendencia(l.nivel_aprovacao, descontoParaAlcada(l), politica.seller_pct) : '',
     rejection_reason: l.status === 'rejected' ? (l.motivo_rejeicao ?? '') : '',
     erp_order_code: l.numero_erp ?? '',
     created_offline_at: l.criado_no_aparelho_em,
@@ -181,8 +187,14 @@ export function paraOrder(l: LinhaPedido, parametros: Readonly<Record<string, un
     updated_at: l.updated_at,
     items_count: num(l.itens),
     units: num(l.unidades),
-    nivel_aprovacao: l.status === 'pending_approval' ? l.nivel_aprovacao : null,
-    pode_decidir: l.status === 'pending_approval' && l.nivel_aprovacao ? quemDecide(perfil, l.nivel_aprovacao).pode : false,
+    nivel_aprovacao: l.status === 'pending_approval' ? nivelPendente : null,
+    pode_decidir: aguardando ? pendentes.some((a) => quemDecide(perfil, a.nivel).pode) : l.status === 'pending_approval' && l.nivel_aprovacao ? quemDecide(perfil, l.nivel_aprovacao).pode : false,
+    ...(l.cliente_resumo?.codigo_erp ? { customer_code: l.cliente_resumo.codigo_erp } : {}),
+    ...(l.cliente_resumo?.uf ? { customer_uf: l.cliente_resumo.uf } : {}),
+    ...(l.cliente_resumo?.cidade ? { customer_city: l.cliente_resumo.cidade } : {}),
+    ...(l.observacao ? { order_note: l.observacao } : {}),
+    ...(aguardando ? { approval_reasons: pendentes.map((a) => a.motivo) } : l.status === 'pending_approval' && l.motivos_aprovacao?.length ? { approval_reasons: l.motivos_aprovacao as Order['approval_reasons'] } : {}),
+    ...(aprovacoes && aprovacoes.length > 0 ? { aprovacoes: [...aprovacoes] } : {}),
     ...camposFaturamento(l),
     ...(l.acrescimo_pct !== undefined && l.acrescimo_pct !== null ? { surcharge_pct: num(l.acrescimo_pct) } : {}),
     ...(l.desconto_efetivo_pct !== undefined && l.desconto_efetivo_pct !== null ? { effective_discount_pct: num(l.desconto_efetivo_pct) } : {}),
@@ -221,16 +233,19 @@ export function paraFaturamento(l: LinhaPedido, notas: LinhaNotaFaturamento[], d
   };
 }
 
-export function aprovacaoDoPedido(l: LinhaPedido, perfil: string, parametros: Readonly<Record<string, unknown>>): AprovacaoDoPedido | null {
+export function aprovacaoDoPedido(l: LinhaPedido, perfil: string, parametros: Readonly<Record<string, unknown>>, aprovacoes?: readonly AprovacaoMotivo[]): AprovacaoDoPedido | null {
   if (!l.nivel_aprovacao) return null;
-  const q = quemDecide(perfil, l.nivel_aprovacao);
+  const pendentes = (aprovacoes ?? []).filter((a) => a.estado === 'pendente');
+  const nivel = pendentes.length > 0 ? (maiorNivel(pendentes.map((a) => a.nivel)) ?? l.nivel_aprovacao) : l.nivel_aprovacao;
+  const decidiveis = pendentes.filter((a) => quemDecide(perfil, a.nivel).pode);
+  const q = quemDecide(perfil, nivel);
   return {
-    nivel: l.nivel_aprovacao,
-    motivos: (l.motivos_aprovacao ?? []) as AprovacaoDoPedido['motivos'],
+    nivel,
+    motivos: (pendentes.length > 0 ? pendentes.map((a) => a.motivo) : (l.motivos_aprovacao ?? [])) as AprovacaoDoPedido['motivos'],
     desconto_efetivo_pct: Math.max(0, descontoParaAlcada(l)),
     limite_vendedor_pct: politicaDosParametros({ ...parametros }).seller_pct,
-    pode_decidir: l.status === 'pending_approval' && q.pode,
-    acima_do_nivel: q.acima_do_nivel,
+    pode_decidir: l.status === 'pending_approval' && (pendentes.length > 0 ? decidiveis.length > 0 : q.pode),
+    acima_do_nivel: pendentes.length > 0 ? decidiveis.some((a) => quemDecide(perfil, a.nivel).acima_do_nivel) : q.acima_do_nivel,
   };
 }
 
@@ -271,13 +286,14 @@ export function paraDetalhe(
   perfil: string,
   parametros: Readonly<Record<string, unknown>>,
   faturamento?: { notas: LinhaNotaFaturamento[]; devolucoes: LinhaNotaDevolucao[] },
+  aprovacoes?: readonly AprovacaoMotivo[],
 ): OrderDetail {
   return {
-    ...paraOrder(l, parametros, perfil),
+    ...paraOrder(l, parametros, perfil, aprovacoes),
     items: itens.map(paraItem),
     history: paraHistorico(eventos),
     cliente: l.cliente_resumo,
-    aprovacao: aprovacaoDoPedido(l, perfil, parametros),
+    aprovacao: aprovacaoDoPedido(l, perfil, parametros, aprovacoes),
     ...(faturamento ? { faturamento: paraFaturamento(l, faturamento.notas, faturamento.devolucoes) } : {}),
   };
 }

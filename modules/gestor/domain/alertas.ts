@@ -10,14 +10,14 @@
 import { ALMOCO_PADRAO_EMPRESA, almocoEmMs, minutosSemAlmoco, textoDoMinuto, type HorarioAlmoco, type ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
 import { diffDays } from '@macuxi/comum';
 import { RegraAlerta, TIPOS_ALERTA, TIPOS_ALERTA_PRODUTIVIDADE, type CondicaoAlerta, type FrequenciaVisita, type MembroEquipe, type MotivoEncerramento, type Severidade, type StatusAlerta, type TipoAlerta } from '../contracts';
-import { nivelDaFilaDoGestor, pedidoPendenteDeAprovacao, situacaoDoPrazo } from './aprovacoes';
+import { motivosPendentes, nivelDaFilaDoGestor, situacaoDoPrazo } from './aprovacoes';
 import { situacaoDaRota } from './agora';
 import { ehDiaUtil, horasUteisEntre, instanteDoHorarioLocal } from './horario-comercial';
 import { somarDiasCivis } from '@macuxi/comum/relogio';
 import { arredondar, instanteMs, percentual } from './numeros';
 import { atendida, diaLocal, diasUteisDoMes, painelDoMes, statusDoDia } from './painel';
 import { resolverParametros, type ParametrosGestor } from './parametros';
-import { carteiraPendente, entradaNaCarteira, type EstadoProjecao } from './projecao';
+import { carteiraPendente, entradaNaCarteira, solicitacaoDaLinha, type EstadoProjecao } from './projecao';
 
 /** Regra padrão de cada tipo (valores entre colchetes do doc 02/03 e premissas da T-0014, em regras.md). */
 export const REGRAS_PADRAO: Readonly<Record<TipoAlerta, RegraAlerta>> = Object.freeze({
@@ -216,9 +216,10 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
   // --- RN-GES-03: pedido aguardando aprovação depois de PASSAR do prazo em dias úteis (o mesmo prazo da fila) ---
   if (ativos.has('pedido_aguardando_aprovacao')) {
     const r = e.regras.pedido_aguardando_aprovacao;
-    for (const [pedidoId, a] of Object.entries(e.estado.aprovacoes)) {
+    for (const [pedidoId, linha] of Object.entries(e.estado.aprovacoes)) {
+      const a = solicitacaoDaLinha(linha);
       // RN-GES-03 / RF-VEN-09: mesmo filtro da fila (nível analista é da fila do BKO do Vendedor, não da equipe)
-      if (!nivelDaFilaDoGestor(a.nivel) || !pedidoPendenteDeAprovacao(e.estado, pedidoId)) continue;
+      if (!a || !motivosPendentes(e.estado, pedidoId).some((m) => nivelDaFilaDoGestor(m.nivel))) continue;
       const prazo = situacaoDoPrazo(a.solicitada_em, e.agora, params);
       if (prazo.situacao !== 'vencido') continue;
       const horas = horasUteisEntre(a.solicitada_em, e.agora, params);

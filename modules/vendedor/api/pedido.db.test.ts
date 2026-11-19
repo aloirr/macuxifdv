@@ -26,7 +26,7 @@ import manifest from '../manifest';
 import { ClienteCondicaoSyncSchema, CondicaoPagamentoSyncSchema, OrderDetail, PedidoEventoSyncSchema, PedidoItemSyncSchema, PedidoSyncSchema } from '../contracts';
 import { entidadePedido } from '../contracts/entidades';
 import { responderFiliais } from './filial-simulada';
-import { rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRejeitarPedido, rotaVerPedido } from './pedidos';
+import { rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRecusarPedido, rotaRejeitarPedido, rotaVerPedido } from './pedidos';
 import { provedoresSyncVendedor } from './sync';
 
 const A = DOIS_TENANTS.A;
@@ -39,7 +39,10 @@ const CADASTRO = (() => {
   const d = dadosDoisTenants('hash-de-teste');
   return { cliente: d['core.cliente']!, produto: d['core.produto']!, usuario: d['core.usuario']! };
 })();
-const IDS = Array.from({ length: 60 }, (_, i) => id(i + 1));
+/** Financeiro do cliente que a consulta simulada devolve (T-0184); os testes de aprovação por motivo trocam e voltam ao folgado. */
+const FINANCEIRO_FOLGADO = { limite_cents: 100_000_000, saldo_aberto_cents: 0, credito_disponivel_erp_cents: null as number | null, bloqueado: false, motivo_bloqueio: null, vencidos_qtd: 0, vencidos_cents: 0, maior_atraso_dias: 0, atualizado_erp_em: null };
+let financeiroDoTeste: typeof FINANCEIRO_FOLGADO | null = FINANCEIRO_FOLGADO;
+const IDS = Array.from({ length: 70 }, (_, i) => id(i + 1));
 
 const vendedor1: UsuarioAutenticado = { id: A.usuarios.vendedor1, tenant_id: A.tenantId, perfil: 'vendedor' };
 const vendedor2: UsuarioAutenticado = { id: A.usuarios.vendedor2, tenant_id: A.tenantId, perfil: 'vendedor' };
@@ -106,6 +109,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
               if (def.nome === CONSULTA_CANCELAMENTO_ERP.nome) return { aceita: false }; // sem conector que aceite cancelar: mantém o 422 da RN-VEN-31
               if (def.nome === CONSULTA_PROMOTOR_VE_PEDIDOS.nome) return { ligado: opcaoPromotor }; // Core simulado, lido a cada requisição
               if (def.nome === 'catalogo.estoque_filial@1') return { itens: [] }; // Catálogo sem saldo: estoque não controlado
+              if (def.nome === 'core.financeiro_cliente@1') return { financeiro: financeiroDoTeste }; // RN-VEN-12 e RN-VEN-13 (T-0184)
               throw new Error(`consulta não simulada: ${def.nome}`);
             },
             async publicar(def: DefinicaoEvento, payload: unknown) {
@@ -153,6 +157,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
     try {
       // T-0054: o retorno do ERP grava pedido_faturamento (0013, FK para o pedido)
       await admin.query('delete from vendedor.pedido_faturamento where pedido_id = any($1::uuid[])', [IDS]);
+      await admin.query('delete from vendedor.pedido_aprovacao where pedido_id = any($1::uuid[])', [IDS]);
       await admin.query('delete from vendedor.pedido_evento where pedido_id = any($1::uuid[])', [IDS]);
       await admin.query('delete from vendedor.pedido_item where pedido_id = any($1::uuid[])', [IDS]);
       await admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [IDS]);
@@ -222,9 +227,9 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       expect(p).toMatchObject({ status: 'pending_approval', nivel_aprovacao: nivel, aprovacao_automatica: false, motivos_aprovacao: ['desconto'] });
       expect(ev.map((e) => e.para)).toEqual(['received', 'pending_approval']);
       expect(ev[1].motivo).toMatch(/acima da alçada de 5,0%: aguardando/);
-      expect(registro.eventos.map((e) => e.nome)).toContain('vendedor.pedido.aprovacao_solicitada@1');
+      expect(registro.eventos.map((e) => e.nome)).toContain('vendedor.pedido.aprovacao_solicitada@2');
       expect(registro.eventos.map((e) => e.nome)).not.toContain('vendedor.pedido.aprovado@1');
-      expect(registro.eventos.find((e) => e.nome.endsWith('aprovacao_solicitada@1'))!.payload).toMatchObject({ nivel, motivos: ['desconto'], credito: null });
+      expect(registro.eventos.find((e) => e.nome.endsWith('aprovacao_solicitada@2'))!.payload).toMatchObject({ nivel, motivos: ['desconto'], aprovacoes: [{ motivo: 'desconto', nivel }], inadimplencia: null });
     });
 
     it('RN-VEN-10: acima do gerente com acima_gerente = bloquear é rejeitado', async () => {
@@ -338,19 +343,25 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
     it('RN-GES-08: a supervisora aprova sem corpo (1 toque); histórico, auditoria e eventos; repetir é idempotente', async () => {
       await pendente(id(30), 8);
       const s = contexto(supervisor, { visiveis: equipe1 });
-      const d = OrderDetail.parse(await chamar(rotaAprovarPedido, s.ctx, { params: { id: id(30) } }));
+      const resp = await chamar(rotaAprovarPedido, s.ctx, { params: { id: id(30) } });
+      expect(resp).toMatchObject({ status: 'approved', aprovacoes: [{ motivo: 'desconto', estado: 'aprovada', decidida_por_id: A.usuarios.supervisor }] });
+      const d = OrderDetail.parse(await chamar(rotaVerPedido, s.ctx, { params: { id: id(30) } }));
       expect(d).toMatchObject({ status: 'approved', aprovacao: { nivel: 'supervisor', pode_decidir: false } });
       expect(d.history.map((h) => h.status)).toEqual(['received', 'pending_approval', 'approved']);
       expect(d.history[2]!.by).toBeTruthy();
-      expect(s.registro.auditoria).toMatchObject([{ acao: 'pedido.aprovar', entidade_id: id(30), antes: { status: 'pending_approval' }, depois: { status: 'approved' } }]);
-      expect(s.registro.eventos.map((e) => e.nome)).toEqual(['vendedor.pedido.status_alterado@1', 'vendedor.pedido.aprovado@1']);
-      expect(s.registro.eventos[0]!.payload).toMatchObject({ de: 'em_aprovacao', para: 'aprovado', autor_id: A.usuarios.supervisor });
+      expect(s.registro.auditoria).toMatchObject([
+        { acao: 'pedido.aprovar', entidade_id: id(30), antes: { status: 'pending_approval' }, depois: { status: 'approved' } },
+        { acao: 'pedido.aprovacao_decidida', entidade_id: id(30), depois: { motivo: 'desconto', decisao: 'aprovada' } },
+      ]);
+      expect(s.registro.eventos.map((e) => e.nome)).toEqual(['vendedor.pedido.aprovacao_decidida@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.aprovado@1']);
+      expect(s.registro.eventos[1]!.payload).toMatchObject({ de: 'em_aprovacao', para: 'aprovado', autor_id: A.usuarios.supervisor });
+      expect(s.registro.eventos[0]!.payload).toMatchObject({ motivo: 'desconto', decisao: 'aprovada', ciclo: 1, autor_id: A.usuarios.supervisor });
       const { p } = await lerPedido(id(30));
       expect(p).toMatchObject({ status: 'approved', decidido_por_id: A.usuarios.supervisor });
       // repetida: 200 com o estado atual, sem novo evento
       const de_novo = await chamar(rotaAprovarPedido, s.ctx, { params: { id: id(30) } });
       expect((de_novo as { status: string }).status).toBe('approved');
-      expect(s.registro.eventos).toHaveLength(2);
+      expect(s.registro.eventos).toHaveLength(3);
     });
 
     it('RN-VEN-10 / P-3: supervisora não decide nível gerente (422); o gerente aprova (acima_do_nivel = false)', async () => {
@@ -367,7 +378,8 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
     it('RN-GES-04: o gerente aprova pedido de nível supervisor e fica registrado acima_do_nivel = true', async () => {
       await pendente(id(32), 7);
       const g = contexto(gerente, { visiveis: gestao });
-      const d = (await chamar(rotaAprovarPedido, g.ctx, { params: { id: id(32) } })) as { history: Array<{ note: string }> };
+      await chamar(rotaAprovarPedido, g.ctx, { params: { id: id(32) } });
+      const d = (await chamar(rotaVerPedido, g.ctx, { params: { id: id(32) } })) as { history: Array<{ note: string }> };
       expect(d.history.at(-1)!.note).toMatch(/nível do supervisor/);
       expect((await lerPedido(id(32))).ev.at(-1)).toMatchObject({ acima_do_nivel: true });
     });
@@ -387,7 +399,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       await expect(chamar(rotaRejeitarPedido, s.ctx, { params: { id: id(35) }, corpo: { motivo: ' a ' } })).rejects.toMatchObject({ codigo: 'RN-GES-08' });
       expect((await lerPedido(id(35))).p.status).toBe('pending_approval');
       const d = await chamar(rotaRejeitarPedido, s.ctx, { params: { id: id(35) }, corpo: { motivo: 'Desconto alto para este cliente' } });
-      expect(d).toMatchObject({ status: 'rejected', rejection_reason: 'Desconto alto para este cliente' });
+      expect(d).toMatchObject({ status: 'rejected', aprovacoes: [{ motivo: 'desconto', estado: 'devolvida', texto_decisao: 'Desconto alto para este cliente' }] });
       expect((await lerPedido(id(35))).p).toMatchObject({ status: 'rejected', motivo_rejeicao: 'Desconto alto para este cliente' });
       await expect(chamar(rotaAprovarPedido, s.ctx, { params: { id: id(35) } })).rejects.toMatchObject({ status: 422, codigo: 'RN-VEN-30' });
       expect(s.registro.eventos.map((e) => e.nome)).not.toContain('vendedor.pedido.aprovado@1');
@@ -409,6 +421,153 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       const rs = await Promise.all([1, 2, 3].map(() => chamar(rotaAprovarPedido, mk().ctx, { params: { id: id(37) } })));
       expect(rs.every((r) => (r as { status: string }).status === 'approved')).toBe(true);
       expect((await lerPedido(id(37))).ev.filter((e) => e.para === 'approved')).toHaveLength(1);
+    });
+  });
+
+  // ---------- aprovação por motivo (T-0184) ----------
+  describe('aprovação por motivo: crédito, inadimplência e desconto (T-0184, P3 B, P7 A, P8 A)', () => {
+    const gestao = new Set([A.usuarios.gerente, A.usuarios.supervisor, A.usuarios.vendedor1, A.usuarios.vendedor2]);
+    const VENCIDO = { ...FINANCEIRO_FOLGADO, maior_atraso_dias: 12, vencidos_qtd: 1, vencidos_cents: 8_000 };
+    const aPrazo = { forma_pagamento_id: null, prazo_pagamento_id: null };
+
+    async function tresMotivos(pid: string) {
+      financeiroDoTeste = { ...VENCIDO, limite_cents: 0 }; // sem limite (P4 A) e vencido (P1 A)
+      try {
+        const { ctx, registro } = contexto(vendedor1, { carteira: new Set([A.clientes.c1]) });
+        expect((await receber(ctx, push(pid, { customer_id: A.clientes.c1, discount_pct: 8, items: itens(), ...aPrazo })))[0]!.status).toBe('aceito');
+        return registro;
+      } finally {
+        financeiroDoTeste = FINANCEIRO_FOLGADO;
+      }
+    }
+    const aprovacoesDe = (pid: string) => comTenant(pool, A.tenantId, async (c) => (await c.query('select motivo, nivel, estado, ciclo from vendedor.pedido_aprovacao where pedido_id = $1 order by motivo', [pid])).rows);
+
+    it('RN-VEN-12 e RN-VEN-13: desconto, crédito (sem limite, a prazo) e inadimplência abrem três aprovações; o pedido leva o maior nível', async () => {
+      const registro = await tresMotivos(id(45));
+      expect(await aprovacoesDe(id(45))).toEqual([
+        { motivo: 'credito', nivel: 'gerente', estado: 'pendente', ciclo: 1 },
+        { motivo: 'desconto', nivel: 'supervisor', estado: 'pendente', ciclo: 1 },
+        { motivo: 'inadimplencia', nivel: 'gerente', estado: 'pendente', ciclo: 1 },
+      ]);
+      expect((await lerPedido(id(45))).p).toMatchObject({ status: 'pending_approval', nivel_aprovacao: 'gerente', motivos_aprovacao: ['desconto', 'credito', 'inadimplencia'] });
+      expect(registro.eventos.find((e) => e.nome === 'vendedor.pedido.aprovacao_solicitada@2')!.payload).toMatchObject({ motivos: ['desconto', 'credito', 'inadimplencia'], inadimplencia: { maior_atraso_dias: 12, vencidos_cents: 8_000 } });
+    });
+
+    it('RN-VEN-13 (P1 A): cliente inadimplente à vista também vai para aprovação, só com o motivo inadimplencia', async () => {
+      financeiroDoTeste = VENCIDO;
+      try {
+        const { ctx } = contexto(vendedor1, { carteira: new Set([A.clientes.c1]) });
+        await receber(ctx, push(id(46), { customer_id: A.clientes.c1, discount_pct: 0, items: itens() }));
+      } finally {
+        financeiroDoTeste = FINANCEIRO_FOLGADO;
+      }
+      expect((await aprovacoesDe(id(46))).map((a) => a.motivo)).toEqual(['inadimplencia']);
+    });
+
+    it('P7 A: o supervisor aprova o desconto e o pedido segue em aprovação; o gerente aprova o resto e o pedido sai aprovado', async () => {
+      await tresMotivos(id(47));
+      const s = contexto(supervisor, { visiveis: new Set([A.usuarios.supervisor, A.usuarios.vendedor1]) });
+      const parcial = await chamar(rotaAprovarPedido, s.ctx, { params: { id: id(47) }, corpo: {} });
+      expect(parcial).toMatchObject({ status: 'pending_approval' });
+      expect((await aprovacoesDe(id(47))).map((a) => [a.motivo, a.estado])).toEqual([['credito', 'pendente'], ['desconto', 'aprovada'], ['inadimplencia', 'pendente']]);
+      expect(s.registro.eventos.map((e) => e.nome)).not.toContain('vendedor.pedido.aprovado@1');
+      const g = contexto(gerente, { visiveis: gestao });
+      expect(await chamar(rotaAprovarPedido, g.ctx, { params: { id: id(47) }, corpo: { motivo_aprovacao: 'credito' } })).toMatchObject({ status: 'pending_approval' });
+      expect(await chamar(rotaAprovarPedido, g.ctx, { params: { id: id(47) }, corpo: {} })).toMatchObject({ status: 'approved' });
+      expect(g.registro.eventos.map((e) => e.nome)).toContain('vendedor.pedido.aprovado@1');
+    });
+
+    it('P8 A e P6 A: recusar um motivo cancela o pedido e encerra as outras aprovações pendentes; repetir não tem efeito', async () => {
+      await tresMotivos(id(48));
+      const g = contexto(gerente, { visiveis: gestao });
+      const r = await chamar(rotaRecusarPedido, g.ctx, { params: { id: id(48) }, corpo: { motivo: 'cliente bloqueado', motivo_aprovacao: 'credito' } });
+      expect(r).toMatchObject({ status: 'cancelled' });
+      expect((await aprovacoesDe(id(48))).map((a) => [a.motivo, a.estado])).toEqual([['credito', 'rejeitada'], ['desconto', 'encerrada'], ['inadimplencia', 'encerrada']]);
+      expect(g.registro.eventos.filter((e) => e.nome === 'vendedor.pedido.aprovacao_decidida@1').map((e) => [e.payload.motivo, e.payload.decisao]).sort()).toEqual([['credito', 'rejeitada'], ['desconto', 'encerrada'], ['inadimplencia', 'encerrada']]);
+      const antes = g.registro.eventos.length;
+      expect(await chamar(rotaRecusarPedido, g.ctx, { params: { id: id(48) }, corpo: { motivo: 'cliente bloqueado' } })).toMatchObject({ status: 'cancelled' });
+      expect(g.registro.eventos).toHaveLength(antes);
+      expect((await lerPedido(id(48))).p).toMatchObject({ status: 'cancelled', motivo_rejeicao: 'cliente bloqueado' });
+    });
+
+    it('P6 A e P8 A: devolver leva o pedido a rejected e encerra as pendentes; o supervisor não decide o motivo do gerente', async () => {
+      await tresMotivos(id(49));
+      const s = contexto(supervisor, { visiveis: new Set([A.usuarios.supervisor, A.usuarios.vendedor1]) });
+      await expect(chamar(rotaAprovarPedido, s.ctx, { params: { id: id(49) }, corpo: { motivo_aprovacao: 'credito' } })).rejects.toMatchObject({ status: 422, codigo: 'RN-VEN-10' });
+      expect(await chamar(rotaRejeitarPedido, s.ctx, { params: { id: id(49) }, corpo: { motivo: 'baixe o desconto', motivo_aprovacao: 'desconto' } })).toMatchObject({ status: 'rejected' });
+      expect((await aprovacoesDe(id(49))).map((a) => [a.motivo, a.estado])).toEqual([['credito', 'encerrada'], ['desconto', 'devolvida'], ['inadimplencia', 'encerrada']]);
+    });
+
+    it('RN-VEN-30 e RN-VEN-33 (T-0184 §2): reenviar o pedido devolvido abre o ciclo 2 com as aprovações novas, o detalhe mostra só as do ciclo atual e repetir o reenvio não abre outro', async () => {
+      await tresMotivos(id(65));
+      const g = contexto(gerente, { visiveis: gestao });
+      expect(await chamar(rotaRejeitarPedido, g.ctx, { params: { id: id(65) }, corpo: { motivo: 'Corrija o desconto' } })).toMatchObject({ status: 'rejected' });
+      const { ctx, registro } = contexto(vendedor1, { carteira: new Set([A.clientes.c1]) });
+      const corrigido = push(id(65), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(3, 1), ...aPrazo });
+      const numero = (await lerPedido(id(65))).p.numero;
+      // o cliente continua inadimplente, mas agora com limite informado e folga: só a inadimplência pede aprovação
+      financeiroDoTeste = { ...VENCIDO };
+      try {
+        expect((await receber(ctx, corrigido))[0]!.status).toBe('aceito');
+        const depois = await lerPedido(id(65));
+        expect(depois.p).toMatchObject({ status: 'pending_approval', aprovacao_ciclo: 2, numero, decidido_por_id: null, motivo_rejeicao: null });
+        expect(depois.it.filter((i) => i.deleted_at === null)).toHaveLength(2);
+        expect(depois.ev.map((e) => `${e.de}>${e.para}`).slice(-2)).toEqual(['rejected>received', 'received>pending_approval']);
+        const ciclos = await comTenant(pool, A.tenantId, async (c) => (await c.query('select ciclo, motivo, estado from vendedor.pedido_aprovacao where pedido_id = $1 order by ciclo, motivo', [id(65)])).rows);
+        // sem `motivo_aprovacao` o gerente devolve todas as pendentes que decide (o desconto do supervisor inclusive, acima do nível)
+        expect(ciclos.filter((a) => a.ciclo === 1).map((a) => a.estado)).toEqual(['devolvida', 'devolvida', 'devolvida']);
+        expect(ciclos.filter((a) => a.ciclo === 2)).toEqual([{ ciclo: 2, motivo: 'inadimplencia', estado: 'pendente' }]);
+        const detalhe = (await chamar(rotaVerPedido, contexto(vendedor1).ctx, { params: { id: id(65) } })) as { aprovacoes: Array<{ motivo: string; estado: string }> };
+        expect(detalhe.aprovacoes.map((a) => [a.motivo, a.estado])).toEqual([['inadimplencia', 'pendente']]);
+        // o mesmo reenvio de novo (resposta perdida) é idempotente: nenhum ciclo novo, nenhum evento
+        const eventos = registro.eventos.length;
+        expect((await receber(ctx, corrigido))[0]!.status).toBe('aceito');
+        expect((await lerPedido(id(65))).p.aprovacao_ciclo).toBe(2);
+        expect(registro.eventos).toHaveLength(eventos);
+        expect(registro.eventos.map((e) => e.nome)).not.toContain('vendedor.pedido.criado@1');
+      } finally {
+        financeiroDoTeste = FINANCEIRO_FOLGADO;
+      }
+    });
+
+    it('RN-VEN-12: crédito disponível um centavo abaixo do total vai para aprovação; igual ao total passa', async () => {
+      const total = 250_000;
+      const enviar = async (n: number, disponivel: number) => {
+        financeiroDoTeste = { ...FINANCEIRO_FOLGADO, limite_cents: 1_000_000, credito_disponivel_erp_cents: disponivel };
+        try {
+          const { ctx } = contexto(vendedor1, { carteira: new Set([A.clientes.c1]) });
+          await receber(ctx, push(id(n), { customer_id: A.clientes.c1, discount_pct: 0, items: itens() }));
+        } finally {
+          financeiroDoTeste = FINANCEIRO_FOLGADO;
+        }
+        return (await lerPedido(id(n))).p.status;
+      };
+      // o disponível do ERP ainda desconta os pedidos do cliente aprovados e não faturados (de outros testes deste arquivo)
+      const pesando = Number((await comTenant(pool, A.tenantId, async (c) => (await c.query("select coalesce(sum(total_cents), 0)::text as s from vendedor.pedido where cliente_id = $1 and deleted_at is null and status in ('approved','sent_to_erp')", [A.clientes.c1])).rows[0])).s);
+      expect(await enviar(61, pesando + total - 1)).toBe('pending_approval');
+      const r62 = await enviar(62, pesando + total);
+      expect(r62).toBe('approved');
+    });
+
+    it('RN-VEN-13: consulta financeira ausente (cliente sem linha) é sem limite informado: a prazo vai para crédito', async () => {
+      financeiroDoTeste = null;
+      try {
+        const { ctx } = contexto(vendedor1, { carteira: new Set([A.clientes.c1]) });
+        await receber(ctx, push(id(63), { customer_id: A.clientes.c1, discount_pct: 0, items: itens() }));
+      } finally {
+        financeiroDoTeste = FINANCEIRO_FOLGADO;
+      }
+      expect((await aprovacoesDe(id(63))).map((a) => a.motivo)).toEqual(['credito']);
+    });
+
+    it('RN-PRO-01 e RN-CORE-04: promotor 403; outro tenant e fora da equipe 404; GET alcadas traz os dois níveis (padrão gerente)', async () => {
+      await tresMotivos(id(64));
+      const p = contexto(promotor, { visiveis: 'tenant' });
+      await expect(chamar(rotaAprovarPedido, p.ctx, { params: { id: id(64) } })).rejects.toMatchObject({ status: 403 });
+      const b = contexto({ ...analista, id: B.usuarios.admin, tenant_id: B.tenantId }, { visiveis: 'tenant' });
+      await expect(chamar(rotaRecusarPedido, b.ctx, { params: { id: id(64) }, corpo: { motivo: 'xxx' } })).rejects.toMatchObject({ status: 404 });
+      const a = contexto(analista, { visiveis: 'tenant', parametros: { 'aprovacao.credito_nivel': 'analista' } });
+      expect(await chamar(rotaAlcadas, a.ctx)).toMatchObject({ aprovador_credito: 'analista', aprovador_inadimplencia: 'gerente' });
     });
   });
 
@@ -577,7 +736,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
 
     it('alçadas: devolve a política dos parâmetros do tenant (padrão 5/10/15 e analista)', async () => {
       const pol = await chamar(rotaAlcadas, contexto(analista).ctx);
-      expect(pol).toEqual({ seller_pct: 5, supervisor_pct: 10, manager_pct: 15, above_manager: 'director', exceptions: [] });
+      expect(pol).toEqual({ seller_pct: 5, supervisor_pct: 10, manager_pct: 15, above_manager: 'director', exceptions: [], aprovador_credito: 'gerente', aprovador_inadimplencia: 'gerente' });
       const custom = await chamar(rotaAlcadas, contexto(analista, { parametros: { 'alcada.vendedor_pct': 3, 'alcada.acima_gerente': 'bloquear' } }).ctx);
       expect(custom).toMatchObject({ seller_pct: 3, above_manager: 'block' });
     });

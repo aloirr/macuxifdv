@@ -76,6 +76,14 @@ export function idUsuarioPerfil(tenantId: string, usuarioId: string, perfilId: s
   return idDeChave(`${tenantId}:plataforma.usuario_perfil:${usuarioId}:${perfilId}`);
 }
 
+/**
+ * Id da aprovação que o backfill da 0088 (T-0184) grava para o pedido em pending_approval (ciclo 1, um por motivo):
+ * uuid_de_chave('<tenant>:vendedor.pedido_aprovacao:<pedido>:1:<motivo>'). A fixture usa o mesmo id na linha equivalente.
+ */
+export function idAprovacaoDoBackfill(tenantId: string, pedidoId: string, motivo: string): string {
+  return idDeChave(`${tenantId}:vendedor.pedido_aprovacao:${pedidoId}:1:${motivo}`);
+}
+
 /** UUID (formato v5) derivado de uma chave textual: mesma chave => mesmo id em toda execução. */
 export function idDeterministico(chave: string): string {
   const h = createHash('sha1').update(`macuxi:${chave}`).digest();
