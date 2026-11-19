@@ -38,6 +38,7 @@ export const rotasDeCarteiraDoCliente: RotaModulo[] = [
     caminho: ROTAS_CLIENTE360_V2.carteira,
     perfis: PERFIS_VEEM_CARTEIRA_DO_CLIENTE,
     carteira: 'filtrar_no_dominio',
+    semCache: true,
     params: ClienteParam,
     executar: async (ctx) => {
       const { id } = ctx.params as z.infer<typeof ClienteParam>;

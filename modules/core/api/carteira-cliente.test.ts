@@ -1,4 +1,4 @@
-import { ErroHttpModulo } from '@macuxi/platform-sdk';
+import { cabecalhosDaRota, CACHE_CONTROL_SEM_CACHE, ErroHttpModulo, problemasCabecalhosRota } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { CarteiraClienteRespostaSchema } from '../contracts';
 import { listarCarteiraDoCliente, rotasDeCarteiraDoCliente, type RepositorioCarteiraCliente } from './carteira-cliente';
@@ -24,5 +24,12 @@ describe('RN-CORE-04 / T-0168: GET clientes/:id/carteira (Gestão)', () => {
     const r = rotasDeCarteiraDoCliente[0]!;
     expect(r.perfis).toEqual(['supervisor', 'gerente', 'analista', 'assistente', 'admin']);
     expect(r.carteira).toBe('filtrar_no_dominio');
+  });
+  it('RN-CORE-04: a resposta da rota sai com Cache-Control no-store (dado pessoal do tenant não fica em cache)', () => {
+    const r = rotasDeCarteiraDoCliente[0]!;
+    expect(r.semCache).toBe(true);
+    expect(cabecalhosDaRota(r)).toEqual({ 'cache-control': CACHE_CONTROL_SEM_CACHE });
+    expect(CACHE_CONTROL_SEM_CACHE).toBe('no-store');
+    expect(problemasCabecalhosRota('carteira', r)).toEqual([]);
   });
 });

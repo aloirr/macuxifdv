@@ -186,3 +186,4 @@
 2026-11-19 — T-0186 — #513 retido pelo corretor (RD-2352 a 2362): porta única definirAbrirArquivo, statusDaParcela e StatusNf no lugar certo, sem perigo no saldo, texto de erro da API no BKO; Carteira do Gestão preenchida, forma de pagamento por descrição (código do ERP resolvido no aparelho).
 2026-11-19 — T-0186 — #513: guardaArquivo do documento (decidirAbrirDocumento no domain), creditoDisponivel do Vendedor, tabelas do kit (@macuxi/ui), Badge linhas={2}; merges do kit, do vendedor e do arquivos
 2026-11-19 — v1.0.16 — Tabela Carteira na ficha do Gestão (GET clientes/:id/carteira online, só gestão, domain carteira-cliente, testes unit e db); podeAbrirFormato com pdf já estava pronto e testado; levantamento rota/visita/trajeto para a T-0187. Pendente: Cache-Control no-store em rota de módulo depende do SDK/API.
+2026-11-19 — v1.0.16 — no-store na rota da Carteira
