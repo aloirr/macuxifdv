@@ -1,3 +1,3 @@
 # Base LGPD do tracking (T-0145) — substituída
 
-A base LGPD do tracking está na T-0156: [finalidade e base legal](T-0156-legal-finalidade.md), [aviso ao vendedor](T-0156-legal-aviso-ao-vendedor.md) e [termo de ciência](T-0156-legal-termo-de-ciencia.md), com o desenho em [tracking.md](tracking.md) (ADR 0061).
+A base LGPD do tracking está na T-0156: [finalidade e base legal](T-0156-legal-finalidade.md), com o desenho em [tracking.md](tracking.md) (ADR 0061).

@@ -15,6 +15,7 @@ import type { ContextoPedidoEmNome, FichaMembro, PainelDia } from '../../contrac
 import { relogioReal } from '@macuxi/comum/relogio';
 import { statusAgora } from '../../domain/agora-status';
 import { SeloFaixa } from '../components/selo-faixa';
+import { TrajetoDoDia } from '../components/trajeto-do-dia';
 import { fracao } from '../lib/apresentacao';
 import { PARADO_MIN_PADRAO, STATUS_AGORA_ROTULO } from '../lib/equipe-agora';
 import { pct } from '../lib/formato';
@@ -72,6 +73,7 @@ export default function FichaScreen() {
       </View>
       {estado.erro && !estado.doCache ? <Banner tone="danger">{estado.erro}</Banner> : null}
       <Secoes p={f.painel} />
+      {!estado.doCache ? <TrajetoDoDia usuarioId={f.membro.id} tz={g.tz} buscar={g.trajeto} /> : null}
       {acao && g.usuarioId ? (
         <Botao
           testID="gestor-pedido-em-nome"

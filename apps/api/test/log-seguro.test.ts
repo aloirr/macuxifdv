@@ -157,3 +157,23 @@ describe('redação do pino (T-0094 §12: troca de senha e e-mail transacional)'
     expect(texto).toContain('DEMO');
   });
 });
+
+describe('redação do pino (ADR 0061 decisão 8, RN-CORE-13: nenhuma coordenada no log)', () => {
+  it('latitude, longitude e coords soltas, no 2º nível e no payload do push nunca saem', () => {
+    let texto = '';
+    const stream = new Writable({
+      write(c, _e, cb) {
+        texto += String(c);
+        cb();
+      },
+    });
+    const log = pino(opcoesLogger('trace'), stream);
+    log.info({ latitude: -3.119027, longitude: -60.021731 }, 'solto');
+    log.info({ ponto: { lat: -3.119028, lng: -60.021732, precisao_m: 12 } }, 'segundo nível');
+    log.info({ item: { entidade: 'ponto_trajeto', payload: { latitude: -3.119029, longitude: -60.021733 } } }, 'push');
+    log.info({ payload: { coords: { latitude: -3.11903, longitude: -60.02173 } } }, 'coords');
+    expect(texto).not.toMatch(/-3\.1190|-60\.0217/);
+    expect(texto).toContain('"precisao_m":12');
+    expect(texto).toContain('ponto_trajeto');
+  });
+});

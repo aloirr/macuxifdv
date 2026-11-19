@@ -3,6 +3,7 @@
  * alertas e regras de alerta. Fonte da verdade para a API, o app Gestão (cache offline) e o BKO.
  * Escopo (RN-CORE-04) e licença (RN-CORE-02) são aplicados pela API; aqui só o formato.
  */
+import { TrajetoDoUsuarioSchema } from '@macuxi/core/contracts';
 import { z } from 'zod';
 import { Alerta, RegraAlerta, StatusAlerta } from './alerta';
 import { ItemFilaAprovacao, ResumoFila } from './aprovacao';
@@ -12,10 +13,15 @@ import { PainelDia, ResumoEquipe } from './painel';
 import { DisponibilidadeEmNome } from './pedido-em-nome';
 import { IndicadorRanking } from './ranking';
 
+/** Permissão do Core (`core.trajeto.ver_equipe`) que decide, na API e no BKO, quem vê o trajeto do dia da equipe (RN-CORE-37). */
+export const ACAO_VER_TRAJETO = 'trajeto.ver_equipe';
+
 /** Caminhos das rotas (relativos a `/v1`), usados pelo app e pelo BKO. */
 export const ROTAS_GESTOR = {
   equipe: '/gestor/equipe',
   ficha: (usuarioId: string) => `/gestor/equipe/${usuarioId}`,
+  /** Trajeto do dia de uma pessoa de campo (T-0156, `core.trajeto.ver_equipe`); só leitura, sem exportação. */
+  trajeto: (usuarioId: string) => `/gestor/equipe/${usuarioId}/trajeto`,
   ranking: '/gestor/ranking',
   aprovacoes: '/gestor/aprovacoes',
   alertas: '/gestor/alertas',
@@ -49,6 +55,13 @@ export const DisponibilidadeEmNomeQuery = z.object({ vendedor_id: Uuid }).strict
 export type DisponibilidadeEmNomeQuery = z.infer<typeof DisponibilidadeEmNomeQuery>;
 
 // ---------- respostas ----------
+/**
+ * `GET /v1/gestor/equipe/:usuario_id/trajeto?data=` (T-0156, tracking §5.2/§7): pontos do dia, do `core.trajeto_do_dia@1`.
+ * O desenho é no aparelho e no navegador; sem pontos, `pontos` vem vazio (o tracking vem desligado de fábrica).
+ */
+export const TrajetoEquipe = z.object({ data: IsoDate, trajeto: TrajetoDoUsuarioSchema }).strict();
+export type TrajetoEquipe = z.infer<typeof TrajetoEquipe>;
+
 export const MembroComPainel = z.object({ membro: MembroEquipe, painel: PainelDia }).strict();
 export type MembroComPainel = z.infer<typeof MembroComPainel>;
 
