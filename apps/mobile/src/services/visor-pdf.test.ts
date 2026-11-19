@@ -7,9 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const sim = vi.hoisted(() => ({
   arquivos: new Map<string, Uint8Array>(),
   online: true,
-  ligada: true,
-  pedidos: [] as string[],
-  resposta: null as Uint8Array | null | Error,
+  pedidos: [] as { url: string; cache?: string }[],
+  resposta: new Uint8Array() as Uint8Array | number | Error,
 }));
 
 vi.mock('react-native', () => ({ Platform: { OS: 'android' } }));
@@ -48,43 +47,39 @@ vi.mock('expo-file-system', () => {
   }
   return { Directory, File, Paths: { cache: 'file:///cache' } };
 });
-vi.mock('@/services/foto-pdv', () => ({
-  fonteDoVisor: () =>
-    sim.ligada
-      ? {
-          online: () => sim.online,
-          api: () => ({
-            bytes: async (path: string) => {
-              sim.pedidos.push(path);
-              if (sim.resposta instanceof Error) throw sim.resposta;
-              return sim.resposta;
-            },
-          }),
-        }
-      : null,
-}));
 
 import type { EstadoVisor } from '@/lib/visor-foto';
 
-import { NetworkError } from './api';
+import { ApiClient } from './api';
+import { ligarFonteFotoPdv } from './foto-pdv';
 import { abrirPdfNaTela, carregarPdf, limparPdfsTemporarios } from './visor-pdf';
+
+vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+  sim.pedidos.push({ url, cache: init.cache });
+  if (sim.resposta instanceof Error) throw sim.resposta;
+  if (typeof sim.resposta === 'number') return new Response(null, { status: sim.resposta });
+  return new Response(sim.resposta as unknown as BodyInit);
+});
 
 const ID = '0b9f6c3e-6a7d-4c1e-9f0a-2b3c4d5e6f70';
 const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]);
 const esperar = () => new Promise((r) => setTimeout(r, 0));
 
+let desligar = () => {};
+
 beforeEach(() => {
   sim.arquivos.clear();
   sim.pedidos.length = 0;
   sim.online = true;
-  sim.ligada = true;
   sim.resposta = PDF;
+  desligar();
+  desligar = ligarFonteFotoPdv(() => new ApiClient('https://api.teste', 'tok'), () => sim.online);
 });
 
 describe('carregarPdf', () => {
-  it('com sinal: baixa de /v1/arquivos/<id> e grava um temporário na pasta visor-pdf do cache', async () => {
+  it('com sinal: baixa de /v1/arquivos/<id> (no-store) e grava um temporário na pasta visor-pdf do cache', async () => {
     const r = await carregarPdf(ID);
-    expect(sim.pedidos).toEqual([`/v1/arquivos/${ID}`]);
+    expect(sim.pedidos).toEqual([{ url: `https://api.teste/v1/arquivos/${ID}`, cache: 'no-store' }]);
     expect(r.tipo).toBe('ok');
     const uri = r.tipo === 'ok' ? r.uri : '';
     expect(uri.startsWith(`file:///cache/visor-pdf/${ID}-`)).toBe(true);
@@ -96,17 +91,19 @@ describe('carregarPdf', () => {
     expect(await carregarPdf(ID)).toEqual({ tipo: 'erro', mensagem: 'Sem internet' });
     expect(sim.pedidos).toEqual([]);
     sim.online = true;
-    sim.resposta = new NetworkError('caiu');
+    sim.resposta = new TypeError('Network request failed');
     expect(await carregarPdf(ID)).toEqual({ tipo: 'erro', mensagem: 'Sem internet' });
     expect(sim.arquivos.size).toBe(0);
   });
 
-  it('sem sessão ou bytes que não são PDF: não abre e não grava nada', async () => {
-    sim.ligada = false;
-    expect((await carregarPdf(ID)).tipo).toBe('erro');
-    sim.ligada = true;
+  it('erro do servidor, sem sessão ou bytes que não são PDF: "Não foi possível abrir." e nada gravado', async () => {
+    const erro = { tipo: 'erro', mensagem: 'Não foi possível abrir.' };
+    sim.resposta = 404;
+    expect(await carregarPdf(ID)).toEqual(erro);
     sim.resposta = new Uint8Array([0xff, 0xd8, 0xff]);
-    expect((await carregarPdf(ID)).tipo).toBe('erro');
+    expect(await carregarPdf(ID)).toEqual(erro);
+    desligar();
+    expect(await carregarPdf(ID)).toEqual(erro);
     expect(sim.arquivos.size).toBe(0);
   });
 

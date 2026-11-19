@@ -1,16 +1,15 @@
 /**
- * Carga do PDF do visor (T-0186, v1.0.16; regras puras em `@/lib/visor-pdf`): `GET /v1/arquivos/<id>` com o token da sessão
- * (a mesma fonte da foto do PDV, `fonteDoVisor`), sem cache, para um temporário do cache do app que a tela apaga ao fechar.
+ * Carga do PDF do visor (T-0186, v1.0.16; regras puras em `@/lib/visor-pdf`): o download do visor de foto
+ * (`baixarArquivoDoVisor`) para um temporário do cache do app que a tela apaga ao fechar.
  * Nada fica guardado e nada vai para o log.
  */
 import { Directory, File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 
-import { MAX_BYTES_VISOR, TEXTO_FOTO_INDISPONIVEL, TEXTO_SEM_SINAL_FOTO } from '@/lib/foto-pdv';
+import { TEXTO_FOTO_INDISPONIVEL } from '@/lib/foto-pdv';
 import type { EstadoVisor } from '@/lib/visor-foto';
-import { bloqueioDoPdf, bytesDoPdfAceitos, nomePdfTemporario, PASTA_PDF_TEMPORARIO, type PdfCarregado } from '@/lib/visor-pdf';
-import { NetworkError } from '@/services/api';
-import { fonteDoVisor } from '@/services/foto-pdv';
+import { bytesDoPdfAceitos, nomePdfTemporario, PASTA_PDF_TEMPORARIO, type PdfCarregado } from '@/lib/visor-pdf';
+import { baixarArquivoDoVisor } from '@/services/foto-pdv';
 
 function pasta(): Directory {
   return new Directory(Paths.cache, PASTA_PDF_TEMPORARIO);
@@ -28,7 +27,7 @@ export function limparPdfsTemporarios(): void {
 }
 
 /** Apaga o temporário da tela que fechou. Nunca lança. */
-export function apagarPdfTemporario(uri: string): void {
+function apagarPdfTemporario(uri: string): void {
   try {
     const f = new File(uri);
     if (f.exists) f.delete();
@@ -39,21 +38,19 @@ export function apagarPdfTemporario(uri: string): void {
 
 /** Baixa o PDF e grava o temporário; devolve o `file://` ou a mensagem. Nunca lança. */
 export async function carregarPdf(arquivoId: string): Promise<PdfCarregado> {
-  const f = fonteDoVisor();
-  const bloqueio = bloqueioDoPdf(f?.online() ?? false, f !== null && Platform.OS !== 'web');
-  if (bloqueio || !f) return bloqueio ?? { tipo: 'erro', mensagem: TEXTO_FOTO_INDISPONIVEL };
+  const r = await baixarArquivoDoVisor(arquivoId);
+  if (r.tipo === 'erro') return r;
+  if (!bytesDoPdfAceitos(r.bytes)) return { tipo: 'erro', mensagem: TEXTO_FOTO_INDISPONIVEL };
   try {
-    const bytes = await f.api().bytes(`/v1/arquivos/${encodeURIComponent(arquivoId)}`, { maxBytes: MAX_BYTES_VISOR, timeoutMs: 30_000 });
-    if (!bytesDoPdfAceitos(bytes)) return { tipo: 'erro', mensagem: TEXTO_FOTO_INDISPONIVEL };
     limparPdfsTemporarios();
     const p = pasta();
     p.create({ intermediates: true, idempotent: true });
     const arq = new File(p, nomePdfTemporario(arquivoId, Date.now().toString(36)));
     arq.create({ overwrite: true });
-    arq.write(bytes);
+    arq.write(r.bytes);
     return { tipo: 'ok', uri: arq.uri };
-  } catch (e) {
-    return { tipo: 'erro', mensagem: e instanceof NetworkError ? TEXTO_SEM_SINAL_FOTO : TEXTO_FOTO_INDISPONIVEL };
+  } catch {
+    return { tipo: 'erro', mensagem: TEXTO_FOTO_INDISPONIVEL };
   }
 }
 
