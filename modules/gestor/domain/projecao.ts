@@ -15,7 +15,9 @@
 import {
   CAMPOS_CARTEIRA,
   EVENTOS_CONSUMIDOS,
+  type AprovacaoDecididaV1,
   type AprovacaoSolicitadaV1,
+  type AprovacaoSolicitadaV2,
   type ClienteAtualizadoV1,
   type FrequenciaVisita,
   type GondolaRegistradaV1,
@@ -79,6 +81,40 @@ export interface VisitaFato {
 
 type Tabela<T> = Record<string, Versionado<T>>;
 
+/** Uma decisão por motivo e ciclo (`vendedor.pedido.aprovacao_decidida@1`); a chave é `<ciclo>|<motivo>`. */
+export type DecisaoDoMotivo = Versionado<Pick<AprovacaoDecididaV1, 'ciclo' | 'motivo' | 'decisao' | 'autor_id' | 'decidida_em'>>;
+
+/**
+ * Uma linha por pedido na projeção `aprovacoes` (T-0184 §7.2): a solicitação mais recente (`@2`, ou o `@1` do histórico
+ * convertido) e o estado de cada motivo. Os campos de topo (`pedido_id`, `vendedor_id`, `solicitada_em`, `v`) são os que a
+ * persistência lê (recorte por período, por escopo e carimbo); `v` é o maior carimbo entre a solicitação e as decisões.
+ * A decisão pode chegar antes da solicitação (fora de ordem): então a linha nasce sem `solicitacao`.
+ */
+export interface AprovacaoDoPedido {
+  pedido_id: string;
+  vendedor_id: string;
+  v: Carimbo;
+  solicitada_em?: string;
+  solicitacao?: Versionado<AprovacaoSolicitadaV2>;
+  decisoes: Record<string, DecisaoDoMotivo>;
+}
+
+/** Linha gravada antes da v1.0.15: o `@1` inteiro no topo, sem `solicitacao` nem `decisoes`. */
+type LinhaLegada = Partial<AprovacaoDoPedido> & Partial<Versionado<AprovacaoSolicitadaV1>>;
+
+/** A solicitação da linha, já no formato `@2` (uma aprovação por motivo; o `@1` vira uma aprovação por motivo no nível da raiz). */
+export function solicitacaoDaLinha(linha: AprovacaoDoPedido | undefined): Versionado<AprovacaoSolicitadaV2> | undefined {
+  if (!linha) return undefined;
+  if (linha.solicitacao) return linha.solicitacao;
+  const l = linha as LinhaLegada;
+  if (!l.solicitada_em || !l.nivel || !l.motivos || !l.cliente_id || l.total_cents === undefined || l.desconto_efetivo_pct === undefined) return undefined;
+  return paraSolicitacaoV2({ ...(l as AprovacaoSolicitadaV1), v: linha.v });
+}
+
+function paraSolicitacaoV2(d: AprovacaoSolicitadaV1 & { v: Carimbo }): Versionado<AprovacaoSolicitadaV2> {
+  return { ...d, aprovacoes: d.motivos.map((motivo) => ({ motivo, nivel: d.nivel, texto: '' })), inadimplencia: null } as Versionado<AprovacaoSolicitadaV2>;
+}
+
 /** Carteira de um cliente, como o Gestor guarda (campos opcionais do evento já resolvidos). */
 export interface CarteiraCliente {
   cliente_id: string;
@@ -110,7 +146,7 @@ export interface EstadoProjecao {
   /** Chave `<usuario_id>|<AAAA-MM>`. */
   metas: Tabela<MetaDoMes>;
   pedidos: Record<string, PedidoFato>;
-  aprovacoes: Tabela<AprovacaoSolicitadaV1>;
+  aprovacoes: Record<string, AprovacaoDoPedido>;
   visitas: Record<string, VisitaFato>;
   visitas_loja: Tabela<VisitaLojaConcluidaV1>;
   gondolas: Tabela<GondolaRegistradaV1>;
@@ -168,6 +204,13 @@ function gravar<T>(tabela: Tabela<T>, chave: string, fato: Versionado<T>): Tabel
   return { ...tabela, [chave]: fato };
 }
 
+/** Monta a linha do pedido; `v` de topo = maior carimbo entre a solicitação e as decisões (o que a persistência lê). */
+function linhaDoPedido(pedidoId: string, vendedorId: string, solicitacao: Versionado<AprovacaoSolicitadaV2> | undefined, decisoes: Record<string, DecisaoDoMotivo>): AprovacaoDoPedido {
+  let v = solicitacao?.v ?? '';
+  for (const x of Object.values(decisoes)) if (x.v > v) v = x.v;
+  return { pedido_id: pedidoId, vendedor_id: vendedorId, v, ...(solicitacao ? { solicitada_em: solicitacao.solicitada_em, solicitacao } : {}), decisoes };
+}
+
 function pedidoDe(estado: EstadoProjecao, id: string): PedidoFato {
   return estado.pedidos[id] ?? { historico: {} };
 }
@@ -179,6 +222,8 @@ const IDS_DO_VENDEDOR = ['pedido_id', 'vendedor_id', 'cliente_id'] as const;
 const INSTANTES_DO_VENDEDOR: Record<string, readonly string[]> = {
   'vendedor.pedido.criado@1': ['criado_em'],
   'vendedor.pedido.aprovacao_solicitada@1': ['solicitada_em'],
+  'vendedor.pedido.aprovacao_solicitada@2': ['solicitada_em'],
+  'vendedor.pedido.aprovacao_decidida@1': ['decidida_em'],
   'vendedor.pedido.faturado@1': ['faturado_em'],
 };
 
@@ -284,11 +329,24 @@ export function aplicarEvento(estado: EstadoProjecao, evento: EventoRecebido): R
       const historico = { ...atual.historico, [evento.evento_id]: { evento_id: evento.evento_id, para: d.para, em: d.alterado_em } };
       return ok({ ...base, pedidos: { ...base.pedidos, [d.pedido_id]: { ...atual, historico } } });
     }
-    case 'vendedor.pedido.aprovacao_solicitada@1': {
-      const d = p as AprovacaoSolicitadaV1;
+    case 'vendedor.pedido.aprovacao_solicitada@1':
+    case 'vendedor.pedido.aprovacao_solicitada@2': {
+      const d = p as AprovacaoSolicitadaV1 | AprovacaoSolicitadaV2;
       // vence a solicitação mais recente do pedido (revalidação após edição gera outra solicitação)
       const vSolic = `${String(instanteMs(d.solicitada_em)).padStart(15, '0')}|${evento.evento_id}`;
-      return ok({ ...base, aprovacoes: gravar(base.aprovacoes, d.pedido_id, { ...d, v: vSolic }) });
+      const solicitacao = 'aprovacoes' in d ? ({ ...d, v: vSolic } as Versionado<AprovacaoSolicitadaV2>) : paraSolicitacaoV2({ ...d, v: vSolic });
+      const atual = base.aprovacoes[d.pedido_id];
+      const vigente = solicitacaoDaLinha(atual);
+      if (vigente && vigente.v >= vSolic) return ok(base);
+      return ok({ ...base, aprovacoes: { ...base.aprovacoes, [d.pedido_id]: linhaDoPedido(d.pedido_id, d.vendedor_id, solicitacao, atual?.decisoes ?? {}) } });
+    }
+    case 'vendedor.pedido.aprovacao_decidida@1': {
+      const d = p as AprovacaoDecididaV1;
+      const atual = base.aprovacoes[d.pedido_id];
+      const chave = `${d.ciclo}|${d.motivo}`;
+      if (atual?.decisoes?.[chave] && atual.decisoes[chave]!.v >= v) return ok(base);
+      const decisoes = { ...(atual?.decisoes ?? {}), [chave]: { ciclo: d.ciclo, motivo: d.motivo, decisao: d.decisao, autor_id: d.autor_id, decidida_em: d.decidida_em, v } };
+      return ok({ ...base, aprovacoes: { ...base.aprovacoes, [d.pedido_id]: linhaDoPedido(d.pedido_id, atual?.vendedor_id ?? d.vendedor_id, solicitacaoDaLinha(atual), decisoes) } });
     }
     case 'vendedor.pedido.faturado@1': {
       const d = p as PedidoFaturadoV1;

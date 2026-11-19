@@ -106,8 +106,7 @@ describe('RF-GES-04: fila de aprovações do gestor', () => {
       [u(1001), 'vencido'],
       [u(1002), 'vencido'],
       [u(1003), 'vencendo'],
-      [u(1004), 'no_prazo'],
-    ]);
+    ]); // o item 1004 é do nível gerente: o supervisor não o vê (P3 B)
     itens.forEach((i) => expect(ItemFilaAprovacao.parse(i)).toEqual(i));
   });
 
@@ -127,10 +126,10 @@ describe('RF-GES-04: fila de aprovações do gestor', () => {
     expect(fila(s, { id: GER, perfil: 'gerente' }).map((i) => i.pedido_id)).toContain(u(1005));
   });
 
-  it('a alçada é do Vendedor: supervisor decide o nível supervisor; nível gerente é acompanhamento para ele', () => {
+  it('a alçada é do Vendedor: supervisor decide o nível supervisor e não vê os motivos do nível gerente (P3 B)', () => {
     const doSup = fila(s, { id: SUP, perfil: 'supervisor' });
     expect(doSup.find((i) => i.pedido_id === u(1001))).toMatchObject({ pode_decidir: true, acima_do_nivel: false });
-    expect(doSup.find((i) => i.pedido_id === u(1004))).toMatchObject({ pode_decidir: false, acima_do_nivel: false }); // nível gerente
+    expect(doSup.find((i) => i.pedido_id === u(1004))).toBeUndefined(); // nível gerente
     expect(podeDecidir('supervisor', 'supervisor')).toBe(true);
     expect(podeDecidir('supervisor', 'gerente')).toBe(false);
   });
@@ -191,11 +190,11 @@ describe('RF-GES-04: fila de aprovações do gestor', () => {
   });
 
   it('resumo: total, vencidos, vencendo e "para mim"', () => {
-    expect(resumirFila(fila(s, { id: SUP, perfil: 'supervisor' }))).toEqual({ total: 4, vencidos: 2, vencendo: 1, para_mim: 3 });
+    expect(resumirFila(fila(s, { id: SUP, perfil: 'supervisor' }))).toEqual({ total: 3, vencidos: 2, vencendo: 1, para_mim: 3 });
   });
 });
 
-describe('RN-GES-08: comentário obrigatório só na rejeição', () => {
+describe('RN-GES-08: comentário obrigatório na devolução e na rejeição', () => {
   it('aprovar sem comentário é aceito (1 toque); com comentário também', () => {
     expect(validarDecisao({ pedido_id: u(1), decisao: 'aprovar' })).toEqual({ ok: true, decisao: { pedido_id: u(1), decisao: 'aprovar', comentario: null } });
     expect(validarDecisao({ pedido_id: u(1), decisao: 'aprovar', comentario: 'ok' }).ok).toBe(true);
@@ -228,6 +227,7 @@ describe('RN-GES-04: registro da decisão (quem decidiu, em que nível) e aviso 
         pedido_id: u(1001),
         vendedor_id: V1,
         decisao: 'aprovar',
+        motivo: null,
         comentario: null,
         nivel_pedido: 'supervisor',
         decidido_por_id: GER,
@@ -235,7 +235,7 @@ describe('RN-GES-04: registro da decisão (quem decidiu, em que nível) e aviso 
         acima_do_nivel: true,
         decidido_em: AGORA,
       },
-      avisos: [{ tipo: 'aprovacao_decidida_pelo_gerente', destinatario_id: SUP, pedido_id: u(1001), vendedor_id: V1, decisao: 'aprovar', decidido_por_id: GER, decidido_em: AGORA }],
+      avisos: [{ tipo: 'aprovacao_decidida_pelo_gerente', destinatario_id: SUP, pedido_id: u(1001), vendedor_id: V1, decisao: 'aprovar', motivo: null, decidido_por_id: GER, decidido_em: AGORA }],
     });
     if (!r.ok) throw new Error('esperado ok');
     expect(RegistroDecisaoAprovacao.parse(r.registro)).toEqual(r.registro);

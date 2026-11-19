@@ -46,6 +46,8 @@ export const manifest = defineModule({
     'vendedor.pedido.criado@1',
     'vendedor.pedido.status_alterado@1',
     'vendedor.pedido.aprovacao_solicitada@1',
+    'vendedor.pedido.aprovacao_solicitada@2',
+    'vendedor.pedido.aprovacao_decidida@1',
     'vendedor.pedido.faturado@1',
     'promotor.visita_loja.concluida@1',
     'promotor.gondola.registrada@1',
@@ -63,7 +65,7 @@ export const manifest = defineModule({
     'fila_aprovacao.ver': { perfis: [...PERFIS_GESTAO], descricao: 'Ver a fila de aprovações da equipe, com prazo em dias úteis (RF-GES-04, RN-GES-03)' },
     'fila_aprovacao.decidir': {
       perfis: [...PERFIS_GESTAO],
-      descricao: 'Aprovar (sem comentário) ou rejeitar (com motivo); o gerente também decide o nível supervisor e o supervisor é avisado; a alçada é validada pela API do Vendedor (RN-GES-04/08, RN-VEN-10)',
+      descricao: 'Aprovar (sem comentário), devolver ao vendedor ou rejeitar (com motivo), por motivo de aprovação; o gerente também decide o nível supervisor e o supervisor é avisado; a alçada é validada pela API do Vendedor (RN-GES-04/08, RN-VEN-10)',
     },
     'alerta_equipe.ver': { perfis: [...PERFIS_GESTAO], descricao: 'Ver os alertas da equipe (RF-GES-07)' },
     'alerta_equipe.dispensar': { perfis: [...PERFIS_GESTAO], descricao: 'Dispensar um alerta enquanto a condição persistir (RF-GES-07)' },

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { schemaOficialDe } from '@macuxi/platform-sdk';
 import { EVENTO_CLIENTE_ATUALIZADO, EVENTO_META_DEFINIDA, EVENTO_ROTA_DIA_PLANEJADO, EVENTO_VISITA_CHECKIN, EVENTO_VISITA_CHECKOUT, VisitaCheckoutSchema } from '@macuxi/core/contracts';
-import { EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_CRIADO, EVENTO_PEDIDO_FATURADO, EVENTO_PEDIDO_STATUS_ALTERADO } from '../../vendedor/contracts';
+import { EVENTO_PEDIDO_APROVACAO_DECIDIDA, EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2, EVENTO_PEDIDO_CRIADO, EVENTO_PEDIDO_FATURADO, EVENTO_PEDIDO_STATUS_ALTERADO } from '../../vendedor/contracts';
 import { EVENTOS_PROMOTOR } from '../../promotor/contracts';
 import { DEF_RESPOSTA_REGISTRADA } from '../../pesquisa/contracts';
 import { DEFINICAO_LICAO_CONCLUIDA, DEFINICAO_MEDALHA_CONQUISTADA } from '../../treinamento/contracts';
@@ -9,6 +9,7 @@ import {
   Alerta,
   AvisoDecisaoAoSupervisor,
   ContextoPedidoEmNome,
+  DECISOES_APROVACAO,
   DecisaoAprovacao,
   EVENTOS_CONSUMIDOS,
   LinhaRanking,
@@ -59,9 +60,9 @@ describe('eventos consumidos: schemas do dono, leitura tolerante (T-0024)', () =
   const C = EVENTOS_CONSUMIDOS;
   const pedidoCriado = { pedido_id: u(1), vendedor_id: u(2), autor_id: u(3), cliente_id: u(4), visita_id: null, tipo: 'pedido', total_cents: 10_000, total_tabela_cents: 10_000, criado_em: T0, itens: [{ produto_id: u(5), quantidade: 2, total_cents: 10_000 }], status: 'em_aprovacao' };
 
-  it('registro por nome cobre os 17 eventos do manifesto + 1 proposto, todos no formato <modulo>.<entidade>.<fato>@vN', () => {
+  it('registro por nome cobre os 19 eventos do manifesto + 1 proposto, todos no formato <modulo>.<entidade>.<fato>@vN', () => {
     const nomes = Object.keys(C);
-    expect(nomes).toHaveLength(18);
+    expect(nomes).toHaveLength(20);
     expect(nomes).toContain('vendedor.pedido.faturado@1');
     for (const n of nomes) expect(n).toMatch(/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*@[1-9]\d*$/);
   });
@@ -76,6 +77,8 @@ describe('eventos consumidos: schemas do dono, leitura tolerante (T-0024)', () =
       'vendedor.pedido.criado@1': EVENTO_PEDIDO_CRIADO.schema,
       'vendedor.pedido.status_alterado@1': EVENTO_PEDIDO_STATUS_ALTERADO.schema,
       'vendedor.pedido.aprovacao_solicitada@1': EVENTO_PEDIDO_APROVACAO_SOLICITADA.schema,
+      'vendedor.pedido.aprovacao_solicitada@2': EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2.schema,
+      'vendedor.pedido.aprovacao_decidida@1': EVENTO_PEDIDO_APROVACAO_DECIDIDA.schema,
       'vendedor.pedido.faturado@1': EVENTO_PEDIDO_FATURADO.schema,
       'promotor.visita_loja.concluida@1': EVENTOS_PROMOTOR['promotor.visita_loja.concluida@1'],
       'promotor.gondola.registrada@1': EVENTOS_PROMOTOR['promotor.gondola.registrada@1'],
@@ -215,11 +218,13 @@ describe('ranking, alerta, aprovação e pedido em nome', () => {
   });
 
   it('RN-GES-04: registro da decisão e aviso ao supervisor', () => {
-    const reg = { pedido_id: u(1), vendedor_id: u(2), decisao: 'aprovar', comentario: null, nivel_pedido: 'supervisor', decidido_por_id: u(3), decidido_por_perfil: 'gerente', acima_do_nivel: true, decidido_em: T0 };
+    const reg = { pedido_id: u(1), vendedor_id: u(2), decisao: 'aprovar', motivo: null, comentario: null, nivel_pedido: 'supervisor', decidido_por_id: u(3), decidido_por_perfil: 'gerente', acima_do_nivel: true, decidido_em: T0 };
     expect(RegistroDecisaoAprovacao.safeParse(reg).success).toBe(true);
     expect(RegistroDecisaoAprovacao.safeParse({ ...reg, decidido_por_perfil: 'analista' }).success).toBe(false);
     expect(RegistroDecisaoAprovacao.safeParse({ ...reg, decisao: 'rejeitar' }).success).toBe(false); // RN-GES-08 também no registro
-    const aviso = { tipo: 'aprovacao_decidida_pelo_gerente', destinatario_id: u(4), pedido_id: u(1), vendedor_id: u(2), decisao: 'aprovar', decidido_por_id: u(3), decidido_em: T0 };
+    expect(RegistroDecisaoAprovacao.safeParse({ ...reg, decisao: 'devolver', motivo: 'inadimplencia' }).success).toBe(false);
+    expect(RegistroDecisaoAprovacao.safeParse({ ...reg, decisao: 'devolver', motivo: 'inadimplencia', comentario: 'Pagar o vencido' }).success).toBe(true);
+    const aviso = { tipo: 'aprovacao_decidida_pelo_gerente', destinatario_id: u(4), pedido_id: u(1), vendedor_id: u(2), decisao: 'aprovar', motivo: null, decidido_por_id: u(3), decidido_em: T0 };
     expect(AvisoDecisaoAoSupervisor.safeParse(aviso).success).toBe(true);
     expect(AvisoDecisaoAoSupervisor.safeParse({ ...aviso, destinatario_id: 'x' }).success).toBe(false);
   });
@@ -228,6 +233,13 @@ describe('ranking, alerta, aprovação e pedido em nome', () => {
     expect(DecisaoAprovacao.safeParse({ pedido_id: u(1), decisao: 'rejeitar' }).success).toBe(false);
     expect(DecisaoAprovacao.safeParse({ pedido_id: u(1), decisao: 'rejeitar', comentario: 'Margem baixa' }).success).toBe(true);
     expect(DecisaoAprovacao.safeParse({ pedido_id: u(1), decisao: 'aprovar' }).success).toBe(true);
+  });
+
+  it('RN-GES-08 (T-0184): devolver também exige comentário; a decisão aceita o motivo, inclusive inadimplencia', () => {
+    expect(DECISOES_APROVACAO).toEqual(['aprovar', 'devolver', 'rejeitar']);
+    expect(DecisaoAprovacao.safeParse({ pedido_id: u(1), decisao: 'devolver' }).success).toBe(false);
+    expect(DecisaoAprovacao.safeParse({ pedido_id: u(1), decisao: 'devolver', motivo: 'inadimplencia', comentario: 'Pagar o vencido' }).success).toBe(true);
+    expect(DecisaoAprovacao.safeParse({ pedido_id: u(1), decisao: 'aprovar', motivo: 'quitado' }).success).toBe(false);
   });
 
   it('RN-VEN-35: contexto do pedido em nome leva vendedor_id e autor_id (gestor)', () => {

@@ -45,9 +45,14 @@ export const NIVEIS_APROVACAO = ['supervisor', 'gerente', 'analista'] as const;
 export const NivelAprovacao = z.enum(NIVEIS_APROVACAO);
 export type NivelAprovacao = z.infer<typeof NivelAprovacao>;
 
-export const MOTIVOS_APROVACAO = ['desconto', 'credito', 'estoque', 'preco_minimo'] as const;
+export const MOTIVOS_APROVACAO = ['desconto', 'credito', 'inadimplencia', 'estoque', 'preco_minimo'] as const;
 export const MotivoAprovacao = z.enum(MOTIVOS_APROVACAO);
 export type MotivoAprovacao = z.infer<typeof MotivoAprovacao>;
+
+/** Estado de uma aprovação por motivo (T-0184 §2): espelha `ESTADOS_APROVACAO_MOTIVO` do Vendedor, que é o dono do ciclo. */
+export const ESTADOS_APROVACAO_MOTIVO = ['pendente', 'aprovada', 'rejeitada', 'devolvida', 'encerrada'] as const;
+export const EstadoAprovacaoMotivo = z.enum(ESTADOS_APROVACAO_MOTIVO);
+export type EstadoAprovacaoMotivo = z.infer<typeof EstadoAprovacaoMotivo>;
 
 /** As 6 regras da equipe, na ordem da tela (`alerta_regra`); só elas têm ajuste em `alertas/regras` (ADR 0059 §1). */
 export const TIPOS_REGRA_EQUIPE = ['cliente_sem_visita', 'ritmo_abaixo_meta', 'pedido_aguardando_aprovacao', 'ruptura_recorrente', 'visita_curta', 'fotos_sem_gps'] as const;
