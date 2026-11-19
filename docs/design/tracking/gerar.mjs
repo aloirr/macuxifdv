@@ -187,7 +187,7 @@ const PRANCHAS = {
   ]),
   '02-notificacao': prancha('notificação fixa', [
     [
-      ['Campo · Android, no expediente', N_ATIVA],
+      ['Campo · Android, no expediente', N_ATIVA, 'Canal macuxi-servico · Serviço do app · importância baixa'],
       ['Campo · Android, fora do expediente', N_FORA],
     ],
   ]),

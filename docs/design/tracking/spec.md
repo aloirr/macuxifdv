@@ -3,7 +3,6 @@
 - **Autor**: designer-ux, 19/11/2026 (Manaus). Item 5 do §11 de [`docs/desenho/tracking.md`](../../desenho/tracking.md); ADR 0061.
 - **Escopo**: o que ficou na v1.0.15 — o trajeto do dia na Ficha do Gestão e no BKO (PR #502, modulo-gestor) e a notificação fixa
   do Android no Campo (PR #501, engenheiro-apps). Esta spec descreve o código desses PRs.
-- **Decisão do dono do produto (19/11/2026, 05h46)**: o rastreamento é **interno**; o vendedor e o promotor não têm tela dele.
 - **Simulação**: `node docs/design/tracking/gerar.mjs` gera `01-mapa-equipe` e `02-notificacao` (HTML e PNG, escala 2; aparelho
   360×760 e BKO 1366×768). O gerador falha se a legenda cobrir a tela ou se algo sair dela ou ficar cortado.
 - **Marca**: cores do kit (`packages/ui/src/comum/contraste.ts`); traço e marcadores em Azul noite #1E3350, fundo do mapa Névoa
@@ -14,10 +13,10 @@
 
 | Quem | O que vê |
 |---|---|
-| Quem tem `core.trajeto.ver_equipe` (supervisor, gerente e admin), só na própria equipe | o trajeto do dia na Ficha (§2) e a página Trajeto do dia (§3) |
-| Suporte | no Diagnóstico do Perfil do Campo, a linha `Localização no expediente: <estado> · último ponto 10:12` |
+| Quem tem `core.trajeto.ver_equipe` (padrão: supervisor e gerente; o admin só com a permissão — [`docs/desenho/tracking.md`](../../desenho/tracking.md) §6 e §7), só na própria equipe | o trajeto do dia na Ficha (§2) e a página Trajeto do dia (§3) |
 | Vendedor e promotor | só a notificação fixa do Android (§4) |
 
+- **Decisão do dono do produto (19/11/2026, 05h46)**: o rastreamento é **interno**; o vendedor e o promotor não têm tela dele.
 - Sem a permissão, a seção da Ficha some e a página não entra no menu; a API recusa (403).
 - Nenhuma tela exporta pontos nem mostra coordenada.
 
@@ -72,13 +71,13 @@ Valores de `apps/mobile/src/lib/trajeto.ts` e `apps/mobile/plugins/notificacao-t
 | Texto | nenhum |
 | Ícone pequeno | `notification_icon` (o `icone-notificacao.png` do plugin do expo-notifications) |
 | Cor | círculo do ícone em `notification_icon_color`, Azul noite #1E3350; cartão sem pintar |
-| Canal | id `<appId>:macuxi-trajeto`, nome `Serviço do app`, sem descrição, importância baixa (`IMPORTANCE_LOW`): sem som, em "Silenciosas" |
+| Canal | id `<appId>:macuxi-servico`, nome `Serviço do app`, sem descrição, importância baixa (`IMPORTANCE_LOW`): sem som, em "Silenciosas" |
 | Categoria e ações | `CATEGORY_SERVICE`; sem ações |
 | Toque | abre o Campo onde ele estava |
 | Quando | aparece com o serviço ligado e some quando ele desliga (fora do expediente, feriado, ausência, logout, rastreamento desligado) |
 
 ## 5. Fora da v1.0.15
 
-- Tela própria de trajeto no Gestão, troca de dia no app, visitas e trechos sem registro no desenho, mapa com ruas.
-- Km e "Ver trajeto" no Painel da equipe.
-- Qualquer tela de rastreamento para o vendedor e o promotor (decisão de 19/11).
+- Na v1.0.16, o resto da antiga prancha 01: tela própria de trajeto no Gestão, troca de dia no app, visitas e trechos sem
+  registro no desenho, mapa com ruas, distância e "Ver trajeto" no Painel da equipe.
+- A linha `Localização no expediente` no Diagnóstico do Perfil do Campo sai (o engenheiro-apps tira do código).
