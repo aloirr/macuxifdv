@@ -27,6 +27,7 @@ import {
   RetornoAceito,
   RetornoErp,
   ROTAS_HUB,
+  SCHEMA_REGISTRO,
   SinalConector,
   STATUS_HTTP_ERRO_HUB,
 } from './index';
@@ -259,5 +260,37 @@ describe('P-4 (decisão do gerente): sequência repetida em itens_faturados não
   });
   it('P-4: sequencia_repetida é código de item descartado e de RetornoAceito', () => {
     expect(ItemFaturadoDescartado.safeParse({ indice: 0, sequencia: 1, produto_external_id: 'SKU1', quantidade: 1, codigo: 'sequencia_repetida', codigos: ['sequencia_repetida'], campo: 'itens_faturados[0].sequencia', motivo: 'repetida' }).success).toBe(true);
+  });
+});
+
+describe('T-0186 (Cliente 360): campos opcionais e aditivos em titulo e nota', () => {
+  const base = { external_id: 'X-1', alterado_em: '2026-11-05T12:30:00Z', cliente_external_id: 'C1' };
+  const titulo = { ...base, numero: '5531', vencimento: '2026-11-20', valor_cents: 1000, saldo_cents: 1000, situacao: 'aberto' };
+  const nota = { ...base, tipo: 'devolucao', numero: '9', emitida_em: '2026-11-05T12:30:00Z', total_cents: 500 };
+
+  it('título e nota antigos (sem os campos novos) continuam válidos', () => {
+    expect(SCHEMA_REGISTRO.titulo.safeParse(titulo).success).toBe(true);
+    expect(SCHEMA_REGISTRO.nota.safeParse(nota).success).toBe(true);
+  });
+
+  it('título com NF e forma de pagamento passa, com espaços aparados', () => {
+    const r = SCHEMA_REGISTRO.titulo.parse({ ...titulo, nf_numero: ' 8841 ', nf_serie: '1', forma_pagamento_codigo: 'BOL' });
+    expect(r).toMatchObject({ nf_numero: '8841', nf_serie: '1', forma_pagamento_codigo: 'BOL' });
+  });
+
+  it('nota com forma de pagamento e NF original da devolução passa; null também vale', () => {
+    const r = SCHEMA_REGISTRO.nota.parse({ ...nota, forma_pagamento_codigo: 'BOL', nf_origem_numero: '8841', nf_origem_serie: '1' });
+    expect(r).toMatchObject({ forma_pagamento_codigo: 'BOL', nf_origem_numero: '8841', nf_origem_serie: '1' });
+    expect(SCHEMA_REGISTRO.nota.safeParse({ ...nota, nf_origem_numero: null, nf_origem_serie: null, forma_pagamento_codigo: null }).success).toBe(true);
+  });
+
+  it('tipos e limites são recusados', () => {
+    expect(SCHEMA_REGISTRO.titulo.safeParse({ ...titulo, nf_numero: 8841 }).success).toBe(false);
+    expect(SCHEMA_REGISTRO.titulo.safeParse({ ...titulo, nf_numero: 'x'.repeat(41) }).success).toBe(false);
+    expect(SCHEMA_REGISTRO.titulo.safeParse({ ...titulo, nf_serie: 'x'.repeat(11) }).success).toBe(false);
+    expect(SCHEMA_REGISTRO.titulo.safeParse({ ...titulo, forma_pagamento_codigo: 'x'.repeat(21) }).success).toBe(false);
+    expect(SCHEMA_REGISTRO.nota.safeParse({ ...nota, forma_pagamento_codigo: 'x'.repeat(21) }).success).toBe(false);
+    expect(SCHEMA_REGISTRO.nota.safeParse({ ...nota, nf_origem_numero: 'x'.repeat(41) }).success).toBe(false);
+    expect(SCHEMA_REGISTRO.nota.safeParse({ ...nota, nf_origem_serie: 'x'.repeat(11) }).success).toBe(false);
   });
 });

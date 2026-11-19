@@ -328,6 +328,9 @@ CREATE TABLE dbo.tha_titulo (
     parcela INT NULL,
     emissao DATE NULL,
     baixado_em DATETIME2(3) NULL,
+    nf_numero NVARCHAR(40) NULL,
+    nf_serie NVARCHAR(10) NULL,
+    forma_pagamento_codigo NVARCHAR(20) NULL,
     linha_hash CHAR(64) NULL,
     CONSTRAINT pk_tha_titulo PRIMARY KEY (external_id));
 GO
@@ -349,6 +352,9 @@ CREATE TABLE dbo.tha_nota (
     quantidade_itens INT NULL,
     pedido_uuid NVARCHAR(200) NULL,
     cancelada TINYINT NULL,
+    forma_pagamento_codigo NVARCHAR(20) NULL,
+    nf_origem_numero NVARCHAR(40) NULL,
+    nf_origem_serie NVARCHAR(10) NULL,
     linha_hash CHAR(64) NULL,
     CONSTRAINT pk_tha_nota PRIMARY KEY (external_id));
 GO

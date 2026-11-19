@@ -228,6 +228,12 @@ export const TituloPayload = RegistroBase.extend({
   saldo_cents: CentavosNaoNegativos,
   situacao: SituacaoTitulo,
   baixado_em: DataHoraUtc.nullish(),
+  /** T-0186 (Cliente 360, aditivo): número da NF que originou o título. Ausente = não informado (não altera). */
+  nf_numero: TextoOpcional(40),
+  /** T-0186 (aditivo): série da NF que originou o título. */
+  nf_serie: TextoOpcional(10),
+  /** T-0186 (aditivo): código da forma de pagamento (o `codigo` do modelo `forma_pagamento`). Referência fraca: código ainda não carregado não recusa a linha. */
+  forma_pagamento_codigo: TextoOpcional(20),
 });
 export type TituloPayload = z.infer<typeof TituloPayload>;
 
@@ -245,6 +251,12 @@ export const NotaPayload = RegistroBase.extend({
   /** UUID do pedido do Macuxi, quando a nota veio de pedido integrado. */
   pedido_uuid: z.string().uuid().nullish(),
   cancelada: z.boolean().default(false),
+  /** T-0186 (Cliente 360, aditivo): código da forma de pagamento da NF (o `codigo` do modelo `forma_pagamento`). Referência fraca. */
+  forma_pagamento_codigo: TextoOpcional(20),
+  /** T-0186 (aditivo): na devolução, número da NF de origem. Ausente = não informado. */
+  nf_origem_numero: TextoOpcional(40),
+  /** T-0186 (aditivo): na devolução, série da NF de origem. */
+  nf_origem_serie: TextoOpcional(10),
 });
 export type NotaPayload = z.infer<typeof NotaPayload>;
 

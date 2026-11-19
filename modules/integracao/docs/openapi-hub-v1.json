@@ -4607,6 +4607,39 @@
           "cancelada": {
             "type": "boolean",
             "default": false
+          },
+          "forma_pagamento_codigo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nf_origem_numero": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nf_origem_serie": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -6301,6 +6334,39 @@
                 "type": "string",
                 "format": "date-time",
                 "pattern": "Z$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nf_numero": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nf_serie": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "forma_pagamento_codigo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
               },
               {
                 "type": "null"

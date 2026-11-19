@@ -2569,6 +2569,42 @@
           "coluna": "baixado_em",
           "tipo_sql": "DATETIME2(3) NULL",
           "regra": {}
+        },
+        {
+          "campo": "nf_numero",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 40,
+          "formato": null,
+          "exemplo": "5001",
+          "observacao": "Número da NF que originou o título. Vazio = não informado.",
+          "coluna": "nf_numero",
+          "tipo_sql": "NVARCHAR(40) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "nf_serie",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 10,
+          "formato": null,
+          "exemplo": "1",
+          "observacao": "Série da NF que originou o título. Vazio = não informado.",
+          "coluna": "nf_serie",
+          "tipo_sql": "NVARCHAR(10) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "forma_pagamento_codigo",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 20,
+          "formato": null,
+          "exemplo": "BOL",
+          "observacao": "Código da forma de pagamento (o código do modelo forma_pagamento). Vazio = não informado.",
+          "coluna": "forma_pagamento_codigo",
+          "tipo_sql": "NVARCHAR(20) NULL",
+          "regra": {}
         }
       ],
       "regras_entidade": [],
@@ -2753,6 +2789,42 @@
           "observacao": "Vazio = não.",
           "coluna": "cancelada",
           "tipo_sql": "TINYINT NULL",
+          "regra": {}
+        },
+        {
+          "campo": "forma_pagamento_codigo",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 20,
+          "formato": null,
+          "exemplo": "BOL",
+          "observacao": "Código da forma de pagamento da NF (o código do modelo forma_pagamento). Vazio = não informado.",
+          "coluna": "forma_pagamento_codigo",
+          "tipo_sql": "NVARCHAR(20) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "nf_origem_numero",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 40,
+          "formato": null,
+          "exemplo": "5001",
+          "observacao": "Só na devolução: número da NF de origem. Vazio = não informado.",
+          "coluna": "nf_origem_numero",
+          "tipo_sql": "NVARCHAR(40) NULL",
+          "regra": {}
+        },
+        {
+          "campo": "nf_origem_serie",
+          "obrigatorio": false,
+          "tipo": "texto",
+          "tamanho_max": 10,
+          "formato": null,
+          "exemplo": "1",
+          "observacao": "Só na devolução: série da NF de origem. Vazio = não informado.",
+          "coluna": "nf_origem_serie",
+          "tipo_sql": "NVARCHAR(10) NULL",
           "regra": {}
         }
       ],

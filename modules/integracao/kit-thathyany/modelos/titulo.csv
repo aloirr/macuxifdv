@@ -1,2 +1,2 @@
-﻿external_id;cliente_external_id;numero;vencimento;valor_cents;saldo_cents;situacao;alterado_em;ativo;parcela;emissao;baixado_em
-TIT-1001-1;CLI-001;1001;2026-11-05;150000;150000;aberto;2026-11-01T12:00:00Z;sim;1;2026-10-05;
+﻿external_id;cliente_external_id;numero;vencimento;valor_cents;saldo_cents;situacao;alterado_em;ativo;parcela;emissao;baixado_em;nf_numero;nf_serie;forma_pagamento_codigo
+TIT-1001-1;CLI-001;1001;2026-11-05;150000;150000;aberto;2026-11-01T12:00:00Z;sim;1;2026-10-05;;5001;1;BOL

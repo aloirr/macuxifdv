@@ -77,3 +77,4 @@
 2026-11-15 — fonte do sistema v1.0.13 — web: tamanhos fora da escala ajustados (11→12, 14→13, 18→17); sem fonts./Archivo/Plex no módulo
 2026-11-15 — RD-0945 — painéis web de Integração na escala por papel: campo/alerta 15, subtítulo 17, número de cartão 17/600
 2026-11-15 — R-20261115-174800 — kit: conversor dos CSVs 1.0.5 para o modelo com marca das referências (scripts/migrar-csv-1.0.5.ts) e regra do código da marca pelo nome (domain/marca-referencia-codigo.ts, RN-CAT-09); os CSVs da empresa não vieram no zip 1.0.5
+2026-11-19 — T-0186 — v1.0.15: forma_pagamento_codigo (nota e titulo), nf_numero/nf_serie (titulo) e nf_origem_numero/nf_origem_serie (nota) opcionais no Hub v1; OpenAPI, guia, modelos CSV e kit regerados
