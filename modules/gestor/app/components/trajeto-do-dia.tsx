@@ -3,7 +3,7 @@
  * `desenharTrajeto`: nenhum provedor de mapa recebe o trajeto. Sem a permissão `core.trajeto.ver_equipe` a seção some;
  * sem pontos (o tracking vem desligado de fábrica) mostra só o estado vazio. Nenhuma coordenada vai para log, erro ou telemetria.
  */
-import { colors, Cartao, type as t } from '@macuxi/ui/mobile';
+import { colors, Cartao, radius, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import Svg, { Circle, Polyline } from 'react-native-svg';
@@ -32,11 +32,11 @@ export function TrajetoDoDia({ usuarioId, tz, buscar }: { usuarioId: string; tz:
       {d?.vazio ? <Text style={t.body}>Sem trajeto neste dia.</Text> : null}
       {d && !d.vazio && r.trajeto ? (
         <>
-          <View accessible accessibilityLabel={`Trajeto do dia com ${d.total} pontos, de ${d.primeiro!.hora} a ${d.ultimo!.hora}`}>
+          <View accessible accessibilityLabel={`Trajeto do dia com ${d.total} pontos, de ${d.primeiro!.hora} a ${d.ultimo!.hora}`} style={{ borderRadius: radius.secao, overflow: 'hidden', backgroundColor: colors.mapBg, borderWidth: 1, borderColor: colors.mapBorder }}>
             <Svg width="100%" height={ALTURA} viewBox={`0 0 ${LARGURA} ${ALTURA}`}>
-              <Polyline points={d.linha.map((p) => `${p.x},${p.y}`).join(' ')} stroke={colors.ink} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              <Circle cx={d.primeiro!.x} cy={d.primeiro!.y} r={7} fill={colors.success} stroke={colors.surface} strokeWidth={2} />
-              <Circle cx={d.ultimo!.x} cy={d.ultimo!.y} r={7} fill={colors.accent} stroke={colors.surface} strokeWidth={2} />
+              <Polyline points={d.linha.map((p) => `${p.x},${p.y}`).join(' ')} stroke={colors.accent} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              <Circle cx={d.primeiro!.x} cy={d.primeiro!.y} r={11} fill={colors.surface} stroke={colors.accent} strokeWidth={2} />
+              <Circle cx={d.ultimo!.x} cy={d.ultimo!.y} r={16} fill={colors.accent} stroke={colors.surface} strokeWidth={3} />
             </Svg>
           </View>
           <Linha rotulo="Primeiro ponto" valor={d.primeiro!.hora} />
