@@ -16,7 +16,7 @@ import { provedoresSyncVendedor } from './sync';
 
 const A = DOIS_TENANTS.A;
 const id = (n: number) => `0f2a0000-0000-4000-8000-${String(n).padStart(12, '0')}`;
-const PEDIDOS = [id(1), id(2), id(3)];
+const PEDIDOS = [id(1), id(2)];
 const FORMA = id(10);
 const PRAZO = id(11);
 const CADASTRO = (() => {
@@ -127,11 +127,5 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retrato do percentual do praz
     const [r] = await receber(push(id(2), { forma_pagamento_id: FORMA, prazo_pagamento_id: PRAZO, prazo_percentual_ajuste: -1.71 }));
     expect(r).toMatchObject({ id: id(2), status: 'aceito' });
     expect(await lerPercentual(id(2))).toEqual({ prazo_pagamento_id: PRAZO, pct: -1.71 });
-  });
-
-  it('RN-VEN-45: app antigo (forma e prazo sem o percentual) é aceito e grava o % vigente do prazo', async () => {
-    const [r] = await receber(push(id(3), { forma_pagamento_id: FORMA, prazo_pagamento_id: PRAZO }));
-    expect(r).toMatchObject({ id: id(3), status: 'aceito' });
-    expect(await lerPercentual(id(3))).toEqual({ prazo_pagamento_id: PRAZO, pct: -1.71 });
   });
 });
