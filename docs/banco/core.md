@@ -1177,3 +1177,76 @@ Grava a matriz também como filial de **venda** (`core.usuario_filial`) quando o
 o app sai do bloqueio). Idempotente. Roda como o migrador (políticas `manutencao`, 0031). Sem `plataforma.auditoria` (nenhum
 backfill de migração grava lá). Volta: `0085_core_usuario_filial_matriz.down.sql` é no-op documentado (os dados ficam). Teste:
 `db/testes/usuario-filial-matriz.db.test.ts`.
+
+## 0089 — Cliente 360 v2: forma de pagamento, NF e Documentação do cliente (`0089_core_cliente360_documentos`; T-0186, D2–D5)
+Migração **aditiva** (número provisório até o merge): colunas novas **nulas**, sem default, sem backfill e sem andar o
+`updated_at`; 4 tabelas novas e 3 índices. Nenhuma coluna, CHECK, RLS ou grant existente muda; as colunas novas herdam os da
+tabela (o `macuxi_leitura` tem SELECT de tabela em `core.nota_erp` e `core.titulo`).
+
+### `core.nota_erp` e `core.titulo` (D2, D3)
+| Tabela | Coluna | Tipo | Regra |
+|---|---|---|---|
+| `nota_erp` | `forma_pagamento` | text null | como o ERP manda (E1); 1..120 depois do `btrim` (`nota_erp_forma_pagamento_tamanho`) |
+| `nota_erp` | `nf_origem_numero` | text null | NF original da devolução; **só com `tipo = 'devolucao'`** (`nota_erp_nf_origem_so_devolucao`); 1..60 |
+| `nota_erp` | `nf_origem_serie` | text null | série da NF original; **só com o número** (`nota_erp_nf_origem_serie_com_numero`); 1..60 |
+| `titulo` | `forma_pagamento` | text null | 1..120 (`titulo_forma_pagamento_tamanho`) |
+| `titulo` | `nf_numero` | text null | NF do título (junta as parcelas à nota); 1..60 (`titulo_nf_tamanho`) |
+| `titulo` | `nf_serie` | text null | série; **só com o número** (`titulo_nf_serie_com_numero`); 1..60 |
+
+Índices (consultas do Histórico, D4/P17: além de 90 dias a consulta é online, ao tocar, sem pull de 12 meses):
+- `nota_erp_cliente_emitida_ix (tenant_id, cliente_id, emitida_em desc, id desc) where deleted_at is null` — a lista por
+  período: `where cliente_id = $1 and emitida_em >= $2 and emitida_em < $3 order by emitida_em desc, id desc limit $4`, com
+  paginação por `(emitida_em, id)`. O `nota_erp_cliente_mes_ix` da 0019 não serve: `ano_mes` é o mês no fuso do tenant e o
+  filtro "Escolher datas" é por dia, ordenado pelo instante.
+- `nota_erp_nf_origem_ix (tenant_id, cliente_id, nf_origem_numero, nf_origem_serie) where nf_origem_numero is not null and
+  deleted_at is null` — o status "Devolvido" / "Devolvido parcial" soma as devoluções que apontam para cada NF da página.
+- `titulo_nf_ix (tenant_id, cliente_id, nf_numero, nf_serie) where nf_numero is not null and deleted_at is null` — as parcelas
+  do detalhe da NF e o "Em aberto" / "Em atraso" de cada linha.
+- **Não criado:** `(tenant_id, numero, serie)` para achar a NF original. A busca é sempre dentro do cliente (a devolução e o
+  título trazem `cliente_id`) e cai no prefixo `(tenant_id, cliente_id)` do `nota_erp_cliente_emitida_ix` (~30 notas/ano por
+  cliente).
+
+`core.nota_erp` continua **fora do sync** (`TABELAS_FORA_DO_SYNC`). As linhas de 90 dias no aparelho (D1) dependem do contrato
+de pull do `modulo-core`; quando ele existir, uma migração nova cria `(tenant_id, updated_at, id)` e tira a tabela da lista.
+
+### As 4 tabelas da Documentação (D5; P1, P10, P11, P15, P16)
+Todas com os campos comuns (regra 5), `unique (tenant_id, id)`, `<tabela>_external_uk` parcial, gatilho `<tabela>_updated_at`,
+RLS ligado e forçado, `isolamento_tenant` (`macuxi_app`), `manutencao` (0031) e a regra da 0078 (`grant select` e política
+`leitura` ao `macuxi_leitura`; nenhuma coluna sensível). `macuxi_app`: select, insert, update, **sem delete** (soft delete por
+`deleted_at`). **Vão ao aparelho** (§8: a lista, a matriz e as exceções vêm no sync; o **arquivo não**, P15): índice
+`<tabela>_sync_ix (tenant_id, updated_at, id)` em todas. O contrato do pull é do `modulo-core`.
+
+| Tabela | Coluna | Tipo | Regra |
+|---|---|---|---|
+| `documento_tipo` | `nome` | text not null | 1..80; único vivo sem diferenciar maiúsculas (`documento_tipo_nome_uk` sobre `lower(nome)`) |
+| | `grupo` | text not null | 1..60; a faixa da tabela ("Fotos do PDV", "Cadastro", "Contratos") |
+| | `ordem` | integer not null default 0 | ordem dentro do grupo |
+| | `origem` | text not null | `erp` \| `escritorio` \| `app` (P1: uma origem por tipo) |
+| | `tem_validade` | boolean not null default false | o documento leva `valido_ate` |
+| | `ativo` | boolean not null default true | |
+| `documento_cliente` | `cliente_id` | uuid not null | FK composta → `core.cliente` |
+| | `tipo_id` | uuid not null | FK composta → `core.documento_tipo` |
+| | `nome` | text not null | 1..120 |
+| | `arquivo_id` | uuid null | id de `plataforma.arquivo`, **sem FK** (outro schema, ADR 0010; como `cliente_foto`, 0057); único vivo quando há (`documento_cliente_arquivo_uk`); nulo = sem arquivo ainda |
+| | `data_documento` | date not null | |
+| | `valido_ate` | date null | `>= data_documento` (`documento_cliente_validade_coerente`); "Vencido em …" é cálculo do app (P16) |
+| | `enviado_por` | uuid null | FK composta → `core.usuario` |
+| `documento_permissao` | `tipo_id` | uuid not null | FK composta → `core.documento_tipo` |
+| | `perfil_id` | uuid not null | id de `plataforma.perfil` (0041), **sem FK** (outro schema; a API do Core confere o perfil) |
+| | `nivel` | text not null | `nao_ve` \| `ve` \| `ve_envia`; única viva por `(tenant_id, tipo_id, perfil_id)` |
+| `documento_excecao` | `documento_id` | uuid not null | FK composta → `core.documento_cliente` |
+| | `perfil_id` | uuid not null | sem FK (como acima); única viva por `(tenant_id, documento_id, perfil_id)` |
+
+- **Exceção só tira acesso** (P11): a linha de `documento_excecao` quer dizer "este perfil **não** vê este documento"; apagar a
+  exceção = `deleted_at`.
+- **Regras fora do banco** (domain e API do Core): "`ve_envia` só nos tipos de origem `app`" (o CHECK cruzado entre tabelas não
+  cabe), o padrão de quem não tem linha na matriz, Administrador e Analista veem tudo, e a revalidação de perfil, carteira e
+  licença ao listar e ao abrir o arquivo.
+- Índices de leitura: `documento_cliente_cliente_ix (tenant_id, cliente_id)` (a aba do cliente), `documento_cliente_tipo_ix`
+  e `documento_cliente_cliente_sync_ix (tenant_id, cliente_id, updated_at, id)` (pull por carteira).
+- Volume: tipos, dezenas por tenant; documentos, ~5–15 por cliente; matriz, tipos × perfis; exceções, poucas.
+
+Volta: `0089_core_cliente360_documentos.down.sql` (apaga as 4 tabelas com os dados — os metadados em `plataforma.arquivo` e os
+bytes ficam — e as 6 colunas com índices e CHECKs; a forma de pagamento e o vínculo NF/devolução voltam na próxima carga do
+ERP). Idempotente. Volte antes o código do Core e da Integração que lê ou grava. Teste:
+`db/testes/cliente360-documentos.db.test.ts`.

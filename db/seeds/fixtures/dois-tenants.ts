@@ -50,6 +50,8 @@
  *   p3 (R$ 200,00) e a mesma nota apagada; B com uma viva no p1 (mesma chave de nota: o único é por tenant).
  * - T-0184 (0088): vendedor.pedido_aprovacao (grupo 0x79; APROVACOES_FIXTURE) — A pendente no p2 (desconto, gerente, ciclo 1);
  *   B aprovada no p1 (desconto, supervisor, decidida pelo admin).
+ * - T-0186 (0089): Documentação do cliente (grupos 0x7a–0x7d; DOCUMENTOS_FIXTURE) — por tenant um tipo, um documento do c1, a
+ *   permissão do perfil de fábrica "vendedor" no tipo e uma exceção que tira o documento dele (A: Alvará, válido; B: Contrato social).
  * - T-0087 (0036): convites de 1º acesso (core.usuario_convite, grupo 0x08; CONVITES_FIXTURE): A pendente + revogado do
  *   vendedor-2 e usado do promotor; B pendente do vendedor-B, gerado por um super-admin (id sem FK).
  * - T-0094 (0040): usuários com senha definitiva (trocar_senha falso, sem temporária); outbox de e-mail
@@ -230,6 +232,11 @@ const G = {
   assinatura_historico: 0x6e,
   // 0088 (T-0184): aprovação por motivo do pedido
   pedido_aprovacao: 0x79,
+  // 0089 (T-0186): Documentação do cliente
+  documento_tipo: 0x7a,
+  documento_cliente: 0x7b,
+  documento_permissao: 0x7c,
+  documento_excecao: 0x7d,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -787,6 +794,11 @@ export const ORDEM_TABELAS = [
   'plataforma.trabalho',
   // 0084 (T-0180): último contato do aparelho (FK -> core.usuario)
   'core.usuario_contato',
+  // 0089 (T-0186): Documentação do cliente (FKs: documento -> cliente, tipo e usuario; permissão -> tipo; exceção -> documento)
+  'core.documento_tipo',
+  'core.documento_cliente',
+  'core.documento_permissao',
+  'core.documento_excecao',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
   ...ORDEM_GESTOR,
   // 0015 (T-0056): schema promotor — linhas de A e B em ./promotor.ts
@@ -972,6 +984,47 @@ function dadosPedidoAprovacao(hojeB: string): Linha[] {
       estado: 'aprovada', decidida_por: B.usuarios.admin, decidida_em: instante(hojeB, '14:05'), texto_decisao: 'Desconto dentro da campanha.',
     }),
   ];
+}
+
+/**
+ * 0089 (T-0186): Documentação do cliente (grupos 0x7a–0x7d). Por tenant: um tipo, um documento do c1 sem arquivo (arquivo_id
+ * nulo), a permissão "ve" do perfil de fábrica "vendedor" (idPerfilFabrica; perfil_id sem FK) e a exceção que tira o documento
+ * desse perfil (P11). Ids diferentes em A e B: a linha-mãe de B não existe em A (vazamento por FK composta).
+ */
+export const DOCUMENTOS_FIXTURE = {
+  A: { tipo: a('documento_tipo', 1), documento: a('documento_cliente', 1), permissao: a('documento_permissao', 1), excecao: a('documento_excecao', 1) },
+  B: { tipo: b('documento_tipo', 1), documento: b('documento_cliente', 1), permissao: b('documento_permissao', 1), excecao: b('documento_excecao', 1) },
+} as const;
+function dadosDocumentos(): Pick<DadosFixture, 'core.documento_tipo' | 'core.documento_cliente' | 'core.documento_permissao' | 'core.documento_excecao'> {
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const comuns = { deleted_at: null, external_id: null };
+  const perfilA = idPerfilFabrica(A.tenantId, 'vendedor');
+  const perfilB = idPerfilFabrica(B.tenantId, 'vendedor');
+  return {
+    'core.documento_tipo': [
+      { id: DOCUMENTOS_FIXTURE.A.tipo, tenant_id: A.tenantId, nome: 'Alvará de funcionamento', grupo: 'Cadastro', ordem: 1, origem: 'escritorio', tem_validade: true, ativo: true, ...comuns },
+      { id: DOCUMENTOS_FIXTURE.B.tipo, tenant_id: B.tenantId, nome: 'Contrato social', grupo: 'Contratos', ordem: 1, origem: 'escritorio', tem_validade: false, ativo: true, ...comuns },
+    ],
+    'core.documento_cliente': [
+      {
+        id: DOCUMENTOS_FIXTURE.A.documento, tenant_id: A.tenantId, cliente_id: A.clientes.c1, tipo_id: DOCUMENTOS_FIXTURE.A.tipo, nome: 'Alvará 2026',
+        arquivo_id: null, data_documento: '2026-03-10', valido_ate: '2027-03-10', enviado_por: A.usuarios.admin, ...comuns,
+      },
+      {
+        id: DOCUMENTOS_FIXTURE.B.documento, tenant_id: B.tenantId, cliente_id: B.clientes.c1, tipo_id: DOCUMENTOS_FIXTURE.B.tipo, nome: 'Contrato social consolidado',
+        arquivo_id: null, data_documento: '2025-08-01', valido_ate: null, enviado_por: B.usuarios.admin, ...comuns,
+      },
+    ],
+    'core.documento_permissao': [
+      { id: DOCUMENTOS_FIXTURE.A.permissao, tenant_id: A.tenantId, tipo_id: DOCUMENTOS_FIXTURE.A.tipo, perfil_id: perfilA, nivel: 've', ...comuns },
+      { id: DOCUMENTOS_FIXTURE.B.permissao, tenant_id: B.tenantId, tipo_id: DOCUMENTOS_FIXTURE.B.tipo, perfil_id: perfilB, nivel: 've', ...comuns },
+    ],
+    'core.documento_excecao': [
+      { id: DOCUMENTOS_FIXTURE.A.excecao, tenant_id: A.tenantId, documento_id: DOCUMENTOS_FIXTURE.A.documento, perfil_id: perfilA, ...comuns },
+      { id: DOCUMENTOS_FIXTURE.B.excecao, tenant_id: B.tenantId, documento_id: DOCUMENTOS_FIXTURE.B.documento, perfil_id: perfilB, ...comuns },
+    ],
+  };
 }
 
 export const MARCAS_FIXTURE = {
@@ -1263,6 +1316,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     ...dadosT0170(hojeA, hojeB),
     'core.usuario_filial': dadosUsuarioFilial(),
     ...dadosFotoLote(),
+    ...dadosDocumentos(),
     'core.usuario_contato': [
       { id: USUARIO_CONTATO_FIXTURE.A.vendedor2, tenant_id: tA, usuario_id: A.usuarios.vendedor2, contato_em: DATA_FIXA_ACESSO, deleted_at: null, external_id: null },
       { id: USUARIO_CONTATO_FIXTURE.B.admin, tenant_id: tB, usuario_id: B.usuarios.admin, contato_em: DATA_FIXA_ACESSO, deleted_at: null, external_id: null },
