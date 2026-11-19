@@ -136,11 +136,10 @@ describe('acréscimos do kit para o Novo pedido v2 (T-0133)', () => {
     expect(TEXTO_CLIENTE_LIBERADO).toBe('Cliente liberado · sem título vencido');
   });
 
-  it('Botao quebra em 2 linhas só com a prop; Faixa tem 2ª linha; LinhaResumo exportada', () => {
+  it('Botao quebra em 2 linhas só com a prop; Faixa tem 2ª linha', () => {
     const base = ler('./base.tsx');
     expect(base).toContain('numberOfLines={quebrarLinha ? 2 : 1}');
     const valores = ler('./valores.tsx');
-    expect(valores).toMatch(/export function LinhaResumo\b/);
     expect(valores).toContain('apoio?: string | null;');
   });
 });

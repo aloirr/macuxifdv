@@ -2,7 +2,8 @@
  * RD-2355 (T-0186): as tabelas da ficha no kit, unificando a ficha do Cliente 360 (modulo-core) e o detalhe do pedido e o Resumo
  * (modulo-vendedor). Cartão (`surface`, borda `line`, raio 12), fio `lineSoft` entre as linhas, cabeçalho 12/600 em `ink2`.
  *  - `TabelaRotuloValor`: pares rótulo 14 `ink2` (coluna de `larguraRotulo`) e valor 16; o `complemento` é a 2ª linha do valor
- *    (texto 12 `ink2`) ou um elemento à direita do valor (ex.: `BotaoCelula`).
+ *    (texto 12 `ink2`) ou um elemento à direita do valor (ex.: `BotaoCelula`). RD-2370: substitui a `TabelaValores` (crédito do
+ *    cliente na aba Venda, totais da folha "Preços de hoje"), com `tom` por linha, `carregando` (barras cinza) e `rodape`.
  *  - `TabelaDados`: colunas com cabeçalho, linhas de no mínimo 48 dp, faixas de grupo, linha tocável e linha em perigo.
  *    Células: `CelulaTexto` (principal e 2ª linha) e `BotaoCelula` (ícone com alvo de 48 dp). Números sem "R$", à direita e tabulares.
  * Medidas e regras em `tabela-ficha.ts` (puro).
@@ -10,10 +11,11 @@
 import { isValidElement, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { VALOR_SEM_DADO } from './componentes';
+import { ehSemDado, VALOR_SEM_DADO } from './componentes';
 import { Icon, type IconName } from './icon';
 import {
   alinhamentoDaColuna,
+  aparenciaDoValor,
   alinharDaColuna,
   estiloDaColuna,
   folgaDoBotaoCelula,
@@ -22,27 +24,35 @@ import {
   leituraDoRotuloValor,
   TABELA_FICHA,
   type ColunaTabela,
+  type TomDoValor,
 } from './tabela-ficha';
 import { colors, fonte } from './theme';
 
 export interface LinhaRotuloValor {
+  /** Chave da linha e base dos testIDs (`<testID>-<id>` e `<testID>-<id>-valor`); sem `id`, a chave é o rótulo. */
+  id?: string;
   rotulo: string;
+  /** Já formatado ("R$ 20.000,00", "45 dias"); vazio ou `VALOR_SEM_DADO` ("—") sai "—" em `ink3` e o TalkBack lê "sem dado". */
   valor: string;
   /** Texto: 2ª linha do valor (12 `ink2`). Elemento: fica à direita do valor. */
   complemento?: ReactNode;
-  /** Valor em vermelho (`danger`), sempre com o texto que diz o porquê. */
-  perigo?: boolean;
-  /** testID do valor. */
+  /** `erro` (`danger`: disponível negativo, com o "−" no texto) ou `sucesso` (`success`: queda de preço). */
+  tom?: TomDoValor;
+  /** testID do valor (padrão, com `id` e `testID` da tabela: `<testID>-<id>-valor`). */
   testID?: string;
   testIDComplemento?: string;
   /** Substitui a leitura padrão do TalkBack ("rótulo: valor. complemento"). */
   rotuloAcessivel?: string;
 }
 
+const COR_DO_VALOR = { erro: colors.danger, sucesso: colors.success, semDado: colors.ink3, normal: colors.ink } as const;
+
 export function TabelaRotuloValor({
   linhas,
   larguraRotulo,
   alinharValor = 'dir',
+  carregando,
+  rodape,
   testID,
 }: {
   linhas: readonly LinhaRotuloValor[];
@@ -50,36 +60,58 @@ export function TabelaRotuloValor({
   larguraRotulo?: number;
   /** `dir` (padrão, ficha do cliente) ou `esq` (texto longo: cliente, endereço, observação). */
   alinharValor?: 'esq' | 'dir';
+  /** Lendo os dados: cada valor vira uma barra cinza (nada de "R$ 0,00" falso); o TalkBack lê só o rótulo, ocupado. */
+  carregando?: boolean;
+  /** Linha abaixo do cartão (12 `ink2`), ex.: "Atualizado hoje às 05:38" com o ícone `sync` (sem sinal: `wifiOff`). */
+  rodape?: { icone?: IconName; texto: string } | null;
   testID?: string;
 }) {
   const largura = larguraDoRotulo(larguraRotulo);
   const textoAlinhado = alinharValor === 'dir' ? s.dir : null;
+  const ocupado = Boolean(carregando);
   return (
-    <View style={s.cartao} testID={testID}>
-      {linhas.map((l, i) => {
-        const complementoTexto = typeof l.complemento === 'string' || typeof l.complemento === 'number' ? String(l.complemento) : null;
-        const complementoElemento = isValidElement(l.complemento) ? l.complemento : null;
-        return (
-          <View
-            key={l.rotulo}
-            style={[s.linhaRV, i > 0 && s.traco]}
-            accessible={!complementoElemento}
-            accessibilityLabel={l.rotuloAcessivel ?? leituraDoRotuloValor(l.rotulo, l.valor, complementoTexto)}>
-            <Text style={[s.rotulo, { width: largura }]}>{l.rotulo}</Text>
-            <View style={[s.valorCaixa, { alignItems: alinharValor === 'dir' ? 'flex-end' : 'flex-start' }]}>
-              <Text style={[s.valor, textoAlinhado, l.perigo && s.perigoTexto, !l.valor.trim() && s.semDado]} testID={l.testID}>
-                {l.valor.trim() ? l.valor : VALOR_SEM_DADO}
-              </Text>
-              {complementoTexto ? (
-                <Text style={[s.complemento, textoAlinhado]} testID={l.testIDComplemento}>
-                  {complementoTexto}
-                </Text>
-              ) : null}
+    <View style={s.bloco} testID={testID}>
+      <View style={s.cartao}>
+        {linhas.map((l, i) => {
+          const complementoTexto = typeof l.complemento === 'string' || typeof l.complemento === 'number' ? String(l.complemento) : null;
+          const complementoElemento = isValidElement(l.complemento) ? l.complemento : null;
+          const base = l.id && testID ? `${testID}-${l.id}` : undefined;
+          return (
+            <View
+              key={l.id ?? l.rotulo}
+              testID={base}
+              style={[s.linhaRV, i > 0 && s.traco]}
+              accessible={!complementoElemento}
+              accessibilityState={ocupado ? { busy: true } : undefined}
+              accessibilityLabel={ocupado ? l.rotulo : (l.rotuloAcessivel ?? leituraDoRotuloValor(l.rotulo, l.valor, complementoTexto))}>
+              <Text style={[s.rotulo, { width: largura }]}>{l.rotulo}</Text>
+              <View style={[s.valorCaixa, { alignItems: alinharValor === 'dir' ? 'flex-end' : 'flex-start' }]}>
+                {ocupado ? (
+                  <View style={s.esqueleto} />
+                ) : (
+                  <>
+                    <Text style={[s.valor, textoAlinhado, { color: COR_DO_VALOR[aparenciaDoValor(l.valor, l.tom)] }]} testID={l.testID ?? (base ? `${base}-valor` : undefined)}>
+                      {ehSemDado(l.valor) ? VALOR_SEM_DADO : l.valor}
+                    </Text>
+                    {complementoTexto ? (
+                      <Text style={[s.complemento, textoAlinhado]} testID={l.testIDComplemento}>
+                        {complementoTexto}
+                      </Text>
+                    ) : null}
+                  </>
+                )}
+              </View>
+              {complementoElemento}
             </View>
-            {complementoElemento}
-          </View>
-        );
-      })}
+          );
+        })}
+      </View>
+      {rodape?.texto ? (
+        <View style={s.rodape} testID={testID ? `${testID}-rodape` : undefined}>
+          {rodape.icone ? <Icon name={rodape.icone} size={13} color={colors.ink2} /> : null}
+          <Text style={s.rodapeTexto}>{rodape.texto}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -205,6 +237,7 @@ export function BotaoCelula({ icone, rotulo, onPress, desligado, testID }: { ico
 const T = TABELA_FICHA;
 
 const s = StyleSheet.create({
+  bloco: { gap: 8 },
   cartao: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: T.raio, overflow: 'hidden' },
   traco: { borderTopWidth: 1, borderTopColor: colors.lineSoft },
   linhaRV: { flexDirection: 'row', alignItems: 'center', gap: T.gapRotuloValor, paddingHorizontal: T.paddingLateralRotuloValor, paddingVertical: 10, minHeight: T.alturaLinha },
@@ -212,7 +245,10 @@ const s = StyleSheet.create({
   valorCaixa: { flex: 1, minWidth: 0 },
   valor: { ...fonte.body, fontSize: T.fonte.valor, lineHeight: 21, color: colors.ink, fontVariant: ['tabular-nums'] },
   complemento: { ...fonte.body, fontSize: T.fonte.segunda, lineHeight: 16, color: colors.ink2 },
-  semDado: { color: colors.ink3 },
+  // barra do `carregando` (`lineSoft`, 72 x 12) e a linha de atualização abaixo do cartão
+  esqueleto: { width: T.esqueleto.largura, height: T.esqueleto.altura, borderRadius: T.esqueleto.altura / 2, backgroundColor: colors.lineSoft },
+  rodape: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rodapeTexto: { ...fonte.body, fontSize: T.fonte.segunda, color: colors.ink2 },
   cabecalho: { flexDirection: 'row', gap: T.gapColunas, paddingHorizontal: T.paddingLateral, paddingTop: 10, paddingBottom: 6, alignItems: 'flex-end' },
   cab: { ...fonte.semibold, fontSize: T.fonte.cabecalho, lineHeight: 16, color: colors.ink2 },
   faixa: { paddingHorizontal: T.paddingLateral, paddingVertical: 6, backgroundColor: colors.ground },
