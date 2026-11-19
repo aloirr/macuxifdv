@@ -23,7 +23,6 @@ export const POR_PAGINA = 50;
 
 export const qk = {
   pedidos: (f: FiltrosPedidos) => ['vendedor', 'pedidos', f] as const,
-  pendentes: ['vendedor', 'pedidos', 'pendentes'] as const,
   pedido: (id: string) => ['vendedor', 'pedido', id] as const,
   alcadas: ['vendedor', 'alcadas'] as const,
   decisoes: ['vendedor', 'decisoes'] as const,
@@ -58,21 +57,11 @@ export function usePedidos(f: FiltrosPedidos) {
   return useInfiniteQuery({
     queryKey: qk.pedidos(f),
     queryFn: async ({ pageParam, signal }) =>
-      PedidosPage.parse(await api<unknown>('/vendedor/pedidos', { query: { ...paraQuery(f), limite: POR_PAGINA, sem_pendentes: '1', ...(pageParam ? { cursor: pageParam } : { totais: '1' }) }, signal })),
+      PedidosPage.parse(await api<unknown>('/vendedor/pedidos', { query: { ...paraQuery(f), limite: POR_PAGINA, ...(pageParam ? { cursor: pageParam } : { totais: '1' }) }, signal })),
     initialPageParam: '' as string,
     getNextPageParam: (ultima) => ultima.proximo_cursor ?? undefined,
     enabled,
     placeholderData: (prev) => prev,
-  });
-}
-
-/** Painel "Aguardando aprovação": os pendentes do escopo do usuário (independente dos filtros da tabela). */
-export function usePendentes() {
-  const enabled = useAuthed();
-  return useQuery({
-    queryKey: qk.pendentes,
-    queryFn: async ({ signal }) => PedidosPage.parse(await api<unknown>('/vendedor/pedidos', { query: { status: 'pending_approval', limite: 100 }, signal })).itens,
-    enabled,
   });
 }
 
@@ -86,13 +75,13 @@ export function useAlcadas() {
   return useQuery({ queryKey: qk.alcadas, queryFn: async () => DiscountPolicy.parse(await api<unknown>('/vendedor/alcadas')), enabled });
 }
 
-/** Decisões de pedido (aprovar, rejeitar, cancelar) da trilha de auditoria da plataforma (RN-AUD-01, `GET /v1/auditoria`). */
+/** Decisões de pedido (aprovar, devolver, rejeitar, cancelar) da trilha de auditoria da plataforma (RN-AUD-01, `GET /v1/auditoria`). */
 export function useDecisoesRecentes() {
   const enabled = useAuthed();
   return useQuery({
     queryKey: qk.decisoes,
     queryFn: async () =>
-      AuditoriaRespostaSchema.parse(await api<unknown>(ROTA_AUDITORIA.replace(/^\/v1/, ''), { query: { modulo: 'vendedor', entidade: 'pedido', limite: 30 } })).itens.filter((i) => i.acao !== 'pedido.criar'),
+      AuditoriaRespostaSchema.parse(await api<unknown>(ROTA_AUDITORIA.replace(/^\/v1/, ''), { query: { modulo: 'vendedor', entidade: 'pedido', limite: 30 } })).itens.filter((i) => i.acao !== 'pedido.criar' && i.acao !== 'pedido.aprovacao_decidida'),
     enabled,
   });
 }

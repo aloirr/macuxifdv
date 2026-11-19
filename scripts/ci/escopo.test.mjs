@@ -138,7 +138,12 @@ test('decidir: só documentação → documentacao (PR, push, ensaio e sexta); a
 });
 
 test('decidir: PR só com o estático (R-20261115-213600-alexandre); push, ensaio e agendado com as suítes', () => {
-  for (const arquivos of [['modules/core/domain/a.ts'], ['db/migrations/0060.sql'], ['tests/a.test.ts'], null]) {
+  for (const arquivos of [
+    ['modules/core/domain/a.ts'],
+    ['db/migrations/0060.sql'],
+    ['tests/a.test.ts'],
+    null,
+  ]) {
     const pr = decidir({ evento: 'pull_request', arquivos, agora: QUARTA, workspace: WS });
     assert.deepEqual([pr.escopo, pr.jobs], ['codigo', ['estatico']], String(arquivos));
     const sexta = decidir({ evento: 'pull_request', arquivos, agora: SEXTA, workspace: WS });
@@ -187,7 +192,7 @@ test('decidir: sexta em Manaus (véspera da produção), lista vazia ou sem list
   }
 });
 
-test('decidir: push de árvore já verde = reaproveitado (só no push; PR e ensaio sempre testam)', () => {
+test('decidir: push de árvore já verde = reaproveitado (push e agendado; PR e ensaio sempre testam)', () => {
   const d = decidir({
     evento: 'push',
     arquivos: ['modules/core/a.ts'],
@@ -212,6 +217,13 @@ test('decidir: push de árvore já verde = reaproveitado (só no push; PR e ensa
       .escopo,
     'documentacao',
   );
+  // agendado semanal: a árvore já verde com a matriz completa não repete os testes; sem o run verde, roda tudo
+  const ag = decidir({ evento: 'schedule', arquivos: null, agora: SEXTA, workspace: WS, reaproveitado: 456 });
+  assert.deepEqual(
+    [ag.escopo, ag.matriz, ag.reaproveitado_de, ag.jobs],
+    ['reaproveitado', 'completa', '456', []],
+  );
+  assert.equal(decidir({ evento: 'schedule', arquivos: null, agora: SEXTA, workspace: WS }).escopo, 'codigo');
 });
 
 test('diaEmManaus: o dia vira às 04:00 UTC', () => {

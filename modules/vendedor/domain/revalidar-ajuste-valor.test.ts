@@ -92,10 +92,35 @@ describe('revalidarPedido: ajuste em R$ (T-0071)', () => {
   });
 });
 
-describe('revalidarPedido: título vencido (RN-VEN-13, T-0089)', () => {
-  it('RN-VEN-13: título vencido com prazo a prazo manda o pedido dentro da alçada para aprovação (motivo credito)', () => {
-    const r = revalidarPedido(entrada({ titulo_vencido: true }));
-    expect(r).toMatchObject({ ok: true, status: 'pending_approval', nivel: 'supervisor', motivos: ['credito'], aprovacao_automatica: false });
+describe('revalidarPedido: crédito e inadimplência (RN-VEN-12, RN-VEN-13, T-0184)', () => {
+  const fin = { limite_informado: true, disponivel_cents: 1_000_000, maior_atraso_dias: 0, limite_dias: 5 };
+  const vencido = { ...fin, maior_atraso_dias: 12 };
+  it('RN-VEN-13: título vencido manda o pedido dentro da alçada para aprovação com o motivo inadimplencia (nível do parâmetro)', () => {
+    const r = revalidarPedido(entrada({ prazo_medio_dias: 28, financeiro: vencido }));
+    expect(r).toMatchObject({ ok: true, status: 'pending_approval', nivel: 'gerente', motivos: ['inadimplencia'], aprovacao_automatica: false });
+    expect(r.ok && r.aprovacoes).toEqual([{ motivo: 'inadimplencia', nivel: 'gerente', texto: 'Título vencido há 12 dias (limite de 5): aguardando gerente' }]);
+    expect(r.ok && r.historico.map((h) => h.para)).toEqual(['received', 'pending_approval']);
+  });
+  it('RN-VEN-13 (P1 A): pagamento à vista com título vencido também vai para aprovação', () => {
+    expect(revalidarPedido(entrada({ prazo_medio_dias: 0, financeiro: vencido }))).toMatchObject({ ok: true, status: 'pending_approval', motivos: ['inadimplencia'] });
+  });
+  it('RN-VEN-12: crédito disponível um centavo abaixo do total vai para aprovação; igual ao total passa', () => {
+    const total = revalidarPedido(entrada({ prazo_medio_dias: 28 }));
+    const t = total.ok ? total.total_cents : 0;
+    expect(revalidarPedido(entrada({ prazo_medio_dias: 28, financeiro: { ...fin, disponivel_cents: t - 1 } }))).toMatchObject({ ok: true, status: 'pending_approval', motivos: ['credito'] });
+    expect(revalidarPedido(entrada({ prazo_medio_dias: 28, financeiro: { ...fin, disponivel_cents: t } }))).toMatchObject({ ok: true, status: 'approved' });
+  });
+  it('RN-VEN-12 (P4 A): sem limite informado, a prazo vai para aprovação; à vista não', () => {
+    const sem = { ...fin, limite_informado: false, disponivel_cents: 0 };
+    expect(revalidarPedido(entrada({ prazo_medio_dias: 28, financeiro: sem }))).toMatchObject({ ok: true, status: 'pending_approval', motivos: ['credito'] });
+    expect(revalidarPedido(entrada({ prazo_medio_dias: 0, financeiro: sem }))).toMatchObject({ ok: true, status: 'approved' });
+  });
+  it('RN-VEN-10, RN-VEN-12 e RN-VEN-13 (P3 B): desconto, crédito e inadimplência juntos abrem três aprovações e o nível do pedido é o maior', () => {
+    const r = revalidarPedido(
+      entrada({ desconto_pct: 8, prazo_medio_dias: 28, financeiro: { ...vencido, disponivel_cents: 0 }, niveis_financeiros: { credito: 'gerente', inadimplencia: 'analista' } }),
+    );
+    expect(r).toMatchObject({ ok: true, status: 'pending_approval', nivel: 'analista', motivos: ['desconto', 'credito', 'inadimplencia'] });
+    expect(r.ok && r.aprovacoes.map((a) => [a.motivo, a.nivel])).toEqual([['desconto', 'supervisor'], ['credito', 'gerente'], ['inadimplencia', 'analista']]);
     expect(r.ok && r.historico.map((h) => h.para)).toEqual(['received', 'pending_approval']);
   });
   it('RN-VEN-45: percentual do prazo que mudou depois do pedido é aceito FORA da alçada, com aviso na linha do tempo', () => {
@@ -105,12 +130,12 @@ describe('revalidarPedido: título vencido (RN-VEN-13, T-0089)', () => {
     expect(r.ok && r.historico.map((h) => h.para)).toEqual(['received', 'approved']);
   });
   it('RN-VEN-45: com título vencido, o pedido vai à aprovação só pelo título; o motivo do prazo segue no recebimento', () => {
-    const r = revalidarPedido(entrada({ percentual_mudou: true, titulo_vencido: true }));
-    expect(r).toMatchObject({ ok: true, status: 'pending_approval', pending_reason: 'Título vencido' });
+    const r = revalidarPedido(entrada({ percentual_mudou: true, prazo_medio_dias: 28, financeiro: vencido }));
+    expect(r).toMatchObject({ ok: true, status: 'pending_approval' });
     expect(r.ok && r.historico[0]!.motivo).toBe('Prazo de pagamento mudou');
   });
-  it('RN-VEN-13: sem título vencido (ou à vista) segue aprovado na hora', () => {
-    expect(revalidarPedido(entrada({ titulo_vencido: false }))).toMatchObject({ ok: true, status: 'approved' });
+  it('RN-VEN-13: sem título vencido, sem restrição financeira ou com consulta indisponível segue aprovado na hora', () => {
+    expect(revalidarPedido(entrada({ prazo_medio_dias: 28, financeiro: { limite_informado: true, disponivel_cents: 9_999_999, maior_atraso_dias: 5, limite_dias: 5 } }))).toMatchObject({ ok: true, status: 'approved' });
     expect(revalidarPedido(entrada())).toMatchObject({ ok: true, status: 'approved' });
   });
 });

@@ -5,7 +5,8 @@
  * 0020_pedido_ajuste_valor_produto_relacao (ajuste em R$ no pedido e no item, T-0071), 0033_catalogo_aplicacao_referencia
  * (retrato da aplicação no item, T-0084) e 0037_forma_prazo_escalonada (forma_pagamento, prazo_pagamento e o pagamento do
  * pedido, T-0089), 0050_vendedor_pedido_devolucao (devolução do pedido, RN-VEN-37), 0056_core_filial (retrato da filial
- * no pedido, T-0149) e 0061_vendedor_reserva_filial (filial derivada no item, RN-VEN-20), para uso INTERNO do
+ * no pedido, T-0149), 0061_vendedor_reserva_filial (filial derivada no item, RN-VEN-20) e 0088_vendedor_pedido_aprovacao
+ * (aprovação por motivo e ciclo do pedido, T-0184), para uso INTERNO do
  * módulo Vendedor (modules/vendedor/api). Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
  * A fonte da verdade é o SQL versionado (FKs, índices, CHECKs, RLS e grants ficam lá). Sem FK para outros schemas:
@@ -187,6 +188,29 @@ export const pedido = vendedor.table('pedido', {
   filial_id: uuid('filial_id'),
   /** Retrato da filial: filial->>'id' = filial_id (CHECK). */
   filial: jsonb('filial').$type<RetratoFilial>(),
+  /** 0088 (T-0184): ciclo atual das aprovações (pedidoAprovacao.ciclo), >= 1; cresce a cada reenvio depois de uma devolução. */
+  aprovacao_ciclo: integer('aprovacao_ciclo').notNull().default(1),
+});
+
+/**
+ * Aprovação por motivo (0088, T-0184 §2): uma linha por (pedido, ciclo, motivo), única por tenant. Só o servidor usa (fora
+ * do sync; o app recebe as do ciclo atual no detalhe do pedido). motivo e estado: CHECKs pedido_aprovacao_motivo_valido
+ * (MOTIVOS_APROVACAO com inadimplencia) e pedido_aprovacao_estado_valido; decidida_em nula se, e só se, pendente.
+ * decidida_por = usuário do Core (sem FK: fronteira). Sem delete pelo app.
+ */
+export const pedidoAprovacao = vendedor.table('pedido_aprovacao', {
+  ...comuns(),
+  /** FK composta para pedido (mesmo schema). */
+  pedido_id: uuid('pedido_id').notNull(),
+  ciclo: integer('ciclo').notNull().default(1),
+  motivo: text('motivo').notNull(),
+  nivel: text('nivel', { enum: NIVEIS_APROVACAO }).notNull(),
+  estado: text('estado').notNull().default('pendente'),
+  texto_pendencia: text('texto_pendencia').notNull().default(''),
+  decidida_por: uuid('decidida_por'),
+  decidida_em: timestamp('decidida_em', { withTimezone: true }),
+  /** Até 500 caracteres. */
+  texto_decisao: text('texto_decisao'),
 });
 
 /** Item do pedido; sequencia única por pedido (desenho T-0011 §3). quantidade > 0. */

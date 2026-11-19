@@ -10,7 +10,7 @@
  *     (corpo estrito); não existe POST/PUT de pedido fora do push (o pedido só nasce pela rota de envio).
  *  U3 Transformar pela rota de envio (push do pedido NOVO com `orcamento_origem_id`, montado por `pedidoDoOrcamento` sobre as
  *     linhas do aparelho) recalcula a alçada no servidor: 8% → `pending_approval`, nível supervisor, criado@1 +
- *     aprovacao_solicitada@1, sem aprovado@1; aparece em "Para aprovar" da supervisora (RN-VEN-10).
+ *     aprovacao_solicitada@2, sem aprovado@1; aparece em "Para aprovar" da supervisora (RN-VEN-10).
  *  U4 a alçada é a do MOMENTO do envio: orçamento salvo a 4,65% com o vendedor em 5%; a política baixa para 4% → Transformar
  *     cai em aprovação (o servidor não herda a decisão da hora em que o orçamento foi salvo).
  *  U5 pedido enviado não aceita alteração de desconto pelo push: reenvio do mesmo id com outro desconto (no pedido ou no item)
@@ -43,7 +43,7 @@ interface Banco {
 
 const EV = {
   criado: 'vendedor.pedido.criado@1',
-  solicitada: 'vendedor.pedido.aprovacao_solicitada@1',
+  solicitada: 'vendedor.pedido.aprovacao_solicitada@2',
   aprovado: 'vendedor.pedido.aprovado@1',
 };
 
@@ -252,7 +252,7 @@ describe.skipIf(semBanco())('T-0071 — regressão da revisão de UX do Vendedor
       expect(await q('select id from vendedor.pedido where orcamento_id = $1', [ORC])).toEqual([]);
     });
 
-    it('U3. Transformar pela rota de envio (pedido NOVO de pedidoDoOrcamento no push): a alçada é recalculada → pending_approval nível supervisor, criado@1 + aprovacao_solicitada@1 sem aprovado@1, em "Para aprovar"; o orçamento segue orçamento', async () => {
+    it('U3. Transformar pela rota de envio (pedido NOVO de pedidoDoOrcamento no push): a alçada é recalculada → pending_approval nível supervisor, criado@1 + aprovacao_solicitada@2 sem aprovado@1, em "Para aprovar"; o orçamento segue orçamento', async () => {
       const payload = pedidoDoOrcamento(await doAparelho(ORC), PED, new Date().toISOString());
       envioPed = payload as unknown as Record<string, unknown>;
       expect(payload).toMatchObject({ id: PED, tipo: 'pedido', orcamento_origem_id: ORC, discount_pct: 8 });

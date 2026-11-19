@@ -52,6 +52,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retorno do ERP, faturamento e
     await admin.query('delete from vendedor.pedido_faturamento where pedido_id = any($1::uuid[])', [ids]);
     await admin.query('delete from vendedor.pedido_evento where pedido_id = any($1::uuid[])', [ids]);
     await admin.query('delete from vendedor.pedido_item where pedido_id = any($1::uuid[])', [ids]);
+    await admin.query('delete from vendedor.pedido_aprovacao where pedido_id = any($1::uuid[])', [ids]);
     await admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [ids]);
   }
 

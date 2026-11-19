@@ -16,6 +16,8 @@ const COMPLETAR: Record<string, (p: Record<string, unknown>, ocorrido_em: string
   'vendedor.pedido.criado@1': (p) => ({ visita_id: null, tipo: 'pedido', total_tabela_cents: p.total_cents, itens: [], status: 'em_aprovacao' }),
   'vendedor.pedido.status_alterado@1': () => ({ de: null, autor_id: null, motivo: null }),
   'vendedor.pedido.aprovacao_solicitada@1': () => ({ credito: null, historico: null }),
+  'vendedor.pedido.aprovacao_solicitada@2': () => ({ credito: null, historico: null, inadimplencia: null }),
+  'vendedor.pedido.aprovacao_decidida@1': () => ({ autor_id: null, texto: null }),
   'pesquisa.resposta.registrada@1': (p) => ({ tenant_id: u(1), versao_id: u(9102), equipe_id: null, cliente_id: null, visita_id: null, modo: 'avulsa', recebida_em: p.respondida_em, total_itens: 1 }),
   'treinamento.licao.concluida@1': () => ({ tenant_id: u(1), tempo_gasto_seg: 60, nota_quiz_pct: null }),
   'treinamento.medalha.conquistada@1': () => ({ tenant_id: u(1), nome: 'Medalha' }),

@@ -60,6 +60,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retrato do percentual do praz
                 return { tabela_preco_id: id(59), itens: ent.produto_ids.map((p) => ({ produto_id: p, preco_cents: 100_000, motivo_sem_preco: null })) };
               }
               if (def.nome === 'catalogo.estoque_filial@1') return { itens: [] };
+              if (def.nome === 'core.financeiro_cliente@1') return { financeiro: { limite_cents: 100_000_000, saldo_aberto_cents: 0, credito_disponivel_erp_cents: null, bloqueado: false, motivo_bloqueio: null, vencidos_qtd: 0, vencidos_cents: 0, maior_atraso_dias: 0, atualizado_erp_em: null } }; // RN-VEN-12: crédito folgado (T-0184)
               throw new Error(`consulta não simulada: ${def.nome}`);
             },
             async publicar() {
@@ -85,6 +86,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retrato do percentual do praz
     try {
       await admin.query('delete from vendedor.pedido_evento where pedido_id = any($1::uuid[])', [PEDIDOS]);
       await admin.query('delete from vendedor.pedido_item where pedido_id = any($1::uuid[])', [PEDIDOS]);
+      await admin.query('delete from vendedor.pedido_aprovacao where pedido_id = any($1::uuid[])', [PEDIDOS]);
       await admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [PEDIDOS]);
       await admin.query('delete from vendedor.prazo_pagamento where id = $1', [PRAZO]);
       await admin.query('delete from vendedor.forma_pagamento where id = $1', [FORMA]);

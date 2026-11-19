@@ -47,6 +47,9 @@ import { buildOrderPdfHtml, escapeHtml, pdfDoPedido } from '../../../modules/ven
 import { A, B, erroDe, licenca, subirApi, type ApiDeTeste } from '../apoio/api';
 import { esperarHorizonte } from '../apoio/campo';
 
+// o `titulo_vencido_dias = 30` do tenant A vale só para este arquivo: o afterAll apaga (os outros arquivos contam com o padrão 5)
+const LIMPAR_VENCIDO_DIAS = "delete from plataforma.parametro where tenant_id = $1 and modulo = 'vendedor' and chave = 'titulo_vencido_dias'";
+
 const P = `T84${randomUUID().slice(0, 4).toUpperCase()}`;
 const EXT = { p1: `${P}-P1`, p2: `${P}-P2`, p3: `${P}-P3` } as const;
 const IP_A = '198.51.100.10';
@@ -135,6 +138,10 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
   beforeAll(async () => {
     process.env.MACUXI_HUB_CHAVE_PEPPER = PEPPER_HUB_FIXTURE;
     api = await subirApi();
+    // T-0184 (P1 A): o A.c1 da fixture tem título vencido há 10 dias e iria para aprovação por inadimplência (RN-VEN-13), com
+    // qualquer forma de pagamento; este arquivo não trata disso (tests/integracao/api/aprovacao-motivo-t0184.test.ts trata)
+    await api.admin.query(LIMPAR_VENCIDO_DIAS, [A.tenantId]); // sobra de uma rodada interrompida
+    await api.admin.query("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ($1, 'vendedor', 'titulo_vencido_dias', '30')", [A.tenantId]);
     if (!api.banco.urlWorker) throw new Error('banco de teste sem urlWorker (MACUXI_PG_WORKER_SENHA): o Hub precisa do despachante');
     worker = new pg.Pool({ connectionString: api.banco.urlWorker, max: 2 });
     tk.vA = (await api.sessao('vendedor@exemplo.com.br')).access_token;
@@ -157,6 +164,7 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
   }, 300_000);
 
   afterAll(async () => {
+    await api?.admin.query(LIMPAR_VENCIDO_DIAS, [A.tenantId]).catch(() => undefined);
     if (pepperAntes === undefined) delete process.env.MACUXI_HUB_CHAVE_PEPPER;
     else process.env.MACUXI_HUB_CHAVE_PEPPER = pepperAntes;
     await worker?.end().catch(() => undefined);

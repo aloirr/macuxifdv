@@ -32,3 +32,4 @@ export * from './endereco-pedido';
 export * from './filial-pedido';
 export * from './reserva-filial';
 export * from './destino-apos-salvar';
+export * from './credito-pedido';
