@@ -296,7 +296,7 @@ describe('T-0186 (Cliente 360): campos opcionais e aditivos em titulo e nota', (
     expect(SCHEMA_REGISTRO.nota.safeParse({ ...nota, nf_origem_serie: 'x'.repeat(11) }).success).toBe(false);
   });
 
-  it('RN-INT-NF-ORIGEM: NF de origem em nota que não é devolução é recusada (mesmo motivo do CHECK nota_erp_nf_origem_so_devolucao)', () => {
+  it('T-0186: NF de origem em nota que não é devolução é recusada (mesmo motivo do CHECK nota_erp_nf_origem_so_devolucao)', () => {
     const fat = { ...nota, tipo: 'faturamento' };
     expect(SCHEMA_REGISTRO.nota.safeParse(fat).success).toBe(true);
     expect(SCHEMA_REGISTRO.nota.safeParse({ ...fat, nf_origem_numero: null, nf_origem_serie: '' }).success).toBe(true);

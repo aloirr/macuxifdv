@@ -79,3 +79,4 @@
 2026-11-15 — R-20261115-174800 — kit: conversor dos CSVs 1.0.5 para o modelo com marca das referências (scripts/migrar-csv-1.0.5.ts) e regra do código da marca pelo nome (domain/marca-referencia-codigo.ts, RN-CAT-09); os CSVs da empresa não vieram no zip 1.0.5
 2026-11-19 — T-0186 — v1.0.15: forma_pagamento_codigo (nota e titulo), nf_numero/nf_serie (titulo) e nf_origem_numero/nf_origem_serie (nota) opcionais no Hub v1; OpenAPI, guia, modelos CSV e kit regerados
 2026-11-19 — T-0186 — revisão do #511: forma_pagamento em texto (até 120), colunas novas idempotentes e views/consulta do kit com os campos novos, nf_origem só na devolução (superRefine), roteiro avisa que o linha_hash muda e tudo é reenviado uma vez
+2026-11-19 — T-0186 — v1.0.15: guia sem os campos opcionais na ordem de carga (RD-2350); título do teste sem regra inventada (cita o CHECK nota_erp_nf_origem_so_devolucao)

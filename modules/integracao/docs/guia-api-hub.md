@@ -69,8 +69,8 @@ Um registro que aponta para outro (por exemplo, um cliente que cita o vendedor) 
 | `prazo_pagamento` | `forma_pagamento` (pelo `forma_external_id`) |
 | `cliente` | `vendedor`, `forma_pagamento` e `filial` (as `formas_pagamento` do cliente vão pelo **código** da forma; forma ainda não carregada não recusa a linha, mas carregue as formas antes; `filial_external_id` ausente ou `null` = filial padrão da empresa) |
 | `rota` | `vendedor` e `cliente` (inclusive o cliente de cada parada) |
-| `titulo` | `cliente` (campos opcionais `nf_numero`, `nf_serie` e `forma_pagamento`: descrição em texto como o ERP manda, até 120 caracteres, ex.: "Boleto 28 dias") |
-| `nota` | `cliente` e `vendedor` (campos opcionais `forma_pagamento` e, só na devolução, `nf_origem_numero` e `nf_origem_serie`; NF de origem em nota que não é devolução é recusada) |
+| `titulo` | `cliente` |
+| `nota` | `cliente` e `vendedor` |
 | `cliente_endereco` | `cliente` |
 | `produto_unidade` | `produto` |
 | `preco`, `estoque` | `produto` e `filial` (`filial_external_id` ausente ou `null` = filial padrão; no estoque, é a filial do depósito) |
