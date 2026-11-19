@@ -44,7 +44,6 @@ export interface AcaoDoPendente {
   rotulo: string;
   /** decisão do contrato; a rota e o corpo vêm de `ROTA_DA_DECISAO` e `corpoDaDecisao` */
   decisao: DecisaoAprovador;
-  /** RN-GES-08: devolver e rejeitar exigem motivo */
 }
 
 /**
