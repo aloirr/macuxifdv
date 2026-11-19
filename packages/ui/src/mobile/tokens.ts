@@ -12,15 +12,19 @@ import { DESTAQUE, FAIXA, FUNDOS, GRAFICO, MARCA } from '../comum/contraste';
 
 export * from '../comum/contraste';
 
+/** neutro de apoio da marca #5B6673: texto terciário (`ink3`) e opção desabilitada (`inkDisabled`), um valor só */
+const NEUTRO_APOIO = '#5B6673';
+
 export const colors = {
   /** fundo das telas: Pérola */
   ground: FUNDOS.ground,
   surface: FUNDOS.surface,
   ink: FUNDOS.ink,
   ink2: '#4A5562',
-  ink3: '#5B6673',
-  /** texto de opção desabilitada (lista suspensa, dia futuro): 3:1 no branco, sempre com outro sinal (cadeado, sem toque) */
-  inkDisabled: '#8A949C',
+  ink3: NEUTRO_APOIO,
+  /** texto de opção desabilitada (lista suspensa, dia futuro): o neutro de apoio da marca #5B6673 (MC-1503 B, R-20261118-210515;
+   * 5,84:1 no branco, 5,41:1 no Pérola), sempre com outro sinal (cadeado, sem toque) */
+  inkDisabled: NEUTRO_APOIO,
   /** neutros da marca (MC-0004 B, manual §3): linha no Azul suave, linha suave na Névoa, linha forte no #C9CED5 */
   line: MARCA.azulSuave,
   lineSoft: MARCA.nevoa,
