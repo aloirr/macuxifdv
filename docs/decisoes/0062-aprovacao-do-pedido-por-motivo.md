@@ -34,7 +34,7 @@ O evento `vendedor.pedido.aprovacao_solicitada@1` tem `motivos` como enum fechad
 5. **Rotas** (ação `pedido.aprovar`, a de hoje):
    - `rejeitar` mantém o efeito de hoje (`rejected`) e é o "Devolver ao vendedor";
    - `recusar` é nova e leva a `cancelled`;
-   - `motivo` é opcional no corpo. Sem ele, a decisão vale para todas as aprovações que o usuário pode decidir.
+   - o corpo ganha `motivo_aprovacao`, opcional. O `motivo` dos corpos de hoje continua sendo o texto livre do aprovador, que o app v1.0.13 manda. Sem `motivo_aprovacao`, a decisão vale para todas as aprovações que o usuário pode decidir.
    - RN-VEN-30 ganha a passagem de `pending_approval` para `cancelled`.
 6. **Parâmetros:** `aprovacao.credito_nivel` e `aprovacao.inadimplencia_nivel`, no módulo `vendedor`, com padrão `gerente`.
 
