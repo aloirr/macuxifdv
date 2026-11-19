@@ -28,7 +28,7 @@ O app só envia o ponto (entidade `ponto_trajeto`) e recebe a própria ausência
 ### Envio dos pontos
 O shell grava os pontos em `core__ponto_trajeto` com `enviado_em` nulo; a rotina `enfileirarPontosDoTrajeto` (export de `modules/core/app`, RN-CORE-13) os põe na fila do motor. Não é etapa de sync: a etapa só roda na carga completa e o contexto dela não tem `enfileirar` nem o SQLite.
 - O shell chama `await enfileirarPontosDoTrajeto({ db, enfileirar: motor.enfileirar, agora: () => new Date(), registrar })` antes de cada envio da fila (início do sync e no ciclo de envio), com `db` = SQLite do usuário (o mesmo do `gravarPontosDoTrajeto`).
-- Laço de 500 em 500 (`PONTOS_POR_LOTE`) por `capturado_em`: valida com `PontoTrajetoSchema`, enfileira (`ponto_trajeto`, `upsert`) e marca `enviado_em`. Ponto inválido é marcado sem enfileirar.
+- Laço de 500 em 500 (`PONTOS_POR_LEITURA`) por `capturado_em`: valida com `PontoTrajetoSchema`, enfileira (`ponto_trajeto`, `upsert`) e marca `enviado_em`. Ponto inválido é marcado sem enfileirar.
 - Idempotente: queda entre enfileirar e marcar repete o ponto; o servidor (`somente_insercao` pelo id) não duplica. Sem a tabela, não faz nada. Nunca lança; falha devolve `erro: true` e `registrar` recebe só contagens, nunca coordenada.
 - Retorno: `{ enfileirados, invalidos, erro }`.
 

@@ -5,7 +5,10 @@
  * Nenhuma coordenada vai para log nem para mensagem de erro (§9).
  */
 import type { DriverSqlite, NovoItemOutbox } from '@macuxi/platform-sdk';
-import { ENTIDADE_PONTO_TRAJETO, PONTOS_POR_LOTE, PontoTrajetoSchema } from '../../contracts';
+import { ENTIDADE_PONTO_TRAJETO, PontoTrajetoSchema } from '../../contracts';
+
+/** Pontos lidos do SQLite por vez; o SDK já corta o envio em lotes de MAX_ITENS_PUSH. */
+const PONTOS_POR_LEITURA = 500;
 
 export type BancoDoTrajeto = Pick<DriverSqlite, 'rodar' | 'todas'>;
 
@@ -50,7 +53,7 @@ export async function enfileirarPontosDoTrajeto(d: DependenciasEnvioDoTrajeto): 
   const r: ResultadoEnvioDoTrajeto = { enfileirados: 0, invalidos: 0, erro: false };
   try {
     for (;;) {
-      const lote = await d.db.todas<LinhaPonto>(LER_PENDENTES, [PONTOS_POR_LOTE]);
+      const lote = await d.db.todas<LinhaPonto>(LER_PENDENTES, [PONTOS_POR_LEITURA]);
       if (lote.length === 0) return r;
       const tratados: string[] = [];
       let falhou = false;
