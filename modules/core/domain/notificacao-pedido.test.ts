@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { entidadesDoPush, notificacaoDeMeta, notificacaoDePedido, notificacaoDeRotaDoDia } from './notificacao-pedido';
+import { entidadesDoPush, notificacoesDeAprovacaoPorNivel, notificacaoDeMeta, notificacaoDePedido, notificacaoDeRotaDoDia } from './notificacao-pedido';
 
 const ID = '0e500000-0000-4000-8000-000000000001';
 
@@ -35,5 +35,25 @@ describe('RN-CORE-23 item 3: notificação de pedido', () => {
     expect(notificacaoDeMeta({ valorAnterior: null }).link).toBe('/m/metas');
     expect(notificacaoDeMeta({ valorAnterior: 5 }).titulo).toBe('Meta atualizada');
     expect(notificacaoDeRotaDoDia().link).toBe('/m/rota');
+  });
+});
+
+describe('notificacoesDeAprovacaoPorNivel (T-0184, P3/P7, RN-VEN-10/12/13)', () => {
+  it('RN-VEN-12: uma notificação por nível, sem duplicar o nível', () => {
+    const r = notificacoesDeAprovacaoPorNivel({
+      pedidoId: ID,
+      numero: 10,
+      aprovacoes: [
+        { motivo: 'credito', nivel: 'gerente', texto: 'x' },
+        { motivo: 'inadimplencia', nivel: 'gerente', texto: 'y' },
+        { motivo: 'desconto', nivel: 'supervisor', texto: 'z' },
+      ],
+    });
+    expect(r.map((n) => n.nivel)).toEqual(['supervisor', 'gerente']);
+    expect(r[1]!.notificacao).toMatchObject({ destino: 'aprovador', titulo: 'Pedido 000010 para aprovar', corpo: 'Motivo: crédito, inadimplência', link: `/m/pedido?id=${ID}`, prioridade: 'alta' });
+    expect(r[0]!.notificacao.corpo).toBe('Motivo: desconto');
+  });
+  it('RN-VEN-12: lista vazia não notifica ninguém', () => {
+    expect(notificacoesDeAprovacaoPorNivel({ pedidoId: ID, aprovacoes: [] })).toEqual([]);
   });
 });

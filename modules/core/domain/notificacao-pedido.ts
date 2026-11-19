@@ -35,6 +35,31 @@ export function notificacaoDePedido(e: EntradaNotificacaoPedido): NotificacaoDeP
   return { destino: 'vendedor', titulo: n ? t.titulo.replace('Pedido', `Pedido ${n}`) : t.titulo, corpo, link, prioridade: t.prioridade };
 }
 
+const ORDEM_NIVEL = ['supervisor', 'gerente', 'analista'];
+const ROTULO_MOTIVO: Record<string, string> = { desconto: 'desconto', credito: 'crédito', inadimplencia: 'inadimplência', estoque: 'estoque', preco_minimo: 'preço mínimo' };
+
+/**
+ * T-0184 (P3/P7): `vendedor.pedido.aprovacao_solicitada@2` traz uma aprovação por motivo. Cada nível recebe UMA notificação,
+ * com os motivos que ele decide. Função pura sobre a lista do evento; a ligação do consumidor espera o contrato do Vendedor.
+ */
+export function notificacoesDeAprovacaoPorNivel(e: {
+  pedidoId: string;
+  numero?: number | string | null;
+  aprovacoes: ReadonlyArray<{ motivo: string; nivel: string; texto?: string }>;
+}): Array<{ nivel: string; notificacao: NotificacaoDePedido }> {
+  const porNivel = new Map<string, string[]>();
+  for (const a of e.aprovacoes) {
+    const motivos = porNivel.get(a.nivel) ?? [];
+    if (!motivos.includes(a.motivo)) motivos.push(a.motivo);
+    porNivel.set(a.nivel, motivos);
+  }
+  const base = notificacaoDePedido({ tipo: 'aprovacao_solicitada', pedidoId: e.pedidoId, numero: e.numero })!;
+  const pos = (n: string) => (ORDEM_NIVEL.includes(n) ? ORDEM_NIVEL.indexOf(n) : ORDEM_NIVEL.length);
+  return [...porNivel.entries()]
+    .sort(([a], [b]) => pos(a) - pos(b))
+    .map(([nivel, motivos]) => ({ nivel, notificacao: { ...base, corpo: 'Motivo: ' + motivos.map((m) => ROTULO_MOTIVO[m] ?? m).join(', ') } }));
+}
+
 /** Rotas internas do app que identificam notificações de sistema com entidades próprias. */
 export const LINK_METAS = '/m/metas';
 export const LINK_ROTA = '/m/rota';
