@@ -267,9 +267,10 @@ describe('T-0147 critério 4/5 — quem abre o quê (RN-CORE-38)', () => {
     const bko = ler('modules/core/web/components/fotos-pdv/fotos-pdv-page.tsx');
     // #457: o painel de Parâmetros saiu sem a frase de funcionamento (R-20261110-192153); a RN-CORE-38 fica no domain (caso D-1)
     expect(bko).not.toMatch(/vendedor (vê|abre|não reabre)/i);
-    const ficha = ler('modules/core/app/components/cliente360.tsx');
-    expect(ficha).not.toMatch(/i\.sensivel \? <Icon name="lock"/);
-    expect(ficha).toContain('fotoPdvTrancada(i) ? <Icon name="lock"');
+    // T-0186: as Fotos do PDV ficam na aba Documentação; o cadeado é a célula "Abrir" desligada
+    const ficha = ler('modules/core/app/components/aba-documentacao.tsx');
+    expect(ficha).not.toMatch(/i\.sensivel \?/);
+    expect(ficha).toMatch(/tem && !i\.fachada && fotoPdvTrancada\(i\) \? \(\s*<BotaoCelula key="a" icone="lock" rotulo=\{`\$\{i\.nome\}: sem permissão para abrir`\} desligado \/>/);
     // RN-CORE-38 (Core 10/11, imagem aprovada): o cadeado só existe onde HÁ foto que o perfil não abre; sem foto é "Falta" + "Adicionar", sem cadeado
     for (const t of [FACHADA, CNH, CONTRATO, INTERIOR]) {
       expect(fotoPdvTrancada({ ...t, situacao: 'tem' }), `${t.nome} tem`).toBe(!t.fachada);

@@ -971,30 +971,21 @@ describe('T-0077 critério 4 — promotor lê os pedidos da carteira no Cliente 
   it('o app encadeia assim (fonte): parâmetro sincronizado + perfil → verPedidos → ficha; abas/ações de pedido filtradas; seção de compras só com pedidos_visiveis', () => {
     const hook = ler('modules/core/app/lib/usar-clientes-locais.ts');
     expect(hook).toMatch(/motor\.linhas<ParametroSync & LinhaSync>\('parametro'\)/);
-    expect(hook).toMatch(/const verPedidos = pedidosVisiveisNoAparelho\(motor\.ambiente\.usuario\(\)\?\.perfil, parametros\);/);
+    expect(hook).toContain("const perfil = motor.ambiente.usuario()?.perfil ?? 'vendedor';");
+    expect(hook).toContain('const verPedidos = pedidosVisiveisNoAparelho(perfil, parametros);');
     expect(hook).toMatch(/\{ verPedidos: dados\.verPedidos \}/);
     const tela = ler('modules/core/app/telas/cliente.tsx');
     expect(tela).toMatch(/const abas = filtrarExtensoesDePedido\(abasTodas, locais\.verPedidos\);/);
     expect(tela).toMatch(/const acoes = filtrarExtensoesDePedido\(acoesTodas, locais\.verPedidos\);/);
     expect(tela).toMatch(/const ficha = montarFichaLocal\(locais, id, hoje\);/);
-    // T-0146/T-0147 (RN-CORE-40): o histórico também some com "Sem compras em 12 meses"; a linha de "sem compras" e a
-    // grade de compras continuam presas a pedidos_visiveis, e os cartões que a tela monta (Compra média, Última compra) a verPedidos.
-    const secoes = ler('modules/core/app/components/cliente360.tsx');
-    if (secoes.includes('export function AbaCompras')) {
-      // ficha do #217 (abas, 14/11): o histórico, a grade de compras e o "sem compras" ficam em peças que somem sem pedidos_visiveis;
-      // o cartão de Última compra que a tela monta (sem ficha) continua preso a verPedidos
-      for (const peca of ['IndicadoresResumo', 'AbaCompras']) {
-        expect(secoes, peca).toMatch(new RegExp(`export function ${peca}\\([^)]*\\) \\{\\s*if \\(!ficha\\.pedidos_visiveis\\) return null;`));
-      }
-      expect(secoes).toMatch(/export function AbaCompras[\s\S]*?if \(resumoSemCompras\(compras\)\)[\s\S]*?label="Ticket médio"[\s\S]*?testID="cliente-historico"/);
-      expect(tela).toMatch(/\{locais\.verPedidos \? \(\s*<View[^>]*>\s*<Stat[\s\S]{0,40}label="Última compra"/);
-    } else {
-      expect(secoes).toMatch(/\{ficha\.pedidos_visiveis(?: && !semCompras)? \? \(\s*<View[^>]*testID="cliente-historico"/);
-      expect(secoes).toMatch(/const semCompras = ficha\.pedidos_visiveis && resumoSemCompras\(compras\);/);
-      expect(secoes).toMatch(/\{ficha\.pedidos_visiveis \? \(\s*<>[\s\S]*?label="Ticket médio"/);
-      expect(tela).toMatch(/\{locais\.verPedidos \? <Stat label="Compra média\/mês"/);
-      expect(tela).toMatch(/\{locais\.verPedidos \? \(\s*<Stat[\s\S]{0,40}label="Última compra"/);
-    }
+    // T-0186 (P12): curvas, compras, cartão de crédito e últimos itens presos a pedidos_visiveis; a aba Histórico a verPedidos
+    expect(tela).toMatch(/const curvas = ficha && ficha\.pedidos_visiveis \? curvasAbcDoCliente\(/);
+    expect(tela).toContain('comAcessoACompras: ficha.pedidos_visiveis');
+    expect(tela).toMatch(/const cartao = ficha && ficha\.pedidos_visiveis && fin/);
+    expect(tela).toMatch(/const itensComprados: ItemCompradoLinha\[\] = ficha && ficha\.pedidos_visiveis/);
+    expect(tela).toContain('const itensAbas = abasDoApp(locais.perfil, locais.verPedidos);');
+    // a API revalida (P12): o Histórico online pede promotor_ve_pedidos
+    expect(ler('modules/core/api/cliente360-v2.ts')).toContain("abasDaFicha(ctx.usuario.perfil, ctx.usuario.perfil !== 'promotor' || (await lerPromotorVePedidos(db))).includes('historico')");
   });
 
   it('LIGADA (padrão de fábrica, sem registro): o promotor lê no Cliente 360 os pedidos/mês, os valores e a última compra — offline', async () => {
