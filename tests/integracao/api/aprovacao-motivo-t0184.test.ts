@@ -18,7 +18,7 @@
  * `{ motivo: <texto do aprovador>, motivo_aprovacao? }`), o mesmo das rotas de sempre (demo-matriz D-G04, pedido-fatia 9).
  * O #493 implementou `{ texto, motivo?: <motivo da aprovação> }` (e o Gestor do #497 chama assim): defeito em recado ao
  * modulo-vendedor e ao modulo-gestor. O corpo está só em `corpoDa()`.
- * Convenção: `it` = critério do desenho (vermelho = defeito em recado ao dono); `it.todo` = parte que o código ainda não tem.
+ * Convenção: `it` = critério do desenho (vermelho = defeito em recado ao dono).
  */
 import { comTenant, PAGAMENTO_FIXTURE } from '@macuxi/db/teste';
 import { semBanco } from '@macuxi/db/teste/estado';
@@ -373,9 +373,35 @@ describe.skipIf(semBanco())('T-0184 — aprovação do pedido por motivo: crédi
       expect(st.at(-1)).toMatchObject({ de: 'em_aprovacao', para: 'rejeitado', motivo: 'Ajuste o desconto para 5%' });
     });
 
-    // desenho §2: "O reenvio pelo vendedor abre um ciclo novo e o servidor recalcula todos os motivos". O `receber.ts` do
-    // modulo-vendedor grava sempre o ciclo 1 e o mesmo id com outro conteúdo cai em `conflito` (RN-VEN-33): o reenvio não existe.
-    it.todo('M8. reenviar o pedido devolvido abre o ciclo 2 (aprovacao_ciclo = 2), recalcula os motivos e o detalhe mostra só as aprovações do ciclo 2');
+    it('M8. reenviar o devolvido corrigido (sem o desconto) abre o ciclo 2: o servidor recalcula os motivos (só a inadimplência), o ciclo 1 fica como histórico e o detalhe mostra só o ciclo 2; o mesmo reenvio de novo é idempotente', async () => {
+      const antes = (await q<{ numero: string }>('select numero from vendedor.pedido where id = $1', [PED.devolver]))[0]!.numero;
+      await parametro(A.tenantId, 'titulo_vencido_dias', null); // atraso 10 > 5: a inadimplência continua
+      try {
+        const reenvio = pedidoA(PED.devolver, 'prazo', 0);
+        aceito((await push(tk.vendedor, [reenvio]))[0], PED.devolver);
+        expect(await pedido(PED.devolver)).toMatchObject({ status: 'pending_approval', nivel_aprovacao: 'analista', motivos_aprovacao: ['inadimplencia'], aprovacao_ciclo: 2 });
+        expect((await q<{ numero: string }>('select numero from vendedor.pedido where id = $1', [PED.devolver]))[0]!.numero, 'o número não muda no reenvio').toBe(antes);
+        const todas = await aprovacoes(PED.devolver);
+        expect(todas.map((a) => `${a.ciclo}:${a.motivo}:${a.estado}`)).toEqual(['1:desconto:devolvida', '1:credito:encerrada', '1:inadimplencia:encerrada', '2:inadimplencia:pendente']);
+        const d = await api.chamar(tk.vendedor, { method: 'GET', url: `/v1/vendedor/pedidos/${PED.devolver}` });
+        expect(d.statusCode, d.body).toBe(200);
+        expect((d.json() as { aprovacoes?: Linha[] }).aprovacoes?.map((a) => `${String(a.motivo)}:${String(a.estado)}`)).toEqual(['inadimplencia:pendente']);
+        expect(await eventos(PED.devolver, 'vendedor.pedido.aprovacao_solicitada@2')).toHaveLength(2);
+        // o mesmo reenvio de novo (timeout do aparelho): aceito, sem ciclo 3 nem evento novo
+        aceito((await push(tk.vendedor, [reenvio]))[0], PED.devolver);
+        expect((await pedido(PED.devolver))!.aprovacao_ciclo).toBe(2);
+        expect(await aprovacoes(PED.devolver)).toHaveLength(4);
+        expect(await eventos(PED.devolver, 'vendedor.pedido.aprovacao_solicitada@2')).toHaveLength(2);
+        // a decisão vale para o ciclo 2
+        const r = await decidir(tk.analista, PED.devolver, 'aprovar', undefined, 'inadimplencia');
+        expect(r.statusCode, r.body).toBe(200);
+        expect(r.json()).toMatchObject({ status: 'approved' });
+        const dec = (await eventos(PED.devolver, 'vendedor.pedido.aprovacao_decidida@1')).map((e) => e.payload).at(-1);
+        expect(dec).toMatchObject({ motivo: 'inadimplencia', decisao: 'aprovada', ciclo: 2 });
+      } finally {
+        await parametro(A.tenantId, 'titulo_vencido_dias', '30');
+      }
+    });
   });
 
   // ------------------------------------------------------------------------------------------------ Core: aviso ao aprovador
