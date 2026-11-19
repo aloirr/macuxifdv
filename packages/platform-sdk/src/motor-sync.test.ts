@@ -65,7 +65,7 @@ describe.each(FABRICAS_ARMAZENAMENTO)('motor de sync do aparelho [%s]', (_nome, 
       agora: () => AGORA,
       ...opcoes,
     });
-    return { motor, servidor, armazenamento };
+    return { motor, servidor, armazenamento, registro };
   }
 
   const pedido = (n: number, total = 1000) => ({
@@ -307,6 +307,30 @@ describe.each(FABRICAS_ARMAZENAMENTO)('motor de sync do aparelho [%s]', (_nome, 
     await motor.enviar();
     expect(motor.estado().fila).toEqual([]);
     expect([...servidor.recebidos.keys()]).toEqual([uuid(2), uuid(1)]);
+  });
+
+  it('CODIGOS_RETENTAVEIS: push rejeitado com SEM_RESULTADO fica pendente e vai sozinho no envio seguinte', async () => {
+    const { servidor, registro } = montar();
+    let semResultado = true;
+    const motor = criarMotorSync({
+      registro,
+      armazenamento: fabrica(),
+      transporte: {
+        ...servidor,
+        push: async (itens) =>
+          semResultado
+            ? itens.map((i) => ({ id: i.id, status: 'rejeitado' as const, codigo: 'SEM_RESULTADO', mensagem: 'sem resposta' }))
+            : servidor.push(itens),
+      },
+      agora: () => AGORA,
+    });
+    await motor.enfileirar(pedido(1));
+    await motor.enviar();
+    expect(motor.estado().fila).toMatchObject([{ id: uuid(1), situacao: 'pendente', codigo: 'SEM_RESULTADO', tentativas: 1 }]);
+    semResultado = false;
+    await motor.enviar();
+    expect(motor.estado().fila).toEqual([]);
+    expect([...servidor.recebidos.keys()]).toEqual([uuid(1)]);
   });
 
   it('ADR 0009 §3: o pull nunca mexe na fila; pendentes(entidade) devolve o que ainda não foi aceito, na ordem', async () => {

@@ -81,6 +81,7 @@ import {
   ehSyncNaoImplementado,
   hojeParaPoda,
   MAX_ITENS_PUSH,
+  MODULO_INATIVO,
   SYNC_NAO_IMPLEMENTADO,
 } from './sync';
 
@@ -1134,7 +1135,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
                 aceito_em: agora().toISOString(),
                 aceito_servidor_em: r.em ?? null,
               });
-            } else if (r.status === 'rejeitado' && CODIGOS_RETENTAVEIS.includes(r.codigo)) {
+            } else if (r.status === 'rejeitado' && r.codigo !== MODULO_INATIVO && CODIGOS_RETENTAVEIS.includes(r.codigo)) {
               // ADR 0009 §7: o servidor ainda não recebe a entidade — o item não tem culpa, continua na fila
               fila.push({
                 ...it,
@@ -1145,7 +1146,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
                 codigo: r.codigo,
               });
             } else if (r.status === 'rejeitado') {
-              const situacao: SituacaoItemOutbox = r.codigo === 'MODULO_INATIVO' ? 'modulo_inativo' : 'falhou';
+              const situacao: SituacaoItemOutbox = r.codigo === MODULO_INATIVO ? 'modulo_inativo' : 'falhou';
               fila.push({
                 ...it,
                 tentativas: it.tentativas + 1,
