@@ -328,8 +328,17 @@ CREATE TABLE dbo.tha_titulo (
     parcela INT NULL,
     emissao DATE NULL,
     baixado_em DATETIME2(3) NULL,
+    nf_numero NVARCHAR(40) NULL,
+    nf_serie NVARCHAR(10) NULL,
+    forma_pagamento NVARCHAR(120) NULL,
     linha_hash CHAR(64) NULL,
     CONSTRAINT pk_tha_titulo PRIMARY KEY (external_id));
+GO
+IF COL_LENGTH('dbo.tha_titulo', 'nf_numero') IS NULL ALTER TABLE dbo.tha_titulo ADD nf_numero NVARCHAR(40) NULL;
+GO
+IF COL_LENGTH('dbo.tha_titulo', 'nf_serie') IS NULL ALTER TABLE dbo.tha_titulo ADD nf_serie NVARCHAR(10) NULL;
+GO
+IF COL_LENGTH('dbo.tha_titulo', 'forma_pagamento') IS NULL ALTER TABLE dbo.tha_titulo ADD forma_pagamento NVARCHAR(120) NULL;
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_tha_titulo_alterado' AND object_id = OBJECT_ID('dbo.tha_titulo'))
 CREATE INDEX ix_tha_titulo_alterado ON dbo.tha_titulo (alterado_em, external_id);
@@ -349,8 +358,17 @@ CREATE TABLE dbo.tha_nota (
     quantidade_itens INT NULL,
     pedido_uuid NVARCHAR(200) NULL,
     cancelada TINYINT NULL,
+    forma_pagamento NVARCHAR(120) NULL,
+    nf_origem_numero NVARCHAR(40) NULL,
+    nf_origem_serie NVARCHAR(10) NULL,
     linha_hash CHAR(64) NULL,
     CONSTRAINT pk_tha_nota PRIMARY KEY (external_id));
+GO
+IF COL_LENGTH('dbo.tha_nota', 'forma_pagamento') IS NULL ALTER TABLE dbo.tha_nota ADD forma_pagamento NVARCHAR(120) NULL;
+GO
+IF COL_LENGTH('dbo.tha_nota', 'nf_origem_numero') IS NULL ALTER TABLE dbo.tha_nota ADD nf_origem_numero NVARCHAR(40) NULL;
+GO
+IF COL_LENGTH('dbo.tha_nota', 'nf_origem_serie') IS NULL ALTER TABLE dbo.tha_nota ADD nf_origem_serie NVARCHAR(10) NULL;
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_tha_nota_alterado' AND object_id = OBJECT_ID('dbo.tha_nota'))
 CREATE INDEX ix_tha_nota_alterado ON dbo.tha_nota (alterado_em, external_id);
@@ -413,11 +431,11 @@ SELECT external_id, alterado_em, ativo, nome, vendedor_external_id, dia_semana, 
 FROM dbo.tha_rota;
 GO
 CREATE OR ALTER VIEW dbo.vw_macuxi_titulo AS
-SELECT external_id, alterado_em, ativo, cliente_external_id, numero, parcela, CONVERT(CHAR(10), emissao, 23) AS emissao, CONVERT(CHAR(10), vencimento, 23) AS vencimento, valor_cents, saldo_cents, situacao, baixado_em
+SELECT external_id, alterado_em, ativo, cliente_external_id, numero, parcela, CONVERT(CHAR(10), emissao, 23) AS emissao, CONVERT(CHAR(10), vencimento, 23) AS vencimento, valor_cents, saldo_cents, situacao, baixado_em, nf_numero, nf_serie, forma_pagamento
 FROM dbo.tha_titulo;
 GO
 CREATE OR ALTER VIEW dbo.vw_macuxi_nota AS
-SELECT external_id, alterado_em, ativo, cliente_external_id, vendedor_external_id, tipo, numero, serie, emitida_em, total_cents, quantidade_itens, pedido_uuid, cancelada
+SELECT external_id, alterado_em, ativo, cliente_external_id, vendedor_external_id, tipo, numero, serie, emitida_em, total_cents, quantidade_itens, pedido_uuid, cancelada, forma_pagamento, nf_origem_numero, nf_origem_serie
 FROM dbo.tha_nota;
 GO
 -- ----- entrada de pedidos (Macuxi -> ERP): db/conector/entrada-pedido-modelo.sql -----

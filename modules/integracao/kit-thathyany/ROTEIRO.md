@@ -69,6 +69,9 @@ Para voltar à fase 1: peça ao gerente-projetos para reativar o `thathyany-cone
 Os preços do pedido já chegam **ajustados** pelo "% Acres.Fin." do prazo (à vista = -1,71). O ERP deve gravar os preços como vêm e **não reaplicar** o "% Acres.Fin.": o percentual vai na coluna `pagamento_percentual_ajuste` só como informação. Confira o total do ERP com o total do app no primeiro pedido; se for diferente, o ERP está aplicando o percentual duas vezes.
 No `prazo_pagamento.csv`, a coluna `percentual_ajuste` leva o "% Acres.Fin." (ponto decimal, de -99.99 a 99.99; vazio = 0).
 
+## Atenção: atualização do kit com banco já instalado
+Rode `criar-banco.sql` de novo: ele acrescenta as colunas novas (`nf_numero`, `nf_serie` e `forma_pagamento` no título; `forma_pagamento`, `nf_origem_numero` e `nf_origem_serie` na nota) sem apagar nada. Depois rode `py carga_csv.py --pasta csv` com os CSVs novos. Os campos novos entram no cálculo do `linha_hash`, então o `linha_hash` muda e **todo título e toda nota são reenviados uma vez** depois da atualização; é esperado e não duplica nada. `forma_pagamento` é o texto do ERP (ex.: "Boleto 28 dias", até 120 caracteres) e `nf_origem_numero`/`nf_origem_serie` só valem em nota de devolução.
+
 ## Se der errado
 - **O serviço do Conector não inicia** (ou você trocou a senha do Windows): rode a fase 1 de novo e digite a senha atual.
 - **Chave errada ou trocada no portal:** rode a fase de novo com `-TrocarChave`.
