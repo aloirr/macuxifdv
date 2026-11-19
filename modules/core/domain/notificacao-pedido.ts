@@ -61,12 +61,13 @@ export function notificacoesDeAprovacaoPorAprovador(e: {
   ordemNiveis: readonly string[];
   rotuloMotivo: Readonly<Record<string, string>>;
 }): Array<{ usuarioId: string; notificacao: NotificacaoDePedido }> {
+  const acima = e.acima.filter((u) => u.id !== e.vendedorId);
+  const alcada = e.alcada.filter((u) => u.id !== e.vendedorId);
   const niveis = e.ordemNiveis.filter((n) => e.aprovacoes.some((a) => a.nivel === n));
   const destinatarios = new Map<string, { perfil: string; niveis: Set<string> }>();
   for (const nivel of niveis) {
-    const doNivel = nivel === 'analista' ? e.alcada.filter((u) => u.perfil === 'analista') : e.acima.filter((u) => u.perfil === nivel);
-    for (const u of doNivel.length > 0 ? doNivel : e.alcada) {
-      if (u.id === e.vendedorId) continue;
+    const doNivel = nivel === 'analista' ? alcada.filter((u) => u.perfil === 'analista') : acima.filter((u) => u.perfil === nivel);
+    for (const u of doNivel.length > 0 ? doNivel : alcada) {
       const d = destinatarios.get(u.id) ?? { perfil: u.perfil, niveis: new Set<string>() };
       d.niveis.add(nivel);
       destinatarios.set(u.id, d);
