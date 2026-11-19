@@ -88,12 +88,11 @@ export function leituraDoRotuloValor(rotulo: string, valor: string | null | unde
 export type TomDoValor = 'erro' | 'sucesso';
 
 /**
- * Cor do valor da `TabelaRotuloValor`: o tom pedido vence (`perigo` = `erro`); sem tom, o vazio ou "—" é `semDado` (`ink3`);
+ * Cor do valor da `TabelaRotuloValor`: o tom pedido vence; sem tom, o vazio ou "—" é `semDado` (`ink3`);
  * o resto, `normal` (`ink`).
  */
-export function aparenciaDoValor(valor: string | null | undefined, tom?: TomDoValor, perigo?: boolean): TomDoValor | 'semDado' | 'normal' {
+export function aparenciaDoValor(valor: string | null | undefined, tom?: TomDoValor): TomDoValor | 'semDado' | 'normal' {
   if (tom) return tom;
-  if (perigo) return 'erro';
   return ehSemDado(valor) ? 'semDado' : 'normal';
 }
 

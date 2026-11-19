@@ -13,7 +13,7 @@ import { ActivityIndicator, StyleSheet, Text, View, type StyleProp, type ViewSty
 
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
-import { ALTURA, BOTAO_DESABILITADO, colors, fonte, radius, TONS_ESTADO, type as t, type TomEstado } from './theme';
+import { ALTURA, BOTAO_DESABILITADO, colors, fonte, radius, TONS_ESTADO, type TomEstado } from './theme';
 
 // ---------- RodapeTotal ----------
 export function RodapeTotal({
@@ -96,56 +96,6 @@ export function LinhaValor({
       <Text style={[s.linhaValor, (forte || destaque) && s.linhaValorForte, destaque && s.linhaValorDestaque, { color: cor }]} numberOfLines={1} testID={testID ? `${testID}-valor` : undefined}>
         {valor}
       </Text>
-    </View>
-  );
-}
-
-// ---------- LinhaResumo ----------
-/**
- * Linha do Resumo (T-0133, RF-VEN-11): rótulo curto em maiúsculas numa coluna fixa à esquerda (VENDA, ITENS, ENTREGA, OBS.)
- * e o conteúdo à direita, quebrando em quantas linhas precisar; `alerta` é uma linha extra no tom de aviso ou erro
- * ("Vai para aprovação (título vencido)"). Só leitura.
- */
-export function LinhaResumo({
-  rotulo,
-  texto,
-  linhas,
-  alerta,
-  marca,
-  testID,
-}: {
-  /** "Venda", "Itens", "Entrega", "Obs." (mostrado em maiúsculas). */
-  rotulo: string;
-  /** Conteúdo numa linha lógica ("Boleto · 28/56 dias"); vazio = "—" passado pelo módulo. */
-  texto?: string;
-  /** Várias linhas rótulo ··· valor (itens compactos). */
-  linhas?: ReadonlyArray<{ id: string; rotulo: string; valor: string }>;
-  alerta?: { tom: 'aviso' | 'erro'; texto: string } | null;
-  /** 2ª linha curta em `accentInk` 12/600, sem ícone, abaixo do texto (T-0141: "Editado neste pedido" na linha ENTREGA). */
-  marca?: string | null;
-  testID?: string;
-}) {
-  const corAlerta = alerta?.tom === 'erro' ? colors.danger : colors.warningInk;
-  return (
-    <View style={s.resumo} testID={testID}>
-      <Text style={s.resumoRotulo} numberOfLines={1}>
-        {rotulo}
-      </Text>
-      <View style={s.resumoConteudo}>
-        {texto ? <Text style={s.resumoTexto}>{texto}</Text> : null}
-        {marca ? (
-          <Text style={s.resumoMarca} testID={testID ? `${testID}-marca` : undefined}>
-            {marca}
-          </Text>
-        ) : null}
-        {linhas?.map((l) => <LinhaValor key={l.id} rotulo={l.rotulo} valor={l.valor} testID={testID ? `${testID}-${l.id}` : undefined} />)}
-        {alerta ? (
-          <View style={s.resumoAlerta} accessibilityRole={alerta.tom === 'erro' ? 'alert' : 'text'}>
-            <Icon name="alert" size={14} color={corAlerta} strokeWidth={2.4} />
-            <Text style={[s.resumoAlertaTexto, { color: corAlerta }]}>{alerta.texto}</Text>
-          </View>
-        ) : null}
-      </View>
     </View>
   );
 }
@@ -283,13 +233,6 @@ const s = StyleSheet.create({
   linhaValorForte: { ...fonte.semibold },
   linhaValorDestaque: { ...fonte.semibold, fontSize: 18 },
   // linha do Resumo: coluna do rótulo de 64 dp (cabe "ENTREGA" no `type.rotulo`)
-  resumo: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
-  resumoRotulo: { ...t.rotulo, width: 64, paddingTop: 2 },
-  resumoConteudo: { flex: 1, minWidth: 0, gap: 2 },
-  resumoMarca: { ...fonte.semibold, fontSize: 12, color: colors.accentInk },
-  resumoTexto: { ...fonte.body, fontSize: 14, lineHeight: 20, color: colors.ink },
-  resumoAlerta: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, paddingTop: 1 },
-  resumoAlertaTexto: { flex: 1, ...fonte.semibold, fontSize: 14, lineHeight: 18 },
   // card dos totais
   bloco: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, paddingVertical: 11, paddingHorizontal: 12 },
   blocoExtra: { marginTop: 7 },
