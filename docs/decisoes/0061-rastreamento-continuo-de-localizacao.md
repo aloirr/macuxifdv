@@ -27,8 +27,7 @@
 3. **Captura no Android** por `expo-location` com serviço em primeiro plano e notificação fixa "Macuxi Campo ativo", sem citar localização, no canal `macuxi-servico`
    (frequência em "Decisões técnicas"); a tarefa `macuxi-trajeto` só grava no SQLite, sem rede e sem derrubar o processo.
    Liga ao abrir, ao voltar ao primeiro plano e na `macuxi-sync-delta` (ADR 0017); desliga sozinha quando o portão fecha.
-4. **Envio pelo motor de sync** como entidade só de envio (`ponto_trajeto`), em lotes, idempotente pelo UUID do aparelho. O app
-   não mostra nada do trajeto (decisão 6).
+4. **Envio pelo motor de sync** como entidade só de envio (`ponto_trajeto`), em lotes, idempotente pelo UUID do aparelho.
 5. **Resumo diário** recalculado do dia inteiro a cada push em `core.deslocamento_dia` (upsert idempotente). No fim do prazo
    (`docs/desenho/T-0156-legal-finalidade.md` §5), os pontos saem por `delete` físico num expurgo diário (exceção consciente ao
    `deleted_at`: a eliminação é obrigação da LGPD).
