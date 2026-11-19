@@ -11,9 +11,6 @@ import type { AprovacaoNova, NivelAprovacao } from './aprovacao';
 
 export type MotivoFinanceiro = 'credito' | 'inadimplencia';
 
-/** RN-VEN-12: status do pedido do cliente que ainda pesa no crédito (aprovado e ainda não faturado); `integrated` o ERP já descontou quando mandou o disponível. */
-export const STATUS_QUE_PESAM_NO_CREDITO: ReadonlySet<string> = new Set(['approved', 'sent_to_erp', 'integrated']);
-
 /** O ERP informou limite ou disponível para o cliente (P4 A: sem isso, a prazo, o pedido vai para aprovação). */
 export const limiteInformadoPeloErp = (f: { limite_cents: number; credito_disponivel_erp_cents: number | null }): boolean => f.limite_cents > 0 || f.credito_disponivel_erp_cents != null;
 

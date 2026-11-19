@@ -18,6 +18,7 @@ import {
   RotuloSecao,
   Segmentado,
   Selo,
+  TabelaRotuloValor,
   TabelaValores,
   textoAtualizacao,
   textosLeveMais,
@@ -39,7 +40,7 @@ import { ROTULO_CREDITO, tabelaDoCredito, TEXTO_ENDERECO_DO_CADASTRO } from '../
 import { dividirPagamentoPrazo, itensDoResumoEmTabela, textoDoFrete } from '../lib/resumo-tabela';
 import { linhasDosTotais } from '../lib/detalhe-pedido';
 import { CampoTransportadora } from './campo-transportadora';
-import { CartaoDeTotais, TabelaDeItens, TabelaRotuloValor } from './tabelas-pedido';
+import { CartaoDeTotais, TabelaDeItens } from './tabelas-pedido';
 import { rascunhoComEnderecoEditado, rascunhoComEnderecoEscolhido, enderecoDoRascunho, TEXTOS_ENDERECO } from '../lib/endereco-pedido';
 import { CartaoEndereco, FolhaEnderecos, FormularioEndereco } from './endereco-pedido';
 
@@ -157,7 +158,7 @@ export function AbaVenda({
       {clienteLinhas.length > 0 ? (
         <View style={{ gap: 8 }} testID="venda-cliente">
           <RotuloSecao texto="Cliente" />
-          <TabelaRotuloValor testID="venda-cliente-tabela" linhas={clienteLinhas} />
+          <TabelaRotuloValor larguraRotulo={92} alinharValor="esq" testID="venda-cliente-tabela" linhas={clienteLinhas} />
         </View>
       ) : null}
       {pagamento}
@@ -441,11 +442,11 @@ export function AbaResumo({
     <View style={{ gap: 12 }} testID="aba-resumo-conteudo">
       <View style={{ gap: 6 }} testID="resumo-pedido">
         <RotuloSecao texto="Cliente" />
-        <TabelaRotuloValor testID="resumo-cliente" linhas={[{ rotulo: 'Razão social', valor: clienteRazao }, { rotulo: 'CNPJ', valor: clienteCnpj || VALOR_SEM_DADO }]} />
+        <TabelaRotuloValor larguraRotulo={92} alinharValor="esq" testID="resumo-cliente" linhas={[{ rotulo: 'Razão social', valor: clienteRazao }, { rotulo: 'CNPJ', valor: clienteCnpj || VALOR_SEM_DADO }]} />
       </View>
       <View style={{ gap: 6 }}>
         <RotuloSecao texto="Condição de pagamento" />
-        <TabelaRotuloValor testID="resumo-venda" linhas={[{ rotulo: 'Forma', valor: pagamentoEPrazo.pagamento }, { rotulo: 'Prazo', valor: pagamentoEPrazo.prazo }]} />
+        <TabelaRotuloValor larguraRotulo={92} alinharValor="esq" testID="resumo-venda" linhas={[{ rotulo: 'Forma', valor: pagamentoEPrazo.pagamento }, { rotulo: 'Prazo', valor: pagamentoEPrazo.prazo }]} />
       </View>
       <View style={{ gap: 6 }} testID="resumo-itens">
         <RotuloSecao texto="Itens" />
@@ -457,7 +458,7 @@ export function AbaResumo({
       </View>
       <View style={{ gap: 6 }}>
         <RotuloSecao texto="Entrega" />
-        <TabelaRotuloValor testID="resumo-entrega" linhas={linhasEntrega} />
+        <TabelaRotuloValor larguraRotulo={92} alinharValor="esq" testID="resumo-entrega" linhas={linhasEntrega} />
       </View>
       <View style={{ gap: 6 }} testID="resumo-obs">
         <RotuloSecao texto="Observação do pedido" />

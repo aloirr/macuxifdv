@@ -4,7 +4,7 @@
  * disponível (contracts `creditoDisponivel`) e o alerta de título vencido. Sem a linha "Após este pedido" (decisão de 06/11).
  */
 import { creditoDisponivel } from '../../contracts/credito-disponivel';
-import { limiteInformadoPeloErp, STATUS_QUE_PESAM_NO_CREDITO } from '../../domain/credito-pedido';
+import { limiteInformadoPeloErp } from '../../domain/credito-pedido';
 
 /** Subconjunto estrutural de `FinanceiroClienteSaida['financeiro']` (o Vendedor não importa o domain do Core). */
 export interface FinanceiroDaConsulta {
@@ -40,7 +40,7 @@ export function modeloDoCredito(f: FinanceiroDaConsulta | null, pedidos: readonl
   if (!f) return { tipo: 'vazio' };
   const c = creditoDisponivel({
     financeiro: f,
-    pedidos_aprovados: pedidos.filter((p) => STATUS_QUE_PESAM_NO_CREDITO.has(p.status)).map((p) => ({ total_cents: p.total_cents, integrado: p.status === 'integrated' })),
+    pedidos,
   });
   return {
     tipo: 'dados',

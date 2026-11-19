@@ -2,7 +2,6 @@
  * Forma de pagamento e prazo do pedido (T-0089; RN-VEN-24 e RN-VEN-25), título vencido (RN-VEN-13) e crédito do cliente
  * (RN-VEN-12). Funções puras: o app e a API usam as mesmas, e a API sempre revalida.
  */
-import { creditoDisponivel, type CreditoDisponivel, type FinanceiroParaCreditoDisponivel, type PedidoQuePesaNoCredito } from '../contracts/credito-disponivel';
 
 export interface FormaDePagamento {
   id: string;
@@ -146,7 +145,3 @@ export interface PagamentoEvento {
   parcelas_dias: number[];
   prazo_medio_dias: number;
 }
-
-/** RN-VEN-12: atalho de compatibilidade; a regra mora em `contracts/credito-disponivel.ts` (`creditoDisponivel`), um lugar só. */
-export const creditoDoCartao = (f: FinanceiroParaCreditoDisponivel, pedidosAprovados: readonly PedidoQuePesaNoCredito[]): CreditoDisponivel =>
-  creditoDisponivel({ financeiro: f, pedidos_aprovados: pedidosAprovados });

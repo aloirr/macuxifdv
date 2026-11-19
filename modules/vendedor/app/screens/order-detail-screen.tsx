@@ -26,6 +26,7 @@ import {
   OpcaoFolha,
   RodapeAcoes,
   RotuloSecao,
+  TabelaRotuloValor,
   TabelaValores,
   quandoCurto,
   tagsDoHistorico,
@@ -48,7 +49,7 @@ import { textoItemFaturado } from '../../domain/retorno-erp';
 import { vendedorDoPdf } from '../../domain/pedido-em-nome';
 import { AreaAlertas } from '../components/area-alertas';
 import { AvisoRapido, useAviso } from '../components/aviso';
-import { CartaoDeTotais, TabelaDeItens, TabelaRotuloValor } from '../components/tabelas-pedido';
+import { CartaoDeTotais, TabelaDeItens } from '../components/tabelas-pedido';
 import { pegarAvisoPendente } from '../lib/aviso-pendente';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
 import { estadoDasAcoes, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
@@ -593,7 +594,7 @@ export default function OrderDetailScreen() {
 
         {/* RN-VEN-42: área Alertas logo abaixo do cliente; sem selo de situação (a situação é a última etapa do Histórico) */}
         <AreaAlertas alertas={alertasDaTela} aoTocar={ehOrc && acoesOrc?.pode_editar ? () => void startDraft('edit') : undefined} />
-        <TabelaRotuloValor linhas={tabelaGestao} testID="detalhe-pagamento-entrega" />
+        <TabelaRotuloValor larguraRotulo={92} alinharValor="esq" linhas={tabelaGestao} testID="detalhe-pagamento-entrega" />
 
 
         {/* 2. itens em tabela (RN-VEN-42: "ITENS (n)" com a contagem, não há aba) */}
