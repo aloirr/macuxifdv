@@ -4,12 +4,8 @@
  * RN-CORE-13: sem pontos (tracking desligado de fábrica, sem termo ou fora do expediente) o resultado é `vazio`.
  * A coordenada nunca vai para log nem para mensagem de erro (§9): este módulo não registra nada.
  */
+import { formatHHMM } from '@macuxi/comum/fuso';
 import { projetarPontos, trechosDoTrajeto, type PausaDoDia, type PontoDoTrajeto } from '@macuxi/core/contracts';
-
-/** HH:mm de um instante UTC no fuso do tenant (o Core não exporta mais este formato). */
-export function formatarHoraDoTrajeto(iso: string, fuso: string): string {
-  return new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
-}
 
 /** RN-CORE-13: texto do app e do BKO quando o dia não tem pontos (tracking desligado, sem termo ou fora do expediente). */
 export const TEXTO_SEM_TRAJETO = 'Sem trajeto';
@@ -54,6 +50,6 @@ export function desenharTrajeto(pontos: readonly PontoDoTrajeto[], o: OpcoesDese
   const xy = new Map<PontoDoTrajeto, Xy>(ordem.map((q, i) => [q, linha[i]!]));
   const trechos = trechosDoTrajeto(ordem, o.pausas ?? []);
   const naTela = (t: PontoDoTrajeto[][]): Xy[][] => t.map((l) => l.map((q) => xy.get(q)!));
-  const marca = (i: number): PontoDesenhado => ({ ...linha[i]!, hora: formatarHoraDoTrajeto(ordem[i]!.capturado_em, o.fuso) });
+  const marca = (i: number): PontoDesenhado => ({ ...linha[i]!, hora: formatHHMM(ordem[i]!.capturado_em, o.fuso) });
   return { vazio: false, linha, primeiro: marca(0), ultimo: marca(ordem.length - 1), total: ordem.length, solidos: naTela(trechos.solidos), tracejados: naTela(trechos.tracejados) };
 }

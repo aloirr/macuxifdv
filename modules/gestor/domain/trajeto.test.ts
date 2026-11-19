@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { formatarDistancia, projetarPontos } from '@macuxi/core/contracts';
-import { formatarHoraDoTrajeto } from './trajeto';
+import { formatHHMM } from '@macuxi/comum/fuso';
 import { desenharTrajeto, TEXTO_SEM_TRAJETO } from './trajeto';
 
 const p = (capturado_em: string, latitude: number, longitude: number) => ({ capturado_em, latitude, longitude, precisao_m: 10 });
@@ -51,7 +51,7 @@ describe('desenharTrajeto: pontos do dia prontos para o desenho no aparelho (RN-
     const pts = [p('2026-11-03T12:00:00Z', -3.1, -60.02), p('2026-11-03T13:00:00Z', -3.12, -60.0)];
     const r = desenharTrajeto(pts, TAM);
     expect(r.linha).toEqual(projetarPontos(pts, TAM.largura, TAM.altura, TAM.margem));
-    expect(r.primeiro?.hora).toBe(formatarHoraDoTrajeto(pts[0]!.capturado_em, TAM.fuso));
+    expect(r.primeiro?.hora).toBe(formatHHMM(pts[0]!.capturado_em, TAM.fuso));
   });
 
   it('RD-2299: o trecho que cruza uma pausa sai tracejado e os demais sólidos', () => {
