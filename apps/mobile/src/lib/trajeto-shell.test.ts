@@ -13,6 +13,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   condicaoDoTrajeto,
   criarTrajeto,
+  entradaDoRastreio,
   gravarPontosDoTrajeto,
   lerContextoDoRastreio,
   lerFrequenciaDoTrajeto,
@@ -119,6 +120,12 @@ describe('RN-CORE-13: o portão é o podeRastrear do Core, sem termo, aceite nem
   it('liga só com todas as condições, sem termo publicado, aceite nem pausa no aparelho', async () => {
     expect(portaoDoTrajeto(LIGA, AGORA)).toEqual({ pode: true });
     expect((await condicaoDoTrajeto(async () => LIGA))(AGORA)).toEqual({ pode: true });
+  });
+
+  it('a EntradaRastreio leva só os campos do Core, sem termo, aceite nem pausa', () => {
+    expect(Object.keys(entradaDoRastreio(LIGA, AGORA)).sort()).toEqual(
+      ['app', 'ausencias', 'ativo', 'cargo', 'expediente', 'feriados', 'fuso', 'instante', 'permissao'].sort(),
+    );
   });
 
   const casos: Array<[string, Partial<ContextoDoRastreio>, number, MotivoSemRastreio]> = [

@@ -233,16 +233,9 @@ export interface ContextoDoRastreio {
   fuso: string;
 }
 
-/**
- * Enquanto a `EntradaRastreio` do Core ainda pedir termo, aceite e pausa, eles vão neutros (não fecham o portão); quando o Core
- * os tirar da assinatura, este objeto sai. Entra por espalhamento para valer nas duas assinaturas.
- */
-const SEM_TERMO_NEM_PAUSA = { termoVigente: 1, aceite: { versao: 1, aceito_em: '1970-01-01T00:00:00.000Z' }, pausas: [] };
-
 /** A `EntradaRastreio` do Core para o instante. */
 export function entradaDoRastreio(c: ContextoDoRastreio, instanteMs: number): EntradaRastreio {
   return {
-    ...SEM_TERMO_NEM_PAUSA,
     ativo: c.parametros.ativo,
     cargo: c.cargo,
     app: c.app,
