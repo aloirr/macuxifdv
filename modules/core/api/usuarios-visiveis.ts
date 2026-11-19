@@ -11,7 +11,7 @@ import { EQUIPES_DO_RESPONSAVEL } from './carteira';
 
 export async function usuariosVisiveisDoUsuario(usuario: UsuarioAutenticado, banco: AcessoBanco): Promise<ReadonlySet<string> | 'tenant'> {
   const escopo = escopoDoPerfil(usuario.perfil);
-  if (escopo !== 'equipe') return escopoSemBanco(usuario, escopo);
+  if (escopo === 'tenant' || escopo === 'carteira') return escopoSemBanco(usuario, escopo);
   return banco.comTenant(usuario.tenant_id, (db) => usuariosVisiveisNaTransacao(usuario, db));
 }
 
@@ -24,7 +24,7 @@ function escopoSemBanco(usuario: UsuarioAutenticado, escopo: string): ReadonlySe
 /** A mesma regra dentro de uma transação já aberta (consulta entre módulos, que não tem `ctx.usuariosVisiveis`). */
 export async function usuariosVisiveisNaTransacao(usuario: UsuarioAutenticado, db: ClienteBanco): Promise<ReadonlySet<string> | 'tenant'> {
   const escopo = escopoDoPerfil(usuario.perfil);
-  if (escopo !== 'equipe') return escopoSemBanco(usuario, escopo);
+  if (escopo === 'tenant' || escopo === 'carteira') return escopoSemBanco(usuario, escopo);
   const r = await db.query<{ usuario_id: string; nivel: number }>(
     `${EQUIPES_DO_RESPONSAVEL}
      select u.id as usuario_id, eq.nivel from core.usuario u join eq on eq.id = u.equipe_id where u.deleted_at is null`,
