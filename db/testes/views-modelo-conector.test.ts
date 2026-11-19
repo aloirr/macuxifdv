@@ -238,6 +238,16 @@ describe('views-modelo do Conector (db/conector/views-modelo.sql)', () => {
     expect(cols('cliente')).toEqual(expect.arrayContaining(['prazo_medio_max_dias', 'formas_pagamento']));
   });
 
+  it('T-0186 (0090): nota e título devolvem forma de pagamento e NF com os nomes e tamanhos da 0090, opcionais (NULL no modelo)', () => {
+    const col = (e: Entidade, a: string) => porEntidade.get(e)!.colunas.find((c) => c.alias === a)?.expressao;
+    for (const [e, a, n] of [
+      ['titulo', 'forma_pagamento', 120], ['titulo', 'nf_numero', 40], ['titulo', 'nf_serie', 10],
+      ['nota', 'forma_pagamento', 120], ['nota', 'nf_origem_numero', 40], ['nota', 'nf_origem_serie', 10],
+    ] as const) {
+      expect(col(e, a), `vw_macuxi_${e}.${a}`).toMatch(new RegExp(`^CAST\\(NULL AS VARCHAR\\(${n}\\)\\)\\s+AS ${a}$`));
+    }
+  });
+
   it('T-0115 (RN-PES-05): o cliente devolve canal, campo do ClientePayload', () => {
     expect(porEntidade.get('cliente')!.colunas.map((c) => c.alias)).toContain('canal');
     expect(colunasDoContrato(SCHEMA_REGISTRO.cliente).map((c) => c.coluna)).toContain('canal');

@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador; 0076: marca_codigo do produto; 0077: usuario.filial_cadastro_id e usuario_filial; 0080: usuario.codigo_fdv e usuario_codigo_fdv_contador; 0084: almoço do usuário e usuario_contato; 0089: ponto_trajeto e ausencia_usuario), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador; 0076: marca_codigo do produto; 0077: usuario.filial_cadastro_id e usuario_filial; 0080: usuario.codigo_fdv e usuario_codigo_fdv_contador; 0084: almoço do usuário e usuario_contato; 0089: ponto_trajeto e ausencia_usuario; 0090: forma de pagamento e NF em nota_erp e titulo, documento_tipo, documento_cliente, documento_permissao e documento_excecao), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -407,6 +407,12 @@ export const titulo = core.table('titulo', {
   liquidado_em: timestamp('liquidado_em', { withTimezone: true }),
   /** 0062 (T-0095): último `alterado_em` do ERP aplicado (timestamptz(3)); nulo = nunca veio do ERP. Mais antigo não grava (gatilho <tabela>_versao_erp). Fora do pull. */
   erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
+  /** 0090 (T-0186, D2): forma de pagamento como o ERP manda; 1..120; nula = não veio. */
+  forma_pagamento: text('forma_pagamento'),
+  /** 0090 (T-0186, D3): NF do título (junta as parcelas à nota; índice titulo_nf_ix); 1..60. */
+  nf_numero: text('nf_numero'),
+  /** 0090: série da NF; só com nf_numero (titulo_nf_serie_com_numero). */
+  nf_serie: text('nf_serie'),
 });
 
 /** Consolidado mensal de compras (AAAA-MM), um vivo por cliente e mês. */
@@ -447,6 +453,12 @@ export const notaErp = core.table('nota_erp', {
   usuario_id: uuid('usuario_id'),
   /** 0062 (T-0095): último `alterado_em` do ERP aplicado (timestamptz(3)); nulo = nunca veio do ERP. Mais antigo não grava (gatilho <tabela>_versao_erp). Fora do pull. */
   erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
+  /** 0090 (T-0186, D2/E1): forma de pagamento da NF como o ERP manda; 1..120; nula = não veio. */
+  forma_pagamento: text('forma_pagamento'),
+  /** 0090 (T-0186, D3): NF original da devolução; só com tipo 'devolucao' (nota_erp_nf_origem_so_devolucao); 1..60. */
+  nf_origem_numero: text('nf_origem_numero'),
+  /** 0090: série da NF original; só com nf_origem_numero (nota_erp_nf_origem_serie_com_numero). */
+  nf_origem_serie: text('nf_origem_serie'),
 });
 
 export const TIPOS_MOTIVO = ['nao_venda', 'cliente_fechado', 'fora_do_raio'] as const;
@@ -841,3 +853,55 @@ export const ausenciaUsuario = core.table('ausencia_usuario', {
   ate: date('ate').notNull(),
 });
 
+export const ORIGENS_DOCUMENTO_BANCO = ['erp', 'escritorio', 'app'] as const;
+export const NIVEIS_DOCUMENTO_BANCO = ['nao_ve', 've', 've_envia'] as const;
+
+/**
+ * Tipo de documento do cliente (0090, T-0186, D5): nome 1..80 único vivo sem diferenciar maiúsculas; grupo 1..60 (a faixa da
+ * Documentação); origem erp|escritorio|app (P1: uma só por tipo); tem_validade. Só online (P15), fora do sync.
+ */
+export const documentoTipo = core.table('documento_tipo', {
+  ...comuns(),
+  nome: text('nome').notNull(),
+  grupo: text('grupo').notNull(),
+  ordem: integer('ordem').notNull().default(0),
+  origem: text('origem', { enum: ORIGENS_DOCUMENTO_BANCO }).notNull(),
+  tem_validade: boolean('tem_validade').notNull().default(false),
+  ativo: boolean('ativo').notNull().default(true),
+});
+
+/**
+ * Documento de um cliente (0090, T-0186, D5). arquivo_id = plataforma.arquivo.id SEM FK (ADR 0010), único vivo quando há; nulo
+ * = ainda sem arquivo. valido_ate >= data_documento. Só online (P15): nem a linha nem o arquivo vão ao aparelho.
+ */
+export const documentoCliente = core.table('documento_cliente', {
+  ...comuns(),
+  cliente_id: uuid('cliente_id').notNull(),
+  tipo_id: uuid('tipo_id').notNull(),
+  nome: text('nome').notNull(),
+  arquivo_id: uuid('arquivo_id'),
+  data_documento: date('data_documento').notNull(),
+  valido_ate: date('valido_ate'),
+  enviado_por: uuid('enviado_por'),
+});
+
+/**
+ * Matriz tipo × perfil da Documentação (0090, T-0186, §7). perfil_id = plataforma.perfil.id SEM FK (outro schema). Única viva
+ * por (tipo, perfil). "ve_envia só nos tipos de origem app" é regra do domain e da API. Só online (P15), fora do sync.
+ */
+export const documentoPermissao = core.table('documento_permissao', {
+  ...comuns(),
+  tipo_id: uuid('tipo_id').notNull(),
+  perfil_id: uuid('perfil_id').notNull(),
+  nivel: text('nivel', { enum: NIVEIS_DOCUMENTO_BANCO }).notNull(),
+});
+
+/**
+ * Exceção por documento (0090, T-0186, P11): a linha quer dizer "este perfil NÃO vê este documento" (só tira acesso).
+ * perfil_id SEM FK (outro schema). Única viva por (documento, perfil). Só online (P15), fora do sync.
+ */
+export const documentoExcecao = core.table('documento_excecao', {
+  ...comuns(),
+  documento_id: uuid('documento_id').notNull(),
+  perfil_id: uuid('perfil_id').notNull(),
+});
