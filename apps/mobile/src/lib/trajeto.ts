@@ -43,7 +43,7 @@ export const OPCOES_TRAJETO = {
   timeInterval: 300_000,
   deferredUpdatesInterval: 300_000,
   foregroundService: {
-    notificationTitle: 'Macuxi Campo — localização ativa no expediente',
+    notificationTitle: 'Localização ativa no expediente',
     // obrigatório no tipo do expo-location; vazio para a notificação mostrar só o título
     notificationBody: '',
     killServiceOnDestroy: false,

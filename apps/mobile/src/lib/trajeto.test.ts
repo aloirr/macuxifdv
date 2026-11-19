@@ -23,7 +23,7 @@ describe('tarefa macuxi-trajeto: captura (§3.1)', () => {
   it('nome da tarefa, parâmetros e notificação fixa sem ação', () => {
     expect(TAREFA_TRAJETO).toBe('macuxi-trajeto');
     expect(OPCOES_TRAJETO).toMatchObject({ distanceInterval: 200, timeInterval: 300_000, deferredUpdatesInterval: 300_000 });
-    expect(OPCOES_TRAJETO.foregroundService.notificationTitle).toBe('Macuxi Campo — localização ativa no expediente');
+    expect(OPCOES_TRAJETO.foregroundService.notificationTitle).toBe('Localização ativa no expediente');
     expect(OPCOES_TRAJETO.foregroundService.killServiceOnDestroy).toBe(false);
   });
 
