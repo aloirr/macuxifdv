@@ -1,7 +1,7 @@
 /**
  * T-0150 (spec docs/design/pedido-v4.md §1 e §2): tabelas do detalhe do pedido/orçamento e do Resumo do Novo pedido.
  *  - `TabelaDeItens`: adaptador da `TabelaDados` do kit; o Código tem largura pelo conteúdo (`larguraDoCodigo`, 48 a 96 dp);
- *  - Pagamento/Entrega (Cliente, Venda) usam a `TabelaRotuloValor` do kit (`larguraRotulo` 92, valor à esquerda);
+ *  - Pagamento/Entrega (Cliente, Venda) usam a `TabelaRotuloValor` do kit (`TABELA_DO_PEDIDO`);
  *  - `CartaoDeTotais`: Tabela · linha líquida (% sobre a tabela) · Total. Sem texto de regra: tudo vem de funções puras.
  * Números em fonte do sistema com algarismos tabulares.
  */
@@ -28,7 +28,7 @@ export function TabelaDeItens({ itens, testID = 'tabela-itens', aoTocarLinha }: 
     { id: 'tabela', titulo: 'Valor tabela', peso: 48, numerica: true },
     { id: 'ajuste', titulo: 'Desc./ Acrésc.', peso: 40, numerica: true },
     { id: 'total', titulo: 'Total', peso: 54, numerica: true },
-    ...(aoTocarLinha ? [{ id: 'editar', titulo: '', largura: 48 }] : []),
+    ...(aoTocarLinha ? [{ id: 'editar', titulo: '', largura: 32 }] : []),
   ];
   const linhas: LinhaTabela[] = itens.map((l) => ({
     tipo: 'linha',

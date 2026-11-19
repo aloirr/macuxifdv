@@ -648,7 +648,7 @@ export default function OrderDetailScreen() {
         {precosDeHoje ? (
           <Folha visivel={transformarAberto} onFechar={() => setTransformarAberto(false)} rotuloFechar="Fechar" titulo={precosDeHoje.titulo} fechar={{ rotulo: 'Fechar', testID: 'precos-fechar' }} rolavel testID="folha-precos-de-hoje" rodape={{ rotulo: TEXTOS_PRECOS_DE_HOJE.voltar, onPress: () => setTransformarAberto(false), testID: 'precos-voltar' }}>
             <View style={{ gap: 12 }}>
-              <TabelaRotuloValor testID="precos-totais" linhas={precosDeHoje.totais.map((x) => ({ id: x.id, rotulo: x.rotulo, valor: x.valor, tom: x.tom }))} />
+              <TabelaRotuloValor testID="precos-totais" larguraRotulo={200} linhas={precosDeHoje.totais.map((x) => ({ id: x.id, rotulo: x.rotulo, valor: x.valor, tom: x.tom }))} />
               {precosDeHoje.mudaram.length > 0 ? (
                 <View style={{ gap: 4 }} testID="precos-mudaram">
                   <RotuloSecao texto={TEXTOS_PRECOS_DE_HOJE.mudaram} />
