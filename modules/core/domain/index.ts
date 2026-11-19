@@ -13,6 +13,7 @@ export * from './produto';
 export * from './checkin';
 export * from './checkin-rota';
 export * from './cliente360';
+export * from './historico-nf';
 export * from './clientes';
 export * from './lista-clientes';
 export * from './agenda';
