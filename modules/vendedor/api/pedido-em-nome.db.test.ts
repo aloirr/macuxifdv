@@ -101,6 +101,7 @@ describe.skipIf(semBanco())('Pedido em nome do vendedor × Postgres (RF-GES-05, 
     try {
       await admin.query('delete from vendedor.pedido_evento where pedido_id = any($1::uuid[])', [IDS]);
       await admin.query('delete from vendedor.pedido_item where pedido_id = any($1::uuid[])', [IDS]);
+      await admin.query('delete from vendedor.pedido_aprovacao where pedido_id = any($1::uuid[])', [IDS]);
       await admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [IDS]);
     } finally {
       await admin.end();

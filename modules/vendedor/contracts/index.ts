@@ -18,7 +18,7 @@ import {
   Receivable,
 } from '@macuxi/core/contracts';
 
-import { ESTADOS_APROVACAO_MOTIVO, type DecisaoAprovador, MOTIVO_REJEICAO_MIN, MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
+import { ESTADOS_APROVACAO_MOTIVO, type DecisaoAprovador, MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
 import { SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '../domain/orcamento';
 import { ORDER_STATUSES } from '../domain/order';
 import { PercentualAjuste } from '@macuxi/integracao/contracts';
@@ -407,9 +407,10 @@ export const AprovarPedidoRequest = z.object({ comentario: z.string().max(500).o
 export type AprovarPedidoRequest = z.infer<typeof AprovarPedidoRequest>;
 /**
  * Rejeitar = DEVOLVER ao vendedor (`rejected`; P6 A). `motivo` é o texto livre do aprovador, de `MOTIVO_REJEICAO_MIN`+ caracteres
- * (RN-GES-08; o app Gestão v1.0.13 já manda assim); o motivo da aprovação é `motivo_aprovacao`, nunca `motivo`. O domínio revalida depois do trim.
+ * (o app Gestão v1.0.13 já manda assim); o motivo da aprovação é `motivo_aprovacao`, nunca `motivo`. O mínimo de `MOTIVO_REJEICAO_MIN` depois do trim
+ * é regra do domínio (RN-GES-08, 422), não do Zod: o texto curto chega à regra e volta com o código dela.
  */
-export const RejeitarPedidoRequest = z.object({ motivo: z.string().min(MOTIVO_REJEICAO_MIN).max(500), motivo_aprovacao: MotivoAprovacao.optional() });
+export const RejeitarPedidoRequest = z.object({ motivo: z.string().max(500), motivo_aprovacao: MotivoAprovacao.optional() });
 export type RejeitarPedidoRequest = z.infer<typeof RejeitarPedidoRequest>;
 /** Recusar = rejeitar de vez (`cancelled`, final; P6 A): o mesmo corpo de `rejeitar`. */
 export const RecusarPedidoRequest = RejeitarPedidoRequest;

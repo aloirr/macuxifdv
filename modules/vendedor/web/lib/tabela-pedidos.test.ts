@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Order } from '../../contracts';
-import { ACOES_DO_PENDENTE, acoesDoPedido, COLUNAS_DA_TABELA, corpoDaDecisao, DECISAO_REJEITAR_ENCERRA, motivoDoPedido, SEM_VALOR, textoOuTraco } from './tabela-pedidos';
+import { ROTA_DA_DECISAO, type Order } from '../../contracts';
+import { ACOES_DO_PENDENTE, acoesDoPedido, COLUNAS_DA_TABELA, motivoDoPedido, SEM_VALOR, textoOuTraco } from './tabela-pedidos';
 
 const pedido = (over: Partial<Order> = {}): Order => ({
   id: 'o1', number: '000021', idempotency_key: 'o1', seller_id: 's1', seller_name: 'Carla Lima', customer_id: 'c1', customer_name: 'Mercado Bom Preço',
@@ -25,24 +25,17 @@ describe('BKO > Pedidos: tabela simples (R-20261116-143000, R-20261118-214740)',
     expect(acoesDoPedido(pedido({ pode_decidir: false }))).toEqual([]);
     expect(acoesDoPedido(pedido({ pode_decidir: true })).length).toBe(3);
   });
-  it('RN-GES-08: Devolver ao vendedor rejeita (rota rejeitar, com motivo); Aprovar aprova', () => {
+  it('RN-GES-08 e P6 A: Aprovar aprova; Devolver ao vendedor devolve (rota rejeitar) e Rejeitar encerra como Cancelado (rota recusar), os dois com motivo', () => {
     const a = Object.fromEntries(ACOES_DO_PENDENTE.map((x) => [x.id, x]));
-    expect(a.aprovar).toMatchObject({ rota: 'aprovar', exigeMotivo: false });
-    expect(a.devolver).toMatchObject({ rota: 'rejeitar', exigeMotivo: true });
+    expect(a.aprovar).toMatchObject({ decisao: 'aprovar', exigeMotivo: false });
+    expect(a.devolver).toMatchObject({ decisao: 'devolver', exigeMotivo: true });
+    expect(a.rejeitar).toMatchObject({ decisao: 'recusar', exigeMotivo: true });
+    expect(ACOES_DO_PENDENTE.map((x) => ROTA_DA_DECISAO[x.decisao])).toEqual(['aprovar', 'recusar', 'rejeitar']);
   });
-  it('RN-VEN-30 (P6 A): Rejeitar encerra o pedido como Cancelado pela rota recusar, com motivo; está ligado', () => {
-    expect(DECISAO_REJEITAR_ENCERRA).toEqual({ disponivel: true, rota: 'recusar' });
-    expect(acoesDoPedido(pedido()).find((a) => a.id === 'rejeitar')).toMatchObject({ rota: 'recusar', exigeMotivo: true, desligada: false });
-  });
-  it('RN-GES-08: os corpos das rotas levam texto (devolver e recusar) e motivo opcional; aprovar vai vazio', () => {
-    expect(corpoDaDecisao('aprovar', '')).toEqual({});
-    expect(corpoDaDecisao('rejeitar', ' sem verba ')).toEqual({ texto: 'sem verba' });
-    expect(corpoDaDecisao('recusar', 'cliente bloqueado')).toEqual({ texto: 'cliente bloqueado' });
-  });
-  it('P3 B: o motivo mostra o estado de cada aprovação decidida; pendente fica só com o nome', () => {
+  it('RN-VEN-30 (T-0184, prancha 04): a coluna Motivo lista os motivos sem repetir o estado, que a Situação já diz', () => {
     const ap = (motivo: 'credito' | 'inadimplencia' | 'desconto', estado: 'pendente' | 'aprovada' | 'devolvida' | 'rejeitada' | 'encerrada') => ({ motivo, nivel: 'gerente' as const, estado, texto_pendencia: '', decidida_por_id: null, decidida_em: null, texto_decisao: null });
-    expect(motivoDoPedido(pedido({ approval_reasons: ['credito'], aprovacoes: [ap('credito', 'pendente'), ap('inadimplencia', 'aprovada')] }))).toBe('Crédito, Inadimplente (aprovada)');
-    expect(motivoDoPedido(pedido({ status: 'cancelled', aprovacoes: [ap('credito', 'rejeitada'), ap('desconto', 'encerrada')], effective_discount_pct: 12 }))).toBe('Crédito (rejeitada), Desconto 12% (encerrada)');
+    expect(motivoDoPedido(pedido({ approval_reasons: ['credito'], aprovacoes: [ap('credito', 'pendente'), ap('inadimplencia', 'aprovada')] }))).toBe('Crédito, Inadimplente');
+    expect(motivoDoPedido(pedido({ status: 'cancelled', aprovacoes: [ap('credito', 'rejeitada'), ap('desconto', 'encerrada')], effective_discount_pct: 12 }))).toBe('Crédito, Desconto 12%');
   });
   it('Motivo: Crédito, Desconto com o %, vários separados por vírgula; vazio = traço', () => {
     expect(motivoDoPedido(pedido({ approval_reasons: ['credito'] }))).toBe('Crédito');

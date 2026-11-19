@@ -34,15 +34,15 @@ function Vazio({ texto }: { texto: string }) {
 function AcoesDoPendente({ pedido, onFeito }: { pedido: Order; onFeito: (tom: NoticeTone, texto: string) => void }) {
   const { aprovar, rejeitar } = useDecidir(onFeito);
   const [escolhida, setEscolhida] = useState('');
-  const [pedindoMotivo, setPedindoMotivo] = useState<'rejeitar' | 'recusar' | null>(null);
+  const [pedindoMotivo, setPedindoMotivo] = useState<'devolver' | 'recusar' | null>(null);
   const acoes = acoesDoPedido(pedido);
   if (acoes.length === 0) return null;
   const ocupado = aprovar.isPending || rejeitar.isPending;
   const aplicar = () => {
     const a = ACOES_DO_PENDENTE.find((x) => x.id === escolhida);
-    if (!a || !a.rota) return;
-    if (a.exigeMotivo) setPedindoMotivo(a.id === 'rejeitar' ? 'recusar' : 'rejeitar');
-    else aprovar.mutate(pedido);
+    if (!a) return;
+    if (a.decisao === 'aprovar') aprovar.mutate(pedido);
+    else setPedindoMotivo(a.decisao);
   };
   return (
     <div className="flex items-center gap-1.5">
@@ -56,7 +56,7 @@ function AcoesDoPendente({ pedido, onFeito }: { pedido: Order; onFeito: (tom: No
       >
         <option value="">Escolher ação</option>
         {acoes.map((a) => (
-          <option key={a.id} value={a.id} disabled={a.desligada}>
+          <option key={a.id} value={a.id}>
             {a.rotulo}
           </option>
         ))}
@@ -71,7 +71,7 @@ function AcoesDoPendente({ pedido, onFeito }: { pedido: Order; onFeito: (tom: No
         rotuloConfirmar={pedindoMotivo === 'recusar' ? 'Rejeitar pedido' : 'Devolver ao vendedor'}
         pendente={rejeitar.isPending}
         onFechar={() => setPedindoMotivo(null)}
-        onConfirmar={(motivo) => rejeitar.mutate({ p: pedido, motivo, rota: pedindoMotivo ?? 'rejeitar' }, { onSettled: () => setPedindoMotivo(null) })}
+        onConfirmar={(motivo) => rejeitar.mutate({ p: pedido, motivo, decisao: pedindoMotivo ?? 'devolver' }, { onSettled: () => setPedindoMotivo(null) })}
       />
     </div>
   );

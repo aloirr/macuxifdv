@@ -50,6 +50,19 @@ export function nivelComAprovacoes(nivel: NivelAprovacao | null, aprovacoes: rea
   return maiorNivel([...(nivel ? [nivel] : []), ...aprovacoes.map((a) => a.nivel)]);
 }
 
+/**
+ * RN-VEN-33 e RN-VEN-30 (T-0184 §2): o que fazer com um envio cujo id o servidor já conhece. O mesmo conteúdo (hash) é idempotente;
+ * conteúdo corrigido de pedido devolvido (`rejected`) é reenvio e abre o ciclo seguinte; qualquer outro conteúdo é conflito.
+ * `dono_id` é quem criou o pedido (o autor, no pedido em nome).
+ */
+export function situacaoDoEnvio(i: { existente: { dono_id: string; status: string; hash_envio: string | null } | undefined; eu: string; hash: string }): 'novo' | 'idempotente' | 'reenvio' | 'conflito' | 'id_em_uso' {
+  const e = i.existente;
+  if (!e) return 'novo';
+  if (e.dono_id !== i.eu) return 'id_em_uso';
+  if (e.hash_envio === null || e.hash_envio === i.hash) return 'idempotente';
+  return e.status === 'rejected' ? 'reenvio' : 'conflito';
+}
+
 /** RN-VEN-12 e RN-VEN-13 (P2 B, P5 B): quem aprova crédito e inadimplência; padrão `gerente`, também com o parâmetro ausente ou inválido. */
 export function niveisDosParametros(p: Readonly<Record<string, unknown>>): { credito: NivelAprovacao; inadimplencia: NivelAprovacao } {
   const nivel = (v: unknown): NivelAprovacao => ((NIVEIS_APROVACAO as readonly unknown[]).includes(v) ? (v as NivelAprovacao) : 'gerente');

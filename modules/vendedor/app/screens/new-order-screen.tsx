@@ -27,7 +27,8 @@ import { modalidadePadraoDosParametros, percentualAjusteParaBp } from '../../dom
 import { AcimaDoTeclado, useCampoAcimaDoTeclado } from '../components/acima-do-teclado';
 import { AbaEntrega, AbaResumo, AbaVenda, CardPagamento, FimDaAbaItens, linhasDoLeveMais } from '../components/novo-pedido-abas';
 import { financeiroParaAprovacao, type ModeloDoCredito } from '../lib/credito-cliente';
-import { disponivelParaAlerta, motivosFinanceirosDoPedido } from '../../domain/credito-pedido';
+import { aprovacoesFinanceiras, disponivelParaAlerta } from '../../domain/credito-pedido';
+import { nivelComAprovacoes, niveisDosParametros } from '../../domain/aprovacao';
 import { tituloVencidoDias } from '../../domain/pagamento';
 import { itensLeveMais, linhasNaFaixa } from '../lib/leve-mais';
 import { rascunhoComPagamentoPadrao, situacaoDoPagamento } from '../lib/pagamento-pedido';
@@ -314,14 +315,17 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
       vivo = false;
     };
   }, [aba, sent, chaveSugestoes, catalog.length, customer?.id]);
-  // RN-VEN-12/13: crédito do cliente na aba Venda (core.financeiro_cliente@1 no aparelho, vale offline), lido ao abrir o pedido (não só na aba Venda), para o Resumo já mostrar "Vai para o supervisor." (RN-VEN-13)
+  // RN-VEN-12/13: crédito do cliente na aba Venda (core.financeiro_cliente@1 no aparelho, vale offline), lido ao abrir o pedido (não só na aba Venda), para o Resumo já mostrar que vai para aprovação (RN-VEN-12/13)
   const [credito, setCredito] = useState<ModeloDoCredito | null | undefined>(undefined);
-  // RN-VEN-13 (T-0129): título vencido há mais que o limite com prazo a prazo nunca bloqueia a forma; o pedido vai ao supervisor (aprovação)
+  // RN-VEN-13 (T-0129): título vencido há mais que o limite com prazo a prazo nunca bloqueia a forma; o pedido vai para aprovação no nível dos parâmetros (padrão gerente)
   const prazoEscolhido = prazos.find((p) => p.id === draft.prazo_pagamento_id);
   // T-0184 (RN-VEN-12 e RN-VEN-13, P1 A, P4 A): crédito estourado e título vencido (também à vista) mandam o pedido para aprovação
   const financeiroDoPedido = sent ? null : financeiroParaAprovacao(credito, prazoEscolhido?.prazo_medio_dias, tituloVencidoDias(parametrosVendedor));
-  const vencidoAprova = Boolean(financeiroDoPedido && motivosFinanceirosDoPedido({ ...financeiroDoPedido, total_cents: calculoBase?.total_cents ?? 0 }).length > 0);
-  const calculo = calculoBase && vencidoAprova && calculoBase.nivel === null ? { ...calculoBase, nivel: 'supervisor' as const } : calculoBase;
+  // o nível é o dos parâmetros (`niveisDosParametros`, padrão gerente), o mesmo que o servidor usa ao receber o pedido
+  const aprovacoesFin = financeiroDoPedido
+    ? aprovacoesFinanceiras({ prazo_medio_dias: financeiroDoPedido.prazo_medio_dias, total_cents: calculoBase?.total_cents ?? 0, financeiro: financeiroDoPedido, niveis: niveisDosParametros(parametrosVendedor) })
+    : [];
+  const calculo = calculoBase && aprovacoesFin.length > 0 ? { ...calculoBase, nivel: nivelComAprovacoes(calculoBase.nivel, aprovacoesFin) } : calculoBase;
   useEffect(() => {
     if (sent) return;
     let vivo = true;

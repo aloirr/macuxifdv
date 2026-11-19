@@ -1,16 +1,16 @@
 'use client';
 
 /**
- * Aprovar e rejeitar pedido no BKO (RN-GES-08; ADR 0011): chama as rotas do Vendedor. Aprovar é 1 clique (comentário
- * opcional não é pedido); rejeitar abre um diálogo com o motivo obrigatório (3+ caracteres). A API revalida nível e escopo.
+ * Aprovar, devolver e rejeitar pedido no BKO (RN-GES-08; ADR 0011, 0062): chama as rotas do Vendedor, escolhidas e montadas por `contracts`
+ * (`ROTA_DA_DECISAO`, `corpoDaDecisao`). Aprovar é 1 clique; devolver e rejeitar abrem um diálogo com o motivo obrigatório (3+ caracteres).
+ * A API revalida nível e escopo.
  */
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatBRL } from '@macuxi/comum';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, Dialog, Notice, type NoticeTone } from '@macuxi/ui/web';
-import { DecisaoAprovacaoResposta, MOTIVO_REJEICAO_MIN, type Order } from '../../../contracts';
-import { corpoDaDecisao } from '../../lib/tabela-pedidos';
+import { corpoDaDecisao, DecisaoAprovacaoResposta, MOTIVO_REJEICAO_MIN, ROTA_DA_DECISAO, type Order } from '../../../contracts';
 
 export type PedidoDecidivel = Pick<Order, 'id' | 'number' | 'customer_name' | 'seller_name' | 'total_cents'>;
 
@@ -25,56 +25,22 @@ export function useAtualizarPedidos() {
 export function useDecidir(onFeito: (tom: NoticeTone, texto: string) => void) {
   const atualizar = useAtualizarPedidos();
   const aprovar = useMutation({
-    mutationFn: async (p: PedidoDecidivel) => DecisaoAprovacaoResposta.parse(await api<unknown>(`/vendedor/pedidos/${p.id}/aprovar`, { method: 'POST', body: corpoDaDecisao('aprovar', '') })),
+    mutationFn: async (p: PedidoDecidivel) => DecisaoAprovacaoResposta.parse(await api<unknown>(`/vendedor/pedidos/${p.id}/${ROTA_DA_DECISAO.aprovar}`, { method: 'POST', body: corpoDaDecisao('aprovar', '') })),
     onSuccess: (_r, p) => onFeito('success', `Pedido ${p.number} aprovado.`),
     onError: (e, p) => onFeito('danger', `Pedido ${p.number}: ${errorMessage(e)}`),
     onSettled: () => atualizar(),
   });
   const rejeitar = useMutation({
-    mutationFn: async ({ p, motivo, rota = 'rejeitar' }: { p: PedidoDecidivel; motivo: string; rota?: 'rejeitar' | 'recusar' }) =>
-      DecisaoAprovacaoResposta.parse(await api<unknown>(`/vendedor/pedidos/${p.id}/${rota}`, { method: 'POST', body: corpoDaDecisao(rota, motivo) })),
-    onSuccess: (_r, { p, rota }) => onFeito('success', rota === 'recusar' ? `Pedido ${p.number} rejeitado.` : `Pedido ${p.number} devolvido ao vendedor.`),
+    mutationFn: async ({ p, motivo, decisao }: { p: PedidoDecidivel; motivo: string; decisao: 'devolver' | 'recusar' }) =>
+      DecisaoAprovacaoResposta.parse(await api<unknown>(`/vendedor/pedidos/${p.id}/${ROTA_DA_DECISAO[decisao]}`, { method: 'POST', body: corpoDaDecisao(decisao, motivo) })),
+    onSuccess: (_r, { p, decisao }) => onFeito('success', decisao === 'recusar' ? `Pedido ${p.number} rejeitado.` : `Pedido ${p.number} devolvido ao vendedor.`),
     onError: (e, { p }) => onFeito('danger', `Pedido ${p.number}: ${errorMessage(e)}`),
     onSettled: () => atualizar(),
   });
   return { aprovar, rejeitar };
 }
 
-export function BotoesDeDecisao({ pedido, onFeito, tamanho = 'sm' }: { pedido: PedidoDecidivel; onFeito: (tom: NoticeTone, texto: string) => void; tamanho?: 'sm' | 'md' }) {
-  const { aprovar, rejeitar } = useDecidir(onFeito);
-  const [rejeitando, setRejeitando] = useState(false);
-  const ocupado = aprovar.isPending || rejeitar.isPending;
-
-  return (
-    <>
-      <div className="flex gap-2">
-        <Button variant="primary" size={tamanho} className="flex-1" disabled={ocupado} onClick={() => aprovar.mutate(pedido)} data-testid={`pedido.aprovar.${pedido.number}`}>
-          {aprovar.isPending ? 'Aprovando…' : 'Aprovar'}
-        </Button>
-        <Button
-          size={tamanho}
-          className="flex-1"
-          disabled={ocupado}
-          data-testid={`pedido.rejeitar.${pedido.number}`}
-          onClick={() => setRejeitando(true)}
-        >
-          Rejeitar
-        </Button>
-      </div>
-      <DialogoDeRejeicao
-        aberto={rejeitando}
-        pedido={pedido}
-        titulo={`Rejeitar pedido ${pedido.number}`}
-        rotuloConfirmar="Rejeitar pedido"
-        pendente={rejeitar.isPending}
-        onFechar={() => setRejeitando(false)}
-        onConfirmar={(motivo) => rejeitar.mutate({ p: pedido, motivo, rota: 'recusar' }, { onSettled: () => setRejeitando(false) })}
-      />
-    </>
-  );
-}
-
-/** Diálogo do motivo (RN-GES-08: 3+ caracteres), usado pelo quadro de decisão e pela tabela de Pedidos. */
+/** Diálogo do motivo (RN-GES-08: 3+ caracteres), usado pela lista de ações da tabela de Pedidos (a decisão fica só na linha). */
 export function DialogoDeRejeicao({ aberto, pedido, titulo, rotuloConfirmar, pendente, onFechar, onConfirmar }: { aberto: boolean; pedido: PedidoDecidivel; titulo: string; rotuloConfirmar: string; pendente: boolean; onFechar: () => void; onConfirmar: (motivo: string) => void }) {
   const [motivo, setMotivo] = useState('');
   const motivoOk = motivo.trim().length >= MOTIVO_REJEICAO_MIN;

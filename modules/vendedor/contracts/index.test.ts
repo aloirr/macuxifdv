@@ -48,7 +48,8 @@ describe('contracts do pedido no servidor (T-0029)', () => {
   it('RN-GES-08: aprovar sem comentário é válido; o mínimo de 3 caracteres do motivo é do domínio (422)', () => {
     expect(AprovarPedidoRequest.safeParse({}).success).toBe(true);
     expect(RejeitarPedidoRequest.safeParse({ motivo: 'abc' }).success).toBe(true);
-    expect(RejeitarPedidoRequest.safeParse({ motivo: 'ab' }).success).toBe(false);
+    expect(RejeitarPedidoRequest.safeParse({ motivo: 'ab' }).success).toBe(true);
+    expect(RejeitarPedidoRequest.safeParse({}).success).toBe(false);
     expect(RejeitarPedidoRequest.safeParse({ motivo: 'x'.repeat(501) }).success).toBe(false);
   });
   it('status_alterado@1 usa o vocabulário do doc 03 (RN-VEN-30)', () => {

@@ -9,6 +9,8 @@ import {
   niveisDosParametros,
   MOTIVO_REJEICAO_MIN,
   montarPedidoAprovado,
+  nivelComAprovacoes,
+  situacaoDoEnvio,
   nivelDaAlcada,
   politicaDosParametros,
   quemDecide,
@@ -291,6 +293,19 @@ describe('niveisDosParametros (P2 B, P5 B)', () => {
   });
 });
 
+describe('nivelComAprovacoes (RN-VEN-10, RN-VEN-12, RN-VEN-13)', () => {
+  it('RN-VEN-12 e RN-VEN-13: pedido sem desconto acima da alçada que vai por crédito herda o nível do parâmetro (padrão gerente, não supervisor)', () => {
+    const { credito, inadimplencia } = niveisDosParametros({});
+    expect(nivelComAprovacoes(null, [{ nivel: credito }, { nivel: inadimplencia }])).toBe('gerente');
+  });
+  it('RN-VEN-10: vale o maior entre o nível da alçada e o das aprovações financeiras; sem nenhum, nulo', () => {
+    expect(nivelComAprovacoes('analista', [{ nivel: 'gerente' }])).toBe('analista');
+    expect(nivelComAprovacoes('supervisor', [{ nivel: 'gerente' }])).toBe('gerente');
+    expect(nivelComAprovacoes(null, [])).toBeNull();
+    expect(nivelComAprovacoes('supervisor', [])).toBe('supervisor');
+  });
+});
+
 describe('montarPedidoAprovado (aprovado@1, RN-INT-08)', () => {
   it('RN-INT-08: monta o payload da fila do ERP com chaves anuláveis e itens com sequência', () => {
     const e = montarPedidoAprovado({
@@ -349,5 +364,27 @@ describe('RN-PRO-01 / matriz §2: perfil que cria pedido pelo aparelho', () => {
     const { recusaDePerfil } = await import('./aprovacao');
     expect(recusaDePerfil('vendedor')).toBeNull();
     expect(recusaDePerfil('supervisor')).toMatchObject({ codigo: 'PERFIL_SEM_ACESSO', http: 403 });
+  });
+});
+
+describe('situacaoDoEnvio (RN-VEN-33, RN-VEN-30: reenvio do pedido devolvido abre o ciclo seguinte)', () => {
+  const eu = 'u1';
+  const existente = (status: string, hash: string | null = 'h1', dono = eu) => ({ dono_id: dono, status, hash_envio: hash });
+  it('RN-VEN-33: pedido que o servidor nunca viu é novo', () => {
+    expect(situacaoDoEnvio({ existente: undefined, eu, hash: 'h1' })).toBe('novo');
+  });
+  it('RN-VEN-33: o mesmo envio de novo (mesmo hash) é idempotente, também depois da devolução', () => {
+    expect(situacaoDoEnvio({ existente: existente('pending_approval'), eu, hash: 'h1' })).toBe('idempotente');
+    expect(situacaoDoEnvio({ existente: existente('rejected'), eu, hash: 'h1' })).toBe('idempotente');
+    expect(situacaoDoEnvio({ existente: existente('approved', null), eu, hash: 'h2' })).toBe('idempotente');
+  });
+  it('RN-VEN-30: pedido devolvido (rejected) reenviado com conteúdo corrigido é reenvio (ciclo seguinte)', () => {
+    expect(situacaoDoEnvio({ existente: existente('rejected'), eu, hash: 'h2' })).toBe('reenvio');
+  });
+  it('RN-VEN-33: outro conteúdo em pedido que não foi devolvido (pendente, aprovado, cancelado) é conflito', () => {
+    for (const status of ['pending_approval', 'approved', 'cancelled', 'sent_to_erp', 'integrated']) expect(situacaoDoEnvio({ existente: existente(status), eu, hash: 'h2' }), status).toBe('conflito');
+  });
+  it('RN-VEN-33: o id é de quem criou; outro usuário recebe id em uso, mesmo no pedido devolvido', () => {
+    expect(situacaoDoEnvio({ existente: existente('rejected', 'h1', 'outro'), eu, hash: 'h2' })).toBe('id_em_uso');
   });
 });

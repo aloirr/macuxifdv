@@ -86,6 +86,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retrato do percentual do praz
     try {
       await admin.query('delete from vendedor.pedido_evento where pedido_id = any($1::uuid[])', [PEDIDOS]);
       await admin.query('delete from vendedor.pedido_item where pedido_id = any($1::uuid[])', [PEDIDOS]);
+      await admin.query('delete from vendedor.pedido_aprovacao where pedido_id = any($1::uuid[])', [PEDIDOS]);
       await admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [PEDIDOS]);
       await admin.query('delete from vendedor.prazo_pagamento where id = $1', [PRAZO]);
       await admin.query('delete from vendedor.forma_pagamento where id = $1', [FORMA]);
