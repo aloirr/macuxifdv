@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { CARGOS_RASTREADOS, PARAMETROS_RASTREAMENTO_PADRAO, type FrequenciaRastreamento, type MotivoSemRastreio, type PontoTrajeto } from '@macuxi/core/contracts';
+import { PARAMETROS_RASTREAMENTO_PADRAO, type FrequenciaRastreamento, type MotivoSemRastreio, type PontoTrajeto } from '@macuxi/core/contracts';
 import type { ArmazenamentoSync, DriverSqlite } from '@macuxi/platform-sdk';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -146,10 +146,8 @@ describe('RN-CORE-13: o portão é o podeRastrear do Core (§2 e §3.2)', () => 
     });
   }
 
-  // T-0187 §1.2 (RN-CORE-13): o supervisor é rastreado só no Gestão. Os dois casos dependem do portão novo do modulo-core
-  // (`CARGOS_RASTREADOS` com o supervisor e `APP_RASTREADO_DO_CARGO`); até ele chegar ao main, ficam pulados.
-  const portaoComSupervisor = CARGOS_RASTREADOS.includes('supervisor');
-  it.skipIf(!portaoComSupervisor)('T-0187: supervisor no Gestão liga; no Campo, desliga por app', () => {
+  // T-0187 §1.2 (RN-CORE-13): o supervisor é rastreado só no Gestão (portão do Core).
+  it('T-0187: supervisor no Gestão liga; no Campo, desliga por app', () => {
     expect(portaoDoTrajeto({ ...LIGA, cargo: 'supervisor', app: 'gestao' }, AGORA)).toEqual({ pode: true });
     expect(portaoDoTrajeto({ ...LIGA, cargo: 'supervisor', app: 'campo' }, AGORA)).toEqual({ pode: false, motivo: 'app' });
   });

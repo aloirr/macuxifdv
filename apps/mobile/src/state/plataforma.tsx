@@ -32,7 +32,7 @@ import {
   type CamposLogin,
   type DadosDaTroca,
 } from '@macuxi/core/app';
-import type { FakeUser, Me } from '@macuxi/core/contracts';
+import { APP_RASTREADO_DO_CARGO, type FakeUser, type Me } from '@macuxi/core/contracts';
 import {
   CODIGO_USUARIO_SEM_FILIAL,
   ErroHttp,
@@ -90,7 +90,6 @@ import {
   type PedidoSync,
   type TipoSync,
 } from '@/lib/sync-completa';
-import { APP_RASTREADO_DO_CARGO } from '@/lib/app-rastreado';
 import {
   mesmoEstadoDePermissoes,
   permissoesExigidas,

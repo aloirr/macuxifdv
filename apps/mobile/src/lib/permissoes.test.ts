@@ -3,6 +3,7 @@
  * regras puras: Campo exige as 4 e Gestão só notificações; localização em 2 passos no Android 11+; depois de 2 recusas,
  * "Abrir configurações"; permissão retirada volta à mesma tela, só com ela em "Falta"/"Negada".
  */
+import { APP_RASTREADO_DO_CARGO } from '@macuxi/core/contracts';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -135,8 +136,8 @@ describe('telaDePermissoes — Gestão', () => {
   });
 });
 
-/** T-0187 §1.2: o app rastreado de cada cargo, como o desenho manda o Core publicar (`APP_RASTREADO_DO_CARGO`). */
-const APP_DO_CARGO = { vendedor: 'campo', promotor: 'campo', supervisor: 'gestao' } as const;
+/** T-0187 §1.2: o app rastreado de cada cargo, o do Core (o mesmo que o shell usa). */
+const APP_DO_CARGO = APP_RASTREADO_DO_CARGO;
 
 describe('T-0187 (RN-CORE-37): "o tempo todo" no Gestão só para o supervisor', () => {
   it('permissões exigidas: o Campo segue com as 4 para todos; o Gestão acrescenta a localização só ao cargo rastreado nele', () => {
@@ -146,7 +147,9 @@ describe('T-0187 (RN-CORE-37): "o tempo todo" no Gestão só para o supervisor',
     // o gerente não é rastreado (T-0187 §0) e, antes do login, o cargo não é conhecido
     expect(permissoesExigidas('gestao', 'gerente', APP_DO_CARGO)).toEqual(['notificacoes']);
     expect(permissoesExigidas('gestao', null, APP_DO_CARGO)).toEqual(['notificacoes']);
-    // sem o portão do Core que rastreia o supervisor, nada muda no Gestão
+    expect(APP_DO_CARGO).toMatchObject({ vendedor: 'campo', promotor: 'campo', supervisor: 'gestao' });
+    expect(APP_DO_CARGO.gerente).toBeUndefined();
+    // sem o mapa, nada muda no Gestão
     expect(permissoesExigidas('gestao', 'supervisor', {})).toEqual(['notificacoes']);
     expect(permissoesExigidas('gestao', 'supervisor')).toEqual(['notificacoes']);
   });
