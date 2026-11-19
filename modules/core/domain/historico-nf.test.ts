@@ -123,6 +123,13 @@ describe('RN-CORE-40 / P8 e P17: período do Histórico e consulta online', () =
     expect(inicioDoPeriodoNf('90d', HOJE)).toBe('2026-08-21');
     expect(inicioDoPeriodoNf('12m', HOJE)).toBe('2025-11-19');
   });
+  it('P-06: 12 meses a partir de 29/02 cai no último dia de fevereiro; 30 e 90 dias seguem certos', () => {
+    expect(inicioDoPeriodoNf('12m', '2028-02-29')).toBe('2027-02-28');
+    expect(inicioDoPeriodoNf('12m', '2024-02-29')).toBe('2023-02-28');
+    expect(inicioDoPeriodoNf('12m', '2025-02-28')).toBe('2024-02-28');
+    expect(inicioDoPeriodoNf('30d', '2028-02-29')).toBe('2028-01-30');
+    expect(inicioDoPeriodoNf('90d', '2028-02-29')).toBe('2027-12-01');
+  });
   it('P17: além de 90 dias só consulta o servidor (online); dentro dos 90 dias, não', () => {
     expect(periodoPrecisaDoServidor('2026-08-21', HOJE)).toBe(false);
     expect(periodoPrecisaDoServidor('2026-08-20', HOJE)).toBe(true);

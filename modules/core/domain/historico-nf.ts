@@ -101,7 +101,13 @@ export type PeriodoNf = '30d' | '90d' | '12m';
 
 /** P8: início do período do filtro, contado de `hoje` (12 meses = mesmo dia do ano anterior). */
 export function inicioDoPeriodoNf(p: PeriodoNf, hoje: string): string {
-  if (p === '12m') return `${Number(hoje.slice(0, 4)) - 1}${hoje.slice(4)}`;
+  if (p === '12m') {
+    const ano = Number(hoje.slice(0, 4)) - 1;
+    const mmdd = hoje.slice(5);
+    // 29/02 sem ano bissexto anterior: último dia do mês.
+    const ok = mmdd !== '02-29' || (ano % 4 === 0 && (ano % 100 !== 0 || ano % 400 === 0));
+    return ok ? `${ano}-${mmdd}` : `${ano}-02-28`;
+  }
   return somarDias(hoje, -(p === '30d' ? 30 : JANELA_APARELHO_DIAS));
 }
 
