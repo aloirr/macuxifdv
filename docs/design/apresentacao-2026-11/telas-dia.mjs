@@ -207,7 +207,7 @@ function fichaCadastro() {
     `<div class="h2s">Contatos</div>`,
     `<div class="cd"><div class="r"><div class="c"><b>Antônio Ferreira · principal</b><small>Comprador</small></div><span class="mini">${ic('phone', 18, COR.ink, 1.9)}</span><span class="mini">${ic('chat', 18, COR.ink, 1.9)}</span></div><div class="r"><div class="c"><b>Luciana Souza</b><small>Financeiro</small></div><span class="mini">${ic('phone', 18, COR.ink, 1.9)}</span><span class="mini">${ic('chat', 18, COR.ink, 1.9)}</span></div></div>`,
     `<div class="h2s">Endereços de entrega</div>`,
-    `<div class="cd"><div class="r"><div class="c"><div style="display:flex;gap:6px;align-items:center"><b>Loja</b>${badge('Padrão', 'suc')}</div><b>${CLIENTE.rua} · ${CLIENTE.bairro} · ${CLIENTE.cidade}</b></div><span class="mini">${ic('navigate', 18, COR.ink, 1.9)}</span></div></div>`,
+    `<div class="cd"><div class="r"><div class="c"><div style="display:flex;gap:6px;align-items:center"><b>Loja</b>${badge('Padrão', 'suc')}</div><b>${CLIENTE.rua} · ${CLIENTE.bairro} · ${CLIENTE.cidade}</b></div><span class="mini">${ic('navigate', 18, COR.ink, 1.9)}</span></div><div class="r"><div class="c"><b>Depósito</b><p>Rua Floriano Peixoto, 455 · Centro · Boa Vista/RR</p></div><span class="mini">${ic('navigate', 18, COR.ink, 1.9)}</span></div></div>`,
   ].join(''));
 }
 

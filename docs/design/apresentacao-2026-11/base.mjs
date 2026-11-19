@@ -127,7 +127,7 @@ body{font-family:Roboto,system-ui,'Segoe UI',-apple-system,sans-serif;color:${CO
 .chips{display:flex;gap:6px;margin:0 -20px;padding:0 20px;overflow:hidden}
 .chip{height:36px;padding:0 12px;border-radius:18px;border:1px solid ${COR.lineStrong};background:#fff;display:flex;align-items:center;font-size:14px;font-weight:600;white-space:nowrap;flex:none}
 .chip.on{background:${COR.accentSoft};border-color:${COR.accentSoft};color:${COR.accentInk}}
-.badge{display:inline-flex;align-items:center;min-height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;flex:none}
+.badge{display:inline-flex;align-self:flex-start;align-items:center;min-height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;flex:none}
 .t-suc{color:${COR.success};background:${COR.successBg}}.t-av{color:${COR.warning};background:${COR.warningBg}}
 .t-err{color:${COR.danger};background:${COR.dangerBg}}.t-neu{color:${COR.neutralInk};background:${COR.neutralBg}}
 .t-des{color:${COR.accentInk};background:${COR.accentSoft}}
@@ -187,11 +187,13 @@ export const busca = (ph, valor = '') =>
 
 export const badge = (texto, tom) => `<span class="badge t-${tom}">${texto}</span>`;
 
-// Barra de abas do shell: Campo (6 posições: Início, Rota, Clientes, Pedidos, Performance, Mais) e Gestão (5: Início, Equipe,
-// Aprovações, Clientes, Mais), na ordem das páginas dos módulos (apps/mobile/src/lib/abas.ts, MAX_ABAS_POR_VARIANTE).
+// Barra de abas do shell: Campo (6 posições: Início, Rota, Clientes, Pedidos, Performance, Mais), Gestão (5: Início, Equipe,
+// Aprovações, Clientes, Mais) e o promotor no Campo, na ordem das páginas dos módulos (apps/mobile/src/lib/abas.ts, MAX_ABAS_POR_VARIANTE).
 const ABAS = {
   campo: [['inicio', 'home', 'Início'], ['rota', 'pin', 'Rota'], ['clientes', 'users', 'Clientes'], ['pedidos', 'clipboard', 'Pedidos'], ['performance', 'target', 'Performance'], ['mais', 'menu', 'Mais']],
   gestao: [['inicio', 'home', 'Início'], ['equipe', 'users', 'Equipe'], ['aprovacoes', 'check', 'Aprovações'], ['clientes', 'users', 'Clientes'], ['mais', 'menu', 'Mais']],
+  // promotor no Campo: sem Pedidos (RN-PRO-01), com a Loja do Promotor (ordem 40)
+  promotor: [['inicio', 'home', 'Início'], ['rota', 'pin', 'Rota'], ['clientes', 'users', 'Clientes'], ['loja', 'check', 'Loja'], ['performance', 'target', 'Performance'], ['mais', 'menu', 'Mais']],
 };
 export const barraAbas = (variante, ativa, contadores = {}) =>
   `<div class="barra">${ABAS[variante]

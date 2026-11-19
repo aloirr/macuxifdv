@@ -101,7 +101,7 @@ function entrega() {
     corpo: [
       alertas(ALERTAS_DO_PEDIDO),
       `<div class="bloco">${rotulo('Frete')}<div class="seg"><div class="on">CIF</div><div>FOB</div></div></div>`,
-      `<div class="bloco">${rotulo('Endereço', 'Alterar')}<div class="end"><span class="selo t-neu">Principal</span><p>${CLIENTE.rua} · ${CLIENTE.bairro}</p><p>${CLIENTE.cidade} · ${CLIENTE.cep}</p></div></div>`,
+      `<div class="bloco">${rotulo('Endereço', 'Alterar')}<div class="end"><span class="selo t-neu">Loja</span><p>${CLIENTE.rua} · ${CLIENTE.bairro}</p><p>${CLIENTE.cidade} · ${CLIENTE.cep}</p></div></div>`,
       `<div class="bloco">${rotulo('Observação')}<div class="texto">${PEDIDO.obsEntrega}</div></div>`,
       avancar,
     ].join(''),

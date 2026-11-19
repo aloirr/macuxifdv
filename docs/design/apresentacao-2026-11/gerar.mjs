@@ -10,8 +10,9 @@ import { fotografar } from './base.mjs';
 import { TELAS_CAMPO } from './telas-campo.mjs';
 import { TELAS_DIA } from './telas-dia.mjs';
 import { TELAS_GESTAO } from './telas-gestao.mjs';
+import { TELAS_MODULOS } from './telas-modulos.mjs';
 import { TELAS_RASTREAMENTO } from './telas-rastreamento.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const filtro = process.argv.slice(2);
-await fotografar({ ...TELAS_DIA, ...TELAS_CAMPO, ...TELAS_GESTAO, ...TELAS_RASTREAMENTO }, AQUI, filtro.length ? filtro : null);
+await fotografar({ ...TELAS_DIA, ...TELAS_CAMPO, ...TELAS_GESTAO, ...TELAS_MODULOS, ...TELAS_RASTREAMENTO }, AQUI, filtro.length ? filtro : null);
