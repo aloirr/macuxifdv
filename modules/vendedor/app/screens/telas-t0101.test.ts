@@ -106,7 +106,7 @@ describe('T-0137 (RF-VEN-11, RN-VEN-38): Resumo completo e os 4 botões', () => 
     expect(abas).not.toContain('CampoReais');
     expect(abas).not.toContain('pedido-ajuste-tipo');
   });
-  it('RF-VEN-11: o Resumo mostra cliente, venda, itens, entrega e observações em LinhaResumo', () => {
+  it('RF-VEN-11: o Resumo mostra cliente, venda, itens, entrega e observações em TabelaRotuloValor', () => {
     for (const id of ['resumo-venda', 'resumo-itens', 'resumo-entrega', 'resumo-obs']) expect(abas).toContain(`testID="${id}"`);
     expect(abas).toContain('resumo-cliente');
   });
@@ -118,5 +118,15 @@ describe('T-0137 (RF-VEN-11, RN-VEN-38): Resumo completo e os 4 botões', () => 
     expect(s).not.toContain('setTimeout(fn');
     expect(s).not.toContain('saveEditRef.current(), 0');
     expect(s).toContain('aposConfirmar');
+  });
+});
+
+describe('RN-VEN-42 (RD-0083): tabela de crédito do novo pedido', () => {
+  it('RN-VEN-42: o disponível negativo sai só com o sinal, sem tom (o alerta é o de crédito excedido)', () => {
+    const s = fonte('../components/novo-pedido-abas.tsx');
+    const i = s.indexOf('testID="venda-credito"');
+    expect(i).toBeGreaterThan(-1);
+    const bloco = s.slice(i, s.indexOf('/>', i));
+    expect(bloco).not.toContain('tom');
   });
 });
