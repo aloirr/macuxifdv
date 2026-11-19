@@ -38,10 +38,19 @@ describe('RF-CORE-01: login do app', () => {
 
   it('RF-CORE-01: mensagens por código de erro — credencial, bloqueio, limite, sem conexão', () => {
     expect(mensagemDeErroDeLogin({ codigo: 'CREDENCIAIS_INVALIDAS' })).toContain('incorretos');
-    expect(mensagemDeErroDeLogin({ codigo: 'USUARIO_BLOQUEADO' })).toContain('administrador');
-    expect(mensagemDeErroDeLogin({ codigo: 'MUITAS_TENTATIVAS' })).toContain('Aguarde');
+    expect(mensagemDeErroDeLogin({ codigo: 'USUARIO_BLOQUEADO' })).toBe('Seu acesso está bloqueado. Fale com o administrador da sua empresa.');
+    expect(mensagemDeErroDeLogin({ codigo: 'MUITAS_TENTATIVAS' })).toBe('Muitas tentativas. Tente de novo em 5 minutos.');
     expect(mensagemDeErroDeLogin(new ErroSemConexao())).toContain('Sem conexão');
     expect(mensagemDeErroDeLogin(new Error('boom'))).toContain('Tente de novo');
+  });
+
+  it('RN-CORE-01: bloqueio por tentativas avisa o tempo e não manda procurar o administrador; o 429 usa o retry_after_s', () => {
+    // mesmo código USUARIO_BLOQUEADO (o APK em uso segue funcionando); `minutos_restantes` marca o bloqueio temporário
+    const t = mensagemDeErroDeLogin({ codigo: 'USUARIO_BLOQUEADO', detalhes: { minutos_restantes: 12 } });
+    expect(t).toBe('Muitas tentativas. Tente de novo em 12 minutos.');
+    expect(t).not.toContain('administrador');
+    expect(mensagemDeErroDeLogin({ codigo: 'USUARIO_BLOQUEADO', detalhes: { minutos_restantes: 1 } })).toBe('Muitas tentativas. Tente de novo em 1 minuto.');
+    expect(mensagemDeErroDeLogin({ codigo: 'MUITAS_TENTATIVAS', detalhes: { retry_after_s: 61 } })).toBe('Muitas tentativas. Tente de novo em 2 minutos.');
   });
 
   it('RF-CORE-01: entrarComSenha envia o contrato (código sem espaços, aparelho) e valida a resposta', async () => {
