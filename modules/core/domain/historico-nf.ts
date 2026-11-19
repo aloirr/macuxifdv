@@ -6,7 +6,7 @@
  * - Limite, Saldo disponível e Prazo médio são o cartão do Resumo (sem "Em aberto" nem "Crédito disponível").
  */
 import type { StatusNf } from '../contracts/cliente360-v2';
-import { creditoDisponivel, type PedidoQuePesaNoCredito } from '../../vendedor/contracts';
+import { creditoDisponivel, type PedidoDoCliente } from '../../vendedor/contracts';
 import { situacaoTitulo, type TituloLike } from './cliente360';
 
 export type TomStatusNf = 'danger' | 'warning' | 'success' | 'neutral' | 'accent';
@@ -82,12 +82,12 @@ export interface CartaoCreditoResumo {
 }
 
 /** Spec §3.2 (conta do crédito: `creditoDisponivel` do Vendedor, RN-VEN-12): o cartão do Resumo só tem Limite, Saldo disponível e Prazo médio; o motivo entra só com o cliente bloqueado. Sem linha financeira = `null`. */
-export function limiteEDisponivelDoResumo(f: FinanceiroDoResumo | null | undefined, pedidosAprovados: readonly PedidoQuePesaNoCredito[], prazoMedioDias: number | null): CartaoCreditoResumo | null {
+export function limiteEDisponivelDoResumo(f: FinanceiroDoResumo | null | undefined, pedidosAprovados: readonly PedidoDoCliente[], prazoMedioDias: number | null): CartaoCreditoResumo | null {
   if (!f) return null;
   const bloqueado = f.bloqueado ?? false;
   return {
     limite_cents: f.limite_cents,
-    saldo_disponivel_cents: creditoDisponivel({ financeiro: f, pedidos_aprovados: pedidosAprovados }).disponivel_cents,
+    saldo_disponivel_cents: creditoDisponivel({ financeiro: f, pedidos: pedidosAprovados }).disponivel_cents,
     prazo_medio_dias: prazoMedioDias,
     bloqueado,
     motivo_bloqueio: bloqueado ? (f.motivo_bloqueio ?? null) : null,

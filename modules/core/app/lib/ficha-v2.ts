@@ -16,7 +16,7 @@ import {
   type PerformanceCalculada,
   type PeriodoNf,
 } from '../../domain';
-import type { PedidoQuePesaNoCredito } from '../../../vendedor/contracts';
+import type { PedidoDoCliente } from '../../../vendedor/contracts';
 import type { CartaoCredito, DocumentoLinhaContrato, LinhaHistoricoNfContrato, NotaDetalhe, StatusNf } from '../../contracts';
 import { podeAbrirFormato } from './abrir-arquivo';
 
@@ -64,13 +64,12 @@ export function linhasDadosCadastrais(c: { razao_social: string; documento: stri
 }
 
 /**
- * RN-VEN-12: pedidos que reduzem o saldo (aprovados, enviados e integrados ao ERP) no formato do `creditoDisponivel` do Vendedor;
- * a conta (o integrado só pesa sem o crédito do ERP) é dele, não daqui.
+ * RN-VEN-12: pedidos não apagados no formato do `creditoDisponivel` do Vendedor; quais status pesam (`STATUS_QUE_PESAM_NO_CREDITO`)
+ * e a conta (o integrado só pesa sem o crédito do ERP) são dele, não daqui.
  */
-export function pedidosQuePesamNoCredito(pedidos: ReadonlyArray<{ status: string; total_cents: number; deleted_at?: string | null }>): PedidoQuePesaNoCredito[] {
-  return pedidos.filter((p) => !p.deleted_at && STATUS_QUE_PESAM.has(p.status)).map((p) => ({ total_cents: p.total_cents, integrado: p.status === 'integrated' }));
+export function pedidosQuePesamNoCredito(pedidos: ReadonlyArray<{ status: string; total_cents: number; deleted_at?: string | null }>): PedidoDoCliente[] {
+  return pedidos.filter((p) => !p.deleted_at).map((p) => ({ status: p.status, total_cents: p.total_cents }));
 }
-const STATUS_QUE_PESAM: ReadonlySet<string> = new Set(['approved', 'sent_to_erp', 'integrated']);
 
 /** Spec §3.2: Limite, Saldo disponível e Prazo médio; com o cliente bloqueado, o motivo entra no fim do cartão. `null` = sem cartão. */
 export function linhasCartaoCredito(c: CartaoCredito | null | undefined): LinhaRotuloValor[] | null {

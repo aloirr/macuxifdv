@@ -65,7 +65,7 @@ describe('T-0186 / spec §3: Resumo', () => {
     const c = { limite_cents: 100, saldo_disponivel_cents: -50, prazo_medio_dias: null, bloqueado: false, motivo_bloqueio: null };
     expect(linhasCartaoCredito(c)?.[2]?.valor).toBe('—');
   });
-  it('RN-VEN-12: aprovados, enviados e integrados pesam no crédito; rascunho e apagado não; o integrado é marcado para o creditoDisponivel', () => {
+  it('RN-VEN-12: aprovados, enviados e integrados pesam no crédito; rascunho e apagado não; o filtro de status é do creditoDisponivel', () => {
     const ped = [
       { status: 'approved', total_cents: 1000 },
       { status: 'sent_to_erp', total_cents: 500 },
@@ -74,10 +74,11 @@ describe('T-0186 / spec §3: Resumo', () => {
       { status: 'approved', total_cents: 70, deleted_at: '2026-11-01T00:00:00Z' },
     ];
     const r = pedidosQuePesamNoCredito(ped);
-    expect(r).toEqual([{ total_cents: 1000, integrado: false }, { total_cents: 500, integrado: false }, { total_cents: 200, integrado: true }]);
+    expect(r).toHaveLength(4);
+    expect(r.every((x) => !('deleted_at' in x))).toBe(true);
     const fin = { limite_cents: 10_000, saldo_aberto_cents: 0, credito_disponivel_erp_cents: null };
-    expect(creditoDisponivel({ financeiro: fin, pedidos_aprovados: r }).disponivel_cents).toBe(8300);
-    expect(creditoDisponivel({ financeiro: { ...fin, credito_disponivel_erp_cents: 5000 }, pedidos_aprovados: r }).disponivel_cents).toBe(3500);
+    expect(creditoDisponivel({ financeiro: fin, pedidos: r }).disponivel_cents).toBe(8300);
+    expect(creditoDisponivel({ financeiro: { ...fin, credito_disponivel_erp_cents: 5000 }, pedidos: r }).disponivel_cents).toBe(3500);
   });
   const perf: PerformanceCalculada = {
     curvas: [

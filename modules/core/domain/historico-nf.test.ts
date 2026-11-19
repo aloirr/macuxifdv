@@ -98,8 +98,8 @@ describe('RN-VEN-12 / R-20261119-0530: Limite, Saldo disponível e Prazo médio 
   const f = { limite_cents: 800_000, saldo_aberto_cents: 612_000, credito_disponivel_erp_cents: null };
   it('RN-VEN-12: o saldo do cartão é o creditoDisponivel do Vendedor (limite − em aberto − aprovados; ERP prevalece; pode ficar negativo)', () => {
     expect(limiteEDisponivelDoResumo(f, [], null)?.saldo_disponivel_cents).toBe(188_000);
-    expect(limiteEDisponivelDoResumo(f, [{ total_cents: 50_000, integrado: false }], null)?.saldo_disponivel_cents).toBe(138_000);
-    expect(limiteEDisponivelDoResumo({ ...f, credito_disponivel_erp_cents: 100_000 }, [{ total_cents: 30_000, integrado: true }], null)?.saldo_disponivel_cents).toBe(100_000);
+    expect(limiteEDisponivelDoResumo(f, [{ status: 'approved', total_cents: 50_000 }], null)?.saldo_disponivel_cents).toBe(138_000);
+    expect(limiteEDisponivelDoResumo({ ...f, credito_disponivel_erp_cents: 100_000 }, [{ status: 'integrated', total_cents: 30_000 }], null)?.saldo_disponivel_cents).toBe(100_000);
     expect(limiteEDisponivelDoResumo({ limite_cents: 100_000, saldo_aberto_cents: 150_000, credito_disponivel_erp_cents: null }, [], null)?.saldo_disponivel_cents).toBe(-50_000);
   });
   it('R-20261119-0530: o cartão tem só Limite, Saldo disponível e Prazo médio (e o motivo do bloqueio)', () => {
