@@ -115,7 +115,7 @@ describe.skipIf(semBanco())('Core T-0156 × Postgres: rastreamento no expediente
     expect(daEquipe.usuario.metros).toBeGreaterThan(0);
     await expect(chamarComPerfis(vendedor1, { data: DIA, usuario_id: U.vendedor1 })).rejects.toMatchObject({ status: 403 });
     await expect(chamarComPerfis(vendedor1, { data: DIA, usuario_id: U.vendedor2 })).rejects.toMatchObject({ status: 403 });
-    await expect(chamarComPerfis(vendedor1, { data: DIA })).rejects.toBeDefined(); // sem usuario_id a consulta nem existe
+    await expect(async () => chamarComPerfis(vendedor1, { data: DIA })).rejects.toBeDefined(); // sem usuario_id a consulta nem existe
     await expect(chamarComPerfis(supervisor, { data: DIA, usuario_id: U.vendedor2 })).rejects.toMatchObject({ status: 404 });
     await expect(chamarComPerfis(analista, { data: DIA, usuario_id: U.vendedor1 })).rejects.toMatchObject({ status: 403 });
     await expect(chamarComPerfis(adminB, { data: DIA, usuario_id: B.usuarios.admin })).rejects.toMatchObject({ status: 403 });
