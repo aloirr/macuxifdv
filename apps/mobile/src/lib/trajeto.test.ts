@@ -2,20 +2,18 @@
  * T-0156 (docs/desenho/tracking.md §3 e §9; RN-CORE-13 e RN-CORE-37): regras do shell para a tarefa `macuxi-trajeto`.
  * A condição de negócio é o `podeRastrear` do Core (§3.2); aqui só o que o shell faz com ela.
  */
-import { MOTIVOS_SEM_RASTREIO, PARAMETROS_RASTREAMENTO_PADRAO, PontoTrajetoSchema, ROTULO_ESTADO_RASTREAMENTO } from '@macuxi/core/contracts';
+import { PARAMETROS_RASTREAMENTO_PADRAO, PontoTrajetoSchema } from '@macuxi/core/contracts';
 import { describe, expect, it } from 'vitest';
 
 import {
   acaoDoTrajeto,
   erroSemCoordenada,
-  estadoDoTrajeto,
   frequenciaDasLinhas,
   mesmosIntervalos,
   opcoesDoTrajeto,
   pontoDaLeitura,
   pontosDoLote,
   TAREFA_TRAJETO,
-  textoDoEstadoDoTrajeto,
 } from './trajeto';
 
 const ID = '0b9a4c1e-7f3d-4a2b-9c8d-1e2f3a4b5c6d';
@@ -113,22 +111,6 @@ describe('ligar e desligar (§3.2)', () => {
 });
 
 describe('Diagnóstico sem coordenada (§9)', () => {
-  it('estado pelo motivo do portão, sem lugar nenhum', () => {
-    expect(estadoDoTrajeto({ pode: true })).toBe('ativa');
-    for (const motivo of MOTIVOS_SEM_RASTREIO) expect(estadoDoTrajeto({ pode: false, motivo })).toBe(motivo);
-  });
-
-  it('RD-2298: rótulos do Core (ROTULO_ESTADO_RASTREAMENTO), os mesmos do chip do Perfil; todo motivo do contrato tem texto', () => {
-    for (const motivo of MOTIVOS_SEM_RASTREIO) expect(textoDoEstadoDoTrajeto(motivo, null, 'America/Manaus')).toBe(ROTULO_ESTADO_RASTREAMENTO[motivo]);
-    expect(textoDoEstadoDoTrajeto('ativa', null, 'America/Manaus')).toBe(ROTULO_ESTADO_RASTREAMENTO.ativa);
-  });
-
-  it('texto do Diagnóstico: o rótulo e a hora do último ponto no fuso do tenant (formatHHMM); sem estado, nada', () => {
-    expect(textoDoEstadoDoTrajeto('ativa', '2026-11-19T13:05:00.000Z', 'America/Manaus')).toBe(`${ROTULO_ESTADO_RASTREAMENTO.ativa} · último ponto 09:05`);
-    expect(textoDoEstadoDoTrajeto('feriado', null, 'America/Manaus')).toBe(ROTULO_ESTADO_RASTREAMENTO.feriado);
-    expect(textoDoEstadoDoTrajeto(null, '2026-11-19T13:05:00.000Z', 'America/Manaus')).toBeNull();
-  });
-
   it('erro da tarefa vai ao Diagnóstico sem coordenada', () => {
     const limpo = erroSemCoordenada(new Error('falha ao gravar ponto -3.119027,-60.021731 (precisão 12 m)'));
     expect(limpo.message).not.toMatch(/3\.119|60\.021/);

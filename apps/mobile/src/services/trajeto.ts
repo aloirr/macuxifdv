@@ -1,6 +1,6 @@
 /**
  * T-0156 (docs/desenho/tracking.md §3 e §9; RN-CORE-13 e RN-CORE-37): tarefa `macuxi-trajeto`, o lado do aparelho. As regras
- * (ponto, lote, ligar e desligar, estado, gravação) estão em `lib/trajeto.ts`; aqui fica o que depende do aparelho, no padrão
+ * (ponto, lote, ligar e desligar, gravação) estão em `lib/trajeto.ts`; aqui fica o que depende do aparelho, no padrão
  * da `macuxi-sync-delta` (`services/segundo-plano.ts`, T-0140):
  * - `TaskManager.defineTask` no escopo global (importado pelo `index.ts`): quando o Android entrega um lote com o app
  *   fechado, não há React montado;
@@ -9,9 +9,9 @@
  * - a captura usa a frequência do parâmetro `rastreamento` do pull (`lerFrequenciaDoTrajeto`) e reinicia quando ela muda;
  * - desligada de fábrica: a condição é o `podeRastrear` do Core por `condicaoDoTrajeto` (ponto único, `lib/trajeto.ts`), com a
  *   `EntradaRastreio` do banco do usuário (parâmetro, feriados, ausências), da sessão guardada (cargo e fuso do tenant), da
- *   variante e da permissão "o tempo todo" lida agora. Rastreamento interno: sem termo, aceite nem pausa;
- * Notificação fixa: o expo-location 57 cria o canal próprio `<appId>:macuxi-trajeto` com IMPORTANCE_LOW, sem som
- * (`LocationTaskService.kt`); o nome do canal ("Serviço do app") e a cor do ícone vêm do `plugins/notificacao-trajeto.ts` (MC-1780).
+ *   variante e da permissão "o tempo todo" lida agora.
+ * Notificação fixa: canal `macuxi-servico` ("Serviço do app"), IMPORTANCE_LOW, sem som, e a cor do ícone, pelo
+ * `plugins/notificacao-trajeto.ts` (MC-1780) sobre o `LocationTaskService.kt` do expo-location 57.
  * Só Android na v1. Build sem os módulos nativos: tudo vira no-op, sem quebrar o app.
  */
 import { PARAMETROS_RASTREAMENTO_PADRAO, type FrequenciaRastreamento } from '@macuxi/core/contracts';
@@ -31,7 +31,6 @@ import {
   TAREFA_TRAJETO,
   type CapturaDoAparelho,
   type ContextoDoRastreio,
-  type DiagnosticoDoTrajeto,
   type IntervalosDaCaptura,
   type LeituraDeLocalizacao,
 } from '@/lib/trajeto';
@@ -41,14 +40,7 @@ import { driverDoArquivo } from './armazenamento';
 import { uuid } from './device';
 import { gravarErro } from './erros';
 import { abrirArmazenamentoDaSessao, usuarioDaSessao, type SessaoGuardada } from './sessao-sem-tela';
-import { keys, readJson, writeJson } from './storage';
-
-/** Diagnóstico do Perfil: estado e hora do último ponto (`DiagnosticoDoTrajeto`, sem coordenada). */
-export const CHAVE_DIAGNOSTICO_TRAJETO = 'fv:diagnostico:trajeto';
-
-export function lerDiagnosticoDoTrajeto(): Promise<DiagnosticoDoTrajeto | null> {
-  return readJson<DiagnosticoDoTrajeto>(CHAVE_DIAGNOSTICO_TRAJETO);
-}
+import { keys, readJson } from './storage';
 
 const registrarErro = (e: Error) => void gravarErro(e, 'nao-fatal', `tarefa ${TAREFA_TRAJETO}`);
 
@@ -128,10 +120,6 @@ const trajeto = criarTrajeto({
   gravar: gravarNoBancoDoUsuario,
   novoId: uuid,
   agora: () => Date.now(),
-  guardarDiagnostico: async (d) => {
-    const atual = await readJson<DiagnosticoDoTrajeto>(CHAVE_DIAGNOSTICO_TRAJETO);
-    await writeJson(CHAVE_DIAGNOSTICO_TRAJETO, { estado: null, ultimo_ponto_em: null, ...atual, ...d });
-  },
   registrarErro,
 });
 

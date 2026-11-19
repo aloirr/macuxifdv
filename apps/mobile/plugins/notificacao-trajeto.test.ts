@@ -1,6 +1,6 @@
 /**
  * MC-1780: plugin da notificação fixa da tarefa `macuxi-trajeto`. O trecho abaixo é cópia literal do
- * LocationTaskService.kt do expo-location 57.0.22 (buildServiceNotification e prepareChannel).
+ * LocationTaskService.kt do expo-location 57.0.22 (onStartCommand, buildServiceNotification e prepareChannel).
  */
 import { readFileSync } from 'node:fs';
 
@@ -10,6 +10,16 @@ import appConfig from '../app.config';
 import { aplicarNotificacaoTrajeto, conferirBuildFromSource } from './notificacao-trajeto';
 
 const TRECHO_REAL = `  @TargetApi(26)
+  override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
+    val extras = intent.extras
+    if (extras != null) {
+      mChannelId = extras.getString("appId") + ":" + extras.getString("taskName")
+      mKillService = extras.getBoolean("killService", false)
+    }
+    return START_REDELIVER_INTENT
+  }
+
+  @TargetApi(26)
   private fun buildServiceNotification(serviceOptions: Bundle): Notification {
     prepareChannel(mChannelId)
     val builder = Notification.Builder(this, mChannelId)
@@ -76,10 +86,22 @@ describe('MC-1780: notificação fixa do trajeto', () => {
     expect(novo).not.toContain('appName');
   });
 
+  it('id do canal: "macuxi-servico", sem appId nem nome da tarefa', () => {
+    const novo = aplicarNotificacaoTrajeto(TRECHO_REAL);
+    expect(novo).toContain('      mChannelId = "macuxi-servico"\n');
+    expect(novo).not.toContain('extras.getString("taskName")');
+    expect(novo).toContain('      mKillService = extras.getBoolean("killService", false)\n');
+  });
+
   it('idempotente: rodar duas vezes dá o mesmo arquivo', () => {
     const uma = aplicarNotificacaoTrajeto(TRECHO_REAL);
     expect(aplicarNotificacaoTrajeto(uma)).toBe(uma);
-    expect(uma.match(/MC-1780/g)).toHaveLength(2);
+    expect(uma.match(/MC-1780/g)).toHaveLength(3);
+  });
+
+  it('falha clara quando o trecho do id do canal não existe (biblioteca atualizada)', () => {
+    const outro = TRECHO_REAL.replace('extras.getString("appId") + ":" + extras.getString("taskName")', 'extras.getString("channelId")');
+    expect(() => aplicarNotificacaoTrajeto(outro)).toThrow(/MC-1780: trecho do onStartCommand \(id do canal\) não encontrado.*57\.0\.22/);
   });
 
   it('falha clara quando o trecho da cor não existe (biblioteca atualizada)', () => {

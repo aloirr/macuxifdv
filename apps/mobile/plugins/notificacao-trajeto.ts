@@ -11,6 +11,7 @@
  *    (inglês, cita localização). Passa a ser "Serviço do app", sem descrição. O canal é recriado a cada início do
  *    serviço: no Android, `createNotificationChannel` com o mesmo id atualiza nome e descrição de quem já tinha o canal
  *    e mantém o que o usuário mudou.
+ *  - Id do canal: o expo-location usa `appId + ":" + taskName`; passa a ser "macuxi-servico" (decisão do gerente, 19/11).
  *
  * Como: no prebuild do Android (`withDangerousMod`) o plugin edita o .kt do expo-location instalado. O .kt só entra no
  * APK porque o `apps/mobile/package.json` pede `expo.autolinking.android.buildFromSource: ["expo-location"]`; sem isso o
@@ -26,6 +27,15 @@ import { type ConfigPlugin, withDangerousMod } from 'expo/config-plugins';
 
 const ARQUIVO_KT = 'android/src/main/java/expo/modules/location/services/LocationTaskService.kt';
 const VERSAO_ESCRITA = '57.0.22';
+
+/** Trecho original do `onStartCommand` que monta o id do canal. */
+const ID_CANAL_ORIGINAL = '      mChannelId = extras.getString("appId") + ":" + extras.getString("taskName")\n';
+
+const ID_CANAL_NOVO = [
+  '      // MC-1780 (Macuxi, apps/mobile/plugins/notificacao-trajeto.ts): id fixo do canal "Serviço do app"',
+  '      mChannelId = "macuxi-servico"',
+  '',
+].join('\n');
 
 /** Trecho original do `buildServiceNotification` (sem `notificationColor`). */
 const COR_ORIGINAL = ['    } ?: run {', '      builder.setColorized(false)', '    }', ''].join('\n');
@@ -74,9 +84,10 @@ function trocarUmaVez(fonte: string, original: string, novo: string, oQue: strin
   return fonte.slice(0, primeira) + novo + fonte.slice(primeira + original.length);
 }
 
-/** Aplica a cor e o canal ao conteúdo do LocationTaskService.kt. Idempotente; lança erro se o trecho esperado faltar. */
+/** Aplica o id do canal, a cor e o canal ao LocationTaskService.kt. Idempotente; lança erro se o trecho esperado faltar. */
 export function aplicarNotificacaoTrajeto(fonte: string): string {
-  const comCor = trocarUmaVez(fonte, COR_ORIGINAL, COR_NOVA, 'buildServiceNotification (cor)');
+  const comId = trocarUmaVez(fonte, ID_CANAL_ORIGINAL, ID_CANAL_NOVO, 'onStartCommand (id do canal)');
+  const comCor = trocarUmaVez(comId, COR_ORIGINAL, COR_NOVA, 'buildServiceNotification (cor)');
   return trocarUmaVez(comCor, CANAL_ORIGINAL, CANAL_NOVO, 'prepareChannel (canal)');
 }
 

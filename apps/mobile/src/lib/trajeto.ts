@@ -2,13 +2,12 @@
  * T-0156 (docs/desenho/tracking.md §3 e §9; RN-CORE-13 e RN-CORE-37): regras puras da tarefa `macuxi-trajeto`, sem nada
  * nativo (o lado do aparelho fica em `services/trajeto.ts`). A condição de negócio é o `podeRastrear` do Core (§3.2), o
  * mesmo da API; aqui só o que o shell faz com ela: ler do aparelho a `EntradaRastreio`, montar o ponto, filtrar o lote,
- * ligar ou desligar e o estado do Diagnóstico. Nenhuma coordenada sai daqui para log, erro, Diagnóstico ou telemetria (§9).
+ * ligar ou desligar. Nenhuma coordenada sai daqui para log, erro, Diagnóstico ou telemetria (§9).
  *
- * Do contrato do Core (`@macuxi/core/contracts`): `podeRastrear`, `ROTULO_ESTADO_RASTREAMENTO` e `PontoTrajeto` (validado pelo
- * `PontoTrajetoSchema`); a hora vem do `formatHHMM` (`@macuxi/comum/fuso`), o mesmo que o Core usa.
+ * Do contrato do Core (`@macuxi/core/contracts`): `podeRastrear`, `CARGOS_RASTREADOS` e `PontoTrajeto` (validado pelo `PontoTrajetoSchema`).
  */
-import { formatHHMM } from '@macuxi/comum/fuso';
 import {
+  CARGOS_RASTREADOS,
   ENTIDADE_AUSENCIA_USUARIO,
   PARAMETRO_FERIADOS,
   PARAMETRO_RASTREAMENTO,
@@ -16,7 +15,6 @@ import {
   ParametrosRastreamentoSchema,
   podeRastrear,
   PontoTrajetoSchema,
-  ROTULO_ESTADO_RASTREAMENTO,
   type EntradaRastreio,
   type FrequenciaRastreamento,
   type ParametrosRastreamento,
@@ -65,8 +63,8 @@ const MINUTO_MS = 60_000;
  * Opções da captura pela frequência do parâmetro `rastreamento` do BKO (§3.1 e §3.3: sobe sem build novo). `accuracy: 4` é o
  * `Accuracy.High` do expo-location (`Location.types`), em número para este arquivo não importar o módulo nativo.
  * Notificação fixa: o Android exige uma para o serviço em primeiro plano. O rastreamento é interno (dono do produto, 19/11):
- * só o título "Macuxi Campo ativo", sem ação e sem citar localização. O expo-location 57 cria para ela o canal próprio
- * `<appId>:macuxi-trajeto` com IMPORTANCE_LOW, sem som (`LocationTaskService.kt`).
+ * só o título "Macuxi Campo ativo", sem ação e sem citar localização, no canal `macuxi-servico` ("Serviço do app",
+ * IMPORTANCE_LOW, sem som) do `plugins/notificacao-trajeto.ts`.
  */
 export function opcoesDoTrajeto(frequencia: FrequenciaRastreamento = PARAMETROS_RASTREAMENTO_PADRAO.frequencia): OpcoesDoTrajeto {
   return {
@@ -176,24 +174,6 @@ export function acaoDoTrajeto(condicao: CondicaoTrajeto, ativa: boolean, frequen
   return ativa ? 'desligar' : 'manter';
 }
 
-/** Estado do Diagnóstico (§9): "ativa" ou o motivo do portão fechado, as chaves do `ROTULO_ESTADO_RASTREAMENTO` do Core. */
-export type EstadoDoTrajeto = keyof typeof ROTULO_ESTADO_RASTREAMENTO;
-
-/** Estado do Diagnóstico (§9), só pelo motivo: nunca o lugar. */
-export function estadoDoTrajeto(condicao: CondicaoTrajeto): EstadoDoTrajeto {
-  return condicao.pode ? 'ativa' : condicao.motivo;
-}
-
-/**
- * Linha do Diagnóstico: o rótulo do Core (o mesmo do chip do Perfil) e, se houver, a hora do último ponto no fuso do tenant (§9).
- * Sem estado (antes da 1ª atualização da sessão), nada.
- */
-export function textoDoEstadoDoTrajeto(estado: EstadoDoTrajeto | null, ultimoPontoIso: string | null, fuso: string): string | null {
-  if (!estado) return null;
-  const texto = ROTULO_ESTADO_RASTREAMENTO[estado];
-  return ultimoPontoIso ? `${texto} · último ponto ${formatHHMM(ultimoPontoIso, fuso)}` : texto;
-}
-
 /**
  * Número decimal com cara de coordenada (`-3.119027`, `60.0217`). Fica de fora o que o suporte precisa: hora ISO
  * (`00.000Z`, depois de `:`), versão (`1.0.15`) e pilha (`index.bundle:1234:56789`).
@@ -218,9 +198,9 @@ export function erroSemCoordenada(e: unknown): Error {
 const DESLIGADO: CondicaoTrajeto = { pode: false, motivo: 'desligado' };
 
 /**
- * Tudo o que o `podeRastrear` do Core pede, menos o instante (§2 e §3.2), lido do aparelho uma vez por atualização ou lote:
- * o parâmetro `rastreamento` (ativo e expediente), o cargo, o app, os feriados do tenant, as ausências do próprio usuário, a
- * permissão "o tempo todo" e o fuso do tenant. Rastreamento interno (dono do produto, 19/11): sem termo, aceite nem pausa.
+ * O que o portão pede, menos o instante (§2 e §3.2), lido do aparelho uma vez por atualização ou lote: as pré-condições do
+ * shell (cargo de campo, app Campo e permissão "o tempo todo") e o que o `podeRastrear` do Core pede (o parâmetro
+ * `rastreamento`, os feriados do tenant, as ausências do próprio usuário e o fuso do tenant).
  */
 export interface ContextoDoRastreio {
   parametros: Pick<ParametrosRastreamento, 'ativo' | 'expediente'>;
@@ -237,20 +217,20 @@ export interface ContextoDoRastreio {
 export function entradaDoRastreio(c: ContextoDoRastreio, instanteMs: number): EntradaRastreio {
   return {
     ativo: c.parametros.ativo,
-    cargo: c.cargo,
-    app: c.app,
     expediente: c.parametros.expediente,
     feriados: c.feriados,
     ausencias: c.ausencias,
-    permissao: c.permissao,
     instante: new Date(instanteMs).toISOString(),
     fuso: c.fuso,
   };
 }
 
-/** RN-CORE-13: o portão é o `podeRastrear` do Core, o mesmo da API; instante inválido, desligado. */
+/** Pré-condições que o Core deixa fora do `podeRastrear`: usuário de campo no app Campo, com a permissão "o tempo todo". */
+const preCondicoes = (c: ContextoDoRastreio): boolean => c.app === 'campo' && CARGOS_RASTREADOS.includes(c.cargo) && c.permissao;
+
+/** RN-CORE-13: as pré-condições do shell e o `podeRastrear` do Core, o mesmo da API; sem elas ou com instante inválido, desligado. */
 export function portaoDoTrajeto(c: ContextoDoRastreio, instanteMs: number): CondicaoTrajeto {
-  if (!Number.isFinite(instanteMs)) return DESLIGADO;
+  if (!Number.isFinite(instanteMs) || !preCondicoes(c)) return DESLIGADO;
   return podeRastrear(entradaDoRastreio(c, instanteMs));
 }
 
@@ -323,13 +303,6 @@ export interface CapturaDoAparelho {
   intervalosEmUso(): Promise<Partial<IntervalosDaCaptura> | null>;
 }
 
-/** O que o Diagnóstico do Perfil guarda (§9): o estado e a hora do último ponto, nunca a coordenada. */
-export interface DiagnosticoDoTrajeto {
-  /** `null` depois do logout ou do aparelho bloqueado, até a 1ª atualização da sessão. */
-  estado: EstadoDoTrajeto | null;
-  ultimo_ponto_em: string | null;
-}
-
 export interface DepsDoTrajeto {
   /** `null` = build sem os módulos nativos (tudo vira nada). */
   captura: CapturaDoAparelho | null;
@@ -339,13 +312,9 @@ export interface DepsDoTrajeto {
   gravar(pontos: PontoTrajeto[]): Promise<void>;
   novoId(): string;
   agora(): number;
-  guardarDiagnostico(d: Partial<DiagnosticoDoTrajeto>): Promise<void>;
   /** Recebe o erro já sem coordenada (`erroSemCoordenada`). */
   registrarErro(e: Error): void;
 }
-
-const instanteMaisRecente = (pontos: readonly PontoTrajeto[]): string =>
-  pontos.reduce((a, p) => (Date.parse(p.capturado_em) > Date.parse(a) ? p.capturado_em : a), pontos[0]!.capturado_em);
 
 /**
  * A tarefa `macuxi-trajeto` sobre as dependências do aparelho. Nenhuma função lança: o erro vai ao `registrarErro` sem
@@ -373,7 +342,6 @@ export function criarTrajeto(d: DepsDoTrajeto) {
           const acao = acaoDoTrajeto(agora, ativa, mudou);
           if (acao === 'desligar' || acao === 'reiniciar') await c.parar();
           if ((acao === 'ligar' || acao === 'reiniciar') && opcoes) await c.ligar(opcoes);
-          await d.guardarDiagnostico({ estado: estadoDoTrajeto(agora) });
           return acao;
         },
         registrar,
@@ -383,14 +351,7 @@ export function criarTrajeto(d: DepsDoTrajeto) {
     async parar(): Promise<void> {
       const c = d.captura;
       if (!c) return;
-      await semDerrubar(
-        async () => {
-          await pararSeAtiva(c);
-          await d.guardarDiagnostico({ estado: null, ultimo_ponto_em: null });
-        },
-        registrar,
-        undefined,
-      );
+      await semDerrubar(() => pararSeAtiva(c), registrar, undefined);
     },
     async tratarLote(leituras: readonly LeituraDeLocalizacao[], erro: { message: string } | null): Promise<void> {
       const c = d.captura;
@@ -401,10 +362,7 @@ export function criarTrajeto(d: DepsDoTrajeto) {
           const condicao = await d.condicao();
           const { pontos, parar } = pontosDoLote(leituras, condicao, d.novoId);
           try {
-            if (pontos.length > 0) {
-              await d.gravar(pontos);
-              await d.guardarDiagnostico({ ultimo_ponto_em: instanteMaisRecente(pontos) });
-            }
+            if (pontos.length > 0) await d.gravar(pontos);
           } finally {
             if (parar || !condicao(d.agora()).pode) await pararSeAtiva(c);
           }

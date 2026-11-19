@@ -1,6 +1,6 @@
 /**
  * T-0156 (docs/desenho/tracking.md §3.2, §3.4 e §9; RN-CORE-13): a tarefa `macuxi-trajeto` ligada ao shell. Dependências
- * injetadas (captura do aparelho, condição, gravação, Diagnóstico) e a ligação nos três gatilhos (abertura depois da carga,
+ * injetadas (captura do aparelho, condição, gravação, erro) e a ligação nos três gatilhos (abertura depois da carga,
  * volta ao primeiro plano e cada passada da `macuxi-sync-delta`), no logout e no aparelho bloqueado.
  */
 import { readFileSync } from 'node:fs';
@@ -22,7 +22,6 @@ import {
   type CapturaDoAparelho,
   type CondicaoTrajeto,
   type ContextoDoRastreio,
-  type DiagnosticoDoTrajeto,
   type IntervalosDaCaptura,
   type LeituraDeLocalizacao,
   type OpcoesDoTrajeto,
@@ -51,7 +50,6 @@ function montar(
   let emUso: Partial<IntervalosDaCaptura> | null = o.emUso !== undefined ? o.emUso : o.ativa ? opcoesDoTrajeto() : null;
   const erros: Error[] = [];
   const gravados: PontoTrajeto[] = [];
-  let diag: Partial<DiagnosticoDoTrajeto> = {};
   let ativa = o.ativa ?? false;
   const captura: CapturaDoAparelho = {
     ativa: async () => ativa,
@@ -79,12 +77,9 @@ function montar(
       }),
     novoId: () => ID,
     agora: () => AGORA,
-    guardarDiagnostico: async (d) => {
-      diag = { ...diag, ...d };
-    },
     registrarErro: (e) => erros.push(e),
   });
-  return { trajeto, passos, ligadas, erros, gravados, diag: () => diag, ativa: () => ativa };
+  return { trajeto, passos, ligadas, erros, gravados, ativa: () => ativa };
 }
 
 const leitura = (ms: number): LeituraDeLocalizacao => ({ timestamp: ms, coords: { latitude: LAT, longitude: LON, accuracy: 10, speed: 1 } });
@@ -96,7 +91,6 @@ describe('condição padrão (§2, condição 1: padrão desligado)', () => {
     const t = montar({ condicao: c(AGORA) });
     expect(await t.trajeto.atualizar()).toBe('manter');
     expect(t.passos).toEqual([]);
-    expect(t.diag()).toMatchObject({ estado: 'desligado' });
   });
 
   it('leitura do aparelho com erro: desligada', async () => {
@@ -116,30 +110,30 @@ const LIGA: ContextoDoRastreio = {
   fuso: 'America/Manaus',
 };
 
-describe('RN-CORE-13: o portão é o podeRastrear do Core, sem termo, aceite nem pausa (rastreamento interno; §2 e §3.2)', () => {
-  it('liga só com todas as condições, sem termo publicado, aceite nem pausa no aparelho', async () => {
+describe('RN-CORE-13: o portão é o podeRastrear do Core (§2 e §3.2)', () => {
+  it('liga só com todas as condições', async () => {
     expect(portaoDoTrajeto(LIGA, AGORA)).toEqual({ pode: true });
     expect((await condicaoDoTrajeto(async () => LIGA))(AGORA)).toEqual({ pode: true });
   });
 
-  it('a EntradaRastreio leva só os campos do Core, sem termo, aceite nem pausa', () => {
+  it('a EntradaRastreio leva só os campos do Core', () => {
     expect(Object.keys(entradaDoRastreio(LIGA, AGORA)).sort()).toEqual(
-      ['app', 'ausencias', 'ativo', 'cargo', 'expediente', 'feriados', 'fuso', 'instante', 'permissao'].sort(),
+      ['ausencias', 'ativo', 'expediente', 'feriados', 'fuso', 'instante'].sort(),
     );
   });
 
   const casos: Array<[string, Partial<ContextoDoRastreio>, number, MotivoSemRastreio]> = [
     ['1. parâmetro rastreamento desligado (padrão de fábrica)', { parametros: { ...LIGA.parametros, ativo: false } }, AGORA, 'desligado'],
-    ['2. cargo fora do campo (supervisor)', { cargo: 'supervisor' }, AGORA, 'cargo'],
-    ['2. sem cargo na sessão', { cargo: '' }, AGORA, 'cargo'],
-    ['2. app Gestão', { app: 'gestao' }, AGORA, 'app'],
+    ['pré-condição: cargo fora do campo (supervisor)', { cargo: 'supervisor' }, AGORA, 'desligado'],
+    ['pré-condição: sem cargo na sessão', { cargo: '' }, AGORA, 'desligado'],
+    ['pré-condição: app Gestão', { app: 'gestao' }, AGORA, 'desligado'],
     ['4. fora do expediente (19:00 em Manaus)', {}, Date.parse('2026-11-19T23:00:00.000Z'), 'fora_do_expediente'],
     ['4. dia sem expediente (domingo)', {}, Date.parse('2026-11-22T13:00:00.000Z'), 'fora_do_expediente'],
     ['4. expediente vazio no parâmetro', { parametros: { ativo: true, expediente: { '0': [], '1': [], '2': [], '3': [], '4': [], '5': [], '6': [] } } }, AGORA, 'fora_do_expediente'],
     ['4. feriado do calendário do tenant', { feriados: ['2026-11-19'] }, AGORA, 'feriado'],
     ['4. feriado nacional (20/11), mesmo sem cadastro', {}, Date.parse('2026-11-20T13:00:00.000Z'), 'feriado'],
     ['4. ausência do usuário', { ausencias: [{ de: '2026-11-18', ate: '2026-11-19' }] }, AGORA, 'ausencia'],
-    ['6. sem a permissão "o tempo todo"', { permissao: false }, AGORA, 'sem_permissao'],
+    ['pré-condição: sem a permissão "o tempo todo"', { permissao: false }, AGORA, 'desligado'],
     ['fuso do tenant: 17:30 em Manaus é 18:30 em São Paulo', { fuso: 'America/Sao_Paulo' }, Date.parse('2026-11-19T21:30:00.000Z'), 'fora_do_expediente'],
   ];
   for (const [nome, mudanca, ms, motivo] of casos) {
@@ -166,7 +160,6 @@ describe('RN-CORE-13: o portão é o podeRastrear do Core, sem termo, aceite nem
       gravar: async (p) => void gravados.push(...p),
       novoId: () => ID,
       agora: () => Date.parse('2026-11-19T22:05:00.000Z'),
-      guardarDiagnostico: async () => undefined,
       registrarErro: () => undefined,
     });
     await t.tratarLote([leitura(Date.parse('2026-11-19T21:55:00.000Z')), leitura(Date.parse('2026-11-19T22:05:00.000Z'))], null);
@@ -219,7 +212,7 @@ async function bancoDoUsuario() {
   return base;
 }
 
-describe('EntradaRastreio lida do aparelho (pulls do Core e sessão; sem termo, aceite nem pausa)', () => {
+describe('EntradaRastreio lida do aparelho (pulls do Core e sessão)', () => {
   it('parâmetro, feriados e só as ausências vivas do próprio usuário', async () => {
     const c = await lerContextoDoRastreio(await bancoDoUsuario(), SESSAO);
     expect(c).toEqual({
@@ -234,17 +227,10 @@ describe('EntradaRastreio lida do aparelho (pulls do Core e sessão; sem termo, 
     expect(portaoDoTrajeto(c, AGORA)).toEqual({ pode: true });
   });
 
-  it('termo, aceite e pausa gravados no aparelho por um build anterior não contam', async () => {
-    const base = await bancoDoUsuario();
-    await base.gravar('mod:core:rastreamento.pausa', { id: ID, inicio: '2026-11-19T12:50:00.000Z' });
-    await base.gravar('ent:termo_rastreamento', porId([{ id: 't1', versao: 1, texto: 'v1', publicado_em: '2026-11-01T12:00:00.000Z', ...vivo }]));
-    expect(portaoDoTrajeto(await lerContextoDoRastreio(base, SESSAO), AGORA)).toEqual({ pode: true });
-  });
-
   it('sem cargo na sessão, cargo vazio', async () => {
     const c = await lerContextoDoRastreio(await bancoDoUsuario(), { ...SESSAO, cargo: null });
     expect(c.cargo).toBe('');
-    expect(portaoDoTrajeto(c, AGORA)).toEqual({ pode: false, motivo: 'cargo' });
+    expect(portaoDoTrajeto(c, AGORA)).toEqual({ pode: false, motivo: 'desligado' });
   });
 
   it('banco vazio (antes do 1º pull): padrão de fábrica, desligado', async () => {
@@ -287,17 +273,14 @@ describe('ligar, desligar e manter (§3.2)', () => {
     const liga = montar({ condicao: PODE });
     expect(await liga.trajeto.atualizar()).toBe('ligar');
     expect(liga.passos).toEqual(['ligar']);
-    expect(liga.diag()).toMatchObject({ estado: 'ativa' });
 
     const mantem = montar({ condicao: PODE, ativa: true });
     expect(await mantem.trajeto.atualizar()).toBe('manter');
     expect(mantem.passos).toEqual([]);
-    expect(mantem.diag()).toMatchObject({ estado: 'ativa' });
 
     const desliga = montar({ condicao: NAO_PODE, ativa: true });
     expect(await desliga.trajeto.atualizar()).toBe('desligar');
     expect(desliga.passos).toEqual(['parar']);
-    expect(desliga.diag()).toMatchObject({ estado: 'fora_do_expediente' });
   });
 
   it('§3.1 e §3.3: liga com a frequência do parâmetro; ela mudou, reinicia (para e liga) na próxima atualização', async () => {
@@ -310,7 +293,6 @@ describe('ligar, desligar e manter (§3.2)', () => {
     expect(await mudou.trajeto.atualizar()).toBe('reiniciar');
     expect(mudou.passos).toEqual(['parar', 'ligar']);
     expect(mudou.ligadas).toEqual([opcoesDoTrajeto(f)]);
-    expect(mudou.diag()).toMatchObject({ estado: 'ativa' });
     // já com a nova: mantém
     expect(await mudou.trajeto.atualizar()).toBe('manter');
     expect(mudou.passos).toEqual(['parar', 'ligar']);
@@ -331,7 +313,6 @@ describe('ligar, desligar e manter (§3.2)', () => {
       gravar: async () => undefined,
       novoId: () => ID,
       agora: () => AGORA,
-      guardarDiagnostico: async () => undefined,
       registrarErro: () => undefined,
     });
     expect(await t.atualizar()).toBe('desligar');
@@ -356,7 +337,6 @@ describe('ligar, desligar e manter (§3.2)', () => {
       gravar: async () => undefined,
       novoId: () => ID,
       agora: () => AGORA,
-      guardarDiagnostico: async () => undefined,
       registrarErro: (e) => t.erros.push(e),
     });
     expect(await c.atualizar()).toBeNull();
@@ -365,12 +345,11 @@ describe('ligar, desligar e manter (§3.2)', () => {
 });
 
 describe('logout e aparelho bloqueado param a captura (§3.4)', () => {
-  it('parar desliga a captura ativa e zera o Diagnóstico; sem captura ativa, não chama o aparelho', async () => {
+  it('parar desliga a captura ativa; sem captura ativa, não chama o aparelho', async () => {
     const ativa = montar({ ativa: true });
     await ativa.trajeto.parar();
     expect(ativa.passos).toEqual(['parar']);
     expect(ativa.ativa()).toBe(false);
-    expect(ativa.diag()).toEqual({ estado: null, ultimo_ponto_em: null });
 
     const parada = montar();
     await parada.trajeto.parar();
@@ -379,11 +358,10 @@ describe('logout e aparelho bloqueado param a captura (§3.4)', () => {
 });
 
 describe('lote do Android (§3.1 e §3.2)', () => {
-  it('grava os pontos aceitos e guarda só a hora do último ponto no Diagnóstico', async () => {
+  it('grava os pontos aceitos', async () => {
     const t = montar();
     await t.trajeto.tratarLote([leitura(AGORA - 300_000), leitura(AGORA)], null);
     expect(t.gravados).toHaveLength(2);
-    expect(t.diag()).toEqual({ ultimo_ponto_em: '2026-11-19T13:00:00.000Z' });
     expect(t.passos).toEqual([]);
   });
 
@@ -492,7 +470,6 @@ describe('ligação no shell (§3.2): três gatilhos, logout e aparelho bloquead
   });
 
   it('RN-CORE-13: a tarefa monta a EntradaRastreio do banco do usuário da sessão, do cargo e do fuso da sessão, da variante e da permissão', () => {
-    expect(servico).not.toMatch(/CHAVE_ACEITE_LOCAL|CHAVE_PAUSA_LOCAL|rastreamento\.aceite|rastreamento\.pausa/);
     expect(servico).toMatch(/lerContextoDoRastreio\(aberto\.armazenamento, \{/);
     expect(servico).toMatch(/cargo: s\?\.user\?\.perfil \?\? null, app: varianteAtual\(\), fuso: s\?\.tenant\?\.fuso \|\| DEFAULT_TZ, permissao/);
     expect(servico).toMatch(/getBackgroundPermissionsAsync\(\)\s*\.then\(\(r\) => r\.granted\)\s*\.catch\(\(\) => false\)/);
@@ -505,12 +482,7 @@ describe('Perfil e abertura do Campo: rastreamento interno (dono do produto, 19/
   const perfil = fonte('../app/profile.tsx');
   const abas = fonte('../app/(tabs)/_layout.tsx');
 
-  it('o vendedor não vê nada do rastreamento: sem seção Localização, sem alerta do termo e sem termo na abertura', () => {
-    for (const t of [perfil, abas]) expect(t).not.toMatch(/SecaoLocalizacaoPerfil|AlertaTermoRastreamento|useAbrirTermoPendente|AbrirTermoPendente|useRastreamento|AlertasDoPerfil/);
-  });
-
-  it('o Diagnóstico do Perfil (suporte) continua com o estado da captura, pelo rótulo do Core', () => {
-    expect(perfil).toMatch(/textoDoEstadoDoTrajeto\(trajeto\?\.estado \?\? null, trajeto\?\.ultimo_ponto_em \?\? null, tz\)/);
-    expect(perfil).toMatch(/testID="diagnostico-trajeto"/);
+  it('o vendedor não vê nada do rastreamento, nem no Diagnóstico do Perfil', () => {
+    for (const t of [perfil, abas]) expect(t).not.toMatch(/[Tt]rajeto|[Rr]astre|[Ll]ocaliza/);
   });
 });
