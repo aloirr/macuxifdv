@@ -33,12 +33,12 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
-  # Semanal com todos os pacotes (economia do Actions, 18/11/2026; antes noturno de segunda a sexta): sexta 07:00 UTC =
-  # 03:00 em Manaus, véspera da produção. Garante a matriz completa da semana mesmo sem push de código na sexta; a árvore
-  # que um push da sexta já passou verde com a matriz completa não repete os testes (escopo.mjs). O gerente confere na
-  # ronda de sexta (gh run list --workflow CI --event schedule --limit 1).
+  # Semanal com todos os pacotes (economia do Actions, 18/11/2026; antes noturno de segunda a sexta): sábado 03:00 UTC =
+  # sexta 23:00 em Manaus, DEPOIS dos pushes da sexta (RD-2249). Garante a matriz completa da semana mesmo sem push de
+  # código; a árvore que um push da sexta já passou verde com a matriz completa não repete os testes (escopo.mjs). O
+  # gerente confere na primeira ronda de sábado (gh run list --workflow CI --event schedule --limit 1).
   schedule:
-    - cron: '0 7 * * 5'
+    - cron: '0 3 * * 6'
   # Manual (o ensaio do branch verificacao/*, doc 07): pacotes afetados desde o merge-base com o main; "completo" = todos.
   workflow_dispatch:
     inputs:

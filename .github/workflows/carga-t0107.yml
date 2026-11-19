@@ -5,7 +5,7 @@ name: carga T-0107 (20 mil SKUs, com metas)
 # dos números em tests/carga/t0107/README.md). No PR e no push ao main o mesmo arquivo roda dentro do testes-integracao
 # do CI, sem metas (só erro funcional reprova).
 #   Quando: manual (Actions → "carga T-0107" → Run workflow, ou gh workflow run carga-t0107.yml) e semanal (segunda
-#           08:00 UTC = 04:00 em Manaus; o agendado do CI é semanal, na sexta). Nunca em PR nem no push.
+#           08:00 UTC = 04:00 em Manaus; o agendado do CI é semanal, sexta às 23:00 em Manaus). Nunca em PR nem no push.
 #   Bloqueia? NÃO: workflow à parte, fora do ci-ok (o check obrigatório do ci.yml). Vermelho aqui = achado da carga
 #           (D-T0107b, busca acima da meta, é esperado até o modulo-catalogo corrigir) e vira pendência para o dono.
 #   Perfil: "padrao" (200 buscas / 4 concorrentes / 30 s, ~2 min de teste) no semanal; "ensaio" (200 / 10 / 900 s, o
