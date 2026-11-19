@@ -24,6 +24,8 @@ const CSS_BKO = `<style>
 .linha b{font-size:15px;font-weight:600}
 .filtros{display:flex;gap:12px;align-items:flex-end}
 .filtros .campo{font-size:12px;font-weight:600;color:#4A5562}
+/* MC-1746: cabeçalho de tabela em 12 px também nas Alçadas (a base de Parâmetros usa 13). */
+th{font-size:12px}
 .busca{height:44px;border:1px solid #C9CED5;border-radius:10px;background:#fff;width:300px;display:flex;align-items:center;gap:8px;padding:0 12px;color:#5B6673;font-size:15px}
 /* Tabela de Pedidos (R-20261118-214740): 13 colunas; em 1366 rola na horizontal com Código + Cliente e Situação + Ações fixas. */
 .quadro.tab{padding:0;overflow:hidden}
@@ -47,9 +49,9 @@ table.ped .vz{color:#5B6673}
 .sit{display:inline-block;border-radius:8px;padding:3px 8px;font-size:12px;line-height:16px;font-weight:500;white-space:nowrap}
 .s-pe{color:#1E3350;background:#DFE2E6}.s-ok{color:#1D6B4F;background:#E2F1EA}.s-ne{color:#34404D;background:#ECEEF1}.s-re{color:#A8261B;background:#FDE8E6}
 .acs{display:flex;gap:6px;align-items:center}
-.acs .sel{width:196px;height:36px;border-radius:8px;padding:0 10px}
+.acs .sel{width:196px;height:38px;border-radius:10px;padding:0 10px}
 .acs .sel.vazia span{color:#5B6673}
-.b{height:36px;border-radius:8px;padding:0 14px;font-size:15px;font-weight:600;display:inline-flex;align-items:center;white-space:nowrap;border:1px solid #C9CED5;background:#fff;color:#16202A}
+.b{height:38px;border-radius:10px;padding:0 14px;font-size:15px;font-weight:600;display:inline-flex;align-items:center;white-space:nowrap;border:1px solid #C9CED5;background:#fff;color:#16202A}
 </style>`;
 
 const chev = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
@@ -142,8 +144,8 @@ body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background
 .tl:last-child{border-bottom:0}
 .tl span:last-child{font-variant-numeric:tabular-nums;text-align:right}
 .tl.f{min-height:48px}
-.tl.f span:first-child{font-size:15px;font-weight:600}
-.tl.f span:last-child{font-size:22px;font-weight:700}
+.tl.f span:first-child{font-size:16px;font-weight:600}
+.tl.f span:last-child{font-size:22px;font-weight:600}
 .rod{padding:12px 16px 16px;background:#fff;border-top:1px solid #DFE2E6;display:flex;flex-direction:column;gap:8px}
 .bt{height:52px;border-radius:14px;background:#1E3350;color:#fff;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center}
 .bt.t{background:none;color:#1E3350;height:44px}
@@ -152,10 +154,10 @@ body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background
 .dlg h2{font-size:22px;font-weight:700}
 .dlg .bts{display:flex;justify-content:flex-end;gap:8px}
 .dlg .bt{height:44px;padding:0 20px;border-radius:12px}
-/* Tags do Histórico (packages/ui/src/comum/historico.ts): neutro, destaque (etapa atual, MC-1744), sucesso, erro; 12 px. */
+/* Tags do Histórico (packages/ui/src/comum/historico.ts): neutro, destaque (etapa atual, MC-1744), sucesso, erro; 12/600, 24 px. */
 .hist{display:flex;flex-wrap:wrap;gap:6px}
-.tag{height:28px;border-radius:999px;padding:0 10px;font-size:12px;display:inline-flex;align-items:center;background:#ECEEF1;color:#34404D;font-weight:500;white-space:nowrap}
-.tag.at{background:#DFE2E6;color:#1E3350;font-weight:600}
+.tag{height:24px;border-radius:999px;padding:0 10px;font-size:12px;display:inline-flex;align-items:center;background:#ECEEF1;color:#34404D;font-weight:600;white-space:nowrap}
+.tag.at{background:#DFE2E6;color:#1E3350}
 .tag.ok{background:#E2F1EA;color:#1D6B4F}
 .tag.er{background:#FDE8E6;color:#A8261B}
 .it{display:flex;flex-direction:column;gap:6px;padding:12px 16px;border-bottom:1px solid #ECEEF1}
@@ -201,7 +203,7 @@ const DETALHE = detalhe(
 // P8 A (decidido em 18/11): o Crédito devolvido encerra as outras aprovações; o pedido volta para o vendedor corrigir (P6 A).
 const DEVOLVIDO = detalhe(
   '10:25',
-  '<span class="tag er">Rejeitado · Crédito · Rui Matos · 18/11 10:20</span>',
+  '<span class="tag ok">Aprovado · Inadimplente · Rui Matos · 18/11 10:05</span><span class="tag er">Rejeitado · Crédito · Rui Matos · 18/11 10:20</span>',
   '<span class="bt">Corrigir pedido</span>',
   // RN-VEN-42: o motivo da recusa do supervisor numa linha, na área Alertas logo abaixo do nome do cliente.
   `<span class="tit al">Alertas</span><div class="cx"><div class="al-l">${alerta}<span>Reduza para até R$ 1.880,00</span></div></div>`,

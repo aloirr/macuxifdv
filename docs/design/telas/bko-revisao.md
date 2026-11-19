@@ -243,11 +243,11 @@ Clientes (RD-0365): o Cliente 360 é o detalhe do cliente, então abre pelo cliq
 2. **Com zero**, o `h1` fica só com o rótulo ("Pedidos") e a página mostra só o `EstadoVazio`, **uma vez**, sem quadro em volta.
 3. **Contagem e total são do filtro inteiro**, não das linhas carregadas (pergunta do testes). A API devolve a quantidade e a soma do filtro junto com a primeira página; as páginas seguintes só trazem linhas. Assim o rótulo e o número falam do mesmo conjunto: "Pedidos · 137" e "R$ 61.284,90" são os 137 pedidos do filtro, mesmo com 50 linhas na tela. O "+" do `rotuloComContagem` ("50+") fica só para lista sem contagem exata do servidor, e essa lista não mostra total.
 4. O **total em dinheiro** vai ao lado do `h1` (o `badge` do `PageHeader`), em 600, 17 px, `text-ink-2`; com zero, não aparece.
-5. Quadro de pendências (Aguardando aprovação, Coordenadas sugeridas, Digitadas pelos vendedores) **só aparece com pelo menos um item** e tem título com a contagem ("Aguardando aprovação · 3"): é o único quadro da página com título, porque divide a página com a lista. Sem pendência, o quadro some.
-6. **O item pendente aparece num lugar só (RD-0363).** Com o quadro de pendências, a lista, a contagem e o total não trazem os pendentes, e o select "Situação" não oferece "Aguardando aprovação" (decisão h da §P13, opção a recomendada).
+5. Quadro de pendências (Coordenadas sugeridas, Digitadas pelos vendedores) **só aparece com pelo menos um item** e tem título com a contagem ("Coordenadas sugeridas · 3"): é o único quadro da página com título, porque divide a página com a lista. Sem pendência, o quadro some.
+6. **O item pendente aparece num lugar só (RD-0363).** Em Pedidos não há quadro de pendências: o pendente fica na linha da tabela, com o selo "Aguardando aprovação" e as Ações; a lista, a contagem e o total trazem os pendentes, e o select "Situação" oferece "Aguardando aprovação" (`docs/design/pedido-aprovacao/spec.md`, seção 1, "BKO › Pedidos").
 7. KPI não repete número que já está no título da página ou de uma aba da mesma tela.
 
-**Texto final (Pedidos).** Com pedidos: `h1` "Pedidos · 137" e, ao lado, "R$ 61.284,90" (os dois sem os pendentes); quadro "Aguardando aprovação · 3" em cima, só com pendente; lista sem título. Sem pedidos: `h1` "Pedidos" e o vazio "Nenhum pedido com esses filtros." (o "Limpar filtros" fica na barra); sem quadro de pendências.
+**Texto final (Pedidos).** Com pedidos: `h1` "Pedidos · 137" e, ao lado, "R$ 61.284,90" (os dois com os pendentes); sem quadro de pendências; lista sem título (tabela em `docs/design/pedido-aprovacao/spec.md`). Sem pedidos: `h1` "Pedidos" e o vazio "Nenhum pedido com esses filtros." (o "Limpar filtros" fica na barra); sem quadro de pendências.
 **Texto final (Transportadoras).** `h1` "Transportadoras e frete · 5", com o selo `neutral` "Frete padrão: CIF" ao lado (§P9); lista sem título. Com zero: `h1` "Transportadoras e frete" e o vazio "Nenhuma transportadora cadastrada." + "Nova transportadora".
 **Texto final (Farol).** A contagem fica nas abas ("Clientes · 97", "Vendedores · 8"), que fazem o papel de título do quadro. KPI de positivação (RD-0362): "Positivação" e "62%", com o número na cor da faixa (`text-success`, `text-warning` ou `text-danger`, todas acima de 4,5:1 no branco) e **sem** o selo "Amarelo".
 
@@ -315,7 +315,7 @@ Cada dono aplica nas próprias páginas, **um PR por dono**, com print 1366×768
 
 | Dono | Arquivos (`.../web/`) | O que muda |
 |---|---|---|
-| modulo-vendedor | `components/orders/orders-page.tsx`, `approvals-panel.tsx`, `order-drawer.tsx`, `status.tsx` | S, T, B, Z, C (Pedidos é o piloto: simulação da §P12). A rota da lista devolve a quantidade e a soma do filtro inteiro, sem os pendentes (§P6, regras 3 e 6) |
+| modulo-vendedor | `components/orders/orders-page.tsx`, `approvals-panel.tsx`, `order-drawer.tsx`, `status.tsx` | S, T, B, Z, C (Pedidos é o piloto: simulação da §P12). A rota da lista devolve a quantidade e a soma do filtro inteiro, com os pendentes (§P6, regras 3 e 6) |
 | modulo-vendedor | `pages/transportadoras-page.tsx`, `pages/formas-pagamento-page.tsx`, `pages/alcadas-page.tsx` | S, T, B, C, F, X (Transportadoras: simulação da §P12) |
 | modulo-core | `components/farol/farol-page.tsx` (+ `farol-parametros-panel.tsx`, `curvas-abc-parametros-panel.tsx` na gaveta "Parâmetros do farol") | S, T, B, C, X (simulação da §P12) |
 | modulo-core | `components/usuarios/usuarios-page.tsx`, `perfis/perfis-page.tsx`, `licencas/licencas-page.tsx`, `aparelhos/aparelhos-page.tsx` | S, T, Z, C, F, M |
@@ -339,7 +339,7 @@ Mesmo shell das simulações da §M (menu de 240 px, grupo da tela aberto). Dado
 | `pedidos-vazio-antes-1366x768.png` | Pedidos hoje, sem pedidos no filtro: o zero 3 vezes e "Aguardando aprovação · 0" com "Nada pendente." |
 | `pedidos-vazio-depois-1366x768.png` | O mesmo filtro depois: `h1` só "Pedidos", busca com lupa, ações no "⋯", sem quadro de pendências e sem quadro em volta do vazio, "Nenhum pedido com esses filtros." uma vez |
 | `pedidos-lista-antes-1366x768.png` | Pedidos hoje com dados: subtítulo-contador, tabela com rolagem lateral ao lado das pendências, status + faturamento |
-| `pedidos-lista-depois-1366x768.png` | Depois (opção a da decisão h): pendências em cima, a lista sem os pendentes e sem título, "Pedidos · 137" e o total do filtro no `h1`, selo único, "⋯" aberto com o foco do teclado no primeiro item |
+| `pedidos-lista-depois-1366x768.png` | Depois (opção a da decisão h, substituída pela prancha 04 de `docs/design/pedido-aprovacao/`): pendências em cima, a lista sem os pendentes e sem título, "Pedidos · 137" e o total do filtro no `h1`, selo único, "⋯" aberto com o foco do teclado no primeiro item |
 | `clientes-antes-1366x768.png` | Farol de clientes hoje: subtítulo, 3 botões, 6 KPIs, legenda; a lista de clientes não aparece na primeira tela |
 | `clientes-depois-1366x768.png` | Depois: busca primeiro, sem o select "Farol", KPI "Vermelhos" marcado filtrando a lista, "Positivação 62%" na cor da faixa, aba "Clientes" sem contagem, "Vendedores · 8", colunas Cliente · Vendedor · Dias sem compra · Farol · ⋯ e a data da última compra no `title` |
 | `transportadora-form-antes-1366x768.png` | Nova transportadora hoje: quadro do frete com explicação, formulário no meio da página |
@@ -349,12 +349,9 @@ Mesmo shell das simulações da §M (menu de 240 px, grupo da tela aberto). Dado
 Decidida: e. Nome do adicional (R-20261114-205500-alexandre): §P10, texto final.
 
 a. **Atualizar e Exportar CSV no "⋯" da página** (§P1): a página fica só com o botão de criar à vista.
-b. **Pendências só com item** (§P6): "Aguardando aprovação" some quando não há pedido pendente.
+b. **Pendências só com item** (§P6): o quadro de pendências some quando não há item. Em Pedidos ele sai (decisão h).
 c. **Farol** (§P2, §P4, §P6, §P9): abas Clientes e Vendedores no lugar de dois quadros; os KPIs filtram e o select "Farol" sai; "Positivação 62%" na cor da faixa, sem selo; colunas Cliente · Vendedor · Dias sem compra · Farol (saem Última compra, Positivado e Documento); legenda das faixas e parâmetros na gaveta "Parâmetros do farol"; sai o KPI "Clientes na carteira" (o número está na aba).
 d. **Formulário na gaveta** (§P8) em vez do quadro no meio da página.
 f. **"Período" num campo só** (§P4) no lugar de "De" e "Até": pede um seletor de intervalo de datas no kit (`packages/ui`), feito depois da aprovação.
 g. **"Desc." sai da lista de Pedidos** (§P2): o desconto fica no detalhe do pedido e no cartão da aprovação.
-h. **Pedido pendente num lugar só** (§P6, RD-0363). Hoje ele aparece no quadro de pendências e na lista.
-   - Opção (a): o quadro de pendências fica, com Aprovar e Rejeitar à vista; a lista, a contagem e o total não trazem os pendentes, e o select "Situação" não oferece "Aguardando aprovação".
-   - Opção (b): o quadro sai; o pendente fica na lista com o selo "Aguardando aprovação", e Aprovar e Rejeitar vão para o "⋯" da linha.
-   - **Recomendo a (a).** Aprovar é a ação mais urgente da tela e segura o faturamento: com o quadro, fica a 1 clique, com o desconto, a alçada e o tempo de espera à vista para decidir. Na (b), vira 2 cliques, sem esse contexto na linha, e o pendente se perde entre os outros pedidos, na ordem de data. O quadro já some sem pendência (decisão b), então não ocupa espaço à toa. As simulações da §P12 seguem a (a).
+h. **Pedido pendente num lugar só** (§P6, RD-0363): decidido em 18/11 (R-20261118-214740) pela tabela de `docs/design/pedido-aprovacao/spec.md`: o quadro "Aguardando aprovação" sai e o pendente fica na linha, com o selo e as Ações.

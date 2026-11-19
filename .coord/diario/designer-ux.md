@@ -169,3 +169,4 @@
 2026-11-19 — T-0184 — #492: decisões P1-P6 do dono do produto nas pranchas (dois aprovadores, uma aprovação por motivo), P7 e P8 abertos; MC-1743 a 1747 e RD-2230 a 2235 corrigidos.
 2026-11-19 — T-0184 — #492: simulações aprovadas (P7 A, P8 A, "Aplicar"); Situação antes de Ações na tabela de Pedidos do BKO.
 2026-11-19 — T-0156 — simulação do termo, "Meu trajeto", pausa e notificação fixa em docs/design/tracking/.
+2026-11-19 — T-0184 — #492: reteste no 4f8b68f (MC-1745, 1746, 1748, 1749; RD-2231, RD-2236 e Histórico da prancha 02).
