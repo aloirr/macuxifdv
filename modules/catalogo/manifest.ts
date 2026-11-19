@@ -69,8 +69,8 @@ export const manifest = defineModule({
   // T-0149 (RN-CORE-39): filial do cliente, filial padrão e filiais da carteira (preço e estoque por filial, pull do aparelho, consumidores do ERP)
   // T-0174 (RN-CAT-14): core.produtos_por_sku@1 casa o nome da foto com o código (sku ou EAN) do produto, sem ler `core.produto`
   usaConsultas: ['core.cadastro_resumo@1', 'core.filiais@1', 'core.filiais_do_usuario@1', 'core.produtos_por_sku@1'],
-  // RN-VEN-43: o preço no prazo padrão usa `vendedor.preco_prazo_padrao@1` (espelho em app/lib/prazo-padrao.ts). A linha `usaConsultasOpcionais: ['vendedor.preco_prazo_padrao@1']` entra
-  // quando o Vendedor oferecer a consulta: a conferência do shell recusa consulta sem dono que a ofereça.
+  // RN-VEN-43: o preço no prazo padrão usa `vendedor.preco_prazo_padrao@1` (espelho em app/lib/prazo-padrao.ts); opcional, o app funciona sem o Vendedor.
+  usaConsultasOpcionais: ['vendedor.preco_prazo_padrao@1'],
   acoes: {
     // --- consulta (app Macuxi Campo e Gestão; BKO) ---
     'produto.consultar': { perfis: [...PERFIS_CONSULTA], descricao: 'Buscar, navegar, ver a ficha, favoritar e comparar produtos (RF-CAT-01..04, RF-CAT-06)' },

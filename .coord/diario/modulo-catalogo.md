@@ -104,3 +104,4 @@
 2026-11-19 — v1.0.15 — código do produto em mono (fonte.mono) e nome da filial em 400 (MC-1752, MC-1753)
 2026-11-19 — v1.0.15 — RD-2245 a RD-2248: imports e dependência repetidos, apoio sem uso fora de OpcaoFiltroFilial, leitura do chip de estoque no domain (chipDoEstoque.leitura), consulta vendedor.preco_prazo_padrao@1 numa chamada só (cents[] na mesma ordem)
 2026-11-19 — v1.0.15 catalogo — RD-2245 (retorno direto), RD-2247 (leituraDoEstoque única, usada pelo chip e pela folha), RD-2291 (View sem uso em Opcao)
+2026-11-19 — v1.0.15 — catalogo: manifesto usa a consulta opcional vendedor.preco_prazo_padrao@1 (RN-VEN-43). Sem ajuste, o branch sozinho dava 17 falhas (stubs de vendedor nos testes não ofereciam a consulta); os stubs de consultas.test.ts e sugestoes.test.ts agora a oferecem e o branch fica verde sozinho e com o #506 junto.

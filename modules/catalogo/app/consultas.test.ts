@@ -94,6 +94,7 @@ const mConsumidor = defineModule({
   depende: ['core', 'catalogo'],
   perfis: ['vendedor'],
   apps: { campo: { abas: ['Pedidos'] } },
+  ofereceConsultas: ['vendedor.preco_prazo_padrao@1'], // o Vendedor real oferece (RN-VEN-43); o manifesto do Catálogo a usa como opcional
   usaConsultas: ['catalogo.precos_cliente@1'],
 });
 
