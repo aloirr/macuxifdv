@@ -1,11 +1,10 @@
 # Rastreamento de localização no expediente (T-0156)
 
 Desenho: `docs/desenho/tracking.md`; ADR 0061. Regras: RN-CORE-13 (portão do rastreamento), RN-CORE-37 (permissão "o tempo todo") e RN-CORE-46 (km do dia).
-**Desligado de fábrica. O rastreamento é interno** (dono do produto, 19/11/2026, 05h46 de Manaus): o vendedor e o promotor não veem nada dele (sem termo,
-aceite, pausa nem "Meu trajeto"); só o supervisor e o gerente veem o trajeto da equipe, e o admin só se o perfil dele receber `trajeto.ver_equipe` no BKO.
+**Desligado de fábrica. O rastreamento é interno** (dono do produto, 19/11/2026, 05h46 de Manaus): o vendedor e o promotor não veem nada dele; só o supervisor e o gerente veem o trajeto da equipe, e o admin só se o perfil dele receber `trajeto.ver_equipe` no BKO.
 
 ## Domain (funções puras, teste citando a regra)
-- `podeRastrear` (`domain/rastreamento.ts`): três condições, todas obrigatórias: parâmetro ligado, dentro do expediente e fora de feriado, fora de ausência; a mesma no app, na tarefa e na API. Usuário de campo no app Campo é pré-condição fora dela; a permissão "o tempo todo" (RN-CORE-37) só decide se o Android entrega posição.
+- `podeRastrear` (`domain/rastreamento.ts`): as 7 condições estão no desenho (`docs/desenho/tracking.md#2-quando-o-tracking-grava-todas-as-condições`, §2); a mesma no app, na tarefa e na API.
 - `triarPontoRecebido` (`domain/trajeto-ponto.ts`): o portão por ponto no push, mais futuro > 5 min, > 90 dias e coordenada inválida.
 - `validarParametrosRastreamento`: sem expediente em nenhum dia, não liga.
 - `metrosDoTrajeto` (`domain/performance/trajeto.ts`): km do dia; o mesmo número do `core.deslocamento_dia`.
@@ -24,7 +23,7 @@ aceite, pausa nem "Meu trajeto"); só o supervisor e o gerente veem o trajeto da
 Nenhuma rota exporta pontos. Nenhuma coordenada vai para log (`ctx.log` leva só contagens).
 
 ## Campo (`modules/core/app`)
-Sem tela, seção, alerta nem chave local do rastreamento. O app só envia o ponto (entidade `ponto_trajeto`) e recebe a própria ausência; a captura é da tarefa do shell.
+O app só envia o ponto (entidade `ponto_trajeto`) e recebe a própria ausência; a captura é da tarefa do shell.
 
 ## BKO (`modules/core/web`)
 Painéis Rastreamento (liga/desliga, expediente, frequência) e Ausências.

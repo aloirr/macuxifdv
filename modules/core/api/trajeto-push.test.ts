@@ -96,7 +96,7 @@ describe('RN-CORE-13: push de ponto_trajeto', () => {
 
 describe('entidades e pull do rastreamento', () => {
   const por = (n: string) => provedoresSyncTrajeto.find((p) => p.entidade.nome === n)!;
-  it('RN-CORE-13: ponto só de envio e ausência só de leitura, no padrão do motor; não há aceite, pausa nem termo', () => {
+  it('RN-CORE-13: ponto só de envio e ausência só de leitura, no padrão do motor', () => {
     expect(provedoresSyncTrajeto.map((p) => p.entidade.nome)).toEqual(['ponto_trajeto', 'ausencia_usuario']);
     expect(por('ponto_trajeto').entidade).toMatchObject({ direcao: 'push', conflito: 'somente_insercao', modulo: 'core' });
     expect(por('ponto_trajeto').puxar).toBeUndefined();

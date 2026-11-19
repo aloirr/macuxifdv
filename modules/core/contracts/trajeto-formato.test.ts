@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CARGOS_RASTREADOS, MOTIVOS_SEM_RASTREIO, PARAMETROS_RASTREAMENTO_PADRAO, ROTULO_ESTADO_RASTREAMENTO, podeRastrear, formatarDistancia, formatHHMM, projetarPontos, type EntradaRastreio } from './index';
+import { CARGOS_RASTREADOS, MOTIVOS_SEM_RASTREIO, PARAMETROS_RASTREAMENTO_PADRAO, ROTULO_ESTADO_RASTREAMENTO, podeRastrear, formatarDistancia, projetarPontos, type EntradaRastreio } from './index';
 
 const pontos = [
   { capturado_em: '2026-11-19T12:04:00.000Z', latitude: -3.1, longitude: -60.0, precisao_m: 10 },
@@ -14,9 +14,6 @@ describe('RN-CORE-46: formato do trajeto pelos contracts (Campo e Gestão)', () 
     expect(formatarDistancia(850)).toBe('850 m');
     expect(formatarDistancia(0)).toBe('0 m');
     expect(formatarDistancia(1000)).toBe('1,0 km');
-  });
-  it('RN-CORE-46: a hora vem no fuso do tenant', () => {
-    expect(formatHHMM('2026-11-19T12:04:00.000Z', 'America/Manaus')).toBe('08:04');
   });
   it('o mapa enquadra o trajeto dentro da caixa, com a margem', () => {
     const xy = projetarPontos(pontos, 350, 220, 16);
@@ -34,6 +31,8 @@ describe('RN-CORE-13: portão e rótulos pelos contracts (shell)', () => {
   it('RN-CORE-13: podeRastrear e CARGOS_RASTREADOS saem pelos contracts', () => {
     const e: EntradaRastreio = {
       ativo: false,
+      cargo: 'vendedor',
+      app: 'campo',
       expediente: PARAMETROS_RASTREAMENTO_PADRAO.expediente,
       feriados: [],
       ausencias: [],

@@ -8,9 +8,6 @@ export function formatarDistancia(metros: number): string {
   return metros < 1000 ? `${metros} m` : `${(metros / 1000).toFixed(1).replace('.', ',')} km`;
 }
 
-/** "08:04" de um instante UTC, no fuso do tenant. */
-export { formatHHMM } from '@macuxi/comum/fuso';
-
 /** Projeta latitude e longitude na caixa do mapa (equiretangular com correção do cosseno da latitude), com margem. */
 export function projetarPontos(pontos: readonly Pick<PontoDoTrajeto, 'latitude' | 'longitude'>[], largura: number, altura: number, margem: number): Array<{ x: number; y: number }> {
   if (pontos.length === 0) return [];

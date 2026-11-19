@@ -113,7 +113,6 @@ describe.skipIf(semBanco())('Core T-0156 × Postgres: rastreamento no expediente
     expect(daEquipe.usuario.id).toBe(U.vendedor1);
     expect(daEquipe.usuario.pontos.length).toBeGreaterThanOrEqual(4);
     expect(daEquipe.usuario.metros).toBeGreaterThan(0);
-    expect(daEquipe.usuario).not.toHaveProperty('pausas');
     await expect(chamarComPerfis(vendedor1, { data: DIA, usuario_id: U.vendedor1 })).rejects.toMatchObject({ status: 403 });
     await expect(chamarComPerfis(vendedor1, { data: DIA, usuario_id: U.vendedor2 })).rejects.toMatchObject({ status: 403 });
     await expect(chamarComPerfis(vendedor1, { data: DIA })).rejects.toBeDefined(); // sem usuario_id a consulta nem existe
