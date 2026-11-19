@@ -2,6 +2,7 @@
  * Forma de pagamento e prazo do pedido (T-0089; RN-VEN-24 e RN-VEN-25), título vencido (RN-VEN-13) e crédito do cliente
  * (RN-VEN-12). Funções puras: o app e a API usam as mesmas, e a API sempre revalida.
  */
+import { creditoDisponivel, type CreditoDisponivel, type FinanceiroParaCreditoDisponivel, type PedidoQuePesaNoCredito } from '../contracts/credito-disponivel';
 
 export interface FormaDePagamento {
   id: string;
@@ -146,15 +147,6 @@ export interface PagamentoEvento {
   prazo_medio_dias: number;
 }
 
-/**
- * RN-VEN-12: limite e disponível do cartão. Disponível = (valor do ERP ?? limite − saldo) − pedidos aprovados ainda não
- * faturados. Com o valor do ERP só descontam os não integrados (o ERP já descontou os integrados). Pode ficar negativo.
- */
-export function creditoDoCartao(
-  f: { limite_cents: number; saldo_aberto_cents: number; credito_disponivel_erp_cents: number | null },
-  pedidosAprovados: readonly { total_cents: number; integrado: boolean }[],
-): { limite_cents: number; disponivel_cents: number } {
-  const base = f.credito_disponivel_erp_cents ?? f.limite_cents - f.saldo_aberto_cents;
-  const descontar = pedidosAprovados.filter((p) => f.credito_disponivel_erp_cents == null || !p.integrado).reduce((s, p) => s + p.total_cents, 0);
-  return { limite_cents: f.limite_cents, disponivel_cents: base - descontar };
-}
+/** RN-VEN-12: atalho de compatibilidade; a regra mora em `contracts/credito-disponivel.ts` (`creditoDisponivel`), um lugar só. */
+export const creditoDoCartao = (f: FinanceiroParaCreditoDisponivel, pedidosAprovados: readonly PedidoQuePesaNoCredito[]): CreditoDisponivel =>
+  creditoDisponivel({ financeiro: f, pedidos_aprovados: pedidosAprovados });

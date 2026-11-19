@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  creditoDoCartao,
   descricaoPrazo,
   formasDaLista,
   formasDoCliente,
@@ -76,23 +75,6 @@ describe('RN-VEN-24/25: validarPagamento (app e API)', () => {
   });
   it('RN-VEN-25: forma fora da lista do cliente é recusada', () => {
     expect(validarPagamento({ forma: formas[1], prazo: prazos[2], cliente: { ...cliente, formas_pagamento: ['PIX'] } })).toMatchObject({ ok: false, codigo: 'RN-VEN-25' });
-  });
-});
-
-describe('RN-VEN-12: crédito do cartão', () => {
-  const fin = { limite_cents: 100_000, saldo_aberto_cents: 30_000, credito_disponivel_erp_cents: null as number | null };
-  it('RN-VEN-12: sem valor do ERP, disponível = limite − saldo − pedidos aprovados', () => {
-    expect(creditoDoCartao(fin, [{ total_cents: 10_000, integrado: false }])).toEqual({ limite_cents: 100_000, disponivel_cents: 60_000 });
-  });
-  it('RN-VEN-12: com valor do ERP, só os aprovados ainda não integrados descontam', () => {
-    const r = creditoDoCartao({ ...fin, credito_disponivel_erp_cents: 50_000 }, [
-      { total_cents: 10_000, integrado: true },
-      { total_cents: 5_000, integrado: false },
-    ]);
-    expect(r.disponivel_cents).toBe(45_000);
-  });
-  it('RN-VEN-12: pode ficar negativo', () => {
-    expect(creditoDoCartao(fin, [{ total_cents: 90_000, integrado: false }]).disponivel_cents).toBe(-20_000);
   });
 });
 

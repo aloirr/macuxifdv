@@ -24,6 +24,7 @@ import { ORDER_STATUSES } from '../domain/order';
 import { PercentualAjuste } from '@macuxi/integracao/contracts';
 import { EnderecoEditadoPedido, EnderecoEntregaPedido, Frete, FreteDoPedido, ItemPush } from './frete';
 export * from './formas-pagamento';
+export * from './credito-disponivel';
 export * from './prazo-ajuste';
 export * from './preco-prazo-padrao';
 
