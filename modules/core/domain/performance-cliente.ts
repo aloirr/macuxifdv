@@ -101,6 +101,8 @@ export function quemVisitouPorUltimo(r: ResumoVisitas, meuId: string | null | un
  * RN-CORE-51: rodapé da ficha. "Check-in" quando não há atendimento aberto neste cliente, o check-in é permitido (RN-CORE-52) e o
  * cliente não foi visitado hoje (RN-CORE-13); "Checkout" só com atendimento aberto neste cliente; "Pesquisa" só com a extensão presente.
  */
-export function botoesDoRodapeCliente(e: { temPesquisa: boolean; atendimentoAqui: boolean; checkinPermitido: boolean; visitadoHoje: boolean }): { checkin: boolean; checkout: boolean; pesquisa: boolean } {
-  return { checkin: !e.atendimentoAqui && e.checkinPermitido && !e.visitadoHoje, checkout: e.atendimentoAqui, pesquisa: e.temPesquisa };
+export function botoesDoRodapeCliente(e: { temPesquisa: boolean; atendimentoAqui: boolean; checkinPermitido: boolean; visitadoHoje: boolean; registraVisita?: boolean }): { checkin: boolean; checkout: boolean; pesquisa: boolean } {
+  // RN-CORE-13 (T-0187): no Gestão, Check-in e Checkout dependem da ação `visita.registrar_gestao` (`registraVisita`; o Campo não passa)
+  const registra = e.registraVisita ?? true;
+  return { checkin: registra && !e.atendimentoAqui && e.checkinPermitido && !e.visitadoHoje, checkout: registra && e.atendimentoAqui, pesquisa: e.temPesquisa };
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RotasLista, VisitaBko } from '../../contracts';
 import { csvDaCarteira, rotuloDia, rotuloFrequencia } from './carteira';
-import { clienteDaCarteira, corpoDaRota, equipesDaHierarquia, paraRouteDay } from './rotas-api';
+import { clienteDaCarteira, corpoDaRota, donosDeRotaDaHierarquia, equipesDaHierarquia, paraRouteDay } from './rotas-api';
 import { csvDeVisitas, permanenciaMin, rotuloResultado, sinais } from './visitas';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -53,6 +53,21 @@ describe('rotas do BKO: adaptador do servidor para o editor (T-0018)', () => {
     expect(e.sellers[0]).toMatchObject({ short_name: 'Paulo', team_id: id(101), team_name: 'Equipe de Sueli Supervisora' });
     expect(e.teams).toHaveLength(1);
     expect(e.papeis).toEqual({ [id(1)]: 'vendedor', [id(2)]: 'promotor' });
+  });
+
+  it('RN-CORE-13: donos de rota no BKO: vendedor, promotor e supervisor ativos; gerente fora; a "equipe" do supervisor é o gerente dele', () => {
+    const membros = [
+      { id: id(100), nome: 'Gil Gerente', perfil: 'gerente', superior_id: null, ativo: true },
+      { id: id(101), nome: 'Sueli Supervisora', perfil: 'supervisor', superior_id: id(100), ativo: true },
+      { id: id(102), nome: 'Saulo Supervisor', perfil: 'supervisor', superior_id: id(100), ativo: false },
+      { id: id(1), nome: 'Vera Vendedora', perfil: 'vendedor', superior_id: id(101), ativo: true },
+    ] as const;
+    const d = donosDeRotaDaHierarquia(membros);
+    expect(d.sellers.map((s) => s.name)).toEqual(['Sueli Supervisora', 'Vera Vendedora']);
+    expect(d.sellers[0]).toMatchObject({ team_id: id(100), team_name: 'Equipe de Gil Gerente' });
+    expect(d.teams.map((t) => t.name)).toEqual(['Equipe de Gil Gerente', 'Equipe de Sueli Supervisora']);
+    // a equipe de campo (carteira, farol, visitas) segue sem o supervisor
+    expect(equipesDaHierarquia(membros).sellers.map((s) => s.name)).toEqual(['Vera Vendedora']);
   });
 
   it('cliente da carteira: dias sem comprar calculados da última compra', () => {

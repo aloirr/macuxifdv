@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PARAMETROS_RASTREAMENTO_PADRAO } from '../contracts';
-import { podeRastrear, type EntradaRastreio } from './rastreamento';
+import { APP_RASTREADO_DO_CARGO, podeRastrear, type EntradaRastreio } from './rastreamento';
 
 // quinta-feira, 19/11/2026, 10h de Manaus (UTC−4) = 14h UTC
 const base: EntradaRastreio = {
@@ -29,9 +29,17 @@ describe('RN-CORE-13: portão do rastreamento (podeRastrear, desenho tracking §
     expect(motivo({ ativo: false })).toBe('desligado');
   });
 
-  it('RN-CORE-13: só usuário de campo (vendedor ou promotor) no app Campo', () => {
-    for (const cargo of ['supervisor', 'gerente', 'analista', 'assistente', 'admin']) expect(motivo({ cargo })).toBe('cargo');
-    expect(motivo({ app: 'gestao' })).toBe('app');
+  it('RN-CORE-13: só vendedor, promotor e supervisor são rastreados; os outros cargos não', () => {
+    for (const cargo of ['gerente', 'analista', 'assistente', 'admin']) expect(motivo({ cargo })).toBe('cargo');
+  });
+
+  it('RN-CORE-13: cada cargo é rastreado no app dele (vendedor e promotor no Campo, supervisor no Gestão)', () => {
+    expect(motivo({ cargo: 'supervisor', app: 'gestao' })).toBe('pode');
+    expect(motivo({ cargo: 'supervisor', app: 'campo' })).toBe('app');
+    expect(motivo({ cargo: 'vendedor', app: 'gestao' })).toBe('app');
+    expect(motivo({ cargo: 'gerente', app: 'gestao' })).toBe('cargo');
+    expect(motivo({ cargo: 'gerente', app: 'campo' })).toBe('cargo');
+    expect(APP_RASTREADO_DO_CARGO).toEqual({ vendedor: 'campo', promotor: 'campo', supervisor: 'gestao' });
   });
 
   it('RN-CORE-13: expediente no fuso do tenant: início entra, fim não; domingo sem expediente; sábado só de manhã', () => {

@@ -21,7 +21,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { ACAO_CHECKIN_FORA_DE_ROTA, type AbaCliente, type AcaoCliente, type AvisoCliente, type ContextoCliente } from '../../contracts';
+import { ACAO_CHECKIN_FORA_DE_ROTA, ACAO_VISITA_REGISTRAR_GESTAO, type AbaCliente, type AcaoCliente, type AvisoCliente, type ContextoCliente } from '../../contracts';
 import { acoesDoRodapeCliente, botoesDoRodapeCliente, checkinPermitido, curvasAbcDoCliente, filtrarExtensoesDePedido, isVisitOpen, itensDoPedidoVisiveis, limiteEDisponivelDoResumo, performanceDoCliente, prazoMedioDoCliente, quemVisitouPorUltimo, resumoDeVisitas, ultimosItensComprados, dataLocal, type AbaFicha } from '../../domain';
 import { AbaDocumentacao } from '../components/aba-documentacao';
 import { AbaHistorico } from '../components/aba-historico';
@@ -52,8 +52,10 @@ export function TelaCliente() {
   const acoesTodas = useExtensoes<AcaoCliente>('cliente.acoes');
   const avisosExt = useExtensoes<AvisoCliente<ComponentType<{ contexto: ContextoCliente }>>>('cliente.avisos');
   const podeForaDeRota = usePode(ACAO_CHECKIN_FORA_DE_ROTA);
+  const podeRegistrarGestao = usePode(ACAO_VISITA_REGISTRAR_GESTAO);
   const { estado, rota, tz, atendimentoAberto: openVisit, motor, armazem } = core;
   const { dados: locais, hoje } = useClientesLocais();
+  const gestao = perfilDeGestao(locais.perfil);
   // RN-PRO-01 / RN-CORE-01: promotor com `promotor_ve_pedidos` desligado não vê pedidos (offline, pelo parâmetro sincronizado):
   // o Core tira do ponto de montagem as abas e ações de extensão que mostram pedido. Os demais perfis não mudam.
   const abas = filtrarExtensoesDePedido(abasTodas, locais.verPedidos);
@@ -136,8 +138,10 @@ export function TelaCliente() {
   const abaPesquisa = abas.find((a) => a.id === 'pesquisas') ?? null;
   const PesquisaComp = abaPesquisa?.payload.componente;
   // A regra do rodapé (check-in, checkout, pesquisa) fica no domain
-  const botoes = botoesDoRodapeCliente({ temPesquisa: Boolean(PesquisaComp), atendimentoAqui: openHere, checkinPermitido: checkinLiberado, visitadoHoje: visited });
+  const botoes = botoesDoRodapeCliente({ temPesquisa: Boolean(PesquisaComp), atendimentoAqui: openHere, checkinPermitido: checkinLiberado, visitadoHoje: visited, registraVisita: !gestao || podeRegistrarGestao });
   const acoesRodape = acoesDoRodapeCliente(acoes);
+  // T-0187: no Gestão o rodapé aparece com Check-in, Pesquisa e Novo pedido, e só se houver algum botão
+  const temRodape = botoes.checkin || botoes.checkout || botoes.pesquisa || acoesRodape.length > 0;
   // "Fazer check-in" na Rota abre a ficha já registrando o check-in
   useEffect(() => {
     if (params.checkin === '1' && customer && autoStarted.current !== id) {
@@ -176,7 +180,6 @@ export function TelaCliente() {
   const visitas = resumoDeVisitas(visitasDoCliente, tz, resumoServidor);
   const nomeDoVendedor = new Map(pedidosDoCliente.filter((p) => p.vendedor_nome).map((p) => [p.vendedor_id, p.vendedor_nome as string]));
   const quemVisitou = quemVisitouPorUltimo(visitas, core.vendedorId, nomeDoVendedor);
-  const gestao = perfilDeGestao(locais.perfil);
   const itensComprados: ItemCompradoLinha[] = ficha && ficha.pedidos_visiveis
     ? ultimosItensComprados(itensVisiveis.map((i) => ({ ...i, data: dataDoPedido.get(i.pedido_id) ?? '', produto_nome: i.produto_nome ?? null, unidade: i.unidade ?? null })), 20).map((i) => ({
         produto_id: i.produto_id,
@@ -261,7 +264,7 @@ export function TelaCliente() {
         )}
       </ScrollView>
 
-      {customer && !gestao ? (
+      {customer && temRodape ? (
         <View style={styles.footer}>
           {botoes.checkin ? (
             <Button

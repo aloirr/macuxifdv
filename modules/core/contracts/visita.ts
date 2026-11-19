@@ -24,6 +24,8 @@ export type CheckinVisita = z.infer<typeof CheckinVisitaSchema>;
 
 /** RN-CORE-52: ação do catálogo que libera o check-in em cliente fora da rota do dia (ligável por perfil de acesso). */
 export const ACAO_CHECKIN_FORA_DE_ROTA = 'visita.checkin_fora_de_rota';
+/** RN-CORE-13 (T-0187): ação que libera Rota, check-in e checkout no app Gestão para supervisor e gerente (a API recusa o push de visita deles sem ela). */
+export const ACAO_VISITA_REGISTRAR_GESTAO = 'visita.registrar_gestao';
 /** RN-CORE-52: código de erro do push de check-in (`rejeitado`) quando o cliente não está na rota do dia e o perfil não tem a ação. */
 export const CODIGO_CHECKIN_FORA_DE_ROTA = 'CHECKIN_FORA_DE_ROTA';
 export const MENSAGEM_CHECKIN_FORA_DE_ROTA = 'Cliente fora da sua rota de hoje. Peça a liberação ao administrador.';

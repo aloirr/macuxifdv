@@ -95,10 +95,10 @@ export function paraRouteDay(item: ItemRota, hoje: string, inicio: { lat: number
   };
 }
 
-/** Equipe do BKO para os filtros: vendedores/promotores ativos; "equipe" = o superior direto (supervisor). */
-export function equipesDaHierarquia(membros: readonly MembroHierarquia[]): { sellers: Seller[]; teams: Team[]; papeis: Record<string, 'vendedor' | 'promotor'> } {
+/** Monta vendedores/"equipes" (o superior direto) dos membros que passam no filtro. */
+function montarEquipes(membros: readonly MembroHierarquia[], perfis: readonly string[]): { ativos: MembroHierarquia[]; sellers: Seller[]; teams: Team[] } {
   const porId = new Map(membros.map((m) => [m.id, m]));
-  const ativos = membros.filter((m) => m.ativo && (m.perfil === 'vendedor' || m.perfil === 'promotor'));
+  const ativos = membros.filter((m) => m.ativo && perfis.includes(m.perfil));
   const teams = new Map<string, Team>();
   const sellers = ativos.map<Seller>((m) => {
     const sup = m.superior_id ? porId.get(m.superior_id) : undefined;
@@ -116,8 +116,20 @@ export function equipesDaHierarquia(membros: readonly MembroHierarquia[]): { sel
       wallet_size: 0,
     };
   });
+  return { ativos, sellers: sellers.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')), teams: [...teams.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')) };
+}
+
+/** Equipe do BKO para os filtros: vendedores/promotores ativos; "equipe" = o superior direto (supervisor). */
+export function equipesDaHierarquia(membros: readonly MembroHierarquia[]): { sellers: Seller[]; teams: Team[]; papeis: Record<string, 'vendedor' | 'promotor'> } {
+  const { ativos, sellers, teams } = montarEquipes(membros, ['vendedor', 'promotor']);
   const papeis = Object.fromEntries(ativos.map((m) => [m.id, m.perfil === 'promotor' ? 'promotor' : 'vendedor'])) as Record<string, 'vendedor' | 'promotor'>;
-  return { papeis, sellers: sellers.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')), teams: [...teams.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')) };
+  return { papeis, sellers, teams };
+}
+
+/** RN-CORE-13 (T-0187, P1 A): quem pode ter rota no BKO: a equipe de campo e o supervisor (a "equipe" dele é o gerente); o gerente não tem rota. */
+export function donosDeRotaDaHierarquia(membros: readonly MembroHierarquia[]): { sellers: Seller[]; teams: Team[] } {
+  const { sellers, teams } = montarEquipes(membros, ['vendedor', 'promotor', 'supervisor']);
+  return { sellers, teams };
 }
 
 /** Corpo do `PUT /v1/core/rotas/:usuarioId/:data` a partir das paradas do rascunho (horário vazio vira nulo). */
