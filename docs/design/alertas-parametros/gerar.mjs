@@ -1,13 +1,11 @@
 // Simulação de Parâmetros › Alertas e dos alertas de produtividade (pedido do Alexandre R-20261115-112500, 15/11/2026).
 // Gera os HTMLs e os PNGs desta pasta. Uso, a partir da raiz do repositório: node docs/design/alertas-parametros/gerar.mjs
 // Base visual: docs/design/menu-parametros/gerar.mjs (branch nuvem/menu-parametros-designer-ux). Dados fictícios.
-import { execSync } from 'node:child_process';
-import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { abrirNavegador } from '../_comum/navegador.mjs';
 
-const require = createRequire(import.meta.url);
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const MARCA = '../../marca/ativos/2026-11-12-v1';
 const LOGO = `${MARCA}/macuxi-logo-negativo-grafite.svg`;
@@ -294,15 +292,6 @@ const TELAS = [
   ['04-push-no-aparelho', html04, { width: 1000, height: 1060 }],
 ];
 
-// Playwright do repositório; se o navegador dele não estiver instalado, o Playwright global da sessão (sem instalar nada).
-async function abrirNavegador() {
-  try {
-    return await require('playwright').chromium.launch();
-  } catch {
-    const global = join(execSync('npm root -g').toString().trim(), 'playwright');
-    return await require(global).chromium.launch();
-  }
-}
 const browser = await abrirNavegador();
 for (const [nome, html, viewport] of TELAS) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: 2 });

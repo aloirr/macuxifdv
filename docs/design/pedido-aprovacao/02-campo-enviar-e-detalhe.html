@@ -20,7 +20,9 @@ body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background
 .tl{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:40px;padding:0 12px;font-size:14px;border-bottom:1px solid #ECEEF1}
 .tl:last-child{border-bottom:0}
 .tl span:last-child{font-variant-numeric:tabular-nums;text-align:right}
-.tl.f{font-weight:600;font-size:16px}
+.tl.f{min-height:48px}
+.tl.f span:first-child{font-size:15px;font-weight:600}
+.tl.f span:last-child{font-size:22px;font-weight:700}
 .rod{padding:12px 16px 16px;background:#fff;border-top:1px solid #DFE2E6;display:flex;flex-direction:column;gap:8px}
 .bt{height:52px;border-radius:14px;background:#1E3350;color:#fff;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center}
 .bt.t{background:none;color:#1E3350;height:44px}
@@ -29,10 +31,12 @@ body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background
 .dlg h2{font-size:22px;font-weight:700}
 .dlg .bts{display:flex;justify-content:flex-end;gap:8px}
 .dlg .bt{height:44px;padding:0 20px;border-radius:12px}
+/* Tags do Histórico (packages/ui/src/comum/historico.ts): neutro, destaque (etapa atual, MC-1744), sucesso, erro; 12 px. */
 .hist{display:flex;flex-wrap:wrap;gap:6px}
-.tag{height:28px;border-radius:999px;padding:0 10px;font-size:12.5px;display:inline-flex;align-items:center;background:#ECEEF1;color:#34404D;font-weight:500}
-.tag.at{background:#FFF1D6;color:#5C3B00;font-weight:700}
-.tag i{font-style:normal;font-weight:500;margin-left:6px}
+.tag{height:28px;border-radius:999px;padding:0 10px;font-size:12px;display:inline-flex;align-items:center;background:#ECEEF1;color:#34404D;font-weight:500;white-space:nowrap}
+.tag.at{background:#DFE2E6;color:#1E3350;font-weight:600}
+.tag.ok{background:#E2F1EA;color:#1D6B4F}
+.tag.er{background:#FDE8E6;color:#A8261B}
 .it{display:flex;flex-direction:column;gap:6px;padding:12px 16px;border-bottom:1px solid #ECEEF1}
 .it:last-child{border-bottom:0}
 .it .a{display:flex;justify-content:space-between;gap:8px;font-size:16px;font-weight:600}
@@ -41,22 +45,35 @@ body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background
 .it .c{display:flex;justify-content:space-between;align-items:center}
 .chip{height:24px;border-radius:999px;padding:0 8px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;background:#FFF1D6;color:#5C3B00}
 .chip.ne{background:#ECEEF1;color:#34404D}
-.dec{font-size:14px;font-weight:600;color:#1E3350}
+.dec{font-size:12px;font-weight:600;color:#1E3350;min-height:44px;min-width:64px;display:inline-flex;align-items:center;justify-content:flex-end}
 .nota{font-size:12px;line-height:1.5;color:#34404D;background:#fff;border:1px solid #DFE2E6;border-left:4px solid #C9CED5;border-radius:8px;padding:8px 12px}
 .barra{height:56px;background:#fff;border-top:1px solid #DFE2E6;display:flex}
 .barra span{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#4A5562}
 .barra span.on{color:#1E3350}
-</style><body><div class="col"><span class="leg">Campo · Novo pedido, Resumo: os motivos em Alertas e a pergunta de sempre</span><div class="tel"><div class="st"><span>09:41</span><span>4G</span></div><div class="fx"><span class="v">‹ Pedidos</span><h1>Novo pedido</h1><span class="s">Mercado Bom Preço · cód. C5007</span></div>
+</style><body><div class="col"><span class="leg">Campo · Novo pedido, Resumo: os motivos em Alertas e a pergunta de sempre</span><div class="tel"><div class="st"><span>09:12</span><span>4G</span></div><div class="fx"><span class="v">‹ Pedidos</span><h1>Novo pedido</h1><span class="s">Mercado Bom Preço · cód. C5007</span></div>
 <div class="abas"><span class="aba">Venda</span><span class="aba">Itens</span><span class="aba">Entrega</span><span class="aba on">Resumo</span></div>
 <div class="corpo"><span class="tit al">Alertas</span><div class="cx">
 <div class="al-l"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.01"/></svg><span>Limite de crédito excedido</span></div>
 <div class="al-l"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.01"/></svg><span>Título vencido</span></div></div>
 <span class="tit">Pagamento</span><div class="cx"><div class="tl"><span>Boleto</span><span>28/56 dias</span></div></div>
-<span class="tit">Totais</span><div class="cx"><div class="tl"><span>Itens (12)</span><span>R$ 2.480,00</span></div><div class="tl f"><span>Total</span><span>R$ 2.480,00</span></div></div></div>
+<span class="tit">Totais</span><div class="cx"><div class="tl f"><span>Valor final</span><span>R$ 2.480,00</span></div></div></div>
 <div class="rod"><span class="bt">Salvar e enviar pedido</span><span class="bt t">Apenas salvar</span></div>
-<div class="scrim"><div class="dlg"><h2>Enviar para aprovação?</h2><div class="bts"><span class="bt t">Voltar</span><span class="bt">Enviar</span></div></div></div></div><div class="nota">Os textos de Alertas já existem (pedido-v4 §0.1). Muda o efeito: crédito e título vencido mandam para aprovação, como a alçada.</div></div><div class="col"><span class="leg">Campo · Pedido em aprovação: o motivo na etapa atual do Histórico</span><div class="tel"><div class="st"><span>09:41</span><span>4G</span></div><div class="fx"><span class="v">‹ Pedidos</span><h1>Pedido 000021</h1><span class="s">Mercado Bom Preço · cód. C5007</span></div>
+<div class="scrim"><div class="dlg"><h2>Enviar para aprovação?</h2><div class="bts"><span class="bt t">Voltar</span><span class="bt">Enviar</span></div></div></div></div></div><div class="col"><span class="leg">Campo · Em aprovação: uma etapa por motivo, aprovadas ao mesmo tempo (P3 B, P7 A)</span><div class="tel"><div class="st"><span>10:10</span><span>4G</span></div><div class="fx"><span class="v">‹ Pedidos</span><h1>Pedido 000021</h1><span class="s">Mercado Bom Preço · cód. C5007</span></div>
 <div class="corpo"><div class="cx"><div class="tl"><span>Pagamento</span><span>Boleto · 28/56 dias</span></div><div class="tl"><span>Entrega</span><span>CIF · Av. Ville Roy, 1200</span></div></div>
 <span class="tit">Itens (12)</span><div class="cx"><div class="tl"><span>Arroz 5 kg · 10 CX</span><span>R$ 1.290,00</span></div><div class="tl"><span>Feijão 1 kg · 8 CX</span><span>R$ 742,00</span></div><div class="tl"><span>+ 10 itens</span><span></span></div></div>
-<span class="tit">Totais</span><div class="cx"><div class="tl f"><span>Total</span><span>R$ 2.480,00</span></div></div>
-<span class="tit">Histórico</span><div class="hist"><span class="tag">Salvo · 18/11 09:10</span><span class="tag">Enviado · 18/11 09:12</span><span class="tag at">Em aprovação<i>· Crédito · Inadimplente</i></span></div></div>
-<div class="rod"><span class="bt t">PDF · Duplicar</span></div></div><div class="nota">Sem Alertas: o pedido em aprovação não tem o que corrigir. O motivo aparece uma vez, na etapa "Em aprovação".</div></div><script>document.body.dataset.info=JSON.stringify({conflitos:[]});document.body.dataset.pronto='1'</script></body></html>
+<span class="tit">Totais</span><div class="cx"><div class="tl f"><span>Valor final</span><span>R$ 2.480,00</span></div></div>
+<span class="tit">Histórico</span><div class="hist"><span class="tag">Salvo · 18/11 09:10</span><span class="tag">Enviado · 18/11 09:12</span><span class="tag ok">Aprovado · Inadimplente · Rui Matos · 18/11 10:05</span><span class="tag at">Em aprovação · Crédito</span></div></div>
+<div class="rod"><span class="bt t">PDF · Duplicar</span></div></div></div><div class="col"><span class="leg">Campo · Crédito devolvido: a aprovação pendente se encerra e o pedido volta para corrigir (P8 A)</span><div class="tel"><div class="st"><span>10:25</span><span>4G</span></div><div class="fx"><span class="v">‹ Pedidos</span><h1>Pedido 000021</h1><span class="s">Mercado Bom Preço · cód. C5007</span></div>
+<div class="corpo"><span class="tit al">Alertas</span><div class="cx"><div class="al-l"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.01"/></svg><span>Reduza para até R$ 1.880,00</span></div></div><div class="cx"><div class="tl"><span>Pagamento</span><span>Boleto · 28/56 dias</span></div><div class="tl"><span>Entrega</span><span>CIF · Av. Ville Roy, 1200</span></div></div>
+<span class="tit">Itens (12)</span><div class="cx"><div class="tl"><span>Arroz 5 kg · 10 CX</span><span>R$ 1.290,00</span></div><div class="tl"><span>Feijão 1 kg · 8 CX</span><span>R$ 742,00</span></div><div class="tl"><span>+ 10 itens</span><span></span></div></div>
+<span class="tit">Totais</span><div class="cx"><div class="tl f"><span>Valor final</span><span>R$ 2.480,00</span></div></div>
+<span class="tit">Histórico</span><div class="hist"><span class="tag">Salvo · 18/11 09:10</span><span class="tag">Enviado · 18/11 09:12</span><span class="tag er">Rejeitado · Crédito · Rui Matos · 18/11 10:20</span></div></div>
+<div class="rod"><span class="bt">Corrigir pedido</span></div></div></div><script>(()=>{const conflitos=[];
+for(const col of document.querySelectorAll('.col')){const tel=col.querySelector('.tel').getBoundingClientRect();
+const sobre=[...col.querySelectorAll('.leg,.nota')].map(e=>[e.className,e.getBoundingClientRect()]);
+for(const el of col.querySelectorAll('.tel *')){if(el.children.length&&!el.matches('.tag,.chip,.bt,.dec,h1,h2'))continue;
+const r=el.getBoundingClientRect();if(!r.width||!r.height)continue;const t=el.className+': '+el.textContent.trim().slice(0,30);
+for(const [n,s] of sobre){if(r.left<s.right&&r.right>s.left&&r.top<s.bottom&&r.bottom>s.top)conflitos.push(n+' cobre '+t);}
+if(r.left<tel.left-1||r.right>tel.right+1||r.top<tel.top-1||r.bottom>tel.bottom+1)conflitos.push('fora do aparelho: '+t);
+if(el.scrollWidth>el.clientWidth+1&&getComputedStyle(el).overflow!=='visible')conflitos.push('cortado: '+t);}}
+document.body.dataset.info=JSON.stringify({conflitos});document.body.dataset.pronto='1';})()</script></body></html>
