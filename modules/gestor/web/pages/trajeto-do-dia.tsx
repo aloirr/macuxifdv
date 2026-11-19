@@ -53,10 +53,10 @@ export function TrajetoDoDia({ membros, dia }: { membros: readonly MembroComPain
         {d?.vazio ? <EstadoVazio titulo="Sem trajeto neste dia." testId="gestor.trajeto.vazio" /> : null}
         {d && !d.vazio && q.data ? (
           <>
-            <svg viewBox={`0 0 ${LARGURA} ${ALTURA}`} role="img" aria-label={`Trajeto do dia com ${d.total} pontos, de ${d.primeiro!.hora} a ${d.ultimo!.hora}`} className="h-auto w-full rounded border" style={{ backgroundColor: MARCA.nevoa, borderColor: MARCA.claroNaFaixa }}>
+            <svg viewBox={`0 0 ${LARGURA} ${ALTURA}`} role="img" aria-label={`Trajeto do dia com ${d.total} pontos, de ${d.primeiro!.hora} a ${d.ultimo!.hora}`} className="h-auto w-full rounded-[18px] border" style={{ backgroundColor: MARCA.nevoa, borderColor: MARCA.claroNaFaixa }}>
               <polyline points={d.linha.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={DESTAQUE.accent} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-              <circle cx={d.primeiro!.x} cy={d.primeiro!.y} r={11} fill={FUNDOS.surface} stroke={DESTAQUE.accent} strokeWidth={2} />
-              <circle cx={d.ultimo!.x} cy={d.ultimo!.y} r={16} fill={DESTAQUE.accent} stroke={FUNDOS.surface} strokeWidth={3} />
+              <circle cx={d.primeiro!.x} cy={d.primeiro!.y} r={7} fill={FUNDOS.surface} stroke={DESTAQUE.accent} strokeWidth={2} />
+              <circle cx={d.ultimo!.x} cy={d.ultimo!.y} r={16} fill={DESTAQUE.accent} />
             </svg>
             <p className="text-sm">
               Primeiro ponto {d.primeiro!.hora} · último {d.ultimo!.hora} · {(q.data.trajeto.metros / 1000).toFixed(1).replace('.', ',')} km

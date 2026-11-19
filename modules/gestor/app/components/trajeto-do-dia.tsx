@@ -35,8 +35,8 @@ export function TrajetoDoDia({ usuarioId, tz, buscar }: { usuarioId: string; tz:
           <View accessible accessibilityLabel={`Trajeto do dia com ${d.total} pontos, de ${d.primeiro!.hora} a ${d.ultimo!.hora}`} style={{ borderRadius: radius.secao, overflow: 'hidden', backgroundColor: colors.mapBg, borderWidth: 1, borderColor: colors.mapBorder }}>
             <Svg width="100%" height={ALTURA} viewBox={`0 0 ${LARGURA} ${ALTURA}`}>
               <Polyline points={d.linha.map((p) => `${p.x},${p.y}`).join(' ')} stroke={colors.accent} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              <Circle cx={d.primeiro!.x} cy={d.primeiro!.y} r={11} fill={colors.surface} stroke={colors.accent} strokeWidth={2} />
-              <Circle cx={d.ultimo!.x} cy={d.ultimo!.y} r={16} fill={colors.accent} stroke={colors.surface} strokeWidth={3} />
+              <Circle cx={d.primeiro!.x} cy={d.primeiro!.y} r={7} fill={colors.surface} stroke={colors.accent} strokeWidth={2} />
+              <Circle cx={d.ultimo!.x} cy={d.ultimo!.y} r={16} fill={colors.accent} />
             </Svg>
           </View>
           <Linha rotulo="Primeiro ponto" valor={d.primeiro!.hora} />
