@@ -106,7 +106,7 @@ describe('T-0137 (RF-VEN-11, RN-VEN-38): Resumo completo e os 4 botões', () => 
     expect(abas).not.toContain('CampoReais');
     expect(abas).not.toContain('pedido-ajuste-tipo');
   });
-  it('RF-VEN-11: o Resumo mostra cliente, venda, itens, entrega e observações em TabelaRotuloValor', () => {
+  it('RF-VEN-11: o Resumo mostra cliente, condição de pagamento, itens, entrega e observação', () => {
     for (const id of ['resumo-venda', 'resumo-itens', 'resumo-entrega', 'resumo-obs']) expect(abas).toContain(`testID="${id}"`);
     expect(abas).toContain('resumo-cliente');
   });

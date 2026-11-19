@@ -32,3 +32,12 @@ describe('T-0141: correções da revisão de UX e do engenheiro', () => {
     expect(fonte('../components/novo-pedido-abas.tsx')).toContain('r.endereco_entrega_editado ? `(${TEXTOS_ENDERECO.editadoNestePedido})` : \'\'');
   });
 });
+
+describe('MC-1801 e MC-1802: larguras da ficha de pedido', () => {
+  it('MC-1801: a coluna do lápis da tabela de itens tem 32 (tamanho tabela do BotaoEditar)', () => {
+    expect(fonte('../components/tabelas-pedido.tsx')).toContain("{ id: 'editar', titulo: '', largura: 32 }");
+  });
+  it('MC-1802: os totais da folha de preços usam rótulo de 200 ("Orçamento (preço de 09/11)")', () => {
+    expect(fonte('order-detail-screen.tsx')).toMatch(/testID="precos-totais" larguraRotulo=\{200\}/);
+  });
+});
