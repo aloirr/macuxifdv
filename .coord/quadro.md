@@ -23,6 +23,7 @@
 >   - compatibilidade da RN-VEN-45 com o app antigo, junto com o APK (o % do prazo vai ao servidor);
 >   - marca (R-20261118-210515-alexandre): **MC-1503 = B**, texto desabilitado em `#5B6673` (`inkDisabled` de `packages/ui`; o `#8A949C` não entra na paleta); **MC-1522 = A**, nome do cartão do Catálogo v2 em 16/600;
 >   - RD-2220 (`testes`) e MC-0068 (`modulo-vendedor`), vindos do reteste.
+> - **Sem advogado** (R-20261119-0545, alexandre: "quem decide tudo sou eu"): nenhuma condição de "revisão de advogado" na T-0156 nem em outro lugar. O rastreamento liga quando o dono do produto mandar, pelo parâmetro do BKO. As correções vão no #500 (ADR 0061, desenho e textos legais) e aqui (T-0156 e doc 03).
 > - **RN-VEN-43 com dois sentidos** (R-20261117-201110, ponto 3): o doc 03 vai só até a RN-VEN-42, e nenhuma das duas está lá. **Proposta revista:**
 >   - a tabela ajustada pelo prazo fica com a **RN-VEN-43 a 46** (53 arquivos citam, código inclusive);
 >   - os **cards de Pedidos** (T-0170, só em `docs/desenho/inicio-frase-avatar-pedidos.md` e afins) ganham um número novo;
