@@ -145,7 +145,7 @@ export default function TelaProduto() {
           ) : null}
           {estoque ? (
             <View style={[s.linhaEstoque, preco && s.divisoria]}>
-              <ChipEstado texto={estoque.texto} tom={estoque.tom} rotuloAcessivel={estoque.texto.replace(':', '')} testID="produto-estoque" />
+              <ChipEstado texto={estoque.texto} tom={estoque.tom} rotuloAcessivel={estoque.leitura} testID="produto-estoque" />
               <BotaoPorFilialDaFicha availability={item.availability} onPress={() => setFolhaAberta(true)} />
             </View>
           ) : null}

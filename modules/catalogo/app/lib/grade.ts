@@ -39,6 +39,8 @@ export function produtosDoFiltro(a: Arvore, vinculos: readonly VinculoProdutoNo[
 export interface TagEstoque {
   texto: string;
   tom: TomEstado;
+  /** Frase do leitor de tela (`chipDoEstoque`). */
+  leitura: string;
 }
 
 /**

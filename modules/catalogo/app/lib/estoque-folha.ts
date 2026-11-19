@@ -36,7 +36,6 @@ export interface OpcaoFiltroFilial {
   /** Id da filial ou `todas`. */
   valor: string;
   rotulo: string;
-  apoio: string | null;
 }
 
 /**
@@ -46,7 +45,7 @@ export interface OpcaoFiltroFilial {
 export function opcoesDoFiltroFilial(e: { proprias: readonly string[]; filiais: readonly { id: string; nome: string }[] }): OpcaoFiltroFilial[] {
   const minhas = e.filiais.filter((f) => e.proprias.includes(f.id)).sort(ordemPorNome);
   if (minhas.length <= 1) return [];
-  return [{ valor: 'todas', rotulo: rotuloSuasFiliais(minhas.length), apoio: null }, ...minhas.map((f) => ({ valor: f.id, rotulo: f.nome, apoio: null }))];
+  return [{ valor: 'todas', rotulo: rotuloSuasFiliais(minhas.length) }, ...minhas.map((f) => ({ valor: f.id, rotulo: f.nome }))];
 }
 
 export interface ResumoDoFiltro {

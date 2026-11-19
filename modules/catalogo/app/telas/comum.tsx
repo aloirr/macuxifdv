@@ -152,7 +152,7 @@ export function CartaoGrade({ item, clienteId, miniatura = null, onPress, onEsto
       ) : null}
       {tag ? (
         <View style={g.rodape}>
-          <ChipEstado texto={tag.texto} tom={tag.tom} pequeno rotuloAcessivel={tag.texto.replace(':', '')} testID={`catalogo-estoque-${item.erp_code}`} />
+          <ChipEstado texto={tag.texto} tom={tag.tom} pequeno rotuloAcessivel={tag.leitura} testID={`catalogo-estoque-${item.erp_code}`} />
           <BotaoEstoquePorFilial availability={item.availability} onPress={onEstoquePorFilial} testID={`catalogo-estoque-filial-${item.erp_code}`} />
         </View>
       ) : null}

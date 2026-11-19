@@ -51,9 +51,9 @@ describe('filtro de filial da folha "Filtrar" (catalogo-campo-v2 §4)', () => {
 
   it('RN-CORE-39 / spec §4: todo perfil — "Suas filiais (N)" e cada filial de venda, sem as outras; com uma só o grupo não aparece', () => {
     expect(opcoesDoFiltroFilial({ proprias: ['v', 'm'], filiais })).toEqual([
-      { valor: 'todas', rotulo: 'Suas filiais (2)', apoio: null },
-      { valor: 'v', rotulo: 'Boa Vista', apoio: null },
-      { valor: 'm', rotulo: 'Manaus', apoio: null },
+      { valor: 'todas', rotulo: 'Suas filiais (2)' },
+      { valor: 'v', rotulo: 'Boa Vista' },
+      { valor: 'm', rotulo: 'Manaus' },
     ]);
     expect(opcoesDoFiltroFilial({ proprias: ['v'], filiais })).toEqual([]);
   });

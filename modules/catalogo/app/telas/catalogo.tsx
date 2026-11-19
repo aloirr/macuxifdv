@@ -19,8 +19,7 @@ import { montarArvore, type Arvore, type VinculoProdutoNo } from '../../domain/a
 import { idsAtivos } from '../../domain/hierarquia';
 import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, avisoDaBusca, iconeDoAviso } from '../../domain/ia';
 import { textoPareceCodigo } from '../../domain/codigo-busca';
-import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, SEM_FILTRO, type FiltroDaGrade } from '../lib/grade';
-import { subtituloDaGrade } from '../lib/grade';
+import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, SEM_FILTRO, subtituloDaGrade, type FiltroDaGrade } from '../lib/grade';
 import { dadosDaFolha, opcoesDoFiltroFilial, resumoDoFiltro, subtituloComFilial } from '../lib/estoque-folha';
 import { modoDaCarga, paginasDaApi, soVendaveisNaCarga } from '../lib/carga-online';
 import { ajustarPeloPrazoPadrao } from '../lib/prazo-padrao';
@@ -187,7 +186,7 @@ export default function TelaCatalogo() {
     return () => {
       vivo = false;
     };
-  }, [motor, arvore, filtro, escolha, consulta, limite, dentroDoPedido, clienteId, perfil, parametrosCrus, ambiente, fuso, sync.sincronizado_em, modoCarga, usuarioId, escolha]);
+  }, [motor, arvore, filtro, escolha, consulta, limite, dentroDoPedido, clienteId, perfil, parametrosCrus, ambiente, fuso, sync.sincronizado_em, modoCarga, usuarioId]);
 
   const chips = useMemo(() => chipsDaGrade(naCarga ? ARVORE_VAZIA : (arvore?.arvore ?? ARVORE_VAZIA), filtro), [arvore, filtro, naCarga]);
   const linhas = useMemo(() => emLinhas(lista.itens), [lista.itens]);

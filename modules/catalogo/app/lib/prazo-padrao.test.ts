@@ -16,7 +16,7 @@ const item = (n: number, price: Partial<NonNullable<ItemVitrine['price']>> | nul
     price_stock_visible: price !== null,
   }) as unknown as ItemVitrine;
 const CLIENTE = U(900);
-const mais10 = vi.fn(async (_d: unknown, e: { precos: { produto_id: string; cents: number }[] }) => ({ precos: e.precos.map((p) => ({ produto_id: p.produto_id, cents: Math.round(p.cents * 1.1) })) }));
+const mais10 = vi.fn(async (_d: unknown, e: { cents: number[] }) => ({ cents: e.cents.map((c) => Math.round(c * 1.1)) }));
 
 describe('RN-VEN-43: preço do catálogo no prazo padrão do cliente', () => {
   it('RN-VEN-43: sem cliente (pelo menu) a tabela é pura e a consulta nem roda', async () => {
@@ -41,10 +41,19 @@ describe('RN-VEN-43: preço do catálogo no prazo padrão do cliente', () => {
     expect(mais10).not.toHaveBeenCalled();
   });
 
-  it('RN-VEN-43: produto que a consulta não devolve fica sem ajuste', async () => {
-    const consultar = vi.fn(async () => ({ precos: [] }));
+  it('RN-VEN-43: tamanho diferente da entrada é erro e devolve a tabela pura', async () => {
+    const consultar = vi.fn(async () => ({ cents: [] }));
     const itens = [item(1, {})];
     expect(await ajustarPeloPrazoPadrao(itens, CLIENTE, consultar as never)).toEqual(itens);
+  });
+
+  it('RN-VEN-43: uma chamada só por carga, com price_cents e base_cents não nulos na mesma ordem', async () => {
+    const itens = [item(1, { price_cents: 100, base_cents: 200 }), item(2, { price_cents: null, base_cents: 300 }), item(3, null), item(4, { price_cents: 400, base_cents: null })];
+    mais10.mockClear();
+    const r = await ajustarPeloPrazoPadrao(itens, CLIENTE, mais10 as never);
+    expect(mais10).toHaveBeenCalledTimes(1);
+    expect(mais10.mock.calls[0]?.[1]).toEqual({ cliente_id: CLIENTE, cents: [100, 200, 300, 400] });
+    expect(r.map((i) => [i.price?.price_cents, i.price?.base_cents])).toEqual([[110, 220], [null, 330], [undefined, undefined], [440, null]]);
   });
 
   it('RN-VEN-43: consulta indisponível ou com erro devolve a tabela pura, sem lançar', async () => {
@@ -57,11 +66,13 @@ describe('RN-VEN-43: preço do catálogo no prazo padrão do cliente', () => {
     expect(await ajustarPeloPrazoPadrao(itens, CLIENTE, undefined)).toEqual(itens);
   });
 
-  it('RN-VEN-43: manda no máximo 500 preços por chamada', async () => {
+  it('RN-VEN-43: manda no máximo 1000 valores por chamada, uma chamada por lote', async () => {
     const itens = Array.from({ length: 1200 }, (_, i) => item(i + 1, {}));
     mais10.mockClear();
-    await ajustarPeloPrazoPadrao(itens, CLIENTE, mais10 as never);
-    for (const [, e] of mais10.mock.calls) expect(e.precos.length).toBeLessThanOrEqual(500);
+    const r = await ajustarPeloPrazoPadrao(itens, CLIENTE, mais10 as never);
+    expect(mais10).toHaveBeenCalledTimes(3);
+    for (const [, e] of mais10.mock.calls) expect(e.cents.length).toBeLessThanOrEqual(1000);
+    expect(r[1199]?.price?.price_cents).toBe(1100);
     expect(CONSULTA_PRECO_PRAZO_PADRAO.nome).toBe('vendedor.preco_prazo_padrao@1');
   });
 });

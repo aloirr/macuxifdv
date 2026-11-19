@@ -83,14 +83,21 @@ describe('Catálogo v2: texto e cor do estoque', () => {
 
 describe('Catálogo v2: chipDoEstoque, texto e cor do "Estoque: N" (spec §3)', () => {
   it('spec §3: número exato na ficha, "999+" no cartão, cor pelo número', () => {
-    expect(chipDoEstoque({ quantity: 1284, band: 'disponivel' }, true)).toEqual({ texto: 'Estoque: 999+', tom: 'sucesso' });
-    expect(chipDoEstoque({ quantity: 1284, band: 'disponivel' }, false)).toEqual({ texto: 'Estoque: 1.284', tom: 'sucesso' });
-    expect(chipDoEstoque({ quantity: -2, band: 'sem_estoque' }, true)).toEqual({ texto: 'Estoque: −2', tom: 'erro' });
-    expect(chipDoEstoque({ quantity: 0, band: 'sem_estoque' }, true)).toEqual({ texto: 'Estoque: 0', tom: 'erro' });
+    expect(chipDoEstoque({ quantity: 1284, band: 'disponivel' }, true)).toEqual({ texto: 'Estoque: 999+', tom: 'sucesso', leitura: 'Estoque 999+' });
+    expect(chipDoEstoque({ quantity: 1284, band: 'disponivel' }, false)).toEqual({ texto: 'Estoque: 1.284', tom: 'sucesso', leitura: 'Estoque 1.284' });
+    expect(chipDoEstoque({ quantity: -2, band: 'sem_estoque' }, true)).toEqual({ texto: 'Estoque: −2', tom: 'erro', leitura: 'Estoque menos 2' });
+    expect(chipDoEstoque({ quantity: 0, band: 'sem_estoque' }, true)).toEqual({ texto: 'Estoque: 0', tom: 'erro', leitura: 'Estoque 0' });
+  });
+  it('spec §2: o chip traz a leitura de tela, "Estoque 12", "Estoque menos 2", "Estoque 0", "Em estoque"/"Sem estoque"', () => {
+    expect(chipDoEstoque({ quantity: 12, band: 'disponivel' }, true).leitura).toBe('Estoque 12');
+    expect(chipDoEstoque({ quantity: -2, band: 'sem_estoque' }, true).leitura).toBe('Estoque menos 2');
+    expect(chipDoEstoque({ quantity: 0, band: 'sem_estoque' }, false).leitura).toBe('Estoque 0');
+    expect(chipDoEstoque({ quantity: null, band: 'baixo' }, true).leitura).toBe('Em estoque');
+    expect(chipDoEstoque({ quantity: null, band: 'sem_estoque' }, true).leitura).toBe('Sem estoque');
   });
   it('spec §3: tenant que esconde a quantidade decide pela faixa: "Em estoque" verde ou "Sem estoque" vermelho', () => {
-    expect(chipDoEstoque({ quantity: null, band: 'baixo' }, true)).toEqual({ texto: 'Em estoque', tom: 'sucesso' });
-    expect(chipDoEstoque({ quantity: null, band: 'sem_estoque' }, true)).toEqual({ texto: 'Sem estoque', tom: 'erro' });
+    expect(chipDoEstoque({ quantity: null, band: 'baixo' }, true)).toEqual({ texto: 'Em estoque', tom: 'sucesso', leitura: 'Em estoque' });
+    expect(chipDoEstoque({ quantity: null, band: 'sem_estoque' }, true)).toEqual({ texto: 'Sem estoque', tom: 'erro', leitura: 'Sem estoque' });
   });
 });
 

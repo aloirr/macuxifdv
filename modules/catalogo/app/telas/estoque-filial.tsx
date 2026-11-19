@@ -81,14 +81,14 @@ export function FolhaFiltroCatalogo({
         <View>
           <Text style={e.grupo}>Filial</Text>
           {opcoes.map((o, i) => (
-            <Opcao key={o.valor} divisor={i > 0} rotulo={o.rotulo} apoio={o.apoio} marcada={(escolha.filial ?? 'todas') === o.valor} onPress={() => onEscolher({ ...escolha, filial: o.valor })} testID={`catalogo-filtro-filial-${o.valor}`} />
+            <Opcao key={o.valor} divisor={i > 0} rotulo={o.rotulo} marcada={(escolha.filial ?? 'todas') === o.valor} onPress={() => onEscolher({ ...escolha, filial: o.valor })} testID={`catalogo-filtro-filial-${o.valor}`} />
           ))}
         </View>
       ) : null}
       <View>
         <Text style={e.grupo}>Itens sem estoque</Text>
-        <Opcao divisor={false} rotulo="Mostrar" apoio={null} marcada={!escolha.soComEstoque} onPress={() => onEscolher({ ...escolha, soComEstoque: false })} testID="catalogo-filtro-sem-estoque-mostrar" />
-        <Opcao divisor rotulo="Ocultar" apoio={null} marcada={escolha.soComEstoque} onPress={() => onEscolher({ ...escolha, soComEstoque: true })} testID="catalogo-filtro-sem-estoque-ocultar" />
+        <Opcao divisor={false} rotulo="Mostrar" marcada={!escolha.soComEstoque} onPress={() => onEscolher({ ...escolha, soComEstoque: false })} testID="catalogo-filtro-sem-estoque-mostrar" />
+        <Opcao divisor rotulo="Ocultar" marcada={escolha.soComEstoque} onPress={() => onEscolher({ ...escolha, soComEstoque: true })} testID="catalogo-filtro-sem-estoque-ocultar" />
       </View>
       <Botao nivel="neutro" rotulo="Limpar" onPress={onLimpar} testID="catalogo-filtro-limpar" />
       <Botao nivel="principal" rotulo={textoVer} onPress={onFechar} testID="catalogo-filtro-ver" />
@@ -96,12 +96,11 @@ export function FolhaFiltroCatalogo({
   );
 }
 
-function Opcao({ divisor, rotulo, apoio, marcada, onPress, testID }: { divisor: boolean; rotulo: string; apoio: string | null; marcada: boolean; onPress: () => void; testID: string }) {
+function Opcao({ divisor, rotulo, marcada, onPress, testID }: { divisor: boolean; rotulo: string; marcada: boolean; onPress: () => void; testID: string }) {
   return (
-    <Pressable testID={testID} accessibilityRole="radio" accessibilityState={{ selected: marcada }} accessibilityLabel={apoio ? `${rotulo}, ${apoio}` : rotulo} onPress={onPress} style={[e.opcao, divisor && e.divisor]}>
+    <Pressable testID={testID} accessibilityRole="radio" accessibilityState={{ selected: marcada }} accessibilityLabel={rotulo} onPress={onPress} style={[e.opcao, divisor && e.divisor]}>
       <View style={{ flex: 1 }}>
         <Text style={[e.opcaoTexto, marcada && e.opcaoTextoOn]}>{rotulo}</Text>
-        {apoio ? <Text style={e.sua}>{apoio}</Text> : null}
       </View>
       {marcada ? <Icon name="check" size={18} color={colors.accent} strokeWidth={2.6} /> : null}
     </Pressable>

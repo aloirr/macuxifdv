@@ -81,9 +81,13 @@ function quantidadeDoEstoque(quantity: number | null, band?: FaixaEstoque | null
  * spec §3: texto e cor do chip `Estoque: N` (cartão, busca e ficha), num lugar só. `noCartao` = "999+" acima de 999 (a ficha traz o
  * exato). Tenant que esconde a quantidade (`quantity` nulo): decide pela faixa, "Em estoque" verde ou "Sem estoque" vermelho.
  */
-export function chipDoEstoque(a: { quantity: number | null; band?: FaixaEstoque | null }, noCartao: boolean): { texto: string; tom: 'sucesso' | 'erro' } {
+export function chipDoEstoque(a: { quantity: number | null; band?: FaixaEstoque | null }, noCartao: boolean): { texto: string; tom: 'sucesso' | 'erro'; leitura: string } {
   const q = quantidadeDoEstoque(a.quantity, a.band);
-  return { texto: textoEstoqueCartao(q, noCartao, a.quantity !== null), tom: corDoEstoque(q) };
+  const mostrar = a.quantity !== null;
+  const texto = textoEstoqueCartao(q, noCartao, mostrar);
+  // leitura de tela: o mesmo valor, sem os dois-pontos e com o sinal lido como "menos"; sem quantidade, "Em estoque"/"Sem estoque"
+  const leitura = mostrar ? `Estoque ${numeroDoEstoque(q, noCartao).replace(MENOS, 'menos ')}` : texto;
+  return { texto, tom: corDoEstoque(q), leitura };
 }
 
 /** Frase do TalkBack para um valor de estoque: "estoque menos 3" (o sinal − lido como "menos"); sem quantidade, "em estoque"/"sem estoque". */

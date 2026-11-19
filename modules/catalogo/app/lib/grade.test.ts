@@ -41,19 +41,19 @@ describe('Catálogo em grade (T-0173)', () => {
   });
 
   it('spec §3 (catálogo v2): "Estoque: N" em duas cores, verde acima de 0 e vermelho em 0; sem saldo recebido = 0', () => {
-    expect(tagDeEstoque(disp('disponivel', 84))).toEqual({ texto: 'Estoque: 84', tom: 'sucesso' });
-    expect(tagDeEstoque(disp('baixo', 6))).toEqual({ texto: 'Estoque: 6', tom: 'sucesso' });
-    expect(tagDeEstoque(disp('sem_estoque', 0))).toEqual({ texto: 'Estoque: 0', tom: 'erro' });
-    expect(tagDeEstoque(disp('disponivel', 1500))).toEqual({ texto: 'Estoque: 999+', tom: 'sucesso' });
+    expect(tagDeEstoque(disp('disponivel', 84))).toEqual({ texto: 'Estoque: 84', tom: 'sucesso', leitura: 'Estoque 84' });
+    expect(tagDeEstoque(disp('baixo', 6))).toEqual({ texto: 'Estoque: 6', tom: 'sucesso', leitura: 'Estoque 6' });
+    expect(tagDeEstoque(disp('sem_estoque', 0))).toEqual({ texto: 'Estoque: 0', tom: 'erro', leitura: 'Estoque 0' });
+    expect(tagDeEstoque(disp('disponivel', 1500))).toEqual({ texto: 'Estoque: 999+', tom: 'sucesso', leitura: 'Estoque 999+' });
   });
 
   it('spec §3: tenant que não mostra a quantidade vê Em estoque ou Sem estoque', () => {
-    expect(tagDeEstoque(disp('disponivel', null))).toEqual({ texto: 'Em estoque', tom: 'sucesso' });
-    expect(tagDeEstoque(disp('sem_estoque', null))).toEqual({ texto: 'Sem estoque', tom: 'erro' });
+    expect(tagDeEstoque(disp('disponivel', null))).toEqual({ texto: 'Em estoque', tom: 'sucesso', leitura: 'Em estoque' });
+    expect(tagDeEstoque(disp('sem_estoque', null))).toEqual({ texto: 'Sem estoque', tom: 'erro', leitura: 'Sem estoque' });
   });
 
   it('spec §3: o promotor que não vê preço continua vendo o estoque', () => {
-    expect(tagDeEstoque(disp('disponivel', 12))).toEqual({ texto: 'Estoque: 12', tom: 'sucesso' });
+    expect(tagDeEstoque(disp('disponivel', 12))).toEqual({ texto: 'Estoque: 12', tom: 'sucesso', leitura: 'Estoque 12' });
   });
 
   it('RN-CORE-39: sem filial de venda (estoque nulo) não há tag', () => {
