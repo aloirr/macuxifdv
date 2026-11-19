@@ -9,6 +9,7 @@ import {
   TituloSyncSchema,
   VisitaSyncSchema,
 } from './sync';
+import { Cliente360V2CamposSchema } from './cliente360-v2';
 
 const Data = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -35,7 +36,7 @@ export const ResumoFinanceiroSchema = z.object({
 });
 export type ResumoFinanceiro = z.infer<typeof ResumoFinanceiroSchema>;
 
-export const Cliente360Schema = z.object({
+export const Cliente360Schema = Cliente360V2CamposSchema.extend({
   cliente: ClienteSyncSchema,
   contatos: z.array(ClienteContatoSyncSchema),
   financeiro: ClienteFinanceiroSyncSchema.nullable(),

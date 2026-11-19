@@ -15,6 +15,7 @@ export * from './checkin-rota';
 export * from './cliente360';
 export * from './historico-nf';
 export * from './documentos-cliente';
+export * from './resumo-cliente';
 export * from './clientes';
 export * from './lista-clientes';
 export * from './agenda';
