@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ItemFilaAprovacao, type MembroEquipe, type MotivoAprovacao, type NivelAprovacao } from '../contracts';
 import { escopoDoUsuario } from './equipe';
-import { filaDeAprovacoes, motivosPendentes, pedidoPendenteDeAprovacao } from './aprovacoes';
+import { filaDeAprovacoes, motivosPendentes } from './aprovacoes';
 import { CLIENTE_A, ev, statusAlterado, u } from './fixtures';
 import { aplicarEvento, aplicarEventos, estadoInicial, type EventoRecebido } from './projecao';
 
@@ -90,7 +90,7 @@ describe('T-0184 P7 A e P8 A: decisões em paralelo; a rejeição encerra as out
     expect(motivosPendentes(s, PEDIDO).map((x) => x.motivo)).toEqual(['credito', 'desconto']);
     expect(fila(s, 'gerente')[0]!.aprovacoes.map((a) => a.motivo)).toEqual(['credito', 'desconto']);
     const todas = montar([solicita(), decidida('credito', 'aprovada'), decidida('inadimplencia', 'aprovada'), decidida('desconto', 'aprovada')]);
-    expect(pedidoPendenteDeAprovacao(todas, PEDIDO)).toBe(false);
+    expect(motivosPendentes(todas, PEDIDO).length > 0).toBe(false);
     expect(fila(todas, 'gerente')).toEqual([]);
   });
 
