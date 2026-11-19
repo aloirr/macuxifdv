@@ -1,7 +1,6 @@
 /**
  * Visor de foto comum do shell (RD-0088, v1.0.4): um só visor em tela cheia para os módulos (foto do PDV do Core, foto do
- * produto do Vendedor, e o que vier), com zoom (pinça e toque duplo), fechar e o estado sem sinal "Sem sinal para abrir a
- * foto.". Puro, para teste: o pedido do módulo, os parâmetros da rota e a matemática do zoom.
+ * produto do Vendedor, e o que vier), com zoom (pinça e toque duplo), fechar e o estado sem sinal "Sem internet". Puro, para teste: o pedido do módulo, os parâmetros da rota e a matemática do zoom.
  *
  * O módulo chama `ambiente.abrirFoto(pedido)` (porta que o shell põe no ambiente; tipo no platform-sdk, pedido ao
  * engenheiro-software) com UMA das fontes:

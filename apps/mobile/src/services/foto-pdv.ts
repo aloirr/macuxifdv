@@ -7,7 +7,8 @@ import { Directory, File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 import { nomeArquivoFoto, PASTA_FOTOS } from '@/lib/foto';
-import { fonteDaFoto, MAX_BYTES_FOTO, TEXTO_FOTO_INDISPONIVEL, TEXTO_SEM_SINAL_FOTO, uriDeJpeg } from '@/lib/foto-pdv';
+import { fonteDaFoto, MAX_BYTES_FOTO, TEXTO_FOTO_INDISPONIVEL, TEXTO_SEM_SINAL_FOTO } from '@/lib/foto-pdv';
+import { tipoDosBytes, uriDaImagem } from '@/lib/visualizar-arquivo';
 import { NetworkError, type ApiClient } from '@/services/api';
 
 let fonte: { api: () => ApiClient; online: () => boolean } | null = null;
@@ -19,11 +20,6 @@ export function ligarFonteFotoPdv(api: () => ApiClient, online: () => boolean): 
   return () => {
     if (fonte === minha) fonte = null;
   };
-}
-
-/** A mesma fonte (API da sessão e sinal) para o visualizador de arquivos da ficha (`services/visualizar-arquivo.ts`). */
-export function fonteDeArquivos(): { api: () => ApiClient; online: () => boolean } | null {
-  return fonte;
 }
 
 function arquivoLocal(arquivoId: string): string | null {
@@ -48,8 +44,8 @@ export async function carregarFotoPdv(arquivoId: string): Promise<FotoCarregada>
   if (decisao.tipo === 'erro' || !f) return { tipo: 'erro', mensagem: decisao.tipo === 'erro' ? decisao.mensagem : TEXTO_FOTO_INDISPONIVEL };
   try {
     const bytes = await f.api().bytes(`/v1/arquivos/${encodeURIComponent(arquivoId)}`, { maxBytes: MAX_BYTES_FOTO, timeoutMs: 20_000 });
-    const uri = bytes ? uriDeJpeg(bytes) : null;
-    return uri ? { tipo: 'ok', uri } : { tipo: 'erro', mensagem: TEXTO_FOTO_INDISPONIVEL };
+    const tipo = bytes ? tipoDosBytes(bytes) : null;
+    return bytes && tipo ? { tipo: 'ok', uri: uriDaImagem(tipo, bytes) } : { tipo: 'erro', mensagem: TEXTO_FOTO_INDISPONIVEL };
   } catch (e) {
     return { tipo: 'erro', mensagem: e instanceof NetworkError ? TEXTO_SEM_SINAL_FOTO : TEXTO_FOTO_INDISPONIVEL };
   }

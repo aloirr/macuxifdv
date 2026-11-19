@@ -164,10 +164,7 @@ function Gate() {
                 <Stack.Screen name="trocar-senha" />
                 <Stack.Screen name="esqueci-senha" />
                 {/* T-0147 / RD-0088: o visor de foto comum (foto do PDV, do produto) abre por cima, sem deslizar */}
-                <Stack.Screen name="foto" options={{ animation: 'fade' }} />
-                {/* T-0186: o visualizador da fachada e dos documentos (Cliente 360), do mesmo jeito */}
-                <Stack.Screen name="arquivo" options={{ animation: 'fade' }} />
-              </Stack>
+                <Stack.Screen name="foto" options={{ animation: 'fade' }} />              </Stack>
             </AreaSeguraSuperior>
           </View>
           {/* T-0147: folha "Tirar foto / Escolher da galeria" que o Core pede pela porta da captura da foto do PDV */}

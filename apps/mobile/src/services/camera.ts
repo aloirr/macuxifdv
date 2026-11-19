@@ -14,8 +14,8 @@
  * O Core usa `escolher({ titulo })`: o shell abre a folha "Tirar foto / Escolher da galeria" (components/folha-foto-pdv.tsx,
  * imagem aprovada T-0147-fotos-pdv.png) e devolve a foto gravada com a origem, para o `ClienteFotoPush`.
  * O visualizador de arquivos do shell (`abrirArquivo`, services/visualizar-arquivo.ts) vai na porta única `definirAbrirArquivo` do Core
- * (T-0186, RD-2374): fachada e documentos do cliente. Os formatos que ele abre (`FORMATOS_DO_VISOR`, só imagem) vão na porta
- * opcional `definirFormatosDoVisor`, para a tela do Core esconder "Ver PDF" e a seta do que o visor não abre.
+ * (T-0186, RD-2374): fachada e documentos do cliente, com os formatos que ele abre (só imagem), para a tela do Core esconder a
+ * ação do que o visor não abre.
  */
 import * as appCore from '@macuxi/core/app';
 import { definirAbrirArquivo } from '@macuxi/core/app';
@@ -28,7 +28,6 @@ import { Platform } from 'react-native';
 
 import { pedirOrigemFotoPdv, type OrigemFotoPdv } from '@/lib/folha-foto-pdv';
 import { FOTO_QUALIDADE_JPEG, nomeArquivoFoto, PASTA_FOTOS, redimensionamento } from '@/lib/foto';
-import { FORMATOS_DO_VISOR } from '@/lib/visualizar-arquivo';
 import { posicaoAgora, uuid } from './device';
 import { abrirArquivo } from './visualizar-arquivo';
 
@@ -114,7 +113,6 @@ export interface CapturaFotoPdv {
 interface PortasDoCore {
   definirCapturaFoto?: (fn: CapturaFoto | null) => void;
   definirCapturaFotoPdv?: (c: CapturaFotoPdv | null) => void;
-  definirFormatosDoVisor?: (formatos: readonly string[]) => void;
 }
 
 /**
@@ -128,8 +126,7 @@ export function registrarCameraNosModulos(): boolean {
   definirCapturaFotoPesquisa(capturarFotoGravada);
   // a galeria só para as fotos do PDV (premissa do dono do produto, desenho T-0147 §5)
   if (typeof core.definirCapturaFotoPdv === 'function') core.definirCapturaFotoPdv({ escolher: escolherFotoPdv, camera: capturarFotoGravada, galeria: escolherFotoDaGaleria });
-  definirAbrirArquivo(abrirArquivo);
-  if (typeof core.definirFormatosDoVisor === 'function') core.definirFormatosDoVisor(FORMATOS_DO_VISOR);
+  definirAbrirArquivo(abrirArquivo, { formatos: ['imagem'] });
   if (typeof core.definirCapturaFoto !== 'function') return false;
   core.definirCapturaFoto(capturarFoto);
   return true;

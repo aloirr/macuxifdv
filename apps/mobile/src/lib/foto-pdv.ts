@@ -20,7 +20,7 @@ export interface PedidoVerFoto {
   subtitulo?: string;
 }
 
-export const TEXTO_SEM_SINAL_FOTO = 'Sem sinal para abrir a foto.';
+export const TEXTO_SEM_SINAL_FOTO = 'Sem internet';
 export const TEXTO_FOTO_INDISPONIVEL = 'Não foi possível abrir a foto.';
 export const ROTULO_FECHAR_FOTO = 'Fechar a foto';
 /** Teto do download (a foto do aparelho tem 1600 px / JPEG 80, bem abaixo disso). */
@@ -75,10 +75,4 @@ export function bytesParaBase64(bytes: Uint8Array): string {
     partes.push(s);
   }
   return partes.join('');
-}
-
-/** Bytes de JPEG → `data:image/jpeg;base64,...`; `null` se os bytes não forem JPEG (assinatura FF D8 FF). */
-export function uriDeJpeg(bytes: Uint8Array): string | null {
-  if (bytes.length < 3 || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) return null;
-  return `data:image/jpeg;base64,${bytesParaBase64(bytes)}`;
 }

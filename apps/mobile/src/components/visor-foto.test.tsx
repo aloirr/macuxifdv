@@ -1,6 +1,6 @@
 /**
  * RD-0088: visor de foto comum do shell, renderizado com `react-dom/server` e `react-native`/kit simulados:
- * - estados: carregando, foto (com o rótulo acessível) e sem sinal ("Sem sinal para abrir a foto.");
+ * - estados: carregando, foto (com o rótulo acessível) e sem sinal ("Sem internet");
  * - fechar (X) com o rótulo "Fechar a foto" chama `aoFechar`;
  * - zoom pelos gestos reais do `PanResponder`: pinça (2 dedos), arraste limitado à área e toque duplo (aproxima / volta).
  */
@@ -111,7 +111,7 @@ describe('VisorDeFoto — estados', () => {
 
   it('sem sinal: a mensagem aprovada, sem imagem', () => {
     const html = render({ tipo: 'erro', mensagem: TEXTO_SEM_SINAL_FOTO });
-    expect(html).toContain('Sem sinal para abrir a foto.');
+    expect(html).toContain('Sem internet');
     expect(html).not.toContain('<img');
   });
 });
