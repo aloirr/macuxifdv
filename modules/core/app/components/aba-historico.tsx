@@ -1,7 +1,7 @@
 /**
  * Aba Histórico da ficha (T-0186, spec §4): só a contagem, o botão de filtro (com a busca pelo Nº da NF dentro, P14) e a tabela de notas
  * (Data · Nº NF e forma de pagamento · Valor · Status). "Em atraso" sem data, a linha em destaque. O toque na linha pede a autorização
- * "Baixar a NF …?" e busca a NF no servidor (P17); a NF e o PDF não ficam guardados. Sem internet: "Sem internet" e "Tentar de novo".
+ * "Baixar a NF …?" e busca a NF no servidor (P17); a NF não fica guardada. Sem internet: "Sem internet" e "Tentar de novo".
  */
 import { Badge, Botao, BotaoFiltro, CampoBusca, CampoTexto, CelulaTexto, Chip, colors, EtiquetaFiltro, Folha, Loading, TabelaDados, TabelaRotuloValor, type as t, type LinhaTabela } from '@macuxi/ui/mobile';
 import { useState } from 'react';
