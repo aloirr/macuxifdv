@@ -429,20 +429,7 @@ export function fonteDoPedido(id: string, fila: PedidoNaFila[], detalhes: Record
   };
 }
 
-// ---------- ficha do cliente (slots do Core) ----------
-
-/** "Últimos pedidos" da ficha: os da fila deste cliente primeiro, depois os do servidor; no máximo `limite`. */
-export function ultimosPedidosDoCliente(customerId: string, servidor: PedidoDaLista[], limite = 3): PedidoDaLista[] {
-  return servidor
-    .filter((o) => o.customer_id === customerId)
-    .sort((a, b) => b.received_at.localeCompare(a.received_at))
-    .slice(0, limite);
-}
-
-/** Sugestão de mix: soma 1 unidade do produto ao rascunho (preserva o resto). */
-export function somarAoRascunho(r: Rascunho, productId: string): Rascunho {
-  return { ...r, lines: { ...r.lines, [productId]: (r.lines[productId] ?? 0) + 1 } };
-}
+// ---------- ficha do cliente (botão Novo pedido) ----------
 
 /** Liga o rascunho à visita e à parada da rota (vindas da ficha); não sobrescreve ligação já existente. */
 export function ligarRascunho(r: Rascunho, visitId: string | null | undefined, stopId: string | null | undefined): Rascunho {

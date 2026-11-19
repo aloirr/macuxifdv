@@ -1,24 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { CreateOrderRequest } from '../../contracts';
 import { manifest } from '../../manifest';
-import { ligarRascunho, montarPedido, rascunhoVazio, somarAoRascunho, ultimosPedidosDoCliente, type PedidoDaLista } from './pedidos';
+import { ligarRascunho, montarPedido, rascunhoVazio } from './pedidos';
 
-const ped = (id: string, customer_id: string, received_at: string) => ({ id, customer_id, received_at }) as PedidoDaLista;
-
-describe('ficha do cliente (slots cliente.abas / cliente.acoes)', () => {
+describe('ficha do cliente (slot cliente.acoes)', () => {
   it('RN-PRO-01: as ações registradas na ficha exigem pedido.criar, que o promotor não tem', () => {
     expect(manifest.acoes['pedido.criar']!.perfis).not.toContain('promotor');
-    expect(manifest.usaExtensoes).toEqual(expect.arrayContaining(['cliente.abas', 'cliente.acoes']));
-  });
-
-  it('últimos pedidos: só do cliente, mais recentes primeiro, no máximo 3', () => {
-    const r = ultimosPedidosDoCliente('c1', [ped('a', 'c1', '2026-10-01'), ped('b', 'c2', '2026-10-09'), ped('c', 'c1', '2026-10-05'), ped('d', 'c1', '2026-10-03'), ped('e', 'c1', '2026-10-07')]);
-    expect(r.map((o) => o.id)).toEqual(['e', 'c', 'd']);
-  });
-
-  it('mix: adicionar soma 1 unidade e preserva as outras linhas', () => {
-    const r = somarAoRascunho(somarAoRascunho({ ...rascunhoVazio('c1'), lines: { p9: 4 } }, 'p1'), 'p1');
-    expect(r.lines).toEqual({ p9: 4, p1: 2 });
+    expect(manifest.usaExtensoes).toEqual(expect.arrayContaining(['cliente.acoes']));
+    expect(manifest.usaExtensoes).not.toContain('cliente.abas');
   });
 
   it('novo pedido pela ficha: liga visita e parada sem sobrescrever ligação existente', () => {

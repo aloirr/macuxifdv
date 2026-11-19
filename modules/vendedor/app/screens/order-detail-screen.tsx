@@ -26,7 +26,7 @@ import {
   OpcaoFolha,
   RodapeAcoes,
   RotuloSecao,
-  TabelaValores,
+  TabelaRotuloValor,
   quandoCurto,
   tagsDoHistorico,
   type as t,
@@ -48,7 +48,7 @@ import { textoItemFaturado } from '../../domain/retorno-erp';
 import { vendedorDoPdf } from '../../domain/pedido-em-nome';
 import { AreaAlertas } from '../components/area-alertas';
 import { AvisoRapido, useAviso } from '../components/aviso';
-import { CartaoDeTotais, TabelaDeItens, TabelaRotuloValor } from '../components/tabelas-pedido';
+import { CartaoDeTotais, TABELA_DO_PEDIDO, TabelaDeItens } from '../components/tabelas-pedido';
 import { pegarAvisoPendente } from '../lib/aviso-pendente';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
 import { estadoDasAcoes, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
@@ -593,7 +593,7 @@ export default function OrderDetailScreen() {
 
         {/* RN-VEN-42: área Alertas logo abaixo do cliente; sem selo de situação (a situação é a última etapa do Histórico) */}
         <AreaAlertas alertas={alertasDaTela} aoTocar={ehOrc && acoesOrc?.pode_editar ? () => void startDraft('edit') : undefined} />
-        <TabelaRotuloValor linhas={tabelaGestao} testID="detalhe-pagamento-entrega" />
+        <TabelaRotuloValor {...TABELA_DO_PEDIDO} linhas={tabelaGestao} testID="detalhe-pagamento-entrega" />
 
 
         {/* 2. itens em tabela (RN-VEN-42: "ITENS (n)" com a contagem, não há aba) */}
@@ -648,7 +648,7 @@ export default function OrderDetailScreen() {
         {precosDeHoje ? (
           <Folha visivel={transformarAberto} onFechar={() => setTransformarAberto(false)} rotuloFechar="Fechar" titulo={precosDeHoje.titulo} fechar={{ rotulo: 'Fechar', testID: 'precos-fechar' }} rolavel testID="folha-precos-de-hoje" rodape={{ rotulo: TEXTOS_PRECOS_DE_HOJE.voltar, onPress: () => setTransformarAberto(false), testID: 'precos-voltar' }}>
             <View style={{ gap: 12 }}>
-              <TabelaValores testID="precos-totais" linhas={precosDeHoje.totais.map((x) => ({ id: x.id, rotulo: x.rotulo, valor: x.valor, ...(x.tom ? { tom: x.tom } : {}) }))} />
+              <TabelaRotuloValor testID="precos-totais" larguraRotulo={200} linhas={precosDeHoje.totais.map((x) => ({ id: x.id, rotulo: x.rotulo, valor: x.valor, tom: x.tom }))} />
               {precosDeHoje.mudaram.length > 0 ? (
                 <View style={{ gap: 4 }} testID="precos-mudaram">
                   <RotuloSecao texto={TEXTOS_PRECOS_DE_HOJE.mudaram} />
