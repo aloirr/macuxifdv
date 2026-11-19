@@ -150,3 +150,24 @@ Lista em `/core/perfis`; edição em `/core/perfis?perfil=<codigo>` (o shell nã
 | `usuarios.campo-perfis` · `usuarios.previa` · `usuarios.previa.onde-entra` | campo "Perfis" e prévia no formulário de Usuários |
 | `usuarios.campo-gerente` · `usuarios.campo-supervisor` · `usuarios.campo-equipe-nome` · `usuarios.campo-external-id` | gaveta Novo usuário: Gerente, Supervisor e Nome da equipe conforme o cargo do perfil (RN-CORE-55/56) e Código no ERP (RN-CORE-57) |
 | `perfil.novo.nome` · `perfil.novo.cargo` · `perfil.novo.salvar` · `perfil.novo.cancelar` · `perfil.novo.grade` · `perfil.modulo.<id>` · `perfil.grupo.<subtítulo>` | Novo perfil: nome, cargo (RN-CORE-53), grade por módulo e subtítulos de Geral |
+
+## Rastreamento no expediente (T-0156; ADR 0061; desenho `docs/desenho/tracking.md`; spec `docs/design/tracking/spec.md`)
+
+BKO, Parâmetros › Calendário (ações `rastreamento.configurar` e `ausencia.cadastrar`):
+
+| testID | Onde |
+|---|---|
+| `rastreamento.parametros.painel` · `.ativo` · `.salvar` · `.aviso` | painel "Rastreamento no expediente": ligar (padrão desligado), salvar e aviso |
+| `rastreamento.parametros.faixa.<dia 0-6>.<0\|1>.inicio` · `.fim` · `.erro` | expediente: 1ª e 2ª faixa por dia ('0' = domingo) |
+| `rastreamento.parametros.frequencia.distancia_m` · `.intervalo_min` · `.lote_min` (e `.erro`) | frequência da captura |
+| `rastreamento.termo.painel` · `.texto` · `.publicar` · `.aviso` · `.vigente` · `.versao.<n>` | termo de ciência: texto da nova versão, publicar e versões publicadas |
+| `rastreamento.ausencias.painel` · `.usuario` · `.de` · `.ate` · `.cadastrar` · `.aviso` · `.lista` · `.linha.<id>` · `.cancelar.<id>` | ausências: formulário e lista |
+
+Campo (telas `/m/termo-rastreamento` e `/m/meu-trajeto`; seção e alerta montados pelo Perfil do shell):
+
+| testID | Onde |
+|---|---|
+| `termo-rastreamento.tela` · `.texto` · `.aceitar` · `.agora-nao` · `.erro` · `.link-trajeto` · `.vazio` | termo: "Li e estou ciente", "Agora não" e, só leitura (`?leitura=1`), o link "Meu trajeto" |
+| `localizacao.secao` · `.estado` · `.pausar` · `.retomar` · `.desfazer` · `.meu-trajeto` · `.termo` | seção Localização do Perfil |
+| `localizacao.alerta-termo` · `.ler-termo` | linha na área Alertas quando falta o aceite |
+| `meu-trajeto.tela` · `.dia` · `.dia-anterior` · `.dia-proximo` · `.mapa` · `.km` · `.linha.<n>` · `.vazio` · `.sem-sinal` · `.erro` · `.tentar-de-novo` · `.atualizar` | Meu trajeto |
