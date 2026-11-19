@@ -57,6 +57,7 @@ function montar(perfil: string, id: string, visiveis: ReadonlySet<string> | 'ten
           enderecos: [],
         };
       }
+      if (def.nome === 'core.financeiro_cliente@1') return { financeiro: { limite_cents: 100_000_000, saldo_aberto_cents: 0, credito_disponivel_erp_cents: null, vencidos_qtd: 0, vencidos_cents: 0, maior_atraso_dias: 0 } };
       return { tabela_preco_id: null, itens: [{ produto_id: PRODUTO, preco_cents: 10_000, motivo_sem_preco: null }] };
     },
     publicar: async (def: { nome: string }, payload: Record<string, unknown>) => {
@@ -124,7 +125,7 @@ describe('RF-GES-05 / RN-VEN-35: supervisor faz pedido em nome do vendedor da eq
     expect(criado).toMatchObject({ pedido_id: PEDIDO, vendedor_id: VEND, autor_id: SUP, status: 'em_aprovacao' });
     for (const e of eventos) expect(e.payload.vendedor_id).toBe(VEND);
     expect(eventos.find((e) => e.nome === 'vendedor.pedido.status_alterado@1')!.payload).toMatchObject({ autor_id: SUP });
-    expect(eventos.find((e) => e.nome === 'vendedor.pedido.aprovacao_solicitada@1')!.payload).toMatchObject({ vendedor_id: VEND, nivel: 'gerente' });
+    expect(eventos.find((e) => e.nome === 'vendedor.pedido.aprovacao_solicitada@2')!.payload).toMatchObject({ vendedor_id: VEND, nivel: 'gerente' });
     expect(auditoria[0]).toMatchObject({ acao: 'pedido.criar', entidade: 'pedido', entidade_id: PEDIDO, depois: expect.objectContaining({ em_nome: true, vendedor_id: VEND, autor_id: SUP }) });
   });
 

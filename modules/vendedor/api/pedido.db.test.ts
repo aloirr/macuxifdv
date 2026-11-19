@@ -106,6 +106,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
               if (def.nome === CONSULTA_CANCELAMENTO_ERP.nome) return { aceita: false }; // sem conector que aceite cancelar: mantém o 422 da RN-VEN-31
               if (def.nome === CONSULTA_PROMOTOR_VE_PEDIDOS.nome) return { ligado: opcaoPromotor }; // Core simulado, lido a cada requisição
               if (def.nome === 'catalogo.estoque_filial@1') return { itens: [] }; // Catálogo sem saldo: estoque não controlado
+              if (def.nome === 'core.financeiro_cliente@1') return { financeiro: { limite_cents: 100_000_000, saldo_aberto_cents: 0, credito_disponivel_erp_cents: null, bloqueado: false, motivo_bloqueio: null, vencidos_qtd: 0, vencidos_cents: 0, maior_atraso_dias: 0, atualizado_erp_em: null } }; // RN-VEN-12: crédito folgado (T-0184)
               throw new Error(`consulta não simulada: ${def.nome}`);
             },
             async publicar(def: DefinicaoEvento, payload: unknown) {
@@ -222,9 +223,9 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       expect(p).toMatchObject({ status: 'pending_approval', nivel_aprovacao: nivel, aprovacao_automatica: false, motivos_aprovacao: ['desconto'] });
       expect(ev.map((e) => e.para)).toEqual(['received', 'pending_approval']);
       expect(ev[1].motivo).toMatch(/acima da alçada de 5,0%: aguardando/);
-      expect(registro.eventos.map((e) => e.nome)).toContain('vendedor.pedido.aprovacao_solicitada@1');
+      expect(registro.eventos.map((e) => e.nome)).toContain('vendedor.pedido.aprovacao_solicitada@2');
       expect(registro.eventos.map((e) => e.nome)).not.toContain('vendedor.pedido.aprovado@1');
-      expect(registro.eventos.find((e) => e.nome.endsWith('aprovacao_solicitada@1'))!.payload).toMatchObject({ nivel, motivos: ['desconto'], credito: null });
+      expect(registro.eventos.find((e) => e.nome.endsWith('aprovacao_solicitada@2'))!.payload).toMatchObject({ nivel, motivos: ['desconto'], aprovacoes: [{ motivo: 'desconto', nivel }], inadimplencia: null });
     });
 
     it('RN-VEN-10: acima do gerente com acima_gerente = bloquear é rejeitado', async () => {

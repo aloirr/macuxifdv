@@ -39,7 +39,7 @@ export const COLUNAS_DA_TABELA: readonly ColunaPedido[] = [
   { id: 'situacao', titulo: 'Situação', fixa: 'direita', largura: 172 },
 ];
 
-const ROTULO_MOTIVO: Record<MotivoAprovacao, string> = { desconto: 'Desconto', credito: 'Crédito', estoque: 'Estoque', preco_minimo: 'Preço mínimo' };
+const ROTULO_MOTIVO: Record<MotivoAprovacao, string> = { desconto: 'Desconto', credito: 'Crédito', inadimplencia: 'Inadimplente', estoque: 'Estoque', preco_minimo: 'Preço mínimo' };
 
 /** Motivo curto da coluna: "Crédito", "Desconto 12%"; vazio = traço. Sem o motivo do servidor, nada é inventado. */
 export function motivoDoPedido(o: Pick<Order, 'approval_reasons' | 'effective_discount_pct'>): string {

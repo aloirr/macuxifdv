@@ -108,6 +108,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: novo pedido de distribuidora 
                 return { tabela_preco_id: id(39), itens: ent.produto_ids.map((p) => ({ produto_id: p, preco_cents: PRECOS()[p] ?? null, motivo_sem_preco: null })) };
               }
               if (def.nome === 'catalogo.estoque_filial@1') return { itens: [] }; // Catálogo sem saldo: estoque não controlado
+              if (def.nome === 'core.financeiro_cliente@1') return { financeiro: { limite_cents: 100_000_000, saldo_aberto_cents: 0, credito_disponivel_erp_cents: null, bloqueado: false, motivo_bloqueio: null, vencidos_qtd: 0, vencidos_cents: 0, maior_atraso_dias: 0, atualizado_erp_em: null } }; // RN-VEN-12: crédito folgado (T-0184)
               throw new Error(`consulta não simulada: ${def.nome}`);
             },
             async publicar(def: DefinicaoEvento, payload: unknown) {

@@ -106,8 +106,8 @@ describe('RN-VEN-13: título vencido', () => {
   it('RN-VEN-13: vencido há mais que o limite com prazo a prazo exige aprovação', () => {
     expect(exigeAprovacaoPorVencido({ maior_atraso_dias: 6, prazo_medio_dias: 28, limite_dias: 5 })).toBe(true);
   });
-  it('RN-VEN-13: à vista segue sem aprovação e dentro do limite também', () => {
-    expect(exigeAprovacaoPorVencido({ maior_atraso_dias: 30, prazo_medio_dias: 0, limite_dias: 5 })).toBe(false);
+  it('RN-VEN-13 (P1 A): à vista também exige aprovação; dentro do limite não', () => {
+    expect(exigeAprovacaoPorVencido({ maior_atraso_dias: 30, prazo_medio_dias: 0, limite_dias: 5 })).toBe(true);
     expect(exigeAprovacaoPorVencido({ maior_atraso_dias: 5, prazo_medio_dias: 28, limite_dias: 5 })).toBe(false);
   });
 });
@@ -147,8 +147,8 @@ describe('T-0129 / RN-VEN-13: cliente com título vencido não perde as formas, 
   it('RN-VEN-13: Boleto com prazo dentro do prazo médio do cliente inadimplente é válido e vai para aprovação', () => {
     expect(avaliarPagamentoComVencido({ forma: formas[1], prazo: prazos[1], cliente, ...vencido })).toEqual({ ok: true, destino: 'aprovacao' });
   });
-  it('RN-VEN-13: à vista com título vencido segue direto, sem aprovação', () => {
-    expect(avaliarPagamentoComVencido({ forma: formas[0], prazo: prazos[0], cliente, ...vencido })).toEqual({ ok: true, destino: 'direto' });
+  it('RN-VEN-13 (P1 A): à vista com título vencido também vai para aprovação', () => {
+    expect(avaliarPagamentoComVencido({ forma: formas[0], prazo: prazos[0], cliente, ...vencido })).toEqual({ ok: true, destino: 'aprovacao' });
   });
   it('RN-VEN-25: Boleto acima do prazo médio segue recusado mesmo com título vencido', () => {
     expect(avaliarPagamentoComVencido({ forma: formas[1], prazo: prazos[2], cliente, ...vencido })).toMatchObject({ ok: false, codigo: 'RN-VEN-25' });

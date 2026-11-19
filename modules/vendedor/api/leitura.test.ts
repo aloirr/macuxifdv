@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { criarPermissoes, verificarAcao, verificarAcesso } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
-import apiVendedor, { rotasTransportadoras, rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRejeitarPedido, rotaVerPedido } from './index';
+import apiVendedor, { rotasTransportadoras, rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRecusarPedido, rotaRejeitarPedido, rotaVerPedido } from './index';
 import { escopoDoPedido } from './sync';
 
 describe('leitura de pedidos pelo promotor (RN-PRO-01, O-3)', () => {
@@ -40,6 +40,8 @@ describe('leitura de pedidos pelo promotor (RN-PRO-01, O-3)', () => {
     }
     expect(rotaAprovarPedido.caminho).toBe('pedidos/:id/aprovar');
     expect(rotaRejeitarPedido.caminho).toBe('pedidos/:id/rejeitar');
+    // T-0184 (P6 A): recusar cancela de vez, com a mesma permissão
+    expect(rotaRecusarPedido).toMatchObject({ caminho: 'pedidos/:id/recusar', acao: 'pedido.aprovar', metodo: 'POST' });
   });
 
   it('matriz §2: admin vê pedidos do tenant (pedido.ver) e não decide nem cancela', () => {
@@ -74,7 +76,7 @@ describe('leitura de pedidos pelo promotor (RN-PRO-01, O-3)', () => {
   });
 
   it('a API do módulo é válida para o SDK', () => {
-    expect(apiVendedor.rotas).toHaveLength(17);
+    expect(apiVendedor.rotas).toHaveLength(18);
     expect(apiVendedor.sync?.map((s) => s.entidade.nome)).toEqual(['pedido', 'pedido_item', 'pedido_evento', 'condicao_pagamento', 'cliente_condicao', 'transportadora', 'forma_pagamento', 'prazo_pagamento']);
   });
 });

@@ -18,19 +18,24 @@ import {
 } from '@macuxi/platform-sdk';
 import {
   AprovarPedidoRequest,
+  EVENTO_PEDIDO_APROVACAO_DECIDIDA,
   EVENTO_PEDIDO_APROVADO,
   EVENTO_PEDIDO_CANCELADO,
   EVENTO_PEDIDO_STATUS_ALTERADO,
   OrderListQuery,
+  RecusarPedidoRequest,
   RejeitarPedidoRequest,
+  type DecisaoAprovacaoResposta,
   type DiscountPolicy as AlcadaApi,
+  type MotivoAprovacao,
   type Order,
   type OrderDetail,
 } from '../contracts';
 import { STATUS_FORA_DO_TOTAL } from '../domain/totais';
-import { decidirAprovacao, politicaDosParametros, situacaoDoOrcamento, enviadoAoErp, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
+import { decidirAprovacao, type DecisaoAprovador, maiorNivel, niveisDosParametros, politicaDosParametros, situacaoDoOrcamento, enviadoAoErp, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
 import { ORDER_STATUSES, type OrderStatus } from '../domain/order';
 import { payloadAprovado } from './aprovado-erp';
+import { gravarDecisoes, lerAprovacoes, paraAprovacaoMotivo } from './aprovacoes';
 import { paraDetalhe, paraOrder, type LinhaEvento, type LinhaItem, type LinhaNotaDevolucao, type LinhaNotaFaturamento, type LinhaPedido } from './mapeamento';
 import { preVenda, type DocumentoPreVenda } from './pre-venda';
 import { DEVOLUCAO_LIGADA, FATURAMENTO_LIGADO } from './retorno-erp';
@@ -126,7 +131,8 @@ async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, id: string, 
   ).rows;
   const faturamento = FATURAMENTO_LIGADO ? await lerNotasDoPedido(db, id) : undefined;
   const doc = (await preVenda().lerDocumentos(db, [id], ctx.fuso())).get(id);
-  return { linha, detalhe: { ...paraDetalhe(linha, itens, eventos, ctx.usuario.perfil, ctx.parametros(), faturamento), ...camposPreVenda(doc, linha.status) } };
+  const aprovacoes = ((await lerAprovacoes(db, [id])).get(id) ?? []).map(paraAprovacaoMotivo);
+  return { linha, detalhe: { ...paraDetalhe(linha, itens, eventos, ctx.usuario.perfil, ctx.parametros(), faturamento, aprovacoes), ...camposPreVenda(doc, linha.status) } };
 }
 
 /** T-0054: notas de faturamento e de devolução do pedido (detalhe; o resumo vem das colunas do pedido). */
@@ -220,8 +226,9 @@ export const rotaListarPedidos: RotaModulo = {
       const pagina = rows.slice(0, limite);
       const ultimo = pagina[pagina.length - 1];
       const docs = await preVenda().lerDocumentos(db, pagina.map((l) => l.id), fuso);
+      const aprovacoes = await lerAprovacoes(db, pagina.filter((l) => l.status === 'pending_approval' || l.status === 'approved' || l.status === 'rejected' || l.status === 'cancelled').map((l) => l.id));
       return {
-        itens: pagina.map((l) => ({ ...paraOrder(l, ctx.parametros(), ctx.usuario.perfil), ...camposPreVenda(docs.get(l.id), l.status) })),
+        itens: pagina.map((l) => ({ ...paraOrder(l, ctx.parametros(), ctx.usuario.perfil, (aprovacoes.get(l.id) ?? []).map(paraAprovacaoMotivo)), ...camposPreVenda(docs.get(l.id), l.status) })),
         proximo_cursor: rows.length > limite && ultimo ? codificarCursor(ultimo.created_at, ultimo.id) : null,
         ...(total_filtro ? { total_filtro } : {}),
       };
@@ -259,7 +266,8 @@ export const rotaAlcadas: RotaModulo = {
   carteira: 'nao_se_aplica',
   async executar(ctx): Promise<AlcadaApi> {
     const p = politicaDosParametros({ ...ctx.parametros() });
-    return { seller_pct: p.seller_pct, supervisor_pct: p.supervisor_pct, manager_pct: p.manager_pct, above_manager: p.above_manager, exceptions: [] };
+    const n = niveisDosParametros({ ...ctx.parametros() });
+    return { seller_pct: p.seller_pct, supervisor_pct: p.supervisor_pct, manager_pct: p.manager_pct, above_manager: p.above_manager, exceptions: [], aprovador_credito: n.credito, aprovador_inadimplencia: n.inadimplencia };
   },
 };
 
@@ -268,17 +276,27 @@ async function nomesEExternos(tx: TransacaoTenant, pedido: LinhaPedido, eu: stri
   return tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [pedido.cliente_id], produto_ids: [], usuario_ids: [...new Set([eu, pedido.vendedor_id])] });
 }
 
-function decidir(decisao: 'aprovar' | 'rejeitar'): RotaModulo {
+const CAMINHO_DA_DECISAO = { aprovar: 'pedidos/:id/aprovar', devolver: 'pedidos/:id/rejeitar', recusar: 'pedidos/:id/recusar' } as const;
+const CORPO_DA_DECISAO = { aprovar: AprovarPedidoRequest, devolver: RejeitarPedidoRequest, recusar: RecusarPedidoRequest } as const;
+const AUDITORIA_DA_DECISAO = { aprovar: 'pedido.aprovar', devolver: 'pedido.rejeitar', recusar: 'pedido.recusar' } as const;
+const ESTADO_DECIDIDO_NO_EVENTO = { aprovada: 'aprovada', rejeitada: 'rejeitada', devolvida: 'devolvida', encerrada: 'encerrada' } as const;
+
+/**
+ * POST pedidos/:id/aprovar | rejeitar | recusar (`pedido.aprovar`; T-0184 §3). `rejeitar` DEVOLVE ao vendedor (`rejected`) e `recusar`
+ * cancela (`cancelled`, P6 A). Cada decisão trava a linha do pedido (`for update`): repetir a mesma decisão devolve o estado atual, sem efeito.
+ * Sem `motivo` no corpo, a decisão vale para todas as aprovações pendentes que o perfil decide (P3 B); aprovar com sobra deixa o pedido pendente (P7).
+ */
+function decidir(decisao: DecisaoAprovador): RotaModulo {
   return {
     metodo: 'POST',
-    caminho: decisao === 'aprovar' ? 'pedidos/:id/aprovar' : 'pedidos/:id/rejeitar',
+    caminho: CAMINHO_DA_DECISAO[decisao],
     acao: 'pedido.aprovar',
     carteira: 'filtrar_no_dominio',
     params: ParamsPedido,
-    corpo: decisao === 'aprovar' ? AprovarPedidoRequest : RejeitarPedidoRequest,
-    async executar(ctx) {
+    corpo: CORPO_DA_DECISAO[decisao],
+    async executar(ctx): Promise<DecisaoAprovacaoResposta> {
       const { id } = ctx.params as z.infer<typeof ParamsPedido>;
-      const corpo = ctx.corpo as { comentario?: string; motivo?: string };
+      const corpo = ctx.corpo as { comentario?: string; texto?: string; motivo?: MotivoAprovacao };
       const eu = ctx.usuario.id;
       const agora = ctx.agora().toISOString();
       return ctx.comTenant(async (db, tx) => {
@@ -286,44 +304,70 @@ function decidir(decisao: 'aprovar' | 'rejeitar'): RotaModulo {
         const atual = await carregarDetalhe(ctx, db, id, true);
         if (!atual) throw new ErroNaoEncontrado(...NAO_ENCONTRADO);
         const { linha } = atual;
-        // 2) regra pura (RN-GES-08, RN-GES-04, P-3)
-        const r = decidirAprovacao({ status: linha.status, nivel: linha.nivel_aprovacao, perfil: ctx.usuario.perfil, decisao, texto: decisao === 'aprovar' ? corpo.comentario : corpo.motivo });
+        const lidas = (await lerAprovacoes(db, [id])).get(id) ?? [];
+        const resposta = async (status: OrderStatus): Promise<DecisaoAprovacaoResposta> => ({ status, aprovacoes: ((await lerAprovacoes(db, [id])).get(id) ?? []).map(paraAprovacaoMotivo) });
+        // 2) regra pura (RN-GES-08, RN-GES-04, RN-VEN-10, RN-VEN-30)
+        const r = decidirAprovacao({ status: linha.status, aprovacoes: lidas, perfil: ctx.usuario.perfil, decisao, motivo: corpo.motivo, texto: decisao === 'aprovar' ? corpo.comentario : corpo.texto });
         if (r.tipo === 'recusa') throw new ErroHttpModulo(r.http === 403 ? 403 : 422, r.codigo, r.mensagem);
-        if (r.tipo === 'repetida') return atual.detalhe;
-        const nivel = linha.nivel_aprovacao as NivelAprovacao;
-        // 3) grava
-        await db.query(
-          `update vendedor.pedido set status = $2, decidido_por_id = $3, decidido_em = $4, motivo_rejeicao = $5 where id = $1`,
-          [id, r.para, eu, agora, r.para === 'rejected' ? r.motivo : linha.motivo_rejeicao],
-        );
+        if (r.tipo === 'repetida') return resposta(linha.status);
+        const ciclo = lidas[0]?.ciclo ?? 1;
+        // 3) grava as aprovações e, se o pedido mudou de status, o pedido
+        await gravarDecisoes(db, id, ciclo, r.mudancas, eu, agora, r.motivo);
+        const mudouDeStatus = r.para !== 'pending_approval';
+        const pendentesDepois = lidas.filter((a) => r.pendentes.includes(a.motivo));
+        const nivel = (maiorNivel(pendentesDepois.map((a) => a.nivel)) ?? linha.nivel_aprovacao) as NivelAprovacao;
+        if (mudouDeStatus) {
+          await db.query(
+            `update vendedor.pedido set status = $2, decidido_por_id = $3, decidido_em = $4, motivo_rejeicao = $5 where id = $1`,
+            [id, r.para, eu, agora, r.para === 'approved' ? linha.motivo_rejeicao : r.motivo],
+          );
+        } else {
+          await db.query('update vendedor.pedido set nivel_aprovacao = $2 where id = $1', [id, nivel]);
+        }
         const cad = await nomesEExternos(tx, linha, eu);
         const autor = cad.usuarios.find((u) => u.id === eu);
-        await db.query(
-          `insert into vendedor.pedido_evento (tenant_id, pedido_id, de, para, autor_id, autor_nome, autor_perfil, motivo, nivel, acima_do_nivel, ocorrido_em)
-           values (plataforma.tenant_atual(), $1, 'pending_approval', $2, $3, $4, $5, $6, $7, $8, $9)`,
-          [id, r.para, eu, autor?.nome ?? null, ctx.usuario.perfil, r.motivo ?? (r.para === 'approved' ? 'Aprovado' : null), nivel, r.acima_do_nivel, agora],
-        );
+        if (mudouDeStatus) {
+          await db.query(
+            `insert into vendedor.pedido_evento (tenant_id, pedido_id, de, para, autor_id, autor_nome, autor_perfil, motivo, nivel, acima_do_nivel, ocorrido_em)
+             values (plataforma.tenant_atual(), $1, 'pending_approval', $2, $3, $4, $5, $6, $7, $8, $9)`,
+            [id, r.para, eu, autor?.nome ?? null, ctx.usuario.perfil, r.motivo ?? (r.para === 'approved' ? 'Aprovado' : null), nivel, r.acima_do_nivel, agora],
+          );
+        }
         await tx.auditar({
-          acao: decisao === 'aprovar' ? 'pedido.aprovar' : 'pedido.rejeitar',
+          acao: AUDITORIA_DA_DECISAO[decisao],
           entidade: 'pedido',
           entidade_id: id,
-          antes: { status: 'pending_approval', nivel },
-          depois: { status: r.para, acima_do_nivel: r.acima_do_nivel },
+          antes: { status: 'pending_approval', nivel: linha.nivel_aprovacao },
+          depois: { status: r.para, acima_do_nivel: r.acima_do_nivel, motivos: r.mudancas.map((m) => m.motivo) },
         });
-        await tx.publicar(
-          EVENTO_PEDIDO_STATUS_ALTERADO,
-          { pedido_id: id, vendedor_id: linha.vendedor_id, de: 'em_aprovacao', para: statusDoContrato(r.para), alterado_em: agora, autor_id: eu, motivo: r.motivo, pedido_numero: linha.numero },
-          id,
-        );
-        if (r.para === 'approved') await tx.publicar(EVENTO_PEDIDO_APROVADO, await payloadAprovado(db, tx, id, agora), id);
-        return (await carregarDetalhe(ctx, db, id))!.detalhe;
+        for (const m of r.mudancas) {
+          // o texto da decisão fica na linha da aprovação, não no log
+          await tx.auditar({ acao: 'pedido.aprovacao_decidida', entidade: 'pedido', entidade_id: id, antes: { motivo: m.motivo, estado: 'pendente' }, depois: { motivo: m.motivo, decisao: m.estado } });
+          await tx.publicar(
+            EVENTO_PEDIDO_APROVACAO_DECIDIDA,
+            { pedido_id: id, vendedor_id: linha.vendedor_id, ciclo, motivo: m.motivo, decisao: ESTADO_DECIDIDO_NO_EVENTO[m.estado], autor_id: eu, decidida_em: agora, texto: m.estado === 'encerrada' ? null : r.motivo },
+            id,
+          );
+        }
+        if (mudouDeStatus) {
+          await tx.publicar(
+            EVENTO_PEDIDO_STATUS_ALTERADO,
+            { pedido_id: id, vendedor_id: linha.vendedor_id, de: 'em_aprovacao', para: statusDoContrato(r.para), alterado_em: agora, autor_id: eu, motivo: r.motivo, pedido_numero: linha.numero },
+            id,
+          );
+          if (r.para === 'approved') await tx.publicar(EVENTO_PEDIDO_APROVADO, await payloadAprovado(db, tx, id, agora), id);
+        }
+        return resposta(r.para);
       });
     },
   };
 }
 
 export const rotaAprovarPedido = decidir('aprovar');
-export const rotaRejeitarPedido = decidir('rejeitar');
+/** Devolver ao vendedor (`rejected`): o nome da rota é o de sempre para o app Gestão anterior seguir funcionando. */
+export const rotaRejeitarPedido = decidir('devolver');
+/** Rejeitar de vez (`cancelled`, final). */
+export const rotaRecusarPedido = decidir('recusar');
 
 // ---------- cancelar ----------
 /**

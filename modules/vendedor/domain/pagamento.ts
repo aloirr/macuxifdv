@@ -136,9 +136,9 @@ export function revalidarPercentualDoPrazo(i: { push: number | null | undefined;
   return { ok: false, codigo: 'RN-VEN-45', mensagem: MSG_PERCENTUAL_DO_PRAZO_MUDOU };
 }
 
-/** RN-VEN-13: título vencido há mais que o limite e prazo a prazo (prazo médio > 0) → aprovação. À vista segue sem aprovação. */
-export function exigeAprovacaoPorVencido(i: { maior_atraso_dias: number; prazo_medio_dias: number; limite_dias: number }): boolean {
-  return i.maior_atraso_dias > i.limite_dias && i.prazo_medio_dias > 0;
+/** RN-VEN-13 (P1 A, T-0184): título vencido há mais que o limite → aprovação com qualquer forma de pagamento, à vista inclusive. */
+export function exigeAprovacaoPorVencido(i: { maior_atraso_dias: number; limite_dias: number; prazo_medio_dias?: number }): boolean {
+  return i.maior_atraso_dias > i.limite_dias;
 }
 
 export const MOTIVO_FORMA_NAO_ACEITA = 'Este cliente não aceita esta forma';

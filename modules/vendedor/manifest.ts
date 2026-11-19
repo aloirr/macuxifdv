@@ -26,6 +26,8 @@ export const manifest = defineModule({
     'vendedor.pedido.criado@1',
     'vendedor.pedido.status_alterado@1',
     'vendedor.pedido.aprovacao_solicitada@1',
+    'vendedor.pedido.aprovacao_solicitada@2',
+    'vendedor.pedido.aprovacao_decidida@1',
     'vendedor.pedido.aprovado@1',
     'vendedor.pedido.faturado@1',
     'vendedor.pedido.cancelado@1',

@@ -15,7 +15,7 @@ import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
 import { CONSULTA_CADASTRO_RESUMO, CONSULTA_FILIAIS, type LimiteDesconto } from '@macuxi/core/contracts';
 import { ErroHttpModulo, type ClienteBanco, type ContextoBase, type ItemPush, type ResultadoItemPush, type TransacaoTenant } from '@macuxi/platform-sdk';
 import {
-  EVENTO_PEDIDO_APROVACAO_SOLICITADA,
+  EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2,
   EVENTO_PEDIDO_APROVADO,
   EVENTO_PEDIDO_CRIADO,
   EVENTO_PEDIDO_STATUS_ALTERADO,
@@ -35,6 +35,7 @@ import {
   aplicacaoMaxOrcamento,
   marcaDoRetrato,
   modalidadePadraoDosParametros,
+  niveisDosParametros,
   MSG_RECUSA_FRETE,
   politicaDoAutor,
   politicaDosParametros,
@@ -57,6 +58,8 @@ import {
   type Recusa,
 } from '../domain';
 import { payloadAprovado } from './aprovado-erp';
+import { financeiroDoCliente } from './financeiro-aprovacao';
+import { gravarAprovacoes } from './aprovacoes';
 import { resolverPagamento, valoresPagamento, valorPercentualPrazo } from './pagamento';
 import { preVenda } from './pre-venda';
 import { precosCongeladosDoDocumento } from './preco-congelado';
@@ -214,6 +217,9 @@ export async function calcularDocumento(
     }
   }
 
+  // 6b) crédito (RN-VEN-12) e inadimplência (RN-VEN-13): o servidor recalcula e vale a lista dele (T-0184). Orçamento não passa por aqui.
+  const financeiro = tipo === 'pedido' ? await financeiroDoCliente(ctx, db, tx, p.customer_id) : undefined;
+
   // 7) alçada de desconto (RN-VEN-10), preço e totais do servidor (RN-VEN-02)
   const rv = revalidarPedido({
     perfil: ctx.usuario.perfil,
@@ -251,7 +257,9 @@ export async function calcularDocumento(
     percentual_ajuste_bp: pg.percentual_ajuste_bp,
     precos: mapaPreco,
     faixas: mapaFaixas,
-    titulo_vencido: pg.titulo_vencido,
+    financeiro: financeiro?.para_aprovacao,
+    prazo_medio_dias: pagamento?.prazo.prazo_medio_dias,
+    niveis_financeiros: niveisDosParametros(ctx.parametros()),
     // RN-VEN-45: percentual divergente aceito = aviso na linha do tempo, fora da alçada
     percentual_mudou: pg.percentual_mudou,
     aplicacao_max: aplicacaoMaxOrcamento(ctx.parametros()),
@@ -272,9 +280,9 @@ export async function calcularDocumento(
   const validadeCivil = tipo === 'orcamento' ? (validadeFixa ?? validadeDoOrcamento(momentoDaConversao(p.created_offline_at, agora).toISOString(), validadeOrcamentoDias(ctx.parametros()), ctx.fuso())) : null;
   const validade = validadeCivil?.ate ?? null;
   const v = validadeCivil
-    ? { ...rv, status: 'received' as const, nivel: null, motivos: [], aprovacao_automatica: false, pending_reason: '', historico: historicoDoOrcamento(validadeCivil.data, validadeOrcamentoDias(ctx.parametros())) }
+    ? { ...rv, status: 'received' as const, nivel: null, motivos: [], aprovacoes: [], aprovacao_automatica: false, pending_reason: '', historico: historicoDoOrcamento(validadeCivil.data, validadeOrcamentoDias(ctx.parametros())) }
     : rv;
-  return { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm, retratoFilial, percentualAjustePrazo: pg.percentual_ajuste };
+  return { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm, retratoFilial, percentualAjustePrazo: pg.percentual_ajuste, financeiro };
 }
 
 /** Tudo que o servidor decide sobre o documento antes de gravar (preço, alçada, medida, frete, endereço, condição). */
@@ -342,7 +350,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   }
   const calc = await calcularDocumento(ctx, db, tx, pDoc, tipo, item.id, undefined, congelados);
   if ('status' in calc) return calc;
-  const { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm, retratoFilial, percentualAjustePrazo } = calc;
+  const { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm, retratoFilial, percentualAjustePrazo, financeiro } = calc;
 
   // 8) grava (pedido, itens, histórico, auditoria, eventos) na mesma transação
   const numero = (await db.query<{ n: string }>('select vendedor.proximo_numero_pedido() as n')).rows[0]!.n;
@@ -394,6 +402,8 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
       [p.id, idx + 1, it.product_id, it.quantity, it.preco_tabela_cents, it.preco_unitario_cents, it.desconto_pct, it.total_cents, prod.sku, prod.nome, it.unidade ?? prod.unidade, it.fator, it.acrescimo_pct, it.preco_minimo_cents, it.desconto_unitario_cents, it.acrescimo_unitario_cents, it.ajuste_em, it.aplicacao, marcaDoRetrato(prod.marca)],
     );
   }
+  // T-0184 (P3 B): uma aprovação por motivo, no ciclo 1
+  if (v.status === 'pending_approval') await gravarAprovacoes(db, p.id, 1, v.aprovacoes);
   for (const h of v.historico) {
     await db.query(
       `insert into vendedor.pedido_evento (tenant_id, pedido_id, de, para, autor_id, autor_nome, autor_perfil, motivo, nivel, acima_do_nivel, ocorrido_em)
@@ -451,8 +461,9 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     );
   }
   if (v.status === 'pending_approval' && v.nivel) {
+    // T-0184 (ADR 0062): a partir da v1.0.15 sai só o `@2`; o `@1` fica no manifesto para o histórico da outbox
     await tx.publicar(
-      EVENTO_PEDIDO_APROVACAO_SOLICITADA,
+      EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2,
       {
         pedido_id: p.id,
         vendedor_id: donoId,
@@ -460,9 +471,11 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
         solicitada_em: recebidoEm,
         nivel: v.nivel,
         motivos: v.motivos,
+        aprovacoes: v.aprovacoes,
         desconto_efetivo_pct: Math.max(0, v.desconto_efetivo_pct),
         total_cents: v.total_cents,
-        credito: null,
+        credito: financeiro?.credito ?? null,
+        inadimplencia: v.motivos.includes('inadimplencia') && financeiro?.para_aprovacao ? { maior_atraso_dias: financeiro.para_aprovacao.maior_atraso_dias, vencidos_cents: financeiro.vencidos_cents } : null,
         historico: null,
         pedido_numero: numero,
       },

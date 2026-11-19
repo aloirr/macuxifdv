@@ -3,12 +3,10 @@
  * do orçamento e pela transformação. A regra mora em `domain/pagamento.ts`; aqui só se busca o dado:
  *  - forma e prazo do próprio Vendedor (`vendedor.forma_pagamento` e `vendedor.prazo_pagamento`);
  *  - limites do cliente (formas aceitas, prazo médio máximo) em `core.cadastro_resumo@1`;
- *  - título vencido em `core.financeiro_cliente@1` (consulta indisponível NÃO bloqueia).
  * O push do APK anterior (sem forma e prazo) segue pela condição de pagamento legada.
  */
-import { CONSULTA_FINANCEIRO_CLIENTE } from '@macuxi/core/contracts';
-import { ehConsultaIndisponivel, type ClienteBanco, type ContextoBase, type TransacaoTenant } from '@macuxi/platform-sdk';
-import { exigeAprovacaoPorVencido, percentualAjusteParaBp, revalidarPercentualDoPrazo, tituloVencidoDias, validarPagamento, type FormaDePagamento, type PrazoDePagamento } from '../domain';
+import type { ClienteBanco, ContextoBase, TransacaoTenant } from '@macuxi/platform-sdk';
+import { percentualAjusteParaBp, revalidarPercentualDoPrazo, validarPagamento, type FormaDePagamento, type PrazoDePagamento } from '../domain';
 
 interface FormaLinha {
   id: string;
@@ -46,14 +44,14 @@ export interface PagamentoResolvido {
 }
 
 export type ResultadoPagamento =
-  | { ok: true; pagamento: PagamentoResolvido | null; titulo_vencido: boolean; percentual_ajuste_bp: number; percentual_ajuste: number; percentual_mudou: boolean }
+  | { ok: true; pagamento: PagamentoResolvido | null; percentual_ajuste_bp: number; percentual_ajuste: number; percentual_mudou: boolean }
   | { ok: false; codigo: 'RN-VEN-24' | 'RN-VEN-25' | 'RN-VEN-45'; mensagem: string };
 
 export const textoDoPagamento = (forma: { nome: string }, prazo: { descricao: string }): string => `${forma.nome} · ${prazo.descricao}`;
 
 /**
  * Sem forma e prazo no payload: `pagamento = null` e o chamador segue a condição legada. Só um dos dois: RN-VEN-24.
- * Com os dois: confere RN-VEN-24/25 e, em pedido (não orçamento) a prazo, o título vencido (RN-VEN-13).
+ * Com os dois: confere RN-VEN-24/25 e o percentual do prazo (RN-VEN-45). Crédito e título vencido são de `financeiro-aprovacao.ts` (T-0184).
  */
 export async function resolverPagamento(
   ctx: ContextoBase,
@@ -61,11 +59,11 @@ export async function resolverPagamento(
   tx: TransacaoTenant,
   p: { forma_pagamento_id?: string | null; prazo_pagamento_id?: string | null; customer_id: string; prazo_percentual_ajuste?: number | null; created_offline_at?: string | null },
   cliente: { prazo_medio_max_dias?: number | null; formas_pagamento?: string[] | null },
-  tipo: 'pedido' | 'orcamento',
+  _tipo: 'pedido' | 'orcamento',
 ): Promise<ResultadoPagamento> {
   const formaId = p.forma_pagamento_id ?? null;
   const prazoId = p.prazo_pagamento_id ?? null;
-  if (!formaId && !prazoId) return { ok: true, pagamento: null, titulo_vencido: false, percentual_ajuste_bp: 0, percentual_ajuste: 0, percentual_mudou: false };
+  if (!formaId && !prazoId) return { ok: true, pagamento: null, percentual_ajuste_bp: 0, percentual_ajuste: 0, percentual_mudou: false };
   if (!formaId || !prazoId) return { ok: false, codigo: 'RN-VEN-24', mensagem: 'Escolha a forma de pagamento e o prazo.' };
 
   const forma = (await db.query<FormaLinha>('select id, codigo, nome, ativo, ordem from vendedor.forma_pagamento where id = $1 and deleted_at is null', [formaId])).rows[0];
@@ -77,26 +75,12 @@ export async function resolverPagamento(
   });
   if (!r.ok) return r;
 
-  let titulo_vencido = false;
-  if (tipo === 'pedido' && prazo!.prazo_medio_dias > 0) {
-    try {
-      const fin = await tx.consultar(CONSULTA_FINANCEIRO_CLIENTE, { cliente_id: p.customer_id });
-      titulo_vencido = exigeAprovacaoPorVencido({
-        maior_atraso_dias: fin.financeiro?.maior_atraso_dias ?? 0,
-        prazo_medio_dias: prazo!.prazo_medio_dias,
-        limite_dias: tituloVencidoDias(ctx.parametros()),
-      });
-    } catch (e) {
-      if (!ehConsultaIndisponivel(e)) throw e;
-    }
-  }
   // RN-VEN-45: o percentual do push é revalidado contra o vigente; os preços são recalculados por ele (RN-VEN-43)
   const pct = revalidarPercentualDoPrazo({ push: p.prazo_percentual_ajuste, vigente: prazo!.percentual_ajuste, cadastro_atualizado_em: prazo!.atualizado_em, criado_em: p.created_offline_at ?? ctx.agora().toISOString() });
   if (!pct.ok) return { ok: false, codigo: 'RN-VEN-45', mensagem: pct.mensagem };
   return {
     ok: true,
     pagamento: { forma: forma!, prazo: prazo!, texto: textoDoPagamento(forma!, prazo!) },
-    titulo_vencido,
     percentual_ajuste_bp: percentualAjusteParaBp(pct.percentual),
     percentual_ajuste: pct.percentual,
     percentual_mudou: pct.mudou_depois,

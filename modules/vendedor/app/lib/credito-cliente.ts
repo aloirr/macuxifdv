@@ -4,6 +4,7 @@
  * disponível (domain `creditoDoCartao`) e o alerta de título vencido. Sem a linha "Após este pedido" (decisão de 06/11).
  */
 import { creditoDoCartao } from '../../domain/pagamento';
+import { limiteInformadoPeloErp, STATUS_QUE_PESAM_NO_CREDITO } from '../../domain/credito-pedido';
 
 /** Subconjunto estrutural de `FinanceiroClienteSaida['financeiro']` (o Vendedor não importa o domain do Core). */
 export interface FinanceiroDaConsulta {
@@ -35,20 +36,17 @@ export type ModeloDoCredito =
       alerta: { titulos: number; valorCents: number; dias: number } | null;
     };
 
-/** Status que ainda não foram faturados e já foram aprovados; `integrated` o ERP já descontou quando mandou o disponível. */
-const STATUS_QUE_PESAM = new Set(['approved', 'sent_to_erp', 'integrated']);
-
 export function modeloDoCredito(f: FinanceiroDaConsulta | null, pedidos: readonly PedidoParaCredito[]): ModeloDoCredito {
   if (!f) return { tipo: 'vazio' };
   const c = creditoDoCartao(
     f,
-    pedidos.filter((p) => STATUS_QUE_PESAM.has(p.status)).map((p) => ({ total_cents: p.total_cents, integrado: p.status === 'integrated' })),
+    pedidos.filter((p) => STATUS_QUE_PESAM_NO_CREDITO.has(p.status)).map((p) => ({ total_cents: p.total_cents, integrado: p.status === 'integrated' })),
   );
   return {
     tipo: 'dados',
     limite_cents: c.limite_cents,
     disponivel_cents: c.disponivel_cents,
-    limite_informado: f.limite_cents > 0 || f.credito_disponivel_erp_cents != null,
+    limite_informado: limiteInformadoPeloErp(f),
     alerta: f.vencidos_qtd > 0 ? { titulos: f.vencidos_qtd, valorCents: f.vencidos_cents, dias: f.maior_atraso_dias } : null,
   };
 }
