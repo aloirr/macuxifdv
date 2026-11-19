@@ -3,7 +3,8 @@
  * Só o ciclo atual do pedido (`vendedor.pedido.aprovacao_ciclo`); o reenvio depois de uma devolução abre o ciclo seguinte.
  * A regra de quem decide e do que muda mora no domínio (`decidirAprovacao`); aqui só se lê e se grava.
  */
-import type { ClienteBanco } from '@macuxi/platform-sdk';
+import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
+import type { ClienteBanco, TransacaoTenant } from '@macuxi/platform-sdk';
 import type { AprovacaoMotivo } from '../contracts';
 import { MOTIVOS_APROVACAO, type AprovacaoNova, type MudancaDeAprovacao } from '../domain/aprovacao';
 
@@ -31,6 +32,20 @@ export const paraAprovacaoMotivo = (l: LinhaAprovacao): AprovacaoMotivo => ({
   decidida_em: l.decidida_em,
   texto_decisao: l.texto_decisao,
 });
+
+/** Nome de quem decidiu, por id (uma consulta `core.cadastro_resumo@1` só para os decisores; sem decisão, sem consulta). */
+export async function nomesDosDecisores(tx: TransacaoTenant, linhas: readonly LinhaAprovacao[]): Promise<Map<string, string>> {
+  const ids = [...new Set(linhas.map((l) => l.decidida_por).filter((x): x is string => !!x))];
+  const nomes = new Map<string, string>();
+  if (ids.length > 0) for (const u of (await tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [], produto_ids: [], usuario_ids: ids })).usuarios) nomes.set(u.id, u.nome);
+  return nomes;
+}
+
+/** As aprovações do contrato com `decidida_por_nome` nas decididas. */
+export const comNomesDosDecisores = (linhas: readonly LinhaAprovacao[], nomes: ReadonlyMap<string, string>): AprovacaoMotivo[] =>
+  linhas.map((l) => ({ ...paraAprovacaoMotivo(l), ...(l.decidida_por ? { decidida_por_nome: nomes.get(l.decidida_por) ?? null } : {}) }));
+
+export const aprovacoesComNomes = async (tx: TransacaoTenant, linhas: readonly LinhaAprovacao[]): Promise<AprovacaoMotivo[]> => comNomesDosDecisores(linhas, await nomesDosDecisores(tx, linhas));
 
 /** As aprovações do ciclo atual de cada pedido (na ordem dos motivos). Pedido que nunca foi para aprovação não aparece no mapa. */
 export async function lerAprovacoes(db: ClienteBanco, pedidoIds: readonly string[]): Promise<Map<string, LinhaAprovacao[]>> {

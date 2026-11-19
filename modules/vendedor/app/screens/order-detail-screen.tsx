@@ -27,6 +27,7 @@ import {
   RodapeAcoes,
   RotuloSecao,
   TabelaValores,
+  quandoCurto,
   tagsDoHistorico,
   type as t,
   useAtualizacaoAutomatica,
@@ -469,8 +470,8 @@ export default function OrderDetailScreen() {
   const emAprovacao = !queued && !ehOrc && base?.status === 'pending_approval';
   const aprovacoesDoPedido = emAprovacao ? (base?.aprovacoes ?? []) : [];
   const motivosPendentes = emAprovacao ? (aprovacoesDoPedido.length > 0 ? aprovacoesDoPedido.filter((a) => a.estado === 'pendente').map((a) => a.motivo) : (base?.approval_reasons ?? [])) : [];
-  const motivosAprovados = aprovacoesDoPedido.filter((a) => a.estado === 'aprovada').map((a) => a.motivo);
-  const tagsDoDetalhe = tagsPorMotivoPendente(tagsDoHistorico(eventosSemMotivo, { tipo: ehOrc ? 'orcamento' : 'pedido', tz, agora: agoraTela }), motivosPendentes, motivosAprovados);
+  const aprovadosDoPedido = aprovacoesDoPedido.filter((a) => a.estado === 'aprovada').map((a) => ({ motivo: a.motivo, por: a.decidida_por_nome ?? null, quando: a.decidida_em ? quandoCurto(a.decidida_em, agoraTela, tz) : null }));
+  const tagsDoDetalhe = tagsPorMotivoPendente(tagsDoHistorico(eventosSemMotivo, { tipo: ehOrc ? 'orcamento' : 'pedido', tz, agora: agoraTela }), motivosPendentes, aprovadosDoPedido);
   const modalidade = queued ? (queued.payload.frete?.modalidade ?? null) : (base?.freight?.modality ?? null);
   const transportadora = (() => {
     if (queued) {

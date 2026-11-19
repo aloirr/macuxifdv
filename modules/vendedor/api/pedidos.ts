@@ -35,7 +35,7 @@ import { STATUS_FORA_DO_TOTAL } from '../domain/totais';
 import { decidirAprovacao, type DecisaoAprovador, maiorNivel, niveisDosParametros, politicaDosParametros, situacaoDoOrcamento, enviadoAoErp, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
 import { ORDER_STATUSES, type OrderStatus } from '../domain/order';
 import { payloadAprovado } from './aprovado-erp';
-import { gravarDecisoes, lerAprovacoes, paraAprovacaoMotivo } from './aprovacoes';
+import { aprovacoesComNomes, comNomesDosDecisores, gravarDecisoes, lerAprovacoes, nomesDosDecisores } from './aprovacoes';
 import { paraDetalhe, paraOrder, type LinhaEvento, type LinhaItem, type LinhaNotaDevolucao, type LinhaNotaFaturamento, type LinhaPedido } from './mapeamento';
 import { preVenda, type DocumentoPreVenda } from './pre-venda';
 import { DEVOLUCAO_LIGADA, FATURAMENTO_LIGADO } from './retorno-erp';
@@ -101,7 +101,7 @@ function decodificarCursor(c: string): { createdAt: string; id: string } | null 
 const escaparLike = (q: string) => q.replace(/[\\%_]/g, (m) => `\\${m}`);
 
 /** Carrega o pedido (se estiver no escopo de leitura do usuário) com itens e histórico. `null` = inexistente ou fora do escopo. */
-async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, id: string, bloquear = false): Promise<{ linha: LinhaPedido; detalhe: OrderDetail } | null> {
+async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenant, id: string, bloquear = false): Promise<{ linha: LinhaPedido; detalhe: OrderDetail } | null> {
   const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
   const { rows } = await db.query<LinhaPedido>(
     `select ${COLUNAS} from vendedor.pedido p ${JUNCAO_ITENS} ${FATURAMENTO_LIGADO ? JUNCAO_FATURAMENTO : ''}
@@ -131,7 +131,7 @@ async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, id: string, 
   ).rows;
   const faturamento = FATURAMENTO_LIGADO ? await lerNotasDoPedido(db, id) : undefined;
   const doc = (await preVenda().lerDocumentos(db, [id], ctx.fuso())).get(id);
-  const aprovacoes = ((await lerAprovacoes(db, [id])).get(id) ?? []).map(paraAprovacaoMotivo);
+  const aprovacoes = await aprovacoesComNomes(tx, (await lerAprovacoes(db, [id])).get(id) ?? []);
   return { linha, detalhe: { ...paraDetalhe(linha, itens, eventos, ctx.usuario.perfil, ctx.parametros(), faturamento, aprovacoes), ...camposPreVenda(doc, linha.status) } };
 }
 
@@ -178,7 +178,7 @@ export const rotaListarPedidos: RotaModulo = {
     // filtros de id fora do formato nunca casam com nada (e não podem estourar o cast uuid do banco)
     if ((q.seller_id && !UUID.test(q.seller_id)) || (q.branch_id && !UUID.test(q.branch_id)) || (q.customer_id && !UUID.test(q.customer_id))) return { itens: [], proximo_cursor: null };
     if (q.cursor && !cursor) throw new ErroRegraNegocio('CURSOR_INVALIDO', 'Cursor inválido: recarregue a lista.');
-    return ctx.comTenant(async (db) => {
+    return ctx.comTenant(async (db, tx) => {
       const fuso = ctx.fuso(); // fuso do tenant vem do SDK (sem ler plataforma.*)
       const busca = q.q?.trim() ? `%${escaparLike(q.q.trim())}%` : null;
       const valores = [e.vendedores, e.clientes, status.length > 0 ? status : null, q.seller_id ?? null, q.customer_id ?? null, q.from ?? null, q.to ?? null, busca, limite + 1, fuso, cursor?.createdAt ?? null, cursor?.id ?? null, tipo === 'todos' ? null : tipo, tipo === 'orcamento' ? (q.situacao ?? null) : null, q.por_status === '1', q.branch_id ?? null, q.sem_pendentes === '1'];
@@ -227,8 +227,9 @@ export const rotaListarPedidos: RotaModulo = {
       const ultimo = pagina[pagina.length - 1];
       const docs = await preVenda().lerDocumentos(db, pagina.map((l) => l.id), fuso);
       const aprovacoes = await lerAprovacoes(db, pagina.filter((l) => l.status === 'pending_approval' || l.status === 'approved' || l.status === 'rejected' || l.status === 'cancelled').map((l) => l.id));
+      const nomes = await nomesDosDecisores(tx, [...aprovacoes.values()].flat());
       return {
-        itens: pagina.map((l) => ({ ...paraOrder(l, ctx.parametros(), ctx.usuario.perfil, (aprovacoes.get(l.id) ?? []).map(paraAprovacaoMotivo)), ...camposPreVenda(docs.get(l.id), l.status) })),
+        itens: pagina.map((l) => ({ ...paraOrder(l, ctx.parametros(), ctx.usuario.perfil, comNomesDosDecisores(aprovacoes.get(l.id) ?? [], nomes)), ...camposPreVenda(docs.get(l.id), l.status) })),
         proximo_cursor: rows.length > limite && ultimo ? codificarCursor(ultimo.created_at, ultimo.id) : null,
         ...(total_filtro ? { total_filtro } : {}),
       };
@@ -246,8 +247,8 @@ export const rotaVerPedido: RotaModulo = {
   async executar(ctx) {
     await exigirLeituraDePedidos(ctx); // O-3
     const { id } = ctx.params as z.infer<typeof ParamsPedido>;
-    return ctx.comTenant(async (db) => {
-      const r = await carregarDetalhe(ctx, db, id);
+    return ctx.comTenant(async (db, tx) => {
+      const r = await carregarDetalhe(ctx, db, tx, id);
       if (!r) throw new ErroNaoEncontrado(...NAO_ENCONTRADO);
       return r.detalhe;
     });
@@ -277,7 +278,6 @@ async function nomesEExternos(tx: TransacaoTenant, pedido: LinhaPedido, eu: stri
 }
 
 const AUDITORIA_DA_DECISAO = { aprovar: 'pedido.aprovar', devolver: 'pedido.rejeitar', recusar: 'pedido.recusar' } as const;
-const ESTADO_DECIDIDO_NO_EVENTO = { aprovada: 'aprovada', rejeitada: 'rejeitada', devolvida: 'devolvida', encerrada: 'encerrada' } as const;
 
 /**
  * POST pedidos/:id/aprovar | rejeitar | recusar (`pedido.aprovar`; T-0184 §3). `rejeitar` DEVOLVE ao vendedor (`rejected`) e `recusar`
@@ -300,11 +300,11 @@ function decidir(decisao: DecisaoAprovador): RotaModulo {
       const agora = ctx.agora().toISOString();
       return ctx.comTenant(async (db, tx) => {
         // 1) escopo (RN-CORE-04) com trava de linha: duas decisões ao mesmo tempo viram uma e a repetição
-        const atual = await carregarDetalhe(ctx, db, id, true);
+        const atual = await carregarDetalhe(ctx, db, tx, id, true);
         if (!atual) throw new ErroNaoEncontrado(...NAO_ENCONTRADO);
         const { linha } = atual;
         const lidas = (await lerAprovacoes(db, [id])).get(id) ?? [];
-        const resposta = async (status: OrderStatus): Promise<DecisaoAprovacaoResposta> => ({ status, aprovacoes: ((await lerAprovacoes(db, [id])).get(id) ?? []).map(paraAprovacaoMotivo) });
+        const resposta = async (status: OrderStatus): Promise<DecisaoAprovacaoResposta> => ({ status, aprovacoes: await aprovacoesComNomes(tx, (await lerAprovacoes(db, [id])).get(id) ?? []) });
         // 2) regra pura (RN-GES-08, RN-GES-04, RN-VEN-10, RN-VEN-30)
         const r = decidirAprovacao({ status: linha.status, aprovacoes: lidas, perfil: ctx.usuario.perfil, decisao, motivo: corpo.motivo_aprovacao, texto: decisao === 'aprovar' ? corpo.comentario : corpo.motivo });
         if (r.tipo === 'recusa') throw new ErroHttpModulo(r.http === 403 ? 403 : 422, r.codigo, r.mensagem);
@@ -344,7 +344,7 @@ function decidir(decisao: DecisaoAprovador): RotaModulo {
           await tx.auditar({ acao: 'pedido.aprovacao_decidida', entidade: 'pedido', entidade_id: id, antes: { motivo: m.motivo, estado: 'pendente' }, depois: { motivo: m.motivo, decisao: m.estado } });
           await tx.publicar(
             EVENTO_PEDIDO_APROVACAO_DECIDIDA,
-            { pedido_id: id, vendedor_id: linha.vendedor_id, ciclo, motivo: m.motivo, decisao: ESTADO_DECIDIDO_NO_EVENTO[m.estado], autor_id: eu, decidida_em: agora, texto: m.estado === 'encerrada' ? null : r.motivo },
+            { pedido_id: id, vendedor_id: linha.vendedor_id, ciclo, motivo: m.motivo, decisao: m.estado, autor_id: eu, decidida_em: agora, texto: m.estado === 'encerrada' ? null : r.motivo },
             id,
           );
         }
@@ -406,7 +406,7 @@ export const rotaCancelarPedido: RotaModulo = {
     const motivo = ((ctx.corpo as { motivo?: string }).motivo ?? '').trim() || null;
     const agora = ctx.agora().toISOString();
     return ctx.comTenant(async (db, tx) => {
-      const atual = await carregarDetalhe(ctx, db, id, true);
+      const atual = await carregarDetalhe(ctx, db, tx, id, true);
       if (!atual) throw new ErroNaoEncontrado(...NAO_ENCONTRADO);
       const { linha } = atual;
       if (linha.status === 'cancelled') return { id, status: 'cancelled' };

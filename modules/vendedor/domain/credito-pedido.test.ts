@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { disponivelParaAlerta, exigeAprovacaoPorCredito, exigeAprovacaoPorInadimplencia, motivosFinanceirosDoPedido } from './credito-pedido';
+import { disponivelParaAlerta, exigeAprovacaoPorCredito, exigeAprovacaoPorInadimplencia, limiteInformadoPeloErp, motivosFinanceirosDoPedido } from './credito-pedido';
 
 const base = { prazo_medio_dias: 28, total_cents: 10_000, limite_informado: true, disponivel_cents: 10_000 };
 
@@ -17,6 +17,14 @@ describe('RN-VEN-12: crédito estourado manda o pedido para aprovação (T-0184,
   });
   it('RN-VEN-12 (P4 A): cliente sem limite informado pelo ERP, a prazo, vai para aprovação com o motivo crédito', () => {
     expect(exigeAprovacaoPorCredito({ ...base, limite_informado: false, disponivel_cents: 0 })).toBe(true);
+  });
+  it('RN-VEN-12 (P4 A): limite 0 e limite ausente, sem disponível do ERP, contam como não informado e vão para aprovação a prazo', () => {
+    expect(limiteInformadoPeloErp({ limite_cents: 0, credito_disponivel_erp_cents: null })).toBe(false);
+    expect(limiteInformadoPeloErp({ limite_cents: 1, credito_disponivel_erp_cents: null })).toBe(true);
+    expect(limiteInformadoPeloErp({ limite_cents: 0, credito_disponivel_erp_cents: 0 })).toBe(true);
+    for (const limite_informado of [limiteInformadoPeloErp({ limite_cents: 0, credito_disponivel_erp_cents: null }), false]) {
+      expect(exigeAprovacaoPorCredito({ ...base, limite_informado, disponivel_cents: 0 })).toBe(true);
+    }
   });
   it('RN-VEN-12: disponível negativo e total zero não geram falso positivo além da regra', () => {
     expect(exigeAprovacaoPorCredito({ ...base, disponivel_cents: -500 })).toBe(true);

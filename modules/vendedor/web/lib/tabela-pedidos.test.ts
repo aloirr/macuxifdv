@@ -27,9 +27,9 @@ describe('BKO > Pedidos: tabela simples (R-20261116-143000, R-20261118-214740)',
   });
   it('RN-GES-08 e P6 A: Aprovar aprova; Devolver ao vendedor devolve (rota rejeitar) e Rejeitar encerra como Cancelado (rota recusar), os dois com motivo', () => {
     const a = Object.fromEntries(ACOES_DO_PENDENTE.map((x) => [x.id, x]));
-    expect(a.aprovar).toMatchObject({ decisao: 'aprovar', exigeMotivo: false });
-    expect(a.devolver).toMatchObject({ decisao: 'devolver', exigeMotivo: true });
-    expect(a.rejeitar).toMatchObject({ decisao: 'recusar', exigeMotivo: true });
+    expect(a.aprovar).toMatchObject({ decisao: 'aprovar' });
+    expect(a.devolver).toMatchObject({ decisao: 'devolver' });
+    expect(a.rejeitar).toMatchObject({ decisao: 'recusar' });
     expect(ACOES_DO_PENDENTE.map((x) => ROTA_DA_DECISAO[x.decisao])).toEqual(['aprovar', 'recusar', 'rejeitar']);
   });
   it('RN-VEN-30 (T-0184, prancha 04): a coluna Motivo lista os motivos sem repetir o estado, que a Situação já diz', () => {

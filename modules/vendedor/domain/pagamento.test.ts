@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   creditoDoCartao,
   descricaoPrazo,
-  avaliarPagamentoComVencido,
   formasDaLista,
   formasDoCliente,
   pagamentoPadrao,
@@ -128,23 +127,8 @@ describe('RN-VEN-13: parâmetro titulo_vencido_dias', () => {
   });
 });
 
-describe('T-0129 / RN-VEN-13: cliente com título vencido não perde as formas, vai para aprovação', () => {
+describe('T-0129 / RN-VEN-25: formas do cliente', () => {
   const formas = [f('fpix', 'PIX', 1), f('fbol', 'BOLETO', 2), f('fcar', 'CARTAO', 3)];
-  const prazos = [p('avista', 'fpix', [0]), p('b45', 'fbol', [45]), p('b60', 'fbol', [60])];
-  const cliente = { prazo_medio_max_dias: 45, formas_pagamento: ['PIX', 'BOLETO', 'CARTAO'] };
-  const vencido = { maior_atraso_dias: 12, limite_dias: 5 };
-  it('RN-VEN-13: Boleto com prazo dentro do prazo médio do cliente inadimplente é válido e vai para aprovação', () => {
-    expect(avaliarPagamentoComVencido({ forma: formas[1], prazo: prazos[1], cliente, ...vencido })).toEqual({ ok: true, destino: 'aprovacao' });
-  });
-  it('RN-VEN-13 (P1 A): à vista com título vencido também vai para aprovação', () => {
-    expect(avaliarPagamentoComVencido({ forma: formas[0], prazo: prazos[0], cliente, ...vencido })).toEqual({ ok: true, destino: 'aprovacao' });
-  });
-  it('RN-VEN-25: Boleto acima do prazo médio segue recusado mesmo com título vencido', () => {
-    expect(avaliarPagamentoComVencido({ forma: formas[1], prazo: prazos[2], cliente, ...vencido })).toMatchObject({ ok: false, codigo: 'RN-VEN-25' });
-  });
-  it('RN-VEN-13: atraso até o limite não manda para aprovação', () => {
-    expect(avaliarPagamentoComVencido({ forma: formas[1], prazo: prazos[1], cliente, maior_atraso_dias: 5, limite_dias: 5 })).toEqual({ ok: true, destino: 'direto' });
-  });
   it('RN-VEN-25: forma fora do cadastro do cliente aparece desabilitada, com o motivo, e as demais habilitadas', () => {
     const l = formasDaLista(formas, ['PIX', 'BOLETO']);
     expect(l.map((x) => [x.forma.codigo, x.habilitada])).toEqual([['PIX', true], ['BOLETO', true], ['CARTAO', false]]);

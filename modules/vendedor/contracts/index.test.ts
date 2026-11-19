@@ -32,7 +32,7 @@ describe('contracts', () => {
   });
 });
 
-import { CORPO_DA_DECISAO, MOTIVO_REJEICAO_MIN, ROTA_DA_DECISAO, ROTULO_MOTIVO_APROVACAO, corpoDaDecisao, maiorNivel, AprovacaoMotivo, AprovacaoSolicitadaEvento, AprovarPedidoRequest, RecusarPedidoRequest, DECISOES_APROVADOR, ESTADOS_APROVACAO_MOTIVO, MOTIVOS_APROVACAO, DiscountPolicy as AlcadaApiSchema, PedidoAprovadoEvento, PedidoEventoSyncSchema, PedidoPush, PedidoStatusAlteradoEvento, RejeitarPedidoRequest } from './index';
+import { CORPO_DA_DECISAO, MOTIVO_REJEICAO_MIN, ROTA_DA_DECISAO, ROTULO_MOTIVO_APROVACAO, corpoDaDecisao, maiorNivel, quemDecide, AprovacaoMotivo, AprovacaoSolicitadaEvento, AprovarPedidoRequest, RecusarPedidoRequest, DECISOES_APROVADOR, ESTADOS_APROVACAO_MOTIVO, MOTIVOS_APROVACAO, DiscountPolicy as AlcadaApiSchema, PedidoAprovadoEvento, PedidoEventoSyncSchema, PedidoPush, PedidoStatusAlteradoEvento, RejeitarPedidoRequest } from './index';
 
 describe('contracts do pedido no servidor (T-0029)', () => {
   const push = { id: '0b7f6c1e-3d2a-4c5b-9e8f-7a6b5c4d3e2f', customer_id: 'c1', discount_pct: 4, items: [{ product_id: 'p1', quantity: 2 }] };
@@ -124,5 +124,16 @@ describe('T-0184: contratos da aprovação por motivo', () => {
     expect(AlcadaApiSchema.safeParse(base).success).toBe(true);
     expect(AlcadaApiSchema.safeParse({ ...base, aprovador_credito: 'gerente', aprovador_inadimplencia: 'analista' }).success).toBe(true);
     expect(AlcadaApiSchema.safeParse({ ...base, aprovador_credito: 'diretor' }).success).toBe(false);
+  });
+
+  it('RN-GES-04: quemDecide é público no contrato (gestor decide até a alçada; analista só o seu nível)', () => {
+    expect(quemDecide('gerente', 'supervisor')).toEqual({ pode: true, acima_do_nivel: true });
+    expect(quemDecide('supervisor', 'gerente').pode).toBe(false);
+    expect(quemDecide('vendedor', 'supervisor').pode).toBe(false);
+  });
+  it('T-0184: decidida_por_nome é aditivo no AprovacaoMotivo', () => {
+    const base = { motivo: 'credito', nivel: 'gerente', estado: 'aprovada', texto_pendencia: '', decidida_por_id: '0b7f6c1e-3d2a-4c5b-9e8f-7a6b5c4d3e2f', decidida_em: '2026-11-18T14:05:00.000Z', texto_decisao: null };
+    expect(AprovacaoMotivo.safeParse(base).success).toBe(true);
+    expect(AprovacaoMotivo.parse({ ...base, decidida_por_nome: 'Rui Matos' }).decidida_por_nome).toBe('Rui Matos');
   });
 });

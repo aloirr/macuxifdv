@@ -6,8 +6,9 @@ import type { CustomerSummary, LimiteDesconto, Me } from '@macuxi/core/contracts
 import type { DiscountPolicy, Order, OrderDetail, PedidoPush } from '../../contracts';
 import type { Product } from '@macuxi/catalogo/contracts';
 import type { EnderecoEditadoValido } from '../../domain/endereco-pedido';
+import { TEXTO_LIMITE_EXCEDIDO, TEXTO_TITULO_VENCIDO } from '../../domain/alertas-pedido';
 import { motivosFinanceirosDoPedido } from '../../domain/credito-pedido';
-import { validateOrder, type OrderIssue, type OrderTotals, type OrderValidation } from '../../domain/order';
+import { resultadoDosAvisos, validateOrder, type OrderIssue, type OrderTotals, type OrderValidation } from '../../domain/order';
 import type { FaixaEscalonada } from '../../domain/preco-item';
 import { mensagemAcimaDoMaximo, percentualAjusteParaBp } from '../../domain/preco-pedido';
 import { toDomainPolicy } from './catalog';
@@ -189,8 +190,8 @@ export function avisosFinanceiros(f: EntradaPrepararPedido['financeiro'], total_
   const motivos = motivosFinanceirosDoPedido({ ...f, total_cents });
   return motivos.map((m): OrderIssue =>
     m === 'credito'
-      ? { code: 'credit_exceeded', message: 'Limite de crédito excedido', blocking: false, needs_approval: true }
-      : { code: 'overdue_receivables', message: 'Título vencido', blocking: false, needs_approval: true },
+      ? { code: 'credit_exceeded', message: TEXTO_LIMITE_EXCEDIDO, blocking: false, needs_approval: true }
+      : { code: 'overdue_receivables', message: TEXTO_TITULO_VENCIDO, blocking: false, needs_approval: true },
   );
 }
 
@@ -235,7 +236,7 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido
   ];
   const aviso = e.rascunho.frete ? freteValido(e.rascunho.frete) : null;
   if (aviso) issues.push({ code: 'invalid_item', message: aviso, blocking: true, needs_approval: false });
-  const outcome: OrderValidation['outcome'] = issues.some((i) => i.blocking) ? 'rejected' : issues.some((i) => i.needs_approval) ? 'pending_approval' : 'ok';
+  const outcome = resultadoDosAvisos(issues);
   const totals: OrderTotals = {
     units: calculo.unidades_base,
     lines: calculo.linhas.map((l) => ({

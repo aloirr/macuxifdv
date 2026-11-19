@@ -31,7 +31,7 @@ export const SITUACOES_DEVOLUCAO = ['nenhuma', 'parcial', 'total'] as const;
 
 export { ORDER_STATUSES, ORDER_STATUS_LABEL } from '../domain/order';
 export type { DecisaoAprovador, EstadoAprovacaoMotivo } from '../domain/aprovacao';
-export { DECISOES_APROVADOR, ESTADOS_APROVACAO_MOTIVO, maiorNivel, MOTIVOS_APROVACAO, MOTIVO_REJEICAO_MIN, NIVEIS_APROVACAO, ROTULO_MOTIVO_APROVACAO, STATUS_CONTRATO } from '../domain/aprovacao';
+export { DECISOES_APROVADOR, ESTADOS_APROVACAO_MOTIVO, maiorNivel, MOTIVOS_APROVACAO, MOTIVO_REJEICAO_MIN, NIVEIS_APROVACAO, quemDecide, ROTULO_MOTIVO_APROVACAO, STATUS_CONTRATO } from '../domain/aprovacao';
 export { SITUACAO_ORCAMENTO_LABEL, SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '../domain/orcamento';
 // T-0077 (RF-VEN-05): busca e período da lista de Pedidos, reusados pelo Gestão (filtro de vendedor fica no Gestor)
 export {
@@ -111,6 +111,8 @@ export const AprovacaoMotivo = z.object({
   estado: z.enum(ESTADOS_APROVACAO_MOTIVO),
   texto_pendencia: z.string(),
   decidida_por_id: Id.nullable(),
+  /** aditivo: o nome de quem decidiu (`core.cadastro_resumo@1`); ausente quando ninguém decidiu ou o cadastro não o devolveu */
+  decidida_por_nome: z.string().nullable().optional(),
   decidida_em: IsoDateTime.nullable(),
   texto_decisao: z.string().nullable(),
 });

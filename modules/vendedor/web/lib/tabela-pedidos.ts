@@ -45,7 +45,6 @@ export interface AcaoDoPendente {
   /** decisão do contrato; a rota e o corpo vêm de `ROTA_DA_DECISAO` e `corpoDaDecisao` */
   decisao: DecisaoAprovador;
   /** RN-GES-08: devolver e rejeitar exigem motivo */
-  exigeMotivo: boolean;
 }
 
 /**
@@ -61,9 +60,9 @@ export function motivoDoPedido(o: Pick<Order, 'approval_reasons' | 'effective_di
 
 /** P6 A (T-0184): "Rejeitar" encerra o pedido como `cancelled` (decisão `recusar`); "Devolver ao vendedor" leva a `rejected` (decisão `devolver`). */
 export const ACOES_DO_PENDENTE: readonly AcaoDoPendente[] = [
-  { id: 'aprovar', rotulo: 'Aprovar', decisao: 'aprovar', exigeMotivo: false },
-  { id: 'rejeitar', rotulo: 'Rejeitar', decisao: 'recusar', exigeMotivo: true },
-  { id: 'devolver', rotulo: 'Devolver ao vendedor', decisao: 'devolver', exigeMotivo: true },
+  { id: 'aprovar', rotulo: 'Aprovar', decisao: 'aprovar' },
+  { id: 'rejeitar', rotulo: 'Rejeitar', decisao: 'recusar' },
+  { id: 'devolver', rotulo: 'Devolver ao vendedor', decisao: 'devolver' },
 ];
 
 /** Ações da linha: só no pedido aguardando aprovação e só para quem decide o nível (`pode_decidir`, API). Demais = vazio. */

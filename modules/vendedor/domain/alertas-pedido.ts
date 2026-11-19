@@ -73,6 +73,9 @@ export const TEXTO_SEM_FORMA = 'Sem forma de pagamento para este cliente';
 export const TEXTO_SEM_SINAL_PARA_SALVAR = 'Sem sinal para salvar a alteração';
 
 /** RN-VEN-10 (T-0165, RD-0142): a linha única da alçada; o toque leva à aba Itens. */
+/** RN-VEN-12 e RN-VEN-13: os dois textos financeiros, escritos só aqui (alerta da tela e aviso do pedido). */
+export const TEXTO_LIMITE_EXCEDIDO = 'Limite de crédito excedido';
+export const TEXTO_TITULO_VENCIDO = 'Título vencido';
 export const TEXTO_ACIMA_DA_ALCADA = 'Desconto acima da sua alçada';
 
 const semPonto = (t: string) => t.trim().replace(/\.+$/, '');
@@ -95,9 +98,9 @@ function textoDoEstoqueInsuficiente(i: ItemDoAlerta): string {
 
 /**
  * RN-VEN-13 (RD-0172, P1 A de T-0184): o título vencido só é alerta quando muda o resultado: atraso ACIMA do limite (padrão 5 dias),
- * a prazo ou à vista (`exigeAprovacaoPorInadimplencia`; o prazo não entra na conta, o parâmetro fica só para as chamadas existentes). Fora disso devolve `null` e o Financeiro do cliente continua mostrando os vencidos.
+ * a prazo ou à vista (`exigeAprovacaoPorInadimplencia`). Fora disso devolve `null` e o Financeiro do cliente continua mostrando os vencidos.
  */
-export function vencidosComEfeito<T extends { dias: number }>(vencidos: T | null, _prazo_medio_dias: number | undefined, limite_dias: number): T | null {
+export function vencidosComEfeito<T extends { dias: number }>(vencidos: T | null, limite_dias: number): T | null {
   if (!vencidos) return null;
   return exigeAprovacaoPorInadimplencia({ maior_atraso_dias: vencidos.dias, limite_dias }) ? vencidos : null;
 }
@@ -123,8 +126,8 @@ export function alertasDoPedido(e: EntradaAlertasDoPedido): AlertaDoPedido[] {
   if (e.acima_do_limite != null) r.push(alerta({ id: 'limite-pedido', tipo: 'limite_pedido', texto: `Pedido acima do desconto máximo (${Math.floor(e.acima_do_limite / 10)},${e.acima_do_limite % 10}%)`, vai_para: { aba: 'Resumo' }, so_orcamento: true }));
   (e.itens_sem_estoque ?? []).forEach((i) => r.push(alerta({ id: `estoque-${i.item}`, tipo: 'estoque', texto: textoDoEstoqueInsuficiente(i), vai_para: { item: i.item }, so_orcamento: true, ...(i.estoque && i.estoque.quantidade > 0 ? { estoque_positivo: true } : {}) })));
 
-  if (venda.some((a) => a.tipo === 'credito_excedido')) r.push(alerta({ id: 'credito', tipo: 'credito', texto: 'Limite de crédito excedido' }));
-  if (venda.some((a) => a.tipo === 'vencido')) r.push(alerta({ id: 'titulo', tipo: 'titulo', texto: 'Título vencido' }));
+  if (venda.some((a) => a.tipo === 'credito_excedido')) r.push(alerta({ id: 'credito', tipo: 'credito', texto: TEXTO_LIMITE_EXCEDIDO }));
+  if (venda.some((a) => a.tipo === 'vencido')) r.push(alerta({ id: 'titulo', tipo: 'titulo', texto: TEXTO_TITULO_VENCIDO }));
   if (e.acima_da_alcada) r.push(alerta({ id: 'alcada', tipo: 'alcada', texto: TEXTO_ACIMA_DA_ALCADA, vai_para: { aba: 'Itens' } }));
   return r;
 }

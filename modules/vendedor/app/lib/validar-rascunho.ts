@@ -1,6 +1,6 @@
 /** Mesma validação do servidor, sem lançar: a tela mostra os avisos e bloqueia o envio quando recusado. */
 import type { DiscountPolicy } from '../../contracts';
-import { validateOrder } from '../../domain/order';
+import { resultadoDosAvisos, validateOrder } from '../../domain/order';
 import { toDomainPolicy } from './catalog';
 import { avisosFinanceiros, type EntradaPrepararPedido } from './pedidos';
 
@@ -21,6 +21,6 @@ export function validarSemLancar(a: {
     credit: null,
   });
   const issues = [...v.issues, ...avisosFinanceiros(a.financeiro, v.totals.total_cents)];
-  const outcome = issues.some((i) => i.blocking) ? 'rejected' : issues.some((i) => i.needs_approval) ? 'pending_approval' : 'ok';
+  const outcome = resultadoDosAvisos(issues);
   return { ...v, issues, outcome } as typeof v;
 }

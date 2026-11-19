@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Order, OrderDetail } from '../contracts';
-import { paraAprovacaoMotivo, type LinhaAprovacao } from './aprovacoes';
+import { comNomesDosDecisores, paraAprovacaoMotivo, type LinhaAprovacao } from './aprovacoes';
 import { paraDetalhe, paraOrder, type LinhaPedido } from './mapeamento';
 
 const ID = '11111111-1111-4111-8111-111111111111';
@@ -37,6 +37,12 @@ describe('T-0184: a lista e o detalhe trazem o estado de cada motivo (aditivo)',
     const d = paraDetalhe(linha(), [], [], 'gerente', {}, undefined, linhas);
     expect(d.aprovacoes).toHaveLength(2);
     expect(OrderDetail.safeParse(d).success).toBe(true);
+  });
+  it('T-0184: a aprovação decidida leva o nome de quem decidiu; a pendente não leva o campo', () => {
+    const r = comNomesDosDecisores([ap({ estado: 'aprovada', decidida_por: ID, decidida_em: '2026-11-18T14:05:00.000Z' }), ap({ motivo: 'credito' }), ap({ motivo: 'inadimplencia', estado: 'aprovada', decidida_por: '9' })], new Map([[ID, 'Rui Matos']]));
+    expect(r[0]?.decidida_por_nome).toBe('Rui Matos');
+    expect(r[1]).not.toHaveProperty('decidida_por_nome');
+    expect(r[2]?.decidida_por_nome).toBeNull();
   });
   it('a linha do banco vira AprovacaoMotivo com quem e quando decidiu', () => {
     expect(paraAprovacaoMotivo(ap({ estado: 'devolvida', decidida_por: ID, decidida_em: '2026-11-18T14:00:00.000Z', texto_decisao: 'baixe o desconto' }))).toMatchObject({ estado: 'devolvida', decidida_por_id: ID, texto_decisao: 'baixe o desconto' });
