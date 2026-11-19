@@ -127,7 +127,8 @@ export function visitasDoPeriodo(
   comConversao = false,
 ): PainelVisitas {
   const params = resolverParametros(paramsParciais);
-  const todas = visitasDoUsuario(estado, usuario.id, inicio, fim, params.fuso);
+  // RN-GES-05 (T-0187, P2 A): visita de supervisor ou gerente não é visita de campo (cobertura e meta)
+  const todas = usuario.perfil === 'supervisor' || usuario.perfil === 'gerente' ? [] : visitasDoUsuario(estado, usuario.id, inicio, fim, params.fuso);
   const promotor = usuario.perfil === 'promotor';
   const atendidas = promotor ? todas.filter((v) => !v.sem_atendimento) : todas;
   const curtas = promotor ? atendidas.filter((v) => v.permanencia_min !== null && v.permanencia_min < params.permanencia_min_min) : [];

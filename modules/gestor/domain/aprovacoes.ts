@@ -56,6 +56,31 @@ export function situacaoDoPrazo(
   return { prazo_em, horas_restantes, situacao };
 }
 
+/**
+ * RN-VEN-10 / RN-GES-04 (T-0187, P4 A): quem digitou o pedido. Vem do `vendedor.pedido.criado@1` (`autor_id`); na falta dele, do
+ * `autor_id` OPCIONAL que o Vendedor acrescenta ao `aprovacao_solicitada@2` (lido sem exigir: ausente = autor desconhecido).
+ */
+export function autorDoPedido(estado: EstadoProjecao, pedidoId: string): string | null {
+  const criado = estado.pedidos[pedidoId]?.criado?.autor_id;
+  if (criado) return criado;
+  const naSolicitacao = (solicitacaoDaLinha(estado.aprovacoes[pedidoId]) as { autor_id?: string | null } | undefined)?.autor_id;
+  return naSolicitacao ?? null;
+}
+
+/** RN-VEN-10: ninguém decide o próprio pedido. Autor desconhecido nunca bloqueia. */
+export function decisorEhAutor(estado: EstadoProjecao, pedidoId: string, decisorId: string): boolean {
+  return autorDoPedido(estado, pedidoId) === decisorId;
+}
+
+export type ResultadoDecisor = { ok: true } | { ok: false; status: 422; codigo: 'APROVACAO_DO_PROPRIO_PEDIDO'; mensagem: string };
+
+/** RN-VEN-10 / RN-GES-04: a decisão do autor é recusada com 422 `APROVACAO_DO_PROPRIO_PEDIDO` (o pedido sobe para o nível seguinte). */
+export function verificarDecisor(estado: EstadoProjecao, pedidoId: string, decisorId: string): ResultadoDecisor {
+  return decisorEhAutor(estado, pedidoId, decisorId)
+    ? { ok: false, status: 422, codigo: 'APROVACAO_DO_PROPRIO_PEDIDO', mensagem: 'Você fez este pedido e não pode aprová-lo. Peça a decisão ao nível acima.' }
+    : { ok: true };
+}
+
 export interface MotivoPendente {
   motivo: MotivoAprovacao;
   nivel: NivelAprovacao;
@@ -120,6 +145,8 @@ export function filaDeAprovacoes(e: EntradaFila): ItemFilaAprovacao[] {
   for (const [pedidoId, linha] of Object.entries(e.estado.aprovacoes)) {
     const a = solicitacaoDaLinha(linha);
     if (!a || !podeVer(e.escopo, a.vendedor_id)) continue;
+    // RN-VEN-10 / RN-GES-04 (T-0187, P4 A): quem decide não vê na fila o pedido de que é autor (analista e admin só leem)
+    if (decide && decisorEhAutor(e.estado, pedidoId, e.viewer.id)) continue;
     // P3 B: quem decide vê só os motivos que pode decidir; analista e admin leem todos os do Gestor (RN-GES-07)
     const visiveis: AprovacaoDoItem[] = motivosPendentes(e.estado, pedidoId)
       .filter((m) => nivelDaFilaDoGestor(m.nivel) && (!decide || podeDecidir(e.viewer.perfil, m.nivel)))

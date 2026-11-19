@@ -57,6 +57,20 @@ function encontrar(nos: NoEquipe[], id: string): NoEquipe | null {
   return null;
 }
 
+/** RN-GES-05 (T-0187, P2 A): cargos cujas visitas contam para a rota, a cobertura e a meta de visitas. Supervisor e gerente visitam como apoio. */
+export function ehPerfilDeCampo(perfil: MembroEquipe['perfil']): boolean {
+  return perfil === 'vendedor' || perfil === 'promotor';
+}
+
+/**
+ * RN-GES-05: o check-in de `usuarioId` conta como visita de campo? Não, se o cadastro o mostra como supervisor ou gerente.
+ * Usuário fora do cadastro conta (cadastro defasado não esconde visita).
+ */
+export function visitaContaParaCampo(membros: readonly MembroEquipe[], usuarioId: string): boolean {
+  const m = membros.find((x) => x.id === usuarioId);
+  return !m || (m.perfil !== 'supervisor' && m.perfil !== 'gerente');
+}
+
 export type EscopoGestor = { tipo: 'equipe'; ids: ReadonlySet<string> } | { tipo: 'tenant' } | { tipo: 'nenhum' };
 
 /**

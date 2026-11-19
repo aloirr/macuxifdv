@@ -6,6 +6,7 @@
  */
 import { formatHHMM } from '@macuxi/comum/fuso';
 import { projetarPontos, type PontoDoTrajeto } from '@macuxi/core/contracts';
+import type { MembroEquipe } from '../contracts';
 
 /** RN-CORE-13: texto do app e do BKO quando o dia não tem pontos (tracking desligado, sem termo ou fora do expediente). */
 export const TEXTO_SEM_TRAJETO = 'Nada registrado';
@@ -42,4 +43,20 @@ export function desenharTrajeto(pontos: readonly PontoDoTrajeto[], o: OpcoesDese
   const linha = projetarPontos(ordem, o.largura, o.altura, o.margem);
   const marca = (i: number): PontoDesenhado => ({ ...linha[i]!, hora: formatHHMM(ordem[i]!.capturado_em, o.fuso) });
   return { vazio: false, linha, primeiro: marca(0), ultimo: marca(ordem.length - 1), total: ordem.length };
+}
+
+/**
+ * Quem o gestor escolhe para ver o trajeto do dia (RN-CORE-13, RN-CORE-37; T-0187 §1.2): vendedores e promotores ativos do escopo e,
+ * para o gerente, também os supervisores das equipes abaixo. O usuário da sessão nunca entra (o próprio trajeto não aparece).
+ * Ordem alfabética por nome, com o id como desempate. A API do Core confere de novo escopo e permissão.
+ */
+export function pessoasDoTrajeto(e: { viewer: { id: string; perfil: MembroEquipe['perfil'] }; membros: readonly MembroEquipe[] }): MembroEquipe[] {
+  const vistos = new Set<string>();
+  return e.membros
+    .filter((m) => {
+      if (m.id === e.viewer.id || !m.ativo || vistos.has(m.id)) return false;
+      vistos.add(m.id);
+      return m.perfil === 'vendedor' || m.perfil === 'promotor' || (m.perfil === 'supervisor' && e.viewer.perfil === 'gerente');
+    })
+    .sort((a, b) => (a.nome < b.nome ? -1 : a.nome > b.nome ? 1 : a.id < b.id ? -1 : 1));
 }
