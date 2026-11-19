@@ -85,7 +85,7 @@ export interface OpcoesMotorDoUsuario {
    */
   cargaOnline?: boolean;
   /**
-   * T-0156 (RN-CORE-13): SQLite do usuário em que a tarefa `macuxi-trajeto` grava os pontos (`driverDoArquivo`). Antes de
+   * T-0156 (RN-CORE-13): SQLite do usuário em que a tarefa `macuxi-trajeto` grava os pontos (`driverDoArquivo`). Depois de
    * cada envio os pontos vão ao servidor pelo `push` do transporte do motor (`lib/envio-do-trajeto.ts`). Sem ele, ou `null`,
    * nada a enviar.
    */
@@ -128,7 +128,7 @@ export function criarMotorDoUsuario(o: OpcoesMotorDoUsuario): MotorSync {
     // ADR 0054 (solução 5): o envio e "Clientes e rota" (Campo) ou "Equipe" (Gestão) liberam a entrada (`liberado_em`)
     essenciais: essenciaisDoUsuario(o.perfil ?? (() => null), () => ref.m?.estado().modulosAtivos ?? []),
   };
-  // T-0156: os pontos do trajeto vão pelo mesmo transporte antes de cada envio (app aberto e tarefa em segundo plano)
+  // T-0156: os pontos do trajeto vão pelo mesmo transporte depois de cada envio (app aberto e tarefa em segundo plano)
   ref.m = comPontosDoTrajeto(criarMotorSync(opcoes), {
     banco: o.bancoDoTrajeto ?? (() => null),
     push: (itens) => transporte.push(itens),

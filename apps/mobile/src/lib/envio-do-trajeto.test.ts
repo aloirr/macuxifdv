@@ -1,16 +1,17 @@
 /**
  * T-0156 (RN-CORE-13; docs/modulos/core/rastreamento.md, "Envio dos pontos"): os pontos gravados pela tarefa `macuxi-trajeto`
- * em `core__ponto_trajeto` viram itens `ponto_trajeto` na fila do motor no próximo envio, na sincronização completa e na
- * leve; a falha da rotina não impede o sync; nenhuma coordenada (nem id) vai para o `registrar`.
+ * em `core__ponto_trajeto` vão ao servidor pelo `push` do transporte, fora da fila do motor, depois de cada envio, na
+ * sincronização completa e na leve; a falha da rotina não impede o sync; nenhuma coordenada (nem id) vai para o `registrar`.
  * Motor real do SDK com transporte falso, SQLite real (`node:sqlite`) e a rotina real do Core.
  */
 import { ENTIDADE_PONTO_TRAJETO, type PontoTrajeto } from '@macuxi/core/contracts';
+import { z } from 'zod';
 import {
   criarArmazenamentoEmMemoria,
   criarMotorSync,
   criarRegistroSync,
   defineModule,
-  MAX_ITENS_PUSH,
+  definirEntidadeSync,
   type DriverSqlite,
   type ItemPush,
   type ResultadoItemPush,
@@ -61,7 +62,9 @@ const ponto = (n: number): PontoTrajeto => ({
 
 async function montar(o: { banco?: () => DriverSqlite | null } = {}) {
   const db = await driverNode();
-  const registro = criarRegistroSync([defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor'] })]);
+  const registro = criarRegistroSync([defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor'], sync: ['visita'] })]);
+  // uma entidade da fila do motor, para conferir a ordem: o envio do motor sai antes dos pontos
+  registro.registrar(definirEntidadeSync({ nome: 'visita', modulo: 'core', direcao: 'push', conflito: 'somente_insercao', schema: z.unknown() }));
   /** Um lote por chamada do `push`. */
   const lotes: ItemPush[][] = [];
   const transporte: TransporteSync = {
@@ -93,15 +96,11 @@ const naFila = (motor: { estado(): { fila: readonly { entidade: string }[] } }) 
   motor.estado().fila.filter((i) => i.entidade === ENTIDADE_PONTO_TRAJETO);
 
 describe('envio dos pontos do trajeto (RN-CORE-13: o ponto gravado chega ao servidor)', () => {
-  it('sincronização completa: milhares de pontos saem pelo push em lotes de até 500, fora da fila do motor', async () => {
-    const { db, motor, lotes, enviados } = await montar();
-    const total = 2 * MAX_ITENS_PUSH + 201;
-    await gravarPontosDoTrajeto(db, Array.from({ length: total }, (_, n) => ponto(total - n)));
+  it('sincronização completa: o ponto sai pelo push do transporte, fora da fila do motor', async () => {
+    const { db, motor, enviados } = await montar();
+    await gravarPontosDoTrajeto(db, [ponto(1)]);
     expect(await motor.sincronizar()).toBe(true);
-    expect(lotes.map((l) => l.length)).toEqual([MAX_ITENS_PUSH, MAX_ITENS_PUSH, 201]);
-    expect(enviados().every((i) => i.entidade === ENTIDADE_PONTO_TRAJETO && i.operacao === 'upsert')).toBe(true);
-    expect(enviados()[0]?.payload).toEqual(ponto(1));
-    expect(new Set(enviados().map((i) => i.id)).size).toBe(total);
+    expect(enviados().map((i) => i.id)).toEqual([U(1)]);
     expect(naFila(motor)).toEqual([]);
     expect(await pendentes(db)).toEqual([]);
   });
@@ -116,7 +115,15 @@ describe('envio dos pontos do trajeto (RN-CORE-13: o ponto gravado chega ao serv
     expect(await pendentes(db)).toEqual([]);
   });
 
-  it('envio da fila (`enviar`): o ponto sai antes do envio, uma vez só', async () => {
+  it.each(['enviar', 'sincronizar', 'sincronizarNovidades'] as const)('%s: o push do motor sai antes dos pontos do trajeto', async (caminho) => {
+    const { db, motor, lotes } = await montar();
+    await gravarPontosDoTrajeto(db, [ponto(2)]);
+    await motor.enfileirar({ id: U(20), entidade: 'visita', payload: {} });
+    await motor[caminho]();
+    expect(lotes.map((l) => l.map((i) => i.entidade))).toEqual([['visita'], [ENTIDADE_PONTO_TRAJETO]]);
+  });
+
+  it('envio da fila (`enviar`): o ponto sai uma vez só, mesmo com envios simultâneos', async () => {
     const { db, motor, enviados } = await montar();
     await gravarPontosDoTrajeto(db, [ponto(4)]);
     await Promise.all([motor.enviar(), motor.enviar()]);

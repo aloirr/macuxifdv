@@ -1,7 +1,8 @@
 /**
  * T-0156 (RN-CORE-13; docs/modulos/core/rastreamento.md, "Envio dos pontos"): os pontos que a tarefa `macuxi-trajeto` grava
- * em `core__ponto_trajeto` vão ao servidor antes de cada envio (`enviarPontosDoTrajeto`, do Core), direto pelo `push` do
- * transporte do usuário, em lotes, sem passar pela fila do motor. Não é etapa de sync: o embrulho fica nos três caminhos que
+ * em `core__ponto_trajeto` vão ao servidor depois de cada envio do motor (`enviarPontosDoTrajeto`, do Core), direto pelo
+ * `push` do transporte do usuário, em lotes, sem passar pela fila do motor: milhares de pontos não atrasam o pedido, e se
+ * o tempo da passada em segundo plano acabar no meio, o resto fica para a próxima. Não é etapa de sync: o embrulho fica nos três caminhos que
  * enviam (`enviar`, `sincronizar` e `sincronizarNovidades`), e o app aberto e a tarefa em segundo plano usam o mesmo motor
  * embrulhado (`services/motor-do-usuario.ts`). Sem sinal, nada sai.
  * Falha da rotina nunca derruba o envio nem o sync; `registrar` recebe só contagens (nenhuma coordenada nem id, §9).
@@ -20,11 +21,11 @@ export interface DependenciasDoEnvioDoTrajeto {
   agora?: () => Date;
 }
 
-/** O motor com os pontos do trajeto enviados antes de cada envio. Uma rotina por vez: quem chega no meio espera a mesma. */
+/** O motor com os pontos do trajeto enviados depois de cada envio do motor. Uma rotina por vez: quem chega no meio espera a mesma. */
 export function comPontosDoTrajeto(motor: MotorSync, d: DependenciasDoEnvioDoTrajeto): MotorSync {
   let emCurso: Promise<void> | null = null;
   const agora = d.agora ?? (() => new Date());
-  const antesDoEnvio = (): Promise<void> => {
+  const depoisDoEnvio = (): Promise<void> => {
     emCurso ??= (async () => {
       try {
         if (!d.online()) return;
@@ -41,16 +42,19 @@ export function comPontosDoTrajeto(motor: MotorSync, d: DependenciasDoEnvioDoTra
   return {
     ...motor,
     enviar: async (opcoes) => {
-      await antesDoEnvio();
-      return motor.enviar(opcoes);
+      const resultado = await motor.enviar(opcoes);
+      await depoisDoEnvio();
+      return resultado;
     },
     sincronizar: async (opcoes) => {
-      await antesDoEnvio();
-      return motor.sincronizar(opcoes);
+      const resultado = await motor.sincronizar(opcoes);
+      await depoisDoEnvio();
+      return resultado;
     },
     sincronizarNovidades: async (opcoes) => {
-      await antesDoEnvio();
-      return motor.sincronizarNovidades(opcoes);
+      const resultado = await motor.sincronizarNovidades(opcoes);
+      await depoisDoEnvio();
+      return resultado;
     },
   };
 }

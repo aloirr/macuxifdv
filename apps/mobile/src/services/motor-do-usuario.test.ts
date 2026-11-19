@@ -101,7 +101,7 @@ describe('motor do usuário — entrada enquanto carrega (ADR 0054)', () => {
   });
 });
 
-describe('motor do usuário — pontos do trajeto antes de cada envio (T-0156, RN-CORE-13)', () => {
+describe('motor do usuário — pontos do trajeto depois de cada envio (T-0156, RN-CORE-13)', () => {
   const linha = {
     id: '0b9a4c1e-7f3d-4a2b-9c8d-1e2f3a4b5c6d',
     capturado_em: '2026-11-19T13:00:00.000Z',
