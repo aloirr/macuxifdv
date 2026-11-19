@@ -25,5 +25,14 @@ Nenhuma rota exporta pontos. Nenhuma coordenada vai para log (`ctx.log` leva só
 ## Campo (`modules/core/app`)
 O app só envia o ponto (entidade `ponto_trajeto`) e recebe a própria ausência; a captura é da tarefa do shell.
 
+### Envio dos pontos
+O shell grava os pontos em `core__ponto_trajeto` com `enviado_em` nulo; a rotina `enviarPontosDoTrajeto` (export de `modules/core/app`, RN-CORE-13) os envia direto pelo transporte do sync, sem passar pela fila do motor: o rastreamento é interno e não aparece na fila nem na contagem que o vendedor vê. Não é etapa de sync: a etapa só roda na carga completa e o contexto dela não tem o SQLite.
+- Assinatura: `enviarPontosDoTrajeto({ db, push, agora, registrar? })`. `db` = SQLite do usuário (o mesmo do `gravarPontosDoTrajeto`); `push` = `TransporteSync.push` do shell; `agora: () => new Date()`; `registrar` recebe só contagens, nunca coordenada.
+- O shell chama `await enviarPontosDoTrajeto(...)` com o aparelho online, depois de cada envio do motor (`enviar`, `sincronizar` e `sincronizarNovidades`).
+- Laço de até `MAX_ITENS_PUSH` (500) por `capturado_em`: valida com `PontoTrajetoSchema`, monta `ItemPush` (`ponto_trajeto`, `upsert`, id = id do ponto) e chama `push`. `aceito` e `conflito` (o servidor já tinha o id) marcam `enviado_em`; `rejeitado` pelo próprio ponto (`PAYLOAD_INVALIDO`, `OPERACAO_NAO_SUPORTADA`) também marca e entra em `rejeitados`, para não ficar em laço. Rejeição que vem da plataforma (`CODIGOS_RETENTAVEIS` do SDK, `SEM_RESULTADO`, `MODULO_INATIVO`) deixa o ponto pendente, sem marcar; se nenhum item do lote for resolvido, a passada para com `erro: true`. Ponto inválido é marcado sem envio. Se `push` lançar, para, deixa o resto pendente e devolve `erro: true`.
+- Poda: no início de cada passada, antes de ler os pendentes, apaga todo ponto com `capturado_em` há mais de `TRAJETO_DIAS_MAX` (90) dias, enviado ou pendente, porque o servidor o recusaria como antigo (`docs/banco/aparelho-sqlite.md` §11). Assim o ponto velho nem é enviado, e a poda roda mesmo se o envio falhar.
+- Idempotente: queda entre enviar e marcar repete o ponto; o servidor (`somente_insercao` pelo id) não duplica. Sem a tabela, não faz nada. Nunca lança.
+- Retorno: `{ enviados, rejeitados, invalidos, podados, erro }`.
+
 ## BKO (`modules/core/web`)
 Painéis Rastreamento (liga/desliga, expediente, frequência) e Ausências.
