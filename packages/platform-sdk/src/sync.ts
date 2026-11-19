@@ -132,8 +132,17 @@ export type EscopoSync = (typeof ESCOPOS_SYNC)[number];
  */
 export const SYNC_NAO_IMPLEMENTADO = 'SYNC_NAO_IMPLEMENTADO';
 
-/** Códigos de rejeição de item que NÃO são culpa do item: o motor deixa o item `pendente` e tenta no próximo envio. */
-export const CODIGOS_RETENTAVEIS: readonly string[] = [SYNC_NAO_IMPLEMENTADO];
+/** Item sem resposta do módulo no push (`apps/api/src/sync.ts`): o servidor não decidiu sobre ele. */
+export const SEM_RESULTADO = 'SEM_RESULTADO';
+/** Licença do módulo inativa para o usuário (RN-CORE-02). */
+export const MODULO_INATIVO = 'MODULO_INATIVO';
+
+/**
+ * Códigos de rejeição de item que NÃO são culpa do item: quem envia não o descarta e tenta de novo. No motor, o item
+ * fica `pendente`; o `MODULO_INATIVO` é a exceção e vira `modulo_inativo` (RN-CORE-02), que volta a `pendente` quando
+ * o módulo volta a ser efetivo.
+ */
+export const CODIGOS_RETENTAVEIS: readonly string[] = [SYNC_NAO_IMPLEMENTADO, SEM_RESULTADO, MODULO_INATIVO];
 
 /**
  * Erro de transporte que significa "entidade ainda não disponível no servidor" (ADR 0009 §7): `status` 501 ou
