@@ -9,7 +9,7 @@
  */
 import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { EVENTO_NOTIFICACAO_CRIADA } from '../contracts';
-import { EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2, EVENTO_PEDIDO_STATUS_ALTERADO, NIVEIS_APROVACAO, ROTULO_MOTIVO_APROVACAO } from '../../vendedor/contracts';
+import { EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2, EVENTO_PEDIDO_STATUS_ALTERADO, NIVEIS_APROVACAO, ROTULO_MOTIVO_APROVACAO, quemDecide } from '../../vendedor/contracts';
 import { apurarPositivacaoDoStatus } from './consumidores-positivacao';
 import { notificacaoDePedido, notificacoesDeAprovacaoPorAprovador, type NotificacaoDePedido, type UsuarioAprovador, type EntradaNotificacaoPedido } from '../domain';
 
@@ -77,7 +77,7 @@ export const consumidorPedidoParaAprovar: ConsumidorEvento = definirConsumidor({
 });
 
 /**
- * `@2` (T-0184, RN-VEN-30): uma notificação por aprovador, com todos os motivos que ele decide (domínio puro). A reentrega
+ * `@2` (T-0184, RN-GES-04): uma notificação por aprovador, com todos os motivos que ele decide (domínio puro). A reentrega
  * não duplica: `envio_id` é único por destinatário.
  */
 export const consumidorPedidoParaAprovarV2: ConsumidorEvento = definirConsumidor({
@@ -91,6 +91,7 @@ export const consumidorPedidoParaAprovarV2: ConsumidorEvento = definirConsumidor
       acima: await responsaveisAcima(ctx, p.vendedor_id),
       alcada: await alcadaDoTenant(ctx, p.vendedor_id),
       ordemNiveis: NIVEIS_APROVACAO,
+      decide: (perfil, nivel) => quemDecide(perfil, nivel as Parameters<typeof quemDecide>[1]).pode,
       rotuloMotivo: ROTULO_MOTIVO_APROVACAO,
     });
     for (const { usuarioId, notificacao } of lista) await gravar(ctx, [usuarioId], notificacao);
