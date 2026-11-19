@@ -535,6 +535,8 @@ export interface DecidirEntrada {
   motivo?: MotivoAprovacao | null;
   /** `comentario` (aprovar) ou `motivo` em texto livre (devolver e recusar) do corpo da rota */
   texto?: string | null;
+  /** `nivel_aprovacao` do pedido: vale para o pedido pendente sem nenhuma linha de aprovação (API antiga) */
+  nivel_do_pedido?: NivelAprovacao | null;
 }
 
 export interface MudancaDeAprovacao {
@@ -556,6 +558,15 @@ export type ResultadoDecisao =
   | { tipo: 'repetida' }
   | ({ tipo: 'recusa' } & Recusa);
 
+/**
+ * RN-VEN-30 (T-0184, como o backfill da 0088): pedido em `pending_approval` sem linha de aprovação (veio da API antiga) vale como
+ * uma aprovação de `desconto` pendente no nível do pedido. A API grava essa linha ao decidir.
+ */
+export function aprovacoesDoPedido(status: OrderStatus, aprovacoes: readonly AprovacaoDoCiclo[], nivelDoPedido: NivelAprovacao | null | undefined): readonly AprovacaoDoCiclo[] {
+  if (status !== 'pending_approval' || aprovacoes.length > 0 || !nivelDoPedido) return aprovacoes;
+  return [{ motivo: 'desconto', nivel: nivelDoPedido, estado: 'pendente' }];
+}
+
 const DESTINO_DA_DECISAO = { aprovar: 'approved', devolver: 'rejected', recusar: 'cancelled' } as const;
 const ESTADO_DA_DECISAO = { aprovar: 'aprovada', devolver: 'devolvida', recusar: 'rejeitada' } as const;
 
@@ -570,8 +581,9 @@ export function decidirAprovacao(e: DecidirEntrada): ResultadoDecisao {
     return { tipo: 'recusa', codigo: 'PERFIL_SEM_ACESSO', http: 403, mensagem: 'Seu perfil não aprova pedidos.' };
   }
   if (e.status === DESTINO_DA_DECISAO[e.decisao]) return { tipo: 'repetida' };
-  const pendentes = e.aprovacoes.filter((a) => a.estado === 'pendente');
-  if (e.motivo && e.aprovacoes.some((a) => a.motivo === e.motivo && a.estado === ESTADO_DA_DECISAO[e.decisao])) return { tipo: 'repetida' };
+  const aprovacoes = aprovacoesDoPedido(e.status, e.aprovacoes, e.nivel_do_pedido);
+  const pendentes = aprovacoes.filter((a) => a.estado === 'pendente');
+  if (e.motivo && aprovacoes.some((a) => a.motivo === e.motivo && a.estado === ESTADO_DA_DECISAO[e.decisao])) return { tipo: 'repetida' };
   if (e.status !== 'pending_approval' || pendentes.length === 0) {
     return { tipo: 'recusa', codigo: 'RN-VEN-30', http: 422, mensagem: 'Este pedido não está aguardando aprovação.' };
   }
@@ -585,6 +597,8 @@ export function decidirAprovacao(e: DecidirEntrada): ResultadoDecisao {
   const alvo = pendentes.filter((a) => !e.motivo || a.motivo === e.motivo);
   const decidiveis = alvo.filter((a) => quemDecide(e.perfil, a.nivel).pode);
   if (decidiveis.length === 0) {
+    // "aprovar tudo" repetido depois de uma aprovação parcial: o perfil já decidiu o que lhe cabia (RN-VEN-33)
+    if (e.decisao === 'aprovar' && !e.motivo && aprovacoes.some((a) => a.estado === 'aprovada' && quemDecide(e.perfil, a.nivel).pode)) return { tipo: 'repetida' };
     return { tipo: 'recusa', codigo: 'RN-VEN-10', http: 422, mensagem: `Este pedido precisa de aprovação do nível ${maiorNivel(alvo.map((a) => a.nivel))}.` };
   }
   const acima = decidiveis.some((a) => quemDecide(e.perfil, a.nivel).acima_do_nivel);

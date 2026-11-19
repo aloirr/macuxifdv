@@ -114,6 +114,8 @@ describe('validateOrder', () => {
 describe('máquina de status', () => {
   it.each([
     ['queued', 'received', true],
+    ['rejected', 'received', true],
+    ['received', 'rejected', true],
     ['pending_approval', 'approved', true],
     ['pending_approval', 'integrated', false],
     ['integrated', 'cancelled', false],
@@ -188,6 +190,10 @@ describe('P-2 (T-0029): pedido aprovado não é editável nesta fatia', () => {
   });
   it('RN-VEN-30: recebido pode virar aprovado (aprovação automática dentro da alçada)', () => {
     expect(canTransition('received', 'approved')).toBe(true);
+  });
+  it('RN-VEN-30: o pedido devolvido (rejected) reenviado com o conteúdo corrigido volta a received e abre o ciclo seguinte', () => {
+    expect(canTransition('rejected', 'received')).toBe(true);
+    expect(canTransition('cancelled', 'received')).toBe(false);
   });
   it('RN-VEN-31: aprovado cancela, mas depois do envio ao ERP não', () => {
     expect(canTransition('approved', 'cancelled')).toBe(true);

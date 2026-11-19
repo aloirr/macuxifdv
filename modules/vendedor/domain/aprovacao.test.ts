@@ -5,6 +5,7 @@ import {
   CARTEIRA_FORA,
   dataDoPreco,
   emitidoEm,
+  aprovacoesDoPedido,
   decidirAprovacao,
   niveisDosParametros,
   MOTIVO_REJEICAO_MIN,
@@ -280,6 +281,26 @@ describe('decidirAprovacao (uma aprovação por motivo, T-0184)', () => {
   it('RN-VEN-33: aprovar de novo o mesmo motivo já aprovado é idempotente', () => {
     const r = decidirAprovacao({ status: 'pending_approval', aprovacoes: [{ ...tres[0]!, estado: 'aprovada' }, tres[1]!], perfil: 'supervisor', decisao: 'aprovar', motivo: 'desconto' });
     expect(r).toEqual({ tipo: 'repetida' });
+  });
+  it('RN-VEN-10 e RN-VEN-33: repetir "aprovar tudo" depois de uma aprovação parcial é idempotente, não 422', () => {
+    const parcial = [{ ...tres[0]!, estado: 'aprovada' as const }, tres[1]!];
+    expect(decidirAprovacao({ status: 'pending_approval', aprovacoes: parcial, perfil: 'supervisor', decisao: 'aprovar' })).toEqual({ tipo: 'repetida' });
+  });
+  it('RN-VEN-10: aprovar tudo sem nada decidido pelo perfil e sem decisão dele antes segue 422 com o nível exigido', () => {
+    const r = decidirAprovacao({ status: 'pending_approval', aprovacoes: [tres[1]!], perfil: 'supervisor', decisao: 'aprovar' });
+    expect(r).toMatchObject({ tipo: 'recusa', codigo: 'RN-VEN-10', http: 422 });
+  });
+  it('RN-VEN-30: pedido pendente sem linhas de aprovação (API antiga) vale como desconto no nível do pedido', () => {
+    const sem = { status: 'pending_approval' as const, aprovacoes: [], perfil: 'supervisor', nivel_do_pedido: 'supervisor' as const };
+    expect(decidirAprovacao({ ...sem, decisao: 'aprovar' })).toMatchObject({ tipo: 'ok', para: 'approved', mudancas: [{ motivo: 'desconto', estado: 'aprovada' }] });
+    expect(decidirAprovacao({ ...sem, nivel_do_pedido: 'gerente', decisao: 'aprovar' })).toMatchObject({ tipo: 'recusa', codigo: 'RN-VEN-10' });
+    expect(decidirAprovacao({ ...sem, decisao: 'recusar', texto: 'não pode' })).toMatchObject({ tipo: 'ok', para: 'cancelled', mudancas: [{ motivo: 'desconto', estado: 'rejeitada' }] });
+    expect(decidirAprovacao({ ...sem, nivel_do_pedido: undefined, decisao: 'aprovar' })).toMatchObject({ tipo: 'recusa', codigo: 'RN-VEN-30' });
+  });
+  it('RN-VEN-30: aprovacoesDoPedido devolve a linha de desconto só quando o pedido pendente não tem nenhuma', () => {
+    expect(aprovacoesDoPedido('pending_approval', [], 'gerente')).toEqual([{ motivo: 'desconto', nivel: 'gerente', estado: 'pendente' }]);
+    expect(aprovacoesDoPedido('pending_approval', tres, 'gerente')).toBe(tres);
+    expect(aprovacoesDoPedido('approved', [], 'gerente')).toEqual([]);
   });
 });
 
