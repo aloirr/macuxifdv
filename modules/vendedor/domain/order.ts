@@ -122,6 +122,11 @@ export interface OrderValidation {
   available_credit_cents: Cents;
 }
 
+/** Resultado do pedido pelos avisos: algum bloqueante = recusado; algum que pede aprovação = aprovação; senão ok. */
+export function resultadoDosAvisos(issues: readonly Pick<OrderIssue, 'blocking' | 'needs_approval'>[]): OrderValidation['outcome'] {
+  return issues.some((i) => i.blocking) ? 'rejected' : issues.some((i) => i.needs_approval) ? 'pending_approval' : 'ok';
+}
+
 /**
  * Validação única do pedido: usada pelo app (offline, para avisar antes de enviar)
  * e revalidada no servidor. Mesma regra nos dois lados.
@@ -182,11 +187,7 @@ export function validateOrder(input: ValidateOrderInput): OrderValidation {
     });
   }
 
-  const outcome = issues.some((i) => i.blocking)
-    ? 'rejected'
-    : issues.some((i) => i.needs_approval)
-      ? 'pending_approval'
-      : 'ok';
+  const outcome = resultadoDosAvisos(issues);
   return { totals, issues, outcome, discount, available_credit_cents: available };
 }
 
@@ -224,7 +225,8 @@ const transitions: Record<OrderStatus, OrderStatus[]> = {
   integrated: ['invoiced_partial', 'invoiced'],
   invoiced_partial: ['invoiced_partial', 'invoiced'],
   invoiced: [],
-  rejected: ['sent_to_erp', 'pending_approval', 'cancelled'],
+  // RN-VEN-30: `received` é o reenvio do pedido devolvido com o conteúdo corrigido (abre o ciclo seguinte das aprovações)
+  rejected: ['received', 'sent_to_erp', 'pending_approval', 'cancelled'],
   cancelled: [],
 };
 

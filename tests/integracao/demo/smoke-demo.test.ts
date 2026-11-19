@@ -284,7 +284,7 @@ describe.skipIf(semBanco())('SMOKE DEMO 03/11 — roteiro do dono do produto (ba
     expect(paraAprovar, 'notificação "para aprovar" da supervisora').toEqual([{ prioridade: 'alta' }]);
     const a = await api.chamar(token.supervisor, { method: 'POST', url: `/v1/vendedor/pedidos/${pedidoId}/aprovar`, payload: {} });
     expect(a.statusCode, a.body).toBe(200);
-    expect(OrderDetail.parse(a.json()).status).toBe('approved');
+    expect(a.json(), 'T-0184 (desenho §7.1): resposta { status, aprovacoes }').toMatchObject({ status: 'approved' });
   }, 180_000);
 
   it('S4. Push de "pedido aprovado": notificação do Lucas com o link do pedido e mensagem ao provedor (Expo ou FCM) com data.link/data.entidades (despachante real)', async () => {

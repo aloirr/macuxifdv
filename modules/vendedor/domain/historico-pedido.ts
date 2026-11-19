@@ -6,6 +6,7 @@
  * - o autor só aparece quando não é o vendedor do pedido e é uma pessoa (não "aparelho", "ERP").
  */
 import type { OrderEvent } from '../contracts';
+import { ROTULO_MOTIVO_APROVACAO, type MotivoAprovacao } from './aprovacao';
 import type { SituacaoOrcamento } from './orcamento';
 
 /** Mesma forma do `EventoDoHistorico` do kit de UI (o domain não importa o kit). */
@@ -74,3 +75,33 @@ export function eventosDoOrcamento(
   return out;
 }
 
+
+/** Um motivo já aprovado: quem decidiu e quando (texto curto no fuso do tenant), se conhecidos. */
+export interface AprovacaoDecidida {
+  motivo: MotivoAprovacao;
+  por?: string | null;
+  quando?: string | null;
+}
+
+/**
+ * T-0184 (P3 B, prancha 02, MC-1760): a etapa "Em aprovação" do Histórico vira uma por motivo ainda pendente, SEM data
+ * ("Em aprovação · Crédito"), e cada motivo já aprovado entra logo antes dela como "Aprovado · <motivo> · <quem> · <dd/MM HH:mm>" (tom sucesso;
+ * quem e quando, o que houver, já formatados pelo chamador no fuso do tenant).
+ * Cada motivo aparece uma vez. As outras etapas ficam como estão. Sem motivos pendentes, nada muda.
+ */
+export function tagsPorMotivoPendente<T extends { id: string; rotulo: string; texto: string; leitura: string; tom: string }>(
+  tags: readonly T[],
+  motivosPendentes: readonly MotivoAprovacao[],
+  aprovados: readonly AprovacaoDecidida[] = [],
+): T[] {
+  if (motivosPendentes.length === 0) return [...tags];
+  return tags.flatMap((t) => {
+    if (t.rotulo !== 'Em aprovação') return [t];
+    const aprovadas = aprovados.map(({ motivo, por, quando }) => {
+      const partes = [ROTULO_MOTIVO_APROVACAO[motivo], por, quando].filter((x): x is string => !!x);
+      return { ...t, id: `${t.id}-aprovado-${motivo}`, rotulo: 'Aprovado', texto: ['Aprovado', ...partes].join(' · '), leitura: ['Aprovado', ...(por ? [partes[0]!, `por ${por}`, ...(quando ? [quando] : [])] : partes)].join(', '), tom: 'sucesso' };
+    });
+    const pendentes = motivosPendentes.map((m) => ({ ...t, id: `${t.id}-${m}`, rotulo: `${t.rotulo} · ${ROTULO_MOTIVO_APROVACAO[m]}`, texto: `${t.rotulo} · ${ROTULO_MOTIVO_APROVACAO[m]}`, leitura: `${t.rotulo}, ${ROTULO_MOTIVO_APROVACAO[m]}` }));
+    return [...aprovadas, ...pendentes];
+  });
+}

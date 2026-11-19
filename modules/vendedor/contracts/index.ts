@@ -18,19 +18,21 @@ import {
   Receivable,
 } from '@macuxi/core/contracts';
 
-import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
+import { ESTADOS_APROVACAO_MOTIVO, type DecisaoAprovador, MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
 import { SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '../domain/orcamento';
 import { ORDER_STATUSES } from '../domain/order';
 import { PercentualAjuste } from '@macuxi/integracao/contracts';
 import { EnderecoEditadoPedido, EnderecoEntregaPedido, Frete, FreteDoPedido, ItemPush } from './frete';
 export * from './formas-pagamento';
 export * from './prazo-ajuste';
+export * from './preco-prazo-padrao';
 
 /** T-0054 (RN-VEN-37, proposta): situação da devolução do pedido. */
 export const SITUACOES_DEVOLUCAO = ['nenhuma', 'parcial', 'total'] as const;
 
 export { ORDER_STATUSES, ORDER_STATUS_LABEL } from '../domain/order';
-export { MOTIVOS_APROVACAO, MOTIVO_REJEICAO_MIN, NIVEIS_APROVACAO, STATUS_CONTRATO } from '../domain/aprovacao';
+export type { DecisaoAprovador, EstadoAprovacaoMotivo } from '../domain/aprovacao';
+export { DECISOES_APROVADOR, ESTADOS_APROVACAO_MOTIVO, maiorNivel, MOTIVOS_APROVACAO, MOTIVO_REJEICAO_MIN, NIVEIS_APROVACAO, quemDecide, ROTULO_MOTIVO_APROVACAO, STATUS_CONTRATO } from '../domain/aprovacao';
 export { SITUACAO_ORCAMENTO_LABEL, SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '../domain/orcamento';
 // T-0077 (RF-VEN-05): busca e período da lista de Pedidos, reusados pelo Gestão (filtro de vendedor fica no Gestor)
 export {
@@ -103,6 +105,20 @@ export type OrderItem = z.infer<typeof OrderItem>;
 export const OrderEvent = z.object({ at: IsoDateTime, status: z.string(), by: z.string(), note: z.string() });
 export type OrderEvent = z.infer<typeof OrderEvent>;
 
+/** T-0184: o estado de UMA aprovação do pedido (uma por motivo, P3 B). `texto_pendencia` é o que o aprovador lê; `decidida_*` só depois da decisão. */
+export const AprovacaoMotivo = z.object({
+  motivo: z.enum(MOTIVOS_APROVACAO),
+  nivel: z.enum(NIVEIS_APROVACAO),
+  estado: z.enum(ESTADOS_APROVACAO_MOTIVO),
+  texto_pendencia: z.string(),
+  decidida_por_id: Id.nullable(),
+  /** aditivo: o nome de quem decidiu (`core.cadastro_resumo@1`); ausente quando ninguém decidiu ou o cadastro não o devolveu */
+  decidida_por_nome: z.string().nullable().optional(),
+  decidida_em: IsoDateTime.nullable(),
+  texto_decisao: z.string().nullable(),
+});
+export type AprovacaoMotivo = z.infer<typeof AprovacaoMotivo>;
+
 export const Order = z.object({
   id: Id,
   number: z.string(),
@@ -155,6 +171,16 @@ export const Order = z.object({
   /** T-0053: pedido nascido de orçamento / pedido em que o orçamento virou. */
   orcamento_origem_id: Id.nullable().optional(),
   convertido_pedido_id: Id.nullable().optional(),
+  /** R-20261118-214740 (tabela de Pedidos do BKO): do retrato do cliente no pedido, da observação e dos motivos de aprovação; ausente = pedido anterior. */
+  customer_code: z.string().optional(),
+  customer_uf: z.string().optional(),
+  customer_city: z.string().optional(),
+  order_note: z.string().optional(),
+  approval_reasons: z.array(z.enum(MOTIVOS_APROVACAO)).optional(),
+  /** T-0184: uma aprovação por motivo, só as do ciclo atual; vazio se o pedido nunca foi para aprovação; ausente = servidor anterior */
+  aprovacoes: z.array(AprovacaoMotivo).optional(),
+  /** Supervisor do vendedor (cadastro do Core). Ausente até o Core expor o nome numa consulta (pendência). */
+  supervisor_name: z.string().optional(),
   /** T-0138 (RN-VEN-31, T-0114): o conector aceita cancelar este pedido já enviado (vem no pull); ausente = não aceita. */
   erp_aceita_cancelamento: z.boolean().optional(),
   // --- T-0061: acréscimo do pedido, desconto efetivo (RN-VEN-03, sem frete), frete CIF/FOB e endereço de entrega ---
@@ -328,7 +354,7 @@ export const CODIGOS_RECUSA_PEDIDO = [
   'unidade_invalida', 'endereco_invalido', 'transportadora_obrigatoria', 'transportadora_invalida', 'desconto_e_acrescimo', 'preco_abaixo_minimo',
   // T-0071: orçamento vencido/convertido/cancelado (RN-VEN-18), ajuste em % e R$ juntos ou acima do limite, edição concorrente
   'RN-VEN-18', 'ajuste_invalido', 'ORCAMENTO_ALTERADO',
-  // T-0089: forma/prazo inexistente, inativo ou de outra forma (RN-VEN-24); forma não permitida ou prazo acima do prazo médio do cliente (RN-VEN-25)
+  // T-0089: forma/prazo inexistente, inativo ou de outra forma (RN-VEN-24); forma não aceita pelo cliente (RN-VEN-25; todos os prazos ativos da forma valem; o prazo médio do cadastro só define à vista)
   'RN-VEN-24', 'RN-VEN-25',
   // T-0168 (RN-VEN-11a): desconto efetivo do pedido acima do limite do usuário
   'desconto_pedido_acima_limite',
@@ -379,12 +405,37 @@ export const OrderListQuery = z.object({
   sem_pendentes: z.enum(['0', '1']).optional(),
 });
 
-/** Aprovar: 1 toque, comentário opcional (RN-GES-08). */
-export const AprovarPedidoRequest = z.object({ comentario: z.string().max(500).optional() });
+/** Aprovar: 1 toque, comentário opcional (RN-GES-08). Sem `motivo_aprovacao`, vale para todas as pendentes que o usuário decide (T-0184 §3, ADR 0062). */
+export const AprovarPedidoRequest = z.object({ comentario: z.string().max(500).optional(), motivo_aprovacao: MotivoAprovacao.optional() });
 export type AprovarPedidoRequest = z.infer<typeof AprovarPedidoRequest>;
-/** Rejeitar: o motivo de 3+ caracteres é regra de negócio (domínio, 422 RN-GES-08), não Zod. */
-export const RejeitarPedidoRequest = z.object({ motivo: z.string().max(500) });
+/**
+ * Rejeitar = DEVOLVER ao vendedor (`rejected`; P6 A). `motivo` é o texto livre do aprovador, de `MOTIVO_REJEICAO_MIN`+ caracteres
+ * (o app Gestão v1.0.13 já manda assim); o motivo da aprovação é `motivo_aprovacao`, nunca `motivo`. O mínimo de `MOTIVO_REJEICAO_MIN` depois do trim
+ * é regra do domínio (RN-GES-08, 422), não do Zod: o texto curto chega à regra e volta com o código dela.
+ */
+export const RejeitarPedidoRequest = z.object({ motivo: z.string().max(500), motivo_aprovacao: MotivoAprovacao.optional() });
 export type RejeitarPedidoRequest = z.infer<typeof RejeitarPedidoRequest>;
+/** Recusar = rejeitar de vez (`cancelled`, final; P6 A): o mesmo corpo de `rejeitar`. */
+export const RecusarPedidoRequest = RejeitarPedidoRequest;
+export type RecusarPedidoRequest = RejeitarPedidoRequest;
+
+/** Decisão do aprovador → rota do Vendedor (`pedidos/:id/<rota>`): devolver usa a `rejeitar` de sempre; recusar é a rota nova. Gestor e BKO leem daqui. */
+export const ROTA_DA_DECISAO = { aprovar: 'aprovar', devolver: 'rejeitar', recusar: 'recusar' } as const satisfies Record<DecisaoAprovador, string>;
+/** Decisão → schema do corpo da rota. */
+export const CORPO_DA_DECISAO = { aprovar: AprovarPedidoRequest, devolver: RejeitarPedidoRequest, recusar: RecusarPedidoRequest } as const;
+
+/**
+ * Monta o corpo da rota da decisão (RN-GES-08): aprovar leva o comentário opcional; devolver e recusar levam o texto em `motivo`.
+ * `motivo_aprovacao` ausente = vale para todas as pendentes que o usuário decide.
+ */
+export function corpoDaDecisao(decisao: DecisaoAprovador, texto: string, motivoAprovacao?: MotivoAprovacao): AprovarPedidoRequest | RejeitarPedidoRequest {
+  const t = texto.trim();
+  const motivo = motivoAprovacao ? { motivo_aprovacao: motivoAprovacao } : {};
+  return decisao === 'aprovar' ? { ...(t ? { comentario: t } : {}), ...motivo } : { motivo: t, ...motivo };
+}
+/** Resposta das três rotas de decisão: o status do pedido e as aprovações do ciclo atual (T-0184). */
+export const DecisaoAprovacaoResposta = z.object({ status: OrderStatus, aprovacoes: z.array(AprovacaoMotivo) });
+export type DecisaoAprovacaoResposta = z.infer<typeof DecisaoAprovacaoResposta>;
 
 export const DecisionRequest = z.object({ reason: z.string().max(500).optional() });
 export const RejectRequest = z.object({ reason: z.string().min(3, 'Informe o motivo da recusa.').max(500) });
@@ -404,8 +455,14 @@ export const DiscountPolicy = z.object({
   manager_pct: Pct,
   above_manager: z.enum(['block', 'director']),
   exceptions: z.array(z.object({ seller_id: Id, seller_name: z.string(), max_discount_pct: Pct })),
+  /** T-0184 (P2 B, P5 B): quem aprova crédito e inadimplência; padrão gerente; ausente = servidor anterior */
+  aprovador_credito: z.enum(NIVEIS_APROVACAO).optional(),
+  aprovador_inadimplencia: z.enum(NIVEIS_APROVACAO).optional(),
 });
 export type DiscountPolicy = z.infer<typeof DiscountPolicy>;
+/** T-0184 (P2 B): quem aprova crédito e quem aprova inadimplência (Parâmetros › Pedidos). */
+export const PutAprovadoresRequest = z.object({ aprovador_credito: z.enum(NIVEIS_APROVACAO), aprovador_inadimplencia: z.enum(NIVEIS_APROVACAO) });
+export type PutAprovadoresRequest = z.infer<typeof PutAprovadoresRequest>;
 export const PutDiscountPolicyRequest = z.object({
   seller_pct: Pct.min(0).max(100),
   supervisor_pct: Pct.min(0).max(100),

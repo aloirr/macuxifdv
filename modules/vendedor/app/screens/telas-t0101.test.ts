@@ -45,8 +45,8 @@ describe('T-0101 (RN-VEN-35): seletor de clientes do novo pedido', () => {
 
 describe('T-0127 (RN-CORE-36, RN-VEN-16): pendências só no Resumo', () => {
   const s = fonte('new-order-screen.tsx');
-  it('RN-CORE-36 (RN-VEN-42): o que falta vira linha da área Alertas, no topo de todas as abas; sem o botão "Corrigir frete"', () => {
-    expect(s).toContain('<AreaAlertas alertas={alertasDoTopo}');
+  it('RN-CORE-36 (RN-VEN-42): o que falta vira linha da área Alertas, só na aba Resumo; sem o botão "Corrigir frete"', () => {
+    expect(s).toContain('<AreaAlertas alertas={alertasNaAba(aba, alertasDoTopo)}');
     expect(s).not.toContain('BlocoPendencias');
     expect(s).not.toContain('PendenciasDoPedido');
     expect(s).not.toContain('Corrigir frete');

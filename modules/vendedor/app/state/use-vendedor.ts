@@ -17,7 +17,9 @@ import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
 import { DEFAULT_TZ, monthStart } from '@macuxi/ui/mobile/puro';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MixSuggestion } from '@macuxi/catalogo/contracts';
-import type { CustomerDetail, EditarOrcamentoRequest, Order, OrderDetail, PedidoPush, UpdateOrderRequest } from '../../contracts';
+import { aplicarDecisaoNoDetalhe } from '../lib/decisao-pedido';
+import { corpoDaDecisao, ROTA_DA_DECISAO } from '../../contracts';
+import type { CustomerDetail, DecisaoAprovacaoResposta, DecisaoAprovador, EditarOrcamentoRequest, Order, OrderDetail, PedidoPush, UpdateOrderRequest } from '../../contracts';
 import { orderActions, type OrderStatus } from '../../domain/order';
 import { percentualAjusteParaBp, type NivelDePreco } from '../../domain/preco-pedido';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
@@ -36,7 +38,8 @@ import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/
 import { idsSemTexto } from '../../domain/busca-seletor';
 import { buscarNoCatalogoComReserva, type ResultadoBuscaCatalogo } from '../lib/busca-catalogo';
 import { situacaoDoClienteSync } from '../lib/textos-pedido';
-import { modeloDoCredito, type ModeloDoCredito } from '../lib/credito-cliente';
+import { financeiroParaAprovacao, modeloDoCredito, type ModeloDoCredito } from '../lib/credito-cliente';
+import { tituloVencidoDias } from '../../domain/pagamento';
 import {
   aceitosComoPedidos,
   draftKeyFor,
@@ -46,6 +49,7 @@ import {
   pedidosNaFila,
   prepararPedido,
   rascunhoVazio,
+  type EntradaPrepararPedido,
   type OrderDisplay,
   type PedidoDaLista,
   type PedidoNaFila,
@@ -366,7 +370,7 @@ export function useVendedor() {
   const limitesDe = useCallback(
     (clienteId: string) => {
       const c = linhas.clientes.find((x) => x.id === clienteId);
-      return { prazo_medio_max_dias: c?.prazo_medio_max_dias ?? null, formas_pagamento: c?.formas_pagamento ?? null };
+      return { formas_pagamento: c?.formas_pagamento ?? null };
     },
     [linhas.clientes],
   );
@@ -430,14 +434,14 @@ export function useVendedor() {
     filaRef.current.filter((o) => o.payload.customer_id === customerId && o.payload.id !== ignorar).reduce((s, o) => s + (o.display?.total_cents ?? 0), 0);
 
   const prepararDoRascunho = useCallback(
-    (rascunho: Rascunho, cliente: CustomerSummary, catalogo: Product[], editId?: string) => {
+    (rascunho: Rascunho, cliente: CustomerSummary, catalogo: Product[], editId?: string, financeiro?: EntradaPrepararPedido['financeiro']) => {
       const pol = v1 ? politicaApi(parametrosRef.current) : dadosRef.current.politica;
       if (!pol) throw new Error('Alçadas ainda não estão no aparelho. Sincronize com sinal e tente de novo.');
       const editado = editId ? dadosRef.current.pedidos.find((o) => o.id === editId) ?? null : null;
       const eu = v1 && usuario?.perfil === 'vendedor' ? meDoAparelho({ id: usuario.id, nome: usuario.nome, perfil: usuario.perfil, fuso: usuario.fuso }, parametrosRef.current, new Date()).seller : dadosRef.current.me?.seller ?? null;
       // RN-VEN-35/10: pedido em nome valida pela alçada do gestor (supervisor/gerente) e dispensa o vendedor logado
       const emNome = !editId && rascunho.vendedor_em_nome_id && usuario ? { vendedor_id: rascunho.vendedor_em_nome_id, perfil_autor: usuario.perfil ?? '', ...(rascunho.vendedor_em_nome_nome ? { nome: rascunho.vendedor_em_nome_nome } : {}) } : null;
-      return prepararPedido({ rascunho, cliente, catalogo, politica: pol, limite: limiteDoUsuarioNasLinhas(linhasRef.current, usuario?.id), eu, emNome, filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId), pedidoEditado: editado, unidades: unidadesDaTela(linhasRef.current), faixas: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.faixas, aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosRef.current), max: aplicacaoMaxOrcamento(parametrosRef.current) } });
+      return prepararPedido({ rascunho, cliente, catalogo, politica: pol, limite: limiteDoUsuarioNasLinhas(linhasRef.current, usuario?.id), eu, emNome, filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId), pedidoEditado: editado, unidades: unidadesDaTela(linhasRef.current), faixas: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.faixas, aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosRef.current), max: aplicacaoMaxOrcamento(parametrosRef.current) }, financeiro });
     },
     [v1, usuario],
   );
@@ -463,11 +467,28 @@ export function useVendedor() {
     [motor, repo, v1, carregarPedido, recarregar],
   );
 
+  /**
+   * T-0184 (RN-VEN-12 e RN-VEN-13): os dados financeiros do aparelho para o pedido (vale offline). Pedido (não orçamento) com o Core
+   * sem resposta devolve `null`: o app avisa o que sabe e não bloqueia o envio; o servidor decide ao receber.
+   */
+  const financeiroDoEnvio = useCallback(
+    async (rascunho: Rascunho, clienteId: string) => {
+      if (rascunho.tipo === 'orcamento') return null;
+      const prazo = prazos.find((p) => p.id === rascunho.prazo_pagamento_id)?.prazo_medio_dias;
+      try {
+        return financeiroParaAprovacao(await creditoDoCliente(clienteId), prazo, tituloVencidoDias(parametrosRef.current));
+      } catch {
+        return null;
+      }
+    },
+    [creditoDoCliente, prazos],
+  );
+
   /** Salva o pedido: grava na fila (persistida) e devolve na hora; o envio segue em segundo plano (T-0130). */
   const enviarPedido = useCallback(
     async (rascunho: Rascunho, cliente: CustomerSummary, catalogo: Product[]): Promise<ResultadoEnvio> => {
       if (!motor || !repo) throw new Error(MSG_APP_CARREGANDO);
-      const { v, display } = prepararDoRascunho(rascunho, cliente, catalogo);
+      const { v, display } = prepararDoRascunho(rascunho, cliente, catalogo, undefined, await financeiroDoEnvio(rascunho, cliente.id));
       const id = ambiente.novoId();
       const agora = new Date().toISOString();
       const payload: PedidoPush = montarPedido({ id, cliente, rascunho, v, semSinal: !ambiente.online(), agora });
@@ -480,7 +501,7 @@ export function useVendedor() {
       if (ambiente.online()) void seguirEnvioEmSegundoPlano(id);
       return { kind: 'queued', id };
     },
-    [motor, repo, prepararDoRascunho, recarregar, ambiente, seguirEnvioEmSegundoPlano],
+    [motor, repo, prepararDoRascunho, financeiroDoEnvio, recarregar, ambiente, seguirEnvioEmSegundoPlano],
   );
 
   const unidadesTransportadoras = useCallback(() => (v1 ? transportadorasDaTela(linhasRef.current) : []), [v1]);
@@ -537,7 +558,7 @@ export function useVendedor() {
   const salvarEdicao = useCallback(
     async (orderId: string, rascunho: Rascunho, cliente: CustomerSummary, catalogo: Product[]): Promise<ResultadoAlteracao> => {
       if (!motor || !repo) throw new Error(MSG_APP_CARREGANDO);
-      const { v, display } = prepararDoRascunho(rascunho, cliente, catalogo, orderId);
+      const { v, display } = prepararDoRascunho(rascunho, cliente, catalogo, orderId, await financeiroDoEnvio(rascunho, cliente.id));
       const itens = linhasParaPush(v.calculo.linhas);
       const chave = draftKeyFor(cliente.id, orderId);
       const naFila = filaRef.current.find((o) => o.payload.id === orderId);
@@ -596,7 +617,7 @@ export function useVendedor() {
       await recarregar();
       return { kind: 'server', order };
     },
-    [motor, repo, prepararDoRascunho, recarregar, ambiente, v1, perfil],
+    [motor, repo, prepararDoRascunho, financeiroDoEnvio, recarregar, ambiente, v1, perfil],
   );
 
   /** Catálogo → "Adicionar ao orçamento": os orçamentos em aberto do vendedor (fila do aparelho e servidor), do mais novo ao mais antigo. */
@@ -671,26 +692,30 @@ export function useVendedor() {
   );
 
   /**
-   * Aprovar ou rejeitar (RN-GES-08; ADR 0011 D-4): exige internet, porque outro gestor pode ter decidido antes. A resposta
+   * Aprovar ou devolver ao vendedor (`rejected`; RN-GES-08; ADR 0011 D-4): exige internet, porque outro gestor pode ter decidido antes. A resposta
    * da API vale na hora; depois uma sincronização traz o estado novo para o aparelho.
    */
   const decidirPedido = useCallback(
-    async (orderId: string, decisao: 'aprovar' | 'rejeitar', texto: string): Promise<OrderDetail> => {
+    async (orderId: string, decisao: DecisaoAprovador, texto: string): Promise<OrderDetail> => {
       if (!ambiente.online()) throw new Error('Sem sinal para decidir');
-      let order: OrderDetail;
+      let resposta: DecisaoAprovacaoResposta;
       try {
-        order = await ambiente.http.requisitar<OrderDetail>('POST', `/vendedor/pedidos/${encodeURIComponent(orderId)}/${decisao === 'aprovar' ? 'aprovar' : 'rejeitar'}`, {
-          body: decisao === 'aprovar' ? (texto.trim() ? { comentario: texto.trim() } : {}) : { motivo: texto.trim() },
+        resposta = await ambiente.http.requisitar<DecisaoAprovacaoResposta>('POST', `/vendedor/pedidos/${encodeURIComponent(orderId)}/${ROTA_DA_DECISAO[decisao]}`, {
+          body: corpoDaDecisao(decisao, texto),
         });
       } catch (e) {
         if (ehSemConexao(e)) throw new Error('Sem sinal para decidir');
         throw e;
       }
+      // T-0184: a resposta traz só o status e as aprovações; o resto do detalhe vem das linhas do aparelho
+      const local = detalheDoPedido(linhasRef.current, orderId, perfil, parametrosRef.current);
+      if (!local) throw new Error('Pedido ainda não sincronizado. Sincronize e tente de novo.');
+      const order = aplicarDecisaoNoDetalhe(local, resposta);
       setDecididos((d) => ({ ...d, [orderId]: order }));
       void motor?.sincronizar().then(() => recarregar());
       return order;
     },
-    [ambiente, motor, recarregar],
+    [ambiente, motor, recarregar, perfil],
   );
 
   /**

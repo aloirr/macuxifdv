@@ -15,7 +15,7 @@ import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
 import { CONSULTA_CADASTRO_RESUMO, CONSULTA_FILIAIS, type LimiteDesconto } from '@macuxi/core/contracts';
 import { ErroHttpModulo, type ClienteBanco, type ContextoBase, type ItemPush, type ResultadoItemPush, type TransacaoTenant } from '@macuxi/platform-sdk';
 import {
-  EVENTO_PEDIDO_APROVACAO_SOLICITADA,
+  EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2,
   EVENTO_PEDIDO_APROVADO,
   EVENTO_PEDIDO_CRIADO,
   EVENTO_PEDIDO_STATUS_ALTERADO,
@@ -35,6 +35,7 @@ import {
   aplicacaoMaxOrcamento,
   marcaDoRetrato,
   modalidadePadraoDosParametros,
+  niveisDosParametros,
   MSG_RECUSA_FRETE,
   politicaDoAutor,
   politicaDosParametros,
@@ -44,6 +45,7 @@ import {
   enderecoHerdadoDoOrcamento,
   resolverUnidadeDoItem,
   revalidarPedido,
+  situacaoDoEnvio,
   statusDoContrato,
   validadeDoOrcamento,
   validadeOrcamentoDias,
@@ -57,10 +59,16 @@ import {
   type Recusa,
 } from '../domain';
 import { payloadAprovado } from './aprovado-erp';
+import { financeiroDoCliente } from './financeiro-aprovacao';
+import { gravarAprovacoes } from './aprovacoes';
 import { resolverPagamento, valoresPagamento, valorPercentualPrazo } from './pagamento';
+import { montarInsertPedido, montarUpdatePedido, type ColunaPedido } from './colunas-pedido';
 import { preVenda } from './pre-venda';
 import { precosCongeladosDoDocumento } from './preco-congelado';
 import { faltaDeEstoqueNaFilial, provedorSaldoDaFilial } from './estoque-filial';
+
+/** Leitura do pedido já recebido, com trava de linha: dois reenvios iguais ao mesmo tempo não regravam itens nem eventos; o segundo espera e cai na idempotência (RN-VEN-33). */
+export const SQL_PEDIDO_EXISTENTE = 'select vendedor_id, autor_id, cliente_id, hash_envio, status, numero from vendedor.pedido where id = $1 for update';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const aceito = (id: string, em?: string): ResultadoItemPush => (em ? { id, status: 'aceito', em } : { id, status: 'aceito' });
@@ -214,6 +222,9 @@ export async function calcularDocumento(
     }
   }
 
+  // 6b) crédito (RN-VEN-12) e inadimplência (RN-VEN-13): o servidor recalcula e vale a lista dele (T-0184). Orçamento não passa por aqui.
+  const financeiro = tipo === 'pedido' ? await financeiroDoCliente(ctx, db, tx, p.customer_id) : undefined;
+
   // 7) alçada de desconto (RN-VEN-10), preço e totais do servidor (RN-VEN-02)
   const rv = revalidarPedido({
     perfil: ctx.usuario.perfil,
@@ -251,7 +262,9 @@ export async function calcularDocumento(
     percentual_ajuste_bp: pg.percentual_ajuste_bp,
     precos: mapaPreco,
     faixas: mapaFaixas,
-    titulo_vencido: pg.titulo_vencido,
+    financeiro: financeiro?.para_aprovacao,
+    prazo_medio_dias: pagamento?.prazo.prazo_medio_dias,
+    niveis_financeiros: niveisDosParametros(ctx.parametros()),
     // RN-VEN-45: percentual divergente aceito = aviso na linha do tempo, fora da alçada
     percentual_mudou: pg.percentual_mudou,
     aplicacao_max: aplicacaoMaxOrcamento(ctx.parametros()),
@@ -272,9 +285,9 @@ export async function calcularDocumento(
   const validadeCivil = tipo === 'orcamento' ? (validadeFixa ?? validadeDoOrcamento(momentoDaConversao(p.created_offline_at, agora).toISOString(), validadeOrcamentoDias(ctx.parametros()), ctx.fuso())) : null;
   const validade = validadeCivil?.ate ?? null;
   const v = validadeCivil
-    ? { ...rv, status: 'received' as const, nivel: null, motivos: [], aprovacao_automatica: false, pending_reason: '', historico: historicoDoOrcamento(validadeCivil.data, validadeOrcamentoDias(ctx.parametros())) }
+    ? { ...rv, status: 'received' as const, nivel: null, motivos: [], aprovacoes: [], aprovacao_automatica: false, pending_reason: '', historico: historicoDoOrcamento(validadeCivil.data, validadeOrcamentoDias(ctx.parametros())) }
     : rv;
-  return { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm, retratoFilial, percentualAjustePrazo: pg.percentual_ajuste };
+  return { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm, retratoFilial, percentualAjustePrazo: pg.percentual_ajuste, financeiro };
 }
 
 /** Tudo que o servidor decide sobre o documento antes de gravar (preço, alçada, medida, frete, endereço, condição). */
@@ -294,13 +307,16 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
 
   // 2) idempotência (RN-VEN-33)
   const hash = createHash('sha256').update(conteudoDoEnvio(p as unknown as Record<string, unknown>)).digest('hex');
-  const ja = (await db.query<{ vendedor_id: string; autor_id: string | null; hash_envio: string | null; status: string; numero: string | null }>('select vendedor_id, autor_id, hash_envio, status, numero from vendedor.pedido where id = $1', [p.id])).rows[0];
-  if (ja) {
-    // em nome o pedido é do vendedor e quem enviou é o autor: o id só repete para quem o criou
-    if ((ja.autor_id ?? ja.vendedor_id) !== eu) return rejeitado(item.id, 'ID_EM_USO', 'Este identificador de pedido já pertence a outro registro.');
-    if (ja.hash_envio === null || ja.hash_envio === hash) return aceito(item.id, await relogioDoBanco(db));
-    return { id: item.id, status: 'conflito', mensagem: 'Este pedido já foi recebido com outro conteúdo. Duplique-o para fazer um novo.', atual: { id: p.id, status: ja.status, numero: ja.numero } };
+  const ja = (await db.query<{ vendedor_id: string; autor_id: string | null; cliente_id: string; hash_envio: string | null; status: string; numero: string | null }>(SQL_PEDIDO_EXISTENTE, [p.id])).rows[0];
+  // em nome o pedido é do vendedor e quem enviou é o autor: o id só repete para quem o criou. O pedido devolvido (`rejected`) reenviado com
+  // o conteúdo corrigido é reenvio: o servidor recalcula e abre o ciclo seguinte (T-0184 §2); o mesmo envio de novo é idempotente.
+  const situacao = situacaoDoEnvio({ existente: ja ? { dono_id: ja.autor_id ?? ja.vendedor_id, status: ja.status, hash_envio: ja.hash_envio } : undefined, eu, hash });
+  if (situacao === 'id_em_uso') return rejeitado(item.id, 'ID_EM_USO', 'Este identificador de pedido já pertence a outro registro.');
+  if (situacao === 'idempotente') return aceito(item.id, await relogioDoBanco(db));
+  if (situacao === 'conflito') {
+    return { id: item.id, status: 'conflito', mensagem: 'Este pedido já foi recebido com outro conteúdo. Duplique-o para fazer um novo.', atual: { id: p.id, status: ja!.status, numero: ja!.numero } };
   }
+  const reenvio = situacao === 'reenvio';
 
   // 3) carteira
   const carteira = await ctx.carteira();
@@ -313,6 +329,8 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
 
   // 3b) pré-venda (T-0053): orçamento e conversão só com o repositório da 0013
   const tipo = p.tipo ?? 'pedido';
+  // o reenvio corrige o pedido que já existe: não nasce de orçamento nem vira orçamento
+  if (reenvio && (tipo !== 'pedido' || p.orcamento_origem_id || p.customer_id !== ja!.cliente_id)) return rejeitado(item.id, 'PAYLOAD_INVALIDO', 'O pedido devolvido só se corrige no mesmo cliente. Duplique-o para fazer um novo.');
   const origem = p.orcamento_origem_id ?? null;
   if (ehPedidoEmNome(eu, p.vendedor_id) && (tipo === 'orcamento' || origem)) {
     return rejeitado(item.id, 'EM_NOME_SO_PEDIDO', 'Pedido em nome vale só para pedido. Faça o orçamento no nome do próprio vendedor.');
@@ -342,10 +360,11 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   }
   const calc = await calcularDocumento(ctx, db, tx, pDoc, tipo, item.id, undefined, congelados);
   if ('status' in calc) return calc;
-  const { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm, retratoFilial, percentualAjustePrazo } = calc;
+  const { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm, retratoFilial, percentualAjustePrazo, financeiro } = calc;
 
   // 8) grava (pedido, itens, histórico, auditoria, eventos) na mesma transação
-  const numero = (await db.query<{ n: string }>('select vendedor.proximo_numero_pedido() as n')).rows[0]!.n;
+  if (reenvio && donoId !== ja!.vendedor_id) return rejeitado(item.id, 'PAYLOAD_INVALIDO', 'O pedido devolvido não troca de vendedor. Duplique-o para fazer um novo.');
+  const numero = (reenvio ? ja!.numero : null) ?? (await db.query<{ n: string }>('select vendedor.proximo_numero_pedido() as n')).rows[0]!.n;
   const resumo = {
     razao_social: cliente.razao_social,
     nome_fantasia: cliente.nome_fantasia ?? '',
@@ -356,45 +375,56 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     uf: cliente.uf ?? '',
     codigo_erp: cliente.external_id ?? '',
   };
-  const ins = await db.query(
-    `insert into vendedor.pedido (id, tenant_id, cliente_id, vendedor_id, autor_id, status, condicao_pagamento, desconto_pct, total_tabela_cents, total_cents,
-        observacao, visita_id, rota_parada_id, criado_no_aparelho_em, recebido_em, numero, hash_envio, cliente_resumo, cliente_nome, vendedor_nome,
-        tabela_preco_id, condicao_pagamento_id, condicao_pagamento_descricao, nivel_aprovacao, motivos_aprovacao, aprovacao_automatica,
-        acrescimo_pct, desconto_efetivo_pct, frete_modalidade, transportadora_id, transportadora_digitada, transportadora_nome,
-        transportadora_documento, transportadora_telefone, endereco_entrega_id, endereco_entrega,
-        desconto_valor_cents, acrescimo_valor_cents, ajuste_em,
-        forma_pagamento_id, prazo_pagamento_id, forma_pagamento_codigo, forma_pagamento_nome, prazo_codigo, prazo_descricao, prazo_parcelas_dias, prazo_medio_dias,
-        filial_id, filial, prazo_percentual_ajuste)
-     values ($1, plataforma.tenant_atual(), $2, $3, $38, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19, $20, $21, $22, $23::text[], $24,
-        $25, $26, $27, $28, $29, $30, $31, $32, $33, $34::jsonb, $35, $36, $37,
-        $39, $40, $41, $42, $43, $44, $45::int[], $46, $47, $48::jsonb, $49)
-     on conflict (id) do nothing returning id`,
-    [
-      p.id, p.customer_id, donoId, v.status, pagamento?.texto ?? condicao?.descricao ?? null, v.desconto_pct, v.total_tabela_cents, v.total_cents,
-      p.observacao ?? null, p.visita_id ?? null, p.route_stop_id ?? null, p.created_offline_at ?? null, recebidoEm, numero, hash,
-      JSON.stringify(resumo), cliente.nome_fantasia || cliente.razao_social, vendedor?.nome ?? null,
-      precos.tabela_preco_id, condicao?.id ?? null, pagamento?.texto ?? condicao?.descricao ?? null, v.nivel, v.motivos, v.aprovacao_automatica,
-      v.acrescimo_pct, v.desconto_efetivo_pct, frete.modalidade, transportadora.id, transportadora.digitada, transportadora.nome,
-      transportadora.documento, transportadora.telefone, alvo.endereco_id, enderecoRetrato ? JSON.stringify(enderecoRetrato) : null,
-      v.desconto_valor_cents, v.acrescimo_valor_cents, v.ajuste_em, eu,
-      ...valoresPagamento(pagamento),
-      retratoFilial?.filial_id ?? null, retratoFilial ? JSON.stringify(retratoFilial.filial) : null,
-      valorPercentualPrazo(pagamento, percentualAjustePrazo),
-    ],
-  );
-  // outro tenant com o mesmo id (chave primária global): não revela, só recusa
-  if (ins.rows.length === 0) return rejeitado(item.id, 'ID_EM_USO', 'Este identificador de pedido já pertence a outro registro.');
+  // T-0184 §2: o reenvio do pedido devolvido regrava o pedido e abre o ciclo seguinte (max(ciclo)+1); as aprovações do ciclo anterior ficam como histórico
+  const ciclo = reenvio ? Number((await db.query<{ c: number }>('select coalesce(max(ciclo), 0)::int + 1 as c from vendedor.pedido_aprovacao where pedido_id = $1', [p.id])).rows[0]!.c) : 1;
+  // as colunas comuns ao insert e ao reenvio, montadas uma vez
+  const textoPagamento = pagamento?.texto ?? condicao?.descricao ?? null;
+  const [pgFormaId, pgPrazoId, pgFormaCodigo, pgFormaNome, pgPrazoCodigo, pgPrazoDescricao, pgParcelas, pgPrazoMedio] = valoresPagamento(pagamento);
+  const colunas: ColunaPedido[] = [
+    ['status', v.status], ['condicao_pagamento', textoPagamento], ['desconto_pct', v.desconto_pct], ['total_tabela_cents', v.total_tabela_cents],
+    ['total_cents', v.total_cents], ['observacao', p.observacao ?? null], ['visita_id', p.visita_id ?? null], ['rota_parada_id', p.route_stop_id ?? null],
+    ['criado_no_aparelho_em', p.created_offline_at ?? null], ['recebido_em', recebidoEm], ['hash_envio', hash], ['cliente_resumo', JSON.stringify(resumo), 'jsonb'],
+    ['cliente_nome', cliente.nome_fantasia || cliente.razao_social], ['vendedor_nome', vendedor?.nome ?? null], ['tabela_preco_id', precos.tabela_preco_id],
+    ['condicao_pagamento_id', condicao?.id ?? null], ['condicao_pagamento_descricao', textoPagamento], ['nivel_aprovacao', v.nivel],
+    ['motivos_aprovacao', v.motivos, 'text[]'], ['aprovacao_automatica', v.aprovacao_automatica], ['acrescimo_pct', v.acrescimo_pct],
+    ['desconto_efetivo_pct', v.desconto_efetivo_pct], ['frete_modalidade', frete.modalidade], ['transportadora_id', transportadora.id],
+    ['transportadora_digitada', transportadora.digitada], ['transportadora_nome', transportadora.nome], ['transportadora_documento', transportadora.documento],
+    ['transportadora_telefone', transportadora.telefone], ['endereco_entrega_id', alvo.endereco_id],
+    ['endereco_entrega', enderecoRetrato ? JSON.stringify(enderecoRetrato) : null, 'jsonb'], ['desconto_valor_cents', v.desconto_valor_cents],
+    ['acrescimo_valor_cents', v.acrescimo_valor_cents], ['ajuste_em', v.ajuste_em],
+    ['forma_pagamento_id', pgFormaId], ['prazo_pagamento_id', pgPrazoId], ['forma_pagamento_codigo', pgFormaCodigo], ['forma_pagamento_nome', pgFormaNome],
+    ['prazo_codigo', pgPrazoCodigo], ['prazo_descricao', pgPrazoDescricao], ['prazo_parcelas_dias', pgParcelas, 'int[]'], ['prazo_medio_dias', pgPrazoMedio],
+    ['filial_id', retratoFilial?.filial_id ?? null], ['filial', retratoFilial ? JSON.stringify(retratoFilial.filial) : null, 'jsonb'],
+    ['prazo_percentual_ajuste', valorPercentualPrazo(pagamento, percentualAjustePrazo)],
+  ];
+  if (reenvio) {
+    const up = montarUpdatePedido(p.id, colunas, ciclo);
+    await db.query(up.sql, up.valores);
+    // itens: os antigos saem por exclusão lógica (o pull leva a remoção) e os novos entram depois da última sequência
+    await db.query('update vendedor.pedido_item set deleted_at = now() where pedido_id = $1 and deleted_at is null', [p.id]);
+  } else {
+    const novo = montarInsertPedido({ id: p.id, cliente_id: p.customer_id, vendedor_id: donoId, autor_id: eu, numero }, colunas);
+    const ins = await db.query(novo.sql, novo.valores);
+    // outro tenant com o mesmo id (chave primária global): não revela, só recusa
+    if (ins.rows.length === 0) return rejeitado(item.id, 'ID_EM_USO', 'Este identificador de pedido já pertence a outro registro.');
 
+  }
+
+  const ultimaSequencia = reenvio ? Number((await db.query<{ n: number }>('select coalesce(max(sequencia), 0)::int as n from vendedor.pedido_item where pedido_id = $1', [p.id])).rows[0]!.n) : 0;
   for (const [idx, it] of v.itens.entries()) {
     const prod = produtos.get(it.product_id)!;
     await db.query(
       `insert into vendedor.pedido_item (tenant_id, pedido_id, sequencia, produto_id, quantidade, preco_tabela_cents, preco_unitario_cents, desconto_pct, total_cents,
           produto_sku, produto_nome, unidade, fator, acrescimo_pct, preco_minimo_cents, desconto_unitario_cents, acrescimo_unitario_cents, ajuste_em, aplicacao, marca)
        values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
-      [p.id, idx + 1, it.product_id, it.quantity, it.preco_tabela_cents, it.preco_unitario_cents, it.desconto_pct, it.total_cents, prod.sku, prod.nome, it.unidade ?? prod.unidade, it.fator, it.acrescimo_pct, it.preco_minimo_cents, it.desconto_unitario_cents, it.acrescimo_unitario_cents, it.ajuste_em, it.aplicacao, marcaDoRetrato(prod.marca)],
+      [p.id, ultimaSequencia + idx + 1, it.product_id, it.quantity, it.preco_tabela_cents, it.preco_unitario_cents, it.desconto_pct, it.total_cents, prod.sku, prod.nome, it.unidade ?? prod.unidade, it.fator, it.acrescimo_pct, it.preco_minimo_cents, it.desconto_unitario_cents, it.acrescimo_unitario_cents, it.ajuste_em, it.aplicacao, marcaDoRetrato(prod.marca)],
     );
   }
-  for (const h of v.historico) {
+  // T-0184 (P3 B): uma aprovação por motivo, no ciclo do envio (1, ou o seguinte no reenvio)
+  if (v.status === 'pending_approval') await gravarAprovacoes(db, p.id, ciclo, v.aprovacoes);
+  // no reenvio o histórico parte do `rejected` em que o pedido estava
+  const historico = reenvio ? v.historico.map((h) => (h.de === null ? { ...h, de: 'rejected' as const } : h)) : v.historico;
+  for (const h of historico) {
     await db.query(
       `insert into vendedor.pedido_evento (tenant_id, pedido_id, de, para, autor_id, autor_nome, autor_perfil, motivo, nivel, acima_do_nivel, ocorrido_em)
        values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, false, $9)`,
@@ -410,13 +440,13 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     entidade: 'pedido',
     entidade_id: p.id,
     antes: null,
-    depois: { ...(emNome ? { em_nome: true, vendedor_id: donoId, autor_id: eu } : {}), status: v.status, numero, total_cents: v.total_cents, desconto_pct: v.desconto_pct, desconto_efetivo_pct: v.desconto_efetivo_pct, frete: frete.modalidade, nivel: v.nivel, itens: v.itens.length, tipo, ...(origem ? { orcamento_origem_id: origem } : {}) },
+    depois: { ...(reenvio ? { reenvio: true, ciclo } : {}), ...(emNome ? { em_nome: true, vendedor_id: donoId, autor_id: eu } : {}), status: v.status, numero, total_cents: v.total_cents, desconto_pct: v.desconto_pct, desconto_efetivo_pct: v.desconto_efetivo_pct, frete: frete.modalidade, nivel: v.nivel, itens: v.itens.length, tipo, ...(origem ? { orcamento_origem_id: origem } : {}) },
   });
   // RN-VEN-32: orçamento não publica evento de pedido (metas, Gestor e fila do ERP só veem pedido)
   if (tipo === 'orcamento') return aceito(item.id, await relogioDoBanco(db));
 
-  // eventos (status no vocabulário RN-VEN-30; nenhum nome/documento/endereço)
-  await tx.publicar(
+  // eventos (status no vocabulário RN-VEN-30; nenhum nome/documento/endereço); o reenvio não é um pedido novo, então não publica `criado`
+  if (!reenvio) await tx.publicar(
     EVENTO_PEDIDO_CRIADO,
     {
       pedido_id: p.id,
@@ -434,7 +464,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     },
     p.id,
   );
-  for (const h of v.historico) {
+  for (const h of historico) {
     await tx.publicar(
       EVENTO_PEDIDO_STATUS_ALTERADO,
       {
@@ -451,8 +481,9 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     );
   }
   if (v.status === 'pending_approval' && v.nivel) {
+    // T-0184 (ADR 0062): a partir da v1.0.15 sai só o `@2`; o `@1` fica no manifesto para o histórico da outbox
     await tx.publicar(
-      EVENTO_PEDIDO_APROVACAO_SOLICITADA,
+      EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2,
       {
         pedido_id: p.id,
         vendedor_id: donoId,
@@ -460,9 +491,11 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
         solicitada_em: recebidoEm,
         nivel: v.nivel,
         motivos: v.motivos,
+        aprovacoes: v.aprovacoes,
         desconto_efetivo_pct: Math.max(0, v.desconto_efetivo_pct),
         total_cents: v.total_cents,
-        credito: null,
+        credito: financeiro?.credito ?? null,
+        inadimplencia: v.motivos.includes('inadimplencia') && financeiro?.para_aprovacao ? { maior_atraso_dias: financeiro.para_aprovacao.maior_atraso_dias, vencidos_cents: financeiro.vencidos_cents } : null,
         historico: null,
         pedido_numero: numero,
       },

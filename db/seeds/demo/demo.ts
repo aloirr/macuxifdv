@@ -97,6 +97,7 @@ import { gravarDemoFilial } from './filial';
 import { gravarDemoFotosPdv } from './fotos-pdv';
 import { gravarDemoPagamento } from './pagamento';
 import { gravarPesquisaDemo } from './pesquisa';
+import { gravarAprovacoesDosPedidos } from '../aprovacoes-pedido';
 import { gravarDemoIntegracao } from './integracao';
 import { gravarDemoPlanoRv } from './plano-rv';
 import { gravarDemoPromotor } from './promotor';
@@ -1575,6 +1576,8 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
       await gravarDemoMedidas(admin, tabela, dados);
       if (tabela === 'core.usuario') await gravarLinhas(admin, 'core.equipe', dados['core.equipe']);
     }
+    // 0088 (T-0184, RN-VEN-30): uma aprovação pendente por motivo dos pedidos em aprovação (banco sem a 0088 = nada)
+    await gravarAprovacoesDosPedidos(admin, T, dados['vendedor.pedido']);
     // 0033/0045 (T-0084/T-0085/T-0113): marcas concorrentes do Catálogo (ADR 0034), referências cruzadas, etiquetas e
     // aplicação/referências no documento de busca — ANTES do Promotor, que passa a ler as marcas do Catálogo
     await gravarDemoCatalogoCadastro(admin, { tenantId: T, hoje: dados['core.rota'][0]!.data as string, dados });

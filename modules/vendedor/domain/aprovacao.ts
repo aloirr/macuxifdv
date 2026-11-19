@@ -5,6 +5,7 @@
 import { validateOrder, type DiscountPolicy, type DiscountRole, type OrderStatus, type OrderValidation } from './order';
 import { APLICACAO_MAX_ORCAMENTO_PADRAO, retratoAplicacao } from './aplicacao';
 import type { PagamentoEvento } from './pagamento';
+import { aprovacoesFinanceiras, type FinanceiroParaAprovacao } from './credito-pedido';
 import type { PedidoAprovadoEvento } from '../contracts/eventos';
 import { medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from './preco-item';
 import { CODIGO_DESCONTO_PEDIDO_ACIMA_LIMITE, limiteDoUsuario, mensagemPedidoAcimaDoLimite, minimoDoItem, pedidoAcimaDoLimite } from './limite-desconto';
@@ -16,9 +17,57 @@ import { permilDoDescontoExibido, precoDoItem, totaisDoPedido, validarAcrescimoO
 export const NIVEIS_APROVACAO = ['supervisor', 'gerente', 'analista'] as const;
 export type NivelAprovacao = (typeof NIVEIS_APROVACAO)[number];
 
-/** Motivos de ir para aprovação. Só `desconto` nesta fatia; crédito/estoque/preço mínimo entram depois (T-0029 §14). */
-export const MOTIVOS_APROVACAO = ['desconto', 'credito', 'estoque', 'preco_minimo'] as const;
+/** Motivos de ir para aprovação (T-0184, P3 B: uma aprovação por motivo). `estoque` e `preco_minimo` seguem sem regra de entrada. */
+export const MOTIVOS_APROVACAO = ['desconto', 'credito', 'inadimplencia', 'estoque', 'preco_minimo'] as const;
 export type MotivoAprovacao = (typeof MOTIVOS_APROVACAO)[number];
+
+/** Estado de cada aprovação do pedido (`vendedor.pedido_aprovacao`, T-0184 §2). */
+export const ESTADOS_APROVACAO_MOTIVO = ['pendente', 'aprovada', 'rejeitada', 'devolvida', 'encerrada'] as const;
+export type EstadoAprovacaoMotivo = (typeof ESTADOS_APROVACAO_MOTIVO)[number];
+
+/** Decisões do aprovador: `devolver` leva a `rejected` (o vendedor corrige), `recusar` leva a `cancelled` (final), P6 A. */
+export const DECISOES_APROVADOR = ['aprovar', 'devolver', 'recusar'] as const;
+export type DecisaoAprovador = (typeof DECISOES_APROVADOR)[number];
+
+/** Aprovação a abrir no recebimento (uma por motivo, P3 B). */
+export interface AprovacaoNova {
+  motivo: MotivoAprovacao;
+  nivel: NivelAprovacao;
+  texto: string;
+}
+
+/** Rótulo curto de cada motivo (tabela do BKO, histórico do Campo, Gestão): um lugar só. */
+export const ROTULO_MOTIVO_APROVACAO: Record<MotivoAprovacao, string> = { desconto: 'Desconto', credito: 'Crédito', inadimplencia: 'Inadimplente', estoque: 'Estoque', preco_minimo: 'Preço mínimo' };
+
+const ORDEM_NIVEL: Record<NivelAprovacao, number> = { supervisor: 0, gerente: 1, analista: 2 };
+/** O maior nível entre as aprovações (o `nivel` do pedido para quem só precisa de um número, T-0184 §1). */
+export function maiorNivel(niveis: readonly NivelAprovacao[]): NivelAprovacao | null {
+  return niveis.reduce<NivelAprovacao | null>((m, n) => (m === null || ORDEM_NIVEL[n] > ORDEM_NIVEL[m] ? n : m), null);
+}
+
+/** RN-VEN-10, RN-VEN-12 e RN-VEN-13: o nível do pedido com as aprovações financeiras somadas à da alçada (o maior; `null` = sem aprovação). */
+export function nivelComAprovacoes(nivel: NivelAprovacao | null, aprovacoes: readonly { nivel: NivelAprovacao }[]): NivelAprovacao | null {
+  return maiorNivel([...(nivel ? [nivel] : []), ...aprovacoes.map((a) => a.nivel)]);
+}
+
+/**
+ * RN-VEN-33 e RN-VEN-30 (T-0184 §2): o que fazer com um envio cujo id o servidor já conhece. O mesmo conteúdo (hash) é idempotente;
+ * conteúdo corrigido de pedido devolvido (`rejected`) é reenvio e abre o ciclo seguinte; qualquer outro conteúdo é conflito.
+ * `dono_id` é quem criou o pedido (o autor, no pedido em nome).
+ */
+export function situacaoDoEnvio(i: { existente: { dono_id: string; status: string; hash_envio: string | null } | undefined; eu: string; hash: string }): 'novo' | 'idempotente' | 'reenvio' | 'conflito' | 'id_em_uso' {
+  const e = i.existente;
+  if (!e) return 'novo';
+  if (e.dono_id !== i.eu) return 'id_em_uso';
+  if (e.hash_envio === null || e.hash_envio === i.hash) return 'idempotente';
+  return e.status === 'rejected' ? 'reenvio' : 'conflito';
+}
+
+/** RN-VEN-12 e RN-VEN-13 (P2 B, P5 B): quem aprova crédito e inadimplência; padrão `gerente`, também com o parâmetro ausente ou inválido. */
+export function niveisDosParametros(p: Readonly<Record<string, unknown>>): { credito: NivelAprovacao; inadimplencia: NivelAprovacao } {
+  const nivel = (v: unknown): NivelAprovacao => ((NIVEIS_APROVACAO as readonly unknown[]).includes(v) ? (v as NivelAprovacao) : 'gerente');
+  return { credito: nivel(p['aprovacao.credito_nivel']), inadimplencia: nivel(p['aprovacao.inadimplencia_nivel']) };
+}
 
 /** Vocabulário do doc 03 (RN-VEN-30) usado nos eventos e pelo Gestor/Integração. */
 export const STATUS_CONTRATO = [
@@ -113,30 +162,29 @@ export interface EventoHistorico {
   motivo: string;
 }
 
-/** Texto da pendência por título vencido (RN-VEN-13). */
-export const MOTIVO_TITULO_VENCIDO = 'Título vencido';
-
 type RecebimentoAceito = Extract<ResultadoRecebimento, { aceito: true }>;
 
 /** RN-VEN-45: motivo do recebimento quando o prazo do pedido mudou no cadastro depois do pedido (sem citar o %). */
 export const MOTIVO_PRAZO_MUDOU = 'Prazo de pagamento mudou';
 
-/** RN-VEN-13: título vencido com prazo a prazo manda para aprovação (nível supervisor) ou soma o motivo `credito` a uma aprovação por desconto. */
-export function comTituloVencido(r: Omit<RecebimentoAceito, 'aceito'>): Omit<RecebimentoAceito, 'aceito'> {
-  if (r.status === 'pending_approval') {
-    return r.motivos.includes('credito')
-      ? r
-      : { ...r, motivos: [...r.motivos, 'credito'], pending_reason: `${r.pending_reason} · ${MOTIVO_TITULO_VENCIDO}`.trim() };
-  }
-  const entrada = r.historico.filter((h) => h.para !== 'approved');
+/**
+ * RN-VEN-12 e RN-VEN-13 (T-0184): soma as aprovações financeiras ao recebimento. Pedido que sairia aprovado vai para `pending_approval`;
+ * o `nivel` do pedido é o maior entre as aprovações e o texto junta os motivos.
+ */
+export function comAprovacoesFinanceiras(r: Omit<RecebimentoAceito, 'aceito'>, extras: readonly AprovacaoNova[]): Omit<RecebimentoAceito, 'aceito'> {
+  if (extras.length === 0) return r;
+  const aprovacoes = [...r.aprovacoes, ...extras];
+  const pending_reason = aprovacoes.map((a) => a.texto).join(' · ');
+  const entrada = r.historico.filter((h) => h.para !== 'approved' && h.para !== 'pending_approval');
   return {
     ...r,
     status: 'pending_approval',
-    nivel: 'supervisor',
-    motivos: ['credito'],
+    nivel: maiorNivel(aprovacoes.map((a) => a.nivel)),
+    motivos: aprovacoes.map((a) => a.motivo),
+    aprovacoes,
     aprovacao_automatica: false,
-    pending_reason: MOTIVO_TITULO_VENCIDO,
-    historico: [...entrada, { de: 'received', para: 'pending_approval', motivo: MOTIVO_TITULO_VENCIDO }],
+    pending_reason,
+    historico: [...entrada, { de: 'received', para: 'pending_approval', motivo: pending_reason }],
   };
 }
 
@@ -154,6 +202,8 @@ export type ResultadoRecebimento =
       status: 'approved' | 'pending_approval';
       nivel: NivelAprovacao | null;
       motivos: MotivoAprovacao[];
+      /** uma por motivo (T-0184, P3 B); vazio quando o pedido sai aprovado */
+      aprovacoes: AprovacaoNova[];
       aprovacao_automatica: boolean;
       pending_reason: string;
       historico: EventoHistorico[];
@@ -179,6 +229,7 @@ export function resultadoDoRecebimento(v: OrderValidation): ResultadoRecebimento
       status: 'pending_approval',
       nivel,
       motivos: ['desconto'],
+      aprovacoes: [{ motivo: 'desconto', nivel, texto: pending_reason }],
       aprovacao_automatica: false,
       pending_reason,
       historico: [entrada, { de: 'received', para: 'pending_approval', motivo: pending_reason }],
@@ -190,6 +241,7 @@ export function resultadoDoRecebimento(v: OrderValidation): ResultadoRecebimento
     status: 'approved',
     nivel: null,
     motivos: [],
+    aprovacoes: [],
     aprovacao_automatica: true,
     pending_reason: '',
     historico: [entrada, { de: 'received', para: 'approved', motivo }],
@@ -249,11 +301,13 @@ export interface RevalidarEntrada {
   /** informativo; o servidor nunca usa (RN-VEN-02) */
   total_aparelho_cents?: number;
   /**
-   * T-0089 (RN-VEN-13): `true` quando o cliente tem título vencido há mais que `titulo_vencido_dias` e o prazo escolhido é a prazo
-   * (`exigeAprovacaoPorVencido`). O pedido que sairia aprovado vai para aprovação com o motivo `credito` (a coluna só aceita os
-   * motivos da 0009; o texto diz "título vencido"). Ausente = sem restrição (consulta indisponível não bloqueia).
+   * T-0184 (RN-VEN-12 e RN-VEN-13): o financeiro do cliente e o prazo escolhido. O servidor recalcula crédito (a prazo) e inadimplência
+   * (qualquer forma de pagamento, P1 A) e abre uma aprovação por motivo. Ausente = consulta indisponível: não bloqueia.
    */
-  titulo_vencido?: boolean;
+  financeiro?: FinanceiroParaAprovacao;
+  prazo_medio_dias?: number;
+  /** P2 B / P5 B: nível de cada aprovação financeira (`niveisDosParametros`); ausente = gerente */
+  niveis_financeiros?: { credito: NivelAprovacao; inadimplencia: NivelAprovacao };
   /** RN-VEN-45: o percentual do push difere do vigente (cadastro mudou depois da data declarada pelo aparelho): aviso na linha do tempo, fora da alçada. */
   percentual_mudou?: boolean;
 }
@@ -415,8 +469,8 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
   if (!r0.aceito) return { ok: false, codigo: r0.codigo, http: r0.http, mensagem: r0.mensagem };
   const { aceito: _aceito, ...resto0 } = r0;
   void _aceito;
-  const comVencido = e.titulo_vencido ? comTituloVencido(resto0) : resto0;
-  const resto = e.percentual_mudou ? comAvisoDoPrazoMudou(comVencido) : comVencido;
+  const comFinanceiro = comAprovacoesFinanceiras(resto0, aprovacoesFinanceiras({ prazo_medio_dias: e.prazo_medio_dias, total_cents: totais.total_cents, financeiro: e.financeiro, niveis: e.niveis_financeiros ?? { credito: 'gerente', inadimplencia: 'gerente' } }));
+  const resto = e.percentual_mudou ? comAvisoDoPrazoMudou(comFinanceiro) : comFinanceiro;
   return {
     ok: true,
     ...resto,
@@ -464,43 +518,105 @@ export function quemDecide(perfil: string, nivel: NivelAprovacao): { pode: boole
   return { pode: false, acima_do_nivel: false };
 }
 
+/** Aprovação do ciclo atual, como o domínio a enxerga (T-0184). */
+export interface AprovacaoDoCiclo {
+  motivo: MotivoAprovacao;
+  nivel: NivelAprovacao;
+  estado: EstadoAprovacaoMotivo;
+}
+
 export interface DecidirEntrada {
   status: OrderStatus;
-  nivel: NivelAprovacao | null;
+  /** as aprovações do ciclo atual do pedido */
+  aprovacoes: readonly AprovacaoDoCiclo[];
   perfil: string;
-  decisao: 'aprovar' | 'rejeitar';
-  /** comentário (aprovar) ou motivo (rejeitar) */
+  decisao: DecisaoAprovador;
+  /** `motivo_aprovacao` do corpo da rota; ausente = vale para todas as pendentes que o perfil decide (app antigo ou "aprovar tudo") */
+  motivo?: MotivoAprovacao | null;
+  /** `comentario` (aprovar) ou `motivo` em texto livre (devolver e recusar) do corpo da rota */
   texto?: string | null;
+  /** `nivel_aprovacao` do pedido: vale para o pedido pendente sem nenhuma linha de aprovação (API antiga) */
+  nivel_do_pedido?: NivelAprovacao | null;
+}
+
+export interface MudancaDeAprovacao {
+  motivo: MotivoAprovacao;
+  estado: Exclude<EstadoAprovacaoMotivo, 'pendente'>;
 }
 
 export type ResultadoDecisao =
-  | { tipo: 'ok'; para: 'approved' | 'rejected'; acima_do_nivel: boolean; motivo: string | null }
+  | {
+      tipo: 'ok';
+      /** `pending_approval` = aprovação parcial: sobraram aprovações que o perfil não decide */
+      para: 'approved' | 'rejected' | 'cancelled' | 'pending_approval';
+      acima_do_nivel: boolean;
+      motivo: string | null;
+      mudancas: MudancaDeAprovacao[];
+      /** motivos que seguem pendentes depois da decisão */
+      pendentes: MotivoAprovacao[];
+      /** as aprovações do ciclo como o domínio as decidiu (antes da decisão), com o nível de cada uma */
+      aprovacoes: readonly AprovacaoDoCiclo[];
+      /** `true` = o pedido pendente não tinha linha e o domínio sintetizou a de `desconto`: a API a insere junto com a decisão */
+      sintetizada: boolean;
+    }
   | { tipo: 'repetida' }
   | ({ tipo: 'recusa' } & Recusa);
 
 /**
- * Aprovar/rejeitar (RF-VEN-09, RN-GES-04/08, P-3). Ordem: perfil → repetição idempotente → estado → motivo da
- * rejeição → alçada do nível. O comentário só é obrigatório na rejeição (3+ caracteres após trim).
+ * RN-VEN-30 (T-0184, como o backfill da 0088): pedido em `pending_approval` sem linha de aprovação (veio da API antiga) vale como
+ * uma aprovação de `desconto` pendente no nível do pedido. Só `decidirAprovacao` aplica a regra; a API persiste o resultado.
+ */
+function aprovacoesDoPedido(status: OrderStatus, aprovacoes: readonly AprovacaoDoCiclo[], nivelDoPedido: NivelAprovacao | null | undefined): readonly AprovacaoDoCiclo[] {
+  if (status !== 'pending_approval' || aprovacoes.length > 0 || !nivelDoPedido) return aprovacoes;
+  return [{ motivo: 'desconto', nivel: nivelDoPedido, estado: 'pendente' }];
+}
+
+const DESTINO_DA_DECISAO = { aprovar: 'approved', devolver: 'rejected', recusar: 'cancelled' } as const;
+const ESTADO_DA_DECISAO = { aprovar: 'aprovada', devolver: 'devolvida', recusar: 'rejeitada' } as const;
+
+/**
+ * Decidir a aprovação do pedido (RF-VEN-09, RN-GES-04/08, RN-VEN-10 e RN-VEN-30; T-0184 P6 a P8). Ordem: perfil → repetição
+ * idempotente → estado → motivo da devolução/recusa → alçada de cada aprovação. Aprovar vale para as aprovações pendentes que o perfil
+ * decide (pedido `approved` quando nenhuma sobra, P7); devolver ou recusar basta uma e encerra as outras pendentes (P8).
  */
 export function decidirAprovacao(e: DecidirEntrada): ResultadoDecisao {
   if (e.perfil === 'promotor') return { tipo: 'recusa', codigo: 'RN-PRO-01', http: 403, mensagem: 'RN-PRO-01: o promotor não decide pedidos.' };
   if (e.perfil !== 'supervisor' && e.perfil !== 'gerente' && e.perfil !== 'analista') {
     return { tipo: 'recusa', codigo: 'PERFIL_SEM_ACESSO', http: 403, mensagem: 'Seu perfil não aprova pedidos.' };
   }
-  const destino = e.decisao === 'aprovar' ? 'approved' : 'rejected';
-  if (e.status === destino) return { tipo: 'repetida' };
-  if (e.status !== 'pending_approval' || e.nivel === null) {
+  if (e.status === DESTINO_DA_DECISAO[e.decisao]) return { tipo: 'repetida' };
+  const aprovacoes = aprovacoesDoPedido(e.status, e.aprovacoes, e.nivel_do_pedido);
+  const sintetizada = aprovacoes !== e.aprovacoes;
+  const pendentes = aprovacoes.filter((a) => a.estado === 'pendente');
+  if (e.motivo && aprovacoes.some((a) => a.motivo === e.motivo && a.estado === ESTADO_DA_DECISAO[e.decisao])) return { tipo: 'repetida' };
+  if (e.status !== 'pending_approval' || pendentes.length === 0) {
     return { tipo: 'recusa', codigo: 'RN-VEN-30', http: 422, mensagem: 'Este pedido não está aguardando aprovação.' };
   }
+  if (e.motivo && !pendentes.some((a) => a.motivo === e.motivo)) {
+    return { tipo: 'recusa', codigo: 'RN-VEN-30', http: 422, mensagem: 'Esta aprovação não está pendente.' };
+  }
   const texto = (e.texto ?? '').trim();
-  if (e.decisao === 'rejeitar' && texto.length < MOTIVO_REJEICAO_MIN) {
+  if (e.decisao !== 'aprovar' && texto.length < MOTIVO_REJEICAO_MIN) {
     return { tipo: 'recusa', codigo: 'RN-GES-08', http: 422, mensagem: MSG_MOTIVO_REJEICAO };
   }
-  const q = quemDecide(e.perfil, e.nivel);
-  if (!q.pode) {
-    return { tipo: 'recusa', codigo: 'RN-VEN-10', http: 422, mensagem: `Este pedido precisa de aprovação do nível ${e.nivel}.` };
+  const alvo = pendentes.filter((a) => !e.motivo || a.motivo === e.motivo);
+  const decidiveis = alvo.filter((a) => quemDecide(e.perfil, a.nivel).pode);
+  if (decidiveis.length === 0) {
+    // "aprovar tudo" repetido depois de uma aprovação parcial: o perfil já decidiu o que lhe cabia (RN-VEN-33)
+    if (e.decisao === 'aprovar' && !e.motivo && aprovacoes.some((a) => a.estado === 'aprovada' && quemDecide(e.perfil, a.nivel).pode)) return { tipo: 'repetida' };
+    return { tipo: 'recusa', codigo: 'RN-VEN-10', http: 422, mensagem: `Este pedido precisa de aprovação do nível ${maiorNivel(alvo.map((a) => a.nivel))}.` };
   }
-  return { tipo: 'ok', para: destino, acima_do_nivel: q.acima_do_nivel, motivo: texto === '' ? null : texto };
+  const acima = decidiveis.some((a) => quemDecide(e.perfil, a.nivel).acima_do_nivel);
+  const motivoTexto = texto === '' ? null : texto;
+  const decididas = new Set(decidiveis.map((a) => a.motivo));
+  if (e.decisao === 'aprovar') {
+    const mudancas = decidiveis.map((a): MudancaDeAprovacao => ({ motivo: a.motivo, estado: 'aprovada' }));
+    const restantes = pendentes.filter((a) => !decididas.has(a.motivo)).map((a) => a.motivo);
+    return { tipo: 'ok', para: restantes.length === 0 ? 'approved' : 'pending_approval', acima_do_nivel: acima, motivo: motivoTexto, mudancas, pendentes: restantes, aprovacoes, sintetizada };
+  }
+  // devolver ou recusar (P8 A): as decididas viram devolvida/rejeitada e as outras pendentes são encerradas
+  const mudancas = pendentes.map((a): MudancaDeAprovacao => ({ motivo: a.motivo, estado: decididas.has(a.motivo) ? ESTADO_DA_DECISAO[e.decisao] : 'encerrada' }));
+  return { tipo: 'ok', para: DESTINO_DA_DECISAO[e.decisao], acima_do_nivel: acima, motivo: motivoTexto, mudancas, pendentes: [], aprovacoes, sintetizada };
 }
 
 // ---------- evento aprovado@1 ----------

@@ -26,6 +26,8 @@ export const manifest = defineModule({
     'vendedor.pedido.criado@1',
     'vendedor.pedido.status_alterado@1',
     'vendedor.pedido.aprovacao_solicitada@1',
+    'vendedor.pedido.aprovacao_solicitada@2',
+    'vendedor.pedido.aprovacao_decidida@1',
     'vendedor.pedido.aprovado@1',
     'vendedor.pedido.faturado@1',
     'vendedor.pedido.cancelado@1',
@@ -33,7 +35,7 @@ export const manifest = defineModule({
   // T-0054: retorno do ERP (status, faturado@1) e nota de devolução do ERP (RN-VEN-37, proposta)
   consome: ['promotor.ruptura.registrada@1', 'integracao.pedido.retorno_erp@1', 'integracao.nota.atualizado@1', 'integracao.forma_pagamento.atualizado@1', 'integracao.prazo_pagamento.atualizado@1'],
   // T-0065 B (RN-CORE-21): fatos para o Core apurar a meta pelo tipo
-  ofereceConsultas: ['vendedor.pedidos_da_meta@1', 'vendedor.formas_pagamento@1'],
+  ofereceConsultas: ['vendedor.pedidos_da_meta@1', 'vendedor.formas_pagamento@1', 'vendedor.preco_prazo_padrao@1'],
   usaConsultas: ['catalogo.precos_cliente@1', 'catalogo.textos_produto@1', 'catalogo.busca_produtos@1', 'catalogo.sugestoes_pedido@1', 'catalogo.foto_produto@1', 'catalogo.estoque_filial@1', 'core.cadastro_resumo@1', 'core.filiais@1', 'core.promotor_ve_pedidos@1', 'core.financeiro_cliente@1'],
   usaConsultasOpcionais: ['integracao.cancelamento_erp@1'],
   acoes: {
@@ -46,6 +48,8 @@ export const manifest = defineModule({
     'pedido.excluir': { perfis: [...PERFIS_PEDIDO] },
     'pedido.aprovar': { perfis: ['supervisor', 'gerente', 'analista'] },
     'pedido.criar_em_nome': { perfis: ['supervisor', 'gerente'] },
+    // T-0184 (P2 B): Parâmetros › Pedidos, quem aprova crédito e inadimplência; promotor nunca (regra 7)
+    'alcada.gerenciar': { perfis: ['admin', 'analista', 'gerente'] },
     // T-0061 (RN-VEN-16): transportadoras e padrão do frete no BKO
     'transportadora.ver': { perfis: ['admin', 'analista', 'gerente', 'supervisor', 'assistente'] },
     'transportadora.gerenciar': { perfis: ['admin', 'analista', 'gerente'] },

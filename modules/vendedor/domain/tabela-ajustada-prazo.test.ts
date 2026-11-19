@@ -158,7 +158,7 @@ describe('RN-VEN-43: preço do Catálogo com o prazo padrão do cliente', () => 
     { id: 'z2', forma_pagamento_id: 'f1', codigo: '30', descricao: '30 dias', parcelas_dias: [30], prazo_medio_dias: 30, percentual_ajuste: 2.5, ordem: 2, ativo: true },
   ];
   it('RN-VEN-43: usa o primeiro prazo habilitado da primeira forma aceita pelo cliente', () => {
-    const cliente = { prazo_medio_max_dias: null, formas_pagamento: null };
+    const cliente = { formas_pagamento: null };
     expect(percentualDoPrazoPadraoBp({ cliente, formas, prazos })).toBe(-171);
     expect(precoDoCatalogoCents(10_000, { cliente, formas, prazos })).toBe(9_829);
   });
@@ -166,7 +166,7 @@ describe('RN-VEN-43: preço do Catálogo com o prazo padrão do cliente', () => 
     expect(precoDoCatalogoCents(10_000, { cliente: null, formas, prazos })).toBe(10_000);
   });
   it('RN-VEN-43: cliente sem prazo padrão (forma não aceita), a tabela pura', () => {
-    expect(precoDoCatalogoCents(10_000, { cliente: { prazo_medio_max_dias: null, formas_pagamento: ['PIX'] }, formas, prazos })).toBe(10_000);
+    expect(precoDoCatalogoCents(10_000, { cliente: { formas_pagamento: ['PIX'] }, formas, prazos })).toBe(10_000);
   });
 });
 
