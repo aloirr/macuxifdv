@@ -535,8 +535,11 @@ describe('T-0165 E — lápis Editar no item do pedido: aba Itens e Resumo (§5.
     // T-0186 (RD-2370): a tabela do Resumo passou a usar a TabelaDados do kit; a coluna do lápis é a última, sem título
     const tabela = ler('modules/vendedor/app/components/tabelas-pedido.tsx');
     const colunas = tabela.slice(tabela.indexOf('const colunas: ColunaTabela[]'), tabela.indexOf('const linhas: LinhaTabela[]'));
-    expect(colunas.indexOf("{ id: 'editar', titulo: '', largura: 48 }")).toBeGreaterThan(colunas.indexOf("{ id: 'total', titulo: 'Total'"));
-    expect(colunas).toContain("...(aoTocarLinha ? [{ id: 'editar', titulo: '', largura: 48 }] : [])");
+    // a coluna do lápis vem depois do Total, sem título, e cabe o botão "tabela" (32 dp)
+    const lapis = /\.\.\.\(aoTocarLinha \? \[\{ id: 'editar', titulo: '', largura: (\d+) \}\] : \[\]\)/.exec(colunas);
+    expect(lapis, 'coluna do lápis').not.toBeNull();
+    expect(colunas.indexOf(lapis![0])).toBeGreaterThan(colunas.indexOf("{ id: 'total', titulo: 'Total'"));
+    expect(Number(lapis![1])).toBeGreaterThanOrEqual(BOTAO_EDITAR.tabela.lado);
     const celulas = tabela.slice(tabela.indexOf('celulas: ['));
     expect(celulas.indexOf('<BotaoEditar')).toBeGreaterThan(celulas.indexOf('key="total"'));
     expect(celulas).toMatch(/<BotaoEditar [^>]*tamanho="tabela" onPress=\{\(\) => aoTocarLinha\(l\.key\)\}/);
