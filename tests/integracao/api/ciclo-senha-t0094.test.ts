@@ -83,6 +83,10 @@ const ADMIN2 = { email: EM('admin2'), nome: 'Admin Dois Fictício', senha: 'Admi
 /** CS-06b: o admin cuja senha o super-admin redefine pelo portal (não é o da fixture nem o ADMIN2, que o CS-07 usa). */
 const ADMIN3 = { email: EM('admin3'), nome: 'Admin Três Fictício', senha: 'AdminTres#T0094-j1' };
 const SUPER = { email: EM('super'), nome: 'Super Admin Fictício', senha: 'SuperAdmin#T0094-k2' };
+/** Versão só texto do .eml com quebras LF (o .eml pode trazer CRLF). */
+const textoEmLf = (t: string) => t.replace(/\r\n/g, '\n');
+/** Formato do e-mail de senha desde a T-0185 (#500): rótulo numa linha, valor sozinho na seguinte (spec §3). */
+const rotuloEValor = (rotulo: string, valor: string) => `\n${rotulo}\n${valor}\n`;
 
 describe.skipIf(semBanco())('T-0094 acesso por perfil e ciclo de senha (critérios 1 a 8, multi-tenant)', () => {
   let api: ApiDeTeste;
@@ -1123,8 +1127,9 @@ describe.skipIf(semBanco())('T-0094 acesso por perfil e ciclo de senha (critéri
         for (const m of entregues) {
           const a = porId.get(m.id!);
           expect(a, `arquivo do e-mail ${m.modelo} de ${m.usuario_id}`).toBeDefined();
-          expect(a!.texto).toContain(`Senha temporária: ${m.dados.senha}`);
-          expect(a!.texto).toContain(`Código da empresa: ${m.dados.codigo_empresa}`);
+          // T-0185 (#500, spec docs/design/emails/redefinir-senha.md §3): na versão só texto, o rótulo numa linha e o valor na linha seguinte
+          expect(textoEmLf(a!.texto)).toContain(rotuloEValor('Senha temporária', m.dados.senha));
+          expect(textoEmLf(a!.texto)).toContain(rotuloEValor('Código da empresa', m.dados.codigo_empresa));
           // assunto pelo cabeçalho decodificado (texto puro ou RFC 2047), comparado de forma exata
           expect(assuntoDoEml(a!.bruto)).toBe(ASSUNTOS_EMAIL[m.modelo]);
           expect(a!.html).toContain(`<title>${ASSUNTOS_EMAIL[m.modelo]}</title>`);
@@ -1132,7 +1137,7 @@ describe.skipIf(semBanco())('T-0094 acesso por perfil e ciclo de senha (critéri
         if (doPortal.emailId) {
           const a = porId.get(doPortal.emailId);
           expect(a, 'arquivo do e-mail do portal (CS-06b)').toBeDefined();
-          expect(a!.texto).toContain(`Senha temporária: ${doPortal.senha}`);
+          expect(textoEmLf(a!.texto)).toContain(rotuloEValor('Senha temporária', doPortal.senha));
           expect(assuntoDoEml(a!.bruto)).toBe(ASSUNTOS_EMAIL.nova_senha);
           expect(a!.bruto).toContain(ADMIN3.email);
         }

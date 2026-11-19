@@ -199,3 +199,18 @@ Contrato do SDK (`packages/platform-sdk/src/sync.ts` e `motor-sync.ts`). Nenhum 
 | parâmetro `core`/`alertas.produtividade` (`ParametrosAlertasProdutividadeSchema`) | core | JSON validado por Zod, padrão D6; pull `parametro` do Core; `GET\|PUT /v1/core/parametros/alertas-produtividade` e `PUT /v1/core/parametros/parado-min` (só `inicio.parado_min`; o PUT do Início deixa de gravá-lo), ação `parametro.alertas_produtividade` | novo; chave ausente = padrão. **Em andamento** (modulo-core) |
 | `TIPOS_ALERTA` += `parado_entre_visitas`, `sem_checkin_inicio` (gestor) | gestor | só nas respostas da API (nenhum evento); `AlertasQuery.produtividade?: '1'` liga os tipos novos na lista; `alertas/regras` e `PUT alertas/regras/:tipo` só com os 6 da equipe | aditivo com filtro: o Gestão até a v1.0.12 não recebe os tipos novos. Chave `produtividade:<usuario_id>` (um vivo por pessoa, `alerta_vivo_uk`) |
 | `PUT /v1/gestor/parametros/alertas` sem `permanencia_min_min` | gestor | a permanência mínima (RN-PRO-07) sai do contrato e da tela na v1.0.13 | `promotor.parametros_trade@1` e a migração da cópia `gestor`/`permanencia_min_min` ficam para uma tarefa seguinte da esteira (ADR 0059 §6) |
+
+## T-0156 (19/11, ADR 0061 aceita, desenho `docs/desenho/tracking.md`): rastreamento contínuo de localização
+
+Tudo aditivo; nenhuma versão nova de contrato existente; nenhum evento novo (`eventos.md`).
+
+| Contrato | Dono | Mudança | Situação |
+|---|---|---|---|
+| `privacidade-localizacao.ts` (`semCoordenadas`, `textoSemCoordenadas`, `ehChaveDeCoordenada`, `CAMINHOS_COORDENADA_LOG`, `COORDENADA_OMITIDA`) | plataforma | novo no platform-sdk; a redação do pino da API já usa `CAMINHOS_COORDENADA_LOG` (ADR 0061 decisão 8) | **implementado** (testes `privacidade-localizacao.test.ts` e `apps/api/test/log-seguro.test.ts`) |
+| `areaDaAcao`: `trajeto.*` e `ausencia.*` em Usuários | plataforma | página de Perfis; `rastreamento.*` cai em Administração | **implementado** (`permissoes-perfil.test.ts`) |
+| `ponto_trajeto` | core | entidade de sync **só de envio** (`direcao: 'push'`, `somente_insercao`), idempotente pelo `id` do aparelho; descarte do servidor não trava a fila (desenho §5.2) | a fazer (modulo-core); schema `PontoTrajetoSchema` em `modules/core/contracts` |
+| `ausencia_usuario` | core | entidade de **pull** (as ausências do próprio usuário, só para o portão; sem tela) | a fazer (modulo-core) |
+| `core.trajeto_do_dia@1` | core | consulta nova (`definirConsulta`; forma proposta, o modulo-core fecha no `contracts`): entrada `{ usuario_id, data }` (AAAA-MM-DD no fuso do tenant, até [90] dias atrás); saída `{ pontos: [{ capturado_em, latitude, longitude, precisao_m }] }`; escopo conferido pelo Core (`trajeto.ver_equipe`); sem implementação no aparelho | a fazer (modulo-core); consumidor: gestor (`usaConsultas`) |
+| `deslocamento_dia` (`DeslocamentoDiaSchema`) | core | sem mudança de forma; passa a ser escrito com `origem = 'rastreamento'` | já existe (T-0170) |
+| parâmetro `core`/`rastreamento` | core | `{ ativo, expediente, frequencia }` validado por Zod, padrão desligado; chega no pull `parametro` | a fazer (modulo-core) |
+| `GET /v1/core/trajeto?usuario_id&data` | core | pontos de um dia; só `trajeto.ver_equipe` (escopo) | a fazer (modulo-core) |

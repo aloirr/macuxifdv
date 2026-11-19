@@ -19,6 +19,7 @@ import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
 import { lerSessaoWeb, opcoesLogger } from '../src/config';
+import { MENSAGEM_SESSAO } from '../src/sessao-web';
 import { bancoFalso, LICENCAS_PADRAO, modulosDeTeste, opcoesDeTeste } from './apoio';
 
 const TENANT = '00000000-0000-4000-8000-000000000001';
@@ -208,7 +209,7 @@ describe('T-0117: refresh pelo cookie (renovar)', () => {
   it('sem cookie: 401 SESSAO_INVALIDA sem chamar o Core', async () => {
     const { app, recebidos } = montar();
     const r = await app.inject({ method: 'POST', url: '/v1/auth/refresh', payload: {}, headers: WEB });
-    expect([r.statusCode, r.json().codigo]).toEqual([401, 'SESSAO_INVALIDA']);
+    expect([r.statusCode, r.json().codigo, r.json().mensagem]).toEqual([401, 'SESSAO_INVALIDA', MENSAGEM_SESSAO]);
     expect(recebidos).toEqual([]);
   });
 

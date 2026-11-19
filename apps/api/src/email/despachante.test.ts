@@ -2,7 +2,7 @@ import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { CODIGOS_EMAIL, type EmailParaEnvio, type MensagemEmail, type ModeloEmail, type TransporteEmail } from '@macuxi/platform-sdk';
+import { CODIGOS_EMAIL, type EmailParaEnvio, type MensagemEmail, type ModeloEmail, type OpcoesApresentacaoEmail, type TransporteEmail } from '@macuxi/platform-sdk';
 import type pg from 'pg';
 import { capturarLog, cargaAcesso, dadosAcesso, dadosNovaSenha, decodificarPartes, destinatario, INSTANTE, TENANT, USUARIO, vazamentos } from './apoio-teste';
 import { criarTransporteArquivo } from './arquivo';
@@ -123,11 +123,11 @@ const mensagem = (extra: Partial<MensagemEmail> = {}): MensagemEmail => ({
   ...extra,
 });
 
-async function montar(transporte: TransporteEmail, op: { agora?: () => Date } = {}) {
+async function montar(transporte: TransporteEmail, op: { agora?: () => Date; apresentacao?: OpcoesApresentacaoEmail } = {}) {
   const o = outboxFalsa();
   const cap = capturarLog();
   const servico = criarServicoEmail({ cifra, log: cap.log, novoId: o.nova });
-  const desp = criarDespachanteEmail({ worker: o.worker, transporte, cifra, remetente, log: cap.log, agora: op.agora ?? (() => INSTANTE) });
+  const desp = criarDespachanteEmail({ worker: o.worker, transporte, cifra, remetente, log: cap.log, agora: op.agora ?? (() => INSTANTE), ...(op.apresentacao ? { apresentacao: op.apresentacao } : {}) });
   return { o, cap, servico, desp };
 }
 
@@ -139,15 +139,33 @@ describe('despachante da outbox de e-mail (macuxi_worker, desenho T-0094 §10 it
     await servico.enfileirar(o.db, mensagem({ modelo: 'nova_senha', dados: dadosNovaSenha, chave_idempotencia: `${USUARIO}:redefinida:1` }));
     expect(await desp.ciclo()).toEqual({ lidos: 2, enviados: 2, adiados: 0, falhos: 0 });
     expect(o.linhas.every((l) => l.enviado_em && l.carga === null && l.tentativas === 1)).toBe(true);
-    expect(t.entregues.map((m) => m.assunto)).toEqual(['Seu acesso ao Macuxi', 'Sua nova senha do Macuxi']);
+    expect(t.entregues.map((m) => m.assunto)).toEqual(['Seu acesso ao Macuxi', 'Sua senha temporária do Macuxi']);
     expect(t.entregues[0]!.para).toEqual(destinatario);
-    expect(t.entregues[0]!.texto).toContain('Senha temporária: Prov1sor1a-Xq7');
+    expect(t.entregues[0]!.texto).toContain('\nSenha temporária\nProv1sor1a-Xq7\n');
+    // sem apresentação configurada: sem logo (só o texto alternativo) e sem botão
+    expect(t.entregues[0]!.html).not.toContain('<img');
+    expect(t.entregues[0]!.html).not.toContain('Abrir o backoffice');
     expect(t.entregues[0]!.idEnvio).toBe(o.linhas[0]!.id);
     expect(vazamentos(cap.json())).toEqual([]);
     expect(cap.linhas.filter((l) => l.obj.evento === 'enviado').map((l) => Object.keys(l.obj).sort())[0]).toEqual(
       ['email_id', 'evento', 'id_mensagem', 'modelo', 'tenant_id', 'tentativas', 'tipo', 'transporte'].sort(),
     );
     expect(await desp.ciclo()).toEqual({ lidos: 0, enviados: 0, adiados: 0, falhos: 0 });
+  });
+
+  it('repassa a apresentação (logo e backoffice) às três renderizações: e-mail, log e sem senha', async () => {
+    const t = transporteFalso();
+    const apresentacao = { urlLogo: 'https://bko.exemplo.com.br/email/logo.png', urlLogoEscuro: 'https://bko.exemplo.com.br/email/logo-escuro.png', urlBackoffice: 'https://bko.exemplo.com.br/' };
+    const { o, servico, desp } = await montar(t, { apresentacao });
+    await servico.enfileirar(o.db, mensagem({ dados: { ...dadosAcesso, apps: ['web'] } }));
+    expect(await desp.ciclo()).toMatchObject({ enviados: 1 });
+    const m = t.entregues[0]!;
+    for (const r of [m, m.paraLog!, m.semSenha!]) {
+      expect(r.html).toContain('src="https://bko.exemplo.com.br/email/logo.png"');
+      expect(r.html).toContain('src="https://bko.exemplo.com.br/email/logo-escuro.png"');
+      expect(r.html).toContain('href="https://bko.exemplo.com.br/"');
+      expect(r.texto).toContain('Abrir o backoffice: https://bko.exemplo.com.br/');
+    }
   });
 
   it('falha temporária: tentativas + 1, código em ultimo_erro, espera crescente; depois envia', async () => {
@@ -242,7 +260,7 @@ describe('ponta a ponta com o adaptador de arquivo (MACUXI_EMAIL_ARQUIVO_DIR)', 
     const [arquivo] = await readdir(pasta);
     expect(arquivo).toBe(`20261107T120000Z-${o.linhas[0]!.id}.eml`);
     const eml = await readFile(join(pasta, arquivo!), 'utf8');
-    expect(decodificarPartes(eml).texto).toContain(`Senha temporária: ${cargaAcesso.dados.senha}`);
+    expect(decodificarPartes(eml).texto).toContain(`\nSenha temporária\n${cargaAcesso.dados.senha}\n`);
     expect(o.linhas[0]!.carga).toBeNull();
     expect(vazamentos(cap.json())).toEqual([]);
   });
