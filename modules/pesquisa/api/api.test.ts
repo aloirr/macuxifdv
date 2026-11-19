@@ -320,6 +320,18 @@ describe('RF-PES-06: resultados, galeria e exportação no escopo do perfil', ()
     expect(x.conteudo.trimEnd().split('\r\n')).toHaveLength(3);
   });
 
+  it('T-0187: exportação leva a coluna "Respondida por" com o nome do Core; sem nome, vazia', async () => {
+    await comRespostas();
+    const col = async (nomes?: Record<string, string>) => {
+      const x = ExportacaoResponse.parse(await amb.chamar(ctx(ANALISTA, 'analista', nomes ? { nomes } : {}), 'GET', 'questionarios/:id/exportar', { params: { id: Q } }));
+      const [cab, ...linhas] = x.conteudo.slice(1).trimEnd().split('\r\n');
+      const i = cab!.split(';').indexOf('Respondida por');
+      return linhas.map((l) => l.split(';')[i]);
+    };
+    expect(await col({ [VENDEDOR]: 'João Lima' })).toContain('João Lima');
+    expect((await col()).every((c) => c === '')).toBe(true);
+  });
+
   it('RF-PES-06: filtro por versão inexistente responde 422 com a ação seguinte', async () => {
     await comRespostas();
     await expect(amb.chamar(ctx(ANALISTA, 'analista'), 'GET', 'questionarios/:id/resultado', { params: { id: Q }, query: { versao: uu(4321) } })).rejects.toMatchObject({ status: 422, codigo: 'VERSAO_INEXISTENTE' });

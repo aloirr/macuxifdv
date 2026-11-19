@@ -142,7 +142,8 @@ export function rotasDeResultados(fabrica: FabricaRepositorio): RotaModulo[] {
       const r = await recortar(ctx, fabrica);
       const versoes = r.versao ? [r.versao] : r.versoes;
       ctx.log.info({ respostas: r.respostas.length }, 'pesquisa: exportação de resultados');
-      return { nome_arquivo: nomeDoArquivoCsv(r.titulo, ctx.agora().toISOString(), r.fuso), tipo: 'text/csv', conteudo: exportarRespostasCsv({ versoes, respostas: r.respostas, fuso: r.fuso }) };
+      const nomes = await nomesDosUsuarios(ctx, fabrica, [...new Set(r.respostas.map((x) => x.usuario_id))]);
+      return { nome_arquivo: nomeDoArquivoCsv(r.titulo, ctx.agora().toISOString(), r.fuso), tipo: 'text/csv', conteudo: exportarRespostasCsv({ versoes, respostas: r.respostas, fuso: r.fuso, nomes }) };
     },
   };
 

@@ -59,6 +59,8 @@ export interface EntradaExportacao {
   versoes: readonly QuestionarioVersao[];
   respostas: readonly RespostaPesquisa[];
   fuso: string;
+  /** "Respondida por" (T-0187): nome por usuario_id; sem nome, a célula fica vazia. */
+  nomes?: ReadonlyMap<string, string>;
 }
 
 /** RF-PES-06: CSV das respostas (já filtradas pelo escopo e pelos filtros da tela). */
@@ -77,7 +79,7 @@ export function exportarRespostasCsv(e: EntradaExportacao): string {
   }
   const definicao = (versaoId: string, perguntaId: string) => versoes.find((v) => v.id === versaoId)?.perguntas.find((p) => p.id === perguntaId);
 
-  const cabecalho = ['resposta_id', 'versao', 'respondida_em', 'recebida_em', 'usuario_id', 'equipe_id', 'cliente_id', 'visita_id', 'suspeita', 'motivos_suspeita', ...colunas.map((c) => c.enunciado)];
+  const cabecalho = ['resposta_id', 'versao', 'respondida_em', 'recebida_em', 'usuario_id', 'Respondida por', 'equipe_id', 'cliente_id', 'visita_id', 'suspeita', 'motivos_suspeita', ...colunas.map((c) => c.enunciado)];
   const linhas = [cabecalho.map(celulaCsv).join(SEP)];
   const ordenadas = e.respostas.slice().sort((a, b) => (a.respondida_em < b.respondida_em ? -1 : a.respondida_em > b.respondida_em ? 1 : a.id < b.id ? -1 : 1));
   for (const r of ordenadas) {
@@ -88,6 +90,7 @@ export function exportarRespostasCsv(e: EntradaExportacao): string {
       dataHoraLocal(r.respondida_em, e.fuso),
       dataHoraLocal(r.recebida_em, e.fuso),
       r.usuario_id,
+      e.nomes?.get(r.usuario_id) ?? '',
       r.equipe_id ?? '',
       r.cliente_id ?? '',
       r.visita_id ?? '',
