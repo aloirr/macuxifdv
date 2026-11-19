@@ -17,7 +17,7 @@
 >   - Fechados sem merge: #453, #493, #496, #497, #500, #505, #511, #512 e #513.
 > - **SHA** 53baf7c3fc854a4a1a00436c80fb585c48e55276 (CI do main, run 44616710113). Publicado às 17h37 (issue #517). APK Campo e Gestão v1.0.15 (run 44618378737).
 > - **Cortes para a v1.0.16:** PDF na ficha e tabela Carteira do Gestão ([T-0186](tarefas/T-0186.md), [T-0187](tarefas/T-0187.md)).
-> - **Trava RN-VEN-45:** continua até o recado do dono do produto, depois do APK nos aparelhos.
+> - **Trava RN-VEN-45 cancelada** (R-20261119-184441-alexandre): ninguém usa o app antigo. O Conector 1.5.0 sai no rito normal e o "% Acres.Fin." pode ser preenchido.
 > - **Pendências que não seguraram:** MC-1803 (logo do e-mail), RD-2379 e o comentário do teste do trajeto, o 🟢 do "Enviando…", os retentáveis no SDK e o OUTBOX_PARADA (36 eventos, desde a v1.0.14).
 
 > **v1.0.14 = cenário A, só servidor** (R-20261117-063420-alexandre e R-20261118-003807-alexandre). O Cline tocou de 16 a 18/11, e a nuvem voltou em 18/11 às 20h57 (R-20261118-205700). Horários de Manaus.
@@ -28,7 +28,6 @@
 >   - corretor: LIBERADO. Fica a RD-2220 (baixa, linha velha em `docs/testes/T-0173.md:6`, dono `testes`), que vai para a v1.0.15, como decidiu a rodada 62;
 >   - marca: LIBERADO. A MC-0068 (cinzas do PDF do pedido, já em produção) vai para o `modulo-vendedor` na v1.0.15.
 > - **"PRONTO PARA LIBERAR v1.0.14 (só servidor)"** no SHA b52ca64d. Deploy pela ponte (R-20261118-003807).
-> - **Trava RN-VEN-45 opção 1** (R-20261118-210200): ver o bloco da v1.0.15.
 > - **Fechados sem merge:** #487 e #384 (a reconferência de marca da v1.0.13 os substitui) e #345 (substituído pelo #488).
 > - **Sem advogado** (R-20261119-0545, alexandre: "quem decide tudo sou eu"): nenhuma condição de "revisão de advogado". O rastreamento é interno e liga quando o dono do produto mandar, pelo parâmetro do BKO. Já corrigidos: T-0156 e doc 03 (RN-CORE-13). Para a v1.0.16 (engenheiro-software; o #500 fechou sem merge): ADR 0061, `docs/desenho/tracking.md` e os três `docs/desenho/T-0156-legal-*.md`.
 > - **Doc 03, pendente na v1.0.16:** as decisões P1 a P8 da P-6 (`docs/desenho/T-0184.md` §0) na RN-VEN-12, na RN-VEN-13 e na RN-VEN-30.
