@@ -144,6 +144,7 @@ function Perfil() {
 
   if (!sessao) return <Redirect href="/login" />;
   const tz = me?.tenant.timezone ?? sessao.tenant?.fuso ?? 'America/Manaus';
+  const textoDoTrajeto = comTrajeto ? textoDoEstadoDoTrajeto(trajeto?.estado ?? null, trajeto?.ultimo_ponto_em ?? null, tz) : null;
   const empresa = me?.tenant.name ?? sessao.tenant?.nome ?? null;
   const name = me?.seller?.name ?? sessao.user.name;
   const fila = estado.fila;
@@ -384,9 +385,9 @@ function Perfil() {
               {/* T-0140: versão + versionCode; a tarefa sem tela só roda depois de este build abrir com tela */}
               {`\nBuild instalado: ${idDoBuildAtual()}`}
             </Text>
-            {comTrajeto ? (
+            {textoDoTrajeto ? (
               <Text selectable style={styles.mono} testID="diagnostico-trajeto">
-                {`Localização no expediente: ${textoDoEstadoDoTrajeto(trajeto?.estado ?? 'desligada', trajeto?.ultimo_ponto_em ?? null, tz)}`}
+                {`Localização no expediente: ${textoDoTrajeto}`}
               </Text>
             ) : null}
             <Text selectable style={styles.mono} testID="diagnostico-ultimo-erro">

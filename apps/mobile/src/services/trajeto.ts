@@ -7,8 +7,9 @@
  * - a tarefa não toca em tela nem em estado de React, só grava no SQLite do usuário, e nenhum erro derruba o processo
  *   (vai ao Diagnóstico pelo `erroSemCoordenada`: nenhuma coordenada em log, erro, Diagnóstico ou telemetria, §9);
  * - a captura usa a frequência do parâmetro `rastreamento` do pull (`lerFrequenciaDoTrajeto`) e reinicia quando ela muda;
- * - desligada de fábrica: a condição é a de `condicaoDoTrajeto` (ponto único, `lib/trajeto.ts`), sobre o aceite e a pausa que
- *   o Core grava nas chaves `rastreamento.aceite` e `rastreamento.pausa` do armazenamento dele no banco do usuário;
+ * - desligada de fábrica: a condição é o `podeRastrear` do Core por `condicaoDoTrajeto` (ponto único, `lib/trajeto.ts`), com a
+ *   `EntradaRastreio` do banco do usuário (parâmetro, termo, aceite, feriados, ausências, pausa), da sessão guardada (cargo e
+ *   fuso do tenant), da variante e da permissão "o tempo todo" lida agora;
  * - os pontos de hoje voltam ao Core pelo leitor de `leitorDePontosLocais` (`definirPontosLocaisDoDia`, §3.4).
  * Notificação fixa: o expo-location 57 cria o canal próprio `<appId>:macuxi-trajeto` com IMPORTANCE_LOW, sem som
  * (`LocationTaskService.kt`); nada a criar aqui.
@@ -19,28 +20,31 @@ import { PARAMETROS_RASTREAMENTO_PADRAO, type FrequenciaRastreamento } from '@ma
 import { requireOptionalNativeModule } from 'expo';
 import { Platform } from 'react-native';
 
+import { DEFAULT_TZ } from '@macuxi/comum/fuso';
+
 import { semDerrubarAgora } from '@/lib/trava-sync';
 import {
   condicaoDoTrajeto,
   criarTrajeto,
   erroSemCoordenada,
   gravarPontosDoTrajeto,
-  lerEstadoLocalDoRastreamento,
+  lerContextoDoRastreio,
   lerFrequenciaDoTrajeto,
   lerPontosDoDia,
   TAREFA_TRAJETO,
   type CapturaDoAparelho,
+  type ContextoDoRastreio,
   type DiagnosticoDoTrajeto,
-  type EstadoLocalDoRastreamento,
   type IntervalosDaCaptura,
   type LeituraDeLocalizacao,
 } from '@/lib/trajeto';
+import { varianteAtual } from '@/lib/variante';
 
 import { driverDoArquivo } from './armazenamento';
 import { uuid } from './device';
 import { gravarErro } from './erros';
-import { abrirArmazenamentoDaSessao, usuarioDaSessao } from './sessao-sem-tela';
-import { readJson, writeJson } from './storage';
+import { abrirArmazenamentoDaSessao, usuarioDaSessao, type SessaoGuardada } from './sessao-sem-tela';
+import { keys, readJson, writeJson } from './storage';
 
 /** Diagnóstico do Perfil: estado e hora do último ponto (`DiagnosticoDoTrajeto`, sem coordenada). */
 export const CHAVE_DIAGNOSTICO_TRAJETO = 'fv:diagnostico:trajeto';
@@ -89,13 +93,30 @@ async function gravarNoBancoDoUsuario(pontos: Parameters<typeof gravarPontosDoTr
   if (db) await gravarPontosDoTrajeto(db, pontos);
 }
 
-/** Aceite e pausa gravados pelo Core no banco do usuário da sessão; sem sessão ou com o banco que não abriu, `null` (desligado). */
-async function estadoLocalDaSessao(): Promise<EstadoLocalDoRastreamento | null> {
+/** RN-CORE-37: permissão "o tempo todo" lida agora (sem diálogo); sem o módulo nativo ou com erro, negada. */
+async function permissaoTempoTodo(): Promise<boolean> {
+  if (!nat) return false;
+  return nat.loc
+    .getBackgroundPermissionsAsync()
+    .then((r) => r.granted)
+    .catch(() => false);
+}
+
+/**
+ * A `EntradaRastreio` do usuário da sessão, sem o instante: o banco dele (pulls e chaves do Core), o cargo e o fuso do tenant
+ * da sessão guardada, a variante e a permissão. Sem sessão ou com o banco que não abriu, `null` (desligado).
+ */
+async function contextoDaSessao(): Promise<ContextoDoRastreio | null> {
   const usuarioId = await usuarioDaSessao();
   if (!usuarioId) return null;
   const aberto = await abrirArmazenamentoDaSessao(usuarioId);
   if (aberto.tipo === 'erro') return null;
-  return lerEstadoLocalDoRastreamento(aberto.armazenamento, { aceite: CHAVE_ACEITE_LOCAL, pausa: CHAVE_PAUSA_LOCAL });
+  const [s, permissao] = await Promise.all([readJson<SessaoGuardada>(keys.session), permissaoTempoTodo()]);
+  return lerContextoDoRastreio(
+    aberto.armazenamento,
+    { aceite: CHAVE_ACEITE_LOCAL, pausa: CHAVE_PAUSA_LOCAL },
+    { usuarioId, cargo: s?.user?.perfil ?? null, app: varianteAtual(), fuso: s?.tenant?.fuso || DEFAULT_TZ, permissao },
+  );
 }
 
 /** Frequência do parâmetro `rastreamento` no pull do banco do usuário da sessão; sem sessão ou sem banco, a do padrão do contrato. */
@@ -109,14 +130,14 @@ async function frequenciaDaSessao(): Promise<FrequenciaRastreamento> {
 
 const trajeto = criarTrajeto({
   captura,
-  condicao: () => condicaoDoTrajeto(estadoLocalDaSessao),
+  condicao: () => condicaoDoTrajeto(contextoDaSessao),
   frequencia: frequenciaDaSessao,
   gravar: gravarNoBancoDoUsuario,
   novoId: uuid,
   agora: () => Date.now(),
   guardarDiagnostico: async (d) => {
     const atual = await readJson<DiagnosticoDoTrajeto>(CHAVE_DIAGNOSTICO_TRAJETO);
-    await writeJson(CHAVE_DIAGNOSTICO_TRAJETO, { estado: 'desligada', ultimo_ponto_em: null, ...atual, ...d });
+    await writeJson(CHAVE_DIAGNOSTICO_TRAJETO, { estado: null, ultimo_ponto_em: null, ...atual, ...d });
   },
   registrarErro,
 });

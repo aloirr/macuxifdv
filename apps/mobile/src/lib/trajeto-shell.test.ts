@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { PARAMETROS_RASTREAMENTO_PADRAO, type FrequenciaRastreamento, type PontoTrajeto } from '@macuxi/core/contracts';
+import { PARAMETROS_RASTREAMENTO_PADRAO, type FrequenciaRastreamento, type MotivoSemRastreio, type PontoTrajeto } from '@macuxi/core/contracts';
 import { comPrefixo, type ArmazenamentoSync, type DriverSqlite } from '@macuxi/platform-sdk';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -14,19 +14,20 @@ import {
   condicaoDoTrajeto,
   criarTrajeto,
   gravarPontosDoTrajeto,
+  lerContextoDoRastreio,
   lerEstadoLocalDoRastreamento,
   lerFrequenciaDoTrajeto,
   lerPontosDoDia,
   opcoesDoTrajeto,
-  PORTAO_DO_CORE,
+  portaoDoTrajeto,
   type CapturaDoAparelho,
   type CondicaoTrajeto,
+  type ContextoDoRastreio,
   type DiagnosticoDoTrajeto,
-  type EstadoLocalDoRastreamento,
   type IntervalosDaCaptura,
   type LeituraDeLocalizacao,
   type OpcoesDoTrajeto,
-  type PortaoDoTrajeto,
+  type SessaoDoRastreio,
 } from './trajeto';
 
 const ID = '0b9a4c1e-7f3d-4a2b-9c8d-1e2f3a4b5c6d';
@@ -90,21 +91,92 @@ function montar(
 const leitura = (ms: number): LeituraDeLocalizacao => ({ timestamp: ms, coords: { latitude: LAT, longitude: LON, accuracy: 10, speed: 1 } });
 
 describe('condição padrão (§2, condição 1: padrão desligado)', () => {
-  it('sempre desligada, em qualquer instante: a tarefa nunca liga de fábrica', async () => {
-    expect(PORTAO_DO_CORE).toBeNull();
+  it('sem contexto do aparelho (sem sessão ou sem banco): desligada em qualquer instante; a tarefa nunca liga de fábrica', async () => {
     const c = await condicaoDoTrajeto();
     for (const ms of [0, AGORA, Date.parse('2026-11-23T12:00:00.000Z')]) expect(c(ms)).toEqual({ pode: false, motivo: 'desligado' });
-    const t = montar({ condicao: await condicaoDoTrajeto().then((f) => f(AGORA)) });
+    const t = montar({ condicao: c(AGORA) });
     expect(await t.trajeto.atualizar()).toBe('manter');
     expect(t.passos).toEqual([]);
-    expect(t.diag()).toMatchObject({ estado: 'desligada' });
+    expect(t.diag()).toMatchObject({ estado: 'desligado' });
   });
 
-  it('RN-CORE-13: sem o portão do Core, desligada mesmo com aceite e sem pausa (nem lê o aparelho)', async () => {
-    const lerLocal = vi.fn(async (): Promise<EstadoLocalDoRastreamento> => ({ aceite: { versao: 1, aceito_em: '2026-11-19T12:00:00.000Z' }, pausa: null }));
-    const c = await condicaoDoTrajeto(lerLocal);
+  it('leitura do aparelho com erro: desligada', async () => {
+    const c = await condicaoDoTrajeto(() => Promise.reject(new Error('banco fechado')));
     expect(c(AGORA)).toEqual({ pode: false, motivo: 'desligado' });
-    expect(lerLocal).not.toHaveBeenCalled();
+  });
+});
+
+/** Quinta 19/11/2026, 09:00 em Manaus: dentro do expediente padrão (seg–sex 08:00–18:00). */
+const LIGA: ContextoDoRastreio = {
+  parametros: { ativo: true, expediente: PARAMETROS_RASTREAMENTO_PADRAO.expediente },
+  termoVigente: 2,
+  cargo: 'vendedor',
+  app: 'campo',
+  aceite: { versao: 2, aceito_em: '2026-11-18T12:00:00.000Z' },
+  feriados: [],
+  ausencias: [],
+  pausa: null,
+  permissao: true,
+  fuso: 'America/Manaus',
+};
+
+describe('RN-CORE-13: o portão é o podeRastrear do Core com a EntradaRastreio completa (§2 e §3.2)', () => {
+  it('liga só com todas as condições', async () => {
+    expect(portaoDoTrajeto(LIGA, AGORA)).toEqual({ pode: true });
+    expect((await condicaoDoTrajeto(async () => LIGA))(AGORA)).toEqual({ pode: true });
+  });
+
+  const casos: Array<[string, Partial<ContextoDoRastreio>, number, MotivoSemRastreio]> = [
+    ['1. parâmetro rastreamento desligado (padrão de fábrica)', { parametros: { ...LIGA.parametros, ativo: false } }, AGORA, 'desligado'],
+    ['1. sem termo publicado', { termoVigente: null }, AGORA, 'sem_termo'],
+    ['2. cargo fora do campo (supervisor)', { cargo: 'supervisor' }, AGORA, 'cargo'],
+    ['2. sem cargo na sessão', { cargo: '' }, AGORA, 'cargo'],
+    ['2. app Gestão', { app: 'gestao' }, AGORA, 'app'],
+    ['3. sem aceite', { aceite: null }, AGORA, 'sem_aceite'],
+    ['3. aceite de versão antiga (termo novo publicado)', { aceite: { versao: 1, aceito_em: '2026-11-18T12:00:00.000Z' } }, AGORA, 'sem_aceite'],
+    ['3. aceite depois do instante', { aceite: { versao: 2, aceito_em: '2026-11-19T14:00:00.000Z' } }, AGORA, 'sem_aceite'],
+    ['4. fora do expediente (19:00 em Manaus)', {}, Date.parse('2026-11-19T23:00:00.000Z'), 'fora_do_expediente'],
+    ['4. dia sem expediente (domingo)', {}, Date.parse('2026-11-22T13:00:00.000Z'), 'fora_do_expediente'],
+    ['4. expediente vazio no parâmetro', { parametros: { ativo: true, expediente: { '0': [], '1': [], '2': [], '3': [], '4': [], '5': [], '6': [] } } }, AGORA, 'fora_do_expediente'],
+    ['4. feriado do calendário do tenant', { feriados: ['2026-11-19'] }, AGORA, 'feriado'],
+    ['4. feriado nacional (20/11), mesmo sem cadastro', {}, Date.parse('2026-11-20T13:00:00.000Z'), 'feriado'],
+    ['4. ausência do usuário', { ausencias: [{ de: '2026-11-18', ate: '2026-11-19' }] }, AGORA, 'ausencia'],
+    ['5. pausa em curso', { pausa: { inicio: '2026-11-19T12:30:00.000Z' } }, AGORA, 'pausa'],
+    ['6. sem a permissão "o tempo todo"', { permissao: false }, AGORA, 'sem_permissao'],
+    ['fuso do tenant: 17:30 em Manaus é 18:30 em São Paulo', { fuso: 'America/Sao_Paulo' }, Date.parse('2026-11-19T21:30:00.000Z'), 'fora_do_expediente'],
+  ];
+  for (const [nome, mudanca, ms, motivo] of casos) {
+    it(`desliga sozinha: ${nome}`, async () => {
+      const c = { ...LIGA, ...mudanca };
+      expect(portaoDoTrajeto(c, ms)).toEqual({ pode: false, motivo });
+      expect((await condicaoDoTrajeto(async () => c))(ms)).toEqual({ pode: false, motivo });
+    });
+  }
+
+  it('controles: o mesmo contexto liga nos instantes vizinhos; instante inválido desliga', () => {
+    expect(portaoDoTrajeto(LIGA, Date.parse('2026-11-19T21:30:00.000Z'))).toEqual({ pode: true });
+    // a pausa sem "Retomar" vale no máximo PAUSA_MAX_MIN (60 min)
+    expect(portaoDoTrajeto({ ...LIGA, pausa: { inicio: '2026-11-19T11:59:00.000Z' } }, AGORA)).toEqual({ pode: true });
+    expect(portaoDoTrajeto({ ...LIGA, ausencias: [{ de: '2026-11-20', ate: '2026-11-21' }] }, AGORA)).toEqual({ pode: true });
+    expect(portaoDoTrajeto(LIGA, Number.NaN)).toEqual({ pode: false, motivo: 'desligado' });
+  });
+
+  it('o lote é julgado ponto a ponto: o que cai fora do expediente é descartado e a captura para', async () => {
+    const passos: string[] = [];
+    const gravados: PontoTrajeto[] = [];
+    const t = criarTrajeto({
+      captura: { ativa: async () => true, ligar: async () => undefined, parar: async () => void passos.push('parar'), intervalosEmUso: async () => null },
+      condicao: () => condicaoDoTrajeto(async () => LIGA),
+      frequencia: async () => PARAMETROS_RASTREAMENTO_PADRAO.frequencia,
+      gravar: async (p) => void gravados.push(...p),
+      novoId: () => ID,
+      agora: () => Date.parse('2026-11-19T22:05:00.000Z'),
+      guardarDiagnostico: async () => undefined,
+      registrarErro: () => undefined,
+    });
+    await t.tratarLote([leitura(Date.parse('2026-11-19T21:55:00.000Z')), leitura(Date.parse('2026-11-19T22:05:00.000Z'))], null);
+    expect(gravados.map((p) => p.capturado_em)).toEqual(['2026-11-19T21:55:00.000Z']);
+    expect(passos).toEqual(['parar']);
   });
 });
 
@@ -149,31 +221,102 @@ describe('aceite e pausa do Core no aparelho (§4.3 e §6; RN-CORE-13)', () => {
     expect(await lerEstadoLocalDoRastreamento(base, CHAVES)).toEqual({ aceite: null, pausa: null });
   });
 
-  it('RN-CORE-13: com o portão, cada instante passa por ele com o aceite e a pausa lidos uma vez', async () => {
-    const local: EstadoLocalDoRastreamento = { aceite: { versao: 3, aceito_em: '2026-11-19T12:00:00.000Z' }, pausa: { inicio: '2026-11-19T13:30:00.000Z' } };
-    const lerLocal = vi.fn(async () => local);
-    const vistos: EstadoLocalDoRastreamento[] = [];
-    // portão de teste: sem aceite não rastreia; dentro da pausa (60 min) não rastreia
-    const portao: PortaoDoTrajeto = (l, ms) => {
-      vistos.push(l);
-      if (!l.aceite) return { pode: false, motivo: 'sem_aceite' };
-      const inicio = l.pausa ? Date.parse(l.pausa.inicio) : Number.POSITIVE_INFINITY;
-      return ms >= inicio && ms < inicio + 3_600_000 ? { pode: false, motivo: 'pausa' } : { pode: true };
-    };
-    const c = await condicaoDoTrajeto(lerLocal, portao);
-    expect(c(AGORA)).toEqual({ pode: true });
-    expect(c(Date.parse('2026-11-19T14:00:00.000Z'))).toEqual({ pode: false, motivo: 'pausa' });
-    expect(lerLocal).toHaveBeenCalledTimes(1);
-    expect(vistos.every((v) => v === local)).toBe(true);
-    const semAceite = await condicaoDoTrajeto(async () => ({ aceite: null, pausa: null }), portao);
-    expect(semAceite(AGORA)).toEqual({ pode: false, motivo: 'sem_aceite' });
+});
+
+const OUTRO = '9f8e7d6c-5b4a-4321-8fed-cba987654321';
+const SESSAO: SessaoDoRastreio = { usuarioId: ID, cargo: 'promotor', app: 'campo', fuso: 'America/Manaus', permissao: true };
+const vivo = { updated_at: '2026-11-18T12:00:00.000Z', deleted_at: null };
+const removido = { updated_at: '2026-11-18T12:00:00.000Z', deleted_at: '2026-11-18T13:00:00.000Z' };
+const porId = (xs: Array<Record<string, unknown>>) => Object.fromEntries(xs.map((x) => [String(x.id), x]));
+
+/** O banco do usuário como o motor deixa depois do pull (chave `ent:<entidade>`, mapa id → linha) e as chaves do Core. */
+async function bancoDoUsuario(o: { semAceiteLocal?: boolean } = {}) {
+  const base = memoria();
+  await base.gravar(
+    'ent:parametro',
+    porId([
+      { id: 'p1', modulo: 'core', chave: 'rastreamento', valor: { ...PARAMETROS_RASTREAMENTO_PADRAO, ativo: true }, ...vivo },
+      { id: 'p2', modulo: 'core', chave: 'metas.feriados', valor: ['2026-11-24', 'x'], ...vivo },
+    ]),
+  );
+  await base.gravar(
+    'ent:termo_rastreamento',
+    porId([
+      { id: 't1', versao: 1, texto: 'v1', publicado_em: '2026-11-01T12:00:00.000Z', ...vivo },
+      { id: 't2', versao: 2, texto: 'v2', publicado_em: '2026-11-10T12:00:00.000Z', ...vivo },
+      { id: 't3', versao: 3, texto: 'v3', publicado_em: '2026-11-11T12:00:00.000Z', ...removido },
+    ]),
+  );
+  await base.gravar('ent:aceite_termo_rastreamento', porId([{ id: 'a1', usuario_id: ID, termo_versao: 2, aceito_em: '2026-11-10T13:00:00.000Z', ...vivo }]));
+  await base.gravar(
+    'ent:ausencia_usuario',
+    porId([
+      { id: 'u1', usuario_id: ID, de: '2026-11-25', ate: '2026-11-26', ...vivo },
+      { id: 'u2', usuario_id: ID, de: '2026-11-19', ate: '2026-11-19', ...removido },
+      { id: 'u3', usuario_id: OUTRO, de: '2026-11-19', ate: '2026-11-19', ...vivo },
+    ]),
+  );
+  if (!o.semAceiteLocal) await base.gravar('mod:core:rastreamento.aceite', { id: ID, versao: 1, aceito_em: '2026-11-02T12:00:00.000Z' });
+  return base;
+}
+
+describe('EntradaRastreio lida do aparelho (pulls e chaves do Core, sessão)', () => {
+  it('parâmetro, termo vigente, aceite do servidor, feriados e só as ausências vivas do próprio usuário', async () => {
+    const c = await lerContextoDoRastreio(await bancoDoUsuario(), CHAVES, SESSAO);
+    expect(c).toEqual({
+      parametros: { ativo: true, expediente: PARAMETROS_RASTREAMENTO_PADRAO.expediente },
+      // a versão 3 foi removida: vigente = 2; o aceite local da 1 não vale, o do servidor da 2 sim
+      termoVigente: 2,
+      cargo: 'promotor',
+      app: 'campo',
+      aceite: { versao: 2, aceito_em: '2026-11-10T13:00:00.000Z' },
+      feriados: ['2026-11-24'],
+      ausencias: [{ de: '2026-11-25', ate: '2026-11-26' }],
+      pausa: null,
+      permissao: true,
+      fuso: 'America/Manaus',
+    } satisfies ContextoDoRastreio);
+    expect(portaoDoTrajeto(c, AGORA)).toEqual({ pode: true });
   });
 
-  it('com o portão, mas sem sessão ou sem banco: desligada', async () => {
-    const portao = vi.fn<PortaoDoTrajeto>(() => ({ pode: true }));
-    const c = await condicaoDoTrajeto(async () => null, portao);
-    expect(c(AGORA)).toEqual({ pode: false, motivo: 'desligado' });
-    expect(portao).not.toHaveBeenCalled();
+  it('o aceite local da versão vigente vale offline, antes do pull; a pausa local entra', async () => {
+    const base = await bancoDoUsuario({ semAceiteLocal: true });
+    await base.gravar('ent:aceite_termo_rastreamento', {});
+    expect((await lerContextoDoRastreio(base, CHAVES, SESSAO)).aceite).toBeNull();
+    await base.gravar('mod:core:rastreamento.aceite', { id: ID, versao: 2, aceito_em: '2026-11-19T12:00:00.000Z' });
+    await base.gravar('mod:core:rastreamento.pausa', { id: ID, inicio: '2026-11-19T12:50:00.000Z' });
+    const c = await lerContextoDoRastreio(base, CHAVES, SESSAO);
+    expect(c.aceite).toEqual({ versao: 2, aceito_em: '2026-11-19T12:00:00.000Z' });
+    expect(portaoDoTrajeto(c, AGORA)).toEqual({ pode: false, motivo: 'pausa' });
+  });
+
+  it('aceite do servidor de outro usuário ou removido não vale; sem cargo na sessão, cargo vazio', async () => {
+    const base = await bancoDoUsuario({ semAceiteLocal: true });
+    await base.gravar(
+      'ent:aceite_termo_rastreamento',
+      porId([
+        { id: 'a1', usuario_id: OUTRO, termo_versao: 2, aceito_em: '2026-11-10T13:00:00.000Z', ...vivo },
+        { id: 'a2', usuario_id: ID, termo_versao: 2, aceito_em: '2026-11-10T13:00:00.000Z', ...removido },
+      ]),
+    );
+    const c = await lerContextoDoRastreio(base, CHAVES, { ...SESSAO, cargo: null });
+    expect(c.aceite).toBeNull();
+    expect(c.cargo).toBe('');
+    expect(portaoDoTrajeto(c, AGORA)).toEqual({ pode: false, motivo: 'cargo' });
+  });
+
+  it('banco vazio (antes do 1º pull): padrão de fábrica, desligado', async () => {
+    const c = await lerContextoDoRastreio(memoria(), CHAVES, SESSAO);
+    expect(c).toMatchObject({ parametros: { ativo: false }, termoVigente: null, aceite: null, feriados: [], ausencias: [] });
+    expect(portaoDoTrajeto(c, AGORA)).toEqual({ pode: false, motivo: 'desligado' });
+  });
+
+  it('pelas linhas do SQLite (extensão linhas), como o motor.linhas', async () => {
+    const base = await bancoDoUsuario();
+    const listar = vi.fn(async (e: string) => Object.values((await base.ler<Record<string, unknown>>(`ent:${e}`)) ?? {}));
+    const comLinhas = { ...base, linhas: { listar } } as unknown as ArmazenamentoSync;
+    expect(portaoDoTrajeto(await lerContextoDoRastreio(comLinhas, CHAVES, SESSAO), AGORA)).toEqual({ pode: true });
+    expect(listar.mock.calls.map(([e]) => e).sort()).toEqual(['aceite_termo_rastreamento', 'ausencia_usuario', 'parametro', 'termo_rastreamento']);
   });
 });
 
@@ -285,7 +428,7 @@ describe('logout e aparelho bloqueado param a captura (§3.4)', () => {
     await ativa.trajeto.parar();
     expect(ativa.passos).toEqual(['parar']);
     expect(ativa.ativa()).toBe(false);
-    expect(ativa.diag()).toEqual({ estado: 'desligada', ultimo_ponto_em: null });
+    expect(ativa.diag()).toEqual({ estado: null, ultimo_ponto_em: null });
 
     const parada = montar();
     await parada.trajeto.parar();
@@ -442,10 +585,12 @@ describe('ligação no shell (§3.2): três gatilhos, logout e aparelho bloquead
     for (const t of [plataforma, segundoPlano]) expect(t).toMatch(/pararCaptura: pararTrajeto,(\s*\/\/[^\n]*)*\s*apagarBancos: apagarBancosDoAparelho/);
   });
 
-  it('RN-CORE-13: a tarefa lê o aceite e a pausa nas chaves do Core, no banco do usuário da sessão', () => {
+  it('RN-CORE-13: a tarefa monta a EntradaRastreio do banco do usuário da sessão, do cargo e do fuso da sessão, da variante e da permissão', () => {
     expect(servico).toMatch(/import \{ CHAVE_ACEITE_LOCAL, CHAVE_PAUSA_LOCAL[^}]*\} from '@macuxi\/core\/app';/);
-    expect(servico).toMatch(/lerEstadoLocalDoRastreamento\(aberto\.armazenamento, \{ aceite: CHAVE_ACEITE_LOCAL, pausa: CHAVE_PAUSA_LOCAL \}\)/);
-    expect(servico).toMatch(/condicao: \(\) => condicaoDoTrajeto\(estadoLocalDaSessao\)/);
+    expect(servico).toMatch(/lerContextoDoRastreio\(\s*aberto\.armazenamento,\s*\{ aceite: CHAVE_ACEITE_LOCAL, pausa: CHAVE_PAUSA_LOCAL \},/);
+    expect(servico).toMatch(/cargo: s\?\.user\?\.perfil \?\? null, app: varianteAtual\(\), fuso: s\?\.tenant\?\.fuso \|\| DEFAULT_TZ, permissao/);
+    expect(servico).toMatch(/getBackgroundPermissionsAsync\(\)\s*\.then\(\(r\) => r\.granted\)\s*\.catch\(\(\) => false\)/);
+    expect(servico).toMatch(/condicao: \(\) => condicaoDoTrajeto\(contextoDaSessao\)/);
   });
 
   it('os pontos de hoje vão ao Core na abertura da sessão e saem no logout e no aparelho bloqueado', () => {

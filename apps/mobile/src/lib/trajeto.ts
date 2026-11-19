@@ -1,22 +1,32 @@
 /**
  * T-0156 (docs/desenho/tracking.md §3 e §9; RN-CORE-13 e RN-CORE-37): regras puras da tarefa `macuxi-trajeto`, sem nada
- * nativo (o lado do aparelho fica em `services/trajeto.ts`). A condição de negócio (`podeRastrear`, §3.2) é do Core e
- * entra pronta; aqui só o que o shell faz com ela: montar o ponto, filtrar o lote, ligar ou desligar e o estado do
- * Diagnóstico. Nenhuma coordenada sai daqui para log, erro, Diagnóstico ou telemetria (§9).
+ * nativo (o lado do aparelho fica em `services/trajeto.ts`). A condição de negócio é o `podeRastrear` do Core (§3.2), o
+ * mesmo da API; aqui só o que o shell faz com ela: ler do aparelho a `EntradaRastreio`, montar o ponto, filtrar o lote,
+ * ligar ou desligar e o estado do Diagnóstico. Nenhuma coordenada sai daqui para log, erro, Diagnóstico ou telemetria (§9).
  *
- * Tipos do contrato do Core (`@macuxi/core/contracts`): `MotivoSemRastreio` e `PontoTrajeto` (validado pelo `PontoTrajetoSchema`).
+ * Do contrato do Core (`@macuxi/core/contracts`): `podeRastrear`, `ROTULO_ESTADO_RASTREAMENTO`, `formatarHoraDoTrajeto` e
+ * `PontoTrajeto` (validado pelo `PontoTrajetoSchema`).
  */
-import { formatHHMM, localIsoDate } from '@macuxi/comum/fuso';
+import { localIsoDate } from '@macuxi/comum/fuso';
 import {
+  ENTIDADE_ACEITE_TERMO_RASTREAMENTO,
+  ENTIDADE_AUSENCIA_USUARIO,
+  ENTIDADE_TERMO_RASTREAMENTO,
+  formatarHoraDoTrajeto,
+  PARAMETRO_FERIADOS,
   PARAMETRO_RASTREAMENTO,
   PARAMETROS_RASTREAMENTO_PADRAO,
   ParametrosRastreamentoSchema,
+  podeRastrear,
   PontoDoTrajetoSchema,
   PontoTrajetoSchema,
+  ROTULO_ESTADO_RASTREAMENTO,
+  type EntradaRastreio,
   type FrequenciaRastreamento,
-  type MotivoSemRastreio,
+  type ParametrosRastreamento,
   type PontoDoTrajeto,
   type PontoTrajeto,
+  type ResultadoRastreio,
 } from '@macuxi/core/contracts';
 import { comPrefixo, type ArmazenamentoSync, type DriverSqlite } from '@macuxi/platform-sdk';
 
@@ -25,7 +35,7 @@ import { semDerrubar } from './trava-sync';
 export const TAREFA_TRAJETO = 'macuxi-trajeto';
 
 /** Resultado do portão `podeRastrear` do Core (§3.2), com o motivo do contrato. */
-export type CondicaoTrajeto = { pode: true } | { pode: false; motivo: MotivoSemRastreio };
+export type CondicaoTrajeto = ResultadoRastreio;
 
 /** Leitura entregue pelo expo-location (`LocationObject`); altitude e rumo chegam e são ignorados (§3.1). */
 export interface LeituraDeLocalizacao {
@@ -86,13 +96,18 @@ export function mesmosIntervalos(a: IntervalosDaCaptura, b: Partial<IntervalosDa
 type LinhaDeParametro = Readonly<{ modulo?: unknown; chave?: unknown; valor?: unknown; deleted_at?: unknown }>;
 
 /**
- * Frequência do parâmetro `rastreamento` do Core nas linhas do pull `parametro`. Ausente, removido ou fora do
- * `ParametrosRastreamentoSchema`: a do padrão de fábrica do contrato.
+ * Parâmetro `rastreamento` do Core nas linhas do pull `parametro`. Ausente, removido ou fora do `ParametrosRastreamentoSchema`:
+ * o padrão de fábrica do contrato (desligado).
  */
-export function frequenciaDasLinhas(linhas: readonly LinhaDeParametro[]): FrequenciaRastreamento {
+function parametrosDasLinhas(linhas: readonly LinhaDeParametro[]): ParametrosRastreamento {
   const valor = linhas.find((l) => l.modulo === 'core' && l.chave === PARAMETRO_RASTREAMENTO && !l.deleted_at)?.valor;
   const p = ParametrosRastreamentoSchema.safeParse(valor);
-  return p.success ? p.data.frequencia : PARAMETROS_RASTREAMENTO_PADRAO.frequencia;
+  return p.success ? p.data : PARAMETROS_RASTREAMENTO_PADRAO;
+}
+
+/** Frequência do parâmetro `rastreamento`; sem ele, a do padrão de fábrica do contrato. */
+export function frequenciaDasLinhas(linhas: readonly LinhaDeParametro[]): FrequenciaRastreamento {
+  return parametrosDasLinhas(linhas).frequencia;
 }
 
 /** Entidade de pull dos parâmetros do tenant (o `motor.linhas('parametro')` do Core). */
@@ -103,10 +118,7 @@ const ENTIDADE_PARAMETRO = 'parametro';
  * (mapa id → linha), como o `motor.linhas` do SDK.
  */
 export async function lerFrequenciaDoTrajeto(base: ArmazenamentoSync): Promise<FrequenciaRastreamento> {
-  const linhas: readonly LinhaDeParametro[] = base.linhas
-    ? await base.linhas.listar(ENTIDADE_PARAMETRO)
-    : Object.values((await base.ler<Record<string, LinhaDeParametro>>(`ent:${ENTIDADE_PARAMETRO}`)) ?? {});
-  return frequenciaDasLinhas(linhas);
+  return frequenciaDasLinhas(await linhasDaEntidade(base, ENTIDADE_PARAMETRO));
 }
 
 const casas6 = (n: number): number => Number(n.toFixed(6));
@@ -168,49 +180,22 @@ export function acaoDoTrajeto(condicao: CondicaoTrajeto, ativa: boolean, frequen
   return ativa ? 'desligar' : 'manter';
 }
 
-export type EstadoDoTrajeto = 'ativa' | 'fora_do_expediente' | 'sem_expediente' | 'pausada' | 'sem_termo' | 'desligada';
+/** Estado do Diagnóstico (§9): "ativa" ou o motivo do portão fechado, as chaves do `ROTULO_ESTADO_RASTREAMENTO` do Core. */
+export type EstadoDoTrajeto = keyof typeof ROTULO_ESTADO_RASTREAMENTO;
 
 /** Estado do Diagnóstico (§9), só pelo motivo: nunca o lugar. */
-export function estadoDoTrajeto(condicao: CondicaoTrajeto, ativa: boolean): EstadoDoTrajeto {
-  if (condicao.pode) return ativa ? 'ativa' : 'desligada';
-  switch (condicao.motivo) {
-    case 'fora_do_expediente':
-      return 'fora_do_expediente';
-    // o chip da seção Localização do Core diz "Sem expediente hoje" no feriado e na ausência
-    case 'feriado':
-    case 'ausencia':
-      return 'sem_expediente';
-    case 'pausa':
-      return 'pausada';
-    case 'sem_aceite':
-      return 'sem_termo';
-    // §2, condição 1: sem termo publicado a empresa ainda não ligou o tracking; app e cargo de fora, ou sem a permissão
-    case 'desligado':
-    case 'sem_termo':
-    case 'cargo':
-    case 'app':
-    case 'sem_permissao':
-      return 'desligada';
-  }
+export function estadoDoTrajeto(condicao: CondicaoTrajeto): EstadoDoTrajeto {
+  return condicao.pode ? 'ativa' : condicao.motivo;
 }
 
 /**
- * Rótulos do Diagnóstico: os mesmos do chip da seção Localização do Perfil (spec do tracking §2, sem frase). Sem termo e
- * Desligada só aqui: nesses estados a seção do Core não aparece.
+ * Linha do Diagnóstico: o rótulo do Core (o mesmo do chip do Perfil) e, se houver, a hora do último ponto no fuso do tenant (§9).
+ * Sem estado (antes da 1ª atualização da sessão), nada.
  */
-export const TEXTOS_TRAJETO: Record<EstadoDoTrajeto, string> = {
-  ativa: 'Ativa',
-  fora_do_expediente: 'Fora do expediente',
-  sem_expediente: 'Sem expediente hoje',
-  pausada: 'Pausada',
-  sem_termo: 'Sem termo',
-  desligada: 'Desligada',
-};
-
-/** Linha do Diagnóstico: o rótulo do estado e, se houver, a hora do último ponto no fuso do tenant (§9). */
-export function textoDoEstadoDoTrajeto(estado: EstadoDoTrajeto, ultimoPontoIso: string | null, fuso: string): string {
-  const texto = TEXTOS_TRAJETO[estado];
-  return ultimoPontoIso ? `${texto} · último ponto ${formatHHMM(ultimoPontoIso, fuso)}` : texto;
+export function textoDoEstadoDoTrajeto(estado: EstadoDoTrajeto | null, ultimoPontoIso: string | null, fuso: string): string | null {
+  if (!estado) return null;
+  const texto = ROTULO_ESTADO_RASTREAMENTO[estado];
+  return ultimoPontoIso ? `${texto} · último ponto ${formatarHoraDoTrajeto(ultimoPontoIso, fuso)}` : texto;
 }
 
 /**
@@ -262,27 +247,135 @@ export async function lerEstadoLocalDoRastreamento(base: ArmazenamentoSync, chav
   return { aceite, pausa };
 }
 
-/** O portão do Core (`podeRastrear` com os parâmetros, o termo, as ausências e os feriados do aparelho) sobre o estado local. */
-export type PortaoDoTrajeto = (local: EstadoLocalDoRastreamento, instanteMs: number) => CondicaoTrajeto;
-
 /**
- * O portão que o `@macuxi/core/app` entrega ao shell. HOJE `null`: o Core ainda não exporta `podeRastrear` nem os parâmetros
- * `rastreamento` pelo app (pedido ao modulo-core), e a tarefa NUNCA liga de fábrica. Quando exportar, só esta linha muda.
+ * Tudo o que o `podeRastrear` do Core pede, menos o instante (§2 e §3.2), lido do aparelho uma vez por atualização ou lote:
+ * o parâmetro `rastreamento` (ativo e expediente), o termo vigente, o cargo, o app, o aceite da versão vigente, os feriados do
+ * tenant, as ausências do próprio usuário, a pausa em curso, a permissão "o tempo todo" e o fuso do tenant.
  */
-export const PORTAO_DO_CORE: PortaoDoTrajeto | null = null;
+export interface ContextoDoRastreio {
+  parametros: Pick<ParametrosRastreamento, 'ativo' | 'expediente'>;
+  termoVigente: number | null;
+  cargo: string;
+  app: string;
+  aceite: { versao: number; aceito_em: string } | null;
+  feriados: readonly string[];
+  ausencias: ReadonlyArray<{ de: string; ate: string }>;
+  pausa: { inicio: string } | null;
+  /** Só `true` com a permissão lida e concedida; sem leitura, `false` (nunca "não conferida"). */
+  permissao: boolean;
+  fuso: string;
+}
+
+/** A `EntradaRastreio` completa do Core para o instante (a pausa em curso vai sem fim: o Core a limita a `PAUSA_MAX_MIN`). */
+export function entradaDoRastreio(c: ContextoDoRastreio, instanteMs: number): EntradaRastreio {
+  return {
+    ativo: c.parametros.ativo,
+    termoVigente: c.termoVigente,
+    cargo: c.cargo,
+    app: c.app,
+    aceite: c.aceite,
+    expediente: c.parametros.expediente,
+    feriados: c.feriados,
+    ausencias: c.ausencias,
+    pausas: c.pausa ? [{ inicio: c.pausa.inicio, fim: null }] : [],
+    permissao: c.permissao,
+    instante: new Date(instanteMs).toISOString(),
+    fuso: c.fuso,
+  };
+}
+
+/** RN-CORE-13: o portão é o `podeRastrear` do Core, o mesmo da API; instante inválido, desligado. */
+export function portaoDoTrajeto(c: ContextoDoRastreio, instanteMs: number): CondicaoTrajeto {
+  if (!Number.isFinite(instanteMs)) return DESLIGADO;
+  return podeRastrear(entradaDoRastreio(c, instanteMs));
+}
 
 /**
- * PONTO ÚNICO da condição do §2 no shell (RN-CORE-13). Sem portão, "desligado" em qualquer instante (nem lê o aparelho);
- * com ele, cada instante passa pelo portão com o aceite e a pausa lidos uma vez. Sem sessão ou sem banco, desligado.
+ * PONTO ÚNICO da condição do §2 no shell (RN-CORE-13): cada instante passa pelo `podeRastrear` com o contexto lido uma vez.
+ * Sem contexto (sem sessão, sem banco ou leitura com erro), "desligado" em qualquer instante: nunca liga de fábrica.
  */
 export async function condicaoDoTrajeto(
-  lerLocal: () => Promise<EstadoLocalDoRastreamento | null> = () => Promise.resolve(null),
-  portao: PortaoDoTrajeto | null = PORTAO_DO_CORE,
+  lerContexto: () => Promise<ContextoDoRastreio | null> = () => Promise.resolve(null),
 ): Promise<(instanteMs: number) => CondicaoTrajeto> {
-  if (!portao) return () => DESLIGADO;
-  const local = await lerLocal();
-  if (!local) return () => DESLIGADO;
-  return (instanteMs) => portao(local, instanteMs);
+  const contexto = await lerContexto().catch(() => null);
+  if (!contexto) return () => DESLIGADO;
+  return (instanteMs) => portaoDoTrajeto(contexto, instanteMs);
+}
+
+/** O que a sessão guardada e o aparelho dizem do usuário (`services/trajeto.ts`). */
+export interface SessaoDoRastreio {
+  usuarioId: string;
+  cargo: string | null;
+  app: string;
+  fuso: string;
+  permissao: boolean;
+}
+
+type Linha = Readonly<Record<string, unknown>>;
+const ehData = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+const viva = (l: Linha): boolean => !l.deleted_at;
+const ehVersao = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 1;
+
+/** Linhas guardadas de uma entidade do pull, como o `motor.linhas` do SDK: pela extensão `linhas` (SQLite) ou pela chave `ent:<e>`. */
+async function linhasDaEntidade(base: ArmazenamentoSync, entidade: string): Promise<Linha[]> {
+  if (base.linhas) return (await base.linhas.listar(entidade)) as unknown as Linha[];
+  return Object.values((await base.ler<Record<string, Linha>>(`ent:${entidade}`)) ?? {});
+}
+
+/** Feriados do tenant no pull `parametro` (`metas.feriados` do Core): só datas AAAA-MM-DD; os nacionais o portão acrescenta. */
+export function feriadosDasLinhas(linhas: readonly LinhaDeParametro[]): string[] {
+  const f = linhas.find((l) => l.modulo === 'core' && l.chave === PARAMETRO_FERIADOS && !l.deleted_at)?.valor;
+  return Array.isArray(f) ? f.filter(ehData) : [];
+}
+
+/** Termo vigente: a maior versão viva do pull `termo_rastreamento`; nenhuma, `null`. */
+export function termoVigenteDasLinhas(linhas: readonly Linha[]): number | null {
+  return linhas.filter(viva).reduce<number | null>((v, l) => (ehVersao(l.versao) && (v === null || l.versao > v) ? l.versao : v), null);
+}
+
+/** Aceite da versão vigente: o gravado neste aparelho ou, sem ele, o que voltou no pull (só os do próprio usuário). */
+export function aceiteDaVersao(
+  vigente: number | null,
+  local: EstadoLocalDoRastreamento['aceite'],
+  servidor: readonly Linha[],
+  usuarioId: string,
+): EstadoLocalDoRastreamento['aceite'] {
+  if (vigente === null || (local && local.versao === vigente)) return local;
+  const s = servidor.find((a) => viva(a) && a.usuario_id === usuarioId && a.termo_versao === vigente && ehInstante(a.aceito_em));
+  return s ? { versao: vigente, aceito_em: s.aceito_em as string } : null;
+}
+
+/** Ausências do próprio usuário no pull `ausencia_usuario` (datas civis no fuso do tenant). */
+export function ausenciasDasLinhas(linhas: readonly Linha[], usuarioId: string): Array<{ de: string; ate: string }> {
+  return linhas.filter((a) => viva(a) && a.usuario_id === usuarioId && ehData(a.de) && ehData(a.ate)).map((a) => ({ de: a.de as string, ate: a.ate as string }));
+}
+
+/**
+ * Lê o contexto do portão no banco do usuário, sem motor: os pulls `parametro`, `termo_rastreamento`, `aceite_termo_rastreamento` e
+ * `ausencia_usuario`, e o aceite e a pausa que o Core grava nas chaves dele. Sem cargo, cargo vazio (o Core recusa).
+ */
+export async function lerContextoDoRastreio(base: ArmazenamentoSync, chaves: { aceite: string; pausa: string }, s: SessaoDoRastreio): Promise<ContextoDoRastreio> {
+  const [parametro, termos, aceites, ausencias, local] = await Promise.all([
+    linhasDaEntidade(base, ENTIDADE_PARAMETRO),
+    linhasDaEntidade(base, ENTIDADE_TERMO_RASTREAMENTO),
+    linhasDaEntidade(base, ENTIDADE_ACEITE_TERMO_RASTREAMENTO),
+    linhasDaEntidade(base, ENTIDADE_AUSENCIA_USUARIO),
+    lerEstadoLocalDoRastreamento(base, chaves),
+  ]);
+  const { ativo, expediente } = parametrosDasLinhas(parametro);
+  const termoVigente = termoVigenteDasLinhas(termos);
+  return {
+    parametros: { ativo, expediente },
+    termoVigente,
+    cargo: s.cargo ?? '',
+    app: s.app,
+    aceite: aceiteDaVersao(termoVigente, local.aceite, aceites, s.usuarioId),
+    feriados: feriadosDasLinhas(parametro),
+    ausencias: ausenciasDasLinhas(ausencias, s.usuarioId),
+    pausa: local.pausa,
+    permissao: s.permissao,
+    fuso: s.fuso,
+  };
 }
 
 /** A captura do aparelho (`expo-location`, `services/trajeto.ts`). */
@@ -296,7 +389,8 @@ export interface CapturaDoAparelho {
 
 /** O que o Diagnóstico do Perfil guarda (§9): o estado e a hora do último ponto, nunca a coordenada. */
 export interface DiagnosticoDoTrajeto {
-  estado: EstadoDoTrajeto;
+  /** `null` depois do logout ou do aparelho bloqueado, até a 1ª atualização da sessão. */
+  estado: EstadoDoTrajeto | null;
   ultimo_ponto_em: string | null;
 }
 
@@ -343,7 +437,7 @@ export function criarTrajeto(d: DepsDoTrajeto) {
           const acao = acaoDoTrajeto(agora, ativa, mudou);
           if (acao === 'desligar' || acao === 'reiniciar') await c.parar();
           if ((acao === 'ligar' || acao === 'reiniciar') && opcoes) await c.ligar(opcoes);
-          await d.guardarDiagnostico({ estado: estadoDoTrajeto(agora, acao === 'manter' ? ativa : acao !== 'desligar') });
+          await d.guardarDiagnostico({ estado: estadoDoTrajeto(agora) });
           return acao;
         },
         registrar,
@@ -356,7 +450,7 @@ export function criarTrajeto(d: DepsDoTrajeto) {
       await semDerrubar(
         async () => {
           await pararSeAtiva(c);
-          await d.guardarDiagnostico({ estado: 'desligada', ultimo_ponto_em: null });
+          await d.guardarDiagnostico({ estado: null, ultimo_ponto_em: null });
         },
         registrar,
         undefined,

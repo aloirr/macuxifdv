@@ -1,8 +1,8 @@
 /**
  * T-0156 (docs/desenho/tracking.md §3 e §9; RN-CORE-13 e RN-CORE-37): regras do shell para a tarefa `macuxi-trajeto`.
- * A condição de negócio (`podeRastrear`, §3.2) é do Core e entra pronta; aqui só o que o shell faz com ela.
+ * A condição de negócio é o `podeRastrear` do Core (§3.2); aqui só o que o shell faz com ela.
  */
-import { MOTIVOS_SEM_RASTREIO, PARAMETROS_RASTREAMENTO_PADRAO, PontoTrajetoSchema } from '@macuxi/core/contracts';
+import { MOTIVOS_SEM_RASTREIO, PARAMETROS_RASTREAMENTO_PADRAO, PontoTrajetoSchema, ROTULO_ESTADO_RASTREAMENTO } from '@macuxi/core/contracts';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -15,7 +15,6 @@ import {
   pontoDaLeitura,
   pontosDoLote,
   TAREFA_TRAJETO,
-  TEXTOS_TRAJETO,
   textoDoEstadoDoTrajeto,
 } from './trajeto';
 
@@ -108,33 +107,20 @@ describe('ligar e desligar (§3.2)', () => {
 });
 
 describe('Diagnóstico sem coordenada (§9)', () => {
-  it('estado pelo motivo, sem lugar nenhum', () => {
-    expect(estadoDoTrajeto({ pode: true }, true)).toBe('ativa');
-    expect(estadoDoTrajeto({ pode: false, motivo: 'fora_do_expediente' }, false)).toBe('fora_do_expediente');
-    expect(estadoDoTrajeto({ pode: false, motivo: 'feriado' }, false)).toBe('sem_expediente');
-    expect(estadoDoTrajeto({ pode: false, motivo: 'ausencia' }, false)).toBe('sem_expediente');
-    expect(estadoDoTrajeto({ pode: false, motivo: 'pausa' }, false)).toBe('pausada');
-    expect(estadoDoTrajeto({ pode: false, motivo: 'sem_aceite' }, false)).toBe('sem_termo');
-    expect(estadoDoTrajeto({ pode: false, motivo: 'desligado' }, false)).toBe('desligada');
-    // §2, condição 1: a empresa só ligou de fato com o termo publicado; sem ele, o tracking está desligado
-    expect(estadoDoTrajeto({ pode: false, motivo: 'sem_termo' }, false)).toBe('desligada');
-    expect(estadoDoTrajeto({ pode: false, motivo: 'app' }, false)).toBe('desligada');
-    expect(estadoDoTrajeto({ pode: false, motivo: 'cargo' }, false)).toBe('desligada');
-    expect(estadoDoTrajeto({ pode: false, motivo: 'sem_permissao' }, false)).toBe('desligada');
-    expect(estadoDoTrajeto({ pode: true }, false)).toBe('desligada');
+  it('estado pelo motivo do portão, sem lugar nenhum', () => {
+    expect(estadoDoTrajeto({ pode: true })).toBe('ativa');
+    for (const motivo of MOTIVOS_SEM_RASTREIO) expect(estadoDoTrajeto({ pode: false, motivo })).toBe(motivo);
   });
 
-  it('todo motivo do contrato (MOTIVOS_SEM_RASTREIO) tem um estado com texto', () => {
-    for (const motivo of MOTIVOS_SEM_RASTREIO) expect(TEXTOS_TRAJETO[estadoDoTrajeto({ pode: false, motivo }, false)]).toEqual(expect.any(String));
+  it('RD-2298: rótulos do Core (ROTULO_ESTADO_RASTREAMENTO), os mesmos do chip do Perfil; todo motivo do contrato tem texto', () => {
+    for (const motivo of MOTIVOS_SEM_RASTREIO) expect(textoDoEstadoDoTrajeto(motivo, null, 'America/Manaus')).toBe(ROTULO_ESTADO_RASTREAMENTO[motivo]);
+    expect(textoDoEstadoDoTrajeto('ativa', null, 'America/Manaus')).toBe(ROTULO_ESTADO_RASTREAMENTO.ativa);
   });
 
-  it('rótulos do Diagnóstico: os do chip da seção Localização do Core (spec §2); Sem termo e Desligada só aqui', () => {
-    expect(TEXTOS_TRAJETO).toEqual({ ativa: 'Ativa', fora_do_expediente: 'Fora do expediente', sem_expediente: 'Sem expediente hoje', pausada: 'Pausada', sem_termo: 'Sem termo', desligada: 'Desligada' });
-  });
-
-  it('texto do Diagnóstico: o rótulo e a hora do último ponto no fuso do tenant', () => {
-    expect(textoDoEstadoDoTrajeto('ativa', '2026-11-19T13:05:00.000Z', 'America/Manaus')).toBe('Ativa · último ponto 09:05');
-    expect(textoDoEstadoDoTrajeto('pausada', null, 'America/Manaus')).toBe(TEXTOS_TRAJETO.pausada);
+  it('texto do Diagnóstico: o rótulo e a hora do último ponto no fuso do tenant (formatarHoraDoTrajeto); sem estado, nada', () => {
+    expect(textoDoEstadoDoTrajeto('ativa', '2026-11-19T13:05:00.000Z', 'America/Manaus')).toBe(`${ROTULO_ESTADO_RASTREAMENTO.ativa} · último ponto 09:05`);
+    expect(textoDoEstadoDoTrajeto('pausa', null, 'America/Manaus')).toBe(ROTULO_ESTADO_RASTREAMENTO.pausa);
+    expect(textoDoEstadoDoTrajeto(null, '2026-11-19T13:05:00.000Z', 'America/Manaus')).toBeNull();
   });
 
   it('erro da tarefa vai ao Diagnóstico sem coordenada', () => {
