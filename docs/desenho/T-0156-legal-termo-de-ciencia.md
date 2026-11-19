@@ -17,6 +17,6 @@
 > - O trajeto não é usado sozinho para punição ou desligamento: sempre há revisão de uma pessoa.
 > - Em "Meu trajeto" você vê o seu trajeto e contesta um dia. Dúvidas: fale com a pessoa responsável pelos dados na [Empresa],
 >   [contato].
-> - A [Empresa] é a responsável por estes dados. O Macuxi só os usa por ordem dela.
+> - A [Empresa] é a responsável por estes dados. O Macuxi FDV só os usa por ordem dela.
 >
 > [ Li e estou ciente ]
