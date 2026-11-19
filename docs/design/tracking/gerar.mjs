@@ -99,16 +99,16 @@ table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:15px}
 th{text-align:left;font-size:13px;font-weight:600;color:#4A5562;padding:8px 10px;border-bottom:1px solid #DFE2E6;white-space:nowrap}
 td{padding:0 10px;height:44px;border-bottom:1px solid #ECEEF1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 tr:last-child td{border-bottom:0}
-tr.sel td{background:#F3F5F8}
+tr.sel td{background:#F8F6F1}
 .n{text-align:right;font-variant-numeric:tabular-nums}
 .selo{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
-.s-ok{color:#1D6B4F;background:#E2F1EA}.s-pe{color:#1E3350;background:#E6ECF4}.s-av{color:#5C3B00;background:#FFF1D6}
+.s-ok{color:#1D6B4F;background:#E2F1EA}.s-pe{color:#1E3350;background:#DFE2E6}.s-av{color:#7A4F00;background:#FFF1D6}
 .ac{width:52px;text-align:center;padding:0}
 .dots{display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;border-radius:10px;color:#4A5562}
 .dots.on{background:#ECEEF1;color:#16202A}
 .pop{position:absolute;right:22px;width:200px;background:#fff;border:1px solid #DFE2E6;border-radius:12px;box-shadow:0 8px 20px rgba(22,32,42,.16);padding:6px;display:flex;flex-direction:column;z-index:5}
 .pop a{min-height:40px;display:flex;align-items:center;padding:0 12px;border-radius:8px;font-size:15px}
-.pop a.foco{background:#F3F5F8;font-weight:600}
+.pop a.foco{background:#DFE2E6;font-weight:600}
 .btn{height:44px;border-radius:10px;padding:0 18px;font-size:15px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;border:1px solid #C9CED5;background:#fff;color:#16202A}
 .grade{display:flex;gap:16px;flex:1;min-height:0}
 .mapaw{flex:1;min-width:0;border-radius:16px;overflow:hidden;background:#ECEEF1;border:1px solid #C9CED5;position:relative}

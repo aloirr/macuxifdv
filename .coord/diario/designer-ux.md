@@ -173,3 +173,4 @@
 2026-11-19 — T-0156 — #492: MC-1750, MC-1751 e "Macuxi FDV" no termo.
 2026-11-19 — T-0156 — #492: RD-2240 a RD-2244 (textos do cartão de Localização, distância, sem texto de funcionamento, sem aviso de retomada, laço de captura comum).
 2026-11-19 — T-0156 — #492: rastreamento interno (decisão das 05h46): saem termo, Meu trajeto, pausa, Localização no Perfil e Contestar; ficam o mapa da equipe (Gestão e BKO) e a notificação "Macuxi Campo ativo".
+2026-11-19 — T-0156 — #492: MC-1781 (cores do kit na prancha do BKO do mapa da equipe).
