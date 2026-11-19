@@ -13,6 +13,9 @@ import { ROTULO_VALOR_FINAL } from '../../domain/apresentacao-totais';
 import type { LinhaDeItemEmTabela } from '../lib/detalhe-pedido';
 import { larguraDoCodigo } from '../lib/tabela-itens';
 
+/** RD-2378: medidas da `TabelaRotuloValor` no pedido (Cliente, Venda, Pagamento, Entrega), num lugar só. */
+export const TABELA_DO_PEDIDO = { larguraRotulo: 92, alinharValor: 'esq' } as const;
+
 /**
  * T-0165 (docs/design/pedido-v4.md §5.4): Código · Emb. · Qtd · Valor tabela · Desc./Acrésc. · Total, sobre a `TabelaDados` do kit
  * (RD-2370). O código é link: o toque abre o balão com "nome - marca". `aoTocarLinha` (Resumo) abre a folha do item pela linha e pelo lápis.
