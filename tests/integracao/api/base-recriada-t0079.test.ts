@@ -58,6 +58,7 @@ describe.skipIf(semBanco())('T-0079 — base recriada × API real e Postgres (AD
     await q('delete from vendedor.pedido_evento where pedido_id = $1', [pid]);
     await q('delete from vendedor.pedido_item where pedido_id = $1', [pid]);
     await q('delete from integracao.pedido_fila_erp where pedido_uuid = $1', [pid]).catch(() => undefined);
+    await q('delete from vendedor.pedido_aprovacao where pedido_id = $1', [pid]).catch(() => undefined); // T-0184 (0088): FK para o pedido
     await q('delete from vendedor.pedido where id = $1', [pid]);
     await q('update vendedor.numeracao_pedido set ultimo = ultimo - 1 where tenant_id = $1', [A.tenantId]);
     const girados = await q<{ n: number }>('select plataforma.girar_geracao_base($1) as n', [A.tenantId]);

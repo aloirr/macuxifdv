@@ -35,6 +35,53 @@ export function notificacaoDePedido(e: EntradaNotificacaoPedido): NotificacaoDeP
   return { destino: 'vendedor', titulo: n ? t.titulo.replace('Pedido', `Pedido ${n}`) : t.titulo, corpo, link, prioridade: t.prioridade };
 }
 
+export interface UsuarioAprovador {
+  id: string;
+  perfil: string;
+}
+
+/**
+ * T-0184, RN-GES-04: `vendedor.pedido.aprovacao_solicitada@2` traz uma aprovação por motivo. Função pura: cada aprovador
+ * recebe UMA notificação, com todos os motivos que ele decide (os do nível dele e os dos níveis que o perfil decide).
+ * - `acima`: responsáveis das equipes acima do vendedor; `alcada`: gerentes, analistas e admins do tenant.
+ * - Por nível: supervisor e gerente = quem de `acima` tem esse perfil; analista = os analistas de `alcada`; nível sem ninguém
+ *   cai em `alcada`. O fallback de um nível não tira os motivos de quem já é do outro (os motivos se juntam por pessoa).
+ * - A ordem dos níveis, os rótulos dos motivos e quem decide cada nível (`decide`) vêm do contrato do Vendedor (injetados pelo consumidor). O vendedor nunca recebe.
+ */
+export function notificacoesDeAprovacaoPorAprovador(e: {
+  pedidoId: string;
+  numero?: number | string | null;
+  vendedorId: string;
+  aprovacoes: ReadonlyArray<{ motivo: string; nivel: string }>;
+  acima: readonly UsuarioAprovador[];
+  alcada: readonly UsuarioAprovador[];
+  ordemNiveis: readonly string[];
+  rotuloMotivo: Readonly<Record<string, string>>;
+  decide: (perfil: string, nivel: string) => boolean;
+}): Array<{ usuarioId: string; notificacao: NotificacaoDePedido }> {
+  const acima = e.acima.filter((u) => u.id !== e.vendedorId);
+  const alcada = e.alcada.filter((u) => u.id !== e.vendedorId);
+  const niveis = e.ordemNiveis.filter((n) => e.aprovacoes.some((a) => a.nivel === n));
+  const destinatarios = new Map<string, { perfil: string; niveis: Set<string> }>();
+  for (const nivel of niveis) {
+    const doNivel = nivel === 'analista' ? alcada.filter((u) => u.perfil === 'analista') : acima.filter((u) => u.perfil === nivel);
+    for (const u of doNivel.length > 0 ? doNivel : alcada) {
+      const d = destinatarios.get(u.id) ?? { perfil: u.perfil, niveis: new Set<string>() };
+      d.niveis.add(nivel);
+      destinatarios.set(u.id, d);
+    }
+  }
+  const base = notificacaoDePedido({ tipo: 'aprovacao_solicitada', pedidoId: e.pedidoId, numero: e.numero })!;
+  return [...destinatarios.entries()].map(([usuarioId, d]) => {
+    const motivos: string[] = [];
+    for (const nivel of niveis) {
+      if (!d.niveis.has(nivel) && !e.decide(d.perfil, nivel)) continue;
+      for (const a of e.aprovacoes) if (a.nivel === nivel && !motivos.includes(a.motivo)) motivos.push(a.motivo);
+    }
+    return { usuarioId, notificacao: { ...base, corpo: 'Motivo: ' + motivos.map((m) => e.rotuloMotivo[m] ?? m).join(', ') } };
+  });
+}
+
 /** Rotas internas do app que identificam notificações de sistema com entidades próprias. */
 export const LINK_METAS = '/m/metas';
 export const LINK_ROTA = '/m/rota';

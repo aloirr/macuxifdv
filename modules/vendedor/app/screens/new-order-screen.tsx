@@ -26,8 +26,10 @@ import { rotuloVoltarNovoPedido } from '../../domain/pedido-em-nome';
 import { modalidadePadraoDosParametros, percentualAjusteParaBp } from '../../domain/preco-pedido';
 import { AcimaDoTeclado, useCampoAcimaDoTeclado } from '../components/acima-do-teclado';
 import { AbaEntrega, AbaResumo, AbaVenda, CardPagamento, FimDaAbaItens, linhasDoLeveMais } from '../components/novo-pedido-abas';
-import type { ModeloDoCredito } from '../lib/credito-cliente';
-import { exigeAprovacaoPorVencido, tituloVencidoDias } from '../../domain/pagamento';
+import { financeiroParaAprovacao, type ModeloDoCredito } from '../lib/credito-cliente';
+import { aprovacoesFinanceiras, disponivelParaAlerta } from '../../domain/credito-pedido';
+import { nivelComAprovacoes, niveisDosParametros } from '../../domain/aprovacao';
+import { tituloVencidoDias } from '../../domain/pagamento';
 import { itensLeveMais, linhasNaFaixa } from '../lib/leve-mais';
 import { rascunhoComPagamentoPadrao, situacaoDoPagamento } from '../lib/pagamento-pedido';
 import { enderecoDoRascunho } from '../lib/endereco-pedido';
@@ -313,13 +315,17 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
       vivo = false;
     };
   }, [aba, sent, chaveSugestoes, catalog.length, customer?.id]);
-  // RN-VEN-12/13: crédito do cliente na aba Venda (core.financeiro_cliente@1 no aparelho, vale offline), lido ao abrir o pedido (não só na aba Venda), para o Resumo já mostrar "Vai para o supervisor." (RN-VEN-13)
+  // RN-VEN-12/13: crédito do cliente na aba Venda (core.financeiro_cliente@1 no aparelho, vale offline), lido ao abrir o pedido (não só na aba Venda), para o Resumo já mostrar que vai para aprovação (RN-VEN-12/13)
   const [credito, setCredito] = useState<ModeloDoCredito | null | undefined>(undefined);
-  // RN-VEN-13 (T-0129): título vencido há mais que o limite com prazo a prazo nunca bloqueia a forma; o pedido vai ao supervisor (aprovação)
+  // RN-VEN-13 (T-0129): título vencido há mais que o limite nunca bloqueia a forma; o pedido vai para aprovação no nível dos parâmetros (padrão gerente)
   const prazoEscolhido = prazos.find((p) => p.id === draft.prazo_pagamento_id);
-  const vencidoAprova =
-    !sent && credito?.tipo === 'dados' && credito.alerta !== null && prazoEscolhido !== undefined && exigeAprovacaoPorVencido({ maior_atraso_dias: credito.alerta.dias, prazo_medio_dias: prazoEscolhido.prazo_medio_dias, limite_dias: tituloVencidoDias(parametrosVendedor) });
-  const calculo = calculoBase && vencidoAprova && calculoBase.nivel === null ? { ...calculoBase, nivel: 'supervisor' as const } : calculoBase;
+  // T-0184 (RN-VEN-12 e RN-VEN-13, P1 A, P4 A): crédito estourado e título vencido (também à vista) mandam o pedido para aprovação
+  const financeiroDoPedido = sent ? null : financeiroParaAprovacao(credito, prazoEscolhido?.prazo_medio_dias, tituloVencidoDias(parametrosVendedor));
+  // o nível é o dos parâmetros (`niveisDosParametros`, padrão gerente), o mesmo que o servidor usa ao receber o pedido
+  const aprovacoesFin = financeiroDoPedido
+    ? aprovacoesFinanceiras({ prazo_medio_dias: financeiroDoPedido.prazo_medio_dias, total_cents: calculoBase?.total_cents ?? 0, financeiro: financeiroDoPedido, niveis: niveisDosParametros(parametrosVendedor) })
+    : [];
+  const calculo = calculoBase && aprovacoesFin.length > 0 ? { ...calculoBase, nivel: nivelComAprovacoes(calculoBase.nivel, aprovacoesFin) } : calculoBase;
   useEffect(() => {
     if (sent) return;
     let vivo = true;
@@ -368,8 +374,8 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
     produtoDoCodigo: (codigo) => catalog.find((p) => p.erp_code === codigo)?.id,
     sem_estoque: semEstoque,
     // RD-0172: título vencido só entra em Alertas quando muda o resultado (acima do limite, com prazo a prazo; RN-VEN-13)
-    vencidos: vencidosComEfeito(credito?.tipo === 'dados' && credito.alerta ? { titulos: credito.alerta.titulos, valor_cents: credito.alerta.valorCents, dias: credito.alerta.dias } : null, prazoEscolhido?.prazo_medio_dias, tituloVencidoDias(parametrosVendedor)),
-    disponivel_cents: credito?.tipo === 'dados' ? credito.disponivel_cents : null,
+    vencidos: vencidosComEfeito(credito?.tipo === 'dados' && credito.alerta ? { titulos: credito.alerta.titulos, valor_cents: credito.alerta.valorCents, dias: credito.alerta.dias } : null, tituloVencidoDias(parametrosVendedor)),
+    disponivel_cents: financeiroDoPedido ? disponivelParaAlerta(financeiroDoPedido) : null,
     total_cents: calculoBase?.total_cents ?? 0,
     // RN-VEN-10 (T-0165): acima da alçada do autor (e dentro do limite do gestor, que já é recusa) vira UMA linha nos Alertas
     acima_da_alcada: !sent && Boolean(calculoBase && calculoBase.nivel !== null && !calculoBase.bloqueado),

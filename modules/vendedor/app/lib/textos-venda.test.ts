@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { linhaDaObsNoResumo, tabelaDoCredito } from './textos-venda';
 
 describe('textos da aba Venda (RF-VEN-11, RN-VEN-12, RN-VEN-13)', () => {
-  it('RN-VEN-12: crédito em tabela, Limite e Disponível, sem Prazo médio (decisão R-20261118-2250), na ordem da prancha (T-0141 A)', () => {
-    const t = tabelaDoCredito({ tipo: 'dados', limite_cents: 2000000, disponivel_cents: 1790000, alerta: null });
+  it('RN-VEN-12: crédito em tabela, Limite e Disponível, sem Prazo médio (RN-VEN-25), na ordem da prancha (T-0141 A)', () => {
+    const t = tabelaDoCredito({ tipo: 'dados', limite_informado: true, limite_cents: 2000000, disponivel_cents: 1790000, alerta: null });
     expect(t.estado).toBe('tabela');
     expect(t.linhas.map((l) => [l.id, l.rotulo])).toEqual([['limite', 'Limite'], ['disponivel', 'Disponível']]);
     expect(t.linhas[0]!.valor).toMatch(/^R\$\s20\.000,00$/);
@@ -12,7 +12,7 @@ describe('textos da aba Venda (RF-VEN-11, RN-VEN-12, RN-VEN-13)', () => {
     expect(t.linhas.every((l) => !('tom' in l))).toBe(true);
   });
   it('RN-VEN-42 (RD-0083): disponível negativo sai só com o sinal − (U+2212), sem vermelho: o alerta é o de crédito excedido', () => {
-    const t = tabelaDoCredito({ tipo: 'dados', limite_cents: 1000000, disponivel_cents: -120000, alerta: null });
+    const t = tabelaDoCredito({ tipo: 'dados', limite_informado: true, limite_cents: 1000000, disponivel_cents: -120000, alerta: null });
     expect(t.linhas[1]!.valor).toMatch(/^−R\$\s1\.200,00$/);
     expect(t.linhas.every((l) => !('tom' in l))).toBe(true);
   });

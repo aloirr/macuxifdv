@@ -34,7 +34,7 @@ const base = { customer_id: 'c1' };
 describe('API: forma e prazo do pedido (RN-VEN-24/25, RN-VEN-13)', () => {
   it('RN-VEN-24: sem forma e prazo no payload segue pela condição legada (APK anterior)', async () => {
     const r = await resolverPagamento(ctx(), db, tx(null), base, cli, 'pedido');
-    expect(r).toEqual({ ok: true, pagamento: null, titulo_vencido: false, percentual_ajuste_bp: 0, percentual_ajuste: 0, percentual_mudou: false });
+    expect(r).toEqual({ ok: true, pagamento: null, percentual_ajuste_bp: 0, percentual_ajuste: 0, percentual_mudou: false });
     expect(valoresPagamento(null)).toEqual([null, null, null, null, null, null, null, null]);
     // RN-VEN-45: sem prazo o retrato do percentual é NULL (CHECK pedido_prazo_percentual_com_prazo da 0082), nunca 0
     expect(valorPercentualPrazo(null, 0)).toBeNull();
@@ -54,24 +54,6 @@ describe('API: forma e prazo do pedido (RN-VEN-24/25, RN-VEN-13)', () => {
     const r = await resolverPagamento(ctx(), db, tx(null), { ...base, forma_pagamento_id: 'f-bol', prazo_pagamento_id: 'p-28' }, cli, 'pedido');
     expect(r.ok && r.pagamento?.texto).toBe('Boleto · 28 dias');
     expect(r.ok && valoresPagamento(r.pagamento)).toEqual(['f-bol', 'p-28', 'BOLETO', 'Boleto', 'BOL-28', '28 dias', [28], 28]);
-  });
-  it('RN-VEN-13: título vencido há mais de 5 dias com prazo a prazo vai para aprovação; à vista não', async () => {
-    const aPrazo = await resolverPagamento(ctx(), db, tx({ maior_atraso_dias: 12 }), { ...base, forma_pagamento_id: 'f-bol', prazo_pagamento_id: 'p-28' }, cli, 'pedido');
-    expect(aPrazo).toMatchObject({ ok: true, titulo_vencido: true });
-    const aVista = await resolverPagamento(ctx(), db, tx({ maior_atraso_dias: 12 }), { ...base, forma_pagamento_id: 'f-pix', prazo_pagamento_id: 'p-av' }, cli, 'pedido');
-    expect(aVista).toMatchObject({ ok: true, titulo_vencido: false });
-  });
-  it('RN-VEN-13: o limite vem do parâmetro titulo_vencido_dias do tenant', async () => {
-    const r = await resolverPagamento(ctx({ titulo_vencido_dias: 30 }), db, tx({ maior_atraso_dias: 12 }), { ...base, forma_pagamento_id: 'f-bol', prazo_pagamento_id: 'p-28' }, cli, 'pedido');
-    expect(r).toMatchObject({ titulo_vencido: false });
-  });
-  it('RN-VEN-13: consulta financeira indisponível não bloqueia o pedido', async () => {
-    const r = await resolverPagamento(ctx(), db, tx('indisponivel'), { ...base, forma_pagamento_id: 'f-bol', prazo_pagamento_id: 'p-28' }, cli, 'pedido');
-    expect(r).toMatchObject({ ok: true, titulo_vencido: false });
-  });
-  it('RN-VEN-13: orçamento não vai para aprovação por título vencido', async () => {
-    const r = await resolverPagamento(ctx(), db, tx({ maior_atraso_dias: 99 }), { ...base, forma_pagamento_id: 'f-bol', prazo_pagamento_id: 'p-28' }, cli, 'orcamento');
-    expect(r).toMatchObject({ ok: true, titulo_vencido: false });
   });
   it('RN-VEN-45: percentual do push igual ao vigente: aceita e devolve o bp para recalcular os preços', async () => {
     const p = { ...base, forma_pagamento_id: 'f-pix', prazo_pagamento_id: 'p-av-d', prazo_percentual_ajuste: -1.71, created_offline_at: '2026-11-15T15:00:00.000Z' };

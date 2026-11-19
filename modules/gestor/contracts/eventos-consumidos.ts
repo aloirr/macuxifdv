@@ -26,11 +26,15 @@ import {
   type VisitaCheckoutSchema,
 } from '@macuxi/core/contracts';
 import {
+  EVENTO_PEDIDO_APROVACAO_DECIDIDA,
   EVENTO_PEDIDO_APROVACAO_SOLICITADA,
+  EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2,
   EVENTO_PEDIDO_CRIADO,
   EVENTO_PEDIDO_FATURADO,
   EVENTO_PEDIDO_STATUS_ALTERADO,
+  type AprovacaoDecididaEvento,
   type AprovacaoSolicitadaEvento,
+  type AprovacaoSolicitadaEventoV2,
   type PedidoCriadoEvento,
   type PedidoFaturadoEvento,
   type PedidoStatusAlteradoEvento,
@@ -83,6 +87,13 @@ export type PedidoFaturadoV1 = PedidoFaturadoEvento;
 export type PedidoStatusAlteradoV1 = PedidoStatusAlteradoEvento;
 /** `vendedor.pedido.aprovacao_solicitada@1`: `credito`/`historico` `objeto | null` (RF-GES-04; `null` ⇒ a tela mostra "indisponível"). */
 export type AprovacaoSolicitadaV1 = AprovacaoSolicitadaEvento;
+/**
+ * `vendedor.pedido.aprovacao_solicitada@2` (T-0184 §1): o `@1` mais `aprovacoes: [{ motivo, nivel, texto }]` (uma por motivo)
+ * e `inadimplencia`; o `nivel` da raiz é o maior entre as pendentes. O `@1` fica para o histórico que ainda está na outbox.
+ */
+export type AprovacaoSolicitadaV2 = AprovacaoSolicitadaEventoV2;
+/** `vendedor.pedido.aprovacao_decidida@1`: um por aprovação que muda de estado (a projeção `aprovacoes` tira o item da fila). */
+export type AprovacaoDecididaV1 = AprovacaoDecididaEvento;
 
 // ---------- Promotor ----------
 /**
@@ -135,6 +146,8 @@ export const EVENTOS_CONSUMIDOS = {
   'vendedor.pedido.criado@1': tolerante(EVENTO_PEDIDO_CRIADO.schema),
   'vendedor.pedido.status_alterado@1': tolerante(EVENTO_PEDIDO_STATUS_ALTERADO.schema),
   'vendedor.pedido.aprovacao_solicitada@1': tolerante(EVENTO_PEDIDO_APROVACAO_SOLICITADA.schema),
+  'vendedor.pedido.aprovacao_solicitada@2': tolerante(EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2.schema),
+  'vendedor.pedido.aprovacao_decidida@1': tolerante(EVENTO_PEDIDO_APROVACAO_DECIDIDA.schema),
   'vendedor.pedido.faturado@1': tolerante(EVENTO_PEDIDO_FATURADO.schema),
   'promotor.visita_loja.concluida@1': tolerante(EVENTOS_PROMOTOR['promotor.visita_loja.concluida@1']),
   'promotor.gondola.registrada@1': tolerante(EVENTOS_PROMOTOR['promotor.gondola.registrada@1']),

@@ -30,7 +30,7 @@ import { DEMO, disponivelNaFilial, FOLGA_ESTOQUE, listaDe, subirApiDemo, TENANT_
 const EVENTOS = {
   criado: 'vendedor.pedido.criado@1',
   status: 'vendedor.pedido.status_alterado@1',
-  solicitada: 'vendedor.pedido.aprovacao_solicitada@1',
+  solicitada: 'vendedor.pedido.aprovacao_solicitada@2',
   aprovado: 'vendedor.pedido.aprovado@1',
 } as const;
 
@@ -177,7 +177,9 @@ describe.skipIf(semBanco())('T-0029 — pedido ponta a ponta: Campo (sync) → G
     it('3. Gestão: aprovar (1 toque, sem comentário) → 200 approved; histórico null→received→pending_approval→approved (autora = supervisora); auditoria registrada', async () => {
       const r = await decidir('supervisor', feliz.id, 'aprovar');
       expect(r.statusCode, r.body).toBe(200);
-      expect(OrderDetail.parse(r.json())).toMatchObject({ id: feliz.id, status: 'approved' });
+      // T-0184 (desenho §7.1): a resposta das decisões é { status, aprovacoes } (uma aprovação por motivo, do ciclo atual)
+      expect(r.json()).toMatchObject({ status: 'approved', aprovacoes: [{ motivo: 'desconto', nivel: 'supervisor', estado: 'aprovada', decidida_por_id: usuarioId.supervisor }] });
+      expect(OrderDetail.parse((await api.get(token.supervisor, `/v1/vendedor/pedidos/${feliz.id}`)).corpo)).toMatchObject({ id: feliz.id, status: 'approved' });
       const h = await historico(feliz.id);
       expect(h.map((x) => [x.de, x.para])).toEqual([
         [null, 'received'],
@@ -222,7 +224,7 @@ describe.skipIf(semBanco())('T-0029 — pedido ponta a ponta: Campo (sync) → G
       expect(pdfDoPedido(local)).toMatchObject({ number: doc.number, total_cents: doc.total_cents });
     });
 
-    it('6. Outbox: criado@1, status_alterado@1 (3), aprovacao_solicitada@1 e aprovado@1, com status no vocabulário RN-VEN-30 e sem dado pessoal', async () => {
+    it('6. Outbox: criado@1, status_alterado@1 (3), aprovacao_solicitada@2 e aprovado@1, com status no vocabulário RN-VEN-30 e sem dado pessoal', async () => {
       const ev = await eventos(feliz.id);
       const nomes = ev.map((e) => e.nome);
       expect(nomes.filter((n) => n === EVENTOS.criado)).toHaveLength(1);
@@ -296,7 +298,9 @@ describe.skipIf(semBanco())('T-0029 — pedido ponta a ponta: Campo (sync) → G
       }
       const r = await decidir('supervisor', t.id, 'rejeitar', { motivo: 'Desconto acima da política para o cliente' });
       expect(r.statusCode, r.body).toBe(200);
-      expect(r.json()).toMatchObject({ status: 'rejected', rejection_reason: 'Desconto acima da política para o cliente' });
+      // T-0184 (desenho §7.1): resposta { status, aprovacoes }; o motivo de quem devolveu fica no detalhe
+      expect(r.json()).toMatchObject({ status: 'rejected', aprovacoes: [{ motivo: 'desconto', estado: 'devolvida', texto_decisao: 'Desconto acima da política para o cliente' }] });
+      expect((await api.get(token.supervisor, `/v1/vendedor/pedidos/${t.id}`)).corpo).toMatchObject({ status: 'rejected', rejection_reason: 'Desconto acima da política para o cliente' });
       const de_novo = await decidir('supervisor', t.id, 'aprovar');
       expect([de_novo.statusCode, codigo(de_novo)]).toEqual([422, 'RN-VEN-30']);
       // aprovar de novo o pedido aprovado do caminho feliz = 200 idempotente (mesma decisão)

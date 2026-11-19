@@ -112,11 +112,6 @@ export function revalidarPercentualDoPrazo(i: { push: number | null | undefined;
   return { ok: false, codigo: 'RN-VEN-45', mensagem: MSG_PERCENTUAL_DO_PRAZO_MUDOU };
 }
 
-/** RN-VEN-13: título vencido há mais que o limite e prazo a prazo (prazo médio > 0) → aprovação. À vista segue sem aprovação. */
-export function exigeAprovacaoPorVencido(i: { maior_atraso_dias: number; prazo_medio_dias: number; limite_dias: number }): boolean {
-  return i.maior_atraso_dias > i.limite_dias && i.prazo_medio_dias > 0;
-}
-
 export const MOTIVO_FORMA_NAO_ACEITA = 'Este cliente não aceita esta forma';
 
 /**
@@ -129,23 +124,6 @@ export function formasDaLista(formas: readonly FormaDePagamento[], codigosDoClie
     .filter((f) => f.ativo)
     .sort(porOrdem)
     .map((forma) => (permitidos && !permitidos.has(forma.codigo) ? { forma, habilitada: false, motivo: MOTIVO_FORMA_NAO_ACEITA } : { forma, habilitada: true }));
-}
-
-/**
- * RN-VEN-13 + RN-VEN-24/25 (T-0129): o título vencido nunca bloqueia a forma ou o prazo; só decide o destino. Prazo a prazo com
- * título vencido há mais que o limite = aprovação; à vista = direto. Forma ou prazo fora do cadastro do cliente segue recusado.
- */
-export function avaliarPagamentoComVencido(i: {
-  forma: FormaDePagamento | undefined | null;
-  prazo: PrazoDePagamento | undefined | null;
-  cliente: LimitePagamentoDoCliente;
-  maior_atraso_dias: number;
-  limite_dias: number;
-}): { ok: true; destino: 'direto' | 'aprovacao' } | Extract<ResultadoPagamento, { ok: false }> {
-  const v = validarPagamento(i);
-  if (!v.ok) return v;
-  const aprova = exigeAprovacaoPorVencido({ maior_atraso_dias: i.maior_atraso_dias, prazo_medio_dias: i.prazo!.prazo_medio_dias, limite_dias: i.limite_dias });
-  return { ok: true, destino: aprova ? 'aprovacao' : 'direto' };
 }
 
 /** Parâmetro `titulo_vencido_dias` do Vendedor (padrão 5; nenhum parâmetro do Vendedor é semeado por migração). */

@@ -1,4 +1,4 @@
-/** T-0170: os 3 cards da tela Pedidos (RN-VEN-43; decisões D5 e D6). Dinheiro em centavos; datas em UTC, período no fuso do tenant. */
+/** T-0170: os 3 cards da tela Pedidos (RN-VEN-47; decisões D5 e D6). Dinheiro em centavos; datas em UTC, período no fuso do tenant. */
 import { describe, expect, it } from 'vitest';
 import { TODOS_OS_VENDEDORES } from './filtro-vendedor';
 import { pedidoEnviado, resumoDePedidos, STATUS_ENVIADO, totalDoResumo, type DocumentoDoResumo } from './resumo-pedidos';
@@ -18,8 +18,8 @@ const doc = (o: Partial<DocumentoDoResumo>): DocumentoDoResumo => ({
 });
 const orc = (o: Partial<DocumentoDoResumo>): DocumentoDoResumo => doc({ tipo: 'orcamento', status: 'received', ...o });
 
-describe('T-0170: resumo dos cards de Pedidos (RN-VEN-43)', () => {
-  it('RN-VEN-43: o mock aprovado dá R$ 2.446,00 em Pedidos enviados; o recusado fica fora e o "Em aprovação" entra', () => {
+describe('T-0170: resumo dos cards de Pedidos (RN-VEN-47)', () => {
+  it('RN-VEN-47: o mock aprovado dá R$ 2.446,00 em Pedidos enviados; o recusado fica fora e o "Em aprovação" entra', () => {
     const r = resumoDePedidos(
       [
         doc({ status: 'approved', total_cents: 81_240 }),
@@ -36,14 +36,14 @@ describe('T-0170: resumo dos cards de Pedidos (RN-VEN-43)', () => {
     expect(r.total).toEqual({ quantidade: 5, valor_cents: 244_600 });
   });
 
-  it('RN-VEN-43: enviado = do "Enviado" em diante (recebido até faturado), inclusive o faturado parcial pelo valor do pedido', () => {
+  it('RN-VEN-47: enviado = do "Enviado" em diante (recebido até faturado), inclusive o faturado parcial pelo valor do pedido', () => {
     expect([...STATUS_ENVIADO]).toEqual(['received', 'pending_approval', 'approved', 'sent_to_erp', 'integrated', 'invoiced_partial', 'invoiced']);
     for (const status of STATUS_ENVIADO) expect(pedidoEnviado(doc({ status }))).toBe(true);
     const r = resumoDePedidos([doc({ status: 'invoiced_partial', total_cents: 50_000 })], NOVEMBRO);
     expect(r.enviados).toEqual({ quantidade: 1, valor_cents: 50_000 });
   });
 
-  it('RN-VEN-43: rascunho, na fila (inclui o "Não aceito"), recusado e cancelado não são enviados', () => {
+  it('RN-VEN-47: rascunho, na fila (inclui o "Não aceito"), recusado e cancelado não são enviados', () => {
     for (const status of ['draft', 'queued', 'rejected', 'cancelled']) expect(pedidoEnviado(doc({ status }))).toBe(false);
     const r = resumoDePedidos(
       [doc({ status: 'draft' }), doc({ status: 'queued' }), doc({ status: 'rejected' }), doc({ status: 'cancelled' })],
@@ -52,16 +52,16 @@ describe('T-0170: resumo dos cards de Pedidos (RN-VEN-43)', () => {
     expect(r.enviados).toEqual({ quantidade: 0, valor_cents: 0 });
   });
 
-  it('RN-VEN-43: pedido ainda na fila do aparelho não chegou ao servidor, qualquer que seja o status da linha', () => {
+  it('RN-VEN-47: pedido ainda na fila do aparelho não chegou ao servidor, qualquer que seja o status da linha', () => {
     expect(pedidoEnviado(doc({ status: 'received', local: true }))).toBe(false);
   });
 
-  it('RN-VEN-43: orçamento nunca é pedido enviado; pedido sem tipo (linha antiga) é pedido', () => {
+  it('RN-VEN-47: orçamento nunca é pedido enviado; pedido sem tipo (linha antiga) é pedido', () => {
     expect(pedidoEnviado(orc({ status: 'approved' }))).toBe(false);
     expect(pedidoEnviado(doc({ tipo: undefined, status: 'approved' }))).toBe(true);
   });
 
-  it('RN-VEN-43: orçamento em aberto = não convertido e não cancelado (RN-VEN-18), com quantidade e valor', () => {
+  it('RN-VEN-47: orçamento em aberto = não convertido e não cancelado (RN-VEN-18), com quantidade e valor', () => {
     const r = resumoDePedidos(
       [
         orc({ total_cents: 50_000 }),
@@ -75,7 +75,7 @@ describe('T-0170: resumo dos cards de Pedidos (RN-VEN-43)', () => {
     expect(r.enviados).toEqual({ quantidade: 0, valor_cents: 0 });
   });
 
-  it('RN-VEN-43: o total soma as quantidades e os valores dos dois cards', () => {
+  it('RN-VEN-47: o total soma as quantidades e os valores dos dois cards', () => {
     const r = resumoDePedidos(
       [orc({ total_cents: 30_000 }), orc({ total_cents: 1_500 }), doc({ status: 'approved', total_cents: 100_000 })],
       NOVEMBRO,
@@ -85,16 +85,16 @@ describe('T-0170: resumo dos cards de Pedidos (RN-VEN-43)', () => {
     expect(r.total).toEqual({ quantidade: 3, valor_cents: 131_500 });
   });
 
-  it('RN-VEN-43: o total do resumo do servidor (fora da janela) é a mesma soma', () => {
+  it('RN-VEN-47: o total do resumo do servidor (fora da janela) é a mesma soma', () => {
     expect(totalDoResumo({ quantidade: 2, valor_cents: 31_500 }, { quantidade: 4, valor_cents: 100_000 })).toEqual({ quantidade: 6, valor_cents: 131_500 });
   });
 
-  it('RN-VEN-43: o valor é o total_cents do documento, sem frete', () => {
+  it('RN-VEN-47: o valor é o total_cents do documento, sem frete', () => {
     const comFrete = { ...doc({ status: 'approved', total_cents: 10_000 }), frete_cents: 2_500 };
     expect(resumoDePedidos([comFrete], NOVEMBRO).enviados.valor_cents).toBe(10_000);
   });
 
-  it('RN-VEN-43: período pela data de emissão no fuso do tenant (31/10 22h em Manaus é outubro)', () => {
+  it('RN-VEN-47: período pela data de emissão no fuso do tenant (31/10 22h em Manaus é outubro)', () => {
     const docs = [
       doc({ emitido_em: '2026-11-01T02:00:00Z', total_cents: 111 }), // 31/10 22h00 em Manaus
       doc({ emitido_em: '2026-11-01T04:00:00Z', total_cents: 222 }), // 01/11 00h00 em Manaus
@@ -104,18 +104,18 @@ describe('T-0170: resumo dos cards de Pedidos (RN-VEN-43)', () => {
     expect(resumoDePedidos(docs, { periodo: { tipo: 'mes', valor: '2026-10' }, tz: TZ }).enviados).toEqual({ quantidade: 1, valor_cents: 111 });
   });
 
-  it('RN-VEN-43 (D5): pedido emitido em outubro e faturado em novembro não entra nos cards de novembro', () => {
+  it('RN-VEN-47 (D5): pedido emitido em outubro e faturado em novembro não entra nos cards de novembro', () => {
     const faturadoDepois = { ...doc({ status: 'invoiced', emitido_em: '2026-10-20T15:00:00Z' }), status_alterado_em: '2026-11-05T15:00:00Z' };
     expect(resumoDePedidos([faturadoDepois], NOVEMBRO).enviados).toEqual({ quantidade: 0, valor_cents: 0 });
     expect(resumoDePedidos([faturadoDepois], { periodo: { tipo: 'mes', valor: '2026-10' }, tz: TZ }).enviados.quantidade).toBe(1);
   });
 
-  it('RN-VEN-43: orçamento em aberto também conta pelo período (data em que foi salvo)', () => {
+  it('RN-VEN-47: orçamento em aberto também conta pelo período (data em que foi salvo)', () => {
     const docs = [orc({ emitido_em: '2026-10-30T15:00:00Z', total_cents: 900 }), orc({ emitido_em: '2026-11-02T15:00:00Z', total_cents: 400 })];
     expect(resumoDePedidos(docs, NOVEMBRO).orcamentos).toEqual({ quantidade: 1, valor_cents: 400 });
   });
 
-  it('RN-VEN-43: vale para dia, semana (domingo a sábado) e ano', () => {
+  it('RN-VEN-47: vale para dia, semana (domingo a sábado) e ano', () => {
     const docs = [
       doc({ emitido_em: '2026-11-08T15:00:00Z', total_cents: 1 }), // domingo
       doc({ emitido_em: '2026-11-14T15:00:00Z', total_cents: 2 }), // sábado
@@ -127,7 +127,7 @@ describe('T-0170: resumo dos cards de Pedidos (RN-VEN-43)', () => {
     expect(resumoDePedidos(docs, { periodo: { tipo: 'ano', valor: '2026' }, tz: TZ }).enviados.valor_cents).toBe(7);
   });
 
-  it('RN-VEN-43 (D6): sem vendedor, ou com "Todos os vendedores", soma a equipe; com vendedor, só ele', () => {
+  it('RN-VEN-47 (D6): sem vendedor, ou com "Todos os vendedores", soma a equipe; com vendedor, só ele', () => {
     const docs = [
       doc({ seller_id: 'v1', total_cents: 100 }),
       doc({ seller_id: 'v2', total_cents: 200 }),
@@ -141,7 +141,7 @@ describe('T-0170: resumo dos cards de Pedidos (RN-VEN-43)', () => {
     expect(v2.orcamentos).toEqual({ quantidade: 1, valor_cents: 50 });
   });
 
-  it('RN-VEN-43: sem documento no período, os três cards ficam zerados', () => {
+  it('RN-VEN-47: sem documento no período, os três cards ficam zerados', () => {
     const zero = { quantidade: 0, valor_cents: 0 };
     expect(resumoDePedidos([], NOVEMBRO)).toEqual({ orcamentos: zero, enviados: zero, total: zero });
   });

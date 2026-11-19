@@ -27,6 +27,7 @@ import {
   RodapeAcoes,
   RotuloSecao,
   TabelaValores,
+  quandoCurto,
   tagsDoHistorico,
   type as t,
   useAtualizacaoAutomatica,
@@ -37,7 +38,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { OrderEvent } from '../../contracts';
+import type { DecisaoAprovador, OrderEvent } from '../../contracts';
 import type { MudancaNaConversao } from '../../domain/orcamento';
 import type { NivelDePreco } from '../../domain/preco-pedido';
 import { referenciaNoOrcamento } from '../../domain/aplicacao';
@@ -52,7 +53,7 @@ import { pegarAvisoPendente } from '../lib/aviso-pendente';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
 import { estadoDasAcoes, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
 import { PERGUNTA_DA_ALCADA, perguntaDaAlcada } from '../../domain/botoes-resumo';
-import { acoesDoDetalhe, alertasDoDetalhe, clienteComCodigo, eventosDoOrcamento, eventosDoPedido, fonteDasLinhasDoDetalhe, itensVisiveis, linhaDeItemEmTabela, linhasDosTotais } from '../lib/detalhe-pedido';
+import { acoesDoDetalhe, alertasDoDetalhe, clienteComCodigo, eventosDoOrcamento, eventosDoPedido, fonteDasLinhasDoDetalhe, tagsPorMotivoPendente, itensVisiveis, linhaDeItemEmTabela, linhasDosTotais } from '../lib/detalhe-pedido';
 import { textoDoFrete } from '../lib/resumo-tabela';
 import { logoSrcDoPdf, nomeDaEmpresaParaPdf } from '../../domain/empresa-pdf';
 import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
@@ -339,7 +340,7 @@ export default function OrderDetailScreen() {
     }
   };
 
-  const decidir = async (decisao: 'aprovar' | 'rejeitar', texto: string) => {
+  const decidir = async (decisao: DecisaoAprovador, texto: string) => {
     setDeciding(true);
     setSheetError(null);
     try {
@@ -465,7 +466,12 @@ export default function OrderDetailScreen() {
   // RN-VEN-42 (T-0150): o motivo do supervisor/cancelamento vai para os Alertas; a etapa do Histórico leva só o nome de quem fechou
   const motivoDoFechamento = [...eventosDoHistorico].reverse().find((e) => ['rejected', 'cancelled'].includes(e.status) && e.motivo)?.motivo ?? null;
   const eventosSemMotivo = eventosDoHistorico.map((e) => (['rejected', 'cancelled'].includes(e.status) ? { ...e, motivo: null } : e));
-  const tagsDoDetalhe = tagsDoHistorico(eventosSemMotivo, { tipo: ehOrc ? 'orcamento' : 'pedido', tz, agora: agoraTela });
+  // T-0184 (P3 B, prancha 02): uma etapa "Em aprovação" por motivo ainda pendente (os motivos vêm do pull, vale offline)
+  const emAprovacao = !queued && !ehOrc && base?.status === 'pending_approval';
+  const aprovacoesDoPedido = emAprovacao ? (base?.aprovacoes ?? []) : [];
+  const motivosPendentes = emAprovacao ? (aprovacoesDoPedido.length > 0 ? aprovacoesDoPedido.filter((a) => a.estado === 'pendente').map((a) => a.motivo) : (base?.approval_reasons ?? [])) : [];
+  const aprovadosDoPedido = aprovacoesDoPedido.filter((a) => a.estado === 'aprovada').map((a) => ({ motivo: a.motivo, por: a.decidida_por_nome ?? null, quando: a.decidida_em ? quandoCurto(a.decidida_em, agoraTela, tz) : null }));
+  const tagsDoDetalhe = tagsPorMotivoPendente(tagsDoHistorico(eventosSemMotivo, { tipo: ehOrc ? 'orcamento' : 'pedido', tz, agora: agoraTela }), motivosPendentes, aprovadosDoPedido);
   const modalidade = queued ? (queued.payload.frete?.modalidade ?? null) : (base?.freight?.modality ?? null);
   const transportadora = (() => {
     if (queued) {
@@ -638,7 +644,7 @@ export default function OrderDetailScreen() {
         ) : null}
 
         <DeleteOrderSheet visible={sheet === 'delete'} title={title} queued={isQueued} ehOrcamento={ehOrc} solicitaAoErp={enviadoAoErp(status) && erpAceitaCancelamento} busy={deleting} error={sheetError} onClose={() => setSheet(null)} onConfirm={(r) => void confirmDelete(r)} />
-        <DecisionSheet visible={sheet === 'reject'} title={title} busy={deciding} error={sheetError} onClose={() => setSheet(null)} onConfirm={(motivo) => void decidir('rejeitar', motivo)} />
+        <DecisionSheet visible={sheet === 'reject'} title={title} busy={deciding} error={sheetError} onClose={() => setSheet(null)} onConfirm={(motivo) => void decidir('devolver', motivo)} />
         {precosDeHoje ? (
           <Folha visivel={transformarAberto} onFechar={() => setTransformarAberto(false)} rotuloFechar="Fechar" titulo={precosDeHoje.titulo} fechar={{ rotulo: 'Fechar', testID: 'precos-fechar' }} rolavel testID="folha-precos-de-hoje" rodape={{ rotulo: TEXTOS_PRECOS_DE_HOJE.voltar, onPress: () => setTransformarAberto(false), testID: 'precos-voltar' }}>
             <View style={{ gap: 12 }}>
