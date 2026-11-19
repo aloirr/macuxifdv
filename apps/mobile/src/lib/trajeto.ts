@@ -4,36 +4,15 @@
  * entra pronta; aqui só o que o shell faz com ela: montar o ponto, filtrar o lote, ligar ou desligar e o estado do
  * Diagnóstico. Nenhuma coordenada sai daqui para log, erro, Diagnóstico ou telemetria (§9).
  *
- * PROVISÓRIO: `CondicaoTrajeto`, `MotivoSemTrajeto` e `PontoDoTrajeto` são locais até o modulo-core publicar
- * `podeRastrear` (domain) e `PontoTrajeto` em `@macuxi/core/contracts`; aí estes tipos passam a vir de lá.
+ * Tipos do contrato do Core (`@macuxi/core/contracts`): `MotivoSemRastreio` e `PontoTrajeto` (validado pelo `PontoTrajetoSchema`).
  */
 import { formatHHMM } from '@macuxi/comum/fuso';
+import { PontoTrajetoSchema, type MotivoSemRastreio, type PontoTrajeto } from '@macuxi/core/contracts';
 
 export const TAREFA_TRAJETO = 'macuxi-trajeto';
 
-/** Motivo de não rastrear (§2). Provisório: passa a vir de `podeRastrear` do Core. */
-export type MotivoSemTrajeto =
-  | 'desligado'
-  | 'cargo'
-  | 'sem_aceite'
-  | 'fora_do_expediente'
-  | 'feriado'
-  | 'ausencia'
-  | 'pausa'
-  | 'sem_permissao';
-
-/** Resultado de `podeRastrear` (§3.2). Provisório: passa a vir de `@macuxi/core`. */
-export type CondicaoTrajeto = { pode: true } | { pode: false; motivo: MotivoSemTrajeto };
-
-/** Ponto do trajeto, só os campos do §3.1. Provisório: passa a ser `PontoTrajeto` de `@macuxi/core/contracts`. */
-export interface PontoDoTrajeto {
-  id: string;
-  capturado_em: string;
-  latitude: number;
-  longitude: number;
-  precisao_m: number | null;
-  velocidade_ms: number | null;
-}
+/** Resultado do portão `podeRastrear` do Core (§3.2), com o motivo do contrato. */
+export type CondicaoTrajeto = { pode: true } | { pode: false; motivo: MotivoSemRastreio };
 
 /** Leitura entregue pelo expo-location (`LocationObject`); altitude e rumo chegam e são ignorados (§3.1). */
 export interface LeituraDeLocalizacao {
@@ -71,22 +50,24 @@ export const OPCOES_TRAJETO = {
 const casas6 = (n: number): number => Number(n.toFixed(6));
 const numeroOuNulo = (n: number | null | undefined): number | null => (typeof n === 'number' && Number.isFinite(n) ? n : null);
 
-/** Leitura → ponto do §3.1, ou `null` se a leitura não serve (instante ou coordenada fora da faixa). */
-export function pontoDaLeitura(leitura: LeituraDeLocalizacao, novoId: () => string): PontoDoTrajeto | null {
+/** Leitura → ponto do §3.1 validado pelo `PontoTrajetoSchema`, ou `null` se a leitura não serve (instante, coordenada ou precisão). */
+export function pontoDaLeitura(leitura: LeituraDeLocalizacao, novoId: () => string): PontoTrajeto | null {
   const { timestamp, coords } = leitura;
   if (!Number.isFinite(timestamp)) return null;
   const { latitude, longitude } = coords;
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
   if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
   const velocidade = numeroOuNulo(coords.speed);
-  return {
+  const ponto = PontoTrajetoSchema.safeParse({
     id: novoId(),
     capturado_em: new Date(timestamp).toISOString(),
     latitude: casas6(latitude),
     longitude: casas6(longitude),
     precisao_m: numeroOuNulo(coords.accuracy),
     velocidade_ms: velocidade !== null && velocidade >= 0 ? velocidade : null,
-  };
+  });
+  // o erro do Zod repetiria a coordenada (§9): só o descarte
+  return ponto.success ? ponto.data : null;
 }
 
 /**
@@ -97,8 +78,8 @@ export function pontosDoLote(
   leituras: readonly LeituraDeLocalizacao[],
   condicao: (instanteMs: number) => CondicaoTrajeto,
   novoId: () => string,
-): { pontos: PontoDoTrajeto[]; parar: boolean } {
-  const pontos: PontoDoTrajeto[] = [];
+): { pontos: PontoTrajeto[]; parar: boolean } {
+  const pontos: PontoTrajeto[] = [];
   let maisRecente = Number.NEGATIVE_INFINITY;
   let parar = false;
   for (const leitura of leituras) {
@@ -134,7 +115,12 @@ export function estadoDoTrajeto(condicao: CondicaoTrajeto, ativa: boolean): Esta
       return 'pausada';
     case 'sem_aceite':
       return 'sem_termo';
-    default:
+    // §2, condição 1: sem termo publicado a empresa ainda não ligou o tracking; app e cargo de fora, ou sem a permissão
+    case 'desligado':
+    case 'sem_termo':
+    case 'cargo':
+    case 'app':
+    case 'sem_permissao':
       return 'desligada';
   }
 }

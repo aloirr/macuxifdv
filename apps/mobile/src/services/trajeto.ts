@@ -10,9 +10,10 @@
  * (`LocationTaskService.kt`); nada a criar aqui.
  * Só Android na v1. Build sem os módulos nativos: tudo vira no-op, sem quebrar o app.
  *
- * ESQUELETO: este arquivo ainda não é importado pelo `index.ts` nem chamado em lugar nenhum; isso entra com os contratos
- * do modulo-core (`podeRastrear`, `PontoTrajeto` e a tabela local `ponto_trajeto`).
+ * ESQUELETO: este arquivo ainda não é importado pelo `index.ts` nem chamado em lugar nenhum; isso entra com a tabela local
+ * `ponto_trajeto`, a entidade de envio e o `podeRastrear` do Core exposto ao app.
  */
+import type { PontoTrajeto } from '@macuxi/core/contracts';
 import { requireOptionalNativeModule } from 'expo';
 import { Platform } from 'react-native';
 
@@ -25,7 +26,6 @@ import {
   TAREFA_TRAJETO,
   type CondicaoTrajeto,
   type LeituraDeLocalizacao,
-  type PontoDoTrajeto,
 } from '@/lib/trajeto';
 
 import { uuid } from './device';
@@ -37,7 +37,7 @@ import { gravarErro } from './erros';
  */
 export interface ConfiguracaoTrajeto {
   condicao: () => Promise<(instanteMs: number) => CondicaoTrajeto>;
-  gravar: (pontos: PontoDoTrajeto[]) => Promise<void>;
+  gravar: (pontos: PontoTrajeto[]) => Promise<void>;
 }
 
 let configuracao: ConfiguracaoTrajeto | null = null;
