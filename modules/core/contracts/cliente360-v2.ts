@@ -131,13 +131,6 @@ export const CartaoCreditoSchema = z.object({
 });
 export type CartaoCredito = z.infer<typeof CartaoCreditoSchema>;
 
-export const CurvaDoClienteSchema = z.object({
-  dimensao: z.enum(['faturamento', 'frequencia', 'volume']),
-  curva: z.enum(['A', 'B', 'C']),
-  /** "Curva Faturamento", "Curva Frequência" ou "Curva Volume". */
-  rotulo: z.string(),
-});
-
 // --- Documentação ---------------------------------------------------------------------------------------------------
 
 export const NIVEIS_DOCUMENTO = ['nao_ve', 've', 've_e_envia'] as const;
