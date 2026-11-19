@@ -11,7 +11,7 @@ import { api, useSession } from '@macuxi/platform-sdk/web';
 import { HierarquiaEquipeSchema, RotasListaSchema, type RouteDay, type Seller, type Team } from '../../contracts';
 import { intervaloSyncAutoMs, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
 import { hojeNoFuso } from './hoje';
-import { clienteDaCarteira, equipesDaHierarquia, INICIO_PADRAO, paraRouteDay, type ClienteDaCarteira } from './rotas-api';
+import { clienteDaCarteira, donosDeRotaDaHierarquia, equipesDaHierarquia, INICIO_PADRAO, paraRouteDay, type ClienteDaCarteira } from './rotas-api';
 
 export const qk = {
   me: ['me'] as const,
@@ -58,6 +58,19 @@ function useEquipeDeCampo<T>(select: (e: { sellers: Seller[]; teams: Team[]; pap
     staleTime: 5 * 60_000,
   });
 }
+/** Donos de rota (Operação › Rotas): a equipe de campo e o supervisor (T-0187, P1 A). */
+function useDonosDeRota<T>(select: (e: { sellers: Seller[]; teams: Team[] }) => T) {
+  const enabled = useAuthed();
+  return useQuery({
+    queryKey: [...qk.hierarquia, 'donos-de-rota'],
+    queryFn: () => api<unknown>('/core/equipe/hierarquia').then((r) => donosDeRotaDaHierarquia(HierarquiaEquipeSchema.parse(r).membros)),
+    select,
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
+export const useSellersDeRota = () => useDonosDeRota((e) => e.sellers);
+export const useTeamsDeRota = () => useDonosDeRota((e) => e.teams);
 export const useSellersDeCampo = () => useEquipeDeCampo((e) => e.sellers);
 export const useTeamsDeCampo = () => useEquipeDeCampo((e) => e.teams);
 /** Papel do vínculo da carteira por usuário (o do perfil, premissa da T-0017). */

@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import { definirModuloShell } from '@macuxi/platform-sdk';
 import { migracoesAparelho } from '../db/aparelho';
+import { ACAO_VISITA_REGISTRAR_GESTAO } from '../contracts';
 import { manifest } from '../manifest';
 import { comVisitas } from './components/visit-sheets';
 import { consultaFinanceiroClienteAparelho } from './consultas';
@@ -45,6 +46,8 @@ export const moduloApp = definirModuloShell<ComponentType>({
   migracoesAparelho,
   paginas: [
     { id: 'rota', caminho: 'rota', titulo: 'Rota de hoje', navegacao: 'Rota', icone: 'pin', apps: ['campo'], ordem: 20, componente: comVisitas(TelaRota) },
+    // T-0187: a mesma tela no Gestão, só com a ação `visita.registrar_gestao` (supervisor e gerente); o caminho é único no shell
+    { id: 'rota-gestao', caminho: 'rota-gestao', titulo: 'Rota de hoje', navegacao: 'Rota', icone: 'pin', apps: ['gestao'], acao: ACAO_VISITA_REGISTRAR_GESTAO, ordem: 20, componente: comVisitas(TelaRota) },
     { id: 'clientes', caminho: 'clientes', titulo: 'Clientes', navegacao: 'Clientes', icone: 'users', apps: ['campo', 'gestao'], ordem: 30, componente: comVisitas(TelaClientes) },
     { id: 'metas', caminho: 'metas', titulo: 'Metas', apps: ['campo'], componente: TelaMetas },
     { id: 'meus-modulos', caminho: 'meus-modulos', titulo: 'Meus módulos', apps: ['campo', 'gestao'], componente: TelaMeusModulos },
