@@ -199,8 +199,10 @@ export const barraAbas = (variante, ativa, contadores = {}) =>
     .join('')}</div>`;
 
 /** Uma tela inteira: barra de status, o miolo e (opcional) a barra de abas. `extra` vai por cima (folha, diálogo). */
+export const pagina = (miolo, estilo = '') => `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><style>${CSS}${estilo}</style><body>${miolo}</body></html>`;
+
 export function tela({ hora, cab = '', corpo = '', classeCorpo = '', barra = '', extra = '', statusClaro = false, estilo = '' }) {
-  return `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><style>${CSS}${estilo}</style><body><div class="tel">${barraDeStatus(hora, { claro: statusClaro })}${cab}<div class="corpo ${classeCorpo}">${corpo}</div>${barra}${extra}</div></body></html>`;
+  return pagina(`<div class="tel">${barraDeStatus(hora, { claro: statusClaro })}${cab}<div class="corpo ${classeCorpo}">${corpo}</div>${barra}${extra}</div>`, estilo);
 }
 
 /** Grava cada tela como PNG de 720 × 1520 (360 × 760 dp em escala 2). */
