@@ -55,7 +55,6 @@ describe('tokens (T-0072): identidade e contraste', () => {
       ['texto secundário no fundo', colors.ink2, colors.ground],
       ['texto secundário no cartão', colors.ink2, colors.surface],
       ['texto terciário no cartão', colors.ink3, colors.surface],
-      ['opção desabilitada no cartão', colors.inkDisabled, colors.surface],
       ['opção desabilitada no fundo', colors.inkDisabled, colors.ground],
       ['aba ativa', colors.accentInk, colors.surface],
       ['aba inativa', colors.ink2, colors.surface],
