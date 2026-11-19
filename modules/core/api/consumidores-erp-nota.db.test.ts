@@ -107,6 +107,17 @@ describe.skipIf(semBanco())('Core T-0066 × Postgres: notas do ERP e histórico 
       [mes],
     );
 
+  it('T-0186: a forma de pagamento da NF é a descrição em texto do ERP, guardada como veio; ausente não altera', async () => {
+    await emTransacao(A.tenantId, async (t) => {
+      await preparar(t);
+      const forma = async () => (await t.q<{ forma_pagamento: string | null }>("select forma_pagamento from core.nota_erp where external_id = 'N-F1'"))[0]?.forma_pagamento;
+      await t.entregar(nota('N-F1', { forma_pagamento: '  Boleto 28 dias ' }));
+      expect(await forma()).toBe('Boleto 28 dias');
+      await t.entregar(nota('N-F1'));
+      expect(await forma()).toBe('Boleto 28 dias');
+    });
+  });
+
   it('RN-INT-04: cliente ausente lança referência ausente e nada é gravado', async () => {
     await emTransacao(A.tenantId, async (t) => {
       await expect(t.entregar(nota('N-1'))).rejects.toBeInstanceOf(ReferenciaAusenteErp);

@@ -43,17 +43,6 @@ export function statusDaNf(nota: { valor_cents: number; devolvido_cents: number 
   return 'pago';
 }
 
-/**
- * A forma de pagamento da NF chega do ERP pelo CÓDIGO ("BOL"); a tela mostra a DESCRIÇÃO ("Boleto"). Casa o código sem diferenciar
- * maiúsculas e sem espaços nas pontas; código sem forma cadastrada fica como veio (nunca some). Sem forma = `null`.
- */
-export function descricaoDaFormaPagamento(valor: string | null, formas: ReadonlyArray<{ codigo: string; nome: string }>): string | null {
-  const v = valor?.trim();
-  if (!v) return null;
-  const chave = v.toLocaleLowerCase('pt-BR');
-  return formas.find((f) => f.codigo.trim().toLocaleLowerCase('pt-BR') === chave)?.nome ?? v;
-}
-
 export interface StatusDaParcela {
   rotulo: string;
   tom: 'danger' | 'warning' | 'success' | 'neutral';

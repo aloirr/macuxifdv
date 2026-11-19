@@ -4,7 +4,6 @@ import {
   filtrarNotas,
   inicioDoPeriodoNf,
   JANELA_APARELHO_DIAS,
-  descricaoDaFormaPagamento,
   limiteEDisponivelDoResumo,
   nfEmAtraso,
   periodoPrecisaDoServidor,
@@ -164,18 +163,5 @@ describe('R-20261119-0530: status da parcela no detalhe da NF', () => {
     expect(statusDaParcela({ situacao: 'aberto', em_atraso: false })).toEqual({ rotulo: 'Em aberto', tom: 'warning' });
     expect(statusDaParcela({ situacao: 'liquidado', em_atraso: false }).rotulo).toBe('Paga');
     expect(statusDaParcela({ situacao: 'cancelado', em_atraso: false })).toEqual({ rotulo: 'Cancelada', tom: 'neutral' });
-  });
-});
-
-describe('T-0186: forma de pagamento da NF aparece como descrição, nunca como código', () => {
-  const formas = [{ codigo: 'BOL', nome: 'Boleto' }, { codigo: 'PIX', nome: 'Pix' }];
-  it('o código do ERP vira a descrição, sem diferenciar maiúsculas nem espaços', () => {
-    expect(descricaoDaFormaPagamento('BOL', formas)).toBe('Boleto');
-    expect(descricaoDaFormaPagamento(' pix ', formas)).toBe('Pix');
-  });
-  it('código sem forma cadastrada fica como veio, e sem forma é nulo', () => {
-    expect(descricaoDaFormaPagamento('Boleto 28 dias', formas)).toBe('Boleto 28 dias');
-    expect(descricaoDaFormaPagamento('  ', formas)).toBeNull();
-    expect(descricaoDaFormaPagamento(null, formas)).toBeNull();
   });
 });

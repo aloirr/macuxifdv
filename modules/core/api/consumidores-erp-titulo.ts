@@ -23,11 +23,11 @@ export const consumidorTituloDoErp: ConsumidorEvento = definirConsumidor({
     const clienteId = await clientePorExternalId(ctx.db, r.cliente_external_id);
     if (!clienteId) throw new ReferenciaAusenteErp('cliente');
 
-    // T-0186 (0090, aditivo): NF e forma de pagamento (o CÓDIGO do ERP em `forma_pagamento_codigo`; a descrição vem do cadastro de formas no aparelho). Ausente = não informado = não altera; série só com o número.
-    const novos = r as typeof r & { nf_numero?: string | null; nf_serie?: string | null; forma_pagamento_codigo?: string | null };
+    // T-0186 (0090, aditivo): NF e forma de pagamento (DESCRIÇÃO em texto livre, até 120 caracteres, como o ERP manda; sem relação com o cadastro de formas). Ausente = não informado = não altera; série só com o número.
+    const novos = r as typeof r & { nf_numero?: string | null; nf_serie?: string | null; forma_pagamento?: string | null };
     const nfNumero = novos.nf_numero?.trim() || null;
     const nfSerie = nfNumero ? novos.nf_serie?.trim() || null : null;
-    const forma = novos.forma_pagamento_codigo?.trim().slice(0, 120) || null;
+    const forma = novos.forma_pagamento?.trim().slice(0, 120) || null;
     await ctx.db.query(
       `insert into core.titulo (tenant_id, external_id, cliente_id, documento, parcela, emissao, vencimento, valor_cents, saldo_cents, situacao, liquidado_em, nf_numero, nf_serie, forma_pagamento)
        values (plataforma.tenant_atual(), $1, $2, $3, $4, coalesce($5::date, $6::date), $6::date, $7, $8, $9, $10::timestamptz, $11, $12, $13)
