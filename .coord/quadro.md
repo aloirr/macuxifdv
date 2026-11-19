@@ -31,6 +31,7 @@
 > - **Trava RN-VEN-45 opção 1** (R-20261118-210200): ver o bloco da v1.0.15.
 > - **Fechados sem merge:** #487 e #384 (a reconferência de marca da v1.0.13 os substitui) e #345 (substituído pelo #488).
 > - **Sem advogado** (R-20261119-0545, alexandre: "quem decide tudo sou eu"): nenhuma condição de "revisão de advogado". O rastreamento é interno e liga quando o dono do produto mandar, pelo parâmetro do BKO. Já corrigidos: T-0156 e doc 03 (RN-CORE-13). Para a v1.0.16 (engenheiro-software; o #500 fechou sem merge): ADR 0061, `docs/desenho/tracking.md` e os três `docs/desenho/T-0156-legal-*.md`.
+> - **Doc 03, pendente na v1.0.16:** as decisões P1 a P8 da P-6 (`docs/desenho/T-0184.md` §0) na RN-VEN-12, na RN-VEN-13 e na RN-VEN-30.
 > - **RN-VEN-43 com dois sentidos** (R-20261117-201110, ponto 3): a tabela ajustada pelo prazo fica com a RN-VEN-43 a 46, e os cards de Pedidos (T-0170) ganham um número novo. As duas entram no doc 03 na v1.0.16.
 > - **Economia do Actions** (R-20261117-065555), além do `CLAUDE.md`:
 >   - PR só quando é obrigatório;
