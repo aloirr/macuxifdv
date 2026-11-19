@@ -299,11 +299,16 @@ describe('T-0084/T-0085 — busca offline com aplicação e referência cruzada 
       expect(ficha!.catalogo!.referencias).toEqual([]);
     });
 
-    it('FO-1 (T-0084 c8, T-0085 c8, RN-CAT-05): o promotor abre a ficha offline com aplicação, referência, oferece junto e etiquetas, sem preço nem estoque', async () => {
+    it('FO-1 (T-0084 c8, T-0085 c8, RN-CAT-05 revista): o promotor abre a ficha offline com aplicação, referência, oferece junto, etiquetas e o estoque do vendedor, sem preço', async () => {
       const ap = await aparelho({ promotor: true, marcas: [linha(MARCA.freiomax, { nome: 'Freiomax', ativo: true })] });
-      const ficha = await fichaLocal(ap.leitor, { perfil: 'promotor', parametros: {}, agora: relogio.iso(), clienteId: CLIENTE, produtoId: P.uno });
+      const entrada = { parametros: {}, agora: relogio.iso(), clienteId: CLIENTE, produtoId: P.uno };
+      const ficha = await fichaLocal(ap.leitor, { ...entrada, perfil: 'promotor' });
+      const doVendedor = await fichaLocal(ap.leitor, { ...entrada, perfil: 'vendedor' });
       expect(ficha).not.toBeNull();
-      expect(ficha!.product).toMatchObject({ price_stock_visible: false, price: null, availability: null });
+      expect(ficha!.product).toMatchObject({ price_stock_visible: false, price: null });
+      // RN-CAT-05 revista (catálogo v2, #503): o estoque é de todos os perfis; no mesmo aparelho e cliente, o mesmo do vendedor
+      expect(ficha!.product.availability).not.toBeNull();
+      expect(ficha!.product.availability).toEqual(doVendedor!.product.availability);
       expect(ficha!.catalogo).toMatchObject({
         aplicacao: APL.uno,
         referencias: [{ marca_id: MARCA.freiomax, marca_nome: 'Freiomax', codigo: 'CB 3401' }],
@@ -312,7 +317,12 @@ describe('T-0084/T-0085 — busca offline com aplicação e referência cruzada 
       });
       const r = await busca(ap, 'pastilha uno 2012', 'promotor');
       expect(skus(r)).toContain('PST-D01');
-      for (const i of r.items) expect(i).toMatchObject({ price_stock_visible: false, price: null, availability: null });
+      const estoqueDoVendedor = new Map((await busca(ap, 'pastilha uno 2012', 'vendedor')).items.map((i) => [i.id, i.availability] as const));
+      for (const i of r.items) {
+        expect(i, i.erp_code).toMatchObject({ price_stock_visible: false, price: null });
+        expect(i.availability, i.erp_code).not.toBeNull();
+        expect(i.availability, i.erp_code).toEqual(estoqueDoVendedor.get(i.id));
+      }
     });
   });
 
