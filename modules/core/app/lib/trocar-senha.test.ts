@@ -85,9 +85,7 @@ describe('RN-CORE-32 / RN-CORE-34: respostas da API na troca voluntÃ¡ria (spec Â
     });
   });
   it('RF-CORE-01: bloqueio e muitas tentativas usam o texto do login', () => {
-    expect(erroDaTrocaVoluntaria(erroApi('MUITAS_TENTATIVAS')).texto).toBe(
-      'Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.',
-    );
+    expect(erroDaTrocaVoluntaria(erroApi('MUITAS_TENTATIVAS')).texto).toBe('Muitas tentativas. Tente de novo em 5 minutos.');
     expect(erroDaTrocaVoluntaria(erroApi('USUARIO_BLOQUEADO'))).toMatchObject({
       tom: 'danger',
       acao: 'ficar',

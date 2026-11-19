@@ -42,6 +42,11 @@ export function registrarFalhaDeLogin(atual: { falhas: number; bloqueioAte: Date
   return { falhas, bloqueioAte: null };
 }
 
+/** RN-CORE-01: minutos que faltam para o fim do bloqueio por tentativas, arredondados para cima (mínimo 1 enquanto bloqueado). */
+export function minutosRestantesDoBloqueio(bloqueioAte: Date, agora: Date): number {
+  return Math.max(1, Math.ceil((bloqueioAte.getTime() - agora.getTime()) / 60_000));
+}
+
 /** Senha certa: zera a contagem e o bloqueio temporário. */
 export function zerarFalhasDeLogin(): ContagemFalhas {
   return { falhas: 0, bloqueioAte: null };

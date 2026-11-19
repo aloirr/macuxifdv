@@ -47,6 +47,9 @@ import { rotasDeFrases } from './frases';
 import { rotasDeMetasProdutividade } from './metas-produtividade';
 import { rotasDePerformance } from './performance';
 import { provedoresSyncT0170 } from './sync-t0170';
+import { provedoresSyncTrajeto } from './sync-trajeto';
+import { rotasDeRastreamento } from './rastreamento-bko';
+import { consultaTrajetoDoDia, rotasDeTrajeto } from './trajeto-consulta';
 import { rotasDeTarefas } from './tarefas';
 import { rotasDeRotasEVisitas } from './rotas';
 import { rotasDeUsuarios } from './usuarios';
@@ -68,12 +71,12 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
   const sa = criarSuperAdmin(plataforma);
   return definirModuloApi({
     manifesto: manifest,
-    rotas: [...rotasDeFilialDoProprioUsuario, ...rotasDeLicencas, ...rotasDeUsuarios, ...rotasDeVinculoErp, ...rotasDePerfis, ...rotasDeEquipeCsv, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDeFiliais, ...rotasDeFotosPdv, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeParametrosAlertas, ...rotasDeParametrosJornada, ...rotasDeParametrosCurvaAbc, ...rotasDeFarol, ...rotasDePlanoRv, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes, ...rotasDeTarefas, ...rotasDeFrases, ...rotasDeAvatar, ...rotasDeMetasProdutividade, ...rotasDePerformance],
-    sync: [...provedoresSyncCore, ...provedoresDeNotificacao, ...provedoresSyncT0170],
+    rotas: [...rotasDeFilialDoProprioUsuario, ...rotasDeLicencas, ...rotasDeUsuarios, ...rotasDeVinculoErp, ...rotasDePerfis, ...rotasDeEquipeCsv, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDeFiliais, ...rotasDeFotosPdv, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeParametrosAlertas, ...rotasDeParametrosJornada, ...rotasDeParametrosCurvaAbc, ...rotasDeFarol, ...rotasDePlanoRv, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes, ...rotasDeTarefas, ...rotasDeFrases, ...rotasDeAvatar, ...rotasDeMetasProdutividade, ...rotasDePerformance, ...rotasDeTrajeto, ...rotasDeRastreamento],
+    sync: [...provedoresSyncCore, ...provedoresDeNotificacao, ...provedoresSyncT0170, ...provedoresSyncTrajeto],
     consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorBaixaPorResposta, consumidorMetaDefinida, ...consumidoresDoErp],
     // ADR 0022: varredura do alerta de pendência de etapa do checkout (RN-CORE-12); período múltiplo de 15 min (RN-CORE-23).
     tarefas: [definirTarefa({ nome: 'alerta_pendencia_checkout', cadaMin: 60, executar: (ctx) => alertarPendenciasVencidas(ctx) })],
-    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaFinanceiroCliente, consultaMedidas, consultaFiliais, consultaFiliaisDoUsuario, consultaPromotorVePedidos, consultaUsuariosResumo, consultaCalendarioMetas, consultaProdutosPorSku, consultaProdutividadeEquipe, consultaCredencialConferir, consultaUsuariosComAcao],
+    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaFinanceiroCliente, consultaMedidas, consultaFiliais, consultaFiliaisDoUsuario, consultaPromotorVePedidos, consultaUsuariosResumo, consultaCalendarioMetas, consultaProdutosPorSku, consultaProdutividadeEquipe, consultaCredencialConferir, consultaUsuariosComAcao, consultaTrajetoDoDia],
     // T-0180 (ADR 0059 §5): último contato do aparelho, chamado pela API depois do novidades e do push (melhor esforço)
     contatoDoAparelho: registrarContatoDoAparelho,
     rotasPublicas: [

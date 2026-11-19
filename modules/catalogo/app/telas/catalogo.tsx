@@ -10,7 +10,7 @@
 import { relogioReal } from '@macuxi/comum/relogio';
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
-import { Banner, CampoBusca, CatalogoCarregando, Chip, colors, DEFAULT_TZ, Empty, EstadoVazio, LinhaChips, MostrarMais, NadaEncontrado, PAGINA_DA_BUSCA, proximaPaginaDaBusca, Screen, SeloAtualizacao, TEXTO_CATALOGO_CARREGANDO, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Banner, BotaoFiltro, CampoBusca, CatalogoCarregando, Chip, colors, DEFAULT_TZ, Empty, EstadoVazio, EtiquetaFiltro, LinhaChips, MostrarMais, NadaEncontrado, PAGINA_DA_BUSCA, proximaPaginaDaBusca, Screen, SeloAtualizacao, TEXTO_CATALOGO_CARREGANDO, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
@@ -20,12 +20,15 @@ import { idsAtivos } from '../../domain/hierarquia';
 import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, avisoDaBusca, iconeDoAviso } from '../../domain/ia';
 import { textoPareceCodigo } from '../../domain/codigo-busca';
 import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, SEM_FILTRO, subtituloDaGrade, type FiltroDaGrade } from '../lib/grade';
+import { dadosDaFolha, opcoesDoFiltroFilial, resumoDoFiltro, subtituloComFilial } from '../lib/estoque-folha';
 import { modoDaCarga, paginasDaApi, soVendaveisNaCarga } from '../lib/carga-online';
+import { ajustarPeloPrazoPadrao } from '../lib/prazo-padrao';
 import { vazioDaBusca } from '../lib/vazio-busca';
-import { arvoreLocal, buscarLocal, nomeDoClienteLocal, produtosDaNavegacao, produtosLocais, vitrineLocal } from '../lib/local';
+import { arvoreLocal, buscarLocal, estoqueLocalDosProdutos, filialDeCadastroLocal, filiaisDoUsuarioLocal, filiaisLocais, nomeDoClienteLocal, produtosDaNavegacao, produtosLocais, vitrineLocal } from '../lib/local';
 import { sugestaoDaBuscaLocal } from '../texto-consultas';
 import { irParaProduto } from '../rotas';
 import { CartaoGrade } from './comum';
+import { FolhaEstoquePorFilial, FolhaFiltroCatalogo, type EscolhaFiltro } from './estoque-filial';
 import { useMiniaturasDosItens } from './miniatura';
 
 const POR_PAGINA = PAGINA_DA_BUSCA;
@@ -54,6 +57,10 @@ export default function TelaCatalogo() {
   const [consulta, setConsulta] = useState(texto);
   const [arvore, setArvore] = useState<{ arvore: Arvore; vinculos: VinculoProdutoNo[] } | null>(null);
   const [filtro, setFiltro] = useState<FiltroDaGrade>(SEM_FILTRO);
+  const [escolha, setEscolha] = useState<EscolhaFiltro>(SEM_ESCOLHA);
+  const [folhaFiltro, setFolhaFiltro] = useState(false);
+  const [itemDaFolha, setItemDaFolha] = useState<ItemVitrine | null>(null);
+  const [filiais, setFiliais] = useState<{ venda: string[]; todas: { id: string; nome: string }[]; cadastro: { id: string; nome: string | null } | null }>({ venda: [], todas: [], cadastro: null });
   const [nomeCliente, setNomeCliente] = useState<string | null>(null);
   const [limite, setLimite] = useState(POR_PAGINA); // "Mostrar mais" soma 20 (kit); ao trocar de filtro ou de busca volta ao inicial
   const [lista, setLista] = useState<EstadoLista>({ carregando: true, itens: [], total: 0, aviso: null });
@@ -66,7 +73,20 @@ export default function TelaCatalogo() {
   const naCarga = modoCarga !== 'local';
   const noInicial = params.no ? String(params.no) : null;
 
-  useEffect(() => setLimite(POR_PAGINA), [filtro, consulta]);
+  useEffect(() => setLimite(POR_PAGINA), [filtro, escolha, consulta]);
+
+  // spec §3 e §4: filiais de venda (filtro e folha), todas as do tenant (nomes) e a de cadastro (faixa), das linhas locais
+  const usuarioId = usuario?.id ?? null;
+  useEffect(() => {
+    if (!motor) return;
+    let vivo = true;
+    void Promise.all([filiaisDoUsuarioLocal(motor, usuarioId), filiaisLocais(motor), filialDeCadastroLocal(motor, usuarioId)])
+      .then(([u, todas, cadastro]) => vivo && setFiliais({ venda: [...(u?.filiaisVenda ?? [])], todas, cadastro }))
+      .catch(() => vivo && setFiliais({ venda: [], todas: [], cadastro: null }));
+    return () => {
+      vivo = false;
+    };
+  }, [motor, usuarioId, sync.sincronizado_em]);
 
   // "Você quis dizer…": só quando a busca não achou nada, do vocabulário do índice no aparelho
   const semResultado = Boolean(consulta) && !lista.carregando && lista.itens.length === 0;
@@ -114,13 +134,13 @@ export default function TelaCatalogo() {
   useEffect(() => {
     if (!motor) return;
     let vivo = true;
-    const entrada = { perfil, parametros: parametrosCrus, agora: relogioReal().agora().toISOString(), clienteId };
+    const entrada = { perfil, parametros: parametrosCrus, agora: relogioReal().agora().toISOString(), clienteId, usuarioId, filtroFilial: escolha.filial };
     const local = async (aviso: string | null) => {
       const doFiltro = arvore ? produtosDoFiltro(arvore.arvore, arvore.vinculos, filtro) : undefined;
       const permitidos = dentroDoPedido ? await produtosDaNavegacao(motor, { ...entrada, noId: null, soDaTabelaDoCliente: true }) : undefined;
       const ativos = idsAtivos(await produtosLocais(motor));
       const ids = doFiltro || permitidos ? new Set([...(doFiltro ?? ativos)].filter((id) => ativos.has(id) && (!permitidos || permitidos.has(id)))) : undefined;
-      const chips = { ...(ids ? { only_product_ids: ids } : {}), ...(dentroDoPedido ? { only_sellable: true } : {}) };
+      const chips = { ...(ids ? { only_product_ids: ids } : {}), ...(dentroDoPedido ? { only_sellable: true } : {}), ...(escolha.soComEstoque ? { only_in_stock: true } : {}) };
       const r = consulta ? await buscarLocal(motor, { ...entrada, fuso, q: consulta, chips, limit: limite, offset: 0, offline: aviso === AVISO_BUSCA_OFFLINE }) : await vitrineLocal(motor, { ...entrada, chips, limit: limite, offset: 0 });
       // índice em reconstrução (T-0088): sem erro; junta com o aviso de sem sinal/falha numa frase só (some quando o índice fica pronto)
       const organizando = 'indexando' in r && r.indexando === true;
@@ -147,30 +167,39 @@ export default function TelaCatalogo() {
           }
         }
       } else if (!consulta) r = await local(null);
-      else if (!ambiente.online() || filtroLigado(filtro) || textoPareceCodigo(consulta)) r = await local(ambiente.online() ? null : AVISO_BUSCA_OFFLINE);
+      else if (!ambiente.online() || filtroLigado(filtro) || escolhaLigada(escolha) || textoPareceCodigo(consulta)) r = await local(ambiente.online() ? null : AVISO_BUSCA_OFFLINE);
       else {
         try {
           const api = await ambiente.http.get<RespostaBusca>(caminhoCatalogo('busca'), { q: consulta, customer_id: clienteId, limit: limite });
-          r = { itens: api.items, total: api.total, aviso: api.notice };
+          // decisão 4 do R-20261115-100000: o estoque mostrado é o do aparelho, não o da API
+          const doAparelho = await estoqueLocalDosProdutos(motor, entrada, api.items.map((i) => i.id)).catch(() => new Map<string, ItemVitrine['availability']>());
+          r = { itens: api.items.map((i) => (doAparelho.has(i.id) ? { ...i, availability: doAparelho.get(i.id) ?? null } : i)), total: api.total, aviso: api.notice };
         } catch (e) {
           r = await local(ehSemConexao(e) ? AVISO_BUSCA_OFFLINE : AVISO_BUSCA_FALHOU);
         }
       }
+      // RN-VEN-43: pela ficha do cliente o preço sai no prazo padrão dele; sem cliente, tabela pura
+      if (clienteId && r.itens.length > 0) r = { ...r, itens: await ajustarPeloPrazoPadrao(r.itens, clienteId, ambiente.consultar) };
       if (vivo) setLista({ ...r, carregando: false });
     };
     void carregar().catch(() => vivo && setLista({ carregando: false, itens: [], total: 0, aviso: 'Não foi possível abrir o catálogo agora. Puxe a tela para tentar de novo.' }));
     return () => {
       vivo = false;
     };
-  }, [motor, arvore, filtro, consulta, limite, dentroDoPedido, clienteId, perfil, parametrosCrus, ambiente, fuso, sync.sincronizado_em, modoCarga]);
+  }, [motor, arvore, filtro, escolha, consulta, limite, dentroDoPedido, clienteId, perfil, parametrosCrus, ambiente, fuso, sync.sincronizado_em, modoCarga, usuarioId]);
 
   const chips = useMemo(() => chipsDaGrade(naCarga ? ARVORE_VAZIA : (arvore?.arvore ?? ARVORE_VAZIA), filtro), [arvore, filtro, naCarga]);
   const linhas = useMemo(() => emLinhas(lista.itens), [lista.itens]);
-  const comFiltro = !naCarga && filtroLigado(filtro);
+  const comFiltro = !naCarga && (filtroLigado(filtro) || escolhaLigada(escolha));
+  const opcoesFilial = useMemo(() => opcoesDoFiltroFilial({ proprias: filiais.venda, filiais: filiais.todas }), [filiais]);
+  const resumo = resumoDoFiltro({ opcoes: opcoesFilial, escolha });
+  const folhaDoItem = itemDaFolha?.availability
+    ? dadosDaFolha({ availability: itemDaFolha.availability, cargaEm: sync.sincronizado_em, filialCadastro: filiais.cadastro?.id ?? null, agora: relogioReal().agora().toISOString(), fuso })
+    : null;
   const nomeDoFiltro = arvore?.arvore.nos.get(filtro.categoriaId ?? filtro.sistemaId ?? '')?.nome ?? '';
   const cabecalho = {
     titulo: 'Catálogo',
-    ...(lista.carregando && lista.itens.length === 0 ? {} : { subtitulo: subtituloDaGrade(lista.total) }),
+    ...(lista.carregando && lista.itens.length === 0 ? {} : { subtitulo: subtituloComFilial(filiais.cadastro?.nome ?? null, lista.total) }),
     posicaoSubtitulo: 'abaixo' as const,
     ...(clienteId ? { voltar: { label: nomeCliente ?? 'Cliente', fallback: '/' } } : {}),
     direita: <SeloAtualizacao testID="catalogo-selo-sync" semRede={!ambiente.online()} onSincronizar={auto.puxar} sobreFaixa />,
@@ -188,19 +217,36 @@ export default function TelaCatalogo() {
 
   return (
     <Screen testID="pagina-catalogo-catalogo" refreshing={auto.puxando} onRefresh={auto.puxar} cabecalho={cabecalho}>
-      <CampoBusca
-        testID="catalogo-busca"
-        valor={texto}
-        onChange={setTexto}
-        placeholder="Produto, código ou aplicação"
-        rotuloAcessivel="Buscar produto"
-        onEnviar={() => setConsulta(texto.trim())}
-        onLimpar={() => {
-          setTexto('');
-          setConsulta('');
-        }}
-        rotuloLimpar="Limpar a busca"
-      />
+      <View style={s.linhaBusca}>
+        <View style={{ flex: 1 }}>
+          <CampoBusca
+            testID="catalogo-busca"
+            valor={texto}
+            onChange={setTexto}
+            placeholder="Produto, código ou aplicação"
+            rotuloAcessivel="Buscar produto"
+            onEnviar={() => setConsulta(texto.trim())}
+            onLimpar={() => {
+              setTexto('');
+              setConsulta('');
+            }}
+            rotuloLimpar="Limpar a busca"
+          />
+        </View>
+        <BotaoFiltro testID="catalogo-filtro" contagem={resumo.contagem} rotulo="Filtrar" onPress={() => setFolhaFiltro(true)} />
+      </View>
+      {resumo.filial || resumo.soComEstoque ? (
+        <View style={s.etiquetas} testID="catalogo-etiquetas">
+          {resumo.filial ? (
+            <EtiquetaFiltro
+              testID="catalogo-etiqueta-filial"
+              texto={resumo.filial.texto}
+              {...(resumo.filial.removivel ? { onRemover: () => setEscolha((e) => ({ ...e, filial: null })), rotuloRemover: `Remover filtro ${resumo.filial.texto}` } : {})}
+            />
+          ) : null}
+          {resumo.soComEstoque ? <EtiquetaFiltro testID="catalogo-etiqueta-estoque" texto="Só com estoque" onRemover={() => setEscolha((e) => ({ ...e, soComEstoque: false }))} rotuloRemover="Remover filtro Só com estoque" /> : null}
+        </View>
+      ) : null}
 
       {chips.sistemas.length > 0 ? (
         <LinhaChips testID="catalogo-chips-sistema">
@@ -234,7 +280,10 @@ export default function TelaCatalogo() {
             filtroLigado={comFiltro}
             semInternet={lista.aviso === AVISO_BUSCA_OFFLINE}
             dentroDoPedido={dentroDoPedido}
-            onLimparFiltros={() => setFiltro(SEM_FILTRO)}
+            onLimparFiltros={() => {
+              setFiltro(SEM_FILTRO);
+              setEscolha(SEM_ESCOLHA);
+            }}
             onLimparBusca={() => {
               setTexto('');
               setConsulta('');
@@ -255,7 +304,7 @@ export default function TelaCatalogo() {
       {linhas.map((par) => (
         <View key={par[0]!.id} style={s.linha}>
           {par.map((item) => (
-            <CartaoGrade key={item.id} item={item} clienteId={clienteId} miniatura={miniaturas.get(item.id) ?? null} onPress={() => irParaProduto(item.id, clienteId)} />
+            <CartaoGrade key={item.id} item={item} clienteId={clienteId} miniatura={miniaturas.get(item.id) ?? null} onPress={() => irParaProduto(item.id, clienteId)} onEstoquePorFilial={() => setItemDaFolha(item)} />
           ))}
           {par.length === 1 ? <View style={{ flex: 1 }} /> : null}
         </View>
@@ -269,14 +318,29 @@ export default function TelaCatalogo() {
           onPress={() => !lista.carregando && setLimite(proximaPaginaDaBusca(lista.itens.length, lista.total))}
         />
       ) : null}
+      <FolhaFiltroCatalogo
+        visivel={folhaFiltro}
+        onFechar={() => setFolhaFiltro(false)}
+        opcoes={opcoesFilial}
+        escolha={escolha}
+        onEscolher={setEscolha}
+        onLimpar={() => setEscolha(SEM_ESCOLHA)}
+        textoVer={`Ver ${subtituloDaGrade(lista.total)}`}
+      />
+      <FolhaEstoquePorFilial visivel={itemDaFolha !== null} onFechar={() => setItemDaFolha(null)} dados={folhaDoItem} />
     </Screen>
   );
 }
 
+const SEM_ESCOLHA: EscolhaFiltro = { filial: null, soComEstoque: false };
+/** Filial escolhida (inclusive "Suas filiais") ou "Ocultar" ligados: a busca é local, que sabe filtrar por filial e estoque. */
+const escolhaLigada = (e: EscolhaFiltro) => e.filial !== null || e.soComEstoque;
 const filtroLigado = (f: FiltroDaGrade) => f.sistemaId !== null || f.categoriaId !== null;
 
 const s = StyleSheet.create({
   linha: { flexDirection: 'row', gap: 12, alignItems: 'stretch' },
+  linhaBusca: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  etiquetas: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });
 
 function VazioDaBusca({

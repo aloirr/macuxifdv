@@ -165,3 +165,16 @@
 2026-11-15 — v1.0.14 catalogo — ícone pacote (caixa) no kit mobile e web (R-20261115-084600) e spec do Catálogo v2 com Estoque: N e a folha Estoque por filial (nuvem/catalogo-campo-designer-ux); pranchas na fonte do sistema.
 2026-11-16 — v1.0.14 catalogo — #441: RD-1700 a RD-1703 e MC-1520 a MC-1523 (cartão com fonte única no v2, IconPacote web saiu, botão de estoque por filial só com mais de uma filial, apoio da folha sem o código, pesos 600 e escala do app, título da folha 22/700).
 2026-11-17 — v1.0.14 parametros — ListaParametros, valorComPadrao e formatarParametro (min, pct, dias, unidade) no kit web (packages/ui/src/web/lista-parametros.tsx, 8 testes), para Pesquisa, Trade e Treinamento fecharem a RD-1583 e a RD-1584; mesmo visual de hoje (rótulo 15/600, Padrão 13 em ink-2, MC-1515); refeito no Cline.
+2026-11-19 — T-0184 e MC-1503 — simulação do P-6 (Parâmetros › Pedidos com Quem aprova o crédito e a inadimplência, motivo no Histórico do Campo e na fila da Gestão) e da tabela simples de Pedidos do BKO em docs/design/pedido-aprovacao/; inkDisabled #5B6673 (MC-1503 B); MC-1522 A conferido (nome do cartão 16/600 em modules/catalogo/app/telas/comum.tsx:158 e na spec do Catálogo v2).
+2026-11-19 — T-0184 — #492: decisões P1-P6 do dono do produto nas pranchas (dois aprovadores, uma aprovação por motivo), P7 e P8 abertos; MC-1743 a 1747 e RD-2230 a 2235 corrigidos.
+2026-11-19 — T-0184 — #492: simulações aprovadas (P7 A, P8 A, "Aplicar"); Situação antes de Ações na tabela de Pedidos do BKO.
+2026-11-19 — T-0156 — simulação do termo, "Meu trajeto", pausa e notificação fixa em docs/design/tracking/.
+2026-11-19 — T-0184 — #492: reteste no 4f8b68f (MC-1745, 1746, 1748, 1749; RD-2231, RD-2236 e Histórico da prancha 02).
+2026-11-19 — T-0156 — #492: MC-1750, MC-1751 e "Macuxi FDV" no termo.
+2026-11-19 — T-0156 — #492: RD-2240 a RD-2244 (textos do cartão de Localização, distância, sem texto de funcionamento, sem aviso de retomada, laço de captura comum).
+2026-11-19 — T-0156 — #492: rastreamento interno (decisão das 05h46): saem termo, Meu trajeto, pausa, Localização no Perfil e Contestar; ficam o mapa da equipe (Gestão e BKO) e a notificação "Macuxi Campo ativo".
+2026-11-19 — T-0156 — #492: MC-1781 (cores do kit na prancha do BKO do mapa da equipe).
+2026-11-19 — T-0156 — #492: spec e pranchas do rastreamento alinhadas ao #501 e #502 (o que ficou na v1.0.15); MC-1781 e RD-2332 a 2336.
+2026-11-19 — T-0156 — #492: RD-2332 a 2336, canal macuxi-servico e Diagnóstico sem a linha de localização.
+2026-11-19 — T-0156 — #492: "Nada registrado" no estado sem trajeto; marca liberada.
+2026-11-19 — T-0156 — #492: RD-2335 (decisão só na tabela do §1; §5 sem a tarefa já feita).

@@ -163,8 +163,8 @@ de cor (altura, raio, fonte e regras iguais). O Azul noite some no grafite (1,29
   a linha passa a ter 44 dp de altura de layout (o alvo entra no layout, não é folga).
 - Crédito do cliente: a tabela do `pedido-v3.md` §A. `CartaoLeveMais`: uma linha tocável (≥ 56 dp) por item com
   a próxima faixa (`textosLeveMais`); sem item, não aparece.
-- Token novo: `colors.inkDisabled` `#8A949C` (3:1 no branco) só para texto de opção desabilitada, **sempre** com outro sinal
-  (cadeado, sem toque); nunca para texto que precisa ser lido.
+- Token `colors.inkDisabled` `#5B6673`, o neutro de apoio da paleta (MC-1503 B, R-20261118-210515: o `#8A949C` não entra na
+  paleta; 5,84:1 no branco, 5,41:1 no Pérola), só para texto de opção desabilitada, **sempre** com outro sinal (cadeado, sem toque).
 
 ### 4.2 Filtro da lista (T-0090; spec `docs/design/pedidos-filtro-periodo.md`)
 - `BotaoFiltro`: funil de 48 dp ao lado da busca, com selo laranja do número de filtros fora do padrão.

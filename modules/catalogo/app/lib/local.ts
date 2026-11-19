@@ -11,6 +11,7 @@ import type {
   ClienteTabelaPrecoSync,
   DepositoSync,
   EstoqueSaldoSync,
+  EstoqueVisivel,
   FichaProduto,
   ItemTabelaPreco,
   ProdutoAtributoSync,
@@ -32,6 +33,8 @@ import { nomeMarcaDaReferencia } from '../../domain/marcas';
 import { parametrosDoTenant } from '../../domain/parametros';
 import { filialDoClienteLocal, filialDoPreco, precosDaFilialSemCliente, type FilialLocalDoCliente } from '../../domain/preco-filial';
 import { expandirSinonimos, type SinonimoDoTenant } from '../../domain/texto';
+import { nomeDaFilialOuCodigo } from '../../domain/estoque';
+import { filiaisDaFolha, filiaisDoEstoque, lerFiliaisDoUsuario, type FiliaisDoUsuario, type FiltroFilial } from '../../domain/estoque-campo';
 import { podeVerPrecoEstoque } from '../../domain/visibilidade';
 import { buscarProdutos, itemDaVitrine, listarVitrine, vocabularioDe, type ChipsVitrine, type ContextoVitrine, type PaginaProdutos, type ProdutoCatalogo } from '../../domain/vitrine';
 
@@ -113,6 +116,10 @@ export interface EntradaLocal {
   clienteId: string | null;
   /** Fuso do tenant (ano civil das faixas abertas da aplicação); padrão America/Manaus. */
   fuso?: string;
+  /** Usuário logado: a linha `usuario` do sync traz as filiais de venda (T-0176), base do estoque por filial. Ausente = sem a lista (estoque como recebido). */
+  usuarioId?: string | null;
+  /** Filtro de filial da tela (catalogo-campo-v2 §3): uma filial, `todas` ou nenhum (o padrão do perfil). */
+  filtroFilial?: FiltroFilial;
 }
 
 const vivas = <L extends LinhaSync>(l: L[]) => l.filter((x) => !x.deleted_at);
@@ -288,7 +295,9 @@ export async function contextoLocal(leitor: LeitorLocal, e: EntradaLocal, produt
   // sem usuário logado não há perfil para liberar preço (falha fechada): trata como promotor
   const perfil: Perfil = e.perfil ?? 'promotor';
   const base = { perfil, parametros, agora: e.agora, clienteId: e.clienteId };
-  if (e.perfil === null || !podeVerPrecoEstoque(perfil, parametros)) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: new Map(), filiais: [] };
+  if (e.perfil === null) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: new Map(), filiais: [], filiaisFolha: [] };
+  // RN-CAT-05 (revista): promotor sem direito ao preço lê o estoque, nunca o preço (as linhas de preço nem chegam ao aparelho)
+  const lePreco = podeVerPrecoEstoque(perfil, parametros);
 
   // só os candidatos (busca com FTS5) leem por campo; a vitrine inteira lê tudo (T-0052-B4)
   const porCampo = !!leitor.linhasPorCampo && produtos.length <= MAXIMO_POR_CAMPO;
@@ -296,7 +305,7 @@ export async function contextoLocal(leitor: LeitorLocal, e: EntradaLocal, produt
   let itensPreco: ItemTabelaPreco[] = [];
   let filialDoCliente: FilialLocalDoCliente | null = null;
   let filialPreco: string | null = null;
-  if (e.clienteId) {
+  if (lePreco && e.clienteId) {
     const vinculos = porCampo
       ? await leitor.linhasPorCampo!<ClienteTabelaPrecoSync & LinhaSync>('cliente_tabela_preco', 'cliente_id', [e.clienteId])
       : await leitor.linhas<ClienteTabelaPrecoSync & LinhaSync>('cliente_tabela_preco');
@@ -322,7 +331,7 @@ export async function contextoLocal(leitor: LeitorLocal, e: EntradaLocal, produt
     }
   }
   // RN-VEN-01 (T-0173), sem cliente: preço da tabela da filial padrão (itens sem tabela no contexto = "padrão" do domain)
-  if (!e.clienteId) {
+  if (lePreco && !e.clienteId) {
     const ids = new Set(produtos.map((p) => p.id));
     itensPreco = (await itensDaFilialPadrao(leitor)).filter((i) => ids.has(i.product_id));
   }
@@ -337,13 +346,53 @@ export async function contextoLocal(leitor: LeitorLocal, e: EntradaLocal, produt
     const l = saldos.get(s.produto_id) ?? [];
     const dep = depositos.get(s.deposito_id);
     // RN-CORE-39: o saldo é da FILIAL do depósito (o domain soma os depósitos da mesma filial); depósito sem filial (pull antigo) fica como estava
-    l.push({ branch_id: dep?.filial ?? s.deposito_id, branch_name: (dep?.filial && nomesFilial[dep.filial]) || dep?.nome || 'Depósito', quantity: Math.trunc(s.quantidade), updated_at: s.atualizado_em });
+    const filial = dep?.filial ?? s.deposito_id;
+    l.push({ branch_id: filial, branch_name: nomeDaFilialOuCodigo(filial, (dep?.filial && nomesFilial[dep.filial]) || dep?.nome), quantity: Math.trunc(s.quantidade), updated_at: s.atualizado_em });
     saldos.set(s.produto_id, l);
   }
   // o pull de estoque já vem filtrado pelas filiais da carteira (escopo do servidor, RN-CORE-39). Com cliente no contexto vale só a filial
   // dele (sem saldo nela = 0); sem cliente, todas as recebidas. A filial do cliente também vale sem tabela de preço.
   if (e.clienteId && !filialDoCliente) filialDoCliente = await filialLocalDoCliente(leitor, e.clienteId);
-  return { ...base, tabelaClienteId, itensPreco, promocoes: [], saldos, filiais: filialDoCliente ? [filialDoCliente.filialCliente] : null };
+  // catalogo-campo-v2 §3 e §4: filiais do N e da folha (as de venda do usuário), a filial do cliente e o filtro da tela
+  const doUsuario = await filiaisDoUsuarioLocal(leitor, e.usuarioId ?? null);
+  if (doUsuario === null) return { ...base, tabelaClienteId, itensPreco, promocoes: [], saldos, filiais: filialDoCliente ? [filialDoCliente.filialCliente] : null };
+  // RN-CORE-39: usuário sem filial = preço e estoque vazios
+  if (doUsuario.semFilial) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos, filiais: [], filiaisFolha: [] };
+  const filiais = filiaisDoEstoque(doUsuario, { filialDoCliente: filialDoCliente?.filialCliente ?? null, filtro: e.filtroFilial ?? null });
+  return { ...base, tabelaClienteId, itensPreco, promocoes: [], saldos, filiais, filiaisFolha: filiaisDaFolha(doUsuario), filialCadastro: doUsuario.filialCadastro, nomesFilial };
+}
+
+/** Filiais de venda da linha `usuario` do sync (T-0176, via `lerFiliaisDoUsuario`); `null` = sem a lista (emissor antigo ou usuário fora do aparelho). */
+export async function filiaisDoUsuarioLocal(leitor: LeitorLocal, usuarioId: string | null): Promise<FiliaisDoUsuario | null> {
+  if (!usuarioId) return null;
+  const linhas = await lembrar('usuarioFiliais', leitor, ['usuario'], async () => new Map(vivas(await leitor.linhas<LinhaSync>('usuario')).map((u) => [u.id, lerFiliaisDoUsuario(u)] as const)));
+  return linhas.get(usuarioId) ?? null;
+}
+
+/** Filial de CADASTRO do usuário e o nome dela, pelas linhas locais (`usuario` e `filial`); só para a faixa do Catálogo (decisão 2 do R-20261115-100000). */
+export async function filialDeCadastroLocal(leitor: LeitorLocal, usuarioId: string | null): Promise<{ id: string; nome: string | null } | null> {
+  const id = (await filiaisDoUsuarioLocal(leitor, usuarioId))?.filialCadastro ?? null;
+  if (id === null) return null;
+  const nomes = await lembrar('nomesFilial', leitor, ['filial'], async () => Object.fromEntries(vivas(await leitor.linhas<FilialSync & LinhaSync>('filial')).map((f) => [f.id, f.nome])));
+  const nome = nomes[id];
+  return { id, nome: nome || null };
+}
+
+/**
+ * Decisão 4 do R-20261115-100000: na busca online o estoque mostrado é o do APARELHO (a mesma `filiaisDoEstoque` sobre o saldo local),
+ * não o da API. Devolve o estoque local dos produtos pedidos; produto que o aparelho não tem fica de fora (o item segue como veio).
+ */
+export async function estoqueLocalDosProdutos(leitor: LeitorLocal, e: EntradaLocal, ids: readonly string[]): Promise<Map<string, EstoqueVisivel | null>> {
+  const quer = new Set(ids);
+  const produtos = (await produtosLocais(leitor)).filter((p) => quer.has(p.id));
+  const contexto = await contextoLocal(leitor, e, produtos);
+  return new Map(produtos.map((p) => [p.id, itemDaVitrine(p, contexto).availability] as const));
+}
+
+/** Filiais vivas do tenant no aparelho (id e nome), para o filtro e o chip; vazio = ainda não sincronizadas. */
+export async function filiaisLocais(leitor: LeitorLocal): Promise<{ id: string; nome: string }[]> {
+  const l = await lembrar('filiaisLocais', leitor, ['filial'], async () => vivas(await leitor.linhas<FilialSync & LinhaSync>('filial')).filter((f) => f.ativo).map((f) => ({ id: f.id, nome: f.nome })));
+  return [...l];
 }
 
 export interface ResultadoLocal extends PaginaProdutos {

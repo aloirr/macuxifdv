@@ -35,7 +35,7 @@ import { STATUS_FORA_DO_TOTAL } from '../domain/totais';
 import { decidirAprovacao, type DecisaoAprovador, maiorNivel, niveisDosParametros, politicaDosParametros, situacaoDoOrcamento, enviadoAoErp, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
 import { ORDER_STATUSES, type OrderStatus } from '../domain/order';
 import { payloadAprovado } from './aprovado-erp';
-import { aprovacoesComNomes, comNomesDosDecisores, gravarDecisoes, lerAprovacoes, nomesDosDecisores } from './aprovacoes';
+import { aprovacoesComNomes, comNomesDosDecisores, gravarAprovacoes, gravarDecisoes, lerAprovacoes, nomesDosDecisores } from './aprovacoes';
 import { paraDetalhe, paraOrder, type LinhaEvento, type LinhaItem, type LinhaNotaDevolucao, type LinhaNotaFaturamento, type LinhaPedido } from './mapeamento';
 import { preVenda, type DocumentoPreVenda } from './pre-venda';
 import { DEVOLUCAO_LIGADA, FATURAMENTO_LIGADO } from './retorno-erp';
@@ -306,14 +306,15 @@ function decidir(decisao: DecisaoAprovador): RotaModulo {
         const lidas = (await lerAprovacoes(db, [id])).get(id) ?? [];
         const resposta = async (status: OrderStatus): Promise<DecisaoAprovacaoResposta> => ({ status, aprovacoes: await aprovacoesComNomes(tx, (await lerAprovacoes(db, [id])).get(id) ?? []) });
         // 2) regra pura (RN-GES-08, RN-GES-04, RN-VEN-10, RN-VEN-30)
-        const r = decidirAprovacao({ status: linha.status, aprovacoes: lidas, perfil: ctx.usuario.perfil, decisao, motivo: corpo.motivo_aprovacao, texto: decisao === 'aprovar' ? corpo.comentario : corpo.motivo });
+        const r = decidirAprovacao({ status: linha.status, aprovacoes: lidas, perfil: ctx.usuario.perfil, decisao, nivel_do_pedido: linha.nivel_aprovacao as NivelAprovacao | null, motivo: corpo.motivo_aprovacao, texto: decisao === 'aprovar' ? corpo.comentario : corpo.motivo });
         if (r.tipo === 'recusa') throw new ErroHttpModulo(r.http === 403 ? 403 : 422, r.codigo, r.mensagem);
         if (r.tipo === 'repetida') return resposta(linha.status);
-        const ciclo = lidas[0]?.ciclo ?? 1;
-        // 3) grava as aprovações e, se o pedido mudou de status, o pedido
+        const ciclo = Number((await db.query<{ c: number }>('select aprovacao_ciclo::int as c from vendedor.pedido where id = $1', [id])).rows[0]?.c ?? 1);
+        // 3) persiste o resultado: a linha sintetizada pelo domínio (pedido sem linhas, API antiga) é inserida antes da decisão; depois as decisões e, se mudou, o pedido
+        if (r.sintetizada) await gravarAprovacoes(db, id, ciclo, r.aprovacoes.map((a) => ({ motivo: a.motivo, nivel: a.nivel, texto: '' })));
         await gravarDecisoes(db, id, ciclo, r.mudancas, eu, agora, r.motivo);
         const mudouDeStatus = r.para !== 'pending_approval';
-        const pendentesDepois = lidas.filter((a) => r.pendentes.includes(a.motivo));
+        const pendentesDepois = r.aprovacoes.filter((a) => r.pendentes.includes(a.motivo));
         const nivel = (maiorNivel(pendentesDepois.map((a) => a.nivel)) ?? linha.nivel_aprovacao) as NivelAprovacao;
         if (mudouDeStatus) {
           await db.query(

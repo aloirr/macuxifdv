@@ -129,11 +129,13 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
     expect(Number((await api.admin.query<{ n: number }>('select count(*)::int as n from promotor.produto_concorrente where tenant_id = $1 and deleted_at is null', [TENANT_DEMO])).rows[0]!.n)).toBeGreaterThan(0);
   });
 
-  it('D-5 (RN-CAT-05, T-0085 c7): o promotor da demo abre a ficha da PST-D01 com aplicação, referências, oferece junto e etiquetas, sem preço', async () => {
+  it('D-5 (RN-CAT-05 revista, T-0085 c7): o promotor da demo abre a ficha da PST-D01 com aplicação, referências, oferece junto, etiquetas e estoque, sem preço', async () => {
     const r = await api.chamar(tk.promotor, { method: 'GET', url: `/v1/catalogo/produtos/${idPorSku.get('PST-D01')}` });
     expect(r.statusCode, r.body).toBe(200);
     const f = FichaProduto.parse(r.json());
-    expect(f.product).toMatchObject({ price_stock_visible: false, price: null, availability: null });
+    expect(f.product).toMatchObject({ price_stock_visible: false, price: null });
+    // RN-CAT-05 revista (catálogo v2, #503): o estoque é de todos os perfis
+    expect(f.product.availability).not.toBeNull();
     expect(f.catalogo!.aplicacao).toContain('Fiat Uno');
     expect(f.catalogo!.referencias.map((x) => `${x.marca_nome} ${x.codigo}`)).toEqual(['Freiomax CB 3401', 'Rodaforte RF-1187']);
     expect(f.catalogo!.oferece_junto.map((x) => x.erp_code)).toEqual(['DSC-D01', 'FLU-DOT4']);

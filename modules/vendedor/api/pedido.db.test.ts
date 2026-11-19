@@ -530,6 +530,31 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       }
     });
 
+    it('RN-VEN-30 (T-0184): pedido pendente sem linhas de aprovação (API antiga) é decidido como desconto do ciclo 1 e "aprovar tudo" repetido é idempotente', async () => {
+      const { ctx: envio } = contexto(vendedor1, { carteira: new Set([A.clientes.c1]) });
+      expect((await receber(envio, push(id(66), { customer_id: A.clientes.c1, discount_pct: 8, items: itens() })))[0]!.status).toBe('aceito');
+      const admin = new pg.Client({ connectionString: banco().urlAdmin });
+      await admin.connect();
+      try {
+        await admin.query('delete from vendedor.pedido_aprovacao where pedido_id = $1', [id(66)]);
+      } finally {
+        await admin.end();
+      }
+      expect(await aprovacoesDe(id(66))).toEqual([]);
+      const s = contexto(supervisor, { visiveis: gestao });
+      expect(await chamar(rotaAprovarPedido, s.ctx, { params: { id: id(66) } })).toMatchObject({ status: 'approved' });
+      expect(await aprovacoesDe(id(66))).toEqual([{ motivo: 'desconto', nivel: 'supervisor', estado: 'aprovada', ciclo: 1 }]);
+      expect(await chamar(rotaAprovarPedido, s.ctx, { params: { id: id(66) } })).toMatchObject({ status: 'approved' });
+    });
+
+    it('RN-VEN-33: aprovar tudo repetido depois de uma aprovação parcial devolve a mesma resposta, sem 422', async () => {
+      await tresMotivos(id(67));
+      const s = contexto(supervisor, { visiveis: gestao });
+      expect(await chamar(rotaAprovarPedido, s.ctx, { params: { id: id(67) } })).toMatchObject({ status: 'pending_approval' });
+      expect(await chamar(rotaAprovarPedido, s.ctx, { params: { id: id(67) } })).toMatchObject({ status: 'pending_approval' });
+      expect((await aprovacoesDe(id(67))).map((a) => [a.motivo, a.estado])).toEqual([['credito', 'pendente'], ['desconto', 'aprovada'], ['inadimplencia', 'pendente']]);
+    });
+
     it('RN-VEN-12: crédito disponível um centavo abaixo do total vai para aprovação; igual ao total passa', async () => {
       const total = 250_000;
       const enviar = async (n: number, disponivel: number) => {

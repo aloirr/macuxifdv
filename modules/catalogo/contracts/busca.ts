@@ -100,7 +100,7 @@ export const EstoqueVisivel = z.object({
   by_branch: z.array(EstoqueFilialVisivel),
   /**
    * RN-CAT-07: instante da última atualização do saldo (a mais antiga entre as filiais visíveis), sempre presente
-   * na resposta para a tela mostrar "atualizado às hh:mm" (`rotuloAtualizacaoEstoque`); nulo só quando nenhum
+   * na resposta para a tela mostrar "atualizado às hh:mm" (`rotuloCargaEstoque`); nulo só quando nenhum
    * saldo visível tem hora (aí `stale` é true).
    */
   updated_at: InstanteUtc.nullable(),
@@ -135,8 +135,8 @@ export type EquivaleA = z.infer<typeof EquivaleA>;
 // ---------- vitrine ----------
 /**
  * Cartão de produto na vitrine/lista/resultado de busca: cadastro base do Core + preço e estoque visíveis.
- * RN-CAT-05: para quem não vê preço e estoque (promotor com `promotor_ve_preco_estoque=false`), `price` e
- * `availability` vêm nulos e `price_stock_visible=false` — a ficha e as fotos continuam.
+ * RN-CAT-05 (revista): para quem não vê preço (promotor com `promotor_ve_preco_estoque=false`), `price` vem nulo e
+ * `price_stock_visible=false`; o estoque (`availability`) continua para todos — a ficha e as fotos também.
  */
 export const ItemVitrine = ProductBase.pick({ id: true, erp_code: true, description: true, brand: true, line: true, unit: true, ean: true })
   .extend({
@@ -144,7 +144,7 @@ export const ItemVitrine = ProductBase.pick({ id: true, erp_code: true, descript
     is_campaign: z.boolean(),
     price: PrecoVisivel.nullable(),
     availability: EstoqueVisivel.nullable(),
-    /** RN-CAT-05: false = o perfil não vê preço de tabela nem estoque deste tenant. */
+    /** RN-CAT-05: false = o perfil não vê o preço de tabela deste tenant (o estoque continua em `availability`). */
     price_stock_visible: z.boolean().default(true),
     /** Nota final do ranking (0..~1,3); só na busca. */
     score: z.number().optional(),
@@ -153,8 +153,8 @@ export const ItemVitrine = ProductBase.pick({ id: true, erp_code: true, descript
     /** RN-CAT-09: referência cruzada que casou com a consulta; só na busca. */
     equivale_a: EquivaleA.nullable().optional(),
   })
-  .refine((i) => (i.price_stock_visible ? i.price !== null && i.availability !== null : i.price === null && i.availability === null), {
-    message: 'Com preço e estoque visíveis, o item traz os dois; sem, não traz nenhum.',
+  .refine((i) => (i.price_stock_visible ? i.price !== null && i.availability !== null : i.price === null), {
+    message: 'Com preço visível, o item traz preço e estoque; sem preço visível (promotor), o preço é nulo e o estoque continua.',
     path: ['price_stock_visible'],
   });
 export type ItemVitrine = z.infer<typeof ItemVitrine>;
