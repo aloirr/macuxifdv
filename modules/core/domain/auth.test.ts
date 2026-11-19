@@ -58,3 +58,13 @@ describe('RF-CORE-01: refresh rotativo (doc 04)', () => {
     expect(expiracaoDoRefresh(t0)).toEqual(new Date('2026-11-30T12:00:00Z'));
   });
 });
+
+describe('RN-CORE-01: tempo restante do bloqueio por tentativas', () => {
+  it('RN-CORE-01: minutos restantes arredondam para cima e valem no mínimo 1', async () => {
+    const { minutosRestantesDoBloqueio } = await import('./auth');
+    const agora = new Date('2026-11-14T20:00:00Z');
+    expect(minutosRestantesDoBloqueio(new Date(agora.getTime() + 15 * 60_000), agora)).toBe(15);
+    expect(minutosRestantesDoBloqueio(new Date(agora.getTime() + 14 * 60_000 + 1_000), agora)).toBe(15);
+    expect(minutosRestantesDoBloqueio(new Date(agora.getTime() + 1_000), agora)).toBe(1);
+  });
+});

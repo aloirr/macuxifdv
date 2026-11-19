@@ -98,6 +98,8 @@ export interface RepositorioTenant {
   sessaoPorHash(hash: string): Promise<SessaoRefresh | null>;
   marcarSessaoUsada(id: string, agora: Date): Promise<void>;
   revogarFamilia(familiaId: string, agora: Date): Promise<void>;
+  /** Nome e fuso do tenant DA SESSÃO (RLS), pela transação corrente — sem pedir 2ª conexão ao pool (troca de senha, RN-CORE-34). */
+  tenantDaSessao(codigo: string): Promise<TenantExibicao | null>;
   /** T-0094: senha definitiva nova — limpa a temporária e o prazo, zera tentativas, sobe a `sessao_versao` e revoga TODOS os refresh do usuário. Devolve a versão nova. */
   trocarSenha(usuarioId: string, senhaHash: string, agora: Date): Promise<number>;
   /** T-0094 (P6): grava a senha temporária paralela do "Esqueci a senha"; a senha atual e as sessões não mudam. */
@@ -153,6 +155,11 @@ export function repositorioTenantSql(db: ClienteBanco): RepositorioTenant {
     },
     async gravarTentativas(usuarioId, falhas, bloqueioAte) {
       await db.query('update core.usuario set tentativas_falhas = $2, bloqueio_ate = $3 where id = $1', [usuarioId, falhas, bloqueioAte]);
+    },
+    async tenantDaSessao(codigo) {
+      const r = await db.query<{ id: string; nome: string; fuso: string }>('select id, nome, fuso from plataforma.tenant_da_sessao()');
+      const l = r.rows[0];
+      return l ? { id: l.id, codigo, nome: l.nome, fuso: l.fuso } : null;
     },
     async registrarLoginOk(usuarioId, agora) {
       await db.query('update core.usuario set tentativas_falhas = 0, bloqueio_ate = null, ultimo_login_em = $2 where id = $1', [usuarioId, agora]);

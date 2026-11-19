@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import { definirModuloShell } from '@macuxi/platform-sdk';
+import { migracoesAparelho } from '../db/aparelho';
 import { manifest } from '../manifest';
 import { comVisitas } from './components/visit-sheets';
 import { consultaFinanceiroClienteAparelho } from './consultas';
@@ -8,6 +9,7 @@ import { entidadesCliente } from './lib/entidades-cliente';
 import { entidadesMeta } from './lib/entidades-meta';
 import { entidadesNotificacao } from './lib/entidades-notificacao';
 import { entidadesProduto } from './lib/entidades-produto';
+import { entidadesRastreamento } from './lib/entidades-rastreamento';
 import { entidadesRota } from './lib/entidades-rota';
 import { TelaCliente } from './telas/cliente';
 import { TelaClientes } from './telas/clientes';
@@ -38,6 +40,7 @@ export { VisitSheetsProvider, useVisitSheets } from './components/visit-sheets';
  */
 export const moduloApp = definirModuloShell<ComponentType>({
   manifesto: manifest,
+  migracoesAparelho,
   paginas: [
     { id: 'rota', caminho: 'rota', titulo: 'Rota de hoje', navegacao: 'Rota', icone: 'pin', apps: ['campo'], ordem: 20, componente: comVisitas(TelaRota) },
     { id: 'clientes', caminho: 'clientes', titulo: 'Clientes', navegacao: 'Clientes', icone: 'users', apps: ['campo', 'gestao'], ordem: 30, componente: comVisitas(TelaClientes) },
@@ -60,6 +63,8 @@ export const moduloApp = definirModuloShell<ComponentType>({
     ...entidadesNotificacao,
     // Produto (T-0029): catálogo mestre para o Novo pedido do Vendedor
     ...entidadesProduto,
+    // Rastreamento no expediente (T-0156): ponto só de envio; ausência do próprio usuário no pull (interno, sem tela no Campo)
+    ...entidadesRastreamento,
   ],
   // O card antigo de notificações saiu do slot `inicio.cards` (T-0073): o Início novo mostra as 3 últimas pelo `useInicio()`.
   extensoes: [],
