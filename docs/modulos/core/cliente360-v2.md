@@ -8,3 +8,12 @@ Spec e decisões: `docs/design/cliente-360-v2/spec.md` (branch `nuvem/v1016-clie
 - **API:** `GET /v1/core/clientes/:id/notas` (lista online), `GET .../notas/:nota_id` (P17, ao tocar; nada guardado), `GET .../documentos` e `GET .../documentos/:documento_id` (P15, só ver; ação `documento.ver`), `GET|PUT /v1/core/documentos/permissoes` e `PUT .../documentos/excecoes` (ação `documento.permissoes`, só admin, auditado).
 - **Promotor sem `promotor_ve_pedidos` (P12):** 403 `HISTORICO_SEM_ACESSO` nas notas; sem cartão de crédito, curvas e indicadores de compra no Cliente 360.
 - **Banco (banco-dados, S5):** `core.nota_erp.forma_pagamento` e `nf_original_numero`; `core.titulo.nota_numero`, `nota_serie` e `forma_pagamento`; tabelas `core.documento_tipo`, `core.documento`, `core.documento_permissao` e `core.documento_excecao`.
+
+## App (Campo e Gestão; parte 2a)
+
+- **Ficha** (`app/telas/cliente.tsx`): três abas fixas por `abasDaFicha` (`abasDoApp`); o promotor sem `promotor_ve_pedidos` fica sem o Histórico (P12). Sem nenhum alerta financeiro; os avisos que não são financeiros seguem no topo.
+- **Resumo** (`components/aba-resumo.tsx`): Dados cadastrais, Limite · Saldo disponível · Prazo médio, Endereços, Contatos, Performance (três curvas, indicadores, visitas; "Visitada por" só no Gestão), Últimos itens comprados e Observações. Lê só do aparelho.
+- **Histórico** (`components/aba-historico.tsx`): contagem e botão de filtro (Nº da NF dentro da folha, P14), tabela Data · Nº NF · Valor · Status, "Em atraso" sem data. O toque pede "Baixar a NF …?" e busca a NF no servidor (P17); fechar descarta. Sem internet: "Sem internet" e "Tentar de novo".
+- **Documentação** (`components/aba-documentacao.tsx`): tabela Documento · Data · Abrir por grupo, só visualizar (P15). O shell registra o visualizador com `definirAbrirDocumento` (exportado por `modules/core/app`); "Ver PDF" e a seta ficam desligados sem ele. "Fotos do PDV" segue lendo as linhas do aparelho (RN-CORE-38).
+- **Lógica pura** em `app/lib/ficha-v2.ts` (testes em `ficha-v2.test.ts`); consultas em `ficha-online.ts` e `usar-ficha-online.ts` (nada vai ao SQLite, à fila nem ao disco).
+- **Pendências de contrato** (não são do app): sync das linhas de nota e de documento para a lista funcionar em modo avião; `created_at` do cliente no sync (hoje "Cliente desde" usa `customer_since`); vendedor da carteira para a tabela Carteira do Gestão.

@@ -19,6 +19,7 @@ import { TelaPerformance } from './telas/performance';
 import { TelaRota } from './telas/rota';
 
 export { definirAbrirFotoPdv, definirCapturaFoto, definirCapturaFotoPdv, type AbrirFotoPdv, type CapturaFoto, type CapturaFotoPdv, type FotoPdvCapturada, type PedidoAbrirFotoPdv } from './lib/foto-fachada';
+export { definirAbrirDocumento, type AbrirDocumento, type PedidoAbrirDocumento } from './lib/ficha-online';
 export { BalaoRecadosETarefas, ENTIDADE_TAREFA } from './telas/recados-e-tarefas';
 export { abrirTarefaDoCore, ROTA_RECADOS_E_TAREFAS, rotaDaTarefa } from './telas/paginas-recados-e-tarefas';
 export { chaveDaCopiaPerformance, ENTIDADES_PERFORMANCE } from './telas/performance';

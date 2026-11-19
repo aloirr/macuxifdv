@@ -1,20 +1,24 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const fonte = readFileSync(new URL('../components/cliente360.tsx', import.meta.url), 'utf8');
+const documentacao = readFileSync(new URL('../components/aba-documentacao.tsx', import.meta.url), 'utf8');
+const resumo = readFileSync(new URL('../components/aba-resumo.tsx', import.meta.url), 'utf8');
+const tabelas = readFileSync(new URL('../components/tabelas-ficha.tsx', import.meta.url), 'utf8');
 
-describe('T-0147: botões de ação da ficha (spec permissoes-e-fotos-pdv §2)', () => {
-  it('RN-CORE-38: botões em pé de 64 dp, ícone 20, rótulo 12, e desligado sem opacidade (ink3 sobre neutralBg)', () => {
-    expect(fonte).toMatch(/action: \{[^}]*height: 64[^}]*flexDirection: 'column'/);
-    expect(fonte).toMatch(/actionText: \{[^}]*fontSize: 12/);
-    expect(fonte).toMatch(/actionOff: \{[^}]*backgroundColor: colors\.neutralBg/);
-    expect(fonte).not.toMatch(/opacity: 0\.4/);
+describe('T-0186: botões de ação da ficha v2 (spec §3 e §5)', () => {
+  it('RN-CORE-38: botão da célula com alvo de 48 dp, ligar e WhatsApp desligados sem número e mapa por endereço', () => {
+    expect(tabelas).toMatch(/botao: \{ width: 48, height: 48/);
+    expect(resumo).toContain('Ligar indisponível');
+    expect(resumo).toContain('WhatsApp indisponível');
+    expect(resumo).toContain('Abrir no mapa:');
   });
-  it('RN-CORE-38: Foto do PDV (aba Anexos) lê "Ver foto do PDV" e, desligado, "sem foto da fachada"', () => {
-    expect(fonte).toContain('rotuloLigado="Ver foto do PDV"');
-    expect(fonte).toContain('rotuloDesligado="Foto do PDV indisponível: sem foto da fachada"');
-    expect(fonte).toContain('icon="galeria"');
-    // 14/11: a Foto do PDV saiu dos atalhos de contato e vive em Anexos
-    expect(fonte.slice(fonte.indexOf('export function AcoesContato'), fonte.indexOf('/** Aba Anexos'))).not.toContain('Foto do PDV"');
+  it('RN-CORE-38: a fachada abre pelo visualizador do shell ("Ver ...") e o tipo que falta tem a câmera', () => {
+    expect(documentacao).toContain('rotulo={`Ver ${i.nome}`}');
+    expect(documentacao).toContain('icone="camera"');
+    expect(documentacao).toContain('fotoPdvTrancada(i)');
+  });
+  it('P10: a exceção por documento mostra o cadeado e não abre', () => {
+    expect(documentacao).toContain('icone="lock"');
+    expect(documentacao).toContain('onPress: bloqueado ? undefined');
   });
 });
