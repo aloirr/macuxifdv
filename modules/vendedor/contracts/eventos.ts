@@ -26,6 +26,8 @@ export type PedidoFaturadoEvento = z.infer<typeof PedidoFaturadoEvento>;
 // endereço no payload: só ids e códigos do ERP.
 const StatusEvento = z.enum(STATUS_CONTRATO);
 const NivelEvento = z.enum(NIVEIS_APROVACAO);
+/** Os motivos do `aprovacao_solicitada@1`: enum fechado de antes de `inadimplencia` (T-0184); o `@2` usa `MOTIVOS_APROVACAO`. */
+const MotivoEventoV1 = z.enum(['desconto', 'credito', 'estoque', 'preco_minimo']);
 const MotivoEvento = z.enum(MOTIVOS_APROVACAO);
 const CentsNaoNeg = z.number().int().nonnegative();
 
@@ -90,7 +92,7 @@ export const AprovacaoSolicitadaEvento = z.object({
   cliente_id: Id,
   solicitada_em: IsoDateTime,
   nivel: NivelEvento,
-  motivos: z.array(MotivoEvento).min(1),
+  motivos: z.array(MotivoEventoV1).min(1),
   desconto_efetivo_pct: z.number().nonnegative(),
   total_cents: CentsNaoNeg,
   /** fora da fatia (T-0029 §14) segue publicando null; objeto é aditivo no @1 (T-0024) */
@@ -100,6 +102,34 @@ export const AprovacaoSolicitadaEvento = z.object({
   pedido_numero: z.string().nullable().optional(),
 });
 export type AprovacaoSolicitadaEvento = z.infer<typeof AprovacaoSolicitadaEvento>;
+
+/**
+ * `vendedor.pedido.aprovacao_solicitada@2` (T-0184, ADR 0062) — o `@1` com o enum de motivos aberto (`inadimplencia`), uma entrada
+ * por motivo em `aprovacoes` e o financeiro do cliente. `nivel` é o maior entre as aprovações pendentes; `credito` vem preenchido
+ * quando o Core tem a linha financeira; `inadimplencia` só quando o motivo existe.
+ */
+export const AprovacaoSolicitadaEventoV2 = AprovacaoSolicitadaEvento.omit({ motivos: true }).extend({
+  motivos: z.array(MotivoEvento).min(1),
+  aprovacoes: z.array(z.object({ motivo: MotivoEvento, nivel: NivelEvento, texto: z.string() })).min(1),
+  inadimplencia: z.object({ maior_atraso_dias: z.number().int().nonnegative(), vencidos_cents: CentsNaoNeg }).nullable(),
+});
+export type AprovacaoSolicitadaEventoV2 = z.infer<typeof AprovacaoSolicitadaEventoV2>;
+
+/**
+ * `vendedor.pedido.aprovacao_decidida@1` (T-0184, ADR 0062) — um por aprovação que muda de estado. No `encerrada`, `autor_id` é o de
+ * quem rejeitou ou devolveu. O Gestor usa para a projeção da tela Aprovações. O texto da decisão é do aprovador (sem dado pessoal).
+ */
+export const AprovacaoDecididaEvento = z.object({
+  pedido_id: Id,
+  vendedor_id: Id,
+  ciclo: z.number().int().min(1),
+  motivo: MotivoEvento,
+  decisao: z.enum(['aprovada', 'rejeitada', 'devolvida', 'encerrada']),
+  autor_id: Id.nullable(),
+  decidida_em: IsoDateTime,
+  texto: z.string().max(500).nullable(),
+});
+export type AprovacaoDecididaEvento = z.infer<typeof AprovacaoDecididaEvento>;
 
 // T-0061 (ADR 0016, emenda 1): frete e endereço no formato do doc 06; sem valor de frete (RN-VEN-16). Aditivo no v1.
 const FreteEvento = z.discriminatedUnion('modalidade', [
@@ -221,6 +251,8 @@ export type PedidoCanceladoEvento = z.infer<typeof PedidoCanceladoEvento>;
 export const EVENTO_PEDIDO_CRIADO = definirEvento('vendedor.pedido.criado@1', PedidoCriadoEvento);
 export const EVENTO_PEDIDO_STATUS_ALTERADO = definirEvento('vendedor.pedido.status_alterado@1', PedidoStatusAlteradoEvento);
 export const EVENTO_PEDIDO_APROVACAO_SOLICITADA = definirEvento('vendedor.pedido.aprovacao_solicitada@1', AprovacaoSolicitadaEvento);
+export const EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2 = definirEvento('vendedor.pedido.aprovacao_solicitada@2', AprovacaoSolicitadaEventoV2);
+export const EVENTO_PEDIDO_APROVACAO_DECIDIDA = definirEvento('vendedor.pedido.aprovacao_decidida@1', AprovacaoDecididaEvento);
 export const EVENTO_PEDIDO_APROVADO = definirEvento('vendedor.pedido.aprovado@1', PedidoAprovadoEvento);
 /** T-0053/T-0054: publicado pelo consumidor do retorno do ERP (`api/retorno-erp.ts`), um por nota faturada com itens (desenho T-0011). */
 export const EVENTO_PEDIDO_FATURADO = definirEvento('vendedor.pedido.faturado@1', PedidoFaturadoEvento);

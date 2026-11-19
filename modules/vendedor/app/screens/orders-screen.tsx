@@ -176,7 +176,7 @@ export default function OrdersScreen() {
     () => (atual === 'card_orc' ? base.filter((i) => { const p = pedidoPorId.get(i.id); return p ? orcamentoEmAberto(p) : false; }) : atual === 'card_env' ? base.filter((i) => { const p = pedidoPorId.get(i.id); return p ? pedidoEnviado(p) : false; }) : atual === 'decide' ? base.filter((i) => paraDecidir.has(i.id)) : atual === 'a_faturar' ? aFaturar : base.filter((i) => itemNaSituacao(i, atual))),
     [atual, base, paraDecidir, aFaturar, pedidoPorId],
   );
-  // RN-VEN-43 (D5): os cards resumem o período pela data de emissão; busca e chip de situação não os mudam
+  // RN-VEN-47 (D5): os cards resumem o período pela data de emissão; busca e chip de situação não os mudam
   const cards = useMemo(
     () => (semResposta ? null : resumoDePedidos(itens.map((i) => ({ ...i.pedido, emitido_em: i.emitido_em })), { periodo, tz })),
     [itens, periodo, tz, semResposta],

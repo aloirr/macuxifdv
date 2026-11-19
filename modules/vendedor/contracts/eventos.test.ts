@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { conferirEventosPublicados } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
 import * as contracts from './index';
-import { EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_CANCELADO, EVENTO_PEDIDO_CRIADO } from './index';
+import { EVENTO_PEDIDO_APROVACAO_DECIDIDA, EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2, EVENTO_PEDIDO_CANCELADO, EVENTO_PEDIDO_CRIADO } from './index';
 
 describe('T-0024: eventos do Vendedor no contracts', () => {
   it('todo evento publicado tem definição exportada e nenhuma é de evento alheio', () => {
@@ -61,5 +61,35 @@ describe('T-0024: eventos do Vendedor no contracts', () => {
     expect(s.safeParse({ ...ok, motivo: 'x'.repeat(501) }).success).toBe(false);
     const { cancelado_por: _, ...sem } = ok;
     expect(s.safeParse(sem).success).toBe(false);
+  });
+  it('T-0184: aprovacao_solicitada@1 segue com o enum fechado e recusa inadimplencia; o @2 aceita e traz uma aprovação por motivo', () => {
+    expect(EVENTO_PEDIDO_APROVACAO_SOLICITADA.schema.safeParse({ ...base, motivos: ['inadimplencia'] }).success).toBe(false);
+    expect(EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2.nome).toBe('vendedor.pedido.aprovacao_solicitada@2');
+    const v2 = {
+      ...base,
+      nivel: 'gerente',
+      motivos: ['credito', 'inadimplencia'],
+      aprovacoes: [
+        { motivo: 'credito', nivel: 'gerente', texto: 'Total acima do crédito disponível' },
+        { motivo: 'inadimplencia', nivel: 'gerente', texto: 'Título vencido há 12 dias' },
+      ],
+      credito: { limite_cents: 100000, saldo_aberto_cents: 120000, disponivel_cents: -20000 },
+      inadimplencia: { maior_atraso_dias: 12, vencidos_cents: 50000 },
+    };
+    const s = EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2.schema;
+    expect(s.safeParse(v2).success).toBe(true);
+    expect(s.safeParse({ ...v2, inadimplencia: null }).success).toBe(true);
+    expect(s.safeParse({ ...v2, aprovacoes: [] }).success).toBe(false);
+    expect(s.safeParse({ ...v2, inadimplencia: { maior_atraso_dias: -1, vencidos_cents: 0 } }).success).toBe(false);
+  });
+
+  it('T-0184: aprovacao_decidida@1 leva o motivo e a decisão; encerrada guarda quem rejeitou ou devolveu', () => {
+    expect(EVENTO_PEDIDO_APROVACAO_DECIDIDA.nome).toBe('vendedor.pedido.aprovacao_decidida@1');
+    const e = { pedido_id: base.pedido_id, vendedor_id: base.vendedor_id, ciclo: 1, motivo: 'credito', decisao: 'encerrada', autor_id: base.vendedor_id, decidida_em: '2026-11-05T12:00:00.000Z', texto: null };
+    const s = EVENTO_PEDIDO_APROVACAO_DECIDIDA.schema;
+    expect(s.safeParse(e).success).toBe(true);
+    expect(s.safeParse({ ...e, decisao: 'cancelada' }).success).toBe(false);
+    expect(s.safeParse({ ...e, ciclo: 0 }).success).toBe(false);
+    expect(s.safeParse({ ...e, autor_id: null, texto: 'sem verba' }).success).toBe(true);
   });
 });

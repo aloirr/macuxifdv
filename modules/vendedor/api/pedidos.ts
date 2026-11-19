@@ -17,20 +17,25 @@ import {
   type TransacaoTenant,
 } from '@macuxi/platform-sdk';
 import {
-  AprovarPedidoRequest,
+  CORPO_DA_DECISAO,
+  EVENTO_PEDIDO_APROVACAO_DECIDIDA,
   EVENTO_PEDIDO_APROVADO,
   EVENTO_PEDIDO_CANCELADO,
   EVENTO_PEDIDO_STATUS_ALTERADO,
   OrderListQuery,
-  RejeitarPedidoRequest,
+  ROTA_DA_DECISAO,
+  type AprovarPedidoRequest,
+  type DecisaoAprovacaoResposta,
+  type RejeitarPedidoRequest,
   type DiscountPolicy as AlcadaApi,
   type Order,
   type OrderDetail,
 } from '../contracts';
 import { STATUS_FORA_DO_TOTAL } from '../domain/totais';
-import { decidirAprovacao, politicaDosParametros, situacaoDoOrcamento, enviadoAoErp, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
+import { decidirAprovacao, type DecisaoAprovador, maiorNivel, niveisDosParametros, politicaDosParametros, situacaoDoOrcamento, enviadoAoErp, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
 import { ORDER_STATUSES, type OrderStatus } from '../domain/order';
 import { payloadAprovado } from './aprovado-erp';
+import { aprovacoesComNomes, comNomesDosDecisores, gravarDecisoes, lerAprovacoes, nomesDosDecisores } from './aprovacoes';
 import { paraDetalhe, paraOrder, type LinhaEvento, type LinhaItem, type LinhaNotaDevolucao, type LinhaNotaFaturamento, type LinhaPedido } from './mapeamento';
 import { preVenda, type DocumentoPreVenda } from './pre-venda';
 import { DEVOLUCAO_LIGADA, FATURAMENTO_LIGADO } from './retorno-erp';
@@ -71,7 +76,7 @@ const COLUNAS_FATURAMENTO = `${COLUNA_DEVOLVIDO}, p.total_faturado_cents::float8
 const COLUNAS_BASE = `p.id, p.numero, p.vendedor_id, p.vendedor_nome, p.cliente_id, p.cliente_nome, p.cliente_resumo, p.tabela_preco_id,
   p.condicao_pagamento, p.condicao_pagamento_descricao, p.status, p.desconto_pct::float8 as desconto_pct,
   p.total_tabela_cents::float8 as total_tabela_cents, p.total_cents::float8 as total_cents, p.nivel_aprovacao, p.motivos_aprovacao,
-  p.motivo_rejeicao, p.numero_erp, ${ts('criado_no_aparelho_em')}, ${ts('recebido_em')}, ${ts('created_at')}, ${ts('updated_at')},
+  p.motivo_rejeicao, p.observacao, p.numero_erp, ${ts('criado_no_aparelho_em')}, ${ts('recebido_em')}, ${ts('created_at')}, ${ts('updated_at')},
   coalesce(x.itens, 0) as itens, coalesce(x.unidades, 0) as unidades,
   p.acrescimo_pct::float8 as acrescimo_pct, p.desconto_efetivo_pct::float8 as desconto_efetivo_pct, p.frete_modalidade, p.transportadora_nome,
   p.transportadora_documento, p.transportadora_telefone, p.transportadora_digitada, p.endereco_entrega,
@@ -96,7 +101,7 @@ function decodificarCursor(c: string): { createdAt: string; id: string } | null 
 const escaparLike = (q: string) => q.replace(/[\\%_]/g, (m) => `\\${m}`);
 
 /** Carrega o pedido (se estiver no escopo de leitura do usuário) com itens e histórico. `null` = inexistente ou fora do escopo. */
-async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, id: string, bloquear = false): Promise<{ linha: LinhaPedido; detalhe: OrderDetail } | null> {
+async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenant, id: string, bloquear = false): Promise<{ linha: LinhaPedido; detalhe: OrderDetail } | null> {
   const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
   const { rows } = await db.query<LinhaPedido>(
     `select ${COLUNAS} from vendedor.pedido p ${JUNCAO_ITENS} ${FATURAMENTO_LIGADO ? JUNCAO_FATURAMENTO : ''}
@@ -126,7 +131,8 @@ async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, id: string, 
   ).rows;
   const faturamento = FATURAMENTO_LIGADO ? await lerNotasDoPedido(db, id) : undefined;
   const doc = (await preVenda().lerDocumentos(db, [id], ctx.fuso())).get(id);
-  return { linha, detalhe: { ...paraDetalhe(linha, itens, eventos, ctx.usuario.perfil, ctx.parametros(), faturamento), ...camposPreVenda(doc, linha.status) } };
+  const aprovacoes = await aprovacoesComNomes(tx, (await lerAprovacoes(db, [id])).get(id) ?? []);
+  return { linha, detalhe: { ...paraDetalhe(linha, itens, eventos, ctx.usuario.perfil, ctx.parametros(), faturamento, aprovacoes), ...camposPreVenda(doc, linha.status) } };
 }
 
 /** T-0054: notas de faturamento e de devolução do pedido (detalhe; o resumo vem das colunas do pedido). */
@@ -172,7 +178,7 @@ export const rotaListarPedidos: RotaModulo = {
     // filtros de id fora do formato nunca casam com nada (e não podem estourar o cast uuid do banco)
     if ((q.seller_id && !UUID.test(q.seller_id)) || (q.branch_id && !UUID.test(q.branch_id)) || (q.customer_id && !UUID.test(q.customer_id))) return { itens: [], proximo_cursor: null };
     if (q.cursor && !cursor) throw new ErroRegraNegocio('CURSOR_INVALIDO', 'Cursor inválido: recarregue a lista.');
-    return ctx.comTenant(async (db) => {
+    return ctx.comTenant(async (db, tx) => {
       const fuso = ctx.fuso(); // fuso do tenant vem do SDK (sem ler plataforma.*)
       const busca = q.q?.trim() ? `%${escaparLike(q.q.trim())}%` : null;
       const valores = [e.vendedores, e.clientes, status.length > 0 ? status : null, q.seller_id ?? null, q.customer_id ?? null, q.from ?? null, q.to ?? null, busca, limite + 1, fuso, cursor?.createdAt ?? null, cursor?.id ?? null, tipo === 'todos' ? null : tipo, tipo === 'orcamento' ? (q.situacao ?? null) : null, q.por_status === '1', q.branch_id ?? null, q.sem_pendentes === '1'];
@@ -220,8 +226,10 @@ export const rotaListarPedidos: RotaModulo = {
       const pagina = rows.slice(0, limite);
       const ultimo = pagina[pagina.length - 1];
       const docs = await preVenda().lerDocumentos(db, pagina.map((l) => l.id), fuso);
+      const aprovacoes = await lerAprovacoes(db, pagina.filter((l) => l.status === 'pending_approval' || l.status === 'approved' || l.status === 'rejected' || l.status === 'cancelled').map((l) => l.id));
+      const nomes = await nomesDosDecisores(tx, [...aprovacoes.values()].flat());
       return {
-        itens: pagina.map((l) => ({ ...paraOrder(l, ctx.parametros(), ctx.usuario.perfil), ...camposPreVenda(docs.get(l.id), l.status) })),
+        itens: pagina.map((l) => ({ ...paraOrder(l, ctx.parametros(), ctx.usuario.perfil, comNomesDosDecisores(aprovacoes.get(l.id) ?? [], nomes)), ...camposPreVenda(docs.get(l.id), l.status) })),
         proximo_cursor: rows.length > limite && ultimo ? codificarCursor(ultimo.created_at, ultimo.id) : null,
         ...(total_filtro ? { total_filtro } : {}),
       };
@@ -239,8 +247,8 @@ export const rotaVerPedido: RotaModulo = {
   async executar(ctx) {
     await exigirLeituraDePedidos(ctx); // O-3
     const { id } = ctx.params as z.infer<typeof ParamsPedido>;
-    return ctx.comTenant(async (db) => {
-      const r = await carregarDetalhe(ctx, db, id);
+    return ctx.comTenant(async (db, tx) => {
+      const r = await carregarDetalhe(ctx, db, tx, id);
       if (!r) throw new ErroNaoEncontrado(...NAO_ENCONTRADO);
       return r.detalhe;
     });
@@ -259,7 +267,8 @@ export const rotaAlcadas: RotaModulo = {
   carteira: 'nao_se_aplica',
   async executar(ctx): Promise<AlcadaApi> {
     const p = politicaDosParametros({ ...ctx.parametros() });
-    return { seller_pct: p.seller_pct, supervisor_pct: p.supervisor_pct, manager_pct: p.manager_pct, above_manager: p.above_manager, exceptions: [] };
+    const n = niveisDosParametros({ ...ctx.parametros() });
+    return { seller_pct: p.seller_pct, supervisor_pct: p.supervisor_pct, manager_pct: p.manager_pct, above_manager: p.above_manager, exceptions: [], aprovador_credito: n.credito, aprovador_inadimplencia: n.inadimplencia };
   },
 };
 
@@ -268,62 +277,96 @@ async function nomesEExternos(tx: TransacaoTenant, pedido: LinhaPedido, eu: stri
   return tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [pedido.cliente_id], produto_ids: [], usuario_ids: [...new Set([eu, pedido.vendedor_id])] });
 }
 
-function decidir(decisao: 'aprovar' | 'rejeitar'): RotaModulo {
+const AUDITORIA_DA_DECISAO = { aprovar: 'pedido.aprovar', devolver: 'pedido.rejeitar', recusar: 'pedido.recusar' } as const;
+
+/**
+ * POST pedidos/:id/aprovar | rejeitar | recusar (`pedido.aprovar`; T-0184 §3). `rejeitar` DEVOLVE ao vendedor (`rejected`) e `recusar`
+ * cancela (`cancelled`, P6 A). Cada decisão trava a linha do pedido (`for update`): repetir a mesma decisão devolve o estado atual, sem efeito.
+ * Corpo: aprovar `{ comentario?, motivo_aprovacao? }`; rejeitar e recusar `{ motivo (texto livre, RN-GES-08), motivo_aprovacao? }`.
+ * Sem `motivo_aprovacao` no corpo, a decisão vale para todas as aprovações pendentes que o perfil decide (P3 B); aprovar com sobra deixa o pedido pendente (P7).
+ */
+function decidir(decisao: DecisaoAprovador): RotaModulo {
   return {
     metodo: 'POST',
-    caminho: decisao === 'aprovar' ? 'pedidos/:id/aprovar' : 'pedidos/:id/rejeitar',
+    caminho: `pedidos/:id/${ROTA_DA_DECISAO[decisao]}`,
     acao: 'pedido.aprovar',
     carteira: 'filtrar_no_dominio',
     params: ParamsPedido,
-    corpo: decisao === 'aprovar' ? AprovarPedidoRequest : RejeitarPedidoRequest,
-    async executar(ctx) {
+    corpo: CORPO_DA_DECISAO[decisao],
+    async executar(ctx): Promise<DecisaoAprovacaoResposta> {
       const { id } = ctx.params as z.infer<typeof ParamsPedido>;
-      const corpo = ctx.corpo as { comentario?: string; motivo?: string };
+      const corpo = ctx.corpo as AprovarPedidoRequest & Partial<RejeitarPedidoRequest>;
       const eu = ctx.usuario.id;
       const agora = ctx.agora().toISOString();
       return ctx.comTenant(async (db, tx) => {
         // 1) escopo (RN-CORE-04) com trava de linha: duas decisões ao mesmo tempo viram uma e a repetição
-        const atual = await carregarDetalhe(ctx, db, id, true);
+        const atual = await carregarDetalhe(ctx, db, tx, id, true);
         if (!atual) throw new ErroNaoEncontrado(...NAO_ENCONTRADO);
         const { linha } = atual;
-        // 2) regra pura (RN-GES-08, RN-GES-04, P-3)
-        const r = decidirAprovacao({ status: linha.status, nivel: linha.nivel_aprovacao, perfil: ctx.usuario.perfil, decisao, texto: decisao === 'aprovar' ? corpo.comentario : corpo.motivo });
+        const lidas = (await lerAprovacoes(db, [id])).get(id) ?? [];
+        const resposta = async (status: OrderStatus): Promise<DecisaoAprovacaoResposta> => ({ status, aprovacoes: await aprovacoesComNomes(tx, (await lerAprovacoes(db, [id])).get(id) ?? []) });
+        // 2) regra pura (RN-GES-08, RN-GES-04, RN-VEN-10, RN-VEN-30)
+        const r = decidirAprovacao({ status: linha.status, aprovacoes: lidas, perfil: ctx.usuario.perfil, decisao, motivo: corpo.motivo_aprovacao, texto: decisao === 'aprovar' ? corpo.comentario : corpo.motivo });
         if (r.tipo === 'recusa') throw new ErroHttpModulo(r.http === 403 ? 403 : 422, r.codigo, r.mensagem);
-        if (r.tipo === 'repetida') return atual.detalhe;
-        const nivel = linha.nivel_aprovacao as NivelAprovacao;
-        // 3) grava
-        await db.query(
-          `update vendedor.pedido set status = $2, decidido_por_id = $3, decidido_em = $4, motivo_rejeicao = $5 where id = $1`,
-          [id, r.para, eu, agora, r.para === 'rejected' ? r.motivo : linha.motivo_rejeicao],
-        );
+        if (r.tipo === 'repetida') return resposta(linha.status);
+        const ciclo = lidas[0]?.ciclo ?? 1;
+        // 3) grava as aprovações e, se o pedido mudou de status, o pedido
+        await gravarDecisoes(db, id, ciclo, r.mudancas, eu, agora, r.motivo);
+        const mudouDeStatus = r.para !== 'pending_approval';
+        const pendentesDepois = lidas.filter((a) => r.pendentes.includes(a.motivo));
+        const nivel = (maiorNivel(pendentesDepois.map((a) => a.nivel)) ?? linha.nivel_aprovacao) as NivelAprovacao;
+        if (mudouDeStatus) {
+          await db.query(
+            `update vendedor.pedido set status = $2, decidido_por_id = $3, decidido_em = $4, motivo_rejeicao = $5 where id = $1`,
+            [id, r.para, eu, agora, r.para === 'approved' ? linha.motivo_rejeicao : r.motivo],
+          );
+        } else {
+          await db.query('update vendedor.pedido set nivel_aprovacao = $2 where id = $1', [id, nivel]);
+        }
         const cad = await nomesEExternos(tx, linha, eu);
         const autor = cad.usuarios.find((u) => u.id === eu);
-        await db.query(
-          `insert into vendedor.pedido_evento (tenant_id, pedido_id, de, para, autor_id, autor_nome, autor_perfil, motivo, nivel, acima_do_nivel, ocorrido_em)
-           values (plataforma.tenant_atual(), $1, 'pending_approval', $2, $3, $4, $5, $6, $7, $8, $9)`,
-          [id, r.para, eu, autor?.nome ?? null, ctx.usuario.perfil, r.motivo ?? (r.para === 'approved' ? 'Aprovado' : null), nivel, r.acima_do_nivel, agora],
-        );
+        if (mudouDeStatus) {
+          await db.query(
+            `insert into vendedor.pedido_evento (tenant_id, pedido_id, de, para, autor_id, autor_nome, autor_perfil, motivo, nivel, acima_do_nivel, ocorrido_em)
+             values (plataforma.tenant_atual(), $1, 'pending_approval', $2, $3, $4, $5, $6, $7, $8, $9)`,
+            [id, r.para, eu, autor?.nome ?? null, ctx.usuario.perfil, r.motivo ?? (r.para === 'approved' ? 'Aprovado' : null), nivel, r.acima_do_nivel, agora],
+          );
+        }
         await tx.auditar({
-          acao: decisao === 'aprovar' ? 'pedido.aprovar' : 'pedido.rejeitar',
+          acao: AUDITORIA_DA_DECISAO[decisao],
           entidade: 'pedido',
           entidade_id: id,
-          antes: { status: 'pending_approval', nivel },
-          depois: { status: r.para, acima_do_nivel: r.acima_do_nivel },
+          antes: { status: 'pending_approval', nivel: linha.nivel_aprovacao },
+          depois: { status: r.para, acima_do_nivel: r.acima_do_nivel, motivos: r.mudancas.map((m) => m.motivo) },
         });
-        await tx.publicar(
-          EVENTO_PEDIDO_STATUS_ALTERADO,
-          { pedido_id: id, vendedor_id: linha.vendedor_id, de: 'em_aprovacao', para: statusDoContrato(r.para), alterado_em: agora, autor_id: eu, motivo: r.motivo, pedido_numero: linha.numero },
-          id,
-        );
-        if (r.para === 'approved') await tx.publicar(EVENTO_PEDIDO_APROVADO, await payloadAprovado(db, tx, id, agora), id);
-        return (await carregarDetalhe(ctx, db, id))!.detalhe;
+        for (const m of r.mudancas) {
+          // o texto da decisão fica na linha da aprovação, não no log
+          await tx.auditar({ acao: 'pedido.aprovacao_decidida', entidade: 'pedido', entidade_id: id, antes: { motivo: m.motivo, estado: 'pendente' }, depois: { motivo: m.motivo, decisao: m.estado } });
+          await tx.publicar(
+            EVENTO_PEDIDO_APROVACAO_DECIDIDA,
+            { pedido_id: id, vendedor_id: linha.vendedor_id, ciclo, motivo: m.motivo, decisao: m.estado, autor_id: eu, decidida_em: agora, texto: m.estado === 'encerrada' ? null : r.motivo },
+            id,
+          );
+        }
+        if (mudouDeStatus) {
+          await tx.publicar(
+            EVENTO_PEDIDO_STATUS_ALTERADO,
+            { pedido_id: id, vendedor_id: linha.vendedor_id, de: 'em_aprovacao', para: statusDoContrato(r.para), alterado_em: agora, autor_id: eu, motivo: r.motivo, pedido_numero: linha.numero },
+            id,
+          );
+          if (r.para === 'approved') await tx.publicar(EVENTO_PEDIDO_APROVADO, await payloadAprovado(db, tx, id, agora), id);
+        }
+        return resposta(r.para);
       });
     },
   };
 }
 
 export const rotaAprovarPedido = decidir('aprovar');
-export const rotaRejeitarPedido = decidir('rejeitar');
+/** Devolver ao vendedor (`rejected`): o nome da rota é o de sempre para o app Gestão anterior seguir funcionando. */
+export const rotaRejeitarPedido = decidir('devolver');
+/** Rejeitar de vez (`cancelled`, final). */
+export const rotaRecusarPedido = decidir('recusar');
 
 // ---------- cancelar ----------
 /**
@@ -363,7 +406,7 @@ export const rotaCancelarPedido: RotaModulo = {
     const motivo = ((ctx.corpo as { motivo?: string }).motivo ?? '').trim() || null;
     const agora = ctx.agora().toISOString();
     return ctx.comTenant(async (db, tx) => {
-      const atual = await carregarDetalhe(ctx, db, id, true);
+      const atual = await carregarDetalhe(ctx, db, tx, id, true);
       if (!atual) throw new ErroNaoEncontrado(...NAO_ENCONTRADO);
       const { linha } = atual;
       if (linha.status === 'cancelled') return { id, status: 'cancelled' };

@@ -48,6 +48,8 @@
  *   (com external_id) e uma apagada; as referências cruzadas apontam para a ativa (FK produto_referencia_marca_fk).
  * - T-0054 (0050, RN-VEN-37): vendedor.pedido_devolucao (grupo 0x3d; DEVOLUCOES_FIXTURE) — A com devolução parcial viva no
  *   p3 (R$ 200,00) e a mesma nota apagada; B com uma viva no p1 (mesma chave de nota: o único é por tenant).
+ * - T-0184 (0088): vendedor.pedido_aprovacao (grupo 0x79; APROVACOES_FIXTURE) — A pendente no p2 (desconto, gerente, ciclo 1);
+ *   B aprovada no p1 (desconto, supervisor, decidida pelo admin).
  * - T-0087 (0036): convites de 1º acesso (core.usuario_convite, grupo 0x08; CONVITES_FIXTURE): A pendente + revogado do
  *   vendedor-2 e usado do promotor; B pendente do vendedor-B, gerado por um super-admin (id sem FK).
  * - T-0094 (0040): usuários com senha definitiva (trocar_senha falso, sem temporária); outbox de e-mail
@@ -94,7 +96,7 @@
 import { createHash, createHmac } from 'node:crypto';
 import type { ClientBase } from 'pg';
 import { arrayDeInteiros, arrayDeTexto, arrayDeTextoLivre, gravarLinhas, type Linha } from '../../src/gravar';
-import { idDeChave, idFilialPadrao, idFixo, idFotoTipoFachada, idMedida, idMotivoPadrao, idPerfilFabrica, idUsuarioPerfil } from '../../src/ids';
+import { idAprovacaoDoBackfill, idDeChave, idFilialPadrao, idFixo, idFotoTipoFachada, idMedida, idMotivoPadrao, idPerfilFabrica, idUsuarioPerfil } from '../../src/ids';
 import { anoMes, hojeNoFuso, instante, menorData, somarDias } from '../../src/datas';
 import { hashSenha } from '../../src/senha';
 import { PERFIS_DOC_SENSIVEL } from '../../../modules/core/domain/fotos-pdv';
@@ -226,6 +228,8 @@ const G = {
   usuario_contato: 0x6f,
   // 0086 (ADR 0047): histórico das trocas de plano
   assinatura_historico: 0x6e,
+  // 0088 (T-0184): aprovação por motivo do pedido
+  pedido_aprovacao: 0x79,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -759,6 +763,8 @@ export const ORDEM_TABELAS = [
   'catalogo.tabela_escalonada',
   // 0050 (T-0054): devolução do pedido (FK composta -> vendedor.pedido)
   'vendedor.pedido_devolucao',
+  // 0088 (T-0184): aprovação por motivo (FK composta -> vendedor.pedido)
+  'vendedor.pedido_aprovacao',
   // 0028 (T-0082): plano de RV (FK atualizado_por -> core.usuario)
   'core.plano_rv',
   // 0057 (T-0147): tipos de foto além da "Fachada" (gatilho) e as fotos do PDV (FKs -> core.cliente, core.foto_tipo, core.usuario)
@@ -941,6 +947,30 @@ function dadosPedidoDevolucao(hojeA: string, hojeB: string): Linha[] {
     linha(D.A.apagada, tA, DOIS_TENANTS.A.pedidos.p3, D.A.external_id, 30_000, instante(somarDias(hojeA, -10), '10:00'), DATA_FIXA_ACESSO),
     linha(D.A.viva, tA, DOIS_TENANTS.A.pedidos.p3, D.A.external_id, D.A.total_cents, instante(somarDias(hojeA, -10), '10:00'), null),
     linha(D.B.viva, tB, DOIS_TENANTS.B.pedidos.p1, D.B.external_id, D.B.total_cents, instante(hojeB, '14:00'), null),
+  ];
+}
+
+/**
+ * 0088 (T-0184): aprovação por motivo (grupo 0x79; APROVACOES_FIXTURE). A: o p2 (pending_approval, gerente, desconto) com a
+ * linha pendente do ciclo 1, como o backfill grava (mesmo id); B: o p1 (approved) com a aprovação de desconto já decidida pelo admin.
+ */
+export const APROVACOES_FIXTURE = {
+  /** id do backfill da 0088 (idAprovacaoDoBackfill): recarregar a fixture num banco migrado com o p2 grava a MESMA linha. */
+  A: { p2Desconto: idAprovacaoDoBackfill(DOIS_TENANTS.A.tenantId, DOIS_TENANTS.A.pedidos.p2, 'desconto') },
+  B: { p1Desconto: b('pedido_aprovacao', 1) },
+} as const;
+function dadosPedidoAprovacao(hojeB: string): Linha[] {
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const linha = (id: string, tenant_id: string, pedido_id: string, nivel: string, extra: Partial<Linha>): Linha => ({
+    id, tenant_id, pedido_id, ciclo: 1, motivo: 'desconto', nivel, estado: 'pendente', texto_pendencia: '', decidida_por: null,
+    decidida_em: null, texto_decisao: null, deleted_at: null, external_id: null, ...extra,
+  });
+  return [
+    linha(APROVACOES_FIXTURE.A.p2Desconto, A.tenantId, A.pedidos.p2, 'gerente', {}),
+    linha(APROVACOES_FIXTURE.B.p1Desconto, B.tenantId, B.pedidos.p1, 'supervisor', {
+      estado: 'aprovada', decidida_por: B.usuarios.admin, decidida_em: instante(hojeB, '14:05'), texto_decisao: 'Desconto dentro da campanha.',
+    }),
   ];
 }
 
@@ -1226,6 +1256,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     'catalogo.produto_relacao': dadosProdutoRelacao(),
     'catalogo.marca_concorrente': dadosMarcaConcorrente(),
     'vendedor.pedido_devolucao': dadosPedidoDevolucao(hojeA, hojeB),
+    'vendedor.pedido_aprovacao': dadosPedidoAprovacao(hojeB),
     'catalogo.produto_referencia': dadosProdutoReferencia(),
     ...dadosPagamento(hojeA, hojeB),
     'core.plano_rv': dadosPlanoRv(hojeA, hojeB),

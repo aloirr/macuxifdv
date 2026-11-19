@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   creditoDoCartao,
   descricaoPrazo,
-  avaliarPagamentoComVencido,
-  exigeAprovacaoPorVencido,
   formasDaLista,
   formasDoCliente,
   pagamentoPadrao,
@@ -102,16 +100,6 @@ describe('RN-VEN-24/25: validarPagamento (app e API)', () => {
   });
 });
 
-describe('RN-VEN-13: título vencido', () => {
-  it('RN-VEN-13: vencido há mais que o limite com prazo a prazo exige aprovação', () => {
-    expect(exigeAprovacaoPorVencido({ maior_atraso_dias: 6, prazo_medio_dias: 28, limite_dias: 5 })).toBe(true);
-  });
-  it('RN-VEN-13: à vista segue sem aprovação e dentro do limite também', () => {
-    expect(exigeAprovacaoPorVencido({ maior_atraso_dias: 30, prazo_medio_dias: 0, limite_dias: 5 })).toBe(false);
-    expect(exigeAprovacaoPorVencido({ maior_atraso_dias: 5, prazo_medio_dias: 28, limite_dias: 5 })).toBe(false);
-  });
-});
-
 describe('RN-VEN-12: crédito do cartão', () => {
   const fin = { limite_cents: 100_000, saldo_aberto_cents: 30_000, credito_disponivel_erp_cents: null as number | null };
   it('RN-VEN-12: sem valor do ERP, disponível = limite − saldo − pedidos aprovados', () => {
@@ -139,23 +127,8 @@ describe('RN-VEN-13: parâmetro titulo_vencido_dias', () => {
   });
 });
 
-describe('T-0129 / RN-VEN-13: cliente com título vencido não perde as formas, vai para aprovação', () => {
+describe('T-0129 / RN-VEN-25: formas do cliente', () => {
   const formas = [f('fpix', 'PIX', 1), f('fbol', 'BOLETO', 2), f('fcar', 'CARTAO', 3)];
-  const prazos = [p('avista', 'fpix', [0]), p('b45', 'fbol', [45]), p('b60', 'fbol', [60])];
-  const cliente = { prazo_medio_max_dias: 45, formas_pagamento: ['PIX', 'BOLETO', 'CARTAO'] };
-  const vencido = { maior_atraso_dias: 12, limite_dias: 5 };
-  it('RN-VEN-13: Boleto com prazo dentro do prazo médio do cliente inadimplente é válido e vai para aprovação', () => {
-    expect(avaliarPagamentoComVencido({ forma: formas[1], prazo: prazos[1], cliente, ...vencido })).toEqual({ ok: true, destino: 'aprovacao' });
-  });
-  it('RN-VEN-13: à vista com título vencido segue direto, sem aprovação', () => {
-    expect(avaliarPagamentoComVencido({ forma: formas[0], prazo: prazos[0], cliente, ...vencido })).toEqual({ ok: true, destino: 'direto' });
-  });
-  it('RN-VEN-25: Boleto acima do prazo médio segue recusado mesmo com título vencido', () => {
-    expect(avaliarPagamentoComVencido({ forma: formas[1], prazo: prazos[2], cliente, ...vencido })).toMatchObject({ ok: false, codigo: 'RN-VEN-25' });
-  });
-  it('RN-VEN-13: atraso até o limite não manda para aprovação', () => {
-    expect(avaliarPagamentoComVencido({ forma: formas[1], prazo: prazos[1], cliente, maior_atraso_dias: 5, limite_dias: 5 })).toEqual({ ok: true, destino: 'direto' });
-  });
   it('RN-VEN-25: forma fora do cadastro do cliente aparece desabilitada, com o motivo, e as demais habilitadas', () => {
     const l = formasDaLista(formas, ['PIX', 'BOLETO']);
     expect(l.map((x) => [x.forma.codigo, x.habilitada])).toEqual([['PIX', true], ['BOLETO', true], ['CARTAO', false]]);

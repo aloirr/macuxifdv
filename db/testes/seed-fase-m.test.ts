@@ -7,6 +7,7 @@ import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-tes
 import { agoraDosTestes, hojeNoFuso } from '../src/datas';
 import { verificarSenha } from '../src/senha';
 import { comMotivo, motivoForaDoLocal, semBanco } from './estado';
+import { conferirAprovacoesDoSeed } from './util';
 
 const SENHA = 'senha-do-teste';
 /** Carga e recarga no mesmo "hoje" (sem corrida na virada do dia; respeita MACUXI_AGORA). */
@@ -68,6 +69,13 @@ describe.skipIf(semBanco() || soLocal !== null)(comMotivo('seed Fase M', soLocal
     expect((await contar()).rows).toEqual(antes);
     const hashDepois = await comAdmin(b.nome, (c) => c.query('select id, senha_hash from core.usuario order by id'));
     expect(hashDepois.rows).toEqual(hashAntes.rows);
+  });
+
+  it('0088 (T-0184, RN-VEN-30): o pedido em aprovação com a aprovação pendente (desconto, gerente, ciclo 1), nenhum outro com pendente; recarga com a mesma contagem', async () => {
+    const antes = await comAdmin(b.nome, (c) => conferirAprovacoesDoSeed(c, TENANT_FASE_M));
+    expect(antes).toEqual({ desvios: [], emAprovacao: 1, linhas: 1 });
+    await comAdmin(b.nome, (c) => carregarFaseM(c, { senha: SENHA, hoje: HOJE }));
+    expect(await comAdmin(b.nome, (c) => conferirAprovacoesDoSeed(c, TENANT_FASE_M))).toEqual(antes);
   });
 
   it('S0-034 senhas em argon2id (nenhuma em texto) e só e-mails fictícios', async () => {

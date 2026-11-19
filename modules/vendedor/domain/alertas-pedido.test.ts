@@ -42,14 +42,12 @@ describe('RN-VEN-42: área única Alertas do pedido', () => {
     expect(alertasDoPedido({ cliente: { ...cliente, cadastro_incompleto: true, campos_faltantes: ['CEP'] } }).map((x) => x.texto)).toEqual(['Cadastro do cliente incompleto']);
   });
 
-  it('RN-VEN-13 (RD-0172): título vencido só vira alerta acima do limite (5 dias) e com pagamento a prazo', () => {
+  it('RN-VEN-13 (RD-0172): título vencido só vira alerta acima do limite (5 dias), com qualquer prazo (P1 A)', () => {
     const v = { titulos: 1, valor_cents: 5_000, dias: 6 };
-    expect(vencidosComEfeito(v, 28, 5)).toBe(v);
-    expect(vencidosComEfeito({ ...v, dias: 5 }, 28, 5)).toBeNull();
-    expect(vencidosComEfeito({ ...v, dias: 1 }, 28, 5)).toBeNull();
-    expect(vencidosComEfeito(v, 0, 5)).toBeNull();
-    expect(vencidosComEfeito(v, undefined, 5)).toBeNull();
-    expect(vencidosComEfeito(null, 28, 5)).toBeNull();
+    expect(vencidosComEfeito(v, 5)).toBe(v);
+    expect(vencidosComEfeito({ ...v, dias: 5 }, 5)).toBeNull();
+    expect(vencidosComEfeito({ ...v, dias: 1 }, 5)).toBeNull();
+    expect(vencidosComEfeito(null, 5)).toBeNull();
   });
 
   it('RN-VEN-12 e RN-VEN-13: crédito e título vencido vêm depois dos que impedem o envio e não forçam orçamento', () => {
