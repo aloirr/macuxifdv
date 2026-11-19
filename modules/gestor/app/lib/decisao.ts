@@ -3,12 +3,11 @@
  * (`aprovar`, `rejeitar` = devolver ao vendedor, `recusar` = rejeitar de vez; desenho §3 e §7.1). O Gestor nunca escreve
  * no pedido: só pede ao Vendedor, que revalida alçada, escopo e licença. Funções puras, sem React.
  */
-import type { AprovacaoDoItem, DecisaoAprovacao, FilaAprovacao, ItemFilaAprovacao, MotivoAprovacao } from '../../contracts';
+import { MOTIVO_REJEICAO_MIN, type AprovacaoDoItem, type DECISOES_APROVADOR, type FilaAprovacao, type ItemFilaAprovacao, type MotivoAprovacao } from '../../contracts';
+import { resumirFila } from '../../domain/aprovacoes';
 
-export type AcaoDeDecisao = DecisaoAprovacao['decisao'];
-
-/** Mínimo do motivo na devolução e na rejeição (RN-GES-08), o mesmo `MOTIVO_REJEICAO_MIN` do Vendedor. */
-export const MOTIVO_MIN = 3;
+/** As decisões do Vendedor (`DECISOES_APROVADOR`): `devolver` volta ao vendedor; `recusar` é o botão "Rejeitar" (cancela, P6 A). */
+export type AcaoDeDecisao = (typeof DECISOES_APROVADOR)[number];
 
 export interface CartaoDaFila {
   /** `<pedido_id>|<motivo>`: único na fila. */
@@ -28,27 +27,20 @@ export function cartoesDaFila(itens: readonly ItemFilaAprovacao[]): CartaoDaFila
   });
 }
 
-/** Quantos cartões, quantos vencidos e vencendo e quantos o usuário decide (a contagem que a tela mostra). */
-export function resumoDosCartoes(cartoes: readonly CartaoDaFila[]): { total: number; para_mim: number; vencidos: number; vencendo: number } {
-  return {
-    total: cartoes.length,
-    para_mim: cartoes.filter((c) => c.aprovacao.pode_decidir).length,
-    vencidos: cartoes.filter((c) => c.item.situacao === 'vencido').length,
-    vencendo: cartoes.filter((c) => c.item.situacao === 'vencendo').length,
-  };
-}
-
 /** O motivo é obrigatório para devolver e rejeitar (RN-GES-08); aprovar segue em 1 toque. `null` = válido. */
 export function erroDoMotivo(acao: AcaoDeDecisao, texto: string): string | null {
-  if (acao === 'aprovar' || texto.trim().length >= MOTIVO_MIN) return null;
-  return `Escreva o motivo com pelo menos ${MOTIVO_MIN} letras para ${acao === 'devolver' ? 'devolver' : 'rejeitar'}.`;
+  if (acao === 'aprovar' || texto.trim().length >= MOTIVO_REJEICAO_MIN) return null;
+  return `Escreva o motivo com pelo menos ${MOTIVO_REJEICAO_MIN} letras para ${acao === 'devolver' ? 'devolver' : 'rejeitar'}.`;
 }
 
-/** Rota e corpo do Vendedor para a decisão (desenho §3: `devolver` → `rejeitar`; `rejeitar` → `recusar`). */
-export function requisicaoDaDecisao(pedidoId: string, acao: AcaoDeDecisao, motivo: MotivoAprovacao, texto: string): { caminho: string; corpo: { motivo: MotivoAprovacao; texto?: string } } {
+/**
+ * Rota e corpo do Vendedor (desenho §3 e §7.1, ADR 0062): `aprovar` → `/aprovar`, `devolver` → `/rejeitar`, `recusar` → `/recusar`.
+ * `motivo` é o texto livre do aprovador; `motivo_aprovacao` é a aprovação decidida.
+ */
+export function requisicaoDaDecisao(pedidoId: string, acao: AcaoDeDecisao, motivoAprovacao: MotivoAprovacao, texto: string): { caminho: string; corpo: { motivo?: string; motivo_aprovacao: MotivoAprovacao } } {
   const base = `/vendedor/pedidos/${encodeURIComponent(pedidoId)}`;
-  if (acao === 'aprovar') return { caminho: `${base}/aprovar`, corpo: { motivo } };
-  return { caminho: `${base}/${acao === 'devolver' ? 'rejeitar' : 'recusar'}`, corpo: { motivo, texto: texto.trim() } };
+  if (acao === 'aprovar') return { caminho: `${base}/aprovar`, corpo: { motivo_aprovacao: motivoAprovacao } };
+  return { caminho: `${base}/${acao === 'devolver' ? 'rejeitar' : 'recusar'}`, corpo: { motivo: texto.trim(), motivo_aprovacao: motivoAprovacao } };
 }
 
 /**
@@ -65,15 +57,5 @@ export function filaAposDecisao(fila: FilaAprovacao, pedidoId: string, acao: Aca
     if (restantes.length === 0) return [];
     return [{ ...i, aprovacoes: restantes, motivos: restantes.map((a) => a.motivo), pode_decidir: restantes.some((a) => a.pode_decidir) }];
   });
-  return {
-    ...fila,
-    itens,
-    resumo: {
-      ...fila.resumo,
-      total: itens.length,
-      para_mim: itens.filter((i) => i.pode_decidir).length,
-      vencidos: itens.filter((i) => i.situacao === 'vencido').length,
-      vencendo: itens.filter((i) => i.situacao === 'vencendo').length,
-    },
-  };
+  return { ...fila, itens, resumo: resumirFila(itens) };
 }

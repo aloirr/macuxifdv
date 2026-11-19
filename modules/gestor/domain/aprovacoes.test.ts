@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { AvisoDecisaoAoSupervisor, DecisaoAprovacao, ItemFilaAprovacao, RegistroDecisaoAprovacao, type MembroEquipe } from '../contracts';
+import { ItemFilaAprovacao, type MembroEquipe } from '../contracts';
 import { escopoDoUsuario } from './equipe';
-import { filaDeAprovacoes, pedidoPendenteDeAprovacao, podeDecidir, registrarDecisao, resumirFila, situacaoDoPrazo, supervisorDoVendedor, validarDecisao } from './aprovacoes';
+import { filaDeAprovacoes, pedidoPendenteDeAprovacao, podeDecidir, resumirFila, situacaoDoPrazo } from './aprovacoes';
 import { CLIENTE_A, ev, statusAlterado, u } from './fixtures';
 import { aplicarEventos, estadoInicial, type EventoRecebido } from './projecao';
 
@@ -191,96 +191,5 @@ describe('RF-GES-04: fila de aprovações do gestor', () => {
 
   it('resumo: total, vencidos, vencendo e "para mim"', () => {
     expect(resumirFila(fila(s, { id: SUP, perfil: 'supervisor' }))).toEqual({ total: 3, vencidos: 2, vencendo: 1, para_mim: 3 });
-  });
-});
-
-describe('RN-GES-08: comentário obrigatório na devolução e na rejeição', () => {
-  it('aprovar sem comentário é aceito (1 toque); com comentário também', () => {
-    expect(validarDecisao({ pedido_id: u(1), decisao: 'aprovar' })).toEqual({ ok: true, decisao: { pedido_id: u(1), decisao: 'aprovar', comentario: null } });
-    expect(validarDecisao({ pedido_id: u(1), decisao: 'aprovar', comentario: 'ok' }).ok).toBe(true);
-  });
-
-  it('rejeitar sem comentário (ausente, vazio ou só espaços) é recusado com mensagem em português', () => {
-    const erro = { ok: false, erros: ['RN-GES-08: informe o motivo da rejeição (mínimo 3 caracteres).'] };
-    expect(validarDecisao({ pedido_id: u(1), decisao: 'rejeitar' })).toEqual(erro);
-    expect(validarDecisao({ pedido_id: u(1), decisao: 'rejeitar', comentario: null })).toEqual(erro);
-    expect(validarDecisao({ pedido_id: u(1), decisao: 'rejeitar', comentario: '   ' })).toEqual(erro);
-    expect(validarDecisao({ pedido_id: u(1), decisao: 'rejeitar', comentario: 'Margem abaixo do mínimo' }).ok).toBe(true);
-  });
-});
-
-describe('RN-GES-04: registro da decisão (quem decidiu, em que nível) e aviso ao supervisor', () => {
-  const s = montar([
-    solicita(1, { em: '2026-10-30T13:00:00Z' }), // nível supervisor, vendedor V1 (supervisor SUP)
-    solicita(2, { em: '2026-10-30T13:00:00Z', nivel: 'gerente' }),
-    solicita(3, { em: '2026-10-30T13:00:00Z', vendedor: OUTRO }), // equipe de SUP2
-    solicita(4, { em: '2026-10-27T13:00:00Z' }),
-    statusAlterado({ pedido: u(1004), para: 'aprovado', em: '2026-10-28T13:00:00Z' }),
-  ]);
-  const decidir = (viewer: { id: string; perfil: MembroEquipe['perfil'] }, entrada: unknown) => registrarDecisao({ estado: s, viewer, membros: ROSTER, agora: AGORA, entrada });
-
-  it('gerente decide item do nível supervisor: registra decidido_por, perfil, nível do pedido e "acima do nível"; avisa o supervisor do vendedor', () => {
-    const r = decidir({ id: GER, perfil: 'gerente' }, { pedido_id: u(1001), decisao: 'aprovar' });
-    expect(r).toEqual({
-      ok: true,
-      registro: {
-        pedido_id: u(1001),
-        vendedor_id: V1,
-        decisao: 'aprovar',
-        motivo: null,
-        comentario: null,
-        nivel_pedido: 'supervisor',
-        decidido_por_id: GER,
-        decidido_por_perfil: 'gerente',
-        acima_do_nivel: true,
-        decidido_em: AGORA,
-      },
-      avisos: [{ tipo: 'aprovacao_decidida_pelo_gerente', destinatario_id: SUP, pedido_id: u(1001), vendedor_id: V1, decisao: 'aprovar', motivo: null, decidido_por_id: GER, decidido_em: AGORA }],
-    });
-    if (!r.ok) throw new Error('esperado ok');
-    expect(RegistroDecisaoAprovacao.parse(r.registro)).toEqual(r.registro);
-    for (const a of r.avisos) expect(AvisoDecisaoAoSupervisor.parse(a)).toEqual(a);
-  });
-
-  it('gerente rejeitando item do supervisor: comentário obrigatório, e o aviso leva a decisão', () => {
-    expect(decidir({ id: GER, perfil: 'gerente' }, { pedido_id: u(1001), decisao: 'rejeitar' })).toMatchObject({ ok: false, codigo: 'DECISAO_INVALIDA' });
-    const r = decidir({ id: GER, perfil: 'gerente' }, { pedido_id: u(1001), decisao: 'rejeitar', comentario: 'Crédito estourado' });
-    expect(r).toMatchObject({ ok: true, registro: { comentario: 'Crédito estourado', acima_do_nivel: true }, avisos: [{ decisao: 'rejeitar', destinatario_id: SUP }] });
-  });
-
-  it('decisão no próprio nível não gera aviso (supervisor no nível supervisor; gerente no nível gerente)', () => {
-    expect(decidir({ id: SUP, perfil: 'supervisor' }, { pedido_id: u(1001), decisao: 'aprovar' })).toMatchObject({ ok: true, registro: { decidido_por_perfil: 'supervisor', acima_do_nivel: false }, avisos: [] });
-    expect(decidir({ id: GER, perfil: 'gerente' }, { pedido_id: u(1002), decisao: 'aprovar' })).toMatchObject({ ok: true, registro: { nivel_pedido: 'gerente', acima_do_nivel: false }, avisos: [] });
-  });
-
-  it('recusas: supervisor no nível gerente (FORA_DA_ALCADA), outra equipe (FORA_DO_ESCOPO), já decidido (NAO_PENDENTE), analista/admin (SOMENTE_LEITURA)', () => {
-    expect(decidir({ id: SUP, perfil: 'supervisor' }, { pedido_id: u(1002), decisao: 'aprovar' })).toMatchObject({ ok: false, codigo: 'FORA_DA_ALCADA' });
-    expect(decidir({ id: SUP, perfil: 'supervisor' }, { pedido_id: u(1003), decisao: 'aprovar' })).toMatchObject({ ok: false, codigo: 'FORA_DO_ESCOPO' });
-    expect(decidir({ id: SUP, perfil: 'supervisor' }, { pedido_id: u(1004), decisao: 'aprovar' })).toMatchObject({ ok: false, codigo: 'NAO_PENDENTE' });
-    expect(decidir({ id: SUP, perfil: 'supervisor' }, { pedido_id: u(1999), decisao: 'aprovar' })).toMatchObject({ ok: false, codigo: 'NAO_PENDENTE' });
-    expect(decidir({ id: u(50), perfil: 'analista' }, { pedido_id: u(1001), decisao: 'aprovar' })).toMatchObject({ ok: false, codigo: 'SOMENTE_LEITURA' });
-    expect(decidir({ id: u(50), perfil: 'admin' }, { pedido_id: u(1001), decisao: 'aprovar' })).toMatchObject({ ok: false, codigo: 'SOMENTE_LEITURA' });
-    expect(decidir({ id: V1, perfil: 'vendedor' }, { pedido_id: u(1001), decisao: 'aprovar' })).toMatchObject({ ok: false, codigo: 'SOMENTE_LEITURA' });
-  });
-
-  it('supervisor do vendedor: sobe pela hierarquia até o primeiro supervisor; sem supervisor, não há aviso', () => {
-    expect(supervisorDoVendedor(ROSTER, V1)).toBe(SUP);
-    expect(supervisorDoVendedor(ROSTER, OUTRO)).toBe(SUP2);
-    const direto = [...ROSTER, m(u(14), 'Direto', 'vendedor', GER)];
-    expect(supervisorDoVendedor(direto, u(14))).toBeNull();
-  });
-});
-
-describe('RF-GES-04: decisão com comentário', () => {
-  it('rejeitar exige o motivo (mínimo 3 caracteres); aprovar aceita sem comentário', () => {
-    expect(validarDecisao({ pedido_id: u(1), decisao: 'rejeitar', comentario: '  ' })).toEqual({ ok: false, erros: ['RN-GES-08: informe o motivo da rejeição (mínimo 3 caracteres).'] });
-    expect(validarDecisao({ pedido_id: u(1), decisao: 'rejeitar', comentario: 'Desconto alto' }).ok).toBe(true);
-    const aprovar = validarDecisao({ pedido_id: u(1), decisao: 'aprovar' });
-    expect(aprovar.ok).toBe(true);
-    expect(DecisaoAprovacao.parse({ pedido_id: u(1), decisao: 'aprovar' }).comentario).toBeNull();
-  });
-
-  it('decisão com pedido sem UUID é recusada', () => {
-    expect(validarDecisao({ pedido_id: 'abc', decisao: 'aprovar' }).ok).toBe(false);
   });
 });

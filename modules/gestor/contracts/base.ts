@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 import { MODULOS, PERFIS } from '@macuxi/platform-sdk';
+import { ESTADOS_APROVACAO_MOTIVO } from '../../vendedor/contracts';
 
 export { IsoDate } from '@macuxi/core/contracts';
 
@@ -40,17 +41,11 @@ export const STATUS_PEDIDO = [
 export const StatusPedido = z.enum(STATUS_PEDIDO);
 export type StatusPedido = z.infer<typeof StatusPedido>;
 
-/** Para quem a aprovação foi encaminhada (RN-VEN-10 é do Vendedor; o Gestor só lê o nível já decidido). */
-export const NIVEIS_APROVACAO = ['supervisor', 'gerente', 'analista'] as const;
-export const NivelAprovacao = z.enum(NIVEIS_APROVACAO);
-export type NivelAprovacao = z.infer<typeof NivelAprovacao>;
-
-export const MOTIVOS_APROVACAO = ['desconto', 'credito', 'inadimplencia', 'estoque', 'preco_minimo'] as const;
-export const MotivoAprovacao = z.enum(MOTIVOS_APROVACAO);
-export type MotivoAprovacao = z.infer<typeof MotivoAprovacao>;
-
-/** Estado de uma aprovação por motivo (T-0184 §2): espelha `ESTADOS_APROVACAO_MOTIVO` do Vendedor, que é o dono do ciclo. */
-export const ESTADOS_APROVACAO_MOTIVO = ['pendente', 'aprovada', 'rejeitada', 'devolvida', 'encerrada'] as const;
+/**
+ * Níveis, motivos, estados e decisões da aprovação são do Vendedor (dono do ciclo, RN-VEN-10..13, T-0184): o Gestor só os
+ * reexporta, sem lista própria.
+ */
+export { DECISOES_APROVADOR, ESTADOS_APROVACAO_MOTIVO, maiorNivel, MOTIVO_REJEICAO_MIN, MOTIVOS_APROVACAO, MotivoAprovacao, NIVEIS_APROVACAO, NivelAprovacao } from '../../vendedor/contracts';
 export const EstadoAprovacaoMotivo = z.enum(ESTADOS_APROVACAO_MOTIVO);
 export type EstadoAprovacaoMotivo = z.infer<typeof EstadoAprovacaoMotivo>;
 

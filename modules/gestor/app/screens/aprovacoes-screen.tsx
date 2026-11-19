@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SeloFaixa } from '../components/selo-faixa';
 import { linhaDoCartao, rotuloDoPrazo, TOM_PARA_CHIP } from '../lib/apresentacao';
-import { cartoesDaFila, erroDoMotivo, resumoDosCartoes, type AcaoDeDecisao, type CartaoDaFila } from '../lib/decisao';
+import { cartoesDaFila, erroDoMotivo, type AcaoDeDecisao, type CartaoDaFila } from '../lib/decisao';
 import { contagem, pct } from '../lib/formato';
 import { useGestor } from '../state/use-gestor';
 
@@ -20,7 +20,6 @@ export default function AprovacoesScreen() {
   if (!g.carregado) return <Loading />;
   const fila = g.fila;
   const cartoes = cartoesDaFila(fila?.itens ?? []);
-  const resumo = resumoDosCartoes(cartoes);
   return (
     <Screen
       testID="gestor-aprovacoes"
@@ -30,7 +29,7 @@ export default function AprovacoesScreen() {
       {g.erro ? <Banner tone="danger">{g.erro}</Banner> : null}
       {fila ? (
         <Text style={t.sub} testID="gestor-fila-resumo">
-          {resumo.para_mim} para você · {contagem(resumo.vencidos, 'vencido', 'vencidos')} · {resumo.vencendo} vencendo
+          {fila.resumo.para_mim} para você · {contagem(fila.resumo.vencidos, 'vencido', 'vencidos')} · {fila.resumo.vencendo} vencendo
         </Text>
       ) : null}
       <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
@@ -118,12 +117,12 @@ function FolhaDecidir({ cartao, aoFechar, decidir }: { cartao: CartaoDaFila | nu
           <>
             <Botao testID="gestor-decidir-aprovar" nivel="principal" icone="check" rotulo="Aprovar" desligado={ocupado} ocupado={ocupado} onPress={() => void confirmar('aprovar')} />
             <Botao testID="gestor-decidir-devolver" rotulo="Devolver" desligado={ocupado} onPress={() => setAcao('devolver')} />
-            <Botao testID="gestor-decidir-rejeitar" nivel="perigo" rotulo="Rejeitar" desligado={ocupado} onPress={() => setAcao('rejeitar')} />
+            <Botao testID="gestor-decidir-rejeitar" nivel="perigo" rotulo="Rejeitar" desligado={ocupado} onPress={() => setAcao('recusar')} />
           </>
         ) : (
           <>
             <CampoTexto rotulo="Motivo" valor={texto} aoMudar={setTexto} multiline maxLength={500} testID="gestor-decidir-motivo" />
-            <Botao testID="gestor-decidir-confirmar" nivel={acao === 'rejeitar' ? 'perigo' : 'principal'} rotulo={acao === 'devolver' ? 'Devolver' : 'Rejeitar'} desligado={ocupado} ocupado={ocupado} onPress={() => void confirmar(acao)} />
+            <Botao testID="gestor-decidir-confirmar" nivel={acao === 'recusar' ? 'perigo' : 'principal'} rotulo={acao === 'devolver' ? 'Devolver' : 'Rejeitar'} desligado={ocupado} ocupado={ocupado} onPress={() => void confirmar(acao)} />
           </>
         )}
       </View>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ItemFilaAprovacao, type MembroEquipe, type MotivoAprovacao, type NivelAprovacao } from '../contracts';
 import { escopoDoUsuario } from './equipe';
-import { filaDeAprovacoes, motivosPendentes, pedidoPendenteDeAprovacao, registrarDecisao } from './aprovacoes';
+import { filaDeAprovacoes, motivosPendentes, pedidoPendenteDeAprovacao } from './aprovacoes';
 import { CLIENTE_A, ev, statusAlterado, u } from './fixtures';
 import { aplicarEvento, aplicarEventos, estadoInicial, type EventoRecebido } from './projecao';
 
@@ -140,41 +140,5 @@ describe('T-0184 P7 A e P8 A: decisões em paralelo; a rejeição encerra as out
       ['credito', 'gerente'],
     ]);
     expect(item!.inadimplencia).toBeNull();
-  });
-});
-
-describe('T-0184: registrar a decisão por motivo (RN-GES-04, RN-GES-08)', () => {
-  const s = montar([solicita()]);
-  const decidir = (perfil: MembroEquipe['perfil'], entrada: unknown, estado = s) =>
-    registrarDecisao({ estado, viewer: { id: perfil === 'gerente' ? GER : SUP, perfil }, membros: ROSTER, agora: AGORA, entrada });
-
-  it('com motivo, vale só para ele: o registro leva o motivo e o nível dele', () => {
-    expect(decidir('gerente', { pedido_id: PEDIDO, decisao: 'aprovar', motivo: 'inadimplencia' })).toMatchObject({
-      ok: true,
-      registro: { motivo: 'inadimplencia', nivel_pedido: 'gerente', acima_do_nivel: false },
-      avisos: [],
-    });
-  });
-
-  it('supervisor num motivo do nível gerente: FORA_DA_ALCADA; num motivo que já saiu da fila: NAO_PENDENTE', () => {
-    expect(decidir('supervisor', { pedido_id: PEDIDO, decisao: 'aprovar', motivo: 'credito' })).toMatchObject({ ok: false, codigo: 'FORA_DA_ALCADA' });
-    const sem = montar([solicita(), decidida('credito', 'aprovada')]);
-    expect(decidir('gerente', { pedido_id: PEDIDO, decisao: 'aprovar', motivo: 'credito' }, sem)).toMatchObject({ ok: false, codigo: 'NAO_PENDENTE' });
-  });
-
-  it('sem motivo, o supervisor decide o que alcança (o desconto) e o gerente decide tudo, avisando o supervisor pelo que está acima do nível', () => {
-    expect(decidir('supervisor', { pedido_id: PEDIDO, decisao: 'aprovar' })).toMatchObject({ ok: true, registro: { motivo: null, nivel_pedido: 'supervisor' } });
-    expect(decidir('gerente', { pedido_id: PEDIDO, decisao: 'aprovar' })).toMatchObject({
-      ok: true,
-      registro: { nivel_pedido: 'gerente', acima_do_nivel: true },
-      avisos: [{ destinatario_id: SUP, motivo: null }],
-    });
-  });
-
-  it('RN-GES-08: devolver e rejeitar exigem o motivo escrito; aprovar não', () => {
-    for (const decisao of ['devolver', 'rejeitar']) {
-      expect(decidir('gerente', { pedido_id: PEDIDO, decisao, motivo: 'credito' })).toMatchObject({ ok: false, codigo: 'DECISAO_INVALIDA' });
-      expect(decidir('gerente', { pedido_id: PEDIDO, decisao, motivo: 'credito', comentario: 'Cliente com título vencido' })).toMatchObject({ ok: true, registro: { decisao, motivo: 'credito' } });
-    }
   });
 });

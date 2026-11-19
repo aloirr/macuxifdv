@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { formatBRL } from '@macuxi/comum';
 import type { FilaAprovacao, ItemFilaAprovacao } from '../../contracts';
 import { linhaDeMotivos, linhaDoCartao } from './apresentacao';
-import { cartoesDaFila, erroDoMotivo, filaAposDecisao, requisicaoDaDecisao, resumoDosCartoes } from './decisao';
+import { resumirFila } from '../../domain/aprovacoes';
+import { cartoesDaFila, erroDoMotivo, filaAposDecisao, requisicaoDaDecisao } from './decisao';
 import { pct } from './formato';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -65,26 +66,48 @@ describe('T-0184 P3 B: um cartão por motivo', () => {
     const { aprovacoes: _fora, ...antigo } = FILA.itens[0]!;
     expect(cartoesDaFila([antigo as ItemFilaAprovacao]).map((c) => c.aprovacao.motivo)).toEqual(['credito', 'inadimplencia']);
   });
+});
 
-  it('o resumo da tela conta os cartões, não os pedidos', () => {
-    expect(resumoDosCartoes(cartoesDaFila(FILA.itens))).toEqual({ total: 3, para_mim: 3, vencidos: 0, vencendo: 0 });
-    const so = [item(21, { aprovacoes: [a('credito', false)], pode_decidir: false, situacao: 'vencido' })];
-    expect(resumoDosCartoes(cartoesDaFila(so))).toEqual({ total: 1, para_mim: 0, vencidos: 1, vencendo: 0 });
+describe('RD-2267/2270/2271: vocabulário do Vendedor, sem cópia no Gestor', () => {
+  it('a decisão, o mínimo do motivo e os níveis vêm de `contracts` do Vendedor', () => {
+    const fonte = readFileSync(join(__dirname, 'decisao.ts'), 'utf8');
+    expect(fonte).toContain('MOTIVO_REJEICAO_MIN');
+    expect(fonte).toContain('DECISOES_APROVADOR');
+    expect(fonte).not.toMatch(/MOTIVO_MIN\s*=/);
+    expect(readFileSync(join(__dirname, '..', '..', 'domain', 'aprovacoes.ts'), 'utf8')).not.toMatch(/ORDEM_NIVEL/);
+  });
+});
+
+describe('RD-2269: um cálculo só do resumo, em pedidos pendentes', () => {
+  it('o resumo conta pedidos, não motivos: um pedido com 2 motivos conta 1', () => {
+    expect(resumirFila(FILA.itens)).toEqual({ total: 2, vencidos: 0, vencendo: 0, para_mim: 2 });
+  });
+
+  it('depois da decisão o resumo é o mesmo cálculo da API (pedido que ainda tem motivo segue contando)', () => {
+    const f1 = filaAposDecisao(FILA, id(21), 'aprovar', 'credito');
+    expect(f1.resumo).toEqual(resumirFila(f1.itens));
+    expect(f1.resumo.total).toBe(2);
+  });
+
+  it('a aba Aprovações lê o resumo da fila, o mesmo número do Início, sem recontar cartões', () => {
+    const tela = readFileSync(join(__dirname, '..', 'screens', 'aprovacoes-screen.tsx'), 'utf8');
+    expect(tela).toContain('fila.resumo');
+    expect(tela).not.toContain('resumoDosCartoes');
   });
 });
 
 describe('T-0184 §3: as ações chamam as rotas do Vendedor', () => {
-  it('Aprovar chama `aprovar` com o motivo; Devolver chama `rejeitar` e Rejeitar chama `recusar`, com o texto', () => {
-    expect(requisicaoDaDecisao(id(21), 'aprovar', 'credito', '')).toEqual({ caminho: `/vendedor/pedidos/${id(21)}/aprovar`, corpo: { motivo: 'credito' } });
-    expect(requisicaoDaDecisao(id(21), 'devolver', 'inadimplencia', '  Pagar o vencido ')).toEqual({ caminho: `/vendedor/pedidos/${id(21)}/rejeitar`, corpo: { motivo: 'inadimplencia', texto: 'Pagar o vencido' } });
-    expect(requisicaoDaDecisao(id(21), 'rejeitar', 'inadimplencia', 'Cliente em cobrança')).toEqual({ caminho: `/vendedor/pedidos/${id(21)}/recusar`, corpo: { motivo: 'inadimplencia', texto: 'Cliente em cobrança' } });
+  it('Aprovar chama `aprovar`; Devolver chama `rejeitar` e Rejeitar chama `recusar`; o corpo é `{ motivo: texto livre, motivo_aprovacao }` (ADR 0062, desenho §7.1)', () => {
+    expect(requisicaoDaDecisao(id(21), 'aprovar', 'credito', '')).toEqual({ caminho: `/vendedor/pedidos/${id(21)}/aprovar`, corpo: { motivo_aprovacao: 'credito' } });
+    expect(requisicaoDaDecisao(id(21), 'devolver', 'inadimplencia', '  Pagar o vencido ')).toEqual({ caminho: `/vendedor/pedidos/${id(21)}/rejeitar`, corpo: { motivo: 'Pagar o vencido', motivo_aprovacao: 'inadimplencia' } });
+    expect(requisicaoDaDecisao(id(21), 'recusar', 'inadimplencia', 'Cliente em cobrança')).toEqual({ caminho: `/vendedor/pedidos/${id(21)}/recusar`, corpo: { motivo: 'Cliente em cobrança', motivo_aprovacao: 'inadimplencia' } });
   });
 
   it('RN-GES-08: devolver e rejeitar pedem o motivo com 3 letras ou mais, em português; aprovar não pede', () => {
     expect(erroDoMotivo('aprovar', '')).toBeNull();
     expect(erroDoMotivo('devolver', ' ab ')).toBe('Escreva o motivo com pelo menos 3 letras para devolver.');
-    expect(erroDoMotivo('rejeitar', '')).toBe('Escreva o motivo com pelo menos 3 letras para rejeitar.');
-    expect(erroDoMotivo('rejeitar', 'Sem crédito')).toBeNull();
+    expect(erroDoMotivo('recusar', '')).toBe('Escreva o motivo com pelo menos 3 letras para rejeitar.');
+    expect(erroDoMotivo('recusar', 'Sem crédito')).toBeNull();
   });
 });
 
@@ -99,7 +122,7 @@ describe('T-0184 P7 A e P8 A: a fila do aparelho depois da decisão', () => {
 
   it('devolver e rejeitar tiram o pedido inteiro (encerram os outros motivos)', () => {
     expect(filaAposDecisao(FILA, id(21), 'devolver', 'credito').itens.map((i) => i.pedido_id)).toEqual([id(20)]);
-    expect(filaAposDecisao(FILA, id(21), 'rejeitar', 'inadimplencia').itens.map((i) => i.pedido_id)).toEqual([id(20)]);
+    expect(filaAposDecisao(FILA, id(21), 'recusar', 'inadimplencia').itens.map((i) => i.pedido_id)).toEqual([id(20)]);
   });
 });
 
