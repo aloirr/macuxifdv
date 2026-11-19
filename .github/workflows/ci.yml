@@ -10,9 +10,10 @@ name: CI
 #                       único job de que os testes dependem (needs: escopo):
 #                         documentacao  → só .coord/**, docs/** e *.md da raiz (menos a docs/modulos/, que o código lê):
 #                                         só escopo, governança e ci-ok (a guarda R4 prova que nenhum código lê documentação);
-#                         reaproveitado → push ao main de uma árvore que já passou verde com os testes (ensaio): idem;
+#                         reaproveitado → push ao main (ou o agendado) de uma árvore que já passou verde com os testes
+#                                         (ensaio, push; o agendado só aceita a matriz completa): idem;
 #                         codigo        → pacotes AFETADOS (alterados + dependentes) em PR, ensaio e push; TODOS no
-#                                         noturno (dias úteis), na sexta (véspera da produção) e no manual com "completo".
+#                                         agendado semanal, na sexta (véspera da produção) e no manual com "completo".
 #   governanca          EM PARALELO (sem needs): coord, guardiões, guardas de scripts/ci, donos do PR / por commit, brechas
 #                       do guardião v5 (T-0049), guardião ligado, agente do branch da nuvem e economia do Actions (ADR 0045).
 #                       No push, calcula a base sozinha (o mesmo escopo.mjs, segundos) para os donos por commit e o trailer.
@@ -32,10 +33,12 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
-  # Noturno com todos os pacotes, só em dias úteis: 07:00 UTC = 03:00 em Manaus, de segunda a sexta. O gerente confere no
-  # início da rodada (gh run list --workflow CI --event schedule --limit 1).
+  # Semanal com todos os pacotes (economia do Actions, 18/11/2026; antes noturno de segunda a sexta): sexta 07:00 UTC =
+  # 03:00 em Manaus, véspera da produção. Garante a matriz completa da semana mesmo sem push de código na sexta; a árvore
+  # que um push da sexta já passou verde com a matriz completa não repete os testes (escopo.mjs). O gerente confere na
+  # ronda de sexta (gh run list --workflow CI --event schedule --limit 1).
   schedule:
-    - cron: '0 7 * * 1-5'
+    - cron: '0 7 * * 5'
   # Manual (o ensaio do branch verificacao/*, doc 07): pacotes afetados desde o merge-base com o main; "completo" = todos.
   workflow_dispatch:
     inputs:
@@ -51,6 +54,11 @@ permissions:
 
 # Um grupo por PR / por evento + branch: o run novo CANCELA o antigo em todo evento. No push ao main, a base do escopo e da
 # verificação de donos é o último push VERDE do main (escopo.mjs), então o push cancelado não deixa commit sem verificação.
+# Merge em bloco no main (avaliado em 18/11/2026): cancelar continua mais barato que esperar. O run cancelado custa ~3 min
+# (escopo e governança) e o último cobre todos os commits desde o último verde; sem cancelar, o run do meio terminaria
+# inteiro (~40 min) e o último rodaria de novo.
+# Sem paths/paths-ignore no gatilho: o ci-ok é check obrigatório e ficaria pendente; o escopo documentacao já roda só a
+# governança e o ci-ok.
 concurrency:
   group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.event_name, github.ref) }}
   cancel-in-progress: true
