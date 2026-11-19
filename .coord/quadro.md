@@ -2,6 +2,11 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
+> **v1.0.16 em andamento** (R-20261119-181423 "Acelere" e R-20261119-192029: P1 a P7 = A). Horários de Manaus.
+> - **Escopo:** [T-0187](tarefas/T-0187.md) (supervisor em campo no Gestão, desenho em `docs/desenho/T-0187.md`); o resto da [T-0186](tarefas/T-0186.md) (PDF na ficha e tabela Carteira do Gestão por rota online); o resto do trajeto no Gestão (T-0156); a investigação do OUTBOX_PARADA (só leitura; reprocessar exige o "sim" do dono do produto).
+> - **ADR 0063** reservada ao engenheiro-software (supervisor rastreado no Gestão; revisa a 0061).
+> - **Sessões:** S1 engenheiro-software, S2 engenheiro-apps, S3 modulo-core, S4 modulo-vendedor, S5 modulo-pesquisa, S6 modulo-gestor e S7 testes. Banco sem migração (P1 A).
+
 > **v1.0.15 no ar, servidor e APK** (19/11; R-20261119-172300 e R-20261119-180100). Horários de Manaus.
 > - **No main:**
 >   - governança: #504;
@@ -30,7 +35,6 @@
 > - **"PRONTO PARA LIBERAR v1.0.14 (só servidor)"** no SHA b52ca64d. Deploy pela ponte (R-20261118-003807).
 > - **Fechados sem merge:** #487 e #384 (a reconferência de marca da v1.0.13 os substitui) e #345 (substituído pelo #488).
 > - **Sem advogado** (R-20261119-0545, alexandre: "quem decide tudo sou eu"): nenhuma condição de "revisão de advogado". O rastreamento é interno e liga quando o dono do produto mandar, pelo parâmetro do BKO. Já corrigidos: T-0156 e doc 03 (RN-CORE-13). Para a v1.0.16 (engenheiro-software; o #500 fechou sem merge): ADR 0061, `docs/desenho/tracking.md` e os três `docs/desenho/T-0156-legal-*.md`.
-> - **Doc 03, pendente na v1.0.16:** as decisões P1 a P8 da P-6 (`docs/desenho/T-0184.md` §0) na RN-VEN-12, na RN-VEN-13 e na RN-VEN-30.
 > - **RN-VEN-43 com dois sentidos** (R-20261117-201110, ponto 3): a tabela ajustada pelo prazo fica com a RN-VEN-43 a 46, e os cards de Pedidos (T-0170) ganham um número novo. As duas entram no doc 03 na v1.0.16.
 > - **Economia do Actions** (R-20261117-065555), além do `CLAUDE.md`:
 >   - PR só quando é obrigatório;
