@@ -186,6 +186,7 @@ export function TelaCliente() {
         unidade: i.unidade ?? null,
         data_local: dataLocal(i.data, tz),
         total_cents: Math.round(i.quantidade * i.preco_unitario_cents),
+        codigo: i.produto_sku ?? null,
       }))
     : [];
   // Spec §3: Performance (curvas, indicadores e visitas) e o cartão de crédito; o promotor sem `promotor_ve_pedidos` fica sem curvas, compras e cartão (P12)
@@ -261,7 +262,7 @@ export function TelaCliente() {
         )}
       </ScrollView>
 
-      {customer ? (
+      {customer && !gestao ? (
         <View style={styles.footer}>
           {botoes.checkin ? (
             <Button

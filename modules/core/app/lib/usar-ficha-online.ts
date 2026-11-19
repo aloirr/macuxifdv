@@ -120,9 +120,15 @@ export function useDetalheDaNota(clienteId: string): DetalheDaNota {
     atual.current = null;
     setLinha(l);
     setNota(null);
+    // spec §4: sem internet o toque abre direto "Sem internet" + "Tentar de novo", sem a pergunta
+    if (!httpDe(motor)) {
+      setFalha({ semInternet: true, mensagem: 'Sem internet' });
+      setEstado('erro');
+      return;
+    }
     setFalha(null);
     setEstado('ocioso');
-  }, []);
+  }, [motor]);
   const baixar = useCallback(() => {
     if (linha) buscar(linha);
   }, [linha, buscar]);

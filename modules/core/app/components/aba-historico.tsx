@@ -3,7 +3,7 @@
  * (Data · Nº NF e forma de pagamento · Valor · Status). "Em atraso" sem data, a linha em destaque. O toque na linha pede a autorização
  * "Baixar a NF …?" e busca a NF no servidor (P17); a NF e o PDF não ficam guardados. Sem internet: "Sem internet" e "Tentar de novo".
  */
-import { Badge, Botao, BotaoFiltro, CampoBusca, Chip, EtiquetaFiltro, Folha, Loading, type as t } from '@macuxi/ui/mobile';
+import { Badge, Botao, BotaoFiltro, CampoBusca, CampoTexto, Chip, EtiquetaFiltro, Folha, Loading, colors, type as t } from '@macuxi/ui/mobile';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
@@ -13,6 +13,7 @@ import { abrirDocumentoRegistrado } from '../lib/ficha-online';
 import {
   agruparNotasPorMes,
   chipsDoFiltro,
+  dataBr,
   contarFiltros,
   dataCurta,
   devolucaoNaCelula,
@@ -20,6 +21,9 @@ import {
   filtroDeNotas,
   filtroPrecisaDoServidor,
   leituraDaNota,
+  lerDataBr,
+  mascararData,
+  periodoEscolhido,
   linhasDoDetalheDaNota,
   removerChip,
   resumoDosItens,
@@ -109,14 +113,22 @@ const ORDEM_PERIODO = ['30d', '90d', '12m'] as const;
 function FolhaFiltrar({ visivel, onFechar, filtro, onAplicar, base, formas, hoje }: { visivel: boolean; onFechar: () => void; filtro: FiltroDaFicha; onAplicar: (f: FiltroDaFicha) => void; base: readonly LinhaHistoricoNfContrato[]; formas: readonly string[]; hoje: string }) {
   const [rascunho, setRascunho] = useState<FiltroDaFicha>(filtro);
   const [abriu, setAbriu] = useState(false);
+  const [deTxt, setDeTxt] = useState('');
+  const [ateTxt, setAteTxt] = useState('');
   if (visivel && !abriu) {
     setAbriu(true);
     setRascunho(filtro);
+    setDeTxt(filtro.periodo === 'datas' && filtro.de ? dataBr(filtro.de) : '');
+    setAteTxt(filtro.periodo === 'datas' && filtro.ate ? dataBr(filtro.ate) : '');
   }
   if (!visivel && abriu) setAbriu(false);
 
-  const precisaServidor = filtroPrecisaDoServidor(rascunho, hoje);
-  const total = filtrarNotas(base, filtroDeNotas(rascunho, hoje)).length;
+  // "Escolher datas": o rascunho só vale com datas certas; com erro, o botão fica desligado e o campo diz o que corrigir
+  const escolha = rascunho.periodo === 'datas' ? periodoEscolhido(deTxt, ateTxt, hoje) : null;
+  const efetivo: FiltroDaFicha = escolha?.ok ? { ...rascunho, de: escolha.de, ate: escolha.ate } : { ...rascunho, de: undefined, ate: undefined };
+  const datasComErro = escolha !== null && !escolha.ok;
+  const precisaServidor = !datasComErro && filtroPrecisaDoServidor(efetivo, hoje);
+  const total = filtrarNotas(base, filtroDeNotas(efetivo, hoje)).length;
   const alternar = <T,>(lista: readonly T[], v: T): T[] => (lista.includes(v) ? lista.filter((x) => x !== v) : [...lista, v]);
   const rotuloVer = precisaServidor ? 'Ver notas' : total === 0 ? 'Nenhuma nota' : `Ver ${total} ${total === 1 ? 'nota' : 'notas'}`;
   return (
@@ -132,7 +144,23 @@ function FolhaFiltrar({ visivel, onFechar, filtro, onAplicar, base, formas, hoje
             {ORDEM_PERIODO.map((p) => (
               <Chip key={p} label={rotuloPeriodo(p)} active={rascunho.periodo === p} onPress={() => setRascunho({ ...rascunho, periodo: p, de: undefined, ate: undefined })} testID={`filtro-periodo-${p}`} />
             ))}
+            <Chip label="Escolher datas" active={rascunho.periodo === 'datas'} onPress={() => setRascunho({ ...rascunho, periodo: 'datas' })} testID="filtro-periodo-datas" />
           </View>
+          {rascunho.periodo === 'datas' ? (
+            <View style={{ flexDirection: 'row', gap: 10 }} testID="filtro-datas">
+              <View style={{ flex: 1 }}>
+                <CampoTexto rotulo="De" valor={deTxt} aoMudar={(x) => setDeTxt(mascararData(x))} placeholder="dd/mm/aaaa" keyboardType="number-pad" maxLength={10} erro={deTxt.length === 10 && lerDataBr(deTxt) === null} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <CampoTexto rotulo="Até" valor={ateTxt} aoMudar={(x) => setAteTxt(mascararData(x))} placeholder="hoje" keyboardType="number-pad" maxLength={10} erro={ateTxt.length === 10 && lerDataBr(ateTxt) === null} />
+              </View>
+            </View>
+          ) : null}
+          {escolha && !escolha.ok && (deTxt !== '' || ateTxt !== '') ? (
+            <Text style={[t.sub, { color: colors.danger }]} accessibilityLiveRegion="polite" testID="filtro-datas-erro">
+              {escolha.erro}
+            </Text>
+          ) : null}
         </View>
         <View style={{ gap: 6 }}>
           <Text style={t.label}>Status</Text>
@@ -160,9 +188,9 @@ function FolhaFiltrar({ visivel, onFechar, filtro, onAplicar, base, formas, hoje
             <Botao
               rotulo={rotuloVer}
               nivel="principal"
-              desligado={!precisaServidor && total === 0}
+              desligado={datasComErro || (!precisaServidor && total === 0)}
               onPress={() => {
-                onAplicar(rascunho);
+                onAplicar(efetivo);
                 onFechar();
               }}
               testID="filtro-ver"
@@ -200,7 +228,7 @@ function FolhaDaNota({ detalhe }: { detalhe: DetalheDaNota }) {
             tipo: 'linha',
             key: `${i.produto_codigo}-${n}`,
             celulas: [
-              <CelulaTexto key="p" principal={i.produto_nome} segunda={i.produto_codigo} />,
+              <CelulaTexto key="p" principal={i.produto_nome} segunda={i.produto_codigo} segundaCodigo />,
               <CelulaTexto key="e" principal={i.unidade ?? '—'} segunda={i.fator ? `c/ ${i.fator}` : null} dir />,
               <CelulaTexto key="q" principal={String(i.quantidade)} dir />,
               <CelulaTexto key="t" principal={valorSemMoeda(i.total_cents)} dir />,

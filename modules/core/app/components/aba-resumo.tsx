@@ -10,7 +10,7 @@ import { Linking, Pressable, Text, View } from 'react-native';
 import type { CartaoCredito } from '../../contracts';
 import { observacaoComCadastro, type PerformanceCalculada } from '../../domain';
 import type { Cliente360Local } from '../lib/cliente360-local';
-import { dataCurta, linhasCartaoCredito, linhasDadosCadastrais, linhasPerformance, valorSemMoeda } from '../lib/ficha-v2';
+import { dataCurta, linhasCartaoCredito, linhasDadosCadastrais, linhasPerformance, tituloDaCarteira, valorSemMoeda } from '../lib/ficha-v2';
 import { mapsUrl } from '../lib/route';
 import { BotaoCelula, CelulaTexto, TabelaFicha, TabelaRotuloValor, type LinhaFicha } from './tabelas-ficha';
 
@@ -23,6 +23,15 @@ export interface ItemCompradoLinha {
   unidade: string | null;
   data_local: string;
   total_cents: number;
+  /** SKU do produto (2ª linha do Produto). */
+  codigo: string | null;
+}
+
+export interface PessoaDaCarteira {
+  id: string;
+  nome: string;
+  tel: string | null;
+  whatsapp_url: string | null;
 }
 
 /** RN-CORE-50: os 3 últimos e "Ver os 20 itens ›". */
@@ -37,6 +46,7 @@ export function AbaResumo({
   itens,
   secoes,
   atendimento,
+  carteira,
 }: {
   ficha: Cliente360Local;
   cartao: CartaoCredito | null;
@@ -48,6 +58,8 @@ export function AbaResumo({
   secoes?: ReactNode;
   /** "Em atendimento · desde 09:41" (aviso que não é financeiro). */
   atendimento?: string | null;
+  /** Gestão: quem tem o cliente na carteira (spec §3.5); sem a lista, a tabela não aparece. */
+  carteira?: readonly PessoaDaCarteira[];
 }) {
   const [todos, setTodos] = useState(false);
   const c = ficha.cliente;
@@ -121,6 +133,28 @@ export function AbaResumo({
         )}
       </View>
 
+      {gestao && carteira && carteira.length > 0 ? (
+        <View style={{ gap: 8 }} testID="cliente-carteira">
+          <SectionHeader title="Carteira" />
+          <TabelaFicha
+            colunas={[
+              { id: 'pessoa', titulo: tituloDaCarteira(carteira.length) },
+              { id: 'ligar', titulo: 'Ligar', largura: 48, alinhar: 'centro' },
+              { id: 'zap', titulo: 'WhatsApp', largura: 60, alinhar: 'centro' },
+            ]}
+            linhas={carteira.map<LinhaFicha>((p) => ({
+              tipo: 'linha',
+              key: p.id,
+              celulas: [
+                <CelulaTexto key="n" principal={p.nome} />,
+                <BotaoCelula key="t" icone="phone" rotulo={p.tel ? `Ligar para ${p.nome}` : `Ligar indisponível: ${p.nome} sem número`} desligado={!p.tel} onPress={() => p.tel && void Linking.openURL(p.tel)} testID={`carteira-ligar-${p.id}`} />,
+                <BotaoCelula key="w" icone="chat" rotulo={p.whatsapp_url ? `WhatsApp de ${p.nome}` : `WhatsApp indisponível: ${p.nome} sem número`} desligado={!p.whatsapp_url} onPress={() => p.whatsapp_url && void Linking.openURL(p.whatsapp_url)} testID={`carteira-whatsapp-${p.id}`} />,
+              ],
+            }))}
+          />
+        </View>
+      ) : null}
+
       <View style={{ gap: 8 }} testID="cliente-performance">
         <SectionHeader title={perf.titulo} />
         <TabelaRotuloValor linhas={perf.linhas} />
@@ -145,7 +179,7 @@ export function AbaResumo({
               tipo: 'linha',
               key: i.produto_id,
               celulas: [
-                <CelulaTexto key="p" principal={i.nome} />,
+                <CelulaTexto key="p" principal={i.nome} segunda={i.codigo} segundaCodigo />,
                 <CelulaTexto key="q" principal={`${i.quantidade}${i.unidade ? ` ${i.unidade}` : ''}`} dir />,
                 <CelulaTexto key="d" principal={dataCurta(i.data_local)} mudo />,
                 <CelulaTexto key="t" principal={valorSemMoeda(i.total_cents)} dir />,

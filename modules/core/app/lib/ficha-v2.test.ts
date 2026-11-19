@@ -22,6 +22,10 @@ import {
   textoContagemNotas,
   valorSemMoeda,
   faixaDoMes,
+  lerDataBr,
+  mascararData,
+  periodoEscolhido,
+  tituloDaCarteira,
 } from './ficha-v2';
 import type { NotaDetalhe } from '../../contracts';
 import type { PerformanceCalculada } from '../../domain';
@@ -47,7 +51,7 @@ describe('T-0186 / spec §3: Resumo', () => {
     const l = linhasDadosCadastrais({ razao_social: 'Bom Preço LTDA', documento: '12345678000190', segmento: null }, '0002 · Boa Vista/RR', '2019-03-11');
     expect(l.map((x) => x.rotulo)).toEqual(['Razão social', 'CNPJ', 'Filial', 'Cliente desde']);
     expect(l.find((x) => x.rotulo === 'CNPJ')?.valor).toBe('12.345.678/0001-90');
-    expect(l.find((x) => x.rotulo === 'Cliente desde')?.valor).toBe('11/03/2019');
+    expect(l.find((x) => x.rotulo === 'Cliente desde')?.valor).toBe('03/2019');
   });
   it('spec §3.2: o cartão tem só Limite, Saldo disponível e Prazo médio; o motivo só com cliente bloqueado', () => {
     const base = { limite_cents: 800000, saldo_disponivel_cents: 188000, prazo_medio_dias: 24, bloqueado: false, motivo_bloqueio: null };
@@ -192,5 +196,32 @@ describe('T-0186 / P10, P15, P16: Documentação', () => {
   it('spec §5: uma faixa por grupo, na ordem em que a lista chega', () => {
     const g = agruparDocumentos([{ grupo: 'Cadastro' }, { grupo: 'Cadastro' }, { grupo: 'Contratos' }]);
     expect(g.map((x) => [x.grupo, x.documentos.length])).toEqual([['Cadastro', 2], ['Contratos', 1]]);
+  });
+});
+
+describe('Cliente 360 v2: Escolher datas e Carteira (spec §3.5 e §4)', () => {
+  it('spec §4: a data digitada ganha as barras e só aceita dígitos', () => {
+    expect(mascararData('1910')).toBe('19/10');
+    expect(mascararData('19102026x')).toBe('19/10/2026');
+    expect(mascararData('')).toBe('');
+  });
+  it('spec §4: dd/mm/aaaa vira AAAA-MM-DD; dia que não existe dá nulo', () => {
+    expect(lerDataBr('19/10/2026')).toBe('2026-10-19');
+    expect(lerDataBr('31/02/2026')).toBeNull();
+    expect(lerDataBr('19/10')).toBeNull();
+  });
+  it('spec §4: "Escolher datas" pede a data inicial, não aceita início depois do fim nem fim depois de hoje', () => {
+    expect(periodoEscolhido('', '', HOJE)).toEqual({ ok: false, erro: 'Informe a data inicial.' });
+    expect(periodoEscolhido('20/10/2026', '10/10/2026', HOJE)).toEqual({ ok: false, erro: 'A data inicial vem depois da final.' });
+    expect(periodoEscolhido('10/10/2026', '20/11/2026', HOJE)).toEqual({ ok: false, erro: 'A data final não pode ser depois de hoje.' });
+    expect(periodoEscolhido('10/10/2026', '', HOJE)).toEqual({ ok: true, de: '2026-10-10', ate: HOJE });
+  });
+  it('spec §4 (P17): datas além dos 90 dias consultam o servidor', () => {
+    expect(filtroPrecisaDoServidor({ ...FILTRO_PADRAO, periodo: 'datas', de: '2026-01-10', ate: '2026-02-10' }, HOJE)).toBe(true);
+    expect(filtroPrecisaDoServidor({ ...FILTRO_PADRAO, periodo: 'datas', de: '2026-10-10', ate: '2026-11-10' }, HOJE)).toBe(false);
+  });
+  it('spec §3.5: a tabela Carteira chama a coluna de "Pessoa" com mais de uma pessoa', () => {
+    expect(tituloDaCarteira(1)).toBe('Vendedor');
+    expect(tituloDaCarteira(2)).toBe('Pessoa');
   });
 });

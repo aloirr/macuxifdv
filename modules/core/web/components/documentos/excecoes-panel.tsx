@@ -89,7 +89,7 @@ export function DocumentosExcecoesPanel() {
           <tbody>
             {excecoes.length === 0 && (
               <tr>
-                <td className={td} colSpan={4}>Nenhuma exceção. Todo documento segue o que o tipo libera.</td>
+                <td className={td} colSpan={4}>Nenhuma exceção.</td>
               </tr>
             )}
             {excecoes.map((x) => (

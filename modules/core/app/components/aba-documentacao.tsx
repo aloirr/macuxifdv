@@ -4,7 +4,7 @@
  * não vê não chega; a exceção por documento vem com cadeado e "Sem permissão para abrir" (P10). Vencido só na linha (P16).
  * "Fotos do PDV" (RN-CORE-38) lê as linhas do aparelho: "Falta" em vermelho com a câmera quando o perfil envia.
  */
-import { Folha, Loading, type as t } from '@macuxi/ui/mobile';
+import { Folha, Icon, Loading, colors, type as t } from '@macuxi/ui/mobile';
 import { Text, View } from 'react-native';
 
 import type { Cliente360Local } from '../lib/cliente360-local';
@@ -102,9 +102,10 @@ export function AbaDocumentacao({
       {documentos.estado === 'carregando' || documentos.estado === 'ocioso' ? <Loading embutido testID="documentos-carregando" /> : null}
       {documentos.estado === 'erro' ? <ErroOnline falha={documentos.falha} titulo="Documentos" onTentar={documentos.recarregar} testID="documentos-erro" /> : null}
       {vazio ? (
-        <Text style={t.sub} testID="documentos-vazio">
-          Nenhum documento deste cliente
-        </Text>
+        <View style={{ alignItems: 'center', gap: 12, paddingVertical: 48 }} testID="documentos-vazio">
+          <Icon name="file" size={32} color={colors.ink3} />
+          <Text style={t.bodyStrong}>Nenhum documento deste cliente</Text>
+        </View>
       ) : null}
 
       <Folha visivel={Boolean(abertura.falhou)} onFechar={abertura.fechar} rotuloFechar="Fechar" titulo={abertura.falhou?.nome ?? ''} fechar={{ rotulo: 'Fechar' }} testID="folha-documento-erro">

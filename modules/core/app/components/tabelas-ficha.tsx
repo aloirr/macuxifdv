@@ -88,13 +88,13 @@ export function TabelaFicha({ colunas, linhas, testID }: { colunas: readonly Col
 }
 
 /** Célula de texto: a linha principal 14/600 e, quando houver, a segunda linha 12 em ink2 (ou vermelha). */
-export function CelulaTexto({ principal, segunda, perigoSegunda, dir, mono, sublinhado, mudo, testID }: { principal: string; segunda?: string | null; perigoSegunda?: boolean; dir?: boolean; mono?: boolean; sublinhado?: boolean; mudo?: boolean; testID?: string }) {
+export function CelulaTexto({ principal, segunda, perigoSegunda, segundaCodigo, dir, mono, sublinhado, mudo, testID }: { principal: string; segunda?: string | null; perigoSegunda?: boolean; /** 2ª linha é um código (produto): mono 12, sublinhado, Azul noite. */ segundaCodigo?: boolean; dir?: boolean; mono?: boolean; sublinhado?: boolean; mudo?: boolean; testID?: string }) {
   return (
     <View style={{ alignItems: dir ? 'flex-end' : 'flex-start' }}>
       <Text style={[s.principal, dir && s.num, mono && s.mono, sublinhado && s.link, mudo && { color: colors.ink2 }]} testID={testID}>
         {principal}
       </Text>
-      {segunda ? <Text style={[s.segunda, dir && { textAlign: 'right' }, perigoSegunda && { color: colors.danger }]}>{segunda}</Text> : null}
+      {segunda ? <Text style={[s.segunda, dir && { textAlign: 'right' }, perigoSegunda && { color: colors.danger }, segundaCodigo && [s.mono, s.link]]}>{segunda}</Text> : null}
     </View>
   );
 }

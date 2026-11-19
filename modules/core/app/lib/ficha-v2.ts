@@ -66,7 +66,7 @@ export function linhasDadosCadastrais(c: { razao_social: string; documento: stri
     c.documento ? { rotulo: 'CNPJ', valor: formatarDocumento(c.documento), testID: 'cliente-cnpj' } : null,
     filial ? { rotulo: 'Filial', valor: filial, testID: 'cliente-filial' } : null,
     c.segmento ? { rotulo: 'Segmento', valor: c.segmento, testID: 'cliente-segmento' } : null,
-    clienteDesde ? { rotulo: 'Cliente desde', valor: dataBr(clienteDesde), testID: 'cliente-desde' } : null,
+    clienteDesde ? { rotulo: 'Cliente desde', valor: mesAno(clienteDesde), testID: 'cliente-desde' } : null,
   ];
   return linhas.filter((l): l is LinhaRotuloValor => l !== null);
 }
@@ -166,6 +166,35 @@ export function removerChip(f: FiltroDaFicha, id: string): FiltroDaFicha {
   if (id.startsWith('forma:')) return { ...f, formas: f.formas.filter((x) => x !== id.slice(6)) };
   return f;
 }
+
+/** "19102026" → "19/10/2026": só dígitos, com as barras na digitação. */
+export function mascararData(texto: string): string {
+  const d = texto.replace(/\D/g, '').slice(0, 8);
+  return [d.slice(0, 2), d.slice(2, 4), d.slice(4)].filter(Boolean).join('/');
+}
+
+/** "19/10/2026" → "2026-10-19"; nulo se faltar parte ou o dia não existir. */
+export function lerDataBr(texto: string): string | null {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(texto.trim());
+  if (!m) return null;
+  const iso = `${m[3]}-${m[2]}-${m[1]}`;
+  const d = new Date(`${iso}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== iso ? null : iso;
+}
+
+/** "Escolher datas": a data inicial é obrigatória; sem a final, vale até hoje. O erro diz o que corrigir. */
+export function periodoEscolhido(deTexto: string, ateTexto: string, hoje: string): { ok: true; de: string; ate: string } | { ok: false; erro: string } {
+  const de = lerDataBr(deTexto);
+  if (!de) return { ok: false, erro: 'Informe a data inicial.' };
+  const ate = ateTexto.trim() === '' ? hoje : lerDataBr(ateTexto);
+  if (!ate) return { ok: false, erro: 'Informe a data final no formato dd/mm/aaaa.' };
+  if (ate > hoje) return { ok: false, erro: 'A data final não pode ser depois de hoje.' };
+  if (de > ate) return { ok: false, erro: 'A data inicial vem depois da final.' };
+  return { ok: true, de, ate };
+}
+
+/** Spec §3.5: a coluna da tabela Carteira é "Vendedor"; com mais de uma pessoa, "Pessoa". */
+export const tituloDaCarteira = (pessoas: number): string => (pessoas > 1 ? 'Pessoa' : 'Vendedor');
 
 /** O filtro na forma do `filtrarNotas` (domain). */
 export function filtroDeNotas(f: FiltroDaFicha, hoje: string): FiltroHistoricoNf {
