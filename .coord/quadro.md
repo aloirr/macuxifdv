@@ -2,6 +2,24 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
+> **v1.0.15 no ar, servidor e APK** (19/11; R-20261119-172300 e R-20261119-180100). Horários de Manaus.
+> - **No main:**
+>   - governança: #504;
+>   - P-6: #495, #494 e #507;
+>   - rastreamento: #498, #499 e #502;
+>   - prazo médio e Alertas: #506 e #508;
+>   - catálogo v2: #503;
+>   - login e e-mails: #501 e #510;
+>   - #509 e #492;
+>   - ficha do cliente v2 (T-0186): #514;
+>   - limpeza do reteste: #515;
+>   - envio do trajeto (T-0156): #516.
+>   - Fechados sem merge: #453, #493, #496, #497, #500, #505, #511, #512 e #513.
+> - **SHA** 53baf7c3fc854a4a1a00436c80fb585c48e55276 (CI do main, run 44616710113). Publicado às 17h37 (issue #517). APK Campo e Gestão v1.0.15 (run 44618378737).
+> - **Cortes para a v1.0.16:** PDF na ficha e tabela Carteira do Gestão ([T-0186](tarefas/T-0186.md), [T-0187](tarefas/T-0187.md)).
+> - **Trava RN-VEN-45:** continua até o recado do dono do produto, depois do APK nos aparelhos.
+> - **Pendências que não seguraram:** MC-1803 (logo do e-mail), RD-2379 e o comentário do teste do trajeto, o 🟢 do "Enviando…", os retentáveis no SDK e o OUTBOX_PARADA (36 eventos, desde a v1.0.14).
+
 > **v1.0.14 = cenário A, só servidor** (R-20261117-063420-alexandre e R-20261118-003807-alexandre). O Cline tocou de 16 a 18/11, e a nuvem voltou em 18/11 às 20h57 (R-20261118-205700). Horários de Manaus.
 > - **No main:** #420, #486, #403, #396 (0087), #483, #412, #484, #478, #479, #480, #481, #482, #414, #416, #415, #488 e #489 (último: 555c719a, 17/11 às 23h44).
 > - **#485** (testes da T-0173): no main em b52ca64d (18/11, 20h58), no SHA da frase 2878f90b (R-20261118-003807).
