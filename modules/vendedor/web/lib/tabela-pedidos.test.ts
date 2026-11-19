@@ -10,8 +10,8 @@ const pedido = (over: Partial<Order> = {}): Order => ({
 });
 
 describe('BKO > Pedidos: tabela simples (R-20261116-143000, R-20261118-214740)', () => {
-  it('colunas na ordem aprovada na prancha 04: Código do cliente a Observação, Ações e Situação por último', () => {
-    expect(COLUNAS_DA_TABELA.map((c) => c.titulo)).toEqual(['Código do cliente', 'Cliente', 'UF', 'Cidade', 'Nº', 'Vendedor', 'Supervisor', 'Recebido', 'Valor', 'Motivo', 'Observação do pedido', 'Ações', 'Situação']);
+  it('colunas na ordem aprovada na prancha 04: Código do cliente a Observação, Situação e Ações por último (Ações na ponta, MC-1760)', () => {
+    expect(COLUNAS_DA_TABELA.map((c) => c.titulo)).toEqual(['Código do cliente', 'Cliente', 'UF', 'Cidade', 'Nº', 'Vendedor', 'Supervisor', 'Recebido', 'Valor', 'Motivo', 'Observação do pedido', 'Situação', 'Ações']);
   });
   it('largura menor: Código e Cliente fixos à esquerda; Ações e Situação fixos à direita', () => {
     const fixas = Object.fromEntries(COLUNAS_DA_TABELA.filter((c) => c.fixa).map((c) => [c.titulo, c.fixa]));

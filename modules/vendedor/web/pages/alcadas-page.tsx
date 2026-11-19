@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { formatPct } from '@macuxi/comum';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, type ColunaDaTabela, ErrorBlock, LoadingBlock, Panel, SelectField, TabelaDados, useToast } from '@macuxi/ui/web';
+import { Button, CLASSE_CAMPO_BASE, type ColunaDaTabela, ErrorBlock, LoadingBlock, Panel, TabelaDados, useToast } from '@macuxi/ui/web';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { NIVEIS_APROVACAO, type NivelAprovacao } from '../../contracts';
 import { corpoDosAprovadores, formDosAprovadores, houveMudanca, ROTULO_NIVEL, type FormAprovadores } from '../lib/aprovadores-form';
@@ -63,24 +63,36 @@ export function AlcadasPage() {
       )}
       {p && form && atual && (
         <Panel title="Crédito e inadimplência" label="Crédito e inadimplência">
-          <div className="flex flex-wrap items-end gap-4" data-testid="alcadas.aprovadores">
+          <div className="flex flex-col" data-testid="alcadas.aprovadores">
             {(
               [
                 ['credito', 'Quem aprova crédito'],
                 ['inadimplencia', 'Quem aprova inadimplência'],
               ] as const
             ).map(([campo, rotulo]) => (
-              <SelectField key={campo} label={rotulo} value={form[campo]} disabled={!podeGerenciar} onChange={(e) => setForm({ ...form, [campo]: e.target.value as NivelAprovacao })} data-testid={`alcadas.aprovador-${campo}`}>
-                {NIVEIS_APROVACAO.map((n) => (
-                  <option key={n} value={n}>
-                    {ROTULO_NIVEL[n]}
-                  </option>
-                ))}
-              </SelectField>
+              <div key={campo} className="grid min-h-14 grid-cols-[minmax(0,1fr)_300px] items-center gap-4">
+                <label htmlFor={`alcadas-aprovador-${campo}`} className="text-[15px] font-semibold">
+                  {rotulo}
+                </label>
+                <select
+                  id={`alcadas-aprovador-${campo}`}
+                  className={`${CLASSE_CAMPO_BASE} h-11 w-[300px] px-3 text-[15px]`}
+                  value={form[campo]}
+                  disabled={!podeGerenciar}
+                  onChange={(e) => setForm({ ...form, [campo]: e.target.value as NivelAprovacao })}
+                  data-testid={`alcadas.aprovador-${campo}`}
+                >
+                  {NIVEIS_APROVACAO.map((n) => (
+                    <option key={n} value={n}>
+                      {ROTULO_NIVEL[n]}
+                    </option>
+                  ))}
+                </select>
+              </div>
             ))}
           </div>
           {podeGerenciar && (
-            <div className="flex gap-2">
+            <div className="flex justify-end gap-2">
               <Button variant="secondary" disabled={!houveMudanca(form, atual)} onClick={() => setForm(atual)} data-testid="alcadas.aprovadores-descartar">
                 Descartar
               </Button>

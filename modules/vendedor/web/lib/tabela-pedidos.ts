@@ -35,8 +35,8 @@ export const COLUNAS_DA_TABELA: readonly ColunaPedido[] = [
   { id: 'valor', titulo: 'Valor', numero: true, largura: 104 },
   { id: 'motivo', titulo: 'Motivo', largura: 116 },
   { id: 'observacao', titulo: 'Observação do pedido', largura: 170 },
-  { id: 'acoes', titulo: 'Ações', fixa: 'direita', largura: 300 },
   { id: 'situacao', titulo: 'Situação', fixa: 'direita', largura: 172 },
+  { id: 'acoes', titulo: 'Ações', fixa: 'direita', largura: 300 },
 ];
 
 const ROTULO_MOTIVO: Record<MotivoAprovacao, string> = { desconto: 'Desconto', credito: 'Crédito', inadimplencia: 'Inadimplente', estoque: 'Estoque', preco_minimo: 'Preço mínimo' };

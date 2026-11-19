@@ -2,7 +2,7 @@
 
 import { type CSSProperties, useState } from 'react';
 import { formatBRL } from '@macuxi/comum';
-import { Button, CLASSE_CAMPO_BASE, SeloSituacao } from '@macuxi/ui/web';
+import { Button, CLASSE_CAMPO_BASE, nomeLegivel, SeloSituacao } from '@macuxi/ui/web';
 import type { NoticeTone } from '@macuxi/ui/web';
 import type { Order } from '../../../contracts';
 import { ACOES_DO_PENDENTE, acoesDoPedido, COLUNAS_DA_TABELA, type ColunaPedido, motivoDoPedido, SEM_VALOR, textoOuTraco } from '../../lib/tabela-pedidos';
@@ -22,7 +22,7 @@ function estiloDaColuna(c: ColunaPedido): CSSProperties | undefined {
 /** Sombra só na borda das fixas que encostam nas colunas que rolam (a última da esquerda e a primeira da direita). */
 function sombraDaColuna(c: ColunaPedido): string {
   if (c.id === 'cliente') return 'shadow-[8px_0_8px_-8px_rgba(22,32,42,0.25)]';
-  if (c.id === 'acoes') return 'shadow-[-8px_0_8px_-8px_rgba(22,32,42,0.25)]';
+  if (c.id === 'situacao') return 'shadow-[-8px_0_8px_-8px_rgba(22,32,42,0.25)]';
   return '';
 }
 
@@ -48,7 +48,7 @@ function AcoesDoPendente({ pedido, onFeito }: { pedido: Order; onFeito: (tom: No
     <div className="flex items-center gap-1.5">
       <select
         aria-label="Ação do pedido"
-        className={`${CLASSE_CAMPO_BASE} h-9 w-[196px] rounded-lg px-2.5 text-[15px]`}
+        className={`${CLASSE_CAMPO_BASE} h-[38px] w-[196px] rounded-[10px] px-2.5 text-[15px]`}
         value={escolhida}
         onChange={(e) => setEscolhida(e.target.value)}
         disabled={ocupado}
@@ -85,7 +85,7 @@ export function TabelaPedidos({ pedidos, tz, dataCurta, onAbrir, onFeito }: { pe
   const celula = (id: string, o: Order) => {
     switch (id) {
       case 'codigo': return <span className="tabular-nums">{textoOuTraco(o.customer_code)}</span>;
-      case 'cliente': return o.customer_name;
+      case 'cliente': return nomeLegivel(o.customer_name);
       case 'uf': return <Vazio texto={textoOuTraco(o.customer_uf)} />;
       case 'cidade': return <Vazio texto={textoOuTraco(o.customer_city)} />;
       case 'numero': return <span className="tabular-nums">{o.number || SEM_VALOR}</span>;

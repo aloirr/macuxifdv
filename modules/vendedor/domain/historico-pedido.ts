@@ -79,14 +79,20 @@ export function eventosDoOrcamento(
 const ROTULO_ETAPA_MOTIVO: Record<MotivoAprovacao, string> = { desconto: 'Desconto', credito: 'Crédito', inadimplencia: 'Inadimplente', estoque: 'Estoque', preco_minimo: 'Preço mínimo' };
 
 /**
- * T-0184 (P3 B, prancha 02): com uma aprovação por motivo, a etapa "Em aprovação" do Histórico vira uma por motivo ainda pendente
- * ("Em aprovação · Crédito"), cada motivo uma vez. As outras etapas ficam como estão. Sem motivos, nada muda.
+ * T-0184 (P3 B, prancha 02, MC-1760): a etapa "Em aprovação" do Histórico vira uma por motivo ainda pendente, SEM data
+ * ("Em aprovação · Crédito"), e cada motivo já aprovado entra logo antes dela como "Aprovado · <motivo>" (tom sucesso).
+ * Cada motivo aparece uma vez. As outras etapas ficam como estão. Sem motivos pendentes, nada muda.
  */
-export function tagsPorMotivoPendente<T extends { id: string; rotulo: string; texto: string; leitura: string }>(tags: readonly T[], motivosPendentes: readonly MotivoAprovacao[]): T[] {
+export function tagsPorMotivoPendente<T extends { id: string; rotulo: string; texto: string; leitura: string; tom: string }>(
+  tags: readonly T[],
+  motivosPendentes: readonly MotivoAprovacao[],
+  motivosAprovados: readonly MotivoAprovacao[] = [],
+): T[] {
   if (motivosPendentes.length === 0) return [...tags];
-  return tags.flatMap((t) =>
-    t.rotulo === 'Em aprovação'
-      ? motivosPendentes.map((m) => ({ ...t, id: `${t.id}-${m}`, rotulo: `${t.rotulo} · ${ROTULO_ETAPA_MOTIVO[m]}`, texto: t.texto.replace(t.rotulo, `${t.rotulo} · ${ROTULO_ETAPA_MOTIVO[m]}`), leitura: t.leitura.replace(t.rotulo, `${t.rotulo}, ${ROTULO_ETAPA_MOTIVO[m]}`) }))
-      : [t],
-  );
+  return tags.flatMap((t) => {
+    if (t.rotulo !== 'Em aprovação') return [t];
+    const aprovadas = motivosAprovados.map((m) => ({ ...t, id: `${t.id}-aprovado-${m}`, rotulo: 'Aprovado', texto: `Aprovado · ${ROTULO_ETAPA_MOTIVO[m]}`, leitura: `Aprovado, ${ROTULO_ETAPA_MOTIVO[m]}`, tom: 'sucesso' }));
+    const pendentes = motivosPendentes.map((m) => ({ ...t, id: `${t.id}-${m}`, rotulo: `${t.rotulo} · ${ROTULO_ETAPA_MOTIVO[m]}`, texto: `${t.rotulo} · ${ROTULO_ETAPA_MOTIVO[m]}`, leitura: `${t.rotulo}, ${ROTULO_ETAPA_MOTIVO[m]}` }));
+    return [...aprovadas, ...pendentes];
+  });
 }

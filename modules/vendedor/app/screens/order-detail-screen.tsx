@@ -466,8 +466,11 @@ export default function OrderDetailScreen() {
   const motivoDoFechamento = [...eventosDoHistorico].reverse().find((e) => ['rejected', 'cancelled'].includes(e.status) && e.motivo)?.motivo ?? null;
   const eventosSemMotivo = eventosDoHistorico.map((e) => (['rejected', 'cancelled'].includes(e.status) ? { ...e, motivo: null } : e));
   // T-0184 (P3 B, prancha 02): uma etapa "Em aprovação" por motivo ainda pendente (os motivos vêm do pull, vale offline)
-  const motivosPendentes = !queued && !ehOrc && base?.status === 'pending_approval' ? (base.approval_reasons ?? []) : [];
-  const tagsDoDetalhe = tagsPorMotivoPendente(tagsDoHistorico(eventosSemMotivo, { tipo: ehOrc ? 'orcamento' : 'pedido', tz, agora: agoraTela }), motivosPendentes);
+  const emAprovacao = !queued && !ehOrc && base?.status === 'pending_approval';
+  const aprovacoesDoPedido = emAprovacao ? (base?.aprovacoes ?? []) : [];
+  const motivosPendentes = emAprovacao ? (aprovacoesDoPedido.length > 0 ? aprovacoesDoPedido.filter((a) => a.estado === 'pendente').map((a) => a.motivo) : (base?.approval_reasons ?? [])) : [];
+  const motivosAprovados = aprovacoesDoPedido.filter((a) => a.estado === 'aprovada').map((a) => a.motivo);
+  const tagsDoDetalhe = tagsPorMotivoPendente(tagsDoHistorico(eventosSemMotivo, { tipo: ehOrc ? 'orcamento' : 'pedido', tz, agora: agoraTela }), motivosPendentes, motivosAprovados);
   const modalidade = queued ? (queued.payload.frete?.modalidade ?? null) : (base?.freight?.modality ?? null);
   const transportadora = (() => {
     if (queued) {
