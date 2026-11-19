@@ -31,6 +31,8 @@ import { CheckoutPendenciaPanel } from './components/metas/checkout-pendencia-pa
 import { InicioParametrosPanel } from './components/metas/inicio-parametros-panel';
 import { DescontoPadraoPanel } from './components/produtos/desconto-padrao-panel';
 import { MedidasParametrosPanel } from './components/produtos/medidas-parametros-panel';
+import { AusenciasPanel } from './components/rastreamento/ausencias-panel';
+import { RastreamentoParametrosPanel } from './components/rastreamento/rastreamento-parametros-panel';
 import { RoutesPage } from './components/routes/routes-page';
 
 /** A página de rotas lê filtros da URL (`useSearchParams`), que no Next exige Suspense. */
@@ -58,6 +60,9 @@ export const moduloWeb = definirModuloShell<ComponentType>({
     { id: 'etapa-pendente', secao: 'visitas', titulo: 'Etapa pendente', ordem: 50, acao: 'parametro.checkout_pendencia', componente: CheckoutPendenciaPanel },
     { id: 'calendario', secao: 'calendario', titulo: 'Feriados', ordem: 10, acao: 'parametro.inicio', componente: CalendarioPage },
     { id: 'almoco', secao: 'calendario', titulo: 'Almoço', ordem: 20, acao: 'parametro.inicio', componente: AlmocoPadraoPanel },
+    // T-0156 (ADR 0061; RN-CORE-13): rastreamento no expediente — ligar, expediente e frequência (admin) e ausências (supervisor, gerente, admin)
+    { id: 'rastreamento', secao: 'calendario', titulo: 'Rastreamento no expediente', ordem: 30, acao: 'rastreamento.configurar', componente: RastreamentoParametrosPanel },
+    { id: 'ausencias', secao: 'calendario', titulo: 'Ausências', ordem: 50, acao: 'ausencia.cadastrar', componente: AusenciasPanel },
     { id: 'desconto', secao: 'produtos', titulo: 'Desconto máximo padrão', ordem: 10, acao: 'produto.parametros', componente: DescontoPadraoPanel },
     { id: 'medidas', secao: 'produtos', titulo: 'Medidas', ordem: 20, acao: 'produto.editar_preco', componente: MedidasParametrosPanel },
     { id: 'promotor-pedidos', secao: 'acesso', titulo: 'Promotor vê pedidos', ordem: 50, acao: 'parametro.promotor_ve_pedidos', componente: PromotorPedidosPanel },

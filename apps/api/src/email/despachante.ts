@@ -15,7 +15,7 @@
  * Log: só `email_id`, `tenant_id`, `modelo`, `tentativas`, `codigo` (e `codigo_smtp`/`etapa`) — nunca e-mail, nome ou senha;
  * `ultimo_erro` só leva o código (`EMAIL_*`), nunca o texto do servidor SMTP.
  */
-import type { EnderecoEmail, LogRota, ModeloEmail, TransporteEmail } from '@macuxi/platform-sdk';
+import type { EnderecoEmail, LogRota, ModeloEmail, OpcoesApresentacaoEmail, TransporteEmail } from '@macuxi/platform-sdk';
 import { CODIGOS_EMAIL, renderizarEmail, renderizarEmailParaLog, renderizarEmailSemSenha } from '@macuxi/platform-sdk';
 import type pg from 'pg';
 import type { CifraEmail } from './cifra';
@@ -38,6 +38,8 @@ export interface OpcoesDespachanteEmail {
   transporte: TransporteEmail;
   cifra: CifraEmail;
   remetente: EnderecoEmail;
+  /** Logo e botão do backoffice (`ConfigEmail.apresentacao`); ausente = sem logo (texto alternativo) e sem botão. */
+  apresentacao?: OpcoesApresentacaoEmail;
   log: LogRota;
   agora?: () => Date;
   /** E-mails por ciclo (padrão 10), cada um na sua transação. */
@@ -85,6 +87,7 @@ export function criarDespachanteEmail(op: OpcoesDespachanteEmail) {
   const maxTentativas = op.maxTentativas ?? MAX_TENTATIVAS_EMAIL_PADRAO;
   const espera = op.espera ?? esperaEmailPadrao;
   const log = op.log ?? semLog;
+  const apresentacao = op.apresentacao ?? {};
 
   /** Um e-mail numa transação. `null` = não havia pendente. */
   async function umEmail(): Promise<'enviado' | 'adiado' | 'falhou' | null> {
@@ -111,15 +114,15 @@ export function criarDespachanteEmail(op: OpcoesDespachanteEmail) {
       if (!l.carga) return await falhar(new ErroEmail(CODIGOS_EMAIL.CIFRA_INVALIDA, 'linha pendente sem carga', { retentavel: false, etapa: 'cifra' }), 'error');
       try {
         const carga = op.cifra.decifrar(l.carga, { id: l.id, tenant_id: l.tenant_id, modelo: l.modelo });
-        const r = renderizarEmail(l.modelo, carga);
+        const r = renderizarEmail(l.modelo, carga, apresentacao);
         const { idMensagem } = await op.transporte.entregar({
           idEnvio: l.id,
           modelo: l.modelo,
           de: op.remetente,
           para: carga.dados.nome ? { email: carga.para, nome: carga.dados.nome } : { email: carga.para },
           ...r,
-          paraLog: renderizarEmailParaLog(l.modelo, carga),
-          semSenha: renderizarEmailSemSenha(l.modelo, carga),
+          paraLog: renderizarEmailParaLog(l.modelo, carga, apresentacao),
+          semSenha: renderizarEmailSemSenha(l.modelo, carga, apresentacao),
         });
         await c.query(SQL_ENVIADO, [l.id, agora]);
         await c.query('commit');

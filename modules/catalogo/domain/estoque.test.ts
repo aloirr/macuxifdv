@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EstoqueVisivel } from '../contracts';
-import { AVISO_ESTOQUE_DESATUALIZADO, faixaDeEstoque, estoqueVisivel, filiaisDoEstoque, rotuloAtualizacaoEstoque } from './estoque';
+import { faixaDeEstoque, estoqueVisivel } from './estoque';
 import { PARAMETROS_PADRAO, resolverParametros } from './parametros';
 
 const AGORA = '2026-10-31T15:00:00Z';
@@ -43,9 +43,34 @@ describe('RF-CAT-03 / RN-VEN-20: estoque visível por filial/depósito do usuár
     expect(r.by_branch.map((b) => [b.branch_id, b.band])).toEqual([['f1', 'sem_estoque'], ['f2', 'baixo']]);
   });
 
-  it('RF-CAT-03: saldo negativo do ERP conta como zero na soma', () => {
-    expect(ver([saldo('f1', -3), saldo('f2', 8)], null)).toMatchObject({ quantity: 8 });
-    expect(ver([saldo('f1', -3)], null)).toMatchObject({ quantity: 0, band: 'sem_estoque' });
+  it('catalogo-campo-v2 §2.1: saldo negativo do ERP aparece com o sinal (a faixa é "sem estoque") e entra na soma', () => {
+    expect(ver([saldo('f1', -3), saldo('f2', 8)], null)).toMatchObject({ quantity: 5, band: 'baixo' });
+    expect(ver([saldo('f1', -3)], null)).toMatchObject({ quantity: -3, band: 'sem_estoque' });
+    expect(ver([saldo('f1', -3)], null).by_branch[0]).toMatchObject({ quantity: -3, band: 'sem_estoque' });
+  });
+
+  it('R-20261115-104500 (item 4) e RN-CORE-39: o total soma só as filiais do N; a folha lista só as filiais de venda da folha, nunca outra', () => {
+    const r = estoqueVisivel('p1', [saldo('f1', 5), saldo('f2', 7), saldo('f3', 9)], { filiais: ['f1'], filiaisFolha: ['f1', 'f2'], agora: '2026-11-01T12:00:00Z', parametros: resolverParametros({}) });
+    expect(r.quantity).toBe(5);
+    expect(r.by_branch.map((b) => [b.branch_id, b.quantity])).toEqual([['f1', 5], ['f2', 7]]);
+    expect(r.by_branch.map((b) => b.branch_id)).not.toContain('f3');
+  });
+
+  it('RN-CORE-39 e catalogo-campo-v2 §2.1: filial de venda SEM linha de saldo aparece na folha com estoque 0 (o N continua a soma)', () => {
+    const r = estoqueVisivel('p1', [saldo('f1', 5)], { filiais: ['f1', 'f2'], filiaisFolha: ['f1', 'f2'], nomesFilial: { f2: 'Manaus' }, agora: '2026-11-01T12:00:00Z', parametros: resolverParametros({}) });
+    expect(r.quantity).toBe(5);
+    expect(r.by_branch.map((b) => [b.branch_id, b.branch_name, b.quantity, b.band])).toEqual([['f1', 'Filial f1', 5, 'baixo'], ['f2', 'Manaus', 0, 'sem_estoque']]);
+  });
+
+  it('RN-CORE-39: produto sem nenhum saldo e com filiais de venda lista todas com 0; sem filial nenhuma a folha fica vazia', () => {
+    const p = resolverParametros({});
+    expect(estoqueVisivel('p1', [], { filiais: ['f1', 'f2'], agora: '2026-11-01T12:00:00Z', parametros: p }).by_branch.map((b) => [b.branch_id, b.quantity])).toEqual([['f1', 0], ['f2', 0]]);
+    expect(estoqueVisivel('p1', [], { filiais: [], agora: '2026-11-01T12:00:00Z', parametros: p }).by_branch).toEqual([]);
+  });
+
+  it('catalogo-campo-v2 §2.1: a filial de cadastro vem primeiro e as outras de venda em ordem alfabética', () => {
+    const r = estoqueVisivel('p1', [saldo('b', 1), saldo('m', 2), saldo('v', 3)], { filiais: ['b', 'm', 'v'], filialCadastro: 'v', nomesFilial: {}, agora: '2026-11-01T12:00:00Z', parametros: resolverParametros({}) });
+    expect(r.by_branch.map((b) => b.branch_id)).toEqual(['v', 'b', 'm']);
   });
 
   it('RF-CAT-03: linhas repetidas da mesma filial somam', () => {
@@ -113,7 +138,6 @@ describe('RN-CAT-07: estoque baixo, zerado e desatualizado (padrões parametriz�
   it('RN-CAT-07: depois de 24 h sem atualizar é "desatualizado" e continua trazendo o instante da atualização', () => {
     const r = ver([saldo('f1', 30, '2026-10-30T14:00:00Z')], null);
     expect(r).toMatchObject({ band: 'disponivel', quantity: 30, stale: true, updated_at: '2026-10-30T14:00:00.000Z' });
-    expect(AVISO_ESTOQUE_DESATUALIZADO).toBe('Estoque desatualizado');
   });
 
   it('RN-CAT-07: o resultado sempre traz o instante da atualização quando há saldo com hora (fresco, baixo, zerado ou desatualizado)', () => {
@@ -124,15 +148,6 @@ describe('RN-CAT-07: estoque baixo, zerado e desatualizado (padrões parametriz�
     }
   });
 
-  it('RN-CAT-07: "atualizado às hh:mm" no fuso do tenant; em outro dia, com a data', () => {
-    // 14:30Z = 10:30 em Manaus (UTC−4); a consulta é às 15:00Z (11:00 em Manaus, mesmo dia)
-    expect(rotuloAtualizacaoEstoque(ver([saldo('f1', 5, '2026-10-31T14:30:00Z')], null), AGORA, 'America/Manaus')).toBe('Atualizado às 10:30');
-    expect(rotuloAtualizacaoEstoque(ver([saldo('f1', 5, '2026-10-31T14:30:00Z')], null), AGORA, 'UTC')).toBe('Atualizado às 14:30');
-    // 30/10 às 23:00 em Manaus (31/10 03:00Z) é o dia anterior no fuso do tenant
-    expect(rotuloAtualizacaoEstoque(ver([saldo('f1', 5, '2026-10-31T03:00:00Z')], null), AGORA, 'America/Manaus')).toBe('Atualizado em 30/10 às 23:00');
-    expect(rotuloAtualizacaoEstoque(ver([saldo('f1', 5, null)], null), AGORA, 'America/Manaus')).toBe('Sem hora de atualização');
-  });
-
   it('RN-CAT-07: os três padrões são parâmetros do tenant', () => {
     const p = resolverParametros({ estoque_baixo_ate: 3, estoque_mostrar_quantidade: false, estoque_defasado_horas: 2 });
     const r = ver([saldo('f1', 5, '2026-10-31T12:30:00Z')], null, p);
@@ -141,20 +156,15 @@ describe('RN-CAT-07: estoque baixo, zerado e desatualizado (padrões parametriz�
 });
 
 describe('RN-CORE-39: estoque da filial do cliente (T-0149)', () => {
-  it('RN-CORE-39: com cliente no contexto vale só a filial dele, mesmo para perfil de escopo do tenant', () => {
-    expect(filiaisDoEstoque({ filialDoCliente: 'f2', escopo: 'tenant', filiaisDaCarteira: ['f1'] })).toEqual(['f2']);
-    const r = ver([saldo('f1', 50), saldo('f2', 7)], filiaisDoEstoque({ filialDoCliente: 'f2', escopo: 'carteira', filiaisDaCarteira: ['f1', 'f2'] }));
+  it('RN-CORE-39: com cliente no contexto vale só a filial dele', () => {
+    const r = ver([saldo('f1', 50), saldo('f2', 7)], ['f2']);
     expect(r).toMatchObject({ quantity: 7, band: 'baixo' });
     expect(r.by_branch.map((b) => b.branch_id)).toEqual(['f2']);
   });
 
-  it('RN-CORE-39: sem registro na filial do cliente o estoque é 0 (nunca o da padrão)', () => {
-    const r = ver([saldo('f1', 50)], filiaisDoEstoque({ filialDoCliente: 'f2', escopo: 'carteira', filiaisDaCarteira: ['f1', 'f2'] }));
-    expect(r).toMatchObject({ quantity: 0, band: 'sem_estoque', by_branch: [] });
-  });
-
-  it('RN-CORE-39: sem cliente, vendedor e supervisor veem as filiais da carteira; analista, assistente e admin veem todas', () => {
-    expect(filiaisDoEstoque({ filialDoCliente: null, escopo: 'carteira', filiaisDaCarteira: ['f1', 'f2'] })).toEqual(['f1', 'f2']);
-    expect(filiaisDoEstoque({ filialDoCliente: null, escopo: 'tenant', filiaisDaCarteira: null })).toBeNull();
+  it('RN-CORE-39: sem registro na filial do cliente o estoque é 0 (nunca o da padrão), e a filial aparece com 0', () => {
+    const r = ver([saldo('f1', 50)], ['f2']);
+    expect(r).toMatchObject({ quantity: 0, band: 'sem_estoque' });
+    expect(r.by_branch.map((b) => [b.branch_id, b.quantity])).toEqual([['f2', 0]]);
   });
 });

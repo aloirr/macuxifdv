@@ -59,4 +59,16 @@ describe('campo de senha com olho (CampoSenha do kit)', () => {
     expect(html).toContain('aria-label="Mostrar senha"');
     expect(html).not.toContain('Esconder senha');
   });
+
+  it('T-0185: a senha do login do BKO e do Entrar do portal vai sem maiúscula automática nem corretor', () => {
+    for (const [html, id] of [
+      [renderToStaticMarkup(<LoginScreen />), 'login.senha'],
+      [renderToStaticMarkup(<TelaEntrar />), 'entrar.senha'],
+    ] as const) {
+      const input = html.match(new RegExp(`<input[^>]*data-testid="${id}"[^>]*>`))?.[0] ?? '';
+      expect(input).toContain('autoCapitalize="none"');
+      expect(input).toContain('autoCorrect="off"');
+      expect(input).toContain('spellCheck="false"');
+    }
+  });
 });

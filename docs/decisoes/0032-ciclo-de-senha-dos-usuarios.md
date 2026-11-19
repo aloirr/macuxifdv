@@ -71,3 +71,22 @@ e a recusa de perfil no BKO é só do shell (a API aceita o supervisor em vária
 - Convites pendentes da Equipe por CSV são revogados pela 0040; essas pessoas recebem acesso por "Enviar acesso" ou "Esqueci a senha".
 - Sem SMTP configurado, a criação de usuário no BKO funciona (o admin passa a senha) e a Equipe por CSV recusa gravar (503).
 - O dono do produto precisa criar os secrets `MACUXI_SMTP_*` da demo e da produção (lista no desenho da N5).
+
+## Adendo de 2026-11-19 — layout dos e-mails e endereços públicos (logo e backoffice)
+- **Contexto:** o dono do produto aprovou o layout novo dos e-mails de senha (R-20261114-202700, assinatura A e modo escuro;
+  spec `docs/design/emails/redefinir-senha.md`). O e-mail passa a ter logo (PNG servido por HTTPS, sem anexo CID) e, para quem
+  entra no backoffice, o botão "Abrir o backoffice".
+- **Decisão:** `renderizarEmail`, `renderizarEmailParaLog` e `renderizarEmailSemSenha` (`packages/platform-sdk/src/email/modelos.ts`)
+  recebem as opções de apresentação `{ urlLogo, urlLogoEscuro, urlBackoffice }`, que vêm da configuração da API e não da carga
+  cifrada. Duas variáveis opcionais, **sem segredo**, em `apps/api/src/email/config.ts`:
+  - `MACUXI_EMAIL_URL_ATIVOS`: base HTTPS pública dos PNG `macuxi-logo-positivo-email.png` e `macuxi-logo-negativo-email.png`
+    (publicados pelo BKO em `apps/web/public/email/`). Sem ela, o e-mail sai só com o texto alternativo do logo
+    ("Macuxi Força de Vendas"), e a subida avisa.
+  - `MACUXI_EMAIL_URL_BKO`: endereço HTTPS do backoffice. Sem ela, não há botão (o título já diz onde entrar).
+  Recusadas: endereço inválido, fora de http(s), com usuário/senha e, em produção, sem https. Os valores aparecem no log da
+  subida (`url_ativos`, `url_bko`), porque são públicos.
+- **Alternativas:** logo embutido (CID, `multipart/related`): e-mail maior, mais código no `mime.ts` e mais chance de cair no
+  spam. Recusada. Logo em `data:` URI: o Gmail e o Outlook bloqueiam. Recusada.
+- **Consequências:** **para o e-mail ter logo em produção, `MACUXI_EMAIL_URL_ATIVOS` precisa estar configurada** no ambiente da
+  API e do worker (hoje o `email.env` do `producao-publicar.yml` só leva as `MACUXI_SMTP_*`), e os dois PNG precisam estar
+  publicados (lote 8 da marca).

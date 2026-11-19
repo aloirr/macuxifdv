@@ -17,7 +17,7 @@ export interface LinhaDoCredito {
   valor: string;
 }
 export interface TabelaDoCredito {
-  /** `carregando`: barras no lugar dos valores; `tabela`: as 3 linhas (RD-0178: sem dado ou consulta indisponível, o "—" diz; sem frase) */
+  /** `carregando`: barras no lugar dos valores; `tabela`: as 2 linhas (RD-0178: sem dado ou consulta indisponível, o "—" diz; sem frase) */
   estado: 'carregando' | 'tabela';
   linhas: LinhaDoCredito[];
 }
@@ -29,24 +29,15 @@ const dinheiroComSinal = (cents: number) => (cents < 0 ? `−${formatBRL(-cents)
 /**
  * RN-VEN-12 / RF-VEN-11 (T-0141 A, docs/design/pedido-v3.md §A): o crédito da aba Venda em tabela. `credito`: `undefined` = lendo do
  * aparelho (barras, nunca "R$ 0,00"); `null` = consulta indisponível (sem tabela); `vazio` = Limite e Disponível com "—" e 
- * nenhuma frase (RD-0178). O Prazo médio sem dado também fica com "—": a forma da tabela não muda de um cliente para outro.
+ * nenhuma frase (RD-0178).
  */
-export function tabelaDoCredito(c: ModeloDoCredito | null | undefined, prazoMedioDias: number | null | undefined): TabelaDoCredito {
-  const prazo = textoDoPrazoMedio(prazoMedioDias) ?? SEM_DADO;
+export function tabelaDoCredito(c: ModeloDoCredito | null | undefined): TabelaDoCredito {
   const dados = c?.tipo === 'dados' ? c : null; // `null` (consulta indisponível) e `vazio` ficam com "—"
   const linhas: LinhaDoCredito[] = [
     { id: 'limite', rotulo: 'Limite', valor: dados ? formatBRL(dados.limite_cents) : SEM_DADO },
     { id: 'disponivel', rotulo: 'Disponível', valor: dados ? dinheiroComSinal(dados.disponivel_cents) : SEM_DADO },
-    { id: 'prazo', rotulo: 'Prazo médio', valor: prazo },
   ];
   return { estado: c === undefined ? 'carregando' : 'tabela', linhas };
-}
-
-/** "45 dias" / "1 dia"; `null` = o cadastro não traz prazo médio (a linha some). */
-export function textoDoPrazoMedio(dias: number | null | undefined): string | null {
-  if (typeof dias !== 'number' || !Number.isFinite(dias) || dias < 0) return null;
-  const d = Math.trunc(dias);
-  return `${d} ${d === 1 ? 'dia' : 'dias'}`;
 }
 
 // ---------- Resumo (RF-VEN-11, T-0137; docs/design/pedido-v2.md §2.1) ----------

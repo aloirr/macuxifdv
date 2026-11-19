@@ -4,6 +4,7 @@
  */
 import type { TomEstado } from '@macuxi/ui/mobile/puro';
 import type { ItemVitrine } from '../../contracts';
+import { chipDoEstoque } from '../../domain/estoque-campo';
 import { MENSAGEM_SEM_PRECO_CATALOGO } from '../../domain/vitrine';
 import { textoEquivaleA, type RotuloPreco } from './apresentacao';
 import { filhosDe, produtosDoNo, trilhaDe, type Arvore, type NoCatalogo, type VinculoProdutoNo } from '../../domain/arvore';
@@ -38,17 +39,16 @@ export function produtosDoFiltro(a: Arvore, vinculos: readonly VinculoProdutoNo[
 export interface TagEstoque {
   texto: string;
   tom: TomEstado;
+  /** Frase do leitor de tela (`chipDoEstoque`). */
+  leitura: string;
 }
 
-/** Tag única de estoque do cartão (spec §4); `null` = o perfil não vê estoque (RN-CAT-05). */
-export function tagDeEstoque(item: Pick<ItemVitrine, 'availability' | 'price_stock_visible'>, opcoes: { filialDoCliente?: boolean } = {}): TagEstoque | null {
-  const a = item.availability;
-  if (!item.price_stock_visible || !a) return null;
-  if (a.by_branch.length === 0) return opcoes.filialDoCliente ? { texto: 'Sem estoque', tom: 'erro' } : { texto: 'Estoque sem informação', tom: 'neutro' };
-  if (a.band === 'sem_estoque') return { texto: 'Sem estoque', tom: 'erro' };
-  const baixo = a.band === 'baixo';
-  if (a.quantity === null) return { texto: baixo ? 'Pouco estoque' : 'Em estoque', tom: baixo ? 'aviso' : 'sucesso' };
-  return { texto: `${a.quantity.toLocaleString('pt-BR')} em estoque`, tom: baixo ? 'aviso' : 'sucesso' };
+/**
+ * spec §3 (catálogo v2): chip `Estoque: N` do cartão (N = a soma das filiais do contexto; "999+" acima de 999), verde acima de 0 e
+ * vermelho em 0 ou menos. Todo perfil vê o estoque (o promotor também); `null` só sem filial de venda (estoque nulo, RN-CORE-39).
+ */
+export function tagDeEstoque(item: Pick<ItemVitrine, 'availability'>): TagEstoque | null {
+  return item.availability ? chipDoEstoque(item.availability, true) : null;
 }
 
 /** Contagem do cabeçalho: "40 produtos", "1 produto". */

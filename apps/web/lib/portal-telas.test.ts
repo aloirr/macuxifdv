@@ -1,5 +1,6 @@
 /** T-0087/T-0093: partes puras das telas do portal (passo Empresa com o administrador inicial, entrada, aba Integração). */
 import { describe, expect, it } from 'vitest';
+import { mensagemBloqueioPorTentativas, mensagemMuitasTentativas } from '@macuxi/core/contracts';
 import { ENTIDADES } from '@macuxi/integracao/contracts';
 import { CriarEmpresaSchema } from '@macuxi/platform-sdk';
 
@@ -119,8 +120,12 @@ describe('entrada só com e-mail e senha (T-0093; spec portal-entrar §1 e §4)'
     expect(mensagemDoLoginPortal(new ErroPortal(401, 'CREDENCIAIS_INVALIDAS', 'qualquer'))).toBe(TEXTOS_ENTRAR.credenciais);
   });
   it('423 (também para e-mail inexistente), 429, 503 e sem rede', () => {
-    expect(mensagemDoLoginPortal(new ErroPortal(423, 'BLOQUEADO', 'Acesso bloqueado por tentativas erradas.'))).toBe('Muitas tentativas erradas. Espere 15 minutos e tente de novo.');
-    expect(mensagemDoLoginPortal(new ErroPortal(429, 'LIMITE', 'x'))).toBe('Muitas tentativas deste endereço. Espere alguns minutos e tente de novo.');
+    // RN-CORE-01 (T-0185): os textos do contrato do Core; 423 sem `minutos_restantes` = 15 min; 429 com a espera real
+    expect(mensagemDoLoginPortal(new ErroPortal(423, 'BLOQUEADO', 'Acesso bloqueado por tentativas erradas.'))).toBe('Muitas tentativas. Tente de novo em 15 minutos.');
+    expect(mensagemDoLoginPortal(new ErroPortal(423, 'BLOQUEADO', 'x', { minutos_restantes: 4 }))).toBe(mensagemBloqueioPorTentativas(4));
+    expect(mensagemDoLoginPortal(new ErroPortal(400, 'BLOQUEADO', 'x'))).toBe(mensagemBloqueioPorTentativas());
+    expect(mensagemDoLoginPortal(new ErroPortal(429, 'MUITAS_TENTATIVAS', 'x', { retry_after_s: 240 }))).toBe('Muitas tentativas. Tente de novo em 4 minutos.');
+    expect(mensagemDoLoginPortal(new ErroPortal(429, 'MUITAS_TENTATIVAS', 'x'))).toBe(mensagemMuitasTentativas());
     expect(mensagemDoLoginPortal(new ErroPortal(503, 'PORTAL_INDISPONIVEL', 'x'))).toBe(MENSAGEM_PORTAL_SEM_SEGREDOS);
     expect(mensagemDoLoginPortal(new ErroPortal(0, 'sem_conexao', MENSAGEM_SEM_CONEXAO))).toBe(MENSAGEM_SEM_CONEXAO);
   });

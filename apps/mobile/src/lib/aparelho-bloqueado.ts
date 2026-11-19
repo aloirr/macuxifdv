@@ -23,6 +23,8 @@ export function chavesDoAparelhoBloqueado(todas: readonly string[]): string[] {
 export interface FontesAparelhoBloqueado {
   /** Motor aberto da sessão atual (ou `null`, ex.: no login). */
   motor(): { limparAparelho(): Promise<void> } | null;
+  /** T-0156 (tracking §3.4): para a captura do trajeto antes de apagar (nenhum lote chega a um banco apagado). Nunca lança. */
+  pararCaptura(): Promise<void>;
   /**
    * T-0088 (desenho §3): fecha e apaga os bancos SQLite de TODOS os usuários que entraram no aparelho
    * (`ARQUIVO_DE_USUARIO_RE` do SDK), depois da limpeza do motor.
@@ -43,8 +45,9 @@ export interface FontesAparelhoBloqueado {
 export function acoesDoAparelhoBloqueado(f: FontesAparelhoBloqueado): AcoesAparelhoBloqueado {
   return {
     async apagarDadosLocais() {
-      // 1º o motor (fila, linhas, cursores e o estado em memória numa transação quando o adaptador sabe); depois os bancos
-      // de todos os usuários e a varredura das chaves (leva o espelho `fv:u:<id>:armazenamento`)
+      // 1º a captura do trajeto; depois o motor (fila, linhas, cursores e o estado em memória numa transação quando o
+      // adaptador sabe), os bancos de todos os usuários e a varredura das chaves (leva o espelho `fv:u:<id>:armazenamento`)
+      await f.pararCaptura();
       await f.motor()?.limparAparelho();
       await f.apagarBancos();
       await f.removerChaves(chavesDoAparelhoBloqueado(await f.chavesLocais()));

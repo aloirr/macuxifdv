@@ -130,6 +130,7 @@ import {
   registrarAppAberto,
   travaSync,
 } from '@/services/segundo-plano';
+import { atualizarTrajeto, pararTrajeto } from '@/services/trajeto';
 import { gravarErro } from '@/services/erros';
 import { atualizarFrasesDaCarga } from '@/services/frase-carga';
 import {
@@ -852,6 +853,8 @@ function usePlataformaValor() {
         await gravarSaidasPendentes(filaDeSaidas(await lerSaidasPendentes(), Date.now(), nova));
       }
     }
+    // T-0156 (tracking §3.4): sem sessão, a captura do trajeto para antes de o banco do usuário fechar
+    await pararTrajeto();
     await gravarTokens(null);
     const aberto = armazenamentoRef.current;
     fecharSessaoLocal();
@@ -886,6 +889,7 @@ function usePlataformaValor() {
   aparelhoBloqueadoRef.current ??= criarTratadorAparelhoBloqueado(
     {
       motor: () => motorRef.current,
+      pararCaptura: pararTrajeto,
       // T-0088: os bancos SQLite de TODOS os usuários do aparelho (fecha as instâncias abertas antes)
       apagarBancos: apagarBancosDoAparelho,
       chavesLocais: async () => [...(await AsyncStorage.getAllKeys())],
@@ -1123,19 +1127,23 @@ function usePlataformaValor() {
       sincronizar: () => executarSync({ tipo: 'leve' }),
       erro: () => motor.estado().erro,
     });
+    // a tarefa só é agendada depois da carga inicial (antes dela, a carga roda só com o app aberto)
+    let ligada = false;
     // T-0140: a tarefa não mexe em estado de React; o Diagnóstico relê o resultado dela quando o app volta ao primeiro plano
     const semVolta = AppState.addEventListener('change', (st) => {
       if (st !== 'active') return;
       void lerUltimoSegundoPlano()
         .then((r) => setSegundoPlano(r))
         .catch(() => undefined);
+      // T-0156 (tracking §3.2): na volta ao primeiro plano, com a carga feita, liga ou desliga a captura do trajeto
+      if (ligada) void atualizarTrajeto();
     });
-    // a tarefa só é agendada depois da carga inicial (antes dela, a carga roda só com o app aberto)
-    let ligada = false;
     const ligar = (sincronizadoEm: string | null) => {
       if (ligada || !sincronizadoEm) return;
       ligada = true;
       void ligarSyncEmSegundoPlano();
+      // T-0156 (tracking §3.2): na abertura, depois da carga
+      void atualizarTrajeto();
     };
     ligar(motor.estado().sincronizado_em);
     const semEstado = motor.assinar((e) => ligar(e.sincronizado_em));

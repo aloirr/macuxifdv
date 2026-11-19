@@ -181,6 +181,9 @@ const AREA_DA_ENTIDADE_DO_CORE: Readonly<Record<string, AreaPermissao>> = {
   cliente: 'clientes',
   carteira: 'clientes',
   usuario: 'usuarios',
+  // ADR 0061 (desenho tracking §7): trajeto e ausência são do usuário; `rastreamento.configurar` cai em Administração
+  trajeto: 'usuarios',
+  ausencia: 'usuarios',
 };
 
 /** Área de uma ação de módulo na página (pelo módulo; no Core, pela entidade). */

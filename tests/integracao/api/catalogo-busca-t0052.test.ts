@@ -163,34 +163,45 @@ describe.skipIf(semBanco())('T-0052 — busca do Catálogo na API real (Postgres
         expect((await licenca(api, token.adminA, 'perfil', 'catalogo', false, 'promotor')).statusCode).toBe(200);
       });
 
-      it('busca, vitrine e ficha respondem 200 sem preço nem estoque, com e sem o cliente da carteira dele', async () => {
+      it('busca, vitrine e ficha respondem 200 sem preço e com estoque (RN-CAT-05 revista), com e sem o cliente da carteira dele', async () => {
         for (const extra of ['', `&customer_id=${A.clientes.c1}`]) {
           const r = await buscar(token.promotorA, 'pastilha de freio', extra);
           expect(r.statusCode, r.body).toBe(200);
           const b = RespostaBusca.parse(r.json());
           expect(b.items.map((i) => i.erp_code)).toContain(SKU.a1);
-          for (const i of b.items) expect(i, `busca${extra}`).toMatchObject({ price_stock_visible: false, price: null, availability: null });
+          for (const i of b.items) {
+            expect(i, `busca${extra}`).toMatchObject({ price_stock_visible: false, price: null });
+            expect(i.availability, `busca${extra} ${i.erp_code}`).not.toBeNull();
+          }
         }
         const vitrine = await api.chamar(token.promotorA, { method: 'GET', url: `/v1/catalogo/produtos?limit=20&customer_id=${A.clientes.c1}` });
         expect(vitrine.statusCode, vitrine.body).toBe(200);
-        for (const i of PaginaVitrine.parse(vitrine.json()).items) expect(i).toMatchObject({ price_stock_visible: false, price: null, availability: null });
+        for (const i of PaginaVitrine.parse(vitrine.json()).items) {
+          expect(i).toMatchObject({ price_stock_visible: false, price: null });
+          expect(i.availability, `vitrine ${i.erp_code}`).not.toBeNull();
+        }
         const ficha = await api.chamar(token.promotorA, { method: 'GET', url: `/v1/catalogo/produtos/${PROD.a1}?customer_id=${A.clientes.c1}` });
         expect(ficha.statusCode, ficha.body).toBe(200);
-        expect(FichaProduto.parse(ficha.json()).product).toMatchObject({ erp_code: SKU.a1, price_stock_visible: false, price: null, availability: null });
+        const produto = FichaProduto.parse(ficha.json()).product;
+        expect(produto).toMatchObject({ erp_code: SKU.a1, price_stock_visible: false, price: null });
+        expect(produto.availability).not.toBeNull();
         // o cliente fora da carteira do promotor continua barrado
         const fora = await buscar(token.promotorA, 'pastilha', `&customer_id=${A.clientes.c2}`);
         expect([fora.statusCode, erroDe(fora).codigo]).toEqual([403, 'FORA_DA_CARTEIRA']);
       });
 
-      it('o preço e o estoque nem chegam ao aparelho dele: pull de tabela_preco_item, cliente_tabela_preco e estoque_saldo vem vazio', async () => {
-        for (const entidade of ['tabela_preco_item', 'cliente_tabela_preco', 'estoque_saldo']) {
+      it('o preço nem chega ao aparelho dele (pull de tabela_preco_item e cliente_tabela_preco vazio); o estoque_saldo chega (RN-CAT-05 revista)', async () => {
+        for (const entidade of ['tabela_preco_item', 'cliente_tabela_preco']) {
           const r = await api.chamar(token.promotorA, { method: 'GET', url: `/v1/sync/pull?entidade=${entidade}` });
           expect(r.statusCode, `${entidade}: ${r.body}`).toBe(200);
           expect(r.json().itens, entidade).toEqual([]);
         }
-        // contraprova (RN-CAT-05): o vendedor do mesmo tenant recebe as três pelo mesmo pull — senão o vazio acima seria o
-        // horizonte, não a regra
-        for (const entidade of ['tabela_preco_item', 'cliente_tabela_preco', 'estoque_saldo']) {
+        const estoque = await api.chamar(token.promotorA, { method: 'GET', url: '/v1/sync/pull?entidade=estoque_saldo' });
+        expect(estoque.statusCode, estoque.body).toBe(200);
+        expect((estoque.json().itens as unknown[]).length, 'promotor: estoque_saldo').toBeGreaterThan(0);
+        // contraprova (RN-CAT-05): o vendedor do mesmo tenant recebe as duas de preço pelo mesmo pull — senão o vazio acima
+        // seria o horizonte, não a regra
+        for (const entidade of ['tabela_preco_item', 'cliente_tabela_preco']) {
           const v = await api.chamar(token.vA, { method: 'GET', url: `/v1/sync/pull?entidade=${entidade}` });
           expect(v.statusCode, `${entidade}: ${v.body}`).toBe(200);
           expect((v.json().itens as unknown[]).length, `vendedor: ${entidade}`).toBeGreaterThan(0);

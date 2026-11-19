@@ -7,6 +7,7 @@ import type { AcaoProduto } from '@macuxi/catalogo/contracts';
 import type { AbaCliente, AcaoCliente, CardInicio, ContextoCliente } from '@macuxi/core/contracts';
 import { CardsPedidosInicio } from './components/cards-inicio';
 import { AbaMix, AbaUltimosPedidos } from './components/ficha-cliente';
+import { consultaPrecoPrazoPadraoAparelho } from './consulta-preco-prazo-padrao';
 import { etapasVendedor } from './etapas';
 import { irParaAdicionarAoOrcamento, irParaNovoPedido } from './rotas';
 import AdicionarAoOrcamentoScreen from './screens/adicionar-ao-orcamento-screen';
@@ -37,6 +38,7 @@ export const moduloApp = definirModuloShell<ComponentType>({
   ],
   entidadesSync: ENTIDADES_VENDEDOR,
   etapasSync: etapasVendedor,
+  consultas: [consultaPrecoPrazoPadraoAparelho],
   extensoes: [
     // Ficha do cliente (slots do Core, B2). RN-PRO-01: `acao: 'pedido.criar'` esconde os itens do promotor.
     {

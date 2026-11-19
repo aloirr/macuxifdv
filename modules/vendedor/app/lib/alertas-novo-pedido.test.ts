@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { alertasDoNovoPedido, entradaDasPendencias, idDaAba, itensSemEstoque, textoDaFalta } from './alertas-novo-pedido';
+import { alertasDoNovoPedido, alertasNaAba, entradaDasPendencias, idDaAba, itensSemEstoque, textoDaFalta } from './alertas-novo-pedido';
 import type { LinhaDoPedido } from './novo-pedido';
 
 const cliente = { bloqueado: false, ativo: true, cadastro_incompleto: false, campos_faltantes: [] as string[] };
@@ -57,5 +57,14 @@ describe('RD-0170 (T-0166): falta de preenchimento só vira alerta depois da ten
     expect(pendenciasDasAbasTentadas(pend, new Set(['venda', 'itens', 'entrega', 'resumo'] as const))).toHaveLength(2);
     expect(primeiraAbaComFalta(pend)).toBe('venda');
     expect(primeiraAbaComFalta([])).toBeNull();
+  });
+});
+
+describe('R-20261119-030234 (RN-VEN-42): os Alertas do Novo pedido só aparecem na aba Resumo', () => {
+  const alertas = alertasDoNovoPedido({ cliente: { ...cliente, bloqueado: true }, pendencias: [], sem_forma_para_o_cliente: false, acima_do_maximo: [], acima_do_limite: null, produtoDoCodigo: () => undefined, sem_estoque: [], vencidos: null, disponivel_cents: null, total_cents: 0 } as never);
+  it('RN-VEN-42: Resumo mostra todos; Venda, Itens e Entrega não mostram nenhum', () => {
+    expect(alertas.length).toBeGreaterThan(0);
+    expect(alertasNaAba('resumo', alertas)).toEqual(alertas);
+    for (const aba of ['venda', 'itens', 'entrega'] as const) expect(alertasNaAba(aba, alertas)).toEqual([]);
   });
 });

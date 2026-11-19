@@ -150,3 +150,15 @@ Lista em `/core/perfis`; edição em `/core/perfis?perfil=<codigo>` (o shell nã
 | `usuarios.campo-perfis` · `usuarios.previa` · `usuarios.previa.onde-entra` | campo "Perfis" e prévia no formulário de Usuários |
 | `usuarios.campo-gerente` · `usuarios.campo-supervisor` · `usuarios.campo-equipe-nome` · `usuarios.campo-external-id` | gaveta Novo usuário: Gerente, Supervisor e Nome da equipe conforme o cargo do perfil (RN-CORE-55/56) e Código no ERP (RN-CORE-57) |
 | `perfil.novo.nome` · `perfil.novo.cargo` · `perfil.novo.salvar` · `perfil.novo.cancelar` · `perfil.novo.grade` · `perfil.modulo.<id>` · `perfil.grupo.<subtítulo>` | Novo perfil: nome, cargo (RN-CORE-53), grade por módulo e subtítulos de Geral |
+
+## Rastreamento no expediente (T-0156; ADR 0061; desenho `docs/desenho/tracking.md`; spec `docs/design/tracking/spec.md`)
+
+BKO, Parâmetros › Calendário (ações `rastreamento.configurar` e `ausencia.cadastrar`):
+
+| testID | Onde |
+|---|---|
+| `rastreamento.parametros.painel` · `.ativo` · `.salvar` · `.aviso` | painel "Rastreamento no expediente": ligar (padrão desligado), salvar e aviso |
+| `rastreamento.parametros.faixa.<dia 0-6>.<0\|1>.inicio` · `.fim` · `.erro` | expediente: 1ª e 2ª faixa por dia ('0' = domingo) |
+| `rastreamento.parametros.frequencia.distancia_m` · `.intervalo_min` · `.lote_min` (e `.erro`) | frequência da captura |
+| `rastreamento.ausencias.painel` · `.usuario` · `.de` · `.ate` · `.cadastrar` · `.aviso` · `.lista` · `.linha.<id>` · `.cancelar.<id>` | ausências: formulário e lista |
+

@@ -1,6 +1,6 @@
 import { ApiRequestError } from '@macuxi/platform-sdk/web';
 import { describe, expect, it } from 'vitest';
-import { validarLoginNovo as validarCampos } from '@macuxi/core/contracts';
+import { MENSAGEM_BLOQUEADO_ADMIN, MENSAGEM_CREDENCIAIS, mensagemBloqueioPorTentativas, mensagemMuitasTentativas, validarLoginNovo as validarCampos } from '@macuxi/core/contracts';
 import { mensagemDoLogin } from './login';
 
 describe('login do BKO (T-0003 F2)', () => {
@@ -17,11 +17,19 @@ describe('login do BKO (T-0003 F2)', () => {
   });
 
   it('mensagens por código da API e sem rede; nunca revela qual dado está errado', () => {
-    expect(mensagemDoLogin(new ApiRequestError(401, 'CREDENCIAIS_INVALIDAS', 'x'))).toMatch(/Código da empresa, e-mail ou senha incorretos/);
-    expect(mensagemDoLogin(new ApiRequestError(423, 'USUARIO_BLOQUEADO', 'x'))).toMatch(/bloqueado/);
-    expect(mensagemDoLogin(new ApiRequestError(429, 'MUITAS_TENTATIVAS', 'x'))).toMatch(/Aguarde/);
+    expect(mensagemDoLogin(new ApiRequestError(401, 'CREDENCIAIS_INVALIDAS', 'x'))).toBe(MENSAGEM_CREDENCIAIS);
     expect(mensagemDoLogin(new ApiRequestError(503, 'AUTENTICACAO_INDISPONIVEL', 'x'))).toMatch(/indisponível/);
     expect(mensagemDoLogin(new ApiRequestError(0, 'network', 'x'))).toMatch(/Sem conexão/);
     expect(mensagemDoLogin(new Error('qualquer'))).toMatch(/Não foi possível entrar/);
+  });
+
+  it('RN-CORE-01 (T-0185): 423 por tentativas dá os minutos que faltam; 423 do administrador manda falar com ele; 429 dá a espera real', () => {
+    expect(mensagemDoLogin(new ApiRequestError(423, 'USUARIO_BLOQUEADO', 'x', { minutos_restantes: 12 }))).toBe(mensagemBloqueioPorTentativas(12));
+    expect(mensagemDoLogin(new ApiRequestError(423, 'USUARIO_BLOQUEADO', 'x', { minutos_restantes: 1 }))).toBe('Muitas tentativas. Tente de novo em 1 minuto.');
+    expect(mensagemDoLogin(new ApiRequestError(423, 'USUARIO_BLOQUEADO', 'x'))).toBe(MENSAGEM_BLOQUEADO_ADMIN);
+    expect(mensagemDoLogin(new ApiRequestError(423, 'USUARIO_BLOQUEADO', 'x', {}))).toBe(MENSAGEM_BLOQUEADO_ADMIN);
+    expect(mensagemDoLogin(new ApiRequestError(429, 'MUITAS_TENTATIVAS', 'x', { retry_after_s: 170 }))).toBe(mensagemMuitasTentativas(170));
+    expect(mensagemDoLogin(new ApiRequestError(429, 'MUITAS_TENTATIVAS', 'x', { retry_after_s: 170 }))).toBe('Muitas tentativas. Tente de novo em 3 minutos.');
+    expect(mensagemDoLogin(new ApiRequestError(429, 'MUITAS_TENTATIVAS', 'x'))).toBe(mensagemMuitasTentativas(undefined));
   });
 });

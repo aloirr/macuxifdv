@@ -102,11 +102,11 @@ export const LogoutRequestSchema = z.object({ refresh_token: z.string().min(10).
 export const CODIGOS_AUTH = {
   /** 401 — código da empresa, e-mail ou senha errados (mesma resposta para os três). */
   credenciais: 'CREDENCIAIS_INVALIDAS',
-  /** 423 — só depois de senha certa: usuário bloqueado pelo admin ou por tentativas, ou aparelho bloqueado. */
+  /** 423 — só depois de senha certa: usuário inativo, bloqueado pelo administrador ou bloqueio TEMPORÁRIO por tentativas (RN-CORE-01; este traz `detalhes.minutos_restantes` e não manda falar com o administrador). O aparelho bloqueado tem código próprio. */
   bloqueado: 'USUARIO_BLOQUEADO',
   /** 401 — refresh inválido, expirado, já usado (reuso derruba a família) ou revogado: entrar de novo. */
   sessao: 'SESSAO_INVALIDA',
-  /** 429 — limite por IP + código da empresa (plataforma). */
+  /** 429 — limite de falhas por IP + empresa + e-mail (`detalhes.retry_after_s`; também o limite do "Esqueci a senha"). */
   muitasTentativas: 'MUITAS_TENTATIVAS',
   /** 403 — só depois de senha certa (T-0094): a senha é temporária; sem sessão. Siga para "Crie sua senha" (POST /v1/auth/senha/trocar). */
   senhaATrocar: 'SENHA_A_TROCAR',
@@ -115,6 +115,19 @@ export const CODIGOS_AUTH = {
   /** 403 — só depois de senha certa (RN-CORE-33): o perfil não usa o app que pediu o login. A mensagem da API diz onde entrar. */
   perfilForaDoApp: CODIGO_PERFIL_FORA_DO_APP,
 } as const;
+
+/** RN-CORE-01: bloqueio pelo administrador (ou usuário inativo): a ação é falar com o administrador. */
+export const MENSAGEM_BLOQUEADO_ADMIN = 'Seu acesso está bloqueado. Fale com o administrador da sua empresa.';
+/** `v` (em unidades de `divisor` por minuto) → "em 1 minuto" / "em 3 minutos" (mínimo 1); valor ausente ou inválido usa `padrao` minutos. */
+export function textoEmMinutos(v: unknown, padrao: number, divisor: number): string {
+  const n = typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.max(1, Math.ceil(v / divisor)) : padrao;
+  return n === 1 ? 'em 1 minuto' : `em ${n} minutos`;
+}
+/** RN-CORE-01: 5 senhas erradas bloqueiam por 15 min; `minutos` vem de `detalhes.minutos_restantes` (sem ele, 15). */
+export const mensagemBloqueioPorTentativas = (minutos?: unknown): string => `Muitas tentativas. Tente de novo ${textoEmMinutos(minutos, 15, 1)}.`;
+/** Limite de falhas por IP (429): o tempo vem de `detalhes.retry_after_s` (segundos; sem ele, 5 min). */
+export const mensagemMuitasTentativas = (retryAfterS?: unknown): string => `Muitas tentativas. Tente de novo ${textoEmMinutos(retryAfterS, 5, 60)}.`;
+export const MENSAGEM_SESSAO = 'Sua sessão expirou. Entre de novo com o código da empresa, o e-mail e a senha.';
 
 export const MENSAGEM_CREDENCIAIS = 'Código da empresa, e-mail ou senha incorretos. Confira os dados e tente de novo.';
 

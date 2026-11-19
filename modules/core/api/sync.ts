@@ -18,6 +18,7 @@ import {
   PARAMETRO_FERIADOS,
   PARAMETRO_PARADO_MIN,
   PARAMETRO_PROMOTOR_VE_PEDIDOS,
+  PARAMETRO_RASTREAMENTO,
   CarteiraSyncSchema,
   ClienteContatoSyncSchema,
   ClienteFinanceiroSyncSchema,
@@ -78,7 +79,7 @@ export interface Tabela {
 }
 
 /** Chaves de `plataforma.parametro` (módulo core) que vão ao aparelho no pull `parametro` (lista fixa). */
-const CHAVES_PARAMETRO_SYNC = ['checkin.raio_m', PARAMETRO_PROMOTOR_VE_PEDIDOS, PARAMETRO_DIAS_UTEIS, PARAMETRO_PARADO_MIN, PARAMETRO_FERIADOS, PARAMETRO_ALMOCO_PADRAO, PARAMETRO_ALERTAS_PRODUTIVIDADE] as const;
+const CHAVES_PARAMETRO_SYNC = ['checkin.raio_m', PARAMETRO_PROMOTOR_VE_PEDIDOS, PARAMETRO_DIAS_UTEIS, PARAMETRO_PARADO_MIN, PARAMETRO_FERIADOS, PARAMETRO_ALMOCO_PADRAO, PARAMETRO_ALERTAS_PRODUTIVIDADE, PARAMETRO_RASTREAMENTO] as const;
 
 export const TABELAS_SYNC = {
   cliente: {
