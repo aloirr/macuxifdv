@@ -128,7 +128,7 @@ export function CardPagamento({
 }
 
 /**
- * Aba Venda (RF-VEN-11): forma e prazo (RN-VEN-24/25), limite (os alertas de cliente, crédito e título vão para a área Alertas do topo, RN-VEN-42)
+ * Aba Venda (RF-VEN-11): forma e prazo (RN-VEN-24/25), limite (os alertas de cliente, crédito e título vão para a área Alertas, só no Resumo, RN-VEN-42)
  * total e disponível do cliente, com a data da última sincronização. `credito`: `undefined` = lendo; `null` =
  * consulta indisponível (as linhas de crédito não aparecem). Tudo do aparelho (vale offline).
  */
@@ -436,7 +436,7 @@ export function AbaResumo({
     { rotulo: 'Endereço', valor: [endereco ?? TEXTO_ENDERECO_DO_CADASTRO, r.endereco_entrega_editado ? `(${TEXTOS_ENDERECO.editadoNestePedido})` : ''].filter(Boolean).join(' ') },
     ...(obsEntrega ? [{ rotulo: 'Observação', valor: obsEntrega }] : []),
   ];
-  // RN-VEN-42: os alertas ficam na área do topo da tela (todas as abas); o Resumo só lê e mostra, em tabela
+  // RN-VEN-42: os alertas ficam na área Alertas, só na aba Resumo; o Resumo só lê e mostra, em tabela
   return (
     <View style={{ gap: 12 }} testID="aba-resumo-conteudo">
       <View style={{ gap: 6 }} testID="resumo-pedido">

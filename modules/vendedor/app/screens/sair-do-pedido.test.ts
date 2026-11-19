@@ -27,7 +27,7 @@ describe('RN-VEN-38 (T-0128): as saídas do Novo pedido passam pela folha "Sair 
   it('RN-VEN-38 (RN-VEN-42): salvar com pendência fecha a folha, cancela a saída e abre o Resumo; os Alertas do topo dizem o que falta', () => {
     expect(tela).toMatch(/destinoDoSalvarDaSaida\(pendencias\.length\) === 'mostrar_pendencias'[\s\S]*?saidaPedida\.current = null;[\s\S]*?setAba\('resumo'\)/);
     expect(tela).not.toContain('anuncioPendencias');
-    expect(tela).toContain('<AreaAlertas alertas={alertasDoTopo}');
+    expect(tela).toContain('<AreaAlertas alertas={alertasNaAba(aba, alertasDoTopo)}');
   });
   it('RN-VEN-38: a folha usa as opções do domain (RN-VEN-13 sem Salvar pedido)', () => {
     expect(tela).toContain('opcoesDaSaida({ cliente: situacaoCliente');

@@ -35,7 +35,7 @@ import { calcularPedido, enderecosDoCliente, lerChaveDaLinha, situacaoDoFrete, p
 import { abaAnteriorDoPedido, abaInicialDoRascunho, AVISO_PEDIDO_SALVO, abasDoPedido, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, nomeDaSugestao, proximaAbaDoPedido, type AbaNovoPedido } from '../lib/textos-pedido';
 import { unidadesDoProduto } from '../lib/novo-pedido';
 import { MENSAGEM_ERRO_BUSCA } from '../lib/busca-catalogo';
-import { alertasDoNovoPedido, idDaAba, itensSemEstoque, pendenciasDasAbasTentadas, primeiraAbaComFalta } from '../lib/alertas-novo-pedido';
+import { alertasDoNovoPedido, alertasNaAba, idDaAba, itensSemEstoque, pendenciasDasAbasTentadas, primeiraAbaComFalta } from '../lib/alertas-novo-pedido';
 import { impedeEnviarPorAlertas, soOrcamentoPorAlertas, vencidosComEfeito } from '../../domain/alertas-pedido';
 import { AreaAlertas } from '../components/area-alertas';
 import { MostrarMais, ResultadosDaBusca, SemResultadoDaBusca, VisorDeFoto } from '../components/busca-itens';
@@ -352,7 +352,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
 
   // RD-0170 (T-0166): a falta de preenchimento só entra em Alertas nas abas já tentadas; pedido recém-aberto: 0 alertas
   const [tentou, setTentou] = useState<ReadonlySet<AbaDoPedido>>(new Set());
-  // RN-VEN-42 (T-0150): a área única Alertas, no topo de todas as abas (cliente, faltante, máximo, estoque, crédito, título)
+  // RN-VEN-42 (T-0150): a área única Alertas, só na aba Resumo (R-20261119-030234; cliente, faltante, máximo, estoque, crédito, título)
   const codigos = useMemo(() => new Map(catalog.map((p) => [p.id, p.erp_code] as [string, string])), [catalog]);
   const marcas = useMemo(() => new Map(catalog.flatMap((p) => (p.brand?.trim() ? [[p.id, p.brand.trim()] as [string, string]] : []))), [catalog]);
   const semEstoque = !sent && calculoBase ? itensSemEstoque(calculoBase.linhas, (id) => byId.get(id)) : [];
@@ -730,7 +730,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
 
       <AcimaDoTeclado>
       <ScrollView ref={rolagem.ref} onScroll={rolagem.onScroll} onLayout={rolagem.onLayout} scrollEventThrottle={32} contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 12, paddingBottom: 16, gap: 12 }} keyboardShouldPersistTaps="handled" testID="new-order">
-        {!sent ? <AreaAlertas alertas={alertasDoTopo} aoTocar={(a) => {
+        {!sent ? <AreaAlertas alertas={alertasNaAba(aba, alertasDoTopo)} aoTocar={(a) => {
           const v = a.vai_para;
           irParaAba(v && 'aba' in v ? idDaAba(v.aba) : 'itens');
           if (v && 'item' in v) setPopupId(v.item);
