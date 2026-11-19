@@ -57,6 +57,7 @@ function montar(perfil: string, id: string, visiveis: ReadonlySet<string> | 'ten
           enderecos: [],
         };
       }
+      if (def.nome === 'core.financeiro_cliente@1') return { financeiro: { limite_cents: 100_000_000, saldo_aberto_cents: 0, credito_disponivel_erp_cents: null, vencidos_qtd: 0, vencidos_cents: 0, maior_atraso_dias: 0 } };
       return { tabela_preco_id: null, itens: [{ produto_id: PRODUTO, preco_cents: 10_000, motivo_sem_preco: null }] };
     },
     publicar: async (def: { nome: string }, payload: Record<string, unknown>) => {
@@ -90,6 +91,8 @@ const payload = (extra: Record<string, unknown> = {}) => ({
 });
 const item = (extra: Record<string, unknown> = {}): ItemPush => ({ entidade: 'pedido', id: PEDIDO, operacao: 'upsert', payload: payload(extra) }) as unknown as ItemPush;
 const insertDoPedido = (sqls: Sql[]) => sqls.find((s) => /insert into vendedor\.pedido \(/.test(s.sql));
+/** valor gravado numa coluna do insert (pelo nome, não pela posição) */
+const colunaDoInsert = (ins: Sql, coluna: string) => ins.valores[/insert into vendedor\.pedido \(([^)]*)\)/.exec(ins.sql)![1]!.split(', ').filter((c) => c !== 'tenant_id').indexOf(coluna)];
 
 describe('RN-VEN-35: contrato do push', () => {
   it('PedidoPush aceita vendedor_id opcional e a fila antiga (sem o campo) segue válida', () => {
@@ -105,9 +108,8 @@ describe('RF-GES-05 / RN-VEN-35: supervisor faz pedido em nome do vendedor da eq
     const r = await receberPedidos(ctx, [item({ vendedor_id: VEND })]);
     expect(r[0]).toMatchObject({ id: PEDIDO, status: 'aceito' });
     const ins = insertDoPedido(sqls)!;
-    expect(ins.sql).toMatch(/\$3, \$38/); // vendedor_id = $3 (dono), autor_id = $38 (token)
-    expect(ins.valores[2]).toBe(VEND);
-    expect(ins.valores[37]).toBe(SUP);
+    expect(colunaDoInsert(ins, 'vendedor_id')).toBe(VEND); // dono
+    expect(colunaDoInsert(ins, 'autor_id')).toBe(SUP); // token
     expect(ins.valores).toContain('Vera Vendedora'); // vendedor_nome
     const hist = sqls.find((s) => /insert into vendedor\.pedido_evento/.test(s.sql))!;
     expect(hist.valores).toContain(SUP);
@@ -124,7 +126,7 @@ describe('RF-GES-05 / RN-VEN-35: supervisor faz pedido em nome do vendedor da eq
     expect(criado).toMatchObject({ pedido_id: PEDIDO, vendedor_id: VEND, autor_id: SUP, status: 'em_aprovacao' });
     for (const e of eventos) expect(e.payload.vendedor_id).toBe(VEND);
     expect(eventos.find((e) => e.nome === 'vendedor.pedido.status_alterado@1')!.payload).toMatchObject({ autor_id: SUP });
-    expect(eventos.find((e) => e.nome === 'vendedor.pedido.aprovacao_solicitada@1')!.payload).toMatchObject({ vendedor_id: VEND, nivel: 'gerente' });
+    expect(eventos.find((e) => e.nome === 'vendedor.pedido.aprovacao_solicitada@2')!.payload).toMatchObject({ vendedor_id: VEND, nivel: 'gerente' });
     expect(auditoria[0]).toMatchObject({ acao: 'pedido.criar', entidade: 'pedido', entidade_id: PEDIDO, depois: expect.objectContaining({ em_nome: true, vendedor_id: VEND, autor_id: SUP }) });
   });
 
@@ -146,7 +148,7 @@ describe('RF-GES-05 / RN-VEN-35: supervisor faz pedido em nome do vendedor da eq
     const { ctx, sqls } = montar('supervisor', SUP, new Set([SUP, VEND]));
     await receberPedidos(ctx, [item({ vendedor_id: VEND, discount_pct: 8 })]);
     const ins = insertDoPedido(sqls)!;
-    expect(ins.valores[3]).toBe('approved'); // status
+    expect(colunaDoInsert(ins, 'status')).toBe('approved');
   });
 
   it('RN-VEN-33: reenvio do mesmo id pelo mesmo autor é idempotente; outro autor recebe ID_EM_USO', async () => {
@@ -170,7 +172,7 @@ describe('RN-VEN-35: o servidor revalida equipe e área', () => {
     const { ctx, sqls } = montar('gerente', GER, new Set([GER, SUP, VEND]));
     const r = await receberPedidos(ctx, [item({ vendedor_id: VEND, discount_pct: 14 })]);
     expect(r[0]).toMatchObject({ status: 'aceito' });
-    expect(insertDoPedido(sqls)!.valores[3]).toBe('approved');
+    expect(colunaDoInsert(insertDoPedido(sqls)!, 'status')).toBe('approved');
   });
   it('gerente para vendedor de outra área: rejeitado, a mensagem fala em área', async () => {
     const { ctx } = montar('gerente', GER, new Set([GER, SUP, VEND]));
@@ -205,7 +207,7 @@ describe('RN-VEN-35: o servidor revalida equipe e área', () => {
     const r = await receberPedidos(ctx, [item({ vendedor_id: VEND })]);
     expect(r[0]).toMatchObject({ status: 'aceito' });
     const ins = insertDoPedido(sqls)!;
-    expect(ins.valores[2]).toBe(VEND);
-    expect(ins.valores[37]).toBe(VEND);
+    expect(colunaDoInsert(ins, 'vendedor_id')).toBe(VEND);
+    expect(colunaDoInsert(ins, 'autor_id')).toBe(VEND);
   });
 });

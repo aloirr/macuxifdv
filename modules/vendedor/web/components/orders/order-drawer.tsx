@@ -2,9 +2,9 @@
 
 import { useState, type ReactNode } from 'react';
 import { formatBRL, formatPct } from '@macuxi/comum';
-import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
+import { useAmbiente } from '@macuxi/platform-sdk/react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, Drawer, ErrorBlock, formatDateTime, HistoricoEmTags, LoadingBlock, type NoticeTone, Notice, tagsDoHistorico, td, tdNum, th, thNum } from '@macuxi/ui/web';
+import { Button, Drawer, ErrorBlock, formatDateTime, HistoricoEmTags, LoadingBlock, Notice, tagsDoHistorico, td, tdNum, th, thNum } from '@macuxi/ui/web';
 import type { Order } from '../../../contracts';
 import { eventosDoOrcamento, eventosDoPedido } from '../../../domain/historico-pedido';
 import { enviadoAoErp, MSG_CANCELAR_APOS_ENVIO } from '../../../domain/order';
@@ -12,7 +12,6 @@ import { descontoDoPedidoPct } from '../../../domain/preco-pedido';
 import type { OrderPdfView } from '../../../domain/pdf-pedido';
 import { DICA_PDF_SEM_DETALHE, MSG_ITENS_INDISPONIVEIS, MSG_SEM_DOCUMENTO, textoDaModalidade, textoDaTransportadora, textoDoAjusteDoItem, textoDoEnderecoEntrega, enderecoFoiEditado, SELO_ENDERECO_EDITADO } from '../../lib/detalhe-pedido';
 import { usePedido } from '../../lib/queries';
-import { AvisoDeDecisao, BotoesDeDecisao } from './decisao';
 import { ERRO_IMPRESSAO, exportarPdfDoPedido } from './exportar-pdf';
 import { OrderStatusBadge } from './status';
 
@@ -26,14 +25,12 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 
-/** Gaveta do pedido (RF-VEN-04/05/06): itens, histórico, aprovação e Exportar PDF (cliente | interno) pelo diálogo de impressão. */
+/** Gaveta do pedido (RF-VEN-04/05/06): itens, histórico e Exportar PDF (cliente | interno) pelo diálogo de impressão. */
 export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: string; onClose: () => void }) {
   const detail = usePedido(order?.id ?? null);
   const dados = detail.data?.pedido ?? null;
   const semDocumento = detail.data?.semDocumento ?? false;
   const ambiente = useAmbiente();
-  const podeAprovar = usePode('pedido.aprovar');
-  const [aviso, setAviso] = useState<{ tom: NoticeTone; texto: string } | null>(null);
   const [erroPdf, setErroPdf] = useState<string | null>(null);
   const [gerando, setGerando] = useState<OrderPdfView | null>(null);
   const o = dados ?? order;
@@ -51,7 +48,6 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
     }
   };
 
-  const aprovacao = dados?.aprovacao ?? null;
   // T-0138 (RN-VEN-30/18): o orçamento mostra Salvo · Transformado em pedido nº · Cancelado (o orçamento não vence); o pedido, o status de cada evento
   const eventos = dados
     ? dados.tipo === 'orcamento'
@@ -84,15 +80,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
           </div>
           {erroPdf && <Notice tone="danger">{ERRO_IMPRESSAO(erroPdf)}</Notice>}
           {semDocumento && <Notice tone="warning">{MSG_SEM_DOCUMENTO}</Notice>}
-          <AvisoDeDecisao aviso={aviso} onClose={() => setAviso(null)} />
           {enviadoAoErp(o.status) && <Notice tone="info">{MSG_CANCELAR_APOS_ENVIO}</Notice>}
-
-          {aprovacao && podeAprovar && aprovacao.pode_decidir && dados && (
-            <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4">
-              <h3 className="m-0 text-[17px] font-bold">Decisão</h3>
-              <BotoesDeDecisao pedido={dados} tamanho="md" onFeito={(tom, texto) => setAviso({ tom, texto })} />
-            </section>
-          )}
 
           <div className="grid grid-cols-2 gap-3 rounded-xl border border-line bg-surface p-4">
             <Field label="Condição">{o.payment_terms || '—'}</Field>

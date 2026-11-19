@@ -9,14 +9,15 @@
  *                       código lê documentação fora dessas pastas.
  *   - "reaproveitado" → push ao main de uma árvore (tree SHA) que já passou VERDE no CI com os testes (ensaio da
  *                       verificação; run de PR não conta, porque não roda as suítes): a governança roda (donos por commit,
- *                       trailer) e os testes não se repetem.
+ *                       trailer) e os testes não se repetem. O agendado semanal também, mas só com a matriz completa
+ *                       (o push da sexta que já rodou tudo na mesma árvore; economia do Actions, 18/11/2026).
  *   - "codigo"        → o resto. Lista vazia, erro de git e evento sem lista caem aqui, com TODOS os pacotes.
  *                       No PR, só o job estatico (R-20261115-213600-alexandre): testes-pacotes e testes-integracao rodam
  *                       no push ao main, no ensaio (manual) e no agendado, e na sessão antes do merge. O PR não grava o
  *                       artefato ci-verde-* (ci.yml). Teste quebrado num PR aparece no push ao main, e o merge seguinte
  *                       espera a correção.
  * matriz:
- *   - "completa" → agendado (noturno, dias úteis), sexta-feira em Manaus (véspera da produção) e manual com `completo`:
+ *   - "completa" → agendado (semanal, sexta), sexta-feira em Manaus (véspera da produção) e manual com `completo`:
  *                  todos os pacotes.
  *   - "afetados" → PR, ensaio (manual) e push ao main: só os pacotes alterados e os que dependem deles (dependência
  *                  declarada no package.json ou pasta nos inputs da tarefa no turbo.json), por tarefa. O tests/ da raiz
@@ -27,7 +28,7 @@
  *   push     → último push do main com CI verde (API), se for ancestral do DEPOIS; senão ANTES. Com cancel-in-progress, o
  *              push cancelado não deixa commit sem verificação de donos nem pacote sem teste;
  *   manual   → merge-base(origin/main, HEAD)..HEAD (o ensaio do branch verificacao/*); no próprio main = todos;
- *   agendado → sem lista: todos.
+ *   agendado → sem lista: todos (ou reaproveitado, se a árvore do main já passou verde com a matriz completa).
  *
  * Uso no CI: node scripts/ci/escopo.mjs (lê GITHUB_EVENT_NAME, ANTES, DEPOIS, COMPLETO, GITHUB_REPOSITORY, GH_TOKEN;
  * escreve em $GITHUB_OUTPUT). MACUXI_CI_SEM_API=1 não consulta a API (testes); MACUXI_CI_AGORA fixa a data (testes).
@@ -167,7 +168,7 @@ export const matrizCompleta = ({ evento, completo = false, agora }) =>
 
 /**
  * Decisão (função pura). `arquivos` null = sem lista (agendado, erro de git, push sem base) → código, todos os pacotes.
- * `reaproveitado` = id do run verde da mesma árvore (só push), ou null. Saída: o que o GITHUB_OUTPUT recebe.
+ * `reaproveitado` = id do run verde da mesma árvore (push e agendado), ou null. Saída: o que o GITHUB_OUTPUT recebe.
  */
 export function decidir({
   evento,
@@ -195,7 +196,7 @@ export function decidir({
     classificar(arquivos, lidosPeloCodigo(workspace.turbo)) === 'documentacao'
   )
     return { ...vazio, escopo: 'documentacao' };
-  if (evento === 'push' && reaproveitado)
+  if ((evento === 'push' || evento === 'schedule') && reaproveitado)
     return { ...vazio, escopo: 'reaproveitado', reaproveitado_de: String(reaproveitado) };
   const af = matriz === 'completa' || !arquivos?.length ? { todos: true } : afetados(arquivos, workspace);
   const todosOsPacotes = new Set(workspace.pacotes.map((p) => p.nome));
@@ -315,8 +316,9 @@ async function principal(env) {
   const arvore = tenta(() => git('rev-parse', 'HEAD^{tree}')) ?? '';
   const { base, arquivos } = await arquivosDoEvento(evento, env);
   const completo = env.COMPLETO === 'true';
+  // No agendado a matriz é sempre completa: só o artefato ci-verde-completa-<árvore> dispensa os testes.
   const reaproveitado =
-    evento === 'push' && arvore
+    (evento === 'push' || evento === 'schedule') && arvore
       ? await verificacaoDaArvore(arvore, matrizCompleta({ evento, completo, agora }), env)
       : null;
   const d = decidir({ evento, arquivos, completo, agora, workspace, reaproveitado });

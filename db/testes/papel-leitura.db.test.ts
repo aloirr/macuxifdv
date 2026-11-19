@@ -17,7 +17,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { lerConfig, lerConfigApp, lerConfigTestes, PAPEL_LEITURA, SENHA_LEITURA_LOCAL, urlLeitura } from '../src/config';
-import { TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
+import { TABELAS_SEM_LEITURA, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { AJUSTES_LEITURA, ATRIBUTOS_DO_PAPEL, COLUNA_SENSIVEL_LEITURA, garantirLeitura } from '../src/papeis';
 import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
@@ -89,6 +89,11 @@ describe('0078 papel de leitura (estático)', () => {
     for (const m of migracoes.filter((x) => x.versao > '0078')) {
       for (const [, tabela, corpo] of m.up.matchAll(/create table (?:if not exists )?([a-z_]+\.[a-z_]+) \(([\s\S]*?)\n\);/g)) {
         if (!/^\s+tenant_id\s/m.test(corpo!)) continue;
+        // exceção declarada (0089, ADR 0061): nem SELECT nem política leitura
+        if ((TABELAS_SEM_LEITURA as readonly string[]).includes(tabela!)) {
+          expect(m.up, `${m.versao}: ${tabela} está em TABELAS_SEM_LEITURA`).not.toMatch(new RegExp(`on ${tabela!.replace('.', '\\.')} (for select )?to macuxi_leitura`));
+          continue;
+        }
         // com coluna sensível (fora boolean), SELECT por coluna sem ela; senão, na tabela
         const sensiveis = [...corpo!.matchAll(/^\s+([a-z_]+)\s+([a-z]+)/gm)].filter(([, c, tipo]) => SENSIVEL.test(c!) && tipo !== 'boolean').map((x) => x[1]!);
         const grant = new RegExp(`grant select (\\(([a-z_, ]+)\\) )?on ${tabela!.replace('.', '\\.')} to macuxi_leitura;`).exec(m.up);

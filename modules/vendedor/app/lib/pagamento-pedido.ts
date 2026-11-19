@@ -16,11 +16,9 @@ export interface OpcaoDaLista {
 }
 
 export interface LimitesDoCliente {
-  prazo_medio_max_dias: number | null | undefined;
   formas_pagamento: readonly string[] | null | undefined;
 }
 
-export const MOTIVO_ACIMA_DO_PRAZO_MEDIO = 'Acima do prazo médio do cliente';
 export const TEXTO_ESCOLHA_A_FORMA = 'Escolha a forma';
 
 /** Todas as formas ativas, por ordem; a que o cadastro do cliente não aceita fica desabilitada, com o motivo (RN-VEN-25; T-0129). */
@@ -28,24 +26,23 @@ export function opcoesDeForma(formas: readonly FormaDePagamento[], cliente: Limi
   return formasDaLista(formas, cliente.formas_pagamento).map((x) => ({ id: x.forma.id, rotulo: x.forma.nome, ...(x.habilitada ? {} : { desabilitada: true, motivo: x.motivo }) }));
 }
 
-/** Prazos da forma escolhida: só o texto do prazo; o que passa do prazo médio do cliente fica desabilitado (o motivo vai ao leitor de tela). */
-export function opcoesDePrazo(prazos: readonly PrazoDePagamento[], formaId: string | null, cliente: LimitesDoCliente): OpcaoDaLista[] {
+/** Prazos ativos da forma escolhida: só o texto do prazo (RN-VEN-25). */
+export function opcoesDePrazo(prazos: readonly PrazoDePagamento[], formaId: string | null): OpcaoDaLista[] {
   if (!formaId) return [];
-  return prazosDaForma(prazos, formaId, cliente.prazo_medio_max_dias).map((x) => ({
-    id: x.prazo.id,
-    rotulo: x.prazo.descricao || descricaoPrazo(x.prazo.parcelas_dias),
-    ...(x.habilitado ? {} : { desabilitada: true, motivo: MOTIVO_ACIMA_DO_PRAZO_MEDIO }),
+  return prazosDaForma(prazos, formaId).map((x) => ({
+    id: x.id,
+    rotulo: x.descricao || descricaoPrazo(x.parcelas_dias),
   }));
 }
 
 /**
- * Pagamento do rascunho para este cliente. Sem forma e sem prazo (rascunho novo): o padrão (primeira forma permitida e primeiro
- * prazo habilitado). Com escolha do vendedor nunca há troca silenciosa (T-0129): o rascunho fica como está e, se a forma ou o prazo
+ * Pagamento do rascunho para este cliente. Sem forma e sem prazo (rascunho novo): o padrão (primeira forma permitida e o primeiro
+ * prazo ativo dela, por ordem; RN-VEN-25: todos os prazos ativos da forma valem). Com escolha do vendedor nunca há troca silenciosa (T-0129): o rascunho fica como está e, se a forma ou o prazo
  * não servem ao cliente, `situacaoDoPagamento` diz o que corrigir.
  */
 export function rascunhoComPagamentoPadrao(r: Rascunho, formas: readonly FormaDePagamento[], prazos: readonly PrazoDePagamento[], cliente: LimitesDoCliente): Rascunho {
   if (!r.forma_pagamento_id && !r.prazo_pagamento_id) {
-    const padrao = pagamentoPadrao(formasDoCliente(formas, cliente.formas_pagamento), prazos, cliente.prazo_medio_max_dias);
+    const padrao = pagamentoPadrao(formasDoCliente(formas, cliente.formas_pagamento), prazos);
     return padrao ? comPagamento(r, padrao.forma, padrao.prazo) : r;
   }
   return r;
@@ -69,9 +66,9 @@ export function comPagamento(r0: Rascunho, forma: FormaDePagamento, prazo: Prazo
   return { ...r, forma_pagamento_id: forma.id, prazo_pagamento_id: prazo.id, prazo_percentual_ajuste: prazo.percentual_ajuste ?? 0, payment_terms: `${forma.nome} · ${prazo.descricao}`, condicao_pagamento_id: null };
 }
 
-/** Trocar a forma: o prazo atual só fica se ele for dessa forma e estiver habilitado; senão volta ao placeholder (o campo fica com erro até escolher). */
-export function comForma(r: Rascunho, forma: FormaDePagamento, prazos: readonly PrazoDePagamento[], cliente: LimitesDoCliente): Rascunho {
-  const prazo = prazosDaForma(prazos, forma.id, cliente.prazo_medio_max_dias).find((x) => x.prazo.id === r.prazo_pagamento_id && x.habilitado)?.prazo;
+/** Trocar a forma: o prazo atual só fica se ele for dessa forma e estiver ativo; senão volta ao placeholder (o campo fica com erro até escolher). */
+export function comForma(r: Rascunho, forma: FormaDePagamento, prazos: readonly PrazoDePagamento[]): Rascunho {
+  const prazo = prazosDaForma(prazos, forma.id).find((x) => x.id === r.prazo_pagamento_id);
   if (prazo) return comPagamento(r, forma, prazo);
   return { ...comValoresMantendoPercentual(r, 0), forma_pagamento_id: forma.id, prazo_pagamento_id: null, prazo_percentual_ajuste: 0, payment_terms: forma.nome, condicao_pagamento_id: null };
 }

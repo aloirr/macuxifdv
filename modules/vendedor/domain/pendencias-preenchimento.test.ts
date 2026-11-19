@@ -23,7 +23,7 @@ describe('pendenciasDePreenchimento (RN-CORE-36, RN-VEN-16)', () => {
     expect(pendenciasDePreenchimento({ ...ok, pagamento: { tipo: 'forma' } })[0]).toMatchObject({ id: 'forma', texto: 'Forma de pagamento', aba: 'venda' });
   });
   it('RN-VEN-24: forma/prazo recusados pelo cliente trazem a mensagem da regra na aba Venda', () => {
-    expect(pendenciasDePreenchimento({ ...ok, pagamento: { tipo: 'invalido', codigo: 'prazo_acima_medio', mensagem: 'Prazo acima do permitido. Escolha menor.' } })[0]).toMatchObject({ id: 'pagamento', texto: 'Prazo dentro do prazo médio do cliente', aba: 'venda' });
+    expect(pendenciasDePreenchimento({ ...ok, pagamento: { tipo: 'invalido', codigo: 'forma_nao_aceita', mensagem: 'x' } })[0]).toMatchObject({ id: 'pagamento', texto: 'Forma de pagamento aceita pelo cliente', aba: 'venda' });
   });
   it('RN-CORE-36: sem item e quantidade inválida são da aba Itens', () => {
     expect(pendenciasDePreenchimento({ ...ok, itens: 0 })[0]).toMatchObject({ id: 'sem-item', texto: 'Pelo menos 1 item', aba: 'itens' });
@@ -54,7 +54,6 @@ describe('pendenciasDePreenchimento (RN-CORE-36, RN-VEN-16)', () => {
     expect(p('forma_indisponivel')).toMatchObject({ texto: 'Forma de pagamento (a escolhida saiu da lista)', aba: 'venda' });
     expect(p('prazo_indisponivel').texto).toBe('Prazo de pagamento (o escolhido não vale para esta forma)');
     expect(p('forma_nao_aceita').texto).toBe('Forma de pagamento aceita pelo cliente');
-    expect(p('prazo_acima_medio').texto).toBe('Prazo dentro do prazo médio do cliente');
   });
   it('RN-CORE-36: ordem dos campos na tela (Venda, Itens, Entrega) e todas juntas', () => {
     expect(ids({ itens: 0, pagamento: { tipo: 'prazo' }, frete: 'transportadora' })).toEqual(['prazo', 'sem-item', 'frete']);

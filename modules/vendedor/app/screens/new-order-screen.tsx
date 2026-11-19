@@ -26,8 +26,10 @@ import { rotuloVoltarNovoPedido } from '../../domain/pedido-em-nome';
 import { modalidadePadraoDosParametros, percentualAjusteParaBp } from '../../domain/preco-pedido';
 import { AcimaDoTeclado, useCampoAcimaDoTeclado } from '../components/acima-do-teclado';
 import { AbaEntrega, AbaResumo, AbaVenda, CardPagamento, FimDaAbaItens, linhasDoLeveMais } from '../components/novo-pedido-abas';
-import type { ModeloDoCredito } from '../lib/credito-cliente';
-import { exigeAprovacaoPorVencido, tituloVencidoDias } from '../../domain/pagamento';
+import { financeiroParaAprovacao, type ModeloDoCredito } from '../lib/credito-cliente';
+import { aprovacoesFinanceiras, disponivelParaAlerta } from '../../domain/credito-pedido';
+import { nivelComAprovacoes, niveisDosParametros } from '../../domain/aprovacao';
+import { tituloVencidoDias } from '../../domain/pagamento';
 import { itensLeveMais, linhasNaFaixa } from '../lib/leve-mais';
 import { rascunhoComPagamentoPadrao, situacaoDoPagamento } from '../lib/pagamento-pedido';
 import { enderecoDoRascunho } from '../lib/endereco-pedido';
@@ -35,7 +37,7 @@ import { calcularPedido, enderecosDoCliente, lerChaveDaLinha, situacaoDoFrete, p
 import { abaAnteriorDoPedido, abaInicialDoRascunho, AVISO_PEDIDO_SALVO, abasDoPedido, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, nomeDaSugestao, proximaAbaDoPedido, type AbaNovoPedido } from '../lib/textos-pedido';
 import { unidadesDoProduto } from '../lib/novo-pedido';
 import { MENSAGEM_ERRO_BUSCA } from '../lib/busca-catalogo';
-import { alertasDoNovoPedido, idDaAba, itensSemEstoque, pendenciasDasAbasTentadas, primeiraAbaComFalta } from '../lib/alertas-novo-pedido';
+import { alertasDoNovoPedido, alertasNaAba, idDaAba, itensSemEstoque, pendenciasDasAbasTentadas, primeiraAbaComFalta } from '../lib/alertas-novo-pedido';
 import { impedeEnviarPorAlertas, soOrcamentoPorAlertas, vencidosComEfeito } from '../../domain/alertas-pedido';
 import { AreaAlertas } from '../components/area-alertas';
 import { MostrarMais, ResultadosDaBusca, SemResultadoDaBusca, VisorDeFoto } from '../components/busca-itens';
@@ -218,7 +220,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   useEffect(() => {
     if (!v1 || sent) return;
     if (formas.length > 0) {
-      // sem pagamento (ou fora da lista do cliente): a primeira forma permitida e o primeiro prazo habilitado
+      // sem pagamento (ou fora da lista do cliente): a primeira forma permitida e o primeiro prazo ativo dela (RN-VEN-25: todos os prazos ativos valem)
       const novo = rascunhoComPagamentoPadrao(draft, formas, prazos, limites);
       if (novo !== draft) updateDraft(customerId, (d) => rascunhoComPagamentoPadrao(d, formas, prazos, limites));
       return;
@@ -228,7 +230,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
     if (draft.condicao_pagamento_id && condicoes.some((c) => c.id === draft.condicao_pagamento_id)) return;
     const padrao = condicoes[0]!;
     updateDraft(customerId, (d) => ({ ...d, payment_terms: padrao.descricao, condicao_pagamento_id: padrao.id }));
-  }, [v1, formas, prazos, limites.prazo_medio_max_dias, limites.formas_pagamento, condicoes, draft.forma_pagamento_id, draft.prazo_pagamento_id, draft.condicao_pagamento_id, sent, editId]);
+  }, [v1, formas, prazos, limites.formas_pagamento, condicoes, draft.forma_pagamento_id, draft.prazo_pagamento_id, draft.condicao_pagamento_id, sent, editId]);
 
   const ambiente = useAmbiente();
   const parametrosVendedor = ambiente.parametros('vendedor');
@@ -313,13 +315,17 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
       vivo = false;
     };
   }, [aba, sent, chaveSugestoes, catalog.length, customer?.id]);
-  // RN-VEN-12/13: crédito do cliente na aba Venda (core.financeiro_cliente@1 no aparelho, vale offline), lido ao abrir o pedido (não só na aba Venda), para o Resumo já mostrar "Vai para o supervisor." (RN-VEN-13)
+  // RN-VEN-12/13: crédito do cliente na aba Venda (core.financeiro_cliente@1 no aparelho, vale offline), lido ao abrir o pedido (não só na aba Venda), para o Resumo já mostrar que vai para aprovação (RN-VEN-12/13)
   const [credito, setCredito] = useState<ModeloDoCredito | null | undefined>(undefined);
-  // RN-VEN-13 (T-0129): título vencido há mais que o limite com prazo a prazo nunca bloqueia a forma; o pedido vai ao supervisor (aprovação)
+  // RN-VEN-13 (T-0129): título vencido há mais que o limite nunca bloqueia a forma; o pedido vai para aprovação no nível dos parâmetros (padrão gerente)
   const prazoEscolhido = prazos.find((p) => p.id === draft.prazo_pagamento_id);
-  const vencidoAprova =
-    !sent && credito?.tipo === 'dados' && credito.alerta !== null && prazoEscolhido !== undefined && exigeAprovacaoPorVencido({ maior_atraso_dias: credito.alerta.dias, prazo_medio_dias: prazoEscolhido.prazo_medio_dias, limite_dias: tituloVencidoDias(parametrosVendedor) });
-  const calculo = calculoBase && vencidoAprova && calculoBase.nivel === null ? { ...calculoBase, nivel: 'supervisor' as const } : calculoBase;
+  // T-0184 (RN-VEN-12 e RN-VEN-13, P1 A, P4 A): crédito estourado e título vencido (também à vista) mandam o pedido para aprovação
+  const financeiroDoPedido = sent ? null : financeiroParaAprovacao(credito, prazoEscolhido?.prazo_medio_dias, tituloVencidoDias(parametrosVendedor));
+  // o nível é o dos parâmetros (`niveisDosParametros`, padrão gerente), o mesmo que o servidor usa ao receber o pedido
+  const aprovacoesFin = financeiroDoPedido
+    ? aprovacoesFinanceiras({ prazo_medio_dias: financeiroDoPedido.prazo_medio_dias, total_cents: calculoBase?.total_cents ?? 0, financeiro: financeiroDoPedido, niveis: niveisDosParametros(parametrosVendedor) })
+    : [];
+  const calculo = calculoBase && aprovacoesFin.length > 0 ? { ...calculoBase, nivel: nivelComAprovacoes(calculoBase.nivel, aprovacoesFin) } : calculoBase;
   useEffect(() => {
     if (sent) return;
     let vivo = true;
@@ -352,7 +358,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
 
   // RD-0170 (T-0166): a falta de preenchimento só entra em Alertas nas abas já tentadas; pedido recém-aberto: 0 alertas
   const [tentou, setTentou] = useState<ReadonlySet<AbaDoPedido>>(new Set());
-  // RN-VEN-42 (T-0150): a área única Alertas, no topo de todas as abas (cliente, faltante, máximo, estoque, crédito, título)
+  // RN-VEN-42 (T-0150): a área única Alertas, só na aba Resumo (R-20261119-030234; cliente, faltante, máximo, estoque, crédito, título)
   const codigos = useMemo(() => new Map(catalog.map((p) => [p.id, p.erp_code] as [string, string])), [catalog]);
   const marcas = useMemo(() => new Map(catalog.flatMap((p) => (p.brand?.trim() ? [[p.id, p.brand.trim()] as [string, string]] : []))), [catalog]);
   const semEstoque = !sent && calculoBase ? itensSemEstoque(calculoBase.linhas, (id) => byId.get(id)) : [];
@@ -368,8 +374,8 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
     produtoDoCodigo: (codigo) => catalog.find((p) => p.erp_code === codigo)?.id,
     sem_estoque: semEstoque,
     // RD-0172: título vencido só entra em Alertas quando muda o resultado (acima do limite, com prazo a prazo; RN-VEN-13)
-    vencidos: vencidosComEfeito(credito?.tipo === 'dados' && credito.alerta ? { titulos: credito.alerta.titulos, valor_cents: credito.alerta.valorCents, dias: credito.alerta.dias } : null, prazoEscolhido?.prazo_medio_dias, tituloVencidoDias(parametrosVendedor)),
-    disponivel_cents: credito?.tipo === 'dados' ? credito.disponivel_cents : null,
+    vencidos: vencidosComEfeito(credito?.tipo === 'dados' && credito.alerta ? { titulos: credito.alerta.titulos, valor_cents: credito.alerta.valorCents, dias: credito.alerta.dias } : null, tituloVencidoDias(parametrosVendedor)),
+    disponivel_cents: financeiroDoPedido ? disponivelParaAlerta(financeiroDoPedido) : null,
     total_cents: calculoBase?.total_cents ?? 0,
     // RN-VEN-10 (T-0165): acima da alçada do autor (e dentro do limite do gestor, que já é recusa) vira UMA linha nos Alertas
     acima_da_alcada: !sent && Boolean(calculoBase && calculoBase.nivel !== null && !calculoBase.bloqueado),
@@ -730,7 +736,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
 
       <AcimaDoTeclado>
       <ScrollView ref={rolagem.ref} onScroll={rolagem.onScroll} onLayout={rolagem.onLayout} scrollEventThrottle={32} contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 12, paddingBottom: 16, gap: 12 }} keyboardShouldPersistTaps="handled" testID="new-order">
-        {!sent ? <AreaAlertas alertas={alertasDoTopo} aoTocar={(a) => {
+        {!sent ? <AreaAlertas alertas={alertasNaAba(aba, alertasDoTopo)} aoTocar={(a) => {
           const v = a.vai_para;
           irParaAba(v && 'aba' in v ? idDaAba(v.aba) : 'itens');
           if (v && 'item' in v) setPopupId(v.item);
@@ -752,7 +758,6 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
             ]}
             pagamento={<CardPagamento rascunho={draft} formas={formas} prazos={prazos} cliente={limites} legado={opcoesLegado} onRascunho={emRascunho} faltaForma={faltaDoCampo('forma')} faltaPrazo={faltaDoCampo('prazo')} />}
             credito={credito}
-            prazoMedioDias={limites.prazo_medio_max_dias}
             sincronizadoEm={app.sincronizadoEm}
             agora={new Date()}
             tz={tz}

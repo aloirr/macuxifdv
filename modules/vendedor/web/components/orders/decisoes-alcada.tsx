@@ -4,7 +4,7 @@ import { errorMessage } from '@macuxi/platform-sdk/web';
 import { type ColunaDaTabela, ErrorBlock, formatDateTime, Panel, TabelaDados } from '@macuxi/ui/web';
 import { useDecisoesRecentes, useSessaoDoBko } from '../../lib/queries';
 
-const ROTULO_ACAO: Record<string, string> = { 'pedido.aprovar': 'Aprovou', 'pedido.rejeitar': 'Rejeitou', 'pedido.cancelar': 'Cancelou' };
+const ROTULO_ACAO: Record<string, string> = { 'pedido.aprovar': 'Aprovou', 'pedido.rejeitar': 'Devolveu ao vendedor', 'pedido.recusar': 'Rejeitou', 'pedido.cancelar': 'Cancelou' };
 
 /** Decisões recentes de pedidos (histórico, não parâmetro; ADR do menu Parâmetros, D5): quem decidiu pedidos (auditoria, RN-AUD-01). */
 export function DecisoesAlcada() {

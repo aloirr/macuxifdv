@@ -65,6 +65,17 @@ export const TABELAS_SO_POR_FUNCAO = [
   'plataforma.frase_carga',
 ] as const;
 
+/**
+ * Tabelas de tenant SEM a política `leitura` e SEM grant ao macuxi_leitura (exceção à regra da 0078, ADR 0055): dado pessoal do
+ * trabalhador que não pode sair na consulta só leitura, cuja saída vai para o log do Actions. Os testes e o conferir-rls.sql
+ * exigem o contrário nelas: nenhuma política nem privilégio para o macuxi_leitura.
+ */
+export const TABELAS_SEM_LEITURA = [
+  /** Rastreamento (0089, T-0156, ADR 0061 item 7): pontos e ausências. */
+  'core.ponto_trajeto',
+  'core.ausencia_usuario',
+] as const;
+
 /** Tabelas sem o índice de sync (tenant_id, updated_at, id): não são puxadas pelo app. */
 export const TABELAS_FORA_DO_SYNC = [
   'plataforma.evento',
@@ -102,6 +113,8 @@ export const TABELAS_FORA_DO_SYNC = [
   'catalogo.foto_lote_item',
   /** Último contato do aparelho (0084, T-0180, ADR 0059 §5): o Core grava no sync e só a consulta core.produtividade_equipe@1 lê. */
   'core.usuario_contato',
+  /** Rastreamento (0089, T-0156, ADR 0061): os pontos são só de envio; o trajeto chega ao Gestor por core.trajeto_do_dia@1. */
+  'core.ponto_trajeto',
   /** Contador do número legível do pedido (0009, T-0029): uma linha por tenant, só o servidor usa. */
   'vendedor.numeracao_pedido',
   /** Contador do Código FDV (0080, T-0175, RN-CORE-59): uma linha por tenant, só o gatilho de core.usuario grava; o código vai no usuário. */
@@ -114,6 +127,8 @@ export const TABELAS_FORA_DO_SYNC = [
   'core.nota_erp',
   /** Devolução do pedido (0050, T-0054, RN-VEN-37): só o servidor grava e soma; o aparelho recebe o devolvido pelo resumo do pedido. */
   'vendedor.pedido_devolucao',
+  /** Aprovação por motivo (0088, T-0184 §7.3): o app recebe as aprovações no detalhe do pedido pela API; o pull não muda. */
+  'vendedor.pedido_aprovacao',
   /** Hub de Integração (0010, T-0032): nada do schema integracao vai ao aparelho (o que o app vê chega pelos eventos). */
   'integracao.conector',
   'integracao.credencial',

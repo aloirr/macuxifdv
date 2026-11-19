@@ -15,7 +15,7 @@ export interface PendenciaDoPedido {
 /** Código estável de cada erro do cálculo; a mensagem é só texto para o vendedor, nunca é lida para decidir. */
 export type CodigoErroCalculo = 'sem_preco' | 'medida_indisponivel' | 'desconto_e_acrescimo' | 'desconto_acima_total' | 'desconto_acima_tabela' | 'acima_alcada';
 /** RN-VEN-24/25: código estável da recusa do pagamento (vem de `validarPagamento`). */
-export type CodigoErroPagamento = 'forma_indisponivel' | 'prazo_indisponivel' | 'forma_nao_aceita' | 'prazo_acima_medio';
+export type CodigoErroPagamento = 'forma_indisponivel' | 'prazo_indisponivel' | 'forma_nao_aceita';
 
 /** Erro do cálculo do pedido: `alvo` = `'pedido'` ou o nome do item; `limite` só na alçada (ex.: "20%"). */
 export interface ErroDeCalculo {
@@ -54,7 +54,6 @@ export const PENDENCIA_POR_CODIGO: Record<CodigoErroCalculo | CodigoErroPagament
   forma_indisponivel: { texto: () => 'Forma de pagamento (a escolhida saiu da lista)', aba: () => 'venda' },
   prazo_indisponivel: { texto: () => 'Prazo de pagamento (o escolhido não vale para esta forma)', aba: () => 'venda' },
   forma_nao_aceita: { texto: () => 'Forma de pagamento aceita pelo cliente', aba: () => 'venda' },
-  prazo_acima_medio: { texto: () => 'Prazo dentro do prazo médio do cliente', aba: () => 'venda' },
 };
 
 /** Pendências na ordem das abas: Venda (forma, prazo), Itens (itens, cálculo), Entrega (frete), Resumo (ajuste do pedido). */

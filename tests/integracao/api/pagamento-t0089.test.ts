@@ -4,6 +4,9 @@
  * o objeto `pagamento`, permissões das rotas de formas e prazos (Vendedor) e do pagamento do cliente (Core), licença e
  * isolamento entre tenants.
  *
+ * RN-VEN-25 (R-20261118-224720, #506): o prazo médio máximo do cliente não limita mais o prazo; todos os prazos ativos da
+ * forma ficam disponíveis. A RN-VEN-25 segue só com as formas aceitas pelo cliente.
+ *
  * Fixture (db/seeds/fixtures/dois-tenants.ts): A.c1 tem prazo médio máximo 45 e só PIX e BOLETO; título NF-1001 1/2 vencido
  * há 10 dias (padrão `titulo_vencido_dias` = 5). Formas de A: AVISTA (semeada, ordem 0), PIX (PIX-AV, [0]) e BOLETO
  * (external_id FP-BOL; BOL-28-56 = 42 com external_id PZ-2856, BOL-30-60-90 = 60, BOL-28 inativo). B: AVISTA e DINHEIRO
@@ -36,9 +39,7 @@ const PED = {
   b: id(9),
   bComFormaDeA: id(10),
   orcamento: id(11),
-  transformado: id(12),
   limiteIgual: id(13),
-  semTeto: id(14),
   legado: id(15),
   promotor: id(16),
 } as const;
@@ -95,6 +96,7 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
     await api.admin.query('delete from vendedor.pedido_evento where pedido_id = any($1::uuid[])', [ids]);
     await api.admin.query('delete from vendedor.pedido_item where pedido_id = any($1::uuid[])', [ids]);
     await api.admin.query('update vendedor.pedido set orcamento_id = null where orcamento_id = any($1::uuid[])', [ids]).catch(() => undefined);
+    await api.admin.query('delete from vendedor.pedido_aprovacao where pedido_id = any($1::uuid[])', [ids]).catch(() => undefined); // T-0184 (0088)
     await api.admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [ids]);
     await api.admin.query('delete from plataforma.evento where agregado_id = any($1::uuid[])', [ids]).catch(() => undefined);
     await api.admin.query('delete from vendedor.prazo_pagamento where id = any($1::uuid[])', [Object.values(NOVAS)]);
@@ -126,11 +128,12 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
 
   // ------------------------------------------------------------------------------------------------ critério 5 / RN-VEN-24
   describe('P. Pedido com forma e prazo: retrato das 8 colunas e aprovado@1 com o pagamento', () => {
-    it('P1. PIX à vista para o A.c1 (título vencido, mas prazo médio 0): aceito e aprovado sem alçada; grava as 8 colunas; aprovado@1 leva pagamento PIX/PIX-AV [0] 0 e condicao_pagamento_codigo = código do prazo', async () => {
+    it('P1. PIX à vista para o A.c1 (título vencido há 10 dias > 5): aceito; grava as 8 colunas; vai para aprovação por inadimplência mesmo à vista (T-0184, P1 A); aprovado pelo gerente, o aprovado@1 leva pagamento PIX/PIX-AV [0] 0 e condicao_pagamento_codigo = código do prazo', async () => {
       const [r] = await push(tk.vendedor, [pedidoA(PED.pix, PA.formas.pix, PA.prazos.pixAvista)]);
       expect(r, JSON.stringify(r)).toMatchObject({ id: PED.pix, status: 'aceito' });
       const p = (await linha(PED.pix))!;
-      expect(p.status, 'RN-VEN-13: à vista segue sem aprovação mesmo com título vencido').toBe('approved');
+      expect(p.status, 'RN-VEN-13 (P1 A): inadimplente vai para aprovação também à vista').toBe('pending_approval');
+      expect(p.motivos_aprovacao, 'à vista o crédito não pesa: só a inadimplência').toEqual(['inadimplencia']);
       expect(p).toMatchObject({
         forma_pagamento_id: PA.formas.pix,
         prazo_pagamento_id: PA.prazos.pixAvista,
@@ -143,6 +146,9 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
       expect((p.prazo_parcelas_dias as number[]).map(Number)).toEqual([0]);
       expect(p.condicao_pagamento_id, 'pedido novo não grava a condição legada').toBeNull();
       expect(p.condicao_pagamento_descricao, 'o texto mostrado é "forma · prazo"').toBe('Pix · À vista');
+      expect(await aprovado(PED.pix), 'nada ao ERP antes da aprovação').toBeUndefined();
+      const ok = await api.chamar(tk.gerente, { method: 'POST', url: `/v1/vendedor/pedidos/${PED.pix}/aprovar`, payload: {} });
+      expect(ok.statusCode, ok.body).toBe(200);
       const ev = await aprovado(PED.pix);
       expect(ev, 'vendedor.pedido.aprovado@1 publicado').toBeDefined();
       expect(ev).toMatchObject({ condicao_pagamento_codigo: 'PIX-AV', pagamento: { forma_codigo: 'PIX', prazo_codigo: 'PIX-AV', parcelas_dias: [0], prazo_medio_dias: 0 } });
@@ -169,16 +175,18 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
       expect((await eventos(PED.boleto42)).filter((e) => e.nome === 'vendedor.pedido.criado@1')).toHaveLength(1);
     });
 
-    it('P4. RN-VEN-13: BOLETO 28/56 (42 ≤ 45) para o A.c1 com título vencido há 10 dias > 5: vai para aprovação do supervisor com o motivo credito; nada de aprovado@1 ainda', async () => {
+    it('P4. RN-VEN-13: BOLETO 28/56 (42 ≤ 45) para o A.c1 com título vencido há 10 dias > 5: vai para aprovação do gerente (padrão de "quem aprova inadimplência", T-0184 P5 B) com o motivo inadimplencia; nada de aprovado@1 ainda', async () => {
       const p = (await linha(PED.boleto42))!;
-      expect(p).toMatchObject({ status: 'pending_approval', nivel_aprovacao: 'supervisor', forma_pagamento_codigo: 'BOLETO', prazo_codigo: 'BOL-28-56', prazo_descricao: '28/56 dias', prazo_medio_dias: 42 });
+      expect(p).toMatchObject({ status: 'pending_approval', nivel_aprovacao: 'gerente', forma_pagamento_codigo: 'BOLETO', prazo_codigo: 'BOL-28-56', prazo_descricao: '28/56 dias', prazo_medio_dias: 42 });
       expect((p.prazo_parcelas_dias as number[]).map(Number)).toEqual([28, 56]);
-      expect(p.motivos_aprovacao).toEqual(['credito']);
+      expect(p.motivos_aprovacao, 'crédito folgado (R$ 40.000,00 disponíveis): só a inadimplência').toEqual(['inadimplencia']);
       expect(await aprovado(PED.boleto42)).toBeUndefined();
     });
 
-    it('P5. a supervisora aprova: aprovado@1 sai ao ERP com forma, prazo, external_ids FP-BOL/PZ-2856, parcelas e prazo médio 42 (critério 5)', async () => {
-      const r = await api.chamar(tk.supervisor, { method: 'POST', url: `/v1/vendedor/pedidos/${PED.boleto42}/aprovar`, payload: { comentario: 'T-0089 testes' } });
+    it('P5. a supervisora não decide a inadimplência (nível gerente, 422); o gerente aprova: aprovado@1 sai ao ERP com forma, prazo, external_ids FP-BOL/PZ-2856, parcelas e prazo médio 42 (critério 5)', async () => {
+      const sup = await api.chamar(tk.supervisor, { method: 'POST', url: `/v1/vendedor/pedidos/${PED.boleto42}/aprovar`, payload: {} });
+      expect([sup.statusCode, erroDe(sup).codigo], sup.body).toEqual([422, 'RN-VEN-10']);
+      const r = await api.chamar(tk.gerente, { method: 'POST', url: `/v1/vendedor/pedidos/${PED.boleto42}/aprovar`, payload: { comentario: 'T-0089 testes' } });
       expect(r.statusCode, r.body).toBe(200);
       const ev = await aprovado(PED.boleto42);
       expect(ev).toMatchObject({
@@ -201,10 +209,13 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
 
   // ------------------------------------------------------------------------------------------------ RN-VEN-24 / RN-VEN-25
   describe('R. Recusas RN-VEN-24 e RN-VEN-25 (push: item rejeitado, nada gravado, nada na outbox)', () => {
-    it('R1. RN-VEN-25: BOLETO 30/60/90 (prazo médio 60) passa do máximo 45 do A.c1', async () => {
+    it('R1. RN-VEN-25 (R-20261118-224720): BOLETO 30/60/90 (prazo médio 60) acima do máximo 45 do A.c1 é aceito; vai para aprovação só pela inadimplência', async () => {
       const [r] = await push(tk.vendedor, [pedidoA(PED.boleto60, PA.formas.boleto, PA.prazos.bol306090)]);
-      recusado(r, 'RN-VEN-25', PED.boleto60);
-      await nadaGravado(PED.boleto60);
+      expect(r, JSON.stringify(r)).toMatchObject({ id: PED.boleto60, status: 'aceito' });
+      const p = (await linha(PED.boleto60))!;
+      expect(p).toMatchObject({ status: 'pending_approval', forma_pagamento_codigo: 'BOLETO', prazo_codigo: 'BOL-30-60-90', prazo_medio_dias: 60 });
+      expect((p.prazo_parcelas_dias as number[]).map(Number)).toEqual([30, 60, 90]);
+      expect(p.motivos_aprovacao, 'o prazo médio do cliente não gera motivo: só a inadimplência').toEqual(['inadimplencia']);
     });
 
     it('R2. RN-VEN-24: prazo de outra forma (PIX com o prazo BOL-28-56)', async () => {
@@ -263,8 +274,8 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
     });
   });
 
-  // ------------------------------------------------------------------------------------------------ orçamento e Transformar
-  describe('O. Orçamento: 422 na edição e revalidação no Transformar (o cadastro do Core muda o resultado)', () => {
+  // ------------------------------------------------------------------------------------------------ orçamento
+  describe('O. Orçamento: a edição revalida forma e prazo', () => {
     let atualizado = '';
     it('O1. orçamento com BOLETO 28/56 para o A.c1 é aceito (orçamento não passa pelo título vencido)', async () => {
       const [r] = await push(tk.vendedor, [pedidoA(PED.orcamento, PA.formas.boleto, PA.prazos.bol2856, { tipo: 'orcamento' })]);
@@ -274,23 +285,13 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
       atualizado = (await q<{ a: string }>(`select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as a from vendedor.pedido where id = $1`, [PED.orcamento]))[0]!.a;
     });
 
-    it('O2. PUT /v1/vendedor/orcamentos/:id com o prazo 30/60/90 → 422 RN-VEN-25; com o prazo de outra forma → 422 RN-VEN-24; o orçamento não muda', async () => {
+    it('O2. PUT /v1/vendedor/orcamentos/:id com o prazo de outra forma → 422 RN-VEN-24 e o orçamento não muda; com o prazo 30/60/90 (60 > 45) → 200 (RN-VEN-25, R-20261118-224720)', async () => {
       const base = (forma: string, prazo: string) => ({ ...corpo(A.clientes.c1, prodA, { forma, prazo }), atualizado_em: atualizado });
-      cod422(await api.chamar(tk.vendedor, { method: 'PUT', url: `/v1/vendedor/orcamentos/${PED.orcamento}`, payload: base(PA.formas.boleto, PA.prazos.bol306090) }), 'RN-VEN-25');
       cod422(await api.chamar(tk.vendedor, { method: 'PUT', url: `/v1/vendedor/orcamentos/${PED.orcamento}`, payload: base(PA.formas.pix, PA.prazos.bol2856) }), 'RN-VEN-24');
       expect((await linha(PED.orcamento))!).toMatchObject({ prazo_codigo: 'BOL-28-56', prazo_medio_dias: 42 });
-    });
-
-    it('O3. o analista baixa o prazo médio do A.c1 para 30 no Core; o Transformar do orçamento (28/56 = 42) é recusado com RN-VEN-25', async () => {
-      const r = await pagamentoCliente(tk.analista, A.clientes.c1, 30, ['PIX', 'BOLETO']);
-      expect(r.statusCode, r.body).toBe(200);
-      try {
-        const [t] = await push(tk.vendedor, [pedidoA(PED.transformado, PA.formas.boleto, PA.prazos.bol2856, { tipo: 'pedido', orcamento_origem_id: PED.orcamento })]);
-        recusado(t, 'RN-VEN-25', PED.transformado);
-        await nadaGravado(PED.transformado);
-      } finally {
-        await restaurarC1();
-      }
+      const ok = await api.chamar(tk.vendedor, { method: 'PUT', url: `/v1/vendedor/orcamentos/${PED.orcamento}`, payload: base(PA.formas.boleto, PA.prazos.bol306090) });
+      expect(ok.statusCode, ok.body).toBe(200);
+      expect((await linha(PED.orcamento))!).toMatchObject({ tipo: 'orcamento', prazo_codigo: 'BOL-30-60-90', prazo_medio_dias: 60 });
     });
   });
 
@@ -369,10 +370,6 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
         expect(aud.every((x) => x.tenant_id === A.tenantId)).toBe(true);
         const ev = await q<{ payload: Linha }>("select payload from plataforma.evento where nome = 'core.cliente.atualizado@1' and agregado_id = $1 order by created_at desc limit 1", [A.clientes.c1]);
         expect(ev[0]?.payload).toMatchObject({ cliente_id: A.clientes.c1, campos: ['prazo_medio_max_dias', 'formas_pagamento'], origem: 'bko' });
-        // e o Vendedor revalida com o cadastro novo: 30/60/90 (60) passa a ser aceito (vai para aprovação pelo título vencido)
-        const [p] = await push(tk.vendedor, [pedidoA(PED.semTeto, PA.formas.boleto, PA.prazos.bol306090)]);
-        expect(p, JSON.stringify(p)).toMatchObject({ status: 'aceito' });
-        expect((await linha(PED.semTeto))!).toMatchObject({ prazo_medio_dias: 60, status: 'pending_approval' });
       } finally {
         await restaurarC1();
       }
