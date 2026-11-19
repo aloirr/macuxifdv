@@ -103,3 +103,4 @@
 2026-11-19 — v1.0.15 — preço do Catálogo no prazo padrão do cliente (RN-VEN-43): ajustarPeloPrazoPadrao + espelho de vendedor.preco_prazo_padrao@1 em app/lib/prazo-padrao.ts, ligado na lista (local e online) e na ficha só com ?cliente=; premissa: o servidor do catálogo não ajusta, o ajuste é no app; manifesto sem usaConsultasOpcionais até o Vendedor oferecer a consulta (conferência do shell recusa).
 2026-11-19 — v1.0.15 — código do produto em mono (fonte.mono) e nome da filial em 400 (MC-1752, MC-1753)
 2026-11-19 — v1.0.15 — RD-2245 a RD-2248: imports e dependência repetidos, apoio sem uso fora de OpcaoFiltroFilial, leitura do chip de estoque no domain (chipDoEstoque.leitura), consulta vendedor.preco_prazo_padrao@1 numa chamada só (cents[] na mesma ordem)
+2026-11-19 — v1.0.15 catalogo — RD-2245 (retorno direto), RD-2247 (leituraDoEstoque única, usada pelo chip e pela folha), RD-2291 (View sem uso em Opcao)

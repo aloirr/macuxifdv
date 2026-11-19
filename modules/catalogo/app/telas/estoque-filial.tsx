@@ -99,9 +99,7 @@ export function FolhaFiltroCatalogo({
 function Opcao({ divisor, rotulo, marcada, onPress, testID }: { divisor: boolean; rotulo: string; marcada: boolean; onPress: () => void; testID: string }) {
   return (
     <Pressable testID={testID} accessibilityRole="radio" accessibilityState={{ selected: marcada }} accessibilityLabel={rotulo} onPress={onPress} style={[e.opcao, divisor && e.divisor]}>
-      <View style={{ flex: 1 }}>
-        <Text style={[e.opcaoTexto, marcada && e.opcaoTextoOn]}>{rotulo}</Text>
-      </View>
+      <Text style={[e.opcaoTexto, { flex: 1 }, marcada && e.opcaoTextoOn]}>{rotulo}</Text>
       {marcada ? <Icon name="check" size={18} color={colors.accent} strokeWidth={2.6} /> : null}
     </Pressable>
   );

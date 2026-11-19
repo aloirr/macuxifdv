@@ -28,7 +28,7 @@ export function dadosDaFolha(e: { availability: NonNullable<ItemVitrine['availab
   return {
     apoio: hora,
     linhas,
-    leitura: linhas.map((l) => ({ id: l.id, texto: `${l.nome}${l.propria ? ', sua filial' : ''}, ${leituraDoEstoque(l.valor, mostrar)}` })),
+    leitura: linhas.map((l) => ({ id: l.id, texto: `${l.nome}${l.propria ? ', sua filial' : ''}, ${leituraDoEstoque(l.valor, mostrar).toLowerCase()}` })),
   };
 }
 

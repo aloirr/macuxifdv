@@ -86,13 +86,12 @@ export function chipDoEstoque(a: { quantity: number | null; band?: FaixaEstoque 
   const mostrar = a.quantity !== null;
   const texto = textoEstoqueCartao(q, noCartao, mostrar);
   // leitura de tela: o mesmo valor, sem os dois-pontos e com o sinal lido como "menos"; sem quantidade, "Em estoque"/"Sem estoque"
-  const leitura = mostrar ? `Estoque ${numeroDoEstoque(q, noCartao).replace(MENOS, 'menos ')}` : texto;
-  return { texto, tom: corDoEstoque(q), leitura };
+  return { texto, tom: corDoEstoque(q), leitura: leituraDoEstoque(mostrar ? numeroDoEstoque(q, noCartao) : texto, mostrar) };
 }
 
-/** Frase do TalkBack para um valor de estoque: "estoque menos 3" (o sinal − lido como "menos"); sem quantidade, "em estoque"/"sem estoque". */
+/** Frase única do TalkBack para um valor de estoque: "Estoque menos 3" (o sinal − lido como "menos"); sem quantidade, o próprio "Em estoque"/"Sem estoque". */
 export function leituraDoEstoque(valor: string, mostrarQuantidade: boolean): string {
-  return mostrarQuantidade ? `estoque ${valor.replace(MENOS, 'menos ')}` : valor.toLowerCase();
+  return mostrarQuantidade ? `Estoque ${valor.replace(MENOS, 'menos ')}` : valor;
 }
 
 /** spec §4: rótulo do padrão do filtro de filial, no chip e na folha "Filtrar". */
@@ -138,7 +137,7 @@ export function linhasDaFolhaEstoque(
   porFilial: readonly { branch_id: string; branch_name: string; quantity: number | null; band?: FaixaEstoque }[],
   o: { filialCadastro: string | null; mostrarQuantidade: boolean },
 ): LinhaFolhaEstoque[] {
-  const linhas = porFilial.map((b) => {
+  return porFilial.map((b) => {
     const q = quantidadeDoEstoque(b.quantity, b.band);
     return {
       id: b.branch_id,
@@ -148,7 +147,6 @@ export function linhasDaFolhaEstoque(
       tom: corDoEstoque(q),
     };
   });
-  return linhas;
 }
 
 /**

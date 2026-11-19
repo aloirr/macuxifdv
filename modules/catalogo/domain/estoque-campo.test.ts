@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chipDoEstoque, corDoEstoque, filiaisDaFolha, filiaisDoEstoque, linhasDaFolhaEstoque, rotuloCargaEstoque, lerFiliaisDoUsuario, rotuloChipFiliais, textoEstoqueCartao, type FiliaisDoUsuario } from './estoque-campo';
+import { chipDoEstoque, leituraDoEstoque, corDoEstoque, filiaisDaFolha, filiaisDoEstoque, linhasDaFolhaEstoque, rotuloCargaEstoque, lerFiliaisDoUsuario, rotuloChipFiliais, textoEstoqueCartao, type FiliaisDoUsuario } from './estoque-campo';
 
 // docs/design/catalogo-campo-v2/spec.md §3 e §4 (estoque na hora, valor de N e quem vê); RN-CAT-05 (estoque do promotor), RN-CORE-39 (filial)
 const BV = 'f-boa-vista';
@@ -96,6 +96,8 @@ describe('Catálogo v2: chipDoEstoque, texto e cor do "Estoque: N" (spec §3)', 
     expect(chipDoEstoque({ quantity: null, band: 'sem_estoque' }, true).leitura).toBe('Sem estoque');
   });
   it('spec §3: tenant que esconde a quantidade decide pela faixa: "Em estoque" verde ou "Sem estoque" vermelho', () => {
+    expect(leituraDoEstoque('−2', true)).toBe('Estoque menos 2');
+    expect(leituraDoEstoque('Em estoque', false)).toBe('Em estoque');
     expect(chipDoEstoque({ quantity: null, band: 'baixo' }, true)).toEqual({ texto: 'Em estoque', tom: 'sucesso', leitura: 'Em estoque' });
     expect(chipDoEstoque({ quantity: null, band: 'sem_estoque' }, true)).toEqual({ texto: 'Sem estoque', tom: 'erro', leitura: 'Sem estoque' });
   });
