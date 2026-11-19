@@ -16,6 +16,7 @@ import { STATUS_DIA_ROTULO } from '../../app/lib/apresentacao';
 import { csvDaEquipe } from '../lib/csv';
 import { lerFiltrosPainel, paraQuery } from '../lib/filtros';
 import { useVisaoEquipe } from '../lib/queries';
+import { TrajetoDoDia } from './trajeto-do-dia';
 
 const TOM: Record<StatusDia, BadgeTone> = { em_visita: 'success', em_rota: 'pending', sem_checkin: 'warning' };
 const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v)}%`);
@@ -101,6 +102,7 @@ function Conteudo() {
               />
             </Panel>
           )}
+          {v.membros.length > 0 ? <TrajetoDoDia membros={v.membros} dia={f.data ?? null} /> : null}
         </>
       ) : null}
     </div>

@@ -16,12 +16,13 @@ import {
   type ContextoConsumo,
   type ContextoRota,
   type ModuloId,
+  type PerfilDaRequisicao,
   type Perfil,
   type RegistroAuditoria,
   type RotaModulo,
 } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
-import { FichaMembro, FilaAprovacao, ListaAlertas, RankingEquipe, RegraAlerta, VisaoEquipe } from '../contracts';
+import { FichaMembro, FilaAprovacao, ListaAlertas, RankingEquipe, RegraAlerta, TrajetoEquipe, VisaoEquipe } from '../contracts';
 import { CLIENTE_A, checkin, GERENTE, pedidoCriado, PROMOTOR, statusAlterado, SUPERVISOR, u, VENDEDOR, VENDEDOR_2 } from '../domain/fixtures';
 import type { EventoRecebido } from '../domain';
 import { dataDoUsuario } from './rotas';
@@ -53,9 +54,15 @@ const VISIVEIS: Record<string, ReadonlySet<string> | 'tenant'> = {
 const PERFIL: Record<string, Perfil> = Object.fromEntries(CADASTRO.map((c) => [c.id, c.perfil as Perfil]));
 const TODOS: ModuloId[] = ['core', 'gestor', 'vendedor', 'promotor', 'catalogo'];
 
+/** Perfis resolvidos como o Core entrega: só a chave do trajeto interessa (padrão de fábrica do tracking §7). */
+const perfisDeFabrica = (base: Perfil): PerfilDaRequisicao[] => [{ codigo: base, base, permissoes: ['supervisor', 'gerente', 'admin'].includes(base) ? { 'trajeto.ver_equipe': {} } : {} }];
+
 function cenario() {
   /** Último contato do aparelho por usuário, como a consulta `core.produtividade_equipe@1` do Core devolve (nulo = nunca sincronizou). */
   const contatos: Record<string, string | null> = {};
+  /** Trajeto do dia como o Core devolve (`core.trajeto_do_dia@1`); o Core confere o escopo, aqui só devolve o que foi pedido. */
+  const trajetos: Record<string, { metros: number; pontos: { capturado_em: string; latitude: number; longitude: number; precisao_m: number }[]; pausas: { inicio: string; fim: string | null }[] }> = {};
+  const chamadasTrajeto: { usuario_ids: string[]; data: string }[] = [];
   const relogio = criarRelogio({ agora: '2026-11-03T15:00:00Z' }); // terça, 11:00 em Manaus
   const repo = criarRepositorioEmMemoria();
   const api = criarApiGestor(repo);
@@ -67,7 +74,7 @@ function cenario() {
     if (!r) throw new Error(`rota ${metodo} ${caminho} não existe`);
     return r;
   };
-  const chamar = async (metodo: string, caminho: string, quem: string, o: { tenant?: string; query?: unknown; params?: unknown; corpo?: unknown; modulos?: ModuloId[] } = {}) => {
+  const chamar = async (metodo: string, caminho: string, quem: string, o: { tenant?: string; query?: unknown; params?: unknown; corpo?: unknown; modulos?: ModuloId[]; perfis?: readonly PerfilDaRequisicao[] } = {}) => {
     const r = rota(metodo, caminho);
     const tx = {
       publicar: async () => {
@@ -78,6 +85,11 @@ function cenario() {
       },
       consultar: async (def: { nome: string }, entrada: { usuario_ids: string[] }) => {
         if (def.nome === 'core.calendario_metas@1') return { dias_uteis_semana: DIAS_UTEIS_DO_CORE, feriados: [] };
+        if (def.nome === 'core.trajeto_do_dia@1') {
+          const e = entrada as unknown as { usuario_ids: string[]; data: string };
+          chamadasTrajeto.push(e);
+          return { data: e.data, usuarios: e.usuario_ids.filter((id) => trajetos[id]).map((id) => ({ id, ...trajetos[id]! })) };
+        }
         if (def.nome === 'core.produtividade_equipe@1') {
           return { parado_min: 60, alertas: PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO, usuarios: entrada.usuario_ids.map((id) => ({ id, ultimo_contato_em: contatos[id] ?? null, almoco_inicio_min: 720, almoco_fim_min: 780 })) };
         }
@@ -88,7 +100,7 @@ function cenario() {
       },
     };
     const ctx = {
-      usuario: { id: quem, tenant_id: o.tenant ?? TENANT, perfil: PERFIL[quem]!, modulos: o.modulos ?? TODOS },
+      usuario: { id: quem, tenant_id: o.tenant ?? TENANT, perfil: PERFIL[quem]!, modulos: o.modulos ?? TODOS, perfis: o.perfis ?? perfisDeFabrica(PERFIL[quem]!) },
       dependencias: {},
       requestId: 'req-1',
       agora: () => relogio.agora(),
@@ -116,7 +128,7 @@ function cenario() {
       await c.executar(c.evento.schema.parse(e.payload), ctx);
     }
   };
-  return { relogio, repo, api, auditoria, chamar, publicar, contatos };
+  return { relogio, repo, api, auditoria, chamar, publicar, contatos, trajetos, chamadasTrajeto };
 }
 
 const iso = (r: ReturnType<typeof criarRelogio>, hora: string, dias = 0) => r.instante({ dias, hora }).toISOString();
@@ -142,10 +154,11 @@ const aprovacaoSolicitada = (r: ReturnType<typeof criarRelogio>, o: { pedido: st
 const DIAS_UTEIS_DO_CORE = [1, 2, 3, 4, 5, 6];
 
 describe('API do Gestor: declaração, licença e perfis (regra 6)', () => {
-  it('a API é válida no SDK: 11 rotas, um consumidor por evento de `consome`, escrita sempre com ação do manifesto', () => {
+  it('a API é válida no SDK: 12 rotas, um consumidor por evento de `consome`, escrita sempre com ação do manifesto', () => {
     expect(apiGestor.rotas!.map((r) => `${r.metodo} ${r.caminho}`)).toEqual([
       'GET equipe',
       'GET equipe/:usuario_id',
+      'GET equipe/:usuario_id/trajeto',
       'GET ranking',
       'GET aprovacoes',
       'GET alertas',
@@ -188,6 +201,59 @@ describe('API do Gestor: declaração, licença e perfis (regra 6)', () => {
       expect(pode(perfil, rotas['PUT parametros/alertas']!)).toBe(true);
     }
     expect(promotorBarradoNaRota(rotas['GET pedido-em-nome/disponibilidade']!)).toBe(true);
+  });
+});
+
+describe('API do Gestor: trajeto do dia da equipe (T-0156, tracking §7)', () => {
+  const PONTO = { capturado_em: '2026-11-03T12:00:00Z', latitude: -3.1, longitude: -60.02, precisao_m: 8 };
+  const SEGREDO = String(PONTO.latitude);
+
+  it('RN-CORE-13 / §7: o supervisor vê o trajeto do dia do vendedor da equipe, pela consulta do Core, com a data do tenant', async () => {
+    const c = cenario();
+    c.trajetos[VENDEDOR] = { metros: 1200, pontos: [PONTO], pausas: [] };
+    const r = TrajetoEquipe.parse(await c.chamar('GET', 'equipe/:usuario_id/trajeto', SUPERVISOR, { params: { usuario_id: VENDEDOR } }));
+    expect(r.data).toBe(c.relogio.hoje());
+    expect(r.trajeto).toMatchObject({ id: VENDEDOR, metros: 1200, pontos: [PONTO] });
+    expect(c.chamadasTrajeto).toEqual([{ usuario_ids: [VENDEDOR], data: c.relogio.hoje() }]);
+  });
+
+  it('RN-CORE-13: sem pontos (tracking desligado de fábrica) a resposta traz o trajeto vazio, não erro', async () => {
+    const c = cenario();
+    const r = TrajetoEquipe.parse(await c.chamar('GET', 'equipe/:usuario_id/trajeto', GERENTE, { params: { usuario_id: PROMOTOR }, query: { data: '2026-11-02' } }));
+    expect(r).toEqual({ data: '2026-11-02', trajeto: { id: PROMOTOR, metros: 0, pontos: [], pausas: [] } });
+  });
+
+  it('RN-CORE-04: fora da equipe responde 404 e a consulta do Core nem é feita; o gerente alcança as equipes abaixo', async () => {
+    const c = cenario();
+    await expect(c.chamar('GET', 'equipe/:usuario_id/trajeto', SUPERVISOR, { params: { usuario_id: VEND_3 } })).rejects.toMatchObject({ status: 404, codigo: 'MEMBRO_NAO_ENCONTRADO' });
+    expect(c.chamadasTrajeto).toEqual([]);
+    await expect(c.chamar('GET', 'equipe/:usuario_id/trajeto', GERENTE, { params: { usuario_id: VEND_3 } })).resolves.toBeTruthy();
+  });
+
+  it('RN-CORE-37 / §7: sem `core.trajeto.ver_equipe` é 403, mesmo para quem entra pelo perfil (analista); a consulta não roda', async () => {
+    const c = cenario();
+    await expect(c.chamar('GET', 'equipe/:usuario_id/trajeto', ANALISTA, { params: { usuario_id: VENDEDOR } })).rejects.toMatchObject({ status: 403, codigo: 'PERFIL_SEM_ACESSO' });
+    await expect(c.chamar('GET', 'equipe/:usuario_id/trajeto', SUPERVISOR, { params: { usuario_id: VENDEDOR }, perfis: [{ codigo: 'supervisor', base: 'supervisor', permissoes: {} }] })).rejects.toMatchObject({ status: 403 });
+    expect(c.chamadasTrajeto).toEqual([]);
+  });
+
+  it('§7: vendedor, promotor e assistente são barrados pela rota (perfil) e sem a licença do Gestor é MODULO_INATIVO', () => {
+    const c = cenario();
+    const r = c.api.rotas!.find((x) => x.caminho === 'equipe/:usuario_id/trajeto')!;
+    const perm = criarPermissoes([manifest]);
+    const como = (perfil: Perfil, modulos: ModuloId[] = TODOS) => ({ id: u(1), tenant_id: TENANT, perfil, modulos });
+    for (const perfil of ['vendedor', 'promotor', 'assistente', 'analista'] as const) expect(verificarAcesso(como(perfil), { modulo: 'gestor', perfis: r.perfis! }).ok).toBe(false);
+    for (const perfil of ['supervisor', 'gerente', 'admin'] as const) expect(verificarAcesso(como(perfil), { modulo: 'gestor', perfis: r.perfis! }).ok).toBe(true);
+    expect(verificarAcesso(como('supervisor', ['core']), { modulo: 'gestor', perfis: r.perfis! })).toMatchObject({ ok: false, codigo: 'MODULO_INATIVO' });
+    expect(perm).toBeTruthy();
+  });
+
+  it('§7: nenhuma exportação de pontos brutos (só leitura de um dia, uma pessoa) e nenhuma coordenada no erro', async () => {
+    const c = cenario();
+    expect(c.api.rotas!.filter((x) => /trajeto|csv|export/i.test(x.caminho)).map((x) => `${x.metodo} ${x.caminho}`)).toEqual(['GET equipe/:usuario_id/trajeto']);
+    c.trajetos[VENDEDOR] = { metros: 10, pontos: [PONTO], pausas: [] };
+    const erro = await c.chamar('GET', 'equipe/:usuario_id/trajeto', SUPERVISOR, { params: { usuario_id: VEND_3 } }).catch((e: Error) => e);
+    expect(JSON.stringify({ m: (erro as Error).message, s: (erro as Error).stack })).not.toContain(SEGREDO);
   });
 });
 

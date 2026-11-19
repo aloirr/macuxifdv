@@ -5,8 +5,8 @@
  * domain em toda resposta; fora do escopo = 404 sem revelar existência. Leitura do tenant (analista/admin) é só
  * leitura (RN-GES-07). Nenhuma rota de pedido aqui (RN-PRO-01): aprovar/rejeitar e o pedido em nome são do Vendedor.
  */
-import { CONSULTA_CADASTRO_RESUMO, CONSULTA_CALENDARIO_METAS, CONSULTA_PRODUTIVIDADE_EQUIPE, type HorarioAlmoco, type ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
-import { ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, uuidPadrao, type ClienteBanco, type ContextoBase, type Perfil, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
+import { CONSULTA_CADASTRO_RESUMO, CONSULTA_CALENDARIO_METAS, CONSULTA_PRODUTIVIDADE_EQUIPE, CONSULTA_TRAJETO_DO_DIA, type HorarioAlmoco, type ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
+import { ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, exigirPermissao, uuidPadrao, type ClienteBanco, type ContextoBase, type Perfil, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { exigirDataCivil } from '@macuxi/comum';
 import type { z } from 'zod';
 import manifest from '../manifest';
@@ -26,6 +26,7 @@ import {
   type MembroEquipe,
   type RankingEquipe,
   type RegrasAlertaResposta,
+  type TrajetoEquipe,
   type VisaoEquipe,
 } from '../contracts';
 import {
@@ -56,6 +57,9 @@ import type { AcessoTenant, RepositorioGestor } from './repositorio';
 
 /** Quem LÊ os painéis: a equipe (painel_equipe.ver) e o tenant em leitura (painel_tenant.ver, RN-GES-07). */
 export const PERFIS_LEITURA: readonly Perfil[] = [...new Set([...manifest.acoes['painel_equipe.ver']!.perfis, ...manifest.acoes['painel_tenant.ver']!.perfis])];
+
+/** Quem pode pedir o trajeto: o padrão de fábrica de `core.trajeto.ver_equipe` (tracking §7); a permissão em si é conferida na rota e no Core. */
+const PERFIS_TRAJETO: readonly Perfil[] = ['supervisor', 'gerente', 'admin'];
 
 const LOTE_CADASTRO = 500;
 
@@ -208,6 +212,33 @@ export function criarRotasGestor(repo: RepositorioGestor): RotaModulo[] {
     },
   };
 
+  /**
+   * GET /v1/gestor/equipe/:usuario_id/trajeto?data= — T-0156, RN-CORE-13/RN-CORE-37, tracking §7: trajeto do dia de uma pessoa de campo,
+   * pelo `core.trajeto_do_dia@1` (o Core confere de novo escopo e permissão). Exige `core.trajeto.ver_equipe` (supervisor, gerente e
+   * admin de fábrica; nunca vendedor, promotor ou analista). Fora do escopo = 404. Só leitura: nada exporta pontos brutos, e nenhuma
+   * coordenada vai para log ou erro (§9). Sem pontos, `pontos` vem vazio.
+   */
+  const trajeto: RotaModulo = {
+    metodo: 'GET',
+    caminho: 'equipe/:usuario_id/trajeto',
+    perfis: PERFIS_TRAJETO,
+    carteira: 'filtrar_no_dominio',
+    params: ParamsUsuario,
+    query: DataQuery,
+    executar: (ctx) => {
+      exigirPermissao(ctx.usuario, 'trajeto.ver_equipe');
+      const data = dataDoUsuario((ctx.query as DataQuery).data);
+      const { usuario_id } = ctx.params as z.infer<typeof ParamsUsuario>;
+      return comGestor(ctx, repo, async (g): Promise<TrajetoEquipe> => {
+        const alvo = equipeDoEscopo(g).find((m) => m.id === usuario_id && (m.perfil === 'vendedor' || m.perfil === 'promotor'));
+        if (!alvo) throw new ErroNaoEncontrado('MEMBRO_NAO_ENCONTRADO', 'Pessoa não encontrada na sua equipe.');
+        const dia = dataDaConsulta(data, g.agora, g.params.fuso);
+        const r = await g.tx.consultar(CONSULTA_TRAJETO_DO_DIA, { usuario_ids: [alvo.id], data: dia });
+        return { data: r.data, trajeto: r.usuarios.find((u) => u.id === alvo.id) ?? { id: alvo.id, metros: 0, pontos: [], pausas: [] } };
+      });
+    },
+  };
+
   /** GET /v1/gestor/ranking?indicador=&periodo=&data= — RF-GES-03 (desempate total no domain). */
   const ranking: RotaModulo = {
     metodo: 'GET',
@@ -327,5 +358,5 @@ export function criarRotasGestor(repo: RepositorioGestor): RotaModulo[] {
       ),
   };
 
-  return [equipe, ficha, ranking, aprovacoes, alertas, dispensar, regras, ajustarRegra, ...rotasDeParametrosAlertas, emNome];
+  return [equipe, ficha, trajeto, ranking, aprovacoes, alertas, dispensar, regras, ajustarRegra, ...rotasDeParametrosAlertas, emNome];
 }

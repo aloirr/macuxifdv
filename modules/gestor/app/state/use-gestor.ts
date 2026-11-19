@@ -11,7 +11,7 @@ import { DEFAULT_TZ } from '@macuxi/ui/mobile/puro';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { alertasDePendenciaCheckout, type NotificacaoPendencia } from '../../domain/alertas-pendencia-checkout';
-import { Alerta, FichaMembro, RankingEquipe, ROTAS_GESTOR, type IndicadorRanking, type PeriodoRanking } from '../../contracts';
+import { Alerta, FichaMembro, RankingEquipe, ROTAS_GESTOR, TrajetoEquipe, type IndicadorRanking, type PeriodoRanking } from '../../contracts';
 import { aplicarParadoMinDoTenant } from '../lib/parado-min';
 import { chaveRanking, criarCache, DADOS_VAZIOS, mensagemDeErro, type DadosGestor } from '../lib/cache';
 
@@ -85,6 +85,23 @@ export function useGestor(opcoes: { pendencias?: boolean } = {}) {
     [ambiente, dados.visao],
   );
 
+  /**
+   * T-0156: trajeto do dia pela API, sob demanda e sem cache (ponto de localização não fica guardado no aparelho do gestor, tracking §9).
+   * `negado` = sem a permissão `core.trajeto.ver_equipe`: a tela esconde a seção. Nenhuma coordenada vai para log nem para a mensagem.
+   */
+  const trajeto = useCallback(
+    async (id: string): Promise<{ trajeto: TrajetoEquipe | null; negado: boolean; erro: string | null }> => {
+      if (!ambiente.online()) return { trajeto: null, negado: false, erro: 'Sem sinal para ver o trajeto. Conecte-se e abra a ficha de novo.' };
+      try {
+        return { trajeto: TrajetoEquipe.parse(await ambiente.http.get<unknown>(ROTAS_GESTOR.trajeto(id))), negado: false, erro: null };
+      } catch (e) {
+        const negado = (e as { status?: number } | null)?.status === 403;
+        return { trajeto: null, negado, erro: negado ? null : mensagemDeErro(e) };
+      }
+    },
+    [ambiente],
+  );
+
   /** RF-GES-03: ranking pela API (guarda o último de cada combinação para ver offline). */
   const ranking = useCallback(
     async (indicador: IndicadorRanking, periodo: PeriodoRanking): Promise<{ ranking: RankingEquipe | null; erro: string | null }> => {
@@ -104,5 +121,5 @@ export function useGestor(opcoes: { pendencias?: boolean } = {}) {
 
   const pendencias = useMemo(() => alertasDePendenciaCheckout(notificacoes, { perfil: usuario?.perfil, agora: relogio.agora().toISOString() }), [notificacoes, usuario?.perfil, estado.sincronizado_em]);
 
-  return { ...dados, pendencias, usuarioId: usuario?.id ?? null, carregado, sincronizando: estado.sincronizando, erro: estado.erro, offline, tz, auto, dispensar, ficha, ranking };
+  return { ...dados, pendencias, usuarioId: usuario?.id ?? null, carregado, sincronizando: estado.sincronizando, erro: estado.erro, offline, tz, auto, dispensar, ficha, trajeto, ranking };
 }

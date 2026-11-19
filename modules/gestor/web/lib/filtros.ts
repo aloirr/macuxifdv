@@ -2,7 +2,7 @@
  * Filtros das páginas do Gestor no BKO, sempre na URL (padrão do BKO): data, indicador, período e status do alerta.
  * Valor inválido na URL cai no padrão (nunca quebra a página); o contrato da rota valida de novo na API.
  */
-import { IsoDate, IndicadorRanking, PeriodoRanking, StatusAlerta, type IndicadorRanking as Indicador, type PeriodoRanking as Periodo, type StatusAlerta as Status } from '../../contracts';
+import { IsoDate, IndicadorRanking, Uuid, PeriodoRanking, StatusAlerta, type IndicadorRanking as Indicador, type PeriodoRanking as Periodo, type StatusAlerta as Status } from '../../contracts';
 
 interface Busca {
   get(chave: string): string | null;
@@ -10,6 +10,10 @@ interface Busca {
 
 export interface FiltrosPainel {
   data: string | null;
+}
+/** Pessoa do trajeto do dia (`?pessoa=`, T-0156); fora do formato cai em nenhuma. */
+export function lerPessoaDoTrajeto(p: Busca): string | null {
+  return ou(Uuid.safeParse(p.get('pessoa')), null);
 }
 export interface FiltrosRanking {
   indicador: Indicador;

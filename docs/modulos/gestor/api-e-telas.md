@@ -9,6 +9,7 @@ O `createApp` aplica, em toda rota: login → **licença do Gestor** (403 `MODUL
 |---|---|---|---|
 | `GET /v1/gestor/equipe?data=` | supervisor, gerente, analista, admin (`painel_equipe.ver` ∪ `painel_tenant.ver`) | `VisaoEquipe` (resumo, equipes abaixo + `gestores`, painel do dia de cada pessoa de campo) | RF-GES-01, RN-GES-05/06 |
 | `GET /v1/gestor/equipe/:usuario_id?data=` | idem | `FichaMembro` (painel + disponibilidade do pedido em nome) | RF-GES-02/05/10 |
+| `GET /v1/gestor/equipe/:usuario_id/trajeto?data=` | supervisor, gerente, admin com `core.trajeto.ver_equipe` (nunca vendedor, promotor ou analista) | `TrajetoEquipe` (pontos e pausas do dia, de `core.trajeto_do_dia@1`; vazio sem tracking) | T-0156, RN-CORE-13/37, tracking §7; só leitura, sem exportação de pontos |
 | `GET /v1/gestor/ranking?indicador=&periodo=&data=` | idem | `RankingEquipe` | RF-GES-03 |
 | `GET /v1/gestor/aprovacoes` | idem (analista/admin com `pode_decidir = false`) | `FilaAprovacao` | RF-GES-04, RN-GES-03/04/07 |
 | `GET /v1/gestor/alertas?status=` | idem | `ListaAlertas` (sem `status` = abertos e dispensados) | RF-GES-07 |
@@ -49,7 +50,10 @@ Offline-first: cache no armazenamento do módulo (`mod:gestor:`; apagado se o Ge
 ## 5. BKO (`web/`)
 Menus do manifesto: Painel da equipe (`/equipe`), Ranking (`/ranking`), Aprovações (`/aprovacoes`), Alertas (`/alertas`) — leitura para supervisor, gerente, analista e admin — e Regras de alerta (`/regras-alerta`, `alerta_regra.gerenciar`). Filtros na URL (`data`, `indicador`, `periodo`, `status`), CSV na equipe e no ranking, dispensar só com `alerta_equipe.dispensar`. RN-CORE-23: sem consulta periódica curta; busca ao abrir a página, ao voltar à aba do navegador e no botão "Atualizar"; só o painel de aprovação atualiza sozinho, a cada `sync_auto_min` (`intervaloAutomaticoMs`: padrão 30 min, mínimo 15; o BKO ainda não expõe o parâmetro do tenant, então vale o padrão).
 
+**Trajeto do dia (T-0156).** O app (ficha) e o BKO (painel, `?pessoa=`) desenham os pontos no aparelho e no navegador com `domain/trajeto.ts` (`desenharTrajeto`: ordem por `capturado_em`, linha, primeiro e último ponto, hora no fuso do tenant); nenhum provedor de mapa recebe o trajeto (tracking §9). Sem pontos: "Sem trajeto neste dia." Sem a permissão, a seção some. Sem cache no aparelho e nenhuma coordenada em log, erro ou telemetria.
+
 ## 6. Pendências fora do módulo
+- modulo-core: oferecer a consulta `core.trajeto_do_dia@1` (`ofereceConsultas` e provedor); sem ela o shell recusa a montagem do Gestor (T-0156).
 - banco-dados: migração do schema `gestor` (seção 3) e **licença do Gestor no tenant demo** (seed `plataforma.tenant_modulo` e `perfil_modulo` de supervisor/gerente).
 - modulo-core: consulta `core.hierarquia_equipe@1` (árvore com `superior_id`) e os campos de carteira no `core.cliente.atualizado@1` (RN-GES-01/02).
 - modulo-vendedor: contrato e item do slot `pedido.criar_em_nome` (RN-VEN-35) e `credito`/`historico` no `vendedor.pedido.aprovacao_solicitada@1`.

@@ -32,7 +32,7 @@ const PERFIS_TENANT = ['analista', 'admin'] as const;
  */
 export const manifest = defineModule({
   id: 'gestor',
-  versao: '0.7.0',
+  versao: '0.8.0',
   depende: ['core'],
   opcionais: ['vendedor', 'promotor', 'pesquisa', 'treinamento'],
   perfis: ['supervisor', 'gerente', 'analista', 'admin'],
@@ -71,7 +71,8 @@ export const manifest = defineModule({
     'alerta_regra.gerenciar': { perfis: [...PERFIS_TENANT], descricao: 'Ligar, desligar e ajustar as regras de alerta do tenant (BKO)' },
   },
   // T-0055: nomes e perfis da equipe pelo cadastro do Core (ADR 0012), na mesma transação da rota.
-  usaConsultas: ['core.cadastro_resumo@1', 'core.calendario_metas@1', 'core.produtividade_equipe@1'],
+  // T-0156 (tracking §5.2/§7): `core.trajeto_do_dia@1` para o trajeto do dia da equipe; o Core confere o escopo e `core.trajeto.ver_equipe`.
+  usaConsultas: ['core.cadastro_resumo@1', 'core.calendario_metas@1', 'core.produtividade_equipe@1', 'core.trajeto_do_dia@1'],
   // Pedido em nome: extensão opcional do Vendedor; some sem erro se o Vendedor estiver inativo.
   usaExtensoes: ['pedido.criar_em_nome', 'cliente.abas', 'cliente.avisos', 'inicio.cards'],
 });
