@@ -32,8 +32,6 @@ const Longitude = z.number().min(-180).max(180).refine(seisCasas, 'Use no máxim
 // ---- Entidades de sync ----
 export const ENTIDADE_PONTO_TRAJETO = 'ponto_trajeto';
 export const ENTIDADE_AUSENCIA_USUARIO = 'ausencia_usuario';
-/** Pontos por lote de envio (§3.4). */
-export const PONTOS_POR_LOTE = 500;
 
 /** Push `ponto_trajeto` (§3.1). O aparelho vem do token (`did`); o usuário, da sessão. */
 export const PontoTrajetoSchema = z

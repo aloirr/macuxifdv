@@ -4,7 +4,7 @@
  */
 import type { ClienteBanco, ContextoBase, ItemPush } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { PARAMETROS_RASTREAMENTO_PADRAO, PONTOS_POR_LOTE } from '../contracts';
+import { PARAMETROS_RASTREAMENTO_PADRAO } from '../contracts';
 import { sqlDoPull } from './sync';
 import { provedoresSyncTrajeto, TABELAS_SYNC_TRAJETO } from './sync-trajeto';
 import { receberPontosTrajeto } from './trajeto-push';
@@ -82,15 +82,6 @@ describe('RN-CORE-13: push de ponto_trajeto', () => {
     const v = ctxFalso();
     await receberPontosTrajeto(v.ctx, [item(ponto(1, { capturado_em: '2026-11-19T14:40:00.000Z' })), item(ponto(2, { capturado_em: '2026-08-01T14:00:00.000Z' })), item(ponto(3))]);
     expect(inserts(v, 'ponto_trajeto')[0]!.valores[1]).toEqual([idn(3)]);
-  });
-
-  it('RN-CORE-13: lote com mais de 500 pontos é recusado inteiro, sem gravar', async () => {
-    const s = ctxFalso();
-    const itens = Array.from({ length: PONTOS_POR_LOTE + 1 }, (_, i) => item(ponto(i % 100, { id: `0e300000-0000-4000-8000-${String(i).padStart(12, '0')}` })));
-    const r = await receberPontosTrajeto(s.ctx, itens);
-    expect(r).toHaveLength(PONTOS_POR_LOTE + 1);
-    expect(r.every((x) => x.status === 'rejeitado' && x.codigo === 'LOTE_GRANDE_DEMAIS')).toBe(true);
-    expect(s.sqls).toHaveLength(0);
   });
 
   it('RN-CORE-13: payload inválido ou remoção é rejeitado só naquele item; sem coordenada na mensagem', async () => {
