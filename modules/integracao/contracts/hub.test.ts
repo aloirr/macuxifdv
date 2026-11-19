@@ -274,23 +274,34 @@ describe('T-0186 (Cliente 360): campos opcionais e aditivos em titulo e nota', (
   });
 
   it('título com NF e forma de pagamento passa, com espaços aparados', () => {
-    const r = SCHEMA_REGISTRO.titulo.parse({ ...titulo, nf_numero: ' 8841 ', nf_serie: '1', forma_pagamento_codigo: 'BOL' });
-    expect(r).toMatchObject({ nf_numero: '8841', nf_serie: '1', forma_pagamento_codigo: 'BOL' });
+    const r = SCHEMA_REGISTRO.titulo.parse({ ...titulo, nf_numero: ' 8841 ', nf_serie: '1', forma_pagamento: ' Boleto 28 dias ' });
+    expect(r).toMatchObject({ nf_numero: '8841', nf_serie: '1', forma_pagamento: 'Boleto 28 dias' });
   });
 
   it('nota com forma de pagamento e NF original da devolução passa; null também vale', () => {
-    const r = SCHEMA_REGISTRO.nota.parse({ ...nota, forma_pagamento_codigo: 'BOL', nf_origem_numero: '8841', nf_origem_serie: '1' });
-    expect(r).toMatchObject({ forma_pagamento_codigo: 'BOL', nf_origem_numero: '8841', nf_origem_serie: '1' });
-    expect(SCHEMA_REGISTRO.nota.safeParse({ ...nota, nf_origem_numero: null, nf_origem_serie: null, forma_pagamento_codigo: null }).success).toBe(true);
+    const r = SCHEMA_REGISTRO.nota.parse({ ...nota, forma_pagamento: 'Boleto 28 dias', nf_origem_numero: '8841', nf_origem_serie: '1' });
+    expect(r).toMatchObject({ forma_pagamento: 'Boleto 28 dias', nf_origem_numero: '8841', nf_origem_serie: '1' });
+    expect(SCHEMA_REGISTRO.nota.safeParse({ ...nota, nf_origem_numero: null, nf_origem_serie: null, forma_pagamento: null }).success).toBe(true);
   });
 
   it('tipos e limites são recusados', () => {
     expect(SCHEMA_REGISTRO.titulo.safeParse({ ...titulo, nf_numero: 8841 }).success).toBe(false);
     expect(SCHEMA_REGISTRO.titulo.safeParse({ ...titulo, nf_numero: 'x'.repeat(41) }).success).toBe(false);
     expect(SCHEMA_REGISTRO.titulo.safeParse({ ...titulo, nf_serie: 'x'.repeat(11) }).success).toBe(false);
-    expect(SCHEMA_REGISTRO.titulo.safeParse({ ...titulo, forma_pagamento_codigo: 'x'.repeat(21) }).success).toBe(false);
-    expect(SCHEMA_REGISTRO.nota.safeParse({ ...nota, forma_pagamento_codigo: 'x'.repeat(21) }).success).toBe(false);
+    expect(SCHEMA_REGISTRO.titulo.safeParse({ ...titulo, forma_pagamento: 'x'.repeat(120) }).success).toBe(true);
+    expect(SCHEMA_REGISTRO.nota.safeParse({ ...nota, forma_pagamento: 'x'.repeat(120) }).success).toBe(true);
+    expect(SCHEMA_REGISTRO.titulo.safeParse({ ...titulo, forma_pagamento: 'x'.repeat(121) }).success).toBe(false);
+    expect(SCHEMA_REGISTRO.nota.safeParse({ ...nota, forma_pagamento: 'x'.repeat(121) }).success).toBe(false);
     expect(SCHEMA_REGISTRO.nota.safeParse({ ...nota, nf_origem_numero: 'x'.repeat(41) }).success).toBe(false);
     expect(SCHEMA_REGISTRO.nota.safeParse({ ...nota, nf_origem_serie: 'x'.repeat(11) }).success).toBe(false);
+  });
+
+  it('RN-INT-NF-ORIGEM: NF de origem em nota que não é devolução é recusada (mesmo motivo do CHECK nota_erp_nf_origem_so_devolucao)', () => {
+    const fat = { ...nota, tipo: 'faturamento' };
+    expect(SCHEMA_REGISTRO.nota.safeParse(fat).success).toBe(true);
+    expect(SCHEMA_REGISTRO.nota.safeParse({ ...fat, nf_origem_numero: null, nf_origem_serie: '' }).success).toBe(true);
+    const a = SCHEMA_REGISTRO.nota.safeParse({ ...fat, nf_origem_numero: '8841' });
+    expect(a.success).toBe(false);
+    expect(SCHEMA_REGISTRO.nota.safeParse({ ...fat, nf_origem_serie: '1' }).success).toBe(false);
   });
 });

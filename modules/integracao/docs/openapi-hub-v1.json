@@ -4608,11 +4608,11 @@
             "type": "boolean",
             "default": false
           },
-          "forma_pagamento_codigo": {
+          "forma_pagamento": {
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 20
+                "maxLength": 120
               },
               {
                 "type": "null"
@@ -6362,11 +6362,11 @@
               }
             ]
           },
-          "forma_pagamento_codigo": {
+          "forma_pagamento": {
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 20
+                "maxLength": 120
               },
               {
                 "type": "null"

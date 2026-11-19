@@ -51,7 +51,18 @@ const SQL_REFERENCIAS = `CASE WHEN ${NUMEROS_REFERENCIA.map((n) => `referencia_$
 const COLUNAS_DERIVADAS: Record<string, Record<string, string>> = { produto: { referencias: SQL_REFERENCIAS } };
 
 /** Campos do Hub acrescentados depois da 1.0.4: o banco já criado ganha a coluna por `ALTER TABLE` (a tabela só nasce uma vez). */
-const COLUNAS_ACRESCENTADAS: Record<string, string[]> = { produto: ['marca_codigo'], vendedor: ['filial_external_id'] };
+const COLUNAS_ACRESCENTADAS: Record<string, string[]> = {
+  produto: ['marca_codigo'],
+  vendedor: ['filial_external_id'],
+  titulo: ['nf_numero', 'nf_serie', 'forma_pagamento'],
+  nota: ['forma_pagamento', 'nf_origem_numero', 'nf_origem_serie'],
+};
+
+/** T-0186: colunas que as views do kit devolvem além das do conector.exemplo.json (do Conector, fora do escopo do módulo); entram também na consulta do conector.json do kit. */
+const COLUNAS_EXTRAS_VIEW: Record<string, string[]> = {
+  titulo: ['nf_numero', 'nf_serie', 'forma_pagamento'],
+  nota: ['forma_pagamento', 'nf_origem_numero', 'nf_origem_serie'],
+};
 
 /** Referência a outra entidade (campo `*_external_id`): o carga_csv.py confere antes de gravar. Tabela e depósito não são entidades. */
 const REFERENCIAS: Record<string, string> = {
@@ -183,6 +194,16 @@ interface ConectorExemplo {
   [k: string]: unknown;
 }
 const lerExemplo = (): ConectorExemplo => JSON.parse(lerRepo('apps', 'conector', 'exemplos', 'conector.exemplo.json')) as ConectorExemplo;
+/** O exemplo do Conector com as colunas extras do kit (T-0186) na consulta de titulo e nota. */
+function exemploDoKit(): ConectorExemplo {
+  const ex = lerExemplo();
+  for (const [ent, extras] of Object.entries(COLUNAS_EXTRAS_VIEW)) {
+    const e = ex.entidades[ent];
+    if (!e) continue;
+    e.consulta = e.consulta.replace(/^(SELECT TOP \(:limite\) .*?) FROM dbo\.vw_macuxi_/, (_m, ini: string) => `${ini}, ${extras.filter((c) => !ini.includes(c)).join(', ')} FROM dbo.vw_macuxi_`);
+  }
+  return ex;
+}
 
 export function tipoSql(c: CampoDicionario, regra: Regra): string {
   if (c.campo === 'external_id') return 'VARCHAR(200) NOT NULL';
@@ -230,7 +251,7 @@ export interface EntidadeContrato {
 }
 
 export function contratoDoKit(): { versao: number; banco: string; entidades: EntidadeContrato[] } {
-  const exemplo = lerExemplo();
+  const exemplo = exemploDoKit();
   const entidades = ENTIDADES_ORDEM_CARGA.map((e): EntidadeContrato => {
     const d = dicionario(e);
     const campos = d.campos.map((c): CampoContrato => {
@@ -328,7 +349,7 @@ export function extensaoPedido(): string {
 
 export function sqlCriarBanco(): string {
   const contrato = contratoDoKit();
-  const exemplo = lerExemplo();
+  const exemplo = exemploDoKit();
   const partes: string[] = [
     `-- =====================================================================================================================
 -- Macuxi FDV — kit da thathyany (T-0174): banco local ${BANCO} para o SQL Server Express. GERADO por kit-thathyany/scripts/gerar.ts: não edite.
@@ -355,7 +376,7 @@ GO`,
 }
 
 export function conectorJson(): string {
-  const cfg = structuredClone(lerExemplo());
+  const cfg = structuredClone(exemploDoKit());
   cfg.hub = { ...cfg.hub, conectorId: ID_CONECTOR, url: HUB_URL };
   cfg.erp = { tipo: 'sqlserver', host: '127.0.0.1', porta: 1433, banco: BANCO, usuario: 'macuxi_conector', criptografar: true, confiarCertificado: true };
   cfg.entidades = Object.fromEntries(Object.entries(cfg.entidades).map(([e, v]) => [e, { ...v, periodicidadeSegundos: 120 }]));

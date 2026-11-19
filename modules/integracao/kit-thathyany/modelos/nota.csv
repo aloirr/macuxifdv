@@ -1,2 +1,2 @@
-﻿external_id;cliente_external_id;tipo;numero;emitida_em;total_cents;alterado_em;ativo;vendedor_external_id;serie;quantidade_itens;pedido_uuid;cancelada;forma_pagamento_codigo;nf_origem_numero;nf_origem_serie
-NF-5001;CLI-001;faturamento;5001;2026-10-30T13:20:00Z;250000;2026-11-01T12:00:00Z;sim;VEN-001;1;10;3f2b8a52-6d1e-4c7a-9b0e-5a1d2c3e4f60;não;BOL;;
+﻿external_id;cliente_external_id;tipo;numero;emitida_em;total_cents;alterado_em;ativo;vendedor_external_id;serie;quantidade_itens;pedido_uuid;cancelada;forma_pagamento;nf_origem_numero;nf_origem_serie
+NF-5001;CLI-001;faturamento;5001;2026-10-30T13:20:00Z;250000;2026-11-01T12:00:00Z;sim;VEN-001;1;10;3f2b8a52-6d1e-4c7a-9b0e-5a1d2c3e4f60;não;Boleto 28 dias;;

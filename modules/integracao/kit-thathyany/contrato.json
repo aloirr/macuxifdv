@@ -2595,15 +2595,15 @@
           "regra": {}
         },
         {
-          "campo": "forma_pagamento_codigo",
+          "campo": "forma_pagamento",
           "obrigatorio": false,
           "tipo": "texto",
-          "tamanho_max": 20,
+          "tamanho_max": 120,
           "formato": null,
-          "exemplo": "BOL",
-          "observacao": "Código da forma de pagamento (o código do modelo forma_pagamento). Vazio = não informado.",
-          "coluna": "forma_pagamento_codigo",
-          "tipo_sql": "NVARCHAR(20) NULL",
+          "exemplo": "Boleto 28 dias",
+          "observacao": "Forma de pagamento em texto, como o ERP descreve (ex.: Boleto 28 dias; até 120 caracteres). Vazio = não informado.",
+          "coluna": "forma_pagamento",
+          "tipo_sql": "NVARCHAR(120) NULL",
           "regra": {}
         }
       ],
@@ -2792,15 +2792,15 @@
           "regra": {}
         },
         {
-          "campo": "forma_pagamento_codigo",
+          "campo": "forma_pagamento",
           "obrigatorio": false,
           "tipo": "texto",
-          "tamanho_max": 20,
+          "tamanho_max": 120,
           "formato": null,
-          "exemplo": "BOL",
-          "observacao": "Código da forma de pagamento da NF (o código do modelo forma_pagamento). Vazio = não informado.",
-          "coluna": "forma_pagamento_codigo",
-          "tipo_sql": "NVARCHAR(20) NULL",
+          "exemplo": "Boleto 28 dias",
+          "observacao": "Forma de pagamento da NF em texto, como o ERP descreve (ex.: Boleto 28 dias; até 120 caracteres). Vazio = não informado.",
+          "coluna": "forma_pagamento",
+          "tipo_sql": "NVARCHAR(120) NULL",
           "regra": {}
         },
         {
