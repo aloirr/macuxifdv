@@ -13,6 +13,8 @@
 | `menu.itens` | core | shell: Perfil do app (seção "Mais") e menu do BKO (grupo "Mais") | todos |
 | `produto.acoes` | catalogo | (catálogo, T-0007+) | vendedor |
 | `pedido.criar_em_nome` | vendedor | (vendedor) | gestor · contexto `ContextoPedidoEmNomeSlot` (`modules/vendedor/contracts/extensoes.ts`): `vendedor_id`, `autor_id` e, desde o v1.0.1 (aditivo, 08/11, R-20261108-210156), `vendedor_nome?` para o PDF do pedido em nome; sem o campo nada muda |
+| `rota.parada_complemento` | core (T-0187, aditivo) | (core) | gestor |
+| `pedido.equipe_em_nome` | vendedor (T-0187, aditivo) | (vendedor) lista "Em nome de": filtra só vendedor e tira o autor | gestor · visão da equipe em cache |
 
 Itens só aparecem se o módulo registrante e o dono do slot forem efetivos, o perfil bater, a `acao` for permitida
 (ADR 0004) e, quando o item declara `apps` (T-0029 E4), o app atual estiver na lista; caso contrário somem sem erro (RN-CORE-03).

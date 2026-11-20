@@ -27,7 +27,7 @@
 4. **Ninguém vê o próprio trajeto**: `GET /v1/core/trajeto` com o `usuario_id` da sessão responde 404 `USUARIO_NAO_ENCONTRADO`
    para qualquer perfil, e a consulta `core.trajeto_do_dia@1` tira o id da sessão. O supervisor vê o da equipe; o gerente vê o
    da equipe abaixo, com os supervisores.
-5. **Interno e desligado por padrão**, como na decisão 6 da 0061: nenhuma tela do Gestão mostra trajeto; fica só a notificação
+5. **Interno e desligado por padrão**, como na decisão 6 da 0061: nenhuma tela mostra a quem é rastreado o próprio trajeto; fica só a notificação
    fixa "Macuxi Gestão ativo" no canal `macuxi-servico`, sem citar localização. Liga quando o dono do produto mandar, pelo
    parâmetro `rastreamento.ativo` da empresa.
 6. **Permissão "o tempo todo"** (RN-CORE-37) no Gestão só para o cargo supervisor; o gerente não recebe o pedido.

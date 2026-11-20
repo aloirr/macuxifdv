@@ -89,7 +89,7 @@ do momento (RN-CORE-13).
 
 
 ### 5.2 API (`/v1/core`; revalida tudo)
-- **Push** de `ponto_trajeto` pelo motor de sync. Cada ponto é descartado, sem gravar, se: o usuário não é de campo; o tracking
+- **Push** de `ponto_trajeto` pelo motor de sync. Cada ponto é descartado, sem gravar, se: o cargo não é rastreado ou o app não é o do cargo (ADR 0063); o tracking
   estava desligado no instante; o instante cai fora do expediente, em feriado ou em ausência; `capturado_em` está mais de [5 min] no
   futuro ou mais de [90] dias atrás; ou a coordenada é inválida. Descarte não trava a fila.
 - **Consultas**: `GET /v1/core/trajeto?usuario_id&data` (pontos de um dia, até [90] dias atrás), só com `trajeto.ver_equipe` e no

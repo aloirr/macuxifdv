@@ -221,8 +221,8 @@ Tudo aditivo ou só restringe; nenhuma versão nova de contrato. Eventos em `eve
 
 | Contrato | Dono | Mudança | Situação |
 |---|---|---|---|
-| `contracts/rastreamento-portao.ts` | core | + `APP_RASTREADO_DO_CARGO` (`vendedor`/`promotor` → `campo`, `supervisor` → `gestao`); `CARGOS_RASTREADOS` + `supervisor` | a fazer (modulo-core) |
-| `core.trajeto_do_dia@1` | core | schema igual; o id da sessão sai do resultado | a fazer (modulo-core) |
-| `GET /v1/core/trajeto` | core | 404 `USUARIO_NAO_ENCONTRADO` para o próprio usuário | a fazer (modulo-core) |
-| push de `visita` / `visita_checkout` | core | supervisor e gerente precisam de `visita.registrar_gestao` | a fazer (modulo-core) |
-| decisão de aprovação | vendedor | 422 `APROVACAO_DO_PROPRIO_PEDIDO` quando o decisor é o autor | a fazer (modulo-vendedor) |
+| `contracts/rastreamento-portao.ts` | core | + `APP_RASTREADO_DO_CARGO` (`vendedor`/`promotor` → `campo`, `supervisor` → `gestao`); `CARGOS_RASTREADOS` + `supervisor` | feito (v1.0.16) |
+| `core.trajeto_do_dia@1` | core | schema igual; o id da sessão sai do resultado | feito (v1.0.16) |
+| `GET /v1/core/trajeto` | core | 404 `USUARIO_NAO_ENCONTRADO` para o próprio usuário | feito (v1.0.16) |
+| push de `visita` / `visita_checkout` | core | supervisor e gerente precisam de `visita.registrar_gestao` | feito (v1.0.16) |
+| decisão de aprovação | vendedor | 422 `APROVACAO_DO_PROPRIO_PEDIDO` quando o decisor é o autor | feito (v1.0.16) |
