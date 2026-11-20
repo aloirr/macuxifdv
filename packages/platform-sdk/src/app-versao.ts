@@ -16,9 +16,9 @@ export const rotaAppVersao = (variante: VarianteApp): string => `${ROTA_APP_VERS
 export const CODIGO_SEM_VERSAO = 'SEM_VERSAO';
 
 /** Versão `X.Y.Z` numérica, sem zero à esquerda, sem prefixo nem sufixo. */
-export const SEMVER_APP_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+const SEMVER_APP_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
-export const VersaoAppSchema = z.string().regex(SEMVER_APP_RE);
+const VersaoAppSchema = z.string().regex(SEMVER_APP_RE);
 
 export const AppVersaoPublicadaSchema = z
   .object({

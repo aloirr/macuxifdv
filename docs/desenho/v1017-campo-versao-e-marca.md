@@ -6,13 +6,13 @@ Dono da plataforma: `engenheiro-software`. Banco: `banco-dados` (migração 0091
 ## 1. Item 15: ocultar a logomarca do Macuxi (portal › Config)
 
 **Banco (0091, `banco-dados`, outro branch):** `plataforma.tenant.ocultar_marca_macuxi boolean not null default false`;
-`plataforma.sa_gravar_ocultar_marca(sid text, tenant uuid, ocultar boolean)` no padrão da `sa_gravar_logo` (só super-admin,
+`plataforma.sa_gravar_ocultar_marca` (assinatura e erros: `docs/banco/plataforma.md`, "Ocultar a marca do Macuxi (0091)") no padrão da `sa_gravar_logo` (só super-admin,
 RN-CORE-33, mesma auditoria), que devolve o jsonb da marca; `sa_marca_da_empresa` passa a trazer `ocultar_marca_macuxi`.
 
 **Contratos (`@macuxi/platform-sdk`, `empresa-logo.ts`):**
 - `MarcaEmpresaSchema` ganha `ocultar_marca_macuxi: z.boolean()` (todas as rotas da marca e da logo do portal o devolvem).
 - `GravarOcultarMarcaMacuxiSchema = { ocultar: boolean }` (estrito) e `rotaOcultarMarcaMacuxi(tenantId)`.
-- Parâmetros do Core: chave reservada `empresa_ocultar_marca_macuxi` (`PARAMETRO_EMPRESA_OCULTAR_MARCA`), montada por
+- Parâmetros do Core: chave reservada `empresa_ocultar_marca_macuxi`, montada por
   `parametrosDaEmpresa`; o app e o BKO leem com `ocultarMarcaMacuxiDosParametros(parametrosCore)` (só `true` oculta).
 
 **API:**

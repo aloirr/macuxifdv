@@ -149,7 +149,7 @@ export { rotuloDaLogo };
 export const PARAMETRO_EMPRESA_NOME = 'empresa_nome';
 export const PARAMETRO_EMPRESA_LOGO = 'empresa_logo';
 /** `true` = o app e o BKO não mostram a logomarca do Macuxi (0091; `ocultarMarcaMacuxiDosParametros`). */
-export const PARAMETRO_EMPRESA_OCULTAR_MARCA = 'empresa_ocultar_marca_macuxi';
+const PARAMETRO_EMPRESA_OCULTAR_MARCA = 'empresa_ocultar_marca_macuxi';
 
 /** `empresa_logo`: o suficiente para baixar (`rotaLogoDoAparelho(sha256)`), guardar com a extensão e desenhar a placa. */
 export const LogoDoAparelhoSchema = z
