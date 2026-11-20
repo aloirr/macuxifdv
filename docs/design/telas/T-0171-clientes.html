@@ -31,14 +31,6 @@
   .ce.aviso { background: var(--warningBg); color: var(--warning); }
   .ce.suc { background: var(--successBg); color: var(--success); }
   .ce.neu { background: var(--neutralBg); color: var(--neutralInk); }
-  /* marca v1 (T-0172): faixa Azul noite com título, contagem e SeloAtualizacao sobreFaixa */
-  .status.claro { background: var(--faixa); color: #fff; }
-  .fx { background: var(--faixa); padding: 4px 20px 16px; flex: none; }
-  .fx .lin { display: flex; align-items: center; gap: 8px; }
-  .fx .lin > div { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-  .fx .t { font-family: Archivo, sans-serif; font-weight: 800; font-size: 24px; line-height: 28px; color: #fff; letter-spacing: -.2px; }
-  .fx .s { font-size: 13px; color: var(--faixaSub); }
-  .selo-fx { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid #3A4D68; color: var(--faixaSub); font-size: 13px; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; flex: none; }
   .depois .topo-c { padding-top: 16px; }
   /* depois: 2 linhas, tag à direita, seta */
   .depois .cli { min-height: 64px; padding: 10px 12px 10px 14px; }
@@ -47,7 +39,7 @@
   .nota-t { font-size: 12px; color: var(--ink2); line-height: 17px; }
   .nota-t b { color: var(--ink); }
   .quadro { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; width: 360px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; line-height: 19px; }
-  .quadro h3 { margin: 0; font-family: Archivo, sans-serif; font-size: 16px; }
+  .quadro h3 { margin: 0; font-weight: 700; font-size: 16px; }
   .quadro .ex { display: flex; align-items: center; gap: 8px; }
   /* um quadro por vez: T-0171-clientes.html?v=antes | depois | gestao */
   body.so { width: auto; padding: 16px; }
@@ -92,8 +84,8 @@
   <div class="tela depois" data-v="depois">
     <div class="legenda"><b>2</b>Campo<span class="tag depois">Depois</span><span>Uma tag de situação à direita; embaixo, só a última visita.</span></div>
     <div class="phone">
-      <div class="status claro"><span>08:41</span><span>4G ▮▮▮ 84%</span></div>
-      <div class="fx"><div class="lin"><div><span class="t">Clientes</span><span class="s">86 na carteira</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>08:30</span></div></div>
+      <div class="status sobre-faixa"><span>08:41</span><span>4G ▮▮▮ 84%</span></div>
+      <div class="faixa-tela"><div class="lin"><div><span class="t">Clientes</span><span class="s">86 na carteira</span></div></div></div>
       <div class="topo-c">
         <div class="busca-c"><i data-i="search" data-t="18" data-c="#4A5562"></i>Nome, documento ou cidade</div>
         <div class="filtros"><div class="chip">Devendo</div><div class="chip">Sem compra 45+ dias</div><div class="chip">Bloqueados</div></div>
@@ -118,8 +110,8 @@
   <div class="tela depois" data-v="gestao">
     <div class="legenda"><b>3</b>Gestão<span class="tag depois">Depois</span><span>A mesma linha, com o filtro Devendo ligado.</span></div>
     <div class="phone">
-      <div class="status claro"><span>08:41</span><span>4G ▮▮▮ 84%</span></div>
-      <div class="fx"><div class="lin"><div><span class="t">Clientes</span><span class="s">412 na carteira</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>08:30</span></div></div>
+      <div class="status sobre-faixa"><span>08:41</span><span>4G ▮▮▮ 84%</span></div>
+      <div class="faixa-tela"><div class="lin"><div><span class="t">Clientes</span><span class="s">412 na carteira</span></div><span class="selo-faixa"><i data-i="sync" data-t="14"></i>08:30</span></div></div>
       <div class="topo-c">
         <div class="busca-c"><i data-i="search" data-t="18" data-c="#4A5562"></i>Nome, documento ou cidade</div>
         <div class="filtros"><div class="chip on">Devendo</div><div class="chip">Sem compra 45+ dias</div><div class="chip">Bloqueados</div></div>

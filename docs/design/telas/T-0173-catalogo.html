@@ -9,15 +9,8 @@
   body { width: 1800px; }
   .tela { width: 412px; }
   .phone { width: 412px; height: 915px; }
-  .status.claro { background: var(--faixa); color: #fff; }
-  /* CabecalhoTela: faixa Azul noite, subtítulo abaixo do título (a contagem, como em Clientes; MC-0008), SeloAtualizacao sobreFaixa à direita */
-  .fx { background: var(--faixa); padding: 4px 20px 16px; flex: none; display: flex; flex-direction: column; }
-  .fx .v { display: flex; align-items: center; gap: 4px; height: 40px; color: var(--faixaSub); font-size: 14px; font-weight: 500; }
-  .fx .lin { display: flex; align-items: center; gap: 8px; }
-  .fx .lin > div { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-  .fx .s { font-size: 13px; color: var(--faixaSub); }
-  .fx .t { font-family: Archivo, sans-serif; font-weight: 800; font-size: 24px; line-height: 28px; color: #fff; letter-spacing: -.2px; }
-  .selo-fx { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid #3A4D68; color: var(--faixaSub); font-size: 13px; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; flex: none; }
+  /* CabecalhoTela (faixa em telas.css): a contagem no subtítulo, como em Clientes (MC-0008); voltar dentro da faixa */
+  .faixa-tela .v { display: flex; align-items: center; gap: 4px; height: 40px; color: var(--faixaSub); font-size: 14px; font-weight: 500; }
   /* corpo no Pérola */
   .corpo { flex: 1; overflow: hidden; padding: 16px 20px 0; display: flex; flex-direction: column; gap: 12px; }
   .busca-g { flex: none; height: 48px; border: 1px solid var(--lineStrong); border-radius: 12px; background: #fff; display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 15px; color: var(--ink3); }
@@ -25,11 +18,11 @@
   .fil .chip { height: 36px; }
   .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 10px 10px 12px; display: flex; flex-direction: column; min-width: 0; }
-  .foto { height: 112px; border-radius: 12px; background: var(--neutralBg); display: flex; align-items: center; justify-content: center; font-family: Archivo, sans-serif; font-weight: 800; font-size: 34px; color: var(--ink3); margin-bottom: 10px; overflow: hidden; }
+  .foto { height: 112px; border-radius: 12px; background: var(--neutralBg); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 34px; color: var(--ink3); margin-bottom: 10px; overflow: hidden; }
   .foto.img { background: #F1F2EE; }
   .card .n { font-weight: 600; font-size: 15px; line-height: 20px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .card .m { font-size: 13px; line-height: 18px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
-  .card .p { font-family: Archivo, sans-serif; font-weight: 700; font-size: 18px; line-height: 24px; font-variant-numeric: tabular-nums; margin-top: auto; padding-top: 6px; }
+  .card .p { font-weight: 600; font-size: 18px; line-height: 24px; font-variant-numeric: tabular-nums; margin-top: auto; padding-top: 6px; }
   .card .p.sem { font-family: 'IBM Plex Sans', sans-serif; font-weight: 600; font-size: 15px; color: var(--ink3); }
   .card .p s { font-family: 'IBM Plex Sans', sans-serif; font-weight: 400; font-size: 12px; color: var(--ink2); margin-left: 4px; }
   .card .tg { margin-top: 8px; }
@@ -39,7 +32,7 @@
   .ce.erro { background: var(--dangerBg); color: var(--danger); }
   .ce.neu { background: var(--neutralBg); color: var(--neutralInk); }
   .quadro { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; width: 400px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; line-height: 19px; }
-  .quadro h3 { margin: 0; font-family: Archivo, sans-serif; font-size: 16px; }
+  .quadro h3 { margin: 0; font-weight: 700; font-size: 16px; }
   .quadro .ex { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .nota-t { font-size: 12px; color: var(--ink2); line-height: 17px; }
   /* um quadro por vez: T-0173-catalogo.html?v=menu | filtro | cliente */
@@ -51,7 +44,7 @@
 </head>
 <body>
 <h1 class="prancha">Catálogo em grade · marca v1 (T-0173)</h1>
-<p class="prancha">R-20261112-180555, -181237 e -181527 (Alexandre); RN-VEN-01 (catálogo sem cliente). Igual à simulação de marca: faixa Azul noite com a contagem e a hora do sync, busca, sistema e categoria em chips, grade de 2 colunas com foto, nome, marca, preço e estoque. Saem "Abra pela ficha do cliente…", a lista de Sistemas, "40 produtos ativos" e "Atualizado às… · puxe para sincronizar".</p>
+<p class="prancha">R-20261112-180555, -181237 e -181527 (Alexandre); RN-VEN-01 (catálogo sem cliente). Igual à simulação de marca: faixa Azul noite com a contagem, busca, sistema e categoria em chips, grade de 2 colunas com foto, nome, marca, preço e estoque. Saem "Abra pela ficha do cliente…", a lista de Sistemas, "40 produtos ativos" e "Atualizado às… · puxe para sincronizar".</p>
 
 <div class="board">
 
@@ -59,8 +52,8 @@
   <div class="tela" data-v="menu">
     <div class="legenda"><b>1</b>Aberto pelo menu (sem cliente)<span>Preço da filial padrão do vendedor; sem preço na filial, "Sem preço".</span></div>
     <div class="phone">
-      <div class="status claro"><span>06:30</span><span>4G ▮▮▮ 90%</span></div>
-      <div class="fx"><div class="lin"><div><span class="t">Catálogo</span><span class="s">40 produtos</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>06:30</span></div></div>
+      <div class="status sobre-faixa"><span>06:30</span><span>4G ▮▮▮ 90%</span></div>
+      <div class="faixa-tela"><div class="lin"><div><span class="t">Catálogo</span><span class="s">40 produtos</span></div></div></div>
       <div class="corpo">
         <div class="busca-g"><i data-i="search" data-t="18" data-c="#4A5562"></i>Produto, código ou aplicação</div>
         <div class="fil"><div class="chip on">Todos</div><div class="chip">Alimentos</div><div class="chip">Bebidas</div><div class="chip">Limpeza e higiene</div><div class="chip">Automotivo</div></div>
@@ -81,8 +74,8 @@
   <div class="tela" data-v="filtro">
     <div class="legenda"><b>2</b>Sistema e categoria em chips<span>Bebidas abre a linha das categorias; a contagem segue o filtro.</span></div>
     <div class="phone">
-      <div class="status claro"><span>06:31</span><span>4G ▮▮▮ 90%</span></div>
-      <div class="fx"><div class="lin"><div><span class="t">Catálogo</span><span class="s">5 produtos</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>06:30</span></div></div>
+      <div class="status sobre-faixa"><span>06:31</span><span>4G ▮▮▮ 90%</span></div>
+      <div class="faixa-tela"><div class="lin"><div><span class="t">Catálogo</span><span class="s">5 produtos</span></div></div></div>
       <div class="corpo">
         <div class="busca-g"><i data-i="search" data-t="18" data-c="#4A5562"></i>Produto, código ou aplicação</div>
         <div class="fil"><div class="chip">Todos</div><div class="chip">Alimentos</div><div class="chip on">Bebidas</div><div class="chip">Limpeza e higiene</div><div class="chip">Automotivo</div></div>
@@ -103,8 +96,8 @@
   <div class="tela" data-v="cliente">
     <div class="legenda"><b>3</b>Aberto pela ficha do cliente<span>Voltar na faixa com o nome do cliente; preço da tabela dele (RN-VEN-01).</span></div>
     <div class="phone">
-      <div class="status claro"><span>09:12</span><span>4G ▮▮▮ 82%</span></div>
-      <div class="fx"><span class="v"><i data-i="voltar" data-t="18"></i>Mercadinho São Jorge</span><div class="lin"><div><span class="t">Catálogo</span><span class="s">40 produtos</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>09:05</span></div></div>
+      <div class="status sobre-faixa"><span>09:12</span><span>4G ▮▮▮ 82%</span></div>
+      <div class="faixa-tela"><span class="v"><i data-i="voltar" data-t="18"></i>Mercadinho São Jorge</span><div class="lin"><div><span class="t">Catálogo</span><span class="s">40 produtos</span></div></div></div>
       <div class="corpo">
         <div class="busca-g"><i data-i="search" data-t="18" data-c="#4A5562"></i>Produto, código ou aplicação</div>
         <div class="fil"><div class="chip on">Todos</div><div class="chip">Alimentos</div><div class="chip">Bebidas</div><div class="chip">Limpeza e higiene</div><div class="chip">Automotivo</div></div>
@@ -123,13 +116,13 @@
 
   <div class="quadro">
     <h3>O que muda</h3>
-    <div><b>Faixa Azul noite:</b> a contagem da lista abaixo do título (como em Clientes) e a hora do sync à direita (↻ 06:30). Com cliente, o voltar leva o nome dele.</div>
+    <div><b>Faixa Azul noite:</b> a contagem da lista abaixo do título (como em Clientes); no Campo, a hora da sincronização fica só no Início (R-20261120-055304 item 6). Com cliente, o voltar leva o nome dele.</div>
     <div><b>Sistema e categoria viram chips</b> acima da grade. Tocar num sistema abre a linha das categorias dele. A lista de "Sistemas" sai da entrada.</div>
     <div><b>Cartão:</b> foto (sem foto, a caixa cinza vazia), nome em até 2 linhas, marca, preço e uma tag de estoque.</div>
     <div class="ex"><span class="ce suc">84 em estoque</span><span class="ce av">6 em estoque</span><span class="ce erro">Sem estoque</span></div>
     <div><b>Preço:</b> pelo menu, o da filial padrão do vendedor; sem preço na filial, "Sem preço" (nunca o de outra tabela). Pela ficha do cliente, o da tabela dele.</div>
     <div><b>Saem:</b> "Abra pela ficha do cliente…", a lista de Sistemas, "40 produtos ativos" e "Atualizado às… · puxe para sincronizar".</div>
-    <div class="nota-t"><b>Medidas:</b> 2 colunas de 180 dp, 12 dp entre elas; foto 112 dp; nome 15/600, marca 13, preço Archivo 18, tag 24 dp. O cartão inteiro abre a ficha.</div>
+    <div class="nota-t"><b>Medidas:</b> 2 colunas de 180 dp, 12 dp entre elas; foto 112 dp; nome 15/600, marca 13, preço 18/600, tag 24 dp. O cartão inteiro abre a ficha.</div>
   </div>
 
 </div>

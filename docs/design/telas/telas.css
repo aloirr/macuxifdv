@@ -4,7 +4,7 @@
   --ground: #F8F6F1; --surface: #FFFFFF; --ink: #16202A; --ink2: #4A5562; --ink3: #5B6673;
   --line: #DFE2E6; --lineSoft: #ECEEF1; --lineStrong: #C9CED5;
   --accent: #1E3350; --accentInk: #1E3350; --accentSoft: #DFE2E6; --accentTint: #DFE2E6; --grafico: #C2540A; --graficoEscuro: #F59A52;
-  --faixa: #1E3350; --faixaTitulo: #FFFFFF; --faixaSub: #C9CED5;
+  --faixa: #1E3350; --faixaTitulo: #FFFFFF; --faixaSub: #C9CED5; --faixaTrilho: #3A4D68;
   --success: #1D6B4F; --successBg: #E2F1EA; --warning: #7A4F00; --warningInk: #5C3B00; --warningBg: #FFF1D6;
   --danger: #A8261B; --dangerBg: #FDE8E6; --neutralBg: #ECEEF1; --neutralInk: #34404D;
   --scrim: rgba(15, 20, 25, 0.45);
@@ -122,6 +122,15 @@ p.prancha { margin: 0 0 22px; font-size: 14px; color: var(--ink2); max-width: 15
 .btn.secundario { background: var(--surface); color: var(--ink); border: 1.5px solid var(--ink); height: 44px; border-radius: 12px; font-size: 14px; }
 .btn-texto { height: 48px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: var(--ink2); }
 .apoio-btn { text-align: center; font-size: 12px; color: var(--ink2); margin-top: -6px; }
+
+/* faixa Azul noite do CabecalhoTela (packages/ui/src/mobile/cabecalho.ts; componentes.md §5.2; manual da marca §4); no Gestão, o SeloAtualizacao sobreFaixa */
+.status.sobre-faixa { background: var(--faixa); color: var(--faixaTitulo); }
+.faixa-tela { background: var(--faixa); padding: 12px 20px 16px; min-height: 100px; flex: none; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.faixa-tela .lin { display: flex; align-items: center; gap: 8px; }
+.faixa-tela .lin > div { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.faixa-tela .t { font-weight: 700; font-size: 22px; line-height: 28px; letter-spacing: -.2px; color: var(--faixaTitulo); }
+.faixa-tela .s { font-size: 14px; color: var(--faixaSub); }
+.selo-faixa { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--faixaTrilho); color: var(--faixaSub); font-size: 13px; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; flex: none; }
 
 /* listas */
 .titulo-tela { font-weight: 700; font-size: 26px; letter-spacing: -.3px; }

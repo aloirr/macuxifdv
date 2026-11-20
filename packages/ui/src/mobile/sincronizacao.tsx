@@ -222,8 +222,9 @@ export function SeloAtualizacao({
   testID?: string;
   /** Aparelho sem rede (o modo sem sinal vem do provider). */
   semRede?: boolean;
-  /** @deprecated remover: R-20261120-062537 (modulo-vendedor tira o uso no lote v1.0.17). `atualizando` e `semResposta` são ignorados. */
+  /** @deprecated ignorada (R-20261120-062537): o selo não mostra "Atualizando…". Sai quando os módulos tirarem o uso (v1.0.17). */
   atualizando?: boolean;
+  /** @deprecated ignorada (R-20261120-062537): o selo não mostra "Sem resposta". Sai junto com `atualizando`. */
   semResposta?: boolean;
   /** Mesmo efeito do puxar para baixo (a tela passa `auto.puxar` + nova tentativa da consulta). */
   onSincronizar: () => void;

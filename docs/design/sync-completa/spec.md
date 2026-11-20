@@ -20,7 +20,7 @@
   é o que o vendedor fez no aparelho.
 - O botão mostra o indicador e fica sem toque (como hoje). A linha de situação vira `Atualizando pedidos e clientes`; no fim,
   volta à situação normal.
-- O puxar para baixo e o selo `↻ 07:28` das listas fazem o mesmo que o toque normal.
+- O puxar para baixo e, no Gestão, o selo `↻ 07:28` das listas fazem o mesmo que o toque normal (no Campo, a hora fica só no Início; R-20261120-055304 item 6).
 
 ## 2. Como o usuário sabe que pode segurar (`01`)
 - Abaixo da situação, uma segunda linha, `small` `ink2`, centralizada: `Segure 10 s para a sincronização completa`. Ela só
