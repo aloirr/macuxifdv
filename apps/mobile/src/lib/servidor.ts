@@ -2,7 +2,7 @@
  * Teste do servidor (R-20261101-023742-alexandre, segurança): o app só salva um endereço, e só envia o login, para um
  * servidor que responde `<endereço>/saude` com 200, JSON e `servico: "macuxi-api"` (`SaudeRespostaSchema` do SDK).
  * Qualquer outra coisa (HTML de outro site, 404, JSON de outro serviço, erro 5xx) é "Este endereço não é um servidor
- * Macuxi". Sem resposta e tempo esgotado são "sem conexão". A mensagem sempre diz o endereço testado e o que falhou.
+ * Macuxi". Falha de conexão e tempo esgotado são "sem conexão". A mensagem sempre diz o endereço testado e o que falhou.
  *
  * Puro (o `fetch` é injetado) para teste; `ApiClient.health` e `testApiUrl` (state/plataforma.tsx) usam isto.
  */
@@ -57,7 +57,7 @@ export async function testarServidor(endereco: string, op: OpcoesTesteServidor):
   } catch (e) {
     if (controle.signal.aborted || (e instanceof Error && e.name === 'AbortError'))
       return falha(testado, 'tempo_esgotado', `${testado} não respondeu em ${Math.round(tempo / 1000)} s. ${DICA_V1} Se estiver certo, o servidor pode estar fora do ar.`);
-    return falha(testado, 'sem_resposta', `Sem resposta de ${testado}. ${DICA_V1} Confira também a internet do aparelho (endereço inexistente ou certificado inválido também dão este erro).`);
+    return falha(testado, 'sem_resposta', `Não foi possível falar com ${testado}. ${DICA_V1} Confira também a internet do aparelho.`);
   } finally {
     clearTimeout(timer);
   }
@@ -78,7 +78,7 @@ export async function testarServidor(endereco: string, op: OpcoesTesteServidor):
 }
 
 /**
- * Erro para o login quando o servidor não passou no teste: sem resposta/tempo → `ErroSemConexao`; o resto →
+ * Erro para o login quando o servidor não passou no teste: falha de conexão (`sem_resposta`)/tempo → `ErroSemConexao`; o resto →
  * `ErroHttp` com `codigo: SERVIDOR_INVALIDO` (formato combinado com o modulo-core, `mensagemDeErroDeLogin`).
  */
 export function erroDoTesteServidor(r: Extract<ResultadoTesteServidor, { ok: false }>): Error {

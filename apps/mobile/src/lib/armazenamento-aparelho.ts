@@ -6,7 +6,7 @@
  * - o `SistemaSqlite` sobre a pasta do expo-sqlite (listar sem lançar, apagar registrando o erro);
  * - as opções do adaptador iguais às do app e da tela de medição (`buscaSemEsperarIndexacao: true`);
  * - a trava `EXPO_PUBLIC_ARMAZENAMENTO=asyncstorage`;
- * - o resumo e as linhas do Diagnóstico do Perfil, e a barra da tela "Atualizando os dados do aparelho…".
+ * - o resumo e as linhas do Diagnóstico do Perfil, e a barra da tela "Atualizando o app".
  */
 import {
   MODULOS,
