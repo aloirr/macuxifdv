@@ -10,7 +10,7 @@
  *
  * Fuso do tenant (`plataforma.tenant.fuso`): lido aqui também e entregue às rotas como `ctx.fuso()` (T-0035).
  * Nome e logo da empresa (T-0182, desenho §3.1): da mesma linha do tenant, entram nos parâmetros do Core como as chaves
- * reservadas `empresa_nome` e `empresa_logo` (`parametrosDaEmpresa` do SDK; sobrescrevem uma linha de `plataforma.parametro`
+ * reservadas `empresa_nome`, `empresa_logo` e `empresa_ocultar_marca_macuxi` (0091; `parametrosDaEmpresa` do SDK; sobrescrevem uma linha de `plataforma.parametro`
  * com o mesmo nome). Assim chegam ao aparelho pelo `GET /v1/me/modulos` e pelo `GET /v1/sync/novidades`, e trocar a logo ou
  * o nome muda o `versao_licencas`.
  * Rotas de Conector (ADR 0013): `licencasDoTenantNoBanco`, só a parte do tenant (não há usuário nem perfil).
@@ -82,11 +82,14 @@ async function lerTenant(db: ClienteBanco): Promise<LicencasTenant> {
   const params = await db.query<{ modulo: string; chave: string; valor: unknown }>(
     'select modulo, chave, valor from plataforma.parametro where deleted_at is null order by modulo, chave',
   );
-  // fuso (T-0035), nome e logo (T-0182) do tenant: o módulo não lê plataforma.tenant (regra 1, S0-014)
+  // fuso (T-0035), nome e logo (T-0182) do tenant: o módulo não lê plataforma.tenant (regra 1, S0-014).
+  // `ocultar_marca_macuxi` (0091, item 15) lido pelo jsonb da linha: antes da 0091 vem `null` (= false) em vez de 42703, que
+  // derrubaria o login e o `/v1/me/modulos` de todos se a API subir antes da migração.
   const linha = (
     await db.query<LinhaMarcaTenant & { fuso: string }>(
-      `select fuso, nome, nome_fantasia, logo_sha256, logo_tipo, logo_largura_px, logo_altura_px
-         from plataforma.tenant where id = plataforma.tenant_atual()`,
+      `select fuso, nome, nome_fantasia, logo_sha256, logo_tipo, logo_largura_px, logo_altura_px,
+              (to_jsonb(t) ->> 'ocultar_marca_macuxi')::boolean as ocultar_marca_macuxi
+         from plataforma.tenant t where t.id = plataforma.tenant_atual()`,
     )
   ).rows[0];
   const ativosNoTenant = modulos(tenant.rows);

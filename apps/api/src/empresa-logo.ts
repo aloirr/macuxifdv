@@ -6,6 +6,8 @@
  *   GET    /v1/plataforma/empresas/:tenant_id/logo    bytes da logo atual (mesmo acesso do GET da marca), `no-store`
  *   PUT    /v1/plataforma/empresas/:tenant_id/logo    bytes crus `image/png`|`image/jpeg` até 1 MiB, só super-admin
  *   DELETE /v1/plataforma/empresas/:tenant_id/logo    tira a logo, só super-admin
+ *   PUT    /v1/plataforma/empresas/:tenant_id/marca/ocultar-macuxi  `{ ocultar }`, só super-admin (item 15 do teste de campo
+ *          do Campo v1.0.16; `sa_gravar_ocultar_marca`, migração 0091; desenho `docs/desenho/v1017-campo-versao-e-marca.md` §1)
  *   GET    /v1/me/empresa/logo/:sha256                bytes para o app e o BKO (sessão do app, tenant do token; módulo Core)
  * As rotas do portal vão pelas funções `sa_*` (0083, `macuxi_portal`), que conferem a sessão e o acesso de novo e auditam.
  * O PUT da logo autentica no `onRequest` (sem sessão não recebe o corpo), confere pelo cabeçalho (`conferirLogo`: tipo,
@@ -19,6 +21,7 @@ import {
   conferirLogo,
   EmpresaLogoSchema,
   GravarNomeFantasiaSchema,
+  GravarOcultarMarcaMacuxiSchema,
   LIMITES_LOGO,
   MarcaEmpresaSchema,
   MENSAGENS_ACESSO_LOGO,
@@ -29,6 +32,7 @@ import {
   type AcessoPortalAutenticado,
   type ClienteBanco,
   type GravarNomeFantasia,
+  type GravarOcultarMarcaMacuxi,
   type LogRota,
   type MarcaEmpresa,
   type TipoLogo,
@@ -64,6 +68,7 @@ export interface FonteMarcaEmpresa {
   gravarNome(sid: string, tenantId: string, nome: string | null, banco: AcessoBanco): Promise<unknown>;
   gravarLogo(sid: string, tenantId: string, logo: LogoParaGravar, banco: AcessoBanco): Promise<unknown>;
   removerLogo(sid: string, tenantId: string, banco: AcessoBanco): Promise<unknown>;
+  gravarOcultarMarca(sid: string, tenantId: string, ocultar: boolean, banco: AcessoBanco): Promise<unknown>;
   logoDoTenant(db: ClienteBanco): Promise<LogoDoTenant | null>;
 }
 
@@ -75,6 +80,7 @@ export const fonteMarcaNoBanco: FonteMarcaEmpresa = {
   gravarNome: (sid, t, nome, banco) => primeira(banco, 'select plataforma.sa_gravar_nome_fantasia($1, $2, $3) as r', [sid, t, nome]),
   gravarLogo: (sid, t, logo, banco) => primeira(banco, 'select plataforma.sa_gravar_logo($1, $2, $3::jsonb) as r', [sid, t, JSON.stringify(logo)]),
   removerLogo: (sid, t, banco) => primeira(banco, 'select plataforma.sa_remover_logo($1, $2) as r', [sid, t]),
+  gravarOcultarMarca: (sid, t, ocultar, banco) => primeira(banco, 'select plataforma.sa_gravar_ocultar_marca($1, $2, $3) as r', [sid, t, ocultar]),
   logoDoTenant: async (db) => {
     const l = (
       await db.query<{ sha256: string | null; tipo: TipoLogo | null; chave: string | null }>(
@@ -85,9 +91,13 @@ export const fonteMarcaNoBanco: FonteMarcaEmpresa = {
   },
 };
 
-/** Retorno das `sa_*`: a `MarcaEmpresa` com a chave do objeto (só a API usa) e, na escrita, a chave que saiu. */
+/**
+ * Retorno das `sa_*`: a `MarcaEmpresa` com a chave do objeto (só a API usa) e, na escrita, a chave que saiu. Sem
+ * `ocultar_marca_macuxi` (banco anterior à 0091) = `false`: a leitura da marca segue funcionando até a migração.
+ */
 const MarcaBrutaSchema = MarcaEmpresaSchema.extend({
   logo: EmpresaLogoSchema.extend({ chave: z.string() }).nullable(),
+  ocultar_marca_macuxi: z.boolean().default(false),
   chave_anterior: z.string().nullable().optional(),
 });
 type MarcaBruta = z.output<typeof MarcaBrutaSchema>;
@@ -198,6 +208,16 @@ export function registrarRotasMarcaEmpresa(app: FastifyInstance, dep: DepsMarcaE
     const quem = await exigirEscrita(req, tenantId);
     const corpo = dep.validar(GravarNomeFantasiaSchema, req.body, 'corpo') as GravarNomeFantasia;
     const m = await chamar(() => fonte.gravarNome(quem.sessao_id, tenantId, corpo.nome_fantasia, dep.acessoPortal), 'sa_gravar_nome_fantasia', 'escrita');
+    return reply.header('cache-control', 'private, no-store').send(resposta(m));
+  });
+
+  // item 15: oculta ou mostra a logomarca do Macuxi no app e no BKO da empresa (idempotente: o mesmo valor regrava igual)
+  app.put('/v1/plataforma/empresas/:tenant_id/marca/ocultar-macuxi', async (req, reply) => {
+    const tenantId = tenantDa(req);
+    const quem = await exigirEscrita(req, tenantId);
+    const corpo = dep.validar(GravarOcultarMarcaMacuxiSchema, req.body, 'corpo') as GravarOcultarMarcaMacuxi;
+    const m = await chamar(() => fonte.gravarOcultarMarca(quem.sessao_id, tenantId, corpo.ocultar, dep.acessoPortal), 'sa_gravar_ocultar_marca', 'escrita');
+    req.log.info({ tenant_id: tenantId, ocultar_marca_macuxi: m.ocultar_marca_macuxi }, 'marca do Macuxi: ocultar gravado');
     return reply.header('cache-control', 'private, no-store').send(resposta(m));
   });
 

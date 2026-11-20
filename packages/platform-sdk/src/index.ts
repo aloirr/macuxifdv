@@ -48,4 +48,5 @@ export * from './planos';
 export * from './empresa-acoes';
 export * from './frase-carga';
 export * from './empresa-logo';
+export * from './app-versao';
 export * from './privacidade-localizacao';
