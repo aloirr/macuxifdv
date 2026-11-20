@@ -2,18 +2,12 @@
  * RN-CORE-23: as telas do Gestor (app e BKO) não têm timer nem consulta periódica própria. A atualização leve é do motor
  * de sync da plataforma (`sync_auto_min`, ao abrir o app e ao voltar ao primeiro plano); puxar para baixo = Sincronizar.
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { RAIZ, fontes as varrer } from './fontes-do-modulo';
 
-const RAIZ = join(__dirname, '..');
-function fontes(dir: string): string[] {
-  return readdirSync(dir).flatMap((n) => {
-    const p = join(dir, n);
-    if (statSync(p).isDirectory()) return fontes(p);
-    return /\.(ts|tsx)$/.test(n) && !/\.test\.ts$/.test(n) ? [p] : [];
-  });
-}
+const fontes = (dir: string): string[] => varrer(dir, (n) => /\.(ts|tsx)$/.test(n) && !/\.test\.ts$/.test(n));
 
 describe('RN-CORE-23: sem consulta periódica própria nas telas do Gestor', () => {
   it('nenhum setInterval, setTimeout ou recarga ao focar a aba em app/ e web/', () => {

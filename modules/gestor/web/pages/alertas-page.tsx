@@ -39,7 +39,7 @@ function Conteudo() {
     <div className="flex flex-col gap-4" data-testid="gestor.alertas">
       <PageHeader
         title={rotuloComContagem('Alertas da equipe', q.data?.itens.length ?? 0)}
-        actions={<MenuAcoes acoes={[{ id: 'atualizar', rotulo: q.isFetching ? 'Atualizando…' : 'Atualizar', desligada: q.isFetching, aoEscolher: () => void q.refetch() }]} />}
+        actions={<MenuAcoes acoes={[{ id: 'atualizar', rotulo: 'Atualizar', desligada: q.isFetching, aoEscolher: () => void q.refetch() }]} />}
       />
       <FilterBar>
         <SelectField label="Situação" value={f.status ?? ''} onChange={(e) => router.replace(`${pathname}?${new URLSearchParams(paraQuery({ status: e.target.value || null }))}`)}>
