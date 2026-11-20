@@ -535,11 +535,26 @@ export function casaComFiltros(d: Pick<DocBusca, 'marca' | 'categoria' | 'preco_
 
 /** RN-CAT-09: referência cruzada cujo código compacto é o código/n-grama da consulta. */
 function referenciaPorCodigo(doc: DocBusca, filtros: FiltrosInterpretados, ngramas: readonly string[]): number | null {
-  const alvos = new Set<string>(ngramas);
-  if (filtros.code) alvos.add(codigoCompacto(filtros.code.value));
-  const i = (doc.referencias ?? []).findIndex((r) => alvos.has(codigoCompacto(r.codigo)));
+  const alvos = filtros.code ? [...ngramas, codigoCompacto(filtros.code.value)] : ngramas;
+  return indiceDaReferenciaCruzada(alvos, doc.referencias ?? []);
+}
+
+/** RN-CAT-09: menor pedaço de código (compacto) que já acha uma referência cruzada. */
+const MINIMO_PEDACO_REFERENCIA = 4;
+
+/**
+ * RN-CAT-09: índice da referência cruzada cujo código compacto é, ou contém, algum dos trechos compactos da consulta
+ * (inteiro ou pedaço de 4+ caracteres com dígito). Nulo quando nenhuma casa. Usada pela busca do aparelho e pela da API.
+ */
+export function indiceDaReferenciaCruzada(trechos: readonly string[], referencias: readonly { codigo: string }[]): number | null {
+  const pedacos = trechos.filter((t) => t.length >= MINIMO_PEDACO_REFERENCIA && /\d/.test(t));
+  const i = referencias.findIndex((r) => {
+    const cod = codigoCompacto(r.codigo);
+    return cod !== '' && (trechos.includes(cod) || pedacos.some((t) => cod.includes(t)));
+  });
   return i >= 0 ? i : null;
 }
+export const referenciaCruzadaContem = (trechos: readonly string[], referencias: readonly { codigo: string }[]): boolean => indiceDaReferenciaCruzada(trechos, referencias) !== null;
 
 /** Chave do nome para o desempate; calculada uma vez por objeto (o sort comparava o mesmo nome dezenas de vezes). */
 const CHAVE_DO_NOME = new WeakMap<object, string>();
@@ -580,7 +595,7 @@ export function rankear(docs: readonly DocBusca[], entrada: EntradaRanking): Ite
   const ngramas = comTexto ? codigosDaConsulta(filtros.text) : [];
   if (ngramas.length > 0) {
     for (const d of candidatos) {
-      if (ngramas.includes(codigoCompacto(d.sku)) || (d.referencias ?? []).some((r) => ngramas.includes(codigoCompacto(r.codigo)))) exatos.add(d.id);
+      if (ngramas.includes(codigoCompacto(d.sku)) || referenciaCruzadaContem(ngramas, d.referencias ?? [])) exatos.add(d.id);
     }
   }
 

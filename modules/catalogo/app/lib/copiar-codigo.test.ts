@@ -41,14 +41,14 @@ describe('copiar o código do produto', () => {
     expect(rotuloAcessivelCopiar('CB3401')).toBe('Copiar código CB3401');
   });
 
-  it('a ficha e o cartão têm o botão de copiar e o Catálogo não tem texto próprio de "Adicionar ao pedido"', () => {
+  it('só o cartão da lista tem o botão de copiar (a ficha não) e o Catálogo não tem texto próprio de "Adicionar ao pedido"', () => {
     const comum = fonte('telas/comum.tsx');
     const produto = fonte('telas/produto.tsx');
     expect(comum).toContain('BotaoCopiarCodigo');
-    expect(produto).toContain('<BotaoCopiarCodigo');
+    expect(produto).not.toContain('BotaoCopiarCodigo');
     expect(comum).toContain("'copy'");
-    // Um aviso só: o toast é só do ícone da lista; a ficha confirma pelo rótulo e o leitor de tela anuncia quando não há toast.
-    expect(comum).toContain("if (variante === 'icone' && Platform.OS === 'android') ToastAndroid.show");
+    // Um aviso só: o toast no Android; o leitor de tela anuncia quando não há toast.
+    expect(comum).toContain("if (Platform.OS === 'android') ToastAndroid.show");
     expect(comum).toContain('else AccessibilityInfo.announceForAccessibility');
     for (const arq of [comum, produto, fonte('telas/catalogo.tsx')]) expect(arq).not.toMatch(/['"`>]\s*Adicionar ao pedido/);
   });

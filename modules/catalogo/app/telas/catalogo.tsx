@@ -1,6 +1,7 @@
 /**
  * Aba Catálogo em grade (T-0173, docs/design/catalogo-grade.md; RF-CAT-01/02/09): duas colunas de cartões (foto, nome, marca,
- * preço e tag de estoque), busca no topo, sistema e categoria em chips e a contagem na faixa. OFFLINE-FIRST: tudo vem do aparelho;
+ * preço e tag de estoque), busca no topo com a chave "Só com estoque" logo abaixo; sistema, categoria e filial ficam na folha do botão de filtro.
+ * Sem contagem de produtos e sem selo de sincronização na faixa (puxar a tela sincroniza). OFFLINE-FIRST: tudo vem do aparelho;
  * a busca com texto usa a API (busca inteligente) quando há sinal e sem filtro de árvore, e cai para a busca local (FTS5 + sinônimos
  * + ranking do domain) sem sinal, em falha ou com sistema/categoria escolhidos.
  * Preço (RN-VEN-01, RN-CAT-06): pela ficha do cliente (`?cliente=`) vale a tabela dele; pelo menu, a da filial padrão do vendedor;
@@ -10,7 +11,7 @@
 import { relogioReal } from '@macuxi/comum/relogio';
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
-import { Banner, BotaoFiltro, CampoBusca, CatalogoCarregando, Chip, colors, DEFAULT_TZ, Empty, EstadoVazio, EtiquetaFiltro, LinhaChips, MostrarMais, NadaEncontrado, PAGINA_DA_BUSCA, proximaPaginaDaBusca, Screen, SeloAtualizacao, TEXTO_CATALOGO_CARREGANDO, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Banner, BotaoFiltro, CampoBusca, CatalogoCarregando, colors, DEFAULT_TZ, Empty, EstadoVazio, EtiquetaFiltro, MostrarMais, NadaEncontrado, PAGINA_DA_BUSCA, proximaPaginaDaBusca, Screen, TEXTO_CATALOGO_CARREGANDO, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
@@ -19,7 +20,7 @@ import { montarArvore, type Arvore, type VinculoProdutoNo } from '../../domain/a
 import { idsAtivos } from '../../domain/hierarquia';
 import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, avisoDaBusca, iconeDoAviso } from '../../domain/ia';
 import { textoPareceCodigo } from '../../domain/codigo-busca';
-import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, SEM_FILTRO, subtituloDaGrade, type FiltroDaGrade } from '../lib/grade';
+import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, SEM_FILTRO, type FiltroDaGrade } from '../lib/grade';
 import { dadosDaFolha, opcoesDoFiltroFilial, resumoDoFiltro, subtituloComFilial } from '../lib/estoque-folha';
 import { modoDaCarga, paginasDaApi, soVendaveisNaCarga } from '../lib/carga-online';
 import { ajustarPeloPrazoPadrao } from '../lib/prazo-padrao';
@@ -28,7 +29,7 @@ import { arvoreLocal, buscarLocal, estoqueLocalDosProdutos, filialDeCadastroLoca
 import { sugestaoDaBuscaLocal } from '../texto-consultas';
 import { irParaProduto } from '../rotas';
 import { CartaoGrade } from './comum';
-import { FolhaEstoquePorFilial, FolhaFiltroCatalogo, type EscolhaFiltro } from './estoque-filial';
+import { ChaveSoComEstoque, FolhaEstoquePorFilial, FolhaFiltroCatalogo, type EscolhaFiltro } from './estoque-filial';
 import { useMiniaturasDosItens } from './miniatura';
 
 const POR_PAGINA = PAGINA_DA_BUSCA;
@@ -192,17 +193,17 @@ export default function TelaCatalogo() {
   const linhas = useMemo(() => emLinhas(lista.itens), [lista.itens]);
   const comFiltro = !naCarga && (filtroLigado(filtro) || escolhaLigada(escolha));
   const opcoesFilial = useMemo(() => opcoesDoFiltroFilial({ proprias: filiais.venda, filiais: filiais.todas }), [filiais]);
-  const resumo = resumoDoFiltro({ opcoes: opcoesFilial, escolha });
+  const resumo = resumoDoFiltro({ opcoes: opcoesFilial, escolha, sistemaId: filtro.sistemaId, categoriaId: filtro.categoriaId });
+  const subtitulo = subtituloComFilial(filiais.cadastro?.nome ?? null);
   const folhaDoItem = itemDaFolha?.availability
     ? dadosDaFolha({ availability: itemDaFolha.availability, cargaEm: sync.sincronizado_em, filialCadastro: filiais.cadastro?.id ?? null, agora: relogioReal().agora().toISOString(), fuso })
     : null;
   const nomeDoFiltro = arvore?.arvore.nos.get(filtro.categoriaId ?? filtro.sistemaId ?? '')?.nome ?? '';
   const cabecalho = {
     titulo: 'Catálogo',
-    ...(lista.carregando && lista.itens.length === 0 ? {} : { subtitulo: subtituloComFilial(filiais.cadastro?.nome ?? null, lista.total) }),
+    ...(subtitulo ? { subtitulo } : {}),
     posicaoSubtitulo: 'abaixo' as const,
     ...(clienteId ? { voltar: { label: nomeCliente ?? 'Cliente', fallback: '/' } } : {}),
-    direita: <SeloAtualizacao testID="catalogo-selo-sync" semRede={!ambiente.online()} onSincronizar={auto.puxar} sobreFaixa />,
   };
 
   if (!motor) {
@@ -235,34 +236,16 @@ export default function TelaCatalogo() {
         </View>
         <BotaoFiltro testID="catalogo-filtro" contagem={resumo.contagem} rotulo="Filtrar" onPress={() => setFolhaFiltro(true)} />
       </View>
-      {resumo.filial || resumo.soComEstoque ? (
+      <ChaveSoComEstoque ligada={escolha.soComEstoque} onMudar={(v) => setEscolha((e) => ({ ...e, soComEstoque: v }))} />
+      {resumo.filial ? (
         <View style={s.etiquetas} testID="catalogo-etiquetas">
-          {resumo.filial ? (
-            <EtiquetaFiltro
-              testID="catalogo-etiqueta-filial"
-              texto={resumo.filial.texto}
-              {...(resumo.filial.removivel ? { onRemover: () => setEscolha((e) => ({ ...e, filial: null })), rotuloRemover: `Remover filtro ${resumo.filial.texto}` } : {})}
-            />
-          ) : null}
-          {resumo.soComEstoque ? <EtiquetaFiltro testID="catalogo-etiqueta-estoque" texto="Só com estoque" onRemover={() => setEscolha((e) => ({ ...e, soComEstoque: false }))} rotuloRemover="Remover filtro Só com estoque" /> : null}
+          <EtiquetaFiltro
+            testID="catalogo-etiqueta-filial"
+            texto={resumo.filial.texto}
+            onRemover={() => setEscolha((e) => ({ ...e, filial: null }))}
+            rotuloRemover={`Remover filtro ${resumo.filial.texto}`}
+          />
         </View>
-      ) : null}
-
-      {chips.sistemas.length > 0 ? (
-        <LinhaChips testID="catalogo-chips-sistema">
-          <Chip label="Todos" active={filtro.sistemaId === null} onPress={() => setFiltro((f) => escolherSistema(f, null))} testID="catalogo-chip-sistema-todos" />
-          {chips.sistemas.map((n) => (
-            <Chip key={n.id} label={n.nome} active={filtro.sistemaId === n.id} onPress={() => setFiltro((f) => escolherSistema(f, n.id))} testID={`catalogo-chip-sistema-${n.codigo}`} />
-          ))}
-        </LinhaChips>
-      ) : null}
-      {chips.categorias.length > 0 ? (
-        <LinhaChips testID="catalogo-chips-categoria">
-          <Chip label="Todas" active={filtro.categoriaId === null} onPress={() => setFiltro((f) => escolherCategoria(f, null))} testID="catalogo-chip-categoria-todas" />
-          {chips.categorias.map((n) => (
-            <Chip key={n.id} label={n.nome} active={filtro.categoriaId === n.id} onPress={() => setFiltro((f) => escolherCategoria(f, n.id))} testID={`catalogo-chip-categoria-${n.codigo}`} />
-          ))}
-        </LinhaChips>
       ) : null}
 
       {lista.aviso === TEXTO_CATALOGO_CARREGANDO ? <CatalogoCarregando /> : null}
@@ -324,8 +307,16 @@ export default function TelaCatalogo() {
         opcoes={opcoesFilial}
         escolha={escolha}
         onEscolher={setEscolha}
-        onLimpar={() => setEscolha(SEM_ESCOLHA)}
-        textoVer={`Ver ${subtituloDaGrade(lista.total)}`}
+        onLimpar={() => {
+          setEscolha((e) => ({ ...SEM_ESCOLHA, soComEstoque: e.soComEstoque }));
+          setFiltro(SEM_FILTRO);
+        }}
+        sistemas={chips.sistemas}
+        categorias={chips.categorias}
+        sistemaId={filtro.sistemaId}
+        categoriaId={filtro.categoriaId}
+        onSistema={(id) => setFiltro((f) => escolherSistema(f, id))}
+        onCategoria={(id) => setFiltro((f) => escolherCategoria(f, id))}
       />
       <FolhaEstoquePorFilial visivel={itemDaFolha !== null} onFechar={() => setItemDaFolha(null)} dados={folhaDoItem} />
     </Screen>

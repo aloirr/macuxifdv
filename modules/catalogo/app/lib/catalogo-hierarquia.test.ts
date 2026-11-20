@@ -1,4 +1,4 @@
-/** T-0173 / RF-CAT-09: a aba Catálogo é a grade de 2 colunas com sistema e categoria em chips (sem "Ver por linha" nem lista de níveis); as marcas vêm da entidade do próprio Catálogo. */
+/** T-0173 / RF-CAT-09: a aba Catálogo é a grade de 2 colunas com sistema e categoria em chips dentro da folha de filtro (sem "Ver por linha" nem lista de níveis); as marcas vêm da entidade do próprio Catálogo. */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -14,17 +14,25 @@ describe('T-0173: Catálogo em grade no app', () => {
     expect(fonte).not.toContain('irParaListaPorLinha');
     expect(fonte).not.toContain('<ListaNiveis');
     expect(fonte).not.toContain('<Trilha');
-    expect(fonte).toContain('testID="catalogo-chips-sistema"');
-    expect(fonte).toContain('testID="catalogo-chips-categoria"');
+    const folha = readFileSync(join(__dirname, '..', 'telas', 'estoque-filial.tsx'), 'utf8');
+    expect(folha).toContain('testID="catalogo-chips-sistema"');
+    expect(folha).toContain('testID="catalogo-chips-categoria"');
+    expect(fonte).not.toContain('<LinhaChips');
+    expect(fonte).not.toContain('<Chip ');
   });
 
-  it('T-0173: a busca fica logo abaixo da faixa, antes dos chips e da grade; subtítulo abaixo do título e só o botão Mostrar mais', () => {
+  it('itens 6, 11, 12 e 14 do teste de campo: sem selo de sync nem contagem na faixa; chave "Só com estoque" abaixo da busca', () => {
+    expect(fonte).not.toContain('SeloAtualizacao');
+    expect(fonte).not.toContain('subtituloDaGrade');
+    expect(fonte).not.toContain('direita:');
+    expect(fonte.indexOf('testID="catalogo-busca"')).toBeLessThan(fonte.indexOf('<ChaveSoComEstoque'));
+    expect(fonte.indexOf('<ChaveSoComEstoque')).toBeLessThan(fonte.indexOf('<CartaoGrade'));
+  });
+
+  it('T-0173: a busca fica logo abaixo da faixa, antes da grade; subtítulo abaixo do título e só o botão Mostrar mais', () => {
     expect(fonte.indexOf('testID="catalogo-busca"')).toBeGreaterThan(0);
-    expect(fonte.indexOf('testID="catalogo-busca"')).toBeLessThan(fonte.indexOf('testID="catalogo-chips-sistema"'));
-    expect(fonte.indexOf('testID="catalogo-chips-sistema"')).toBeLessThan(fonte.indexOf('<CartaoGrade'));
     expect(fonte).toContain("posicaoSubtitulo: 'abaixo'");
     expect(fonte).toContain('contagem={false}');
-    expect(fonte).toContain('sobreFaixa');
   });
 });
 

@@ -1,7 +1,7 @@
 /**
  * Ficha do produto (RF-CAT-03, T-0052). OFFLINE-FIRST: abre do aparelho (cadastro, preço da tabela do cliente,
  * estoque, atributos e conteúdo sincronizados); com sinal e sem o produto no aparelho, busca na API. Preço e estoque
- * seguem o RN-CAT-05. Botão "Copiar código" próprio e, além dele, só as ações de outros módulos pela extensão `produto.acoes`
+ * seguem o RN-CAT-05. Sem botão de copiar (fica só no cartão da lista); só as ações de outros módulos pela extensão `produto.acoes`
  * (o promotor nunca vê as de pedido).
  */
 import { relogioReal } from '@macuxi/comum/relogio';
@@ -18,7 +18,7 @@ import { dadosDaFolha } from '../lib/estoque-folha';
 import { chipDoEstoque } from '../../domain/estoque-campo';
 import { filialDeCadastroLocal, fichaLocal } from '../lib/local';
 import { hrefCatalogo, irParaProduto } from '../rotas';
-import { BotaoCopiarCodigo, BotoesAcao } from './comum';
+import { BotoesAcao } from './comum';
 import { BotaoPorFilialDaFicha, FolhaEstoquePorFilial } from './estoque-filial';
 
 type Estado = { fase: 'carregando' } | { fase: 'pronta'; ficha: FichaProduto; noAparelho: boolean } | { fase: 'nao_encontrado' } | { fase: 'catalogo_carregando' };
@@ -154,7 +154,6 @@ export default function TelaProduto() {
 
       <FolhaEstoquePorFilial visivel={folhaAberta} onFechar={() => setFolhaAberta(false)} dados={folha} />
 
-      <BotaoCopiarCodigo codigo={item.erp_code} />
       <BotoesAcao item={item} clienteId={clienteId} />
 
       {content.description || content.selling_points.length > 0 ? (
