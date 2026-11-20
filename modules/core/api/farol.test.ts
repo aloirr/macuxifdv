@@ -37,7 +37,7 @@ const usuarios = [
   { id: V1, nome: 'Ana', equipe_id: null },
   { id: V2, nome: 'Beto', equipe_id: null },
 ];
-const vinc = (cliente_id: string, usuario_id: string, razao_social: string) => ({ cliente_id, usuario_id, razao_social, nome_fantasia: null, documento: '12345678000199' });
+const vinc = (cliente_id: string, usuario_id: string, razao_social: string, external_id: string | null = null) => ({ cliente_id, usuario_id, razao_social, nome_fantasia: null, external_id, documento: '12345678000199' });
 const compra = (cliente_id: string, ultima: string) => ({ cliente_id, ano_mes: ultima.slice(0, 7), valor_cents: 100, pedidos: 1, ultima_compra_em: ultima });
 
 describe('RN-CORE-28: permissões do farol', () => {
@@ -139,12 +139,13 @@ describe('RN-CORE-28: GET /v1/core/farol (cálculo)', () => {
     expect(chamadas.find((c) => c.sql.includes('from core.carteira'))!.valores[2]).toEqual([C1]);
   });
   it('RN-CORE-28: filtros de cor e busca valem só para a lista; resumo e vendedores seguem o recorte inteiro; paginação por cursor', async () => {
-    const base = { usuarios, vinculos: [vinc(C1, V1, 'Alfa'), vinc(C2, V1, 'Beta'), vinc(C3, V1, 'Gama')], historico: [compra(C1, '2026-08-01'), compra(C2, '2026-09-20')] };
+    const base = { usuarios, vinculos: [vinc(C1, V1, 'Alfa', 'C-001'), vinc(C2, V1, 'Beta', 'C-002'), vinc(C3, V1, 'Gama', 'C-003')], historico: [compra(C1, '2026-08-01'), compra(C2, '2026-09-20')] };
     const porCor = await calcularFarol(fakeDb(base).db, {}, entrada({ query: { cor: 'sem_compra' } }));
     expect(porCor.clientes.map((c) => c.nome)).toEqual(['Gama']);
     expect(porCor.resumo.carteira).toBe(3);
     expect((await calcularFarol(fakeDb(base).db, {}, entrada({ query: { busca: 'bet' } }))).clientes.map((c) => c.nome)).toEqual(['Beta']);
     expect((await calcularFarol(fakeDb(base).db, {}, entrada({ query: { busca: '12.345' } }))).clientes).toHaveLength(3);
+    expect((await calcularFarol(fakeDb(base).db, {}, entrada({ query: { busca: 'c-002' } }))).clientes.map((c) => c.nome)).toEqual(['Beta']);
     const p1 = await calcularFarol(fakeDb(base).db, {}, entrada({ query: { limite: 2 } }));
     expect(p1.clientes).toHaveLength(2);
     expect(p1.proximo_cursor).toBe('2');

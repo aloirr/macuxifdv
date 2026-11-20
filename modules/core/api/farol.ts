@@ -22,7 +22,7 @@ import {
   type ParametrosFarol,
   type ParametrosFarolPut,
 } from '../contracts';
-import { corDoCliente, dataLocal, diasSemCompraDoFarol, mascararDocumentoDoFarol, ordenarClientesDoFarol, parametrosFarolDasLinhas, resumirFarol, validarParametrosFarol, type LinhaFarol } from '../domain';
+import { clienteCasaBusca, corDoCliente, dataLocal, diasSemCompraDoFarol, mascararDocumentoDoFarol, ordenarClientesDoFarol, parametrosFarolDasLinhas, resumirFarol, validarParametrosFarol, type LinhaFarol } from '../domain';
 import { auditar } from './auditoria';
 import { licencaDoTenant } from './licenca-tenant';
 
@@ -44,6 +44,7 @@ interface LinhaVinculo {
   usuario_id: string;
   razao_social: string;
   nome_fantasia: string | null;
+  external_id: string | null;
   documento: string | null;
 }
 
@@ -85,7 +86,7 @@ export async function calcularFarol(db: ClienteBanco, tx: Partial<Pick<Transacao
 
   const vinculos = (
     await db.query<LinhaVinculo>(
-      `select k.cliente_id, k.usuario_id, c.razao_social, c.nome_fantasia, c.documento
+      `select k.cliente_id, k.usuario_id, c.razao_social, c.nome_fantasia, c.external_id, c.documento
          from core.carteira k join core.cliente c on c.id = k.cliente_id and c.deleted_at is null and c.ativo
         where k.deleted_at is null and k.papel = 'vendedor' and k.usuario_id = any($1::uuid[])
           and (k.inicio is null or k.inicio <= $2::date) and (k.fim is null or k.fim >= $2::date)
@@ -146,8 +147,6 @@ export async function calcularFarol(db: ClienteBanco, tx: Partial<Pick<Transacao
     .sort((a, b) => (ordemNome.get(a.usuario_id) ?? 0) - (ordemNome.get(b.usuario_id) ?? 0));
 
   // Lista: cor e busca só afetam a lista; resumo e vendedores são do recorte inteiro.
-  const busca = q.busca?.trim().toLowerCase();
-  const buscaDigitos = (q.busca ?? '').replace(/\D/g, '');
   const lista: FarolCliente[] = itens
     .map((i) => ({
       cliente_id: i.v.cliente_id,
@@ -158,11 +157,10 @@ export async function calcularFarol(db: ClienteBanco, tx: Partial<Pick<Transacao
       dias_sem_compra: i.dias_sem_compra,
       positivado_mes: i.positivado_mes,
       cor: corDoCliente(i, parametros),
-      _bruto: `${i.v.razao_social} ${i.v.nome_fantasia ?? ''}`.toLowerCase(),
-      _doc: (i.v.documento ?? '').replace(/\D/g, ''),
+      _v: i.v,
     }))
-    .filter((c) => (!q.cor || c.cor === q.cor) && (!busca || c._bruto.includes(busca) || (buscaDigitos.length >= 3 && c._doc.includes(buscaDigitos))))
-    .map(({ _bruto: _b, _doc: _d, ...c }) => c);
+    .filter((c) => (!q.cor || c.cor === q.cor) && clienteCasaBusca(q.busca, c._v))
+    .map(({ _v, ...c }) => c);
   const ordenada = ordenarClientesDoFarol(lista);
   const limite = q.limite ?? FAROL_LIMITE_PADRAO;
   const deslocamento = Math.max(0, Number.parseInt(q.cursor ?? '0', 10) || 0);

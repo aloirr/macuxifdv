@@ -491,6 +491,7 @@ export * from './filial';
 export * from './fotos-pdv';
 export * from './cliente360-v2';
 export * from './promotor-pedidos';
+export * from './busca-cliente';
 export * from './enderecos';
 export * from './usuarios';
 export * from './inicio';

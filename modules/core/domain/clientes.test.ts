@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clienteCasaBusca, digitosDeBuscaDoDocumento, documentoCasa, escopoDeUsuarios, listarClientes, papelCompativel, type ClienteLista } from './clientes';
+import { escopoDeUsuarios, listarClientes, papelCompativel, type ClienteLista } from './clientes';
 
 const cli = (id: string, razao_social: string, extra: Partial<ClienteLista> = {}): ClienteLista => ({
   id,
@@ -53,18 +53,6 @@ describe('busca e filtros da lista de clientes (RF-CORE-02)', () => {
     expect(listarClientes(todos, 'vendedor', c, { q: 'parintins' })).toEqual([]);
     expect(listarClientes(todos, 'vendedor', c, { cidade: 'Parintins' }).map((x) => x.id)).toEqual(['c2']);
   });
-  it('RF-CORE-02: documentoCasa — dígitos do termo (3 ou mais) contidos nos do documento, com ou sem máscara', () => {
-    expect(documentoCasa('12.345.678', '12345678000190')).toBe(true);
-    expect(documentoCasa('12345678000190', '12.345.678/0001-90')).toBe(true);
-    expect(documentoCasa('12', '12345678000190')).toBe(false);
-    expect(documentoCasa('abc', '12345678000190')).toBe(false);
-    expect(documentoCasa('123', null)).toBe(false);
-  });
-  it('RF-CORE-02: digitosDeBuscaDoDocumento — a regra dos 3 dígitos que a API usa em SQL; menos de 3 não busca documento', () => {
-    expect(digitosDeBuscaDoDocumento('12.345.678/0001-90')).toBe('12345678000190');
-    expect(digitosDeBuscaDoDocumento('Loja 12')).toBeNull();
-    expect(digitosDeBuscaDoDocumento('abc')).toBeNull();
-  });
   it('RF-CORE-02: o CNPJ casa com e sem máscara, inteiro ou em parte', () => {
     for (const q of ['12.345.678/0001-90', '12345678000190', '12.345.678', '345678/0001', '0001-90']) {
       expect(listarClientes(todos, 'vendedor', c, { q }).map((x) => x.id)).toEqual(['c1']);
@@ -114,14 +102,5 @@ describe('papel do vínculo da carteira (RN-CORE-04, RN-PRO-01)', () => {
     expect(papelCompativel('promotor', 'vendedor')).toBe(false);
     expect(papelCompativel('vendedor', 'promotor')).toBe(false);
     expect(papelCompativel('supervisor', 'vendedor')).toBe(false);
-  });
-});
-
-describe('casamento da busca de clientes (RF-CORE-02)', () => {
-  const c = { razao_social: 'Mercado São João Ltda', nome_fantasia: 'Mercadinho do João', external_id: 'C-0042', documento: '12.345.678/0001-90' };
-  it('RF-CORE-02: clienteCasaBusca casa CNPJ a partir de 3 dígitos; bairro não casa; termo vazio casa tudo', () => {
-    expect(clienteCasaBusca('123', c)).toBe(true);
-    expect(clienteCasaBusca('centro', { ...c, bairro: 'Centro' } as Parameters<typeof clienteCasaBusca>[1])).toBe(false);
-    expect(clienteCasaBusca('', c)).toBe(true);
   });
 });
