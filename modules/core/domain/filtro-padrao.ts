@@ -92,8 +92,8 @@ export function textoDaDataDaRota(data: string, maiusculo = false): string {
   return maiusculo ? maiuscula(t) : t;
 }
 
-/** Título da tela: "Rota de hoje" ou, com outra data, "Rota" (a data fica só na etiqueta removível; RD-1235). */
-export const tituloDaRota = (f: FiltroRota): string => (f.data ? 'Rota' : 'Rota de hoje');
+/** Texto único do título da Rota (tela, abertura da ficha e página do shell). A data fica só na etiqueta removível (RD-1235). */
+export const TITULO_DA_ROTA = 'Rota';
 
 /** Etiquetas removíveis, na ordem da folha. */
 export function etiquetasDaRota(f: FiltroRota): Array<{ campo: CampoFiltroRota; texto: string }> {
@@ -127,6 +127,19 @@ export const textoDasFeitas = (paradas: readonly ParadaFiltravel[]): string => {
 export const textoVerVisitas = (n: number): string => `Ver ${visitas(n)}`;
 
 // ---------------- Clientes ----------------
+
+/** Selo do botão de filtro da carteira: a busca (se não vazia) e cada situação contam um. */
+export function contarFiltrosCarteira(situacoes: readonly string[], busca: string): number {
+  return situacoes.length + (busca.trim() ? 1 : 0);
+}
+
+export type EtiquetaDaCarteira<F extends string = string> = { tipo: 'busca'; texto: string } | { tipo: 'situacao'; id: F };
+
+/** Etiquetas removíveis da carteira: a busca primeiro, depois as situações na ordem escolhida. */
+export function etiquetasDaCarteira<F extends string>(situacoes: readonly F[], busca: string): Array<EtiquetaDaCarteira<F>> {
+  const b = busca.trim();
+  return [...(b ? [{ tipo: 'busca' as const, texto: b }] : []), ...situacoes.map((id) => ({ tipo: 'situacao' as const, id }))];
+}
 
 /** Botão principal da folha de Clientes: "Ver 5 clientes", "Ver 1 cliente". */
 export const textoVerClientes = (n: number): string => (n === 1 ? 'Ver 1 cliente' : `Ver ${n} clientes`);

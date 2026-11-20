@@ -54,7 +54,7 @@ import {
   textoDaDataDaRota,
   textoDasFeitas,
   textoVerVisitas,
-  tituloDaRota,
+  TITULO_DA_ROTA,
   type FiltroRota,
 } from '../../domain';
 import { FolhaFiltrar, GrupoFiltro } from '../components/folha-filtrar';
@@ -121,7 +121,6 @@ export function TelaRota() {
     if (rascunho.cidade !== rascunhoSalvo.cidade || rascunho.bairro !== rascunhoSalvo.bairro) setRascunho(rascunho);
   }, [rascunho, rascunhoSalvo]);
   const ehHoje = filtro.data === null;
-  const titulo = tituloDaRota(filtro);
   const contagem = contarFiltrosRota(filtro);
 
   const abrirFolha = () => {
@@ -227,7 +226,7 @@ export function TelaRota() {
 
   if (!route || route.stops.length === 0) {
     return (
-      <Screen refreshing={core.sincronizando} onRefresh={core.sincronizar} cabecalho={{ titulo }}>
+      <Screen refreshing={core.sincronizando} onRefresh={core.sincronizar} cabecalho={{ titulo: TITULO_DA_ROTA }}>
         {linhaDeCima(null)}
         {/* RD-0506: um título só; a ação de puxar só vale para hoje (o dia vem no título da tela e na etiqueta) */}
         {carregando ? (
@@ -257,14 +256,14 @@ export function TelaRota() {
   const dashed = points.slice(nextIdx);
   const order = stops.map((s, i) => ({ s, i })).sort((a, b) => rank(a.s) - rank(b.s));
 
-  const openCustomer = (s: RouteStop) => abrirCliente(s.customer.id, titulo);
+  const openCustomer = (s: RouteStop) => abrirCliente(s.customer.id, TITULO_DA_ROTA);
   const isOpenStop = (s: RouteStop) => s.status === 'in_progress' && (!openVisit || openVisit.customer_id === s.customer.id);
   const onAction = (s: RouteStop) => {
     if (s.status === 'in_progress') {
       if (openVisit && openVisit.customer_id === s.customer.id) sheets.askCheckout();
       else openCustomer(s);
     } else if (openVisit && openVisit.customer_id !== s.customer.id) sheets.showBlocked(s.customer.trade_name);
-    else abrirCliente(s.customer.id, titulo, true);
+    else abrirCliente(s.customer.id, TITULO_DA_ROTA, true);
   };
 
   return (
@@ -272,10 +271,10 @@ export function TelaRota() {
       refreshing={core.sincronizando}
       onRefresh={core.sincronizar}
       testID="route"
-      cabecalho={{ titulo, subtitulo: subtituloDaRota({ filtradas: stops.length, total: route.stops.length, totalKm: route.total_km, regiao: route.region, comFiltro: filtraParadas(filtro) }) }}>
+      cabecalho={{ titulo: TITULO_DA_ROTA, subtitulo: subtituloDaRota({ filtradas: stops.length, total: route.stops.length, totalKm: route.total_km, regiao: route.region, comFiltro: filtraParadas(filtro) }) }}>
       {linhaDeCima(stops)}
 
-      <OpenVisitBar from={titulo} />
+      <OpenVisitBar from={TITULO_DA_ROTA} />
 
       {stops.length === 0 ? (
         <EstadoVazio testID="rota-filtro-vazio" icone="search" titulo="Nenhuma visita com esses filtros." />

@@ -11,16 +11,13 @@ export interface LinhaMeusModulos {
 
 export const VERSAO_DESCONHECIDA = '—';
 
-/** Uma linha por módulo efetivo, na ordem recebida (ordem de dependência, core primeiro). O core aparece sempre. */
+/** Uma linha por módulo liberado, na ordem recebida (ordem de dependência). O core é módulo interno e não entra na tabela. */
 export function linhasMeusModulos(ativos: readonly ModuloId[], versoes: Readonly<Partial<Record<ModuloId, string>>>): LinhaMeusModulos[] {
-  const ids: ModuloId[] = ativos.includes('core') ? [...ativos] : ['core', ...ativos];
-  return ids.map((modulo) => ({ modulo, versao: versoes[modulo] ?? VERSAO_DESCONHECIDA }));
+  return ativos.filter((m) => m !== 'core').map((modulo) => ({ modulo, versao: versoes[modulo] ?? VERSAO_DESCONHECIDA }));
 }
 
-/** Só o core ativo = nada contratado além do básico (mostra o aviso `meus-modulos.vazio`). */
-export function soTemOCore(ativos: readonly ModuloId[]): boolean {
-  return ativos.every((m) => m === 'core');
-}
+/** Nome do módulo na tabela: o id com a inicial maiúscula ("vendedor" → "Vendedor"). */
+export const nomeDoModulo = (m: ModuloId): string => m.charAt(0).toUpperCase() + m.slice(1);
 
 /** Itens da fila rejeitados porque o módulo foi desativado (RN-CORE-02): aparecem como "Não enviado — módulo desativado". */
 export function itensNaoEnviadosPorModulo(fila: readonly ItemOutbox[]): ItemOutbox[] {

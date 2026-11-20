@@ -39,7 +39,7 @@ import {
   montarHierarquia,
   normalizarEmail,
   recortarUsuarios,
-  superiorImediatoNaEquipe,
+  superiorImediato,
   validarAlmocoDoUsuario,
   validarDadosDeUsuario,
   faltasNaSenha,
@@ -58,6 +58,7 @@ import {
 } from '../domain';
 import { lerParametrosJornada } from './parametros-jornada';
 import { auditar } from './auditoria';
+import { equipesAtivas } from './hierarquia-leitura';
 import { codigosDoUsuario, conferirPerfisDoUsuario, gravarPerfisDoUsuario, perfisEscolhidos, principalDe, refsDoUsuario } from './usuario-perfis';
 import { carregar } from './perfis';
 import { perfisDoUsuarioNoLogin } from './perfis-do-usuario';
@@ -136,10 +137,6 @@ const SELECT_USUARIO = `select u.id, u.nome, u.nome_curto, u.email, u.perfil, u.
          (u.bloqueado_em is not null) as bloqueado_admin, to_char(u.bloqueio_ate at time zone 'UTC', ${ISO}) as bloqueio_ate_login
     from core.usuario u left join core.equipe e on e.id = u.equipe_id and e.deleted_at is null
     left join core.v_usuario_hierarquia h on h.usuario_id = u.id`;
-
-async function equipesAtivas(db: ClienteBanco): Promise<EquipeLinha[]> {
-  return (await db.query<EquipeLinha>('select id, equipe_pai_id, responsavel_id from core.equipe where deleted_at is null and ativo')).rows;
-}
 
 async function nomesDe(db: ClienteBanco, ids: readonly string[]): Promise<Map<string, string>> {
   if (ids.length === 0) return new Map();
@@ -312,7 +309,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
           linhas = linhas.filter((l) => ids.has(l.id));
         }
         const todas: EquipeLinha[] = r.rows;
-        const superior = new Map(linhas.map((l) => [l.id, superiorVisivel(superiorImediatoNaEquipe(todas, l.id), visiveis)]));
+        const superior = new Map(linhas.map((l) => [l.id, superiorVisivel(superiorImediato(todas, l.id, null), visiveis)]));
         const nomes = await nomesDe(db, [...superior.values(), ...linhas.map((l) => superiorVisivel(l.responsavel_id, visiveis))].filter((x): x is string => x !== null));
         const itens: EquipeOpcao[] = linhas.map((l) => {
           const resp = superiorVisivel(l.responsavel_id, visiveis);

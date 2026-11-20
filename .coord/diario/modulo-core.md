@@ -195,3 +195,5 @@
 2026-11-20 — v1.0.16 — RD-2419 perfilDeGestao único no domain
 2026-11-20 — T-0187 — gerente dono de rota (sem rastreamento)
 2026-11-20 — T-0187 — RD-2465 escopo da rota reusa EQUIPES_DO_RESPONSAVEL
+2026-11-20 — v1.0.17 Campo — Início sem 'Não é dia útil' e saudação com ponto, Rota, Clientes (busca na folha, sem chip), Módulos sem o Core, gestor imediato na sessão, linhasDoPerfil
+2026-11-20 — v1.0.17 Campo (r2) — achados do corretor e da marca: hierarquia lida num lugar só, regra única de superior imediato, TabelaDados em Módulos, selo/etiquetas da carteira no domain

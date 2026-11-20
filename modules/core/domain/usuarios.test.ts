@@ -6,11 +6,11 @@ import {
   normalizarEmail,
   podeVerUsuarios,
   recortarUsuarios,
-  superiorImediatoNaEquipe,
   validarDadosDeUsuario,
   validarSenhaInicial,
 } from './usuarios';
 import { perfisDeFabrica } from './matriz';
+import { superiorImediato } from './hierarquia';
 
 describe('usuários no BKO (RF-CORE-02): quem pode gerir e ver', () => {
   it('RF-CORE-02 / RN-CORE-35: pelas chaves do motor, só o admin de fábrica cria, edita, desativa e redefine senha', () => {
@@ -145,13 +145,13 @@ describe('superior imediato derivado da equipe (RF-CORE-02; RN-CORE-04)', () => 
     { id: 'eq2', equipe_pai_id: 'regional', responsavel_id: null },
   ];
   it('RN-CORE-04: o superior de quem entra na equipe é o responsável dela', () => {
-    expect(superiorImediatoNaEquipe(equipes, 'eq1')).toBe('sup');
+    expect(superiorImediato(equipes, 'eq1', null)).toBe('sup');
   });
   it('RN-CORE-04: equipe sem responsável sobe para o responsável da equipe-pai', () => {
-    expect(superiorImediatoNaEquipe(equipes, 'eq2')).toBe('ger');
+    expect(superiorImediato(equipes, 'eq2', null)).toBe('ger');
   });
   it('RN-CORE-04: sem equipe (ou equipe desconhecida) não há superior', () => {
-    expect(superiorImediatoNaEquipe(equipes, null)).toBeNull();
-    expect(superiorImediatoNaEquipe(equipes, 'nada')).toBeNull();
+    expect(superiorImediato(equipes, null, null)).toBeNull();
+    expect(superiorImediato(equipes, 'nada', null)).toBeNull();
   });
 });

@@ -1,23 +1,23 @@
 import type { ItemOutbox } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { itensNaoEnviadosPorModulo, linhasMeusModulos, podeConfirmarLimpeza, soTemOCore, versoesDaResposta, VERSAO_DESCONHECIDA } from './meus-modulos';
+import { itensNaoEnviadosPorModulo, linhasMeusModulos, nomeDoModulo, podeConfirmarLimpeza, versoesDaResposta, VERSAO_DESCONHECIDA } from './meus-modulos';
 
 const item = (id: string, modulo: ItemOutbox['modulo'], situacao: ItemOutbox['situacao']): ItemOutbox => ({
   id, entidade: 'x', modulo, operacao: 'upsert', payload: {}, rotulo: '', detalhe: '', criado_em: '', tentativas: 0, ultimo_erro: '', ultima_tentativa_em: null, situacao, codigo: null,
 });
 
-describe('RF-CORE-02: tela Meus módulos', () => {
-  it('RF-CORE-02: uma linha por módulo efetivo, com a versão (— quando ainda não conhecida); o core sempre aparece', () => {
-    expect(linhasMeusModulos(['core', 'vendedor'], { core: '0.1.0' })).toEqual([
-      { modulo: 'core', versao: '0.1.0' },
+describe('RF-CORE-02: tela Módulos', () => {
+  it('RF-CORE-02: uma linha por módulo liberado, com a versão (— quando ainda não conhecida); o core é interno e não aparece', () => {
+    expect(linhasMeusModulos(['core', 'vendedor', 'catalogo'], { core: '0.1.0', catalogo: '1.2.0' })).toEqual([
       { modulo: 'vendedor', versao: VERSAO_DESCONHECIDA },
+      { modulo: 'catalogo', versao: '1.2.0' },
     ]);
-    expect(linhasMeusModulos([], {}).map((l) => l.modulo)).toEqual(['core']);
+    expect(linhasMeusModulos([], {})).toEqual([]);
+    expect(linhasMeusModulos(['core'], { core: '0.1.0' })).toEqual([]);
   });
 
-  it('RF-CORE-02: aviso de vazio só quando o core é o único ativo', () => {
-    expect(soTemOCore(['core'])).toBe(true);
-    expect(soTemOCore(['core', 'promotor'])).toBe(false);
+  it('RF-CORE-02: o nome do módulo na tabela leva a inicial maiúscula', () => {
+    expect(nomeDoModulo('vendedor')).toBe('Vendedor');
   });
 
   it('RN-CORE-02: itens rejeitados por módulo desativado viram "não enviado — módulo desativado"', () => {
