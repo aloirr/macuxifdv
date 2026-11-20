@@ -38,6 +38,8 @@ export const manifest = defineModule({
   perfis: ['supervisor', 'gerente', 'analista', 'admin'],
   apps: { gestao: { abas: ['Equipe', 'Aprovações', 'Alertas'] }, web: { menus: ['Painel da equipe', 'Trajeto do dia', 'Ranking', 'Aprovações', 'Alertas', 'Regras de alerta'] } },
   sync: ['painel_vendedor_dia', 'alerta'],
+  // T-0187 §1.4: lista da equipe para o "Em nome de" do Vendedor, só no aparelho (cache da visão, RN-VEN-35)
+  ofereceConsultas: ['gestor.membros_da_equipe@1'],
   consome: [
     'core.cliente.atualizado@1',
     'core.visita.checkin@1',

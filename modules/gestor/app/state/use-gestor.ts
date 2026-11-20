@@ -12,6 +12,7 @@ import { relogioReal } from '@macuxi/comum/relogio';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { alertasDePendenciaCheckout, type NotificacaoPendencia } from '../../domain/alertas-pendencia-checkout';
 import { corpoDaDecisao, ROTA_DA_DECISAO, Alerta, FichaMembro, RankingEquipe, ROTAS_GESTOR, TrajetoEquipe, type IndicadorRanking, type MotivoAprovacao, type PeriodoRanking } from '../../contracts';
+import { registrarArmazenamentoGestor } from '../lib/consulta-membros';
 import { aplicarParadoMinDoTenant } from '../lib/parado-min';
 import { filaAposDecisao, type AcaoDeDecisao } from '../lib/decisao';
 import { chaveRanking, criarCache, DADOS_VAZIOS, mensagemDeErro, type DadosGestor } from '../lib/cache';
@@ -24,7 +25,12 @@ export function useGestor(opcoes: { pendencias?: boolean } = {}) {
   const lerPendencias = opcoes.pendencias === true;
   const { motor, estado } = useMotorSync();
   const ambiente = useAmbiente();
-  const cache = useMemo(() => (motor ? criarCache(motor.armazenamentoDoModulo('gestor')) : null), [motor]);
+  const cache = useMemo(() => {
+    if (!motor) return null;
+    const arm = motor.armazenamentoDoModulo('gestor');
+    registrarArmazenamentoGestor(arm);
+    return criarCache(arm);
+  }, [motor]);
   const [dados, setDados] = useState<DadosGestor>(DADOS_VAZIOS);
   const [carregado, setCarregado] = useState(false);
   const [notificacoes, setNotificacoes] = useState<NotificacaoPendencia[]>([]);
