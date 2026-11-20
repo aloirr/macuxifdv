@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TrilhaSyncLinha } from '../../contracts';
 import { resolverParametros, type EstadoDoAluno } from '../../domain';
-import { licaoNaTela, mapaDaTrilha, marcarAlternativa, questoesDaTela, trilhasComTitulo } from './telas';
+import { licaoNaTela, mapaDaTrilha, marcarAlternativa, mostraHoraDaSincronizacao, questoesDaTela, trilhasComTitulo } from './telas';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const MARCO = '2026-11-01T12:00:00Z';
@@ -198,5 +198,14 @@ describe('trilhas da jornada com título', () => {
       ],
     };
     expect(trilhasComTitulo(j, [trilha])[0]!.titulo).toBe('Boas-vindas');
+  });
+});
+
+describe('mostraHoraDaSincronizacao (R-20261120-055304 item 6)', () => {
+  it('no Campo (vendedor e promotor) a hora fica só no Início; no Gestão (supervisor e gerente) fica no Treinar', () => {
+    expect(mostraHoraDaSincronizacao('vendedor')).toBe(false);
+    expect(mostraHoraDaSincronizacao('promotor')).toBe(false);
+    expect(mostraHoraDaSincronizacao('supervisor')).toBe(true);
+    expect(mostraHoraDaSincronizacao('gerente')).toBe(true);
   });
 });

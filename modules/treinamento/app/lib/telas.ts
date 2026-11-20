@@ -2,6 +2,7 @@
  * Montagem pura do que as telas do Treinar mostram (mapa da trilha, quiz, títulos da jornada). Os status e as regras
  * vêm do domain (`statusDaLicao`, `statusDoModulo`, `tempoMinimoDaLicao`, `quizAprovado`); aqui só se junta com os textos.
  */
+import { perfilUsaApp, type Perfil } from '@macuxi/platform-sdk';
 import {
   trilhaParaDominio,
   type LicaoConteudo,
@@ -145,4 +146,12 @@ export function trilhasComTitulo(
 ): TrilhaDaLista[] {
   const titulos = new Map(trilhas.map((t) => [t.id, t.titulo]));
   return jornada.trilhas.map((t) => ({ ...t, titulo: titulos.get(t.trilha_id) ?? 'Trilha' }));
+}
+
+/**
+ * Hora da sincronização no Treinar (R-20261120-055304 item 6): no app Campo (vendedor e promotor) ela fica só no Início;
+ * no Gestão a hora fica só no selo do cabeçalho.
+ */
+export function mostraHoraDaSincronizacao(perfil: Perfil | null | undefined): boolean {
+  return !perfilUsaApp(perfil, 'campo');
 }

@@ -44,7 +44,7 @@ export default function TreinarScreen() {
               ? '1 obrigatória pendente'
               : `${jornada.obrigatorias_pendentes} obrigatórias pendentes`
             : 'Tudo em dia',
-        direita: (
+        direita: tr.mostraHora ? (
           <SeloAtualizacao
             testID="treinar-selo-sync"
             semRede={tr.offline}
@@ -53,7 +53,7 @@ export default function TreinarScreen() {
             tz={tr.tz}
             sobreFaixa
           />
-        ),
+        ) : undefined,
       }}>
       {tr.recusadas.length > 0 ? (
         <Banner testID="treinar-recusadas" tone="danger" icon="alert">
@@ -152,7 +152,6 @@ export default function TreinarScreen() {
       {tr.erroSync && !tr.sincronizando ? (
         <Text style={[t.small, { textAlign: 'center', color: colors.danger }]}>{tr.erroSync}</Text>
       ) : null}
-      <Text style={[t.small, { textAlign: 'center' }]}>{tr.auto.rodape}</Text>
     </Screen>
   );
 }
