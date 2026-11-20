@@ -2,14 +2,14 @@
 
 Pedido do `testes` (R-20261030-235542-testes). **Contrato estável**: o nome só muda com recado ao `testes`. App usa `testID` (React Native); BKO usa `data-testid` com o mesmo texto. `<modulo>` é o id do módulo (`core`, `catalogo`, `vendedor`, `promotor`, `gestor`, `pesquisa`, `treinamento`, `integracao`; no BKO também `teste` e `teste-dependente` nos fixtures); `<perfil>` é o id do perfil. Implementado na Fase 2 da T-0003 (app: `modules/core/app/telas/meus-modulos.tsx`; BKO: `modules/core/web/components/licencas/licencas-page.tsx`).
 
-## App — tela "Meus módulos" (Campo e Gestão)
+## App — tela "Módulos" (Campo e Gestão)
 | testID | Elemento |
 |---|---|
 | `meus-modulos.tela` | Tela inteira |
-| `meus-modulos.lista` | Lista dos módulos efetivos |
-| `meus-modulos.item.<modulo>` | Uma linha por módulo efetivo (exatamente os de `GET /v1/me/modulos`, S0-051) |
+| `meus-modulos.lista` | Tabela (Módulo, Versão) dos módulos liberados, sem o core |
+| `meus-modulos.item.<modulo>` | Uma linha por módulo de `GET /v1/me/modulos`, S0-051 |
 | `meus-modulos.versao.<modulo>` | Versão do módulo na linha |
-| `meus-modulos.vazio` | Aviso quando só o core está ativo |
+| `meus-modulos.vazio` | Aviso quando não há módulo liberado além do core |
 | `meus-modulos.atualizar` | Botão "Atualizar agora" (dispara o sync) |
 | `sync.item-nao-enviado.<id>` | Item da fila rejeitado por módulo desativado (rótulo "Não enviado — módulo desativado", RN-CORE-02) |
 | `sync.confirmar-modulo-desativado.<modulo>` | Botão "Entendi" que libera apagar os dados locais do módulo |

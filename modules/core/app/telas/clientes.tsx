@@ -1,17 +1,19 @@
 /**
  * Carteira: busca e filtros locais (funcionam sem sinal).
- * Filtro padrão (R-20261115-072200): `CampoBusca` + `BotaoFiltro` na mesma
- * linha; as situações saem da tela e viram o grupo "Situação" da folha "Filtrar"; cada uma marcada vira etiqueta removível. A
+ * Filtro padrão (R-20261115-072200; regra geral do teste de campo v1.0.16, item 7: todo filtro fica no botão de filtro): só o
+ * `BotaoFiltro` na tela; a busca e as situações são grupos ("Busca", "Situação") da folha "Filtrar"; cada filtro aplicado vira etiqueta removível. A
  * carteira vazia mostra só "Sua carteira está vazia." (RD-0501, RD-0504). Regras no domain (`filtro-padrao.ts`).
  */
-import { BotaoFiltro, CabecalhoTela, CampoBusca, Chip, ChipEstado, EstadoVazio, EtiquetaFiltro, colors, Icon, radius, SeloAtualizacao, type as t } from '@macuxi/ui/mobile';
+import { BotaoFiltro, CabecalhoTela, CampoBusca, Chip, ChipEstado, EstadoVazio, EtiquetaFiltro, colors, Icon, radius, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type ReactElement, type SetStateAction } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { CustomerSummary } from '../../contracts';
 import {
+  contarFiltrosCarteira,
   dataLocal,
+  etiquetasDaCarteira,
   ROTULO_SITUACAO_CLIENTE,
   situacaoDoCliente,
   situacaoNaLinha,
@@ -60,7 +62,7 @@ export function TelaClientes() {
       total={customers.length}
       itens={list}
       chave={(c) => c.id}
-      contar={(fs) => filterCustomers(customers, query, fs).length}
+      contar={(fs, q) => filterCustomers(customers, q, fs).length}
       situacoes={SITUACOES_FASE_M}
       filtros={filters}
       setFiltros={setFilters}
@@ -89,16 +91,16 @@ function ListaLocal({ dados, hoje }: { dados: ClientesLocais; hoje: string }) {
   const doAparelho = useMemo(() => core.estado.visitas.map((v) => ({ cliente_id: v.customer_id, ultima_visita_data: dataLocal(new Date(v.checkin_at), fuso) })), [core.estado.visitas, fuso]);
   const doServidor = useMemo(() => dados.resumosVisita.flatMap((r) => (r.ultima_visita_em ? [{ cliente_id: r.cliente_id, ultima_visita_data: dataLocal(r.ultima_visita_em, fuso) }] : [])), [dados.resumosVisita, fuso]);
   const listar = useCallback(
-    (fs: readonly FiltroLocal[]) =>
+    (fs: readonly FiltroLocal[], q: string) =>
       listarClientesLocais({ ...dados, ultimasVisitas: [...doServidor, ...doAparelho] }, hoje, {
-        q: query,
+        q,
         comVencidos: fs.includes('vencidos') || undefined,
         bloqueado: fs.includes('bloqueados') || undefined,
         semCompraHa: fs.includes('sem_compra') ? 45 : undefined,
       }),
-    [dados, doServidor, doAparelho, hoje, query],
+    [dados, doServidor, doAparelho, hoje],
   );
-  const lista = useMemo(() => listar(filtros), [listar, filtros]);
+  const lista = useMemo(() => listar(filtros, query), [listar, filtros, query]);
   const total = dados.clientes.filter((c) => c.deleted_at === null).length;
   return (
     <Carteira
@@ -106,7 +108,7 @@ function ListaLocal({ dados, hoje }: { dados: ClientesLocais; hoje: string }) {
       total={total}
       itens={lista}
       chave={(c) => c.id}
-      contar={(fs) => listar(fs).length}
+      contar={(fs, q) => listar(fs, q).length}
       situacoes={FILTROS_LOCAIS}
       filtros={filtros}
       setFiltros={setFiltros}
@@ -137,7 +139,7 @@ function Carteira<F extends string, T>({
   itens: readonly T[];
   chave: (item: T) => string;
   /** Quantos clientes a lista teria com estes filtros (o "Ver N clientes" acompanha a escolha). */
-  contar: (filtros: F[]) => number;
+  contar: (filtros: F[], busca: string) => number;
   situacoes: ReadonlyArray<Situacao<F>>;
   filtros: F[];
   setFiltros: Dispatch<SetStateAction<F[]>>;
@@ -150,39 +152,38 @@ function Carteira<F extends string, T>({
   const core = useCore();
   const [folhaAberta, setFolhaAberta] = useState(false);
   const [rascunho, setRascunho] = useState<F[]>([]);
+  const [rascunhoBusca, setRascunhoBusca] = useState('');
   const garantidas = situacoes.flatMap((s) => (s.garante && filtros.includes(s.id) ? [s.garante] : []));
   const alternar = (id: F) => setRascunho((fs) => (fs.includes(id) ? fs.filter((x) => x !== id) : [...fs, id]));
   const vazia = total === 0;
+  const etiquetas = etiquetasDaCarteira(filtros, query);
   return (
     <View style={{ flex: 1, backgroundColor: colors.ground }} testID={testID}>
       <CabecalhoTela
         titulo="Clientes"
         subtitulo={subtituloDaCarteira(itens.length, total)}
-        direita={<SeloAtualizacao testID="clientes-selo-sync" semRede={false} onSincronizar={core.sincronizar} atualizadoEm={core.estado.sincronizadoEm} tz={core.tz} sobreFaixa />}
       />
       {vazia ? null : (
         <View style={styles.top}>
           <View style={styles.linhaBusca}>
-            <View style={{ flex: 1 }}>
-              <CampoBusca testID="customer-search" valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar busca" rotuloAcessivel="Buscar cliente" placeholder={placeholder} />
-            </View>
             <BotaoFiltro
               testID="clientes-filtro"
-              contagem={filtros.length}
+              contagem={contarFiltrosCarteira(filtros, query)}
               rotulo="Filtrar"
               onPress={() => {
                 setRascunho(filtros);
+                setRascunhoBusca(query);
                 setFolhaAberta(true);
               }}
             />
           </View>
-          {filtros.length > 0 ? (
+          {etiquetas.length > 0 ? (
             <View style={styles.etiquetas} testID="clientes-etiquetas">
-              {situacoes
-                .filter((s) => filtros.includes(s.id))
-                .map((s) => (
-                  <EtiquetaFiltro key={s.id} testID={`filter-${s.id}`} texto={s.label} rotuloRemover={`Remover filtro ${s.label}`} onRemover={() => setFiltros((fs) => fs.filter((x) => x !== s.id))} />
-                ))}
+              {etiquetas.map((e) => {
+                if (e.tipo === 'busca') return <EtiquetaFiltro key="busca" testID="filter-busca" texto={e.texto} rotuloRemover="Remover a busca" onRemover={() => setQuery('')} />;
+                const s = situacoes.find((x) => x.id === e.id);
+                return s ? <EtiquetaFiltro key={s.id} testID={`filter-${s.id}`} texto={s.label} rotuloRemover={`Remover filtro ${s.label}`} onRemover={() => setFiltros((fs) => fs.filter((x) => x !== s.id))} /> : null;
+              })}
             </View>
           ) : null}
         </View>
@@ -209,14 +210,18 @@ function Carteira<F extends string, T>({
         onFechar={() => setFolhaAberta(false)}
         titulo="Filtrar"
         rotuloFechar="Fechar o filtro"
-        limpar={{ rotulo: 'Limpar', onPress: () => setRascunho([]), desligado: rascunho.length === 0 }}
+        limpar={{ rotulo: 'Limpar', onPress: () => { setRascunho([]); setRascunhoBusca(''); }, desligado: contarFiltrosCarteira(rascunho, rascunhoBusca) === 0 }}
         ver={{
-          rotulo: textoVerClientes(contar(rascunho)),
+          rotulo: textoVerClientes(contar(rascunho, rascunhoBusca)),
           onPress: () => {
             setFiltros(rascunho);
+            setQuery(rascunhoBusca);
             setFolhaAberta(false);
           },
         }}>
+        <GrupoFiltro rotulo="Busca">
+          <CampoBusca testID="customer-search" valor={rascunhoBusca} onChange={setRascunhoBusca} onLimpar={() => setRascunhoBusca('')} rotuloLimpar="Limpar a busca" rotuloAcessivel="Buscar cliente" placeholder={placeholder} />
+        </GrupoFiltro>
         <GrupoFiltro rotulo="Situação">
           <View style={styles.chips}>
             {situacoes.map((s) => (

@@ -19,14 +19,15 @@ const NBSP = '\u00a0';
 const semQuebra = (texto: string): string => texto.replace(/ /g, NBSP);
 
 /**
- * RN-CORE-43: "Quinta, 12 de novembro · DU 9 de 20"; em dia não útil, "Domingo, 15 de novembro · Não é dia útil". O "·" e o trecho
- * depois dele não quebram: se não couberem na linha, descem juntos (o "·" não fica pendurado no fim).
+ * RN-CORE-43: "Quinta, 12 de novembro · DU 9 de 20"; em dia não útil, só "Domingo, 15 de novembro" (sem o trecho do DU). O "·" e o
+ * trecho depois dele não quebram: se não couberem na linha, descem juntos (o "·" não fica pendurado no fim).
  */
 export function linhaDaData(hoje: string, du: Pick<CalendarioPeriodo, 'du_hoje' | 'du_total'>): string {
   const [, mes, dia] = hoje.split('-').map(Number);
   const semana = new Date(`${hoje}T12:00:00Z`).getUTCDay();
   const data = `${WEEKDAYS[semana]}, ${dia} de ${MONTHS[(mes ?? 1) - 1]}`;
-  return `${data} ${semQuebra(`· ${du.du_hoje === null ? 'Não é dia útil' : `DU ${du.du_hoje} de ${du.du_total}`}`)}`;
+  if (du.du_hoje === null) return data;
+  return `${data} ${semQuebra(`· DU ${du.du_hoje} de ${du.du_total}`)}`;
 }
 
 /** R-20261114-145000: a primeira palavra do cadastro inteira, com a primeira letra (de cada parte do hífen) maiúscula e o resto minúsculo. */
@@ -38,10 +39,10 @@ export function primeiroNome(nomeCompleto: string): string {
     .join('-');
 }
 
-/** "Boa tarde" + "LUCAS ANDRADE" → "Boa tarde, Lucas"; sem o nome, só a saudação. */
+/** "Boa tarde" + "LUCAS ANDRADE" → "Boa tarde, Lucas."; sem o nome, "Boa tarde." (sempre com ponto final). */
 export function saudacaoComNome(saudacao: string, nomeCompleto: string): string {
   const primeiro = primeiroNome(nomeCompleto);
-  return primeiro ? `${saudacao}, ${primeiro}` : saudacao;
+  return primeiro ? `${saudacao}, ${primeiro}.` : `${saudacao}.`;
 }
 
 /**

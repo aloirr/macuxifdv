@@ -6,8 +6,10 @@ import {
   cidadesDaRota,
   comCidade,
   comData,
+  contarFiltrosCarteira,
   contarFiltrosRota,
   dataDaRota,
+  etiquetasDaCarteira,
   etiquetasDaRota,
   FILTRO_ROTA_PADRAO,
   filtrarParadas,
@@ -22,7 +24,7 @@ import {
   textoDasFeitas,
   textoVerClientes,
   textoVerVisitas,
-  tituloDaRota,
+  TITULO_DA_ROTA,
   type FiltroRota,
 } from './filtro-padrao';
 
@@ -42,6 +44,18 @@ const PARADAS = [
   parada(12, 'Lubrificantes Pricumã', 'Boa Vista', 'Pricumã'),
 ];
 const f = (p: Partial<FiltroRota>): FiltroRota => ({ ...FILTRO_ROTA_PADRAO, ...p });
+
+describe('filtro padrão da carteira: selo e etiquetas', () => {
+  it('a busca (sem espaços nas pontas) conta um, e cada situação conta um', () => {
+    expect(contarFiltrosCarteira([], '')).toBe(0);
+    expect(contarFiltrosCarteira([], '   ')).toBe(0);
+    expect(contarFiltrosCarteira(['vencidos', 'bloqueados'], ' ana ')).toBe(3);
+  });
+  it('as etiquetas vêm com a busca primeiro e depois as situações, na ordem escolhida', () => {
+    expect(etiquetasDaCarteira(['vencidos'], '  ana ')).toEqual([{ tipo: 'busca', texto: 'ana' }, { tipo: 'situacao', id: 'vencidos' }]);
+    expect(etiquetasDaCarteira([], ' ')).toEqual([]);
+  });
+});
 
 describe('Filtro padrão da Rota (R-20261115-072200)', () => {
   it('cidades e bairros saem das paradas, sem repetição e em ordem; o bairro segue a cidade', () => {
@@ -79,9 +93,8 @@ describe('Filtro padrão da Rota (R-20261115-072200)', () => {
     expect(dataDaRota(f({ data: '2026-11-17' }), HOJE)).toBe('2026-11-17');
   });
 
-  it('título: "Rota de hoje" ou "Rota" (a data fica só na etiqueta "Ter, 17/11")', () => {
-    expect(tituloDaRota(FILTRO_ROTA_PADRAO)).toBe('Rota de hoje');
-    expect(tituloDaRota(f({ data: '2026-11-17' }))).toBe('Rota');
+  it('título: sempre "Rota" (a data fica só na etiqueta "Ter, 17/11")', () => {
+    expect(TITULO_DA_ROTA).toBe('Rota');
     expect(textoDaDataDaRota('2026-11-17', true)).toBe('Ter, 17/11');
   });
 
