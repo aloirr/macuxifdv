@@ -5,8 +5,8 @@ name: producao — aprovar versão
 #   - filtra barato no nível do job (sem runner): issue (não PR) aberta, com o rótulo trava-deploy, comentário do aloirr;
 #   - conferir (só leitura): scripts/ci/producao-trava.mjs comentario decide pelo arquivo do evento (issue aberta pelo
 #     bot, linha "aprovado vX.Y.Z" com a versão do título, SHA do marcador). Comentário que não aprova é ignorado SEM
-#     comentar na issue. Aprovado: a MESMA conferência do liberar e do publicar (producao-conferir.mjs entrada e conferir:
-#     tag nova, commit no main, CI verde e imagem da API no GHCR);
+#     comentar na issue. Aprovado: a conferência do producao-conferir.mjs: entrada (como o liberar), suite e conferir
+#     (como o publicar): tag nova, commit no main, CI verde, suíte completa verde no SHA e imagem da API no GHCR;
 #   - liberar (contents/issues/actions: write): cria a tag com o GITHUB_TOKEN, põe o rótulo aprovado, fecha a issue como
 #     concluída e SÓ ENTÃO dispara o producao-publicar.yml na tag (o publicar exige a issue fechada como aprovada); comenta
 #     o link do run na issue;
@@ -30,7 +30,7 @@ defaults:
 
 jobs:
   conferir:
-    name: comentário de aprovação, commit no main, CI verde e imagem da API
+    name: comentário de aprovação, suíte completa, commit no main, CI verde e imagem da API
     if: >-
       github.event.issue.pull_request == null &&
       github.event.issue.state == 'open' &&
@@ -68,6 +68,13 @@ jobs:
           VERSAO: ${{ steps.decisao.outputs.versao }}
           SHA: ${{ steps.decisao.outputs.sha }}
         run: node scripts/ci/producao-conferir.mjs entrada
+
+      - name: suíte completa verde no SHA da versão
+        if: steps.decisao.outputs.aprovar == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.decisao.outputs.sha }}
+        run: node scripts/ci/producao-conferir.mjs suite
 
       - uses: docker/login-action@v3
         if: steps.decisao.outputs.aprovar == 'true'

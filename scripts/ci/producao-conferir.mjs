@@ -7,9 +7,9 @@
  *   producao-liberar.yml  — `entrada` (versão vX.Y.Z nova, SHA completo, disparo pelo main) e `commit` (no main, CI
  *                           verde); monta a imagem da API do commit se ela ainda não existe no GHCR (ADR 0051); depois
  *                           `conferir` e abre a issue "Aprovar deploy vX.Y.Z";
- *   producao-aprovar.yml  — `entrada` e `conferir` de novo no comentário "aprovado vX.Y.Z"; depois cria a tag com o
- *                           GITHUB_TOKEN e dispara o producao-publicar.yml na tag;
- *   producao-publicar.yml — `ref` (push de tag v* ou disparo manual NA tag v*) e `conferir`.
+ *   producao-aprovar.yml  — `entrada`, `suite` e `conferir` de novo no comentário "aprovado vX.Y.Z"; depois cria a tag
+ *                           com o GITHUB_TOKEN e dispara o producao-publicar.yml na tag;
+ *   producao-publicar.yml — `ref` (push de tag v* ou disparo manual NA tag v*), `suite` e `conferir`.
  *
  * Modos (tudo por variável de ambiente, nada interpolado no shell):
  *   ref       GITHUB_EVENT_NAME, GITHUB_REF, GITHUB_REF_NAME → o publicar só roda numa tag v* (push ou workflow_dispatch).
@@ -19,6 +19,8 @@
  *             tem CI verde de push no main. Sem GHCR: é o que o liberar confere ANTES de montar a imagem.
  *   imagem    SHA, DONO → a imagem ghcr.io/<dono>/macuxi-api:<sha> já existe? Escreve existe=1|0 em $GITHUB_OUTPUT;
  *             falha (sem build) se o GHCR não respondeu: tag existente nunca é montada de novo (o digest não muda).
+ *   suite     SHA, GITHUB_REPOSITORY, GH_TOKEN → a árvore do SHA tem o artefato ci-verde-completa-<árvore> de um run do
+ *             main (liberar ou ci.yml manual) com testes-pacotes e testes-integracao verdes.
  *   conferir  SHA, VERSAO, DONO, GITHUB_REPOSITORY, GH_TOKEN → o `commit` e a imagem ghcr.io/<dono>/macuxi-api:<sha>
  *             existe no GHCR (docker login feito antes). Escreve sha, versao, dono e api (por digest) em $GITHUB_OUTPUT.
  * Saída: 0 = ok; 1 = conferência falhou (com ::error::); 2 = erro de uso.
@@ -117,6 +119,59 @@ export function digestNoGhcr(img, exec = executar) {
   return DIGEST.test(saida) ? { digest: saida } : { erro: `digest inválido de ${img}: "${saida}"` };
 }
 
+/** Workflows aceitos como origem do artefato da suíte. */
+const WORKFLOWS_SUITE = ['.github/workflows/producao-liberar.yml', '.github/workflows/ci.yml'];
+/** Jobs da suíte (no liberar vêm com o prefixo "suíte completa no SHA da versão / "). */
+const JOBS_SUITE = [/testes dos pacotes \(/, /testes de integração \(/];
+
+/** Run do main, por disparo manual, com os dois testes verdes? */
+function suiteVerdeNoRun(run, jobs) {
+  if (!WORKFLOWS_SUITE.includes(run?.path) || run.event !== 'workflow_dispatch' || run.head_branch !== 'main') return false;
+  return JOBS_SUITE.every((nome) => {
+    const doNome = (Array.isArray(jobs) ? jobs : []).filter((j) => nome.test(String(j?.name || '')));
+    return doNome.length > 0 && doNome.every((j) => j.conclusion === 'success');
+  });
+}
+
+/**
+ * Suíte completa (testes-pacotes e testes-integracao) verde na árvore do SHA (R-20261120-073449-alexandre). O head_sha
+ * do run é o main no disparo: a ligação com a versão é a árvore no nome do artefato. Artefato expirado vale (o nome e
+ * o run continuam na API: voltar versão). Falha de consulta nunca passa.
+ * @returns {{erro: string} | {run: number}}
+ */
+export function conferirSuite({ sha, repositorio }, exec = executar) {
+  if (!SHA_COMPLETO.test(String(sha || ''))) return { erro: `SHA inválido: "${sha}"` };
+  if (!repositorio) return { erro: 'falta GITHUB_REPOSITORY' };
+  // o workflow que gravou é o do main: uma tag "main" daria head_branch main com outro código
+  const noMain = (s) => {
+    if (!SHA_COMPLETO.test(String(s || ''))) return false;
+    try {
+      return exec('git', ['merge-base', '--is-ancestor', s, 'origin/main']), true;
+    } catch {
+      return false;
+    }
+  };
+  const api = (caminho, ...f) =>
+    JSON.parse(exec('gh', ['api', '-X', 'GET', `repos/${repositorio}/${caminho}`, ...f.flatMap((x) => ['-f', x])]));
+  try {
+    const arvore = String(exec('git', ['rev-parse', `${sha}^{tree}`])).trim();
+    if (!SHA_COMPLETO.test(arvore)) return { erro: `árvore inválida de ${sha}: "${arvore}"` };
+    const { artifacts } = api('actions/artifacts', `name=ci-verde-completa-${arvore}`, 'per_page=100');
+    const ids = [...new Set((artifacts ?? []).map((a) => a?.workflow_run?.id).filter(Number.isInteger))];
+    for (const id of ids) {
+      const run = api(`actions/runs/${id}`);
+      const { jobs } = api(`actions/runs/${id}/jobs`, 'per_page=100');
+      if (!suiteVerdeNoRun(run, jobs) || !noMain(run.head_sha)) continue;
+      return { run: id };
+    }
+  } catch (e) {
+    return { erro: `não consegui conferir a suíte completa de ${sha} (${String(e?.message ?? e).split('\n')[0]})` };
+  }
+  return {
+    erro: `o commit ${sha} não tem a suíte completa verde (testes-pacotes e testes-integracao): rode o "producao — liberar versão" nesse SHA`,
+  };
+}
+
 /**
  * Commit no main, CI verde e imagem da API. `exec(cmd, args)` devolve a saída padrão ou lança (injetável nos testes).
  * @returns {{erro: string} | {sha: string, versao: string, dono: string, api: string}}
@@ -175,6 +230,12 @@ function principal(modo, env) {
     if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `existe=${d.digest ? 1 : 0}\n`);
     return 0;
   }
+  if (modo === 'suite') {
+    const r = conferirSuite({ sha: env.SHA, repositorio: env.GITHUB_REPOSITORY });
+    if (r.erro) return erro(r.erro), 1;
+    console.log(`[producao] ${env.SHA}: suíte completa verde no run ${r.run}`);
+    return 0;
+  }
   if (modo === 'conferir') {
     const r = conferir({ sha: env.SHA, versao: env.VERSAO, dono: env.DONO, repositorio: env.GITHUB_REPOSITORY });
     if (r.erro) return erro(r.erro), 1;
@@ -183,7 +244,7 @@ function principal(modo, env) {
       appendFileSync(env.GITHUB_OUTPUT, `sha=${r.sha}\nversao=${r.versao}\ndono=${r.dono}\napi=${r.api}\n`);
     return 0;
   }
-  console.error('uso: node scripts/ci/producao-conferir.mjs ref|entrada|commit|imagem|conferir');
+  console.error('uso: node scripts/ci/producao-conferir.mjs ref|entrada|commit|imagem|suite|conferir');
   return 2;
 }
 

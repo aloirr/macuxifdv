@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { conferir, conferirCommit, digestNoGhcr, erroDaRef, errosDaEntrada, tagExiste } from './producao-conferir.mjs';
+import { conferir, conferirCommit, conferirSuite, digestNoGhcr, erroDaRef, errosDaEntrada, tagExiste } from './producao-conferir.mjs';
 
 const SHA = '839a082'.padEnd(40, '0');
 const ler = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8');
@@ -138,7 +138,7 @@ test('suíte completa uma vez por versão (R-20261120-073449-alexandre): o liber
   const imagem = lib.slice(lib.indexOf('\n  imagem:\n'), lib.indexOf('\n    steps:', lib.indexOf('\n  imagem:\n')));
   assert.match(imagem, /needs: \[conferir, suite\]/);
   assert.doesNotMatch(imagem, /\bif:/);
-  assert.match(lib, /\n  abrir:\n[^]*?needs: imagem\n/);
+  assert.match(lib, /\n {2}abrir:\n[^]*?needs: imagem\n/);
   // o ci.yml aceita a chamada com o SHA, e todo checkout usa esse SHA
   assert.match(ci, /^ {2}workflow_call:\n {4}inputs:\n {6}sha:\n[^]*?required: true/m);
   assert.doesNotMatch(ci, /^ {2}schedule:/m, 'sem o semanal: a suíte do main só no manual e no liberar');
@@ -148,6 +148,81 @@ test('suíte completa uma vez por versão (R-20261120-073449-alexandre): o liber
   // com o SHA da versão, o ci-ok fica vermelho sem as duas suítes
   assert.match(ci, /SHA_DA_VERSAO: \$\{\{ inputs\.sha \}\}/);
   assert.match(ci, /index\("testes-pacotes"\) != null and index\("testes-integracao"\) != null/);
+});
+
+const ARVORE = 'e'.repeat(40);
+const RUN_LIBERAR = { id: 7, path: '.github/workflows/producao-liberar.yml', event: 'workflow_dispatch', head_branch: 'main', head_sha: 'f'.repeat(40) };
+const JOBS_LIBERAR = [
+  { name: 'conferir', conclusion: 'success' },
+  ...[1, 2, 3].map((s) => ({ name: `suíte completa no SHA da versão / testes dos pacotes (${s}/3)`, conclusion: 'success' })),
+  ...[1, 2, 3].map((s) => ({ name: `suíte completa no SHA da versão / testes de integração (tests/, ${s}/3)`, conclusion: 'success' })),
+  { name: 'imagem', conclusion: null },
+];
+
+/** exec falso da suíte: runs = { id: { run, jobs } }; falhas = { 'rev-parse'|'artifacts'|'runs'|'merge-base': Error }. */
+function execSuite({ runs = { 7: { run: RUN_LIBERAR, jobs: JOBS_LIBERAR } }, ids = Object.keys(runs).map(Number), falhas = {} } = {}) {
+  const chamadas = [];
+  const exec = (cmd, args) => {
+    chamadas.push([cmd, ...args]);
+    const falha = (k) => { if (falhas[k]) throw falhas[k]; };
+    if (cmd === 'git' && args[0] === 'rev-parse') return falha('rev-parse'), `${ARVORE}\n`;
+    if (cmd === 'git' && args[0] === 'merge-base') return falha('merge-base'), '';
+    const caminho = cmd === 'gh' ? args[3] : '';
+    if (caminho.endsWith('/actions/artifacts'))
+      return falha('artifacts'), JSON.stringify({ artifacts: ids.map((id) => ({ expired: id === 8, workflow_run: { id } })) });
+    const m = caminho.match(/\/actions\/runs\/(\d+)(\/jobs)?$/);
+    if (m) return falha('runs'), JSON.stringify(m[2] ? { jobs: runs[m[1]].jobs } : runs[m[1]].run);
+    throw new Error(`inesperado: ${cmd} ${args.join(' ')}`);
+  };
+  return { exec, chamadas };
+}
+
+const ALVO_SUITE = { sha: SHA, repositorio: 'aloirr/macuxifdv' };
+
+test('suíte: artefato ci-verde-completa-<árvore> do liberar ou do ci.yml manual do main, com os testes verdes', () => {
+  const { exec, chamadas } = execSuite();
+  assert.deepEqual(conferirSuite(ALVO_SUITE, exec), { run: 7 });
+  assert.deepEqual(chamadas[0], ['git', 'rev-parse', `${SHA}^{tree}`]);
+  assert.ok(chamadas[1].includes(`name=ci-verde-completa-${ARVORE}`));
+  assert.ok(chamadas.some((c) => c[0] === 'git' && c[1] === 'merge-base' && c.includes(RUN_LIBERAR.head_sha)));
+  const jobsCi = JOBS_LIBERAR.map((j) => ({ ...j, name: j.name.replace('suíte completa no SHA da versão / ', '') }));
+  const ci = { run: { ...RUN_LIBERAR, id: 8, path: '.github/workflows/ci.yml' }, jobs: jobsCi };
+  assert.deepEqual(conferirSuite(ALVO_SUITE, execSuite({ runs: { 8: ci } }).exec), { run: 8 }, 'ci.yml manual (artefato expirado vale)');
+});
+
+test('suíte: run de branch, PR, push, outro workflow ou fora do main é recusado; procura o próximo artefato', () => {
+  for (const muda of [{ head_branch: 'nuvem/x' }, { event: 'pull_request' }, { event: 'push' }, { path: '.github/workflows/outro.yml' }, { head_sha: 'abc' }])
+    assert.match(conferirSuite(ALVO_SUITE, execSuite({ runs: { 7: { run: { ...RUN_LIBERAR, ...muda }, jobs: JOBS_LIBERAR } } }).exec).erro,
+      /não tem a suíte completa verde.*liberar versão/, JSON.stringify(muda));
+  assert.match(conferirSuite(ALVO_SUITE, execSuite({ falhas: { 'merge-base': new Error('x') } }).exec).erro, /não tem a suíte/, 'tag "main"');
+  const ruim = { run: { ...RUN_LIBERAR, id: 6, head_branch: 'nuvem/x' }, jobs: JOBS_LIBERAR };
+  assert.deepEqual(conferirSuite(ALVO_SUITE, execSuite({ runs: { 6: ruim, 7: { run: RUN_LIBERAR, jobs: JOBS_LIBERAR } } }).exec), { run: 7 });
+  assert.match(conferirSuite(ALVO_SUITE, execSuite({ ids: [] }).exec).erro, /não tem a suíte completa verde/);
+});
+
+test('suíte: job de testes falho, cancelado ou ausente é recusado', () => {
+  const com = (jobs) => conferirSuite(ALVO_SUITE, execSuite({ runs: { 7: { run: RUN_LIBERAR, jobs } } }).exec);
+  assert.match(com(JOBS_LIBERAR.map((j) => (/pacotes \(2/.test(j.name) ? { ...j, conclusion: 'failure' } : j))).erro, /não tem a suíte/);
+  assert.match(com(JOBS_LIBERAR.map((j) => (/integração \(tests\/, 3/.test(j.name) ? { ...j, conclusion: 'cancelled' } : j))).erro, /não tem a suíte/);
+  assert.match(com(JOBS_LIBERAR.filter((j) => !/integração/.test(j.name))).erro, /não tem a suíte/);
+  assert.match(com(JOBS_LIBERAR.filter((j) => !/pacotes/.test(j.name))).erro, /não tem a suíte/);
+});
+
+test('suíte: falha de consulta ou SHA inválido é erro (nunca passa)', () => {
+  for (const k of ['rev-parse', 'artifacts', 'runs'])
+    assert.match(conferirSuite(ALVO_SUITE, execSuite({ falhas: { [k]: new Error('rede') } }).exec).erro, /não consegui conferir a suíte/, k);
+  for (const sha of ['abc', SHA.toUpperCase().replace(/0/g, 'A'), '', undefined])
+    assert.match(conferirSuite({ ...ALVO_SUITE, sha }, execSuite().exec).erro, /SHA inválido/, String(sha));
+  assert.match(conferirSuite({ sha: SHA }, execSuite().exec).erro, /GITHUB_REPOSITORY/);
+});
+
+test('suíte nos workflows: aprovar e publicar conferem antes do conferir; o liberar não chama o modo suite', () => {
+  for (const p of ['producao-aprovar', 'producao-publicar']) {
+    const wf = ler(`.github/workflows/${p}.yml`);
+    const iSuite = wf.indexOf('producao-conferir.mjs suite');
+    assert.ok(iSuite > 0 && iSuite < wf.indexOf('producao-conferir.mjs conferir'), p);
+  }
+  assert.doesNotMatch(ler('.github/workflows/producao-liberar.yml'), /producao-conferir\.mjs suite/);
 });
 
 test('demo desligada: nenhum workflow publica nem entra na VM da demo', () => {
