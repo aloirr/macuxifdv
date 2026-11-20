@@ -11,6 +11,8 @@ export interface ClienteLista {
   razao_social: string;
   nome_fantasia: string | null;
   documento: string | null;
+  /** Código do cliente no ERP (busca pelo código); ausente/nulo = Pré-Cadastro. */
+  external_id?: string | null;
   cidade: string | null;
   segmento: string | null;
 }
@@ -34,6 +36,17 @@ export const normalizarBusca = (s: string | null | undefined): string =>
   (s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
 const soDigitos = (s: string | null | undefined): string => (s ?? '').replace(/\D/g, '');
+
+/** Dígitos do termo para buscar no documento (3 ou mais, para não casar qualquer número); `null` = não busca documento. A única regra da busca por documento (API e app). */
+export const digitosDeBuscaDoDocumento = (termo: string): string | null => {
+  const d = soDigitos(termo);
+  return d.length >= 3 ? d : null;
+};
+/** O CNPJ casa com e sem máscara: os dígitos do termo contidos nos do documento. */
+export const documentoCasa = (termo: string, documento: string | null | undefined): boolean => {
+  const d = digitosDeBuscaDoDocumento(termo);
+  return d !== null && soDigitos(documento).includes(d);
+};
 const rotulo = (c: ClienteLista): string => c.nome_fantasia?.trim() || c.razao_social;
 
 /** Clientes do escopo do perfil (RN-CORE-04) + busca e filtros. O filtro nunca amplia o escopo. */
@@ -46,7 +59,6 @@ export function listarClientes<C extends ClienteLista>(
 ): C[] {
   const visiveis = clientesVisiveis(perfil, conjuntos);
   const q = normalizarBusca(filtro.q);
-  const qDigitos = soDigitos(filtro.q);
   return clientes
     .filter((c) => clienteNoEscopo(c.id, visiveis))
     .filter((c) => !filtro.cidade || normalizarBusca(c.cidade) === normalizarBusca(filtro.cidade))
@@ -55,8 +67,8 @@ export function listarClientes<C extends ClienteLista>(
     .filter((c) => !filtro.comVencidos || (fin.comVencidos?.has(c.id) ?? false))
     .filter((c) => {
       if (!q) return true;
-      if ([c.razao_social, c.nome_fantasia, c.cidade].some((t) => normalizarBusca(t).includes(q))) return true;
-      return qDigitos.length >= 3 && soDigitos(c.documento).includes(qDigitos);
+      if ([c.razao_social, c.nome_fantasia, c.external_id].some((t) => normalizarBusca(t).includes(q))) return true;
+      return documentoCasa(q, c.documento);
     })
     .sort((a, b) => rotulo(a).localeCompare(rotulo(b), 'pt-BR', { sensitivity: 'base' }));
 }

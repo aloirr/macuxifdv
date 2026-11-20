@@ -3,7 +3,7 @@
  * Copiada de lib/catalog.ts da Fase M (parte de clientes); a busca de produtos fica no Vendedor.
  */
 import type { CustomerSummary } from '../../contracts';
-import { normalizarBusca } from '../../domain';
+import { documentoCasa, normalizarBusca } from '../../domain';
 
 export type CustomerFilter = 'curve_a' | 'no_purchase_45' | 'overdue' | 'not_positivated';
 
@@ -22,7 +22,7 @@ export function filterCustomers(customers: CustomerSummary[], query: string, fil
     if (filters.includes('overdue') && c.overdue_count === 0) return false;
     if (filters.includes('not_positivated') && c.positivated_this_month) return false;
     if (terms.length === 0) return true;
-    const hay = normalizarBusca(`${c.trade_name} ${c.legal_name} ${c.erp_code} ${c.district} ${c.city} ${c.cnpj}`);
-    return terms.every((t) => hay.includes(t));
+    const hay = normalizarBusca(`${c.trade_name} ${c.legal_name} ${c.erp_code}`);
+    return terms.every((t) => hay.includes(t) || documentoCasa(t, c.cnpj));
   });
 }

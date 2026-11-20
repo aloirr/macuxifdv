@@ -3,6 +3,7 @@
  * A lista vem do que o aparelho já tem (módulos efetivos gravados no último sync): funciona sem sinal.
  */
 import type { ItemOutbox, ModuloId } from '@macuxi/platform-sdk';
+import { modulosListaveis } from '../../domain/licencas';
 
 export interface LinhaMeusModulos {
   modulo: ModuloId;
@@ -11,15 +12,9 @@ export interface LinhaMeusModulos {
 
 export const VERSAO_DESCONHECIDA = '—';
 
-/** Uma linha por módulo efetivo, na ordem recebida (ordem de dependência, core primeiro). O core aparece sempre. */
+/** Uma linha por módulo liberado, na ordem recebida (ordem de dependência). O core é módulo interno e não entra na tabela. */
 export function linhasMeusModulos(ativos: readonly ModuloId[], versoes: Readonly<Partial<Record<ModuloId, string>>>): LinhaMeusModulos[] {
-  const ids: ModuloId[] = ativos.includes('core') ? [...ativos] : ['core', ...ativos];
-  return ids.map((modulo) => ({ modulo, versao: versoes[modulo] ?? VERSAO_DESCONHECIDA }));
-}
-
-/** Só o core ativo = nada contratado além do básico (mostra o aviso `meus-modulos.vazio`). */
-export function soTemOCore(ativos: readonly ModuloId[]): boolean {
-  return ativos.every((m) => m === 'core');
+  return modulosListaveis(ativos).map((modulo) => ({ modulo, versao: versoes[modulo] ?? VERSAO_DESCONHECIDA }));
 }
 
 /** Itens da fila rejeitados porque o módulo foi desativado (RN-CORE-02): aparecem como "Não enviado — módulo desativado". */

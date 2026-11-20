@@ -1,17 +1,17 @@
 /**
- * "Meus módulos" (RF-CORE-02; RN-CORE-01/02). Lê do aparelho (offline-first): os módulos efetivos gravados no
+ * "Módulos" (RF-CORE-02; RN-CORE-01/02). Lê do aparelho (offline-first): os módulos efetivos gravados no
  * último sync. Online, atualiza as versões com `GET /v1/me/modulos` e guarda para a próxima vez sem sinal.
  * Também mostra o que ficou "Não enviado — módulo desativado" e libera apagar os dados locais só depois do "Entendi".
  * testIDs: docs/modulos/core/test-ids.md. Alvos de toque >= 48 dp.
  */
 import { ehSemConexao, type ModuloId } from '@macuxi/platform-sdk';
 import { useHttp, useMotorSync } from '@macuxi/platform-sdk/react';
-import { Banner, Botao, Cartao, ChipEstado, colors, fonte, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
+import { Banner, Botao, Cartao, CelulaTexto, ChipEstado, nomeDoModulo, Screen, SectionHeader, TabelaDados, type as t, type LinhaTabela } from '@macuxi/ui/mobile';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { ROTULO_NAO_ENVIADO } from '../../domain';
-import { CHAVE_VERSOES, itensNaoEnviadosPorModulo, linhasMeusModulos, podeConfirmarLimpeza, soTemOCore, versoesDaResposta } from '../lib/meus-modulos';
+import { CHAVE_VERSOES, itensNaoEnviadosPorModulo, linhasMeusModulos, podeConfirmarLimpeza, versoesDaResposta } from '../lib/meus-modulos';
 
 type Versoes = Partial<Record<ModuloId, string>>;
 
@@ -34,7 +34,7 @@ export function TelaMeusModulos() {
         setVersoes(v);
         await armazem?.gravar(CHAVE_VERSOES, v);
       } catch (e) {
-        if (!ehSemConexao(e)) setAviso('Não deu para conferir as versões agora. Os módulos abaixo são os do último sync.');
+        if (!ehSemConexao(e)) setAviso('Não deu para conferir as versões agora.');
       }
     })();
     return () => {
@@ -47,8 +47,7 @@ export function TelaMeusModulos() {
     void motor?.sincronizar();
   }, [motor]);
 
-  const ativos = estado.modulosAtivos.length > 0 ? estado.modulosAtivos : (['core'] as ModuloId[]);
-  const linhas = linhasMeusModulos(ativos, versoes);
+  const linhas = linhasMeusModulos(estado.modulosAtivos, versoes);
   const naoEnviados = itensNaoEnviadosPorModulo(estado.fila);
 
   return (
@@ -56,27 +55,30 @@ export function TelaMeusModulos() {
       refreshing={estado.sincronizando}
       onRefresh={atualizar}
       testID="meus-modulos.tela"
-      cabecalho={{ titulo: 'Meus módulos', subtitulo: 'O que está liberado para você' }}>
+      cabecalho={{ titulo: 'Módulos' }}>
 
       {aviso ? <Banner testID="meus-modulos.aviso">{aviso}</Banner> : null}
       {estado.erro ? <Banner tone="danger">{estado.erro}</Banner> : null}
 
-      <Cartao preenchimento={4} testID="meus-modulos.lista">
-        {linhas.map((l, i) => (
-          <View key={l.modulo} style={[styles.linha, i > 0 && styles.divisor]} testID={`meus-modulos.item.${l.modulo}`}>
-            <Text style={styles.nome}>{l.modulo}</Text>
-            <Text style={styles.versao} testID={`meus-modulos.versao.${l.modulo}`}>
-              {l.versao}
-            </Text>
-          </View>
-        ))}
-      </Cartao>
-
-      {soTemOCore(ativos) ? (
+      {linhas.length > 0 ? (
+        <TabelaDados
+          testID="meus-modulos.lista"
+          colunas={[
+            { id: 'modulo', titulo: 'Módulo' },
+            { id: 'versao', titulo: 'Versão', largura: 96, alinhar: 'dir' },
+          ]}
+          linhas={linhas.map<LinhaTabela>((l) => ({
+            tipo: 'linha',
+            key: l.modulo,
+            testID: `meus-modulos.item.${l.modulo}`,
+            celulas: [<CelulaTexto key="m" principal={nomeDoModulo(l.modulo)} />, <CelulaTexto key="v" principal={l.versao} dir testID={`meus-modulos.versao.${l.modulo}`} />],
+          }))}
+        />
+      ) : (
         <Text style={t.sub} testID="meus-modulos.vazio">
-          Só o módulo básico está ativo. Peça ao administrador da sua empresa para liberar os outros módulos.
+          Nenhum módulo liberado para você. Peça ao administrador da sua empresa.
         </Text>
-      ) : null}
+      )}
 
       <Botao testID="meus-modulos.atualizar" nivel="principal" rotulo="Atualizar agora" icone="sync" ocupado={estado.sincronizando} onPress={atualizar} />
 
@@ -103,10 +105,3 @@ export function TelaMeusModulos() {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  linha: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, gap: 8 },
-  divisor: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
-  nome: { ...fonte.semibold, fontSize: 16, color: colors.ink, textTransform: 'capitalize' },
-  versao: { ...fonte.body, fontSize: 14, color: colors.ink2 },
-});

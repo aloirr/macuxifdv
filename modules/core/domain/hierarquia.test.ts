@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { montarHierarquia, recortarHierarquia, subordinadosDe } from './hierarquia';
+import { gestorImediatoDe, montarHierarquia, recortarHierarquia, subordinadosDe, superiorImediato } from './hierarquia';
 
 const equipes = [
   { id: 'regional', equipe_pai_id: null, responsavel_id: 'ger' },
@@ -58,5 +58,30 @@ describe('hierarquia da equipe (RF-CORE-02; RN-CORE-04)', () => {
   });
   it('RN-CORE-04: recorte "tenant" devolve a árvore inteira', () => {
     expect(recortarHierarquia(h, 'tenant')).toHaveLength(6);
+  });
+});
+
+describe('gestor imediato do Perfil (RN-CORE-04)', () => {
+  it('RN-CORE-04: o gestor imediato é o superior imediato (id e nome); sem superior, null', () => {
+    expect(gestorImediatoDe(equipes, usuarios, 'v1')).toEqual({ id: 'sup', nome: 'Supervisor' });
+    expect(gestorImediatoDe(equipes, usuarios, 'sup')).toEqual({ id: 'ger', nome: 'Gerente' });
+    expect(gestorImediatoDe(equipes, usuarios, 'ger')).toBeNull();
+    expect(gestorImediatoDe(equipes, usuarios, 'inexistente')).toBeNull();
+  });
+  it('RN-CORE-04: superior inativo não aparece como gestor imediato', () => {
+    expect(gestorImediatoDe(equipes, usuarios.map((u) => (u.id === 'sup' ? { ...u, ativo: false } : u)), 'v1')).toBeNull();
+  });
+});
+
+describe('superior imediato derivado da equipe (RF-CORE-02; RN-CORE-04)', () => {
+  it('RN-CORE-04: o superior de quem entra na equipe é o responsável dela', () => {
+    expect(superiorImediato(equipes, 'eq1', null)).toBe('sup');
+  });
+  it('RN-CORE-04: equipe sem responsável sobe para o responsável da equipe-pai', () => {
+    expect(superiorImediato(equipes, 'eq2', null)).toBe('ger');
+  });
+  it('RN-CORE-04: sem equipe (ou equipe desconhecida) não há superior', () => {
+    expect(superiorImediato(equipes, null, null)).toBeNull();
+    expect(superiorImediato(equipes, 'nada', null)).toBeNull();
   });
 });
