@@ -1,12 +1,14 @@
 /**
  * T-0145: tela "Permissões", por cima de tudo, antes do login e da sincronização (o shell não monta as rotas enquanto falta
  * permissão). Imagem aprovada pelo dono do produto (R-20261110-093125): `docs/design/telas/T-0145-permissoes.png`, medidas em
- * `docs/design/permissoes-e-fotos-pdv.md` §1. Marca, título, subtítulo, uma linha por permissão que falta (ícone, nome,
+ * `docs/design/permissoes-e-fotos-pdv.md` §1. Faixa Azul noite com o título e o subtítulo (o `CabecalhoTela` do kit, igual às telas
+ * internas, sem marca na faixa; R-20261120-063354), uma linha por permissão que falta (ícone, nome,
  * motivo e, só na negada, "Negada"), o cartão dos 2 passos da localização e UM botão no pé. R-20261120-052422: a tela só aparece quando,
  * depois das janelas do Android na abertura, alguma ficou negada; sem o link "Como usamos a localização".
  * Regras e textos em `lib/permissoes.ts`. O Voltar do Android fecha o app (não há "Agora não").
  */
-import { Button, Card, colors, fonte, Icon, type as t, type IconName } from '@macuxi/ui/mobile';
+import { Button, CABECALHO, CabecalhoTela, Card, colors, estiloBarraDeStatus, fonte, Icon, type IconName } from '@macuxi/ui/mobile';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { AccessibilityInfo, BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,13 +25,10 @@ const ICONE: Readonly<Record<IdPermissao, IconName>> = {
 const ICONE_CONFIGURACOES: IconName = 'config';
 
 export function TelaPermissoes({
-  marca,
   tela,
   pedindo,
   onBotao,
 }: {
-  /** "Macuxi Campo" / "Macuxi Gestão". */
-  marca: string;
   tela: TelaDePermissoes;
   /** Diálogo ou configurações abertos pelo botão (carregando, sem toque duplo). */
   pedindo: boolean;
@@ -50,14 +49,10 @@ export function TelaPermissoes({
   const passos = tela.passosLocalizacao;
   return (
     <View testID="tela-permissoes" style={[StyleSheet.absoluteFill, styles.root]} accessibilityViewIsModal>
-      <ScrollView contentContainerStyle={[styles.conteudo, { paddingTop: Math.max(36, insets.top + 24) }]}>
-        <View style={{ gap: 6 }}>
-          <Text style={styles.marca}>{marca}</Text>
-          <Text style={styles.titulo} accessibilityRole="header">
-            {tela.titulo}
-          </Text>
-          <Text style={styles.subtitulo}>{tela.subtitulo}</Text>
-        </View>
+      {/* a faixa começa na barra de status, que fica com ícones claros (a tela monta fora da AreaSeguraSuperior) */}
+      <StatusBar style={estiloBarraDeStatus(true)} />
+      <CabecalhoTela titulo={tela.titulo} subtitulo={tela.subtitulo} />
+      <ScrollView contentContainerStyle={styles.conteudo}>
         <Card style={styles.cartao}>
           {tela.linhas.map((l, k) => (
             <View
@@ -124,10 +119,7 @@ export function TelaPermissoes({
 
 const styles = StyleSheet.create({
   root: { backgroundColor: colors.ground, zIndex: 11 },
-  conteudo: { flexGrow: 1, paddingHorizontal: 20, gap: 18, paddingBottom: 24 },
-  marca: { ...fonte.bold, fontSize: 14, color: colors.accentInk },
-  titulo: t.h1,
-  subtitulo: { ...fonte.body, fontSize: 16, color: colors.ink2 },
+  conteudo: { flexGrow: 1, paddingHorizontal: 20, gap: 18, paddingTop: CABECALHO.respiroCorpo, paddingBottom: 24 },
   cartao: { padding: 0 },
   linha: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, minHeight: 68, paddingVertical: 10 },
   divisoria: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
