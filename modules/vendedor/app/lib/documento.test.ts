@@ -291,3 +291,22 @@ describe('RF-CAT-03 (T-0071): sugestões da aba Detalhes', () => {
     expect(seloDaSugestao({ origem: 'embalagem_maior', economia_pct: 0, preco_cents: 1990 }).tipo).toBe('preco');
   });
 });
+
+describe('RN-VEN-45 (T-0188): Transformar leva o % do prazo gravado no orçamento', () => {
+  const extra = { condicaoId: null, observacao: null, novoId: U(901), agora: '2026-11-04T12:00:00.000Z', transportadoras };
+  const comPrazo = { forma_pagamento_id: U(60), prazo_pagamento_id: U(61) };
+  it('RN-VEN-45: orçamento gravado a -1,71 % no prazo: o pedido da conversão leva -1,71 e o push é válido', () => {
+    const p = pedidoDaConversao(detalhe({ ...comPrazo, prazo_percentual_ajuste: -1.71 }), extra);
+    expect(p).toMatchObject({ ...comPrazo, prazo_percentual_ajuste: -1.71 });
+    expect(PedidoPush.safeParse(p).success).toBe(true);
+  });
+  it('RN-VEN-45: % gravado 0, sem % ou sem prazo não vai no payload (a API lê 0)', () => {
+    expect(pedidoDaConversao(detalhe({ ...comPrazo, prazo_percentual_ajuste: 0 }), extra)).not.toHaveProperty('prazo_percentual_ajuste');
+    expect(pedidoDaConversao(detalhe({ ...comPrazo }), extra)).not.toHaveProperty('prazo_percentual_ajuste');
+    expect(pedidoDaConversao(detalhe({ prazo_percentual_ajuste: -1.71 }), extra)).not.toHaveProperty('prazo_percentual_ajuste');
+  });
+  it('RN-VEN-45: o pedido da fila também copia o % do payload', () => {
+    const payload = { id: U(950), customer_id: U(100), discount_pct: 0, payment_terms: 'x', ...comPrazo, prazo_percentual_ajuste: -1.71, items: [{ product_id: CAFE, quantity: 1 }] };
+    expect(copiaDoPayload(PedidoPush.parse(payload), { observacao: null })).toMatchObject({ prazo_percentual_ajuste: -1.71 });
+  });
+});

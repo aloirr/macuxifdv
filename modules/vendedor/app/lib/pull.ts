@@ -349,6 +349,8 @@ export function ordemDoPedido(p: PedidoSync, itens: readonly PedidoItemSync[], p
     ...(p.forma_pagamento_id
       ? { forma_pagamento_id: p.forma_pagamento_id, forma_pagamento_nome: p.forma_pagamento_nome ?? null, prazo_pagamento_id: p.prazo_pagamento_id ?? null, prazo_descricao: p.prazo_descricao ?? null, prazo_parcelas_dias: p.prazo_parcelas_dias ?? null, prazo_medio_dias: p.prazo_medio_dias ?? null }
       : {}),
+    // RN-VEN-45 (T-0188): o % do prazo gravado no documento (linha de servidor anterior não traz: vale o vigente)
+    ...(p.prazo_pagamento_id && p.prazo_percentual_ajuste != null ? { prazo_percentual_ajuste: p.prazo_percentual_ajuste } : {}),
     ...(p.erp_aceita_cancelamento ? { erp_aceita_cancelamento: true } : {}),
     ...(p.frete_modalidade ? { freight: freteDaLinha(p) } : {}),
     ...(p.endereco_entrega ? { delivery_address: enderecoDaLinha(p) } : {}),

@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { precoUnitarioFinal } from './preco-pedido';
-import { ajusteMantendoPrecoFinal, ajustesNaTrocaDePrazo, precoDoItemNoPrazo } from './troca-prazo';
+import { ajusteMantendoPrecoFinal, ajustesNaTrocaDePrazo, percentualDoPrazoNoDocumento, precoDoItemNoPrazo } from './troca-prazo';
 
 describe('RN-VEN-44: ajusteMantendoPrecoFinal', () => {
   it('RN-VEN-44: tabela sobe → o desconto do item aumenta e o final fica igual', () => {
@@ -70,5 +70,30 @@ describe('RN-VEN-44/18: precoDoItemNoPrazo', () => {
 
   it('RN-VEN-18: sem o prazo do congelado (rascunho antigo), o congelado vale em qualquer prazo', () => {
     expect(precoDoItemNoPrazo({ congelado_cents: 983, hoje_cents: 1_000, percentual_ajuste_bp: 250 }).congelado).toBe(true);
+  });
+});
+
+describe('percentualDoPrazoNoDocumento (RN-VEN-43/44/45)', () => {
+  const gravado = { prazo_id: 'p30', percentual: -1.71 };
+  it('RN-VEN-45: no prazo em que foi gravado vale o % gravado, mesmo que o ERP tenha mudado', () => {
+    expect(percentualDoPrazoNoDocumento({ prazo_id: 'p30', vigente: 2.5, gravado })).toBe(-1.71);
+  });
+  it('RN-VEN-44: em outro prazo vale o vigente', () => {
+    expect(percentualDoPrazoNoDocumento({ prazo_id: 'p60', vigente: 2.5, gravado })).toBe(2.5);
+  });
+  it('RN-VEN-44: trocar de prazo e voltar devolve o % gravado', () => {
+    const ida = percentualDoPrazoNoDocumento({ prazo_id: 'p60', vigente: 2.5, gravado });
+    const volta = percentualDoPrazoNoDocumento({ prazo_id: 'p30', vigente: 2.5, gravado });
+    expect([ida, volta]).toEqual([2.5, -1.71]);
+  });
+  it('RN-VEN-45: % gravado 0 vale, não cai no vigente', () => {
+    expect(percentualDoPrazoNoDocumento({ prazo_id: 'p30', vigente: 2.5, gravado: { prazo_id: 'p30', percentual: 0 } })).toBe(0);
+  });
+  it('RN-VEN-45: sem retrato gravado vale o vigente', () => {
+    expect(percentualDoPrazoNoDocumento({ prazo_id: 'p30', vigente: 2.5 })).toBe(2.5);
+    expect(percentualDoPrazoNoDocumento({ prazo_id: 'p30', vigente: 2.5, gravado: { prazo_id: 'p30', percentual: null } })).toBe(2.5);
+  });
+  it('RN-VEN-14: sem prazo o % é 0', () => {
+    expect(percentualDoPrazoNoDocumento({ prazo_id: null, vigente: null, gravado })).toBe(0);
   });
 });

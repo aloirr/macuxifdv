@@ -47,7 +47,7 @@ const COLUNAS_PEDIDO = `p.id, ${ts('updated_at', 'p.')}, ${ts('deleted_at', 'p.'
   (select c.id from vendedor.pedido c where c.tenant_id = p.tenant_id and c.orcamento_id = p.id and c.deleted_at is null limit 1) as convertido_pedido_id,
   p.desconto_valor_cents::float8 as desconto_valor_cents, p.acrescimo_valor_cents::float8 as acrescimo_valor_cents, p.ajuste_em,
   p.forma_pagamento_id, p.prazo_pagamento_id, p.forma_pagamento_codigo, p.forma_pagamento_nome, p.prazo_codigo, p.prazo_descricao,
-  p.prazo_parcelas_dias, p.prazo_medio_dias`;
+  p.prazo_parcelas_dias, p.prazo_medio_dias, round(p.prazo_percentual_ajuste, 2)::float8 as prazo_percentual_ajuste`;
 
 /**
  * T-0054: resumo do retorno do ERP no pedido e no item (0013, `FATURAMENTO_LIGADO`). `faturado_cents` = total faturado;

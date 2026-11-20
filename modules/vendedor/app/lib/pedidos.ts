@@ -11,6 +11,7 @@ import { motivosFinanceirosDoPedido } from '../../domain/credito-pedido';
 import { resultadoDosAvisos, validateOrder, type OrderIssue, type OrderTotals, type OrderValidation } from '../../domain/order';
 import type { FaixaEscalonada } from '../../domain/preco-item';
 import { mensagemAcimaDoMaximo, percentualAjusteParaBp } from '../../domain/preco-pedido';
+import type { PrazoGravado } from '../../domain/troca-prazo';
 import { toDomainPolicy } from './catalog';
 import { calcularPedido, fretePush, freteValido, linhasParaPush, politicaParaAutor, type Ajuste, type CalculoPedido, type FreteDoRascunho, type UnidadeDaTela } from './novo-pedido';
 import type { PrefillLine } from './order-prefill';
@@ -28,6 +29,8 @@ export interface Rascunho {
   prazo_pagamento_id?: string | null;
   /** RN-VEN-43/45: % do prazo congelado na escolha (retrato; ausente = 0). Trocar o prazo grava o do novo prazo; a tabela sai da original e o preço final do item se mantém (RN-VEN-44). */
   prazo_percentual_ajuste?: number;
+  /** RN-VEN-44/45: na edição, o prazo e o % gravados no documento; voltar a esse prazo devolve o % gravado (ida e volta), outro prazo usa o vigente */
+  prazo_gravado?: PrazoGravado;
   /** Observação do pedido (editada no Resumo) */
   observacao?: string;
   /** T-0165: Observação da entrega (aba Entrega); vai junto no texto único do pedido até o contrato ganhar o campo próprio */

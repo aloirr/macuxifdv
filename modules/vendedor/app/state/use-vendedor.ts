@@ -40,6 +40,7 @@ import { buscarNoCatalogoComReserva, type ResultadoBuscaCatalogo } from '../lib/
 import { situacaoDoClienteSync } from '../lib/textos-pedido';
 import { financeiroParaAprovacao, modeloDoCredito, type ModeloDoCredito } from '../lib/credito-cliente';
 import { tituloVencidoDias } from '../../domain/pagamento';
+import { percentualDoPrazoNoDocumento, type PrazoGravado } from '../../domain/troca-prazo';
 import {
   aceitosComoPedidos,
   congeladosDoRascunho,
@@ -539,7 +540,9 @@ export function useVendedor() {
       // RN-VEN-43/44: o % do prazo do documento entra no rascunho; os preços congelados valem só nesse prazo
       // o retrato do pedido na fila (RN-VEN-45) vale antes do % atual do pull
       const prazoDoc = c?.rascunho.prazo_pagamento_id ? prazos.find((p) => p.id === c.rascunho.prazo_pagamento_id) : undefined;
-      const pctDoc = naFila ? (naFila.payload.prazo_percentual_ajuste ?? 0) : (prazoDoc?.percentual_ajuste ?? 0);
+      // RN-VEN-45 (T-0188): no orçamento ou pedido do servidor, editar mantém o % gravado no prazo gravado; duplicar usa o vigente
+      const gravado: PrazoGravado | null = modo === 'edit' && !naFila && det ? { prazo_id: det.prazo_pagamento_id, percentual: det.prazo_percentual_ajuste } : null;
+      const pctDoc = naFila ? (naFila.payload.prazo_percentual_ajuste ?? 0) : percentualDoPrazoNoDocumento({ prazo_id: c?.rascunho.prazo_pagamento_id, vigente: prazoDoc?.percentual_ajuste, gravado });
       await repo.guardarRascunho(chave, {
         ...(c ? c.rascunho : { lines: r!.lines, discount_pct: src.discount_pct }),
         customer_id: cliente.id,
@@ -550,6 +553,7 @@ export function useVendedor() {
         updated_at: new Date().toISOString(),
         edit_order_id: modo === 'edit' ? orderId : null,
         ...(prazoDoc ? { prazo_percentual_ajuste: pctDoc } : {}),
+        ...(gravado?.prazo_id && gravado.percentual != null ? { prazo_gravado: gravado } : {}),
         ...(congelados && Object.keys(congelados).length > 0 ? { precos_congelados: congelados, precos_congelados_percentual: pctDoc } : {}),
         ...(modo === 'edit' && ehOrcamento ? { tipo: 'orcamento' as const } : {}),
         notice: aviso,
@@ -779,8 +783,8 @@ export function useVendedor() {
         cliente: situacaoDoClienteSync(linhasRef.current.clientes.find((c) => c.id === cliente.id), (linhasRef.current.financeiros ?? []).find((f) => f.cliente_id === cliente.id)),
         policy: toDomainPolicy(politicaApi(parametrosRef.current)),
         estoque_bloqueia: false,
-        // RN-VEN-43: o % do prazo do orçamento ajusta a tabela de hoje (o orçamento guarda a tabela já ajustada)
-        percentual_ajuste_bp: percentualAjusteParaBp(d.prazo_pagamento_id ? prazos.find((p) => p.id === d.prazo_pagamento_id)?.percentual_ajuste : 0),
+        // RN-VEN-43/45: o % gravado do prazo do orçamento ajusta a tabela de hoje (o orçamento guarda a tabela já ajustada)
+        percentual_ajuste_bp: percentualAjusteParaBp(d.prazo_pagamento_id ? percentualDoPrazoNoDocumento({ prazo_id: d.prazo_pagamento_id, vigente: prazos.find((p) => p.id === d.prazo_pagamento_id)?.percentual_ajuste, gravado: { prazo_id: d.prazo_pagamento_id, percentual: d.prazo_percentual_ajuste } }) : 0),
         // RN-VEN-18 (09/11): passados os 7 dias do preço, Transformar usa a tabela do dia e mostra a diferença
         preco_vale: precoDoOrcamentoVale(d.validade_ate, new Date()),
       });

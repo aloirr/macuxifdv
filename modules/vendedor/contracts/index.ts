@@ -207,6 +207,8 @@ export const Order = z.object({
   prazo_descricao: z.string().nullable().optional(),
   prazo_parcelas_dias: z.array(z.number().int().min(0).max(365)).nullable().optional(),
   prazo_medio_dias: z.number().int().min(0).max(365).nullable().optional(),
+  /** RN-VEN-45 (T-0188, aditivo): o % do prazo gravado no documento; ausente = servidor anterior ou sem prazo (vale o vigente). */
+  prazo_percentual_ajuste: PercentualAjuste.nullable().optional(),
 });
 export type Order = z.infer<typeof Order>;
 

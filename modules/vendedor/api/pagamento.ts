@@ -7,7 +7,7 @@
  * O push do APK anterior (sem forma e prazo) segue pela condição de pagamento legada.
  */
 import type { ClienteBanco, ContextoBase, TransacaoTenant } from '@macuxi/platform-sdk';
-import { percentualAjusteParaBp, revalidarPercentualDoPrazo, validarPagamento, type FormaDePagamento, type PrazoDePagamento } from '../domain';
+import { percentualAjusteParaBp, percentualDoPrazoNoDocumento, revalidarPercentualDoPrazo, validarPagamento, type FormaDePagamento, type PrazoDePagamento, type PrazoGravado } from '../domain';
 
 interface FormaLinha {
   id: string;
@@ -61,6 +61,8 @@ export async function resolverPagamento(
   p: { forma_pagamento_id?: string | null; prazo_pagamento_id?: string | null; customer_id: string; prazo_percentual_ajuste?: number | null; created_offline_at?: string | null },
   cliente: { formas_pagamento?: string[] | null },
   _tipo: 'pedido' | 'orcamento',
+  /** RN-VEN-45: o prazo e o % gravados no orçamento de origem (edição ou Transformar); no mesmo prazo vale o gravado, não o vigente */
+  gravado?: PrazoGravado,
 ): Promise<ResultadoPagamento> {
   const formaId = p.forma_pagamento_id ?? null;
   const prazoId = p.prazo_pagamento_id ?? null;
@@ -77,7 +79,7 @@ export async function resolverPagamento(
   if (!r.ok) return r;
 
   // RN-VEN-45: o percentual do push é revalidado contra o vigente; os preços são recalculados por ele (RN-VEN-43)
-  const pct = revalidarPercentualDoPrazo({ push: p.prazo_percentual_ajuste, vigente: prazo!.percentual_ajuste, cadastro_atualizado_em: prazo!.atualizado_em, criado_em: p.created_offline_at ?? ctx.agora().toISOString() });
+  const pct = revalidarPercentualDoPrazo({ push: p.prazo_percentual_ajuste, vigente: percentualDoPrazoNoDocumento({ prazo_id: prazoId, vigente: prazo!.percentual_ajuste, gravado }), cadastro_atualizado_em: prazo!.atualizado_em, criado_em: p.created_offline_at ?? ctx.agora().toISOString() });
   if (!pct.ok) return { ok: false, codigo: 'RN-VEN-45', mensagem: pct.mensagem };
   return {
     ok: true,
