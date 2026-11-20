@@ -6,11 +6,13 @@
  */
 import type { CardInicio, ItemMenu } from '@macuxi/core/contracts';
 import { useExtensoes } from '@macuxi/platform-sdk/react';
-import { Card, Icon, SectionHeader, type as t } from '@macuxi/ui/mobile';
+import { Card, colors, Icon, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import type { ComponentType } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import type { AbaShell } from '@/lib/abas';
+import { abrirAba } from '@/lib/historico-telas';
 import { ordenarCards } from '@/lib/inicio';
 
 /**
@@ -36,14 +38,31 @@ export function CardsDoInicio() {
   );
 }
 
-/** Slot `menu.itens`: atalhos dos módulos no Perfil (`/m/<caminho>`). */
-export function ItensDoMenu() {
+/**
+ * Menu do Perfil: as páginas que não couberam na barra do Gestão (`paginas`, Mc161 A, R-20261119-212852; vazio no Campo),
+ * com o rótulo e o ícone da página, e depois os atalhos do slot `menu.itens` dos módulos (`/m/<caminho>`).
+ */
+export function ItensDoMenu({ paginas = [] }: { paginas?: readonly AbaShell[] }) {
   const itens = useExtensoes<ItemMenu>('menu.itens');
-  if (itens.length === 0) return null;
+  if (itens.length === 0 && paginas.length === 0) return null;
+  const linha = { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14 } as const;
   return (
     <View style={{ gap: 8 }} testID="menu-itens">
       <SectionHeader title="Mais" />
       <Card>
+        {paginas.map((aba) => (
+          <Pressable
+            key={aba.href}
+            testID={aba.testID.replace(/^tab-/, 'perfil-')}
+            accessibilityRole="button"
+            accessibilityLabel={aba.label}
+            onPress={() => router.navigate(abrirAba(aba.href, false) as never)}
+            style={linha}>
+            <Icon name={aba.icon} size={20} color={colors.ink2} />
+            <Text style={[t.bodyStrong, { flex: 1 }]}>{aba.label}</Text>
+            <Icon name="chevron" size={16} color={colors.ink2} />
+          </Pressable>
+        ))}
         {itens.map(({ modulo, id, payload }) => (
           <Pressable
             key={`${modulo}:${id}`}
@@ -52,7 +71,7 @@ export function ItensDoMenu() {
             onPress={() => router.navigate(`/m/${payload.caminho.replace(/^\/+/, '')}` as never)}
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 14 }}>
             <Text style={t.bodyStrong}>{payload.rotulo}</Text>
-            <Icon name="chevron" size={16} />
+            <Icon name="chevron" size={16} color={colors.ink2} />
           </Pressable>
         ))}
       </Card>

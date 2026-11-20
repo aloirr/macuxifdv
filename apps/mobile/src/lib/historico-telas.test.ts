@@ -41,6 +41,7 @@ const aba = (href: string, label: string): AbaShell => ({ href, label, icon: 'fi
 const ABAS: AbasDoShell = {
   barra: [aba('/', 'Início'), aba('/m/pedidos', 'Pedidos'), aba('/m/clientes', 'Clientes'), aba('/m/metas', 'Metas'), aba('/mais', 'Mais')],
   mais: [aba('/m/treinamento', 'Treinar')],
+  perfil: [],
 };
 
 const p = (caminho: string, extras: Record<string, string> = {}): ParamsDaRota => ({ caminho: caminho.split('/'), ...extras });

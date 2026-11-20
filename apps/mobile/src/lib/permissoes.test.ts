@@ -3,6 +3,9 @@
  * regras puras: Campo exige as 4 e Gestão só notificações; localização em 2 passos no Android 11+; depois de 2 recusas,
  * "Abrir configurações"; permissão retirada volta à mesma tela, só com ela em "Falta"/"Negada".
  */
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -12,6 +15,7 @@ import {
   mesmoEstadoDePermissoes,
   PASSO_FALTA_LOCALIZACAO,
   PASSO_FALTA_TRECHOS,
+  permissoesExigidas,
   permissoesLiberadas,
   ROTULO_ABRIR_CONFIGURACOES,
   ROTULO_PERMITIR,
@@ -134,6 +138,46 @@ describe('telaDePermissoes — Gestão', () => {
   });
 });
 
+describe('T-0187 (RN-CORE-37): "o tempo todo" no Gestão só para o supervisor', () => {
+  it('permissões exigidas: o Campo segue com as 4 para todos; o Gestão acrescenta a localização só ao cargo rastreado nele', () => {
+    expect(permissoesExigidas('campo', 'vendedor')).toEqual(['notificacoes', 'localizacao', 'camera', 'galeria']);
+    expect(permissoesExigidas('campo', null)).toEqual(['notificacoes', 'localizacao', 'camera', 'galeria']);
+    expect(permissoesExigidas('gestao', 'supervisor')).toEqual(['notificacoes', 'localizacao']);
+    // o gerente não é rastreado (T-0187 §0) e, antes do login, o cargo não é conhecido
+    expect(permissoesExigidas('gestao', 'gerente')).toEqual(['notificacoes']);
+    expect(permissoesExigidas('gestao', null)).toEqual(['notificacoes']);
+  });
+
+  it('o supervisor só segue com a localização "o tempo todo"; o gerente segue só com notificações', () => {
+    const soNotificacoes = estados({ notificacoes: OK });
+    const exigidasSup = permissoesExigidas('gestao', 'supervisor');
+    expect(permissoesLiberadas('gestao', soNotificacoes, exigidasSup)).toBe(false);
+    expect(permissoesLiberadas('gestao', estados({ notificacoes: OK, duranteUso: OK, tempoTodo: FALTA }), exigidasSup)).toBe(false);
+    expect(permissoesLiberadas('gestao', estados({ notificacoes: OK, duranteUso: OK, tempoTodo: OK }), exigidasSup)).toBe(true);
+    expect(permissoesLiberadas('gestao', soNotificacoes, permissoesExigidas('gestao', 'gerente'))).toBe(true);
+  });
+
+  it('tela do supervisor: notificações e localização, com o aviso da base LGPD e os 2 passos no Android 11+', () => {
+    const exigidas = permissoesExigidas('gestao', 'supervisor');
+    const t = telaDePermissoes('gestao', estados({ notificacoes: OK, duranteUso: OK }), API_11, 0, exigidas);
+    expect(t.subtitulo).toBe('Sem elas o app não funciona.');
+    expect(t.linhas.map((l) => [l.id, l.situacao])).toEqual([
+      ['notificacoes', 'permitida'],
+      ['localizacao', 'falta'],
+    ]);
+    expect(t.linhas[0]!.texto).toBe('Pedidos para aprovar e recados.');
+    expect(t.avisoLocalizacao).toBe(AVISO_LOCALIZACAO);
+    expect(t.passosLocalizacao?.falta).toBe(PASSO_FALTA_LOCALIZACAO);
+    expect(t.botao).toEqual({ id: 'localizacao', acao: 'pedir-tempo-todo', rotulo: ROTULO_ABRIR_CONFIGURACOES });
+  });
+
+  it('tela do gerente: igual à de hoje (só notificações, sem o aviso da localização)', () => {
+    const t = telaDePermissoes('gestao', estados(), API_11, 0, permissoesExigidas('gestao', 'gerente'));
+    expect(t).toEqual(telaDePermissoes('gestao', estados(), API_11));
+    expect(t.avisoLocalizacao).toBeNull();
+  });
+});
+
 describe('"Como usamos a localização" (base LGPD §6)', () => {
   it('só no Campo, com o aviso curto: trajeto só no expediente, nada fora dele', () => {
     const t = telaDePermissoes('campo', estados(), API_11);
@@ -204,5 +248,18 @@ describe('🟡 2 da revisão T-0145: o "Permitir" sem efeito não fica em laço'
     expect(mesmoEstadoDePermissoes(estados(), estados())).toBe(true);
     expect(mesmoEstadoDePermissoes(estados(), estados({ camera: NEGADA }))).toBe(false);
     expect(mesmoEstadoDePermissoes(estados(), estados({ tempoTodo: OK }))).toBe(false);
+  });
+});
+
+describe('shell: permissões liberadas calculadas uma vez por render (RD-2443)', () => {
+  const plataforma = readFileSync(fileURLToPath(new URL('../state/plataforma.tsx', import.meta.url)), 'utf8');
+
+  it('um só cálculo no render, sem leitura do aparelho nada liberado; o ref e a tela leem o mesmo valor', () => {
+    expect(plataforma).toMatch(
+      /const permissoesOk = estadosPermissoes !== null && permissoesLiberadas\(variante, estadosPermissoes, permissoesDoUsuario\);/,
+    );
+    expect(plataforma).toMatch(/permissoesOkRef\.current = permissoesOk;/);
+    expect(plataforma).toMatch(/estadosPermissoes && !permissoesOk\s*\?\s*telaDePermissoes\(/);
+    expect(plataforma.match(/permissoesLiberadas\(variante, estadosPermissoes,/g)).toHaveLength(1);
   });
 });

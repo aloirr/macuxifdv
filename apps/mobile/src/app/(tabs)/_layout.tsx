@@ -18,8 +18,8 @@ import type { Provider, ReactNode } from 'react';
 
 import { CargaEmFundo } from '@/components/carga-fundo';
 import { ProvedorContagemSino, Sino } from '@/components/sino';
-import { abasDoShell, TabBar } from '@/components/tab-bar';
-import { MAX_ABAS_POR_VARIANTE } from '@/lib/abas';
+import { TabBar } from '@/components/tab-bar';
+import { abasDaVariante } from '@/lib/abas';
 import { entradaLiberadaPeloMotor } from '@/lib/carga-fundo';
 import { comHistoricoDoShell, marcarOrigemFora, marcarSaidaDoModulo, marcarVoltaAoModulo, ROTA_MODULO } from '@/lib/historico-telas';
 import { varianteAtual } from '@/lib/variante';
@@ -45,7 +45,7 @@ export default function TabsLayout() {
       tabBar={() => (
         <>
           <CargaEmFundo />
-          <TabBar abas={abasDoShell(visao.navegacao, MAX_ABAS_POR_VARIANTE[varianteAtual()])} />
+          <TabBar abas={abasDaVariante(visao.navegacao, varianteAtual())} />
         </>
       )}
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: kit.colors.ground } }}>

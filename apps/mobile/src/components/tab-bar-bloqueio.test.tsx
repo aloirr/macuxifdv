@@ -68,6 +68,7 @@ const ABAS: AbasDoShell = {
     { href: '/mais', label: 'Mais', icon: 'more', testID: 'tab-mais', modulo: null },
   ] as AbasDoShell['barra'],
   mais: [],
+  perfil: [],
 };
 
 function tocar(testID: string): void {
