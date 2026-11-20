@@ -8,6 +8,7 @@
   `docs/desenho/performance-produtividade.md` §8).
 - **Desenho**: [`docs/desenho/tracking.md`](../desenho/tracking.md). **Finalidade**: `docs/desenho/T-0156-legal-finalidade.md`.
 - **Revisão**: 19/11/2026, decisão 6.
+- **Revista por**: [ADR 0063](0063-supervisor-rastreado-no-app-gestao.md) (decisão 2).
 - **Quem implementa**: banco-dados, modulo-core, engenheiro-apps e modulo-gestor (T-0156).
 
 ## Contexto

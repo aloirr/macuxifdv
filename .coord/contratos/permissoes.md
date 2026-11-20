@@ -32,3 +32,6 @@ As do `acoes` de cada `modules/<m>/manifest.ts`, agrupadas por área (`areaDaAca
 
 ### Rastreamento (T-0156, ADR 0061, desenho `docs/desenho/tracking.md` §6; a declarar pelo modulo-core no manifesto)
 As 3 ações (`trajeto.ver_equipe`, `rastreamento.configurar` e `ausencia.cadastrar`), os perfis de fábrica e o que cada uma deixa ver estão no desenho, §6 (fonte única). A área de cada uma vem do `areaDaAcao` do platform-sdk.
+
+### Supervisor em campo no Gestão (T-0187, ADR 0063, desenho `docs/desenho/T-0187.md` §2; a declarar pelo modulo-core no manifesto)
+Ação nova `visita.registrar_gestao` (chave `core.visita.registrar_gestao`), fábrica supervisor e gerente, área Clientes: rota, check-in e checkout no Gestão. Sem ela, o push de visita de supervisor ou gerente volta `rejeitado` com `PERFIL_SEM_ACESSO`. As demais ações do desenho §2 já existem.
