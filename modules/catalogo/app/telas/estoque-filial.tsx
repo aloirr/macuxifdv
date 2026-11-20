@@ -56,7 +56,7 @@ export function FolhaEstoquePorFilial({ visivel, onFechar, dados }: { visivel: b
 
 export type EscolhaFiltro = { filial: string | null; soComEstoque: boolean };
 
-export interface NoDoFiltro {
+interface NoDoFiltro {
   id: string;
   nome: string;
   codigo: string;
@@ -80,7 +80,6 @@ export function FolhaFiltroCatalogo({
   escolha,
   onEscolher,
   onLimpar,
-  textoVer,
   sistemas,
   categorias,
   sistemaId,
@@ -94,8 +93,6 @@ export function FolhaFiltroCatalogo({
   escolha: EscolhaFiltro;
   onEscolher: (e: EscolhaFiltro) => void;
   onLimpar: () => void;
-  /** "Ver produtos". */
-  textoVer: string;
   sistemas: readonly NoDoFiltro[];
   categorias: readonly NoDoFiltro[];
   sistemaId: string | null;
@@ -136,7 +133,7 @@ export function FolhaFiltroCatalogo({
         </View>
       ) : null}
       <Botao nivel="neutro" rotulo="Limpar" onPress={onLimpar} testID="catalogo-filtro-limpar" />
-      <Botao nivel="principal" rotulo={textoVer} onPress={onFechar} testID="catalogo-filtro-ver" />
+      <Botao nivel="principal" rotulo="Ver produtos" onPress={onFechar} testID="catalogo-filtro-ver" />
     </Folha>
   );
 }

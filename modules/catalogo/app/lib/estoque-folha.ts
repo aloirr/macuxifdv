@@ -54,7 +54,7 @@ export interface ResumoDoFiltro {
   filial: RotuloChipFiliais | null;
 }
 
-/** spec §4: o que o botão e as etiquetas do Catálogo mostram, a partir das opções do grupo Filial e da escolha da folha. */
+/** spec §4: o que o botão e a etiqueta de filial do Catálogo mostram, a partir das opções do grupo Filial e da escolha da folha. */
 export function resumoDoFiltro(e: { opcoes: readonly OpcaoFiltroFilial[]; escolha: { filial: string | null }; sistemaId: string | null; categoriaId: string | null }): ResumoDoFiltro {
   const propriasOpcoes = e.opcoes.filter((o) => o.valor !== 'todas');
   const escolhida = e.escolha.filial && e.escolha.filial !== 'todas' ? (propriasOpcoes.find((o) => o.valor === e.escolha.filial)?.rotulo ?? null) : null;

@@ -540,7 +540,7 @@ function referenciaPorCodigo(doc: DocBusca, filtros: FiltrosInterpretados, ngram
 }
 
 /** RN-CAT-09: menor pedaço de código (compacto) que já acha uma referência cruzada. */
-export const MINIMO_PEDACO_REFERENCIA = 4;
+const MINIMO_PEDACO_REFERENCIA = 4;
 
 /**
  * RN-CAT-09: índice da referência cruzada cujo código compacto é, ou contém, algum dos trechos compactos da consulta

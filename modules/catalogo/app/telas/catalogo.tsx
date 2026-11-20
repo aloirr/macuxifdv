@@ -311,7 +311,6 @@ export default function TelaCatalogo() {
           setEscolha((e) => ({ ...SEM_ESCOLHA, soComEstoque: e.soComEstoque }));
           setFiltro(SEM_FILTRO);
         }}
-        textoVer="Ver produtos"
         sistemas={chips.sistemas}
         categorias={chips.categorias}
         sistemaId={filtro.sistemaId}
