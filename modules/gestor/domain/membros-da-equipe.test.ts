@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MembroDaEquipeSchema, type MembroEquipe, type VisaoEquipe } from '../contracts';
+import { MembroEquipeEmNomeSchema, type MembroEquipe, type VisaoEquipe } from '../contracts';
 import { complementoDaParada, membrosDaEquipeDaVisao, type VinculoCarteira } from './membros-da-equipe';
 import { u } from './fixtures';
 
@@ -31,7 +31,7 @@ describe('RN-VEN-35 / RN-CORE-04: membros da equipe a partir da visão em cache'
   });
   it('RN-VEN-35: a saída respeita o schema do contrato', () => {
     const v = visao([m(V1, 'Vera', 'vendedor', S1)], [m(S1, 'Sandro', 'supervisor', G)]);
-    expect(membrosDaEquipeDaVisao(v, S1).every((x) => MembroDaEquipeSchema.safeParse(x).success)).toBe(true);
+    expect(membrosDaEquipeDaVisao(v, S1).every((x) => MembroEquipeEmNomeSchema.safeParse(x).success)).toBe(true);
   });
 });
 

@@ -6,7 +6,8 @@ import { CardAprovacoes } from './components/card-aprovacoes';
 import { AvisoEtapaEquipe } from './components/aviso-etapa-equipe';
 import { etapasGestor } from './etapas';
 import { useComplementoDaParada } from './lib/complemento-parada';
-import { extensoesDaFicha, extensoesDaRota, extensoesDoInicio } from './registro-inicio';
+import { useMembrosEquipeEmNome } from './lib/membros-equipe-em-nome';
+import { extensoesDaEquipeEmNome, extensoesDaFicha, extensoesDaRota, extensoesDoInicio } from './registro-inicio';
 import AlertasScreen from './screens/alertas-screen';
 import AprovacoesScreen from './screens/aprovacoes-screen';
 import EquipeScreen from './screens/equipe-screen';
@@ -30,5 +31,5 @@ export const moduloApp = definirModuloShell<ComponentType>({
   ],
   etapasSync: etapasGestor,
   // T-0073: card "Pedidos para aprovar" no Início (slot `inicio.cards`, ordem 10)
-  extensoes: [...extensoesDoInicio<ComponentType>(CardAprovacoes), ...extensoesDaFicha<ComponentType<{ contexto: ContextoCliente }>>(AvisoEtapaEquipe), ...extensoesDaRota(useComplementoDaParada)],
+  extensoes: [...extensoesDoInicio<ComponentType>(CardAprovacoes), ...extensoesDaFicha<ComponentType<{ contexto: ContextoCliente }>>(AvisoEtapaEquipe), ...extensoesDaRota(useComplementoDaParada), ...extensoesDaEquipeEmNome(useMembrosEquipeEmNome)],
 });

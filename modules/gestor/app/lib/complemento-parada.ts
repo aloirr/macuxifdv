@@ -5,26 +5,26 @@
 import type { LinhaSync } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
 import { useEffect, useMemo, useState } from 'react';
-import type { MembroDaEquipe } from '../../contracts';
 import { complementoDaParada, membrosDaEquipeDaVisao, type VinculoCarteira } from '../../domain/membros-da-equipe';
-import { criarCache } from './cache';
+import { useVisaoEmCache } from './visao-em-cache';
 
 export function useComplementoDaParada(clienteId: string): string | null {
   const { motor, estado } = useMotorSync();
   const usuarioId = useAmbiente().usuario()?.id ?? null;
-  const [dados, setDados] = useState<{ vinculos: VinculoCarteira[]; membros: MembroDaEquipe[] }>({ vinculos: [], membros: [] });
+  const visao = useVisaoEmCache();
+  const [vinculos, setVinculos] = useState<VinculoCarteira[]>([]);
 
   useEffect(() => {
     if (!motor) return;
     let vivo = true;
-    const cache = criarCache(motor.armazenamentoDoModulo('gestor'));
-    void Promise.all([motor.linhas<VinculoCarteira & LinhaSync>('carteira').catch(() => []), cache.ler('visao')]).then(([vinculos, visao]) => {
-      if (vivo) setDados({ vinculos: vinculos.filter((v) => v.cliente_id === clienteId), membros: membrosDaEquipeDaVisao(visao, usuarioId) });
+    void motor.linhas<VinculoCarteira & LinhaSync>('carteira').catch(() => []).then((linhas) => {
+      if (vivo) setVinculos(linhas.filter((v) => v.cliente_id === clienteId));
     });
     return () => {
       vivo = false;
     };
-  }, [motor, estado.sincronizado_em, clienteId, usuarioId]);
+  }, [motor, estado.sincronizado_em, clienteId]);
 
-  return useMemo(() => complementoDaParada(clienteId, dados.vinculos, dados.membros, usuarioId, new Date().toISOString()), [clienteId, dados, usuarioId]);
+  const membros = useMemo(() => membrosDaEquipeDaVisao(visao, usuarioId), [visao, usuarioId]);
+  return useMemo(() => complementoDaParada(clienteId, vinculos, membros, usuarioId, new Date().toISOString()), [clienteId, vinculos, membros, usuarioId]);
 }

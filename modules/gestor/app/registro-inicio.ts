@@ -6,6 +6,7 @@
  */
 import type { AvisoCliente, CardInicio } from '@macuxi/core/contracts';
 import type { ItemExtensaoShell } from '@macuxi/platform-sdk';
+import type { MembroEquipeEmNome } from '../contracts';
 
 /** Posição do card entre os do Início: antes dos demais (menor primeiro; ausente = 100). */
 export const ORDEM_CARD_APROVACOES = 10;
@@ -50,4 +51,9 @@ export function extensoesDaFicha<C>(avisoEtapaEquipe: C): readonly ItemExtensaoS
  */
 export function extensoesDaRota(usarTexto: (clienteId: string) => string | null): readonly ItemExtensaoShell[] {
   return [{ slot: 'rota.parada_complemento', id: 'vendedora-da-carteira', acao: 'painel_equipe.ver', apps: ['gestao'], payload: { usarTexto } }];
+}
+
+/** Slot `pedido.equipe_em_nome` do Vendedor (RN-VEN-35): o hook que devolve os membros do escopo; só no app Gestão. */
+export function extensoesDaEquipeEmNome(usarMembros: () => MembroEquipeEmNome[]): readonly ItemExtensaoShell[] {
+  return [{ slot: 'pedido.equipe_em_nome', id: 'membros-da-equipe', acao: 'painel_equipe.ver', apps: ['gestao'], payload: { usarMembros } }];
 }
