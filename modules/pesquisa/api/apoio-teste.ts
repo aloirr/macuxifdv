@@ -22,6 +22,8 @@ export interface OpcoesContexto {
   perfil: Perfil;
   tenant?: string;
   carteira?: ReadonlySet<string> | 'tenant';
+  /** Nomes que `core.usuarios_resumo@1` devolve (id → nome); sem isto a consulta falha, como fora do ar. */
+  nomes?: Record<string, string>;
   visiveis?: ReadonlySet<string> | 'tenant';
   parametros?: Record<string, unknown>;
   agora: () => Date;
@@ -46,8 +48,11 @@ export function criarAmbienteDeTeste() {
         efeitos.arquivos.push(a);
         return { criado: true };
       },
-      consultar: async () => {
-        throw new Error('sem consultas na Pesquisa');
+      consultar: async (_def: unknown, entrada: { usuario_ids?: string[] }) => {
+        if (!o.nomes) throw new Error('consulta indisponível');
+        const nomes = o.nomes;
+        if ((entrada.usuario_ids?.length ?? 0) > 500) throw new Error('usuario_ids acima de 500 (contrato core.usuarios_resumo@1)');
+        return { usuarios: (entrada.usuario_ids ?? []).filter((i) => i in nomes).map((i) => ({ id: i, nome: nomes[i]!, perfil: 'vendedor', equipe_id: null, regional_id: null, ativo: true })), proximo_cursor: null };
       },
     } as unknown as TransacaoTenant;
     const usuario = { id: o.id, tenant_id: o.tenant ?? TENANT_A, perfil: o.perfil, modulos: ['core', 'pesquisa'] as const };
