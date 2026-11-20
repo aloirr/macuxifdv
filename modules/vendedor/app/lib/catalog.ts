@@ -48,8 +48,13 @@ export function filterCustomers(customers: CustomerSummary[], query: string, fil
     if (filters.includes('overdue') && c.overdue_count === 0) return false;
     if (filters.includes('not_positivated') && c.positivated_this_month) return false;
     if (terms.length === 0) return true;
-    const hay = normalize(`${c.trade_name} ${c.legal_name} ${c.erp_code} ${c.district} ${c.city} ${c.cnpj}`);
-    return terms.every((t) => hay.includes(t));
+    // R-20261120-062210: só código, razão social, nome fantasia e CNPJ (3+ dígitos, com ou sem máscara); cidade e bairro não entram
+    const hay = normalize(`${c.trade_name} ${c.legal_name} ${c.erp_code}`);
+    const cnpj = (c.cnpj ?? '').replace(/\D/g, '');
+    return terms.every((t) => {
+      const d = t.replace(/\D/g, '');
+      return hay.includes(t) || (d.length >= 3 && cnpj.includes(d));
+    });
   });
 }
 

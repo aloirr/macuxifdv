@@ -35,7 +35,6 @@ describe('RN-VEN-35: seletor do pedido em nome', () => {
     expect(r.opcoes.map((o) => o.cliente.id)).toEqual(['c1', 'c3']);
     expect(r.opcoes.every((o) => o.selecionavel && o.nota === null)).toBe(true);
     expect(r.carteiraConhecida).toBe(true);
-    expect(r.totalDaCarteira).toBe(2);
     expect(r.nomeDoDono).toBe('Ana Souza');
   });
   it('RN-VEN-35: com busca, o cliente de outra carteira aparece depois, com a nota e não selecionável', () => {
@@ -76,8 +75,7 @@ describe('RN-VEN-35: textos e nomes do seletor', () => {
   it('RN-VEN-35: subtítulo e mensagens de vazio', () => {
     expect(subtituloDoSeletor('Ana Souza')).toBe('Clientes da carteira de Ana Souza');
     expect(subtituloDoSeletor(null)).toBe('Clientes da carteira do vendedor');
-    expect(vazioDoSeletor({ totalDaCarteira: 0, nomeDoDono: 'Ana' }, false)).toContain('carteira de Ana');
-    expect(vazioDoSeletor({ totalDaCarteira: 0, nomeDoDono: null }, false)).toContain('do vendedor');
-    expect(vazioDoSeletor({ totalDaCarteira: 3, nomeDoDono: null }, true)).toContain('Nenhum cliente encontrado');
+    expect(vazioDoSeletor(false)).toBe('Carteira vazia neste aparelho. Sincronize com sinal e tente de novo.');
+    expect(vazioDoSeletor(true)).toBe('Confira o código, o CNPJ ou o nome.');
   });
 });

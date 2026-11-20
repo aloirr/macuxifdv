@@ -70,3 +70,22 @@ describe('API: forma e prazo do pedido (RN-VEN-24/25, RN-VEN-13)', () => {
     expect(r.ok && r.percentual_mudou).toBe(true);
   });
 });
+
+describe('RN-VEN-45 (T-0188): o % gravado do documento vale no mesmo prazo', () => {
+  // o ERP mudou o prazo para +2,50 %, depois de o orçamento ser gravado a -1,71 %
+  const mudou = { ...PRAZOS[3]!, percentual_ajuste: 2.5, atualizado_em: '2026-11-15T10:00:00.000Z' };
+  const dbMudou = { async query(sql: string, params: unknown[]) { return sql.includes('vendedor.forma_pagamento') ? { rows: FORMAS.filter((f) => f.id === params[0]) } : { rows: [mudou] }; } } as unknown as ClienteBanco;
+  const doc = { ...base, forma_pagamento_id: 'f-pix', prazo_pagamento_id: 'p-av-d', created_offline_at: '2026-11-15T15:00:00.000Z' };
+  it('RN-VEN-45: no mesmo prazo, o push com o % gravado é aceito e sem aviso de mudança', async () => {
+    const r = await resolverPagamento(ctx(), dbMudou, tx(null), { ...doc, prazo_percentual_ajuste: -1.71 }, cli, 'orcamento', { prazo_id: 'p-av-d', percentual: -1.71 });
+    expect(r).toMatchObject({ ok: true, percentual_ajuste: -1.71, percentual_mudou: false });
+  });
+  it('RN-VEN-44: o prazo do documento é outro: vale o vigente e o % gravado do outro é recusado', async () => {
+    const gravadoOutro = { prazo_id: 'p-28', percentual: -1.71 };
+    expect(await resolverPagamento(ctx(), dbMudou, tx(null), { ...doc, prazo_percentual_ajuste: 2.5 }, cli, 'orcamento', gravadoOutro)).toMatchObject({ ok: true, percentual_ajuste: 2.5 });
+    expect(await resolverPagamento(ctx(), dbMudou, tx(null), { ...doc, prazo_percentual_ajuste: -1.71 }, cli, 'orcamento', gravadoOutro)).toMatchObject({ ok: false, codigo: 'RN-VEN-45' });
+  });
+  it('RN-VEN-45: sem gravado (pedido novo) o vigente segue valendo', async () => {
+    expect(await resolverPagamento(ctx(), dbMudou, tx(null), { ...doc, prazo_percentual_ajuste: -1.71 }, cli, 'pedido')).toMatchObject({ ok: false, codigo: 'RN-VEN-45' });
+  });
+});

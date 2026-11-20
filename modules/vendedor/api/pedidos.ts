@@ -82,6 +82,7 @@ const COLUNAS_BASE = `p.id, p.numero, p.vendedor_id, p.autor_id, p.vendedor_nome
   p.transportadora_documento, p.transportadora_telefone, p.transportadora_digitada, p.endereco_entrega,
   p.desconto_valor_cents::float8 as desconto_valor_cents, p.acrescimo_valor_cents::float8 as acrescimo_valor_cents, p.ajuste_em,
   p.forma_pagamento_id, p.forma_pagamento_nome, p.prazo_pagamento_id, p.prazo_descricao, p.prazo_parcelas_dias, p.prazo_medio_dias,
+  round(p.prazo_percentual_ajuste, 2)::float8 as prazo_percentual_ajuste,
   p.filial_id, p.filial`;
 const COLUNAS = `${COLUNAS_BASE}${FATURAMENTO_LIGADO ? COLUNAS_FATURAMENTO : ''}`;
 const JUNCAO_ITENS = `left join lateral (select count(*)::int as itens, coalesce(sum(i.quantidade), 0)::int as unidades

@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   acoesDoOrcamento,
   dataDaValidade,
+  duplicarDocumento,
   historicoDoOrcamento,
   momentoDaConversao,
   pedidoDoOrcamento,
@@ -166,5 +167,23 @@ describe('RF-VEN-03 / RN-VEN-32: converter orçamento em pedido', () => {
     expect(h[0]!.motivo).toMatch(/não reserva estoque nem consome crédito/);
     expect(h[0]!.motivo).toMatch(/preço de 02\/11\/2026/);
     expect(h[0]!.motivo).not.toMatch(/válido até|vence/i);
+  });
+});
+
+describe('RN-VEN-44/45 (T-0188): o % do prazo gravado no Transformar e no Duplicar', () => {
+  const cabecalho = { id: ORC.id, cliente_id: 'c1', desconto_pct: 0, condicao_pagamento_id: null, observacao: null, visita_id: null, itens: [{ product_id: 'p1', quantity: 1 }] };
+  const comPrazo = { ...cabecalho, forma_pagamento_id: 'f1', prazo_pagamento_id: 'z1' };
+  const NOVO = '00000000-0000-4000-8000-0000000000aa';
+  it('RN-VEN-45: Transformar leva o % gravado (-1,71) junto da forma e do prazo', () => {
+    expect(pedidoDoOrcamento({ ...comPrazo, prazo_percentual_ajuste: -1.71 }, NOVO, CRIADO)).toMatchObject({ forma_pagamento_id: 'f1', prazo_pagamento_id: 'z1', prazo_percentual_ajuste: -1.71 });
+  });
+  it('RN-VEN-45: sem prazo ou com % gravado 0 o payload não leva o %', () => {
+    expect(pedidoDoOrcamento({ ...cabecalho, prazo_percentual_ajuste: -1.71 }, NOVO, CRIADO)).not.toHaveProperty('prazo_percentual_ajuste');
+    expect(pedidoDoOrcamento({ ...comPrazo, prazo_percentual_ajuste: 0 }, NOVO, CRIADO)).not.toHaveProperty('prazo_percentual_ajuste');
+  });
+  it('RN-VEN-44: Duplicar nasce sem origem e pelo % vigente: o % gravado não vai', () => {
+    const d = duplicarDocumento({ ...comPrazo, prazo_percentual_ajuste: -1.71 }, NOVO, CRIADO);
+    expect(d).not.toHaveProperty('prazo_percentual_ajuste');
+    expect(d).not.toHaveProperty('orcamento_origem_id');
   });
 });

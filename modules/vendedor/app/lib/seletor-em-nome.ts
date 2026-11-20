@@ -71,8 +71,6 @@ export interface SeletorEmNome {
   opcoes: OpcaoDoSeletor[];
   /** `false` = o aparelho ainda não tem a carteira (nenhum vínculo vigente): mostra todos, como antes, e a API revalida. */
   carteiraConhecida: boolean;
-  /** Clientes ativos da carteira do dono no aparelho. */
-  totalDaCarteira: number;
   /** Nome do dono, se o aparelho conhece; `null` = "do vendedor". */
   nomeDoDono: string | null;
 }
@@ -99,10 +97,9 @@ export function seletorEmNome(e: EntradaSeletorEmNome): SeletorEmNome {
   const nomeDoDono = e.nomes.get(e.vendedorId) ?? null;
   if (porCliente.size === 0) {
     const todos = filterCustomers([...e.clientes], e.busca, []);
-    return { opcoes: todos.slice(0, limite).map((cliente) => ({ cliente, selecionavel: true, nota: null })), carteiraConhecida: false, totalDaCarteira: e.clientes.length, nomeDoDono };
+    return { opcoes: todos.slice(0, limite).map((cliente) => ({ cliente, selecionavel: true, nota: null })), carteiraConhecida: false, nomeDoDono };
   }
   const doDono = (id: string) => porCliente.get(id)?.includes(e.vendedorId) ?? false;
-  const totalDaCarteira = e.clientes.filter((c) => doDono(c.id)).length;
   const achados = filterCustomers([...e.clientes], e.busca, []);
   const buscando = e.busca.trim() !== '';
   const daCarteira: OpcaoDoSeletor[] = [];
@@ -115,7 +112,7 @@ export function seletorEmNome(e: EntradaSeletorEmNome): SeletorEmNome {
       outras.push({ cliente, selecionavel: false, nota: textoOutraCarteira(nomes, donos.length) });
     }
   }
-  return { opcoes: [...daCarteira, ...outras].slice(0, limite), carteiraConhecida: true, totalDaCarteira, nomeDoDono };
+  return { opcoes: [...daCarteira, ...outras].slice(0, limite), carteiraConhecida: true, nomeDoDono };
 }
 
 /** Subtítulo do seletor: de quem é a carteira mostrada. */
@@ -123,11 +120,18 @@ export function subtituloDoSeletor(nomeDoDono: string | null): string {
   return nomeDoDono ? `Clientes da carteira de ${nomeDoDono}` : 'Clientes da carteira do vendedor';
 }
 
-/** Lista vazia do seletor em nome: carteira sem cliente no aparelho ou busca sem resultado. */
-export function vazioDoSeletor(s: Pick<SeletorEmNome, 'totalDaCarteira' | 'nomeDoDono'>, buscando: boolean): string {
-  if (buscando) return 'Nenhum cliente encontrado. Confira o nome, o código ou o bairro.';
-  const de = s.nomeDoDono ? `de ${s.nomeDoDono}` : 'do vendedor';
-  return s.totalDaCarteira === 0 ? `Nenhum cliente na carteira ${de} neste aparelho. Sincronize com sinal e tente de novo.` : 'Nenhum cliente encontrado.';
+/** Texto de apoio da busca de cliente sem resultado (R-20261120-062210: só código, CNPJ e nome). */
+export const VAZIO_DA_BUSCA_DE_CLIENTE = 'Confira o código, o CNPJ ou o nome.';
+
+/** Texto da carteira vazia no aparelho (Campo e pedido em nome). */
+export const VAZIO_DA_CARTEIRA = 'Carteira vazia neste aparelho. Sincronize com sinal e tente de novo.';
+
+/**
+ * Lista vazia do seletor: busca sem resultado ou carteira sem cliente no aparelho. Sem busca a lista traz a carteira toda, então
+ * lista vazia sem busca só ocorre com a carteira vazia.
+ */
+export function vazioDoSeletor(buscando: boolean): string {
+  return buscando ? VAZIO_DA_BUSCA_DE_CLIENTE : VAZIO_DA_CARTEIRA;
 }
 
 /** Leitura completa da linha de outra carteira (o leitor de tela diz por que não abre). */
