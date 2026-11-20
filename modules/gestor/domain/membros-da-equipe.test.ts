@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MembroEquipeEmNomeSchema, type MembroEquipe, type VisaoEquipe } from '../contracts';
-import { complementoDaParada, membrosDaEquipeDaVisao, type VinculoCarteira } from './membros-da-equipe';
+import { complementoDaParada, indexarCarteiraPorCliente, membrosDaEquipeDaVisao, type VinculoCarteira } from './membros-da-equipe';
 import { u } from './fixtures';
 
 const G = u(1), S1 = u(2), S2 = u(3), V1 = u(11), V2 = u(12), V3 = u(13);
@@ -41,23 +41,40 @@ const eq = (v: string, nome: string, ativo = true) => membrosDaEquipeDaVisao(vis
 
 describe('RN-CORE-52 / RN-CORE-04: complemento da parada na Rota do Gestão', () => {
   it('RN-CORE-52: um vendedor na carteira devolve o nome dele', () => {
-    expect(complementoDaParada(C, [vc(V1)], eq(V1, 'Vera'), G, AGORA)).toBe('Vera');
+    expect(complementoDaParada([vc(V1)], eq(V1, 'Vera'), AGORA)).toBe('Vera');
   });
   it('RN-CORE-52: 0 ou mais de 1 vendedor devolve null', () => {
     const ms = membrosDaEquipeDaVisao(visao([m(V1, 'Vera', 'vendedor', S1), m(V2, 'Valter', 'vendedor', S1)], []), G);
-    expect(complementoDaParada(C, [], ms, G, AGORA)).toBeNull();
-    expect(complementoDaParada(C, [vc(V1), vc(V2)], ms, G, AGORA)).toBeNull();
-    expect(complementoDaParada(C, [vc(V1, { papel: 'promotor' })], ms, G, AGORA)).toBeNull();
+    expect(complementoDaParada(undefined, ms, AGORA)).toBeNull();
+    expect(complementoDaParada([], ms, AGORA)).toBeNull();
+    expect(complementoDaParada([vc(V1), vc(V2)], ms, AGORA)).toBeNull();
+    expect(complementoDaParada([vc(V1, { papel: 'promotor' })], ms, AGORA)).toBeNull();
   });
-  it('RN-CORE-52: nome acima de 60 caracteres é cortado em 60', () => {
-    expect(complementoDaParada(C, [vc(V1)], eq(V1, 'A'.repeat(90)), G, AGORA)).toBe('A'.repeat(60));
+  it('RN-CORE-52: o nome vem inteiro, sem corte (o Core corta o texto)', () => {
+    expect(complementoDaParada([vc(V1)], eq(V1, 'A'.repeat(90)), AGORA)).toBe('A'.repeat(90));
   });
   it('RN-CORE-52: membro inativo também devolve o nome', () => {
-    expect(complementoDaParada(C, [vc(V1)], eq(V1, 'Vera', false), G, AGORA)).toBe('Vera');
+    expect(complementoDaParada([vc(V1)], eq(V1, 'Vera', false), AGORA)).toBe('Vera');
   });
-  it('RN-CORE-04: o próprio usuário nunca entra; vínculo removido ou encerrado não conta', () => {
-    expect(complementoDaParada(C, [vc(S1)], eq(V1, 'Vera'), S1, AGORA)).toBeNull();
-    expect(complementoDaParada(C, [vc(S1), vc(V1)], eq(V1, 'Vera'), S1, AGORA)).toBe('Vera');
-    expect(complementoDaParada(C, [vc(V1, { deleted_at: AGORA }), vc(V2, { fim: '2026-01-01T00:00:00Z' })], eq(V1, 'Vera'), G, AGORA)).toBeNull();
+  it('RN-CORE-52: vínculo removido, encerrado ou de promotor é ignorado', () => {
+    expect(complementoDaParada([vc(V1, { deleted_at: AGORA }), vc(V2, { fim: '2026-01-01T00:00:00Z' })], eq(V1, 'Vera'), AGORA)).toBeNull();
+    expect(complementoDaParada([vc(V1), vc(V2, { papel: 'promotor' }), vc(V3, { deleted_at: AGORA })], eq(V1, 'Vera'), AGORA)).toBe('Vera');
+  });
+  it('RN-CORE-04: o próprio usuário já sai da lista de membros; vendedor fora da lista não dá nome', () => {
+    const ms = membrosDaEquipeDaVisao(visao([m(S1, 'Sandro', 'supervisor', G), m(V1, 'Vera', 'vendedor', S1)], [m(S1, 'Sandro', 'supervisor', G)]), S1);
+    expect(complementoDaParada([vc(S1)], ms, AGORA)).toBeNull();
+    expect(complementoDaParada([vc(V1)], ms, AGORA)).toBe('Vera');
+  });
+});
+
+describe('RN-CORE-52: índice da carteira por cliente', () => {
+  it('RN-CORE-52: agrupa os vínculos por cliente, mantendo a ordem, e cliente ausente dá undefined', () => {
+    const [C1, C2] = [u(51), u(52)];
+    const a = vc(V1, { cliente_id: C1 }), b = vc(V2, { cliente_id: C2 }), c = vc(V3, { cliente_id: C1 });
+    const indice = indexarCarteiraPorCliente([a, b, c]);
+    expect(indice.size).toBe(2);
+    expect(indice.get(C1)).toEqual([a, c]);
+    expect(indice.get(C2)).toEqual([b]);
+    expect(indice.get(u(99))).toBeUndefined();
   });
 });
