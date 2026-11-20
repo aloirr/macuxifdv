@@ -72,7 +72,7 @@ export function TrilhasPage() {
   const acoes: AcaoDoMenu[] = [];
   if (aba === 'trilhas') acoes.push({ id: 'csv', rotulo: 'Exportar CSV', desligada: nTrilhas === 0, testId: 'treinamento.exportar-trilhas', aoEscolher: () => baixarCsv(trilhasParaCsv(trilhas.data ?? []), 'treinamento_trilhas.csv') });
   if (aba === 'pessoas') acoes.push({ id: 'csv', rotulo: 'Exportar CSV', desligada: nPessoas === 0, testId: 'treinamento.exportar-pessoas', aoEscolher: () => pessoas.data && baixarCsv(pessoasParaCsv(pessoas.data.pessoas, tz), `treinamento_pessoas_${pessoas.data.mes}.csv`) });
-  acoes.push({ id: 'atualizar', rotulo: ativa.isFetching ? 'Atualizando…' : 'Atualizar', desligada: ativa.isFetching, aoEscolher: () => void ativa.refetch() });
+  acoes.push({ id: 'atualizar', rotulo: 'Atualizar', desligada: ativa.isFetching, aoEscolher: () => void ativa.refetch() });
 
   const filtroLigado = aba === 'trilhas' ? !!(f.busca || f.status) : !!f.mes;
   const limpar = () => {
