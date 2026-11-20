@@ -1,6 +1,7 @@
 /**
  * Busca local de produtos e clientes (funciona sem sinal) e textos de estoque. Puro.
  */
+import { clienteCasaBusca } from '@macuxi/core/contracts';
 import type { CustomerSummary } from '@macuxi/core/contracts';
 import type { DiscountPolicy as ApiDiscountPolicy } from '../../contracts';
 import type { Product } from '@macuxi/catalogo/contracts';
@@ -41,15 +42,13 @@ export const CUSTOMER_FILTERS: Array<{ id: CustomerFilter; label: string }> = [
 ];
 
 export function filterCustomers(customers: CustomerSummary[], query: string, filters: CustomerFilter[]): CustomerSummary[] {
-  const terms = normalize(query).split(/\s+/).filter(Boolean);
   return customers.filter((c) => {
     if (filters.includes('curve_a') && c.abc_curve !== 'A') return false;
     if (filters.includes('no_purchase_45') && !(c.days_since_purchase === null || c.days_since_purchase >= 45)) return false;
     if (filters.includes('overdue') && c.overdue_count === 0) return false;
     if (filters.includes('not_positivated') && c.positivated_this_month) return false;
-    if (terms.length === 0) return true;
-    const hay = normalize(`${c.trade_name} ${c.legal_name} ${c.erp_code} ${c.district} ${c.city} ${c.cnpj}`);
-    return terms.every((t) => hay.includes(t));
+    // R-20261120-094751: a regra da busca (código, CNPJ 3+ dígitos, razão social, fantasia) é do core
+    return clienteCasaBusca(query, { razao_social: c.legal_name, nome_fantasia: c.trade_name, external_id: c.erp_code, documento: c.cnpj });
   });
 }
 

@@ -75,7 +75,12 @@ describe('catálogo e carteira (busca local, sem sinal)', () => {
     expect(filterCustomers(list, '', ['no_purchase_45']).map((c) => c.id)).toEqual(['c2']);
     expect(filterCustomers(list, '', ['overdue']).map((c) => c.id)).toEqual(['c3']);
     expect(filterCustomers(list, '', ['curve_a', 'not_positivated'])).toHaveLength(0);
-    expect(filterCustomers(list, 'cachoeirinha', [])).toHaveLength(3);
+  });
+  it('R-20261120-094751: a busca de cliente usa a regra do core e combina com os filtros do Vendedor', () => {
+    const list = [customer({ id: 'c1', erp_code: 'QX-7781', cnpj: '47.111.222/0001-33' }), customer({ id: 'c2', erp_code: 'QX-9000', cnpj: '11.222.333/0001-44', overdue_count: 1 })];
+    expect(filterCustomers(list, '111.222', []).map((c) => c.id)).toEqual(['c1']);
+    expect(filterCustomers(list, 'qx', ['overdue']).map((c) => c.id)).toEqual(['c2']);
+    expect(filterCustomers(list, 'cachoeirinha', [])).toHaveLength(0);
   });
   it('alçada da API vira mapa do domínio; crédito considera pedidos em aberto e a fila', () => {
     const pol = toDomainPolicy({ seller_pct: 5, supervisor_pct: 8, manager_pct: 12, above_manager: 'block', exceptions: [{ seller_id: 's9', seller_name: 'Bruna T.', max_discount_pct: 6 }] });

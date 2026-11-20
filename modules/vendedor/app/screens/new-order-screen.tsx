@@ -8,6 +8,7 @@
  * Modo edição (`editId`): "Editar pedido 10xxx", mesmo cliente; rascunho em `edit:<id>` (preenchido pelo detalhe).
  * Duplicar chega aqui como novo pedido com o rascunho do cliente já preenchido.
  */
+import { ROTULO_BUSCA_CLIENTE } from '@macuxi/core/contracts';
 import { formatarDocumento } from '@macuxi/comum';
 import { localIsoDate } from '@macuxi/comum/fuso';
 import { useAmbiente, useExtensoes, usePode } from '@macuxi/platform-sdk/react';
@@ -112,9 +113,9 @@ function CustomerPicker() {
           {subtituloDoSeletor(emNome.nomeDoDono)}
         </Text>
       ) : null}
-      <CampoBusca valor={q} onChange={setQ} onLimpar={() => setQ('')} rotuloLimpar="Limpar a busca" placeholder="Nome, código ou bairro" rotuloAcessivel="Buscar cliente" testID="picker-search" />
+      <CampoBusca valor={q} onChange={setQ} onLimpar={() => setQ('')} rotuloLimpar="Limpar a busca" placeholder={ROTULO_BUSCA_CLIENTE} rotuloAcessivel="Buscar cliente" testID="picker-search" />
       {opcoes.length === 0 ? (
-        <EstadoVazio titulo="Nenhum cliente" texto={emNome ? vazioDoSeletor(emNome, q.trim() !== '') : 'Nenhum cliente encontrado. Confira o nome, o código ou o bairro.'} />
+        <EstadoVazio titulo="Nenhum cliente" texto={vazioDoSeletor(q.trim() !== '')} />
       ) : (
         <Card>
           {opcoes.map((o, i) => {
