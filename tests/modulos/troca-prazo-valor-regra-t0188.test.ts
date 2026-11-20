@@ -1,5 +1,5 @@
 /**
- * T-0188, valor × regra da RN-VEN-44 (troca de prazo). O esperado é calculado AQUI pela fórmula da regra, sem chamar o domain:
+ * T-0188, valor × regra da RN-VEN-44 (troca de prazo). O esperado é calculado pela fórmula da regra (`apoio/oraculo-prazo.ts`), sem chamar o domain:
  * - tabela nova = meia-para-cima(tabela original × (10 000 + bp novo) ÷ 10 000) (RN-VEN-43);
  * - o preço final do item fica igual, centavo por centavo;
  * - o desconto (ou acréscimo) do item = tabela nova − final, por unidade; conta na alçada (RN-VEN-10) e no mínimo (RN-VEN-11).
@@ -14,11 +14,7 @@ import { congeladosDoRascunho, rascunhoVazio, type Rascunho } from '../../module
 import { politicaApi } from '../../modules/vendedor/app/lib/pull';
 import { politicaDosParametros, revalidarPedido, type RevalidarEntrada } from '../../modules/vendedor/domain/aprovacao';
 import { percentualAjusteParaBp } from '../../modules/vendedor/domain/preco-pedido';
-
-/** RN-VEN-43, independente do domain (inteiros; meia para cima). */
-const regra = (tabela: number, bp: number): number => Math.floor((tabela * (10_000 + bp) + 5_000) / 10_000);
-/** RN-VEN-02: desconto % no unitário, meia para cima. */
-const comDesconto = (unit: number, pct: number): number => Math.floor((unit * (10_000 - Math.round(pct * 100)) + 5_000) / 10_000);
+import { comDesconto, regra } from './apoio/oraculo-prazo';
 
 const PRECOS = { a: 1_235, b: 29, c: 10_000 } as const;
 const QTD = { a: 10, b: 10, c: 2 } as const;

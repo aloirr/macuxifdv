@@ -14,7 +14,7 @@
 import { MeusModulosRespostaSchema, SessaoRespostaSchema, type MeusModulosResposta, type SessaoResposta } from '@macuxi/core/contracts';
 import { criarModuloApiCore } from '@macuxi/core/api';
 import { carregarDoisTenants, criarBancoDeTeste, DOIS_TENANTS, type BancoDeTeste } from '@macuxi/db/teste';
-import { ErroApiSchema, type ErroApi, type ModuloApi } from '@macuxi/platform-sdk';
+import { ErroApiSchema, type ErroApi, type LinhaSync, type ModuloApi, type PaginaSync } from '@macuxi/platform-sdk';
 import type { FastifyInstance, FastifyServerOptions, InjectOptions, LightMyRequestResponse } from 'fastify';
 import pg from 'pg';
 import { createApp } from '../../../apps/api/src/app';
@@ -317,3 +317,18 @@ export function licenca(
 }
 
 export const ids = (r: MeusModulosResposta) => r.modulos.map((m) => m.id);
+
+/** Pull paginado de uma entidade (`GET /v1/sync/pull`, até 50 páginas); status diferente de 200 ou pull sem fim = erro. */
+export async function puxarTudo<T = LinhaSync>(api: ApiDeTeste, token: string, entidade: string): Promise<Array<T & LinhaSync>> {
+  const itens: Array<T & LinhaSync> = [];
+  let cursor: string | null = null;
+  for (let i = 0; i < 50; i += 1) {
+    const qs = new URLSearchParams({ entidade, ...(cursor ? { cursor } : {}) });
+    const r = await api.chamar(token, { method: 'GET', url: `/v1/sync/pull?${qs}` });
+    if (r.statusCode !== 200) throw new Error(`pull ${entidade}: ${r.statusCode} ${r.body}`);
+    const p = r.json() as PaginaSync<T & LinhaSync>;
+    itens.push(...p.itens);
+    if (!(cursor = p.proximo_cursor)) return itens;
+  }
+  throw new Error(`pull de ${entidade} sem fim em 50 páginas`);
+}
