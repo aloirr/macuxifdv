@@ -318,7 +318,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - **Preço congelado do orçamento** (RN-VEN-18): já está gravado ajustado e nunca ajusta de novo; na troca de prazo vale a RN-VEN-44.
   - **O % não aparece:** nem nos totais, nem na lista de prazos (RN-VEN-24), nem no PDF. Ao ERP, os preços vão já ajustados.
   *(Alexandre, R-20261115-111000 e R-20261115-121000; proposta aprovada em R-20261115-123000, `docs/modulos/vendedor/prazo-desconto-acrescimo.md` no SHA 454ee68, §1 a §4; v1.0.14, migração 0082.)*
-- **RN-VEN-44 Troca de prazo** O item guarda o **preço final** em centavos. Trocar o prazo no pedido ou no orçamento com itens mantém esse preço final, centavo por centavo, e muda só o preço de tabela:
+- **RN-VEN-44 Troca de prazo** O item guarda o **preço final** em centavos. Trocar o prazo no pedido ou no orçamento com itens mantém esse preço final; mudam a tabela e o desconto:
   - **Tabela:** a tabela original do produto ajustada pelo % do prazo novo (RN-VEN-43). Trocar o prazo e voltar devolve a mesma tabela.
   - **Desconto ou acréscimo do vendedor:** é recalculado a partir do preço final e da tabela nova. Se a tabela sobe, o desconto aumenta; se cai, diminui ou vira acréscimo. Esse desconto conta na alçada (RN-VEN-10), no preço mínimo (RN-VEN-11) e nos Alertas (RN-VEN-42).
   *(Alexandre, R-20261120-051003-gerente-projetos e R-20261120-055501-alexandre, 20/11/2026. Implementação: T-0188.)*
