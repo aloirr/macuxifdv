@@ -8,7 +8,7 @@ import type { Product } from '@macuxi/catalogo/contracts';
 import type { SugestoesPedidoSaida } from '@macuxi/catalogo/contracts';
 import { EditarOrcamentoRequest, PedidoPush, type OrderDetail } from '../../contracts';
 import { tabelaAjustadaCents } from '../../domain/preco-pedido';
-import { copiaDoDetalhe, copiaDoPayload, freteDaCopia, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from './documento';
+import { copiaDoDetalhe, copiaDoPayload, freteDaCopia, percentualDoDetalhe, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from './documento';
 import { calcularPedido, linhasParaPush, reaisParaCents, centsParaCampo, trocarModoDoAjuste } from './novo-pedido';
 import { aplicarAjusteDoPedido, montarPedido, rascunhoVazio } from './pedidos';
 import { pedidoDaConversao, validadeCivilDoDocumento } from './pre-venda';
@@ -289,5 +289,42 @@ describe('RF-CAT-03 (T-0071): sugestões da aba Detalhes', () => {
     expect(nomeDaSugestao('Açúcar', { origem: 'complementar' })).toBe('Açúcar');
     expect(seloDaSugestao({ origem: 'embalagem_maior', economia_pct: 5, preco_cents: 1 })).toEqual({ tipo: 'selo', texto: '−5%' });
     expect(seloDaSugestao({ origem: 'embalagem_maior', economia_pct: 0, preco_cents: 1990 }).tipo).toBe('preco');
+  });
+});
+
+describe('RN-VEN-45 (T-0188): Transformar leva o % do prazo gravado no orçamento', () => {
+  const extra = { condicaoId: null, observacao: null, novoId: U(901), agora: '2026-11-04T12:00:00.000Z', transportadoras };
+  const comPrazo = { forma_pagamento_id: U(60), prazo_pagamento_id: U(61) };
+  it('RN-VEN-45: orçamento gravado a -1,71 % no prazo: o pedido da conversão leva -1,71 e o push é válido', () => {
+    const p = pedidoDaConversao(detalhe({ ...comPrazo, prazo_percentual_ajuste: -1.71 }), extra);
+    expect(p).toMatchObject({ ...comPrazo, prazo_percentual_ajuste: -1.71 });
+    expect(PedidoPush.safeParse(p).success).toBe(true);
+  });
+  it('RN-VEN-45: % gravado 0, sem % ou sem prazo não vai no payload (a API lê 0)', () => {
+    expect(pedidoDaConversao(detalhe({ ...comPrazo, prazo_percentual_ajuste: 0 }), extra)).not.toHaveProperty('prazo_percentual_ajuste');
+    expect(pedidoDaConversao(detalhe({ ...comPrazo }), extra)).not.toHaveProperty('prazo_percentual_ajuste');
+    expect(pedidoDaConversao(detalhe({ prazo_percentual_ajuste: -1.71 }), extra)).not.toHaveProperty('prazo_percentual_ajuste');
+  });
+  it('RN-VEN-45: o pedido da fila também copia o % do payload', () => {
+    const payload = { id: U(950), customer_id: U(100), discount_pct: 0, payment_terms: 'x', ...comPrazo, prazo_percentual_ajuste: -1.71, items: [{ product_id: CAFE, quantity: 1 }] };
+    expect(copiaDoPayload(PedidoPush.parse(payload), { observacao: null })).toMatchObject({ prazo_percentual_ajuste: -1.71 });
+  });
+});
+
+describe('RN-VEN-45 (T-0188): % do prazo do orçamento do servidor, a mesma conta no Transformar e na reconferência', () => {
+  const prazos = [{ id: U(61), percentual_ajuste: 2.5 }];
+  const extra = { condicaoId: null, observacao: null, novoId: U(901), agora: '2026-11-04T12:00:00.000Z', transportadoras };
+  const comPrazo = { forma_pagamento_id: U(60), prazo_pagamento_id: U(61) };
+  it('RN-VEN-45: com retrato, vale o % gravado, não o vigente', () => {
+    expect(percentualDoDetalhe(detalhe({ ...comPrazo, prazo_percentual_ajuste: -1.71 }), prazos)).toBe(-1.71);
+  });
+  it('RN-VEN-45: orçamento sem retrato (coluna nula, gravado antes da 0082) vale o vigente, e o push leva esse %', () => {
+    const d = detalhe({ ...comPrazo, prazo_percentual_ajuste: null });
+    expect(percentualDoDetalhe(d, prazos)).toBe(2.5);
+    const p = pedidoDaConversao({ ...d, prazo_percentual_ajuste: percentualDoDetalhe(d, prazos) }, extra);
+    expect(p).toMatchObject({ prazo_percentual_ajuste: 2.5 });
+  });
+  it('RN-VEN-45: sem prazo, 0', () => {
+    expect(percentualDoDetalhe(detalhe(), prazos)).toBe(0);
   });
 });

@@ -28,7 +28,7 @@ function montar(opcoes: { vencido?: boolean; enderecoOrcamento?: Record<string, 
     query: async (sql: string, valores: unknown[] = []) => {
       sqls.push({ sql, valores });
       // RN-VEN-17/44: endereço e % do prazo em que o orçamento foi gravado (sem prazo = null)
-      if (/select endereco_entrega, prazo_percentual_ajuste/.test(sql)) return { rows: [{ endereco_entrega: opcoes.enderecoOrcamento ?? null, prazo_percentual_ajuste: opcoes.pctOrcamento ?? null }] };
+      if (/select endereco_entrega, prazo_pagamento_id, prazo_percentual_ajuste/.test(sql)) return { rows: [{ endereco_entrega: opcoes.enderecoOrcamento ?? null, prazo_pagamento_id: null, prazo_percentual_ajuste: opcoes.pctOrcamento ?? null }] };
       // itens salvos do orçamento: café a R$ 100,00 a unidade
       if (/from vendedor\.pedido_item where pedido_id = \$1 and deleted_at is null order by sequencia/.test(sql)) return { rows: [{ produto_id: CAFE, preco_tabela_cents: 10_000, fator: 1 }] };
       if (/from vendedor\.pedido where id = \$1 and tipo = 'orcamento'/.test(sql)) return { rows: [{ id: ORC, vendedor_id: VEND, cliente_id: CLIENTE, status: 'received', atualizado_em: ATUALIZADO, hash_envio: 'x', total_cents: '10000', itens: 1, prazo_percentual_ajuste: opcoes.pctOrcamento ?? null }] };

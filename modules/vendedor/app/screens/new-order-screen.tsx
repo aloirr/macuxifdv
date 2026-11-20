@@ -112,9 +112,9 @@ function CustomerPicker() {
           {subtituloDoSeletor(emNome.nomeDoDono)}
         </Text>
       ) : null}
-      <CampoBusca valor={q} onChange={setQ} onLimpar={() => setQ('')} rotuloLimpar="Limpar a busca" placeholder="Nome, código ou bairro" rotuloAcessivel="Buscar cliente" testID="picker-search" />
+      <CampoBusca valor={q} onChange={setQ} onLimpar={() => setQ('')} rotuloLimpar="Limpar a busca" placeholder="Código, CNPJ ou nome" rotuloAcessivel="Buscar cliente" testID="picker-search" />
       {opcoes.length === 0 ? (
-        <EstadoVazio titulo="Nenhum cliente" texto={emNome ? vazioDoSeletor(emNome, q.trim() !== '') : 'Nenhum cliente encontrado. Confira o nome, o código ou o bairro.'} />
+        <EstadoVazio titulo="Nenhum cliente" texto={emNome ? vazioDoSeletor(emNome, q.trim() !== '') : 'Nenhum cliente encontrado. Confira o código, o CNPJ ou o nome.'} />
       ) : (
         <Card>
           {opcoes.map((o, i) => {

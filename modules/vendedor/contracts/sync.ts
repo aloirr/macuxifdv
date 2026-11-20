@@ -95,6 +95,8 @@ export const PedidoSyncSchema = z
     prazo_descricao: z.string().nullable().optional(),
     prazo_parcelas_dias: z.array(z.number().int()).nullable().optional(),
     prazo_medio_dias: z.number().int().nullable().optional(),
+    /** RN-VEN-45 (T-0188, aditivo): o "Desc./Acrésc. (%)" do prazo gravado no documento (coluna `prazo_percentual_ajuste`); o APK anterior ignora. */
+    prazo_percentual_ajuste: z.number().nullable().optional(),
     // --- T-0138 (RN-VEN-31, exceção T-0114): o conector do tenant aceita cancelar o pedido já enviado? Só vem nos enviados/integrados;
     //     calculado na hora do pull por integracao.cancelamento_erp@1 (não é coluna). Ausente = não aceita. ---
     erp_aceita_cancelamento: z.boolean().optional(),

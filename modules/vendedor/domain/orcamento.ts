@@ -268,6 +268,8 @@ export interface OrcamentoParaPedido {
   /** T-0089 (RN-VEN-24): forma e prazo do documento de origem; os dois juntos ou nenhum */
   forma_pagamento_id?: string | null;
   prazo_pagamento_id?: string | null;
+  /** RN-VEN-45: o % do prazo gravado no orçamento; o Transformar leva o mesmo, para a API manter o retrato (0 = sem acréscimo ou desconto) */
+  prazo_percentual_ajuste?: number;
   observacao: string | null;
   visita_id: string | null;
   frete?: FreteParaCopia | null;
@@ -327,7 +329,7 @@ export function pedidoDoOrcamento(o: OrcamentoParaPedido, novoId: string, criado
     customer_id: o.cliente_id,
     ...copiarCabecalho(o),
     condicao_pagamento_id: o.condicao_pagamento_id,
-    ...(o.forma_pagamento_id && o.prazo_pagamento_id ? { forma_pagamento_id: o.forma_pagamento_id, prazo_pagamento_id: o.prazo_pagamento_id } : {}),
+    ...(o.forma_pagamento_id && o.prazo_pagamento_id ? { forma_pagamento_id: o.forma_pagamento_id, prazo_pagamento_id: o.prazo_pagamento_id, ...(o.prazo_percentual_ajuste ? { prazo_percentual_ajuste: o.prazo_percentual_ajuste } : {}) } : {}),
     observacao: o.observacao,
     visita_id: o.visita_id,
     created_offline_at: criadoEm,
@@ -337,8 +339,9 @@ export function pedidoDoOrcamento(o: OrcamentoParaPedido, novoId: string, criado
 
 /** RN-VEN-18: duplicar (vencido ou qualquer outro) = rascunho novo com o mesmo conteúdo, sem origem; os preços são os de hoje. */
 export function duplicarDocumento(o: OrcamentoParaPedido, novoId: string, criadoEm: string) {
-  const { orcamento_origem_id: _origem, ...rascunho } = pedidoDoOrcamento(o, novoId, criadoEm);
-  void _origem;
+  // RN-VEN-44: o duplicado nasce sem origem, pelo % vigente do prazo; o retrato do orçamento não vai
+  const { orcamento_origem_id: _origem, prazo_percentual_ajuste: _pct, ...rascunho } = pedidoDoOrcamento(o, novoId, criadoEm);
+  void [_origem, _pct];
   return rascunho;
 }
 
