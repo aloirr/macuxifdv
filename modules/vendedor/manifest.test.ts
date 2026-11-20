@@ -34,3 +34,11 @@ describe('manifesto do vendedor', () => {
     expect(manifest.sync).toEqual(expect.arrayContaining(['pedido', 'pedido_item', 'pedido_evento', 'condicao_pagamento', 'cliente_condicao']));
   });
 });
+
+describe('T-0187: o Vendedor oferece o slot pedido.equipe_em_nome e não depende do Gestor', () => {
+  it('ofereceExtensoes inclui o slot; sem a consulta gestor.membros_da_equipe@1', async () => {
+    const { default: m } = await import('./manifest');
+    expect(m.ofereceExtensoes).toContain('pedido.equipe_em_nome');
+    expect(m.usaConsultasOpcionais).not.toContain('gestor.membros_da_equipe@1');
+  });
+});

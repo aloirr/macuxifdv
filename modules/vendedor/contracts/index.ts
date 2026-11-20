@@ -33,6 +33,7 @@ export const SITUACOES_DEVOLUCAO = ['nenhuma', 'parcial', 'total'] as const;
 
 export { ORDER_STATUSES, ORDER_STATUS_LABEL } from '../domain/order';
 export type { DecisaoAprovador, EstadoAprovacaoMotivo } from '../domain/aprovacao';
+export { decisorEhAutor } from '../domain/pedido-em-nome';
 export { DECISOES_APROVADOR, ESTADOS_APROVACAO_MOTIVO, maiorNivel, MOTIVOS_APROVACAO, MOTIVO_REJEICAO_MIN, NIVEIS_APROVACAO, quemDecide, ROTULO_MOTIVO_APROVACAO, STATUS_CONTRATO } from '../domain/aprovacao';
 export { SITUACAO_ORCAMENTO_LABEL, SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '../domain/orcamento';
 // T-0077 (RF-VEN-05): busca e período da lista de Pedidos, reusados pelo Gestão (filtro de vendedor fica no Gestor)
