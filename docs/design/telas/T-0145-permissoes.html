@@ -8,8 +8,11 @@
   .phone.perm { height: 720px; }
   .phone.perm .conteudo { flex: none; overflow: visible; }
   .conteudo > * { flex: none; }
-  .marcax { font-weight: 700; font-size: 14px; color: var(--accentInk); letter-spacing: .2px; margin-top: 18px; }
-  .sub-t { font-size: 16px; color: var(--ink2); margin-top: -6px; }
+  /* faixa Azul noite do CabecalhoTela (packages/ui/src/mobile/cabecalho.ts; componentes.md §5.2), barra de status clara sobre ela */
+  .status.claro { background: var(--faixa); color: var(--faixaTitulo); }
+  .fx { background: var(--faixa); padding: 12px 20px 16px; flex: none; display: flex; flex-direction: column; gap: 2px; }
+  .fx .t { font-weight: 700; font-size: 22px; line-height: 28px; color: var(--faixaTitulo); }
+  .fx .s { font-size: 14px; color: var(--faixaSub); }
   .pl { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
   .pl .p { display: flex; align-items: center; gap: 12px; padding: 12px 14px; min-height: 68px; }
   .pl .p + .p { border-top: 1px solid var(--lineSoft); }
@@ -36,7 +39,7 @@
 </head>
 <body>
 <h1 class="prancha">Permissões obrigatórias · cada abertura</h1>
-<p class="prancha">T-0145 · antes do login e da sincronização (R-20261120-052422-alexandre). Ao abrir, o app pede as que faltam direto nas janelas do Android, sem tela antes. A tela "Permissões" só aparece se faltar alguma e mostra só o que falta. Um botão: Permitir; depois de duas recusas, Abrir configurações.</p>
+<p class="prancha">T-0145 · antes do login e da sincronização (R-20261120-052422-alexandre). Ao abrir, o app pede as que faltam direto nas janelas do Android, sem tela antes. A tela "Permissões" só aparece se faltar alguma, mostra só o que falta e leva a faixa Azul noite das telas internas (R-20261120-063354-gerente-projetos). Um botão: Permitir; depois de duas recusas, Abrir configurações.</p>
 
 <div class="board">
 
@@ -45,9 +48,6 @@
     <div class="legenda"><b>1</b>Ao abrir · janela do Android<span>Uma janela por permissão que falta, na ordem: notificações, localização, câmera, fotos.</span></div>
     <div class="phone perm">
       <div class="status"><span>07:02</span><span>4G ▮▮▮ 92%</span></div>
-      <div class="conteudo" style="padding:6px 20px 0;gap:14px">
-        <div class="marcax">Macuxi Campo</div>
-      </div>
       <div class="scrim"></div>
       <div class="nativo marca" style="outline-offset:4px">
         <i data-i="camera" data-t="24" data-c="#34404D"></i>
@@ -65,11 +65,9 @@
   <div class="tela">
     <div class="legenda"><b>2</b>Campo · negou a câmera<span>Só o item que falta.</span></div>
     <div class="phone perm">
-      <div class="status"><span>07:03</span><span>4G ▮▮▮ 92%</span></div>
-      <div class="conteudo" style="padding:6px 20px 0;gap:14px">
-        <div class="marcax">Macuxi Campo</div>
-        <div class="titulo-tela">Permissões</div>
-        <div class="sub-t">Sem ela o app não funciona.</div>
+      <div class="status claro"><span>07:03</span><span>4G ▮▮▮ 92%</span></div>
+      <div class="fx"><span class="t">Permissões</span><span class="s">Sem ela o app não funciona.</span></div>
+      <div class="conteudo" style="padding:16px 20px 0;gap:14px">
         <div class="pl marca">
           <div class="p"><div class="ic"><i data-i="camera" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Câmera</div><div class="m">Fotos do PDV e da gôndola.</div></div></div>
         </div>
@@ -83,11 +81,9 @@
   <div class="tela">
     <div class="legenda"><b>3</b>Localização: passo 2 de 2<span>Android 11 ou mais novo: "o tempo todo" só nas configurações.</span></div>
     <div class="phone perm">
-      <div class="status"><span>07:03</span><span>4G ▮▮▮ 92%</span></div>
-      <div class="conteudo" style="padding:6px 20px 0;gap:14px">
-        <div class="marcax">Macuxi Campo</div>
-        <div class="titulo-tela">Permissões</div>
-        <div class="sub-t">Sem ela o app não funciona.</div>
+      <div class="status claro"><span>07:03</span><span>4G ▮▮▮ 92%</span></div>
+      <div class="fx"><span class="t">Permissões</span><span class="s">Sem ela o app não funciona.</span></div>
+      <div class="conteudo" style="padding:16px 20px 0;gap:14px">
         <div class="pl">
           <div class="p"><div class="ic"><i data-i="pin" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Localização o tempo todo</div><div class="m">Check-in e trajeto no horário de trabalho.</div></div></div>
         </div>
@@ -105,11 +101,9 @@
   <div class="tela">
     <div class="legenda"><b>4</b>Negadas duas vezes<span>O Android não pergunta mais; só pelas configurações.</span></div>
     <div class="phone perm">
-      <div class="status"><span>07:04</span><span>4G ▮▮▮ 91%</span></div>
-      <div class="conteudo" style="padding:6px 20px 0;gap:14px">
-        <div class="marcax">Macuxi Campo</div>
-        <div class="titulo-tela">Permissões</div>
-        <div class="sub-t">Sem elas o app não funciona.</div>
+      <div class="status claro"><span>07:04</span><span>4G ▮▮▮ 91%</span></div>
+      <div class="fx"><span class="t">Permissões</span><span class="s">Sem elas o app não funciona.</span></div>
+      <div class="conteudo" style="padding:16px 20px 0;gap:14px">
         <div class="pl">
           <div class="p marca" style="outline-offset:-2px"><div class="ic"><i data-i="camera" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Câmera</div><div class="m">Em Permissões › Câmera, marque Permitir.</div></div><span class="st neg">Negada</span></div>
           <div class="p"><div class="ic"><i data-i="galeria" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Fotos e galeria</div><div class="m">Em Permissões › Fotos e vídeos, marque Permitir.</div></div><span class="st neg">Negada</span></div>
@@ -124,11 +118,9 @@
   <div class="tela">
     <div class="legenda"><b>5</b>Gestão · negou notificações<span>Só notificações.</span></div>
     <div class="phone perm" style="height:500px">
-      <div class="status"><span>07:10</span><span>4G ▮▮▮ 88%</span></div>
-      <div class="conteudo" style="padding:6px 20px 0;gap:14px">
-        <div class="marcax">Macuxi Gestão</div>
-        <div class="titulo-tela">Permissões</div>
-        <div class="sub-t">Sem ela o app não funciona.</div>
+      <div class="status claro"><span>07:10</span><span>4G ▮▮▮ 88%</span></div>
+      <div class="fx"><span class="t">Permissões</span><span class="s">Sem ela o app não funciona.</span></div>
+      <div class="conteudo" style="padding:16px 20px 0;gap:14px">
         <div class="pl">
           <div class="p"><div class="ic"><i data-i="sino" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Notificações</div><div class="m">Pedidos para aprovar e recados.</div></div></div>
         </div>

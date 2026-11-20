@@ -4,7 +4,7 @@
   --ground: #F8F6F1; --surface: #FFFFFF; --ink: #16202A; --ink2: #4A5562; --ink3: #5B6673;
   --line: #DFE2E6; --lineSoft: #ECEEF1; --lineStrong: #C9CED5;
   --accent: #1E3350; --accentInk: #1E3350; --accentSoft: #DFE2E6; --accentTint: #DFE2E6; --grafico: #C2540A; --graficoEscuro: #F59A52;
-  --faixa: #1E3350; --faixaSub: #C9CED5;
+  --faixa: #1E3350; --faixaTitulo: #FFFFFF; --faixaSub: #C9CED5;
   --success: #1D6B4F; --successBg: #E2F1EA; --warning: #7A4F00; --warningInk: #5C3B00; --warningBg: #FFF1D6;
   --danger: #A8261B; --dangerBg: #FDE8E6; --neutralBg: #ECEEF1; --neutralInk: #34404D;
   --scrim: rgba(15, 20, 25, 0.45);

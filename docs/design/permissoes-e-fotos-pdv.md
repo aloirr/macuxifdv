@@ -18,8 +18,13 @@
 - Todas concedidas: o app segue (login, ou o Início se já entrou).
 
 ### 1.2 Tela "Permissões": só se faltar alguma
-- Fundo `ground`, sem barra de abas. Marca 14/700 `accentInk` ("Macuxi Campo" / "Macuxi Gestão"), título **"Permissões"**
-  (22/700), subtítulo 16 `ink2`: **"Sem ela o app não funciona."** com 1 item na lista; **"Sem elas o app não funciona."** com 2 ou mais.
+- **Faixa Azul noite no topo, igual às telas internas** (Alexandre, 20/11/2026 às 06h33, R-20261120-063354-gerente-projetos:
+  "Print: faixa azul é padrão precisa fer", leia "precisa ter"): `CabecalhoTela` (`<Screen cabecalho>`, `componentes.md` §5.2),
+  com as medidas de `CABECALHO` (`cabecalho.ts`). Título **"Permissões"** em `faixaTitulo` (22/28, 700); subtítulo da faixa,
+  abaixo do título, em `faixaSub` (14): **"Sem ela o app não funciona."** com 1 item na lista; **"Sem elas o app não funciona."**
+  com 2 ou mais. Sem a linha "Macuxi Campo"/"Macuxi Gestão": a faixa das telas internas não leva marca (manual da marca §4).
+  Barra de status clara sobre a faixa (`estiloBarraDeStatus(true)`). Sem voltar e sem ação à direita.
+- Corpo no `ground`, 16 abaixo da faixa (`respiroCorpo`), sem barra de abas.
 - Lista (cartão branco, linhas de 68 dp) **só com as que faltam**, na ordem da tabela: ícone 20 num círculo `neutralBg` de 40 ·
   nome 16/600 · motivo 14 `ink2`. Situação à direita só na negada: **Negada** 14/600 (`danger`); sem "Falta" nem "Permitida".
 
