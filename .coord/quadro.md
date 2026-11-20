@@ -4,7 +4,7 @@
 
 > **v1.0.16 em andamento** (R-20261119-181423 "Acelere" e R-20261119-192029: P1 a P7 = A). Horários de Manaus.
 > - **Escopo:** [T-0187](tarefas/T-0187.md) (supervisor em campo no Gestão, desenho em `docs/desenho/T-0187.md`); o resto da [T-0186](tarefas/T-0186.md) (PDF na ficha e tabela Carteira do Gestão por rota online); o resto do trajeto no Gestão (T-0156); a investigação do OUTBOX_PARADA (só leitura; reprocessar exige o "sim" do dono do produto).
-> - **ADR 0063** reservada ao engenheiro-software (supervisor rastreado no Gestão; revisa a 0061).
+> - **ADR 0063** (supervisor rastreado no Gestão; revisa a 0061) e **ADR 0064** (dependência nativa de PDF no app) reservadas ao engenheiro-software.
 > - **Doc 03 (gerente-projetos):** RN-VEN-43 a 46 para a tabela ajustada pelo prazo, e número novo para os cards de Pedidos (T-0170), pela proposta de R-20261117-201110, ponto 3.
 > - **Sessões:** S1 engenheiro-software, S2 engenheiro-apps, S3 modulo-core, S4 modulo-vendedor, S5 modulo-pesquisa, S6 modulo-gestor e S7 testes. Banco sem migração (desenho da T-0187, §5).
 
