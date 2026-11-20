@@ -9,7 +9,7 @@
 import type { FiltrosInterpretados, Referencia } from '../contracts';
 import { expandirAplicacao } from './aplicacao';
 import type { ParametrosCatalogo } from './parametros';
-import { chaveDeTermo, expandirSinonimos, semAcento, tokensDeBusca, tokensDeBuscaSemMemo, type SinonimoDoTenant } from './texto';
+import { ANO_DA_CONSULTA_RE, chaveDeTermo, expandirSinonimos, semAcento, tokensDeBusca, tokensDeBuscaSemMemo, type SinonimoDoTenant } from './texto';
 
 /** Documento da busca: cadastro do Core + preço/estoque já resolvidos para o usuário e sinais de venda. */
 export interface DocBusca {
@@ -79,6 +79,11 @@ export function marcasDasReferencias(referencias: readonly { marca_nome?: string
   return [...new Set(referencias.map((r) => r.marca_nome?.trim() ?? '').filter(Boolean))].join(' ');
 }
 
+/** RN-CAT-09: chaves de comparação da marca própria e das marcas concorrentes das referências (sem repetir nem vazias). Uma regra para o filtro e o índice. */
+export function chavesDeMarcaDoProduto(marca: string, referencias: readonly { marca_nome?: string | null | undefined }[] = []): string[] {
+  return [...new Set([marca, ...referencias.map((r) => r.marca_nome ?? '')].map(chaveDeTermo).filter(Boolean))];
+}
+
 /** RN-CAT-08/09: códigos compactos do produto no índice (SKU, código ERP e códigos das referências), sem repetir nem vazios. Uma função para o índice do app e o da API. */
 export function codigosCompactosDoProduto(sku: string, externalId: string | null | undefined, codigosReferencias: readonly string[]): string[] {
   return [...new Set([codigoCompacto(sku), codigoCompacto(externalId ?? ''), ...codigosReferencias.map((c) => codigoCompacto(c))].filter(Boolean))];
@@ -89,7 +94,6 @@ export const TOKENS_DO_PRODUTO = new WeakMap<object, TokensDoDoc>();
 
 /** `aplicacao` é o padrão de `peso_aplicacao` (RN-CAT-12); o ranking usa o do tenant. */
 const PESO_CAMPO = { nome: 1, codigo: 1, marca: 0.6, categoria: 0.4, atributos: 0.3, aplicacao: 0.5 } as const;
-const ANO_RE = /^(19|20)\d{2}$/;
 /** Separador de trechos da aplicação (igual ao do "Serve em"). */
 const SEPARADOR_TRECHO = /[;|•\r\n]/;
 /** RN-CAT-09: tamanho do código (já compactado) para casar por n-grama. */
@@ -393,7 +397,7 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
   const aplicacao = doc.aplicacao ?? '';
   const pesoAplicacao = opcoes.pesoAplicacao ?? PESO_CAMPO.aplicacao;
   const anoAtual = opcoes.anoAtual ?? 0;
-  const temAnoNaConsulta = grupos.some((g) => g.some((alt) => ANO_RE.test(alt)));
+  const temAnoNaConsulta = grupos.some((g) => g.some((alt) => ANO_DA_CONSULTA_RE.test(alt)));
   const outros = grupos.map((g) => {
     let m = 0;
     for (const alt of g) for (const c of campos) m = Math.max(m, melhorNivel(alt, c.termos) * c.peso);
@@ -422,7 +426,7 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
         for (const alt of grupo) melhorAplicacao = Math.max(melhorAplicacao, melhorNivelAplicacao(alt, termosApl) * pesoAplicacao);
         melhor = Math.max(melhor, melhorAplicacao);
         // RN-CAT-12: ano da consulta que a aplicação (com anos) não cobre tira o produto, salvo se casar em outro campo
-        const anosDoGrupo = grupo.filter((alt) => ANO_RE.test(alt));
+        const anosDoGrupo = grupo.filter((alt) => ANO_DA_CONSULTA_RE.test(alt));
         if (exigirAno && melhorOutros === 0 && anosDoGrupo.length > 0 && !anosDoGrupo.some((a) => anosApl.includes(Number(a)))) return null;
       }
       if (melhor > 0) {
@@ -446,7 +450,7 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
   }
   // RN-CAT-12 (T-0084-A4): com ano na consulta, veículo/modelo e ano têm de casar no MESMO trecho (separado por ";")
   // quais grupos cada trecho cobre: calculado uma vez (antes era refeito para cada trecho × cada outro trecho)
-  const soAplicacao = grupos.map((g, gi) => outros[gi] === 0 && !g.some((alt) => ANO_RE.test(alt)));
+  const soAplicacao = grupos.map((g, gi) => outros[gi] === 0 && !g.some((alt) => ANO_DA_CONSULTA_RE.test(alt)));
   const casa = trechos.map((t) => grupos.map((g, gi) => soAplicacao[gi]! && g.some((alt) => melhorNivelAplicacao(alt, t.termos) > 0)));
   const emAlgumTrecho = grupos.map((_, gi) => casa.some((c) => c[gi]));
   let melhorResultado: PontuacaoTextual | null = null;
@@ -521,8 +525,7 @@ export function casaComCodigo(d: Pick<DocBusca, 'ean' | 'sku'> & { referencias?:
 
 /** Filtros estruturados (RN-CAT-01): marca, categoria, faixa de preço e estoque. O código é tratado à parte. */
 export function casaComFiltros(d: Pick<DocBusca, 'marca' | 'categoria' | 'preco_cents' | 'estoque'> & { referencias?: DocBusca['referencias'] | undefined }, f: FiltrosInterpretados): boolean {
-  // R-20261120-101755 (RN-CAT-09): a marca da frase casa a marca própria OU a marca concorrente de uma referência cruzada
-  if (f.brand !== null && !mesmaChave(d.marca, f.brand) && !(d.referencias ?? []).some((r) => r.marca_nome != null && mesmaChave(r.marca_nome, f.brand!))) return false;
+  if (f.brand !== null && !chavesDeMarcaDoProduto(d.marca, d.referencias).includes(chaveDeTermo(f.brand))) return false;
   if (f.line !== null && !mesmaChave(d.categoria, f.line)) return false;
   if (f.min_price_cents !== null || f.max_price_cents !== null) {
     if (d.preco_cents === null) return false;

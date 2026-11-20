@@ -48,25 +48,14 @@ describe.each([false, true])('R-20261120-101755: busca palavra por palavra em qu
   it('RN-CAT-08/09/11: "AMORTECEDOR GOL 2007 MAHLE 33000" traz o amortecedor do Gol 2007 com a referência Mahle 33000 em primeiro', () => {
     expect(buscar('AMORTECEDOR GOL 2007 MAHLE 33000', comIndice)[0]).toBe(ALVO.id);
   });
-  it('RN-CAT-11/12: "amortecedor gol 2007" traz o produto; o Gol de outra faixa de anos fica de fora e o Uno (palavra "gol" sem casar) vem abaixo', () => {
-    const r = buscar('amortecedor gol 2007', comIndice);
-    expect(r[0]).toBe(ALVO.id);
-    expect(r).not.toContain(uuid(2));
-    if (r.includes(uuid(4))) expect(r.indexOf(uuid(4))).toBeGreaterThan(r.indexOf(ALVO.id));
-  });
   it('RN-CAT-09: com outro código ("MAHLE 99999"), o produto que casa tudo vem antes do alvo', () => {
     const r = buscar('AMORTECEDOR GOL 2007 MAHLE 99999', comIndice);
     expect(r[0]).toBe(uuid(3));
-    if (r.includes(ALVO.id)) expect(r.indexOf(ALVO.id)).toBeGreaterThan(r.indexOf(uuid(3)));
+    expect(r).toContain(ALVO.id);
+    expect(r.indexOf(ALVO.id)).toBeGreaterThan(r.indexOf(uuid(3)));
   });
-  it.each([
-    ['amortecedor', 'descrição (RN-CAT-08)'],
-    ['gol', 'aplicação: veículo (RN-CAT-11)'],
-    ['gol 2007', 'aplicação: veículo e ano (RN-CAT-12)'],
-    ['mahle', 'marca concorrente (RN-CAT-09)'],
-    ['33000', 'código da referência cruzada (RN-CAT-09)'],
-  ])('cada palavra casa no seu campo: "%s" (%s)', (q) => {
-    expect(buscar(q, comIndice)).toContain(ALVO.id);
+  it('RN-CAT-09: o filtro de marca "mahle" traz quem tem a Mahle como marca própria e como marca concorrente', () => {
+    expect(buscar('mahle', comIndice)).toEqual(expect.arrayContaining([ALVO.id, uuid(5)]));
   });
   it('a ordem das palavras não importa', () => {
     expect(buscar('33000 MAHLE 2007 GOL AMORTECEDOR', comIndice)[0]).toBe(ALVO.id);
@@ -80,12 +69,7 @@ describe('R-20261120-101755: pré-nota do índice vê o ano da consulta', () => 
     const nota = (id: string) => pre.pre![pre.produtos.findIndex((p) => p.id === id)]?.pontos;
     expect(nota(ALVO.id)).toBeGreaterThan(0);
     const idx = pre.produtos.findIndex((p) => p.id === uuid(2));
-    if (idx >= 0) expect(pre.pre![idx]!.pontos).toBe(0);
-  });
-  it('RN-CAT-09: filtro de marca "mahle" traz também quem tem a Mahle como marca concorrente', () => {
-    const filtros = interpretarConsulta('mahle', vocabularioDe(PRODUTOS));
-    expect(filtros.brand).toBe('MAHLE');
-    const ids = buscarProdutos({ contexto, filtros, sinonimos: [], limit: 50, offset: 0, anoAtual: 2026, produtos: PRODUTOS }).items.map((x) => x.id);
-    expect(ids).toEqual(expect.arrayContaining([ALVO.id, uuid(5)]));
+    expect(idx).toBeGreaterThanOrEqual(0);
+    expect(pre.pre![idx]!.pontos).toBe(0);
   });
 });

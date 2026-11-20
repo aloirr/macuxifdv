@@ -72,6 +72,7 @@ const CONSULTAS = [
   'filtro ar tecfil',
   'amortecedor cofap traseiro',
   'amortecedor dianteiro gol 2012',
+  'amortecedor gol 2007 mahle 33000',
   'correia dentada civic 2014',
   'vela ignicao ngk',
   'bateria 60 ah moura',
