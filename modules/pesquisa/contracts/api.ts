@@ -129,6 +129,8 @@ export const RespostaListada = z
     versao_id: Uuid,
     versao_numero: z.number().int().positive(),
     usuario_id: Uuid,
+    /** Nome de quem respondeu ("Respondida por", T-0187): vem do Core; `null` quando a consulta não está disponível. */
+    usuario_nome: z.string().nullable().default(null),
     equipe_id: Uuid.nullable(),
     cliente_id: Uuid.nullable(),
     visita_id: Uuid.nullable(),
