@@ -1,7 +1,7 @@
 /**
  * Leitura do trajeto do dia (T-0156; desenho `tracking.md` §5.2 e §7; ADR 0061). RN-CORE-13 e RN-CORE-04.
  * - `GET /v1/core/trajeto?usuario_id&data`: exige `usuario_id` e `trajeto.ver_equipe`, só no escopo (fora dele = 404, igual a um que
- *   não existe; vale também para o próprio, pois o vendedor não vê trajeto); até 90 dias atrás.
+ *   não existe; o próprio usuário também dá 404, para qualquer perfil); até 90 dias atrás.
  * - `core.trajeto_do_dia@1` (provedor): o Gestor lê os pontos da equipe; o escopo e a permissão são conferidos AQUI, e id fora dele some.
  * O analista não vê pontos (não tem `trajeto.ver_equipe` de fábrica) e nenhuma rota exporta pontos. Nenhuma coordenada vai para log.
  */
@@ -48,6 +48,8 @@ export async function trajetoDosUsuarios(db: ClienteBanco, usuarioIds: readonly 
   });
 }
 
+const usuarioNaoEncontrado = () => new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado. Atualize a lista e tente de novo.');
+
 export const rotasDeTrajeto: RotaModulo[] = [
   {
     metodo: 'GET',
@@ -58,15 +60,17 @@ export const rotasDeTrajeto: RotaModulo[] = [
     executar: async (ctx): Promise<TrajetoResposta> => {
       const q = ctx.query as TrajetoQuery;
       const alvo = q.usuario_id;
+      // RN-CORE-13: o próprio trajeto nunca aparece, para qualquer perfil (404 antes do 403, igual a um usuário que não existe)
+      if (alvo === ctx.usuario.id) throw usuarioNaoEncontrado();
       if (!pode(ctx.usuario.perfis, 'trajeto.ver_equipe')) {
         throw new ErroHttpModulo(403, 'SEM_PERMISSAO', 'Você não pode ver o trajeto da equipe. Fale com o administrador da empresa.');
       }
       exigirDataNaRetencao(q.data, ctx.agora(), ctx.fuso());
       const visiveis = await ctx.usuariosVisiveis();
-      if (visiveis !== 'tenant' && !visiveis.has(alvo)) throw new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado. Atualize a lista e tente de novo.');
+      if (visiveis !== 'tenant' && !visiveis.has(alvo)) throw usuarioNaoEncontrado();
       const fuso = ctx.fuso();
       const [usuario] = await ctx.comTenant((db) => trajetoDosUsuarios(db, [alvo], q.data, fuso));
-      if (!usuario) throw new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado. Atualize a lista e tente de novo.');
+      if (!usuario) throw usuarioNaoEncontrado();
       return { data: q.data, usuario };
     },
   },
@@ -77,6 +81,7 @@ export const consultaTrajetoDoDia = implementarConsulta(CONSULTA_TRAJETO_DO_DIA,
   if (!pode(ctx.usuario.perfis, 'trajeto.ver_equipe')) return { data: entrada.data, usuarios: [] };
   exigirDataNaRetencao(entrada.data, ctx.agora(), ctx.fuso());
   const visiveis = await usuariosVisiveisNaTransacao(ctx.usuario, ctx.db);
-  const pedidos = visiveis === 'tenant' ? entrada.usuario_ids : entrada.usuario_ids.filter((id) => visiveis.has(id));
+  const doEscopo = visiveis === 'tenant' ? entrada.usuario_ids : entrada.usuario_ids.filter((id) => visiveis.has(id));
+  const pedidos = doEscopo.filter((id) => id !== ctx.usuario.id); // RN-CORE-13: o id da sessão sai
   return { data: entrada.data, usuarios: await trajetoDosUsuarios(ctx.db, pedidos, entrada.data, ctx.fuso()) };
 });
