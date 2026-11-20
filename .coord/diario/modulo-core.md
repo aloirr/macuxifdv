@@ -187,3 +187,4 @@
 2026-11-19 — T-0186 — #513: guardaArquivo do documento (decidirAbrirDocumento no domain), creditoDisponivel do Vendedor, tabelas do kit (@macuxi/ui), Badge linhas={2}; merges do kit, do vendedor e do arquivos
 2026-11-19 — T-0187 — fase 1: portão do rastreamento do supervisor (APP_RASTREADO_DO_CARGO), 404 do próprio trajeto, retentáveis só do SDK; fase 2: ação visita.registrar_gestao (manifesto, push, BKO), Rota e rodapé da ficha no Gestão, BKO Rotas com supervisor (carteira da equipe)
 2026-11-20 — T-0187 — RD-2432 a RD-2435
+2026-11-20 — T-0187 — 404 do próprio trajeto antes do 403

@@ -60,12 +60,12 @@ export const rotasDeTrajeto: RotaModulo[] = [
     executar: async (ctx): Promise<TrajetoResposta> => {
       const q = ctx.query as TrajetoQuery;
       const alvo = q.usuario_id;
+      // RN-CORE-13: o próprio trajeto nunca aparece, para qualquer perfil (404 antes do 403, igual a um usuário que não existe)
+      if (alvo === ctx.usuario.id) throw usuarioNaoEncontrado();
       if (!pode(ctx.usuario.perfis, 'trajeto.ver_equipe')) {
         throw new ErroHttpModulo(403, 'SEM_PERMISSAO', 'Você não pode ver o trajeto da equipe. Fale com o administrador da empresa.');
       }
       exigirDataNaRetencao(q.data, ctx.agora(), ctx.fuso());
-      // RN-CORE-13: o próprio trajeto nunca aparece (igual a um usuário que não existe)
-      if (alvo === ctx.usuario.id) throw usuarioNaoEncontrado();
       const visiveis = await ctx.usuariosVisiveis();
       if (visiveis !== 'tenant' && !visiveis.has(alvo)) throw usuarioNaoEncontrado();
       const fuso = ctx.fuso();
