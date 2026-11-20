@@ -15,7 +15,7 @@
 - Localização: primeiro a janela "Durante o uso"; concedida, o app pede "o tempo todo" (Android 11+: o sistema abre a página
   de localização do app, onde se marca **Permitir o tempo todo**).
 - Permissão que o Android não pergunta mais (2 recusas) não abre janela: vai direto para a tela.
-- Todas concedidas: o app segue (login, ou o Início se já entrou). A tela não aparece.
+- Todas concedidas: o app segue (login, ou o Início se já entrou).
 
 ### 1.2 Tela "Permissões": só se faltar alguma
 - Fundo `ground`, sem barra de abas. Marca 14/700 `accentInk` ("Macuxi Campo" / "Macuxi Gestão"), título **"Permissões"**
@@ -36,7 +36,7 @@
   "2 · Em **Permissões › Localização**, marque **Permitir o tempo todo**."
 - **Negada**: o motivo da linha vira a ação: "Em Permissões › Câmera, marque Permitir."
 - Concedida, a linha sai da lista; lista vazia, o app segue sozinho. Volta das configurações: a tela se atualiza.
-- Sem link na tela (saiu "Como usamos a localização"). Voltar do Android fecha o app; não há "Agora não".
+- Voltar do Android fecha o app; não há "Agora não".
 
 ## 2. Fotos do PDV na ficha do cliente
 - Linha de ações: **Ligar · WhatsApp · Mapa · Foto do PDV** (4 botões iguais de 64 dp, ícone 20 + rótulo 12/600; TalkBack
