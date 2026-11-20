@@ -144,36 +144,24 @@ Ordem: **Alertas (§0.1, só se houver) · No pedido (compacto) · busca · resu
   selo. Na busca pelo número, o `Nº 000013` destacado entra no lugar da hora. No Gestão, o vendedor entra no lugar da hora. O
   motivo da recusa fica no detalhe, na área Alertas (RN-VEN-42). O selo por linha **continua**.
 
-### 4.1 Sinal, servidor e fila na tela Pedidos (RD-0076, R-20261110-104300; 10/11)
-Regra: "uma informação, um lugar" e "nenhum aviso solto" (RN-VEN-42). A lista não tem área Alertas (os Alertas são do pedido);
-o estado da lista fica num **único selo no cabeçalho**, à direita do título, no lugar do "↻ 06:30" da imagem T-0153.
-Componente: **`SeloAtualizacao`** (`@macuxi/ui/mobile`, `sincronizacao.tsx`; textos em `desenhoSeloAtualizacao`, `atualizacao.ts`).
+### 4.1 Sinal, servidor e fila na tela Pedidos (RD-0076, R-20261110-104300; 10/11; R-20261120-062537)
+Regra: "uma informação, um lugar" e "nenhum aviso solto" (RN-VEN-42). A lista não tem área Alertas (os Alertas são do pedido)
+e não leva selo de estado no cabeçalho: a atualização da lista não mostra mensagem (`componentes.md` §5, listas).
 
-| Situação | Selo (texto visível) | Tom | Toque | Leitor de tela |
-|---|---|---|---|---|
-| Normal | ↻ **06:30** (nunca sincronizou: ↻ **Sincronizar**) | neutro (borda `line`, fundo branco) | Sincronizar (= puxar) | "Atualizado às 06:30" |
-| Puxando / consultando o período no servidor | ↻ **Atualizando…** | neutro | nada | "Atualizando a lista" |
-| Modo sem sinal ligado ou sem rede | ⚠ **Sem sinal** | atenção (`warningBg`/`warningInk`) | modo ligado: abre o Perfil; sem rede: tenta sincronizar | "Sem sinal. A lista mostra o que está no aparelho, atualizado às 06:30." |
-| Sincronização ou consulta do período falhou | ⚠ **Sem resposta** | atenção | tenta de novo (puxar + nova consulta) | "Sem resposta do servidor. A lista mostra o que está no aparelho, atualizado às 06:30." |
-
-Prioridade: Sem sinal > Atualizando… > Sem resposta > hora. Pílula de 32 dp, alvo de 44 dp (`hitSlop`), ícone 14 + texto 13
-tabular; em atenção o texto é semibold.
-
-**Saem da tela** (cada um já está no selo do cabeçalho ou na linha do pedido):
+**Saem da tela:**
 - faixa "1 pedido na fila do aparelho. Enviando automaticamente…" (a fila é o selo **Na fila** da linha; o Início tem "n na fila");
-- faixa "Sem sinal: mostrando só o que o aparelho tem deste período." → selo **Sem sinal**;
-- faixa "Sem resposta do servidor. Mostrando o que está no aparelho." → selo **Sem resposta**;
-- texto "Buscando o restante no servidor…" → selo **Atualizando…**;
-- o rodapé inteiro: "Atualizado às hh:mm · puxe para sincronizar" (a hora está no selo), "Modo sem sinal ligado · desligue no
-  Perfil" (o toque no selo abre o Perfil) e o erro do motor em vermelho (selo **Sem resposta**).
+- faixa "Sem sinal: mostrando só o que o aparelho tem deste período.";
+- faixa "Sem resposta do servidor. Mostrando o que está no aparelho.";
+- texto "Buscando o restante no servidor…";
+- o rodapé inteiro: "Atualizado às hh:mm · puxe para sincronizar", "Modo sem sinal ligado · desligue no Perfil" e o erro do
+  motor em vermelho.
 
 **Ficam:**
 - o cartão vazio (`textoDoVazio`), quando o período está todo fora dos 90 dias e não há resposta: é o conteúdo da lista, não um
   aviso a mais;
 - o limite de 1.000 resultados entra na linha do total, sem frase solta: **"Total R$ 8.420 · 1.000 mais recentes"** (só quando a
   consulta foi cortada; para ver os demais, o vendedor escolhe um período menor no filtro).
-- Busca: placeholder **"Cliente ou nº"** no Campo e no Gestão (a busca procura nome fantasia, razão social e nº; não procura
-  código). A imagem T-0153 foi corrigida (10/11 ~11h40), junto com os chips sem número (RD-0077) e a frase da recusa (RD-0071).
+- Busca: fica dentro do filtro, como grupo **Cliente** da folha "Filtrar" (`filtro-padrao-campo/spec.md` §5).
 
 ## 5. Ajustes do teste da v1.0.4 (T-0165, v1.0.5)
 > 2026-11-12 · designer-ux. **Versão final, aprovada pelo dono do produto** em R-20261112-031456 ("aprovo T-0165", com as

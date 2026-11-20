@@ -24,7 +24,7 @@ que é a fonte da verdade (aqui não se repete a tabela). Este guia só diz qual
 
 - **App (`packages/ui/src/mobile`):** `fonte` dá só o peso, sem `fontFamily`: `body` (texto) · `medium` (rótulo, meta) ·
   `semibold` (ênfase, rótulo de campo, botão, valor, aba ativa) · `bold` (título) · `mono` (código). Estilos de texto `type`,
-  por papel: `h1` número grande · `h1Small` título de tela, folha e diálogo · `saudacao` "Bom dia, Lucas" no Início do Campo
+  por papel: `h1` número grande · `h1Small` título de tela, folha e diálogo · `saudacao` "Bom dia, Lucas." no Início do Campo
   e do Gestão (22/700, o mesmo de `h1Small`) · `h2` título de seção · `number` valor em destaque · `body` texto ·
   `bodyStrong` ênfase e título de linha · `sub` secundário · `small` legenda · `label` rótulo pequeno · `rotulo` rótulo em
   maiúsculas (quem precisa de largura ou linha própria usa `{ ...t.rotulo, <só o que muda> }`). Tamanhos: `ESCALA_FONTE`.
@@ -175,6 +175,7 @@ de cor (altura, raio, fonte e regras iguais). O Azul noite some no grafite (1,29
 - `EtiquetaFiltro`: pílula `accentSoft` de 32 dp ("Ontem ✕") num alvo de 44 dp; tocar remove o filtro.
 - `FolhaPeriodo`: atalhos (aplica e fecha), "Escolher dia, mês ou ano ›" com Dia/Mês/Ano e "Limpar" (volta ao padrão).
   Comportamento puro em `eventoDaFolha` (`periodo.ts`). Ícones novos: `filtro`, `abaixo` (seta do campo), `subir` (Leve mais).
+- **Regra geral do Campo:** ver `filtro-padrao-campo/spec.md` §0.
 
 ### 4.3 Regras da senha (T-0093, RN-CORE-32; spec `docs/design/portal-entrar.md` §5)
 - `RegrasDaSenha` (web e mobile, mesma API): "A senha precisa ter" + 8 caracteres ou mais · Uma letra · Um número · Um caractere
@@ -331,10 +332,11 @@ fio `lineSoft` entre as linhas, linhas de no mínimo 48 dp. Só tokens do kit.
   - erro: `Banner tone="danger"` com o que aconteceu e o que fazer ("Não deu para enviar. O pedido está salvo e vai sozinho quando
     houver sinal.");
   - sem sinal: `Banner` âmbar (`wifiOff`) e `SyncStamp`; nada some da tela por falta de sinal;
-  - **listas** (RD-0076, 10/11; regra "nenhum aviso solto", RN-VEN-42): sinal, servidor e hora da última sincronização ficam
-    num só **`SeloAtualizacao`** no cabeçalho, à direita do título ("↻ 06:30", "Atualizando…", "Sem sinal", "Sem resposta"; textos
-    em `desenhoSeloAtualizacao`). Sem faixa de sinal ou de fila no meio da lista e sem rodapé "Atualizado às…". A fila é o selo
-    "Na fila" da linha. Primeira tela: Pedidos (`docs/design/pedido-v4.md` §4.1);
+  - **listas** (RD-0076, 10/11; regra "nenhum aviso solto", RN-VEN-42; v1.0.17, R-20261120-055304 item 6): **no Campo, a hora
+    da sincronização fica só no Início, junto do botão Sincronizar**. Sem faixa de sinal ou de fila no meio da lista e sem
+    rodapé "Atualizado às…". A fila é o selo "Na fila" da linha;
+  - no app, o selo não mostra "Atualizando…" nem "Sem resposta" (R-20261120-062537). No Gestão, o
+    `SeloAtualizacao` com a hora segue à direita do título (textos em `desenhoSeloAtualizacao`);
   - a tela quebrou ao desenhar (erro de render, `ErrorBoundary` do shell): `TelaDeErro` com os textos de `TEXTOS_TELA_DE_ERRO`
     ("Não foi possível mostrar esta tela" · Tentar de novo · Ir para o Início · Enviar o detalhe ao suporte). Nunca
     `EstadoVazio` para erro. Spec: `docs/design/tela-de-erro.md` (T-0140).
@@ -354,14 +356,17 @@ fio `lineSoft` entre as linhas, linhas de no mínimo 48 dp. Só tokens do kit.
 - **Faixa:** Azul noite, começa na barra de status (soma a área segura) e fica parada em cima; o corpo rola embaixo, no Pérola,
   com os cartões brancos. Sem logo.
 - **Textos:** título branco, 22/28 em 700; subtítulo de uma linha em `#C9CED5`, 14. O subtítulo fica abaixo do título ou
-  acima dele (`posicaoSubtitulo="acima"`, como a data acima de "Bom dia, Lucas" no Início).
+  acima dele (`posicaoSubtitulo="acima"`, como a data acima de "Bom dia, Lucas." no Início).
 - **Voltar:** dentro da faixa ("‹ Pedidos"), em `#C9CED5`, com as regras do `BackLink` (§6.1).
-- **Direita:** uma ação curta de 48 dp (ícone, `SeloAtualizacao`). O botão principal fica no corpo, nunca na faixa. Nada
-  grafite na faixa, nem o botão Sincronizar.
+- **Direita:** uma ação curta de 48 dp (ícone) e, por último, o sino (`SinoNotificacoes`, §5.4). O botão principal fica no
+  corpo, nunca na faixa. Nada grafite na faixa, nem o botão Sincronizar. No Campo, sem filtro (§4.2) na faixa.
+- **Altura única (v1.0.17, item 5):** a do painel do Início, `ALTURA_CABECALHO` = 100 dp sem a área segura (12 + foto 72 + 16);
+  o `CabecalhoTela` usa `alturaMinimaCabecalho(insets.top)` como altura mínima e centraliza o conteúdo na vertical. Só cresce
+  quando o voltar e um título de 2 linhas não cabem.
 - **Uso:**
   ```tsx
   <Screen cabecalho={{ titulo: 'Clientes', subtitulo: '12 na rota de hoje' }}>…</Screen>
-  <Screen cabecalho={{ titulo: 'Bom dia, Lucas', subtitulo: 'Quinta, 12 de novembro', posicaoSubtitulo: 'acima' }}>…</Screen>
+  <Screen cabecalho={{ titulo: 'Bom dia, Lucas.', subtitulo: 'Quinta, 12 de novembro', posicaoSubtitulo: 'acima' }}>…</Screen>
   ```
   O título da faixa substitui o título que a tela desenhava dentro do `Screen`: não repita.
 - **Barra de status:** ícones claros com a faixa e escuros sem ela (`estiloBarraDeStatus`). O shell aplica.
@@ -389,6 +394,22 @@ Spec das telas: `docs/design/telas/portal-config-enxuto.md` §0. Simulação: `t
 com texto `#5B6673` (5,03:1)**, sem transparência. Sai o `#8B96A3` com texto branco (3,00:1, abaixo de 4,5:1) do `Button`
 web (`--color-disabled`). A troca no kit (`packages/ui/src/web/ui.tsx`) entra no próximo lote do designer-ux, depois do
 "aprovo" do Alexandre que o design-de-marca leva.
+
+### 5.4 Sino de notificações (`SinoNotificacoes`; v1.0.17, R-20261120-055304 item 2; `sino.ts` puro e `sino-rn.tsx`)
+- **Um sino só, em todas as telas, inclusive o Início:** o desenho que a Rota já mostra. O shell passa `total` (recados não lidos +
+  tarefas novas) e `onPress` (abre o balão) e o entrega ao `CabecalhoTela` pelo `ProvedorSinoCabecalho`.
+- **Medidas (`SINO`):** botão e alvo de toque 48 × 48 dp, raio 12 (`radius.md`), borda 1; ícone `bell` 22.
+- **Cores (`coresDoSino`):** na faixa (padrão, `sobreFaixa`), botão vazado com borda `faixaTrilho`, ícone `faixaTitulo`, bolinha
+  `graficoEscuro` (Sol claro) com aro `faixa`; fora da faixa, botão `surface` com borda `line`, ícone `ink`, bolinha `grafico`
+  com aro `ground`.
+- **Bolinha (`temNovoNoSino`):** 12 dp com aro de 2, a 10 dp do canto de cima à direita, só quando há novo; **sem número**
+  (decisão de 14/11/2026).
+- **Posição:** último item da linha do título, borda direita a 20 dp da tela, centralizado na altura da faixa.
+- **Leitura (`leituraDoSino`):** "Recados e tarefas" e "Recados e tarefas, há novos".
+
+### 5.5 Frase motivacional do Início (`type.fraseInicio`; v1.0.17, item 1)
+- Token `colors.faixaFrase` = Sol claro `#F59A52` (`colors.accentLight`, 5,85:1 na faixa) e estilo `type.fraseInicio`
+  (14/700, itálico, até `LINHAS_FRASE_INICIO` = 2 linhas). Aprovado em 20/11/2026 (R-20261120-062210).
 
 ## 6. Movimento (sempre com "reduzir movimento")
 | Movimento | Token | Duração | Com "reduzir movimento" | Quem liga |

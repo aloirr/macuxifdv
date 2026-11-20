@@ -32,8 +32,8 @@ Sem animação própria: a largura troca a cada atualização do percentual (nad
 | com sinal | `sync` | **Catálogo 63%** |
 | sem sinal | `wifiOff` | **Catálogo 63% · parado** |
 
-- Sem sinal, a palavra é "parado" e não "sem sinal": a causa já está no botão "Sem sinal" do Início e no selo do cabeçalho das
-  listas (uma informação, um lugar). O ícone e o TalkBack dão a causa.
+- Sem sinal, a palavra é "parado" e não "sem sinal": a causa já está no botão "Sem sinal" do Início (uma informação, um
+  lugar). O ícone e o TalkBack dão a causa.
 - **Não é aviso** (RN-VEN-42): sem cor de alerta, sem fundo âmbar, sem "!" e sem entrar nos Alertas.
 - **Fora da linha** (R-20261110-192153): "carregando em segundo plano", "baixando", "aguarde", "você já pode usar o app",
   contagem de registros, tamanho do arquivo e hora prevista.

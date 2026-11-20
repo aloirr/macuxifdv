@@ -243,34 +243,27 @@ export function rodapeAtualizacao(atualizadoEm: number | string | Date | null | 
   return `Atualizado às ${formatHHMM(atualizadoEm, tz)} · puxe para sincronizar`;
 }
 
-/** Estado do `SeloAtualizacao` (cabeçalho das listas): um só indicador de sincronização por tela (RD-0076, RN-VEN-42). */
-export type EstadoSeloAtualizacao = 'ok' | 'atualizando' | 'sem_sinal' | 'sem_resposta';
+/** Estado do selo (regra em `SeloAtualizacao`). */
+export type EstadoSeloAtualizacao = 'ok' | 'sem_sinal';
 
-/** O que o toque no selo faz: Sincronizar (= puxar para baixo), abrir o Perfil (modo sem sinal ligado) ou nada (atualizando). */
-export type AcaoSeloAtualizacao = 'sincronizar' | 'perfil' | 'nenhuma';
+export type AcaoSeloAtualizacao = 'sincronizar' | 'perfil';
 
 export interface DesenhoSeloAtualizacao {
   estado: EstadoSeloAtualizacao;
-  /** Texto visível, curto: "06:30", "Sincronizar", "Atualizando…", "Sem sinal", "Sem resposta". */
+  /** Texto visível, curto: "06:30", "Sincronizar" ou "Sem sinal". */
   texto: string;
   tom: 'neutro' | 'atencao';
   icone: 'sync' | 'alert';
   /** Leitura completa para o leitor de tela (o que a lista mostra). */
   rotuloAcessivel: string;
-  /** Dica do leitor de tela para o toque; null quando o toque não faz nada. */
-  dica: string | null;
+  /** Dica do leitor de tela para o toque. */
+  dica: string;
   acao: AcaoSeloAtualizacao;
 }
 
 /**
- * RD-0076 (T-0153, R-20261110-104300; regra "uma informação, um lugar" e "nenhum aviso solto", RN-VEN-42): o estado da
- * sincronização da lista fica num ÚNICO selo no cabeçalho, ao lado do título (o "↻ 06:30" da imagem T-0153). Ele substitui
- * as faixas "Sem sinal: mostrando só o que o aparelho tem deste período.", "Sem resposta do servidor. Mostrando o que está no
- * aparelho.", o texto "Buscando o restante no servidor…" e o rodapé ("Atualizado às hh:mm · puxe para sincronizar",
- * "Modo sem sinal ligado · desligue no Perfil" e o erro do motor). A fila não entra: está no selo "Na fila" da linha.
- *
- * Prioridade: sem sinal (nada atualiza) > atualizando (o toque ou a consulta estão rodando) > sem resposta > ok.
- * Sem sinal com o modo sem sinal ligado, o toque abre o Perfil, onde ele é desligado; sem rede, o toque tenta sincronizar.
+ * Desenho do selo: a hora da última sincronização ou "Sem sinal".
+ * Sem sinal com o modo sem sinal ligado, o toque abre o Perfil; sem rede, o toque tenta sincronizar.
  */
 export function desenhoSeloAtualizacao(s: {
   atualizadoEm: number | string | Date | null | undefined;
@@ -279,10 +272,6 @@ export function desenhoSeloAtualizacao(s: {
   modoSemSinal: boolean;
   /** Aparelho sem rede (com o modo sem sinal desligado). */
   semRede: boolean;
-  /** Puxar/Sincronizar em andamento ou a tela consultando o servidor. */
-  atualizando: boolean;
-  /** A última sincronização ou a consulta da tela falhou. */
-  semResposta: boolean;
 }): DesenhoSeloAtualizacao {
   const semHora = s.atualizadoEm === null || s.atualizadoEm === undefined || s.atualizadoEm === '';
   const hora = semHora ? null : formatHHMM(s.atualizadoEm as number | string | Date, s.tz);
@@ -296,20 +285,6 @@ export function desenhoSeloAtualizacao(s: {
       rotuloAcessivel: `Sem sinal. A lista mostra o que está no aparelho${daHora}.`,
       dica: s.modoSemSinal ? 'Abre o Perfil para desligar o modo sem sinal' : 'Tenta sincronizar',
       acao: s.modoSemSinal ? 'perfil' : 'sincronizar',
-    };
-  }
-  if (s.atualizando) {
-    return { estado: 'atualizando', texto: 'Atualizando…', tom: 'neutro', icone: 'sync', rotuloAcessivel: 'Atualizando a lista', dica: null, acao: 'nenhuma' };
-  }
-  if (s.semResposta) {
-    return {
-      estado: 'sem_resposta',
-      texto: 'Sem resposta',
-      tom: 'atencao',
-      icone: 'alert',
-      rotuloAcessivel: `Sem resposta do servidor. A lista mostra o que está no aparelho${daHora}.`,
-      dica: 'Tenta de novo',
-      acao: 'sincronizar',
     };
   }
   return {
