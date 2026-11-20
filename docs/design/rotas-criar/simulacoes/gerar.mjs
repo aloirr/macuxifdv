@@ -140,7 +140,7 @@ const telaPrevia = (enderecoBase) => `${nav}
     <section class="painel" aria-label="Prévia da rota">
       <div style="display:flex;flex-direction:column;gap:2px"><h2 style="font-size:20px">Prévia</h2><span class="mut num" style="font-size:13px">19 rotas · 209 visitas · 988 km</span></div>
       <div class="base"><span class="casa">${CASA}</span><span class="t"><b>${enderecoBase[0]}</b><span>${enderecoBase[1]}</span></span><span class="ico" aria-label="Trocar o endereço base">${LAPIS}</span></div>
-      <div class="alertas" aria-label="Alertas"><h3>Alertas</h3><div class="al"><span>3 clientes sem localização ficaram fora.</span><span class="lnk" style="white-space:nowrap">Ver clientes</span></div></div>
+      <div class="alertas" aria-label="Alertas"><h3>Alertas</h3><div class="al"><span>3 clientes ficaram fora: endereço não localizado.</span><span class="lnk" style="white-space:nowrap">Ver clientes</span></div></div>
       ${listaDias}
       <div class="rodape"><span class="btn pri">Salvar rotas</span><span class="btn">Descartar</span></div>
     </section>
