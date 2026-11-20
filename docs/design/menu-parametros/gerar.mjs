@@ -1,7 +1,7 @@
-// Simulação do menu Parâmetros do BKO, versão final (decisões R-20261115-121000 e R-20261115-122000). Gera os HTMLs e os PNGs desta pasta.
+// Simulação 2a do menu Parâmetros do BKO (v1.0.18, R-20261120-191213): o menu de hoje (main e6a3a33) ao lado do proposto,
+// a página /parametros com uma seção aberta e a seção de módulo sem licença. Gera os HTMLs e os PNGs desta pasta.
 // Uso, a partir da raiz do repositório: node docs/design/menu-parametros/gerar.mjs
-// O gerador falha se um balão ou uma nota de simulação cobrir conteúdo da tela, se o menu rolar em 1366×768 (a página pode rolar)
-// ou se o menu, com qualquer grupo aberto (pior caso), passar da lista visível.
+// Falha se um balão ou uma nota cobrir conteúdo, se o menu rolar em 1366×768 com qualquer grupo aberto ou se um item for cortado.
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -10,25 +10,56 @@ import { abrirNavegador } from '../_comum/navegador.mjs';
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const LOGO = '../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-grafite.svg';
 
-// Menu final (perfil Administrador). Grupos e itens em ordem alfabética (ADR 0050), com duas exceções decididas:
-// Parâmetros fica fixo no fim, logo acima de Sistema (D1); entrada com uma página só é item direto, sem sanfona (D9).
-// { g, itens }: grupo com sanfona. { i }: item direto de primeiro nível.
+// Menu de hoje no main (sem `menuParametros`; perfil Administrador, todos os módulos): grupos e itens como o shell monta
+// (`apps/web/lib/menu-bko.ts`, ordem alfabética). `[item, destino]`: destino na proposta, quando muda.
+const HOJE = [
+  ['Acesso', [['Aparelhos'], ['Usuários']]],
+  ['Análise', [['Indicadores'], ['Metas'], ['Painel da equipe'], ['Ranking'], ['Trajeto do dia']]],
+  ['Cadastros', [['Carteira'], ['Clientes'], ['Coordenadas sugeridas'], ['Filiais'], ['Formas de pagamento e prazos']]],
+  ['Comercial', [['Plano de RV', 'Parâmetros'], ['Transportadoras', 'Cadastros']]],
+  ['Comunicação', [['Alertas'], ['Recados'], ['Regras de alerta', 'Parâmetros']]],
+  ['Operação', [['Aprovações'], ['Pedidos'], ['Rotas'], ['Visitas']]],
+  ['Parâmetros', [['Integração', 'Seção']]],
+  ['Pesquisa', [['Pesquisas', 'Item direto']]],
+  ['Produtos', [['Catálogo'], ['Fotos em lote'], ['Marcas concorrentes'], ['Preço e custo'], ['Tabelas de preço']]],
+  ['Sistema', [['Auditoria'], ['Carga por arquivo'], ['Integração ERP']]],
+  ['Trade', [['Cadastros'], ['Indicadores']]],
+  ['Treinamento', [['Trilhas', 'Item direto']]],
+];
+
+// Menu proposto (ADR 0060: o que o SDK monta com `menuParametros: true`). { g, itens }: grupo; { i }: item direto (D9).
+// Parâmetros fixo logo acima de Sistema (D1).
 const MENU = [
   { g: 'Acesso', itens: ['Aparelhos', 'Usuários'] },
-  { g: 'Análise', itens: ['Indicadores', 'Metas', 'Painel da equipe', 'Ranking'] },
+  { g: 'Análise', itens: ['Indicadores', 'Metas', 'Painel da equipe', 'Ranking', 'Trajeto do dia'] },
   { g: 'Cadastros', itens: ['Carteira', 'Clientes', 'Coordenadas sugeridas', 'Filiais', 'Formas de pagamento e prazos', 'Transportadoras'] },
   { g: 'Comunicação', itens: ['Alertas', 'Recados'] },
   { g: 'Operação', itens: ['Aprovações', 'Pedidos', 'Rotas', 'Visitas'] },
   { i: 'Pesquisa', modulo: true },
-  { g: 'Produtos', itens: ['Catálogo', 'Marcas concorrentes', 'Preço e custo', 'Tabelas de preço'] },
+  { g: 'Produtos', itens: ['Catálogo', 'Fotos em lote', 'Marcas concorrentes', 'Preço e custo', 'Tabelas de preço'] },
   { g: 'Trade', itens: ['Cadastros', 'Indicadores'], modulo: true },
   { i: 'Treinamento', modulo: true },
   { i: 'Parâmetros' },
   { g: 'Sistema', itens: ['Auditoria', 'Carga por arquivo', 'Integração ERP'] },
 ];
-// Seções da página Parâmetros (/parametros/<secao>), em ordem alfabética.
-const SECOES = ['Acesso', 'Alertas', 'Calendário', 'Clientes', 'Início', 'Integração', 'Metas e RV', 'Pedidos', 'Pesquisa', 'Produtos', 'Trade', 'Treinamento', 'Visitas'];
-// Cenário único de todas as telas: empresa sem a licença de Pesquisa e de Treinamento; com Trade.
+
+// Página Parâmetros: seções (ordem alfabética) e painéis (ordem do código). l: só leitura; f: falta o painel (lacuna do 2b).
+const SECOES = [
+  ['Acesso', [['Perfis de acesso'], ['Módulos'], ['Promotor vê pedidos']]],
+  ['Alertas', [['Alertas da equipe'], ['Produtividade do dia']]],
+  ['Calendário', [['Feriados'], ['Almoço'], ['Rastreamento no expediente'], ['Ausências']]],
+  ['Clientes', [['Farol'], ['Curvas ABC'], ['Quem vê cada tipo de documento'], ['Exceções por documento']]],
+  ['Início', [['Dias úteis'], ['Frases do dia']]],
+  ['Integração', [['De-para']]],
+  ['Metas e RV', [['Plano de RV']]],
+  ['Pedidos', [['Alçadas', 'l'], ['Frete padrão', 'f']]],
+  ['Pesquisa', [['Vigência', 'l'], ['Construtor', 'l'], ['Fotos', 'l']]],
+  ['Produtos', [['Desconto máximo padrão'], ['Medidas'], ['Catálogo', 'f']]],
+  ['Trade', [['Validade', 'l'], ['Visita e coleta', 'l'], ['Gôndola', 'l']]],
+  ['Treinamento', [['Quiz e lição', 'l'], ['XP', 'l'], ['Níveis e ranking', 'l']]],
+  ['Visitas', [['Motivos de não venda'], ['Fotos do PDV'], ['Etapa pendente']]],
+];
+// Cenário único: empresa sem a licença de Pesquisa e de Treinamento; com Trade. Perfil Administrador.
 const SEM = ['Pesquisa', 'Treinamento'];
 const DICA = 'Contrate o módulo para usar';
 
@@ -39,7 +70,7 @@ const cadeado = (t = 14) =>
 const pontos = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>`;
 const slug = (t) => t.normalize('NFD').replace(/[^a-zA-Z]/g, '').toLowerCase();
 
-// aberto: grupo aberto; ativo: [entrada de primeiro nível, item] selecionados; dica: entrada com o balão visível (passar do mouse).
+// Menu lateral proposto. aberto: grupo aberto; ativo: [entrada de primeiro nível, item]; dica: entrada com o balão visível.
 function menu({ aberto = null, ativo = [], dica = null } = {}) {
   const [ativoG, ativoI] = ativo;
   const linhas = MENU.map((e) => {
@@ -86,7 +117,7 @@ body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background
 .rodape{margin-top:12px;border-top:1px solid #2B3743;padding:12px 8px 0;display:flex;flex-direction:column}
 .rodape b{font-size:15px}.rodape span{font-size:12px;color:#C9CED5}.sair{font-size:13px;font-weight:600;color:#C9CED5;margin-top:8px}
 main{flex:1;min-width:0;padding:28px 32px;display:flex;flex-direction:column;gap:20px;max-width:1212px}
-h1{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;font-weight:700;font-size:24px;line-height:1.2;min-height:42px;display:flex;align-items:center}
+h1{font-weight:700;font-size:24px;line-height:1.2;min-height:42px;display:flex;align-items:center}
 .corpo{display:flex;gap:24px;min-height:0;flex:1}
 .secoes{width:200px;flex-shrink:0;display:flex;flex-direction:column;gap:2px}
 .sec{display:flex;align-items:center;justify-content:space-between;height:40px;padding:0 12px 0 16px;border-radius:10px;font-size:15px;color:#34404D;position:relative}
@@ -96,7 +127,7 @@ h1{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;font-weight:
 .conteudo{flex:1;min-width:0;display:flex;flex-direction:column;gap:20px}
 .quadro{background:#fff;border:1px solid #DFE2E6;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
 .quadro .topo{display:flex;align-items:center;justify-content:space-between;gap:12px}
-h2{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;font-weight:700;font-size:17px}
+h2{font-weight:700;font-size:17px}
 .grade{display:grid;grid-template-columns:repeat(2,minmax(0,300px));gap:16px 32px}
 .campo{display:flex;flex-direction:column;gap:4px;font-size:15px;font-weight:600}
 .campo small{font-size:13px;font-weight:400;color:#4A5562;line-height:1.35}
@@ -108,189 +139,127 @@ h2{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;font-weight:
 .btn.p{background:#1E3350;color:#fff}
 .btn.s{border:1px solid #C9CED5;background:#fff;color:#16202A}
 .btn.d{background:#8B96A3;color:#fff}
-.abc{display:grid;grid-template-columns:240px repeat(3,minmax(0,1fr));gap:12px 16px;align-items:center}
-.abc .col{font-size:13px;font-weight:600;color:#4A5562}
-fieldset{border:1px solid #ECEEF1;border-radius:12px;padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px}
-legend{font-size:15px;font-weight:600;padding:0 4px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:15px}
-th{text-align:left;font-size:13px;font-weight:600;color:#4A5562;padding:8px 10px;border-bottom:1px solid #DFE2E6;white-space:nowrap}
+th{text-align:left;font-size:12px;font-weight:600;color:#4A5562;padding:8px 10px;border-bottom:1px solid #DFE2E6;white-space:nowrap}
 td{padding:0 10px;height:44px;border-bottom:1px solid #ECEEF1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 tr:last-child td{border-bottom:0}
-.n{text-align:right;font-variant-numeric:tabular-nums}
-.sub td:first-child{padding-left:28px;color:#34404D}
-.forte{font-weight:600}
 .selo{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
 .ok{color:#1D6B4F;background:#E2F1EA}.ne{color:#34404D;background:#ECEEF1}
 .ac{width:52px;text-align:center;padding:0}
 .dots{display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;border-radius:10px;color:#4A5562}
-.mais{width:44px;height:44px;border:1px solid #C9CED5;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;color:#16202A}
 .dias{display:flex;gap:8px}
 .dia{width:52px;height:44px;border-radius:10px;border:1px solid #C9CED5;background:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:#34404D}
 .dia.on{background:#1E3350;border-color:#1E3350;color:#fff}
-.hj{color:#fff;background:#1E3350;margin-right:8px}
-.campo.leitura{flex-direction:row;justify-content:space-between;align-items:baseline;gap:16px}
-.leitura .valor{font-size:15px;font-weight:400;font-variant-numeric:tabular-nums;text-align:right}
-.leitura .valor i{display:block;font-style:normal;font-size:13px;font-weight:400;color:#4A5562}
-.nova{display:flex;gap:8px}
-.nova .input{flex:1;color:#4A5562;font-weight:400}
+.chave{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600}
+.trilho{width:44px;height:26px;border-radius:999px;background:#1E3350;position:relative}
+.trilho:after{content:'';position:absolute;right:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff}
 .vazio{align-items:center;justify-content:center;text-align:center;padding:56px 16px;gap:10px;color:#34404D}
 .vazio b{font-size:15px;color:#16202A}
 .nota{font-size:12px;line-height:1.5;color:#34404D;background:#fff;border:1px solid #DFE2E6;border-left:4px solid #C9CED5;border-radius:8px;padding:8px 12px;box-shadow:0 4px 12px rgba(22,32,42,.08);z-index:9}
 .secoes .nota{margin-top:auto}
-.nota.solta{position:absolute;right:20px;bottom:16px;max-width:620px}
-.arvore{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-.no{border:1px solid #ECEEF1;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;font-size:13px;color:#34404D}
-.no b{font-size:13px;color:#16202A;display:flex;align-items:center;justify-content:space-between;gap:6px}
-.no.mod b{color:#5B6673}
-.no em{font-style:normal;font-size:12px;color:#4A5562}
+.comp{display:grid;grid-template-columns:250px 250px minmax(0,1fr);gap:20px;align-items:start}
+.col{display:flex;flex-direction:column;gap:8px}
+.col h2{font-size:15px}
+.mini{background:#16202A;border-radius:12px;padding:10px 8px;display:flex;flex-direction:column;gap:2px}
+.mini .titulo{height:26px}
+.mini .item{min-height:26px;padding:3px 8px 3px 16px;font-size:13px;line-height:18px;justify-content:space-between;gap:6px}
+.mini .item b{font-size:12px;font-weight:600;color:#C9CED5;white-space:nowrap}
+.mini .titulo b{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;color:#C9CED5}
+.arv{background:#fff;border:1px solid #DFE2E6;border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
+.no{display:flex;flex-direction:column;gap:2px;font-size:13px;color:#34404D}
+.no > b{font-size:13px;color:#16202A;display:flex;align-items:center;gap:6px}
+.no > b .tag{margin-left:auto}
+.no.mod > b{color:#5B6673}
+.no span{display:flex;justify-content:space-between;gap:8px}
+.tag{font-style:normal;font-size:12px;font-weight:600;border-radius:999px;padding:0 6px;line-height:18px;white-space:nowrap}
+.tag.l{color:#34404D;background:#ECEEF1}.tag.f{color:#7A4F00;background:#FFF1D6}
 `;
 
-// Página com o menu lateral. nota: texto da simulação; vai na coluna das seções (abaixo da lista) ou solta no canto.
-const pagina = (titulo, opcoes, corpo, notaSolta = '') =>
-  `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>${titulo}</title><style>${CSS}</style><body>${menu(opcoes)}<main>${corpo}</main>${notaSolta ? `<div class="nota solta">${notaSolta}</div>` : ''}${SCRIPT}</body></html>`;
+const pagina = (titulo, opcoes, corpo) =>
+  `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>${titulo}</title><style>${CSS}</style><body>${menu(opcoes)}<main>${corpo}</main>${SCRIPT}</body></html>`;
 
-// Página Parâmetros: lista de seções à esquerda (a selecionada em branco, as de módulo sem licença com cadeado) e o conteúdo à direita.
+// Página Parâmetros: lista de seções à esquerda (a selecionada em branco; as de módulo sem licença com cadeado) e o conteúdo à direita.
 const parametros = (secao, conteudo, nota) =>
   pagina(
     `Parâmetros — ${secao}`,
     { ativo: ['Parâmetros'] },
-    `<h1>Parâmetros</h1><div class="corpo"><nav class="secoes" aria-label="Seções de Parâmetros">${SECOES.map((s) =>
+    `<h1>Parâmetros</h1><div class="corpo"><nav class="secoes" aria-label="Seções de Parâmetros">${SECOES.map(([s]) =>
       SEM.includes(s)
         ? `<a class="sec bloq${s === secao ? ' ativo" aria-current="page' : ''}"><span>${s}</span>${cadeado()}</a>`
         : `<a class="sec${s === secao ? ' ativo" aria-current="page' : ''}">${s}</a>`,
     ).join('')}<div class="nota">${nota}</div></nav><div class="conteudo">${conteudo}</div></div>`,
   );
 
-const campo = (rotulo, ajuda, valor, unidade, editado = false) =>
-  `<label class="campo">${rotulo}<small>${ajuda}</small><span class="input${editado ? ' editado' : ''}">${valor}<i>${unidade}</i></span></label>`;
-const linhaMenu = () => `<td class="ac"><span class="dots">${pontos}</span></td>`;
+const campo = (rotulo, valor, unidade, editado = false) =>
+  `<label class="campo">${rotulo}<span class="input${editado ? ' editado' : ''}">${valor}<i>${unidade}</i></span></label>`;
+const linhaMenu = `<td class="ac"><span class="dots">${pontos}</span></td>`;
 
-// ---------- 01: menu lateral final ----------
+// ---------- 01: menu de hoje × proposto, e a árvore da página Parâmetros ----------
+const colHoje = HOJE.map(
+  ([g, itens]) => `<div class="titulo"><span>${g}</span></div>${itens.map(([i, para]) => `<div class="item"><span>${i}</span>${para ? `<b>→ ${para}</b>` : ''}</div>`).join('')}`,
+).join('');
+const colProposto = MENU.map((e) => {
+  const nome = e.g ?? e.i;
+  const bloq = e.modulo && SEM.includes(nome);
+  if (e.i) return `<div class="titulo${bloq ? ' bloq' : ''}"><span>${nome}</span>${bloq ? cadeado(12) : '<b>item direto</b>'}</div>`;
+  return `<div class="titulo"><span>${nome}</span></div>${e.itens.map((i) => `<div class="item"><span>${i}</span></div>`).join('')}`;
+}).join('');
+const TAG = { l: '<i class="tag l">leitura</i>', f: '<i class="tag f">falta</i>' };
+// Selo "leitura" no título quando todos os painéis da seção são só leitura; por painel, só quando a seção mistura.
+const arvore = SECOES.map(([s, paineis]) => {
+  const todaLeitura = paineis.every(([, t]) => t === 'l');
+  return `<div class="no${SEM.includes(s) ? ' mod' : ''}"><b>${s}${SEM.includes(s) ? cadeado(12) : ''}${todaLeitura ? TAG.l : ''}</b>${paineis.map(([p, t]) => `<span>${p}${t && !todaLeitura ? TAG[t] : ''}</span>`).join('')}</div>`;
+}).join('');
 const html01 = pagina(
-  'Menu lateral',
-  { aberto: 'Trade', ativo: ['Trade', 'Indicadores'], dica: 'Treinamento' },
-  `<h1>Menu lateral</h1>
-  <section class="quadro" style="margin-left:300px"><h2>Primeiro nível</h2><div class="arvore">${MENU.map((e) => {
-    const nome = e.g ?? e.i;
-    const bloq = e.modulo && SEM.includes(nome);
-    const conteudo = e.g ? e.itens.join('<br>') : `<em>Item direto${nome === 'Parâmetros' ? ': seções na página' : ''}</em>`;
-    return `<div class="no${bloq ? ' mod' : ''}"><b>${nome}${bloq ? cadeado(12) : ''}</b><span>${conteudo}</span></div>`;
-  }).join('')}</div></section>`,
-  '<b>Simulação.</b> Empresa sem Pesquisa e Treinamento: os dois aparecem com cadeado e não abrem; o balão aparece no passar do mouse, no foco e no clique (aqui, em Treinamento). Trade tem licença e está aberto. O quadro serve só para a aprovação.',
+  'Menu de hoje e proposto',
+  { ativo: ['Parâmetros'] },
+  `<h1>Menu do BKO: hoje e proposto</h1>
+  <div class="comp">
+  <section class="col"><h2>Hoje (main)</h2><div class="mini">${colHoje}</div></section>
+  <section class="col"><h2>Proposto</h2><div class="mini">${colProposto}</div></section>
+  <section class="col"><h2>Página Parâmetros · 13 seções · 34 painéis</h2><div class="arv">${arvore}</div>
+  <div class="nota"><b>Simulação.</b> À esquerda, o menu proposto com Parâmetros selecionado; empresa sem Pesquisa e Treinamento (cadeado). "falta": painel ainda não existe. Hoje, 28 dos 32 painéis que já existem não abrem (sem a rota /parametros).</div></section>
+  </div>`,
 );
 
-// ---------- 02: Clientes ----------
-// Curvas ABC em grade (RD-P01): linhas Curva A e Curva B (rótulo e ajuda uma vez) × colunas das três dimensões, só com os campos.
-const abc = [
-  ['Curva A a partir de', 'Participação no total do mês.', ['20', '20', '25']],
-  ['Curva B a partir de', 'Abaixo disso, curva C.', ['5', '5', '10']],
+// ---------- 02: Parâmetros › Calendário (seção que mais cresceu desde 15/11) ----------
+const feriados = [
+  ['01/01/2026', 'Confraternização Universal', 'Nacional'],
+  ['17/02/2026', 'Carnaval', 'Nacional'],
+  ['05/09/2026', 'Elevação do Amazonas a província', 'Empresa'],
+  ['24/10/2026', 'Aniversário de Manaus', 'Empresa'],
 ];
-const caixa = (valor, unidade, rotulo) => `<span class="input" aria-label="${rotulo}">${valor}<i>${unidade}</i></span>`;
-const dims = ['Faturamento', 'Volume', 'Frequência'];
+const dias = [['Dom', 0], ['Seg', 1], ['Ter', 1], ['Qua', 1], ['Qui', 1], ['Sex', 1], ['Sáb', 1]];
 const html02 = parametros(
-  'Clientes',
-  `<section class="quadro"><h2>Farol</h2><div class="grade">
-  ${campo('Cliente verde até', 'Dias sem compra.', '30', 'dias')}
-  ${campo('Cliente amarelo até', 'Acima disso, vermelho.', '60', 'dias', true)}
-  ${campo('Vendedor verde a partir de', 'Positivação do mês.', '70', '%')}
-  ${campo('Vendedor amarelo a partir de', 'Abaixo disso, vermelho.', '50', '%')}
-  </div><div class="acoes"><span class="btn s">Desfazer</span><span class="btn p">Salvar farol</span></div></section>
-  <section class="quadro"><h2>Curvas ABC</h2><div class="abc" role="group" aria-label="Curvas ABC"><span></span>${dims.map((d) => `<span class="col">${d}</span>`).join('')}
-  ${abc.map(([rot, ajuda, vals]) => `<div class="campo">${rot}<small>${ajuda}</small></div>${vals.map((v, i) => caixa(v, '%', `${rot}, ${dims[i]}`)).join('')}`).join('')}
-  </div><div class="acoes"><span class="btn d">Salvar curvas</span></div></section>`,
-  '<b>Simulação.</b> Farol e Curvas ABC saem de Cadastros › Clientes. Só o painel alterado tem Salvar ativo.',
-);
-
-// ---------- 03: Pedidos (só Alçadas; Formas de pagamento e prazos foi para Cadastros, R-20261115-122000) ----------
-const html03 = parametros(
-  'Pedidos',
-  `<section class="quadro"><h2>Alçadas</h2><table><colgroup><col style="width:40%"><col></colgroup><thead><tr><th>Desconto do pedido</th><th>Quem aprova</th></tr></thead><tbody>
-  <tr><td>Até 5%</td><td>Vendedor (aprovado na hora)</td></tr><tr><td>Até 10%</td><td>Supervisor</td></tr><tr><td>Até 15%</td><td>Gerente</td></tr><tr><td>Acima de 15%</td><td>Analista comercial</td></tr>
-  </tbody></table></section>`,
-  '<b>Simulação.</b> Alçadas (só os limites) sai do antigo Comercial; as decisões recentes vão para Operação › Pedidos (D5). Só leitura, como hoje (P6).',
-);
-
-// ---------- 04: Início ----------
-// 32 frases = 30 padrão + 2 da empresa (RN-CORE-41); a tela mostra as primeiras. A frase do dia leva o selo "Hoje" na linha (RD-P02).
-const frases = [
-  ['Cada visita é uma chance de fazer o cliente voltar.', 'Padrão', true, false],
-  ['Organize a rota antes de sair: menos volta, mais venda.', 'Padrão', true, true],
-  ['Cliente bem atendido indica outro cliente.', 'Padrão', true, false],
-  ['Gôndola cheia vende sozinha.', 'Padrão', false, false],
-  ['Ouça o cliente antes de oferecer.', 'Padrão', true, false],
-];
-const dias = [['Dom', 0], ['Seg', 1], ['Ter', 1], ['Qua', 1], ['Qui', 1], ['Sex', 1], ['Sáb', 0]];
-const html04 = parametros(
-  'Início',
-  `<section class="quadro"><h2>Dias úteis</h2>
-  <div class="campo" role="group" aria-label="Dias úteis"><small>Base da meta do dia.</small><div class="dias">${dias.map(([d, on]) => `<span class="dia${on ? ' on' : ''}" aria-pressed="${on ? 'true' : 'false'}">${d}</span>`).join('')}</div></div>
-  <div class="acoes"><span class="btn d">Salvar dias úteis</span></div></section>
-  <section class="quadro"><h2>Frases do dia · 32</h2>
-  <div class="nova"><span class="input">Nova frase</span><span class="btn p">Adicionar frase</span></div>
-  <table><colgroup><col style="width:44px"><col><col style="width:120px"><col style="width:120px"><col style="width:52px"></colgroup><thead><tr><th class="n">#</th><th>Frase</th><th>Origem</th><th>Situação</th><th class="ac"></th></tr></thead><tbody>
-  ${frases.map(([t, o, a, h], i) => `<tr><td class="n">${i + 1}</td><td>${h ? '<span class="selo hj">Hoje</span>' : ''}${t}</td><td>${o}</td><td><span class="selo ${a ? 'ok' : 'ne'}">${a ? 'Ativa' : 'Desativada'}</span></td>${linhaMenu()}</tr>`).join('')}
-  </tbody></table></section>`,
-  '<b>Simulação.</b> Dias úteis saem de Análise › Metas; Frases do dia ganham tela (30 padrão + 2 da empresa; aparecem as primeiras). Subir, descer, editar e remover ficam no "⋯".',
-);
-
-// ---------- 05: Produtos (com Catálogo, D6) ----------
-const medidas = [
-  ['CX', 'Caixa', true, 412],
-  ['FD', 'Fardo', true, 96],
-  ['PCT', 'Pacote', true, 158],
-  ['UN', 'Unidade', true, 1203],
-];
-const html05 = parametros(
-  'Produtos',
-  `<section class="quadro"><h2>Desconto máximo padrão</h2><div class="grade">
-  <div class="campo"><small>Vale para o produto sem desconto próprio.</small><span class="input" aria-label="Desconto máximo padrão">10<i>%</i></span></div>
-  </div><div class="acoes"><span class="btn d">Salvar desconto</span></div></section>
-  <section class="quadro"><div class="topo"><h2>Medidas · 4</h2><span class="btn p">Nova medida</span></div>
-  <table><colgroup><col style="width:110px"><col><col style="width:120px"><col style="width:110px"><col style="width:52px"></colgroup><thead><tr><th>Sigla</th><th>Descrição</th><th>Situação</th><th class="n">Produtos</th><th class="ac"></th></tr></thead><tbody>
-  ${medidas.map(([s, d, a, n]) => `<tr><td class="forte">${s}</td><td>${d}</td><td><span class="selo ${a ? 'ok' : 'ne'}">${a ? 'Ativa' : 'Inativa'}</span></td><td class="n">${n.toLocaleString('pt-BR')}</td>${linhaMenu()}</tr>`).join('')}
+  'Calendário',
+  `<section class="quadro"><div class="topo"><h2>Feriados · 2026</h2><span class="btn s">Novo feriado</span></div>
+  <table><colgroup><col style="width:130px"><col><col style="width:120px"><col style="width:52px"></colgroup><thead><tr><th>Data</th><th>Feriado</th><th>Origem</th><th class="ac"></th></tr></thead><tbody>
+  ${feriados.map(([d, n, o]) => `<tr><td>${d}</td><td>${n}</td><td><span class="selo ne">${o}</span></td>${o === 'Nacional' ? '<td></td>' : linhaMenu}</tr>`).join('')}
   </tbody></table></section>
-  <section class="quadro"><h2>Catálogo</h2><div class="grade">
-  ${campo('Limite da aplicação', 'De 100 a 2.000.', '2.000', 'caracteres')}
-  </div><div class="acoes"><span class="btn d">Salvar catálogo</span></div></section>`,
-  '<b>Simulação.</b> Desconto e Medidas saem das abas de Produtos › Preço e custo. Catálogo é tela nova (D6, RN-CAT-11).',
+  <section class="quadro"><h2>Almoço</h2><div class="grade">${campo('Início', '12:00', '')}${campo('Fim', '13:00', '')}</div>
+  <div class="acoes"><span class="btn d">Salvar almoço</span></div></section>
+  <section class="quadro"><div class="topo"><h2>Rastreamento no expediente</h2><span class="chave"><span class="trilho" role="switch" aria-checked="true"></span>Ligado</span></div>
+  <div class="campo" role="group" aria-label="Expediente">Expediente<div class="dias">${dias.map(([d, on]) => `<span class="dia${on ? ' on' : ''}" aria-pressed="${on ? 'true' : 'false'}">${d}</span>`).join('')}</div></div>
+  <div class="grade">${campo('A cada', '200', 'm', true)}${campo('No mínimo a cada', '5', 'min')}</div>
+  <div class="acoes"><span class="btn s">Desfazer</span><span class="btn p">Salvar rastreamento</span></div></section>
+  <section class="quadro"><div class="topo"><h2>Ausências</h2><span class="btn s">Nova ausência</span></div>
+  <table><colgroup><col><col style="width:130px"><col style="width:130px"><col style="width:52px"></colgroup><thead><tr><th>Usuário</th><th>De</th><th>Até</th><th class="ac"></th></tr></thead><tbody>
+  <tr><td>Carlos Lima</td><td>23/11/2026</td><td>27/11/2026</td>${linhaMenu}</tr><tr><td>Rita Alves</td><td>01/12/2026</td><td>05/12/2026</td>${linhaMenu}</tr>
+  </tbody></table></section>`,
+  '<b>Simulação.</b> Só o painel alterado tem Salvar ativo.',
 );
 
-// ---------- 06: Trade (com licença; só leitura até existir a rota de gravação, P4/RD-P07) ----------
-// "Padrão: X" só quando o valor difere do padrão (RD-P05): aqui, Em atenção até (45; padrão 30).
-// O mesmo arranjo do código: rótulo à esquerda em 600, valor à direita em 400, "Padrão: X" embaixo.
-const leitura = (rotulo, valor, unidade, padrao = '') =>
-  `<div class="campo leitura"><span>${rotulo}</span><span class="valor">${valor}${unidade === '%' ? '%' : unidade ? ` ${unidade}` : ''}${padrao ? `<i>Padrão: ${padrao}</i>` : ''}</span></div>`;
-const html06 = parametros(
-  'Trade',
-  `<section class="quadro"><h2>Validade</h2><div class="grade">
-  ${leitura('Crítica até', '7', 'dias')}
-  ${leitura('Em atenção até', '45', 'dias', '30 dias')}
-  </div></section>
-  <section class="quadro"><h2>Visita e coleta</h2><div class="grade">
-  ${leitura('Permanência mínima', '10', 'min')}
-  ${leitura('Variação de preço sem confirmar', '50', '%')}
-  </div></section>
-  <section class="quadro"><h2>Gôndola</h2><div class="grade">
-  ${leitura('Peso do parcial na conformidade', '0', '')}
-  </div></section>`,
-  '<b>Simulação.</b> Os 5 parâmetros do Promotor: 3 da gaveta de Trade › Cadastros e 2 sem tela hoje. Só leitura: a rota de gravação é lote futuro.',
-);
-
-// ---------- 07: Pesquisa sem licença ----------
-const html07 = parametros(
+// ---------- 03: Pesquisa sem licença ----------
+const html03 = parametros(
   'Pesquisa',
   `<section class="quadro vazio">${cadeado(28)}<b>${DICA}</b></section>`,
-  '<b>Simulação.</b> Seção de módulo sem licença: aparece com cadeado na lista; ao ser escolhida, o lado direito mostra só o aviso, sem balão.',
+  '<b>Simulação.</b> Seção de módulo sem licença: cadeado na lista; escolhida, mostra só o aviso.',
 );
 
 const TELAS = [
-  ['01-menu-lateral', html01],
-  ['02-parametros-clientes', html02],
-  ['03-parametros-pedidos', html03],
-  ['04-parametros-inicio', html04],
-  ['05-parametros-produtos', html05],
-  ['06-parametros-trade', html06],
-  ['07-parametros-pesquisa-sem-licenca', html07],
+  ['01-menu-hoje-e-proposto', html01],
+  ['02-parametros-calendario', html02],
+  ['03-parametros-pesquisa-sem-licenca', html03],
 ];
 
 const browser = await abrirNavegador();
@@ -302,16 +271,15 @@ for (const [nome, html] of TELAS) {
   await page.goto(pathToFileURL(arq).href);
   await page.waitForSelector('body[data-pronto]');
   const info = JSON.parse(await page.evaluate(() => document.body.dataset.info));
-  // Fundo do último elemento do menu e do conteúdo: nada pode passar da lista visível do menu.
   const altura = await page.evaluate(() => {
     const fundo = (sel) => Math.max(...[...document.querySelectorAll(sel)].map((e) => e.getBoundingClientRect().bottom));
-    return { menu: Math.round(fundo('.lista > *')), limiteMenu: Math.round(document.querySelector('.lista').getBoundingClientRect().bottom), main: Math.round(fundo('main *')) };
+    return { menu: Math.round(fundo('.lista > *')), limiteMenu: Math.round(document.querySelector('.lista').getBoundingClientRect().bottom) };
   });
   if (info.conflitos.length || altura.menu > altura.limiteMenu) falhou = true;
   await page.screenshot({ path: join(AQUI, `${nome}.png`), fullPage: true });
   console.log(nome, JSON.stringify({ conflitos: info.conflitos, ...altura }));
 }
-// Pior caso do menu: cada grupo aberto, um de cada vez (sem gravar arquivo), em 1366×768.
+// Pior caso do menu proposto: cada grupo aberto, um de cada vez (sem gravar arquivo), em 1366×768.
 const base = `<base href="${pathToFileURL(AQUI + '/').href}">`;
 let pior = { grupo: '', menu: 0, limiteMenu: 0 };
 for (const e of MENU.filter((x) => x.g && !(x.modulo && SEM.includes(x.g)))) {
